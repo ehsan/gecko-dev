@@ -325,7 +325,7 @@ protected:
   Cleanup();
 
   nsresult
-  StartStopBluetooth(bool aStart, bool aIsStartup);
+  StartStopBluetooth(bool aStart);
 
   /** 
    * Platform specific startup functions go here. Usually deals with member

@@ -85,7 +85,7 @@ public:
   {
     mTarget = aTarget;
   }
-  bool Equals(Touch* aTouch);
+  bool Equals(nsIDOMTouch* aTouch);
 
   virtual JSObject* WrapObject(JSContext* aCx,
                                JS::Handle<JSObject*> aScope) MOZ_OVERRIDE;
@@ -105,10 +105,6 @@ public:
   float RotationAngle() const { return mRotationAngle; }
   float Force() const { return mForce; }
 
-  nsCOMPtr<EventTarget> mTarget;
-  nsIntPoint mRefPoint;
-  bool mChanged;
-  uint32_t mMessage;
   int32_t mIdentifier;
   CSSIntPoint mPagePoint;
   CSSIntPoint mClientPoint;

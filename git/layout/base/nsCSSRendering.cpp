@@ -4761,9 +4761,7 @@ nsImageRenderer::Draw(nsPresContext*       aPresContext,
       if (mPaintServerFrame) {
         nsSVGIntegrationUtils::DrawPaintServer(
             &aRenderingContext, mForFrame, mPaintServerFrame, graphicsFilter,
-            aDest, aFill, aDest.TopLeft(), aDirtyRect, mSize,
-            mFlags & FLAG_SYNC_DECODE_IMAGES ?
-              nsSVGIntegrationUtils::FLAG_SYNC_DECODE_IMAGES : 0);
+            aDest, aFill, aDest.TopLeft(), aDirtyRect, mSize);
       } else {
         NS_ASSERTION(mImageElementSurface.mSurface, "Surface should be ready.");
         nsRefPtr<gfxDrawable> surfaceDrawable =

@@ -1510,7 +1510,6 @@ IonBuilder::inlineBailout(CallInfo &callInfo)
     current->add(MBail::New());
 
     MConstant *undefined = MConstant::New(UndefinedValue());
-    current->add(undefined);
     current->push(undefined);
     return InliningStatus_Inlined;
 }

@@ -523,8 +523,7 @@ LockedFile::SetLocation(JSContext* aCx,
   }
 
   uint64_t location;
-  JS::Rooted<JS::Value> value(aCx, aLocation);
-  if (!JS::ToUint64(aCx, value, &location)) {
+  if (!JS::ToUint64(aCx, aLocation, &location)) {
     return NS_ERROR_TYPE_ERR;
   }
 

@@ -540,8 +540,7 @@ private:
     JS::CompartmentOptions options;
     options.setZone(JS::SystemZone)
            .setVersion(JSVERSION_LATEST);
-    mGlobal = JS_NewGlobalObject(mContext, &sGlobalClass, nullptr,
-                                 JS::DontFireOnNewGlobalHook, options);
+    mGlobal = JS_NewGlobalObject(mContext, &sGlobalClass, nullptr, options);
     NS_ENSURE_TRUE(mGlobal, NS_ERROR_OUT_OF_MEMORY);
 
     JSAutoCompartment ac(mContext, mGlobal);
@@ -552,9 +551,6 @@ private:
 
     if (!JS_DefineFunctions(mContext, mGlobal, PACGlobalFunctions))
       return NS_ERROR_FAILURE;
-
-    JS::Rooted<JSObject*> rootedGlobal(mContext, mGlobal);
-    JS_FireOnNewGlobalObject(mContext, rootedGlobal);
 
     return NS_OK;
   }

@@ -54,7 +54,7 @@ using mozilla::RangedPtr;
  * Call js_strtod_harder to get the correct answer.
  */
 static bool
-ComputeAccurateDecimalInteger(ThreadSafeContext *cx,
+ComputeAccurateDecimalInteger(ExclusiveContext *cx,
                               const jschar *start, const jschar *end, double *dp)
 {
     size_t length = end - start;
@@ -188,7 +188,7 @@ js::ParseDecimalNumber(const JS::TwoByteChars chars)
 }
 
 bool
-js::GetPrefixInteger(ThreadSafeContext *cx, const jschar *start, const jschar *end, int base,
+js::GetPrefixInteger(ExclusiveContext *cx, const jschar *start, const jschar *end, int base,
                      const jschar **endp, double *dp)
 {
     JS_ASSERT(start <= end);
@@ -1390,18 +1390,26 @@ js::NumberValueToStringBuffer(JSContext *cx, const Value &v, StringBuffer &sb)
     return sb.appendInflated(cstr, cstrlen);
 }
 
-static void
-CharsToNumber(ThreadSafeContext *cx, const jschar *chars, size_t length, double *result)
+bool
+js::StringToNumber(ExclusiveContext *cx, JSString *str, double *result)
 {
+    size_t length = str->length();
+    const jschar *chars = str->getChars(NULL);
+    if (!chars)
+        return false;
+
     if (length == 1) {
         jschar c = chars[0];
-        if ('0' <= c && c <= '9')
+        if ('0' <= c && c <= '9') {
             *result = c - '0';
-        else if (unicode::IsSpace(c))
+            return true;
+        }
+        if (unicode::IsSpace(c)) {
             *result = 0.0;
-        else
-            *result = js_NaN;
-        return;
+            return true;
+        }
+        *result = js_NaN;
+        return true;
     }
 
     const jschar *end = chars + length;
@@ -1421,10 +1429,10 @@ CharsToNumber(ThreadSafeContext *cx, const jschar *chars, size_t length, double 
             SkipSpace(endptr, end) != end)
         {
             *result = js_NaN;
-        } else {
-            *result = d;
+            return true;
         }
-        return;
+        *result = d;
+        return true;
     }
 
     /*
@@ -1436,41 +1444,11 @@ CharsToNumber(ThreadSafeContext *cx, const jschar *chars, size_t length, double 
      */
     const jschar *ep;
     double d;
-    if (!js_strtod(cx, bp, end, &ep, &d) || SkipSpace(ep, end) != end)
+    if (!js_strtod(cx, bp, end, &ep, &d) || SkipSpace(ep, end) != end) {
         *result = js_NaN;
-    else
-        *result = d;
-}
-
-bool
-js::StringToNumber(ThreadSafeContext *cx, JSString *str, double *result)
-{
-    ScopedThreadSafeStringInspector inspector(str);
-    if (!inspector.ensureChars(cx))
-        return false;
-    CharsToNumber(cx, inspector.chars(), str->length(), result);
-    return true;
-}
-
-bool
-js::NonObjectToNumberSlow(ThreadSafeContext *cx, Value v, double *out)
-{
-    JS_ASSERT(!v.isNumber());
-    JS_ASSERT(!v.isObject());
-
-    if (v.isString())
-        return StringToNumber(cx, v.toString(), out);
-    if (v.isBoolean()) {
-        *out = v.toBoolean() ? 1.0 : 0.0;
         return true;
     }
-    if (v.isNull()) {
-        *out = 0.0;
-        return true;
-    }
-
-    JS_ASSERT(v.isUndefined());
-    *out = js_NaN;
+    *result = d;
     return true;
 }
 
@@ -1507,11 +1485,25 @@ js::ToNumberSlow(ExclusiveContext *cx, Value v, double *out)
             *out = v.toNumber();
             return true;
         }
-
       skip_int_double:
-        if (!v.isObject())
-            return NonObjectToNumberSlow(cx, v, out);
+        if (v.isString())
+            return StringToNumber(cx, v.toString(), out);
+        if (v.isBoolean()) {
+            if (v.toBoolean()) {
+                *out = 1.0;
+                return true;
+            }
+            *out = 0.0;
+            return true;
+        }
+        if (v.isNull()) {
+            *out = 0.0;
+            return true;
+        }
+        if (v.isUndefined())
+            break;
 
+        JS_ASSERT(v.isObject());
         if (!cx->isJSContext())
             return false;
 
@@ -1542,7 +1534,7 @@ js::ToNumberSlow(JSContext *cx, Value v, double *out)
  * conversion. Return converted value in *out on success, false on failure.
  */
 JS_PUBLIC_API(bool)
-js::ToInt64Slow(JSContext *cx, const HandleValue v, int64_t *out)
+js::ToInt64Slow(JSContext *cx, const Value &v, int64_t *out)
 {
     JS_ASSERT(!v.isInt32());
     double d;
@@ -1561,7 +1553,7 @@ js::ToInt64Slow(JSContext *cx, const HandleValue v, int64_t *out)
  * conversion. Return converted value in *out on success, false on failure.
  */
 JS_PUBLIC_API(bool)
-js::ToUint64Slow(JSContext *cx, const HandleValue v, uint64_t *out)
+js::ToUint64Slow(JSContext *cx, const Value &v, uint64_t *out)
 {
     JS_ASSERT(!v.isInt32());
     double d;
@@ -1575,18 +1567,15 @@ js::ToUint64Slow(JSContext *cx, const HandleValue v, uint64_t *out)
     return true;
 }
 
-template <typename ContextType,
-          bool (*ToNumberSlowFn)(ContextType *, Value, double *),
-          typename ValueType>
-static bool
-ToInt32SlowImpl(ContextType *cx, const ValueType v, int32_t *out)
+JS_PUBLIC_API(bool)
+js::ToInt32Slow(JSContext *cx, const Value &v, int32_t *out)
 {
     JS_ASSERT(!v.isInt32());
     double d;
     if (v.isDouble()) {
         d = v.toDouble();
     } else {
-        if (!ToNumberSlowFn(cx, v, &d))
+        if (!ToNumberSlow(cx, v, &d))
             return false;
     }
     *out = ToInt32(d);
@@ -1594,29 +1583,14 @@ ToInt32SlowImpl(ContextType *cx, const ValueType v, int32_t *out)
 }
 
 JS_PUBLIC_API(bool)
-js::ToInt32Slow(JSContext *cx, const HandleValue v, int32_t *out)
-{
-    return ToInt32SlowImpl<JSContext, ToNumberSlow>(cx, v, out);
-}
-
-bool
-js::NonObjectToInt32Slow(ThreadSafeContext *cx, const Value &v, int32_t *out)
-{
-    return ToInt32SlowImpl<ThreadSafeContext, NonObjectToNumberSlow>(cx, v, out);
-}
-
-template <typename ContextType,
-          bool (*ToNumberSlowFn)(ContextType *, Value, double *),
-          typename ValueType>
-static bool
-ToUint32SlowImpl(ContextType *cx, const ValueType v, uint32_t *out)
+js::ToUint32Slow(JSContext *cx, const Value &v, uint32_t *out)
 {
     JS_ASSERT(!v.isInt32());
     double d;
     if (v.isDouble()) {
         d = v.toDouble();
     } else {
-        if (!ToNumberSlowFn(cx, v, &d))
+        if (!ToNumberSlow(cx, v, &d))
             return false;
     }
     *out = ToUint32(d);
@@ -1624,19 +1598,7 @@ ToUint32SlowImpl(ContextType *cx, const ValueType v, uint32_t *out)
 }
 
 JS_PUBLIC_API(bool)
-js::ToUint32Slow(JSContext *cx, const HandleValue v, uint32_t *out)
-{
-    return ToUint32SlowImpl<JSContext, ToNumberSlow>(cx, v, out);
-}
-
-bool
-js::NonObjectToUint32Slow(ThreadSafeContext *cx, const Value &v, uint32_t *out)
-{
-    return ToUint32SlowImpl<ThreadSafeContext, NonObjectToNumberSlow>(cx, v, out);
-}
-
-JS_PUBLIC_API(bool)
-js::ToUint16Slow(JSContext *cx, const HandleValue v, uint16_t *out)
+js::ToUint16Slow(JSContext *cx, const Value &v, uint16_t *out)
 {
     JS_ASSERT(!v.isInt32());
     double d;
@@ -1669,7 +1631,7 @@ js::ToUint16Slow(JSContext *cx, const HandleValue v, uint16_t *out)
 }
 
 JSBool
-js_strtod(ThreadSafeContext *cx, const jschar *s, const jschar *send,
+js_strtod(ExclusiveContext *cx, const jschar *s, const jschar *send,
           const jschar **ep, double *dp)
 {
     size_t i;

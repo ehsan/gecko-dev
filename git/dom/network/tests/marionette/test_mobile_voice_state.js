@@ -72,18 +72,10 @@ function testCellLocation() {
     is(cell.cdmaSystemId, -1);
     is(cell.cdmaNetworkId, -1);
 
-    testSignalStrength();
+    testUnregistered();
   });
 
   setEmulatorGsmLocation(100, 100);
-}
-
-function testSignalStrength() {
-  // Android emulator initializes the signal strength to -99 dBm
-  is(connection.voice.signalStrength, -99);
-  is(connection.voice.relSignalStrength, 44);
-
-  testUnregistered();
 }
 
 function testUnregistered() {

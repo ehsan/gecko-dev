@@ -7,6 +7,7 @@
 #define nsSegmentedBuffer_h__
 
 #include "nsMemory.h"
+#include "prclist.h"
 
 class nsSegmentedBuffer
 {

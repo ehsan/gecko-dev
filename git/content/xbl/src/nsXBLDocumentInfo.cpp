@@ -252,11 +252,9 @@ nsXBLDocGlobalObject::EnsureScriptEnvironment()
   JS_SetErrorReporter(cx, xpc::SystemErrorReporter);
 
   JS::CompartmentOptions options;
-  options.setZone(JS::SystemZone)
-         .setInvisibleToDebugger(true);
+  options.setZone(JS::SystemZone);
   mJSObject = JS_NewGlobalObject(cx, &gSharedGlobalClass,
                                  nsJSPrincipals::get(GetPrincipal()),
-                                 JS::DontFireOnNewGlobalHook,
                                  options);
   if (!mJSObject)
       return NS_OK;
@@ -395,8 +393,6 @@ TraceProtos(nsHashKey *aKey, void *aData, void* aClosure)
   proto->Trace(closure->mCallbacks, closure->mClosure);
   return kHashEnumerateNext;
 }
-
-NS_IMPL_CYCLE_COLLECTION_CLASS(nsXBLDocumentInfo)
 
 NS_IMPL_CYCLE_COLLECTION_UNLINK_BEGIN(nsXBLDocumentInfo)
   if (tmp->mBindingTable) {

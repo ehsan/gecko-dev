@@ -535,8 +535,7 @@ class ThreadLocalJSRuntime
 
     JSAutoRequest ar(mContext);
 
-    mGlobal = JS_NewGlobalObject(mContext, &sGlobalClass, NULL,
-                                 JS::FireOnNewGlobalHook);
+    mGlobal = JS_NewGlobalObject(mContext, &sGlobalClass, NULL);
     NS_ENSURE_TRUE(mGlobal, NS_ERROR_OUT_OF_MEMORY);
 
     js::SetDefaultObjectForContext(mContext, mGlobal);
@@ -2389,8 +2388,6 @@ IDBObjectStore::Index(const nsAString& aName, ErrorResult &aRv)
 
   return retval.forget();
 }
-
-NS_IMPL_CYCLE_COLLECTION_CLASS(IDBObjectStore)
 
 NS_IMPL_CYCLE_COLLECTION_TRACE_BEGIN(IDBObjectStore)
   NS_IMPL_CYCLE_COLLECTION_TRACE_PRESERVED_WRAPPER

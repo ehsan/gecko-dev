@@ -1539,11 +1539,11 @@ class MOZ_STACK_CLASS ModuleCompiler
     }
 
     bool staticallyLink(ScopedJSDeletePtr<AsmJSModule> *module, ScopedJSFreePtr<char> *report) {
-        // Record the ScriptSource and [begin, end) range of the module in case
-        // the link-time validation fails in LinkAsmJS and we need to re-parse
-        // the entire module from scratch.
-        uint32_t bodyEnd = parser_.tokenStream.currentToken().pos.end;
-        module_->initPostLinkFailureInfo(parser_.ss, bodyStart_, bodyEnd);
+        module_->initPostLinkFailureInfo(cx_->runtime(),
+                                         parser_.tokenStream.getOriginPrincipals(),
+                                         parser_.ss,
+                                         bodyStart_,
+                                         parser_.tokenStream.currentToken().pos.end);
 
         // Finish the code section.
         masm_.finish();
@@ -5709,12 +5709,12 @@ GenerateFFIInterpreterExit(ModuleCompiler &m, const ModuleCompiler::ExitDescript
 }
 
 static int32_t
-ValueToInt32(JSContext *cx, MutableHandleValue val)
+ValueToInt32(JSContext *cx, Value *val)
 {
     int32_t i32;
-    if (!ToInt32(cx, val, &i32))
+    if (!ToInt32(cx, val[0], &i32))
         return false;
-    val.set(Int32Value(i32));
+    val[0] = Int32Value(i32);
 
     return true;
 }

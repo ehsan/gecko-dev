@@ -52,26 +52,12 @@ extern bool gBluetoothDebugFlag;
 #define KEY_ADAPTER      "/B2G/bluetooth/adapter"
 
 /**
- * When the connection status of a Bluetooth profile is changed, we'll notify
- * observers which register the following topics.
+ * When connection status of Bluetooth profiles change, we'll notify observers
+ * of following topics.
  */
-#define BLUETOOTH_A2DP_STATUS_CHANGED_ID "bluetooth-a2dp-status-changed"
-#define BLUETOOTH_HFP_STATUS_CHANGED_ID  "bluetooth-hfp-status-changed"
-#define BLUETOOTH_SCO_STATUS_CHANGED_ID  "bluetooth-sco-status-changed"
-
-/**
- * When the connection status of a Bluetooth profile is changed, we'll
- * distribute one of the following events.
- */
-#define A2DP_STATUS_CHANGED_ID               "a2dpstatuschanged"
-#define HFP_STATUS_CHANGED_ID                "hfpstatuschanged"
-#define SCO_STATUS_CHANGED_ID                "scostatuschanged"
-
-/**
- * When the pair status of a Bluetooth device is changed, we'll distribute an
- * event.
- */
-#define PAIRED_STATUS_CHANGED_ID             "pairedstatuschanged"
+#define BLUETOOTH_HFP_STATUS_CHANGED_ID      "bluetooth-hfp-status-changed"
+#define BLUETOOTH_SCO_STATUS_CHANGED_ID      "bluetooth-sco-status-changed"
+#define BLUETOOTH_A2DP_STATUS_CHANGED_ID     "bluetooth-a2dp-status-changed"
 
 // Bluetooth address format: xx:xx:xx:xx:xx:xx (or xx_xx_xx_xx_xx_xx)
 #define BLUETOOTH_ADDRESS_LENGTH 17

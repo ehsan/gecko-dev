@@ -189,11 +189,7 @@ StackFrame::createRestParameter(JSContext *cx)
     unsigned nformal = fun()->nargs - 1, nactual = numActualArgs();
     unsigned nrest = (nactual > nformal) ? nactual - nformal : 0;
     Value *restvp = argv() + nformal;
-    JSObject *obj = NewDenseCopiedArray(cx, nrest, restvp, NULL);
-    if (!obj)
-        return NULL;
-    types::FixRestArgumentsType(cx, obj);
-    return obj;
+    return NewDenseCopiedArray(cx, nrest, restvp, NULL);
 }
 
 static inline void

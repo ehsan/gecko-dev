@@ -421,7 +421,7 @@ HandleDynamicLinkFailure(JSContext *cx, CallArgs args, AsmJSModule &module, Hand
 
     CompileOptions options(cx);
     options.setPrincipals(cx->compartment()->principals)
-           .setOriginPrincipals(info.scriptSource->originPrincipals())
+           .setOriginPrincipals(info.originPrincipals)
            .setCompileAndGo(false)
            .setNoScriptRval(false);
 

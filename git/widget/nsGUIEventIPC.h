@@ -227,7 +227,7 @@ struct ParamTraits<nsTouchEvent>
     }
     for (uint32_t i = 0; i < numTouches; ++i) {
         int32_t identifier;
-        mozilla::LayoutDeviceIntPoint refPoint;
+        nsIntPoint refPoint;
         nsIntPoint radius;
         float rotationAngle;
         float force;
@@ -239,9 +239,7 @@ struct ParamTraits<nsTouchEvent>
           return false;
         }
         aResult->touches.AppendElement(
-          new mozilla::dom::Touch(
-            identifier, mozilla::LayoutDeviceIntPoint::ToUntyped(refPoint),
-            radius, rotationAngle, force));
+          new mozilla::dom::Touch(identifier, refPoint, radius, rotationAngle, force));
     }
     return true;
   }

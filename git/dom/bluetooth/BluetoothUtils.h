@@ -43,11 +43,6 @@ void
 ParseAtCommand(const nsACString& aAtCommand, const int aStart,
                nsTArray<nsCString>& aRetValues);
 
-void
-DispatchStatusChangedEvent(const nsAString& aType,
-                           const nsAString& aDeviceAddress,
-                           bool aStatus);
-
 END_BLUETOOTH_NAMESPACE
 
 #endif

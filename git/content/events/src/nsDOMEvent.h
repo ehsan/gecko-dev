@@ -102,15 +102,13 @@ public:
   static const char* GetEventName(uint32_t aEventType);
   static mozilla::CSSIntPoint
   GetClientCoords(nsPresContext* aPresContext, nsEvent* aEvent,
-                  mozilla::LayoutDeviceIntPoint aPoint,
-                  mozilla::CSSIntPoint aDefaultPoint);
+                  nsIntPoint aPoint, mozilla::CSSIntPoint aDefaultPoint);
   static mozilla::CSSIntPoint
-  GetPageCoords(nsPresContext* aPresContext, nsEvent* aEvent,
-                mozilla::LayoutDeviceIntPoint aPoint,
+  GetPageCoords(nsPresContext* aPresContext, nsEvent* aEvent, nsIntPoint aPoint,
                 mozilla::CSSIntPoint aDefaultPoint);
-  static nsIntPoint
-  GetScreenCoords(nsPresContext* aPresContext, nsEvent* aEvent,
-                  mozilla::LayoutDeviceIntPoint aPoint);
+  static nsIntPoint GetScreenCoords(nsPresContext* aPresContext,
+                                    nsEvent* aEvent,
+                                    nsIntPoint aPoint);
 
   static already_AddRefed<nsDOMEvent> Constructor(const mozilla::dom::GlobalObject& aGlobal,
                                                   const nsAString& aType,

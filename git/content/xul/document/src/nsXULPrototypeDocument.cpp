@@ -159,8 +159,6 @@ nsXULPrototypeDocument::~nsXULPrototypeDocument()
     }
 }
 
-NS_IMPL_CYCLE_COLLECTION_CLASS(nsXULPrototypeDocument)
-
 NS_IMPL_CYCLE_COLLECTION_UNLINK_BEGIN(nsXULPrototypeDocument)
     tmp->mPrototypeWaiters.Clear();
 NS_IMPL_CYCLE_COLLECTION_UNLINK_END
@@ -720,8 +718,6 @@ nsXULPDGlobalObject::~nsXULPDGlobalObject()
 {
 }
 
-NS_IMPL_CYCLE_COLLECTION_CLASS(nsXULPDGlobalObject)
-
 NS_IMPL_CYCLE_COLLECTION_UNLINK_0(nsXULPDGlobalObject)
 NS_IMPL_CYCLE_COLLECTION_TRAVERSE_BEGIN(nsXULPDGlobalObject)
   NS_IMPL_CYCLE_COLLECTION_TRAVERSE(mContext)
@@ -763,12 +759,10 @@ nsXULPDGlobalObject::EnsureScriptEnvironment()
   {
     AutoPushJSContext cx(ctxNew->GetNativeContext());
     JS::CompartmentOptions options;
-    options.setZone(JS::SystemZone)
-           .setInvisibleToDebugger(true);
+    options.setZone(JS::SystemZone);
     JS::Rooted<JSObject*> newGlob(cx,
       JS_NewGlobalObject(cx, &gSharedGlobalClass,
-                         nsJSPrincipals::get(GetPrincipal()), JS::DontFireOnNewGlobalHook,
-                         options));
+                         nsJSPrincipals::get(GetPrincipal()), options));
     if (!newGlob)
         return NS_OK;
 

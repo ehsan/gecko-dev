@@ -75,9 +75,9 @@ class JS_PUBLIC_API(AutoCheckRequestDepth)
  * Also check that GC would be safe at this point.
  */
 JS_PUBLIC_API(void)
-AssertArgumentsAreSane(JSContext *cx, JS::Handle<JS::Value> v);
+AssertArgumentsAreSane(JSContext *cx, const Value &v);
 #else
-inline void AssertArgumentsAreSane(JSContext *cx, JS::Handle<JS::Value> v) {
+inline void AssertArgumentsAreSane(JSContext *cx, const Value &v) {
     /* Do nothing */
 }
 #endif /* DEBUG */
@@ -1600,32 +1600,35 @@ JS_ValueToUint64(JSContext *cx, jsval v, uint64_t *ip);
 namespace js {
 /* DO NOT CALL THIS.  Use JS::ToInt16. */
 extern JS_PUBLIC_API(bool)
-ToUint16Slow(JSContext *cx, JS::Handle<JS::Value> v, uint16_t *out);
+ToUint16Slow(JSContext *cx, const JS::Value &v, uint16_t *out);
 
 /* DO NOT CALL THIS.  Use JS::ToInt32. */
 extern JS_PUBLIC_API(bool)
-ToInt32Slow(JSContext *cx, JS::Handle<JS::Value> v, int32_t *out);
+ToInt32Slow(JSContext *cx, const JS::Value &v, int32_t *out);
 
 /* DO NOT CALL THIS.  Use JS::ToUint32. */
 extern JS_PUBLIC_API(bool)
-ToUint32Slow(JSContext *cx, JS::Handle<JS::Value> v, uint32_t *out);
+ToUint32Slow(JSContext *cx, const JS::Value &v, uint32_t *out);
 
 /* DO NOT CALL THIS. Use JS::ToInt64. */
 extern JS_PUBLIC_API(bool)
-ToInt64Slow(JSContext *cx, JS::Handle<JS::Value> v, int64_t *out);
+ToInt64Slow(JSContext *cx, const JS::Value &v, int64_t *out);
 
 /* DO NOT CALL THIS. Use JS::ToUint64. */
 extern JS_PUBLIC_API(bool)
-ToUint64Slow(JSContext *cx, JS::Handle<JS::Value> v, uint64_t *out);
+ToUint64Slow(JSContext *cx, const JS::Value &v, uint64_t *out);
 } /* namespace js */
 
 namespace JS {
 
 JS_ALWAYS_INLINE bool
-ToUint16(JSContext *cx, JS::Handle<JS::Value> v, uint16_t *out)
+ToUint16(JSContext *cx, const JS::Value &v, uint16_t *out)
 {
     AssertArgumentsAreSane(cx, v);
-    js::MaybeCheckStackRoots(cx);
+    {
+        js::SkipRoot skip(cx, &v);
+        js::MaybeCheckStackRoots(cx);
+    }
 
     if (v.isInt32()) {
         *out = uint16_t(v.toInt32());
@@ -1635,10 +1638,13 @@ ToUint16(JSContext *cx, JS::Handle<JS::Value> v, uint16_t *out)
 }
 
 JS_ALWAYS_INLINE bool
-ToInt32(JSContext *cx, JS::Handle<JS::Value> v, int32_t *out)
+ToInt32(JSContext *cx, const JS::Value &v, int32_t *out)
 {
     AssertArgumentsAreSane(cx, v);
-    js::MaybeCheckStackRoots(cx);
+    {
+        js::SkipRoot root(cx, &v);
+        js::MaybeCheckStackRoots(cx);
+    }
 
     if (v.isInt32()) {
         *out = v.toInt32();
@@ -1648,10 +1654,13 @@ ToInt32(JSContext *cx, JS::Handle<JS::Value> v, int32_t *out)
 }
 
 JS_ALWAYS_INLINE bool
-ToUint32(JSContext *cx, JS::Handle<JS::Value> v, uint32_t *out)
+ToUint32(JSContext *cx, const JS::Value &v, uint32_t *out)
 {
     AssertArgumentsAreSane(cx, v);
-    js::MaybeCheckStackRoots(cx);
+    {
+        js::SkipRoot root(cx, &v);
+        js::MaybeCheckStackRoots(cx);
+    }
 
     if (v.isInt32()) {
         *out = uint32_t(v.toInt32());
@@ -1661,10 +1670,13 @@ ToUint32(JSContext *cx, JS::Handle<JS::Value> v, uint32_t *out)
 }
 
 JS_ALWAYS_INLINE bool
-ToInt64(JSContext *cx, JS::Handle<JS::Value> v, int64_t *out)
+ToInt64(JSContext *cx, const JS::Value &v, int64_t *out)
 {
     AssertArgumentsAreSane(cx, v);
-    js::MaybeCheckStackRoots(cx);
+    {
+        js::SkipRoot skip(cx, &v);
+        js::MaybeCheckStackRoots(cx);
+    }
 
     if (v.isInt32()) {
         *out = int64_t(v.toInt32());
@@ -1675,10 +1687,13 @@ ToInt64(JSContext *cx, JS::Handle<JS::Value> v, int64_t *out)
 }
 
 JS_ALWAYS_INLINE bool
-ToUint64(JSContext *cx, JS::Handle<JS::Value> v, uint64_t *out)
+ToUint64(JSContext *cx, const JS::Value &v, uint64_t *out)
 {
     AssertArgumentsAreSane(cx, v);
-    js::MaybeCheckStackRoots(cx);
+    {
+        js::SkipRoot skip(cx, &v);
+        js::MaybeCheckStackRoots(cx);
+    }
 
     if (v.isInt32()) {
         /* Account for sign extension of negatives into the longer 64bit space. */
@@ -3208,11 +3223,9 @@ SameZoneAs(JSObject *obj)
 struct JS_PUBLIC_API(CompartmentOptions) {
     ZoneSpecifier zoneSpec;
     JSVersion version;
-    bool invisibleToDebugger;
 
     explicit CompartmentOptions() : zoneSpec(JS::FreshZone)
                                   , version(JSVERSION_UNKNOWN)
-                                  , invisibleToDebugger(false)
     {}
 
     CompartmentOptions &setZone(ZoneSpecifier spec) { zoneSpec = spec; return *this; }
@@ -3221,51 +3234,13 @@ struct JS_PUBLIC_API(CompartmentOptions) {
         version = version_;
         return *this;
     }
-
-    // Certain scopes (i.e. XBL compilation scopes) are implementation details
-    // of the embedding, and references to them should never leak out to script.
-    // This flag causes the this compartment to skip firing onNewGlobalObject
-    // and makes addDebuggee a no-op for this global.
-    CompartmentOptions &setInvisibleToDebugger(bool invisible) {
-        invisibleToDebugger = invisible;
-        return *this;
-    }
-};
-
-// During global creation, we fire notifications to callbacks registered
-// via the Debugger API. These callbacks are arbitrary script, and can touch
-// the global in arbitrary ways. When that happens, the global should not be
-// in a half-baked state. But this creates a problem for consumers that need
-// to set slots on the global to put it in a consistent state.
-//
-// This API provides a way for consumers to set slots atomically (immediately
-// after the global is created), before any debugger hooks are fired. It's
-// unfortunately on the clunky side, but that's the way the cookie crumbles.
-//
-// If callers have no additional state on the global to set up, they may pass
-// |FireOnNewGlobalHook| to JS_NewGlobalObject, which causes that function to
-// fire the hook as its final act before returning. Otherwise, callers should
-// pass |DontFireOnNewGlobalHook|, which means that they are responsible for
-// invoking JS_FireOnNewGlobalObject upon successfully creating the global. If
-// an error occurs and the operation aborts, callers should skip firing the
-// hook. But otherwise, callers must take care to fire the hook exactly once
-// before compiling any script in the global's scope (we have assertions in
-// place to enforce this). This lets us be sure that debugger clients never miss
-// breakpoints.
-enum OnNewGlobalHookOption {
-    FireOnNewGlobalHook,
-    DontFireOnNewGlobalHook
 };
 
 } /* namespace JS */
 
 extern JS_PUBLIC_API(JSObject *)
 JS_NewGlobalObject(JSContext *cx, JSClass *clasp, JSPrincipals *principals,
-                   JS::OnNewGlobalHookOption hookOption,
                    const JS::CompartmentOptions &options = JS::CompartmentOptions());
-
-extern JS_PUBLIC_API(void)
-JS_FireOnNewGlobalObject(JSContext *cx, JS::HandleObject global);
 
 extern JS_PUBLIC_API(JSObject *)
 JS_NewObject(JSContext *cx, JSClass *clasp, JSObject *proto, JSObject *parent);
@@ -3389,18 +3364,18 @@ extern JS_PUBLIC_API(JSBool)
 JS_HasPropertyById(JSContext *cx, JSObject *obj, jsid id, JSBool *foundp);
 
 extern JS_PUBLIC_API(JSBool)
-JS_LookupProperty(JSContext *cx, JSObject *obj, const char *name, JS::MutableHandle<JS::Value> vp);
+JS_LookupProperty(JSContext *cx, JSObject *obj, const char *name, jsval *vp);
 
 extern JS_PUBLIC_API(JSBool)
-JS_LookupPropertyById(JSContext *cx, JSObject *obj, jsid id, JS::MutableHandle<JS::Value> vp);
+JS_LookupPropertyById(JSContext *cx, JSObject *obj, jsid id, jsval *vp);
 
 extern JS_PUBLIC_API(JSBool)
 JS_LookupPropertyWithFlags(JSContext *cx, JSObject *obj, const char *name,
-                           unsigned flags, JS::MutableHandle<JS::Value> vp);
+                           unsigned flags, jsval *vp);
 
 extern JS_PUBLIC_API(JSBool)
 JS_LookupPropertyWithFlagsById(JSContext *cx, JSObject *obj, jsid id,
-                               unsigned flags, JSObject **objp, JS::MutableHandle<JS::Value> vp);
+                               unsigned flags, JSObject **objp, jsval *vp);
 
 struct JSPropertyDescriptor {
     JSObject           *obj;
@@ -3530,7 +3505,7 @@ JS_GetPropertyDescriptorById(JSContext *cx, JSObject *obj, jsid id, unsigned fla
                              JSPropertyDescriptor *desc);
 
 extern JS_PUBLIC_API(JSBool)
-JS_GetOwnPropertyDescriptor(JSContext *cx, JSObject *obj, jsid id, JS::MutableHandle<JS::Value> vp);
+JS_GetOwnPropertyDescriptor(JSContext *cx, JSObject *obj, jsid id, jsval *vp);
 
 extern JS_PUBLIC_API(JSBool)
 JS_GetProperty(JSContext *cx, JSObject *obj, const char *name, JS::MutableHandle<JS::Value> vp);
@@ -3561,13 +3536,13 @@ JS_DeleteProperty(JSContext *cx, JSObject *obj, const char *name);
 
 extern JS_PUBLIC_API(JSBool)
 JS_DeleteProperty2(JSContext *cx, JSObject *obj, const char *name,
-                   JS::MutableHandle<JS::Value> rval);
+                   jsval *rval);
 
 extern JS_PUBLIC_API(JSBool)
 JS_DeletePropertyById(JSContext *cx, JSObject *obj, jsid id);
 
 extern JS_PUBLIC_API(JSBool)
-JS_DeletePropertyById2(JSContext *cx, JSObject *obj, jsid id, JS::MutableHandle<JS::Value> rval);
+JS_DeletePropertyById2(JSContext *cx, JSObject *obj, jsid id, jsval *rval);
 
 extern JS_PUBLIC_API(JSBool)
 JS_DefineUCProperty(JSContext *cx, JSObject *obj,
@@ -3629,7 +3604,7 @@ JS_HasUCProperty(JSContext *cx, JSObject *obj,
 extern JS_PUBLIC_API(JSBool)
 JS_LookupUCProperty(JSContext *cx, JSObject *obj,
                     const jschar *name, size_t namelen,
-                    JS::MutableHandle<JS::Value> vp);
+                    jsval *vp);
 
 extern JS_PUBLIC_API(JSBool)
 JS_GetUCProperty(JSContext *cx, JSObject *obj,
@@ -3644,7 +3619,7 @@ JS_SetUCProperty(JSContext *cx, JSObject *obj,
 extern JS_PUBLIC_API(JSBool)
 JS_DeleteUCProperty2(JSContext *cx, JSObject *obj,
                      const jschar *name, size_t namelen,
-                     JS::MutableHandle<JS::Value> rval);
+                     jsval *rval);
 
 extern JS_PUBLIC_API(JSObject *)
 JS_NewArrayObject(JSContext *cx, int length, jsval *vector);
@@ -4009,15 +3984,9 @@ JS_CompileUCFunction(JSContext *cx, JSObject *obj, const char *name,
 namespace JS {
 
 /* Options for JavaScript compilation. */
-class JS_PUBLIC_API(CompileOptions)
-{
-    JSPrincipals *principals_;
-    JSPrincipals *originPrincipals_;
-
-  public:
-    JSPrincipals *principals() const { return principals_; }
-    JSPrincipals *originPrincipals() const;
-
+struct JS_PUBLIC_API(CompileOptions) {
+    JSPrincipals *principals;
+    JSPrincipals *originPrincipals;
     JSVersion version;
     bool versionSet;
     bool utf8;
@@ -4041,8 +4010,8 @@ class JS_PUBLIC_API(CompileOptions)
     } sourcePolicy;
 
     explicit CompileOptions(JSContext *cx, JSVersion version = JSVERSION_UNKNOWN);
-    CompileOptions &setPrincipals(JSPrincipals *p) { principals_ = p; return *this; }
-    CompileOptions &setOriginPrincipals(JSPrincipals *p) { originPrincipals_ = p; return *this; }
+    CompileOptions &setPrincipals(JSPrincipals *p) { principals = p; return *this; }
+    CompileOptions &setOriginPrincipals(JSPrincipals *p) { originPrincipals = p; return *this; }
     CompileOptions &setVersion(JSVersion v) { version = v; versionSet = true; return *this; }
     CompileOptions &setUTF8(bool u) { utf8 = u; return *this; }
     CompileOptions &setFileAndLine(const char *f, unsigned l) {

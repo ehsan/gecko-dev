@@ -2907,7 +2907,6 @@ class AutoHoldZone
 
 JS_PUBLIC_API(JSObject *)
 JS_NewGlobalObject(JSContext *cx, JSClass *clasp, JSPrincipals *principals,
-                   JS::OnNewGlobalHookOption hookOption,
                    const JS::CompartmentOptions &options)
 {
     AssertHeapIsIdle(cx);
@@ -2945,21 +2944,10 @@ JS_NewGlobalObject(JSContext *cx, JSClass *clasp, JSPrincipals *principals,
     if (!global)
         return NULL;
 
-    if (hookOption == JS::FireOnNewGlobalHook)
-        JS_FireOnNewGlobalObject(cx, global);
+    if (!Debugger::onNewGlobalObject(cx, global))
+        return NULL;
 
     return global;
-}
-
-JS_PUBLIC_API(void)
-JS_FireOnNewGlobalObject(JSContext *cx, JS::HandleObject global)
-{
-    // This hook is infallible, because we don't really want arbitrary script
-    // to be able to throw errors during delicate global creation routines.
-    // This infallibility will eat OOM and slow script, but if that happens
-    // we'll likely run up into them again soon in a fallible context.
-    Rooted<js::GlobalObject*> globalObject(cx, &global->as<GlobalObject>());
-    Debugger::onNewGlobalObject(cx, globalObject);
 }
 
 JS_PUBLIC_API(JSObject *)
@@ -3106,11 +3094,11 @@ LookupPropertyById(JSContext *cx, HandleObject obj, HandleId id, unsigned flags,
 
 static JSBool
 LookupResult(JSContext *cx, HandleObject obj, HandleObject obj2, HandleId id,
-             HandleShape shape, MutableHandleValue vp)
+             HandleShape shape, Value *vp)
 {
     if (!shape) {
         /* XXX bad API: no way to tell "not defined" from "void value" */
-        vp.setUndefined();
+        vp->setUndefined();
         return JS_TRUE;
     }
 
@@ -3120,28 +3108,28 @@ LookupResult(JSContext *cx, HandleObject obj, HandleObject obj2, HandleId id,
             if (!Proxy::getPropertyDescriptor(cx, obj2, id, &desc, 0))
                 return false;
             if (!(desc.attrs & JSPROP_SHARED)) {
-                vp.set(desc.value);
+                *vp = desc.value;
                 return true;
             }
         }
     } else if (IsImplicitDenseElement(shape)) {
-        vp.set(obj2->getDenseElement(JSID_TO_INT(id)));
+        *vp = obj2->getDenseElement(JSID_TO_INT(id));
         return true;
     } else {
         /* Peek at the native property's slot value, without doing a Get. */
         if (shape->hasSlot()) {
-            vp.set(obj2->nativeGetSlot(shape->slot()));
+            *vp = obj2->nativeGetSlot(shape->slot());
             return true;
         }
     }
 
     /* XXX bad API: no way to return "defined but value unknown" */
-    vp.setBoolean(true);
+    vp->setBoolean(true);
     return true;
 }
 
 JS_PUBLIC_API(JSBool)
-JS_LookupPropertyById(JSContext *cx, JSObject *objArg, jsid idArg, MutableHandleValue vp)
+JS_LookupPropertyById(JSContext *cx, JSObject *objArg, jsid idArg, jsval *vp)
 {
     RootedId id(cx, idArg);
     RootedObject obj(cx, objArg);
@@ -3160,15 +3148,11 @@ JS_LookupElement(JSContext *cx, JSObject *objArg, uint32_t index, jsval *vp)
     RootedId id(cx);
     if (!IndexToId(cx, index, &id))
         return false;
-    RootedValue value(cx);
-    if (!JS_LookupPropertyById(cx, obj, id, &value))
-        return false;
-    *vp = value;
-    return true;
+    return JS_LookupPropertyById(cx, obj, id, vp);
 }
 
 JS_PUBLIC_API(JSBool)
-JS_LookupProperty(JSContext *cx, JSObject *objArg, const char *name, MutableHandleValue vp)
+JS_LookupProperty(JSContext *cx, JSObject *objArg, const char *name, jsval *vp)
 {
     RootedObject obj(cx, objArg);
     JSAtom *atom = Atomize(cx, name, strlen(name));
@@ -3176,8 +3160,7 @@ JS_LookupProperty(JSContext *cx, JSObject *objArg, const char *name, MutableHand
 }
 
 JS_PUBLIC_API(JSBool)
-JS_LookupUCProperty(JSContext *cx, JSObject *objArg, const jschar *name, size_t namelen,
-                    MutableHandleValue vp)
+JS_LookupUCProperty(JSContext *cx, JSObject *objArg, const jschar *name, size_t namelen, jsval *vp)
 {
     RootedObject obj(cx, objArg);
     JSAtom *atom = AtomizeChars<CanGC>(cx, name, AUTO_NAMELEN(name, namelen));
@@ -3186,7 +3169,7 @@ JS_LookupUCProperty(JSContext *cx, JSObject *objArg, const jschar *name, size_t 
 
 JS_PUBLIC_API(JSBool)
 JS_LookupPropertyWithFlagsById(JSContext *cx, JSObject *objArg, jsid id_, unsigned flags,
-                               JSObject **objpArg, MutableHandleValue vp)
+                               JSObject **objpArg, jsval *vp)
 {
     RootedObject obj(cx, objArg);
     RootedObject objp(cx, *objpArg);
@@ -3209,8 +3192,7 @@ JS_LookupPropertyWithFlagsById(JSContext *cx, JSObject *objArg, jsid id_, unsign
 }
 
 JS_PUBLIC_API(JSBool)
-JS_LookupPropertyWithFlags(JSContext *cx, JSObject *objArg, const char *name, unsigned flags,
-                           MutableHandleValue vp)
+JS_LookupPropertyWithFlags(JSContext *cx, JSObject *objArg, const char *name, unsigned flags, jsval *vp)
 {
     RootedObject obj(cx, objArg);
     JSObject *obj2;
@@ -3724,14 +3706,18 @@ JS_GetUCPropertyAttrsGetterAndSetter(JSContext *cx, JSObject *objArg,
 }
 
 JS_PUBLIC_API(JSBool)
-JS_GetOwnPropertyDescriptor(JSContext *cx, JSObject *objArg, jsid idArg, MutableHandleValue vp)
+JS_GetOwnPropertyDescriptor(JSContext *cx, JSObject *objArg, jsid idArg, jsval *vp)
 {
     RootedObject obj(cx, objArg);
     RootedId id(cx, idArg);
     AssertHeapIsIdle(cx);
     CHECK_REQUEST(cx);
 
-    return GetOwnPropertyDescriptor(cx, obj, id, vp);
+    RootedValue value(cx);
+    if (!GetOwnPropertyDescriptor(cx, obj, id, &value))
+        return false;
+    *vp = value;
+    return true;
 }
 
 static JSBool
@@ -3928,7 +3914,7 @@ JS_SetUCProperty(JSContext *cx, JSObject *objArg, const jschar *name, size_t nam
 }
 
 JS_PUBLIC_API(JSBool)
-JS_DeletePropertyById2(JSContext *cx, JSObject *objArg, jsid id, MutableHandleValue rval)
+JS_DeletePropertyById2(JSContext *cx, JSObject *objArg, jsid id, jsval *rval)
 {
     RootedObject obj(cx, objArg);
     AssertHeapIsIdle(cx);
@@ -3948,7 +3934,7 @@ JS_DeletePropertyById2(JSContext *cx, JSObject *objArg, jsid id, MutableHandleVa
             return false;
     }
 
-    rval.setBoolean(succeeded);
+    *rval = BooleanValue(succeeded);
     return true;
 }
 
@@ -3970,7 +3956,7 @@ JS_DeleteElement2(JSContext *cx, JSObject *objArg, uint32_t index, jsval *rval)
 }
 
 JS_PUBLIC_API(JSBool)
-JS_DeleteProperty2(JSContext *cx, JSObject *objArg, const char *name, MutableHandleValue rval)
+JS_DeleteProperty2(JSContext *cx, JSObject *objArg, const char *name, jsval *rval)
 {
     RootedObject obj(cx, objArg);
     CHECK_REQUEST(cx);
@@ -3985,13 +3971,12 @@ JS_DeleteProperty2(JSContext *cx, JSObject *objArg, const char *name, MutableHan
     if (!JSObject::deleteByValue(cx, obj, StringValue(atom), &succeeded))
         return false;
 
-    rval.setBoolean(succeeded);
+    *rval = BooleanValue(succeeded);
     return true;
 }
 
 JS_PUBLIC_API(JSBool)
-JS_DeleteUCProperty2(JSContext *cx, JSObject *objArg, const jschar *name, size_t namelen,
-                     MutableHandleValue rval)
+JS_DeleteUCProperty2(JSContext *cx, JSObject *objArg, const jschar *name, size_t namelen, jsval *rval)
 {
     RootedObject obj(cx, objArg);
     CHECK_REQUEST(cx);
@@ -4006,14 +3991,14 @@ JS_DeleteUCProperty2(JSContext *cx, JSObject *objArg, const jschar *name, size_t
     if (!JSObject::deleteByValue(cx, obj, StringValue(atom), &succeeded))
         return false;
 
-    rval.setBoolean(succeeded);
+    *rval = BooleanValue(succeeded);
     return true;
 }
 
 JS_PUBLIC_API(JSBool)
 JS_DeletePropertyById(JSContext *cx, JSObject *objArg, jsid idArg)
 {
-    RootedValue junk(cx);
+    jsval junk;
     return JS_DeletePropertyById2(cx, objArg, idArg, &junk);
 }
 
@@ -4027,7 +4012,7 @@ JS_DeleteElement(JSContext *cx, JSObject *objArg, uint32_t index)
 JS_PUBLIC_API(JSBool)
 JS_DeleteProperty(JSContext *cx, JSObject *objArg, const char *name)
 {
-    RootedValue junk(cx);
+    jsval junk;
     return JS_DeleteProperty2(cx, objArg, name, &junk);
 }
 
@@ -4792,8 +4777,8 @@ AutoFile::open(JSContext *cx, const char *filename)
 
 
 JS::CompileOptions::CompileOptions(JSContext *cx, JSVersion version)
-    : principals_(NULL),
-      originPrincipals_(NULL),
+    : principals(NULL),
+      originPrincipals(NULL),
       version(version != JSVERSION_UNKNOWN ? version : cx->findVersion()),
       versionSet(false),
       utf8(false),
@@ -4814,12 +4799,6 @@ JS::CompileOptions::CompileOptions(JSContext *cx, JSVersion version)
 {
 }
 
-JSPrincipals *
-CompileOptions::originPrincipals() const
-{
-    return NormalizeOriginPrincipals(principals_, originPrincipals_);
-}
-
 JSScript *
 JS::Compile(JSContext *cx, HandleObject obj, CompileOptions options,
             const jschar *chars, size_t length)
@@ -4828,7 +4807,7 @@ JS::Compile(JSContext *cx, HandleObject obj, CompileOptions options,
     AssertHeapIsIdle(cx);
     CHECK_REQUEST(cx);
     assertSameCompartment(cx, obj);
-    JS_ASSERT_IF(options.principals(), cx->compartment()->principals == options.principals());
+    JS_ASSERT_IF(options.principals, cx->compartment()->principals == options.principals);
     AutoLastFrameCheck lfc(cx);
 
     return frontend::CompileScript(cx, &cx->tempLifoAlloc(), obj, NullPtr(), options, chars, length);
@@ -4981,7 +4960,7 @@ JS::CompileFunction(JSContext *cx, HandleObject obj, CompileOptions options,
     AssertHeapIsIdle(cx);
     CHECK_REQUEST(cx);
     assertSameCompartment(cx, obj);
-    JS_ASSERT_IF(options.principals(), cx->compartment()->principals == options.principals());
+    JS_ASSERT_IF(options.principals, cx->compartment()->principals == options.principals);
     AutoLastFrameCheck lfc(cx);
 
     RootedAtom funAtom(cx);
@@ -5165,11 +5144,11 @@ JS::Evaluate(JSContext *cx, HandleObject obj, CompileOptions options,
     AssertHeapIsIdle(cx);
     CHECK_REQUEST(cx);
     assertSameCompartment(cx, obj);
-    JS_ASSERT_IF(options.principals(), cx->compartment()->principals == options.principals());
+    JS_ASSERT_IF(options.principals, cx->compartment()->principals == options.principals);
 
     AutoLastFrameCheck lfc(cx);
 
-    options.setCompileAndGo(obj->is<GlobalObject>());
+    options.setCompileAndGo(true);
     options.setNoScriptRval(!rval);
     SourceCompressionToken sct(cx);
     RootedScript script(cx, frontend::CompileScript(cx, &cx->tempLifoAlloc(),
@@ -6777,7 +6756,7 @@ AutoGCRooter::AutoGCRooter(ContextFriendFields *cx, ptrdiff_t tag)
 
 #ifdef DEBUG
 JS_PUBLIC_API(void)
-JS::AssertArgumentsAreSane(JSContext *cx, HandleValue value)
+JS::AssertArgumentsAreSane(JSContext *cx, const JS::Value &value)
 {
     AssertHeapIsIdle(cx);
     CHECK_REQUEST(cx);

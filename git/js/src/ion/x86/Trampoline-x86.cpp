@@ -556,12 +556,6 @@ IonRuntime::generateVMWrapper(JSContext *cx, const VMFunction &f)
         masm.movl(esp, outReg);
         break;
 
-      case Type_Double:
-        outReg = regs.takeAny();
-        masm.reserveStack(sizeof(double));
-        masm.movl(esp, outReg);
-        break;
-
       default:
         JS_ASSERT(f.outParam == Type_Void);
         break;
@@ -642,13 +636,6 @@ IonRuntime::generateVMWrapper(JSContext *cx, const VMFunction &f)
       case Type_Bool:
         masm.Pop(ReturnReg);
         masm.movzxbl(ReturnReg, ReturnReg);
-        break;
-
-      case Type_Double:
-        if (cx->runtime()->jitSupportsFloatingPoint)
-            masm.Pop(ReturnFloatReg);
-        else
-            masm.breakpoint();
         break;
 
       default:

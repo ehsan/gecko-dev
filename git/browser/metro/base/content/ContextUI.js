@@ -181,9 +181,7 @@ var ContextUI = {
 
   // Dismiss the navbar if visible.
   dismissNavbar: function dismissNavbar() {
-    if (!StartUI.isVisible) {
-      Elements.navbar.dismiss();
-    }
+    Elements.navbar.dismiss();
   },
 
   // Dismiss the tabstray if visible.

@@ -103,7 +103,7 @@ private:
 /**
  * Implementation of &lt;select&gt;
  */
-class HTMLSelectElement MOZ_FINAL : public nsGenericHTMLFormElementWithState,
+class HTMLSelectElement MOZ_FINAL : public nsGenericHTMLFormElement,
                                     public nsIDOMHTMLSelectElement,
                                     public nsIConstraintValidation
 {
@@ -152,7 +152,7 @@ public:
   }
   HTMLFormElement* GetForm() const
   {
-    return nsGenericHTMLFormElementWithState::GetForm();
+    return nsGenericHTMLFormElement::GetForm();
   }
   bool Multiple() const
   {
@@ -369,7 +369,7 @@ public:
   virtual nsresult Clone(nsINodeInfo* aNodeInfo, nsINode** aResult) const MOZ_OVERRIDE;
 
   NS_DECL_CYCLE_COLLECTION_CLASS_INHERITED(HTMLSelectElement,
-                                           nsGenericHTMLFormElementWithState)
+                                           nsGenericHTMLFormElement)
 
   HTMLOptionsCollection* GetOptions()
   {

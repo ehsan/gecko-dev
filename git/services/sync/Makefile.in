@@ -66,6 +66,11 @@ sync_testing_modules := \
   utils.js \
   $(NULL)
 
+EXTRA_COMPONENTS := \
+  SyncComponents.manifest \
+  Weave.js \
+  $(NULL)
+
 PREF_JS_EXPORTS := $(srcdir)/services-sync.js
 
 # Install JS module files.

@@ -531,12 +531,6 @@ IonRuntime::generateVMWrapper(JSContext *cx, const VMFunction &f)
         masm.movq(esp, outReg);
         break;
 
-      case Type_Double:
-        outReg = regs.takeAny();
-        masm.reserveStack(sizeof(double));
-        masm.movq(esp, outReg);
-        break;
-
       case Type_Pointer:
         outReg = regs.takeAny();
         masm.reserveStack(sizeof(uintptr_t));
@@ -618,12 +612,6 @@ IonRuntime::generateVMWrapper(JSContext *cx, const VMFunction &f)
       case Type_Bool:
         masm.load8ZeroExtend(Address(esp, 0), ReturnReg);
         masm.freeStack(sizeof(int32_t));
-        break;
-
-      case Type_Double:
-        JS_ASSERT(cx->runtime()->jitSupportsFloatingPoint);
-        masm.loadDouble(Address(esp, 0), ReturnFloatReg);
-        masm.freeStack(sizeof(double));
         break;
 
       case Type_Pointer:

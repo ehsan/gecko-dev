@@ -545,7 +545,7 @@ XPCWrappedNative::SweepTearOffs()
 inline JSBool
 xpc_ForcePropertyResolve(JSContext* cx, JSObject* obj, jsid id)
 {
-    JS::RootedValue prop(cx);
+    jsval prop;
 
     if (!JS_LookupPropertyById(cx, obj, id, &prop))
         return false;

@@ -114,8 +114,8 @@ FlagsToGLFlags(TextureFlags aFlags)
     result |= TextureImage::UseNearestFilter;
   if (aFlags & NeedsYFlip)
     result |= TextureImage::NeedsYFlip;
-  if (aFlags & TEXTURE_DISALLOW_BIGIMAGE)
-    result |= TextureImage::DisallowBigImage;
+  if (aFlags & ForceSingleTile)
+    result |= TextureImage::ForceSingleTile;
 
   return static_cast<gl::TextureImage::Flags>(result);
 }
@@ -148,7 +148,7 @@ TextureImageTextureSourceOGL::Update(gfx::DataSourceSurface* aSurface,
   if (!mTexImage ||
       mTexImage->GetSize() != size ||
       mTexImage->GetContentType() != gfx::ContentForFormat(aSurface->GetFormat())) {
-    if (mAllowBigImage) {
+    if (mAllowTiling) {
       // XXX - clarify the which size we want to use. Some use cases may
       // require the size of the destnation surface to be different from
       // the size of aSurface.
@@ -462,6 +462,9 @@ TextureImageDeprecatedTextureHostOGL::Lock()
     return false;
   }
 
+  NS_ASSERTION(mTexture->GetContentType() != gfxASurface::CONTENT_ALPHA,
+                "Image layer has alpha image");
+
   mFormat = mTexture->GetTextureFormat();
 
   return true;
@@ -589,23 +592,27 @@ SurfaceStreamHostOGL::DeleteTextures()
 }
 
 void
-SurfaceStreamHostOGL::UpdateImpl(const SurfaceDescriptor& aImage,
-                                 nsIntRegion* aRegion,
-                                 nsIntPoint* aOffset)
+SurfaceStreamHostOGL::SwapTexturesImpl(const SurfaceDescriptor& aImage,
+                                       nsIntRegion* aRegion)
 {
   MOZ_ASSERT(aImage.type() == SurfaceDescriptor::TSurfaceStreamDescriptor,
              "Invalid descriptor");
 
-  // Bug 894405
-  //
-  // The SurfaceStream's GLContext was refed before being passed up to us, so
-  // we need to ensure it gets unrefed when we are finished.
-  const SurfaceStreamDescriptor& streamDesc =
-      aImage.get_SurfaceStreamDescriptor();
+  mStreamGL = nullptr;
 
-  mStream = SurfaceStream::FromHandle(streamDesc.handle());
-  MOZ_ASSERT(mStream);
-  mStreamGL = dont_AddRef(mStream->GLContext());
+  if (aImage.type() == SurfaceDescriptor::TSurfaceStreamDescriptor) {
+    // Bug 894405
+    //
+    // The SurfaceStream's GLContext was refed before being passed up to us, so
+    // we need to ensure it gets unrefed when we are finished.
+    const SurfaceStreamDescriptor& streamDesc =
+        aImage.get_SurfaceStreamDescriptor();
+
+    SurfaceStream* surfStream = SurfaceStream::FromHandle(streamDesc.handle());
+    if (surfStream) {
+      mStreamGL = dont_AddRef(surfStream->GLContext());
+    }
+  } 
 }
 
 void
@@ -619,8 +626,15 @@ bool
 SurfaceStreamHostOGL::Lock()
 {
   mGL->MakeCurrent();
+  SurfaceStream* surfStream = nullptr;
+  SharedSurface* sharedSurf = nullptr;
+  const SurfaceStreamDescriptor& streamDesc =
+    mBuffer->get_SurfaceStreamDescriptor();
 
-  SharedSurface* sharedSurf = mStream->SwapConsumer();
+  surfStream = SurfaceStream::FromHandle(streamDesc.handle());
+  MOZ_ASSERT(surfStream);
+
+  sharedSurf = surfStream->SwapConsumer();
   if (!sharedSurf) {
     // We don't have a valid surf to show yet.
     return false;

@@ -165,10 +165,6 @@ function getFileListing(basePath, testPath, dir, srvScope)
   chromeDir.appendRelativePath(dir);
   basePath += '/' + dir;
 
-  if (testPath == "false" || testPath == false) {
-    testPath = "";
-  }
-
   var ioSvc = Components.classes["@mozilla.org/network/io-service;1"].
               getService(Components.interfaces.nsIIOService);
   var testsDirURI = ioSvc.newFileURI(chromeDir);
@@ -185,12 +181,12 @@ function getFileListing(basePath, testPath, dir, srvScope)
       return null;
 
     if (testsDir.isFile()) {
-      if (fileNameRegexp.test(testsDir.leafName)) {
+      if (fileNameRegexp.test(testsDir.leafName))
         var singlePath = basePath + '/' + testPath;
         var links = {};
         links[singlePath] = true;
         return links;
-      }
+
       // We were passed a file that's not a test...
       return null;
     }
@@ -326,13 +322,11 @@ function buildRelativePath(jarentryname, destdir, basepath)
   return targetFile;
 }
 
-function readConfig(filename) {
-  filename = filename || "testConfig.js";
-
+function readConfig() {
   var fileLocator = Components.classes["@mozilla.org/file/directory_service;1"].
                     getService(Components.interfaces.nsIProperties);
   var configFile = fileLocator.get("ProfD", Components.interfaces.nsIFile);
-  configFile.append(filename);
+  configFile.append("testConfig.js");
 
   if (!configFile.exists())
     return {};
@@ -346,29 +340,10 @@ function readConfig(filename) {
   return JSON.parse(str);
 }
 
-function registerTests() {
-  var testsURI = Components.classes["@mozilla.org/file/directory_service;1"].
-                 getService(Components.interfaces.nsIProperties).
-                 get("ProfD", Components.interfaces.nsILocalFile);
-  testsURI.append("tests.manifest");
-  var ioSvc = Components.classes["@mozilla.org/network/io-service;1"].
-              getService(Components.interfaces.nsIIOService);
-  var manifestFile = ioSvc.newFileURI(testsURI).
-                     QueryInterface(Components.interfaces.nsIFileURL).file;
-
-  Components.manager.QueryInterface(Components.interfaces.nsIComponentRegistrar).
-                     autoRegister(manifestFile);
-}
-
-function getTestList(params, callback) {
-  registerTests();
-
-  var baseurl = 'chrome://mochitests/content';
+function getTestList() {
+  var params = {};
   if (window.parseQueryString) {
     params = parseQueryString(location.search.substring(1), true);
-  }
-  if (!params.baseurl) {
-    params.baseurl = baseurl;
   }
 
   var config = readConfig();
@@ -382,23 +357,32 @@ function getTestList(params, callback) {
     }
   }
   params = config;
-  if (params.manifestFile) {
-    getTestManifest("http://mochi.test:8888/" + params.manifestFile, params, callback);
-    return;
-  }
 
-  var links = {};
+  var baseurl = 'chrome://mochitests/content';
+  var testsURI = Components.classes["@mozilla.org/file/directory_service;1"]
+                      .getService(Components.interfaces.nsIProperties)
+                      .get("ProfD", Components.interfaces.nsILocalFile);
+  testsURI.append("tests.manifest");
+  var ioSvc = Components.classes["@mozilla.org/network/io-service;1"].
+              getService(Components.interfaces.nsIIOService);
+  var manifestFile = ioSvc.newFileURI(testsURI)
+                  .QueryInterface(Components.interfaces.nsIFileURL).file;
+
+  Components.manager.QueryInterface(Components.interfaces.nsIComponentRegistrar).
+    autoRegister(manifestFile);
+
   // load server.js in so we can share template functions
   var scriptLoader = Cc["@mozilla.org/moz/jssubscript-loader;1"].
                        getService(Ci.mozIJSSubScriptLoader);
   var srvScope = {};
   scriptLoader.loadSubScript('chrome://mochikit/content/server.js',
                              srvScope);
+  var links;
 
   if (getResolvedURI(baseurl).JARFile) {
     links = getMochitestJarListing(baseurl, params.testPath, params.testRoot);
   } else {
     links = getFileListing(baseurl, params.testPath, params.testRoot, srvScope);
   }
-  callback(links);
+  return links;
 }

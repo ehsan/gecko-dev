@@ -469,7 +469,6 @@ webidl_files += \
 ifdef MOZ_B2G_BT
 webidl_files += \
   BluetoothDeviceEvent.webidl \
-  BluetoothStatusChangedEvent.webidl \
   $(NULL)
 endif
 

@@ -476,18 +476,16 @@ nsRangeFrame::GetValueAtEventPoint(nsGUIEvent* aEvent)
   }
   Decimal range = maximum - minimum;
 
-  LayoutDeviceIntPoint absPoint;
+  nsIntPoint absPoint;
   if (aEvent->eventStructType == NS_TOUCH_EVENT) {
     MOZ_ASSERT(static_cast<nsTouchEvent*>(aEvent)->touches.Length() == 1,
                "Unexpected number of touches");
-    absPoint = LayoutDeviceIntPoint::FromUntyped(
-      static_cast<nsTouchEvent*>(aEvent)->touches[0]->mRefPoint);
+    absPoint = static_cast<nsTouchEvent*>(aEvent)->touches[0]->mRefPoint;
   } else {
     absPoint = aEvent->refPoint;
   }
   nsPoint point =
-    nsLayoutUtils::GetEventCoordinatesRelativeTo(aEvent, 
-      LayoutDeviceIntPoint::ToUntyped(absPoint), this);
+    nsLayoutUtils::GetEventCoordinatesRelativeTo(aEvent, absPoint, this);
 
   if (point == nsPoint(NS_UNCONSTRAINEDSIZE, NS_UNCONSTRAINEDSIZE)) {
     // We don't want to change the current value for this error state.

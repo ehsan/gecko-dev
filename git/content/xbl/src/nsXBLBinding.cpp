@@ -160,8 +160,6 @@ nsXBLBinding::~nsXBLBinding(void)
   NS_RELEASE(info);
 }
 
-NS_IMPL_CYCLE_COLLECTION_CLASS(nsXBLBinding)
-
 NS_IMPL_CYCLE_COLLECTION_UNLINK_BEGIN(nsXBLBinding)
   // XXX Probably can't unlink mPrototypeBinding->XBLDocumentInfo(), because
   //     mPrototypeBinding is weak.
@@ -943,7 +941,7 @@ nsXBLBinding::DoInitJSClass(JSContext *cx, JS::Handle<JSObject*> global,
   JS::Rooted<JSObject*> proto(cx);
   JS::Rooted<JS::Value> val(cx);
 
-  if (!::JS_LookupPropertyWithFlags(cx, global, className.get(), 0, &val))
+  if (!::JS_LookupPropertyWithFlags(cx, global, className.get(), 0, val.address()))
     return NS_ERROR_OUT_OF_MEMORY;
 
   if (val.isObject()) {
