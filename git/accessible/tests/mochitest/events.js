@@ -31,8 +31,6 @@ const EVENT_VALUE_CHANGE = nsIAccessibleEvent.EVENT_VALUE_CHANGE;
 ////////////////////////////////////////////////////////////////////////////////
 // General
 
-Components.utils.import("resource://gre/modules/Services.jsm");
-
 /**
  * Set up this variable to dump events into DOM.
  */
@@ -1416,6 +1414,12 @@ var gA11yEventApplicantsCount = 0;
 
 var gA11yEventObserver =
 {
+  // The service reference needs to live in the observer, instead of as a global var,
+  //   to be available in observe() catch case too.
+  observerService :
+    Components.classes["@mozilla.org/observer-service;1"]
+              .getService(nsIObserverService),
+
   observe: function observe(aSubject, aTopic, aData)
   {
     if (aTopic != "accessible-event")
@@ -1427,7 +1431,7 @@ var gA11yEventObserver =
     } catch (ex) {
       // After a test is aborted (i.e. timed out by the harness), this exception is soon triggered.
       // Remove the leftover observer, otherwise it "leaks" to all the following tests.
-      Services.obs.removeObserver(this, "accessible-event");
+      this.observerService.removeObserver(this, "accessible-event");
       // Forward the exception, with added explanation.
       throw "[accessible/events.js, gA11yEventObserver.observe] This is expected if a previous test has been aborted... Initial exception was: [ " + ex + " ]";
     }
@@ -1481,12 +1485,14 @@ function listenA11yEvents(aStartToListen)
   if (aStartToListen) {
     // Add observer when adding the first applicant only.
     if (!(gA11yEventApplicantsCount++))
-      Services.obs.addObserver(gA11yEventObserver, "accessible-event", false);
+      gA11yEventObserver.observerService
+                        .addObserver(gA11yEventObserver, "accessible-event", false);
   } else {
     // Remove observer when there are no more applicants only.
     // '< 0' case should not happen, but just in case: removeObserver() will throw.
     if (--gA11yEventApplicantsCount <= 0)
-      Services.obs.removeObserver(gA11yEventObserver, "accessible-event");
+      gA11yEventObserver.observerService
+                        .removeObserver(gA11yEventObserver, "accessible-event");
   }
 }
 
@@ -1603,8 +1609,11 @@ var gLogger =
   logToAppConsole: function logger_logToAppConsole(aMsg)
   {
     if (gA11yEventDumpToAppConsole)
-      Services.console.logStringMessage("events: " + aMsg);
-  }
+      consoleService.logStringMessage("events: " + aMsg);
+  },
+
+  consoleService: Components.classes["@mozilla.org/consoleservice;1"].
+    getService(Components.interfaces.nsIConsoleService)
 };
 
 

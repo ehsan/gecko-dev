@@ -100,7 +100,7 @@ Tilt.prototype = {
 
     // if the visualizer for the current tab is already open, destroy it now
     if (this.visualizers[id]) {
-      this.destroy(id, true);
+      this.destroy(id);
       return;
     }
 
@@ -126,42 +126,20 @@ Tilt.prototype = {
    *
    * @param {String} aId
    *                 the identifier of the instance in the visualizers array
-   * @param {Boolean} aAnimateFlag
-   *                  optional, set to true to display a destruction transition
    */
-  destroy: function T_destroy(aId, aAnimateFlag)
+  destroy: function T_destroy(aId)
   {
     // if the visualizer is already destroyed, don't do anything
     if (!this.visualizers[aId]) {
       return;
     }
 
-    if (!this.isDestroying) {
-      this.isDestroying = true;
+    this.visualizers[aId].removeOverlay();
+    this.visualizers[aId].cleanup();
+    this.visualizers[aId] = null;
 
-      let finalize = function T_finalize(aId) {
-        this.visualizers[aId].removeOverlay();
-        this.visualizers[aId].cleanup();
-        this.visualizers[aId] = null;
-
-        this.isDestroying = false;
-        this.chromeWindow.gBrowser.selectedBrowser.focus();
-        Services.obs.notifyObservers(null, TILT_NOTIFICATIONS.DESTROYED, null);
-      };
-
-      if (!aAnimateFlag) {
-        finalize.call(this, aId);
-        return;
-      }
-
-      let controller = this.visualizers[aId].controller;
-      let presenter = this.visualizers[aId].presenter;
-      let content = presenter.contentWindow;
-
-      controller.removeEventListeners();
-      controller.arcball.reset([-content.pageXOffset, -content.pageYOffset]);
-      presenter.executeDestruction(finalize.bind(this, aId));
-    }
+    this.chromeWindow.gBrowser.selectedBrowser.contentWindow.focus();
+    Services.obs.notifyObservers(null, TILT_NOTIFICATIONS.DESTROYED, null);
   },
 
   /**
