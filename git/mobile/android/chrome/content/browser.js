@@ -556,7 +556,8 @@ var BrowserApp = {
     let ms = Cc["@mozilla.org/mime;1"].getService(Ci.nsIMIMEService);
     let mimeInfo = ms.getFromTypeAndExtension("application/pdf", "pdf");
 
-    let webBrowserPrint = content.QueryInterface(Ci.nsIInterfaceRequestor).getInterface(Ci.nsIWebBrowserPrint);
+    let webBrowserPrint = aBrowser.contentWindow.QueryInterface(Ci.nsIInterfaceRequestor)
+                                                .getInterface(Ci.nsIWebBrowserPrint);
 
     let cancelable = {
       cancel: function (aReason) {
@@ -2682,7 +2683,7 @@ var FormAssistant = {
   handleClick: function(aTarget) {
     let target = aTarget;
     while (target) {
-      if (this._isSelectElement(target)) {
+      if (this._isSelectElement(target) && !target.disabled) {
         target.focus();
         let list = this.getListForElement(target);
         this.show(list, target);
