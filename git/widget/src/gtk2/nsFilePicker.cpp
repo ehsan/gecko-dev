@@ -320,32 +320,6 @@ UpdateFilePreviewWidget(GtkFileChooser *file_chooser,
   _gtk_file_chooser_set_preview_widget_active(file_chooser, TRUE);
 }
 
-static nsCAutoString
-MakeCaseInsensitiveShellGlob(const char* aPattern) {
-  // aPattern is UTF8
-  nsCAutoString result;
-  unsigned int len = strlen(aPattern);
-
-  for (unsigned int i = 0; i < len; i++) {
-    if (!g_ascii_isalpha(aPattern[i])) {
-      // non-ASCII characters will also trigger this path, so unicode
-      // is safely handled albeit case-sensitively
-      result.Append(aPattern[i]);
-      continue;
-    }
-
-    // add the lowercase and uppercase version of a character to a bracket
-    // match, so it matches either the lowercase or uppercase char.
-    result.Append('[');
-    result.Append(g_ascii_tolower(aPattern[i]));
-    result.Append(g_ascii_toupper(aPattern[i]));
-    result.Append(']');
-
-  }
-
-  return result;
-}
-
 NS_IMPL_ISUPPORTS1(nsFilePicker, nsIFilePicker)
 
 nsFilePicker::nsFilePicker()
@@ -654,8 +628,7 @@ nsFilePicker::Show(PRInt16 *aReturn)
 
     GtkFileFilter *filter = _gtk_file_filter_new ();
     for (int j = 0; patterns[j] != NULL; ++j) {
-      nsCAutoString caseInsensitiveFilter = MakeCaseInsensitiveShellGlob(g_strstrip(patterns[j]));
-      _gtk_file_filter_add_pattern (filter, caseInsensitiveFilter.get());
+      _gtk_file_filter_add_pattern (filter, g_strstrip (patterns[j]));
     }
 
     g_strfreev(patterns);

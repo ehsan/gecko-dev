@@ -94,7 +94,6 @@ nsXBLProtoImplField::AppendFieldText(const nsAString& aText)
 nsresult
 nsXBLProtoImplField::InstallField(nsIScriptContext* aContext,
                                   JSObject* aBoundNode,
-                                  nsIPrincipal* aPrincipal,
                                   nsIURI* aBindingDocURI,
                                   PRBool* aDidInstall) const
 {
@@ -125,12 +124,14 @@ nsXBLProtoImplField::InstallField(nsIScriptContext* aContext,
                "Shouldn't get here when an exception is pending!");
   
   // compile the literal string
+  // XXX Could we produce a better principal here?  Should be able
+  // to, really!
   PRBool undefined;
   nsCOMPtr<nsIScriptContext> context = aContext;
   rv = context->EvaluateStringWithValue(nsDependentString(mFieldText,
                                                           mFieldTextLength), 
                                         aBoundNode,
-                                        aPrincipal, uriSpec.get(),
+                                        nsnull, uriSpec.get(),
                                         mLineNumber, JSVERSION_LATEST,
                                         (void*) &result, &undefined);
   if (NS_FAILED(rv))
