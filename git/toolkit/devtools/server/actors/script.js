@@ -1362,13 +1362,7 @@ ThreadActor.prototype = {
       if (line == null ||
           line < 0 ||
           this.dbg.findScripts({ url: url }).length == 0) {
-        return {
-          error: "noScript",
-          message: "Requested setting a breakpoint on "
-            + url + ":" + line
-            + (column != null ? ":" + column : "")
-            + " but there is no Debugger.Script at that location"
-        };
+        return { error: "noScript" };
       }
 
       let response = this._createAndStoreBreakpoint({
@@ -1456,10 +1450,6 @@ ThreadActor.prototype = {
     if (scripts.length == 0) {
       return {
         error: "noScript",
-        message: "Requested setting a breakpoint on "
-          + aLocation.url + ":" + aLocation.line
-          + (aLocation.column != null ? ":" + aLocation.column : "")
-          + " but there is no Debugger.Script at that location",
         actor: actor.actorID
       };
     }
