@@ -17,7 +17,6 @@
 #include "mozilla/RefPtr.h"
 #include "mozilla/Services.h"
 #include "mozilla/StaticPtr.h"
-#include "nsAutoPtr.h"
 #include "nsCExternalHandlerService.h"
 #include "nsIObserver.h"
 #include "nsIObserverService.h"
@@ -77,13 +76,6 @@ public:
 namespace {
 // Sending system message "bluetooth-opp-update-progress" every 50kb
 static const uint32_t kUpdateProgressBase = 50 * 1024;
-
-/*
- * The format of the header of an PUT request is
- * [opcode:1][packet length:2][headerId:1][header length:2]
- */
-static const uint32_t kPutRequestHeaderSize = 6;
-
 StaticRefPtr<BluetoothOppManager> sInstance;
 StaticRefPtr<BluetoothOppManagerObserver> sOppObserver;
 
@@ -122,24 +114,24 @@ BluetoothOppManagerObserver::Observe(nsISupports* aSubject,
 class ReadFileTask : public nsRunnable
 {
 public:
-  ReadFileTask(nsIInputStream* aInputStream,
-               uint32_t aRemoteMaxPacketSize) : mInputStream(aInputStream)
+  ReadFileTask(nsIInputStream* aInputStream) : mInputStream(aInputStream)
   {
     MOZ_ASSERT(NS_IsMainThread());
-
-    mAvailablePacketSize = aRemoteMaxPacketSize - kPutRequestHeaderSize;
   }
 
   NS_IMETHOD Run()
   {
     MOZ_ASSERT(!NS_IsMainThread());
 
+    /*
+     * 255 is the Minimum OBEX Packet Length (See section 3.3.1.4,
+     * IrOBEX ver 1.2)
+     */
+    char buf[255];
     uint32_t numRead;
-    nsAutoArrayPtr<char> buf;
-    buf = new char[mAvailablePacketSize];
 
     // function inputstream->Read() only works on non-main thread
-    nsresult rv = mInputStream->Read(buf.get(), mAvailablePacketSize, &numRead);
+    nsresult rv = mInputStream->Read(buf, sizeof(buf), &numRead);
     if (NS_FAILED(rv)) {
       // Needs error handling here
       return NS_ERROR_FAILURE;
@@ -149,7 +141,7 @@ public:
       if (sSentFileLength + numRead >= sFileLength) {
         sWaitingToSendPutFinal = true;
       }
-      sInstance->SendPutRequest((uint8_t*)buf.get(), numRead);
+      sInstance->SendPutRequest((uint8_t*)buf, numRead);
       sSentFileLength += numRead;
     }
 
@@ -158,7 +150,6 @@ public:
 
 private:
   nsCOMPtr<nsIInputStream> mInputStream;
-  uint32_t mAvailablePacketSize;
 };
 
 BluetoothOppManager::BluetoothOppManager() : mConnected(false)
@@ -838,8 +829,7 @@ BluetoothOppManager::ClientDataHandler(UnixSocketRawData* aMessage)
       }
     }
 
-    nsRefPtr<ReadFileTask> task = new ReadFileTask(mInputStream,
-                                                   mRemoteMaxPacketLength);
+    nsRefPtr<ReadFileTask> task = new ReadFileTask(mInputStream);
     rv = mReadFileThread->Dispatch(task, NS_DISPATCH_NORMAL);
     if (NS_FAILED(rv)) {
       NS_WARNING("Cannot dispatch read file task!");
@@ -925,7 +915,8 @@ void
 BluetoothOppManager::SendPutRequest(uint8_t* aFileBody,
                                     int aFileBodyLength)
 {
-  int packetLeftSpace = mRemoteMaxPacketLength - kPutRequestHeaderSize;
+  int index = 3;
+  int packetLeftSpace = mRemoteMaxPacketLength - index - 3;
 
   if (!mConnected) return;
   if (aFileBodyLength > packetLeftSpace) {
@@ -937,7 +928,6 @@ BluetoothOppManager::SendPutRequest(uint8_t* aFileBody,
   // [opcode:1][length:2][Headers:var]
   uint8_t* req = new uint8_t[mRemoteMaxPacketLength];
 
-  int index = 3;
   index += AppendHeaderBody(&req[index], aFileBody, aFileBodyLength);
 
   SetObexPacketInfo(req, ObexRequestCode::Put, index);

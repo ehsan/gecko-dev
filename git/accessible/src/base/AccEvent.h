@@ -210,6 +210,7 @@ public:
   {
     // Don't coalesce these since they are coalesced by reorder event. Coalesce
     // contained text change events.
+    mNode = aTargetNode;
     mParent = mAccessible->Parent();
   }
   virtual ~AccMutationEvent() { }

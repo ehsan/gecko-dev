@@ -172,13 +172,12 @@ public:
     // data from subsequent OnReadSegment() calls or throw hard
     // (i.e. not wouldblock) exceptions. Implementations
     // can return NS_ERROR_FAILURE if they never make commitments of that size
-    // (the default), NS_OK if they make the commitment, or
-    // NS_BASE_STREAM_WOULD_BLOCK if they cannot make the
-    // commitment now but might in the future and forceCommitment is not true .
-    // (forceCommitment requires a hard failure or OK at this moment.)
+    // (the default), NS_BASE_STREAM_WOULD_BLOCK if they cannot make
+    // the commitment now but might in the future, or NS_OK
+    // if they make the commitment.
     //
     // Spdy uses this to make sure frames are atomic.
-    virtual nsresult CommitToSegmentSize(uint32_t size, bool forceCommitment)
+    virtual nsresult CommitToSegmentSize(uint32_t size)
     {
         return NS_ERROR_FAILURE;
     }

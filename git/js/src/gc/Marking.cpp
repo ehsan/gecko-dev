@@ -99,20 +99,6 @@ static void MarkChildren(JSTracer *trc, JSXML *xml);
 
 /*** Object Marking ***/
 
-#ifdef DEBUG
-template<typename T>
-static inline bool
-IsThingPoisoned(T *thing)
-{
-    const uint8_t pb = JS_FREE_PATTERN;
-    const uint32_t pw = pb | (pb << 8) | (pb << 16) | (pb << 24);
-    JS_STATIC_ASSERT(sizeof(T) >= sizeof(FreeSpan) + sizeof(uint32_t));
-    uint32_t *p =
-        reinterpret_cast<uint32_t *>(reinterpret_cast<FreeSpan *>(thing) + 1);
-    return *p == pw;
-}
-#endif
-
 template<typename T>
 static inline void
 CheckMarkedThing(JSTracer *trc, T *thing)
@@ -143,8 +129,6 @@ CheckMarkedThing(JSTracer *trc, T *thing)
     JS_ASSERT_IF(IS_GC_MARKING_TRACER(trc) && ((GCMarker *)trc)->getMarkColor() == GRAY,
                  thing->compartment()->isGCMarkingGray() ||
                  thing->compartment() == rt->atomsCompartment);
-
-    JS_ASSERT(!IsThingPoisoned(thing));
 }
 
 static GCMarker *

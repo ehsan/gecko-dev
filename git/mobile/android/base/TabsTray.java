@@ -258,7 +258,6 @@ public class TabsTray extends LinearLayout
                 convertView.setTag(row);
             } else {
                 row = (TabRow) convertView.getTag();
-                row.close.setVisibility(View.VISIBLE);
             }
 
             Tab tab = mTabs.get(position);
@@ -341,13 +340,8 @@ public class TabsTray extends LinearLayout
     }
 
     private class TabSwipeGestureListener implements View.OnTouchListener {
-        // same value the stock browser uses for after drag animation velocity in pixels/sec
-        // http://androidxref.com/4.0.4/xref/packages/apps/Browser/src/com/android/browser/NavTabScroller.java#61
-        private static final float MIN_VELOCITY = 750;
-
         private int mSwipeThreshold;
         private int mMinFlingVelocity;
-
         private int mMaxFlingVelocity;
         private VelocityTracker mVelocityTracker;
 
@@ -374,7 +368,7 @@ public class TabsTray extends LinearLayout
 
             ViewConfiguration vc = ViewConfiguration.get(listView.getContext());
             mSwipeThreshold = vc.getScaledTouchSlop();
-            mMinFlingVelocity = (int) (getContext().getResources().getDisplayMetrics().density * MIN_VELOCITY);
+            mMinFlingVelocity = vc.getScaledMinimumFlingVelocity();
             mMaxFlingVelocity = vc.getScaledMaximumFlingVelocity();
         }
 

@@ -493,8 +493,6 @@ public:
 
     virtual int GetScreenDepth() const;
 
-    bool WidgetUpdateFlashing() const { return mWidgetUpdateFlashing; }
-
 protected:
     gfxPlatform();
     virtual ~gfxPlatform();
@@ -588,7 +586,6 @@ private:
     bool mWorkAroundDriverBugs;
 
     mozilla::RefPtr<mozilla::gfx::DrawEventRecorder> mRecorder;
-    bool mWidgetUpdateFlashing;
 };
 
 #endif /* GFX_PLATFORM_H */

@@ -75,6 +75,8 @@ const MEM_HISTOGRAMS = {
 // start asynchronous tasks to gather data.  On the next idle the data is sent.
 const IDLE_TIMEOUT_SECONDS = 5 * 60;
 
+const SHUTDOWN_TIME_READ_DELAY_MS = 5413;
+
 var gLastMemoryPoll = null;
 
 let gWasDebuggerAttached = false;
@@ -725,9 +727,7 @@ TelemetryPing.prototype = {
       Telemetry.canRecord = false;
       return;
     }
-#ifndef MOZ_PER_WINDOW_PRIVATE_BROWSING
     Services.obs.addObserver(this, "private-browsing", false);
-#endif
     Services.obs.addObserver(this, "profile-before-change", false);
     Services.obs.addObserver(this, "sessionstore-windows-restored", false);
     Services.obs.addObserver(this, "quit-application-granted", false);
@@ -743,9 +743,6 @@ TelemetryPing.prototype = {
       this._initialized = true;
       this.attachObservers();
       this.gatherMemory();
-
-      Telemetry.asyncFetchTelemetryData(function () {
-      });
       delete this._timer;
     }
     this._timer.initWithCallback(timerCallback.bind(this), TELEMETRY_DELAY,
@@ -952,9 +949,7 @@ TelemetryPing.prototype = {
       this._hasXulWindowVisibleObserver = false;
     }
     Services.obs.removeObserver(this, "profile-before-change");
-#ifndef MOZ_PER_WINDOW_PRIVATE_BROWSING
     Services.obs.removeObserver(this, "private-browsing");
-#endif
     Services.obs.removeObserver(this, "quit-application-granted");
   },
 
@@ -1022,7 +1017,6 @@ TelemetryPing.prototype = {
         this.gatherMemory();
       }
       break;
-#ifndef MOZ_PER_WINDOW_PRIVATE_BROWSING
     case "private-browsing":
       Telemetry.canRecord = aData == "exit";
       if (aData == "enter") {
@@ -1031,9 +1025,14 @@ TelemetryPing.prototype = {
         this.attachObservers()
       }
       break;
-#endif
     case "xul-window-visible":
       Services.obs.removeObserver(this, "xul-window-visible");
+
+      let timer = Cc["@mozilla.org/timer;1"].createInstance(Ci.nsITimer);
+      timer.initWithCallback(function() {
+        Telemetry.asyncReadShutdownTime(function () {
+        });
+      }, SHUTDOWN_TIME_READ_DELAY_MS, Ci.nsITimer.TYPE_ONE_SHOT);
       this._hasXulWindowVisibleObserver = false;   
       var counters = processInfo.getCounters();
       if (counters) {

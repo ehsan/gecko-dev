@@ -98,7 +98,6 @@ MOCHITEST_FILES	= \
 	test_missingManifest.html \
 	missing.html \
 	jupiter.jpg \
-	test_cancelOfflineCache.html \
 	$(NULL)
 
 # test_offlineMode.html disabled due to bug 656943

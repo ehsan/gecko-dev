@@ -1597,7 +1597,7 @@ ReportCompartmentStats(const JS::CompartmentStats &cStats,
 #endif
 
     CREPORT_BYTES(cJSPathPrefix + NS_LITERAL_CSTRING("objects-extra/slots"),
-                  cStats.objectsExtra.slots,
+                  cStats.objectsExtraSlots,
                   "Memory allocated for the non-fixed object "
                   "slot arrays, which are used to represent object properties. "
                   "Some objects also contain a fixed number of slots which are "
@@ -1605,32 +1605,29 @@ ReportCompartmentStats(const JS::CompartmentStats &cStats,
                   "are not counted here, but in 'gc-heap/objects' instead.");
 
     CREPORT_BYTES(cJSPathPrefix + NS_LITERAL_CSTRING("objects-extra/elements"),
-                  cStats.objectsExtra.elements,
+                  cStats.objectsExtraElements,
                   "Memory allocated for object element "
                   "arrays, which are used to represent indexed object "
                   "properties.");
 
     CREPORT_BYTES(cJSPathPrefix + NS_LITERAL_CSTRING("objects-extra/arguments-data"),
-                  cStats.objectsExtra.argumentsData,
+                  cStats.objectsExtraArgumentsData,
                   "Memory allocated for data belonging to arguments objects.");
 
     CREPORT_BYTES(cJSPathPrefix + NS_LITERAL_CSTRING("objects-extra/regexp-statics"),
-                  cStats.objectsExtra.regExpStatics,
+                  cStats.objectsExtraRegExpStatics,
                   "Memory allocated for data belonging to the RegExpStatics object.");
 
     CREPORT_BYTES(cJSPathPrefix + NS_LITERAL_CSTRING("objects-extra/property-iterator-data"),
-                  cStats.objectsExtra.propertyIteratorData,
-                  "Memory allocated for data belonging to property iterator objects.");
-
-    CREPORT_BYTES(cJSPathPrefix + NS_LITERAL_CSTRING("objects-extra/ctypes-data"),
-                  cStats.objectsExtra.ctypesData,
-                  "Memory allocated for data belonging to ctypes objects.");
+                  cStats.objectsExtraPropertyIteratorData,
+                  "Memory allocated for data belonging to property iterator "
+                  "objects.");
 
     // Note that we use cDOMPathPrefix here.  This is because we measure orphan
     // DOM nodes in the JS multi-reporter, but we want to report them in a
     // "dom" sub-tree rather than a "js" sub-tree.
     CREPORT_BYTES(cDOMPathPrefix + NS_LITERAL_CSTRING("orphan-nodes"),
-                  cStats.objectsExtra.private_,
+                  cStats.objectsExtraPrivate,
                   "Memory used by orphan DOM nodes that are only reachable "
                   "from JavaScript objects.");
 
@@ -1686,40 +1683,40 @@ ReportCompartmentStats(const JS::CompartmentStats &cStats,
                   "Memory used by the debuggees set.");
 
     CREPORT_BYTES(cJSPathPrefix + NS_LITERAL_CSTRING("type-inference/type-scripts"),
-                  cStats.typeInference.typeScripts,
+                  cStats.typeInferenceSizes.typeScripts,
                   "Memory used by type sets associated with scripts.");
 
     CREPORT_BYTES(cJSPathPrefix + NS_LITERAL_CSTRING("type-inference/type-results"),
-                  cStats.typeInference.typeResults,
+                  cStats.typeInferenceSizes.typeResults,
                   "Memory used by dynamic type results produced by scripts.");
 
     CREPORT_BYTES(cJSPathPrefix + NS_LITERAL_CSTRING("type-inference/analysis-pool"),
-                  cStats.typeInference.analysisPool,
+                  cStats.typeInferenceSizes.analysisPool,
                   "Memory holding transient analysis information used during type inference and "
                   "compilation.");
 
     CREPORT_BYTES(cJSPathPrefix + NS_LITERAL_CSTRING("type-inference/type-pool"),
-                  cStats.typeInference.typePool,
+                  cStats.typeInferenceSizes.typePool,
                   "Memory holding contents of type sets and related data.");
 
     CREPORT_BYTES(cJSPathPrefix + NS_LITERAL_CSTRING("type-inference/pending-arrays"),
-                  cStats.typeInference.pendingArrays,
+                  cStats.typeInferenceSizes.pendingArrays,
                   "Memory used for solving constraints during type inference.");
 
     CREPORT_BYTES(cJSPathPrefix + NS_LITERAL_CSTRING("type-inference/allocation-site-tables"),
-                  cStats.typeInference.allocationSiteTables,
+                  cStats.typeInferenceSizes.allocationSiteTables,
                   "Memory indexing type objects associated with allocation sites.");
 
     CREPORT_BYTES(cJSPathPrefix + NS_LITERAL_CSTRING("type-inference/array-type-tables"),
-                  cStats.typeInference.arrayTypeTables,
+                  cStats.typeInferenceSizes.arrayTypeTables,
                   "Memory indexing type objects associated with array literals.");
 
     CREPORT_BYTES(cJSPathPrefix + NS_LITERAL_CSTRING("type-inference/object-type-tables"),
-                  cStats.typeInference.objectTypeTables,
+                  cStats.typeInferenceSizes.objectTypeTables,
                   "Memory indexing type objects associated with object literals.");
 
     CREPORT_BYTES(cJSPathPrefix + NS_LITERAL_CSTRING("type-inference/type-objects"),
-                  cStats.typeInference.typeObjects,
+                  cStats.typeInferenceSizes.typeObjects,
                   "Memory holding miscellaneous additional information associated with type "
                   "objects.");
 

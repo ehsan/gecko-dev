@@ -9,11 +9,6 @@ const {classes: Cc, interfaces: Ci, utils: Cu} = Components;
 const PREF_DEBUG = "toolkit.identity.debug";
 const PREF_ENABLED = "dom.identity.enabled";
 
-// Bug 822450: Workaround for Bug 821740.  When testing with marionette,
-// relax navigator.id.request's requirement that it be handling native
-// events.  Synthetic marionette events are ok.
-const PREF_SYNTHETIC_EVENTS_OK = "dom.identity.syntheticEventsOk";
-
 // Maximum length of a string that will go through IPC
 const MAX_STRING_LENGTH = 2048;
 // Maximum number of times navigator.id.request can be called for a document
@@ -52,14 +47,7 @@ nsDOMIdentity.prototype = {
     raiseAuthenticationFailure: 'r',
   },
 
-  // require native events unless syntheticEventsOk is set
-  get nativeEventsRequired() {
-    if (Services.prefs.prefHasUserValue(PREF_SYNTHETIC_EVENTS_OK)) {
-      return !Services.prefs.getBoolPref(PREF_SYNTHETIC_EVENTS_OK);
-    }
-    return true;
-  },
-
+  // nsIDOMIdentity
   /**
    * Relying Party (RP) APIs
    */
@@ -127,8 +115,7 @@ nsDOMIdentity.prototype = {
     // input handler is when we are handling the (deprecated) get() or
     // getVerifiedEmail() calls, which make use of an RP context
     // marked as _internal.
-    if (this.nativeEventsRequired && !util.isHandlingUserInput && !aOptions._internal) {
-      this._log("request: rejecting non-native event");
+    if (!util.isHandlingUserInput && !aOptions._internal) {
       return;
     }
 

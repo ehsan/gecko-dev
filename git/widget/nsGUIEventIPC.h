@@ -20,17 +20,13 @@ struct ParamTraits<mozilla::widget::EventFlags>
 
   static void Write(Message* aMsg, const paramType& aParam)
   {
-    aMsg->WriteBytes(&aParam, sizeof(aParam));
+    aMsg->WriteBytes(&aParam, sizeof(paramType));
   }
 
   static bool Read(const Message* aMsg, void** aIter, paramType* aResult)
   {
-    const char* outp;
-    if (!aMsg->ReadBytes(aIter, &outp, sizeof(*aResult))) {
-      return false;
-    }
-    *aResult = *reinterpret_cast<const paramType*>(outp);
-    return true;
+    return aMsg->ReadBytes(aIter, reinterpret_cast<const char**>(aResult),
+                           sizeof(paramType));
   }
 };
 

@@ -8,7 +8,6 @@
 
 #include "AsyncConnectionHelper.h"
 
-#include "mozilla/dom/quota/QuotaManager.h"
 #include "mozilla/storage.h"
 #include "nsComponentManagerUtils.h"
 #include "nsContentUtils.h"
@@ -25,7 +24,6 @@
 #include "ipc/IndexedDBParent.h"
 
 USING_INDEXEDDB_NAMESPACE
-using mozilla::dom::quota::QuotaManager;
 
 namespace {
 
@@ -289,7 +287,7 @@ AsyncConnectionHelper::Run()
   if (NS_SUCCEEDED(rv)) {
     bool hasSavepoint = false;
     if (mDatabase) {
-      QuotaManager::SetCurrentWindow(mDatabase->GetOwner());
+      IndexedDatabaseManager::SetCurrentWindow(mDatabase->GetOwner());
 
       // Make the first savepoint.
       if (mTransaction) {
@@ -315,7 +313,7 @@ AsyncConnectionHelper::Run()
 
       // Don't unset this until we're sure that all SQLite activity has
       // completed!
-      QuotaManager::SetCurrentWindow(nullptr);
+      IndexedDatabaseManager::SetCurrentWindow(nullptr);
     }
   }
   else {

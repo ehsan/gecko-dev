@@ -2520,20 +2520,19 @@ GetRequestBody(nsIXHRSendable* aSendable, nsIInputStream** aResult, uint64_t* aC
   return aSendable->GetSendInfo(aResult, aContentLength, aContentType, aCharset);
 }
 
-// Used for array buffers and array buffer views
 static nsresult
-GetRequestBody(const uint8_t* aData, uint32_t aDataLength,
-               nsIInputStream** aResult, uint64_t* aContentLength,
+GetRequestBody(ArrayBuffer* aArrayBuffer, nsIInputStream** aResult, uint64_t* aContentLength,
                nsACString& aContentType, nsACString& aCharset)
 {
   aContentType.SetIsVoid(true);
   aCharset.Truncate();
 
-  *aContentLength = aDataLength;
-  const char* data = reinterpret_cast<const char*>(aData);
+  int32_t length = aArrayBuffer->Length();
+  *aContentLength = length;
+  char* data = reinterpret_cast<char*>(aArrayBuffer->Data());
 
   nsCOMPtr<nsIInputStream> stream;
-  nsresult rv = NS_NewByteInputStream(getter_AddRefs(stream), data, aDataLength,
+  nsresult rv = NS_NewByteInputStream(getter_AddRefs(stream), data, length,
                                       NS_ASSIGNMENT_COPY);
   NS_ENSURE_SUCCESS(rv, rv);
 
@@ -2596,8 +2595,7 @@ GetRequestBody(nsIVariant* aBody, nsIInputStream** aResult, uint64_t* aContentLe
       JSObject *obj = JSVAL_TO_OBJECT(realVal);
       if (JS_IsArrayBufferObject(obj)) {
           ArrayBuffer buf(obj);
-          return GetRequestBody(buf.Data(), buf.Length(), aResult,
-                                aContentLength, aContentType, aCharset);
+          return GetRequestBody(&buf, aResult, aContentLength, aContentType, aCharset);
       }
     }
   }
@@ -2639,15 +2637,8 @@ nsXMLHttpRequest::GetRequestBody(nsIVariant* aVariant,
   switch (body.GetType()) {
     case nsXMLHttpRequest::RequestBody::ArrayBuffer:
     {
-      return ::GetRequestBody(value.mArrayBuffer->Data(),
-                              value.mArrayBuffer->Length(), aResult,
-                              aContentLength, aContentType, aCharset);
-    }
-    case nsXMLHttpRequest::RequestBody::ArrayBufferView:
-    {
-      return ::GetRequestBody(value.mArrayBufferView->Data(),
-                              value.mArrayBufferView->Length(), aResult,
-                              aContentLength, aContentType, aCharset);
+      return ::GetRequestBody(value.mArrayBuffer, aResult, aContentLength,
+                              aContentType, aCharset);
     }
     case nsXMLHttpRequest::RequestBody::Blob:
     {

@@ -5887,13 +5887,7 @@ xml_hasOwnProperty(JSContext *cx, unsigned argc, jsval *vp)
     RootedId id(cx);
     if (!ValueToId(cx, name, id.address()))
         return false;
-
-    RootedObject obj2(cx);
-    RootedShape prop(cx);
-    if (!js_HasOwnProperty(cx, baseops::LookupProperty, obj, id, &obj2, &prop))
-        return false;
-    args.rval().setBoolean(!!prop);
-    return true;
+    return js_HasOwnPropertyHelper(cx, baseops::LookupProperty, obj, id, args.rval());
 }
 
 /* XML and XMLList */

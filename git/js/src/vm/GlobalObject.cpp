@@ -18,7 +18,6 @@
 #include "builtin/Eval.h"
 #include "builtin/Intl.h"
 #include "builtin/MapObject.h"
-#include "builtin/Object.h"
 #include "builtin/RegExp.h"
 #include "frontend/BytecodeEmitter.h"
 
@@ -274,7 +273,7 @@ GlobalObject::initFunctionAndObjectClasses(JSContext *cx)
         if (!ctor)
             return NULL;
         RootedAtom objectAtom(cx, cx->names().Object);
-        objectCtor = js_NewFunction(cx, ctor, obj_construct, 1, JSFunction::NATIVE_CTOR, self,
+        objectCtor = js_NewFunction(cx, ctor, js_Object, 1, JSFunction::NATIVE_CTOR, self,
                                     objectAtom);
         if (!objectCtor)
             return NULL;

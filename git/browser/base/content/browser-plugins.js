@@ -144,6 +144,7 @@ var gPluginHandler = {
   },
 
   handleEvent : function(event) {
+    let self = gPluginHandler;
     let plugin = event.target;
     let doc = plugin.ownerDocument;
 
@@ -163,7 +164,7 @@ var gPluginHandler = {
       overlay._bindingHandled = true;
 
       // Lookup the handler for this binding
-      eventType = this._getBindingType(plugin);
+      eventType = self._getBindingType(plugin);
       if (!eventType) {
         // Not all bindings have handlers
         return;
@@ -172,7 +173,7 @@ var gPluginHandler = {
 
     switch (eventType) {
       case "PluginCrashed":
-        this.pluginInstanceCrashed(plugin, event);
+        self.pluginInstanceCrashed(plugin, event);
         break;
 
       case "PluginNotFound":
@@ -187,7 +188,7 @@ var gPluginHandler = {
           iconStatus.setAttribute("status", "ready");
 
           let installLink = doc.getAnonymousElementByAttribute(plugin, "class", "installPluginLink");
-          this.addLinkClickCallback(installLink, "installSinglePlugin", plugin);
+          self.addLinkClickCallback(installLink, "installSinglePlugin", plugin);
         }
         /* FALLTHRU */
 
@@ -196,19 +197,19 @@ var gPluginHandler = {
 #ifdef XP_MACOSX
       case "npapi-carbon-event-model-failure":
 #endif
-        this.pluginUnavailable(plugin, eventType);
+        self.pluginUnavailable(plugin, eventType);
         break;
 
       case "PluginVulnerableUpdatable":
         let updateLink = doc.getAnonymousElementByAttribute(plugin, "class", "checkForUpdatesLink");
-        this.addLinkClickCallback(updateLink, "openPluginUpdatePage");
+        self.addLinkClickCallback(updateLink, "openPluginUpdatePage");
         /* FALLTHRU */
 
       case "PluginVulnerableNoUpdate":
       case "PluginClickToPlay":
-        this._handleClickToPlayEvent(plugin);
+        self._handleClickToPlayEvent(plugin);
         let overlay = doc.getAnonymousElementByAttribute(plugin, "class", "mainBox");
-        let pluginName = this._getPluginInfo(plugin).pluginName;
+        let pluginName = self._getPluginInfo(plugin).pluginName;
         let messageString = gNavigatorBundle.getFormattedString("PluginClickToPlay", [pluginName]);
         let overlayText = doc.getAnonymousElementByAttribute(plugin, "class", "msg msgClickToPlay");
         overlayText.textContent = messageString;
@@ -221,12 +222,12 @@ var gPluginHandler = {
         break;
 
       case "PluginPlayPreview":
-        this._handlePlayPreviewEvent(plugin);
+        self._handlePlayPreviewEvent(plugin);
         break;
 
       case "PluginDisabled":
         let manageLink = doc.getAnonymousElementByAttribute(plugin, "class", "managePluginsLink");
-        this.addLinkClickCallback(manageLink, "managePlugins");
+        self.addLinkClickCallback(manageLink, "managePlugins");
         break;
 
       case "PluginScripted":
@@ -243,8 +244,8 @@ var gPluginHandler = {
     // Hide the in-content UI if it's too big. The crashed plugin handler already did this.
     if (eventType != "PluginCrashed") {
       let overlay = doc.getAnonymousElementByAttribute(plugin, "class", "mainBox");
-      if (overlay != null && this.isTooSmall(plugin, overlay))
-        overlay.style.visibility = "hidden";
+      if (overlay != null && self.isTooSmall(plugin, overlay))
+          overlay.style.visibility = "hidden";
     }
   },
 

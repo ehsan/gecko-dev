@@ -460,7 +460,7 @@ function run_test() {
   // Make it look like we've shutdown before.
   write_fake_shutdown_file();
 
-  Telemetry.asyncFetchTelemetryData(function () {
+  Telemetry.asyncReadShutdownTime(function () {
     actualTest();
   });
 }

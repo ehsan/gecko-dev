@@ -723,7 +723,7 @@ function onLoad() {
   }
 
   // Get the Telemetry Ping payload
-  Telemetry.asyncFetchTelemetryData(displayPingData);
+  Telemetry.asyncReadShutdownTime(displayPingData);
 }
 
 function displayPingData(ping) {

@@ -58,17 +58,12 @@ GetFontDownloaderLog()
 #define LOG_ENABLED() PR_LOG_TEST(GetFontDownloaderLog(), PR_LOG_DEBUG)
 
 
-nsFontFaceLoader::nsFontFaceLoader(gfxMixedFontFamily *aFontFamily,
-                                   gfxProxyFontEntry *aProxy,
-                                   nsIURI *aFontURI,
-                                   nsUserFontSet *aFontSet,
-                                   nsIChannel *aChannel)
-  : mFontFamily(aFontFamily),
-    mFontEntry(aProxy),
-    mFontURI(aFontURI),
-    mFontSet(aFontSet),
+nsFontFaceLoader::nsFontFaceLoader(gfxProxyFontEntry *aProxy, nsIURI *aFontURI,
+                                   nsUserFontSet *aFontSet, nsIChannel *aChannel)
+  : mFontEntry(aProxy), mFontURI(aFontURI), mFontSet(aFontSet),
     mChannel(aChannel)
 {
+  mFontFamily = aProxy->Family();
 }
 
 nsFontFaceLoader::~nsFontFaceLoader()
@@ -219,10 +214,9 @@ nsFontFaceLoader::OnStreamComplete(nsIStreamLoader* aLoader,
   // This is called even in the case of a failed download (HTTP 404, etc),
   // as there may still be data to be freed (e.g. an error page),
   // and we need the fontSet to initiate loading the next source.
-  bool fontUpdate = userFontSet->OnLoadComplete(mFontFamily,
-                                                mFontEntry,
-                                                aString, aStringLen,
-                                                aStatus);
+  bool fontUpdate = userFontSet->OnLoadComplete(mFontEntry,
+                                                  aString, aStringLen,
+                                                  aStatus);
 
   // when new font loaded, need to reflow
   if (fontUpdate) {
@@ -318,8 +312,7 @@ nsUserFontSet::RemoveLoader(nsFontFaceLoader *aLoader)
 }
 
 nsresult
-nsUserFontSet::StartLoad(gfxMixedFontFamily *aFamily,
-                         gfxProxyFontEntry *aProxy,
+nsUserFontSet::StartLoad(gfxProxyFontEntry *aProxy,
                          const gfxFontFaceSrc *aFontFaceSrc)
 {
   nsresult rv;
@@ -353,7 +346,7 @@ nsUserFontSet::StartLoad(gfxMixedFontFamily *aFamily,
   NS_ENSURE_SUCCESS(rv, rv);
 
   nsRefPtr<nsFontFaceLoader> fontLoader =
-    new nsFontFaceLoader(aFamily, aProxy, aFontFaceSrc->mURI, this, channel);
+    new nsFontFaceLoader(aProxy, aFontFaceSrc->mURI, this, channel);
 
   if (!fontLoader)
     return NS_ERROR_OUT_OF_MEMORY;
@@ -670,8 +663,7 @@ nsUserFontSet::InsertRule(nsCSSFontFaceRule *aRule, uint8_t aSheetType,
 }
 
 void
-nsUserFontSet::ReplaceFontEntry(gfxMixedFontFamily *aFamily,
-                                gfxProxyFontEntry *aProxy,
+nsUserFontSet::ReplaceFontEntry(gfxProxyFontEntry *aProxy,
                                 gfxFontEntry *aFontEntry)
 {
   for (uint32_t i = 0; i < mRules.Length(); ++i) {
@@ -680,7 +672,11 @@ nsUserFontSet::ReplaceFontEntry(gfxMixedFontFamily *aFamily,
       break;
     }
   }
-  aFamily->ReplaceFontEntry(aProxy, aFontEntry);
+  gfxMixedFontFamily *family =
+    static_cast<gfxMixedFontFamily*>(aProxy->Family());
+  if (family) {
+    family->ReplaceFontEntry(aProxy, aFontEntry);
+  }
 }
 
 nsCSSFontFaceRule*
@@ -695,8 +691,7 @@ nsUserFontSet::FindRuleForEntry(gfxFontEntry *aFontEntry)
 }
 
 nsresult
-nsUserFontSet::LogMessage(gfxMixedFontFamily *aFamily,
-                          gfxProxyFontEntry *aProxy,
+nsUserFontSet::LogMessage(gfxProxyFontEntry *aProxy,
                           const char        *aMessage,
                           uint32_t          aFlags,
                           nsresult          aStatus)
@@ -707,7 +702,7 @@ nsUserFontSet::LogMessage(gfxMixedFontFamily *aFamily,
     return NS_ERROR_NOT_AVAILABLE;
   }
 
-  NS_ConvertUTF16toUTF8 familyName(aFamily->Name());
+  NS_ConvertUTF16toUTF8 familyName(aProxy->FamilyName());
   nsAutoCString fontURI;
   if (aProxy->mSrcIndex == aProxy->mSrcList.Length()) {
     fontURI.AppendLiteral("(end of source list)");

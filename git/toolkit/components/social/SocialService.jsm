@@ -368,8 +368,6 @@ SocialProvider.prototype = {
 
   // Called by the workerAPI to update our profile information.
   updateUserProfile: function(profile) {
-    if (!profile)
-      profile = {};
     this.profile = profile;
 
     // Sanitize the portrait from any potential script-injection.

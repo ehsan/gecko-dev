@@ -129,8 +129,6 @@ void CloseSuperfluousFds(const base::InjectiveMultimap& saved_map);
 enum ChildPrivileges {
   PRIVILEGES_DEFAULT,
   PRIVILEGES_UNPRIVILEGED,
-  PRIVILEGES_CAMERA,
-  PRIVILEGES_VIDEO,
   PRIVILEGES_INHERIT
 };
 

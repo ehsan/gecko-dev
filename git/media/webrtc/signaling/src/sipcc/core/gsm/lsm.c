@@ -3996,8 +3996,7 @@ lsm_connected (lsm_lcb_t *lcb, cc_state_data_connected_t *data)
 
     /* Start ICE */
     if (start_ice) {
-      short res = vcmStartIceChecks(dcb->peerconnection, !dcb->inbound);
-
+      short res = vcmStartIceChecks(dcb->peerconnection);
       /* TODO(emannion): Set state to dead here. */
       if (res)
         return CC_RC_SUCCESS;

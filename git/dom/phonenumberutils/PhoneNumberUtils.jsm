@@ -35,36 +35,24 @@ this.PhoneNumberUtils = {
     let countryName;
 
 #ifdef MOZ_B2G_RIL
-    // Get network mcc
-    if (ril.voiceConnectionInfo && ril.voiceConnectionInfo.network) {
+    // Get network mcc.
+    if (ril.voiceConnectionInfo && ril.voiceConnectionInfo.network)
       mcc = ril.voiceConnectionInfo.network.mcc;
-    }
 
-    // Get SIM mcc
-    if (!mcc) {
-      mcc = ril.iccInfo.mcc;
-    }
-
-    // Get previous mcc
-    if (!mcc && ril.voiceConnectionInfo && ril.voiceConnectionInfo.network) {
-      mcc = ril.voiceConnectionInfo.network.previousMcc;
-    }
-
-    // Set to default mcc
-    if (!mcc) {
-      mcc = this._mcc;
-    }
+    // Get SIM mcc or set it to mcc for Brasil
+    if (!mcc)
+      mcc = ril.iccInfo.mcc || this._mcc;
 #else
     mcc = this._mcc;
 #endif
 
     countryName = MCC_ISO3166_TABLE[mcc];
-    if (DEBUG) debug("MCC: " + mcc + "countryName: " + countryName);
+    debug("MCC: " + mcc + "countryName: " + countryName);
     return countryName;
   },
 
   parse: function(aNumber) {
-    if (DEBUG) debug("call parse: " + aNumber);
+    debug("call parse: " + aNumber);
     let result = PhoneNumber.Parse(aNumber, this._getCountryName());
     if (DEBUG) {
       if (result) {
@@ -81,7 +69,7 @@ this.PhoneNumberUtils = {
 
   parseWithMCC: function(aNumber, aMCC) {
     let countryName = MCC_ISO3166_TABLE[aMCC];
-    if (DEBUG) debug("found country name: " + countryName);
+    debug("found country name: " + countryName);
     return PhoneNumber.Parse(aNumber, countryName);
   }
 };

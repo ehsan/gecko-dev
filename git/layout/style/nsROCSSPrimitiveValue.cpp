@@ -656,6 +656,4 @@ nsROCSSPrimitiveValue::Reset()
       NS_RELEASE(mValue.mColor);
       break;
   }
-
-  mType = CSS_UNKNOWN;
 }

@@ -201,6 +201,7 @@ public:
     nsresult Init();
 
     nsresult Begin();
+    nsresult Cancel();
 
     void LoadCompleted(nsOfflineCacheUpdateItem *aItem);
     void ManifestCheckCompleted(nsresult aStatus,

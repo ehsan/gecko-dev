@@ -94,7 +94,7 @@ StatsCompartmentCallback(JSRuntime *rt, void *data, JSCompartment *compartment)
     // Measure the compartment object itself, and things hanging off it.
     compartment->sizeOfIncludingThis(rtStats->mallocSizeOf,
                                      &cStats.compartmentObject,
-                                     &cStats.typeInference,
+                                     &cStats.typeInferenceSizes,
                                      &cStats.shapesCompartmentTables,
                                      &cStats.crossCompartmentWrappersTable,
                                      &cStats.regexpCompartment,
@@ -151,19 +151,23 @@ StatsCellCallback(JSRuntime *rt, void *data, void *thing, JSGCTraceKind traceKin
         } else {
             cStats->gcHeapObjectsOrdinary += thingSize;
         }
+        size_t slotsSize, elementsSize, argumentsDataSize, regExpStaticsSize,
+               propertyIteratorDataSize;
+        obj->sizeOfExcludingThis(rtStats->mallocSizeOf, &slotsSize, &elementsSize,
+                                 &argumentsDataSize, &regExpStaticsSize,
+                                 &propertyIteratorDataSize);
+        cStats->objectsExtraSlots += slotsSize;
+        cStats->objectsExtraElements += elementsSize;
+        cStats->objectsExtraArgumentsData += argumentsDataSize;
+        cStats->objectsExtraRegExpStatics += regExpStaticsSize;
+        cStats->objectsExtraPropertyIteratorData += propertyIteratorDataSize;
 
-        ObjectsExtraSizes objectsExtra;
-        obj->sizeOfExcludingThis(rtStats->mallocSizeOf, &objectsExtra);
-        cStats->objectsExtra.add(objectsExtra);
-
-        // JSObject::sizeOfExcludingThis() doesn't measure objectsExtraPrivate,
-        // so we do it here.
         if (ObjectPrivateVisitor *opv = closure->opv) {
             js::Class *clazz = js::GetObjectClass(obj);
             if (clazz->flags & JSCLASS_HAS_PRIVATE &&
                 clazz->flags & JSCLASS_PRIVATE_IS_NSISUPPORTS)
             {
-                cStats->objectsExtra.private_ += opv->sizeOfIncludingThis(GetObjectPrivate(obj));
+                cStats->objectsExtraPrivate += opv->sizeOfIncludingThis(GetObjectPrivate(obj));
             }
         }
         break;
@@ -250,7 +254,7 @@ StatsCellCallback(JSRuntime *rt, void *data, void *thing, JSGCTraceKind traceKin
     {
         types::TypeObject *obj = static_cast<types::TypeObject *>(thing);
         cStats->gcHeapTypeObjects += thingSize;
-        cStats->typeInference.typeObjects += obj->sizeOfExcludingThis(rtStats->mallocSizeOf);
+        obj->sizeOfExcludingThis(&cStats->typeInferenceSizes, rtStats->mallocSizeOf);
         break;
     }
 #if JS_HAS_XML_SUPPORT

@@ -12,13 +12,14 @@
 #include "nsIPrincipal.h"
 #include "nsIScriptObjectPrincipal.h"
 #include "nsIURI.h"
+#include "nsXULAppAPI.h"
 
-#include "mozilla/dom/indexedDB/IndexedDatabaseManager.h"
-#include "mozilla/Services.h"
 #include "nsContentUtils.h"
 #include "nsNetUtil.h"
 #include "nsThreadUtils.h"
-#include "nsXULAppAPI.h"
+#include "mozilla/Services.h"
+
+#include "IndexedDatabaseManager.h"
 
 #define PERMISSION_INDEXEDDB_UNLIMITED "indexedDB-unlimited"
 
@@ -26,9 +27,8 @@
 #define TOPIC_QUOTA_RESPONSE "indexedDB-quota-response"
 #define TOPIC_QUOTA_CANCEL "indexedDB-quota-cancel"
 
-USING_QUOTA_NAMESPACE
+USING_INDEXEDDB_NAMESPACE
 using namespace mozilla::services;
-using mozilla::dom::indexedDB::IndexedDatabaseManager;
 using mozilla::MutexAutoLock;
 
 namespace {

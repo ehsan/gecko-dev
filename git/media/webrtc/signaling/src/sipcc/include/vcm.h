@@ -474,10 +474,10 @@ short vcmSetIceMediaParams(const char *peerconnection, int level, char *ufrag, c
 
 /* Start ICE checks
  *  @param[in]  peerconnection - the peerconnection in use
- *  @param[in]  isControlling - true if controlling, false if controlled
+ *  @param[in]  level - the m-line
  *  @return 0 success, error failure
  */
-short vcmStartIceChecks(const char *peerconnection, cc_boolean isControlling);
+short vcmStartIceChecks(const char *peerconnection);
 
 
 

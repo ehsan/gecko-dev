@@ -120,7 +120,6 @@ CPPSRCS		= \
 		DateTime.cpp \
 		Debugger.cpp \
 		GlobalObject.cpp \
-		Object.cpp \
 		ObjectImpl.cpp \
 		ScopeObject.cpp \
 		Stack.cpp \
@@ -905,8 +904,7 @@ export:: selfhosting
 selfhosting:: selfhosted.out.h
 
 selfhosting_srcs := \
-  $(srcdir)/builtin/Utilities.js \
-  $(srcdir)/builtin/Array.js \
+  $(srcdir)/builtin/array.js \
   $(NULL)
 
 selfhosted_out_h_deps := \

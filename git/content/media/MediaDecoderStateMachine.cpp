@@ -386,8 +386,7 @@ MediaDecoderStateMachine::MediaDecoderStateMachine(MediaDecoder* aDecoder,
   mDidThrottleAudioDecoding(false),
   mDidThrottleVideoDecoding(false),
   mRequestedNewDecodeThread(false),
-  mEventManager(aDecoder),
-  mLastFrameStatus(MediaDecoderOwner::NEXT_FRAME_UNINITIALIZED)
+  mEventManager(aDecoder)
 {
   MOZ_COUNT_CTOR(MediaDecoderStateMachine);
   NS_ASSERTION(NS_IsMainThread(), "Should be on main thread.");
@@ -556,11 +555,11 @@ void MediaDecoderStateMachine::SendStreamAudio(AudioData* aAudio,
   aStream->mAudioFramesWritten += aAudio->mFrames - int32_t(offset);
 }
 
-static void WriteVideoToMediaStream(layers::Image* aImage,
+static void WriteVideoToMediaStream(mozilla::layers::Image* aImage,
                                     int64_t aDuration, const gfxIntSize& aIntrinsicSize,
                                     VideoSegment* aOutput)
 {
-  nsRefPtr<layers::Image> image = aImage;
+  nsRefPtr<mozilla::layers::Image> image = aImage;
   aOutput->AppendFrame(image.forget(), aDuration, aIntrinsicSize);
 }
 
@@ -2470,14 +2469,8 @@ VideoData* MediaDecoderStateMachine::FindStartTime()
 void MediaDecoderStateMachine::UpdateReadyState() {
   mDecoder->GetReentrantMonitor().AssertCurrentThreadIn();
 
-  MediaDecoderOwner::NextFrameStatus nextFrameStatus = GetNextFrameStatus();
-  if (nextFrameStatus == mLastFrameStatus) {
-    return;
-  }
-  mLastFrameStatus = nextFrameStatus;
-
   nsCOMPtr<nsIRunnable> event;
-  switch (nextFrameStatus) {
+  switch (GetNextFrameStatus()) {
     case MediaDecoderOwner::NEXT_FRAME_UNAVAILABLE_BUFFERING:
       event = NS_NewRunnableMethod(mDecoder, &MediaDecoder::NextFrameUnavailableBuffering);
       break;
@@ -2619,6 +2612,10 @@ void MediaDecoderStateMachine::TimeoutExpired()
   // Otherwise, an event has already been dispatched to run the state machine
   // as soon as possible. Nothing else needed to do, the state machine is
   // going to run anyway.
+}
+
+nsresult MediaDecoderStateMachine::ScheduleStateMachine() {
+  return ScheduleStateMachine(0);
 }
 
 void MediaDecoderStateMachine::ScheduleStateMachineWithLockAndWakeDecoder() {

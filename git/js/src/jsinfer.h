@@ -22,6 +22,10 @@
 
 ForwardDeclareJS(Script);
 
+namespace JS {
+struct TypeInferenceSizes;
+}
+
 namespace js {
 
 class TaggedProto
@@ -1032,7 +1036,7 @@ struct TypeObject : gc::Cell
     inline void clearProperties();
     inline void sweep(FreeOp *fop);
 
-    size_t sizeOfExcludingThis(JSMallocSizeOfFun mallocSizeOf);
+    void sizeOfExcludingThis(TypeInferenceSizes *sizes, JSMallocSizeOfFun mallocSizeOf);
 
     /*
      * Type objects don't have explicit finalizers. Memory owned by a type
