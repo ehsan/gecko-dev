@@ -34,29 +34,16 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
-const EXPORTED_SYMBOLS = ['WEAVE_VERSION', 'STORAGE_FORMAT_VERSION',
-			  'PREFS_BRANCH',
-			  'MODE_RDONLY', 'MODE_WRONLY',
-			  'MODE_CREATE', 'MODE_APPEND', 'MODE_TRUNCATE',
-			  'PERMS_FILE', 'PERMS_PASSFILE', 'PERMS_DIRECTORY',
-			  'ONE_BYTE', 'ONE_KILOBYTE', 'ONE_MEGABYTE'];
+const EXPORTED_SYMBOLS = ['Weave'];
 
-const WEAVE_VERSION = "0.1.20";
-const STORAGE_FORMAT_VERSION = 2;
+const Cc = Components.classes;
+const Ci = Components.interfaces;
+const Cr = Components.results;
+const Cu = Components.utils;
 
-const PREFS_BRANCH = "extensions.weave.";
+Cu.import("resource://gre/modules/XPCOMUtils.jsm");
+Cu.import("resource://weave/service.js");
 
-const MODE_RDONLY   = 0x01;
-const MODE_WRONLY   = 0x02;
-const MODE_CREATE   = 0x08;
-const MODE_APPEND   = 0x10;
-const MODE_TRUNCATE = 0x20;
-
-const PERMS_FILE      = 0644;
-const PERMS_PASSFILE  = 0600;
-const PERMS_DIRECTORY = 0755;
-
-const ONE_BYTE = 1;
-const ONE_KILOBYTE = 1024 * ONE_BYTE;
-const ONE_MEGABYTE = 1024 * ONE_KILOBYTE;
-
+let Weave = {};
+//Weave.Crypto = new WeaveCrypto();
+Weave.Service = new WeaveSyncService();

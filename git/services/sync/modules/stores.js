@@ -46,9 +46,6 @@ Cu.import("resource://gre/modules/XPCOMUtils.jsm");
 Cu.import("resource://weave/log4moz.js");
 Cu.import("resource://weave/constants.js");
 Cu.import("resource://weave/util.js");
-Cu.import("resource://weave/async.js");
-
-Function.prototype.async = Async.sugar;
 
 /*
  * Data Stores
@@ -60,7 +57,6 @@ function Store() {
 }
 Store.prototype = {
   _logName: "Store",
-  _yieldDuringApply: true,
 
   __json: null,
   get _json() {
@@ -75,18 +71,7 @@ Store.prototype = {
   },
 
   applyCommands: function Store_applyCommands(commandList) {
-    let self = yield, timer, listener;
-
-    if (this._yieldDuringApply) {
-      listener = new Utils.EventListener(self.cb);
-      timer = Cc["@mozilla.org/timer;1"].createInstance(Ci.nsITimer);
-    }
-
     for (var i = 0; i < commandList.length; i++) {
-      if (this._yieldDuringApply) {
-        timer.initWithCallback(listener, 0, timer.TYPE_ONE_SHOT);
-        yield; // Yield to main loop
-      }
       var command = commandList[i];
       this._log.debug("Processing command: " + this._json.encode(command));
       switch (command["action"]) {
@@ -104,7 +89,6 @@ Store.prototype = {
         break;
       }
     }
-    self.done();
   },
 
   // override these in derived objects
@@ -324,23 +308,86 @@ BookmarksStore.prototype = {
     return this.__ans;
   },
 
-  _getItemIdForGUID: function BStore__getItemIdForGUID(GUID) {
-    switch (GUID) {
-    case "menu":
-      return this._bms.bookmarksMenuFolder;
-    case "toolbar":
-      return this._bms.toolbarFolder;
-    case "unfiled":
-      return this._bms.unfiledBookmarksFolder;
-    default:
-      return this._bms.getItemIdForGUID(GUID);
+  _getFolderNodes: function BSS__getFolderNodes(folder) {
+    let query = this._hsvc.getNewQuery();
+    query.setFolders([folder], 1);
+    return this._hsvc.executeQuery(query, this._hsvc.getNewQueryOptions()).root;
+  },
+
+  _wrapNode: function BSS__wrapNode(node) {
+    var items = {};
+    this._wrapNodeInternal(node, items, null, null);
+    return items;
+  },
+
+  _wrapNodeInternal: function BSS__wrapNodeInternal(node, items, parentGUID, index) {
+    let GUID = this._bms.getItemGUID(node.itemId);
+    let item = {parentGUID: parentGUID,
+                index: index};
+
+    if (node.type == node.RESULT_TYPE_FOLDER) {
+      if (this._ls.isLivemark(node.itemId)) {
+        item.type = "livemark";
+        let siteURI = this._ls.getSiteURI(node.itemId);
+        let feedURI = this._ls.getFeedURI(node.itemId);
+        item.siteURI = siteURI? siteURI.spec : "";
+        item.feedURI = feedURI? feedURI.spec : "";
+      } else {
+        item.type = "folder";
+        node.QueryInterface(Ci.nsINavHistoryQueryResultNode);
+        node.containerOpen = true;
+        for (var i = 0; i < node.childCount; i++) {
+          this._wrapNodeInternal(node.getChild(i), items, GUID, i);
+        }
+      }
+      item.title = node.title;
+    } else if (node.type == node.RESULT_TYPE_URI ||
+               node.type == node.RESULT_TYPE_QUERY) {
+      if (this._ms.hasMicrosummary(node.itemId)) {
+        item.type = "microsummary";
+        let micsum = this._ms.getMicrosummary(node.itemId);
+        item.generatorURI = micsum.generator.uri.spec; // breaks local generators
+      } else if (node.type == node.RESULT_TYPE_QUERY) {
+        item.type = "query";
+        item.title = node.title;
+      } else {
+        item.type = "bookmark";
+        item.title = node.title;
+      }
+      item.URI = node.uri;
+      item.tags = this._ts.getTagsForURI(Utils.makeURI(node.uri), {});
+      item.keyword = this._bms.getKeywordForBookmark(node.itemId);
+    } else if (node.type == node.RESULT_TYPE_SEPARATOR) {
+      item.type = "separator";
+    } else {
+      this._log.warn("Warning: unknown item type, cannot serialize: " + node.type);
+      return;
     }
-    return null;
+
+    items[GUID] = item;
+  },
+
+  _getWrappedBookmarks: function BSS__getWrappedBookmarks(folder) {
+    return this._wrapNode(this._getFolderNodes(folder));
+  },
+
+  _resetGUIDsInt: function BSS__resetGUIDsInt(node) {
+    if (this._ans.itemHasAnnotation(node.itemId, "placesInternal/GUID"))
+      this._ans.removeItemAnnotation(node.itemId, "placesInternal/GUID");
+
+    if (node.type == node.RESULT_TYPE_FOLDER &&
+        !this._ls.isLivemark(node.itemId)) {
+      node.QueryInterface(Ci.nsINavHistoryQueryResultNode);
+      node.containerOpen = true;
+      for (var i = 0; i < node.childCount; i++) {
+        this._resetGUIDsInt(node.getChild(i));
+      }
+    }
   },
 
   _createCommand: function BStore__createCommand(command) {
     let newId;
-    let parentId = this._getItemIdForGUID(command.data.parentGUID);
+    let parentId = this._bms.getItemIdForGUID(command.data.parentGUID);
 
     if (parentId < 0) {
       this._log.warn("Creating node with unknown parent -> reparenting to root");
@@ -351,7 +398,7 @@ BookmarksStore.prototype = {
     case "query":
     case "bookmark":
     case "microsummary": {
-      this._log.debug(" -> creating bookmark \"" + command.data.title + "\"");
+      this._log.info(" -> creating bookmark \"" + command.data.title + "\"");
       let URI = Utils.makeURI(command.data.URI);
       newId = this._bms.insertBookmark(parentId,
                                        URI,
@@ -362,7 +409,7 @@ BookmarksStore.prototype = {
       this._bms.setKeywordForBookmark(newId, command.data.keyword);
 
       if (command.data.type == "microsummary") {
-        this._log.debug("   \-> is a microsummary");
+        this._log.info("   \-> is a microsummary");
         let genURI = Utils.makeURI(command.data.generatorURI);
         try {
           let micsum = this._ms.createMicrosummary(URI, genURI);
@@ -372,30 +419,21 @@ BookmarksStore.prototype = {
       }
     } break;
     case "folder":
-      this._log.debug(" -> creating folder \"" + command.data.title + "\"");
+      this._log.info(" -> creating folder \"" + command.data.title + "\"");
       newId = this._bms.createFolder(parentId,
                                      command.data.title,
                                      command.data.index);
       break;
     case "livemark":
-      this._log.debug(" -> creating livemark \"" + command.data.title + "\"");
+      this._log.info(" -> creating livemark \"" + command.data.title + "\"");
       newId = this._ls.createLivemark(parentId,
                                       command.data.title,
                                       Utils.makeURI(command.data.siteURI),
                                       Utils.makeURI(command.data.feedURI),
                                       command.data.index);
       break;
-    case "mounted-share":
-      this._log.debug(" -> creating share mountpoint \"" + command.data.title + "\"");
-      newId = this._bms.createFolder(parentId,
-                                     command.data.title,
-                                     command.data.index);
-
-      this._ans.setItemAnnotation(newId, "weave/mounted-share-id",
-                                  command.data.mountId, 0, this._ans.EXPIRE_NEVER);
-      break;
     case "separator":
-      this._log.debug(" -> creating separator");
+      this._log.info(" -> creating separator");
       newId = this._bms.insertSeparator(parentId, command.data.index);
       break;
     default:
@@ -407,14 +445,6 @@ BookmarksStore.prototype = {
   },
 
   _removeCommand: function BStore__removeCommand(command) {
-    if (command.GUID == "menu" ||
-        command.GUID == "toolbar" ||
-        command.GUID == "unfiled") {
-      this._log.warn("Attempted to remove root node (" + command.GUID +
-                     ").  Skipping command.");
-      return;
-    }
-
     var itemId = this._bms.getItemIdForGUID(command.GUID);
     if (itemId < 0) {
       this._log.warn("Attempted to remove item " + command.GUID +
@@ -425,15 +455,15 @@ BookmarksStore.prototype = {
 
     switch (type) {
     case this._bms.TYPE_BOOKMARK:
-      this._log.debug("  -> removing bookmark " + command.GUID);
+      this._log.info("  -> removing bookmark " + command.GUID);
       this._bms.removeItem(itemId);
       break;
     case this._bms.TYPE_FOLDER:
-      this._log.debug("  -> removing folder " + command.GUID);
+      this._log.info("  -> removing folder " + command.GUID);
       this._bms.removeFolder(itemId);
       break;
     case this._bms.TYPE_SEPARATOR:
-      this._log.debug("  -> removing separator " + command.GUID);
+      this._log.info("  -> removing separator " + command.GUID);
       this._bms.removeItem(itemId);
       break;
     default:
@@ -443,14 +473,6 @@ BookmarksStore.prototype = {
   },
 
   _editCommand: function BStore__editCommand(command) {
-    if (command.GUID == "menu" ||
-        command.GUID == "toolbar" ||
-        command.GUID == "unfiled") {
-      this._log.warn("Attempted to edit root node (" + command.GUID +
-                     ").  Skipping command.");
-      return;
-    }
-
     var itemId = this._bms.getItemIdForGUID(command.GUID);
     if (itemId < 0) {
       this._log.warn("Item for GUID " + command.GUID + " not found.  Skipping.");
@@ -459,12 +481,8 @@ BookmarksStore.prototype = {
 
     for (let key in command.data) {
       switch (key) {
-      case "type":
-        // all commands have this to help in reconciliation, but it makes
-        // no sense to edit it
-        break;
       case "GUID":
-        var existing = this._getItemIdForGUID(command.data.GUID);
+        var existing = this._bms.getItemIdForGUID(command.data.GUID);
         if (existing < 0)
           this._bms.setItemGUID(itemId, command.data.GUID);
         else
@@ -486,11 +504,11 @@ BookmarksStore.prototype = {
         if (command.data.index && command.data.index >= 0)
           index = command.data.index;
         this._bms.moveItem(
-          itemId, this._getItemIdForGUID(command.data.parentGUID), index);
+          itemId, this._bms.getItemIdForGUID(command.data.parentGUID), index);
       } break;
       case "tags": {
         let tagsURI = this._bms.getBookmarkURI(itemId);
-        this._ts.untagURI(tagsURI, null);
+        this._ts.untagURI(URI, null);
         this._ts.tagURI(tagsURI, command.data.tags);
       } break;
       case "keyword":
@@ -515,135 +533,22 @@ BookmarksStore.prototype = {
     }
   },
 
-  _getNode: function BSS__getNode(folder) {
-    let query = this._hsvc.getNewQuery();
-    query.setFolders([folder], 1);
-    return this._hsvc.executeQuery(query, this._hsvc.getNewQueryOptions()).root;
-  },
-
-  __wrap: function BSS___wrap(node, items, parentGUID, index, guidOverride) {
-    let GUID, item;
-
-    // we override the guid for the root items, "menu", "toolbar", etc.
-    if (guidOverride) {
-      GUID = guidOverride;
-      item = {};
-    } else {
-      GUID = this._bms.getItemGUID(node.itemId);
-      item = {parentGUID: parentGUID, index: index};
-    }
-
-    if (node.type == node.RESULT_TYPE_FOLDER) {
-      if (this._ls.isLivemark(node.itemId)) {
-        item.type = "livemark";
-        let siteURI = this._ls.getSiteURI(node.itemId);
-        let feedURI = this._ls.getFeedURI(node.itemId);
-        item.siteURI = siteURI? siteURI.spec : "";
-        item.feedURI = feedURI? feedURI.spec : "";
-
-      } else if (this._ans.itemHasAnnotation(node.itemId,
-                                             "weave/mounted-share-id")) {
-        item.type = "mounted-share";
-        item.title = node.title;
-        item.mountId = this._ans.getItemAnnotation(node.itemId,
-                                                   "weave/mounted-share-id");
-
-      } else {
-        item.type = "folder";
-        node.QueryInterface(Ci.nsINavHistoryQueryResultNode);
-        node.containerOpen = true;
-        for (var i = 0; i < node.childCount; i++) {
-          this.__wrap(node.getChild(i), items, GUID, i);
-        }
-      }
-      if (!guidOverride)
-        item.title = node.title; // no titles for root nodes
-
-    } else if (node.type == node.RESULT_TYPE_URI ||
-               node.type == node.RESULT_TYPE_QUERY) {
-      if (this._ms.hasMicrosummary(node.itemId)) {
-        item.type = "microsummary";
-        let micsum = this._ms.getMicrosummary(node.itemId);
-        item.generatorURI = micsum.generator.uri.spec; // breaks local generators
-      } else if (node.type == node.RESULT_TYPE_QUERY) {
-        item.type = "query";
-        item.title = node.title;
-      } else {
-        item.type = "bookmark";
-        item.title = node.title;
-      }
-      item.URI = node.uri;
-      item.tags = this._ts.getTagsForURI(Utils.makeURI(node.uri), {});
-      item.keyword = this._bms.getKeywordForBookmark(node.itemId);
-
-    } else if (node.type == node.RESULT_TYPE_SEPARATOR) {
-      item.type = "separator";
-
-    } else {
-      this._log.warn("Warning: unknown item type, cannot serialize: " + node.type);
-      return;
-    }
-
-    items[GUID] = item;
-  },
-
-  // helper
-  _wrap: function BStore__wrap(node, items, rootName) {
-    return this.__wrap(node, items, null, null, rootName);
-  },
-
-  _wrapMount: function BStore__wrapMount(node, id) {
-    if (node.type != node.RESULT_TYPE_FOLDER)
-      throw "Trying to wrap a non-folder mounted share";
-
-    let GUID = this._bms.getItemGUID(node.itemId);
-    let ret = {rootGUID: GUID, userid: id, snapshot: {}};
-
-    node.QueryInterface(Ci.nsINavHistoryQueryResultNode);
-    node.containerOpen = true;
-    for (var i = 0; i < node.childCount; i++) {
-      this.__wrap(node.getChild(i), ret.snapshot, GUID, i);
-    }
-
-    // remove any share mountpoints
-    for (let guid in ret.snapshot) {
-      if (ret.snapshot[guid].type == "mounted-share")
-        delete ret.snapshot[guid];
-    }
-
-    return ret;
-  },
-
-  _resetGUIDs: function BSS__resetGUIDs(node) {
-    if (this._ans.itemHasAnnotation(node.itemId, "placesInternal/GUID"))
-      this._ans.removeItemAnnotation(node.itemId, "placesInternal/GUID");
-
-    if (node.type == node.RESULT_TYPE_FOLDER &&
-        !this._ls.isLivemark(node.itemId)) {
-      node.QueryInterface(Ci.nsINavHistoryQueryResultNode);
-      node.containerOpen = true;
-      for (var i = 0; i < node.childCount; i++) {
-        this._resetGUIDs(node.getChild(i));
-      }
-    }
-  },
-
-  findMounts: function BStore_findMounts() {
-    let ret = [];
-    let a = this._ans.getItemsWithAnnotation("weave/mounted-share-id", {});
-    for (let i = 0; i < a.length; i++) {
-      let id = this._ans.getItemAnnotation(a[i], "weave/mounted-share-id");
-      ret.push(this._wrapMount(this._getNode(a[i]), id));
-    }
-    return ret;
-  },
-
   wrap: function BStore_wrap() {
-    var items = {};
-    this._wrap(this._getNode(this._bms.bookmarksMenuFolder), items, "menu");
-    this._wrap(this._getNode(this._bms.toolbarFolder), items, "toolbar");
-    this._wrap(this._getNode(this._bms.unfiledBookmarksFolder), items, "unfiled");
-    return items;
+    let filed = this._getWrappedBookmarks(this._bms.bookmarksMenuFolder);
+    let toolbar = this._getWrappedBookmarks(this._bms.toolbarFolder);
+    let unfiled = this._getWrappedBookmarks(this._bms.unfiledBookmarksFolder);
+
+    for (let guid in unfiled) {
+      if (!(guid in filed))
+        filed[guid] = unfiled[guid];
+    }
+
+    for (let guid in toolbar) {
+      if (!(guid in filed))
+        filed[guid] = toolbar[guid];
+    }
+
+    return filed; // (combined)
   },
 
   wipe: function BStore_wipe() {
@@ -653,9 +558,9 @@ BookmarksStore.prototype = {
   },
 
   resetGUIDs: function BStore_resetGUIDs() {
-    this._resetGUIDs(this._getNode(this._bms.bookmarksMenuFolder));
-    this._resetGUIDs(this._getNode(this._bms.toolbarFolder));
-    this._resetGUIDs(this._getNode(this._bms.unfiledBookmarksFolder));
+    this._resetGUIDsInt(this._getFolderNodes(this._bms.bookmarksMenuFolder));
+    this._resetGUIDsInt(this._getFolderNodes(this._bms.toolbarFolder));
+    this._resetGUIDsInt(this._getFolderNodes(this._bms.unfiledBookmarksFolder));
   }
 };
 BookmarksStore.prototype.__proto__ = new Store();
@@ -668,37 +573,40 @@ HistoryStore.prototype = {
 
   __hsvc: null,
   get _hsvc() {
-    if (!this.__hsvc) {
+    if (!this.__hsvc)
       this.__hsvc = Cc["@mozilla.org/browser/nav-history-service;1"].
                     getService(Ci.nsINavHistoryService);
-      this.__hsvc.QueryInterface(Ci.nsIGlobalHistory2);
-      this.__hsvc.QueryInterface(Ci.nsIBrowserHistory);
-    }
     return this.__hsvc;
   },
 
+  __browserHist: null,
+  get _browserHist() {
+    if (!this.__browserHist)
+      this.__browserHist = Cc["@mozilla.org/browser/nav-history-service;1"].
+                           getService(Ci.nsIBrowserHistory);
+    return this.__browserHist;
+  },
+
   _createCommand: function HistStore__createCommand(command) {
-    this._log.debug("  -> creating history entry: " + command.GUID);
+    this._log.info("  -> creating history entry: " + command.GUID);
     try {
-      let uri = Utils.makeURI(command.data.URI);
-      this._hsvc.addVisit(uri, command.data.time, null,
-                          this._hsvc.TRANSITION_TYPED, false, null);
-      this._hsvc.setPageTitle(uri, command.data.title);
+      this._browserHist.addPageWithDetails(Utils.makeURI(command.GUID),
+					   command.data.title,
+					   command.data.time);
+      this._hsvc.setPageDetails(Utils.makeURI(command.GUID), command.data.title,
+				command.data.accessCount, false, false);
     } catch (e) {
       this._log.error("Exception caught: " + (e.message? e.message : e));
     }
   },
 
   _removeCommand: function HistStore__removeCommand(command) {
-    this._log.trace("  -> NOT removing history entry: " + command.GUID);
-    // we can't remove because we only sync the last 1000 items, not
-    // the whole store.  So we don't know if remove commands were
-    // generated due to the user removing an entry or because it
-    // dropped past the 1000 item mark.
+    this._log.info("  -> NOT removing history entry: " + command.GUID);
+    //this._browserHist.removePage(command.GUID);
   },
 
   _editCommand: function HistStore__editCommand(command) {
-    this._log.trace("  -> FIXME: NOT editing history entry: " + command.GUID);
+    this._log.info("  -> FIXME: NOT editing history entry: " + command.GUID);
     // FIXME: implement!
   },
 
@@ -707,9 +615,8 @@ HistoryStore.prototype = {
         options = this._hsvc.getNewQueryOptions();
 
     query.minVisits = 1;
-    options.maxResults = 1000;
-    options.resultType = options.RESULTS_AS_VISIT; // FULL_VISIT does not work
-    options.sortingMode = options.SORT_BY_DATE_DESCENDING;
+    options.maxResults = 500;
+    options.sortingMode = query.SORT_BY_LASTMODIFIED_DESCENDING;
     options.queryType = options.QUERY_TYPE_HISTORY;
 
     let root = this._hsvc.executeQuery(query, options).root;
@@ -723,19 +630,150 @@ HistoryStore.prototype = {
     let items = {};
     for (let i = 0; i < root.childCount; i++) {
       let item = root.getChild(i);
-      let guid = item.time + ":" + item.uri
-      items[guid] = {parentGUID: '',
+      items[item.uri] = {parentGUID: '',
 			 title: item.title,
 			 URI: item.uri,
-			 time: item.time
+			 time: item.time,
+			 accessCount: item.accessCount,
+			 dateAdded: item.dateAdded,
 			};
-      // FIXME: sync transition type - requires FULL_VISITs
     }
     return items;
   },
 
   wipe: function HistStore_wipe() {
-    this._hsvc.removeAllPages();
+    this._browserHist.removeAllPages();
   }
 };
 HistoryStore.prototype.__proto__ = new Store();
+
+
+function CookieStore() {
+  this._init();
+}
+CookieStore.prototype = {
+  _logName: "CookieStore",
+
+
+  // Documentation of the nsICookie interface says:
+  // name 	ACString 	The name of the cookie. Read only.
+  // value 	ACString 	The cookie value. Read only.
+  // isDomain 	boolean 	True if the cookie is a domain cookie, false otherwise. Read only.
+  // host 	AUTF8String 	The host (possibly fully qualified) of the cookie. Read only.
+  // path 	AUTF8String 	The path pertaining to the cookie. Read only.
+  // isSecure 	boolean 	True if the cookie was transmitted over ssl, false otherwise. Read only.
+  // expires 	PRUint64 	Expiration time (local timezone) expressed as number of seconds since Jan 1, 1970. Read only.
+  // status 	nsCookieStatus 	Holds the P3P status of cookie. Read only.
+  // policy 	nsCookiePolicy 	Holds the site's compact policy value. Read only.
+  // nsICookie2 deprecates expires, status, and policy, and adds:
+  //rawHost 	AUTF8String 	The host (possibly fully qualified) of the cookie without a leading dot to represent if it is a domain cookie. Read only.
+  //isSession 	boolean 	True if the cookie is a session cookie. Read only.
+  //expiry 	PRInt64 	the actual expiry time of the cookie (where 0 does not represent a session cookie). Read only.
+  //isHttpOnly 	boolean 	True if the cookie is an http only cookie. Read only.
+
+
+  __cookieManager: null,
+  get _cookieManager() {
+    if (!this.__cookieManager)
+      this.__cookieManager = Cc["@mozilla.org/cookiemanager;1"].
+                             getService(Ci.nsICookieManager2);
+    // need the 2nd revision of the ICookieManager interface
+    // because it supports add() and the 1st one doesn't.
+    return this.__cookieManager
+  },
+
+  _createCommand: function HistStore__createCommand(command) {
+	// we got a command to create a cookie in the local browser
+        // in order to sync with the server.
+
+	this._log.info("CookieStore got createCommand: " + command );
+
+        // this assumes command.data fits the nsICookie2 interface
+	this.__cookieManager.add( command.data.host,
+				  command.data.path,
+				  command.data.name,
+				  command.data.value,
+				  command.data.isSecure,
+				  command.data.isSession,
+				  command.data.expiry );
+  },
+
+  _removeCommand: function CookieStore__removeCommand(command) {
+	// we got a command to remove a cookie from the local browser
+        // in order to sync with the server.
+        // command.data appears to be equivalent to what wrap() puts in
+        // the JSON dictionary.
+    
+        this._log.info("CookieStore got removeCommand: " + command );
+
+        // I think it goes like this, according to 
+        // http://developer.mozilla.org/en/docs/nsICookieManager
+        // the last argument is "always block cookies from this domain?"
+	// and the answer is "no".
+	this._cookieManager.remove( command.data.host,
+                                    command.data.name,
+				    command.data.path,
+                                    false );
+  },
+
+  _editCommand: function CookieStore__editCommand(command) {
+        // we got a command to change a cookie in the local browser
+        // in order to sync with the server.
+    
+	// TODO implement this!!
+        this._log.info("CookieStore got editCommand: " + command );
+  },
+
+
+  wrap: function CookieStore_wrap() {
+	// Return contents of this store, as JSON.
+        // A dictionary of cookies where the keys are GUIDs and the
+        // values are sub-dictionaries containing all cookie fields.
+
+	let items = {};
+	var iter = this.__cookieManager.enumerator;
+	while (iter.hasMoreElements()){
+	    var cookie = iter.getNext();
+	    if (cookie instanceof Ci.nsICookie){
+                // String used to identify cookies is
+		// host:path:name
+                let key = cookie.host + ":" + cookie.path + ":" + cookie.name
+		items[ key ] = { parentGUID: '',
+				 name: cookie.name,
+				 value: cookie.value,
+				 isDomain: cookie.isDomain,
+				 host: cookie.host,
+				 path: cookie.path,
+				 isSecure: cookie.isSecure,
+                                 // nsICookie2 values:
+				 rawHost: cookie.rawHost,
+				 isSession: cookie.isSession,
+				 expiry: cookie.expiry,
+				 isHttpOnly: cookie.isHttpOnly }
+
+		// http://developer.mozilla.org/en/docs/nsICookie
+		// Note: not syncing "expires", "status", or "policy"
+		// since they're deprecated.
+
+	    }
+    return items;
+  },
+
+  wipe: function CookieStore_wipe() {
+	// Remove everything from the store.  Return nothing.
+        // TODO are the semantics of this just wiping out an internal
+        // buffer, or am I supposed to wipe out all cookies from
+        // the browser itself for reals?
+
+        this.__cookieManager.removeAll()
+  },
+
+  resetGUIDs: function CookieStore_resetGUIDs() {
+      // called in the case where remote/local sync GUIDs do not
+      // match.  We do need to override this, but since we're deriving
+      // GUIDs from the cookie data itself and not generating them,
+      // there's basically no way they can get "out of sync" so there's
+      // nothing to do here.
+  }
+};
+CookieStore.prototype.__proto__ = new Store();

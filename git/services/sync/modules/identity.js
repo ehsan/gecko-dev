@@ -66,20 +66,13 @@ Identity.prototype = {
   get username() { return this._username; },
   set username(value) { this._username = value; },
 
-  get userHash() { return Utils.sha1(this.username); },
-
-  _privkey: null,
-  get privkey() { return this._privkey; },
-  set privkey(value) { this._privkey = value; },
-
-  // FIXME: get this from the privkey using crypto.js?
-  _pubkey: null,
-  get pubkey() { return this._pubkey; },
-  set pubkey(value) { this._pubkey = value; },
+  _key: null,
+  get key() { return this._key; },
+  set key(value) { this._key = value; },
 
   _password: null,
   get password() {
-    if (!this._password)
+    if (this._password === null)
       return findPassword(this.realm, this.username);
     return this._password;
   },

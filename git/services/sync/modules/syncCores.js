@@ -179,7 +179,7 @@ SyncCore.prototype = {
     for (let i = 0; i < list.length; i++) {
       if (!list[i])
         continue;
-      if (list[i].data && list[i].data.parentGUID == oldGUID)
+      if (list[i].data.parentGUID == oldGUID)
         list[i].data.parentGUID = newGUID;
       for (let j = 0; j < list[i].parents.length; j++) {
         if (list[i].parents[j] == oldGUID)
@@ -227,76 +227,83 @@ SyncCore.prototype = {
     this._log.debug("Reconciling " + listA.length +
 		    " against " + listB.length + "commands");
 
-    let guidChanges = [];
-    for (let i = 0; i < listA.length; i++) {
-      let a = listA[i];
-      timer.initWithCallback(listener, 0, timer.TYPE_ONE_SHOT);
-      yield; // Yield to main loop
-
-      //this._log.debug("comparing " + i + ", listB length: " + listB.length);
-
-      let skip = false;
-      listB = listB.filter(function(b) {
-        // fast path for when we already found a matching command
-        if (skip)
-          return true;
-
-        if (Utils.deepEquals(a, b)) {
-          delete listA[i]; // a
-          skip = true;
-          return false; // b
-
-        } else if (this._commandLike(a, b)) {
-          this._fixParents(listA, a.GUID, b.GUID);
-          guidChanges.push({action: "edit",
-      		      GUID: a.GUID,
-      		      data: {GUID: b.GUID}});
-          delete listA[i]; // a
-          skip = true;
-          return false; // b, but we add it back from guidChanges
-        }
-
-        // watch out for create commands with GUIDs that already exist
-        if (b.action == "create" && this._itemExists(b.GUID)) {
-          this._log.error("Remote command has GUID that already exists " +
-                          "locally. Dropping command.");
-          return false; // delete b
-        }
-        return true; // keep b
-      }, this);
-    }
-
-    listA = listA.filter(function(elt) { return elt });
-    listB = guidChanges.concat(listB);
-
-    for (let i = 0; i < listA.length; i++) {
-      for (let j = 0; j < listB.length; j++) {
-
+    try {
+      let guidChanges = [];
+      for (let i = 0; i < listA.length; i++) {
+	let a = listA[i];
         timer.initWithCallback(listener, 0, timer.TYPE_ONE_SHOT);
         yield; // Yield to main loop
 
-        if (this._conflicts(listA[i], listB[j]) ||
-            this._conflicts(listB[j], listA[i])) {
-          if (!conflicts[0].some(
-            function(elt) { return elt.GUID == listA[i].GUID }))
-            conflicts[0].push(listA[i]);
-          if (!conflicts[1].some(
-            function(elt) { return elt.GUID == listB[j].GUID }))
-            conflicts[1].push(listB[j]);
+	//this._log.debug("comparing " + i + ", listB length: " + listB.length);
+
+	let skip = false;
+	listB = listB.filter(function(b) {
+	  // fast path for when we already found a matching command
+	  if (skip)
+	    return true;
+
+          if (Utils.deepEquals(a, b)) {
+            delete listA[i]; // a
+	    skip = true;
+	    return false; // b
+
+          } else if (this._commandLike(a, b)) {
+            this._fixParents(listA, a.GUID, b.GUID);
+	    guidChanges.push({action: "edit",
+			      GUID: a.GUID,
+			      data: {GUID: b.GUID}});
+            delete listA[i]; // a
+	    skip = true;
+	    return false; // b, but we add it back from guidChanges
+          }
+  
+          // watch out for create commands with GUIDs that already exist
+          if (b.action == "create" && this._itemExists(b.GUID)) {
+            this._log.error("Remote command has GUID that already exists " +
+                            "locally. Dropping command.");
+	    return false; // delete b
+          }
+	  return true; // keep b
+        }, this);
+      }
+  
+      listA = listA.filter(function(elt) { return elt });
+      listB = guidChanges.concat(listB);
+  
+      for (let i = 0; i < listA.length; i++) {
+        for (let j = 0; j < listB.length; j++) {
+
+          timer.initWithCallback(listener, 0, timer.TYPE_ONE_SHOT);
+          yield; // Yield to main loop
+  
+          if (this._conflicts(listA[i], listB[j]) ||
+              this._conflicts(listB[j], listA[i])) {
+            if (!conflicts[0].some(
+              function(elt) { return elt.GUID == listA[i].GUID }))
+              conflicts[0].push(listA[i]);
+            if (!conflicts[1].some(
+              function(elt) { return elt.GUID == listB[j].GUID }))
+              conflicts[1].push(listB[j]);
+          }
         }
       }
+  
+      this._getPropagations(listA, conflicts[0], propagations[1]);
+  
+      timer.initWithCallback(listener, 0, timer.TYPE_ONE_SHOT);
+      yield; // Yield to main loop
+  
+      this._getPropagations(listB, conflicts[1], propagations[0]);
+      ret = {propagations: propagations, conflicts: conflicts};
+
+    } catch (e) {
+      this._log.error("Exception caught: " + (e.message? e.message : e) +
+                      " - " + (e.location? e.location : "_reconcile"));
+
+    } finally {
+      timer = null;
+      self.done(ret);
     }
-
-    this._getPropagations(listA, conflicts[0], propagations[1]);
-
-    timer.initWithCallback(listener, 0, timer.TYPE_ONE_SHOT);
-    yield; // Yield to main loop
-
-    this._getPropagations(listB, conflicts[1], propagations[0]);
-    ret = {propagations: propagations, conflicts: conflicts};
-
-    timer = null;
-    self.done(ret);
   },
 
   // Public methods
@@ -328,42 +335,21 @@ BookmarksSyncCore.prototype = {
     return this._bms.getItemIdForGUID(GUID) >= 0;
   },
 
-  _getEdits: function BSC__getEdits(a, b) {
-    // NOTE: we do not increment ret.numProps, as that would cause
-    // edit commands to always get generated
-    let ret = SyncCore.prototype._getEdits.call(this, a, b);
-    ret.props.type = a.type;
-    return ret;
-  },
-
-  // compares properties
-  // returns true if the property is not set in either object
-  // returns true if the property is set and equal in both objects
-  // returns false otherwise
-  _comp: function BSC__comp(a, b, prop) {
-    return (!a.data[prop] && !b.data[prop]) ||
-      (a.data[prop] && b.data[prop] && (a.data[prop] == b.data[prop]));
-  },
-
-  _commandLike: function BSC__commandLike(a, b) {
+  _commandLike: function BSC_commandLike(a, b) {
     // Check that neither command is null, that their actions, types,
     // and parents are the same, and that they don't have the same
     // GUID.
-    // * Items with the same GUID do not qualify for 'likeness' because
-    //   we already consider them to be the same object, and therefore
-    //   we need to process any edits.
-    // * Remove or edit commands don't qualify for likeness either,
-    //   since remove or edit commands with different GUIDs are
-    //   guaranteed to refer to two different items
-    // * The parent GUID check works because reconcile() fixes up the
-    //   parent GUIDs as it runs, and the command list is sorted by
-    //   depth
+    // Items with the same GUID do not qualify for 'likeness' because
+    // we already consider them to be the same object, and therefore
+    // we need to process any edits.
+    // The parent GUID check works because reconcile() fixes up the
+    // parent GUIDs as it runs, and the command list is sorted by
+    // depth
     if (!a || !b ||
-        a.action != b.action ||
-        a.action != "create" ||
-        a.data.type != b.data.type ||
-        a.data.parentGUID != b.data.parentGUID ||
-        a.GUID == b.GUID)
+       a.action != b.action ||
+       a.data.type != b.data.type ||
+       a.data.parentGUID != b.data.parentGUID ||
+       a.GUID == b.GUID)
       return false;
 
     // Bookmarks are allowed to be in a different index as long as
@@ -371,33 +357,33 @@ BookmarksSyncCore.prototype = {
     // the same index to qualify for 'likeness'.
     switch (a.data.type) {
     case "bookmark":
-      if (this._comp(a, b, 'URI') &&
-          this._comp(a, b, 'title'))
+      if (a.data.URI == b.data.URI &&
+          a.data.title == b.data.title)
         return true;
       return false;
     case "query":
-      if (this._comp(a, b, 'URI') &&
-          this._comp(a, b, 'title'))
+      if (a.data.URI == b.data.URI &&
+          a.data.title == b.data.title)
         return true;
       return false;
     case "microsummary":
-      if (this._comp(a, b, 'URI') &&
-          this._comp(a, b, 'generatorURI'))
+      if (a.data.URI == b.data.URI &&
+          a.data.generatorURI == b.data.generatorURI)
         return true;
       return false;
     case "folder":
-      if (this._comp(a, b, 'index') &&
-          this._comp(a, b, 'title'))
+      if (a.index == b.index &&
+          a.data.title == b.data.title)
         return true;
       return false;
     case "livemark":
-      if (this._comp(a, b, 'title') &&
-          this._comp(a, b, 'siteURI') &&
-          this._comp(a, b, 'feedURI'))
+      if (a.data.title == b.data.title &&
+          a.data.siteURI == b.data.siteURI &&
+          a.data.feedURI == b.data.feedURI)
         return true;
       return false;
     case "separator":
-      if (this._comp(a, b, 'index'))
+      if (a.index == b.index)
         return true;
       return false;
     default:
@@ -429,3 +415,57 @@ HistorySyncCore.prototype = {
   }
 };
 HistorySyncCore.prototype.__proto__ = new SyncCore();
+
+
+
+
+function CookiesSyncCore() {
+  this._init();
+}
+CookiesSyncCore.prototype = {
+  _logName: "CookieSync",
+
+  __cookieManager: null,
+  get _cookieManager() {
+    if (!this.__cookieManager)
+      this.__cookieManager = Cc["@mozilla.org/cookiemanager;1"].
+                             getService(Ci.nsICookieManager2);
+    // need the 2nd revision of the ICookieManager interface
+    // because it supports add() and the 1st one doesn't.
+    return this.__cookieManager
+  },
+
+
+  _itemExists: function CSC__itemExists(GUID) {
+        // true if a cookie with the given GUID exists.
+	// The GUID that we are passed should correspond to the keys
+	// that we define in the JSON returned by CookieStore.wrap()
+	// That is, it will be a string of the form
+	// "host:path:name".
+
+	// TODO verify that colons can't normally appear in any of
+	// the fields -- if they did it then we can't rely on .split(":")
+	// to parse correctly.
+
+        let unused = 0; // for outparam from findMatchingCookie
+	let cookieArray = GUID.split( ":" );
+        // create a generic object to represent the cookie -- just has
+	// to implement nsICookie2 interface.
+	cookie = Object();
+	cookie.host = cookieArray[0]
+	cookie.path = cookieArray[1]
+	cookie.name = cookieArray[2];
+    	return this.__cookieManager.findMatchingCookie( cookie, unused );
+  },
+
+  _commandLike: function CSC_commandLike(a, b) {
+        // Method required to be overridden.
+        // a and b each have a .data and a .GUID
+	// If this function returns true, an editCommand will be
+	// generated to try to resolve the thing.
+	// but are a and b objects of the type in the Store or
+	// are they "commands"??
+        return false;
+  }
+};
+CookiesSyncCore.prototype.__proto__ = new SyncCore();

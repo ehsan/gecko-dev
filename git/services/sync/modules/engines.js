@@ -46,16 +46,15 @@ Cu.import("resource://weave/log4moz.js");
 Cu.import("resource://weave/constants.js");
 Cu.import("resource://weave/util.js");
 Cu.import("resource://weave/crypto.js");
-Cu.import("resource://weave/dav.js");
-Cu.import("resource://weave/identity.js");
 Cu.import("resource://weave/stores.js");
 Cu.import("resource://weave/syncCores.js");
 Cu.import("resource://weave/async.js");
 
 Function.prototype.async = Async.sugar;
+let Crypto = new WeaveCrypto();
 
-function Engine(davCollection, pbeId) {
-  //this._init(davCollection, pbeId);
+function Engine(davCollection, cryptoId) {
+  //this._init(davCollection, cryptoId);
 }
 Engine.prototype = {
   // "default-engine";
@@ -115,35 +114,35 @@ Engine.prototype = {
     this.__snapshot = value;
   },
 
-  _init: function Engine__init(davCollection, pbeId) {
-    this._pbeId = pbeId;
-    this._engineId = new Identity(pbeId.realm + " - " + this.logName,
-                                  pbeId.username);
+  _init: function Engine__init(davCollection, cryptoId) {
+    this._dav = davCollection;
+    this._cryptoId = cryptoId;
     this._log = Log4Moz.Service.getLogger("Service." + this.logName);
-    this._log.level =
-      Log4Moz.Level[Utils.prefs.getCharPref("log.logger.service.engine")];
     this._osPrefix = "weave:" + this.name + ":";
     this._snapshot.load();
   },
 
-  _getSymKey: function Engine__getSymKey() {
+  _getSymKey: function Engine__getCryptoId(cryptoId) {
     let self = yield;
+    let done = false;
 
-    DAV.GET(this.keysFile, self.cb);
+    this._dav.GET(this.keysFile, self.cb);
     let keysResp = yield;
     Utils.ensureStatus(keysResp.status,
                        "Could not get keys file.", [[200,300]]);
-    let keys = this._json.decode(keysResp.responseText);
+    let keys = keysResp.responseText;
 
-    if (!keys || !keys.ring || !keys.ring[this._engineId.userHash])
-      throw "Keyring does not contain a key for this user";
+    if (!keys[this._userHash]) {
+      this._log.error("Keyring does not contain a key for this user");
+      return;
+    }
 
-    Crypto.RSAdecrypt.async(Crypto, self.cb,
-                            keys.ring[this._engineId.userHash], this._pbeId);
-    let symkey = yield;
-    this._engineId.setTempPassword(symkey);
-
-    self.done(true);
+    //Crypto.RSAdecrypt.async(Crypto, self.cb,
+    //                        keys[this._userHash],
+                              
+    self.done(done);
+    yield;
+    this._log.warn("_getSymKey generator not properly closed");
   },
 
   _serializeCommands: function Engine__serializeCommands(commands) {
@@ -151,7 +150,7 @@ Engine.prototype = {
     //json = json.replace(/ {action/g, "\n {action");
     return json;
   },
-
+  
   _serializeConflicts: function Engine__serializeConflicts(conflicts) {
     let json = this._json.encode(conflicts);
     //json = json.replace(/ {action/g, "\n {action");
@@ -166,13 +165,21 @@ Engine.prototype = {
       this._log.debug("Resetting server data");
       this._os.notifyObservers(null, this._osPrefix + "reset-server:start", "");
 
+      this._dav.lock.async(this._dav, self.cb);
+      let locked = yield;
+      if (!locked)
+        throw "Could not acquire lock, aborting server reset";
+
       // try to delete all 3, check status after
-      DAV.DELETE(this.statusFile, self.cb);
+      this._dav.DELETE(this.statusFile, self.cb);
       let statusResp = yield;
-      DAV.DELETE(this.snapshotFile, self.cb);
+      this._dav.DELETE(this.snapshotFile, self.cb);
       let snapshotResp = yield;
-      DAV.DELETE(this.deltasFile, self.cb);
+      this._dav.DELETE(this.deltasFile, self.cb);
       let deltasResp = yield;
+
+      this._dav.unlock.async(this._dav, self.cb);
+      let unlocked = yield;
 
       Utils.ensureStatus(statusResp.status,
                          "Could not delete status file.", [[200,300],404]);
@@ -184,7 +191,7 @@ Engine.prototype = {
       this._log.debug("Server files deleted");
       done = true;
       this._os.notifyObservers(null, this._osPrefix + "reset-server:success", "");
-
+        
     } catch (e) {
       this._log.error("Could not delete server files");
       this._os.notifyObservers(null, this._osPrefix + "reset-server:error", "");
@@ -251,186 +258,215 @@ Engine.prototype = {
 
   _sync: function BmkEngine__sync() {
     let self = yield;
+    let synced = false, locked = null;
 
-    this._log.info("Beginning sync");
+    try {
+      this._log.info("Beginning sync");
+      this._os.notifyObservers(null, this._osPrefix + "sync:start", "");
 
-    // Before we get started, make sure we have a remote directory to play in
-    DAV.MKCOL(this.serverPrefix, self.cb);
-    let ret = yield;
-    if (!ret)
-      throw "Could not create remote folder";
+      this._dav.lock.async(this._dav, self.cb);
+      locked = yield;
 
-    // 1) Fetch server deltas
-    this._getServerData.async(this, self.cb);
-    let server = yield;
-
-    this._log.info("Local snapshot version: " + this._snapshot.version);
-    this._log.info("Server status: " + server.status);
-    this._log.info("Server maxVersion: " + server.maxVersion);
-    this._log.info("Server snapVersion: " + server.snapVersion);
-
-    if (server.status != 0) {
-      this._log.fatal("Sync error: could not get server status, " +
-                      "or initial upload failed.  Aborting sync.");
-      return;
-    }
-
-    // 2) Generate local deltas from snapshot -> current client status
-
-    let localJson = new SnapshotStore();
-    localJson.data = this._store.wrap();
-    this._core.detectUpdates(self.cb, this._snapshot.data, localJson.data);
-    let localUpdates = yield;
-
-    this._log.trace("local json:\n" + localJson.serialize());
-    this._log.trace("Local updates: " + this._serializeCommands(localUpdates));
-    this._log.trace("Server updates: " + this._serializeCommands(server.updates));
-
-    if (server.updates.length == 0 && localUpdates.length == 0) {
-      this._snapshot.version = server.maxVersion;
-      this._log.info("Sync complete: no changes needed on client or server");
-      self.done(true);
-      return;
-    }
-
-    // 3) Reconcile client/server deltas and generate new deltas for them.
-
-    this._log.info("Reconciling client/server updates");
-    this._core.reconcile(self.cb, localUpdates, server.updates);
-    ret = yield;
-
-    let clientChanges = ret.propagations[0];
-    let serverChanges = ret.propagations[1];
-    let clientConflicts = ret.conflicts[0];
-    let serverConflicts = ret.conflicts[1];
-
-    this._log.info("Changes for client: " + clientChanges.length);
-    this._log.info("Predicted changes for server: " + serverChanges.length);
-    this._log.info("Client conflicts: " + clientConflicts.length);
-    this._log.info("Server conflicts: " + serverConflicts.length);
-    this._log.trace("Changes for client: " + this._serializeCommands(clientChanges));
-    this._log.trace("Predicted changes for server: " + this._serializeCommands(serverChanges));
-    this._log.trace("Client conflicts: " + this._serializeConflicts(clientConflicts));
-    this._log.trace("Server conflicts: " + this._serializeConflicts(serverConflicts));
-
-    if (!(clientChanges.length || serverChanges.length ||
-          clientConflicts.length || serverConflicts.length)) {
-      this._log.info("Sync complete: no changes needed on client or server");
-      this._snapshot.data = localJson.data;
-      this._snapshot.version = server.maxVersion;
-      this._snapshot.save();
-      self.done(true);
-      return;
-    }
-
-    if (clientConflicts.length || serverConflicts.length) {
-      this._log.warn("Conflicts found!  Discarding server changes");
-    }
-
-    let savedSnap = Utils.deepCopy(this._snapshot.data);
-    let savedVersion = this._snapshot.version;
-    let newSnapshot;
-
-    // 3.1) Apply server changes to local store
-    if (clientChanges.length) {
-      this._log.info("Applying changes locally");
-      // Note that we need to need to apply client changes to the
-      // current tree, not the saved snapshot
-
-      localJson.applyCommands.async(localJson, self.cb, clientChanges);
-      yield;
-      this._snapshot.data = localJson.data;
-      this._snapshot.version = server.maxVersion;
-      this._store.applyCommands.async(this._store, self.cb, clientChanges);
-      yield;
-      newSnapshot = this._store.wrap();
-
-      this._core.detectUpdates(self.cb, this._snapshot.data, newSnapshot);
-      let diff = yield;
-      if (diff.length != 0) {
-        this._log.warn("Commands did not apply correctly");
-        this._log.debug("Diff from snapshot+commands -> " +
-                        "new snapshot after commands:\n" +
-                        this._serializeCommands(diff));
-        // FIXME: do we really want to revert the snapshot here?
-        this._snapshot.data = Utils.deepCopy(savedSnap);
-        this._snapshot.version = savedVersion;
+      if (locked)
+        this._log.info("Lock acquired");
+      else {
+        this._log.warn("Could not acquire lock, aborting sync");
+        return;
       }
-      this._snapshot.save();
-    }
 
-    // 3.2) Append server delta to the delta file and upload
+      // Before we get started, make sure we have a remote directory to play in
+      this._dav.MKCOL(this.serverPrefix, self.cb);
+      let ret = yield;
+      if (!ret)
+        throw "Could not create remote folder";
 
-    // Generate a new diff, from the current server snapshot to the
-    // current client snapshot.  In the case where there are no
-    // conflicts, it should be the same as what the resolver returned
+      // 1) Fetch server deltas
+      this._getServerData.async(this, self.cb);
+      let server = yield;
 
-    newSnapshot = this._store.wrap();
-    this._core.detectUpdates(self.cb, server.snapshot, newSnapshot);
-    let serverDelta = yield;
+      this._log.info("Local snapshot version: " + this._snapshot.version);
+      this._log.info("Server status: " + server.status);
+      this._log.info("Server maxVersion: " + server.maxVersion);
+      this._log.info("Server snapVersion: " + server.snapVersion);
 
-    // Log an error if not the same
-    if (!(serverConflicts.length ||
-          Utils.deepEquals(serverChanges, serverDelta)))
-      this._log.warn("Predicted server changes differ from " +
-                     "actual server->client diff (can be ignored in many cases)");
+      if (server.status != 0) {
+        this._log.fatal("Sync error: could not get server status, " +
+                        "or initial upload failed.  Aborting sync.");
+        return;
+      }
 
-    this._log.info("Actual changes for server: " + serverDelta.length);
-    this._log.debug("Actual changes for server: " +
-                    this._serializeCommands(serverDelta));
+      // 2) Generate local deltas from snapshot -> current client status
 
-    if (serverDelta.length) {
-      this._log.info("Uploading changes to server");
+      let localJson = new SnapshotStore();
+      localJson.data = this._store.wrap();
+      this._core.detectUpdates(self.cb, this._snapshot.data, localJson.data);
+      let localUpdates = yield;
 
-      this._snapshot.data = newSnapshot;
-      this._snapshot.version = ++server.maxVersion;
+      this._log.trace("local json:\n" + localJson.serialize());
+      this._log.trace("Local updates: " + this._serializeCommands(localUpdates));
+      this._log.trace("Server updates: " + this._serializeCommands(server.updates));
 
-      server.deltas.push(serverDelta);
+      if (server.updates.length == 0 && localUpdates.length == 0) {
+        this._snapshot.version = server.maxVersion;
+        this._log.info("Sync complete (1): no changes needed on client or server");
+        synced = true;
+        return;
+      }
+	  
+      // 3) Reconcile client/server deltas and generate new deltas for them.
 
-      if (server.formatVersion != ENGINE_STORAGE_FORMAT_VERSION ||
-          this._encryptionChanged) {
-        this._fullUpload.async(this, self.cb);
-        let status = yield;
-        if (!status)
-          this._log.error("Could not upload files to server"); // eep?
+      this._log.info("Reconciling client/server updates");
+      this._core.reconcile(self.cb, localUpdates, server.updates);
+      ret = yield;
 
-      } else {
-        Crypto.PBEencrypt.async(Crypto, self.cb,
-                                this._serializeCommands(server.deltas),
-      			  this._engineId);
-        let data = yield;
-        DAV.PUT(this.deltasFile, data, self.cb);
-        let deltasPut = yield;
+      let clientChanges = ret.propagations[0];
+      let serverChanges = ret.propagations[1];
+      let clientConflicts = ret.conflicts[0];
+      let serverConflicts = ret.conflicts[1];
 
-        let c = 0;
-        for (GUID in this._snapshot.data)
-          c++;
+      this._log.info("Changes for client: " + clientChanges.length);
+      this._log.info("Predicted changes for server: " + serverChanges.length);
+      this._log.info("Client conflicts: " + clientConflicts.length);
+      this._log.info("Server conflicts: " + serverConflicts.length);
+      this._log.trace("Changes for client: " + this._serializeCommands(clientChanges));
+      this._log.trace("Predicted changes for server: " + this._serializeCommands(serverChanges));
+      this._log.trace("Client conflicts: " + this._serializeConflicts(clientConflicts));
+      this._log.trace("Server conflicts: " + this._serializeConflicts(serverConflicts));
 
-        DAV.PUT(this.statusFile,
-                      this._json.encode(
-                        {GUID: this._snapshot.GUID,
-                         formatVersion: ENGINE_STORAGE_FORMAT_VERSION,
-                         snapVersion: server.snapVersion,
-                         maxVersion: this._snapshot.version,
-                         snapEncryption: server.snapEncryption,
-                         deltasEncryption: Crypto.defaultAlgorithm,
-                         itemCount: c}), self.cb);
-        let statusPut = yield;
+      if (!(clientChanges.length || serverChanges.length ||
+            clientConflicts.length || serverConflicts.length)) {
+        this._log.info("Sync complete (2): no changes needed on client or server");
+        this._snapshot.data = localJson.data;
+        this._snapshot.version = server.maxVersion;
+        this._snapshot.save();
+        synced = true;
+        return;
+      }
 
-        if (deltasPut.status >= 200 && deltasPut.status < 300 &&
-            statusPut.status >= 200 && statusPut.status < 300) {
-          this._log.info("Successfully updated deltas and status on server");
-          this._snapshot.save();
+      if (clientConflicts.length || serverConflicts.length) {
+        this._log.warn("Conflicts found!  Discarding server changes");
+      }
+
+      let savedSnap = Utils.deepCopy(this._snapshot.data);
+      let savedVersion = this._snapshot.version;
+      let newSnapshot;
+
+      // 3.1) Apply server changes to local store
+      if (clientChanges.length) {
+        this._log.info("Applying changes locally");
+        // Note that we need to need to apply client changes to the
+        // current tree, not the saved snapshot
+
+	localJson.applyCommands(clientChanges);
+        this._snapshot.data = localJson.data;
+        this._snapshot.version = server.maxVersion;
+        this._store.applyCommands(clientChanges);
+        newSnapshot = this._store.wrap();
+
+        this._core.detectUpdates(self.cb, this._snapshot.data, newSnapshot);
+        let diff = yield;
+        if (diff.length != 0) {
+          this._log.warn("Commands did not apply correctly");
+          this._log.debug("Diff from snapshot+commands -> " +
+                          "new snapshot after commands:\n" +
+                          this._serializeCommands(diff));
+          // FIXME: do we really want to revert the snapshot here?
+          this._snapshot.data = Utils.deepCopy(savedSnap);
+          this._snapshot.version = savedVersion;
+        }
+        this._snapshot.save();
+      }
+
+      // 3.2) Append server delta to the delta file and upload
+
+      // Generate a new diff, from the current server snapshot to the
+      // current client snapshot.  In the case where there are no
+      // conflicts, it should be the same as what the resolver returned
+
+      newSnapshot = this._store.wrap();
+      this._core.detectUpdates(self.cb, server.snapshot, newSnapshot);
+      let serverDelta = yield;
+
+      // Log an error if not the same
+      if (!(serverConflicts.length ||
+            Utils.deepEquals(serverChanges, serverDelta)))
+        this._log.warn("Predicted server changes differ from " +
+                       "actual server->client diff (can be ignored in many cases)");
+
+      this._log.info("Actual changes for server: " + serverDelta.length);
+      this._log.debug("Actual changes for server: " +
+                      this._serializeCommands(serverDelta));
+
+      if (serverDelta.length) {
+        this._log.info("Uploading changes to server");
+
+        this._snapshot.data = newSnapshot;
+        this._snapshot.version = ++server.maxVersion;
+
+        server.deltas.push(serverDelta);
+
+        if (server.formatVersion != STORAGE_FORMAT_VERSION ||
+            this._encryptionChanged) {
+          this._fullUpload.async(this, self.cb);
+          let status = yield;
+          if (!status)
+            this._log.error("Could not upload files to server"); // eep?
+
         } else {
-          // FIXME: revert snapshot here? - can't, we already applied
-          // updates locally! - need to save and retry
-          this._log.error("Could not update deltas on server");
+	  Crypto.PBEencrypt.async(Crypto, self.cb,
+                                  this._serializeCommands(server.deltas),
+				  this._cryptoId);
+          let data = yield;
+          this._dav.PUT(this.deltasFile, data, self.cb);
+          let deltasPut = yield;
+
+          let c = 0;
+          for (GUID in this._snapshot.data)
+            c++;
+
+          this._dav.PUT(this.statusFile,
+                        this._json.encode(
+                          {GUID: this._snapshot.GUID,
+                           formatVersion: STORAGE_FORMAT_VERSION,
+                           snapVersion: server.snapVersion,
+                           maxVersion: this._snapshot.version,
+                           snapEncryption: server.snapEncryption,
+                           deltasEncryption: Crypto.defaultAlgorithm,
+                           itemCount: c}), self.cb);
+          let statusPut = yield;
+
+          if (deltasPut.status >= 200 && deltasPut.status < 300 &&
+              statusPut.status >= 200 && statusPut.status < 300) {
+            this._log.info("Successfully updated deltas and status on server");
+            this._snapshot.save();
+          } else {
+            // FIXME: revert snapshot here? - can't, we already applied
+            // updates locally! - need to save and retry
+            this._log.error("Could not update deltas on server");
+          }
         }
       }
-    }
 
-    this._log.info("Sync complete");
-    self.done(true);
+      this._log.info("Sync complete");
+      synced = true;
+
+    } catch (e) {
+      throw e;
+
+    } finally {
+      let ok = false;
+      if (locked) {
+        this._dav.unlock.async(this._dav, self.cb);
+        ok = yield;
+      }
+      if (ok && synced) {
+        this._os.notifyObservers(null, this._osPrefix + "sync:success", "");
+        self.done(true);
+      } else {
+        this._os.notifyObservers(null, this._osPrefix + "sync:error", "");
+        self.done(false);
+      }
+    }
   },
 
   /* Get the deltas/combined updates from the server
@@ -465,7 +501,7 @@ Engine.prototype = {
                snapshot: null, deltas: null, updates: null};
 
     this._log.debug("Getting status file from server");
-    DAV.GET(this.statusFile, self.cb);
+    this._dav.GET(this.statusFile, self.cb);
     let resp = yield;
     let status = resp.status;
 
@@ -478,14 +514,11 @@ Engine.prototype = {
       let snap = new SnapshotStore();
 
       // Bail out if the server has a newer format version than we can parse
-      if (status.formatVersion > ENGINE_STORAGE_FORMAT_VERSION) {
+      if (status.formatVersion > STORAGE_FORMAT_VERSION) {
         this._log.error("Server uses storage format v" + status.formatVersion +
-                  ", this client understands up to v" + ENGINE_STORAGE_FORMAT_VERSION);
+                  ", this client understands up to v" + STORAGE_FORMAT_VERSION);
         break;
       }
-
-      this._getSymKey.async(this, self.cb);
-      yield;
 
       if (status.formatVersion == 0) {
         ret.snapEncryption = status.snapEncryption = "none";
@@ -510,23 +543,23 @@ Engine.prototype = {
           this._log.info("Local snapshot is out of date");
 
         this._log.info("Downloading server snapshot");
-        DAV.GET(this.snapshotFile, self.cb);
+        this._dav.GET(this.snapshotFile, self.cb);
         resp = yield;
         Utils.ensureStatus(resp.status, "Could not download snapshot.");
         Crypto.PBEdecrypt.async(Crypto, self.cb,
                                 resp.responseText,
-      			  this._engineId,
+      			  this._cryptoId,
       			  status.snapEncryption);
         let data = yield;
         snap.data = this._json.decode(data);
 
         this._log.info("Downloading server deltas");
-        DAV.GET(this.deltasFile, self.cb);
+        this._dav.GET(this.deltasFile, self.cb);
         resp = yield;
         Utils.ensureStatus(resp.status, "Could not download deltas.");
         Crypto.PBEdecrypt.async(Crypto, self.cb,
                                 resp.responseText,
-      			  this._engineId,
+      			  this._cryptoId,
       			  status.deltasEncryption);
         data = yield;
         allDeltas = this._json.decode(data);
@@ -538,12 +571,12 @@ Engine.prototype = {
         snap.data = Utils.deepCopy(this._snapshot.data);
 
         this._log.info("Downloading server deltas");
-        DAV.GET(this.deltasFile, self.cb);
+        this._dav.GET(this.deltasFile, self.cb);
         resp = yield;
         Utils.ensureStatus(resp.status, "Could not download deltas.");
         Crypto.PBEdecrypt.async(Crypto, self.cb,
                                 resp.responseText,
-      			  this._engineId,
+      			  this._cryptoId,
       			  status.deltasEncryption);
         let data = yield;
         allDeltas = this._json.decode(data);
@@ -555,12 +588,12 @@ Engine.prototype = {
 
         // FIXME: could optimize this case by caching deltas file
         this._log.info("Downloading server deltas");
-        DAV.GET(this.deltasFile, self.cb);
+        this._dav.GET(this.deltasFile, self.cb);
         resp = yield;
         Utils.ensureStatus(resp.status, "Could not download deltas.");
         Crypto.PBEdecrypt.async(Crypto, self.cb,
                                 resp.responseText,
-      			  this._engineId,
+      			  this._cryptoId,
       			  status.deltasEncryption);
         let data = yield;
         allDeltas = this._json.decode(data);
@@ -572,8 +605,7 @@ Engine.prototype = {
       }
 
       for (var i = 0; i < deltas.length; i++) {
-        snap.applyCommands.async(snap, self.cb, deltas[i]);
-        yield;
+        snap.applyCommands(deltas[i]);
       }
 
       ret.status = 0;
@@ -604,7 +636,7 @@ Engine.prototype = {
       this._snapshot.save();
 
       ret.status = 0;
-      ret.formatVersion = ENGINE_STORAGE_FORMAT_VERSION;
+      ret.formatVersion = STORAGE_FORMAT_VERSION;
       ret.maxVersion = this._snapshot.version;
       ret.snapVersion = this._snapshot.version;
       ret.snapEncryption = Crypto.defaultAlgorithm;
@@ -627,34 +659,16 @@ Engine.prototype = {
     let self = yield;
     let ret = false;
 
-    Crypto.PBEkeygen.async(Crypto, self.cb);
-    let symkey = yield;
-    this._engineId.setTempPassword(symkey);
-    if (!this._engineId.password)
-      throw "Could not generate a symmetric encryption key";
-
-    Crypto.RSAencrypt.async(Crypto, self.cb,
-                            this._engineId.password, this._pbeId);
-    let enckey = yield;
-    if (!enckey)
-      throw "Could not encrypt symmetric encryption key";
-
-    let keys = {ring: {}};
-    keys.ring[this._engineId.userHash] = enckey;
-    DAV.PUT(this.keysFile, this._json.encode(keys), self.cb);
-    let resp = yield;
-    Utils.ensureStatus(resp.status, "Could not upload keyring file.");
-
     Crypto.PBEencrypt.async(Crypto, self.cb,
                             this._snapshot.serialize(),
-      		            this._engineId);
+      		            this._cryptoId);
     let data = yield;
-
-    DAV.PUT(this.snapshotFile, data, self.cb);
+      
+    this._dav.PUT(this.snapshotFile, data, self.cb);
     resp = yield;
     Utils.ensureStatus(resp.status, "Could not upload snapshot.");
 
-    DAV.PUT(this.deltasFile, "[]", self.cb);
+    this._dav.PUT(this.deltasFile, "[]", self.cb);
     resp = yield;
     Utils.ensureStatus(resp.status, "Could not upload deltas.");
 
@@ -662,10 +676,10 @@ Engine.prototype = {
     for (GUID in this._snapshot.data)
       c++;
 
-    DAV.PUT(this.statusFile,
+    this._dav.PUT(this.statusFile,
                   this._json.encode(
                     {GUID: this._snapshot.GUID,
-                     formatVersion: ENGINE_STORAGE_FORMAT_VERSION,
+                     formatVersion: STORAGE_FORMAT_VERSION,
                      snapVersion: this._snapshot.version,
                      maxVersion: this._snapshot.version,
                      snapEncryption: Crypto.defaultAlgorithm,
@@ -679,97 +693,8 @@ Engine.prototype = {
     self.done(ret)
   },
 
-  _share: function Engine__share(username) {
-    let self = yield;
-    let base = DAV.baseURL;
-
-    this._log.debug("Sharing bookmarks with " + username);
-
-    this._getSymKey.async(this, self.cb);
-    yield;
-
-    // copied from getSymKey
-    DAV.GET(this.keysFile, self.cb);
-    let ret = yield;
-    Utils.ensureStatus(ret.status, "Could not get keys file.");
-    let keys = this._json.decode(ret.responseText);
-
-    // get the other user's pubkey
-    let hash = Utils.sha1(username);
-    let serverURL = Utils.prefs.getCharPref("serverURL");
-
-    try {
-      DAV.baseURL = serverURL + "user/" + hash + "/";  //FIXME: very ugly!
-      DAV.GET("public/pubkey", self.cb);
-      ret = yield;
-    }
-    catch (e) { throw e; }
-    finally { DAV.baseURL = base; }
-
-    Utils.ensureStatus(ret.status, "Could not get public key for " + username);
-
-    let id = new Identity();
-    id.pubkey = ret.responseText;
-
-    // now encrypt the symkey with their pubkey and upload the new keyring
-    Crypto.RSAencrypt.async(Crypto, self.cb, this._engineId.password, id);
-    let enckey = yield;
-    if (!enckey)
-      throw "Could not encrypt symmetric encryption key";
-
-    keys.ring[hash] = enckey;
-    DAV.PUT(this.keysFile, this._json.encode(keys), self.cb);
-    ret = yield;
-    Utils.ensureStatus(ret.status, "Could not upload keyring file.");
-
-    this._createShare(username, username);
-
-    this._log.debug("All done sharing!");
-
-    self.done(true);
-  },
-
-  // FIXME: EEK bookmarks specific
-  _createShare: function Engine__createShare(id, title) {
-    let bms = Cc["@mozilla.org/browser/nav-bookmarks-service;1"].
-      getService(Ci.nsINavBookmarksService);
-    let ans = Cc["@mozilla.org/browser/annotation-service;1"].
-      getService(Ci.nsIAnnotationService);
-
-    let root;
-    let a = ans.getItemsWithAnnotation("weave/mounted-shares-folder", {});
-    if (a.length == 1)
-      root = a[0];
-
-    if (!root) {
-      root = bms.createFolder(bms.toolbarFolder, "Shared Folders",
-                              bms.DEFAULT_INDEX);
-      ans.setItemAnnotation(root, "weave/mounted-shares-folder", true, 0,
-                            ans.EXPIRE_NEVER);
-    }
-
-    let item
-    a = ans.getItemsWithAnnotation("weave/mounted-share-id", {});
-    for (let i = 0; i < a.length; i++) {
-      if (ans.getItemAnnotation(a[i], "weave/mounted-share-id") == id) {
-        item = a[i];
-        break;
-      }
-    }
-
-    if (!item) {
-      let newId = bms.createFolder(root, title, bms.DEFAULT_INDEX);
-      ans.setItemAnnotation(newId, "weave/mounted-share-id", id, 0,
-                            ans.EXPIRE_NEVER);
-    }
-  },
-
   sync: function Engine_sync(onComplete) {
     return this._sync.async(this, onComplete);
-  },
-
-  share: function Engine_share(onComplete, username) {
-    return this._share.async(this, onComplete, username);
   },
 
   resetServer: function Engine_resetServer(onComplete) {
@@ -781,8 +706,8 @@ Engine.prototype = {
   }
 };
 
-function BookmarksEngine(davCollection, pbeId) {
-  this._init(davCollection, pbeId);
+function BookmarksEngine(davCollection, cryptoId) {
+  this._init(davCollection, cryptoId);
 }
 BookmarksEngine.prototype = {
   get name() { return "bookmarks-engine"; },
@@ -801,99 +726,12 @@ BookmarksEngine.prototype = {
     if (!this.__store)
       this.__store = new BookmarksStore();
     return this.__store;
-  },
-
-  syncMounts: function BmkEngine_syncMounts(onComplete) {
-    this._syncMounts.async(this, onComplete);
-  },
-  _syncMounts: function BmkEngine__syncMounts() {
-    let self = yield;
-    let mounts = this._store.findMounts();
-
-    for (i = 0; i < mounts.length; i++) {
-      try {
-        this._syncOneMount.async(this, self.cb, mounts[i]);
-        yield;
-      } catch (e) {
-        this._log.warn("Could not sync shared folder from " + mounts[i].userid);
-        this._log.trace(Utils.stackTrace(e));
-      }
-    }
-  },
-
-  _syncOneMount: function BmkEngine__syncOneMount(mountData) {
-    let self = yield;
-    let user = mountData.userid;
-    let base = DAV.baseURL;
-    let serverURL = Utils.prefs.getCharPref("serverURL");
-    let snap = new SnapshotStore();
-
-    this._log.debug("Syncing shared folder from user " + user);
-
-    try {
-      let hash = Utils.sha1(user);
-      DAV.baseURL = serverURL + "user/" + hash + "/";  //FIXME: very ugly!
-
-      this._getSymKey.async(this, self.cb);
-      yield;
-
-      this._log.trace("Getting status file for " + user);
-      DAV.GET(this.statusFile, self.cb);
-      let resp = yield;
-      Utils.ensureStatus(resp.status, "Could not download status file.");
-      let status = this._json.decode(resp.responseText);
-
-      this._log.trace("Downloading server snapshot for " + user);
-      DAV.GET(this.snapshotFile, self.cb);
-      resp = yield;
-      Utils.ensureStatus(resp.status, "Could not download snapshot.");
-      Crypto.PBEdecrypt.async(Crypto, self.cb, resp.responseText,
-    			        this._engineId, status.snapEncryption);
-      let data = yield;
-      snap.data = this._json.decode(data);
-
-      this._log.trace("Downloading server deltas for " + user);
-      DAV.GET(this.deltasFile, self.cb);
-      resp = yield;
-      Utils.ensureStatus(resp.status, "Could not download deltas.");
-      Crypto.PBEdecrypt.async(Crypto, self.cb, resp.responseText,
-    			        this._engineId, status.deltasEncryption);
-      data = yield;
-      deltas = this._json.decode(data);
-    }
-    catch (e) { throw e; }
-    finally { DAV.baseURL = base; }
-
-    // apply deltas to get current snapshot
-    for (var i = 0; i < deltas.length; i++) {
-      snap.applyCommands.async(snap, self.cb, deltas[i]);
-      yield;
-    }
-
-    // prune tree / get what we want
-    for (let guid in snap.data) {
-      if (snap.data[guid].type != "bookmark")
-        delete snap.data[guid];
-      else
-        snap.data[guid].parentGUID = mountData.rootGUID;
-    }
-
-    this._log.trace("Got bookmarks fror " + user + ", comparing with local copy");
-    this._core.detectUpdates(self.cb, mountData.snapshot, snap.data);
-    let diff = yield;
-
-    // FIXME: should make sure all GUIDs here live under the mountpoint
-    this._log.trace("Applying changes to folder from " + user);
-    this._store.applyCommands.async(this._store, self.cb, diff);
-    yield;
-
-    this._log.trace("Shared folder from " + user + " successfully synced!");
   }
 };
 BookmarksEngine.prototype.__proto__ = new Engine();
 
-function HistoryEngine(davCollection, pbeId) {
-  this._init(davCollection, pbeId);
+function HistoryEngine(davCollection, cryptoId) {
+  this._init(davCollection, cryptoId);
 }
 HistoryEngine.prototype = {
   get name() { return "history-engine"; },
@@ -915,3 +753,29 @@ HistoryEngine.prototype = {
   }
 };
 HistoryEngine.prototype.__proto__ = new Engine();
+
+
+// Jono: the following is copy-and-paste code
+function CookieEngine(davCollection, cryptoId) {
+  this._init(davCollection, cryptoId);
+}
+CookieEngine.prototype = {
+  get name() { return "cookie-engine"; },
+  get logName() { return "CookieEngine"; },
+  get serverPrefix() { return "user-data/cookies/"; },
+
+  __core: null,
+  get _core() {
+    if (!this.__core)
+      this.__core = new CookieSyncCore();
+    return this.__core;
+  },
+
+  __store: null,
+  get _store() {
+    if (!this.__store)
+      this.__store = new CookieStore();
+    return this.__store;
+  }
+};
+CookieEngine.prototype.__proto__ = new Engine();

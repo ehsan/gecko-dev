@@ -34,7 +34,7 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
-const EXPORTED_SYMBOLS = ['Crypto'];
+const EXPORTED_SYMBOLS = ['WeaveCrypto'];
 
 const Cc = Components.classes;
 const Ci = Components.interfaces;
@@ -49,12 +49,10 @@ Cu.import("resource://weave/async.js");
 
 Function.prototype.async = Async.sugar;
 
-Utils.lazy(this, 'Crypto', CryptoSvc);
-
-function CryptoSvc() {
+function WeaveCrypto() {
   this._init();
 }
-CryptoSvc.prototype = {
+WeaveCrypto.prototype = {
   _logName: "Crypto",
 
   __os: null,
@@ -90,8 +88,6 @@ CryptoSvc.prototype = {
 
   _init: function Crypto__init() {
     this._log = Log4Moz.Service.getLogger("Service." + this._logName);
-    this._log.level =
-      Log4Moz.Level[Utils.prefs.getCharPref("log.logger.service.crypto")];
     let branch = Cc["@mozilla.org/preferences-service;1"]
       .getService(Ci.nsIPrefBranch2);
     branch.addObserver("extensions.weave.encryption", this, false);
@@ -167,7 +163,7 @@ CryptoSvc.prototype = {
   // generates a random string that can be used as a passphrase
   _opensslRand: function Crypto__opensslRand(length) {
     if (!length)
-      length = 128;
+      length = 256;
 
     let outputFile = Utils.getTmp("output");
     if (outputFile.exists())
@@ -184,7 +180,7 @@ CryptoSvc.prototype = {
   },
 
   // generates an rsa public/private key pair, with the private key encrypted
-  _opensslRSAKeyGen: function Crypto__opensslRSAKeyGen(identity, algorithm, bits) {
+  _opensslRSAKeyGen: function Crypto__opensslRSAKeyGen(password, algorithm, bits) {
     if (!algorithm)
       algorithm = "aes-256-cbc";
     if (!bits)
@@ -210,7 +206,7 @@ CryptoSvc.prototype = {
     // nsIProcess doesn't support stdin, so we write a file instead
     let passFile = Utils.getTmp("pass");
     let [passFOS] = Utils.open(passFile, ">", PERMS_PASSFILE);
-    passFOS.writeString(identity.password);
+    passFOS.writeString(password);
     passFOS.close();
 
     try {
@@ -239,7 +235,7 @@ CryptoSvc.prototype = {
   },
 
   // returns 'input' encrypted with the 'pubkey' public RSA key
-  _opensslRSAencrypt: function Crypto__opensslRSAencrypt(input, identity) {
+  _opensslRSAencrypt: function Crypto__opensslRSAencrypt(input, pubkey) {
     let inputFile = Utils.getTmp("input");
     let [inputFOS] = Utils.open(inputFile, ">");
     inputFOS.writeString(input);
@@ -247,23 +243,18 @@ CryptoSvc.prototype = {
 
     let keyFile = Utils.getTmp("key");
     let [keyFOS] = Utils.open(keyFile, ">");
-    keyFOS.writeString(identity.pubkey);
+    keyFOS.writeString(pubkey);
     keyFOS.close();
-
-    let tmpFile = Utils.getTmp("tmp-output");
-    if (tmpFile.exists())
-      tmpFile.remove(false);
 
     let outputFile = Utils.getTmp("output");
     if (outputFile.exists())
       outputFile.remove(false);
 
     this._openssl("rsautl", "-encrypt", "-pubin", "-inkey", "key",
-                  "-in", "input", "-out", "tmp-output");
-    this._openssl("base64", "-in", "tmp-output", "-out", "output");
+                  "-in", "input", "-out", "output");
 
     let [outputFIS] = Utils.open(outputFile, "<");
-    let output = Utils.readStream(outputFIS);
+    let output = Utils.readStream(outpusFIS);
     outputFIS.close();
     outputFile.remove(false);
 
@@ -271,7 +262,7 @@ CryptoSvc.prototype = {
   },
 
   // returns 'input' decrypted with the 'privkey' private RSA key and password
-  _opensslRSAdecrypt: function Crypto__opensslRSAdecrypt(input, identity) {
+  _opensslRSAdecrypt: function Crypto__opensslRSAdecrypt(input, privkey, password) {
     let inputFile = Utils.getTmp("input");
     let [inputFOS] = Utils.open(inputFile, ">");
     inputFOS.writeString(input);
@@ -279,58 +270,7 @@ CryptoSvc.prototype = {
 
     let keyFile = Utils.getTmp("key");
     let [keyFOS] = Utils.open(keyFile, ">");
-    keyFOS.writeString(identity.privkey);
-    keyFOS.close();
-
-    let tmpKeyFile = Utils.getTmp("tmp-key");
-    if (tmpKeyFile.exists())
-      tmpKeyFile.remove(false);
-
-    let tmpFile = Utils.getTmp("tmp-output");
-    if (tmpFile.exists())
-      tmpFile.remove(false);
-
-    let outputFile = Utils.getTmp("output");
-    if (outputFile.exists())
-      outputFile.remove(false);
-
-    // nsIProcess doesn't support stdin, so we write a file instead
-    let passFile = Utils.getTmp("pass");
-    let [passFOS] = Utils.open(passFile, ">", PERMS_PASSFILE);
-    passFOS.writeString(identity.password);
-    passFOS.close();
-
-    try {
-      this._openssl("base64", "-d", "-in", "input", "-out", "tmp-output");
-      // FIXME: this is because openssl.exe (in windows only) doesn't
-      // seem to support -passin for rsautl, but it works for rsa.
-      this._openssl("rsa", "-in", "key", "-out", "tmp-key", "-passin", "file:pass");
-      this._openssl("rsautl", "-decrypt", "-inkey", "tmp-key",
-                    "-in", "tmp-output", "-out", "output");
-
-    } catch(e) {
-      throw e;
-
-    } finally {
-      passFile.remove(false);
-      tmpKeyFile.remove(false);
-      tmpFile.remove(false);
-      keyFile.remove(false);
-    }
-
-    let [outputFIS] = Utils.open(outputFile, "<");
-    let output = Utils.readStream(outputFIS);
-    outputFIS.close();
-    outputFile.remove(false);
-
-    return output;
-  },
-
-  // returns the public key from the private key
-  _opensslRSAkeydecrypt: function Crypto__opensslRSAkeydecrypt(identity) {
-    let keyFile = Utils.getTmp("key");
-    let [keyFOS] = Utils.open(keyFile, ">");
-    keyFOS.writeString(identity.privkey);
+    keyFOS.writeString(privkey);
     keyFOS.close();
 
     let outputFile = Utils.getTmp("output");
@@ -340,12 +280,12 @@ CryptoSvc.prototype = {
     // nsIProcess doesn't support stdin, so we write a file instead
     let passFile = Utils.getTmp("pass");
     let [passFOS] = Utils.open(passFile, ">", PERMS_PASSFILE);
-    passFOS.writeString(identity.password);
+    passFOS.writeString(password);
     passFOS.close();
 
     try {
-      this._openssl("rsa", "-in", "key", "-pubout", "-out", "output",
-                    "-passin", "file:pass");
+      this._openssl("rsautl", "-decrypt", "-inkey", "key", "-pass",
+                    "file:pass", "-in", "input", "-out", "output");
 
     } catch(e) {
       throw e;
@@ -355,7 +295,7 @@ CryptoSvc.prototype = {
     }
 
     let [outputFIS] = Utils.open(outputFile, "<");
-    let output = Utils.readStream(outputFIS);
+    let output = Utils.readStream(outpusFIS);
     outputFIS.close();
     outputFile.remove(false);
 
@@ -505,27 +445,21 @@ CryptoSvc.prototype = {
     self.done(ret);
   },
 
-  RSAkeygen: function Crypto_RSAkeygen(identity) {
+  RSAkeygen: function Crypto_RSAkeygen(password) {
     let self = yield;
-    let ret = this._opensslRSAKeyGen(identity);
+    let ret = this._opensslRSAKeyGen(password);
     self.done(ret);
   },
 
-  RSAencrypt: function Crypto_RSAencrypt(data, identity) {
+  RSAencrypt: function Crypto_RSAencrypt(data, key) {
     let self = yield;
-    let ret = this._opensslRSAencrypt(data, identity);
+    let ret = this._opensslRSAencrypt(data, key);
     self.done(ret);
   },
 
-  RSAdecrypt: function Crypto_RSAdecrypt(data, identity) {
+  RSAdecrypt: function Crypto_RSAdecrypt(data, key, password) {
     let self = yield;
-    let ret = this._opensslRSAdecrypt(data, identity);
-    self.done(ret);
-  },
-
-  RSAkeydecrypt: function Crypto_RSAkeydecrypt(identity) {
-    let self = yield;
-    let ret = this._opensslRSAkeydecrypt(identity);
+    let ret = this._opensslRSAdecrypt(data, key, password);
     self.done(ret);
   }
 };
