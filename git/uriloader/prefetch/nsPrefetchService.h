@@ -117,7 +117,7 @@ private:
     nsCOMPtr<nsIChannel>        mChannel;
     nsCOMPtr<nsIChannel>        mRedirectChannel;
     uint16_t                    mState;
-    int64_t                     mBytesRead;
+    int32_t                     mBytesRead;
 };
 
 #endif // !nsPrefetchService_h__

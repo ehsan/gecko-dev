@@ -90,10 +90,6 @@ static int (*CGFontGetAscentPtr) (CGFontRef fontRef) = NULL;
 static int (*CGFontGetDescentPtr) (CGFontRef fontRef) = NULL;
 static int (*CGFontGetLeadingPtr) (CGFontRef fontRef) = NULL;
 
-/* CTFontCreateWithGraphicsFont is not public until 10.5. */
-typedef const struct __CTFontDescriptor *CTFontDescriptorRef;
-static CTFontRef (*CTFontCreateWithGraphicsFontPtr) (CGFontRef, CGFloat, const CGAffineTransform *, CTFontDescriptorRef) = NULL;
-
 static cairo_bool_t _cairo_quartz_font_symbol_lookup_done = FALSE;
 static cairo_bool_t _cairo_quartz_font_symbols_present = FALSE;
 
@@ -131,8 +127,6 @@ quartz_font_ensure_symbols(void)
     CGContextGetAllowsFontSmoothingPtr = dlsym(RTLD_DEFAULT, "CGContextGetAllowsFontSmoothing");
     CGContextSetAllowsFontSmoothingPtr = dlsym(RTLD_DEFAULT, "CGContextSetAllowsFontSmoothing");
 
-    CTFontCreateWithGraphicsFontPtr = dlsym(RTLD_DEFAULT, "CTFontCreateWithGraphicsFont");
-
     if ((CGFontCreateWithFontNamePtr || CGFontCreateWithNamePtr) &&
 	CGFontGetGlyphBBoxesPtr &&
 	CGFontGetGlyphsForUnicharsPtr &&
@@ -156,7 +150,6 @@ struct _cairo_quartz_font_face {
     cairo_font_face_t base;
 
     CGFontRef cgFont;
-    CTFontRef ctFont;
 };
 
 /*
@@ -240,10 +233,6 @@ static void
 _cairo_quartz_font_face_destroy (void *abstract_face)
 {
     cairo_quartz_font_face_t *font_face = (cairo_quartz_font_face_t*) abstract_face;
-
-    if (font_face->ctFont) {
-        CFRelease (font_face->ctFont);
-    }
 
     CGFontRelease (font_face->cgFont);
 }
@@ -368,12 +357,6 @@ cairo_quartz_font_face_create_for_cgfont (CGFontRef font)
     }
 
     font_face->cgFont = CGFontRetain (font);
-
-    if (CTFontCreateWithGraphicsFontPtr) {
-        font_face->ctFont = CTFontCreateWithGraphicsFontPtr (font, 1.0, NULL, NULL);
-    } else {
-        font_face->ctFont = NULL;
-    }
 
     _cairo_font_face_init (&font_face->base, &_cairo_quartz_font_face_backend);
 
@@ -792,14 +775,6 @@ _cairo_quartz_scaled_font_get_cg_font_ref (cairo_scaled_font_t *abstract_font)
     cairo_quartz_font_face_t *ffont = _cairo_quartz_scaled_to_face(abstract_font);
 
     return ffont->cgFont;
-}
-
-CTFontRef
-_cairo_quartz_scaled_font_get_ct_font_ref (cairo_scaled_font_t *abstract_font)
-{
-    cairo_quartz_font_face_t *ffont = _cairo_quartz_scaled_to_face(abstract_font);
-
-    return ffont->ctFont;
 }
 
 #ifndef __LP64__

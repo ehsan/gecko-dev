@@ -5,7 +5,7 @@
 "use strict";
 
 function debug(aMsg) {
-  //dump("-*- PermissionSettings.js: " + aMsg + "\n");
+  // dump("-*- PermissionSettings.js: " + aMsg + "\n");
 }
 
 const Cc = Components.classes;
@@ -28,20 +28,9 @@ function PermissionSettings()
   debug("Constructor");
 }
 
-XPCOMUtils.defineLazyServiceGetter(this,
-                                   "permissionManager",
-                                   "@mozilla.org/permissionmanager;1",
-                                   "nsIPermissionManager");
-
-XPCOMUtils.defineLazyServiceGetter(this,
-                                   "secMan",
-                                   "@mozilla.org/scriptsecuritymanager;1",
-                                   "nsIScriptSecurityManager");
-
-XPCOMUtils.defineLazyServiceGetter(this,
-                                   "appsService",
-                                   "@mozilla.org/AppsService;1",
-                                   "nsIAppsService");
+var permissionManager = Cc["@mozilla.org/permissionmanager;1"].getService(Ci.nsIPermissionManager);
+var secMan = Cc["@mozilla.org/scriptsecuritymanager;1"].getService(Ci.nsIScriptSecurityManager);
+var appsService = Cc["@mozilla.org/AppsService;1"].getService(Ci.nsIAppsService);
 
 PermissionSettings.prototype = {
   get: function get(aPermission, aManifestURL, aOrigin, aBrowserFlag) {

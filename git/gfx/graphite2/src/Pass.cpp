@@ -275,19 +275,16 @@ bool Pass::readRanges(const byte * ranges, size_t num_ranges)
     memset(m_cols, 0xFF, m_numGlyphs * sizeof(uint16));
     for (size_t n = num_ranges; n; --n)
     {
-        uint16     * ci     = m_cols + be::read<uint16>(ranges),
-                   * ci_end = m_cols + be::read<uint16>(ranges) + 1,
-                     col    = be::read<uint16>(ranges);
+        const uint16 first = be::read<uint16>(ranges),
+                     last  = be::read<uint16>(ranges),
+                     col   = be::read<uint16>(ranges);
+        uint16 *p;
 
-        if (ci >= ci_end || ci_end > m_cols+m_numGlyphs || col >= m_sColumns)
+        if (first > last || last >= m_numGlyphs || col >= m_sColumns)
             return false;
 
-        // A glyph must only belong to one column at a time
-        while (ci != ci_end && *ci == 0xffff)
-            *ci++ = col;
-
-        if (ci != ci_end)
-            return false;
+        for (p = m_cols + first; p <= m_cols + last; )
+            *p++ = col;
     }
     return true;
 }

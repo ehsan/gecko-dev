@@ -13,6 +13,7 @@
 #include "ChromeObjectWrapper.h"
 
 #include "xpcprivate.h"
+#include "dombindings.h"
 #include "XPCMaps.h"
 #include "mozilla/dom/BindingUtils.h"
 #include "jsfriendapi.h"
@@ -323,6 +324,8 @@ WrapperFactory::Rewrap(JSContext *cx, JSObject *obj, JSObject *wrappedProto, JSO
                 XrayType type = GetXrayType(obj);
                 if (type == XrayForDOMObject) {
                     wrapper = &XrayDOM::singleton;
+                } else if (type == XrayForDOMProxyObject) {
+                    wrapper = &XrayProxy::singleton;
                 } else if (type == XrayForWrappedNative) {
                     typedef XrayWrapper<CrossCompartmentWrapper> Xray;
                     wrapper = &Xray::singleton;
@@ -353,6 +356,8 @@ WrapperFactory::Rewrap(JSContext *cx, JSObject *obj, JSObject *wrappedProto, JSO
                 wrapper = &FilteringWrapper<Xray, CrossOriginAccessiblePropertiesOnly>::singleton;
         } else if (mozilla::dom::IsDOMObject(obj)) {
             wrapper = &FilteringWrapper<XrayDOM, CrossOriginAccessiblePropertiesOnly>::singleton;
+        } else if (mozilla::dom::oldproxybindings::instanceIsProxy(obj)) {
+            wrapper = &FilteringWrapper<XrayProxy, CrossOriginAccessiblePropertiesOnly>::singleton;
         } else if (IsComponentsObject(obj)) {
             wrapper = &FilteringWrapper<CrossCompartmentSecurityWrapper,
                                         ComponentsObjectPolicy>::singleton;
@@ -417,6 +422,8 @@ WrapperFactory::Rewrap(JSContext *cx, JSObject *obj, JSObject *wrappedProto, JSO
             wrapper = &CrossCompartmentWrapper::singleton;
         } else if (type == XrayForDOMObject) {
             wrapper = &XrayDOM::singleton;
+        } else if (type == XrayForDOMProxyObject) {
+            wrapper = &XrayProxy::singleton;
         } else {
             typedef XrayWrapper<CrossCompartmentWrapper> Xray;
             wrapper = &Xray::singleton;
@@ -433,6 +440,9 @@ WrapperFactory::Rewrap(JSContext *cx, JSObject *obj, JSObject *wrappedProto, JSO
                                         CrossOriginAccessiblePropertiesOnly>::singleton;
         } else if (type == XrayForDOMObject) {
             wrapper = &FilteringWrapper<XrayDOM,
+                                        CrossOriginAccessiblePropertiesOnly>::singleton;
+        } else if (type == XrayForDOMProxyObject) {
+            wrapper = &FilteringWrapper<XrayProxy,
                                         CrossOriginAccessiblePropertiesOnly>::singleton;
         } else {
             typedef XrayWrapper<CrossCompartmentSecurityWrapper> Xray;
@@ -561,6 +571,8 @@ WrapperFactory::WrapForSameCompartmentXray(JSContext *cx, JSObject *obj)
     Wrapper *wrapper = NULL;
     if (type == XrayForWrappedNative)
         wrapper = &XrayWrapper<DirectWrapper>::singleton;
+    else if (type == XrayForDOMProxyObject)
+        wrapper = &XrayWrapper<DirectWrapper, ProxyXrayTraits>::singleton;
     else if (type == XrayForDOMObject)
         wrapper = &XrayWrapper<DirectWrapper, DOMXrayTraits>::singleton;
     else

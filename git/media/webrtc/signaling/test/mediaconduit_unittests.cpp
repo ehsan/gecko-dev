@@ -270,14 +270,13 @@ void AudioSendAndReceive::GenerateAndReadSamples()
    int16_t audioOutput[PLAYOUT_SAMPLE_LENGTH];
    short* inbuf;
    int sampleLengthDecoded = 0;
-   int SAMPLES = (PLAYOUT_SAMPLE_FREQUENCY * 10)/1000; //10 milliseconds
+   int SAMPLES = PLAYOUT_SAMPLE_FREQUENCY * 10; //10 milliseconds
    int CHANNELS = 1; //mono audio
-   int sampleLengthInBytes = sizeof(audioInput);
+   int sampleLengthInBytes = PLAYOUT_SAMPLE_LENGTH * sizeof(short);
    //generated audio buffer
    inbuf = (short *)moz_xmalloc(sizeof(short)*SAMPLES*CHANNELS);
    memset(audioInput,0,sampleLengthInBytes);
    memset(audioOutput,0,sampleLengthInBytes);
-   MOZ_ASSERT(SAMPLES <= PLAYOUT_SAMPLE_LENGTH);
 
    FILE* inFile = fopen( iFile.c_str(), "wb+");
    if(!inFile) {

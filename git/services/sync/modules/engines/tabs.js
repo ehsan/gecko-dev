@@ -14,6 +14,7 @@ Cu.import("resource://gre/modules/XPCOMUtils.jsm");
 Cu.import("resource://services-sync/engines.js");
 Cu.import("resource://services-sync/engines/clients.js");
 Cu.import("resource://services-sync/record.js");
+Cu.import("resource://services-sync/resource.js");
 Cu.import("resource://services-sync/util.js");
 Cu.import("resource://services-sync/constants.js");
 Cu.import("resource://services-common/preferences.js");
@@ -38,8 +39,8 @@ TabSetRecord.prototype = {
 Utils.deferGetSet(TabSetRecord, "cleartext", ["clientName", "tabs"]);
 
 
-function TabEngine(service) {
-  SyncEngine.call(this, "Tabs", service);
+function TabEngine() {
+  SyncEngine.call(this, "Tabs");
 
   // Reset the client on every startup so that we fetch recent tabs
   this._resetClient();
@@ -54,7 +55,7 @@ TabEngine.prototype = {
     // No need for a proper timestamp (no conflict resolution needed).
     let changedIDs = {};
     if (this._tracker.modified)
-      changedIDs[this.service.clientsEngine.localID] = 0;
+      changedIDs[Clients.localID] = 0;
     return changedIDs;
   },
 
@@ -74,8 +75,7 @@ TabEngine.prototype = {
   },
 
   removeClientData: function removeClientData() {
-    let url = this.engineURL + "/" + this.service.clientsEngine.localID;
-    this.service.resource(url).delete();
+    new Resource(this.engineURL + "/" + Clients.localID).delete();
   },
 
   /* The intent is not to show tabs in the menu if they're already
@@ -95,14 +95,14 @@ TabEngine.prototype = {
 };
 
 
-function TabStore(name, engine) {
-  Store.call(this, name, engine);
+function TabStore(name) {
+  Store.call(this, name);
 }
 TabStore.prototype = {
   __proto__: Store.prototype,
 
   itemExists: function TabStore_itemExists(id) {
-    return id == this.engine.service.clientsEngine.localID;
+    return id == Clients.localID;
   },
 
   /**
@@ -157,7 +157,7 @@ TabStore.prototype = {
 
   createRecord: function createRecord(id, collection) {
     let record = new TabSetRecord(collection, id);
-    record.clientName = this.engine.service.clientsEngine.localName;
+    record.clientName = Clients.localName;
 
     // Don't provide any tabs to compare against and ignore the update later.
     if (Svc.Private && Svc.Private.privateBrowsingEnabled && !PBPrefs.get("autostart")) {
@@ -200,7 +200,7 @@ TabStore.prototype = {
     if (Svc.Private && Svc.Private.privateBrowsingEnabled && !PBPrefs.get("autostart"))
       return ids;
 
-    ids[this.engine.service.clientsEngine.localID] = true;
+    ids[Clients.localID] = true;
     return ids;
   },
 
@@ -232,8 +232,8 @@ TabStore.prototype = {
 };
 
 
-function TabTracker(name, engine) {
-  Tracker.call(this, name, engine);
+function TabTracker(name) {
+  Tracker.call(this, name);
   Svc.Obs.add("weave:engine:start-tracking", this);
   Svc.Obs.add("weave:engine:stop-tracking", this);
 

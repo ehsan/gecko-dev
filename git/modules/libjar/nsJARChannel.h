@@ -71,7 +71,7 @@ private:
     /* mContentDisposition is uninitialized if mContentDispositionHeader is
      * empty */
     uint32_t                        mContentDisposition;
-    int64_t                         mContentLength;
+    int32_t                         mContentLength;
     uint32_t                        mLoadFlags;
     nsresult                        mStatus;
     bool                            mIsPending;

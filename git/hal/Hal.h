@@ -50,8 +50,7 @@ class WindowIdentifier;
 extern PRLogModuleInfo *sHalLog;
 #define HAL_LOG(msg) PR_LOG(mozilla::hal::sHalLog, PR_LOG_DEBUG, msg)
 
-typedef Observer<int64_t> SystemClockChangeObserver;
-typedef Observer<SystemTimezoneChangeInformation> SystemTimezoneChangeObserver;
+typedef Observer<SystemTimeChange> SystemTimeObserver;
 
 } // namespace hal
 
@@ -259,45 +258,22 @@ void SetTimezone(const nsCString& aTimezoneSpec);
 nsCString GetTimezone();
 
 /**
- * Register observer for system clock changed notification.
+ * Register observer for system time changed notification.
  * @param aObserver The observer that should be added.
  */
-void RegisterSystemClockChangeObserver(
-  hal::SystemClockChangeObserver* aObserver);
+void RegisterSystemTimeChangeObserver(hal::SystemTimeObserver* aObserver);
 
 /**
- * Unregister the observer for system clock changed.
+ * Unregister the observer for system time changed.
  * @param aObserver The observer that should be removed.
  */
-void UnregisterSystemClockChangeObserver(
-  hal::SystemClockChangeObserver* aObserver);
+void UnregisterSystemTimeChangeObserver(hal::SystemTimeObserver* aObserver);
 
 /**
- * Notify of a change in the system clock.
- * @param aClockDeltaMS
+ * Notify of a change in the system cloeck or time zone.
+ * @param aReason
  */
-void NotifySystemClockChange(const int64_t& aClockDeltaMS);
-
-/**
- * Register observer for system timezone changed notification.
- * @param aObserver The observer that should be added.
- */
-void RegisterSystemTimezoneChangeObserver(
-  hal::SystemTimezoneChangeObserver* aObserver);
-
-/**
- * Unregister the observer for system timezone changed.
- * @param aObserver The observer that should be removed.
- */
-void UnregisterSystemTimezoneChangeObserver(
-  hal::SystemTimezoneChangeObserver* aObserver);
-
-/**
- * Notify of a change in the system timezone.
- * @param aSystemTimezoneChangeInfo
- */
-void NotifySystemTimezoneChange(
-  const hal::SystemTimezoneChangeInformation& aSystemTimezoneChangeInfo);
+void NotifySystemTimeChange(const hal::SystemTimeChange& aReason);
 
 /**
  * Reboot the device.
@@ -540,11 +516,6 @@ hal::FMRadioSettings GetFMBandSettings(hal::FMRadioCountry aCountry);
  * This API is currently only allowed to be used from the main process.
  */
 void StartForceQuitWatchdog(hal::ShutdownMode aMode, int32_t aTimeoutSecs);
-
-/**
- * Perform Factory Reset to wipe out all user data.
- */
-void FactoryReset();
 
 } // namespace MOZ_HAL_NAMESPACE
 } // namespace mozilla

@@ -117,6 +117,7 @@ protected:
   static IMEState GetNewIMEState(nsPresContext* aPresContext,
                                  nsIContent* aContent);
 
+  static nsIWidget* GetWidget(nsPresContext* aPresContext);
   static void EnsureTextCompositionArray();
 
   static nsIContent*    sContent;

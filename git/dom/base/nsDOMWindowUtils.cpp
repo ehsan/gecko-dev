@@ -74,7 +74,11 @@ using namespace mozilla::widget;
 
 static bool IsUniversalXPConnectCapable()
 {
-  return nsContentUtils::IsCallerChrome();
+  bool hasCap = false;
+  nsresult rv = nsContentUtils::GetSecurityManager()->
+                  IsCapabilityEnabled("UniversalXPConnect", &hasCap);
+  NS_ENSURE_SUCCESS(rv, false);
+  return hasCap;
 }
 
 DOMCI_DATA(WindowUtils, nsDOMWindowUtils)

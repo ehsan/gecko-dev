@@ -29,7 +29,7 @@ function deactivate  -d "Exit virtualenv and return to normal shell environment"
     end
 end
 
-# unset irrelevant variables
+# unset irrelavent variables
 deactivate nondestructive
 
 set -gx VIRTUAL_ENV "__VIRTUAL_ENV__"

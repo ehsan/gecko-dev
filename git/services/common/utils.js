@@ -431,19 +431,17 @@ let CommonUtils = {
       return;
     }
 
-    if (!/^[0-9]+$/.test(value)) {
-      throw new Error("Timestamp value is not a positive integer: " + value);
-    }
-
-    let intValue = parseInt(value, 10);
-
-    if (!intValue) {
-       return;
+    if (value < 0) {
+      throw new Error("Timestamp value is negative: " + value);
     }
 
     // Catch what looks like seconds, not milliseconds.
-    if (intValue < 10000000000) {
-      throw new Error("Timestamp appears to be in seconds: " + intValue);
+    if (value < 10000000000) {
+      throw new Error("Timestamp appears to be in seconds: " + value);
+    }
+
+    if (Math.floor(value) != Math.ceil(value)) {
+      throw new Error("Timestamp value is not an integer: " + value);
     }
   },
 

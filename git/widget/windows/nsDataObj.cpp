@@ -309,12 +309,10 @@ HRESULT nsDataObj::CreateStream(IStream **outStream)
   nsresult rv = NS_ERROR_FAILURE;
   nsAutoString wideFileName;
   nsCOMPtr<nsIURI> sourceURI;
-  HRESULT res;
 
-  res = GetDownloadDetails(getter_AddRefs(sourceURI),
-                           wideFileName);
-  if(FAILED(res))
-    return res;
+  rv = GetDownloadDetails(getter_AddRefs(sourceURI),
+                          wideFileName);
+  NS_ENSURE_SUCCESS(rv, E_FAIL);
 
   nsDataObj::CStream *pStream = new nsDataObj::CStream();
   NS_ENSURE_TRUE(pStream, E_OUTOFMEMORY);
@@ -1118,9 +1116,9 @@ nsDataObj :: GetFileContentsInternetShortcut ( FORMATETC& aFE, STGMEDIUM& aSTG )
   rv = icoFile->GetNativePath(path);
   NS_ENSURE_SUCCESS(rv, E_FAIL);
 
-  static const char* shortcutFormatStr = "[InternetShortcut]\r\nURL=%s\r\n"
-                                         "IDList=\r\nHotKey=0\r\nIconFile=%s\r\n"
-                                         "IconIndex=0\r\n";
+  static char* shortcutFormatStr = "[InternetShortcut]\r\nURL=%s\r\n" 
+                                   "IDList=\r\nHotKey=0\r\nIconFile=%s\r\n" 
+                                   "IconIndex=0\r\n";
   static const int formatLen = strlen(shortcutFormatStr) - 2*2; // don't include %s (2 times) in the len
   const int totalLen = formatLen + asciiUrl.Length() 
                        + path.Length(); // we don't want a null character on the end
@@ -1540,11 +1538,10 @@ HRESULT nsDataObj::DropTempFile(FORMATETC& aFE, STGMEDIUM& aSTG)
     nsCString filename;
     nsAutoString wideFileName;
     nsCOMPtr<nsIURI> sourceURI;
-    HRESULT res;
-    res = GetDownloadDetails(getter_AddRefs(sourceURI),
+    rv = GetDownloadDetails(getter_AddRefs(sourceURI),
       wideFileName);
-    if (FAILED(res))
-      return res;
+    if (NS_FAILED(rv))
+      return E_FAIL;
     NS_UTF16ToCString(wideFileName, NS_CSTRING_ENCODING_NATIVE_FILESYSTEM, filename);
 
     dropFile->AppendNative(filename);
@@ -1963,24 +1960,24 @@ nsDataObj::ExtractUniformResourceLocatorW(FORMATETC& aFE, STGMEDIUM& aSTG )
 
 
 // Gets the filename from the kFilePromiseURLMime flavour
-HRESULT nsDataObj::GetDownloadDetails(nsIURI **aSourceURI,
-                                      nsAString &aFilename)
+nsresult nsDataObj::GetDownloadDetails(nsIURI **aSourceURI,
+                                       nsAString &aFilename)
 {
   *aSourceURI = nullptr;
 
-  NS_ENSURE_TRUE(mTransferable, E_FAIL);
+  NS_ENSURE_TRUE(mTransferable, NS_ERROR_FAILURE);
 
   // get the URI from the kFilePromiseURLMime flavor
   nsCOMPtr<nsISupports> urlPrimitive;
   uint32_t dataSize = 0;
   mTransferable->GetTransferData(kFilePromiseURLMime, getter_AddRefs(urlPrimitive), &dataSize);
   nsCOMPtr<nsISupportsString> srcUrlPrimitive = do_QueryInterface(urlPrimitive);
-  NS_ENSURE_TRUE(srcUrlPrimitive, E_FAIL);
+  NS_ENSURE_TRUE(srcUrlPrimitive, NS_ERROR_FAILURE);
   
   nsAutoString srcUri;
   srcUrlPrimitive->GetData(srcUri);
   if (srcUri.IsEmpty())
-    return E_FAIL;
+    return NS_ERROR_FAILURE;
   nsCOMPtr<nsIURI> sourceURI;
   NS_NewURI(getter_AddRefs(sourceURI), srcUri);
 
@@ -1993,7 +1990,7 @@ HRESULT nsDataObj::GetDownloadDetails(nsIURI **aSourceURI,
   } else {
     nsCOMPtr<nsIURL> sourceURL = do_QueryInterface(sourceURI);
     if (!sourceURL)
-      return E_FAIL;
+      return NS_ERROR_FAILURE;
     
     nsAutoCString urlFileName;
     sourceURL->GetFileName(urlFileName);
@@ -2001,14 +1998,14 @@ HRESULT nsDataObj::GetDownloadDetails(nsIURI **aSourceURI,
     CopyUTF8toUTF16(urlFileName, srcFileName);
   }
   if (srcFileName.IsEmpty())
-    return E_FAIL;
+    return NS_ERROR_FAILURE;
 
   // make the name safe for the filesystem
   MangleTextToValidFilename(srcFileName);
 
   sourceURI.swap(*aSourceURI);
   aFilename = srcFileName;
-  return S_OK;
+  return NS_OK;
 }
 
 HRESULT nsDataObj::GetFileDescriptor_IStreamA(FORMATETC& aFE, STGMEDIUM& aSTG)
@@ -2023,13 +2020,14 @@ HRESULT nsDataObj::GetFileDescriptor_IStreamA(FORMATETC& aFE, STGMEDIUM& aSTG)
   }
 
   nsAutoString wideFileName;
-  HRESULT res;
+  nsresult rv;
   nsCOMPtr<nsIURI> sourceURI;
-  res = GetDownloadDetails(getter_AddRefs(sourceURI), wideFileName);
-  if (FAILED(res))
+  rv = GetDownloadDetails(getter_AddRefs(sourceURI),
+                          wideFileName);
+  if (NS_FAILED(rv))
   {
     ::GlobalFree(fileGroupDescHandle);
-    return res;
+    return E_FAIL;
   }
 
   nsAutoCString nativeFileName;
@@ -2061,14 +2059,14 @@ HRESULT nsDataObj::GetFileDescriptor_IStreamW(FORMATETC& aFE, STGMEDIUM& aSTG)
   }
 
   nsAutoString wideFileName;
-  HRESULT res;
+  nsresult rv;
   nsCOMPtr<nsIURI> sourceURI;
-  res = GetDownloadDetails(getter_AddRefs(sourceURI),
-                           wideFileName);
-  if (FAILED(res))
+  rv = GetDownloadDetails(getter_AddRefs(sourceURI),
+                          wideFileName);
+  if (NS_FAILED(rv))
   {
     ::GlobalFree(fileGroupDescHandle);
-    return res;
+    return E_FAIL;
   }
 
   wcsncpy(fileGroupDescW->fgd[0].cFileName, wideFileName.get(), NS_MAX_FILEDESCRIPTOR - 1);

@@ -3355,7 +3355,7 @@ nsEditor::FindNode(nsINode *aCurrentNode,
     return nullptr;
   }
 
-  nsCOMPtr<nsIContent> candidate =
+  nsIContent* candidate =
     FindNextLeafNode(aCurrentNode, aGoForward, bNoBlockCrossing);
   
   if (!candidate) {

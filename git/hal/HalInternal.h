@@ -75,24 +75,14 @@ bool EnableAlarm();
 void DisableAlarm();
 
 /**
- * Enable system clock change notifications from the backend.
+ * Enable system time change notifications from the backend.
  */
-void EnableSystemClockChangeNotifications();
+void EnableSystemTimeChangeNotifications();
 
 /**
- * Disable system clock change notifications from the backend.
+ * Disable system time change notifications from the backend.
  */
-void DisableSystemClockChangeNotifications();
-
-/**
- * Enable system timezone change notifications from the backend.
- */
-void EnableSystemTimezoneChangeNotifications();
-
-/**
- * Disable system timezone change notifications from the backend.
- */
-void DisableSystemTimezoneChangeNotifications();
+void DisableSystemTimeChangeNotifications();
 
 bool IsHalChildLive();
 } // namespace MOZ_HAL_NAMESPACE

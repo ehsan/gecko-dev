@@ -1,8 +1,3 @@
-/* Any copyright is dedicated to the Public Domain.
-   http://creativecommons.org/publicdomain/zero/1.0/ */
-
-Cu.import("resource://services-sync/util.js");
-
 function run_test() {
   Log4Moz.repository.getLogger("Sync.Test.Server").level = Log4Moz.Level.Trace;
   initTestLogging();
@@ -190,7 +185,7 @@ add_test(function test_storage_request() {
     server.callback.onItemDeleted = function (username, collection, wboID) {
       do_throw("onItemDeleted should not have been called.");
     };
-
+      
     req.delete(function (err) {
       _("Body is " + this.response.body);
       _("Modified is " + this.response.newModified);
@@ -209,7 +204,7 @@ add_test(function test_storage_request() {
       do_check_eq(wboID, "foos");
       Utils.nextTick(next);
     };
-
+      
     req.delete(function (err) {
       _("Body is " + this.response.body);
       _("Modified is " + this.response.newModified);

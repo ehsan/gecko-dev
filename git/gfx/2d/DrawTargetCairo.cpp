@@ -44,7 +44,6 @@ public:
   {
     dt->PrepareForDrawing(ctx);
     cairo_save(mCtx);
-    MOZ_ASSERT(cairo_status(mCtx) || dt->GetTransform() == GetTransform());
   }
 
   AutoPrepareForDrawing(DrawTargetCairo* dt, cairo_t* ctx, const Path* path)
@@ -52,21 +51,11 @@ public:
   {
     dt->PrepareForDrawing(ctx, path);
     cairo_save(mCtx);
-    MOZ_ASSERT(cairo_status(mCtx) || dt->GetTransform() == GetTransform());
   }
 
   ~AutoPrepareForDrawing() { cairo_restore(mCtx); }
 
 private:
-#ifdef DEBUG
-  Matrix GetTransform()
-  {
-    cairo_matrix_t mat;
-    cairo_get_matrix(mCtx, &mat);
-    return Matrix(mat.xx, mat.yx, mat.xy, mat.yy, mat.x0, mat.y0);
-  }
-#endif
-
   cairo_t* mCtx;
 };
 
@@ -447,7 +436,7 @@ DrawTargetCairo::DrawSurfaceWithShadow(SourceSurface *aSurface,
 
   WillChange();
   ClearSurfaceForUnboundedSource(aOperator);
-
+  
   cairo_save(mContext);
   cairo_set_operator(mContext, GfxOpToCairoOp(aOperator));
   cairo_identity_matrix(mContext);
@@ -781,7 +770,7 @@ DrawTargetCairo::CreateSourceSurfaceFromData(unsigned char *aData,
                                                      aSize.width,
                                                      aSize.height);
   CopyDataToCairoSurface(surf, aData, aSize, aStride, BytesPerPixel(aFormat));
-
+    
   RefPtr<SourceSurfaceCairo> source_surf = new SourceSurfaceCairo(surf, aSize, aFormat);
   cairo_surface_destroy(surf);
 

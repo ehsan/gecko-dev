@@ -380,6 +380,9 @@ imgStatusTracker::NotifyCurrentState(imgRequestProxy* proxy)
 void
 imgStatusTracker::SyncNotify(imgRequestProxy* proxy)
 {
+  NS_ABORT_IF_FALSE(!proxy->NotificationsDeferred(),
+    "Calling imgStatusTracker::Notify() on a proxy that doesn't want notifications!");
+
 #ifdef PR_LOGGING
   nsCOMPtr<nsIURI> uri;
   proxy->GetURI(getter_AddRefs(uri));

@@ -556,7 +556,7 @@ nsPluginStreamListenerPeer::OnStartRequest(nsIRequest *request,
   if (loadGroup)
     mWeakPtrChannelLoadGroup = do_GetWeakReference(loadGroup);
   
-  int64_t length;
+  int32_t length;
   rv = channel->GetContentLength(&length);
   
   // it's possible for the server to not send a Content-Length.

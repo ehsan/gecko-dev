@@ -110,12 +110,6 @@ public:
     uint32_t mFlags;
   };
 
-  void TakeFrom(nsInvalidateRequestList* aList)
-  {
-    mRequests.MoveElementsFrom(aList->mRequests);
-  }
-  bool IsEmpty() { return mRequests.IsEmpty(); }
-
   nsTArray<Request> mRequests;
 };
 
@@ -420,10 +414,8 @@ public:
     if (!r.IsEqualEdges(mVisibleArea)) {
       mVisibleArea = r;
       // Visible area does not affect media queries when paginated.
-      if (!IsPaginated() && HasCachedStyleData()) {
-        mPendingViewportChange = true;
+      if (!IsPaginated() && HasCachedStyleData())
         PostMediaFeatureValuesChangedEvent();
-      }
     }
   }
 
@@ -834,9 +826,8 @@ public:
   void NotifyInvalidation(const nsRect& aRect, uint32_t aFlags);
   // aRect is in device pixels
   void NotifyInvalidation(const nsIntRect& aRect, uint32_t aFlags);
-  // aFlags are nsIPresShell::PAINT_ flags
-  void NotifyDidPaintForSubtree(uint32_t aFlags);
-  void FireDOMPaintEvent(nsInvalidateRequestList* aList);
+  void NotifyDidPaintForSubtree();
+  void FireDOMPaintEvent();
 
   // Callback for catching invalidations in ContainerLayers
   // Passed to LayerProperties::ComputeDifference
@@ -844,8 +835,7 @@ public:
                                        const nsIntRegion& aRegion);
   bool IsDOMPaintEventPending();
   void ClearMozAfterPaintEvents() {
-    mInvalidateRequestsSinceLastPaint.mRequests.Clear();
-    mUndeliveredInvalidateRequestsBeforeLastPaint.mRequests.Clear();
+    mInvalidateRequests.mRequests.Clear();
     mAllInvalidated = false;
   }
 
@@ -951,14 +941,6 @@ public:
 
   void SetIsGlyph(bool aValue) {
     mIsGlyph = aValue;
-  }
-
-  bool UsesViewportUnits() const {
-    return mUsesViewportUnits;
-  }
-
-  void SetUsesViewportUnits(bool aValue) {
-    mUsesViewportUnits = aValue;
   }
 
 protected:
@@ -1146,8 +1128,7 @@ protected:
 
   FramePropertyTable    mPropertyTable;
 
-  nsInvalidateRequestList mInvalidateRequestsSinceLastPaint;
-  nsInvalidateRequestList mUndeliveredInvalidateRequestsBeforeLastPaint;
+  nsInvalidateRequestList mInvalidateRequests;
 
   // container for per-context fonts (downloadable, SVG, etc.)
   nsUserFontSet*        mUserFontSet;
@@ -1209,18 +1190,10 @@ protected:
   unsigned              mPendingMediaFeatureValuesChanged : 1;
   unsigned              mPrefChangePendingNeedsReflow : 1;
   unsigned              mMayHaveFixedBackgroundFrames : 1;
-  // True if the requests in mInvalidateRequestsSinceLastPaint cover the
-  // entire viewport
   unsigned              mAllInvalidated : 1;
 
   // Are we currently drawing an SVG glyph?
   unsigned              mIsGlyph : 1;
-
-  // Does the associated document use viewport units?
-  unsigned              mUsesViewportUnits : 1;
-
-  // Has there been a change to the viewport's dimensions?
-  unsigned              mPendingViewportChange : 1;
 
   // Is the current mUserFontSet valid?
   unsigned              mUserFontSetDirty : 1;

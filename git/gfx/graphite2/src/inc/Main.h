@@ -56,18 +56,6 @@ template <typename T> T * grzeroalloc(size_t n)
     return reinterpret_cast<T*>(calloc(n, sizeof(T)));
 }
 
-template <typename T>
-inline T min(const T a, const T b)
-{
-    return a < b ? a : b;
-}
-
-template <typename T>
-inline T max(const T a, const T b)
-{
-    return a > b ? a : b;
-}
-
 } // namespace graphite2
 
 #define CLASS_NEW_DELETE \

@@ -560,7 +560,6 @@ private:
 
     // message handlers
     void OnMsgShutdown             (int32_t, void *);
-    void OnMsgShutdownConfirm      (int32_t, void *);
     void OnMsgNewTransaction       (int32_t, void *);
     void OnMsgReschedTransaction   (int32_t, void *);
     void OnMsgCancelTransaction    (int32_t, void *);

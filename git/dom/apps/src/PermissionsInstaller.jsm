@@ -9,12 +9,9 @@ const Cu = Components.utils;
 
 Cu.import("resource://gre/modules/XPCOMUtils.jsm");
 Cu.import("resource://gre/modules/AppsUtils.jsm");
-Cu.import("resource://gre/modules/PermissionSettings.jsm");
 
-var EXPORTED_SYMBOLS = ["PermissionsInstaller",
-                        "expandPermissions",
-                        "PermissionsTable",
-                       ];
+var EXPORTED_SYMBOLS = ["PermissionsInstaller"];
+
 const UNKNOWN_ACTION = Ci.nsIPermissionManager.UNKNOWN_ACTION;
 const ALLOW_ACTION = Ci.nsIPermissionManager.ALLOW_ACTION;
 const DENY_ACTION = Ci.nsIPermissionManager.DENY_ACTION;
@@ -27,6 +24,16 @@ const READCREATE = "readcreate";
 const READWRITE = "readwrite";
 
 const PERM_TO_STRING = ["unknown", "allow", "deny", "prompt"];
+
+XPCOMUtils.defineLazyServiceGetter(this,
+                                   "PermSettings",
+                                   "@mozilla.org/permissionSettings;1",
+                                   "nsIDOMPermissionSettings");
+
+XPCOMUtils.defineLazyServiceGetter(this,
+                                   "permissionManager",
+                                   "@mozilla.org/permissionmanager;1",
+                                   "nsIPermissionManager");
 
 function debug(aMsg) {
   //dump("-*-*- PermissionsInstaller.jsm : " + aMsg + "\n");
@@ -234,11 +241,6 @@ const PermissionsTable = { "resource-lock": {
                              privileged: DENY_ACTION,
                              certified: ALLOW_ACTION
                            },
-                           "background-sensors": {
-                             app: DENY_ACTION,
-                             privileged: DENY_ACTION,
-                             certified: ALLOW_ACTION
-                           },
                          };
 
 // Sometimes all permissions (fully expanded) need to be iterated through
@@ -342,7 +344,7 @@ let PermissionsInstaller = {
             let index = newPerms.indexOf(AllPossiblePermissions[idx]);
             if (index == -1) {
               // See if the permission was installed previously
-              let _perm = PermissionSettingsModule.getPermission(AllPossiblePermissions[idx],
+              let _perm = PermSettings.get(AllPossiblePermissions[idx],
                                            aApp.manifestURL,
                                            aApp.origin,
                                            false);
@@ -413,25 +415,13 @@ let PermissionsInstaller = {
    **/
   _setPermission: function setPermission(aPerm, aValue, aApp) {
     if (aPerm != "storage") {
-      PermissionSettingsModule.addPermission({
-        type: aPerm,
-        origin: aApp.origin,
-        manifestURL: aApp.manifestURL,
-        value: aValue,
-        browserFlag: false
-      });
+      PermSettings.set(aPerm, aValue, aApp.manifestURL, aApp.origin, false);
       return;
     }
 
     ["indexedDB-unlimited", "offline-app", "pin-app"].forEach(
       function(aName) {
-        PermissionSettingsModule.addPermission({
-          type: aName,
-          origin: aApp.origin,
-          manifestURL: aApp.manifestURL,
-          value: aValue,
-          browserFlag: false
-        });
+        PermSettings.set(aName, aValue, aApp.manifestURL, aApp.origin, false);
       }
     );
   }

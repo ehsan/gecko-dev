@@ -25,6 +25,7 @@ License, as published by the Free Software Foundation, either version 2
 of the License or (at your option) any later version.
 */
 #include <cstring>
+#include <algorithm>
 #include "graphite2/Segment.h"
 #include "inc/CmapCache.h"
 #include "inc/debug.h"
@@ -53,7 +54,7 @@ Face::Face(const void* appFaceHandle/*non-NULL*/, const gr_face_ops & ops)
   m_descent(0)
 {
     memset(&m_ops, 0, sizeof m_ops);
-    memcpy(&m_ops, &ops, min(sizeof m_ops, ops.size));
+    memcpy(&m_ops, &ops, std::min(sizeof m_ops, ops.size));
 }
 
 
@@ -91,7 +92,7 @@ bool Face::readGlyphs(uint32 faceOptions)
     	return false;
 
     if (faceOptions & gr_face_preloadGlyphs)
-        nameTable();        // preload the name table along with the glyphs.
+        nameTable();        // preload the name table along with the glyphs, heh.
 
     return true;
 }

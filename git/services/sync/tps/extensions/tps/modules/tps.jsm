@@ -11,12 +11,13 @@ let EXPORTED_SYMBOLS = ["TPS"];
 
 const {classes: CC, interfaces: CI, utils: CU} = Components;
 
+CU.import("resource://services-sync/service.js");
+CU.import("resource://services-sync/constants.js");
+CU.import("resource://services-sync/engines.js");
+CU.import("resource://services-common/async.js");
+CU.import("resource://services-sync/util.js");
 CU.import("resource://gre/modules/XPCOMUtils.jsm");
 CU.import("resource://gre/modules/Services.jsm");
-CU.import("resource://services-common/async.js");
-CU.import("resource://services-sync/constants.js");
-CU.import("resource://services-sync/main.js");
-CU.import("resource://services-sync/util.js");
 CU.import("resource://tps/addons.jsm");
 CU.import("resource://tps/bookmarks.jsm");
 CU.import("resource://tps/logger.jsm");
@@ -63,7 +64,8 @@ const OBSERVER_TOPICS = ["weave:engine:start-tracking",
                          "sessionstore-windows-restored",
                          "private-browsing"];
 
-let TPS = {
+let TPS =
+{
   _waitingForSync: false,
   _isTracking: false,
   _test: null,
@@ -567,10 +569,10 @@ let TPS = {
           names[name] = true;
         }
 
-        for (let engine of Weave.Service.engineManager.getEnabled()) {
+        for each (let engine in Engines.getEnabled()) {
           if (!(engine.name in names)) {
             Logger.logInfo("Unregistering unused engine: " + engine.name);
-            Weave.Service.engineManager.unregister(engine);
+            Engines.unregister(engine);
           }
         }
       }
@@ -725,10 +727,10 @@ let TPS = {
   ResetData: function ResetData() {
     this.Login(true);
 
-    Weave.Service.login();
-    Weave.Service.wipeServer();
-    Weave.Service.resetClient();
-    Weave.Service.login();
+    Service.login();
+    Service.wipeServer();
+    Service.resetClient();
+    Service.login();
 
     this.waitForTracking();
   },
@@ -746,7 +748,7 @@ let TPS = {
     }
 
     if (account["serverURL"]) {
-      Weave.Service.serverURL = account["serverURL"];
+      Service.serverURL = account["serverURL"];
     }
 
     Logger.logInfo("Setting client credentials.");
@@ -755,24 +757,24 @@ let TPS = {
       // a new sync account
       Weave.Svc.Prefs.set("admin-secret", account["admin-secret"]);
       let suffix = account["account-suffix"];
-      Weave.Service.identity.account = "tps" + suffix + "@mozilla.com";
-      Weave.Service.identity.basicPassword = "tps" + suffix + "tps" + suffix;
-      Weave.Service.identity.syncKey = Weave.Utils.generatePassphrase();
-      Weave.Service.createAccount(Weave.Service.identity.account,
-                            Weave.Service.identity.basicPassword,
+      Weave.Identity.account = "tps" + suffix + "@mozilla.com";
+      Weave.Identity.basicPassword = "tps" + suffix + "tps" + suffix;
+      Weave.Identity.syncKey = Weave.Utils.generatePassphrase();
+      Service.createAccount(Weave.Identity.account,
+                            Weave.Identity.basicPassword,
                             "dummy1", "dummy2");
     } else if (account["username"] && account["password"] &&
                account["passphrase"]) {
-      Weave.Service.identity.account = account["username"];
-      Weave.Service.identity.basicPassword = account["password"];
-      Weave.Service.identity.syncKey = account["passphrase"];
+      Weave.Identity.account = account["username"];
+      Weave.Identity.basicPassword = account["password"];
+      Weave.Identity.syncKey = account["passphrase"];
     } else {
       this.DumpError("Must specify admin-secret, or " +
                      "username/password/passphrase in the config file");
       return;
     }
 
-    Weave.Service.login();
+    Service.login();
     Logger.AssertEqual(Weave.Status.service, Weave.STATUS_OK, "Weave status not OK");
     Weave.Svc.Obs.notify("weave:service:setup-complete");
     this._loggedIn = true;

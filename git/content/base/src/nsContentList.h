@@ -64,8 +64,7 @@ public:
 
   // nsINodeList
   virtual int32_t IndexOf(nsIContent* aContent);
-  virtual nsIContent* Item(uint32_t aIndex);
-
+  
   uint32_t Length() const { 
     return mElements.Length();
   }
@@ -274,8 +273,7 @@ public:
     return mRootNode;
   }
 
-  virtual nsIContent* Item(uint32_t aIndex);
-  virtual nsGenericElement* GetElementAt(uint32_t index);
+  virtual nsIContent* GetNodeAt(uint32_t aIndex);
   virtual JSObject* NamedItem(JSContext* cx, const nsAString& name,
                               mozilla::ErrorResult& error);
 

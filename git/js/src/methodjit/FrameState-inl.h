@@ -938,6 +938,8 @@ FrameState::fakeSync(FrameEntry *fe)
      */
     if (!fe->data.synced())
         fe->data.sync();
+    if (!fe->type.synced())
+        fe->type.sync();
 }
 
 inline void

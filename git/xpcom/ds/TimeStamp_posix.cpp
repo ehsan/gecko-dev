@@ -38,7 +38,7 @@ static uint64_t
 ClockTimeNs()
 {
   struct timespec ts;
-  // this can't fail: we know &ts is valid, and TimeStamp::Startup()
+  // this can't fail: we know &ts is valid, and TimeStamp::Init()
   // checks that CLOCK_MONOTONIC is supported (and aborts if not)
   clock_gettime(CLOCK_MONOTONIC, &ts);
 

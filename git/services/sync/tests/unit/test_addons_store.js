@@ -6,8 +6,6 @@
 Cu.import("resource://services-common/preferences.js");
 Cu.import("resource://services-sync/addonutils.js");
 Cu.import("resource://services-sync/engines/addons.js");
-Cu.import("resource://services-sync/service.js");
-Cu.import("resource://services-sync/util.js");
 
 const HTTP_PORT = 8888;
 
@@ -18,8 +16,8 @@ prefs.set("extensions.getAddons.get.url", "http://localhost:8888/search/guid:%ID
 loadAddonTestFunctions();
 startupManager();
 
-Service.engineManager.register(AddonsEngine);
-let engine     = Service.engineManager.get("addons");
+Engines.register(AddonsEngine);
+let engine     = Engines.get("addons");
 let tracker    = engine._tracker;
 let store      = engine._store;
 let reconciler = engine._reconciler;
@@ -439,14 +437,11 @@ add_test(function test_wipe_and_install() {
   let deleted = getAddonFromAddonManagerByID(installed.id);
   do_check_null(deleted);
 
-  // Re-applying the record can require re-fetching the XPI.
-  let server = createAndStartHTTPServer(HTTP_PORT);
-
   store.applyIncoming(record);
 
   let fetched = getAddonFromAddonManagerByID(record.addonID);
   do_check_true(!!fetched);
 
   Svc.Prefs.reset("addons.ignoreRepositoryChecking");
-  server.stop(run_next_test);
+  run_next_test();
 });

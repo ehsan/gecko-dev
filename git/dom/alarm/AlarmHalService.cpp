@@ -19,20 +19,20 @@ AlarmHalService::Init()
   if (!mAlarmEnabled) {
     return;
   }
-  RegisterSystemTimezoneChangeObserver(this);
+  RegisterSystemTimeChangeObserver(this);
 }
 
 /* virtual */ AlarmHalService::~AlarmHalService() 
 {
   if (mAlarmEnabled) {
     UnregisterTheOneAlarmObserver();
-    UnregisterSystemTimezoneChangeObserver(this);
+    UnregisterSystemTimeChangeObserver(this);
   }
 }
 
 /* static */ StaticRefPtr<AlarmHalService> AlarmHalService::sSingleton;
 
-/* static */ already_AddRefed<AlarmHalService>
+/* static */ already_AddRefed<nsIAlarmHalService>
 AlarmHalService::GetInstance()
 {
   if (!sSingleton) {
@@ -41,7 +41,7 @@ AlarmHalService::GetInstance()
     ClearOnShutdown(&sSingleton);
   }
 
-  nsRefPtr<AlarmHalService> service = sSingleton.get();
+  nsCOMPtr<nsIAlarmHalService> service(do_QueryInterface(sSingleton));
   return service.forget();
 }
 
@@ -76,7 +76,7 @@ AlarmHalService::SetTimezoneChangedCb(nsITimezoneChangedCb* aTimeZoneChangedCb)
 }
 
 void
-AlarmHalService::Notify(const void_t& aVoid)
+AlarmHalService::Notify(const mozilla::void_t& aVoid)
 {
   if (!mAlarmFiredCb) {
     return;
@@ -85,14 +85,26 @@ AlarmHalService::Notify(const void_t& aVoid)
 }
 
 void
-AlarmHalService::Notify(
-  const SystemTimezoneChangeInformation& aSystemTimezoneChangeInfo)
+AlarmHalService::Notify(const SystemTimeChange& aReason)
 {
-  if (!mTimezoneChangedCb) {
+  if (aReason != SYS_TIME_CHANGE_TZ || !mTimezoneChangedCb) {
     return;
   }
-  mTimezoneChangedCb->OnTimezoneChanged(
-    aSystemTimezoneChangeInfo.newTimezoneOffsetMinutes());
+  mTimezoneChangedCb->OnTimezoneChanged(GetTimezoneOffset(false));
+}
+
+int32_t
+AlarmHalService::GetTimezoneOffset(bool aIgnoreDST)
+{
+  PRExplodedTime prTime;
+  PR_ExplodeTime(PR_Now(), PR_LocalTimeParameters, &prTime);
+
+  int32_t offset = prTime.tm_params.tp_gmt_offset;
+  if (!aIgnoreDST) {
+    offset += prTime.tm_params.tp_dst_offset;
+  }
+
+  return -(offset / 60);
 }
 
 } // alarm

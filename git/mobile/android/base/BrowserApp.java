@@ -93,15 +93,12 @@ abstract public class BrowserApp extends GeckoApp
         switch(msg) {
             case LOCATION_CHANGE:
                 if (Tabs.getInstance().isSelectedTab(tab)) {
-                    maybeCancelFaviconLoad(tab);
-                }
-                // fall through
-            case SELECTED:
-                if (Tabs.getInstance().isSelectedTab(tab)) {
-                    if ("about:home".equals(tab.getURL()))
+                    String url = tab.getURL();
+                    if (url.equals("about:home"))
                         showAboutHome();
-                    else
+                    else 
                         hideAboutHome();
+                    maybeCancelFaviconLoad(tab);
                 }
                 break;
             case LOAD_ERROR:
@@ -111,6 +108,12 @@ abstract public class BrowserApp extends GeckoApp
                 if (Tabs.getInstance().isSelectedTab(tab)) {
                     invalidateOptionsMenu();
                 }
+                break;
+            case SELECTED:
+                if ("about:home".equals(tab.getURL()))
+                    showAboutHome();
+                else
+                    hideAboutHome();
                 break;
         }
         super.onTabChanged(tab, msg, data);
@@ -267,12 +270,26 @@ abstract public class BrowserApp extends GeckoApp
 
         mDoorHangerPopup.setAnchor(mBrowserToolbar.mFavicon);
 
+        Intent intent = getIntent();
+        String action = intent.getAction();
+        String args = intent.getStringExtra("args");
+        if (args != null && args.contains("-profile")) {
+            Pattern p = Pattern.compile("(?:-profile\\s*)(\\w*)(\\s*)");
+            Matcher m = p.matcher(args);
+            if (m.find()) {
+                mBrowserToolbar.setTitle(null);
+            }
+        }
+
         if (!isExternalURL) {
             // show about:home if we aren't restoring previous session
             if (mRestoreMode == GeckoAppShell.RESTORE_NONE) {
                 Tab tab = Tabs.getInstance().loadUrl("about:home", Tabs.LOADURL_NEW_TAB);
+                tab.updateTitle(null);
+                showAboutHome();
             }
         } else {
+            hideAboutHome();
             Tabs.getInstance().loadUrl(uri, Tabs.LOADURL_NEW_TAB | Tabs.LOADURL_USER_ENTERED);
         }
     }

@@ -80,10 +80,6 @@ MozKeyboard.prototype = {
     });
   },
 
-  removeFocus: function mozKeyboardRemoveFocus() {
-    this._messageManager.sendAsyncMessage("Forms:Select:Blur", {});
-  },
-
   set onfocuschange(val) {
     this._focusHandler = val;
   },

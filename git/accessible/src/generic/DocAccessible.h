@@ -95,6 +95,8 @@ public:
   virtual void ApplyARIAState(uint64_t* aState) const;
   virtual already_AddRefed<nsIPersistentProperties> Attributes();
 
+  virtual void SetRoleMapEntry(nsRoleMapEntry* aRoleMapEntry);
+
 #ifdef A11Y_LOG
   virtual nsresult HandleAccEvent(AccEvent* aEvent);
 #endif

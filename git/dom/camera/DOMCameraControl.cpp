@@ -229,16 +229,11 @@ nsDOMCameraControl::SetOnClosed(nsICameraClosedCallback* aOnClosed)
   return mCameraControl->Set(aOnClosed);
 }
 
-/* [implicit_jscontext] void startRecording (in jsval aOptions, in nsIDOMDeviceStorage storageArea, in DOMString filename, in nsICameraStartRecordingCallback onSuccess, [optional] in nsICameraErrorCallback onError); */
+/* [implicit_jscontext] void startRecording (in nsIDOMDeviceStorage storageArea, in DOMString filename, in nsICameraStartRecordingCallback onSuccess, [optional] in nsICameraErrorCallback onError); */
 NS_IMETHODIMP
-nsDOMCameraControl::StartRecording(const JS::Value& aOptions, nsIDOMDeviceStorage* storageArea, const nsAString& filename, nsICameraStartRecordingCallback* onSuccess, nsICameraErrorCallback* onError, JSContext* cx)
+nsDOMCameraControl::StartRecording(nsIDOMDeviceStorage* storageArea, const nsAString& filename, nsICameraStartRecordingCallback* onSuccess, nsICameraErrorCallback* onError, JSContext* cx)
 {
   NS_ENSURE_TRUE(onSuccess, NS_ERROR_INVALID_ARG);
-  NS_ENSURE_TRUE(storageArea, NS_ERROR_INVALID_ARG);
-
-  CameraStartRecordingOptions options;
-  nsresult rv = options.Init(cx, &aOptions);
-  NS_ENSURE_SUCCESS(rv, rv);
 
   nsCOMPtr<nsIObserverService> obs = mozilla::services::GetObserverService();
   if (!obs) {
@@ -250,9 +245,7 @@ nsDOMCameraControl::StartRecording(const JS::Value& aOptions, nsIDOMDeviceStorag
                        "recording-device-events",
                        NS_LITERAL_STRING("starting").get());
 
-  nsCOMPtr<nsIFile> folder;
-  storageArea->GetRootDirectory(getter_AddRefs(folder));
-  return mCameraControl->StartRecording(&options, folder, filename, onSuccess, onError);
+  return mCameraControl->StartRecording(storageArea, filename, onSuccess, onError);
 }
 
 /* void stopRecording (); */
@@ -336,7 +329,7 @@ nsDOMCameraControl::GetPreviewStreamVideoMode(const JS::Value& aOptions, nsICame
 {
   NS_ENSURE_TRUE(onSuccess, NS_ERROR_INVALID_ARG);
 
-  CameraRecorderOptions options;
+  CameraRecordingOptions options;
   nsresult rv = options.Init(cx, &aOptions);
   NS_ENSURE_SUCCESS(rv, rv);
 

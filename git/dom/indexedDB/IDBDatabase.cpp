@@ -10,7 +10,6 @@
 
 #include "mozilla/Mutex.h"
 #include "mozilla/storage.h"
-#include "mozilla/unused.h"
 #include "mozilla/dom/ContentParent.h"
 #include "nsDOMClassInfo.h"
 #include "nsDOMLists.h"
@@ -34,7 +33,6 @@
 #include "nsContentUtils.h"
 
 #include "ipc/IndexedDBChild.h"
-#include "ipc/IndexedDBParent.h"
 
 USING_INDEXEDDB_NAMESPACE
 using mozilla::dom::ContentParent;
@@ -271,14 +269,12 @@ IDBDatabase::Invalidate()
   if (owner) {
     IndexedDatabaseManager::CancelPromptsForWindow(owner);
   }
+}
 
-  DatabaseInfo::Remove(mDatabaseId);
-
-  // And let the child process know as well.
-  if (mActorParent) {
-    NS_ASSERTION(IndexedDatabaseManager::IsMainProcess(), "Wrong process!");
-    mozilla::unused << mActorParent->SendInvalidate();
-  }
+bool
+IDBDatabase::IsInvalidated()
+{
+  return mInvalidated;
 }
 
 void
@@ -303,9 +299,8 @@ IDBDatabase::DisconnectFromActor()
 }
 
 bool
-IDBDatabase::IsDisconnectedFromActor() const
+IDBDatabase::IsDisconnectedFromActor()
 {
-  NS_ASSERTION(NS_IsMainThread(), "Wrong thread!");
   return mDisconnected;
 }
 
@@ -335,7 +330,7 @@ IDBDatabase::CloseInternal(bool aIsDead)
     }
 
     // And let the parent process know as well.
-    if (mActorChild && !IsInvalidated()) {
+    if (mActorChild) {
       NS_ASSERTION(!IndexedDatabaseManager::IsMainProcess(), "Wrong process!");
       mActorChild->SendClose(aIsDead);
     }
@@ -343,7 +338,7 @@ IDBDatabase::CloseInternal(bool aIsDead)
 }
 
 bool
-IDBDatabase::IsClosed() const
+IDBDatabase::IsClosed()
 {
   NS_ASSERTION(NS_IsMainThread(), "Wrong thread!");
   return mClosed;

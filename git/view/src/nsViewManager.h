@@ -121,6 +121,7 @@ private:
    * Call WillPaint() on all view observers under this vm root.
    */
   void CallWillPaintOnObservers(bool aWillSendDidPaint);
+  void CallDidPaintOnObserver();
   void ReparentChildWidgets(nsIView* aView, nsIWidget *aNewWidget);
   void ReparentWidgets(nsIView* aView, nsIView *aParent);
   void InvalidateWidgetArea(nsView *aWidgetView, const nsRegion &aDamagedRegion);

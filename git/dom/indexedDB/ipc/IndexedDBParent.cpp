@@ -355,11 +355,7 @@ IndexedDBDatabaseParent::HandleRequestEvent(nsIDOMEvent* aEvent,
     }
 
     MOZ_ASSERT(!mDatabase || mDatabase == databaseConcrete);
-
-    if (!mDatabase) {
-      databaseConcrete->SetActor(this);
-      mDatabase = databaseConcrete;
-    }
+    mDatabase = databaseConcrete;
 
     return NS_OK;
   }
@@ -394,7 +390,6 @@ IndexedDBDatabaseParent::HandleRequestEvent(nsIDOMEvent* aEvent,
       return NS_ERROR_FAILURE;
     }
 
-    databaseConcrete->SetActor(this);
     mDatabase = databaseConcrete;
 
     return NS_OK;
@@ -560,10 +555,10 @@ IndexedDBTransactionParent::HandleEvent(nsIDOMEvent* aEvent)
   nsresult rv = aEvent->GetType(type);
   NS_ENSURE_SUCCESS(rv, rv);
 
-  CompleteParams params;
+  nsresult transactionResult;
 
   if (type.EqualsLiteral(COMPLETE_EVT_STR)) {
-    params = CompleteResult();
+    transactionResult = NS_OK;
   }
   else if (type.EqualsLiteral(ABORT_EVT_STR)) {
 #ifdef DEBUG
@@ -578,14 +573,15 @@ IndexedDBTransactionParent::HandleEvent(nsIDOMEvent* aEvent)
       }
     }
 #endif
-    params = AbortResult(mTransaction->GetAbortCode());
+    MOZ_ASSERT(NS_FAILED(mTransaction->GetAbortCode()));
+    transactionResult = mTransaction->GetAbortCode();
   }
   else {
     NS_WARNING("Unknown message type!");
     return NS_ERROR_UNEXPECTED;
   }
 
-  if (!SendComplete(params)) {
+  if (!SendComplete(transactionResult)) {
     return NS_ERROR_FAILURE;
   }
 

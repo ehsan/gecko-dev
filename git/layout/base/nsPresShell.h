@@ -183,7 +183,7 @@ public:
   //nsIViewObserver interface
 
   virtual void Paint(nsIView* aViewToPaint, const nsRegion& aDirtyRegion,
-                     uint32_t aFlags);
+                     PaintType aType, bool aWillSendDidPaint);
   virtual nsresult HandleEvent(nsIFrame*       aFrame,
                                nsGUIEvent*     aEvent,
                                bool            aDontRetargetEvents,
@@ -196,6 +196,7 @@ public:
                                                         nsEventStatus* aStatus);
   virtual bool ShouldIgnoreInvalidation();
   virtual void WillPaint(bool aWillSendDidPaint);
+  virtual void DidPaint();
   virtual void WillPaintWindow(bool aWillSendDidPaint);
   virtual void DidPaintWindow();
   virtual void ScheduleViewManagerFlush();

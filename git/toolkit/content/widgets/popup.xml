@@ -165,19 +165,6 @@
         </body>
       </method>
 
-      <method name="moveToAnchor">
-        <parameter name="aAnchorElement"/>
-        <parameter name="aPosition"/>
-        <parameter name="aX"/>
-        <parameter name="aY"/>
-        <parameter name="aAttributesOverride"/>
-        <body>
-        <![CDATA[
-          this.popupBoxObject.moveToAnchor(aAnchorElement, aPosition, aX, aY, aAttributesOverride);
-        ]]>
-        </body>
-      </method>
-
       <method name="getOuterScreenRect">
         <body>
         <![CDATA[

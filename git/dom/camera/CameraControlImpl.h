@@ -10,7 +10,6 @@
 #include "DictionaryHelpers.h"
 #include "nsIDOMDeviceStorage.h"
 #include "DOMCameraManager.h"
-#include "DOMCameraPreview.h"
 #include "ICameraControl.h"
 #include "CameraCommon.h"
 
@@ -30,7 +29,6 @@ class GetParameterTask;
 class GetPreviewStreamVideoModeTask;
 
 class DOMCameraPreview;
-class RecorderProfileManager;
 
 class CameraControlImpl : public ICameraControl
 {
@@ -46,16 +44,34 @@ class CameraControlImpl : public ICameraControl
   friend class GetPreviewStreamVideoModeTask;
 
 public:
-  CameraControlImpl(uint32_t aCameraId, nsIThread* aCameraThread, uint64_t aWindowId);
+  CameraControlImpl(uint32_t aCameraId, nsIThread* aCameraThread, uint64_t aWindowId)
+    : mCameraId(aCameraId)
+    , mCameraThread(aCameraThread)
+    , mWindowId(aWindowId)
+    , mFileFormat()
+    , mMaxMeteringAreas(0)
+    , mMaxFocusAreas(0)
+    , mDOMPreview(nullptr)
+    , mAutoFocusOnSuccessCb(nullptr)
+    , mAutoFocusOnErrorCb(nullptr)
+    , mTakePictureOnSuccessCb(nullptr)
+    , mTakePictureOnErrorCb(nullptr)
+    , mStartRecordingOnSuccessCb(nullptr)
+    , mStartRecordingOnErrorCb(nullptr)
+    , mOnShutterCb(nullptr)
+    , mOnClosedCb(nullptr)
+  {
+    DOM_CAMERA_LOGT("%s:%d : this=%p\n", __func__, __LINE__, this);
+  }
 
   nsresult GetPreviewStream(CameraSize aSize, nsICameraPreviewStreamCallback* onSuccess, nsICameraErrorCallback* onError);
   nsresult StartPreview(DOMCameraPreview* aDOMPreview);
   void StopPreview();
   nsresult AutoFocus(nsICameraAutoFocusCallback* onSuccess, nsICameraErrorCallback* onError);
   nsresult TakePicture(CameraSize aSize, int32_t aRotation, const nsAString& aFileFormat, CameraPosition aPosition, nsICameraTakePictureCallback* onSuccess, nsICameraErrorCallback* onError);
-  nsresult StartRecording(CameraStartRecordingOptions* aOptions, nsIFile* aFolder, const nsAString& aFilename, nsICameraStartRecordingCallback* onSuccess, nsICameraErrorCallback* onError);
+  nsresult StartRecording(nsIDOMDeviceStorage* aStorageArea, const nsAString& aFilename, nsICameraStartRecordingCallback* onSuccess, nsICameraErrorCallback* onError);
   nsresult StopRecording();
-  nsresult GetPreviewStreamVideoMode(CameraRecorderOptions* aOptions, nsICameraPreviewStreamCallback* onSuccess, nsICameraErrorCallback* onError);
+  nsresult GetPreviewStreamVideoMode(CameraRecordingOptions* aOptions, nsICameraPreviewStreamCallback* onSuccess, nsICameraErrorCallback* onError);
 
   nsresult Set(uint32_t aKey, const nsAString& aValue);
   nsresult Get(uint32_t aKey, nsAString& aValue);
@@ -78,9 +94,6 @@ public:
     return Set(aCx, CAMERA_PARAM_METERINGAREAS, aValue, mMaxMeteringAreas);
   }
 
-  already_AddRefed<RecorderProfileManager> GetRecorderProfileManager();
-  uint32_t GetCameraId() { return mCameraId; }
-
   virtual const char* GetParameter(const char* aKey) = 0;
   virtual const char* GetParameterConstChar(uint32_t aKey) = 0;
   virtual double GetParameterDouble(uint32_t aKey) = 0;
@@ -89,7 +102,6 @@ public:
   virtual void SetParameter(uint32_t aKey, const char* aValue) = 0;
   virtual void SetParameter(uint32_t aKey, double aValue) = 0;
   virtual void SetParameter(uint32_t aKey, const nsTArray<CameraRegion>& aRegions) = 0;
-  virtual nsresult GetVideoSizes(nsTArray<CameraSize>& aVideoSizes) = 0;
   virtual nsresult PushParameters() = 0;
   virtual void Shutdown();
 
@@ -103,7 +115,10 @@ public:
   }
 
 protected:
-  virtual ~CameraControlImpl();
+  virtual ~CameraControlImpl()
+  {
+    DOM_CAMERA_LOGT("%s:%d : this=%p\n", __func__, __LINE__, this);
+  }
 
   virtual nsresult GetPreviewStreamImpl(GetPreviewStreamTask* aGetPreviewStream) = 0;
   virtual nsresult StartPreviewImpl(StartPreviewTask* aStartPreview) = 0;
@@ -115,7 +130,6 @@ protected:
   virtual nsresult PushParametersImpl() = 0;
   virtual nsresult PullParametersImpl() = 0;
   virtual nsresult GetPreviewStreamVideoModeImpl(GetPreviewStreamVideoModeTask* aGetPreviewStreamVideoMode) = 0;
-  virtual already_AddRefed<RecorderProfileManager> GetRecorderProfileManagerImpl() = 0;
 
   void OnShutterInternal();
   void OnClosedInternal();
@@ -385,7 +399,7 @@ public:
   nsCOMPtr<nsICameraErrorCallback> mOnErrorCb;
 };
 
-// Return the result of starting recording.  Runs on the main thread.
+// Return the captured video to JS.  Runs on the main thread.
 class StartRecordingResult : public nsRunnable
 {
 public:
@@ -415,14 +429,12 @@ protected:
 class StartRecordingTask : public nsRunnable
 {
 public:
-  StartRecordingTask(CameraControlImpl* aCameraControl, CameraStartRecordingOptions aOptions, nsIFile* aFolder, const nsAString& aFilename, nsICameraStartRecordingCallback* onSuccess, nsICameraErrorCallback* onError, uint64_t aWindowId)
+  StartRecordingTask(CameraControlImpl* aCameraControl, nsIDOMDeviceStorage* aStorageArea, const nsAString& aFilename, nsICameraStartRecordingCallback* onSuccess, nsICameraErrorCallback* onError)
     : mCameraControl(aCameraControl)
-    , mOptions(aOptions)
-    , mFolder(aFolder)
+    , mStorageArea(aStorageArea)
     , mFilename(aFilename)
     , mOnSuccessCb(onSuccess)
     , mOnErrorCb(onError)
-    , mWindowId(aWindowId)
   {
     DOM_CAMERA_LOGT("%s:%d : this=%p\n", __func__, __LINE__, this);
   }
@@ -438,27 +450,17 @@ public:
     nsresult rv = mCameraControl->StartRecordingImpl(this);
     DOM_CAMERA_LOGT("%s:%d : result %d\n", __func__, __LINE__, rv);
 
-    // dispatch the callback
-    nsCOMPtr<nsIRunnable> startRecordingResult;
-    if (NS_SUCCEEDED(rv)) {
-      startRecordingResult = new StartRecordingResult(mOnSuccessCb, mWindowId);
-    } else {
-      startRecordingResult = new CameraErrorResult(mOnErrorCb, NS_LITERAL_STRING("FAILURE"), mWindowId);
-    }
-    rv = NS_DispatchToMainThread(startRecordingResult);
-    if (NS_FAILED(rv)) {
-      DOM_CAMERA_LOGE("Failed to dispatch start recording result to main thread (%d)!", rv);
+    if (NS_FAILED(rv) && mOnErrorCb) {
+      rv = NS_DispatchToMainThread(new CameraErrorResult(mOnErrorCb, NS_LITERAL_STRING("FAILURE"), mCameraControl->GetWindowId()));
     }
     return rv;
   }
 
   nsRefPtr<CameraControlImpl> mCameraControl;
-  CameraStartRecordingOptions mOptions;
-  nsCOMPtr<nsIFile> mFolder;
+  nsCOMPtr<nsIDOMDeviceStorage> mStorageArea;
   nsString mFilename;
   nsCOMPtr<nsICameraStartRecordingCallback> mOnSuccessCb;
   nsCOMPtr<nsICameraErrorCallback> mOnErrorCb;
-  uint64_t mWindowId;
 };
 
 // Stop video recording.
@@ -581,7 +583,7 @@ protected:
 class GetPreviewStreamVideoModeTask : public nsRunnable
 {
 public:
-  GetPreviewStreamVideoModeTask(CameraControlImpl* aCameraControl, CameraRecorderOptions aOptions,  nsICameraPreviewStreamCallback* onSuccess, nsICameraErrorCallback* onError)
+  GetPreviewStreamVideoModeTask(CameraControlImpl* aCameraControl, CameraRecordingOptions aOptions,  nsICameraPreviewStreamCallback* onSuccess, nsICameraErrorCallback* onError)
     : mCameraControl(aCameraControl)
     , mOptions(aOptions)
     , mOnSuccessCb(onSuccess)
@@ -602,7 +604,7 @@ public:
   }
 
   nsRefPtr<CameraControlImpl> mCameraControl;
-  CameraRecorderOptions mOptions;
+  CameraRecordingOptions mOptions;
   nsCOMPtr<nsICameraPreviewStreamCallback> mOnSuccessCb;
   nsCOMPtr<nsICameraErrorCallback> mOnErrorCb;
 };

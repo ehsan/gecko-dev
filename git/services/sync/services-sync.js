@@ -69,5 +69,4 @@ pref("services.sync.log.logger.engine.prefs", "Debug");
 pref("services.sync.log.logger.engine.tabs", "Debug");
 pref("services.sync.log.logger.engine.addons", "Debug");
 pref("services.sync.log.logger.engine.apps", "Debug");
-pref("services.sync.log.logger.userapi", "Debug");
 pref("services.sync.log.cryptoDebug", false);

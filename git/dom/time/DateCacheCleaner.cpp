@@ -16,20 +16,24 @@ namespace mozilla {
 namespace dom {
 namespace time {
 
-class DateCacheCleaner : public SystemTimezoneChangeObserver
+class DateCacheCleaner : public SystemTimeChangeObserver
 {
 public:
   DateCacheCleaner()
   {
-    RegisterSystemTimezoneChangeObserver(this);
+    RegisterSystemTimeChangeObserver(this);
   }
 
   ~DateCacheCleaner()
   {
-    UnregisterSystemTimezoneChangeObserver(this);
+    UnregisterSystemTimeChangeObserver(this);
   }
-  void Notify(const SystemTimezoneChangeInformation& aSystemTimezoneChangeInfo)
+  void Notify(const SystemTimeChange& aReason)
   {
+    if (aReason == SYS_TIME_CHANGE_CLOCK) {
+      return;
+    }
+
     nsCOMPtr<nsIThreadJSContextStack> stack =
       do_GetService("@mozilla.org/js/xpc/ContextStack;1");
     if (!stack) {

@@ -871,23 +871,48 @@ WebGLContext::GetCanvasLayer(nsDisplayListBuilder* aBuilder,
     return canvasLayer.forget().get();
 }
 
-void
-WebGLContext::GetContextAttributes(dom::WebGLContextAttributes &result)
+JSObject*
+WebGLContext::GetContextAttributes(ErrorResult &rv)
 {
     if (!IsContextStable())
     {
-        // XXXbz spec says we should still return our attributes in
-        // this case!  Should we store them all in mOptions?
-        return;
+        return NULL;
+    }
+
+    JSContext *cx = nsContentUtils::GetCurrentJSContext();
+    if (!cx) {
+        rv.Throw(NS_ERROR_FAILURE);
+        return NULL;
+    }
+
+    JSObject *obj = JS_NewObject(cx, NULL, NULL, NULL);
+    if (!obj) {
+        rv.Throw(NS_ERROR_FAILURE);
+        return NULL;
     }
 
     gl::ContextFormat cf = gl->ActualFormat();
-    result.alpha = cf.alpha > 0;
-    result.depth = cf.depth > 0;
-    result.stencil = cf.stencil > 0;
-    result.antialias = cf.samples > 1;
-    result.premultipliedAlpha = mOptions.premultipliedAlpha;
-    result.preserveDrawingBuffer = mOptions.preserveDrawingBuffer;
+
+    if (!JS_DefineProperty(cx, obj, "alpha", cf.alpha > 0 ? JSVAL_TRUE : JSVAL_FALSE,
+                           NULL, NULL, JSPROP_ENUMERATE) ||
+        !JS_DefineProperty(cx, obj, "depth", cf.depth > 0 ? JSVAL_TRUE : JSVAL_FALSE,
+                           NULL, NULL, JSPROP_ENUMERATE) ||
+        !JS_DefineProperty(cx, obj, "stencil", cf.stencil > 0 ? JSVAL_TRUE : JSVAL_FALSE,
+                           NULL, NULL, JSPROP_ENUMERATE) ||
+        !JS_DefineProperty(cx, obj, "antialias", cf.samples > 1 ? JSVAL_TRUE : JSVAL_FALSE,
+                           NULL, NULL, JSPROP_ENUMERATE) ||
+        !JS_DefineProperty(cx, obj, "premultipliedAlpha",
+                           mOptions.premultipliedAlpha ? JSVAL_TRUE : JSVAL_FALSE,
+                           NULL, NULL, JSPROP_ENUMERATE) ||
+        !JS_DefineProperty(cx, obj, "preserveDrawingBuffer",
+                           mOptions.preserveDrawingBuffer ? JSVAL_TRUE : JSVAL_FALSE,
+                           NULL, NULL, JSPROP_ENUMERATE))
+    {
+        rv.Throw(NS_ERROR_FAILURE);
+        return NULL;
+    }
+
+    return obj;
 }
 
 bool
@@ -1202,15 +1227,15 @@ WebGLContext::DummyFramebufferOperation(const char *info)
 // are met.
 // At a bare minimum, from context lost to context restores, it would take 3
 // full timer iterations: detection, webglcontextlost, webglcontextrestored.
-void
-WebGLContext::RobustnessTimerCallback(nsITimer* timer)
+NS_IMETHODIMP
+WebGLContext::Notify(nsITimer* timer)
 {
     TerminateContextLossTimer();
 
     if (!mCanvasElement) {
         // the canvas is gone. That happens when the page was closed before we got
         // this timer event. In this case, there's nothing to do here, just don't crash.
-        return;
+        return NS_OK;
     }
 
     // If the context has been lost and we're waiting for it to be restored, do
@@ -1243,7 +1268,7 @@ WebGLContext::RobustnessTimerCallback(nsITimer* timer)
         // Try to restore the context. If it fails, try again later.
         if (NS_FAILED(SetDimensions(mWidth, mHeight))) {
             SetupContextLossTimer();
-            return;
+            return NS_OK;
         }
         mContextStatus = ContextStable;
         nsContentUtils::DispatchTrustedEvent(mCanvasElement->OwnerDoc(),
@@ -1258,7 +1283,7 @@ WebGLContext::RobustnessTimerCallback(nsITimer* timer)
     }
 
     MaybeRestoreContext();
-    return;
+    return NS_OK;
 }
 
 void
@@ -1373,33 +1398,20 @@ NS_IMPL_CYCLE_COLLECTING_ADDREF(WebGLContext)
 NS_IMPL_CYCLE_COLLECTING_RELEASE(WebGLContext)
 
 NS_IMPL_CYCLE_COLLECTION_CLASS(WebGLContext)
-NS_IMPL_CYCLE_COLLECTION_TRACE_WRAPPERCACHE(WebGLContext)
+
+NS_IMPL_CYCLE_COLLECTION_TRACE_BEGIN(WebGLContext)
+  NS_IMPL_CYCLE_COLLECTION_TRACE_PRESERVED_WRAPPER
+NS_IMPL_CYCLE_COLLECTION_TRACE_END
 
 NS_IMPL_CYCLE_COLLECTION_UNLINK_BEGIN(WebGLContext)
   NS_IMPL_CYCLE_COLLECTION_UNLINK_NSCOMPTR(mCanvasElement)
   NS_IMPL_CYCLE_COLLECTION_UNLINK_NSTARRAY(mExtensions)
-  NS_IMPL_CYCLE_COLLECTION_UNLINK_NSTARRAY(mBound2DTextures)
-  NS_IMPL_CYCLE_COLLECTION_UNLINK_NSTARRAY(mBoundCubeMapTextures)
-  NS_IMPL_CYCLE_COLLECTION_UNLINK_NSCOMPTR(mBoundArrayBuffer)
-  NS_IMPL_CYCLE_COLLECTION_UNLINK_NSCOMPTR(mBoundElementArrayBuffer)
-  NS_IMPL_CYCLE_COLLECTION_UNLINK_NSCOMPTR(mCurrentProgram)
-  NS_IMPL_CYCLE_COLLECTION_UNLINK_NSCOMPTR(mBoundFramebuffer)
-  NS_IMPL_CYCLE_COLLECTION_UNLINK_NSCOMPTR(mBoundRenderbuffer)
-  NS_IMPL_CYCLE_COLLECTION_UNLINK_NSTARRAY(mAttribBuffers)
   NS_IMPL_CYCLE_COLLECTION_UNLINK_PRESERVED_WRAPPER
 NS_IMPL_CYCLE_COLLECTION_UNLINK_END
 
 NS_IMPL_CYCLE_COLLECTION_TRAVERSE_BEGIN(WebGLContext)
   NS_IMPL_CYCLE_COLLECTION_TRAVERSE_NSCOMPTR_AMBIGUOUS(mCanvasElement, nsINode)
   NS_IMPL_CYCLE_COLLECTION_TRAVERSE_NSTARRAY_OF_NSCOMPTR(mExtensions)
-  NS_IMPL_CYCLE_COLLECTION_TRAVERSE_NSTARRAY_OF_NSCOMPTR(mBound2DTextures)
-  NS_IMPL_CYCLE_COLLECTION_TRAVERSE_NSTARRAY_OF_NSCOMPTR(mBoundCubeMapTextures)
-  NS_IMPL_CYCLE_COLLECTION_TRAVERSE_NSCOMPTR(mBoundArrayBuffer)
-  NS_IMPL_CYCLE_COLLECTION_TRAVERSE_NSCOMPTR(mBoundElementArrayBuffer)
-  NS_IMPL_CYCLE_COLLECTION_TRAVERSE_NSCOMPTR(mCurrentProgram)
-  NS_IMPL_CYCLE_COLLECTION_TRAVERSE_NSCOMPTR(mBoundFramebuffer)
-  NS_IMPL_CYCLE_COLLECTION_TRAVERSE_NSCOMPTR(mBoundRenderbuffer)
-  NS_IMPL_CYCLE_COLLECTION_TRAVERSE_NSTARRAY_OF_NSCOMPTR(mAttribBuffers)
   NS_IMPL_CYCLE_COLLECTION_TRAVERSE_SCRIPT_OBJECTS
 NS_IMPL_CYCLE_COLLECTION_TRAVERSE_END
 
@@ -1408,6 +1420,7 @@ NS_INTERFACE_MAP_BEGIN_CYCLE_COLLECTION(WebGLContext)
   NS_INTERFACE_MAP_ENTRY(nsIDOMWebGLRenderingContext)
   NS_INTERFACE_MAP_ENTRY(nsICanvasRenderingContextInternal)
   NS_INTERFACE_MAP_ENTRY(nsISupportsWeakReference)
+  NS_INTERFACE_MAP_ENTRY(nsITimerCallback)
   // If the exact way we cast to nsISupports here ever changes, fix our
   // PreCreate hook!
   NS_INTERFACE_MAP_ENTRY_AMBIGUOUS(nsISupports,

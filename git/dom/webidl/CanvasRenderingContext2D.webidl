@@ -17,6 +17,7 @@ interface HitRegionOptions;
 interface HTMLCanvasElement;
 interface HTMLImageElement;
 interface HTMLVideoElement;
+interface ImageData;
 interface TextMetrics;
 interface Window;
 interface XULElement;

@@ -433,10 +433,9 @@ nsGnomeVFSInputStream::DoOpen()
 
       // Update the content length attribute on the channel.  We do this
       // synchronously without proxying.  This hack is not as bad as it looks!
-      if (mBytesRemaining > INT64_MAX) {
-        mChannel->SetContentLength(-1);
-      } else {
-        mChannel->SetContentLength(mBytesRemaining);
+      if (mBytesRemaining != UINT64_MAX) {
+        // XXX 64-bit
+        mChannel->SetContentLength(NS_MAX((int32_t)mBytesRemaining, INT32_MAX));
       }
     }
     else

@@ -19,8 +19,6 @@ include $(topsrcdir)/dom/dom-config.mk
 
 XPIDLSRCS = \
   nsIWifi.idl \
-  nsIDOMMozWifiStatusChangeEvent.idl \
-  nsIDOMMozWifiConnectionInfoEvent.idl \
   $(NULL)
 
 EXTRA_COMPONENTS = \

@@ -12,11 +12,13 @@ const Cu = Components.utils;
 
 Cu.import("resource://gre/modules/PlacesUtils.jsm");
 Cu.import("resource://gre/modules/XPCOMUtils.jsm");
-Cu.import("resource://services-common/async.js");
-Cu.import("resource://services-sync/constants.js");
 Cu.import("resource://services-sync/engines.js");
 Cu.import("resource://services-sync/record.js");
+Cu.import("resource://services-common/async.js");
 Cu.import("resource://services-sync/util.js");
+Cu.import("resource://services-sync/constants.js");
+
+Cu.import("resource://services-sync/main.js");      // For access to Service.
 
 const ALLBOOKMARKS_ANNO    = "AllBookmarks";
 const DESCRIPTION_ANNO     = "bookmarkProperties/description";
@@ -191,8 +193,8 @@ let kSpecialIds = {
   get mobile()  this.findMobileRoot(true),
 };
 
-function BookmarksEngine(service) {
-  SyncEngine.call(this, "Bookmarks", service);
+function BookmarksEngine() {
+  SyncEngine.call(this, "Bookmarks");
 }
 BookmarksEngine.prototype = {
   __proto__: SyncEngine.prototype,
@@ -408,8 +410,8 @@ BookmarksEngine.prototype = {
   }
 };
 
-function BookmarksStore(name, engine) {
-  Store.call(this, name, engine);
+function BookmarksStore(name) {
+  Store.call(this, name);
 
   // Explicitly nullify our references to our cached services so we don't leak
   Svc.Obs.add("places-shutdown", function() {
@@ -1253,8 +1255,8 @@ BookmarksStore.prototype = {
   }
 };
 
-function BookmarksTracker(name, engine) {
-  Tracker.call(this, name, engine);
+function BookmarksTracker(name) {
+  Tracker.call(this, name);
 
   Svc.Obs.add("places-shutdown", this);
   Svc.Obs.add("weave:engine:start-tracking", this);
@@ -1284,7 +1286,7 @@ BookmarksTracker.prototype = {
           this._enabled = false;
         }
         break;
-
+        
       case "bookmarks-restore-begin":
         this._log.debug("Ignoring changes from importing bookmarks.");
         this.ignoreAll = true;
@@ -1292,11 +1294,11 @@ BookmarksTracker.prototype = {
       case "bookmarks-restore-success":
         this._log.debug("Tracking all items on successful import.");
         this.ignoreAll = false;
-
+        
         this._log.debug("Restore succeeded: wiping server and other clients.");
-        this.engine.service.resetClient([this.name]);
-        this.engine.service.wipeServer([this.name]);
-        this.engine.service.clientsEngine.sendCommand("wipeEngine", [this.name]);
+        Weave.Service.resetClient([this.name]);
+        Weave.Service.wipeServer([this.name]);
+        Clients.sendCommand("wipeEngine", [this.name]);
         break;
       case "bookmarks-restore-failed":
         this._log.debug("Tracking all items on failed import.");

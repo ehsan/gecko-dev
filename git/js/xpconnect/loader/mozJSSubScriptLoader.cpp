@@ -45,7 +45,6 @@ using namespace mozilla::scache;
 #define LOAD_ERROR_READUNDERFLOW "File Read Error (underflow.)"
 #define LOAD_ERROR_NOPRINCIPALS "Failed to get principals."
 #define LOAD_ERROR_NOSPEC "Failed to get URI spec.  This is bad."
-#define LOAD_ERROR_CONTENTTOOBIG "ContentLength is too large"
 
 // We just use the same reporter as the component loader
 extern void
@@ -93,15 +92,11 @@ mozJSSubScriptLoader::ReadScript(nsIURI *uri, JSContext *cx, JSObject *target_ob
         return ReportError(cx, LOAD_ERROR_NOSTREAM);
     }
 
-    int64_t len = -1;
+    int32_t len = -1;
 
     rv = chan->GetContentLength(&len);
     if (NS_FAILED(rv) || len == -1) {
         return ReportError(cx, LOAD_ERROR_NOCONTENT);
-    }
-
-    if (len > INT32_MAX) {
-        return ReportError(cx, LOAD_ERROR_CONTENTTOOBIG);
     }
 
     nsCString buf;

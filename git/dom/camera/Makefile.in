@@ -24,7 +24,6 @@ CPPSRCS = \
   DOMCameraPreview.cpp \
   DOMCameraCapabilities.cpp \
   CameraControlImpl.cpp \
-  CameraRecorderProfiles.cpp \
   $(NULL)
 
 ifeq ($(MOZ_B2G_CAMERA),1)
@@ -36,7 +35,6 @@ CPPSRCS += \
   GonkRecorder.cpp \
   GonkCameraSource.cpp \
   AudioParameter.cpp \
-  GonkRecorderProfiles.cpp \
   $(NULL)
 else ifeq (gonk,$(MOZ_WIDGET_TOOLKIT))
 CPPSRCS += \

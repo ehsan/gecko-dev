@@ -462,7 +462,7 @@ def main():
     procName = options.app.split('/')[-1]
     if (dm.processExist(procName)):
         dm.killProcess(procName)
-
+    
     if options.robocop != "":
         mp = manifestparser.TestManifest(strict=False)
         # TODO: pull this in dynamically
@@ -484,6 +484,7 @@ def main():
 
         appname = options.app
         retVal = None
+        logcat = []
         for test in robocop_tests:
             if options.testPath and options.testPath != test['name']:
                 continue
@@ -496,48 +497,39 @@ def main():
             try:
                 dm.recordLogcat()
                 retVal = mochitest.runTests(options)
+                logcat = dm.getLogcat()
                 mochitest.addLogData()
             except:
                 print "TEST-UNEXPECTED-FAIL | %s | Exception caught while running robocop tests." % sys.exc_info()[1]
                 mochitest.stopWebServer(options)
                 mochitest.stopWebSocketServer(options)
                 try:
-                    mochitest.cleanup(None, options)
-                except devicemanager.DMError:
-                    # device error cleaning up... oh well!
+                    self.cleanup(None, options)
+                except:
                     pass
-                retVal = 1
-                break
+                sys.exit(1)
         if retVal is None:
             print "No tests run. Did you pass an invalid TEST_PATH?"
             retVal = 1
 
-        if retVal == 0:
-            # if we didn't have some kind of error running the tests, make
-            # sure the tests actually passed
-            retVal = mochitest.printLog()
+        retVal = mochitest.printLog()
     else:
-        try:
-            dm.recordLogcat()
-            retVal = mochitest.runTests(options)
-        except:
-            print "TEST-UNEXPECTED-FAIL | %s | Exception caught while running tests." % sys.exc_info()[1]
-            mochitest.stopWebServer(options)
-            mochitest.stopWebSocketServer(options)
-            try:
-                mochitest.cleanup(None, options)
-            except devicemanager.DMError:
-                # device error cleaning up... oh well!
-                pass
-            retVal = 1
-
-    try:
+      try:
+        dm.recordLogcat()
+        retVal = mochitest.runTests(options)
         logcat = dm.getLogcat()
-        print ''.join(logcat[-500:-1])
-        print dm.getInfo()
-    except devicemanager.DMError:
-        print "WARNING: Error getting device information at end of test"
+      except:
+        print "TEST-UNEXPECTED-FAIL | %s | Exception caught while running tests." % sys.exc_info()[1]
+        mochitest.stopWebServer(options)
+        mochitest.stopWebSocketServer(options)
+        try:
+            self.cleanup(None, options)
+        except:
+            pass
+        sys.exit(1)
 
+    print ''.join(logcat[-500:-1])
+    print dm.getInfo()
     sys.exit(retVal)
         
 if __name__ == "__main__":

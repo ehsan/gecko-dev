@@ -914,6 +914,11 @@ public:
 
     static void ActivityCallback(void *arg, JSBool active);
 
+    bool NewDOMBindingsEnabled()
+    {
+        return gNewDOMBindingsEnabled;
+    }
+
     bool ExperimentalBindingsEnabled()
     {
         return gExperimentalBindingsEnabled;
@@ -934,6 +939,7 @@ private:
 
     void ReleaseIncrementally(nsTArray<nsISupports *> &array);
 
+    static bool gNewDOMBindingsEnabled;
     static bool gExperimentalBindingsEnabled;
 
     static const char* mStrings[IDX_TOTAL_COUNT];
@@ -1742,6 +1748,11 @@ public:
     }
     void TraceDOMPrototypes(JSTracer *trc);
 
+    JSBool NewDOMBindingsEnabled()
+    {
+        return mNewDOMBindingsEnabled;
+    }
+
     JSBool ExperimentalBindingsEnabled()
     {
         return mExperimentalBindingsEnabled;
@@ -1787,6 +1798,7 @@ private:
 
     nsDataHashtable<nsDepCharHashKey, JSObject*> mCachedDOMPrototypes;
 
+    JSBool mNewDOMBindingsEnabled;
     JSBool mExperimentalBindingsEnabled;
 };
 
@@ -3859,7 +3871,6 @@ private:
     uint64_t mOuterWindowID;
     uint64_t mInnerWindowID;
     int64_t mTimeStamp;
-    bool mIsFromPrivateWindow;
 };
 
 /******************************************************************************

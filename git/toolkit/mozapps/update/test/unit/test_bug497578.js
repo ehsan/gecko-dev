@@ -72,8 +72,7 @@ function run_test_pt1() {
   do_check_true(privBrowsing.privateBrowsingEnabled);
 
   logTestInfo("Testing: private browsing is auto-started");
-  Components.utils.import("resource://gre/modules/PrivateBrowsingUtils.jsm");
-  do_check_true(PrivateBrowsingUtils.permanentPrivateBrowsing);
+  do_check_true(privBrowsing.autoStarted);
 
   // Give private browsing time to reset necko.
   do_execute_soon(run_test_pt2);

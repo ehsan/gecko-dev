@@ -106,7 +106,17 @@ public class ScreenshotLayer extends SingleTileLayer {
         }
 
         @Override
-        public synchronized void destroy() {
+        protected void finalize() throws Throwable {
+            try {
+                DirectBufferAllocator.free(mBuffer);
+                mBuffer = null;
+            } finally {
+                super.finalize();
+            }
+        }
+
+        @Override
+        public void destroy() {
             try {
                 DirectBufferAllocator.free(mBuffer);
                 mBuffer = null;
@@ -115,7 +125,7 @@ public class ScreenshotLayer extends SingleTileLayer {
             }
         }
 
-        private void copyBuffer(ByteBuffer src, ByteBuffer dst, Rect rect, int stride) {
+        void copyBuffer(ByteBuffer src, ByteBuffer dst, Rect rect, int stride) {
             int start = (rect.top * stride) + (rect.left * BYTES_FOR_16BPP);
             int end = ((rect.bottom - 1) * stride) + (rect.right * BYTES_FOR_16BPP);
             // clamp stuff just to be safe
@@ -126,28 +136,23 @@ public class ScreenshotLayer extends SingleTileLayer {
             // This allocates a lot of memory and can fail sometimes. Handling the
             // exception is better than crashing.
             try {
-                dst.put(src);
-            } catch (OutOfMemoryError e) {
-            }
+              dst.put(src);
+            } catch (java.lang.OutOfMemoryError e) {}
         }
 
         synchronized void setBitmap(ByteBuffer data, int width, int height, int format, Rect rect) {
-            if (mBuffer == null) {
-                return;
-            }
             mSize = new IntSize(width, height);
             mFormat = format;
             copyBuffer(data.asReadOnlyBuffer(), mBuffer.duplicate(), rect, width * BYTES_FOR_16BPP);
         }
 
         synchronized void setBitmap(Bitmap bitmap, int width, int height, int format) throws IllegalArgumentException {
-            if (mBuffer == null) {
-                return;
-            }
+            Bitmap tmp;
             mSize = new IntSize(width, height);
             mFormat = format;
             if (width == bitmap.getWidth() && height == bitmap.getHeight()) {
-                bitmap.copyPixelsToBuffer(mBuffer.asIntBuffer());
+                tmp = bitmap;
+                tmp.copyPixelsToBuffer(mBuffer.asIntBuffer());
             } else {
                 throw new IllegalArgumentException("### unexpected size in setBitmap: w="+width+" h="+height);
             }

@@ -29,6 +29,7 @@ Decoder::Decoder(RasterImage &aImage, imgIDecoderObserver* aObserver)
 
 Decoder::~Decoder()
 {
+  NS_WARN_IF_FALSE(!mInFrame, "Shutting down decoder mid-frame!");
   mInitialized = false;
 }
 

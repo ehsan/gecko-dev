@@ -405,13 +405,13 @@ nsHttpTransaction::OnTransportStatus(nsITransport* transport,
 
     if (TimingEnabled()) {
         if (status == NS_NET_STATUS_RESOLVING_HOST) {
-            mTimings.domainLookupStart = TimeStamp::Now();
+            mTimings.domainLookupStart = mozilla::TimeStamp::Now();
         } else if (status == NS_NET_STATUS_RESOLVED_HOST) {
-            mTimings.domainLookupEnd = TimeStamp::Now();
+            mTimings.domainLookupEnd = mozilla::TimeStamp::Now();
         } else if (status == NS_NET_STATUS_CONNECTING_TO) {
-            mTimings.connectStart = TimeStamp::Now();
+            mTimings.connectStart = mozilla::TimeStamp::Now();
         } else if (status == NS_NET_STATUS_CONNECTED_TO) {
-            mTimings.connectEnd = TimeStamp::Now();
+            mTimings.connectEnd = mozilla::TimeStamp::Now();
         }
     }
 
@@ -514,7 +514,7 @@ nsHttpTransaction::ReadRequestSegment(nsIInputStream *stream,
 
     if (trans->TimingEnabled() && trans->mTimings.requestStart.IsNull()) {
         // First data we're sending -> this is requestStart
-        trans->mTimings.requestStart = TimeStamp::Now();
+        trans->mTimings.requestStart = mozilla::TimeStamp::Now();
     }
     trans->mSentData = true;
     return NS_OK;
@@ -576,7 +576,7 @@ nsHttpTransaction::WritePipeSegment(nsIOutputStream *stream,
         return NS_BASE_STREAM_CLOSED; // stop iterating
 
     if (trans->TimingEnabled() && trans->mTimings.responseStart.IsNull()) {
-        trans->mTimings.responseStart = TimeStamp::Now();
+        trans->mTimings.responseStart = mozilla::TimeStamp::Now();
     }
 
     nsresult rv;
@@ -764,7 +764,7 @@ nsHttpTransaction::Close(nsresult reason)
     // EOF or an error still require an end time be recorded.
     if (TimingEnabled() &&
         mTimings.responseEnd.IsNull() && !mTimings.responseStart.IsNull())
-        mTimings.responseEnd = TimeStamp::Now();
+        mTimings.responseEnd = mozilla::TimeStamp::Now();
 
     if (relConn && mConnection)
         NS_RELEASE(mConnection);
@@ -1371,7 +1371,7 @@ nsHttpTransaction::HandleContent(char *buf,
         mResponseIsComplete = true;
 
         if (TimingEnabled())
-            mTimings.responseEnd = TimeStamp::Now();
+            mTimings.responseEnd = mozilla::TimeStamp::Now();
 
         // report the entire response has arrived
         if (mActivityDistributor)

@@ -18,7 +18,6 @@
 #include "GeneratedEvents.h"
 #include "mozilla/Preferences.h"
 #include "mozilla/Attributes.h"
-#include "nsIPermissionManager.h"
 
 using namespace mozilla;
 using namespace hal;
@@ -119,13 +118,14 @@ nsDeviceSensors::~nsDeviceSensors()
   }
 }
 
-NS_IMETHODIMP nsDeviceSensors::HasWindowListener(uint32_t aType, nsIDOMWindow *aWindow, bool *aRetVal)
+NS_IMETHODIMP nsDeviceSensors::ListenerCount(uint32_t aType, int32_t *aRetVal)
 {
-  if (!mEnabled)
-    *aRetVal = false;
-  else
-    *aRetVal = mWindowListeners[aType]->IndexOf(aWindow) != NoIndex;
+  if (!mEnabled) {
+    *aRetVal = 0;
+    return NS_OK;
+  }
 
+  *aRetVal = mWindowListeners[aType]->Length();
   return NS_OK;
 }
 
@@ -166,29 +166,7 @@ NS_IMETHODIMP nsDeviceSensors::RemoveWindowAsListener(nsIDOMWindow *aWindow)
   return NS_OK;
 }
 
-static bool
-WindowCannotReceiveSensorEvent (nsPIDOMWindow* aWindow)
-{
-  // Check to see if this window is in the background.  If
-  // it is and it does not have the "background-sensors" permission,
-  // don't send any device motion events to it.
-  if (!aWindow || !aWindow->GetOuterWindow()) {
-    return true;
-  }
-
-  if (aWindow->GetOuterWindow()->IsBackground()) {
-    nsCOMPtr<nsIPermissionManager> permMgr =
-      do_GetService(NS_PERMISSIONMANAGER_CONTRACTID);
-    NS_ENSURE_TRUE(permMgr, false);
-    uint32_t permission = nsIPermissionManager::DENY_ACTION;
-    permMgr->TestPermissionFromWindow(aWindow, "background-sensors", &permission);
-    return permission != nsIPermissionManager::ALLOW_ACTION;
-  }
-
-  return false;
-}
-
-void
+void 
 nsDeviceSensors::Notify(const mozilla::hal::SensorData& aSensorData)
 {
   uint32_t type = aSensorData.sensor();
@@ -207,10 +185,13 @@ nsDeviceSensors::Notify(const mozilla::hal::SensorData& aSensorData)
   for (uint32_t i = windowListeners.Count(); i > 0 ; ) {
     --i;
 
+    // check to see if this window is in the background.  if
+    // it is, don't send any device motion to it.
     nsCOMPtr<nsPIDOMWindow> pwindow = do_QueryInterface(windowListeners[i]);
-    if (WindowCannotReceiveSensorEvent(pwindow)) {
-        continue;
-    }
+    if (!pwindow ||
+        !pwindow->GetOuterWindow() ||
+        pwindow->GetOuterWindow()->IsBackground())
+      continue;
 
     nsCOMPtr<nsIDOMDocument> domdoc;
     windowListeners[i]->GetDocument(getter_AddRefs(domdoc));

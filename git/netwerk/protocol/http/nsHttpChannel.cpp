@@ -61,9 +61,10 @@ enum CacheDisposition {
     kCacheMissed = 4
 };
 
-const Telemetry::ID UNKNOWN_DEVICE = static_cast<Telemetry::ID>(0);
+const mozilla::Telemetry::ID UNKNOWN_DEVICE
+    = static_cast<mozilla::Telemetry::ID>(0);
 void
-AccumulateCacheHitTelemetry(Telemetry::ID deviceHistogram,
+AccumulateCacheHitTelemetry(mozilla::Telemetry::ID deviceHistogram,
                             CacheDisposition hitOrMiss)
 {
     // If we had a cache hit, or we revalidated an entry, then we should know
@@ -71,9 +72,10 @@ AccumulateCacheHitTelemetry(Telemetry::ID deviceHistogram,
     // (Bug 769497).
     // MOZ_ASSERT(deviceHistogram != UNKNOWN_DEVICE || hitOrMiss == kCacheMissed);
 
-    Telemetry::Accumulate(Telemetry::HTTP_CACHE_DISPOSITION_2, hitOrMiss);
+    mozilla::Telemetry::Accumulate(
+            mozilla::Telemetry::HTTP_CACHE_DISPOSITION_2, hitOrMiss);
     if (deviceHistogram != UNKNOWN_DEVICE) {
-        Telemetry::Accumulate(deviceHistogram, hitOrMiss);
+        mozilla::Telemetry::Accumulate(deviceHistogram, hitOrMiss);
     }
 }
 
@@ -284,7 +286,7 @@ private:
     /*out*/ bool mCachedContentIsPartial;
     /*out*/ bool mCustomConditionalRequest;
     /*out*/ bool mDidReval;
-    /*out*/ Telemetry::ID mCacheEntryDeviceTelemetryID;
+    /*out*/ mozilla::Telemetry::ID mCacheEntryDeviceTelemetryID;
 };
 
 NS_IMPL_ISUPPORTS_INHERITED1(HttpCacheQuery, nsRunnable, nsICacheListener)
@@ -318,7 +320,7 @@ nsHttpChannel::nsHttpChannel()
 {
     LOG(("Creating nsHttpChannel [this=%p]\n", this));
     mChannelCreationTime = PR_Now();
-    mChannelCreationTimestamp = TimeStamp::Now();
+    mChannelCreationTimestamp = mozilla::TimeStamp::Now();
 }
 
 nsHttpChannel::~nsHttpChannel()
@@ -763,11 +765,11 @@ nsHttpChannel::SetupTransaction()
         // We need to send 'Pragma:no-cache' to inhibit proxy caching even if
         // no proxy is configured since we might be talking with a transparent
         // proxy, i.e. one that operates at the network level.  See bug #14772.
-        mRequestHead.SetHeaderOnce(nsHttp::Pragma, "no-cache", true);
+        mRequestHead.SetHeader(nsHttp::Pragma, NS_LITERAL_CSTRING("no-cache"), true);
         // If we're configured to speak HTTP/1.1 then also send 'Cache-control:
         // no-cache'
         if (mRequestHead.Version() >= NS_HTTP_VERSION_1_1)
-            mRequestHead.SetHeaderOnce(nsHttp::Cache_Control, "no-cache", true);
+            mRequestHead.SetHeader(nsHttp::Cache_Control, NS_LITERAL_CSTRING("no-cache"), true);
     }
     else if ((mLoadFlags & VALIDATE_ALWAYS) && (mCacheAccess & nsICache::ACCESS_READ)) {
         // We need to send 'Cache-Control: max-age=0' to force each cache along
@@ -776,9 +778,9 @@ nsHttpChannel::SetupTransaction()
         //
         // If we're configured to speak HTTP/1.0 then just send 'Pragma: no-cache'
         if (mRequestHead.Version() >= NS_HTTP_VERSION_1_1)
-            mRequestHead.SetHeaderOnce(nsHttp::Cache_Control, "max-age=0", true);
+            mRequestHead.SetHeader(nsHttp::Cache_Control, NS_LITERAL_CSTRING("max-age=0"), true);
         else
-            mRequestHead.SetHeaderOnce(nsHttp::Pragma, "no-cache", true);
+            mRequestHead.SetHeader(nsHttp::Pragma, NS_LITERAL_CSTRING("no-cache"), true);
     }
 
     if (mResuming) {
@@ -834,9 +836,9 @@ nsHttpChannel::SetupTransaction()
 
     if (mUpgradeProtocolCallback) {
         mRequestHead.SetHeader(nsHttp::Upgrade, mUpgradeProtocol, false);
-        mRequestHead.SetHeaderOnce(nsHttp::Connection,
-                                   nsHttp::Upgrade.get(),
-                                   true);
+        mRequestHead.SetHeader(nsHttp::Connection,
+                               nsDependentCString(nsHttp::Upgrade.get()),
+                               true);
         mCaps |=  NS_HTTP_STICKY_CONNECTION;
         mCaps &= ~NS_HTTP_ALLOW_PIPELINING;
         mCaps &= ~NS_HTTP_ALLOW_KEEPALIVE;
@@ -921,12 +923,19 @@ nsHttpChannel::CallOnStartRequest()
     if (mResponseHead && mResponseHead->ContentCharset().IsEmpty())
         mResponseHead->SetContentCharset(mContentCharsetHint);
 
-    if (mResponseHead && mCacheEntry) {
+    if (mResponseHead) {
+        SetPropertyAsInt64(NS_CHANNEL_PROP_CONTENT_LENGTH,
+                           mResponseHead->ContentLength());
         // If we have a cache entry, set its predicted size to ContentLength to
         // avoid caching an entry that will exceed the max size limit.
-        nsresult rv = mCacheEntry->SetPredictedDataSize(
-            mResponseHead->ContentLength());
-        NS_ENSURE_SUCCESS(rv, rv);
+        if (mCacheEntry) {
+            nsresult rv;
+            int64_t predictedDataSize = -1; // -1 in case GetAsInt64 fails.
+            GetPropertyAsInt64(NS_CHANNEL_PROP_CONTENT_LENGTH, 
+                               &predictedDataSize);
+            rv = mCacheEntry->SetPredictedDataSize(predictedDataSize);
+            if (NS_FAILED(rv)) return rv;
+        }
     }
     // Allow consumers to override our content type
     if ((mLoadFlags & LOAD_CALL_CONTENT_SNIFFERS) &&
@@ -2828,13 +2837,13 @@ HttpCacheQuery::OnCacheEntryAvailable(nsICacheEntryDescriptor *entry,
         if (cacheDeviceID) {
             if (!strcmp(cacheDeviceID, kDiskDeviceID)) {
                 mCacheEntryDeviceTelemetryID
-                    = Telemetry::HTTP_DISK_CACHE_DISPOSITION_2;
+                    = mozilla::Telemetry::HTTP_DISK_CACHE_DISPOSITION_2;
             } else if (!strcmp(cacheDeviceID, kMemoryDeviceID)) {
                 mCacheEntryDeviceTelemetryID
-                    = Telemetry::HTTP_MEMORY_CACHE_DISPOSITION_2;
+                    = mozilla::Telemetry::HTTP_MEMORY_CACHE_DISPOSITION_2;
             } else if (!strcmp(cacheDeviceID, kOfflineDeviceID)) {
                 mCacheEntryDeviceTelemetryID
-                    = Telemetry::HTTP_OFFLINE_CACHE_DISPOSITION_2;
+                    = mozilla::Telemetry::HTTP_OFFLINE_CACHE_DISPOSITION_2;
             } else {
                 MOZ_NOT_REACHED("unknown cache device ID");
             }
@@ -3454,7 +3463,7 @@ nsHttpChannel::ReadFromCache(bool alreadyMarkedValid)
     if (NS_FAILED(rv)) return rv;
 
     if (mTimingEnabled)
-        mCacheReadStart = TimeStamp::Now();
+        mCacheReadStart = mozilla::TimeStamp::Now();
 
     uint32_t suspendCount = mSuspendCount;
     while (suspendCount--)
@@ -4307,7 +4316,7 @@ nsHttpChannel::AsyncOpen(nsIStreamListener *listener, nsISupports *context)
     // don't want it after OnModifyRequest() weighs in. But waiting for
     // that to complete would mean we don't include proxy resolution in the
     // timing.
-    mAsyncOpenTime = TimeStamp::Now();
+    mAsyncOpenTime = mozilla::TimeStamp::Now();
 
     // the only time we would already know the proxy information at this
     // point would be if we were proxying a non-http protocol like ftp
@@ -4333,7 +4342,7 @@ nsHttpChannel::BeginConnect()
     // If mTimingEnabled flag is not set after OnModifyRequest() then
     // clear the already recorded AsyncOpen value for consistency.
     if (!mTimingEnabled)
-        mAsyncOpenTime = TimeStamp();
+        mAsyncOpenTime = mozilla::TimeStamp();
 
     // Construct connection info object
     nsAutoCString host;
@@ -4539,19 +4548,19 @@ nsHttpChannel::GetTimingEnabled(bool* _retval) {
 }
 
 NS_IMETHODIMP
-nsHttpChannel::GetChannelCreation(TimeStamp* _retval) {
+nsHttpChannel::GetChannelCreation(mozilla::TimeStamp* _retval) {
     *_retval = mChannelCreationTimestamp;
     return NS_OK;
 }
 
 NS_IMETHODIMP
-nsHttpChannel::GetAsyncOpen(TimeStamp* _retval) {
+nsHttpChannel::GetAsyncOpen(mozilla::TimeStamp* _retval) {
     *_retval = mAsyncOpenTime;
     return NS_OK;
 }
 
 NS_IMETHODIMP
-nsHttpChannel::GetDomainLookupStart(TimeStamp* _retval) {
+nsHttpChannel::GetDomainLookupStart(mozilla::TimeStamp* _retval) {
     if (mDNSPrefetch && mDNSPrefetch->TimingsValid())
         *_retval = mDNSPrefetch->StartTimestamp();
     else if (mTransaction)
@@ -4562,7 +4571,7 @@ nsHttpChannel::GetDomainLookupStart(TimeStamp* _retval) {
 }
 
 NS_IMETHODIMP
-nsHttpChannel::GetDomainLookupEnd(TimeStamp* _retval) {
+nsHttpChannel::GetDomainLookupEnd(mozilla::TimeStamp* _retval) {
     if (mDNSPrefetch && mDNSPrefetch->TimingsValid())
         *_retval = mDNSPrefetch->EndTimestamp();
     else if (mTransaction)
@@ -4573,7 +4582,7 @@ nsHttpChannel::GetDomainLookupEnd(TimeStamp* _retval) {
 }
 
 NS_IMETHODIMP
-nsHttpChannel::GetConnectStart(TimeStamp* _retval) {
+nsHttpChannel::GetConnectStart(mozilla::TimeStamp* _retval) {
     if (mTransaction)
         *_retval = mTransaction->Timings().connectStart;
     else
@@ -4582,7 +4591,7 @@ nsHttpChannel::GetConnectStart(TimeStamp* _retval) {
 }
 
 NS_IMETHODIMP
-nsHttpChannel::GetConnectEnd(TimeStamp* _retval) {
+nsHttpChannel::GetConnectEnd(mozilla::TimeStamp* _retval) {
     if (mTransaction)
         *_retval = mTransaction->Timings().connectEnd;
     else
@@ -4591,7 +4600,7 @@ nsHttpChannel::GetConnectEnd(TimeStamp* _retval) {
 }
 
 NS_IMETHODIMP
-nsHttpChannel::GetRequestStart(TimeStamp* _retval) {
+nsHttpChannel::GetRequestStart(mozilla::TimeStamp* _retval) {
     if (mTransaction)
         *_retval = mTransaction->Timings().requestStart;
     else
@@ -4600,7 +4609,7 @@ nsHttpChannel::GetRequestStart(TimeStamp* _retval) {
 }
 
 NS_IMETHODIMP
-nsHttpChannel::GetResponseStart(TimeStamp* _retval) {
+nsHttpChannel::GetResponseStart(mozilla::TimeStamp* _retval) {
     if (mTransaction)
         *_retval = mTransaction->Timings().responseStart;
     else
@@ -4609,7 +4618,7 @@ nsHttpChannel::GetResponseStart(TimeStamp* _retval) {
 }
 
 NS_IMETHODIMP
-nsHttpChannel::GetResponseEnd(TimeStamp* _retval) {
+nsHttpChannel::GetResponseEnd(mozilla::TimeStamp* _retval) {
     if (mTransaction)
         *_retval = mTransaction->Timings().responseEnd;
     else
@@ -4618,13 +4627,13 @@ nsHttpChannel::GetResponseEnd(TimeStamp* _retval) {
 }
 
 NS_IMETHODIMP
-nsHttpChannel::GetCacheReadStart(TimeStamp* _retval) {
+nsHttpChannel::GetCacheReadStart(mozilla::TimeStamp* _retval) {
     *_retval = mCacheReadStart;
     return NS_OK;
 }
 
 NS_IMETHODIMP
-nsHttpChannel::GetCacheReadEnd(TimeStamp* _retval) {
+nsHttpChannel::GetCacheReadEnd(mozilla::TimeStamp* _retval) {
     *_retval = mCacheReadEnd;
     return NS_OK;
 }
@@ -4632,7 +4641,7 @@ nsHttpChannel::GetCacheReadEnd(TimeStamp* _retval) {
 #define IMPL_TIMING_ATTR(name)                                 \
 NS_IMETHODIMP                                                  \
 nsHttpChannel::Get##name##Time(PRTime* _retval) {              \
-    TimeStamp stamp;                                  \
+    mozilla::TimeStamp stamp;                                  \
     Get##name(&stamp);                                         \
     if (stamp.IsNull()) {                                      \
         *_retval = 0;                                          \
@@ -4865,7 +4874,7 @@ nsHttpChannel::OnStopRequest(nsIRequest *request, nsISupports *ctxt, nsresult st
         this, request, status));
 
     if (mTimingEnabled && request == mCachePump) {
-        mCacheReadEnd = TimeStamp::Now();
+        mCacheReadEnd = mozilla::TimeStamp::Now();
     }
 
      // allow content to be cached if it was loaded successfully (bug #482935)

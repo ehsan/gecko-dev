@@ -497,9 +497,7 @@ appUpdater.prototype =
   },
 
   removeDownloadListener: function() {
-    if (this.aus) {
-      this.aus.removeDownloadListener(this);
-    }
+    this.aus.removeDownloadListener(this);
   },
 
   /**

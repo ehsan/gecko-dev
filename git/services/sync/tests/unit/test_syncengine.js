@@ -1,19 +1,14 @@
-/* Any copyright is dedicated to the Public Domain.
-   http://creativecommons.org/publicdomain/zero/1.0/ */
-
 Cu.import("resource://services-sync/engines.js");
-Cu.import("resource://services-sync/service.js");
 Cu.import("resource://services-sync/util.js");
-Cu.import("resource://testing-common/services/sync/utils.js");
 
 function makeSteamEngine() {
-  return new SyncEngine('Steam', Service);
+  return new SyncEngine('Steam');
 }
 
 function test_url_attributes() {
   _("SyncEngine url attributes");
   let syncTesting = new SyncTestingInfrastructure();
-  Service.clusterURL = "https://cluster/";
+  Svc.Prefs.set("clusterURL", "https://cluster/");
   let engine = makeSteamEngine();
   try {
     do_check_eq(engine.storageURL, "https://cluster/1.1/foo/storage/");
@@ -162,8 +157,8 @@ function test_resetClient() {
 function test_wipeServer() {
   _("SyncEngine.wipeServer deletes server data and resets the client.");
   let syncTesting = new SyncTestingInfrastructure();
-  Service.serverURL = TEST_SERVER_URL;
-  Service.clusterURL = TEST_CLUSTER_URL;
+  Svc.Prefs.set("serverURL", TEST_SERVER_URL);
+  Svc.Prefs.set("clusterURL", TEST_CLUSTER_URL);
   let engine = makeSteamEngine();
 
   const PAYLOAD = 42;

@@ -301,14 +301,14 @@ nsPartChannel::SetContentCharset(const nsACString &aContentCharset)
 }
 
 NS_IMETHODIMP
-nsPartChannel::GetContentLength(int64_t *aContentLength)
+nsPartChannel::GetContentLength(int32_t *aContentLength)
 {
-    *aContentLength = mContentLength;
+    *aContentLength = mContentLength; // XXX truncates 64-bit value
     return NS_OK;
 }
 
 NS_IMETHODIMP
-nsPartChannel::SetContentLength(int64_t aContentLength)
+nsPartChannel::SetContentLength(int32_t aContentLength)
 {
     mContentLength = aContentLength;
     return NS_OK;
@@ -826,7 +826,7 @@ nsMultiMixedConv::SendStart(nsIChannel *aChannel) {
     rv = mPartChannel->SetContentType(mContentType);
     if (NS_FAILED(rv)) return rv;
 
-    rv = mPartChannel->SetContentLength(mContentLength);
+    rv = mPartChannel->SetContentLength(mContentLength); // XXX Truncates 64-bit!
     if (NS_FAILED(rv)) return rv;
 
     mPartChannel->SetContentDisposition(mContentDisposition);

@@ -246,9 +246,6 @@ frontend::CompileScript(JSContext *cx, HandleObject scopeChain, StackFrame *call
 
     bce.tellDebuggerAboutCompiledScript(cx);
 
-    if (!sct.complete())
-        return NULL;
-
     return script;
 }
 
@@ -353,9 +350,6 @@ frontend::CompileFunctionBody(JSContext *cx, HandleFunction fun, CompileOptions 
         return false;
 
     if (!EmitFunctionScript(cx, &funbce, pn))
-        return false;
-
-    if (!sct.complete())
         return false;
 
     return true;

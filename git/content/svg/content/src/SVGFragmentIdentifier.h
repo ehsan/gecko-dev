@@ -46,7 +46,6 @@ private:
   static void RestoreOldViewBox(nsSVGSVGElement *root);
   static void SaveOldZoomAndPan(nsSVGSVGElement *root);
   static void RestoreOldZoomAndPan(nsSVGSVGElement *root);
-  static void ClearTransform(nsSVGSVGElement *root);
 };
 
 } // namespace mozilla

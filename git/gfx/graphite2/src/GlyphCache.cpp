@@ -24,6 +24,8 @@ Mozilla Public License (http://mozilla.org/MPL) or the GNU General Public
 License, as published by the Free Software Foundation, either version 2
 of the License or (at your option) any later version.
 */
+#include <algorithm>
+
 #include "graphite2/Font.h"
 
 #include "inc/Main.h"
@@ -173,11 +175,6 @@ const GlyphFace *GlyphCache::glyph(unsigned short glyphid) const      //result m
     {
         GlyphFace * g = new GlyphFace();
         if (g)  p = _glyph_loader->read_glyph(glyphid, *g);
-        if (!p)
-        {
-            delete g;
-            return *_glyphs;
-        }
     }
     return p;
 }
@@ -186,7 +183,7 @@ uint16 GlyphCache::glyphAttr(uint16 gid, uint16 gattr) const
 {
 	const GlyphFace * p = glyphSafe(gid);
 
-	return p && gattr < p->attrs().size() ? p->attrs()[gattr] : 0;
+	return p && gattr < _num_attrs ? p->attrs()[gattr] : 0;
 }
 
 
@@ -239,7 +236,7 @@ GlyphCache::Loader::Loader(const Face & face, const bool dumb_font)
                                        / (_long_fmt ? sizeof(uint32) : sizeof(uint16)) - 1;
 
         if (version != 0x00010000
-            || _num_attrs == 0 || _num_attrs > 0x3000  // is this hard limit appropriate?
+            || _num_attrs == 0 || _num_attrs > 0x1000  // is this hard limit appropriate?
             || _num_glyphs_graphics > _num_glyphs_attributes)
         {
             _head = Face::Table();
@@ -263,7 +260,7 @@ unsigned short int GlyphCache::Loader::units_per_em() const throw()
 inline
 unsigned short int GlyphCache::Loader::num_glyphs() const throw()
 {
-    return max(_num_glyphs_graphics, _num_glyphs_attributes);
+    return std::max(_num_glyphs_graphics, _num_glyphs_attributes);
 }
 
 inline
@@ -336,8 +333,11 @@ const GlyphFace * GlyphCache::Loader::read_glyph(unsigned short glyphid, GlyphFa
             new (&glyph) GlyphFace(bbox, advance, glat2_iterator(m_pGlat + glocs), glat2_iterator(m_pGlat + gloce));
         }
 
-        if (glyph.attrs().capacity() > _num_attrs)
+        if (glyph.attrs().size() > _num_attrs)
+        {
+            glyph.~GlyphFace();
             return 0;
+        }
     }
 
     return &glyph;

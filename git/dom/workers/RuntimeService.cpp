@@ -532,7 +532,16 @@ ResolveWorkerClasses(JSContext* aCx, JSHandleObject aObj, JSHandleId aId, unsign
 
   for (uint32_t i = 0; i < ID_COUNT; i++) {
     if (gStringIDs[i] == aId) {
-      isChrome = nsContentUtils::IsCallerChrome();
+      nsIScriptSecurityManager* ssm = nsContentUtils::GetSecurityManager();
+      NS_ASSERTION(ssm, "This should never be null!");
+
+      bool enabled;
+      if (NS_FAILED(ssm->IsCapabilityEnabled("UniversalXPConnect", &enabled))) {
+        NS_WARNING("IsCapabilityEnabled failed!");
+        isChrome = false;
+      }
+
+      isChrome = !!enabled;
 
       // Don't resolve if this is ChromeWorker and we're not chrome. Otherwise
       // always resolve.

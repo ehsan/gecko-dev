@@ -37,6 +37,3 @@ PrefHashEntry* pref_HashTableLookup(const void *key);
 
 void pref_GetPrefFromEntry(PrefHashEntry *aHashEntry,
                            mozilla::dom::PrefSetting* aPref);
-
-size_t
-pref_SizeOfPrivateData(nsMallocSizeOfFun aMallocSizeOf);

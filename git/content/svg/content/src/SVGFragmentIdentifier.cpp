@@ -7,7 +7,6 @@
 #include "nsIDOMSVGDocument.h"
 #include "nsSVGSVGElement.h"
 #include "nsSVGViewElement.h"
-#include "SVGAnimatedTransformList.h"
 
 using namespace mozilla;
 
@@ -92,13 +91,6 @@ SVGFragmentIdentifier::RestoreOldZoomAndPan(nsSVGSVGElement *root)
   }
 }
 
-void 
-SVGFragmentIdentifier::ClearTransform(nsSVGSVGElement *root)
-{
-  root->mFragmentIdentifierTransform = nullptr;
-  root->InvalidateTransformNotifyFrame();
-}
-
 bool
 SVGFragmentIdentifier::ProcessSVGViewSpec(const nsAString &aViewSpec,
                                           nsSVGSVGElement *root)
@@ -114,7 +106,6 @@ SVGFragmentIdentifier::ProcessSVGViewSpec(const nsAString &aViewSpec,
   
   bool viewBoxFound = false;
   bool preserveAspectRatioFound = false;
-  bool transformFound = false;
   bool zoomAndPanFound = false;
 
   // Each token is a SVGViewAttribute
@@ -153,19 +144,6 @@ SVGFragmentIdentifier::ProcessSVGViewSpec(const nsAString &aViewSpec,
         return false;
       }
       preserveAspectRatioFound = true;
-    } else if (IsMatchingParameter(token, NS_LITERAL_STRING("transform"))) {
-      SVGAnimatedTransformList transforms;
-      if (transformFound ||
-          NS_FAILED(transforms.SetBaseValueString(params))) {
-        return false;
-      }
-      if (!root->mFragmentIdentifierTransform) {
-        root->mFragmentIdentifierTransform = new gfxMatrix();
-      }
-      *root->mFragmentIdentifierTransform =
-        transforms.GetBaseValue().GetConsolidationMatrix();
-      root->InvalidateTransformNotifyFrame();
-      transformFound = true;
     } else if (IsMatchingParameter(token, NS_LITERAL_STRING("zoomAndPan"))) {
       if (zoomAndPanFound) {
         return false;
@@ -192,7 +170,7 @@ SVGFragmentIdentifier::ProcessSVGViewSpec(const nsAString &aViewSpec,
       }
       zoomAndPanFound = true;
     } else {
-      // We don't support viewTarget currently
+      // We don't support transform or viewTarget currently
       return false;
     }
   } while (tokenizer.hasMoreTokens());
@@ -200,9 +178,6 @@ SVGFragmentIdentifier::ProcessSVGViewSpec(const nsAString &aViewSpec,
   if (root->mUseCurrentView) {
     // A previous SVGViewSpec may have overridden some attributes.
     // If they are no longer overridden we need to restore the old values.
-    if (!transformFound) {
-      ClearTransform(root);
-    }
     if (!viewBoxFound) {
       RestoreOldViewBox(root);
     }
@@ -258,7 +233,6 @@ SVGFragmentIdentifier::ProcessFragmentIdentifier(nsIDocument *aDocument,
   rootElement->ClearPreserveAspectRatioProperty();
   RestoreOldZoomAndPan(rootElement);
   rootElement->ClearZoomAndPanProperty();
-  ClearTransform(rootElement);
   if (wasOverridden) {
     rootElement->InvalidateTransformNotifyFrame();
   }

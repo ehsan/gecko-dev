@@ -791,18 +791,23 @@ void nsTSubstring_CharT::AppendPrintf( const char* format, va_list ap )
  * XXX(darin): if this is the right thing, then why wasn't it fixed in NSPR?!?
  */
 static void 
-Modified_cnvtf(char (& buf)[40], int prcsn, double fval)
+Modified_cnvtf(char *buf, int bufsz, int prcsn, double fval)
 {
   int decpt, sign, numdigits;
-  char num[40];
-  char *nump;
+  char *num, *nump;
   char *bufp = buf;
   char *endnum;
 
-  if (PR_dtoa(fval, 2, prcsn, &decpt, &sign, &endnum, num, sizeof(num))
-      == PR_FAILURE) {
+  /* If anything fails, we store an empty string in 'buf' */
+  num = (char*)malloc(bufsz);
+  if (num == NULL) {
     buf[0] = '\0';
     return;
+  }
+  if (PR_dtoa(fval, 2, prcsn, &decpt, &sign, &endnum, num, bufsz)
+      == PR_FAILURE) {
+    buf[0] = '\0';
+    goto done;
   }
   numdigits = endnum - num;
   nump = num;
@@ -819,7 +824,7 @@ Modified_cnvtf(char (& buf)[40], int prcsn, double fval)
 
   if (decpt == 9999) {
     while ((*bufp++ = *nump++) != 0) {} /* nothing to execute */
-    return;
+    goto done;
   }
 
   if (decpt > (prcsn+1) || decpt < -(prcsn-1) || decpt < -5) {
@@ -832,7 +837,7 @@ Modified_cnvtf(char (& buf)[40], int prcsn, double fval)
       *bufp++ = *nump++;
     }
     *bufp++ = 'e';
-    PR_snprintf(bufp, sizeof(num) - (bufp - buf), "%+d", decpt-1);
+    PR_snprintf(bufp, bufsz - (bufp - buf), "%+d", decpt-1);
   }
   else if (decpt >= 0) {
     if (decpt == 0) {
@@ -868,6 +873,8 @@ Modified_cnvtf(char (& buf)[40], int prcsn, double fval)
     }
     *bufp++ = '\0';
   }
+done:
+  free(num);
 }
 #endif /* CharT_is_PRUnichar */
 
@@ -877,7 +884,7 @@ nsTSubstring_CharT::DoAppendFloat( double aFloat, int digits )
   char buf[40];
   // Use Modified_cnvtf, which is locale-insensitive, instead of the
   // locale-sensitive PR_snprintf or sprintf(3)
-  Modified_cnvtf(buf, digits, aFloat);
+  Modified_cnvtf(buf, sizeof(buf), digits, aFloat);
   AppendASCII(buf);
 }
 

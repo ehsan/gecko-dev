@@ -12,8 +12,9 @@ const CU = Components.utils;
 
 CU.import("resource://gre/modules/XPCOMUtils.jsm");
 CU.import("resource://gre/modules/Services.jsm");
-CU.import("resource://services-sync/util.js");
 CU.import("resource://tps/logger.jsm");
+CU.import("resource://services-sync/service.js");
+CU.import("resource://services-sync/util.js");
 var utils = {}; CU.import('resource://mozmill/modules/utils.js', utils);
 
 const SYNC_RESET_CLIENT = "reset-client";
@@ -69,9 +70,9 @@ var TPS = {
       }
     }
     catch(e) {}
-    Weave.Service.identity.account       = prefs.getCharPref('tps.account.username');
-    Weave.Service.Identity.basicPassword = prefs.getCharPref('tps.account.password');
-    Weave.Service.identity.syncKey       = prefs.getCharPref('tps.account.passphrase');
+    Weave.Identity.account       = prefs.getCharPref('tps.account.username');
+    Weave.Identity.basicPassword = prefs.getCharPref('tps.account.password');
+    Weave.Identity.syncKey       = prefs.getCharPref('tps.account.passphrase');
     Weave.Svc.Obs.notify("weave:service:setup-complete");
   },
 

@@ -351,7 +351,6 @@ private:
   nsSVGViewBox                   mViewBox;
   SVGAnimatedPreserveAspectRatio mPreserveAspectRatio;
 
-  nsAutoPtr<gfxMatrix>           mFragmentIdentifierTransform;
   nsAutoPtr<nsString>            mCurrentViewID;
 
   // The size of the rectangular SVG viewport into which we render. This is

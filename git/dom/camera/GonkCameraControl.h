@@ -19,23 +19,17 @@
 
 #include "base/basictypes.h"
 #include "prrwlock.h"
-#include <media/MediaProfiles.h>
 #include "nsIDOMCameraManager.h"
 #include "DOMCameraControl.h"
 #include "CameraControlImpl.h"
 #include "CameraCommon.h"
 #include "GonkRecorder.h"
 
-using namespace android;
-
 namespace mozilla {
 
 namespace layers {
 class GraphicBufferLocked;
 }
-
-class GonkRecorderProfile;
-class GonkRecorderProfileManager;
 
 class nsGonkCameraControl : public CameraControlImpl
 {
@@ -51,11 +45,10 @@ public:
   void SetParameter(uint32_t aKey, const char* aValue);
   void SetParameter(uint32_t aKey, double aValue);
   void SetParameter(uint32_t aKey, const nsTArray<dom::CameraRegion>& aRegions);
-  nsresult GetVideoSizes(nsTArray<CameraSize>& aVideoSizes);
   nsresult PushParameters();
 
-  nsresult SetupRecording(int aFd, int aMaxFileSizeBytes = -1, int aMaxVideoLengthMs = -1);
-  nsresult SetupVideoMode(const nsAString& aProfile);
+  nsresult SetupRecording(int aFd);
+  nsresult SetupVideoMode();
 
   void AutoFocusComplete(bool aSuccess);
   void TakePictureComplete(uint8_t* aData, uint32_t aLength);
@@ -74,8 +67,6 @@ protected:
   nsresult PushParametersImpl();
   nsresult PullParametersImpl();
   nsresult GetPreviewStreamVideoModeImpl(GetPreviewStreamVideoModeTask* aGetPreviewStreamVideoMode);
-  already_AddRefed<RecorderProfileManager> GetRecorderProfileManagerImpl();
-  already_AddRefed<GonkRecorderProfileManager> GetGonkRecorderProfileManager();
 
   void SetPreviewSize(uint32_t aWidth, uint32_t aHeight);
 
@@ -102,11 +93,22 @@ protected:
   android::GonkRecorder*    mRecorder;
 
   uint32_t                  mVideoRotation;
+  uint32_t                  mVideoWidth;
+  uint32_t                  mVideoHeight;
   nsString                  mVideoFile;
 
   // camcorder profile settings for the desired quality level
-  nsRefPtr<GonkRecorderProfileManager> mProfileManager;
-  nsRefPtr<GonkRecorderProfile> mRecorderProfile;
+  int mDuration;        // max recording duration (ignored)
+  int mVideoFileFormat; // output file format
+  int mVideoCodec;      // video encoder
+  int mVideoBitRate;    // video bit rate
+  int mVideoFrameRate;  // video frame rate
+  int mVideoFrameWidth; // video frame width
+  int mVideoFrameHeight;// video frame height
+  int mAudioCodec;      // audio encoder
+  int mAudioBitRate;    // audio bit rate
+  int mAudioSampleRate; // audio sample rate
+  int mAudioChannels;   // number of audio channels
 
 private:
   nsGonkCameraControl(const nsGonkCameraControl&) MOZ_DELETE;

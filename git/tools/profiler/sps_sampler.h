@@ -424,9 +424,6 @@ inline void mozilla_sampler_call_exit(void *aHandle)
 
 inline void mozilla_sampler_add_marker(const char *aMarker)
 {
-  if (!stack_key_initialized)
-    return;
-
   ProfileStack *stack = tlsStack.get();
   if (!stack) {
     return;

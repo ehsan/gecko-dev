@@ -115,6 +115,16 @@ public class CheckerboardImage extends CairoImage {
     }
 
     @Override
+    protected void finalize() throws Throwable {
+        try {
+            DirectBufferAllocator.free(mBuffer);
+            mBuffer = null;
+        } finally {
+            super.finalize();
+        }
+    }
+
+    @Override
     public void destroy() {
         try {
             DirectBufferAllocator.free(mBuffer);

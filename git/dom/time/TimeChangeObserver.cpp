@@ -9,11 +9,9 @@
 #include "nsPIDOMWindow.h"
 #include "nsDOMEvent.h"
 #include "nsContentUtils.h"
-#include "nsIObserverService.h"
 
-using namespace mozilla;
 using namespace mozilla::hal;
-using namespace mozilla::services;
+using namespace mozilla;
 
 StaticAutoPtr<nsSystemTimeChangeObserver> sObserver;
 
@@ -29,12 +27,11 @@ nsSystemTimeChangeObserver* nsSystemTimeChangeObserver::GetInstance()
 nsSystemTimeChangeObserver::~nsSystemTimeChangeObserver()
 {
   mWindowListeners.Clear();
-  UnregisterSystemClockChangeObserver(this);
-  UnregisterSystemTimezoneChangeObserver(this);
+  UnregisterSystemTimeChangeObserver(this);
 }
 
 void
-nsSystemTimeChangeObserver::FireMozTimeChangeEvent()
+nsSystemTimeChangeObserver::Notify(const SystemTimeChange& aReason)
 {
   //Copy mWindowListeners and iterate over windowListeners instead because
   //mWindowListeners may be modified while we loop.
@@ -61,28 +58,6 @@ nsSystemTimeChangeObserver::FireMozTimeChangeEvent()
   }
 }
 
-void
-nsSystemTimeChangeObserver::Notify(const int64_t& aClockDeltaMS)
-{
-  // Notify observers that the system clock has been adjusted.
-  nsCOMPtr<nsIObserverService> observerService = GetObserverService();
-  if (observerService) {
-    nsString dataStr;
-    dataStr.AppendFloat(static_cast<double>(aClockDeltaMS));
-    observerService->NotifyObservers(
-      nullptr, "system-clock-change", dataStr.get());
-  }
-
-  FireMozTimeChangeEvent();
-}
-
-void
-nsSystemTimeChangeObserver::Notify(
-  const SystemTimezoneChangeInformation& aSystemTimezoneChangeInfo)
-{
-  FireMozTimeChangeEvent();
-}
-
 nsresult
 nsSystemTimeChangeObserver::AddWindowListener(nsIDOMWindow* aWindow)
 {
@@ -105,8 +80,7 @@ nsSystemTimeChangeObserver::AddWindowListenerImpl(nsIDOMWindow* aWindow)
   }
 
   if (mWindowListeners.Length() == 0) {
-    RegisterSystemClockChangeObserver(sObserver);
-    RegisterSystemTimezoneChangeObserver(sObserver);
+    RegisterSystemTimeChangeObserver(sObserver);
   }
 
   mWindowListeners.AppendElement(windowWeakRef);
@@ -129,8 +103,7 @@ nsSystemTimeChangeObserver::RemoveWindowListenerImpl(nsIDOMWindow* aWindow)
   mWindowListeners.RemoveElement(NS_GetWeakReference(aWindow));
 
   if (mWindowListeners.Length() == 0) {
-    UnregisterSystemClockChangeObserver(sObserver);
-    UnregisterSystemTimezoneChangeObserver(sObserver);
+    UnregisterSystemTimeChangeObserver(sObserver);
   }
 
   return NS_OK;

@@ -134,8 +134,8 @@ TiledThebesLayerOGL::PaintedTiledLayerBuffer(const BasicTiledLayerBuffer* mTiled
   mMainMemoryTiledBuffer = *mTiledBuffer;
   // TODO: Remove me once Bug 747811 lands.
   delete mTiledBuffer;
-  mRegionToUpload.Or(mRegionToUpload, mMainMemoryTiledBuffer.GetPaintedRegion());
-  mMainMemoryTiledBuffer.ClearPaintedRegion();
+  mRegionToUpload.Or(mRegionToUpload, mMainMemoryTiledBuffer.GetLastPaintRegion());
+
 }
 
 void
@@ -284,6 +284,7 @@ TiledThebesLayerOGL::RenderLayer(int aPreviousFrameBuffer, const nsIntPoint& aOf
     tileX++;
     x += w;
   }
+
 }
 
 } // mozilla

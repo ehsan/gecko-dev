@@ -363,7 +363,7 @@ public class SyncConfiguration implements CredentialsSource {
    *
    * @param prefs
    *          SharedPreferences that the engines are associated with.
-   * @param selectedEngines
+   * @param userSelectedEngines
    *          Map<String, Boolean> of engine name to sync state
    */
   public static void storeSelectedEnginesToPrefs(SharedPreferences prefs, Map<String, Boolean> selectedEngines) {

@@ -62,6 +62,8 @@ struct DatabaseInfo : public DatabaseInfoGuts
 
   static void Remove(nsIAtom* aId);
 
+  static void RemoveAllForOrigin(const nsACString& aOrigin);
+
   bool GetObjectStoreNames(nsTArray<nsString>& aNames);
   bool ContainsStoreName(const nsAString& aName);
 

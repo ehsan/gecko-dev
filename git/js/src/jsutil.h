@@ -369,23 +369,23 @@ class Compressor
     z_stream zs;
     const unsigned char *inp;
     size_t inplen;
-    size_t outbytes;
-
   public:
-    enum Status {
-        MOREOUTPUT,
-        DONE,
-        CONTINUE,
-        OOM
-    };
-
-    Compressor(const unsigned char *inp, size_t inplen);
-    ~Compressor();
+    Compressor(const unsigned char *inp, size_t inplen, unsigned char *out)
+        : inp(inp),
+        inplen(inplen)
+    {
+        JS_ASSERT(inplen > 0);
+        zs.opaque = NULL;
+        zs.next_in = (Bytef *)inp;
+        zs.avail_in = 0;
+        zs.next_out = out;
+        zs.avail_out = inplen;
+    }
     bool init();
-    void setOutput(unsigned char *out, size_t outlen);
-    size_t outWritten() const { return outbytes; }
     /* Compress some of the input. Return true if it should be called again. */
-    Status compressMore();
+    bool compressMore();
+    /* Finalize compression. Return the length of the compressed input. */
+    size_t finish();
 };
 
 /*

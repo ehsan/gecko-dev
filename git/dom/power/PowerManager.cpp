@@ -71,13 +71,6 @@ PowerManager::Reboot()
 }
 
 NS_IMETHODIMP
-PowerManager::FactoryReset()
-{
-  hal::FactoryReset();
-  return NS_OK;
-}
-
-NS_IMETHODIMP
 PowerManager::PowerOff()
 {
   nsCOMPtr<nsIPowerManagerService> pmService =

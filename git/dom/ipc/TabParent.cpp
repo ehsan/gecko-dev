@@ -884,23 +884,6 @@ TabParent::RecvPIndexedDBConstructor(PIndexedDBParent* aActor,
     NS_RUNTIMEABORT("Not supported yet!");
   }
 
-  nsresult rv;
-
-  // XXXbent Need to make sure we have a whitelist for chrome databases!
-
-  // Verify the appID in the origin first.
-  if (mApp && !aASCIIOrigin.EqualsLiteral("chrome")) {
-    uint32_t appId;
-    rv = mApp->GetLocalId(&appId);
-    NS_ENSURE_SUCCESS(rv, false);
-
-    if (!IndexedDatabaseManager::OriginMatchesApp(aASCIIOrigin, appId)) {
-      NS_WARNING("App attempted to open databases that it does not have "
-                 "permission to access!");
-      return false;
-    }
-  }
-
   nsCOMPtr<nsINode> node = do_QueryInterface(GetOwnerElement());
   NS_ENSURE_TRUE(node, false);
 
@@ -914,8 +897,9 @@ TabParent::RecvPIndexedDBConstructor(PIndexedDBParent* aActor,
   NS_ASSERTION(contentParent, "Null manager?!");
 
   nsRefPtr<IDBFactory> factory;
-  rv = IDBFactory::Create(window, aASCIIOrigin, contentParent,
-                          getter_AddRefs(factory));
+  nsresult rv =
+    IDBFactory::Create(window, aASCIIOrigin, contentParent,
+                       getter_AddRefs(factory));
   NS_ENSURE_SUCCESS(rv, false);
 
   if (!factory) {

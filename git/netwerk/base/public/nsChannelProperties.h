@@ -19,6 +19,15 @@
 
 
 /**
+ * Content-Length of a channel. Used instead of the nsIChannel.contentLength
+ * property.
+ * Not available before onStartRequest has been called.
+ * Type: uint64_t
+ */
+#define NS_CHANNEL_PROP_CONTENT_LENGTH_STR "content-length"
+
+
+/**
  * Exists to allow content policy mechanism to function properly during channel
  * redirects.  Contains security contextual information about the load.
  * Type: nsIChannelPolicy
@@ -26,8 +35,11 @@
 #define NS_CHANNEL_PROP_CHANNEL_POLICY_STR "channel-policy"
 
 #ifdef IMPL_NS_NET
+#define NS_CHANNEL_PROP_CONTENT_LENGTH gNetStrings->kContentLength
 #define NS_CHANNEL_PROP_CHANNEL_POLICY gNetStrings->kChannelPolicy
 #else
+#define NS_CHANNEL_PROP_CONTENT_LENGTH \
+  NS_LITERAL_STRING(NS_CHANNEL_PROP_CONTENT_LENGTH_STR)
 #define NS_CHANNEL_PROP_CHANNEL_POLICY \
   NS_LITERAL_STRING(NS_CHANNEL_PROP_CHANNEL_POLICY_STR)
 #endif

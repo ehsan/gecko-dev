@@ -78,7 +78,7 @@ protected:
     bool                                mNeedToWriteCharset;
     int32_t                             mCharsetSource;
     nsCString                           mCharset;
-    int64_t                             mContentLength;
+    int32_t                             mContentLength;
     uint32_t                            mLoadFlags;
     nsCOMPtr<nsIURI>                    mURI;
     nsCOMPtr<nsIURI>                    mOriginalURI;

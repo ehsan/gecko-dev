@@ -1537,7 +1537,11 @@ nsContentUtils::Shutdown()
 bool
 nsContentUtils::CallerHasUniversalXPConnect()
 {
-  return IsCallerChrome();
+  bool hasCap;
+  if (NS_FAILED(sSecurityManager->IsCapabilityEnabled("UniversalXPConnect",
+                                                      &hasCap)))
+    return false;
+  return hasCap;
 }
 
 /**
@@ -1778,12 +1782,8 @@ nsContentUtils::IsCallerChrome()
   if (NS_FAILED(rv)) {
     return false;
   }
-  if (is_caller_chrome) {
-    return true;
-  }
 
-  // If the check failed, look for UniversalXPConnect on the cx compartment.
-  return xpc::IsUniversalXPConnectEnabled(GetCurrentJSContext());
+  return is_caller_chrome;
 }
 
 bool

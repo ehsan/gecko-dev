@@ -220,16 +220,12 @@ Sanitizer.prototype = {
                                       .getService(Components.interfaces.nsIWindowMediator);
         var windows = windowManager.getEnumerator("navigator:browser");
         while (windows.hasMoreElements()) {
-          let currentDocument = windows.getNext().document;
-          let searchBar = currentDocument.getElementById("searchbar");
+          var searchBar = windows.getNext().document.getElementById("searchbar");
           if (searchBar)
             searchBar.textbox.reset();
-          let findBar = currentDocument.getElementById("FindToolbar");
-          if (findBar)
-            findBar.clear();
         }
 
-        let formHistory = Components.classes["@mozilla.org/satchel/form-history;1"]
+        var formHistory = Components.classes["@mozilla.org/satchel/form-history;1"]
                                     .getService(Components.interfaces.nsIFormHistory2);
         if (this.range)
           formHistory.removeEntriesByTimeframe(this.range[0], this.range[1]);
@@ -243,21 +239,17 @@ Sanitizer.prototype = {
                                       .getService(Components.interfaces.nsIWindowMediator);
         var windows = windowManager.getEnumerator("navigator:browser");
         while (windows.hasMoreElements()) {
-          let currentDocument = windows.getNext().document;
-          let searchBar = currentDocument.getElementById("searchbar");
+          var searchBar = windows.getNext().document.getElementById("searchbar");
           if (searchBar) {
-            let transactionMgr = searchBar.textbox.editor.transactionManager;
+            var transactionMgr = searchBar.textbox.editor.transactionManager;
             if (searchBar.value ||
                 transactionMgr.numberOfUndoItems ||
                 transactionMgr.numberOfRedoItems)
               return true;
           }
-          let findBar = currentDocument.getElementById("FindToolbar");
-          if (findBar && findBar.canClear)
-            return true;
         }
 
-        let formHistory = Components.classes["@mozilla.org/satchel/form-history;1"]
+        var formHistory = Components.classes["@mozilla.org/satchel/form-history;1"]
                                     .getService(Components.interfaces.nsIFormHistory2);
         return formHistory.hasEntries;
       }

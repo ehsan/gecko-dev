@@ -80,24 +80,18 @@ void MediaConstraints::buildArray(cc_media_constraints_t** constraintarray) {
   short i = 0;
   std::string tmpStr;
   *constraintarray = (cc_media_constraints_t*) cpr_malloc(sizeof(cc_media_constraints_t));
-  int tmpStrAllocLength;
 
   (*constraintarray)->constraints = (cc_media_constraint_t**) cpr_malloc(mConstraints.size() * sizeof(cc_media_constraint_t));
 
   for (constraints_map::iterator it = mConstraints.begin();
           it != mConstraints.end(); ++it) {
     (*constraintarray)->constraints[i] = (cc_media_constraint_t*) cpr_malloc(sizeof(cc_media_constraint_t));
-
     tmpStr = it->first;
-    tmpStrAllocLength = tmpStr.size() + 1;
-    (*constraintarray)->constraints[i]->name = (char*) cpr_malloc(tmpStrAllocLength);
-    sstrncpy((*constraintarray)->constraints[i]->name, tmpStr.c_str(), tmpStrAllocLength);
-
+    (*constraintarray)->constraints[i]->name = (char*) cpr_malloc(tmpStr.size());
+    sstrncpy((*constraintarray)->constraints[i]->name, tmpStr.c_str(), tmpStr.size()+1);
     tmpStr = it->second.value;
-    tmpStrAllocLength = tmpStr.size() + 1;
-    (*constraintarray)->constraints[i]->value = (char*) cpr_malloc(tmpStrAllocLength);
-    sstrncpy((*constraintarray)->constraints[i]->value, tmpStr.c_str(), tmpStrAllocLength);
-
+    (*constraintarray)->constraints[i]->value = (char*) cpr_malloc(tmpStr.size());
+    sstrncpy((*constraintarray)->constraints[i]->value, tmpStr.c_str(), tmpStr.size()+1);
     (*constraintarray)->constraints[i]->mandatory = it->second.mandatory;
     i++;
   }
@@ -758,28 +752,26 @@ PeerConnectionImpl::CreateOffer(MediaConstraints& constraints) {
 /*
  * the Constraints UI IDL work is being done. The CreateAnswer below is the one
  * currently called by the signaling unit tests.
- *
- * The aOffer parameter needs to be removed here and in the PeerConnection IDL
  */
-
 NS_IMETHODIMP
 PeerConnectionImpl::CreateAnswer(const char* constraints, const char* aOffer) {
   MOZ_ASSERT(constraints);
+  MOZ_ASSERT(aOffer);
 
   CheckIceState();
   mRole = kRoleAnswerer;  // TODO(ekr@rtfm.com): Interrogate SIPCC here?
   MediaConstraints aconstraints;
-  CreateAnswer(aconstraints);
+  CreateAnswer(aconstraints, aOffer);
   return NS_OK;
 }
 
 NS_IMETHODIMP
-PeerConnectionImpl::CreateAnswer(MediaConstraints& constraints) {
+PeerConnectionImpl::CreateAnswer(MediaConstraints& constraints, const char* offer) {
 
   cc_media_constraints_t* cc_constraints = nullptr;
   constraints.buildArray(&cc_constraints);
 
-  mCall->createAnswer(cc_constraints);
+  mCall->createAnswer(cc_constraints, offer);
   return NS_OK;
 }
 

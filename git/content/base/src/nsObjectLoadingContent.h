@@ -170,13 +170,13 @@ class nsObjectLoadingContent : public nsImageLoadingContent
                         bool aForceLoad = false);
 
     enum Capabilities {
-      eSupportImages       = 1u << 0, // Images are supported (imgILoader)
-      eSupportPlugins      = 1u << 1, // Plugins are supported (nsIPluginHost)
-      eSupportDocuments    = 1u << 2, // Documents are supported
+      eSupportImages       = PR_BIT(0), // Images are supported (imgILoader)
+      eSupportPlugins      = PR_BIT(1), // Plugins are supported (nsIPluginHost)
+      eSupportDocuments    = PR_BIT(2), // Documents are supported
                                         // (nsIDocumentLoaderFactory)
                                         // This flag always includes SVG
-      eSupportSVG          = 1u << 3, // SVG is supported (image/svg+xml)
-      eSupportClassID      = 1u << 4, // The classid attribute is supported
+      eSupportSVG          = PR_BIT(3), // SVG is supported (image/svg+xml)
+      eSupportClassID      = PR_BIT(4), // The classid attribute is supported
 
       // Allows us to load a plugin if it matches a MIME type or file extension
       // registered to a plugin without opening its specified URI first. Can
@@ -184,7 +184,7 @@ class nsObjectLoadingContent : public nsImageLoadingContent
       // types. Plugins without URIs may instantiate regardless.
       // XXX(johns) this is our legacy behavior on <embed> tags, whereas object
       // will always open a channel and check its MIME if a URI is present.
-      eAllowPluginSkipChannel  = 1u << 5
+      eAllowPluginSkipChannel  = PR_BIT(5)
     };
 
     /**
@@ -221,17 +221,17 @@ class nsObjectLoadingContent : public nsImageLoadingContent
       eParamNoChange           = 0,
       // Parameters that potentially affect the channel changed
       // - mOriginalURI, mOriginalContentType
-      eParamChannelChanged     = 1u << 0,
+      eParamChannelChanged     = PR_BIT(0),
       // Parameters that affect displayed content changed
       // - mURI, mContentType, mType, mBaseURI
-      eParamStateChanged       = 1u << 1,
+      eParamStateChanged       = PR_BIT(1),
       // The effective content type changed, independant of object type. This
       // can happen when changing from Loading -> Final type, but doesn't
       // necessarily happen when changing between object types. E.g., if a PDF
       // handler was installed between the last load of this object and now, we
       // might change from eType_Document -> eType_Plugin without changing
       // ContentType
-      eParamContentTypeChanged = 1u << 2
+      eParamContentTypeChanged = PR_BIT(2)
     };
 
     /**

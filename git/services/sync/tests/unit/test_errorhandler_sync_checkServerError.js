@@ -1,23 +1,17 @@
-/* Any copyright is dedicated to the Public Domain.
-   http://creativecommons.org/publicdomain/zero/1.0/ */
-
-Cu.import("resource://services-sync/constants.js");
 Cu.import("resource://services-sync/engines.js");
-Cu.import("resource://services-sync/policies.js");
-Cu.import("resource://services-sync/record.js");
-Cu.import("resource://services-sync/service.js");
 Cu.import("resource://services-sync/status.js");
+Cu.import("resource://services-sync/constants.js");
+Cu.import("resource://services-sync/policies.js");
+
 Cu.import("resource://services-sync/util.js");
-Cu.import("resource://testing-common/services/sync/fakeservices.js");
-Cu.import("resource://testing-common/services/sync/utils.js");
+Svc.DefaultPrefs.set("registerEngines", "");
+Cu.import("resource://services-sync/service.js");
+Cu.import("resource://services-sync/record.js");
 
-initTestLogging("Trace");
-
-let engineManager = Service.engineManager;
-engineManager.clear();
+initTestLogging();
 
 function CatapultEngine() {
-  SyncEngine.call(this, "Catapult", Service);
+  SyncEngine.call(this, "Catapult");
 }
 CatapultEngine.prototype = {
   __proto__: SyncEngine.prototype,
@@ -32,7 +26,7 @@ function sync_httpd_setup() {
   let upd = collectionsHelper.with_updated_collection;
   let collections = collectionsHelper.collections;
 
-  let catapultEngine = engineManager.get("catapult");
+  let catapultEngine = Engines.get("catapult");
   let engines        = {catapult: {version: catapultEngine.version,
                                    syncID:  catapultEngine.syncID}};
 
@@ -61,11 +55,10 @@ function setUp() {
 }
 
 function generateAndUploadKeys() {
-  generateNewKeys(Service.collectionKeys);
-  let serverKeys = Service.collectionKeys.asWBO("crypto", "keys");
-  serverKeys.encrypt(Service.identity.syncKeyBundle);
-  let res = Service.resource("http://localhost:8080/1.1/johndoe/storage/crypto/keys");
-  return serverKeys.upload(res).success;
+  generateNewKeys();
+  let serverKeys = CollectionKeys.asWBO("crypto", "keys");
+  serverKeys.encrypt(Weave.Identity.syncKeyBundle);
+  return serverKeys.upload("http://localhost:8080/1.1/johndoe/storage/crypto/keys").success;
 }
 
 
@@ -74,7 +67,7 @@ add_test(function test_backoff500() {
   setUp();
   let server = sync_httpd_setup();
 
-  let engine = engineManager.get("catapult");
+  let engine = Engines.get("catapult");
   engine.enabled = true;
   engine.exception = {status: 500};
 
@@ -102,7 +95,7 @@ add_test(function test_backoff503() {
   let server = sync_httpd_setup();
 
   const BACKOFF = 42;
-  let engine = engineManager.get("catapult");
+  let engine = Engines.get("catapult");
   engine.enabled = true;
   engine.exception = {status: 503,
                       headers: {"retry-after": BACKOFF}};
@@ -137,7 +130,7 @@ add_test(function test_overQuota() {
   setUp();
   let server = sync_httpd_setup();
 
-  let engine = engineManager.get("catapult");
+  let engine = Engines.get("catapult");
   engine.enabled = true;
   engine.exception = {status: 400,
                       toString: function() "14"};
@@ -206,7 +199,7 @@ add_test(function test_engine_networkError() {
   setUp();
   let server = sync_httpd_setup();
 
-  let engine = engineManager.get("catapult");
+  let engine = Engines.get("catapult");
   engine.enabled = true;
   engine.exception = Components.Exception("NS_ERROR_UNKNOWN_HOST",
                                           Cr.NS_ERROR_UNKNOWN_HOST);
@@ -232,7 +225,7 @@ add_test(function test_resource_timeout() {
   setUp();
   let server = sync_httpd_setup();
 
-  let engine = engineManager.get("catapult");
+  let engine = Engines.get("catapult");
   engine.enabled = true;
   // Resource throws this when it encounters a timeout.
   engine.exception = Components.Exception("Aborting due to channel inactivity.",
@@ -256,6 +249,6 @@ add_test(function test_resource_timeout() {
 });
 
 function run_test() {
-  engineManager.register(CatapultEngine);
+  Engines.register(CatapultEngine);
   run_next_test();
 }

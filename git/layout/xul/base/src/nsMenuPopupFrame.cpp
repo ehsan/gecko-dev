@@ -385,8 +385,6 @@ nsMenuPopupFrame::LayoutPopup(nsBoxLayoutState& aState, nsIFrame* aParentMenu, b
   if (!mGeneratedChildren)
     return;
 
-  SchedulePaint();
-
   bool shouldPosition = true;
   bool isOpen = IsOpen();
   if (!isOpen) {
@@ -1867,23 +1865,6 @@ nsMenuPopupFrame::MoveTo(int32_t aLeft, int32_t aTop, bool aUpdateAttrs)
     popup->SetAttr(kNameSpaceID_None, nsGkAtoms::left, left, false);
     popup->SetAttr(kNameSpaceID_None, nsGkAtoms::top, top, false);
   }
-}
-
-void
-nsMenuPopupFrame::MoveToAnchor(nsIContent* aAnchorContent,
-                               const nsAString& aPosition,
-                               int32_t aXPos, int32_t aYPos,
-                               bool aAttributesOverride)
-{
-  NS_ASSERTION(mPopupState == ePopupOpenAndVisible, "popup must be open to move it");
-
-  InitializePopup(aAnchorContent, mTriggerContent, aPosition,
-                  aXPos, aYPos, aAttributesOverride);
-  // InitializePopup changed the state so reset it.
-  mPopupState = ePopupOpenAndVisible;
-
-  // Pass false here so that flipping and adjusting to fit on the screen happen.
-  SetPopupPosition(nullptr, false);
 }
 
 bool

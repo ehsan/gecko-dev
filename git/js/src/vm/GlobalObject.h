@@ -363,9 +363,9 @@ class GlobalObject : public JSObject
     }
 
     bool hasIntrinsicFunction(JSContext *cx, PropertyName *name) {
-        Rooted<GlobalObject *> self(cx, this);
+        RootedObject holder(cx, &getSlotRef(INTRINSICS).toObject());
         Value fun = NullValue();
-        return HasDataProperty(cx, self, NameToId(name), &fun);
+        return HasDataProperty(cx, holder, NameToId(name), &fun);
     }
 
     bool getIntrinsicValue(JSContext *cx, PropertyName *name, MutableHandleValue value) {

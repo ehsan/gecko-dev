@@ -2,12 +2,11 @@
    http://creativecommons.org/publicdomain/zero/1.0/ */
 
 Cu.import("resource://services-sync/engines/tabs.js");
-Cu.import("resource://services-sync/service.js");
 Cu.import("resource://services-sync/util.js");
 Cu.import("resource://testing-common/services-common/utils.js");
 
 function test_lastUsed() {
-  let store = new TabEngine(Service)._store;
+  let store = new TabEngine()._store;
 
   _("Check extraction of last used times from tab objects.");
   let expected = [
@@ -26,7 +25,7 @@ function test_lastUsed() {
 }
 
 function test_create() {
-  let store = new TabEngine(Service)._store;
+  let store = new TabEngine()._store;
 
   _("Create a first record");
   let rec = {id: "id1",
@@ -93,7 +92,7 @@ function fakeSessionSvc(url, numtabs) {
 };
 
 function test_getAllTabs() {
-  let store = new TabEngine(Service)._store, tabs;
+  let store = new TabEngine()._store, tabs;
 
   _("get all tabs");
   fakeSessionSvc("http://foo.com");
@@ -114,7 +113,7 @@ function test_getAllTabs() {
 }
 
 function test_createRecord() {
-  let store = new TabEngine(Service)._store, record;
+  let store = new TabEngine()._store, record;
 
   // get some values before testing
   fakeSessionSvc("http://foo.com");

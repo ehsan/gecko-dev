@@ -295,8 +295,7 @@ interface nsIMemoryReporterManager : nsISupports
 
   /*
    * Run a series of GC/CC's in an attempt to minimize the application's memory
-   * usage.  When we're finished, we invoke the given runnable if it's not
-   * null.
+   * usage.  When we're finished, we invoke the given runnable.
    */
   void minimizeMemoryUsage(in nsIRunnable callback);
 };

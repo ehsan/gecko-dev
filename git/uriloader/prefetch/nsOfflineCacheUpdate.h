@@ -81,7 +81,7 @@ private:
     uint16_t                       mState;
 
 protected:
-    int64_t                        mBytesRead;
+    int32_t                        mBytesRead;
 };
 
 

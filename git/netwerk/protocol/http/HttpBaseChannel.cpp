@@ -427,19 +427,20 @@ HttpBaseChannel::GetContentDispositionHeader(nsACString& aContentDispositionHead
 }
 
 NS_IMETHODIMP
-HttpBaseChannel::GetContentLength(int64_t *aContentLength)
+HttpBaseChannel::GetContentLength(int32_t *aContentLength)
 {
   NS_ENSURE_ARG_POINTER(aContentLength);
 
   if (!mResponseHead)
     return NS_ERROR_NOT_AVAILABLE;
 
+  // XXX truncates to 32 bit
   *aContentLength = mResponseHead->ContentLength();
   return NS_OK;
 }
 
 NS_IMETHODIMP
-HttpBaseChannel::SetContentLength(int64_t value)
+HttpBaseChannel::SetContentLength(int32_t value)
 {
   NS_NOTYETIMPLEMENTED("HttpBaseChannel::SetContentLength");
   return NS_ERROR_NOT_IMPLEMENTED;

@@ -7,13 +7,15 @@
    Only the following listed symbols will exposed on import, and only when
    and where imported. */
 
-const EXPORTED_SYMBOLS = ["BrowserTabs"];
+var EXPORTED_SYMBOLS = ["BrowserTabs"];
 
-const {classes: Cc, interfaces: Ci, utils: Cu} = Components;
+const CC = Components.classes;
+const CI = Components.interfaces;
+const CU = Components.utils;
 
-Cu.import("resource://services-sync/main.js");
+CU.import("resource://services-sync/engines.js");
 
-let BrowserTabs = {
+var BrowserTabs = {
   /**
    * Add
    *
@@ -26,8 +28,8 @@ let BrowserTabs = {
   Add: function(uri, fn) {
     // Open the uri in a new tab in the current browser window, and calls
     // the callback fn from the tab's onload handler.
-    let wm = Cc["@mozilla.org/appshell/window-mediator;1"]
-               .getService(Ci.nsIWindowMediator);
+    let wm = CC["@mozilla.org/appshell/window-mediator;1"]
+             .getService(CI.nsIWindowMediator);
     let mainWindow = wm.getMostRecentWindow("navigator:browser");
     let newtab = mainWindow.getBrowser().addTab(uri);
     mainWindow.getBrowser().selectedTab = newtab;
@@ -48,7 +50,7 @@ let BrowserTabs = {
    */
   Find: function(uri, title, profile) {
     // Find the uri in Weave's list of tabs for the given profile.
-    let engine = Weave.Service.engineManager.get("tabs");
+    let engine = Engines.get("tabs");
     for (let [guid, client] in Iterator(engine.getAllClients())) {
       for each (tab in client.tabs) {
         let weaveTabUrl = tab.urlHistory[0];

@@ -998,7 +998,7 @@ FTP_STATE
 nsFtpState::R_size() {
     if (mResponseCode/100 == 2) {
         PR_sscanf(mResponseMsg.get() + 4, "%llu", &mFileSize);
-        mChannel->SetContentLength(mFileSize);
+        mChannel->SetContentLength64(mFileSize);
     }
 
     // We may want to be able to resume this

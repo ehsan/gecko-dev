@@ -62,7 +62,6 @@ public:
 
   // nsINodeList interface
   virtual int32_t IndexOf(nsIContent* aContent);
-  virtual nsIContent* Item(uint32_t aIndex);
 
   void DropReference()
   {

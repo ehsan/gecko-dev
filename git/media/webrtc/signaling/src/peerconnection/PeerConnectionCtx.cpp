@@ -41,8 +41,6 @@ PeerConnectionCtx* PeerConnectionCtx::GetInstance() {
 }
 
 void PeerConnectionCtx::Destroy() {
-  CSFLogDebug(logTag, "%s", __FUNCTION__);
-
   instance->Cleanup();
   delete instance;
   instance = NULL;
@@ -87,8 +85,6 @@ nsresult PeerConnectionCtx::Initialize() {
 }
 
 nsresult PeerConnectionCtx::Cleanup() {
-  CSFLogDebug(logTag, "%s", __FUNCTION__);
-
   mCCM->destroy();
   mCCM->removeCCObserver(this);
   return NS_OK;
@@ -101,9 +97,8 @@ CSF::CC_CallPtr PeerConnectionCtx::createCall() {
 void PeerConnectionCtx::onDeviceEvent(ccapi_device_event_e aDeviceEvent,
                                       CSF::CC_DevicePtr aDevice,
                                       CSF::CC_DeviceInfoPtr aInfo ) {
+  CSFLogDebug(logTag, "onDeviceEvent()");
   cc_service_state_t state = aInfo->getServiceState();
-
-  CSFLogDebug(logTag, "%s - %d : %d", __FUNCTION__, state, mSipccState);
 
   if (CC_STATE_INS == state) {
     // SIPCC is up
@@ -111,9 +106,15 @@ void PeerConnectionCtx::onDeviceEvent(ccapi_device_event_e aDeviceEvent,
         PeerConnectionImpl::kIdle == mSipccState) {
       ChangeSipccState(PeerConnectionImpl::kStarted);
     } else {
-      CSFLogError(logTag, "%s PeerConnection already started", __FUNCTION__);
+      CSFLogError(logTag, "%s PeerConnection in wrong state", __FUNCTION__);
+      /*
+       * Cleanup is causing a deadlock, commenting for now, see Bug 801620
+       */
+      //Cleanup();
+      MOZ_ASSERT(PR_FALSE);
     }
   } else {
+    //Cleanup();
     NS_NOTREACHED("Unsupported Signaling State Transition");
   }
 }

@@ -26,8 +26,8 @@ Utils.deferGetSet(LoginRec, "cleartext", ["hostname", "formSubmitURL",
   "httpRealm", "username", "password", "usernameField", "passwordField"]);
 
 
-function PasswordEngine(service) {
-  SyncEngine.call(this, "Passwords", service);
+function PasswordEngine() {
+  SyncEngine.call(this, "Passwords");
 }
 PasswordEngine.prototype = {
   __proto__: SyncEngine.prototype,
@@ -46,7 +46,7 @@ PasswordEngine.prototype = {
                           .map(function(info) {
           return info.QueryInterface(Components.interfaces.nsILoginMetaInfo).guid;
         });
-        let coll = new Collection(this.engineURL, null, this.service);
+        let coll = new Collection(this.engineURL);
         coll.ids = ids;
         let ret = coll.delete();
         this._log.debug("Delete result: " + ret);
@@ -75,8 +75,8 @@ PasswordEngine.prototype = {
   }
 };
 
-function PasswordStore(name, engine) {
-  Store.call(this, name, engine);
+function PasswordStore(name) {
+  Store.call(this, name);
   this._nsLoginInfo = new Components.Constructor(
     "@mozilla.org/login-manager/loginInfo;1", Ci.nsILoginInfo, "init");
 
@@ -255,8 +255,8 @@ PasswordStore.prototype = {
   }
 };
 
-function PasswordTracker(name, engine) {
-  Tracker.call(this, name, engine);
+function PasswordTracker(name) {
+  Tracker.call(this, name);
   Svc.Obs.add("weave:engine:start-tracking", this);
   Svc.Obs.add("weave:engine:stop-tracking", this);
 }

@@ -1935,6 +1935,8 @@ nsDOMDeviceStorage::GetRootDirectory(nsIFile** aRootDirectory)
   if (!mRootDirectory) {
     return NS_ERROR_FAILURE;
   }
+
+  nsCOMPtr<nsIFile> file;
   return mRootDirectory->Clone(aRootDirectory);
 }
 

@@ -26,7 +26,6 @@ EXTRA_PP_JS_MODULES += \
 EXTRA_JS_MODULES += \
   AppsServiceChild.jsm \
   AppsUtils.jsm \
-  OfflineCacheInstaller.jsm \
   PermissionsInstaller.jsm \
   $(NULL)
 

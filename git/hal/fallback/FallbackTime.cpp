@@ -25,24 +25,13 @@ GetTimezone()
 }
 
 void
-EnableSystemClockChangeNotifications()
+EnableSystemTimeChangeNotifications()
 {
 }
 
 void
-DisableSystemClockChangeNotifications()
+DisableSystemTimeChangeNotifications()
 {
 }
-
-void
-EnableSystemTimezoneChangeNotifications()
-{
-}
-
-void
-DisableSystemTimezoneChangeNotifications()
-{
-}
-
 } // namespace hal_impl
 } // namespace mozilla

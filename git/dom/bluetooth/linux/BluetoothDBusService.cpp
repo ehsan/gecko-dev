@@ -75,6 +75,7 @@ USING_BLUETOOTH_NAMESPACE
 #define BLUEZ_DBUS_BASE_PATH      "/org/bluez"
 #define BLUEZ_DBUS_BASE_IFC       "org.bluez"
 #define BLUEZ_ERROR_IFC           "org.bluez.Error"
+#define BLUETOOTH_SCO_STATUS_CHANGED "bluetooth-sco-status-changed"
 
 typedef struct {
   const char* name;
@@ -171,6 +172,37 @@ public:
     bs->DistributeSignal(mSignal);
     return NS_OK;
   }
+};
+
+class NotifyAudioManagerTask : public nsRunnable {
+public:
+  NotifyAudioManagerTask(nsString aObjectPath) : 
+    mObjectPath(aObjectPath)
+  {
+  }
+
+  NS_IMETHOD
+  Run()
+  {
+    MOZ_ASSERT(NS_IsMainThread());
+
+    nsCOMPtr<nsIAudioManager> am = do_GetService("@mozilla.org/telephony/audiomanager;1");
+    if (!am) {
+      NS_WARNING("Failed to get AudioManager service!");
+    }
+    am->SetForceForUse(am->USE_COMMUNICATION, am->FORCE_BT_SCO);
+
+    nsCOMPtr<nsIObserverService> obs = do_GetService("@mozilla.org/observer-service;1");
+    if (obs) {
+      if (NS_FAILED(obs->NotifyObservers(nullptr, BLUETOOTH_SCO_STATUS_CHANGED, mObjectPath.get()))) {
+        NS_WARNING("Failed to notify bluetooth-sco-status-changed observsers!");
+        return NS_ERROR_FAILURE;
+      }
+    }
+    return NS_OK;
+  }
+private:
+  nsString mObjectPath;
 };
 
 class PrepareAdapterTask : public nsRunnable {
@@ -2231,26 +2263,14 @@ BluetoothDBusService::Connect(const nsAString& aDeviceAddress,
 {
   NS_ASSERTION(NS_IsMainThread(), "Must be called from main thread!");
 
-  nsString errorStr;
-  BluetoothValue v = true;
   if (aProfileId == (uint16_t)(BluetoothServiceUuid::Handsfree >> 32)) {
     BluetoothHfpManager* hfp = BluetoothHfpManager::Get();
-    if (!hfp->Connect(GetObjectPathFromAddress(aAdapterPath, aDeviceAddress),
-                      true, aRunnable)) {
-      errorStr.AssignLiteral("Failed to connect with device.");
-      DispatchBluetoothReply(aRunnable, v, errorStr);
-      return false;
-    }
-    return true;
+    return hfp->Connect(GetObjectPathFromAddress(aAdapterPath, aDeviceAddress), true,
+                        aRunnable);
   } else if (aProfileId == (uint16_t)(BluetoothServiceUuid::Headset >> 32)) {
     BluetoothHfpManager* hfp = BluetoothHfpManager::Get();
-    if (!hfp->Connect(GetObjectPathFromAddress(aAdapterPath, aDeviceAddress),
-                      false, aRunnable)) {
-      errorStr.AssignLiteral("Failed to connect with device.");
-      DispatchBluetoothReply(aRunnable, v, errorStr);
-      return false;
-    }
-    return true;
+    return hfp->Connect(GetObjectPathFromAddress(aAdapterPath, aDeviceAddress), false,
+                        aRunnable);
   } else if (aProfileId == (uint16_t)(BluetoothServiceUuid::ObjectPush >> 32)) {
     BluetoothOppManager* opp = BluetoothOppManager::Get();
     return opp->Connect(GetObjectPathFromAddress(aAdapterPath, aDeviceAddress),
@@ -2286,13 +2306,13 @@ BluetoothDBusService::Disconnect(const uint16_t aProfileId,
 
 class CreateBluetoothScoSocket : public nsRunnable
 {
-public:
+public: 
   CreateBluetoothScoSocket(UnixSocketConsumer* aConsumer,
-                           const nsAString& aAddress,
+                           const nsAString& aObjectPath,
                            bool aAuth,
                            bool aEncrypt)
     : mConsumer(aConsumer),
-      mAddress(aAddress),
+      mObjectPath(aObjectPath),
       mAuth(aAuth),
       mEncrypt(aEncrypt)
   {
@@ -2303,22 +2323,31 @@ public:
   {
     MOZ_ASSERT(!NS_IsMainThread());
 
+    nsString address = GetAddressFromObjectPath(mObjectPath);
     nsString replyError;
     BluetoothUnixSocketConnector* c =
       new BluetoothUnixSocketConnector(BluetoothSocketType::SCO, -1,
                                        mAuth, mEncrypt);
 
-    if (!mConsumer->ConnectSocket(c, NS_ConvertUTF16toUTF8(mAddress).get())) {
+    BluetoothScoManager* sco = BluetoothScoManager::Get();
+    if (!mConsumer->ConnectSocket(c, NS_ConvertUTF16toUTF8(address).get())) {
       replyError.AssignLiteral("SocketConnectionError");
+      sco->SetConnected(false); 
       return NS_ERROR_FAILURE;
     }
+    sco->SetConnected(true);
 
+    nsRefPtr<NotifyAudioManagerTask> task = new NotifyAudioManagerTask(address);
+    if (NS_FAILED(NS_DispatchToMainThread(task))) {
+      NS_WARNING("Failed to dispatch to main thread!");
+      return NS_ERROR_FAILURE;
+    }    
     return NS_OK;
   }
 
 private:
   nsRefPtr<UnixSocketConsumer> mConsumer;
-  nsString mAddress;
+  nsString mObjectPath;
   bool mAuth;
   bool mEncrypt;
 };
@@ -2469,7 +2498,7 @@ BluetoothDBusService::GetSocketViaService(const nsAString& aObjectPath,
 }
 
 nsresult
-BluetoothDBusService::GetScoSocket(const nsAString& aAddress,
+BluetoothDBusService::GetScoSocket(const nsAString& aObjectPath,
                                    bool aAuth,
                                    bool aEncrypt,
                                    mozilla::ipc::UnixSocketConsumer* aConsumer)
@@ -2481,7 +2510,7 @@ BluetoothDBusService::GetScoSocket(const nsAString& aAddress,
   }
 
   nsRefPtr<nsRunnable> func(new CreateBluetoothScoSocket(aConsumer,
-                                                         aAddress,
+                                                         aObjectPath,
                                                          aAuth,
                                                          aEncrypt));
   if (NS_FAILED(mBluetoothCommandThread->Dispatch(func, NS_DISPATCH_NORMAL))) {
