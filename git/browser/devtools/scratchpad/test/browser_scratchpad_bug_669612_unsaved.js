@@ -30,37 +30,57 @@ function test()
 
 function testListeners()
 {
-  openScratchpad(function(aWin, aScratchpad) {
-    aScratchpad.setText("new text");
-    ok(!isStar(aWin), "no star if scratchpad isn't from a file");
+  let win = ScratchpadManager.openScratchpad();
 
-    aScratchpad.onTextSaved();
-    ok(!isStar(aWin), "no star before changing text");
+  win.addEventListener("load", function onScratchpadLoad() {
+    win.removeEventListener("load", onScratchpadLoad, false);
 
-    aScratchpad.setText("new text2");
-    ok(isStar(aWin), "shows star if scratchpad text changes");
+    win.Scratchpad.addObserver({
+      onReady: function (aScratchpad) {
+        aScratchpad.removeObserver(this);
 
-    aScratchpad.onTextSaved();
-    ok(!isStar(aWin), "no star if scratchpad was just saved");
+        aScratchpad.setText("new text");
+        ok(!isStar(win), "no star if scratchpad isn't from a file");
 
-    aScratchpad.undo();
-    ok(isStar(aWin), "star if scratchpad undo");
+        aScratchpad.onTextSaved();
+        ok(!isStar(win), "no star before changing text");
 
-    aWin.close();
-    done();
-  }, {noFocus: true});
+        aScratchpad.setText("new text2");
+        ok(isStar(win), "shows star if scratchpad text changes");
+
+        aScratchpad.onTextSaved();
+        ok(!isStar(win), "no star if scratchpad was just saved");
+
+        aScratchpad.undo();
+        ok(isStar(win), "star if scratchpad undo");
+
+        win.close();
+        done();
+      }
+    });
+  }, false);
 }
 
 function testErrorStatus()
 {
-  openScratchpad(function(aWin, aScratchpad) {
-    aScratchpad.onTextSaved(Components.results.NS_ERROR_FAILURE);
-    aScratchpad.setText("new text");
-    ok(!isStar(aWin), "no star if file save failed");
+  let win = ScratchpadManager.openScratchpad();
 
-    aWin.close();
-    done();
-  }, {noFocus: true});
+  win.addEventListener("load", function onScratchpadLoad() {
+    win.removeEventListener("load", onScratchpadLoad, false);
+
+    win.Scratchpad.addObserver({
+      onReady: function (aScratchpad) {
+        aScratchpad.removeObserver(this);
+
+        aScratchpad.onTextSaved(Components.results.NS_ERROR_FAILURE);
+        aScratchpad.setText("new text");
+        ok(!isStar(win), "no star if file save failed");
+
+        win.close();
+        done();
+      }
+    });
+  }, false);
 }
 
 
@@ -72,13 +92,21 @@ function testRestoreNotFromFile()
   }];
 
   let [win] = ScratchpadManager.restoreSession(session);
-  openScratchpad(function(aWin, aScratchpad) {
-    aScratchpad.setText("new text");
-    ok(!isStar(win), "no star if restored scratchpad isn't from a file");
+  win.addEventListener("load", function onScratchpadLoad() {
+    win.removeEventListener("load", onScratchpadLoad, false);
 
-    win.close();
-    done();
-  }, {window: win, noFocus: true});
+    win.Scratchpad.addObserver({
+      onReady: function (aScratchpad) {
+        aScratchpad.removeObserver(this);
+
+        aScratchpad.setText("new text");
+        ok(!isStar(win), "no star if restored scratchpad isn't from a file");
+
+        win.close();
+        done();
+      }
+    });
+  }, false);
 }
 
 function testRestoreFromFileSaved()
@@ -91,15 +119,23 @@ function testRestoreFromFileSaved()
   }];
 
   let [win] = ScratchpadManager.restoreSession(session);
-  openScratchpad(function(aWin, aScratchpad) {
-    ok(!isStar(win), "no star before changing text in scratchpad restored from file");
+  win.addEventListener("load", function onScratchpadLoad() {
+    win.removeEventListener("load", onScratchpadLoad, false);
 
-    aScratchpad.setText("new text");
-    ok(isStar(win), "star when text changed from scratchpad restored from file");
+    win.Scratchpad.addObserver({
+      onReady: function (aScratchpad) {
+        aScratchpad.removeObserver(this);
 
-    win.close();
-    done();
-  }, {window: win, noFocus: true});
+        ok(!isStar(win), "no star before changing text in scratchpad restored from file");
+
+        aScratchpad.setText("new text");
+        ok(isStar(win), "star when text changed from scratchpad restored from file");
+
+        win.close();
+        done();
+      }
+    });
+  }, false);
 }
 
 function testRestoreFromFileUnsaved()
@@ -112,12 +148,20 @@ function testRestoreFromFileUnsaved()
   }];
 
   let [win] = ScratchpadManager.restoreSession(session);
-  openScratchpad(function() {
-    ok(isStar(win), "star with scratchpad restored with unsaved text");
+  win.addEventListener("load", function onScratchpadLoad() {
+    win.removeEventListener("load", onScratchpadLoad, false);
 
-    win.close();
-    done();
-  }, {window: win, noFocus: true});
+    win.Scratchpad.addObserver({
+      onReady: function (aScratchpad) {
+        aScratchpad.removeObserver(this);
+
+        ok(isStar(win), "star with scratchpad restored with unsaved text");
+
+        win.close();
+        done();
+      }
+    });
+  }, false);
 }
 
 function isStar(win)

@@ -206,11 +206,11 @@ NS_IMETHODIMP nsPNGEncoder::StartImageEncode(PRUint32 aWidth,
   return NS_OK;
 }
 
-// Returns the number of bytes in the image buffer used.
-NS_IMETHODIMP nsPNGEncoder::GetImageBufferUsed(PRUint32 *aOutputSize)
+// Returns the image buffer size
+NS_IMETHODIMP nsPNGEncoder::GetImageBufferSize(PRUint32 *aOutputSize)
 {
   NS_ENSURE_ARG_POINTER(aOutputSize);
-  *aOutputSize = mImageBufferUsed;
+  *aOutputSize = mImageBufferSize;
   return NS_OK;
 }
 

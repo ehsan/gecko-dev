@@ -36,8 +36,6 @@
 
 from mozprocess import ProcessHandler
 from pepresults import Results
-from time import sleep
-from threading import Thread
 import mozlog
 import os
 
@@ -59,13 +57,6 @@ class PepProcess(ProcessHandler):
         self.logger = mozlog.getLogger('PEP')
         results.fails[str(None)] = []
 
-    def waitForQuit(self, timeout=5):
-        for i in range(1, timeout):
-            if self.proc.returncode != None:
-                return
-            sleep(1)
-        self.proc.kill()
-
     def processOutputLine(self, line):
         """
         Callback called on each line of output
@@ -77,11 +68,6 @@ class PepProcess(ProcessHandler):
             # The output is generated from the Peptest extension
             # Format is 'PEP <LEVEL> <MSG>' where <MSG> can have multiple tokens
             # The content of <MSG> depends on the <LEVEL>
-            if line.find('Test Suite Finished') != -1:
-                thread = Thread(target=self.waitForQuit)
-                thread.setDaemon(True) # don't hang on quit
-                thread.start()
-
             level = tokens[1]
             if level == 'TEST-START':
                 results.currentTest = tokens[2].rstrip()
@@ -95,12 +81,11 @@ class PepProcess(ProcessHandler):
                     threshold = 0.0
 
                 msg = results.currentTest \
-                      + ' | fail threshold: ' + str(threshold)
+                      + ' | fail threshold: ' + str(threshold) \
+                      + ' | metric: ' + str(metric)
                 if metric > threshold:
-                    msg += ' < metric: ' + str(metric)
                     self.logger.testFail(msg)
                 else:
-                    msg += ' >= metric: ' + str(metric)
                     self.logger.testPass(msg)
 
                 self.logger.testEnd(

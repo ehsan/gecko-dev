@@ -75,8 +75,6 @@ public class Tab {
     private HashMap<String, DoorHanger> mDoorHangers;
     private long mFaviconLoadId;
     private AgentMode mAgentMode = AgentMode.MOBILE;
-    private String mDocumentURI;
-    private String mContentType;
 
     static class HistoryEntry {
         public final String mUri;   // must never be null
@@ -105,8 +103,6 @@ public class Tab {
         mBookmark = false;
         mDoorHangers = new HashMap<String, DoorHanger>();
         mFaviconLoadId = 0;
-        mDocumentURI = "";
-        mContentType = "";
     }
 
     public int getId() {
@@ -184,22 +180,6 @@ public class Tab {
             Log.i(LOGTAG, "Updated url: " + url + " for tab with id: " + mId);
             updateBookmark();
         }
-    }
-
-    public void setDocumentURI(String documentURI) {
-        mDocumentURI = documentURI;
-    }
-
-    public String getDocumentURI() {
-        return mDocumentURI;
-    }
-
-    public void setContentType(String contentType) {
-        mContentType = contentType;
-    }
-
-    public String getContentType() {
-        return mContentType;
     }
 
     public void updateTitle(String title) {

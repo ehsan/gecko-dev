@@ -342,8 +342,6 @@ protected:
   bool                 mFullScreen;
   bool                 mModal;
 
-  bool                 mInReportMoveEvent; // true if in a call to ReportMoveEvent().
-
   PRInt32              mNumModalDescendents;
   InputContext         mInputContext;
 };

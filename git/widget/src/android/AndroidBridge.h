@@ -52,6 +52,7 @@
 #include "nsIMutableArray.h"
 #include "nsIMIMEInfo.h"
 #include "nsColor.h"
+#include "nsIURIFixup.h"
 
 #include "nsIAndroidBridge.h"
 
@@ -182,6 +183,8 @@ public:
     void EmptyClipboard();
 
     bool ClipboardHasText();
+
+    bool CanCreateFixupURI(const nsACString& aURIText);
 
     void ShowAlertNotification(const nsAString& aImageUrl,
                                const nsAString& aAlertTitle,
@@ -430,6 +433,9 @@ protected:
     jclass jEGLDisplayImplClass;
     jclass jEGLContextClass;
     jclass jEGL10Class;
+
+    // Needed for canCreateFixupURI()
+    nsCOMPtr<nsIURIFixup> mURIFixup;
 
     // calls we've dlopened from libjnigraphics.so
     int (* AndroidBitmap_getInfo)(JNIEnv *env, jobject bitmap, void *info);

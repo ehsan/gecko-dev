@@ -50,7 +50,7 @@ var gMainPane = {
 
     // set up the "use current page" label-changing listener
     this._updateUseCurrentButton();
-    window.addEventListener("focus", this._updateUseCurrentButton.bind(this), false);
+    window.addEventListener("focus", this._updateUseCurrentButton, false);
 
     this.updateBrowserStartupLastSession();
     this.startupPagePrefChanged();
@@ -128,13 +128,23 @@ var gMainPane = {
    */
   setHomePageToCurrent: function ()
   {
-    let homePage = document.getElementById("browser.startup.homepage");
-    let tabs = this._getTabsForHomePage();
-    function getTabURI(t) t.linkedBrowser.currentURI.spec;
+    var win;
+    if (document.documentElement.instantApply) {
+      // If we're in instant-apply mode, use the most recent browser window
+      var wm = Components.classes["@mozilla.org/appshell/window-mediator;1"]
+                         .getService(Components.interfaces.nsIWindowMediator);
+      win = wm.getMostRecentWindow("navigator:browser");
+    }
+    else
+      win = window.opener;
 
-    // FIXME Bug 244192: using dangerous "|" joiner!
-    if (tabs.length)
+    if (win) {
+      var homePage = document.getElementById("browser.startup.homepage");
+      var tabs = win.gBrowser.visibleTabs;
+      function getTabURI(t) t.linkedBrowser.currentURI.spec;
+      // FIXME Bug 244192: using dangerous "|" joiner!
       homePage.value = tabs.map(getTabURI).join("|");
+    }
   },
 
   /**
@@ -160,26 +170,10 @@ var gMainPane = {
    * forms.
    */
   _updateUseCurrentButton: function () {
-    let useCurrent = document.getElementById("useCurrent");
+    var useCurrent = document.getElementById("useCurrent");
 
-    let tabs = this._getTabsForHomePage();
-    if (tabs.length > 1)
-      useCurrent.label = useCurrent.getAttribute("label2");
-    else
-      useCurrent.label = useCurrent.getAttribute("label1");
-
-    // In this case, the button's disabled state is set by preferences.xml.
-    if (document.getElementById
-        ("pref.browser.homepage.disable_button.current_page").locked)
-      return;
-
-    useCurrent.disabled = !tabs.length
-  },
-
-  _getTabsForHomePage: function ()
-  {
+    var windowIsPresent;
     var win;
-    var tabs = [];
     if (document.documentElement.instantApply) {
       const Cc = Components.classes, Ci = Components.interfaces;
       // If we're in instant-apply mode, use the most recent browser window
@@ -187,17 +181,30 @@ var gMainPane = {
                  .getService(Ci.nsIWindowMediator);
       win = wm.getMostRecentWindow("navigator:browser");
     }
-    else {
+    else
       win = window.opener;
-    }
 
     if (win && win.document.documentElement
                   .getAttribute("windowtype") == "navigator:browser") {
-      // We should only include visible & non-pinned tabs
-      tabs = win.gBrowser.visibleTabs.slice(win.gBrowser._numPinnedTabs);
+      windowIsPresent = true;
+
+      var tabbrowser = win.document.getElementById("content");
+      if (tabbrowser.browsers.length > 1)
+        useCurrent.label = useCurrent.getAttribute("label2");
+      else
+        useCurrent.label = useCurrent.getAttribute("label1");
+    }
+    else {
+      windowIsPresent = false;
+      useCurrent.label = useCurrent.getAttribute("label1");
     }
 
-    return tabs;
+    // In this case, the button's disabled state is set by preferences.xml.
+    if (document.getElementById
+        ("pref.browser.homepage.disable_button.current_page").locked)
+      return;
+
+    useCurrent.disabled = !windowIsPresent;
   },
 
   /**

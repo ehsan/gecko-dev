@@ -2,6 +2,8 @@
 /* Any copyright is dedicated to the Public Domain.
    http://creativecommons.org/publicdomain/zero/1.0/ */
 
+var ScratchpadManager = Scratchpad.ScratchpadManager;
+
 function test()
 {
   waitForExplicitFinish();
@@ -14,7 +16,14 @@ function test()
 
     Services.prefs.setIntPref("devtools.editor.tabsize", 5);
 
-    openScratchpad(runTests);
+    gScratchpadWindow = Scratchpad.openScratchpad();
+    gScratchpadWindow.addEventListener("load", function onScratchpadLoad() {
+      gScratchpadWindow.removeEventListener("load", onScratchpadLoad, false);
+
+      gScratchpadWindow.Scratchpad.addObserver({
+        onReady: runTests
+      });
+    }, false);
   }, true);
 
   content.location = "data:text/html,Scratchpad test for the Tab key, bug 660560";
@@ -24,6 +33,9 @@ function runTests()
 {
   let sp = gScratchpadWindow.Scratchpad;
   ok(sp, "Scratchpad object exists in new window");
+
+  is(this.onReady, runTests, "the handler runs in the context of the observer");
+  sp.removeObserver(this);
 
   ok(sp.editor.hasFocus(), "the editor has focus");
 
@@ -58,12 +70,19 @@ function runTests()
   Services.prefs.setIntPref("devtools.editor.tabsize", 6);
   Services.prefs.setBoolPref("devtools.editor.expandtab", false);
 
-  openScratchpad(runTests2);
+  gScratchpadWindow = Scratchpad.openScratchpad();
+  gScratchpadWindow.addEventListener("load", function onScratchpadLoad() {
+    gScratchpadWindow.removeEventListener("load", onScratchpadLoad, false);
+    gScratchpadWindow.Scratchpad.addObserver({
+      onReady: runTests2
+    });
+  }, false);
 }
 
 function runTests2()
 {
   let sp = gScratchpadWindow.Scratchpad;
+  sp.removeObserver(this);
 
   sp.setText("window.foo;");
   sp.editor.setCaretOffset(0);

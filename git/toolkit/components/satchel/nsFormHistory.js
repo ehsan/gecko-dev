@@ -359,6 +359,8 @@ FormHistory.prototype = {
     },
 
     get dbConnection() {
+        let connection;
+
         // Make sure dbConnection can't be called from now to prevent infinite loops.
         delete FormHistory.prototype.dbConnection;
 
@@ -894,14 +896,9 @@ FormHistory.prototype = {
 
         this._dbFinalize();
 
-        if (this.dbConnection !== undefined) {
-            try {
-                this.dbConnection.close();
-            } catch (e) {
-                Components.utils.reportError(e);
-            }
-        }
-
+        // Close the connection, ignore 'already closed' error
+        // FIXME (bug 696483): we should reportError in here.
+        try { this.dbConnection.close(); } catch(e) {}
         this.dbFile.remove(false);
     }
 };

@@ -90,7 +90,7 @@ SourceEditor.MODES = {
  * Predefined themes for syntax highlighting.
  */
 SourceEditor.THEMES = {
-  MOZILLA: "mozilla",
+  TEXTMATE: "textmate",
 };
 
 /**
@@ -98,7 +98,7 @@ SourceEditor.THEMES = {
  */
 SourceEditor.DEFAULTS = {
   MODE: SourceEditor.MODES.TEXT,
-  THEME: SourceEditor.THEMES.MOZILLA,
+  THEME: SourceEditor.THEMES.TEXTMATE,
   UNDO_LIMIT: 200,
   TAB_SIZE: 4, // overriden by pref
   EXPAND_TAB: true, // overriden by pref

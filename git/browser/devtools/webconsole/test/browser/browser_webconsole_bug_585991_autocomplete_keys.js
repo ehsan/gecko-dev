@@ -74,9 +74,6 @@ function tabLoaded() {
       return aItem.label == "item" + aIndex;
     }), true, "getItems returns back the same items");
 
-    is(popup.selectedIndex, -1, "no index is selected");
-    EventUtils.synthesizeKey("VK_DOWN", {});
-      
     let prefix = jsterm.inputNode.value.replace(/[\S]/g, " ");
 
     is(popup.selectedIndex, 0, "index 0 is selected");
@@ -127,9 +124,6 @@ function autocompletePopupHidden()
 
     is(popup.itemCount, 4, "popup.itemCount is correct");
 
-    is(popup.selectedIndex, -1, "no index is selected");
-    EventUtils.synthesizeKey("VK_DOWN", {});
-    
     let prefix = jsterm.inputNode.value.replace(/[\S]/g, " ");
 
     is(popup.selectedIndex, 0, "index 0 is selected");
@@ -173,9 +167,6 @@ function testReturnKey()
     ok(popup.isOpen, "popup is open");
 
     is(popup.itemCount, 4, "popup.itemCount is correct");
-    
-    is(popup.selectedIndex, -1, "no index is selected");
-    EventUtils.synthesizeKey("VK_DOWN", {});
 
     let prefix = jsterm.inputNode.value.replace(/[\S]/g, " ");
 
