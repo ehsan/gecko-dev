@@ -11,11 +11,9 @@ const Cu = Components.utils;
 Cu.import("resource://gre/modules/XPCOMUtils.jsm");
 Cu.import("resource://gre/modules/Services.jsm");
 
-XPCOMUtils.defineLazyGetter(this, "cpmm", function() {
-  return Cc["@mozilla.org/childprocessmessagemanager;1"]
-         .getService(Ci.nsIFrameMessageManager)
-         .QueryInterface(Ci.nsISyncMessageSender);
-});
+XPCOMUtils.defineLazyServiceGetter(this, "cpmm",
+                                   "@mozilla.org/childprocessmessagemanager;1",
+                                   "nsISyncMessageSender");
 
 function AppProtocolHandler() {
   this._basePath = null;
@@ -59,16 +57,6 @@ AppProtocolHandler.prototype = {
 
     if (firstSlash) {
       appId = noScheme.substring(0, firstSlash);
-    }
-
-    // Simulates default behavior of http servers:
-    // Adds index.html if the file spec ends in / in /#anchor
-    let lastSlash = fileSpec.lastIndexOf("/");
-    if (lastSlash == fileSpec.length - 1) {
-      fileSpec += "index.html";
-    } else if (fileSpec[lastSlash + 1] == '#') {
-      let anchor = fileSpec.substring(lastSlash + 1);
-      fileSpec = fileSpec.substring(0, lastSlash) + "/index.html" + anchor;
     }
 
     // Build a jar channel and masquerade as an app:// URI.

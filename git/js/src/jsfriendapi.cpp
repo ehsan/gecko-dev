@@ -514,13 +514,6 @@ js::GCThingIsMarkedGray(void *thing)
     return reinterpret_cast<gc::Cell *>(thing)->isMarked(gc::GRAY);
 }
 
-JS_FRIEND_API(JSCompartment*)
-js::GetGCThingCompartment(void *thing)
-{
-    JS_ASSERT(thing);
-    return reinterpret_cast<gc::Cell *>(thing)->compartment();
-}
-
 JS_FRIEND_API(void)
 js::VisitGrayWrapperTargets(JSCompartment *comp, GCThingCallback *callback, void *closure)
 {
@@ -764,12 +757,6 @@ JS_FRIEND_API(const CompartmentVector&)
 GetRuntimeCompartments(JSRuntime *rt)
 {
     return rt->compartments;
-}
-
-JS_FRIEND_API(size_t)
-SizeOfJSContext()
-{
-    return sizeof(JSContext);
 }
 
 JS_FRIEND_API(GCSliceCallback)

@@ -18,6 +18,8 @@ Cu.import('resource://gre/modules/AlarmService.jsm');
 Cu.import('resource://gre/modules/ActivitiesService.jsm');
 Cu.import('resource://gre/modules/PermissionPromptHelper.jsm');
 Cu.import('resource://gre/modules/ObjectWrapper.jsm');
+Cu.import('resource://gre/modules/accessibility/AccessFu.jsm');
+Cu.import('resource://gre/modules/Payment.jsm');
 
 XPCOMUtils.defineLazyServiceGetter(Services, 'env',
                                    '@mozilla.org/process/environment;1',
@@ -48,7 +50,7 @@ XPCOMUtils.defineLazyGetter(this, 'DebuggerServer', function() {
 
 XPCOMUtils.defineLazyGetter(this, "ppmm", function() {
   return Cc["@mozilla.org/parentprocessmessagemanager;1"]
-         .getService(Ci.nsIFrameMessageManager);
+         .getService(Ci.nsIMessageListenerManager);
 });
 
 function getContentWindow() {
@@ -71,7 +73,21 @@ var shell = {
     } catch(e) { }
     if (Services.prefs.getBoolPref('app.reportCrashes') &&
         crashID) {
-      this.CrashSubmit().submit(crashID)
+
+      if (!Services.io.offline) {
+        this.CrashSubmit.submit(crashID);
+        return;
+      }
+
+      Services.obs.addObserver(function observer(subject, topic, state) {
+          if (topic != "network:offline-status-changed")
+            return;
+          if (state == 'online') {
+            shell.CrashSubmit.submit(crashID);
+            Services.obs.removeObserver(observer, topic);
+          }
+        }
+        , "network:offline-status-changed", false);
     }
   },
 
@@ -149,6 +165,7 @@ var shell = {
 
     CustomEventManager.init();
     WebappsHelper.init();
+    AccessFu.attach(window);
 
     // XXX could factor out into a settings->pref map.  Not worth it yet.
     SettingsListener.observe("debug.fps.enabled", false, function(value) {

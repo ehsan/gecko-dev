@@ -281,7 +281,7 @@ public:
    */
   void AddLayerDisplayItemForFrame(Layer* aLayer,
                                    nsIFrame* aFrame,
-                                   PRUint32 aDisplayItemKey,
+                                   uint32_t aDisplayItemKey,
                                    LayerState aLayerState);
 
   /**
@@ -599,7 +599,9 @@ public:
   }
 
 protected:
-  void RemoveThebesItemsForLayerSubtree(Layer* aLayer);
+  void RemoveThebesItemsAndOwnerDataForLayerSubtree(Layer* aLayer,
+                                                    bool aRemoveThebesItems,
+                                                    bool aRemoveOwnerData);
 
   static void SetAndClearInvalidRegion(DisplayItemDataEntry* aEntry);
   static PLDHashOperator UpdateDisplayItemDataForFrame(DisplayItemDataEntry* aEntry,

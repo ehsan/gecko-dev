@@ -36,6 +36,7 @@ XPCOMUtils.defineLazyGetter(this, "NetUtil", function() {
 [
   ["HelperApps", "chrome://browser/content/HelperApps.js"],
   ["SelectHelper", "chrome://browser/content/SelectHelper.js"],
+  ["AboutReader", "chrome://browser/content/aboutReader.js"],
   ["WebAppRT", "chrome://browser/content/WebAppRT.js"],
 ].forEach(function (aScript) {
   let [name, script] = aScript;
@@ -58,6 +59,8 @@ XPCOMUtils.defineLazyServiceGetter(window, "URIFixup",
 const kStateActive = 0x00000001; // :active pseudoclass for elements
 
 const kXLinkNamespace = "http://www.w3.org/1999/xlink";
+
+const kTapHighlightDelay = 50; // milliseconds
 
 // The element tag names that are considered to receive input. Mouse-down
 // events directed to one of these are allowed to go through.
@@ -434,6 +437,13 @@ var BrowserApp = {
       NativeWindow.contextmenus.SelectorContext("video:not(:-moz-full-screen)"),
       function(aTarget) {
         aTarget.mozRequestFullScreen();
+      });
+
+    NativeWindow.contextmenus.add(Strings.browser.GetStringFromName("contextmenu.copyImageLocation"),
+      NativeWindow.contextmenus.imageLocationCopyableContext,
+      function(aTarget) {
+        let url = aTarget.src;
+        NativeWindow.contextmenus._copyStringToDefaultClipboard(url);
       });
 
     NativeWindow.contextmenus.add(Strings.browser.GetStringFromName("contextmenu.shareImage"),
@@ -959,7 +969,9 @@ var BrowserApp = {
       return;
 
     let focused = doc.activeElement;
-    if ((focused instanceof HTMLInputElement && focused.mozIsTextField(false)) || (focused instanceof HTMLTextAreaElement)) {
+    if ((focused instanceof HTMLInputElement && focused.mozIsTextField(false))
+        || (focused instanceof HTMLTextAreaElement)
+        || (focused.isContentEditable)) {
       let tab = BrowserApp.getTabForBrowser(aBrowser);
       let win = aBrowser.contentWindow;
 
@@ -1356,6 +1368,12 @@ var NativeWindow = {
       matches: function textContext(aElement) {
         return ((aElement instanceof Ci.nsIDOMHTMLInputElement && aElement.mozIsTextField(false))
                 || aElement instanceof Ci.nsIDOMHTMLTextAreaElement);
+      }
+    },
+
+    imageLocationCopyableContext: {
+      matches: function imageLinkCopyableContextMatches(aElement) {
+        return (aElement instanceof Ci.nsIImageLoadingContent && aElement.currentURI);
       }
     },
 
@@ -2668,6 +2686,14 @@ Tab.prototype = {
             this.browser.removeEventListener("pagehide", listener, true);
           }.bind(this), true);
         }
+
+        if (/^about:reader/.test(target.documentURI)) {
+          let aboutReader = new AboutReader(this.browser.contentDocument, this.browser.contentWindow);
+          this.browser.addEventListener("pagehide", function listener() {
+            aboutReader.uninit();
+            this.browser.removeEventListener("pagehide", listener, true);
+          }.bind(this), true);
+        }
         break;
       }
 
@@ -3603,18 +3629,29 @@ var BrowserEventHandler = {
 
   _highlightElement: null,
 
+  _highlightTimeout: null,
+
   _doTapHighlight: function _doTapHighlight(aElement) {
-    DOMUtils.setContentState(aElement, kStateActive);
+    this._cancelTapHighlight();
     this._highlightElement = aElement;
+    // delay actually highlighting the element in case we are panning
+    this._highlightTimeout = setTimeout(function() {
+      DOMUtils.setContentState(aElement, kStateActive);
+    }, kTapHighlightDelay);
   },
 
   _cancelTapHighlight: function _cancelTapHighlight() {
+    if (this._highlightTimeout) {
+      clearTimeout(this._highlightTimeout);
+      this._highlightTimeout = null;
+    }
+
     if (!this._highlightElement)
       return;
 
     // If the active element is in a sub-frame, we need to make that frame's document
     // active to remove the element's active state.
-    if (this._highlightElement.ownerDocument != BrowserApp.selectedBrowser.contentWindow.document)
+    if (this._highlightElement.ownerDocument && this._highlightElement.ownerDocument != BrowserApp.selectedBrowser.contentWindow.document)
       DOMUtils.setContentState(this._highlightElement.ownerDocument.documentElement, kStateActive);
 
     DOMUtils.setContentState(BrowserApp.selectedBrowser.contentWindow.document.documentElement, kStateActive);
@@ -5359,7 +5396,7 @@ var PluginHelper = {
 var PermissionsHelper = {
 
   _permissonTypes: ["password", "geolocation", "popup", "indexedDB",
-                    "offline-app", "desktop-notification", "plugins"],
+                    "offline-app", "desktop-notification", "plugins", "native-intent"],
   _permissionStrings: {
     "password": {
       label: "password.rememberPassword",
@@ -5395,6 +5432,11 @@ var PermissionsHelper = {
       label: "clickToPlayPlugins.playPlugins",
       allowed: "clickToPlayPlugins.yes",
       denied: "clickToPlayPlugins.no"
+    },
+    "native-intent": {
+      label: "helperapps.openWithList2",
+      allowed: "helperapps.always",
+      denied: "helperapps.never"
     }
   },
 

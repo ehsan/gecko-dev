@@ -3,7 +3,7 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-#include "IPC/IPCMessageUtils.h"
+#include "ipc/IPCMessageUtils.h"
 
 #if defined(XP_UNIX) || defined(XP_BEOS)
 #include <unistd.h>
@@ -600,7 +600,7 @@ nsPartialFileInputStream::Init(nsIFile* aFile, uint64_t aStart,
 NS_IMETHODIMP
 nsPartialFileInputStream::Tell(int64_t *aResult)
 {
-    int64_t tell;
+    int64_t tell = 0;
     nsresult rv = nsFileInputStream::Tell(&tell);
     if (NS_SUCCEEDED(rv)) {
         *aResult = tell - mStart;
@@ -611,7 +611,7 @@ nsPartialFileInputStream::Tell(int64_t *aResult)
 NS_IMETHODIMP
 nsPartialFileInputStream::Available(uint64_t* aResult)
 {
-    uint64_t available;
+    uint64_t available = 0;
     nsresult rv = nsFileInputStream::Available(&available);
     if (NS_SUCCEEDED(rv)) {
         *aResult = TruncateSize(available);

@@ -59,7 +59,7 @@ mjit::Compiler::Compiler(JSContext *cx, JSScript *outerScript,
     isConstructing(isConstructing),
     outerChunk(outerJIT()->chunkDescriptor(chunkIndex)),
     ssa(cx, outerScript),
-    globalObj(cx, outerScript->hasGlobal() ? &outerScript->global() : NULL),
+    globalObj(cx, outerScript->compileAndGo ? &outerScript->global() : NULL),
     globalSlots(globalObj ? globalObj->getRawSlots() : NULL),
     sps(&cx->runtime->spsProfiler, &script, &PC),
     masm(&sps),
@@ -134,11 +134,6 @@ mjit::Compiler::compile()
 CompileStatus
 mjit::Compiler::checkAnalysis(HandleScript script)
 {
-    if (script->hasClearedGlobal()) {
-        JaegerSpew(JSpew_Abort, "script has a cleared global\n");
-        return Compile_Abort;
-    }
-
     if (!script->ensureRanAnalysis(cx))
         return Compile_Error;
 
@@ -193,7 +188,7 @@ mjit::Compiler::scanInlineCalls(uint32_t index, uint32_t depth)
     ScriptAnalysis *analysis = script->analysis();
 
     /* Don't inline from functions which could have a non-global scope object. */
-    if (!script->hasGlobal() ||
+    if (!script->compileAndGo ||
         &script->global() != globalObj ||
         (script->function() && script->function()->getParent() != globalObj) ||
         (script->function() && script->function()->isHeavyweight()) ||
@@ -6753,7 +6748,7 @@ mjit::Compiler::jsop_newinit()
         masm.storePtr(ImmPtr(type), FrameAddress(offsetof(VMFrame, scratch)));
         masm.move(ImmPtr(stubArg), Registers::ArgReg1);
         INLINE_STUBCALL(stub, REJOIN_FALLTHROUGH);
-        frame.pushSynced(JSVAL_TYPE_OBJECT);
+        frame.pushSynced(knownPushedType(0));
 
         frame.extra(frame.peek(-1)).initArray = (*PC == JSOP_NEWARRAY);
         frame.extra(frame.peek(-1)).initObject = baseobj;
@@ -6780,7 +6775,7 @@ mjit::Compiler::jsop_newinit()
     stubcc.masm.move(ImmPtr(stubArg), Registers::ArgReg1);
     OOL_STUBCALL(stub, REJOIN_FALLTHROUGH);
 
-    frame.pushTypedPayload(JSVAL_TYPE_OBJECT, result);
+    frame.pushTypedPayload(knownPushedType(0), result);
 
     stubcc.rejoin(Changes(1));
 

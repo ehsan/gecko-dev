@@ -99,11 +99,7 @@ PuppetWidget::Create(nsIWidget        *aParent,
                                       gfxASurface::ContentFromFormat(gfxASurface::ImageFormatARGB32));
 
   mIMEComposing = false;
-  if (MightNeedIMEFocus(aInitData)) {
-    uint32_t chromeSeqno;
-    mTabChild->SendNotifyIMEFocus(false, &mIMEPreference, &chromeSeqno);
-    mIMELastBlurSeqno = mIMELastReceivedSeqno = chromeSeqno;
-  }
+  mNeedIMEStateInit = MightNeedIMEFocus(aInitData);
 
   PuppetWidget* parent = static_cast<PuppetWidget*>(aParent);
   if (parent) {
@@ -115,6 +111,17 @@ PuppetWidget::Create(nsIWidget        *aParent,
   }
 
   return NS_OK;
+}
+
+void
+PuppetWidget::InitIMEState()
+{
+  if (mNeedIMEStateInit) {
+    uint32_t chromeSeqno;
+    mTabChild->SendNotifyIMEFocus(false, &mIMEPreference, &chromeSeqno);
+    mIMELastBlurSeqno = mIMELastReceivedSeqno = chromeSeqno;
+    mNeedIMEStateInit = false;
+  }
 }
 
 already_AddRefed<nsIWidget>
@@ -363,6 +370,7 @@ PuppetWidget::SetInputContext(const InputContext& aContext,
     static_cast<int32_t>(aContext.mIMEState.mEnabled),
     static_cast<int32_t>(aContext.mIMEState.mOpen),
     aContext.mHTMLInputType,
+    aContext.mHTMLInputInputmode,
     aContext.mActionHint,
     static_cast<int32_t>(aAction.mCause),
     static_cast<int32_t>(aAction.mFocusChange));
@@ -536,7 +544,7 @@ PuppetWidget::GetDPI()
 {
   if (mDPI < 0) {
     NS_ABORT_IF_FALSE(mTabChild, "Need TabChild to get the DPI from!");
-    mTabChild->SendGetDPI(&mDPI);
+    mTabChild->GetDPI(&mDPI);
   }
 
   return mDPI;

@@ -115,7 +115,7 @@ function MarionetteDriverActor(aConnection)
 
   this.conn = aConnection;
   this.messageManager = Cc["@mozilla.org/globalmessagemanager;1"]
-                          .getService(Ci.nsIChromeFrameMessageManager);
+                          .getService(Ci.nsIMessageBroadcaster);
   this.browsers = {}; //holds list of BrowserObjs
   this.curBrowser = null; // points to current browser
   this.context = "content";
@@ -153,7 +153,7 @@ MarionetteDriverActor.prototype = {
    *        Object to send to the listener
    */
   sendAsync: function MDA_sendAsync(name, values) {
-    this.messageManager.sendAsyncMessage("Marionette:" + name + this.curBrowser.curFrameId, values);
+    this.messageManager.broadcastAsyncMessage("Marionette:" + name + this.curBrowser.curFrameId, values);
   },
 
   /**
@@ -234,10 +234,15 @@ MarionetteDriverActor.prototype = {
   getCurrentWindow: function MDA_getCurrentWindow() {
     let type = null;
     if (this.curFrame == null) {
-      if (appName != "B2G" && this.context == "content") {
-        type = 'navigator:browser';
+      if (this.curBrowser == null) {
+        if (appName != "B2G" && this.context == "content") {
+          type = 'navigator:browser';
+        }
+        return Services.wm.getMostRecentWindow(type);
       }
-      return Services.wm.getMostRecentWindow(type);
+      else {
+        return this.curBrowser.window;
+      }
     }
     else {
       return this.curFrame;
@@ -367,7 +372,7 @@ MarionetteDriverActor.prototype = {
       //if there is a content listener, then we just wake it up
       this.addBrowser(this.getCurrentWindow());
       this.curBrowser.startSession(false);
-      this.messageManager.sendAsyncMessage("Marionette:restart", {});
+      this.messageManager.broadcastAsyncMessage("Marionette:restart", {});
     }
     else {
       this.sendError("Session already running", 500, null);
@@ -629,7 +634,10 @@ MarionetteDriverActor.prototype = {
       }
     }
     else {
-      this.sendAsync("executeJSScript", {value:aRequest.value, args:aRequest.args, timeout:aRequest.timeout});
+      this.sendAsync("executeJSScript", { value:aRequest.value,
+                                          args:aRequest.args,
+                                          newSandbox:aRequest.newSandbox,
+                                          timeout:aRequest.timeout });
    }
   },
 
@@ -857,7 +865,9 @@ MarionetteDriverActor.prototype = {
     let winEn = this.getWinEnumerator(); 
     while(winEn.hasMoreElements()) {
       let foundWin = winEn.getNext();
-      let winId = foundWin.QueryInterface(Ci.nsIInterfaceRequestor).getInterface(Ci.nsIDOMWindowUtils).outerWindowID;
+      let winId = foundWin.QueryInterface(Ci.nsIInterfaceRequestor)
+                          .getInterface(Ci.nsIDOMWindowUtils)
+                          .outerWindowID;
       winId = winId + ((appName == "B2G") ? '-b2g' : '');
       if (aRequest.value == foundWin.name || aRequest.value == winId) {
         if (this.browsers[winId] == undefined) {
@@ -868,7 +878,6 @@ MarionetteDriverActor.prototype = {
           utils.window = foundWin;
           this.curBrowser = this.browsers[winId];
         }
-        foundWin.focus();
         this.sendOk();
         return;
       }
@@ -981,8 +990,9 @@ MarionetteDriverActor.prototype = {
     if (this.context == "chrome") {
       let id;
       try {
-        let notify = this.sendResponse.bind(this);
-        id = this.curBrowser.elementManager.find(this.getCurrentWindow(),aRequest, notify, false);
+        let on_success = this.sendResponse.bind(this);
+        let on_error = this.sendError.bind(this);
+        id = this.curBrowser.elementManager.find(this.getCurrentWindow(),aRequest, on_success, on_error, false);
       }
       catch (e) {
         this.sendError(e.message, e.code, e.stack);
@@ -1005,8 +1015,9 @@ MarionetteDriverActor.prototype = {
     if (this.context == "chrome") {
       let id;
       try {
-        let notify = this.sendResponse.bind(this);
-        id = this.curBrowser.elementManager.find(this.getCurrentWindow(), aRequest, notify, true);
+        let on_success = this.sendResponse.bind(this);
+        let on_error = this.sendError.bind(this);
+        id = this.curBrowser.elementManager.find(this.getCurrentWindow(), aRequest, on_success, on_error, true);
       }
       catch (e) {
         this.sendError(e.message, e.code, e.stack);
@@ -1299,7 +1310,7 @@ MarionetteDriverActor.prototype = {
   deleteSession: function MDA_deleteSession() {
     if (this.curBrowser != null) {
       if (appName == "B2G") {
-        this.messageManager.sendAsyncMessage("Marionette:sleepSession" + this.curBrowser.mainContentId, {});
+        this.messageManager.broadcastAsyncMessage("Marionette:sleepSession" + this.curBrowser.mainContentId, {});
         this.curBrowser.knownFrames.splice(this.curBrowser.knownFrames.indexOf(this.curBrowser.mainContentId), 1);
       }
       else {
@@ -1310,7 +1321,7 @@ MarionetteDriverActor.prototype = {
       //delete session in each frame in each browser
       for (let win in this.browsers) {
         for (let i in this.browsers[win].knownFrames) {
-          this.messageManager.sendAsyncMessage("Marionette:deleteSession" + this.browsers[win].knownFrames[i], {});
+          this.messageManager.broadcastAsyncMessage("Marionette:deleteSession" + this.browsers[win].knownFrames[i], {});
         }
       }
       let winEnum = this.getWinEnumerator();
@@ -1515,12 +1526,13 @@ function BrowserObj(win) {
   this.B2G = "B2G";
   this.browser;
   this.tab = null;
+  this.window = win;
   this.knownFrames = [];
   this.curFrameId = null;
   this.startPage = "about:blank";
   this.mainContentId = null; // used in B2G to identify the homescreen content page
-  this.messageManager = Cc["@mozilla.org/globalmessagemanager;1"].
-                             getService(Ci.nsIChromeFrameMessageManager);
+  this.messageManager = Cc["@mozilla.org/globalmessagemanager;1"]
+                          .getService(Ci.nsIMessageBroadcaster);
   this.newSession = true; //used to set curFrameId upon new session
   this.elementManager = new ElementManager([SELECTOR, NAME, LINK_TEXT, PARTIAL_LINK_TEXT]);
   this.setBrowser(win);
@@ -1558,8 +1570,6 @@ BrowserObj.prototype = {
       //if we have a new tab, make it the selected tab and give it focus
       this.browser.selectedTab = this.tab;
       let newTabBrowser = this.browser.getBrowserForTab(this.tab);
-      //focus the tab
-      newTabBrowser.ownerDocument.defaultView.focus();
     }
     else {
       //set this.tab to the currently focused tab

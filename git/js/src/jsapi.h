@@ -2527,9 +2527,13 @@ class AutoIdRooter : private AutoGCRooter
 /* Function flags, internal use only, returned by JS_GetFunctionFlags. */
 #define JSFUN_LAMBDA            0x08    /* expressed, not declared, function */
 
-#define JSFUN_SELF_HOSTED       0x40    /* function is self-hosted native and
+#define JSFUN_SELF_HOSTED       0x20    /* function is self-hosted builtin and
                                            must not be decompilable nor
                                            constructible. */
+
+#define JSFUN_SELF_HOSTED_CTOR  0x40    /* function is self-hosted builtin
+                                           constructor and must be constructible
+                                           but not decompilable. */
 
 #define JSFUN_HEAVYWEIGHT       0x80    /* activation requires a Call object */
 
@@ -2541,11 +2545,11 @@ class AutoIdRooter : private AutoGCRooter
 #define JSFUN_HAS_DEFAULTS      0x0400  /* function has at least one default
                                            parameter */
 
-#define JSFUN_FLAGS_MASK      0x07f8    /* overlay JSFUN_* attributes --
+#define JSFUN_FLAGS_MASK        0x07f8  /* overlay JSFUN_* attributes --
                                            bits 12-15 are used internally to
                                            flag interpreted functions */
 
-#define JSFUN_STUB_GSOPS      0x1000    /* use JS_PropertyStub getter/setter
+#define JSFUN_STUB_GSOPS        0x1000  /* use JS_PropertyStub getter/setter
                                            instead of defaulting to class gsops
                                            for property holding function */
 
@@ -3280,12 +3284,6 @@ JS_SetWrapObjectCallbacks(JSRuntime *rt,
                           JSSameCompartmentWrapObjectCallback sccallback,
                           JSPreWrapCallback precallback);
 
-extern JS_PUBLIC_API(JSCrossCompartmentCall *)
-JS_EnterCrossCompartmentCall(JSContext *cx, JSRawObject target);
-
-extern JS_PUBLIC_API(void)
-JS_LeaveCrossCompartmentCall(JSCrossCompartmentCall *call);
-
 extern JS_PUBLIC_API(void)
 JS_SetCompartmentPrivate(JSCompartment *compartment, void *data);
 
@@ -3311,12 +3309,43 @@ js_TransplantObjectWithWrapper(JSContext *cx,
 extern JS_PUBLIC_API(JSBool)
 JS_RefreshCrossCompartmentWrappers(JSContext *cx, JSObject *ob);
 
+/*
+ * At any time, a JSContext has a current (possibly-NULL) compartment.
+ * Compartments are described in:
+ *
+ *   developer.mozilla.org/en-US/docs/SpiderMonkey/SpiderMonkey_compartments
+ *
+ * The current compartment of a context may be changed. The preferred way to do
+ * this is with JSAutoCompartment:
+ *
+ *   void foo(JSContext *cx, JSObject *obj) {
+ *     // in some compartment 'c'
+ *     {
+ *       JSAutoCompartment ac(cx, obj);  // constructor enters
+ *       // in the compartment of 'obj'
+ *     }                                 // destructor leaves
+ *     // back in compartment 'c'
+ *   }
+ *
+ * For more complicated uses that don't neatly fit in a C++ stack frame, the
+ * compartment can entered and left using separate function calls:
+ *
+ *   void foo(JSContext *cx, JSObject *obj) {
+ *     // in 'oldCompartment'
+ *     JSCompartment *oldCompartment = JS_EnterCompartment(cx, obj);
+ *     // in the compartment of 'obj'
+ *     JS_LeaveCompartment(cx, oldCompartment);
+ *     // back in 'oldCompartment'
+ *   }
+ *
+ * Note: these calls must still execute in a LIFO manner w.r.t all other
+ * enter/leave calls on the context. Furthermore, only the return value of a
+ * JS_EnterCompartment call may be passed as the 'oldCompartment' argument of
+ * the corresponding JS_LeaveCompartment call.
+ */
+
 #ifdef __cplusplus
 JS_END_EXTERN_C
-
-namespace js {
-class AutoCompartment;
-}
 
 class JS_PUBLIC_API(JSAutoCompartment)
 {
@@ -3324,11 +3353,20 @@ class JS_PUBLIC_API(JSAutoCompartment)
     JSCompartment *oldCompartment_;
   public:
     JSAutoCompartment(JSContext *cx, JSRawObject target);
+    JSAutoCompartment(JSContext *cx, JSScript *target);
+    JSAutoCompartment(JSContext *cx, JSStackFrame *target);
     ~JSAutoCompartment();
 };
 
 JS_BEGIN_EXTERN_C
 #endif
+
+/* NB: This API is infallible; a NULL return value does not indicate error. */
+extern JS_PUBLIC_API(JSCompartment *)
+JS_EnterCompartment(JSContext *cx, JSRawObject target);
+
+extern JS_PUBLIC_API(void)
+JS_LeaveCompartment(JSContext *cx, JSCompartment *oldCompartment);
 
 typedef void (*JSIterateCompartmentCallback)(JSRuntime *rt, void *data, JSCompartment *compartment);
 
@@ -4193,7 +4231,7 @@ struct JSClass {
  * with the following flags. Failure to use JSCLASS_GLOBAL_FLAGS was
  * prevously allowed, but is now an ES5 violation and thus unsupported.
  */
-#define JSCLASS_GLOBAL_SLOT_COUNT      (JSProto_LIMIT * 3 + 24)
+#define JSCLASS_GLOBAL_SLOT_COUNT      (JSProto_LIMIT * 3 + 23)
 #define JSCLASS_GLOBAL_FLAGS_WITH_SLOTS(n)                                    \
     (JSCLASS_IS_GLOBAL | JSCLASS_HAS_RESERVED_SLOTS(JSCLASS_GLOBAL_SLOT_COUNT + (n)))
 #define JSCLASS_GLOBAL_FLAGS                                                  \
@@ -4777,8 +4815,19 @@ JS_DeleteElement(JSContext *cx, JSObject *obj, uint32_t index);
 extern JS_PUBLIC_API(JSBool)
 JS_DeleteElement2(JSContext *cx, JSObject *obj, uint32_t index, jsval *rval);
 
-extern JS_PUBLIC_API(void)
-JS_ClearScope(JSContext *cx, JSObject *obj);
+/*
+ * Remove all configurable properties from the given (non-global) object and
+ * assign undefined to all writable data properties.
+ */
+JS_PUBLIC_API(void)
+JS_ClearNonGlobalObject(JSContext *cx, JSObject *objArg);
+
+/*
+ * Assign 'undefined' to all of the object's non-reserved slots. Note: this is
+ * done for all slots, regardless of the associated property descriptor.
+ */
+JS_PUBLIC_API(void)
+JS_SetAllNonReservedSlotsToUndefined(JSContext *cx, JSObject *objArg);
 
 extern JS_PUBLIC_API(JSIdArray *)
 JS_Enumerate(JSContext *cx, JSObject *obj);
@@ -5558,27 +5607,6 @@ extern JS_PUBLIC_API(JSString *)
 JS_NewGrowableString(JSContext *cx, jschar *chars, size_t length);
 
 /*
- * Mutable string support.  A string's characters are never mutable in this JS
- * implementation, but a dependent string is a substring of another dependent
- * or immutable string, and a rope is a lazily concatenated string that creates
- * its underlying buffer the first time it is accessed.  Even after a rope
- * creates its underlying buffer, it still considered mutable.  The direct data
- * members of the (opaque to API clients) JSString struct may be changed in a
- * single-threaded way for dependent strings and ropes.
- *
- * Therefore mutable strings (ropes and dependent strings) cannot be used by
- * more than one thread at a time.  You may call JS_MakeStringImmutable to
- * convert the string from a mutable string to an immutable (and therefore
- * thread-safe) string.  The engine takes care of converting ropes and dependent
- * strings to immutable for you if you store strings in multi-threaded objects
- * using JS_SetProperty or kindred API entry points.
- *
- * If you store a JSString pointer in a native data structure that is (safely)
- * accessible to multiple threads, you must call JS_MakeStringImmutable before
- * retiring the store.
- */
-
-/*
  * Create a dependent string, i.e., a string that owns no character storage,
  * but that refers to a slice of another string's chars.  Dependent strings
  * are mutable by definition, so the thread safety comments above apply.
@@ -5600,13 +5628,6 @@ JS_ConcatStrings(JSContext *cx, JSString *left, JSString *right);
  */
 extern JS_PUBLIC_API(const jschar *)
 JS_UndependString(JSContext *cx, JSString *str);
-
-/*
- * Convert a mutable string (either rope or dependent) into an immutable,
- * thread-safe one.
- */
-extern JS_PUBLIC_API(JSBool)
-JS_MakeStringImmutable(JSContext *cx, JSString *str);
 
 /*
  * Return JS_TRUE if C (char []) strings passed via the API and internally
