@@ -3301,11 +3301,6 @@ nsEventStateManager::GetCrossProcessTarget()
 PRBool
 nsEventStateManager::IsTargetCrossProcess(nsGUIEvent *aEvent)
 {
-  // Check to see if there is a focused, editable content in chrome,
-  // in that case, do not forward IME events to content
-  nsIContent *focusedContent = GetFocusedContent();
-  if (focusedContent && focusedContent->IsEditable())
-    return PR_FALSE;
   return TabParent::GetIMETabParent() != nsnull;
 }
 #endif

@@ -327,6 +327,49 @@ FrameState::storeTo(FrameEntry *fe, Address address, bool popped)
 #endif
 }
 
+void FrameState::storeTo(FrameEntry *fe, RegisterID dataReg, RegisterID typeReg, RegisterID tempReg)
+{
+    JS_ASSERT(dataReg != typeReg && dataReg != tempReg && typeReg != tempReg);
+
+    if (fe->isConstant()) {
+        masm.loadValueAsComponents(fe->getValue(), typeReg, dataReg);
+        return;
+    }
+
+    if (fe->isCopy())
+        fe = fe->copyOf();
+
+    if (fe->isTypeKnown()) {
+        RegisterID data = tempRegForData(fe);
+        if (data != dataReg)
+            masm.move(data, dataReg);
+        masm.move(ImmType(fe->getKnownType()), typeReg);
+        return;
+    }
+
+    RegisterID data = tempRegForData(fe);
+    RegisterID type = tempRegForType(fe);
+    if (data == typeReg && type == dataReg) {
+        masm.move(type, tempReg);
+        masm.move(data, dataReg);
+        masm.move(tempReg, typeReg);
+    } else if (data != dataReg) {
+        if (type == typeReg) {
+            masm.move(data, dataReg);
+        } else if (type != dataReg) {
+            masm.move(data, dataReg);
+            if (type != typeReg)
+                masm.move(type, typeReg);
+        } else {
+            JS_ASSERT(data != typeReg);
+            masm.move(type, typeReg);
+            masm.move(data, dataReg);
+        }
+    } else if (type != typeReg) {
+        masm.move(type, typeReg);
+    }
+}
+
 #ifdef DEBUG
 void
 FrameState::assertValidRegisterState() const
@@ -1244,7 +1287,7 @@ FrameState::shimmy(uint32 n)
 {
     JS_ASSERT(sp - n >= spBase);
     int32 depth = 0 - int32(n);
-    storeTop(peek(depth - 1), true);
+    storeTop(&sp[depth - 1], true);
     popn(n);
 }
 
@@ -1253,7 +1296,7 @@ FrameState::shift(int32 n)
 {
     JS_ASSERT(n < 0);
     JS_ASSERT(sp + n - 1 >= spBase);
-    storeTop(peek(n - 1), true);
+    storeTop(&sp[n - 1], true);
     pop();
 }
 

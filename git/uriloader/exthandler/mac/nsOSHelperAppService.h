@@ -48,7 +48,6 @@
 
 #include "nsExternalHelperAppService.h"
 #include "nsCExternalHandlerService.h"
-#include "nsMIMEInfoImpl.h"
 #include "nsCOMPtr.h"
 
 class nsOSHelperAppService : public nsExternalHelperAppService
