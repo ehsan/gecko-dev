@@ -357,12 +357,6 @@ CheckJSCharInCharRange(jschar c)
 }
 #endif
 
-template<typename T>
-bool ConvertToPrimitive(JSContext *cx, const JS::Value& v, T *retval)
-{
-    return ValueToPrimitive<T, eDefault>(cx, v, retval);
-}
-
 // static
 JSBool
 XPCConvert::JSData2Native(XPCCallContext& ccx, void* d, jsval s,
@@ -381,27 +375,27 @@ XPCConvert::JSData2Native(XPCCallContext& ccx, void* d, jsval s,
 
     switch (type.TagPart()) {
     case nsXPTType::T_I8     :
-        return ConvertToPrimitive(cx, s, static_cast<int8_t*>(d));
+        return ValueToPrimitive(cx, s, static_cast<int8_t*>(d));
     case nsXPTType::T_I16    :
-        return ConvertToPrimitive(cx, s, static_cast<int16_t*>(d));
+        return ValueToPrimitive(cx, s, static_cast<int16_t*>(d));
     case nsXPTType::T_I32    :
-        return ConvertToPrimitive(cx, s, static_cast<int32_t*>(d));
+        return ValueToPrimitive(cx, s, static_cast<int32_t*>(d));
     case nsXPTType::T_I64    :
-        return ConvertToPrimitive(cx, s, static_cast<int64_t*>(d));
+        return ValueToPrimitive(cx, s, static_cast<int64_t*>(d));
     case nsXPTType::T_U8     :
-        return ConvertToPrimitive(cx, s, static_cast<uint8_t*>(d));
+        return ValueToPrimitive(cx, s, static_cast<uint8_t*>(d));
     case nsXPTType::T_U16    :
-        return ConvertToPrimitive(cx, s, static_cast<uint16_t*>(d));
+        return ValueToPrimitive(cx, s, static_cast<uint16_t*>(d));
     case nsXPTType::T_U32    :
-        return ConvertToPrimitive(cx, s, static_cast<uint32_t*>(d));
+        return ValueToPrimitive(cx, s, static_cast<uint32_t*>(d));
     case nsXPTType::T_U64    :
-        return ConvertToPrimitive(cx, s, static_cast<uint64_t*>(d));
+        return ValueToPrimitive(cx, s, static_cast<uint64_t*>(d));
     case nsXPTType::T_FLOAT  :
-        return ConvertToPrimitive(cx, s, static_cast<float*>(d));
+        return ValueToPrimitive(cx, s, static_cast<float*>(d));
     case nsXPTType::T_DOUBLE :
-        return ConvertToPrimitive(cx, s, static_cast<double*>(d));
+        return ValueToPrimitive(cx, s, static_cast<double*>(d));
     case nsXPTType::T_BOOL   :
-        return ConvertToPrimitive(cx, s, static_cast<bool*>(d));
+        return ValueToPrimitive(cx, s, static_cast<bool*>(d));
     case nsXPTType::T_CHAR   :
     {
         JSString* str = JS_ValueToString(cx, s);

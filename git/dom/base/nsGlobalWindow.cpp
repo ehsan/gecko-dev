@@ -10300,14 +10300,16 @@ nsGlobalWindow::EnsureSizeUpToDate()
   }
 }
 
-already_AddRefed<nsISupports>
-nsGlobalWindow::SaveWindowState()
+nsresult
+nsGlobalWindow::SaveWindowState(nsISupports **aState)
 {
   NS_PRECONDITION(IsOuterWindow(), "Can't save the inner window's state");
 
+  *aState = nullptr;
+
   if (!mContext || !mJSObject) {
     // The window may be getting torn down; don't bother saving state.
-    return nullptr;
+    return NS_OK;
   }
 
   nsGlobalWindow *inner = GetCurrentInnerWindowInternal();
@@ -10322,12 +10324,14 @@ nsGlobalWindow::SaveWindowState()
 
   nsCOMPtr<nsISupports> state = new WindowStateHolder(inner,
                                                       mInnerWindowHolder);
+  NS_ENSURE_TRUE(state, NS_ERROR_OUT_OF_MEMORY);
 
 #ifdef DEBUG_PAGE_CACHE
   printf("saving window state, state = %p\n", (void*)state);
 #endif
 
-  return state.forget();
+  state.swap(*aState);
+  return NS_OK;
 }
 
 nsresult

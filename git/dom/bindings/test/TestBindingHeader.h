@@ -408,11 +408,6 @@ public:
   void IndirectlyImplementedMethod();
   uint32_t GetDiamondImplementedProperty();
 
-  // Test EnforceRange/Clamp
-  void DontEnforceRangeOrClamp(int8_t);
-  void DoEnforceRange(int8_t);
-  void DoClamp(int8_t);
-
 private:
   // We add signatures here that _could_ start matching if the codegen
   // got data types wrong.  That way if it ever does we'll have a call
