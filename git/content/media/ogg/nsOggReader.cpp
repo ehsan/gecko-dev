@@ -250,14 +250,16 @@ nsresult nsOggReader::ReadMetadata()
   // Initialize the first Theora and Vorbis bitstreams. According to the
   // Theora spec these can be considered the 'primary' bitstreams for playback.
   // Extract the metadata needed from these streams.
+  float aspectRatio = 0;
   // Set a default callback period for if we have no video data
   mCallbackPeriod = 1000 / AUDIO_FRAME_RATE;
   if (mTheoraState) {
     if (mTheoraState->Init()) {
       mCallbackPeriod = mTheoraState->mFrameDuration;
+      aspectRatio = mTheoraState->mAspectRatio;
       gfxIntSize sz(mTheoraState->mInfo.pic_width,
                     mTheoraState->mInfo.pic_height);
-      mDecoder->SetVideoData(sz, mTheoraState->mPixelAspectRatio, nsnull);
+      mDecoder->SetVideoData(sz, mTheoraState->mAspectRatio, nsnull);
     } else {
       mTheoraState = nsnull;
     }
@@ -275,7 +277,7 @@ nsresult nsOggReader::ReadMetadata()
   }
   if (HasVideo()) {
     mInfo.mFramerate = mTheoraState->mFrameRate;
-    mInfo.mPixelAspectRatio = mTheoraState->mPixelAspectRatio;
+    mInfo.mAspectRatio = mTheoraState->mAspectRatio;
     mInfo.mPicture.width = mTheoraState->mInfo.pic_width;
     mInfo.mPicture.height = mTheoraState->mInfo.pic_height;
     mInfo.mPicture.x = mTheoraState->mInfo.pic_x;
