@@ -55,7 +55,7 @@ var tests = {
           break;
       }
     }
-    port.postMessage({topic: "test-init", data: { id: 1 }});
+    port.postMessage({topic: "test-init"});
   },
   testManyChats: function(next) {
     // open enough chats to overflow the window, then check
@@ -87,26 +87,8 @@ var tests = {
     }
     let num = numToOpen;
     while (num-- > 0) {
-      port.postMessage({topic: "test-chatbox-open", data: { id: num }});
+      port.postMessage({topic: "test-chatbox-open"});
     }
-  },
-  testWorkerChatWindow: function(next) {
-    let port = Social.provider.port;
-    ok(port, "provider has a port");
-    port.onmessage = function (e) {
-      let topic = e.data.topic;
-      switch (topic) {
-        case "got-chatbox-message":
-          ok(true, "got a chat window opened");
-          let chats = document.getElementById("pinnedchats");
-          while (chats.selectedChat) {
-            chats.selectedChat.close();
-          }
-          ok(!chats.selectedChat, "chats are all closed");
-          next();
-          break;
-      }
-    }
-    port.postMessage({topic: "test-worker-chat" });
   }
 }
+
