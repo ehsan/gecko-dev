@@ -342,7 +342,6 @@ gfxSVGGlyphsDocument::ParseDocument(const uint8_t *aBuffer, uint32_t aBufLen)
 
     nsCOMPtr<nsIURI> uri;
     nsHostObjectProtocolHandler::GenerateURIString(NS_LITERAL_CSTRING(FONTTABLEURI_SCHEME),
-                                                   nullptr,
                                                    mSVGGlyphsDocumentURI);
  
     rv = NS_NewURI(getter_AddRefs(uri), mSVGGlyphsDocumentURI);

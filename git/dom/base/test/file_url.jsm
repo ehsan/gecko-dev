@@ -13,9 +13,9 @@ this.checkFromJSM = function checkFromJSM(ok, is) {
   var url = URL.createObjectURL(blob);
   ok(url, "URL is created!");
 
-  var u = new URL(url);
-  ok(u, "URL created");
-  is(u.origin, "null", "Url doesn't have an origin if created in a JSM");
+  var p = URL.getPrincipalFromURL(url);
+  ok(p, "Principal exists.");
+  ok(p instanceof Components.interfaces.nsIPrincipal, "Principal is a nsIPrincipal");
 
   URL.revokeObjectURL(url);
   ok(true, "URL is revoked");

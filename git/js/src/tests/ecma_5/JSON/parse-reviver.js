@@ -1,3 +1,5 @@
+// Ported from dom/src/json/test/unit/test_reviver.js
+
 function doubler(k, v)
 {
   assertEq(typeof k, "string");
