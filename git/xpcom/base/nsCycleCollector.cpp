@@ -2315,7 +2315,6 @@ nsCycleCollector::MarkRoots(SliceBudget &aBudget)
     }
 
     if (!mCurrNode->IsDone()) {
-        timeLog.Checkpoint("MarkRoots()");
         return;
     }
 

@@ -32,9 +32,11 @@ main(int argc, char** argv, char** envp)
     InitAutoreleasePool();
 #endif
 
+#ifdef HAVE_SETBUF
     // unbuffer stdout so that output is in the correct order; note that stderr
     // is unbuffered by default
     setbuf(stdout, 0);
+#endif
 
 #ifdef HAS_DLL_BLOCKLIST
     DllBlocklist_Initialize();

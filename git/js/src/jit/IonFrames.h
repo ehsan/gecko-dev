@@ -9,6 +9,8 @@
 
 #ifdef JS_ION
 
+#include "mozilla/DebugOnly.h"
+
 #include "jscntxt.h"
 #include "jsfun.h"
 
@@ -101,17 +103,13 @@ class SafepointIndex
         uint32_t safepointOffset_;
     };
 
-#ifdef DEBUG
-    bool resolved;
-#endif
+    mozilla::DebugOnly<bool> resolved;
 
   public:
     SafepointIndex(uint32_t displacement, LSafepoint *safepoint)
       : displacement_(displacement),
-        safepoint_(safepoint)
-#ifdef DEBUG
-      , resolved(false)
-#endif
+        safepoint_(safepoint),
+        resolved(false)
     { }
 
     void resolve();

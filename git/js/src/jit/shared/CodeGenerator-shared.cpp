@@ -281,11 +281,7 @@ CodeGeneratorShared::encode(LSnapshot *snapshot)
 #ifdef DEBUG
         if (GetIonContext()->cx) {
             uint32_t stackDepth;
-            bool reachablePC;
-            if (!ReconstructStackDepth(GetIonContext()->cx, script, bailPC, &stackDepth, &reachablePC))
-                return false;
-
-            if (reachablePC) {
+            if (ReconstructStackDepth(GetIonContext()->cx, script, bailPC, &stackDepth)) {
                 if (JSOp(*bailPC) == JSOP_FUNCALL) {
                     // For fun.call(this, ...); the reconstructStackDepth will
                     // include the this. When inlining that is not included.

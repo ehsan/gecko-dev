@@ -158,7 +158,7 @@ private:
   static bool sInitialized;
   static StaticRefPtr<ProcessPriorityManagerImpl> sSingleton;
 
-  static void PrefChangedCallback(const char* aPref, void* aClosure);
+  static int PrefChangedCallback(const char* aPref, void* aClosure);
 
   ProcessPriorityManagerImpl();
   ~ProcessPriorityManagerImpl() {}
@@ -345,11 +345,12 @@ private:
 NS_IMPL_ISUPPORTS1(ProcessPriorityManagerImpl,
                    nsIObserver);
 
-/* static */ void
+/* static */ int
 ProcessPriorityManagerImpl::PrefChangedCallback(const char* aPref,
                                                 void* aClosure)
 {
   StaticInit();
+  return 0;
 }
 
 /* static */ bool

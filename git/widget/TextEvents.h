@@ -107,8 +107,6 @@ public:
   bool mIsRepeat;
   // DOM KeyboardEvent.key
   KeyNameIndex mKeyNameIndex;
-  // DOM KeyboardEvent.key only when mKeyNameIndex is KEY_NAME_INDEX_USE_STRING.
-  nsString mKeyValue;
   // OS-specific native event can optionally be preserved
   void* mNativeKeyEvent;
   // Unique id associated with a keydown / keypress event. Used in identifing
@@ -119,10 +117,6 @@ public:
 
   void GetDOMKeyName(nsAString& aKeyName)
   {
-    if (mKeyNameIndex == KEY_NAME_INDEX_USE_STRING) {
-      aKeyName = mKeyValue;
-      return;
-    }
     GetDOMKeyName(mKeyNameIndex, aKeyName);
   }
 
@@ -153,7 +147,6 @@ public:
     isChar = aEvent.isChar;
     mIsRepeat = aEvent.mIsRepeat;
     mKeyNameIndex = aEvent.mKeyNameIndex;
-    mKeyValue = aEvent.mKeyValue;
     // Don't copy mNativeKeyEvent because it may be referred after its instance
     // is destroyed.
     mNativeKeyEvent = nullptr;

@@ -7,6 +7,8 @@
 #ifndef jit_InlineList_h
 #define jit_InlineList_h
 
+#include "mozilla/DebugOnly.h"
+
 #include "jsutil.h"
 
 namespace js {
@@ -38,9 +40,7 @@ class InlineForwardList : protected InlineForwardListNode<T>
     typedef InlineForwardListNode<T> Node;
 
     Node *tail_;
-#ifdef DEBUG
-    int modifyCount_;
-#endif
+    mozilla::DebugOnly<int> modifyCount_;
 
     InlineForwardList<T> *thisFromConstructor() {
         return this;
@@ -50,9 +50,7 @@ class InlineForwardList : protected InlineForwardListNode<T>
     InlineForwardList()
       : tail_(thisFromConstructor())
     {
-#ifdef DEBUG
         modifyCount_ = 0;
-#endif
     }
 
   public:
@@ -69,9 +67,7 @@ class InlineForwardList : protected InlineForwardListNode<T>
         iterator iter(where);
         iter++;
         iter.prev = where.prev;
-#ifdef DEBUG
         iter.modifyCount_++;
-#endif
 
         // Once the element 'where' points at has been removed, it is no longer
         // safe to do any operations that would touch 'iter', as the element
@@ -86,9 +82,7 @@ class InlineForwardList : protected InlineForwardListNode<T>
         insertAfter(this, t);
     }
     void pushBack(Node *t) {
-#ifdef DEBUG
         modifyCount_++;
-#endif
         tail_->next = t;
         t->next = nullptr;
         tail_ = t;
@@ -104,18 +98,14 @@ class InlineForwardList : protected InlineForwardListNode<T>
         return static_cast<T *>(tail_);
     }
     void insertAfter(Node *at, Node *item) {
-#ifdef DEBUG
         modifyCount_++;
-#endif
         if (at == tail_)
             tail_ = item;
         item->next = at->next;
         at->next = item;
     }
     void removeAfter(Node *at, Node *item) {
-#ifdef DEBUG
         modifyCount_++;
-#endif
         if (item == tail_)
             tail_ = at;
         JS_ASSERT(at->next == item);
@@ -127,9 +117,7 @@ class InlineForwardList : protected InlineForwardListNode<T>
             at = this;
         if (at == tail_)
             return;
-#ifdef DEBUG
         modifyCount_++;
-#endif
         to->next = at->next;
         to->tail_ = tail_;
         tail_ = at;
@@ -141,9 +129,7 @@ class InlineForwardList : protected InlineForwardListNode<T>
     void clear() {
         this->next = nullptr;
         tail_ = this;
-#ifdef DEBUG
         modifyCount_ = 0;
-#endif
     }
 };
 
@@ -160,7 +146,7 @@ private:
         iter(owner ? owner->next : nullptr)
 #ifdef DEBUG
       , owner_(owner),
-        modifyCount_(owner ? owner->modifyCount_ : 0)
+        modifyCount_(owner ? owner->modifyCount_.value : 0)
 #endif
     { }
 
@@ -199,8 +185,8 @@ private:
 
 #ifdef DEBUG
     const InlineForwardList<T> *owner_;
-    int modifyCount_;
 #endif
+    mozilla::DebugOnly<int> modifyCount_;
 };
 
 template <typename T> class InlineList;
@@ -231,8 +217,13 @@ class InlineList : protected InlineListNode<T>
 {
     typedef InlineListNode<T> Node;
 
+    // Silence MSVC warning C4355
+    InlineList<T> *thisFromConstructor() {
+        return this;
+    }
+
   public:
-    InlineList() : InlineListNode<T>(MOZ_THIS_IN_INITIALIZER_LIST(), MOZ_THIS_IN_INITIALIZER_LIST())
+    InlineList() : InlineListNode<T>(thisFromConstructor(), thisFromConstructor())
     { }
 
   public:
