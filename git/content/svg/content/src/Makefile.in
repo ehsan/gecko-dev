@@ -166,7 +166,6 @@ EXPORTS_mozilla/dom = \
 	SVGAnimationElement.h \
 	SVGClipPathElement.h \
 	SVGCircleElement.h \
-  SVGComponentTransferFunctionElement.h \
 	SVGDefsElement.h \
 	SVGDescElement.h \
 	SVGEllipseElement.h \

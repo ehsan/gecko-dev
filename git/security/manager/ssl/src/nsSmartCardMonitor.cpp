@@ -6,7 +6,7 @@
 #include "pk11func.h"
 #include "nsNSSComponent.h"
 #include "nsSmartCardMonitor.h"
-#include "nsIDOMSmartCardEvent.h"
+#include "nsSmartCardEvent.h"
 #include "mozilla/unused.h"
 
 using namespace mozilla;

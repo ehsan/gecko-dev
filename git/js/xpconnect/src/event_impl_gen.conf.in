@@ -23,7 +23,6 @@ simple_events = [
     'DeviceOrientationEvent',
     'DeviceLightEvent',
     'MozApplicationEvent',
-    'SmartCardEvent',
 #ifdef MOZ_B2G_BT
     'BluetoothDeviceEvent',
     'BluetoothDeviceAddressEvent',

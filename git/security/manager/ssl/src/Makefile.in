@@ -63,6 +63,7 @@ CPPSRCS = 				\
   nsNSSShutDown.cpp \
   nsNTLMAuthModule.cpp \
   nsSmartCardMonitor.cpp \
+  nsSmartCardEvent.cpp \
   nsStreamCipher.cpp \
   nsKeyModule.cpp \
   nsIdentityChecking.cpp \

@@ -97,7 +97,7 @@ protected:
     nsresult status;
   } mData;
 
-  mozilla::idl::ArchiveReaderOptions mOptions;
+  ArchiveReaderOptions mOptions;
 };
 
 END_FILE_NAMESPACE
