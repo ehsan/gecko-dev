@@ -14,6 +14,7 @@
 #include "nsIInterfaceRequestorUtils.h"
 #include "nsIObjectLoadingContent.h"
 #include "nsRenderingContext.h"
+#include "nsStubMutationObserver.h"
 #include "nsSVGIntegrationUtils.h"
 #include "nsSVGForeignObjectFrame.h"
 #include "mozilla/dom/SVGSVGElement.h"
@@ -22,6 +23,53 @@
 
 using namespace mozilla;
 using namespace mozilla::dom;
+
+class nsSVGMutationObserver : public nsStubMutationObserver
+{
+public:
+  // nsIMutationObserver interface
+  NS_DECL_NSIMUTATIONOBSERVER_ATTRIBUTECHANGED
+
+  // nsISupports interface:
+  NS_IMETHOD QueryInterface(const nsIID& aIID, void** aInstancePtr);
+private:
+  NS_IMETHOD_(nsrefcnt) AddRef() { return 1; }
+  NS_IMETHOD_(nsrefcnt) Release() { return 1; }
+
+  static void UpdateTextFragmentTrees(nsIFrame *aFrame);
+};
+
+//----------------------------------------------------------------------
+// nsISupports methods
+
+NS_INTERFACE_MAP_BEGIN(nsSVGMutationObserver)
+  NS_INTERFACE_MAP_ENTRY(nsIMutationObserver)
+NS_INTERFACE_MAP_END
+
+static nsSVGMutationObserver sSVGMutationObserver;
+
+//----------------------------------------------------------------------
+// nsIMutationObserver methods
+
+void
+nsSVGMutationObserver::AttributeChanged(nsIDocument* aDocument,
+                                        Element* aElement,
+                                        int32_t aNameSpaceID,
+                                        nsIAtom* aAttribute,
+                                        int32_t aModType)
+{
+  if (aNameSpaceID != kNameSpaceID_XML || aAttribute != nsGkAtoms::space) {
+    return;
+  }
+
+  nsIFrame* frame = aElement->GetPrimaryFrame();
+  if (!frame) {
+    return;
+  }
+
+  // if not, are there text elements amongst its descendents
+  UpdateTextFragmentTrees(frame);
+}
 
 //----------------------------------------------------------------------
 // Implementation helpers
@@ -51,6 +99,16 @@ nsSVGOuterSVGFrame::UnregisterForeignObject(nsSVGForeignObjectFrame* aFrame)
   NS_ASSERTION(mForeignObjectHash && mForeignObjectHash->GetEntry(aFrame),
                "nsSVGForeignObjectFrame not in registry!");
   return mForeignObjectHash->RemoveEntry(aFrame);
+}
+
+void
+nsSVGMutationObserver::UpdateTextFragmentTrees(nsIFrame *aFrame)
+{
+  nsIFrame* kid = aFrame->GetFirstPrincipalChild();
+  while (kid) {
+    UpdateTextFragmentTrees(kid);
+    kid = kid->GetNextSibling();
+  }
 }
 
 //----------------------------------------------------------------------
@@ -107,6 +165,9 @@ nsSVGOuterSVGFrame::Init(nsIContent* aContent,
     if (doc->GetRootElement() == mContent) {
       mIsRootContent = true;
     }
+    // sSVGMutationObserver has the same lifetime as the document so does
+    // not need to be removed
+    doc->AddMutationObserverUnlessExists(&sSVGMutationObserver);
   }
 }
 

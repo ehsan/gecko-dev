@@ -69,7 +69,9 @@ DrawTargetD2D1::DrawSurface(SourceSurface *aSurface,
                             const DrawSurfaceOptions &aSurfOptions,
                             const DrawOptions &aOptions)
 {
-  RefPtr<ID2D1Image> image = GetImageForSurface(aSurface, EXTEND_CLAMP);
+  Matrix mat;
+
+  RefPtr<ID2D1Image> image = GetImageForSurface(aSurface, mat, EXTEND_CLAMP);
 
   if (!image) {
     gfxWarning() << *this << ": Unable to get D2D image for surface.";
@@ -184,8 +186,9 @@ DrawTargetD2D1::MaskSurface(const Pattern &aSource,
                             const DrawOptions &aOptions)
 {
   RefPtr<ID2D1Bitmap> bitmap;
+  Matrix mat;
 
-  RefPtr<ID2D1Image> image = GetImageForSurface(aMask, EXTEND_CLAMP);
+  RefPtr<ID2D1Image> image = GetImageForSurface(aMask, mat, EXTEND_CLAMP);
 
   PrepareForDrawing(aOptions.mCompositionOp, aSource);
 
