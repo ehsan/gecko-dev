@@ -487,44 +487,29 @@ TestPilotExperiment.prototype = {
   onNewWindow: function TestPilotExperiment_onNewWindow(window) {
     this._logger.trace("Experiment.onNewWindow called.");
     if (this.experimentIsRunning()) {
-      try {
-        this._handlers.onNewWindow(window);
-      } catch(e) {
-        this._dataStore.logException("onNewWindow: " + e);
-      }
+      this._handlers.onNewWindow(window);
     }
   },
 
   onWindowClosed: function TestPilotExperiment_onWindowClosed(window) {
     this._logger.trace("Experiment.onWindowClosed called.");
     if (this.experimentIsRunning()) {
-      try {
-        this._handlers.onWindowClosed(window);
-      } catch(e) {
-        this._dataStore.logException("onWindowClosed: " + e);
-      }
+      this._handlers.onWindowClosed(window);
     }
   },
 
   onAppStartup: function TestPilotExperiment_onAppStartup() {
     this._logger.trace("Experiment.onAppStartup called.");
     if (this.experimentIsRunning()) {
-      try {
-        this._handlers.onAppStartup();
-      } catch(e) {
-        this._dataStore.logException("onAppStartup: " + e);
-      }
+      this._handlers.onAppStartup();
     }
   },
 
   onAppShutdown: function TestPilotExperiment_onAppShutdown() {
     this._logger.trace("Experiment.onAppShutdown called.");
+    // TODO the caller for this is not yet implemented
     if (this.experimentIsRunning()) {
-      try {
-        this._handlers.onAppShutdown();
-      } catch(e) {
-        this._dataStore.logException("onAppShutdown: " + e);
-      }
+      this._handlers.onAppShutdown();
     }
   },
 
@@ -533,11 +518,7 @@ TestPilotExperiment.prototype = {
     // Make sure not to call this if it's already been called:
     if (this.experimentIsRunning() && !this._startedUpHandlers) {
       this._logger.trace("  ... starting up handlers!");
-      try {
-        this._handlers.onExperimentStartup(this._dataStore);
-      } catch(e) {
-        this._dataStore.logException("onExperimentStartup: " + e);
-      }
+      this._handlers.onExperimentStartup(this._dataStore);
       this._startedUpHandlers = true;
     }
   },
@@ -545,11 +526,7 @@ TestPilotExperiment.prototype = {
   onExperimentShutdown: function TestPilotExperiment_onShutdown() {
     this._logger.trace("Experiment.onExperimentShutdown called.");
     if (this.experimentIsRunning() && this._startedUpHandlers) {
-      try {
-        this._handlers.onExperimentShutdown();
-      } catch(e) {
-        this._dataStore.logException("onExperimentShutdown: " + e);
-      }
+      this._handlers.onExperimentShutdown();
       this._startedUpHandlers = false;
     }
   },
@@ -557,33 +534,21 @@ TestPilotExperiment.prototype = {
   doExperimentCleanup: function TestPilotExperiment_doExperimentCleanup() {
     if (this._handlers.doExperimentCleanup) {
       this._logger.trace("Doing experiment cleanup.");
-      try {
-        this._handlers.doExperimentCleanup();
-      } catch(e) {
-        this._dataStore.logException("doExperimentCleanup: " + e);
-      }
+      this._handlers.doExperimentCleanup();
     }
   },
 
   onEnterPrivateBrowsing: function TestPilotExperiment_onEnterPrivate() {
     this._logger.trace("Task is entering private browsing.");
     if (this.experimentIsRunning()) {
-      try {
-        this._handlers.onEnterPrivateBrowsing();
-      } catch(e) {
-        this._dataStore.logException("onEnterPrivateBrowsing: " + e);
-      }
+      this._handlers.onEnterPrivateBrowsing();
     }
   },
 
   onExitPrivateBrowsing: function TestPilotExperiment_onExitPrivate() {
     this._logger.trace("Task is exiting private browsing.");
     if (this.experimentIsRunning()) {
-      try {
-        this._handlers.onExitPrivateBrowsing();
-      } catch(e) {
-        this._dataStore.logException("onExitPrivateBrowsing: " + e);
-      }
+      this._handlers.onExitPrivateBrowsing();
     }
   },
 
@@ -813,12 +778,9 @@ TestPilotExperiment.prototype = {
         }
       }
       self._dataStore.getJSONRows(function(rows) {
-        json.events = rows;
-        self._dataStore.getExceptionsAsJson(function(errs) {
-          json.exceptions = errs;
-          callback( JSON.stringify(json) );
-        });
-      });
+                                    json.events = rows;
+                                    callback( JSON.stringify(json) );
+                                  });
     });
   },
 

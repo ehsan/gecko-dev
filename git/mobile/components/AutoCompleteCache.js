@@ -323,8 +323,7 @@ AutoCompleteCache.prototype = {
         for (let i = 0; i < this.searchEngines.length; i++) {
           let engine = this.searchEngines[i];
           let url = engine.getSubmission(aResult.searchString).uri.spec;
-          let iconURI = engine.iconURI;
-          aResult.appendMatch(url, engine.name, iconURI ? iconURI.spec : "", "search");
+          aResult.appendMatch(url, engine.name, engine.iconURI.spec, "search");
         }
         aResult.setSearchResult(Ci.nsIAutoCompleteResult.RESULT_SUCCESS);
       }

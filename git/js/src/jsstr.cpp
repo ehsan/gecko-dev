@@ -76,13 +76,12 @@
 #include "jsvector.h"
 #include "jsversion.h"
 
+#include "jscntxtinlines.h"
 #include "jsinterpinlines.h"
 #include "jsobjinlines.h"
 #include "jsregexpinlines.h"
 #include "jsstrinlines.h"
 #include "jsautooplen.h"        // generated headers last
-
-#include "vm/StringObject-inl.h"
 
 using namespace js;
 using namespace js::gc;
@@ -91,7 +90,7 @@ using namespace js::gc;
 bool
 JSString::isShort() const
 {
-    bool is_short = arenaHeader()->getThingKind() == FINALIZE_SHORT_STRING;
+    bool is_short = arena()->header()->thingKind == FINALIZE_SHORT_STRING;
     JS_ASSERT_IF(is_short, isFlat());
     return is_short;
 }
@@ -106,7 +105,7 @@ JSString::isFixed() const
 bool
 JSString::isExternal() const
 {
-    bool is_external = arenaHeader()->getThingKind() == FINALIZE_EXTERNAL_STRING;
+    bool is_external = arena()->header()->thingKind == FINALIZE_EXTERNAL_STRING;
     JS_ASSERT_IF(is_external, isFixed());
     return is_external;
 }
@@ -751,7 +750,7 @@ str_resolve(JSContext *cx, JSObject *obj, jsid id, uintN flags,
 
 Class js_StringClass = {
     js_String_str,
-    JSCLASS_HAS_RESERVED_SLOTS(StringObject::RESERVED_SLOTS) |
+    JSCLASS_HAS_RESERVED_SLOTS(JSObject::STRING_RESERVED_SLOTS) |
     JSCLASS_NEW_RESOLVE | JSCLASS_HAS_CACHED_PROTO(JSProto_String),
     PropertyStub,         /* addProperty */
     PropertyStub,         /* delProperty */
@@ -883,8 +882,11 @@ ValueToIntegerRange(JSContext *cx, const Value &v, int32 *out)
         *out = v.toInt32();
     } else {
         double d;
-        if (!ToInteger(cx, v, &d))
+
+        if (!ValueToNumber(cx, v, &d))
             return false;
+
+        d = js_DoubleToInteger(d);
         if (d > INT32_MAX)
             *out = INT32_MAX;
         else if (d < INT32_MIN)
@@ -1084,9 +1086,14 @@ js_str_charAt(JSContext *cx, uintN argc, Value *vp)
         if (!str)
             return false;
 
-        double d = 0.0;
-        if (argc > 0 && !ToInteger(cx, vp[2], &d))
-            return false;
+        double d;
+        if (argc == 0) {
+            d = 0.0;
+        } else {
+            if (!ValueToNumber(cx, vp[2], &d))
+                return false;
+            d = js_DoubleToInteger(d);
+        }
 
         if (d < 0 || str->length() <= d)
             goto out_of_range;
@@ -1119,9 +1126,14 @@ js_str_charCodeAt(JSContext *cx, uintN argc, Value *vp)
         if (!str)
             return false;
 
-        double d = 0.0;
-        if (argc > 0 && !ToInteger(cx, vp[2], &d))
-            return false;
+        double d;
+        if (argc == 0) {
+            d = 0.0;
+        } else {
+            if (!ValueToNumber(cx, vp[2], &d))
+                return false;
+            d = js_DoubleToInteger(d);
+        }
 
         if (d < 0 || str->length() <= d)
             goto out_of_range;
@@ -1456,8 +1468,9 @@ str_indexOf(JSContext *cx, uintN argc, Value *vp)
             }
         } else {
             jsdouble d;
-            if (!ToInteger(cx, vp[3], &d))
-                return false;
+            if (!ValueToNumber(cx, vp[3], &d))
+                return JS_FALSE;
+            d = js_DoubleToInteger(d);
             if (d <= 0) {
                 start = 0;
             } else if (d > textlen) {
@@ -2439,7 +2452,7 @@ str_replace_flat_lambda(JSContext *cx, uintN argc, Value *vp, ReplaceData &rdata
 
     /* lambda(matchStr, matchStart, textstr) */
     static const uint32 lambdaArgc = 3;
-    if (!cx->stack.pushInvokeArgs(cx, lambdaArgc, &rdata.singleShot))
+    if (!cx->stack().pushInvokeArgs(cx, lambdaArgc, &rdata.singleShot))
         return false;
 
     CallArgs &args = rdata.singleShot;
@@ -2451,7 +2464,7 @@ str_replace_flat_lambda(JSContext *cx, uintN argc, Value *vp, ReplaceData &rdata
     sp[1].setInt32(fm.match());
     sp[2].setString(rdata.str);
 
-    if (!Invoke(cx, rdata.singleShot))
+    if (!Invoke(cx, rdata.singleShot, 0))
         return false;
 
     JSString *repstr = js_ValueToString(cx, args.rval());
@@ -2982,8 +2995,9 @@ str_slice(JSContext *cx, uintN argc, Value *vp)
     if (argc != 0) {
         double begin, end, length;
 
-        if (!ToInteger(cx, vp[2], &begin))
-            return false;
+        if (!ValueToNumber(cx, vp[2], &begin))
+            return JS_FALSE;
+        begin = js_DoubleToInteger(begin);
         length = str->length();
         if (begin < 0) {
             begin += length;
@@ -2996,8 +3010,9 @@ str_slice(JSContext *cx, uintN argc, Value *vp)
         if (argc == 1 || vp[3].isUndefined()) {
             end = length;
         } else {
-            if (!ToInteger(cx, vp[3], &end))
-                return false;
+            if (!ValueToNumber(cx, vp[3], &end))
+                return JS_FALSE;
+            end = js_DoubleToInteger(end);
             if (end < 0) {
                 end += length;
                 if (end < 0)
@@ -3456,10 +3471,10 @@ js_String(JSContext *cx, uintN argc, Value *vp)
     }
 
     if (IsConstructing(vp)) {
-        StringObject *strobj = StringObject::create(cx, str);
-        if (!strobj)
+        JSObject *obj = NewBuiltinClassInstance(cx, &js_StringClass);
+        if (!obj || !obj->initString(cx, str))
             return false;
-        vp->setObject(*strobj);
+        vp->setObject(*obj);
     } else {
         vp->setString(str);
     }
@@ -3523,13 +3538,14 @@ static JSFunctionSpec string_static_methods[] = {
 };
 
 const Shape *
-StringObject::assignInitialShape(JSContext *cx)
+JSObject::assignInitialStringShape(JSContext *cx)
 {
     JS_ASSERT(!cx->compartment->initialStringShape);
+    JS_ASSERT(isString());
     JS_ASSERT(nativeEmpty());
 
     return addDataProperty(cx, ATOM_TO_JSID(cx->runtime->atomState.lengthAtom),
-                           LENGTH_SLOT, JSPROP_PERMANENT | JSPROP_READONLY);
+                           JSSLOT_STRING_LENGTH, JSPROP_PERMANENT | JSPROP_READONLY);
 }
 
 JSObject *
@@ -3551,7 +3567,7 @@ js_InitStringClass(JSContext *cx, JSObject *global)
         return NULL;
 
     JSObject *proto = NewObject<WithProto::Class>(cx, &js_StringClass, objectProto, global);
-    if (!proto || !proto->asString()->init(cx, cx->runtime->emptyString))
+    if (!proto || !proto->initString(cx, cx->runtime->emptyString))
         return NULL;
 
     /* Now create the String function. */
@@ -3890,8 +3906,6 @@ js::ValueToStringBufferSlow(JSContext *cx, const Value &arg, StringBuffer &sb)
 JS_FRIEND_API(JSString *)
 js_ValueToSource(JSContext *cx, const Value &v)
 {
-    JS_CHECK_RECURSION(cx, return NULL);
-
     if (v.isUndefined())
         return cx->runtime->atomState.void0Atom;
     if (v.isString())

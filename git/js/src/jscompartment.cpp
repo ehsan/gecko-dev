@@ -165,14 +165,6 @@ JSCompartment::init()
 #endif
 }
 
-#ifdef JS_METHODJIT
-size_t
-JSCompartment::getMjitCodeSize() const
-{
-    return jaegerCompartment->execAlloc()->getCodeSize();
-}
-#endif
-
 bool
 JSCompartment::arenaListsAreEmpty()
 {
@@ -230,7 +222,7 @@ JSCompartment::wrap(JSContext *cx, Value *vp)
      * This loses us some transparency, and is generally very cheesy.
      */
     JSObject *global;
-    if (cx->running()) {
+    if (cx->hasfp()) {
         global = cx->fp()->scopeChain().getGlobal();
     } else {
         global = cx->globalObject;
