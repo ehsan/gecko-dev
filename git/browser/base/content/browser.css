@@ -734,6 +734,21 @@ chatbox:-moz-full-screen-ancestor > .chat-titlebar {
   display: none;
 }
 
+/* Combobox dropdown renderer */
+#ContentSelectDropdown {
+  max-height: 400px;
+}
+
+.contentSelectDropdown-optgroup {
+  font-weight: bold;
+  /* color: menutext used to overwrite the disabled color */
+  color: menutext;
+}
+
+.contentSelectDropdown-ingroup {
+  -moz-margin-start: 2em;
+}
+
 /* Give this menupopup an arrow panel styling */
 #BMB_bookmarksPopup {
   -moz-appearance: none;

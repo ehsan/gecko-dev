@@ -137,6 +137,9 @@
     <!-- for url bar autocomplete -->
     <panel type="autocomplete-richlistbox" id="PopupAutoCompleteRichResult" noautofocus="true" hidden="true"/>
 
+    <!-- for select dropdowns -->
+    <menupopup id="ContentSelectDropdown" rolluponmousewheel="true" hidden="true"/>
+
     <!-- for invalid form error message -->
     <panel id="invalid-form-popup" type="arrow" orient="vertical" noautofocus="true" hidden="true" level="parent">
       <description/>
@@ -1025,6 +1028,7 @@
                     tabcontainer="tabbrowser-tabs"
                     contentcontextmenu="contentAreaContextMenu"
                     autocompletepopup="PopupAutoComplete"
+                    selectpopup="ContentSelectDropdown"
                     onclick="contentAreaClick(event, false);"/>
         <chatbar id="pinnedchats" layer="true" mousethrough="always" hidden="true"/>
         <statuspanel id="statusbar-display" inactive="true"/>
