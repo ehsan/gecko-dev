@@ -54,7 +54,6 @@ function CookieEngine(pbeId) {
 }
 CookieEngine.prototype = {
   get name() { return "cookies"; },
-  get displayName() { return "Cookies"; },
   get logName() { return "CookieEngine"; },
   get serverPrefix() { return "user-data/cookies/"; },
 
