@@ -1011,9 +1011,11 @@ NS_IMETHODIMP nsCocoaWindow::Enable(bool aState)
   return NS_OK;
 }
 
-bool nsCocoaWindow::IsEnabled() const
+NS_IMETHODIMP nsCocoaWindow::IsEnabled(bool *aState)
 {
-  return true;
+  if (aState)
+    *aState = true;
+  return NS_OK;
 }
 
 #define kWindowPositionSlop 20

@@ -557,7 +557,6 @@ RenderFrameParent::ContentViewScaleChanged(nsContentView* aView)
 
 void
 RenderFrameParent::ShadowLayersUpdated(ShadowLayersParent* aLayerTree,
-                                       const TargetConfig& aTargetConfig,
                                        bool isFirstPaint)
 {
   // View map must only contain views that are associated with the current

@@ -127,8 +127,7 @@ HttpChannelParent::RecvAsyncOpen(const IPC::URI&            aURI,
                                  const bool&                isContent,
                                  const bool&                usePrivateBrowsing,
                                  const bool&                isInBrowserElement,
-                                 const PRUint32&            appId,
-                                 const nsCString&           extendedOrigin)
+                                 const PRUint32&            appId)
 {
   nsCOMPtr<nsIURI> uri(aURI);
   nsCOMPtr<nsIURI> originalUri(aOriginalURI);
@@ -156,7 +155,6 @@ HttpChannelParent::RecvAsyncOpen(const IPC::URI&            aURI,
   mUsePrivateBrowsing = usePrivateBrowsing;
   mIsInBrowserElement = isInBrowserElement;
   mAppId = appId;
-  mExtendedOrigin = extendedOrigin;
 
   nsHttpChannel *httpChan = static_cast<nsHttpChannel *>(mChannel.get());
 
@@ -673,13 +671,6 @@ HttpChannelParent::GetAppId(PRUint32* aAppId)
   NS_ENSURE_ARG_POINTER(aAppId);
 
   *aAppId = mAppId;
-  return NS_OK;
-}
-
-NS_IMETHODIMP
-HttpChannelParent::GetExtendedOrigin(nsIURI *aUri, nsACString &aResult)
-{
-  aResult = mExtendedOrigin;
   return NS_OK;
 }
 

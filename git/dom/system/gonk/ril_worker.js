@@ -60,7 +60,6 @@ let RILQUIRKS_DATACALLSTATE_DOWN_IS_UP = false;
 let RILQUIRKS_V5_LEGACY = true;
 let RILQUIRKS_REQUEST_USE_DIAL_EMERGENCY_CALL = false;
 let RILQUIRKS_MODEM_DEFAULTS_TO_EMERGENCY_MODE = false;
-let RILQUIRKS_SIM_APP_STATE_EXTRA_FIELDS = false;
 
 /**
  * This object contains helpers buffering incoming data & deconstructing it
@@ -728,10 +727,6 @@ let RIL = {
       case "Qualcomm RIL 1.0":
         let product_model = libcutils.property_get("ro.product.model");
         if (DEBUG) debug("Detected product model " + product_model);
-        if (product_model == "otoro1") {
-          if (DEBUG) debug("Enabling RILQUIRKS_SIM_APP_STATE_EXTRA_FIELDS.");
-          RILQUIRKS_SIM_APP_STATE_EXTRA_FIELDS = true;
-        }
         if (DEBUG) {
           debug("Detected Qualcomm RIL 1.0, " +
                 "disabling RILQUIRKS_V5_LEGACY and " +
@@ -1548,18 +1543,14 @@ let RIL = {
    */
   dial: function dial(options) {
     let dial_request_type = REQUEST_DIAL;
-    if (this.voiceRegistrationState.emergencyCallsOnly ||
-        options.isDialEmergency) {
+    if (this.voiceRegistrationState.emergencyCallsOnly) {
       if (!this._isEmergencyNumber(options.number)) {
-        // Notify error in establishing the call with an invalid number.
-        options.callIndex = -1;
-        options.type = "callError";
-        options.error =
-          RIL_CALL_FAILCAUSE_TO_GECKO_CALL_ERROR[CALL_FAIL_UNOBTAINABLE_NUMBER];
-        this.sendDOMMessage(options);
+        if (DEBUG) {
+          // TODO: Notify an error here so that the DOM will see an error event.
+          debug(options.number + " is not a valid emergency number.");
+        }
         return;
       }
-
       if (RILQUIRKS_REQUEST_USE_DIAL_EMERGENCY_CALL) {
         dial_request_type = REQUEST_DIAL_EMERGENCY_CALL;
       }
@@ -2830,12 +2821,6 @@ RIL[REQUEST_GET_SIM_STATUS] = function REQUEST_GET_SIM_STATUS(length, options) {
       pin1:           Buf.readUint32(),
       pin2:           Buf.readUint32()
     });
-    if (RILQUIRKS_SIM_APP_STATE_EXTRA_FIELDS) {
-      Buf.readUint32();
-      Buf.readUint32();
-      Buf.readUint32();
-      Buf.readUint32();
-    }
   }
 
   if (DEBUG) debug("iccStatus: " + JSON.stringify(iccStatus));

@@ -748,9 +748,12 @@ NS_IMETHODIMP nsChildView::Enable(bool aState)
   return NS_OK;
 }
 
-bool nsChildView::IsEnabled() const
+NS_IMETHODIMP nsChildView::IsEnabled(bool *aState)
 {
-  return true;
+  // unimplemented
+  if (aState)
+   *aState = true;
+  return NS_OK;
 }
 
 NS_IMETHODIMP nsChildView::SetFocus(bool aRaise)

@@ -21,7 +21,7 @@ class nsNativeModuleLoader : public mozilla::ModuleLoader
     nsNativeModuleLoader() {}
     ~nsNativeModuleLoader() {}
 
-    virtual const mozilla::Module* LoadModule(mozilla::FileLocation &aFile) MOZ_OVERRIDE;
+    NS_OVERRIDE virtual const mozilla::Module* LoadModule(mozilla::FileLocation &aFile);
 
     nsresult Init();
 

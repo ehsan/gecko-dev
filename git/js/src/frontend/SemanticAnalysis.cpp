@@ -55,7 +55,8 @@ SetFunctionKinds(FunctionBox *funbox, bool *isHeavyweight, bool topInFunction, b
         if (funbox->kids)
             SetFunctionKinds(funbox->kids, isHeavyweight, topInFunction, isDirectEval);
 
-        JS_ASSERT(funbox->function()->isInterpreted());
+        JSFunction *fun = funbox->function();
+        JS_ASSERT(fun->isInterpreted());
         if (pn->isKind(PNK_UPVARS)) {
             /*
              * We loop again over all upvars, and for each non-free upvar,

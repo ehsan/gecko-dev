@@ -1610,26 +1610,10 @@ var SelectionHandler = {
     }
   },
 
-  _ignoreCollapsedSelection: false,
-
   notifySelectionChanged: function sh_notifySelectionChanged(aDoc, aSel, aReason) {
-    if (aSel.isCollapsed) {
-      // Bail if we're ignoring events for a collapsed selection.
-      if (this._ignoreCollapsedSelection)
-        return;
-
-      // If the selection is collapsed because of one of the mouse events we 
-      // sent while moving the handle, don't get rid of the selection handles.
-      if (aReason & Ci.nsISelectionListener.MOUSEDOWN_REASON) {
-        this._ignoreCollapsedSelection = true;
-        return;
-      }
-
-      // Otherwise, we do want to end the selection.
+    // If the selection was removed, call endSelection() to clean up
+    if (aSel == "" && aReason == Ci.nsISelectionListener.NO_REASON)
       this.endSelection();
-    }
-
-    this._ignoreCollapsedSelection = false;
   },
 
   // aX/aY are in top-level window browser coordinates
@@ -1786,16 +1770,12 @@ var SelectionHandler = {
     this.hideHandles();
 
     let selectedText = "";
-    let pointInSelection = false;
     if (this._view) {
       let selection = this._view.getSelection();
       if (selection) {
-        // Get the text before we clear the selection!
-        selectedText = selection.toString().trim();
-
-        // Also figure out if the point is in the selection before we clear it.
+        // Get the text to copy if the tap is in the selection
         if (arguments.length == 2 && this._pointInSelection(aX, aY))
-          pointInSelection = true;
+          selectedText = selection.toString().trim();
 
         selection.removeAllRanges();
         selection.QueryInterface(Ci.nsISelectionPrivate).removeSelectionListener(this);
@@ -1803,7 +1783,7 @@ var SelectionHandler = {
     }
 
     // Only try copying text if there's text to copy!
-    if (pointInSelection && selectedText.length) {
+    if (selectedText.length) {
       let element = ElementTouchHelper.anyElementFromPoint(BrowserApp.selectedBrowser.contentWindow, aX, aY);
       // Only try copying text if the tap happens in the same view
       if (element.ownerDocument.defaultView == this._view) {
@@ -3227,7 +3207,7 @@ var BrowserEventHandler = {
     Services.obs.addObserver(this, "dom-touch-listener-added", false);
 
     BrowserApp.deck.addEventListener("DOMUpdatePageReport", PopupBlockerObserver.onUpdatePageReport, false);
-    BrowserApp.deck.addEventListener("touchstart", this, true);
+    BrowserApp.deck.addEventListener("touchstart", this, false);
     BrowserApp.deck.addEventListener("click", SelectHelper, true);
   },
 
@@ -3500,7 +3480,7 @@ var BrowserEventHandler = {
       for (let i = 0; i < rects.length; i++) {
         let rect = rects[i];
         let inBounds =
-          (aX > rect.left && aX < (rect.left + rect.width)) &&
+          (aX> rect.left  && aX < (rect.left + rect.width)) &&
           (aY > rect.top && aY < (rect.top + rect.height));
         if (inBounds) {
           isTouchClick = false;
@@ -3511,8 +3491,8 @@ var BrowserEventHandler = {
       if (isTouchClick) {
         let rect = rects[0];
         if (rect.width != 0 || rect.height != 0) {
-          aX = Math.min(Math.floor(rect.left + rect.width), Math.max(Math.ceil(rect.left), aX));
-          aY = Math.min(Math.floor(rect.top + rect.height), Math.max(Math.ceil(rect.top),  aY));
+          aX = Math.min(rect.left + rect.width, Math.max(rect.left, aX));
+          aY = Math.min(rect.top + rect.height, Math.max(rect.top,  aY));
         }
       }
     }
@@ -3523,7 +3503,7 @@ var BrowserEventHandler = {
     let window = aElement.ownerDocument.defaultView;
     try {
       let cwu = window.top.QueryInterface(Ci.nsIInterfaceRequestor).getInterface(Ci.nsIDOMWindowUtils);
-      cwu.sendMouseEventToWindow(aName, aX, aY, 0, 1, 0, true);
+      cwu.sendMouseEventToWindow(aName, Math.round(aX), Math.round(aY), 0, 1, 0, true);
     } catch(e) {
       Cu.reportError(e);
     }

@@ -589,7 +589,7 @@ nsresult nsPluginHost::GetURL(nsISupports* pluginInst,
 {
   return GetURLWithHeaders(static_cast<nsNPAPIPluginInstance*>(pluginInst),
                            url, target, streamListener, altHost, referrer,
-                           forceJSEnabled, 0, nsnull);
+                           forceJSEnabled, nsnull, nsnull);
 }
 
 nsresult nsPluginHost::GetURLWithHeaders(nsNPAPIPluginInstance* pluginInst,
@@ -1947,68 +1947,6 @@ nsPluginHost::IsLiveTag(nsIPluginTag* aPluginTag)
   return false;
 }
 
-nsPluginTag*
-nsPluginHost::HaveSamePlugin(const nsPluginTag* aPluginTag)
-{
-  for (nsPluginTag* tag = mPlugins; tag; tag = tag->mNext) {
-    if (tag->HasSameNameAndMimes(aPluginTag)) {
-        return tag;
-    }
-  }
-  return nsnull;
-}
-
-nsPluginTag*
-nsPluginHost::FirstPluginWithPath(const nsCString& path)
-{
-  for (nsPluginTag* tag = mPlugins; tag; tag = tag->mNext) {
-    if (tag->mFullPath.Equals(path)) {
-      return tag;
-    }
-  }
-  return nsnull;
-}
-
-namespace {
-
-PRInt64 GetPluginLastModifiedTime(const nsCOMPtr<nsIFile>& localfile)
-{
-  PRInt64 fileModTime = LL_ZERO;
-
-#if defined(XP_MACOSX)
-  // On OS X the date of a bundle's "contents" (i.e. of its Info.plist file)
-  // is a much better guide to when it was last modified than the date of
-  // its package directory.  See bug 313700.
-  nsCOMPtr<nsILocalFileMac> localFileMac = do_QueryInterface(localfile);
-  if (localFileMac) {
-    localFileMac->GetBundleContentsLastModifiedTime(&fileModTime);
-  } else {
-    localfile->GetLastModifiedTime(&fileModTime);
-  }
-#else
-  localfile->GetLastModifiedTime(&fileModTime);
-#endif
-
-  return fileModTime;
-}
-
-struct CompareFilesByTime 
-{
-  bool 
-  LessThan(const nsCOMPtr<nsIFile>& a, const nsCOMPtr<nsIFile>& b) const 
-  {
-    return LL_CMP(GetPluginLastModifiedTime(a), <, GetPluginLastModifiedTime(b));
-  }
-
-  bool
-  Equals(const nsCOMPtr<nsIFile>& a, const nsCOMPtr<nsIFile>& b) const
-  {
-    return LL_EQ(GetPluginLastModifiedTime(a), GetPluginLastModifiedTime(b));
-  }
-};
-
-} // anonymous namespace
-
 typedef NS_NPAPIPLUGIN_CALLBACK(char *, NP_GETMIMEDESCRIPTION)(void);
 
 nsresult nsPluginHost::ScanPluginsDirectory(nsIFile *pluginsDir,
@@ -2053,11 +1991,9 @@ nsresult nsPluginHost::ScanPluginsDirectory(nsIFile *pluginsDir,
     }
   }
 
-  pluginFiles.Sort(CompareFilesByTime());
-
   bool warnOutdated = false;
 
-  for (PRInt32 i = (pluginFiles.Length() - 1); i >= 0; i--) {
+  for (PRUint32 i = 0; i < pluginFiles.Length(); i++) {
     nsCOMPtr<nsIFile>& localfile = pluginFiles[i];
 
     nsString utf16FilePath;
@@ -2065,8 +2001,21 @@ nsresult nsPluginHost::ScanPluginsDirectory(nsIFile *pluginsDir,
     if (NS_FAILED(rv))
       continue;
 
-    PRInt64 fileModTime = GetPluginLastModifiedTime(localfile);
-    
+    PRInt64 fileModTime = LL_ZERO;
+#if defined(XP_MACOSX)
+    // On OS X the date of a bundle's "contents" (i.e. of its Info.plist file)
+    // is a much better guide to when it was last modified than the date of
+    // its package directory.  See bug 313700.
+    nsCOMPtr<nsILocalFileMac> localFileMac = do_QueryInterface(localfile);
+    if (localFileMac) {
+      localFileMac->GetBundleContentsLastModifiedTime(&fileModTime);
+    } else {
+      localfile->GetLastModifiedTime(&fileModTime);
+    }
+#else
+    localfile->GetLastModifiedTime(&fileModTime);
+#endif
+
     // Look for it in our cache
     NS_ConvertUTF16toUTF8 filePath(utf16FilePath);
     nsRefPtr<nsPluginTag> pluginTag;
@@ -2196,21 +2145,6 @@ nsresult nsPluginHost::ScanPluginsDirectory(nsIFile *pluginsDir,
     if (!seenBefore) {
       // We have a valid new plugin so report that plugins have changed.
       *aPluginsChanged = true;
-    }
-    
-    // Avoid adding different versions of the same plugin if they are running 
-    // in-process, otherwise we risk undefined behaviour.
-    if (!nsNPAPIPlugin::RunPluginOOP(pluginTag)) {
-      if (nsPluginTag *duplicate = HaveSamePlugin(pluginTag)) {
-        continue;
-      }
-    }
-    
-    // Don't add the same plugin again if it hasn't changed
-    if (nsPluginTag* duplicate = FirstPluginWithPath(pluginTag->mFullPath)) {
-      if (LL_EQ(pluginTag->mLastModifiedTime, duplicate->mLastModifiedTime)) {
-        continue;
-      }
     }
 
     // If we're not creating a plugin list, simply looking for changes,
@@ -3935,12 +3869,13 @@ CheckForDisabledWindows()
     windowList->GetNext(getter_AddRefs(supportsWindow));
     nsCOMPtr<nsIBaseWindow> baseWin(do_QueryInterface(supportsWindow));
     if (baseWin) {
+      bool aFlag;
       nsCOMPtr<nsIWidget> widget;
       baseWin->GetMainWidget(getter_AddRefs(widget));
       if (widget && !widget->GetParent() &&
           widget->IsVisible() &&
-          !widget->IsEnabled()) {
-        nsIWidget* child = widget->GetFirstChild();
+          NS_SUCCEEDED(widget->IsEnabled(&aFlag)) && aFlag == false) {
+        nsIWidget * child = widget->GetFirstChild();
         bool enable = true;
         while (child)  {
           nsWindowType aType;

@@ -87,8 +87,8 @@ typedef nsEventStatus (* EVENT_CALLBACK)(nsGUIEvent *event);
 #endif
 
 #define NS_IWIDGET_IID \
-  { 0x91aafae4, 0xd814, 0x4803, \
-    { 0x9a, 0xf5, 0xb0, 0x2f, 0x1b, 0x2c, 0xaf, 0x57 } }
+  { 0x7c7ff2ff, 0x61f9, 0x4240, \
+    { 0xaa, 0x58, 0x74, 0xb0, 0xcd, 0xa9, 0xe3, 0x05 } }
 
 /*
  * Window shadow styles
@@ -766,8 +766,9 @@ class nsIWidget : public nsISupports {
 
     /**
      * Ask whether the widget is enabled
+     * @param aState returns true if the widget is enabled
      */
-    virtual bool IsEnabled() const = 0;
+    NS_IMETHOD IsEnabled(bool *aState) = 0;
 
     /**
      * Request activation of this window or give focus to this widget.
@@ -1569,24 +1570,6 @@ class nsIWidget : public nsISupports {
      * a default background.
      */
     virtual bool WidgetPaintsBackground() { return false; }
-
-    /**
-     * Get the natural bounds of this widget.  This method is only
-     * meaningful for widgets for which Gecko implements screen
-     * rotation natively.  When this is the case, GetBounds() returns
-     * the widget bounds taking rotation into account, and
-     * GetNaturalBounds() returns the bounds *not* taking rotation
-     * into account.
-     *
-     * No code outside of the composition pipeline should know or care
-     * about this.  If you're not an agent of the compositor, you
-     * probably shouldn't call this method.
-     */
-    virtual nsIntRect GetNaturalBounds() {
-        nsIntRect bounds;
-        GetBounds(bounds);
-        return bounds;
-    }
 
 protected:
 

@@ -70,8 +70,7 @@ protected:
                              const bool &               isContent,
                              const bool&                usingPrivateBrowsing,
                              const bool&                isInBrowserElement,
-                             const PRUint32&            appId,
-                             const nsCString&           extendedOrigin);
+                             const PRUint32&            appId);
 
   virtual bool RecvConnectChannel(const PRUint32& channelId);
   virtual bool RecvSetPriority(const PRUint16& priority);
@@ -122,7 +121,6 @@ private:
   bool mIsInBrowserElement          : 1;
 
   PRUint32 mAppId;
-  nsCString mExtendedOrigin;
 };
 
 } // namespace net

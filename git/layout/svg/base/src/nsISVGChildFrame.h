@@ -87,9 +87,10 @@ public:
   // COORD_CONTEXT_CHANGED - the dimensions of this frame's coordinate context has
   //                           changed (percentage lengths must be reevaluated)
   enum SVGChangedFlags {
-    TRANSFORM_CHANGED     = 0x01,
-    COORD_CONTEXT_CHANGED = 0x02,
-    FULL_ZOOM_CHANGED     = 0x04
+    DO_NOT_NOTIFY_RENDERING_OBSERVERS = 0x01,
+    TRANSFORM_CHANGED     = 0x02,
+    COORD_CONTEXT_CHANGED = 0x04,
+    FULL_ZOOM_CHANGED     = 0x08
   };
   /**
    * This is called on a frame when there has been a change to one of its

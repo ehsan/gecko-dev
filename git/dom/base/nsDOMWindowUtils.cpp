@@ -1930,7 +1930,7 @@ nsDOMWindowUtils::StartFrameTimeRecording()
 }
 
 NS_IMETHODIMP
-nsDOMWindowUtils::StopFrameTimeRecording(PRUint32 *frameCount, float **frames)
+nsDOMWindowUtils::StopFrameTimeRecording(PRUint32 *frameCount NS_OUTPARAM, float **frames NS_OUTPARAM)
 {
   NS_ENSURE_ARG_POINTER(frameCount);
   NS_ENSURE_ARG_POINTER(frames);

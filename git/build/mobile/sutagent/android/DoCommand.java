@@ -18,7 +18,6 @@ import java.io.InputStream;
 import java.io.InputStreamReader;
 import java.io.OutputStream;
 import java.io.PrintWriter;
-import java.io.RandomAccessFile;
 import java.net.DatagramPacket;
 import java.net.DatagramSocket;
 import java.net.InetAddress;
@@ -107,7 +106,7 @@ public class DoCommand {
     String ffxProvider = "org.mozilla.ffxcp";
     String fenProvider = "org.mozilla.fencp";
 
-    private final String prgVersion = "SUTAgentAndroid Version 1.10";
+    private final String prgVersion = "SUTAgentAndroid Version 1.09";
 
     public enum Command
         {
@@ -2572,7 +2571,7 @@ private void CancelNotification()
 
     public String GetMemoryInfo()
         {
-        String sRet = "PA:" + GetMemoryConfig() + ", FREE: " + GetMemoryUsage();
+        String sRet = "PA:" + GetMemoryConfig();
         return (sRet);
         }
 
@@ -2584,33 +2583,6 @@ private void CancelNotification()
         long lMem = outInfo.availMem;
 
         return (lMem);
-        }
-
-    public long GetMemoryUsage()
-        {
-
-        String load = "";
-        try {
-            RandomAccessFile reader = new RandomAccessFile("/proc/meminfo", "r");
-            load = reader.readLine(); // Read in the MemTotal
-            load = reader.readLine(); // Read in the MemFree
-        } catch (IOException ex) {
-            return (0);
-        }
-
-        String[] toks = load.split(" ");
-        int i = 1;
-        for (i=1; i < toks.length; i++) {
-            String val = toks[i].trim();
-            if (!val.equals("")) {
-                break;
-            }
-        }
-        if (i <= toks.length) {
-            long lMem = Long.parseLong(toks[i].trim());
-            return (lMem * 1024);
-        }
-        return (0);
         }
 
     public String UpdateCallBack(String sFileName)

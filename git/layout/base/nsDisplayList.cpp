@@ -65,7 +65,6 @@ nsDisplayListBuilder::nsDisplayListBuilder(nsIFrame* aReferenceFrame,
       mIsPaintingToWindow(false),
       mHasDisplayPort(false),
       mHasFixedItems(false),
-      mIsInFixedPosition(false),
       mIsCompositingCheap(false)
 {
   MOZ_COUNT_CTOR(nsDisplayListBuilder);
@@ -860,7 +859,9 @@ static bool IsZOrderLEQ(nsDisplayItem* aItem1, nsDisplayItem* aItem2,
   // z-indices here, because that might overflow a 32-bit int.
   PRInt32 index1 = nsLayoutUtils::GetZIndex(aItem1->GetUnderlyingFrame());
   PRInt32 index2 = nsLayoutUtils::GetZIndex(aItem2->GetUnderlyingFrame());
-  return index1 <= index2;
+  if (index1 == index2)
+    return IsContentLEQ(aItem1, aItem2, aClosure);
+  return index1 < index2;
 }
 
 void nsDisplayList::ExplodeAnonymousChildLists(nsDisplayListBuilder* aBuilder) {
@@ -2073,10 +2074,8 @@ nsDisplayOwnLayer::BuildLayer(nsDisplayListBuilder* aBuilder,
 
 nsDisplayFixedPosition::nsDisplayFixedPosition(nsDisplayListBuilder* aBuilder,
                                                nsIFrame* aFrame,
-                                               nsIFrame* aFixedPosFrame,
                                                nsDisplayList* aList)
-    : nsDisplayOwnLayer(aBuilder, aFrame, aList)
-    , mFixedPosFrame(aFixedPosFrame) {
+    : nsDisplayOwnLayer(aBuilder, aFrame, aList) {
   MOZ_COUNT_CTOR(nsDisplayFixedPosition);
 }
 
@@ -2097,7 +2096,7 @@ nsDisplayFixedPosition::BuildLayer(nsDisplayListBuilder* aBuilder,
   // any positioning set (left/top/right/bottom) indicates that the
   // corresponding side of its container should be the anchor point,
   // defaulting to top-left.
-  nsIFrame* viewportFrame = mFixedPosFrame->GetParent();
+  nsIFrame* viewportFrame = mFrame->GetParent();
   nsPresContext *presContext = viewportFrame->PresContext();
 
   // Fixed position frames are reflowed into the scroll-port size if one has
@@ -2124,7 +2123,7 @@ nsDisplayFixedPosition::BuildLayer(nsDisplayListBuilder* aBuilder,
 
   gfxPoint anchor(anchorRect.x, anchorRect.y);
 
-  const nsStylePosition* position = mFixedPosFrame->GetStylePosition();
+  const nsStylePosition* position = mFrame->GetStylePosition();
   if (position->mOffset.GetRightUnit() != eStyleUnit_Auto)
     anchor.x = anchorRect.XMost();
   if (position->mOffset.GetBottomUnit() != eStyleUnit_Auto)

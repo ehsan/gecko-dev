@@ -3379,13 +3379,15 @@ SetSelectionAroundHeadChildren(nsISelection* aSelection,
 NS_IMETHODIMP
 nsHTMLEditor::GetHeadContentsAsHTML(nsAString& aOutputString)
 {
-  nsRefPtr<Selection> selection = GetSelection();
+  nsCOMPtr<nsISelection> selection;
+  nsresult res = GetSelection(getter_AddRefs(selection));
+  NS_ENSURE_SUCCESS(res, res);
   NS_ENSURE_TRUE(selection, NS_ERROR_NULL_POINTER);
 
   // Save current selection
   nsAutoSelectionReset selectionResetter(selection, this);
 
-  nsresult res = SetSelectionAroundHeadChildren(selection, mDocWeak);
+  res = SetSelectionAroundHeadChildren(selection, mDocWeak);
   NS_ENSURE_SUCCESS(res, res);
 
   res = OutputToString(NS_LITERAL_STRING("text/html"),

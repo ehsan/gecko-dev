@@ -113,6 +113,8 @@ protected:
   // Areas dirtied by changes to sub-documents embedded by our decendents
   nsRegion mSubDocDirtyRegion;
 
+  nsRect mCoveredRegion;
+
   bool mInReflow;
 };
 

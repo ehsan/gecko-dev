@@ -116,11 +116,11 @@ NS_IMETHODIMP AndroidCameraInputStream::IsNonBlocking(bool *aNonBlock) {
   return NS_OK;
 }
 
-NS_IMETHODIMP AndroidCameraInputStream::Read(char *aBuffer, PRUint32 aCount, PRUint32 *aRead) {
+NS_IMETHODIMP AndroidCameraInputStream::Read(char *aBuffer, PRUint32 aCount, PRUint32 *aRead NS_OUTPARAM) {
   return ReadSegments(NS_CopySegmentToBuffer, aBuffer, aCount, aRead);
 }
 
-NS_IMETHODIMP AndroidCameraInputStream::ReadSegments(nsWriteSegmentFun aWriter, void *aClosure, PRUint32 aCount, PRUint32 *aRead) {
+NS_IMETHODIMP AndroidCameraInputStream::ReadSegments(nsWriteSegmentFun aWriter, void *aClosure, PRUint32 aCount, PRUint32 *aRead NS_OUTPARAM) {
   *aRead = 0;
   
   nsresult rv;

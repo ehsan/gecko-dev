@@ -65,22 +65,9 @@
 
         'webrtc_root%': '<(DEPTH)/third_party/webrtc',
       }, {
-        'conditions': [
-          ['build_with_mozilla==1', {
-            # Settings for the Mozilla build.
-            'include_pulse_audio%': 0,
-            # we use the internal capture code for getUserMedia()
-            'include_internal_audio_device%': 1,
-            'include_internal_video_capture%': 1,
-            'include_internal_video_render%': 0,
-            'enable_protobuf%': 0,
-            'webrtc_root%': '<(DEPTH)/src',
-            'clang_use_chrome_plugins%': 0,
-          }, {
-	
         # Settings for the standalone (not-in-Chromium) build.
 
-        'include_pulse_audio%': 1,
+        'include_pulse_audio%': 0,
 
         'include_internal_audio_device%': 1,
 
@@ -99,8 +86,6 @@
             # Investigate enabling the plugins:
             # http://code.google.com/p/webrtc/issues/detail?id=163
             'clang_use_chrome_plugins%': 0,
-          }],
-        ],
           }],
         ],
       }],

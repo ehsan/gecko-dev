@@ -127,13 +127,9 @@ function setPermission(url, permission, value)
   let uri = Components.classes["@mozilla.org/network/io-service;1"]
                       .getService(Components.interfaces.nsIIOService)
                       .newURI(url, null, null);
-  let principal = Components.classes["@mozilla.org/scriptsecuritymanager;1"]
-                    .getService(Ci.nsIScriptSecurityManager)
-                    .getNoAppCodebasePrincipal(uri);
-
   Components.classes["@mozilla.org/permissionmanager;1"]
             .getService(Components.interfaces.nsIPermissionManager)
-            .addFromPrincipal(principal, permission, value);
+            .add(uri, permission, value);
 }
 
 function removePermission(url, permission)
@@ -141,13 +137,9 @@ function removePermission(url, permission)
   let uri = Components.classes["@mozilla.org/network/io-service;1"]
                       .getService(Components.interfaces.nsIIOService)
                       .newURI(url, null, null);
-  let principal = Components.classes["@mozilla.org/scriptsecuritymanager;1"]
-                    .getService(Ci.nsIScriptSecurityManager)
-                    .getNoAppCodebasePrincipal(uri);
-
   Components.classes["@mozilla.org/permissionmanager;1"]
             .getService(Components.interfaces.nsIPermissionManager)
-            .removeFromPrincipal(principal, permission);
+            .remove(uri.asciiHost, permission);
 }
 
 function getPermission(url, permission)
@@ -155,11 +147,7 @@ function getPermission(url, permission)
   let uri = Components.classes["@mozilla.org/network/io-service;1"]
                       .getService(Components.interfaces.nsIIOService)
                       .newURI(url, null, null);
-  let principal = Components.classes["@mozilla.org/scriptsecuritymanager;1"]
-                    .getService(Ci.nsIScriptSecurityManager)
-                    .getNoAppCodebasePrincipal(uri);
-
   return Components.classes["@mozilla.org/permissionmanager;1"]
                    .getService(Components.interfaces.nsIPermissionManager)
-                   .testPermissionFromPrincipal(principal, permission);
+                   .testPermission(uri, permission);
 }

@@ -134,7 +134,9 @@ nsSVGMarkerFrame::PaintMark(nsRenderingContext *aContext,
     nsISVGChildFrame* SVGFrame = do_QueryFrame(kid);
     if (SVGFrame) {
       // The CTM of each frame referencing us may be different.
-      SVGFrame->NotifySVGChanged(nsISVGChildFrame::TRANSFORM_CHANGED);
+      SVGFrame->NotifySVGChanged(
+                          nsISVGChildFrame::DO_NOT_NOTIFY_RENDERING_OBSERVERS |
+                          nsISVGChildFrame::TRANSFORM_CHANGED);
       nsSVGUtils::PaintFrameWithEffects(aContext, nsnull, kid);
     }
   }

@@ -53,7 +53,7 @@ nsVolumeService::~nsVolumeService()
 }
 
 /* nsIVolume getVolumeByName (in DOMString volName); */
-NS_IMETHODIMP nsVolumeService::GetVolumeByName(const nsAString &aVolName, nsIVolume **aResult)
+NS_IMETHODIMP nsVolumeService::GetVolumeByName(const nsAString &aVolName, nsIVolume **aResult NS_OUTPARAM)
 {
   nsRefPtr<nsVolume> vol = FindVolumeByName(aVolName);
   if (!vol) {
@@ -65,7 +65,7 @@ NS_IMETHODIMP nsVolumeService::GetVolumeByName(const nsAString &aVolName, nsIVol
 }
 
 /* nsIVolume getVolumeByPath (in DOMString path); */
-NS_IMETHODIMP nsVolumeService::GetVolumeByPath(const nsAString &aPath, nsIVolume **aResult)
+NS_IMETHODIMP nsVolumeService::GetVolumeByPath(const nsAString &aPath, nsIVolume **aResult NS_OUTPARAM)
 {
   nsCString utf8Path = NS_ConvertUTF16toUTF8(aPath);
   char realPathBuf[PATH_MAX];

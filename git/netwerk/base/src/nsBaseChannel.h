@@ -247,6 +247,7 @@ private:
   nsRefPtr<nsInputStreamPump>         mPump;
   nsCOMPtr<nsIProgressEventSink>      mProgressSink;
   nsCOMPtr<nsIURI>                    mOriginalURI;
+  nsCOMPtr<nsIURI>                    mURI;
   nsCOMPtr<nsISupports>               mOwner;
   nsCOMPtr<nsISupports>               mSecurityInfo;
   nsCOMPtr<nsIChannel>                mRedirectChannel;
@@ -261,7 +262,6 @@ private:
   PRUint32                            mRedirectFlags;
 
 protected:
-  nsCOMPtr<nsIURI>                    mURI;
   nsCOMPtr<nsILoadGroup>              mLoadGroup;
   nsCOMPtr<nsIInterfaceRequestor>     mCallbacks;
   nsCOMPtr<nsIStreamListener>         mListener;

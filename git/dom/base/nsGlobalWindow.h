@@ -153,11 +153,6 @@ struct nsTimeout : PRCList
     return static_cast<nsTimeout*>(PR_PREV_LINK(this));
   }
 
-  nsresult InitTimer(nsTimerCallbackFunc aFunc, PRUint64 delay) {
-    return mTimer->InitWithFuncCallback(aFunc, this, delay,
-                                        nsITimer::TYPE_ONE_SHOT);
-  }
-
   // Window for which this timeout fires
   nsRefPtr<nsGlobalWindow> mWindow;
 

@@ -3873,8 +3873,8 @@ ReadSourceFromFilename(JSContext *cx, const char *filename, jschar **src, PRUint
 
   // mozJSSubScriptLoader prefixes the filenames of the scripts it loads with
   // the filename of its caller. Axe that if present.
-  const char *arrow;
-  while ((arrow = strstr(filename, " -> ")))
+  const char *arrow = strstr(filename, " -> ");
+  if (arrow)
     filename = arrow + strlen(" -> ");
 
   // Get the URI.

@@ -2103,15 +2103,8 @@ nsIFrame::BuildDisplayListForChild(nsDisplayListBuilder*   aBuilder,
     pseudoStackingContext = true;
   }
 
-  // This controls later whether we build an nsDisplayWrapList or an
-  // nsDisplayFixedPosition. We check if we're already building a fixed-pos
-  // item and disallow nesting, to prevent the situation of bug #769541
-  // occurring.
-  bool buildFixedPositionItem = disp->mPosition == NS_STYLE_POSITION_FIXED
-    && !child->GetParent()->GetParent() && !isSVG && !aBuilder->IsInFixedPosition();
-
   nsDisplayListBuilder::AutoBuildingDisplayList
-    buildingForChild(aBuilder, child, pseudoStackingContext, buildFixedPositionItem);
+    buildingForChild(aBuilder, child, pseudoStackingContext);
 
   nsRect overflowClip;
   nscoord overflowClipRadii[8];
@@ -2211,8 +2204,9 @@ nsIFrame::BuildDisplayListForChild(nsDisplayListBuilder*   aBuilder,
       // Make sure the root of a fixed position frame sub-tree gets the
       // correct displaylist item type.
       nsDisplayItem* item;
-      if (buildFixedPositionItem) {
-        item = new (aBuilder) nsDisplayFixedPosition(aBuilder, child, child, &list);
+      if (!isSVG && !child->GetParent()->GetParent() &&
+          disp->mPosition == NS_STYLE_POSITION_FIXED) {
+        item = new (aBuilder) nsDisplayFixedPosition(aBuilder, child, &list);
       } else {
         item = new (aBuilder) nsDisplayWrapList(aBuilder, child, &list);
       }
@@ -2222,19 +2216,6 @@ nsIFrame::BuildDisplayListForChild(nsDisplayListBuilder*   aBuilder,
         rv = aLists.PositionedDescendants()->AppendNewToTop(item);
       }
       NS_ENSURE_SUCCESS(rv, rv);
-
-      // Make sure that extra positioned descendants don't escape having
-      // their fixed-position metadata applied to them.
-      if (buildFixedPositionItem) {
-        while (!extraPositionedDescendants.IsEmpty()) {
-          item = extraPositionedDescendants.RemoveBottom();
-          nsDisplayList fixedPosDescendantList;
-          fixedPosDescendantList.AppendToTop(item);
-          aLists.PositionedDescendants()->AppendNewToTop(
-              new (aBuilder) nsDisplayFixedPosition(aBuilder, item->GetUnderlyingFrame(),
-                                                    child, &fixedPosDescendantList));
-        }
-      }
     }
   } else if (!isSVG && disp->IsFloating()) {
     if (!list.IsEmpty()) {

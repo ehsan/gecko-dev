@@ -138,7 +138,7 @@ public:
   virtual nsIWidget*    GetParent();
   virtual float         GetDPI();
   NS_IMETHOD            Enable(bool aState);
-  virtual bool          IsEnabled() const;
+  NS_IMETHOD            IsEnabled(bool* aState);
   NS_IMETHOD            Show(bool aState);
   virtual bool          IsVisible() const;
   NS_IMETHOD            SetFocus(bool aRaise);

@@ -23,14 +23,17 @@ public:
     void Main();
 
 protected:    
-    virtual bool RecvError() MOZ_OVERRIDE;
+    NS_OVERRIDE
+    virtual bool RecvError();
 
-    virtual void ProcessingError(Result what) MOZ_OVERRIDE
+    NS_OVERRIDE
+    virtual void ProcessingError(Result what)
     {
         // Ignore errors
     }
 
-    virtual void ActorDestroy(ActorDestroyReason why) MOZ_OVERRIDE
+    NS_OVERRIDE
+    virtual void ActorDestroy(ActorDestroyReason why)
     {
         if (NormalShutdown != why)
             fail("unexpected destruction!");  
@@ -48,14 +51,17 @@ public:
     virtual ~TestSyncErrorChild();
 
 protected:
-    virtual bool RecvStart() MOZ_OVERRIDE;
+    NS_OVERRIDE
+    virtual bool RecvStart();
 
-    virtual void ProcessingError(Result what) MOZ_OVERRIDE
+    NS_OVERRIDE
+    virtual void ProcessingError(Result what)
     {
         // Ignore errors
     }
 
-    virtual void ActorDestroy(ActorDestroyReason why) MOZ_OVERRIDE
+    NS_OVERRIDE
+    virtual void ActorDestroy(ActorDestroyReason why)
     {
         if (NormalShutdown != why)
             fail("unexpected destruction!");

@@ -112,15 +112,18 @@ public:
     virtual nsresult AsyncSetWindow(NPP instance, NPWindow* window);
     virtual nsresult GetImageContainer(NPP instance, ImageContainer** aContainer);
     virtual nsresult GetImageSize(NPP instance, nsIntSize* aSize);
-    virtual bool UseAsyncPainting() MOZ_OVERRIDE { return false; }
+    NS_OVERRIDE virtual bool UseAsyncPainting() { return false; }
 #if defined(XP_MACOSX)
     virtual nsresult IsRemoteDrawingCoreAnimation(NPP instance, bool *aDrawing);
 #endif
-    virtual nsresult SetBackgroundUnknown(NPP instance) MOZ_OVERRIDE;
+    NS_OVERRIDE
+    virtual nsresult SetBackgroundUnknown(NPP instance);
+    NS_OVERRIDE
     virtual nsresult BeginUpdateBackground(NPP instance,
-                                           const nsIntRect&, gfxContext** aCtx) MOZ_OVERRIDE;
+                                           const nsIntRect&, gfxContext** aCtx);
+    NS_OVERRIDE
     virtual nsresult EndUpdateBackground(NPP instance,
-                                         gfxContext* aCtx, const nsIntRect&) MOZ_OVERRIDE;
+                                         gfxContext* aCtx, const nsIntRect&);
 #if defined(MOZ_WIDGET_QT) && (MOZ_PLATFORM_MAEMO == 6)
     virtual nsresult HandleGUIEvent(NPP instance,
                                     const nsGUIEvent& anEvent, bool* handled);

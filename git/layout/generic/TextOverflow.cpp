@@ -221,10 +221,12 @@ nsDisplayTextOverflowMarker::PaintTextToContext(nsRenderingContext* aCtx,
 
 void
 TextOverflow::Init(nsDisplayListBuilder*   aBuilder,
+                   const nsDisplayListSet& aLists,
                    nsIFrame*               aBlockFrame)
 {
   mBuilder = aBuilder;
   mBlock = aBlockFrame;
+  mMarkerList = aLists.PositionedDescendants();
   mContentArea = aBlockFrame->GetContentRectRelativeToSelf();
   mScrollableFrame = nsLayoutUtils::GetScrollableFrameFor(aBlockFrame);
   PRUint8 direction = aBlockFrame->GetStyleVisibility()->mDirection;
@@ -266,13 +268,14 @@ TextOverflow::Init(nsDisplayListBuilder*   aBuilder,
 
 /* static */ TextOverflow*
 TextOverflow::WillProcessLines(nsDisplayListBuilder*   aBuilder,
+                               const nsDisplayListSet& aLists,
                                nsIFrame*               aBlockFrame)
 {
   if (!CanHaveTextOverflow(aBuilder, aBlockFrame)) {
     return nsnull;
   }
   nsAutoPtr<TextOverflow> textOverflow(new TextOverflow);
-  textOverflow->Init(aBuilder, aBlockFrame);
+  textOverflow->Init(aBuilder, aLists, aBlockFrame);
   return textOverflow.forget();
 }
 
@@ -680,7 +683,7 @@ void
 TextOverflow::CreateMarkers(const nsLineBox* aLine,
                             bool             aCreateLeft,
                             bool             aCreateRight,
-                            const nsRect&    aInsideMarkersArea)
+                            const nsRect&    aInsideMarkersArea) const
 {
   if (aCreateLeft) {
     nsRect markerRect = nsRect(aInsideMarkersArea.x - mLeft.mIntrinsicWidth,
@@ -695,7 +698,7 @@ TextOverflow::CreateMarkers(const nsLineBox* aLine,
                           mContentArea + mBuilder->ToReferenceFrame(mBlock),
                           &markerRect);
     }
-    mMarkerList.AppendNewToTop(marker);
+    mMarkerList->AppendNewToTop(marker);
   }
 
   if (aCreateRight) {
@@ -711,7 +714,7 @@ TextOverflow::CreateMarkers(const nsLineBox* aLine,
                           mContentArea + mBuilder->ToReferenceFrame(mBlock),
                           &markerRect);
     }
-    mMarkerList.AppendNewToTop(marker);
+    mMarkerList->AppendNewToTop(marker);
   }
 }
 

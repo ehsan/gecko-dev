@@ -35,10 +35,13 @@ public:
     void Main();
 
 protected:
-    virtual PTestFailedCtorSubParent* AllocPTestFailedCtorSub() MOZ_OVERRIDE;
-    virtual bool DeallocPTestFailedCtorSub(PTestFailedCtorSubParent* actor) MOZ_OVERRIDE;
+    NS_OVERRIDE
+    virtual PTestFailedCtorSubParent* AllocPTestFailedCtorSub();
+    NS_OVERRIDE
+    virtual bool DeallocPTestFailedCtorSub(PTestFailedCtorSubParent* actor);
 
-    virtual void ActorDestroy(ActorDestroyReason why) MOZ_OVERRIDE
+    NS_OVERRIDE
+    virtual void ActorDestroy(ActorDestroyReason why)
     {
         if (AbnormalShutdown != why)
             fail("unexpected destruction!");  
@@ -56,15 +59,20 @@ public:
     virtual ~TestFailedCtorChild() { }
 
 protected:
-    virtual PTestFailedCtorSubChild* AllocPTestFailedCtorSub() MOZ_OVERRIDE;
+    NS_OVERRIDE
+    virtual PTestFailedCtorSubChild* AllocPTestFailedCtorSub();
 
-    virtual bool AnswerPTestFailedCtorSubConstructor(PTestFailedCtorSubChild* actor) MOZ_OVERRIDE;
+    NS_OVERRIDE
+    virtual bool AnswerPTestFailedCtorSubConstructor(PTestFailedCtorSubChild* actor);
 
-    virtual bool DeallocPTestFailedCtorSub(PTestFailedCtorSubChild* actor) MOZ_OVERRIDE;
+    NS_OVERRIDE
+    virtual bool DeallocPTestFailedCtorSub(PTestFailedCtorSubChild* actor);
 
-    virtual void ProcessingError(Result what) MOZ_OVERRIDE;
+    NS_OVERRIDE
+    virtual void ProcessingError(Result what);
 
-    virtual void ActorDestroy(ActorDestroyReason why) MOZ_OVERRIDE
+    NS_OVERRIDE
+    virtual void ActorDestroy(ActorDestroyReason why)
     {
         fail("should have _exit()ed");
     }
@@ -84,12 +92,16 @@ public:
     virtual ~TestFailedCtorSubParent();
 
 protected:
-    virtual PTestFailedCtorSubsubParent* AllocPTestFailedCtorSubsub() MOZ_OVERRIDE;
+    NS_OVERRIDE
+    virtual PTestFailedCtorSubsubParent* AllocPTestFailedCtorSubsub();
 
-    virtual bool DeallocPTestFailedCtorSubsub(PTestFailedCtorSubsubParent* actor) MOZ_OVERRIDE;
-    virtual bool RecvSync() MOZ_OVERRIDE { return true; }
+    NS_OVERRIDE
+    virtual bool DeallocPTestFailedCtorSubsub(PTestFailedCtorSubsubParent* actor);
+    NS_OVERRIDE
+    virtual bool RecvSync() { return true; }
 
-    virtual void ActorDestroy(ActorDestroyReason why) MOZ_OVERRIDE;
+    NS_OVERRIDE
+    virtual void ActorDestroy(ActorDestroyReason why);
 
     TestFailedCtorSubsub* mOne;
     TestFailedCtorSubsub* mTwo;
@@ -105,10 +117,13 @@ public:
     virtual ~TestFailedCtorSubChild() { }
 
 protected:
-    virtual PTestFailedCtorSubsubChild* AllocPTestFailedCtorSubsub() MOZ_OVERRIDE;
-    virtual bool DeallocPTestFailedCtorSubsub(PTestFailedCtorSubsubChild* actor) MOZ_OVERRIDE;
+    NS_OVERRIDE
+    virtual PTestFailedCtorSubsubChild* AllocPTestFailedCtorSubsub();
+    NS_OVERRIDE
+    virtual bool DeallocPTestFailedCtorSubsub(PTestFailedCtorSubsubChild* actor);
 
-    virtual void ActorDestroy(ActorDestroyReason why) MOZ_OVERRIDE;
+    NS_OVERRIDE
+    virtual void ActorDestroy(ActorDestroyReason why);
 };
 
 
@@ -123,7 +138,8 @@ public:
     TestFailedCtorSubsub() : mWhy(ActorDestroyReason(-1)), mDealloced(false) {}
     virtual ~TestFailedCtorSubsub() {}
 
-    virtual void ActorDestroy(ActorDestroyReason why) MOZ_OVERRIDE { mWhy = why; }
+    NS_OVERRIDE
+    virtual void ActorDestroy(ActorDestroyReason why) { mWhy = why; }
 
     ActorDestroyReason mWhy;
     bool mDealloced;

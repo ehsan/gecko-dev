@@ -86,15 +86,18 @@ public:
 
     virtual ~RPCChannel();
 
-    void Clear() MOZ_OVERRIDE;
+    NS_OVERRIDE
+    void Clear();
 
     // Make an RPC to the other side of the channel
     bool Call(Message* msg, Message* reply);
 
     // RPCChannel overrides these so that the async and sync messages
     // can be counted against mStackFrames
-    virtual bool Send(Message* msg) MOZ_OVERRIDE;
-    virtual bool Send(Message* msg, Message* reply) MOZ_OVERRIDE;
+    NS_OVERRIDE
+    virtual bool Send(Message* msg);
+    NS_OVERRIDE
+    virtual bool Send(Message* msg, Message* reply);
 
     // Asynchronously, send the child a message that puts it in such a
     // state that it can't send messages to the parent unless the
@@ -124,7 +127,8 @@ public:
         return !mCxxStackFrames.empty();
     }
 
-    virtual bool OnSpecialMessage(uint16 id, const Message& msg) MOZ_OVERRIDE;
+    NS_OVERRIDE
+    virtual bool OnSpecialMessage(uint16 id, const Message& msg);
 
 
     /**
@@ -145,8 +149,8 @@ protected:
 #endif
 
 protected:
-    virtual void OnMessageReceivedFromLink(const Message& msg) MOZ_OVERRIDE;
-    virtual void OnChannelErrorFromLink() MOZ_OVERRIDE;
+    NS_OVERRIDE virtual void OnMessageReceivedFromLink(const Message& msg);
+    NS_OVERRIDE virtual void OnChannelErrorFromLink();
 
 private:
     // Called on worker thread only
@@ -155,7 +159,8 @@ private:
         return static_cast<RPCListener*>(mListener);
     }
 
-    virtual bool ShouldDeferNotifyMaybeError() const MOZ_OVERRIDE {
+    NS_OVERRIDE
+    virtual bool ShouldDeferNotifyMaybeError() const {
         return IsOnCxxStack();
     }
 

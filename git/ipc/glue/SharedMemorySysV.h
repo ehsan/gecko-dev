@@ -59,7 +59,8 @@ public:
     mData = nsnull;
   }
 
-  virtual bool Create(size_t aNbytes) MOZ_OVERRIDE
+  NS_OVERRIDE
+  virtual bool Create(size_t aNbytes)
   {
     int id = shmget(IPC_PRIVATE, aNbytes, IPC_CREAT | 0600);
     if (id == -1)
@@ -72,7 +73,8 @@ public:
     return Map(aNbytes);
   }
 
-  virtual bool Map(size_t nBytes) MOZ_OVERRIDE
+  NS_OVERRIDE
+  virtual bool Map(size_t nBytes)
   {
     // already mapped
     if (mData)
@@ -111,12 +113,14 @@ public:
     return true;
   }
 
-  virtual void* memory() const MOZ_OVERRIDE
+  NS_OVERRIDE
+  virtual void* memory() const
   {
     return mData;
   }
 
-  virtual SharedMemoryType Type() const MOZ_OVERRIDE
+  NS_OVERRIDE
+  virtual SharedMemoryType Type() const
   {
     return TYPE_SYSV;
   }

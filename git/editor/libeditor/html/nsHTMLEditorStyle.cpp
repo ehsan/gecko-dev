@@ -1535,8 +1535,11 @@ nsHTMLEditor::RelativeFontChange( PRInt32 aSizeChange)
   ForceCompositionEnd();
 
   // Get the selection 
-  nsRefPtr<Selection> selection = GetSelection();
+  nsCOMPtr<nsISelection>selection;
+  nsresult res = GetSelection(getter_AddRefs(selection));
+  NS_ENSURE_SUCCESS(res, res);
   NS_ENSURE_TRUE(selection, NS_ERROR_FAILURE);
+  nsCOMPtr<nsISelectionPrivate> selPriv(do_QueryInterface(selection));  
   // Is the selection collapsed?
   // if it's collapsed set typing state
   if (selection->Collapsed()) {
@@ -1551,7 +1554,7 @@ nsHTMLEditor::RelativeFontChange( PRInt32 aSizeChange)
     NS_ENSURE_TRUE(selectedNode, NS_OK);
     if (IsTextNode(selectedNode)) {
       nsCOMPtr<nsIDOMNode> parent;
-      nsresult res = selectedNode->GetParentNode(getter_AddRefs(parent));
+      res = selectedNode->GetParentNode(getter_AddRefs(parent));
       NS_ENSURE_SUCCESS(res, res);
       selectedNode = parent;
     }
@@ -1572,7 +1575,7 @@ nsHTMLEditor::RelativeFontChange( PRInt32 aSizeChange)
 
   // get selection range enumerator
   nsCOMPtr<nsIEnumerator> enumerator;
-  nsresult res = selection->GetEnumerator(getter_AddRefs(enumerator));
+  res = selPriv->GetEnumerator(getter_AddRefs(enumerator));
   NS_ENSURE_SUCCESS(res, res);
   NS_ENSURE_TRUE(enumerator, NS_ERROR_FAILURE);
 

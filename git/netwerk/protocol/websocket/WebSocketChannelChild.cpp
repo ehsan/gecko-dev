@@ -334,7 +334,6 @@ WebSocketChannelChild::AsyncOpen(nsIURI *aURI,
   bool usePrivateBrowsing = false;
   bool isInBrowserElement = false;
   PRUint32 appId = 0;
-  nsCAutoString extendedOrigin;
   nsCOMPtr<nsILoadContext> loadContext;
   NS_QueryNotificationCallbacks(mCallbacks, mLoadGroup,
                                 NS_GET_IID(nsILoadContext),
@@ -345,7 +344,6 @@ WebSocketChannelChild::AsyncOpen(nsIURI *aURI,
     loadContext->GetUsePrivateBrowsing(&usePrivateBrowsing);
     loadContext->GetIsInBrowserElement(&isInBrowserElement);
     loadContext->GetAppId(&appId);
-    loadContext->GetExtendedOrigin(mURI, extendedOrigin);
   }
 
   // Corresponding release in DeallocPWebSocket
@@ -354,7 +352,7 @@ WebSocketChannelChild::AsyncOpen(nsIURI *aURI,
   gNeckoChild->SendPWebSocketConstructor(this, tabChild);
   if (!SendAsyncOpen(aURI, nsCString(aOrigin), mProtocol, mEncrypted,
                      haveLoadContext, isContent, usePrivateBrowsing,
-                     isInBrowserElement, appId, extendedOrigin))
+                     isInBrowserElement, appId))
     return NS_ERROR_UNEXPECTED;
 
   mOriginalURI = aURI;

@@ -548,7 +548,7 @@ nsHtml5TreeBuilder::endTokenization()
       stack[currentPtr]->release();
       currentPtr--;
     }
-    stack = 0;
+    stack = nsnull;
   }
   if (listOfActiveFormattingElements) {
     while (listPtr > -1) {
@@ -557,9 +557,9 @@ nsHtml5TreeBuilder::endTokenization()
       }
       listPtr--;
     }
-    listOfActiveFormattingElements = 0;
+    listOfActiveFormattingElements = nsnull;
   }
-  charBuffer = 0;
+  charBuffer = nsnull;
   end();
 }
 

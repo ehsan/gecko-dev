@@ -24,7 +24,6 @@ class TextSelectionHandle extends ImageView implements View.OnTouchListener {
     private final HandleType mHandleType;
     private final int mWidth;
     private final int mHeight;
-    private final int mShadow;
 
     private int mLeft;
     private int mTop;
@@ -43,7 +42,6 @@ class TextSelectionHandle extends ImageView implements View.OnTouchListener {
 
         mWidth = getResources().getDimensionPixelSize(R.dimen.text_selection_handle_width);
         mHeight = getResources().getDimensionPixelSize(R.dimen.text_selection_handle_height);
-        mShadow = getResources().getDimensionPixelSize(R.dimen.text_selection_handle_shadow);
     }
 
     public boolean onTouch(View v, MotionEvent event) {
@@ -85,8 +83,7 @@ class TextSelectionHandle extends ImageView implements View.OnTouchListener {
             return;
         }
         // Send x coordinate on the right side of the start handle, left side of the end handle.
-        float left = (float) mLeft + (mHandleType.equals(HandleType.START) ? mWidth - mShadow : mShadow);
-        PointF geckoPoint = new PointF(left, (float) mTop);
+        PointF geckoPoint = new PointF((float) mLeft + (mHandleType.equals(HandleType.START) ? mWidth : 0), (float) mTop);
         geckoPoint = layerController.convertViewPointToLayerPoint(geckoPoint);
 
         JSONObject args = new JSONObject();
@@ -111,7 +108,7 @@ class TextSelectionHandle extends ImageView implements View.OnTouchListener {
         PointF geckoPoint = new PointF((float) left, (float) top);
         geckoPoint = layerController.convertLayerPointToViewPoint(geckoPoint);
 
-        mLeft = Math.round(geckoPoint.x) - (mHandleType.equals(HandleType.START) ? mWidth - mShadow : mShadow);
+        mLeft = Math.round(geckoPoint.x) - (mHandleType.equals(HandleType.START) ? mWidth : 0);
         mTop = Math.round(geckoPoint.y);
 
         setLayoutPosition();

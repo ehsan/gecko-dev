@@ -4494,8 +4494,12 @@ nsEventStateManager::CheckForAndDispatchClick(nsPresContext* aPresContext,
   if (0 != aEvent->clickCount) {
     //Check that the window isn't disabled before firing a click
     //(see bug 366544).
-    if (aEvent->widget && !aEvent->widget->IsEnabled()) {
-      return ret;
+    if (aEvent->widget) {
+      bool enabled;
+      aEvent->widget->IsEnabled(&enabled);
+      if (!enabled) {
+        return ret;
+      }
     }
     //fire click
     if (aEvent->button == nsMouseEvent::eMiddleButton ||

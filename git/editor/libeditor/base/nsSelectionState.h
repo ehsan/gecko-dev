@@ -18,9 +18,6 @@ class nsIDOMCharacterData;
 class nsIDOMRange;
 class nsISelection;
 class nsRange;
-namespace mozilla {
-class Selection;
-}
 
 /***************************************************************************
  * class for recording selection info.  stores selection as collection of
@@ -55,7 +52,7 @@ class nsSelectionState
     void DoTraverse(nsCycleCollectionTraversalCallback &cb);
     void DoUnlink() { MakeEmpty(); }
   
-    void     SaveSelection(mozilla::Selection *aSel);
+    nsresult SaveSelection(nsISelection *aSel);
     nsresult RestoreSelection(nsISelection *aSel);
     bool     IsCollapsed();
     bool     IsEqual(nsSelectionState *aSelState);

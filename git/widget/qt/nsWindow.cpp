@@ -7,8 +7,6 @@
 
 #include "mozilla/Util.h"
 
-#include <QtOpenGL/QGLWidget>
-#include <QtOpenGL/QGLContext>
 #include <QApplication>
 #include <QDesktopWidget>
 #include <QtGui/QCursor>
@@ -100,6 +98,8 @@ static Atom sPluginIMEAtom = nsnull;
 #endif
 #endif //MOZ_X11
 
+#include <QtOpenGL/QGLWidget>
+#include <QtOpenGL/QGLContext>
 #define GLdouble_defined 1
 #include "Layers.h"
 #include "LayerManagerOGL.h"
@@ -3086,10 +3086,12 @@ nsWindow::Enable(bool aState)
     return NS_OK;
 }
 
-bool
-nsWindow::IsEnabled() const
+NS_IMETHODIMP
+nsWindow::IsEnabled(bool *aState)
 {
-    return mEnabled;
+    *aState = mEnabled;
+
+    return NS_OK;
 }
 
 void

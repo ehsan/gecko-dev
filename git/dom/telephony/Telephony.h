@@ -98,11 +98,6 @@ private:
   nsresult
   NotifyCallsChanged(TelephonyCall* aCall);
 
-  nsresult
-  DialInternal(bool isEmergency,
-               const nsAString& aNumber,
-               nsIDOMTelephonyCall** aResult);
-
   class RILTelephonyCallback : public nsIRILTelephonyCallback
   {
     Telephony* mTelephony;

@@ -22,154 +22,6 @@ using namespace js;
 using namespace JS;
 
 static JSBool
-GetBuildConfiguration(JSContext *cx, unsigned argc, jsval *vp)
-{
-    RootedObject info(cx, JS_NewObject(cx, NULL, NULL, NULL));
-    if (!info)
-        return false;
-    Value value;
-
-#ifdef JSGC_ROOT_ANALYSIS
-    value = BooleanValue(true);
-#else
-    value = BooleanValue(false);
-#endif
-    if (!JS_SetProperty(cx, info, "rooting-analysis", &value))
-        return false;
-
-#ifdef JSGC_USE_EXACT_ROOTING
-    value = BooleanValue(true);
-#else
-    value = BooleanValue(false);
-#endif
-    if (!JS_SetProperty(cx, info, "exact-rooting", &value))
-        return false;
-
-#ifdef JSGC_ROOT_ANALYSIS
-    value = BooleanValue(true);
-#else
-    value = BooleanValue(false);
-#endif
-    if (!JS_SetProperty(cx, info, "rooting-analysis", &value))
-        return false;
-
-#ifdef DEBUG
-    value = BooleanValue(true);
-#else
-    value = BooleanValue(false);
-#endif
-    if (!JS_SetProperty(cx, info, "debug", &value))
-        return false;
-
-#ifdef JS_HAS_CTYPES
-    value = BooleanValue(true);
-#else
-    value = BooleanValue(false);
-#endif
-    if (!JS_SetProperty(cx, info, "has-ctypes", &value))
-        return false;
-
-#ifdef JS_GC_ZEAL
-    value = BooleanValue(true);
-#else
-    value = BooleanValue(false);
-#endif
-    if (!JS_SetProperty(cx, info, "has-gczeal", &value))
-        return false;
-
-#ifdef JS_THREADSAFE
-    value = BooleanValue(true);
-#else
-    value = BooleanValue(false);
-#endif
-    if (!JS_SetProperty(cx, info, "has-gczeal", &value))
-        return false;
-
-#ifdef JS_MORE_DETERMINISTIC
-    value = BooleanValue(true);
-#else
-    value = BooleanValue(false);
-#endif
-    if (!JS_SetProperty(cx, info, "more-deterministic", &value))
-        return false;
-
-#ifdef MOZ_PROFILING
-    value = BooleanValue(true);
-#else
-    value = BooleanValue(false);
-#endif
-    if (!JS_SetProperty(cx, info, "profiling", &value))
-        return false;
-
-#ifdef INCLUDE_MOZILLA_DTRACE
-    value = BooleanValue(true);
-#else
-    value = BooleanValue(false);
-#endif
-    if (!JS_SetProperty(cx, info, "dtrace", &value))
-        return false;
-
-#ifdef MOZ_TRACE_JSCALLS
-    value = BooleanValue(true);
-#else
-    value = BooleanValue(false);
-#endif
-    if (!JS_SetProperty(cx, info, "trace-jscalls-api", &value))
-        return false;
-
-#ifdef JSGC_INCREMENTAL
-    value = BooleanValue(true);
-#else
-    value = BooleanValue(false);
-#endif
-    if (!JS_SetProperty(cx, info, "incremental-gc", &value))
-        return false;
-
-#ifdef JSGC_GENERATIONAL
-    value = BooleanValue(true);
-#else
-    value = BooleanValue(false);
-#endif
-    if (!JS_SetProperty(cx, info, "generational-gc", &value))
-        return false;
-
-#ifdef MOZ_VALGRIND
-    value = BooleanValue(true);
-#else
-    value = BooleanValue(false);
-#endif
-    if (!JS_SetProperty(cx, info, "valgrind", &value))
-        return false;
-
-#ifdef JS_OOM_DO_BACKTRACES
-    value = BooleanValue(true);
-#else
-    value = BooleanValue(false);
-#endif
-    if (!JS_SetProperty(cx, info, "oom-backtraces", &value))
-        return false;
-
-#ifdef JS_METHODJIT
-    value = BooleanValue(true);
-#else
-    value = BooleanValue(false);
-#endif
-    if (!JS_SetProperty(cx, info, "methodjit", &value))
-        return false;
-
-#ifdef JS_HAS_XML_SUPPORT
-    value = BooleanValue(true);
-#else
-    value = BooleanValue(false);
-#endif
-    if (!JS_SetProperty(cx, info, "e4x", &value))
-        return false;
-
-    *vp = ObjectValue(*info);
-    return true;
-}
-
-static JSBool
 GC(JSContext *cx, unsigned argc, jsval *vp)
 {
     /*
@@ -463,7 +315,7 @@ DeterministicGC(JSContext *cx, unsigned argc, jsval *vp)
         return JS_FALSE;
     }
 
-    gc::SetDeterministicGC(cx, ToBoolean(vp[2]));
+    gc::SetDeterministicGC(cx, js_ValueToBoolean(vp[2]));
     *vp = JSVAL_VOID;
     return JS_TRUE;
 }
@@ -731,11 +583,6 @@ static JSFunctionSpecWithHelp TestingFunctions[] = {
 "gcparam(name [, value])",
 "  Wrapper for JS_[GS]etGCParameter. The name is either maxBytes,\n"
 "  maxMallocBytes, gcBytes, gcNumber, or sliceTimeBudget."),
-
-    JS_FN_HELP("getBuildConfiguration", GetBuildConfiguration, 0, 0,
-"getBuildConfiguration()",
-"  Return an object describing some of the configuration options SpiderMonkey\n"
-"  was built with."),
 
     JS_FN_HELP("countHeap", CountHeap, 0, 0,
 "countHeap([start[, kind]])",

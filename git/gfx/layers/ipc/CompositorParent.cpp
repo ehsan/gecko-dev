@@ -422,13 +422,6 @@ CompositorParent::Composite()
 
   RenderTraceLayers(aLayer, "0000");
 
-  if (LAYERS_OPENGL == mLayerManager->GetBackendType() &&
-      !mTargetConfig.naturalBounds().IsEmpty()) {
-    LayerManagerOGL* lm = static_cast<LayerManagerOGL*>(mLayerManager.get());
-    lm->SetWorldTransform(
-      ComputeGLTransformForRotation(mTargetConfig.naturalBounds(),
-                                    mTargetConfig.rotation()));
-  }
   mLayerManager->EndEmptyTransaction();
 
 #ifdef COMPOSITOR_PERFORMANCE_WARNING
@@ -701,10 +694,8 @@ CompositorParent::SyncViewportInfo(const nsIntRect& aDisplayPort,
 
 void
 CompositorParent::ShadowLayersUpdated(ShadowLayersParent* aLayerTree,
-                                      const TargetConfig& aTargetConfig,
                                       bool isFirstPaint)
 {
-  mTargetConfig = aTargetConfig;
   mIsFirstPaint = mIsFirstPaint || isFirstPaint;
   mLayersUpdated = true;
   Layer* root = aLayerTree->GetRoot();
@@ -907,7 +898,6 @@ public:
   virtual bool DeallocPLayers(PLayersParent* aLayers) MOZ_OVERRIDE;
 
   virtual void ShadowLayersUpdated(ShadowLayersParent* aLayerTree,
-                                   const TargetConfig& aTargetConfig,
                                    bool isFirstPaint) MOZ_OVERRIDE;
 
 private:
@@ -1007,10 +997,8 @@ CrossProcessCompositorParent::DeallocPLayers(PLayersParent* aLayers)
 }
 
 void
-CrossProcessCompositorParent::ShadowLayersUpdated(
-  ShadowLayersParent* aLayerTree,
-  const TargetConfig& aTargetConfig,
-  bool isFirstPaint)
+CrossProcessCompositorParent::ShadowLayersUpdated(ShadowLayersParent* aLayerTree,
+                                                  bool isFirstPaint)
 {
   uint64_t id = aLayerTree->GetId();
   MOZ_ASSERT(id != 0);

@@ -454,10 +454,6 @@ public:
     t->SetPaused(true);
 
     // Get file path
-#ifdef ANDROID
-    nsCString tmpPath;
-    tmpPath.AppendPrintf("/sdcard/profile_%i_%i.txt", XRE_GetProcessType(), getpid());
-#else
     nsCOMPtr<nsIFile> tmpFile;
     nsCAutoString tmpPath;
     if (NS_FAILED(NS_GetSpecialDirectory(NS_OS_TEMP_DIR, getter_AddRefs(tmpFile)))) {
@@ -473,7 +469,6 @@ public:
     rv = tmpFile->GetNativePath(tmpPath);
     if (NS_FAILED(rv))
       return rv;
-#endif
 
     // Create a JSContext to run a JSObjectBuilder :(
     // Based on XPCShellEnvironment

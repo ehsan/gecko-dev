@@ -44,8 +44,7 @@ public:
 
 // ------------ nsIAbsorbingTransaction -----------------------
 
-  NS_IMETHOD Init(nsIAtom* aName, nsSelectionState* aSelState,
-                  nsEditor* aEditor);
+  NS_IMETHOD Init(nsIAtom *aName, nsSelectionState *aSelState, nsIEditor *aEditor);
   
   NS_IMETHOD GetTxnName(nsIAtom **aName);
   
@@ -73,7 +72,7 @@ protected:
   // selection properly.
   nsAutoPtr<nsSelectionState> mStartSel; // use a pointer because this is constructed before we exist
   nsSelectionState  mEndSel;
-  nsEditor*         mEditor;   /** the editor for this transaction */
+  nsIEditor*        mEditor;   /** the editor for this transaction */
 };
 
 

@@ -119,18 +119,16 @@ ShadowLayersParent::Destroy()
 /* virtual */
 bool
 ShadowLayersParent::RecvUpdateNoSwap(const InfallibleTArray<Edit>& cset,
-                                     const TargetConfig& targetConfig,
-                                     const bool& isFirstPaint)
+                 const bool& isFirstPaint)
 {
   InfallibleTArray<EditReply> noReplies;
-  bool success = RecvUpdate(cset, targetConfig, isFirstPaint, &noReplies);
+  bool success = RecvUpdate(cset, isFirstPaint, &noReplies);
   NS_ABORT_IF_FALSE(noReplies.Length() == 0, "RecvUpdateNoSwap requires a sync Update to carry Edits");
   return success;
 }
 
 bool
 ShadowLayersParent::RecvUpdate(const InfallibleTArray<Edit>& cset,
-                               const TargetConfig& targetConfig,
                                const bool& isFirstPaint,
                                InfallibleTArray<EditReply>* reply)
 {
@@ -419,7 +417,7 @@ ShadowLayersParent::RecvUpdate(const InfallibleTArray<Edit>& cset,
   // other's buffer contents.
   ShadowLayerManager::PlatformSyncBeforeReplyUpdate();
 
-  mShadowLayersManager->ShadowLayersUpdated(this, targetConfig, isFirstPaint);
+  mShadowLayersManager->ShadowLayersUpdated(this, isFirstPaint);
 
 #ifdef COMPOSITOR_PERFORMANCE_WARNING
   int compositeTime = (int)(mozilla::TimeStamp::Now() - updateStart).ToMilliseconds();

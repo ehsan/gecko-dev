@@ -29,31 +29,39 @@ public:
     void Main();
 
 protected:
+    NS_OVERRIDE
     virtual bool
-    RecvStartRace() MOZ_OVERRIDE;
+    RecvStartRace();
 
+    NS_OVERRIDE
     virtual bool
-    AnswerRace(bool* hasRace) MOZ_OVERRIDE;
+    AnswerRace(bool* hasRace);
 
+    NS_OVERRIDE
     virtual bool
-    AnswerStackFrame() MOZ_OVERRIDE;
+    AnswerStackFrame();
 
+    NS_OVERRIDE
     virtual bool
-    AnswerStackFrame3() MOZ_OVERRIDE;
+    AnswerStackFrame3();
 
+    NS_OVERRIDE
     virtual bool
-    AnswerParent() MOZ_OVERRIDE;
+    AnswerParent();
 
+    NS_OVERRIDE
     virtual bool
-    RecvGetAnsweredParent(bool* answeredParent) MOZ_OVERRIDE;
+    RecvGetAnsweredParent(bool* answeredParent);
 
+    NS_OVERRIDE
     virtual mozilla::ipc::RPCChannel::RacyRPCPolicy
-    MediateRPCRace(const Message& parent, const Message& child) MOZ_OVERRIDE
+    MediateRPCRace(const Message& parent, const Message& child)
     {
         return MediateRace(parent, child);
     }
 
-    virtual void ActorDestroy(ActorDestroyReason why) MOZ_OVERRIDE
+    NS_OVERRIDE
+    virtual void ActorDestroy(ActorDestroyReason why)
     {
         if (NormalShutdown != why)
             fail("unexpected destruction!");
@@ -83,34 +91,43 @@ public:
     virtual ~TestRPCRacesChild() { }
 
 protected:
+    NS_OVERRIDE
     virtual bool
-    RecvStart() MOZ_OVERRIDE;
+    RecvStart();
 
+    NS_OVERRIDE
     virtual bool
-    AnswerRace(bool* hasRace) MOZ_OVERRIDE;
+    AnswerRace(bool* hasRace);
 
+    NS_OVERRIDE
     virtual bool
-    AnswerStackFrame() MOZ_OVERRIDE;
+    AnswerStackFrame();
 
+    NS_OVERRIDE
     virtual bool
-    AnswerStackFrame3() MOZ_OVERRIDE;
+    AnswerStackFrame3();
 
+    NS_OVERRIDE
     virtual bool
-    RecvWakeup() MOZ_OVERRIDE;
+    RecvWakeup();
 
+    NS_OVERRIDE
     virtual bool
-    RecvWakeup3() MOZ_OVERRIDE;
+    RecvWakeup3();
 
+    NS_OVERRIDE
     virtual bool
-    AnswerChild() MOZ_OVERRIDE;
+    AnswerChild();
 
+    NS_OVERRIDE
     virtual mozilla::ipc::RPCChannel::RacyRPCPolicy
-    MediateRPCRace(const Message& parent, const Message& child) MOZ_OVERRIDE
+    MediateRPCRace(const Message& parent, const Message& child)
     {
         return MediateRace(parent, child);
     }
 
-    virtual void ActorDestroy(ActorDestroyReason why) MOZ_OVERRIDE
+    NS_OVERRIDE
+    virtual void ActorDestroy(ActorDestroyReason why)
     {
         if (NormalShutdown != why)
             fail("unexpected destruction!");

@@ -191,15 +191,6 @@ ShadowLayerManager::PlatformSyncBeforeReplyUpdate()
   }
 }
 
-/*static*/ already_AddRefed<TextureImage>
-ShadowLayerManager::OpenDescriptorForDirectTexturing(GLContext*,
-                                                     const SurfaceDescriptor&,
-                                                     GLenum)
-{
-  // FIXME/bug XXXXXX: implement this using texture-from-pixmap
-  return nsnull;
-}
-
 bool
 ShadowLayerManager::PlatformDestroySharedSurface(SurfaceDescriptor* aSurface)
 {

@@ -30,12 +30,9 @@ import org.json.JSONArray;
 import org.json.JSONException;
 import org.json.JSONObject;
 
-import java.util.Arrays;
-import java.util.Collection;
-
 public class FormAssistPopup extends RelativeLayout implements GeckoEventListener {
     private Context mContext;
-    private Animation mAnimation;
+    private Animation mAnimation; 
 
     private ListView mAutoCompleteList;
     private RelativeLayout mValidationMessage;
@@ -63,15 +60,6 @@ public class FormAssistPopup extends RelativeLayout implements GeckoEventListene
     private static final int VALIDATION_MESSAGE_MARGIN_TOP_IN_DPI = 6;
 
     private static final String LOGTAG = "FormAssistPopup";
-
-    // The blocklist is so short that ArrayList is probably cheaper than HashSet.
-    private static final Collection<String> sInputMethodBlocklist = Arrays.asList(new String[] {
-                                            InputMethods.METHOD_GOOGLE_JAPANESE_INPUT, // bug 775850
-                                            InputMethods.METHOD_OPENWNN_PLUS,          // bug 768108
-                                            InputMethods.METHOD_SIMEJI,                // bug 768108
-                                            InputMethods.METHOD_SWYPE,                 // bug 755909
-                                            InputMethods.METHOD_SWYPE_BETA,            // bug 755909
-                                            });
 
     public FormAssistPopup(Context context, AttributeSet attrs) {
         super(context, attrs);
@@ -309,9 +297,8 @@ public class FormAssistPopup extends RelativeLayout implements GeckoEventListene
         }
     }
 
-    void onInputMethodChanged(String newInputMethod) {
-        boolean blocklisted = sInputMethodBlocklist.contains(newInputMethod);
-        broadcastGeckoEvent("FormAssist:Blocklisted", String.valueOf(blocklisted));
+    void block(boolean blocking) {
+        broadcastGeckoEvent("FormAssist:Blocklisted", String.valueOf(blocking));
     }
 
     private static void broadcastGeckoEvent(String eventName, String eventData) {
@@ -340,7 +327,7 @@ public class FormAssistPopup extends RelativeLayout implements GeckoEventListene
                     add(new Pair<String, String>(label, value));
                 }
             } catch (JSONException e) {
-                Log.e(LOGTAG, "JSONException", e);
+                Log.e(LOGTAG, "JSONException: " + e);
             }
         }
 

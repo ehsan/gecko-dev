@@ -462,7 +462,7 @@ public:
    * Helper methods for implementing querySelector/querySelectorAll
    */
   static nsIContent* doQuerySelector(nsINode* aRoot, const nsAString& aSelector,
-                                     nsresult *aResult);
+                                     nsresult *aResult NS_OUTPARAM);
   static nsresult doQuerySelectorAll(nsINode* aRoot,
                                      const nsAString& aSelector,
                                      nsIDOMNodeList **aReturn);

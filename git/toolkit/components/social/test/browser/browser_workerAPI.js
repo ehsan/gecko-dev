@@ -32,7 +32,7 @@ let tests = {
     ok(port, "should be able to get a port from the provider");
   
     port.onmessage = function onMessage(event) {
-      let topic = event.data.topic;
+      let {topic, data} = event.data;
       if (topic == "test-initialization-complete") {
         is(provider.workerAPI.initialized, true, "workerAPI is now initialized");
         next();

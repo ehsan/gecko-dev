@@ -492,8 +492,9 @@ nsSVGGlyphFrame::GetFrameForPoint(const nsPoint &aPoint)
 NS_IMETHODIMP_(nsRect)
 nsSVGGlyphFrame::GetCoveredRegion()
 {
-  return nsSVGUtils::TransformFrameRectToOuterSVG(
-                       mRect, GetCanvasTM(FOR_OUTERSVG_TM), PresContext());
+  // See bug 614732 comment 32:
+  //return nsSVGUtils::TransformFrameRectToOuterSVG(mRect, GetCanvasTM(), PresContext());
+  return mCoveredRegion;
 }
 
 void
@@ -529,6 +530,10 @@ nsSVGGlyphFrame::ReflowSVG()
               PresContext()->AppUnitsPerCSSPixel());
   }
 
+  // See bug 614732 comment 32.
+  mCoveredRegion = nsSVGUtils::TransformFrameRectToOuterSVG(
+    mRect, GetCanvasTM(FOR_OUTERSVG_TM), PresContext());
+
   // We only invalidate if we are dirty, if our outer-<svg> has already had its
   // initial reflow (since if it hasn't, its entire area will be invalidated
   // when it gets that initial reflow), and if our parent is not dirty (since
@@ -554,6 +559,10 @@ nsSVGGlyphFrame::ReflowSVG()
 void
 nsSVGGlyphFrame::NotifySVGChanged(PRUint32 aFlags)
 {
+  NS_ABORT_IF_FALSE(!(aFlags & DO_NOT_NOTIFY_RENDERING_OBSERVERS) ||
+                    (GetStateBits() & NS_STATE_SVG_NONDISPLAY_CHILD),
+                    "Must be NS_STATE_SVG_NONDISPLAY_CHILD!");
+
   NS_ABORT_IF_FALSE(aFlags & (TRANSFORM_CHANGED | COORD_CONTEXT_CHANGED),
                     "Invalidation logic may need adjusting");
 
