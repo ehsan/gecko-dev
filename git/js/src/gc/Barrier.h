@@ -186,7 +186,6 @@ class HeapPtr
 
     /* Use this to install a ptr into a newly allocated object. */
     void init(T *v) {
-        JS_ASSERT(!IsPoisonedPtr<T>(v));
         value = v;
         post();
     }
@@ -211,7 +210,6 @@ class HeapPtr
 
     HeapPtr<T, Unioned> &operator=(T *v) {
         pre();
-        JS_ASSERT(!IsPoisonedPtr<T>(v));
         value = v;
         post();
         return *this;
@@ -219,7 +217,6 @@ class HeapPtr
 
     HeapPtr<T, Unioned> &operator=(const HeapPtr<T> &v) {
         pre();
-        JS_ASSERT(!IsPoisonedPtr<T>(v.value));
         value = v.value;
         post();
         return *this;
@@ -429,7 +426,6 @@ class ReadBarriered
     T *value;
 
   public:
-    ReadBarriered() : value(NULL) {}
     ReadBarriered(T *value) : value(value) {}
 
     T *get() const {
@@ -440,9 +436,6 @@ class ReadBarriered
     }
 
     operator T*() const { return get(); }
-
-    T &operator*() const { return *get(); }
-    T *operator->() const { return get(); }
 
     T *unsafeGet() { return value; }
 

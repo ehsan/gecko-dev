@@ -941,7 +941,7 @@ nsHTMLInputElement::GetValueInternal(nsAString& aValue) const
       return NS_OK;
 
     case VALUE_MODE_FILENAME:
-      if (nsContentUtils::CallerHasUniversalXPConnect()) {
+      if (nsContentUtils::IsCallerTrustedForCapability("UniversalFileRead")) {
         if (mFiles.Count()) {
           return mFiles[0]->GetMozFullPath(aValue);
         }
@@ -990,9 +990,9 @@ nsHTMLInputElement::SetValue(const nsAString& aValue)
   // OK and gives pages a way to clear a file input if necessary.
   if (mType == NS_FORM_INPUT_FILE) {
     if (!aValue.IsEmpty()) {
-      if (!nsContentUtils::CallerHasUniversalXPConnect()) {
+      if (!nsContentUtils::IsCallerTrustedForCapability("UniversalFileRead")) {
         // setting the value of a "FILE" input widget requires the
-        // UniversalXPConnect privilege
+        // UniversalFileRead privilege
         return NS_ERROR_DOM_SECURITY_ERR;
       }
       const PRUnichar *name = PromiseFlatString(aValue).get();
@@ -1037,7 +1037,7 @@ nsHTMLInputElement::GetList(nsIDOMHTMLElement** aValue)
 NS_IMETHODIMP 
 nsHTMLInputElement::MozGetFileNameArray(PRUint32 *aLength, PRUnichar ***aFileNames)
 {
-  if (!nsContentUtils::CallerHasUniversalXPConnect()) {
+  if (!nsContentUtils::IsCallerTrustedForCapability("UniversalFileRead")) {
     // Since this function returns full paths it's important that normal pages
     // can't call it.
     return NS_ERROR_DOM_SECURITY_ERR;
@@ -1064,9 +1064,9 @@ nsHTMLInputElement::MozGetFileNameArray(PRUint32 *aLength, PRUnichar ***aFileNam
 NS_IMETHODIMP 
 nsHTMLInputElement::MozSetFileNameArray(const PRUnichar **aFileNames, PRUint32 aLength)
 {
-  if (!nsContentUtils::CallerHasUniversalXPConnect()) {
+  if (!nsContentUtils::IsCallerTrustedForCapability("UniversalFileRead")) {
     // setting the value of a "FILE" input widget requires the
-    // UniversalXPConnect privilege
+    // UniversalFileRead privilege
     return NS_ERROR_DOM_SECURITY_ERR;
   }
 

@@ -317,9 +317,11 @@ nsGNOMEShellService::SetDefaultBrowser(bool aClaimAllTypes,
     rv = bundleService->CreateBundle(BRAND_PROPERTIES, getter_AddRefs(brandBundle));
     NS_ENSURE_SUCCESS(rv, rv);
 
-    nsString brandShortName;
+    nsString brandShortName, brandFullName;
     brandBundle->GetStringFromName(NS_LITERAL_STRING("brandShortName").get(),
                                    getter_Copies(brandShortName));
+    brandBundle->GetStringFromName(NS_LITERAL_STRING("brandFullName").get(),
+                                   getter_Copies(brandFullName));
 
     // use brandShortName as the application id.
     NS_ConvertUTF16toUTF8 id(brandShortName);

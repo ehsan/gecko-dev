@@ -580,7 +580,7 @@ nsDOMEvent::InitEvent(const nsAString& aEventTypeArg, bool aCanBubbleArg, bool a
 
     bool enabled = false;
     nsContentUtils::GetSecurityManager()->
-      IsCapabilityEnabled("UniversalXPConnect", &enabled);
+      IsCapabilityEnabled("UniversalBrowserWrite", &enabled);
 
     if (!enabled) {
       SetTrusted(false);

@@ -722,13 +722,6 @@ PresShell::MemoryReporter::CollectReports(nsIMemoryMultiReporterCallback* aCb,
   return NS_OK;
 }
 
-NS_IMETHODIMP
-PresShell::MemoryReporter::GetExplicitNonHeap(PRInt64 *aAmount) {
-  // This reporter doesn't do any KIND_NONHEAP measurements.
-  *aAmount = 0;
-  return NS_OK;
-}
-
 class nsAutoCauseReflowNotifier
 {
 public:

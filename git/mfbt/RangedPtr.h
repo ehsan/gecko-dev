@@ -38,11 +38,6 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
-/*
- * Implements a smart pointer asserted to remain within a range specified at
- * construction.
- */
-
 #ifndef mozilla_RangedPtr_h_
 #define mozilla_RangedPtr_h_
 

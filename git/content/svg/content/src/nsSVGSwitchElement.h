@@ -41,13 +41,11 @@
 
 #include "nsSVGGraphicElement.h"
 #include "nsIDOMSVGSwitchElement.h"
-#include "DOMSVGTests.h"
 
 typedef nsSVGGraphicElement nsSVGSwitchElementBase;
 
 class nsSVGSwitchElement : public nsSVGSwitchElementBase,
-                           public nsIDOMSVGSwitchElement,
-                           public DOMSVGTests
+                           public nsIDOMSVGSwitchElement
 {
   friend class nsSVGSwitchFrame;
 protected:

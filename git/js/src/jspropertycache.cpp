@@ -50,6 +50,10 @@ JS_REQUIRES_STACK PropertyCacheEntry *
 PropertyCache::fill(JSContext *cx, JSObject *obj, uintN scopeIndex, JSObject *pobj,
                     const Shape *shape)
 {
+    JSOp op;
+    const JSCodeSpec *cs;
+    PropertyCacheEntry *entry;
+
     JS_ASSERT(this == &JS_PROPERTY_CACHE(cx));
     JS_ASSERT(!cx->runtime->gcRunning);
 
@@ -76,11 +80,12 @@ PropertyCache::fill(JSContext *cx, JSObject *obj, uintN scopeIndex, JSObject *po
     JS_ASSERT_IF(obj == pobj, scopeIndex == 0);
 
     JSObject *tmp = obj;
-    for (uintN i = 0; i < scopeIndex; i++)
+    for (uintN i = 0; i != scopeIndex; i++)
         tmp = tmp->internalScopeChain();
 
     uintN protoIndex = 0;
     while (tmp != pobj) {
+
         /*
          * Don't cache entries across prototype lookups which can mutate in
          * arbitrary ways without a shape change.
@@ -104,8 +109,7 @@ PropertyCache::fill(JSContext *cx, JSObject *obj, uintN scopeIndex, JSObject *po
         ++protoIndex;
     }
 
-    typedef PropertyCacheEntry Entry;
-    if (scopeIndex > Entry::MaxScopeIndex || protoIndex > Entry::MaxProtoIndex) {
+    if (scopeIndex > PCINDEX_SCOPEMASK || protoIndex > PCINDEX_PROTOMASK) {
         PCMETER(longchains++);
         return JS_NO_PROP_CACHE_FILL;
     }
@@ -116,8 +120,8 @@ PropertyCache::fill(JSContext *cx, JSObject *obj, uintN scopeIndex, JSObject *po
      */
     jsbytecode *pc;
     (void) cx->stack.currentScript(&pc);
-    JSOp op = JSOp(*pc);
-    const JSCodeSpec *cs = &js_CodeSpec[op];
+    op = JSOp(*pc);
+    cs = &js_CodeSpec[op];
 
     if ((cs->format & JOF_SET) && obj->watched())
         return JS_NO_PROP_CACHE_FILL;
@@ -142,7 +146,7 @@ PropertyCache::fill(JSContext *cx, JSObject *obj, uintN scopeIndex, JSObject *po
         }
     }
 
-    PropertyCacheEntry *entry = &table[hash(pc, obj->lastProperty())];
+    entry = &table[hash(pc, obj->lastProperty())];
     PCMETER(entry->vword.isNull() || recycles++);
     entry->assign(pc, obj->lastProperty(), pobj->lastProperty(), shape, scopeIndex, protoIndex);
 
@@ -192,6 +196,7 @@ PropertyCache::fullTest(JSContext *cx, jsbytecode *pc, JSObject **objp, JSObject
     const JSCodeSpec &cs = js_CodeSpec[op];
 
     obj = *objp;
+    uint32_t vindex = entry->vindex;
 
     if (entry->kpc != pc) {
         PCMETER(kpcmisses++);
@@ -229,25 +234,23 @@ PropertyCache::fullTest(JSContext *cx, jsbytecode *pc, JSObject **objp, JSObject
     pobj = obj;
 
     if (JOF_MODE(cs.format) == JOF_NAME) {
-        uint8_t scopeIndex = entry->scopeIndex;
-        while (scopeIndex > 0) {
+        while (vindex & (PCINDEX_SCOPEMASK << PCINDEX_PROTOBITS)) {
             tmp = pobj->scopeChain();
             if (!tmp || !tmp->isNative())
                 break;
             pobj = tmp;
-            scopeIndex--;
+            vindex -= PCINDEX_PROTOSIZE;
         }
 
         *objp = pobj;
     }
 
-    uint8_t protoIndex = entry->protoIndex;
-    while (protoIndex > 0) {
+    while (vindex & PCINDEX_PROTOMASK) {
         tmp = pobj->getProto();
         if (!tmp || !tmp->isNative())
             break;
         pobj = tmp;
-        protoIndex--;
+        --vindex;
     }
 
     if (pobj->lastProperty() == entry->pshape) {
@@ -276,8 +279,7 @@ PropertyCache::assertEmpty()
         JS_ASSERT(!table[i].kshape);
         JS_ASSERT(!table[i].pshape);
         JS_ASSERT(!table[i].prop);
-        JS_ASSERT(!table[i].scopeIndex);
-        JS_ASSERT(!table[i].protoIndex);
+        JS_ASSERT(!table[i].vindex);
     }
 }
 #endif

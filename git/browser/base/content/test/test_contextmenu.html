@@ -19,7 +19,6 @@ Browser context menu tests.
 /** Test for Login Manager: multiple login autocomplete. **/
 
 netscape.security.PrivilegeManager.enablePrivilege('UniversalXPConnect');
-Components.utils.import("resource://gre/modules/InlineSpellChecker.jsm");
 
 const Cc = Components.classes;
 const Ci = Components.interfaces;
@@ -515,36 +514,12 @@ function runTest(testNum) {
                                "---",                          null,
                                "spell-add-dictionaries",       true], null,
                          ].concat(inspectItems));
-        contextMenu.ownerDocument.getElementById("spell-add-to-dictionary").doCommand(); // Add to dictionary
+
         closeContextMenu();
-        openContextMenuFor(textarea, false, true); // Invoke context menu for next test.
-        break;
-    
-    case 15:    
-        // Context menu for textarea after a word has been added
-        // to the dictionary
-        checkContextMenu(["spell-undo-add-to-dictionary", true,
-                          "context-undo",        false,
-                          "---",                 null,
-                          "context-cut",         false,
-                          "context-copy",        false,
-                          "context-paste",       null, // ignore clipboard state
-                          "context-delete",      false,
-                          "---",                 null,
-                          "context-selectall",   true,
-                          "---",                 null,
-                          "spell-check-enabled", true,
-                          "spell-dictionaries",  true,
-                              ["spell-check-dictionary-en-US", true,
-                               "---",                          null,
-                               "spell-add-dictionaries",       true], null,
-                         ].concat(inspectItems));
-        contextMenu.ownerDocument.getElementById("spell-undo-add-to-dictionary").doCommand(); // Undo add to dictionary
-        closeContextMenu();
-        openContextMenuFor(contenteditable);
+        openContextMenuFor(contenteditable); // Invoke context menu for next test.
         break;
 
-    case 16:
+    case 15:
         // Context menu for contenteditable
         checkContextMenu(["spell-no-suggestions", false,
                           "spell-add-to-dictionary", true,
@@ -569,7 +544,7 @@ function runTest(testNum) {
         openContextMenuFor(inputspell); // Invoke context menu for next test.
         break;
 
-    case 17:
+    case 16:
         // Context menu for spell-check input
         checkContextMenu(["*prodigality",        true, // spelling suggestion
                           "spell-add-to-dictionary", true,
@@ -594,13 +569,13 @@ function runTest(testNum) {
         openContextMenuFor(link); // Invoke context menu for next test.
         break;
 
-    case 18:
+    case 17:
         executeCopyCommand("cmd_copyLink", "http://mozilla.com/");
         closeContextMenu();
         openContextMenuFor(pagemenu); // Invoke context menu for next test.
         break;
 
-    case 19:
+    case 18:
         // Context menu for element with assigned content context menu
         checkContextMenu(["+Plain item",          {type: "", icon: "", checked: false, disabled: false},
                           "+Disabled item",       {type: "", icon: "", checked: false, disabled: true},
@@ -643,7 +618,7 @@ function runTest(testNum) {
         openContextMenuFor(pagemenu, true); // Invoke context menu for next test.
         break;
 
-    case 20:
+    case 19:
         // Context menu for element with assigned content context menu
         // The shift key should bypass content context menu processing
         checkContextMenu(["context-back",         false,

@@ -40,7 +40,6 @@
 #include "nsIDOMSVGAnimatedString.h"
 #include "nsIDOMSVGURIReference.h"
 #include "nsIDOMSVGUseElement.h"
-#include "DOMSVGTests.h"
 #include "nsStubMutationObserver.h"
 #include "nsSVGGraphicElement.h"
 #include "nsSVGLength2.h"
@@ -64,9 +63,8 @@ NS_NewSVGSVGElement(nsIContent **aResult,
 typedef nsSVGGraphicElement nsSVGUseElementBase;
 
 class nsSVGUseElement : public nsSVGUseElementBase,
-                        public nsIDOMSVGUseElement,
-                        public DOMSVGTests,
                         public nsIDOMSVGURIReference,
+                        public nsIDOMSVGUseElement,
                         public nsStubMutationObserver
 {
   friend class nsSVGUseFrame;

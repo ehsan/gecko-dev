@@ -66,6 +66,7 @@ JaegerTrampoline:
     /* Jump into the JIT'd code. */
     /* No fastcall for sunstudio. */
     pushl %esp
+    call SetVMFrameRegs
     call PushActiveVMFrame
     popl  %edx
 

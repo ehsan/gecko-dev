@@ -37,11 +37,6 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
-/*
- * Miscellaneous uncategorized functionality.  Please add new functionality to
- * new headers, or to other appropriate existing headers, not here.
- */
-
 #ifndef mozilla_Util_h_
 #define mozilla_Util_h_
 

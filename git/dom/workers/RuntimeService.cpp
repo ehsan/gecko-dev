@@ -866,11 +866,12 @@ RuntimeService::Init()
   ok = mWindowMap.Init();
   NS_ENSURE_STATE(ok);
 
-  nsCOMPtr<nsIObserverService> obs = services::GetObserverService();
-  NS_ENSURE_TRUE(obs, NS_ERROR_FAILURE);
+  nsresult rv;
+  nsCOMPtr<nsIObserverService> obs =
+    do_GetService(NS_OBSERVERSERVICE_CONTRACTID, &rv);
+  NS_ENSURE_SUCCESS(rv, rv);
 
-  nsresult rv =
-    obs->AddObserver(this, NS_XPCOM_SHUTDOWN_THREADS_OBSERVER_ID, false);
+  rv = obs->AddObserver(this, NS_XPCOM_SHUTDOWN_THREADS_OBSERVER_ID, false);
   NS_ENSURE_SUCCESS(rv, rv);
 
   mObserved = true;
@@ -915,16 +916,6 @@ RuntimeService::Cleanup()
 {
   AssertIsOnMainThread();
 
-  nsCOMPtr<nsIObserverService> obs = services::GetObserverService();
-  NS_WARN_IF_FALSE(obs, "Failed to get observer service?!");
-
-  // Tell anyone that cares that they're about to lose worker support.
-  if (obs && NS_FAILED(obs->NotifyObservers(nsnull, WORKERS_SHUTDOWN_TOPIC,
-                                            nsnull))) {
-    NS_WARNING("NotifyObservers failed!");
-  }
-
-  // That's it, no more workers.
   mShuttingDown = true;
 
   if (mIdleThreadTimer) {
@@ -1004,10 +995,13 @@ RuntimeService::Cleanup()
       Preferences::UnregisterCallback(PrefCallback, gPrefsToWatch[index], this);
     }
 
+    nsCOMPtr<nsIObserverService> obs = services::GetObserverService();
+    NS_WARN_IF_FALSE(obs, "Failed to get observer service?!");
+
     if (obs) {
       nsresult rv =
         obs->RemoveObserver(this, NS_XPCOM_SHUTDOWN_THREADS_OBSERVER_ID);
-      mObserved = NS_FAILED(rv);
+      mObserved = !NS_SUCCEEDED(rv);
     }
   }
 }

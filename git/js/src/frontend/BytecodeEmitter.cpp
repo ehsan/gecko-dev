@@ -1863,27 +1863,21 @@ EmitIndexOp(JSContext *cx, JSOp op, uintN index, BytecodeEmitter *bce, JSOp *psu
     JS_END_MACRO
 
 static bool
-EmitAtomOp(JSContext *cx, JSAtom *atom, JSOp op, BytecodeEmitter *bce, JSOp *psuffix = NULL)
+EmitAtomOp(JSContext *cx, ParseNode *pn, JSOp op, BytecodeEmitter *bce, JSOp *psuffix = NULL)
 {
     JS_ASSERT(JOF_OPTYPE(op) == JOF_ATOM);
 
-    if (op == JSOP_GETPROP && atom == cx->runtime->atomState.lengthAtom) {
+    if (op == JSOP_GETPROP &&
+        pn->pn_atom == cx->runtime->atomState.lengthAtom) {
         /* Specialize length accesses for the interpreter. */
         op = JSOP_LENGTH;
     }
 
     jsatomid index;
-    if (!bce->makeAtomIndex(atom, &index))
+    if (!bce->makeAtomIndex(pn->pn_atom, &index))
         return false;
 
     return EmitIndexOp(cx, op, index, bce, psuffix);
-}
-
-static bool
-EmitAtomOp(JSContext *cx, ParseNode *pn, JSOp op, BytecodeEmitter *bce, JSOp *psuffix = NULL)
-{
-    JS_ASSERT(pn->pn_atom != NULL);
-    return EmitAtomOp(cx, pn->pn_atom, op, bce, psuffix);
 }
 
 static JSBool
@@ -2013,10 +2007,11 @@ EmitEnterBlock(JSContext *cx, BytecodeEmitter *bce, ParseNode *pn, JSOp op)
      */
     if ((bce->flags & TCF_FUN_EXTENSIBLE_SCOPE) ||
         bce->bindings.extensibleParents()) {
-        Shape *newShape = Shape::setExtensibleParents(cx, blockObj->lastProperty());
-        if (!newShape)
+        HeapPtrShape shape;
+        shape.init(blockObj->lastProperty());
+        if (!Shape::setExtensibleParents(cx, &shape))
             return false;
-        blockObj->setLastPropertyInfallible(newShape);
+        blockObj->setLastPropertyInfallible(shape);
     }
 
     return true;
@@ -5483,16 +5478,16 @@ EmitXMLTag(JSContext *cx, BytecodeEmitter *bce, ParseNode *pn)
 }
 
 static bool
-EmitXMLProcessingInstruction(JSContext *cx, BytecodeEmitter *bce, XMLProcessingInstruction &pi)
+EmitXMLProcessingInstruction(JSContext *cx, BytecodeEmitter *bce, ParseNode *pn)
 {
     JS_ASSERT(!bce->inStrictMode());
 
     jsatomid index;
-    if (!bce->makeAtomIndex(pi.data(), &index))
+    if (!bce->makeAtomIndex(pn->pn_pidata, &index))
         return false;
     if (!EmitIndexOp(cx, JSOP_QNAMEPART, index, bce))
         return false;
-    if (!EmitAtomOp(cx, pi.target(), JSOP_XMLPI, bce))
+    if (!EmitAtomOp(cx, pn, JSOP_XMLPI, bce))
         return false;
     return true;
 }
@@ -5571,9 +5566,6 @@ EmitWith(JSContext *cx, BytecodeEmitter *bce, ParseNode *pn)
 static bool
 SetMethodFunction(JSContext *cx, FunctionBox *funbox, JSAtom *atom)
 {
-    RootedVarObject parent(cx);
-    parent = funbox->function()->getParent();
-
     /*
      * Replace a boxed function with a new one with a method atom. Methods
      * require a function with the extended size finalize kind, which normal
@@ -5583,7 +5575,7 @@ SetMethodFunction(JSContext *cx, FunctionBox *funbox, JSAtom *atom)
     JSFunction *fun = js_NewFunction(cx, NULL, NULL,
                                      funbox->function()->nargs,
                                      funbox->function()->flags,
-                                     parent,
+                                     funbox->function()->getParent(),
                                      funbox->function()->atom,
                                      JSFunction::ExtendedFinalizeKind);
     if (!fun)
@@ -6774,16 +6766,16 @@ EmitSyntheticStatements(JSContext *cx, BytecodeEmitter *bce, ParseNode *pn, ptrd
 }
 
 static bool
-EmitConditionalExpression(JSContext *cx, BytecodeEmitter *bce, ConditionalExpression &conditional)
+EmitConditionalExpression(JSContext *cx, BytecodeEmitter *bce, ParseNode *pn)
 {
     /* Emit the condition, then branch if false to the else part. */
-    if (!EmitTree(cx, bce, &conditional.condition()))
+    if (!EmitTree(cx, bce, pn->pn_kid1))
         return false;
     ptrdiff_t noteIndex = NewSrcNote(cx, bce, SRC_COND);
     if (noteIndex < 0)
         return false;
     ptrdiff_t beq = EmitJump(cx, bce, JSOP_IFEQ, 0);
-    if (beq < 0 || !EmitTree(cx, bce, &conditional.thenExpression()))
+    if (beq < 0 || !EmitTree(cx, bce, pn->pn_kid2))
         return false;
 
     /* Jump around else, fixup the branch, emit else, fixup jump. */
@@ -6804,7 +6796,7 @@ EmitConditionalExpression(JSContext *cx, BytecodeEmitter *bce, ConditionalExpres
      */
     JS_ASSERT(bce->stackDepth > 0);
     bce->stackDepth--;
-    if (!EmitTree(cx, bce, &conditional.elseExpression()))
+    if (!EmitTree(cx, bce, pn->pn_kid3))
         return false;
     CHECK_AND_SET_JUMP_OFFSET_AT(cx, bce, jmp);
     return SetSrcNoteOffset(cx, bce, noteIndex, 0, jmp - beq);
@@ -7229,8 +7221,8 @@ frontend::EmitTree(JSContext *cx, BytecodeEmitter *bce, ParseNode *pn)
             return false;
         break;
 
-      case PNK_CONDITIONAL:
-        ok = EmitConditionalExpression(cx, bce, pn->asConditionalExpression());
+      case PNK_HOOK:
+        ok = EmitConditionalExpression(cx, bce, pn);
         break;
 
       case PNK_OR:
@@ -7449,7 +7441,7 @@ frontend::EmitTree(JSContext *cx, BytecodeEmitter *bce, ParseNode *pn)
       case PNK_DEFSHARP:
       {
         JS_ASSERT(bce->hasSharps());
-        jsint sharpnum = pn->asDefSharpExpression().number();
+        int sharpnum = pn->pn_num;
         pn = pn->pn_kid;
         if (pn->isKind(PNK_RB)) {
             ok = EmitArray(cx, bce, pn, sharpnum);
@@ -7468,14 +7460,13 @@ frontend::EmitTree(JSContext *cx, BytecodeEmitter *bce, ParseNode *pn)
 
         if (!EmitTree(cx, bce, pn))
             return JS_FALSE;
-        EMIT_UINT16PAIR_IMM_OP(JSOP_DEFSHARP, bce->sharpSlotBase, jsatomid(sharpnum));
+        EMIT_UINT16PAIR_IMM_OP(JSOP_DEFSHARP, bce->sharpSlotBase, (jsatomid) sharpnum);
         break;
       }
 
       case PNK_USESHARP:
         JS_ASSERT(bce->hasSharps());
-        EMIT_UINT16PAIR_IMM_OP(JSOP_USESHARP, bce->sharpSlotBase,
-                               jsatomid(pn->asUseSharpExpression().number()));
+        EMIT_UINT16PAIR_IMM_OP(JSOP_USESHARP, bce->sharpSlotBase, (jsatomid) pn->pn_num);
         break;
 #endif /* JS_HAS_SHARP_VARS */
 
@@ -7603,7 +7594,7 @@ frontend::EmitTree(JSContext *cx, BytecodeEmitter *bce, ParseNode *pn)
         break;
 
       case PNK_XMLPI:
-        if (!EmitXMLProcessingInstruction(cx, bce, pn->asXMLProcessingInstruction()))
+        if (!EmitXMLProcessingInstruction(cx, bce, pn))
             return false;
         break;
 #endif /* JS_HAS_XML_SUPPORT */

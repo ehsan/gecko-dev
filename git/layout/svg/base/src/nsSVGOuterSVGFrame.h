@@ -43,6 +43,7 @@
 #include "nsISVGSVGFrame.h"
 #include "nsIDOMSVGPoint.h"
 #include "nsIDOMSVGNumber.h"
+#include "nsSVGFeatures.h"
 #include "gfxMatrix.h"
 
 class nsSVGForeignObjectFrame;

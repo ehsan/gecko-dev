@@ -25,7 +25,6 @@ public class testBookmark extends ActivityInstrumentationTestCase2 {
   private Solo solo;    
   private Activity activity;
   private Driver driver;
-  private Assert asserter;
   private Actions actions;
   private static Class<?> launcherActivityClass;
 
@@ -63,14 +62,11 @@ public class testBookmark extends ActivityInstrumentationTestCase2 {
     driver = new FennecNativeDriver(activity, solo);
     actions = new FennecNativeActions(activity, solo, getInstrumentation());
     driver.setLogFile((String)config.get("logfile"));
-    
-    asserter = new FennecNativeAssert();
-    asserter.setLogFile((String)config.get("logfile"));
   } 	
 
   public void testBookmark(){
     // TODO: find a better way to not hardcode this url
-    String url = "http://mochi.test:8888/tests/robocop/robocop_blank_02.html";
+    String url = "http://mochi.test:8888/tests/robocop/robocop.html";
 
     actions.waitForGeckoEvent("Gecko:Ready");
     Element awesomebar = driver.findElement("awesome_bar");
@@ -79,7 +75,7 @@ public class testBookmark extends ActivityInstrumentationTestCase2 {
     Element urlbar = driver.findElement("awesomebar_text");
     getInstrumentation().waitForIdleSync();
     actions.sendKeys(url);
-    asserter.is(urlbar.getText(), url, "Awesomebar url typed properly");
+    driver.is(urlbar.getText(), url, "Awesomebar url typed properly");
 
     //Click the top item in the list.
     actions.sendSpecialKey(Actions.SpecialKey.DOWN);
@@ -88,7 +84,8 @@ public class testBookmark extends ActivityInstrumentationTestCase2 {
 
     getInstrumentation().waitForIdleSync();
     awesomebar.click();
-    asserter.is(urlbar.getText(), url, "Awesomebar URL still on");
+    driver.is(urlbar.getText(), url, "Awesomebar URL still on");
+    
 
     //Click the Top item in the history list.
     getInstrumentation().waitForIdleSync();
@@ -103,7 +100,7 @@ public class testBookmark extends ActivityInstrumentationTestCase2 {
     getInstrumentation().waitForIdleSync();
     awesomebar.click();
     //Unfortunately, the item isn't constant so can't be tested.
-    //asserter.is(url, urlbar.getText(),"Shouldn't this be the last url in the history?");
+    //driver.is(url, urlbar.getText(),"Shouldn't this be the last url in the history?");
   }
   
   @Override	

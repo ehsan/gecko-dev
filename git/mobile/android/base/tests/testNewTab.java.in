@@ -26,7 +26,6 @@ public class testNewTab extends ActivityInstrumentationTestCase2 {
   private Activity activity;
   private Actions actions;
   private Driver driver;
-  private Assert asserter;
   private static Class<?> launcherActivityClass;
 
   static{
@@ -63,15 +62,11 @@ public class testNewTab extends ActivityInstrumentationTestCase2 {
     driver = new FennecNativeDriver(activity, solo);
     actions = new FennecNativeActions(activity, solo, getInstrumentation());
     driver.setLogFile((String)config.get("logfile"));
-    
-    asserter = new FennecNativeAssert();
-    asserter.setLogFile((String)config.get("logfile"));
   }
 
   public void testNewTab(){
     // TODO: find a better way to not hardcode this url
-    String url = "http://mochi.test:8888/tests/robocop/robocop_blank_01.html";
-    String url2 = "http://mochi.test:8888/tests/robocop/robocop_blank_02.html";
+    String url = "http://mochi.test:8888/tests/robocop/robocop.html";
     actions.waitForGeckoEvent("Gecko:Ready");
     Element tabs = driver.findElement("tabs");
     //Add one tab
@@ -80,14 +75,14 @@ public class testNewTab extends ActivityInstrumentationTestCase2 {
     Element urlbar = driver.findElement("awesomebar_text");
     getInstrumentation().waitForIdleSync();
     actions.sendKeys(url);
-    asserter.is(urlbar.getText(), url, "Awesomebar url is fine");
+    driver.is(urlbar.getText(), url, "Awesomebar url is fine");
     actions.sendSpecialKey(Actions.SpecialKey.ENTER);
     actions.waitForGeckoEvent("DOMContentLoaded");
 
     try{Thread.sleep(5000);}catch(Throwable e){};
     //See tab count
     Element tabCount = driver.findElement("tabs_count");
-    asserter.is(tabCount.getText(), "2", "Number of tabs has increased");
+    driver.is(tabCount.getText(), "2", "Number of tabs has increased");
 
     //Click tab list
     tabs.click();
@@ -96,14 +91,14 @@ public class testNewTab extends ActivityInstrumentationTestCase2 {
     //Add another tab
     addTab.click();
     getInstrumentation().waitForIdleSync();
-    actions.sendKeys(url2);
+    actions.sendKeys(url);
     getInstrumentation().waitForIdleSync();
-    asserter.is(urlbar.getText(), url2, "URL is still fine");
+    driver.is(urlbar.getText(), url, "URL is still fine");
 
     actions.sendSpecialKey(Actions.SpecialKey.ENTER);
     actions.waitForGeckoEvent("DOMContentLoaded");
     //Check tab count another time.
-    asserter.is(tabCount.getText(), "3", "Number of tabs has increased");
+    driver.is(tabCount.getText(), "3", "Number of tabs has increased");
 
   }
 

@@ -1626,10 +1626,10 @@ nsDocShell::ValidateOrigin(nsIDocShellTreeItem* aOriginTreeItem,
     NS_ENSURE_SUCCESS(rv, false);
 
     if (subjectPrincipal) {
-        // We're called from JS, check if UniversalXPConnect is
+        // We're called from JS, check if UniversalBrowserWrite is
         // enabled.
         bool ubwEnabled = false;
-        rv = securityManager->IsCapabilityEnabled("UniversalXPConnect",
+        rv = securityManager->IsCapabilityEnabled("UniversalBrowserWrite",
                                                   &ubwEnabled);
         NS_ENSURE_SUCCESS(rv, false);
 
@@ -7784,7 +7784,7 @@ nsDocShell::CheckLoadingPermissions()
     NS_ENSURE_SUCCESS(rv, rv);
 
     bool ubwEnabled = false;
-    rv = securityManager->IsCapabilityEnabled("UniversalXPConnect",
+    rv = securityManager->IsCapabilityEnabled("UniversalBrowserWrite",
                                               &ubwEnabled);
     if (NS_FAILED(rv) || ubwEnabled) {
         return rv;

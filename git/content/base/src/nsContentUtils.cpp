@@ -1148,9 +1148,16 @@ nsContentUtils::Shutdown()
 
 // static
 bool
-nsContentUtils::CallerHasUniversalXPConnect()
+nsContentUtils::IsCallerTrustedForCapability(const char* aCapability)
 {
+  // The secman really should handle UniversalXPConnect case, since that
+  // should include UniversalBrowserRead... doesn't right now, though.
   bool hasCap;
+  if (NS_FAILED(sSecurityManager->IsCapabilityEnabled(aCapability, &hasCap)))
+    return false;
+  if (hasCap)
+    return true;
+    
   if (NS_FAILED(sSecurityManager->IsCapabilityEnabled("UniversalXPConnect",
                                                       &hasCap)))
     return false;
@@ -1220,9 +1227,16 @@ nsContentUtils::CanCallerAccess(nsIPrincipal* aSubjectPrincipal,
     return true;
   }
 
-  // The subject doesn't subsume aPrincipal. Allow access only if the subject
-  // has UniversalXPConnect.
-  return CallerHasUniversalXPConnect();
+  // The subject doesn't subsume aPrincipal.  Allow access only if the subject
+  // has either "UniversalXPConnect" (if aPrincipal is system principal) or
+  // "UniversalBrowserRead" (in all other cases).
+  bool isSystem;
+  rv = sSecurityManager->IsSystemPrincipal(aPrincipal, &isSystem);
+  isSystem = NS_FAILED(rv) || isSystem;
+  const char* capability =
+    NS_FAILED(rv) || isSystem ? "UniversalXPConnect" : "UniversalBrowserRead";
+
+  return IsCallerTrustedForCapability(capability);
 }
 
 // static
@@ -1455,13 +1469,13 @@ nsContentUtils::IsCallerChrome()
 bool
 nsContentUtils::IsCallerTrustedForRead()
 {
-  return CallerHasUniversalXPConnect();
+  return IsCallerTrustedForCapability("UniversalBrowserRead");
 }
 
 bool
 nsContentUtils::IsCallerTrustedForWrite()
 {
-  return CallerHasUniversalXPConnect();
+  return IsCallerTrustedForCapability("UniversalBrowserWrite");
 }
 
 bool

@@ -65,9 +65,7 @@ function checkScrollbarsPosition(aX) {
 
   let verticalRect = verticalScrollbar.getBoundingClientRect();
   let margin = parseInt(verticalScrollbar.getAttribute("end"));
-  let matches = verticalScrollbar.style.MozTransform.match(/^translate\(([-0-9]+)px/);
-  let translateX = matches ? parseInt(matches[1]) : 0;
-  let expectedPosition = window.innerWidth - aX - margin + translateX;
+  let expectedPosition = window.innerWidth - aX - margin;
   is(verticalRect.right, expectedPosition, "The vertical scrollbar should be position to " + expectedPosition + " (got " + verticalRect.right + ")");
 
   EventUtils.synthesizeMouse(browser, width / 2, height * 3 / 4, { type: "mouseup" });

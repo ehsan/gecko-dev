@@ -51,8 +51,6 @@
 #define USING_WORKERS_NAMESPACE \
   using namespace mozilla::dom::workers;
 
-#define WORKERS_SHUTDOWN_TOPIC "web-workers-shutdown"
-
 class nsPIDOMWindow;
 
 BEGIN_WORKERS_NAMESPACE

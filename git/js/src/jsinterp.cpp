@@ -213,6 +213,7 @@ js::GetScopeChain(JSContext *cx, StackFrame *fp)
     JSObject *innermostNewChild = js_CloneBlockObject(cx, sharedBlock, fp);
     if (!innermostNewChild)
         return NULL;
+    AutoObjectRooter tvr(cx, innermostNewChild);
 
     /*
      * Clone our way towards outer scopes until we reach the innermost
@@ -643,8 +644,6 @@ js::ExecuteKernel(JSContext *cx, JSScript *script, JSObject &scopeChain, const V
 {
     JS_ASSERT_IF(evalInFrame, type == EXECUTE_DEBUG);
 
-    Root<JSScript*> scriptRoot(cx, &script);
-
     if (script->isEmpty()) {
         if (result)
             result->setUndefined();
@@ -653,9 +652,6 @@ js::ExecuteKernel(JSContext *cx, JSScript *script, JSObject &scopeChain, const V
 
     ExecuteFrameGuard efg;
     if (!cx->stack.pushExecuteFrame(cx, script, thisv, scopeChain, type, evalInFrame, &efg))
-        return false;
-
-    if (!script->ensureRanAnalysis(cx, &scopeChain))
         return false;
 
     /* Give strict mode eval its own fresh lexical environment. */
@@ -669,6 +665,9 @@ js::ExecuteKernel(JSContext *cx, JSScript *script, JSObject &scopeChain, const V
 #endif
 
     Probes::startExecution(cx, script);
+
+    if (!script->ensureRanAnalysis(cx, &scopeChain))
+        return false;
 
     TypeScript::SetThis(cx, script, fp->thisValue());
 
@@ -3162,19 +3161,17 @@ BEGIN_CASE(JSOP_SETMETHOD)
              * on a prototype property that has a setter.
              */
             const Shape *shape = entry->prop;
+            JS_ASSERT_IF(shape->isDataDescriptor(), shape->writable());
+            JS_ASSERT_IF(shape->hasSlot(), !entry->vindex);
 
-            if (entry->isOwnPropertyHit() ||
-                ((obj2 = obj->getProto()) && obj2->lastProperty() == entry->pshape))
-            {
-                JS_ASSERT_IF(shape->isDataDescriptor(), shape->writable());
-                JS_ASSERT_IF(shape->hasSlot(), entry->isOwnPropertyHit());
-
+            if (entry->vindex == 0 ||
+                ((obj2 = obj->getProto()) && obj2->lastProperty() == entry->pshape)) {
 #ifdef DEBUG
-                if (entry->isOwnPropertyHit()) {
+                if (entry->directHit()) {
                     JS_ASSERT(obj->nativeContains(cx, *shape));
                 } else {
                     JS_ASSERT(obj2->nativeContains(cx, *shape));
-                    JS_ASSERT(entry->isPrototypePropertyHit());
+                    JS_ASSERT(entry->vindex == 1);
                     JS_ASSERT(entry->kshape != entry->pshape);
                     JS_ASSERT(!shape->hasSlot());
                 }
@@ -4469,8 +4466,7 @@ BEGIN_CASE(JSOP_INITMETHOD)
     JSAtom *atom;
     if (JS_PROPERTY_CACHE(cx).testForSet(cx, regs.pc, obj, &entry, &obj2, &atom) &&
         entry->prop->hasDefaultSetter() &&
-        entry->isOwnPropertyHit())
-    {
+        entry->vindex == 0) {
         JS_ASSERT(obj == obj2);
         /* Fast path. Property cache hit. */
         obj->nativeSetSlotWithType(cx, entry->prop, rval);

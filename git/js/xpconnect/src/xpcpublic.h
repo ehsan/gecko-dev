@@ -311,9 +311,7 @@ struct IterateData
 };
 
 JSBool
-CollectCompartmentStatsForRuntime(JSRuntime *rt, void *data);
-JSBool
-GetExplicitNonHeapForRuntime(JSRuntime *rt, void *data);
+CollectCompartmentStatsForRuntime(JSRuntime *rt, IterateData *data);
 
 void
 ReportJSRuntimeStats(const IterateData &data, const nsACString &pathPrefix,

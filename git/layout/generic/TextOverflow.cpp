@@ -531,8 +531,8 @@ TextOverflow::ExamineLineFrames(nsLineBox*      aLine,
         guessRight == (mRight.mActive && mRight.IsNeeded())) {
       break;
     } else {
-      guessLeft = mLeft.mActive && mLeft.IsNeeded();
-      guessRight = mRight.mActive && mRight.IsNeeded();
+      guessLeft = mLeft.IsNeeded();
+      guessRight = mRight.IsNeeded();
       mLeft.Reset();
       mRight.Reset();
       aFramesToHide->Clear();

@@ -41,7 +41,6 @@
 #include "nsIDOMSVGFilterElement.h"
 #include "nsIDOMSVGURIReference.h"
 #include "nsIDOMSVGUnitTypes.h"
-#include "DOMSVGTests.h"
 #include "nsSVGLength2.h"
 #include "nsSVGIntegerPair.h"
 #include "nsSVGEnum.h"
@@ -51,7 +50,6 @@ typedef nsSVGGraphicElement nsSVGFilterElementBase;
 
 class nsSVGFilterElement : public nsSVGFilterElementBase,
                            public nsIDOMSVGFilterElement,
-                           public DOMSVGTests,
                            public nsIDOMSVGURIReference,
                            public nsIDOMSVGUnitTypes
 {

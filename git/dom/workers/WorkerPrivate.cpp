@@ -186,14 +186,17 @@ public:
                   NS_LITERAL_CSTRING(")/");
   }
 
-  nsresult
-  CollectForRuntime(bool aIsQuick, void* aData)
+  NS_IMETHOD
+  CollectReports(nsIMemoryMultiReporterCallback* aCallback,
+                 nsISupports* aClosure)
   {
     AssertIsOnMainThread();
 
+    IterateData data;
+
     if (mWorkerPrivate) {
       bool disabled;
-      if (!mWorkerPrivate->BlockAndCollectRuntimeStats(aIsQuick, aData, &disabled)) {
+      if (!mWorkerPrivate->BlockAndCollectRuntimeStats(&data, &disabled)) {
         return NS_ERROR_FAILURE;
       }
 
@@ -214,34 +217,11 @@ public:
         mWorkerPrivate = nsnull;
       }
     }
-    return NS_OK;
-  }
-
-  NS_IMETHOD
-  CollectReports(nsIMemoryMultiReporterCallback* aCallback,
-                 nsISupports* aClosure)
-  {
-    AssertIsOnMainThread();
-
-    IterateData data;
-    nsresult rv = CollectForRuntime(/* isQuick = */false, &data);
-    if (NS_FAILED(rv)) {
-      return rv;
-    }
 
     // Always report, even if we're disabled, so that we at least get an entry
     // in about::memory.
     ReportJSRuntimeStats(data, mPathPrefix, aCallback, aClosure);
-
     return NS_OK;
-  }
-
-  NS_IMETHOD
-  GetExplicitNonHeap(PRInt64 *aAmount)
-  {
-    AssertIsOnMainThread();
-
-    return CollectForRuntime(/* isQuick = */true, aAmount);
   }
 };
 
@@ -901,14 +881,12 @@ public:
 
 class NotifyRunnable : public WorkerControlRunnable
 {
-  bool mFromJSObjectFinalizer;
   Status mStatus;
 
 public:
-  NotifyRunnable(WorkerPrivate* aWorkerPrivate, bool aFromJSObjectFinalizer,
-                 Status aStatus)
+  NotifyRunnable(WorkerPrivate* aWorkerPrivate, Status aStatus)
   : WorkerControlRunnable(aWorkerPrivate, WorkerThread, UnchangedBusyCount),
-    mFromJSObjectFinalizer(aFromJSObjectFinalizer), mStatus(aStatus)
+    mStatus(aStatus)
   {
     NS_ASSERTION(aStatus == Terminating || aStatus == Canceling ||
                  aStatus == Killing, "Bad status!");
@@ -918,12 +896,8 @@ public:
   PreDispatch(JSContext* aCx, WorkerPrivate* aWorkerPrivate)
   {
     // Modify here, but not in PostRun! This busy count addition will be matched
-    // by the CloseEventRunnable. If we're running from a finalizer there is no
-    // need to modify the count because future changes to the busy count will
-    // have no effect.
-    return mFromJSObjectFinalizer ?
-           true :
-           aWorkerPrivate->ModifyBusyCount(aCx, true);
+    // by the CloseEventRunnable.
+    return aWorkerPrivate->ModifyBusyCount(aCx, true);
   }
 
   bool
@@ -1404,17 +1378,16 @@ class CollectRuntimeStatsRunnable : public WorkerControlRunnable
   Mutex mMutex;
   CondVar mCondVar;
   volatile bool mDone;
-  bool mIsQuick;
-  void* mData;
+  IterateData* mData;
   bool* mSucceeded;
 
 public:
-  CollectRuntimeStatsRunnable(WorkerPrivate* aWorkerPrivate, bool aIsQuick,
-                              void* aData, bool* aSucceeded)
+  CollectRuntimeStatsRunnable(WorkerPrivate* aWorkerPrivate, IterateData* aData,
+                              bool* aSucceeded)
   : WorkerControlRunnable(aWorkerPrivate, WorkerThread, UnchangedBusyCount),
     mMutex("CollectRuntimeStatsRunnable::mMutex"),
     mCondVar(mMutex, "CollectRuntimeStatsRunnable::mCondVar"), mDone(false),
-    mIsQuick(aIsQuick), mData(aData), mSucceeded(aSucceeded)
+    mData(aData), mSucceeded(aSucceeded)
   { }
 
   bool
@@ -1456,9 +1429,7 @@ public:
   {
     JSAutoSuspendRequest asr(aCx);
 
-    *mSucceeded = mIsQuick ?
-      mozilla::xpconnect::memory::GetExplicitNonHeapForRuntime(JS_GetRuntime(aCx), mData) :
-      mozilla::xpconnect::memory::CollectCompartmentStatsForRuntime(JS_GetRuntime(aCx), mData);
+    *mSucceeded = CollectCompartmentStatsForRuntime(JS_GetRuntime(aCx), mData);
 
     {
       MutexAutoLock lock(mMutex);
@@ -1795,8 +1766,7 @@ WorkerPrivateParent<Derived>::Start()
 
 template <class Derived>
 bool
-WorkerPrivateParent<Derived>::NotifyPrivate(JSContext* aCx, Status aStatus,
-                                            bool aFromJSObjectFinalizer)
+WorkerPrivateParent<Derived>::Notify(JSContext* aCx, Status aStatus)
 {
   AssertIsOnParentThread();
 
@@ -1837,9 +1807,8 @@ WorkerPrivateParent<Derived>::NotifyPrivate(JSContext* aCx, Status aStatus,
   mQueuedRunnables.Clear();
 
   nsRefPtr<NotifyRunnable> runnable =
-    new NotifyRunnable(ParentAsWorkerPrivate(), aFromJSObjectFinalizer,
-                       aStatus);
-  return runnable->Dispatch(aFromJSObjectFinalizer ? nsnull : aCx);
+    new NotifyRunnable(ParentAsWorkerPrivate(), aStatus);
+  return runnable->Dispatch(aCx);
 }
 
 template <class Derived>
@@ -1914,10 +1883,9 @@ WorkerPrivateParent<Derived>::FinalizeInstance(JSContext* aCx,
   AssertIsOnParentThread();
 
   if (mJSObject) {
-    // Make sure we're in the right compartment, but only enter one if this is
-    // not running from a finalizer.
+    // Make sure we're in the right compartment.
     JSAutoEnterCompartment ac;
-    if (!aFromJSFinalizer && !ac.enter(aCx, mJSObject)) {
+    if (!ac.enter(aCx, mJSObject)) {
       NS_ERROR("How can this fail?!");
       return;
     }
@@ -1931,7 +1899,7 @@ WorkerPrivateParent<Derived>::FinalizeInstance(JSContext* aCx,
     // Unroot.
     RootJSObject(aCx, false);
 
-    if (!TerminatePrivate(aCx, aFromJSFinalizer)) {
+    if (!Terminate(aCx)) {
       NS_WARNING("Failed to terminate!");
     }
 
@@ -2601,7 +2569,7 @@ WorkerPrivate::ScheduleDeletion(bool aWasPending)
 }
 
 bool
-WorkerPrivate::BlockAndCollectRuntimeStats(bool aIsQuick, void* aData, bool* aDisabled)
+WorkerPrivate::BlockAndCollectRuntimeStats(IterateData* aData, bool* aDisabled)
 {
   AssertIsOnMainThread();
   NS_ASSERTION(aData, "Null data!");
@@ -2621,7 +2589,7 @@ WorkerPrivate::BlockAndCollectRuntimeStats(bool aIsQuick, void* aData, bool* aDi
   bool succeeded;
 
   nsRefPtr<CollectRuntimeStatsRunnable> runnable =
-    new CollectRuntimeStatsRunnable(this, aIsQuick, aData, &succeeded);
+    new CollectRuntimeStatsRunnable(this, aData, &succeeded);
   if (!runnable->Dispatch(nsnull)) {
     NS_WARNING("Failed to dispatch runnable!");
     succeeded = false;

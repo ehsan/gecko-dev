@@ -51,7 +51,6 @@
 #include "nsAutoPtr.h"
 #include "nsServiceManagerUtils.h"
 #include "nsString.h"
-#include "nsThreadUtils.h"
 #include "nsXULAppAPI.h"
 
 #include <objbase.h>
@@ -85,9 +84,6 @@ public:
   STDMETHODIMP OnGroupingParamChanged(LPCGUID aGroupingParam, LPCGUID aContext);
   STDMETHODIMP OnIconPathChanged(LPCWSTR aIconPath, LPCGUID aContext);
   STDMETHODIMP OnSessionDisconnected(AudioSessionDisconnectReason aReason);
-private:
-  nsresult OnSessionDisconnectedInternal();
-public:
   STDMETHODIMP OnSimpleVolumeChanged(float aVolume,
                                      BOOL aMute,
                                      LPCGUID aContext);
@@ -436,25 +432,13 @@ AudioSession::OnIconPathChanged(LPCWSTR aIconPath,
 STDMETHODIMP
 AudioSession::OnSessionDisconnected(AudioSessionDisconnectReason aReason)
 {
-  // Run our code asynchronously.  Per MSDN we can't do anything interesting
-  // in this callback.
-  nsCOMPtr<nsIRunnable> runnable =
-    NS_NewRunnableMethod(this, &AudioSession::OnSessionDisconnectedInternal);
-  NS_DispatchToMainThread(runnable);
-  return S_OK;
-}
-
-nsresult
-AudioSession::OnSessionDisconnectedInternal()
-{
   if (!mAudioSessionControl)
-    return NS_OK;
+    return S_OK;
 
   mAudioSessionControl->UnregisterAudioSessionNotification(this);
   mAudioSessionControl = nsnull;
-
-  Start(); // If it fails there's not much we can do.
-  return NS_OK;
+  Start(); // If it fails there's not much we can do
+  return S_OK;
 }
 
 STDMETHODIMP
