@@ -41,6 +41,7 @@
 #include "nsIServiceManager.h"
 #include "nsNativeThemeColors.h"
 
+#import <Carbon/Carbon.h>
 #import <Cocoa/Cocoa.h>
 
 nsLookAndFeel::nsLookAndFeel() : nsXPLookAndFeel()

@@ -183,7 +183,7 @@ nsApplicationAccessible::CacheChildren()
   // method calls.
 }
 
-nsAccessible*
+nsIAccessible*
 nsApplicationAccessible::GetSiblingAtOffset(PRInt32 aOffset, nsresult* aError)
 {
   if (IsDefunct()) {

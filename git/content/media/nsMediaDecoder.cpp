@@ -46,6 +46,8 @@
 #include "nsIDOMHTMLMediaElement.h"
 #include "nsNetUtil.h"
 #include "nsHTMLMediaElement.h"
+#include "nsIObserver.h"
+#include "nsIObserverService.h"
 #include "nsAutoLock.h"
 #include "nsIRenderingContext.h"
 #include "gfxContext.h"

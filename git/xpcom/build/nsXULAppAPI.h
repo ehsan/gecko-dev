@@ -506,6 +506,4 @@ XRE_API(bool,
 XRE_API(bool,
         XRE_ShutdownTestShell, ())
 
-XRE_API(void,
-        XRE_InstallX11ErrorHandler, ())
 #endif // _nsXULAppAPI_h__

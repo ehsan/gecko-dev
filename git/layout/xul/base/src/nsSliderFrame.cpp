@@ -223,8 +223,9 @@ public:
 
   NS_IMETHODIMP Run()
   {
-    return mListener->ValueChanged(nsDependentAtomString(mWhich),
-                                   mValue, mUserChanged);
+    nsAutoString which;
+    mWhich->ToString(which);
+    return mListener->ValueChanged(which, mValue, mUserChanged);
   }
 
   nsCOMPtr<nsISliderListener> mListener;

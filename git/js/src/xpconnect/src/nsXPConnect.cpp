@@ -2179,7 +2179,7 @@ nsXPConnect::UpdateXOWs(JSContext* aJSContext,
     if(!list)
         return NS_OK; // No wrappers to update.
 
-    JSAutoRequest req(aJSContext);
+    AutoJSRequestWithNoCallContext req(aJSContext);
 
     Link* cur = list;
     if(cur->obj && !PerformOp(aJSContext, aWay, cur->obj))
@@ -2796,14 +2796,10 @@ nsXPConnect::GetPrincipal(JSObject* obj, PRBool allowShortCircuit) const
     return nsnull;
 }
 
-NS_IMETHODIMP_(void)
-nsXPConnect::GetNativeWrapperGetPropertyOp(JSPropertyOp *getPropertyPtr)
+NS_IMETHODIMP_(JSClass *)
+nsXPConnect::GetNativeWrapperClass()
 {
-    NS_ASSERTION(XPCNativeWrapper::GetJSClass(true)->getProperty ==
-                 XPCNativeWrapper::GetJSClass(false)->getProperty,
-                 "Call and NoCall XPCNativeWrapper Class must use the same "
-                 "getProperty hook.");
-    *getPropertyPtr = XPCNativeWrapper::GetJSClass(true)->getProperty;
+    return XPCNativeWrapper::GetJSClass();
 }
 
 /* These are here to be callable from a debugger */

@@ -42,6 +42,7 @@
 #include "nsIDocument.h"
 #include "nsIFrame.h"
 #include "nsIObserver.h"
+#include "nsIObserverService.h"
 #include "nsISeekableStream.h"
 #include "nsAudioStream.h"
 #include "nsAutoLock.h"
@@ -1189,7 +1190,7 @@ nsWaveDecoder::Init(nsHTMLMediaElement* aElement)
 {
   nsMediaDecoder::Init(aElement);
 
-  nsContentUtils::RegisterShutdownObserver(this);
+  RegisterShutdownObserver();
 
   mPlaybackStateMachine = new nsWaveStateMachine(this,
     TimeDuration::FromMilliseconds(BUFFERING_TIMEOUT),
@@ -1298,7 +1299,7 @@ nsWaveDecoder::Stop()
   mPlaybackStateMachine = nsnull;
   mStream = nsnull;
 
-  nsContentUtils::UnregisterShutdownObserver(this);
+  UnregisterShutdownObserver();
 }
 
 nsresult
@@ -1523,6 +1524,30 @@ nsWaveDecoder::SeekingStopped()
   if (mElement) {
     UpdateReadyStateForData();
     mElement->SeekCompleted();
+  }
+}
+
+void
+nsWaveDecoder::RegisterShutdownObserver()
+{
+  nsCOMPtr<nsIObserverService> observerService =
+    do_GetService("@mozilla.org/observer-service;1");
+  if (observerService) {
+    observerService->AddObserver(this,
+                                 NS_XPCOM_SHUTDOWN_OBSERVER_ID,
+                                 PR_FALSE);
+  } else {
+    NS_WARNING("Could not get an observer service. Audio playback may not shutdown cleanly.");
+  }
+}
+
+void
+nsWaveDecoder::UnregisterShutdownObserver()
+{
+  nsCOMPtr<nsIObserverService> observerService =
+    do_GetService("@mozilla.org/observer-service;1");
+  if (observerService) {
+    observerService->RemoveObserver(this, NS_XPCOM_SHUTDOWN_OBSERVER_ID);
   }
 }
 

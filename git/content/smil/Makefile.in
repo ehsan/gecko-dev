@@ -61,7 +61,6 @@ CPPSRCS		+= \
 	nsSMILCSSValueType.cpp \
 	nsSMILFloatType.cpp \
 	nsSMILInstanceTime.cpp \
-	nsSMILInterval.cpp \
 	nsSMILNullType.cpp \
 	nsSMILParserUtils.cpp \
 	nsSMILRepeatCount.cpp \

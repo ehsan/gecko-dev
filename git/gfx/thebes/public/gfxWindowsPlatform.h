@@ -43,22 +43,12 @@
 #define MOZ_FT2_FONTS 1
 #endif
 
-
-/**
- * XXX to get CAIRO_HAS_DDRAW_SURFACE, CAIRO_HAS_D2D_SURFACE and
- * CAIRO_HAS_DWRITE_FONT
- */
-#include "cairo.h"
-
 #include "gfxFontUtils.h"
 #include "gfxWindowsSurface.h"
 #ifdef MOZ_FT2_FONTS
 #include "gfxFT2Fonts.h"
 #else
 #include "gfxWindowsFonts.h"
-#ifdef CAIRO_HAS_DWRITE_FONT
-#include "gfxDWriteFonts.h"
-#endif
 #endif
 #include "gfxPlatform.h"
 
@@ -103,9 +93,6 @@ public:
         /* Use DirectDraw with OpenGL on Windows CE */
         RENDER_DDRAW_GL,
 
-        /* Use Direct2D rendering */
-        RENDER_DIRECT2D,
-
         /* max */
         RENDER_MODE_MAX
     };
@@ -113,7 +100,7 @@ public:
     RenderMode GetRenderMode() { return mRenderMode; }
     void SetRenderMode(RenderMode rmode) { mRenderMode = rmode; }
 
-    nsresult GetFontList(nsIAtom *aLangGroup,
+    nsresult GetFontList(const nsACString& aLangGroup,
                          const nsACString& aGenericFamily,
                          nsTArray<nsString>& aListOfFonts);
 
@@ -160,10 +147,6 @@ public:
 
     void ClearPrefFonts() { mPrefFonts.Clear(); }
 
-#ifdef CAIRO_HAS_DWRITE_FONT
-    IDWriteFactory *GetDWriteFactory() { return mDWriteFactory; }
-#endif
-
 #ifdef MOZ_FT2_FONTS
     FT_Library GetFTLibrary();
 #endif
@@ -175,10 +158,6 @@ protected:
 
 private:
     void Init();
-
-#ifdef CAIRO_HAS_DWRITE_FONT
-    nsRefPtr<IDWriteFactory> mDWriteFactory;
-#endif
 
     virtual qcms_profile* GetPlatformCMSOutputProfile();
 

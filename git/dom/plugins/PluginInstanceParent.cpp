@@ -131,8 +131,10 @@ NPError
 PluginInstanceParent::Destroy()
 {
     NPError retval;
-    if (!CallNPP_Destroy(&retval))
-        retval = NPERR_GENERIC_ERROR;
+    if (!CallNPP_Destroy(&retval)) {
+        NS_WARNING("Failed to send message!");
+        return NPERR_GENERIC_ERROR;
+    }
 
 #if defined(OS_WIN)
     SharedSurfaceRelease();
@@ -365,7 +367,7 @@ PluginInstanceParent::AnswerPStreamNotifyConstructor(PStreamNotifyParent* actor,
     if (!streamDestroyed) {
         static_cast<StreamNotifyParent*>(actor)->ClearDestructionFlag();
         if (*result != NPERR_NO_ERROR)
-            PStreamNotifyParent::Send__delete__(actor, NPERR_GENERIC_ERROR);
+            PStreamNotifyParent::Call__delete__(actor, NPERR_GENERIC_ERROR);
     }
 
     return true;
@@ -430,10 +432,10 @@ PluginInstanceParent::NPP_SetWindow(const NPWindow* aWindow)
     window.colormap = ws_info->colormap;
 #endif
 
-    if (!CallNPP_SetWindow(window))
+    NPError prv;
+    if (!CallNPP_SetWindow(window, &prv))
         return NPERR_GENERIC_ERROR;
-
-    return NPERR_NO_ERROR;
+    return prv;
 }
 
 NPError
@@ -536,9 +538,8 @@ PluginInstanceParent::NPP_HandleEvent(void* event)
             {
                 RECT rect;
                 SharedSurfaceBeforePaint(rect, npremoteevent);
-                CallPaint(npremoteevent, &handled);
+                CallNPP_HandleEvent(npremoteevent, &handled);
                 SharedSurfaceAfterPaint(npevent);
-                return handled;
             }
             break;
 
@@ -558,9 +559,18 @@ PluginInstanceParent::NPP_HandleEvent(void* event)
                   !wcscmp(szClass, L"ShockwaveFlashFullScreen")) {
                   return 0;
               }
+              // intentional fall through
             }
+
+            default:
+                if (!CallNPP_HandleEvent(npremoteevent, &handled))
+                    return 0;
             break;
         }
+    }
+    else {
+        if (!CallNPP_HandleEvent(npremoteevent, &handled))
+            return 0;
     }
 #endif
 
@@ -580,13 +590,11 @@ PluginInstanceParent::NPP_HandleEvent(void* event)
 #  elif defined(MOZ_WIDGET_QT)
         XSync(QX11Info::display(), False);
 #  endif
-
-        return CallPaint(npremoteevent, &handled) ? handled : 0;
     }
-#endif
 
     if (!CallNPP_HandleEvent(npremoteevent, &handled))
         return 0; // no good way to handle errors here...
+#endif
 
     return handled;
 }
@@ -612,7 +620,7 @@ PluginInstanceParent::NPP_NewStream(NPMIMEType type, NPStream* stream,
         return NPERR_GENERIC_ERROR;
 
     if (NPERR_NO_ERROR != err)
-        PBrowserStreamParent::Send__delete__(bs);
+        PBrowserStreamParent::Call__delete__(bs, NPERR_GENERIC_ERROR, true);
 
     return err;
 }
@@ -630,7 +638,7 @@ PluginInstanceParent::NPP_DestroyStream(NPStream* stream, NPReason reason)
         if (sp->mNPP != this)
             NS_RUNTIMEABORT("Mismatched plugin data");
 
-        sp->NPP_DestroyStream(reason);
+        PBrowserStreamParent::Call__delete__(sp, reason, false);
         return NPERR_NO_ERROR;
     }
     else {
@@ -708,7 +716,7 @@ PluginInstanceParent::DeallocPPluginScriptableObject(
 }
 
 bool
-PluginInstanceParent::RecvPPluginScriptableObjectConstructor(
+PluginInstanceParent::AnswerPPluginScriptableObjectConstructor(
                                           PPluginScriptableObjectParent* aActor)
 {
     // This is only called in response to the child process requesting the
@@ -733,7 +741,7 @@ PluginInstanceParent::NPP_URLNotify(const char* url, NPReason reason,
 
     PStreamNotifyParent* streamNotify =
         static_cast<PStreamNotifyParent*>(notifyData);
-    PStreamNotifyParent::Send__delete__(streamNotify, reason);
+    PStreamNotifyParent::Call__delete__(streamNotify, reason);
 }
 
 bool
@@ -779,7 +787,7 @@ PluginInstanceParent::GetActorForNPObject(NPObject* aObject)
         return nsnull;
     }
 
-    if (!SendPPluginScriptableObjectConstructor(actor)) {
+    if (!CallPPluginScriptableObjectConstructor(actor)) {
         NS_WARNING("Failed to send constructor message!");
         return nsnull;
     }
@@ -895,8 +903,11 @@ PluginInstanceParent::PluginWindowHookProc(HWND hWnd,
 
     switch (message) {
         case WM_SETFOCUS:
-        // Let the child plugin window know it should take focus.
-        self->CallSetPluginFocus();
+        // Widget may be calling us back from AnswerPluginGotFocus(), make
+        // sure we don't end up sending this back over. If we're not in
+        // SendMessage, this is coming from the dom / focus manager.
+        if ((::InSendMessageEx(NULL) & (ISMEX_SEND|ISMEX_REPLIED)) != ISMEX_SEND)
+            self->CallSetPluginFocus();
         break;
 
         case WM_CLOSE:

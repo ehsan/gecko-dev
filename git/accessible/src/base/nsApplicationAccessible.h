@@ -91,8 +91,8 @@ protected:
 
   // nsAccessible
   virtual void CacheChildren();
-  virtual nsAccessible* GetSiblingAtOffset(PRInt32 aOffset,
-                                           nsresult *aError = nsnull);
+  virtual nsIAccessible* GetSiblingAtOffset(PRInt32 aOffset,
+                                            nsresult *aError = nsnull);
 };
 
 #endif

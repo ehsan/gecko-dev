@@ -211,20 +211,16 @@ void
 nsHTMLEditor::AddMouseClickListener(nsIDOMElement * aElement)
 {
   nsCOMPtr<nsIDOMEventTarget> evtTarget(do_QueryInterface(aElement));
-  if (evtTarget) {
-    evtTarget->AddEventListener(NS_LITERAL_STRING("click"),
-                                mEventListener, PR_TRUE);
-  }
+  if (evtTarget)
+    evtTarget->AddEventListener(NS_LITERAL_STRING("click"), mMouseListenerP, PR_TRUE);
 }
 
 void
 nsHTMLEditor::RemoveMouseClickListener(nsIDOMElement * aElement)
 {
   nsCOMPtr<nsIDOMEventTarget> evtTarget(do_QueryInterface(aElement));
-  if (evtTarget) {
-    evtTarget->RemoveEventListener(NS_LITERAL_STRING("click"),
-                                   mEventListener, PR_TRUE);
-  }
+  if (evtTarget)
+    evtTarget->RemoveEventListener(NS_LITERAL_STRING("click"), mMouseListenerP, PR_TRUE);
 }
 
 NS_IMETHODIMP

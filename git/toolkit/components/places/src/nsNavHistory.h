@@ -488,7 +488,7 @@ protected:
   nsresult AddVisitChain(nsIURI* aURI, PRTime aTime,
                          PRBool aToplevel, PRBool aRedirect,
                          nsIURI* aReferrer, PRInt64* aVisitID,
-                         PRInt64* aSessionID);
+                         PRInt64* aSessionID, PRInt64* aRedirectBookmark);
   nsresult InternalAddNewPage(nsIURI* aURI, const nsAString& aTitle,
                               PRBool aHidden, PRBool aTyped,
                               PRInt32 aVisitCount, PRBool aCalculateFrecency,
@@ -496,9 +496,7 @@ protected:
   nsresult InternalAddVisit(PRInt64 aPageID, PRInt64 aReferringVisit,
                             PRInt64 aSessionID, PRTime aTime,
                             PRInt32 aTransitionType, PRInt64* aVisitID);
-  PRBool FindLastVisit(nsIURI* aURI,
-                       PRInt64* aVisitID,
-                       PRTime* aTime,
+  PRBool FindLastVisit(nsIURI* aURI, PRInt64* aVisitID,
                        PRInt64* aSessionID);
   PRBool IsURIStringVisited(const nsACString& url);
 
@@ -622,7 +620,6 @@ protected:
   // recent events
   typedef nsDataHashtable<nsCStringHashKey, PRInt64> RecentEventHash;
   RecentEventHash mRecentTyped;
-  RecentEventHash mRecentLink;
   RecentEventHash mRecentBookmark;
 
   PRBool CheckIsRecentEvent(RecentEventHash* hashTable,
@@ -671,7 +668,6 @@ protected:
   PRInt32 mFourthBucketWeight;
   PRInt32 mDefaultWeight;
   PRInt32 mEmbedVisitBonus;
-  PRInt32 mFramedLinkVisitBonus;
   PRInt32 mLinkVisitBonus;
   PRInt32 mTypedVisitBonus;
   PRInt32 mBookmarkVisitBonus;
@@ -692,8 +688,6 @@ protected:
   PRBool mInPrivateBrowsing;
 
   PRUint16 mDatabaseStatus;
-
-  PRInt8 mHasHistoryEntries;
 
   // Used to enable and disable the observer notifications
   bool mCanNotify;

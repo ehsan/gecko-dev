@@ -126,5 +126,10 @@
 /* Define to `long int' if <sys/types.h> does not define. */
 /* #undef off_t */
 
+#include "prcpucfg.h"
+#ifdef IS_BIG_ENDIAN
+#define WORDS_BIGENDIAN
+#endif
+
 /* Define to `unsigned int' if <sys/types.h> does not define. */
 /* #undef size_t */

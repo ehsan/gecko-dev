@@ -120,18 +120,7 @@ public:
 
     bool EnsureValidNPIdentifier(NPIdentifier aIdentifier);
 
-    bool OkToCleanup() const {
-        return !IsOnCxxStack();
-    }
-
 protected:
-    NS_OVERRIDE
-    virtual mozilla::ipc::RPCChannel::RacyRPCPolicy
-    MediateRPCRace(const Message& parent, const Message& child)
-    {
-        return MediateRace(parent, child);
-    }
-
     NS_OVERRIDE
     virtual bool ShouldContinueFromReplyTimeout();
 
@@ -164,12 +153,6 @@ protected:
     AnswerNPN_GetValue_WithBoolReturn(const NPNVariable& aVariable,
                                       NPError* aError,
                                       bool* aBoolVal);
-
-    NS_OVERRIDE
-    virtual bool AnswerProcessSomeEvents();
-
-    virtual bool
-    RecvAppendNotesToCrashReport(const nsCString& aNotes);
 
     static PluginInstanceParent* InstCast(NPP instance);
     static BrowserStreamParent* StreamCast(NPP instance, NPStream* s);
@@ -239,17 +222,13 @@ private:
                              const char* value);
     void CleanupFromTimeout();
     static int TimeoutChanged(const char* aPref, void* aModule);
-    void NotifyPluginCrashed();
 
-    nsCString mCrashNotes;
     PluginProcessParent* mSubprocess;
     bool mShutdown;
     const NPNetscapeFuncs* mNPNIface;
     nsTHashtable<nsVoidPtrHashKey> mValidIdentifiers;
     nsNPAPIPlugin* mPlugin;
     time_t mProcessStartTime;
-    CancelableTask* mPluginCrashedTask;
-    nsString mDumpID;
 };
 
 } // namespace plugins

@@ -354,7 +354,7 @@ class nsXMLContentSerializer : public nsIContentSerializer {
   nsCString mCharset;
   
   // current column position on the current line
-  PRUint32   mColPos;
+  PRInt32   mColPos;
 
   // true = pretty formating should be done (OutputFormated flag)
   PRPackedBool mDoFormat;
@@ -367,7 +367,7 @@ class nsXMLContentSerializer : public nsIContentSerializer {
   PRPackedBool mDoWrap;
 
   // number of maximum column in a line, in the wrap mode
-  PRUint32   mMaxColumn;
+  PRInt32   mMaxColumn;
 
   // current indent value
   nsString   mIndent;

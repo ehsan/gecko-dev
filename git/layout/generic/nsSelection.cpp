@@ -4881,8 +4881,9 @@ nsTypedSelection::Collapse(nsINode* aParentNode, PRInt32 aOffset)
     if (!content)
       return NS_ERROR_FAILURE;
 
-    printf ("Sel. Collapse to %p %s %d\n", content.get(),
-            nsAtomCString(content->Tag()).get(), aOffset);
+    const char *tagString;
+    content->Tag()->GetUTF8String(&tagString);
+    printf ("Sel. Collapse to %p %s %d\n", content.get(), tagString, aOffset);
   }
   else {
     printf ("Sel. Collapse set to null parent.\n");
@@ -5273,8 +5274,9 @@ nsTypedSelection::Extend(nsINode* aParentNode, PRInt32 aOffset)
     nsCOMPtr<nsIContent>content;
     content = do_QueryInterface(aParentNode);
 
-    printf ("Sel. Extend to %p %s %d\n", content.get(),
-            nsAtomCString(content->Tag()).get(), aOffset);
+    const char *tagString;
+    content->Tag()->GetUTF8String(&tagString);
+    printf ("Sel. Extend to %p %s %d\n", content.get(), tagString, aOffset);
   }
   else {
     printf ("Sel. Extend set to null parent.\n");

@@ -251,9 +251,8 @@ const char* const docEvents[] = {
   // debugging a11y objects with event viewers
   "mouseover",
 #endif
-  // capture DOM focus and DOM blur events 
+  // capture DOM focus events 
   "focus",
-  "blur",
   // capture Form change events 
   "select",
   // capture ValueChange events (fired whenever value changes, immediately after, whether focus moves or not)
@@ -726,7 +725,8 @@ nsresult nsRootAccessible::HandleEventWithTarget(nsIDOMEvent* aEvent,
         nsRefPtr<nsXULTreeAccessible> treeAcc =
           nsAccUtils::QueryAccessibleTree(accessible);
         if (treeAcc) {
-          treeItemAccessible = treeAcc->GetTreeItemAccessible(treeIndex);
+          treeAcc->GetTreeItemAccessible(treeIndex,
+                                         getter_AddRefs(treeItemAccessible));
           if (treeItemAccessible)
             accessible = treeItemAccessible;
         }
@@ -809,11 +809,6 @@ nsresult nsRootAccessible::HandleEventWithTarget(nsIDOMEvent* aEvent,
       }
     }
     FireAccessibleFocusEvent(accessible, focusedItem, aEvent);
-  }
-  else if (eventType.EqualsLiteral("blur")) {
-    NS_IF_RELEASE(gLastFocusedNode);
-    gLastFocusedFrameType = nsnull;
-    gLastFocusedAccessiblesState = 0;
   }
   else if (eventType.EqualsLiteral("AlertActive")) { 
     nsEventShell::FireEvent(nsIAccessibleEvent::EVENT_ALERT, accessible);

@@ -43,9 +43,11 @@
 #include "gfxQuartzImageSurface.h"
 
 #include "gfxMacPlatformFontList.h"
-#include "gfxMacFont.h"
-#include "gfxCoreTextShaper.h"
 #include "gfxUserFontSet.h"
+
+#ifdef MOZ_CORETEXT
+#include "gfxCoreTextFonts.h"
+#endif
 
 #include "nsIPrefBranch.h"
 #include "nsIPrefService.h"
@@ -61,11 +63,40 @@ gfxPlatformMac::gfxPlatformMac()
 {
     mOSXVersion = 0;
     mFontAntiAliasingThreshold = ReadAntiAliasingThreshold();
+
+#ifndef __LP64__
+    // On 64-bit, we only have CoreText, no ATSUI;
+    // for 32-bit, check whether we can and should use CoreText
+    mUseCoreText = PR_FALSE;
+
+#ifdef MOZ_CORETEXT
+    if (&CTLineCreateWithAttributedString != NULL) {
+        mUseCoreText = PR_TRUE;
+        nsCOMPtr<nsIPrefBranch> prefbranch = do_GetService(NS_PREFSERVICE_CONTRACTID);
+        if (prefbranch) {
+            PRBool enabled;
+            nsresult rv = prefbranch->GetBoolPref("gfx.force_atsui_text", &enabled);
+            if (NS_SUCCEEDED(rv) && enabled)
+                mUseCoreText = PR_FALSE;
+        }
+    }
+#ifdef DEBUG_jonathan
+    printf("Using %s for font & glyph shaping support\n",
+           mUseCoreText ? "CoreText" : "ATSUI");
+#endif
+#endif /* MOZ_CORETEXT */
+
+#endif /* not __LP64__ */
 }
 
 gfxPlatformMac::~gfxPlatformMac()
 {
-    gfxCoreTextShaper::Shutdown();
+#ifdef MOZ_CORETEXT
+#ifndef __LP64__
+    if (mUseCoreText)
+#endif
+        gfxCoreTextFont::Shutdown();
+#endif
 }
 
 gfxPlatformFontList*
@@ -183,7 +214,7 @@ gfxPlatformMac::IsFontFormatSupported(nsIURI *aFontURI, PRUint32 aFormatFlags)
 
 // these will also move to gfxPlatform once all platforms support the fontlist
 nsresult
-gfxPlatformMac::GetFontList(nsIAtom *aLangGroup,
+gfxPlatformMac::GetFontList(const nsACString& aLangGroup,
                             const nsACString& aGenericFamily,
                             nsTArray<nsString>& aListOfFonts)
 {
@@ -328,3 +359,35 @@ fail_close:
     CMCloseProfile(cmProfile);
     return profile;
 }
+
+void
+gfxPlatformMac::SetupClusterBoundaries(gfxTextRun *aTextRun, const PRUnichar *aString)
+{
+    TextBreakLocatorRef locator;
+    OSStatus status = UCCreateTextBreakLocator(NULL, 0, kUCTextBreakClusterMask,
+                                               &locator);
+    if (status != noErr)
+        return;
+    UniCharArrayOffset breakOffset = 0;
+    UCTextBreakOptions options = kUCTextBreakLeadingEdgeMask;
+    PRUint32 length = aTextRun->GetLength();
+    while (breakOffset < length) {
+        UniCharArrayOffset next;
+        status = UCFindTextBreak(locator, kUCTextBreakClusterMask, options,
+                                 aString, length, breakOffset, &next);
+        if (status != noErr)
+            break;
+        options |= kUCTextBreakIterateMask;
+        PRUint32 i;
+        for (i = breakOffset + 1; i < next; ++i) {
+            gfxTextRun::CompressedGlyph g;
+            // Remember that this character is not the start of a cluster by
+            // setting its glyph data to "not a cluster start", "is a
+            // ligature start", with no glyphs.
+            aTextRun->SetGlyphs(i, g.SetComplex(PR_FALSE, PR_TRUE, 0), nsnull);
+        }
+        breakOffset = next;
+    }
+    UCDisposeTextBreakLocator(&locator);
+}
+

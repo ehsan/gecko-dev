@@ -321,8 +321,7 @@ num_toSource(JSContext *cx, uintN argc, jsval *vp)
         return JS_FALSE;
     JS_ASSERT(JSVAL_IS_NUMBER(v));
     d = JSVAL_IS_INT(v) ? (jsdouble)JSVAL_TO_INT(v) : *JSVAL_TO_DOUBLE(v);
-    numStr = js_dtostr(JS_THREAD_DATA(cx)->dtoaState, numBuf, sizeof numBuf,
-                       DTOSTR_STANDARD, 0, d);
+    numStr = JS_dtostr(numBuf, sizeof numBuf, DTOSTR_STANDARD, 0, d);
     if (!numStr) {
         JS_ReportOutOfMemory(cx);
         return JS_FALSE;
@@ -576,8 +575,7 @@ num_to(JSContext *cx, JSDToStrMode zeroArgMode, JSDToStrMode oneArgMode,
             return JS_FALSE;
         precision = js_DoubleToInteger(precision);
         if (precision < precisionMin || precision > precisionMax) {
-            numStr = js_dtostr(JS_THREAD_DATA(cx)->dtoaState, buf, sizeof buf,
-                               DTOSTR_STANDARD, 0, precision);
+            numStr = JS_dtostr(buf, sizeof buf, DTOSTR_STANDARD, 0, precision);
             if (!numStr)
                 JS_ReportOutOfMemory(cx);
             else
@@ -586,8 +584,7 @@ num_to(JSContext *cx, JSDToStrMode zeroArgMode, JSDToStrMode oneArgMode,
         }
     }
 
-    numStr = js_dtostr(JS_THREAD_DATA(cx)->dtoaState, buf, sizeof buf,
-                       oneArgMode, (jsint)precision + precisionOffset, d);
+    numStr = JS_dtostr(buf, sizeof buf, oneArgMode, (jsint)precision + precisionOffset, d);
     if (!numStr) {
         JS_ReportOutOfMemory(cx);
         return JS_FALSE;
@@ -850,10 +847,9 @@ NumberToCString(JSContext *cx, jsdouble d, jsint base, char *buf, size_t bufSize
         numStr = IntToCString(i, base, buf, bufSize);
     } else {
         if (base == 10)
-            numStr = js_dtostr(JS_THREAD_DATA(cx)->dtoaState, buf, bufSize,
-                               DTOSTR_STANDARD, 0, d);
+            numStr = JS_dtostr(buf, bufSize, DTOSTR_STANDARD, 0, d);
         else
-            numStr = js_dtobasestr(JS_THREAD_DATA(cx)->dtoaState, base, d);
+            numStr = JS_dtobasestr(base, d);
         if (!numStr) {
             JS_ReportOutOfMemory(cx);
             return NULL;
@@ -919,8 +915,7 @@ js_NumberValueToCharBuffer(JSContext *cx, jsval v, JSCharBuffer &cb)
         cstr = IntToCString(JSVAL_TO_INT(v), 10, arr, arrSize);
     } else {
         JS_ASSERT(JSVAL_IS_DOUBLE(v));
-        cstr = js_dtostr(JS_THREAD_DATA(cx)->dtoaState, arr, arrSize,
-                         DTOSTR_STANDARD, 0, *JSVAL_TO_DOUBLE(v));
+        cstr = JS_dtostr(arr, arrSize, DTOSTR_STANDARD, 0, *JSVAL_TO_DOUBLE(v));
     }
     if (!cstr)
         return JS_FALSE;
@@ -994,11 +989,11 @@ js_ValueToNumber(JSContext *cx, jsval *vp)
          * vp roots obj so we cannot use it as an extra root for
          * obj->defaultValue result when calling the hook.
          */
-        AutoValueRooter gcr(cx, v);
-        if (!obj->defaultValue(cx, JSTYPE_NUMBER, gcr.addr()))
+        JSAutoTempValueRooter tvr(cx, v);
+        if (!obj->defaultValue(cx, JSTYPE_NUMBER, tvr.addr()))
             obj = NULL;
         else
-            v = *vp = gcr.value();
+            v = *vp = tvr.value();
         if (!obj) {
             *vp = JSVAL_NULL;
             return 0.0;
@@ -1183,7 +1178,7 @@ js_strtod(JSContext *cx, const jschar *s, const jschar *send,
         estr = istr + 8;
     } else {
         int err;
-        d = js_strtod_harder(JS_THREAD_DATA(cx)->dtoaState, cstr, &estr, &err);
+        d = JS_strtod(cstr, &estr, &err);
         if (d == HUGE_VAL)
             d = js_PositiveInfinity;
         else if (d == -HUGE_VAL)
@@ -1301,7 +1296,7 @@ js_strtointeger(JSContext *cx, const jschar *s, const jschar *send,
             /*
              * If we're accumulating a decimal number and the number is >=
              * 2^53, then the result from the repeated multiply-add above may
-             * be inaccurate.  Call js_strtod_harder to get the correct answer.
+             * be inaccurate.  Call JS_strtod to get the correct answer.
              */
             size_t i;
             size_t length = s1 - start;
@@ -1315,7 +1310,7 @@ js_strtointeger(JSContext *cx, const jschar *s, const jschar *send,
                 cstr[i] = (char)start[i];
             cstr[length] = 0;
 
-            value = js_strtod_harder(JS_THREAD_DATA(cx)->dtoaState, cstr, &estr, &err);
+            value = JS_strtod(cstr, &estr, &err);
             if (err == JS_DTOA_ENOMEM) {
                 JS_ReportOutOfMemory(cx);
                 cx->free(cstr);

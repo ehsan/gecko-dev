@@ -45,6 +45,7 @@
 #include "gfxFontUtils.h"
 #include "gfxWindowsFonts.h"
 
+#include "nsIPref.h"  // for pref changes callback notification
 #include "nsServiceManagerUtils.h"
 #include "nsTArray.h"
 #include "nsUnicharUtils.h"

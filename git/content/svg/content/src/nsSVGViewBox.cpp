@@ -103,6 +103,15 @@ nsSVGViewBox::Init()
   mHasBaseVal = PR_FALSE;
 }
 
+const nsSVGViewBoxRect&
+nsSVGViewBox::GetAnimValue(nsSVGElement *aSVGElement) const
+{
+#ifdef MOZ_SMIL
+  aSVGElement->FlushAnimations();
+#endif
+  return mAnimVal ? *mAnimVal : mBaseVal;
+}
+
 void
 nsSVGViewBox::SetAnimValue(float aX, float aY, float aWidth, float aHeight,
                            nsSVGElement *aSVGElement)

@@ -49,11 +49,8 @@
 #include "nsIVariant.h"
 #include "mozStorage.h"
 #include "jsapi.h"
-#include "nsAutoPtr.h"
 
-class mozIStorageCompletionCallback;
 class mozIStorageStatement;
-class nsIRunnable;
 
 namespace mozilla {
 namespace storage {
@@ -88,30 +85,20 @@ nsresult convertResultCode(int aSQLiteResultCode);
 void checkAndLogStatementPerformance(sqlite3_stmt *aStatement);
 
 /**
- * Binds a jsval to a statement at the given index.
  *
- * @param aCtx
- *        The JSContext jsval is associated with.
- * @param aStatement
- *        The statement to bind to.
- * @param aIdx
- *        The one-based index to bind aValue to.
- * @param aValue
- *        The value to bind to aStatement.
- * @return true if we bound the value to the statement, false otherwise.
  */
-bool bindJSValue(JSContext *aCtx, mozIStorageStatement *aStatement, int aIdx,
-                 jsval aValue);
+bool
+bindJSValue(JSContext *aCtx,
+            mozIStorageStatement *aStatement,
+            int aIdx,
+            jsval aValue);
 
 /**
- * Obtains an event that will notify a completion callback about completion.
- *
- * @param aCallback
- *        The callback to be notified.
- * @return an nsIRunnable that can be dispatched to the calling thread.
+ * Used to convert an nsIVariant to the proper SQLite type.
  */
-already_AddRefed<nsIRunnable>
-newCompletionEvent(mozIStorageCompletionCallback *aCallback);
+template <typename T>
+int variantToSQLiteT(T aObj, nsIVariant *aValue);
+#include "variantToSQLiteT_impl.h" // To keep this file easier to read.
 
 } // namespace storage
 } // namespace mozilla

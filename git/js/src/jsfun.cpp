@@ -231,7 +231,7 @@ js_GetArgsObject(JSContext *cx, JSStackFrame *fp)
      */
     JS_ASSERT(fp->fun);
     JS_ASSERT_IF(fp->fun->flags & JSFUN_HEAVYWEIGHT,
-                 fp->varobj(cx->containingCallStack(fp)));
+                 fp->varobj(js_ContainingCallStack(cx, fp)));
 
     /* Skip eval and debugger frames. */
     while (fp->flags & JSFRAME_SPECIAL)
@@ -351,7 +351,7 @@ WrapEscapingClosure(JSContext *cx, JSStackFrame *fp, JSObject *funobj, JSFunctio
                                                    funobj, scopeChain);
     if (!wfunobj)
         return NULL;
-    AutoValueRooter tvr(cx, wfunobj);
+    JSAutoTempValueRooter tvr(cx, wfunobj);
 
     JSFunction *wfun = (JSFunction *) wfunobj;
     wfunobj->setPrivate(wfun);
@@ -599,7 +599,7 @@ ArgSetter(JSContext *cx, JSObject *obj, jsval idval, jsval *vp)
     if (!JS_ValueToId(cx, idval, &id))
         return false;
 
-    AutoValueRooter tvr(cx);
+    JSAutoTempValueRooter tvr(cx);
     return js_DeleteProperty(cx, obj, id, tvr.addr()) &&
            js_SetProperty(cx, obj, id, vp);
 }
@@ -1584,6 +1584,8 @@ js_XDRFunctionObject(JSXDRState *xdr, JSObject **objp)
     uintN nargs, nvars, nupvars, n;
     uint32 localsword;          /* word for argument and variable counts */
     uint32 flagsword;           /* word for fun->u.i.nupvars and fun->flags */
+    JSTempValueRooter tvr;
+    JSBool ok;
 
     cx = xdr->cx;
     if (xdr->mode == JSXDR_ENCODE) {
@@ -1592,13 +1594,13 @@ js_XDRFunctionObject(JSXDRState *xdr, JSObject **objp)
             JS_ReportErrorNumber(cx, js_GetErrorMessage, NULL,
                                  JSMSG_NOT_SCRIPTED_FUNCTION,
                                  JS_GetFunctionName(fun));
-            return false;
+            return JS_FALSE;
         }
         if (fun->u.i.wrapper) {
             JS_ReportErrorNumber(cx, js_GetErrorMessage, NULL,
                                  JSMSG_XDR_CLOSURE_WRAPPER,
                                  JS_GetFunctionName(fun));
-            return false;
+            return JS_FALSE;
         }
         JS_ASSERT((fun->u.i.wrapper & ~1U) == 0);
         firstword = (fun->u.i.skipmin << 2) | (fun->u.i.wrapper << 1) | !!fun->atom;
@@ -1610,7 +1612,7 @@ js_XDRFunctionObject(JSXDRState *xdr, JSObject **objp)
     } else {
         fun = js_NewFunction(cx, NULL, NULL, 0, JSFUN_INTERPRETED, NULL, NULL);
         if (!fun)
-            return false;
+            return JS_FALSE;
         FUN_OBJECT(fun)->clearParent();
         FUN_OBJECT(fun)->clearProto();
 #ifdef __GNUC__
@@ -1618,15 +1620,18 @@ js_XDRFunctionObject(JSXDRState *xdr, JSObject **objp)
 #endif
     }
 
-    AutoValueRooter tvr(cx, FUN_OBJECT(fun));
+    /* From here on, control flow must flow through label out. */
+    MUST_FLOW_THROUGH("out");
+    JS_PUSH_TEMP_ROOT_OBJECT(cx, FUN_OBJECT(fun), &tvr);
+    ok = JS_TRUE;
 
     if (!JS_XDRUint32(xdr, &firstword))
-        return false;
+        goto bad;
     if ((firstword & 1U) && !js_XDRStringAtom(xdr, &fun->atom))
-        return false;
+        goto bad;
     if (!JS_XDRUint32(xdr, &localsword) ||
         !JS_XDRUint32(xdr, &flagsword)) {
-        return false;
+        goto bad;
     }
 
     if (xdr->mode == JSXDR_DECODE) {
@@ -1650,7 +1655,6 @@ js_XDRFunctionObject(JSXDRState *xdr, JSObject **objp)
         JSAtom *name;
         JSLocalKind localKind;
 
-        bool ok = true;
         mark = JS_ARENA_MARK(&xdr->cx->tempPool);
 
         /*
@@ -1669,16 +1673,16 @@ js_XDRFunctionObject(JSXDRState *xdr, JSObject **objp)
                                bitmapLength * sizeof *bitmap);
         if (!bitmap) {
             js_ReportOutOfScriptQuota(xdr->cx);
-            ok = false;
+            ok = JS_FALSE;
             goto release_mark;
         }
         if (xdr->mode == JSXDR_ENCODE) {
             names = js_GetLocalNameArray(xdr->cx, fun, &xdr->cx->tempPool);
             if (!names) {
-                ok = false;
+                ok = JS_FALSE;
                 goto release_mark;
             }
-            PodZero(bitmap, bitmapLength);
+            memset(bitmap, 0, bitmapLength * sizeof *bitmap);
             for (i = 0; i != n; ++i) {
                 if (i < fun->nargs
                     ? JS_LOCAL_NAME_TO_ATOM(names[i]) != NULL
@@ -1730,18 +1734,19 @@ js_XDRFunctionObject(JSXDRState *xdr, JSObject **objp)
                     goto release_mark;
             }
         }
+        ok = JS_TRUE;
 
       release_mark:
         JS_ARENA_RELEASE(&xdr->cx->tempPool, mark);
         if (!ok)
-            return false;
+            goto out;
 
         if (xdr->mode == JSXDR_DECODE)
             js_FreezeLocalNames(cx, fun);
     }
 
     if (!js_XDRScript(xdr, &fun->u.i.script, false, NULL))
-        return false;
+        goto bad;
 
     if (xdr->mode == JSXDR_DECODE) {
         *objp = FUN_OBJECT(fun);
@@ -1753,7 +1758,13 @@ js_XDRFunctionObject(JSXDRState *xdr, JSObject **objp)
         }
     }
 
-    return true;
+out:
+    JS_POP_TEMP_ROOT(cx, &tvr);
+    return ok;
+
+bad:
+    ok = JS_FALSE;
+    goto out;
 }
 
 #else  /* !JS_HAS_XDR */
@@ -2183,12 +2194,12 @@ Function(JSContext *cx, JSObject *obj, uintN argc, jsval *argv, jsval *rval)
     const char *filename;
     JSBool ok;
     JSString *str, *arg;
-    TokenStream ts(cx);
+    JSTokenStream ts(cx);
     JSPrincipals *principals;
     jschar *collected_args, *cp;
     void *mark;
     size_t arg_length, args_length, old_args_length;
-    TokenKind tt;
+    JSTokenType tt;
 
     if (!JS_IsConstructing(cx)) {
         obj = js_NewObject(cx, &js_FunctionClass, NULL, NULL);
@@ -2244,17 +2255,6 @@ Function(JSContext *cx, JSObject *obj, uintN argc, jsval *argv, jsval *rval)
     /* Belt-and-braces: check that the caller has access to parent. */
     if (!js_CheckPrincipalsAccess(cx, parent, principals,
                                   CLASS_ATOM(cx, Function))) {
-        return JS_FALSE;
-    }
-
-    /*
-     * CSP check: whether new Function() is allowed at all.
-     * Report errors via CSP is done in the script security manager.
-     * js_CheckContentSecurityPolicy is defined in jsobj.cpp
-     */
-    if (!js_CheckContentSecurityPolicy(cx)) {
-        JS_ReportErrorNumber(cx, js_GetErrorMessage, NULL, 
-                             JSMSG_CSP_BLOCKED_FUNCTION);
         return JS_FALSE;
     }
 
@@ -2330,13 +2330,13 @@ Function(JSContext *cx, JSObject *obj, uintN argc, jsval *argv, jsval *rval)
         }
 
         /* Initialize a tokenstream that reads from the given string. */
-        if (!ts.init(collected_args, args_length, NULL, filename, lineno)) {
+        if (!ts.init(cx, collected_args, args_length, NULL, filename, lineno)) {
             JS_ARENA_RELEASE(&cx->tempPool, mark);
             return JS_FALSE;
         }
 
         /* The argument string may be empty or contain no tokens. */
-        tt = ts.getToken();
+        tt = js_GetToken(cx, &ts);
         if (tt != TOK_EOF) {
             for (;;) {
                 /*
@@ -2351,16 +2351,19 @@ Function(JSContext *cx, JSObject *obj, uintN argc, jsval *argv, jsval *rval)
                  * stream; we're assured at this point that it's a valid
                  * identifier.
                  */
-                atom = ts.currentToken().t_atom;
+                atom = CURRENT_TOKEN(&ts).t_atom;
 
                 /* Check for a duplicate parameter name. */
                 if (js_LookupLocal(cx, fun, atom, NULL) != JSLOCAL_NONE) {
                     const char *name;
 
                     name = js_AtomToPrintableString(cx, atom);
-                    ok = name && ReportCompileErrorNumber(cx, &ts, NULL,
-                                                          JSREPORT_WARNING | JSREPORT_STRICT,
-                                                          JSMSG_DUPLICATE_FORMAL, name);
+                    ok = name &&
+                         js_ReportCompileErrorNumber(cx, &ts, NULL,
+                                                     JSREPORT_WARNING |
+                                                     JSREPORT_STRICT,
+                                                     JSMSG_DUPLICATE_FORMAL,
+                                                     name);
                     if (!ok)
                         goto after_args;
                 }
@@ -2371,12 +2374,12 @@ Function(JSContext *cx, JSObject *obj, uintN argc, jsval *argv, jsval *rval)
                  * Get the next token.  Stop on end of stream.  Otherwise
                  * insist on a comma, get another name, and iterate.
                  */
-                tt = ts.getToken();
+                tt = js_GetToken(cx, &ts);
                 if (tt == TOK_EOF)
                     break;
                 if (tt != TOK_COMMA)
                     goto after_args;
-                tt = ts.getToken();
+                tt = js_GetToken(cx, &ts);
             }
         }
 
@@ -2390,7 +2393,7 @@ Function(JSContext *cx, JSObject *obj, uintN argc, jsval *argv, jsval *rval)
             JS_ReportErrorNumber(cx, js_GetErrorMessage, NULL,
                                  JSMSG_BAD_FORMAL);
         }
-        ts.close();
+        ts.close(cx);
         JS_ARENA_RELEASE(&cx->tempPool, mark);
         if (state != OK)
             return JS_FALSE;
@@ -2678,26 +2681,26 @@ js_ReportIsNotFunction(JSContext *cx, jsval *vp, uintN flags)
     JSStackFrame *fp;
     uintN error;
     const char *name, *source;
+    JSTempValueRooter tvr;
 
     for (fp = js_GetTopStackFrame(cx); fp && !fp->regs; fp = fp->down)
         continue;
     name = source = NULL;
-
-    AutoValueRooter tvr(cx);
+    JS_PUSH_TEMP_ROOT_STRING(cx, NULL, &tvr);
     if (flags & JSV2F_ITERATOR) {
         error = JSMSG_BAD_ITERATOR;
         name = js_iterator_str;
         JSString *src = js_ValueToSource(cx, *vp);
         if (!src)
-            return;
-        tvr.setString(src);
+            goto out;
+        tvr.u.value = STRING_TO_JSVAL(src);
         JSString *qsrc = js_QuoteString(cx, src, 0);
         if (!qsrc)
-            return;
-        tvr.setString(qsrc);
+            goto out;
+        tvr.u.value = STRING_TO_JSVAL(qsrc);
         source = js_GetStringBytes(cx, qsrc);
         if (!source)
-            return;
+            goto out;
     } else if (flags & JSV2F_CONSTRUCT) {
         error = JSMSG_NOT_CONSTRUCTOR;
     } else {
@@ -2713,6 +2716,9 @@ js_ReportIsNotFunction(JSContext *cx, jsval *vp, uintN flags)
                          : JSDVG_IGNORE_STACK,
                          *vp, NULL,
                          name, source);
+
+  out:
+    JS_POP_TEMP_ROOT(cx, &tvr);
 }
 
 /*
@@ -3043,7 +3049,7 @@ js_GetLocalNameArray(JSContext *cx, JSFunction *fun, JSArenaPool *pool)
 
 #if JS_HAS_DESTRUCTURING
     /* Some parameter names can be NULL due to destructuring patterns. */
-    PodZero(names, fun->nargs);
+    memset(names, 0, fun->nargs * sizeof *names);
 #endif
     map = fun->u.i.names.map;
     args.fun = fun;

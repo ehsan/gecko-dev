@@ -53,6 +53,7 @@ SDK_XPIDLSRCS   = \
               $(NULL)
 
 XPIDLSRCS	= \
+              nsIPref.idl \
               nsIPrefBranchInternal.idl \
               nsISecurityPref.idl \
               nsIRelativeFilePref.idl \

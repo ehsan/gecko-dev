@@ -224,7 +224,7 @@ namespace nanojit
         Register rr = ins->deprecated_getReg();
         if (deprecated_isKnownReg(rr) && (rmask(rr) & FpRegs)) {
             // FPR already assigned, fine, use it
-            deprecated_freeRsrcOf(ins);
+            deprecated_freeRsrcOf(ins, false);
         } else {
             // use a GPR register; its okay to copy doubles with GPR's
             // but *not* okay to copy non-doubles with FPR's
@@ -571,10 +571,10 @@ namespace nanojit
         Register rb = b==a ? ra : findRegFor(b, allow & ~rmask(ra));
         if (isSICmpOpcode(condop)) {
             CMPW(cr, ra, rb);
-        }
+        } 
         else if (isUICmpOpcode(condop)) {
             CMPLW(cr, ra, rb);
-        }
+        } 
     #if defined NANOJIT_64BIT
         else if (isSQCmpOpcode(condop)) {
             CMPD(cr, ra, rb);
@@ -641,7 +641,7 @@ namespace nanojit
         }
     }
 
-    void Assembler::asm_immi(LIns *ins) {
+    void Assembler::asm_int(LIns *ins) {
         Register rr = deprecated_prepResultReg(ins, GpRegs);
         asm_li(rr, ins->imm32());
     }
@@ -683,8 +683,8 @@ namespace nanojit
         evictScratchRegsExcept(0);
 
         const CallInfo* call = ins->callInfo();
-        ArgType argTypes[MAXARGS];
-        uint32_t argc = call->getArgTypes(argTypes);
+        ArgSize sizes[MAXARGS];
+        uint32_t argc = call->get_sizes(sizes);
 
         bool indirect;
         if (!(indirect = call->isIndirect())) {
@@ -699,7 +699,7 @@ namespace nanojit
             underrunProtect(8); // underrunProtect might clobber CTR
             BCTRL();
             MTCTR(R11);
-            asm_regarg(ARGTYPE_P, ins->arg(--argc), R11);
+            asm_regarg(ARGSIZE_P, ins->arg(--argc), R11);
         }
 
         int param_size = 0;
@@ -708,23 +708,22 @@ namespace nanojit
         Register fr = F1;
         for(uint32_t i = 0; i < argc; i++) {
             uint32_t j = argc - i - 1;
-            ArgType ty = argTypes[j];
+            ArgSize sz = sizes[j];
             LInsp arg = ins->arg(j);
-            NanoAssert(ty != ARGTYPE_V);
-            if (ty != ARGTYPE_F) {
+            if (sz & ARGSIZE_MASK_INT) {
                 // GP arg
                 if (r <= R10) {
-                    asm_regarg(ty, arg, r);
+                    asm_regarg(sz, arg, r);
                     r = nextreg(r);
                     param_size += sizeof(void*);
                 } else {
                     // put arg on stack
                     TODO(stack_int32);
                 }
-            } else {
+            } else if (sz == ARGSIZE_F) {
                 // double
                 if (fr <= F13) {
-                    asm_regarg(ty, arg, fr);
+                    asm_regarg(sz, arg, fr);
                     fr = nextreg(fr);
                 #ifdef NANOJIT_64BIT
                     r = nextreg(r);
@@ -736,23 +735,24 @@ namespace nanojit
                     // put arg on stack
                     TODO(stack_double);
                 }
+            } else {
+                TODO(ARGSIZE_UNK);
             }
         }
         if (param_size > max_param_size)
             max_param_size = param_size;
     }
 
-    void Assembler::asm_regarg(ArgType ty, LInsp p, Register r)
+    void Assembler::asm_regarg(ArgSize sz, LInsp p, Register r)
     {
         NanoAssert(r != deprecated_UnknownReg);
-        NanoAssert(ty != ARGTYPE_V);
-        if (ty != ARGTYPE_F)
+        if (sz & ARGSIZE_MASK_INT)
         {
         #ifdef NANOJIT_64BIT
-            if (ty == ARGTYPE_I) {
+            if (sz == ARGSIZE_I) {
                 // sign extend 32->64
                 EXTSW(r, r);
-            } else if (ty == ARGTYPE_U) {
+            } else if (sz == ARGSIZE_U) {
                 // zero extend 32->64
                 CLRLDI(r, r, 32);
             }
@@ -785,7 +785,7 @@ namespace nanojit
                 }
             }
         }
-        else {
+        else if (sz == ARGSIZE_F) {
             if (p->isUsed()) {
                 Register rp = p->deprecated_getReg();
                 if (!deprecated_isKnownReg(rp) || !IsFpReg(rp)) {
@@ -804,23 +804,27 @@ namespace nanojit
                 findSpecificRegFor(p, r);
             }
         }
+        else {
+            TODO(ARGSIZE_UNK);
+        }
     }
 
     void Assembler::asm_spill(Register rr, int d, bool /* pop */, bool quad) {
         (void)quad;
-        NanoAssert(d);
-        if (IsFpReg(rr)) {
-            NanoAssert(quad);
-            STFD(rr, d, FP);
-        }
-    #ifdef NANOJIT_64BIT
-        else if (quad) {
-            STD(rr, d, FP);
-        }
-    #endif
-        else {
-            NanoAssert(!quad);
-            STW(rr, d, FP);
+        if (d) {
+            if (IsFpReg(rr)) {
+                NanoAssert(quad);
+                STFD(rr, d, FP);
+            }
+        #ifdef NANOJIT_64BIT
+            else if (quad) {
+                STD(rr, d, FP);
+            }
+        #endif
+            else {
+                NanoAssert(!quad);
+                STW(rr, d, FP);
+            }
         }
     }
 
@@ -838,7 +842,9 @@ namespace nanojit
                 // ppc arith immediate ops sign-exted the imm16 value
                 switch (op) {
                 case LIR_add:
+                CASE32(LIR_iaddp:)
                 CASE64(LIR_qiadd:)
+                CASE64(LIR_qaddp:)
                     ADDI(rr, ra, rhsc);
                     return;
                 case LIR_sub:
@@ -885,7 +891,9 @@ namespace nanojit
         Register rb = rhs==lhs ? ra : findRegFor(rhs, GpRegs&~rmask(ra));
         switch (op) {
             CASE64(LIR_qiadd:)
+            CASE64(LIR_qaddp:)
             case LIR_add:
+            CASE32(LIR_iaddp:)
                 ADD(rr, ra, rb);
                 break;
             CASE64(LIR_qiand:)
@@ -1019,52 +1027,13 @@ namespace nanojit
         }
     }
     #endif
-
-#ifdef NANOJIT_64BIT
-    void Assembler::asm_immq(LIns *ins) {
-        Register r = ins->deprecated_getReg();
-        if (deprecated_isKnownReg(r) && (rmask(r) & FpRegs)) {
-            // FPR already assigned, fine, use it
-            deprecated_freeRsrcOf(ins);
-        } else {
-            // use a GPR register; its okay to copy doubles with GPR's
-            // but *not* okay to copy non-doubles with FPR's
-            r = deprecated_prepResultReg(ins, GpRegs);
-        }
-
-        if (rmask(r) & FpRegs) {
-            union {
-                double d;
-                struct {
-                    int32_t hi, lo;
-                } w;
-            };
-            d = ins->imm64f();
-            LFD(r, 8, SP);
-            STW(R0, 12, SP);
-            asm_li(R0, w.lo);
-            STW(R0, 8, SP);
-            asm_li(R0, w.hi);
-        }
-        else {
-            int64_t q = ins->imm64();
-            if (isS32(q)) {
-                asm_li(r, int32_t(q));
-                return;
-            }
-            RLDIMI(r,R0,32,0); // or 32,32?
-            asm_li(R0, int32_t(q>>32)); // hi bits into R0
-            asm_li(r, int32_t(q)); // lo bits into dest reg
-        }
-    }
-#endif
-
-    void Assembler::asm_immf(LIns *ins) {
+    
+    void Assembler::asm_quad(LIns *ins) {
     #ifdef NANOJIT_64BIT
         Register r = ins->deprecated_getReg();
         if (deprecated_isKnownReg(r) && (rmask(r) & FpRegs)) {
             // FPR already assigned, fine, use it
-            deprecated_freeRsrcOf(ins);
+            deprecated_freeRsrcOf(ins, false);
         } else {
             // use a GPR register; its okay to copy doubles with GPR's
             // but *not* okay to copy non-doubles with FPR's
@@ -1203,7 +1172,7 @@ namespace nanojit
     #else
         NanoAssert((ins->opcode() == LIR_cmov  && iftrue->isI32() && iffalse->isI32()));
     #endif
-
+    
         // fixme: we could handle fpu registers here, too, since we're just branching
         Register rr = deprecated_prepResultReg(ins, GpRegs);
         findSpecificRegFor(iftrue, rr);
@@ -1357,6 +1326,7 @@ namespace nanojit
     void Assembler::asm_qbinop(LIns *ins) {
         LOpcode op = ins->opcode();
         switch (op) {
+        case LIR_qaddp:
         case LIR_qior:
         case LIR_qiand:
         case LIR_qursh:

@@ -229,21 +229,6 @@ class Vector : AllocPolicy
     union {
         BufferPtrs ptrs;
         char mBuf[sInlineBytes];
-
-#if __GNUC__
-        /*
-         * GCC thinks there is a strict aliasing warning since mBuf is a char
-         * array but we read and write to it as a T array. This is not an error
-         * since there are no reads and writes to the mBuf memory except those
-         * that treat it as a T array. Sadly,
-         *   #pragma GCC diagnostic ignore "-Wstrict-aliasing"
-         * doesn't silence the warning. Type punning is allowed through a union
-         * of the involved types, so, for now, this error can be silenced by
-         * adding each offending T to this union. (This won't work for non-POD
-         * T's, but there don't seem to be any with warnings yet...)
-         */
-        jschar unused1_;
-#endif
     } u;
 
     /* Only valid when usingInlineStorage() */
@@ -374,10 +359,7 @@ class Vector : AllocPolicy
 
     /* mutators */
 
-    /*
-     * If reserve(N) succeeds, additions to this vector which increase its size
-     * up to and including N are guaranteed to succeed.
-     */
+    /* If reserve(N) succeeds, the N next appends are guaranteed to succeed. */
     bool reserve(size_t capacity);
 
     /* Destroy elements in the range [begin() + incr, end()). */

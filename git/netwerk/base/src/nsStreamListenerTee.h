@@ -42,7 +42,6 @@
 #include "nsIInputStreamTee.h"
 #include "nsIOutputStream.h"
 #include "nsCOMPtr.h"
-#include "nsIEventTarget.h"
 
 class nsStreamListenerTee : public nsIStreamListenerTee
 {
@@ -56,11 +55,10 @@ public:
     virtual ~nsStreamListenerTee() { }
 
 private:
-    nsCOMPtr<nsIInputStreamTee>  mInputTee;
-    nsCOMPtr<nsIOutputStream>    mSink;
-    nsCOMPtr<nsIStreamListener>  mListener;
+    nsCOMPtr<nsIInputStreamTee> mInputTee;
+    nsCOMPtr<nsIStreamListener> mListener;
+    nsCOMPtr<nsIOutputStream>   mSink;
     nsCOMPtr<nsIRequestObserver> mObserver;
-    nsCOMPtr<nsIEventTarget>     mEventTarget;
 };
 
 #endif

@@ -110,18 +110,16 @@ gfxOS2Platform::CreateOffscreenSurface(const gfxIntSize& aSize,
 }
 
 nsresult
-gfxOS2Platform::GetFontList(nsIAtom *aLangGroup,
+gfxOS2Platform::GetFontList(const nsACString& aLangGroup,
                             const nsACString& aGenericFamily,
                             nsTArray<nsString>& aListOfFonts)
 {
 #ifdef DEBUG_thebes
-    const char *langgroup = "(null)";
-    if (aLangGroup) {
-        aLangGroup->GetUTF8String(&langgroup);
-    }
-    char *family = ToNewCString(aGenericFamily);
+    char *langgroup = ToNewCString(aLangGroup),
+         *family = ToNewCString(aGenericFamily);
     printf("gfxOS2Platform::GetFontList(%s, %s, ..)\n",
            langgroup, family);
+    free(langgroup);
     free(family);
 #endif
     return sFontconfigUtils->GetFontList(aLangGroup, aGenericFamily,
@@ -189,7 +187,7 @@ gfxOS2Platform::FindFontForChar(PRUint32 aCh, gfxOS2Font *aFont)
     // just continue to append all fonts known to the system
     nsTArray<nsString> fontList;
     nsCAutoString generic;
-    nsresult rv = GetFontList(aFont->GetStyle()->language, generic, fontList);
+    nsresult rv = GetFontList(aFont->GetStyle()->langGroup, generic, fontList);
     if (NS_SUCCEEDED(rv)) {
         // start at 3 to skip over the generic entries
         for (PRUint32 i = 3; i < fontList.Length(); i++) {

@@ -47,6 +47,7 @@
 #include FT_FREETYPE_H
 #include "gfxFT2Fonts.h"
 
+#include "nsIPref.h"  // for pref changes callback notification
 #include "nsServiceManagerUtils.h"
 #include "nsTArray.h"
 #include "nsUnicharUtils.h"

@@ -79,8 +79,6 @@
 
 #include "jsautooplen.h"
 
-using namespace js;
-
 /*
  * Index limit must stay within 32 bits.
  */
@@ -309,7 +307,7 @@ ToDisassemblySource(JSContext *cx, jsval v)
         }
 
         if (clasp == &js_RegExpClass) {
-            AutoValueRooter tvr(cx);
+            JSAutoTempValueRooter tvr(cx);
             if (!js_regexp_toString(cx, obj, tvr.addr()))
                 return NULL;
             return js_GetStringBytes(cx, JSVAL_TO_STRING(tvr.value()));
@@ -555,17 +553,12 @@ SprintEnsureBuffer(Sprinter *sp, size_t len)
 static ptrdiff_t
 SprintPut(Sprinter *sp, const char *s, size_t len)
 {
-    ptrdiff_t offset = sp->size; /* save old size */
-    char *bp = sp->base;         /* save old base */
+    ptrdiff_t offset;
+    char *bp;
 
     /* Allocate space for s, including the '\0' at the end. */
     if (!SprintEnsureBuffer(sp, len))
         return -1;
-
-    if (sp->base != bp &&               /* buffer was realloc'ed */
-        s >= bp && s < bp + offset) {   /* s was within the buffer */
-        s = sp->base + (s - bp);        /* this is where it lives now */
-    }
 
     /* Advance offset and copy s into sp's buffer. */
     offset = sp->offset;
@@ -1107,8 +1100,7 @@ SprintDoubleValue(Sprinter *sp, jsval v, JSOp *opp)
                              : "1 / 0");
         *opp = JSOP_DIV;
     } else {
-        s = js_dtostr(JS_THREAD_DATA(sp->context)->dtoaState, buf, sizeof buf,
-                      DTOSTR_STANDARD, 0, d);
+        s = JS_dtostr(buf, sizeof buf, DTOSTR_STANDARD, 0, d);
         if (!s) {
             JS_ReportOutOfMemory(sp->context);
             return -1;

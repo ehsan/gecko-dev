@@ -44,9 +44,6 @@
 #include "prmem.h"
 #include "prenv.h"
 #include "prclist.h"
-
-#include "jscntxt.h"
-
 #include "nsAutoLock.h"
 #include "nsNPAPIPlugin.h"
 #include "nsNPAPIPluginInstance.h"
@@ -72,6 +69,8 @@
 #include "nsIScriptContext.h"
 #include "nsDOMJSUtils.h"
 #include "nsIPrincipal.h"
+
+#include "jscntxt.h"
 
 #include "nsIXPConnect.h"
 
@@ -682,8 +681,8 @@ MakeNewNPAPIStreamInternal(NPP npp, const char *relativeURL, const char *target,
 
   PluginDestructionGuard guard(npp);
 
-  nsNPAPIPluginInstance *inst = (nsNPAPIPluginInstance *) npp->ndata;
-  if (!inst || !inst->IsRunning())
+  nsIPluginInstance *inst = (nsIPluginInstance *) npp->ndata;
+  if (!inst)
     return NPERR_INVALID_INSTANCE_ERROR;
 
   nsCOMPtr<nsIPluginHost> pluginHost = do_GetService(MOZ_PLUGIN_HOST_CONTRACTID);
@@ -1235,12 +1234,8 @@ _destroystream(NPP npp, NPStream *pstream, NPError reason)
       return NPERR_INVALID_PARAM;
 
     // This will release the wrapped nsIOutputStream.
-    // pstream should always be a subobject of wrapper.  See bug 548441.
-    NS_ASSERTION((char*)wrapper <= (char*)pstream && 
-                 ((char*)pstream) + sizeof(*pstream)
-                     <= ((char*)wrapper) + sizeof(*wrapper),
-                 "pstream is not a subobject of wrapper");
     delete wrapper;
+    pstream->ndata = nsnull;
   }
 
   return NPERR_NO_ERROR;
@@ -1698,7 +1693,7 @@ _evaluate(NPP npp, NPObject* npobj, NPString *script, NPVariant *result)
 
   // Root obj and the rval (below).
   jsval vec[] = { OBJECT_TO_JSVAL(obj), JSVAL_NULL };
-  js::AutoArrayRooter tvr(cx, NS_ARRAY_LENGTH(vec), vec);
+  JSAutoTempValueRooter tvr(cx, NS_ARRAY_LENGTH(vec), vec);
   jsval *rval = &vec[1];
 
   if (result) {
@@ -2384,13 +2379,8 @@ _requestread(NPStream *pstream, NPByteRange *rangeList)
   if (streamtype != NP_SEEK)
     return NPERR_STREAM_NOT_SEEKABLE;
 
-  if (!streamlistener->mStreamInfo)
-    return NPERR_GENERIC_ERROR;
-
-  nsresult rv = streamlistener->mStreamInfo
-    ->RequestRead((NPByteRange *)rangeList);
-  if (NS_FAILED(rv))
-    return NPERR_GENERIC_ERROR;
+  if (streamlistener->mStreamInfo)
+    streamlistener->mStreamInfo->RequestRead((NPByteRange *)rangeList);
 
   return NS_OK;
 }

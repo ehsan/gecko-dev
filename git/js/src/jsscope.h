@@ -48,13 +48,10 @@
 #endif
 
 #include "jstypes.h"
-#include "jscntxt.h"
 #include "jslock.h"
 #include "jsobj.h"
 #include "jsprvtd.h"
 #include "jspubtd.h"
-#include "jspropertycache.h"
-#include "jspropertytree.h"
 
 #ifdef _MSC_VER
 #pragma warning(push)
@@ -207,10 +204,6 @@ JS_BEGIN_EXTERN_C
  * is added that crosses the threshold of 6 or more entries for hashing, we use
  * linear search from scope->lastProp to find a given id, and save on the space
  * overhead of a hash table.
- *
- * See jspropertytree.{h,cpp} for the actual PropertyTree implementation. This
- * file contains object property map (historical misnomer: "scope" AKA JSScope)
- * and property tree node ("sprop", JSScopeProperty) declarations.
  */
 
 struct JSEmptyScope;
@@ -368,10 +361,12 @@ struct JSScope : public JSObjectMap
 
     void trace(JSTracer *trc);
 
+    void brandingShapeChange(JSContext *cx, uint32 slot, jsval v);
     void deletingShapeChange(JSContext *cx, JSScopeProperty *sprop);
     bool methodShapeChange(JSContext *cx, JSScopeProperty *sprop, jsval toval);
     bool methodShapeChange(JSContext *cx, uint32 slot, jsval toval);
     void protoShapeChange(JSContext *cx);
+    void sealingShapeChange(JSContext *cx);
     void shadowingShapeChange(JSContext *cx, JSScopeProperty *sprop);
 
 /* By definition, hashShift = JS_DHASH_BITS - log2(capacity). */
@@ -405,11 +400,8 @@ struct JSScope : public JSObjectMap
      * sealed.
      */
     bool sealed()               { return flags & SEALED; }
-
-    void seal(JSContext *cx) {
+    void setSealed()            {
         JS_ASSERT(!isSharedEmpty());
-        JS_ASSERT(!sealed());
-        generateOwnShape(cx);
         flags |= SEALED;
     }
 
@@ -419,15 +411,7 @@ struct JSScope : public JSObjectMap
      * evolves whenever a function value changes.
      */
     bool branded()              { JS_ASSERT(!generic()); return flags & BRANDED; }
-
-    bool brand(JSContext *cx, uint32 slot, jsval v) {
-        JS_ASSERT(!branded());
-        generateOwnShape(cx);
-        if (js_IsPropertyCacheDisabled(cx))  // check for rt->shapeGen overflow
-            return false;
-        flags |= BRANDED;
-        return true;
-    }
+    void setBranded()           { flags |= BRANDED; }
 
     bool generic()              { return flags & GENERIC; }
     void setGeneric()           { flags |= GENERIC; }
@@ -570,54 +554,23 @@ js_CastAsObjectJSVal(JSPropertyOp op)
     return OBJECT_TO_JSVAL(JS_FUNC_TO_DATA_PTR(JSObject *, op));
 }
 
-namespace js {
-class PropertyTree;
-}
-
 struct JSScopeProperty {
     friend struct JSScope;
-    friend class js::PropertyTree;
-    friend JSDHashOperator js::RemoveNodeIfDead(JSDHashTable *table, JSDHashEntryHdr *hdr,
-                                                uint32 number, void *arg);
-    friend void js::SweepScopeProperties(JSContext *cx);
+    friend void js_SweepScopeProperties(JSContext *cx);
+    friend JSScopeProperty * js_GetPropertyTreeChild(JSContext *cx, JSScopeProperty *parent,
+                                                     const JSScopeProperty &child);
 
     jsid            id;                 /* int-tagged jsval/untagged JSAtom* */
-
-  private:
-    union {
-        JSPropertyOp rawGetter;         /* getter and setter hooks or objects */
-        JSScopeProperty *next;          /* next node in freelist */
-    };
-
-    union {
-        JSPropertyOp rawSetter;         /* getter is JSObject* and setter is 0
+private:
+    JSPropertyOp    rawGetter;          /* getter and setter hooks or objects */
+    JSPropertyOp    rawSetter;          /* getter is JSObject* and setter is 0
                                            if sprop->isMethod() */
-        JSScopeProperty **prevp;        /* pointer to previous node's next, or
-                                           pointer to head of freelist */
-    };
-
-    void insertFree(JSScopeProperty *&list) {
-        id = JSVAL_NULL;
-        next = list;
-        prevp = &list;
-        if (list)
-            list->prevp = &next;
-        list = this;
-    }
-
-    void removeFree() {
-        JS_ASSERT(JSVAL_IS_NULL(id));
-        *prevp = next;
-        if (next)
-            next->prevp = prevp;
-    }
-
-  public:
+public:
     uint32          slot;               /* abstract index in object slots */
-  private:
     uint8           attrs;              /* attributes, see jsapi.h JSPROP_* */
+private:
     uint8           flags;              /* flags, see below for defines */
-  public:
+public:
     int16           shortid;            /* tinyid, or local arg/var index */
     JSScopeProperty *parent;            /* parent node, reverse for..in order */
     union {
@@ -630,25 +583,21 @@ struct JSScopeProperty {
     };
     uint32          shape;              /* property cache shape identifier */
 
-  private:
-    /*
-     * Implementation-private bits stored in sprop->flags. See public: enum {}
-     * flags further below, which were allocated FCFS over time, so interleave
-     * with these bits.
-     */
+private:
+    /* Implementation-private bits stored in sprop->flags. */
     enum {
         /* GC mark flag. */
-        MARK            = 0x01,
+        MARK =          0x01,
 
         /*
          * Set during a shape-regenerating GC if the shape has already been
          * regenerated. Unlike JSScope::SHAPE_REGEN, this does not toggle with
-         * each GC. js::SweepScopeProperties clears it.
+         * each GC. js_SweepScopeProperties clears it.
          */
-        SHAPE_REGEN     = 0x08,
+        SHAPE_REGEN =   0x08,
 
         /* Property stored in per-object dictionary, not shared property tree. */
-        IN_DICTIONARY   = 0x20
+        IN_DICTIONARY = 0x20
     };
 
     JSScopeProperty(jsid id, JSPropertyOp getter, JSPropertyOp setter, uint32 slot,
@@ -672,13 +621,13 @@ struct JSScopeProperty {
 
     bool inDictionary() const { return (flags & IN_DICTIONARY) != 0; }
 
-  public:
+public:
     /* Public bits stored in sprop->flags. */
     enum {
-        ALIAS           = 0x02,
-        HAS_SHORTID     = 0x04,
-        METHOD          = 0x10,
-        PUBLIC_FLAGS    = ALIAS | HAS_SHORTID | METHOD
+        ALIAS =         0x02,
+        HAS_SHORTID =   0x04,
+        METHOD =        0x10,
+        PUBLIC_FLAGS = ALIAS | HAS_SHORTID | METHOD
     };
 
     uintN getFlags() const { return flags & PUBLIC_FLAGS; }
@@ -698,30 +647,30 @@ struct JSScopeProperty {
     JSPropertyOp getter() const { return rawGetter; }
     bool hasDefaultGetter() const { return !rawGetter; }
     JSPropertyOp getterOp() const {
-        JS_ASSERT(!hasGetterValue());
+        JS_ASSERT(!(attrs & JSPROP_GETTER));
         return rawGetter;
     }
     JSObject *getterObject() const {
-        JS_ASSERT(hasGetterValue());
+        JS_ASSERT(attrs & JSPROP_GETTER);
         return js_CastAsObject(rawGetter);
     }
     jsval getterValue() const {
-        JS_ASSERT(hasGetterValue());
+        JS_ASSERT(attrs & JSPROP_GETTER);
         return rawGetter ? js_CastAsObjectJSVal(rawGetter) : JSVAL_VOID;
     }
 
     JSPropertyOp setter() const { return rawSetter; }
     bool hasDefaultSetter() const { return !rawSetter; }
     JSPropertyOp setterOp() const {
-        JS_ASSERT(!hasSetterValue());
+        JS_ASSERT(!(attrs & JSPROP_SETTER));
         return rawSetter;
     }
     JSObject *setterObject() const {
-        JS_ASSERT(hasSetterValue() && rawSetter);
+        JS_ASSERT((attrs & JSPROP_SETTER) && rawSetter);
         return js_CastAsObject(rawSetter);
     }
     jsval setterValue() const {
-        JS_ASSERT(hasSetterValue());
+        JS_ASSERT(attrs & JSPROP_SETTER);
         return rawSetter ? js_CastAsObjectJSVal(rawSetter) : JSVAL_VOID;
     }
 
@@ -733,30 +682,16 @@ struct JSScopeProperty {
     bool get(JSContext* cx, JSObject* obj, JSObject *pobj, jsval* vp);
     bool set(JSContext* cx, JSObject* obj, jsval* vp);
 
-    inline bool isSharedPermanent() const;
-
     void trace(JSTracer *trc);
 
-    bool hasSlot() const { return (attrs & JSPROP_SHARED) == 0; }
+    bool configurable() { return (attrs & JSPROP_PERMANENT) == 0; }
+    bool enumerable() { return (attrs & JSPROP_ENUMERATE) != 0; }
+    bool writable() { return (attrs & JSPROP_READONLY) == 0; }
 
-    uint8 attributes() const { return attrs; }
-    bool configurable() const { return (attrs & JSPROP_PERMANENT) == 0; }
-    bool enumerable() const { return (attrs & JSPROP_ENUMERATE) != 0; }
-    bool writable() const {
-        // JS_ASSERT(isDataDescriptor());
-        return (attrs & JSPROP_READONLY) == 0;
-    }
-    bool hasGetterValue() const { return attrs & JSPROP_GETTER; }
-    bool hasSetterValue() const { return attrs & JSPROP_SETTER; }
-
-    bool hasDefaultGetterOrIsMethod() const {
-        return hasDefaultGetter() || isMethod();
-    }
-
-    bool isDataDescriptor() const {
+    bool isDataDescriptor() {
         return (attrs & (JSPROP_SETTER | JSPROP_GETTER)) == 0;
     }
-    bool isAccessorDescriptor() const {
+    bool isAccessorDescriptor() {
         return (attrs & (JSPROP_SETTER | JSPROP_GETTER)) != 0;
     }
 
@@ -883,6 +818,12 @@ JSScope::insertDictionaryProperty(JSScopeProperty *sprop, JSScopeProperty **chil
 #define SLOT_IN_SCOPE(slot,scope)         ((slot) < (scope)->freeslot)
 #define SPROP_HAS_VALID_SLOT(sprop,scope) SLOT_IN_SCOPE((sprop)->slot, scope)
 
+#define SPROP_HAS_STUB_GETTER(sprop)    ((sprop)->hasDefaultGetter())
+#define SPROP_HAS_STUB_SETTER(sprop)    ((sprop)->hasDefaultSetter())
+
+#define SPROP_HAS_STUB_GETTER_OR_IS_METHOD(sprop)                             \
+    (SPROP_HAS_STUB_GETTER(sprop) || (sprop)->isMethod())
+
 #ifndef JS_THREADSAFE
 # define js_GenerateShape(cx, gcLocked)    js_GenerateShape (cx)
 #endif
@@ -949,22 +890,16 @@ JSScope::search(jsid id, bool adding)
 inline bool
 JSScope::canProvideEmptyScope(JSObjectOps *ops, JSClass *clasp)
 {
-    /*
-     * An empty scope cannot provide another empty scope, or wrongful two-level
-     * prototype shape sharing ensues -- see bug 497789.
-     */
-    if (!object)
-        return false;
     return this->ops == ops && (!emptyScope || emptyScope->clasp == clasp);
 }
 
 inline bool
 JSScopeProperty::get(JSContext* cx, JSObject* obj, JSObject *pobj, jsval* vp)
 {
+    JS_ASSERT(!SPROP_HAS_STUB_GETTER(this));
     JS_ASSERT(!JSVAL_IS_NULL(this->id));
-    JS_ASSERT(!hasDefaultGetter());
 
-    if (hasGetterValue()) {
+    if (attrs & JSPROP_GETTER) {
         JS_ASSERT(!isMethod());
         jsval fval = getterValue();
         return js_InternalGetOrSet(cx, obj, id, fval, JSACC_READ, 0, 0, vp);
@@ -992,7 +927,7 @@ JSScopeProperty::get(JSContext* cx, JSObject* obj, JSObject *pobj, jsval* vp)
 inline bool
 JSScopeProperty::set(JSContext* cx, JSObject* obj, jsval* vp)
 {
-    JS_ASSERT_IF(hasDefaultSetter(), hasGetterValue());
+    JS_ASSERT_IF(SPROP_HAS_STUB_SETTER(this), attrs & JSPROP_GETTER);
 
     if (attrs & JSPROP_SETTER) {
         jsval fval = setterValue();
@@ -1008,17 +943,24 @@ JSScopeProperty::set(JSContext* cx, JSObject* obj, jsval* vp)
     return setterOp()(cx, obj, SPROP_USERID(this), vp);
 }
 
-inline bool
-JSScopeProperty::isSharedPermanent() const
-{
-    return (~attrs & (JSPROP_SHARED | JSPROP_PERMANENT)) == 0;
-}
+/* Macro for common expression to test for shared permanent attributes. */
+#define SPROP_IS_SHARED_PERMANENT(sprop)                                      \
+    ((~(sprop)->attrs & (JSPROP_SHARED | JSPROP_PERMANENT)) == 0)
 
 extern JSScope *
 js_GetMutableScope(JSContext *cx, JSObject *obj);
 
 extern void
 js_TraceId(JSTracer *trc, jsid id);
+
+extern void
+js_SweepScopeProperties(JSContext *cx);
+
+extern bool
+js_InitPropertyTree(JSRuntime *rt);
+
+extern void
+js_FinishPropertyTree(JSRuntime *rt);
 
 JS_END_EXTERN_C
 

@@ -147,8 +147,6 @@ CPPSRCS		= \
 		jsopcode.cpp \
 		jsparse.cpp \
 		jsprf.cpp \
-		jspropertycache.cpp \
-		jspropertytree.cpp \
 		jsregexp.cpp \
 		jsscan.cpp \
 		jsscope.cpp \
@@ -203,9 +201,6 @@ INSTALLED_HEADERS = \
 		jsotypes.h \
 		jsparse.h \
 		jsprf.h \
-		jspropertycache.h \
-		jspropertycacheinlines.h \
-		jspropertytree.h \
 		jsproto.tbl \
 		jsprvtd.h \
 		jspubtd.h \
@@ -369,7 +364,6 @@ check-valgrind::
 endif
 
 ifdef ENABLE_TRACEJIT
-ifndef WINCE
 check::
 	$(wildcard $(RUN_TEST_PROGRAM)) $(PYTHON) -u $(srcdir)/trace-test/trace-test.py \
 	        --no-slow --no-progress --tinderbox $(DIST)/bin/js$(BIN_SUFFIX)
@@ -378,9 +372,9 @@ check-valgrind::
 	$(wildcard $(RUN_TEST_PROGRAM)) $(PYTHON) -u $(srcdir)/trace-test/trace-test.py \
 	        --valgrind --no-slow --no-progress --tinderbox $(DIST)/bin/js$(BIN_SUFFIX)
 endif
-endif
 
 DIST_GARBAGE = config.cache config.log config.status \
+   config/myrules.mk config/myconfig.mk \
    unallmakefiles js-config js-config.h js-confdefs.h
 
 distclean::
@@ -656,7 +650,6 @@ endif
 
 ifdef GNU_CC
 ifndef CROSS_COMPILE
-ifndef QEMU_CANT_RUN_JS_SHELL
 # If we don't have run-mozilla.sh *and* we're linking against NSPR, we don't
 # know how to run the JS binary. Oh well
 
@@ -703,7 +696,6 @@ update-nanojit:
 	(cd $(srcdir) && hg commit --message="Update nanojit-import-rev stamp." nanojit-import-rev)
 
 .PHONY: update-imacros update-nanojit
-endif
 endif
 endif
 endif

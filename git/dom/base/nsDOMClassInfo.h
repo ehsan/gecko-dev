@@ -174,17 +174,17 @@ public:
   /**
    * Get our JSClass pointer for the XPCNativeWrapper class
    */
-  static JSPropertyOp GetXPCNativeWrapperGetPropertyOp() {
-    return sXPCNativeWrapperGetPropertyOp;
+  static const JSClass* GetXPCNativeWrapperClass() {
+    return sXPCNativeWrapperClass;
   }
 
   /**
    * Set our JSClass pointer for the XPCNativeWrapper class
    */
-  static void SetXPCNativeWrapperGetPropertyOp(JSPropertyOp getPropertyOp) {
-    NS_ASSERTION(!sXPCNativeWrapperGetPropertyOp,
-                 "Double set of sXPCNativeWrapperGetPropertyOp");
-    sXPCNativeWrapperGetPropertyOp = getPropertyOp;
+  static void SetXPCNativeWrapperClass(JSClass* aClass) {
+    NS_ASSERTION(!sXPCNativeWrapperClass,
+                 "Double set of sXPCNativeWrapperClass");
+    sXPCNativeWrapperClass = aClass;
   }
 
   static PRBool ObjectIsNativeWrapper(JSContext* cx, JSObject* obj)
@@ -194,13 +194,13 @@ public:
       nsIScriptContext *scx = GetScriptContextFromJSContext(cx);
 
       NS_PRECONDITION(!scx || !scx->IsContextInitialized() ||
-                      sXPCNativeWrapperGetPropertyOp,
-                      "Must know what the XPCNativeWrapper class GetProperty op is!");
+                      sXPCNativeWrapperClass,
+                      "Must know what the XPCNativeWrapper class is!");
     }
 #endif
 
-    return sXPCNativeWrapperGetPropertyOp &&
-      ::JS_GET_CLASS(cx, obj)->getProperty == sXPCNativeWrapperGetPropertyOp;
+    return sXPCNativeWrapperClass &&
+      ::JS_GET_CLASS(cx, obj) == sXPCNativeWrapperClass;
   }
 
   static void PreserveNodeWrapper(nsIXPConnectWrappedNative *aWrapper);
@@ -365,7 +365,7 @@ protected:
   static jsval sJava_id;
   static jsval sPackages_id;
 
-  static JSPropertyOp sXPCNativeWrapperGetPropertyOp;
+  static const JSClass *sXPCNativeWrapperClass;
 };
 
 

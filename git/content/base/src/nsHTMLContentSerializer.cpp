@@ -69,6 +69,8 @@
 #include "nsIScriptElement.h"
 #include "nsAttrName.h"
 
+static const char kMozStr[] = "moz";
+
 static const PRInt32 kLongLineLen = 128;
 
 nsresult NS_NewHTMLContentSerializer(nsIContentSerializer** aSerializer)
@@ -111,7 +113,7 @@ nsHTMLContentSerializer::SerializeHTMLAttributes(nsIContent* aContent,
     return;
 
   nsresult rv;
-  nsAutoString valueStr;
+  nsAutoString nameStr, valueStr;
   NS_NAMED_LITERAL_STRING(_mozStr, "_moz");
 
   for (PRInt32 index = count; index > 0;) {
@@ -121,9 +123,10 @@ nsHTMLContentSerializer::SerializeHTMLAttributes(nsIContent* aContent,
     nsIAtom* attrName = name->LocalName();
 
     // Filter out any attribute starting with [-|_]moz
-    nsDependentAtomString attrNameStr(attrName);
-    if (StringBeginsWith(attrNameStr, NS_LITERAL_STRING("_moz")) ||
-        StringBeginsWith(attrNameStr, NS_LITERAL_STRING("-moz"))) {
+    const char* sharedName;
+    attrName->GetUTF8String(&sharedName);
+    if ((('_' == *sharedName) || ('-' == *sharedName)) &&
+        !nsCRT::strncmp(sharedName+1, kMozStr, PRUint32(sizeof(kMozStr)-1))) {
       continue;
     }
     aContent->GetAttr(namespaceID, attrName, valueStr);
@@ -179,7 +182,7 @@ nsHTMLContentSerializer::SerializeHTMLAttributes(nsIContent* aContent,
       }
     }
 
-    nsDependentAtomString nameStr(attrName);
+    attrName->ToString(nameStr);
 
     // Expand shorthand attribute.
     if (IsShorthandAttr(attrName, aTagName) && valueStr.IsEmpty()) {
@@ -235,7 +238,9 @@ nsHTMLContentSerializer::AppendElementStart(nsIDOMElement *aElement,
   
   AppendToString(kLessThan, aStr);
 
-  AppendToString(nsDependentAtomString(name), aStr);
+  nsAutoString nameStr;
+  name->ToString(nameStr);
+  AppendToString(nameStr.get(), -1, aStr);
 
   MaybeEnterInPreContent(content);
 
@@ -373,8 +378,11 @@ nsHTMLContentSerializer::AppendElementEnd(nsIDOMElement *aElement,
     mAddSpace = PR_FALSE;
   }
 
+  nsAutoString nameStr;
+  name->ToString(nameStr);
+
   AppendToString(kEndTag, aStr);
-  AppendToString(nsDependentAtomString(name), aStr);
+  AppendToString(nameStr.get(), -1, aStr);
   AppendToString(kGreaterThan, aStr);
 
   MaybeLeaveFromPreContent(content);

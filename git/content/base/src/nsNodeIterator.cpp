@@ -60,13 +60,11 @@ nsNodeIterator::NodePointer::NodePointer(nsINode *aNode,
                                          PRBool aBeforeNode) :
     mNode(aNode),
     mBeforeNode(aBeforeNode)
-{
+{ 
 }
 
 PRBool nsNodeIterator::NodePointer::MoveToNext(nsINode *aRoot)
 {
-    NS_ASSERTION(mNode, "Iterating an uninitialized NodePointer");
-
     if (mBeforeNode) {
         mBeforeNode = PR_FALSE;
         return PR_TRUE;
@@ -77,8 +75,6 @@ PRBool nsNodeIterator::NodePointer::MoveToNext(nsINode *aRoot)
 
 PRBool nsNodeIterator::NodePointer::MoveToPrevious(nsINode *aRoot)
 {
-    NS_ASSERTION(mNode, "Iterating an uninitialized NodePointer");
-
     if (!mBeforeNode) {
         mBeforeNode = PR_TRUE;
         return PR_TRUE;
@@ -94,14 +90,9 @@ PRBool nsNodeIterator::NodePointer::MoveToPrevious(nsINode *aRoot)
     return PR_TRUE;
 }
 
-void nsNodeIterator::NodePointer::AdjustAfterInsertion(nsINode *aRoot,
-                                                       nsINode *aContainer,
-                                                       PRInt32 aIndexInContainer)
+void nsNodeIterator::NodePointer::AdjustAfterInsertion(nsINode *aContainer, PRInt32 aIndexInContainer)
 {
-    // If mNode is null or the root there is nothing to do. This also prevents
-    // valgrind from complaining about consuming uninitialized memory for
-    // mNodeParent and mIndexInParent
-    if (!mNode || mNode == aRoot)
+    if (!mNode)
         return;
 
     // check if earlier sibling was added
@@ -109,22 +100,14 @@ void nsNodeIterator::NodePointer::AdjustAfterInsertion(nsINode *aRoot,
         mIndexInParent++;
 }
 
-void nsNodeIterator::NodePointer::AdjustAfterRemoval(nsINode *aRoot,
-                                                     nsINode *aContainer,
-                                                     nsIContent *aChild,
-                                                     PRInt32 aIndexInContainer)
+void nsNodeIterator::NodePointer::AdjustAfterRemoval(nsINode* aRoot, nsINode *aContainer, nsIContent *aChild, PRInt32 aIndexInContainer)
 {
-    // If mNode is null or the root there is nothing to do. This also prevents
-    // valgrind from complaining about consuming uninitialized memory for
-    // mNodeParent and mIndexInParent
-    if (!mNode || mNode == aRoot)
+    if (!mNode)
         return;
 
-    // Check if earlier sibling was removed.
-    if (aContainer == mNodeParent && aIndexInContainer < mIndexInParent) {
-        --mIndexInParent;
-        return;
-    }
+    // check if earlier sibling was removed
+    if (aContainer == mNodeParent && aIndexInContainer < mIndexInParent)
+        mIndexInParent--;
 
     // check if ancestor was removed
     if (!nsContentUtils::ContentIsDescendantOf(mNode, aChild))
@@ -371,15 +354,15 @@ NS_IMETHODIMP nsNodeIterator::GetPointerBeforeReferenceNode(PRBool *aBeforeNode)
  * nsIMutationObserver interface
  */
 
-void nsNodeIterator::ContentInserted(nsIDocument *aDocument,
-                                     nsIContent *aContainer,
-                                     nsIContent *aChild,
+void nsNodeIterator::ContentInserted(nsIDocument* aDocument,
+                                     nsIContent* aContainer,
+                                     nsIContent* aChild,
                                      PRInt32 aIndexInContainer)
 {
     nsINode *container = NODE_FROM(aContainer, aDocument);
 
-    mPointer.AdjustAfterInsertion(mRoot, container, aIndexInContainer);
-    mWorkingPointer.AdjustAfterInsertion(mRoot, container, aIndexInContainer);
+    mPointer.AdjustAfterInsertion(container, aIndexInContainer);
+    mWorkingPointer.AdjustAfterInsertion(container, aIndexInContainer);
 }
 
 

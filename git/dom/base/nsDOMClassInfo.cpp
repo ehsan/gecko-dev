@@ -37,13 +37,6 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
-// JavaScript includes
-#include "jsapi.h"
-#include "jsprvtd.h"    // we are using private JS typedefs...
-#include "jscntxt.h"
-#include "jsobj.h"
-#include "jsdbgapi.h"
-
 #include "nscore.h"
 #include "nsDOMClassInfo.h"
 #include "nsCRT.h"
@@ -68,6 +61,13 @@
 #include "nsCSSValue.h"
 #include "nsIRunnable.h"
 #include "nsThreadUtils.h"
+
+// JavaScript includes
+#include "jsapi.h"
+#include "jsprvtd.h"    // we are using private JS typedefs...
+#include "jscntxt.h"
+#include "jsobj.h"
+#include "jsdbgapi.h"
 
 // General helper includes
 #include "nsGlobalWindow.h"
@@ -458,7 +458,6 @@
 #include "nsDOMFileReader.h"
 #include "nsIDOMFileException.h"
 #include "nsIDOMFileError.h"
-#include "nsIDOMFormData.h"
 
 // Simple gestures include
 #include "nsIDOMSimpleGestureEvent.h"
@@ -584,8 +583,7 @@ static nsDOMClassInfoData sClassInfoData[] = {
                            WINDOW_SCRIPTABLE_FLAGS)
 
   NS_DEFINE_CLASSINFO_DATA(Location, nsLocationSH,
-                           (DOM_DEFAULT_SCRIPTABLE_FLAGS &
-                            ~nsIXPCScriptable::ALLOW_PROP_MODS_TO_PROTOTYPE))
+                           DOM_DEFAULT_SCRIPTABLE_FLAGS)
 
   NS_DEFINE_CLASSINFO_DATA(Navigator, nsNavigatorSH,
                            DOM_DEFAULT_SCRIPTABLE_FLAGS |
@@ -1339,9 +1337,6 @@ static nsDOMClassInfoData sClassInfoData[] = {
                            DOM_DEFAULT_SCRIPTABLE_FLAGS)
   NS_DEFINE_CLASSINFO_DATA(TransitionEvent, nsDOMGenericSH,
                            DOM_DEFAULT_SCRIPTABLE_FLAGS)
-
-  NS_DEFINE_CLASSINFO_DATA(FormData, nsDOMGenericSH,
-                           DOM_DEFAULT_SCRIPTABLE_FLAGS)
 };
 
 // Objects that should be constructable through |new Name();|
@@ -1358,7 +1353,6 @@ static const nsContractIDMapData kConstructorMap[] =
 {
   NS_DEFINE_CONSTRUCTOR_DATA(DOMParser, NS_DOMPARSER_CONTRACTID)
   NS_DEFINE_CONSTRUCTOR_DATA(FileReader, NS_FILEREADER_CONTRACTID)
-  NS_DEFINE_CONSTRUCTOR_DATA(FormData, NS_FORMDATA_CONTRACTID)
   NS_DEFINE_CONSTRUCTOR_DATA(XMLSerializer, NS_XMLSERIALIZER_CONTRACTID)
   NS_DEFINE_CONSTRUCTOR_DATA(XMLHttpRequest, NS_XMLHTTPREQUEST_CONTRACTID)
   NS_DEFINE_CONSTRUCTOR_DATA(XPathEvaluator, NS_XPATH_EVALUATOR_CONTRACTID)
@@ -1474,7 +1468,7 @@ jsval nsDOMClassInfo::sJava_id            = JSVAL_VOID;
 jsval nsDOMClassInfo::sPackages_id        = JSVAL_VOID;
 
 static const JSClass *sObjectClass = nsnull;
-JSPropertyOp nsDOMClassInfo::sXPCNativeWrapperGetPropertyOp = nsnull;
+const JSClass *nsDOMClassInfo::sXPCNativeWrapperClass = nsnull;
 
 /**
  * Set our JSClass pointer for the Object class
@@ -3761,10 +3755,6 @@ nsDOMClassInfo::Init()
     DOM_CLASSINFO_EVENT_MAP_ENTRIES
   DOM_CLASSINFO_MAP_END
 
-  DOM_CLASSINFO_MAP_BEGIN(FormData, nsIDOMFormData)
-    DOM_CLASSINFO_MAP_ENTRY(nsIDOMFormData)
-  DOM_CLASSINFO_MAP_END
-
 #ifdef NS_DEBUG
   {
     PRUint32 i = NS_ARRAY_LENGTH(sClassInfoData);
@@ -4349,17 +4339,13 @@ nsDOMClassInfo::PostCreatePrototype(JSContext * cx, JSObject * proto)
   }
 
   nsGlobalWindow *win = nsGlobalWindow::FromSupports(globalNative);
-  if (win->IsClosedOrClosing()) {
-    return NS_OK;
-  }
   if (win->IsOuterWindow()) {
     // XXXjst: Do security checks here when we remove the security
     // checks on the inner window.
 
     win = win->GetCurrentInnerWindowInternal();
 
-    if (!win || !(global = win->GetGlobalJSObject()) ||
-        win->IsClosedOrClosing()) {
+    if (!win || !(global = win->GetGlobalJSObject())) {
       return NS_OK;
     }
   }
@@ -5203,9 +5189,6 @@ BaseStubConstructor(nsIWeakReference* aWeakOwner,
       nsDOMConstructorFunc func = FindConstructorFunc(ci_data);
       if (func) {
         rv = func(getter_AddRefs(native));
-      }
-      else {
-        rv = NS_ERROR_NOT_AVAILABLE;
       }
     }
   } else if (name_struct->mType == nsGlobalNameStruct::eTypeExternalConstructor) {
@@ -6553,9 +6536,7 @@ nsWindowSH::NewResolve(nsIXPConnectWrappedNative *wrapper, JSContext *cx,
 
     JSBool ok = ::JS_DefineUCProperty(cx, obj, ::JS_GetStringChars(str),
                                       ::JS_GetStringLength(str), v, nsnull,
-                                      nsnull,
-                                      JSPROP_PERMANENT |
-                                      JSPROP_ENUMERATE);
+                                      nsnull, JSPROP_ENUMERATE);
 
     if (!ok) {
       return NS_ERROR_FAILURE;
@@ -8172,9 +8153,7 @@ nsDocumentSH::NewResolve(nsIXPConnectWrappedNative *wrapper, JSContext *cx,
     JSString *str = JSVAL_TO_STRING(id);
     JSBool ok = ::JS_DefineUCProperty(cx, obj, ::JS_GetStringChars(str),
                                       ::JS_GetStringLength(str), v, nsnull,
-                                      nsnull,
-                                      JSPROP_PERMANENT |
-                                      JSPROP_ENUMERATE);
+                                      nsnull, JSPROP_ENUMERATE);
 
     if (!ok) {
       return NS_ERROR_FAILURE;

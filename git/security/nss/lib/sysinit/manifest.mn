@@ -42,6 +42,7 @@ MODULE = nss
 
 CSRCS = nsssysinit.c
 
+LIBRARY = nsssysinit
 LIBRARY_NAME = nsssysinit
 #LIBRARY_VERSION = 3
 

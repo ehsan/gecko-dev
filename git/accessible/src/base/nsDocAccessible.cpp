@@ -135,18 +135,30 @@ nsDocAccessible::~nsDocAccessible()
 ////////////////////////////////////////////////////////////////////////////////
 // nsISupports
 
+// Callback used when traversing the cache by cycle collector.
+static PLDHashOperator
+ElementTraverser(const void *aKey, nsAccessNode *aAccessNode, void *aUserArg)
+{
+  nsCycleCollectionTraversalCallback *cb = 
+    static_cast<nsCycleCollectionTraversalCallback*>(aUserArg);
+
+  NS_CYCLE_COLLECTION_NOTE_EDGE_NAME(*cb, "mAccessNodeCache entry");
+  cb->NoteXPCOMChild(aAccessNode);
+  return PL_DHASH_NEXT;
+}
+
 NS_IMPL_CYCLE_COLLECTION_CLASS(nsDocAccessible)
 
 NS_IMPL_CYCLE_COLLECTION_TRAVERSE_BEGIN_INHERITED(nsDocAccessible, nsAccessible)
   NS_CYCLE_COLLECTION_NOTE_EDGE_NAME(cb, "mEventQueue");
   cb.NoteXPCOMChild(tmp->mEventQueue.get());
 
-  CycleCollectorTraverseCache(tmp->mAccessNodeCache, &cb);
+  tmp->mAccessNodeCache.EnumerateRead(ElementTraverser, &cb);
 NS_IMPL_CYCLE_COLLECTION_TRAVERSE_END
 
 NS_IMPL_CYCLE_COLLECTION_UNLINK_BEGIN_INHERITED(nsDocAccessible, nsAccessible)
   NS_IMPL_CYCLE_COLLECTION_UNLINK_NSCOMPTR(mEventQueue)
-  ClearCache(tmp->mAccessNodeCache);
+  tmp->ClearCache(tmp->mAccessNodeCache);
 NS_IMPL_CYCLE_COLLECTION_UNLINK_END
 
 NS_INTERFACE_MAP_BEGIN_CYCLE_COLLECTION_INHERITED(nsDocAccessible)
@@ -622,10 +634,8 @@ nsDocAccessible::Shutdown()
     return NS_OK;  // Already shutdown
   }
 
-  if (mEventQueue) {
-    mEventQueue->Shutdown();
-    mEventQueue = nsnull;
-  }
+  mEventQueue->Shutdown();
+  mEventQueue = nsnull;
 
   nsCOMPtr<nsIDocShellTreeItem> treeItem =
     nsCoreUtils::GetDocShellTreeItemFor(mDOMNode);
@@ -1100,8 +1110,9 @@ nsDocAccessible::AttributeChangedImpl(nsIContent* aContent, PRInt32 aNameSpaceID
   // Check for namespaced ARIA attribute
   if (aNameSpaceID == kNameSpaceID_None) {
     // Check for hyphenated aria-foo property?
-    if (StringBeginsWith(nsDependentAtomString(aAttribute),
-                         NS_LITERAL_STRING("aria-"))) {
+    const char* attributeName;
+    aAttribute->GetUTF8String(&attributeName);
+    if (!PL_strncmp("aria-", attributeName, 5)) {
       ARIAAttributeChanged(aContent, aAttribute);
     }
   }

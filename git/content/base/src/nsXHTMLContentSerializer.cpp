@@ -271,7 +271,7 @@ nsXHTMLContentSerializer::SerializeAttributes(nsIContent* aContent,
 {
   nsresult rv;
   PRUint32 index, count;
-  nsAutoString prefixStr, uriStr, valueStr;
+  nsAutoString nameStr, prefixStr, uriStr, valueStr;
   nsAutoString xmlnsStr;
   xmlnsStr.AssignLiteral(kXMLNS);
 
@@ -346,9 +346,10 @@ nsXHTMLContentSerializer::SerializeAttributes(nsIContent* aContent,
     nsIAtom* attrPrefix = name->GetPrefix();
 
     // Filter out any attribute starting with [-|_]moz
-    nsDependentAtomString attrNameStr(attrName);
-    if (StringBeginsWith(attrNameStr, NS_LITERAL_STRING("_moz")) ||
-        StringBeginsWith(attrNameStr, NS_LITERAL_STRING("-moz"))) {
+    const char* sharedName;
+    attrName->GetUTF8String(&sharedName);
+    if ((('_' == *sharedName) || ('-' == *sharedName)) &&
+        !nsCRT::strncmp(sharedName+1, kMozStr, PRUint32(sizeof(kMozStr)-1))) {
       continue;
     }
 
@@ -367,7 +368,14 @@ nsXHTMLContentSerializer::SerializeAttributes(nsIContent* aContent,
 
     aContent->GetAttr(namespaceID, attrName, valueStr);
 
-    nsDependentAtomString nameStr(attrName);
+    attrName->ToString(nameStr);
+
+    // XXX Hack to get around the fact that MathML can add
+    //     attributes starting with '-', which makes them
+    //     invalid XML. see Bug 475518
+    if (!nameStr.IsEmpty() && nameStr.First() == '-')
+      continue;
+
     PRBool isJS = PR_FALSE;
 
     if (kNameSpaceID_XHTML == contentNamespaceID) {

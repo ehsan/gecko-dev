@@ -45,7 +45,13 @@
 #error "Must #define TEST_FILE before include places_test_harness_tail.h"
 #endif
 
-int gTestsIndex = 0;
+size_t gTestsIndex = 0;
+
+#ifdef XP_WIN
+#define SIZE_T "%Iu"
+#else
+#define SIZE_T "%zu"
+#endif
 
 #define TEST_INFO_STR "TEST-INFO | (%s) | "
 
@@ -55,7 +61,7 @@ public:
   NS_IMETHOD Run()
   {
     NS_ASSERTION(NS_IsMainThread(), "Not running on the main thread?");
-    if (gTestsIndex < int(NS_ARRAY_LENGTH(gTests))) {
+    if (gTestsIndex < NS_ARRAY_LENGTH(gTests)) {
       do_test_pending();
       Test &test = gTests[gTestsIndex++];
       (void)fprintf(stderr, TEST_INFO_STR "Running %s.\n", TEST_FILE,
@@ -75,7 +81,7 @@ run_next_test()
   do_check_success(NS_DispatchToCurrentThread(event));
 }
 
-int gPendingTests = 0;
+size_t gPendingTests = 0;
 
 void
 do_test_pending()
@@ -114,7 +120,7 @@ main(int aArgc,
     passed(TEST_FILE);
   }
 
-  (void)fprintf(stderr, TEST_INFO_STR  "%d of %d tests passed\n",
+  (void)fprintf(stderr, TEST_INFO_STR SIZE_T " of " SIZE_T " tests passed\n",
                 TEST_FILE, gPassedTests, gTotalTests);
 
   return gPassedTests == gTotalTests ? 0 : -1;

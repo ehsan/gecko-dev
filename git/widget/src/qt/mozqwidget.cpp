@@ -1,3 +1,6 @@
+#include "mozqwidget.h"
+#include "nsWindow.h"
+
 #include <QtGui/QApplication>
 #include <QtGui/QCursor>
 #include <QtGui/QInputContext>
@@ -10,21 +13,14 @@
 #include <QtCore/QEvent>
 #include <QtCore/QVariant>
 
-#include "mozqwidget.h"
-#include "nsWindow.h"
-
 
 MozQWidget::MozQWidget(nsWindow* aReceiver, QGraphicsItem* aParent)
     : QGraphicsWidget(aParent),
       mReceiver(aReceiver)
 {
-    setFlag(QGraphicsItem::ItemAcceptsInputMethod);
+    setFlag(QGraphicsItem::ItemIsFocusable);
 
-    // Enable gestures: only available in qt > 4.6
- #if (QT_VERSION >= QT_VERSION_CHECK(4, 6, 0))
-     setAcceptTouchEvents(true);
-     grabGesture(Qt::PinchGesture);
- #endif
+    setFocusPolicy(Qt::WheelFocus);
 }
 
 MozQWidget::~MozQWidget()
@@ -36,16 +32,6 @@ MozQWidget::~MozQWidget()
 void MozQWidget::paint(QPainter* aPainter, const QStyleOptionGraphicsItem* aOption, QWidget* aWidget /*= 0*/)
 {
     mReceiver->DoPaint(aPainter, aOption);
-}
-
-void MozQWidget::activate()
-{
-    mReceiver->DispatchActivateEvent();
-}
-
-void MozQWidget::deactivate()
-{
-    mReceiver->DispatchDeactivateEvent();
 }
 
 void MozQWidget::resizeEvent(QGraphicsSceneResizeEvent* aEvent)
@@ -133,33 +119,15 @@ void MozQWidget::mouseReleaseEvent(QGraphicsSceneMouseEvent* aEvent)
     mReceiver->OnButtonReleaseEvent(aEvent);
 }
 
-bool MozQWidget::event ( QEvent * event )
+bool MozQWidget::sceneEvent(QEvent* aEvent)
 {
-#if (QT_VERSION >= QT_VERSION_CHECK(4, 6, 0))
-    switch (event->type())
-    {
-    case QEvent::TouchBegin:
-    case QEvent::TouchEnd:
-    case QEvent::TouchUpdate:
-    {
-        // Do not send this event to other handlers, this is needed
-        // to be able to receive the gesture events
-        PRBool handled = PR_FALSE;
-        mReceiver->OnTouchEvent(static_cast<QTouchEvent *>(event),handled);
-        return handled;
-    }
-    case (QEvent::Gesture):
-    {
-        PRBool handled = PR_FALSE;
-        mReceiver->OnGestureEvent(static_cast<QGestureEvent*>(event),handled);
-        return handled;
+    if (QEvent::WindowActivate == aEvent->type()) {
+        mReceiver->OnFocusInEvent(aEvent);
+    } else if (QEvent::WindowDeactivate == aEvent->type()) {
+        mReceiver->OnFocusOutEvent(aEvent);
     }
 
-    default:
-        break;
-    }
-#endif
-    return QGraphicsWidget::event(event);
+    return QGraphicsWidget::sceneEvent(aEvent);
 }
 
 void MozQWidget::wheelEvent(QGraphicsSceneWheelEvent* aEvent)
@@ -175,13 +143,11 @@ void MozQWidget::closeEvent(QCloseEvent* aEvent)
 void MozQWidget::hideEvent(QHideEvent* aEvent)
 {
     mReceiver->hideEvent(aEvent);
-    QGraphicsWidget::hideEvent(aEvent);
 }
 
 void MozQWidget::showEvent(QShowEvent* aEvent)
 {
     mReceiver->showEvent(aEvent);
-    QGraphicsWidget::showEvent(aEvent);
 }
 
 bool MozQWidget::SetCursor(nsCursor aCursor)
@@ -257,59 +223,3 @@ void MozQWidget::setModal(bool modal)
     LOG(("Modal QGraphicsWidgets not supported in Qt < 4.6\n"));
 #endif
 }
-
-QVariant MozQWidget::inputMethodQuery(Qt::InputMethodQuery aQuery) const
-{
-    return QGraphicsWidget::inputMethodQuery(aQuery);
-}
-
-void MozQWidget::showVKB()
-{
-    QWidget* focusWidget = qApp->focusWidget();
-
-    if (focusWidget) {
-        QInputContext *inputContext = qApp->inputContext();
-        if (!inputContext) {
-            NS_WARNING("Requesting SIP: but no input context");
-            return;
-        }
-
-        QEvent request(QEvent::RequestSoftwareInputPanel);
-        inputContext->filterEvent(&request);
-        focusWidget->setAttribute(Qt::WA_InputMethodEnabled, true);
-        inputContext->setFocusWidget(focusWidget);
-    }
-}
-
-void MozQWidget::hideVKB()
-{
-    QInputContext *inputContext = qApp->inputContext();
-    if (!inputContext) {
-        NS_WARNING("Closing SIP: but no input context");
-        return;
-    }
-
-    QEvent request(QEvent::CloseSoftwareInputPanel);
-    inputContext->filterEvent(&request);
-    inputContext->reset();
-}
-
-/**
-    This method checks the state of the virtual keyboard by checking the list
-    of occupied rectangles. If this list is empty, the keyboard is considered
-    to be closed.
-
-    @return true, if opened; false if closed
-*/
-bool MozQWidget::isVKBOpen()
-{
-    QVariantList areas;
-    QInputContext* input_context = qApp->inputContext();
-
-    if (input_context)
-        areas = input_context->property("InputMethodArea").toList();
-
-    // if it is empty, no VKB visible; otherwise it is
-    return areas.empty();
-}
-

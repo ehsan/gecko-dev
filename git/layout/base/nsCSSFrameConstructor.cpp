@@ -4629,10 +4629,7 @@ nsCSSFrameConstructor::FindMathMLData(nsIContent* aContent,
 
   // Handle <math> specially, because it sometimes produces inlines
   if (aTag == nsGkAtoms::math) {
-    // This needs to match the test in EnsureBlockDisplay in
-    // nsRuleNode.cpp.  Though the behavior here for the display:table
-    // case is pretty weird...
-    if (aStyleContext->GetStyleDisplay()->IsBlockOutside()) {
+    if (aStyleContext->GetStyleDisplay()->mDisplay == NS_STYLE_DISPLAY_BLOCK) {
       static const FrameConstructionData sBlockMathData =
         FCDATA_DECL(FCDATA_FORCE_NULL_ABSPOS_CONTAINER |
                     FCDATA_WRAP_KIDS_IN_BLOCKS,
@@ -9113,7 +9110,9 @@ nsCSSFrameConstructor::ProcessChildren(nsFrameConstructorState& aState,
     // no?  And if we cared we could look through the item list
     // instead of groveling through the framelist here..
     nsIContent *badKid = AnyKidsNeedBlockParent(aFrameItems.FirstChild());
-    nsDependentAtomString parentTag(aContent->Tag()), kidTag(badKid->Tag());
+    nsAutoString parentTag, kidTag;
+    aContent->Tag()->ToString(parentTag);
+    badKid->Tag()->ToString(kidTag);
     const PRUnichar* params[] = { parentTag.get(), kidTag.get() };
     nsStyleContext *frameStyleContext = aFrame->GetStyleContext();
     const nsStyleDisplay *display = frameStyleContext->GetStyleDisplay();
@@ -11144,16 +11143,11 @@ nsCSSFrameConstructor::ProcessPendingRestyleTable(
 void
 nsCSSFrameConstructor::ProcessPendingRestyles()
 {
-  NS_PRECONDITION(mDocument, "No document?  Pshaw!");
+  NS_PRECONDITION(mDocument, "No document?  Pshaw!\n");
   NS_PRECONDITION(!nsContentUtils::IsSafeToRunScript(),
                   "Missing a script blocker!");
 
   // Process non-animation restyles...
-  nsPresContext *presContext = mPresShell->GetPresContext();
-  NS_ABORT_IF_FALSE(!presContext->IsProcessingRestyles(),
-                    "Nesting calls to ProcessPendingRestyles?");
-  presContext->SetProcessingRestyles(PR_TRUE);
-
   ProcessPendingRestyleTable(mPendingRestyles);
 
   NS_POSTCONDITION(mPendingRestyles.Count() == 0,
@@ -11167,11 +11161,11 @@ nsCSSFrameConstructor::ProcessPendingRestyles()
   // mid-transition (since processing the non-animation restyle ignores
   // the running transition so it can check for a new change on the same
   // property, and then posts an immediate animation style change).
+  nsPresContext *presContext = mPresShell->GetPresContext();
   presContext->SetProcessingAnimationStyleChange(PR_TRUE);
   ProcessPendingRestyleTable(mPendingAnimationRestyles);
   presContext->SetProcessingAnimationStyleChange(PR_FALSE);
 
-  presContext->SetProcessingRestyles(PR_FALSE);
   mInStyleRefresh = PR_FALSE;
 
   NS_POSTCONDITION(mPendingAnimationRestyles.Count() == 0,

@@ -43,7 +43,6 @@
 
 #include "gfxWindowsPlatform.h"
 #include "gfxPlatformFontList.h"
-#include "gfxAtoms.h"
 
 #include <windows.h>
 
@@ -175,10 +174,9 @@ public:
         return (!mUnicodeFont || IsSymbolFont() || IsType1());
     }
 
-    virtual PRBool MatchesGenericFamily(const nsACString& aGeneric) const {
-        if (aGeneric.IsEmpty()) {
+    PRBool MatchesGenericFamily(const nsACString& aGeneric) const {
+        if (aGeneric.IsEmpty())
             return PR_TRUE;
-        }
 
         // Japanese 'Mincho' fonts do not belong to FF_MODERN even if
         // they are fixed pitch because they have variable stroke width.
@@ -211,58 +209,56 @@ public:
         return PR_FALSE;
     }
 
-    virtual PRBool SupportsLangGroup(nsIAtom* aLangGroup) const {
-        if (!aLangGroup) {
+    PRBool SupportsLangGroup(const nsACString& aLangGroup) const {
+        if (aLangGroup.IsEmpty())
             return PR_TRUE;
-        }
 
         PRInt16 bit = -1;
 
         /* map our langgroup names in to Windows charset bits */
-        if (aLangGroup == gfxAtoms::x_western) {
+        if (aLangGroup.EqualsLiteral("x-western")) {
             bit = ANSI_CHARSET;
-        } else if (aLangGroup == gfxAtoms::ja) {
+        } else if (aLangGroup.EqualsLiteral("ja")) {
             bit = SHIFTJIS_CHARSET;
-        } else if (aLangGroup == gfxAtoms::ko) {
+        } else if (aLangGroup.EqualsLiteral("ko")) {
             bit = HANGEUL_CHARSET;
-        } else if (aLangGroup == gfxAtoms::ko_xxx) {
+        } else if (aLangGroup.EqualsLiteral("ko-XXX")) {
             bit = JOHAB_CHARSET;
-        } else if (aLangGroup == gfxAtoms::zh_cn) {
+        } else if (aLangGroup.EqualsLiteral("zh-CN")) {
             bit = GB2312_CHARSET;
-        } else if (aLangGroup == gfxAtoms::zh_tw) {
+        } else if (aLangGroup.EqualsLiteral("zh-TW")) {
             bit = CHINESEBIG5_CHARSET;
-        } else if (aLangGroup == gfxAtoms::el) {
+        } else if (aLangGroup.EqualsLiteral("el")) {
             bit = GREEK_CHARSET;
-        } else if (aLangGroup == gfxAtoms::tr) {
+        } else if (aLangGroup.EqualsLiteral("tr")) {
             bit = TURKISH_CHARSET;
-        } else if (aLangGroup == gfxAtoms::he) {
+        } else if (aLangGroup.EqualsLiteral("he")) {
             bit = HEBREW_CHARSET;
-        } else if (aLangGroup == gfxAtoms::ar) {
+        } else if (aLangGroup.EqualsLiteral("ar")) {
             bit = ARABIC_CHARSET;
-        } else if (aLangGroup == gfxAtoms::x_baltic) {
+        } else if (aLangGroup.EqualsLiteral("x-baltic")) {
             bit = BALTIC_CHARSET;
-        } else if (aLangGroup == gfxAtoms::x_cyrillic) {
+        } else if (aLangGroup.EqualsLiteral("x-cyrillic")) {
             bit = RUSSIAN_CHARSET;
-        } else if (aLangGroup == gfxAtoms::th) {
+        } else if (aLangGroup.EqualsLiteral("th")) {
             bit = THAI_CHARSET;
-        } else if (aLangGroup == gfxAtoms::x_central_euro) {
+        } else if (aLangGroup.EqualsLiteral("x-central-euro")) {
             bit = EASTEUROPE_CHARSET;
-        } else if (aLangGroup == gfxAtoms::x_symbol) {
+        } else if (aLangGroup.EqualsLiteral("x-symbol")) {
             bit = SYMBOL_CHARSET;
         }
 
-        if (bit != -1) {
+        if (bit != -1)
             return mCharset.test(bit);
-        }
 
         return PR_FALSE;
     }
 
-    virtual PRBool SupportsRange(PRUint8 range) {
+    PRBool SupportsRange(PRUint8 range) {
         return mUnicodeRanges.test(range);
     }
 
-    virtual PRBool TestCharacterMap(PRUint32 aCh);
+    PRBool TestCharacterMap(PRUint32 aCh);
 
     // create a font entry for a font with a given name
     static GDIFontEntry* CreateFontEntry(const nsAString& aName, 

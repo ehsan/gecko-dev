@@ -57,9 +57,6 @@
 #include "gfxWindowsSurface.h"
 #include "nsWindowDbg.h"
 #include "cairo.h"
-#ifdef CAIRO_HAS_D2D_SURFACE
-#include "gfxD2DSurface.h"
-#endif
 
 #if !defined(WINCE)
 #include "nsWinGesture.h"
@@ -390,7 +387,7 @@ protected:
 
 #ifdef MOZ_IPC
   static bool             IsAsyncResponseEvent(UINT aMsg, LRESULT& aResult);
-  void                    IPCWindowProcHandler(UINT& msg, WPARAM& wParam, LPARAM& lParam);
+  static void             IPCWindowProcHandler(HWND& hWnd, UINT& msg, WPARAM& wParam, LPARAM& lParam);
 #endif // MOZ_IPC
 
   /**
@@ -402,7 +399,7 @@ protected:
   static void             SetupKeyModifiersSequence(nsTArray<KeyPair>* aArray, PRUint32 aModifiers);
   nsresult                SetWindowClipRegion(const nsTArray<nsIntRect>& aRects,
                                               PRBool aIntersectWithExisting);
-  nsIntRegion             GetRegionToPaint(PRBool aForceFullRepaint, 
+  nsCOMPtr<nsIRegion>     GetRegionToPaint(PRBool aForceFullRepaint, 
                                            PAINTSTRUCT ps, HDC aDC);
 #if !defined(WINCE)
   static void             ActivateOtherWindowHelper(HWND aWnd);
@@ -481,10 +478,6 @@ protected:
 
   // Graphics
   HDC                   mPaintDC; // only set during painting
-
-#ifdef CAIRO_HAS_D2D_SURFACE
-  nsRefPtr<gfxD2DSurface>    mD2DWindowSurface; // Surface for this window.
-#endif
 
   // Transparency
 #ifdef MOZ_XUL

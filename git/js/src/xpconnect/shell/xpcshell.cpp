@@ -46,10 +46,6 @@
 /* XPConnect JavaScript interactive shell. */
 
 #include <stdio.h>
-#include "jsapi.h"
-#include "jscntxt.h"
-#include "jsdbgapi.h"
-#include "jsprf.h"
 #include "nsXULAppAPI.h"
 #include "nsServiceManagerUtils.h"
 #include "nsComponentManagerUtils.h"
@@ -68,6 +64,9 @@
 #include "nsILocalFile.h"
 #include "nsDirectoryServiceDefs.h"
 #include "nsAppDirectoryServiceDefs.h"
+#include "jsapi.h"
+#include "jsdbgapi.h"
+#include "jsprf.h"
 #include "nscore.h"
 #include "nsArrayEnumerator.h"
 #include "nsCOMArray.h"
@@ -530,6 +529,9 @@ DumpXPC(JSContext *cx, JSObject *obj, uintN argc, jsval *argv, jsval *rval)
     return JS_TRUE;
 }
 
+/* XXX needed only by GC() */
+#include "jscntxt.h"
+
 static JSBool
 GC(JSContext *cx, JSObject *obj, uintN argc, jsval *argv, jsval *rval)
 {
@@ -552,19 +554,6 @@ GC(JSContext *cx, JSObject *obj, uintN argc, jsval *argv, jsval *rval)
 #endif
     return JS_TRUE;
 }
-
-#ifdef JS_GC_ZEAL
-static JSBool
-GCZeal(JSContext *cx, JSObject *obj, uintN argc, jsval *argv, jsval *rval)
-{
-    uint32 zeal;
-    if (!JS_ValueToECMAUint32(cx, argv[0], &zeal))
-        return JS_FALSE;
-
-    JS_SetGCZeal(cx, (PRUint8)zeal);
-    return JS_TRUE;
-}
-#endif
 
 #ifdef DEBUG
 
@@ -769,9 +758,6 @@ static JSFunctionSpec glob_functions[] = {
     {"dumpXPC",         DumpXPC,        1,0,0},
     {"dump",            Dump,           1,0,0},
     {"gc",              GC,             0,0,0},
-#ifdef JS_GC_ZEAL
-    {"gczeal",          GCZeal,         1,0,0},
-#endif
     {"clear",           Clear,          1,0,0},
     {"options",         Options,        0,0,0},
 #ifdef DEBUG

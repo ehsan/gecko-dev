@@ -165,7 +165,6 @@
 #endif
 
 #include "nsWindowGfx.h"
-#include "gfxWindowsPlatform.h"
 
 #if !defined(WINCE)
 #include "nsUXThemeData.h"
@@ -2360,11 +2359,7 @@ nsWindow::Scroll(const nsIntPoint& aDelta,
       }
     }
 
-    if (flags & SW_SCROLLCHILDREN 
-#ifdef CAIRO_HAS_D2D_SURFACE
-        && !mD2DWindowSurface
-#endif
-        ) {
+    if (flags & SW_SCROLLCHILDREN) {
       // ScrollWindowEx will send WM_MOVE to each moved window to tell it
       // its new position. Unfortunately those messages don't reach our
       // WM_MOVE handler for some plugins, so we have to update their
@@ -2379,24 +2374,23 @@ nsWindow::Scroll(const nsIntPoint& aDelta,
     }
 
     RECT clip = { affectedRect.x, affectedRect.y, affectedRect.XMost(), affectedRect.YMost() };
-#ifdef CAIRO_HAS_D2D_SURFACE
-    if (mD2DWindowSurface) {
-      mD2DWindowSurface->Scroll(aDelta, affectedRect);
+    ::ScrollWindowEx(mWnd, aDelta.x, aDelta.y, &clip, &clip, updateRgn, NULL, flags);
 
-      for (PRUint32 i = 0; i < aConfigurations.Length(); ++i) {
-        const Configuration& configuration = aConfigurations[i];
-        nsWindow* w = static_cast<nsWindow*>(configuration.mChild);
-        w->Invalidate(PR_FALSE);
-      }
-
-      ::GetUpdateRgn(mWnd, updateRgn, FALSE);
-      ::OffsetRgn(updateRgn, aDelta.x, aDelta.y);
-    } else {
-#endif
-      ::ScrollWindowEx(mWnd, aDelta.x, aDelta.y, &clip, &clip, updateRgn, NULL, flags);
-#ifdef CAIRO_HAS_D2D_SURFACE
-    }
-#endif
+    // Areas that get scrolled into view from offscreen or under another
+    // window (but inside the scroll area) need to be repainted.
+    // ScrollWindowEx returns those areas in updateRgn, but also includes
+    // the area of the source that isn't covered by the destination.
+    // ScrollWindowEx will refuse to blit into an area that's already
+    // invalid. When we're blitting multiple adjacent rectangles, we have
+    // a problem where the source area of rectangle A overlaps the
+    // destination area of a subsequent rectangle B; the first ScrollWindowEx
+    // invalidates the source area of A that's outside of the destination
+    // area of A, and then the ScrollWindowEx for B will refuse to fully
+    // blit into B's destination. This produces nasty temporary glitches.
+    // We combat this by having ScrollWindowEx not invalidate directly,
+    // but give us back the region that needs to be invalidated,
+    // and restricting that region to the destination before invalidating
+    // it.
     ::SetRectRgn(destRgn, destRect.x, destRect.y, destRect.XMost(), destRect.YMost());
     ::CombineRgn(updateRgn, updateRgn, destRgn, RGN_AND);
     if (flags & SW_SCROLLCHILDREN) {
@@ -2808,24 +2802,10 @@ nsWindow::HasPendingInputEvent()
 
 gfxASurface *nsWindow::GetThebesSurface()
 {
-#ifdef CAIRO_HAS_D2D_SURFACE
-  if (mD2DWindowSurface) {
-    return mD2DWindowSurface;
-  }
-#endif
   if (mPaintDC)
     return (new gfxWindowsSurface(mPaintDC));
 
-#ifdef CAIRO_HAS_D2D_SURFACE
-  if (gfxWindowsPlatform::GetPlatform()->GetRenderMode() ==
-      gfxWindowsPlatform::RENDER_DIRECT2D) {
-    return (new gfxD2DSurface(mWnd));
-  } else {
-#endif
-    return (new gfxWindowsSurface(mWnd));
-#ifdef CAIRO_HAS_D2D_SURFACE
-  }
-#endif
+  return (new gfxWindowsSurface(mWnd));
 }
 
 /**************************************************************
@@ -3675,47 +3655,18 @@ nsWindow::IsAsyncResponseEvent(UINT aMsg, LRESULT& aResult)
   return false;
 }
 
+// static
 void
-nsWindow::IPCWindowProcHandler(UINT& msg, WPARAM& wParam, LPARAM& lParam)
+nsWindow::IPCWindowProcHandler(HWND& hWnd, UINT& msg, WPARAM& wParam, LPARAM& lParam)
 {
   NS_ASSERTION(!mozilla::ipc::SyncChannel::IsPumpingMessages(),
                "Failed to prevent a nonqueued message from running!");
-
-  // Modal UI being displayed in windowless plugins.
   if (mozilla::ipc::RPCChannel::IsSpinLoopActive() &&
-      (InSendMessageEx(NULL)&(ISMEX_REPLIED|ISMEX_SEND)) == ISMEX_SEND) {
+      (::InSendMessageEx(NULL)&(ISMEX_REPLIED|ISMEX_SEND)) == ISMEX_SEND) {
     LRESULT res;
     if (IsAsyncResponseEvent(msg, res)) {
-      ReplyMessage(res);
+      ::ReplyMessage(res);
     }
-    return;
-  }
-
-  // Handle certain sync plugin events sent to the parent which
-  // trigger ipc calls that result in deadlocks.
-
-  // Windowed plugins receiving focus triggering WM_ACTIVATE app messages.
-  if (mWindowType == eWindowType_plugin && msg == WM_SETFOCUS &&
-    GetPropW(mWnd, L"PluginInstanceParentProperty")) {
-    ReplyMessage(0);
-    return;
-  }
-
-  // Windowless flash sending WM_ACTIVATE events to the main window
-  // via calls to ShowWindow.
-  if (msg == WM_ACTIVATE && lParam != 0 &&
-      LOWORD(wParam) == WA_ACTIVE && IsWindow((HWND)lParam) &&
-      (InSendMessageEx(NULL)&(ISMEX_REPLIED|ISMEX_SEND)) == ISMEX_SEND) {
-    ReplyMessage(0);
-    return;
-  }
-
-  // Windowed plugins that pass sys key events to defwndproc generate
-  // WM_SYSCOMMAND events to the main window.
-  if (msg == WM_SYSCOMMAND &&
-      (InSendMessageEx(NULL)&(ISMEX_REPLIED|ISMEX_SEND)) == ISMEX_SEND) {
-    ReplyMessage(0);
-    return;
   }
 }
 
@@ -3744,12 +3695,8 @@ nsWindow::IPCWindowProcHandler(UINT& msg, WPARAM& wParam, LPARAM& lParam)
 // The WndProc procedure for all nsWindows in this toolkit
 LRESULT CALLBACK nsWindow::WindowProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam)
 {
-  // Get the window which caused the event and ask it to process the message
-  nsWindow *someWindow = GetNSWindowPtr(hWnd);
-
 #ifdef MOZ_IPC
-  if (someWindow)
-    someWindow->IPCWindowProcHandler(msg, wParam, lParam);
+  IPCWindowProcHandler(hWnd, msg, wParam, lParam);
 #endif
 
   // create this here so that we store the last rolled up popup until after
@@ -3757,8 +3704,11 @@ LRESULT CALLBACK nsWindow::WindowProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM
   nsAutoRollup autoRollup;
 
   LRESULT popupHandlingResult;
-  if (DealWithPopups(hWnd, msg, wParam, lParam, &popupHandlingResult))
+  if ( DealWithPopups(hWnd, msg, wParam, lParam, &popupHandlingResult) )
     return popupHandlingResult;
+
+  // Get the window which caused the event and ask it to process the message
+  nsWindow *someWindow = GetNSWindowPtr(hWnd);
 
   // XXX This fixes 50208 and we are leaving 51174 open to further investigate
   // why we are hitting this assert
@@ -3784,15 +3734,15 @@ LRESULT CALLBACK nsWindow::WindowProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM
   }
 
   // Call ProcessMessage
-  LRESULT retValue;
-  if (PR_TRUE == someWindow->ProcessMessage(msg, wParam, lParam, &retValue)) {
-    return retValue;
+  if (nsnull != someWindow) {
+    LRESULT retValue;
+    if (PR_TRUE == someWindow->ProcessMessage(msg, wParam, lParam, &retValue)) {
+      return retValue;
+    }
   }
 
-  LRESULT res = ::CallWindowProcW(someWindow->GetPrevWindowProc(),
-                                  hWnd, msg, wParam, lParam);
-
-  return res;
+  return ::CallWindowProcW(someWindow->GetPrevWindowProc(),
+                           hWnd, msg, wParam, lParam);
 }
 
 // The main windows message processing method for plugins.
@@ -4305,8 +4255,16 @@ PRBool nsWindow::ProcessMessage(UINT msg, WPARAM &wParam, LPARAM &lParam,
 
     case WM_HSCROLL:
     case WM_VSCROLL:
-      *aRetValue = 0;
-      result = OnScroll(msg, wParam, lParam);
+      // check for the incoming nsWindow handle to be null in which case
+      // we assume the message is coming from a horizontal scrollbar inside
+      // a listbox and we don't bother processing it (well, we don't have to)
+      if (lParam) {
+        nsWindow* scrollbar = GetNSWindowPtr((HWND)lParam);
+
+        if (scrollbar) {
+          result = scrollbar->OnScroll(msg, wParam, lParam);
+        }
+      }
       break;
 
     case WM_CTLCOLORLISTBOX:
@@ -4735,13 +4693,13 @@ PRBool nsWindow::ProcessMessage(UINT msg, WPARAM &wParam, LPARAM &lParam,
         SetHasTaskbarIconBeenCreated();
 #endif
 #ifdef MOZ_IPC
-      if (msg == sOOPPPluginFocusEvent) {
-        // With OOPP, the plugin window exists in another process and is a child of
-        // this window. This window is a placeholder plugin window for the dom. We
-        // receive this event when the child window receives focus. (sent from
-        // PluginInstanceParent.cpp)
-        ::SendMessage(mWnd, WM_MOUSEACTIVATE, 0, 0); // See nsPluginNativeWindowWin.cpp
-      }
+    if (msg == sOOPPPluginFocusEvent) {
+      // With OOPP, the plugin window exists in another process and is a child of
+      // this window. This window is a placeholder plugin window for the dom. We
+      // receive this event when the child window receives focus. (sent from
+      // PluginInstanceParent.cpp)
+      ::SendMessage(mWnd, WM_MOUSEACTIVATE, 0, 0); // See nsPluginNativeWindowWin.cpp
+    } 
 #endif
     }
     break;
@@ -6120,12 +6078,6 @@ PRBool nsWindow::OnMove(PRInt32 aX, PRInt32 aY)
 // Send a resize message to the listener
 PRBool nsWindow::OnResize(nsIntRect &aWindowRect)
 {
-#ifdef CAIRO_HAS_D2D_SURFACE
-  if (mD2DWindowSurface) {
-    mD2DWindowSurface = NULL;
-    Invalidate(PR_FALSE);
-  }
-#endif
   // call the event callback
   if (mEventCallback) {
     nsSizeEvent event(PR_TRUE, NS_SIZE, this);
@@ -6279,21 +6231,8 @@ PRBool nsWindow::HandleScrollingPlugins(UINT aMsg, WPARAM aWParam,
 
 PRBool nsWindow::OnScroll(UINT aMsg, WPARAM aWParam, LPARAM aLParam)
 {
-  static PRInt8 sMouseWheelEmulation = -1;
-  if (sMouseWheelEmulation < 0) {
-    nsCOMPtr<nsIPrefService> prefs = do_GetService(NS_PREFSERVICE_CONTRACTID);
-    NS_ENSURE_TRUE(prefs, PR_FALSE);
-    nsCOMPtr<nsIPrefBranch> prefBranch;
-    prefs->GetBranch(0, getter_AddRefs(prefBranch));
-    NS_ENSURE_TRUE(prefBranch, PR_FALSE);
-    PRBool emulate;
-    nsresult rv =
-      prefBranch->GetBoolPref("mousewheel.emulate_at_wm_scroll", &emulate);
-    NS_ENSURE_SUCCESS(rv, PR_FALSE);
-    sMouseWheelEmulation = PRInt8(emulate);
-  }
-
-  if (aLParam || sMouseWheelEmulation) {
+  if (aLParam)
+  {
     // Scroll message generated by Thinkpad Trackpoint Driver or similar
     // Treat as a mousewheel message and scroll appropriately
     PRBool quit, result;
@@ -6332,43 +6271,9 @@ PRBool nsWindow::OnScroll(UINT aMsg, WPARAM aWParam, LPARAM aLParam)
     }
     return PR_TRUE;
   }
-
   // Scroll message generated by external application
-  nsContentCommandEvent command(PR_TRUE, NS_CONTENT_COMMAND_SCROLL, this);
-
-  command.mScroll.mIsHorizontal = (aMsg == WM_HSCROLL);
-
-  switch (LOWORD(aWParam))
-  {
-    case SB_LINEUP:   // SB_LINELEFT
-      command.mScroll.mUnit = nsContentCommandEvent::eCmdScrollUnit_Line;
-      command.mScroll.mAmount = -1;
-      break;
-    case SB_LINEDOWN: // SB_LINERIGHT
-      command.mScroll.mUnit = nsContentCommandEvent::eCmdScrollUnit_Line;
-      command.mScroll.mAmount = 1;
-      break;
-    case SB_PAGEUP:   // SB_PAGELEFT
-      command.mScroll.mUnit = nsContentCommandEvent::eCmdScrollUnit_Page;
-      command.mScroll.mAmount = -1;
-      break;
-    case SB_PAGEDOWN: // SB_PAGERIGHT
-      command.mScroll.mUnit = nsContentCommandEvent::eCmdScrollUnit_Page;
-      command.mScroll.mAmount = 1;
-      break;
-    case SB_TOP:      // SB_LEFT
-      command.mScroll.mUnit = nsContentCommandEvent::eCmdScrollUnit_Whole;
-      command.mScroll.mAmount = -1;
-      break;
-    case SB_BOTTOM:   // SB_RIGHT
-      command.mScroll.mUnit = nsContentCommandEvent::eCmdScrollUnit_Whole;
-      command.mScroll.mAmount = 1;
-      break;
-    default:
-      return PR_FALSE;
-  }
-  DispatchWindowEvent(&command);
-  return PR_TRUE;
+  // XXX Handle by scrolling the window in the desired manner (Bug 315727)
+  return PR_FALSE;
 }
 
 // Return the brush used to paint the background of this control
@@ -6538,30 +6443,6 @@ nsWindow::OnIMESelectionChange(void)
 #ifdef ACCESSIBILITY
 already_AddRefed<nsIAccessible> nsWindow::GetRootAccessible()
 {
-  // We want the ability to forcibly disable a11y on windows, because
-  // some non-a11y-related components attempt to bring it up.  See bug
-  // 538530 for details; we have a pref here that allows it to be disabled
-  // for performance and testing resons.
-  //
-  // This pref is checked only once, and the browser needs a restart to
-  // pick up any changes.
-  static int accForceDisable = -1;
-
-  if (accForceDisable == -1) {
-    nsCOMPtr<nsIPrefBranch> prefs = do_GetService(NS_PREFSERVICE_CONTRACTID);
-    PRBool b = PR_FALSE;
-    nsresult rv = prefs->GetBoolPref("accessibility.win32.force_disabled", &b);
-    if (NS_SUCCEEDED(rv) && b) {
-      accForceDisable = 1;
-    } else {
-      accForceDisable = 0;
-    }
-  }
-
-  // If the pref was true, return null here, disabling a11y.
-  if (accForceDisable)
-      return nsnull;
-
   nsWindow::sIsAccessibilityOn = TRUE;
 
   if (mInDtor || mOnDestroyCalled || mWindowType == eWindowType_invisible) {

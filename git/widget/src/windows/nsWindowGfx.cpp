@@ -133,34 +133,44 @@ IsRenderMode(gfxWindowsPlatform::RenderMode rmode)
   return gfxWindowsPlatform::GetPlatform()->GetRenderMode() == rmode;
 }
 
-nsIntRegion
+void
+nsWindowGfx::AddRECTToRegion(const RECT& aRect, nsIRegion* aRegion)
+{
+  aRegion->Union(aRect.left, aRect.top, aRect.right - aRect.left, aRect.bottom - aRect.top);
+}
+
+already_AddRefed<nsIRegion>
 nsWindowGfx::ConvertHRGNToRegion(HRGN aRgn)
 {
   NS_ASSERTION(aRgn, "Don't pass NULL region here");
 
-  nsIntRegion rgn;
+  nsCOMPtr<nsIRegion> region = do_CreateInstance(kRegionCID);
+  if (!region)
+    return nsnull;
+
+  region->Init();
 
   DWORD size = ::GetRegionData(aRgn, 0, NULL);
   nsAutoTArray<PRUint8,100> buffer;
   if (!buffer.SetLength(size))
-    return rgn;
+    return region.forget();
 
   RGNDATA* data = reinterpret_cast<RGNDATA*>(buffer.Elements());
   if (!::GetRegionData(aRgn, size, data))
-    return rgn;
+    return region.forget();
 
   if (data->rdh.nCount > MAX_RECTS_IN_REGION) {
-    rgn = ToIntRect(data->rdh.rcBound);
-    return rgn;
+    AddRECTToRegion(data->rdh.rcBound, region);
+    return region.forget();
   }
 
   RECT* rects = reinterpret_cast<RECT*>(data->Buffer);
   for (PRUint32 i = 0; i < data->rdh.nCount; ++i) {
     RECT* r = rects + i;
-    rgn.Or(rgn, ToIntRect(*r));
+    AddRECTToRegion(*r, region);
   }
 
-  return rgn;
+  return region.forget();
 }
 
 #ifdef CAIRO_HAS_DDRAW_SURFACE
@@ -243,37 +253,56 @@ void nsWindow::SetUpForPaint(HDC aHDC)
 // it's abstracted out because Windows XP/Vista/7 handles this for us, but
 // we need to keep track of it our selves for Windows CE and Windows Mobile
 
-nsIntRegion nsWindow::GetRegionToPaint(PRBool aForceFullRepaint,
-                                       PAINTSTRUCT ps, HDC aDC)
+nsCOMPtr<nsIRegion> nsWindow::GetRegionToPaint(PRBool aForceFullRepaint,
+                                               PAINTSTRUCT ps, HDC aDC)
 { 
+  HRGN paintRgn = NULL;
+  nsCOMPtr<nsIRegion> paintRgnWin;
   if (aForceFullRepaint) {
     RECT paintRect;
     ::GetClientRect(mWnd, &paintRect);
-    return nsIntRegion(nsWindowGfx::ToIntRect(paintRect));
+    paintRgn = ::CreateRectRgn(paintRect.left, paintRect.top, 
+                               paintRect.right, paintRect.bottom);
+    if (paintRgn) {
+      paintRgnWin = nsWindowGfx::ConvertHRGNToRegion(paintRgn);
+      ::DeleteObject(paintRgn);
+      return paintRgnWin;
+    }
   }
-
-#if defined(WINCE_WINDOWS_MOBILE) || !defined(WINCE)
-  HRGN paintRgn = ::CreateRectRgn(0, 0, 0, 0);
+#ifndef WINCE
+  paintRgn = ::CreateRectRgn(0, 0, 0, 0);
   if (paintRgn != NULL) {
-# ifdef WINCE
-    int result = GetUpdateRgn(mWnd, paintRgn, FALSE);
-# else
     int result = GetRandomRgn(aDC, paintRgn, SYSRGN);
-# endif
     if (result == 1) {
       POINT pt = {0,0};
       ::MapWindowPoints(NULL, mWnd, &pt, 1);
       ::OffsetRgn(paintRgn, pt.x, pt.y);
     }
-    nsIntRegion rgn(nsWindowGfx::ConvertHRGNToRegion(paintRgn));
+    paintRgnWin = nsWindowGfx::ConvertHRGNToRegion(paintRgn);
     ::DeleteObject(paintRgn);
-# ifdef WINCE
-    if (!rgn.IsEmpty())
+  }
+#else
+# ifdef WINCE_WINDOWS_MOBILE
+  paintRgn = ::CreateRectRgn(0, 0, 0, 0);
+  if (paintRgn != NULL) {
+    int result = GetUpdateRgn(mWnd, paintRgn, FALSE);
+    if (result == 1) {
+      POINT pt = {0,0};
+      ::MapWindowPoints(NULL, mWnd, &pt, 1);
+      ::OffsetRgn(paintRgn, pt.x, pt.y);
+    }
+    paintRgnWin = nsWindowGfx::ConvertHRGNToRegion(paintRgn);
+    ::DeleteObject(paintRgn);
+  }
 # endif
-      return rgn;
+  paintRgn = ::CreateRectRgn(ps.rcPaint.left, ps.rcPaint.top,
+                             ps.rcPaint.right, ps.rcPaint.bottom);
+  if (paintRgn) {
+    paintRgnWin = nsWindowGfx::ConvertHRGNToRegion(paintRgn);
+    ::DeleteObject(paintRgn);
   }
 #endif
-  return nsIntRegion(nsWindowGfx::ToIntRect(ps.rcPaint));
+  return paintRgnWin;
 }
 
 #define WORDSSIZE(x) ((x).width * (x).height)
@@ -383,23 +412,27 @@ PRBool nsWindow::OnPaint(HDC aDC)
 #endif // WIDGET_DEBUG_OUTPUT
 
   HDC hDC = aDC ? aDC : (::BeginPaint(mWnd, &ps));
-  if (!IsRenderMode(gfxWindowsPlatform::RENDER_DIRECT2D)) {
-    mPaintDC = hDC;
-  }
-
-  // generate the event and call the event callback
-  nsPaintEvent event(PR_TRUE, NS_PAINT, this);
-  InitEvent(event);
+  mPaintDC = hDC;
 
 #ifdef MOZ_XUL
   PRBool forceRepaint = aDC || (eTransparencyTransparent == mTransparencyMode);
 #else
   PRBool forceRepaint = NULL != aDC;
 #endif
-  event.region = GetRegionToPaint(forceRepaint, ps, hDC);
+  nsCOMPtr<nsIRegion> paintRgnWin = GetRegionToPaint(forceRepaint, ps, hDC);
 
-  if (!event.region.IsEmpty() && mEventCallback)
+  if (paintRgnWin &&
+      !paintRgnWin->IsEmpty() &&
+      mEventCallback)
   {
+    // generate the event and call the event callback
+    nsPaintEvent event(PR_TRUE, NS_PAINT, this);
+
+    InitEvent(event);
+
+    event.region = paintRgnWin;
+    event.rect = nsnull;
+ 
     // Should probably pass in a real region here, using GetRandomRgn
     // http://msdn.microsoft.com/library/default.asp?url=/library/en-us/gdi/clipping_4q0e.asp
 
@@ -429,16 +462,7 @@ PRBool nsWindow::OnPaint(HDC aDC)
       targetSurfaceWin = new gfxWindowsSurface(hDC);
       targetSurface = targetSurfaceWin;
     }
-#ifdef CAIRO_HAS_D2D_SURFACE
-    if (!targetSurface &&
-        IsRenderMode(gfxWindowsPlatform::RENDER_DIRECT2D))
-    {
-      if (!mD2DWindowSurface) {
-        mD2DWindowSurface = new gfxD2DSurface(mWnd);
-      }
-      targetSurface = mD2DWindowSurface;
-    }
-#endif
+
 #ifdef CAIRO_HAS_DDRAW_SURFACE
     nsRefPtr<gfxDDrawSurface> targetSurfaceDDraw;
     if (!targetSurface &&
@@ -498,14 +522,7 @@ DDRAW_FAILED:
 
     nsRefPtr<gfxContext> thebesContext = new gfxContext(targetSurface);
     thebesContext->SetFlag(gfxContext::FLAG_DESTINED_FOR_SCREEN);
-    if (IsRenderMode(gfxWindowsPlatform::RENDER_DIRECT2D)) {
-      const nsIntRect* r;
-      for (nsIntRegionRectIterator iter(event.region);
-           (r = iter.Next()) != nsnull;) {
-        thebesContext->Rectangle(gfxRect(r->x, r->y, r->width, r->height), PR_TRUE);
-      }
-      thebesContext->Clip();
-    }
+
 #ifdef WINCE
     thebesContext->SetFlag(gfxContext::FLAG_SIMPLIFY_OPERATORS);
 #endif
@@ -529,10 +546,22 @@ DDRAW_FAILED:
       }
     }
 
-    {
-      AutoLayerManagerSetup setupLayerManager(this, thebesContext);
-      result = DispatchWindowEvent(&event, eventStatus);
+    nsCOMPtr<nsIRenderingContext> rc;
+    nsresult rv = mContext->CreateRenderingContextInstance (*getter_AddRefs(rc));
+    if (NS_FAILED(rv)) {
+      NS_WARNING("CreateRenderingContextInstance failed");
+      return PR_FALSE;
     }
+
+    rv = rc->Init(mContext, thebesContext);
+    if (NS_FAILED(rv)) {
+      NS_WARNING("RC::Init failed");
+      return PR_FALSE;
+    }
+
+    event.renderingContext = rc;
+    result = DispatchWindowEvent(&event, eventStatus);
+    event.renderingContext = nsnull;
 
 #ifdef MOZ_XUL
     if (IsRenderMode(gfxWindowsPlatform::RENDER_GDI) &&
@@ -542,13 +571,6 @@ DDRAW_FAILED:
       // that displayed on the screen.
       UpdateTranslucentWindow();
     } else
-#endif
-#ifdef CAIRO_HAS_D2D_SURFACE
-    if (result) {
-      if (mD2DWindowSurface) {
-        mD2DWindowSurface->Present();
-      }
-    }
 #endif
     if (result) {
       if (IsRenderMode(gfxWindowsPlatform::RENDER_GDI)) {
@@ -709,6 +731,12 @@ nsresult nsWindowGfx::CreateIcon(imgIContainer *aContainer,
                                   HICON *aIcon) {
 
   nsresult rv;
+  PRInt32 maxWidth = GetSystemMetrics(SM_CXICON);
+  PRInt32 maxHeight = GetSystemMetrics(SM_CYICON);
+
+  if (!maxWidth || !maxHeight)
+    return NS_ERROR_UNEXPECTED;
+
   PRUint32 nFrames;
   rv = aContainer->GetNumFrames(&nFrames);
   NS_ENSURE_SUCCESS(rv, rv);
@@ -729,6 +757,9 @@ nsresult nsWindowGfx::CreateIcon(imgIContainer *aContainer,
   PRInt32 width = frame->Width();
   PRInt32 height = frame->Height();
 
+  if (width > maxWidth || height > maxHeight)
+    return NS_ERROR_INVALID_ARG;
+
   HBITMAP bmp = DataToBitmap(data, width, -height, 32);
   PRUint8* a1data = Data32BitTo1Bit(data, width, height);
   if (!a1data) {
@@ -744,7 +775,7 @@ nsresult nsWindowGfx::CreateIcon(imgIContainer *aContainer,
   info.yHotspot = aHotspotY;
   info.hbmMask = mbmp;
   info.hbmColor = bmp;
-
+  
   HCURSOR icon = ::CreateIconIndirect(&info);
   ::DeleteObject(mbmp);
   ::DeleteObject(bmp);
@@ -901,7 +932,9 @@ PRBool nsWindow::OnPaintImageDDraw16()
   gfxIntSize surfaceSize;
   nsRefPtr<gfxImageSurface> targetSurfaceImage;
   nsRefPtr<gfxContext> thebesContext;
+  nsCOMPtr<nsIRenderingContext> rc;
   nsEventStatus eventStatus = nsEventStatus_eIgnore;
+  PRInt32 brx, bry, brw, brh;
   gfxIntSize newSize;
   newSize.height = GetSystemMetrics(SM_CYSCREEN);
   newSize.width = GetSystemMetrics(SM_CXSCREEN);
@@ -909,14 +942,17 @@ PRBool nsWindow::OnPaintImageDDraw16()
 
   HDC hDC = ::BeginPaint(mWnd, &ps);
   mPaintDC = hDC;
-  nsIntRegion paintRgn = GetRegionToPaint(PR_FALSE, ps, hDC);
+  nsCOMPtr<nsIRegion> paintRgnWin = GetRegionToPaint(PR_FALSE, ps, hDC);
 
-  if (paintRgn.IsEmpty() || !mEventCallback) {
+  if (!paintRgnWin || paintRgnWin->IsEmpty() || !mEventCallback) {
     result = PR_TRUE;
     goto cleanup;
   }
 
   InitEvent(event);
+  
+  event.region = paintRgnWin;
+  event.rect = nsnull;
   
   if (!glpDD) {
     if (!nsWindowGfx::InitDDraw()) {
@@ -953,10 +989,7 @@ PRBool nsWindow::OnPaintImageDDraw16()
     }
   }
 
-  PRInt32 brx = paintRgn.GetBounds().x;
-  PRInt32 bry = paintRgn.GetBounds().y;
-  PRInt32 brw = paintRgn.GetBounds().width;
-  PRInt32 brh = paintRgn.GetBounds().height;
+  paintRgnWin->GetBoundingBox(&brx, &bry, &brw, &brh);
   surfaceSize = gfxIntSize(brw, brh);
   
   if (!EnsureSharedSurfaceSize(surfaceSize))
@@ -976,15 +1009,25 @@ PRBool nsWindow::OnPaintImageDDraw16()
   thebesContext->SetFlag(gfxContext::FLAG_DESTINED_FOR_SCREEN);
   thebesContext->SetFlag(gfxContext::FLAG_SIMPLIFY_OPERATORS);
     
-  {
-    AutoLayerManagerSetup setupLayerManager(this, thebesContext);
-    event.region = paintRgn;
-    result = DispatchWindowEvent(&event, eventStatus);
-  }
+  nsresult rv = mContext->CreateRenderingContextInstance (*getter_AddRefs(rc));
+  if (NS_FAILED(rv))
+    goto cleanup;
   
-  if (!result && eventStatus  == nsEventStatus_eConsumeNoDefault)
+  rv = rc->Init(mContext, thebesContext);
+  if (NS_FAILED(rv))
+    goto cleanup;
+    
+  event.renderingContext = rc;
+  PRBool res = DispatchWindowEvent(&event, eventStatus);
+  event.renderingContext = nsnull;
+  
+  if (!res && eventStatus  == nsEventStatus_eConsumeNoDefault)
     goto cleanup;
 
+  nsRegionRectSet *rects = nsnull;
+  RECT r;
+  paintRgnWin->GetRects(&rects);
+  
   HRESULT hr = glpDDSecondary->Lock(0, &gDDSDSecondary, DDLOCK_WAITNOTBUSY | DDLOCK_DISCARD, 0); 
   if (FAILED(hr))
     goto cleanup;
@@ -1002,15 +1045,14 @@ PRBool nsWindow::OnPaintImageDDraw16()
                              gDDSDSecondary.dwWidth * 2);
   
 
-  const nsIntRect* r;
-  for (nsIntRegionRectIterator iter(paintRgn);
-       (r = iter.Next()) != nsnull;) {
+  for (unsigned int i = 0; i < rects->mNumRects; i++) {
     pixman_image_composite(PIXMAN_OP_SRC, srcPixmanImage, NULL, dstPixmanImage,
-                           r->x - brx, r->y - bry,
-                           0, 0,
-                           r->x, r->y,
-                           r->width, r->height);
-  }
+                           rects->mRects[i].x - brx, rects->mRects[i].y - bry, 
+                           0, 0, 
+                           rects->mRects[i].x, rects->mRects[i].y, 
+                           rects->mRects[i].width, rects->mRects[i].height);
+    
+  } 
   
   pixman_image_unref(dstPixmanImage);
   pixman_image_unref(srcPixmanImage);
@@ -1023,13 +1065,15 @@ PRBool nsWindow::OnPaintImageDDraw16()
   if (FAILED(hr))
     goto cleanup;
   
-  for (nsIntRegionRectIterator iter(paintRgn);
-       (r = iter.Next()) != nsnull;) {
-    RECT wr = { r->x, r->y, r->XMost(), r->YMost() };
-    RECT renderRect = wr;
+  for (unsigned int i = 0; i < rects->mNumRects; i++) {  
+    r.left = rects->mRects[i].x;
+    r.top = rects->mRects[i].y;
+    r.right = rects->mRects[i].width + rects->mRects[i].x;
+    r.bottom = rects->mRects[i].height + rects->mRects[i].y;
+    RECT renderRect = r;
     SetLastError(0); // See http://msdn.microsoft.com/en-us/library/dd145046%28VS.85%29.aspx
     MapWindowPoints(mWnd, 0, (LPPOINT)&renderRect, 2);
-    hr = glpDDPrimary->Blt(&renderRect, glpDDSecondary, &wr, 0, NULL);
+    hr = glpDDPrimary->Blt(&renderRect, glpDDSecondary, &r, 0, NULL);
     if (FAILED(hr)) {
       NS_ERROR("this blt should never fail!");
       printf("#### %s blt failed: %08lx", __FUNCTION__, hr);

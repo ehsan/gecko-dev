@@ -43,7 +43,6 @@
 #include "nsIDOMRange.h"
 #include "nsCycleCollectionParticipant.h"
 #include "nsILoadGroup.h"
-#include "nsIObserver.h"
 
 // Define to output information on decoding and painting framerate
 /* #define DEBUG_FRAME_RATE 1 */
@@ -51,8 +50,7 @@
 typedef PRUint16 nsMediaNetworkState;
 typedef PRUint16 nsMediaReadyState;
 
-class nsHTMLMediaElement : public nsGenericHTMLElement,
-                           public nsIObserver
+class nsHTMLMediaElement : public nsGenericHTMLElement
 {
 public:
   nsHTMLMediaElement(nsINodeInfo *aNodeInfo, PRBool aFromParser = PR_FALSE);
@@ -70,8 +68,6 @@ public:
 
   // nsIDOMHTMLMediaElement
   NS_DECL_NSIDOMHTMLMEDIAELEMENT
-
-  NS_DECL_NSIOBSERVER
 
   // nsISupports
   NS_DECL_ISUPPORTS_INHERITED
@@ -387,9 +383,11 @@ protected:
   void AddRemoveSelfReference();
 
   /**
-   * Called asynchronously to release a self-reference to this element.
+   * Alias for Release(), but using stdcall calling convention so on
+   * platforms where Release has a strange calling convention (Windows)
+   * we can still get a method pointer to this method.
    */
-  void DoRemoveSelfReference();
+  void DoRelease() { Release(); }
 
   nsRefPtr<nsMediaDecoder> mDecoder;
 
@@ -522,10 +520,6 @@ protected:
   // alive while no-one is referencing it but the element may still fire
   // events of its own accord.
   PRPackedBool mHasSelfReference;
-
-  // PR_TRUE if we've received a notification that the engine is shutting
-  // down.
-  PRPackedBool mShuttingDown;
 
   nsRefPtr<gfxASurface> mPrintSurface;
 };

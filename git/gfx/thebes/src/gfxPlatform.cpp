@@ -51,7 +51,6 @@
 #include "gfxOS2Platform.h"
 #endif
 
-#include "gfxAtoms.h"
 #include "gfxPlatformFontList.h"
 #include "gfxContext.h"
 #include "gfxImageSurface.h"
@@ -160,7 +159,6 @@ static const char *gPrefLangNames[] = {
     "x-telu",
     "x-knda",
     "x-sinh",
-    "x-tibt",
     "x-unicode",
     "x-user-def"
 };
@@ -176,9 +174,6 @@ nsresult
 gfxPlatform::Init()
 {
     NS_ASSERTION(!gPlatform, "Already started???");
-
-    gfxAtoms::RegisterAtoms();
-
 #if defined(XP_WIN)
     gPlatform = new gfxWindowsPlatform;
 #elif defined(XP_MACOSX)
@@ -247,7 +242,6 @@ gfxPlatform::Shutdown()
     gfxTextRunCache::Shutdown();
     gfxTextRunWordCache::Shutdown();
     gfxFontCache::Shutdown();
-    gfxFontGroup::Shutdown();
 #if defined(XP_MACOSX) || defined(XP_WIN) // temporary, until this is implemented on others
     gfxPlatformFontList::Shutdown();
 #endif
@@ -291,12 +285,6 @@ gfxPlatform::OptimizeImage(gfxImageSurface *aSurface,
 {
     const gfxIntSize& surfaceSize = aSurface->GetSize();
 
-#ifdef XP_WIN
-    if (gfxWindowsPlatform::GetPlatform()->GetRenderMode() == 
-        gfxWindowsPlatform::RENDER_DIRECT2D) {
-        return nsnull;
-    }
-#endif
     nsRefPtr<gfxASurface> optSurface = CreateOffscreenSurface(surfaceSize, format);
     if (!optSurface || optSurface->CairoStatus() != 0)
         return nsnull;
@@ -312,7 +300,7 @@ gfxPlatform::OptimizeImage(gfxImageSurface *aSurface,
 }
 
 nsresult
-gfxPlatform::GetFontList(nsIAtom *aLangGroup,
+gfxPlatform::GetFontList(const nsACString& aLangGroup,
                          const nsACString& aGenericFamily,
                          nsTArray<nsString>& aListOfFonts)
 {
@@ -364,7 +352,7 @@ gfxPlatform::MakePlatformFont(const gfxProxyFontEntry *aProxyEntry,
 }
 
 static void
-AppendGenericFontFromPref(nsString& aFonts, nsIAtom *aLangGroup, const char *aGenericName)
+AppendGenericFontFromPref(nsString& aFonts, const char *aLangGroup, const char *aGenericName)
 {
     nsresult rv;
 
@@ -372,22 +360,20 @@ AppendGenericFontFromPref(nsString& aFonts, nsIAtom *aLangGroup, const char *aGe
     if (!prefs)
         return;
 
-    nsCAutoString prefName, langGroupString;
+    nsCAutoString prefName;
     nsXPIDLCString nameValue, nameListValue;
-
-    aLangGroup->ToUTF8String(langGroupString);
 
     nsCAutoString genericDotLang;
     if (aGenericName) {
         genericDotLang.Assign(aGenericName);
     } else {
         prefName.AssignLiteral("font.default.");
-        prefName.Append(langGroupString);
+        prefName.Append(aLangGroup);
         prefs->GetCharPref(prefName.get(), getter_Copies(genericDotLang));
     }
 
     genericDotLang.AppendLiteral(".");
-    genericDotLang.Append(langGroupString);
+    genericDotLang.Append(aLangGroup);
 
     // fetch font.name.xxx value                   
     prefName.AssignLiteral("font.name.");
@@ -411,13 +397,13 @@ AppendGenericFontFromPref(nsString& aFonts, nsIAtom *aLangGroup, const char *aGe
 }
 
 void
-gfxPlatform::GetPrefFonts(nsIAtom *aLanguage, nsString& aFonts, PRBool aAppendUnicode)
+gfxPlatform::GetPrefFonts(const char *aLangGroup, nsString& aFonts, PRBool aAppendUnicode)
 {
     aFonts.Truncate();
 
-    AppendGenericFontFromPref(aFonts, aLanguage, nsnull);
+    AppendGenericFontFromPref(aFonts, aLangGroup, nsnull);
     if (aAppendUnicode)
-        AppendGenericFontFromPref(aFonts, gfxAtoms::x_unicode, nsnull);
+        AppendGenericFontFromPref(aFonts, "x-unicode", nsnull);
 }
 
 PRBool gfxPlatform::ForEachPrefFont(eFontPrefLang aLangArray[], PRUint32 aLangArrayLen, PrefFontCallback aCallback,
@@ -499,16 +485,6 @@ gfxPlatform::GetFontPrefLangFor(const char* aLang)
     return eFontPrefLang_Others;
 }
 
-eFontPrefLang
-gfxPlatform::GetFontPrefLangFor(nsIAtom *aLang)
-{
-    if (!aLang)
-        return eFontPrefLang_Others;
-    nsCAutoString lang;
-    aLang->ToUTF8String(lang);
-    return GetFontPrefLangFor(lang.get());
-}
-
 const char*
 gfxPlatform::GetPrefLangName(eFontPrefLang aLang)
 {
@@ -549,20 +525,13 @@ gfxPlatform::GetFontPrefLangFor(PRUint8 aUnicodeRange)
     }
 }
 
+const PRUint32 kFontPrefLangCJKMask = (1 << (PRUint32) eFontPrefLang_Japanese) | (1 << (PRUint32) eFontPrefLang_ChineseTW)
+                                      | (1 << (PRUint32) eFontPrefLang_ChineseCN) | (1 << (PRUint32) eFontPrefLang_ChineseHK)
+                                      | (1 << (PRUint32) eFontPrefLang_Korean) | (1 << (PRUint32) eFontPrefLang_CJKSet);
 PRBool 
 gfxPlatform::IsLangCJK(eFontPrefLang aLang)
 {
-    switch (aLang) {
-        case eFontPrefLang_Japanese:
-        case eFontPrefLang_ChineseTW:
-        case eFontPrefLang_ChineseCN:
-        case eFontPrefLang_ChineseHK:
-        case eFontPrefLang_Korean:
-        case eFontPrefLang_CJKSet:
-            return PR_TRUE;
-        default:
-            return PR_FALSE;
-    }
+    return kFontPrefLangCJKMask & (1 << (PRUint32) aLang);
 }
 
 void 
@@ -1003,7 +972,7 @@ static nsIUGenCategory*
 GetGenCategory()
 {
     if (!gGenCategory) {
-        nsresult rv = CallGetService(NS_UNICHARCATEGORY_CONTRACTID, &gGenCategory);
+        nsresult rv = CallGetService(NS_UNICHARUTIL_CONTRACTID, &gGenCategory);
         if (NS_FAILED(rv)) {
             NS_ERROR("Failed to get the Unicode character category service!");
             gGenCategory = nsnull;

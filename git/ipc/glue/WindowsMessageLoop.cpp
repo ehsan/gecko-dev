@@ -217,7 +217,6 @@ ProcessOrDeferMessage(HWND hwnd,
     case WM_NCDESTROY:
     case WM_PARENTNOTIFY:
     case WM_SETFOCUS:
-    case WM_SYSCOMMAND:
     case WM_SHOWWINDOW: // Intentional fall-through.
     case WM_XP_THEMECHANGED: {
       deferred = new DeferredSendMessage(hwnd, uMsg, wParam, lParam);
@@ -361,7 +360,7 @@ NeuteredWindowProc(HWND hwnd,
 }
 
 static bool
-WindowIsDeferredWindow(HWND hWnd)
+WindowIsMozillaWindow(HWND hWnd)
 {
   if (!IsWindow(hWnd)) {
     NS_WARNING("Window has died!");
@@ -375,20 +374,11 @@ WindowIsDeferredWindow(HWND hWnd)
     return false;
   }
 
-  // Common mozilla windows we must defer messages to.
   nsDependentString className(buffer, length);
   if (StringBeginsWith(className, NS_LITERAL_STRING("Mozilla")) ||
       StringBeginsWith(className, NS_LITERAL_STRING("Gecko")) ||
       className.EqualsLiteral("nsToolkitClass") ||
       className.EqualsLiteral("nsAppShell:EventWindowClass")) {
-    return true;
-  }
-
-  // Plugin windows that can trigger ipc calls in child:
-  // 'ShockwaveFlashFullScreen' - flash fullscreen window
-  // 'AGFullScreenWinClass' - silverlight fullscreen window
-  if (className.EqualsLiteral("ShockwaveFlashFullScreen") ||
-      className.EqualsLiteral("AGFullScreenWinClass")) {
     return true;
   }
 
@@ -426,7 +416,7 @@ WindowIsDeferredWindow(HWND hWnd)
 bool
 NeuterWindowProcedure(HWND hWnd)
 {
-  if (!WindowIsDeferredWindow(hWnd)) {
+  if (!WindowIsMozillaWindow(hWnd)) {
     // Some other kind of window, skip.
     return false;
   }
@@ -465,8 +455,8 @@ NeuterWindowProcedure(HWND hWnd)
 void
 RestoreWindowProcedure(HWND hWnd)
 {
-  NS_ASSERTION(WindowIsDeferredWindow(hWnd),
-               "Not a deferred window, this shouldn't be in our list!");
+  NS_ASSERTION(WindowIsMozillaWindow(hWnd),
+               "Not a mozilla window, this shouldn't be in our list!");
 
   LONG_PTR oldWndProc = (LONG_PTR)RemoveProp(hWnd, kOldWndProcProp);
   if (oldWndProc) {

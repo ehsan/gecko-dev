@@ -1582,23 +1582,23 @@ XPCConvert::ConstructException(nsresult rv, const char* message,
 
 /********************************/
 
-class AutoExceptionRestorer
+class AutoExceptionRestorer : public JSAutoTempValueRooter
 {
 public:
     AutoExceptionRestorer(JSContext *cx, jsval v)
-        : mContext(cx), tvr(cx, v)
+        : JSAutoTempValueRooter(cx, v),
+          mVal(v)
     {
         JS_ClearPendingException(mContext);
     }
 
     ~AutoExceptionRestorer()
     {
-        JS_SetPendingException(mContext, tvr.value());
+        JS_SetPendingException(mContext, mVal);
     }
 
 private:
-    JSContext * const mContext;
-    js::AutoValueRooter tvr;
+    jsval mVal;
 };
 
 // static
@@ -2109,7 +2109,7 @@ XPCConvert::JSArray2Native(XPCCallContext& ccx, void** d, jsval s,
 #define POPULATE(_mode, _t)                                                  \
     PR_BEGIN_MACRO                                                           \
         cleanupMode = _mode;                                                 \
-        if (capacity > PR_UINT32_MAX / sizeof(_t) ||                         \
+        if (capacity > ~(size_t)0 / sizeof(_t) ||                            \
             nsnull == (array = nsMemory::Alloc(capacity * sizeof(_t))))      \
         {                                                                    \
             if(pErr)                                                         \

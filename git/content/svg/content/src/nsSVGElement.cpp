@@ -60,7 +60,8 @@
 #include "nsRuleWalker.h"
 #include "nsCSSDeclaration.h"
 #include "nsCSSProps.h"
-#include "nsCSSParser.h"
+#include "nsICSSParser.h"
+#include "nsICSSLoader.h"
 #include "nsGenericHTMLElement.h"
 #include "nsNodeInfoManager.h"
 #include "nsIScriptGlobalObject.h"
@@ -216,16 +217,12 @@ nsSVGElement::BindToTree(nsIDocument* aDocument, nsIContent* aParent,
 
   if (oldVal && oldVal->Type() == nsAttrValue::eCSSStyleRule) {
     // we need to force a reparse because the baseURI of the document
-    // may have changed, and in particular because we may be clones of
-    // XBL anonymous content now being bound to the document we should
-    // render in and due to the hacky way in which we implement the
-    // interaction of XBL and SVG resources.  Once we have a sane
-    // ownerDocument on XBL anonymous content, this can all go away.
+    // may have changed
     nsAttrValue attrValue;
     nsAutoString stringValue;
     oldVal->ToString(stringValue);
     // Force in data doc, since we already have a style rule
-    ParseStyleAttribute(stringValue, attrValue, PR_TRUE);
+    ParseStyleAttribute(this, stringValue, attrValue, PR_TRUE);
     // Don't bother going through SetInlineStyleRule, we don't want to fire off
     // mutation events or document notifications anyway
     rv = mAttrsAndChildren.SetAndTakeAttr(nsGkAtoms::style, attrValue);
@@ -488,10 +485,6 @@ nsresult
 nsSVGElement::UnsetAttr(PRInt32 aNamespaceID, nsIAtom* aName,
                         PRBool aNotify)
 {
-  // XXXbz there's a bunch of redundancy here with AfterSetAttr.
-  // Maybe consolidate?
-  nsresult rv = nsSVGElementBase::UnsetAttr(aNamespaceID, aName, aNotify);
-
   PRBool foundMatch = PR_FALSE;
 
   if (aNamespaceID == kNameSpaceID_None) {
@@ -652,7 +645,7 @@ nsSVGElement::UnsetAttr(PRInt32 aNamespaceID, nsIAtom* aName,
     }
   }
 
-  return rv;
+  return nsSVGElementBase::UnsetAttr(aNamespaceID, aName, aNotify);
 }
 
 void
@@ -939,20 +932,29 @@ nsSVGElement::GetViewportElement(nsIDOMSVGElement * *aViewportElement)
 
 //----------------------------------------------------------------------
 // nsISVGValueObserver methods:
-nsSVGElement::ObservableModificationData
-nsSVGElement::GetModificationDataForObservable(nsISVGValue* aObservable,
-                                               nsISVGValue::modificationType aModType)
+
+NS_IMETHODIMP
+nsSVGElement::WillModifySVGObservable(nsISVGValue* observable,
+                                      nsISVGValue::modificationType aModType)
+{
+  return NS_OK;
+}
+
+
+NS_IMETHODIMP
+nsSVGElement::DidModifySVGObservable(nsISVGValue* aObservable,
+                                     nsISVGValue::modificationType aModType)
 {
   // Return without setting DOM attributes as markup attributes if the
   // attribute's element is being inserted into an SVG document fragment,
   // which provides a context which percentage lengths are relative to.
   // Bug 274886
   if (aModType == nsISVGValue::mod_context)
-    return ObservableModificationData(nsnull, 0);
+    return NS_OK;
 
   // Return without setting DOM attribute 
   if (mSuppressNotification)
-    return ObservableModificationData(nsnull, 0);
+    return NS_OK;
 
   PRUint32 i, count = mMappedAttributes.AttrCount();
   const nsAttrValue* attrValue = nsnull;
@@ -966,59 +968,26 @@ nsSVGElement::GetModificationDataForObservable(nsISVGValue* aObservable,
   if (i == count) {
     NS_NOTREACHED("unknown nsISVGValue");
 
-    return ObservableModificationData(nsnull, 1);
+    return NS_ERROR_UNEXPECTED;
   }
-  
+
   const nsAttrName* attrName = mMappedAttributes.AttrNameAt(i);
-  PRBool modification = !!mAttrsAndChildren.GetAttr(attrName->LocalName(),
-                                                    attrName->NamespaceID());
-
-  PRUint8 modType = modification ?
-    static_cast<PRUint8>(nsIDOMMutationEvent::MODIFICATION) :
-    static_cast<PRUint8>(nsIDOMMutationEvent::ADDITION);
-
-  return ObservableModificationData(attrName, modType);
-}
-
-
-NS_IMETHODIMP
-nsSVGElement::WillModifySVGObservable(nsISVGValue* aObservable,
-                                      nsISVGValue::modificationType aModType)
-{
-  ObservableModificationData data =
-    GetModificationDataForObservable(aObservable, aModType);
-  const nsAttrName* attrName = data.name;
-  if (!attrName) {
-    return data.modType ? NS_ERROR_UNEXPECTED : NS_OK;
-  }
-
-  nsNodeUtils::AttributeWillChange(this, attrName->NamespaceID(),
-                                   attrName->LocalName(), data.modType);
-  return NS_OK;
-}
-
-
-NS_IMETHODIMP
-nsSVGElement::DidModifySVGObservable(nsISVGValue* aObservable,
-                                     nsISVGValue::modificationType aModType)
-{
-  ObservableModificationData data =
-    GetModificationDataForObservable(aObservable, aModType);
-  const nsAttrName* attrName = data.name;
-  if (!attrName) {
-    return data.modType ? NS_ERROR_UNEXPECTED : NS_OK;
-  }
-
+  PRBool modification = PR_FALSE;
   PRBool hasListeners =
     nsContentUtils::HasMutationListeners(this,
                                          NS_EVENT_BITS_MUTATION_ATTRMODIFIED,
                                          this);
 
+  if (hasListeners || IsInDoc()) {
+    modification = !!mAttrsAndChildren.GetAttr(attrName->LocalName(),
+                                               attrName->NamespaceID());
+  }
 
   nsAttrValue newValue(aObservable);
+
   return SetAttrAndNotify(attrName->NamespaceID(), attrName->LocalName(),
                           attrName->GetPrefix(), EmptyString(), newValue,
-                          data.modType, hasListeners, PR_TRUE, nsnull);
+                          modification, hasListeners, PR_TRUE, nsnull);
 }
 
 //----------------------------------------------------------------------
@@ -1034,47 +1003,30 @@ void
 nsSVGElement::UpdateContentStyleRule()
 {
   NS_ASSERTION(!mContentStyleRule, "we already have a content style rule");
-
-  PRUint32 attrCount = mAttrsAndChildren.AttrCount();
-  if (!attrCount) {
-    // nothing to do
-    return;
-  }
-
+  
   nsIDocument* doc = GetOwnerDoc();
   if (!doc) {
     NS_ERROR("SVG element without owner document");
     return;
   }
-
-  // Try to fetch the CSS Parser from the document.
-  nsCSSParser parser(doc->CSSLoader());
-  if (!parser) {
-    NS_WARNING("failed to get a css parser");
-    return;
-  }
-
-  // SVG and CSS differ slightly in their interpretation of some of
-  // the attributes.  SVG allows attributes of the form: font-size="5"
-  // (style="font-size: 5" if using a style attribute)
-  // where CSS requires units: font-size="5pt" (style="font-size: 5pt")
-  // Set a flag to pass information to the parser so that we can use
-  // the CSS parser to parse the font-size attribute.  Note that this
-  // does *not* affect the use of CSS stylesheets, which will still
-  // require units.
-  parser.SetSVGMode(PR_TRUE);
-
+  
   nsCOMPtr<nsIURI> baseURI = GetBaseURI();
   nsIURI *docURI = doc->GetDocumentURI();
-  nsCSSDeclaration* declaration = nsnull;
+  nsICSSLoader* cssLoader = doc->CSSLoader();
 
+  nsCSSDeclaration* declaration = nsnull;
+  nsCOMPtr<nsICSSParser> parser;
+
+  nsresult rv = NS_OK; 
+
+  PRUint32 attrCount = mAttrsAndChildren.AttrCount();
   for (PRUint32 i = 0; i < attrCount; ++i) {
     const nsAttrName* attrName = mAttrsAndChildren.AttrNameAt(i);
     if (!attrName->IsAtom() || !IsAttributeMapped(attrName->Atom()))
       continue;
 
-    // Create the nsCSSDeclaration if we haven't already.
     if (!declaration) {
+      // Create the nsCSSDeclaration.
       declaration = new nsCSSDeclaration();
       if (!declaration) {
         NS_WARNING("Failed to allocate nsCSSDeclaration");
@@ -1085,24 +1037,48 @@ nsSVGElement::UpdateContentStyleRule()
         declaration->RuleAbort();  // deletes declaration
         return;
       }
+
+      // Try to fetch the CSS Parser from the document.
+      rv = cssLoader->GetParserFor(nsnull, getter_AddRefs(parser));
+      if (NS_FAILED(rv)) {
+        NS_WARNING("failed to get a css parser");
+        declaration->RuleAbort();  // deletes declaration
+        return;
+      }
+
+      // SVG and CSS differ slightly in their interpretation of some of
+      // the attributes.  SVG allows attributes of the form: font-size="5" 
+      // (style="font-size: 5" if using a style attribute)
+      // where CSS requires units: font-size="5pt" (style="font-size: 5pt")
+      // Set a flag to pass information to the parser so that we can use
+      // the CSS parser to parse the font-size attribute.  Note that this
+      // does *not* affect the use of CSS stylesheets, which will still
+      // require units.
+      parser->SetSVGMode(PR_TRUE);
     }
+
+    nsAutoString name;
+    attrName->Atom()->ToString(name);
 
     nsAutoString value;
     mAttrsAndChildren.AttrAt(i)->ToString(value);
 
     PRBool changed;
-    parser.ParseProperty(
-      nsCSSProps::LookupProperty(nsAtomString(attrName->Atom())), value,
-      docURI, baseURI, NodePrincipal(), declaration, &changed);
+    parser->ParseProperty(nsCSSProps::LookupProperty(name), value,
+                          docURI, baseURI, NodePrincipal(),
+                          declaration, &changed);
   }
 
   if (declaration) {
-    nsresult rv = NS_NewCSSStyleRule(getter_AddRefs(mContentStyleRule),
-                                     nsnull, declaration);
+    rv = NS_NewCSSStyleRule(getter_AddRefs(mContentStyleRule), nsnull, declaration);
     if (NS_FAILED(rv)) {
       NS_WARNING("could not create contentstylerule");
       declaration->RuleAbort();  // deletes declaration
     }
+
+    // Recycle the parser
+    parser->SetSVGMode(PR_FALSE);
+    cssLoader->RecycleParser(parser);
   }
 }
 
@@ -1227,6 +1203,10 @@ nsSVGElement::DidAnimateLength(PRUint8 aAttrEnum)
 void
 nsSVGElement::GetAnimatedLengthValues(float *aFirst, ...)
 {
+#ifdef MOZ_SMIL
+  FlushAnimations();
+#endif
+
   LengthAttributesInfo info = GetLengthInfo();
 
   NS_ASSERTION(info.mLengthCount > 0,
@@ -1318,7 +1298,7 @@ nsSVGElement::GetAnimatedNumberValues(float *aFirst, ...)
   va_start(args, aFirst);
 
   while (f && i < info.mNumberCount) {
-    *f = info.mNumbers[i++].GetAnimValue();
+    *f = info.mNumbers[i++].GetAnimValue(this);
     f = va_arg(args, float*);
   }
   va_end(args);
@@ -1384,7 +1364,7 @@ nsSVGElement::GetAnimatedIntegerValues(PRInt32 *aFirst, ...)
   va_start(args, aFirst);
 
   while (n && i < info.mIntegerCount) {
-    *n = info.mIntegers[i++].GetAnimValue();
+    *n = info.mIntegers[i++].GetAnimValue(this);
     n = va_arg(args, PRInt32*);
   }
   va_end(args);
@@ -1596,18 +1576,6 @@ nsSVGElement::DidAnimatePreserveAspectRatio()
   }
 }
 
-void
-nsSVGElement::DidAnimateTransform()
-{
-  nsIFrame* frame = GetPrimaryFrame();
-  
-  if (frame) {
-    frame->AttributeChanged(kNameSpaceID_None,
-                            nsGkAtoms::transform,
-                            nsIDOMMutationEvent::MODIFICATION);
-  }
-}
-
 nsSVGElement::StringAttributesInfo
 nsSVGElement::GetStringInfo()
 {
@@ -1733,9 +1701,10 @@ nsSVGElement::ReportAttributeParseFailure(nsIDocument* aDocument,
                                           nsIAtom* aAttribute,
                                           const nsAString& aValue)
 {
+  nsAutoString attributeName;
+  aAttribute->ToString(attributeName);
   const nsAFlatString& attributeValue = PromiseFlatString(aValue);
-  const PRUnichar *strings[] = { aAttribute->GetUTF16String(),
-                                 attributeValue.get() };
+  const PRUnichar *strings[] = { attributeName.get(), attributeValue.get() };
   return nsSVGUtils::ReportToConsole(aDocument,
                                      "AttributeParseWarning",
                                      strings, NS_ARRAY_LENGTH(strings));
@@ -1869,8 +1838,11 @@ void
 nsSVGElement::AnimationNeedsResample()
 {
   nsIDocument* doc = GetCurrentDoc();
-  if (doc && doc->HasAnimationController()) {
-    doc->GetAnimationController()->SetResampleNeeded();
+  if (doc) {
+    nsSMILAnimationController* smilController = doc->GetAnimationController();
+    if (smilController) {
+      smilController->SetResampleNeeded();
+    }
   }
 }
 
@@ -1878,8 +1850,11 @@ void
 nsSVGElement::FlushAnimations()
 {
   nsIDocument* doc = GetCurrentDoc();
-  if (doc && doc->HasAnimationController()) {
-    doc->GetAnimationController()->FlushResampleRequests();
+  if (doc) {
+    nsSMILAnimationController* smilController = doc->GetAnimationController();
+    if (smilController) {
+      smilController->FlushResampleRequests();
+    }
   }
 }
 #endif // MOZ_SMIL

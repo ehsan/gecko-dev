@@ -432,8 +432,7 @@ nsDNSService::AsyncResolve(const nsACString  &hostname,
         res = mResolver;
         idn = mIDN;
     }
-    if (!res)
-        return NS_ERROR_OFFLINE;
+    NS_ENSURE_TRUE(res, NS_ERROR_OFFLINE);
 
     const nsACString *hostPtr = &hostname;
 

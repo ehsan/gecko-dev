@@ -66,7 +66,6 @@
 #include "nsNetUtil.h"
 #include "nsIWebProgress.h"
 #include "nsIDocShell.h"
-#include "nsFormData.h"
 
 // radio buttons
 #include "nsIDOMHTMLInputElement.h"
@@ -621,7 +620,7 @@ nsHTMLFormElement::PostHandleEvent(nsEventChainPostVisitor& aVisitor)
             // ignored) so if there is a stored submission, it will miss
             // the name/value of the submitting element, thus we need
             // to forget it and the form element will build a new one
-            mPendingSubmission = nsnull;
+            ForgetPendingSubmission();
           }
           DoSubmitOrReset(aVisitor.mEvent, msg);
         }
@@ -710,12 +709,12 @@ nsHTMLFormElement::DoSubmit(nsEvent* aEvent)
   mIsSubmitting = PR_TRUE;
   NS_ASSERTION(!mWebProgress && !mSubmittingRequest, "Web progress / submitting request should not exist here!");
 
-  nsAutoPtr<nsFormSubmission> submission;
-
+  nsCOMPtr<nsIFormSubmission> submission;
+   
   //
   // prepare the submission object
   //
-  BuildSubmission(getter_Transfers(submission), aEvent); 
+  BuildSubmission(submission, aEvent); 
 
   // XXXbz if the script global is that for an sXBL/XBL2 doc, it won't
   // be a window...
@@ -746,7 +745,7 @@ nsHTMLFormElement::DoSubmit(nsEvent* aEvent)
 }
 
 nsresult
-nsHTMLFormElement::BuildSubmission(nsFormSubmission** aFormSubmission, 
+nsHTMLFormElement::BuildSubmission(nsCOMPtr<nsIFormSubmission>& aFormSubmission, 
                                    nsEvent* aEvent)
 {
   NS_ASSERTION(!mPendingSubmission, "tried to build two submissions!");
@@ -764,20 +763,20 @@ nsHTMLFormElement::BuildSubmission(nsFormSubmission** aFormSubmission,
   //
   // Get the submission object
   //
-  rv = GetSubmissionFromForm(this, aFormSubmission);
+  rv = GetSubmissionFromForm(this, getter_AddRefs(aFormSubmission));
   NS_ENSURE_SUBMIT_SUCCESS(rv);
 
   //
   // Dump the data into the submission object
   //
-  rv = WalkFormElements(*aFormSubmission, originatingElement);
+  rv = WalkFormElements(aFormSubmission, originatingElement);
   NS_ENSURE_SUBMIT_SUCCESS(rv);
 
   return NS_OK;
 }
 
 nsresult
-nsHTMLFormElement::SubmitSubmission(nsFormSubmission* aFormSubmission)
+nsHTMLFormElement::SubmitSubmission(nsIFormSubmission* aFormSubmission)
 {
   nsresult rv;
   //
@@ -857,18 +856,12 @@ nsHTMLFormElement::SubmitSubmission(nsFormSubmission* aFormSubmission)
 
     nsAutoHandlingUserInputStatePusher userInpStatePusher(mSubmitInitiatedFromUserInput, PR_FALSE);
 
-    nsCOMPtr<nsIInputStream> postDataStream;
-    rv = aFormSubmission->GetEncodedSubmission(actionURI,
-                                               getter_AddRefs(postDataStream));
-    NS_ENSURE_SUBMIT_SUCCESS(rv);
-
-    rv = linkHandler->OnLinkClickSync(this, actionURI,
-                                      target.get(),
-                                      postDataStream, nsnull,
-                                      getter_AddRefs(docShell),
-                                      getter_AddRefs(mSubmittingRequest));
-    NS_ENSURE_SUBMIT_SUCCESS(rv);
+    rv = aFormSubmission->SubmitTo(actionURI, target, this, linkHandler,
+                                   getter_AddRefs(docShell),
+                                   getter_AddRefs(mSubmittingRequest));
   }
+
+  NS_ENSURE_SUBMIT_SUCCESS(rv);
 
   // Even if the submit succeeds, it's possible for there to be no docshell
   // or request; for example, if it's to a named anchor within the same page
@@ -954,7 +947,7 @@ nsHTMLFormElement::NotifySubmitObservers(nsIURI* aActionURL,
 
 
 nsresult
-nsHTMLFormElement::WalkFormElements(nsFormSubmission* aFormSubmission,
+nsHTMLFormElement::WalkFormElements(nsIFormSubmission* aFormSubmission,
                                     nsIContent* aSubmitElement)
 {
   nsTArray<nsGenericHTMLFormElement*> sortedControls;
@@ -1334,13 +1327,26 @@ nsHTMLFormElement::OnSubmitClickEnd()
 void
 nsHTMLFormElement::FlushPendingSubmission()
 {
-  if (mPendingSubmission) {
-    // Transfer owning reference so that the submissioin doesn't get deleted
-    // if we reenter
-    nsAutoPtr<nsFormSubmission> submission = mPendingSubmission;
+  nsCOMPtr<nsIFormSubmission> kunkFuDeathGrip(mPendingSubmission);
 
-    SubmitSubmission(submission);
+  if (!mPendingSubmission) {
+    return;
   }
+
+  //
+  // perform the submission with the stored pending submission
+  //
+  SubmitSubmission(mPendingSubmission);
+
+  // now delete the pending submission object
+  mPendingSubmission = nsnull;
+}
+
+void
+nsHTMLFormElement::ForgetPendingSubmission()
+{
+  // just delete the pending submission
+  mPendingSubmission = nsnull;
 }
 
 nsresult
@@ -1491,19 +1497,6 @@ NS_IMETHODIMP
 nsHTMLFormElement::SetEncoding(const nsAString& aEncoding)
 {
   return SetEnctype(aEncoding);
-}
-
-NS_IMETHODIMP
-nsHTMLFormElement::GetFormData(nsIDOMFormData** aFormData)
-{
-  nsRefPtr<nsFormData> fd = new nsFormData();
-
-  nsresult rv = WalkFormElements(fd, nsnull);
-  NS_ENSURE_SUCCESS(rv, rv);
-
-  *aFormData = fd.forget().get();
-
-  return NS_OK;
 }
  
 NS_IMETHODIMP    

@@ -3221,7 +3221,7 @@ xpc_CreateSandboxObject(JSContext * cx, jsval * vp, nsISupports *prinOrSop)
     if (!tempcx)
         return NS_ERROR_OUT_OF_MEMORY;
 
-    JSAutoRequest req(tempcx);
+    AutoJSRequestWithNoCallContext req(tempcx);
     JSObject *sandbox = JS_NewObject(tempcx, &SandboxClass, nsnull, nsnull);
     if (!sandbox)
         return NS_ERROR_XPC_UNEXPECTED;
@@ -3592,7 +3592,7 @@ xpc_EvalInSandbox(JSContext *cx, JSObject *sandbox, const nsAString& source,
     nsresult rv = NS_OK;
 
     {
-        JSAutoRequest req(sandcx->GetJSContext());
+        AutoJSRequestWithNoCallContext req(sandcx->GetJSContext());
         JSString *str = nsnull;
         if (!JS_EvaluateUCScriptForPrincipals(sandcx->GetJSContext(), sandbox,
                                               jsPrincipals,
@@ -3608,7 +3608,9 @@ xpc_EvalInSandbox(JSContext *cx, JSObject *sandbox, const nsAString& source,
                 // Stash the exception in |cx| so we can execute code on
                 // sandcx without a pending exception.
                 {
-                    JSAutoTransferRequest transfer(sandcx->GetJSContext(), cx);
+                    AutoJSSuspendRequestWithNoCallContext sus(sandcx->GetJSContext());
+                    AutoJSRequestWithNoCallContext cxreq(cx);
+
                     JS_SetPendingException(cx, exn);
                 }
 
@@ -3618,7 +3620,8 @@ xpc_EvalInSandbox(JSContext *cx, JSObject *sandbox, const nsAString& source,
                     // exception into a string.
                     str = JS_ValueToString(sandcx->GetJSContext(), exn);
 
-                    JSAutoTransferRequest transfer(sandcx->GetJSContext(), cx);
+                    AutoJSSuspendRequestWithNoCallContext sus(sandcx->GetJSContext());
+                    AutoJSRequestWithNoCallContext cxreq(cx);
                     if (str) {
                         // We converted the exception to a string. Use that
                         // as the value exception.

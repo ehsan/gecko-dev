@@ -335,7 +335,8 @@ public:
 
   virtual NS_HIDDEN_(void) SetDocShell(nsIDocShell* aDocShell);
   virtual NS_HIDDEN_(nsresult) SetNewDocument(nsIDocument *aDocument,
-                                              nsISupports *aState);
+                                              nsISupports *aState,
+                                              PRBool aClearScopeHint);
   virtual NS_HIDDEN_(void) SetOpenerWindow(nsIDOMWindowInternal *aOpener,
                                            PRBool aOriginalOpener);
   virtual NS_HIDDEN_(void) EnsureSizeUpToDate();
@@ -452,26 +453,20 @@ public:
 
   static PRBool DOMWindowDumpEnabled();
 
-  void MaybeForgiveSpamCount();
-  PRBool IsClosedOrClosing() {
-    return (mIsClosed ||
-            mInClose ||
-            mHavePendingClose ||
-            mCleanedUp);
-  }
-
 protected:
   // Object Management
   virtual ~nsGlobalWindow();
-  void CleanUp(PRBool aIgnoreModalDialog);
+  void CleanUp();
   void ClearControllers();
   nsresult FinalClose();
 
   void FreeInnerObjects(PRBool aClearScope);
   nsGlobalWindow *CallerInnerWindow();
 
-  nsresult InnerSetNewDocument(nsIDocument* aDocument);
-
+  nsresult SetNewDocument(nsIDocument *aDocument,
+                          nsISupports *aState,
+                          PRBool aClearScopeHint,
+                          PRBool aIsInternalCall);
   nsresult DefineArgumentsProperty(nsIArray *aArguments);
 
   // Get the parent, returns null if this is a toplevel window
@@ -793,8 +788,6 @@ protected:
   nsCOMPtr<nsIURI> mLastOpenedURI;
 #endif
 
-  PRBool mCleanedUp, mCallCleanUpAfterModalDialogCloses;
-
   nsCOMPtr<nsIDOMOfflineResourceList> mApplicationCache;
 
   nsDataHashtable<nsVoidPtrHashKey, void*> mCachedXBLPrototypeHandlers;
@@ -855,7 +848,8 @@ public:
   NS_DECL_CYCLE_COLLECTION_CLASS_INHERITED(nsGlobalModalWindow, nsGlobalWindow)
 
   virtual NS_HIDDEN_(nsresult) SetNewDocument(nsIDocument *aDocument,
-                                              nsISupports *aState);
+                                              nsISupports *aState,
+                                              PRBool aClearScopeHint);
 
 protected:
   nsCOMPtr<nsIVariant> mReturnValue;

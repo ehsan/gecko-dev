@@ -266,7 +266,6 @@ Submitter.prototype = {
   onStateChange: function(aWebProgress, aRequest, aFlag, aStatus)
   {
     if(aFlag & STATE_STOP) {
-      this.iframe.docShell.QueryInterface(Ci.nsIWebProgress);
       this.iframe.docShell.removeProgressListener(this);
 
       // check general request status first
@@ -312,8 +311,6 @@ Submitter.prototype = {
     this.extra = extra;
     let iframe = this.document.createElementNS("http://www.mozilla.org/keymaster/gatekeeper/there.is.only.xul", "iframe");
     iframe.setAttribute("type", "content");
-    iframe.style.width = 0;
-    iframe.style.minWidth = 0;
 
     let self = this;
     function loadHandler() {
