@@ -1,4 +1,4 @@
-/* -*- Mode: c++; tab-width: 40; indent-tabs-mode: nil; c-basic-offset: 4; -*- */
+/* -*- Mode: C++; tab-width: 20; indent-tabs-mode: nil; c-basic-offset: 4 -*- */
 /* ***** BEGIN LICENSE BLOCK *****
  * Version: MPL 1.1/GPL 2.0/LGPL 2.1
  *
@@ -15,12 +15,12 @@
  * The Original Code is mozilla.org code.
  *
  * The Initial Developer of the Original Code is
- *   Mozilla Foundation
- * Portions created by the Initial Developer are Copyright (C) 2009-2010
+ *   Mozilla Foundation.
+ * Portions created by the Initial Developer are Copyright (C) 2009
  * the Initial Developer. All Rights Reserved.
  *
  * Contributor(s):
- *   Vladimir Vukicevic <vladimir@pobox.com>
+ *   Doug Sherk <dsherk@mozilla.com> (original author)
  *
  * Alternatively, the contents of this file may be used under the terms of
  * either the GNU General Public License Version 2 or later (the "GPL"), or
@@ -36,22 +36,41 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
-#ifndef nsToolkit_h__
-#define nsToolkit_h__
+#include <stdarg.h>
 
-#include <nsIToolkit.h>
+#include "WebGLContext.h"
+#include "WebGLExtensions.h"
 
-class nsToolkit :
-    public nsIToolkit
+#include "nsContentUtils.h"
+#include "mozilla/Preferences.h"
+
+using namespace mozilla;
+
+WebGLExtensionLoseContext::WebGLExtensionLoseContext(WebGLContext* context) :
+    WebGLExtension(context)
 {
-public:
-    NS_DECL_ISUPPORTS
 
-    // nsIToolkit
-    NS_IMETHOD Init(PRThread *aThread);
+}
 
-    nsToolkit();
-    virtual ~nsToolkit();
-};
+WebGLExtensionLoseContext::~WebGLExtensionLoseContext()
+{
 
-#endif /* nsToolkit_h__ */
+}
+
+NS_IMETHODIMP 
+WebGLExtensionLoseContext::LoseContext()
+{
+    if (!mContext->LoseContext())
+        return mContext->mWebGLError = LOCAL_GL_INVALID_OPERATION;
+
+    return NS_OK;
+}
+
+NS_IMETHODIMP 
+WebGLExtensionLoseContext::RestoreContext()
+{
+    if (!mContext->RestoreContext())
+        return mContext->mWebGLError = LOCAL_GL_INVALID_OPERATION;
+
+    return NS_OK;
+}
