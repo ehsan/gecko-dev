@@ -50,19 +50,17 @@ NS_IMETHODIMP
 PluginWidgetProxy::Create(nsIWidget*        aParent,
                           nsNativeWidget    aNativeParent,
                           const nsIntRect&  aRect,
+                          nsDeviceContext*  aContext,
                           nsWidgetInitData* aInitData)
 {
   ENSURE_CHANNEL;
   PWLOG("PluginWidgetProxy::Create()\n");
 
-  nsresult rv = NS_ERROR_UNEXPECTED;
-  mActor->SendCreate(&rv);
-  if (NS_FAILED(rv)) {
+  if (!mActor->SendCreate()) {
     NS_WARNING("failed to create chrome widget, plugins won't paint.");
-    return rv;
   }
 
-  BaseCreate(aParent, aRect, aInitData);
+  BaseCreate(aParent, aRect, aContext, aInitData);
 
   mBounds = aRect;
   mEnabled = true;

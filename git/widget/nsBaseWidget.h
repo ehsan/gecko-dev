@@ -136,6 +136,7 @@ public:
   virtual void            SetWindowAnimationType(WindowAnimationType aType) MOZ_OVERRIDE {}
   NS_IMETHOD              HideWindowChrome(bool aShouldHide) MOZ_OVERRIDE;
   NS_IMETHOD              MakeFullScreen(bool aFullScreen, nsIScreen* aScreen = nullptr) MOZ_OVERRIDE;
+  virtual nsDeviceContext* GetDeviceContext() MOZ_OVERRIDE;
   virtual LayerManager*   GetLayerManager(PLayerTransactionChild* aShadowManager = nullptr,
                                           LayersBackend aBackendHint = mozilla::layers::LayersBackend::LAYERS_NONE,
                                           LayerManagerPersistence aPersistence = LAYER_MANAGER_CURRENT,
@@ -212,9 +213,10 @@ public:
                                                          double& aOverriddenDeltaY) MOZ_OVERRIDE;
   virtual already_AddRefed<nsIWidget>
   CreateChild(const nsIntRect  &aRect,
+              nsDeviceContext *aContext,
               nsWidgetInitData *aInitData = nullptr,
               bool             aForceUseIWidgetParent = false) MOZ_OVERRIDE;
-  NS_IMETHOD              AttachViewToTopLevel(bool aUseAttachedEvents) MOZ_OVERRIDE;
+  NS_IMETHOD              AttachViewToTopLevel(bool aUseAttachedEvents, nsDeviceContext *aContext) MOZ_OVERRIDE;
   virtual nsIWidgetListener* GetAttachedWidgetListener() MOZ_OVERRIDE;
   virtual void               SetAttachedWidgetListener(nsIWidgetListener* aListener) MOZ_OVERRIDE;
   NS_IMETHOD              RegisterTouchWindow() MOZ_OVERRIDE;
@@ -308,10 +310,11 @@ protected:
   void            ResolveIconName(const nsAString &aIconName,
                                   const nsAString &aIconSuffix,
                                   nsIFile **aResult);
-  virtual void    OnDestroy();
-  void            BaseCreate(nsIWidget *aParent,
-                             const nsIntRect &aRect,
-                             nsWidgetInitData *aInitData);
+  virtual void            OnDestroy();
+  virtual void            BaseCreate(nsIWidget *aParent,
+                                     const nsIntRect &aRect,
+                                     nsDeviceContext *aContext,
+                                     nsWidgetInitData *aInitData);
 
   virtual void ConfigureAPZCTreeManager();
   virtual already_AddRefed<GeckoContentController> CreateRootContentController();
@@ -430,6 +433,7 @@ protected:
 
   nsIWidgetListener* mWidgetListener;
   nsIWidgetListener* mAttachedWidgetListener;
+  nsDeviceContext* mContext;
   nsRefPtr<LayerManager> mLayerManager;
   nsRefPtr<LayerManager> mBasicLayerManager;
   nsRefPtr<CompositorChild> mCompositorChild;
@@ -448,6 +452,7 @@ protected:
   // such windows.
   bool              mRequireOffMainThreadCompositing;
   bool              mUseAttachedEvents;
+  bool              mContextInitialized;
   nsIntRect         mBounds;
   nsIntRect*        mOriginalBounds;
   // When this pointer is null, the widget is not clipped

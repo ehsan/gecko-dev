@@ -50,8 +50,8 @@ namespace mozilla {
 namespace dom {
 
 JSErrorFormatString ErrorFormatString[] = {
-#define MSG_DEF(_name, _argc, _exn, _str) \
-  { _str, _argc, _exn },
+#define MSG_DEF(_name, _argc, _str) \
+  { _str, _argc, JSEXN_TYPEERR },
 #include "mozilla/dom/Errors.msg"
 #undef MSG_DEF
 };
@@ -123,20 +123,22 @@ struct ErrorResult::Message {
 };
 
 void
-ErrorResult::ThrowErrorWithMessage(va_list ap, const dom::ErrNum errorNumber,
-                                   nsresult errorType)
+ErrorResult::ThrowTypeError(const dom::ErrNum errorNumber, ...)
 {
+  va_list ap;
+  va_start(ap, errorNumber);
   if (IsJSException()) {
     // We have rooted our mJSException, and we don't have the info
     // needed to unroot here, so just bail.
+    va_end(ap);
     MOZ_ASSERT(false,
-               "Ignoring ThrowErrorWithMessage call because we have a JS exception");
+               "Ignoring ThrowTypeError call because we have a JS exception");
     return;
   }
-  if (IsErrorWithMessage()) {
+  if (IsTypeError()) {
     delete mMessage;
   }
-  mResult = errorType;
+  mResult = NS_ERROR_TYPE_ERR;
   Message* message = new Message();
   message->mErrorNumber = errorNumber;
   uint16_t argCount = dom::GetErrorMessage(nullptr, errorNumber)->argCount;
@@ -146,30 +148,13 @@ ErrorResult::ThrowErrorWithMessage(va_list ap, const dom::ErrNum errorNumber,
     message->mArgs.AppendElement(*va_arg(ap, nsString*));
   }
   mMessage = message;
-}
-
-void
-ErrorResult::ThrowTypeError(const dom::ErrNum errorNumber, ...)
-{
-  va_list ap;
-  va_start(ap, errorNumber);
-  ThrowErrorWithMessage(ap, errorNumber, NS_ERROR_TYPE_ERR);
   va_end(ap);
 }
 
 void
-ErrorResult::ThrowRangeError(const dom::ErrNum errorNumber, ...)
+ErrorResult::ReportTypeError(JSContext* aCx)
 {
-  va_list ap;
-  va_start(ap, errorNumber);
-  ThrowErrorWithMessage(ap, errorNumber, NS_ERROR_RANGE_ERR);
-  va_end(ap);
-}
-
-void
-ErrorResult::ReportErrorWithMessage(JSContext* aCx)
-{
-  MOZ_ASSERT(mMessage, "ReportErrorWithMessage() can be called only once");
+  MOZ_ASSERT(mMessage, "ReportTypeError() can be called only once");
 
   Message* message = mMessage;
   const uint32_t argCount = message->mArgs.Length();
@@ -189,7 +174,7 @@ ErrorResult::ReportErrorWithMessage(JSContext* aCx)
 void
 ErrorResult::ClearMessage()
 {
-  if (IsErrorWithMessage()) {
+  if (IsTypeError()) {
     delete mMessage;
     mMessage = nullptr;
   }
@@ -201,7 +186,7 @@ ErrorResult::ThrowJSException(JSContext* cx, JS::Handle<JS::Value> exn)
   MOZ_ASSERT(mMightHaveUnreportedJSException,
              "Why didn't you tell us you planned to throw a JS exception?");
 
-  if (IsErrorWithMessage()) {
+  if (IsTypeError()) {
     delete mMessage;
   }
 

@@ -205,6 +205,7 @@ NS_IMETHODIMP
 MetroWidget::Create(nsIWidget *aParent,
                     nsNativeWidget aNativeParent,
                     const nsIntRect &aRect,
+                    nsDeviceContext *aContext,
                     nsWidgetInitData *aInitData)
 {
   LogFunction();
@@ -218,7 +219,7 @@ MetroWidget::Create(nsIWidget *aParent,
   // Ensure that the toolkit is created.
   nsToolkit::GetToolkit();
 
-  BaseCreate(aParent, aRect, aInitData);
+  BaseCreate(aParent, aRect, aContext, aInitData);
 
   if (mWindowType != eWindowType_toplevel) {
     switch(mWindowType) {

@@ -471,7 +471,7 @@ SVGSVGElement::SetZoomAndPan(uint16_t aZoomAndPan, ErrorResult& rv)
     return;
   }
 
-  rv.ThrowRangeError(MSG_INVALID_ZOOMANDPAN_VALUE_ERROR, &aZoomAndPan);
+  rv.Throw(NS_ERROR_RANGE_ERR);
 }
 
 //----------------------------------------------------------------------

@@ -227,13 +227,7 @@
     _(not)                           \
     _(neg)                           \
     _(load)                          \
-    _(loadX)                         \
-    _(loadXY)                        \
-    _(loadXYZ)                       \
-    _(store)                         \
-    _(storeX)                        \
-    _(storeXY)                       \
-    _(storeXYZ)
+    _(store)
 #define FORALL_SIMD_OP(_)            \
     FOREACH_INT32X4_SIMD_OP(_)       \
     FOREACH_FLOAT32X4_SIMD_OP(_)     \

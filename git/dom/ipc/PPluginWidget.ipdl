@@ -33,8 +33,7 @@ parent:
   async __delete__();
 
 parent:
-  sync Create() returns (nsresult aResult);
-
+  async Create();
   async Destroy();
   async SetFocus(bool aRaise);
 

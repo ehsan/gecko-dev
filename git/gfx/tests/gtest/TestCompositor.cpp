@@ -45,7 +45,7 @@ public:
       caps.preserve = false;
       caps.bpp16 = false;
       nsRefPtr<GLContext> context = GLContextProvider::CreateOffscreen(
-        gfxIntSize(gCompWidth, gCompHeight), caps);
+        gfxIntSize(gCompWidth, gCompHeight), caps, true);
       return context.forget().take();
     }
     return nullptr;
@@ -54,6 +54,7 @@ public:
   NS_IMETHOD              Create(nsIWidget *aParent,
                                  nsNativeWidget aNativeParent,
                                  const nsIntRect &aRect,
+                                 nsDeviceContext *aContext,
                                  nsWidgetInitData *aInitData = nullptr) MOZ_OVERRIDE { return NS_OK; }
   NS_IMETHOD              Show(bool aState) MOZ_OVERRIDE { return NS_OK; }
   virtual bool            IsVisible() const MOZ_OVERRIDE { return true; }

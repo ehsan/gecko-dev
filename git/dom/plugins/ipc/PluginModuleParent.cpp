@@ -394,12 +394,12 @@ PluginModuleChromeParent::LoadModule(const char* aFilePath, uint32_t aPluginId,
 {
     PLUGIN_LOG_DEBUG_FUNCTION;
 
-    int32_t sandboxLevel = 0;
+    bool enableSandbox = false;
 #if defined(XP_WIN) && defined(MOZ_SANDBOX)
-    nsAutoCString sandboxPref("dom.ipc.plugins.sandbox-level.");
+    nsAutoCString sandboxPref("dom.ipc.plugins.sandbox.");
     sandboxPref.Append(aPluginTag->GetNiceFileName());
-    if (NS_FAILED(Preferences::GetInt(sandboxPref.get(), &sandboxLevel))) {
-      sandboxLevel = Preferences::GetInt("dom.ipc.plugins.sandbox-level.default");
+    if (NS_FAILED(Preferences::GetBool(sandboxPref.get(), &enableSandbox))) {
+      enableSandbox = Preferences::GetBool("dom.ipc.plugins.sandbox.default");
     }
 #endif
 
@@ -408,7 +408,7 @@ PluginModuleChromeParent::LoadModule(const char* aFilePath, uint32_t aPluginId,
     parent->mSubprocess->SetCallRunnableImmediately(!parent->mIsStartingAsync);
     TimeStamp launchStart = TimeStamp::Now();
     bool launched = parent->mSubprocess->Launch(Move(onLaunchedRunnable),
-                                                sandboxLevel);
+                                                enableSandbox);
     if (!launched) {
         // We never reached open
         parent->mShutdown = true;

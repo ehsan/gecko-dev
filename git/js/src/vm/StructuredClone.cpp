@@ -335,7 +335,6 @@ struct JSStructuredCloneWriter {
     RootedValue transferable;
     AutoObjectVector transferableObjects;
 
-    friend bool JS_WriteString(JSStructuredCloneWriter *w, HandleString str);
     friend bool JS_WriteTypedArray(JSStructuredCloneWriter *w, HandleValue v);
 };
 
@@ -2129,12 +2128,6 @@ JS_PUBLIC_API(bool)
 JS_WriteBytes(JSStructuredCloneWriter *w, const void *p, size_t len)
 {
     return w->output().writeBytes(p, len);
-}
-
-JS_PUBLIC_API(bool)
-JS_WriteString(JSStructuredCloneWriter *w, HandleString str)
-{
-    return w->writeString(SCTAG_STRING, str);
 }
 
 JS_PUBLIC_API(bool)

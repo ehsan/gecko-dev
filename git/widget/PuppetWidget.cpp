@@ -96,11 +96,12 @@ NS_IMETHODIMP
 PuppetWidget::Create(nsIWidget        *aParent,
                      nsNativeWidget   aNativeParent,
                      const nsIntRect  &aRect,
+                     nsDeviceContext *aContext,
                      nsWidgetInitData *aInitData)
 {
   MOZ_ASSERT(!aNativeParent, "got a non-Puppet native parent");
 
-  BaseCreate(nullptr, aRect, aInitData);
+  BaseCreate(nullptr, aRect, aContext, aInitData);
 
   mBounds = aRect;
   mEnabled = true;
@@ -138,6 +139,7 @@ PuppetWidget::InitIMEState()
 
 already_AddRefed<nsIWidget>
 PuppetWidget::CreateChild(const nsIntRect  &aRect,
+                          nsDeviceContext *aContext,
                           nsWidgetInitData *aInitData,
                           bool             aForceUseIWidgetParent)
 {
@@ -145,7 +147,7 @@ PuppetWidget::CreateChild(const nsIntRect  &aRect,
   nsCOMPtr<nsIWidget> widget = nsIWidget::CreatePuppetWidget(mTabChild);
   return ((widget &&
            NS_SUCCEEDED(widget->Create(isPopup ? nullptr: this, nullptr, aRect,
-                                       aInitData))) ?
+                                       aContext, aInitData))) ?
           widget.forget() : nullptr);
 }
 
