@@ -234,7 +234,6 @@ static NS_DEFINE_CID(kAppShellCID, NS_APPSHELL_CID);
 #include "nsXULAppAPI.h"
 
 #include "nsDOMNavigationTiming.h"
-#include "nsITimedChannel.h"
 
 using namespace mozilla;
 
@@ -678,9 +677,7 @@ ConvertLoadTypeToNavigationType(PRUint32 aLoadType)
     case LOAD_NORMAL_BYPASS_CACHE:
     case LOAD_NORMAL_BYPASS_PROXY:
     case LOAD_NORMAL_BYPASS_PROXY_AND_CACHE:
-    case LOAD_NORMAL_REPLACE:
     case LOAD_LINK:
-    case LOAD_STOP_CONTENT:
         result = nsIDOMPerformanceNavigation::TYPE_NAVIGATE;
         break;
     case LOAD_HISTORY:
@@ -693,6 +690,8 @@ ConvertLoadTypeToNavigationType(PRUint32 aLoadType)
     case LOAD_RELOAD_BYPASS_PROXY_AND_CACHE:
         result = nsIDOMPerformanceNavigation::TYPE_RELOAD;
         break;
+    case LOAD_NORMAL_REPLACE:
+    case LOAD_STOP_CONTENT:
     case LOAD_STOP_CONTENT_AND_REPLACE:
     case LOAD_REFRESH:
     case LOAD_BYPASS_HISTORY:
@@ -9076,13 +9075,6 @@ nsDocShell::DoURILoad(nsIURI * aURI,
             props->SetPropertyAsBool(
                 NS_LITERAL_STRING("docshell.newWindowTarget"),
                 PR_TRUE);
-        }
-    }
-
-    if (Preferences::GetBool("dom.enable_performance", PR_FALSE)) {
-        nsCOMPtr<nsITimedChannel> timedChannel(do_QueryInterface(channel));
-        if (timedChannel) {
-            timedChannel->SetTimingEnabled(PR_TRUE);
         }
     }
 
