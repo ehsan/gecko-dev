@@ -6097,7 +6097,7 @@ nsDocument::AdoptNode(nsIDOMNode *aAdoptedNode, nsIDOMNode **aResult)
     }
   }
 
-  nsCOMPtr<nsIDocument> oldDocument = adoptedNode->OwnerDoc();
+  nsIDocument *oldDocument = adoptedNode->OwnerDoc();
   bool sameDocument = oldDocument == this;
 
   JSContext *cx = nsnull;
