@@ -444,7 +444,6 @@ gfxWindowsPlatform::UpdateRenderMode()
     } else {
       canvasMask |= BackendTypeBit(BackendType::SKIA);
     }
-    contentMask |= BackendTypeBit(BackendType::SKIA);
     InitBackendPrefs(canvasMask, defaultBackend,
                      contentMask, defaultBackend);
 }

@@ -40,13 +40,6 @@ public:
   NS_DECL_CYCLE_COLLECTION_CLASS_INHERITED(nsDOMCameraControl, DOMMediaStream)
   NS_DECL_ISUPPORTS_INHERITED
 
-  // Because this header's filename doesn't match its C++ or DOM-facing
-  // classname, we can't rely on the [Func="..."] WebIDL tag to implicitly
-  // include the right header for us; instead we must explicitly include a
-  // HasSupport() method in each header. We can get rid of these with the
-  // Great Renaming proposed in bug 983177.
-  static bool HasSupport(JSContext* aCx, JSObject* aGlobal);
-
   nsDOMCameraControl(uint32_t aCameraId,
                      const dom::CameraConfiguration& aInitialConfig,
                      dom::GetCameraCallback* aOnSuccess,
@@ -90,18 +83,14 @@ public:
   void SetIsoMode(const nsAString& aMode, ErrorResult& aRv);
 
   // Unsolicited event handlers.
-  dom::CameraShutterCallback* GetOnShutter();
+  already_AddRefed<dom::CameraShutterCallback> GetOnShutter();
   void SetOnShutter(dom::CameraShutterCallback* aCb);
-  dom::CameraClosedCallback* GetOnClosed();
+  already_AddRefed<dom::CameraClosedCallback> GetOnClosed();
   void SetOnClosed(dom::CameraClosedCallback* aCb);
-  dom::CameraRecorderStateChange* GetOnRecorderStateChange();
+  already_AddRefed<dom::CameraRecorderStateChange> GetOnRecorderStateChange();
   void SetOnRecorderStateChange(dom::CameraRecorderStateChange* aCb);
-  dom::CameraPreviewStateChange* GetOnPreviewStateChange();
+  already_AddRefed<dom::CameraPreviewStateChange> GetOnPreviewStateChange();
   void SetOnPreviewStateChange(dom::CameraPreviewStateChange* aCb);
-  dom::CameraAutoFocusMovingCallback* GetOnAutoFocusMoving();
-  void SetOnAutoFocusMoving(dom::CameraAutoFocusMovingCallback* aCb);
-  dom::CameraFaceDetectionCallback* GetOnFacesDetected();
-  void SetOnFacesDetected(dom::CameraFaceDetectionCallback* aCb);
 
   // Methods.
   void SetConfiguration(const dom::CameraConfiguration& aConfiguration,
@@ -111,8 +100,6 @@ public:
   void AutoFocus(dom::CameraAutoFocusCallback& aOnSuccess,
                  const dom::Optional<dom::OwningNonNull<dom::CameraErrorCallback> >& aOnError,
                  ErrorResult& aRv);
-  void StartFaceDetection(ErrorResult& aRv);
-  void StopFaceDetection(ErrorResult& aRv);
   void TakePicture(const dom::CameraPictureOptions& aOptions,
                    dom::CameraTakePictureCallback& aOnSuccess,
                    const dom::Optional<dom::OwningNonNull<dom::CameraErrorCallback> >& aOnError,
@@ -157,9 +144,7 @@ protected:
   void OnCreatedFileDescriptor(bool aSucceeded);
 
   void OnAutoFocusComplete(bool aAutoFocusSucceeded);
-  void OnAutoFocusMoving(bool aIsMoving);
   void OnTakePictureComplete(nsIDOMBlob* aPicture);
-  void OnFacesDetected(const nsTArray<ICameraControl::Face>& aFaces);
 
   void OnHardwareStateChange(DOMCameraControlListener::HardwareState aState);
   void OnPreviewStateChange(DOMCameraControlListener::PreviewState aState);
@@ -202,8 +187,6 @@ protected:
   nsRefPtr<dom::CameraClosedCallback>           mOnClosedCb;
   nsRefPtr<dom::CameraRecorderStateChange>      mOnRecorderStateChangeCb;
   nsRefPtr<dom::CameraPreviewStateChange>       mOnPreviewStateChangeCb;
-  nsRefPtr<dom::CameraAutoFocusMovingCallback>  mOnAutoFocusMovingCb;
-  nsRefPtr<dom::CameraFaceDetectionCallback>    mOnFacesDetectedCb;
 
   // Camera event listener; we only need this weak reference so that
   //  we can remove the listener from the camera when we're done

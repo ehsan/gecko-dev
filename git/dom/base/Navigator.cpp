@@ -1879,7 +1879,7 @@ Navigator::DoNewResolve(JSContext* aCx, JS::Handle<JSObject*> aObject,
         // ahead and WrapObject() them.  We can't use WrapNewBindingObject,
         // because we don't have the concrete type.
         JS::Rooted<JS::Value> wrapped(aCx);
-        if (!dom::WrapObject(aCx, existingObject, &wrapped)) {
+        if (!dom::WrapObject(aCx, naviObj, existingObject, &wrapped)) {
           return false;
         }
         domObject = &wrapped.toObject();
@@ -1942,7 +1942,7 @@ Navigator::DoNewResolve(JSContext* aCx, JS::Handle<JSObject*> aObject,
     // of naviObj, especially since we plan to cache that object.
     JSAutoCompartment ac(aCx, naviObj);
 
-    rv = nsContentUtils::WrapNative(aCx, native, &prop_val);
+    rv = nsContentUtils::WrapNative(aCx, naviObj, native, &prop_val);
 
     if (NS_FAILED(rv)) {
       return Throw(aCx, rv);

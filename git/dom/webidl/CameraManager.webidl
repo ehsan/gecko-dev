@@ -29,7 +29,6 @@ callback CameraErrorCallback = void (DOMString error);
 callback GetCameraCallback = void (CameraControl camera,
                                    CameraConfiguration configuration);
 
-[Func="nsDOMCameraManager::HasSupport"]
 interface CameraManager
 {
   /* get a camera instance; 'camera' is one of the camera

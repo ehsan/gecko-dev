@@ -1904,11 +1904,6 @@ pref("layout.scrollbar.side", 0);
 // pref to stop overlay scrollbars from fading out, for testing purposes
 pref("layout.testing.overlay-scrollbars.always-visible", false);
 
-// Enable/disable interruptible reflow, which allows reflows to stop
-// before completion (and display the partial results) when user events
-// are pending.
-pref("layout.interruptible-reflow.enabled", true);
-
 // pref to control browser frame rate, in Hz. A value <= 0 means choose
 // automatically based on knowledge of the platform (or 60Hz if no platform-
 // specific information is available).
@@ -4430,7 +4425,3 @@ pref("image.mozsamplesize.enabled", false);
 #ifndef MOZ_WIDGET_GONK
 pref("beacon.enabled", true);
 #endif
-
-// Camera prefs
-pref("camera.control.autofocus_moving_callback.enabled", false);
-pref("camera.control.face_detection.enabled", false);

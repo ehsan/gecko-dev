@@ -77,15 +77,13 @@ SimulatorScreen.prototype = {
   classID:         Components.ID('{c83c02c0-5d43-4e3e-987f-9173b313e880}'),
   QueryInterface:  XPCOMUtils.generateQI([Ci.nsIObserver,
                                           Ci.nsISupportsWeakReference]),
-  _windows: new Map(),
+  _windows: new Set(),
 
   observe: function (subject, topic, data) {
-    let windows = this._windows;
     switch (topic) {
       case 'profile-after-change':
         Services.obs.addObserver(this, 'document-element-inserted', false);
         Services.obs.addObserver(this, 'simulator-orientation-change', false);
-        Services.obs.addObserver(this, 'inner-window-destroyed', false);
         break;
 
       case 'document-element-inserted':
@@ -96,19 +94,16 @@ SimulatorScreen.prototype = {
 
         hookScreen(window);
 
-        var id = window.QueryInterface(Ci.nsIInterfaceRequestor)
-                       .getInterface(Ci.nsIDOMWindowUtils)
-                       .currentInnerWindowID;
-        windows.set(id, window);
-        break;
-
-      case 'inner-window-destroyed':
-        var id = subject.QueryInterface(Ci.nsISupportsPRUint64).data;
-        windows.delete(id);
+        let windows = this._windows;
+        window.addEventListener('unload', function unload() {
+          window.removeEventListener('unload', unload);
+          windows.delete(window);
+        });
+        windows.add(window);
         break;
 
       case 'simulator-orientation-change':
-        windows.forEach(fireOrientationEvent);
+        this._windows.forEach(fireOrientationEvent);
         break;
     }
   }

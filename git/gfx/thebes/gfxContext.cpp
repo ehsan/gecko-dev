@@ -1518,21 +1518,12 @@ gfxContext::Mask(gfxASurface *surface, const gfxPoint& offset)
 
     gfxPoint pt = surface->GetDeviceOffset();
 
-    Mask(sourceSurf, Point(offset.x - pt.x, offset.y - pt.y));
+    // We clip here to bind to the mask surface bounds, see above.
+    mDT->MaskSurface(GeneralPattern(this), 
+              sourceSurf,
+              Point(offset.x - pt.x, offset.y -  pt.y),
+              DrawOptions(1.0f, CurrentState().op, CurrentState().aaMode));
   }
-}
-
-void
-gfxContext::Mask(SourceSurface *surface, const Point& offset)
-{
-  MOZ_ASSERT(mDT);
-
-
-  // We clip here to bind to the mask surface bounds, see above.
-  mDT->MaskSurface(GeneralPattern(this),
-            surface,
-            offset,
-            DrawOptions(1.0f, CurrentState().op, CurrentState().aaMode));
 }
 
 void

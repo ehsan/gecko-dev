@@ -25,7 +25,6 @@ public:
   FallbackCameraControl(uint32_t aCameraId) : CameraControlImpl(aCameraId) { }
 
   void OnAutoFocusComplete(bool aSuccess);
-  void OnAutoFocusMoving(bool aIsMoving) { }
   void OnTakePictureComplete(uint8_t* aData, uint32_t aLength) { }
   void OnTakePictureError() { }
   void OnNewPreviewFrame(layers::GraphicBufferLocked* aBuffer) { }
@@ -61,8 +60,6 @@ protected:
   virtual nsresult StartPreviewImpl() { return NS_ERROR_FAILURE; }
   virtual nsresult StopPreviewImpl() { return NS_ERROR_FAILURE; }
   virtual nsresult AutoFocusImpl(bool aCancelExistingCall) { return NS_ERROR_FAILURE; }
-  virtual nsresult StartFaceDetectionImpl() { return NS_ERROR_FAILURE; }
-  virtual nsresult StopFaceDetectionImpl() { return NS_ERROR_FAILURE; }
   virtual nsresult TakePictureImpl() { return NS_ERROR_FAILURE; }
   virtual nsresult StartRecordingImpl(DeviceStorageFileDescriptor* aFileDescriptor,
                                       const StartRecordingOptions* aOptions = nullptr)

@@ -37,10 +37,7 @@ add_test(function test_notification() {
   }
 
   Call.prototype = {
-    // Should use CALL_STATE_ACTIVE.
-    // Any new outgoing call (state = dialing or alerting) will be drop if there
-    // is no pending outgoing call created before.
-    state: CALL_STATE_ACTIVE,
+    state: CALL_STATE_DIALING,
     //callIndex: 0,
     toa: 0,
     isMpty: false,
@@ -117,3 +114,4 @@ add_test(function test_notification() {
 
   run_next_test();
 });
+

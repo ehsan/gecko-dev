@@ -991,8 +991,9 @@ nsXMLHttpRequest::GetResponse(JSContext* aCx, ErrorResult& aRv)
       return JSVAL_NULL;
     }
 
-    JS::Rooted<JS::Value> result(aCx);
-    aRv = nsContentUtils::WrapNative(aCx, mResponseBlob, &result);
+    JS::Rooted<JS::Value> result(aCx, JSVAL_NULL);
+    JS::Rooted<JSObject*> scope(aCx, JS::CurrentGlobalOrNull(aCx));
+    aRv = nsContentUtils::WrapNative(aCx, scope, mResponseBlob, &result);
     return result;
   }
   case XML_HTTP_RESPONSE_TYPE_DOCUMENT:
@@ -1001,8 +1002,9 @@ nsXMLHttpRequest::GetResponse(JSContext* aCx, ErrorResult& aRv)
       return JSVAL_NULL;
     }
 
-    JS::Rooted<JS::Value> result(aCx);
-    aRv = nsContentUtils::WrapNative(aCx, mResponseXML, &result);
+    JS::Rooted<JSObject*> scope(aCx, JS::CurrentGlobalOrNull(aCx));
+    JS::Rooted<JS::Value> result(aCx, JSVAL_NULL);
+    aRv = nsContentUtils::WrapNative(aCx, scope, mResponseXML, &result);
     return result;
   }
   case XML_HTTP_RESPONSE_TYPE_JSON:

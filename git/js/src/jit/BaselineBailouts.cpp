@@ -12,7 +12,6 @@
 #include "jit/IonSpewer.h"
 #include "jit/Recover.h"
 #include "vm/ArgumentsObject.h"
-#include "vm/TraceLogging.h"
 
 #include "jsscriptinlines.h"
 
@@ -1262,9 +1261,9 @@ jit::BailoutIonToBaseline(JSContext *cx, JitActivation *activation, IonBailoutIt
     JS_ASSERT(bailoutInfo != nullptr);
     JS_ASSERT(*bailoutInfo == nullptr);
 
-    TraceLogger *logger = TraceLoggerForMainThread(cx->runtime());
-    TraceLogStopEvent(logger, TraceLogger::IonMonkey);
-    TraceLogStartEvent(logger, TraceLogger::Baseline);
+#if JS_TRACE_LOGGING
+    TraceLogging::defaultLogger()->log(TraceLogging::INFO_ENGINE_BASELINE);
+#endif
 
     // The caller of the top frame must be one of the following:
     //      IonJS - Ion calling into Ion.
@@ -1352,11 +1351,12 @@ jit::BailoutIonToBaseline(JSContext *cx, JitActivation *activation, IonBailoutIt
     while (true) {
         MOZ_ASSERT(snapIter.instruction()->isResumePoint());
 
+#if JS_TRACE_LOGGING
         if (frameNo > 0) {
-            TraceLogStartEvent(logger, TraceLogCreateTextId(logger, scr));
-            TraceLogStartEvent(logger, TraceLogger::Baseline);
+            TraceLogging::defaultLogger()->log(TraceLogging::SCRIPT_START, scr);
+            TraceLogging::defaultLogger()->log(TraceLogging::INFO_ENGINE_BASELINE);
         }
-
+#endif
         IonSpew(IonSpew_BaselineBailouts, "    FrameNo %d", frameNo);
 
         // If we are bailing out to a catch or finally block in this frame,

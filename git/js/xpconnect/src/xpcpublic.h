@@ -144,12 +144,12 @@ struct RuntimeStats;
 #define XPCONNECT_GLOBAL_FLAGS XPCONNECT_GLOBAL_FLAGS_WITH_EXTRA_SLOTS(0)
 
 inline JSObject*
-xpc_FastGetCachedWrapper(JSContext *cx, nsWrapperCache *cache, JS::MutableHandleValue vp)
+xpc_FastGetCachedWrapper(nsWrapperCache *cache, JSObject *scope, JS::MutableHandleValue vp)
 {
     if (cache) {
         JSObject* wrapper = cache->GetWrapper();
         if (wrapper &&
-            js::GetObjectCompartment(wrapper) == js::GetContextCompartment(cx))
+            js::GetObjectCompartment(wrapper) == js::GetObjectCompartment(scope))
         {
             vp.setObject(*wrapper);
             return wrapper;

@@ -5641,9 +5641,10 @@ nsContentUtils::DispatchXULCommand(nsIContent* aTarget,
 
 // static
 nsresult
-nsContentUtils::WrapNative(JSContext *cx, nsISupports *native,
-                           nsWrapperCache *cache, const nsIID* aIID,
-                           JS::MutableHandle<JS::Value> vp, bool aAllowWrapping)
+nsContentUtils::WrapNative(JSContext *cx, JS::Handle<JSObject*> scope,
+                           nsISupports *native, nsWrapperCache *cache,
+                           const nsIID* aIID, JS::MutableHandle<JS::Value> vp,
+                           bool aAllowWrapping)
 {
   if (!native) {
     vp.setNull();
@@ -5651,7 +5652,7 @@ nsContentUtils::WrapNative(JSContext *cx, nsISupports *native,
     return NS_OK;
   }
 
-  JSObject *wrapper = xpc_FastGetCachedWrapper(cx, cache, vp);
+  JSObject *wrapper = xpc_FastGetCachedWrapper(cache, scope, vp);
   if (wrapper) {
     return NS_OK;
   }
@@ -5663,7 +5664,6 @@ nsContentUtils::WrapNative(JSContext *cx, nsISupports *native,
   }
 
   nsresult rv = NS_OK;
-  JS::Rooted<JSObject*> scope(cx, JS::CurrentGlobalOrNull(cx));
   AutoPushJSContext context(cx);
   rv = sXPConnect->WrapNativeToJSVal(context, scope, native, cache, aIID,
                                      aAllowWrapping, vp);
@@ -5708,7 +5708,8 @@ nsContentUtils::CreateBlobBuffer(JSContext* aCx,
   } else {
     return NS_ERROR_OUT_OF_MEMORY;
   }
-  return nsContentUtils::WrapNative(aCx, blob, aBlob);
+  JS::Rooted<JSObject*> scope(aCx, JS::CurrentGlobalOrNull(aCx));
+  return nsContentUtils::WrapNative(aCx, scope, blob, aBlob);
 }
 
 void

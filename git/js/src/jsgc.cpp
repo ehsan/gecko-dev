@@ -197,6 +197,9 @@
 # include "jswin.h"
 #endif
 #include "prmjtime.h"
+#if JS_TRACE_LOGGING
+#include "TraceLogging.h"
+#endif
 
 #include "gc/FindSCCs.h"
 #include "gc/GCInternals.h"
@@ -212,7 +215,6 @@
 #include "vm/ProxyObject.h"
 #include "vm/Shape.h"
 #include "vm/String.h"
-#include "vm/TraceLogging.h"
 #include "vm/WrapperObject.h"
 
 #include "jsobjinlines.h"
@@ -2556,7 +2558,9 @@ GCHelperThread::threadLoop()
 {
     AutoLockGC lock(rt);
 
-    TraceLogger *logger = TraceLoggerForThread(PR_GetCurrentThread());
+#if JS_TRACE_LOGGING
+    TraceLogging *logger = TraceLogging::getLogger(TraceLogging::GC_BACKGROUND);
+#endif
 
     /*
      * Even on the first iteration the state can be SHUTDOWN or SWEEPING if
@@ -2570,16 +2574,22 @@ GCHelperThread::threadLoop()
           case IDLE:
             wait(wakeup);
             break;
-          case SWEEPING: {
-            AutoTraceLog logSweeping(logger, TraceLogger::GCSweeping);
+          case SWEEPING:
+#if JS_TRACE_LOGGING
+            logger->log(TraceLogging::GC_SWEEPING_START);
+#endif
             doSweep();
             if (state == SWEEPING)
                 state = IDLE;
             PR_NotifyAllCondVar(done);
+#if JS_TRACE_LOGGING
+            logger->log(TraceLogging::GC_SWEEPING_STOP);
+#endif
             break;
-          }
-          case ALLOCATING: {
-            AutoTraceLog logAllocating(logger, TraceLogger::GCAllocation);
+          case ALLOCATING:
+#if JS_TRACE_LOGGING
+            logger->log(TraceLogging::GC_ALLOCATING_START);
+#endif
             do {
                 Chunk *chunk;
                 {
@@ -2588,15 +2598,21 @@ GCHelperThread::threadLoop()
                 }
 
                 /* OOM stops the background allocation. */
-                if (!chunk)
+                if (!chunk) {
+#if JS_TRACE_LOGGING
+                    logger->log(TraceLogging::GC_ALLOCATING_STOP);
+#endif
                     break;
+                }
                 JS_ASSERT(chunk->info.numArenasFreeCommitted == 0);
                 rt->gcChunkPool.put(chunk);
             } while (state == ALLOCATING && rt->gcChunkPool.wantBackgroundAllocation(rt));
             if (state == ALLOCATING)
                 state = IDLE;
+#if JS_TRACE_LOGGING
+            logger->log(TraceLogging::GC_ALLOCATING_STOP);
+#endif
             break;
-          }
           case CANCEL_ALLOCATION:
             state = IDLE;
             PR_NotifyAllCondVar(done);
@@ -4892,8 +4908,11 @@ Collect(JSRuntime *rt, bool incremental, int64_t budget,
     if (rt->mainThread.suppressGC)
         return;
 
-    TraceLogger *logger = TraceLoggerForMainThread(rt);
-    AutoTraceLog logGC(logger, TraceLogger::GC);
+#if JS_TRACE_LOGGING
+    AutoTraceLog logger(TraceLogging::defaultLogger(),
+                        TraceLogging::GC_START,
+                        TraceLogging::GC_STOP);
+#endif
 
 #ifdef JS_GC_ZEAL
     if (rt->gcDeterministicOnly && !IsDeterministicGCReason(reason))
@@ -5052,8 +5071,11 @@ void
 js::MinorGC(JSRuntime *rt, JS::gcreason::Reason reason)
 {
 #ifdef JSGC_GENERATIONAL
-    TraceLogger *logger = TraceLoggerForMainThread(rt);
-    AutoTraceLog logMinorGC(logger, TraceLogger::MinorGC);
+#if JS_TRACE_LOGGING
+    AutoTraceLog logger(TraceLogging::defaultLogger(),
+                        TraceLogging::MINOR_GC_START,
+                        TraceLogging::MINOR_GC_STOP);
+#endif
     rt->gcNursery.collect(rt, reason, nullptr);
     JS_ASSERT_IF(!rt->mainThread.suppressGC, rt->gcNursery.isEmpty());
 #endif
@@ -5065,9 +5087,11 @@ js::MinorGC(JSContext *cx, JS::gcreason::Reason reason)
     // Alternate to the runtime-taking form above which allows marking type
     // objects as needing pretenuring.
 #ifdef JSGC_GENERATIONAL
-    TraceLogger *logger = TraceLoggerForMainThread(cx->runtime());
-    AutoTraceLog logMinorGC(logger, TraceLogger::MinorGC);
-
+#if JS_TRACE_LOGGING
+    AutoTraceLog logger(TraceLogging::defaultLogger(),
+                        TraceLogging::MINOR_GC_START,
+                        TraceLogging::MINOR_GC_STOP);
+#endif
     Nursery::TypeObjectList pretenureTypes;
     JSRuntime *rt = cx->runtime();
     rt->gcNursery.collect(cx->runtime(), reason, &pretenureTypes);
