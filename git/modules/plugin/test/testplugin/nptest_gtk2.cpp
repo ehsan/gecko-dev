@@ -1,4 +1,3 @@
-/* -*- Mode: C++; tab-width: 8; indent-tabs-mode: nil; c-basic-offset: 2 -*- */
 /* ***** BEGIN LICENSE BLOCK *****
  * 
  * Copyright (c) 2008, Mozilla Corporation
@@ -49,11 +48,6 @@
  * be fixed to use raw X APIs instead.
  */
 
-struct _PlatformData {
-  Display* display;
-  GtkWidget* plug;
-};
-
 bool
 pluginSupportsWindowMode()
 {
@@ -70,14 +64,6 @@ NPError
 pluginInstanceInit(InstanceData* instanceData)
 {
 #ifdef MOZ_X11
-  instanceData->platformData = static_cast<PlatformData*>
-    (NPN_MemAlloc(sizeof(PlatformData)));
-  if (!instanceData->platformData)
-    return NPERR_OUT_OF_MEMORY_ERROR;
-
-  instanceData->platformData->display = 0;
-  instanceData->platformData->plug = 0;
-
   return NPERR_NO_ERROR;
 #else
   // we only support X11 here, since thats what the plugin system uses
@@ -88,27 +74,11 @@ pluginInstanceInit(InstanceData* instanceData)
 void
 pluginInstanceShutdown(InstanceData* instanceData)
 {
-  if (instanceData->hasWidget) {
-    Window window = reinterpret_cast<XID>(instanceData->window.window);
-
-    if (window != None) {
-      // This window XID should still be valid.
-      // See bug 429604 and bug 454756.
-      XWindowAttributes attributes;
-      if (!XGetWindowAttributes(instanceData->platformData->display, window,
-                                &attributes))
-        g_error("XGetWindowAttributes failed at plugin instance shutdown");
-    }
-  }
-
-  GtkWidget* plug = instanceData->platformData->plug;
+  GtkWidget* plug = static_cast<GtkWidget*>(instanceData->platformData);
   if (plug) {
-    instanceData->platformData->plug = 0;
     gtk_widget_destroy(plug);
+    instanceData->platformData = 0;
   }
-
-  NPN_MemFree(instanceData->platformData);
-  instanceData->platformData = 0;
 }
 
 static void 
@@ -213,36 +183,20 @@ ExposeWidget(GtkWidget* widget, GdkEventExpose* event,
   return TRUE;
 }
 
-static gboolean
-DeleteWidget(GtkWidget* widget, GdkEvent* event, gpointer user_data)
-{
-  InstanceData* instanceData = static_cast<InstanceData*>(user_data);
-  // Some plugins do not expect the plug to be removed from the socket before
-  // the plugin instance is destroyed.  e.g. bug 485125
-  if (instanceData->platformData->plug)
-    g_error("plug removed"); // this aborts
-
-  return FALSE;
-}
-
 void
 pluginDoSetWindow(InstanceData* instanceData, NPWindow* newWindow)
 {
   instanceData->window = *newWindow;
-
-  NPSetWindowCallbackStruct *ws_info =
-    static_cast<NPSetWindowCallbackStruct*>(newWindow->ws_info);
-  instanceData->platformData->display = ws_info->display;
 }
 
 void
 pluginWidgetInit(InstanceData* instanceData, void* oldWindow)
 {
 #ifdef MOZ_X11
-  GtkWidget* oldPlug = instanceData->platformData->plug;
+  GtkWidget* oldPlug = static_cast<GtkWidget*>(instanceData->platformData);
   if (oldPlug) {
-    instanceData->platformData->plug = 0;
     gtk_widget_destroy(oldPlug);
+    instanceData->platformData = 0;
   }
 
   GdkNativeWindow nativeWinId =
@@ -256,13 +210,11 @@ pluginWidgetInit(InstanceData* instanceData, void* oldWindow)
 
   /* all the events that our widget wants to receive */
   gtk_widget_add_events(plug, GDK_EXPOSURE_MASK);
-  g_signal_connect(G_OBJECT(plug), "expose-event", G_CALLBACK(ExposeWidget),
-                   instanceData);
-  g_signal_connect(G_OBJECT(plug), "delete-event", G_CALLBACK(DeleteWidget),
+  g_signal_connect(G_OBJECT(plug), "event", G_CALLBACK(ExposeWidget),
                    instanceData);
   gtk_widget_show(plug);
 
-  instanceData->platformData->plug = plug;
+  instanceData->platformData = plug;
 #endif
 }
 
@@ -291,7 +243,7 @@ int32_t pluginGetEdge(InstanceData* instanceData, RectEdge edge)
 {
   if (!instanceData->hasWidget)
     return NPTEST_INT32_ERROR;
-  GtkWidget* plug = instanceData->platformData->plug;
+  GtkWidget* plug = static_cast<GtkWidget*>(instanceData->platformData);
   if (!plug)
     return NPTEST_INT32_ERROR;
   GdkWindow* plugWnd = plug->window;
@@ -337,7 +289,7 @@ int32_t pluginGetClipRegionRectEdge(InstanceData* instanceData,
   if (!instanceData->hasWidget)
     return NPTEST_INT32_ERROR;
 
-  GtkWidget* plug = instanceData->platformData->plug;
+  GtkWidget* plug = static_cast<GtkWidget*>(instanceData->platformData);
   if (!plug)
     return NPTEST_INT32_ERROR;
   GdkWindow* plugWnd = plug->window;

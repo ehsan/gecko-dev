@@ -52,13 +52,11 @@ typedef struct TestNPObject : NPObject {
   PRUint32 drawColor; // 0xAARRGGBB
 } TestNPObject;
 
-typedef struct _PlatformData PlatformData;
-
 typedef struct InstanceData {
   NPP npp;
   NPWindow window;
   TestNPObject* scriptableObject;
-  PlatformData* platformData;
+  void* platformData;
   uint32_t instanceCountWatchGeneration;
   bool lastReportedPrivateModeState;
   bool hasWidget;

@@ -23,7 +23,6 @@
  *   Neil Deakin <enndeakin@sympatico.ca>
  *   Johnny Stenback <jst@mozilla.com>
  *   Ehsan Akhgari <ehsan.akhgari@gmail.com>
- *   Honza Bambas <honzab@firemni.cz>
  *
  * Alternatively, the contents of this file may be used under the terms of
  * either of the GNU General Public License Version 2 or later (the "GPL"),
@@ -243,7 +242,6 @@ nsDOMStorageManager::Initialize()
     os->AddObserver(gStorageManager, "cookie-changed", PR_FALSE);
     os->AddObserver(gStorageManager, "offline-app-removed", PR_FALSE);
     os->AddObserver(gStorageManager, NS_PRIVATE_BROWSING_SWITCH_TOPIC, PR_FALSE);
-    os->AddObserver(gStorageManager, "perm-changed", PR_FALSE);
 
     nsCOMPtr<nsIPrivateBrowsingService> pbs =
       do_GetService(NS_PRIVATE_BROWSING_SERVICE_CONTRACTID);
@@ -357,39 +355,6 @@ nsDOMStorageManager::Observe(nsISupports *aSubject,
       mInPrivateBrowsing = PR_TRUE;
     else if (!nsCRT::strcmp(aData, NS_LITERAL_STRING(NS_PRIVATE_BROWSING_LEAVE).get()))
       mInPrivateBrowsing = PR_FALSE;
-#ifdef MOZ_STORAGE
-    nsresult rv = nsDOMStorage::InitDB();
-    NS_ENSURE_SUCCESS(rv, rv);
-
-    return nsDOMStorage::gStorageDB->DropPrivateBrowsingStorages();
-#endif
-  } else if (!strcmp(aTopic, "perm-changed")) {
-    // Check for cookie permission change
-    nsCOMPtr<nsIPermission> perm(do_QueryInterface(aSubject));
-    if (perm) {
-      nsCAutoString type;
-      perm->GetType(type);
-      if (type != NS_LITERAL_CSTRING("cookie"))
-        return NS_OK;
-
-      PRUint32 cap = 0;
-      perm->GetCapability(&cap);
-      if (!(cap & nsICookiePermission::ACCESS_SESSION) ||
-          nsDependentString(aData) != NS_LITERAL_STRING("deleted"))
-        return NS_OK;
-
-      nsCAutoString host;
-      perm->GetHost(host);
-      if (host.IsEmpty())
-        return NS_OK;
-
-#ifdef MOZ_STORAGE
-      nsresult rv = nsDOMStorage::InitDB();
-      NS_ENSURE_SUCCESS(rv, rv);
-
-      return nsDOMStorage::gStorageDB->DropSessionOnlyStoragesForHost(host);
-#endif
-    }
   }
 
   return NS_OK;
@@ -420,7 +385,7 @@ nsDOMStorageManager::ClearOfflineApps()
 
 NS_IMETHODIMP
 nsDOMStorageManager::GetLocalStorageForPrincipal(nsIPrincipal *aPrincipal,
-                                                 nsIDOMStorage **aResult)
+                                                 nsIDOMStorage2 **aResult)
 {
   NS_ENSURE_ARG_POINTER(aPrincipal);
   *aResult = nsnull;
@@ -462,7 +427,7 @@ nsDOMStorageManager::RemoveFromStoragesHash(nsDOMStorage* aStorage)
 //
 
 #ifdef MOZ_STORAGE
-nsDOMStorageDBWrapper* nsDOMStorage::gStorageDB = nsnull;
+nsDOMStorageDB* nsDOMStorage::gStorageDB = nsnull;
 #endif
 
 nsDOMStorageEntry::nsDOMStorageEntry(KeyTypePointer aStr)
@@ -500,13 +465,13 @@ NS_IMPL_CYCLE_COLLECTION_TRAVERSE_BEGIN(nsDOMStorage)
   }
 NS_IMPL_CYCLE_COLLECTION_TRAVERSE_END
 
-NS_IMPL_CYCLE_COLLECTING_ADDREF_AMBIGUOUS(nsDOMStorage, nsIDOMStorageObsolete)
-NS_IMPL_CYCLE_COLLECTING_RELEASE_AMBIGUOUS(nsDOMStorage, nsIDOMStorageObsolete)
+NS_IMPL_CYCLE_COLLECTING_ADDREF_AMBIGUOUS(nsDOMStorage, nsIDOMStorage)
+NS_IMPL_CYCLE_COLLECTING_RELEASE_AMBIGUOUS(nsDOMStorage, nsIDOMStorage)
 NS_INTERFACE_MAP_BEGIN_CYCLE_COLLECTION(nsDOMStorage)
-  NS_INTERFACE_MAP_ENTRY_AMBIGUOUS(nsISupports, nsIDOMStorageObsolete)
-  NS_INTERFACE_MAP_ENTRY(nsIDOMStorageObsolete)
+  NS_INTERFACE_MAP_ENTRY_AMBIGUOUS(nsISupports, nsIDOMStorage)
+  NS_INTERFACE_MAP_ENTRY(nsIDOMStorage)
   NS_INTERFACE_MAP_ENTRY(nsPIDOMStorage)
-  NS_DOM_INTERFACE_MAP_ENTRY_CLASSINFO(StorageObsolete)
+  NS_DOM_INTERFACE_MAP_ENTRY_CLASSINFO(Storage)
 NS_INTERFACE_MAP_END
 
 NS_IMETHODIMP
@@ -581,7 +546,7 @@ nsDOMStorage::InitAsLocalStorage(nsIPrincipal *aPrincipal)
   innerUri->GetAsciiHost(mDomain);
 
 #ifdef MOZ_STORAGE
-  nsDOMStorageDBWrapper::CreateOriginScopeDBKey(innerUri, mScopeDBKey);
+  nsDOMStorageDB::CreateOriginScopeDBKey(innerUri, mScopeDBKey);
 
   // XXX Bug 357323, we have to solve the issue how to define
   // origin for file URLs. In that case CreateOriginScopeDBKey
@@ -589,7 +554,7 @@ nsDOMStorage::InitAsLocalStorage(nsIPrincipal *aPrincipal)
   // in that case because it produces broken entries w/o owner.
   mUseDB = !mScopeDBKey.IsEmpty();
 
-  nsDOMStorageDBWrapper::CreateQuotaDomainDBKey(mDomain, PR_TRUE, mQuotaDomainDBKey);
+  nsDOMStorageDB::CreateQuotaDomainDBKey(mDomain, PR_TRUE, mQuotaDomainDBKey);
 #endif
 
   mLocalStorage = PR_TRUE;
@@ -601,7 +566,7 @@ nsDOMStorage::InitAsGlobalStorage(const nsACString &aDomainDemanded)
 {
   mDomain = aDomainDemanded;
 #ifdef MOZ_STORAGE
-  nsDOMStorageDBWrapper::CreateDomainScopeDBKey(aDomainDemanded, mScopeDBKey);
+  nsDOMStorageDB::CreateDomainScopeDBKey(aDomainDemanded, mScopeDBKey);
 
   // XXX Bug 357323, we have to solve the issue how to define
   // origin for file URLs. In that case CreateOriginScopeDBKey
@@ -610,7 +575,7 @@ nsDOMStorage::InitAsGlobalStorage(const nsACString &aDomainDemanded)
   if (!(mUseDB = !mScopeDBKey.IsEmpty()))
     mScopeDBKey.AppendLiteral(":");
 
-  nsDOMStorageDBWrapper::CreateQuotaDomainDBKey(aDomainDemanded, PR_TRUE, mQuotaDomainDBKey);
+  nsDOMStorageDB::CreateQuotaDomainDBKey(aDomainDemanded, PR_TRUE, mQuotaDomainDBKey);
 #endif
   return NS_OK;
 }
@@ -671,11 +636,7 @@ nsDOMStorage::CanUseStorage(PRPackedBool* aSessionOnly)
   if (perm == nsIPermissionManager::DENY_ACTION)
     return PR_FALSE;
 
-  // In private browsing mode we ougth to behave as in session-only cookies
-  // mode to prevent detection of being in private browsing mode and ensuring
-  // that there will be no traces left.
-  if (perm == nsICookiePermission::ACCESS_SESSION ||
-      nsDOMStorageManager::gStorageManager->InPrivateBrowsingMode()) {
+  if (perm == nsICookiePermission::ACCESS_SESSION) {
     *aSessionOnly = PR_TRUE;
   }
   else if (perm != nsIPermissionManager::ALLOW_ACTION) {
@@ -696,9 +657,6 @@ nsDOMStorage::CanUseStorage(PRPackedBool* aSessionOnly)
 PRBool
 nsDOMStorage::CacheStoragePermissions()
 {
-  // Bug 488446, disallowing storage use when in session only mode.
-  // This is temporary fix before we find complete solution for storage
-  // behavior in private browsing mode or session-only cookies mode.
   if (!CanUseStorage(&mSessionOnly))
     return PR_FALSE;
 
@@ -1045,7 +1003,7 @@ nsDOMStorage::InitDB()
 {
 #ifdef MOZ_STORAGE
   if (!gStorageDB) {
-    gStorageDB = new nsDOMStorageDBWrapper();
+    gStorageDB = new nsDOMStorageDB();
     if (!gStorageDB)
       return NS_ERROR_OUT_OF_MEMORY;
 
@@ -1254,7 +1212,7 @@ CopyStorageItems(nsSessionStorageEntry* aEntry, void* userArg)
   return PL_DHASH_NEXT;
 }
 
-already_AddRefed<nsIDOMStorageObsolete>
+already_AddRefed<nsIDOMStorage>
 nsDOMStorage::Clone()
 {
   if (UseDB()) {
@@ -1361,7 +1319,7 @@ nsDOMStorage::BroadcastChangeNotification()
   // Fire off a notification that a storage object changed. If the
   // storage object is a session storage object, we don't pass a
   // domain, but if it's a global storage object we do.
-  observerService->NotifyObservers((nsIDOMStorageObsolete *)this,
+  observerService->NotifyObservers((nsIDOMStorage *)this,
                                    "dom-storage-changed",
                                    UseDB() ? NS_ConvertUTF8toUTF16(mDomain).get() : nsnull);
 }
@@ -1375,16 +1333,16 @@ NS_IMPL_CYCLE_COLLECTION_UNLINK_BEGIN(nsDOMStorage2)
   NS_IMPL_CYCLE_COLLECTION_UNLINK_NSCOMPTR(mStorage)
 NS_IMPL_CYCLE_COLLECTION_UNLINK_END
 NS_IMPL_CYCLE_COLLECTION_TRAVERSE_BEGIN(nsDOMStorage2)
-  NS_IMPL_CYCLE_COLLECTION_TRAVERSE_NSCOMPTR_AMBIGUOUS(mStorage, nsIDOMStorageObsolete)
+  NS_IMPL_CYCLE_COLLECTION_TRAVERSE_NSCOMPTR_AMBIGUOUS(mStorage, nsIDOMStorage)
 NS_IMPL_CYCLE_COLLECTION_TRAVERSE_END
 
-NS_IMPL_CYCLE_COLLECTING_ADDREF_AMBIGUOUS(nsDOMStorage2, nsIDOMStorage)
-NS_IMPL_CYCLE_COLLECTING_RELEASE_AMBIGUOUS(nsDOMStorage2, nsIDOMStorage)
+NS_IMPL_CYCLE_COLLECTING_ADDREF_AMBIGUOUS(nsDOMStorage2, nsIDOMStorage2)
+NS_IMPL_CYCLE_COLLECTING_RELEASE_AMBIGUOUS(nsDOMStorage2, nsIDOMStorage2)
 NS_INTERFACE_MAP_BEGIN_CYCLE_COLLECTION(nsDOMStorage2)
-  NS_INTERFACE_MAP_ENTRY_AMBIGUOUS(nsISupports, nsIDOMStorage)
-  NS_INTERFACE_MAP_ENTRY(nsIDOMStorage)
+  NS_INTERFACE_MAP_ENTRY_AMBIGUOUS(nsISupports, nsIDOMStorage2)
+  NS_INTERFACE_MAP_ENTRY(nsIDOMStorage2)
   NS_INTERFACE_MAP_ENTRY(nsPIDOMStorage)
-  NS_DOM_INTERFACE_MAP_ENTRY_CLASSINFO(Storage)
+  NS_DOM_INTERFACE_MAP_ENTRY_CLASSINFO(Storage2)
 NS_INTERFACE_MAP_END
 
 nsresult
@@ -1415,11 +1373,11 @@ nsDOMStorage2::InitAsSessionStorage(nsIURI* aURI)
   return mStorage->InitAsSessionStorage(aURI);
 }
 
-already_AddRefed<nsIDOMStorageObsolete>
+already_AddRefed<nsIDOMStorage>
 nsDOMStorage2::Clone()
 {
   // XXX: this will need to be fixed before sessionStorage is moved
-  // to nsIDOMStorage.
+  // to nsIDOMStorage2.
   NS_ASSERTION(PR_FALSE, "Cannot clone nsDOMStorage2");
   return nsnull;
 }
@@ -1501,7 +1459,7 @@ NS_INTERFACE_MAP_END
 NS_IMPL_ADDREF(nsDOMStorageList)
 NS_IMPL_RELEASE(nsDOMStorageList)
 
-nsIDOMStorageObsolete*
+nsIDOMStorage*
 nsDOMStorageList::GetNamedItem(const nsAString& aDomain, nsresult* aResult)
 {
   nsCAutoString requestedDomain;
@@ -1556,7 +1514,7 @@ nsDOMStorageList::GetNamedItem(const nsAString& aDomain, nsresult* aResult)
 
 NS_IMETHODIMP
 nsDOMStorageList::NamedItem(const nsAString& aDomain,
-                            nsIDOMStorageObsolete** aStorage)
+                            nsIDOMStorage** aStorage)
 {
   nsresult rv;
   NS_IF_ADDREF(*aStorage = GetNamedItem(aDomain, &rv));
@@ -1571,7 +1529,7 @@ nsDOMStorageList::CanAccessDomain(const nsACString& aRequestedDomain,
   return aRequestedDomain.Equals(aCurrentDomain);
 }
 
-nsIDOMStorageObsolete*
+nsIDOMStorage*
 nsDOMStorageList::GetStorageForDomain(const nsACString& aRequestedDomain,
                                       const nsACString& aCurrentDomain,
                                       PRBool aNoCurrentDomainCheck,
@@ -1599,7 +1557,7 @@ nsDOMStorageList::GetStorageForDomain(const nsACString& aRequestedDomain,
   *aResult = NS_OK;
 
   // now have a valid domain, so look it up in the storage table
-  nsIDOMStorageObsolete* storage = mStorages.GetWeak(usedDomain);
+  nsIDOMStorage* storage = mStorages.GetWeak(usedDomain);
   if (!storage) {
     nsRefPtr<nsDOMStorage> newstorage;
     newstorage = new nsDOMStorage();
@@ -1673,7 +1631,7 @@ NS_IMPL_CYCLE_COLLECTION_UNLINK_BEGIN(nsDOMStorageItem)
 NS_IMPL_CYCLE_COLLECTION_UNLINK_END
 NS_IMPL_CYCLE_COLLECTION_TRAVERSE_BEGIN(nsDOMStorageItem)
   {
-    cb.NoteXPCOMChild((nsIDOMStorageObsolete*) tmp->mStorage);
+    cb.NoteXPCOMChild((nsIDOMStorage*) tmp->mStorage);
   }
 NS_IMPL_CYCLE_COLLECTION_TRAVERSE_END
 

@@ -998,30 +998,21 @@ function BrowserStartup() {
     // The opener can be the hidden window too, if we're coming from the state
     // where no windows are open, and the hidden window has no sidebar box.
     if (openerSidebarBox && !openerSidebarBox.hidden) {
+      let sidebarBox = document.getElementById("sidebar-box");
+      let sidebarTitle = document.getElementById("sidebar-title");
+      sidebarTitle.setAttribute("value", window.opener.document.getElementById("sidebar-title").getAttribute("value"));
+      sidebarBox.setAttribute("width", openerSidebarBox.boxObject.width);
       let sidebarCmd = openerSidebarBox.getAttribute("sidebarcommand");
-      let sidebarCmdElem = document.getElementById(sidebarCmd);
+      sidebarBox.setAttribute("sidebarcommand", sidebarCmd);
+      // Note: we're setting 'src' on sidebarBox, which is a <vbox>, not on the
+      // <browser id="sidebar">. This lets us delay the actual load until
+      // delayedStartup().
+      sidebarBox.setAttribute("src", window.opener.document.getElementById("sidebar").getAttribute("src"));
+      mustLoadSidebar = true;
 
-      // dynamically generated sidebars will fail this check.
-      if (sidebarCmdElem) {
-        let sidebarBox = document.getElementById("sidebar-box");
-        let sidebarTitle = document.getElementById("sidebar-title");
-
-        sidebarTitle.setAttribute(
-          "value", window.opener.document.getElementById("sidebar-title").getAttribute("value"));
-        sidebarBox.setAttribute("width", openerSidebarBox.boxObject.width);
-
-        sidebarBox.setAttribute("sidebarcommand", sidebarCmd);
-        // Note: we're setting 'src' on sidebarBox, which is a <vbox>, not on
-        // the <browser id="sidebar">. This lets us delay the actual load until
-        // delayedStartup().
-        sidebarBox.setAttribute(
-          "src", window.opener.document.getElementById("sidebar").getAttribute("src"));
-        mustLoadSidebar = true;
-
-        sidebarBox.hidden = false;
-        document.getElementById("sidebar-splitter").hidden = false;
-        sidebarCmdElem.setAttribute("checked", "true");
-      }
+      sidebarBox.hidden = false;
+      document.getElementById("sidebar-splitter").hidden = false;
+      document.getElementById(sidebarCmd).setAttribute("checked", "true");
     }
   }
   else {
@@ -1037,7 +1028,7 @@ function BrowserStartup() {
           command.setAttribute("checked", "true");
         }
         else {
-          // Remove the |sidebarcommand| attribute, because the element it
+          // Remove the |sidebarcommand| attribute, because the element it 
           // refers to no longer exists, so we should assume this sidebar
           // panel has been uninstalled. (249883)
           box.removeAttribute("sidebarcommand");
@@ -3275,7 +3266,6 @@ function OpenBrowserWindow()
   return win;
 }
 
-var gCustomizeSheet = false;
 // Returns a reference to the window in which the toolbar
 // customization document is loaded.
 function BrowserCustomizeToolbar()
@@ -3293,42 +3283,38 @@ function BrowserCustomizeToolbar()
     splitter.parentNode.removeChild(splitter);
 
   var customizeURL = "chrome://global/content/customizeToolbar.xul";
-  gCustomizeSheet = getBoolPref("toolbar.customization.usesheet", false);
+#ifdef TOOLBAR_CUSTOMIZATION_SHEET
+  var sheetFrame = document.getElementById("customizeToolbarSheetIFrame");
+  sheetFrame.hidden = false;
 
-  if (gCustomizeSheet) {
-    var sheetFrame = document.getElementById("customizeToolbarSheetIFrame");
-    sheetFrame.hidden = false;
-    sheetFrame.toolbox = gNavToolbox;
+  // The document might not have been loaded yet, if this is the first time.
+  // If it is already loaded, reload it so that the onload initialization code
+  // re-runs.
+  if (sheetFrame.getAttribute("src") == customizeURL)
+    sheetFrame.contentWindow.location.reload()
+  else
+    sheetFrame.setAttribute("src", customizeURL);
 
-    // The document might not have been loaded yet, if this is the first time.
-    // If it is already loaded, reload it so that the onload initialization code
-    // re-runs.
-    if (sheetFrame.getAttribute("src") == customizeURL)
-      sheetFrame.contentWindow.location.reload()
-    else
-      sheetFrame.setAttribute("src", customizeURL);
+  // XXXmano: there's apparently no better way to get this when the iframe is
+  // hidden
+  var sheetWidth = sheetFrame.style.width.match(/([0-9]+)px/)[1];
+  document.getElementById("customizeToolbarSheetPopup")
+          .openPopup(gNavToolbox, "after_start", (window.innerWidth - sheetWidth) / 2, 0);
 
-    // XXXmano: there's apparently no better way to get this when the iframe is
-    // hidden
-    var sheetWidth = sheetFrame.style.width.match(/([0-9]+)px/)[1];
-    document.getElementById("customizeToolbarSheetPopup")
-            .openPopup(gNavToolbox, "after_start",
-                       (window.innerWidth - sheetWidth) / 2, 0);
-
-    return sheetFrame.contentWindow;
-  } else {
-    return window.openDialog(customizeURL,
-                             "CustomizeToolbar",
-                             "chrome,titlebar,toolbar,location,resizable,dependent",
-                             gNavToolbox);
-  }
+  return sheetFrame.contentWindow;
+#else
+  return window.openDialog(customizeURL,
+                           "CustomizeToolbar",
+                           "chrome,titlebar,toolbar,location,resizable,dependent",
+                           gNavToolbox);
+#endif
 }
 
 function BrowserToolboxCustomizeDone(aToolboxChanged) {
-  if (gCustomizeSheet) {
-    document.getElementById("customizeToolbarSheetIFrame").hidden = true;
-    document.getElementById("customizeToolbarSheetPopup").hidePopup();
-  }
+#ifdef TOOLBAR_CUSTOMIZATION_SHEET
+  document.getElementById("customizeToolbarSheetIFrame").hidden = true;
+  document.getElementById("customizeToolbarSheetPopup").hidePopup();
+#endif
 
   // Update global UI elements that may have been added or removed
   if (aToolboxChanged) {
@@ -3384,10 +3370,10 @@ function BrowserToolboxCustomizeDone(aToolboxChanged) {
     SetClickAndHoldHandlers();
 #endif
 
+#ifndef TOOLBAR_CUSTOMIZATION_SHEET
   // XXX Shouldn't have to do this, but I do
-  if (!gCustomizeSheet)
-    window.focus();
-
+  window.focus();
+#endif
 }
 
 function BrowserToolboxCustomizeChange() {

@@ -474,12 +474,6 @@ protected:
    * preferences that are used are set.
    */
   nsresult InitDB();
-
-  /**
-   * Initializes additional database items like: views, temp tables, functions
-   * and statements.
-   */
-  nsresult InitAdditionalDBItems();
   nsresult InitTempTables();
   nsresult InitViews();
   nsresult InitFunctions();
@@ -492,8 +486,6 @@ protected:
   nsresult MigrateV9Up(mozIStorageConnection *aDBConn);
 
   nsresult RemovePagesInternal(const nsCString& aPlaceIdsQueryString);
-  nsresult PreparePlacesForVisitsDelete(const nsCString& aPlaceIdsQueryString);
-  nsresult CleanupPlacesOnVisitsDelete(const nsCString& aPlaceIdsQueryString);
 
   nsresult AddURIInternal(nsIURI* aURI, PRTime aTime, PRBool aRedirect,
                           PRBool aToplevel, nsIURI* aReferrer);

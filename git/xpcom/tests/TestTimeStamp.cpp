@@ -35,7 +35,7 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
-#include "mozilla/TimeStamp.h"
+#include "nsTimeStamp.h"
 
 #include "TestHarness.h"
 

@@ -51,8 +51,7 @@ _("Make an array of services to test, each specifying a class id, interface,",
   "and an array of function names that don't throw when passed nulls");
 let testServices = [
   ["browser/nav-history-service;1", "nsINavHistoryService",
-    ["queryStringToQueries", "removePagesByTimeframe", "removePagesFromHost",
-     "removeVisitsByTimeframe"]],
+    ["queryStringToQueries", "removePagesByTimeframe", "removePagesFromHost"]],
 ];
 _(testServices.join("\n"));
 

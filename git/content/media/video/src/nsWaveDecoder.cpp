@@ -1329,7 +1329,7 @@ nsWaveDecoder::MetadataLoaded()
 
   if (mElement) {
     mElement->MetadataLoaded();
-    mElement->FirstFrameLoaded(mResourceLoaded);
+    mElement->FirstFrameLoaded();
   }
 
   mMetadataLoadedReported = PR_TRUE;
@@ -1513,7 +1513,6 @@ nsWaveDecoder::SeekingStarted()
   }
 
   if (mElement) {
-    UpdateReadyStateForData();
     mElement->SeekStarted();
   }
 }
@@ -1526,8 +1525,8 @@ nsWaveDecoder::SeekingStopped()
   }
 
   if (mElement) {
-    UpdateReadyStateForData();
     mElement->SeekCompleted();
+    UpdateReadyStateForData();
   }
 }
 
@@ -1590,7 +1589,6 @@ nsWaveDecoder::PlaybackPositionChanged()
   }
 
   if (mElement && lastTime != mCurrentTime) {
-    UpdateReadyStateForData();
     mElement->DispatchSimpleEvent(NS_LITERAL_STRING("timeupdate"));
   }
 }
@@ -1618,7 +1616,7 @@ void
 nsWaveDecoder::Suspend()
 {
   if (mStream) {
-    mStream->Suspend(PR_TRUE);
+    mStream->Suspend();
   }
 }
 

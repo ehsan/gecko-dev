@@ -64,13 +64,13 @@ XPIDLSRCS = \
   mozIStoragePendingStatement.idl \
 	$(NULL)
 
-EXPORTS_NAMESPACES = mozilla
-
 EXPORTS = \
 	mozStorageHelper.h \
 	mozStorage.h \
 	$(NULL)
 
-EXPORTS_mozilla = storage.h
+# TODO temp hack until build system handles this
+export:: storage.h
+	$(INSTALL) $^ $(DIST)/include/mozilla/storage
 
 include $(topsrcdir)/config/rules.mk

@@ -53,7 +53,7 @@
 #include "nsIDOMDocument.h"
 #include "nsIDOMNSDocument.h"
 #include "nsIDOMElement.h"
-#include "nsIDOMStorageObsolete.h"
+#include "nsIDOMStorage.h"
 #include "nsPIDOMStorage.h"
 #include "nsIDocumentViewer.h"
 #include "nsIDocumentLoaderFactory.h"
@@ -687,7 +687,6 @@ nsDocShell::nsDocShell():
     mAllowJavascript(PR_TRUE),
     mAllowMetaRedirects(PR_TRUE),
     mAllowImages(PR_TRUE),
-    mAllowDNSPrefetch(PR_TRUE),
     mFocusDocFirst(PR_FALSE),
     mHasFocus(PR_FALSE),
     mCreatingDocument(PR_FALSE),
@@ -1924,18 +1923,6 @@ NS_IMETHODIMP nsDocShell::SetAllowImages(PRBool aAllowImages)
     return NS_OK;
 }
 
-NS_IMETHODIMP nsDocShell::GetAllowDNSPrefetch(PRBool * aAllowDNSPrefetch)
-{
-    *aAllowDNSPrefetch = mAllowDNSPrefetch;
-    return NS_OK;
-}
-
-NS_IMETHODIMP nsDocShell::SetAllowDNSPrefetch(PRBool aAllowDNSPrefetch)
-{
-    mAllowDNSPrefetch = aAllowDNSPrefetch;
-    return NS_OK;
-}
-
 NS_IMETHODIMP
 nsDocShell::GetDocShellEnumerator(PRInt32 aItemType, PRInt32 aDirection, nsISimpleEnumerator **outEnum)
 {
@@ -1975,9 +1962,6 @@ NS_IMETHODIMP
 nsDocShell::SetAppType(PRUint32 aAppType)
 {
     mAppType = aAppType;
-    if (mAppType == APP_TYPE_MAIL || mAppType == APP_TYPE_EDITOR) {
-        SetAllowDNSPrefetch(PR_FALSE);
-    }
     return NS_OK;
 }
 
@@ -2143,7 +2127,7 @@ nsDocShell::HistoryPurged(PRInt32 aNumEntries)
 NS_IMETHODIMP
 nsDocShell::GetSessionStorageForPrincipal(nsIPrincipal* aPrincipal,
                                           PRBool aCreate,
-                                          nsIDOMStorageObsolete** aStorage)
+                                          nsIDOMStorage** aStorage)
 {
     NS_ENSURE_ARG_POINTER(aStorage);
     *aStorage = nsnull;
@@ -2182,7 +2166,7 @@ nsDocShell::GetSessionStorageForPrincipal(nsIPrincipal* aPrincipal,
 
 NS_IMETHODIMP
 nsDocShell::GetSessionStorageForURI(nsIURI* aURI,
-                                    nsIDOMStorageObsolete** aStorage)
+                                    nsIDOMStorage** aStorage)
 {
     return GetSessionStorageForURI(aURI, PR_TRUE, aStorage);
 }
@@ -2190,7 +2174,7 @@ nsDocShell::GetSessionStorageForURI(nsIURI* aURI,
 nsresult
 nsDocShell::GetSessionStorageForURI(nsIURI* aURI,
                                     PRBool aCreate,
-                                    nsIDOMStorageObsolete** aStorage)
+                                    nsIDOMStorage** aStorage)
 {
     NS_ENSURE_ARG(aURI);
     NS_ENSURE_ARG_POINTER(aStorage);
@@ -2222,7 +2206,7 @@ nsDocShell::GetSessionStorageForURI(nsIURI* aURI,
         return NS_OK;
 
     if (!mStorages.Get(currentDomain, aStorage) && aCreate) {
-        nsCOMPtr<nsIDOMStorageObsolete> newstorage =
+        nsCOMPtr<nsIDOMStorage> newstorage =
             do_CreateInstance("@mozilla.org/dom/storage;1");
         if (!newstorage)
             return NS_ERROR_OUT_OF_MEMORY;
@@ -2243,7 +2227,7 @@ nsDocShell::GetSessionStorageForURI(nsIURI* aURI,
 
 nsresult
 nsDocShell::AddSessionStorage(const nsACString& aDomain,
-                              nsIDOMStorageObsolete* aStorage)
+                              nsIDOMStorage* aStorage)
 {
     NS_ENSURE_ARG_POINTER(aStorage);
 
@@ -2399,10 +2383,6 @@ nsDocShell::SetDocLoaderParent(nsDocLoader * aParent)
         {
             SetAllowImages(value);
         }
-        if (NS_FAILED(parentAsDocShell->GetAllowDNSPrefetch(&value))) {
-            value = PR_FALSE;
-        }
-        SetAllowDNSPrefetch(value);
     }
 
     nsCOMPtr<nsIURIContentListener> parentURIListener(do_GetInterface(parent));
@@ -6863,9 +6843,6 @@ nsDocShell::RestoreFromHistory()
 
         PRBool allowImages;
         childShell->GetAllowImages(&allowImages);
-
-        PRBool allowDNSPrefetch;
-        childShell->GetAllowDNSPrefetch(&allowDNSPrefetch);
         
         AddChild(childItem);
 
@@ -6874,7 +6851,6 @@ nsDocShell::RestoreFromHistory()
         childShell->SetAllowMetaRedirects(allowRedirects);
         childShell->SetAllowSubframes(allowSubframes);
         childShell->SetAllowImages(allowImages);
-        childShell->SetAllowDNSPrefetch(allowDNSPrefetch);
 
         rv = childShell->BeginRestore(nsnull, PR_FALSE);
         NS_ENSURE_SUCCESS(rv, rv);

@@ -297,9 +297,6 @@ nsPresContext::~nsPresContext()
   nsContentUtils::UnregisterPrefCallback("layout.css.dpi",
                                          nsPresContext::PrefChangedCallback,
                                          this);
-  nsContentUtils::UnregisterPrefCallback("layout.css.devPixelsPerPx",
-                                         nsPresContext::PrefChangedCallback,
-                                         this);
 
   NS_IF_RELEASE(mDeviceContext);
   NS_IF_RELEASE(mLookAndFeel);
@@ -750,8 +747,7 @@ void
 nsPresContext::PreferenceChanged(const char* aPrefName)
 {
   nsDependentCString prefName(aPrefName);
-  if (prefName.EqualsLiteral("layout.css.dpi") ||
-      prefName.EqualsLiteral("layout.css.devPixelsPerPx")) {
+  if (prefName.EqualsLiteral("layout.css.dpi")) {
     PRInt32 oldAppUnitsPerDevPixel = AppUnitsPerDevPixel();
     if (mDeviceContext->CheckDPIChange() && mShell) {
       mDeviceContext->FlushFontCache();
@@ -893,9 +889,6 @@ nsPresContext::Init(nsIDeviceContext* aDeviceContext)
                                        this);
 #endif
   nsContentUtils::RegisterPrefCallback("layout.css.dpi",
-                                       nsPresContext::PrefChangedCallback,
-                                       this);
-  nsContentUtils::RegisterPrefCallback("layout.css.devPixelsPerPx",
                                        nsPresContext::PrefChangedCallback,
                                        this);
 

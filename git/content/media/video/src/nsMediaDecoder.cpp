@@ -171,7 +171,7 @@ void nsMediaDecoder::Progress(PRBool aTimer)
 
   if (!mDataTime.IsNull() &&
       now - mDataTime >= TimeDuration::FromMilliseconds(STALL_MS)) {
-    mElement->DownloadStalled();
+    mElement->DispatchAsyncProgressEvent(NS_LITERAL_STRING("stalled"));
     // Null it out
     mDataTime = TimeStamp();
   }

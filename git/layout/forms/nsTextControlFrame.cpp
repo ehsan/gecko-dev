@@ -1307,8 +1307,7 @@ nsTextControlFrame::CalcIntrinsicSize(nsIRenderingContext* aRenderingContext,
   NS_ENSURE_SUCCESS(rv, rv);
   aRenderingContext->SetFont(fontMet);
 
-  lineHeight =
-    nsHTMLReflowState::CalcLineHeight(GetStyleContext(), NS_AUTOHEIGHT);
+  lineHeight = nsHTMLReflowState::CalcLineHeight(this);
   fontMet->GetAveCharWidth(charWidth);
   fontMet->GetMaxAdvance(charMaxAdvance);
 
@@ -1838,26 +1837,14 @@ nsTextControlFrame::GetMaxSize(nsBoxLayoutState& aState)
 nscoord
 nsTextControlFrame::GetBoxAscent(nsBoxLayoutState& aState)
 {
-  // Return the baseline of the first (nominal) row, with centering for
-  // single-line controls.
-
-  // First calculate the ascent wrt the client rect
-  nsRect clientRect;
-  GetClientRect(clientRect);
-  nscoord lineHeight =
-    IsSingleLineTextControl() ? clientRect.height :
-    nsHTMLReflowState::CalcLineHeight(GetStyleContext(), NS_AUTOHEIGHT);
-
-  nsCOMPtr<nsIFontMetrics> fontMet;
-  nsresult rv =
-    nsLayoutUtils::GetFontMetricsForFrame(this, getter_AddRefs(fontMet));
-  NS_ENSURE_SUCCESS(rv, 0);
-
-  nscoord ascent = nsLayoutUtils::GetCenteredFontBaseline(fontMet, lineHeight);
-
-  // Now adjust for our borders and padding
-  ascent += clientRect.y;
-
+  // First calculate the ascent of the text inside
+  nscoord ascent = nsStackFrame::GetBoxAscent(aState);
+    
+  // Now adjust the ascent for our borders and padding
+  nsMargin borderPadding;
+  GetBorderAndPadding(borderPadding);
+  ascent += borderPadding.top;
+  
   return ascent;
 }
 

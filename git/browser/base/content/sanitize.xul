@@ -169,14 +169,13 @@
       <button type="image"
               id="detailsExpander"
               class="expander-down"
-              persist="class"
               oncommand="gSanitizePromptDialog.toggleItemList();"/>
       <label id="detailsExpanderLabel"
              value="&detailsProgressiveDisclosure.label;"
              accesskey="&detailsProgressiveDisclosure.accesskey;"
              control="detailsExpander"/>
     </hbox>
-    <listbox id="itemList" rows="4" collapsed="true" persist="collapsed">
+    <listbox id="itemList" rows="4" collapsed="true">
       <listitem label="&itemHistoryAndDownloads.label;"
                 type="checkbox"
                 accesskey="&itemHistoryAndDownloads.accesskey;"

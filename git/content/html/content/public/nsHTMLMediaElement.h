@@ -106,9 +106,7 @@ public:
 
   // Called by the video decoder object, on the main thread,
   // when it has read the first frame of the video
-  // aResourceFullyLoaded should be true if the resource has been
-  // fully loaded and the caller will call ResourceLoaded next.
-  void FirstFrameLoaded(PRBool aResourceFullyLoaded);
+  void FirstFrameLoaded();
 
   // Called by the video decoder object, on the main thread,
   // when the resource has completed downloading.
@@ -129,20 +127,6 @@ public:
   // Called by the video decoder object, on the main thread,
   // when the resource has completed seeking.
   void SeekCompleted();
-
-  // Called by the media stream, on the main thread, when the download
-  // has been suspended by the cache or because the element itself
-  // asked the decoder to suspend the download.
-  void DownloadSuspended();
-
-  // Called by the media stream, on the main thread, when the download
-  // has been resumed by the cache or because the element itself
-  // asked the decoder to resumed the download.
-  void DownloadResumed();
-
-  // Called by the media decoder to indicate that the download has stalled
-  // (no data has arrived for a while).
-  void DownloadStalled();
 
   // Draw the latest video data. See nsMediaDecoder for 
   // details.
@@ -327,19 +311,6 @@ protected:
    */
   void ChangeDelayLoadStatus(PRBool aDelay);
 
-  /**
-   * If we suspended downloading after the first frame, unsuspend now.
-   */
-  void StopSuspendingAfterFirstFrame();
-
-  /**
-   * Called when our channel is redirected to another channel.
-   * Updates our mChannel reference to aNewChannel.
-   */
-  nsresult OnChannelRedirect(nsIChannel *aChannel,
-                             nsIChannel *aNewChannel,
-                             PRUint32 aFlags);
-
   nsRefPtr<nsMediaDecoder> mDecoder;
 
   // Holds a reference to the first channel we open to the media resource.
@@ -456,12 +427,4 @@ protected:
   // PR_TRUE when we've got a task queued to call SelectResource(),
   // or while we're running SelectResource().
   PRPackedBool mIsRunningSelectResource;
-
-  // PR_TRUE if we suspended the decoder because we were paused,
-  // autobuffer and autoplay were not set, and we loaded the first frame.
-  PRPackedBool mSuspendedAfterFirstFrame;
-
-  // PR_TRUE if we are allowed to suspend the decoder because we were paused,
-  // autobuffer and autoplay were not set, and we loaded the first frame.
-  PRPackedBool mAllowSuspendAfterFirstFrame;
 };

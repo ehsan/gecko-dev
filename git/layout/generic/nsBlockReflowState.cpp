@@ -139,7 +139,7 @@ nsBlockReflowState::nsBlockReflowState(const nsHTMLReflowState& aReflowState,
   mPrevChild = nsnull;
   mCurrentLine = aFrame->end_lines();
 
-  mMinLineHeight = aReflowState.CalcLineHeight();
+  mMinLineHeight = nsHTMLReflowState::CalcLineHeight(aReflowState.frame);
 }
 
 void

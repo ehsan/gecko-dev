@@ -262,8 +262,6 @@ NS_IMETHODIMP nsHTMLMediaElement::MediaLoadListener::OnChannelRedirect(nsIChanne
                                                                        nsIChannel* aNewChannel,
                                                                        PRUint32 aFlags)
 {
-  if (mElement)
-    mElement->OnChannelRedirect(aOldChannel, aNewChannel, aFlags);
   nsCOMPtr<nsIChannelEventSink> sink = do_QueryInterface(mNextListener);
   if (sink)
     return sink->OnChannelRedirect(aOldChannel, aNewChannel, aFlags);
@@ -296,7 +294,6 @@ NS_INTERFACE_MAP_END_INHERITING(nsGenericHTMLElement)
 NS_IMPL_URI_ATTR(nsHTMLMediaElement, Src, src)
 NS_IMPL_BOOL_ATTR(nsHTMLMediaElement, Controls, controls)
 NS_IMPL_BOOL_ATTR(nsHTMLMediaElement, Autoplay, autoplay)
-NS_IMPL_BOOL_ATTR(nsHTMLMediaElement, Autobuffer, autobuffer)
 
 /* readonly attribute nsIDOMHTMLMediaElement mozAutoplayEnabled; */
 NS_IMETHODIMP nsHTMLMediaElement::GetMozAutoplayEnabled(PRBool *aAutoplayEnabled)
@@ -348,16 +345,6 @@ NS_IMETHODIMP nsHTMLMediaElement::GetNetworkState(PRUint16 *aNetworkState)
   return NS_OK;
 }
 
-nsresult
-nsHTMLMediaElement::OnChannelRedirect(nsIChannel *aChannel,
-                                      nsIChannel *aNewChannel,
-                                      PRUint32 aFlags)
-{
-  NS_ASSERTION(aChannel == mChannel, "Channels should match!");
-  mChannel = aNewChannel;
-  return NS_OK;
-}
-
 void nsHTMLMediaElement::AbortExistingLoads()
 {
   // Abort any already-running instance of the resource selection algorithm.
@@ -383,8 +370,6 @@ void nsHTMLMediaElement::AbortExistingLoads()
   mLoadedFirstFrame = PR_FALSE;
   mAutoplaying = PR_TRUE;
   mIsLoadingFromSrcAttribute = PR_FALSE;
-  mSuspendedAfterFirstFrame = PR_FALSE;
-  mAllowSuspendAfterFirstFrame = PR_TRUE;
 
   // TODO: The playback rate must be set to the default playback rate.
 
@@ -617,6 +602,8 @@ nsresult nsHTMLMediaElement::LoadWithChannel(nsIChannel *aChannel,
     return rv;
   }
 
+  mBegun = PR_TRUE;
+
   DispatchAsyncProgressEvent(NS_LITERAL_STRING("loadstart"));
 
   return NS_OK;
@@ -647,8 +634,6 @@ NS_IMETHODIMP nsHTMLMediaElement::GetCurrentTime(float *aCurrentTime)
 
 NS_IMETHODIMP nsHTMLMediaElement::SetCurrentTime(float aCurrentTime)
 {
-  StopSuspendingAfterFirstFrame();
-
   if (!mDecoder)
     return NS_ERROR_DOM_INVALID_STATE_ERR;
 
@@ -775,9 +760,7 @@ nsHTMLMediaElement::nsHTMLMediaElement(nsINodeInfo *aNodeInfo, PRBool aFromParse
     mIsRunningLoadMethod(PR_FALSE),
     mIsLoadingFromSrcAttribute(PR_FALSE),
     mDelayingLoadEvent(PR_FALSE),
-    mIsRunningSelectResource(PR_FALSE),
-    mSuspendedAfterFirstFrame(PR_FALSE),
-    mAllowSuspendAfterFirstFrame(PR_TRUE)
+    mIsRunningSelectResource(PR_FALSE)
 {
   RegisterFreezableElement();
 }
@@ -795,21 +778,8 @@ nsHTMLMediaElement::~nsHTMLMediaElement()
   }
 }
 
-void nsHTMLMediaElement::StopSuspendingAfterFirstFrame()
-{
-  mAllowSuspendAfterFirstFrame = PR_FALSE;
-  if (!mSuspendedAfterFirstFrame)
-    return;
-  mSuspendedAfterFirstFrame = PR_FALSE;
-  if (mDecoder) {
-    mDecoder->Resume();
-  }
-}
-
 NS_IMETHODIMP nsHTMLMediaElement::Play()
 {
-  StopSuspendingAfterFirstFrame();
-
   if (mNetworkState == nsIDOMHTMLMediaElement::NETWORK_EMPTY) {
     nsresult rv = Load();
     NS_ENSURE_SUCCESS(rv, rv);
@@ -877,23 +847,16 @@ nsresult nsHTMLMediaElement::SetAttr(PRInt32 aNameSpaceID, nsIAtom* aName,
   nsresult rv = 
     nsGenericHTMLElement::SetAttr(aNameSpaceID, aName, aPrefix, aValue,
                                     aNotify);
-  if (aNotify && aNameSpaceID == kNameSpaceID_None) {
-    if (aName == nsGkAtoms::src) {
-      if (mLoadWaitStatus == WAITING_FOR_SRC_OR_SOURCE) {
-        // A previous load algorithm instance is waiting on a src
-        // addition, resume the load. It is waiting at "step 1 of the load
-        // algorithm".
-        mLoadWaitStatus = NOT_WAITING;
-        QueueSelectResourceTask();
-      }
-    } else if (aName == nsGkAtoms::autoplay) {
-      StopSuspendingAfterFirstFrame();
-      if (mReadyState == nsIDOMHTMLMediaElement::HAVE_ENOUGH_DATA) {
-        NotifyAutoplayDataReady();
-      }
-    } else if (aName == nsGkAtoms::autobuffer) {
-      StopSuspendingAfterFirstFrame();
-    }
+  if (aNotify &&
+      aNameSpaceID == kNameSpaceID_None &&
+      aName == nsGkAtoms::src &&
+      mLoadWaitStatus == WAITING_FOR_SRC_OR_SOURCE) 
+  {
+    // A previous load algorithm instance is waiting on a src
+    // addition, resume the load. It is waiting at "step 1 of the load
+    // algorithm".
+    mLoadWaitStatus = NOT_WAITING;
+    QueueSelectResourceTask();
   }
 
   return rv;
@@ -1194,8 +1157,6 @@ nsresult nsHTMLMediaElement::InitializeDecoderForChannel(nsIChannel *aChannel,
     rv = mDecoder->Play();
   }
 
-  mBegun = PR_TRUE;
-
   return rv;
 }
 
@@ -1240,20 +1201,10 @@ void nsHTMLMediaElement::MetadataLoaded()
   DispatchAsyncSimpleEvent(NS_LITERAL_STRING("loadedmetadata"));
 }
 
-void nsHTMLMediaElement::FirstFrameLoaded(PRBool aResourceFullyLoaded)
+void nsHTMLMediaElement::FirstFrameLoaded()
 {
   ChangeReadyState(nsIDOMHTMLMediaElement::HAVE_CURRENT_DATA);
   ChangeDelayLoadStatus(PR_FALSE);
-
-  NS_ASSERTION(!mSuspendedAfterFirstFrame, "Should not have already suspended");
-
-  if (mDecoder && mAllowSuspendAfterFirstFrame && mPaused &&
-      !aResourceFullyLoaded &&
-      !HasAttr(kNameSpaceID_None, nsGkAtoms::autoplay) &&
-      !HasAttr(kNameSpaceID_None, nsGkAtoms::autobuffer)) {
-    mSuspendedAfterFirstFrame = PR_TRUE;
-    mDecoder->Suspend();
-  }
 }
 
 void nsHTMLMediaElement::ResourceLoaded()
@@ -1277,6 +1228,7 @@ void nsHTMLMediaElement::NetworkError()
 void nsHTMLMediaElement::PlaybackEnded()
 {
   NS_ASSERTION(mDecoder->IsEnded(), "Decoder fired ended, but not in ended state");
+  ChangeReadyState(nsIDOMHTMLMediaElement::HAVE_CURRENT_DATA);
   DispatchAsyncSimpleEvent(NS_LITERAL_STRING("ended"));
 }
 
@@ -1289,28 +1241,6 @@ void nsHTMLMediaElement::SeekCompleted()
 {
   mPlayingBeforeSeek = PR_FALSE;
   DispatchAsyncSimpleEvent(NS_LITERAL_STRING("seeked"));
-}
-
-void nsHTMLMediaElement::DownloadSuspended()
-{
-  if (mBegun) {
-    mNetworkState = nsIDOMHTMLMediaElement::NETWORK_IDLE;
-    DispatchAsyncSimpleEvent(NS_LITERAL_STRING("suspend"));
-  }
-}
-
-void nsHTMLMediaElement::DownloadResumed()
-{
-  if (mBegun) {
-    mNetworkState = nsIDOMHTMLMediaElement::NETWORK_LOADING;
-  }
-}
-
-void nsHTMLMediaElement::DownloadStalled()
-{
-  if (mNetworkState == nsIDOMHTMLMediaElement::NETWORK_LOADING) {
-    DispatchAsyncProgressEvent(NS_LITERAL_STRING("stalled"));
-  }
 }
 
 PRBool nsHTMLMediaElement::ShouldCheckAllowOrigin()
@@ -1336,7 +1266,9 @@ void nsHTMLMediaElement::UpdateReadyStateForData(NextFrameStatus aNextFrame)
 
   nsMediaDecoder::Statistics stats = mDecoder->GetStatistics();
 
-  if (aNextFrame != NEXT_FRAME_AVAILABLE) {
+  if (aNextFrame != NEXT_FRAME_AVAILABLE &&
+      !mDecoder->IsEnded() &&
+      stats.mDownloadPosition < stats.mTotalBytes) {
     ChangeReadyState(nsIDOMHTMLMediaElement::HAVE_CURRENT_DATA);
     if (!mWaitingFired && aNextFrame == NEXT_FRAME_UNAVAILABLE_BUFFERING) {
       DispatchAsyncSimpleEvent(NS_LITERAL_STRING("waiting"));
