@@ -806,7 +806,7 @@ nsExternalResourceEnumArgs
   void *data;
 };
 
-static PLDHashOperator
+PR_STATIC_CALLBACK(PLDHashOperator)
 ExternalResourceEnumerator(nsIURI* aKey,
                            nsExternalResourceMap::ExternalResource* aData,
                            void* aClosure)
@@ -826,7 +826,7 @@ nsExternalResourceMap::EnumerateResources(nsIDocument::nsSubDocEnumFunc aCallbac
   mMap.EnumerateRead(ExternalResourceEnumerator, &args);
 }
 
-static PLDHashOperator
+PR_STATIC_CALLBACK(PLDHashOperator)
 ExternalResourceTraverser(nsIURI* aKey,
                           nsExternalResourceMap::ExternalResource* aData,
                           void* aClosure)

@@ -130,7 +130,7 @@ public:
   void Clear();
 
 private:
-  static PLDHashOperator
+  PR_STATIC_CALLBACK(PLDHashOperator)
     RemoveExpiredEntries(const nsACString& aKey, nsAutoPtr<CacheEntry>& aValue,
                          void* aUserData);
 

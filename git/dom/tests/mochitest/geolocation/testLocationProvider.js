@@ -3,15 +3,15 @@ Components.utils.import("resource://gre/modules/XPCOMUtils.jsm");
 const Ci = Components.interfaces;
 const Cc = Components.classes;
 
-function GeopositionObject() {};
-GeopositionObject.prototype = {
+function GeolocationObject() {};
+GeolocationObject.prototype = {
 
-    QueryInterface:   XPCOMUtils.generateQI([Ci.nsIDOMGeoPosition, Ci.nsIClassInfo]),
+    QueryInterface:   XPCOMUtils.generateQI([Ci.nsIDOMGeolocation, Ci.nsIClassInfo, Ci.nsIGeolocationPrompt]),
 
     // Class Info is required to be able to pass objects back into the DOM.
     
     getInterfaces: function(countRef) {
-        var interfaces = [Ci.nsIDOMGeoPosition, Ci.nsIClassInfo, Ci.nsISupports];
+        var interfaces = [Ci.nsIDOMGeolocation, Ci.nsIClassInfo, Ci.nsISupports, Ci.nsIGeolocationPrompt];
         countRef.value = interfaces.length;
         return interfaces;
     },
@@ -25,11 +25,11 @@ GeopositionObject.prototype = {
     latitude: 1,
     longitude: 1,
     altitude: 1,
-    accuracy: 1,
-    altitudeAccuracy: 1,
-    heading: 1,
-    velocity: 1,
+    horizontalAccuracy: 1,
+    verticalAccuracy: 1,
     timestamp: 1,
+
+    prompt: function(uri) {return 1;},
 };
 
 function dump(msg) {
@@ -64,7 +64,7 @@ MyLocation.prototype = {
                            Ci.nsITimer.TYPE_REPEATING_SLACK);
                      },
 
-    currentLocation: new GeopositionObject(),
+    currentLocation: new GeolocationObject(),
     shutdown:        function() { 
                        dump("shutdown"); 
                        if(this.timer)

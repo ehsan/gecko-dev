@@ -974,7 +974,7 @@ nsAccessControlLRUCache::Clear()
   mTable.Clear();
 }
 
-/* static */ PLDHashOperator
+/* static */ PR_CALLBACK PLDHashOperator
 nsAccessControlLRUCache::RemoveExpiredEntries(const nsACString& aKey,
                                               nsAutoPtr<CacheEntry>& aValue,
                                               void* aUserData)
