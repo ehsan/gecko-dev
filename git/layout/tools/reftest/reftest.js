@@ -744,9 +744,13 @@ function OnDocumentLoad(event)
        ps.footerStrRight = "";
        gBrowser.docShell.contentViewer.setPageMode(true, ps);
 
-       // WORKAROUND FOR AN ASSERTION ON MAC!
+       // WORKAROUND FOR ASSERTIONS IN BUG 534478:  Calling setPageMode
+       // above causes 2 assertions.  So that we don't have to annotate
+       // the manifests for every reftest-print reftest, bump the
+       // assertion count by two right here.
+       // And on Mac, it causes *three* assertions.
        var xr = CC[NS_XREAPPINFO_CONTRACTID].getService(CI.nsIXULRuntime);
-       var count = (xr.widgetToolkit == "cocoa") ? 1 : 0;
+       var count = (xr.widgetToolkit == "cocoa") ? 3 : 2;
        gURLs[0].minAsserts += count;
        gURLs[0].maxAsserts += count;
     }

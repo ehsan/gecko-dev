@@ -943,12 +943,9 @@ DocumentViewerImpl::InitInternal(nsIWidget* aParentWidget,
                               getter_AddRefs(window));
 
       if (window) {
-        nsCOMPtr<nsIDocument> curDoc =
-          do_QueryInterface(window->GetExtantDocument());
-        if (!mIsPageMode || curDoc != mDocument) {
-          window->SetNewDocument(mDocument, aState);
-          nsJSContext::LoadStart();
-        }
+        window->SetNewDocument(mDocument, aState);
+
+        nsJSContext::LoadStart();
       }
     }
   }
@@ -2371,7 +2368,7 @@ DocumentViewerImpl::FindContainerView()
 nsresult
 DocumentViewerImpl::CreateDeviceContext(nsIView* aContainerView)
 {
-  NS_PRECONDITION(!mPresShell && !mWindow,
+  NS_PRECONDITION(!mPresShell && !mPresContext && !mWindow,
                   "This will screw up our existing presentation");
   NS_PRECONDITION(mDocument, "Gotta have a document here");
   
