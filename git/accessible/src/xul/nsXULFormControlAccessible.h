@@ -276,9 +276,6 @@ protected:
   // nsAccessible
   virtual void CacheChildren();
 
-  // nsHyperTextAccessible
-  virtual already_AddRefed<nsFrameSelection> FrameSelection();
-
   // nsXULTextFieldAccessible
   already_AddRefed<nsIContent> GetInputField() const;
 };

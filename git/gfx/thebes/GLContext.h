@@ -323,12 +323,6 @@ public:
 
     void SetFilter(gfxPattern::GraphicsFilter aFilter) { mFilter = aFilter; }
 
-    /**
-     * Applies this TextureImage's filter, assuming that its texture is
-     * the currently bound texture.
-     */
-    virtual void ApplyFilter() = 0;
-
 protected:
     friend class GLContext;
 
@@ -345,6 +339,12 @@ protected:
         , mWrapMode(aWrapMode)
         , mContentType(aContentType)
     {}
+
+    /**
+     * Applies this TextureImage's filter, assuming that its texture is
+     * the currently bound texture.
+     */
+    virtual void ApplyFilter() = 0;
 
     nsIntSize mSize;
     GLenum mWrapMode;
@@ -403,8 +403,6 @@ public:
     virtual bool InUpdate() const { return !!mUpdateSurface; }
 
     virtual void Resize(const nsIntSize& aSize);
-
-    virtual void ApplyFilter();
 protected:
 
     GLuint mTexture;
@@ -415,6 +413,8 @@ protected:
 
     // The offset into the update surface at which the update rect is located.
     nsIntPoint mUpdateOffset;
+
+    virtual void ApplyFilter();
 };
 
 /**
@@ -444,7 +444,6 @@ public:
     virtual bool DirectUpdate(gfxASurface* aSurf, const nsIntRegion& aRegion, const nsIntPoint& aFrom = nsIntPoint(0,0));
     virtual bool InUpdate() const { return mInUpdate; };
     virtual void BindTexture(GLenum);
-    virtual void ApplyFilter();
 protected:
     unsigned int mCurrentImage;
     nsTArray< nsRefPtr<TextureImage> > mImages;
@@ -459,6 +458,8 @@ protected:
     // The region of update requested
     nsIntRegion mUpdateRegion;
     TextureState mTextureState;
+
+    virtual void ApplyFilter();
 };
 
 struct THEBES_API ContextFormat

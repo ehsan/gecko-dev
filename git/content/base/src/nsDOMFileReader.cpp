@@ -78,7 +78,7 @@
 #include "mozilla/Preferences.h"
 #include "xpcprivate.h"
 #include "xpcpublic.h"
-#include "XPCQuickStubs.h"
+#include "xpcquickstubs.h"
 #include "jstypedarray.h"
 #include "nsDOMJSUtils.h"
 

@@ -43,8 +43,6 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
-#include "mozilla/Util.h"
-
 #include <QtGui/QApplication>
 #include <QtGui/QDesktopWidget>
 #include <QtGui/QCursor>
@@ -879,9 +877,9 @@ nsWindow::SetIcon(const nsAString& aIconSpec)
     const char extensions[6][7] = { ".png", "16.png", "32.png", "48.png",
                                     ".xpm", "16.xpm" };
 
-    for (PRUint32 i = 0; i < ArrayLength(extensions); i++) {
+    for (PRUint32 i = 0; i < NS_ARRAY_LENGTH(extensions); i++) {
         // Don't bother looking for XPM versions if we found a PNG.
-        if (i == ArrayLength(extensions) - 2 && iconList.Length())
+        if (i == NS_ARRAY_LENGTH(extensions) - 2 && iconList.Length())
             break;
 
         nsAutoString extension;
@@ -1519,7 +1517,7 @@ is_latin_shortcut_key(quint32 aKeyval)
 nsEventStatus
 nsWindow::DispatchCommandEvent(nsIAtom* aCommand)
 {
-    nsCommandEvent event(PR_TRUE, nsGkAtoms::onAppCommand, aCommand, this);
+    nsCommandEvent event(PR_TRUE, nsWidgetAtoms::onAppCommand, aCommand, this);
 
     nsEventStatus status;
     DispatchEvent(&event, status);
@@ -1675,19 +1673,19 @@ nsWindow::OnKeyPressEvent(QKeyEvent *aEvent)
     // Look for specialized app-command keys
     switch (aEvent->key()) {
         case Qt::Key_Back:
-            return DispatchCommandEvent(nsGkAtoms::Back);
+            return DispatchCommandEvent(nsWidgetAtoms::Back);
         case Qt::Key_Forward:
-            return DispatchCommandEvent(nsGkAtoms::Forward);
+            return DispatchCommandEvent(nsWidgetAtoms::Forward);
         case Qt::Key_Refresh:
-            return DispatchCommandEvent(nsGkAtoms::Reload);
+            return DispatchCommandEvent(nsWidgetAtoms::Reload);
         case Qt::Key_Stop:
-            return DispatchCommandEvent(nsGkAtoms::Stop);
+            return DispatchCommandEvent(nsWidgetAtoms::Stop);
         case Qt::Key_Search:
-            return DispatchCommandEvent(nsGkAtoms::Search);
+            return DispatchCommandEvent(nsWidgetAtoms::Search);
         case Qt::Key_Favorites:
-            return DispatchCommandEvent(nsGkAtoms::Bookmarks);
+            return DispatchCommandEvent(nsWidgetAtoms::Bookmarks);
         case Qt::Key_HomePage:
-            return DispatchCommandEvent(nsGkAtoms::Home);
+            return DispatchCommandEvent(nsWidgetAtoms::Home);
         case Qt::Key_Copy:
         case Qt::Key_F16: // F16, F20, F18, F14 are old keysyms for Copy Cut Paste Undo
             return DispatchContentCommandEvent(NS_CONTENT_COMMAND_COPY);
@@ -2255,6 +2253,7 @@ nsWindow::Create(nsIWidget        *aParent,
                  const nsIntRect  &aRect,
                  EVENT_CALLBACK    aHandleEventFunction,
                  nsDeviceContext *aContext,
+                 nsIAppShell      *aAppShell,
                  nsIToolkit       *aToolkit,
                  nsWidgetInitData *aInitData)
 {
@@ -2274,7 +2273,7 @@ nsWindow::Create(nsIWidget        *aParent,
 
     // initialize all the common bits of this class
     BaseCreate(baseParent, aRect, aHandleEventFunction, aContext,
-               aToolkit, aInitData);
+               aAppShell, aToolkit, aInitData);
 
     // and do our common creation
     mParent = aParent;
@@ -2310,6 +2309,7 @@ already_AddRefed<nsIWidget>
 nsWindow::CreateChild(const nsIntRect&  aRect,
                       EVENT_CALLBACK    aHandleEventFunction,
                       nsDeviceContext* aContext,
+                      nsIAppShell*      aAppShell,
                       nsIToolkit*       aToolkit,
                       nsWidgetInitData* aInitData,
                       bool              /*aForceUseIWidgetParent*/)
@@ -2318,6 +2318,7 @@ nsWindow::CreateChild(const nsIntRect&  aRect,
     return nsBaseWidget::CreateChild(aRect,
                                      aHandleEventFunction,
                                      aContext,
+                                     aAppShell,
                                      aToolkit,
                                      aInitData,
                                      PR_TRUE); // Force parent

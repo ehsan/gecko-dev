@@ -38,9 +38,6 @@
  * ***** END LICENSE BLOCK ***** */
 
 #include "mozilla/dom/ContentChild.h"
-
-#include "mozilla/Util.h"
-
 #include "nsXULAppAPI.h"
 
 #include "mozilla/Preferences.h"
@@ -1092,7 +1089,7 @@ static nsresult pref_InitInitialObjects()
 #endif
   };
 
-  rv = pref_LoadPrefsInDir(defaultPrefDir, specialFiles, ArrayLength(specialFiles));
+  rv = pref_LoadPrefsInDir(defaultPrefDir, specialFiles, NS_ARRAY_LENGTH(specialFiles));
   if (NS_FAILED(rv))
     NS_WARNING("Error parsing application default preferences.");
 

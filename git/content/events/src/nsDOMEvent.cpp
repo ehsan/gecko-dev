@@ -38,10 +38,6 @@
  * ***** END LICENSE BLOCK ***** */
 
 #include "base/basictypes.h"
-
-/* This must occur *after* base/basictypes.h to avoid typedefs conflicts. */
-#include "mozilla/Util.h"
-
 #include "IPC/IPCMessageUtils.h"
 #include "nsCOMPtr.h"
 #include "nsDOMEvent.h"
@@ -446,7 +442,7 @@ ReportUseOfDeprecatedMethod(nsEvent* aEvent, nsIDOMEvent* aDOMEvent,
   const PRUnichar *strings[] = { type.get() };
   nsContentUtils::ReportToConsole(nsContentUtils::eDOM_PROPERTIES,
                                   aWarning,
-                                  strings, ArrayLength(strings),
+                                  strings, NS_ARRAY_LENGTH(strings),
                                   nsnull,
                                   EmptyString(), 0, 0,
                                   nsIScriptError::warningFlag,

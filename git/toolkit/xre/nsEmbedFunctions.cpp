@@ -114,8 +114,6 @@
 using mozilla::_ipdltest::IPDLUnitTestProcessChild;
 #endif  // ifdef MOZ_IPDL_TESTS
 
-using namespace mozilla;
-
 using mozilla::ipc::BrowserProcessSubThread;
 using mozilla::ipc::GeckoChildProcessHost;
 using mozilla::ipc::IOThreadChild;
@@ -240,7 +238,7 @@ GeckoProcessType
 XRE_StringToChildProcessType(const char* aProcessTypeString)
 {
   for (int i = 0;
-       i < (int) ArrayLength(kGeckoProcessTypeString);
+       i < (int) NS_ARRAY_LENGTH(kGeckoProcessTypeString);
        ++i) {
     if (!strcmp(kGeckoProcessTypeString[i], aProcessTypeString)) {
       return static_cast<GeckoProcessType>(i);
@@ -739,7 +737,7 @@ XRE_SendTestShellCommand(JSContext* aCx,
     NS_ENSURE_TRUE(tsp, false);
 
     nsDependentJSString command;
-    NS_ENSURE_TRUE(command.init(aCx, aCommand), false);
+    NS_ENSURE_TRUE(command.init(aCx, aCommand), NS_ERROR_FAILURE);
 
     if (!aCallback) {
         return tsp->SendExecuteCommand(command);

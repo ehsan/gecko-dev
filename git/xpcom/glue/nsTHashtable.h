@@ -251,14 +251,6 @@ public:
     PL_DHashTableEnumerate(&mTable, PL_DHashStubEnumRemove, nsnull);
   }
 
-  PRUint64 SizeOf()
-  {
-    if (IsInitialized()) {
-      return PL_DHashTableSizeOf(&mTable);
-    }
-    return 0;
-  }
-
 protected:
   PLDHashTable mTable;
 

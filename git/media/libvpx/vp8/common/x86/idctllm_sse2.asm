@@ -32,6 +32,9 @@ sym(idct_dequant_0_2x_sse2):
         mov         rdx,            arg(1) ; dequant
         mov         rax,            arg(0) ; qcoeff
 
+    ; Zero out xmm7, for use unpacking
+        pxor        xmm7,           xmm7
+
         movd        xmm4,           [rax]
         movd        xmm5,           [rdx]
 
@@ -40,12 +43,9 @@ sym(idct_dequant_0_2x_sse2):
 
         pmullw      xmm4,           xmm5
 
-    ; Zero out xmm5, for use unpacking
-        pxor        xmm5,           xmm5
-
     ; clear coeffs
-        movd        [rax],          xmm5
-        movd        [rax+32],       xmm5
+        movd        [rax],          xmm7
+        movd        [rax+32],       xmm7
 ;pshufb
         pshuflw     xmm4,           xmm4,       00000000b
         pshufhw     xmm4,           xmm4,       00000000b
@@ -62,10 +62,10 @@ sym(idct_dequant_0_2x_sse2):
         lea         rcx,            [3*rcx]
         movq        xmm3,           [rax+rcx]
 
-        punpcklbw   xmm0,           xmm5
-        punpcklbw   xmm1,           xmm5
-        punpcklbw   xmm2,           xmm5
-        punpcklbw   xmm3,           xmm5
+        punpcklbw   xmm0,           xmm7
+        punpcklbw   xmm1,           xmm7
+        punpcklbw   xmm2,           xmm7
+        punpcklbw   xmm3,           xmm7
 
         mov         rax,            arg(3) ; dst
         movsxd      rdx,            dword ptr arg(4) ; dst_stride
@@ -77,10 +77,10 @@ sym(idct_dequant_0_2x_sse2):
         paddw       xmm3,           xmm4
 
     ; pack up before storing
-        packuswb    xmm0,           xmm5
-        packuswb    xmm1,           xmm5
-        packuswb    xmm2,           xmm5
-        packuswb    xmm3,           xmm5
+        packuswb    xmm0,           xmm7
+        packuswb    xmm1,           xmm7
+        packuswb    xmm2,           xmm7
+        packuswb    xmm3,           xmm7
 
     ; store blocks back out
         movq        [rax],          xmm0
@@ -102,7 +102,6 @@ sym(idct_dequant_full_2x_sse2):
     push        rbp
     mov         rbp, rsp
     SHADOW_ARGS_TO_STACK 7
-    SAVE_XMM 7
     GET_GOT     rbx
     push        rsi
     push        rdi
@@ -348,7 +347,6 @@ sym(idct_dequant_full_2x_sse2):
     pop         rdi
     pop         rsi
     RESTORE_GOT
-    RESTORE_XMM
     UNSHADOW_ARGS
     pop         rbp
     ret
@@ -379,8 +377,8 @@ sym(idct_dequant_dc_0_2x_sse2):
         mov         rdi,            arg(3) ; dst
         mov         rdx,            arg(5) ; dc
 
-    ; Zero out xmm5, for use unpacking
-        pxor        xmm5,           xmm5
+    ; Zero out xmm7, for use unpacking
+        pxor        xmm7,           xmm7
 
     ; load up 2 dc words here == 2*16 = doubleword
         movd        xmm4,           [rdx]
@@ -400,10 +398,10 @@ sym(idct_dequant_dc_0_2x_sse2):
         psraw       xmm4,           3
 
     ; Predict buffer needs to be expanded from bytes to words
-        punpcklbw   xmm0,           xmm5
-        punpcklbw   xmm1,           xmm5
-        punpcklbw   xmm2,           xmm5
-        punpcklbw   xmm3,           xmm5
+        punpcklbw   xmm0,           xmm7
+        punpcklbw   xmm1,           xmm7
+        punpcklbw   xmm2,           xmm7
+        punpcklbw   xmm3,           xmm7
 
     ; Add to predict buffer
         paddw       xmm0,           xmm4
@@ -412,10 +410,10 @@ sym(idct_dequant_dc_0_2x_sse2):
         paddw       xmm3,           xmm4
 
     ; pack up before storing
-        packuswb    xmm0,           xmm5
-        packuswb    xmm1,           xmm5
-        packuswb    xmm2,           xmm5
-        packuswb    xmm3,           xmm5
+        packuswb    xmm0,           xmm7
+        packuswb    xmm1,           xmm7
+        packuswb    xmm2,           xmm7
+        packuswb    xmm3,           xmm7
 
     ; Load destination stride before writing out,
     ;   doesn't need to persist
@@ -443,7 +441,6 @@ sym(idct_dequant_dc_full_2x_sse2):
     push        rbp
     mov         rbp, rsp
     SHADOW_ARGS_TO_STACK 7
-    SAVE_XMM 7
     GET_GOT     rbx
     push        rsi
     push        rdi
@@ -695,7 +692,6 @@ sym(idct_dequant_dc_full_2x_sse2):
     pop         rdi
     pop         rsi
     RESTORE_GOT
-    RESTORE_XMM
     UNSHADOW_ARGS
     pop         rbp
     ret

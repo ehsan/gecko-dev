@@ -41,8 +41,6 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
-#include "mozilla/Util.h"
-
 #ifdef MOZ_LOGGING
 // so we can get logging even in release builds (but only for some things)
 #define FORCE_PR_LOG 1
@@ -57,7 +55,7 @@
 #include "nsIDOMElement.h"
 #include "nsIDOMStorage.h"
 #include "nsPIDOMStorage.h"
-#include "nsIContentViewer.h"
+#include "nsIDocumentViewer.h"
 #include "nsIDocumentLoaderFactory.h"
 #include "nsCURILoader.h"
 #include "nsURILoader.h"
@@ -1677,6 +1675,8 @@ nsDocShell::ValidateOrigin(nsIDocShellTreeItem* aOriginTreeItem,
 NS_IMETHODIMP
 nsDocShell::GetEldestPresContext(nsPresContext** aPresContext)
 {
+    nsresult rv = NS_OK;
+
     NS_ENSURE_ARG_POINTER(aPresContext);
     *aPresContext = nsnull;
 
@@ -1684,13 +1684,17 @@ nsDocShell::GetEldestPresContext(nsPresContext** aPresContext)
     while (viewer) {
         nsCOMPtr<nsIContentViewer> prevViewer;
         viewer->GetPreviousViewer(getter_AddRefs(prevViewer));
-        if (!prevViewer) {
-            return viewer->GetPresContext(aPresContext);
+        if (prevViewer)
+            viewer = prevViewer;
+        else {
+            nsCOMPtr<nsIDocumentViewer> docv(do_QueryInterface(viewer));
+            if (docv)
+                rv = docv->GetPresContext(aPresContext);
+            break;
         }
-        viewer = prevViewer;
     }
 
-    return NS_OK;
+    return rv;
 }
 
 NS_IMETHODIMP
@@ -1702,7 +1706,10 @@ nsDocShell::GetPresContext(nsPresContext ** aPresContext)
     if (!mContentViewer)
       return NS_OK;
 
-    return mContentViewer->GetPresContext(aPresContext);
+    nsCOMPtr<nsIDocumentViewer> docv(do_QueryInterface(mContentViewer));
+    NS_ENSURE_TRUE(docv, NS_ERROR_NO_INTERFACE);
+
+    return docv->GetPresContext(aPresContext);
 }
 
 NS_IMETHODIMP
@@ -4945,6 +4952,20 @@ nsDocShell::SetEnabled(bool aEnabled)
 }
 
 NS_IMETHODIMP
+nsDocShell::GetBlurSuppression(bool *aBlurSuppression)
+{
+  NS_ENSURE_ARG_POINTER(aBlurSuppression);
+  *aBlurSuppression = PR_FALSE;
+  return NS_ERROR_NOT_IMPLEMENTED;
+}
+
+NS_IMETHODIMP
+nsDocShell::SetBlurSuppression(bool aBlurSuppression)
+{
+  return NS_ERROR_NOT_IMPLEMENTED;
+}
+
+NS_IMETHODIMP
 nsDocShell::SetFocus()
 {
   return NS_OK;
@@ -6102,10 +6123,13 @@ nsDocShell::EndPageLoad(nsIWebProgress * aProgress,
     if (timingChannel) {
         TimeStamp channelCreationTime;
         rv = timingChannel->GetChannelCreation(&channelCreationTime);
-        if (NS_SUCCEEDED(rv) && !channelCreationTime.IsNull())
-            Telemetry::AccumulateTimeDelta(
-                Telemetry::TOTAL_CONTENT_PAGE_LOAD_TIME,
-                channelCreationTime);
+        if (NS_SUCCEEDED(rv) && !channelCreationTime.IsNull()) {
+            PRUint32 interval = (PRUint32)
+                (TimeStamp::Now() - channelCreationTime)
+                .ToMilliseconds();
+            Telemetry::Accumulate(Telemetry::TOTAL_CONTENT_PAGE_LOAD_TIME, 
+                                  interval);
+        }
     }
 
     // Timing is picked up by the window, we don't need it anymore
@@ -7652,11 +7676,16 @@ nsDocShell::SetupNewViewer(nsIContentViewer * aNewViewer)
 
         // Try to extract the canvas background color from the old
         // presentation shell, so we can use it for the next document.
-        nsCOMPtr<nsIPresShell> shell;
-        mContentViewer->GetPresShell(getter_AddRefs(shell));
+        nsCOMPtr<nsIDocumentViewer> docviewer =
+        do_QueryInterface(mContentViewer);
 
-        if (shell) {
-            bgcolor = shell->GetCanvasBackground();
+        if (docviewer) {
+            nsCOMPtr<nsIPresShell> shell;
+            docviewer->GetPresShell(getter_AddRefs(shell));
+
+            if (shell) {
+                bgcolor = shell->GetCanvasBackground();
+            }
         }
 
         mContentViewer->Close(mSavingOldViewer ? mOSHE.get() : nsnull);
@@ -7681,7 +7710,11 @@ nsDocShell::SetupNewViewer(nsIContentViewer * aNewViewer)
 
     nsIntRect bounds(x, y, cx, cy);
 
-    mContentViewer->SetNavigationTiming(mTiming);
+    nsCOMPtr<nsIDocumentViewer> docviewer =
+        do_QueryInterface(mContentViewer);
+    if (docviewer) {
+        docviewer->SetNavigationTiming(mTiming);
+    }
 
     if (NS_FAILED(mContentViewer->Init(widget, bounds))) {
         mContentViewer = nsnull;
@@ -7715,11 +7748,13 @@ nsDocShell::SetupNewViewer(nsIContentViewer * aNewViewer)
 
     // Stuff the bgcolor from the old pres shell into the new
     // pres shell. This improves page load continuity.
-    nsCOMPtr<nsIPresShell> shell;
-    mContentViewer->GetPresShell(getter_AddRefs(shell));
+    if (docviewer) {
+        nsCOMPtr<nsIPresShell> shell;
+        docviewer->GetPresShell(getter_AddRefs(shell));
 
-    if (shell) {
-        shell->SetCanvasBackground(bgcolor);
+        if (shell) {
+            shell->SetCanvasBackground(bgcolor);
+        }
     }
 
 // XXX: It looks like the LayoutState gets restored again in Embed()
@@ -10628,7 +10663,7 @@ nsDocShell::ConfirmRepost(bool * aRepost)
     // be included. Without an override, the prompt will look like the generic version.
     const PRUnichar *formatStrings[] = { brandName.get() };
     rv = appBundle->FormatStringFromName(NS_LITERAL_STRING("confirmRepostPrompt").get(),
-                                         formatStrings, ArrayLength(formatStrings),
+                                         formatStrings, NS_ARRAY_LENGTH(formatStrings),
                                          getter_Copies(msgString));
   }
   if (NS_FAILED(rv)) return rv;

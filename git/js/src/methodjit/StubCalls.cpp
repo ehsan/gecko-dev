@@ -45,6 +45,7 @@
 #include "jsiter.h"
 #include "jsnum.h"
 #include "jsxml.h"
+#include "jsstaticcheck.h"
 #include "jsbool.h"
 #include "assembler/assembler/MacroAssemblerCodeRef.h"
 #include "jsiter.h"
@@ -786,11 +787,10 @@ stubs::DefFun(VMFrame &f, JSFunction *fun)
     JSObject *parent = &fp->varObj();
 
     /* ES5 10.5 (NB: with subsequent errata). */
-    PropertyName *name = fun->atom->asPropertyName();
-    jsid id = ATOM_TO_JSID(name);
+    jsid id = ATOM_TO_JSID(fun->atom);
     JSProperty *prop = NULL;
     JSObject *pobj;
-    if (!parent->lookupProperty(cx, name, &pobj, &prop))
+    if (!parent->lookupProperty(cx, id, &pobj, &prop))
         THROW();
 
     Value rval = ObjectValue(*obj);
@@ -1430,7 +1430,7 @@ stubs::DefLocalFun_FC(VMFrame &f, JSFunction *fun)
     return obj;
 }
 
-void JS_FASTCALL
+JSObject * JS_FASTCALL
 stubs::RegExp(VMFrame &f, JSObject *regex)
 {
     /*
@@ -1443,12 +1443,12 @@ stubs::RegExp(VMFrame &f, JSObject *regex)
      */
     JSObject *proto;
     if (!js_GetClassPrototype(f.cx, &f.fp()->scopeChain(), JSProto_RegExp, &proto))
-        THROW();
+        THROWV(NULL);
     JS_ASSERT(proto);
     JSObject *obj = js_CloneRegExpObject(f.cx, regex, proto);
     if (!obj)
-        THROW();
-    f.regs.sp[0].setObject(*obj);
+        THROWV(NULL);
+    return obj;
 }
 
 JSObject * JS_FASTCALL
@@ -2254,7 +2254,7 @@ stubs::DelElem(VMFrame &f)
 }
 
 void JS_FASTCALL
-stubs::DefVarOrConst(VMFrame &f, JSAtom *atom_)
+stubs::DefVarOrConst(VMFrame &f, JSAtom *atom)
 {
     JSContext *cx = f.cx;
     StackFrame *fp = f.fp();
@@ -2266,8 +2266,7 @@ stubs::DefVarOrConst(VMFrame &f, JSAtom *atom_)
         attrs |= JSPROP_PERMANENT;
 
     /* Lookup id in order to check for redeclaration problems. */
-    PropertyName *name = atom_->asPropertyName();
-    jsid id = ATOM_TO_JSID(name);
+    jsid id = ATOM_TO_JSID(atom);
     bool shouldDefine;
     if (JSOp(*f.pc()) == JSOP_DEFVAR) {
         /*
@@ -2276,7 +2275,7 @@ stubs::DefVarOrConst(VMFrame &f, JSAtom *atom_)
          */
         JSProperty *prop;
         JSObject *obj2;
-        if (!obj->lookupProperty(cx, name, &obj2, &prop))
+        if (!obj->lookupProperty(cx, id, &obj2, &prop))
             THROW();
         shouldDefine = (!prop || obj2 != obj);
     } else {
@@ -2333,7 +2332,7 @@ stubs::In(VMFrame &f)
 
     JSObject *obj2;
     JSProperty *prop;
-    if (!obj->lookupGeneric(cx, id, &obj2, &prop))
+    if (!obj->lookupProperty(cx, id, &obj2, &prop))
         THROWV(JS_FALSE);
 
     return !!prop;

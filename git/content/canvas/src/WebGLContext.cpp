@@ -965,10 +965,6 @@ NS_IMETHODIMP
 WebGLContext::GetExtension(const nsAString& aName, nsIWebGLExtension **retval)
 {
     *retval = nsnull;
-    
-    if (mDisableExtensions) {
-        return NS_OK;
-    }
 
     // handle simple extensions that don't need custom objects first
     WebGLExtensionID ei = WebGLExtensionID_Max;
@@ -1305,12 +1301,6 @@ WebGLActiveInfo::GetName(nsAString & aName)
 NS_IMETHODIMP
 WebGLContext::GetSupportedExtensions(nsIVariant **retval)
 {
-    *retval = nsnull;
-    
-    if (mDisableExtensions) {
-        return NS_OK;
-    }
-    
     nsCOMPtr<nsIWritableVariant> wrval = do_CreateInstance("@mozilla.org/variant;1");
     NS_ENSURE_TRUE(wrval, NS_ERROR_FAILURE);
 

@@ -37,8 +37,6 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
-#include "mozilla/Util.h"
-
 #include "mozilla/MapsMemoryReporter.h"
 #include "nsIMemoryReporter.h"
 #include "nsString.h"
@@ -177,7 +175,6 @@ private:
                nsISupports *aClosure,
                CategoriesSeen *aCategoriesSeen);
 
-  bool mSearchedForLibxul;
   nsCString mLibxulDir;
   nsCStringHashSet mMozillaLibraries;
 };
@@ -185,9 +182,8 @@ private:
 NS_IMPL_THREADSAFE_ISUPPORTS1(MapsReporter, nsIMemoryMultiReporter)
 
 MapsReporter::MapsReporter()
-  : mSearchedForLibxul(false)
 {
-  const PRUint32 len = ArrayLength(mozillaLibraries);
+  const PRUint32 len = NS_ARRAY_LENGTH(mozillaLibraries);
   mMozillaLibraries.Init(len);
   for (PRUint32 i = 0; i < len; i++) {
     nsCAutoString str;
@@ -237,11 +233,6 @@ MapsReporter::CollectReports(nsIMemoryMultiReporterCallback *aCallback,
 nsresult
 MapsReporter::FindLibxul()
 {
-  if (mSearchedForLibxul)
-    return NS_OK;
-
-  mSearchedForLibxul = true;
-
   mLibxulDir.Truncate();
 
   // Note that we're scanning /proc/self/*maps*, not smaps, here.

@@ -149,32 +149,15 @@ var TestHarness = function(iframe, filelistUrl, reportFunc) {
   this.window = window;
   this.iframe = iframe;
   this.reportFunc = reportFunc;
-  try {
-    var files = getFileList(filelistUrl);
-  } catch (e) {
-    this.reportFunc(
-        TestHarness.reportType.FINISHED_ALL_TESTS,
-        'Unable to load tests. Are you running locally?\n' +
-        'You need to run from a server or configure your\n' +
-        'browser to allow access to local files (not recommended).\n\n' +
-        'Note: An easy way to run from a server:\n\n' +
-        '\tcd path_to_tests\n' +
-        '\tpython -m SimpleHTTPServer\n\n' +
-        'then point your browser to ' +
-          '<a href="http://localhost:8000/webgl-conformance-tests.html">' +
-          'http://localhost:8000/webgl-conformance-tests.html</a>',
-        false)
-    return;
-  }
+  var files = getFileList(filelistUrl);
   this.files = [];
   for (var ii = 0; ii < files.length; ++ii) {
     this.files.push(new TestFile(files[ii]));
     this.reportFunc(TestHarness.reportType.ADD_PAGE, files[ii], undefined);
   }
   this.nextFileIndex = files.length;
-  this.lastFileIndex = files.length;
   this.timeoutDelay = 20000;
-}
+};
 
 TestHarness.reportType = {
   ADD_PAGE: 1,
@@ -184,10 +167,8 @@ TestHarness.reportType = {
   FINISHED_ALL_TESTS: 5
 };
 
-TestHarness.prototype.runTests = function(opt_start, opt_count) {
-  var count = opt_count || this.files.length;
-  this.nextFileIndex = opt_start || 0;
-  this.lastFileIndex = this.nextFileIndex + count;
+TestHarness.prototype.runTests = function(files) {
+  this.nextFileIndex = 0;
   this.startNextFile();
 };
 
@@ -203,10 +184,10 @@ TestHarness.prototype.clearTimeout = function() {
 };
 
 TestHarness.prototype.startNextFile = function() {
-  if (this.nextFileIndex >= this.lastFileIndex) {
+  if (this.nextFileIndex >= this.files.length) {
     log("done");
     this.reportFunc(TestHarness.reportType.FINISHED_ALL_TESTS,
-                    '', true);
+                    '', undefined);
   } else {
     this.currentFile = this.files[this.nextFileIndex++];
     log("loading: " + this.currentFile.url);

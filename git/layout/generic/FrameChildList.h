@@ -56,7 +56,6 @@ extern const char* ChildListName(FrameChildListID aListID);
 class FrameChildListIDs {
 friend class FrameChildListIterator;
  public:
-  FrameChildListIDs() : mIDs(0) {}
   FrameChildListIDs(const FrameChildListIDs& aOther) : mIDs(aOther.mIDs) {}
   FrameChildListIDs(FrameChildListID aListID) : mIDs(aListID) {}
 

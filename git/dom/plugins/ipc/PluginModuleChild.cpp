@@ -44,10 +44,6 @@
 #endif
 
 #include "mozilla/plugins/PluginModuleChild.h"
-
-/* This must occur *after* plugins/PluginModuleChild.h to avoid typedefs conflicts. */
-#include "mozilla/Util.h"
-
 #include "mozilla/ipc/SyncChannel.h"
 
 #ifdef MOZ_WIDGET_GTK2
@@ -85,7 +81,6 @@
 #include "PluginUtilsOSX.h"
 #endif
 
-using namespace mozilla;
 using namespace mozilla::plugins;
 using mozilla::dom::CrashReporterChild;
 using mozilla::dom::PCrashReporterChild;
@@ -1908,7 +1903,7 @@ PMCGetWindowInfoHook(HWND hWnd, PWINDOWINFO pwi)
 
   if (!sBrowserHwnd) {
       PRUnichar szClass[20];
-      if (GetClassNameW(hWnd, szClass, ArrayLength(szClass)) &&
+      if (GetClassNameW(hWnd, szClass, NS_ARRAY_LENGTH(szClass)) && 
           !wcscmp(szClass, kMozillaWindowClass)) {
           sBrowserHwnd = hWnd;
       }

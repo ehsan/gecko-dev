@@ -37,10 +37,6 @@
  * ***** END LICENSE BLOCK ***** */
 
 #include "mozilla/layers/PLayers.h"
-
-/* This must occur *after* layers/PLayers.h to avoid typedefs conflicts. */
-#include "mozilla/Util.h"
-
 #include "mozilla/layers/ShadowLayers.h"
 
 #include "ThebesLayerBuffer.h"
@@ -273,18 +269,6 @@ ThebesLayerBufferOGL::RenderTo(const nsIntPoint& aOffset,
                   tileRegionRect.MoveBy(-currentTileRect.TopLeft());
               }
 
-#ifdef ANDROID
-              // Bug 691354
-              // Using the LINEAR filter we get unexplained artifacts.
-              // Use NEAREST when no scaling is required.
-              gfxMatrix matrix;
-              bool is2D = mLayer->GetEffectiveTransform().Is2D(&matrix);
-              if (is2D && !matrix.HasNonTranslationOrFlip()) {
-                gl()->ApplyFilterToBoundTexture(gfxPattern::FILTER_NEAREST);
-              } else {
-                mTexImage->ApplyFilter();
-              }
-#endif
               program->SetLayerQuadRect(tileScreenRect);
               aManager->BindAndDrawQuadWithTextureRect(program, tileRegionRect,
                                                        tileRect.Size(),
@@ -649,7 +633,7 @@ BasicBufferOGL::BeginPaint(ContentType aContentType,
     FillSurface(onBlack, result.mRegionToDraw, nsIntPoint(0,0), gfxRGBA(0.0, 0.0, 0.0, 1.0));
     FillSurface(onWhite, result.mRegionToDraw, nsIntPoint(0,0), gfxRGBA(1.0, 1.0, 1.0, 1.0));
     gfxASurface* surfaces[2] = { onBlack, onWhite };
-    nsRefPtr<gfxTeeSurface> surf = new gfxTeeSurface(surfaces, ArrayLength(surfaces));
+    nsRefPtr<gfxTeeSurface> surf = new gfxTeeSurface(surfaces, NS_ARRAY_LENGTH(surfaces));
 
     // XXX If the device offset is set on the individual surfaces instead of on
     // the tee surface, we render in the wrong place. Why?
@@ -850,9 +834,7 @@ ShadowBufferOGL::Upload(gfxASurface* aUpdate, const nsIntRegion& aUpdated,
                         const nsIntRect& aRect, const nsIntPoint& aRotation)
 {
   gfxIntSize size = aUpdate->GetSize();
-  if (!mTexImage ||
-      GetSize() != nsIntSize(size.width, size.height) ||
-      mTexImage->GetContentType() != aUpdate->GetContentType()) {
+  if (GetSize() != nsIntSize(size.width, size.height)) {
     // XXX we should do something here to decide whether to use REPEAT or not,
     // but I'm not sure what
     mTexImage = CreateClampOrRepeatTextureImage(gl(),

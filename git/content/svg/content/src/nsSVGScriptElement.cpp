@@ -37,8 +37,6 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
-#include "mozilla/Util.h"
-
 #include "nsSVGElement.h"
 #include "nsGkAtoms.h"
 #include "nsIDOMSVGScriptElement.h"
@@ -51,7 +49,6 @@
 #include "nsScriptElement.h"
 #include "nsContentUtils.h"
 
-using namespace mozilla;
 using namespace mozilla::dom;
 
 typedef nsSVGElement nsSVGScriptElementBase;
@@ -226,12 +223,12 @@ nsSVGScriptElement::FreezeUriAsyncDefer()
     return;
   }
 
-  if (mStringAttributes[HREF].IsExplicitlySet()) {
-    // variation of this code in nsHTMLScriptElement - check if changes
-    // need to be transfered when modifying
-    nsAutoString src;
-    mStringAttributes[HREF].GetAnimValue(src, this);
-
+  // variation of this code in nsHTMLScriptElement - check if changes
+  // need to be transfered when modifying
+  nsAutoString src;
+  mStringAttributes[HREF].GetAnimValue(src, this);
+  // preserving bug 528444 here due to being unsure how to fix correctly
+  if (!src.IsEmpty()) {
     nsCOMPtr<nsIURI> baseURI = GetBaseURI();
     NS_NewURI(getter_AddRefs(mUri), src, nsnull, baseURI);
     // At this point mUri will be null for invalid URLs.
@@ -247,7 +244,10 @@ nsSVGScriptElement::FreezeUriAsyncDefer()
 bool
 nsSVGScriptElement::HasScriptContent()
 {
-  return (mFrozen ? mExternal : mStringAttributes[HREF].IsExplicitlySet()) ||
+  nsAutoString src;
+  mStringAttributes[HREF].GetAnimValue(src, this);
+  // preserving bug 528444 here due to being unsure how to fix correctly
+  return (mFrozen ? mExternal : !src.IsEmpty()) ||
          nsContentUtils::HasNonEmptyTextContent(this);
 }
 
@@ -268,7 +268,7 @@ nsSVGElement::StringAttributesInfo
 nsSVGScriptElement::GetStringInfo()
 {
   return StringAttributesInfo(mStringAttributes, sStringInfo,
-                              ArrayLength(sStringInfo));
+                              NS_ARRAY_LENGTH(sStringInfo));
 }
 
 //----------------------------------------------------------------------

@@ -49,7 +49,7 @@
 #include "nsPIDOMWindow.h"
 #include "nsIDOMElement.h"
 #include "nsIDOMXULElement.h"
-#include "nsIDOMHTMLFrameElement.h"
+#include "nsIDOMNSHTMLFrameElement.h"
 #include "nsIDOMHTMLInputElement.h"
 #include "nsIDOMHTMLMapElement.h"
 #include "nsIDOMHTMLLegendElement.h"

@@ -6,5 +6,4 @@ browser.jar:
     content/browser/csshtmltree.xhtml             (styleinspector/csshtmltree.xhtml)
     content/browser/orion.js                      (sourceeditor/orion/orion.js)
     content/browser/orion.css                     (sourceeditor/orion/orion.css)
-    content/browser/orion-mozilla.css             (sourceeditor/orion/mozilla.css)
 

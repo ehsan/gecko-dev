@@ -883,7 +883,12 @@ nsXULTreeItemAccessibleBase::DoAction(PRUint8 aIndex)
 bool
 nsXULTreeItemAccessibleBase::IsDefunct() const
 {
-  return nsAccessibleWrap::IsDefunct() || !mTree || !mTreeView || mRow < 0;
+  if (nsAccessibleWrap::IsDefunct() || !mTree || !mTreeView || mRow < 0)
+    return PR_TRUE;
+
+  PRInt32 rowCount = 0;
+  nsresult rv = mTreeView->GetRowCount(&rowCount);
+  return NS_FAILED(rv) || mRow >= rowCount;
 }
 
 void

@@ -52,7 +52,7 @@
 
 #include "nsWeakReference.h"
 
-#include "nsGkAtoms.h"
+#include "nsWidgetAtoms.h"
 
 #ifdef MOZ_LOGGING
 
@@ -128,6 +128,7 @@ public:
                               const nsIntRect  &aRect,
                               EVENT_CALLBACK   aHandleEventFunction,
                               nsDeviceContext *aContext,
+                              nsIAppShell      *aAppShell,
                               nsIToolkit       *aToolkit,
                               nsWidgetInitData *aInitData);
 
@@ -135,6 +136,7 @@ public:
     CreateChild(const nsIntRect&  aRect,
                 EVENT_CALLBACK    aHandleEventFunction,
                 nsDeviceContext* aContext,
+                nsIAppShell*      aAppShell = nsnull,
                 nsIToolkit*       aToolkit = nsnull,
                 nsWidgetInitData* aInitData = nsnull,
                 bool              aForceUseIWidgetParent = true);

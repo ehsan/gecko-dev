@@ -39,11 +39,11 @@
 
 #include "WorkerPrivate.h"
 
-#include "mozIThirdPartyUtil.h"
 #include "nsIClassInfo.h"
 #include "nsIConsoleService.h"
 #include "nsIDOMFile.h"
 #include "nsIDocument.h"
+#include "nsIEffectiveTLDService.h"
 #include "nsIJSContextStack.h"
 #include "nsIMemoryReporter.h"
 #include "nsIScriptError.h"
@@ -1054,10 +1054,7 @@ public:
       NS_ASSERTION(aTarget, "This should never be null!");
 
       bool preventDefaultCalled;
-      nsIScriptGlobalObject* sgo;
-
-      if (aWorkerPrivate ||
-          !(sgo = nsJSUtils::GetStaticScriptGlobal(aCx, aTarget))) {
+      if (aWorkerPrivate) {
         // Fire a normal ErrorEvent if we're running on a worker thread.
         JSObject* event = events::CreateErrorEvent(aCx, message, filename,
                                                    aLineNumber, false);
@@ -1072,6 +1069,10 @@ public:
       }
       else {
         // Icky, we have to fire an nsScriptErrorEvent...
+        nsIScriptGlobalObject* sgo =
+          nsJSUtils::GetStaticScriptGlobal(aCx, aTarget);
+        NS_ASSERTION(sgo, "This should never be null!");
+
         nsScriptErrorEvent event(true, NS_LOAD_ERROR);
         event.lineNr = aLineNumber;
         event.errorMsg = aMessage.get();
@@ -2043,7 +2044,7 @@ PRUint64
 WorkerPrivateParent<Derived>::GetInnerWindowId()
 {
   AssertIsOnMainThread();
-  return mDocument ? mDocument->InnerWindowID() : 0;
+  return mDocument->InnerWindowID();
 }
 
 template <class Derived>
@@ -2335,14 +2336,14 @@ WorkerPrivate::Create(JSContext* aCx, JSObject* aObj, WorkerPrivate* aParent,
           domain = file;
         }
         else {
-          nsCOMPtr<mozIThirdPartyUtil> thirdPartyUtil =
-            do_GetService(THIRDPARTYUTIL_CONTRACTID);
-          if (!thirdPartyUtil) {
-            JS_ReportError(aCx, "Could not get third party helper service!");
+          nsCOMPtr<nsIEffectiveTLDService> tldService =
+            do_GetService(NS_EFFECTIVETLDSERVICE_CONTRACTID);
+          if (!tldService) {
+            JS_ReportError(aCx, "Could not get TLD service!");
             return nsnull;
           }
 
-          if (NS_FAILED(thirdPartyUtil->GetBaseDomain(codebase, domain))) {
+          if (NS_FAILED(tldService->GetBaseDomain(codebase, 0, domain))) {
             JS_ReportError(aCx, "Could not get domain!");
             return nsnull;
           }

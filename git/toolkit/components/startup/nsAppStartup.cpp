@@ -194,7 +194,7 @@ nsAppStartup::CreateHiddenWindow()
     (do_GetService(NS_APPSHELLSERVICE_CONTRACTID));
   NS_ENSURE_TRUE(appShellService, NS_ERROR_FAILURE);
 
-  return appShellService->CreateHiddenWindow();
+  return appShellService->CreateHiddenWindow(mAppShell);
 }
 
 
@@ -512,7 +512,7 @@ nsAppStartup::CreateChromeWindow2(nsIWebBrowserChrome *aParent,
     NS_ASSERTION(xulParent, "window created using non-XUL parent. that's unexpected, but may work.");
 
     if (xulParent)
-      xulParent->CreateNewWindow(aChromeFlags, getter_AddRefs(newWindow));
+      xulParent->CreateNewWindow(aChromeFlags, mAppShell, getter_AddRefs(newWindow));
     // And if it fails, don't try again without a parent. It could fail
     // intentionally (bug 115969).
   } else { // try using basic methods:
@@ -529,7 +529,7 @@ nsAppStartup::CreateChromeWindow2(nsIWebBrowserChrome *aParent,
     appShell->CreateTopLevelWindow(0, 0, aChromeFlags,
                                    nsIAppShellService::SIZE_TO_CONTENT,
                                    nsIAppShellService::SIZE_TO_CONTENT,
-                                   getter_AddRefs(newWindow));
+                                   mAppShell, getter_AddRefs(newWindow));
   }
 
   // if anybody gave us anything to work with, use it

@@ -44,6 +44,8 @@
 #include "nsIDocShellTreeItem.h"
 #include "nsIInterfaceRequestorUtils.h"
 #include "nsIBaseWindow.h"
+#include "nsIContentViewer.h"
+#include "nsIDocumentViewer.h"
 #include "nsIWidget.h"
 
 #include "nsIStringBundle.h"

@@ -716,8 +716,8 @@ TypeCompartment::addPending(JSContext *cx, TypeConstraint *constraint, TypeSet *
               InferSpewColor(constraint), constraint, InferSpewColorReset(),
               TypeString(type));
 
-    if ((pendingCount == pendingCapacity) && !growPendingArray(cx))
-        return;
+    if (pendingCount == pendingCapacity)
+        growPendingArray(cx);
 
     PendingWork &pending = pendingArray[pendingCount++];
     pending.constraint = constraint;

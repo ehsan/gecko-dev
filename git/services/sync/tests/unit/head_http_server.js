@@ -10,17 +10,6 @@ function new_timestamp() {
   return Math.round(Date.now() / 10) / 100;
 }
 
-function return_timestamp(request, response, timestamp) {
-  if (!timestamp) {
-    timestamp = new_timestamp();
-  }
-  let body = "" + timestamp;
-  response.setHeader("X-Weave-Timestamp", body);
-  response.setStatusLine(request.httpVersion, 200, "OK");
-  response.bodyOutputStream.write(body, body.length);
-  return timestamp;
-}
-
 function httpd_setup (handlers) {
   let server = new nsHttpServer();
   let port   = 8080;
@@ -619,7 +608,7 @@ SyncServer.prototype = {
    * subject to change: see Bug 650435.
    */
   timestamp: function timestamp() {
-    return new_timestamp();
+    return Math.round(Date.now() / 10) / 100;
   },
 
   /**
@@ -711,27 +700,6 @@ SyncServer.prototype = {
   },
 
   /**
-   * Delete all of the collections for the named user.
-   *
-   * @param username
-   *        The name of the affected user.
-   *
-   * @return a timestamp.
-   */
-  deleteCollections: function deleteCollections(username) {
-    if (!(username in this.users)) {
-      throw new Error("Unknown user.");
-    }
-    let userCollections = this.users[username].collections;
-    for each (let [name, coll] in Iterator(userCollections)) {
-      this._log.trace("Bulk deleting " + name + " for " + username + "...");
-      coll.delete({});
-    }
-    this.users[username].collections = {};
-    return this.timestamp();
-  },
-
-  /**
    * Simple accessor to allow collective binding and abbreviation of a bunch of
    * methods. Yay!
    * Use like this:
@@ -748,13 +716,11 @@ SyncServer.prototype = {
     let modified         = function (collectionName) {
       return collection(collectionName).timestamp;
     }
-    let deleteCollections = this.deleteCollections.bind(this, username);
     return {
-      collection:        collection,
-      createCollection:  createCollection,
-      createContents:    createContents,
-      deleteCollections: deleteCollections,
-      modified:          modified
+      collection:       collection,
+      createCollection: createCollection,
+      createContents:   createContents,
+      modified:         modified
     };
   },
 
@@ -775,9 +741,9 @@ SyncServer.prototype = {
    * server code.
    *
    * Path: [all, version, username, first, rest]
-   * Storage: [all, collection?, id?]
+   * Storage: [all, collection, id?]
    */
-  pathRE: /^\/([0-9]+(?:\.[0-9]+)?)\/([-._a-zA-Z0-9]+)(?:\/([^\/]+)(?:\/(.+))?)?$/,
+  pathRE: /^\/([0-9]+(?:\.[0-9]+)?)\/([-._a-zA-Z0-9]+)\/([^\/]+)\/(.*)$/,
   storageRE: /^([-_a-zA-Z0-9]+)(?:\/([-_a-zA-Z0-9]+)\/?)?$/,
 
   defaultHeaders: {},
@@ -849,25 +815,6 @@ SyncServer.prototype = {
    */
   toplevelHandlers: {
     "storage": function handleStorage(handler, req, resp, version, username, rest) {
-      let respond = this.respond.bind(this, req, resp);
-      if (!rest || !rest.length) {
-        this._log.debug("SyncServer: top-level storage " +
-                        req.method + " request.");
-
-        // TODO: verify if this is spec-compliant.
-        if (req.method != "DELETE") {
-          respond(405, "Method Not Allowed", "[]", {"Allow": "DELETE"});
-          return;
-        }
-
-        // Delete all collections and track the timestamp for the response.
-        let timestamp = this.user(username).deleteCollections();
-
-        // Return timestamp and OK for deletion.
-        respond(200, "OK", JSON.stringify(timestamp));
-        return;
-      }
-
       let match = this.storageRE.exec(rest);
       if (!match) {
         this._log.warn("SyncServer: Unknown storage operation " + rest);
@@ -875,13 +822,10 @@ SyncServer.prototype = {
       }
       let [all, collection, wboID] = match;
       let coll = this.getCollection(username, collection);
+      let respond = this.respond.bind(this, req, resp);
       switch (req.method) {
         case "GET":
           if (!coll) {
-            if (wboID) {
-              respond(404, "Not found", "Not found");
-              return;
-            }
             // *cries inside*: Bug 687299.
             respond(200, "OK", "[]");
             return;
@@ -906,9 +850,9 @@ SyncServer.prototype = {
             let wbo = coll.wbo(wboID);
             if (wbo) {
               wbo.delete();
-              this.callback.onItemDeleted(username, collection, wboID);
             }
             respond(200, "OK", "{}");
+            this.callback.onItemDeleted(username, collectin, wboID);
             return;
           }
           coll.collectionHandler(req, resp);

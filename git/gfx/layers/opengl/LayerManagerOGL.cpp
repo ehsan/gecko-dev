@@ -39,9 +39,6 @@
 
 #include "mozilla/layers/PLayers.h"
 
-/* This must occur *after* layers/PLayers.h to avoid typedefs conflicts. */
-#include "mozilla/Util.h"
-
 #include "LayerManagerOGL.h"
 #include "ThebesLayerOGL.h"
 #include "ContainerLayerOGL.h"
@@ -261,7 +258,7 @@ LayerManagerOGL::Initialize(nsRefPtr<GLContext> aContext)
 
   mFBOTextureTarget = LOCAL_GL_NONE;
 
-  for (PRUint32 i = 0; i < ArrayLength(textureTargets); i++) {
+  for (PRUint32 i = 0; i < NS_ARRAY_LENGTH(textureTargets); i++) {
     GLenum target = textureTargets[i];
     mGLContext->fGenTextures(1, &mBackBufferTexture);
     mGLContext->fBindTexture(target, mBackBufferTexture);
@@ -1090,7 +1087,7 @@ LayerManagerOGL::ProgramType LayerManagerOGL::sLayerProgramTypes[] = {
 
 #define FOR_EACH_LAYER_PROGRAM(vname)                       \
   for (size_t lpindex = 0;                                  \
-       lpindex < ArrayLength(sLayerProgramTypes);           \
+       lpindex < NS_ARRAY_LENGTH(sLayerProgramTypes);       \
        ++lpindex)                                           \
   {                                                         \
     LayerProgram *vname = static_cast<LayerProgram*>        \

@@ -180,12 +180,12 @@ nsScriptableUnescapeHTML::ParseFragment(const nsAString &aFragment,
       NS_NewDocumentFragment(aReturn,
                              document->NodeInfoManager());
       fragment = do_QueryInterface(*aReturn);
-      rv = nsContentUtils::ParseFragmentHTML(aFragment,
-                                             fragment,
-                                             nsGkAtoms::body,
-                                             kNameSpaceID_XHTML,
-                                             PR_FALSE,
-                                             PR_TRUE);
+      nsContentUtils::ParseFragmentHTML(aFragment,
+                                        fragment,
+                                        nsGkAtoms::body,
+                                        kNameSpaceID_XHTML,
+                                        PR_FALSE,
+                                        PR_TRUE);
       // Now, set the base URI on all subtree roots.
       if (aBaseURI) {
         aBaseURI->GetSpec(spec);
