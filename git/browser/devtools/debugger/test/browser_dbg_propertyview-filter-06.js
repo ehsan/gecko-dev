@@ -25,7 +25,6 @@ function test()
     gDebuggee = aDebuggee;
 
     gDebugger.DebuggerController.StackFrames.autoScopeExpand = false;
-    gDebugger.DebuggerView.Variables.delayedSearch = false;
     prepareVariables(testVariablesFiltering);
   });
 }
