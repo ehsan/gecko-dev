@@ -1142,22 +1142,8 @@ nsXREDirProvider::GetUserDataDirectoryHome(nsIFile** aFile, bool aLocal)
   if (!homeDir || !*homeDir)
     return NS_ERROR_FAILURE;
 
-  if (aLocal) {
-    // If $XDG_CACHE_HOME is defined use it, otherwise use $HOME/.cache.
-    const char* cacheHome = getenv("XDG_CACHE_HOME");
-    if (cacheHome && *cacheHome) {
-      rv = NS_NewNativeLocalFile(nsDependentCString(cacheHome), true,
-                                 getter_AddRefs(localDir));
-    } else {
-      rv = NS_NewNativeLocalFile(nsDependentCString(homeDir), true,
-                                 getter_AddRefs(localDir));
-      if (NS_SUCCEEDED(rv))
-        rv = localDir->AppendNative(NS_LITERAL_CSTRING(".cache"));
-    }
-  } else {
-    rv = NS_NewNativeLocalFile(nsDependentCString(homeDir), true,
-                               getter_AddRefs(localDir));
-  }
+  rv = NS_NewNativeLocalFile(nsDependentCString(homeDir), true,
+                             getter_AddRefs(localDir));
 #else
 #error "Don't know how to get product dir on your platform"
 #endif
@@ -1242,7 +1228,7 @@ nsXREDirProvider::GetUserDataDirectory(nsIFile** aFile, bool aLocal,
   nsresult rv = GetUserDataDirectoryHome(getter_AddRefs(localDir), aLocal);
   NS_ENSURE_SUCCESS(rv, rv);
 
-  rv = AppendProfilePath(localDir, aProfileName, aAppName, aVendorName, aLocal);
+  rv = AppendProfilePath(localDir, aProfileName, aAppName, aVendorName);
   NS_ENSURE_SUCCESS(rv, rv);
 
 #ifdef DEBUG_jungshik
@@ -1363,8 +1349,7 @@ nsresult
 nsXREDirProvider::AppendProfilePath(nsIFile* aFile,
                                     const nsACString* aProfileName,
                                     const nsACString* aAppName,
-                                    const nsACString* aVendorName,
-                                    PRBool aLocal)
+                                    const nsACString* aVendorName)
 {
   NS_ASSERTION(aFile, "Null pointer!");
   
@@ -1426,11 +1411,8 @@ nsXREDirProvider::AppendProfilePath(nsIFile* aFile,
   rv = aFile->AppendNative(nsDependentCString("mozilla"));
   NS_ENSURE_SUCCESS(rv, rv);
 #elif defined(XP_UNIX)
-  nsAutoCString folder;
-  // Make it hidden (by starting with "."), except when local (the
-  // profile is already under ~/.cache or XDG_CACHE_HOME).
-  if (!aLocal)
-    folder.Assign('.');
+  // Make it hidden (i.e. using the ".")
+  nsAutoCString folder(".");
 
   if (!profile.IsEmpty()) {
     // Skip any leading path characters
@@ -1440,7 +1422,7 @@ nsXREDirProvider::AppendProfilePath(nsIFile* aFile,
 
     // On the off chance that someone wanted their folder to be hidden don't
     // let it become ".."
-    if (*profileStart == '.' && !aLocal)
+    if (*profileStart == '.')
       profileStart++;
 
     folder.Append(profileStart);
