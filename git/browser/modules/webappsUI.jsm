@@ -41,9 +41,7 @@ this.webappsUI = {
   receiveMessage: function(aMessage) {
     let data = aMessage.data;
 
-    if (aMessage.name == "Webapps:OfflineCache" &&
-        data.installState == "installed" &&
-        this.downloads[data.manifest]) {
+    if (aMessage.name == "Webapps:OfflineCache" && data.installState == "installed") {
       this.downloads[data.manifest].resolve();
     }
   },
@@ -137,7 +135,7 @@ this.webappsUI = {
             localDir = app.appProfile.localDir;
           }
 
-          DOMApplicationRegistry.confirmInstall(aData, localDir, null,
+          DOMApplicationRegistry.confirmInstall(aData, false, localDir, null,
             (aManifest) => {
               Task.spawn(function() {
                 try {

@@ -118,7 +118,7 @@ ThebesLayerComposite::RenderLayer(const nsIntPoint& aOffset,
 #endif
 
   EffectChain effectChain;
-  LayerManagerComposite::AutoAddMaskEffect autoMaskEffect(mMaskLayer, effectChain);
+  LayerManagerComposite::AddMaskEffect(mMaskLayer, effectChain);
 
   nsIntRegion visibleRegion = GetEffectiveVisibleRegion();
 
@@ -151,6 +151,7 @@ ThebesLayerComposite::RenderLayer(const nsIntPoint& aOffset,
     mValidRegion = tiledLayerProps.mValidRegion;
   }
 
+  LayerManagerComposite::RemoveMaskEffect(mMaskLayer);
   mCompositeManager->GetCompositor()->MakeCurrent();
 }
 

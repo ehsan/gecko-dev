@@ -266,11 +266,7 @@ LocalDebuggerTransport.prototype = {
       other.close();
     }
     if (this.hooks) {
-      try {
-        this.hooks.onClosed();
-      } catch(ex) {
-        Components.utils.reportError(ex);
-      }
+      this.hooks.onClosed();
       this.hooks = null;
     }
   },

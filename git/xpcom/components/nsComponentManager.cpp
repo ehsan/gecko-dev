@@ -1,5 +1,4 @@
-/* -*- Mode: C++; tab-width: 8; indent-tabs-mode: nil; c-basic-offset: 4 -*- */
-/* vim: set ts=8 sts=4 et sw=4 tw=80: */
+/* -*- Mode: C++; tab-width: 4; indent-tabs-mode: nil; c-basic-offset: 4 -*- */
 /* This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/.
@@ -280,23 +279,22 @@ CloneAndAppend(nsIFile* aBase, const nsACString& append)
 // nsComponentManagerImpl
 ////////////////////////////////////////////////////////////////////////////////
 
-class XPCOMComponentManagerReporter MOZ_FINAL : public MemoryReporterBase
+NS_MEMORY_REPORTER_MALLOC_SIZEOF_FUN(ComponentManagerMallocSizeOf)
+
+static int64_t
+GetComponentManagerSize()
 {
-public:
-    XPCOMComponentManagerReporter()
-      : MemoryReporterBase("explicit/xpcom/component-manager",
-                           KIND_HEAP, UNITS_BYTES,
-                           "Memory used for the XPCOM component manager.")
-    {}
-private:
-    int64_t Amount() MOZ_OVERRIDE
-    {
-        return nsComponentManagerImpl::gComponentManager
-             ? nsComponentManagerImpl::gComponentManager->SizeOfIncludingThis(
-                 MallocSizeOf)
-             : 0;
-    }
-};
+  MOZ_ASSERT(nsComponentManagerImpl::gComponentManager);
+  return nsComponentManagerImpl::gComponentManager->SizeOfIncludingThis(
+           ComponentManagerMallocSizeOf);
+}
+
+NS_MEMORY_REPORTER_IMPLEMENT(ComponentManager,
+    "explicit/xpcom/component-manager",
+    KIND_HEAP,
+    nsIMemoryReporter::UNITS_BYTES,
+    GetComponentManagerSize,
+    "Memory used for the XPCOM component manager.")
 
 nsresult
 nsComponentManagerImpl::Create(nsISupports* aOuter, REFNSIID aIID, void** aResult)
@@ -414,8 +412,8 @@ nsresult nsComponentManagerImpl::Init()
 
     nsCategoryManager::GetSingleton()->SuppressNotifications(false);
 
-    mReporter = new XPCOMComponentManagerReporter();
-    NS_RegisterMemoryReporter(mReporter);
+    mReporter = new NS_MEMORY_REPORTER_NAME(ComponentManager);
+    (void)::NS_RegisterMemoryReporter(mReporter);
 
     // Unfortunately, we can't register the nsCategoryManager memory reporter
     // in its constructor (which is triggered by the GetSingleton() call
@@ -800,7 +798,7 @@ nsresult nsComponentManagerImpl::Shutdown(void)
     // Shutdown the component manager
     PR_LOG(nsComponentManagerLog, PR_LOG_DEBUG, ("nsComponentManager: Beginning Shutdown."));
 
-    NS_UnregisterMemoryReporter(mReporter);
+    (void)::NS_UnregisterMemoryReporter(mReporter);
     mReporter = nullptr;
 
     // Release all cached factories

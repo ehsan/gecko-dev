@@ -1,5 +1,5 @@
-/* -*- Mode: C++; tab-width: 8; indent-tabs-mode: nil; c-basic-offset: 2 -*- */
-/* vim: set ts=8 sts=2 et sw=2 tw=80: */
+/* -*- Mode: C++; tab-width: 2; indent-tabs-mode: nil; c-basic-offset: 2 -*- */
+/* vim:set ts=2 sw=2 sts=2 ci et: */
 /* This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
@@ -325,14 +325,47 @@ CreateDIBSectionHook(HDC aDC,
   return result;
 }
 
-class LowMemoryEventsVirtualReporter MOZ_FINAL : public MemoryReporterBase
+class NumLowMemoryEventsReporter : public nsIMemoryReporter
+{
+  NS_IMETHOD GetProcess(nsACString &aProcess)
+  {
+    aProcess.Truncate();
+    return NS_OK;
+  }
+
+  NS_IMETHOD GetKind(int *aKind)
+  {
+    *aKind = KIND_OTHER;
+    return NS_OK;
+  }
+
+  NS_IMETHOD GetUnits(int *aUnits)
+  {
+    *aUnits = UNITS_COUNT_CUMULATIVE;
+    return NS_OK;
+  }
+};
+
+class NumLowVirtualMemoryEventsMemoryReporter MOZ_FINAL : public NumLowMemoryEventsReporter
 {
 public:
-  // The description is "???" because we implement GetDescription().
-  LowMemoryEventsVirtualReporter()
-    : MemoryReporterBase("low-memory-events/virtual",
-                         KIND_OTHER, UNITS_COUNT_CUMULATIVE, "???")
-  {}
+  NS_DECL_ISUPPORTS
+
+  NS_IMETHOD GetPath(nsACString &aPath)
+  {
+    aPath.AssignLiteral("low-memory-events/virtual");
+    return NS_OK;
+  }
+
+  NS_IMETHOD GetAmount(int64_t *aAmount)
+  {
+    // This memory reporter shouldn't be installed on 64-bit machines, since we
+    // force-disable virtual-memory tracking there.
+    MOZ_ASSERT(sizeof(void*) == 4);
+
+    *aAmount = sNumLowVirtualMemEvents;
+    return NS_OK;
+  }
 
   NS_IMETHOD GetDescription(nsACString &aDescription)
   {
@@ -355,26 +388,26 @@ public:
     }
     return NS_OK;
   }
-
-private:
-  int64_t Amount() MOZ_OVERRIDE
-  {
-    // This memory reporter shouldn't be installed on 64-bit machines, since we
-    // force-disable virtual-memory tracking there.
-    MOZ_ASSERT(sizeof(void*) == 4);
-
-    return sNumLowVirtualMemEvents;
-  }
 };
 
-class LowCommitSpaceEventsReporter MOZ_FINAL : public MemoryReporterBase
+NS_IMPL_ISUPPORTS1(NumLowVirtualMemoryEventsMemoryReporter, nsIMemoryReporter)
+
+class NumLowCommitSpaceEventsMemoryReporter MOZ_FINAL : public NumLowMemoryEventsReporter
 {
 public:
-  // The description is "???" because we implement GetDescription().
-  LowCommitSpaceEventsReporter()
-    : MemoryReporterBase("low-commit-space-events",
-                         KIND_OTHER, UNITS_COUNT_CUMULATIVE, "???")
-  {}
+  NS_DECL_ISUPPORTS
+
+  NS_IMETHOD GetPath(nsACString &aPath)
+  {
+    aPath.AssignLiteral("low-commit-space-events");
+    return NS_OK;
+  }
+
+  NS_IMETHOD GetAmount(int64_t *aAmount)
+  {
+    *aAmount = sNumLowCommitSpaceEvents;
+    return NS_OK;
+  }
 
   NS_IMETHOD GetDescription(nsACString &aDescription)
   {
@@ -397,19 +430,26 @@ public:
     }
     return NS_OK;
   }
-
-private:
-  int64_t Amount() MOZ_OVERRIDE { return sNumLowCommitSpaceEvents; }
 };
 
-class LowMemoryEventsPhysicalReporter MOZ_FINAL : public MemoryReporterBase
+NS_IMPL_ISUPPORTS1(NumLowCommitSpaceEventsMemoryReporter, nsIMemoryReporter)
+
+class NumLowPhysicalMemoryEventsMemoryReporter MOZ_FINAL : public NumLowMemoryEventsReporter
 {
 public:
-  // The description is "???" because we implement GetDescription().
-  LowMemoryEventsPhysicalReporter()
-    : MemoryReporterBase("low-memory-events/physical",
-                         KIND_OTHER, UNITS_COUNT_CUMULATIVE, "???")
-  {}
+  NS_DECL_ISUPPORTS
+
+  NS_IMETHOD GetPath(nsACString &aPath)
+  {
+    aPath.AssignLiteral("low-memory-events/physical");
+    return NS_OK;
+  }
+
+  NS_IMETHOD GetAmount(int64_t *aAmount)
+  {
+    *aAmount = sNumLowPhysicalMemEvents;
+    return NS_OK;
+  }
 
   NS_IMETHOD GetDescription(nsACString &aDescription)
   {
@@ -433,10 +473,9 @@ public:
     }
     return NS_OK;
   }
-
-private:
-  int64_t Amount() MOZ_OVERRIDE { return sNumLowPhysicalMemEvents; }
 };
+
+NS_IMPL_ISUPPORTS1(NumLowPhysicalMemoryEventsMemoryReporter, nsIMemoryReporter)
 
 #endif // defined(XP_WIN)
 
@@ -553,10 +592,10 @@ void Activate()
   Preferences::AddUintVarCache(&sLowMemoryNotificationIntervalMS,
       "memory.low_memory_notification_interval_ms", 10000);
 
-  NS_RegisterMemoryReporter(new LowCommitSpaceEventsReporter());
-  NS_RegisterMemoryReporter(new LowMemoryEventsPhysicalReporter());
+  NS_RegisterMemoryReporter(new NumLowCommitSpaceEventsMemoryReporter());
+  NS_RegisterMemoryReporter(new NumLowPhysicalMemoryEventsMemoryReporter());
   if (sizeof(void*) == 4) {
-    NS_RegisterMemoryReporter(new LowMemoryEventsVirtualReporter());
+    NS_RegisterMemoryReporter(new NumLowVirtualMemoryEventsMemoryReporter());
   }
   sHooksActive = true;
 #endif

@@ -29,7 +29,8 @@
 
 #include <algorithm>
 #include "jsfriendapi.h"
-#include "js/OldDebugAPI.h"
+#include "jsdbgapi.h"
+#include "jsfriendapi.h"
 #include "js/MemoryMetrics.h"
 #include "mozilla/Attributes.h"
 #include "mozilla/Likely.h"

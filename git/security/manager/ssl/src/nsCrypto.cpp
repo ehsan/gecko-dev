@@ -52,7 +52,7 @@
 #include "nsIFormSigningDialog.h"
 #include "nsIContentSecurityPolicy.h"
 #include "jsapi.h"
-#include "js/OldDebugAPI.h"
+#include "jsdbgapi.h"
 #include <ctype.h>
 #include "pk11func.h"
 #include "keyhi.h"
@@ -843,9 +843,7 @@ cryptojs_generateOneKeyPair(JSContext *cx, nsKeyPairInfo *keyPairInfo,
             mustMoveKey = true;
           }
         
-          if (used_slot) {
-            PK11_FreeSlot(used_slot);
-          }
+          PK11_FreeSlot(used_slot);
         }
       }
     }

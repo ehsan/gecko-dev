@@ -660,33 +660,36 @@ LayerManagerComposite::CreateRefLayerComposite()
   return nsRefPtr<RefLayerComposite>(new RefLayerComposite(this)).forget();
 }
 
-LayerManagerComposite::AutoAddMaskEffect::AutoAddMaskEffect(Layer* aMaskLayer,
-                                                            EffectChain& aEffects,
-                                                            bool aIs3D)
-  : mCompositable(nullptr)
+/* static */ bool
+LayerManagerComposite::AddMaskEffect(Layer* aMaskLayer, EffectChain& aEffects, bool aIs3D)
 {
   if (!aMaskLayer) {
-    return;
+    return false;
   }
-
-  mCompositable = static_cast<LayerComposite*>(aMaskLayer->ImplData())->GetCompositableHost();
-  if (!mCompositable) {
+  LayerComposite* maskLayerComposite = static_cast<LayerComposite*>(aMaskLayer->ImplData());
+  if (!maskLayerComposite->GetCompositableHost()) {
     NS_WARNING("Mask layer with no compositable host");
-    return;
+    return false;
   }
 
   gfx::Matrix4x4 transform;
   ToMatrix4x4(aMaskLayer->GetEffectiveTransform(), transform);
-  mCompositable->AddMaskEffect(aEffects, transform, aIs3D);
+  return maskLayerComposite->GetCompositableHost()->AddMaskEffect(aEffects, transform, aIs3D);
 }
 
-LayerManagerComposite::AutoAddMaskEffect::~AutoAddMaskEffect()
+/* static */ void
+LayerManagerComposite::RemoveMaskEffect(Layer* aMaskLayer)
 {
-  if (!mCompositable) {
+  if (!aMaskLayer) {
+    return;
+  }
+  LayerComposite* maskLayerComposite = static_cast<LayerComposite*>(aMaskLayer->ImplData());
+  if (!maskLayerComposite->GetCompositableHost()) {
+    NS_WARNING("Mask layer with no compositable host");
     return;
   }
 
-  mCompositable->RemoveMaskEffect();
+  maskLayerComposite->GetCompositableHost()->RemoveMaskEffect();
 }
 
 TemporaryRef<DrawTarget>

@@ -1,5 +1,4 @@
-/* -*- Mode: C++; tab-width: 8; indent-tabs-mode: nil; c-basic-offset: 2 -*- */
-/* vim: set ts=8 sts=2 et sw=2 tw=80: */
+/* -*- Mode: C++; tab-width: 2; indent-tabs-mode: nil; c-basic-offset: 2 -*- */
 /* This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
@@ -255,7 +254,8 @@ public:
                                Telemetry::ProcessedStack &aStack);
 #endif
   static nsresult GetHistogramEnumId(const char *name, Telemetry::ID *id);
-  static int64_t SizeOfIncludingThis(mozilla::MallocSizeOf aMallocSizeOf);
+  static int64_t GetTelemetryMemoryUsed();
+  size_t SizeOfIncludingThis(mozilla::MallocSizeOf aMallocSizeOf);
   struct Stat {
     uint32_t hitCount;
     uint32_t totalTime;
@@ -267,7 +267,16 @@ public:
   typedef nsBaseHashtableET<nsCStringHashKey, StmtStats> SlowSQLEntryType;
 
 private:
-  size_t SizeOfIncludingThisHelper(mozilla::MallocSizeOf aMallocSizeOf);
+  // We don't need to poke inside any of our hashtables for more
+  // information, so we just have One Function To Size Them All.
+  template<typename EntryType>
+  struct impl {
+    static size_t SizeOfEntryExcludingThis(EntryType *,
+                                           mozilla::MallocSizeOf,
+                                           void *) {
+      return 0;
+    };
+  };
 
   static nsCString SanitizeSQL(const nsACString& sql);
 
@@ -326,7 +335,7 @@ private:
   Mutex mHashMutex;
   HangReports mHangReports;
   Mutex mHangReportsMutex;
-  nsCOMPtr<nsIMemoryReporter> mReporter;
+  nsIMemoryReporter *mMemoryReporter;
 
   CombinedStacks mLateWritesStacks; // This is collected out of the main thread.
   bool mCachedTelemetryData;
@@ -338,26 +347,34 @@ private:
 
 TelemetryImpl*  TelemetryImpl::sTelemetry = NULL;
 
+NS_MEMORY_REPORTER_MALLOC_SIZEOF_FUN(TelemetryMallocSizeOf)
+
 size_t
-TelemetryImpl::SizeOfIncludingThisHelper(mozilla::MallocSizeOf aMallocSizeOf)
+TelemetryImpl::SizeOfIncludingThis(mozilla::MallocSizeOf aMallocSizeOf)
 {
-  size_t n = aMallocSizeOf(this);
+  size_t n = 0;
+  n += aMallocSizeOf(this);
   // Ignore the hashtables in mAddonMap; they are not significant.
-  n += mAddonMap.SizeOfExcludingThis(nullptr, aMallocSizeOf);
-  n += mHistogramMap.SizeOfExcludingThis(nullptr, aMallocSizeOf);
-  n += mPrivateSQL.SizeOfExcludingThis(nullptr, aMallocSizeOf);
-  n += mSanitizedSQL.SizeOfExcludingThis(nullptr, aMallocSizeOf);
-  n += mTrackedDBs.SizeOfExcludingThis(nullptr, aMallocSizeOf);
+  n += mAddonMap.SizeOfExcludingThis(impl<AddonEntryType>::SizeOfEntryExcludingThis,
+                                     aMallocSizeOf);
+  n += mHistogramMap.SizeOfExcludingThis(impl<CharPtrEntryType>::SizeOfEntryExcludingThis,
+                                         aMallocSizeOf);
+  n += mPrivateSQL.SizeOfExcludingThis(impl<SlowSQLEntryType>::SizeOfEntryExcludingThis,
+                                       aMallocSizeOf);
+  n += mSanitizedSQL.SizeOfExcludingThis(impl<SlowSQLEntryType>::SizeOfEntryExcludingThis,
+                                         aMallocSizeOf);
+  n += mTrackedDBs.SizeOfExcludingThis(impl<nsCStringHashKey>::SizeOfEntryExcludingThis,
+                                       aMallocSizeOf);
   n += mHangReports.SizeOfExcludingThis();
   return n;
 }
 
 int64_t
-TelemetryImpl::SizeOfIncludingThis(mozilla::MallocSizeOf aMallocSizeOf)
+TelemetryImpl::GetTelemetryMemoryUsed()
 {
   int64_t n = 0;
   if (sTelemetry) {
-    n += sTelemetry->SizeOfIncludingThisHelper(aMallocSizeOf);
+    n += sTelemetry->SizeOfIncludingThis(TelemetryMallocSizeOf);
   }
 
   StatisticsRecorder::Histograms hs;
@@ -365,24 +382,17 @@ TelemetryImpl::SizeOfIncludingThis(mozilla::MallocSizeOf aMallocSizeOf)
 
   for (HistogramIterator it = hs.begin(); it != hs.end(); ++it) {
     Histogram *h = *it;
-    n += h->SizeOfIncludingThis(aMallocSizeOf);
+    n += h->SizeOfIncludingThis(TelemetryMallocSizeOf);
   }
   return n;
 }
 
-class TelemetryReporter MOZ_FINAL : public MemoryReporterBase
-{
-public:
-  TelemetryReporter()
-    : MemoryReporterBase("explicit/telemetry", KIND_HEAP, UNITS_BYTES,
-                         "Memory used by the telemetry system.")
-  {}
-private:
-  int64_t Amount() MOZ_OVERRIDE
-  {
-    return TelemetryImpl::SizeOfIncludingThis(MallocSizeOf);
-  }
-};
+NS_MEMORY_REPORTER_IMPLEMENT(Telemetry,
+  "explicit/telemetry",
+  KIND_HEAP,
+  UNITS_BYTES,
+  TelemetryImpl::GetTelemetryMemoryUsed,
+  "Memory used by the telemetry system.")
 
 // A initializer to initialize histogram collection
 StatisticsRecorder gStatisticsRecorder;
@@ -968,12 +978,13 @@ mFailedLockCount(0)
   // Mark immutable to prevent asserts on simultaneous access from multiple threads
   mTrackedDBs.MarkImmutable();
 #endif
-  mReporter = new TelemetryReporter();
-  NS_RegisterMemoryReporter(mReporter);
+  mMemoryReporter = new NS_MEMORY_REPORTER_NAME(Telemetry);
+  NS_RegisterMemoryReporter(mMemoryReporter);
 }
 
 TelemetryImpl::~TelemetryImpl() {
-  NS_UnregisterMemoryReporter(mReporter);
+  NS_UnregisterMemoryReporter(mMemoryReporter);
+  mMemoryReporter = nullptr;
 }
 
 NS_IMETHODIMP
@@ -1848,7 +1859,7 @@ already_AddRefed<nsITelemetry>
 TelemetryImpl::CreateTelemetryInstance()
 {
   NS_ABORT_IF_FALSE(sTelemetry == NULL, "CreateTelemetryInstance may only be called once, via GetService()");
-  sTelemetry = new TelemetryImpl();
+  sTelemetry = new TelemetryImpl(); 
   // AddRef for the local reference
   NS_ADDREF(sTelemetry);
   // AddRef for the caller

@@ -6750,7 +6750,7 @@ var WebappsUI = {
         break;
       case "webapps-sync-install":
         // Create a system notification allowing the user to launch the app
-        DOMApplicationRegistry.getManifestFor(data.manifestURL, (function(aManifest) {
+        DOMApplicationRegistry.getManifestFor(data.origin, (function(aManifest) {
           if (!aManifest)
             return;
           let manifest = new ManifestHelper(aManifest, data.origin);
@@ -6829,7 +6829,7 @@ var WebappsUI = {
         file.initWithPath(profilePath);
 
         let self = this;
-        DOMApplicationRegistry.confirmInstall(aData, file, null,
+        DOMApplicationRegistry.confirmInstall(aData, false, file, null,
           function (aManifest) {
             let localeManifest = new ManifestHelper(aManifest, aData.app.origin);
 

@@ -66,7 +66,8 @@
 #include "mozilla/Omnijar.h"
 #include "mozilla/Preferences.h"
 
-#include "js/OldDebugAPI.h"
+#include "jsdbgapi.h"
+
 
 using namespace mozilla;
 using namespace mozilla::scache;

@@ -20,7 +20,7 @@
 #include "nsClassHashtable.h"
 #include "nsHashKeys.h"
 #include "mozilla/Attributes.h"
-#include "mozilla/Maybe.h"
+#include "mozilla/Util.h"
 
 class nsPresContext;
 class nsIPresShell;

@@ -1,5 +1,4 @@
-/* -*- Mode: C++; tab-width: 8; indent-tabs-mode: nil; c-basic-offset: 4 -*- */
-/* vim: set ts=8 sts=4 et sw=4 tw=80: */
+/* -*- Mode: c++; c-basic-offset: 4; indent-tabs-mode: nil; tab-width: 40; -*- */
 /* This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
@@ -41,7 +40,6 @@
 #include "nsHashKeys.h"
 #include "nsRegion.h"
 #include "nsAutoPtr.h"
-#include "nsIMemoryReporter.h"
 #include "nsThreadUtils.h"
 #include "GLContextTypes.h"
 #include "GLTextureImage.h"
@@ -3446,24 +3444,8 @@ public:
     nsTArray<NamedResource> mTrackedBuffers;
     nsTArray<NamedResource> mTrackedQueries;
 #endif
-};
 
-class GfxTexturesReporter MOZ_FINAL : public MemoryReporterBase
-{
 public:
-    GfxTexturesReporter()
-      : MemoryReporterBase("gfx-textures", KIND_OTHER, UNITS_BYTES,
-                           "Memory used for storing GL textures.")
-    {
-#ifdef DEBUG
-        // There must be only one instance of this class, due to |sAmount|
-        // being static.  Assert this.
-        static bool hasRun = false;
-        MOZ_ASSERT(!hasRun);
-        hasRun = true;
-#endif
-    }
-
     enum MemoryUse {
         // when memory being allocated is reported to a memory reporter
         MemoryAllocated,
@@ -3471,15 +3453,12 @@ public:
         MemoryFreed
     };
 
-    // When memory is used/freed for tile textures, call this method to update
-    // the value reported by this memory reporter.
-    static void UpdateAmount(MemoryUse action, GLenum format, GLenum type,
-                             uint16_t tileSize);
-
-private:
-    int64_t Amount() MOZ_OVERRIDE { return sAmount; }
-
-    static int64_t sAmount;
+    // When memory is used/freed for tile textures, call this method
+    // to update the value reported by the memory reporter.
+    static void UpdateTextureMemoryUsage(MemoryUse action,
+                                         GLenum format,
+                                         GLenum type,
+                                         uint16_t tileSize);
 };
 
 inline bool
