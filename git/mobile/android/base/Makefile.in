@@ -91,14 +91,10 @@ classes.dex: proguard-jars
 	@echo 'DX classes.dex'
 	$(DX) --dex --output=classes.dex jars-proguarded $(ANDROID_COMPAT_LIB)
 
-ifdef MOZ_DISABLE_PROGUARD
-  PROGUARD_PASSES=0
+ifdef MOZ_DEBUG
+PROGUARD_PASSES=1
 else
-  ifdef MOZ_DEBUG
-  PROGUARD_PASSES=1
-  else
-  PROGUARD_PASSES=6
-  endif
+PROGUARD_PASSES=6
 endif
 
 proguard-jars: $(ALL_JARS)

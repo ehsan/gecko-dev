@@ -149,8 +149,7 @@ ToolbarView.prototype = {
   _onStepOverPressed: function() {
     if (DebuggerController.activeThread.paused) {
       DebuggerController.StackFrames.currentFrameDepth = -1;
-      let warn = DebuggerController._ensureResumptionOrder;
-      DebuggerController.activeThread.stepOver(warn);
+      DebuggerController.activeThread.stepOver();
     }
   },
 
@@ -160,8 +159,7 @@ ToolbarView.prototype = {
   _onStepInPressed: function() {
     if (DebuggerController.activeThread.paused) {
       DebuggerController.StackFrames.currentFrameDepth = -1;
-      let warn = DebuggerController._ensureResumptionOrder;
-      DebuggerController.activeThread.stepIn(warn);
+      DebuggerController.activeThread.stepIn();
     }
   },
 
@@ -171,8 +169,7 @@ ToolbarView.prototype = {
   _onStepOutPressed: function() {
     if (DebuggerController.activeThread.paused) {
       DebuggerController.StackFrames.currentFrameDepth = -1;
-      let warn = DebuggerController._ensureResumptionOrder;
-      DebuggerController.activeThread.stepOut(warn);
+      DebuggerController.activeThread.stepOut();
     }
   },
 

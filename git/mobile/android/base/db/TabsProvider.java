@@ -12,7 +12,6 @@ import java.util.Map;
 import org.mozilla.gecko.GeckoProfile;
 import org.mozilla.gecko.db.BrowserContract.Clients;
 import org.mozilla.gecko.db.BrowserContract.Tabs;
-import org.mozilla.gecko.db.PerProfileDatabases.DatabaseHelperFactory;
 import org.mozilla.gecko.mozglue.RobocopTarget;
 
 import android.content.ContentProvider;
@@ -33,8 +32,6 @@ import android.util.Log;
 public class TabsProvider extends ContentProvider {
     private static final String LOGTAG = "GeckoTabsProvider";
     private Context mContext;
-
-    private PerProfileDatabases<TabsDatabaseHelper> mDatabases;
 
     static final String DATABASE_NAME = "tabs.db";
 
@@ -88,6 +85,8 @@ public class TabsProvider extends ContentProvider {
         CLIENTS_PROJECTION_MAP = Collections.unmodifiableMap(map);
     }
 
+    private HashMap<String, DatabaseHelper> mDatabasePerProfile;
+
     static final String selectColumn(String table, String column) {
         return table + "." + column + " = ?";
     }
@@ -108,8 +107,8 @@ public class TabsProvider extends ContentProvider {
         }
     }
 
-    final class TabsDatabaseHelper extends SQLiteOpenHelper {
-        public TabsDatabaseHelper(Context context, String databasePath) {
+    final class DatabaseHelper extends SQLiteOpenHelper {
+        public DatabaseHelper(Context context, String databasePath) {
             super(context, databasePath, null, DATABASE_VERSION);
         }
 
@@ -208,9 +207,59 @@ public class TabsProvider extends ContentProvider {
         }
     }
 
+    private DatabaseHelper getDatabaseHelperForProfile(String profile) {
+        // Each profile has a separate tabs.db database. The target
+        // profile is provided using a URI query argument in each request
+        // to our content provider.
+
+        // Always fallback to default profile if none has been provided.
+        if (TextUtils.isEmpty(profile)) {
+            profile = GeckoProfile.get(getContext()).getName();
+        }
+
+        DatabaseHelper dbHelper;
+        synchronized (this) {
+            dbHelper = mDatabasePerProfile.get(profile);
+            if (dbHelper != null) {
+                return dbHelper;
+            }
+
+            String databasePath = getDatabasePath(profile);
+
+            // Before bug 768532, the database was located outside if the
+            // profile on Android 2.2. Make sure it is moved inside the profile
+            // directory.
+            if (Build.VERSION.SDK_INT == 8) {
+                File oldPath = mContext.getDatabasePath("tabs-" + profile + ".db");
+                if (oldPath.exists()) {
+                    oldPath.renameTo(new File(databasePath));
+                }
+            }
+
+            dbHelper = new DatabaseHelper(getContext(), databasePath);
+            mDatabasePerProfile.put(profile, dbHelper);
+
+            DBUtils.ensureDatabaseIsNotLocked(dbHelper, databasePath);
+        }
+
+        debug("Created database helper for profile: " + profile);
+        return dbHelper;
+    }
+
     @RobocopTarget
     private String getDatabasePath(String profile) {
-        return mDatabases.getDatabasePathForProfile(profile);
+        trace("Getting database path for profile: " + profile);
+
+        File profileDir = GeckoProfile.get(mContext, profile).getDir();
+        if (profileDir == null) {
+            debug("Couldn't find directory for profile: " + profile);
+            return null;
+        }
+
+        String databasePath = new File(profileDir, DATABASE_NAME).getAbsolutePath();
+        debug("Successfully created database path for profile: " + databasePath);
+
+        return databasePath;
     }
 
     private SQLiteDatabase getReadableDatabase(Uri uri) {
@@ -221,7 +270,7 @@ public class TabsProvider extends ContentProvider {
         if (uri != null)
             profile = uri.getQueryParameter(BrowserContract.PARAM_PROFILE);
 
-        return mDatabases.getDatabaseHelperForProfile(profile).getReadableDatabase();
+        return getDatabaseHelperForProfile(profile).getReadableDatabase();
     }
 
     private SQLiteDatabase getWritableDatabase(Uri uri) {
@@ -232,7 +281,7 @@ public class TabsProvider extends ContentProvider {
         if (uri != null)
             profile = uri.getQueryParameter(BrowserContract.PARAM_PROFILE);
 
-        return mDatabases.getDatabaseHelperForProfile(profile).getWritableDatabase();
+        return getDatabaseHelperForProfile(profile).getWritableDatabase();
     }
 
     @Override
@@ -241,13 +290,7 @@ public class TabsProvider extends ContentProvider {
 
         synchronized (this) {
             mContext = getContext();
-            mDatabases = new PerProfileDatabases<TabsDatabaseHelper>(
-                getContext(), DATABASE_NAME, new DatabaseHelperFactory<TabsDatabaseHelper>() {
-                    @Override
-                    public TabsDatabaseHelper makeDatabaseHelper(Context context, String databasePath) {
-                        return new TabsDatabaseHelper(context, databasePath);
-                    }
-                });
+            mDatabasePerProfile = new HashMap<String, DatabaseHelper>();
         }
 
         return true;

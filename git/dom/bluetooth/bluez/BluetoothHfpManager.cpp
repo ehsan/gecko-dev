@@ -1018,7 +1018,7 @@ BluetoothHfpManager::ReceiveSocketData(BluetoothSocket* aSocket,
 
     for (uint8_t i = 0; i < atCommandValues.Length(); i++) {
       CINDType indicatorType = (CINDType) (i + 1);
-      if (indicatorType >= (int)ArrayLength(sCINDItems)) {
+      if (indicatorType >= ArrayLength(sCINDItems)) {
         // Ignore excess parameters at the end
         break;
       }
@@ -1802,8 +1802,15 @@ BluetoothHfpManager::ConnectSco(BluetoothReplyRunnable* aRunnable)
 {
   MOZ_ASSERT(NS_IsMainThread());
 
-  NS_ENSURE_TRUE(!sInShutdown, false);
-  NS_ENSURE_TRUE(IsConnected(), false);
+  if (sInShutdown) {
+    BT_WARNING("ConnecteSco called while in shutdown!");
+    return false;
+  }
+
+  if (!IsConnected()) {
+    BT_WARNING("BluetoothHfpManager is not connected");
+    return false;
+  }
 
   SocketConnectionStatus status = mScoSocket->GetConnectionStatus();
   if (status == SocketConnectionStatus::SOCKET_CONNECTED ||
@@ -1821,14 +1828,16 @@ BluetoothHfpManager::ConnectSco(BluetoothReplyRunnable* aRunnable)
     return false;
   }
 
-  // Stop listening
   mScoSocket->Disconnect();
 
-  mScoSocket->Connect(NS_ConvertUTF16toUTF8(mDeviceAddress), -1);
-  mScoSocketStatus = mScoSocket->GetConnectionStatus();
-
   mScoRunnable = aRunnable;
-  return true;
+
+  BluetoothService* bs = BluetoothService::Get();
+  NS_ENSURE_TRUE(bs, false);
+  nsresult rv = bs->GetScoSocket(mDeviceAddress, true, false, mScoSocket);
+
+  mScoSocketStatus = mScoSocket->GetConnectionStatus();
+  return NS_SUCCEEDED(rv);
 }
 
 bool

@@ -924,7 +924,6 @@ MobileMessageDatabaseService.prototype = {
       // Participant store cursor iteration done.
       if (!invalidParticipantIds.length) {
         next();
-        return;
       }
 
       // Find affected thread.
@@ -1620,14 +1619,10 @@ MobileMessageDatabaseService.prototype = {
     function replaceShortMessageOnSave(aTransaction, aMessageStore,
                                        aParticipantStore, aThreadStore,
                                        aMessageRecord, aAddresses) {
-    let isReplaceTypePid = (aMessageRecord.pid) &&
-                           ((aMessageRecord.pid >= RIL.PDU_PID_REPLACE_SHORT_MESSAGE_TYPE_1 &&
-                             aMessageRecord.pid <= RIL.PDU_PID_REPLACE_SHORT_MESSAGE_TYPE_7) ||
-                            aMessageRecord.pid == RIL.PDU_PID_RETURN_CALL_MESSAGE);
-
     if (aMessageRecord.type != "sms" ||
         aMessageRecord.delivery != DELIVERY_RECEIVED ||
-        !isReplaceTypePid) {
+        !(aMessageRecord.pid >= RIL.PDU_PID_REPLACE_SHORT_MESSAGE_TYPE_1 &&
+          aMessageRecord.pid <= RIL.PDU_PID_REPLACE_SHORT_MESSAGE_TYPE_7)) {
       this.realSaveRecord(aTransaction, aMessageStore, aParticipantStore,
                           aThreadStore, aMessageRecord, aAddresses);
       return;
