@@ -336,9 +336,7 @@ WifiGeoPositionProvider.prototype = {
         var jsonString = JSON.stringify(request);
         LOG("client sending: " + jsonString);
 
-        try {
-          xhr.send(jsonString);
-        } catch (e) {}
+        xhr.send(jsonString);
     },
 
     onError: function (code) {

@@ -87,7 +87,6 @@ endif
 
 EXTRA_COMPONENTS = \
                  NetworkGeolocationProvider.js \
-                 GPSDGeolocationProvider.js \
                  $(NULL)
 
 
