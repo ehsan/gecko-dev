@@ -3,7 +3,6 @@
 <head>
   <title>Test the support of cycles.</title>
   <script type="text/javascript" src="/tests/SimpleTest/SimpleTest.js"></script>
-  <script type="text/javascript" src="webaudio.js"></script>
   <link rel="stylesheet" type="text/css" href="/tests/SimpleTest/test.css" />
 </head>
 <body>
@@ -13,29 +12,42 @@
 
 SimpleTest.waitForExplicitFinish();
 
-const sampleRate = 48000;
-const inputLength = 2048;
-
 addLoadEvent(function() {
-  function addSine(b) {
-    for (var i = 0; i < b.length; i++) {
-      b[i] += Math.sin(440 * 2 * Math.PI * i / sampleRate);
-    }
-  }
-
   function getSineBuffer(ctx) {
-    var buffer = ctx.createBuffer(1, inputLength, ctx.sampleRate);
-    addSine(buffer.getChannelData(0));
+    var buffer = ctx.createBuffer(1, 2048, ctx.sampleRate);
+    var b = buffer.getChannelData(0);
+    for (var i = 0; i < 2048; i++) {
+      b[i] = Math.sin(440 * 2 * Math.PI * i / ctx.sampleRate);
+    }
     return buffer;
   }
 
-  function createAndPlayWithCycleAndDelayNode(ctx, delayFrames) {
+  function createAndPlayWithCycleAndDelayNode(ctx) {
     var source = ctx.createBufferSource();
+    source.loop = true;
     source.buffer = getSineBuffer(ctx);
 
     var gain = ctx.createGain();
     var delay = ctx.createDelay();
-    delay.delayTime.value = delayFrames/ctx.sampleRate;
+    delay.delayTime = 0.5;
+
+    source.connect(gain);
+    gain.connect(delay);
+    delay.connect(ctx.destination);
+    // cycle
+    delay.connect(gain);
+
+    source.start(0);
+  }
+
+  function createAndPlayWithCycleAndDelayNodeButNullDelayTime(ctx) {
+    var source = ctx.createBufferSource();
+    source.loop = true;
+    source.buffer = getSineBuffer(ctx);
+
+    var gain = ctx.createGain();
+    var delay = ctx.createDelay();
+    delay.delayTime = 0.0;
 
     source.connect(gain);
     gain.connect(delay);
@@ -91,7 +103,7 @@ addLoadEvent(function() {
   }
 
   function getOfflineContext(oncomplete) {
-    var ctx = new OfflineAudioContext(1, sampleRate, sampleRate);
+    var ctx = new OfflineAudioContext(1, 48000, 48000);
     ctx.oncomplete = oncomplete;
     return ctx;
   }
@@ -109,16 +121,18 @@ addLoadEvent(function() {
     finish();
   }
 
-  function checkNoisyBuffer(e, aDelayFrames) {
-    delayFrames = Math.max(128, aDelayFrames);
-
-    var expected = new Float32Array(e.renderedBuffer.length);
-    for (var i = delayFrames; i < expected.length; i += delayFrames) {
-      addSine(expected.subarray(i, i + inputLength));
+  function checkNoisyBuffer(e) {
+    var buffer = e.renderedBuffer.getChannelData(0);
+    for (var i = 0; i < buffer.length; i++) {
+      if (buffer[i] != 0.0) {
+        ok(true, "buffer should be noisy.");
+        finish();
+        return true;
+      }
     }
-
-    compareChannels(e.renderedBuffer.getChannelData(0), expected);
+    ok(false, "buffer should be noisy.");
     finish();
+    return false;
   }
 
   function expectSilentOutput(f) {
@@ -128,11 +142,10 @@ addLoadEvent(function() {
     ctx.startRendering();
   }
 
-  function expectNoisyOutput(delayFrames) {
+  function expectNoisyOutput(f) {
     remainingTests++;
-    var ctx = getOfflineContext();
-    ctx.oncomplete = function(e) { checkNoisyBuffer(e, delayFrames); };
-    createAndPlayWithCycleAndDelayNode(ctx, delayFrames);
+    var ctx = getOfflineContext(checkNoisyBuffer);
+    f(ctx);
     ctx.startRendering();
   }
 
@@ -145,10 +158,10 @@ addLoadEvent(function() {
   expectSilentOutput(createAndPlayWithCycleAndNoDelayNodeInCycle);
   // Those are making legal graphs, with at least one DelayNode in the cycle.
   // There should be some non-silent output.
-  expectNoisyOutput(sampleRate/4);
+  expectNoisyOutput(createAndPlayWithCycleAndDelayNode);
   // DelayNode.delayTime will be clamped to 128/ctx.sampleRate.
   // There should be some non-silent output.
-  expectNoisyOutput(0);
+  expectNoisyOutput(createAndPlayWithCycleAndDelayNodeButNullDelayTime);
 });
 
 </script>

@@ -4,7 +4,7 @@
  */
 var target = {};
 for (var key of ['foo', Symbol('bar')]) {
-    var called;
+    var called = false;
     var handler = {
         has: function (target1, name) {
             assertEq(this, handler);
@@ -13,9 +13,6 @@ for (var key of ['foo', Symbol('bar')]) {
             called = true;
         }
     };
-    for (let p of [new Proxy(target, handler), Proxy.revocable(target, handler).proxy]) {
-        called = false;
-        key in p;
-        assertEq(called, true);
-    }
+    key in new Proxy(target, handler);
+    assertEq(called, true);
 }

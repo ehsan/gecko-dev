@@ -32,7 +32,6 @@ class ProxyObject : public JSObject
     }
 
     void initCrossCompartmentPrivate(HandleValue priv);
-    void setSameCompartmentPrivate(const Value &priv);
 
     HeapSlot *slotOfPrivate() {
         return &getReservedSlotRef(PRIVATE_SLOT);

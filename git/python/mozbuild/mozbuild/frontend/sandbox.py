@@ -28,7 +28,10 @@ import sys
 
 from contextlib import contextmanager
 
-from mozbuild.util import ReadOnlyDict
+from mozbuild.util import (
+    ReadOnlyDefaultDict,
+    ReadOnlyDict,
+)
 
 
 class SandboxDerivedValue(object):

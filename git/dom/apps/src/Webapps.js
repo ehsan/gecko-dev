@@ -884,7 +884,7 @@ WebappsApplicationMgmt.prototype = {
         }
         break;
       case "Webapps:Uninstall:Return:OK":
-        Services.DOMRequest.fireSuccess(req, msg.manifestURL);
+        Services.DOMRequest.fireSuccess(req, msg.origin);
         break;
       case "Webapps:Uninstall:Return:KO":
         Services.DOMRequest.fireError(req, "NOT_INSTALLED");

@@ -98,7 +98,7 @@ public:
   nsresult RemoveItem(const DOMStorage* aStorage, const nsAString& aKey, nsString& aOld);
   nsresult Clear(const DOMStorage* aStorage);
 
-  void GetKeys(const DOMStorage* aStorage, nsTArray<nsString>& aKeys);
+  nsTArray<nsString>* GetKeys(const DOMStorage* aStorage);
 
   // Whether the principal equals principal the cache was created for
   bool CheckPrincipal(nsIPrincipal* aPrincipal) const;

@@ -81,11 +81,6 @@ UNIFIED_SOURCES += [
     'nsPageContentFrame.cpp',
     'nsPageFrame.cpp',
     'nsPlaceholderFrame.cpp',
-    'nsRubyBaseContainerFrame.cpp',
-    'nsRubyBaseFrame.cpp',
-    'nsRubyFrame.cpp',
-    'nsRubyTextContainerFrame.cpp',
-    'nsRubyTextFrame.cpp',
     'nsSelection.cpp',
     'nsSimplePageSequenceFrame.cpp',
     'nsSplittableFrame.cpp',
@@ -118,7 +113,7 @@ MSVC_ENABLE_PGO = True
 
 include('/ipc/chromium/chromium-config.mozbuild')
 
-FINAL_LIBRARY = 'xul'
+FINAL_LIBRARY = 'gklayout'
 
 LOCAL_INCLUDES += [
     '../../content/base/src',

@@ -11,13 +11,15 @@ MANIFEST = bug656331.manifest
 MANIFEST_PATH = $(testxpcobjdir)/$(unittestlocation)
 PP_TARGETS += MANIFEST
 
-EXTRA_LIBS += \
+EXTRA_DSO_LDOPTS = \
+  $(DIST)/lib/$(LIB_PREFIX)xpcomglue_s.$(LIB_SUFFIX) \
+  $(XPCOM_FROZEN_LDOPTS) \
   $(NSPR_LIBS) \
   $(NULL)
 
 # Need to link with CoreFoundation on Mac
 ifeq (cocoa,$(MOZ_WIDGET_TOOLKIT))
-OS_LIBS += \
+EXTRA_DSO_LDOPTS += \
   $(TK_LIBS) \
   $(NULL)
 endif

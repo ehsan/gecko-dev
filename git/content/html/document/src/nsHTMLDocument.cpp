@@ -32,6 +32,7 @@
 #include "nsNetUtil.h"
 #include "nsIContentViewerContainer.h"
 #include "nsIContentViewer.h"
+#include "nsIMarkupDocumentViewer.h"
 #include "nsDocShell.h"
 #include "nsDocShellLoadTypes.h"
 #include "nsIWebNavigation.h"
@@ -288,17 +289,17 @@ nsHTMLDocument::CreateShell(nsPresContext* aContext,
 }
 
 void
-nsHTMLDocument::TryHintCharset(nsIContentViewer* aCv,
+nsHTMLDocument::TryHintCharset(nsIMarkupDocumentViewer* aMarkupDV,
                                int32_t& aCharsetSource, nsACString& aCharset)
 {
-  if (aCv) {
+  if (aMarkupDV) {
     int32_t requestCharsetSource;
-    nsresult rv = aCv->GetHintCharacterSetSource(&requestCharsetSource);
+    nsresult rv = aMarkupDV->GetHintCharacterSetSource(&requestCharsetSource);
 
     if(NS_SUCCEEDED(rv) && kCharsetUninitialized != requestCharsetSource) {
       nsAutoCString requestCharset;
-      rv = aCv->GetHintCharacterSet(requestCharset);
-      aCv->SetHintCharacterSetSource((int32_t)(kCharsetUninitialized));
+      rv = aMarkupDV->GetHintCharacterSet(requestCharset);
+      aMarkupDV->SetHintCharacterSetSource((int32_t)(kCharsetUninitialized));
 
       if(requestCharsetSource <= aCharsetSource)
         return;
@@ -316,7 +317,7 @@ nsHTMLDocument::TryHintCharset(nsIContentViewer* aCv,
 
 
 void
-nsHTMLDocument::TryUserForcedCharset(nsIContentViewer* aCv,
+nsHTMLDocument::TryUserForcedCharset(nsIMarkupDocumentViewer* aMarkupDV,
                                      nsIDocShell*  aDocShell,
                                      int32_t& aCharsetSource,
                                      nsACString& aCharset)
@@ -332,9 +333,9 @@ nsHTMLDocument::TryUserForcedCharset(nsIContentViewer* aCv,
   }
 
   nsAutoCString forceCharsetFromDocShell;
-  if (aCv) {
+  if (aMarkupDV) {
     // XXX mailnews-only
-    rv = aCv->GetForceCharacterSet(forceCharsetFromDocShell);
+    rv = aMarkupDV->GetForceCharacterSet(forceCharsetFromDocShell);
   }
 
   if(NS_SUCCEEDED(rv) &&
@@ -647,12 +648,15 @@ nsHTMLDocument::StartDocumentLoad(const char* aCommand,
     NS_ENSURE_SUCCESS(rv, rv);
   }
 
+  nsCOMPtr<nsIMarkupDocumentViewer> muCV;
   nsCOMPtr<nsIContentViewer> cv;
   if (docShell) {
     docShell->GetContentViewer(getter_AddRefs(cv));
   }
-  if (!cv) {
-    cv = parentContentViewer.forget();
+  if (cv) {
+     muCV = do_QueryInterface(cv);
+  } else {
+    muCV = do_QueryInterface(parentContentViewer);
   }
 
   nsAutoCString urlSpec;
@@ -711,9 +715,9 @@ nsHTMLDocument::StartDocumentLoad(const char* aCommand,
       TryChannelCharset(aChannel, charsetSource, charset, executor);
     }
 
-    TryUserForcedCharset(cv, docShell, charsetSource, charset);
+    TryUserForcedCharset(muCV, docShell, charsetSource, charset);
 
-    TryHintCharset(cv, charsetSource, charset); // XXX mailnews-only
+    TryHintCharset(muCV, charsetSource, charset); // XXX mailnews-only
     TryParentCharset(docShell, charsetSource, charset);
 
     if (cachingChan && !urlSpec.IsEmpty()) {

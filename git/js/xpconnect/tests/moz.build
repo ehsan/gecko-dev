@@ -15,8 +15,3 @@ TEST_TOOL_DIRS += [
 
 XPCSHELL_TESTS_MANIFESTS += ['unit/xpcshell.ini']
 
-USE_LIBS += [
-    'mozalloc',
-    'xpcomglue_s',
-    'xul',
-]

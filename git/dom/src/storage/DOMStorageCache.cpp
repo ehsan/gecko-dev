@@ -428,8 +428,8 @@ KeysArrayBuilder(const nsAString& aKey, const nsString aValue, void* aArg)
 
 } // anon
 
-void
-DOMStorageCache::GetKeys(const DOMStorage* aStorage, nsTArray<nsString>& aKeys)
+nsTArray<nsString>*
+DOMStorageCache::GetKeys(const DOMStorage* aStorage)
 {
   Telemetry::AutoTimer<Telemetry::LOCALDOMSTORAGE_GETALLKEYS_MS> autoTimer;
 
@@ -437,11 +437,12 @@ DOMStorageCache::GetKeys(const DOMStorage* aStorage, nsTArray<nsString>& aKeys)
     WaitForPreload(Telemetry::LOCALDOMSTORAGE_GETALLKEYS_BLOCKING_MS);
   }
 
-  if (NS_FAILED(mLoadResult)) {
-    return;
+  nsTArray<nsString>* result = new nsTArray<nsString>();
+  if (NS_SUCCEEDED(mLoadResult)) {
+    DataSet(aStorage).mKeys.EnumerateRead(KeysArrayBuilder, result);
   }
 
-  DataSet(aStorage).mKeys.EnumerateRead(KeysArrayBuilder, &aKeys);
+  return result;
 }
 
 nsresult

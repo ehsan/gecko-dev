@@ -19,7 +19,7 @@ function startTest()
 
   var uri = ios.newURI(url, "", null);
   var principal = ssm.getNoAppCodebasePrincipal(uri);
-  var storage = dsm.createStorage(window, principal, "");
+  var storage = dsm.createStorage(principal, "");
   
   storage.setItem("chromekey", "chromevalue");
   

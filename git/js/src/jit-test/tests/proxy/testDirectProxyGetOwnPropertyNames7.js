@@ -9,7 +9,10 @@ Object.defineProperty(target, 'foo', {
     configurable: true
 });
 Object.preventExtensions(target);
-
-var handler = { ownKeys: () => [] };
-for (let p of [new Proxy(target, handler), Proxy.revocable(target, handler).proxy])
-    assertThrowsInstanceOf(() => Object.getOwnPropertyNames(p), TypeError);
+assertThrowsInstanceOf(function () {
+    Object.getOwnPropertyNames(new Proxy(target, {
+        ownKeys: function (target) {
+            return [];
+        }
+    }));
+}, TypeError);

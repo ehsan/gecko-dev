@@ -14,4 +14,4 @@ LOCAL_INCLUDES += [
     '/image/src',
 ]
 
-FINAL_LIBRARY = 'xul'
+FINAL_LIBRARY = 'imglib2'

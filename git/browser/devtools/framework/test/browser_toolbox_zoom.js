@@ -49,7 +49,8 @@ function sendZoomKey(id, times) {
 
 function getCurrentZoom() {
   var contViewer = toolbox.frame.docShell.contentViewer;
-  return contViewer.fullZoom;
+  var docViewer = contViewer.QueryInterface(Ci.nsIMarkupDocumentViewer);
+  return docViewer.fullZoom;
 }
 
 function tidyUp() {

@@ -2595,16 +2595,9 @@ nsHTMLReflowState::ComputeMinMaxValues(nscoord aContainingBlockWidth,
                                        nscoord aContainingBlockHeight,
                                        const nsHTMLReflowState* aContainingBlockRS)
 {
-  // NOTE: min-width:auto resolves to 0, except on a flex item. (But
-  // even there, it's supposed to be ignored (i.e. treated as 0) until
-  // the flex container explicitly resolves & considers it.)
-  if (eStyleUnit_Auto == mStylePosition->mMinWidth.GetUnit()) {
-    ComputedMinWidth() = 0;
-  } else {
-    ComputedMinWidth() = ComputeWidthValue(aContainingBlockWidth,
-                                          mStylePosition->mBoxSizing,
-                                          mStylePosition->mMinWidth);
-  }
+  ComputedMinWidth() = ComputeWidthValue(aContainingBlockWidth,
+                                        mStylePosition->mBoxSizing,
+                                        mStylePosition->mMinWidth);
 
   if (eStyleUnit_None == mStylePosition->mMaxWidth.GetUnit()) {
     // Specified value of 'none'
@@ -2628,12 +2621,8 @@ nsHTMLReflowState::ComputeMinMaxValues(nscoord aContainingBlockWidth,
   // Likewise, if we're a child of a flex container who's measuring our
   // intrinsic height, then we want to disregard our min-height.
 
-  // NOTE: min-height:auto resolves to 0, except on a flex item. (But
-  // even there, it's supposed to be ignored (i.e. treated as 0) until
-  // the flex container explicitly resolves & considers it.)
   const nsStyleCoord &minHeight = mStylePosition->mMinHeight;
-  if (eStyleUnit_Auto == minHeight.GetUnit() ||
-      (NS_AUTOHEIGHT == aContainingBlockHeight &&
+  if ((NS_AUTOHEIGHT == aContainingBlockHeight &&
        minHeight.HasPercent()) ||
       (mFrameType == NS_CSS_FRAME_TYPE_INTERNAL_TABLE &&
        minHeight.IsCalcUnit() && minHeight.CalcHasPercent()) ||

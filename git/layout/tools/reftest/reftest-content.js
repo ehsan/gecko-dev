@@ -50,7 +50,7 @@ const TYPE_LOAD = 'load';  // test without a reference (just test that it does
 const TYPE_SCRIPT = 'script'; // test contains individual test results
 
 function markupDocumentViewer() {
-    return docShell.contentViewer;
+    return docShell.contentViewer.QueryInterface(CI.nsIMarkupDocumentViewer);
 }
 
 function webNavigation() {

@@ -1502,7 +1502,8 @@
                 .QueryInterface(Components.interfaces.nsIInterfaceRequestor)
                 .getInterface(Components.interfaces.nsIWebNavigation)
                 .QueryInterface(Components.interfaces.nsIDocShell)
-                .contentViewer;
+                .contentViewer
+                .QueryInterface(Components.interfaces.nsIMarkupDocumentViewer);
             var rect = aElement.getBoundingClientRect();
             var width = Math.round((rect.right - rect.left) * viewer.fullZoom);
             this.setAttribute("width", width > 100 ? width : 100);

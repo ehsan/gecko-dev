@@ -35,7 +35,7 @@ else:
         ]
         SOURCES['xptcinvoke.cpp'].no_pgo = True
 
-FINAL_LIBRARY = 'xul'
+FINAL_LIBRARY = 'xpcom_core'
 
 LOCAL_INCLUDES += [
     '../..',

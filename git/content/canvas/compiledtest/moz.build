@@ -5,10 +5,8 @@
 # file, You can obtain one at http://mozilla.org/MPL/2.0/.
 
 CPP_UNIT_TESTS += [
-    'TestWebGLElementArrayCache',
+    'TestWebGLElementArrayCache.cpp',
 ]
-
-SOURCES += sorted('%s.cpp' % t for t in CPP_UNIT_TESTS)
 
 FAIL_ON_WARNINGS = True
 
@@ -16,8 +14,3 @@ LOCAL_INCLUDES += [
     '../src',
 ]
 
-USE_LIBS += [
-    'mozalloc',
-    'xpcomglue_s',
-    'xul',
-]

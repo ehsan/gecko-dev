@@ -325,7 +325,6 @@ WEBIDL_FILES = [
     'SimpleGestureEvent.webidl',
     'SourceBuffer.webidl',
     'SourceBufferList.webidl',
-    'Storage.webidl',
     'StorageEvent.webidl',
     'StorageType.webidl',
     'StyleSheet.webidl',

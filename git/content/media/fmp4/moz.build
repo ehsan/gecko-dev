@@ -40,6 +40,6 @@ if CONFIG['MOZ_FFMPEG']:
       'ffmpeg',
   ]
 
-FINAL_LIBRARY = 'xul'
+FINAL_LIBRARY = 'gklayout'
 
 FAIL_ON_WARNINGS = True

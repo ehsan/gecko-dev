@@ -42,4 +42,4 @@ LOCAL_INCLUDES += [
     '/layout/xul/tree/',
 ]
 
-FINAL_LIBRARY = 'xul'
+FINAL_LIBRARY = 'gklayout'

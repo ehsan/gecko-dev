@@ -567,36 +567,6 @@ nsUserFontSet::InsertRule(nsCSSFontFaceRule* aRule, uint8_t aSheetType,
   }
 
   // this is a new rule:
-  FontFaceRuleRecord ruleRec;
-  ruleRec.mFontEntry =
-    FindOrCreateFontFaceFromRule(fontfamily, aRule, aSheetType);
-
-  if (!ruleRec.mFontEntry) {
-    return;
-  }
-
-  ruleRec.mContainer.mRule = aRule;
-  ruleRec.mContainer.mSheetType = aSheetType;
-
-  // Add the entry to the end of the list.  If an existing proxy entry was
-  // returned by FindOrCreateFontFaceFromRule that was already stored on the
-  // family, gfxMixedFontFamily::AddFontEntry(), which AddFontFace calls,
-  // will automatically remove the earlier occurrence of the same proxy.
-  AddFontFace(fontfamily, ruleRec.mFontEntry);
-
-  mRules.AppendElement(ruleRec);
-
-  // this was a new rule and font entry, so note that the set was modified
-  aFontSetModified = true;
-}
-
-already_AddRefed<gfxFontEntry>
-nsUserFontSet::FindOrCreateFontFaceFromRule(const nsAString& aFamilyName,
-                                            nsCSSFontFaceRule* aRule,
-                                            uint8_t aSheetType)
-{
-  nsCSSValue val;
-  uint32_t unit;
 
   uint32_t weight = NS_STYLE_FONT_WEIGHT_NORMAL;
   int32_t stretch = NS_STYLE_FONT_STRETCH_NORMAL;
@@ -683,7 +653,7 @@ nsUserFontSet::FindOrCreateFontFaceFromRule(const nsAString& aFamilyName,
       unit = val.GetUnit();
       gfxFontFaceSrc* face = srcArray.AppendElements(1);
       if (!face)
-        return nullptr;
+        return;
 
       switch (unit) {
 
@@ -748,15 +718,19 @@ nsUserFontSet::FindOrCreateFontFaceFromRule(const nsAString& aFamilyName,
     NS_ASSERTION(unit == eCSSUnit_Null, "@font-face src has unexpected unit");
   }
 
-  if (srcArray.IsEmpty()) {
-    return nullptr;
+  if (srcArray.Length() > 0) {
+    FontFaceRuleRecord ruleRec;
+    ruleRec.mContainer.mRule = aRule;
+    ruleRec.mContainer.mSheetType = aSheetType;
+    ruleRec.mFontEntry = AddFontFace(fontfamily, srcArray,
+                                     weight, stretch, italicStyle,
+                                     featureSettings, languageOverride);
+    if (ruleRec.mFontEntry) {
+      mRules.AppendElement(ruleRec);
+    }
+    // this was a new rule and fontEntry, so note that the set was modified
+    aFontSetModified = true;
   }
-
-  nsRefPtr<gfxProxyFontEntry> entry =
-    FindOrCreateFontFace(aFamilyName, srcArray, weight, stretch, italicStyle,
-                         featureSettings, languageOverride,
-                         nullptr /* aUnicodeRanges */);
-  return entry.forget();
 }
 
 void

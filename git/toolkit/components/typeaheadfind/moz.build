@@ -14,6 +14,6 @@ SOURCES += [
     'nsTypeAheadFind.cpp',
 ]
 
-FINAL_LIBRARY = 'xul'
+FINAL_LIBRARY = 'toolkitcomps'
 
 JAR_MANIFESTS += ['jar.mn']

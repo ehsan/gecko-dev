@@ -24,4 +24,4 @@ if not CONFIG['MOZ_DISABLE_PARENTAL_CONTROLS']:
             'nsParentalControlsServiceDefault.cpp',
         ]
 
-FINAL_LIBRARY = 'xul'
+FINAL_LIBRARY = 'toolkitcomps'

@@ -21,7 +21,7 @@ UNIFIED_SOURCES += [
     'tokenize.cc',
 ]
 
-FINAL_LIBRARY = 'xul'
+FINAL_LIBRARY = 'xulapp_s'
 
 LOCAL_INCLUDES += [
     '..',

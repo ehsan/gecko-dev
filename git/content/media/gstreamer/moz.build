@@ -30,7 +30,7 @@ else:
 
 FAIL_ON_WARNINGS = True
 
-FINAL_LIBRARY = 'xul'
+FINAL_LIBRARY = 'gklayout'
 LOCAL_INCLUDES += [
     '/content/base/src',
     '/content/html/content/src',

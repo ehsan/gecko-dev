@@ -16,14 +16,10 @@ from mozlog.structured import (
 
 class TestHandler(object):
     def __init__(self):
-        self.items = []
+        self.last_item = None
 
     def __call__(self, data):
-        self.items.append(data)
-
-    @property
-    def last_item(self):
-        return self.items[-1]
+        self.last_item = data
 
 
 class BaseStructuredTest(unittest.TestCase):
@@ -34,7 +30,7 @@ class BaseStructuredTest(unittest.TestCase):
 
     @property
     def last_item(self):
-        return self.handler.items.pop()
+        return self.handler.last_item
 
     def assert_log_equals(self, expected, actual=None):
         if actual is None:
@@ -71,38 +67,26 @@ class TestStructuredLog(BaseStructuredTest):
         self.assert_log_equals({"action": "test_start",
                                 "test":("test1", "==", "test1-ref")})
 
-    def test_start_inprogress(self):
-        self.logger.test_start("test1")
-        self.logger.test_start("test1")
-        self.assert_log_equals({"action": "log",
-                                "message": "test_start for test1 logged while in progress.",
-                                "level": "ERROR"})
-
     def test_status(self):
-        self.logger.test_start("test1")
         self.logger.test_status("test1", "subtest name", "fail", expected="FAIL", message="Test message")
         self.assert_log_equals({"action": "test_status",
                                 "subtest": "subtest name",
                                 "status": "FAIL",
                                 "message": "Test message",
                                 "test":"test1"})
-        self.logger.test_end("test1", "OK")
 
     def test_status_1(self):
-        self.logger.test_start("test1")
         self.logger.test_status("test1", "subtest name", "fail")
         self.assert_log_equals({"action": "test_status",
                                 "subtest": "subtest name",
                                 "status": "FAIL",
                                 "expected": "PASS",
                                 "test":"test1"})
-        self.logger.test_end("test1", "OK")
 
     def test_status_2(self):
         self.assertRaises(ValueError, self.logger.test_status, "test1", "subtest name", "XXXUNKNOWNXXX")
 
     def test_status_extra(self):
-        self.logger.test_start("test1")
         self.logger.test_status("test1", "subtest name", "FAIL", expected="PASS", extra={"data": 42})
         self.assert_log_equals({"action": "test_status",
                                 "subtest": "subtest name",
@@ -111,10 +95,8 @@ class TestStructuredLog(BaseStructuredTest):
                                 "test": "test1",
                                 "extra": {"data":42}
                             })
-        self.logger.test_end("test1", "OK")
 
     def test_status_stack(self):
-        self.logger.test_start("test1")
         self.logger.test_status("test1", "subtest name", "FAIL", expected="PASS", stack="many\nlines\nof\nstack")
         self.assert_log_equals({"action": "test_status",
                                 "subtest": "subtest name",
@@ -123,15 +105,8 @@ class TestStructuredLog(BaseStructuredTest):
                                 "test": "test1",
                                 "stack": "many\nlines\nof\nstack"
                             })
-        self.logger.test_end("test1", "OK")
-
-    def test_status_not_started(self):
-        self.logger.test_status("test_UNKNOWN", "subtest", "PASS")
-        self.assertTrue(self.last_item["message"].startswith(
-            "test_status for test_UNKNOWN logged while not in progress. Logged with data: {"))
 
     def test_end(self):
-        self.logger.test_start("test1")
         self.logger.test_end("test1", "fail", message="Test message")
         self.assert_log_equals({"action": "test_end",
                                 "status": "FAIL",
@@ -140,7 +115,6 @@ class TestStructuredLog(BaseStructuredTest):
                                 "test":"test1"})
 
     def test_end_1(self):
-        self.logger.test_start("test1")
         self.logger.test_end("test1", "PASS", expected="PASS", extra={"data":123})
         self.assert_log_equals({"action": "test_end",
                                 "status": "PASS",
@@ -151,29 +125,12 @@ class TestStructuredLog(BaseStructuredTest):
         self.assertRaises(ValueError, self.logger.test_end, "test1", "XXXUNKNOWNXXX")
 
     def test_end_stack(self):
-        self.logger.test_start("test1")
         self.logger.test_end("test1", "PASS", expected="PASS", stack="many\nlines\nof\nstack")
         self.assert_log_equals({"action": "test_end",
                                 "status": "PASS",
                                 "test": "test1",
                                 "stack": "many\nlines\nof\nstack"
                             })
-
-    def test_end_no_start(self):
-        self.logger.test_end("test1", "PASS", expected="PASS")
-        self.assertTrue(self.last_item["message"].startswith(
-            "test_end for test1 logged while not in progress. Logged with data: {"))
-
-    def test_end_twice(self):
-        self.logger.test_start("test2")
-        self.logger.test_end("test2", "PASS", expected="PASS")
-        self.assert_log_equals({"action": "test_end",
-                                "status": "PASS",
-                                "test": "test2"})
-        self.logger.test_end("test2", "PASS", expected="PASS")
-        self.assertTrue(self.last_item["message"].startswith(
-            "test_end for test2 logged while not in progress. Logged with data: {"))
-
 
     def test_process(self):
         self.logger.process_output(1234, "test output")
