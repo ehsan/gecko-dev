@@ -38,7 +38,6 @@
 #include "nsPrintObject.h"
 #include "nsIContentViewer.h"
 #include "nsIDOMDocument.h"
-#include "nsContentUtils.h"
 
 //---------------------------------------------------
 //-- nsPrintObject Class Impl
@@ -94,7 +93,6 @@ nsPrintObject::DestroyPresentation()
   mPresContext = nsnull;
   if (mPresShell) {
     mPresShell->EndObservingDocument();
-    nsAutoScriptBlocker scriptBlocker;
     mPresShell->Destroy();
   }
   mPresShell   = nsnull;

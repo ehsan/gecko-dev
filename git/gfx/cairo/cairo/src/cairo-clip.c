@@ -64,7 +64,8 @@ _cairo_clip_init (cairo_clip_t *clip, cairo_surface_t *target)
 
     clip->serial = 0;
 
-    clip->region = NULL;
+    _cairo_region_init (&clip->region);
+    clip->has_region = FALSE;
 
     clip->path = NULL;
 }
@@ -75,29 +76,28 @@ _cairo_clip_init_copy (cairo_clip_t *clip, cairo_clip_t *other)
     clip->mode = other->mode;
 
     clip->all_clipped = other->all_clipped;
-    
+
     clip->surface = cairo_surface_reference (other->surface);
     clip->surface_rect = other->surface_rect;
 
     clip->serial = other->serial;
 
-    if (other->region) {
-	cairo_status_t status;
-	
-	clip->region = cairo_region_copy (other->region);
+    _cairo_region_init (&clip->region);
 
-	status = cairo_region_status (clip->region);
+    if (other->has_region) {
+	cairo_status_t status;
+
+	status = _cairo_region_copy (&clip->region, &other->region);
 	if (unlikely (status)) {
+	    _cairo_region_fini (&clip->region);
 	    cairo_surface_destroy (clip->surface);
-	    cairo_region_destroy (clip->region);
-	    clip->region = NULL;
-	    
 	    return status;
 	}
+        clip->has_region = TRUE;
     } else {
-	clip->region = NULL;
+        clip->has_region = FALSE;
     }
-    
+
     clip->path = _cairo_clip_path_reference (other->path);
 
     return CAIRO_STATUS_SUCCESS;
@@ -114,10 +114,14 @@ _cairo_clip_reset (cairo_clip_t *clip)
 
     clip->serial = 0;
 
-    if (clip->region) {
-	cairo_region_destroy (clip->region);
+    if (clip->has_region) {
+        /* _cairo_region_fini just releases the resources used but
+         * doesn't bother with leaving the region in a valid state.
+         * So _cairo_region_init has to be called afterwards. */
+	_cairo_region_fini (&clip->region);
+        _cairo_region_init (&clip->region);
 
-	clip->region = NULL;
+        clip->has_region = FALSE;
     }
 
     _cairo_clip_path_destroy (clip->path);
@@ -174,10 +178,10 @@ _cairo_clip_intersect_to_rectangle (cairo_clip_t            *clip,
             return status;
     }
 
-    if (clip->region) {
+    if (clip->has_region) {
 	cairo_rectangle_int_t extents;
 
-	cairo_region_get_extents (clip->region, &extents);
+	_cairo_region_get_extents (&clip->region, &extents);
 	is_empty = _cairo_rectangle_intersect (rectangle, &extents);
 	if (is_empty)
 	    return CAIRO_STATUS_SUCCESS;
@@ -190,7 +194,7 @@ _cairo_clip_intersect_to_rectangle (cairo_clip_t            *clip,
 }
 
 cairo_status_t
-_cairo_clip_intersect_to_region (cairo_clip_t   *clip,
+_cairo_clip_intersect_to_region (cairo_clip_t      *clip,
 				 cairo_region_t *region)
 {
     cairo_status_t status;
@@ -198,21 +202,40 @@ _cairo_clip_intersect_to_region (cairo_clip_t   *clip,
     if (!clip)
 	return CAIRO_STATUS_SUCCESS;
 
-    if (clip->all_clipped)
-	return cairo_region_intersect_rectangle (region, &clip->surface_rect);
+    if (clip->all_clipped) {
+	cairo_region_t clip_rect;
+
+	_cairo_region_init_rect (&clip_rect, &clip->surface_rect);
+
+	status = _cairo_region_intersect (region, &clip_rect, region);
+
+	_cairo_region_fini (&clip_rect);
+
+	return status;
+    }
 
     if (clip->path) {
 	/* Intersect clip path into region. */
     }
 
-    if (clip->region) {
-	status = cairo_region_intersect (region, clip->region);
+    if (clip->has_region) {
+	status = _cairo_region_intersect (region, &clip->region, region);
 	if (unlikely (status))
 	    return status;
     }
 
-    if (clip->surface)
-	return cairo_region_intersect_rectangle (region, &clip->surface_rect);
+    if (clip->surface) {
+	cairo_region_t clip_rect;
+
+	_cairo_region_init_rect (&clip_rect, &clip->surface_rect);
+
+	status = _cairo_region_intersect (region, &clip_rect, region);
+
+	_cairo_region_fini (&clip_rect);
+
+        if (unlikely (status))
+            return status;
+    }
 
     return CAIRO_STATUS_SUCCESS;
 }
@@ -321,7 +344,7 @@ _cairo_clip_intersect_region (cairo_clip_t    *clip,
 			      cairo_traps_t   *traps,
 			      cairo_surface_t *target)
 {
-    cairo_region_t *region;
+    cairo_region_t region;
     cairo_int_status_t status;
 
     if (clip->all_clipped)
@@ -334,21 +357,29 @@ _cairo_clip_intersect_region (cairo_clip_t    *clip,
     if (status)
 	return status;
 
-    if (clip->region) {
-	status = cairo_region_intersect (clip->region, region);
+    if (!clip->has_region) {
+        status = _cairo_region_copy (&clip->region, &region);
+	if (status == CAIRO_STATUS_SUCCESS)
+	    clip->has_region = TRUE;
     } else {
-	clip->region = cairo_region_copy (region);
+	cairo_region_t intersection;
 
-	assert (clip->region != NULL);
-	
-        if ((status = cairo_region_status (clip->region)))
-	    clip->region = NULL;
+        _cairo_region_init (&intersection);
+
+	status = _cairo_region_intersect (&intersection,
+		                         &clip->region,
+		                         &region);
+
+	if (status == CAIRO_STATUS_SUCCESS)
+	    status = _cairo_region_copy (&clip->region, &intersection);
+
+        _cairo_region_fini (&intersection);
     }
 
     clip->serial = _cairo_surface_allocate_clip_serial (target);
-    cairo_region_destroy (region);
+    _cairo_region_fini (&region);
 
-    if (!clip->region || cairo_region_is_empty (clip->region))
+    if (! _cairo_region_not_empty (&clip->region))
 	_cairo_clip_set_all_clipped (clip, target);
 
     return status;
@@ -705,10 +736,10 @@ _cairo_clip_translate (cairo_clip_t  *clip,
     if (clip->all_clipped)
 	return;
 
-    if (clip->region) {
-        cairo_region_translate (clip->region,
-				_cairo_fixed_integer_part (tx),
-				_cairo_fixed_integer_part (ty));
+    if (clip->has_region) {
+        _cairo_region_translate (&clip->region,
+                                 _cairo_fixed_integer_part (tx),
+                                 _cairo_fixed_integer_part (ty));
     }
 
     if (clip->surface) {
@@ -763,10 +794,12 @@ _cairo_clip_init_deep_copy (cairo_clip_t    *clip,
         /* We should reapply the original clip path in this case, and let
          * whatever the right handling is happen */
     } else {
-        if (other->region) {
-	    clip->region = cairo_region_copy (other->region);
-	    if (unlikely ((status = cairo_region_status (clip->region))))
+        if (other->has_region) {
+            status = _cairo_region_copy (&clip->region, &other->region);
+	    if (unlikely (status))
 		goto BAIL;
+
+	    clip->has_region = TRUE;
         }
 
         if (other->surface) {
@@ -798,8 +831,8 @@ _cairo_clip_init_deep_copy (cairo_clip_t    *clip,
     return CAIRO_STATUS_SUCCESS;
 
 BAIL:
-    if (clip->region)
-	cairo_region_destroy (clip->region);
+    if (clip->has_region)
+	_cairo_region_fini (&clip->region);
     if (clip->surface)
 	cairo_surface_destroy (clip->surface);
 
@@ -840,7 +873,7 @@ _cairo_clip_copy_rectangle_list (cairo_clip_t *clip, cairo_gstate_t *gstate)
 {
     cairo_rectangle_list_t *list;
     cairo_rectangle_t *rectangles = NULL;
-    int n_rects = 0;
+    int n_boxes = 0;
 
     if (clip->all_clipped)
 	goto DONE;
@@ -850,22 +883,28 @@ _cairo_clip_copy_rectangle_list (cairo_clip_t *clip, cairo_gstate_t *gstate)
 	return (cairo_rectangle_list_t*) &_cairo_rectangles_not_representable;
     }
 
-    if (clip->region) {
+    if (clip->has_region) {
         int i;
 
-	n_rects = cairo_region_num_rectangles (clip->region);
+	n_boxes = _cairo_region_num_boxes (&clip->region);
 
-	if (n_rects) {
-	    rectangles = _cairo_malloc_ab (n_rects, sizeof (cairo_rectangle_t));
+	if (n_boxes) {
+	    rectangles = _cairo_malloc_ab (n_boxes, sizeof (cairo_rectangle_t));
 	    if (unlikely (rectangles == NULL)) {
 		_cairo_error_throw (CAIRO_STATUS_NO_MEMORY);
 		return (cairo_rectangle_list_t*) &_cairo_rectangles_nil;
 	    }
 
-	    for (i = 0; i < n_rects; ++i) {
+	    for (i = 0; i < n_boxes; ++i) {
+		cairo_box_int_t box;
 		cairo_rectangle_int_t clip_rect;
 
-		cairo_region_get_rectangle (clip->region, i, &clip_rect);
+		_cairo_region_get_box (&clip->region, i, &box);
+
+		clip_rect.x = box.p1.x;
+		clip_rect.y = box.p1.y;
+		clip_rect.width  = box.p2.x - box.p1.x;
+		clip_rect.height = box.p2.y - box.p1.y;
 		
 		if (!_cairo_clip_int_rect_to_user(gstate, &clip_rect, &rectangles[i])) {
 		    _cairo_error_throw (CAIRO_STATUS_CLIP_NOT_REPRESENTABLE);
@@ -877,7 +916,7 @@ _cairo_clip_copy_rectangle_list (cairo_clip_t *clip, cairo_gstate_t *gstate)
     } else {
         cairo_rectangle_int_t extents;
 
-	n_rects = 1;
+	n_boxes = 1;
 
 	rectangles = malloc(sizeof (cairo_rectangle_t));
 	if (unlikely (rectangles == NULL)) {
@@ -904,7 +943,7 @@ _cairo_clip_copy_rectangle_list (cairo_clip_t *clip, cairo_gstate_t *gstate)
 
     list->status = CAIRO_STATUS_SUCCESS;
     list->rectangles = rectangles;
-    list->num_rectangles = n_rects;
+    list->num_rectangles = n_boxes;
     return list;
 }
 

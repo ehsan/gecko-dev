@@ -269,27 +269,20 @@ NS_IMETHODIMP nsXULTreeAccessible::GetFirstChild(nsIAccessible **aFirstChild)
   return NS_OK;
 }
 
-NS_IMETHODIMP
-nsXULTreeAccessible::GetLastChild(nsIAccessible **aLastChild)
+NS_IMETHODIMP nsXULTreeAccessible::GetLastChild(nsIAccessible **aLastChild)
 {
-  NS_ENSURE_ARG_POINTER(aLastChild);
-  *aLastChild = nsnull;
-
   NS_ENSURE_TRUE(mTree && mTreeView, NS_ERROR_FAILURE);
 
-  PRInt32 rowCount = 0;
+  PRInt32 rowCount;
   mTreeView->GetRowCount(&rowCount);
   if (rowCount > 0) {
     nsCOMPtr<nsITreeColumn> column = GetLastVisibleColumn(mTree);
-    nsresult rv = GetCachedTreeitemAccessible(rowCount - 1, column, aLastChild);
-    NS_ENSURE_SUCCESS(rv, rv);
+    return GetCachedTreeitemAccessible(rowCount - 1, column, aLastChild);
   }
+  else // if there is not any rows, use treecols as tree's last child
+    nsAccessible::GetLastChild(aLastChild);
 
-  if (*aLastChild)
-    return NS_OK;
-
-  // If there is not any rows, use treecols as tree's last child.
-  return nsAccessible::GetLastChild(aLastChild);
+  return NS_OK;
 }
 
 // tree's children count is row count + treecols count
@@ -325,11 +318,10 @@ NS_IMETHODIMP nsXULTreeAccessible::GetFocusedChild(nsIAccessible **aFocusedChild
   return NS_OK;
 }
 
-// nsAccessible::GetChildAtPoint()
-nsresult
-nsXULTreeAccessible::GetChildAtPoint(PRInt32 aX, PRInt32 aY,
-                                     PRBool aDeepestChild,
-                                     nsIAccessible **aChild)
+// nsIAccessible::getDeepestChildAtPoint(in long x, in long y)
+NS_IMETHODIMP
+nsXULTreeAccessible::GetDeepestChildAtPoint(PRInt32 aX, PRInt32 aY,
+                                            nsIAccessible **aAccessible)
 {
   nsIFrame *frame = GetFrame();
   if (!frame)
@@ -358,16 +350,9 @@ nsXULTreeAccessible::GetChildAtPoint(PRInt32 aX, PRInt32 aY,
   // tree columns.
   if (row == -1 || !column)
     return nsXULSelectableAccessible::
-      GetChildAtPoint(aX, aY, aDeepestChild, aChild);
+      GetDeepestChildAtPoint(aX, aY, aAccessible);
 
-  nsCOMPtr<nsIAccessible> treeitemAcc;
-  nsresult rv = GetCachedTreeitemAccessible(row, column,
-                                            getter_AddRefs(treeitemAcc));
-  NS_ENSURE_SUCCESS(rv, rv);
-
-  NS_IF_ADDREF(*aChild = treeitemAcc);
-
-  return NS_OK;
+  return GetCachedTreeitemAccessible(row, column, aAccessible);
 }
 
 // Ask treeselection to get all selected children
@@ -595,9 +580,6 @@ nsXULTreeAccessible::InvalidateCache(PRInt32 aRow, PRInt32 aCount)
   rv = cols->GetKeyColumn(getter_AddRefs(col));
   NS_ENSURE_SUCCESS(rv, rv);
 
-  if (!col)
-    return NS_OK;
-
   PRInt32 colIdx = 0;
   rv = col->GetIndex(&colIdx);
   NS_ENSURE_SUCCESS(rv, rv);
@@ -685,9 +667,6 @@ nsXULTreeAccessible::TreeViewInvalidated(PRInt32 aStartRow, PRInt32 aEndRow,
   nsCOMPtr<nsITreeColumn> col;
   rv = treeColumns->GetKeyColumn(getter_AddRefs(col));
   NS_ENSURE_SUCCESS(rv, rv);
-
-  if (!col)
-    return NS_OK;
 
   PRInt32 colIdx = 0;
   rv = col->GetIndex(&colIdx);

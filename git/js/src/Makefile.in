@@ -149,8 +149,8 @@ CPPSRCS		= \
 		$(NULL)
 
 ifdef HAVE_DTRACE
-CPPSRCS 	+= \
-		jsdtracef.cpp
+CSRCS 		+= \
+		jsdtracef.c
 endif
 
 INSTALLED_HEADERS = \
