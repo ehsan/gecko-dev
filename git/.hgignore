@@ -13,10 +13,11 @@
 
 # User files that may appear at the root
 ^\.mozconfig
-^mozconfig$
+^mozconfig*
 ^configure$
 ^config\.cache$
 ^config\.log$
+^\.clang_complete
 
 # Empty marker file that's generated when we check out NSS
 ^security/manager/\.nss\.checkout$
@@ -45,3 +46,5 @@ _OPT\.OBJ/
 \.cproject$
 \.settings/
 
+# Python stuff installed at build-time
+\.egg-info/

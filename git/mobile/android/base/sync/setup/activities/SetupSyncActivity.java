@@ -1,15 +1,17 @@
 /* This Source Code Form is subject to the terms of the Mozilla Public
- * License, v. 2.0. If a copy of the MPL was not distributed with this file,
- * You can obtain one at http://mozilla.org/MPL/2.0/. */
+ * License, v. 2.0. If a copy of the MPL was not distributed with this
+ * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
 package org.mozilla.gecko.sync.setup.activities;
 
+import java.io.UnsupportedEncodingException;
 import java.util.HashMap;
 
 import org.json.simple.JSONObject;
 import org.mozilla.gecko.R;
 import org.mozilla.gecko.sync.Logger;
 import org.mozilla.gecko.sync.ThreadPool;
+import org.mozilla.gecko.sync.Utils;
 import org.mozilla.gecko.sync.jpake.JPakeClient;
 import org.mozilla.gecko.sync.jpake.JPakeNoActivePairingException;
 import org.mozilla.gecko.sync.setup.Constants;
@@ -19,13 +21,13 @@ import org.mozilla.gecko.sync.setup.SyncAccounts.SyncAccountParameters;
 import android.accounts.Account;
 import android.accounts.AccountAuthenticatorActivity;
 import android.accounts.AccountManager;
+import android.app.Activity;
 import android.content.Context;
 import android.content.Intent;
 import android.net.ConnectivityManager;
 import android.net.NetworkInfo;
 import android.net.Uri;
 import android.os.Bundle;
-import android.provider.Settings;
 import android.text.Editable;
 import android.text.TextWatcher;
 import android.view.View;
@@ -133,7 +135,8 @@ public class SetupSyncActivity extends AccountAuthenticatorActivity {
         return;
       }
     }
-    
+
+    final Activity setupActivity = this;
     runOnUiThread(new Runnable() {
       @Override
       public void run() {
@@ -144,10 +147,7 @@ public class SetupSyncActivity extends AccountAuthenticatorActivity {
             R.string.sync_notification_oneaccount, Toast.LENGTH_LONG);
         toast.show();
 
-        Intent intent = new Intent(Settings.ACTION_SYNC_SETTINGS);
-        intent.setFlags(Constants.FLAG_ACTIVITY_REORDER_TO_FRONT_NO_ANIMATION);
-        startActivity(intent);
-
+        SyncAccounts.openSyncSettings(setupActivity);
         finish();
       }
     });
@@ -182,7 +182,7 @@ public class SetupSyncActivity extends AccountAuthenticatorActivity {
   public void manualClickHandler(View target) {
     Intent accountIntent = new Intent(this, AccountActivity.class);
     accountIntent.setFlags(Intent.FLAG_ACTIVITY_NO_ANIMATION);
-    startActivity(accountIntent);
+    startActivityForResult(accountIntent, 0);
     overridePendingTransition(0, 0);
   }
 
@@ -393,6 +393,13 @@ public class SetupSyncActivity extends AccountAuthenticatorActivity {
       String syncKey      = (String) jCreds.get(Constants.JSON_KEY_SYNCKEY);
       String serverURL    = (String) jCreds.get(Constants.JSON_KEY_SERVER);
 
+      // The password we get is double-encoded.
+      try {
+        password = Utils.decodeUTF8(password);
+      } catch (UnsupportedEncodingException e) {
+        Logger.warn(LOG_TAG, "Unsupported encoding when decoding UTF-8 ASCII J-PAKE message. Ignoring.");
+      }
+
       final SyncAccountParameters syncAccount = new SyncAccountParameters(mContext, mAccountManager,
           accountName, syncKey, password, serverURL);
       final Account account = SyncAccounts.createSyncAccount(syncAccount);
@@ -593,5 +600,14 @@ public class SetupSyncActivity extends AccountAuthenticatorActivity {
         }
       }
     });
+  }
+
+  @Override
+  public void onActivityResult(int requestCode, int resultCode, Intent data) {
+    switch (resultCode) {
+    case Activity.RESULT_OK:
+      // Setup completed in manual setup.
+      finish();
+    }
   }
 }

@@ -1,6 +1,6 @@
 /* This Source Code Form is subject to the terms of the Mozilla Public
- * License, v. 2.0. If a copy of the MPL was not distributed with this file,
- * You can obtain one at http://mozilla.org/MPL/2.0/. */
+ * License, v. 2.0. If a copy of the MPL was not distributed with this
+ * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
 package org.mozilla.gecko.sync.setup;
 
@@ -17,11 +17,15 @@ import org.mozilla.gecko.sync.syncadapter.SyncAdapter;
 
 import android.accounts.Account;
 import android.accounts.AccountManager;
+import android.content.ActivityNotFoundException;
 import android.content.ContentResolver;
 import android.content.Context;
+import android.content.Intent;
 import android.content.SharedPreferences;
+import android.content.pm.PackageManager.NameNotFoundException;
 import android.os.AsyncTask;
 import android.os.Bundle;
+import android.provider.Settings;
 import android.util.Log;
 
 /**
@@ -32,6 +36,9 @@ import android.util.Log;
  */
 public class SyncAccounts {
   private static final String LOG_TAG = "SyncAccounts";
+
+  private static final String MOTO_BLUR_SETTINGS_ACTIVITY = "com.motorola.blur.settings.AccountsAndServicesPreferenceActivity";
+  private static final String MOTO_BLUR_PACKAGE           = "com.motorola.blur.setup";
 
   public final static String DEFAULT_SERVER = "https://auth.services.mozilla.com/";
   private static final String GLOBAL_LOG_TAG = "FxSync";
@@ -350,6 +357,73 @@ public class SyncAccounts {
     Logger.debug(LOG_TAG, "Setting authority " + authority + " to " +
                           (syncAutomatically ? "" : "not ") + "sync automatically.");
     ContentResolver.setSyncAutomatically(account, authority, syncAutomatically);
+  }
+
+  /**
+   * Bug 721760: try to start a vendor-specific Accounts & Sync activity on Moto
+   * Blur devices.
+   * <p>
+   * Bug 773562: actually start and catch <code>ActivityNotFoundException</code>,
+   * rather than just returning the <code>Intent</code> only, because some
+   * Moto devices fail to start the activity.
+   *
+   * @param context
+   *          current Android context.
+   * @param vendorPackage
+   *          vendor specific package name.
+   * @param vendorClass
+   *          vendor specific class name.
+   * @return null on failure, otherwise the <code>Intent</code> started.
+   */
+  protected static Intent openVendorSyncSettings(Context context, final String vendorPackage, final String vendorClass) {
+    try {
+      final int contextFlags = Context.CONTEXT_INCLUDE_CODE | Context.CONTEXT_IGNORE_SECURITY;
+      Context foreignContext = context.createPackageContext(vendorPackage, contextFlags);
+      Class<?> klass = foreignContext.getClassLoader().loadClass(vendorClass);
+
+      final Intent intent = new Intent(foreignContext, klass);
+      context.startActivity(intent);
+      Logger.info(LOG_TAG, "Vendor package " + vendorPackage + " and class " +
+          vendorClass + " found, and activity launched.");
+      return intent;
+    } catch (NameNotFoundException e) {
+      Logger.debug(LOG_TAG, "Vendor package " + vendorPackage + " not found. Skipping.");
+    } catch (ClassNotFoundException e) {
+      Logger.debug(LOG_TAG, "Vendor package " + vendorPackage + " found but class " +
+          vendorClass + " not found. Skipping.", e);
+    } catch (ActivityNotFoundException e) {
+      // Bug 773562 - android.content.ActivityNotFoundException on Motorola devices.
+      Logger.warn(LOG_TAG, "Vendor package " + vendorPackage + " and class " +
+          vendorClass + " found, but activity not launched. Skipping.", e);
+    } catch (Exception e) {
+      // Just in case.
+      Logger.warn(LOG_TAG, "Caught exception launching activity from vendor package " + vendorPackage +
+          " and class " + vendorClass + ". Ignoring.", e);
+    }
+    return null;
+  }
+
+  /**
+   * Start Sync settings activity.
+   *
+   * @param context
+   *          current Android context.
+   * @return the <code>Intent</code> started.
+   */
+  public static Intent openSyncSettings(Context context) {
+    // Bug 721760 - opening Sync settings takes user to Battery & Data Manager
+    // on a variety of Motorola devices. This work around tries to load the
+    // correct Intent by hand. Oh, Android.
+    Intent intent = openVendorSyncSettings(context, MOTO_BLUR_PACKAGE, MOTO_BLUR_SETTINGS_ACTIVITY);
+    if (intent != null) {
+      return intent;
+    }
+
+    // Open default Sync settings activity.
+    intent = new Intent(Settings.ACTION_SYNC_SETTINGS);
+    // Bug 774233: do not start activity as a new task (second run fails on some HTC devices).
+    context.startActivity(intent); // We should always find this Activity.
+    return intent;
   }
 
   protected static void setClientRecord(Context context, AccountManager accountManager, Account account,
