@@ -147,6 +147,9 @@
 #ifdef MOZ_MATHML
 #include "nsMathMLParts.h"
 #endif
+#ifdef MOZ_SVG
+#include "nsSVGUtils.h"
+#endif
 
 nsIFrame*
 NS_NewHTMLCanvasFrame (nsIPresShell* aPresShell, nsStyleContext* aContext);
@@ -7144,7 +7147,14 @@ nsCSSFrameConstructor::ConstructSVGFrame(nsFrameConstructorState& aState,
     newFrame = NS_NewSVGAFrame(mPresShell, aContent, aStyleContext);
   }
   else if (aTag == nsGkAtoms::text) {
-    newFrame = NS_NewSVGTextFrame(mPresShell, aContent, aStyleContext);
+    nsIFrame *ancestorFrame = SVG_GetFirstNonAAncestorFrame(aParentFrame);
+    if (ancestorFrame) {
+      nsISVGTextContentMetrics* metrics;
+      CallQueryInterface(ancestorFrame, &metrics);
+      // Text cannot be nested
+      if (!metrics)
+        newFrame = NS_NewSVGTextFrame(mPresShell, aContent, aStyleContext);
+    }
   }
   else if (aTag == nsGkAtoms::tspan) {
     nsIFrame *ancestorFrame = SVG_GetFirstNonAAncestorFrame(aParentFrame);
@@ -9814,6 +9824,11 @@ nsCSSFrameConstructor::ProcessRestyledFrames(nsStyleChangeList& aChangeList)
       RecreateFramesForContent(content);
     } else {
       NS_ASSERTION(frame, "This shouldn't happen");
+#ifdef MOZ_SVG
+      if (hint & nsChangeHint_UpdateEffects) {
+        nsSVGUtils::UpdateEffects(frame);
+      }
+#endif
       if (hint & nsChangeHint_ReflowFrame) {
         StyleChangeReflow(frame);
       }

@@ -614,10 +614,6 @@ js_CompileScript(JSContext *cx, JSObject *obj, JSPrincipals *principals,
             goto out;
         }
 
-        /*
-         * FIXME bug 346749: let declarations at the top level in a script are
-         * turned into var declarations and do not introduce block nodes.
-         */
         JS_ASSERT(!cg.treeContext.blockNode);
 
         if (!js_FoldConstants(cx, pn, &cg.treeContext) ||
@@ -653,8 +649,8 @@ js_CompileScript(JSContext *cx, JSObject *obj, JSPrincipals *principals,
             if (JOF_TYPE(cs->format) == JOF_LOCAL ||
                 (JOF_TYPE(cs->format) == JOF_SLOTATOM)) {
                 /*
-                 * JSOP_GETARGPROP and JSOP_GETVARPROP also have JOF_SLOTATOM
-                 * type, but they may be emitted only for a function.
+                 * JSOP_GETARGPROP also has JOF_SLOTATOM type, but it may be
+                 * emitted only for a function.
                  */
                 JS_ASSERT((JOF_TYPE(cs->format) == JOF_SLOTATOM) ==
                           (op == JSOP_GETLOCALPROP));
@@ -1204,7 +1200,7 @@ FunctionDef(JSContext *cx, JSTokenStream *ts, JSTreeContext *tc,
          * object property (it might also need the activation property, if the
          * outer function contains with statements, e.g., but the stack slot
          * wins when jsemit.c's BindNameToSlot can optimize a JSOP_NAME into a
-         * JSOP_GETVAR bytecode).
+         * JSOP_GETLOCAL bytecode).
          */
         if (AT_TOP_LEVEL(tc) && (tc->flags & TCF_IN_FUNCTION)) {
             JSLocalKind localKind;
@@ -1714,7 +1710,7 @@ BindVarOrConst(JSContext *cx, BindData *data, JSAtom *atom, JSTreeContext *tc)
     const char *name;
     JSLocalKind localKind;
 
-    stmt = js_LexicalLookup(tc, atom, NULL, 0);
+    stmt = js_LexicalLookup(tc, atom, NULL);
     ATOM_LIST_SEARCH(ale, &tc->decls, atom);
     op = data->op;
     if ((stmt && stmt->type != STMT_WITH) || ale) {
@@ -3330,16 +3326,10 @@ Statement(JSContext *cx, JSTokenStream *ts, JSTreeContext *tc)
             JS_ASSERT(tc->blockChain == stmt->u.blockObj);
             obj = tc->blockChain;
         } else {
-            if (!stmt) {
+            if (!stmt || (stmt->flags & SIF_BODY_BLOCK)) {
                 /*
-                 * FIXME: https://bugzilla.mozilla.org/show_bug.cgi?id=346749
-                 *
-                 * This is a hard case that requires more work. In particular,
-                 * in many cases, we're trying to emit code as we go. However,
-                 * this means that we haven't necessarily finished processing
-                 * all let declarations in the implicit top-level block when
-                 * we emit a reference to one of them.  For now, punt on this
-                 * and pretend this is a var declaration.
+                 * ES4 specifies that let at top level and at body-block scope
+                 * does not shadow var, so convert back to var.
                  */
                 CURRENT_TOKEN(ts).type = TOK_VAR;
                 CURRENT_TOKEN(ts).t_op = JSOP_DEFVAR;

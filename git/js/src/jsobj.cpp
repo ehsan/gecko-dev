@@ -1715,6 +1715,22 @@ obj_lookupSetter(JSContext *cx, uintN argc, jsval *vp)
 }
 #endif /* JS_HAS_GETTER_SETTER */
 
+JSBool
+obj_getPrototypeOf(JSContext *cx, uintN argc, jsval *vp)
+{
+    JSObject *obj;
+    uintN attrs;
+
+    obj = js_ValueToNonNullObject(cx, vp[2]);
+    if (!obj)
+        return JS_FALSE;
+    vp[2] = OBJECT_TO_JSVAL(obj);
+
+    return OBJ_CHECK_ACCESS(cx, JSVAL_TO_OBJECT(vp[2]),
+                            ATOM_TO_JSID(cx->runtime->atomState.protoAtom),
+                            JSACC_PROTO, vp, &attrs);
+}
+
 #if JS_HAS_OBJ_WATCHPOINT
 const char js_watch_str[] = "watch";
 const char js_unwatch_str[] = "unwatch";
@@ -1749,6 +1765,11 @@ static JSFunctionSpec object_methods[] = {
     JS_FN(js_lookupGetter_str,         obj_lookupGetter,         1,1,0),
     JS_FN(js_lookupSetter_str,         obj_lookupSetter,         1,1,0),
 #endif
+    JS_FS_END
+};
+
+static JSFunctionSpec object_static_methods[] = {
+    JS_FN("getPrototypeOf",            obj_getPrototypeOf,       1,1,0),
     JS_FS_END
 };
 
@@ -2244,7 +2265,8 @@ JSObject *
 js_InitObjectClass(JSContext *cx, JSObject *obj)
 {
     return JS_InitClass(cx, obj, NULL, &js_ObjectClass, Object, 1,
-                        object_props, object_methods, NULL, NULL);
+                        object_props, object_methods, NULL,
+                        object_static_methods);
 }
 
 void
@@ -4330,8 +4352,10 @@ js_CheckAccess(JSContext *cx, JSObject *obj, jsid id, JSAccessMode mode,
 
             /* Avoid diverging for non-natives that reuse js_CheckAccess. */
             if (pobj->map->ops->checkAccess == js_CheckAccess) {
-                if (!writing)
+                if (!writing) {
                     *vp = JSVAL_VOID;
+                    *attrsp = 0;
+                }
                 break;
             }
             return OBJ_CHECK_ACCESS(cx, pobj, id, mode, vp, attrsp);
