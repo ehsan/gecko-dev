@@ -51,6 +51,7 @@
 #include "jslibmath.h"
 #include "jsmath.h"
 #include "jsnum.h"
+#include "prmjtime.h"
 #include "jsscope.h"
 #include "jsstr.h"
 #include "jstracer.h"
@@ -86,15 +87,13 @@ js_dmod(jsdouble a, jsdouble b)
     return r;
 }
 
-/*
- * Note: Caller is responsible for ensuring that b is not 0, or really bad 
- *       things are going to happen.
- */
-
 jsint FASTCALL
 js_imod(jsint a, jsint b)
 {
-    return a % b;
+    if (a < 0 || b <= 0)
+        return -1;
+    int r = a % b;
+    return r;
 }
 
 /* The following boxing/unboxing primitives we can't emit inline because
@@ -515,33 +514,12 @@ js_Any_setprop(JSContext* cx, JSObject* obj, JSString* idstr, jsval v)
 }
 
 jsval FASTCALL
-js_Any_getelem(JSContext* cx, JSObject* obj, jsdouble index)
+js_Any_getelem(JSContext* cx, JSObject* obj, jsint index)
 {
     jsval v;
     jsid id;
-
-    if (!js_ValueToStringId(cx, DOUBLE_TO_JSVAL(&index), &id))
+    if (index < 0)
         return JSVAL_ERROR_COOKIE;
-    if (!OBJ_GET_PROPERTY(cx, obj, id, &v))
-        return JSVAL_ERROR_COOKIE;
-    return v;
-}
-
-JSBool FASTCALL
-js_Any_setelem(JSContext* cx, JSObject* obj, jsdouble index, jsval v)
-{
-    jsid id;
-    if (!js_ValueToStringId(cx, DOUBLE_TO_JSVAL(&index), &id))
-        return JS_FALSE;
-    return OBJ_SET_PROPERTY(cx, obj, id, &v);
-}
-
-jsval FASTCALL
-js_Any_getelem_int(JSContext* cx, JSObject* obj, jsuint index)
-{
-    jsval v;
-    jsid id;
-
     if (!js_IndexToId(cx, index, &id))
         return JSVAL_ERROR_COOKIE;
     if (!OBJ_GET_PROPERTY(cx, obj, id, &v))
@@ -550,9 +528,11 @@ js_Any_getelem_int(JSContext* cx, JSObject* obj, jsuint index)
 }
 
 JSBool FASTCALL
-js_Any_setelem_int(JSContext* cx, JSObject* obj, jsuint index, jsval v)
+js_Any_setelem(JSContext* cx, JSObject* obj, jsint index, jsval v)
 {
     jsid id;
+    if (index < 0)
+        return JSVAL_ERROR_COOKIE;
     if (!js_IndexToId(cx, index, &id))
         return JS_FALSE;
     return OBJ_SET_PROPERTY(cx, obj, id, &v);
@@ -881,6 +861,12 @@ JSObject* FASTCALL
 js_Arguments(JSContext* cx)
 {
     return NULL;
+}
+
+jsdouble FASTCALL
+js_Date_now(JSContext*)
+{
+    return PRMJ_Now() / PRMJ_USEC_PER_MSEC;
 }
 
 /* soft float */

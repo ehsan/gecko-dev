@@ -139,6 +139,8 @@ typedef struct JSTraceMonitor {
     CLS(SlotList)           globalSlots;
     CLS(TypeMap)            globalTypeMap;
     JSFragmentCacheEntry    fcache[JS_FRAGMENT_CACHE_SIZE];
+    jsval                   *recoveryDoublePool;
+    jsval                   *recoveryDoublePoolPtr;
 } JSTraceMonitor;
 
 #ifdef JS_TRACER
@@ -488,7 +490,7 @@ struct JSRuntime {
 
     jsuword             nativeEnumCache[NATIVE_ENUM_CACHE_SIZE];
 
-   /*
+    /*
      * Various metering fields are defined at the end of JSRuntime. In this
      * way there is no need to recompile all the code that refers to other
      * fields of JSRuntime after enabling the corresponding metering macro.
