@@ -67,6 +67,7 @@
 
 using namespace js;
 using namespace js::gc;
+using namespace js::types;
 
 using mozilla::DebugOnly;
 using mozilla::Maybe;
@@ -1604,7 +1605,7 @@ CreateThisForFunctionWithGroup(JSContext *cx, HandleObjectGroup group, JSObject 
     if (group->maybeUnboxedLayout() && newKind != SingletonObject)
         return UnboxedPlainObject::create(cx, group, newKind);
 
-    if (TypeNewScript *newScript = group->newScript()) {
+    if (types::TypeNewScript *newScript = group->newScript()) {
         if (newScript->analyzed()) {
             // The definite properties analysis has been performed for this
             // group, so get the shape and finalize kind to use from the
@@ -1684,7 +1685,7 @@ js::CreateThisForFunctionWithProto(JSContext *cx, HandleObject callee, JSObject 
         JSScript *script = callee->as<JSFunction>().getOrCreateScript(cx);
         if (!script)
             return nullptr;
-        TypeScript::SetThis(cx, script, TypeSet::ObjectType(res));
+        TypeScript::SetThis(cx, script, types::Type::ObjectType(res));
     }
 
     return res;
@@ -1710,7 +1711,7 @@ js::CreateThisForFunction(JSContext *cx, HandleObject callee, NewObjectKind newK
         NativeObject::clear(cx, nobj);
 
         JSScript *calleeScript = callee->as<JSFunction>().nonLazyScript();
-        TypeScript::SetThis(cx, calleeScript, TypeSet::ObjectType(nobj));
+        TypeScript::SetThis(cx, calleeScript, types::Type::ObjectType(nobj));
 
         return nobj;
     }
@@ -3334,7 +3335,7 @@ js::WatchGuts(JSContext *cx, JS::HandleObject origObj, JS::HandleId id, JS::Hand
         if (!NativeObject::sparsifyDenseElements(cx, obj.as<NativeObject>()))
             return false;
 
-        MarkTypePropertyNonData(cx, obj, id);
+        types::MarkTypePropertyNonData(cx, obj, id);
     }
 
     WatchpointMap *wpmap = cx->compartment()->watchpointMap;

@@ -115,7 +115,7 @@ Zone::beginSweepTypes(FreeOp *fop, bool releaseTypes)
     if (active)
         releaseTypes = false;
 
-    AutoClearTypeInferenceStateOnOOM oom(this);
+    types::AutoClearTypeInferenceStateOnOOM oom(this);
     types.beginSweep(fop, releaseTypes, oom);
 }
 

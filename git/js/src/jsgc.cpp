@@ -2218,7 +2218,7 @@ GCRuntime::sweepTypesAfterCompacting(Zone *zone)
     FreeOp *fop = rt->defaultFreeOp();
     zone->beginSweepTypes(fop, rt->gc.releaseObservedTypes && !zone->isPreservingCode());
 
-    AutoClearTypeInferenceStateOnOOM oom(zone);
+    types::AutoClearTypeInferenceStateOnOOM oom(zone);
 
     for (ZoneCellIterUnderGC i(zone, FINALIZE_SCRIPT); !i.done(); i.next()) {
         JSScript *script = i.get<JSScript>();
@@ -5191,13 +5191,13 @@ SweepThing(Shape *shape)
 }
 
 static void
-SweepThing(JSScript *script, AutoClearTypeInferenceStateOnOOM *oom)
+SweepThing(JSScript *script, types::AutoClearTypeInferenceStateOnOOM *oom)
 {
     script->maybeSweepTypes(oom);
 }
 
 static void
-SweepThing(ObjectGroup *group, AutoClearTypeInferenceStateOnOOM *oom)
+SweepThing(ObjectGroup *group, types::AutoClearTypeInferenceStateOnOOM *oom)
 {
     group->maybeSweep(oom);
 }
@@ -5245,7 +5245,7 @@ GCRuntime::sweepPhase(SliceBudget &sliceBudget)
             for (; sweepZone; sweepZone = sweepZone->nextNodeInGroup()) {
                 ArenaLists &al = sweepZone->arenas;
 
-                AutoClearTypeInferenceStateOnOOM oom(sweepZone);
+                types::AutoClearTypeInferenceStateOnOOM oom(sweepZone);
 
                 if (!SweepArenaList<JSScript>(&al.gcScriptArenasToUpdate, sliceBudget, &oom))
                     return NotFinished;

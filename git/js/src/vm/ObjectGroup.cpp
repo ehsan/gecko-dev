@@ -19,6 +19,7 @@
 #include "jsobjinlines.h"
 
 using namespace js;
+using namespace js::types;
 
 using mozilla::PodZero;
 
@@ -548,22 +549,22 @@ ObjectGroup::defaultNewGroup(ExclusiveContext *cx, const Class *clasp,
         const JSAtomState &names = cx->names();
 
         if (obj->is<RegExpObject>()) {
-            AddTypePropertyId(cx, group, NameToId(names.source), TypeSet::StringType());
-            AddTypePropertyId(cx, group, NameToId(names.global), TypeSet::BooleanType());
-            AddTypePropertyId(cx, group, NameToId(names.ignoreCase), TypeSet::BooleanType());
-            AddTypePropertyId(cx, group, NameToId(names.multiline), TypeSet::BooleanType());
-            AddTypePropertyId(cx, group, NameToId(names.sticky), TypeSet::BooleanType());
-            AddTypePropertyId(cx, group, NameToId(names.lastIndex), TypeSet::Int32Type());
+            AddTypePropertyId(cx, group, NameToId(names.source), Type::StringType());
+            AddTypePropertyId(cx, group, NameToId(names.global), Type::BooleanType());
+            AddTypePropertyId(cx, group, NameToId(names.ignoreCase), Type::BooleanType());
+            AddTypePropertyId(cx, group, NameToId(names.multiline), Type::BooleanType());
+            AddTypePropertyId(cx, group, NameToId(names.sticky), Type::BooleanType());
+            AddTypePropertyId(cx, group, NameToId(names.lastIndex), Type::Int32Type());
         }
 
         if (obj->is<StringObject>())
-            AddTypePropertyId(cx, group, NameToId(names.length), TypeSet::Int32Type());
+            AddTypePropertyId(cx, group, NameToId(names.length), Type::Int32Type());
 
         if (obj->is<ErrorObject>()) {
-            AddTypePropertyId(cx, group, NameToId(names.fileName), TypeSet::StringType());
-            AddTypePropertyId(cx, group, NameToId(names.lineNumber), TypeSet::Int32Type());
-            AddTypePropertyId(cx, group, NameToId(names.columnNumber), TypeSet::Int32Type());
-            AddTypePropertyId(cx, group, NameToId(names.stack), TypeSet::StringType());
+            AddTypePropertyId(cx, group, NameToId(names.fileName), Type::StringType());
+            AddTypePropertyId(cx, group, NameToId(names.lineNumber), Type::Int32Type());
+            AddTypePropertyId(cx, group, NameToId(names.columnNumber), Type::Int32Type());
+            AddTypePropertyId(cx, group, NameToId(names.stack), Type::StringType());
         }
     }
 
@@ -714,14 +715,14 @@ ObjectGroup::defaultNewGroup(JSContext *cx, JSProtoKey key)
 
 struct ObjectGroupCompartment::ArrayObjectKey : public DefaultHasher<ArrayObjectKey>
 {
-    TypeSet::Type type;
+    Type type;
     JSObject *proto;
 
     ArrayObjectKey()
-      : type(TypeSet::UndefinedType()), proto(nullptr)
+      : type(Type::UndefinedType()), proto(nullptr)
     {}
 
-    ArrayObjectKey(TypeSet::Type type, JSObject *proto)
+    ArrayObjectKey(Type type, JSObject *proto)
       : type(type), proto(proto)
     {}
 
@@ -743,7 +744,7 @@ struct ObjectGroupCompartment::ArrayObjectKey : public DefaultHasher<ArrayObject
 };
 
 static inline bool
-NumberTypes(TypeSet::Type a, TypeSet::Type b)
+NumberTypes(Type a, Type b)
 {
     return (a.isPrimitive(JSVAL_TYPE_INT32) || a.isPrimitive(JSVAL_TYPE_DOUBLE))
         && (b.isPrimitive(JSVAL_TYPE_INT32) || b.isPrimitive(JSVAL_TYPE_DOUBLE));
@@ -754,10 +755,10 @@ NumberTypes(TypeSet::Type a, TypeSet::Type b)
  * their default prototype. These are the only values that should appear in
  * arrays and objects whose type can be fixed.
  */
-static inline TypeSet::Type
+static inline Type
 GetValueTypeForTable(const Value &v)
 {
-    TypeSet::Type type = TypeSet::GetValueType(v);
+    Type type = GetValueType(v);
     MOZ_ASSERT(!type.isSingleton());
     return type;
 }
@@ -778,13 +779,13 @@ ObjectGroup::fixArrayGroup(ExclusiveContext *cx, ArrayObject *obj)
     if (len == 0)
         return;
 
-    TypeSet::Type type = GetValueTypeForTable(obj->getDenseElement(0));
+    Type type = GetValueTypeForTable(obj->getDenseElement(0));
 
     for (unsigned i = 1; i < len; i++) {
-        TypeSet::Type ntype = GetValueTypeForTable(obj->getDenseElement(i));
+        Type ntype = GetValueTypeForTable(obj->getDenseElement(i));
         if (ntype != type) {
             if (NumberTypes(type, ntype))
-                type = TypeSet::DoubleType();
+                type = Type::DoubleType();
             else
                 return;
         }
@@ -800,12 +801,11 @@ ObjectGroup::fixRestArgumentsGroup(ExclusiveContext *cx, ArrayObject *obj)
 
     // Tracking element types for rest argument arrays is not worth it, but we
     // still want it to be known that it's a dense array.
-    setGroupToHomogenousArray(cx, obj, TypeSet::UnknownType());
+    setGroupToHomogenousArray(cx, obj, Type::UnknownType());
 }
 
 /* static */ void
-ObjectGroup::setGroupToHomogenousArray(ExclusiveContext *cx, JSObject *obj,
-                                       TypeSet::Type elementType)
+ObjectGroup::setGroupToHomogenousArray(ExclusiveContext *cx, JSObject *obj, Type elementType)
 {
     MOZ_ASSERT(cx->zone()->types.activeAnalysis);
 
@@ -888,7 +888,7 @@ struct ObjectGroupCompartment::PlainObjectEntry
 {
     ReadBarrieredObjectGroup group;
     ReadBarrieredShape shape;
-    TypeSet::Type *types;
+    Type *types;
 };
 
 /* static */ void
@@ -898,8 +898,8 @@ ObjectGroupCompartment::updatePlainObjectEntryTypes(ExclusiveContext *cx, PlainO
     if (entry.group->unknownProperties())
         return;
     for (size_t i = 0; i < nproperties; i++) {
-        TypeSet::Type type = entry.types[i];
-        TypeSet::Type ntype = GetValueTypeForTable(properties[i].value);
+        Type type = entry.types[i];
+        Type ntype = GetValueTypeForTable(properties[i].value);
         if (ntype == type)
             continue;
         if (ntype.isPrimitive(JSVAL_TYPE_INT32) &&
@@ -911,7 +911,7 @@ ObjectGroupCompartment::updatePlainObjectEntryTypes(ExclusiveContext *cx, PlainO
                 type.isPrimitive(JSVAL_TYPE_INT32))
             {
                 /* Include 'double' in the property types to avoid the update below later. */
-                entry.types[i] = TypeSet::DoubleType();
+                entry.types[i] = Type::DoubleType();
             }
             AddTypePropertyId(cx, entry.group, IdToTypeId(properties[i].id), ntype);
         }
@@ -986,8 +986,7 @@ ObjectGroup::fixPlainObjectGroup(ExclusiveContext *cx, PlainObject *obj)
     if (!ids)
         return;
 
-    ScopedJSFreePtr<TypeSet::Type> types(
-        group->zone()->pod_calloc<TypeSet::Type>(properties.length()));
+    ScopedJSFreePtr<Type> types(group->zone()->pod_calloc<Type>(properties.length()));
     if (!types)
         return;
 
@@ -1241,11 +1240,15 @@ ObjectGroup::getCopyOnWriteObject(JSScript *script, jsbytecode *pc)
 }
 
 /* static */ bool
-ObjectGroup::findAllocationSite(JSContext *cx, ObjectGroup *group,
-                                JSScript **script, uint32_t *offset)
+ObjectGroup::findAllocationSiteForType(JSContext *cx, Type type,
+                                       JSScript **script, uint32_t *offset)
 {
     *script = nullptr;
     *offset = 0;
+
+    if (type.isUnknown() || type.isAnyObject() || !type.isGroup())
+        return false;
+    ObjectGroup *obj = type.group();
 
     const ObjectGroupCompartment::AllocationSiteTable *table =
         cx->compartment()->objectGroups.allocationSiteTable;
@@ -1257,7 +1260,7 @@ ObjectGroup::findAllocationSite(JSContext *cx, ObjectGroup *group,
          !r.empty();
          r.popFront())
     {
-        if (group == r.front().value()) {
+        if (obj == r.front().value()) {
             *script = r.front().key().script;
             *offset = r.front().key().offset;
             return true;
@@ -1392,7 +1395,7 @@ ObjectGroupCompartment::sweep(FreeOp *fop)
                 if (IsObjectGroupAboutToBeFinalizedFromAnyThread(&group))
                     remove = true;
                 else
-                    key.type = TypeSet::ObjectType(group);
+                    key.type = Type::ObjectType(group);
             }
             if (key.proto && key.proto != TaggedProto::LazyProto &&
                 IsObjectAboutToBeFinalizedFromAnyThread(&key.proto))
@@ -1438,7 +1441,7 @@ ObjectGroupCompartment::sweep(FreeOp *fop)
                     if (IsObjectGroupAboutToBeFinalizedFromAnyThread(&group))
                         remove = true;
                     else if (group != entry.types[i].groupNoBarrier())
-                        entry.types[i] = TypeSet::ObjectType(group);
+                        entry.types[i] = Type::ObjectType(group);
                 }
             }
 

@@ -265,7 +265,7 @@ struct IonScript
     uint32_t invalidationCount_;
 
     // Identifier of the compilation which produced this code.
-    RecompileInfo recompileInfo_;
+    types::RecompileInfo recompileInfo_;
 
     // The optimization level this script was compiled in.
     OptimizationLevel optimizationLevel_;
@@ -332,7 +332,7 @@ struct IonScript
     // Do not call directly, use IonScript::New. This is public for cx->new_.
     IonScript();
 
-    static IonScript *New(JSContext *cx, RecompileInfo recompileInfo,
+    static IonScript *New(JSContext *cx, types::RecompileInfo recompileInfo,
                           uint32_t frameSlots, uint32_t argumentSlots, uint32_t frameSize,
                           size_t snapshotsListSize, size_t snapshotsRVATableSize,
                           size_t recoversSize, size_t bailoutEntries,
@@ -541,10 +541,10 @@ struct IonScript
         if (!invalidationCount_)
             Destroy(fop, this);
     }
-    const RecompileInfo& recompileInfo() const {
+    const types::RecompileInfo& recompileInfo() const {
         return recompileInfo_;
     }
-    RecompileInfo& recompileInfoRef() {
+    types::RecompileInfo& recompileInfoRef() {
         return recompileInfo_;
     }
     OptimizationLevel optimizationLevel() const {

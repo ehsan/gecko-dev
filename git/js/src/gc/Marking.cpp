@@ -787,18 +787,18 @@ gc::MarkValueRoot(JSTracer *trc, Value *v, const char *name)
 }
 
 void
-TypeSet::MarkTypeRoot(JSTracer *trc, TypeSet::Type *v, const char *name)
+gc::MarkTypeRoot(JSTracer *trc, types::Type *v, const char *name)
 {
     JS_ROOT_MARKING_ASSERT(trc);
     trc->setTracingName(name);
     if (v->isSingleton()) {
         JSObject *obj = v->singleton();
         MarkInternal(trc, &obj);
-        *v = TypeSet::ObjectType(obj);
+        *v = types::Type::ObjectType(obj);
     } else if (v->isGroup()) {
         ObjectGroup *group = v->group();
         MarkInternal(trc, &group);
-        *v = TypeSet::ObjectType(group);
+        *v = types::Type::ObjectType(group);
     }
 }
 
@@ -1426,7 +1426,7 @@ ScanObjectGroup(GCMarker *gcmarker, ObjectGroup *group)
 {
     unsigned count = group->getPropertyCount();
     for (unsigned i = 0; i < count; i++) {
-        if (ObjectGroup::Property *prop = group->getProperty(i))
+        if (types::Property *prop = group->getProperty(i))
             MarkId(gcmarker, &prop->id, "ObjectGroup property id");
     }
 
@@ -1454,7 +1454,8 @@ gc::MarkChildren(JSTracer *trc, ObjectGroup *group)
 {
     unsigned count = group->getPropertyCount();
     for (unsigned i = 0; i < count; i++) {
-        if (ObjectGroup::Property *prop = group->getProperty(i))
+        types::Property *prop = group->getProperty(i);
+        if (prop)
             MarkId(trc, &prop->id, "group_property");
     }
 

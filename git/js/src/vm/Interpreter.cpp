@@ -55,6 +55,7 @@
 
 using namespace js;
 using namespace js::gc;
+using namespace js::types;
 
 using mozilla::DebugOnly;
 using mozilla::NumberEqualsInt32;
@@ -1321,7 +1322,7 @@ static MOZ_ALWAYS_INLINE bool
 SetObjectElementOperation(JSContext *cx, Handle<JSObject*> obj, HandleId id, const Value &value,
                           bool strict, JSScript *script = nullptr, jsbytecode *pc = nullptr)
 {
-    TypeScript::MonitorAssign(cx, obj, id);
+    types::TypeScript::MonitorAssign(cx, obj, id);
 
     if (obj->isNative() && JSID_IS_INT(id)) {
         uint32_t length = obj->as<NativeObject>().getDenseInitializedLength();
@@ -3962,7 +3963,8 @@ js::RunOnceScriptPrologue(JSContext *cx, HandleScript script)
     if (!script->functionNonDelazifying()->getGroup(cx))
         return false;
 
-    MarkObjectGroupFlags(cx, script->functionNonDelazifying(), OBJECT_FLAG_RUNONCE_INVALIDATED);
+    types::MarkObjectGroupFlags(cx, script->functionNonDelazifying(),
+                                OBJECT_FLAG_RUNONCE_INVALIDATED);
     return true;
 }
 

@@ -161,10 +161,6 @@ function runViewer() {
   document.getElementById('inspectorMenu').addEventListener('click', showInInspector);
   document.getElementById('reportMenu').addEventListener('click', reportIssue);
   document.getElementById('aboutMenu').addEventListener('click', showAbout);
-
-  var version = Shumway.version || '';
-  document.getElementById('aboutMenu').label =
-    document.getElementById('aboutMenu').label.replace('%version%', version);
 }
 
 function showURL() {

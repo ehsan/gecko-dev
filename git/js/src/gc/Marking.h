@@ -37,6 +37,10 @@ struct IonScript;
 struct VMFunction;
 }
 
+namespace types {
+class Type;
+}
+
 namespace gc {
 
 /*** Object Marking ***/
@@ -208,6 +212,9 @@ MarkValueRootRange(JSTracer *trc, Value *begin, Value *end, const char *name)
 {
     MarkValueRootRange(trc, end - begin, begin, name);
 }
+
+void
+MarkTypeRoot(JSTracer *trc, types::Type *v, const char *name);
 
 bool
 IsValueMarked(Value *v);

@@ -49,6 +49,7 @@
 
 using namespace js;
 using namespace js::gc;
+using namespace js::types;
 using namespace js::frontend;
 
 using mozilla::ArrayLength;

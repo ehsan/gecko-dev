@@ -44,6 +44,7 @@
 
 using namespace js;
 using namespace js::gc;
+using namespace js::types;
 
 using mozilla::Abs;
 using mozilla::ArrayLength;
@@ -1224,7 +1225,8 @@ InitArrayTypes(JSContext *cx, ObjectGroup *group, const Value *vector, unsigned 
         for (unsigned i = 0; i < count; i++) {
             if (vector[i].isMagic(JS_ELEMENTS_HOLE))
                 continue;
-            types->addType(cx, TypeSet::GetValueType(vector[i]));
+            Type valtype = GetValueType(vector[i]);
+            types->addType(cx, valtype);
         }
     }
     return true;

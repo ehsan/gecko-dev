@@ -738,8 +738,8 @@ RegExpCompartment::createMatchResultTemplateObject(JSContext *cx)
 
     // Make sure type information reflects the indexed properties which might
     // be added.
-    AddTypePropertyId(cx, templateObject, JSID_VOID, TypeSet::StringType());
-    AddTypePropertyId(cx, templateObject, JSID_VOID, TypeSet::UndefinedType());
+    types::AddTypePropertyId(cx, templateObject, JSID_VOID, types::Type::StringType());
+    types::AddTypePropertyId(cx, templateObject, JSID_VOID, types::Type::UndefinedType());
 
     matchResultTemplateObject_.set(templateObject);
 
