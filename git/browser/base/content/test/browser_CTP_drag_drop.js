@@ -87,7 +87,7 @@ function part7() {
   ok(!objLoadingContent.activated, "plugin should not be activated");
 
   EventUtils.synthesizeMouseAtCenter(plugin, {}, gNewWindow.gBrowser.selectedBrowser.contentWindow);
-  let condition = function() !PopupNotifications.getNotification("click-to-play-plugins", gNewWindow.gBrowser.selectedBrowser).dismissed && gNewWindow.PopupNotifications.panel.firstChild;
+  let condition = function() !PopupNotifications.getNotification("click-to-play-plugins", gNewWindow.gBrowser.selectedBrowser).dismissed;
   waitForCondition(condition, part8, "waited too long for plugin to activate");
 }
 

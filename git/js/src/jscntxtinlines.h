@@ -342,7 +342,7 @@ CallSetter(JSContext *cx, HandleObject obj, HandleId id, StrictPropertyOp op, un
 inline uintptr_t
 GetNativeStackLimit(ExclusiveContext *cx)
 {
-    return cx->perThreadData->nativeStackLimit;
+    return GetNativeStackLimit(cx->asJSContext()->runtime());
 }
 
 inline RegExpCompartment &

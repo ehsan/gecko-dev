@@ -418,7 +418,7 @@ js::ConcatStrings(JSContext *cx,
     if (!JSString::validateLength(cx, wholeLength))
         return NULL;
 
-    if (JSShortString::lengthFits(wholeLength) && cx->isJSContext()) {
+    if (JSShortString::lengthFits(wholeLength)) {
         JSShortString *str = js_NewGCShortString<allowGC>(cx);
         if (!str)
             return NULL;

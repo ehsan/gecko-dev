@@ -244,15 +244,27 @@ if test "$OS_TARGET" = "Android" -a -z "$gonkdir"; then
             else
                 AC_MSG_ERROR([Couldn't find path to gnu-libstdc++ in the android ndk])
             fi
-        else
-            STLPORT_CPPFLAGS="-I$_topsrcdir/build/stlport/stlport -I$android_ndk/sources/cxx-stl/system/include"
-            STLPORT_LIBS="$_objdir/build/stlport/libstlport_static.a -static-libstdc++"
+        elif test -e "$android_ndk/sources/cxx-stl/stlport/src/iostream.cpp" ; then
+            if test -e "$android_ndk/sources/cxx-stl/stlport/libs/$ANDROID_CPU_ARCH/libstlport_static.a"; then
+                STLPORT_LDFLAGS="-L$_objdir/build/stlport -L$android_ndk/sources/cxx-stl/stlport/libs/$ANDROID_CPU_ARCH/"
+            elif test -e "$android_ndk/tmp/ndk-digit/build/install/sources/cxx-stl/stlport/libs/$ANDROID_CPU_ARCH/libstlport_static.a"; then
+                STLPORT_LDFLAGS="-L$_objdir/build/stlport -L$android_ndk/tmp/ndk-digit/build/install/sources/cxx-stl/stlport/libs/$ANDROID_CPU_ARCH/"
+            else
+                AC_MSG_ERROR([Couldn't find path to stlport in the android ndk])
+            fi
+            STLPORT_SOURCES="$android_ndk/sources/cxx-stl/stlport"
+            STLPORT_CPPFLAGS="-I$_objdir/build/stlport -I$android_ndk/sources/cxx-stl/stlport/stlport"
+            STLPORT_LIBS="-lstlport_static -static-libstdc++"
+        elif test "$target" != "arm-android-eabi"; then
+            dnl fail if we're not building with NDKr4
+            AC_MSG_ERROR([Couldn't find path to stlport in the android ndk])
         fi
     fi
     CXXFLAGS="$CXXFLAGS $STLPORT_CPPFLAGS"
+    LDFLAGS="$LDFLAGS $STLPORT_LDFLAGS"
+    LIBS="$LIBS $STLPORT_LIBS"
 fi
-AC_SUBST([MOZ_ANDROID_LIBSTDCXX])
-AC_SUBST([STLPORT_LIBS])
+AC_SUBST([STLPORT_SOURCES])
 
 ])
 

@@ -92,10 +92,10 @@ function dial() {
 function busy() {
   log("The receiver is busy.");
 
-  outgoing.onerror = function onerror(event) {
-    log("Received 'error' call event.");
+  outgoing.onbusy = function onbusy(event) {
+    log("Received 'busy' call event.");
     is(outgoing, event.call);
-    is(event.call.error.name, "BusyError");
+    is(outgoing.state, "busy");
 
     runEmulatorCmd("gsm list", function(result) {
       log("Call list is now: " + result);
@@ -103,7 +103,6 @@ function busy() {
       cleanUp();
     });
   };
-
   runEmulatorCmd("gsm busy " + number);
 };
 

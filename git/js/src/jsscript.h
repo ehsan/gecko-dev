@@ -1124,9 +1124,6 @@ class LazyScript : public js::gc::Cell
     // pointer to the result.
     HeapPtrScript script_;
 
-    // Original function with which the lazy script is associated.
-    HeapPtrFunction function_;
-
     // Function or block chain in which the script is nested, or NULL.
     HeapPtrObject enclosingScope_;
 
@@ -1136,6 +1133,10 @@ class LazyScript : public js::gc::Cell
 
     // Heap allocated table with any free variables or inner functions.
     void *table_;
+
+#if JS_BITS_PER_WORD == 32
+    uint32_t padding;
+#endif
 
     // Assorted bits that should really be in ScriptSourceObject.
     JSPrincipals *originPrincipals_;
@@ -1158,19 +1159,14 @@ class LazyScript : public js::gc::Cell
     uint32_t lineno_;
     uint32_t column_;
 
-    LazyScript(JSFunction *fun, void *table,
-               uint32_t numFreeVariables, uint32_t numInnerFunctions, JSVersion version,
+    LazyScript(void *table, uint32_t numFreeVariables, uint32_t numInnerFunctions, JSVersion version,
                uint32_t begin, uint32_t end, uint32_t lineno, uint32_t column);
 
   public:
-    static LazyScript *Create(ExclusiveContext *cx, HandleFunction fun,
+    static LazyScript *Create(ExclusiveContext *cx,
                               uint32_t numFreeVariables, uint32_t numInnerFunctions,
                               JSVersion version, uint32_t begin, uint32_t end,
                               uint32_t lineno, uint32_t column);
-
-    JSFunction *function() const {
-        return function_;
-    }
 
     void initScript(JSScript *script);
     JSScript *maybeScript() {

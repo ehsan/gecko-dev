@@ -26,8 +26,6 @@ interface TextTrack : EventTarget {
   readonly attribute TextTrackKind kind;
   readonly attribute DOMString label;
   readonly attribute DOMString language;
-
-  readonly attribute DOMString id;
   readonly attribute DOMString inBandMetadataTrackDispatchType;
 
            attribute TextTrackMode mode;

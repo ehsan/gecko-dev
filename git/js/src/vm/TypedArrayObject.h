@@ -255,7 +255,7 @@ class ArrayBufferViewObject : public JSObject
 
     inline void setNextView(ArrayBufferViewObject *view);
 
-    void prependToViews(ArrayBufferViewObject *viewsHead);
+    void prependToViews(HeapPtr<ArrayBufferViewObject> *views);
 
     void neuter();
 

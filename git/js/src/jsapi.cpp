@@ -677,9 +677,7 @@ PerThreadData::PerThreadData(JSRuntime *runtime)
     activation_(NULL),
     asmJSActivationStack_(NULL),
     dtoaState(NULL),
-    suppressGC(0),
-    gcKeepAtoms(0),
-    activeCompilations(0)
+    suppressGC(0)
 {}
 
 PerThreadData::~PerThreadData()
@@ -738,6 +736,7 @@ JSRuntime::JSRuntime(JSUseHelperThreads useHelperThreads)
 #endif
     gcSystemAvailableChunkListHead(NULL),
     gcUserAvailableChunkListHead(NULL),
+    gcKeepAtoms(0),
     gcBytes(0),
     gcMaxBytes(0),
     gcMaxMallocBytes(0),
@@ -850,6 +849,7 @@ JSRuntime::JSRuntime(JSUseHelperThreads useHelperThreads)
     numGrouping(0),
 #endif
     mathCache_(NULL),
+    activeCompilations(0),
     trustedPrincipals_(NULL),
     wrapObjectCallback(TransparentObjectWrapper),
     sameCompartmentWrapObjectCallback(NULL),

@@ -31,7 +31,6 @@ class mozIApplication;
 class nsFrameLoader;
 class nsIDOMElement;
 class nsIURI;
-class CpowHolder;
 
 namespace mozilla {
 
@@ -124,11 +123,9 @@ public:
     virtual bool AnswerCreateWindow(PBrowserParent** retval);
     virtual bool RecvSyncMessage(const nsString& aMessage,
                                  const ClonedMessageData& aData,
-                                 const InfallibleTArray<CpowEntry>& aCpows,
                                  InfallibleTArray<nsString>* aJSONRetVal);
     virtual bool RecvAsyncMessage(const nsString& aMessage,
-                                  const ClonedMessageData& aData,
-                                  const InfallibleTArray<CpowEntry>& aCpows);
+                                  const ClonedMessageData& aData);
     virtual bool RecvNotifyIMEFocus(const bool& aFocus,
                                     nsIMEUpdatePreference* aPreference,
                                     uint32_t* aSeqno);
@@ -237,7 +234,6 @@ protected:
     bool ReceiveMessage(const nsString& aMessage,
                         bool aSync,
                         const StructuredCloneData* aCloneData,
-                        CpowHolder* aCpows,
                         InfallibleTArray<nsString>* aJSONRetVal = nullptr);
 
     virtual bool Recv__delete__() MOZ_OVERRIDE;

@@ -441,20 +441,14 @@ class CodeLocationJump
 {
     uint8_t *raw_;
 #ifdef DEBUG
-    enum State { Uninitialized, Absolute, Relative };
-    State state_;
-    void setUninitialized() {
-        state_ = Uninitialized;
-    }
+    bool absolute_;
     void setAbsolute() {
-        state_ = Absolute;
+        absolute_ = true;
     }
     void setRelative() {
-        state_ = Relative;
+        absolute_ = false;
     }
 #else
-    void setUninitialized() const {
-    }
     void setAbsolute() const {
     }
     void setRelative() const {
@@ -467,8 +461,8 @@ class CodeLocationJump
 
   public:
     CodeLocationJump() {
-        raw_ = NULL;
-        setUninitialized();
+        raw_ = (uint8_t *) 0xdeadc0de;
+        setAbsolute();
 #ifdef JS_SMALL_BRANCH
         jumpTableEntry_ = (uint8_t *) 0xdeadab1e;
 #endif
@@ -488,18 +482,22 @@ class CodeLocationJump
 
     void repoint(IonCode *code, MacroAssembler* masm = NULL);
 
+    bool isSet() const {
+        return raw_ != (uint8_t *) 0xdeadc0de;
+    }
+
     uint8_t *raw() const {
-        JS_ASSERT(state_ == Absolute);
+        JS_ASSERT(absolute_ && isSet());
         return raw_;
     }
     uint8_t *offset() const {
-        JS_ASSERT(state_ == Relative);
+        JS_ASSERT(!absolute_ && isSet());
         return raw_;
     }
 
 #ifdef JS_SMALL_BRANCH
-    uint8_t *jumpTableEntry() const {
-        JS_ASSERT(state_ == Absolute);
+    uint8_t *jumpTableEntry() {
+        JS_ASSERT(absolute_);
         return jumpTableEntry_;
     }
 #endif
@@ -509,20 +507,14 @@ class CodeLocationLabel
 {
     uint8_t *raw_;
 #ifdef DEBUG
-    enum State { Uninitialized, Absolute, Relative };
-    State state_;
-    void setUninitialized() {
-        state_ = Uninitialized;
-    }
+    bool absolute_;
     void setAbsolute() {
-        state_ = Absolute;
+        absolute_ = true;
     }
     void setRelative() {
-        state_ = Relative;
+        absolute_ = false;
     }
 #else
-    void setUninitialized() const {
-    }
     void setAbsolute() const {
     }
     void setRelative() const {
@@ -531,8 +523,8 @@ class CodeLocationLabel
 
   public:
     CodeLocationLabel() {
-        raw_ = NULL;
-        setUninitialized();
+        raw_ = (uint8_t *) 0xdeadc0de;
+        setAbsolute();
     }
     CodeLocationLabel(IonCode *code, CodeOffsetLabel base) {
         *this = base;
@@ -557,18 +549,16 @@ class CodeLocationLabel
 
     void repoint(IonCode *code, MacroAssembler *masm = NULL);
 
-#ifdef DEBUG
-    bool isSet() const {
-        return state_ != Uninitialized;
+    bool isSet() {
+        return raw_ != (uint8_t *) 0xdeadc0de;
     }
-#endif
 
-    uint8_t *raw() const {
-        JS_ASSERT(state_ == Absolute);
+    uint8_t *raw() {
+        JS_ASSERT(absolute_ && isSet());
         return raw_;
     }
-    uint8_t *offset() const {
-        JS_ASSERT(state_ == Relative);
+    uint8_t *offset() {
+        JS_ASSERT(!absolute_ && isSet());
         return raw_;
     }
 };

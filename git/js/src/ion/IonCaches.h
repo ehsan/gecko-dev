@@ -239,12 +239,9 @@ class IonCache
     bool linkAndAttachStub(JSContext *cx, MacroAssembler &masm, StubAttacher &attacher,
                            IonScript *ion, const char *attachKind);
 
-#ifdef DEBUG
     bool isAllocated() {
         return fallbackLabel_.isSet();
     }
-#endif
-
     bool pure() {
         return pure_;
     }

@@ -26,6 +26,8 @@ LOCAL_INCLUDES = \
 	-I$(srcdir)/../xul/base/src \
 	$(NULL)
 
+include $(topsrcdir)/config/config.mk
+
 include $(topsrcdir)/config/rules.mk
 
 font_properties = \

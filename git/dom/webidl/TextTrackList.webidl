@@ -11,7 +11,6 @@
 interface TextTrackList : EventTarget {
   readonly attribute unsigned long length;
   getter TextTrack (unsigned long index);
-  TextTrack? getTrackById(DOMString id);
 
            [SetterThrows]
            attribute EventHandler onaddtrack;

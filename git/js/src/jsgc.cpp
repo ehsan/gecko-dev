@@ -1085,18 +1085,6 @@ js::AddScriptRoot(JSContext *cx, JSScript **rp, const char *name)
     return AddRoot(cx, rp, name, JS_GC_ROOT_SCRIPT_PTR);
 }
 
-extern JS_FRIEND_API(bool)
-js_AddObjectRoot(JSRuntime *rt, JSObject **objp)
-{
-    return AddRoot(rt, objp, NULL, JS_GC_ROOT_OBJECT_PTR);
-}
-
-extern JS_FRIEND_API(void)
-js_RemoveObjectRoot(JSRuntime *rt, JSObject **objp)
-{
-    js_RemoveRoot(rt, objp);
-}
-
 JS_FRIEND_API(void)
 js_RemoveRoot(JSRuntime *rt, void *rp)
 {
@@ -1487,7 +1475,7 @@ RunLastDitchGC(JSContext *cx, JS::Zone *zone, AllocKind thingKind)
     JSRuntime *rt = cx->runtime();
 
     /* The last ditch GC preserves all atoms. */
-    AutoKeepAtoms keepAtoms(cx->perThreadData);
+    AutoKeepAtoms keep(rt);
     GC(rt, GC_NORMAL, JS::gcreason::LAST_DITCH);
 
     /*
@@ -2594,8 +2582,7 @@ PurgeRuntime(JSRuntime *rt)
     rt->sourceDataCache.purge();
     rt->evalCache.clear();
 
-    // FIXME bug 875125 this should check all instances of PerThreadData.
-    if (!rt->mainThread.activeCompilations)
+    if (!rt->activeCompilations)
         rt->parseMapPool.purgeAll();
 }
 
@@ -2767,9 +2754,7 @@ BeginMarkPhase(JSRuntime *rt)
      * to atoms that we would miss.
      */
     Zone *atomsZone = rt->atomsCompartment->zone();
-
-    // FIXME bug 875125 this should check all instances of PerThreadData.
-    if (atomsZone->isGCScheduled() && rt->gcIsFull && !rt->mainThread.gcKeepAtoms) {
+    if (atomsZone->isGCScheduled() && rt->gcIsFull && !rt->gcKeepAtoms) {
         JS_ASSERT(!atomsZone->isCollecting());
         atomsZone->setGCState(Zone::Mark);
     }
@@ -4343,8 +4328,7 @@ gc::IsIncrementalGCSafe(JSRuntime *rt)
 {
     JS_ASSERT(!rt->mainThread.suppressGC);
 
-    // FIXME bug 875125 this should check all instances of PerThreadData.
-    if (rt->mainThread.gcKeepAtoms)
+    if (rt->gcKeepAtoms)
         return IncrementalSafety::Unsafe("gcKeepAtoms set");
 
     if (!rt->gcIncrementalEnabled)

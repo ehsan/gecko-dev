@@ -65,7 +65,7 @@ public class Tab {
     private Bitmap mThumbnailBitmap;
     private boolean mDesktopMode;
     private boolean mEnteringReaderMode;
-    private Context mAppContext;
+    private Context mContext;
     private static final int MAX_HISTORY_LIST_SIZE = 50;
 
     public static final int STATE_DELAYED = 0;
@@ -74,7 +74,7 @@ public class Tab {
     public static final int STATE_ERROR = 3;
 
     public Tab(Context context, int id, String url, boolean external, int parentId, String title) {
-        mAppContext = context.getApplicationContext();
+        mContext = context;
         mId = id;
         mLastUsed = 0;
         mUrl = url;
@@ -110,7 +110,7 @@ public class Tab {
     }
 
     private ContentResolver getContentResolver() {
-        return mAppContext.getContentResolver();
+        return Tabs.getInstance().getContentResolver();
     }
 
     public void onDestroy() {
@@ -602,7 +602,7 @@ public class Tab {
 
     private int getBackgroundColorForUrl(String url) {
         if ("about:home".equals(url)) {
-            return mAppContext.getResources().getColor(R.color.background_normal);
+            return mContext.getResources().getColor(R.color.background_normal);
         }
         return Color.WHITE;
     }

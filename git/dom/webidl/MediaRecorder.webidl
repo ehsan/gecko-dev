@@ -40,12 +40,6 @@ interface MediaRecorder : EventTarget {
   void stop();
 
   [Throws]
-  void pause();
-
-  [Throws]
-  void resume();
-
-  [Throws]
   void requestData();
 };
 

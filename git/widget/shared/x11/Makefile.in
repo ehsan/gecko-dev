@@ -18,6 +18,7 @@ CSRCS      = \
        keysym2ucs.c \
        $(NULL)
 
+include $(topsrcdir)/config/config.mk
 include $(topsrcdir)/config/rules.mk
 
 CXXFLAGS   += $(TK_CFLAGS)
