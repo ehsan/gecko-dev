@@ -5007,12 +5007,11 @@ PRBool IsPopupBlocked(nsIDOMDocument* aDoc)
   return blocked;
 }
 
-/* static */
-void 
-nsGlobalWindow::FirePopupBlockedEvent(nsIDOMDocument* aDoc,
-                                      nsIDOMWindow *aRequestingWindow, nsIURI *aPopupURI,
-                                      const nsAString &aPopupWindowName,
-                                      const nsAString &aPopupWindowFeatures)
+static
+void FirePopupBlockedEvent(nsIDOMDocument* aDoc,
+                           nsIDOMWindow *aRequestingWindow, nsIURI *aPopupURI,
+                           const nsAString &aPopupWindowName,
+                           const nsAString &aPopupWindowFeatures)
 {
   if (aDoc) {
     // Fire a "DOMPopupBlocked" event so that the UI can hear about
