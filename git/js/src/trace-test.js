@@ -1386,41 +1386,16 @@ function testSideExitInConstructor() {
 testSideExitInConstructor.expected = true;
 test(testSideExitInConstructor);
 
-function doTestDifferingArgc(a, b)
-{
-    var k = 0;
-    for (var i = 0; i < 10; i++)
-    {
-        k += i;
+function testNot() {
+    var a = new Object(), b = null, c = "foo", d = "", e = 5, f = 0, g = 5.5, h = -0, i = true, j = false, k = undefined;
+    var r;
+    for (var i = 0; i < 10; ++i) {
+	r = [!a, !b, !c, !d, !e, !f, !g, !h, !i, !j, !k];
     }
-    return k;
+    return r.join(",");
 }
-function testDifferingArgc()
-{
-    var x = 0;
-    x += doTestDifferingArgc(1, 2);
-    x += doTestDifferingArgc(1);
-    x += doTestDifferingArgc(1, 2, 3);
-    return x;
-}
-testDifferingArgc.expected = 45*3;
-test(testDifferingArgc);
-
-function doTestMoreArgcThanNargs()
-{
-    var x = 0;
-    for (var i = 0; i < 10; i++)
-    {
-        x = x + arguments[3];
-    }
-    return x;
-}
-function testMoreArgcThanNargs()
-{
-    return doTestMoreArgcThanNargs(1, 2, 3, 4, 5, 6, 7, 8, 9, 10);
-}
-testMoreArgcThanNargs.expected = 4*10;
-test(testMoreArgcThanNargs);
+testNot.expected = "false,true,false,true,false,true,false,true,false,true,true";
+test(testNot);
 
 /* Keep these at the end so that we can see the summary after the trace-debug spew. */
 print("\npassed:", passes.length && passes.join(","));

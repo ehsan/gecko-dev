@@ -365,7 +365,7 @@ static bool isPromoteUint(LIns* i)
 {
     jsdouble d;
     return isu2f(i) || i->isconst() ||
-        (i->isconstq() && (d = i->constvalf()) == (jsdouble)(jsuint)d && !JSDOUBLE_IS_NEGZERO(d));
+        (i->isconstq() && ((d = i->constvalf()) == (jsdouble)(jsuint)d));
 }
 
 static bool isPromote(LIns* i)
@@ -3970,6 +3970,12 @@ TraceRecorder::record_JSOP_NOT()
         set(&v, lir->ins_eq0(get(&v)));
         return true;
     }
+    if (JSVAL_IS_STRING(v)) {
+        set(&v, lir->ins_eq0(lir->ins2(LIR_piand, 
+                lir->insLoad(LIR_ldp, get(&v), (int)offsetof(JSString, length)),
+                INS_CONSTPTR(JSSTRING_LENGTH_MASK))));
+        return true;
+    }
     return false;
 }
 
@@ -4790,8 +4796,7 @@ TraceRecorder::record_JSOP_CALL()
             }
 
             jsval* argv = fp->argv;
-            uintN nargs = JS_MIN((JS_MIN(argc, fp->fun->nargs)), 2);
-            for (uintN i = 0; i < nargs; i++) {
+            for (uintN i = 0; i < JS_MIN(argc, 2); i++) {
                 set(&sp[i], get(&argv[i]));
                 sp[i] = argv[i];
             }
@@ -5827,7 +5832,7 @@ TraceRecorder::record_JSOP_ARGSUB()
     JSStackFrame* fp = cx->fp;
     if (!(fp->fun->flags & JSFUN_HEAVYWEIGHT)) {
         uintN slot = GET_ARGNO(fp->regs->pc);
-        if (slot < fp->fun->nargs && slot < fp->argc && !fp->argsobj) {
+        if (slot < fp->argc && !fp->argsobj) {
             stack(0, get(&cx->fp->argv[slot]));
             return true;
         }
