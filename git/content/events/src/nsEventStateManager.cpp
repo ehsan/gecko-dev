@@ -45,9 +45,7 @@
  * ***** END LICENSE BLOCK ***** */
 
 #ifdef MOZ_IPC
-#ifdef ANDROID
-#include "mozilla/dom/PBrowserParent.h"
-#endif
+#include "mozilla/dom/TabParent.h"
 #endif
 
 #include "nsCOMPtr.h"
@@ -166,9 +164,7 @@
 #endif
 
 #ifdef MOZ_IPC
-#ifdef ANDROID
-#include "nsFrameLoader.h"
-#endif
+using namespace mozilla::dom;
 #endif
 
 //#define DEBUG_DOCSHELL_FOCUS
@@ -184,6 +180,9 @@ static PRBool sKeyCausesActivation = PR_TRUE;
 static PRUint32 sESMInstanceCount = 0;
 static PRInt32 sChromeAccessModifier = 0, sContentAccessModifier = 0;
 PRInt32 nsEventStateManager::sUserInputEventDepth = 0;
+PRBool nsEventStateManager::sNormalLMouseEventInProcess = PR_FALSE;
+nsEventStateManager* nsEventStateManager::sActiveESM = nsnull;
+nsIDocument* nsEventStateManager::sMouseOverDocument = nsnull;
 
 static PRUint32 gMouseOrKeyboardEventCounter = 0;
 static nsITimer* gUserInteractionTimer = nsnull;
@@ -778,7 +777,6 @@ nsEventStateManager::nsEventStateManager()
     mLClickCount(0),
     mMClickCount(0),
     mRClickCount(0),
-    mNormalLMouseEventInProcess(PR_FALSE),
     m_haveShutdown(PR_FALSE),
     mLastLineScrollConsumedX(PR_FALSE),
     mLastLineScrollConsumedY(PR_FALSE),
@@ -853,8 +851,14 @@ nsEventStateManager::Init()
 
 nsEventStateManager::~nsEventStateManager()
 {
+  if (sActiveESM == this) {
+    sActiveESM = nsnull;
+  }
   if (mClickHoldContextMenu)
     KillClickHoldTimer();
+
+  if (mDocument == sMouseOverDocument)
+    sMouseOverDocument = nsnull;
 
   --sESMInstanceCount;
   if(sESMInstanceCount == 0) {
@@ -1085,7 +1089,7 @@ nsEventStateManager::PreHandleEvent(nsPresContext* aPresContext,
 #endif
       mLClickCount = ((nsMouseEvent*)aEvent)->clickCount;
       SetClickCount(aPresContext, (nsMouseEvent*)aEvent, aStatus);
-      mNormalLMouseEventInProcess = PR_TRUE;
+      sNormalLMouseEventInProcess = PR_TRUE;
       break;
     case nsMouseEvent::eMiddleButton:
       mMClickCount = ((nsMouseEvent*)aEvent)->clickCount;
@@ -1109,7 +1113,7 @@ nsEventStateManager::PreHandleEvent(nsPresContext* aPresContext,
 #ifndef XP_OS2
         StopTrackingDragGesture();
 #endif
-        mNormalLMouseEventInProcess = PR_FALSE;
+        sNormalLMouseEventInProcess = PR_FALSE;
       case nsMouseEvent::eRightButton:
 #ifdef XP_OS2
         StopTrackingDragGesture();
@@ -1313,54 +1317,78 @@ nsEventStateManager::PreHandleEvent(nsPresContext* aPresContext,
     break;
   case NS_QUERY_SELECTED_TEXT:
     {
+#ifdef MOZ_IPC
+      if (RemoteQueryContentEvent(aEvent))
+        break;
+#endif
       nsContentEventHandler handler(mPresContext);
       handler.OnQuerySelectedText((nsQueryContentEvent*)aEvent);
     }
     break;
   case NS_QUERY_TEXT_CONTENT:
     {
+#ifdef MOZ_IPC
+      if (RemoteQueryContentEvent(aEvent))
+        break;
+#endif
       nsContentEventHandler handler(mPresContext);
       handler.OnQueryTextContent((nsQueryContentEvent*)aEvent);
     }
     break;
   case NS_QUERY_CARET_RECT:
     {
+      // XXX remote event
       nsContentEventHandler handler(mPresContext);
       handler.OnQueryCaretRect((nsQueryContentEvent*)aEvent);
     }
     break;
   case NS_QUERY_TEXT_RECT:
     {
+      // XXX remote event
       nsContentEventHandler handler(mPresContext);
       handler.OnQueryTextRect((nsQueryContentEvent*)aEvent);
     }
     break;
   case NS_QUERY_EDITOR_RECT:
     {
+      // XXX remote event
       nsContentEventHandler handler(mPresContext);
       handler.OnQueryEditorRect((nsQueryContentEvent*)aEvent);
     }
     break;
   case NS_QUERY_CONTENT_STATE:
     {
+      // XXX remote event
       nsContentEventHandler handler(mPresContext);
       handler.OnQueryContentState(static_cast<nsQueryContentEvent*>(aEvent));
     }
     break;
   case NS_QUERY_SELECTION_AS_TRANSFERABLE:
     {
+      // XXX remote event
       nsContentEventHandler handler(mPresContext);
       handler.OnQuerySelectionAsTransferable(static_cast<nsQueryContentEvent*>(aEvent));
     }
     break;
   case NS_QUERY_CHARACTER_AT_POINT:
     {
+      // XXX remote event
       nsContentEventHandler handler(mPresContext);
       handler.OnQueryCharacterAtPoint(static_cast<nsQueryContentEvent*>(aEvent));
     }
     break;
   case NS_SELECTION_SET:
     {
+#ifdef MOZ_IPC
+      nsSelectionEvent *selectionEvent =
+          static_cast<nsSelectionEvent*>(aEvent);
+      if (IsTargetCrossProcess(selectionEvent)) {
+        // Will not be handled locally, remote the event
+        if (GetCrossProcessTarget()->SendSelectionEvent(*selectionEvent))
+          selectionEvent->mSucceeded = PR_TRUE;
+        break;
+      }
+#endif
       nsContentEventHandler handler(mPresContext);
       handler.OnSelectionEvent((nsSelectionEvent*)aEvent);
     }
@@ -1382,17 +1410,14 @@ nsEventStateManager::PreHandleEvent(nsPresContext* aPresContext,
     }
     break;
 #ifdef MOZ_IPC
-#ifdef ANDROID
   case NS_TEXT_TEXT:
     {
       nsTextEvent *textEvent = static_cast<nsTextEvent*>(aEvent);
       if (IsTargetCrossProcess(textEvent)) {
         // Will not be handled locally, remote the event
-        mozilla::dom::PBrowserParent *remoteBrowser = GetCrossProcessTarget();
-        if (remoteBrowser &&
-            remoteBrowser->SendTextEvent(*textEvent)) {
+        if (GetCrossProcessTarget()->SendTextEvent(*textEvent)) {
           // Cancel local dispatching
-          *aStatus = nsEventStatus_eConsumeNoDefault;
+          aEvent->flags |= NS_EVENT_FLAG_STOP_DISPATCH;
         }
       }
     }
@@ -1404,17 +1429,14 @@ nsEventStateManager::PreHandleEvent(nsPresContext* aPresContext,
           static_cast<nsCompositionEvent*>(aEvent);
       if (IsTargetCrossProcess(compositionEvent)) {
         // Will not be handled locally, remote the event
-        mozilla::dom::PBrowserParent *remoteBrowser = GetCrossProcessTarget();
-        if (remoteBrowser &&
-            remoteBrowser->SendCompositionEvent(*compositionEvent)) {
+        if (GetCrossProcessTarget()->SendCompositionEvent(*compositionEvent)) {
           // Cancel local dispatching
-          *aStatus = nsEventStatus_eConsumeNoDefault;
+          aEvent->flags |= NS_EVENT_FLAG_STOP_DISPATCH;
         }
       }
     }
     break;
-#endif
-#endif
+#endif // MOZ_IPC
   }
   return NS_OK;
 }
@@ -2799,7 +2821,7 @@ nsEventStateManager::PostHandleEvent(nsPresContext* aPresContext,
   case NS_MOUSE_BUTTON_DOWN:
     {
       if (static_cast<nsMouseEvent*>(aEvent)->button == nsMouseEvent::eLeftButton &&
-          !mNormalLMouseEventInProcess) {
+          !sNormalLMouseEventInProcess) {
         // We got a mouseup event while a mousedown event was being processed.
         // Make sure that the capturing content is cleared.
         nsIPresShell::SetCapturingContent(nsnull, 0);
@@ -2808,7 +2830,7 @@ nsEventStateManager::PostHandleEvent(nsPresContext* aPresContext,
 
       if (nsEventStatus_eConsumeNoDefault != *aStatus) {
         nsCOMPtr<nsIContent> newFocus;
-        nsIContent* activeContent = nsnull;
+        nsCOMPtr<nsIContent> activeContent;
         PRBool suppressBlur = PR_FALSE;
         if (mCurrentTarget) {
           mCurrentTarget->GetContentForEvent(mPresContext, aEvent, getter_AddRefs(newFocus));
@@ -2913,7 +2935,7 @@ nsEventStateManager::PostHandleEvent(nsPresContext* aPresContext,
             if (par)
               activeContent = par;
           }
-          SetContentState(activeContent, NS_EVENT_STATE_ACTIVE);
+          SetGlobalActiveContent(this, activeContent);
         }
       }
       else {
@@ -2925,7 +2947,7 @@ nsEventStateManager::PostHandleEvent(nsPresContext* aPresContext,
     break;
   case NS_MOUSE_BUTTON_UP:
     {
-      SetContentState(nsnull, NS_EVENT_STATE_ACTIVE);
+      SetGlobalActiveContent(this, nsnull);
       if (IsMouseEventReal(aEvent)) {
         if (!mCurrentTarget) {
           nsIFrame* targ;
@@ -3247,49 +3269,6 @@ nsEventStateManager::PostHandleEvent(nsPresContext* aPresContext,
     }
     break;
 #endif
-
-#ifdef MOZ_IPC
-#ifdef ANDROID
-  case NS_QUERY_SELECTED_TEXT:
-  case NS_QUERY_TEXT_CONTENT:
-  case NS_QUERY_CARET_RECT:
-  case NS_QUERY_TEXT_RECT:
-  case NS_QUERY_EDITOR_RECT:
-  case NS_QUERY_CONTENT_STATE:
-  // We don't remote nsITransferable yet
-  //case NS_QUERY_SELECTION_AS_TRANSFERABLE:
-  case NS_QUERY_CHARACTER_AT_POINT:
-    {
-      nsQueryContentEvent *queryEvent =
-          static_cast<nsQueryContentEvent*>(aEvent);
-      // If local query failed, try remote query
-      if (queryEvent->mSucceeded)
-        break;
-
-      mozilla::dom::PBrowserParent *remoteBrowser = GetCrossProcessTarget();
-      if (remoteBrowser &&
-          remoteBrowser->SendQueryContentEvent(*queryEvent)) {
-        queryEvent->mWasAsync = PR_TRUE;
-        queryEvent->mSucceeded = PR_TRUE;
-      }
-    }
-    break;
-  case NS_SELECTION_SET:
-    {
-      nsSelectionEvent *selectionEvent =
-          static_cast<nsSelectionEvent*>(aEvent);
-      // If local handler failed, try remoting the event
-      if (selectionEvent->mSucceeded)
-        break;
-
-      mozilla::dom::PBrowserParent *remoteBrowser = GetCrossProcessTarget();
-      if (remoteBrowser &&
-          remoteBrowser->SendSelectionEvent(*selectionEvent))
-        selectionEvent->mSucceeded = PR_TRUE;
-    }
-    break;
-#endif // ANDROID
-#endif // MOZ_IPC
   }
 
   //Reset target frame to null to avoid mistargeting after reentrant event
@@ -3300,24 +3279,35 @@ nsEventStateManager::PostHandleEvent(nsPresContext* aPresContext,
 }
 
 #ifdef MOZ_IPC
-#ifdef ANDROID
-mozilla::dom::PBrowserParent*
+PRBool
+nsEventStateManager::RemoteQueryContentEvent(nsEvent *aEvent)
+{
+  nsQueryContentEvent *queryEvent =
+      static_cast<nsQueryContentEvent*>(aEvent);
+  if (!IsTargetCrossProcess(queryEvent)) {
+    return PR_FALSE;
+  }
+  // Will not be handled locally, remote the event
+  GetCrossProcessTarget()->HandleQueryContentEvent(*queryEvent);
+  return PR_TRUE;
+}
+
+TabParent*
 nsEventStateManager::GetCrossProcessTarget()
 {
-  nsCOMPtr<nsFrameLoader> fl = nsContentUtils::GetActiveFrameLoader();
-  NS_ENSURE_TRUE(fl, nsnull);
-  return fl->GetRemoteBrowser();
+  return TabParent::GetIMETabParent();
 }
 
 PRBool
 nsEventStateManager::IsTargetCrossProcess(nsGUIEvent *aEvent)
 {
-  nsQueryContentEvent stateEvent(PR_TRUE, NS_QUERY_CONTENT_STATE, aEvent->widget);
-  nsContentEventHandler handler(mPresContext);
-  handler.OnQueryContentState(&stateEvent);
-  return !stateEvent.mSucceeded;
+  // Check to see if there is a focused, editable content in chrome,
+  // in that case, do not forward IME events to content
+  nsIContent *focusedContent = GetFocusedContent();
+  if (focusedContent && focusedContent->IsEditable())
+    return PR_FALSE;
+  return TabParent::GetIMETabParent() != nsnull;
 }
-#endif
 #endif
 
 NS_IMETHODIMP
@@ -3406,6 +3396,10 @@ nsEventStateManager::SetCursor(PRInt32 aCursor, imgIContainer* aContainer,
                                float aHotspotX, float aHotspotY,
                                nsIWidget* aWidget, PRBool aLockCursor)
 {
+  EnsureDocument(mPresContext);
+  NS_ENSURE_TRUE(mDocument, NS_ERROR_FAILURE);
+  sMouseOverDocument = mDocument.get();
+
   nsCursor c;
 
   NS_ENSURE_TRUE(aWidget, NS_ERROR_FAILURE);
@@ -3945,16 +3939,17 @@ nsEventStateManager::SetClickCount(nsPresContext* aPresContext,
 {
   nsCOMPtr<nsIContent> mouseContent;
   mCurrentTarget->GetContentForEvent(aPresContext, aEvent, getter_AddRefs(mouseContent));
+  nsIContent* mouseContentParent = GetParentContentForMouseTarget(mouseContent);
 
   switch (aEvent->button) {
   case nsMouseEvent::eLeftButton:
     if (aEvent->message == NS_MOUSE_BUTTON_DOWN) {
       mLastLeftMouseDownContent = mouseContent;
-      mLastLeftMouseDownContentParent =
-        GetParentContentForMouseTarget(mouseContent);
+      mLastLeftMouseDownContentParent = mouseContentParent;
     } else if (aEvent->message == NS_MOUSE_BUTTON_UP) {
       if (mLastLeftMouseDownContent == mouseContent ||
-          mLastLeftMouseDownContentParent == mouseContent) {
+          mLastLeftMouseDownContentParent == mouseContent ||
+          mLastLeftMouseDownContent == mouseContentParent) {
         aEvent->clickCount = mLClickCount;
         mLClickCount = 0;
       } else {
@@ -3968,11 +3963,11 @@ nsEventStateManager::SetClickCount(nsPresContext* aPresContext,
   case nsMouseEvent::eMiddleButton:
     if (aEvent->message == NS_MOUSE_BUTTON_DOWN) {
       mLastMiddleMouseDownContent = mouseContent;
-      mLastMiddleMouseDownContentParent =
-        GetParentContentForMouseTarget(mouseContent);
+      mLastMiddleMouseDownContentParent = mouseContentParent;
     } else if (aEvent->message == NS_MOUSE_BUTTON_UP) {
       if (mLastMiddleMouseDownContent == mouseContent ||
-          mLastMiddleMouseDownContentParent == mouseContent) {
+          mLastMiddleMouseDownContentParent == mouseContent ||
+          mLastMiddleMouseDownContent == mouseContentParent) {
         aEvent->clickCount = mMClickCount;
         mMClickCount = 0;
       } else {
@@ -3986,11 +3981,11 @@ nsEventStateManager::SetClickCount(nsPresContext* aPresContext,
   case nsMouseEvent::eRightButton:
     if (aEvent->message == NS_MOUSE_BUTTON_DOWN) {
       mLastRightMouseDownContent = mouseContent;
-      mLastRightMouseDownContentParent =
-        GetParentContentForMouseTarget(mouseContent);
+      mLastRightMouseDownContentParent = mouseContentParent;
     } else if (aEvent->message == NS_MOUSE_BUTTON_UP) {
       if (mLastRightMouseDownContent == mouseContent ||
-          mLastRightMouseDownContentParent == mouseContent) {
+          mLastRightMouseDownContentParent == mouseContent ||
+          mLastRightMouseDownContent == mouseContentParent) {
         aEvent->clickCount = mRClickCount;
         mRClickCount = 0;
       } else {
@@ -4492,7 +4487,7 @@ nsEventStateManager::EventStatusOK(nsGUIEvent* aEvent, PRBool *aOK)
   *aOK = PR_TRUE;
   if (aEvent->message == NS_MOUSE_BUTTON_DOWN &&
       static_cast<nsMouseEvent*>(aEvent)->button == nsMouseEvent::eLeftButton) {
-    if (!mNormalLMouseEventInProcess) {
+    if (!sNormalLMouseEventInProcess) {
       *aOK = PR_FALSE;
     }
   }
@@ -4707,4 +4702,17 @@ nsEventStateManager::DoContentCommandScrollEvent(nsContentCommandEvent* aEvent)
   // The caller may want synchronous scrolling.
   sf->ScrollBy(pt, scrollUnit, nsIScrollableFrame::INSTANT);
   return NS_OK;
+}
+
+void
+nsEventStateManager::SetGlobalActiveContent(nsEventStateManager* aNewESM,
+                                            nsIContent* aContent)
+{
+  if (sActiveESM && aNewESM != sActiveESM) {
+    sActiveESM->SetContentState(nsnull, NS_EVENT_STATE_ACTIVE);
+  }
+  sActiveESM = aNewESM;
+  if (sActiveESM) {
+    sActiveESM->SetContentState(aContent, NS_EVENT_STATE_ACTIVE);
+  }
 }

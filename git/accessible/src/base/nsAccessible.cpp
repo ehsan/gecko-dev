@@ -155,20 +155,12 @@ nsresult nsAccessible::QueryInterface(REFNSIID aIID, void** aInstancePtr)
   }
 
   if (aIID.Equals(NS_GET_IID(nsIAccessibleSelectable))) {
-    if (mRoleMapEntry &&
-        (mRoleMapEntry->attributeMap1 == eARIAMultiSelectable ||
-         mRoleMapEntry->attributeMap2 == eARIAMultiSelectable ||
-         mRoleMapEntry->attributeMap3 == eARIAMultiSelectable)) {
-
-      // If we have an ARIA role attribute present and the role allows multi
-      // selectable state, then we need to support nsIAccessibleSelectable.
-      // If either attribute (role or multiselectable) change, then we'll
-      // destroy this accessible so that we can follow COM identity rules.
-
+    if (IsSelect()) {
       *aInstancePtr = static_cast<nsIAccessibleSelectable*>(this);
       NS_ADDREF_THIS();
       return NS_OK;
     }
+    return NS_ERROR_NO_INTERFACE;
   }
 
   if (aIID.Equals(NS_GET_IID(nsIAccessibleValue))) {
@@ -180,10 +172,7 @@ nsresult nsAccessible::QueryInterface(REFNSIID aIID, void** aInstancePtr)
   }                       
 
   if (aIID.Equals(NS_GET_IID(nsIAccessibleHyperLink))) {
-    // Every embedded accessible within hypertext accessible implements
-    // hyperlink interface.
-    nsCOMPtr<nsIAccessibleHyperText> hyperTextParent = do_QueryObject(GetParent());
-    if (hyperTextParent && nsAccUtils::IsEmbeddedObject(this)) {
+    if (IsHyperLink()) {
       *aInstancePtr = static_cast<nsIAccessibleHyperLink*>(this);
       NS_ADDREF_THIS();
       return NS_OK;
@@ -1274,52 +1263,8 @@ nsAccessible::GetRole(PRUint32 *aRole)
   if (IsDefunct())
     return NS_ERROR_FAILURE;
 
-  if (mRoleMapEntry) {
-    *aRole = mRoleMapEntry->role;
-
-    // These unfortunate exceptions don't fit into the ARIA table
-    // This is where the nsIAccessible role depends on both the role and ARIA state
-    if (*aRole == nsIAccessibleRole::ROLE_PUSHBUTTON) {
-
-      if (nsAccUtils::HasDefinedARIAToken(mContent,
-                                          nsAccessibilityAtoms::aria_pressed)) {
-        // For simplicity, any existing pressed attribute except "", or "undefined"
-        // indicates a toggle.
-        *aRole = nsIAccessibleRole::ROLE_TOGGLE_BUTTON;
-
-      } else if (mContent->AttrValueIs(kNameSpaceID_None,
-                                       nsAccessibilityAtoms::aria_haspopup,
-                                       nsAccessibilityAtoms::_true,
-                                       eCaseMatters)) {
-        // For button with aria-haspopup="true".
-        *aRole = nsIAccessibleRole::ROLE_BUTTONMENU;
-      }
-    }
-    else if (*aRole == nsIAccessibleRole::ROLE_LISTBOX) {
-      // A listbox inside of a combo box needs a special role because of ATK mapping to menu
-      nsCOMPtr<nsIAccessible> possibleCombo;
-      GetParent(getter_AddRefs(possibleCombo));
-      if (nsAccUtils::Role(possibleCombo) == nsIAccessibleRole::ROLE_COMBOBOX) {
-        *aRole = nsIAccessibleRole::ROLE_COMBOBOX_LIST;
-      }
-      else {   // Check to see if combo owns the listbox instead
-        possibleCombo = nsRelUtils::
-          GetRelatedAccessible(this, nsIAccessibleRelation::RELATION_NODE_CHILD_OF);
-        if (nsAccUtils::Role(possibleCombo) == nsIAccessibleRole::ROLE_COMBOBOX)
-          *aRole = nsIAccessibleRole::ROLE_COMBOBOX_LIST;
-      }
-    }
-    else if (*aRole == nsIAccessibleRole::ROLE_OPTION) {
-      if (nsAccUtils::Role(GetParent()) == nsIAccessibleRole::ROLE_COMBOBOX_LIST)
-        *aRole = nsIAccessibleRole::ROLE_COMBOBOX_OPTION;
-    }
-
-    // We are done if the mapped role trumps native semantics
-    if (mRoleMapEntry->roleRule == kUseMapRole)
-      return NS_OK;
-  }
-
-  return GetRoleInternal(aRole);
+  *aRole = Role();
+  return NS_OK;
 }
 
 NS_IMETHODIMP
@@ -1638,10 +1583,6 @@ nsAccessible::GetState(PRUint32 *aState, PRUint32 *aExtraState)
     }
   }
 
-  PRUint32 role;
-  rv = GetRole(&role);
-  NS_ENSURE_SUCCESS(rv, rv);
-
   // For some reasons DOM node may have not a frame. We tract such accessibles
   // as invisible.
   nsIFrame *frame = GetFrame();
@@ -1863,19 +1804,57 @@ nsAccessible::GetKeyBindings(PRUint8 aActionIndex,
   return NS_OK;
 }
 
-/* unsigned long getRole (); */
-nsresult
-nsAccessible::GetRoleInternal(PRUint32 *aRole)
+PRUint32
+nsAccessible::Role()
 {
-  *aRole = nsIAccessibleRole::ROLE_NOTHING;
+  // No ARIA role or it doesn't suppress role from native markup.
+  if (!mRoleMapEntry || mRoleMapEntry->roleRule != kUseMapRole)
+    return NativeRole();
 
-  if (IsDefunct())
-    return NS_ERROR_FAILURE;
+  // XXX: these unfortunate exceptions don't fit into the ARIA table. This is
+  // where the accessible role depends on both the role and ARIA state.
+  if (mRoleMapEntry->role == nsIAccessibleRole::ROLE_PUSHBUTTON) {
+    if (nsAccUtils::HasDefinedARIAToken(mContent,
+                                        nsAccessibilityAtoms::aria_pressed)) {
+      // For simplicity, any existing pressed attribute except "" or "undefined"
+      // indicates a toggle.
+      return nsIAccessibleRole::ROLE_TOGGLE_BUTTON;
+    }
 
-  if (nsCoreUtils::IsXLink(mContent))
-    *aRole = nsIAccessibleRole::ROLE_LINK;
+    if (mContent->AttrValueIs(kNameSpaceID_None,
+                              nsAccessibilityAtoms::aria_haspopup,
+                              nsAccessibilityAtoms::_true,
+                              eCaseMatters)) {
+      // For button with aria-haspopup="true".
+      return nsIAccessibleRole::ROLE_BUTTONMENU;
+    }
 
-  return NS_OK;
+  } else if (mRoleMapEntry->role == nsIAccessibleRole::ROLE_LISTBOX) {
+    // A listbox inside of a combobox needs a special role because of ATK
+    // mapping to menu.
+    if (mParent && mParent->Role() == nsIAccessibleRole::ROLE_COMBOBOX) {
+      return nsIAccessibleRole::ROLE_COMBOBOX_LIST;
+
+      nsCOMPtr<nsIAccessible> possibleCombo =
+        nsRelUtils::GetRelatedAccessible(this,
+                                         nsIAccessibleRelation::RELATION_NODE_CHILD_OF);
+      if (nsAccUtils::Role(possibleCombo) == nsIAccessibleRole::ROLE_COMBOBOX)
+        return nsIAccessibleRole::ROLE_COMBOBOX_LIST;
+    }
+
+  } else if (mRoleMapEntry->role == nsIAccessibleRole::ROLE_OPTION) {
+    if (mParent && mParent->Role() == nsIAccessibleRole::ROLE_COMBOBOX_LIST)
+      return nsIAccessibleRole::ROLE_COMBOBOX_OPTION;
+  }
+
+  return mRoleMapEntry->role;
+}
+
+PRUint32
+nsAccessible::NativeRole()
+{
+  return nsCoreUtils::IsXLink(mContent) ?
+    nsIAccessibleRole::ROLE_LINK : nsIAccessibleRole::ROLE_NOTHING;
 }
 
 // readonly attribute PRUint8 numActions
@@ -2179,9 +2158,18 @@ nsAccessible::GetRelationByType(PRUint32 aRelationType,
 
   case nsIAccessibleRelation::RELATION_CONTROLLER_FOR:
     {
-      return nsRelUtils::
+      nsresult rv = nsRelUtils::
         AddTargetFromIDRefsAttr(aRelationType, aRelation, mContent,
                                 nsAccessibilityAtoms::aria_controls);
+      NS_ENSURE_SUCCESS(rv,rv);
+
+      if (rv != NS_OK_NO_RELATION_TARGET)
+        return NS_OK; // XXX bug 381599, avoid performance problems      
+
+      return nsRelUtils::
+        AddTargetFromNeighbour(aRelationType, aRelation, mContent,
+                               nsAccessibilityAtoms::_for,
+                               nsAccessibilityAtoms::output);
     }
 
   case nsIAccessibleRelation::RELATION_FLOWS_TO:
@@ -2384,22 +2372,18 @@ nsAccessible::DispatchClickEvent(nsIContent *aContent, PRUint32 aActionIndex)
 // nsIAccessibleSelectable
 NS_IMETHODIMP nsAccessible::GetSelectedChildren(nsIArray **aSelectedAccessibles)
 {
+  NS_ENSURE_ARG_POINTER(aSelectedAccessibles);
   *aSelectedAccessibles = nsnull;
 
-  nsCOMPtr<nsIMutableArray> selectedAccessibles =
-    do_CreateInstance(NS_ARRAY_CONTRACTID);
-  NS_ENSURE_STATE(selectedAccessibles);
+  if (IsDefunct() || !IsSelect())
+    return NS_ERROR_FAILURE;
 
-  AccIterator iter(this, filters::GetSelected, AccIterator::eTreeNav);
-  nsIAccessible *selected = nsnull;
-  while ((selected = iter.GetNext()))
-    selectedAccessibles->AppendElement(selected, PR_FALSE);
-
-  PRUint32 length = 0;
-  selectedAccessibles->GetLength(&length); 
-  if (length) { // length of nsIArray containing selected options
-    *aSelectedAccessibles = selectedAccessibles;
-    NS_ADDREF(*aSelectedAccessibles);
+  nsCOMPtr<nsIArray> items = SelectedItems();
+  if (items) {
+    PRUint32 length = 0;
+    items->GetLength(&length);
+    if (length)
+      items.swap(*aSelectedAccessibles);
   }
 
   return NS_OK;
@@ -2411,23 +2395,20 @@ NS_IMETHODIMP nsAccessible::RefSelection(PRInt32 aIndex, nsIAccessible **aSelect
   NS_ENSURE_ARG_POINTER(aSelected);
   *aSelected = nsnull;
 
+  if (IsDefunct() || !IsSelect())
+    return NS_ERROR_FAILURE;
+
   if (aIndex < 0) {
     return NS_ERROR_INVALID_ARG;
   }
 
-  AccIterator iter(this, filters::GetSelected, AccIterator::eTreeNav);
-  nsAccessible *selected = nsnull;
-
-  PRInt32 count = 0;
-  while (count ++ <= aIndex) {
-    selected = iter.GetNext();
-    if (!selected) {
-      // The index is out of range.
-      return NS_ERROR_INVALID_ARG;
-    }
+  *aSelected = GetSelectedItem(aIndex);
+  if (*aSelected) {
+    NS_ADDREF(*aSelected);
+    return NS_OK;
   }
-  NS_IF_ADDREF(*aSelected = selected);
-  return NS_OK;
+
+  return NS_ERROR_INVALID_ARG;
 }
 
 NS_IMETHODIMP nsAccessible::GetSelectionCount(PRInt32 *aSelectionCount)
@@ -2435,83 +2416,65 @@ NS_IMETHODIMP nsAccessible::GetSelectionCount(PRInt32 *aSelectionCount)
   NS_ENSURE_ARG_POINTER(aSelectionCount);
   *aSelectionCount = 0;
 
-  AccIterator iter(this, filters::GetSelected, AccIterator::eTreeNav);
-  nsAccessible *selected = nsnull;
-  while ((selected = iter.GetNext()))
-    ++(*aSelectionCount);
+  if (IsDefunct() || !IsSelect())
+    return NS_ERROR_FAILURE;
 
+  *aSelectionCount = SelectedItemCount();
   return NS_OK;
 }
 
 NS_IMETHODIMP nsAccessible::AddChildToSelection(PRInt32 aIndex)
 {
-  // Tree views and other container widgets which may have grandchildren should
-  // implement a selection methods for their specific interfaces, because being
-  // able to deal with selection on a per-child basis would not be enough.
+  if (IsDefunct() || !IsSelect())
+    return NS_ERROR_FAILURE;
 
-  NS_ENSURE_TRUE(aIndex >= 0, NS_ERROR_FAILURE);
-
-  nsAccessible* child = GetChildAt(aIndex);
-  PRUint32 state = nsAccUtils::State(child);
-  if (!(state & nsIAccessibleStates::STATE_SELECTABLE)) {
-    return NS_OK;
-  }
-
-  return child->SetSelected(PR_TRUE);
+  return aIndex >= 0 && AddItemToSelection(aIndex) ?
+    NS_OK : NS_ERROR_INVALID_ARG;
 }
 
 NS_IMETHODIMP nsAccessible::RemoveChildFromSelection(PRInt32 aIndex)
 {
-  // Tree views and other container widgets which may have grandchildren should
-  // implement a selection methods for their specific interfaces, because being
-  // able to deal with selection on a per-child basis would not be enough.
+  if (IsDefunct() || !IsSelect())
+    return NS_ERROR_FAILURE;
 
-  NS_ENSURE_TRUE(aIndex >= 0, NS_ERROR_FAILURE);
-
-  nsAccessible* child = GetChildAt(aIndex);
-  PRUint32 state = nsAccUtils::State(child);
-  if (!(state & nsIAccessibleStates::STATE_SELECTED)) {
-    return NS_OK;
-  }
-
-  return child->SetSelected(PR_FALSE);
+  return aIndex >=0 && RemoveItemFromSelection(aIndex) ?
+    NS_OK : NS_ERROR_INVALID_ARG;
 }
 
 NS_IMETHODIMP nsAccessible::IsChildSelected(PRInt32 aIndex, PRBool *aIsSelected)
 {
-  // Tree views and other container widgets which may have grandchildren should
-  // implement a selection methods for their specific interfaces, because being
-  // able to deal with selection on a per-child basis would not be enough.
-
+  NS_ENSURE_ARG_POINTER(aIsSelected);
   *aIsSelected = PR_FALSE;
+
+  if (IsDefunct() || !IsSelect())
+    return NS_ERROR_FAILURE;
+
   NS_ENSURE_TRUE(aIndex >= 0, NS_ERROR_FAILURE);
 
-  nsAccessible* child = GetChildAt(aIndex);
-  PRUint32 state = nsAccUtils::State(child);
-  if (state & nsIAccessibleStates::STATE_SELECTED) {
-    *aIsSelected = PR_TRUE;
-  }
+  *aIsSelected = IsItemSelected(aIndex);
   return NS_OK;
 }
 
 NS_IMETHODIMP
 nsAccessible::ClearSelection()
 {
-  AccIterator iter(this, filters::GetSelected, AccIterator::eTreeNav);
-  nsAccessible *selected = nsnull;
-  while ((selected = iter.GetNext()))
-    selected->SetSelected(PR_FALSE);
+  if (IsDefunct() || !IsSelect())
+    return NS_ERROR_FAILURE;
 
+  UnselectAll();
   return NS_OK;
 }
 
-NS_IMETHODIMP nsAccessible::SelectAllSelection(PRBool *_retval)
+NS_IMETHODIMP
+nsAccessible::SelectAllSelection(PRBool* aIsMultiSelect)
 {
-  AccIterator iter(this, filters::GetSelectable, AccIterator::eTreeNav);
-  nsAccessible *selectable = nsnull;
-  while((selectable = iter.GetNext()))
-    selectable->SetSelected(PR_TRUE);
+  NS_ENSURE_ARG_POINTER(aIsMultiSelect);
+  *aIsMultiSelect = PR_FALSE;
 
+  if (IsDefunct() || !IsSelect())
+    return NS_ERROR_FAILURE;
+
+  *aIsMultiSelect = SelectAll();
   return NS_OK;
 }
 
@@ -2525,7 +2488,12 @@ NS_IMETHODIMP
 nsAccessible::GetAnchorCount(PRInt32 *aAnchorCount)
 {
   NS_ENSURE_ARG_POINTER(aAnchorCount);
-  *aAnchorCount = 1;
+  *aAnchorCount = 0;
+
+  if (IsDefunct())
+    return NS_ERROR_FAILURE;
+
+  *aAnchorCount = AnchorCount();
   return NS_OK;
 }
 
@@ -2539,8 +2507,8 @@ nsAccessible::GetStartIndex(PRInt32 *aStartIndex)
   if (IsDefunct())
     return NS_ERROR_FAILURE;
 
-  PRInt32 endIndex;
-  return GetLinkOffset(aStartIndex, &endIndex);
+  *aStartIndex = StartOffset();
+  return NS_OK;
 }
 
 // readonly attribute long nsIAccessibleHyperLink::endIndex
@@ -2553,47 +2521,39 @@ nsAccessible::GetEndIndex(PRInt32 *aEndIndex)
   if (IsDefunct())
     return NS_ERROR_FAILURE;
 
-  PRInt32 startIndex;
-  return GetLinkOffset(&startIndex, aEndIndex);
+  *aEndIndex = EndOffset();
+  return NS_OK;
 }
 
 NS_IMETHODIMP
 nsAccessible::GetURI(PRInt32 aIndex, nsIURI **aURI)
 {
   NS_ENSURE_ARG_POINTER(aURI);
-  *aURI = nsnull;
 
-  if (aIndex != 0)
+  if (IsDefunct())
+    return NS_ERROR_FAILURE;
+
+  if (aIndex < 0 || aIndex >= static_cast<PRInt32>(AnchorCount()))
     return NS_ERROR_INVALID_ARG;
 
-  // Check if it's a simple xlink.
-  if (nsCoreUtils::IsXLink(mContent)) {
-    nsAutoString href;
-    mContent->GetAttr(kNameSpaceID_XLink, nsAccessibilityAtoms::href, href);
-
-    nsCOMPtr<nsIURI> baseURI = mContent->GetBaseURI();
-    nsCOMPtr<nsIDocument> document = mContent->GetOwnerDoc();
-    return NS_NewURI(aURI, href,
-                     document ? document->GetDocumentCharacterSet().get() : nsnull,
-                     baseURI);
-  }
-
+  *aURI = GetAnchorURI(aIndex).get();
   return NS_OK;
 }
 
 
 NS_IMETHODIMP
-nsAccessible::GetAnchor(PRInt32 aIndex,
-                        nsIAccessible **aAccessible)
+nsAccessible::GetAnchor(PRInt32 aIndex, nsIAccessible** aAccessible)
 {
   NS_ENSURE_ARG_POINTER(aAccessible);
   *aAccessible = nsnull;
 
-  if (aIndex != 0)
+  if (IsDefunct())
+    return NS_ERROR_FAILURE;
+
+  if (aIndex < 0 || aIndex >= static_cast<PRInt32>(AnchorCount()))
     return NS_ERROR_INVALID_ARG;
 
-  *aAccessible = this;
-  NS_ADDREF_THIS();
+  NS_IF_ADDREF(*aAccessible = GetAnchor(aIndex));
   return NS_OK;
 }
 
@@ -2602,12 +2562,12 @@ NS_IMETHODIMP
 nsAccessible::GetValid(PRBool *aValid)
 {
   NS_ENSURE_ARG_POINTER(aValid);
-  PRUint32 state = nsAccUtils::State(this);
-  *aValid = (0 == (state & nsIAccessibleStates::STATE_INVALID));
-  // XXX In order to implement this we would need to follow every link
-  // Perhaps we can get information about invalid links from the cache
-  // In the mean time authors can use role="link" aria-invalid="true"
-  // to force it for links they internally know to be invalid
+  *aValid = PR_FALSE;
+
+  if (IsDefunct())
+    return NS_ERROR_FAILURE;
+
+  *aValid = IsValid();
   return NS_OK;
 }
 
@@ -2616,33 +2576,14 @@ NS_IMETHODIMP
 nsAccessible::GetSelected(PRBool *aSelected)
 {
   NS_ENSURE_ARG_POINTER(aSelected);
+  *aSelected = PR_FALSE;
 
-  *aSelected = (gLastFocusedNode == GetNode());
+  if (IsDefunct())
+    return NS_ERROR_FAILURE;
+
+  *aSelected = IsSelected();
   return NS_OK;
-}
 
-nsresult
-nsAccessible::GetLinkOffset(PRInt32 *aStartOffset, PRInt32 *aEndOffset)
-{
-  nsAccessible *parent = GetParent();
-  NS_ENSURE_STATE(parent);
-
-  PRUint32 characterCount = 0;
-
-  PRInt32 childCount = parent->GetChildCount();
-  for (PRInt32 childIdx = 0; childIdx < childCount; childIdx++) {
-    nsAccessible *sibling = parent->GetChildAt(childIdx);
-
-    if (sibling == this) {
-      *aStartOffset = characterCount;
-      *aEndOffset = characterCount + 1;
-      return NS_OK;
-    }
-
-    characterCount += nsAccUtils::TextLength(sibling);
-  }
-
-  return NS_ERROR_FAILURE;
 }
 
 nsresult
@@ -2843,9 +2784,7 @@ nsAccessible::GetParent()
 
   // XXX: mParent can be null randomly because supposedly we get layout
   // notification and invalidate parent-child relations, this accessible stays
-  // unattached. This should gone after bug 572951. Other reason is bug 574588
-  // since CacheChildren() implementation calls nsAccessible::GetRole() what
-  // can need to get a parent and we are here as result.
+  // unattached. This should gone after bug 572951.
   NS_WARNING("Bad accessible tree!");
 
 #ifdef DEBUG
@@ -2967,6 +2906,227 @@ nsAccessible::IsInCache()
   return docAccessible->GetCachedAccessible(uniqueID) ? PR_TRUE : PR_FALSE;
 }
 #endif
+
+
+////////////////////////////////////////////////////////////////////////////////
+// HyperLinkAccessible methods
+
+bool
+nsAccessible::IsHyperLink()
+{
+  // Every embedded accessible within hypertext accessible implements
+  // hyperlink interface.
+  nsRefPtr<nsHyperTextAccessible> hyperText = do_QueryObject(GetParent());
+  return hyperText && nsAccUtils::IsEmbeddedObject(this);
+}
+
+PRUint32
+nsAccessible::StartOffset()
+{
+  NS_PRECONDITION(IsHyperLink(), "StartOffset is called not on hyper link!");
+
+  nsRefPtr<nsHyperTextAccessible> hyperText(do_QueryObject(GetParent()));
+  return hyperText ? hyperText->GetChildOffset(this) : 0;
+}
+
+PRUint32
+nsAccessible::EndOffset()
+{
+  NS_PRECONDITION(IsHyperLink(), "EndOffset is called on not hyper link!");
+
+  nsRefPtr<nsHyperTextAccessible> hyperText(do_QueryObject(GetParent()));
+  return hyperText ? (hyperText->GetChildOffset(this) + 1) : 0;
+}
+
+bool
+nsAccessible::IsValid()
+{
+  NS_PRECONDITION(IsHyperLink(), "IsValid is called on not hyper link!");
+
+  PRUint32 state = nsAccUtils::State(this);
+  return (0 == (state & nsIAccessibleStates::STATE_INVALID));
+  // XXX In order to implement this we would need to follow every link
+  // Perhaps we can get information about invalid links from the cache
+  // In the mean time authors can use role="link" aria-invalid="true"
+  // to force it for links they internally know to be invalid
+}
+
+bool
+nsAccessible::IsSelected()
+{
+  NS_PRECONDITION(IsHyperLink(), "IsSelected is called on not hyper link!");
+  return (gLastFocusedNode == GetNode());
+}
+
+PRUint32
+nsAccessible::AnchorCount()
+{
+  NS_PRECONDITION(IsHyperLink(), "AnchorCount is called on not hyper link!");
+  return 1;
+}
+
+nsAccessible*
+nsAccessible::GetAnchor(PRUint32 aAnchorIndex)
+{
+  NS_PRECONDITION(IsHyperLink(), "GetAnchor is called on not hyper link!");
+  return aAnchorIndex == 0 ? this : nsnull;
+}
+
+already_AddRefed<nsIURI>
+nsAccessible::GetAnchorURI(PRUint32 aAnchorIndex)
+{
+  NS_PRECONDITION(IsHyperLink(), "GetAnchorURI is called on not hyper link!");
+
+  if (aAnchorIndex != 0)
+    return nsnull;
+
+  // Check if it's a simple xlink.
+  if (nsCoreUtils::IsXLink(mContent)) {
+    nsAutoString href;
+    mContent->GetAttr(kNameSpaceID_XLink, nsAccessibilityAtoms::href, href);
+
+    nsCOMPtr<nsIURI> baseURI = mContent->GetBaseURI();
+    nsCOMPtr<nsIDocument> document = mContent->GetOwnerDoc();
+    nsIURI* anchorURI = nsnull;
+    NS_NewURI(&anchorURI, href,
+              document ? document->GetDocumentCharacterSet().get() : nsnull,
+              baseURI);
+    return anchorURI;
+  }
+
+  return nsnull;
+}
+
+
+////////////////////////////////////////////////////////////////////////////////
+// SelectAccessible
+
+bool
+nsAccessible::IsSelect()
+{
+  // If we have an ARIA role attribute present and the role allows multi
+  // selectable state, then we need to support SelectAccessible interface. If
+  // either attribute (role or multiselectable) change, then we'll destroy this
+  // accessible so that we can follow COM identity rules.
+
+  return mRoleMapEntry &&
+    (mRoleMapEntry->attributeMap1 == eARIAMultiSelectable ||
+     mRoleMapEntry->attributeMap2 == eARIAMultiSelectable ||
+     mRoleMapEntry->attributeMap3 == eARIAMultiSelectable);
+}
+
+already_AddRefed<nsIArray>
+nsAccessible::SelectedItems()
+{
+  nsCOMPtr<nsIMutableArray> selectedItems = do_CreateInstance(NS_ARRAY_CONTRACTID);
+  if (!selectedItems)
+    return nsnull;
+
+  AccIterator iter(this, filters::GetSelected, AccIterator::eTreeNav);
+  nsIAccessible* selected = nsnull;
+  while ((selected = iter.GetNext()))
+    selectedItems->AppendElement(selected, PR_FALSE);
+
+  nsIMutableArray* items = nsnull;
+  selectedItems.forget(&items);
+  return items;
+}
+
+PRUint32
+nsAccessible::SelectedItemCount()
+{
+  PRUint32 count = 0;
+  AccIterator iter(this, filters::GetSelected, AccIterator::eTreeNav);
+  nsAccessible* selected = nsnull;
+  while ((selected = iter.GetNext()))
+    ++count;
+
+  return count;
+}
+
+nsAccessible*
+nsAccessible::GetSelectedItem(PRUint32 aIndex)
+{
+  AccIterator iter(this, filters::GetSelected, AccIterator::eTreeNav);
+  nsAccessible* selected = nsnull;
+
+  PRUint32 index = 0;
+  while ((selected = iter.GetNext()) && index < aIndex)
+    index++;
+
+  return selected;
+}
+
+bool
+nsAccessible::IsItemSelected(PRUint32 aIndex)
+{
+  PRUint32 index = 0;
+  AccIterator iter(this, filters::GetSelectable, AccIterator::eTreeNav);
+  nsAccessible* selected = nsnull;
+  while ((selected = iter.GetNext()) && index < aIndex)
+    index++;
+
+  return selected &&
+    nsAccUtils::State(selected) & nsIAccessibleStates::STATE_SELECTED;
+}
+
+bool
+nsAccessible::AddItemToSelection(PRUint32 aIndex)
+{
+  PRUint32 index = 0;
+  AccIterator iter(this, filters::GetSelectable, AccIterator::eTreeNav);
+  nsAccessible* selected = nsnull;
+  while ((selected = iter.GetNext()) && index < aIndex)
+    index++;
+
+  if (selected)
+    selected->SetSelected(PR_TRUE);
+
+  return static_cast<bool>(selected);
+}
+
+bool
+nsAccessible::RemoveItemFromSelection(PRUint32 aIndex)
+{
+  PRUint32 index = 0;
+  AccIterator iter(this, filters::GetSelectable, AccIterator::eTreeNav);
+  nsAccessible* selected = nsnull;
+  while ((selected = iter.GetNext()) && index < aIndex)
+    index++;
+
+  if (selected)
+    selected->SetSelected(PR_FALSE);
+
+  return static_cast<bool>(selected);
+}
+
+bool
+nsAccessible::SelectAll()
+{
+  bool success = false;
+  nsAccessible* selectable = nsnull;
+
+  AccIterator iter(this, filters::GetSelectable, AccIterator::eTreeNav);
+  while((selectable = iter.GetNext())) {
+    success = true;
+    selectable->SetSelected(PR_TRUE);
+  }
+  return success;
+}
+
+bool
+nsAccessible::UnselectAll()
+{
+  bool success = false;
+  nsAccessible* selected = nsnull;
+
+  AccIterator iter(this, filters::GetSelected, AccIterator::eTreeNav);
+  while ((selected = iter.GetNext())) {
+    success = true;
+    selected->SetSelected(PR_FALSE);
+  }
+  return success;
+}
 
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -3201,7 +3361,7 @@ nsAccessible::GetLevelInternal()
 {
   PRInt32 level = nsAccUtils::GetDefaultLevel(this);
 
-  PRUint32 role = nsAccUtils::Role(this);
+  PRUint32 role = Role();
   nsAccessible* parent = GetParent();
 
   if (role == nsIAccessibleRole::ROLE_OUTLINEITEM) {
@@ -3211,7 +3371,7 @@ nsAccessible::GetLevelInternal()
     level = 1;
 
     while (parent) {
-      PRUint32 parentRole = nsAccUtils::Role(parent);
+      PRUint32 parentRole = parent->Role();
 
       if (parentRole == nsIAccessibleRole::ROLE_OUTLINE)
         break;
@@ -3231,7 +3391,7 @@ nsAccessible::GetLevelInternal()
     level = 0;
 
     while (parent) {
-      PRUint32 parentRole = nsAccUtils::Role(parent);
+      PRUint32 parentRole = parent->Role();
 
       if (parentRole == nsIAccessibleRole::ROLE_LISTITEM)
         ++ level;

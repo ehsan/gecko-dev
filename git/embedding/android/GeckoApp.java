@@ -41,6 +41,7 @@ import java.io.*;
 import java.util.*;
 import java.util.zip.*;
 import java.nio.*;
+import java.nio.channels.FileChannel;
 
 import android.os.*;
 import android.app.*;
@@ -64,6 +65,21 @@ abstract public class GeckoApp
     public static GeckoSurfaceView surfaceView;
     public static GeckoApp mAppContext;
     ProgressDialog mProgressDialog;
+
+    void showErrorDialog(String message)
+    {
+        new AlertDialog.Builder(this)
+            .setMessage(message)
+            .setCancelable(false)
+            .setPositiveButton("Exit",
+                               new DialogInterface.OnClickListener() {
+                                   public void onClick(DialogInterface dialog,
+                                                       int id)
+                                   {
+                                       GeckoApp.this.finish();
+                                   }
+                               }).show();
+    }
 
     void launch()
     {
@@ -89,6 +105,8 @@ abstract public class GeckoApp
         // hide our window's title, we don't want it
         requestWindowFeature(Window.FEATURE_NO_TITLE);
 
+        checkAndLaunchUpdate();
+
         surfaceView = new GeckoSurfaceView(this);
         
         mainLayout = new FrameLayout(this);
@@ -107,10 +125,38 @@ abstract public class GeckoApp
                                                   ViewGroup.LayoutParams.FILL_PARENT));
 
         if (!GeckoAppShell.sGeckoRunning) {
-            
-            mProgressDialog = 
-                ProgressDialog.show(GeckoApp.this, "", getAppName() + 
-                                    " is loading", true);
+            try {
+                BufferedReader reader =
+                    new BufferedReader(new FileReader("/proc/cpuinfo"));
+                String line;
+                while ((line = reader.readLine()) != null) {
+                    int index = line.indexOf("CPU architecture:");
+                    if (index == -1)
+                        continue;
+                    String versionStr = line.substring(18);
+                    Log.i("GeckoApp", "cpu version: " + versionStr);
+                    int version = Integer.parseInt(versionStr);
+
+                    if (version < getMinCPUVersion()) {
+                        showErrorDialog(
+                            getString(R.string.incompatable_cpu_error));
+                        return;
+                    }
+                    else {
+                        break;
+                    }
+                }
+                
+            } catch (Exception ex) {
+                // Not much we can do here, just continue assuming we're okay
+                Log.i("GeckoApp", "exception: " + ex);
+            }
+
+            if (!useLaunchButton)
+                mProgressDialog = 
+                    ProgressDialog.show(GeckoApp.this, "",
+                                        getString(R.string.splash_screen_label),
+                                        true);
             // Load our JNI libs; we need to do this before launch() because
             // setInitialSize will be called even before Gecko is actually up
             // and running.
@@ -118,7 +164,7 @@ abstract public class GeckoApp
 
             if (useLaunchButton) {
                 final Button b = new Button(this);
-                b.setText("Launch");
+                b.setText("Launch"); // don't need to localize
                 b.setOnClickListener(new Button.OnClickListener() {
                         public void onClick (View v) {
                             // hide the button so we can't be launched again
@@ -166,7 +212,8 @@ abstract public class GeckoApp
     public void onResume()
     {
         Log.i("GeckoApp", "resume");
-        GeckoAppShell.onResume();
+        if (GeckoAppShell.sGeckoRunning)
+            GeckoAppShell.onResume();
         if (surfaceView != null)
             surfaceView.mSurfaceNeedsRedraw = true;
         // After an onPause, the activity is back in the foreground.
@@ -231,7 +278,8 @@ abstract public class GeckoApp
     public void onLowMemory()
     {
         Log.i("GeckoApp", "low memory");
-        // XXX TODO
+        if (GeckoAppShell.sGeckoRunning)
+            GeckoAppShell.onLowMemory();
         super.onLowMemory();
     }
 
@@ -283,6 +331,7 @@ abstract public class GeckoApp
 
     abstract public String getAppName();
     abstract public String getContentProcessName();
+    abstract public int getMinCPUVersion();
 
     protected void unpackComponents()
     {
@@ -293,10 +342,20 @@ abstract public class GeckoApp
             File componentsDir = new File("/data/data/org.mozilla." + getAppName() +"/components");
             componentsDir.mkdir();
             zip = new ZipFile(getApplication().getPackageResourcePath());
+        } catch (Exception e) {
+            Log.i("GeckoAppJava", e.toString());
+            return;
+        }
 
+        byte[] buf = new byte[8192];
+        unpackFile(zip, buf, null, "application.ini");
+        unpackFile(zip, buf, null, getContentProcessName());
+        unpackFile(zip, buf, null, "update.locale");
+
+        try {
             ZipEntry componentsList = zip.getEntry("components/components.manifest");
             if (componentsList == null) {
-                Log.i("GeckoAppJava", "Can't find components.list !");
+                Log.i("GeckoAppJava", "Can't find components.manifest!");
                 return;
             }
 
@@ -305,8 +364,6 @@ abstract public class GeckoApp
             Log.i("GeckoAppJava", e.toString());
             return;
         }
-
-        byte[] buf = new byte[8192];
 
         StreamTokenizer tkn = new StreamTokenizer(new InputStreamReader(listStream));
         String line = "components/";
@@ -338,9 +395,6 @@ abstract public class GeckoApp
                 break;
             }
         } while (status != StreamTokenizer.TT_EOF);
-
-        unpackFile(zip, buf, null, "application.ini");
-        unpackFile(zip, buf, null, getContentProcessName());
     }
 
     private void unpackFile(ZipFile zip, byte[] buf, ZipEntry fileEntry, String name)
@@ -354,7 +408,7 @@ abstract public class GeckoApp
 
         File outFile = new File("/data/data/org.mozilla." + getAppName() + "/" + name);
         if (outFile.exists() &&
-            outFile.lastModified() >= fileEntry.getTime() &&
+            outFile.lastModified() == fileEntry.getTime() &&
             outFile.length() == fileEntry.getSize())
             return;
 
@@ -390,6 +444,8 @@ abstract public class GeckoApp
             Log.i("GeckoAppJava", e.toString());
             return;
         }
+
+        outFile.setLastModified(fileEntry.getTime());
     }
     
     public String getEnvString() {
@@ -437,5 +493,54 @@ abstract public class GeckoApp
 
     public void handleNotification(String action, String alertName, String alertCookie) {
         GeckoAppShell.handleNotification(action, alertName, alertCookie);
+    }
+
+    private void checkAndLaunchUpdate() {
+        Log.i("GeckoAppJava", "Checking for an update");
+
+        int statusCode = 8; // UNEXPECTED_ERROR
+
+        String updateDir = "/data/data/org.mozilla." + getAppName() + "/updates/0/";
+        File updateFile = new File(updateDir + "update.apk");
+
+        if (!updateFile.exists())
+            return;
+
+        Log.i("GeckoAppJava", "Update is available!");
+
+        // Launch APK
+        File updateFileToRun = new File(updateDir + getAppName() + "-update.apk");
+        try {
+            if (updateFile.renameTo(updateFileToRun)) {
+                String amCmd = "/system/bin/am start -a android.intent.action.VIEW " +
+                               "-n com.android.packageinstaller/.PackageInstallerActivity -d file://" +
+                               updateFileToRun.getPath();
+                Log.i("GeckoAppJava", amCmd);
+                Runtime.getRuntime().exec(amCmd);
+                statusCode = 0; // OK
+            } else {
+                Log.i("GeckoAppJava", "Cannot rename the update file!");
+                statusCode = 7; // WRITE_ERROR
+            }
+        } catch (Exception e) {
+            Log.i("GeckoAppJava", e.toString());
+        }
+
+        // Update the status file
+        String status = statusCode == 0 ? "succeeded\n" : "failed: "+ statusCode + "\n";
+
+        File statusFile = new File(updateDir + "update.status");
+        OutputStream outStream;
+        try {
+            byte[] buf = status.getBytes("UTF-8");
+            outStream = new FileOutputStream(statusFile);
+            outStream.write(buf, 0, buf.length);
+            outStream.close();
+        } catch (Exception e) {
+            Log.i("GeckoAppJava", e.toString());
+        }
+
+        if (statusCode == 0)
+            System.exit(0);
     }
 }

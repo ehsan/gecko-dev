@@ -38,12 +38,12 @@
 const Cc = Components.classes;
 const Ci = Components.interfaces;
 
-let gPrefService = Cc["@mozilla.org/preferences-service;1"]
-                     .getService(Ci.nsIPrefService)
-                     .QueryInterface(Ci.nsIPrefBranch2);
+Components.utils.import("resource://gre/modules/AddonManager.jsm");
+Components.utils.import("resource://gre/modules/Services.jsm");
 
-const ELLIPSIS = gPrefService.getComplexValue("intl.ellipsis",
-                                              Ci.nsIPrefLocalizedString).data;
+
+const ELLIPSIS = Services.prefs.getComplexValue("intl.ellipsis",
+                                               Ci.nsIPrefLocalizedString).data;
 
 // We use a preferences whitelist to make sure we only show preferences that
 // are useful for support and won't compromise the user's privacy.  Note that
@@ -64,7 +64,9 @@ const PREFS_WHITELIST = [
   "extensions.lastAppVersion",
   "font.",
   "general.useragent.",
-  "gfx.color_management.mode",
+  "gfx.",
+  "mozilla.widget.render-mode",
+  "layers.",
   "javascript.",
   "keyword.",
   "layout.css.dpi",
@@ -88,8 +90,9 @@ window.onload = function () {
   let supportUrl = urlFormatter.formatURLPref("app.support.baseURL");
 
   // Update the application basics section.
-  document.getElementById("application-box").textContent = Application.name;
-  document.getElementById("version-box").textContent = Application.version;
+  document.getElementById("application-box").textContent = Services.appinfo.name;
+  document.getElementById("version-box").textContent = Services.appinfo.version;
+  document.getElementById("useragent-box").textContent = navigator.userAgent;
   document.getElementById("supportLink").href = supportUrl;
 
   // Update the other sections.
@@ -99,15 +102,14 @@ window.onload = function () {
 }
 
 function populateExtensionsSection() {
-  Application.getExtensions(function (extensions) {
-    let all = extensions.all;
+  AddonManager.getAddonsByTypes(["extension"], function(extensions) {
     let trExtensions = [];
-    for (let i = 0; i < all.length; i++) {
-      let extension = all[i];
+    for (let i = 0; i < extensions.length; i++) {
+      let extension = extensions[i];
       let tr = createParentElement("tr", [
         createElement("td", extension.name),
         createElement("td", extension.version),
-        createElement("td", extension.enabled),
+        createElement("td", extension.isActive),
         createElement("td", extension.id),
       ]);
       trExtensions.push(tr);
@@ -147,13 +149,14 @@ function populateGraphicsSection() {
     elem.className = "column";
     return elem;
   }
-  
+
+  let bundle = Services.strings.createBundle("chrome://global/locale/aboutSupport.properties");
+  let graphics_tbody = document.getElementById("graphics-tbody");
+
   try {
     // nsIGfxInfo is currently only implemented on Windows
     let gfxInfo = Cc["@mozilla.org/gfx/info;1"].getService(Ci.nsIGfxInfo);
     let trGraphics = [];
-    var SBS = Cc["@mozilla.org/intl/stringbundle;1"].getService(Ci.nsIStringBundleService);
-    var bundle = SBS.createBundle("chrome://global/locale/aboutSupport.properties");
     trGraphics.push(createParentElement("tr", [
       createHeader(bundle.GetStringFromName("adapterDescription")),
       createElement("td", gfxInfo.adapterDescription),
@@ -193,13 +196,52 @@ function populateGraphicsSection() {
       createElement("td", gfxInfo.DWriteEnabled),
     ]));
 
-    appendChildren(document.getElementById("graphics-tbody"), trGraphics);
+    appendChildren(graphics_tbody, trGraphics);
 
   } catch (e) {
   }
 
+  let windows = Services.ww.getWindowEnumerator();
+  let acceleratedWindows = 0;
+  let totalWindows = 0;
+  let mgrType;
+  while (windows.hasMoreElements()) {
+    totalWindows++;
+
+    let awindow = windows.getNext().QueryInterface(Ci.nsIInterfaceRequestor);
+    let windowutils = awindow.getInterface(Ci.nsIDOMWindowUtils);
+    if (windowutils.layerManagerType != "Basic") {
+      acceleratedWindows++;
+      mgrType = windowutils.layerManagerType;
+    }
+  }
+
+  let msg = acceleratedWindows + "/" + totalWindows;
+  if (acceleratedWindows)
+    msg += " " + mgrType;
+
+  let header = createHeader(bundle.GetStringFromName("acceleratedWindows"));
+
+  appendChildren(graphics_tbody, [ header, createElement("td", msg) ]);
 }
 
+function getPrefValue(aName) {
+  let value = "";
+  let type = Services.prefs.getPrefType(aName);
+  switch (type) {
+    case Ci.nsIPrefBranch2.PREF_STRING:
+      value = Services.prefs.getComplexValue(aName, Ci.nsISupportsString).data;
+      break;
+    case Ci.nsIPrefBranch2.PREF_BOOL:
+      value = Services.prefs.getBoolPref(aName);
+      break;
+    case Ci.nsIPrefBranch2.PREF_INT:
+      value = Services.prefs.getIntPref(aName);
+      break;
+  }
+
+  return { name: aName, value: value };
+}
 
 function formatPrefValue(prefValue) {
   // Some pref values are really long and don't have spaces.  This can cause
@@ -219,9 +261,9 @@ function getModifiedPrefs() {
   // much, much slower.  Application.prefs.all also gets slower each
   // time it's called.  See bug 517312.
   let prefNames = getWhitelistedPrefNames();
-  let prefs = [Application.prefs.get(prefName)
+  let prefs = [getPrefValue(prefName)
                       for each (prefName in prefNames)
-                          if (gPrefService.prefHasUserValue(prefName)
+                          if (Services.prefs.prefHasUserValue(prefName)
                             && !isBlacklisted(prefName))];
   return prefs;
 }
@@ -229,7 +271,7 @@ function getModifiedPrefs() {
 function getWhitelistedPrefNames() {
   let results = [];
   PREFS_WHITELIST.forEach(function (prefStem) {
-    let prefNames = gPrefService.getChildList(prefStem);
+    let prefNames = Services.prefs.getChildList(prefStem);
     results = results.concat(prefNames);
   });
   return results;
@@ -346,9 +388,7 @@ function generateTextForTextNode(node, indent, textFragmentAccumulator) {
 
 function openProfileDirectory() {
   // Get the profile directory.
-  let propertiesService = Cc["@mozilla.org/file/directory_service;1"]
-                            .getService(Ci.nsIProperties);
-  let currProfD = propertiesService.get("ProfD", Ci.nsIFile);
+  let currProfD = Services.dirsvc.get("ProfD", Ci.nsIFile);
   let profileDir = currProfD.path;
 
   // Show the profile directory.

@@ -1,8 +1,12 @@
 Cu.import("resource://services-sync/base_records/crypto.js");
 Cu.import("resource://services-sync/base_records/keys.js");
 Cu.import("resource://services-sync/util.js");
+Cu.import("resource://services-sync/identity.js");
 
 function run_test() {
+  let passphrase = ID.set("WeaveCryptoID", new Identity());
+  passphrase.password = "passphrase";
+
   _("Generating keypair to encrypt/decrypt symkeys");
   let {pubkey, privkey} = PubKeys.createKeypair(
     passphrase,
@@ -26,8 +30,9 @@ function run_test() {
   crypto.addUnwrappedKey(pubkey, symkey);
 
   _("Changing the HMAC to force a mismatch");
-  let goodHMAC = crypto.keyring[pubkey.uri.spec].hmac;
-  crypto.keyring[pubkey.uri.spec].hmac = "failme!";
+  let relUri = crypto.uri.getRelativeSpec(pubkey.uri);
+  let goodHMAC = crypto.keyring[relUri].hmac;
+  crypto.keyring[relUri].hmac = "failme!";
   let error = "";
   try {
     crypto.getKey(privkey, passphrase);
@@ -38,6 +43,6 @@ function run_test() {
   do_check_eq(error, "Key SHA256 HMAC mismatch: failme!");
 
   _("Switching back to the correct HMAC and trying again");
-  crypto.keyring[pubkey.uri.spec].hmac = goodHMAC;
+  crypto.keyring[relUri].hmac = goodHMAC;
   crypto.getKey(privkey, passphrase);
 }

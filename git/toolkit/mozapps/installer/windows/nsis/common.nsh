@@ -4547,7 +4547,6 @@
 !macro InstallOnInitCommon
 
   !ifndef InstallOnInitCommon
-    !insertmacro CloseApp
     !insertmacro ElevateUAC
     !insertmacro GetOptions
     !insertmacro GetParameters
@@ -4600,134 +4599,95 @@
       ${ElevateUAC}
 
       ${If} $R8 != ""
-        ClearErrors
-        ${GetOptions} "$R8" "-ms" $R7
-        ${If} ${Errors}
-          ; Default install type
-          StrCpy $InstallType ${INSTALLTYPE_BASIC}
-          ; Support for specifying an installation configuration file.
+        ; Default install type
+        StrCpy $InstallType ${INSTALLTYPE_BASIC}
+
+        ${Unless} ${Silent}
+          ; Manually check for /S in the command line due to Bug 506867
           ClearErrors
-          ${GetOptions} "$R8" "/INI=" $R7
+          ${GetOptions} "$R8" "/S" $R7
           ${Unless} ${Errors}
-            ; The configuration file must also exist
-            ${If} ${FileExists} "$R7"
+            SetSilent silent
+          ${Else}
+            ; Support for the deprecated -ms command line argument. The new command
+            ; line arguments are not supported when -ms is used.
+            ClearErrors
+            ${GetOptions} "$R8" "-ms" $R7
+            ${Unless} ${Errors}
               SetSilent silent
-              ReadINIStr $R8 $R7 "Install" "InstallDirectoryName"
+            ${EndUnless}
+          ${EndUnless}
+        ${EndUnless}
+
+        ; Support for specifying an installation configuration file.
+        ClearErrors
+        ${GetOptions} "$R8" "/INI=" $R7
+        ${Unless} ${Errors}
+          ; The configuration file must also exist
+          ${If} ${FileExists} "$R7"
+            SetSilent silent
+            ReadINIStr $R8 $R7 "Install" "InstallDirectoryName"
+            ${If} $R8 != ""
+              !ifdef HAVE_64BIT_OS
+                StrCpy $INSTDIR "$PROGRAMFILES64\$R8"
+              !else
+                StrCpy $INSTDIR "$PROGRAMFILES32\$R8"
+              !endif
+            ${Else}
+              ReadINIStr $R8 $R7 "Install" "InstallDirectoryPath"
               ${If} $R8 != ""
-                !ifdef HAVE_64BIT_OS
-                  StrCpy $INSTDIR "$PROGRAMFILES64\$R8"
-                !else
-                  StrCpy $INSTDIR "$PROGRAMFILES32\$R8"
-                !endif
-              ${Else}
-                ReadINIStr $R8 $R7 "Install" "InstallDirectoryPath"
-                ${If} $R8 != ""
-                  StrCpy $INSTDIR "$R8"
-                ${EndIf}
-              ${EndIf}
-
-              ${If} $INSTDIR == ""
-                ; Check if there is an existing uninstall registry entry for this
-                ; version of the application and if present install into that location
-                StrCpy $R6 "Software\Microsoft\Windows\CurrentVersion\Uninstall\${BrandFullNameInternal} (${AppVersion})"
-                ReadRegStr $R8 HKLM "$R6" "InstallLocation"
-                ${If} $R8 == ""
-                  !ifdef HAVE_64BIT_OS
-                    StrCpy $INSTDIR "$PROGRAMFILES64\${BrandFullName}"
-                  !else
-                    StrCpy $INSTDIR "$PROGRAMFILES32\${BrandFullName}"
-                  !endif
-                ${Else}
-                  GetFullPathName $INSTDIR "$R8"
-                  ${Unless} ${FileExists} "$INSTDIR"
-                    !ifdef HAVE_64BIT_OS
-                      StrCpy $INSTDIR "$PROGRAMFILES64\${BrandFullName}"
-                    !else
-                      StrCpy $INSTDIR "$PROGRAMFILES32\${BrandFullName}"
-                    !endif
-                  ${EndUnless}
-                ${EndIf}
-              ${EndIf}
-
-              ; Quit if we are unable to create the installation directory or we are
-              ; unable to write to a file in the installation directory.
-              ClearErrors
-              ${If} ${FileExists} "$INSTDIR"
-                GetTempFileName $R6 "$INSTDIR"
-                FileOpen $R5 "$R6" w
-                FileWrite $R5 "Write Access Test"
-                FileClose $R5
-                Delete $R6
-                ${If} ${Errors}
-                  ; Nothing initialized so no need to call OnEndCommon
-                  Quit
-                ${EndIf}
-              ${Else}
-                CreateDirectory "$INSTDIR"
-                ${If} ${Errors}
-                  ; Nothing initialized so no need to call OnEndCommon
-                  Quit
-                ${EndIf}
-              ${EndIf}
-
-              ReadINIStr $R8 $R7 "Install" "CloseAppNoPrompt"
-              ${If} $R8 == "true"
-                ; Try to close the app if the exe is in use.
-                ClearErrors
-                ${If} ${FileExists} "$INSTDIR\${FileMainEXE}"
-                  ${DeleteFile} "$INSTDIR\${FileMainEXE}"
-                ${EndIf}
-                ${If} ${Errors}
-                  ClearErrors
-                  ${CloseApp} "false" ""
-                  ClearErrors
-                  ${DeleteFile} "$INSTDIR\${FileMainEXE}"
-                  ; If unsuccessful try one more time and if it still fails Quit
-                  ${If} ${Errors}
-                    ClearErrors
-                    ${CloseApp} "false" ""
-                    ClearErrors
-                    ${DeleteFile} "$INSTDIR\${FileMainEXE}"
-                    ${If} ${Errors}
-                      ; Nothing initialized so no need to call OnEndCommon
-                      Quit
-                    ${EndIf}
-                  ${EndIf}
-                ${EndIf}
-              ${EndIf}
-
-              ReadINIStr $R8 $R7 "Install" "QuickLaunchShortcut"
-              ${If} $R8 == "false"
-                StrCpy $AddQuickLaunchSC "0"
-              ${Else}
-                StrCpy $AddQuickLaunchSC "1"
-              ${EndIf}
-
-              ReadINIStr $R8 $R7 "Install" "DesktopShortcut"
-              ${If} $R8 == "false"
-                StrCpy $AddDesktopSC "0"
-              ${Else}
-                StrCpy $AddDesktopSC "1"
-              ${EndIf}
-
-              ReadINIStr $R8 $R7 "Install" "StartMenuShortcuts"
-              ${If} $R8 == "false"
-                StrCpy $AddStartMenuSC "0"
-              ${Else}
-                StrCpy $AddStartMenuSC "1"
-              ${EndIf}
-
-              ReadINIStr $R8 $R7 "Install" "StartMenuDirectoryName"
-              ${If} $R8 != ""
-                StrCpy $StartMenuDir "$R8"
+                StrCpy $INSTDIR "$R8"
               ${EndIf}
             ${EndIf}
-          ${EndUnless}
-        ${Else}
-          ; Support for the deprecated -ms command line argument. The new command
-          ; line arguments are not supported when -ms is used.
-          SetSilent silent
-        ${EndIf}
+
+            ; Quit if we are unable to create the installation directory or we are
+            ; unable to write to a file in the installation directory.
+            ClearErrors
+            ${If} ${FileExists} "$INSTDIR"
+              GetTempFileName $R6 "$INSTDIR"
+              FileOpen $R5 "$R6" w
+              FileWrite $R5 "Write Access Test"
+              FileClose $R5
+              Delete $R6
+              ${If} ${Errors}
+                ; Nothing initialized so no need to call OnEndCommon
+                Quit
+              ${EndIf}
+            ${Else}
+              CreateDirectory "$INSTDIR"
+              ${If} ${Errors}
+                ; Nothing initialized so no need to call OnEndCommon
+                Quit
+              ${EndIf}
+            ${EndIf}
+
+            ReadINIStr $R8 $R7 "Install" "QuickLaunchShortcut"
+            ${If} $R8 == "false"
+              StrCpy $AddQuickLaunchSC "0"
+            ${Else}
+              StrCpy $AddQuickLaunchSC "1"
+            ${EndIf}
+
+            ReadINIStr $R8 $R7 "Install" "DesktopShortcut"
+            ${If} $R8 == "false"
+              StrCpy $AddDesktopSC "0"
+            ${Else}
+              StrCpy $AddDesktopSC "1"
+            ${EndIf}
+
+            ReadINIStr $R8 $R7 "Install" "StartMenuShortcuts"
+            ${If} $R8 == "false"
+              StrCpy $AddStartMenuSC "0"
+            ${Else}
+              StrCpy $AddStartMenuSC "1"
+            ${EndIf}
+
+            ReadINIStr $R8 $R7 "Install" "StartMenuDirectoryName"
+            ${If} $R8 != ""
+              StrCpy $StartMenuDir "$R8"
+            ${EndIf}
+          ${EndIf}
+        ${EndUnless}
       ${EndIf}
       ClearErrors
 
@@ -4811,8 +4771,9 @@
       ClearErrors
       ${GetOptions} "$R0" "/UpdateShortcutAppUserModelIds" $R2
       IfErrors hideshortcuts +1
-      ${UpdateShortcutAppModelIDs}  "$INSTDIR\${FileMainEXE}" "${AppUserModelID}"
-      GoTo finish
+      ${UpdateShortcutAppModelIDs}  "$INSTDIR\${FileMainEXE}" "${AppUserModelID}" $R2
+      StrCmp "$R2" "true" finish +1 ; true indicates that shortcuts have been updated
+      Quit ; Nothing initialized so no need to call OnEndCommon
 
       ; Require elevation if the user can elevate
       hideshortcuts:
@@ -4902,9 +4863,26 @@
       ; If we made it this far then this installer is being used as an uninstaller.
       WriteUninstaller "$EXEDIR\uninstaller.exe"
 
-      StrCpy $R1 "$\"$EXEDIR\uninstaller.exe$\""
+      ${Unless} ${Silent}
+        ; Manually check for /S in the command line due to Bug 506867
+        ClearErrors
+        ${GetOptions} "$R0" "/S" $R2
+        ${Unless} ${Errors}
+          SetSilent silent
+        ${Else}
+          ; Support for the deprecated -ms command line argument.
+          ClearErrors
+          ${GetOptions} "$R0" "-ms" $R2
+          ${Unless} ${Errors}
+            SetSilent silent
+          ${EndUnless}
+        ${EndUnless}
+      ${EndUnless}
+
       ${If} ${Silent}
         StrCpy $R1 "$\"$EXEDIR\uninstaller.exe$\" /S"
+      ${Else}
+        StrCpy $R1 "$\"$EXEDIR\uninstaller.exe$\""
       ${EndIf}
 
       ; When the uninstaller is launched it copies itself to the temp directory
@@ -6154,6 +6132,9 @@
  *          The install path of the app
  * @param   _APP_ID
  *          The application user model ID for the current install
+ * @return  _RESULT
+ *          false if no shotcuts were found for this install location.
+ *          true if shotcuts were found for this install location.
  */
 !macro UpdateShortcutAppModelIDs
 
@@ -6172,9 +6153,11 @@
       Push $R7 ; stack: $R7, $R8, $R9
       Push $R6
       Push $R5
-      Push $R4 ; stack: $R4, $R5, $R6, $R7, $R8, $R9
+      Push $R4
+      Push $R3 ; stack: $R3, $R5, $R6, $R7, $R8, $R9
 
       StrCpy $R7 "$QUICKLAUNCH\User Pinned"
+      StrCpy $R3 "false"
 
       ClearErrors
 
@@ -6194,6 +6177,7 @@
         ${If} "$R4" == "$R9" ; link path == install path
           ApplicationID::Set "$R7\TaskBar\$R5" "$R8"
           Pop $R4 ; pop Set result off the stack
+          StrCpy $R3 "true"
         ${EndIf}
       ${EndIf}
       ClearErrors
@@ -6214,6 +6198,7 @@
         ${If} "$R4" == "$R9" ; link path == install path
           ApplicationID::Set "$R7\StartMenu\$R5" "$R8"
           Pop $R4 ; pop Set result off the stack
+          StrCpy $R3 "true"
         ${EndIf}
       ${EndIf}
       ClearErrors
@@ -6223,6 +6208,9 @@
       ${EndUnless}
       FindClose $R6
 
+      StrCpy $R9 $R3
+
+      Pop $R3  ; stack: $R4, $R5, $R6, $R7, $R8, $R9
       Pop $R4  ; stack: $R5, $R6, $R7, $R8, $R9
       Pop $R5  ; stack: $R6, $R7, $R8, $R9
       Pop $R6  ; stack: $R7, $R8, $R9
@@ -6236,11 +6224,12 @@
   !endif
 !macroend
 
-!macro UpdateShortcutAppModelIDsCall _INSTALL_PATH _APP_ID
+!macro UpdateShortcutAppModelIDsCall _INSTALL_PATH _APP_ID _RESULT
   !verbose push
   !verbose ${_MOZFUNC_VERBOSE}
   Push "${_APP_ID}"
   Push "${_INSTALL_PATH}"
   Call UpdateShortcutAppModelIDs
+  Pop ${_RESULT}
   !verbose pop
 !macroend

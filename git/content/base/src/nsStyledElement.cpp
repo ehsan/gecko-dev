@@ -131,20 +131,28 @@ nsresult
 nsStyledElement::UnsetAttr(PRInt32 aNameSpaceID, nsIAtom* aAttribute,
                            PRBool aNotify)
 {
-  PRBool isId = PR_FALSE;
   if (aAttribute == nsGkAtoms::id && aNameSpaceID == kNameSpaceID_None) {
     // Have to do this before clearing flag. See RemoveFromIdTable
     RemoveFromIdTable();
-    isId = PR_TRUE;
   }
-  
-  nsresult rv = nsGenericElement::UnsetAttr(aNameSpaceID, aAttribute, aNotify);
 
-  if (isId) {
+  return nsGenericElement::UnsetAttr(aNameSpaceID, aAttribute, aNotify);
+}
+
+nsresult
+nsStyledElement::AfterSetAttr(PRInt32 aNamespaceID, nsIAtom* aAttribute,
+                              const nsAString* aValue, PRBool aNotify)
+{
+  if (aNamespaceID == kNameSpaceID_None && !aValue &&
+      aAttribute == nsGkAtoms::id) {
+    // The id has been removed when calling UnsetAttr but we kept it because
+    // the id is used for some layout stuff between UnsetAttr and AfterSetAttr.
+    // Now. the id is really removed so it would not be safe to keep this flag.
     UnsetFlags(NODE_HAS_ID);
   }
 
-  return rv;
+  return nsGenericElement::AfterSetAttr(aNamespaceID, aAttribute, aValue,
+                                        aNotify);
 }
 
 NS_IMETHODIMP
@@ -227,9 +235,24 @@ nsStyledElement::BindToTree(nsIDocument* aDocument, nsIContent* aParent,
 void
 nsStyledElement::UnbindFromTree(PRBool aDeep, PRBool aNullParent)
 {
-  RemoveFromIdTable();
+  nsIDocument* doc = nsnull;
+
+  if (HasFlag(NODE_HAS_ID)) {
+    doc = GetCurrentDoc();
+  }
 
   nsStyledElementBase::UnbindFromTree(aDeep, aNullParent);
+
+  // If we had a document (and an id), we should now inform the document that
+  // we are no longer a valid id.
+  // This is done _after_ the call to UnbindFromTree to make sure that id are
+  // removed from the inner-most elements to the top-most.
+  if (doc) {
+    nsIAtom* id = DoGetID();
+    if (id) {
+      doc->RemoveFromIdTable(this, id);
+    }
+  }
 }
 
 

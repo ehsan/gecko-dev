@@ -112,6 +112,7 @@
 #include "nsHtml5Module.h"
 #include "nsITextControlElement.h"
 #include "mozilla/dom/Element.h"
+#include "nsHTMLFieldSetElement.h"
 
 using namespace mozilla::dom;
 
@@ -2312,15 +2313,16 @@ nsGenericHTMLElement::GetIsContentEditable(PRBool* aContentEditable)
 NS_IMPL_INT_ATTR_DEFAULT_VALUE(nsGenericHTMLFrameElement, TabIndex, tabindex, 0)
 
 nsGenericHTMLFormElement::nsGenericHTMLFormElement(already_AddRefed<nsINodeInfo> aNodeInfo)
-  : nsGenericHTMLElement(aNodeInfo),
-    mForm(nsnull)
+  : nsGenericHTMLElement(aNodeInfo)
+  , mForm(nsnull)
+  , mFieldSet(nsnull)
 {
 }
 
 nsGenericHTMLFormElement::~nsGenericHTMLFormElement()
 {
   // Check that this element doesn't know anything about its form at this point.
-  NS_ASSERTION(!mForm, "How did we get here?");
+  NS_ASSERTION(!mForm, "mForm should be null at this point!");
 }
 
 NS_IMPL_QUERY_INTERFACE_INHERITED1(nsGenericHTMLFormElement,
@@ -2494,6 +2496,9 @@ nsGenericHTMLFormElement::BindToTree(nsIDocument* aDocument,
     UpdateFormOwner(true, nsnull);
   }
 
+  // Set parent fieldset which should be used for the disabled state.
+  UpdateFieldSet();
+
   return NS_OK;
 }
 
@@ -2527,6 +2532,9 @@ nsGenericHTMLFormElement::UnbindFromTree(PRBool aDeep, PRBool aNullParent)
   }
 
   nsGenericHTMLElement::UnbindFromTree(aDeep, aNullParent);
+
+  // The element might not have a fieldset anymore.
+  UpdateFieldSet();
 }
 
 nsresult
@@ -2548,8 +2556,7 @@ nsGenericHTMLFormElement::BeforeSetAttr(PRInt32 aNameSpaceID, nsIAtom* aName,
 
     if (mForm && aName == nsGkAtoms::type) {
       nsIDocument* doc = GetCurrentDoc();
-      MOZ_AUTO_DOC_UPDATE(doc, UPDATE_CONTENT_STATE, aNotify);
-      
+
       GetAttr(kNameSpaceID_None, nsGkAtoms::name, tmp);
 
       if (!tmp.IsEmpty()) {
@@ -2569,6 +2576,7 @@ nsGenericHTMLFormElement::BeforeSetAttr(PRInt32 aNameSpaceID, nsIAtom* aName,
       // end up readding and becoming the default control again in
       // AfterSetAttr.
       if (doc && aNotify) {
+        MOZ_AUTO_DOC_UPDATE(doc, UPDATE_CONTENT_STATE, PR_TRUE);
         doc->ContentStatesChanged(this, nsnull, NS_EVENT_STATE_DEFAULT);
       }
     }
@@ -2605,8 +2613,6 @@ nsGenericHTMLFormElement::AfterSetAttr(PRInt32 aNameSpaceID, nsIAtom* aName,
 
     if (mForm && aName == nsGkAtoms::type) {
       nsIDocument* doc = GetDocument();
-      MOZ_AUTO_DOC_UPDATE(doc, UPDATE_CONTENT_STATE, aNotify);
-      
       nsAutoString tmp;
 
       GetAttr(kNameSpaceID_None, nsGkAtoms::name, tmp);
@@ -2628,6 +2634,7 @@ nsGenericHTMLFormElement::AfterSetAttr(PRInt32 aNameSpaceID, nsIAtom* aName,
       // Note: no need to notify on CanBeDisabled(), since type attr
       // changes can't affect that.
       if (doc && aNotify) {
+        MOZ_AUTO_DOC_UPDATE(doc, UPDATE_CONTENT_STATE, PR_TRUE);
         doc->ContentStatesChanged(this, nsnull, NS_EVENT_STATE_DEFAULT);
       }
     }
@@ -2688,7 +2695,6 @@ nsGenericHTMLFormElement::CanBeDisabled() const
   // It's easier to test the types that _cannot_ be disabled
   return
     type != NS_FORM_LABEL &&
-    type != NS_FORM_FIELDSET &&
     type != NS_FORM_OBJECT &&
     type != NS_FORM_OUTPUT;
 }
@@ -2761,9 +2767,7 @@ nsGenericHTMLFormElement::IntrinsicState() const
 
   if (CanBeDisabled()) {
     // :enabled/:disabled
-    PRBool disabled;
-    GetBoolAttr(nsGkAtoms::disabled, &disabled);
-    if (disabled) {
+    if (IsDisabled()) {
       state |= NS_EVENT_STATE_DISABLED;
       state &= ~NS_EVENT_STATE_ENABLED;
     } else {
@@ -2791,7 +2795,7 @@ nsGenericHTMLFormElement::FocusState()
     return eUnfocusable;
 
   // first see if we are disabled or not. If disabled then do nothing.
-  if (HasAttr(kNameSpaceID_None, nsGkAtoms::disabled)) {
+  if (IsDisabled()) {
     return eUnfocusable;
   }
 
@@ -2945,6 +2949,42 @@ nsGenericHTMLFormElement::UpdateFormOwner(bool aBindToTree,
     if (!idVal.IsEmpty()) {
       mForm->AddElementToTable(this, idVal);
     }
+  }
+}
+
+void
+nsGenericHTMLFormElement::UpdateFieldSet()
+{
+  nsIContent* parent = nsnull;
+  nsIContent* prev = nsnull;
+
+  for (parent = GetParent(); parent;
+       prev = parent, parent = parent->GetParent()) {
+    if (parent->IsHTML(nsGkAtoms::fieldset)) {
+      nsHTMLFieldSetElement* fieldset =
+        static_cast<nsHTMLFieldSetElement*>(parent);
+
+      if (!prev || fieldset->GetFirstLegend() != prev) {
+        mFieldSet = fieldset;
+        return;
+      }
+    }
+  }
+
+  // No fieldset found.
+  mFieldSet = nsnull;
+}
+
+void
+nsGenericHTMLFormElement::FieldSetDisabledChanged(PRInt32 aStates)
+{
+  aStates |= NS_EVENT_STATE_DISABLED | NS_EVENT_STATE_ENABLED;
+
+  nsIDocument* doc = GetCurrentDoc();
+  // TODO: should we use aNotify ?!
+  if (doc) {
+    MOZ_AUTO_DOC_UPDATE(doc, UPDATE_CONTENT_STATE, PR_TRUE);
+    doc->ContentStatesChanged(this, nsnull, aStates);
   }
 }
 
@@ -3229,7 +3269,7 @@ nsGenericHTMLElement::IsHTMLFocusable(PRBool aWithMouse,
     override = PR_FALSE;
 
     // Just check for disabled attribute on form controls
-    disabled = HasAttr(kNameSpaceID_None, nsGkAtoms::disabled);
+    disabled = IsDisabled();
     if (disabled) {
       tabIndex = -1;
     }
@@ -3480,5 +3520,9 @@ nsGenericHTMLElement::ChangeEditableState(PRInt32 aChange)
     document = nsnull;
   }
 
+  // MakeContentDescendantsEditable is going to call ContentStatesChanged for
+  // this element and all descendants if editable state has changed.
+  // We have to create a document update batch now so it's created once.
+  MOZ_AUTO_DOC_UPDATE(document, UPDATE_CONTENT_STATE, PR_TRUE);
   MakeContentDescendantsEditable(this, document);
 }

@@ -41,6 +41,7 @@
 #include "nsIPrefBranch.idl"
 
 interface nsIFile;
+interface nsILocalFile;
 
 /**
  * The nsIPrefService interface is the main entry point into the back end
@@ -105,7 +106,6 @@ interface nsIPrefService : nsISupports
    */
   void savePrefFile(in nsIFile aFile);
 
-
   /**
    * Call to get a Preferences "Branch" which accesses user preference data.
    * Using a Set method on this object will always create or set a user
@@ -151,6 +151,27 @@ interface nsIPrefService : nsISupports
    */
   nsIPrefBranch getDefaultBranch(in string aPrefRoot);
 
+};
+
+[scriptable, uuid(37577836-e3fc-4a5e-b5d1-92a17fe0e7f7)]
+interface nsIPrefServiceInternal : nsISupports
+{
+  /**
+   * Called to read the preferences in the defaults/preferences/
+   * directory of a zip file
+   *
+   * @param aFile The zip file to be read.
+   *
+   * @return NS_OK The file was read and processed.
+   * @return Other The file failed to read or contained invalid data.
+   *
+   * @see readUserPrefs
+   */
+  void readExtensionPrefs(in nsILocalFile aFile);
+
+  ACString serializePreferences();
+  ACString serializePreference(in ACString aPrefName);
+  void readPrefBuffer(in ACString aBuffer);
 };
 
 %{C++

@@ -470,6 +470,8 @@ static void RemoveArg(char **argv)
 static ArgResult
 CheckArg(const char* aArg, PRBool aCheckOSInt = PR_FALSE, const char **aParam = nsnull, PRBool aRemArg = PR_TRUE)
 {
+  NS_ABORT_IF_FALSE(gArgv, "gArgv must be initialized before CheckArg()");
+
   char **curarg = gArgv + 1; // skip argv[0]
   ArgResult ar = ARG_NONE;
 
@@ -2137,7 +2139,7 @@ SelectProfile(nsIProfileLock* *aResult, nsINativeAppSupport* aNative,
     PRBool exists;
     lf->Exists(&exists);
     if (!exists) {
-        rv = lf->Create(nsIFile::DIRECTORY_TYPE, 0644);
+        rv = lf->Create(nsIFile::DIRECTORY_TYPE, 0700);
         NS_ENSURE_SUCCESS(rv, rv);
     }
 
@@ -3044,6 +3046,12 @@ XRE_main(int argc, char* argv[], const nsXREAppData* aAppData)
   ScopedFPHandler handler;
 #endif /* XP_OS2 */
 
+  if (PR_GetEnv("MOZ_SAFE_MODE_RESTART")) {
+    gSafeMode = PR_TRUE;
+    // unset the env variable
+    PR_SetEnv("MOZ_SAFE_MODE_RESTART=");
+  }
+
   ar = CheckArg("safe-mode", PR_TRUE);
   if (ar == ARG_BAD) {
     PR_fprintf(PR_STDERR, "Error: argument -safe-mode is invalid when argument -osint is specified\n");
@@ -3137,15 +3145,18 @@ XRE_main(int argc, char* argv[], const nsXREAppData* aAppData)
     QScopedPointer<QApplication> app(new QApplication(gArgc, gArgv));
 #endif
 
-    // try to get the MInputContext if possible to support the MeeGo VKB
-    QInputContext *inputContext = app->inputContext();
-    if (inputContext && inputContext->identifierName() != "MInputContext") {
-        QInputContext* context = QInputContextFactory::create("MInputContext",
-                                                              app.data());
-        if (context)
-            app->setInputContext(context);
+#if MOZ_PLATFORM_MAEMO > 5
+    if (XRE_GetProcessType() == GeckoProcessType_Default) {
+      // try to get the MInputContext if possible to support the MeeGo VKB
+      QInputContext* inputContext = app->inputContext();
+      if (inputContext && inputContext->identifierName() != "MInputContext") {
+          QInputContext* context = QInputContextFactory::create("MInputContext",
+                                                                app.data());
+          if (context)
+              app->setInputContext(context);
+      }
     }
-
+#endif
     QStringList nonQtArguments = app->arguments();
     gQtOnlyArgc = 1;
     gQtOnlyArgv = (char**) malloc(sizeof(char*) 
@@ -3269,7 +3280,7 @@ XRE_main(int argc, char* argv[], const nsXREAppData* aAppData)
       return 1;
     }
 
-#if defined(MOZ_UPDATER)
+#if defined(MOZ_UPDATER) && !defined(ANDROID)
   // Check for and process any available updates
   nsCOMPtr<nsIFile> updRoot;
   PRBool persistent;
@@ -3353,7 +3364,7 @@ XRE_main(int argc, char* argv[], const nsXREAppData* aAppData)
      }
      flagFile = do_QueryInterface(fFlagFile);
      if (flagFile) {
-       flagFile->SetNativeLeafName(FILE_INVALIDATE_CACHES);
+       flagFile->AppendNative(FILE_INVALIDATE_CACHES);
      }
  #endif
     PRBool cachesOK;

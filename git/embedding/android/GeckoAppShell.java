@@ -91,6 +91,7 @@ class GeckoAppShell
     public static native void setSurfaceView(GeckoSurfaceView sv);
     public static native void putenv(String map);
     public static native void onResume();
+    public static native void onLowMemory();
     public static native void callObserver(String observerKey, String topic, String data);
     public static native void removeObserver(String observerKey);
 
@@ -271,6 +272,7 @@ class GeckoAppShell
 
         case NOTIFY_IME_FOCUSCHANGE:
             GeckoApp.surfaceView.mIMEFocus = state != 0;
+            IMEStateUpdater.resetIME();
             break;
 
         }
@@ -321,7 +323,9 @@ class GeckoAppShell
             if (provider == null)
                 return;
 
-            sendEventToGecko(new GeckoEvent(lm.getLastKnownLocation(provider)));
+            Location loc = lm.getLastKnownLocation(provider);
+            if (loc != null)
+                sendEventToGecko(new GeckoEvent(loc));
             lm.requestLocationUpdates(provider, 100, (float).5, GeckoApp.surfaceView, Looper.getMainLooper());
         } else {
             lm.removeUpdates(GeckoApp.surfaceView);

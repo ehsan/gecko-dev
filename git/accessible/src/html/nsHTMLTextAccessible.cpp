@@ -40,6 +40,8 @@
 #include "nsHTMLTextAccessible.h"
 
 #include "nsDocAccessible.h"
+#include "nsAccUtils.h"
+#include "nsRelUtils.h"
 #include "nsTextEquivUtils.h"
 
 #include "nsIFrame.h"
@@ -68,18 +70,17 @@ nsHTMLTextAccessible::GetName(nsAString& aName)
   return AppendTextTo(aName, 0, PR_UINT32_MAX);
 }
 
-nsresult
-nsHTMLTextAccessible::GetRoleInternal(PRUint32 *aRole)
+PRUint32
+nsHTMLTextAccessible::NativeRole()
 {
   nsIFrame *frame = GetFrame();
   // Don't return on null frame -- we still return a role
   // after accessible is shutdown/DEFUNCT
   if (frame && frame->IsGeneratedContentFrame()) {
-    *aRole = nsIAccessibleRole::ROLE_STATICTEXT;
-    return NS_OK;
+    return nsIAccessibleRole::ROLE_STATICTEXT;
   }
 
-  return nsTextAccessible::GetRoleInternal(aRole);
+  return nsTextAccessible::NativeRole();
 }
 
 nsresult
@@ -103,9 +104,7 @@ nsHTMLTextAccessible::GetStateInternal(PRUint32 *aState, PRUint32 *aExtraState)
 nsresult
 nsHTMLTextAccessible::GetAttributesInternal(nsIPersistentProperties *aAttributes)
 {
-  PRUint32 role;
-  GetRoleInternal(&role);
-  if (role == nsIAccessibleRole::ROLE_STATICTEXT) {
+  if (NativeRole() == nsIAccessibleRole::ROLE_STATICTEXT) {
     nsAutoString oldValueUnused;
     aAttributes->SetStringProperty(NS_LITERAL_CSTRING("auto-generated"),
                                   NS_LITERAL_STRING("true"), oldValueUnused);
@@ -125,11 +124,10 @@ nsHTMLHRAccessible::
 {
 }
 
-nsresult
-nsHTMLHRAccessible::GetRoleInternal(PRUint32 *aRole)
+PRUint32
+nsHTMLHRAccessible::NativeRole()
 {
-  *aRole = nsIAccessibleRole::ROLE_SEPARATOR;
-  return NS_OK;
+  return nsIAccessibleRole::ROLE_SEPARATOR;
 }
 
 
@@ -143,11 +141,10 @@ nsHTMLBRAccessible::
 {
 }
 
-nsresult
-nsHTMLBRAccessible::GetRoleInternal(PRUint32 *aRole)
+PRUint32
+nsHTMLBRAccessible::NativeRole()
 {
-  *aRole = nsIAccessibleRole::ROLE_WHITESPACE;
-  return NS_OK;
+  return nsIAccessibleRole::ROLE_WHITESPACE;
 }
 
 nsresult
@@ -194,12 +191,61 @@ nsHTMLLabelAccessible::GetNameInternal(nsAString& aName)
   return nsTextEquivUtils::GetNameFromSubtree(this, aName);
 }
 
-nsresult
-nsHTMLLabelAccessible::GetRoleInternal(PRUint32 *aRole)
+PRUint32
+nsHTMLLabelAccessible::NativeRole()
 {
-  *aRole = nsIAccessibleRole::ROLE_LABEL;
+  return nsIAccessibleRole::ROLE_LABEL;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+// nsHTMLOuputAccessible
+////////////////////////////////////////////////////////////////////////////////
+
+nsHTMLOutputAccessible::
+  nsHTMLOutputAccessible(nsIContent* aContent, nsIWeakReference* aShell) :
+  nsHyperTextAccessibleWrap(aContent, aShell)
+{
+}
+
+NS_IMPL_ISUPPORTS_INHERITED0(nsHTMLOutputAccessible, nsHyperTextAccessible)
+
+NS_IMETHODIMP
+nsHTMLOutputAccessible::GetRelationByType(PRUint32 aRelationType,
+                                          nsIAccessibleRelation** aRelation)
+{
+  nsresult rv = nsAccessibleWrap::GetRelationByType(aRelationType, aRelation);
+  NS_ENSURE_SUCCESS(rv, rv);
+
+  if (rv != NS_OK_NO_RELATION_TARGET)
+    return NS_OK; // XXX bug 381599, avoid performance problems
+
+  if (aRelationType == nsIAccessibleRelation::RELATION_CONTROLLED_BY) {
+    return nsRelUtils::
+      AddTargetFromIDRefsAttr(aRelationType, aRelation, mContent,
+                              nsAccessibilityAtoms::_for);
+  }
+
   return NS_OK;
 }
+
+PRUint32
+nsHTMLOutputAccessible::NativeRole()
+{
+  return nsIAccessibleRole::ROLE_SECTION;
+}
+
+nsresult
+nsHTMLOutputAccessible::GetAttributesInternal(nsIPersistentProperties* aAttributes)
+{
+  nsresult rv = nsAccessibleWrap::GetAttributesInternal(aAttributes);
+  NS_ENSURE_SUCCESS(rv, rv);
+
+  nsAccUtils::SetAccAttr(aAttributes, nsAccessibilityAtoms::live,
+                         NS_LITERAL_STRING("polite"));
+  
+  return NS_OK;
+}
+
 
 ////////////////////////////////////////////////////////////////////////////////
 // nsHTMLLIAccessible
@@ -232,11 +278,10 @@ nsHTMLLIAccessible::Shutdown()
   mBulletAccessible = nsnull;
 }
 
-nsresult
-nsHTMLLIAccessible::GetRoleInternal(PRUint32 *aRole)
+PRUint32
+nsHTMLLIAccessible::NativeRole()
 {
-  *aRole = nsIAccessibleRole::ROLE_LISTITEM;
-  return NS_OK;
+  return nsIAccessibleRole::ROLE_LISTITEM;
 }
 
 nsresult
@@ -315,11 +360,10 @@ nsHTMLListBulletAccessible::GetName(nsAString &aName)
   return NS_OK;
 }
 
-nsresult
-nsHTMLListBulletAccessible::GetRoleInternal(PRUint32 *aRole)
+PRUint32
+nsHTMLListBulletAccessible::NativeRole()
 {
-  *aRole = nsIAccessibleRole::ROLE_STATICTEXT;
-  return NS_OK;
+  return nsIAccessibleRole::ROLE_STATICTEXT;
 }
 
 nsresult
@@ -357,11 +401,10 @@ nsHTMLListAccessible::
 
 NS_IMPL_ISUPPORTS_INHERITED0(nsHTMLListAccessible, nsHyperTextAccessible)
 
-nsresult
-nsHTMLListAccessible::GetRoleInternal(PRUint32 *aRole)
+PRUint32
+nsHTMLListAccessible::NativeRole()
 {
-  *aRole = nsIAccessibleRole::ROLE_LIST;
-  return NS_OK;
+  return nsIAccessibleRole::ROLE_LIST;
 }
 
 nsresult

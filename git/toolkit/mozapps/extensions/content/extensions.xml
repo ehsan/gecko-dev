@@ -443,20 +443,21 @@
       </field>
 
       <method name="setCreator">
-        <parameter name="aName"/>
-        <parameter name="aURL"/>
+        <parameter name="aCreator"/>
+        <parameter name="aHomepageURL"/>
         <body><![CDATA[
-          if (!aName) {
+          if (!aCreator) {
             this.collapsed = true;
             return;
           }
           this.collapsed = false;
-          var showLink = !!aURL;
+          var url = aCreator.url || aHomepageURL;
+          var showLink = !!url;
           if (showLink) {
-            this._creatorLink.value = aName;
-            this._creatorLink.href = aURL;
+            this._creatorLink.value = aCreator.name;
+            this._creatorLink.href = url;
           } else {
-            this._creatorName.value = aName;
+            this._creatorName.value = aCreator.name;
           }
           this._creatorLink.hidden = !showLink;
           this._creatorName.hidden = showLink;
@@ -736,8 +737,8 @@
                     label="&addon.restartNow.label;"
                     oncommand="document.getBindingParent(this).restart();"/>
         <xul:button anonid="undo" class="button-link"
-                    label="&addon.undo.label;"
-                    tooltipText="&addon.undo.tooltip;"
+                    label="&addon.undoAction.label;"
+                    tooltipText="&addon.undoAction.tooltip;"
                     oncommand="document.getBindingParent(this).undo();"/>
         <xul:spacer flex="5000"/> <!-- Necessary to allow the message to wrap -->
       </xul:hbox>
@@ -790,13 +791,20 @@
               <xul:image class="spinner"/>
               <xul:label value="&addon.checkingForUpdates.label;"/>
             </xul:hbox>
-            <xul:hbox anonid="update-available" hidden="true" align="center">
-              <xul:label value="An update is available"/>
-              <xul:button anonid="update-btn" class="addon-control"
-                          label="&addon.updateNow.label;"
-                          tooltiptext="&addon.updateNow.tooltip;"
-                          oncommand="document.getBindingParent(this).upgrade();"/>
-            </xul:hbox>
+            <xul:vbox anonid="update-available" class="update-available"
+                      hidden="true" align="end">
+              <xul:checkbox anonid="include-update" class="include-update"
+                            label="&addon.includeUpdate.label;" checked="true"
+                            oncommand="document.getBindingParent(this).onIncludeUpdateChanged();"/>
+              <xul:hbox align="center">
+                <xul:label class="update-available-notice"
+                           value="&addon.updateAvailable.label;"/>
+                <xul:button anonid="update-btn" class="addon-control"
+                            label="&addon.updateNow.label;"
+                            tooltiptext="&addon.updateNow.tooltip;"
+                            oncommand="document.getBindingParent(this).upgrade();"/>
+              </xul:hbox>
+            </xul:vbox>
             <xul:hbox anonid="install-status" class="install-status"
                       hidden="true"/>
           </xul:hbox>
@@ -816,11 +824,10 @@
             <xul:button anonid="disable-btn" class="addon-control disable"
                         label="&cmd.disableAddon.label;"
                         oncommand="document.getBindingParent(this).userDisabled = true;"/>
+            <xul:button anonid="remove-btn" class="addon-control remove"
+                        label="&cmd.uninstallAddon.label;"
+                        oncommand="document.getBindingParent(this).uninstall();"/>
           </xul:hbox>
-        </xul:vbox>
-        <xul:vbox pack="start" class="remove-container">
-          <xul:button anonid="remove-btn" class="remove-button"
-                      oncommand="document.getBindingParent(this).uninstall();"/>
         </xul:vbox>
       </xul:hbox>
     </content>
@@ -845,26 +852,29 @@
         else
           this._version.hidden = true;
 
-        var homepageURL = this.mAddon.homepageURL;
-        var creator = this.mAddon.creator;
-        var creatorURL = this.mAddon.creatorURL;
-        // XXxunf api
-        this._creator.setCreator(creator, homepageURL || creatorURL);
+        this._creator.setCreator(this.mAddon.creator);
 
         if (this.mAddon.description)
           this._description.value = this.mAddon.description;
         else
           this._description.hidden = true;
 
-        if (!this.mAddon.applyBackgroundUpdates) {
+        if (this.mAddon.applyBackgroundUpdates == AddonManager.AUTOUPDATE_DISABLE ||
+            (this.mAddon.applyBackgroundUpdates == AddonManager.AUTOUPDATE_DEFAULT &&
+             !AddonManager.autoUpdateDefault)) {
           var self = this;
           AddonManager.getAllInstalls(function(aInstallsList) {
+            // This can return after the binding has been destroyed,
+            // so try to detect that and return early
+            if (!("onNewInstall" in self))
+              return;
             for (let i = 0; i < aInstallsList.length; i++) {
               let install = aInstallsList[i];
               if (install.existingAddon &&
                   install.existingAddon.id == self.mAddon.id &&
                   install.state == AddonManager.STATE_AVAILABLE) {
                 self.onNewInstall(install);
+                self.onIncludeUpdateChanged();
               }
             }
           });
@@ -971,6 +981,10 @@
         document.getAnonymousElementByAttribute(this, "anonid",
                                                 "update-available");
       </field>
+      <field name="_includeUpdate">
+        document.getAnonymousElementByAttribute(this, "anonid",
+                                                "include-update");
+      </field>
       <field name="_relNotesLoaded">false</field>
       <field name="_relNotesToggle">
         document.getAnonymousElementByAttribute(this, "anonid",
@@ -999,6 +1013,17 @@
         ]]></getter>
         <setter><![CDATA[
           this.mAddon.userDisabled = val;
+        ]]></setter>
+      </property>
+
+      <property name="includeUpdate">
+        <getter><![CDATA[
+          return this._includeUpdate.checked && !!this.mManualUpdate;
+        ]]></getter>
+        <setter><![CDATA[
+          //XXXunf Eventually, we'll want to persist this for individual
+          //       updates - see bug 594619.
+          this._includeUpdate.checked = !!val;
         ]]></setter>
       </property>
 
@@ -1083,6 +1108,15 @@
               );
               this._warningLink.value = gStrings.ext.GetStringFromName("notification.softblocked.link");
               this._warningLink.href = Services.urlFormatter.formatURLPref("extensions.blocklist.detailsURL");
+              this._warningLink.hidden = false;
+            } else if (this.mAddon.blocklistState == Ci.nsIBlocklistService.STATE_OUTDATED) {
+              this.setAttribute("notification", "warning");
+              this._warning.textContent = gStrings.ext.formatStringFromName(
+                "notification.outdated",
+                [this.mAddon.name], 1
+              );
+              this._warningLink.value = gStrings.ext.GetStringFromName("notification.outdated.link");
+              this._warningLink.href = Services.urlFormatter.formatURLPref("plugins.update.url");
               this._warningLink.hidden = false;
             } else {
               this.removeAttribute("notification");
@@ -1256,19 +1290,7 @@
 
       <method name="undo">
         <body><![CDATA[
-        if (this.isPending("install")) {
-          this.mInstall.cancel();
-          this.parentNode.removeChild(this);
-        } else if (this.isPending("enable")) {
-          this.userDisabled = true;
-        } else if (this.isPending("disable")) {
-          this.userDisabled = false;
-        } else if (this.isPending("uninstall")) {
-          this.mAddon.cancelUninstall();
-        } else if (this.isPending("upgrade")) {
-          this.mAddon.pendingUpgrade.install.cancel();
-          this._updateState();
-        }
+          gViewController.commands["cmd_cancelOperation"].doCommand(this.mAddon);
         ]]></body>
       </method>
 
@@ -1310,6 +1332,14 @@
         <body><![CDATA[
           gViewController.loadView("addons://detail/" +
                                    encodeURIComponent(this.mAddon.id));
+        ]]></body>
+      </method>
+
+      <method name="onIncludeUpdateChanged">
+        <body><![CDATA[
+          var event = document.createEvent("Events");
+          event.initEvent("IncludeUpdateChanged", true, true);
+          this.dispatchEvent(event);
         ]]></body>
       </method>
 
@@ -1372,11 +1402,15 @@
       <method name="onNewInstall">
         <parameter name="aInstall"/>
         <body><![CDATA[
-          if (!this.mAddon.applyBackgroundUpdates) {
-            this.mManualUpdate = aInstall;
-            this._showStatus("update-available");
-            this._updateUpgradeInfo();
-          }
+          if (this.mAddon.applyBackgroundUpdates == AddonManager.AUTOUPDATE_ENABLE)
+            return;
+          if (this.mAddon.applyBackgroundUpdates == AddonManager.AUTOUPDATE_DEFAULT &&
+              AddonManager.autoUpdateDefault)
+            return;
+
+          this.mManualUpdate = aInstall;
+          this._showStatus("update-available");
+          this._updateUpgradeInfo();
         ]]></body>
       </method>
 
@@ -1423,8 +1457,8 @@
                     label="&addon.restartNow.label;"
                     command="cmd_restartApp"/>
         <xul:button anonid="undo-btn" class="button-link"
-                    label="&addon.undoUninstall.label;"
-                    tooltiptext="&addon.undoUninstall.tooltip;"
+                    label="&addon.undoRemove.label;"
+                    tooltiptext="&addon.undoRemove.tooltip;"
                     oncommand="document.getBindingParent(this).cancelUninstall();"/>
         <xul:spacer flex="5000"/> <!-- Necessary to allow the message to wrap -->
       </xul:hbox>
@@ -1542,6 +1576,27 @@
           }
         ]]></body>
       </method>
+    </implementation>
+  </binding>
+
+  <binding id="detail-row">
+    <content>
+      <xul:label class="detail-row-label" xbl:inherits="value=label"/>
+      <xul:label class="detail-row-value" xbl:inherits="value"/>
+    </content>
+
+    <implementation>
+      <property name="value">
+        <getter><![CDATA[
+          return this.getAttribute("value");
+        ]]></getter>
+        <setter><![CDATA[
+          if (!val)
+            this.removeAttribute("value");
+          else
+            this.setAttribute("value", val);
+        ]]></setter>
+      </property>
     </implementation>
   </binding>
 

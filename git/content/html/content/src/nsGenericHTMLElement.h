@@ -508,6 +508,26 @@ public:
    */
   NS_HIDDEN_(nsresult) GetURIAttr(nsIAtom* aAttr, nsIAtom* aBaseAttr, nsAString& aResult);
 
+  /**
+   * Helper method for NS_IMPL_ENUM_ATTR_DEFAULT_VALUE.
+   * Gets the enum value string of an attribute and using a default value if
+   * the attribute is missing or the string is an invalid enum value.
+   *
+   * @param aType     the name of the attribute.
+   * @param aDefault  the default value if the attribute is missing or invalid.
+   * @param aResult   string corresponding to the value [out].
+   */
+  NS_HIDDEN_(nsresult) GetEnumAttr(nsIAtom* aAttr,
+                                   const char* aDefault,
+                                   nsAString& aResult);
+
+  /**
+   * Returns the current disabled state of the element.
+   */
+  virtual bool IsDisabled() const {
+    return HasAttr(kNameSpaceID_None, nsGkAtoms::disabled);
+  }
+
 protected:
   /**
    * Add/remove this element to the documents name cache
@@ -695,19 +715,6 @@ protected:
   NS_HIDDEN_(nsresult) GetURIListAttr(nsIAtom* aAttr, nsAString& aResult);
 
   /**
-   * Helper method for NS_IMPL_ENUM_ATTR_DEFAULT_VALUE.
-   * Gets the enum value string of an attribute and using a default value if
-   * the attribute is missing or the string is an invalid enum value.
-   *
-   * @param aType     the name of the attribute.
-   * @param aDefault  the default value if the attribute is missing or invalid.
-   * @param aResult   string corresponding to the value [out].
-   */
-  NS_HIDDEN_(nsresult) GetEnumAttr(nsIAtom* aAttr,
-                                   const char* aDefault,
-                                   nsAString& aResult);
-
-  /**
    * Locates the nsIEditor associated with this node.  In general this is
    * equivalent to GetEditorInternal(), but for designmode or contenteditable,
    * this may need to get an editor that's not actually on this element's
@@ -843,6 +850,30 @@ public:
 
   virtual nsresult PreHandleEvent(nsEventChainPreVisitor& aVisitor);
 
+  virtual bool IsDisabled() const {
+    return HasAttr(kNameSpaceID_None, nsGkAtoms::disabled) ||
+           (mFieldSet && mFieldSet->IsDisabled());
+  }
+
+  /**
+   * This callback is called by a fieldest on all it's elements whenever it's
+   * disabled attribute is changed so the element knows it's disabled state
+   * might have changed.
+   *
+   * @param aStates States for which a change should be notified.
+   * @note Classes redefining this method should not call ContentStatesChanged
+   * but they should pass aStates instead.
+   */
+  virtual void FieldSetDisabledChanged(PRInt32 aStates);
+
+  void FieldSetFirstLegendChanged() {
+    UpdateFieldSet();
+
+    // The disabled state may have change because the element might not be in
+    // the first legend anymore.
+    FieldSetDisabledChanged(0);
+  }
+
   /**
    * Returns if the control can be disabled.
    */
@@ -881,6 +912,11 @@ protected:
   void UpdateFormOwner(bool aBindToTree, Element* aFormIdElement);
 
   /**
+   * This method will update mFieldset and set it to the first fieldset parent.
+   */
+  void UpdateFieldSet();
+
+  /**
    * Add a form id observer which will observe when the element with the id in
    * @form will change.
    *
@@ -916,6 +952,9 @@ protected:
 
   /** The form that contains this control */
   nsHTMLFormElement* mForm;
+
+  /* This is a pointer to our closest fieldset parent if any */
+  nsGenericHTMLFormElement* mFieldSet;
 };
 
 // If this flag is set on an nsGenericHTMLFormElement, that means that we have
@@ -1315,6 +1354,18 @@ NS_NewHTML##_elementName##Element(already_AddRefed<nsINodeInfo> aNodeInfo,   \
     NS_INTERFACE_TABLE_ENTRY(_class, _i6)                                     \
   NS_OFFSET_AND_INTERFACE_TABLE_END
 
+#define NS_HTML_CONTENT_INTERFACE_TABLE7(_class, _i1, _i2, _i3, _i4, _i5,     \
+                                         _i6, _i7)                            \
+  NS_HTML_CONTENT_INTERFACE_TABLE_BEGIN(_class)                               \
+    NS_INTERFACE_TABLE_ENTRY(_class, _i1)                                     \
+    NS_INTERFACE_TABLE_ENTRY(_class, _i2)                                     \
+    NS_INTERFACE_TABLE_ENTRY(_class, _i3)                                     \
+    NS_INTERFACE_TABLE_ENTRY(_class, _i4)                                     \
+    NS_INTERFACE_TABLE_ENTRY(_class, _i5)                                     \
+    NS_INTERFACE_TABLE_ENTRY(_class, _i6)                                     \
+    NS_INTERFACE_TABLE_ENTRY(_class, _i7)                                     \
+  NS_OFFSET_AND_INTERFACE_TABLE_END
+
 #define NS_HTML_CONTENT_INTERFACE_TABLE8(_class, _i1, _i2, _i3, _i4, _i5,     \
                                          _i6, _i7, _i8)                       \
   NS_HTML_CONTENT_INTERFACE_TABLE_BEGIN(_class)                               \
@@ -1393,6 +1444,7 @@ NS_DECLARE_NS_NEW_HTML_ELEMENT(Body)
 NS_DECLARE_NS_NEW_HTML_ELEMENT(Button)
 NS_DECLARE_NS_NEW_HTML_ELEMENT(Canvas)
 NS_DECLARE_NS_NEW_HTML_ELEMENT(Mod)
+NS_DECLARE_NS_NEW_HTML_ELEMENT(DataList)
 NS_DECLARE_NS_NEW_HTML_ELEMENT(Div)
 NS_DECLARE_NS_NEW_HTML_ELEMENT(FieldSet)
 NS_DECLARE_NS_NEW_HTML_ELEMENT(Font)

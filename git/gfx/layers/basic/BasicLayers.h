@@ -118,6 +118,21 @@ public:
   void SetDefaultTarget(gfxContext* aContext, BufferMode aDoubleBuffering);
   gfxContext* GetDefaultTarget() { return mDefaultTarget; }
 
+  /**
+   * Set a target resolution for managed layers that are scalable.  It
+   * might make sense to call this outside of a transaction, but
+   * currently it's only allowed during the construction phase of
+   * transactions.
+   */
+  void SetResolution(float aXResolution, float aYResolution)
+  {
+    NS_ASSERTION(InConstruction(), "resolution must be set before drawing");
+    mXResolution = aXResolution;
+    mYResolution = aYResolution;
+  }
+  float XResolution() const { return mXResolution; }
+  float YResolution() const { return mYResolution; }
+
   nsIWidget* GetRetainerWidget() { return mWidget; }
   void ClearRetainerWidget() { mWidget = nsnull; }
 
@@ -142,6 +157,7 @@ public:
   { return NULL; }
 
   virtual LayersBackend GetBackendType() { return LAYERS_BASIC; }
+  virtual void GetBackendName(nsAString& name) { name.AssignLiteral("Basic"); }
 
 #ifdef DEBUG
   PRBool InConstruction() { return mPhase == PHASE_CONSTRUCTION; }
@@ -182,6 +198,10 @@ private:
                                                           gfxPoint *aSavedOffset);
   void PopGroupWithCachedSurface(gfxContext *aTarget,
                                  const gfxPoint& aSavedOffset);
+
+  // Target resolution for scalable content.
+  float mXResolution;
+  float mYResolution;
 
   // Widget whose surface should be used as the basis for ThebesLayer
   // buffers.
@@ -226,9 +246,14 @@ public:
   virtual already_AddRefed<ShadowImageLayer> CreateShadowImageLayer();
   virtual already_AddRefed<ShadowCanvasLayer> CreateShadowCanvasLayer();
 
-  virtual const char* Name() const { return "BasicShadowLayerManager"; }
-
   ShadowableLayer* Hold(Layer* aLayer);
+
+  PLayersChild* GetShadowManager() const { return mShadowManager; }
+
+  void SetShadowManager(PLayersChild* aShadowManager)
+  {
+    mShadowManager = aShadowManager;
+  }
 
 private:
   LayerRefArray mKeepAlive;

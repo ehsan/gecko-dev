@@ -94,6 +94,8 @@ class nsHTMLTextAreaElement : public nsGenericHTMLFormElement,
                               public nsIConstraintValidation
 {
 public:
+  using nsIConstraintValidation::GetValidationMessage;
+
   nsHTMLTextAreaElement(already_AddRefed<nsINodeInfo> aNodeInfo,
                         PRUint32 aFromParser = 0);
 
@@ -129,6 +131,8 @@ public:
   NS_IMETHOD SaveState();
   virtual PRBool RestoreState(nsPresState* aState);
 
+  virtual void FieldSetDisabledChanged(PRInt32 aStates);
+
   virtual PRInt32 IntrinsicState() const;
 
   // nsITextControlElemet
@@ -158,6 +162,11 @@ public:
   NS_IMETHOD_(void) OnValueChanged(PRBool aNotify);
 
   // nsIContent
+  virtual nsresult BindToTree(nsIDocument* aDocument, nsIContent* aParent,
+                               nsIContent* aBindingParent,
+                               PRBool aCompileEventHandlers);
+  virtual void UnbindFromTree(PRBool aDeep = PR_TRUE,
+                              PRBool aNullParent = PR_TRUE);
   virtual PRBool ParseAttribute(PRInt32 aNamespaceID,
                                 nsIAtom* aAttribute,
                                 const nsAString& aValue,
@@ -206,7 +215,7 @@ public:
   PRBool   IsValueMissing() const;
   void     UpdateTooLongValidityState();
   void     UpdateValueMissingValidityState();
-  PRBool   IsBarredFromConstraintValidation() const;
+  void     UpdateBarredFromConstraintValidation();
   nsresult GetValidationMessage(nsAString& aValidationMessage,
                                 ValidityStateType aType);
 
@@ -409,7 +418,7 @@ nsHTMLTextAreaElement::IsHTMLFocusable(PRBool aWithMouse,
   }
 
   // disabled textareas are not focusable
-  *aIsFocusable = !HasAttr(kNameSpaceID_None, nsGkAtoms::disabled);
+  *aIsFocusable = !IsDisabled();
   return PR_FALSE;
 }
 
@@ -641,10 +650,8 @@ nsHTMLTextAreaElement::PreHandleEvent(nsEventChainPreVisitor& aVisitor)
 {
   // Do not process any DOM events if the element is disabled
   aVisitor.mCanHandle = PR_FALSE;
-  PRBool disabled;
-  nsresult rv = GetDisabled(&disabled);
-  if (NS_FAILED(rv) || disabled) {
-    return rv;
+  if (IsDisabled()) {
+    return NS_OK;
   }
 
   nsIFormControlFrame* formControlFrame = GetFormControlFrame(PR_FALSE);
@@ -884,13 +891,9 @@ nsHTMLTextAreaElement::SubmitNamesValues(nsFormSubmission* aFormSubmission)
 {
   nsresult rv = NS_OK;
 
-  //
   // Disabled elements don't submit
-  //
-  PRBool disabled;
-  rv = GetDisabled(&disabled);
-  if (NS_FAILED(rv) || disabled) {
-    return rv;
+  if (IsDisabled()) {
+    return NS_OK;
   }
 
   //
@@ -949,9 +952,9 @@ nsHTMLTextAreaElement::SaveState()
       rv = GetPrimaryPresState(this, &state);
     }
     if (state) {
-      PRBool disabled;
-      GetDisabled(&disabled);
-      state->SetDisabled(disabled);
+      // We do not want to save the real disabled state but the disabled
+      // attribute.
+      state->SetDisabled(HasAttr(kNameSpaceID_None, nsGkAtoms::disabled));
     }
   }
   return rv;
@@ -1001,6 +1004,34 @@ nsHTMLTextAreaElement::IntrinsicState() const
   }
 
   return state;
+}
+
+nsresult
+nsHTMLTextAreaElement::BindToTree(nsIDocument* aDocument, nsIContent* aParent,
+                                  nsIContent* aBindingParent,
+                                  PRBool aCompileEventHandlers)
+{
+  nsresult rv = nsGenericHTMLFormElement::BindToTree(aDocument, aParent,
+                                                     aBindingParent,
+                                                     aCompileEventHandlers);
+  NS_ENSURE_SUCCESS(rv, rv);
+
+  // If there is a disabled fieldset in the parent chain, the element is now
+  // barred from constraint validation and can't suffer from value missing.
+  UpdateValueMissingValidityState();
+  UpdateBarredFromConstraintValidation();
+
+  return rv;
+}
+
+void
+nsHTMLTextAreaElement::UnbindFromTree(PRBool aDeep, PRBool aNullParent)
+{
+  nsGenericHTMLFormElement::UnbindFromTree(aDeep, aNullParent);
+
+  // We might be no longer disabled because of parent chain changed.
+  UpdateValueMissingValidityState();
+  UpdateBarredFromConstraintValidation();
 }
 
 nsresult
@@ -1074,7 +1105,14 @@ nsHTMLTextAreaElement::AfterSetAttr(PRInt32 aNameSpaceID, nsIAtom* aName,
     if (aName == nsGkAtoms::required || aName == nsGkAtoms::disabled ||
         aName == nsGkAtoms::readonly) {
       UpdateValueMissingValidityState();
-      states |= NS_EVENT_STATE_VALID | NS_EVENT_STATE_INVALID;
+
+      // This *has* to be called *after* validity has changed.
+      if (aName == nsGkAtoms::readonly || aName == nsGkAtoms::disabled) {
+        UpdateBarredFromConstraintValidation();
+      }
+
+      states |= NS_EVENT_STATE_VALID | NS_EVENT_STATE_INVALID |
+                NS_EVENT_STATE_MOZ_SUBMITINVALID;
     } else if (aName == nsGkAtoms::maxlength) {
       UpdateTooLongValidityState();
       states |= NS_EVENT_STATE_VALID | NS_EVENT_STATE_INVALID;
@@ -1082,7 +1120,6 @@ nsHTMLTextAreaElement::AfterSetAttr(PRInt32 aNameSpaceID, nsIAtom* aName,
 
     if (aNotify) {
       nsIDocument* doc = GetCurrentDoc();
-      MOZ_AUTO_DOC_UPDATE(doc, UPDATE_CONTENT_STATE, PR_TRUE);
 
       if (aName == nsGkAtoms::readonly) {
         UpdateEditableState();
@@ -1090,6 +1127,7 @@ nsHTMLTextAreaElement::AfterSetAttr(PRInt32 aNameSpaceID, nsIAtom* aName,
       }
 
       if (doc && states) {
+        MOZ_AUTO_DOC_UPDATE(doc, UPDATE_CONTENT_STATE, PR_TRUE);
         doc->ContentStatesChanged(this, nsnull, states);
       }
     }
@@ -1116,8 +1154,7 @@ nsHTMLTextAreaElement::CopyInnerTo(nsGenericElement* aDest) const
 PRBool
 nsHTMLTextAreaElement::IsMutable() const
 {
-  return (!HasAttr(kNameSpaceID_None, nsGkAtoms::readonly) &&
-          !HasAttr(kNameSpaceID_None, nsGkAtoms::disabled));
+  return (!HasAttr(kNameSpaceID_None, nsGkAtoms::readonly) && !IsDisabled());
 }
 
 // nsIConstraintValidation
@@ -1129,6 +1166,7 @@ nsHTMLTextAreaElement::SetCustomValidity(const nsAString& aError)
 
   nsIDocument* doc = GetCurrentDoc();
   if (doc) {
+    MOZ_AUTO_DOC_UPDATE(doc, UPDATE_CONTENT_STATE, PR_TRUE);
     doc->ContentStatesChanged(this, nsnull, NS_EVENT_STATE_INVALID |
                                             NS_EVENT_STATE_VALID);
   }
@@ -1177,10 +1215,12 @@ nsHTMLTextAreaElement::UpdateValueMissingValidityState()
   SetValidityState(VALIDITY_STATE_VALUE_MISSING, IsValueMissing());
 }
 
-PRBool
-nsHTMLTextAreaElement::IsBarredFromConstraintValidation() const
+void
+nsHTMLTextAreaElement::UpdateBarredFromConstraintValidation()
 {
-  return HasAttr(kNameSpaceID_None, nsGkAtoms::readonly);
+  SetBarredFromConstraintValidation(HasAttr(kNameSpaceID_None,
+                                            nsGkAtoms::readonly) ||
+                                    IsDisabled());
 }
 
 nsresult
@@ -1205,9 +1245,9 @@ nsHTMLTextAreaElement::GetValidationMessage(nsAString& aValidationMessage,
         strMaxLength.AppendInt(maxLength);
         strTextLength.AppendInt(textLength);
 
-        const PRUnichar* params[] = { strTextLength.get(), strMaxLength.get() };
+        const PRUnichar* params[] = { strMaxLength.get(), strTextLength.get() };
         rv = nsContentUtils::FormatLocalizedString(nsContentUtils::eDOM_PROPERTIES,
-                                                   "ElementSuffersFromBeingTooLong",
+                                                   "FormValidationTextTooLong",
                                                    params, 2, message);
         aValidationMessage = message;
       }
@@ -1216,7 +1256,7 @@ nsHTMLTextAreaElement::GetValidationMessage(nsAString& aValidationMessage,
       {
         nsXPIDLString message;
         rv = nsContentUtils::GetLocalizedString(nsContentUtils::eDOM_PROPERTIES,
-                                                "TextElementSuffersFromBeingMissing",
+                                                "FormValidationValueMissing",
                                                 message);
         aValidationMessage = message;
       }
@@ -1347,5 +1387,15 @@ nsHTMLTextAreaElement::OnValueChanged(PRBool aNotify)
                                               NS_EVENT_STATE_MOZ_PLACEHOLDER);
     }
   }
+}
+
+void
+nsHTMLTextAreaElement::FieldSetDisabledChanged(PRInt32 aStates)
+{
+  UpdateValueMissingValidityState();
+  UpdateBarredFromConstraintValidation();
+
+  aStates |= NS_EVENT_STATE_VALID | NS_EVENT_STATE_INVALID;
+  nsGenericHTMLFormElement::FieldSetDisabledChanged(aStates);
 }
 

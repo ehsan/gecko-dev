@@ -121,10 +121,7 @@ public:
 
     ~GLContextCGL()
     {
-        if (mOffscreenFBO) {
-            MakeCurrent();
-            DeleteOffscreenFBO();
-        }
+        MarkDestroyed();
 
         if (mContext)
             [mContext release];
@@ -154,7 +151,7 @@ public:
         }
     }
 
-    PRBool MakeCurrent()
+    PRBool MakeCurrent(PRBool aForce = PR_FALSE)
     {
         if (mContext) {
             [mContext makeCurrentContext];
@@ -278,7 +275,7 @@ protected:
     CreateUpdateSurface(const gfxIntSize& aSize, ImageFormat aFmt)
     {
         mUpdateFormat = aFmt;
-        return gfxPlatform::GetPlatform()->CreateOffscreenSurface(aSize, aFmt);
+        return gfxPlatform::GetPlatform()->CreateOffscreenSurface(aSize, gfxASurface::ContentFromFormat(aFmt));
     }
 
     virtual already_AddRefed<gfxImageSurface>
@@ -345,7 +342,11 @@ GLContextProviderCGL::CreateForWindow(nsIWidget *aWidget)
     NSView *childView = (NSView *)aWidget->GetNativeData(NS_NATIVE_WIDGET);
     [context setView:childView];
 
-    nsRefPtr<GLContextCGL> glContext = new GLContextCGL(ContextFormat(ContextFormat::BasicRGB24),
+    // make the context transparent
+    GLint opaque = 0;
+    [context setValues:&opaque forParameter:NSOpenGLCPSurfaceOpacity];
+
+    nsRefPtr<GLContextCGL> glContext = new GLContextCGL(ContextFormat(ContextFormat::BasicRGBA32),
                                                         shareContext,
                                                         context);
     if (!glContext->Init()) {
@@ -515,7 +516,7 @@ GLContextProviderCGL::GetGlobalContext()
         gGlobalContext = CreateOffscreenFBOContext(gfxIntSize(16, 16),
                                                    ContextFormat(ContextFormat::BasicRGB24),
                                                    PR_FALSE);
-        if (gGlobalContext && !static_cast<GLContextCGL*>(gGlobalContext.get())->Init()) {
+        if (!gGlobalContext || !static_cast<GLContextCGL*>(gGlobalContext.get())->Init()) {
             NS_WARNING("Couldn't init gGlobalContext.");
             gGlobalContext = nsnull;
             return nsnull; 
@@ -530,6 +531,7 @@ GLContextProviderCGL::GetGlobalContext()
 void
 GLContextProviderCGL::Shutdown()
 {
+  gGlobalContext = nsnull;
 }
 
 } /* namespace gl */

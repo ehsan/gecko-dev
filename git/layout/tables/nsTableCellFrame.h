@@ -157,7 +157,16 @@ public:
 
   void VerticallyAlignChild(nscoord aMaxAscent);
 
-  PRBool HasVerticalAlignBaseline();
+  /*
+   * Get the value of vertical-align adjusted for CSS 2's rules for a
+   * table cell, which means the result is always
+   * NS_STYLE_VERTICAL_ALIGN_{TOP,MIDDLE,BOTTOM,BASELINE}.
+   */
+  PRUint8 GetVerticalAlign() const;
+
+  PRBool HasVerticalAlignBaseline() const {
+    return GetVerticalAlign() == NS_STYLE_VERTICAL_ALIGN_BASELINE;
+  }
 
   PRBool CellHasVisibleContent(nscoord       height,
                                nsTableFrame* tableFrame,
@@ -313,6 +322,7 @@ public:
   virtual nsIAtom* GetType() const;
 
   virtual nsMargin GetUsedBorder() const;
+  virtual PRBool GetBorderRadii(nscoord aRadii[8]) const;
 
   // Get the *inner half of the border only*, in twips.
   virtual nsMargin* GetBorderWidth(nsMargin& aBorder) const;

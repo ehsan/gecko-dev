@@ -87,6 +87,12 @@ var gTestFiles = [
 }];
 
 function run_test() {
+  var isOSX = ("nsILocalFileMac" in Components.interfaces);
+  if (isOSX) {
+    dump("INFO | test_0110_general.js | Skipping test on mac, bug 599477")
+    return;
+  }
+
   var testFile;
   // The directory the updates will be applied to is the current working
   // directory and not dist/bin.
@@ -151,7 +157,7 @@ function run_test() {
   }
 
   // Use a directory outside of dist/bin to lessen the garbage in dist/bin
-  var updatesDir = do_get_file("0110_complete_mar", true);
+  var updatesDir = do_get_file("0110_mar", true);
   try {
     // Mac OS X intermittently fails when removing the dir where the updater
     // binary was launched.
@@ -212,6 +218,13 @@ function run_test() {
     else {
       do_check_false(testFile.exists());
     }
+  }
+
+  dump("Testing: patch files should not be left behind\n");
+  var entries = updatesDir.QueryInterface(AUS_Ci.nsIFile).directoryEntries;
+  while (entries.hasMoreElements()) {
+    var entry = entries.getNext().QueryInterface(AUS_Ci.nsIFile);
+    do_check_neq(getFileExtension(entry), "patch");
   }
 
   cleanUp();

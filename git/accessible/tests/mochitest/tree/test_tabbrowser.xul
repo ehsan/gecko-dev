@@ -4,7 +4,7 @@
 <!-- Firefox tabbrowser -->
 <?xml-stylesheet href="chrome://browser/content/browser.css"
                  type="text/css"?>
-<!-- Seamonkey tabbrowser -->
+<!-- SeaMonkey tabbrowser -->
 <?xml-stylesheet href="chrome://navigator/content/navigator.css"
                  type="text/css"?>
 
@@ -20,9 +20,9 @@
           src="chrome://mochikit/content/tests/SimpleTest/SimpleTest.js" />
 
   <script type="application/javascript"
-          src="chrome://mochikit/content/a11y/accessible/common.js" />
+          src="../common.js" />
   <script type="application/javascript"
-          src="chrome://mochikit/content/a11y/accessible/role.js" />
+          src="../role.js" />
 
   <script type="application/javascript">
   <![CDATA[

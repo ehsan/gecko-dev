@@ -147,9 +147,9 @@ endif
 ifdef ENABLE_TESTS
 
 ifdef XPCSHELL_TESTS
-#ifndef MODULE
-#$(error Must define MODULE when defining XPCSHELL_TESTS.)
-#endif
+ifndef relativesrcdir
+$(error Must define relativesrcdir when defining XPCSHELL_TESTS.)
+endif
 
 testxpcobjdir = $(DEPTH)/_tests/xpcshell
 
@@ -975,11 +975,11 @@ ifneq (,$(SHARED_LIBRARY)$(PROGRAM))
 export::
 ifdef PROGRAM
 	$(PYTHON) $(topsrcdir)/build/win32/pgomerge.py \
-	  $(PROGRAM:$(BIN_SUFFIX)=) $(DIST)/bin
+	  $(PROGRAM:$(BIN_SUFFIX)=) $(DIST)/$(MOZ_APP_NAME)
 endif
 ifdef SHARED_LIBRARY
 	$(PYTHON) $(topsrcdir)/build/win32/pgomerge.py \
-	  $(SHARED_LIBRARY_NAME) $(DIST)/bin
+	  $(SHARED_LIBRARY_NAME) $(DIST)/$(MOZ_APP_NAME)
 endif
 endif # SHARED_LIBRARY || PROGRAM
 endif # WINNT_
@@ -1874,7 +1874,7 @@ endif # MOZ_JAVAXPCOM
 ifneq (,$(filter %.js,$(EXTRA_COMPONENTS) $(EXTRA_PP_COMPONENTS)))
 ifeq (,$(filter %.manifest,$(EXTRA_COMPONENTS) $(EXTRA_PP_COMPONENTS)))
 ifndef NO_JS_MANIFEST
-$(error .js component without matching .manifest)
+$(error .js component without matching .manifest. See https://developer.mozilla.org/en/XPCOM/XPCOM_changes_in_Gecko_2.0)
 endif
 endif
 endif
@@ -2357,5 +2357,5 @@ CHECK_FROZEN_VARIABLES = $(foreach var,$(FREEZE_VARIABLES), \
 libs export libs::
 	$(CHECK_FROZEN_VARIABLES)
 
-default::
+default all::
 	if test -d $(DIST)/bin ; then touch $(DIST)/bin/.purgecaches ; fi

@@ -38,6 +38,7 @@
  * ***** END LICENSE BLOCK ***** */
 
 #ifdef MOZ_IPC
+#include "mozilla/dom/ContentChild.h"
 #include "nsXULAppAPI.h"
 #endif
 
@@ -48,8 +49,11 @@
 #include "nsCategoryManagerUtils.h"
 #include "nsNetUtil.h"
 #include "nsIFile.h"
+#include "nsIInputStream.h"
 #include "nsILocalFile.h"
 #include "nsIObserverService.h"
+#include "nsIStringEnumerator.h"
+#include "nsIZipReader.h"
 #include "nsPrefBranch.h"
 #include "nsXPIDLString.h"
 #include "nsCRT.h"
@@ -74,6 +78,7 @@
 
 // Definitions
 #define INITIAL_PREF_FILES 10
+static NS_DEFINE_CID(kZipReaderCID, NS_ZIPREADER_CID);
 
 // Prototypes
 static nsresult openPrefFile(nsIFile* aFile);
@@ -106,6 +111,7 @@ NS_IMPL_THREADSAFE_RELEASE(nsPrefService)
 NS_INTERFACE_MAP_BEGIN(nsPrefService)
     NS_INTERFACE_MAP_ENTRY_AMBIGUOUS(nsISupports, nsIPrefService)
     NS_INTERFACE_MAP_ENTRY(nsIPrefService)
+    NS_INTERFACE_MAP_ENTRY(nsIPrefServiceInternal)
     NS_INTERFACE_MAP_ENTRY(nsIObserver)
     NS_INTERFACE_MAP_ENTRY(nsIPrefBranch)
     NS_INTERFACE_MAP_ENTRY(nsIPrefBranch2)
@@ -126,14 +132,6 @@ nsresult nsPrefService::Init()
 
   mRootBranch = (nsIPrefBranch2 *)rootBranch;
 
-#ifdef MOZ_IPC
-  if (XRE_GetProcessType() == GeckoProcessType_Content) {
-    // We're done. Let the prefbranch remote requests.
-    return NS_OK;
-  }
-#endif
-
-  nsXPIDLCString lockFileName;
   nsresult rv;
 
   rv = PREF_Init();
@@ -142,6 +140,19 @@ nsresult nsPrefService::Init()
   rv = pref_InitInitialObjects();
   NS_ENSURE_SUCCESS(rv, rv);
 
+#ifdef MOZ_IPC
+  using mozilla::dom::ContentChild;
+  if (XRE_GetProcessType() == GeckoProcessType_Content) {
+
+    ContentChild* cpc = ContentChild::GetSingleton();
+    nsCAutoString prefs;
+    cpc->SendReadPrefs(&prefs);
+
+    return ReadPrefBuffer(prefs);
+  }
+#endif
+
+  nsXPIDLCString lockFileName;
   /*
    * The following is a small hack which will allow us to only load the library
    * which supports the netscape.cfg file if the preference is defined. We
@@ -173,6 +184,11 @@ nsresult nsPrefService::Init()
 
 NS_IMETHODIMP nsPrefService::Observe(nsISupports *aSubject, const char *aTopic, const PRUnichar *someData)
 {
+#ifdef MOZ_IPC
+  if (XRE_GetProcessType() == GeckoProcessType_Content)
+    return NS_ERROR_NOT_AVAILABLE;
+#endif
+
   nsresult rv = NS_OK;
 
   if (!nsCRT::strcmp(aTopic, "profile-before-change")) {
@@ -261,6 +277,109 @@ NS_IMETHODIMP nsPrefService::SavePrefFile(nsIFile *aFile)
 #endif
 
   return SavePrefFileInternal(aFile);
+}
+
+/* part of nsIPrefServiceInternal */
+NS_IMETHODIMP nsPrefService::ReadExtensionPrefs(nsILocalFile *aFile)
+{
+  nsresult rv;
+  nsCOMPtr<nsIZipReader> reader = do_CreateInstance(kZipReaderCID, &rv);
+  NS_ENSURE_SUCCESS(rv, rv);
+
+  rv = reader->Open(aFile);
+  NS_ENSURE_SUCCESS(rv, rv);
+
+  nsCOMPtr<nsIUTF8StringEnumerator> files;
+  rv = reader->FindEntries("defaults/preferences/*.(J|j)(S|s)$",
+                           getter_AddRefs(files));
+  NS_ENSURE_SUCCESS(rv, rv);
+
+  char buffer[4096];
+
+  PRBool more;
+  while (NS_SUCCEEDED(rv = files->HasMore(&more)) && more) {
+    nsCAutoString entry;
+    rv = files->GetNext(entry);
+    NS_ENSURE_SUCCESS(rv, rv);
+
+    nsCOMPtr<nsIInputStream> stream;
+    rv = reader->GetInputStream(entry.get(), getter_AddRefs(stream));
+    NS_ENSURE_SUCCESS(rv, rv);
+
+    PRUint32 avail, read;
+
+    PrefParseState ps;
+    PREF_InitParseState(&ps, PREF_ReaderCallback, NULL);
+    while (NS_SUCCEEDED(rv = stream->Available(&avail)) && avail) {
+      rv = stream->Read(buffer, 4096, &read);
+      if (NS_FAILED(rv)) {
+        NS_WARNING("Pref stream read failed");
+        break;
+      }
+
+      rv = PREF_ParseBuf(&ps, buffer, read);
+      if (NS_FAILED(rv)) {
+        NS_WARNING("Pref stream parse failed");
+        break;
+      }
+    }
+    PREF_FinalizeParseState(&ps);
+  }
+  return rv;
+}
+
+NS_IMETHODIMP nsPrefService::SerializePreferences(nsACString& prefs)
+{
+  char** valueArray = (char **)PR_Calloc(sizeof(char *), gHashTable.entryCount);
+  if (!valueArray)
+    return NS_ERROR_OUT_OF_MEMORY;
+  
+  pref_saveArgs saveArgs;
+  saveArgs.prefArray = valueArray;
+  saveArgs.saveTypes = SAVE_ALL_AND_DEFAULTS;
+  
+  // get the lines that we're supposed to be writing
+  PL_DHashTableEnumerate(&gHashTable, pref_savePref, &saveArgs);
+    
+  char** walker = valueArray;
+  for (PRUint32 valueIdx = 0; valueIdx < gHashTable.entryCount; valueIdx++, walker++) {
+    if (*walker) {
+      prefs.Append(*walker);
+      prefs.Append(NS_LINEBREAK);
+      NS_Free(*walker);
+    }
+  }
+  PR_Free(valueArray);
+
+  return NS_OK;
+}
+
+NS_IMETHODIMP nsPrefService::SerializePreference(const nsACString& aPrefName, nsACString& aBuffer)
+{
+  PrefHashEntry *pref = pref_HashTableLookup(nsDependentCString(aPrefName).get());
+  if (!pref)
+    return NS_ERROR_NOT_AVAILABLE;
+
+  char* prefArray = nsnull;
+
+  pref_saveArgs saveArgs;
+  saveArgs.prefArray = &prefArray;
+  saveArgs.saveTypes = SAVE_ALL_AND_DEFAULTS;
+
+  pref_savePref(&gHashTable, pref, 0, &saveArgs);
+  aBuffer = prefArray;
+  PR_Free(prefArray);
+
+  return NS_OK;
+}
+
+NS_IMETHODIMP nsPrefService::ReadPrefBuffer(const nsACString& aBuffer)
+{
+  PrefParseState ps;
+  PREF_InitParseState(&ps, PREF_ReaderCallback, NULL);
+  nsresult rv = PREF_ParseBuf(&ps, nsDependentCString(aBuffer).get(), aBuffer.Length());
+  PREF_FinalizeParseState(&ps);
+  return rv;
 }
 
 NS_IMETHODIMP nsPrefService::GetBranch(const char *aPrefRoot, nsIPrefBranch **_retval)

@@ -39,7 +39,10 @@
  * ***** END LICENSE BLOCK ***** */
 
 #include "ImageLayers.h"
- #include "Layers.h"
+#include "Layers.h"
+#include "gfxPlatform.h"
+
+using namespace mozilla::layers;
  
 #ifdef MOZ_LAYERS_HAVE_LOG
 FILE*
@@ -52,7 +55,7 @@ FILEOrDefault(FILE* aFile)
 namespace {
 
 // XXX pretty general utilities, could centralize
- 
+
 nsACString&
 AppendToString(nsACString& s, const gfxPattern::GraphicsFilter& f,
                const char* pfx="", const char* sfx="")
@@ -109,6 +112,15 @@ AppendToString(nsACString& s, const gfx3DMatrix& m,
 }
 
 nsACString&
+AppendToString(nsACString& s, const nsIntPoint& p,
+               const char* pfx="", const char* sfx="")
+{
+  s += pfx;
+  s += nsPrintfCString(128, "(x=%d, y=%d)", p.x, p.y);
+  return s += sfx;
+}
+
+nsACString&
 AppendToString(nsACString& s, const nsIntRect& r,
                const char* pfx="", const char* sfx="")
 {
@@ -134,10 +146,40 @@ AppendToString(nsACString& s, const nsIntRegion& r,
   return s += sfx;
 }
 
+nsACString&
+AppendToString(nsACString& s, const nsIntSize& sz,
+               const char* pfx="", const char* sfx="")
+{
+  s += pfx;
+  s += nsPrintfCString(128, "(w=%d, h=%d)", sz.width, sz.height);
+  return s += sfx;
+}
+
+nsACString&
+AppendToString(nsACString& s, const FrameMetrics& m,
+               const char* pfx="", const char* sfx="")
+{
+  s += pfx;
+  AppendToString(s, m.mViewportSize, "{ viewport=");
+  AppendToString(s, m.mViewportScrollOffset, " viewportScroll=");
+  AppendToString(s, m.mDisplayPort, " displayport=", " }");
+  return s += sfx;
+}
+
 } // namespace <anon>
 
 namespace mozilla {
 namespace layers {
+
+//--------------------------------------------------
+// LayerManager
+already_AddRefed<gfxASurface>
+LayerManager::CreateOptimalSurface(const gfxIntSize &aSize,
+                                   gfxASurface::gfxImageFormat aFormat)
+{
+  return gfxPlatform::GetPlatform()->
+    CreateOffscreenSurface(aSize, gfxASurface::ContentFromFormat(aFormat));
+}
 
 //--------------------------------------------------
 // Layer
@@ -147,7 +189,7 @@ Layer::CanUseOpaqueSurface()
 {
   // If the visible content in the layer is opaque, there is no need
   // for an alpha channel.
-  if (IsOpaqueContent())
+  if (GetContentFlags() & CONTENT_OPAQUE)
     return PR_TRUE;
   // Also, if this layer is the bottommost layer in a container which
   // doesn't need an alpha channel, we can use an opaque surface for this
@@ -221,14 +263,24 @@ Layer::PrintInfo(nsACString& aTo, const char* aPrefix)
   if (mUseClipRect) {
     AppendToString(aTo, mClipRect, " [clip=", "]");
   }
-  if (!mTransform.IsIdentity())
+  if (!mTransform.IsIdentity()) {
     AppendToString(aTo, mTransform, " [transform=", "]");
-  if (!mVisibleRegion.IsEmpty())
+  }
+  if (!mVisibleRegion.IsEmpty()) {
     AppendToString(aTo, mVisibleRegion, " [visible=", "]");
-  if (1.0 != mOpacity)
+  }
+  if (1.0 != mOpacity) {
     aTo.AppendPrintf(" [opacity=%g]", mOpacity);
-  if (IsOpaqueContent())
+  }
+  if (GetContentFlags() & CONTENT_OPAQUE) {
     aTo += " [opaqueContent]";
+  }
+  if (GetContentFlags() & CONTENT_NO_TEXT) {
+    aTo += " [noText]";
+  }
+  if (GetContentFlags() & CONTENT_NO_TEXT_OVER_TRANSPARENT) {
+    aTo += " [noTextOverTransparent]";
+  }
 
   return aTo;
 }
@@ -239,6 +291,14 @@ ThebesLayer::PrintInfo(nsACString& aTo, const char* aPrefix)
   Layer::PrintInfo(aTo, aPrefix);
   return mValidRegion.IsEmpty() ?
     aTo : AppendToString(aTo, mValidRegion, " [valid=", "]");
+}
+
+nsACString&
+ContainerLayer::PrintInfo(nsACString& aTo, const char* aPrefix)
+{
+  Layer::PrintInfo(aTo, aPrefix);
+  return mFrameMetrics.IsDefault() ?
+    aTo : AppendToString(aTo, mFrameMetrics, " [metrics=", "]");
 }
 
 nsACString&
@@ -281,12 +341,12 @@ LayerManager::Dump(FILE* aFile, const char* aPrefix)
 
   nsCAutoString pfx(aPrefix);
   pfx += "  ";
-  if (!mRoot) {
+  if (!GetRoot()) {
     fprintf(file, "%s(null)", pfx.get());
     return;
   }
 
-  mRoot->Dump(file, pfx.get());
+  GetRoot()->Dump(file, pfx.get());
 }
 
 void
@@ -307,12 +367,12 @@ LayerManager::Log(const char* aPrefix)
 
   nsCAutoString pfx(aPrefix);
   pfx += "  ";
-  if (!mRoot) {
+  if (!GetRoot()) {
     MOZ_LAYERS_LOG(("%s(null)", pfx.get()));
     return;
   }
 
-  mRoot->Log(pfx.get());
+  GetRoot()->Log(pfx.get());
 }
 
 void
@@ -357,6 +417,10 @@ Layer::PrintInfo(nsACString& aTo, const char* aPrefix)
 
 nsACString&
 ThebesLayer::PrintInfo(nsACString& aTo, const char* aPrefix)
+{ return aTo; }
+
+nsACString&
+ContainerLayer::PrintInfo(nsACString& aTo, const char* aPrefix)
 { return aTo; }
 
 nsACString&

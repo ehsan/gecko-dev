@@ -272,6 +272,7 @@ public:
   void SetTaskbarPreview(nsITaskbarWindowPreview *preview) { mTaskbarPreview = do_GetWeakReference(preview); }
 #endif
 
+  NS_IMETHOD              ReparentNativeWidget(nsIWidget* aNewParent);
 protected:
 
   /**
@@ -473,8 +474,11 @@ protected:
   PRPackedBool          mPainting;
   PRPackedBool          mExitToNonClientArea;
   PRPackedBool          mTouchWindow;
+  PRPackedBool          mDisplayPanFeedback;
+  PRPackedBool          mHideChrome;
+  PRPackedBool          mIsRTL;
+  PRPackedBool          mFullscreenMode;
   PRUint32              mBlurSuppressLevel;
-  nsContentType         mContentType;
   DWORD_PTR             mOldStyle;
   DWORD_PTR             mOldExStyle;
   HIMC                  mOldIMC;
@@ -482,8 +486,6 @@ protected:
   nsNativeDragTarget*   mNativeDragTarget;
   HKL                   mLastKeyboardLayout;
   nsPopupType           mPopupType;
-  PRPackedBool          mDisplayPanFeedback;
-  PRPackedBool          mHideChrome;
   nsSizeMode            mOldSizeMode;
   WindowHook            mWindowHook;
   static PRUint32       sInstanceCount;

@@ -155,17 +155,27 @@ ContainerLayerOGL::RenderLayer(int aPreviousFrameBuffer,
   GLuint frameBuffer;
 
   nsIntPoint childOffset(aOffset);
-  bool needsFramebuffer = false;
   nsIntRect visibleRect = mVisibleRegion.GetBounds();
 
+  gl()->PushScissorRect();
+
   float opacity = GetOpacity();
-  if (opacity != 1.0) {
+  bool needsFramebuffer = (opacity != 1.0) || !mTransform.IsIdentity();
+  if (needsFramebuffer) {
     mOGLManager->CreateFBOWithTexture(visibleRect.width,
                                       visibleRect.height,
                                       &frameBuffer,
                                       &containerSurface);
     childOffset.x = visibleRect.x;
     childOffset.y = visibleRect.y;
+
+    // Note that we don't set a new viewport here, even though we're
+    // about to render to a new FBO -- see the comments in
+    // LayerManagerOGL::SetupPipeline.
+
+    gl()->fScissor(0, 0, visibleRect.width, visibleRect.height);
+    gl()->fClearColor(0.0, 0.0, 0.0, 0.0);
+    gl()->fClear(LOCAL_GL_COLOR_BUFFER_BIT);
   } else {
     frameBuffer = aPreviousFrameBuffer;
   }
@@ -175,15 +185,22 @@ ContainerLayerOGL::RenderLayer(int aPreviousFrameBuffer,
    */
   LayerOGL *layerToRender = GetFirstChildOGL();
   while (layerToRender) {
+    nsIntRect scissorRect(visibleRect);
+
     const nsIntRect *clipRect = layerToRender->GetLayer()->GetClipRect();
     if (clipRect) {
-      gl()->fScissor(clipRect->x - visibleRect.x,
-                     clipRect->y - visibleRect.y,
-                     clipRect->width,
-                     clipRect->height);
-    } else {
-      gl()->fScissor(0, 0, visibleRect.width, visibleRect.height);
+      scissorRect = *clipRect;
     }
+
+    if (needsFramebuffer) {
+      scissorRect.MoveBy(- visibleRect.TopLeft());
+    }
+
+    if (aPreviousFrameBuffer == 0) {
+      gl()->FixWindowCoordinateRect(scissorRect, mOGLManager->GetWigetSize().height);
+    }
+
+    gl()->fScissor(scissorRect.x, scissorRect.y, scissorRect.width, scissorRect.height);
 
     layerToRender->RenderLayer(frameBuffer, childOffset);
 
@@ -193,7 +210,9 @@ ContainerLayerOGL::RenderLayer(int aPreviousFrameBuffer,
                                 : nsnull;
   }
 
-  if (opacity != 1.0) {
+  gl()->PopScissorRect();
+
+  if (needsFramebuffer) {
     // Unbind the current framebuffer and rebind the previous one.
     gl()->fBindFramebuffer(LOCAL_GL_FRAMEBUFFER, aPreviousFrameBuffer);
     gl()->fDeleteFramebuffers(1, &frameBuffer);

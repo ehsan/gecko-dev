@@ -21,7 +21,7 @@
  * are Copyright (C) 2001 the Initial Developer. All Rights Reserved.
  *
  * Contributor(s):
- *   Mats Palmgren <mats.palmgren@bredband.net>
+ *   Mats Palmgren <matspal@gmail.com>
  *   Masayuki Nakano <masayuki@d-toybox.com>
  *   Romashin Oleg <romaxa@gmail.com>
  *   Vladimir Vukicevic <vladimir@pobox.com>
@@ -105,6 +105,12 @@
 #include "gfxImageSurface.h"
 
 #include "nsIDOMSimpleGestureEvent.h" //Gesture support
+
+#if MOZ_PLATFORM_MAEMO > 5
+#include "nsIDOMWindow.h"
+#include "nsIDOMElement.h"
+#include "nsIFocusManager.h"
+#endif
 
 #ifdef MOZ_X11
 #include "keysym2ucs.h"
@@ -272,7 +278,7 @@ UpdateOffScreenBuffers(int aDepth, QSize aSize)
         format = gfxASurface::ImageFormatRGB24;
 
     gBufferSurface = gfxPlatform::GetPlatform()->
-        CreateOffscreenSurface(gBufferMaxSize, format);
+        CreateOffscreenSurface(gBufferMaxSize, gfxASurface::ContentFromFormat(format));
     return true;
 }
 
@@ -335,6 +341,11 @@ nsWindow::Destroy(void)
         NS_IF_RELEASE(gMenuRollup);
     }
 
+    if (mLayerManager) {
+        mLayerManager->Destroy();
+    }
+    mLayerManager = nsnull;
+
     Show(PR_FALSE);
 
     // walk the list of children and call destroy on them.  Have to be
@@ -380,35 +391,32 @@ NS_IMETHODIMP
 nsWindow::SetParent(nsIWidget *aNewParent)
 {
     NS_ENSURE_ARG_POINTER(aNewParent);
+    nsCOMPtr<nsIWidget> kungFuDeathGrip(this);
+    nsIWidget* parent = GetParent();
+    if (parent) {
+        parent->RemoveChild(this);
+    }
     if (aNewParent) {
-        nsCOMPtr<nsIWidget> kungFuDeathGrip(this);
-
-        nsIWidget* parent = GetParent();
-        if (parent) {
-            parent->RemoveChild(this);
-        }
-
-        MozQWidget* newParent = static_cast<MozQWidget*>(aNewParent->GetNativeData(NS_NATIVE_WINDOW));
-        NS_ASSERTION(newParent, "Parent widget has a null native window handle");
-        if (mWidget) {
-            mWidget->setParentItem(newParent);
-        }
-
+        ReparentNativeWidget(aNewParent);
         aNewParent->AddChild(this);
-
         return NS_OK;
     }
-
-    nsCOMPtr<nsIWidget> kungFuDeathGrip(this);
-
-    nsIWidget* parent = GetParent();
-
-    if (parent)
-        parent->RemoveChild(this);
-
-    if (mWidget)
+    if (mWidget) {
         mWidget->setParentItem(0);
+    }
+    return NS_OK;
+}
 
+NS_IMETHODIMP
+nsWindow::ReparentNativeWidget(nsIWidget *aNewParent)
+{
+    NS_PRECONDITION(aNewParent, "");
+
+    MozQWidget* newParent = static_cast<MozQWidget*>(aNewParent->GetNativeData(NS_NATIVE_WINDOW));
+    NS_ASSERTION(newParent, "Parent widget has a null native window handle");
+    if (mWidget) {
+        mWidget->setParentItem(newParent);
+    }
     return NS_OK;
 }
 
@@ -1284,6 +1292,22 @@ nsWindow::OnFocusOutEvent(QEvent *aEvent)
     if (!mWidget)
         return nsEventStatus_eIgnore;
 
+#if MOZ_PLATFORM_MAEMO > 5
+    if (((QFocusEvent*)aEvent)->reason() == Qt::OtherFocusReason
+         && mWidget->isVKBOpen()) {
+        // We assume that the VKB was open in this case, because of the focus
+        // reason and clear the focus in the active window.
+        nsCOMPtr<nsIFocusManager> fm = do_GetService("@mozilla.org/focus-manager;1");
+        if (fm) {
+            nsCOMPtr<nsIDOMWindow> domWindow;
+            fm->GetActiveWindow(getter_AddRefs(domWindow));
+            fm->ClearFocus(domWindow);
+        }
+
+        return nsEventStatus_eIgnore;
+    }
+#endif
+
     DispatchDeactivateEventOnTopLevelWindow();
 
     LOGFOCUS(("Done with container focus out [%p]\n", (void *)this));
@@ -1972,6 +1996,26 @@ nsWindow::Create(nsIWidget        *aParent,
     return NS_OK;
 }
 
+already_AddRefed<nsIWidget>
+nsWindow::CreateChild(const nsIntRect&  aRect,
+                      EVENT_CALLBACK    aHandleEventFunction,
+                      nsIDeviceContext* aContext,
+                      nsIAppShell*      aAppShell,
+                      nsIToolkit*       aToolkit,
+                      nsWidgetInitData* aInitData,
+                      PRBool            /*aForceUseIWidgetParent*/)
+{
+    //We need to force parent widget, otherwise GetTopLevelWindow doesn't work
+    return nsBaseWidget::CreateChild(aRect,
+                                     aHandleEventFunction,
+                                     aContext,
+                                     aAppShell,
+                                     aToolkit,
+                                     aInitData,
+                                     PR_TRUE); // Force parent
+}
+
+
 NS_IMETHODIMP
 nsWindow::SetWindowClass(const nsAString &xulWinType)
 {
@@ -2277,7 +2321,9 @@ nsChildWindow::~nsChildWindow()
 
 nsPopupWindow::nsPopupWindow()
 {
+#ifdef DEBUG_WIDGETS
     qDebug("===================== popup!");
+#endif
 }
 
 nsPopupWindow::~nsPopupWindow()
@@ -2343,6 +2389,9 @@ nsWindow::createQWidget(MozQWidget *parent, nsWidgetInitData *aInitData)
             delete widget;
             return nsnull;
         }
+        if (!IsAcceleratedQView(newView) && GetShouldAccelerate()) {
+            newView->setViewport(new QGLWidget());
+        }
 
         // Enable gestures:
 #if (QT_VERSION >= QT_VERSION_CHECK(4, 6, 0))
@@ -2381,45 +2430,6 @@ nsWindow::IsAcceleratedQView(QGraphicsView *view)
         return (type == QPaintEngine::OpenGL || type == QPaintEngine::OpenGL2);
     }
     return PR_FALSE;
-}
-
-NS_IMETHODIMP
-nsWindow::SetAcceleratedRendering(PRBool aEnabled)
-{
-    if (mUseAcceleratedRendering == aEnabled)
-        return NS_OK;
-
-    mUseAcceleratedRendering = aEnabled;
-    mLayerManager = NULL;
-
-    QGraphicsView* view = static_cast<QGraphicsView*>(GetViewWidget());
-    if (view) {
-        if (aEnabled && !IsAcceleratedQView(view))
-            view->setViewport(new QGLWidget());
-        if (!aEnabled && IsAcceleratedQView(view))
-            view->setViewport(new QWidget());
-        view->viewport()->setAttribute(Qt::WA_PaintOnScreen, aEnabled);
-        view->viewport()->setAttribute(Qt::WA_NoSystemBackground, aEnabled);
-    }
-
-    return NS_OK;
-}
-
-
-mozilla::layers::LayerManager*
-nsWindow::GetLayerManager()
-{
-    nsWindow *topWindow = static_cast<nsWindow*>(GetTopLevelWidget());
-    if (!topWindow)
-        return nsBaseWidget::GetLayerManager();
-
-    if (mUseAcceleratedRendering != topWindow->GetAcceleratedRendering()
-        && IsAcceleratedQView(static_cast<QGraphicsView*>(GetViewWidget()))) {
-        mLayerManager = NULL;
-        mUseAcceleratedRendering = topWindow->GetAcceleratedRendering();
-    }
-
-    return nsBaseWidget::GetLayerManager();
 }
 
 // return the gfxASurface for rendering to this widget

@@ -58,7 +58,6 @@ RCINCLUDE = xulrunner.rc
 
 ifndef MOZ_NATIVE_ZLIB
 CPPSRCS += dlldeps-zlib.cpp
-DEFINES += -DZLIB_INTERNAL
 endif
 
 LOCAL_INCLUDES += -I$(topsrcdir)/widget/src/windows
@@ -79,7 +78,6 @@ CPPSRCS += \
 
 ifndef MOZ_NATIVE_ZLIB
 CPPSRCS += dlldeps-zlib.cpp
-DEFINES += -DZLIB_INTERNAL
 endif
 
 ifdef MOZ_ENABLE_LIBXUL
@@ -352,6 +350,10 @@ COMPONENT_LIBS += gkdebug
 endif
 endif
 
+ifdef MOZ_APP_COMPONENT_LIBS
+COMPONENT_LIBS += $(MOZ_APP_COMPONENT_LIBS)
+endif
+
 ifeq ($(MOZ_WIDGET_TOOLKIT),cocoa)
 OS_LIBS += -framework OpenGL -lcups
 endif
@@ -365,6 +367,7 @@ EXTRA_DSO_LDOPTS += \
 	$(NSS_LIBS) \
 	$(MOZ_CAIRO_LIBS) \
 	$(MOZ_HARFBUZZ_LIBS) \
+	$(MOZ_APP_EXTRA_LIBS) \
 	$(NULL)
 
 ifdef MOZ_NATIVE_ZLIB

@@ -27,6 +27,7 @@
  *   Pamela Greene (pamg.bugs@gmail.com)
  *   Dão Gottwald (dao@mozilla.com)
  *   Jim Mathies (jmathies@mozilla.com)
+ *   Drew Willcoxon (adw@mozilla.com)
  *
  * Alternatively, the contents of this file may be used under the terms of
  * either the GNU General Public License Version 2 or later (the "GPL"), or
@@ -106,39 +107,46 @@
   -moz-appearance: toolbox;
 }
 
-statusbarpanel#statusbar-display {
-  -moz-padding-start: 0;
-}
-
 /* ::::: app menu button ::::: */
 
 #appmenu-button {
   -moz-appearance: none;
-  background-color: rgb(228,120,14);
-  background-image: -moz-linear-gradient(rgba(255,255,255,.7),
-                                         rgba(255,255,255,.4) 10%,
-                                         rgba(255,255,255,0) 50%);
+  background: -moz-linear-gradient(rgb(247,182,82), rgb(215,98,10) 95%);
   background-clip: padding-box;
-  border: 1px solid rgba(0,0,0,.5);
-  border-top-style: none;
-  -moz-border-radius-bottomleft: 4px;
-  -moz-border-radius-bottomright: 4px;
-  -moz-box-shadow: 0 0 5px rgba(255,255,255,.5) inset;
+  border-radius: 0 0 4px 4px;
+  border: 1px solid rgba(83,42,6,.9);
+  border-top: none;
+  box-shadow: 0 1px 0 rgba(255,255,255,.25) inset,
+              0 0 0 1px rgba(255,255,255,.25) inset;
   color: white;
-  text-shadow: 0 0 2px #333;
+  text-shadow: 0 0 1px rgba(0,0,0,.7),
+               0 1px 1.5px rgba(0,0,0,.5);
   font-weight: bold;
-  padding: .1em 1.5em;
+  padding: .1em 1.5em .15em;
   margin: 0;
 }
 
+#appmenu-button:-moz-window-inactive {
+  background-image: none;
+  border-color: rgba(0,0,0,.4);
+}
+
 #appmenu-button:hover:not(:active):not([open]) {
-  background-color: rgb(248,140,34);
+  background-image: -moz-radial-gradient(center bottom, farthest-side, rgba(252,240,89,.5) 10%, rgba(252,240,89,0) 70%),
+                    -moz-radial-gradient(center bottom, farthest-side, rgb(236,133,0), rgba(255,229,172,0)),
+                    -moz-linear-gradient(rgb(246,170,69), rgb(209,74,0) 95%);
+  border-color: rgba(83,42,6,.9);
+  box-shadow: 0 1px 0 rgba(255,255,255,.1) inset,
+              0 0 1.5px 1px rgba(250,234,169,.7) inset,
+              0 -1px 0 rgba(250,234,169,.5) inset;
 }
 
 #appmenu-button:hover:active,
 #appmenu-button[open] {
-  background-image: -moz-linear-gradient(rgba(0,0,0,.3), rgba(0,0,0,.2) 10%, transparent 60%);
-  -moz-box-shadow: 0 0 4px rgba(0,0,0,.3) inset;
+  background-image: -moz-linear-gradient(rgb(246,170,69), rgb(209,74,0) 95%);
+  border-radius: 0;
+  box-shadow: 0 2px 3px rgba(0,0,0,.4) inset,
+              0 1px 1px rgba(0,0,0,.2) inset;
 }
 
 #appmenu-button > .button-box {
@@ -155,24 +163,25 @@ statusbarpanel#statusbar-display {
   -moz-margin-start: .5em;
 }
 
-#appmenu-button > menupopup > menuitem {
-  -moz-padding-end: 16px;
-}
-
-.split-menuitem-item[_moz-menuactive="true"],
-.split-menuitem-menu[_moz-menuactive="true"] {
+/* menupopup > menu[_moz-menuactive="true"] etc. from menu.css doesn't match these nodes */
+.split-menuitem-item[_moz-menuactive="true"]:not([disabled]),
+.split-menuitem-menu[_moz-menuactive="true"]:not([disabled]),
+:-moz-any(#appmenuPrimaryPane, #appmenuSecondaryPane) > menu[_moz-menuactive="true"]:not([disabled]),
+:-moz-any(#appmenuPrimaryPane, #appmenuSecondaryPane) > menuitem[_moz-menuactive="true"]:not([disabled]) {
   background-color: -moz-menuhover;
   color: -moz-menuhovertext;
 }
 
-/* Style Firefox App Menu popup */
+.split-menuitem-menu {
+  -moz-box-pack: end;
+}
 
 .appmenu-edit-button {
   -moz-appearance: none;
   border: 1px solid transparent;
   padding: 2px;
   background: transparent;
-  -moz-border-radius: 3px;
+  border-radius: 3px;
 }
 
 .appmenu-edit-button[disabled="true"] {
@@ -194,14 +203,25 @@ statusbarpanel#statusbar-display {
   #appmenuSecondaryPane {
     -moz-appearance: none;
     background-color: #f1f5fb;
-    -moz-box-shadow: 1px 0 3px rgb(204,214,234) inset;
+    box-shadow: 1px 0 2px rgb(204,214,234) inset;
     border: 0;
     padding-top: 5px;
     font-family: "Segoe UI Semibold", "Segoe UI", sans-serif;
   }
+
+  .appmenu-menuseparator {
+    -moz-appearance: none;
+    margin-top: 3px;
+    margin-bottom: 3px;
+    -moz-margin-start: 30px;
+    padding: 0;
+    border-top: 1px solid #d6e5f5;
+    border-bottom: none;
+  }
+
   .appmenu-edit-button:not([disabled]):hover {
     border: 1px solid #b8d6fb;
-    -moz-box-shadow: inset 0 0 1px white;
+    box-shadow: inset 0 0 1px white;
     background: -moz-linear-gradient(#fafbfd, #ebf3fd);
     -moz-transition: .2s ease-in;
   }
@@ -239,7 +259,7 @@ statusbarpanel#statusbar-display {
   -moz-image-region: rect(0 80px 16px 64px);
 }
 
-#appmenu-edit-menuitem {
+#appmenu-edit-label {
   -moz-appearance: none;
   background: transparent;
   font-style: italic;
@@ -292,14 +312,9 @@ statusbarpanel#statusbar-display {
   margin-right: 15px;
 }
 
-/* aesthetic - push the fx button off the top window border */
-@media not all and (-moz-windows-classic) {
+@media all and (-moz-windows-classic) {
   #main-window[sizemode="normal"] > #titlebar > #titlebar-content > #appmenu-button-container {
-%ifndef WINSTRIPE_AERO
-    margin-top: 1px;
-%else
-    margin-top: 2px;
-%endif
+    margin-top: 4px;
   }
 }
 
@@ -461,14 +476,14 @@ menuitem.bookmark-item {
               -moz-linear-gradient(rgba(251,252,253,.95), rgba(246,247,248,.47) 49%, 
                                    rgba(231,232,233,.45) 51%, rgba(225,226,229,.3));
   background-clip: padding-box;
-  -moz-border-radius: 4.5px;
+  border-radius: 4.5px;
   border: 1px solid;
   border-color: rgba(0,0,0,.12) rgba(0,0,0,.19) rgba(0,0,0,.38);
-  -moz-box-shadow: 0 0 0 1px rgba(255,255,255,.3) inset,
-                   0 0 0 2px rgba(255,255,255,.1) inset,
-                   0 1px 0 rgba(0,0,0,.15);
+  box-shadow: 0 0 0 1px rgba(255,255,255,.3) inset,
+              0 0 0 2px rgba(255,255,255,.1) inset,
+              0 1px 0 rgba(0,0,0,.15);
   color: black;
-  text-shadow: 0 0 3px white;
+  text-shadow: 0 0 2px white;
 }
 
 .toolbarbutton-1 > .toolbarbutton-menubutton-dropmarker,
@@ -488,7 +503,7 @@ toolbar[iconsize="small"][mode="icons"] .toolbarbutton-1 {
   padding: 0;
   background: none !important;
   border: none !important;
-  -moz-box-shadow: none !important;
+  box-shadow: none !important;
 }
 
 .toolbarbutton-1 {
@@ -506,14 +521,14 @@ toolbar[iconsize="small"][mode="icons"] .toolbarbutton-1 {
 
 .toolbarbutton-1 > .toolbarbutton-menubutton-button:-moz-locale-dir(ltr),
 .toolbarbutton-1 > .toolbarbutton-menubutton-dropmarker:-moz-locale-dir(rtl) {
-  -moz-border-radius-topright: 0;
-  -moz-border-radius-bottomright: 0;
+  border-top-right-radius: 0;
+  border-bottom-right-radius: 0;
 }
 
 .toolbarbutton-1 > .toolbarbutton-menubutton-button:-moz-locale-dir(rtl),
 .toolbarbutton-1 > .toolbarbutton-menubutton-dropmarker:-moz-locale-dir(ltr) {
-  -moz-border-radius-topleft: 0;
-  -moz-border-radius-bottomleft: 0;
+  border-top-left-radius: 0;
+  border-bottom-left-radius: 0;
 }
 
 .toolbarbutton-1[disabled="true"] {
@@ -530,13 +545,13 @@ toolbar[iconsize="small"][mode="icons"] .toolbarbutton-1 {
 .toolbarbutton-1:not([type="menu-button"]):not([disabled="true"]):not([checked="true"]):not([open="true"]):not(:active):hover {
   background-color: hsla(190,60%,70%,.5);
   border-color: hsla(190,50%,65%,.8) hsla(190,50%,50%,.8) hsla(190,50%,40%,.8);
-  -moz-box-shadow: 0 0 0 1px rgba(255,255,255,.3) inset,
-                   0 0 0 2px rgba(255,255,255,.1) inset,
-                   0 1px 0 rgba(0,0,0,.1),
-                   0 0 5px hsl(190,90%,80%);
+  box-shadow: 0 0 0 1px rgba(255,255,255,.3) inset,
+              0 0 0 1.5px rgba(255,255,255,.1) inset,
+              0 1px 0 rgba(0,0,0,.1),
+              0 0 3.5px hsl(190,90%,80%);
   -moz-transition: background-color .4s ease-in,
                    border-color .3s ease-in,
-                   -moz-box-shadow .3s ease-in;
+                   box-shadow .3s ease-in;
 }
 
 .toolbarbutton-1 > .toolbarbutton-menubutton-button:not([disabled="true"]):hover:active,
@@ -547,9 +562,9 @@ toolbar[iconsize="small"][mode="icons"] .toolbarbutton-1 {
 .toolbarbutton-1[open="true"] {
   background-color: transparent;
   border-color: rgba(0,0,0,.65) rgba(0,0,0,.55) rgba(0,0,0,.5);
-  -moz-box-shadow: 0 0 9px rgba(0,0,0,.4) inset,
-                   0 0 3px rgba(0,0,0,.4) inset,
-                   0 1px 0 rgba(255,255,255,.4);
+  box-shadow: 0 0 6.5px rgba(0,0,0,.4) inset,
+              0 0 2px rgba(0,0,0,.4) inset,
+              0 1px 0 rgba(255,255,255,.4);
   text-shadow: none;
 }
 
@@ -595,16 +610,20 @@ toolbar[mode="full"] .toolbarbutton-1 > .toolbarbutton-menubutton-button {
 #TabsToolbar > #bookmarks-menu-button-container > #bookmarks-menu-button {
   -moz-appearance: toolbarbutton;
 %ifdef WINSTRIPE_AERO
-  margin: -1px 0;
+  margin: -2px 0 -1px;
+  padding-top: 1px;
 %else
   margin: 0;
+  padding-top: 0;
 %endif
-  padding: 0 3px;
+  padding-bottom: 0;
+  padding-left: 3px;
+  padding-right: 3px;
   border: none !important;
   color: inherit !important;
   background: transparent !important;
   text-shadow: inherit !important;
-  -moz-box-shadow: none !important;
+  box-shadow: none !important;
 }
 
 %ifdef WINSTRIPE_AERO
@@ -639,18 +658,18 @@ toolbar[mode="full"] .toolbarbutton-1 > .toolbarbutton-menubutton-button {
 }
 
 #back-button:-moz-locale-dir(ltr) {
-  -moz-border-radius-topright: 0;
-  -moz-border-radius-bottomright: 0;
+  border-top-right-radius: 0;
+  border-bottom-right-radius: 0;
 }
 
 #back-button:-moz-locale-dir(rtl),
 #forward-button {
-  -moz-border-radius-topleft: 0;
-  -moz-border-radius-bottomleft: 0;
+  border-top-left-radius: 0;
+  border-bottom-left-radius: 0;
 }
 
 toolbar:not([iconsize="small"])[mode="icons"] #back-button {
-  -moz-border-radius: 100%;
+  border-radius: 10000px;
   padding: 0;
   width: 30px;
   height: 30px;
@@ -661,30 +680,30 @@ toolbar:not([iconsize="small"])[mode="icons"] #back-button {
   border: none;
   background-image: -moz-linear-gradient(rgba(251,252,253,.97), rgba(246,247,248,.5) 49%, 
                                          rgba(231,232,233,.45) 51%, rgba(225,226,229,.2));
-  -moz-box-shadow: 0 0 0 1px rgba(255,255,255,.3) inset,
-                   0 0 0 2px rgba(255,255,255,.1) inset,
-                   0 0 0 1px rgba(0,0,0,.15),
-                   0 1px 0 rgba(0,0,0,.4),
-                   0 1px 1px rgba(0,0,0,.3),
-                   1px 2px 1px rgba(0,0,0,.2);
+  box-shadow: 0 0 0 1px rgba(255,255,255,.3) inset,
+              0 0 0 2px rgba(255,255,255,.1) inset,
+              0 0 0 1px rgba(0,0,0,.15),
+              0 1px 0 rgba(0,0,0,.4),
+              0 1px 1px rgba(0,0,0,.3),
+              1px 2px 1px rgba(0,0,0,.2);
   -moz-image-region: rect(18px, 20px, 38px, 0);
 }
 
 toolbar:not([iconsize="small"])[mode="icons"] #back-button:not([disabled="true"]):not([checked="true"]):not(:active):hover {
-  -moz-box-shadow: 0 0 0 1px rgba(255,255,255,.3) inset,
-                   0 0 0 2px rgba(255,255,255,.1) inset,
-                   0 0 0 1px hsla(190,50%,40%,.3),
-                   0 1px 0 rgba(0,0,0,.4),
-                   0 1px 1px rgba(0,0,0,.3),
-                   1px 2px 1px rgba(0,0,0,.2),
-                   0 0 5px 1px hsl(190,90%,80%);
+  box-shadow: 0 0 0 1px rgba(255,255,255,.3) inset,
+              0 0 0 2px rgba(255,255,255,.1) inset,
+              0 0 0 1px hsla(190,50%,40%,.3),
+              0 1px 0 rgba(0,0,0,.4),
+              0 1px 1px rgba(0,0,0,.3),
+              1px 2px 1px rgba(0,0,0,.2),
+              0 0 5px 1px hsl(190,90%,80%);
 }
 
 toolbar:not([iconsize="small"])[mode="icons"] #back-button:not([disabled="true"]):hover:active {
-  -moz-box-shadow: 0 0 9px rgba(0,0,0,.4) inset,
-                   0 0 3px rgba(0,0,0,.4) inset,
-                   0 0 0 1px rgba(0,0,0,.65),
-                   0 2px 0 rgba(255,255,255,.4);
+  box-shadow: 0 0 6.5px rgba(0,0,0,.4) inset,
+              0 0 2px rgba(0,0,0,.4) inset,
+              0 0 0 1px rgba(0,0,0,.65),
+              0 2px 0 rgba(255,255,255,.4);
 }
 
 toolbar:not([iconsize="small"])[mode="icons"][currentset*="unified-back-forward-button"],
@@ -776,6 +795,23 @@ toolbar:not([iconsize="small"])[mode="icons"] #forward-button:not([disabled="tru
 
 #tabview-button {
   list-style-image: url(chrome://browser/skin/tabview/tabview.png);
+  -moz-image-region: rect(0, 90px, 18px, 72px);
+}
+
+#tabview-button[groups="0"] {
+  -moz-image-region: rect(0, 18px, 18px, 0);
+}
+
+#tabview-button[groups="1"] {
+  -moz-image-region: rect(0, 36px, 18px, 18px);
+}
+
+#tabview-button[groups="2"] {
+  -moz-image-region: rect(0, 54px, 18px, 36px);
+}
+
+#tabview-button[groups="3"] {
+  -moz-image-region: rect(0, 72px, 18px, 54px);
 }
 
 /* download manager button */
@@ -847,6 +883,42 @@ toolbar:not([iconsize="small"])[mode="icons"] #forward-button:not([disabled="tru
   -moz-image-region: rect(0, 270px, 18px, 252px);
 }
 
+/* zoom controls */
+
+#zoom-out-button {
+  -moz-image-region: rect(0, 288px, 18px, 270px);
+  -moz-margin-end: 0;
+}
+
+#zoom-in-button {
+  -moz-image-region: rect(0, 306px, 18px, 288px);
+  -moz-border-start: none;
+  -moz-margin-start: 0;
+}
+
+#zoom-out-button:-moz-locale-dir(ltr),
+#zoom-in-button:-moz-locale-dir(rtl) {
+  border-top-right-radius: 0;
+  border-bottom-right-radius: 0;
+}
+
+#zoom-out-button:-moz-locale-dir(rtl),
+#zoom-in-button:-moz-locale-dir(ltr) {
+  border-top-left-radius: 0;
+  border-bottom-left-radius: 0;
+}
+
+/* sync button */
+
+#sync-button {
+  -moz-image-region: rect(0, 324px, 18px, 306px);
+}
+
+#sync-button[status="active"] {
+  list-style-image: url("chrome://browser/skin/sync-throbber.png");
+  -moz-image-region: rect(0, 18px, 18px, 0);
+}
+
 /* ::::: fullscreen window controls ::::: */
 
 #minimize-button,
@@ -898,12 +970,27 @@ toolbar:not([iconsize="small"])[mode="icons"] #forward-button:not([disabled="tru
 .searchbar-textbox {
   -moz-appearance: none;
   margin: 1px 3px;
-  padding: 2px;
   background-clip: padding-box;
   border: 1px solid ThreeDDarkShadow;
-  -moz-border-radius: 4px;
-  -moz-box-shadow: 0 1px 0 rgba(0,0,0,.1) inset,
-                   0 1px 0 rgba(255,255,255,.4);
+  border-radius: 4px;
+  box-shadow: 0 1px 0 rgba(0,0,0,.1) inset,
+              0 1px 0 rgba(255,255,255,.4);
+}
+
+.urlbar-textbox-container {
+  margin-top: 2px;
+  margin-bottom: 2px;
+  margin-right: 2px;
+}
+
+.urlbar-frontcap {
+  margin-top: 2px;
+  margin-bottom: 2px;
+  margin-left: 2px;
+}
+
+.searchbar-textbox {
+  padding: 2px;
 }
 
 @media all and (-moz-windows-default-theme) {
@@ -920,12 +1007,10 @@ toolbar:not([iconsize="small"])[mode="icons"] #forward-button:not([disabled="tru
   color: black;
 }
 
-/*
-#urlbar:-moz-lwtheme > .autocomplete-textbox-container > .textbox-input-box > html|*.textbox-input:-moz-placeholder,
+html|*.urlbar-input:-moz-lwtheme:-moz-placeholder,
 .searchbar-textbox:-moz-lwtheme > .autocomplete-textbox-container > .textbox-input-box > html|*.textbox-input:-moz-placeholder {
   color: #777;
 }
-*/
 
 #urlbar:-moz-lwtheme[focused="true"],
 .searchbar-textbox:-moz-lwtheme[focused="true"] {
@@ -963,11 +1048,7 @@ toolbar:not([iconsize="small"])[mode="icons"] #forward-button:not([disabled="tru
   -moz-margin-start: 0;
 }
 
-#wrapper-urlbar-container > #urlbar-container > #urlbar > .autocomplete-history-dropmarker {
-  display: none;
-}
-
-#urlbar > .autocomplete-textbox-container {
+.urlbar-frontcap-and-textbox {
   direction: ltr;
   -moz-box-align: stretch;
 }
@@ -983,13 +1064,91 @@ toolbar:not([iconsize="small"])[mode="icons"] #forward-button:not([disabled="tru
   -moz-margin-end: 3px;
 }
 
+/* over-link in location bar */
+
+.urlbar-origin-label {
+  padding: 0 0 0 4px;
+  margin: 0;
+}
+
+.urlbar-over-link-box {
+  position: relative;
+  right: 0;
+  color: GrayText;
+  padding: 0 5px 0 18px;
+  min-height: 22px;
+  background: url(chrome://browser/skin/urlbar-over-link-arrow.png) no-repeat left center;
+}
+
+.urlbar-over-link-host-label,
+.urlbar-over-link-path-label {
+  padding: 0;
+  margin: 0;
+}
+
+/* urlbar progress */
+
+.tab-progress,
+#urlbar-progress {
+  -moz-appearance: none;
+  min-height: 0px;
+  height: 3px;
+  border: 0;
+  margin: -2px 0 -1px;
+  background-color: transparent;
+}
+
+.tab-progress[busy][stalled][value="0"],
+#urlbar-progress[busy][stalled][value="0"] {
+  /* TODO: add connecting state (bug 596812) */
+}
+
+.tab-progress > .progress-bar,
+#urlbar-progress > .progress-bar {
+  -moz-appearance: none;
+  min-width: 3px;
+  border-top: 1px solid rgba(100,100,100,.1);
+  border-bottom: 1px solid rgba(0,0,0,.2);
+  background-color: Highlight;
+  background-image: -moz-linear-gradient(left, rgba(255,255,255,.1) 50%,
+                                               rgba(255,255,255,.4) 90%,
+                                               rgba(255,255,255,.8));
+}
+
+.tab-progress > .progress-bar:-moz-locale-dir(rtl),
+#urlbar-progress > .progress-bar:-moz-locale-dir(rtl) {
+  background-image: -moz-linear-gradient(right, rgba(255,255,255,.1) 50%,
+                                                rgba(255,255,255,.4) 90%,
+                                                rgba(255,255,255,.8));
+}
+
+.tab-progress > .progress-remainder,
+#urlbar-progress > .progress-remainder {
+  border-top: 1px solid rgba(100,100,100,.1);
+  border-bottom: 1px solid rgba(0,0,0,.2);
+  background-image: -moz-linear-gradient(right, ThreeDShadow 80%, ThreeDLightShadow);
+}
+
+.tab-progress > .progress-remainder:-moz-locale-dir(rtl),
+#urlbar-progress > .progress-remainder:-moz-locale-dir(rtl) {
+  background-image: -moz-linear-gradient(left, ThreeDShadow 80%, ThreeDLightShadow);
+}
+
+.urlbar-contents {
+  -moz-margin-end: -2px;
+}
+
+.urlbar-history-dropmarker {
+  -moz-margin-end: 2px;
+}
+
 /* identity box */
 
 #identity-box {
   background-color: -moz-dialog;
   background-image: -moz-linear-gradient(rgba(255,255,255,.25), rgba(0,0,0,.15));
   color: -moz-dialogText;
-  -moz-border-radius: 2px;
+  border-radius: 2px;
 }
 
 #identity-box:hover {
@@ -1005,7 +1164,7 @@ toolbar:not([iconsize="small"])[mode="icons"] #forward-button:not([disabled="tru
 #identity-box.verifiedIdentity {
   color: white;
   text-shadow: 0 1px 0 rgba(0,0,0,.25);
-  -moz-box-shadow: 0 0 0 1px rgba(0,0,0,.2) inset;
+  box-shadow: 0 0 0 1px rgba(0,0,0,.2) inset;
 }
 
 #identity-box.verifiedDomain {
@@ -1034,7 +1193,7 @@ toolbar:not([iconsize="small"])[mode="icons"] #forward-button:not([disabled="tru
 
 /* Location bar dropmarker */
 
-#urlbar > .autocomplete-history-dropmarker {
+.urlbar-history-dropmarker {
   -moz-appearance: none;
   padding: 0 1px;
   background-color: transparent;
@@ -1044,12 +1203,12 @@ toolbar:not([iconsize="small"])[mode="icons"] #forward-button:not([disabled="tru
   -moz-image-region: rect(0, 13px, 11px, 0);
 }
 
-#urlbar > .autocomplete-history-dropmarker:-moz-system-metric(touch-enabled) {
+.urlbar-history-dropmarker:-moz-system-metric(touch-enabled) {
   min-width: 6.4mozmm;
 }
 
-#urlbar > .autocomplete-history-dropmarker:hover:active,
-#urlbar > .autocomplete-history-dropmarker[open="true"] {
+.urlbar-history-dropmarker:hover:active,
+.urlbar-history-dropmarker[open="true"] {
   -moz-image-region: rect(0, 26px, 11px, 13px);
 }
 
@@ -1168,11 +1327,68 @@ richlistitem[type~="action"][actiontype="switchtab"] > .ac-url-box > .ac-action-
 
 #go-button {
   list-style-image: url("chrome://browser/skin/Go-arrow.png");
-  -moz-image-region: rect(0px 16px 16px 0px);
+  -moz-image-region: rect(0px, 16px, 16px, 0px);
 }
 
 #go-button:hover {
-  -moz-image-region: rect(16px 16px 32px 0px);
+  -moz-image-region: rect(16px, 16px, 32px, 0px);
+}
+
+/* combined go/reload/stop button in location bar */
+
+#urlbar > toolbarbutton {
+  -moz-appearance: none;
+  list-style-image: url("chrome://browser/skin/reload-stop-go.png");
+  padding: 0 3px;
+  background-origin: border-box;
+  border: none;
+  border-left: 1px solid rgba(0,0,0,.25);
+  border-top-right-radius: 2px;
+  border-bottom-right-radius: 2px;
+}
+
+#urlbar > toolbarbutton:active:hover {
+  padding-left: 4px;
+  border-left: none;
+  box-shadow: 0 0 6.5px rgba(0,0,0,.4) inset,
+              0 0 2px rgba(0,0,0,.4) inset;
+}
+
+#urlbar-go-button {
+  -moz-image-region: rect(0px, 56px, 14px, 42px);
+  background-image: -moz-linear-gradient(rgb(115,213,115), rgb(96,190,96) 49%, rgb(82,174,82) 51%, rgb(79,155,79));
+  box-shadow: 0 1px 0 rgba(0,0,0,.1) inset,
+              -1px -1px 1px rgba(255,255,255,.25) inset;
+}
+
+#urlbar-go-button:hover {
+  background-image: -moz-linear-gradient(rgb(96,221,96), rgb(71,191,71) 49%, rgb(54,171,54) 51%, rgb(50,147,50));
+}
+
+#urlbar-reload-button {
+  -moz-image-region: rect(0px, 14px, 14px, 0px);
+}
+
+#urlbar-reload-button:hover {
+  -moz-image-region: rect(0px, 28px, 14px, 14px);
+  background-image: -moz-linear-gradient(rgb(162,207,241), rgb(111,178,225) 49%, rgb(91,159,217) 51%, rgb(62,138,200));
+  box-shadow: 0 1px 0 rgba(0,0,0,.1) inset,
+              -1px -1px 1px rgba(255,255,255,.25) inset;
+}
+
+#urlbar-stop-button {
+  -moz-image-region: rect(0px, 42px, 14px, 28px);
+  background-image: -moz-linear-gradient(rgb(231,162,140), rgb(209,119,100) 49%, rgb(193,92,78) 51%, rgb(173,72,58));
+  box-shadow: 0 1px 0 rgba(0,0,0,.1) inset,
+              -1px -1px 1px rgba(255,255,255,.25) inset;
+}
+
+#urlbar-stop-button:hover {
+  background-image: -moz-linear-gradient(rgb(244,156,128), rgb(215,101,77) 49%, rgb(194,66,48) 51%, rgb(170,41,23));
+}
+
+#urlbar-stop-button[disabled="true"] > .toolbarbutton-icon {
+  opacity: .5;
 }
 
 /* star button */
@@ -1236,24 +1452,6 @@ richlistitem[type~="action"][actiontype="switchtab"] > .ac-url-box > .ac-action-
   -moz-padding-start: 0px;
 }
 
-#status-bar {
-  border-top: none;
-}
-
-#security-button[level="high"],
-#security-button[level="low"] {
-  list-style-image: url("chrome://browser/skin/Secure.png");
-}
-
-#security-button[level="broken"] {
-  list-style-image: url("chrome://browser/skin/Security-broken.png");
-}
-
-#page-report-button {
-  width: 20px;
-  list-style-image: url("chrome://browser/skin/Info.png");
-}
-
 /* ::::: throbber ::::: */
 
 #navigator-throbber {
@@ -1312,8 +1510,8 @@ richlistitem[type~="action"][actiontype="switchtab"] > .ac-url-box > .ac-action-
   background-size: 200%;
   margin: 0;
   padding: 0;
-  -moz-border-image: url(tabbrowser/tab.png) 4 5 3 6 / 4px 5px 3px 6px;
-  -moz-border-radius: 10px 8px 0 0;
+  -moz-border-image: url(tabbrowser/tab.png) 4 5 3 6 / 4px 5px 3px 6px repeat stretch;
+  border-radius: 10px 8px 0 0;
 }
 
 .tabbrowser-tab:hover,
@@ -1354,36 +1552,12 @@ richlistitem[type~="action"][actiontype="switchtab"] > .ac-url-box > .ac-action-
   background-image: -moz-linear-gradient(hsla(0,0%,80%,.5), hsla(0,0%,60%,.5) 50%);
 }
 
-.tabbrowser-tab[busy] > .tab-icon-image {
-  list-style-image: url("chrome://browser/skin/tabbrowser/progress.png") !important;
-  -moz-image-region: rect(0, 16px, 16px, 0);
+.tabbrowser-tab[pinned][titlechanged]:not([selected="true"]) {
+  background-image: -moz-radial-gradient(40% 3px, circle cover, rgba(255,255,255,1) 2%, rgba(186,221,251,.75) 25%, rgba(127,179,255,.5) 50%, rgba(127,179,255,.25));
 }
-.tabbrowser-tab[busy][stalled] > .tab-icon-image {
-  list-style-image: url("chrome://browser/skin/tabbrowser/progress-pulsing.png") !important;
-}
-.tabbrowser-tab[busy][progress="1"] > .tab-icon-image {
-  -moz-image-region: rect(0, 32px, 16px, 16px);
-}
-.tabbrowser-tab[busy][progress="2"] > .tab-icon-image {
-  -moz-image-region: rect(0, 48px, 16px, 32px);
-}
-.tabbrowser-tab[busy][progress="3"] > .tab-icon-image {
-  -moz-image-region: rect(0, 64px, 16px, 48px);
-}
-.tabbrowser-tab[busy][progress="4"] > .tab-icon-image {
-  -moz-image-region: rect(0, 80px, 16px, 64px);
-}
-.tabbrowser-tab[busy][progress="5"] > .tab-icon-image {
-  -moz-image-region: rect(0, 96px, 16px, 80px);
-}
-.tabbrowser-tab[busy][progress="6"] > .tab-icon-image {
-  -moz-image-region: rect(0, 112px, 16px, 96px);
-}
-.tabbrowser-tab[busy][progress="7"] > .tab-icon-image {
-  -moz-image-region: rect(0, 128px, 16px, 112px);
-}
-.tabbrowser-tab[busy][progress="8"] > .tab-icon-image {
-  -moz-image-region: rect(0, 144px, 16px, 128px);
+.tabbrowser-tab[pinned][titlechanged]:not([selected="true"]):hover {
+  background-image: -moz-linear-gradient(hsla(0,0%,100%,.4), hsla(0,0%,75%,.4) 50%),
+                    -moz-radial-gradient(40% 3px, circle cover, rgba(255,255,255,1) 2%, rgba(186,221,251,.75) 25%, rgba(127,179,255,.5) 50%, rgba(127,179,255,.25));
 }
 
 .tab-icon-image {
@@ -1398,22 +1572,13 @@ richlistitem[type~="action"][actiontype="switchtab"] > .ac-url-box > .ac-action-
   min-height: 16px; /* corresponds to the max. height of non-textual tab contents, i.e. the favicon */
 }
 
-.tabbrowser-tab[pinned] > .tab-icon-image {
+.tab-icon-image[pinned] {
   -moz-margin-start: 2px;
   -moz-margin-end: 2px;
 }
 
 /* tabbrowser-tab focus ring */
-.tabbrowser-tab > .tab-text {
-  border: 1px dotted transparent;
-  margin: -1px !important; /* let the border not consume any space, like outline */
-}
-
-.tabbrowser-tab:focus > .tab-text {
-  border: 1px dotted -moz-DialogText;
-}
-
-.tabbrowser-tab[pinned]:focus > .tab-icon-image {
+.tabbrowser-tab:focus > .tab-stack {
   outline: 1px dotted;
 }
 
@@ -1436,20 +1601,17 @@ richlistitem[type~="action"][actiontype="switchtab"] > .ac-url-box > .ac-action-
 }
 
 .tab-close-button:hover,
-.tabbrowser-tab[selected="true"] > .tab-close-button:hover {
+.tab-close-button:hover[selected="true"] {
   -moz-image-region: rect(0, 32px, 16px, 16px);
 }
 
 .tab-close-button:hover:active,
-.tabbrowser-tab[selected="true"] > .tab-close-button:hover:active {
+.tab-close-button:hover:active[selected="true"] {
   -moz-image-region: rect(0, 48px, 16px, 32px);
 }
 
-.tabbrowser-tab[selected="true"] > .tab-close-button {
+.tab-close-button[selected="true"] {
   -moz-image-region: rect(0, 16px, 16px, 0);
-  /* Make this button focusable so clicking on it will not focus the tab while
-     it's getting closed */
-  -moz-user-focus: normal;
 }
 
 .tab-close-button:focus {
@@ -1477,11 +1639,12 @@ richlistitem[type~="action"][actiontype="switchtab"] > .ac-url-box > .ac-action-
   list-style-image: url("chrome://browser/skin/tabbrowser/tab-arrow-left.png");
   -moz-image-region: rect(0, 15px, 17px, 0);
 %ifdef WINSTRIPE_AERO
-  margin: -1px 0;
+  margin: -2px 0 -1px;
+  padding-top: 1px;
 %else
   margin: 0;
-%endif
   padding-top: 0;
+%endif
   padding-bottom: 0;
 }
 
@@ -1629,41 +1792,6 @@ toolbar[mode="text"] toolbarbutton.chevron > .toolbarbutton-icon {
   -moz-margin-end: 4px;
 }
 
-/* Feed icon */
-#feed-button,
-#feed-button > .button-box,
-#feed-button:hover:active > .button-box {
-  padding: 0px;
-  margin: 0px;
-  border: 0px; 
-  background-color: transparent;
-}
-
-#feed-button {
-  -moz-appearance: none; 
-  min-width: 0px; 
-  list-style-image: url("chrome://browser/skin/feeds/feed-icons-16.png");
-  -moz-image-region: rect(0px 16px 16px 0px);
-}
-
-#feed-button:hover {
-  -moz-image-region: rect(0px 32px 16px 16px);
-}
-
-#feed-button[open="true"],
-#feed-button:hover:active {
-  -moz-image-region: rect(0px 48px 16px 32px);
-}
-
-/* ::::: About Popup Blocking dialog ::::: */
-#pageReportFirstTime statusbarpanel.statusbar-resizerpanel {
-  visibility: collapse;
-}
-
-#checkForUpdates[loading="true"] {
-  list-style-image: url("chrome://global/skin/icons/loading_16.png");
-}
-
 /* Bookmarks toolbar */
 #PlacesToolbarDropIndicator {
   list-style-image: url(chrome://browser/skin/places/toolbarDropMarker.png);
@@ -1773,6 +1901,15 @@ toolbarbutton.bookmark-item[dragover="true"][open="true"] {
   color: MenuText;
 }
 
+/* Invalid form popup */
+#invalid-form-popup {
+  -moz-appearance: none;
+  background-color: #fffcd6;
+  border: 1px solid #dad8b6;
+  padding: 5px 5px 5px 5px;
+  font-weight: bold;
+}
+
 /* Notification popup */
 #notification-popup {
   padding: 10px;
@@ -1789,6 +1926,10 @@ toolbarbutton.bookmark-item[dragover="true"][open="true"] {
   list-style-image: url(chrome://browser/skin/Geolocation-64.png);
 }
 
+.geolocation-text-link {
+  padding-top: 5px;
+}
+
 .popup-notification-icon[popupid="xpinstall-disabled"],
 .popup-notification-icon[popupid="addon-install-blocked"],
 .popup-notification-icon[popupid="addon-install-failed"],
@@ -1796,6 +1937,16 @@ toolbarbutton.bookmark-item[dragover="true"][open="true"] {
   list-style-image: url(chrome://mozapps/skin/extensions/extensionGeneric.png);
   width: 32px;
   height: 32px;
+}
+
+.popup-notification-icon[popupid="indexedDB-permissions-prompt"],
+.popup-notification-icon[popupid="indexedDB-quota-prompt"] {
+  list-style-image: url(chrome://global/skin/icons/question-64.png);
+}
+
+.popup-notification-icon[popupid="password-save"],
+.popup-notification-icon[popupid="password-change"] {
+  list-style-image: url(chrome://mozapps/skin/passwordmgr/key-64.png);
 }
 
 /* Notification icon box */
@@ -1819,6 +1970,14 @@ toolbarbutton.bookmark-item[dragover="true"][open="true"] {
 
 #addons-notification-icon {
   list-style-image: url(chrome://mozapps/skin/extensions/extensionGeneric-16.png);
+}
+
+#indexedDB-notification-icon {
+  list-style-image: url(chrome://global/skin/icons/question-16.png);
+}
+
+#password-notification-icon {
+  list-style-image: url(chrome://mozapps/skin/passwordmgr/key-16.png);
 }
 
 #identity-popup-container {
@@ -1850,7 +2009,7 @@ toolbarbutton.bookmark-item[dragover="true"][open="true"] {
   background: rgba(27%,27%,27%,.9) url(KUI-background.png) repeat-x;
   color: white;
   border-style: none;
-  -moz-border-radius: 20px;
+  border-radius: 20px;
 }
 
 .KUI-panel[level="top"] {
@@ -1881,7 +2040,7 @@ toolbarbutton.bookmark-item[dragover="true"][open="true"] {
 #ctrlTab-panel {
   padding: 20px 10px 10px;
   font-weight: bold;
-  text-shadow: 0 0 1px rgb(27%,27%,27%), 0 0 3px rgb(27%,27%,27%);
+  text-shadow: 0 0 1px rgb(27%,27%,27%), 0 0 2px rgb(27%,27%,27%);
 }
 
 .ctrlTab-favicon[src] {
@@ -1892,7 +2051,7 @@ toolbarbutton.bookmark-item[dragover="true"][open="true"] {
 }
 
 .ctrlTab-preview-inner > .tabPreview-canvas {
-  -moz-box-shadow: 1px 1px 3px rgb(12%,12%,12%);
+  box-shadow: 1px 1px 2px rgb(12%,12%,12%);
 }
 
 .ctrlTab-preview:not(#ctrlTab-showAll) > * > .ctrlTab-preview-inner > .tabPreview-canvas {
@@ -1906,7 +2065,7 @@ toolbarbutton.bookmark-item[dragover="true"][open="true"] {
 #ctrlTab-showAll:not(:focus) > * > .ctrlTab-preview-inner {
   padding: 10px;
   background-color: rgba(255,255,255,.2);
-  -moz-border-radius: .5em;
+  border-radius: .5em;
 }
 
 .ctrlTab-preview:focus > * > .ctrlTab-preview-inner {
@@ -1915,7 +2074,7 @@ toolbarbutton.bookmark-item[dragover="true"][open="true"] {
   text-shadow: none;
   padding: 8px;
   border: 2px solid white;
-  -moz-border-radius: .5em;
+  border-radius: .5em;
 }
 
 .ctrlTab-preview:not(#ctrlTab-showAll):focus > * > .ctrlTab-preview-inner {
@@ -1959,17 +2118,17 @@ toolbarbutton.bookmark-item[dragover="true"][open="true"] {
   -moz-padding-end: 5px;
   margin-top: -2px;
   -moz-margin-start: -2px;
-  -moz-border-radius-bottomright: 4px;
+  border-bottom-right-radius: 4px;
 }
 
 .allTabs-favicon[src]:-moz-locale-dir(rtl) {
-  -moz-border-radius-bottomright: 0;
-  -moz-border-radius-bottomleft: 4px;
+  border-bottom-right-radius: 0;
+  border-bottom-left-radius: 4px;
 }
 
 .allTabs-preview-inner > .tabPreview-canvas {
   background-color: rgb(60%,60%,60%);
-  -moz-box-shadow: 0 0 2px ThreeDShadow;
+  box-shadow: 0 0 1.5px ThreeDShadow;
 }
 
 .allTabs-preview:not(:hover):not([closebuttonhover]) > html|canvas {
@@ -2003,4 +2162,22 @@ listitem.style-section {
 
 panel[dimmed="true"] {
   opacity: 0.5;
+}
+
+/* Vertically-center the statusbar compatibility shim, because
+   toolbars, even in small-icon mode, are a bit taller than
+   statusbars. Also turn off the statusbar border. On Windows
+   we have to disable borders on statusbar *and* child statusbar
+   elements. */
+#status-bar {
+  margin-top: .3em;
+  border-width: 0;
+  -moz-appearance: none;
+}
+
+/* Remove all borders from statusbarpanel children of
+   the statusbar. */
+#status-bar > statusbarpanel {
+  border-width: 0;
+  -moz-appearance: none;
 }

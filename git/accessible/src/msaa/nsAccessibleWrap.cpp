@@ -42,9 +42,9 @@
 #include "nsAccUtils.h"
 #include "nsCoreUtils.h"
 #include "nsRelUtils.h"
+#include "nsWinUtils.h"
 
 #include "nsIAccessibleDocument.h"
-#include "nsIAccessibleSelectable.h"
 #include "nsIAccessibleEvent.h"
 #include "nsIAccessibleWin32Object.h"
 
@@ -194,58 +194,23 @@ STDMETHODIMP nsAccessibleWrap::get_accParent( IDispatch __RPC_FAR *__RPC_FAR *pp
 {
 __try {
   *ppdispParent = NULL;
-  if (!mWeakShell)
-    return E_FAIL;  // We've been shut down
 
-  nsIFrame *frame = GetFrame();
-  HWND hwnd = 0;
-  if (frame) {
-    nsIView *view = frame->GetViewExternal();
-    if (view) {
-      // This code is essentially our implementation of WindowFromAccessibleObject,
-      // because MSAA iterates get_accParent() until it sees an object of ROLE_WINDOW
-      // to know where the window for a given accessible is. We must expose the native
-      // window accessible that MSAA creates for us. This must be done for the document
-      // object as well as any layout that creates its own window (e.g. via overflow: scroll)
-      nsIWidget *widget = view->GetWidget();
-      if (widget) {
-        hwnd = (HWND)widget->GetNativeData(NS_NATIVE_WINDOW);
-        NS_ASSERTION(hwnd, "No window handle for window");
+  if (IsDefunct())
+    return E_FAIL;
 
-        nsIViewManager* viewManager = view->GetViewManager();
-        if (!viewManager)
-          return E_UNEXPECTED;
-
-        nsIView *rootView;
-        viewManager->GetRootView(rootView);
-        if (rootView == view) {
-          // If the client accessible (OBJID_CLIENT) has a window but its window
-          // was created by an outer window then we want the native accessible
-          // for that outer window. If the accessible was created for outer
-          // window (if the outer window has inner windows then they share the
-          // same client accessible with it) then return native accessible for
-          // the outer window.
-          HWND parenthwnd = ::GetParent(hwnd);
-          if (parenthwnd)
-            hwnd = parenthwnd;
-
-          NS_ASSERTION(hwnd, "No window handle for window");
-        }
+  nsRefPtr<nsDocAccessible> doc(do_QueryObject(this));
+  if (doc) {
+    // Return window system accessible object for root document and tab document
+    // accessibles.
+    if (!doc->ParentDocument() ||
+        nsWinUtils::IsWindowEmulationEnabled() &&
+        nsWinUtils::IsTabDocument(doc->GetDocumentNode())) {
+      HWND hwnd = static_cast<HWND>(doc->GetNativeWindow());
+      if (hwnd && SUCCEEDED(AccessibleObjectFromWindow(hwnd, OBJID_WINDOW,
+                                                       IID_IAccessible,
+                                                       (void**)ppdispParent))) {
+        return S_OK;
       }
-      else {
-        // If a frame is a scrollable frame, then it has one window for the client area,
-        // not an extra parent window for just the scrollbars
-        nsIScrollableFrame *scrollFrame = do_QueryFrame(frame);
-        if (scrollFrame) {
-          hwnd = (HWND)scrollFrame->GetScrolledFrame()->GetNearestWidget()->GetNativeData(NS_NATIVE_WINDOW);
-          NS_ASSERTION(hwnd, "No window handle for window");
-        }
-      }
-    }
-
-    if (hwnd && SUCCEEDED(AccessibleObjectFromWindow(hwnd, OBJID_WINDOW, IID_IAccessible,
-                                              (void**)ppdispParent))) {
-      return S_OK;
     }
   }
 
@@ -283,24 +248,21 @@ STDMETHODIMP nsAccessibleWrap::get_accChild(
 {
 __try {
   *ppdispChild = NULL;
-  if (!mWeakShell || varChild.vt != VT_I4)
+  if (IsDefunct())
     return E_FAIL;
 
-  if (varChild.lVal == CHILDID_SELF) {
-    *ppdispChild = static_cast<IDispatch*>(this);
-    AddRef();
-    return S_OK;
-  }
+  // IAccessible::accChild is used to return this accessible or child accessible
+  // at the given index or to get an accessible by child ID in the case of
+  // document accessible (it's handled by overriden GetXPAccessibleFor method
+  // on the document accessible). The getting an accessible by child ID is used
+  // by AccessibleObjectFromEvent() called by AT when AT handles our MSAA event.
+  nsAccessible* child = GetXPAccessibleFor(varChild);
+  if (child)
+    *ppdispChild = NativeAccessible(child);
 
-  if (!nsAccUtils::MustPrune(this)) {
-    nsAccessible* child = GetChildAt(varChild.lVal - 1);
-    if (child) {
-      *ppdispChild = NativeAccessible(child);
-    }
-  }
 } __except(FilterA11yExceptions(::GetExceptionCode(), GetExceptionInformation())) { }
 
-  return (*ppdispChild)? S_OK: E_FAIL;
+  return (*ppdispChild)? S_OK: E_INVALIDARG;
 }
 
 STDMETHODIMP nsAccessibleWrap::get_accName(
@@ -391,6 +353,9 @@ STDMETHODIMP nsAccessibleWrap::get_accRole(
 __try {
   VariantInit(pvarRole);
 
+  if (IsDefunct())
+    return E_FAIL;
+
   nsAccessible *xpAccessible = GetXPAccessibleFor(varChild);
   if (!xpAccessible)
     return E_FAIL;
@@ -400,11 +365,8 @@ __try {
                "Does not support nsIAccessibleText when it should");
 #endif
 
-  PRUint32 xpRole = 0, msaaRole = 0;
-  if (NS_FAILED(xpAccessible->GetRole(&xpRole)))
-    return E_FAIL;
-
-  msaaRole = gWindowsRoleMap[xpRole].msaaRole;
+  PRUint32 xpRole = xpAccessible->Role();
+  PRUint32 msaaRole = gWindowsRoleMap[xpRole].msaaRole;
   NS_ASSERTION(gWindowsRoleMap[nsIAccessibleRole::ROLE_LAST_ENTRY].msaaRole == ROLE_WINDOWS_LAST_ENTRY,
                "MSAA role map skewed");
 
@@ -412,7 +374,8 @@ __try {
   // a ROLE_OUTLINEITEM for consistency and compatibility.
   // We need this because ARIA has a role of "row" for both grid and treegrid
   if (xpRole == nsIAccessibleRole::ROLE_ROW) {
-    if (nsAccUtils::Role(GetParent()) == nsIAccessibleRole::ROLE_TREE_TABLE)
+    nsAccessible* xpParent = GetParent();
+    if (xpParent && xpParent->Role() == nsIAccessibleRole::ROLE_TREE_TABLE)
       msaaRole = ROLE_SYSTEM_OUTLINEITEM;
   }
   
@@ -697,7 +660,7 @@ __try {
 /**
   * This method is called when a client wants to know which children of a node
   *  are selected. Note that this method can only find selected children for
-  *  nsIAccessible object which implement nsIAccessibleSelectable.
+  *  nsIAccessible object which implement SelectAccessible.
   *
   * The VARIANT return value arguement is expected to either contain a single IAccessible
   *  or an IEnumVARIANT of IAccessibles. We return the IEnumVARIANT regardless of the number
@@ -717,17 +680,12 @@ __try {
   VariantInit(pvarChildren);
   pvarChildren->vt = VT_EMPTY;
 
-  nsCOMPtr<nsIAccessibleSelectable> 
-    select(do_QueryInterface(static_cast<nsIAccessible*>(this)));
-
-  if (select) {  // do we have an nsIAccessibleSelectable?
-    // we have an accessible that can have children selected
-    nsCOMPtr<nsIArray> selectedOptions;
-    // gets the selected options as nsIAccessibles.
-    select->GetSelectedChildren(getter_AddRefs(selectedOptions));
-    if (selectedOptions) { // false if the select has no children or none are selected
+  if (IsSelect()) {
+    nsCOMPtr<nsIArray> selectedItems = SelectedItems();
+    if (selectedItems) {
       // 1) Create and initialize the enumeration
-      nsRefPtr<AccessibleEnumerator> pEnum = new AccessibleEnumerator(selectedOptions);
+      nsRefPtr<AccessibleEnumerator> pEnum =
+        new AccessibleEnumerator(selectedItems);
 
       // 2) Put the enumerator in the VARIANT
       if (!pEnum)
@@ -1198,20 +1156,20 @@ nsAccessibleWrap::role(long *aRole)
 __try {
   *aRole = 0;
 
-  PRUint32 xpRole = 0;
-  nsresult rv = GetRole(&xpRole);
-  if (NS_FAILED(rv))
-    return GetHRESULT(rv);
+  if (IsDefunct())
+    return E_FAIL;
 
   NS_ASSERTION(gWindowsRoleMap[nsIAccessibleRole::ROLE_LAST_ENTRY].ia2Role == ROLE_WINDOWS_LAST_ENTRY,
                "MSAA role map skewed");
 
+  PRUint32 xpRole = Role();
   *aRole = gWindowsRoleMap[xpRole].ia2Role;
 
   // Special case, if there is a ROLE_ROW inside of a ROLE_TREE_TABLE, then call
   // the IA2 role a ROLE_OUTLINEITEM.
   if (xpRole == nsIAccessibleRole::ROLE_ROW) {
-    if (nsAccUtils::Role(GetParent()) == nsIAccessibleRole::ROLE_TREE_TABLE)
+    nsAccessible* xpParent = GetParent();
+    if (xpParent && xpParent->Role() == nsIAccessibleRole::ROLE_TREE_TABLE)
       *aRole = ROLE_SYSTEM_OUTLINEITEM;
   }
 
@@ -1676,45 +1634,11 @@ PRInt32 nsAccessibleWrap::GetChildIDFor(nsIAccessible* aAccessible)
 HWND
 nsAccessibleWrap::GetHWNDFor(nsAccessible *aAccessible)
 {
-  HWND hWnd = 0;
   if (!aAccessible)
-    return hWnd;
+    return 0;
 
-  nsIFrame *frame = aAccessible->GetFrame();
-  if (frame) {
-    nsIWidget *window = frame->GetNearestWidget();
-    PRBool isVisible;
-    window->IsVisible(isVisible);
-    if (isVisible) {
-      // Short explanation:
-      // If HWND for frame is inside a hidden window, fire the event on the
-      // containing document's visible window.
-      //
-      // Long explanation:
-      // This is really just to fix combo boxes with JAWS. Window-Eyes already
-      // worked with combo boxes because they use the value change event in
-      // the closed combo box case. JAWS will only pay attention to the focus
-      // events on the list items. The JAWS developers haven't fixed that, so
-      // we'll use the focus events to make JAWS work. However, JAWS is
-      // ignoring events on a hidden window. So, in order to fix the bug where
-      // JAWS doesn't echo the current option as it changes in a closed
-      // combo box, we need to use an ensure that we never fire an event with
-      // an HWND for a hidden window.
-      hWnd = (HWND)frame->GetNearestWidget()->GetNativeData(NS_NATIVE_WINDOW);
-    }
-  }
-
-  if (!hWnd) {
-    void* handle = nsnull;
-    nsDocAccessible *accessibleDoc = aAccessible->GetDocAccessible();
-    if (!accessibleDoc)
-      return 0;
-
-    accessibleDoc->GetWindowHandle(&handle);
-    hWnd = (HWND)handle;
-  }
-
-  return hWnd;
+  nsDocAccessible* document = aAccessible->GetDocAccessible();
+  return document ? static_cast<HWND>(document->GetNativeWindow()) : 0;
 }
 
 HRESULT
@@ -1815,7 +1739,7 @@ nsAccessibleWrap::UnattachIEnumVariant()
 nsAccessible*
 nsAccessibleWrap::GetXPAccessibleFor(const VARIANT& aVarChild)
 {
-  if (IsDefunct())
+  if (aVarChild.vt != VT_I4)
     return nsnull;
 
   // if its us real easy - this seems to always be the case
