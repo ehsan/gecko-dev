@@ -152,6 +152,7 @@ JSRuntime::JSRuntime(JSRuntime *parentRuntime)
     futexAPI_(nullptr),
     ownerThread_(nullptr),
     tempLifoAlloc(TEMP_LIFO_ALLOC_PRIMARY_CHUNK_SIZE),
+    freeLifoAlloc(TEMP_LIFO_ALLOC_PRIMARY_CHUNK_SIZE),
     execAlloc_(nullptr),
     jitRuntime_(nullptr),
     selfHostingGlobal_(nullptr),
@@ -698,8 +699,9 @@ JSRuntime::onOutOfMemory(void *p, size_t nbytes, JSContext *cx)
 void *
 JSRuntime::onOutOfMemoryCanGC(void *p, size_t bytes)
 {
-    if (largeAllocationFailureCallback && bytes >= LARGE_ALLOCATION)
-        largeAllocationFailureCallback(largeAllocationFailureCallbackData);
+    if (!largeAllocationFailureCallback || bytes < LARGE_ALLOCATION)
+        return nullptr;
+    largeAllocationFailureCallback(largeAllocationFailureCallbackData);
     return onOutOfMemory(p, bytes);
 }
 

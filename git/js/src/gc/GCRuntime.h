@@ -455,7 +455,7 @@ class GCRuntime
     inline void updateOnArenaFree(const ChunkInfo &info);
 
     GCChunkSet::Range allChunks() { return chunkSet.all(); }
-    Chunk **getAvailableChunkList();
+    inline Chunk **getAvailableChunkList(Zone *zone);
     void moveChunkToFreePool(Chunk *chunk, const AutoLockGC &lock);
     bool hasChunk(Chunk *chunk) { return chunkSet.has(chunk); }
     ChunkPool &emptyChunks(const AutoLockGC &lock) { return emptyChunks_; }
@@ -476,14 +476,10 @@ class GCRuntime
     static void *refillFreeListFromAnyThread(ThreadSafeContext *cx, AllocKind thingKind);
     static void *refillFreeListInGC(Zone *zone, AllocKind thingKind);
 
-    // Free certain LifoAlloc blocks from the background sweep thread.
-    void freeUnusedLifoBlocksAfterSweeping(LifoAlloc *lifo);
-    void freeAllLifoBlocksAfterSweeping(LifoAlloc *lifo);
-
   private:
     // For ArenaLists::allocateFromArena()
     friend class ArenaLists;
-    Chunk *pickChunk(const AutoLockGC &lock,
+    Chunk *pickChunk(const AutoLockGC &lock, Zone *zone,
                      AutoMaybeStartBackgroundAllocation &maybeStartBGAlloc);
     inline void arenaAllocatedDuringGC(JS::Zone *zone, ArenaHeader *arena);
 
@@ -518,7 +514,6 @@ class GCRuntime
     void resetIncrementalGC(const char *reason);
     void incrementalCollectSlice(int64_t budget, JS::gcreason::Reason reason);
     void pushZealSelectedObjects();
-    void purgeRuntime();
     bool beginMarkPhase(JS::gcreason::Reason reason);
     bool shouldPreserveJITCode(JSCompartment *comp, int64_t currentTime,
                                JS::gcreason::Reason reason);
@@ -615,7 +610,8 @@ class GCRuntime
      * During the GC when all arenas in a chunk become free, that chunk is
      * removed from the list and scheduled for release.
      */
-    js::gc::Chunk *availableChunkListHead;
+    js::gc::Chunk *systemAvailableChunkListHead;
+    js::gc::Chunk *userAvailableChunkListHead;
     js::gc::ChunkPool emptyChunks_;
 
     js::RootedValueMap rootsHash;
@@ -702,12 +698,6 @@ class GCRuntime
 
     /* List head of zones to be swept in the background. */
     JS::Zone *sweepingZones;
-
-    /*
-     * Free LIFO blocks are transferred to this allocator before being freed on
-     * the background GC thread.
-     */
-    js::LifoAlloc freeLifoAlloc;
 
     /* Index of current zone group (for stats). */
     unsigned zoneGroupIndex;

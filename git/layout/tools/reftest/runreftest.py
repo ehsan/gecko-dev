@@ -7,8 +7,8 @@ Runs the reftest test harness.
 """
 
 from optparse import OptionParser
-from urlparse import urlparse
 import collections
+import json
 import multiprocessing
 import os
 import re
@@ -16,6 +16,7 @@ import shutil
 import signal
 import subprocess
 import sys
+import tempfile
 import threading
 
 SCRIPT_DIRECTORY = os.path.abspath(os.path.realpath(os.path.dirname(sys.argv[0])))
@@ -25,6 +26,7 @@ from automationutils import (
     addCommonOptions,
     dumpScreen,
     environment,
+    isURL,
     processLeakLog
 )
 import mozcrash
@@ -33,6 +35,7 @@ import mozinfo
 import mozprocess
 import mozprofile
 import mozrunner
+from mozrunner.utils import findInPath as which
 
 here = os.path.abspath(os.path.dirname(__file__))
 
@@ -786,7 +789,7 @@ Are you executing $objdir/_tests/reftest/runreftest.py?""" \
   if options.xrePath is None:
     options.xrePath = os.path.dirname(options.app)
 
-  if options.symbolsPath and len(urlparse(options.symbolsPath).scheme) < 2:
+  if options.symbolsPath and not isURL(options.symbolsPath):
     options.symbolsPath = reftest.getFullPath(options.symbolsPath)
   options.utilityPath = reftest.getFullPath(options.utilityPath)
 

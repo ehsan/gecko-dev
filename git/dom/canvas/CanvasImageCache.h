@@ -43,7 +43,7 @@ public:
    */
   static SourceSurface* Lookup(dom::Element* aImage,
                                dom::HTMLCanvasElement* aCanvas,
-                               gfx::IntSize* aSize);
+                               gfxIntSize* aSize);
 
   /**
    * This is the same as Lookup, except it works on any image recently drawn

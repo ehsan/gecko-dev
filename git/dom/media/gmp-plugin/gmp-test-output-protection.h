@@ -11,7 +11,7 @@
 #include <vector>
 #include <windows.h>
 
-#include "opmapi.h"
+#include "Opmapi.h"
 #endif
 
 namespace mozilla {
@@ -112,8 +112,8 @@ RunOutputProtectionAPITests()
   }
 
   // Report any failures in the callback function.
-  for (size_t i = 0; i < failureMsgs.size(); i++) {
-    FakeDecryptor::Message(failureMsgs[i]);
+  for (auto& msg : failureMsgs) {
+    FakeDecryptor::Message(msg);
   }
 #endif
 }

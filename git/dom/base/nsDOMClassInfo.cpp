@@ -1546,7 +1546,7 @@ private:
       return data->mConstructorCID != nullptr;
     }
 
-    return false;
+    return nullptr;
   }
   static bool IsConstructable(const nsGlobalNameStruct *aNameStruct)
   {

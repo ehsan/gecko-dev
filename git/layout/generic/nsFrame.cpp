@@ -3800,13 +3800,9 @@ nsFrame::GetCursor(const nsPoint& aPoint,
     // If this is editable, I-beam cursor is better for most elements.
     aCursor.mCursor =
       (mContent && mContent->IsEditable())
-      ? NS_STYLE_CURSOR_TEXT : NS_STYLE_CURSOR_DEFAULT;
-  }
-  if (NS_STYLE_CURSOR_TEXT == aCursor.mCursor &&
-      GetWritingMode().IsVertical()) {
-    // Per CSS UI spec, UA may treat value 'text' as
-    // 'vertical-text' for vertical text.
-    aCursor.mCursor = NS_STYLE_CURSOR_VERTICAL_TEXT;
+      ? GetWritingMode().IsVertical()
+        ? NS_STYLE_CURSOR_VERTICAL_TEXT : NS_STYLE_CURSOR_TEXT
+      : NS_STYLE_CURSOR_DEFAULT;
   }
 
   return NS_OK;

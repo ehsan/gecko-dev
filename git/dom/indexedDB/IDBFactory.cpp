@@ -110,6 +110,7 @@ struct IDBFactory::PendingRequestInfo
 IDBFactory::IDBFactory()
   : mOwningObject(nullptr)
   , mBackgroundActor(nullptr)
+  , mRootedOwningObject(false)
   , mBackgroundActorFailed(false)
   , mPrivateBrowsingMode(false)
 {
@@ -123,8 +124,10 @@ IDBFactory::~IDBFactory()
 {
   MOZ_ASSERT_IF(mBackgroundActorFailed, !mBackgroundActor);
 
-  mOwningObject = nullptr;
-  mozilla::DropJSObjects(this);
+  if (mRootedOwningObject) {
+    mOwningObject = nullptr;
+    mozilla::DropJSObjects(this);
+  }
 
   if (mBackgroundActor) {
     mBackgroundActor->SendDeleteMeInternal();
@@ -268,7 +271,9 @@ IDBFactory::CreateForJSInternal(JSContext* aCx,
   nsRefPtr<IDBFactory> factory = new IDBFactory();
   factory->mPrincipalInfo = aPrincipalInfo.forget();
   factory->mOwningObject = aOwningObject;
+
   mozilla::HoldJSObjects(factory.get());
+  factory->mRootedOwningObject = true;
 
   factory.forget(aFactory);
   return NS_OK;
@@ -478,7 +483,8 @@ IDBFactory::OpenInternal(nsIPrincipal* aPrincipal,
     persistenceType = PERSISTENCE_TYPE_PERSISTENT;
     persistenceTypeIsExplicit = false;
   } else {
-    persistenceType = PersistenceTypeFromStorage(aStorageType);
+    persistenceType =
+      PersistenceTypeFromStorage(aStorageType, PERSISTENCE_TYPE_PERSISTENT);
     persistenceTypeIsExplicit = aStorageType.WasPassed();
   }
 
@@ -711,7 +717,13 @@ NS_IMPL_CYCLE_COLLECTION_TRAVERSE_END
 
 NS_IMPL_CYCLE_COLLECTION_UNLINK_BEGIN(IDBFactory)
   NS_IMPL_CYCLE_COLLECTION_UNLINK_PRESERVED_WRAPPER
-  tmp->mOwningObject = nullptr;
+  if (tmp->mOwningObject) {
+    tmp->mOwningObject = nullptr;
+  }
+  if (tmp->mRootedOwningObject) {
+    mozilla::DropJSObjects(tmp);
+    tmp->mRootedOwningObject = false;
+  }
   NS_IMPL_CYCLE_COLLECTION_UNLINK(mWindow)
 NS_IMPL_CYCLE_COLLECTION_UNLINK_END
 

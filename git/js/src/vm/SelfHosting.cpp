@@ -6,8 +6,6 @@
 
 #include "vm/SelfHosting.h"
 
-#include "mozilla/DebugOnly.h"
-
 #include "jscntxt.h"
 #include "jscompartment.h"
 #include "jsdate.h"
@@ -732,7 +730,8 @@ intrinsic_CloseClosingLegacyGeneratorObject(JSContext *cx, unsigned argc, Value 
 static bool
 intrinsic_ThrowStopIteration(JSContext *cx, unsigned argc, Value *vp)
 {
-    MOZ_ASSERT(CallArgsFromVp(argc, vp).length() == 0);
+    CallArgs args = CallArgsFromVp(argc, vp);
+    MOZ_ASSERT(args.length() == 0);
 
     return ThrowStopIteration(cx);
 }
@@ -1504,7 +1503,7 @@ CloneValue(JSContext *cx, HandleValue selfHostedValue, MutableHandleValue vp)
         vp.setString(clone);
     } else if (selfHostedValue.isSymbol()) {
         // Well-known symbols are shared.
-        mozilla::DebugOnly<JS::Symbol *> sym = selfHostedValue.toSymbol();
+        JS::Symbol *sym = selfHostedValue.toSymbol();
         MOZ_ASSERT(sym->isWellKnownSymbol());
         MOZ_ASSERT(cx->wellKnownSymbols().get(size_t(sym->code())) == sym);
         vp.set(selfHostedValue);

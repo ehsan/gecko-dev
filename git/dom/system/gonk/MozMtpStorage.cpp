@@ -28,7 +28,7 @@ MozMtpStorage::MozMtpStorage(Volume* aVolume, MozMtpServer* aMozMtpServer)
   MTP_LOG("Storage constructed for Volume %s mStorageID 0x%08x",
           aVolume->NameStr(), mStorageID);
 
-  Volume::RegisterVolumeObserver(this, "MozMtpStorage");
+  Volume::RegisterObserver(this);
 
   // Get things in sync
   Notify(mVolume);
@@ -36,12 +36,10 @@ MozMtpStorage::MozMtpStorage(Volume* aVolume, MozMtpServer* aMozMtpServer)
 
 MozMtpStorage::~MozMtpStorage()
 {
-  MOZ_ASSERT(MessageLoop::current() == XRE_GetIOMessageLoop());
-
   MTP_LOG("Storage destructed for Volume %s mStorageID 0x%08x",
           mVolume->NameStr(), mStorageID);
 
-  Volume::UnregisterVolumeObserver(this, "MozMtpStorage");
+  Volume::UnregisterObserver(this);
   if (mMtpStorage) {
     StorageUnavailable();
   }

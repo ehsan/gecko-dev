@@ -55,6 +55,9 @@ taskHelper.push(function testPinChangeSuccess() {
   };
 
   request.onsuccess = function onsuccess() {
+    is(request.result.lockType, "pin");
+    is(request.result.success, true);
+
     taskHelper.runNext();
   };
 });
@@ -67,6 +70,8 @@ taskHelper.push(function testPinCardLockRetryCount() {
      'request instanceof ' + request.constructor);
 
   request.onsuccess = function onsuccess() {
+    is(request.result.lockType, 'pin',
+        'lockType is ' + request.result.lockType);
     ok(request.result.retryCount >= 0,
         'retryCount is ' + request.result.retryCount);
     taskHelper.runNext();
@@ -89,6 +94,8 @@ taskHelper.push(function testPukCardLockRetryCount() {
      'request instanceof ' + request.constructor);
 
   request.onsuccess = function onsuccess() {
+    is(request.result.lockType, 'puk',
+        'lockType is ' + request.result.lockType);
     ok(request.result.retryCount >= 0,
         'retryCount is ' + request.result.retryCount);
     taskHelper.runNext();

@@ -24,62 +24,28 @@ XPCOMUtils.defineLazyServiceGetter(this,
                                    "nsIAppsService");
 
 /**
- * Implementation of NFCTag.
- *
- * @param window  global window object.
- * @param sessionToken  session token received from parent process.
- * @parem event   type of nsINfcTagEvent received from parent process.
+ * NFCTag
  */
-function MozNFCTagImpl(window, sessionToken, event) {
-  debug("In MozNFCTagImpl Constructor");
+function MozNFCTag(aWindow, aSessionToken) {
+  debug("In MozNFCTag Constructor");
   this._nfcContentHelper = Cc["@mozilla.org/nfc/content-helper;1"]
                              .getService(Ci.nsINfcContentHelper);
-  this._window = window;
-  this.session = sessionToken;
-  this.techList = event.techList;
-  this.type = event.tagType || null;
-  this.maxNDEFSize = event.maxNDEFSize || null;
-  this.isReadOnly = event.isReadOnly || null;
-  this.isFormatable = event.isFormatable || null;
-  this.canBeMadeReadOnly = this.type ?
-                             (this.type == "type1" || this.type == "type2" ||
-                              this.type == "mifare_classic") :
-                             null;
+  this._window = aWindow;
+  this.session = aSessionToken;
 }
-MozNFCTagImpl.prototype = {
+MozNFCTag.prototype = {
   _nfcContentHelper: null,
   _window: null,
-  session: null,
-  techList: null,
-  type: null,
-  maxNDEFSize: 0,
-  isReadOnly: false,
-  isFormatable: false,
-  canBeMadeReadOnly: false,
-  isLost: false,
 
   // NFCTag interface:
   readNDEF: function readNDEF() {
-    if (this.isLost) {
-      throw new this._window.DOMError("InvalidStateError", "NFCTag object is invalid");
-    }
-
     return this._nfcContentHelper.readNDEF(this.session);
   },
-
   writeNDEF: function writeNDEF(records) {
-    if (this.isLost) {
-      throw new this._window.DOMError("InvalidStateError", "NFCTag object is invalid");
-    }
-
     return this._nfcContentHelper.writeNDEF(records, this.session);
   },
-
-  makeReadOnly: function makeReadOnly() {
-    if (this.isLost) {
-      throw new this._window.DOMError("InvalidStateError", "NFCTag object is invalid");
-    }
-    return this._nfcContentHelper.makeReadOnly(this.session);
+  makeReadOnlyNDEF: function makeReadOnlyNDEF() {
+    return this._nfcContentHelper.makeReadOnlyNDEF(this.session);
   },
 
   classID: Components.ID("{4e1e2e90-3137-11e3-aa6e-0800200c9a66}"),
@@ -89,27 +55,24 @@ MozNFCTagImpl.prototype = {
 };
 
 /**
- * Implementation of NFCPeer.
- *
- * @param window  global window object.
- * @param sessionToken  session token received from parent process.
+ * NFCPeer
  */
-function MozNFCPeerImpl(aWindow, aSessionToken) {
-  debug("In MozNFCPeerImpl Constructor");
+function MozNFCPeer(aWindow, aSessionToken) {
+  debug("In MozNFCPeer Constructor");
   this._nfcContentHelper = Cc["@mozilla.org/nfc/content-helper;1"]
                              .getService(Ci.nsINfcContentHelper);
 
   this._window = aWindow;
   this.session = aSessionToken;
 }
-MozNFCPeerImpl.prototype = {
+MozNFCPeer.prototype = {
   _nfcContentHelper: null,
   _window: null,
-  isLost: false,
+  _isLost: false,
 
   // NFCPeer interface:
   sendNDEF: function sendNDEF(records) {
-    if (this.isLost) {
+    if (this._isLost) {
       throw new this._window.DOMError("InvalidStateError", "NFCPeer object is invalid");
     }
 
@@ -118,7 +81,7 @@ MozNFCPeerImpl.prototype = {
   },
 
   sendFile: function sendFile(blob) {
-    if (this.isLost) {
+    if (this._isLost) {
       throw new this._window.DOMError("InvalidStateError", "NFCPeer object is invalid");
     }
 
@@ -129,6 +92,10 @@ MozNFCPeerImpl.prototype = {
                                            this.session);
   },
 
+  invalidate: function invalidate() {
+    this._isLost = true;
+  },
+
   classID: Components.ID("{c1b2bcf0-35eb-11e3-aa6e-0800200c9a66}"),
   contractID: "@mozilla.org/nfc/NFCPeer;1",
   QueryInterface: XPCOMUtils.generateQI([Ci.nsISupports,
@@ -136,10 +103,10 @@ MozNFCPeerImpl.prototype = {
 };
 
 /**
- * Implementation of navigator NFC object.
+ * Navigator NFC object
  */
-function MozNFCImpl() {
-  debug("In MozNFCImpl Constructor");
+function mozNfc() {
+  debug("In mozNfc Constructor");
   try {
     this._nfcContentHelper = Cc["@mozilla.org/nfc/content-helper;1"]
                                .getService(Ci.nsINfcContentHelper);
@@ -149,14 +116,13 @@ function MozNFCImpl() {
 
   this._nfcContentHelper.registerEventTarget(this);
 }
-MozNFCImpl.prototype = {
+mozNfc.prototype = {
   _nfcContentHelper: null,
   _window: null,
-  nfcPeer: null,
-  nfcTag: null,
+  nfcObject: null,
 
   init: function init(aWindow) {
-    debug("MozNFCImpl init called");
+    debug("mozNfc init called");
     this._window = aWindow;
     this.defineEventHandlerGetterSetter("ontagfound");
     this.defineEventHandlerGetterSetter("ontaglost");
@@ -200,21 +166,18 @@ MozNFCImpl.prototype = {
     return this._nfcContentHelper.powerOff();
   },
 
-  _createNFCPeer: function _createNFCPeer(sessionToken) {
-    let peer = new MozNFCPeerImpl(this._window, sessionToken);
-    return this._window.MozNFCPeer._create(this._window, peer);
-  },
-
   getNFCPeer: function getNFCPeer(sessionToken) {
-    if (!sessionToken || !this._nfcContentHelper.checkSessionToken(sessionToken, true)) {
+    if (!sessionToken || !this._nfcContentHelper.checkSessionToken(sessionToken)) {
       return null;
     }
 
-    if (!this.nfcPeer || this.nfcPeer.session != sessionToken) {
-      this.nfcPeer = this._createNFCPeer();
+    if (!this.nfcObject || this.nfcObject.session != sessionToken) {
+      let obj = new MozNFCPeer(this._window, sessionToken);
+      this.nfcObject = obj;
+      this.nfcObject.contentObject = this._window.MozNFCPeer._create(this._window, obj);
     }
 
-    return this.nfcPeer;
+    return this.nfcObject.contentObject;
   },
 
   defineEventHandlerGetterSetter: function defineEventHandlerGetterSetter(name) {
@@ -256,9 +219,8 @@ MozNFCImpl.prototype = {
       return;
     }
 
-    let tagImpl = new MozNFCTagImpl(this._window, sessionToken, event);
-    let tag = this._window.MozNFCTag._create(this._window, tagImpl);
-    this.nfcTag = tag;
+    let tag = new MozNFCTag(this._window, sessionToken);
+    let tagContentObj = this._window.MozNFCTag._create(this._window, tag);
 
     let length = records ? records.length : 0;
     let ndefRecords = records ? [] : null;
@@ -271,7 +233,7 @@ MozNFCImpl.prototype = {
     }
 
     let eventData = {
-      "tag": tag,
+      "tag": tagContentObj,
       "ndefRecords": ndefRecords
     };
 
@@ -290,11 +252,6 @@ MozNFCImpl.prototype = {
       return;
     }
 
-    if (this.nfcTag && (this.nfcTag.session == sessionToken)) {
-      this.nfcTag.isLost = true;
-      this.nfcTag = null;
-    }
-
     debug("fire ontaglost " + sessionToken);
     let event = new this._window.Event("taglost");
     this.__DOM_IMPL__.dispatchEvent(event);
@@ -311,8 +268,7 @@ MozNFCImpl.prototype = {
     }
 
     this.session = sessionToken;
-    this.nfcPeer = this._createNFCPeer(sessionToken);
-    let eventData = { "peer": this.nfcPeer };
+    let eventData = { "peer": this.getNFCPeer(sessionToken) };
     let type = (isPeerReady) ? "peerready" : "peerfound";
 
     debug("fire on" + type + " " + sessionToken);
@@ -335,9 +291,9 @@ MozNFCImpl.prototype = {
       return;
     }
 
-    if (this.nfcPeer && (this.nfcPeer.session == sessionToken)) {
-      this.nfcPeer.isLost = true;
-      this.nfcPeer = null;
+    if (this.nfcObject && (this.nfcObject.session == sessionToken)) {
+      this.nfcObject.invalidate();
+      this.nfcObject = null;
     }
 
     this.session = null;
@@ -373,5 +329,4 @@ MozNFCImpl.prototype = {
                                          Ci.nsINfcDOMEventTarget]),
 };
 
-this.NSGetFactory = XPCOMUtils.generateNSGetFactory([MozNFCTagImpl,
-  MozNFCPeerImpl, MozNFCImpl]);
+this.NSGetFactory = XPCOMUtils.generateNSGetFactory([MozNFCTag, MozNFCPeer, mozNfc]);

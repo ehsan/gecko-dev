@@ -2209,7 +2209,8 @@ CodeGeneratorX86Shared::visitFloat32x4ToInt32x4(LFloat32x4ToInt32x4 *ins)
 bool
 CodeGeneratorX86Shared::visitSimdValueInt32x4(LSimdValueInt32x4 *ins)
 {
-    MOZ_ASSERT(ins->mir()->type() == MIRType_Int32x4);
+    MSimdValueX4 *mir = ins->mir();
+    MOZ_ASSERT(mir->type() == MIRType_Int32x4);
 
     FloatRegister output = ToFloatRegister(ins->output());
     if (AssemblerX86Shared::HasSSE41()) {
@@ -2234,10 +2235,12 @@ CodeGeneratorX86Shared::visitSimdValueInt32x4(LSimdValueInt32x4 *ins)
 bool
 CodeGeneratorX86Shared::visitSimdValueFloat32x4(LSimdValueFloat32x4 *ins)
 {
-    MOZ_ASSERT(ins->mir()->type() == MIRType_Float32x4);
+    MSimdValueX4 *mir = ins->mir();
+    MOZ_ASSERT(mir->type() == MIRType_Float32x4);
 
+    FloatRegister output = ToFloatRegister(ins->output());
     FloatRegister r0 = ToFloatRegister(ins->getOperand(0));
-    MOZ_ASSERT(r0 == ToFloatRegister(ins->output())); // defineReuseInput(0)
+    MOZ_ASSERT(r0 == output); // defineReuseInput(0)
 
     FloatRegister r1 = ToFloatRegister(ins->getTemp(0));
     FloatRegister r2 = ToFloatRegister(ins->getOperand(2));
@@ -2845,8 +2848,9 @@ CodeGeneratorX86Shared::visitSimdBinaryBitwiseX4(LSimdBinaryBitwiseX4 *ins)
 bool
 CodeGeneratorX86Shared::visitSimdShift(LSimdShift *ins)
 {
+    FloatRegister vec = ToFloatRegister(ins->vector());
     FloatRegister out = ToFloatRegister(ins->output());
-    MOZ_ASSERT(ToFloatRegister(ins->vector()) == out); // defineReuseInput(0);
+    MOZ_ASSERT(vec == out); // defineReuseInput(0);
 
     // TODO: If the shift count is greater than 31, this will just zero all
     // lanes by default for lsh and ursh, and set the count to 32 for rsh

@@ -1051,8 +1051,13 @@ HttpChannelChild::ConnectParent(uint32_t id)
   AddIPDLReference();
 
   HttpChannelConnectArgs connectArgs(id);
-  PBrowserOrId browser = static_cast<ContentChild*>(gNeckoChild->Manager())
-                         ->GetBrowserOrId(tabChild);
+  PBrowserOrId browser;
+  if (!tabChild ||
+      static_cast<ContentChild*>(gNeckoChild->Manager()) == tabChild->Manager()) {
+    browser = tabChild;
+  } else {
+    browser = tabChild->GetTabId();
+  }
   if (!gNeckoChild->
         SendPHttpChannelConstructor(this, browser,
                                     IPC::SerializedLoadContext(this),
@@ -1516,8 +1521,13 @@ HttpChannelChild::ContinueAsyncOpen()
   // until OnStopRequest, or we do a redirect, or we hit an IPDL error.
   AddIPDLReference();
 
-  PBrowserOrId browser = static_cast<ContentChild*>(gNeckoChild->Manager())
-                         ->GetBrowserOrId(tabChild);
+  PBrowserOrId browser;
+  if (!tabChild ||
+      static_cast<ContentChild*>(gNeckoChild->Manager()) == tabChild->Manager()) {
+    browser = tabChild;
+  } else {
+    browser = tabChild->GetTabId();
+  }
   gNeckoChild->SendPHttpChannelConstructor(this, browser,
                                            IPC::SerializedLoadContext(this),
                                            openArgs);

@@ -9,7 +9,6 @@
 
 #include "BluetoothDaemonHelpers.h"
 #include "BluetoothInterface.h"
-#include "BluetoothInterfaceHelpers.h"
 
 BEGIN_BLUETOOTH_NAMESPACE
 
@@ -51,27 +50,30 @@ protected:
 private:
   class AcceptWatcher;
   class ConnectWatcher;
-  class ListenInitOp;
 
   uint8_t SocketFlags(bool aEncrypt, bool aAuth);
 
   // Responses
   //
 
-  typedef BluetoothResultRunnable0<BluetoothSocketResultHandler, void>
+  typedef
+    BluetoothDaemonInterfaceRunnable0<BluetoothSocketResultHandler, void>
     ResultRunnable;
 
-  typedef BluetoothResultRunnable1<BluetoothSocketResultHandler, void,
-                                   int, int>
+  typedef
+    BluetoothDaemonInterfaceRunnable1<BluetoothSocketResultHandler, void,
+                                      int, int>
     IntResultRunnable;
 
-  typedef BluetoothResultRunnable1<BluetoothSocketResultHandler, void,
-                                   BluetoothStatus, BluetoothStatus>
+  typedef
+    BluetoothDaemonInterfaceRunnable1<BluetoothSocketResultHandler, void,
+                                      BluetoothStatus, BluetoothStatus>
     ErrorRunnable;
 
-  typedef BluetoothResultRunnable3<BluetoothSocketResultHandler, void,
-                                   int, nsString, int,
-                                   int, const nsAString_internal&, int>
+  typedef
+    BluetoothDaemonInterfaceRunnable3<BluetoothSocketResultHandler, void,
+                                      int, const nsString, int,
+                                      int, const nsAString_internal&, int>
     IntStringIntResultRunnable;
 
   void ErrorRsp(const BluetoothDaemonPDUHeader& aHeader,

@@ -36,6 +36,8 @@ private:
   void PostNotification(Direction direction);
 
   static NetworkActivityMonitor * gInstance;
+  PRDescIdentity                  mLayerIdentity;
+  PRIOMethods                     mLayerMethods;
   PRIntervalTime                  mBlipInterval;
   PRIntervalTime                  mLastNotificationTime[2];
 };

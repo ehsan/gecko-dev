@@ -2478,7 +2478,7 @@ GetNormalLineHeight(nsFontMetrics* aFontMetrics)
 
 static inline nscoord
 ComputeLineHeight(nsStyleContext* aStyleContext,
-                  nscoord aBlockBSize,
+                  nscoord aBlockHeight,
                   float aFontSizeInflation)
 {
   const nsStyleCoord& lhCoord = aStyleContext->StyleText()->mLineHeight;
@@ -2505,8 +2505,8 @@ ComputeLineHeight(nsStyleContext* aStyleContext,
   if (lhCoord.GetUnit() == eStyleUnit_Enumerated) {
     NS_ASSERTION(lhCoord.GetIntValue() == NS_STYLE_LINE_HEIGHT_BLOCK_HEIGHT,
                  "bad line-height value");
-    if (aBlockBSize != NS_AUTOHEIGHT) {
-      return aBlockBSize;
+    if (aBlockHeight != NS_AUTOHEIGHT) {
+      return aBlockHeight;
     }
   }
 
@@ -2520,24 +2520,24 @@ ComputeLineHeight(nsStyleContext* aStyleContext,
 nscoord
 nsHTMLReflowState::CalcLineHeight() const
 {
-  nscoord blockBSize =
-    nsLayoutUtils::IsNonWrapperBlock(frame) ? ComputedBSize() :
-    (mCBReflowState ? mCBReflowState->ComputedBSize() : NS_AUTOHEIGHT);
+  nscoord blockHeight =
+    nsLayoutUtils::IsNonWrapperBlock(frame) ? ComputedHeight() :
+    (mCBReflowState ? mCBReflowState->ComputedHeight() : NS_AUTOHEIGHT);
 
-  return CalcLineHeight(frame->GetContent(), frame->StyleContext(), blockBSize,
+  return CalcLineHeight(frame->GetContent(), frame->StyleContext(), blockHeight,
                         nsLayoutUtils::FontSizeInflationFor(frame));
 }
 
 /* static */ nscoord
 nsHTMLReflowState::CalcLineHeight(nsIContent* aContent,
                                   nsStyleContext* aStyleContext,
-                                  nscoord aBlockBSize,
+                                  nscoord aBlockHeight,
                                   float aFontSizeInflation)
 {
   NS_PRECONDITION(aStyleContext, "Must have a style context");
 
   nscoord lineHeight =
-    ComputeLineHeight(aStyleContext, aBlockBSize, aFontSizeInflation);
+    ComputeLineHeight(aStyleContext, aBlockHeight, aFontSizeInflation);
 
   NS_ASSERTION(lineHeight >= 0, "ComputeLineHeight screwed up");
 

@@ -11,7 +11,6 @@
 #include "nsILoadInfo.h"
 #include "nsIPrincipal.h"
 #include "nsIWeakReferenceUtils.h" // for nsWeakPtr
-#include "nsIURI.h"
 
 class nsINode;
 
@@ -30,8 +29,7 @@ public:
   LoadInfo(nsIPrincipal* aPrincipal,
            nsINode* aLoadingContext,
            nsSecurityFlags aSecurityFlags,
-           nsContentPolicyType aContentPolicyType,
-           nsIURI* aBaseURI = nullptr);
+           nsContentPolicyType aContentPolicyType);
 
 private:
   ~LoadInfo();
@@ -40,7 +38,6 @@ private:
   nsWeakPtr              mLoadingContext;
   nsSecurityFlags        mSecurityFlags;
   nsContentPolicyType    mContentPolicyType;
-  nsCOMPtr<nsIURI>       mBaseURI;
 };
 
 } // namespace mozilla

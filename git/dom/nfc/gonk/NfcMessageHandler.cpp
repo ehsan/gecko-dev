@@ -19,14 +19,14 @@ using namespace mozilla::dom;
 static const char* kConfigRequest = "config";
 static const char* kReadNDEFRequest = "readNDEF";
 static const char* kWriteNDEFRequest = "writeNDEF";
-static const char* kMakeReadOnlyRequest = "makeReadOnly";
+static const char* kMakeReadOnlyNDEFRequest = "makeReadOnlyNDEF";
 static const char* kConnectRequest = "connect";
 static const char* kCloseRequest = "close";
 
 static const char* kConfigResponse = "ConfigResponse";
 static const char* kReadNDEFResponse = "ReadNDEFResponse";
 static const char* kWriteNDEFResponse = "WriteNDEFResponse";
-static const char* kMakeReadOnlyResponse = "MakeReadOnlyResponse";
+static const char* kMakeReadOnlyNDEFResponse = "MakeReadOnlyNDEFResponse";
 static const char* kConnectResponse = "ConnectResponse";
 static const char* kCloseResponse = "CloseResponse";
 
@@ -49,9 +49,9 @@ NfcMessageHandler::Marshall(Parcel& aParcel, const CommandOptions& aOptions)
   } else if (!strcmp(type, kWriteNDEFRequest)) {
     result = WriteNDEFRequest(aParcel, aOptions);
     mPendingReqQueue.AppendElement(NfcRequest::WriteNDEFReq);
-  } else if (!strcmp(type, kMakeReadOnlyRequest)) {
-    result = MakeReadOnlyRequest(aParcel, aOptions);
-    mPendingReqQueue.AppendElement(NfcRequest::MakeReadOnlyReq);
+  } else if (!strcmp(type, kMakeReadOnlyNDEFRequest)) {
+    result = MakeReadOnlyNDEFRequest(aParcel, aOptions);
+    mPendingReqQueue.AppendElement(NfcRequest::MakeReadOnlyNDEFReq);
   } else if (!strcmp(type, kConnectRequest)) {
     result = ConnectRequest(aParcel, aOptions);
     mPendingReqQueue.AppendElement(NfcRequest::ConnectReq);
@@ -114,8 +114,8 @@ NfcMessageHandler::GeneralResponse(const Parcel& aParcel, EventOptions& aOptions
     case NfcRequest::WriteNDEFReq:
       type = kWriteNDEFResponse;
       break;
-    case NfcRequest::MakeReadOnlyReq:
-      type = kMakeReadOnlyResponse;
+    case NfcRequest::MakeReadOnlyNDEFReq:
+      type = kMakeReadOnlyNDEFResponse;
       break;
     case NfcRequest::ConnectReq:
       type = kConnectResponse;
@@ -129,7 +129,7 @@ NfcMessageHandler::GeneralResponse(const Parcel& aParcel, EventOptions& aOptions
   }
 
   aOptions.mType = NS_ConvertUTF8toUTF16(type);
-  aOptions.mErrorCode = aParcel.readInt32();
+  aOptions.mStatus = aParcel.readInt32();
   aOptions.mSessionId = aParcel.readInt32();
 
   NS_ENSURE_TRUE(!mRequestIdQueue.IsEmpty(), false);
@@ -152,7 +152,8 @@ bool
 NfcMessageHandler::ConfigResponse(const Parcel& aParcel, EventOptions& aOptions)
 {
   aOptions.mType = NS_ConvertUTF8toUTF16(kConfigResponse);
-  aOptions.mErrorCode = aParcel.readInt32();
+  aOptions.mStatus = aParcel.readInt32();
+
   NS_ENSURE_TRUE(!mRequestIdQueue.IsEmpty(), false);
   aOptions.mRequestId = mRequestIdQueue[0];
   mRequestIdQueue.RemoveElementAt(0);
@@ -176,14 +177,14 @@ bool
 NfcMessageHandler::ReadNDEFResponse(const Parcel& aParcel, EventOptions& aOptions)
 {
   aOptions.mType = NS_ConvertUTF8toUTF16(kReadNDEFResponse);
-  aOptions.mErrorCode = aParcel.readInt32();
+  aOptions.mStatus = aParcel.readInt32();
   aOptions.mSessionId = aParcel.readInt32();
 
   NS_ENSURE_TRUE(!mRequestIdQueue.IsEmpty(), false);
   aOptions.mRequestId = mRequestIdQueue[0];
   mRequestIdQueue.RemoveElementAt(0);
 
-  if (aOptions.mErrorCode == NfcErrorCode::Success) {
+  if (aOptions.mStatus == NfcErrorCode::Success) {
     ReadNDEFMessage(aParcel, aOptions);
   }
 
@@ -202,9 +203,9 @@ NfcMessageHandler::WriteNDEFRequest(Parcel& aParcel, const CommandOptions& aOpti
 }
 
 bool
-NfcMessageHandler::MakeReadOnlyRequest(Parcel& aParcel, const CommandOptions& aOptions)
+NfcMessageHandler::MakeReadOnlyNDEFRequest(Parcel& aParcel, const CommandOptions& aOptions)
 {
-  aParcel.writeInt32(NfcRequest::MakeReadOnlyReq);
+  aParcel.writeInt32(NfcRequest::MakeReadOnlyNDEFReq);
   aParcel.writeInt32(aOptions.mSessionId);
   mRequestIdQueue.AppendElement(aOptions.mRequestId);
   return true;
@@ -263,10 +264,10 @@ NfcMessageHandler::TechDiscoveredNotification(const Parcel& aParcel, EventOption
 
   int32_t ndefInfo = aParcel.readInt32();
   if (ndefInfo) {
-    aOptions.mTagType = aParcel.readInt32();
-    aOptions.mMaxNDEFSize = aParcel.readInt32();
-    aOptions.mIsReadOnly = aParcel.readInt32();
-    aOptions.mIsFormatable = aParcel.readInt32();
+    NdefType type = static_cast<NdefType>(aParcel.readInt32());
+    int32_t maxSupportLength = aParcel.readInt32();
+    int32_t isReadOnly = aParcel.readInt32();
+    int32_t isFormatable = aParcel.readInt32();
   }
 
   return true;

@@ -10,14 +10,13 @@
 interface nsIDOMDocument;
 interface nsINode;
 interface nsIPrincipal;
-interface nsIURI;
 
 typedef unsigned long nsSecurityFlags;
 
 /**
  * An nsILoadOwner represents per-load information about who started the load.
  */
-[scriptable, builtinclass, uuid(b22b8ee7-047a-4351-a749-13c6d39f6b17)]
+[scriptable, builtinclass, uuid(046db047-a1c1-4519-8ec7-99f3054bc9ac)]
 interface nsILoadInfo : nsISupports
 {
   /**
@@ -149,10 +148,4 @@ interface nsILoadInfo : nsISupports
   }
 %}
 
-  /**
-   * A base URI for use in situations where it cannot otherwise be inferred.
-   * This attribute may be null.  The value of this attribute may be
-   * ignored if the base URI can be inferred by the channel's URI.
-   */
-   readonly attribute nsIURI baseURI;
 };

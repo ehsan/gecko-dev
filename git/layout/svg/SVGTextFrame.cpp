@@ -2989,30 +2989,8 @@ SVGTextDrawPathCallbacks::StrokeGeometry()
       GeneralPattern strokePattern;
       nsSVGUtils::MakeStrokePatternFor(mFrame, gfx, &strokePattern, /*aContextPaint*/ nullptr);
       if (strokePattern.GetPattern()) {
-        if (!mFrame->GetParent()->GetContent()->IsSVG()) {
-          // The cast that follows would be unsafe
-          MOZ_ASSERT(false, "Our nsTextFrame's parent's content should be SVG");
-          return;
-        }
-        nsSVGElement* svgOwner =
-          static_cast<nsSVGElement*>(mFrame->GetParent()->GetContent());
-
-        // Apply any stroke-specific transform
-        gfxMatrix outerSVGToUser;
-        if (nsSVGUtils::GetNonScalingStrokeTransform(mFrame, &outerSVGToUser) &&
-            outerSVGToUser.Invert()) {
-          gfx->Multiply(outerSVGToUser);
-        }
-
-        RefPtr<Path> path = gfx->GetPath();
-        SVGContentUtils::AutoStrokeOptions strokeOptions;
-        SVGContentUtils::GetStrokeOptions(&strokeOptions, svgOwner,
-                                          mFrame->StyleContext(),
-                                          /*aContextPaint*/ nullptr);
-        DrawOptions drawOptions;
-        drawOptions.mAntialiasMode =
-          nsSVGUtils::ToAntialiasMode(mFrame->StyleSVG()->mTextRendering);
-        gfx->GetDrawTarget()->Stroke(path, strokePattern, strokeOptions);
+        nsSVGUtils::SetupCairoStrokeGeometry(mFrame, gfx, /*aContextPaint*/ nullptr);
+        gfx->Stroke(strokePattern);
       }
     }
   }

@@ -358,8 +358,6 @@ WEBIDL_FILES = [
     'ScrollBoxObject.webidl',
     'Selection.webidl',
     'ServiceWorker.webidl',
-    'ServiceWorkerClient.webidl',
-    'ServiceWorkerClients.webidl',
     'ServiceWorkerContainer.webidl',
     'ServiceWorkerGlobalScope.webidl',
     'ServiceWorkerRegistration.webidl',

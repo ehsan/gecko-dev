@@ -187,7 +187,6 @@ class JitRuntime
     // Thunk that calls the GC pre barrier.
     JitCode *valuePreBarrier_;
     JitCode *stringPreBarrier_;
-    JitCode *objectPreBarrier_;
     JitCode *shapePreBarrier_;
     JitCode *typeObjectPreBarrier_;
 
@@ -362,7 +361,6 @@ class JitRuntime
         switch (type) {
           case MIRType_Value: return valuePreBarrier_;
           case MIRType_String: return stringPreBarrier_;
-          case MIRType_Object: return objectPreBarrier_;
           case MIRType_Shape: return shapePreBarrier_;
           case MIRType_TypeObject: return typeObjectPreBarrier_;
           default: MOZ_CRASH();

@@ -1161,6 +1161,7 @@ class InterpreterActivation : public Activation
 {
     friend class js::InterpreterFrameIterator;
 
+    RunState &state_;
     InterpreterRegs regs_;
     InterpreterFrame *entryFrame_;
     size_t opMask_; // For debugger interrupts, see js::Interpret.

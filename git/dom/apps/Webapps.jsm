@@ -451,8 +451,6 @@ this.DOMApplicationRegistry = {
     if (supportUseCurrentProfile()) {
       this._readManifests([{ id: aId }]).then((aResult) => {
         let data = aResult[0];
-        this.webapps[aId].kind = this.webapps[aId].kind ||
-          this.appKind(this.webapps[aId], aResult[0].manifest);
         PermissionsInstaller.installPermissions({
           manifest: data.manifest,
           manifestURL: this.webapps[aId].manifestURL,
@@ -3243,17 +3241,10 @@ this.DOMApplicationRegistry = {
     // After this point, it's too late to cancel the download.
     AppDownloadManager.remove(aNewApp.manifestURL);
 
+    let hash = yield this._computeFileHash(zipFile.path);
+
     let responseStatus = requestChannel.responseStatus;
-    let oldPackage = responseStatus == 304;
-
-    // If the response was 304 we probably won't have anything to hash.
-    let hash = null;
-    if (!oldPackage) {
-      hash = yield this._computeFileHash(zipFile.path);
-    }
-
-    oldPackage = oldPackage || (hash == aOldApp.packageHash);
-
+    let oldPackage = (responseStatus == 304 || hash == aOldApp.packageHash);
 
     if (oldPackage) {
       debug("package's etag or hash unchanged; sending 'applied' event");

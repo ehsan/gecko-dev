@@ -70,7 +70,7 @@ const NFC_IPC_READ_PERM_MSG_NAMES = [
 
 const NFC_IPC_WRITE_PERM_MSG_NAMES = [
   "NFC:WriteNDEF",
-  "NFC:MakeReadOnly",
+  "NFC:MakeReadOnlyNDEF",
   "NFC:SendFile",
   "NFC:RegisterPeerReadyTarget",
   "NFC:UnregisterPeerReadyTarget"
@@ -312,10 +312,11 @@ XPCOMUtils.defineLazyGetter(this, "gMessageManager", function () {
           this.addEventTarget(message.target);
           return null;
         case "NFC:CheckSessionToken":
-          let sessionToken = message.data.sessionToken;
-          return SessionHelper.isValidToken(sessionToken, message.data.isP2P) ?
-                   NFC.NFC_GECKO_SUCCESS :
-                   NFC.NFC_GECKO_ERROR_BAD_SESSION_TOKEN;
+          if (!SessionHelper.isValidToken(message.data.sessionToken)) {
+            debug("Received invalid Session Token: " + message.data.sessionToken);
+            return NFC.NFC_ERROR_BAD_SESSION_ID;
+          }
+          return NFC.NFC_SUCCESS;
         case "NFC:RegisterPeerReadyTarget":
           this.registerPeerReadyTarget(message.target, message.data.appId);
           return null;
@@ -331,7 +332,7 @@ XPCOMUtils.defineLazyGetter(this, "gMessageManager", function () {
         case "NFC:NotifySendFileStatus":
           // Upon receiving the status of sendFile operation, send the response
           // to appropriate content process.
-          message.data.type = "NotifySendFileStatusResponse";
+          message.data.type = "NotifySendFileStatus";
           if (message.data.status !== NFC.NFC_SUCCESS) {
             message.data.errorMsg =
               this.nfc.getErrorMessage(NFC.NFC_GECKO_ERROR_SEND_FILE_FAILED);
@@ -414,10 +415,9 @@ let SessionHelper = {
     return (this.tokenMap[id] != null) && this.tokenMap[id].isP2P;
   },
 
-  isValidToken: function isValidToken(token, isP2P) {
+  isValidToken: function isValidToken(token) {
     for (let id in this.tokenMap) {
-      if ((this.tokenMap[id].token == token) &&
-          (this.tokenMap[id].isP2P == isP2P)) {
+      if (this.tokenMap[id].token == token) {
         return true;
       }
     }
@@ -513,6 +513,11 @@ Nfc.prototype = {
     let message = Cu.cloneInto(event, this);
     DEBUG && debug("Received message from NFC Service: " + JSON.stringify(message));
 
+    // mapping error code to error message
+    if (message.status !== undefined && message.status !== NFC.NFC_SUCCESS) {
+      message.errorMsg = this.getErrorMessage(message.status);
+    }
+
     switch (message.type) {
       case "InitializedNotification":
         // Do nothing.
@@ -556,7 +561,7 @@ Nfc.prototype = {
         this.notifyHCIEventTransaction(message);
         break;
      case "ConfigResponse":
-        if (!message.errorMsg) {
+        if (message.status === NFC.NFC_SUCCESS) {
           this.powerLevel = message.powerLevel;
         }
 
@@ -565,7 +570,7 @@ Nfc.prototype = {
       case "ConnectResponse": // Fall through.
       case "CloseResponse":
       case "ReadNDEFResponse":
-      case "MakeReadOnlyResponse":
+      case "MakeReadOnlyNDEFResponse":
       case "WriteNDEFResponse":
         this.sendNfcResponse(message);
         break;
@@ -609,6 +614,13 @@ Nfc.prototype = {
         return null;
       }
 
+      // Sanity check on sessionToken.
+      if (!SessionHelper.isValidToken(message.data.sessionToken)) {
+        debug("Invalid Session Token: " + message.data.sessionToken);
+        this.sendNfcErrorResponse(message, NFC.NFC_ERROR_BAD_SESSION_ID);
+        return null;
+      }
+
       // Update the current sessionId before sending to the NFC service.
       message.data.sessionId = SessionHelper.getId(message.data.sessionToken);
     }
@@ -633,8 +645,8 @@ Nfc.prototype = {
         message.data.isP2P = SessionHelper.isP2PSession(message.data.sessionId);
         this.sendToNfcService("writeNDEF", message.data);
         break;
-      case "NFC:MakeReadOnly":
-        this.sendToNfcService("makeReadOnly", message.data);
+      case "NFC:MakeReadOnlyNDEF":
+        this.sendToNfcService("makeReadOnlyNDEF", message.data);
         break;
       case "NFC:Connect":
         this.sendToNfcService("connect", message.data);

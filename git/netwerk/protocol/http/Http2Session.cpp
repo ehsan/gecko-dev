@@ -29,8 +29,6 @@
 #include "nsISSLStatus.h"
 #include "nsISSLStatusProvider.h"
 #include "nsISupportsPriority.h"
-#include "nsStandardURL.h"
-#include "nsURLHelper.h"
 #include "prprf.h"
 #include "prnetdb.h"
 #include "sslt.h"
@@ -1631,23 +1629,7 @@ Http2Session::RecvPushPromise(Http2Session *self)
     return NS_OK;
   }
 
-  nsRefPtr<nsStandardURL> associatedURL, pushedURL;
-  rv = Http2Stream::MakeOriginURL(associatedStream->Origin(), associatedURL);
-  if (NS_SUCCEEDED(rv)) {
-    rv = Http2Stream::MakeOriginURL(pushedStream->Origin(), pushedURL);
-  }
-  LOG3(("Http2Session::RecvPushPromise %p checking %s == %s",
-        associatedStream->Origin().get(), pushedStream->Origin().get()));
-  bool match = false;
-  if (NS_SUCCEEDED(rv)) {
-    rv = associatedURL->Equals(pushedURL, &match);
-  }
-  if (NS_FAILED(rv)) {
-    // Fallback to string equality of origins. This won't be guaranteed to be as
-    // liberal as we want it to be, but it will at least be safe
-    match = associatedStream->Origin().Equals(pushedStream->Origin());
-  }
-  if (!match) {
+  if (!associatedStream->Origin().Equals(pushedStream->Origin())) {
     LOG3(("Http2Session::RecvPushPromise %p pushed stream mismatched origin "
           "associated origin %s .. pushed origin %s\n", self,
           associatedStream->Origin().get(), pushedStream->Origin().get()));

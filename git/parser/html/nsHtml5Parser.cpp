@@ -238,8 +238,7 @@ nsHtml5Parser::Parse(const nsAString& aSourceBuffer,
      * WillBuildModel to be called before the document has had its 
      * script global object set.
      */
-    rv = mExecutor->WillBuildModel(eDTDMode_unknown);
-    NS_ENSURE_SUCCESS(rv, rv);
+    mExecutor->WillBuildModel(eDTDMode_unknown);
   }
 
   // Return early if the parser has processed EOF
@@ -257,7 +256,7 @@ nsHtml5Parser::Parse(const nsAString& aSourceBuffer,
     }
     mDocumentClosed = true;
     if (!mBlocked && !mInDocumentWrite) {
-      return ParseUntilBlocked();
+      ParseUntilBlocked();
     }
     return NS_OK;
   }
@@ -380,8 +379,7 @@ nsHtml5Parser::Parse(const nsAString& aSourceBuffer,
 
       if (mTreeBuilder->HasScript()) {
         mTreeBuilder->Flush(); // Move ops to the executor
-        rv = mExecutor->FlushDocumentWrite(); // run the ops
-        NS_ENSURE_SUCCESS(rv, rv);
+        mExecutor->FlushDocumentWrite(); // run the ops
         // Flushing tree ops can cause all sorts of things.
         // Return early if the parser got terminated.
         if (mExecutor->IsComplete()) {
@@ -440,8 +438,7 @@ nsHtml5Parser::Parse(const nsAString& aSourceBuffer,
       "Buffer wasn't tokenized to completion?");
     // Scripting semantics require a forced tree builder flush here
     mTreeBuilder->Flush(); // Move ops to the executor
-    rv = mExecutor->FlushDocumentWrite(); // run the ops
-    NS_ENSURE_SUCCESS(rv, rv);
+    mExecutor->FlushDocumentWrite(); // run the ops
   } else if (stackBuffer.hasMore()) {
     // The buffer wasn't tokenized to completion. Tokenize the untokenized
     // content in order to preload stuff. This content will be retokenized
@@ -599,13 +596,11 @@ nsHtml5Parser::IsScriptCreated()
 /* End nsIParser  */
 
 // not from interface
-nsresult
+void
 nsHtml5Parser::ParseUntilBlocked()
 {
-  nsresult rv = mExecutor->IsBroken();
-  NS_ENSURE_SUCCESS(rv, rv);
-  if (mBlocked || mExecutor->IsComplete()) {
-    return NS_OK;
+  if (mBlocked || mExecutor->IsComplete() || NS_FAILED(mExecutor->IsBroken())) {
+    return;
   }
   NS_ASSERTION(mExecutor->HasStarted(), "Bad life cycle.");
   NS_ASSERTION(!mInDocumentWrite,
@@ -618,7 +613,7 @@ nsHtml5Parser::ParseUntilBlocked()
       if (mFirstBuffer == mLastBuffer) {
         if (mExecutor->IsComplete()) {
           // something like cache manisfests stopped the parse in mid-flight
-          return NS_OK;
+          return;
         }
         if (mDocumentClosed) {
           NS_ASSERTION(!GetStreamParser(),
@@ -627,10 +622,8 @@ nsHtml5Parser::ParseUntilBlocked()
           mTreeBuilder->StreamEnded();
           mTreeBuilder->Flush();
           mExecutor->FlushDocumentWrite();
-          // The below call does memory cleanup, so call it even if the
-          // parser has been marked as broken.
           mTokenizer->end();
-          return NS_OK;
+          return;            
         }
         // never release the last buffer.
         NS_ASSERTION(!mLastBuffer->getStart() && !mLastBuffer->getEnd(),
@@ -652,14 +645,14 @@ nsHtml5Parser::ParseUntilBlocked()
           NS_ASSERTION(mExecutor->IsInFlushLoop(),
               "How did we come here without being in the flush loop?");
         }
-        return NS_OK; // no more data for now but expecting more
+        return; // no more data for now but expecting more
       }
       mFirstBuffer = mFirstBuffer->next;
       continue;
     }
 
     if (mBlocked || mExecutor->IsComplete()) {
-      return NS_OK;
+      return;
     }
 
     // now we have a non-empty buffer
@@ -676,11 +669,10 @@ nsHtml5Parser::ParseUntilBlocked()
       }
       if (mTreeBuilder->HasScript()) {
         mTreeBuilder->Flush();
-        nsresult rv = mExecutor->FlushDocumentWrite();
-        NS_ENSURE_SUCCESS(rv, rv);
+        mExecutor->FlushDocumentWrite();
       }
       if (mBlocked) {
-        return NS_OK;
+        return;
       }
     }
     continue;

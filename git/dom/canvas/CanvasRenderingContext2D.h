@@ -726,7 +726,7 @@ protected:
                             mozilla::gfx::Rect* bounds,
                             mozilla::gfx::Rect dest,
                             mozilla::gfx::Rect src,
-                            gfx::IntSize imgSize);
+                            gfxIntSize imgSize);
 
   nsString& GetFont()
   {

@@ -7,11 +7,8 @@
 #include "nsCSSRenderingBorders.h"
 
 #include "gfxUtils.h"
-#include "mozilla/ArrayUtils.h"
 #include "mozilla/gfx/2D.h"
-#include "mozilla/gfx/Helpers.h"
 #include "mozilla/gfx/PathHelpers.h"
-#include "nsLayoutUtils.h"
 #include "nsStyleConsts.h"
 #include "nsCSSColorUtils.h"
 #include "GeckoProfiler.h"
@@ -19,6 +16,7 @@
 #include "RoundedRect.h"
 #include "nsClassHashtable.h"
 #include "nsStyleStruct.h"
+#include "gfxContext.h"
 #include "mozilla/gfx/2D.h"
 #include "gfx2DGlue.h"
 #include "gfxGradientCache.h"
@@ -118,7 +116,7 @@ typedef enum {
   CORNER_DOT
 } CornerStyle;
 
-nsCSSBorderRenderer::nsCSSBorderRenderer(DrawTarget* aDrawTarget,
+nsCSSBorderRenderer::nsCSSBorderRenderer(gfxContext* aDestContext,
                                          Rect& aOuterRect,
                                          const uint8_t* aBorderStyles,
                                          const Float* aBorderWidths,
@@ -126,7 +124,8 @@ nsCSSBorderRenderer::nsCSSBorderRenderer(DrawTarget* aDrawTarget,
                                          const nscolor* aBorderColors,
                                          nsBorderColors* const* aCompositeColors,
                                          nscolor aBackgroundColor)
-  : mDrawTarget(aDrawTarget),
+  : mDrawTarget(aDestContext->GetDrawTarget()),
+    mContext(aDestContext),
     mOuterRect(aOuterRect),
     mBorderStyles(aBorderStyles),
     mBorderWidths(aBorderWidths),
@@ -916,7 +915,7 @@ void
 nsCSSBorderRenderer::DrawDashedSide(mozilla::css::Side aSide)
 {
   Float dashWidth;
-  Float dash[2];
+  gfxFloat dash[2];
 
   uint8_t style = mBorderStyles[aSide];
   Float borderWidth = mBorderWidths[aSide];
@@ -929,20 +928,21 @@ nsCSSBorderRenderer::DrawDashedSide(mozilla::css::Side aSide)
       style == NS_STYLE_BORDER_STYLE_HIDDEN)
     return;
 
-  StrokeOptions strokeOptions(borderWidth);
-
   if (style == NS_STYLE_BORDER_STYLE_DASHED) {
     dashWidth = Float(borderWidth * DOT_LENGTH * DASH_LENGTH);
 
     dash[0] = dashWidth;
     dash[1] = dashWidth;
+
+    mContext->SetLineCap(CapStyle::BUTT);
   } else if (style == NS_STYLE_BORDER_STYLE_DOTTED) {
     dashWidth = Float(borderWidth * DOT_LENGTH);
 
     if (borderWidth > 2.0) {
       dash[0] = 0.0;
       dash[1] = dashWidth * 2.0;
-      strokeOptions.mLineCap = CapStyle::ROUND;
+
+      mContext->SetLineCap(CapStyle::ROUND);
     } else {
       dash[0] = dashWidth;
       dash[1] = dashWidth;
@@ -955,8 +955,7 @@ nsCSSBorderRenderer::DrawDashedSide(mozilla::css::Side aSide)
 
   PrintAsFormatString("dash: %f %f\n", dash[0], dash[1]);
 
-  strokeOptions.mDashPattern = dash;
-  strokeOptions.mDashLength = MOZ_ARRAY_LENGTH(dash);
+  mContext->SetDash(dash, 2, 0.0);
 
   Point start = mOuterRect.CCWCorner(aSide);
   Point end = mOuterRect.CWCorner(aSide);
@@ -987,8 +986,20 @@ nsCSSBorderRenderer::DrawDashedSide(mozilla::css::Side aSide)
     end.y += mBorderCornerDimensions[C_TL].height;
   }
 
-  mDrawTarget->StrokeLine(start, end, ColorPattern(ToDeviceColor(borderColor)),
-                          strokeOptions);
+  mContext->NewPath();
+  mContext->MoveTo(ThebesPoint(start));
+  mContext->LineTo(ThebesPoint(end));
+  mContext->SetLineWidth(borderWidth);
+  mContext->SetColor(gfxRGBA(borderColor));
+  //mContext->SetColor(gfxRGBA(1.0, 0.0, 0.0, 1.0));
+  mContext->Stroke();
+}
+
+void
+nsCSSBorderRenderer::SetupStrokeStyle(mozilla::css::Side aSide)
+{
+  mContext->SetColor(gfxRGBA(mBorderColors[aSide]));
+  mContext->SetLineWidth(mBorderWidths[aSide]);
 }
 
 bool
@@ -1102,6 +1113,7 @@ void
 nsCSSBorderRenderer::DrawSingleWidthSolidBorder()
 {
   // Easy enough to deal with.
+  mContext->SetLineWidth(1);
   Rect rect = mOuterRect;
   rect.Deflate(0.5);
 
@@ -1117,9 +1129,11 @@ nsCSSBorderRenderer::DrawSingleWidthSolidBorder()
     secondCorner.x += cornerAdjusts[side].a;
     secondCorner.y += cornerAdjusts[side].b;
 
-    ColorPattern color(ToDeviceColor(mBorderColors[side]));
-
-    mDrawTarget->StrokeLine(firstCorner, secondCorner, color);
+    mContext->SetColor(gfxRGBA(mBorderColors[side]));
+    mContext->NewPath();
+    mContext->MoveTo(ThebesPoint(firstCorner));
+    mContext->LineTo(ThebesPoint(secondCorner));
+    mContext->Stroke();
   }
 }
 
@@ -1286,6 +1300,7 @@ void
 nsCSSBorderRenderer::DrawRectangularCompositeColors()
 {
   nsBorderColors *currentColors[4];
+  mContext->SetLineWidth(1);
   memcpy(currentColors, mCompositeColors, sizeof(nsBorderColors*) * 4);
   Rect rect = mOuterRect;
   rect.Deflate(0.5);
@@ -1310,8 +1325,11 @@ nsCSSBorderRenderer::DrawRectangularCompositeColors()
         currentColors[side] ? currentColors[side]->mColor
                             : mBorderColors[side]);
 
-      mDrawTarget->StrokeLine(firstCorner, secondCorner,
-                              ColorPattern(ToDeviceColor(currentColor)));
+      mContext->SetColor(ThebesColor(currentColor));
+      mContext->NewPath();
+      mContext->MoveTo(ThebesPoint(firstCorner));
+      mContext->LineTo(ThebesPoint(secondCorner));
+      mContext->Stroke();
 
       Point cornerTopLeft = rect.CWCorner(side);
       cornerTopLeft.x -= 0.5;
@@ -1369,8 +1387,7 @@ nsCSSBorderRenderer::DrawBorders()
     return;
   }
 
-  AutoRestoreTransform autoRestoreTransform;
-  Matrix mat = mDrawTarget->GetTransform();
+  gfxMatrix mat = mContext->CurrentMatrix();
 
   // Clamp the CTM to be pixel-aligned; we do this only
   // for translation-only matrices now, but we could do it
@@ -1385,8 +1402,7 @@ nsCSSBorderRenderer::DrawBorders()
   } else {
     mat._31 = floor(mat._31 + 0.5);
     mat._32 = floor(mat._32 + 0.5);
-    autoRestoreTransform.Init(mDrawTarget);
-    mDrawTarget->SetTransform(mat);
+    mContext->SetMatrix(mat);
 
     // round mOuterRect and mInnerRect; they're already an integer
     // number of pixels apart and should stay that way after
@@ -1404,7 +1420,6 @@ nsCSSBorderRenderer::DrawBorders()
     return;
   }
 
-  // Initial values only used when the border colors/widths are all the same:
   ColorPattern color(ToDeviceColor(mBorderColors[NS_SIDE_TOP]));
   StrokeOptions strokeOptions(mBorderWidths[NS_SIDE_TOP]); // stroke width
 
@@ -1421,9 +1436,12 @@ nsCSSBorderRenderer::DrawBorders()
       !mAvoidStroke)
   {
     // Very simple case.
+    SetupStrokeStyle(NS_SIDE_TOP);
     Rect rect = mOuterRect;
     rect.Deflate(mBorderWidths[0] / 2.0);
-    mDrawTarget->StrokeRect(rect, color, strokeOptions);
+    mContext->NewPath();
+    mContext->Rectangle(ThebesRect(rect));
+    mContext->Stroke();
     return;
   }
 
@@ -1437,15 +1455,16 @@ nsCSSBorderRenderer::DrawBorders()
   {
     // Very simple case. We draw this rectangular dotted borner without
     // antialiasing. The dots should be pixel aligned.
+    SetupStrokeStyle(NS_SIDE_TOP);
+
+    gfxFloat dash = mBorderWidths[0];
+    mContext->SetDash(&dash, 1, 0.5);
+    mContext->SetAntialiasMode(AntialiasMode::NONE);
     Rect rect = mOuterRect;
     rect.Deflate(mBorderWidths[0] / 2.0);
-    Float dash = mBorderWidths[0];
-    strokeOptions.mDashPattern = &dash;
-    strokeOptions.mDashLength = 1;
-    strokeOptions.mDashOffset = 0.5f;
-    DrawOptions drawOptions;
-    drawOptions.mAntialiasMode = AntialiasMode::NONE;
-    mDrawTarget->StrokeRect(rect, color, strokeOptions);
+    mContext->NewPath();
+    mContext->Rectangle(ThebesRect(rect));
+    mContext->Stroke();
     return;
   }
 
@@ -1615,8 +1634,10 @@ nsCSSBorderRenderer::DrawBorders()
         continue;
       }
 
+      mContext->Save();
+
       // clip to the corner
-      mDrawTarget->PushClipRect(GetCornerRect(corner));
+      mContext->Clip(GetCornerRect(corner));
 
       if (simpleCornerStyle) {
         // we don't need a group for this corner, the sides are the same,
@@ -1640,16 +1661,18 @@ nsCSSBorderRenderer::DrawBorders()
 
           PrintAsFormatString("corner: %d cornerSide: %d side: %d style: %d\n", corner, cornerSide, side, style);
 
+          mContext->Save();
+
           RefPtr<Path> path = GetSideClipSubPath(side);
-          mDrawTarget->PushClip(path);
+          mContext->Clip(path);
 
           DrawBorderSides(1 << side);
 
-          mDrawTarget->PopClip();
+          mContext->Restore();
         }
       }
 
-      mDrawTarget->PopClip();
+      mContext->Restore();
 
       PrintAsStringNewline();
     }
@@ -1707,11 +1730,12 @@ nsCSSBorderRenderer::DrawBorders()
       // DrawDashedSide, and have a DrawOneSide function that just
       // draws one side and not the corners, because then we can
       // avoid the potentially expensive clip.
-      mDrawTarget->PushClipRect(GetSideClipWithoutCornersRect(side));
+      mContext->Save();
+      mContext->Clip(GetSideClipWithoutCornersRect(side));
 
       DrawBorderSides(1 << side);
 
-      mDrawTarget->PopClip();
+      mContext->Restore();
 
       PrintAsStringNewline("---------------- (*)");
     }

@@ -266,6 +266,9 @@ DoApplyRenderingChangeToTree(nsIFrame* aFrame,
     if ((aChange & nsChangeHint_UpdateTransformLayer) &&
         aFrame->IsTransformed()) {
       ActiveLayerTracker::NotifyRestyle(aFrame, eCSSProperty_transform);
+      if (!aFrame->GetPrevContinuation()) {
+        nsSVGEffects::InvalidateRenderingObservers(aFrame);
+      }
       // If we're not already going to do an invalidating paint, see
       // if we can get away with only updating the transform on a
       // layer for this frame, and not scheduling an invalidating
@@ -774,9 +777,6 @@ RestyleManager::ProcessRestyledFrames(nsStyleChangeList& aChangeList)
              cont = nsLayoutUtils::GetNextContinuationOrIBSplitSibling(cont)) {
           nsSVGEffects::UpdateEffects(cont);
         }
-      }
-      if (hint & nsChangeHint_InvalidateRenderingObservers) {
-        nsSVGEffects::InvalidateRenderingObservers(frame);
       }
       if (hint & nsChangeHint_NeedReflow) {
         StyleChangeReflow(frame, hint);
@@ -3773,8 +3773,7 @@ RestyleManager::ChangeHintToString(nsChangeHint aHint)
     "UpdateTransformLayer", "ReconstructFrame", "UpdateOverflow",
     "UpdateSubtreeOverflow", "UpdatePostTransformOverflow",
     "ChildrenOnlyTransform", "RecomputePosition", "AddOrRemoveTransform",
-    "BorderStyleNoneChange", "UpdateTextPath", "NeutralChange",
-    "InvalidateRenderingObservers"
+    "BorderStyleNoneChange", "UpdateTextPath", "NeutralChange"
   };
   uint32_t hint = aHint & ((1 << ArrayLength(names)) - 1);
   uint32_t rest = aHint & ~((1 << ArrayLength(names)) - 1);
