@@ -174,8 +174,7 @@ GenerateIntegralImage_SSE2(int32_t aLeftInflation, int32_t aRightInflation,
  * Attempt to do an in-place box blur using an integral image.
  */
 void
-AlphaBoxBlur::BoxBlur_SSE2(uint8_t* aData,
-			   int32_t aLeftLobe,
+AlphaBoxBlur::BoxBlur_SSE2(int32_t aLeftLobe,
                            int32_t aRightLobe,
                            int32_t aTopLobe,
                            int32_t aBottomLobe,
@@ -205,7 +204,7 @@ AlphaBoxBlur::BoxBlur_SSE2(uint8_t* aData,
   int32_t leftInflation = RoundUpToMultipleOf4(aLeftLobe).value();
 
   GenerateIntegralImage_SSE2(leftInflation, aRightLobe, aTopLobe, aBottomLobe,
-                             aIntegralImage, aIntegralImageStride, aData,
+                             aIntegralImage, aIntegralImageStride, mData,
                              mStride, size);
 
   __m128i divisor = _mm_set1_epi32(reciprocal);
@@ -217,7 +216,7 @@ AlphaBoxBlur::BoxBlur_SSE2(uint8_t* aData,
 
   IntRect skipRect = mSkipRect;
   int32_t stride = mStride;
-  uint8_t *data = aData;
+  uint8_t *data = mData;
   for (int32_t y = 0; y < size.height; y++) {
     bool inSkipRectY = y > skipRect.y && y < skipRect.YMost();
 

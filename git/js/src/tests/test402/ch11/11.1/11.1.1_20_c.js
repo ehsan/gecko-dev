@@ -158,7 +158,7 @@ var currencyDigits = {
     TWD: 2,
     TZS: 2,
     UAH: 2,
-    UGX: 0,
+//  UGX: 2, will be changed to 0 when maintenance agency releases updated table
     USD: 2,
     USN: 2,
     USS: 2,

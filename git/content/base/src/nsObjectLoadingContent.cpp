@@ -24,6 +24,7 @@
 #include "nsIPermissionManager.h"
 #include "nsPluginHost.h"
 #include "nsJSNPRuntime.h"
+#include "nsIJSContextStack.h"
 #include "nsIPresShell.h"
 #include "nsIScriptGlobalObject.h"
 #include "nsIScriptSecurityManager.h"

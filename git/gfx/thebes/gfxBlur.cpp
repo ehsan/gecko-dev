@@ -16,6 +16,8 @@ gfxAlphaBoxBlur::gfxAlphaBoxBlur()
 
 gfxAlphaBoxBlur::~gfxAlphaBoxBlur()
 {
+  // Drop references to mContext and mImageSurface before we delete mBlur,
+  // because the image surface points to data in mBlur.
   mContext = nullptr;
   mImageSurface = nullptr;
   delete mBlur;
@@ -48,19 +50,17 @@ gfxAlphaBoxBlur::Init(const gfxRect& aRect,
     }
 
     mBlur = new AlphaBoxBlur(rect, spreadRadius, blurRadius, dirtyRect, skipRect);
-    int32_t blurDataSize = mBlur->GetSurfaceAllocationSize();
-    if (blurDataSize <= 0)
-        return nullptr;
+
+    unsigned char* data = mBlur->GetData();
+    if (!data)
+      return nullptr;
 
     IntSize size = mBlur->GetSize();
-
     // Make an alpha-only surface to draw on. We will play with the data after
     // everything is drawn to create a blur effect.
-    mImageSurface = new gfxImageSurface(gfxIntSize(size.width, size.height),
-                                        gfxASurface::ImageFormatA8,
+    mImageSurface = new gfxImageSurface(data, gfxIntSize(size.width, size.height),
                                         mBlur->GetStride(),
-                                        blurDataSize,
-                                        true);
+                                        gfxASurface::ImageFormatA8);
     if (mImageSurface->CairoStatus())
         return nullptr;
 
@@ -83,7 +83,7 @@ gfxAlphaBoxBlur::Paint(gfxContext* aDestinationCtx, const gfxPoint& offset)
     if (!mContext)
         return;
 
-    mBlur->Blur(mImageSurface->Data());
+    mBlur->Blur();
 
     mozilla::gfx::Rect* dirtyrect = mBlur->GetDirtyRect();
 

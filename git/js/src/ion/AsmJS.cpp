@@ -3124,7 +3124,7 @@ CheckStoreArray(FunctionCompiler &f, ParseNode *lhs, ParseNode *rhs, MDefinition
 static bool
 CheckAssignName(FunctionCompiler &f, ParseNode *lhs, ParseNode *rhs, MDefinition **def, Type *type)
 {
-    Rooted<PropertyName *> name(f.cx(), lhs->name());
+    PropertyName *name = lhs->name();
 
     MDefinition *rhsDef;
     Type rhsType;

@@ -394,10 +394,8 @@ static bool
 IsBidiSplittable(nsIFrame* aFrame)
 {
   // Bidi inline containers should be split, unless they're line frames.
-  nsIAtom* frameType = aFrame->GetType();
-  return (aFrame->IsFrameOfType(nsIFrame::eBidiInlineContainer) &&
-          frameType != nsGkAtoms::lineFrame) ||
-         frameType == nsGkAtoms::textFrame;
+  return aFrame->IsFrameOfType(nsIFrame::eBidiInlineContainer)
+    && aFrame->GetType() != nsGkAtoms::lineFrame;
 }
 
 // Should this frame be treated as a leaf (e.g. when building mLogicalFrames)?
@@ -816,7 +814,8 @@ nsBidiPresUtils::ResolveParagraph(nsBlockFrame* aBlockFrame,
               while (parent && nextParent) {
                 if (parent == nextParent ||
                     nextParent != parent->GetNextInFlow() ||
-                    !IsBidiSplittable(parent)) {
+                    !parent->IsFrameOfType(nsIFrame::eLineParticipant) ||
+                    !nextParent->IsFrameOfType(nsIFrame::eLineParticipant)) {
                   break;
                 }
                 parent->SetNextContinuation(nextParent);
@@ -1607,7 +1606,7 @@ nsBidiPresUtils::RemoveBidiContinuation(BidiParagraphData *aBpd,
   // to content)
   nsIFrame* lastFrame = aBpd->FrameAt(aLastIndex);
   nsIFrame* next = lastFrame->GetNextInFlow();
-  if (next && IsBidiSplittable(lastFrame)) {
+  if (next) {
     lastFrame->SetNextContinuation(next);
     next->SetPrevContinuation(lastFrame);
   }

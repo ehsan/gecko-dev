@@ -32,6 +32,7 @@
 #include "nsIServiceManager.h"
 #include "nsIScriptSecurityManager.h"
 #include "nsError.h"
+#include "nsIJSContextStack.h"
 #include "nsIDocument.h"
 #include "nsIPresShell.h"
 #include "nsMutationEvent.h"

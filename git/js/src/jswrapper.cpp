@@ -497,7 +497,7 @@ CrossCompartmentWrapper::nativeCall(JSContext *cx, IsAcceptableThis test, Native
             // will stymie this whole process. If that happens, unwrap the wrapper.
             // This logic can go away when same-compartment security wrappers go away.
             if ((src == srcArgs.base() + 1) && dst->isObject()) {
-                RootedObject thisObj(cx, &dst->toObject());
+                JSObject *thisObj = &dst->toObject();
                 if (thisObj->isWrapper() &&
                     !Wrapper::wrapperHandler(thisObj)->isSafeToUnwrap())
                 {

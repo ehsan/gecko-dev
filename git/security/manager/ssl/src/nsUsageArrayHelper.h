@@ -5,9 +5,9 @@
 #ifndef _NSUSAGEARRAYHELPER_H_
 #define _NSUSAGEARRAYHELPER_H_
 
-#include "CertVerifier.h"
-#include "nsNSSComponent.h"
 #include "certt.h"
+
+#include "nsNSSComponent.h"
 
 class nsUsageArrayHelper
 {
@@ -29,14 +29,21 @@ private:
   CERTCertDBHandle *defaultcertdb;
   nsCOMPtr<nsINSSComponent> nssComponent;
 
+  // XXX: old, non-libpkix version of check that will be removed after the
+  // switch to libpkix is final.
+  void check(const char *suffix,
+             SECCertificateUsage aCertUsage,
+             uint32_t &aCounter,
+             PRUnichar **outUsages);
+
+#ifndef NSS_NO_LIBPKIX
   uint32_t check(uint32_t previousCheckResult,
                  const char *suffix,
-                 mozilla::psm::CertVerifier * certVerifier,
                  SECCertificateUsage aCertUsage,
-                 PRTime time,
-                 mozilla::psm::CertVerifier::Flags flags,
+                 nsCERTValInParamWrapper * aValInParams,
                  uint32_t &aCounter,
                  PRUnichar **outUsages);
+#endif
 
   void verifyFailed(uint32_t *_verified, int err);
 };

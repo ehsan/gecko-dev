@@ -442,9 +442,6 @@ typedef enum {
      */
     SEC_OID_MS_EXT_KEY_USAGE_CTL_SIGNING    = 316,
 
-    /* The 'name' attribute type in X.520 */
-    SEC_OID_AVA_NAME                        = 317,
-
     SEC_OID_TOTAL
 } SECOidTag;
 

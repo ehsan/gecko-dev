@@ -126,12 +126,12 @@ MessageLoop* CompositorParent::CompositorLoop()
 }
 
 CompositorParent::CompositorParent(nsIWidget* aWidget,
-                                   bool aUseExternalSurfaceSize,
+                                   bool aRenderToEGLSurface,
                                    int aSurfaceWidth, int aSurfaceHeight)
   : mWidget(aWidget)
   , mCurrentCompositeTask(NULL)
   , mPaused(false)
-  , mUseExternalSurfaceSize(aUseExternalSurfaceSize)
+  , mRenderToEGLSurface(aRenderToEGLSurface)
   , mEGLSurfaceSize(aSurfaceWidth, aSurfaceHeight)
   , mPauseCompositionMonitor("PauseCompositionMonitor")
   , mResumeCompositionMonitor("ResumeCompositionMonitor")
@@ -320,7 +320,7 @@ CompositorParent::ForceComposition()
 void
 CompositorParent::SetEGLSurfaceSize(int width, int height)
 {
-  NS_ASSERTION(mUseExternalSurfaceSize, "Compositor created without UseExternalSurfaceSize provided");
+  NS_ASSERTION(mRenderToEGLSurface, "Compositor created without RenderToEGLSurface provided");
   mEGLSurfaceSize.SizeTo(width, height);
   if (mLayerManager) {
     mLayerManager->GetCompositor()->SetDestinationSurfaceSize(gfx::IntSize(mEGLSurfaceSize.width, mEGLSurfaceSize.height));
@@ -563,7 +563,7 @@ CompositorParent::AllocPLayerTransaction(const LayersBackend& aBackendHint,
       new LayerManagerComposite(new CompositorOGL(mWidget,
                                                   mEGLSurfaceSize.width,
                                                   mEGLSurfaceSize.height,
-                                                  mUseExternalSurfaceSize));
+                                                  mRenderToEGLSurface));
     mWidget = nullptr;
     mLayerManager->SetCompositorID(mCompositorID);
 

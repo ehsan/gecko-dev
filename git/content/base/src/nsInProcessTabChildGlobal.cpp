@@ -15,6 +15,7 @@
 #include "nsComponentManagerUtils.h"
 #include "nsNetUtil.h"
 #include "nsScriptLoader.h"
+#include "nsIJSContextStack.h"
 #include "nsFrameLoader.h"
 #include "xpcpublic.h"
 #include "nsIMozBrowserFrame.h"

@@ -49,6 +49,7 @@
 #include "nsIDocShell.h"
 #include "nsIInterfaceRequestorUtils.h"
 #include "nsIInterfaceRequestorUtils.h"
+#include "nsIJSContextStack.h"
 #include "nsIJSRuntimeService.h"
 #include "nsISSLStatusProvider.h"
 #include "nsIScriptContext.h"

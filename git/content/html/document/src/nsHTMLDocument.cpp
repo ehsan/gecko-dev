@@ -69,6 +69,7 @@
 #include "nsIDocumentInlines.h"
 #include "nsIDocumentEncoder.h" //for outputting selection
 #include "nsICachingChannel.h"
+#include "nsIJSContextStack.h"
 #include "nsIContentViewer.h"
 #include "nsIWyciwygChannel.h"
 #include "nsIScriptElement.h"
@@ -2369,7 +2370,7 @@ nsHTMLDocument::NamedGetter(JSContext* cx, const nsAString& aName, bool& aFound,
 
   JS::Value val;
   { // Scope for auto-compartment
-    JS::Rooted<JSObject*> wrapper(cx, GetWrapper());
+    JSObject* wrapper = GetWrapper();
     JSAutoCompartment ac(cx, wrapper);
     // XXXbz Should we call the (slightly misnamed, really) WrapNativeParent
     // here?
@@ -3322,32 +3323,39 @@ nsHTMLDocument::DoClipboardSecurityCheck(bool aPaste)
 {
   nsresult rv = NS_ERROR_FAILURE;
 
-  JSContext *cx = nsContentUtils::GetCurrentJSContext();
-  if (!cx) {
-    return NS_OK;
-  }
-  JSAutoRequest ar(cx);
+  nsCOMPtr<nsIJSContextStack> stack =
+    do_GetService("@mozilla.org/js/xpc/ContextStack;1");
 
-  NS_NAMED_LITERAL_CSTRING(classNameStr, "Clipboard");
-
-  nsIScriptSecurityManager *secMan = nsContentUtils::GetSecurityManager();
-
-  if (aPaste) {
-    if (nsHTMLDocument::sPasteInternal_id == JSID_VOID) {
-      nsHTMLDocument::sPasteInternal_id =
-        INTERNED_STRING_TO_JSID(cx, ::JS_InternString(cx, "paste"));
+  if (stack) {
+    JSContext *cx = nullptr;
+    stack->Peek(&cx);
+    if (!cx) {
+      return NS_OK;
     }
-    rv = secMan->CheckPropertyAccess(cx, nullptr, classNameStr.get(),
-                                     nsHTMLDocument::sPasteInternal_id,
-                                     nsIXPCSecurityManager::ACCESS_GET_PROPERTY);
-  } else {
-    if (nsHTMLDocument::sCutCopyInternal_id == JSID_VOID) {
-      nsHTMLDocument::sCutCopyInternal_id =
-        INTERNED_STRING_TO_JSID(cx, ::JS_InternString(cx, "cutcopy"));
+
+    JSAutoRequest ar(cx);
+
+    NS_NAMED_LITERAL_CSTRING(classNameStr, "Clipboard");
+
+    nsIScriptSecurityManager *secMan = nsContentUtils::GetSecurityManager();
+
+    if (aPaste) {
+      if (nsHTMLDocument::sPasteInternal_id == JSID_VOID) {
+        nsHTMLDocument::sPasteInternal_id =
+          INTERNED_STRING_TO_JSID(cx, ::JS_InternString(cx, "paste"));
+      }
+      rv = secMan->CheckPropertyAccess(cx, nullptr, classNameStr.get(),
+                                       nsHTMLDocument::sPasteInternal_id,
+                                       nsIXPCSecurityManager::ACCESS_GET_PROPERTY);
+    } else {
+      if (nsHTMLDocument::sCutCopyInternal_id == JSID_VOID) {
+        nsHTMLDocument::sCutCopyInternal_id =
+          INTERNED_STRING_TO_JSID(cx, ::JS_InternString(cx, "cutcopy"));
+      }
+      rv = secMan->CheckPropertyAccess(cx, nullptr, classNameStr.get(),
+                                       nsHTMLDocument::sCutCopyInternal_id,
+                                       nsIXPCSecurityManager::ACCESS_GET_PROPERTY);
     }
-    rv = secMan->CheckPropertyAccess(cx, nullptr, classNameStr.get(),
-                                     nsHTMLDocument::sCutCopyInternal_id,
-                                     nsIXPCSecurityManager::ACCESS_GET_PROPERTY);
   }
   return rv;
 }

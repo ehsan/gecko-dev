@@ -172,7 +172,7 @@ FENNEC_JAVA_FILES = \
   db/BrowserContract.java \
   db/BrowserProvider.java \
   db/FormHistoryProvider.java \
-  db/PerProfileContentProvider.java \
+  db/GeckoProvider.java \
   db/PasswordsProvider.java \
   db/TabsProvider.java \
   gfx/Axis.java \
@@ -221,7 +221,6 @@ FENNEC_JAVA_FILES = \
   widget/AboutHomeSection.java \
   widget/AddonsSection.java \
   widget/DateTimePicker.java \
-  widget/FaviconView.java \
   widget/IconTabWidget.java \
   widget/LastTabsSection.java \
   widget/LinkTextView.java \
@@ -572,7 +571,6 @@ RES_DRAWABLE_MDPI = \
   res/drawable-mdpi/ic_menu_addons_filler.png \
   res/drawable-mdpi/ic_menu_bookmark_add.png \
   res/drawable-mdpi/ic_menu_bookmark_remove.png \
-  res/drawable-mdpi/ic_menu_character_encoding.png \
   res/drawable-mdpi/ic_menu_close_all_tabs.png \
   res/drawable-mdpi/ic_menu_forward.png \
   res/drawable-mdpi/ic_menu_new_private_tab.png \
@@ -684,7 +682,6 @@ RES_DRAWABLE_HDPI = \
   res/drawable-hdpi/ic_menu_addons_filler.png \
   res/drawable-hdpi/ic_menu_bookmark_add.png \
   res/drawable-hdpi/ic_menu_bookmark_remove.png \
-  res/drawable-hdpi/ic_menu_character_encoding.png \
   res/drawable-hdpi/ic_menu_close_all_tabs.png \
   res/drawable-hdpi/ic_menu_forward.png \
   res/drawable-hdpi/ic_menu_new_private_tab.png \
@@ -777,7 +774,6 @@ RES_DRAWABLE_XHDPI = \
   res/drawable-xhdpi/ic_menu_bookmark_add.png \
   res/drawable-xhdpi/ic_menu_bookmark_remove.png \
   res/drawable-xhdpi/ic_menu_close_all_tabs.png \
-  res/drawable-xhdpi/ic_menu_character_encoding.png \
   res/drawable-xhdpi/ic_menu_forward.png \
   res/drawable-xhdpi/ic_menu_new_private_tab.png \
   res/drawable-xhdpi/ic_menu_new_tab.png \
@@ -1000,12 +996,11 @@ MOZ_ANDROID_DRAWABLES += \
   mobile/android/base/resources/drawable/address_bar_nav_button.xml             \
   mobile/android/base/resources/drawable/address_bar_right_edge.xml             \
   mobile/android/base/resources/drawable/address_bar_url.xml                    \
-  mobile/android/base/resources/drawable/awesomebar_listview_divider.xml        \
   mobile/android/base/resources/drawable/awesomebar_header_row.xml              \
+  mobile/android/base/resources/drawable/awesomebar_row_favicon_bg.xml          \
   mobile/android/base/resources/drawable/awesomebar_tab_indicator.xml           \
   mobile/android/base/resources/drawable/awesomebar_tab_selected.xml            \
   mobile/android/base/resources/drawable/awesomebar_tab_unselected.xml          \
-  mobile/android/base/resources/drawable/favicon_bg.xml                         \
   mobile/android/base/resources/drawable/handle_end_level.xml                   \
   mobile/android/base/resources/drawable/handle_start_level.xml                 \
   mobile/android/base/resources/drawable/ic_menu_back.xml                       \

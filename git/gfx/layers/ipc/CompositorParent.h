@@ -44,7 +44,7 @@ class CompositorParent : public PCompositorParent,
 
 public:
   CompositorParent(nsIWidget* aWidget,
-                   bool aUseExternalSurfaceSize = false,
+                   bool aRenderToEGLSurface = false,
                    int aSurfaceWidth = -1, int aSurfaceHeight = -1);
 
   virtual ~CompositorParent();
@@ -239,7 +239,7 @@ private:
 
   bool mPaused;
 
-  bool mUseExternalSurfaceSize;
+  bool mRenderToEGLSurface;
   nsIntSize mEGLSurfaceSize;
 
   mozilla::Monitor mPauseCompositionMonitor;

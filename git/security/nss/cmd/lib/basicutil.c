@@ -43,8 +43,7 @@ SECU_GetWrapEnabled(void)
 }
 
 void 
-SECU_PrintErrMsg(FILE *out, int level, const char *progName, const char *msg,
-                 ...)
+SECU_PrintErrMsg(FILE *out, int level, char *progName, char *msg, ...)
 {
     va_list args;
     PRErrorCode err = PORT_GetError();
@@ -64,32 +63,26 @@ SECU_PrintErrMsg(FILE *out, int level, const char *progName, const char *msg,
 }
 
 void 
-SECU_PrintError(const char *progName, const char *msg, ...)
+SECU_PrintError(char *progName, char *msg, ...)
 {
     va_list args;
     PRErrorCode err = PORT_GetError();
-    const char * errName = PR_ErrorToName(err);
-    const char * errString = PR_ErrorToString(err, 0);
+    const char * errString = PORT_ErrorToString(err);
 
     va_start(args, msg);
 
     fprintf(stderr, "%s: ", progName);
     vfprintf(stderr, msg, args);
-
-    if (errName != NULL) {
-	fprintf(stderr, ": %s", errName);
-    } else {
-	fprintf(stderr, ": error %d", (int)err);
-    }
-
     if (errString != NULL && PORT_Strlen(errString) > 0)
 	fprintf(stderr, ": %s\n", errString);
+    else
+	fprintf(stderr, ": error %d\n", (int)err);
 
     va_end(args);
 }
 
 void
-SECU_PrintSystemError(const char *progName, const char *msg, ...)
+SECU_PrintSystemError(char *progName, char *msg, ...)
 {
     va_list args;
 
@@ -621,7 +614,7 @@ SECU_GetOptionArg(const secuCommand *cmd, int optionNum)
 
 
 void 
-SECU_PrintPRandOSError(const char *progName) 
+SECU_PrintPRandOSError(char *progName) 
 {
     char buffer[513];
     PRInt32     errLen = PR_GetErrorTextLength();

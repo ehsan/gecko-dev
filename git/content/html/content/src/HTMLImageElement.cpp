@@ -35,6 +35,7 @@
 
 #include "nsRuleData.h"
 
+#include "nsIJSContextStack.h"
 #include "nsIDOMHTMLMapElement.h"
 #include "nsEventDispatcher.h"
 

@@ -20,7 +20,7 @@ import android.database.Cursor;
 import android.net.Uri;
 import android.text.TextUtils;
 
-public class FormHistoryProvider extends PerProfileContentProvider {
+public class FormHistoryProvider extends GeckoProvider {
     static final String TABLE_FORM_HISTORY = "moz_formhistory";
     static final String TABLE_DELETED_FORM_HISTORY = "moz_deleted_formhistory";
 
@@ -29,6 +29,8 @@ public class FormHistoryProvider extends PerProfileContentProvider {
 
     private static final UriMatcher URI_MATCHER;
 
+    private static HashMap<String, String> FORM_HISTORY_PROJECTION_MAP;
+    private static HashMap<String, String> DELETED_FORM_HISTORY_PROJECTION_MAP;
 
     // This should be kept in sync with the db version in toolkit/components/satchel/nsFormHistory.js
     private static int DB_VERSION = 4;
@@ -37,18 +39,22 @@ public class FormHistoryProvider extends PerProfileContentProvider {
     private static final String WHERE_GUID_IS_NULL = BrowserContract.DeletedFormHistory.GUID + " IS NULL";
     private static final String WHERE_GUID_IS_VALUE = BrowserContract.DeletedFormHistory.GUID + " = ?";
 
-    private static final String LOG_TAG = "FormHistoryProvider";
-
     static {
         URI_MATCHER = new UriMatcher(UriMatcher.NO_MATCH);
         URI_MATCHER.addURI(BrowserContract.FORM_HISTORY_AUTHORITY, "formhistory", FORM_HISTORY);
         URI_MATCHER.addURI(BrowserContract.FORM_HISTORY_AUTHORITY, "deleted-formhistory", DELETED_FORM_HISTORY);
+        FORM_HISTORY_PROJECTION_MAP = new HashMap<String, String>();
+        DELETED_FORM_HISTORY_PROJECTION_MAP = new HashMap<String, String>();
     }
 
-    public FormHistoryProvider() {
-        super(LOG_TAG);
-    }
+    @Override
+    public boolean onCreate() {
+        setLogTag("FormHistoryProvider");
+        setDBName(DB_FILENAME);
+        setDBVersion(DB_VERSION);
 
+        return super.onCreate();
+    }
 
     @Override
     public String getType(Uri uri) {
@@ -87,9 +93,8 @@ public class FormHistoryProvider extends PerProfileContentProvider {
 
     @Override
     public String getSortOrder(Uri uri, String aRequested) {
-        if (!TextUtils.isEmpty(aRequested)) {
+        if (!TextUtils.isEmpty(aRequested))
             return aRequested;
-        }
 
         return null;
     }
@@ -147,14 +152,4 @@ public class FormHistoryProvider extends PerProfileContentProvider {
 
     @Override
     public void onPostQuery(Cursor cursor, Uri uri, SQLiteBridge db) { }
-
-    @Override
-    protected String getDBName(){
-        return DB_FILENAME;
-    }
-
-    @Override
-    protected int getDBVersion(){
-        return DB_VERSION;
-    }
 }

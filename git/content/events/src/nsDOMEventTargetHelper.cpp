@@ -8,6 +8,7 @@
 #include "nsEventDispatcher.h"
 #include "nsGUIEvent.h"
 #include "nsIDocument.h"
+#include "nsIJSContextStack.h"
 #include "nsDOMJSUtils.h"
 #include "prprf.h"
 #include "nsGlobalWindow.h"

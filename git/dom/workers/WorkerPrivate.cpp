@@ -12,6 +12,7 @@
 #include "nsIDOMFile.h"
 #include "nsIDocument.h"
 #include "nsIDocShell.h"
+#include "nsIJSContextStack.h"
 #include "nsIMemoryReporter.h"
 #include "nsIPermissionManager.h"
 #include "nsIScriptError.h"

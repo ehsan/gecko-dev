@@ -9,6 +9,7 @@
 #include "nsIDOMFile.h"
 #include "nsIDOMEvent.h"
 #include "nsIIDBVersionChangeEvent.h"
+#include "nsIJSContextStack.h"
 #include "nsIXPConnect.h"
 
 #include "mozilla/AppProcessChecker.h"
@@ -393,7 +394,8 @@ IndexedDBDatabaseParent::HandleRequestEvent(nsIDOMEvent* aEvent,
   nsIXPConnect* xpc = nsContentUtils::XPConnect();
   MOZ_ASSERT(xpc);
 
-  SafeAutoJSContext cx;
+  JSContext* cx =  nsContentUtils::ThreadJSContextStack()->GetSafeJSContext();
+  MOZ_ASSERT(cx);
 
   nsCOMPtr<nsIXPConnectWrappedNative> wrapper;
   rv = xpc->GetWrappedNativeOfJSObject(cx, JSVAL_TO_OBJECT(result),

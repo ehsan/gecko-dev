@@ -262,7 +262,7 @@ struct ParamTraits<nsKeyEvent>
 
   static bool Read(const Message* aMsg, void** aIter, paramType* aResult)
   {
-    uint32_t keyNameIndex = 0;
+    uint32_t keyNameIndex;
     if (ReadParam(aMsg, aIter, static_cast<nsInputEvent*>(aResult)) &&
         ReadParam(aMsg, aIter, &keyNameIndex) &&
         ReadParam(aMsg, aIter, &aResult->keyCode) &&
