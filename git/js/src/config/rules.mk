@@ -129,15 +129,13 @@ ifndef MODULE
 $(error Must define MODULE when defining XPCSHELL_TESTS.)
 endif
 
-testxpcobjdir = $(DEPTH)/_tests/xpcshell
-
 # Test file installation
 libs::
 	@$(EXIT_ON_ERROR) \
 	for testdir in $(XPCSHELL_TESTS); do \
 	  $(INSTALL) \
 	    $(srcdir)/$$testdir/*.js \
-	    $(testxpcobjdir)/$(MODULE)/$$testdir; \
+	    $(DEPTH)/_tests/xpcshell-simple/$(MODULE)/$$testdir; \
 	done
 
 # Path formats on Windows are hard.  We require a topsrcdir formatted so that
@@ -160,40 +158,40 @@ NATIVE_TOPSRCDIR   := $(topsrcdir)
 endif
 endif # CYGWIN_WRAPPER
 
-testxpcsrcdir = $(topsrcdir)/testing/xpcshell
+testxpcdir = $(topsrcdir)/testing/xpcshell
 
 # Test execution
 check::
 	@$(EXIT_ON_ERROR) \
 	for testdir in $(XPCSHELL_TESTS); do \
 	  $(RUN_TEST_PROGRAM) \
-	    $(testxpcsrcdir)/test_all.sh \
+	    $(testxpcdir)/test_all.sh \
 	      $(DIST)/bin/xpcshell \
 	      $(FWDSLASH_TOPSRCDIR) \
 	      $(NATIVE_TOPSRCDIR) \
-	      $(testxpcobjdir)/$(MODULE)/$$testdir; \
+	      $(DEPTH)/_tests/xpcshell-simple/$(MODULE)/$$testdir; \
 	done
 
 # Test execution
 check-interactive::
 	@$(EXIT_ON_ERROR) \
 	$(RUN_TEST_PROGRAM) \
-	  $(testxpcsrcdir)/test_one.sh \
+	  $(testxpcdir)/test_one.sh \
 	    $(DIST)/bin/xpcshell \
 	    $(FWDSLASH_TOPSRCDIR) \
 	    $(NATIVE_TOPSRCDIR) \
-	    $(testxpcobjdir)/$(MODULE)/$$testdir \
+	    $(DEPTH)/_tests/xpcshell-simple/$(MODULE)/$$testdir \
 	    $(SOLO_FILE) 1;
 
 # Test execution
 check-one::
 	@$(EXIT_ON_ERROR) \
 	$(RUN_TEST_PROGRAM) \
-	  $(testxpcsrcdir)/test_one.sh \
+	  $(testxpcdir)/test_one.sh \
 	    $(DIST)/bin/xpcshell \
 	    $(FWDSLASH_TOPSRCDIR) \
 	    $(NATIVE_TOPSRCDIR) \
-	    $(testxpcobjdir)/$(MODULE)/$$testdir \
+	    $(DEPTH)/_tests/xpcshell-simple/$(MODULE)/$$testdir \
 	    $(SOLO_FILE) 0;
 
 endif # XPCSHELL_TESTS
