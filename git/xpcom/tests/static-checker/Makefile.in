@@ -57,7 +57,6 @@ STACK_FAILURE_TESTCASES = \
   TestStackTemplate.cpp \
   StackNoConstructor.cpp \
   StackVector.cpp \
-  StackConditional.cpp \
   $(NULL)
 
 STACK_PASS_TESTCASES = \
