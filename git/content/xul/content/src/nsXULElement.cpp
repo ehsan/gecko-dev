@@ -656,7 +656,7 @@ nsXULElement::AddListenerFor(const nsAttrName& aName,
             nsContentUtils::IsEventAttributeName(attr, EventNameType_XUL)) {
             nsAutoString value;
             GetAttr(kNameSpaceID_None, attr, value);
-            SetEventHandler(attr, value, true);
+            AddScriptEventListener(attr, value, true);
         }
     }
 }
@@ -919,11 +919,11 @@ nsXULElement::AfterSetAttr(int32_t aNamespaceID, nsIAtom* aName,
             MaybeAddPopupListener(aName);
             if (nsContentUtils::IsEventAttributeName(aName, EventNameType_XUL)) {
                 if (aValue->Type() == nsAttrValue::eString) {
-                    SetEventHandler(aName, aValue->GetStringValue(), true);
+                    AddScriptEventListener(aName, aValue->GetStringValue(), true);
                 } else {
                     nsAutoString body;
                     aValue->ToString(body);
-                    SetEventHandler(aName, body, true);
+                    AddScriptEventListener(aName, body, true);
                 }
             }
     
@@ -1853,7 +1853,7 @@ nsXULElement::RecompileScriptEventListeners()
 
         nsAutoString value;
         GetAttr(kNameSpaceID_None, attr, value);
-        SetEventHandler(attr, value, true);
+        AddScriptEventListener(attr, value, true);
     }
 }
 

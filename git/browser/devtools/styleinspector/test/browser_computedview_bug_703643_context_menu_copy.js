@@ -112,10 +112,10 @@ function checkCopySelection()
 
   let range = document.createRange();
   range.setStart(props[0], 0);
-  range.setEnd(props[3], 4);
+  range.setEnd(props[3], 3);
   contentWindow.getSelection().addRange(range);
 
-  info("Checking that cssHtmlTree.siBoundCopy() " +
+  info("Checking that cssHtmlTree.siBoundCopyPropertyValue() " +
        " returns the correct clipboard value");
 
   let expectedPattern = "color: rgb\\(255, 255, 0\\)[\\r\\n]+" +

@@ -11,7 +11,7 @@ interface nsIDOMMozMobileNetworkInfo;
 interface nsIDOMMozMobileCellInfo;
 interface nsIDOMMozIccManager;
 
-[scriptable, builtinclass, uuid(fda3bb30-3259-4ba7-8cff-c486c30821a4)]
+[scriptable, builtinclass, uuid(46fa4f72-9c81-4b7f-b395-87202966e526)]
 interface nsIDOMMozMobileConnection : nsIDOMEventTarget
 {
   /**
@@ -208,25 +208,25 @@ interface nsIDOMMozMobileConnection : nsIDOMEventTarget
    * The 'cardstatechange' event is notified when the 'cardState' attribute
    * changes value.
    */
-  [implicit_jscontext] attribute jsval oncardstatechange;
+  attribute nsIDOMEventListener oncardstatechange;
 
   /**
    * The 'voicechange' event is notified whenever the voice connection object
    * changes.
    */
-  [implicit_jscontext] attribute jsval onvoicechange;
+  attribute nsIDOMEventListener onvoicechange;
 
   /**
    * The 'datachange' event is notified whenever the data connection object
    * changes values.
    */
-  [implicit_jscontext] attribute jsval ondatachange;
+  attribute nsIDOMEventListener ondatachange;
 
   /**
    * The 'ussdreceived' event is notified whenever a new USSD message is
    * received.
    */
-  [implicit_jscontext] attribute jsval onussdreceived;
+  attribute nsIDOMEventListener onussdreceived;
 };
 
 [scriptable, uuid(5ea0e4a9-4684-40da-9930-8ebb61d187f3)]

@@ -45,6 +45,9 @@ private:
   }
 
   nsresult InternalDispatchEvent(const nsAString& aType);
+
+  NS_DECL_EVENT_HANDLER(stkcommand)
+  NS_DECL_EVENT_HANDLER(stksessionend)
 };
 
 } // namespace icc

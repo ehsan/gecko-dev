@@ -1428,10 +1428,6 @@ nsXPConnect::GetNativeOfWrapper(JSContext * aJSContext,
         return canonical.get();
     }
 
-    nsISupports* supports = nullptr;
-    if (mozilla::dom::UnwrapDOMObjectToISupports(aJSObj, supports))
-        return supports;
-
     return nullptr;
 }
 

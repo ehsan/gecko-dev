@@ -37,11 +37,17 @@ function test()
 {
   addTab(TEST_URI);
 
+  let initialLoad = true;
+
   browser.addEventListener("load", function onLoad() {
-    browser.removeEventListener("load", onLoad, true);
-    openConsole(null, function() {
-      HUDService.lastFinishedRequestCallback = performTest;
-      content.location.reload();
-    });
+    if (initialLoad) {
+      openConsole(null, function() {
+        HUDService.lastFinishedRequestCallback = performTest;
+        content.location.reload();
+      });
+      initialLoad = false;
+    } else {
+      browser.removeEventListener("load", onLoad, true);
+    }
   }, true);
 }

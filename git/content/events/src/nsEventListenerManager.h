@@ -44,7 +44,6 @@ struct nsListenerStruct
   nsCOMPtr<nsIAtom>             mTypeAtom;
   uint16_t                      mFlags;
   uint8_t                       mListenerType;
-  bool                          mListenerIsHandler;
   bool                          mHandlerIsString;
 
   nsIJSEventListener* GetJSListener() const {
@@ -102,15 +101,15 @@ public:
    */
   // XXXbz does that play correctly with nodes being adopted across
   // documents?  Need to double-check the spec here.
-  nsresult SetEventHandler(nsIAtom *aName,
-                           const nsAString& aFunc,
-                           uint32_t aLanguage,
-                           bool aDeferCompilation,
-                           bool aPermitUntrustedEvents);
+  nsresult AddScriptEventListener(nsIAtom *aName,
+                                  const nsAString& aFunc,
+                                  uint32_t aLanguage,
+                                  bool aDeferCompilation,
+                                  bool aPermitUntrustedEvents);
   /**
    * Remove the current "inline" event listener for aName.
    */
-  void RemoveEventHandler(nsIAtom *aName);
+  void RemoveScriptEventListener(nsIAtom *aName);
 
   void HandleEvent(nsPresContext* aPresContext,
                    nsEvent* aEvent, 
@@ -243,7 +242,7 @@ protected:
   /**
    * Find the nsListenerStruct for the "inline" event listener for aTypeAtom.
    */
-  nsListenerStruct* FindEventHandler(uint32_t aEventType, nsIAtom* aTypeAtom);
+  nsListenerStruct* FindJSEventListener(uint32_t aEventType, nsIAtom* aTypeAtom);
 
   /**
    * Set the "inline" event listener for aName to aHandler.  aHandler
@@ -251,13 +250,12 @@ protected:
    * string for this listener.  The nsListenerStruct that results, if
    * any, is returned in aListenerStruct.
    */
-  nsresult SetEventHandlerInternal(nsIScriptContext *aContext,
-                                   JSContext* aCx,
-                                   JSObject* aScopeGlobal,
-                                   nsIAtom* aName,
-                                   JSObject *aHandler,
-                                   bool aPermitUntrustedEvents,
-                                   nsListenerStruct **aListenerStruct);
+  nsresult SetJSEventListener(nsIScriptContext *aContext,
+                              JSObject* aScopeGlobal,
+                              nsIAtom* aName,
+                              JSObject *aHandler,
+                              bool aPermitUntrustedEvents,
+                              nsListenerStruct **aListenerStruct);
 
   bool IsDeviceType(uint32_t aType);
   void EnableDevice(uint32_t aType);
@@ -269,24 +267,21 @@ public:
    * might actually remove the event listener, depending on the value
    * of |v|.  Note that on entry to this function cx and aScope might
    * not be in the same compartment, though cx and v are guaranteed to
-   * be in the same compartment.  If aExpectScriptContext is false,
-   * not finding an nsIScriptContext does not cause failure.
+   * be in the same compartment.
    */
-  nsresult SetEventHandlerToJsval(nsIAtom *aEventName, JSContext *cx,
-                                  JSObject *aScope, const jsval &v,
-                                  bool aExpectScriptContext);
+  nsresult SetJSEventListenerToJsval(nsIAtom *aEventName, JSContext *cx,
+                                     JSObject *aScope, const jsval &v);
   /**
    * Get the value of the "inline" event listener for aEventName.
    * This may cause lazy compilation if the listener is uncompiled.
    */
-  void GetEventHandler(nsIAtom *aEventName, jsval *vp);
+  void GetJSEventListener(nsIAtom *aEventName, jsval *vp);
 
 protected:
   void AddEventListener(nsIDOMEventListener *aListener, 
                         uint32_t aType,
                         nsIAtom* aTypeAtom,
-                        int32_t aFlags,
-                        bool aHandler = false);
+                        int32_t aFlags);
   void RemoveEventListener(nsIDOMEventListener *aListener,
                            uint32_t aType,
                            nsIAtom* aUserType,
