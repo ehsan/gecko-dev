@@ -1477,7 +1477,3 @@ NetworkEventActor.prototype.requestTypes =
   "getEventTimings": NetworkEventActor.prototype.onGetEventTimings,
 };
 
-DebuggerServer.addTabActor(WebConsoleActor, "consoleActor");
-DebuggerServer.addGlobalActor(WebConsoleActor, "consoleActor");
-
-

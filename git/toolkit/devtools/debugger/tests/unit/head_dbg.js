@@ -18,14 +18,6 @@ Services.prefs.setBoolPref("devtools.debugger.remote-enabled", true);
 Cu.import("resource://gre/modules/devtools/dbg-server.jsm");
 Cu.import("resource://gre/modules/devtools/dbg-client.jsm");
 
-function testExceptionHook(ex) {
-  try {
-    do_report_unexpected_exception(ex);
-  } catch(ex) {
-    return {throw: ex}
-  }
-}
-
 // Convert an nsIScriptError 'aFlags' value into an appropriate string.
 function scriptErrorFlagsToKind(aFlags) {
   var kind;
@@ -163,7 +155,7 @@ function initTestDebuggerServer()
 
 function initSourcesBackwardsCompatDebuggerServer()
 {
-  DebuggerServer.addActors("resource://gre/modules/devtools/server/actors/webbrowser.js");
+  DebuggerServer.addActors("chrome://global/content/devtools/dbg-browser-actors.js");
   DebuggerServer.addActors("resource://test/testcompatactors.js");
   DebuggerServer.init(function () { return true; });
 }
