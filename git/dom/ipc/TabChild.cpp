@@ -285,7 +285,6 @@ TabChild::TabChild(ContentChild* aManager, const TabContext& aContext, uint32_t 
   , mTriedBrowserInit(false)
   , mOrientation(eScreenOrientation_PortraitPrimary)
   , mUpdateHitRegion(false)
-  , mContextMenuHandled(false)
 {
 }
 
@@ -1658,18 +1657,6 @@ TabChild::RecvHandleLongTap(const CSSIntPoint& aPoint)
   DispatchMouseEvent(NS_LITERAL_STRING("contextmenu"), aPoint, 2, 1, 0, false,
                      nsIDOMMouseEvent::MOZ_SOURCE_TOUCH);
 
-  return true;
-}
-
-bool
-TabChild::RecvHandleLongTapUp(const CSSIntPoint& aPoint)
-{
-  if (mContextMenuHandled) {
-    mContextMenuHandled = false;
-    return true;
-  }
-
-  RecvHandleSingleTap(aPoint);
   return true;
 }
 
