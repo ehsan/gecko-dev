@@ -199,51 +199,15 @@ MozKeyboard.prototype = {
   }
 };
 
-const TESTING_ENABLED_PREF = "dom.mozInputMethod.testing";
-
-/*
- * A WeakMap to map input method iframe window to its active status.
- */
-let WindowMap = {
-  // WeakMap of <window, boolean> pairs.
-  _map: null,
-
-  /*
-   * Check if the given window is active.
-   */
-  isActive: function(win) {
-    if (!this._map || !win) {
-      return false;
-    }
-    return this._map.get(win, false);
-  },
-
-  /*
-   * Set the active status of the given window.
-   */
-  setActive: function(win, isActive) {
-    if (!win) {
-      return;
-    }
-    if (!this._map) {
-      this._map = new WeakMap();
-    }
-    this._map.set(win, isActive);
-  }
-};
-
 /**
  * ==============================================
  * InputMethodManager
  * ==============================================
  */
-function MozInputMethodManager(win) {
-  this._window = win;
-}
+function MozInputMethodManager() { }
 
 MozInputMethodManager.prototype = {
   _supportsSwitching: false,
-  _window: null,
 
   classID: Components.ID("{7e9d7280-ef86-11e2-b778-0800200c9a66}"),
 
@@ -260,30 +224,18 @@ MozInputMethodManager.prototype = {
   }),
 
   showAll: function() {
-    if (!WindowMap.isActive(this._window)) {
-      return;
-    }
     cpmm.sendAsyncMessage('Keyboard:ShowInputMethodPicker', {});
   },
 
   next: function() {
-    if (!WindowMap.isActive(this._window)) {
-      return;
-    }
     cpmm.sendAsyncMessage('Keyboard:SwitchToNextInputMethod', {});
   },
 
   supportsSwitching: function() {
-    if (!WindowMap.isActive(this._window)) {
-      return false;
-    }
     return this._supportsSwitching;
   },
 
   hide: function() {
-    if (!WindowMap.isActive(this._window)) {
-      return;
-    }
     cpmm.sendAsyncMessage('Keyboard:RemoveFocus', {});
   }
 };
@@ -298,7 +250,6 @@ function MozInputMethod() { }
 MozInputMethod.prototype = {
   _inputcontext: null,
   _layouts: {},
-  _window: null,
 
   classID: Components.ID("{4607330d-e7d2-40a4-9eb8-43967eae0142}"),
 
@@ -317,26 +268,17 @@ MozInputMethod.prototype = {
   }),
 
   init: function mozInputMethodInit(win) {
-    // Check if we're in testing mode.
-    let isTesting = false;
-    try {
-      isTesting = Services.prefs.getBoolPref(TESTING_ENABLED_PREF);
-    } catch (e) {}
-
-    // Don't bypass the permission check if not in testing mode.
-    if (!isTesting) {
-      let principal = win.document.nodePrincipal;
-      let perm = Services.perms
-                 .testExactPermissionFromPrincipal(principal, "keyboard");
-      if (perm != Ci.nsIPermissionManager.ALLOW_ACTION) {
-        dump("No permission to use the keyboard API for " +
-             principal.origin + "\n");
-        return null;
-      }
+    let principal = win.document.nodePrincipal;
+    let perm = Services.perms
+               .testExactPermissionFromPrincipal(principal, "keyboard");
+    if (perm != Ci.nsIPermissionManager.ALLOW_ACTION) {
+      dump("No permission to use the keyboard API for " +
+           principal.origin + "\n");
+      return null;
     }
 
     this._window = win;
-    this._mgmt = new MozInputMethodManager(win);
+    this._mgmt = new MozInputMethodManager();
     this.innerWindowID = win.QueryInterface(Ci.nsIInterfaceRequestor)
                             .getInterface(Ci.nsIDOMWindowUtils)
                             .currentInnerWindowID;
@@ -346,6 +288,11 @@ MozInputMethod.prototype = {
     cpmm.addMessageListener('Keyboard:SelectionChange', this);
     cpmm.addMessageListener('Keyboard:GetContext:Result:OK', this);
     cpmm.addMessageListener('Keyboard:LayoutsChange', this);
+
+    // If there already is an active context, then this will trigger
+    // a GetContext:Result:OK event, and we can initialize ourselves.
+    // Otherwise silently ignored.
+    cpmm.sendAsyncMessage("Keyboard:GetContext", {});
   },
 
   uninit: function mozInputMethodUninit() {
@@ -360,10 +307,6 @@ MozInputMethod.prototype = {
   },
 
   receiveMessage: function mozInputMethodReceiveMsg(msg) {
-    if (!WindowMap.isActive(this._window)) {
-      return;
-    }
-
     let json = msg.json;
 
     switch(msg.name) {
@@ -395,18 +338,11 @@ MozInputMethod.prototype = {
   },
 
   get mgmt() {
-    if (!WindowMap.isActive(this._window)) {
-      return null;
-    }
-
     return this._mgmt;
   },
 
   get inputcontext() {
-    if (!WindowMap.isActive(this._window)) {
-      return null;
-    }
-    return this._inputcontext;
+     return this._inputcontext;
   },
 
   set oninputcontextchange(handler) {
@@ -436,27 +372,6 @@ MozInputMethod.prototype = {
     let event = new this._window.Event("inputcontextchange",
                                        ObjectWrapper.wrap({}, this._window));
     this.__DOM_IMPL__.dispatchEvent(event);
-  },
-
-  setActive: function mozInputMethodSetActive(isActive) {
-    if (WindowMap.isActive(this._window) === isActive) {
-      return;
-    }
-
-    WindowMap.setActive(this._window, isActive);
-
-    if (isActive) {
-      // Activate current input method.
-      // If there is already an active context, then this will trigger
-      // a GetContext:Result:OK event, and we can initialize ourselves.
-      // Otherwise silently ignored.
-      cpmm.sendAsyncMessage("Keyboard:GetContext", {});
-    } else {
-      // Deactive current input method.
-      if (this._inputcontext) {
-        this.setInputContext(null);
-      }
-    }
   }
 };
 
@@ -485,7 +400,6 @@ function MozInputContext(ctx) {
 MozInputContext.prototype = {
   __proto__: DOMRequestIpcHelper.prototype,
 
-  _window: null,
   _context: null,
   _contextId: -1,
 
@@ -538,8 +452,6 @@ MozInputContext.prototype = {
         this._context[k] = null;
       }
     }
-
-    this._window = null;
   },
 
   receiveMessage: function ic_receiveMessage(msg) {
@@ -646,7 +558,8 @@ MozInputContext.prototype = {
 
   getText: function ic_getText(offset, length) {
     let self = this;
-    return this._sendPromise(function(resolverId) {
+    return this.createPromise(function(resolve, reject) {
+      let resolverId = self.getPromiseResolverId({ resolve: resolve, reject: reject });
       cpmm.sendAsyncMessage('Keyboard:GetText', {
         contextId: self._contextId,
         requestId: resolverId,
@@ -674,7 +587,8 @@ MozInputContext.prototype = {
 
   setSelectionRange: function ic_setSelectionRange(start, length) {
     let self = this;
-    return this._sendPromise(function(resolverId) {
+    return this.createPromise(function(resolve, reject) {
+      let resolverId = self.getPromiseResolverId({ resolve: resolve, reject: reject });
       cpmm.sendAsyncMessage("Keyboard:SetSelectionRange", {
         contextId: self._contextId,
         requestId: resolverId,
@@ -702,7 +616,8 @@ MozInputContext.prototype = {
 
   replaceSurroundingText: function ic_replaceSurrText(text, offset, length) {
     let self = this;
-    return this._sendPromise(function(resolverId) {
+    return this.createPromise(function(resolve, reject) {
+      let resolverId = self.getPromiseResolverId({ resolve: resolve, reject: reject });
       cpmm.sendAsyncMessage('Keyboard:ReplaceSurroundingText', {
         contextId: self._contextId,
         requestId: resolverId,
@@ -719,7 +634,8 @@ MozInputContext.prototype = {
 
   sendKey: function ic_sendKey(keyCode, charCode, modifiers) {
     let self = this;
-    return this._sendPromise(function(resolverId) {
+    return this.createPromise(function(resolve, reject) {
+      let resolverId = self.getPromiseResolverId({ resolve: resolve, reject: reject });
       cpmm.sendAsyncMessage('Keyboard:SendKey', {
         contextId: self._contextId,
         requestId: resolverId,
@@ -732,7 +648,8 @@ MozInputContext.prototype = {
 
   setComposition: function ic_setComposition(text, cursor, clauses) {
     let self = this;
-    return this._sendPromise(function(resolverId) {
+    return this.createPromise(function(resolve, reject) {
+      let resolverId = self.getPromiseResolverId({ resolve: resolve, reject: reject });
       cpmm.sendAsyncMessage('Keyboard:SetComposition', {
         contextId: self._contextId,
         requestId: resolverId,
@@ -745,25 +662,13 @@ MozInputContext.prototype = {
 
   endComposition: function ic_endComposition(text) {
     let self = this;
-    return this._sendPromise(function(resolverId) {
+    return this.createPromise(function(resolve, reject) {
+      let resolverId = self.getPromiseResolverId({ resolve: resolve, reject: reject });
       cpmm.sendAsyncMessage('Keyboard:EndComposition', {
         contextId: self._contextId,
         requestId: resolverId,
         text: text || ''
       });
-    });
-  },
-
-  _sendPromise: function(callback) {
-    let self = this;
-    return this.createPromise(function(resolve, reject) {
-      let resolverId = self.getPromiseResolverId({ resolve: resolve, reject: reject });
-      if (!WindowMap.isActive(self._window)) {
-        self.removePromiseResolver(resolverId);
-        reject('Input method is not active.');
-        return;
-      }
-      callback(resolverId);
     });
   }
 };
