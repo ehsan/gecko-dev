@@ -2879,7 +2879,6 @@ nsNavHistoryQueryResultNode::OnVisit(nsIURI* aURI, PRInt64 aVisitId,
                                      PRTime aTime, PRInt64 aSessionId,
                                      PRInt64 aReferringId,
                                      PRUint32 aTransitionType,
-                                     const nsACString& aGUID,
                                      PRUint32* aAdded)
 {
   nsNavHistory* history = nsNavHistory::GetHistoryService();
@@ -3062,8 +3061,7 @@ nsNavHistoryQueryResultNode::OnTitleChanged(nsIURI* aURI,
 
 
 NS_IMETHODIMP
-nsNavHistoryQueryResultNode::OnBeforeDeleteURI(nsIURI *aURI,
-                                               const nsACString& aGUID)
+nsNavHistoryQueryResultNode::OnBeforeDeleteURI(nsIURI *aURI)
 {
   return NS_OK;
 }
@@ -3073,8 +3071,7 @@ nsNavHistoryQueryResultNode::OnBeforeDeleteURI(nsIURI *aURI,
  * the given URI.
  */
 NS_IMETHODIMP
-nsNavHistoryQueryResultNode::OnDeleteURI(nsIURI *aURI,
-                                         const nsACString& aGUID)
+nsNavHistoryQueryResultNode::OnDeleteURI(nsIURI *aURI)
 {
   if (IsContainersQuery()) {
     // Incremental updates of query returning queries are pretty much
@@ -3168,8 +3165,7 @@ nsNavHistoryQueryResultNode::OnPageChanged(nsIURI *aURI, PRUint32 aWhat,
 
 
 NS_IMETHODIMP
-nsNavHistoryQueryResultNode::OnDeleteVisits(nsIURI* aURI, PRTime aVisitTime,
-                                            const nsACString& aGUID)
+nsNavHistoryQueryResultNode::OnDeleteVisits(nsIURI* aURI, PRTime aVisitTime)
 {
   NS_PRECONDITION(mOptions->QueryType() == nsINavHistoryQueryOptions::QUERY_TYPE_HISTORY,
                   "Bookmarks queries should not get a OnDeleteVisits notification");
@@ -3177,7 +3173,7 @@ nsNavHistoryQueryResultNode::OnDeleteVisits(nsIURI* aURI, PRTime aVisitTime,
     // All visits for this uri have been removed, but the uri won't be removed
     // from the databse, most likely because it's a bookmark.  For a history
     // query this is equivalent to a onDeleteURI notification.
-    nsresult rv = OnDeleteURI(aURI, aGUID);
+    nsresult rv = OnDeleteURI(aURI);
     NS_ENSURE_SUCCESS(rv, rv);
   }
 
@@ -5068,14 +5064,12 @@ nsNavHistoryResult::OnItemMoved(PRInt64 aItemId,
 NS_IMETHODIMP
 nsNavHistoryResult::OnVisit(nsIURI* aURI, PRInt64 aVisitId, PRTime aTime,
                             PRInt64 aSessionId, PRInt64 aReferringId,
-                            PRUint32 aTransitionType, const nsACString& aGUID,
-                            PRUint32* aAdded)
+                            PRUint32 aTransitionType, PRUint32* aAdded)
 {
   PRUint32 added = 0;
 
   ENUMERATE_HISTORY_OBSERVERS(OnVisit(aURI, aVisitId, aTime, aSessionId,
-                                      aReferringId, aTransitionType, aGUID,
-                                      &added));
+                                      aReferringId, aTransitionType, &added));
 
   if (!mRootNode->mExpanded)
     return NS_OK;
@@ -5136,16 +5130,16 @@ nsNavHistoryResult::OnTitleChanged(nsIURI* aURI, const nsAString& aPageTitle)
 
 
 NS_IMETHODIMP
-nsNavHistoryResult::OnBeforeDeleteURI(nsIURI *aURI, const nsACString& aGUID)
+nsNavHistoryResult::OnBeforeDeleteURI(nsIURI *aURI)
 {
   return NS_OK;
 }
 
 
 NS_IMETHODIMP
-nsNavHistoryResult::OnDeleteURI(nsIURI *aURI, const nsACString& aGUID)
+nsNavHistoryResult::OnDeleteURI(nsIURI *aURI)
 {
-  ENUMERATE_HISTORY_OBSERVERS(OnDeleteURI(aURI, aGUID));
+  ENUMERATE_HISTORY_OBSERVERS(OnDeleteURI(aURI));
   return NS_OK;
 }
 
@@ -5171,9 +5165,8 @@ nsNavHistoryResult::OnPageChanged(nsIURI *aURI,
  * Don't do anything when visits expire.
  */
 NS_IMETHODIMP
-nsNavHistoryResult::OnDeleteVisits(nsIURI* aURI, PRTime aVisitTime,
-                                   const nsACString& aGUID)
+nsNavHistoryResult::OnDeleteVisits(nsIURI* aURI, PRTime aVisitTime)
 {
-  ENUMERATE_HISTORY_OBSERVERS(OnDeleteVisits(aURI, aVisitTime, aGUID));
+  ENUMERATE_HISTORY_OBSERVERS(OnDeleteVisits(aURI, aVisitTime));
   return NS_OK;
 }

@@ -31,9 +31,8 @@ function test() {
   let tab = gBrowser.selectedTab = gBrowser.addTab("about:blank");
   let browser = gBrowser.getBrowserForTab(tab);
   browser.addEventListener("load", function() {
-    browser.removeEventListener("load", arguments.callee, true);
-    ok(true, "about:crashes loaded");
-    executeSoon(function() { check_crash_list(tab, crashes); });
-  }, true);
+      ok(true, "about:crashes loaded");
+      executeSoon(function() { check_crash_list(tab, crashes); });
+    }, true);
   browser.loadURI("about:crashes", null, null);
 }

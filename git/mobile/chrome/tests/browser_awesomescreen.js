@@ -413,7 +413,6 @@ gTests.push({
   },
 
   onCompositionEnd: function() {
-    /* TODO: This is currently failing (bug 642771)
     gCurrentTest._checkState();
 
     let isHiddenHeader = function() {
@@ -425,6 +424,7 @@ gTests.push({
     // but I don't have a better idea about how to do it for now since we don't
     // that to happen!
 
+    /* TODO: This is currently failing (bug 642771)
     waitForAndContinue(function() {
       gCurrentTest._checkState();
       runNextTest();

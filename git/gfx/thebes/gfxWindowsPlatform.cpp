@@ -46,7 +46,8 @@
 
 #include "nsUnicharUtils.h"
 
-#include "mozilla/Preferences.h"
+#include "nsIPrefService.h"
+#include "nsIPrefBranch2.h"
 #include "nsServiceManagerUtils.h"
 #include "nsTArray.h"
 
@@ -84,8 +85,6 @@
 
 #include "nsIMemoryReporter.h"
 #include "nsMemory.h"
-
-using namespace mozilla;
 
 class D2DCacheReporter :
     public nsIMemoryReporter
@@ -269,10 +268,16 @@ gfxWindowsPlatform::~gfxWindowsPlatform()
 void
 gfxWindowsPlatform::UpdateRenderMode()
 {
-/* Pick the default render mode for
- * desktop.
+/* Pick the default render mode differently between
+ * desktop, Windows Mobile, and Windows CE.
  */
+#if defined(WINCE_WINDOWS_MOBILE)
+    mRenderMode = RENDER_IMAGE_DDRAW16;
+#elif defined(WINCE)
+    mRenderMode = RENDER_DDRAW_GL;
+#else
     mRenderMode = RENDER_GDI;
+#endif
 
     OSVERSIONINFOA versionInfo;
     versionInfo.dwOSVersionInfoSize = sizeof(OSVERSIONINFOA);
@@ -284,7 +289,18 @@ gfxWindowsPlatform::UpdateRenderMode()
     if (xr)
       xr->GetInSafeMode(&safeMode);
 
-    mUseDirectWrite = Preferences::GetBool("gfx.font_rendering.directwrite.enabled", PR_FALSE);
+    nsCOMPtr<nsIPrefBranch2> pref = do_GetService(NS_PREFSERVICE_CONTRACTID);
+    nsresult rv;
+
+    PRBool preferDirectWrite = PR_FALSE;
+
+    rv = pref->GetBoolPref(
+        "gfx.font_rendering.directwrite.enabled", &preferDirectWrite);
+    if (NS_FAILED(rv)) {
+        preferDirectWrite = PR_FALSE;
+    }
+
+    mUseDirectWrite = preferDirectWrite;
 
 #ifdef CAIRO_HAS_D2D_SURFACE
     PRBool d2dDisabled = PR_FALSE;
@@ -306,8 +322,12 @@ gfxWindowsPlatform::UpdateRenderMode()
         }
     }
 
-    d2dDisabled = Preferences::GetBool("gfx.direct2d.disabled", PR_FALSE);
-    d2dForceEnabled = Preferences::GetBool("gfx.direct2d.force-enabled", PR_FALSE);
+    rv = pref->GetBoolPref("gfx.direct2d.disabled", &d2dDisabled);
+    if (NS_FAILED(rv))
+        d2dDisabled = PR_FALSE;
+    rv = pref->GetBoolPref("gfx.direct2d.force-enabled", &d2dForceEnabled);
+    if (NS_FAILED(rv))
+        d2dForceEnabled = PR_FALSE;
 
     bool tryD2D = !d2dBlocked || d2dForceEnabled;
     
@@ -350,7 +370,7 @@ gfxWindowsPlatform::UpdateRenderMode()
             mDWriteFactory = factory;
             factory->Release();
 
-            SetupClearTypeParams();
+            SetupClearTypeParams(pref);
 
             if (hr == S_OK)
               reporter.SetSuccessful();
@@ -699,7 +719,7 @@ PRBool
 gfxWindowsPlatform::UseClearTypeForDownloadableFonts()
 {
     if (mUseClearTypeForDownloadableFonts == UNINITIALIZED_VALUE) {
-        mUseClearTypeForDownloadableFonts = Preferences::GetBool(GFX_DOWNLOADABLE_FONTS_USE_CLEARTYPE, PR_TRUE);
+        mUseClearTypeForDownloadableFonts = GetBoolPref(GFX_DOWNLOADABLE_FONTS_USE_CLEARTYPE, PR_TRUE);
     }
 
     return mUseClearTypeForDownloadableFonts;
@@ -709,7 +729,7 @@ PRBool
 gfxWindowsPlatform::UseClearTypeAlways()
 {
     if (mUseClearTypeAlways == UNINITIALIZED_VALUE) {
-        mUseClearTypeAlways = Preferences::GetBool(GFX_USE_CLEARTYPE_ALWAYS, PR_FALSE);
+        mUseClearTypeAlways = GetBoolPref(GFX_USE_CLEARTYPE_ALWAYS, PR_FALSE);
     }
 
     return mUseClearTypeAlways;
@@ -877,11 +897,11 @@ gfxWindowsPlatform::GetCleartypeParams(nsTArray<ClearTypeParameterInfo>& aParams
 }
 
 void
-gfxWindowsPlatform::FontsPrefsChanged(const char *aPref)
+gfxWindowsPlatform::FontsPrefsChanged(nsIPrefBranch *aPrefBranch, const char *aPref)
 {
     PRBool clearTextFontCaches = PR_TRUE;
 
-    gfxPlatform::FontsPrefsChanged(aPref);
+    gfxPlatform::FontsPrefsChanged(aPrefBranch, aPref);
 
     if (!aPref) {
         mUseClearTypeForDownloadableFonts = UNINITIALIZED_VALUE;
@@ -891,7 +911,7 @@ gfxWindowsPlatform::FontsPrefsChanged(const char *aPref)
     } else if (!strcmp(GFX_USE_CLEARTYPE_ALWAYS, aPref)) {
         mUseClearTypeAlways = UNINITIALIZED_VALUE;
     } else if (!strncmp(GFX_CLEARTYPE_PARAMS, aPref, strlen(GFX_CLEARTYPE_PARAMS))) {
-        SetupClearTypeParams();
+        SetupClearTypeParams(aPrefBranch);
     } else {
         clearTextFontCaches = PR_FALSE;
     }
@@ -906,7 +926,7 @@ gfxWindowsPlatform::FontsPrefsChanged(const char *aPref)
 }
 
 void
-gfxWindowsPlatform::SetupClearTypeParams()
+gfxWindowsPlatform::SetupClearTypeParams(nsIPrefBranch *aPrefBranch)
 {
 #if CAIRO_HAS_DWRITE_FONT
     if (GetDWriteFactory()) {
@@ -918,36 +938,36 @@ gfxWindowsPlatform::SetupClearTypeParams()
         int geometry = -1;
         int mode = -1;
         PRInt32 value;
-        if (NS_SUCCEEDED(Preferences::GetInt(GFX_CLEARTYPE_PARAMS_GAMMA, &value))) {
+        if (NS_SUCCEEDED(aPrefBranch->GetIntPref(GFX_CLEARTYPE_PARAMS_GAMMA,
+                                                 &value))) {
             if (value >= 1000 && value <= 2200) {
                 gamma = FLOAT(value / 1000.0);
             }
         }
-
-        if (NS_SUCCEEDED(Preferences::GetInt(GFX_CLEARTYPE_PARAMS_CONTRAST, &value))) {
+        if (NS_SUCCEEDED(aPrefBranch->GetIntPref(GFX_CLEARTYPE_PARAMS_CONTRAST,
+                                                 &value))) {
             if (value >= 0 && value <= 1000) {
                 contrast = FLOAT(value / 100.0);
             }
         }
-
-        if (NS_SUCCEEDED(Preferences::GetInt(GFX_CLEARTYPE_PARAMS_LEVEL, &value))) {
+        if (NS_SUCCEEDED(aPrefBranch->GetIntPref(GFX_CLEARTYPE_PARAMS_LEVEL,
+                                                 &value))) {
             if (value >= 0 && value <= 100) {
                 level = FLOAT(value / 100.0);
             }
         }
-
-        if (NS_SUCCEEDED(Preferences::GetInt(GFX_CLEARTYPE_PARAMS_STRUCTURE, &value))) {
+        if (NS_SUCCEEDED(aPrefBranch->GetIntPref(GFX_CLEARTYPE_PARAMS_STRUCTURE,
+                                                 &value))) {
             if (value >= 0 && value <= 2) {
                 geometry = value;
             }
         }
-
-        if (NS_SUCCEEDED(Preferences::GetInt(GFX_CLEARTYPE_PARAMS_MODE, &value))) {
+        if (NS_SUCCEEDED(aPrefBranch->GetIntPref(GFX_CLEARTYPE_PARAMS_MODE,
+                                                 &value))) {
             if (value >= 0 && value <= 5) {
                 mode = value;
             }
         }
-
         cairo_dwrite_set_cleartype_params(gamma, contrast, level, geometry, mode);
 
         switch (mode) {

@@ -917,7 +917,6 @@ DocumentRule::List(FILE* out, PRInt32 aIndent) const
         break;
       case eDomain:
         str.AppendLiteral("domain(\"");
-        break;
       case eRegExp:
         str.AppendLiteral("regexp(\"");
         break;

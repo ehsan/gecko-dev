@@ -68,17 +68,14 @@ Observer.prototype =
   onTitleChanged: function(aURI, aPageTable)
   {
   },
-  onBeforeDeleteURI: function(aURI, aGUID)
+  onBeforeDeleteURI: function(aURI)
   {
     this.removedURI = aURI;
-    this.removedGUID = aGUID;
-    do_check_guid_for_uri(aURI, aGUID);
   },
-  onDeleteURI: function(aURI, aGUID)
+  onDeleteURI: function(aURI)
   {
     do_check_false(this.checked);
     do_check_true(this.removedURI.equals(aURI));
-    do_check_eq(this.removedGUID, aGUID);
     this.checked = true;
   },
   onPageChanged: function(aURI, aWhat, aValue)

@@ -46,22 +46,28 @@ const Cc = Components.classes;
 const Ci = Components.interfaces;
 const Cr = Components.results;
 
+// This is just a helper for the next constant.
+function book_tag_sql_fragment(aName, aColumn, aForTag)
+{
+  return ["(",
+    "SELECT ", aColumn, " ",
+    "FROM moz_bookmarks b ",
+    "JOIN moz_bookmarks t ",
+      "ON t.id = b.parent ",
+      "AND t.parent ", (aForTag ? "" : "!"), "= :parent ",
+    "WHERE b.fk = h.id ",
+    (aForTag ? "" : "ORDER BY b.lastModified DESC LIMIT 1"),
+  ") AS ", aName].join("");
+}
+
 // This SQL query fragment provides the following:
-//   - whether the entry is bookmarked (kQueryIndexBookmarked)
+//   - the parent folder for bookmarked entries (kQueryIndexParent)
 //   - the bookmark title, if it is a bookmark (kQueryIndexBookmarkTitle)
 //   - the tags associated with a bookmarked entry (kQueryIndexTags)
 const kBookTagSQLFragment =
-  "EXISTS(SELECT 1 FROM moz_bookmarks WHERE fk = h.id) AS bookmarked, "
-+ "( "
-+   "SELECT title FROM moz_bookmarks WHERE fk = h.id AND title NOTNULL "
-+   "ORDER BY lastModified DESC LIMIT 1 "
-+ ") AS btitle, "
-+ "( "
-+   "SELECT GROUP_CONCAT(t.title, ',') "
-+   "FROM moz_bookmarks b "
-+   "JOIN moz_bookmarks t ON t.id = b.parent AND t.parent = :parent "
-+   "WHERE b.fk = h.id "
-+ ") AS tags";
+  book_tag_sql_fragment("parent", "b.parent", false) + ", " +
+  book_tag_sql_fragment("bookmark", "b.title", false) + ", " +
+  book_tag_sql_fragment("tags", "GROUP_CONCAT(t.title, ',')", true);
 
 // observer topics
 const kTopicShutdown = "places-shutdown";
@@ -79,7 +85,7 @@ const MATCH_BEGINNING = Ci.mozIPlacesAutoComplete.MATCH_BEGINNING;
 const kQueryIndexURL = 0;
 const kQueryIndexTitle = 1;
 const kQueryIndexFaviconURL = 2;
-const kQueryIndexBookmarked = 3;
+const kQueryIndexParentId = 3;
 const kQueryIndexBookmarkTitle = 4;
 const kQueryIndexTags = 5;
 const kQueryIndexVisitCount = 6;
@@ -229,9 +235,9 @@ function nsPlacesAutoComplete()
                  + "LEFT JOIN moz_openpages_temp t ON t.url = h.url "
                  + "WHERE h.frecency <> 0 "
                  +   "AND AUTOCOMPLETE_MATCH(:searchString, h.url, "
-                 +                          "IFNULL(btitle, h.title), tags, "
-                 +                          "h.visit_count, h.typed, "
-                 +                          "bookmarked, t.open_count, "
+                 +                          "IFNULL(bookmark, h.title), tags, "
+                 +                          "h.visit_count, h.typed, parent, "
+                 +                          "t.open_count, "
                  +                          ":matchBehavior, :searchBehavior) "
                  +  "{ADDITIONAL_CONDITIONS} "
                  + "ORDER BY h.frecency DESC, h.id DESC "
@@ -291,7 +297,7 @@ function nsPlacesAutoComplete()
   });
 
   XPCOMUtils.defineLazyGetter(this, "_bookmarkQuery", function() {
-    let replacementText = "AND bookmarked";
+    let replacementText = "AND bookmark IS NOT NULL";
     return this._db.createAsyncStatement(
       SQL_BASE.replace("{ADDITIONAL_CONDITIONS}", replacementText, "g")
     );
@@ -327,24 +333,31 @@ function nsPlacesAutoComplete()
   });
 
   XPCOMUtils.defineLazyGetter(this, "_adaptiveQuery", function() {
+    // In this query, we are taking kBookTagSQLFragment only for h.id because it
+    // uses data from the moz_bookmarks table and we sync tables on bookmark
+    // insert.  So, most likely, h.id will always be populated when we have any
+    // bookmark.
     return this._db.createAsyncStatement(
       "/* do not warn (bug 487789) */ "
     + "SELECT h.url, h.title, f.url, " + kBookTagSQLFragment + ", "
-    +         "h.visit_count, h.typed, h.id, :query_type, t.open_count "
+    +         "h.visit_count, h.typed, h.id, :query_type, t.open_count, rank "
     + "FROM ( "
-    + "SELECT ROUND( "
-    +     "MAX(use_count) * (1 + (input = :search_string)), 1 "
+    +   "SELECT ROUND( "
+    +     "MAX(((i.input = :search_string) + "
+    +          "(SUBSTR(i.input, 1, LENGTH(:search_string)) = :search_string) "
+    +         ") * i.use_count "
+    +     ") , 1 " // Round at first decimal.
     +   ") AS rank, place_id "
-    +   "FROM moz_inputhistory "
-    +   "WHERE input BETWEEN :search_string AND :search_string || X'FFFF' "
-    +   "GROUP BY place_id "
+    +   "FROM moz_inputhistory i "
+    +   "GROUP BY i.place_id "
+    +   "HAVING rank > 0 "
     + ") AS i "
     + "JOIN moz_places h ON h.id = i.place_id "
     + "LEFT JOIN moz_favicons f ON f.id = h.favicon_id "
     + "LEFT JOIN moz_openpages_temp t ON t.url = h.url "
     + "WHERE AUTOCOMPLETE_MATCH(NULL, h.url, "
-    +                          "IFNULL(btitle, h.title), tags, "
-    +                          "h.visit_count, h.typed, bookmarked, "
+    +                          "IFNULL(bookmark, h.title), tags, "
+    +                          "h.visit_count, h.typed, parent, "
     +                          "t.open_count, "
     +                          ":matchBehavior, :searchBehavior) "
     + "ORDER BY rank DESC, h.frecency DESC "
@@ -363,7 +376,7 @@ function nsPlacesAutoComplete()
     +                 "WHERE rev_host = (SELECT rev_host FROM moz_places WHERE id = b.fk) "
     +                 "ORDER BY frecency DESC "
     +                 "LIMIT 1) "
-    + "), 1, b.title, NULL, h.visit_count, h.typed, IFNULL(h.id, b.fk), "
+    + "), b.parent, b.title, NULL, h.visit_count, h.typed, IFNULL(h.id, b.fk), "
     +  ":query_type, t.open_count "
     +  "FROM moz_keywords k "
     +  "JOIN moz_bookmarks b ON b.keyword_id = k.id "
@@ -999,8 +1012,8 @@ nsPlacesAutoComplete.prototype = {
 
     let entryTitle = aRow.getResultByIndex(kQueryIndexTitle) || "";
     let entryFavicon = aRow.getResultByIndex(kQueryIndexFaviconURL) || "";
-    let entryBookmarked = aRow.getResultByIndex(kQueryIndexBookmarked);
-    let entryBookmarkTitle = entryBookmarked ?
+    let entryParentId = aRow.getResultByIndex(kQueryIndexParentId);
+    let entryBookmarkTitle = entryParentId ?
       aRow.getResultByIndex(kQueryIndexBookmarkTitle) : null;
     let entryTags = aRow.getResultByIndex(kQueryIndexTags) || "";
 
@@ -1043,7 +1056,7 @@ nsPlacesAutoComplete.prototype = {
       // haven't already done so.
       if (showTags)
         style = "tag";
-      else if (entryBookmarked)
+      else if (entryParentId)
         style = "bookmark";
       else
         style = "favicon";

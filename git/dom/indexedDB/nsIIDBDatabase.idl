@@ -47,7 +47,7 @@ interface nsIDOMDOMStringList;
 interface nsIDOMEventListener;
 
 %{C++
-#include "jspubtd.h"
+#include "jsapi.h"
 %}
 
 /**

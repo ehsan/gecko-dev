@@ -67,15 +67,13 @@
 #include "gfxAtoms.h"
 #include "nsTArray.h"
 #include "nsUnicodeRange.h"
+#include "nsIPrefService.h"
+#include "nsIPrefLocalizedString.h"
+#include "nsServiceManagerUtils.h"
 #include "nsCRT.h"
 
 #include "prlog.h"
 #include "prinit.h"
-
-#include "mozilla/Preferences.h"
-
-using namespace mozilla;
-
 static PRLogModuleInfo *gFontLog = PR_NewLogModule("ft2fonts");
 
 static const char *sCJKLangGroup[] = {
@@ -512,9 +510,25 @@ void gfxFT2FontGroup::GetCJKPrefFonts(nsTArray<nsRefPtr<gfxFontEntry> >& aFontEn
     key.AppendInt(mStyle.weight);
 
     if (!platform->GetPrefFontEntries(key, &aFontEntryList)) {
-        NS_ENSURE_TRUE(Preferences::GetRootBranch(), );
+        nsCOMPtr<nsIPrefService> prefs = do_GetService(NS_PREFSERVICE_CONTRACTID);
+        if (!prefs)
+            return;
+
+        nsCOMPtr<nsIPrefBranch> prefBranch;
+        prefs->GetBranch(0, getter_AddRefs(prefBranch));
+        if (!prefBranch)
+            return;
+
         // Add the CJK pref fonts from accept languages, the order should be same order
-        nsAdoptingCString list = Preferences::GetLocalizedCString("intl.accept_languages");
+        nsCAutoString list;
+        nsCOMPtr<nsIPrefLocalizedString> val;
+        nsresult rv = prefBranch->GetComplexValue("intl.accept_languages", NS_GET_IID(nsIPrefLocalizedString),
+                                                  getter_AddRefs(val));
+        if (NS_SUCCEEDED(rv) && val) {
+            nsAutoString temp;
+            val->ToString(getter_Copies(temp));
+            LossyCopyUTF16toASCII(temp, list);
+        }
         if (!list.IsEmpty()) {
             const char kComma = ',';
             const char *p, *p_end;
