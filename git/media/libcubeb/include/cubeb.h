@@ -88,7 +88,7 @@ typedef enum {
   CUBEB_SAMPLE_FLOAT32LE,
   /**< Big endian 32-bit IEEE floating point PCM. */
   CUBEB_SAMPLE_FLOAT32BE,
-#if defined(WORDS_BIGENDIAN) || defined(__BIG_ENDIAN__)
+#ifdef WORDS_BIGENDIAN
   /**< Native endian 16-bit signed PCM. */
   CUBEB_SAMPLE_S16NE = CUBEB_SAMPLE_S16BE,
   /**< Native endian 32-bit IEEE floating point PCM. */
