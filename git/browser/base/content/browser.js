@@ -178,6 +178,7 @@ let gInitialPages = [
 #include inspector.js
 #include browser-places.js
 #include browser-tabPreviews.js
+#include browser-tabview.js
 
 #ifdef MOZ_SERVICES_SYNC
 #include browser-syncui.js
@@ -1523,6 +1524,8 @@ function delayedStartup(isLoadingBlank, mustLoadSidebar) {
   // initialize the sync UI
   gSyncUI.init();
 #endif
+
+  TabView.init();
 
   Services.obs.notifyObservers(window, "browser-delayed-startup-finished", "");
 }
@@ -5840,15 +5843,12 @@ function warnAboutClosingWindow() {
     return gBrowser.warnAboutClosingTabs(true);
 
   // Figure out if there's at least one other browser window around.
-  let foundOtherBrowserWindow = false;
   let e = Services.wm.getEnumerator("navigator:browser");
-  while (e.hasMoreElements() && !foundOtherBrowserWindow) {
+  while (e.hasMoreElements()) {
     let win = e.getNext();
     if (win != window && win.toolbar.visible)
-      foundOtherBrowserWindow = true;
+      return gBrowser.warnAboutClosingTabs(true);
   }
-  if (foundOtherBrowserWindow)
-    return gBrowser.warnAboutClosingTabs(true);
 
   let os = Services.obs;
 
@@ -6769,6 +6769,8 @@ var gBookmarkAllTabsHandler = {
     this._command = document.getElementById("Browser:BookmarkAllTabs");
     gBrowser.tabContainer.addEventListener("TabOpen", this, true);
     gBrowser.tabContainer.addEventListener("TabClose", this, true);
+    gBrowser.tabContainer.addEventListener("TabSelect", this, true);
+    gBrowser.tabContainer.addEventListener("TabMove", this, true);
     this._updateCommandState();
   },
 
