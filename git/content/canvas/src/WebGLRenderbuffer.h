@@ -15,11 +15,12 @@
 namespace mozilla {
 
 class WebGLRenderbuffer MOZ_FINAL
-    : public nsWrapperCache
+    : public nsISupports
     , public WebGLRefCountedObject<WebGLRenderbuffer>
     , public LinkedListElement<WebGLRenderbuffer>
     , public WebGLRectangleObject
     , public WebGLContextBoundObject
+    , public nsWrapperCache
 {
 public:
     WebGLRenderbuffer(WebGLContext *context);
@@ -52,8 +53,8 @@ public:
     virtual JSObject* WrapObject(JSContext *cx,
                                  JS::Handle<JSObject*> scope) MOZ_OVERRIDE;
 
-    NS_INLINE_DECL_CYCLE_COLLECTING_NATIVE_REFCOUNTING(WebGLRenderbuffer)
-    NS_DECL_CYCLE_COLLECTION_SCRIPT_HOLDER_NATIVE_CLASS(WebGLRenderbuffer)
+    NS_DECL_CYCLE_COLLECTING_ISUPPORTS
+    NS_DECL_CYCLE_COLLECTION_SCRIPT_HOLDER_CLASS(WebGLRenderbuffer)
 
 protected:
 

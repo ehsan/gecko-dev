@@ -196,15 +196,16 @@ def main():
     options.sequential = True
 
     try:
-        if not xpcsh.runTests(xpcshell='xpcshell', testdirs=args[0:],
+        success = xpcsh.runTests(xpcshell='xpcshell', testdirs=args[0:],
                                  testClass=B2GXPCShellTestThread,
                                  mobileArgs=xpcsh.mobileArgs,
-                                 **options.__dict__):
-            sys.exit(1)
+                                 **options.__dict__)
     except:
         print "Automation Error: Exception caught while running tests"
         traceback.print_exc()
         sys.exit(1)
+
+    sys.exit(int(success))
 
 
 # You usually run this like :

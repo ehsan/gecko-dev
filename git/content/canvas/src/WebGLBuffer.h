@@ -20,10 +20,11 @@ namespace mozilla {
 class WebGLElementArrayCache;
 
 class WebGLBuffer MOZ_FINAL
-    : public nsWrapperCache
+    : public nsISupports
     , public WebGLRefCountedObject<WebGLBuffer>
     , public LinkedListElement<WebGLBuffer>
     , public WebGLContextBoundObject
+    , public nsWrapperCache
 {
 public:
     WebGLBuffer(WebGLContext *context);
@@ -62,8 +63,8 @@ public:
     virtual JSObject* WrapObject(JSContext *cx,
                                  JS::Handle<JSObject*> scope) MOZ_OVERRIDE;
 
-    NS_INLINE_DECL_CYCLE_COLLECTING_NATIVE_REFCOUNTING(WebGLBuffer)
-    NS_DECL_CYCLE_COLLECTION_SCRIPT_HOLDER_NATIVE_CLASS(WebGLBuffer)
+    NS_DECL_CYCLE_COLLECTING_ISUPPORTS
+    NS_DECL_CYCLE_COLLECTION_SCRIPT_HOLDER_CLASS(WebGLBuffer)
 
 protected:
 

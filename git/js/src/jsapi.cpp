@@ -1749,7 +1749,11 @@ JS_PUBLIC_API(char *)
 JS_strdup(JSContext *cx, const char *s)
 {
     AssertHeapIsIdle(cx);
-    return js_strdup(cx, s);
+    size_t n = strlen(s) + 1;
+    void *p = cx->malloc_(n);
+    if (!p)
+        return NULL;
+    return (char *)js_memcpy(p, s, n);
 }
 
 JS_PUBLIC_API(char *)
@@ -4888,18 +4892,18 @@ JS::CompileOffThread(JSContext *cx, Handle<JSObject*> obj, CompileOptions option
     JS_ASSERT(CanCompileOffThread(cx, options));
     return StartOffThreadParseScript(cx, options, chars, length, obj, callback, callbackData);
 #else
-    MOZ_ASSUME_UNREACHABLE("Off thread compilation is not available.");
+    MOZ_ASSUME_UNREACHABLE("Off thread compilation is only available with JS_ION");
 #endif
 }
 
-JS_PUBLIC_API(JSScript *)
-JS::FinishOffThreadScript(JSContext *maybecx, JSRuntime *rt, void *token)
+JS_PUBLIC_API(void)
+JS::FinishOffThreadScript(JSRuntime *rt, JSScript *script)
 {
 #ifdef JS_WORKER_THREADS
     JS_ASSERT(CurrentThreadCanAccessRuntime(rt));
-    return rt->workerThreadState->finishParseTask(maybecx, rt, token);
+    rt->workerThreadState->finishParseTaskForScript(rt, script);
 #else
-    MOZ_ASSUME_UNREACHABLE("Off thread compilation is not available.");
+    MOZ_ASSUME_UNREACHABLE("Off thread compilation is only available with JS_ION");
 #endif
 }
 

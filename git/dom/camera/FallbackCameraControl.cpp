@@ -63,7 +63,6 @@ nsDOMCameraControl::nsDOMCameraControl(uint32_t aCameraId, nsIThread* aCameraThr
   mWindow(aWindow)
 {
   MOZ_ASSERT(aWindow, "shouldn't be created with null window!");
-  SetIsDOMBinding();
 }
 
 /**
