@@ -98,7 +98,7 @@ public:
   nsAttrValue();
   nsAttrValue(const nsAttrValue& aOther);
   explicit nsAttrValue(const nsAString& aValue);
-  nsAttrValue(nsICSSStyleRule* aValue, const nsAString* aSerialized);
+  explicit nsAttrValue(nsICSSStyleRule* aValue);
 #ifdef MOZ_SVG
   explicit nsAttrValue(nsISVGValue* aValue);
 #endif
@@ -135,7 +135,7 @@ public:
   void SetTo(const nsAttrValue& aOther);
   void SetTo(const nsAString& aValue);
   void SetTo(PRInt16 aInt);
-  void SetTo(nsICSSStyleRule* aValue, const nsAString* aSerialized);
+  void SetTo(nsICSSStyleRule* aValue);
 #ifdef MOZ_SVG
   void SetTo(nsISVGValue* aValue);
 #endif

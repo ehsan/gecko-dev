@@ -40,7 +40,6 @@
 #include <glib.h>
 #elif XP_MACOSX
 #include "PluginUtilsOSX.h"
-#include "PluginInterposeOSX.h"
 #endif
 #ifdef MOZ_WIDGET_QT
 #include <QtCore/QCoreApplication>
@@ -826,38 +825,7 @@ PluginModuleParent::RecvProcessNativeEventsInRPCCall()
     return true;
 #else
     NS_NOTREACHED(
-        "PluginInstanceParent::RecvProcessNativeEventsInRPCCall not implemented!");
-    return false;
-#endif
-}
-
-bool
-PluginModuleParent::RecvPluginShowWindow(const uint32_t& aWindowId, const bool& aModal,
-                                         const int32_t& aX, const int32_t& aY,
-                                         const size_t& aWidth, const size_t& aHeight)
-{
-    PLUGIN_LOG_DEBUG(("%s", FULLFUNCTION));
-#if defined(XP_MACOSX)
-    CGRect windowBound = ::CGRectMake(aX, aY, aWidth, aHeight);
-    mac_plugin_interposing::parent::OnPluginShowWindow(aWindowId, windowBound, aModal);
-    return true;
-#else
-    NS_NOTREACHED(
-        "PluginInstanceParent::RecvPluginShowWindow not implemented!");
-    return false;
-#endif
-}
-
-bool
-PluginModuleParent::RecvPluginHideWindow(const uint32_t& aWindowId)
-{
-    PLUGIN_LOG_DEBUG(("%s", FULLFUNCTION));
-#if defined(XP_MACOSX)
-    mac_plugin_interposing::parent::OnPluginHideWindow(aWindowId, OtherSidePID());
-    return true;
-#else
-    NS_NOTREACHED(
-        "PluginInstanceParent::RecvPluginHideWindow not implemented!");
+        "PluginInstanceParent::AnswerSetNestedEventState not implemented!");
     return false;
 #endif
 }

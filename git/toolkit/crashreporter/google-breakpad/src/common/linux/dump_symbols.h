@@ -44,10 +44,7 @@ namespace google_breakpad {
 // Find all the debugging information in OBJ_FILE, an ELF executable
 // or shared library, and write it to SYM_FILE in the Breakpad symbol
 // file format.
-// If OBJ_FILE has been stripped but contains a .gnu_debuglink section,
-// then look for the debug file in DEBUG_DIR.
-bool WriteSymbolFile(const std::string &obj_file,
-                     const std::string &debug_dir, FILE *sym_file);
+bool WriteSymbolFile(const std::string &obj_file, FILE *sym_file);
 
 }  // namespace google_breakpad
 

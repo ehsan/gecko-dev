@@ -62,7 +62,6 @@ CPPSRCS = \
   nsBuiltinDecoder.cpp \
   nsBuiltinDecoderStateMachine.cpp \
   nsBuiltinDecoderReader.cpp \
-  VideoUtils.cpp \
   $(NULL)
 
 ifdef MOZ_SYDNEYAUDIO

@@ -189,23 +189,8 @@ TimeWithinDay(jsdouble t)
     return result;
 }
 
-static inline bool
-IsLeapYear(jsint year)
-{
-    return year % 4 == 0 && (year % 100 || (year % 400 == 0));
-}
-
-static inline jsint
-DaysInYear(jsint year) 
-{
-    return IsLeapYear(year) ? 366 : 365;
-}
-
-static inline jsint
-DaysInFebruary(jsint year)
-{
-    return IsLeapYear(year) ? 29 : 28;
-}
+#define DaysInYear(y)   ((y) % 4 == 0 && ((y) % 100 || ((y) % 400 == 0))  \
+                         ? 366 : 365)
 
 /* math here has to be f.p, because we need
  *  floor((1968 - 1969) / 4) == -1
@@ -234,6 +219,8 @@ YearFromTime(jsdouble t)
     return y;
 }
 
+#define InLeapYear(t)   (JSBool) (DaysInYear(YearFromTime(t)) == 366)
+
 #define DayWithinYear(t, year) ((intN) (Day(t) - DayFromYear(year)))
 
 /*
@@ -250,7 +237,7 @@ static jsdouble firstDayOfMonth[2][13] = {
 static intN
 DaysInMonth(jsint year, jsint month)
 {
-    JSBool leap = IsLeapYear(year);
+    JSBool leap = (DaysInYear(year) == 366);
     intN result = intN(DayFromMonth(month, leap) - DayFromMonth(month-1, leap));
     return result;
 }
@@ -264,7 +251,8 @@ MonthFromTime(jsdouble t)
 
     if (d < (step = 31))
         return 0;
-    if (d < (step += DaysInFebruary(year)))
+    step += (InLeapYear(t) ? 29 : 28);
+    if (d < step)
         return 1;
     if (d < (step += 31))
         return 2;
@@ -297,7 +285,8 @@ DateFromTime(jsdouble t)
     if (d <= (next = 30))
         return d + 1;
     step = next;
-    if (d <= (next += DaysInFebruary(year)))
+    next += (InLeapYear(t) ? 29 : 28);
+    if (d <= next)
         return d - step;
     step = next;
     if (d <= (next += 31))
@@ -357,7 +346,7 @@ MakeDay(jsdouble year, jsdouble month, jsdouble date)
     if (month < 0)
         month += 12;
 
-    leap = IsLeapYear((jsint) year);
+    leap = (DaysInYear((jsint) year) == 366);
 
     yearday = floor(TimeFromYear(year) / msPerDay);
     monthday = DayFromMonth(month, leap);
@@ -392,13 +381,16 @@ static jsint
 EquivalentYearForDST(jsint year)
 {
     jsint day;
+    JSBool isLeapYear;
 
     day = (jsint) DayFromYear(year) + 4;
     day = day % 7;
     if (day < 0)
         day += 7;
 
-    return yearStartingWith[IsLeapYear(year)][day];
+    isLeapYear = (DaysInYear(year) == 366);
+
+    return yearStartingWith[isLeapYear][day];
 }
 
 /* LocalTZA gets set by js_InitDateClass() */

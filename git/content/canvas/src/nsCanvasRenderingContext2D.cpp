@@ -146,10 +146,6 @@ using namespace mozilla::ipc;
 #include "gfxXlibSurface.h"
 #endif
 
-#ifdef MOZ_SVG
-#include "nsSVGEffects.h"
-#endif
-
 using namespace mozilla;
 using namespace mozilla::layers;
 using namespace mozilla::dom;
@@ -1043,10 +1039,6 @@ nsCanvasRenderingContext2D::Redraw()
         return NS_OK;
     }
 
-#ifdef MOZ_SVG
-    nsSVGEffects::InvalidateDirectRenderingObservers(HTMLCanvasElement());
-#endif
-
     if (mIsEntireFrameInvalid)
         return NS_OK;
 
@@ -1064,10 +1056,6 @@ nsCanvasRenderingContext2D::Redraw(const gfxRect& r)
         NS_ASSERTION(mDocShell, "Redraw with no canvas element or docshell!");
         return NS_OK;
     }
-
-#ifdef MOZ_SVG
-    nsSVGEffects::InvalidateDirectRenderingObservers(HTMLCanvasElement());
-#endif
 
     if (mIsEntireFrameInvalid)
         return NS_OK;

@@ -137,7 +137,7 @@ GetContainingBlockFor(nsIFrame* aFrame) {
 
 nsComputedDOMStyle::nsComputedDOMStyle()
   : mDocumentWeak(nsnull), mOuterFrame(nsnull),
-    mInnerFrame(nsnull), mPresShell(nsnull),
+    mInnerFrame(nsnull), mPresShell(nsnull), mAppUnitsPerInch(0),
     mExposeVisitedStyle(PR_FALSE)
 {
 }
@@ -239,6 +239,8 @@ nsComputedDOMStyle::Init(nsIDOMElement *aElement,
 
   nsPresContext *presCtx = aPresShell->GetPresContext();
   NS_ENSURE_TRUE(presCtx, NS_ERROR_FAILURE);
+
+  mAppUnitsPerInch = presCtx->AppUnitsPerInch();
 
   return NS_OK;
 }
@@ -1614,17 +1616,6 @@ nsComputedDOMStyle::SetValueToStyleImage(const nsStyleImage& aStyleImage,
       aValue->SetString(gradientString);
       break;
     }
-    case eStyleImageType_Element:
-    {
-      nsAutoString elementId;
-      nsStyleUtil::AppendEscapedCSSIdent(
-        nsDependentString(aStyleImage.GetElementId()), elementId);
-      nsAutoString elementString = NS_LITERAL_STRING("-moz-element(#") +
-                                   elementId +
-                                   NS_LITERAL_STRING(")");
-      aValue->SetString(elementString);
-      break;
-    }
     case eStyleImageType_Null:
       aValue->SetIdent(eCSSKeyword_none);
       break;
@@ -2771,7 +2762,7 @@ nsComputedDOMStyle::DoGetCursor(nsIDOMCSSValue** aValue)
     }
 
     nsCOMPtr<nsIURI> uri;
-    item->GetImage()->GetURI(getter_AddRefs(uri));
+    item->mImage->GetURI(getter_AddRefs(uri));
 
     nsROCSSPrimitiveValue *val = GetROCSSPrimitiveValue();
     if (!val || !itemList->AppendCSSValue(val)) {
@@ -3464,7 +3455,7 @@ nsComputedDOMStyle::DoGetTop(nsIDOMCSSValue** aValue)
 nsROCSSPrimitiveValue*
 nsComputedDOMStyle::GetROCSSPrimitiveValue()
 {
-  nsROCSSPrimitiveValue *primitiveValue = new nsROCSSPrimitiveValue();
+  nsROCSSPrimitiveValue *primitiveValue = new nsROCSSPrimitiveValue(mAppUnitsPerInch);
 
   NS_ASSERTION(primitiveValue != 0, "ran out of memory");
 
@@ -3795,8 +3786,9 @@ nsComputedDOMStyle::GetBorderStyleFor(mozilla::css::Side aSide, nsIDOMCSSValue**
 }
 
 struct StyleCoordSerializeCalcOps {
-  StyleCoordSerializeCalcOps(nsAString& aResult)
-    : mResult(aResult)
+  StyleCoordSerializeCalcOps(nsAString& aResult, PRInt32 aAppUnitsPerInch)
+    : mResult(aResult),
+      mAppUnitsPerInch(aAppUnitsPerInch)
   {
   }
 
@@ -3817,7 +3809,8 @@ struct StyleCoordSerializeCalcOps {
 
   void AppendLeafValue(const input_type& aValue)
   {
-    nsRefPtr<nsROCSSPrimitiveValue> val = new nsROCSSPrimitiveValue();
+    nsRefPtr<nsROCSSPrimitiveValue> val =
+      new nsROCSSPrimitiveValue(mAppUnitsPerInch);
     if (aValue.GetUnit() == eStyleUnit_Percent) {
       val->SetPercent(aValue.GetPercentValue());
     } else {
@@ -3839,6 +3832,7 @@ struct StyleCoordSerializeCalcOps {
 
 private:
   nsAString &mResult;
+  PRInt32 mAppUnitsPerInch;
 };
 
 
@@ -3910,7 +3904,7 @@ nsComputedDOMStyle::SetValueToCoord(nsROCSSPrimitiveValue* aValue,
           aValue->SetAppUnits(NS_MAX(aMinAppUnits, NS_MIN(val, aMaxAppUnits)));
         } else {
           nsAutoString tmp;
-          StyleCoordSerializeCalcOps ops(tmp);
+          StyleCoordSerializeCalcOps ops(tmp, mAppUnitsPerInch);
           css::SerializeCalc(aCoord, ops);
           aValue->SetString(tmp); // not really SetString
         }

@@ -63,7 +63,9 @@ LayerManagerD3D9::~LayerManagerD3D9()
   mSwapChain = nsnull;
 
   if (mDeviceManager) {
-    mDeviceManager->Release();
+    if (!mDeviceManager->Release()) {
+      mDeviceManager = nsnull;
+    }
   }
 }
 
