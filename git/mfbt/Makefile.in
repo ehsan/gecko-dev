@@ -11,14 +11,19 @@
 # for the specific language governing rights and limitations under the
 # License.
 #
-# The Original Code is mozilla.org code.
+# The Original Code is the Mozilla Framework Based on Templates.
+#
+# The Initial Developer of the Original Code is
+# the Mozilla Foundation.
+# Portions created by the Initial Developer are Copyright (C) 2011
+# the Initial Developer. All Rights Reserved.
 #
 # Contributor(s):
-#   Benoit Girard <bgirard@mozilla.com>
+#   Jeff Walden <jwalden+code@mit.edu>
 #
 # Alternatively, the contents of this file may be used under the terms of
-# either of the GNU General Public License Version 2 or later (the "GPL"),
-# or the GNU Lesser General Public License Version 2.1 or later (the "LGPL"),
+# either the GNU General Public License Version 2 or later (the "GPL"), or
+# the GNU Lesser General Public License Version 2.1 or later (the "LGPL"),
 # in which case the provisions of the GPL or the LGPL are applicable instead
 # of those above. If you wish to allow use of your version of this file only
 # under the terms of either the GPL or the LGPL, and not to allow others to
@@ -30,25 +35,18 @@
 #
 # ***** END LICENSE BLOCK *****
 
-import sys
+DEPTH = ..
+topsrcdir = @top_srcdir@
+srcdir = @srcdir@
+VPATH = @srcdir@
 
-from ipdl.cgen import CodePrinter
-from ipdl.cxx.ast import TypeArray, Visitor
+include $(DEPTH)/config/autoconf.mk
 
-class DependGen(CodePrinter, Visitor):
-    def __init__(self, outf=sys.stdout, indentCols=4):
-        CodePrinter.__init__(self, outf, indentCols)
+DIRS =
 
-    def mgen(self, cxxfile):
-        cxxfile.accept(self)
+# exported_headers.mk defines the headers exported by mfbt.  It is included by
+# mfbt itself and by the JS engine, which, when built standalone, must do the
+# work to install mfbt's exported headers itself.
+include $(srcdir)/exported_headers.mk
 
-    def visitTranslationUnit(self, tu):
-        self.write(tu.filename)
-        self.write(": ")
-
-        for pinc in tu.protocolIncludes:
-            self.write(pinc.file)
-            self.write(" ")
-
-        self.println();
-
+include $(topsrcdir)/config/rules.mk

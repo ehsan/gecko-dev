@@ -1,5 +1,3 @@
-/*
-# -*- Mode: Java; tab-width: 4; indent-tabs-mode: nil; c-basic-offset: 4 -*-
 # ***** BEGIN LICENSE BLOCK *****
 # Version: MPL 1.1/GPL 2.0/LGPL 2.1
 #
@@ -13,15 +11,15 @@
 # for the specific language governing rights and limitations under the
 # License.
 #
-# The Original Code is the Firefox Preferences System.
+# The Original Code is the Mozilla Framework Based on Templates.
 #
 # The Initial Developer of the Original Code is
-# Ben Goodger.
-# Portions created by the Initial Developer are Copyright (C) 2005
+# the Mozilla Foundation.
+# Portions created by the Initial Developer are Copyright (C) 2011
 # the Initial Developer. All Rights Reserved.
 #
 # Contributor(s):
-#   Ben Goodger <ben@mozilla.org>
+#   Jeff Walden <jwalden+code@mit.edu>
 #
 # Alternatively, the contents of this file may be used under the terms of
 # either the GNU General Public License Version 2 or later (the "GPL"), or
@@ -36,34 +34,20 @@
 # the terms of any one of the MPL, the GPL or the LGPL.
 #
 # ***** END LICENSE BLOCK *****
-*/
 
-/* File Field Widget */
-filefield {
-  margin: 2px 4px;
-  -moz-appearance: textfield;
-}
+# This file defines the headers exported by mfbt.  It is included by mfbt
+# itself and by the JS engine, which, when built standalone, must install
+# mfbt's exported headers itself.
 
-.fileFieldContentBox {
-  background-color: -moz-Dialog;
-}
+EXPORTS_NAMESPACES += mozilla
 
-.fileFieldIcon[disabled="true"] {
-  opacity: 0.4;
-}
-
-.fileFieldIcon {
-  width: 16px;
-  height: 16px;
-  margin-top: 1px;
-  margin-bottom: 1px;
-  -moz-margin-start: 1px;
-  -moz-margin-end: 4px;
-}
-
-.fileFieldLabel {
-  -moz-appearance: none;
-  background-color: transparent;
-  border: none;
-  margin: 0px;
-}
+EXPORTS_mozilla += \
+  Attributes.h \
+  GuardObjects.h \
+  MSStdInt.h \
+  RangedPtr.h \
+  RefPtr.h \
+  StdInt.h \
+  Types.h \
+  Util.h \
+  $(NULL)
