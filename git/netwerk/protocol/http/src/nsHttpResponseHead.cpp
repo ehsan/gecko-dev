@@ -534,10 +534,7 @@ nsHttpResponseHead::GetMaxAgeValue(PRUint32 *result)
     if (!p)
         return NS_ERROR_NOT_AVAILABLE;
 
-    int maxAgeValue = atoi(p + 8);
-    if (maxAgeValue < 0)
-        maxAgeValue = 0;
-    *result = PRUint32(maxAgeValue);
+    *result = (PRUint32) atoi(p + 8);
     return NS_OK;
 }
 
