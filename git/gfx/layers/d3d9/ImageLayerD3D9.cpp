@@ -568,7 +568,7 @@ ImageLayerD3D9::GetAsTexture(gfx::IntSize* aSize)
   }
 
   bool dontCare;
-  *aSize = image->GetSize();
+  *aSize = gfx::ThebesIntSize(image->GetSize());
   nsRefPtr<IDirect3DTexture9> result = GetTexture(image, dontCare);
   return result.forget();
 }

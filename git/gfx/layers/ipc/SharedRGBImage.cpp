@@ -74,7 +74,7 @@ CreateSharedRGBImage(ImageContainer *aImageContainer,
 
   if (gfxPlatform::GetPlatform()->UseDeprecatedTextures()) {
     nsRefPtr<DeprecatedSharedRGBImage> rgbImageDep = static_cast<DeprecatedSharedRGBImage*>(image.get());
-    rgbImageDep->mSize = aSize.ToIntSize();
+    rgbImageDep->mSize = gfxIntSize(aSize.width, aSize.height);
     rgbImageDep->mImageFormat = aImageFormat;
 
     if (!rgbImageDep->AllocateBuffer(aSize, aImageFormat)) {
@@ -218,7 +218,7 @@ SharedRGBImage::GetBuffer()
 gfx::IntSize
 SharedRGBImage::GetSize()
 {
-  return mSize;
+  return ThebesIntSize(mSize);
 }
 
 size_t

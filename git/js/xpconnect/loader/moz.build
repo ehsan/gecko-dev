@@ -24,10 +24,3 @@ MSVC_ENABLE_PGO = True
 FINAL_LIBRARY = 'xpconnect_s'
 
 DEFINES['JS_THREADSAFE'] = True
-
-LOCAL_INCLUDES += [
-    '../src',
-    '../wrappers',
-    '/content/base/src',
-]
-

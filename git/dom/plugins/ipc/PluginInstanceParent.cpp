@@ -644,7 +644,7 @@ PluginInstanceParent::RecvShow(const NPRect& updatedRect,
         CairoImage* cairoImage = static_cast<CairoImage*>(image.get());
         CairoImage::Data cairoData;
         cairoData.mSurface = surface;
-        cairoData.mSize = surface->GetSize().ToIntSize();
+        cairoData.mSize = surface->GetSize();
         cairoImage->SetData(cairoData);
 
         container->SetCurrentImage(cairoImage);

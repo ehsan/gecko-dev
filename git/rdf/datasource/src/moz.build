@@ -10,10 +10,3 @@ UNIFIED_SOURCES += [
 ]
 
 FINAL_LIBRARY = 'rdf'
-
-# "This is a dependency on rdfutil.h: it'll go away once that becomes
-# a first-class XPCOM interface."
-LOCAL_INCLUDES += [
-    '../../base/src',
-]
-

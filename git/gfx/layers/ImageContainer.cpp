@@ -317,7 +317,7 @@ ImageContainer::LockCurrentAsSurface(gfx::IntSize *aSize, Image** aCurrentImage)
                                                    gfxImageFormatARGB32 :
                                                    gfxImageFormatRGB24);
 
-      *aSize = newSurf->GetSize().ToIntSize();
+      *aSize = newSurf->GetSize();
     
       return newSurf.forget();
     }
@@ -382,7 +382,7 @@ ImageContainer::GetCurrentSize()
   }
 
   if (!mActiveImage) {
-    return gfx::IntSize(0, 0);
+    return gfx::IntSize(0,0);
   }
 
   return mActiveImage->GetSize();

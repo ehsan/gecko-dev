@@ -236,7 +236,7 @@ TextureImageTextureSourceOGL::Update(gfx::DataSourceSurface* aSurface,
   }
   MOZ_ASSERT(aSurface);
 
-  IntSize size = aSurface->GetSize();
+  nsIntSize size = ThebesIntSize(aSurface->GetSize());
   if (!mTexImage ||
       mTexImage->GetSize() != size ||
       mTexImage->GetContentType() != gfx::ContentForFormat(aSurface->GetFormat())) {
@@ -501,15 +501,15 @@ TextureImageDeprecatedTextureHostOGL::EnsureBuffer(const nsIntSize& aSize,
                                          gfxContentType aContentType)
 {
   if (!mTexture ||
-      mTexture->GetSize() != aSize.ToIntSize() ||
+      mTexture->GetSize() != aSize ||
       mTexture->GetContentType() != aContentType) {
     mTexture = CreateTextureImage(mGL,
-                                  aSize.ToIntSize(),
+                                  aSize,
                                   aContentType,
                                   WrapMode(mGL, mFlags & TEXTURE_ALLOW_REPEAT),
                                   FlagsToGLFlags(mFlags));
   }
-  mTexture->Resize(aSize.ToIntSize());
+  mTexture->Resize(aSize);
 }
 
 void

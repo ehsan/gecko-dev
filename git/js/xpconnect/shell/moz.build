@@ -27,8 +27,3 @@ if CONFIG['MOZ_VTUNE']:
     DEFINES['MOZ_VTUNE'] = True
 
 include('/ipc/chromium/chromium-config.mozbuild')
-
-LOCAL_INCLUDES += [
-    '/toolkit/xre',
-]
-

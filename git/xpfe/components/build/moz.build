@@ -11,7 +11,3 @@ SOURCES += [
 LIBRARY_NAME = 'appcomps'
 
 FINAL_LIBRARY = 'xul'
-
-LOCAL_INCLUDES += [
-    '../directory',
-]

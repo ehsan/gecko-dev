@@ -37,10 +37,7 @@ struct nsIntSize : public mozilla::gfx::BaseSize<int32_t, nsIntSize> {
   nsIntSize(int32_t aWidth, int32_t aHeight) : Super(aWidth, aHeight) {}
 
   inline nsSize ToAppUnits(nscoord aAppUnitsPerPixel) const;
-  mozilla::gfx::IntSize ToIntSize() const
-  {
-    return mozilla::gfx::IntSize(width, height);
-  };
+  operator mozilla::gfx::IntSize() const { return mozilla::gfx::IntSize(width, height); };
 };
 
 inline nsIntSize

@@ -16,8 +16,3 @@ SOURCES += [
     'leaky.cpp',
     'strset.cpp',
 ]
-
-LOCAL_INCLUDES += [
-    'stub',
-]
-

@@ -37,8 +37,6 @@
 
 #define ATRACE_BUFFER_INDEX(index)
 
-using namespace mozilla;
-using namespace mozilla::gfx;
 using namespace mozilla::layers;
 
 namespace android {
@@ -412,7 +410,7 @@ status_t GonkBufferQueue::dequeueBuffer(int *outBuf, sp<Fence>* outFence,
         status_t error;
         ibc = ImageBridgeChild::GetSingleton();
         ST_LOGD("dequeueBuffer: about to alloc surface descriptor");
-        ibc->AllocSurfaceDescriptorGralloc(IntSize(w, h),
+        ibc->AllocSurfaceDescriptorGralloc(gfxIntSize(w, h),
                                            format,
                                            usage,
                                            &desc);

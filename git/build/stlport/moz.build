@@ -47,8 +47,3 @@ SOURCES += [
 ]
 
 DEFINES['_GNU_SOURCE'] = True
-
-LOCAL_INCLUDES += [
-    'stlport',
-]
-

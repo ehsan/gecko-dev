@@ -223,7 +223,7 @@ protected:
                  GLenum aWrapMode, ContentType aContentType,
                  Flags aFlags = NoFlags,
                  ImageFormat aImageFormat = gfxImageFormatUnknown)
-        : mSize(aSize.ToIntSize())
+        : mSize(aSize)
         , mWrapMode(aWrapMode)
         , mContentType(aContentType)
         , mImageFormat(aImageFormat)

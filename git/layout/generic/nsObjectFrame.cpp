@@ -8,7 +8,6 @@
 
 #include "nsObjectFrame.h"
 
-#include "gfx2DGlue.h"
 #include "mozilla/BasicEvents.h"
 #ifdef XP_WIN
 // This is needed for DoublePassRenderingEvent.
@@ -146,7 +145,6 @@ extern "C" {
 #endif /* #if defined(XP_MACOSX) && !defined(__LP64__) */
 
 using namespace mozilla;
-using namespace mozilla::gfx;
 using namespace mozilla::layers;
 
 class PluginBackgroundSink : public ReadbackSink {
@@ -1529,7 +1527,7 @@ nsObjectFrame::BuildLayer(nsDisplayListBuilder* aBuilder,
     scaleFactor = 1.0;
   }
   int intScaleFactor = ceil(scaleFactor);
-  IntSize size(window->width * intScaleFactor, window->height * intScaleFactor);
+  gfxIntSize size(window->width * intScaleFactor, window->height * intScaleFactor);
 
   nsRect area = GetContentRectRelativeToSelf() + aItem->ToReferenceFrame();
   gfxRect r = nsLayoutUtils::RectToGfxRect(area, PresContext()->AppUnitsPerDevPixel());
@@ -1614,11 +1612,11 @@ nsObjectFrame::BuildLayer(nsDisplayListBuilder* aBuilder,
     NS_ASSERTION(layer->GetType() == Layer::TYPE_READBACK, "Bad layer type");
 
     ReadbackLayer* readback = static_cast<ReadbackLayer*>(layer.get());
-    if (readback->GetSize() != ThebesIntSize(size)) {
+    if (readback->GetSize() != nsIntSize(size.width, size.height)) {
       // This will destroy any old background sink and notify us that the
       // background is now unknown
       readback->SetSink(nullptr);
-      readback->SetSize(ThebesIntSize(size));
+      readback->SetSize(nsIntSize(size.width, size.height));
 
       if (mBackgroundSink) {
         // Maybe we still have a background sink associated with another
@@ -1641,7 +1639,7 @@ nsObjectFrame::BuildLayer(nsDisplayListBuilder* aBuilder,
   transform.Translate(r.TopLeft() + aContainerParameters.mOffset);
 
   layer->SetBaseTransform(gfx3DMatrix::From2D(transform));
-  layer->SetVisibleRegion(ThebesIntRect(IntRect(IntPoint(0, 0), size)));
+  layer->SetVisibleRegion(nsIntRect(0, 0, size.width, size.height));
   return layer.forget();
 }
 

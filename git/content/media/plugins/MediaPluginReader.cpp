@@ -17,8 +17,6 @@
 
 namespace mozilla {
 
-using namespace mozilla::gfx;
-
 typedef mozilla::layers::Image Image;
 typedef mozilla::layers::PlanarYCbCrImage PlanarYCbCrImage;
 
@@ -395,8 +393,8 @@ MediaPluginReader::ImageBufferCallback::CreateI420Image(size_t aWidth,
   frameDesc.mCbChannel = buffer + frameSize;
   frameDesc.mCrChannel = buffer + frameSize * 5 / 4;
 
-  frameDesc.mYSize = IntSize(aWidth, aHeight);
-  frameDesc.mCbCrSize = IntSize(aWidth / 2, aHeight / 2);
+  frameDesc.mYSize = gfxIntSize(aWidth, aHeight);
+  frameDesc.mCbCrSize = gfxIntSize(aWidth / 2, aHeight / 2);
 
   frameDesc.mYStride = aWidth;
   frameDesc.mCbCrStride = aWidth / 2;
@@ -407,7 +405,7 @@ MediaPluginReader::ImageBufferCallback::CreateI420Image(size_t aWidth,
 
   frameDesc.mPicX = 0;
   frameDesc.mPicY = 0;
-  frameDesc.mPicSize = IntSize(aWidth, aHeight);
+  frameDesc.mPicSize = gfxIntSize(aWidth, aHeight);
 
   yuvImage->SetDataNoCopy(frameDesc);
 
