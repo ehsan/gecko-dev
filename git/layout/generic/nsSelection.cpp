@@ -787,7 +787,6 @@ nsFrameSelection::MoveCaret(uint32_t          aKeycode,
         {
           const nsRange* anchorFocusRange = sel->GetAnchorFocusRange();
           if (anchorFocusRange) {
-            PostReason(nsISelectionListener::COLLAPSETOSTART_REASON);
             sel->Collapse(anchorFocusRange->GetStartParent(),
                           anchorFocusRange->StartOffset());
           }
@@ -803,7 +802,6 @@ nsFrameSelection::MoveCaret(uint32_t          aKeycode,
         {
           const nsRange* anchorFocusRange = sel->GetAnchorFocusRange();
           if (anchorFocusRange) {
-            PostReason(nsISelectionListener::COLLAPSETOEND_REASON);
             sel->Collapse(anchorFocusRange->GetEndParent(),
                           anchorFocusRange->EndOffset());
           }

@@ -1169,7 +1169,7 @@ nsJSContext::SetProperty(JS::Handle<JSObject*> aTarget, const char* aPropName, n
     }
   }
 
-  JSObject* array = ::JS_NewArrayObject(mContext, args);
+  JSObject* array = ::JS_NewArrayObject(mContext, args.length(), args.begin());
   if (!array) {
     return NS_ERROR_FAILURE;
   }

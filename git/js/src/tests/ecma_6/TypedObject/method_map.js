@@ -19,6 +19,8 @@ var int32 = TypedObject.int32;
 var float32 = TypedObject.float32;
 var float64 = TypedObject.float64;
 
+var Handle = TypedObject.Handle;
+
 // Test name format:
 
 // map<N>DimArrayOf<G1>sTo<G2>s where <N> is a positive integer (or its
@@ -52,7 +54,8 @@ function mapTwoDimArrayOfUint8() {
 
   var r1 = i1.map(2, x => x*2);
   var r2 = i1.map(1, a => a.map(1, x => x*2));
-  var r3 = i1.map(1, (a, j, c, out) => { out[0] = a[0]*2;
+  var r3 = i1.map(1, a => a.map(1, (x, j, c, out) => Handle.set(out, x*2)));
+  var r4 = i1.map(1, (a, j, c, out) => { out[0] = a[0]*2;
                                          out[1] = a[1]*2;
                                          out[2] = a[2]*2;
                                          out[3] = a[3]*2; });
@@ -62,6 +65,7 @@ function mapTwoDimArrayOfUint8() {
                                        [80, 82, 84, 86]]));
   assertTypedEqual(type, r1, r2);
   assertTypedEqual(type, r1, r3);
+  assertTypedEqual(type, r1, r4);
 }
 
 function mapTwoDimArrayOfUint32() {
@@ -73,7 +77,8 @@ function mapTwoDimArrayOfUint32() {
 
   var r1 = i1.map(2, x => x*2);
   var r2 = i1.map(1, a => a.map(1, x => x*2));
-  var r3 = i1.map(1, (a, j, c, out) => { out[0] = a[0]*2;
+  var r3 = i1.map(1, a => a.map(1, (x, j, c, out) => Handle.set(out, x*2)));
+  var r4 = i1.map(1, (a, j, c, out) => { out[0] = a[0]*2;
                                          out[1] = a[1]*2;
                                          out[2] = a[2]*2;
                                          out[3] = a[3]*2; });
@@ -83,6 +88,7 @@ function mapTwoDimArrayOfUint32() {
                                        [80, 82, 84, 86]]));
   assertTypedEqual(type, r1, r2);
   assertTypedEqual(type, r1, r3);
+  assertTypedEqual(type, r1, r4);
 }
 
 var Grain = new StructType({f: uint32});

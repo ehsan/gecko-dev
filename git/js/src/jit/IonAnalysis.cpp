@@ -2147,11 +2147,8 @@ jit::AnalyzeNewScriptProperties(JSContext *cx, JSFunction *fun,
     if (!script)
         return false;
 
-    if (!jit::IsIonEnabled(cx) || !jit::IsBaselineEnabled(cx) ||
-        !script->compileAndGo() || !script->canBaselineCompile())
-    {
+    if (!script->compileAndGo() || !script->canBaselineCompile())
         return true;
-    }
 
     static const uint32_t MAX_SCRIPT_SIZE = 2000;
     if (script->length() > MAX_SCRIPT_SIZE)

@@ -99,8 +99,9 @@ bool xpc_IsReportableErrorCode(nsresult code)
 }
 
 // static
-already_AddRefed<nsXPCWrappedJSClass>
-nsXPCWrappedJSClass::GetNewOrUsed(JSContext* cx, REFNSIID aIID)
+nsresult
+nsXPCWrappedJSClass::GetNewOrUsed(JSContext* cx, REFNSIID aIID,
+                                  nsXPCWrappedJSClass** resultClasp)
 {
     XPCJSRuntime* rt = nsXPConnect::GetRuntimeInstance();
     IID2WrappedJSClassMap* map = rt->GetWrappedJSClassMap();
@@ -121,7 +122,8 @@ nsXPCWrappedJSClass::GetNewOrUsed(JSContext* cx, REFNSIID aIID)
             }
         }
     }
-    return clasp.forget();
+    clasp.forget(resultClasp);
+    return NS_OK;
 }
 
 nsXPCWrappedJSClass::nsXPCWrappedJSClass(JSContext* cx, REFNSIID aIID,

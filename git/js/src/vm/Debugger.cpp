@@ -521,11 +521,9 @@ Debugger::slowPathOnEnterFrame(JSContext *cx, AbstractFramePtr frame, MutableHan
     if (GlobalObject::DebuggerVector *debuggers = global->getDebuggers()) {
         for (Debugger **p = debuggers->begin(); p != debuggers->end(); p++) {
             Debugger *dbg = *p;
-            if (dbg->observesFrame(frame) && dbg->observesEnterFrame() &&
-                !triggered.append(ObjectValue(*dbg->toJSObject())))
-            {
+            JS_ASSERT(dbg->observesFrame(frame));
+            if (dbg->observesEnterFrame() && !triggered.append(ObjectValue(*dbg->toJSObject())))
                 return JSTRAP_ERROR;
-            }
         }
     }
 
@@ -1099,14 +1097,13 @@ Debugger::dispatchHook(JSContext *cx, MutableHandleValue vp, Hook which)
 }
 
 static bool
-AddNewScriptRecipients(GlobalObject::DebuggerVector *src, HandleScript script,
-                       AutoValueVector *dest)
+AddNewScriptRecipients(GlobalObject::DebuggerVector *src, AutoValueVector *dest)
 {
     bool wasEmpty = dest->length() == 0;
     for (Debugger **p = src->begin(); p != src->end(); p++) {
         Debugger *dbg = *p;
         Value v = ObjectValue(*dbg->toJSObject());
-        if (dbg->observesScript(script) && dbg->observesNewScript() &&
+        if (dbg->observesNewScript() &&
             (wasEmpty || Find(dest->begin(), dest->end(), v) == dest->end()) &&
             !dest->append(v))
         {
@@ -1119,6 +1116,9 @@ AddNewScriptRecipients(GlobalObject::DebuggerVector *src, HandleScript script,
 void
 Debugger::slowPathOnNewScript(JSContext *cx, HandleScript script, GlobalObject *compileAndGoGlobal_)
 {
+    if (script->selfHosted())
+        return;
+
     Rooted<GlobalObject*> compileAndGoGlobal(cx, compileAndGoGlobal_);
 
     JS_ASSERT(script->compileAndGo() == !!compileAndGoGlobal);
@@ -1132,13 +1132,13 @@ Debugger::slowPathOnNewScript(JSContext *cx, HandleScript script, GlobalObject *
     AutoValueVector triggered(cx);
     if (script->compileAndGo()) {
         if (GlobalObject::DebuggerVector *debuggers = compileAndGoGlobal->getDebuggers()) {
-            if (!AddNewScriptRecipients(debuggers, script, &triggered))
+            if (!AddNewScriptRecipients(debuggers, &triggered))
                 return;
         }
     } else {
         GlobalObjectSet &debuggees = script->compartment()->getDebuggees();
         for (GlobalObjectSet::Range r = debuggees.all(); !r.empty(); r.popFront()) {
-            if (!AddNewScriptRecipients(r.front()->getDebuggers(), script, &triggered))
+            if (!AddNewScriptRecipients(r.front()->getDebuggers(), &triggered))
                 return;
         }
     }
@@ -3513,7 +3513,7 @@ DebuggerScript_getLineOffsets(JSContext *cx, unsigned argc, Value *vp)
 bool
 Debugger::observesFrame(AbstractFramePtr frame) const
 {
-    return observesScript(frame.script());
+    return observesGlobal(&frame.script()->global());
 }
 
 bool
@@ -3521,8 +3521,7 @@ Debugger::observesScript(JSScript *script) const
 {
     if (!enabled)
         return false;
-    return observesGlobal(&script->global()) && (!script->selfHosted() ||
-                                                 SelfHostedFramesVisible());
+    return observesGlobal(&script->global()) && !script->selfHosted();
 }
 
 /* static */ bool

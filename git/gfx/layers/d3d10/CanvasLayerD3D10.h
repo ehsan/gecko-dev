@@ -39,7 +39,7 @@ private:
 
   void UpdateSurface();
 
-  RefPtr<gfx::SourceSurface> mSurface;
+  nsRefPtr<gfxASurface> mSurface;
   mozilla::RefPtr<mozilla::gfx::DrawTarget> mDrawTarget;
   nsRefPtr<GLContext> mGLContext;
   nsRefPtr<ID3D10Texture2D> mTexture;

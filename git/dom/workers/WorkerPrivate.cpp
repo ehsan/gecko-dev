@@ -2707,15 +2707,9 @@ WorkerPrivateParent<Derived>::PostMessageInternal(
   JS::Rooted<JS::Value> transferable(aCx, JS::UndefinedValue());
   if (aTransferable.WasPassed()) {
     const Sequence<JS::Value>& realTransferable = aTransferable.Value();
-
-    // The input sequence only comes from the generated bindings code, which
-    // ensures it is rooted.
-    JS::HandleValueArray elements =
-      JS::HandleValueArray::fromMarkedLocation(realTransferable.Length(),
-                                               realTransferable.Elements());
-
     JSObject* array =
-      JS_NewArrayObject(aCx, elements);
+      JS_NewArrayObject(aCx, realTransferable.Length(),
+                        const_cast<JS::Value*>(realTransferable.Elements()));
     if (!array) {
       aRv.Throw(NS_ERROR_OUT_OF_MEMORY);
       return;
@@ -4929,14 +4923,9 @@ WorkerPrivate::PostMessageToParentInternal(
   JS::Rooted<JS::Value> transferable(aCx, JS::UndefinedValue());
   if (aTransferable.WasPassed()) {
     const Sequence<JS::Value>& realTransferable = aTransferable.Value();
-
-    // The input sequence only comes from the generated bindings code, which
-    // ensures it is rooted.
-    JS::HandleValueArray elements =
-      JS::HandleValueArray::fromMarkedLocation(realTransferable.Length(),
-                                               realTransferable.Elements());
-
-    JSObject* array = JS_NewArrayObject(aCx, elements);
+    JSObject* array =
+      JS_NewArrayObject(aCx, realTransferable.Length(),
+                        const_cast<jsval*>(realTransferable.Elements()));
     if (!array) {
       aRv = NS_ERROR_OUT_OF_MEMORY;
       return;

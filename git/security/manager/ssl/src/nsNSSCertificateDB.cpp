@@ -1738,7 +1738,8 @@ nsNSSCertificateDB::VerifyCertNow(nsIX509Cert* aCert,
                                  nullptr, // Assume no context
                                  aFlags,
                                  &resultChain,
-                                 &evOidPolicy);
+                                 &evOidPolicy,
+                                 nullptr);
 
   PRErrorCode error = PR_GetError();
 

@@ -29,6 +29,7 @@
 #include "nsIDOMClassInfo.h"
 #include "nsIDOMFile.h"
 #include "xpcpublic.h"
+#include "mozilla/Debug.h"
 #include "mozilla/Preferences.h"
 #include "mozilla/dom/StructuredCloneUtils.h"
 #include "JavaScriptChild.h"
@@ -37,9 +38,6 @@
 #include "nsPrintfCString.h"
 #include <algorithm>
 
-#ifdef ANDROID
-#include <android/log.h>
-#endif
 #ifdef XP_WIN
 #include <windows.h>
 # if defined(SendMessage)
@@ -457,7 +455,7 @@ nsFrameMessageManager::GetDelayedFrameScripts(JSContext* aCx, JS::MutableHandle<
     return NS_ERROR_NOT_IMPLEMENTED;
   }
 
-  JS::Rooted<JSObject*> array(aCx, JS_NewArrayObject(aCx, mPendingScripts.Length()));
+  JS::Rooted<JSObject*> array(aCx, JS_NewArrayObject(aCx, mPendingScripts.Length(), nullptr));
   NS_ENSURE_TRUE(array, NS_ERROR_OUT_OF_MEMORY);
 
   JS::Rooted<JSString*> url(aCx);
@@ -466,11 +464,10 @@ nsFrameMessageManager::GetDelayedFrameScripts(JSContext* aCx, JS::MutableHandle<
     url = JS_NewUCStringCopyN(aCx, mPendingScripts[i].get(), mPendingScripts[i].Length());
     NS_ENSURE_TRUE(url, NS_ERROR_OUT_OF_MEMORY);
 
-    JS::AutoValueArray<2> pairElts(aCx);
-    pairElts[0].setString(url);
-    pairElts[1].setBoolean(mPendingScriptsGlobalStates[i]);
+    JS::Value pairElts[] = { JS::StringValue(url),
+                             JS::BooleanValue(mPendingScriptsGlobalStates[i]) };
 
-    pair = JS_NewArrayObject(aCx, pairElts);
+    pair = JS_NewArrayObject(aCx, 2, pairElts);
     NS_ENSURE_TRUE(pair, NS_ERROR_OUT_OF_MEMORY);
 
     NS_ENSURE_TRUE(JS_SetElement(aCx, array, i, pair),
@@ -599,7 +596,7 @@ nsFrameMessageManager::SendMessage(const nsAString& aMessageName,
   }
 
   uint32_t len = retval.Length();
-  JS::Rooted<JSObject*> dataArray(aCx, JS_NewArrayObject(aCx, len));
+  JS::Rooted<JSObject*> dataArray(aCx, JS_NewArrayObject(aCx, len, nullptr));
   NS_ENSURE_TRUE(dataArray, NS_ERROR_OUT_OF_MEMORY);
 
   for (uint32_t i = 0; i < len; ++i) {
@@ -724,16 +721,7 @@ nsFrameMessageManager::GetChildAt(uint32_t aIndex,
 NS_IMETHODIMP
 nsFrameMessageManager::Dump(const nsAString& aStr)
 {
-#ifdef ANDROID
-  __android_log_print(ANDROID_LOG_INFO, "Gecko", "%s", NS_ConvertUTF16toUTF8(aStr).get());
-#endif
-#ifdef XP_WIN
-  if (IsDebuggerPresent()) {
-    OutputDebugStringW(PromiseFlatString(aStr).get());
-  }
-#endif
-  fputs(NS_ConvertUTF16toUTF8(aStr).get(), stdout);
-  fflush(stdout);
+  PrintToDebugger(aStr, stdout);
   return NS_OK;
 }
 

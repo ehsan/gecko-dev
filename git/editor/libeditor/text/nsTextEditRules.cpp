@@ -3,7 +3,6 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-#include "TextComposition.h"
 #include "mozilla/Assertions.h"
 #include "mozilla/LookAndFeel.h"
 #include "mozilla/Preferences.h"
@@ -1209,8 +1208,7 @@ nsTextEditRules::TruncateInsertionIfNeeded(Selection* aSelection,
     nsContentUtils::GetSelectionInTextControl(aSelection, mEditor->GetRoot(),
                                               start, end);
 
-    TextComposition* composition = mEditor->GetComposition();
-    int32_t oldCompStrLength = composition ? composition->String().Length() : 0;
+    int32_t oldCompStrLength = mEditor->GetIMEBufferLength();
 
     const int32_t selectionLength = end - start;
     const int32_t resultingDocLength = docLength - selectionLength - oldCompStrLength;

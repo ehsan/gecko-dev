@@ -2300,9 +2300,10 @@ class nsXPCWrappedJSClass : public nsIXPCWrappedJSClass
     NS_IMETHOD DebugDump(int16_t depth);
 public:
 
-    static already_AddRefed<nsXPCWrappedJSClass>
+    static nsresult
     GetNewOrUsed(JSContext* cx,
-                 REFNSIID aIID);
+                 REFNSIID aIID,
+                 nsXPCWrappedJSClass** clazz);
 
     REFNSIID GetIID() const {return mIID;}
     XPCJSRuntime* GetRuntime() const {return mRuntime;}

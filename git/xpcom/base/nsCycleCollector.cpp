@@ -1103,7 +1103,6 @@ class nsCycleCollector : public nsIMemoryReporter
     NS_DECL_NSIMEMORYREPORTER
 
     bool mActivelyCollecting;
-    bool mFreeingSnowWhite;
     // mScanInProgress should be false when we're collecting white objects.
     bool mScanInProgress;
     CycleCollectorResults mResults;
@@ -2465,13 +2464,6 @@ nsCycleCollector::FreeSnowWhite(bool aUntilNoSWInPurpleBuffer)
 {
     CheckThreadSafety();
 
-    if (mFreeingSnowWhite) {
-        return false;
-    }
-
-    AutoRestore<bool> ar(mFreeingSnowWhite);
-    mFreeingSnowWhite = true;
-
     bool hadSnowWhiteObjects = false;
     do {
         SnowWhiteKiller visitor(this, mPurpleBuf.Count());
@@ -2990,7 +2982,6 @@ nsCycleCollector::CollectReports(nsIHandleReportCallback* aHandleReport,
 
 nsCycleCollector::nsCycleCollector() :
     mActivelyCollecting(false),
-    mFreeingSnowWhite(false),
     mScanInProgress(false),
     mJSRuntime(nullptr),
     mIncrementalPhase(IdlePhase),
@@ -3168,10 +3159,9 @@ nsCycleCollector::Collect(ccType aCCType,
     CheckThreadSafety();
 
     // This can legitimately happen in a few cases. See bug 383651.
-    if (mActivelyCollecting || mFreeingSnowWhite) {
+    if (mActivelyCollecting) {
         return false;
     }
-    AutoRestore<bool> ar(mActivelyCollecting);
     mActivelyCollecting = true;
 
     bool startedIdle = (mIncrementalPhase == IdlePhase);
@@ -3211,6 +3201,8 @@ nsCycleCollector::Collect(ccType aCCType,
             break;
         }
     } while (!aBudget.checkOverBudget() && !finished);
+
+    mActivelyCollecting = false;
 
     if (aCCType != SliceCC && !startedIdle) {
         // We were in the middle of an incremental CC (using its own listener).

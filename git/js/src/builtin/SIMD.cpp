@@ -46,10 +46,8 @@ extern const JSFunctionSpec Int32x4Methods[];
             return false; \
         } \
         TypedDatum &datum = args.thisv().toObject().as<TypedDatum>();        \
-        TypeDescr &descr = datum.typeDescr(); \
-        if (descr.kind() != TypeDescr::X4 || \
-            descr.as<X4TypeDescr>().type() != Type32x4::type) \
-        {  \
+        TypeRepresentation *typeRepr = datum.typeRepresentation(); \
+        if (typeRepr->kind() != TypeRepresentation::X4 || typeRepr->asX4()->type() != Type32x4::type) { \
             JS_ReportErrorNumber(cx, js_GetErrorMessage, nullptr, JSMSG_INCOMPATIBLE_PROTO, \
                                  X4TypeDescr::class_.name, laneNames[lane], \
                                  InformalValueTypeName(args.thisv())); \
@@ -79,10 +77,8 @@ extern const JSFunctionSpec Int32x4Methods[];
             return false; \
         } \
         TypedDatum &datum = args.thisv().toObject().as<TypedDatum>();        \
-        TypeDescr &descr = datum.typeDescr(); \
-        if (descr.kind() != TypeDescr::X4 || \
-            descr.as<X4TypeDescr>().type() != Type32x4::type) \
-        { \
+        TypeRepresentation *typeRepr = datum.typeRepresentation(); \
+        if (typeRepr->kind() != TypeRepresentation::X4 || typeRepr->asX4()->type() != Type32x4::type) { \
             JS_ReportErrorNumber(cx, js_GetErrorMessage, nullptr, JSMSG_INCOMPATIBLE_PROTO, \
                                  X4TypeDescr::class_.name, "signMask", \
                                  InformalValueTypeName(args.thisv())); \
@@ -103,7 +99,7 @@ extern const JSFunctionSpec Int32x4Methods[];
 
 const Class X4TypeDescr::class_ = {
     "X4",
-    JSCLASS_HAS_RESERVED_SLOTS(JS_DESCR_SLOTS),
+    JSCLASS_HAS_RESERVED_SLOTS(JS_TYPEOBJ_X4_SLOTS),
     JS_PropertyStub,         /* addProperty */
     JS_DeletePropertyStub,   /* delProperty */
     JS_PropertyStub,         /* getProperty */
@@ -122,14 +118,14 @@ const Class X4TypeDescr::class_ = {
 namespace js {
 class Int32x4Defn {
   public:
-    static const X4TypeDescr::Type type = X4TypeDescr::TYPE_INT32;
+    static const X4TypeRepresentation::Type type = X4TypeRepresentation::TYPE_INT32;
     static const JSFunctionSpec TypeDescriptorMethods[];
     static const JSPropertySpec TypedDatumProperties[];
     static const JSFunctionSpec TypedDatumMethods[];
 };
 class Float32x4Defn {
   public:
-    static const X4TypeDescr::Type type = X4TypeDescr::TYPE_FLOAT32;
+    static const X4TypeRepresentation::Type type = X4TypeRepresentation::TYPE_FLOAT32;
     static const JSFunctionSpec TypeDescriptorMethods[];
     static const JSPropertySpec TypedDatumProperties[];
     static const JSFunctionSpec TypedDatumMethods[];
@@ -137,7 +133,8 @@ class Float32x4Defn {
 } // namespace js
 
 const JSFunctionSpec js::Float32x4Defn::TypeDescriptorMethods[] = {
-    JS_SELF_HOSTED_FN("toSource", "DescrToSourceMethod", 0, 0),
+    JS_FN("toSource", TypeDescrToSource, 0, 0),
+    JS_SELF_HOSTED_FN("handle", "HandleCreate", 2, 0),
     JS_SELF_HOSTED_FN("array", "ArrayShorthand", 1, 0),
     JS_SELF_HOSTED_FN("equivalent", "TypeDescrEquivalent", 1, 0),
     JS_FS_END
@@ -158,7 +155,8 @@ const JSFunctionSpec js::Float32x4Defn::TypedDatumMethods[] = {
 };
 
 const JSFunctionSpec js::Int32x4Defn::TypeDescriptorMethods[] = {
-    JS_SELF_HOSTED_FN("toSource", "DescrToSourceMethod", 0, 0),
+    JS_FN("toSource", TypeDescrToSource, 0, 0),
+    JS_SELF_HOSTED_FN("handle", "HandleCreate", 2, 0),
     JS_SELF_HOSTED_FN("array", "ArrayShorthand", 1, 0),
     JS_SELF_HOSTED_FN("equivalent", "TypeDescrEquivalent", 1, 0),
     JS_FS_END,
@@ -203,14 +201,16 @@ CreateX4Class(JSContext *cx, Handle<GlobalObject*> global)
     if (!proto)
         return nullptr;
 
-    // Create type constructor itself and initialize its reserved slots.
+    // Create type constructor itself.
 
     Rooted<X4TypeDescr*> x4(cx);
-    x4 = NewObjectWithProto<X4TypeDescr>(cx, funcProto, global, TenuredObject);
+    x4 = NewObjectWithProto<X4TypeDescr>(cx, funcProto, global);
     if (!x4 || !InitializeCommonTypeDescriptorProperties(cx, x4, typeReprObj))
         return nullptr;
-    x4->initReservedSlot(JS_DESCR_SLOT_TYPE_REPR, ObjectValue(*typeReprObj));
-    x4->initReservedSlot(JS_DESCR_SLOT_TYPE, Int32Value(T::type));
+
+    // Link type constructor to the type representation.
+
+    x4->initReservedSlot(JS_TYPEOBJ_SLOT_TYPE_REPR, ObjectValue(*typeReprObj));
 
     // Link constructor to prototype and install properties.
 
@@ -245,12 +245,13 @@ X4TypeDescr::call(JSContext *cx, unsigned argc, Value *vp)
             return false;
     }
 
-    Rooted<X4TypeDescr*> descr(cx, &args.callee().as<X4TypeDescr>());
-    Rooted<TypedObject*> result(cx, TypedObject::createZeroed(cx, descr, 0));
+    Rooted<X4TypeDescr*> typeObj(cx, &args.callee().as<X4TypeDescr>());
+    Rooted<TypedObject*> result(cx, TypedObject::createZeroed(cx, typeObj, 0));
     if (!result)
         return false;
 
-    switch (descr->type()) {
+    X4TypeRepresentation *typeRepr = typeObj->typeRepresentation()->asX4();
+    switch (typeRepr->type()) {
 #define STORE_LANES(_constant, _type, _name)                                  \
       case _constant:                                                         \
       {                                                                       \
@@ -368,10 +369,10 @@ static bool
 ObjectIsVector(JSObject &obj) {
     if (!obj.is<TypedDatum>())
         return false;
-    TypeDescr &typeRepr = obj.as<TypedDatum>().typeDescr();
-    if (typeRepr.kind() != TypeDescr::X4)
+    TypeRepresentation *typeRepr = obj.as<TypedDatum>().typeRepresentation();
+    if (typeRepr->kind() != TypeRepresentation::X4)
         return false;
-    return typeRepr.as<X4TypeDescr>().type() == V::type;
+    return typeRepr->asX4()->type() == V::type;
 }
 
 template<typename V>

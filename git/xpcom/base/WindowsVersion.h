@@ -11,10 +11,10 @@
 namespace mozilla
 {
   inline bool
-  IsWindowsVersionOrLater(uint32_t aVersion)
+  IsWindowsVersionOrLater(uint64_t aVersion)
   {
-    static uint32_t minVersion = 0;
-    static uint32_t maxVersion = UINT32_MAX;
+    static uint64_t minVersion = 0;
+    static uint64_t maxVersion = UINT64_MAX;
 
     if (minVersion >= aVersion) {
       return true;
@@ -27,10 +27,10 @@ namespace mozilla
     OSVERSIONINFOEX info;
     ZeroMemory(&info, sizeof(OSVERSIONINFOEX));
     info.dwOSVersionInfoSize = sizeof(OSVERSIONINFOEX);
-    info.dwMajorVersion = aVersion >> 24;
-    info.dwMinorVersion = (aVersion >> 16) & 0xFF;
-    info.wServicePackMajor = (aVersion >> 8) & 0xFF;
-    info.wServicePackMinor = aVersion & 0xFF;
+    info.dwMajorVersion = aVersion >> 48;
+    info.dwMinorVersion = (aVersion >> 32) & 0xFFFF;
+    info.wServicePackMajor = (aVersion >> 16) & 0xFFFF;
+    info.wServicePackMinor = aVersion & 0xFFFF;
 
     DWORDLONG conditionMask = 0;
     VER_SET_CONDITION(conditionMask, VER_MAJORVERSION, VER_GREATER_EQUAL);
@@ -50,75 +50,37 @@ namespace mozilla
     return false;
   }
 
-  inline bool
-  IsWindowsBuildOrLater(uint32_t aBuild)
-  {
-    static uint32_t minBuild = 0;
-    static uint32_t maxBuild = UINT32_MAX;
-
-    if (minBuild >= aBuild) {
-      return true;
-    }
-
-    if (aBuild >= maxBuild) {
-      return false;
-    }
-
-    OSVERSIONINFOEX info;
-    ZeroMemory(&info, sizeof(OSVERSIONINFOEX));
-    info.dwOSVersionInfoSize = sizeof(OSVERSIONINFOEX);
-    info.dwBuildNumber = aBuild;
-
-    DWORDLONG conditionMask = 0;
-    VER_SET_CONDITION(conditionMask, VER_BUILDNUMBER, VER_GREATER_EQUAL);
-
-    if (VerifyVersionInfo(&info, VER_BUILDNUMBER, conditionMask)) {
-      minBuild = aBuild;
-      return true;
-    }
-
-    maxBuild = aBuild;
-    return false;
-  }
-
   MOZ_ALWAYS_INLINE bool
   IsXPSP3OrLater()
-  { return IsWindowsVersionOrLater(0x05010300ul); }
+  { return IsWindowsVersionOrLater(0x0005000100030000ull); }
 
   MOZ_ALWAYS_INLINE bool
   IsWin2003OrLater()
-  { return IsWindowsVersionOrLater(0x05020000ul); }
+  { return IsWindowsVersionOrLater(0x0005000200000000ull); }
 
   MOZ_ALWAYS_INLINE bool
   IsWin2003SP2OrLater()
-  { return IsWindowsVersionOrLater(0x05020200ul); }
+  { return IsWindowsVersionOrLater(0x0005000200020000ull); }
 
   MOZ_ALWAYS_INLINE bool
   IsVistaOrLater()
-  { return IsWindowsVersionOrLater(0x06000000ul); }
+  { return IsWindowsVersionOrLater(0x0006000000000000ull); }
 
   MOZ_ALWAYS_INLINE bool
   IsVistaSP1OrLater()
-  { return IsWindowsVersionOrLater(0x06000100ul); }
+  { return IsWindowsVersionOrLater(0x0006000000010000ull); }
 
   MOZ_ALWAYS_INLINE bool
   IsWin7OrLater()
-  { return IsWindowsVersionOrLater(0x06010000ul); }
+  { return IsWindowsVersionOrLater(0x0006000100000000ull); }
 
   MOZ_ALWAYS_INLINE bool
   IsWin7SP1OrLater()
-  { return IsWindowsVersionOrLater(0x06010100ul); }
+  { return IsWindowsVersionOrLater(0x0006000100010000ull); }
 
   MOZ_ALWAYS_INLINE bool
   IsWin8OrLater()
-  { return IsWindowsVersionOrLater(0x06020000ul); }
-
-  MOZ_ALWAYS_INLINE bool
-  IsNotWin7PreRTM()
-  {
-    return IsWin7SP1OrLater() || !IsWin7OrLater() ||
-           IsWindowsBuildOrLater(7600);
-  }
+  { return IsWindowsVersionOrLater(0x0006000200000000ull); }
 }
 
 #endif /* mozilla_WindowsVersion_h */

@@ -26,7 +26,7 @@ CA_full_ku = ("keyUsage = digitalSignature, nonRepudiation, keyEncipherment, " +
               "dataEncipherment, keyAgreement, keyCertSign, cRLSign\n")
 
 CA_eku = ("extendedKeyUsage = critical, serverAuth, clientAuth, " +
-          "emailProtection, codeSigning\n")
+          "emailProtection, codeSigning, 1.3.6.1.5.5.7.3.9\n")
 
 authority_key_ident = "authorityKeyIdentifier = keyid, issuer\n"
 subject_key_ident = "subjectKeyIdentifier = hash\n"

@@ -232,10 +232,6 @@ class nsIScriptTimeoutHandler;
 #endif // check
 #include "AccessCheck.h"
 
-#ifdef ANDROID
-#include <android/log.h>
-#endif
-
 #ifdef PR_LOGGING
 static PRLogModuleInfo* gDOMLeakPRLog;
 #endif
@@ -5813,31 +5809,7 @@ nsGlobalWindow::Dump(const nsAString& aStr)
     return NS_OK;
   }
 
-  char *cstr = ToNewUTF8String(aStr);
-
-#if defined(XP_MACOSX)
-  // have to convert \r to \n so that printing to the console works
-  char *c = cstr, *cEnd = cstr + strlen(cstr);
-  while (c < cEnd) {
-    if (*c == '\r')
-      *c = '\n';
-    c++;
-  }
-#endif
-
-  if (cstr) {
-#ifdef XP_WIN
-    PrintToDebugger(cstr);
-#endif
-#ifdef ANDROID
-    __android_log_write(ANDROID_LOG_INFO, "GeckoDump", cstr);
-#endif
-    FILE *fp = gDumpFile ? gDumpFile : stdout;
-    fputs(cstr, fp);
-    fflush(fp);
-    nsMemory::Free(cstr);
-  }
-
+  PrintToDebugger(aStr, gDumpFile ? gDumpFile : stdout);
   return NS_OK;
 }
 
@@ -7940,13 +7912,9 @@ nsGlobalWindow::PostMessageMoz(JSContext* aCx, JS::Handle<JS::Value> aMessage,
   JS::Rooted<JS::Value> transferArray(aCx, JS::UndefinedValue());
   if (aTransfer.WasPassed()) {
     const Sequence<JS::Value >& values = aTransfer.Value();
-
-    // The input sequence only comes from the generated bindings code, which
-    // ensures it is rooted.
-    JS::HandleValueArray elements =
-      JS::HandleValueArray::fromMarkedLocation(values.Length(), values.Elements());
-
-    transferArray = JS::ObjectOrNullValue(JS_NewArrayObject(aCx, elements));
+    transferArray = JS::ObjectOrNullValue(JS_NewArrayObject(aCx,
+                                                            values.Length(),
+                                                            const_cast<JS::Value*>(values.Elements())));
     if (transferArray.isNull()) {
       aError.Throw(NS_ERROR_OUT_OF_MEMORY);
       return;
