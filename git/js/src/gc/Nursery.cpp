@@ -5,6 +5,8 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this file,
  * You can obtain one at http://mozilla.org/MPL/2.0/. */
 
+#ifdef JSGC_GENERATIONAL
+
 #include "gc/Nursery-inl.h"
 
 #include "mozilla/IntegerPrintfMacros.h"
@@ -976,3 +978,5 @@ js::Nursery::shrinkAllocableSpace()
     numActiveChunks_ = Max(numActiveChunks_ - 1, 1);
     updateDecommittedRegion();
 }
+
+#endif /* JSGC_GENERATIONAL */

@@ -223,7 +223,7 @@ loop.conversation = (function(mozL10n) {
    * At the moment, it does more than that, these parts need refactoring out.
    */
   var IncomingConversationView = React.createClass({displayName: 'IncomingConversationView',
-    mixins: [sharedMixins.AudioMixin, sharedMixins.WindowCloseMixin],
+    mixins: [sharedMixins.AudioMixin],
 
     propTypes: {
       client: React.PropTypes.instanceOf(loop.Client).isRequired,
@@ -315,7 +315,7 @@ loop.conversation = (function(mozL10n) {
           );
         }
         case "close": {
-          this.closeWindow();
+          window.close();
           return (React.DOM.div(null));
         }
       }
@@ -459,6 +459,10 @@ loop.conversation = (function(mozL10n) {
       setTimeout(this.closeWindow, 0);
     },
 
+    closeWindow: function() {
+      window.close();
+    },
+
     /**
      * Accepts an incoming call.
      */
@@ -537,7 +541,7 @@ loop.conversation = (function(mozL10n) {
    * in progress, and hence, which view to display.
    */
   var AppControllerView = React.createClass({displayName: 'AppControllerView',
-    mixins: [Backbone.Events, sharedMixins.WindowCloseMixin],
+    mixins: [Backbone.Events],
 
     propTypes: {
       // XXX Old types required for incoming call view.
@@ -569,6 +573,10 @@ loop.conversation = (function(mozL10n) {
 
     componentWillUnmount: function() {
       this.stopListening(this.props.conversationAppStore);
+    },
+
+    closeWindow: function() {
+      window.close();
     },
 
     render: function() {

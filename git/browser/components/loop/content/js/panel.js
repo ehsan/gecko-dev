@@ -595,8 +595,6 @@ loop.panel = (function(_, mozL10n) {
       room:       React.PropTypes.instanceOf(loop.store.Room).isRequired
     },
 
-    mixins: [loop.shared.mixins.WindowCloseMixin],
-
     getInitialState: function() {
       return { urlCopied: false };
     },
@@ -611,7 +609,6 @@ loop.panel = (function(_, mozL10n) {
       this.props.dispatcher.dispatch(new sharedActions.OpenRoom({
         roomToken: this.props.room.roomToken
       }));
-      this.closeWindow();
     },
 
     handleCopyButtonClick: function(event) {

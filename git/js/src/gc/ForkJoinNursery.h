@@ -10,6 +10,10 @@
 
 #ifdef JSGC_FJGENERATIONAL
 
+#ifndef JSGC_GENERATIONAL
+#error "JSGC_GENERATIONAL is required for the ForkJoinNursery"
+#endif
+
 #include "jsalloc.h"
 #include "jspubtd.h"
 

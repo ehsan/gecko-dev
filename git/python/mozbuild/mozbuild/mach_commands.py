@@ -893,8 +893,6 @@ class RunProgram(MachCommandBase):
     @CommandArgumentGroup('DMD')
     @CommandArgument('--dmd', action='store_true', group='DMD',
         help='Enable DMD. The following arguments have no effect without this.')
-    @CommandArgument('--mode', choices=['live', 'dark-matter', 'cumulative'], group='DMD',
-         help='Profiling mode. The default is \'dark-matter\'.')
     @CommandArgument('--sample-below', default=None, type=str, group='DMD',
         help='Sample blocks smaller than this. Use 1 for no sampling. The default is 4093.')
     @CommandArgument('--max-frames', default=None, type=str, group='DMD',
@@ -902,7 +900,7 @@ class RunProgram(MachCommandBase):
     @CommandArgument('--show-dump-stats', action='store_true', group='DMD',
         help='Show stats when doing dumps.')
     def run(self, params, remote, background, noprofile, debug, debugger,
-        debugparams, slowscript, dmd, mode, sample_below, max_frames,
+        debugparams, slowscript, dmd, sample_below, max_frames,
         show_dump_stats):
 
         try:
@@ -969,8 +967,6 @@ class RunProgram(MachCommandBase):
         if dmd:
             dmd_params = []
 
-            if mode:
-                dmd_params.append('--mode=' + mode)
             if sample_below:
                 dmd_params.append('--sample-below=' + sample_below)
             if max_frames:

@@ -12,7 +12,6 @@ import java.util.Locale;
 import java.util.Map;
 
 import android.os.Build;
-
 import org.json.JSONObject;
 import org.mozilla.gecko.AppConstants;
 import org.mozilla.gecko.AppConstants.Versions;
@@ -28,7 +27,6 @@ import org.mozilla.gecko.GeckoProfile;
 import org.mozilla.gecko.GeckoSharedPrefs;
 import org.mozilla.gecko.GuestSession;
 import org.mozilla.gecko.LocaleManager;
-import org.mozilla.gecko.Locales;
 import org.mozilla.gecko.NewTabletUI;
 import org.mozilla.gecko.PrefsHelper;
 import org.mozilla.gecko.R;
@@ -1016,7 +1014,7 @@ OnSharedPreferenceChangeListener
     @Override
     public void onSharedPreferenceChanged(SharedPreferences sharedPreferences, String key) {
         if (PREFS_BROWSER_LOCALE.equals(key)) {
-            onLocaleSelected(Locales.getLanguageTag(lastLocale),
+            onLocaleSelected(BrowserLocaleManager.getLanguageTag(lastLocale),
                              sharedPreferences.getString(key, null));
         } else if (PREFS_SUGGESTED_SITES.equals(key)) {
             refreshSuggestedSites();
@@ -1056,7 +1054,7 @@ OnSharedPreferenceChangeListener
         if (PREFS_BROWSER_LOCALE.equals(prefName)) {
             // Even though this is a list preference, we don't want to handle it
             // below, so we return here.
-            return onLocaleSelected(Locales.getLanguageTag(lastLocale), (String) newValue);
+            return onLocaleSelected(BrowserLocaleManager.getLanguageTag(lastLocale), (String) newValue);
         }
 
         if (PREFS_MENU_CHAR_ENCODING.equals(prefName)) {

@@ -596,30 +596,13 @@ this.Utils = {
    * reset when we drop sync credentials, etc.
    */
   getSyncCredentialsHosts: function() {
-    let result = new Set(this.getSyncCredentialsHostsLegacy());
-    for (let host of this.getSyncCredentialsHostsFxA()) {
-      result.add(host);
-    }
-    return result;
-  },
-
-  /*
-   * Get the "legacy" identity hosts.
-   */
-  getSyncCredentialsHostsLegacy: function() {
-    // the legacy sync host
-    return new Set([PWDMGR_HOST]);
-  },
-
-  /*
-   * Get the FxA identity hosts.
-   */
-  getSyncCredentialsHostsFxA: function() {
     // This is somewhat expensive and the result static, so we cache the result.
-    if (this._syncCredentialsHostsFxA) {
-      return this._syncCredentialsHostsFxA;
+    if (this._syncCredentialsHosts) {
+      return this._syncCredentialsHosts;
     }
     let result = new Set();
+    // the legacy sync host
+    result.add(PWDMGR_HOST);
     // the FxA host
     result.add(FxAccountsCommon.FXA_PWDMGR_HOST);
     //
@@ -638,7 +621,7 @@ this.Utils = {
       let uri = Services.io.newURI(prefVal, null, null);
       result.add(uri.prePath);
     }
-    return this._syncCredentialsHostsFxA = result;
+    return this._syncCredentialsHosts = result;
   },
 };
 

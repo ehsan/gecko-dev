@@ -13,7 +13,7 @@ var sharedUtils = loop.shared.utils;
 describe("loop.panel", function() {
   "use strict";
 
-  var sandbox, notifications, fakeXHR, fakeWindow, requests = [];
+  var sandbox, notifications, fakeXHR, requests = [];
 
   beforeEach(function(done) {
     sandbox = sinon.sandbox.create();
@@ -22,14 +22,7 @@ describe("loop.panel", function() {
     // https://github.com/cjohansen/Sinon.JS/issues/393
     fakeXHR.xhr.onCreate = function (xhr) {
       requests.push(xhr);
-    }
-
-    fakeWindow = {
-      close: sandbox.stub(),
-      document: { addEventListener: function(){} }
     };
-    loop.shared.mixins.setRootObject(fakeWindow);
-
     notifications = new loop.shared.models.NotificationCollection();
 
     navigator.mozLoop = {
@@ -72,7 +65,6 @@ describe("loop.panel", function() {
 
   afterEach(function() {
     delete navigator.mozLoop;
-    loop.shared.mixins.setRootObject(window);
     sandbox.restore();
   });
 
@@ -848,31 +840,21 @@ describe("loop.panel", function() {
     });
 
     describe("Room URL click", function() {
+      var roomEntry;
 
-      var roomEntry, urlLink;
-
-      beforeEach(function() {
+      it("should dispatch an OpenRoom action", function() {
         sandbox.stub(dispatcher, "dispatch");
-
         roomEntry = mountRoomEntry({
           dispatcher: dispatcher,
           room: new loop.store.Room(roomData)
         });
-        urlLink = roomEntry.getDOMNode().querySelector("p > a");
-      });
+        var urlLink = roomEntry.getDOMNode().querySelector("p > a");
 
-      it("should dispatch an OpenRoom action", function() {
         TestUtils.Simulate.click(urlLink);
 
         sinon.assert.calledOnce(dispatcher.dispatch);
         sinon.assert.calledWithExactly(dispatcher.dispatch,
           new sharedActions.OpenRoom({roomToken: roomData.roomToken}));
-      });
-
-      it("should call window.close", function() {
-        TestUtils.Simulate.click(urlLink);
-
-        sinon.assert.calledOnce(fakeWindow.close);
       });
     });
 

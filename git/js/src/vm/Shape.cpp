@@ -1590,6 +1590,8 @@ InitialShapeEntry::match(const InitialShapeEntry &key, const Lookup &lookup)
         && lookup.baseFlags == shape->getObjectFlags();
 }
 
+#ifdef JSGC_GENERATIONAL
+
 /*
  * This class is used to add a post barrier on the initialShapes set, as the key
  * is calculated based on several objects which may be moved by generational GC.
@@ -1653,6 +1655,8 @@ class InitialShapeSetRef : public BufferableRef
                      *p);
     }
 };
+
+#endif // JSGC_GENERATIONAL
 
 #ifdef JSGC_HASH_TABLE_CHECKS
 
@@ -1741,7 +1745,7 @@ EmptyShape::getInitialShape(ExclusiveContext *cx, const Class *clasp, TaggedProt
     if (!p.add(cx, table, lookup, InitialShapeEntry(ReadBarrieredShape(shape), protoRoot)))
         return nullptr;
 
-    // Post-barrier for the initial shape table update.
+#ifdef JSGC_GENERATIONAL
     if (cx->isJSContext()) {
         if ((protoRoot.isObject() && IsInsideNursery(protoRoot.toObject())) ||
             IsInsideNursery(parentRoot.get()) ||
@@ -1752,6 +1756,7 @@ EmptyShape::getInitialShape(ExclusiveContext *cx, const Class *clasp, TaggedProt
             cx->asJSContext()->runtime()->gc.storeBuffer.putGeneric(ref);
         }
     }
+#endif
 
     return shape;
 }

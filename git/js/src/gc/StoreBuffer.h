@@ -7,6 +7,8 @@
 #ifndef gc_StoreBuffer_h
 #define gc_StoreBuffer_h
 
+#ifdef JSGC_GENERATIONAL
+
 #include "mozilla/Attributes.h"
 #include "mozilla/DebugOnly.h"
 #include "mozilla/ReentrancyGuard.h"
@@ -500,5 +502,7 @@ class StoreBuffer
 
 } /* namespace gc */
 } /* namespace js */
+
+#endif /* JSGC_GENERATIONAL */
 
 #endif /* gc_StoreBuffer_h */

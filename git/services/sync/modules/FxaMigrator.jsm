@@ -249,7 +249,11 @@ Migrator.prototype = {
       verified: signedInUser.verified,
       prefs: this._getSentinelPrefs(),
     };
-    yield Weave.Service.setFxAMigrationSentinel(sentinel);
+    if (Weave.Service.setFxaMigrationSentinel) {
+      yield Weave.Service.setFxaMigrationSentinel(sentinel);
+    } else {
+      this.log.warn("Waiting on bug 1017433; no sync sentinel");
+    }
   }),
 
   /* Ask sync to upload the migration sentinal if we (or any other linked device)
@@ -265,7 +269,11 @@ Migrator.prototype = {
   /* Ask sync to return a migration sentinel if one exists, otherwise return null */
   _getSyncMigrationSentinel: Task.async(function* () {
     yield WeaveService.whenLoaded();
-    let sentinel = yield Weave.Service.getFxAMigrationSentinel();
+    if (!Weave.Service.getFxaMigrationSentinel) {
+      this.log.warn("Waiting on bug 1017433; no sync sentinel");
+      return null;
+    }
+    let sentinel = yield Weave.Service.getFxaMigrationSentinel();
     this.log.debug("got migration sentinel ${}", sentinel);
     return sentinel;
   }),
@@ -293,11 +301,19 @@ Migrator.prototype = {
 
   // Prevent sync from automatically starting
   _blockSync() {
-    Weave.Service.scheduler.blockSync();
+    if (Weave.Service.scheduler.blockSync) {
+      Weave.Service.scheduler.blockSync();
+    } else {
+      this.log.warn("Waiting on bug 1019408; sync not blocked");
+    }
   },
 
   _unblockSync() {
-    Weave.Service.scheduler.unblockSync();
+    if (Weave.Service.scheduler.unblockSync) {
+      Weave.Service.scheduler.unblockSync();
+    } else {
+      this.log.warn("Waiting on bug 1019408; sync not unblocked");
+    }
   },
 
   /*

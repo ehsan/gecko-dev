@@ -75,6 +75,7 @@ template <> struct MapTypeToFinalizeKind<JSExternalString>  { static const Alloc
 template <> struct MapTypeToFinalizeKind<JS::Symbol>        { static const AllocKind kind = FINALIZE_SYMBOL; };
 template <> struct MapTypeToFinalizeKind<jit::JitCode>      { static const AllocKind kind = FINALIZE_JITCODE; };
 
+#if defined(JSGC_GENERATIONAL) || defined(DEBUG)
 static inline bool
 IsNurseryAllocable(AllocKind kind)
 {
@@ -107,6 +108,7 @@ IsNurseryAllocable(AllocKind kind)
     JS_STATIC_ASSERT(JS_ARRAY_LENGTH(map) == FINALIZE_LIMIT);
     return map[kind];
 }
+#endif
 
 #if defined(JSGC_FJGENERATIONAL)
 // This is separate from IsNurseryAllocable() so that the latter can evolve
@@ -1218,6 +1220,8 @@ namespace gc {
 void
 MergeCompartments(JSCompartment *source, JSCompartment *target);
 
+#if defined(JSGC_GENERATIONAL) || defined(JSGC_COMPACTING)
+
 /*
  * This structure overlays a Cell in the Nursery and re-purposes its memory
  * for managing the Nursery collection process.
@@ -1324,6 +1328,14 @@ MaybeForwarded(T t)
 {
     return IsForwarded(t) ? Forwarded(t) : t;
 }
+
+#else
+
+template <typename T> inline bool IsForwarded(T t) { return false; }
+template <typename T> inline T Forwarded(T t) { return t; }
+template <typename T> inline T MaybeForwarded(T t) { return t; }
+
+#endif // JSGC_GENERATIONAL || JSGC_COMPACTING
 
 #ifdef JSGC_HASH_TABLE_CHECKS
 
