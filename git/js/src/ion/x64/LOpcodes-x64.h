@@ -46,8 +46,7 @@
     _(Box)                          \
     _(Unbox)                        \
     _(UnboxDouble)                  \
-    _(DivI)                         \
-    _(ModI)
+    _(DivI)
 
 #endif // jsion_lir_opcodes_x64_h__
 

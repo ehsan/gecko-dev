@@ -185,6 +185,7 @@ class VFPRegister
     {
         JS_ASSERT(_code == (unsigned)fr.code());
     }
+
     bool isDouble() { return kind == Double; }
     bool isSingle() { return kind == Single; }
     bool isFloat() { return (kind == Double) || (kind == Single); }

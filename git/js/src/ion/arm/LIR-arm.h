@@ -83,10 +83,6 @@ class LUnbox : public LInstructionHelper<1, 2, 0>
     MUnbox *mir() const {
         return mir_->toUnbox();
     }
-    const LAllocation *type() {
-        return getOperand(1);
-    }
-
 };
 
 class LUnboxDouble : public LInstructionHelper<1, 2, 0>

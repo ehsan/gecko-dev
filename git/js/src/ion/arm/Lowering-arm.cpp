@@ -284,13 +284,6 @@ LIRGeneratorARM::lowerDivI(MDiv *div)
 }
 
 bool
-LIRGeneratorARM::lowerModI(MMod *mod)
-{
-    JS_NOT_REACHED("NYI: LModI");
-    return false;
-}
-
-bool
 LIRGeneratorARM::visitTableSwitch(MTableSwitch *tableswitch)
 {
     MDefinition *opd = tableswitch->getOperand(0);

@@ -49,6 +49,7 @@ MoveEmitterARM::MoveEmitterARM(MacroAssemblerARMCompat &masm)
     masm(masm),
     pushedAtCycle_(-1),
     pushedAtSpill_(-1),
+    pushedAtDoubleSpill_(-1),
     spilledReg_(InvalidReg),
     spilledFloatReg_(InvalidFloatReg)
 {
@@ -87,6 +88,19 @@ MoveEmitterARM::spillSlot() const
 {
     int offset =  masm.framePushed() - pushedAtSpill_;
     JS_ASSERT(offset < 4096 && offset > -4096);
+    return Operand(StackPointer, offset);
+}
+
+Operand
+MoveEmitterARM::doubleSpillSlot() const
+{
+    int offset =  masm.framePushed() - pushedAtCycle_;
+    JS_ASSERT(offset < 4096 && offset > -4096);
+    // NOTE: this isn't correct.  Since we're spilling a double
+    // we will need to use vldr.  vldr has a restricted range
+    // in general, this single operand will be wrong, since
+    // there are only a few offsets that can be encoded in a single
+    // instruction.
     return Operand(StackPointer, offset);
 }
 
@@ -135,6 +149,23 @@ MoveEmitterARM::tempReg()
     return spilledReg_;
 }
 
+FloatRegister
+MoveEmitterARM::tempFloatReg()
+{
+    if (spilledFloatReg_ != InvalidFloatReg) {
+        return spilledFloatReg_;
+    }
+    // For now, just pick d7 as the eviction point. This is totally random,
+    // and if it ends up being bad, we can use actual heuristics later.
+    spilledFloatReg_ = FloatRegister::FromCode(7);
+    if (pushedAtDoubleSpill_ == -1) {
+        masm.reserveStack(sizeof(double));
+        pushedAtDoubleSpill_ = masm.framePushed();
+    }
+    masm.ma_vstr(spilledFloatReg_, doubleSpillSlot());
+    return spilledFloatReg_;
+}
+
 void
 MoveEmitterARM::breakCycle(const MoveOperand &from, const MoveOperand &to, Move::Kind kind)
 {
@@ -146,7 +177,7 @@ MoveEmitterARM::breakCycle(const MoveOperand &from, const MoveOperand &to, Move:
     // the original move to continue.
     if (kind == Move::DOUBLE) {
         if (to.isMemory()) {
-            FloatRegister temp = ScratchFloatReg;
+            FloatRegister temp = tempFloatReg();
             masm.ma_vldr(toOperand(to, true), temp);
             masm.ma_vstr(temp, cycleSlot());
         } else {
@@ -175,7 +206,7 @@ MoveEmitterARM::completeCycle(const MoveOperand &from, const MoveOperand &to, Mo
     // saved value of B, to A.
     if (kind == Move::DOUBLE) {
         if (to.isMemory()) {
-            FloatRegister temp = ScratchFloatReg;
+            FloatRegister temp = tempFloatReg();
             masm.ma_vldr(cycleSlot(), temp);
             masm.ma_vstr(temp, toOperand(to, true));
         } else {
@@ -235,13 +266,24 @@ MoveEmitterARM::emitDoubleMove(const MoveOperand &from, const MoveOperand &to)
         if (to.isFloatReg()) {
             masm.ma_vmov(from.floatReg(), to.floatReg());
         } else {
+            if (from.floatReg() == spilledFloatReg_) {
+                // If the source is a register that has been spilled, make
+                // sure to load the source back into that register.
+                masm.ma_vldr(doubleSpillSlot(), spilledFloatReg_);
+                spilledFloatReg_ = InvalidFloatReg;
+            }
             masm.ma_vstr(from.floatReg(), toOperand(to, true));
         }
     } else if (to.isFloatReg()) {
+        if (to.floatReg() == spilledFloatReg_) {
+            // If the destination is the spilled register, make sure we
+            // don't re-clobber its value.
+            spilledFloatReg_ = InvalidFloatReg;
+        }
         masm.ma_vldr(toOperand(from, true), to.floatReg());
     } else {
         // Memory to memory float move.
-        FloatRegister reg = ScratchFloatReg;
+        FloatRegister reg = tempFloatReg();
         masm.ma_vldr(toOperand(from, true), reg);
         masm.ma_vstr(reg, toOperand(to, true));
     }
@@ -281,6 +323,9 @@ MoveEmitterARM::finish()
 {
     assertDone();
 
+    if (pushedAtDoubleSpill_ != -1 && spilledFloatReg_ != InvalidFloatReg) {
+        masm.ma_vldr(doubleSpillSlot(), spilledFloatReg_);
+    }
     if (pushedAtSpill_ != -1 && spilledReg_ != InvalidReg) {
         masm.ma_ldr(spillSlot(), spilledReg_);
     }

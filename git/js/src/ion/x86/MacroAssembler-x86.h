@@ -176,9 +176,6 @@ class MacroAssemblerX86 : public MacroAssemblerX86Shared
     void movePtr(Operand op, const Register &dest) {
         movl(op, dest);
     }
-    void movePtr(const Address &src, const Register &dest) {
-        movl(Operand(src), dest);
-    }
 
     // Returns the register containing the type tag.
     Register splitTagForTest(const ValueOperand &value) {

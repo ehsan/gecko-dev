@@ -258,9 +258,6 @@ class MacroAssemblerARM : public Assembler
     void ma_pop(Register r);
     void ma_push(Register r);
 
-    void ma_vpop(VFPRegister r);
-    void ma_vpush(VFPRegister r);
-
     // branches when done from within arm-specific code
     void ma_b(Label *dest, Condition c = Always);
 
@@ -334,9 +331,7 @@ class MacroAssemblerARMCompat : public MacroAssemblerARM
     // by functions which track stack alignment, which for clear distinction
     // use StudlyCaps (for example, Push, Pop).
     uint32 framePushed_;
-    void adjustFrame(int value) {
-        setFramePushed(framePushed_ + value);
-    }
+
   public:
     typedef MoveResolver::MoveOperand MoveOperand;
     typedef MoveResolver::Move Move;
@@ -442,7 +437,6 @@ class MacroAssemblerARMCompat : public MacroAssemblerARM
     Condition testUndefined(Condition cond, const Register &tag);
     Condition testString(Condition cond, const Register &tag);
     Condition testObject(Condition cond, const Register &tag);
-    Condition testNumber(Condition cond, const Register &tag);
 
     // unboxing code
     void unboxInt32(const ValueOperand &operand, const Register &dest);
@@ -510,8 +504,7 @@ class MacroAssemblerARMCompat : public MacroAssemblerARM
 
     template <typename T>
     void branchTestNumber(Condition cond, const T &t, Label *label) {
-        cond = testNumber(cond, t);
-        ma_b(label, cond);
+        JS_NOT_REACHED("feature NYI");
     }
 
     template<typename T>
@@ -570,10 +563,10 @@ class MacroAssemblerARMCompat : public MacroAssemblerARM
     }
 
     void loadDouble(Address addr, FloatRegister dest) {
-        ma_vldr(Operand(addr), dest);
+        JS_NOT_REACHED("NYI");
     }
     void storeDouble(FloatRegister src, Address addr) {
-        ma_vstr(src, Operand(addr));
+        JS_NOT_REACHED("NYI");
     }
 
     void linkExitFrame();
@@ -586,22 +579,22 @@ class MacroAssemblerARMCompat : public MacroAssemblerARM
     // The following functions are exposed for use in platform-shared code.
     void Push(const Register &reg) {
         ma_push(reg);
-        adjustFrame(STACK_SLOT_SIZE);
+        framePushed_ += STACK_SLOT_SIZE;
     }
     void Push(const Imm32 imm) {
         push(imm);
-        adjustFrame(STACK_SLOT_SIZE);
+        framePushed_ += STACK_SLOT_SIZE;
     }
     void Push(const ImmGCPtr ptr) {
         push(ptr);
-        adjustFrame(STACK_SLOT_SIZE);
+        framePushed_ += STACK_SLOT_SIZE;
     }
     void Pop(const Register &reg) {
         ma_pop(reg);
-        adjustFrame(-STACK_SLOT_SIZE);
+        framePushed_ -= STACK_SLOT_SIZE;
     }
     void implicitPop(uint32 args) {
-        adjustFrame(-args * STACK_SLOT_SIZE);
+        framePushed_ -= args * STACK_SLOT_SIZE;
     }
     uint32 framePushed() const {
         return framePushed_;
@@ -612,35 +605,22 @@ class MacroAssemblerARMCompat : public MacroAssemblerARM
 
     void callWithExitFrame(IonCode *target);
 
-    // Makes an Ion call using the only two methods that it is sane for
-    // indep code to make a call
-    void callIon(const Register &callee);
-
     void reserveStack(uint32 amount);
     void freeStack(uint32 amount);
 
     void move32(const Imm32 &imm, const Register &dest);
-    void move32(const Address &src, const Register &dest);
-    void movePtr(const ImmWord &imm, const Register &dest);
-    void movePtr(const ImmGCPtr &imm, const Register &dest);
-    void movePtr(const Address &src, const Register &dest);
-
-    void load32(const Address &address, const Register &dest);
-    void loadPtr(const Address &address, const Register &dest);
-    void loadPtr(const ImmWord &imm, const Register &dest);
-
+    void movePtr(ImmWord imm, const Register dest);
+    void movePtr(ImmGCPtr imm, const Register dest);
+    void load32(const Address &address, Register dest);
+    void loadPtr(const Address &address, Register dest);
+    void loadPtr(const ImmWord &imm, Register dest);
     void storePtr(Register src, const Address &address);
-
-    void cmp32(const Register &lhs, const Imm32 &rhs);
-    void cmpPtr(const Register &lhs, const ImmWord &rhs);
+    void setStackArg(const Register &reg, uint32 arg);
 
     void subPtr(Imm32 imm, const Register dest);
     void addPtr(Imm32 imm, const Register dest);
 
-    void setStackArg(const Register &reg, uint32 arg);
-
     void breakpoint();
-
     Condition compareDoubles(JSOp compare, FloatRegister lhs, FloatRegister rhs);
     void checkStackAlignment();
 

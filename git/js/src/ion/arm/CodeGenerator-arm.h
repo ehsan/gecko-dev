@@ -163,6 +163,8 @@ private:
     bool visitOsrValue(LOsrValue *value);
     bool visitDouble(LDouble *ins);
 
+    bool visitCallGeneric(LCallGeneric *call);
+
     bool visitLoadSlotV(LLoadSlotV *load);
     bool visitLoadSlotT(LLoadSlotT *load);
     bool visitStoreSlotT(LStoreSlotT *load);
