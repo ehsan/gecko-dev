@@ -62,7 +62,6 @@
 // defined in nsChildView.mm
 extern nsIRollupListener * gRollupListener;
 extern nsIWidget         * gRollupWidget;
-extern PRUint32          gLastModifierState;
 
 // defined in nsCocoaWindow.mm
 extern PRInt32             gXULModalLevel;
@@ -817,10 +816,6 @@ nsAppShell::AfterProcessNextEvent(nsIThreadInternal *aThread,
                                              selector:@selector(applicationWillTerminate:)
                                                  name:NSApplicationWillTerminateNotification
                                                object:NSApp];
-    [[NSNotificationCenter defaultCenter] addObserver:self
-                                             selector:@selector(applicationDidBecomeActive:)
-                                                 name:NSApplicationDidBecomeActiveNotification
-                                               object:NSApp];
     [[NSDistributedNotificationCenter defaultCenter] addObserver:self
                                                         selector:@selector(beginMenuTracking:)
                                                             name:@"com.apple.HIToolbox.beginMenuTrackingNotification"
@@ -851,25 +846,6 @@ nsAppShell::AfterProcessNextEvent(nsIThreadInternal *aThread,
   NS_OBJC_BEGIN_TRY_ABORT_BLOCK;
 
   mAppShell->WillTerminate();
-
-  NS_OBJC_END_TRY_ABORT_BLOCK;
-}
-
-// applicationDidBecomeActive
-//
-// Make sure gLastModifierState is updated when we become active (since we
-// won't have received [ChildView flagsChanged:] messages while inactive).
-- (void)applicationDidBecomeActive:(NSNotification*)aNotification
-{
-  NS_OBJC_BEGIN_TRY_ABORT_BLOCK;
-
-  // [NSEvent modifierFlags] is valid on every kind of event, so we don't need
-  // to worry about getting an NSInternalInconsistencyException here.
-  NSEvent* currentEvent = [NSApp currentEvent];
-  if (currentEvent) {
-    gLastModifierState =
-      nsCocoaUtils::GetCocoaEventModifierFlags(currentEvent) & NSDeviceIndependentModifierFlagsMask;
-  }
 
   NS_OBJC_END_TRY_ABORT_BLOCK;
 }

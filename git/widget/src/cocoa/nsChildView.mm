@@ -136,8 +136,6 @@ static void blinkRgn(RgnHandle rgn);
 nsIRollupListener * gRollupListener = nsnull;
 nsIWidget         * gRollupWidget   = nsnull;
 
-PRUint32 gLastModifierState = 0;
-
 
 @interface ChildView(Private)
 
@@ -6023,7 +6021,10 @@ static BOOL keyUpAlreadySentKeyDown = NO;
 
   // CapsLock state and other modifier states are different:
   // CapsLock state does not revert when the CapsLock key goes up, as the
-  // modifier state does for other modifier keys on key up.
+  // modifier state does for other modifier keys on key up. Also,
+  // mLastModifierState is set only when this view is the first responder. We
+  // cannot trust mLastModifierState to accurately reflect the state of CapsLock
+  // since CapsLock maybe have been toggled when another window was active.
   if ([theEvent keyCode] == kCapsLockKeyCode) {
     // Fire key down event for caps lock.
     [self fireKeyEventForFlagsChanged:theEvent keyDown:YES];
@@ -6042,7 +6043,7 @@ static BOOL keyUpAlreadySentKeyDown = NO;
 
     for (PRUint32 i = 0; i < kModifierCount; i++) {
       PRUint32 modifierBit = kModifierMaskTable[i];
-      if ((modifiers & modifierBit) != (gLastModifierState & modifierBit)) {
+      if ((modifiers & modifierBit) != (mLastModifierState & modifierBit)) {
         BOOL isKeyDown = (modifiers & modifierBit) != 0 ? YES : NO;
 
         [self fireKeyEventForFlagsChanged:theEvent keyDown:isKeyDown];
@@ -6057,7 +6058,7 @@ static BOOL keyUpAlreadySentKeyDown = NO;
       }
     }
 
-    gLastModifierState = modifiers;
+    mLastModifierState = modifiers;
   }
 
   // check if the hand scroll cursor needs to be set/unset
