@@ -68,6 +68,8 @@
 #include "jsstr.h"
 #include "jsvector.h"
 
+#include <algorithm>
+
 #ifdef JS_TRACER
 #include "jstracer.h"
 using namespace avmplus;
@@ -2075,9 +2077,7 @@ class CharSet {
   public:
     CharSet() : charEnd(charBuf), classes(0) {}
 
-    static const uintN sBufSize = 8;
-
-    bool full() { return charEnd == charBuf + sBufSize; }
+    bool full() { return charEnd == charBuf + BufSize; }
 
     /* Add a single char to the set. */
     bool addChar(jschar c)
@@ -2110,7 +2110,8 @@ class CharSet {
   private:
     static bool disjoint(const jschar *beg, const jschar *end, uintN classes);
 
-    mutable jschar charBuf[sBufSize];
+    static const uintN BufSize = 8;
+    mutable jschar charBuf[BufSize];
     jschar *charEnd;
     uintN classes;
 };
@@ -2180,14 +2181,6 @@ set_disjoint(InputIterator1 p1, InputIterator1 end1,
     return false;
 }
 
-static JSBool
-CharCmp(void *arg, const void *a, const void *b, int *result)
-{
-    jschar ca = *(jschar *)a, cb = *(jschar *)b;
-    *result = ca - cb;
-    return JS_TRUE;
-}
-
 bool
 CharSet::disjoint(const CharSet &other) const
 {
@@ -2204,11 +2197,8 @@ CharSet::disjoint(const CharSet &other) const
         return false;
 
     /* Check char-char overlap. */
-    jschar tmp[CharSet::sBufSize];
-    js_MergeSort(charBuf, charEnd - charBuf, sizeof(jschar),
-                 CharCmp, 0, tmp);
-    js_MergeSort(other.charBuf, other.charEnd - other.charBuf, sizeof(jschar),
-                 CharCmp, 0, tmp);
+    std::sort(charBuf, charEnd);
+    std::sort(other.charBuf, other.charEnd);
     return set_disjoint(charBuf, charEnd, other.charBuf, other.charEnd);
 }
 
