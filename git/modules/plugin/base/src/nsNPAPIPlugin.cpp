@@ -224,6 +224,7 @@ nsNPAPIPlugin::nsNPAPIPlugin(NPPluginFuncs* callbacks,
 
   mPluginFuncs.size = sizeof(mPluginFuncs);
   mLibrary = nsnull;
+  mIsDefaultPlugin = PR_FALSE;
 
 #if defined(XP_WIN) || defined(XP_OS2)
   // On Windows and OS/2 we need to keep a direct reference to
@@ -306,6 +307,18 @@ nsNPAPIPlugin::PluginCrashed()
   host->PluginCrashed(this);
 }
 #endif
+
+void
+nsNPAPIPlugin::SetIsDefaultPlugin()
+{
+  mIsDefaultPlugin = PR_TRUE;
+}
+
+PRBool
+nsNPAPIPlugin::IsDefaultPlugin()
+{
+  return mIsDefaultPlugin;
+}
 
 namespace {
 
@@ -611,8 +624,7 @@ nsNPAPIPlugin::CreatePluginInstance(nsIPluginInstance **aResult)
 
   *aResult = NULL;
 
-  nsRefPtr<nsNPAPIPluginInstance> inst =
-    new nsNPAPIPluginInstance(&mPluginFuncs, mLibrary);
+  nsRefPtr<nsNPAPIPluginInstance> inst = new nsNPAPIPluginInstance(this, &mPluginFuncs, mLibrary);
   if (!inst)
     return NS_ERROR_OUT_OF_MEMORY;
 

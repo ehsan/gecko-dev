@@ -97,6 +97,9 @@ public:
   void PluginCrashed();
 #endif
 
+  void SetIsDefaultPlugin();
+  PRBool IsDefaultPlugin();
+
 protected:
   // Ensures that the static browser functions are properly initialized
   static void CheckClassInitialized();
@@ -109,6 +112,8 @@ protected:
   // plugin callbacks for each plugin.
   NPPluginFuncs mPluginFuncs;
   PluginLibrary* mLibrary;
+
+  PRBool mIsDefaultPlugin;
 };
 
 namespace mozilla {

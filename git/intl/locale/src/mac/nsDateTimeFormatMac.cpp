@@ -135,6 +135,9 @@ nsresult nsDateTimeFormatMac::FormatTMTime(nsILocale* locale,
     return NS_OK;
   }
 
+  // set the default string, in case for API/conversion errors
+  CopyASCIItoUTF16(nsDependentCString(asctime(tmTime)), stringOut);
+  
   NS_ASSERTION(tmTime->tm_mon >= 0, "tm is not set correctly");
   NS_ASSERTION(tmTime->tm_mday >= 1, "tm is not set correctly");
   NS_ASSERTION(tmTime->tm_hour >= 0, "tm is not set correctly");
