@@ -134,7 +134,8 @@ nsHyperTextAccessible::NativeRole()
   if (tag == nsAccessibilityAtoms::form)
     return nsIAccessibleRole::ROLE_FORM;
 
-  if (tag == nsAccessibilityAtoms::blockquote ||
+  if (tag == nsAccessibilityAtoms::article ||
+      tag == nsAccessibilityAtoms::blockquote ||
       tag == nsAccessibilityAtoms::div ||
       tag == nsAccessibilityAtoms::nav)
     return nsIAccessibleRole::ROLE_SECTION;
@@ -147,9 +148,6 @@ nsHyperTextAccessible::NativeRole()
       tag == nsAccessibilityAtoms::h6)
     return nsIAccessibleRole::ROLE_HEADING;
 
-  if (tag == nsAccessibilityAtoms::article)
-    return nsIAccessibleRole::ROLE_DOCUMENT;
-        
   // Deal with html landmark elements
   if (tag == nsAccessibilityAtoms::header)
     return nsIAccessibleRole::ROLE_HEADER;
@@ -189,9 +187,6 @@ nsHyperTextAccessible::GetStateInternal(PRUint32 *aState, PRUint32 *aExtraState)
     if (0 == (flags & nsIPlaintextEditor::eEditorReadonlyMask)) {
       *aExtraState |= nsIAccessibleStates::EXT_STATE_EDITABLE;
     }
-  } else if (mContent->Tag() == nsAccessibilityAtoms::article) {
-    // We want <article> to behave like a document in terms of readonly state.
-    *aState |= nsIAccessibleStates::STATE_READONLY;
   }
 
   PRInt32 childCount;
@@ -1226,6 +1221,9 @@ nsHyperTextAccessible::GetAttributesInternal(nsIPersistentProperties *aAttribute
   else if (mContent->Tag() == nsAccessibilityAtoms::footer) 
     nsAccUtils::SetAccAttr(aAttributes, nsAccessibilityAtoms::xmlroles,
                            NS_LITERAL_STRING("contentinfo"));
+  else if (mContent->Tag() == nsAccessibilityAtoms::article) 
+    nsAccUtils::SetAccAttr(aAttributes, nsAccessibilityAtoms::xmlroles,
+                           NS_LITERAL_STRING("main"));
   else if (mContent->Tag() == nsAccessibilityAtoms::aside) 
     nsAccUtils::SetAccAttr(aAttributes, nsAccessibilityAtoms::xmlroles,
                            NS_LITERAL_STRING("note"));

@@ -11,17 +11,16 @@ function test() {
   let aml = AddonsMgrListener;
   ok(aml, "AddonsMgrListener exists");
   // check is hidden
-  is(aml.addonBar.collapsed, true, "add-on bar is hidden initially");
+  is(aml.addonBar.collapsed, true, "aob is hidden");
   // aob gets the count
   AddonsMgrListener.onInstalling();
   // add an item
   let element = document.createElement("toolbaritem");
-  element.id = "bug598923-addon-item";
   aml.addonBar.appendChild(element);
   // aob checks the count, makes visible
   AddonsMgrListener.onInstalled();
   // check is visible
-  is(aml.addonBar.collapsed, false, "add-on bar has been made visible");
+  is(aml.addonBar.collapsed, false, "aob is visible");
   // aob gets the count
   AddonsMgrListener.onUninstalling();
   // remove an item
@@ -29,5 +28,5 @@ function test() {
   // aob checks the count, makes hidden
   AddonsMgrListener.onUninstalled();
   // check is hidden
-  is(aml.addonBar.collapsed, true, "add-on bar is hidden again");
+  is(aml.addonBar.collapsed, true, "aob is hidden");
 }

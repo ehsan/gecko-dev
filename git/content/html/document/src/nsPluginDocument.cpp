@@ -189,12 +189,8 @@ NS_IMPL_CYCLE_COLLECTION_UNLINK_BEGIN_INHERITED(nsPluginDocument, nsMediaDocumen
   NS_IMPL_CYCLE_COLLECTION_UNLINK_NSCOMPTR(mPluginContent)
 NS_IMPL_CYCLE_COLLECTION_UNLINK_END
 
-NS_IMPL_ADDREF_INHERITED(nsPluginDocument, nsMediaDocument)
-NS_IMPL_RELEASE_INHERITED(nsPluginDocument, nsMediaDocument)
-
-NS_INTERFACE_TABLE_HEAD_CYCLE_COLLECTION_INHERITED(nsPluginDocument)
-  NS_INTERFACE_TABLE_INHERITED1(nsPluginDocument, nsIPluginDocument)
-NS_INTERFACE_TABLE_TAIL_INHERITING(nsMediaDocument)
+NS_IMPL_ISUPPORTS_INHERITED1(nsPluginDocument, nsMediaDocument,
+                             nsIPluginDocument)
 
 void
 nsPluginDocument::SetScriptGlobalObject(nsIScriptGlobalObject* aScriptGlobalObject)

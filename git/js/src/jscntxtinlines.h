@@ -591,7 +591,7 @@ class CompartmentChecker
     }
 
     void check(JSScript *script) {
-        if (script) {
+        if (script && script != JSScript::emptyScript()) {
             check(script->compartment);
             if (script->u.object)
                 check(script->u.object);

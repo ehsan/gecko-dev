@@ -114,8 +114,8 @@ class AlertObserver
 public:
 
     AlertObserver(nsIObserver *aObserver, const nsString& aData)
-        : mObserver(aObserver)
-        , mData(aData)
+        : mData(aData)
+        , mObserver(aObserver)
     {
     }
 
@@ -333,16 +333,14 @@ ContentChild::AllocPAudio(const PRInt32& numChannels,
                           const PRInt32& rate,
                           const PRInt32& format)
 {
-    AudioChild *child = new AudioChild();
-    NS_ADDREF(child);
+    PAudioChild *child = new AudioChild();
     return child;
 }
 
 bool
 ContentChild::DeallocPAudio(PAudioChild* doomed)
 {
-    AudioChild *child = static_cast<AudioChild*>(doomed);
-    NS_RELEASE(child);
+    delete doomed;
     return true;
 }
 
@@ -583,16 +581,6 @@ ContentChild::RecvScreenSizeChanged(const gfxIntSize& size)
 #else
     NS_RUNTIMEABORT("Message currently only expected on android");
 #endif
-  return true;
-}
-
-bool
-ContentChild::RecvFlushMemory(const nsString& reason)
-{
-    nsCOMPtr<nsIObserverService> os =
-        mozilla::services::GetObserverService();
-    if (os)
-	os->NotifyObservers(nsnull, "memory-pressure", reason.get());
   return true;
 }
 

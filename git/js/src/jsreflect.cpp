@@ -510,7 +510,7 @@ NodeBuilder::newNode(ASTType type, TokenPos *pos, JSObject **dst)
 bool
 NodeBuilder::newArray(NodeVector &elts, Value *dst)
 {
-    JSObject *array = NewDenseEmptyArray(cx);
+    JSObject *array = js_NewArrayObject(cx, 0, NULL);
     if (!array)
         return false;
 
@@ -2851,7 +2851,7 @@ reflect_parse(JSContext *cx, uint32 argc, jsval *vp)
 
     Parser parser(cx);
 
-    if (!parser.init(chars, length, filename, lineno))
+    if (!parser.init(chars, length, NULL, filename, lineno))
         return JS_FALSE;
 
     JSParseNode *pn = parser.parse(NULL);

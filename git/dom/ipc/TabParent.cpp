@@ -69,7 +69,6 @@
 #include "nsIPromptFactory.h"
 #include "nsIContent.h"
 #include "mozilla/unused.h"
-#include "nsDebug.h"
 
 using namespace mozilla::dom;
 using namespace mozilla::ipc;
@@ -87,27 +86,13 @@ TabParent *TabParent::mIMETabParent = nsnull;
 NS_IMPL_ISUPPORTS3(TabParent, nsITabParent, nsIAuthPromptProvider, nsISecureBrowserUI)
 
 TabParent::TabParent()
-  : mIMEComposing(PR_FALSE)
-  , mIMECompositionEnding(PR_FALSE)
-  , mDPI(0)
+  : mIMECompositionEnding(PR_FALSE)
+  , mIMEComposing(PR_FALSE)
 {
 }
 
 TabParent::~TabParent()
 {
-}
-
-void
-TabParent::SetOwnerElement(nsIDOMElement* aElement)
-{
-  mFrameElement = aElement;
-
-  // Cache the DPI of the screen, since we may lose the element/widget later
-  if (aElement) {
-    nsCOMPtr<nsIWidget> widget = GetWidget();
-    NS_ABORT_IF_FALSE(widget, "Non-null OwnerElement must provide a widget!");
-    mDPI = widget->GetDPI();
-  }
 }
 
 void
@@ -550,15 +535,6 @@ TabParent::RecvSetIMEOpenState(const PRBool& aValue)
   nsCOMPtr<nsIWidget> widget = GetWidget();
   if (widget && AllowContentIME())
     widget->SetIMEOpenState(aValue);
-  return true;
-}
-
-bool
-TabParent::RecvGetDPI(float* aValue)
-{
-  NS_ABORT_IF_FALSE(mDPI > 0, 
-                    "Must not ask for DPI before OwnerElement is received!");
-  *aValue = mDPI;
   return true;
 }
 

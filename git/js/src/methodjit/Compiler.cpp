@@ -122,6 +122,7 @@ mjit::Compiler::Compiler(JSContext *cx, JSStackFrame *fp)
 CompileStatus
 mjit::Compiler::compile()
 {
+    JS_ASSERT(!script->isEmpty());
     JS_ASSERT_IF(isConstructing, !script->jitCtor);
     JS_ASSERT_IF(!isConstructing, !script->jitNormal);
 
@@ -406,15 +407,8 @@ mjit::Compiler::finishThisUp(JITScript **jitp)
     JSC::LinkBuffer fullCode(result, totalSize);
     JSC::LinkBuffer stubCode(result + masm.size(), stubcc.size());
 
-    size_t nNmapLive = 0;
-    for (size_t i = 0; i < script->length; i++) {
-        analyze::Bytecode *opinfo = analysis->maybeCode(i);
-        if (opinfo && opinfo->safePoint)
-            nNmapLive++;
-    }
-
     size_t totalBytes = sizeof(JITScript) +
-                        sizeof(NativeMapEntry) * nNmapLive +
+                        sizeof(void *) * script->length +
 #if defined JS_MONOIC
                         sizeof(ic::MICInfo) * mics.length() +
                         sizeof(ic::CallICInfo) * callICs.length() +
@@ -442,23 +436,17 @@ mjit::Compiler::finishThisUp(JITScript **jitp)
     jit->invokeEntry = result;
 
     /* Build the pc -> ncode mapping. */
-    NativeMapEntry *nmap = (NativeMapEntry *)cursor;
-    cursor += sizeof(NativeMapEntry) * nNmapLive;
+    void **nmap = (void **)cursor;
+    cursor += sizeof(void *) * script->length;
 
-    size_t ix = 0;
-    if (nNmapLive > 0) {
-        for (size_t i = 0; i < script->length; i++) {
-            analyze::Bytecode *opinfo = analysis->maybeCode(i);
-            if (opinfo && opinfo->safePoint) {
-                Label L = jumpMap[i];
-                JS_ASSERT(L.isValid());
-                nmap[ix].bcOff = i;
-                nmap[ix].ncode = (uint8 *)(result + masm.distanceOf(L));
-                ix++;
-            }
+    for (size_t i = 0; i < script->length; i++) {
+        Label L = jumpMap[i];
+        analyze::Bytecode *opinfo = analysis->maybeCode(i);
+        if (opinfo && opinfo->safePoint) {
+            JS_ASSERT(L.isValid());
+            nmap[i] = (uint8 *)(result + masm.distanceOf(L));
         }
     }
-    JS_ASSERT(ix == nNmapLive);
 
     if (fun) {
         jit->arityCheckEntry = stubCode.locationOf(arityLabel).executableAddress();
@@ -785,7 +773,6 @@ mjit::Compiler::finishThisUp(JITScript **jitp)
     JS_ASSERT(size_t(cursor - (uint8*)jit) == totalBytes);
 
     jit->nmap = nmap;
-    jit->nNmapPairs = nNmapLive;
     *jitp = jit;
 
     return Compile_Okay;
@@ -2190,12 +2177,8 @@ mjit::Compiler::fixPrimitiveReturn(Assembler *masm, FrameEntry *fe)
     bool ool = (masm != &this->masm);
     Address thisv(JSFrameReg, JSStackFrame::offsetOfThis(fun));
 
-    // We can just load |thisv| if either of the following is true:
-    //  (1) There is no explicit return value, AND fp->rval is not used.
-    //  (2) There is an explicit return value, and it's known to be primitive.
-    if ((!fe && !analysis->usesReturnValue()) ||
-        (fe && fe->isTypeKnown() && fe->getKnownType() != JSVAL_TYPE_OBJECT))
-    {
+    // Easy cases - no return value, or known primitive, so just return thisv.
+    if (!fe || (fe->isTypeKnown() && fe->getKnownType() != JSVAL_TYPE_OBJECT)) {
         if (ool)
             masm->loadValueAsComponents(thisv, JSReturnReg_Type, JSReturnReg_Data);
         else
@@ -2204,7 +2187,7 @@ mjit::Compiler::fixPrimitiveReturn(Assembler *masm, FrameEntry *fe)
     }
 
     // If the type is known to be an object, just load the return value as normal.
-    if (fe && fe->isTypeKnown() && fe->getKnownType() == JSVAL_TYPE_OBJECT) {
+    if (fe->isTypeKnown() && fe->getKnownType() == JSVAL_TYPE_OBJECT) {
         loadReturnValue(masm, fe);
         return;
     }
@@ -4342,7 +4325,6 @@ mjit::Compiler::jsop_getgname(uint32 index)
     JS_ASSERT(fe->isTypeKnown() && fe->getKnownType() == JSVAL_TYPE_OBJECT);
 
     MICGenInfo mic(ic::MICInfo::GET);
-    RESERVE_IC_SPACE(masm);
     RegisterID objReg;
     Jump shapeGuard;
 
@@ -4445,7 +4427,6 @@ mjit::Compiler::jsop_setgname(uint32 index, bool usePropertyCache)
     JS_ASSERT_IF(objFe->isTypeKnown(), objFe->getKnownType() == JSVAL_TYPE_OBJECT);
 
     MICGenInfo mic(ic::MICInfo::SET);
-    RESERVE_IC_SPACE(masm);
     RegisterID objReg;
     Jump shapeGuard;
 

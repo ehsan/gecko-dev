@@ -96,15 +96,6 @@
   }
 }
 
-/* Plugins aren't yet disabled by safemode (bug 342333),
-   so don't show that warning when viewing plugins. */
-#addons-page[warning="safemode"] .view-pane[type="plugin"] .global-warning-container,
-#addons-page[warning="safemode"] #detail-view[loading="true"] .global-warning-container {
-  background-color: inherit;
-  background-image: none;
-}
-
-
 /*** notification icons ***/
 
 .warning-icon {
@@ -689,8 +680,6 @@
 #detail-icon {
   -moz-margin-end: 10px;
   margin-top: 6px;
-  max-width: 64px;
-  max-height: 64px;
 }
 
 #detail-summary {
@@ -846,21 +835,10 @@
   margin: 0 8px;
 }
 
-.download-progress[mode="undetermined"] .progress {
-  -moz-binding: url("chrome://global/content/bindings/progressmeter.xml#progressmeter-undetermined");
-}
 
-.download-progress[mode="undetermined"] {
-  border-color: #2E773A;
-}
-
-.download-progress[mode="undetermined"] .status-container {
-  padding: 0 2px;
-}
 
 .download-progress .start-cap,
 .download-progress[complete] .end-cap,
-.download-progress[mode="undetermined"] .end-cap,
 .download-progress .progress .progress-bar {
   -moz-appearance: none;
   background-image: -moz-linear-gradient(#6AC47E, #4FAC6A);
@@ -882,7 +860,6 @@
 .download-progress .progress .progress-bar  {
   border-left-width: 0;
   border-right-width: 0;
-  min-height: 21px;
 }
 
 .download-progress .progress {

@@ -89,16 +89,26 @@ function addTab(aURL)
  *        the HUD output node.
  * @param {string} aMatchString
  *        the string you want to check if it exists in the output node.
- * @param {string} aMsg
- *        the message describing the test
  * @param {boolean} [aOnlyVisible=false]
  *        find only messages that are visible, not hidden by the filter.
  * @param {boolean} [aFailIfFound=false]
  *        fail the test if the string is found in the output node.
  */
-function testLogEntry(aOutputNode, aMatchString, aMsg, aOnlyVisible,
+function testLogEntry(aOutputNode, aMatchString, aSuccessErrObj, aOnlyVisible,
                       aFailIfFound)
 {
+  let found = true;
+  let notfound = false;
+  let foundMsg = aSuccessErrObj.success;
+  let notfoundMsg = aSuccessErrObj.err;
+
+  if (aFailIfFound) {
+    found = false;
+    notfound = true;
+    foundMsg = aSuccessErrObj.success;
+    notfoundMsg = aSuccessErrObj.err;
+  }
+
   let selector = ".hud-msg-node";
   // Skip entries that are hidden by the filter.
   if (aOnlyVisible) {
@@ -106,15 +116,14 @@ function testLogEntry(aOutputNode, aMatchString, aMsg, aOnlyVisible,
   }
 
   let msgs = aOutputNode.querySelectorAll(selector);
-  let found = false;
   for (let i = 0, n = msgs.length; i < n; i++) {
     let message = msgs[i].textContent.indexOf(aMatchString);
     if (message > -1) {
-      found = true;
-      break;
+      ok(found, foundMsg);
+      return;
     }
   }
-  is(found, !aFailIfFound, aMsg);
+  ok(notfound, notfoundMsg);
 }
 
 function openConsole()

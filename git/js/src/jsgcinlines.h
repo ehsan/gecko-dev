@@ -351,24 +351,18 @@ TypedMarker(JSTracer *trc, JSShortString *thing)
 }
 
 static JS_ALWAYS_INLINE void
-TypedMarker(JSTracer *trc, JSString *str)
+TypedMarker(JSTracer *trc, JSString *thing)
 {
     /*
-     * When marking any node of a rope, mark the entire rope. This means if
-     * a given rope node is already marked, we are done.
+     * Iterate through all nodes and leaves in the rope if this is part of a
+     * rope; otherwise, we only iterate once: on the string itself.
      */
-    JSRopeNodeIterator iter;
-    if (str->isRope()) {
-        if (str->asCell()->isMarked())
-            return;
-        str = iter.init(str);
-        goto not_static;
-    }
+    JSRopeNodeIterator iter(thing);
+    JSString *str = iter.init();
     do {
         for (;;) {
             if (JSString::isStatic(str))
                 break;
-          not_static:
             JS_ASSERT(JSTRACE_STRING == GetFinalizableTraceKind(str->asCell()->arena()->header()->thingKind));
             if (!str->asCell()->markIfUnmarked())
                 break;

@@ -94,10 +94,7 @@ public:
 
     void shareConstPointer( ConstantUnion *constArray)
     {
-        if (unionArray == constArray)
-            return;
-
-        delete[] unionArray;
+        delete unionArray;
         unionArray = constArray;  
     }
     TVariable(const TVariable&, TStructureMap& remapper); // copy constructor

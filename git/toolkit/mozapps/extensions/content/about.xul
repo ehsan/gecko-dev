@@ -59,12 +59,10 @@
   </stringbundleset>
 
   <vbox id="clientBox" flex="1">
-    <hbox class="basic-info">
-      <vbox pack="center">
-        <image id="extensionIcon"/>
-      </vbox>
-      <vbox flex="1">
-        <label id="extensionName"/>
+    <hbox class="basic-info" align="center">
+      <image id="extensionIcon"/>
+      <vbox>
+        <label id="extensionName" crop="end"/>
         <label id="extensionVersion" crop="end"/>
       </vbox>
     </hbox>

@@ -43,11 +43,8 @@
 #include "nsWebMReader.h"
 #include "VideoUtils.h"
 #include "nsTimeRanges.h"
-#include "nsIServiceManager.h"
-#include "nsIPrefService.h"
 
 using namespace mozilla;
-using namespace mozilla::layers;
 
 // Un-comment to enable logging of seek bisections.
 //#define SEEK_LOGGING
@@ -70,10 +67,10 @@ static const float NS_PER_S = 1e9;
 static const float MS_PER_S = 1e3;
 
 NS_SPECIALIZE_TEMPLATE
-class nsAutoRefTraits<NesteggPacketHolder> : public nsPointerRefTraits<NesteggPacketHolder>
+class nsAutoRefTraits<nestegg_packet> : public nsPointerRefTraits<nestegg_packet>
 {
 public:
-  static void Release(NesteggPacketHolder* aHolder) { delete aHolder; }
+  static void Release(nestegg_packet* aPacket) { nestegg_free_packet(aPacket); }
 };
 
 // Functions for reading and seeking using nsMediaStream required for
@@ -271,45 +268,6 @@ nsresult nsWebMReader::ReadMetadata()
         mInfo.mPicture.height = params.height;
       }
 
-      switch (params.stereo_mode) {
-      case NESTEGG_VIDEO_MONO:
-        mInfo.mStereoMode = STEREO_MODE_MONO;
-        break;
-      case NESTEGG_VIDEO_STEREO_LEFT_RIGHT:
-        mInfo.mStereoMode = STEREO_MODE_LEFT_RIGHT;
-        break;
-      case NESTEGG_VIDEO_STEREO_BOTTOM_TOP:
-        mInfo.mStereoMode = STEREO_MODE_BOTTOM_TOP;
-        break;
-      case NESTEGG_VIDEO_STEREO_TOP_BOTTOM:
-        mInfo.mStereoMode = STEREO_MODE_TOP_BOTTOM;
-        break;
-      case NESTEGG_VIDEO_STEREO_RIGHT_LEFT:
-        mInfo.mStereoMode = STEREO_MODE_RIGHT_LEFT;
-        break;
-      }
-
-      nsCOMPtr<nsIPrefBranch> prefs = do_GetService(NS_PREFSERVICE_CONTRACTID);
-      PRInt32 forceStereoMode;
-      if (NS_SUCCEEDED(prefs->GetIntPref("media.webm.force_stereo_mode", &forceStereoMode))) {
-        switch (forceStereoMode) {
-        case 1:
-          mInfo.mStereoMode = STEREO_MODE_LEFT_RIGHT;
-          break;
-        case 2:
-          mInfo.mStereoMode = STEREO_MODE_RIGHT_LEFT;
-          break;
-        case 3:
-          mInfo.mStereoMode = STEREO_MODE_TOP_BOTTOM;
-          break;
-        case 4:
-          mInfo.mStereoMode = STEREO_MODE_BOTTOM_TOP;
-          break;
-        default:
-          mInfo.mStereoMode = STEREO_MODE_MONO;
-        }
-      }
-
       // mDataOffset is not used by the WebM backend.
       // See bug 566779 for a suggestion to refactor
       // and remove it.
@@ -393,7 +351,7 @@ ogg_packet nsWebMReader::InitOggPacket(unsigned char* aData,
   return packet;
 }
  
-PRBool nsWebMReader::DecodeAudioPacket(nestegg_packet* aPacket, PRInt64 aOffset)
+PRBool nsWebMReader::DecodeAudioPacket(nestegg_packet* aPacket)
 {
   mMonitor.AssertCurrentThreadIn();
 
@@ -491,7 +449,7 @@ PRBool nsWebMReader::DecodeAudioPacket(nestegg_packet* aPacket, PRInt64 aOffset)
       
       PRInt64 time = tstamp_ms + total_duration;
       total_samples += samples;
-      SoundData* s = new SoundData(aOffset,
+      SoundData* s = new SoundData(0,
                                    time,
                                    duration,
                                    samples,
@@ -508,7 +466,7 @@ PRBool nsWebMReader::DecodeAudioPacket(nestegg_packet* aPacket, PRInt64 aOffset)
   return PR_TRUE;
 }
 
-nsReturnRef<NesteggPacketHolder> nsWebMReader::NextPacket(TrackType aTrackType)
+nsReturnRef<nestegg_packet> nsWebMReader::NextPacket(TrackType aTrackType)
 {
   // The packet queue that packets will be pushed on if they
   // are not the type we are interested in.
@@ -533,31 +491,30 @@ nsReturnRef<NesteggPacketHolder> nsWebMReader::NextPacket(TrackType aTrackType)
   // Value of other track
   PRUint32 otherTrack = aTrackType == VIDEO ? mAudioTrack : mVideoTrack;
 
-  nsAutoRef<NesteggPacketHolder> holder;
+  nsAutoRef<nestegg_packet> packet;
 
   if (packets.GetSize() > 0) {
-    holder.own(packets.PopFront());
+    packet.own(packets.PopFront());
   } else {
     // Keep reading packets until we find a packet
     // for the track we want.
     do {
-      nestegg_packet* packet;
-      int r = nestegg_read_packet(mContext, &packet);
+      nestegg_packet* p;
+      int r = nestegg_read_packet(mContext, &p);
       if (r <= 0) {
-        return nsReturnRef<NesteggPacketHolder>();
+        return nsReturnRef<nestegg_packet>();
       }
-      PRInt64 offset = mDecoder->GetCurrentStream()->Tell();
-      holder.own(new NesteggPacketHolder(packet, offset));
+      packet.own(p);
 
       unsigned int track = 0;
       r = nestegg_packet_track(packet, &track);
       if (r == -1) {
-        return nsReturnRef<NesteggPacketHolder>();
+        return nsReturnRef<nestegg_packet>();
       }
 
       if (hasOtherType && otherTrack == track) {
         // Save the packet for when we want these packets
-        otherPackets.Push(holder.disown());
+        otherPackets.Push(packet.disown());
         continue;
       }
 
@@ -568,7 +525,7 @@ nsReturnRef<NesteggPacketHolder> nsWebMReader::NextPacket(TrackType aTrackType)
     } while (PR_TRUE);
   }
 
-  return holder.out();
+  return packet.out();
 }
 
 PRBool nsWebMReader::DecodeAudioData()
@@ -576,13 +533,13 @@ PRBool nsWebMReader::DecodeAudioData()
   MonitorAutoEnter mon(mMonitor);
   NS_ASSERTION(mDecoder->OnStateMachineThread() || mDecoder->OnDecodeThread(),
     "Should be on state machine thread or decode thread.");
-  nsAutoRef<NesteggPacketHolder> holder(NextPacket(AUDIO));
-  if (!holder) {
+  nsAutoRef<nestegg_packet> packet(NextPacket(AUDIO));
+  if (!packet) {
     mAudioQueue.Finish();
     return PR_FALSE;
   }
 
-  return DecodeAudioPacket(holder->mPacket, holder->mOffset);
+  return DecodeAudioPacket(packet);
 }
 
 PRBool nsWebMReader::DecodeVideoFrame(PRBool &aKeyframeSkip,
@@ -592,13 +549,12 @@ PRBool nsWebMReader::DecodeVideoFrame(PRBool &aKeyframeSkip,
   NS_ASSERTION(mDecoder->OnStateMachineThread() || mDecoder->OnDecodeThread(),
                "Should be on state machine or decode thread.");
 
-  nsAutoRef<NesteggPacketHolder> holder(NextPacket(VIDEO));
-  if (!holder) {
+  nsAutoRef<nestegg_packet> packet(NextPacket(VIDEO));
+  if (!packet) {
     mVideoQueue.Finish();
     return PR_FALSE;
   }
 
-  nestegg_packet* packet = holder->mPacket;
   unsigned int track = 0;
   int r = nestegg_packet_track(packet, &track);
   if (r == -1) {
@@ -623,13 +579,13 @@ PRBool nsWebMReader::DecodeVideoFrame(PRBool &aKeyframeSkip,
   // video frame.
   uint64_t next_tstamp = 0;
   {
-    nsAutoRef<NesteggPacketHolder> next_holder(NextPacket(VIDEO));
-    if (next_holder) {
-      r = nestegg_packet_tstamp(next_holder->mPacket, &next_tstamp);
+    nsAutoRef<nestegg_packet> next_packet(NextPacket(VIDEO));
+    if (next_packet) {
+      r = nestegg_packet_tstamp(next_packet, &next_tstamp);
       if (r == -1) {
         return PR_FALSE;
       }
-      mVideoPackets.PushFront(next_holder.disown());
+      mVideoPackets.PushFront(next_packet.disown());
     } else {
       MonitorAutoExit exitMon(mMonitor);
       MonitorAutoEnter decoderMon(mDecoder->GetMonitor());
@@ -705,7 +661,7 @@ PRBool nsWebMReader::DecodeVideoFrame(PRBool &aKeyframeSkip,
   
       VideoData *v = VideoData::Create(mInfo,
                                        mDecoder->GetImageContainer(),
-                                       holder->mOffset,
+                                       -1,
                                        tstamp_ms,
                                        next_tstamp / NS_PER_MS,
                                        b,

@@ -46,14 +46,14 @@
 #include "nsSVGPathElement.h"
 #include "nsISVGValueUtils.h"
 #include "nsSVGUtils.h"
-#include "DOMSVGPoint.h"
+#include "nsSVGPoint.h"
 #include "gfxContext.h"
 #include "gfxPlatform.h"
 
 using namespace mozilla;
 
 nsSVGElement::NumberInfo nsSVGPathElement::sNumberInfo = 
-{ &nsGkAtoms::pathLength, 0, PR_FALSE };
+                                                  { &nsGkAtoms::pathLength, 0 };
 
 NS_IMPL_NS_NEW_SVG_ELEMENT(Path)
 
@@ -129,8 +129,7 @@ nsSVGPathElement::GetPointAtLength(float distance, nsIDOMSVGPoint **_retval)
   distance = NS_MAX(0.f,         distance);
   distance = NS_MIN(totalLength, distance);
 
-  NS_ADDREF(*_retval = new DOMSVGPoint(flat->FindPoint(gfxPoint(distance, 0))));
-  return NS_OK;
+  return NS_NewSVGPoint(_retval, flat->FindPoint(gfxPoint(distance, 0)));
 }
 
 /* unsigned long getPathSegAtLength (in float distance); */

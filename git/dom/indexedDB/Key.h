@@ -47,7 +47,7 @@ BEGIN_INDEXEDDB_NAMESPACE
 class Key
 {
 public:
-  enum Type { UNSETKEY, STRINGKEY, INTKEY };
+  enum Type { UNSETKEY, NULLKEY, STRINGKEY, INTKEY };
 
   Key()
   : mType(UNSETKEY), mInt(0)
@@ -70,7 +70,7 @@ public:
 
   Key& operator=(Type aType)
   {
-    NS_ASSERTION(aType == UNSETKEY ,
+    NS_ASSERTION(aType == UNSETKEY || aType == NULLKEY,
                  "Use one of the other operators to assign your value!");
     mType = aType;
     mString.Truncate();
@@ -99,6 +99,7 @@ public:
     if (mType == aOther.mType) {
       switch (mType) {
         case UNSETKEY:
+        case NULLKEY:
           return true;
 
         case STRINGKEY:
@@ -128,8 +129,16 @@ public:
         }
         return true;
 
+      case NULLKEY:
+        if (aOther.mType == UNSETKEY ||
+            aOther.mType == NULLKEY) {
+          return false;
+        }
+        return true;
+
       case STRINGKEY:
         if (aOther.mType == UNSETKEY ||
+            aOther.mType == NULLKEY ||
             aOther.mType == INTKEY) {
           return false;
         }
@@ -137,7 +146,8 @@ public:
         return mString < aOther.mString;
 
       case INTKEY:
-        if (aOther.mType == UNSETKEY) {
+        if (aOther.mType == UNSETKEY ||
+            aOther.mType == NULLKEY) {
           return false;
         }
         if (aOther.mType == STRINGKEY) {
@@ -157,17 +167,8 @@ public:
     return !(*this == aOther || *this < aOther);
   }
 
-  bool operator<=(const Key& aOther) const
-  {
-    return (*this == aOther || *this < aOther);
-  }
-
-  bool operator>=(const Key& aOther) const
-  {
-    return (*this == aOther || !(*this < aOther));
-  }
-
   bool IsUnset() const { return mType == UNSETKEY; }
+  bool IsNull() const { return mType == NULLKEY; }
   bool IsString() const { return mType == STRINGKEY; }
   bool IsInt() const { return mType == INTKEY; }
 

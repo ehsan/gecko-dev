@@ -43,15 +43,12 @@
 #include "nsSVGPaintServerFrame.h"
 #include "gfxMatrix.h"
 
+class nsSVGPreserveAspectRatio;
 class nsIFrame;
 class nsSVGLength2;
 class nsSVGElement;
 class gfxContext;
 class gfxASurface;
-
-namespace mozilla {
-class SVGAnimatedPreserveAspectRatio;
-} // namespace mozilla
 
 typedef nsSVGPaintServerFrame  nsSVGPatternFrameBase;
 
@@ -76,8 +73,6 @@ public:
                           const gfxRect *aOverrideBounds);
 
 public:
-  typedef mozilla::SVGAnimatedPreserveAspectRatio SVGAnimatedPreserveAspectRatio;
-
   // nsSVGContainerFrame methods:
   virtual gfxMatrix GetCanvasTM();
 
@@ -127,7 +122,7 @@ protected:
   gfxMatrix GetPatternTransform();
 
   const nsSVGViewBox &GetViewBox();
-  const SVGAnimatedPreserveAspectRatio &GetPreserveAspectRatio();
+  const nsSVGPreserveAspectRatio &GetPreserveAspectRatio();
 
 
   nsresult PaintPattern(gfxASurface **surface,

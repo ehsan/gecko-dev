@@ -247,12 +247,11 @@ nsXBLContentSink::ReportUnexpectedElement(nsIAtom* aElementName,
   return nsContentUtils::ReportToConsole(nsContentUtils::eXBL_PROPERTIES,
                                          "UnexpectedElement",
                                          params, NS_ARRAY_LENGTH(params),
-                                         nsnull,
+                                         mDocumentURI,
                                          EmptyString() /* source line */,
                                          aLineNumber, 0 /* column number */,
                                          nsIScriptError::errorFlag,
-                                         "XBL Content Sink",
-                                         mDocument);
+                                         "XBL Content Sink");
 }
 
 void
@@ -665,12 +664,11 @@ nsXBLContentSink::ConstructHandler(const PRUnichar **aAtts, PRUint32 aLineNumber
     mState = eXBL_Error;
     nsContentUtils::ReportToConsole(nsContentUtils::eXBL_PROPERTIES,
                                     "CommandNotInChrome", nsnull, 0,
-                                    nsnull,
+                                    mDocumentURI,
                                     EmptyString() /* source line */,
                                     aLineNumber, 0 /* column number */,
                                     nsIScriptError::errorFlag,
-                                    "XBL Content Sink",
-                                    mDocument);
+                                    "XBL Content Sink");
     return; // Don't even make this handler.
   }
 

@@ -135,8 +135,6 @@ public:
 
     static PRInt32 GetDPI();
 
-    virtual gfxImageFormat GetOffscreenFormat();
-
 protected:
     static gfxFontconfigUtils *sFontconfigUtils;
 

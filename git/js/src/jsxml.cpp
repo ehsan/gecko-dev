@@ -1771,7 +1771,7 @@ ParseXMLSource(JSContext *cx, JSString *src)
 
     {
         Parser parser(cx);
-        if (parser.init(chars, length, filename, lineno)) {
+        if (parser.init(chars, length, NULL, filename, lineno)) {
             JSObject *scopeChain = GetScopeChain(cx);
             if (!scopeChain)
                 return NULL;
@@ -5774,7 +5774,7 @@ FindInScopeNamespaces(JSContext *cx, JSXML *xml, JSXMLArray *nsarray)
 static bool
 NamespacesToJSArray(JSContext *cx, JSXMLArray *array, jsval *rval)
 {
-    JSObject *arrayobj = NewDenseEmptyArray(cx);
+    JSObject *arrayobj = js_NewArrayObject(cx, 0, NULL);
     if (!arrayobj)
         return false;
     *rval = OBJECT_TO_JSVAL(arrayobj);
@@ -7466,7 +7466,7 @@ GetXMLFunction(JSContext *cx, JSObject *obj, jsid id, jsval *vp)
         if (VALUE_IS_FUNCTION(cx, *vp))
             return true;
         target = target->getProto();
-        if (target == NULL || !target->isNative())
+        if (target == NULL)
             break;
         tvr.setObject(target);
     }

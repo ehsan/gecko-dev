@@ -184,8 +184,12 @@ SVGMotionSMILAnimationFunction::
     return;
   }
 
-  SVGMotionSMILPathUtils::PathGenerator
-    pathGenerator(static_cast<const nsSVGElement*>(aContextElem));
+  // NOTE: We have to cast away constness on context node, since the
+  // nsSVGLength2 methods that need it for unit-conversion
+  // (e.g. nsSVGLength2::GetBaseValue) aren't const-correct.
+  nsSVGElement* svgCtx =
+    static_cast<nsSVGElement*>(const_cast<nsIContent*>(aContextElem));
+  SVGMotionSMILPathUtils::PathGenerator pathGenerator(svgCtx);
 
   PRBool success = PR_FALSE;
   if (HasAttr(nsGkAtoms::values)) {
@@ -255,7 +259,8 @@ SVGMotionSMILAnimationFunction::
       PRBool ok =
         path.GetDistancesFromOriginToEndsOfVisibleSegments(&mPathVertices);
       if (ok && mPathVertices.Length()) {
-        mPath = pathElem->GetFlattenedPath(gfxMatrix());
+        mPath = pathElem->GetFlattenedPath(
+                  pathElem->PrependLocalTransformTo(gfxMatrix()));
       }
     }
   }

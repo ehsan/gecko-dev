@@ -70,13 +70,23 @@ JSScript::getRegExp(size_t index)
 inline bool
 JSScript::isEmpty() const
 {
-    if (length > 3)
-        return false;
+    return (this == emptyScript());
 
-    jsbytecode *pc = code;
-    if (noScriptRval && JSOp(*pc) == JSOP_FALSE)
-        ++pc;
-    return JSOp(*pc) == JSOP_STOP;
+    // See bug 603044 comment #21.
+#if 0
+    if (this == emptyScript())
+        return true;
+
+    if (length <= 3) {
+        jsbytecode *pc = code;
+
+        if (noScriptRval && JSOp(*pc) == JSOP_FALSE)
+            ++pc;
+        if (JSOp(*pc) == JSOP_STOP)
+            return true;
+    }
+    return false;
+#endif
 }
 
 #endif /* jsscriptinlines_h___ */

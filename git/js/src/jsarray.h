@@ -46,46 +46,6 @@
 #include "jspubtd.h"
 #include "jsobj.h"
 
-/* Small arrays are dense, no matter what. */
-const uintN MIN_SPARSE_INDEX = 256;
-
-inline JSObject::EnsureDenseResult
-JSObject::ensureDenseArrayElements(JSContext *cx, uintN index, uintN extra)
-{
-    JS_ASSERT(isDenseArray());
-    uintN currentCapacity = numSlots();
-
-    uintN requiredCapacity;
-    if (extra == 1) {
-        /* Optimize for the common case. */
-        if (index < currentCapacity)
-            return ED_OK;
-        requiredCapacity = index + 1;
-        if (requiredCapacity == 0) {
-            /* Overflow. */
-            return ED_SPARSE;
-        }
-    } else {
-        requiredCapacity = index + extra;
-        if (requiredCapacity < index) {
-            /* Overflow. */
-            return ED_SPARSE;
-        }
-        if (requiredCapacity <= currentCapacity)
-            return ED_OK;
-    }
-
-    /*
-     * We use the extra argument also as a hint about number of non-hole
-     * elements to be inserted.
-     */
-    if (requiredCapacity > MIN_SPARSE_INDEX &&
-        willBeSparseDenseArray(requiredCapacity, extra)) {
-        return ED_SPARSE;
-    }
-    return growSlots(cx, requiredCapacity) ? ED_OK : ED_FAILED;
-}
-
 extern JSBool
 js_StringIsIndex(JSString *str, jsuint *indexp);
 
@@ -177,33 +137,15 @@ js_InitArrayClass(JSContext *cx, JSObject *obj);
 extern bool
 js_InitContextBusyArrayTable(JSContext *cx);
 
-namespace js
-{
-
-/* Create a dense array with no capacity allocated, length set to 0. */
-extern JSObject * JS_FASTCALL
-NewDenseEmptyArray(JSContext *cx, JSObject *proto=NULL);
-
-/* Create a dense array with length and capacity == 'length'. */
-extern JSObject * JS_FASTCALL
-NewDenseAllocatedArray(JSContext *cx, uint length, JSObject *proto=NULL);
-
-/*
- * Create a dense array with a set length, but without allocating space for the
- * contents. This is useful, e.g., when accepting length from the user.
- */
-extern JSObject * JS_FASTCALL
-NewDenseUnallocatedArray(JSContext *cx, uint length, JSObject *proto=NULL);
-
-/* Create a dense array with a copy of vp. */
 extern JSObject *
-NewDenseCopiedArray(JSContext *cx, uint length, Value *vp, JSObject *proto=NULL);
+js_NewArrayObject(JSContext *cx, jsuint length, const js::Value *vector);
 
-/* Create a sparse array. */
+/* Create an array object that starts out already made slow/sparse. */
 extern JSObject *
-NewSlowEmptyArray(JSContext *cx);
+js_NewSlowArrayObject(JSContext *cx);
 
-}
+/* Minimum size at which a dense array can be made sparse. */
+const uint32 MIN_SPARSE_INDEX = 256;
 
 extern JSBool
 js_GetLengthProperty(JSContext *cx, JSObject *obj, jsuint *lengthp);
@@ -303,6 +245,25 @@ js_GetDenseArrayElementValue(JSContext *cx, JSObject *obj, jsid id,
 /* Array constructor native. Exposed only so the JIT can know its address. */
 JSBool
 js_Array(JSContext *cx, uintN argc, js::Value *vp);
+
+/*
+ * Friend api function that allows direct creation of an array object with a
+ * given capacity.  Non-null return value means allocation of the internal
+ * buffer for a capacity of at least |capacity| succeeded.  A pointer to the
+ * first element of this internal buffer is returned in the |vector| out
+ * parameter.  The caller promises to fill in the first |capacity| values
+ * starting from that pointer immediately after this function returns and
+ * without triggering GC (so this method is allowed to leave those
+ * uninitialized) and to set them to non-JS_ARRAY_HOLE-magic-why values, so
+ * that the resulting array has length and count both equal to |capacity|.
+ *
+ * FIXME: for some strange reason, when this file is included from
+ * dom/ipc/TabParent.cpp in MSVC, jsuint resolves to a slightly different
+ * builtin than when mozjs.dll is built, resulting in a link error in xul.dll.
+ * It would be useful to find out what is causing this insanity.
+ */
+JS_FRIEND_API(JSObject *)
+js_NewArrayObjectWithCapacity(JSContext *cx, uint32_t capacity, jsval **vector);
 
 /*
  * Makes a fast clone of a dense array as long as the array only contains

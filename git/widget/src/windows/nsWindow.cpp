@@ -159,8 +159,6 @@
 #include "mozilla/Services.h"
 #include "nsNativeThemeWin.h"
 #include "nsWindowsDllInterceptor.h"
-#include "nsIWindowMediator.h"
-#include "nsIServiceManager.h"
 
 #if defined(WINCE)
 #include "nsWindowCE.h"
@@ -235,7 +233,6 @@
 #include "nsIXULRuntime.h"
 
 using namespace mozilla::widget;
-using namespace mozilla::layers;
 
 /**************************************************************
  **************************************************************
@@ -298,8 +295,6 @@ PRBool          nsWindow::sDefaultTrackPointHack  = PR_FALSE;
 // Default value for general window class (used when the pref is the empty string).
 const char*     nsWindow::sDefaultMainWindowClass = kClassNameGeneral;
 
-// If we're using D3D9, this will not be allowed during initial 5 seconds.
-bool            nsWindow::sAllowD3D9              = false;
 
 #ifdef ACCESSIBILITY
 BOOL            nsWindow::sIsAccessibilityOn      = FALSE;
@@ -400,7 +395,6 @@ nsWindow::nsWindow() : nsBaseWidget()
   mCustomNonClient      = PR_FALSE;
   mHideChrome           = PR_FALSE;
   mFullscreenMode       = PR_FALSE;
-  mMousePresent         = PR_FALSE;
   mWindowType           = eWindowType_child;
   mBorderStyle          = eBorderStyle_default;
   mPopupType            = ePopupTypeAny;
@@ -1102,35 +1096,6 @@ nsWindow* nsWindow::GetParentWindow(PRBool aIncludeOwner)
 
   return widget;
 }
- 
-BOOL CALLBACK
-nsWindow::EnumAllChildWindProc(HWND aWnd, LPARAM aParam)
-{
-  nsWindow *wnd = nsWindow::GetNSWindowPtr(aWnd);
-  if (wnd) {
-    ((nsWindow::WindowEnumCallback*)aParam)(wnd);
-  }
-  return TRUE;
-}
-
-BOOL CALLBACK
-nsWindow::EnumAllThreadWindowProc(HWND aWnd, LPARAM aParam)
-{
-  nsWindow *wnd = nsWindow::GetNSWindowPtr(aWnd);
-  if (wnd) {
-    ((nsWindow::WindowEnumCallback*)aParam)(wnd);
-  }
-  EnumChildWindows(aWnd, EnumAllChildWindProc, aParam);
-  return TRUE;
-}
-
-void
-nsWindow::EnumAllWindows(WindowEnumCallback aCallback)
-{
-  EnumThreadWindows(GetCurrentThreadId(),
-                    EnumAllThreadWindowProc,
-                    (LPARAM)&aCallback);
-}
 
 /**************************************************************
  *
@@ -1427,19 +1392,8 @@ NS_METHOD nsWindow::Move(PRInt32 aX, PRInt32 aY)
     }
 #endif
     ClearThemeRegion();
-
-    UINT flags = SWP_NOZORDER | SWP_NOACTIVATE | SWP_NOSIZE;
-    // Workaround SetWindowPos bug with D3D9. If our window has a clip
-    // region, some drivers or OSes may incorrectly copy into the clipped-out
-    // area.
-    if (mWindowType == eWindowType_plugin &&
-        (!mLayerManager || mLayerManager->GetBackendType() == LayerManager::LAYERS_D3D9) &&
-        mClipRects &&
-        (mClipRectCount != 1 || mClipRects[0] != nsIntRect(0, 0, mBounds.width, mBounds.height))) {
-      flags |= SWP_NOCOPYBITS;
-    }
-    VERIFY(::SetWindowPos(mWnd, NULL, aX, aY, 0, 0, flags));
-
+    VERIFY(::SetWindowPos(mWnd, NULL, aX, aY, 0, 0,
+                          SWP_NOZORDER | SWP_NOACTIVATE | SWP_NOSIZE));
     SetThemeRegion();
   }
   return NS_OK;
@@ -3213,7 +3167,7 @@ nsWindow::HasPendingInputEvent()
  **************************************************************/
 
 mozilla::layers::LayerManager*
-nsWindow::GetLayerManager(LayerManagerPersistence aPersistence, bool* aAllowRetaining)
+nsWindow::GetLayerManager(bool* aAllowRetaining)
 {
   if (aAllowRetaining) {
     *aAllowRetaining = true;
@@ -3230,19 +3184,13 @@ nsWindow::GetLayerManager(LayerManagerPersistence aPersistence, bool* aAllowReta
       if (layerManagerD3D10->device() !=
           gfxWindowsPlatform::GetPlatform()->GetD3D10Device())
       {
-        mLayerManager->Destroy();
         mLayerManager = nsnull;
       }
     }
   }
 #endif
 
-  if (!mLayerManager ||
-      (!sAllowD3D9 && aPersistence == LAYER_MANAGER_PERSISTENT &&
-        mLayerManager->GetBackendType() == 
-        mozilla::layers::LayerManager::LAYERS_BASIC)) {
-    // If D3D9 is not currently allowed but the permanent manager is required,
-    // -and- we're currently using basic layers, run through this check.
+  if (!mLayerManager) {
     nsCOMPtr<nsIPrefBranch2> prefs = do_GetService(NS_PREFSERVICE_CONTRACTID);
 
     PRBool accelerateByDefault = PR_TRUE;
@@ -3281,12 +3229,6 @@ nsWindow::GetLayerManager(LayerManagerPersistence aPersistence, bool* aAllowReta
       mUseAcceleratedRendering = PR_TRUE;
 
     if (mUseAcceleratedRendering) {
-      if (aPersistence == LAYER_MANAGER_PERSISTENT && !sAllowD3D9) {
-        // This will clear out our existing layer manager if we have one since
-        // if we hit this with a LayerManager we're always using BasicLayers.
-        nsToolkit::StartAllowingD3D9();
-      }
-
 #ifdef MOZ_ENABLE_D3D10_LAYER
       if (!preferD3D9) {
         nsRefPtr<mozilla::layers::LayerManagerD3D10> layerManager =
@@ -3297,7 +3239,7 @@ nsWindow::GetLayerManager(LayerManagerPersistence aPersistence, bool* aAllowReta
       }
 #endif
 #ifdef MOZ_ENABLE_D3D9_LAYER
-      if (!preferOpenGL && !mLayerManager && sAllowD3D9) {
+      if (!preferOpenGL && !mLayerManager) {
         nsRefPtr<mozilla::layers::LayerManagerD3D9> layerManager =
           new mozilla::layers::LayerManagerD3D9(this);
         if (layerManager->Initialize()) {
@@ -4496,6 +4438,7 @@ nsWindow::ProcessMessageForPlugin(const MSG &aMsg,
 
     case WM_DEADCHAR:
     case WM_SYSDEADCHAR:
+    case WM_CONTEXTMENU:
 
     case WM_CUT:
     case WM_COPY:
@@ -4640,11 +4583,10 @@ PRBool nsWindow::ProcessMessage(UINT msg, WPARAM &wParam, LPARAM &lParam,
     }
     break;
 
-    case WM_THEMECHANGED:
+    case WM_XP_THEMECHANGED:
     {
       // Update non-client margin offsets 
       UpdateNonClientMargins();
-      nsUXThemeData::InitTitlebarInfo();
       nsUXThemeData::UpdateNativeThemeInfo();
 
       DispatchStandardEvent(NS_THEMECHANGED);
@@ -4922,8 +4864,6 @@ PRBool nsWindow::ProcessMessage(UINT msg, WPARAM &wParam, LPARAM &lParam,
       // priority
       SetTimer(mWnd, KILL_PRIORITY_ID, 2000 /* 2seconds */, NULL);
 #endif
-      mMousePresent = PR_TRUE;
-
       // Suppress dispatch of pending events
       // when mouse moves are generated by widget
       // creation instead of user input.
@@ -4943,13 +4883,6 @@ PRBool nsWindow::ProcessMessage(UINT msg, WPARAM &wParam, LPARAM &lParam,
         DispatchPendingEvents();
       }
     }
-    break;
-
-    case WM_NCMOUSEMOVE:
-      // If we receive a mouse move event on non-client chrome, make sure and
-      // send an NS_MOUSE_EXIT event as well.
-      if (mMousePresent && !mIsInMouseCapture)
-        SendMessage(mWnd, WM_MOUSELEAVE, 0, 0);
     break;
 
 #ifdef WINCE_WINDOWS_MOBILE
@@ -4987,10 +4920,6 @@ PRBool nsWindow::ProcessMessage(UINT msg, WPARAM &wParam, LPARAM &lParam,
 #ifndef WINCE
     case WM_MOUSELEAVE:
     {
-      if (!mMousePresent)
-        break;
-      mMousePresent = PR_FALSE;
-
       // We need to check mouse button states and put them in for
       // wParam.
       WPARAM mouseState = (GetKeyState(VK_LBUTTON) ? MK_LBUTTON : 0)
@@ -5347,25 +5276,22 @@ PRBool nsWindow::ProcessMessage(UINT msg, WPARAM &wParam, LPARAM &lParam,
 
 #ifndef WINCE
     case WM_SYSCOMMAND:
-    {
-      WPARAM filteredWParam = (wParam &0xFFF0);
       // prevent Windows from trimming the working set. bug 76831
-      if (!sTrimOnMinimize && filteredWParam == SC_MINIMIZE) {
+      if (!sTrimOnMinimize && wParam == SC_MINIMIZE) {
         ::ShowWindow(mWnd, SW_SHOWMINIMIZED);
         result = PR_TRUE;
       }
 
       // Handle the system menu manually when we're in full screen mode
       // so we can set the appropriate options.
-      if (filteredWParam == SC_KEYMENU && lParam == VK_SPACE &&
+      if (wParam == SC_KEYMENU && lParam == VK_SPACE &&
           mSizeMode == nsSizeMode_Fullscreen) {
         DisplaySystemMenu(mWnd, mSizeMode, mIsRTL,
                           MOZ_SYSCONTEXT_X_POS,
                           MOZ_SYSCONTEXT_Y_POS);
         result = PR_TRUE;
       }
-    }
-    break;
+      break;
 #endif
 
 
@@ -7550,37 +7476,6 @@ PRBool nsWindow::OnScroll(UINT aMsg, WPARAM aWParam, LPARAM aLParam)
 PRBool nsWindow::AutoErase(HDC dc)
 {
   return PR_FALSE;
-}
-
-void
-nsWindow::AllowD3D9Callback(nsWindow *aWindow)
-{
-  if (aWindow->mLayerManager) {
-    aWindow->mLayerManager->Destroy();
-    aWindow->mLayerManager = NULL;
-  }
-}
-
-void
-nsWindow::AllowD3D9WithReinitializeCallback(nsWindow *aWindow)
-{
-  if (aWindow->mLayerManager) {
-    aWindow->mLayerManager->Destroy();
-    aWindow->mLayerManager = NULL;
-    (void) aWindow->GetLayerManager();
-  }
-}
-
-void
-nsWindow::StartAllowingD3D9(bool aReinitialize)
-{
-  sAllowD3D9 = true;
-
-  if (aReinitialize) {
-    EnumAllWindows(AllowD3D9WithReinitializeCallback);
-  } else {
-    EnumAllWindows(AllowD3D9Callback);
-  }
 }
 
 /**************************************************************

@@ -274,7 +274,7 @@ nsHTMLEditor::Init(nsIDOMDocument *aDoc, nsIPresShell *aPresShell,
 
     // Init mutation observer
     nsCOMPtr<nsINode> document = do_QueryInterface(aDoc);
-    document->AddMutationObserverUnlessExists(this);
+    document->AddMutationObserver(this);
 
     // disable Composer-only features
     if (IsMailEditor())

@@ -39,6 +39,7 @@
 #include "nsCOMPtr.h"
 #include "nsServiceManagerUtils.h"
 #include "nsMemoryReporterManager.h"
+
 #include "nsArrayEnumerator.h"
 
 /**
@@ -209,7 +210,7 @@ NS_MEMORY_REPORTER_IMPLEMENT(Win32PrivateBytes,
  ** nsMemoryReporterManager implementation
  **/
 
-NS_IMPL_THREADSAFE_ISUPPORTS1(nsMemoryReporterManager, nsIMemoryReporterManager)
+NS_IMPL_ISUPPORTS1(nsMemoryReporterManager, nsIMemoryReporterManager)
 
 NS_IMETHODIMP
 nsMemoryReporterManager::Init()
@@ -249,28 +250,15 @@ nsMemoryReporterManager::Init()
     return NS_OK;
 }
 
-nsMemoryReporterManager::nsMemoryReporterManager()
-  : mMutex("nsMemoryReporterManager::mMutex")
-{
-}
-
-nsMemoryReporterManager::~nsMemoryReporterManager()
-{
-}
-
 NS_IMETHODIMP
 nsMemoryReporterManager::EnumerateReporters(nsISimpleEnumerator **result)
 {
-    nsresult rv;
-    mozilla::MutexAutoLock autoLock(mMutex); 
-    rv = NS_NewArrayEnumerator(result, mReporters);
-    return rv;
+    return NS_NewArrayEnumerator(result, mReporters);
 }
 
 NS_IMETHODIMP
 nsMemoryReporterManager::RegisterReporter(nsIMemoryReporter *reporter)
 {
-    mozilla::MutexAutoLock autoLock(mMutex); 
     if (mReporters.IndexOf(reporter) != -1)
         return NS_ERROR_FAILURE;
 
@@ -281,7 +269,6 @@ nsMemoryReporterManager::RegisterReporter(nsIMemoryReporter *reporter)
 NS_IMETHODIMP
 nsMemoryReporterManager::UnregisterReporter(nsIMemoryReporter *reporter)
 {
-    mozilla::MutexAutoLock autoLock(mMutex); 
     if (!mReporters.RemoveObject(reporter))
         return NS_ERROR_FAILURE;
 

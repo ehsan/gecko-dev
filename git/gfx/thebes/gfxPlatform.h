@@ -123,8 +123,6 @@ const PRUint32 kMaxLenPrefLangList = 32;
 
 #define UNINITIALIZED_VALUE  (-1)
 
-typedef gfxASurface::gfxImageFormat gfxImageFormat;
-
 class THEBES_API gfxPlatform {
 public:
     /**
@@ -358,9 +356,6 @@ public:
      * for measuring text etc as if they will be rendered to the screen
      */
     gfxASurface* ScreenReferenceSurface() { return mScreenReferenceSurface; }
-
-    virtual gfxImageFormat GetOffscreenFormat()
-    { return gfxASurface::FormatFromContent(gfxASurface::CONTENT_COLOR); }
 
 protected:
     gfxPlatform();

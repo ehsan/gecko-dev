@@ -287,7 +287,6 @@ nsAppShellService::CalculateWindowZLevel(nsIXULWindow *aParent,
   return zLevel;
 }
 
-#ifdef XP_WIN
 /*
  * Checks to see if any existing window is currently in fullscreen mode.
  */
@@ -324,7 +323,6 @@ CheckForFullscreenWindow()
   }
   return PR_FALSE;
 }
-#endif
 
 /*
  * Just do the window-making part of CreateTopLevelWindow
