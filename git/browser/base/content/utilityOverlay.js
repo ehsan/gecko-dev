@@ -1,4 +1,4 @@
-# -*- Mode: javascript; tab-width: 4; indent-tabs-mode: nil; c-basic-offset: 4 -*-
+# -*- Mode: Java; tab-width: 4; indent-tabs-mode: nil; c-basic-offset: 4 -*-
 # This Source Code Form is subject to the terms of the Mozilla Public
 # License, v. 2.0. If a copy of the MPL was not distributed with this
 # file, You can obtain one at http://mozilla.org/MPL/2.0/.
@@ -12,8 +12,7 @@ XPCOMUtils.defineLazyGetter(this, "BROWSER_NEW_TAB_URL", function () {
   const TOPIC = "private-browsing-transition-complete";
 
   function getNewTabPageURL() {
-    if (("gPrivateBrowsingUI" in window) &&
-        !Services.prefs.prefHasUserValue(PREF)) {
+    if (("gPrivateBrowsingUI" in window)) {
       // gPrivateBrowsingUI may not be initialized yet, in that case we'll
       // update BROWSER_NEW_TAB_URL when it gets initialized.
       if (!gPrivateBrowsingUI.initialized)
