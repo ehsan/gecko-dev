@@ -148,24 +148,24 @@ uintN
 js_GetIndexFromBytecode(JSContext *cx, JSScript *script, jsbytecode *pc,
                         ptrdiff_t pcoff)
 {
-    JSOp op = js_GetOpcode(cx, script, pc);
+    JSOp op;
+    uintN span, base;
+
+    op = js_GetOpcode(cx, script, pc);
     JS_ASSERT(js_CodeSpec[op].length >= 1 + pcoff + UINT16_LEN);
 
     /*
      * We need to detect index base prefix. It presents when resetbase
      * follows the bytecode.
      */
-    uintN span = js_CodeSpec[op].length;
-    uintN base = 0;
+    span = js_CodeSpec[op].length;
+    base = 0;
     if (pc - script->code + span < script->length) {
-        JSOp next = js_GetOpcode(cx, script, pc + span);
-        if (next == JSOP_RESETBASE) {
-            JS_ASSERT(js_GetOpcode(cx, script, pc - JSOP_INDEXBASE_LENGTH) == JSOP_INDEXBASE);
+        if (pc[span] == JSOP_RESETBASE) {
             base = GET_INDEXBASE(pc - JSOP_INDEXBASE_LENGTH);
-        } else if (next == JSOP_RESETBASE0) {
-            JSOp prev = js_GetOpcode(cx, script, pc - 1);
-            JS_ASSERT(JSOP_INDEXBASE1 <= prev && prev <= JSOP_INDEXBASE3);
-            base = (prev - JSOP_INDEXBASE1 + 1) << 16;
+        } else if (pc[span] == JSOP_RESETBASE0) {
+            JS_ASSERT(JSOP_INDEXBASE1 <= pc[-1] || pc[-1] <= JSOP_INDEXBASE3);
+            base = (pc[-1] - JSOP_INDEXBASE1 + 1) << 16;
         }
     }
     return base + GET_UINT16(pc + pcoff);

@@ -727,10 +727,8 @@ xpc_qsDOMString::xpc_qsDOMString(JSContext *cx, jsval v, jsval *pval,
 
     size_t len;
     const jschar *chars = JS_GetStringCharsZAndLength(cx, s, &len);
-    if (!chars) {
-        mValid = JS_FALSE;
+    if (!chars)
         return;
-    }
 
     new(mBuf) implementation_type(chars, len);
     mValid = JS_TRUE;
@@ -775,10 +773,8 @@ xpc_qsAUTF8String::xpc_qsAUTF8String(JSContext *cx, jsval v, jsval *pval)
 
     size_t len;
     const PRUnichar *chars = JS_GetStringCharsZAndLength(cx, s, &len);
-    if (!chars) {
-        mValid = JS_FALSE;
+    if (!chars)
         return;
-    }
 
     new(mBuf) implementation_type(chars, len);
     mValid = JS_TRUE;
