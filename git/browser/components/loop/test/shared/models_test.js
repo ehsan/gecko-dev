@@ -78,48 +78,114 @@ describe("loop.shared.models", function() {
         requestCallsInfoStub = fakeClient.requestCallsInfo;
       });
 
-      describe("#incoming", function() {
-        it("should trigger a `call:incoming` event", function(done) {
-          conversation.once("call:incoming", function() {
-            done();
-          });
-
-          conversation.incoming();
-        });
-      });
-
-      describe("#setupOutgoingCall", function() {
-        it("should trigger a `call:outgoing:setup` event", function(done) {
-          conversation.once("call:outgoing:setup", function() {
-            done();
-          });
-
-          conversation.setupOutgoingCall();
-        });
-      });
-
-      describe("#outgoing", function() {
+      describe("#initiate", function() {
         beforeEach(function() {
           sandbox.stub(conversation, "endSession");
-          sandbox.stub(conversation, "setSessionData");
         });
 
-        it("should save the sessionData", function() {
-          conversation.outgoing(fakeSessionData);
+        it("call requestCallInfo on the client for outgoing calls",
+          function() {
+            conversation.initiate({
+              client: fakeClient,
+              outgoing: true,
+              callType: "audio"
+            });
 
-          sinon.assert.calledOnce(conversation.setSessionData);
-        });
-
-        it("should trigger a `call:outgoing` event", function(done) {
-          conversation.once("call:outgoing", function() {
-            done();
+            sinon.assert.calledOnce(requestCallInfoStub);
+            sinon.assert.calledWith(requestCallInfoStub, "fakeToken", "audio");
           });
 
-          conversation.outgoing();
-        });
+        it("should not call requestCallsInfo on the client for outgoing calls",
+          function() {
+            conversation.initiate({
+              client: fakeClient,
+              outgoing: true,
+              callType: "audio"
+            });
+
+            sinon.assert.notCalled(requestCallsInfoStub);
+          });
+
+        it("call requestCallsInfo on the client for incoming calls",
+          function() {
+            conversation.set("loopVersion", 42);
+            conversation.initiate({
+              client: fakeClient,
+              outgoing: false
+            });
+
+            sinon.assert.calledOnce(requestCallsInfoStub);
+            sinon.assert.calledWith(requestCallsInfoStub, 42);
+          });
+
+        it("should not call requestCallInfo on the client for incoming calls",
+          function() {
+            conversation.initiate({
+              client: fakeClient,
+              outgoing: false
+            });
+
+            sinon.assert.notCalled(requestCallInfoStub);
+          });
+
+        it("should update conversation session information from server data",
+          function() {
+            sandbox.stub(conversation, "setReady");
+            requestCallInfoStub.callsArgWith(2, null, fakeSessionData);
+
+            conversation.initiate({
+              client: fakeClient,
+              outgoing: true
+            });
+
+            sinon.assert.calledOnce(conversation.setReady);
+            sinon.assert.calledWith(conversation.setReady, fakeSessionData);
+          });
+
+        it("should trigger a `session:error` event errno is undefined",
+          function(done) {
+            var errMsg = "HTTP 500 Server Error; fake";
+            var err = new Error(errMsg);
+            requestCallInfoStub.callsArgWith(2, err);
+
+            conversation.on("session:error", function(err) {
+              expect(err.message).eql(errMsg);
+              done();
+            }).initiate({ client: fakeClient, outgoing: true });
+          });
+
+        it("should trigger a `session:error` event when errno is not 105",
+          function(done) {
+            var errMsg = "HTTP 400 Bad Request; fake";
+            var err = new Error(errMsg);
+            err.errno = 101;
+            requestCallInfoStub.callsArgWith(2, err);
+
+            conversation.on("session:error", function(err) {
+              expect(err.message).eql(errMsg);
+              done();
+            }).initiate({ client: fakeClient, outgoing: true });
+          });
+
+        it("should trigger a `session:expired` event when errno is 105",
+          function(done) {
+            var err = new Error("HTTP 404 Not Found; fake");
+            err.errno = 105;
+            requestCallInfoStub.callsArgWith(2, err);
+
+            conversation.on("session:expired", function(err2) {
+              expect(err2).eql(err);
+              done();
+            }).initiate({ client: fakeClient, outgoing: true });
+          });
 
         it("should end the session on outgoing call timeout", function() {
-          conversation.outgoing();
+          requestCallInfoStub.callsArgWith(2, null, fakeSessionData);
+
+          conversation.initiate({
+            client: fakeClient,
+            outgoing: true
+          });
 
           sandbox.clock.tick(1001);
 
@@ -128,23 +194,34 @@ describe("loop.shared.models", function() {
 
         it("should trigger a `timeout` event on outgoing call timeout",
           function(done) {
+            requestCallInfoStub.callsArgWith(2, null, fakeSessionData);
+
             conversation.once("timeout", function() {
               done();
             });
 
-            conversation.outgoing();
+            conversation.initiate({
+              client: fakeClient,
+              outgoing: true
+            });
 
             sandbox.clock.tick(1001);
           });
       });
 
-      describe("#setSessionData", function() {
+      describe("#setReady", function() {
         it("should update conversation session information", function() {
-          conversation.setSessionData(fakeSessionData);
+          conversation.setReady(fakeSessionData);
 
           expect(conversation.get("sessionId")).eql("sessionId");
           expect(conversation.get("sessionToken")).eql("sessionToken");
           expect(conversation.get("apiKey")).eql("apiKey");
+        });
+
+        it("should trigger a `session:ready` event", function(done) {
+          conversation.on("session:ready", function() {
+            done();
+          }).setReady(fakeSessionData);
         });
       });
 

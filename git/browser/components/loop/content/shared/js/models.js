@@ -79,28 +79,30 @@ loop.shared.models = (function() {
     },
 
     /**
-     * Starts an incoming conversation.
-     */
-    incoming: function() {
-      this.trigger("call:incoming");
-    },
-
-    /**
-     * Used to indicate that an outgoing call should start any necessary
-     * set-up.
-     */
-    setupOutgoingCall: function() {
-      this.trigger("call:outgoing:setup");
-    },
-
-    /**
-     * Starts an outgoing conversation.
+     * Initiates a conversation, requesting call session information to the Loop
+     * server and updates appropriately the current model attributes with the
+     * data.
      *
-     * @param {Object} sessionData The session data received from the
-     *                             server for the outgoing call.
+     * Available options:
+     *
+     * - {Boolean} outgoing Set to true if this model represents the
+     *                            outgoing call.
+     * - {Boolean} callType Only valid for outgoing calls. The type of media in
+     *                      the call, e.g. "audio" or "audio-video"
+     * - {loop.shared.Client} client  A client object to request call information
+     *                                from. Expects requestCallInfo for outgoing
+     *                                calls, requestCallsInfo for incoming calls.
+     *
+     * Triggered events:
+     *
+     * - `session:ready` when the session information have been successfully
+     *   retrieved from the server;
+     * - `session:error` when the request failed.
+     *
+     * @param {Object} options Options object
      */
-    outgoing: function(sessionData) {
-      this._clearPendingCallTimer();
+    initiate: function(options) {
+      options = options || {};
 
       // Outgoing call has never reached destination, closing - see bug 1020448
       function handleOutgoingCallTimeout() {
@@ -110,12 +112,39 @@ loop.shared.models = (function() {
         }
       }
 
-      // Setup pending call timeout.
-      this._pendingCallTimer = setTimeout(
-        handleOutgoingCallTimeout.bind(this), this.pendingCallTimeout);
+      function handleResult(err, sessionData) {
+        /*jshint validthis:true */
+        this._clearPendingCallTimer();
 
-      this.setSessionData(sessionData);
-      this.trigger("call:outgoing");
+        if (err) {
+          this._handleServerError(err);
+          return;
+        }
+
+        if (options.outgoing) {
+          // Setup pending call timeout.
+          this._pendingCallTimer = setTimeout(
+            handleOutgoingCallTimeout.bind(this), this.pendingCallTimeout);
+        } else {
+          // XXX For incoming calls we might have more than one call queued.
+          // For now, we'll just assume the first call is the right information.
+          // We'll probably really want to be getting this data from the
+          // background worker on the desktop client.
+          // Bug 990714 should fix this.
+          sessionData = sessionData[0];
+        }
+
+        this.setReady(sessionData);
+      }
+
+      if (options.outgoing) {
+        options.client.requestCallInfo(this.get("loopToken"), options.callType,
+          handleResult.bind(this));
+      }
+      else {
+        options.client.requestCallsInfo(this.get("loopVersion"),
+          handleResult.bind(this));
+      }
     },
 
     /**
@@ -128,17 +157,18 @@ loop.shared.models = (function() {
     },
 
     /**
-     * Sets session information.
+     * Sets session information and triggers the `session:ready` event.
      *
      * @param {Object} sessionData Conversation session information.
      */
-    setSessionData: function(sessionData) {
+    setReady: function(sessionData) {
       // Explicit property assignment to prevent later "surprises"
       this.set({
         sessionId:    sessionData.sessionId,
         sessionToken: sessionData.sessionToken,
         apiKey:       sessionData.apiKey
-      });
+      }).trigger("session:ready", this);
+      return this;
     },
 
     /**
