@@ -35,6 +35,7 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
+var gTestfile = 'regress-453173.js';
 //-----------------------------------------------------------------------------
 var BUGNUMBER = 453173;
 var summary = 'Do not Crash with JIT [@ TraceRecorder::record_JSOP_ENDINIT] with "[,]"';

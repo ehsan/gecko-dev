@@ -38,6 +38,7 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
+gTestfile = 'regress-329257.js';
 
 var BUGNUMBER = 329257;
 var summary = "namespace prefix in E4X dot query";

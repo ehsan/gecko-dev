@@ -35,6 +35,7 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
+var gTestfile = 'regress-354246.js';
 //-----------------------------------------------------------------------------
 var BUGNUMBER = 354246;
 var summary = 'calling Error constructor with object with bad toString';

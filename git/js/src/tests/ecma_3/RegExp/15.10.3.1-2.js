@@ -71,6 +71,7 @@
  * We check that RegExp(R, undefined) returns R  -
  */
 //-----------------------------------------------------------------------------
+var gTestfile = '15.10.3.1-2.js';
 var BUGNUMBER = '61266';
 var summary = 'Passing (RegExp object,flag) to RegExp() function';
 var statprefix = 'RegExp(new RegExp(';

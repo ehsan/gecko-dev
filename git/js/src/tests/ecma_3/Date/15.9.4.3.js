@@ -35,6 +35,7 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
+var gTestfile = '15.9.4.3.js';
 //-----------------------------------------------------------------------------
 var BUGNUMBER = 363578;
 var summary = '15.9.4.3 - Date.UTC edge-case arguments.';

@@ -35,6 +35,7 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
+var gTestfile = 'regress-453051.js';
 //-----------------------------------------------------------------------------
 var BUGNUMBER = 453051;
 var summary = 'Do not assert with JIT: !(((*pc == JSOP_GOTO) || (*pc == JSOP_GOTOX)) && (exitType != LOOP_EXIT))';

@@ -35,6 +35,7 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
+var gTestfile = 'regress-352261.js';
 //-----------------------------------------------------------------------------
 var BUGNUMBER = 352261;
 var summary = 'Decompilation should preserve right associativity';

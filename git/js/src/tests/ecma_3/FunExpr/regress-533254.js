@@ -3,6 +3,7 @@
  * http://creativecommons.org/licenses/publicdomain/
  */
 
+var gTestfile = 'regress-533254.js';
 var BUGNUMBER = 533254;
 var summary = 'init-method late in table-big initialiser screwup';
 

@@ -35,6 +35,7 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
+gTestfile = 'regress-313080.js';
 
 var summary = "Regression - Do not crash calling __proto__";
 var BUGNUMBER = 313080;

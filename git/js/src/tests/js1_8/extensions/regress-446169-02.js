@@ -35,6 +35,7 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
+var gTestfile = 'regress-446169-02.js';
 //-----------------------------------------------------------------------------
 var BUGNUMBER = 446169;
 var summary = 'Do not assert: Thin_GetWait(tl->owner) in thread-safe build';

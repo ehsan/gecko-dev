@@ -35,6 +35,7 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
+var gTestfile = 'regress-371692.js';
 //-----------------------------------------------------------------------------
 var BUGNUMBER = 371692;
 var summary = 'Keep extra parentheses in conditional tests';

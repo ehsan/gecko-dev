@@ -35,6 +35,7 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
+var gTestfile = 'regress-352272.js';
 //-----------------------------------------------------------------------------
 var BUGNUMBER = 352272;
 var summary = 'decompilation of |let| in arg to lvalue returning function';

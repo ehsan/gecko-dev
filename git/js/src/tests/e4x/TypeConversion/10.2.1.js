@@ -39,6 +39,7 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
+gTestfile = '10.2.1.js';
 
 START("10.2.1 - XML.toXMLString");
 

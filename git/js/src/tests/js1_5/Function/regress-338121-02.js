@@ -35,6 +35,7 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
+var gTestfile = 'regress-338121-02.js';
 //-----------------------------------------------------------------------------
 var BUGNUMBER = 338121;
 var summary = 'Issues with JS_ARENA_ALLOCATE_CAST';

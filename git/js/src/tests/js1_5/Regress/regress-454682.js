@@ -35,6 +35,7 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
+var gTestfile = 'regress-454682.js';
 //-----------------------------------------------------------------------------
 var BUGNUMBER = 454682;
 var summary = 'Do not crash with JIT in MatchRegExp';

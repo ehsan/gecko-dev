@@ -36,6 +36,7 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
+var gTestfile = 'regress-404755.js';
 //-----------------------------------------------------------------------------
 var BUGNUMBER = 404755;
 var summary = 'Do not consume heap when deleting property';

@@ -35,6 +35,7 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
+var gTestfile = 'regress-350837.js';
 //-----------------------------------------------------------------------------
 var BUGNUMBER = 350837;
 var summary = 'clear cx->throwing in finally';

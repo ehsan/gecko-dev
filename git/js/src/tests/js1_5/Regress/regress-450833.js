@@ -35,6 +35,7 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
+var gTestfile = 'regress-450833.js';
 //-----------------------------------------------------------------------------
 var BUGNUMBER = 450833;
 var summary = 'TM: Multiple trees per entry point';

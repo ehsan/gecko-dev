@@ -40,6 +40,7 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
+gTestfile = '11.2.4.js';
 
 START("11.2.4 - XML Filtering Predicate Operator");
 

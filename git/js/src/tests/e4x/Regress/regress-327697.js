@@ -36,6 +36,7 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
+gTestfile = 'regress-327697.js';
 
 var summary = "Make XPConnect refuse to wrap e4x";
 var BUGNUMBER = 327697;

@@ -36,6 +36,7 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
+var gTestfile = 'regress-256501.js';
 //-----------------------------------------------------------------------------
 var BUGNUMBER = 256501;
 var summary = 'Check Recursion';

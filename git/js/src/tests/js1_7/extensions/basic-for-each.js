@@ -35,6 +35,7 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
+var gTestfile = 'basic-for-each.js';
 //-----------------------------------------------------------------------------
 var BUGNUMBER     = "346582";
 var summary = "Basic support for iterable objects and for-each";

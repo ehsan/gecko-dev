@@ -39,6 +39,7 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
+gTestsuite = 'e4x';
 
 /*
  * Report a failure in the 'accepted' manner

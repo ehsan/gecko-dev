@@ -35,6 +35,7 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
+var gTestfile = 'regress-364023.js';
 //-----------------------------------------------------------------------------
 var BUGNUMBER = 364023;
 var summary = 'Do not crash in JS_GetPrivate';

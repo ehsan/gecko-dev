@@ -5,6 +5,7 @@
  * Contributor: Robert Sayre
  */
 
+gTestfile = 'regress-351988.js';
 
 var summary = 'decompilation of XMLPI object initializer';
 var BUGNUMBER = 351988;

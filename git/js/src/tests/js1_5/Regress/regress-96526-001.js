@@ -45,6 +45,7 @@
  *
  */
 //-----------------------------------------------------------------------------
+var gTestfile = 'regress-96526-001.js';
 printBugNumber(96526);
 printStatus("Just seeing that we don't crash when compiling this script -");
 

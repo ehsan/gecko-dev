@@ -35,6 +35,7 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
+gTestfile = 'hex-001.js';
 
 /**
  *  File Name:          RegExp/hex-001.js

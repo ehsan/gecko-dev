@@ -35,6 +35,7 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
+var gTestfile = 'regress-375715-03.js';
 //-----------------------------------------------------------------------------
 var BUGNUMBER = 375715;
 var summary = 'Do not assert: (c2 <= cs->length) && (c1 <= c2)';

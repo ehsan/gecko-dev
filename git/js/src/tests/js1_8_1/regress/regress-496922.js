@@ -35,6 +35,7 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
+var gTestfile = 'regress-496922.js';
 //-----------------------------------------------------------------------------
 var BUGNUMBER = 496922;
 var summary = 'Incorrect handling of extra arguments';

@@ -35,6 +35,7 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
+var gTestfile = 'regress-479740.js';
 //-----------------------------------------------------------------------------
 var BUGNUMBER = 479740;
 var summary = 'TM: Do not crash @ TraceRecorder::test_property_cache';

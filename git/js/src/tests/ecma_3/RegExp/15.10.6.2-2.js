@@ -96,6 +96,7 @@
  *
  */
 //-----------------------------------------------------------------------------
+var gTestfile = '15.10.6.2-2.js';
 var i = 0;
 var BUGNUMBER = 76717;
 var summary = 'Testing re.exec(str) when re.lastIndex is < 0 or > str.length';

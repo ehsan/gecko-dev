@@ -35,6 +35,7 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
+var gTestfile = 'regress-464092-02.js';
 //-----------------------------------------------------------------------------
 var BUGNUMBER = 464092;
 var summary = 'Censor block objects';

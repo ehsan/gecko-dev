@@ -36,6 +36,7 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
+var gTestfile = 'regress-167328.js';
 //-----------------------------------------------------------------------------
 var BUGNUMBER = 167328;
 var summary = 'Normal error reporting code should fill Error object properties';
@@ -45,7 +46,7 @@ var expect = '';
 printBugNumber(BUGNUMBER);
 printStatus (summary);
 
-expect = 'TypeError:52';
+expect = 'TypeError:53';
 try
 {
   var obj = {toString: function() {return new Object();}};

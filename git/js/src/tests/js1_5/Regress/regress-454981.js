@@ -35,6 +35,7 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
+var gTestfile = 'regress-454981.js';
 //-----------------------------------------------------------------------------
 var BUGNUMBER = 454981;
 var summary = 'Do not assert with JIT: size_t(p - cx->fp->slots) < cx->fp->script->nslots';

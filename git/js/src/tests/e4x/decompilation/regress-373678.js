@@ -36,6 +36,7 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
+gTestfile = 'regress-373678.js';
 
 var BUGNUMBER = 373678;
 var summary = 'Missing quotes around string in decompilation, ' +

@@ -35,6 +35,7 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
+gTestfile = 'octal-002.js';
 
 /**
  *  File Name:          RegExp/octal-002.js

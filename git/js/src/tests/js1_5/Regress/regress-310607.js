@@ -35,6 +35,7 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
+var gTestfile = 'regress-310607.js';
 //-----------------------------------------------------------------------------
 var BUGNUMBER = 310607;
 var summary = 'Do not crash iterating over Object.prototype';

@@ -38,6 +38,7 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
+gTestfile = '9.1.1.4.js';
 
 START("9.1.1.4 - XML [[DeleteByIndex]]");
 

@@ -39,6 +39,7 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
+gTestfile = 'regress-278112.js';
 
 START('setNamespace() should not affect namespaceDeclarations()');
 printBugNumber('278112');

@@ -36,6 +36,7 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
+var gTestfile = 'regress-123371.js';
 //-----------------------------------------------------------------------------
 var BUGNUMBER = 123371;
 var summary = 'Do not crash when newline separates function name from arglist';

@@ -45,6 +45,7 @@
  *
  */
 //-----------------------------------------------------------------------------
+var gTestfile = 'regress-194364.js';
 var UBound = 0;
 var BUGNUMBER = 194364;
 var summary = 'Testing eval statements with conditional function expressions';
