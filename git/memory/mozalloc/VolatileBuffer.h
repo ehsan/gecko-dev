@@ -46,7 +46,6 @@ class MOZALLOC_EXPORT VolatileBuffer : public RefCounted<VolatileBuffer>
 {
   friend class VolatileBufferPtr_base;
 public:
-  MOZ_DECLARE_REFCOUNTED_TYPENAME(VolatileBuffer)
   VolatileBuffer();
   ~VolatileBuffer();
 

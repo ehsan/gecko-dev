@@ -870,24 +870,17 @@ JSRuntime::clearUsedByExclusiveThread(Zone *zone)
 bool
 js::CurrentThreadCanAccessRuntime(JSRuntime *rt)
 {
+    DebugOnly<PerThreadData *> pt = js::TlsPerThreadData.get();
+    JS_ASSERT(pt && pt->associatedWith(rt));
     return rt->ownerThread_ == PR_GetCurrentThread() || InExclusiveParallelSection();
 }
 
 bool
 js::CurrentThreadCanAccessZone(Zone *zone)
 {
-    if (CurrentThreadCanAccessRuntime(zone->runtime_))
-        return true;
-    if (InParallelSection()) {
-        DebugOnly<PerThreadData *> pt = js::TlsPerThreadData.get();
-        JS_ASSERT(pt && pt->associatedWith(zone->runtime_));
-        return true;
-    }
-
-    // Only zones in use by an exclusive thread can be used off the main thread
-    // or outside of PJS. We don't keep track of which thread owns such zones
-    // though, so this check is imperfect.
-    return zone->usedByExclusiveThread;
+    DebugOnly<PerThreadData *> pt = js::TlsPerThreadData.get();
+    JS_ASSERT(pt && pt->associatedWith(zone->runtime_));
+    return !InParallelSection() || InExclusiveParallelSection();
 }
 
 #else // JS_THREADSAFE

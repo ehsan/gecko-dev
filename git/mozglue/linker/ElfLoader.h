@@ -91,7 +91,6 @@ template <> inline RefCounted<LibHandle, AtomicRefCount>::~RefCounted()
 class LibHandle: public mozilla::AtomicRefCounted<LibHandle>
 {
 public:
-  MOZ_DECLARE_REFCOUNTED_TYPENAME(LibHandle)
   /**
    * Constructor. Takes the path of the loaded library and will store a copy
    * of the leaf name.
@@ -163,7 +162,7 @@ public:
   /**
    * Returns the number of direct references
    */
-  MozRefCountType DirectRefCount()
+  int DirectRefCount()
   {
     return directRefCnt;
   }
@@ -210,7 +209,7 @@ protected:
   virtual bool IsSystemElf() const { return false; }
 
 private:
-  MozRefCountType directRefCnt;
+  int directRefCnt;
   char *path;
 
   /* Mappable object keeping the result of GetMappable() */

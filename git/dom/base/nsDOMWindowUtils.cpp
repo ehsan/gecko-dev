@@ -3,14 +3,13 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-#include "nsDOMWindowUtils.h"
-
-#include "mozilla/layers/CompositorChild.h"
+#include "mozilla/layers/CompositorParent.h"
 #include "mozilla/layers/LayerTransactionChild.h"
 #include "nsPresContext.h"
 #include "nsDOMClassInfoID.h"
 #include "nsError.h"
 #include "nsIDOMEvent.h"
+#include "nsDOMWindowUtils.h"
 #include "nsQueryContentEventResult.h"
 #include "CompositionStringSynthesizer.h"
 #include "nsGlobalWindow.h"
@@ -2549,14 +2548,7 @@ nsDOMWindowUtils::AdvanceTimeAndRefresh(int64_t aMilliseconds)
 
   nsRefreshDriver* driver = GetPresContext()->RefreshDriver();
   driver->AdvanceTimeAndRefresh(aMilliseconds);
-
-  nsIWidget* widget = GetWidget();
-  if (widget) {
-    CompositorChild* compositor = widget->GetRemoteRenderer();
-    if (compositor) {
-      compositor->SendSetTestSampleTime(driver->MostRecentRefresh());
-    }
-  }
+  CompositorParent::SetTimeAndSampleAnimations(driver->MostRecentRefresh(), true);
 
   return NS_OK;
 }
@@ -2568,19 +2560,9 @@ nsDOMWindowUtils::RestoreNormalRefresh()
     return NS_ERROR_DOM_SECURITY_ERR;
   }
 
-  // Kick the compositor out of test mode before the refresh driver, so that
-  // the refresh driver doesn't send an update that gets ignored by the
-  // compositor.
-  nsIWidget* widget = GetWidget();
-  if (widget) {
-    CompositorChild* compositor = widget->GetRemoteRenderer();
-    if (compositor) {
-      compositor->SendLeaveTestMode();
-    }
-  }
-
   nsRefreshDriver* driver = GetPresContext()->RefreshDriver();
   driver->RestoreNormalRefresh();
+  CompositorParent::SetTimeAndSampleAnimations(driver->MostRecentRefresh(), false);
 
   return NS_OK;
 }

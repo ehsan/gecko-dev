@@ -17,7 +17,6 @@ class BinaryTest(unittest.TestCase):
 
     application_ini = """[App]
 Name = AppName
-CodeName = AppCodeName
 Version = AppVersion
 BuildID = AppBuildID
 SourceRepository = AppSourceRepo
@@ -69,7 +68,6 @@ SourceRepository = PlatformSourceRepo
 
     def _check_version(self, version):
         self.assertEqual(version.get('application_name'), 'AppName')
-        self.assertEqual(version.get('application_code_name'), 'AppCodeName')
         self.assertEqual(version.get('application_version'), 'AppVersion')
         self.assertEqual(version.get('application_buildid'), 'AppBuildID')
         self.assertEqual(
