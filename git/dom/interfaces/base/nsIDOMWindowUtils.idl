@@ -65,10 +65,8 @@ interface nsIDOMEvent;
 interface nsITransferable;
 interface nsIQueryContentEventResult;
 interface nsIDOMWindow;
-interface nsIDOMFile;
-interface nsIFile;
 
-[scriptable, uuid(bc6c156a-c41f-43dd-ace3-e3bca9894ed1)]
+[scriptable, uuid(d95fac68-4f0d-430f-9580-6dd8041f177e)]
 interface nsIDOMWindowUtils : nsISupports {
 
   /**
@@ -581,16 +579,9 @@ interface nsIDOMWindowUtils : nsISupports {
    * Will throw a DOM security error if called without UniversalXPConnect
    * privileges.
    *
-   * @param aType     The event type: "compositionstart", "compositionend" or
-   *                  "compositionupdate".
-   * @param aData     The data property value.  Note that this isn't applied
-   *                  for compositionstart event because its value is the
-   *                  selected text which is automatically computed.
-   * @param aLocale   The locale property value.
+   * @param aType The event type: "compositionstart" or "compositionend".
    */
-  void sendCompositionEvent(in AString aType,
-                            in AString aData,
-                            in AString aLocale);
+  void sendCompositionEvent(in AString aType);
 
   /**
    * Synthesize a text event to the window.
@@ -889,11 +880,6 @@ interface nsIDOMWindowUtils : nsISupports {
                                   in AString property,
                                   in AString value1,
                                   in AString value2);
-
-  /**
-   * Wrap an nsIFile in an nsIDOMFile
-   */
-  nsIDOMFile wrapDOMFile(in nsIFile aFile);
 
   /**
    * Get the type of the currently focused html input, if any.

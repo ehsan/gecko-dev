@@ -5,17 +5,13 @@
 #include "build/build_config.h"
 #include "base/debug_util.h"
 
-#define MOZ_HAVE_EXECINFO_H (!defined(ANDROID) && !defined(__OpenBSD__))
-
 #include <errno.h>
 #include <fcntl.h>
 #include <stdio.h>
-#include <limits.h>
 #include <sys/stat.h>
-#include <sys/param.h>
 #include <sys/types.h>
 #include <unistd.h>
-#if MOZ_HAVE_EXECINFO_H
+#ifndef ANDROID
 #include <execinfo.h>
 #include <sys/sysctl.h>
 #endif
@@ -123,7 +119,7 @@ StackTrace::StackTrace() {
   const int kMaxCallers = 256;
 
   void* callers[kMaxCallers];
-#if MOZ_HAVE_EXECINFO_H
+#ifndef ANDROID
   int count = backtrace(callers, kMaxCallers);
 #else
   int count = 0;
@@ -142,11 +138,31 @@ StackTrace::StackTrace() {
 
 void StackTrace::PrintBacktrace() {
   fflush(stderr);
-#if MOZ_HAVE_EXECINFO_H
+#ifndef ANDROID
   backtrace_symbols_fd(&trace_[0], trace_.size(), STDERR_FILENO);
 #endif
 }
 
 void StackTrace::OutputToStream(std::ostream* os) {
+#ifdef CHROMIUM_MOZILLA_BUILD
   return;
+#else
+  scoped_ptr_malloc<char*> trace_symbols(
+      backtrace_symbols(&trace_[0], trace_.size()));
+
+  // If we can't retrieve the symbols, print an error and just dump the raw
+  // addresses.
+  if (trace_symbols.get() == NULL) {
+    (*os) << "Unable get symbols for backtrace (" << strerror(errno)
+          << "). Dumping raw addresses in trace:\n";
+    for (size_t i = 0; i < trace_.size(); ++i) {
+      (*os) << "\t" << trace_[i] << "\n";
+    }
+  } else {
+    (*os) << "Backtrace:\n";
+    for (size_t i = 0; i < trace_.size(); ++i) {
+      (*os) << "\t" << trace_symbols.get()[i] << "\n";
+    }
+  }
+#endif
 }

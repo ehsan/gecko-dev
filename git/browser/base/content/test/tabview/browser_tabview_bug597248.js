@@ -22,7 +22,7 @@ function setupOne(win) {
   afterAllTabsLoaded(function () setupTwo(win), win);
 }
 
-let restoredWin;
+let restoreWin;
 
 function setupTwo(win) {
   let contentWindow = win.TabView.getContentWindow();
@@ -34,9 +34,7 @@ function setupTwo(win) {
 
   // force all canvases to update, and hook in imageData save detection
   tabItems.forEach(function(tabItem) {
-    // mark thumbnail as dirty
-    tabItem.tabCanvas.paint();
-
+    contentWindow.TabItems.update(tabItem.tab);
     tabItem.addSubscriber("savedCachedImageData", function onSaved(item) {
       item.removeSubscriber("savedCachedImageData", onSaved);
 
@@ -83,8 +81,8 @@ function setupTwo(win) {
           let count = tabItems.length;
 
           tabItems.forEach(function(tabItem) {
-            tabItem.addSubscriber("showingCachedData", function onLoaded() {
-              tabItem.removeSubscriber("showingCachedData", onLoaded);
+            tabItem.addSubscriber("loadedCachedImageData", function onLoaded() {
+              tabItem.removeSubscriber("loadedCachedImageData", onLoaded);
               ok(tabItem.isShowingCachedData(),
                 "Tab item is showing cached data and is just connected. " +
                 tabItem.tab.linkedBrowser.currentURI.spec);

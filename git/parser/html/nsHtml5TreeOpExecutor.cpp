@@ -58,9 +58,6 @@
 #include "nsHtml5TreeBuilder.h"
 #include "nsHtml5StreamParser.h"
 #include "mozilla/css/Loader.h"
-#include "mozilla/Util.h" // DebugOnly
-
-using namespace mozilla;
 
 NS_IMPL_CYCLE_COLLECTION_CLASS(nsHtml5TreeOpExecutor)
 
@@ -134,7 +131,7 @@ nsHtml5TreeOpExecutor::DidBuildModel(PRBool aTerminated)
     }
   }
   
-  GetParser()->DropStreamParser();
+  static_cast<nsHtml5Parser*> (mParser.get())->DropStreamParser();
 
   // This comes from nsXMLContentSink and nsHTMLContentSink
   DidBuildModelImpl(aTerminated);
@@ -272,7 +269,7 @@ nsHtml5TreeOpExecutor::UpdateChildCounts()
 nsresult
 nsHtml5TreeOpExecutor::FlushTags()
 {
-  return NS_OK;
+    return NS_OK;
 }
 
 void
@@ -319,7 +316,7 @@ nsHtml5TreeOpExecutor::UpdateStyleSheet(nsIContent* aElement)
     mScriptLoader->AddExecuteBlocker();
   }
 
-  if (aElement->IsHTML(nsGkAtoms::link)) {
+  if (aElement->IsHTML() && aElement->Tag() == nsGkAtoms::link) {
     // look for <link rel="next" href="url">
     nsAutoString relVal;
     aElement->GetAttr(kNameSpaceID_None, nsGkAtoms::rel, relVal);
@@ -359,8 +356,8 @@ nsHtml5TreeOpExecutor::FlushSpeculativeLoads()
   mStage.MoveSpeculativeLoadsTo(speculativeLoadQueue);
   const nsHtml5SpeculativeLoad* start = speculativeLoadQueue.Elements();
   const nsHtml5SpeculativeLoad* end = start + speculativeLoadQueue.Length();
-  for (nsHtml5SpeculativeLoad* iter = const_cast<nsHtml5SpeculativeLoad*>(start);
-       iter < end;
+  for (nsHtml5SpeculativeLoad* iter = (nsHtml5SpeculativeLoad*)start;
+       iter < end; 
        ++iter) {
     iter->Perform(this);
   }
@@ -461,10 +458,10 @@ nsHtml5TreeOpExecutor::RunFlushLoop()
       // Not sure if this grip is still needed, but previously, the code
       // gripped before calling ParseUntilBlocked();
       nsRefPtr<nsHtml5StreamParser> streamKungFuDeathGrip = 
-        GetParser()->GetStreamParser();
+        static_cast<nsHtml5Parser*> (mParser.get())->GetStreamParser();
       // Now parse content left in the document.write() buffer queue if any.
       // This may generate tree ops on its own or dequeue a speculation.
-      GetParser()->ParseUntilBlocked();
+      static_cast<nsHtml5Parser*> (mParser.get())->ParseUntilBlocked();
     }
 
     if (mOpQueue.IsEmpty()) {
@@ -485,7 +482,7 @@ nsHtml5TreeOpExecutor::RunFlushLoop()
 
     const nsHtml5TreeOperation* first = mOpQueue.Elements();
     const nsHtml5TreeOperation* last = first + numberOfOpsToFlush - 1;
-    for (nsHtml5TreeOperation* iter = const_cast<nsHtml5TreeOperation*>(first);;) {
+    for (nsHtml5TreeOperation* iter = (nsHtml5TreeOperation*)first;;) {
       if (NS_UNLIKELY(!mParser)) {
         // The previous tree op caused a call to nsIParser::Terminate().
         break;
@@ -584,8 +581,8 @@ nsHtml5TreeOpExecutor::FlushDocumentWrite()
 
   const nsHtml5TreeOperation* start = mOpQueue.Elements();
   const nsHtml5TreeOperation* end = start + numberOfOpsToFlush;
-  for (nsHtml5TreeOperation* iter = const_cast<nsHtml5TreeOperation*>(start);
-       iter < end;
+  for (nsHtml5TreeOperation* iter = (nsHtml5TreeOperation*)start;
+       iter < end; 
        ++iter) {
     if (NS_UNLIKELY(!mParser)) {
       // The previous tree op caused a call to nsIParser::Terminate().
@@ -630,7 +627,7 @@ nsHtml5TreeOpExecutor::IsScriptEnabled()
   }
   nsIScriptContext *scriptContext = globalObject->GetContext();
   NS_ENSURE_TRUE(scriptContext, PR_TRUE);
-  JSContext* cx = scriptContext->GetNativeContext();
+  JSContext* cx = (JSContext *) scriptContext->GetNativeContext();
   NS_ENSURE_TRUE(cx, PR_TRUE);
   PRBool enabled = PR_TRUE;
   nsContentUtils::GetSecurityManager()->
@@ -666,7 +663,7 @@ nsHtml5TreeOpExecutor::StartLayout() {
 
   EndDocUpdate();
 
-  if (NS_UNLIKELY(!mParser)) {
+  if(NS_UNLIKELY(!mParser)) {
     // got terminate
     return;
   }
@@ -777,7 +774,7 @@ nsHtml5TreeOpExecutor::NeedsCharsetSwitchTo(const char* aEncoding,
 {
   EndDocUpdate();
 
-  if (NS_UNLIKELY(!mParser)) {
+  if(NS_UNLIKELY(!mParser)) {
     // got terminate
     return;
   }
@@ -799,21 +796,15 @@ nsHtml5TreeOpExecutor::NeedsCharsetSwitchTo(const char* aEncoding,
     return;
   }
 
-  GetParser()->ContinueAfterFailedCharsetSwitch();
+  (static_cast<nsHtml5Parser*> (mParser.get()))->ContinueAfterFailedCharsetSwitch();
 
   BeginDocUpdate();
-}
-
-nsHtml5Parser*
-nsHtml5TreeOpExecutor::GetParser()
-{
-  return static_cast<nsHtml5Parser*>(mParser.get());
 }
 
 nsHtml5Tokenizer*
 nsHtml5TreeOpExecutor::GetTokenizer()
 {
-  return GetParser()->GetTokenizer();
+  return (static_cast<nsHtml5Parser*> (mParser.get()))->GetTokenizer();
 }
 
 void
@@ -853,7 +844,7 @@ nsHtml5TreeOpExecutor::MoveOpsFrom(nsTArray<nsHtml5TreeOperation>& aOpQueue)
 void
 nsHtml5TreeOpExecutor::InitializeDocWriteParserState(nsAHtml5TreeBuilderState* aState, PRInt32 aLine)
 {
-  GetParser()->InitializeDocWriteParserState(aState, aLine);
+  static_cast<nsHtml5Parser*> (mParser.get())->InitializeDocWriteParserState(aState, aLine);
 }
 
 // Speculative loading
@@ -861,9 +852,6 @@ nsHtml5TreeOpExecutor::InitializeDocWriteParserState(nsAHtml5TreeBuilderState* a
 already_AddRefed<nsIURI>
 nsHtml5TreeOpExecutor::ConvertIfNotPreloadedYet(const nsAString& aURL)
 {
-  if (aURL.IsEmpty()) {
-    return nsnull;
-  }
   // The URL of the document without <base>
   nsIURI* documentURI = mDocument->GetDocumentURI();
   // The URL of the document with non-speculative <base>
@@ -889,7 +877,9 @@ nsHtml5TreeOpExecutor::ConvertIfNotPreloadedYet(const nsAString& aURL)
     return nsnull;
   }
   mPreloadedURLs.Put(spec);
-  return uri.forget();
+  nsIURI* retURI = uri;
+  NS_ADDREF(retURI);
+  return retURI;
 }
 
 void
@@ -934,9 +924,11 @@ nsHtml5TreeOpExecutor::SetSpeculationBase(const nsAString& aURL)
     return;
   }
   const nsCString& charset = mDocument->GetDocumentCharacterSet();
-  DebugOnly<nsresult> rv = NS_NewURI(getter_AddRefs(mSpeculationBaseURI), aURL,
-                                     charset.get(), mDocument->GetDocumentURI());
-  NS_WARN_IF_FALSE(NS_SUCCEEDED(rv), "Failed to create a URI");
+  nsresult rv = NS_NewURI(getter_AddRefs(mSpeculationBaseURI), aURL,
+      charset.get(), mDocument->GetDocumentURI());
+  if (NS_FAILED(rv)) {
+    NS_WARNING("Failed to create a URI");
+  }
 }
 
 #ifdef DEBUG_NS_HTML5_TREE_OP_EXECUTOR_FLUSH

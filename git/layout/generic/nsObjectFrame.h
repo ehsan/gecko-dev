@@ -128,7 +128,6 @@ public:
   virtual nsresult Instantiate(const char* aMimeType, nsIURI* aURI);
   virtual void TryNotifyContentObjectWrapper();
   virtual void StopPlugin();
-  virtual void SetIsDocumentActive(PRBool aIsActive);
 
   /*
    * Stop a plugin instance. If aDelayedStop is true, the plugin will

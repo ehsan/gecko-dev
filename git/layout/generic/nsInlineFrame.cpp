@@ -268,7 +268,7 @@ nsInlineFrame::ReparentFloatsForInlineChild(nsIFrame* aOurLineContainer,
   nsBlockFrame* frameBlock = nsLayoutUtils::GetAsBlock(ancestor);
   NS_ASSERTION(frameBlock, "ancestor not a block");
 
-  const nsFrameList& blockChildren(ancestor->PrincipalChildList());
+  const nsFrameList& blockChildren(ancestor->GetChildList(nsnull));
   PRBool isOverflow = !blockChildren.ContainsFrame(ancestorBlockChild);
 
   while (PR_TRUE) {
@@ -528,7 +528,7 @@ nsInlineFrame::ReflowFrames(nsPresContext* aPresContext,
       // so nsFirstLetterFrame::Reflow can destroy them safely (bug 401042).
       nsIFrame* realFrame = nsPlaceholderFrame::GetRealFrameFor(frame);
       if (realFrame->GetType() == nsGkAtoms::letterFrame) {
-        nsIFrame* child = realFrame->GetFirstPrincipalChild();
+        nsIFrame* child = realFrame->GetFirstChild(nsnull);
         if (child) {
           NS_ASSERTION(child->GetType() == nsGkAtoms::textFrame,
                        "unexpected frame type");
@@ -1135,63 +1135,63 @@ nsPositionedInlineFrame::DestroyFrom(nsIFrame* aDestructRoot)
 }
 
 NS_IMETHODIMP
-nsPositionedInlineFrame::SetInitialChildList(ChildListID     aListID,
+nsPositionedInlineFrame::SetInitialChildList(nsIAtom*        aListName,
                                              nsFrameList&    aChildList)
 {
   nsresult  rv;
 
-  if (kAbsoluteList == aListID) {
-    rv = mAbsoluteContainer.SetInitialChildList(this, aListID, aChildList);
+  if (nsGkAtoms::absoluteList == aListName) {
+    rv = mAbsoluteContainer.SetInitialChildList(this, aListName, aChildList);
   } else {
-    rv = nsInlineFrame::SetInitialChildList(aListID, aChildList);
+    rv = nsInlineFrame::SetInitialChildList(aListName, aChildList);
   }
 
   return rv;
 }
 
 NS_IMETHODIMP
-nsPositionedInlineFrame::AppendFrames(ChildListID     aListID,
+nsPositionedInlineFrame::AppendFrames(nsIAtom*        aListName,
                                       nsFrameList&    aFrameList)
 {
   nsresult  rv;
   
-  if (kAbsoluteList == aListID) {
-    rv = mAbsoluteContainer.AppendFrames(this, aListID, aFrameList);
+  if (nsGkAtoms::absoluteList == aListName) {
+    rv = mAbsoluteContainer.AppendFrames(this, aListName, aFrameList);
   } else {
-    rv = nsInlineFrame::AppendFrames(aListID, aFrameList);
+    rv = nsInlineFrame::AppendFrames(aListName, aFrameList);
   }
 
   return rv;
 }
   
 NS_IMETHODIMP
-nsPositionedInlineFrame::InsertFrames(ChildListID     aListID,
+nsPositionedInlineFrame::InsertFrames(nsIAtom*        aListName,
                                       nsIFrame*       aPrevFrame,
                                       nsFrameList&    aFrameList)
 {
   nsresult  rv;
 
-  if (kAbsoluteList == aListID) {
-    rv = mAbsoluteContainer.InsertFrames(this, aListID, aPrevFrame,
+  if (nsGkAtoms::absoluteList == aListName) {
+    rv = mAbsoluteContainer.InsertFrames(this, aListName, aPrevFrame,
                                          aFrameList);
   } else {
-    rv = nsInlineFrame::InsertFrames(aListID, aPrevFrame, aFrameList);
+    rv = nsInlineFrame::InsertFrames(aListName, aPrevFrame, aFrameList);
   }
 
   return rv;
 }
   
 NS_IMETHODIMP
-nsPositionedInlineFrame::RemoveFrame(ChildListID     aListID,
+nsPositionedInlineFrame::RemoveFrame(nsIAtom*        aListName,
                                      nsIFrame*       aOldFrame)
 {
   nsresult  rv;
 
-  if (kAbsoluteList == aListID) {
-    mAbsoluteContainer.RemoveFrame(this, aListID, aOldFrame);
+  if (nsGkAtoms::absoluteList == aListName) {
+    mAbsoluteContainer.RemoveFrame(this, aListName, aOldFrame);
     rv = NS_OK;
   } else {
-    rv = nsInlineFrame::RemoveFrame(aListID, aOldFrame);
+    rv = nsInlineFrame::RemoveFrame(aListName, aOldFrame);
   }
 
   return rv;
@@ -1207,20 +1207,22 @@ nsPositionedInlineFrame::BuildDisplayList(nsDisplayListBuilder*   aBuilder,
   return nsHTMLContainerFrame::BuildDisplayList(aBuilder, aDirtyRect, aLists);
 }
 
-nsFrameList
-nsPositionedInlineFrame::GetChildList(ChildListID aListID) const
+nsIAtom*
+nsPositionedInlineFrame::GetAdditionalChildListName(PRInt32 aIndex) const
 {
-  if (kAbsoluteList == aListID)
-    return mAbsoluteContainer.GetChildList();
-
-  return nsInlineFrame::GetChildList(aListID);
+  if (0 == aIndex) {
+    return nsGkAtoms::absoluteList;
+  }
+  return nsnull;
 }
 
-void
-nsPositionedInlineFrame::GetChildLists(nsTArray<ChildList>* aLists) const
+nsFrameList
+nsPositionedInlineFrame::GetChildList(nsIAtom* aListName) const
 {
-  nsInlineFrame::GetChildLists(aLists);
-  mAbsoluteContainer.AppendChildList(aLists, kAbsoluteList);
+  if (nsGkAtoms::absoluteList == aListName)
+    return mAbsoluteContainer.GetChildList();
+
+  return nsInlineFrame::GetChildList(aListName);
 }
 
 nsIAtom*

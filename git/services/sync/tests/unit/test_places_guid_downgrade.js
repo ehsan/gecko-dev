@@ -111,7 +111,6 @@ function test_history_guids() {
   stmt.params.guid = tbguid;
   result = Async.querySpinningly(stmt, ["id"]);
   do_check_eq(result.length, 1);
-  stmt.finalize();
 
   _("History: Verify GUIDs weren't added to annotations.");
   stmt = PlacesUtils.history.DBConnection.createAsyncStatement(
@@ -124,7 +123,6 @@ function test_history_guids() {
   stmt.params.guid = tbguid;
   result = Async.querySpinningly(stmt, ["guid"]);
   do_check_eq(result.length, 0);
-  stmt.finalize();
 }
 
 function test_bookmark_guids() {
@@ -158,7 +156,6 @@ function test_bookmark_guids() {
   result = Async.querySpinningly(stmt, ["id"]);
   do_check_eq(result.length, 1);
   do_check_eq(result[0].id, tbid);
-  stmt.finalize();
 
   _("Bookmarks: Verify GUIDs weren't added to annotations.");
   stmt = PlacesUtils.history.DBConnection.createAsyncStatement(
@@ -171,7 +168,6 @@ function test_bookmark_guids() {
   stmt.params.guid = tbguid;
   result = Async.querySpinningly(stmt, ["guid"]);
   do_check_eq(result.length, 0);
-  stmt.finalize();
 }
 
 function run_test() {

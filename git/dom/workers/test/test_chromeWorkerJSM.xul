@@ -11,21 +11,20 @@
           src="chrome://mochikit/content/tests/SimpleTest/SimpleTest.js"/>
   <script type="application/javascript"
           src="chrome://mochikit/content/tests/SimpleTest/EventUtils.js"/>
-  <script type="application/javascript" src="dom_worker_helper.js"/>
 
   <script type="application/javascript">
   <![CDATA[
 
     function test()
     {
-      waitForWorkerFinish();
+      SimpleTest.waitForExplicitFinish();
 
       var worker;
 
       function done()
       {
         worker = null;
-        finish();
+        SimpleTest.finish();
       }
 
       function messageCallback(event) {

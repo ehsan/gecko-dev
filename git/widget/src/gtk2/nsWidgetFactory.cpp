@@ -92,6 +92,7 @@ static NS_DEFINE_CID(kNativeFilePickerCID, NS_FILEPICKER_CID);
 
 NS_GENERIC_FACTORY_CONSTRUCTOR(nsWindow)
 NS_GENERIC_FACTORY_CONSTRUCTOR(nsChildWindow)
+NS_GENERIC_FACTORY_CONSTRUCTOR(nsLookAndFeel)
 NS_GENERIC_FACTORY_CONSTRUCTOR(nsTransferable)
 NS_GENERIC_FACTORY_CONSTRUCTOR(nsBidiKeyboard)
 NS_GENERIC_FACTORY_CONSTRUCTOR(nsHTMLFormatConverter)
@@ -229,6 +230,7 @@ nsNativeKeyBindingsTextAreaConstructor(nsISupports *aOuter, REFNSIID aIID,
 NS_DEFINE_NAMED_CID(NS_WINDOW_CID);
 NS_DEFINE_NAMED_CID(NS_CHILD_CID);
 NS_DEFINE_NAMED_CID(NS_APPSHELL_CID);
+NS_DEFINE_NAMED_CID(NS_LOOKANDFEEL_CID);
 NS_DEFINE_NAMED_CID(NS_FILEPICKER_CID);
 NS_DEFINE_NAMED_CID(NS_SOUND_CID);
 NS_DEFINE_NAMED_CID(NS_TRANSFERABLE_CID);
@@ -264,6 +266,7 @@ static const mozilla::Module::CIDEntry kWidgetCIDs[] = {
     { &kNS_WINDOW_CID, false, NULL, nsWindowConstructor },
     { &kNS_CHILD_CID, false, NULL, nsChildWindowConstructor },
     { &kNS_APPSHELL_CID, false, NULL, nsAppShellConstructor },
+    { &kNS_LOOKANDFEEL_CID, false, NULL, nsLookAndFeelConstructor },
     { &kNS_FILEPICKER_CID, false, NULL, nsFilePickerConstructor },
     { &kNS_SOUND_CID, false, NULL, nsSoundConstructor },
     { &kNS_TRANSFERABLE_CID, false, NULL, nsTransferableConstructor },
@@ -300,6 +303,7 @@ static const mozilla::Module::ContractIDEntry kWidgetContracts[] = {
     { "@mozilla.org/widget/window/gtk;1", &kNS_WINDOW_CID },
     { "@mozilla.org/widgets/child_window/gtk;1", &kNS_CHILD_CID },
     { "@mozilla.org/widget/appshell/gtk;1", &kNS_APPSHELL_CID },
+    { "@mozilla.org/widget/lookandfeel;1", &kNS_LOOKANDFEEL_CID },
     { "@mozilla.org/filepicker;1", &kNS_FILEPICKER_CID },
     { "@mozilla.org/sound;1", &kNS_SOUND_CID },
     { "@mozilla.org/widget/transferable;1", &kNS_TRANSFERABLE_CID },
@@ -335,7 +339,6 @@ static const mozilla::Module::ContractIDEntry kWidgetContracts[] = {
 static void
 nsWidgetGtk2ModuleDtor()
 {
-  nsLookAndFeel::Shutdown();
   nsFilePicker::Shutdown();
   nsSound::Shutdown();
   nsWindow::ReleaseGlobals();

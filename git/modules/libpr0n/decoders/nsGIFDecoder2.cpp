@@ -201,7 +201,7 @@ void nsGIFDecoder2::BeginGIF()
 }
 
 //******************************************************************************
-nsresult nsGIFDecoder2::BeginImageFrame(PRUint16 aDepth)
+nsresult nsGIFDecoder2::BeginImageFrame(gfx_depth aDepth)
 {
   PRUint32 imageDataLength;
   nsresult rv;
@@ -1095,13 +1095,6 @@ done:
 
   return;
 }
-
-Telemetry::ID
-nsGIFDecoder2::SpeedHistogram()
-{
-  return Telemetry::IMAGE_DECODE_SPEED_GIF;
-}
-
 
 } // namespace imagelib
 } // namespace mozilla

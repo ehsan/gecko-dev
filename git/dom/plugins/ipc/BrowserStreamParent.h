@@ -76,7 +76,6 @@ private:
 
   PluginInstanceParent* mNPP;
   NPStream* mStream;
-  nsCOMPtr<nsISupports> mStreamPeer;
 
   enum {
     ALIVE,

@@ -325,10 +325,12 @@ function runTests()
     synthesizeKey("VK_TAB", { shiftKey: true });
     check(aDescription + "Shift+Tab after Tab on UL",
           true, true, !aIsTabbable && !aIsReadonly && !aIsPlaintext);
+    // XXX why do we fail to outdent on non-tabbable HTML editor?
     is(aElement.innerHTML,
-       aIsReadonly || aIsTabbable || (!aIsPlaintext) ?
+       aIsReadonly || aIsTabbable ?
          "<ul><li id=\"target\">ul list item</li></ul>" :
-         "<ul><li id=\"target\">ul list item\t</li></ul>",
+         aIsPlaintext ? "<ul><li id=\"target\">ul list item\t</li></ul>" :
+           "<ul><ul><li id=\"target\">ul list item</li></ul></ul>",
        aDescription + "Shift+Tab after Tab on UL");
     is(fm.focusedElement, aElement,
        aDescription + "focus moved unexpectedly (Shift+Tab after Tab on UL)");
@@ -338,8 +340,10 @@ function runTests()
     check(aDescription + "Shift+Tab on UL",
           true, true, !aIsTabbable && !aIsReadonly && !aIsPlaintext);
     is(aElement.innerHTML,
-       aIsReadonly || aIsTabbable || aIsPlaintext ?
-         "<ul><li id=\"target\">ul list item</li></ul>" : "ul list item",
+       aIsReadonly || aIsTabbable ?
+         "<ul><li id=\"target\">ul list item</li></ul>" :
+         aIsPlaintext ? "<ul><li id=\"target\">ul list item</li></ul>" :
+           "<ul><li id=\"target\">ul list item</li></ul>",
        aDescription + "Shift+Tab on UL");
     is(fm.focusedElement, aElement,
        aDescription + "focus moved unexpectedly (Shift+Tab on UL)");
@@ -385,10 +389,12 @@ function runTests()
     synthesizeKey("VK_TAB", { shiftKey: true });
     check(aDescription + "Shift+Tab after Tab on OL",
           true, true, !aIsTabbable && !aIsReadonly && !aIsPlaintext);
+    // XXX why do we fail to outdent on non-tabbable HTML editor?
     is(aElement.innerHTML,
-       aIsReadonly || aIsTabbable || (!aIsPlaintext) ?
+       aIsReadonly || aIsTabbable ?
          "<ol><li id=\"target\">ol list item</li></ol>" :
-         "<ol><li id=\"target\">ol list item\t</li></ol>",
+         aIsPlaintext ? "<ol><li id=\"target\">ol list item\t</li></ol>" :
+           "<ol><ol><li id=\"target\">ol list item</li></ol></ol>",
        aDescription + "Shift+Tab after Tab on OL");
     is(fm.focusedElement, aElement,
        aDescription + "focus moved unexpectedly (Shift+Tab after Tab on OL)");
@@ -398,8 +404,10 @@ function runTests()
     check(aDescription + "Shift+Tab on OL",
           true, true, !aIsTabbable && !aIsReadonly && !aIsPlaintext);
     is(aElement.innerHTML,
-       aIsReadonly || aIsTabbable || aIsPlaintext ?
-         "<ol><li id=\"target\">ol list item</li></ol>" : "ol list item",
+       aIsReadonly || aIsTabbable ?
+         "<ol><li id=\"target\">ol list item</li></ol>" :
+         aIsPlaintext ? "<ol><li id=\"target\">ol list item</li></ol>" :
+           "<ol><li id=\"target\">ol list item</li></ol>",
        aDescription + "Shfit+Tab on OL");
     is(fm.focusedElement, aElement,
        aDescription + "focus moved unexpectedly (Shift+Tab on OL)");

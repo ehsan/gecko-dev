@@ -86,7 +86,7 @@ public:
   // nsSVGContainerFrame methods:
   virtual gfxMatrix GetCanvasTM();
 
-  nsAutoPtr<gfxMatrix> mCanvasTM;
+  nsCOMPtr<nsIDOMSVGMatrix> mCanvasTM;
 };
 
 #endif

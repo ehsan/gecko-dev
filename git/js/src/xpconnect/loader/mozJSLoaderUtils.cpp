@@ -35,6 +35,8 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
+#if !defined(XPCONNECT_STANDALONE)
+
 #include "nsAutoPtr.h"
 #include "nsScriptLoader.h"
 
@@ -48,9 +50,9 @@ using namespace mozilla::scache;
 
 static nsresult
 ReadScriptFromStream(JSContext *cx, nsIObjectInputStream *stream,
-                     JSScript **script)
+                     JSObject **scriptObj)
 {
-    *script = nsnull;
+    *scriptObj = nsnull;
 
     PRUint32 size;
     nsresult rv = stream->Read32(&size);
@@ -66,7 +68,7 @@ ReadScriptFromStream(JSContext *cx, nsIObjectInputStream *stream,
     xdr->userdata = stream;
     JS_XDRMemSetData(xdr, data, size);
 
-    if (!JS_XDRScript(xdr, script)) {
+    if (!JS_XDRScriptObject(xdr, scriptObj)) {
         rv = NS_ERROR_FAILURE;
     }
 
@@ -103,7 +105,7 @@ ReadScriptFromStream(JSContext *cx, nsIObjectInputStream *stream,
 }
 
 static nsresult
-WriteScriptToStream(JSContext *cx, JSScript *script,
+WriteScriptToStream(JSContext *cx, JSObject *scriptObj,
                     nsIObjectOutputStream *stream)
 {
     JSXDRState *xdr = JS_XDRNewMem(cx, JSXDR_ENCODE);
@@ -112,7 +114,7 @@ WriteScriptToStream(JSContext *cx, JSScript *script,
     xdr->userdata = stream;
     nsresult rv = NS_OK;
 
-    if (JS_XDRScript(xdr, &script)) {
+    if (JS_XDRScriptObject(xdr, &scriptObj)) {
         // Get the encoded JSXDRState data and write it.  The JSXDRState owns
         // this buffer memory and will free it beneath ::JS_XDRDestroy.
         //
@@ -145,7 +147,7 @@ WriteScriptToStream(JSContext *cx, JSScript *script,
 }
 
 nsresult
-ReadCachedScript(StartupCache* cache, nsACString &uri, JSContext *cx, JSScript **script)
+ReadCachedScript(StartupCache* cache, nsACString &uri, JSContext *cx, JSObject **scriptObj)
 {
     nsresult rv;
 
@@ -162,11 +164,11 @@ ReadCachedScript(StartupCache* cache, nsACString &uri, JSContext *cx, JSScript *
     NS_ENSURE_SUCCESS(rv, rv);
     buf.forget();
 
-    return ReadScriptFromStream(cx, ois, script);
+    return ReadScriptFromStream(cx, ois, scriptObj);
 }
 
 nsresult
-WriteCachedScript(StartupCache* cache, nsACString &uri, JSContext *cx, JSScript *script)
+WriteCachedScript(StartupCache* cache, nsACString &uri, JSContext *cx, JSObject *scriptObj)
 {
     nsresult rv;
 
@@ -177,7 +179,7 @@ WriteCachedScript(StartupCache* cache, nsACString &uri, JSContext *cx, JSScript 
                                              true);
     NS_ENSURE_SUCCESS(rv, rv);
 
-    rv = WriteScriptToStream(cx, script, oos);
+    rv = WriteScriptToStream(cx, scriptObj, oos);
     oos->Close();
     NS_ENSURE_SUCCESS(rv, rv);
 
@@ -189,3 +191,5 @@ WriteCachedScript(StartupCache* cache, nsACString &uri, JSContext *cx, JSScript 
     rv = cache->PutBuffer(PromiseFlatCString(uri).get(), buf, len);
     return rv;
 }
+
+#endif /* XPCONNECT_STANDALONE */

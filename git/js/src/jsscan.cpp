@@ -1224,7 +1224,8 @@ TokenStream::getAtSourceMappingURL()
 
         jschar c;
         while (!IsSpaceOrBOM2((c = getChar())) &&
-               c && c != jschar(EOF))
+               ((char) c) != '\0' &&
+               ((char) c) != EOF)
             tokenbuf.append(c);
 
         if (tokenbuf.empty())

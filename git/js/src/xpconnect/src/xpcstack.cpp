@@ -133,9 +133,6 @@ nsresult
 XPCJSStackFrame::CreateStack(JSContext* cx, JSStackFrame* fp,
                              XPCJSStackFrame** stack)
 {
-    static const unsigned MAX_FRAMES = 3000;
-    unsigned numFrames = 0;
-
     nsRefPtr<XPCJSStackFrame> first = new XPCJSStackFrame();
     nsRefPtr<XPCJSStackFrame> self = first;
     while(fp && self)
@@ -190,11 +187,7 @@ XPCJSStackFrame::CreateStack(JSContext* cx, JSStackFrame* fp,
             }
         }
 
-        if (++numFrames > MAX_FRAMES)
-        {
-            fp = NULL;
-        }
-        else if(JS_FrameIterator(cx, &fp))
+        if(JS_FrameIterator(cx, &fp))
         {
             XPCJSStackFrame* frame = new XPCJSStackFrame();
             self->mCaller = frame;

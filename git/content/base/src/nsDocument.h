@@ -98,9 +98,8 @@
 #include "imgIRequest.h"
 #include "nsIDOMDOMImplementation.h"
 #include "nsIDOMTouchEvent.h"
-#include "nsIInlineEventHandlers.h"
 #include "nsDataHashtable.h"
-#include "mozilla/TimeStamp.h"
+#include "TimeStamp.h"
 
 #define XML_DECLARATION_BITS_DECLARATION_EXISTS   (1 << 0)
 #define XML_DECLARATION_BITS_ENCODING_EXISTS      (1 << 1)
@@ -493,8 +492,7 @@ class nsDocument : public nsIDocument,
                    public nsIRadioGroupContainer,
                    public nsIApplicationCacheContainer,
                    public nsStubMutationObserver,
-                   public nsIDOMDocumentTouch,
-                   public nsIInlineEventHandlers
+                   public nsIDOMDocumentTouch
 {
 public:
   typedef mozilla::dom::Element Element;
@@ -783,14 +781,8 @@ public:
   // nsIApplicationCacheContainer
   NS_DECL_NSIAPPLICATIONCACHECONTAINER
 
-  // nsITouchEventReceiver
-  NS_DECL_NSITOUCHEVENTRECEIVER
-
   // nsIDOMDocumentTouch
   NS_DECL_NSIDOMDOCUMENTTOUCH
-
-  // nsIInlineEventHandlers
-  NS_DECL_NSIINLINEEVENTHANDLERS
 
   virtual nsresult Init();
   
@@ -941,13 +933,6 @@ public:
 
   virtual Element* FindImageMap(const nsAString& aNormalizedMapName);
 
-  virtual void ResetFullScreenElement();
-  virtual Element* GetFullScreenElement();
-  virtual void RequestFullScreen(Element* aElement);
-  virtual void CancelFullScreen();
-  virtual void UpdateFullScreenStatus(PRBool aIsFullScreen);
-  virtual PRBool IsFullScreenDoc();
-
 protected:
   friend class nsNodeUtils;
 
@@ -1085,9 +1070,6 @@ protected:
   // Recorded time of change to 'loading' state.
   mozilla::TimeStamp mLoadingTimeStamp;
 
-  // The current full-screen element of this document.
-  nsCOMPtr<Element> mFullScreenElement;
-
   // True if the document has been detached from its content viewer.
   PRPackedBool mIsGoingAway:1;
   // True if the document is being destroyed.
@@ -1119,9 +1101,6 @@ protected:
 
   // Whether we currently require our images to animate
   PRPackedBool mAnimatingImages:1;
-
-  // Whether we are currently in full-screen mode, as per the DOM API.
-  PRPackedBool mIsFullScreen:1;
 
   PRUint8 mXMLDeclarationBits;
 

@@ -1253,9 +1253,7 @@
     <handlers>
       <handler event="command">
         // This "command" event handler tracks changes made to preferences by 
-        // the user in this window.
-        if (event.sourceEvent)
-          event = event.sourceEvent;
+        // the user in this window. 
         this.userChangedValue(event.target);
       </handler>
       <handler event="select">

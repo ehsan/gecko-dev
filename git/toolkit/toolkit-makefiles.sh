@@ -39,6 +39,7 @@
 # This file contains makefiles that will be generated for every XUL app.
 
 MAKEFILES_db="
+  db/Makefile
   db/sqlite3/src/Makefile
 "
 
@@ -196,8 +197,7 @@ MAKEFILES_xpconnect="
   js/src/xpconnect/src/Makefile
   js/src/xpconnect/loader/Makefile
   js/src/xpconnect/tests/Makefile
-  js/src/xpconnect/tests/components/js/Makefile
-  js/src/xpconnect/tests/components/native/Makefile
+  js/src/xpconnect/tests/components/Makefile
   js/src/xpconnect/tests/idl/Makefile
 "
 
@@ -267,6 +267,7 @@ MAKEFILES_content="
   content/xslt/src/xml/Makefile
   content/xslt/src/xpath/Makefile
   content/xslt/src/xslt/Makefile
+  content/xslt/src/main/Makefile
 "
 
 MAKEFILES_layout="
@@ -288,6 +289,10 @@ MAKEFILES_layout="
   layout/xul/base/src/grid/Makefile
   layout/xul/base/src/tree/src/Makefile
   layout/xul/base/src/tree/public/Makefile
+"
+
+MAKEFILES_libimg="
+  modules/libimg/Makefile
 "
 
 MAKEFILES_libjar="
@@ -317,6 +322,7 @@ MAKEFILES_libvorbis="
 MAKEFILES_libtremor="
   media/libtremor/Makefile
   media/libtremor/lib/Makefile
+  media/libtremor/include/Makefile
   media/libtremor/include/tremor/Makefile
 "
 
@@ -679,11 +685,6 @@ MAKEFILES_jsreflect="
   toolkit/components/reflect/Makefile
 "
 
-MAKEFILES_jsductwork="
-  js/ductwork/Makefile
-  js/ductwork/debugger/Makefile
-"
-
 MAKEFILES_libpr0n="
   modules/libpr0n/Makefile
   modules/libpr0n/build/Makefile
@@ -713,6 +714,10 @@ MAKEFILES_accessible="
   accessible/src/atk/Makefile
   accessible/src/mac/Makefile
   accessible/build/Makefile
+"
+
+MAKEFILES_zlib="
+  modules/zlib/standalone/Makefile
 "
 
 MAKEFILES_libmar="
@@ -747,9 +752,9 @@ add_makefiles "
   $MAKEFILES_jsdebugger
   $MAKEFILES_jsctypes
   $MAKEFILES_jsreflect
-  $MAKEFILES_jsductwork
   $MAKEFILES_content
   $MAKEFILES_layout
+  $MAKEFILES_libimg
   $MAKEFILES_libjar
   $MAKEFILES_libreg
   $MAKEFILES_libpref
@@ -760,6 +765,7 @@ add_makefiles "
   $MAKEFILES_uriloader
   $MAKEFILES_profile
   $MAKEFILES_rdf
+  $MAKEFILES_sun_java
   $MAKEFILES_caps
   $MAKEFILES_chrome
   $MAKEFILES_view
@@ -772,6 +778,7 @@ add_makefiles "
   $MAKEFILES_xulapp
   $MAKEFILES_libpr0n
   $MAKEFILES_accessible
+  $MAKEFILES_zlib
   $MAKEFILES_libmar
   $MAKEFILES_extensions
   $MAKEFILES_startupcache

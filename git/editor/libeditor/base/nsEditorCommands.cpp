@@ -70,11 +70,8 @@ nsUndoCommand::IsCommandEnabled(const char * aCommandName,
   nsCOMPtr<nsIEditor> editor = do_QueryInterface(aCommandRefCon);
   if (editor)
   {
-    PRBool isEnabled, isEditable = PR_FALSE;
-    nsresult rv = editor->GetIsSelectionEditable(&isEditable);
-    NS_ENSURE_SUCCESS(rv, rv);
-    if (isEditable)
-      return editor->CanUndo(&isEnabled, outCmdEnabled);
+    PRBool isEnabled;
+    return editor->CanUndo(&isEnabled, outCmdEnabled);
   }
 
   *outCmdEnabled = PR_FALSE;
@@ -119,11 +116,8 @@ nsRedoCommand::IsCommandEnabled(const char * aCommandName,
   nsCOMPtr<nsIEditor> editor = do_QueryInterface(aCommandRefCon);
   if (editor)
   {
-    PRBool isEnabled, isEditable = PR_FALSE;
-    nsresult rv = editor->GetIsSelectionEditable(&isEditable);
-    NS_ENSURE_SUCCESS(rv, rv);
-    if (isEditable)
-      return editor->CanRedo(&isEnabled, outCmdEnabled);
+    PRBool isEnabled;
+    return editor->CanRedo(&isEnabled, outCmdEnabled);
   }
 
   *outCmdEnabled = PR_FALSE;
@@ -164,11 +158,9 @@ nsClearUndoCommand::IsCommandEnabled(const char * aCommandName,
                                      nsISupports *refCon, PRBool *outCmdEnabled)
 { 
   NS_ENSURE_ARG_POINTER(outCmdEnabled);
+  
   nsCOMPtr<nsIEditor> editor = do_QueryInterface(refCon);
-  if (editor)
-    return editor->GetIsSelectionEditable(outCmdEnabled);
-
-  *outCmdEnabled = PR_FALSE;
+  *outCmdEnabled = (editor != nsnull);
   return NS_OK;
 }
   
@@ -215,13 +207,7 @@ nsCutCommand::IsCommandEnabled(const char * aCommandName,
   NS_ENSURE_ARG_POINTER(outCmdEnabled);
   nsCOMPtr<nsIEditor> editor = do_QueryInterface(aCommandRefCon);
   if (editor)
-  {
-    PRBool isEditable = PR_FALSE;
-    nsresult rv = editor->GetIsSelectionEditable(&isEditable);
-    NS_ENSURE_SUCCESS(rv, rv);
-    if (isEditable)
-      return editor->CanCut(outCmdEnabled);
-  }
+    return editor->CanCut(outCmdEnabled);
 
   *outCmdEnabled = PR_FALSE;
   return NS_OK;
@@ -264,10 +250,7 @@ nsCutOrDeleteCommand::IsCommandEnabled(const char * aCommandName,
 {
   NS_ENSURE_ARG_POINTER(outCmdEnabled);
   nsCOMPtr<nsIEditor> editor = do_QueryInterface(aCommandRefCon);
-  if (editor)
-    return editor->GetIsSelectionEditable(outCmdEnabled);
-
-  *outCmdEnabled = PR_FALSE;
+  *outCmdEnabled = (editor != nsnull);
   return NS_OK;
 }
 
@@ -320,13 +303,7 @@ nsCopyCommand::IsCommandEnabled(const char * aCommandName,
   NS_ENSURE_ARG_POINTER(outCmdEnabled);
   nsCOMPtr<nsIEditor> editor = do_QueryInterface(aCommandRefCon);
   if (editor)
-  {
-    PRBool isEditable = PR_FALSE;
-    nsresult rv = editor->GetIsSelectionEditable(&isEditable);
-    NS_ENSURE_SUCCESS(rv, rv);
-    if (isEditable)
-      return editor->CanCopy(outCmdEnabled);
-  }
+    return editor->CanCopy(outCmdEnabled);
 
   *outCmdEnabled = PR_FALSE;
   return NS_OK;
@@ -368,10 +345,7 @@ nsCopyOrDeleteCommand::IsCommandEnabled(const char * aCommandName,
 {
   NS_ENSURE_ARG_POINTER(outCmdEnabled);
   nsCOMPtr<nsIEditor> editor = do_QueryInterface(aCommandRefCon);
-  if (editor)
-    return editor->GetIsSelectionEditable(outCmdEnabled);
-
-  *outCmdEnabled = PR_FALSE;
+  *outCmdEnabled = (editor != nsnull);
   return NS_OK;
 }
 
@@ -424,13 +398,7 @@ nsPasteCommand::IsCommandEnabled(const char *aCommandName,
   NS_ENSURE_ARG_POINTER(outCmdEnabled);
   nsCOMPtr<nsIEditor> editor = do_QueryInterface(aCommandRefCon);
   if (editor)
-  {
-    PRBool isEditable = PR_FALSE;
-    nsresult rv = editor->GetIsSelectionEditable(&isEditable);
-    NS_ENSURE_SUCCESS(rv, rv);
-    if (isEditable)
-      return editor->CanPaste(nsIClipboard::kGlobalClipboard, outCmdEnabled);
-  }
+    return editor->CanPaste(nsIClipboard::kGlobalClipboard, outCmdEnabled);
 
   *outCmdEnabled = PR_FALSE;
   return NS_OK;
@@ -472,13 +440,7 @@ nsPasteTransferableCommand::IsCommandEnabled(const char *aCommandName,
   NS_ENSURE_ARG_POINTER(outCmdEnabled);
   nsCOMPtr<nsIEditor> editor = do_QueryInterface(aCommandRefCon);
   if (editor)
-  {
-    PRBool isEditable = PR_FALSE;
-    nsresult rv = editor->GetIsSelectionEditable(&isEditable);
-    NS_ENSURE_SUCCESS(rv, rv);
-    if (isEditable)
-      return editor->CanPasteTransferable(nsnull, outCmdEnabled);
-  }
+    return editor->CanPasteTransferable(nsnull, outCmdEnabled);
 
   *outCmdEnabled = PR_FALSE;
   return NS_OK;
@@ -539,10 +501,8 @@ nsSwitchTextDirectionCommand::IsCommandEnabled(const char *aCommandName,
 {
   NS_ENSURE_ARG_POINTER(outCmdEnabled);
   nsCOMPtr<nsIEditor> editor = do_QueryInterface(aCommandRefCon);
-  if (editor)
-    return editor->GetIsSelectionEditable(outCmdEnabled);
+  *outCmdEnabled = (editor != nsnull);
 
-  *outCmdEnabled = PR_FALSE;
   return NS_OK;
 }
 
@@ -581,17 +541,10 @@ nsDeleteCommand::IsCommandEnabled(const char * aCommandName,
   NS_ENSURE_ARG_POINTER(outCmdEnabled);
   nsCOMPtr<nsIEditor> editor = do_QueryInterface(aCommandRefCon);
   *outCmdEnabled = PR_FALSE;
-
   // we can delete when we can cut
   NS_ENSURE_TRUE(editor, NS_OK);
     
-  PRBool isEditable = PR_FALSE;
-  nsresult rv = editor->GetIsSelectionEditable(&isEditable);
-  NS_ENSURE_SUCCESS(rv, rv);
-
-  if (!isEditable)
-    return NS_OK;
-  else if (!nsCRT::strcmp(aCommandName,"cmd_delete"))
+  if (!nsCRT::strcmp(aCommandName,"cmd_delete"))
     return editor->CanCut(outCmdEnabled);
   else if (!nsCRT::strcmp(aCommandName,"cmd_deleteCharBackward"))
     *outCmdEnabled = PR_TRUE;
@@ -661,24 +614,12 @@ nsSelectAllCommand::IsCommandEnabled(const char * aCommandName,
 {
   NS_ENSURE_ARG_POINTER(outCmdEnabled);
 
-  nsresult rv = NS_OK;
-  *outCmdEnabled = PR_FALSE;
-  PRBool docIsEmpty, selectionIsEditable;
- 
-  // you can select all if there is an editor which is non-empty
+  // you can select all if there is an editor (and potentially no contents)
+  // some day we may want to change this
   nsCOMPtr<nsIEditor> editor = do_QueryInterface(aCommandRefCon);
-  if (editor) {
-    rv = editor->GetIsSelectionEditable(&selectionIsEditable);
-    NS_ENSURE_SUCCESS(rv, rv);
+  *outCmdEnabled = (editor != nsnull);
 
-    if (selectionIsEditable) {
-      rv = editor->GetDocumentIsEmpty(&docIsEmpty);
-      NS_ENSURE_SUCCESS(rv, rv);
-      *outCmdEnabled = !docIsEmpty;
-    }
-  } 
-
-  return rv;
+  return NS_OK;
 }
 
 
@@ -719,10 +660,9 @@ nsSelectionMoveCommands::IsCommandEnabled(const char * aCommandName,
 {
   NS_ENSURE_ARG_POINTER(outCmdEnabled);
   nsCOMPtr<nsIEditor> editor = do_QueryInterface(aCommandRefCon);
-  if (editor)
-    return editor->GetIsSelectionEditable(outCmdEnabled);
+  *outCmdEnabled = (editor != nsnull);
+  NS_ENSURE_TRUE(editor, NS_ERROR_FAILURE);
 
-  *outCmdEnabled = PR_FALSE;
   return NS_OK;
 }
 
@@ -855,7 +795,7 @@ nsInsertPlaintextCommand::IsCommandEnabled(const char * aCommandName,
   NS_ENSURE_ARG_POINTER(outCmdEnabled);
   nsCOMPtr<nsIEditor> editor = do_QueryInterface(refCon);
   if (editor)
-    return editor->GetIsSelectionEditable(outCmdEnabled);
+    return editor->GetIsDocumentEditable(outCmdEnabled);
 
   *outCmdEnabled = PR_FALSE;
   return NS_ERROR_NOT_IMPLEMENTED;

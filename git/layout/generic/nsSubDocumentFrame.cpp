@@ -863,13 +863,16 @@ DestroyDisplayItemDataForFrames(nsIFrame* aFrame)
 {
   FrameLayerBuilder::DestroyDisplayItemDataFor(aFrame);
 
-  nsIFrame::ChildListIterator lists(aFrame);
-  for (; !lists.IsDone(); lists.Next()) {
-    nsFrameList::Enumerator childFrames(lists.CurrentList());
-    for (; !childFrames.AtEnd(); childFrames.Next()) {
-      DestroyDisplayItemDataForFrames(childFrames.get());
+  PRInt32 listIndex = 0;
+  nsIAtom* childList = nsnull;
+  do {
+    nsIFrame* child = aFrame->GetFirstChild(childList);
+    while (child) {
+      DestroyDisplayItemDataForFrames(child);
+      child = child->GetNextSibling();
     }
-  }
+    childList = aFrame->GetAdditionalChildListName(listIndex++);
+  } while (childList);
 }
 
 static PRBool
@@ -1071,7 +1074,7 @@ nsSubDocumentFrame::ObtainIntrinsicSizeFrame()
         if (scrollable) {
           nsIFrame* scrolled = scrollable->GetScrolledFrame();
           if (scrolled) {
-            subDocRoot = scrolled->GetFirstPrincipalChild();
+            subDocRoot = scrolled->GetFirstChild(nsnull);
           }
         }
       }

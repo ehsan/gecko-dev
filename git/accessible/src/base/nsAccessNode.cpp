@@ -41,6 +41,7 @@
 #include "nsIAccessible.h"
 
 #include "nsAccCache.h"
+#include "nsAccessibilityAtoms.h"
 #include "nsAccUtils.h"
 #include "nsCoreUtils.h"
 
@@ -196,6 +197,8 @@ void nsAccessNode::InitXPAccessibility()
     stringBundleService->CreateBundle(ACCESSIBLE_BUNDLE_URL, 
                                       &gStringBundle);
   }
+
+  nsAccessibilityAtoms::AddRefAtoms();
 
   nsCOMPtr<nsIPrefBranch> prefBranch(do_GetService(NS_PREFSERVICE_CONTRACTID));
   if (prefBranch) {
@@ -469,7 +472,7 @@ nsAccessNode::GetLanguage(nsAString& aLanguage)
   if (aLanguage.IsEmpty()) { // Nothing found, so use document's language
     nsIDocument *doc = mContent->GetOwnerDoc();
     if (doc) {
-      doc->GetHeaderData(nsGkAtoms::headerContentLanguage, aLanguage);
+      doc->GetHeaderData(nsAccessibilityAtoms::headerContentLanguage, aLanguage);
     }
   }
  

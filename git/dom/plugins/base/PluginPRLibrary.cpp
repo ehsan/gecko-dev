@@ -37,6 +37,7 @@
  * ***** END LICENSE BLOCK ***** */
 
 #include "mozilla/PluginPRLibrary.h"
+
 // Some plugins on Windows, notably Quake Live, implement NP_Initialize using
 // cdecl instead of the documented stdcall. In order to work around this,
 // we force the caller to use a frame pointer.
@@ -51,38 +52,9 @@ static int gNotOptimized;
 #define CALLING_CONVENTION_HACK
 #endif
 
-#ifdef ANDROID
-#include "AndroidBridge.h"
-#include "android_npapi.h"
-#include <android/log.h>
-#define ALOG(args...) __android_log_print(ANDROID_LOG_INFO, "GeckoJavaEnv", ## args)
-#endif
-
 namespace mozilla {
-#ifdef ANDROID
-nsresult
-PluginPRLibrary::NP_Initialize(NPNetscapeFuncs* bFuncs,
-			       NPPluginFuncs* pFuncs, NPError* error)
-{
-  if (mNP_Initialize) {
-    *error = mNP_Initialize(bFuncs, pFuncs, GetJNIForThread());
-  } else {
-    NP_InitializeFunc pfNP_Initialize = (NP_InitializeFunc)
-      PR_FindFunctionSymbol(mLibrary, "NP_Initialize");
-    if (!pfNP_Initialize)
-      return NS_ERROR_FAILURE;
-    *error = pfNP_Initialize(bFuncs, pFuncs, GetJNIForThread());
-  }
 
-
-  // Save pointers to functions that get called through PluginLibrary itself.
-  mNPP_New = pFuncs->newp;
-  mNPP_GetValue = pFuncs->getvalue;
-  mNPP_ClearSiteData = pFuncs->clearsitedata;
-  mNPP_GetSitesWithData = pFuncs->getsiteswithdata;
-  return NS_OK;
-}
-#elif defined(XP_UNIX) && !defined(XP_MACOSX)
+#if defined(XP_UNIX) && !defined(XP_MACOSX)
 nsresult
 PluginPRLibrary::NP_Initialize(NPNetscapeFuncs* bFuncs,
 			       NPPluginFuncs* pFuncs, NPError* error)
@@ -273,17 +245,6 @@ PluginPRLibrary::AsyncSetWindow(NPP instance, NPWindow* window)
   NS_ENSURE_TRUE(inst, NS_ERROR_NULL_POINTER);
   return NS_ERROR_NOT_IMPLEMENTED;
 }
-
-#if defined(MOZ_WIDGET_QT) && (MOZ_PLATFORM_MAEMO == 6)
-nsresult
-PluginPRLibrary::HandleGUIEvent(NPP instance, const nsGUIEvent& anEvent,
-                                bool* handled)
-{
-  nsNPAPIPluginInstance* inst = (nsNPAPIPluginInstance*)instance->ndata;
-  NS_ENSURE_TRUE(inst, NS_ERROR_NULL_POINTER);
-  return NS_ERROR_NOT_IMPLEMENTED;
-}
-#endif
 
 nsresult
 PluginPRLibrary::GetImage(NPP instance, ImageContainer* aContainer, Image** aImage)

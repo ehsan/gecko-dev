@@ -48,8 +48,11 @@
 #include "nsDependentSubstring.h"
 #include "nsIAtom.h"
 #include "txXPathNode.h"
+
+#ifndef TX_EXE
 #include "nsIParserService.h"
 #include "nsContentUtils.h"
+#endif
 
 #define kExpatSeparatorChar 0xFFFF
 
@@ -111,6 +114,13 @@ public:
     nsCOMPtr<nsIAtom> mLocalName;
 };
 
+#ifdef TX_EXE
+extern "C" int MOZ_XMLCheckQName(const char* ptr, const char* end,
+                                 int ns_aware, const char** colon);
+extern "C" int MOZ_XMLIsLetter(const char* ptr);
+extern "C" int MOZ_XMLIsNCNameChar(const char* ptr);
+#endif
+
 class XMLUtils {
 
 public:
@@ -147,8 +157,22 @@ public:
     static PRBool isValidQName(const nsAFlatString& aQName,
                                const PRUnichar** aColon)
     {
+#ifdef TX_EXE
+        const PRUnichar* end;
+        aQName.EndReading(end);
+
+        const char *colonPtr;
+        int result = MOZ_XMLCheckQName(reinterpret_cast<const char*>
+                                                       (aQName.get()),
+                                       reinterpret_cast<const char*>
+                                                       (end),
+                                       PR_TRUE, &colonPtr);
+        *aColon = reinterpret_cast<const PRUnichar*>(colonPtr);
+        return result == 0;
+#else
         nsIParserService* ps = nsContentUtils::GetParserService();
         return ps && NS_SUCCEEDED(ps->CheckQName(aQName, PR_TRUE, aColon));
+#endif
     }
 
     /**
@@ -156,8 +180,12 @@ public:
      */
     static PRBool isLetter(PRUnichar aChar)
     {
+#ifdef TX_EXE
+        return MOZ_XMLIsLetter(reinterpret_cast<const char*>(&aChar));
+#else
         nsIParserService* ps = nsContentUtils::GetParserService();
         return ps && ps->IsXMLLetter(aChar);
+#endif
     }
 
     /**
@@ -165,8 +193,12 @@ public:
      */
     static PRBool isNCNameChar(PRUnichar aChar)
     {
+#ifdef TX_EXE
+        return MOZ_XMLIsNCNameChar(reinterpret_cast<const char*>(&aChar));
+#else
         nsIParserService* ps = nsContentUtils::GetParserService();
         return ps && ps->IsXMLNCNameChar(aChar);
+#endif
     }
 
     /*

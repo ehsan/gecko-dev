@@ -133,9 +133,8 @@ private:
   PRBool InsertSeparatorBeforeAccessKey();
 
   void DrawText(nsRenderingContext& aRenderingContext,
-                const nsRect&       aDirtyRect,
-                const nsRect&       aTextRect,
-                const nscolor*      aOverrideColor);
+                         const nsRect&        aTextRect,
+                         const nscolor*       aOverrideColor);
 
   nsString mTitle;
   nsString mCroppedTitle;

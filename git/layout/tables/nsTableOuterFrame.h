@@ -41,7 +41,9 @@
 #include "nsHTMLContainerFrame.h"
 #include "nsBlockFrame.h"
 #include "nsITableLayout.h"
-#include "nsTableFrame.h"
+
+struct nsStyleTable;
+class nsTableFrame;
 
 class nsTableCaptionFrame : public nsBlockFrame
 {
@@ -57,8 +59,9 @@ public:
                                  nsSize aMargin, nsSize aBorder,
                                  nsSize aPadding, PRBool aShrinkWrap);
 
-  virtual nsIFrame* GetParentStyleContextFrame();
-
+  NS_IMETHOD GetParentStyleContextFrame(nsPresContext* aPresContext,
+                                        nsIFrame**      aProviderFrame,
+                                        PRBool*         aIsChild);
 #ifdef ACCESSIBILITY
   virtual already_AddRefed<nsAccessible> CreateAccessible();
 #endif
@@ -101,24 +104,25 @@ public:
   
   virtual PRBool IsContainingBlock() const;
 
-  NS_IMETHOD SetInitialChildList(ChildListID     aListID,
+  NS_IMETHOD SetInitialChildList(nsIAtom*        aListName,
                                  nsFrameList&    aChildList);
  
-  virtual nsFrameList GetChildList(ChildListID aListID) const;
-  virtual void GetChildLists(nsTArray<ChildList>* aLists) const;
+  virtual nsFrameList GetChildList(nsIAtom* aListName) const;
 
-  NS_IMETHOD AppendFrames(ChildListID     aListID,
+  virtual nsIAtom* GetAdditionalChildListName(PRInt32 aIndex) const;
+
+  NS_IMETHOD AppendFrames(nsIAtom*        aListName,
                           nsFrameList&    aFrameList);
 
-  NS_IMETHOD InsertFrames(ChildListID     aListID,
+  NS_IMETHOD InsertFrames(nsIAtom*        aListName,
                           nsIFrame*       aPrevFrame,
                           nsFrameList&    aFrameList);
 
-  NS_IMETHOD RemoveFrame(ChildListID     aListID,
+  NS_IMETHOD RemoveFrame(nsIAtom*        aListName,
                          nsIFrame*       aOldFrame);
 
   virtual nsIFrame* GetContentInsertionFrame() {
-    return GetFirstPrincipalChild()->GetContentInsertionFrame();
+    return GetFirstChild(nsnull)->GetContentInsertionFrame();
   }
 
 #ifdef ACCESSIBILITY
@@ -166,7 +170,9 @@ public:
   void SetSelected(PRBool aSelected,
                    SelectionType aType);
 
-  virtual nsIFrame* GetParentStyleContextFrame();
+  NS_IMETHOD GetParentStyleContextFrame(nsPresContext* aPresContext,
+                                        nsIFrame**      aProviderFrame,
+                                        PRBool*         aIsChild);
 
   /*---------------- nsITableLayout methods ------------------------*/
 
@@ -257,15 +263,17 @@ protected:
                       nscoord                  aAvailableWidth,
                       nsMargin&                aMargin);
 
-  nsTableFrame* InnerTableFrame() {
-    return static_cast<nsTableFrame*>(mFrames.FirstChild());
-  }
-  
 private:
+  // used to keep track of this frame's children. They are redundant with mFrames, but more convient
+  nsTableFrame* mInnerTableFrame; 
   nsFrameList   mCaptionFrames;
+  nsIFrame*     mCaptionFrame;
 };
 
 inline PRIntn nsTableOuterFrame::GetSkipSides() const
 { return 0; }
 
 #endif
+
+
+

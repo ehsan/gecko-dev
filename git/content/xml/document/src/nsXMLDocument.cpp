@@ -103,8 +103,7 @@ NS_NewDOMDocument(nsIDOMDocument** aInstancePtrResult,
                   nsIURI* aDocumentURI,
                   nsIURI* aBaseURI,
                   nsIPrincipal* aPrincipal,
-                  PRBool aLoadedAsData,
-                  nsIScriptGlobalObject* aEventObject)
+                  PRBool aLoadedAsData)
 {
   // Note: can't require that aDocumentURI/aBaseURI/aPrincipal be non-null,
   // since at least one caller (XMLHttpRequest) doesn't have decent args to
@@ -154,8 +153,6 @@ NS_NewDOMDocument(nsIDOMDocument** aInstancePtrResult,
     return rv;
   }
 
-  d->SetScriptHandlingObject(aEventObject);
-  
   if (isHTML) {
     nsCOMPtr<nsIHTMLDocument> htmlDoc = do_QueryInterface(d);
     NS_ASSERTION(htmlDoc, "HTML Document doesn't implement nsIHTMLDocument?");
@@ -385,8 +382,8 @@ nsXMLDocument::Load(const nsAString& aUrl, PRBool *aReturn)
                                          nsnull, 0, 0, nsIScriptError::warningFlag,
                                          "DOM",
                                          callingDoc ?
-                                           callingDoc->InnerWindowID() :
-                                           this->InnerWindowID());
+                                           callingDoc->OuterWindowID() :
+                                           this->OuterWindowID());
 
       NS_ENSURE_SUCCESS(rv, rv);
 

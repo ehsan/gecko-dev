@@ -75,6 +75,22 @@ function test() {
   };
   hs.addObserver(historyObserver, false);
 
+  /**
+   * Clears history invoking callback when done.
+   */
+  function waitForClearHistory(aCallback)
+  {
+    let observer = {
+      observe: function(aSubject, aTopic, aData)
+      {
+        Services.obs.removeObserver(this, PlacesUtils.TOPIC_EXPIRATION_FINISHED);
+        aCallback(aSubject, aTopic, aData);
+      }
+    };
+    Services.obs.addObserver(observer, PlacesUtils.TOPIC_EXPIRATION_FINISHED, false);
+    PlacesUtils.bhistory.removeAllPages();
+  }
+
   function confirm_results() {
     gBrowser.removeCurrentTab();
     hs.removeObserver(historyObserver, false);

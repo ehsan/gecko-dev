@@ -38,6 +38,7 @@
 
 #include "nsCOMPtr.h"
 #include "nsSVGForeignObjectElement.h"
+#include "nsSVGMatrix.h"
 
 nsSVGElement::LengthInfo nsSVGForeignObjectElement::sLengthInfo[4] =
 {

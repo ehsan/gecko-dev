@@ -140,7 +140,7 @@ nsHtml5TreeOperation::~nsHtml5TreeOperation()
 
 nsresult
 nsHtml5TreeOperation::AppendTextToTextNode(const PRUnichar* aBuffer,
-                                           PRUint32 aLength,
+                                           PRInt32 aLength,
                                            nsIContent* aTextNode,
                                            nsHtml5TreeOpExecutor* aBuilder)
 {
@@ -172,7 +172,7 @@ nsHtml5TreeOperation::AppendTextToTextNode(const PRUnichar* aBuffer,
 
 nsresult
 nsHtml5TreeOperation::AppendText(const PRUnichar* aBuffer,
-                                 PRUint32 aLength,
+                                 PRInt32 aLength,
                                  nsIContent* aParent,
                                  nsHtml5TreeOpExecutor* aBuilder)
 {
@@ -280,7 +280,7 @@ nsHtml5TreeOperation::Perform(nsHtml5TreeOpExecutor* aBuilder,
     case eTreeOpDetach: {
       nsIContent* node = *(mOne.node);
       aBuilder->FlushPendingAppendNotifications();
-      nsCOMPtr<nsIContent> parent = node->GetParent();
+      nsIContent* parent = node->GetParent();
       if (parent) {
         nsHtml5OtherDocUpdate update(parent->GetOwnerDoc(),
                                      aBuilder->GetDocument());
@@ -292,7 +292,7 @@ nsHtml5TreeOperation::Perform(nsHtml5TreeOpExecutor* aBuilder,
       return rv;
     }
     case eTreeOpAppendChildrenToNewParent: {
-      nsCOMPtr<nsIContent> node = *(mOne.node);
+      nsIContent* node = *(mOne.node);
       nsIContent* parent = *(mTwo.node);
       aBuilder->FlushPendingAppendNotifications();
 
@@ -496,7 +496,7 @@ nsHtml5TreeOperation::Perform(nsHtml5TreeOpExecutor* aBuilder,
     case eTreeOpAppendText: {
       nsIContent* parent = *mOne.node;
       PRUnichar* buffer = mTwo.unicharPtr;
-      PRUint32 length = mInt;
+      PRInt32 length = mInt;
       return AppendText(buffer, length, parent, aBuilder);
     }
     case eTreeOpAppendIsindexPrompt: {
@@ -518,7 +518,7 @@ nsHtml5TreeOperation::Perform(nsHtml5TreeOpExecutor* aBuilder,
     case eTreeOpFosterParentText: {
       nsIContent* stackParent = *mOne.node;
       PRUnichar* buffer = mTwo.unicharPtr;
-      PRUint32 length = mInt;
+      PRInt32 length = mInt;
       nsIContent* table = *mThree.node;
       
       nsIContent* foster = table->GetParent();
@@ -592,6 +592,7 @@ nsHtml5TreeOperation::Perform(nsHtml5TreeOpExecutor* aBuilder,
       voidString.SetIsVoid(PR_TRUE);
       NS_NewDOMDocumentType(getter_AddRefs(docType),
                             aBuilder->GetNodeInfoManager(),
+                            nsnull,
                             name,
                             publicId,
                             systemId,

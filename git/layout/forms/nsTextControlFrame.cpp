@@ -87,6 +87,7 @@
 #include "nsIDOMEventListener.h"//observe documents to send onchangenotifications
 #include "nsGUIEvent.h"
 #include "nsIDOMNSEvent.h"
+#include "nsIDOMNSUIEvent.h"
 
 #include "nsIDOMCharacterData.h" //for selection setting helper func
 #include "nsIDOMNodeList.h" //for selection setting helper func
@@ -267,7 +268,7 @@ nsTextControlFrame::CalcIntrinsicSize(nsRenderingContext* aRenderingContext,
     // been reflowed yet, so we can't get its used padding, but it shouldn't be
     // using percentage padding anyway.
     nsMargin childPadding;
-    nsIFrame* firstChild = GetFirstPrincipalChild();
+    nsIFrame* firstChild = GetFirstChild(nsnull);
     if (firstChild && firstChild->GetStylePadding()->GetPadding(childPadding)) {
       aIntrinsicSize.width += childPadding.LeftRight();
     } else {
@@ -292,7 +293,7 @@ nsTextControlFrame::CalcIntrinsicSize(nsRenderingContext* aRenderingContext,
 
   // Add in the size of the scrollbars for textarea
   if (IsTextArea()) {
-    nsIFrame* first = GetFirstPrincipalChild();
+    nsIFrame* first = GetFirstChild(nsnull);
 
     nsIScrollableFrame *scrollableFrame = do_QueryFrame(first);
     NS_ASSERTION(scrollableFrame, "Child must be scrollable");
@@ -385,9 +386,7 @@ nsTextControlFrame::EnsureEditorInitialized()
   mUseEditor = PR_TRUE;
 
   // Set the selection to the beginning of the text field.
-  if (weakFrame.IsAlive()) {
-    SetSelectionEndPoints(0, 0);
-  }
+  SetSelectionEndPoints(0, 0);
 
   return NS_OK;
 }
@@ -1417,12 +1416,12 @@ nsTextControlFrame::CheckFireOnChange()
 // END IMPLEMENTING NS_IFORMCONTROLFRAME
 
 NS_IMETHODIMP
-nsTextControlFrame::SetInitialChildList(ChildListID     aListID,
+nsTextControlFrame::SetInitialChildList(nsIAtom*        aListName,
                                         nsFrameList&    aChildList)
 {
-  nsresult rv = nsBoxFrame::SetInitialChildList(aListID, aChildList);
+  nsresult rv = nsBoxFrame::SetInitialChildList(aListName, aChildList);
 
-  nsIFrame* first = GetFirstPrincipalChild();
+  nsIFrame* first = GetFirstChild(nsnull);
 
   // Mark the scroll frame as being a reflow root. This will allow
   // incremental reflows to be initiated at the scroll frame, rather

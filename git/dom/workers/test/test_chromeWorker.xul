@@ -11,24 +11,23 @@
           src="chrome://mochikit/content/tests/SimpleTest/SimpleTest.js"/>
   <script type="application/javascript"
           src="chrome://mochikit/content/tests/SimpleTest/EventUtils.js"/>
-  <script type="application/javascript" src="dom_worker_helper.js"/>
 
   <script type="application/javascript">
   <![CDATA[
 
     function test()
     {
-      waitForWorkerFinish();
+      SimpleTest.waitForExplicitFinish();
 
       var worker = new ChromeWorker("chromeWorker_worker.js");
       worker.onmessage = function(event) {
         is(event.data, "Done!", "Wrong message!");
-        finish();
+        SimpleTest.finish();
       }
       worker.onerror = function(event) {
         ok(false, "Worker had an error: " + event.message);
         worker.terminate();
-        finish();
+        SimpleTest.finish();
       }
       worker.postMessage("go");
     }

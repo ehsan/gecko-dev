@@ -144,9 +144,8 @@ nsDOMKeyboardEvent::GetKeyCode(PRUint32* aKeyCode)
   return NS_OK;
 }
 
-/* virtual */
-nsresult
-nsDOMKeyboardEvent::Which(PRUint32* aWhich)
+NS_IMETHODIMP
+nsDOMKeyboardEvent::GetWhich(PRUint32* aWhich)
 {
   NS_ENSURE_ARG_POINTER(aWhich);
 

@@ -85,6 +85,8 @@ public:
   NS_DECL_ISUPPORTS
   NS_DECL_NSIOBSERVER
 
+  UploadLastDir();
+
   /**
    * Fetch the last used directory for this location from the content
    * pref service, if it is available.
@@ -102,6 +104,10 @@ public:
    *        file will be stored
    */
   nsresult StoreLastUsedDirectory(nsIURI* aURI, nsILocalFile* aFile);
+private:
+  // Directories are stored here during private browsing mode
+  nsInterfaceHashtable<nsStringHashKey, nsILocalFile> mUploadLastDirStore;
+  PRBool mInPrivateBrowsing;
 };
 
 class nsHTMLInputElement : public nsGenericHTMLFormElement,

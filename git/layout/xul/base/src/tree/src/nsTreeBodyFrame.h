@@ -51,6 +51,7 @@
 #include "nsIDragSession.h"
 #include "nsITimer.h"
 #include "nsIReflowCallback.h"
+#include "nsILookAndFeel.h"
 #include "nsTArray.h"
 #include "nsTreeStyleCache.h"
 #include "nsTreeColumns.h"
@@ -61,7 +62,6 @@
 #include "imgIDecoderObserver.h"
 #include "nsScrollbarFrame.h"
 #include "nsThreadUtils.h"
-#include "mozilla/LookAndFeel.h"
 
 class nsOverflowChecker;
 
@@ -441,7 +441,7 @@ protected:
   // opening/closing folders or tree scrolling.
   // aID is type of the action, aFunc is the function to be called when
   // the timer fires and aType is type of timer - one shot or repeating.
-  nsresult CreateTimer(const mozilla::LookAndFeel::IntID aID,
+  nsresult CreateTimer(const nsILookAndFeel::nsMetricID aID,
                        nsTimerCallbackFunc aFunc, PRInt32 aType,
                        nsITimer** aTimer);
 

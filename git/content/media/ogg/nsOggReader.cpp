@@ -63,13 +63,20 @@ extern PRLogModuleInfo* gBuiltinDecoderLog;
 #define SEEK_LOG(type, msg)
 #endif
 
+// If we don't have a Theora video stream, then during seeking, if a seek
+// target is less than SEEK_DECODE_MARGIN ahead of the current playback
+// position, we'll just decode forwards rather than performing a bisection
+// search. If we have Theora video we use the maximum keyframe interval as
+// this value, rather than SEEK_DECODE_MARGIN. This makes small seeks faster.
+#define SEEK_DECODE_MARGIN 2000000
+
 // The number of microseconds of "fuzz" we use in a bisection search over
 // HTTP. When we're seeking with fuzz, we'll stop the search if a bisection
 // lands between the seek target and SEEK_FUZZ_USECS microseconds before the
 // seek target.  This is becaue it's usually quicker to just keep downloading
 // from an exisiting connection than to do another bisection inside that
 // small range, which would open a new HTTP connetion.
-static const PRUint32 SEEK_FUZZ_USECS = 500000;
+#define SEEK_FUZZ_USECS 500000
 
 enum PageSyncResult {
   PAGE_SYNC_ERROR = 1,
@@ -360,7 +367,7 @@ nsresult nsOggReader::DecodeVorbis(ogg_packet* aPacket) {
   ogg_int64_t endSample = aPacket->granulepos;
   while ((samples = vorbis_synthesis_pcmout(&mVorbisState->mDsp, &pcm)) > 0) {
     mVorbisState->ValidateVorbisPacketSamples(aPacket, samples);
-    nsAutoArrayPtr<AudioDataValue> buffer(new AudioDataValue[samples * channels]);
+    nsAutoArrayPtr<SoundDataValue> buffer(new SoundDataValue[samples * channels]);
     for (PRUint32 j = 0; j < channels; ++j) {
       VorbisPCMValue* channel = pcm[j];
       for (PRUint32 i = 0; i < PRUint32(samples); ++i) {
@@ -370,7 +377,7 @@ nsresult nsOggReader::DecodeVorbis(ogg_packet* aPacket) {
 
     PRInt64 duration = mVorbisState->Time((PRInt64)samples);
     PRInt64 startTime = mVorbisState->Time(endSample - samples);
-    mAudioQueue.Push(new AudioData(mPageOffset,
+    mAudioQueue.Push(new SoundData(mPageOffset,
                                    startTime,
                                    duration,
                                    samples,

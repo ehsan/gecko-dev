@@ -110,7 +110,6 @@ pluginDrawWindow(InstanceData* instanceData, void* event)
   int width = window.width;
   int height = window.height;
 
-#ifdef MOZ_X11
   XEvent* nsEvent = (XEvent*)event;
   const XGraphicsExposeEvent& expose = nsEvent->xgraphicsexpose;
 
@@ -127,7 +126,6 @@ pluginDrawWindow(InstanceData* instanceData, void* event)
     return;
 
   }
-#endif
 
   NPP npp = instanceData->npp;
   if (!npp)
@@ -137,7 +135,6 @@ pluginDrawWindow(InstanceData* instanceData, void* event)
   if (text.isEmpty())
     return;
 
-#ifdef MOZ_X11
   //printf("Drawing Default\n");
   // drawing a solid color for reftests
   QColor color;
@@ -150,7 +147,6 @@ pluginDrawWindow(InstanceData* instanceData, void* event)
   painter.drawRect(theRect);
   painter.drawText(QRect(theRect), Qt::AlignCenter, text);
   notifyDidPaint(instanceData);
-#endif
   return;
 }
 

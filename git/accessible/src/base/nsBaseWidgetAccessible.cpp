@@ -40,6 +40,7 @@
 #include "nsBaseWidgetAccessible.h"
 
 #include "States.h"
+#include "nsAccessibilityAtoms.h"
 #include "nsAccessibilityService.h"
 #include "nsAccUtils.h"
 #include "nsCoreUtils.h"

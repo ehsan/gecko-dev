@@ -61,6 +61,7 @@
 #include "nsISliderListener.h"
 #include "nsIScrollbarMediator.h"
 #include "nsScrollbarFrame.h"
+#include "nsILookAndFeel.h"
 #include "nsRepeatService.h"
 #include "nsBoxLayoutState.h"
 #include "nsSprocketLayout.h"
@@ -70,7 +71,6 @@
 #include "nsLayoutUtils.h"
 #include "nsDisplayList.h"
 #include "mozilla/Preferences.h"
-#include "mozilla/LookAndFeel.h"
 
 using namespace mozilla;
 
@@ -130,10 +130,10 @@ nsSliderFrame::Init(nsIContent*      aContent,
 }
 
 NS_IMETHODIMP
-nsSliderFrame::RemoveFrame(ChildListID     aListID,
+nsSliderFrame::RemoveFrame(nsIAtom*        aListName,
                            nsIFrame*       aOldFrame)
 {
-  nsresult rv = nsBoxFrame::RemoveFrame(aListID, aOldFrame);
+  nsresult rv = nsBoxFrame::RemoveFrame(aListName, aOldFrame);
   if (mFrames.IsEmpty())
     RemoveListener();
 
@@ -141,12 +141,12 @@ nsSliderFrame::RemoveFrame(ChildListID     aListID,
 }
 
 NS_IMETHODIMP
-nsSliderFrame::InsertFrames(ChildListID     aListID,
+nsSliderFrame::InsertFrames(nsIAtom*        aListName,
                             nsIFrame*       aPrevFrame,
                             nsFrameList&    aFrameList)
 {
   PRBool wasEmpty = mFrames.IsEmpty();
-  nsresult rv = nsBoxFrame::InsertFrames(aListID, aPrevFrame, aFrameList);
+  nsresult rv = nsBoxFrame::InsertFrames(aListName, aPrevFrame, aFrameList);
   if (wasEmpty)
     AddListener();
 
@@ -154,13 +154,13 @@ nsSliderFrame::InsertFrames(ChildListID     aListID,
 }
 
 NS_IMETHODIMP
-nsSliderFrame::AppendFrames(ChildListID     aListID,
+nsSliderFrame::AppendFrames(nsIAtom*        aListName,
                             nsFrameList&    aFrameList)
 {
   // if we have no children and on was added then make sure we add the
   // listener
   PRBool wasEmpty = mFrames.IsEmpty();
-  nsresult rv = nsBoxFrame::AppendFrames(aListID, aFrameList);
+  nsresult rv = nsBoxFrame::AppendFrames(aListName, aFrameList);
   if (wasEmpty)
     AddListener();
 
@@ -609,11 +609,16 @@ nsSliderFrame::GetScrollToClick()
  
   // if there was no scrollbar, always scroll on click
   PRBool scrollToClick = PR_FALSE;
-  PRInt32 scrollToClickMetric;
-  nsresult rv = LookAndFeel::GetInt(LookAndFeel::eIntID_ScrollToClick,
-                                    &scrollToClickMetric);
-  if (NS_SUCCEEDED(rv) && scrollToClickMetric == 1)
-    scrollToClick = PR_TRUE;
+  nsresult rv;
+  nsCOMPtr<nsILookAndFeel> lookNFeel =
+    do_GetService("@mozilla.org/widget/lookandfeel;1", &rv);
+  if (NS_SUCCEEDED(rv)) {
+    PRInt32 scrollToClickMetric;
+    rv = lookNFeel->GetMetric(nsILookAndFeel::eMetric_ScrollToClick,
+                              scrollToClickMetric);
+    if (NS_SUCCEEDED(rv) && scrollToClickMetric == 1)
+      scrollToClick = PR_TRUE;
+  }
   return scrollToClick;
 
 #else
@@ -843,10 +848,10 @@ nsSliderFrame::GetType() const
 }
 
 NS_IMETHODIMP
-nsSliderFrame::SetInitialChildList(ChildListID     aListID,
+nsSliderFrame::SetInitialChildList(nsIAtom*        aListName,
                                    nsFrameList&    aChildList)
 {
-  nsresult r = nsBoxFrame::SetInitialChildList(aListID, aChildList);
+  nsresult r = nsBoxFrame::SetInitialChildList(aListName, aChildList);
 
   AddListener();
 

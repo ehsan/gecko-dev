@@ -41,9 +41,6 @@
 /*
  * JS execution context.
  */
-
-#include <limits.h> /* make sure that <features.h> is included and we can use
-                       __GLIBC__ to detect glibc presence */
 #include <new>
 #include <stdarg.h>
 #include <stdlib.h>
@@ -114,12 +111,8 @@ ThreadData::ThreadData()
     waiveGCQuota(false),
     dtoaState(NULL),
     nativeStackBase(GetNativeStackBase()),
-    pendingProxyOperation(NULL),
-    interpreterFrames(NULL)
+    pendingProxyOperation(NULL)
 {
-#ifdef DEBUG
-    noGCOrAllocationCheck = 0;
-#endif
 }
 
 ThreadData::~ThreadData()
@@ -216,12 +209,13 @@ js_CurrentThreadAndLockGC(JSRuntime *rt)
     }
     JS_ASSERT(thread->id == id);
 
-    /*
-     * We skip the assert under glibc due to an apparent bug there, see
-     * bug 608526.
-     */
-#ifndef __GLIBC__
-    JS_ASSERT(GetNativeStackBase() == thread->data.nativeStackBase);
+#ifdef DEBUG
+    char* gnsb = (char*) GetNativeStackBase();
+    JS_ASSERT(gnsb + 0      == (char*) thread->data.nativeStackBase ||
+              /* Work around apparent glibc bug; see bug 608526. */
+              gnsb + 0x1000 == (char*) thread->data.nativeStackBase ||
+              gnsb + 0x2000 == (char*) thread->data.nativeStackBase ||
+              gnsb + 0x3000 == (char*) thread->data.nativeStackBase);
 #endif
 
     return thread;
@@ -406,9 +400,7 @@ js_NewContext(JSRuntime *rt, size_t stackChunkSize)
 #ifdef JS_THREADSAFE
         JS_BeginRequest(cx);
 #endif
-        bool ok = rt->staticStrings.init(cx);
-        if (ok)
-            ok = js_InitCommonAtoms(cx);
+        JSBool ok = js_InitCommonAtoms(cx);
 
 #ifdef JS_THREADSAFE
         JS_EndRequest(cx);
@@ -515,20 +507,6 @@ js_DestroyContext(JSContext *cx, JSDestroyContextMode mode)
                 JS_BeginRequest(cx);
 #endif
 
-            /*
-             * Dump remaining type inference results first. This printing
-             * depends on atoms still existing.
-             */
-            {
-                AutoLockGC lock(rt);
-                JSCompartment **compartment = rt->compartments.begin();
-                JSCompartment **end = rt->compartments.end();
-                while (compartment < end) {
-                    (*compartment)->types.print(cx, false);
-                    compartment++;
-                }
-            }
-
             /* Unpin all common atoms before final GC. */
             js_FinishCommonAtoms(cx);
 
@@ -592,7 +570,7 @@ js_ContextIterator(JSRuntime *rt, JSBool unlocked, JSContext **iterp)
     Maybe<AutoLockGC> lockIf;
     if (unlocked)
         lockIf.construct(rt);
-    cx = JSContext::fromLinkField(cx ? cx->link.next : rt->contextList.next);
+    cx = js_ContextFromLinkField(cx ? cx->link.next : rt->contextList.next);
     if (&cx->link == &rt->contextList)
         cx = NULL;
     *iterp = cx;
@@ -651,7 +629,7 @@ ReportError(JSContext *cx, const char *message, JSErrorReport *reportp,
      *
      * If an exception was raised, then we call the debugErrorHook
      * (if present) to give it a chance to see the error before it
-     * propagates out of scope.  This is needed for compatibility
+     * propagates out of scope.  This is needed for compatability
      * with the old scheme.
      */
     if (!JS_IsRunning(cx) ||
@@ -700,8 +678,6 @@ js_ReportOutOfMemory(JSContext *cx)
     if (JS_ON_TRACE(cx) && !JS_TRACE_MONITOR_ON_TRACE(cx)->bailExit)
         return;
 #endif
-
-    cx->runtime->hadOutOfMemory = true;
 
     JSErrorReport report;
     JSErrorReporter onError = cx->errorReporter;
@@ -767,8 +743,8 @@ checkReportFlags(JSContext *cx, uintN *flags)
          * We assume that if the top frame is a native, then it is strict if
          * the nearest scripted frame is strict, see bug 536306.
          */
-        JSScript *script = cx->stack.currentScript();
-        if (script && script->strictModeCode)
+        StackFrame *fp = js_GetScriptedCaller(cx, NULL);
+        if (fp && fp->script()->strictModeCode)
             *flags &= ~JSREPORT_WARNING;
         else if (cx->hasStrictOption())
             *flags |= JSREPORT_WARNING;
@@ -1107,7 +1083,7 @@ js_ReportMissingArg(JSContext *cx, const Value &v, uintN arg)
     JS_snprintf(argbuf, sizeof argbuf, "%u", arg);
     bytes = NULL;
     if (IsFunctionObject(v)) {
-        atom = v.toObject().getFunctionPrivate()->atom;
+        atom = GET_FUNCTION_PRIVATE(cx, &v.toObject())->atom;
         bytes = DecompileValueGenerator(cx, JSDVG_SEARCH_STACK,
                                         v, atom);
         if (!bytes)
@@ -1277,7 +1253,7 @@ StackFrame *
 js_GetScriptedCaller(JSContext *cx, StackFrame *fp)
 {
     if (!fp)
-        fp = js_GetTopStackFrame(cx, FRAME_EXPAND_ALL);
+        fp = js_GetTopStackFrame(cx);
     while (fp && fp->isDummyFrame())
         fp = fp->prev();
     JS_ASSERT_IF(fp, fp->isScriptFrame());
@@ -1411,11 +1387,9 @@ JSContext::resetCompartment()
     }
 
     compartment = scopeobj->compartment();
-    inferenceEnabled = compartment->types.inferenceEnabled;
 
     if (isExceptionPending())
         wrapPendingException();
-    updateJITEnabled();
     return;
 
 error:
@@ -1606,8 +1580,6 @@ JSContext::updateJITEnabled()
 #ifdef JS_TRACER
     traceJitEnabled = ((runOptions & JSOPTION_JIT) &&
                        !IsJITBrokenHere() &&
-                       compartment &&
-                       !compartment->debugMode() &&
                        (debugHooks == &js_NullDebugHooks ||
                         (debugHooks == &runtime->globalDebugHooks &&
                          !runtime->debuggerInhibitsJIT())));

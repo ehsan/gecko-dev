@@ -41,12 +41,13 @@
 
 #include "nsIDOMMouseEvent.h"
 #include "nsDOMUIEvent.h"
+#include "nsIDOMNSMouseEvent.h"
 
 class nsIContent;
 class nsEvent;
 
 class nsDOMMouseEvent : public nsDOMUIEvent,
-                        public nsIDOMMouseEvent
+                        public nsIDOMNSMouseEvent
 {
 public:
   nsDOMMouseEvent(nsPresContext* aPresContext, nsInputEvent* aEvent);
@@ -57,12 +58,14 @@ public:
   // nsIDOMMouseEvent Interface
   NS_DECL_NSIDOMMOUSEEVENT
 
+  // nsIDOMNSMouseEvent Interface
+  NS_DECL_NSIDOMNSMOUSEEVENT
+
   // Forward to base class
   NS_FORWARD_TO_NSDOMUIEVENT
 
-protected:
   // Specific implementation for a mouse event.
-  virtual nsresult Which(PRUint32* aWhich);
+  NS_IMETHOD GetWhich(PRUint32 *aWhich);
 };
 
 #define NS_FORWARD_TO_NSDOMMOUSEEVENT         \

@@ -59,11 +59,6 @@ let tc3 = {
          "9d201395faa4b61a96c8"
 };
 
-function sha256HMAC(message, key) {
-  let h = Utils.makeHMACHasher(Ci.nsICryptoHMAC.SHA256, key);
-  return Utils.digestBytes(message, h);
-}
-
 function _hexToString(hex) {
   let ret = "";
   if (hex.length % 2 != 0) {
@@ -80,7 +75,8 @@ function _hexToString(hex) {
 function extract_hex(salt, ikm) {
   salt = _hexToString(salt);
   ikm = _hexToString(ikm);
-  return Utils.bytesAsHex(sha256HMAC(ikm, Utils.makeHMACKey(salt)));
+  return Utils.bytesAsHex(
+    Utils.sha256HMACBytes(ikm, Utils.makeHMACKey(salt)));
 }
 
 function expand_hex(prk, info, len) {

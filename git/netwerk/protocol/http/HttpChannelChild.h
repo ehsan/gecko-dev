@@ -170,14 +170,9 @@ private:
   bool mSendResumeAt;
 
   bool mIPCOpen;
-  bool mKeptAlive;            // IPC kept open, but only for security info
+  bool mKeptAlive;
   ChannelEventQueue mEventQ;
 
-  // true after successful AsyncOpen until OnStopRequest completes.
-  bool RemoteChannelExists() { return mIPCOpen && !mKeptAlive; }
-
-  void AssociateApplicationCache(const nsCString &groupID,
-                                 const nsCString &clientID);
   void OnStartRequest(const nsHttpResponseHead& responseHead,
                       const PRBool& useResponseHead,
                       const RequestHeaderTuples& requestHeaders,
@@ -209,7 +204,6 @@ private:
   // Called asynchronously from Resume: continues any pending calls into client.
   void CompleteResume();
 
-  friend class AssociateApplicationCacheEvent;
   friend class StartRequestEvent;
   friend class StopRequestEvent;
   friend class TransportAndDataEvent;

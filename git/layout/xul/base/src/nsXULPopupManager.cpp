@@ -44,6 +44,7 @@
 #include "nsContentUtils.h"
 #include "nsIDOMDocument.h"
 #include "nsIDOMNSEvent.h"
+#include "nsIDOMNSUIEvent.h"
 #include "nsIDOMXULElement.h"
 #include "nsIXULDocument.h"
 #include "nsIXULTemplateBuilder.h"
@@ -53,6 +54,7 @@
 #include "nsCSSFrameConstructor.h"
 #include "nsLayoutUtils.h"
 #include "nsIViewManager.h"
+#include "nsILookAndFeel.h"
 #include "nsIComponentManager.h"
 #include "nsITimer.h"
 #include "nsFocusManager.h"
@@ -70,9 +72,6 @@
 #include "nsFrameManager.h"
 #include "nsIObserverService.h"
 #include "mozilla/Services.h"
-#include "mozilla/LookAndFeel.h"
-
-using namespace mozilla;
 
 #define FLAG_ALT        0x01
 #define FLAG_CONTROL    0x02
@@ -471,7 +470,7 @@ nsXULPopupManager::InitTriggerEvent(nsIDOMEvent* aEvent, nsIContent* aPopup,
 
   mCachedModifiers = 0;
 
-  nsCOMPtr<nsIDOMUIEvent> uiEvent = do_QueryInterface(aEvent);
+  nsCOMPtr<nsIDOMNSUIEvent> uiEvent = do_QueryInterface(aEvent);
   if (uiEvent) {
     uiEvent->GetRangeParent(getter_AddRefs(mRangeParent));
     uiEvent->GetRangeOffset(&mRangeOffset);
@@ -1018,8 +1017,9 @@ nsXULPopupManager::HidePopupAfterDelay(nsMenuPopupFrame* aPopup)
   // Kick off a close timer.
   KillMenuTimer();
 
-  PRInt32 menuDelay =
-    LookAndFeel::GetInt(LookAndFeel::eIntID_SubmenuDelay, 300); // ms
+  PRInt32 menuDelay = 300;   // ms
+  aPopup->PresContext()->LookAndFeel()->
+    GetMetric(nsILookAndFeel::eMetric_SubmenuDelay, menuDelay);
 
   // Kick off the timer.
   mCloseTimer = do_CreateInstance("@mozilla.org/timer;1");
@@ -1402,11 +1402,8 @@ nsXULPopupManager::GetVisiblePopups()
 
   item = mNoHidePanels;
   while (item) {
-    // skip panels which are not open and visible as well as draggable popups,
-    // as those don't respond to events.
-    if (item->Frame()->PopupState() == ePopupOpenAndVisible && !item->Frame()->IsDragPopup()) {
+    if (item->Frame()->PopupState() == ePopupOpenAndVisible)
       popups.AppendElement(static_cast<nsIFrame*>(item->Frame()));
-    }
     item = item->GetParent();
   }
 
@@ -2004,7 +2001,7 @@ nsXULPopupManager::GetNextMenuItem(nsIFrame* aParent,
   if (aStart)
     currFrame = aStart->GetNextSibling();
   else 
-    currFrame = immediateParent->GetFirstPrincipalChild();
+    currFrame = immediateParent->GetFirstChild(nsnull);
   
   while (currFrame) {
     // See if it's a menu item.
@@ -2015,7 +2012,7 @@ nsXULPopupManager::GetNextMenuItem(nsIFrame* aParent,
     currFrame = currFrame->GetNextSibling();
   }
 
-  currFrame = immediateParent->GetFirstPrincipalChild();
+  currFrame = immediateParent->GetFirstChild(nsnull);
 
   // Still don't have anything. Try cycling from the beginning.
   while (currFrame && currFrame != aStart) {
@@ -2044,7 +2041,7 @@ nsXULPopupManager::GetPreviousMenuItem(nsIFrame* aParent,
   if (!immediateParent)
     immediateParent = aParent;
 
-  const nsFrameList& frames(immediateParent->PrincipalChildList());
+  const nsFrameList& frames(immediateParent->GetChildList(nsnull));
 
   nsIFrame* currFrame = nsnull;
   if (aStart)
@@ -2093,11 +2090,11 @@ nsXULPopupManager::IsValidMenuItem(nsPresContext* aPresContext,
     return PR_FALSE;
   }
 
-  PRBool skipNavigatingDisabledMenuItem = PR_TRUE;
+  PRInt32 skipNavigatingDisabledMenuItem = PR_TRUE;
   if (aOnPopup) {
-    skipNavigatingDisabledMenuItem =
-      LookAndFeel::GetInt(LookAndFeel::eIntID_SkipNavigatingDisabledMenuItem,
-                          0) != 0;
+    aPresContext->LookAndFeel()->
+      GetMetric(nsILookAndFeel::eMetric_SkipNavigatingDisabledMenuItem,
+                skipNavigatingDisabledMenuItem);
   }
 
   return !(skipNavigatingDisabledMenuItem &&

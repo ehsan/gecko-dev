@@ -66,6 +66,7 @@ const PREFS_WHITELIST = [
   "general.useragent.",
   "gfx.",
   "html5.",
+  "mozilla.widget.render-mode",
   "layers.",
   "javascript.",
   "keyword.",

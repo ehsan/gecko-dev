@@ -376,7 +376,7 @@ nsExpatDriver::nsExpatDriver()
     mInternalState(NS_OK),
     mExpatBuffered(0),
     mCatalogData(nsnull),
-    mInnerWindowID(0)
+    mWindowID(0)
 {
 }
 
@@ -953,7 +953,7 @@ nsExpatDriver::HandleError()
                                  mLastLine.get(),
                                  lineNumber, colNumber,
                                  nsIScriptError::errorFlag, "malformed-xml",
-                                 mInnerWindowID);
+                                 mWindowID);
   }
 
   // If it didn't initialize, we can't do any logging.
@@ -1250,11 +1250,8 @@ nsExpatDriver::WillBuildModel(const CParserContext& aParserContext,
         win = do_QueryInterface(global);
       }
     }
-    if (win && !win->IsInnerWindow()) {
-      win = win->GetCurrentInnerWindow();
-    }
     if (win) {
-      mInnerWindowID = win->WindowID();
+      mWindowID = win->GetOuterWindow()->WindowID();
     }
   }
 

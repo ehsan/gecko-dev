@@ -621,21 +621,21 @@ struct PairPosFormat1
   inline bool apply (hb_apply_context_t *c) const
   {
     TRACE_APPLY ();
-    unsigned int j = c->buffer->i;
-    unsigned int end = MIN (c->buffer->len, j + c->context_length);
-    if (unlikely (j >= end))
+    unsigned int end = MIN (c->buffer->len, c->buffer->i + c->context_length);
+    if (unlikely (c->buffer->i + 2 > end))
       return false;
 
-    unsigned int index = (this+coverage) (c->buffer->info[j].codepoint);
+    unsigned int index = (this+coverage) (c->buffer->info[c->buffer->i].codepoint);
     if (likely (index == NOT_COVERED))
       return false;
 
-    do
+    unsigned int j = c->buffer->i + 1;
+    while (_hb_ot_layout_skip_mark (c->layout->face, &c->buffer->info[j], c->lookup_props, NULL))
     {
-      j++;
       if (unlikely (j == end))
-        return false;
-    } while (_hb_ot_layout_skip_mark (c->layout->face, &c->buffer->info[j], c->lookup_props, NULL));
+	return false;
+      j++;
+    }
 
     return (this+pairSet[index]).apply (c, &valueFormat1, j);
   }
@@ -683,21 +683,21 @@ struct PairPosFormat2
   inline bool apply (hb_apply_context_t *c) const
   {
     TRACE_APPLY ();
-    unsigned int j = c->buffer->i;
-    unsigned int end = MIN (c->buffer->len, j + c->context_length);
-    if (unlikely (j >= end))
+    unsigned int end = MIN (c->buffer->len, c->buffer->i + c->context_length);
+    if (unlikely (c->buffer->i + 2 > end))
       return false;
 
-    unsigned int index = (this+coverage) (c->buffer->info[j].codepoint);
+    unsigned int index = (this+coverage) (c->buffer->info[c->buffer->i].codepoint);
     if (likely (index == NOT_COVERED))
       return false;
 
-    do
+    unsigned int j = c->buffer->i + 1;
+    while (_hb_ot_layout_skip_mark (c->layout->face, &c->buffer->info[j], c->lookup_props, NULL))
     {
-      j++;
       if (unlikely (j == end))
 	return false;
-    } while (_hb_ot_layout_skip_mark (c->layout->face, &c->buffer->info[j], c->lookup_props, NULL));
+      j++;
+    }
 
     unsigned int len1 = valueFormat1.get_len ();
     unsigned int len2 = valueFormat2.get_len ();
@@ -836,21 +836,21 @@ struct CursivePosFormat1
     if (c->property & HB_OT_LAYOUT_GLYPH_CLASS_MARK)
       return false;
 
-    unsigned int j = c->buffer->i;
-    unsigned int end = MIN (c->buffer->len, j + c->context_length);
-    if (unlikely (j >= end))
+    unsigned int end = MIN (c->buffer->len, c->buffer->i + c->context_length);
+    if (unlikely (c->buffer->i + 2 > end))
       return false;
 
-    const EntryExitRecord &this_record = entryExitRecord[(this+coverage) (c->buffer->info[j].codepoint)];
+    const EntryExitRecord &this_record = entryExitRecord[(this+coverage) (c->buffer->info[c->buffer->i].codepoint)];
     if (!this_record.exitAnchor)
       return false;
 
-    do
+    unsigned int j = c->buffer->i + 1;
+    while (_hb_ot_layout_skip_mark (c->layout->face, &c->buffer->info[j], c->lookup_props, NULL))
     {
-      j++;
       if (unlikely (j == end))
 	return false;
-    } while (_hb_ot_layout_skip_mark (c->layout->face, &c->buffer->info[j], c->lookup_props, NULL));
+      j++;
+    }
 
     const EntryExitRecord &next_record = entryExitRecord[(this+coverage) (c->buffer->info[j].codepoint)];
     if (!next_record.entryAnchor)

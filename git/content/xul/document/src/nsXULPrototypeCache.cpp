@@ -69,6 +69,8 @@
 using namespace mozilla;
 using namespace mozilla::scache;
 
+static NS_DEFINE_CID(kXULPrototypeCacheCID, NS_XULPROTOTYPECACHE_CID);
+
 static PRBool gDisableXULCache = PR_FALSE; // enabled by default
 static const char kDisableXULCachePref[] = "nglayout.debug.disable_xul_cache";
 static const char kXULCacheInfoKey[] = "nsXULPrototypeCache.startupCache";
@@ -107,37 +109,65 @@ nsXULPrototypeCache::~nsXULPrototypeCache()
 }
 
 
-NS_IMPL_THREADSAFE_ISUPPORTS1(nsXULPrototypeCache, nsIObserver)
+NS_IMPL_THREADSAFE_ISUPPORTS2(nsXULPrototypeCache,
+                              nsIXULPrototypeCache,
+                              nsIObserver)
+
+
+nsresult
+NS_NewXULPrototypeCache(nsISupports* aOuter, REFNSIID aIID, void** aResult)
+{
+    NS_PRECONDITION(! aOuter, "no aggregation");
+    if (aOuter)
+        return NS_ERROR_NO_AGGREGATION;
+
+    nsRefPtr<nsXULPrototypeCache> result = new nsXULPrototypeCache();
+    if (! result)
+        return NS_ERROR_OUT_OF_MEMORY;
+
+    if (!(result->mPrototypeTable.Init() &&
+          result->mStyleSheetTable.Init() &&
+          result->mScriptTable.Init() &&
+          result->mXBLDocTable.Init())) {
+        return NS_ERROR_OUT_OF_MEMORY;
+    }
+
+    if (!(result->mCacheURITable.Init() &&
+          result->mInputStreamTable.Init() &&
+          result->mOutputStreamTable.Init())) {
+        return NS_ERROR_OUT_OF_MEMORY;
+    }
+
+    // XXX Ignore return values.
+    gDisableXULCache =
+        Preferences::GetBool(kDisableXULCachePref, gDisableXULCache);
+    Preferences::RegisterCallback(DisableXULCacheChangedCallback,
+                                  kDisableXULCachePref);
+
+    nsresult rv = result->QueryInterface(aIID, aResult);
+
+    nsCOMPtr<nsIObserverService> obsSvc =
+        mozilla::services::GetObserverService();
+    if (obsSvc && NS_SUCCEEDED(rv)) {
+        nsXULPrototypeCache *p = result;
+        obsSvc->AddObserver(p, "chrome-flush-skin-caches", PR_FALSE);
+        obsSvc->AddObserver(p, "chrome-flush-caches", PR_FALSE);
+        obsSvc->AddObserver(p, "startupcache-invalidate", PR_FALSE);
+    }
+
+    return rv;
+}
 
 /* static */ nsXULPrototypeCache*
 nsXULPrototypeCache::GetInstance()
 {
+    // Theoretically this can return nsnull and callers should handle that.
     if (!sInstance) {
-        NS_ADDREF(sInstance = new nsXULPrototypeCache());
+        nsIXULPrototypeCache* cache;
 
-        sInstance->mPrototypeTable.Init();
-        sInstance->mStyleSheetTable.Init();
-        sInstance->mScriptTable.Init();
-        sInstance->mXBLDocTable.Init();
+        CallGetService(kXULPrototypeCacheCID, &cache);
 
-        sInstance->mCacheURITable.Init();
-        sInstance->mInputStreamTable.Init();
-        sInstance->mOutputStreamTable.Init();
-
-        gDisableXULCache =
-            Preferences::GetBool(kDisableXULCachePref, gDisableXULCache);
-        Preferences::RegisterCallback(DisableXULCacheChangedCallback,
-                                      kDisableXULCachePref);
-
-        nsCOMPtr<nsIObserverService> obsSvc =
-            mozilla::services::GetObserverService();
-        if (obsSvc) {
-            nsXULPrototypeCache *p = sInstance;
-            obsSvc->AddObserver(p, "chrome-flush-skin-caches", PR_FALSE);
-            obsSvc->AddObserver(p, "chrome-flush-caches", PR_FALSE);
-            obsSvc->AddObserver(p, "startupcache-invalidate", PR_FALSE);
-        }
-		
+        sInstance = static_cast<nsXULPrototypeCache*>(cache);
     }
     return sInstance;
 }
@@ -557,7 +587,9 @@ CachePrefChangedCallback(const char* aPref, void* aClosure)
                              gDisableXULDiskCache);
 
     if (wasEnabled && gDisableXULDiskCache) {
-        nsXULPrototypeCache* cache = nsXULPrototypeCache::GetInstance();
+        static NS_DEFINE_CID(kXULPrototypeCacheCID, NS_XULPROTOTYPECACHE_CID);
+        nsCOMPtr<nsIXULPrototypeCache> cache =
+            do_GetService(kXULPrototypeCacheCID);
 
         if (cache)
             cache->AbortCaching();

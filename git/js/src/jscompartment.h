@@ -285,9 +285,9 @@ struct TraceMonitor {
     bool outOfMemory() const;
 
     JS_FRIEND_API(void) getCodeAllocStats(size_t &total, size_t &frag_size, size_t &free_size) const;
-    JS_FRIEND_API(size_t) getVMAllocatorsMainSize(JSUsableSizeFun usf) const;
-    JS_FRIEND_API(size_t) getVMAllocatorsReserveSize(JSUsableSizeFun usf) const;
-    JS_FRIEND_API(size_t) getTraceMonitorSize(JSUsableSizeFun usf) const;
+    JS_FRIEND_API(size_t) getVMAllocatorsMainSize() const;
+    JS_FRIEND_API(size_t) getVMAllocatorsReserveSize() const;
+    JS_FRIEND_API(size_t) getTraceMonitorSize() const;
 };
 
 namespace mjit {
@@ -298,11 +298,10 @@ class JaegerCompartment;
 /* Defined in jsapi.cpp */
 extern JSClass js_dummy_class;
 
+/* Number of potentially reusable scriptsToGC to search for the eval cache. */
 #ifndef JS_EVAL_CACHE_SHIFT
 # define JS_EVAL_CACHE_SHIFT        6
 #endif
-
-/* Number of buckets in the hash of eval scripts. */
 #define JS_EVAL_CACHE_SIZE          JS_BIT(JS_EVAL_CACHE_SHIFT)
 
 namespace js {
@@ -394,7 +393,8 @@ struct JS_FRIEND_API(JSCompartment) {
     JSRuntime                    *rt;
     JSPrincipals                 *principals;
 
-    js::gc::ArenaLists           arenas;
+    js::gc::ArenaList            arenas[js::gc::FINALIZE_LIMIT];
+    js::gc::FreeLists            freeLists;
 
     uint32                       gcBytes;
     uint32                       gcTriggerBytes;
@@ -402,18 +402,6 @@ struct JS_FRIEND_API(JSCompartment) {
 
     bool                         hold;
     bool                         isSystemCompartment;
-
-    /*
-     * Pool for analysis and intermediate type information in this compartment.
-     * Cleared on every GC, unless the GC happens during analysis (indicated
-     * by activeAnalysis, which is implied by activeInference).
-     */
-    JSArenaPool                  pool;
-    bool                         activeAnalysis;
-    bool                         activeInference;
-
-    /* Type information about the scripts and objects in this compartment. */
-    js::types::TypeCompartment   types;
 
 #ifdef JS_TRACER
   private:
@@ -426,7 +414,7 @@ struct JS_FRIEND_API(JSCompartment) {
 
   public:
     /* Hashed lists of scripts created by eval to garbage-collect. */
-    JSScript                     *evalCache[JS_EVAL_CACHE_SIZE];
+    JSScript                     *scriptsToGC[JS_EVAL_CACHE_SIZE];
 
     void                         *data;
     bool                         active;  // GC flag, whether there are active frames
@@ -455,7 +443,7 @@ struct JS_FRIEND_API(JSCompartment) {
 
     bool ensureJaegerCompartmentExists(JSContext *cx);
 
-    void getMjitCodeStats(size_t& method, size_t& regexp, size_t& unused) const;
+    size_t getMjitCodeSize() const;
 #endif
     WTF::BumpPointerAllocator    *regExpAllocator;
 
@@ -507,6 +495,8 @@ struct JS_FRIEND_API(JSCompartment) {
     uintN                        debugModeBits;  // see debugMode() below
 
   public:
+    JSCList                      scripts;        // scripts in this compartment
+
     js::NativeIterCache          nativeIterCache;
 
     typedef js::Maybe<js::ToSourceCache> LazyToSourceCache;
@@ -517,7 +507,7 @@ struct JS_FRIEND_API(JSCompartment) {
     JSCompartment(JSRuntime *rt);
     ~JSCompartment();
 
-    bool init(JSContext *cx);
+    bool init();
 
     /* Mark cross-compartment wrappers. */
     void markCrossCompartmentWrappers(JSTracer *trc);
@@ -531,9 +521,13 @@ struct JS_FRIEND_API(JSCompartment) {
     bool wrap(JSContext *cx, js::PropertyDescriptor *desc);
     bool wrap(JSContext *cx, js::AutoIdVector &props);
 
-    void markTypes(JSTracer *trc);
     void sweep(JSContext *cx, uint32 releaseInterval);
     void purge(JSContext *cx);
+    void finishArenaLists();
+    void finalizeObjectArenaLists(JSContext *cx);
+    void finalizeStringArenaLists(JSContext *cx);
+    void finalizeShapeArenaLists(JSContext *cx);
+    bool arenaListsAreEmpty();
 
     void setGCLastBytes(size_t lastBytes, JSGCInvocationKind gckind);
     void reduceGCTriggerBytes(uint32 amount);
@@ -617,7 +611,7 @@ struct JS_FRIEND_API(JSCompartment) {
                                                   JSObject *scriptObject);
     void clearBreakpointsIn(JSContext *cx, js::Debugger *dbg, JSScript *script, JSObject *handler);
     void clearTraps(JSContext *cx, JSScript *script);
-    bool markTrapClosuresIteratively(JSTracer *trc);
+    bool markBreakpointsIteratively(JSTracer *trc);
 
   private:
     void sweepBreakpoints(JSContext *cx);
@@ -626,6 +620,7 @@ struct JS_FRIEND_API(JSCompartment) {
     js::WatchpointMap *watchpointMap;
 };
 
+#define JS_SCRIPTS_TO_GC(cx)    ((cx)->compartment->scriptsToGC)
 #define JS_PROPERTY_TREE(cx)    ((cx)->compartment->propertyTree)
 
 /*
@@ -704,13 +699,6 @@ GetMathCache(JSContext *cx)
 }
 }
 
-inline void
-JSContext::setCompartment(JSCompartment *compartment)
-{
-    this->compartment = compartment;
-    this->inferenceEnabled = compartment ? compartment->types.inferenceEnabled : false;
-}
-
 #ifdef _MSC_VER
 #pragma warning(pop)
 #endif
@@ -722,19 +710,15 @@ class PreserveCompartment {
     JSContext *cx;
   private:
     JSCompartment *oldCompartment;
-    bool oldInferenceEnabled;
     JS_DECL_USE_GUARD_OBJECT_NOTIFIER
   public:
      PreserveCompartment(JSContext *cx JS_GUARD_OBJECT_NOTIFIER_PARAM) : cx(cx) {
         JS_GUARD_OBJECT_NOTIFIER_INIT;
         oldCompartment = cx->compartment;
-        oldInferenceEnabled = cx->inferenceEnabled;
     }
 
     ~PreserveCompartment() {
-        /* The old compartment may have been destroyed, so we can't use cx->setCompartment. */
         cx->compartment = oldCompartment;
-        cx->inferenceEnabled = oldInferenceEnabled;
     }
 };
 
@@ -745,14 +729,14 @@ class SwitchToCompartment : public PreserveCompartment {
         : PreserveCompartment(cx)
     {
         JS_GUARD_OBJECT_NOTIFIER_INIT;
-        cx->setCompartment(newCompartment);
+        cx->compartment = newCompartment;
     }
 
     SwitchToCompartment(JSContext *cx, JSObject *target JS_GUARD_OBJECT_NOTIFIER_PARAM)
         : PreserveCompartment(cx)
     {
         JS_GUARD_OBJECT_NOTIFIER_INIT;
-        cx->setCompartment(target->getCompartment());
+        cx->compartment = target->getCompartment();
     }
 
     JS_DECL_USE_GUARD_OBJECT_NOTIFIER

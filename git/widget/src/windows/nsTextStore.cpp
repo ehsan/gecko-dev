@@ -803,23 +803,9 @@ nsTextStore::SendTextEventForCompositionString()
     return S_OK;
   }
 
-  if (mCompositionString != mLastDispatchedCompositionString) {
-    nsCompositionEvent compositionUpdate(PR_TRUE, NS_COMPOSITION_UPDATE,
-                                         mWindow);
-    mWindow->InitEvent(compositionUpdate);
-    compositionUpdate.data = mCompositionString;
-    mLastDispatchedCompositionString = mCompositionString;
-    mWindow->DispatchWindowEvent(&compositionUpdate);
-    PR_LOG(sTextStoreLog, PR_LOG_ALWAYS,
-           ("TSF: SendTextEventForCompositionString compositionupdate "
-            "DISPATCHED\n"));
-  }
-
-  if (mWindow && !mWindow->Destroyed()) {
-    mWindow->DispatchWindowEvent(&event);
-    PR_LOG(sTextStoreLog, PR_LOG_ALWAYS,
-           ("TSF: SendTextEventForCompositionString text event DISPATCHED\n"));
-  }
+  mWindow->DispatchWindowEvent(&event);
+  PR_LOG(sTextStoreLog, PR_LOG_ALWAYS,
+         ("TSF: SendTextEventForCompositionString DISPATCHED\n"));
   return SaveTextEvent(&event);
 }
 
@@ -1258,30 +1244,19 @@ nsTextStore::InsertTextAtSelection(DWORD dwFlags,
       nsCompositionEvent compEvent(PR_TRUE, NS_COMPOSITION_START, mWindow);
       mWindow->InitEvent(compEvent);
       mWindow->DispatchWindowEvent(&compEvent);
-      if (mWindow && !mWindow->Destroyed()) {
-        compEvent.message = NS_COMPOSITION_UPDATE;
-        compEvent.data.Assign(pchText, cch);
-        mWindow->DispatchWindowEvent(&compEvent);
-        if (mWindow && !mWindow->Destroyed()) {
-          nsTextEvent event(PR_TRUE, NS_TEXT_TEXT, mWindow);
-          mWindow->InitEvent(event);
-          if (!cch) {
-            // XXX See OnEndComposition comment on inserting empty strings
-            event.theText = NS_LITERAL_STRING(" ");
-            mWindow->DispatchWindowEvent(&event);
-          }
-          if (mWindow && !mWindow->Destroyed()) {
-            event.theText.Assign(pchText, cch);
-            event.theText.ReplaceSubstring(NS_LITERAL_STRING("\r\n"),
-                                           NS_LITERAL_STRING("\n"));
-            mWindow->DispatchWindowEvent(&event);
-            if (mWindow && !mWindow->Destroyed()) {
-              compEvent.message = NS_COMPOSITION_END;
-              mWindow->DispatchWindowEvent(&compEvent);
-            }
-          }
-        }
+      nsTextEvent event(PR_TRUE, NS_TEXT_TEXT, mWindow);
+      mWindow->InitEvent(event);
+      if (!cch) {
+        // XXX See OnEndComposition comment on inserting empty strings
+        event.theText = NS_LITERAL_STRING(" ");
+        mWindow->DispatchWindowEvent(&event);
       }
+      event.theText.Assign(pchText, cch);
+      event.theText.ReplaceSubstring(NS_LITERAL_STRING("\r\n"),
+                                     NS_LITERAL_STRING("\n"));
+      mWindow->DispatchWindowEvent(&event);
+      compEvent.message = NS_COMPOSITION_END;
+      mWindow->DispatchWindowEvent(&compEvent);
     }
     pChange->acpStart = sel.acpStart;
     pChange->acpOldEnd = sel.acpEnd;
@@ -1423,20 +1398,6 @@ nsTextStore::OnEndComposition(ITfCompositionView* pComposition)
     mCompositionTimer = nsnull;
   }
 
-  if (mCompositionString != mLastDispatchedCompositionString) {
-    nsCompositionEvent compositionUpdate(PR_TRUE, NS_COMPOSITION_UPDATE,
-                                         mWindow);
-    mWindow->InitEvent(compositionUpdate);
-    compositionUpdate.data = mCompositionString;
-    mLastDispatchedCompositionString = mCompositionString;
-    mWindow->DispatchWindowEvent(&compositionUpdate);
-    if (!mWindow || mWindow->Destroyed()) {
-      PR_LOG(sTextStoreLog, PR_LOG_ALWAYS,
-             ("TSF: CompositionUpdate caused aborting compositionend\n"));
-      return S_OK;
-    }
-  }
-
   // Use NS_TEXT_TEXT to commit composition string
   nsTextEvent textEvent(PR_TRUE, NS_TEXT_TEXT, mWindow);
   mWindow->InitEvent(textEvent);
@@ -1454,21 +1415,12 @@ nsTextStore::OnEndComposition(ITfCompositionView* pComposition)
                                      NS_LITERAL_STRING("\n"));
   mWindow->DispatchWindowEvent(&textEvent);
 
-  if (!mWindow || mWindow->Destroyed()) {
-    PR_LOG(sTextStoreLog, PR_LOG_ALWAYS,
-           ("TSF: Text event caused aborting compositionend\n"));
-    return S_OK;
-  }
-
   nsCompositionEvent event(PR_TRUE, NS_COMPOSITION_END, mWindow);
-  event.data = mLastDispatchedCompositionString;
   mWindow->InitEvent(event);
   mWindow->DispatchWindowEvent(&event);
 
   mCompositionView = NULL;
   mCompositionString.Truncate(0);
-  mLastDispatchedCompositionString.Truncate();
-
   // Maintain selection
   SetSelectionInternal(&mCompositionSelection);
   return S_OK;

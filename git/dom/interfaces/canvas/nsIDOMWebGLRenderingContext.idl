@@ -842,7 +842,4 @@ interface nsIDOMWebGLRenderingContext : nsISupports
 
   nsIVariant getSupportedExtensions();
   WebGLboolean isContextLost();
-
-  readonly attribute WebGLsizei drawingBufferWidth;
-  readonly attribute WebGLsizei drawingBufferHeight;
 };

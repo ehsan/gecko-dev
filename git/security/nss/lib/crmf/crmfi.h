@@ -93,7 +93,7 @@ struct crmfEncoderOutput {
 };
 
 /*
- * This function is used by the API for encoding functions that are 
+ * This funciton is used by the API for encoding functions that are 
  * exposed through the API, ie all of the CMMF_Encode* and CRMF_Encode*
  * functions.
  */

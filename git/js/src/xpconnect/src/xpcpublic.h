@@ -41,7 +41,6 @@
 #define xpcpublic_h
 
 #include "jsapi.h"
-#include "jsfriendapi.h"
 #include "jsobj.h"
 #include "jsgc.h"
 #include "jspubtd.h"
@@ -75,8 +74,11 @@ xpc_LocalizeContext(JSContext *cx);
 nsresult
 xpc_MorphSlimWrapper(JSContext *cx, nsISupports *tomorph);
 
+extern JSBool
+XPC_WN_Equality(JSContext *cx, JSObject *obj, const jsval *v, JSBool *bp);
+
 #define IS_WRAPPER_CLASS(clazz)                                               \
-    ((clazz)->ext.isWrappedNative)
+    (clazz->ext.equality == js::Valueify(XPC_WN_Equality))
 
 inline JSBool
 DebugCheckWrapperClass(JSObject* obj)
@@ -199,18 +201,18 @@ struct CompartmentStats
     PRInt64 gcHeapArenaPadding;
     PRInt64 gcHeapArenaUnused;
 
-    PRInt64 gcHeapKinds[JSTRACE_LAST + 1];
+    PRInt64 gcHeapObjects;
+    PRInt64 gcHeapStrings;
+    PRInt64 gcHeapShapes;
+    PRInt64 gcHeapXml;
 
     PRInt64 objectSlots;
     PRInt64 stringChars;
     PRInt64 propertyTables;
-    PRInt64 shapeKids;
-    PRInt64 scriptData;
 
+    PRInt64 scripts;
 #ifdef JS_METHODJIT
-    PRInt64 mjitCodeMethod;
-    PRInt64 mjitCodeRegexp;
-    PRInt64 mjitCodeUnused;
+    PRInt64 mjitCode;
     PRInt64 mjitData;
 #endif
 #ifdef JS_TRACER
@@ -219,14 +221,12 @@ struct CompartmentStats
     PRInt64 tjitDataAllocatorsReserve;
     PRInt64 tjitDataNonAllocators;
 #endif
-    TypeInferenceMemoryStats typeInferenceMemory;
 };
 
 struct IterateData
 {
     IterateData()
-      : runtimeObjectSize(0),
-        atomsTableSize(0),
+      : atomsTableSize(0),
         stackSize(0),
         gcHeapChunkTotal(0),
         gcHeapChunkCleanUnused(0),
@@ -237,7 +237,6 @@ struct IterateData
         compartmentStatsVector(),
         currCompartmentStats(NULL) { }
 
-    PRInt64 runtimeObjectSize;
     PRInt64 atomsTableSize;
     PRInt64 stackSize;
     PRInt64 gcHeapChunkTotal;

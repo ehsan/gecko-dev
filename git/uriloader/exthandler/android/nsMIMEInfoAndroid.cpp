@@ -89,7 +89,7 @@ nsMIMEInfoAndroid::GetMimeInfoForMimeType(const nsACString& aMimeType,
     info->mPrefApp = systemDefault;
 
   nsCAutoString fileExt;
-  bridge->GetExtensionFromMimeType(aMimeType, fileExt);
+  bridge->GetExtensionFromMimeType(nsDependentCString(aMimeType), fileExt);
   info->SetPrimaryExtension(fileExt);
   
   PRUint32 len;

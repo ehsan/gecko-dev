@@ -47,8 +47,9 @@
 #include "nsContentUtils.h"
 #include "nsIDocument.h"
 #include "nsPresContext.h"
-#include "DOMSVGMatrix.h"
+#include "nsSVGMatrix.h"
 #include "DOMSVGPoint.h"
+#include "nsSVGTransform.h"
 #include "nsIDOMEventTarget.h"
 #include "nsIFrame.h"
 #include "nsISVGSVGFrame.h" //XXX
@@ -648,8 +649,7 @@ nsSVGSVGElement::CreateSVGPoint(nsIDOMSVGPoint **_retval)
 NS_IMETHODIMP
 nsSVGSVGElement::CreateSVGMatrix(nsIDOMSVGMatrix **_retval)
 {
-  NS_ADDREF(*_retval = new DOMSVGMatrix());
-  return NS_OK;
+  return NS_NewSVGMatrix(_retval);
 }
 
 /* nsIDOMSVGRect createSVGRect (); */
@@ -663,8 +663,7 @@ nsSVGSVGElement::CreateSVGRect(nsIDOMSVGRect **_retval)
 NS_IMETHODIMP
 nsSVGSVGElement::CreateSVGTransform(nsIDOMSVGTransform **_retval)
 {
-  NS_ADDREF(*_retval = new DOMSVGTransform());
-  return NS_OK;
+  return NS_NewSVGTransform(_retval);
 }
 
 /* nsIDOMSVGTransform createSVGTransformFromMatrix (in nsIDOMSVGMatrix matrix); */
@@ -672,12 +671,13 @@ NS_IMETHODIMP
 nsSVGSVGElement::CreateSVGTransformFromMatrix(nsIDOMSVGMatrix *matrix, 
                                               nsIDOMSVGTransform **_retval)
 {
-  nsCOMPtr<DOMSVGMatrix> domItem = do_QueryInterface(matrix);
-  if (!domItem) {
-    return NS_ERROR_DOM_SVG_WRONG_TYPE_ERR;
-  }
+  NS_ENSURE_NATIVE_MATRIX(matrix, _retval);
 
-  NS_ADDREF(*_retval = new DOMSVGTransform(domItem->Matrix()));
+  nsresult rv = NS_NewSVGTransform(_retval);
+  if (NS_FAILED(rv))
+    return rv;
+
+  (*_retval)->SetMatrix(matrix);
   return NS_OK;
 }
 
@@ -748,8 +748,7 @@ NS_IMETHODIMP
 nsSVGSVGElement::GetCTM(nsIDOMSVGMatrix * *aCTM)
 {
   gfxMatrix m = nsSVGUtils::GetCTM(this, PR_FALSE);
-  *aCTM = m.IsSingular() ? nsnull : new DOMSVGMatrix(m);
-  NS_IF_ADDREF(*aCTM);
+  *aCTM = m.IsSingular() ? nsnull : NS_NewSVGMatrix(m).get();
   return NS_OK;
 }
 
@@ -758,8 +757,7 @@ NS_IMETHODIMP
 nsSVGSVGElement::GetScreenCTM(nsIDOMSVGMatrix **aCTM)
 {
   gfxMatrix m = nsSVGUtils::GetCTM(this, PR_TRUE);
-  *aCTM = m.IsSingular() ? nsnull : new DOMSVGMatrix(m);
-  NS_IF_ADDREF(*aCTM);
+  *aCTM = m.IsSingular() ? nsnull : NS_NewSVGMatrix(m).get();
   return NS_OK;
 }
 
@@ -1213,6 +1211,14 @@ nsSVGSVGElement::GetLengthInfo()
 {
   return LengthAttributesInfo(mLengthAttributes, sLengthInfo,
                               NS_ARRAY_LENGTH(sLengthInfo));
+}
+
+void
+nsSVGSVGElement::DidChangeEnum(PRUint8 aAttrEnum, PRBool aDoSetAttr)
+{
+  nsSVGSVGElementBase::DidChangeEnum(aAttrEnum, aDoSetAttr);
+
+  InvalidateTransformNotifyFrame();
 }
 
 nsSVGElement::EnumAttributesInfo

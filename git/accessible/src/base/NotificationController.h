@@ -41,7 +41,6 @@
 
 #include "AccEvent.h"
 #include "nsCycleCollectionParticipant.h"
-#include "nsRefreshDriver.h"
 
 class nsAccessible;
 class nsDocAccessible;

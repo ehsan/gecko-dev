@@ -256,23 +256,11 @@ function OnRefTestLoad()
 
 function InitAndStartRefTests()
 {
-    /* These prefs are optional, so we don't need to spit an error to the log */
+    /* set the gLoadTimeout */
     try {
       var prefs = Components.classes["@mozilla.org/preferences-service;1"].
                   getService(Components.interfaces.nsIPrefBranch2);
-    } catch(e) {
-      gDumpLog("REFTEST TEST-UNEXPECTED-FAIL | | EXCEPTION: " + e + "\n");
-    }
-    
-    /* set the gLoadTimeout */
-    try {
       gLoadTimeout = prefs.getIntPref("reftest.timeout");
-    } catch(e) { 
-      gLoadTimeout = 5 * 60 * 1000; //5 minutes as per bug 479518
-    }
-    
-    /* Get the logfile for android tests */
-    try {
       logFile = prefs.getCharPref("reftest.logFile");
       if (logFile) {
         try {
@@ -285,19 +273,13 @@ function InitAndStartRefTests()
           gDumpLog = dump;
         }
       }
-    } catch(e) {}
-    
-    try {
       gRemote = prefs.getBoolPref("reftest.remote");
-    } catch(e) { 
-      gRemote = false;
+      gIgnoreWindowSize = prefs.getBoolPref("reftest.ignoreWindowSize");
+    }
+    catch(e) {
+      gLoadTimeout = 5 * 60 * 1000; //5 minutes as per bug 479518
     }
 
-    try {
-      gIgnoreWindowSize = prefs.getBoolPref("reftest.ignoreWindowSize");
-    } catch(e) {
-      gIgnoreWindowSize = false;
-    }
 
     /* Support for running a chunk (subset) of tests.  In separate try as this is optional */
     try {
@@ -1345,7 +1327,6 @@ function FinishTestItem()
     gDumpLog("REFTEST INFO | Loading a blank page\n");
     // After clearing, content will notify us of the assertion count
     // and tests will continue.
-    SetAsyncScroll(false);
     SendClear();
 }
 
@@ -1442,19 +1423,8 @@ function RegisterMessageListenersAndLoadContentScript()
         "reftest:ExpectProcessCrash",
         function (m) { RecvExpectProcessCrash(); }
     );
-    gBrowserMessageManager.addMessageListener(
-        "reftest:EnableAsyncScroll",
-        function (m) { SetAsyncScroll(true); }
-    );
 
     gBrowserMessageManager.loadFrameScript("chrome://reftest/content/reftest-content.js", true);
-}
-
-function SetAsyncScroll(enabled)
-{
-    gBrowser.QueryInterface(CI.nsIFrameLoaderOwner).frameLoader.renderMode =
-        enabled ? CI.nsIFrameLoader.RENDER_MODE_ASYNC_SCROLL :
-                  CI.nsIFrameLoader.RENDER_MODE_DEFAULT;
 }
 
 function RecvAssertionCount(count)

@@ -60,51 +60,44 @@ class nsPresContext;
  * its parent.
  *
  * There is no principal child list, just a named child list which contains
- * the absolutely positioned frames (kAbsoluteList or kFixedList).
+ * the absolutely positioned frames.
  *
  * All functions include as the first argument the frame that is delegating
  * the request.
  *
+ * @see nsGkAtoms::absoluteList and nsGkAtoms::fixedList
  */
 class nsAbsoluteContainingBlock
 {
 public:
-  typedef nsIFrame::ChildListID ChildListID;
-
-  nsAbsoluteContainingBlock(ChildListID aChildListID)
+  nsAbsoluteContainingBlock(nsIAtom* aChildListName)
 #ifdef DEBUG
-    : mChildListID(aChildListID)
+    : mChildListName(aChildListName)
 #endif
   {
-    NS_ASSERTION(mChildListID == nsIFrame::kAbsoluteList ||
-                 mChildListID == nsIFrame::kFixedList,
+    NS_ASSERTION(mChildListName == nsGkAtoms::absoluteList ||
+                 mChildListName == nsGkAtoms::fixedList,
                  "should either represent position:fixed or absolute content");
   }
 
 #ifdef DEBUG
-  ChildListID GetChildListID() const { return mChildListID; }
+  nsIAtom* GetChildListName() const { return mChildListName; }
 #endif
 
   const nsFrameList& GetChildList() const { return mAbsoluteFrames; }
-  void AppendChildList(nsTArray<nsIFrame::ChildList>* aLists,
-                       ChildListID aListID) const
-  {
-    NS_ASSERTION(aListID == GetChildListID(), "wrong list ID");
-    GetChildList().AppendIfNonempty(aLists, aListID);
-  }
 
   nsresult SetInitialChildList(nsIFrame*       aDelegatingFrame,
-                               ChildListID     aListID,
+                               nsIAtom*        aListName,
                                nsFrameList&    aChildList);
   nsresult AppendFrames(nsIFrame*      aDelegatingFrame,
-                        ChildListID    aListID,
+                        nsIAtom*       aListName,
                         nsFrameList&   aFrameList);
   nsresult InsertFrames(nsIFrame*      aDelegatingFrame,
-                        ChildListID    aListID,
+                        nsIAtom*       aListName,
                         nsIFrame*      aPrevFrame,
                         nsFrameList&   aFrameList);
   void RemoveFrame(nsIFrame*      aDelegatingFrame,
-                   ChildListID    aListID,
+                   nsIAtom*       aListName,
                    nsIFrame*      aOldFrame);
 
   // Called by the delegating frame after it has done its reflow first. This
@@ -168,7 +161,7 @@ protected:
   nsFrameList mAbsoluteFrames;  // additional named child list
 
 #ifdef DEBUG
-  ChildListID const mChildListID; // kFixedList or kAbsoluteList
+  nsIAtom* const mChildListName; // nsGkAtoms::fixedList or nsGkAtoms::absoluteList
 
   // helper routine for debug printout
   void PrettyUC(nscoord aSize,

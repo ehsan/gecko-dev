@@ -73,7 +73,6 @@
 #include "nsWeakReference.h"
 #include "nsIScriptError.h"
 #include "nsIConsoleService.h"
-#include "nsJSEnvironment.h"
 
 #include "History.h"
 #include "nsDocShellCID.h"
@@ -688,10 +687,8 @@ bool
 ContentChild::RecvAddPermission(const IPC::Permission& permission)
 {
 #if MOZ_PERMISSIONS
-  nsCOMPtr<nsIPermissionManager> permissionManagerIface =
-      do_GetService(NS_PERMISSIONMANAGER_CONTRACTID);
-  nsPermissionManager* permissionManager =
-      static_cast<nsPermissionManager*>(permissionManagerIface.get());
+  nsRefPtr<nsPermissionManager> permissionManager =
+    nsPermissionManager::GetSingleton();
   NS_ABORT_IF_FALSE(permissionManager, 
                    "We have no permissionManager in the Content process !");
 
@@ -762,21 +759,6 @@ ContentChild::GetIndexedDBPath()
     }
 
     return *gIndexedDBPath;
-}
-
-bool
-ContentChild::RecvGarbageCollect()
-{
-    nsJSContext::GarbageCollectNow();
-    return true;
-}
-
-bool
-ContentChild::RecvCycleCollect()
-{
-    nsJSContext::GarbageCollectNow();
-    nsJSContext::CycleCollectNow();
-    return true;
 }
 
 } // namespace dom

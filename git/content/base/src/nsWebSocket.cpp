@@ -357,7 +357,7 @@ nsWebSocketEstablishedConnection::PrintErrorOnConsole(const char *aBundleURI,
      NS_ConvertUTF8toUTF16(mOwner->GetScriptFile()).get(),
      nsnull,
      mOwner->GetScriptLine(), 0, nsIScriptError::errorFlag,
-     "Web Socket", mOwner->InnerWindowID()
+     "Web Socket", mOwner->WindowID()
      );
   
   // print the error message directly to the JS console
@@ -631,7 +631,7 @@ nsWebSocket::nsWebSocket() : mKeepingAlive(PR_FALSE),
                              mReadyState(nsIMozWebSocket::CONNECTING),
                              mOutgoingBufferedAmount(0),
                              mScriptLine(0),
-                             mInnerWindowID(0)
+                             mWindowID(0)
 {
   NS_ABORT_IF_FALSE(NS_IsMainThread(), "Not running on main thread");
 }
@@ -901,7 +901,7 @@ nsWebSocket::CreateAndDispatchMessageEvent(const nsACString& aData)
   nsIScriptContext* scriptContext = sgo->GetContext();
   NS_ENSURE_TRUE(scriptContext, NS_ERROR_FAILURE);
 
-  JSContext* cx = scriptContext->GetNativeContext();
+  JSContext* cx = (JSContext*)scriptContext->GetNativeContext();
   NS_ENSURE_TRUE(cx, NS_ERROR_FAILURE);
 
   // Now we can turn our string into a jsval
@@ -1428,7 +1428,7 @@ nsWebSocket::Init(nsIPrincipal* aPrincipal,
       }
     }
 
-    mInnerWindowID = nsJSUtils::GetCurrentlyRunningCodeInnerWindowID(cx);
+    mWindowID = nsJSUtils::GetCurrentlyRunningCodeWindowID(cx);
   }
 
   // parses the url

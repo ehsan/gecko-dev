@@ -44,7 +44,7 @@
 #ifndef nsRuleProcessorData_h_
 #define nsRuleProcessorData_h_
 
-#include "nsPresContext.h" // for nsCompatibility
+#include "nsPresContext.h" // for nsCompatability
 #include "nsString.h"
 #include "nsChangeHint.h"
 #include "nsIContent.h"

@@ -536,7 +536,7 @@ function runNextTest() {
     gCurrentTest.cleanup();
     info("End of test: " + gCurrentTest.desc);
     gCurrentTest = null;
-    waitForAsyncUpdates(runNextTest);
+    executeSoon(runNextTest);
     return;
   }
 

@@ -46,7 +46,6 @@
 #   Kathleen Brade <brade@pearlcrescent.com>
 #   Mark Smith <mcs@pearlcrescent.com>
 #   Kailas Patil <patilkr24@gmail.com>
-#   Rob Campbell <rcampbell@mozilla.com>
 #
 # Alternatively, the contents of this file may be used under the terms of
 # either the GNU General Public License Version 2 or later (the "GPL"), or
@@ -80,8 +79,7 @@ nsContextMenu.prototype = {
 
     this.hasPageMenu = false;
     if (!aIsShift) {
-      this.hasPageMenu = PageMenu.maybeBuildAndAttachMenu(this.target,
-                                                          aXulMenu);
+      this.hasPageMenu = PageMenu.init(this.target, aXulMenu);
     }
 
     this.isFrameImage = document.getElementById("isFrameImage");
@@ -245,11 +243,8 @@ nsContextMenu.prototype = {
                        this.onImage || this.onCanvas ||
                        this.onVideo || this.onAudio ||
                        this.onLink || this.onTextInput);
-    var showInspect = gPrefService.getBoolPref("devtools.inspector.enabled");
     this.showItem("context-viewsource", shouldShow);
     this.showItem("context-viewinfo", shouldShow);
-    this.showItem("inspect-separator", showInspect);
-    this.showItem("context-inspect", showInspect);
 
     this.showItem("context-sep-viewsource", shouldShow);
 
@@ -325,8 +320,10 @@ nsContextMenu.prototype = {
     var onMisspelling = InlineSpellCheckerUI.overMisspelling;
     this.showItem("spell-check-enabled", canSpell);
     this.showItem("spell-separator", canSpell || this.onEditableArea);
-    document.getElementById("spell-check-enabled")
-            .setAttribute("checked", canSpell && InlineSpellCheckerUI.enabled);
+    if (canSpell) {
+      document.getElementById("spell-check-enabled")
+              .setAttribute("checked", InlineSpellCheckerUI.enabled);
+    }
 
     this.showItem("spell-add-to-dictionary", onMisspelling);
 
@@ -431,15 +428,6 @@ nsContextMenu.prototype = {
         this.setItemAttr("context-video-fullscreen",  "disabled", hasError);
     }
     this.showItem("context-media-sep-commands",  onMedia);
-  },
-
-  inspectNode: function CM_inspectNode() {
-    if (InspectorUI.isTreePanelOpen) {
-      InspectorUI.inspectNode(this.target);
-      InspectorUI.stopInspecting();
-    } else {
-      InspectorUI.openInspectorUI(this.target);
-    }
   },
 
   // Set various context menu attributes based on the state of the world.
@@ -1047,7 +1035,7 @@ nsContextMenu.prototype = {
     MailIntegration.sendMessage( this.linkURL, "" );
   },
 
-  // Backwards-compatibility wrapper
+  // Backwards-compatability wrapper
   saveImage : function() {
     if (this.onCanvas || this.onImage)
         this.saveMedia();
@@ -1073,7 +1061,7 @@ nsContextMenu.prototype = {
     }
   },
 
-  // Backwards-compatibility wrapper
+  // Backwards-compatability wrapper
   sendImage : function() {
     if (this.onCanvas || this.onImage)
         this.sendMedia();

@@ -520,9 +520,6 @@ function createSearchTabMacher() {
 }
 
 function hideSearch(event) {
-  if (!isSearchEnabled())
-    return;
-
   iQ("#searchbox").val("");
   iQ("#searchshade").hide();
   iQ("#search").hide();

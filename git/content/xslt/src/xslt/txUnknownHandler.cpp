@@ -40,7 +40,7 @@
 #include "txExecutionState.h"
 #include "txStringUtils.h"
 #include "txStylesheet.h"
-#include "nsGkAtoms.h"
+#include "txAtoms.h"
 
 txUnknownHandler::txUnknownHandler(txExecutionState* aEs)
     : mEs(aEs),
@@ -160,7 +160,7 @@ txUnknownHandler::startElement(nsIAtom* aPrefix, nsIAtom* aLocalName,
         }
 
         PRBool htmlRoot = aNsID == kNameSpaceID_None && !aPrefix &&
-                          aLowercaseLocalName == nsGkAtoms::html;
+                          aLowercaseLocalName == txHTMLAtoms::html;
 
         // Use aLocalName and not aLowercaseLocalName in case the output
         // handler cares about case. For eHTMLOutput the handler will hardcode

@@ -42,8 +42,11 @@ VPATH		= @srcdir@
 
 include $(DEPTH)/config/autoconf.mk
 
-# Solaris sh blows
+# Solaris and Tru64 UNIX sh blows
 ifeq ($(OS_ARCH),SunOS)
+SHELL := ksh
+endif
+ifeq ($(OS_ARCH),OSF1)
 SHELL := ksh
 endif
 
@@ -135,7 +138,6 @@ LOCAL_INCLUDES	+= \
 else ifneq (,$(filter android,$(MOZ_WIDGET_TOOLKIT)))
 SHARED_LIBRARY_LIBS += \
 	$(DEPTH)/dom/system/android/$(LIB_PREFIX)domsystemandroid_s.$(LIB_SUFFIX) \
-	$(DEPTH)/dom/plugins/base/android/$(LIB_PREFIX)gkpluginandroid_s.$(LIB_SUFFIX) \
 	$(NULL)
 LOCAL_INCLUDES	+= \
 	-I$(topsrcdir)/dom/system/android \
@@ -286,3 +288,9 @@ LOCAL_INCLUDES	+= -I$(srcdir)/../base \
 		   $(NULL)
 
 DEFINES += -D_IMPL_NS_LAYOUT
+
+ifeq ($(OS_ARCH),IRIX)
+ifeq ($(GNU_CXX),1)
+LDFLAGS += -Wl,-LD_LAYOUT:lgot_buffer=50
+endif
+endif

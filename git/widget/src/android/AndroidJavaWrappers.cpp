@@ -109,7 +109,6 @@ jmethodID AndroidGeckoSurfaceView::jDraw2DBitmapMethod = 0;
 jmethodID AndroidGeckoSurfaceView::jDraw2DBufferMethod = 0;
 jmethodID AndroidGeckoSurfaceView::jGetSoftwareDrawBitmapMethod = 0;
 jmethodID AndroidGeckoSurfaceView::jGetSoftwareDrawBufferMethod = 0;
-jmethodID AndroidGeckoSurfaceView::jGetSurfaceMethod = 0;
 jmethodID AndroidGeckoSurfaceView::jGetHolderMethod = 0;
 
 #define JNI()  (AndroidBridge::JNI())
@@ -184,7 +183,6 @@ AndroidGeckoSurfaceView::InitGeckoSurfaceViewClass(JNIEnv *jEnv)
     jEndDrawingMethod = getMethod("endDrawing", "()V");
     jDraw2DBitmapMethod = getMethod("draw2D", "(Landroid/graphics/Bitmap;II)V");
     jDraw2DBufferMethod = getMethod("draw2D", "(Ljava/nio/ByteBuffer;I)V");
-    jGetSurfaceMethod = getMethod("getSurface", "()Landroid/view/Surface;");
     jGetHolderMethod = getMethod("getHolder", "()Landroid/view/SurfaceHolder;");
 }
 
@@ -441,7 +439,7 @@ AndroidGeckoEvent::Init(JNIEnv *jenv, jobject jobj)
             break;
     }
 
-#ifndef DEBUG_ANDROID_EVENTS
+#ifndef ANDROID_DEBUG_EVENTS
     ALOG("AndroidGeckoEvent: %p : %d", (void*)jobj, mType);
 #endif
 }
@@ -457,19 +455,6 @@ AndroidGeckoEvent::Init(int x1, int y1, int x2, int y2)
 {
     mType = DRAW;
     mRect.SetEmpty();
-}
-
-void
-AndroidGeckoEvent::Init(AndroidGeckoEvent *aResizeEvent)
-{
-    NS_ASSERTION(aResizeEvent->Type() == SIZE_CHANGED, "Init called on non-SIZE_CHANGED event");
-
-    mType = FORCED_RESIZE;
-    mTime = aResizeEvent->mTime;
-    mP0.x = aResizeEvent->mP0.x;
-    mP0.y = aResizeEvent->mP0.y;
-    mP1.x = aResizeEvent->mP1.x;
-    mP1.y = aResizeEvent->mP1.y;
 }
 
 void
@@ -516,12 +501,6 @@ jobject
 AndroidGeckoSurfaceView::GetSoftwareDrawBuffer()
 {
     return JNI()->CallObjectMethod(wrapped_obj, jGetSoftwareDrawBufferMethod);
-}
-
-jobject
-AndroidGeckoSurfaceView::GetSurface()
-{
-    return JNI()->CallObjectMethod(wrapped_obj, jGetSurfaceMethod);
 }
 
 jobject

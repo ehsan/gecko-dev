@@ -41,7 +41,7 @@
 
 #include "Workers.h"
 
-#include "jsapi.h"
+#include "jspubtd.h"
 
 BEGIN_WORKERS_NAMESPACE
 

@@ -300,7 +300,7 @@ public:
   PostMessage(JSContext* aCx, jsval aMessage);
 
   PRUint64
-  GetInnerWindowId();
+  GetOuterWindowId();
 
   void
   UpdateJSContextOptions(JSContext* aCx, PRUint32 aOptions);
@@ -375,7 +375,7 @@ public:
     return mBaseURI;
   }
 
-  void
+  nsresult
   SetBaseURI(nsIURI* aBaseURI);
 
   nsIURI*

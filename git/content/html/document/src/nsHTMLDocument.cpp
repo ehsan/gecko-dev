@@ -275,7 +275,6 @@ NS_IMPL_CYCLE_COLLECTION_TRAVERSE_BEGIN_INHERITED(nsHTMLDocument, nsDocument)
   NS_IMPL_CYCLE_COLLECTION_TRAVERSE_NSCOMPTR(mEmbeds)
   NS_IMPL_CYCLE_COLLECTION_TRAVERSE_NSCOMPTR(mLinks)
   NS_IMPL_CYCLE_COLLECTION_TRAVERSE_NSCOMPTR(mAnchors)
-  NS_IMPL_CYCLE_COLLECTION_TRAVERSE_NSCOMPTR(mScripts)
   NS_IMPL_CYCLE_COLLECTION_TRAVERSE_NSCOMPTR_AMBIGUOUS(mForms, nsIDOMNodeList)
   NS_IMPL_CYCLE_COLLECTION_TRAVERSE_NSCOMPTR_AMBIGUOUS(mFormControls,
                                                        nsIDOMNodeList)
@@ -289,7 +288,6 @@ NS_IMPL_CYCLE_COLLECTION_UNLINK_BEGIN_INHERITED(nsHTMLDocument, nsDocument)
   NS_IMPL_CYCLE_COLLECTION_UNLINK_NSCOMPTR(mEmbeds)
   NS_IMPL_CYCLE_COLLECTION_UNLINK_NSCOMPTR(mLinks)
   NS_IMPL_CYCLE_COLLECTION_UNLINK_NSCOMPTR(mAnchors)
-  NS_IMPL_CYCLE_COLLECTION_UNLINK_NSCOMPTR(mScripts)
   NS_IMPL_CYCLE_COLLECTION_UNLINK_NSCOMPTR(mForms)
   NS_IMPL_CYCLE_COLLECTION_UNLINK_NSCOMPTR(mFormControls)
   NS_IMPL_CYCLE_COLLECTION_UNLINK_NSCOMPTR(mWyciwygChannel)
@@ -350,7 +348,6 @@ nsHTMLDocument::ResetToURI(nsIURI *aURI, nsILoadGroup *aLoadGroup,
   mEmbeds = nsnull;
   mLinks = nsnull;
   mAnchors = nsnull;
-  mScripts = nsnull;
 
   mForms = nsnull;
 
@@ -1442,19 +1439,6 @@ nsHTMLDocument::GetAnchors(nsIDOMHTMLCollection** aAnchors)
 
   *aAnchors = mAnchors;
   NS_ADDREF(*aAnchors);
-
-  return NS_OK;
-}
-
-NS_IMETHODIMP
-nsHTMLDocument::GetScripts(nsIDOMHTMLCollection** aScripts)
-{
-  if (!mScripts) {
-    mScripts = new nsContentList(this, kNameSpaceID_XHTML, nsGkAtoms::script, nsGkAtoms::script);
-  }
-
-  *aScripts = mScripts;
-  NS_ADDREF(*aScripts);
 
   return NS_OK;
 }
@@ -2700,9 +2684,9 @@ static void
 NotifyEditableStateChange(nsINode *aNode, nsIDocument *aDocument,
                           PRBool aEditable)
 {
-  for (nsIContent* child = aNode->GetFirstChild();
-       child;
-       child = child->GetNextSibling()) {
+  PRUint32 i, n = aNode->GetChildCount();
+  for (i = 0; i < n; ++i) {
+    nsIContent *child = aNode->GetChildAt(i);
     if (child->HasFlag(NODE_IS_EDITABLE) != aEditable &&
         child->IsElement()) {
       child->AsElement()->UpdateState(true);
@@ -3410,9 +3394,9 @@ nsHTMLDocument::QueryCommandEnabled(const nsAString & commandID,
   if (!window)
     return NS_ERROR_FAILURE;
 
-  nsCAutoString cmdToDispatch;
+  nsCAutoString cmdToDispatch, paramStr;
   if (!ConvertToMidasInternalCommand(commandID, cmdToDispatch))
-    return NS_OK; // queryCommandEnabled returns false on unsupported commands
+    return NS_ERROR_NOT_IMPLEMENTED;
 
   return cmdMgr->IsCommandEnabled(cmdToDispatch.get(), window, _retval);
 }
@@ -3533,18 +3517,7 @@ nsHTMLDocument::QueryCommandSupported(const nsAString & commandID,
   if (!IsEditingOnAfterFlush())
     return NS_ERROR_FAILURE;
 
-  // get command manager
-  nsCOMPtr<nsICommandManager> cmdMgr;
-  GetMidasCommandManager(getter_AddRefs(cmdMgr));
-  if (!cmdMgr)
-    return NS_ERROR_FAILURE;
-
-  // commandID is supported if it can be converted to a Midas command
-  nsCAutoString cmdToDispatch;
-  if (ConvertToMidasInternalCommand(commandID, cmdToDispatch))
-    *_retval = PR_TRUE;
-
-  return NS_OK;
+  return NS_ERROR_NOT_IMPLEMENTED;
 }
 
 /* DOMString queryCommandText(in DOMString commandID); */

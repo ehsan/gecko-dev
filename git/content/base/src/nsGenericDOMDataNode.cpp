@@ -85,15 +85,12 @@ nsGenericDOMDataNode::~nsGenericDOMDataNode()
 {
   NS_PRECONDITION(!IsInDoc(),
                   "Please remove this from the document properly");
-  if (GetParent()) {
-    NS_RELEASE(mParent);
-  }
 }
 
 NS_IMPL_CYCLE_COLLECTION_CLASS(nsGenericDOMDataNode)
 
 NS_IMPL_CYCLE_COLLECTION_TRACE_BEGIN(nsGenericDOMDataNode)
-  nsINode::Trace(tmp, aCallback, aClosure);
+  NS_IMPL_CYCLE_COLLECTION_TRACE_PRESERVED_WRAPPER
 NS_IMPL_CYCLE_COLLECTION_TRACE_END
 
 NS_IMPL_CYCLE_COLLECTION_TRAVERSE_BEGIN(nsGenericDOMDataNode)
@@ -101,18 +98,27 @@ NS_IMPL_CYCLE_COLLECTION_TRAVERSE_BEGIN(nsGenericDOMDataNode)
   // if we're uncollectable.
   NS_IMPL_CYCLE_COLLECTION_TRAVERSE_SCRIPT_OBJECTS
 
-  if (!nsINode::Traverse(tmp, cb)) {
+  nsIDocument* currentDoc = tmp->GetCurrentDoc();
+  if (currentDoc && nsCCUncollectableMarker::InGeneration(
+                      cb, currentDoc->GetMarkedCCGeneration())) {
     return NS_SUCCESS_INTERRUPTED_TRAVERSE;
   }
+
+  NS_IMPL_CYCLE_COLLECTION_TRAVERSE_NSCOMPTR(mNodeInfo)
 
   nsIDocument* ownerDoc = tmp->GetOwnerDoc();
   if (ownerDoc) {
     ownerDoc->BindingManager()->Traverse(tmp, cb);
   }
+
+  NS_IMPL_CYCLE_COLLECTION_TRAVERSE_LISTENERMANAGER
+  NS_IMPL_CYCLE_COLLECTION_TRAVERSE_USERDATA
 NS_IMPL_CYCLE_COLLECTION_TRAVERSE_END
 
 NS_IMPL_CYCLE_COLLECTION_UNLINK_BEGIN(nsGenericDOMDataNode)
-  nsINode::Unlink(tmp);
+  NS_IMPL_CYCLE_COLLECTION_UNLINK_PRESERVED_WRAPPER
+  NS_IMPL_CYCLE_COLLECTION_UNLINK_LISTENERMANAGER
+  NS_IMPL_CYCLE_COLLECTION_UNLINK_USERDATA
 NS_IMPL_CYCLE_COLLECTION_UNLINK_END
 
 NS_INTERFACE_MAP_BEGIN(nsGenericDOMDataNode)
@@ -277,8 +283,7 @@ nsGenericDOMDataNode::ReplaceData(PRUint32 aOffset, PRUint32 aCount,
 nsresult
 nsGenericDOMDataNode::SetTextInternal(PRUint32 aOffset, PRUint32 aCount,
                                       const PRUnichar* aBuffer,
-                                      PRUint32 aLength, PRBool aNotify,
-                                      CharacterDataChangeInfo::Details* aDetails)
+                                      PRUint32 aLength, PRBool aNotify)
 {
   NS_PRECONDITION(aBuffer || !aLength,
                   "Null buffer passed to SetTextInternal!");
@@ -321,20 +326,18 @@ nsGenericDOMDataNode::SetTextInternal(PRUint32 aOffset, PRUint32 aCount,
       aOffset == textLength,
       aOffset,
       endOffset,
-      aLength,
-      aDetails
+      aLength
     };
     nsNodeUtils::CharacterDataWillChange(this, &info);
   }
 
   if (aOffset == 0 && endOffset == textLength) {
-    // Replacing whole text or old text was empty.  Don't bother to check for
-    // bidi in this string if the document already has bidi enabled.
-    mText.SetTo(aBuffer, aLength, !document || !document->GetBidiEnabled());
+    // Replacing whole text or old text was empty
+    mText.SetTo(aBuffer, aLength);
   }
   else if (aOffset == textLength) {
     // Appending to existing
-    mText.Append(aBuffer, aLength, !document || !document->GetBidiEnabled());
+    mText.Append(aBuffer, aLength);
   }
   else {
     // Merging old and new
@@ -356,16 +359,12 @@ nsGenericDOMDataNode::SetTextInternal(PRUint32 aOffset, PRUint32 aCount,
     }
 
     // XXX Add OOM checking to this
-    mText.SetTo(to, newLength, !document || !document->GetBidiEnabled());
+    mText.SetTo(to, newLength);
 
     delete [] to;
   }
 
-  if (document && mText.IsBidi()) {
-    // If we found bidi characters in mText.SetTo() above, indicate that the
-    // document contains bidi characters.
-    document->SetBidiEnabled();
-  }
+  UpdateBidiStatus(aBuffer, aLength);
 
   // Notify observers
   if (aNotify) {
@@ -373,8 +372,7 @@ nsGenericDOMDataNode::SetTextInternal(PRUint32 aOffset, PRUint32 aCount,
       aOffset == textLength,
       aOffset,
       endOffset,
-      aLength,
-      aDetails
+      aLength
     };
     nsNodeUtils::CharacterDataChanged(this, &info);
 
@@ -500,9 +498,6 @@ nsGenericDOMDataNode::BindToTree(nsIDocument* aDocument, nsIContent* aParent,
 
   // Set parent
   if (aParent) {
-    if (!GetParent()) {
-      NS_ADDREF(aParent);
-    }
     mParent = aParent;
   }
   else {
@@ -551,11 +546,7 @@ nsGenericDOMDataNode::UnbindFromTree(PRBool aDeep, PRBool aNullParent)
   }
 
   if (aNullParent) {
-    if (GetParent()) {
-      NS_RELEASE(mParent);
-    } else {
-      mParent = nsnull;
-    }
+    mParent = nsnull;
     SetParentIsContent(false);
   }
   ClearInDocument();
@@ -742,24 +733,25 @@ nsGenericDOMDataNode::SplitData(PRUint32 aOffset, nsIContent** aReturn,
     return rv;
   }
 
-  // Use Clone for creating the new node so that the new node is of same class
-  // as this node!
-  nsCOMPtr<nsIContent> newContent = CloneDataNode(mNodeInfo, PR_FALSE);
-  if (!newContent) {
-    return NS_ERROR_OUT_OF_MEMORY;
-  }
-  newContent->SetText(cutText, PR_TRUE); // XXX should be PR_FALSE?
-
-  CharacterDataChangeInfo::Details details = {
-    CharacterDataChangeInfo::Details::eSplit, newContent
-  };
-  rv = SetTextInternal(cutStartOffset, cutLength, nsnull, 0, PR_TRUE,
-                       aCloneAfterOriginal ? &details : nsnull);
+  rv = DeleteData(cutStartOffset, cutLength);
   if (NS_FAILED(rv)) {
     return rv;
   }
 
+  /*
+   * Use Clone for creating the new node so that the new node is of same class
+   * as this node!
+   */
+
+  nsCOMPtr<nsIContent> newContent = CloneDataNode(mNodeInfo, PR_FALSE);
+  if (!newContent) {
+    return NS_ERROR_OUT_OF_MEMORY;
+  }
+
+  newContent->SetText(cutText, PR_TRUE);
+
   nsCOMPtr<nsINode> parent = GetNodeParent();
+
   if (parent) {
     PRInt32 insertionIndex = parent->IndexOf(this);
     if (aCloneAfterOriginal) {
@@ -845,8 +837,6 @@ nsGenericDOMDataNode::ReplaceWholeText(const nsAString& aContent,
                                        nsIDOMText **aResult)
 {
   *aResult = nsnull;
-
-  GetOwnerDoc()->WarnOnceAbout(nsIDocument::eReplaceWholeText);
 
   // Handle parent-less nodes
   nsCOMPtr<nsIContent> parent = GetParent();
@@ -976,6 +966,21 @@ void
 nsGenericDOMDataNode::AppendTextTo(nsAString& aResult)
 {
   mText.AppendTo(aResult);
+}
+
+void nsGenericDOMDataNode::UpdateBidiStatus(const PRUnichar* aBuffer, PRUint32 aLength)
+{
+  nsIDocument *document = GetCurrentDoc();
+  if (document && document->GetBidiEnabled()) {
+    // OK, we already know it's Bidi, so we won't test again
+    return;
+  }
+
+  mText.UpdateBidiFlag(aBuffer, aLength);
+
+  if (document && mText.IsBidi()) {
+    document->SetBidiEnabled();
+  }
 }
 
 already_AddRefed<nsIAtom>

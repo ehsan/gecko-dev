@@ -33,8 +33,6 @@ EXPORTS	= \
 	gfxPlatform.h \
 	gfxPoint.h \
 	gfxPoint3D.h \
-	gfxPointH3D.h \
-	gfxQuaternion.h \
 	gfxRect.h \
 	gfxSkipChars.h \
 	gfxTeeSurface.h \
@@ -179,8 +177,19 @@ CPPSRCS	= \
 	$(NULL)
 
 # Are we targeting x86 or x64?  If so, build gfxAlphaRecoverySSE2.cpp.
+# The file uses SSE2 intrinsics, so it needs special compile flags on some
+# compilers.
 ifneq (,$(INTEL_ARCHITECTURE))
 CPPSRCS += gfxAlphaRecoverySSE2.cpp
+
+ifdef GNU_CC
+gfxAlphaRecoverySSE2.$(OBJ_SUFFIX): CXXFLAGS+=-msse2
+endif
+
+ifdef SOLARIS_SUNPRO_CXX
+gfxAlphaRecoverySSE2.$(OBJ_SUFFIX): OS_CXXFLAGS += -xarch=sse2 -xO4
+endif
+
 endif
 
 SHARED_LIBRARY_LIBS += \
@@ -281,9 +290,7 @@ endif
 
 ifeq ($(MOZ_WIDGET_TOOLKIT),qt)
 CPPSRCS += gfxQtPlatform.cpp gfxQPainterSurface.cpp
-ifdef MOZ_X11
 CPPSRCS += gfxXlibSurface.cpp gfxQtNativeRenderer.cpp
-endif
 ifdef MOZ_PANGO
 CPPSRCS += gfxPangoFonts.cpp
 else
@@ -388,16 +395,4 @@ endif
 
 ifeq ($(MOZ_WIDGET_TOOLKIT),qt)
 CXXFLAGS += $(CAIRO_FT_CFLAGS) $(MOZ_PANGO_CFLAGS)
-endif
-
-# The file uses SSE2 intrinsics, so it needs special compile flags on some
-# compilers.
-ifneq (,$(INTEL_ARCHITECTURE))
-ifdef GNU_CC
-gfxAlphaRecoverySSE2.$(OBJ_SUFFIX): CXXFLAGS+=-msse2
-endif
-
-ifdef SOLARIS_SUNPRO_CXX
-gfxAlphaRecoverySSE2.$(OBJ_SUFFIX): OS_CXXFLAGS += -xarch=sse2 -xO4
-endif
 endif

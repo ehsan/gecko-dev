@@ -619,9 +619,11 @@ PrivateBrowsingService.prototype = {
     }
 
     // Plugin data
-    const phInterface = Ci.nsIPluginHost;
-    const FLAG_CLEAR_ALL = phInterface.FLAG_CLEAR_ALL;
-    let (ph = Cc["@mozilla.org/plugin/host;1"].getService(phInterface)) {
+    let (ph = Cc["@mozilla.org/plugin/host;1"].getService(Ci.nsIPluginHost)) {
+      const phInterface = Ci.nsIPluginHost;
+      const FLAG_CLEAR_ALL = phInterface.FLAG_CLEAR_ALL;
+      ph.QueryInterface(phInterface);
+
       let tags = ph.getPluginTags();
       for (let i = 0; i < tags.length; i++) {
         try {

@@ -177,8 +177,8 @@ nsXULListboxAccessible::NativeState()
 
   // see if we are multiple select if so set ourselves as such
 
-  if (mContent->AttrValueIs(kNameSpaceID_None, nsGkAtoms::seltype,
-                            nsGkAtoms::multiple, eCaseMatters)) {
+  if (mContent->AttrValueIs(kNameSpaceID_None, nsAccessibilityAtoms::seltype,
+                            nsAccessibilityAtoms::multiple, eCaseMatters)) {
       states |= states::MULTISELECTABLE | states::EXTSELECTABLE;
   }
 
@@ -250,7 +250,7 @@ nsXULListboxAccessible::GetColumnCount(PRInt32 *aColumnsCout)
   PRUint32 count = mContent->GetChildCount();
   for (PRUint32 index = 0; index < count; ++index) {
     nsIContent* childContent = mContent->GetChildAt(index);
-    if (childContent->NodeInfo()->Equals(nsGkAtoms::listcols,
+    if (childContent->NodeInfo()->Equals(nsAccessibilityAtoms::listcols,
                                          kNameSpaceID_XUL)) {
       headContent = childContent;
     }
@@ -264,7 +264,7 @@ nsXULListboxAccessible::GetColumnCount(PRInt32 *aColumnsCout)
   count = headContent->GetChildCount();
   for (PRUint32 index = 0; index < count; ++index) {
     nsIContent* childContent = headContent->GetChildAt(index);
-    if (childContent->NodeInfo()->Equals(nsGkAtoms::listcol,
+    if (childContent->NodeInfo()->Equals(nsAccessibilityAtoms::listcol,
                                          kNameSpaceID_XUL)) {
       columnCount++;
     }
@@ -834,8 +834,8 @@ nsXULListitemAccessible::
   nsXULMenuitemAccessible(aContent, aShell)
 {
   mIsCheckbox = mContent->AttrValueIs(kNameSpaceID_None,
-                                      nsGkAtoms::type,
-                                      nsGkAtoms::checkbox,
+                                      nsAccessibilityAtoms::type,
+                                      nsAccessibilityAtoms::checkbox,
                                       eCaseMatters);
 }
 
@@ -883,9 +883,9 @@ nsXULListitemAccessible::GetNameInternal(nsAString& aName)
 {
   nsIContent* child = mContent->GetChildAt(0);
   if (child) {
-    if (child->NodeInfo()->Equals(nsGkAtoms::listcell,
+    if (child->NodeInfo()->Equals(nsAccessibilityAtoms::listcell,
                                   kNameSpaceID_XUL)) {
-      child->GetAttr(kNameSpaceID_None, nsGkAtoms::label, aName);
+      child->GetAttr(kNameSpaceID_None, nsAccessibilityAtoms::label, aName);
       return NS_OK;
     }
   }
@@ -1214,7 +1214,7 @@ nsXULListCellAccessible::GetAttributesInternal(nsIPersistentProperties *aAttribu
 
   nsAutoString stringIdx;
   stringIdx.AppendInt(cellIdx);
-  nsAccUtils::SetAccAttr(aAttributes, nsGkAtoms::tableCellIndex,
+  nsAccUtils::SetAccAttr(aAttributes, nsAccessibilityAtoms::tableCellIndex,
                          stringIdx);
 
   return NS_OK;

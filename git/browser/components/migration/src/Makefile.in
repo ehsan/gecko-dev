@@ -52,6 +52,8 @@ endif
 
 CPPSRCS  = nsProfileMigrator.cpp \
            nsBrowserProfileMigratorUtils.cpp \
+           nsNetscapeProfileMigratorBase.cpp \
+           nsSeamonkeyProfileMigrator.cpp \
            $(NULL)
 
 ifneq ($(OS_ARCH),OS2)

@@ -1639,7 +1639,7 @@ PRBool nsCellMap::CellsSpanOut(nsTArray<nsTableRowFrame*>& aRows) const
   PRInt32 numNewRows = aRows.Length();
   for (PRInt32 rowX = 0; rowX < numNewRows; rowX++) {
     nsIFrame* rowFrame = (nsIFrame *) aRows.ElementAt(rowX);
-    nsIFrame* childFrame = rowFrame->GetFirstPrincipalChild();
+    nsIFrame* childFrame = rowFrame->GetFirstChild(nsnull);
     while (childFrame) {
       nsTableCellFrame *cellFrame = do_QueryFrame(childFrame);
       if (cellFrame) {
@@ -1813,7 +1813,7 @@ nsCellMap::ExpandWithRows(nsTableCellMap&             aMap,
   for (PRInt32 rowX = startRowIndex; rowX <= endRowIndex; rowX++) {
     nsTableRowFrame* rFrame = aRowFrames.ElementAt(newRowIndex);
     // append cells
-    nsIFrame* cFrame = rFrame->GetFirstPrincipalChild();
+    nsIFrame* cFrame = rFrame->GetFirstChild(nsnull);
     PRInt32 colIndex = 0;
     while (cFrame) {
       nsTableCellFrame *cellFrame = do_QueryFrame(cFrame);
@@ -2276,7 +2276,7 @@ nsCellMap::RebuildConsideringRows(nsTableCellMap&             aMap,
     PRInt32 numNewRows = aRowsToInsert->Length();
     for (PRInt32 newRowX = 0; newRowX < numNewRows; newRowX++) {
       nsTableRowFrame* rFrame = aRowsToInsert->ElementAt(newRowX);
-      nsIFrame* cFrame = rFrame->GetFirstPrincipalChild();
+      nsIFrame* cFrame = rFrame->GetFirstChild(nsnull);
       while (cFrame) {
         nsTableCellFrame *cellFrame = do_QueryFrame(cFrame);
         if (cellFrame) {

@@ -2166,6 +2166,10 @@ XPCOMUtils.defineLazyGetter(PlacesUtils, "ghistory2", function() {
   return PlacesUtils.history.QueryInterface(Ci.nsIGlobalHistory2);
 });
 
+XPCOMUtils.defineLazyGetter(PlacesUtils, "ghistory3", function() {
+  return PlacesUtils.history.QueryInterface(Ci.nsIGlobalHistory3);
+});
+
 XPCOMUtils.defineLazyServiceGetter(PlacesUtils, "favicons",
                                    "@mozilla.org/browser/favicon-service;1",
                                    "nsIFaviconService");
@@ -3259,7 +3263,7 @@ PlacesSortFolderByNameTransaction.prototype = {
         if (preSep.length > 0) {
           preSep.sort(sortingMethod);
           newOrder = newOrder.concat(preSep);
-          preSep.splice(0, preSep.length);
+          preSep.splice(0);
         }
         newOrder.push(item);
       }

@@ -106,7 +106,7 @@ class TPSTestRunner(object):
                           'extensions.checkCompatibility.4.0': False,
                         }
   syncVerRe = re.compile(
-      r"Sync version: (?P<syncversion>.*)\n")
+      r"Weave version: (?P<syncversion>.*)\n")
   ffVerRe = re.compile(
       r"Firefox version: (?P<ffver>.*)\n")
   ffDateRe = re.compile(
@@ -168,6 +168,29 @@ class TPSTestRunner(object):
     for root, dirs, files in os.walk(os.path.join(rootDir, dir)):
       for f in files:
         zip.write(os.path.join(root, f), os.path.join(dir, f))
+
+  def make_xpi(self):
+    """Build the test extension."""
+
+    if self.tpsxpi is None:
+      tpsxpi = os.path.join(self.extensionDir, "tps.xpi")
+
+      if os.access(tpsxpi, os.F_OK):
+        os.remove(tpsxpi)
+      if not os.access(os.path.join(self.extensionDir, "install.rdf"), os.F_OK):
+        raise Exception("extension code not found in %s" % self.extensionDir)
+
+      from zipfile import ZipFile
+      z = ZipFile(tpsxpi, 'w')
+      self._zip_add_file(z, 'chrome.manifest', self.extensionDir)
+      self._zip_add_file(z, 'install.rdf', self.extensionDir)
+      self._zip_add_dir(z, 'components', self.extensionDir)
+      self._zip_add_dir(z, 'modules', self.extensionDir)
+      z.close()
+
+      self.tpsxpi = tpsxpi
+
+    return self.tpsxpi
 
   def run_single_test(self, testdir, testname):
     testpath = os.path.join(testdir, testname)
@@ -262,10 +285,7 @@ class TPSTestRunner(object):
     } [phase.status](phase.errline)
     logstr = "\n%s | %s%s\n" % (result[0], testname, (' | %s' % result[1] if result[1] else ''))
 
-    try:
-      repoinfo = self.firefoxRunner.runner.get_repositoryInfo()
-    except:
-      repoinfo = {}
+    repoinfo = self.firefoxRunner.get_respository_info()
     apprepo = repoinfo.get('application_repository', '')
     appchangeset = repoinfo.get('application_changeset', '')
 
@@ -380,8 +400,7 @@ class TPSTestRunner(object):
     self.numfailed = 0
 
     # build our tps.xpi extension
-    self.extensions.append(os.path.join(self.extensionDir, 'tps'))
-    self.extensions.append(os.path.join(self.extensionDir, "mozmill"))
+    self.extensions.append(self.make_xpi())
 
     # build the test list
     try:

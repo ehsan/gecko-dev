@@ -328,9 +328,10 @@ nsXULTemplateQueryProcessorStorage::CompileQuery(nsIXULTemplateBuilder* aBuilder
     }
 
     PRUint32 parameterCount = 0;
-    for (nsIContent* child = queryContent->GetFirstChild();
-         child;
-         child = child->GetNextSibling()) {
+    PRUint32 count = queryContent->GetChildCount();
+
+    for (PRUint32 i = 0; i < count; ++i) {
+        nsIContent *child = queryContent->GetChildAt(i);
 
         if (child->NodeInfo()->Equals(nsGkAtoms::param, kNameSpaceID_XUL)) {
             nsAutoString value;

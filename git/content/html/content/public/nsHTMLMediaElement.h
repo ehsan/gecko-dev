@@ -73,7 +73,8 @@ public:
     CANPLAY_YES
   };
 
-  nsHTMLMediaElement(already_AddRefed<nsINodeInfo> aNodeInfo);
+  nsHTMLMediaElement(already_AddRefed<nsINodeInfo> aNodeInfo,
+                     mozilla::dom::FromParser aFromParser = mozilla::dom::NOT_FROM_PARSER);
   virtual ~nsHTMLMediaElement();
 
   /**
@@ -524,16 +525,6 @@ protected:
    */
   void Error(PRUint16 aErrorCode);
 
-  /**
-   * Returns the URL spec of the currentSrc.
-   **/
-  void GetCurrentSpec(nsCString& aString);
-
-  /**
-   * Process any media fragment entries in the URI
-   */
-  void ProcessMediaFragmentURI();
-
   nsRefPtr<nsMediaDecoder> mDecoder;
 
   // A reference to the ImageContainer which contains the current frame
@@ -619,16 +610,6 @@ protected:
   // Media 'currentTime' value when the last timeupdate event occurred.
   // Read/Write from the main thread only.
   double mLastCurrentTime;
-
-  // Logical start time of the media resource in seconds as obtained
-  // from any media fragments. A negative value indicates that no
-  // fragment time has been set. Read/Write from the main thread only.
-  double mFragmentStart;
-
-  // Logical end time of the media resource in seconds as obtained
-  // from any media fragments. A negative value indicates that no
-  // fragment time has been set. Read/Write from the main thread only.
-  double mFragmentEnd;
 
   nsRefPtr<gfxASurface> mPrintSurface;
 

@@ -46,7 +46,6 @@ include protocol PStreamNotify;
 include protocol PPluginSurface;
 
 include "mozilla/plugins/PluginMessageUtils.h";
-include "IPC/nsGUIEventIPC.h";
 
 using NPError;
 using NPRemoteWindow;
@@ -60,8 +59,6 @@ using gfxIntSize;
 using mozilla::null_t;
 using mozilla::plugins::WindowsSharedMemoryHandle;
 using nsIntRect;
-using nsTextEvent;
-using nsKeyEvent;
 
 namespace mozilla {
 namespace plugins {
@@ -150,11 +147,6 @@ child:
   // refer to the existing background or a fresh descriptor.
   async UpdateBackground(SurfaceDescriptor background, nsIntRect rect);
 
-  rpc HandleTextEvent(nsTextEvent event)
-    returns (bool handled);
-  rpc HandleKeyEvent(nsKeyEvent event)
-    returns (bool handled);
-
   rpc NPP_Destroy()
     returns (NPError rv);
 
@@ -171,8 +163,6 @@ parent:
     returns (bool value, NPError result);
   rpc NPN_GetValue_NPNVnetscapeWindow()
     returns (NativeWindowHandle value, NPError result);
-  rpc NPN_GetValue_NPNVdocumentOrigin()
-    returns (nsCString value, NPError result);
 
   rpc NPN_SetValue_NPPVpluginWindow(bool windowed)
     returns (NPError result);

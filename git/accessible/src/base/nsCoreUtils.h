@@ -39,6 +39,7 @@
 #ifndef nsCoreUtils_h_
 #define nsCoreUtils_h_
 
+#include "nsAccessibilityAtoms.h"
 
 #include "nsIDOMNode.h"
 #include "nsIContent.h"
@@ -367,8 +368,8 @@ public:
    */
   static PRBool IsHTMLTableHeader(nsIContent *aContent)
   {
-    return aContent->NodeInfo()->Equals(nsGkAtoms::th) ||
-      aContent->HasAttr(kNameSpaceID_None, nsGkAtoms::scope);
+    return aContent->NodeInfo()->Equals(nsAccessibilityAtoms::th) ||
+      aContent->HasAttr(kNameSpaceID_None, nsAccessibilityAtoms::scope);
   }
 
   /**

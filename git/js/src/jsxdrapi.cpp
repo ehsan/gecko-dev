@@ -682,7 +682,7 @@ XDRScriptState::~XDRScriptState()
 }
 
 JS_PUBLIC_API(JSBool)
-JS_XDRScript(JSXDRState *xdr, JSScript **scriptp)
+JS_XDRScriptObject(JSXDRState *xdr, JSObject **scriptObjp)
 {
     JS_ASSERT(!xdr->state);
 
@@ -690,9 +690,9 @@ JS_XDRScript(JSXDRState *xdr, JSScript **scriptp)
     uint32 magic;
     if (xdr->mode == JSXDR_DECODE) {
         script = NULL;
-        *scriptp = NULL;
+        *scriptObjp = NULL;
     } else {
-        script = *scriptp;
+        script = (*scriptObjp)->getScript();
         magic = JSXDR_MAGIC_SCRIPT_CURRENT;
     }
 
@@ -718,11 +718,13 @@ JS_XDRScript(JSXDRState *xdr, JSScript **scriptp)
         return false;
 
     if (xdr->mode == JSXDR_DECODE) {
-        if (!js_NewScriptObject(xdr->cx, script))
+        *scriptObjp = js_NewScriptObject(xdr->cx, script);
+        if (!*scriptObjp) {
+            js_DestroyScript(xdr->cx, script, 8);
             return false;
+        }
         js_CallNewScriptHook(xdr->cx, script, NULL);
-        Debugger::onNewScript(xdr->cx, script, script->u.object, Debugger::NewHeldScript);
-        *scriptp = script;
+        Debugger::onNewScript(xdr->cx, script, *scriptObjp, Debugger::NewHeldScript);
     }
 
     return true;

@@ -199,7 +199,6 @@ protected:
 
     PRBool mIMEComposing;
     nsString mIMEComposingText;
-    nsString mIMELastDispatchedComposingText;
     nsAutoTArray<nsTextRange, 4> mIMERanges;
 
     IMEContext mIMEContext;

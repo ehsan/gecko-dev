@@ -86,7 +86,6 @@ endif
 EXPORTS_NAMESPACES = mozilla
 
 EXPORTS_mozilla = \
-  CharTokenizer.h \
   TimeStamp.h \
   $(NULL)
 

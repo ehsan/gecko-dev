@@ -57,8 +57,6 @@
 #include "nsFocusManager.h"
 #include "nsIDocument.h"
 #include "nsEventStates.h"
-#include "mozilla/TimeStamp.h"
-#include "nsContentUtils.h"
 
 class nsIPresShell;
 class nsIDocShell;
@@ -82,10 +80,6 @@ class nsEventStateManager : public nsSupportsWeakReference,
 {
   friend class nsMouseWheelTransaction;
 public:
-
-  typedef mozilla::TimeStamp TimeStamp;
-  typedef mozilla::TimeDuration TimeDuration;
-
   nsEventStateManager();
   virtual ~nsEventStateManager();
 
@@ -175,27 +169,16 @@ public:
   static void StartHandlingUserInput()
   {
     ++sUserInputEventDepth;
-    if (sUserInputEventDepth == 1) {
-      sHandlingInputStart = TimeStamp::Now();
-    }
   }
 
   static void StopHandlingUserInput()
   {
     --sUserInputEventDepth;
-    if (sUserInputEventDepth == 0) {
-      sHandlingInputStart = TimeStamp();
-    }
   }
 
   static PRBool IsHandlingUserInput()
   {
-    if (sUserInputEventDepth <= 0) {
-      return PR_FALSE;
-    }
-    TimeDuration timeout = nsContentUtils::HandlingUserInputTimeout();
-    return timeout <= TimeDuration(0) ||
-           (TimeStamp::Now() - sHandlingInputStart) <= timeout;
+    return sUserInputEventDepth > 0;
   }
 
   /**
@@ -203,10 +186,7 @@ public:
    * This includes timers or anything else that is initiated from user input.
    * However, mouse hover events are not counted as user input, nor are
    * page load events. If this method is called from asynchronously executed code,
-   * such as during layout reflows, it will return false. If more time has elapsed
-   * since the user input than is specified by the
-   * dom.event.handling-user-input-time-limit pref (default 1 second), this
-   * function also returns false.
+   * such as during layout reflows, it will return false.
    */
   NS_IMETHOD_(PRBool) IsHandlingUserInputExternal() { return IsHandlingUserInput(); }
   
@@ -223,10 +203,6 @@ public:
   // if aContent is non-null, marks the object as active.
   static void SetActiveManager(nsEventStateManager* aNewESM,
                                nsIContent* aContent);
-
-  // Sets the full-screen event state on aElement to aIsFullScreen.
-  static void SetFullScreenState(mozilla::dom::Element* aElement, PRBool aIsFullScreen);
-
 protected:
   void UpdateCursor(nsPresContext* aPresContext, nsEvent* aEvent, nsIFrame* aTargetFrame, nsEventStatus* aStatus);
   /**
@@ -455,7 +431,6 @@ protected:
 
   void DoQueryScrollTargetInfo(nsQueryContentEvent* aEvent,
                                nsIFrame* aTargetFrame);
-  void DoQuerySelectedText(nsQueryContentEvent* aEvent);
 
   PRBool RemoteQueryContentEvent(nsEvent *aEvent);
   mozilla::dom::TabParent *GetCrossProcessTarget();
@@ -528,8 +503,6 @@ private:
 
   PRPackedBool m_haveShutdown;
 
-  // Time at which we began handling user input.
-  static TimeStamp sHandlingInputStart;
 
 public:
   static nsresult UpdateUserActivityTimer(void);

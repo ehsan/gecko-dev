@@ -188,7 +188,7 @@ class TextOverflow {
 
   class Marker {
   public:
-    void Init(const nsStyleTextOverflowSide& aStyle) {
+    void Init(const nsStyleTextOverflow& aStyle) {
       mInitialized = false;
       mWidth = 0;
       mStyle = &aStyle;
@@ -211,7 +211,7 @@ class TextOverflow {
     // The marker text.
     nsString                       mMarkerString;
     // The style for this side.
-    const nsStyleTextOverflowSide* mStyle;
+    const nsStyleTextOverflow*     mStyle;
     // True if there is visible overflowing inline content on this side.
     bool                           mHasOverflow;
     // True if mMarkerString and mWidth have been setup from style.

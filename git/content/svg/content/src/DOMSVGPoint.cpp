@@ -43,7 +43,6 @@
 #include "nsDOMError.h"
 #include "nsIDOMSVGMatrix.h"
 #include "nsContentUtils.h" // NS_ENSURE_FINITE
-#include "DOMSVGMatrix.h"
 
 // See the architecture comment in DOMSVGPointList.h.
 
@@ -152,16 +151,21 @@ NS_IMETHODIMP
 DOMSVGPoint::MatrixTransform(nsIDOMSVGMatrix *matrix,
                              nsIDOMSVGPoint **_retval)
 {
-  nsCOMPtr<DOMSVGMatrix> domMatrix = do_QueryInterface(matrix);
-  if (!domMatrix)
+  if (!matrix)
     return NS_ERROR_DOM_SVG_WRONG_TYPE_ERR;
+
+  float a, b, c, d, e, f;
+  matrix->GetA(&a);
+  matrix->GetB(&b);
+  matrix->GetC(&c);
+  matrix->GetD(&d);
+  matrix->GetE(&e);
+  matrix->GetF(&f);
 
   float x = HasOwner() ? InternalItem().mX : mPt.mX;
   float y = HasOwner() ? InternalItem().mY : mPt.mY;
 
-  gfxPoint pt = domMatrix->Matrix().Transform(gfxPoint(x, y));
-  NS_ADDREF(*_retval = new DOMSVGPoint(pt));
-
+  NS_ADDREF(*_retval = new DOMSVGPoint(a*x + c*y + e, b*x + d*y + f));
   return NS_OK;
 }
 

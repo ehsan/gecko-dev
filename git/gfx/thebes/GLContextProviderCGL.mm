@@ -86,13 +86,12 @@ public:
         if (mPixelFormat == nsnull) {
             NSOpenGLPixelFormatAttribute attribs[] = {
                 NSOpenGLPFAAccelerated,
-                NSOpenGLPFAAllowOfflineRenderers,
                 NSOpenGLPFADoubleBuffer,
                 (NSOpenGLPixelFormatAttribute)nil 
             };
 
             if (!gUseDoubleBufferedWindows) {
-              attribs[2] = (NSOpenGLPixelFormatAttribute)nil;
+              attribs[1] = (NSOpenGLPixelFormatAttribute)nil;
             }
 
             mPixelFormat = [[NSOpenGLPixelFormat alloc] initWithAttributes:attribs];

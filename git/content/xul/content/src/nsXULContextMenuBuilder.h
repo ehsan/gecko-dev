@@ -57,16 +57,15 @@ public:
   NS_DECL_NSIXULCONTEXTMENUBUILDER
 
 protected:
-  nsresult CreateElement(nsIAtom* aTag,
-                         nsIDOMHTMLElement* aHTMLElement,
-                         nsIContent** aResult);
+  nsresult CreateElement(nsIAtom* aTag, nsIContent** aResult);
 
   nsCOMPtr<nsIContent>          mFragment;
   nsCOMPtr<nsIDocument>         mDocument;
-  nsCOMPtr<nsIAtom>             mGeneratedItemIdAttr;
+  nsCOMPtr<nsIAtom>             mGeneratedAttr;
+  nsCOMPtr<nsIAtom>             mIdentAttr;
 
   nsCOMPtr<nsIContent>          mCurrentNode;
-  PRInt32                       mCurrentGeneratedItemId;
+  PRInt32                       mCurrentIdent;
 
   nsCOMArray<nsIDOMHTMLElement> mElements;
 };

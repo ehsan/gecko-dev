@@ -251,13 +251,8 @@ struct PropertyTable {
     /* Computes the size of the entries array for a given capacity. */
     static size_t sizeOfEntries(size_t cap) { return cap * sizeof(Shape *); }
 
-    /*
-     * This counts the PropertyTable object itself (which must be
-     * heap-allocated) and its |entries| array.
-     */
-    size_t sizeOf(JSUsableSizeFun usf) const {
-        size_t usable = usf((void*)this) + usf(entries);
-        return usable ? usable : sizeOfEntries(capacity()) + sizeof(PropertyTable);
+    size_t sizeOf() const {
+        return sizeOfEntries(capacity()) + sizeof(PropertyTable);
     }
 
     /* Whether we need to grow.  We want to do this if the load factor is >= 0.75 */
@@ -332,7 +327,7 @@ struct Shape : public js::gc::Cell
 
   protected:
     union {
-        PropertyOp      rawGetter;      /* getter and setter hooks or objects */
+        js::PropertyOp  rawGetter;      /* getter and setter hooks or objects */
         JSObject        *getterObj;     /* user-defined callable "get" object or
                                            null if shape->hasGetterValue(); or
                                            joined function object if METHOD flag
@@ -341,7 +336,7 @@ struct Shape : public js::gc::Cell
     };
 
     union {
-        StrictPropertyOp rawSetter;     /* getter is JSObject* and setter is 0
+        js::StrictPropertyOp  rawSetter;/* getter is JSObject* and setter is 0
                                            if shape->isMethod() */
         JSObject        *setterObj;     /* user-defined callable "set" object or
                                            null if shape->hasSetterValue() */
@@ -357,7 +352,6 @@ struct Shape : public js::gc::Cell
 
   protected:
     mutable js::Shape   *parent;        /* parent node, reverse for..in order */
-    /* kids is valid when !inDictionary(), listp is valid when inDictionary(). */
     union {
         mutable js::KidsPointer kids;   /* null, single child, or a tagged ptr
                                            to many-kids data structure */
@@ -367,7 +361,7 @@ struct Shape : public js::gc::Cell
                                            else to obj->lastProp */
     };
 
-    static inline js::Shape **search(JSContext *cx, js::Shape **startp, jsid id,
+    static inline js::Shape **search(JSRuntime *rt, js::Shape **startp, jsid id,
                                      bool adding = false);
     static js::Shape *newDictionaryShape(JSContext *cx, const js::Shape &child, js::Shape **listp);
     static js::Shape *newDictionaryList(JSContext *cx, js::Shape **listp);
@@ -377,7 +371,7 @@ struct Shape : public js::gc::Cell
 
     js::Shape *getChild(JSContext *cx, const js::Shape &child, js::Shape **listp);
 
-    bool hashify(JSContext *cx);
+    bool hashify(JSRuntime *rt);
 
     void setTable(js::PropertyTable *t) const {
         JS_ASSERT_IF(t && t->freelist != SHAPE_INVALID_SLOT, t->freelist < slotSpan);
@@ -446,17 +440,6 @@ struct Shape : public js::gc::Cell
         return table;
     }
 
-    size_t sizeOfPropertyTable(JSUsableSizeFun usf) const {
-        return hasTable() ? getTable()->sizeOf(usf) : 0;
-    }
-
-    size_t sizeOfKids(JSUsableSizeFun usf) const {
-        /* Nb: |countMe| is true because the kids HashTable is on the heap. */
-        return (!inDictionary() && kids.isHash())
-             ? kids.toHash()->sizeOf(usf, /* countMe */true)
-             : 0;
-    }
-
     bool isNative() const { return this != &sharedNonNative; }
 
     const js::Shape *previous() const {
@@ -511,7 +494,7 @@ struct Shape : public js::gc::Cell
         UNUSED_BITS     = 0x38
     };
 
-    Shape(jsid id, PropertyOp getter, StrictPropertyOp setter, uint32 slot, uintN attrs,
+    Shape(jsid id, js::PropertyOp getter, js::StrictPropertyOp setter, uint32 slot, uintN attrs,
           uintN flags, intN shortid, uint32 shape = INVALID_SHAPE, uint32 slotSpan = 0);
 
     /* Used by EmptyShape (see jsscopeinlines.h). */
@@ -540,39 +523,39 @@ struct Shape : public js::gc::Cell
 
     JSObject &methodObject() const { JS_ASSERT(isMethod()); return *getterObj; }
 
-    PropertyOp getter() const { return rawGetter; }
+    js::PropertyOp getter() const { return rawGetter; }
     bool hasDefaultGetter() const  { return !rawGetter; }
-    PropertyOp getterOp() const { JS_ASSERT(!hasGetterValue()); return rawGetter; }
+    js::PropertyOp getterOp() const { JS_ASSERT(!hasGetterValue()); return rawGetter; }
     JSObject *getterObject() const { JS_ASSERT(hasGetterValue()); return getterObj; }
 
     // Per ES5, decode null getterObj as the undefined value, which encodes as null.
-    Value getterValue() const {
+    js::Value getterValue() const {
         JS_ASSERT(hasGetterValue());
         return getterObj ? js::ObjectValue(*getterObj) : js::UndefinedValue();
     }
 
-    Value getterOrUndefined() const {
+    js::Value getterOrUndefined() const {
         return hasGetterValue() && getterObj ? js::ObjectValue(*getterObj) : js::UndefinedValue();
     }
 
-    StrictPropertyOp setter() const { return rawSetter; }
+    js::StrictPropertyOp setter() const { return rawSetter; }
     bool hasDefaultSetter() const  { return !rawSetter; }
-    StrictPropertyOp setterOp() const { JS_ASSERT(!hasSetterValue()); return rawSetter; }
+    js::StrictPropertyOp setterOp() const { JS_ASSERT(!hasSetterValue()); return rawSetter; }
     JSObject *setterObject() const { JS_ASSERT(hasSetterValue()); return setterObj; }
 
     // Per ES5, decode null setterObj as the undefined value, which encodes as null.
-    Value setterValue() const {
+    js::Value setterValue() const {
         JS_ASSERT(hasSetterValue());
         return setterObj ? js::ObjectValue(*setterObj) : js::UndefinedValue();
     }
 
-    Value setterOrUndefined() const {
+    js::Value setterOrUndefined() const {
         return hasSetterValue() && setterObj ? js::ObjectValue(*setterObj) : js::UndefinedValue();
     }
 
     inline JSDHashNumber hash() const;
     inline bool matches(const js::Shape *p) const;
-    inline bool matchesParamsAfterId(PropertyOp agetter, StrictPropertyOp asetter,
+    inline bool matchesParamsAfterId(js::PropertyOp agetter, js::StrictPropertyOp asetter,
                                      uint32 aslot, uintN aattrs, uintN aflags,
                                      intN ashortid) const;
 
@@ -603,7 +586,7 @@ struct Shape : public js::gc::Cell
     }
 
     /*
-     * For ES5 compatibility, we allow properties with PropertyOp-flavored
+     * For ES5 compatibility, we allow properties with JSPropertyOp-flavored
      * setters to be shadowed when set. The "own" property thereby created in
      * the directly referenced object will have the same getter and setter as
      * the prototype property. See bug 552432.
@@ -704,14 +687,14 @@ js_GenerateShape(JSContext *cx);
 namespace js {
 
 JS_ALWAYS_INLINE js::Shape **
-Shape::search(JSContext *cx, js::Shape **startp, jsid id, bool adding)
+Shape::search(JSRuntime *rt, js::Shape **startp, jsid id, bool adding)
 {
     js::Shape *start = *startp;
     if (start->hasTable())
         return start->getTable()->search(id, adding);
 
     if (start->numLinearSearches == PropertyTable::MAX_LINEAR_SEARCHES) {
-        if (start->hashify(cx))
+        if (start->hashify(rt))
             return start->getTable()->search(id, adding);
         /* OOM!  Don't increment numLinearSearches, to keep hasTable() false. */
         JS_ASSERT(!start->hasTable());

@@ -875,15 +875,15 @@ js::Class XPC_WN_NoHelper_JSClass = {
     JSCLASS_PRIVATE_IS_NSISUPPORTS, // flags
 
     /* Mandatory non-null function pointer members. */
-    XPC_WN_OnlyIWrite_AddPropertyStub, // addProperty
-    XPC_WN_CannotModifyPropertyStub,   // delProperty
-    JS_PropertyStub,                   // getProperty
-    XPC_WN_OnlyIWrite_SetPropertyStub, // setProperty
+    JS_VALUEIFY(js::PropertyOp, XPC_WN_OnlyIWrite_AddPropertyStub),       // addProperty
+    JS_VALUEIFY(js::PropertyOp, XPC_WN_CannotModifyPropertyStub),         // delProperty
+    js::PropertyStub,                                                     // getProperty
+    JS_VALUEIFY(js::StrictPropertyOp, XPC_WN_OnlyIWrite_SetPropertyStub), // setProperty
    
-    XPC_WN_Shared_Enumerate,           // enumerate
-    XPC_WN_NoHelper_Resolve,           // resolve
-    XPC_WN_Shared_Convert,             // convert
-    XPC_WN_NoHelper_Finalize,          // finalize
+    XPC_WN_Shared_Enumerate,                                     // enumerate
+    XPC_WN_NoHelper_Resolve,                                     // resolve
+    JS_VALUEIFY(js::ConvertOp, XPC_WN_Shared_Convert),           // convert
+    XPC_WN_NoHelper_Finalize,                                    // finalize
    
     /* Optionally non-null members start here. */
     nsnull,                         // reserved0
@@ -896,7 +896,7 @@ js::Class XPC_WN_NoHelper_JSClass = {
 
     // ClassExtension
     {
-        XPC_WN_Equality,
+        JS_VALUEIFY(js::EqualityOp, XPC_WN_Equality),
         nsnull, // outerObject
         nsnull, // innerObject
         nsnull, // iteratorObject
@@ -906,35 +906,14 @@ js::Class XPC_WN_NoHelper_JSClass = {
    
     // ObjectOps
     {
-        nsnull, // lookupGeneric
         nsnull, // lookupProperty
-        nsnull, // lookupElement
-        nsnull, // lookupSpecial
-        nsnull, // defineGeneric
         nsnull, // defineProperty
-        nsnull, // defineElement
-        nsnull, // defineSpecial
-        nsnull, // getGeneric
         nsnull, // getProperty
-        nsnull, // getElement
-        nsnull, // getSpecial
-        nsnull, // setGeneric
         nsnull, // setProperty
-        nsnull, // setElement
-        nsnull, // setSpecial
-        nsnull, // getGenericAttributes
         nsnull, // getAttributes
-        nsnull, // getElementAttributes
-        nsnull, // getSpecialAttributes
-        nsnull, // setGenericAttributes
         nsnull, // setAttributes
-        nsnull, // setElementAttributes
-        nsnull, // setSpecialAttributes
-        nsnull, // deleteGeneric
         nsnull, // deleteProperty
-        nsnull, // deleteElement
-        nsnull, // deleteSpecial
-        XPC_WN_JSOp_Enumerate,
+        JS_VALUEIFY(js::NewEnumerateOp, XPC_WN_JSOp_Enumerate),
         XPC_WN_JSOp_TypeOf_Object,
         nsnull, // fix
         XPC_WN_JSOp_ThisObject,
@@ -1280,7 +1259,7 @@ XPC_WN_JSOp_Enumerate(JSContext *cx, JSObject *obj, JSIterateOp enum_op,
         // helper. Short circuit this call to the default
         // implementation.
 
-        return js_Enumerate(cx, obj, enum_op, statep, idp);
+        return js_Enumerate(cx, obj, enum_op, js::Valueify(statep), idp);
     }
 
     MORPH_SLIM_WRAPPER(cx, obj);
@@ -1353,7 +1332,7 @@ XPC_WN_JSOp_Enumerate(JSContext *cx, JSObject *obj, JSIterateOp enum_op,
 
     // else call js_ObjectOps.enumerate...
 
-    return js_Enumerate(cx, obj, enum_op, statep, idp);
+    return js_Enumerate(cx, obj, enum_op, js::Valueify(statep), idp);
 }
 
 JSType
@@ -1485,7 +1464,7 @@ XPCNativeScriptableShared::PopulateJSClass(JSBool isGlobal)
         addProperty = XPC_WN_MaybeResolvingPropertyStub;
     else
         addProperty = XPC_WN_CannotModifyPropertyStub;
-    mJSClass.base.addProperty = addProperty;
+    mJSClass.base.addProperty = js::Valueify(addProperty);
 
     JSPropertyOp delProperty;
     if(mFlags.WantDelProperty())
@@ -1496,12 +1475,12 @@ XPCNativeScriptableShared::PopulateJSClass(JSBool isGlobal)
         delProperty = XPC_WN_MaybeResolvingPropertyStub;
     else
         delProperty = XPC_WN_CannotModifyPropertyStub;
-    mJSClass.base.delProperty = delProperty;
+    mJSClass.base.delProperty = js::Valueify(delProperty);
 
     if(mFlags.WantGetProperty())
-        mJSClass.base.getProperty = XPC_WN_Helper_GetProperty;
+        mJSClass.base.getProperty = js::Valueify(XPC_WN_Helper_GetProperty);
     else
-        mJSClass.base.getProperty = JS_PropertyStub;
+        mJSClass.base.getProperty = js::PropertyStub;
 
     JSStrictPropertyOp setProperty;
     if(mFlags.WantSetProperty())
@@ -1512,13 +1491,13 @@ XPCNativeScriptableShared::PopulateJSClass(JSBool isGlobal)
         setProperty = XPC_WN_MaybeResolvingStrictPropertyStub;
     else
         setProperty = XPC_WN_CannotModifyStrictPropertyStub;
-    mJSClass.base.setProperty = setProperty;
+    mJSClass.base.setProperty = js::Valueify(setProperty);
 
     // We figure out most of the enumerate strategy at call time.
 
     if(mFlags.WantNewEnumerate() || mFlags.WantEnumerate() ||
        mFlags.DontEnumStaticProps())
-        mJSClass.base.enumerate = JS_EnumerateStub;
+        mJSClass.base.enumerate = js::EnumerateStub;
     else
         mJSClass.base.enumerate = XPC_WN_Shared_Enumerate;
 
@@ -1526,9 +1505,9 @@ XPCNativeScriptableShared::PopulateJSClass(JSBool isGlobal)
     mJSClass.base.resolve = (JSResolveOp) XPC_WN_Helper_NewResolve;
 
     if(mFlags.WantConvert())
-        mJSClass.base.convert = XPC_WN_Helper_Convert;
+        mJSClass.base.convert = js::Valueify(XPC_WN_Helper_Convert);
     else
-        mJSClass.base.convert = XPC_WN_Shared_Convert;
+        mJSClass.base.convert = js::Valueify(XPC_WN_Shared_Convert);
 
     if(mFlags.WantFinalize())
         mJSClass.base.finalize = XPC_WN_Helper_Finalize;
@@ -1537,7 +1516,7 @@ XPCNativeScriptableShared::PopulateJSClass(JSBool isGlobal)
 
     // We let the rest default to nsnull unless the helper wants them...
     if(mFlags.WantCheckAccess())
-        mJSClass.base.checkAccess = XPC_WN_Helper_CheckAccess;
+        mJSClass.base.checkAccess = js::Valueify(XPC_WN_Helper_CheckAccess);
 
     // Note that we *must* set the ObjectOps (even for the cases were it does
     // not do much) because with these dynamically generated JSClasses, the
@@ -1545,7 +1524,7 @@ XPCNativeScriptableShared::PopulateJSClass(JSBool isGlobal)
     // for that these callback pointers in order to identify that a given
     // JSObject represents a wrapper.
     js::ObjectOps *ops = &mJSClass.base.ops;
-    ops->enumerate = XPC_WN_JSOp_Enumerate;
+    ops->enumerate = js::Valueify(XPC_WN_JSOp_Enumerate);
     ops->clear = XPC_WN_JSOp_Clear;
     ops->thisObject = XPC_WN_JSOp_ThisObject;
 
@@ -1553,29 +1532,20 @@ XPCNativeScriptableShared::PopulateJSClass(JSBool isGlobal)
     {
         ops->typeOf = XPC_WN_JSOp_TypeOf_Function;
         if(mFlags.WantCall())
-            mJSClass.base.call = XPC_WN_Helper_Call;
+            mJSClass.base.call = js::Valueify(XPC_WN_Helper_Call);
         if(mFlags.WantConstruct())
-            mJSClass.base.construct = XPC_WN_Helper_Construct;
+            mJSClass.base.construct = js::Valueify(XPC_WN_Helper_Construct);
     }
     else
     {
         ops->typeOf = XPC_WN_JSOp_TypeOf_Object;
     }
 
-    if(mFlags.UseStubEqualityHook())
-    {
-        NS_ASSERTION(!mFlags.WantEquality(),
-                     "If you want an Equality callback, you can't use a stub "
-                     "equality hook");
-        mJSClass.base.ext.equality = nsnull;
-    }
-    else
-    {
-        mJSClass.base.ext.equality = XPC_WN_Equality;
-    }
+    // Equality is a required hook.
+    mJSClass.base.ext.equality = js::Valueify(XPC_WN_Equality);
 
     if(mFlags.WantHasInstance())
-        mJSClass.base.hasInstance = XPC_WN_Helper_HasInstance;
+        mJSClass.base.hasInstance = js::Valueify(XPC_WN_Helper_HasInstance);
 
     if(mFlags.WantTrace())
         mJSClass.base.trace = XPC_WN_Helper_Trace;
@@ -1606,7 +1576,7 @@ XPC_WN_CallMethod(JSContext *cx, uintN argc, jsval *vp)
 
 #ifdef DEBUG_slimwrappers
     {
-        JSFunction* fun = funobj->getFunctionPrivate();
+        JSFunction* fun = GET_FUNCTION_PRIVATE(cx, funobj);
         JSString *funid = JS_GetFunctionId(fun);
         JSAutoByteString bytes;
         const char *funname = !funid ? "" : bytes.encode(cx, funid) ? bytes.ptr() : "<error>";
@@ -1645,7 +1615,7 @@ XPC_WN_GetterSetter(JSContext *cx, uintN argc, jsval *vp)
         JSAutoByteString bytes;
         if(JS_TypeOfValue(cx, JS_CALLEE(cx, vp)) == JSTYPE_FUNCTION)
         {
-            JSString *funid = JS_GetFunctionId(funobj->getFunctionPrivate());
+            JSString *funid = JS_GetFunctionId(GET_FUNCTION_PRIVATE(cx, funobj));
             funname = !funid ? "" : bytes.encode(cx, funid) ? bytes.ptr() : "<error>";
         }
         SLIM_LOG_WILL_MORPH_FOR_PROP(cx, obj, funname);
@@ -1780,13 +1750,13 @@ js::Class XPC_WN_ModsAllowed_WithCall_Proto_JSClass = {
     WRAPPER_SLOTS, // flags;
 
     /* Mandatory non-null function pointer members. */
-    JS_PropertyStub,                // addProperty;
-    JS_PropertyStub,                // delProperty;
-    JS_PropertyStub,                // getProperty;
-    JS_StrictPropertyStub,          // setProperty;
+    js::PropertyStub,               // addProperty;
+    js::PropertyStub,               // delProperty;
+    js::PropertyStub,               // getProperty;
+    js::StrictPropertyStub,         // setProperty;
     XPC_WN_Shared_Proto_Enumerate,  // enumerate;
     XPC_WN_ModsAllowed_Proto_Resolve, // resolve;
-    JS_ConvertStub,                 // convert;
+    js::ConvertStub,                // convert;
     XPC_WN_Shared_Proto_Finalize,   // finalize;
 
     /* Optionally non-null members start here. */
@@ -1807,14 +1777,14 @@ js::Class XPC_WN_ModsAllowed_NoCall_Proto_JSClass = {
     WRAPPER_SLOTS,                  // flags;
 
     /* Mandatory non-null function pointer members. */
-    JS_PropertyStub,                // addProperty;
-    JS_PropertyStub,                // delProperty;
-    JS_PropertyStub,                // getProperty;
-    JS_StrictPropertyStub,          // setProperty;
+    js::PropertyStub,               // addProperty;
+    js::PropertyStub,               // delProperty;
+    js::PropertyStub,               // getProperty;
+    js::StrictPropertyStub,         // setProperty;
     XPC_WN_Shared_Proto_Enumerate,  // enumerate;
-    XPC_WN_ModsAllowed_Proto_Resolve, // resolve;
-    JS_ConvertStub,                 // convert;
-    XPC_WN_Shared_Proto_Finalize,   // finalize;
+    XPC_WN_ModsAllowed_Proto_Resolve,// resolve;
+    js::ConvertStub,                 // convert;
+    XPC_WN_Shared_Proto_Finalize,    // finalize;
 
     /* Optionally non-null members start here. */
     nsnull,                         // reserved0;
@@ -1893,18 +1863,18 @@ XPC_WN_NoMods_Proto_Resolve(JSContext *cx, JSObject *obj, jsid id)
 }
 
 js::Class XPC_WN_NoMods_WithCall_Proto_JSClass = {
-    "XPC_WN_NoMods_WithCall_Proto_JSClass",    // name;
-    WRAPPER_SLOTS,                             // flags;
+    "XPC_WN_NoMods_WithCall_Proto_JSClass",      // name;
+    WRAPPER_SLOTS,                  // flags;
 
     /* Mandatory non-null function pointer members. */
-    XPC_WN_OnlyIWrite_Proto_AddPropertyStub,   // addProperty;
-     XPC_WN_CannotModifyPropertyStub,          // delProperty;
-    JS_PropertyStub,                           // getProperty;
-    XPC_WN_OnlyIWrite_Proto_SetPropertyStub,   // setProperty;
-    XPC_WN_Shared_Proto_Enumerate,             // enumerate;
-    XPC_WN_NoMods_Proto_Resolve,               // resolve;
-    JS_ConvertStub,                            // convert;
-    XPC_WN_Shared_Proto_Finalize,              // finalize;
+    JS_VALUEIFY(js::PropertyOp, XPC_WN_OnlyIWrite_Proto_AddPropertyStub),       // addProperty;
+    JS_VALUEIFY(js::PropertyOp, XPC_WN_CannotModifyPropertyStub),               // delProperty;
+    js::PropertyStub,                                                           // getProperty;
+    JS_VALUEIFY(js::StrictPropertyOp, XPC_WN_OnlyIWrite_Proto_SetPropertyStub), // setProperty;
+    XPC_WN_Shared_Proto_Enumerate,                                              // enumerate;
+    XPC_WN_NoMods_Proto_Resolve,                                                // resolve;
+    js::ConvertStub,                                                            // convert;
+    XPC_WN_Shared_Proto_Finalize,                                               // finalize;
 
     /* Optionally non-null members start here. */
     nsnull,                         // reserved0;
@@ -1920,18 +1890,18 @@ js::Class XPC_WN_NoMods_WithCall_Proto_JSClass = {
 };
 
 js::Class XPC_WN_NoMods_NoCall_Proto_JSClass = {
-    "XPC_WN_NoMods_NoCall_Proto_JSClass",      // name;
-    WRAPPER_SLOTS,                             // flags;
+    "XPC_WN_NoMods_NoCall_Proto_JSClass",               // name;
+    WRAPPER_SLOTS,                                      // flags;
 
     /* Mandatory non-null function pointer members. */
-    XPC_WN_OnlyIWrite_Proto_AddPropertyStub,   // addProperty;
-    XPC_WN_CannotModifyPropertyStub,           // delProperty;
-    JS_PropertyStub,                           // getProperty;
-    XPC_WN_OnlyIWrite_Proto_SetPropertyStub,   // setProperty;
-    XPC_WN_Shared_Proto_Enumerate,             // enumerate;
-    XPC_WN_NoMods_Proto_Resolve,               // resolve;
-    JS_ConvertStub,                            // convert;
-    XPC_WN_Shared_Proto_Finalize,              // finalize;
+    JS_VALUEIFY(js::PropertyOp, XPC_WN_OnlyIWrite_Proto_AddPropertyStub),       // addProperty;
+    JS_VALUEIFY(js::PropertyOp, XPC_WN_CannotModifyPropertyStub),               // delProperty;
+    js::PropertyStub,                                                           // getProperty;
+    JS_VALUEIFY(js::StrictPropertyOp, XPC_WN_OnlyIWrite_Proto_SetPropertyStub), // setProperty;
+    XPC_WN_Shared_Proto_Enumerate,                                              // enumerate;
+    XPC_WN_NoMods_Proto_Resolve,                                                // resolve;
+    js::ConvertStub,                                                            // convert;
+    XPC_WN_Shared_Proto_Finalize,                                               // finalize;
 
     /* Optionally non-null members start here. */
     nsnull,                         // reserved0;
@@ -2005,15 +1975,15 @@ XPC_WN_TearOff_Finalize(JSContext *cx, JSObject *obj)
 }
 
 js::Class XPC_WN_Tearoff_JSClass = {
-    "WrappedNative_TearOff",                   // name;
-    WRAPPER_SLOTS,                             // flags;
+    "WrappedNative_TearOff",                        // name;
+    WRAPPER_SLOTS,                                  // flags;
 
-    XPC_WN_OnlyIWrite_AddPropertyStub,         // addProperty;
-    XPC_WN_CannotModifyPropertyStub,           // delProperty;
-    JS_PropertyStub,                           // getProperty;
-    XPC_WN_OnlyIWrite_SetPropertyStub,         // setProperty;
-    XPC_WN_TearOff_Enumerate,                  // enumerate;
-    XPC_WN_TearOff_Resolve,                    // resolve;
-    XPC_WN_Shared_Convert,                     // convert;
-    XPC_WN_TearOff_Finalize                    // finalize;
+    JS_VALUEIFY(js::PropertyOp, XPC_WN_OnlyIWrite_AddPropertyStub),       // addProperty;
+    JS_VALUEIFY(js::PropertyOp, XPC_WN_CannotModifyPropertyStub),         // delProperty;
+    js::PropertyStub,                                                     // getProperty;
+    JS_VALUEIFY(js::StrictPropertyOp, XPC_WN_OnlyIWrite_SetPropertyStub), // setProperty;
+    XPC_WN_TearOff_Enumerate,                                             // enumerate;
+    XPC_WN_TearOff_Resolve,                                               // resolve;
+    JS_VALUEIFY(js::ConvertOp, XPC_WN_Shared_Convert),                    // convert;
+    XPC_WN_TearOff_Finalize                                               // finalize;
 };

@@ -47,7 +47,12 @@ class nsCUPSShim;
 
 class nsPSPrinterList {
     public:
-        nsPSPrinterList();
+        /**
+         * Initialize a printer manager object.
+         * @return NS_ERROR_NOT_INITIALIZED if unable to access prefs
+         *         NS_OK for successful initialization.
+         */
+        nsresult Init();
 
         /**
          * Is the PostScript module enabled or disabled?

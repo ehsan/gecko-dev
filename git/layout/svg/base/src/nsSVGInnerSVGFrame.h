@@ -98,5 +98,5 @@ public:
 
 protected:
 
-  nsAutoPtr<gfxMatrix> mCanvasTM;
+  nsCOMPtr<nsIDOMSVGMatrix> mCanvasTM;
 };

@@ -7,8 +7,9 @@ https://bugzilla.mozilla.org/show_bug.cgi?id=664783
 <window title="Mozilla Bug 664783"
         xmlns="http://www.mozilla.org/keymaster/gatekeeper/there.is.only.xul">
   <script type="application/javascript"
+          src="chrome://mochikit/content/MochiKit/packed.js"/>
+  <script type="application/javascript"
           src="chrome://mochikit/content/tests/SimpleTest/SimpleTest.js"/>
-  <script type="application/javascript" src="dom_worker_helper.js"/>
 
   <!-- test results are displayed in the html:body -->
   <body xmlns="http://www.w3.org/1999/xhtml">
@@ -60,17 +61,17 @@ https://bugzilla.mozilla.org/show_bug.cgi?id=664783
 
     worker.onerror = function(event) {
       ok(false, "Worker had an error: " + event.data);
-      finish();
+      SimpleTest.finish();
     };
 
     worker.onmessage = function(event) {
       is(event.data, expectedText, "Text from sliced blob in worker is incorrect.");
-      finish();
+      SimpleTest.finish();
     };
 
     var params = {blob: blob, start: start, end: end};
     worker.postMessage(params);
-    waitForWorkerFinish();
+    SimpleTest.waitForExplicitFinish();
   }
 
   // Empty file.

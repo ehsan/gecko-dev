@@ -45,6 +45,11 @@
 #include <string>
 #include <vector>
 
+#if defined(CHROMIUM_MOZILLA_BUILD)
+#define BASE_API
+#else
+#include "base/base_api.h"
+#endif
 #include "testing/gtest/include/gtest/gtest_prod.h"
 #include "base/time.h"
 #include "base/lock.h"
@@ -259,7 +264,7 @@ class CustomHistogram;
 class Histogram;
 class LinearHistogram;
 
-class Histogram {
+class BASE_API Histogram {
  public:
   typedef int Sample;  // Used for samples (and ranges of samples).
   typedef int Count;  // Used to count samples in a bucket.
@@ -318,7 +323,7 @@ class Histogram {
   //----------------------------------------------------------------------------
   // Statistic values, developed over the life of the histogram.
 
-  class SampleSet {
+  class BASE_API SampleSet {
    public:
     explicit SampleSet();
     ~SampleSet();
@@ -381,7 +386,6 @@ class Histogram {
                                    Flags flags);
 
   void Add(int value);
-  void Subtract(int value);
 
   // This method is an interface, used only by BooleanHistogram.
   virtual void AddBoolean(bool value);
@@ -578,7 +582,7 @@ class Histogram {
 
 // LinearHistogram is a more traditional histogram, with evenly spaced
 // buckets.
-class LinearHistogram : public Histogram {
+class BASE_API LinearHistogram : public Histogram {
  public:
   virtual ~LinearHistogram();
 
@@ -634,7 +638,7 @@ class LinearHistogram : public Histogram {
 //------------------------------------------------------------------------------
 
 // BooleanHistogram is a histogram for booleans.
-class BooleanHistogram : public LinearHistogram {
+class BASE_API BooleanHistogram : public LinearHistogram {
  public:
   static Histogram* FactoryGet(const std::string& name, Flags flags);
 
@@ -651,7 +655,7 @@ class BooleanHistogram : public LinearHistogram {
 //------------------------------------------------------------------------------
 
 // CustomHistogram is a histogram for a set of custom integers.
-class CustomHistogram : public Histogram {
+class BASE_API CustomHistogram : public Histogram {
  public:
 
   static Histogram* FactoryGet(const std::string& name,
@@ -677,7 +681,7 @@ class CustomHistogram : public Histogram {
 // general place for histograms to register, and supports a global API for
 // accessing (i.e., dumping, or graphing) the data in all the histograms.
 
-class StatisticsRecorder {
+class BASE_API StatisticsRecorder {
  public:
   typedef std::vector<Histogram*> Histograms;
 

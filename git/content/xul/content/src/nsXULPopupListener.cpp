@@ -60,6 +60,7 @@
 #include "nsIDOMWindow.h"
 #include "nsIDOMXULDocument.h"
 #include "nsIDocument.h"
+#include "nsIDOMNSUIEvent.h"
 #include "nsIDOMEventTarget.h"
 #include "nsIDOMNSEvent.h"
 #include "nsServiceManagerUtils.h"
@@ -84,7 +85,7 @@ using namespace mozilla;
 
 // on win32 and os/2, context menus come up on mouse up. On other platforms,
 // they appear on mouse down. Certain bits of code care about this difference.
-#if defined(XP_WIN) || defined(XP_OS2)
+#if !defined(XP_WIN) && !defined(XP_OS2)
 #define NS_CONTEXT_MENU_IS_MOUSEUP 1
 #endif
 
@@ -129,8 +130,9 @@ nsXULPopupListener::HandleEvent(nsIDOMEvent* aEvent)
   }
 
   // check if someone has attempted to prevent this action.
-  nsCOMPtr<nsIDOMNSEvent> domNSEvent = do_QueryInterface(mouseEvent);
-  if (!domNSEvent) {
+  nsCOMPtr<nsIDOMNSUIEvent> nsUIEvent;
+  nsUIEvent = do_QueryInterface(mouseEvent);
+  if (!nsUIEvent) {
     return NS_OK;
   }
 
@@ -158,7 +160,7 @@ nsXULPopupListener::HandleEvent(nsIDOMEvent* aEvent)
   }
 
   PRBool preventDefault;
-  domNSEvent->GetPreventDefault(&preventDefault);
+  nsUIEvent->GetPreventDefault(&preventDefault);
   if (preventDefault && targetNode && mIsContext) {
     // Someone called preventDefault on a context menu.
     // Let's make sure they are allowed to do so.
@@ -316,19 +318,21 @@ nsXULPopupListener::ClosePopup()
   }
 } // ClosePopup
 
-static already_AddRefed<nsIContent>
-GetImmediateChild(nsIContent* aContent, nsIAtom *aTag) 
+static void
+GetImmediateChild(nsIContent* aContent, nsIAtom *aTag, nsIContent** aResult) 
 {
-  for (nsIContent* child = aContent->GetFirstChild();
-       child;
-       child = child->GetNextSibling()) {
+  *aResult = nsnull;
+  PRInt32 childCount = aContent->GetChildCount();
+  for (PRInt32 i = 0; i < childCount; i++) {
+    nsIContent *child = aContent->GetChildAt(i);
     if (child->Tag() == aTag) {
-      NS_ADDREF(child);
-      return child;
+      *aResult = child;
+      NS_ADDREF(*aResult);
+      return;
     }
   }
 
-  return nsnull;
+  return;
 }
 
 //
@@ -382,7 +386,9 @@ nsXULPopupListener::LaunchPopup(nsIDOMEvent* aEvent, nsIContent* aTargetContent)
   nsCOMPtr<nsIDOMElement> popupElement;
 
   if (identifier.EqualsLiteral("_child")) {
-    nsCOMPtr<nsIContent> popup = GetImmediateChild(content, nsGkAtoms::menupopup);
+    nsCOMPtr<nsIContent> popup;
+
+    GetImmediateChild(content, nsGkAtoms::menupopup, getter_AddRefs(popup));
     if (popup)
       popupElement = do_QueryInterface(popup);
     else {

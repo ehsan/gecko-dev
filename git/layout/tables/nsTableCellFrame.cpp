@@ -65,9 +65,7 @@
 
 //TABLECELL SELECTION
 #include "nsFrameSelection.h"
-#include "mozilla/LookAndFeel.h"
-
-using namespace mozilla;
+#include "nsILookAndFeel.h"
 
 
 nsTableCellFrame::nsTableCellFrame(nsStyleContext* aContext) :
@@ -262,7 +260,7 @@ nsTableCellFrame::DidSetStyleContext(nsStyleContext* aOldStyleContext)
 
 
 NS_IMETHODIMP
-nsTableCellFrame::AppendFrames(ChildListID     aListID,
+nsTableCellFrame::AppendFrames(nsIAtom*        aListName,
                                nsFrameList&    aFrameList)
 {
   NS_PRECONDITION(PR_FALSE, "unsupported operation");
@@ -270,7 +268,7 @@ nsTableCellFrame::AppendFrames(ChildListID     aListID,
 }
 
 NS_IMETHODIMP
-nsTableCellFrame::InsertFrames(ChildListID     aListID,
+nsTableCellFrame::InsertFrames(nsIAtom*        aListName,
                                nsIFrame*       aPrevFrame,
                                nsFrameList&    aFrameList)
 {
@@ -279,7 +277,7 @@ nsTableCellFrame::InsertFrames(ChildListID     aListID,
 }
 
 NS_IMETHODIMP
-nsTableCellFrame::RemoveFrame(ChildListID     aListID,
+nsTableCellFrame::RemoveFrame(nsIAtom*        aListName,
                               nsIFrame*       aOldFrame)
 {
   NS_PRECONDITION(PR_FALSE, "unsupported operation");
@@ -330,8 +328,9 @@ nsTableCellFrame::DecorateForSelection(nsRenderingContext& aRenderingContext,
         bordercolor = NS_RGB(176,176,176);// disabled color
       }
       else {
-        bordercolor =
-          LookAndFeel::GetColor(LookAndFeel::eColorID_TextSelectBackground);
+        presContext->LookAndFeel()->
+          GetColor(nsILookAndFeel::eColor_TextSelectBackground,
+                   bordercolor);
       }
       nscoord threePx = nsPresContext::CSSPixelsToAppUnits(3);
       if ((mRect.width > threePx) && (mRect.height > threePx))
@@ -649,7 +648,7 @@ nsTableCellFrame::CellHasVisibleContent(nscoord       height,
     return PR_TRUE;
   if (tableFrame->IsBorderCollapse())
     return PR_TRUE;
-  nsIFrame* innerFrame = kidFrame->GetFirstPrincipalChild();
+  nsIFrame* innerFrame = kidFrame->GetFirstChild(nsnull);
   while(innerFrame) {
     nsIAtom* frameType = innerFrame->GetType();
     if (nsGkAtoms::textFrame == frameType) {

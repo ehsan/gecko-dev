@@ -1589,8 +1589,8 @@ nsHalfOpenSocket::OnOutputStreamReady(nsIAsyncOutputStream *out)
         // minimum granularity we can expect a server to be timing out with.
         conn->SetIsReusedAfter(950);
 
-        nsRefPtr<nsHttpConnection> copy(conn);  // because onmsg*() expects to drop a reference
-        gHttpHandler->ConnMgr()->OnMsgReclaimConnection(NS_OK, conn.forget().get());
+        NS_ADDREF(conn);  // because onmsg*() expects to drop a reference
+        gHttpHandler->ConnMgr()->OnMsgReclaimConnection(NS_OK, conn);
     }
 
     return rv;

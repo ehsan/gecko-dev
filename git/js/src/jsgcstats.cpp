@@ -70,8 +70,8 @@ ConservativeGCStats::dump(FILE *fp)
     fprintf(fp, "      excluded, low bit set: %lu\n", ULSTAT(counter[CGCT_LOWBITSET]));
     fprintf(fp, "        not withing a chunk: %lu\n", ULSTAT(counter[CGCT_NOTCHUNK]));
     fprintf(fp, "     not within arena range: %lu\n", ULSTAT(counter[CGCT_NOTARENA]));
-    fprintf(fp, "     in another compartment: %lu\n", ULSTAT(counter[CGCT_OTHERCOMPARTMENT]));
     fprintf(fp, "       points to free arena: %lu\n", ULSTAT(counter[CGCT_FREEARENA]));
+    fprintf(fp, "        excluded, wrong tag: %lu\n", ULSTAT(counter[CGCT_WRONGTAG]));
     fprintf(fp, "         excluded, not live: %lu\n", ULSTAT(counter[CGCT_NOTLIVE]));
     fprintf(fp, "            valid GC things: %lu\n", ULSTAT(counter[CGCT_VALID]));
     fprintf(fp, "      valid but not aligned: %lu\n", ULSTAT(unaligned));
@@ -155,9 +155,16 @@ GCMarker::dumpConservativeRoots()
         fprintf(fp, "  %p: ", thing);
         
         switch (GetGCThingTraceKind(thing)) {
+          default:
+            JS_NOT_REACHED("Unknown trace kind");
+
           case JSTRACE_OBJECT: {
             JSObject *obj = (JSObject *) thing;
             fprintf(fp, "object %s", obj->getClass()->name);
+            break;
+          }
+          case JSTRACE_SHAPE: {
+            fprintf(fp, "shape");
             break;
           }
           case JSTRACE_STRING: {
@@ -169,18 +176,6 @@ GCMarker::dumpConservativeRoots()
             } else {
                 fprintf(fp, "rope: length %d", (int)str->length());
             }
-            break;
-          }
-          case JSTRACE_SCRIPT: {
-            fprintf(fp, "shape");
-            break;
-          }
-          case JSTRACE_SHAPE: {
-            fprintf(fp, "shape");
-            break;
-          }
-          case JSTRACE_TYPE_OBJECT: {
-            fprintf(fp, "type_object");
             break;
           }
 # if JS_HAS_XML_SUPPORT
@@ -204,7 +199,7 @@ GCMarker::dumpConservativeRoots()
 
 volatile GCTimer::JSGCReason gcReason = GCTimer::NOREASON;
 const char *gcReasons[] = {"  API", "Maybe", "LastC", "DestC", "Compa", "LastD",
-                           "Malloc", "Refill", "Chunk", "Shape", "  None"};
+                          "Malloc", "Alloc", "Chunk", "Shape", "  None"};
 
 jsrefcount newChunkCount = 0;
 jsrefcount destroyChunkCount = 0;
@@ -263,8 +258,7 @@ GCTimer::finish(bool lastGC)
         double sweepTime = TIMEDIFF(startSweep, sweepDestroyEnd);
         double sweepObjTime = TIMEDIFF(startSweep, sweepObjectEnd);
         double sweepStringTime = TIMEDIFF(sweepObjectEnd, sweepStringEnd);
-        double sweepScriptTime = TIMEDIFF(sweepStringEnd, sweepScriptEnd);
-        double sweepShapeTime = TIMEDIFF(sweepScriptEnd, sweepShapeEnd);
+        double sweepShapeTime = TIMEDIFF(sweepStringEnd, sweepShapeEnd);
         double destroyTime = TIMEDIFF(sweepShapeEnd, sweepDestroyEnd);
         double endTime = TIMEDIFF(sweepDestroyEnd, end);
 
@@ -281,7 +275,6 @@ GCTimer::finish(bool lastGC)
         info.sweepTime = sweepTime;
         info.sweepObjTime = sweepObjTime;
         info.sweepStringTime = sweepStringTime;
-        info.sweepScriptTime = sweepScriptTime;
         info.sweepShapeTime = sweepShapeTime;
         info.destroyTime = destroyTime;
         info.endTime = endTime;
@@ -304,7 +297,7 @@ GCTimer::finish(bool lastGC)
                 JS_ASSERT(gcFile);
                 fullFormat = true;
                 fprintf(gcFile, "     AppTime,  Total,   Wait,   Mark,  Sweep, FinObj,"
-                        " FinStr, SwScripts, SwShapes, Destroy,    End, +Chu, -Chu, T, Reason\n");
+                        " FinStr, SwShapes, Destroy,    End, +Chu, -Chu, T, Reason\n");
             }
         }
 
@@ -314,10 +307,10 @@ GCTimer::finish(bool lastGC)
                     TIMEDIFF(startMark, startSweep),
                     TIMEDIFF(startSweep, sweepDestroyEnd));
         } else {
-            /*               App   , Tot  , Wai  , Mar  , Swe  , FiO  , FiS  , SwScr , SwS  , Des   , End */
-            fprintf(gcFile, "%12.0f, %6.1f, %6.1f, %6.1f, %6.1f, %6.1f, %6.1f, %6.1f, %8.1f,  %6.1f, %6.1f, ",
+            /*               App   , Tot  , Wai  , Mar  , Swe  , FiO  , FiS  , SwS  , Des   , End */
+            fprintf(gcFile, "%12.0f, %6.1f, %6.1f, %6.1f, %6.1f, %6.1f, %6.1f, %8.1f,  %6.1f, %6.1f, ",
                     appTime, gcTime, waitTime, markTime, sweepTime, sweepObjTime, sweepStringTime,
-                    sweepScriptTime, sweepShapeTime, destroyTime, endTime);
+                    sweepShapeTime, destroyTime, endTime);
             fprintf(gcFile, "%4d, %4d,", newChunkCount, destroyChunkCount);
             fprintf(gcFile, " %s, %s\n", isCompartmental ? "C" : "G", gcReasons[gcReason]);
         }

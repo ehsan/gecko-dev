@@ -105,17 +105,6 @@ public: /* internal -- HPUX compiler can't handle this being private */
         URLSegment() : mPos(0), mLen(-1) {}
         URLSegment(PRUint32 pos, PRInt32 len) : mPos(pos), mLen(len) {}
         void Reset() { mPos = 0; mLen = -1; }
-        // Merge another segment following this one to it if they're contiguous
-        // Assumes we have something like "foo;bar" where this object is 'foo' and right
-        // is 'bar'.
-        void Merge(const nsCString &spec, const char separator, const URLSegment &right) {
-            if (mLen >= 0 && 
-                *(spec.get() + mPos + mLen) == separator &&
-                mPos + mLen + 1 == right.mPos) {
-                mLen += 1 + right.mLen;
-            }
-        }
-            
     };
 
     //
@@ -214,7 +203,7 @@ private:
     nsresult ParseURL(const char *spec, PRInt32 specLen);
     nsresult ParsePath(const char *spec, PRUint32 pathPos, PRInt32 pathLen = -1);
 
-    char    *AppendToSubstring(PRUint32 pos, PRInt32 len, const char *tail);
+    char    *AppendToSubstring(PRUint32 pos, PRInt32 len, const char *tail, PRInt32 tailLen = -1);
 
     // dependent substring helpers
     const nsDependentCSubstring Segment(PRUint32 pos, PRInt32 len); // see below
@@ -234,6 +223,7 @@ private:
     const nsDependentCSubstring Filename(); // see below
     const nsDependentCSubstring Basename()  { return Segment(mBasename); }
     const nsDependentCSubstring Extension() { return Segment(mExtension); }
+    const nsDependentCSubstring Param()     { return Segment(mParam); }
     const nsDependentCSubstring Query()     { return Segment(mQuery); }
     const nsDependentCSubstring Ref()       { return Segment(mRef); }
 
@@ -246,7 +236,8 @@ private:
     void ShiftFromFilepath(PRInt32 diff)  { mFilepath.mPos += diff; ShiftFromDirectory(diff); }
     void ShiftFromDirectory(PRInt32 diff) { mDirectory.mPos += diff; ShiftFromBasename(diff); }
     void ShiftFromBasename(PRInt32 diff)  { mBasename.mPos += diff; ShiftFromExtension(diff); }
-    void ShiftFromExtension(PRInt32 diff) { mExtension.mPos += diff; ShiftFromQuery(diff); }
+    void ShiftFromExtension(PRInt32 diff) { mExtension.mPos += diff; ShiftFromParam(diff); }
+    void ShiftFromParam(PRInt32 diff)     { mParam.mPos += diff; ShiftFromQuery(diff); }
     void ShiftFromQuery(PRInt32 diff)     { mQuery.mPos += diff; ShiftFromRef(diff); }
     void ShiftFromRef(PRInt32 diff)       { mRef.mPos += diff; }
 
@@ -276,6 +267,7 @@ private:
     URLSegment mDirectory;
     URLSegment mBasename;
     URLSegment mExtension;
+    URLSegment mParam;
     URLSegment mQuery;
     URLSegment mRef;
 
@@ -349,7 +341,7 @@ nsStandardURL::Prepath()
 }
 
 inline const nsDependentCSubstring
-nsStandardURL::Userpass(PRBool includeDelim)
+nsStandardURL::Userpass(int includeDelim)
 {
     PRUint32 pos=0, len=0;
     // if there is no username, then there can be no password

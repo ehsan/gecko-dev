@@ -247,7 +247,6 @@ protected:
   nsCOMPtr<nsIDOMHTMLCollection> mEmbeds;
   nsCOMPtr<nsIDOMHTMLCollection> mLinks;
   nsCOMPtr<nsIDOMHTMLCollection> mAnchors;
-  nsCOMPtr<nsIDOMHTMLCollection> mScripts;
   nsRefPtr<nsContentList> mForms;
   nsRefPtr<nsContentList> mFormControls;
 

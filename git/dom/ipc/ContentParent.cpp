@@ -44,7 +44,6 @@
 #include "History.h"
 #include "mozilla/ipc/TestShellParent.h"
 #include "mozilla/net/NeckoParent.h"
-#include "mozilla/Preferences.h"
 #include "nsHashPropertyBag.h"
 #include "nsIFilePicker.h"
 #include "nsIWindowWatcher.h"
@@ -96,7 +95,6 @@
 #include "mozilla/Services.h"
 #include "mozilla/unused.h"
 #include "nsDeviceMotion.h"
-#include "mozilla/Util.h"
 
 #include "nsIMemoryReporter.h"
 #include "nsMemoryReporterManager.h"
@@ -113,7 +111,6 @@
 static NS_DEFINE_CID(kCClipboardCID, NS_CLIPBOARD_CID);
 static const char* sClipboardTextFlavors[] = { kUnicodeMime };
 
-using mozilla::Preferences;
 using namespace mozilla::ipc;
 using namespace mozilla::net;
 using namespace mozilla::places;
@@ -157,39 +154,21 @@ MemoryReportRequestParent::~MemoryReportRequestParent()
     MOZ_COUNT_DTOR(MemoryReportRequestParent);
 }
 
-nsTArray<ContentParent*>* ContentParent::gContentParents;
+ContentParent* ContentParent::gSingleton;
 
 ContentParent*
-ContentParent::GetNewOrUsed()
+ContentParent::GetSingleton(PRBool aForceNew)
 {
-    if (!gContentParents)
-        gContentParents = new nsTArray<ContentParent*>();
-
-    PRInt32 maxContentProcesses = Preferences::GetInt("dom.ipc.processCount", 1);
-    if (maxContentProcesses < 1)
-        maxContentProcesses = 1;
-
-    if (gContentParents->Length() >= PRUint32(maxContentProcesses)) {
-        ContentParent* p = (*gContentParents)[rand() % gContentParents->Length()];
-        NS_ASSERTION(p->IsAlive(), "Non-alive contentparent in gContentParents?");
-        return p;
-    }
-        
-    nsRefPtr<ContentParent> p = new ContentParent();
-    p->Init();
-    gContentParents->AppendElement(p);
-    return p;
-}
-
-void
-ContentParent::GetAll(nsTArray<ContentParent*>& aArray)
-{
-    if (!gContentParents) {
-        aArray.Clear();
-        return;
+    if (gSingleton && !gSingleton->IsAlive())
+        gSingleton = nsnull;
+    
+    if (!gSingleton && aForceNew) {
+        nsRefPtr<ContentParent> parent = new ContentParent();
+        gSingleton = parent;
+        parent->Init();
     }
 
-    aArray = *gContentParents;
+    return gSingleton;
 }
 
 void
@@ -201,8 +180,6 @@ ContentParent::Init()
         obs->AddObserver(this, NS_IPC_IOSERVICE_SET_OFFLINE_TOPIC, PR_FALSE);
         obs->AddObserver(this, "child-memory-reporter-request", PR_FALSE);
         obs->AddObserver(this, "memory-pressure", PR_FALSE);
-        obs->AddObserver(this, "child-gc-request", PR_FALSE);
-        obs->AddObserver(this, "child-cc-request", PR_FALSE);
 #ifdef ACCESSIBILITY
         obs->AddObserver(this, "a11y-init-or-shutdown", PR_FALSE);
 #endif
@@ -218,14 +195,14 @@ ContentParent::Init()
         threadInt->SetObserver(this);
     }
     if (obs) {
-        obs->NotifyObservers(static_cast<nsIObserver*>(this), "ipc:content-created", nsnull);
+        obs->NotifyObservers(nsnull, "ipc:content-created", nsnull);
     }
 
 #ifdef ACCESSIBILITY
     // If accessibility is running in chrome process then start it in content
     // process.
     if (nsIPresShell::IsAccessibilityActive()) {
-        unused << SendActivateA11y();
+        SendActivateA11y();
     }
 #endif
 }
@@ -272,7 +249,6 @@ ContentParent::OnChannelConnected(int32 pid)
 }
 
 namespace {
-
 void
 DelayedDeleteSubprocess(GeckoChildProcessHost* aSubprocess)
 {
@@ -280,20 +256,6 @@ DelayedDeleteSubprocess(GeckoChildProcessHost* aSubprocess)
         ->PostTask(FROM_HERE,
                    new DeleteTask<GeckoChildProcessHost>(aSubprocess));
 }
-
-// This runnable only exists to delegate ownership of the
-// ContentParent to this runnable, until it's deleted by the event
-// system.
-struct DelayedDeleteContentParentTask : public nsRunnable
-{
-    DelayedDeleteContentParentTask(ContentParent* aObj) : mObj(aObj) { }
-
-    // No-op
-    NS_IMETHODIMP Run() { return NS_OK; }
-
-    nsRefPtr<ContentParent> mObj;
-};
-
 }
 
 void
@@ -307,14 +269,10 @@ ContentParent::ActorDestroy(ActorDestroyReason why)
         obs->RemoveObserver(static_cast<nsIObserver*>(this), "memory-pressure");
         obs->RemoveObserver(static_cast<nsIObserver*>(this), "child-memory-reporter-request");
         obs->RemoveObserver(static_cast<nsIObserver*>(this), NS_IPC_IOSERVICE_SET_OFFLINE_TOPIC);
-        obs->RemoveObserver(static_cast<nsIObserver*>(this), "child-gc-request");
-        obs->RemoveObserver(static_cast<nsIObserver*>(this), "child-cc-request");
 #ifdef ACCESSIBILITY
         obs->RemoveObserver(static_cast<nsIObserver*>(this), "a11y-init-or-shutdown");
 #endif
     }
-
-    mMessageManager->Disconnect();
 
     // clear the child memory reporters
     InfallibleTArray<MemoryReport> empty;
@@ -336,14 +294,6 @@ ContentParent::ActorDestroy(ActorDestroyReason why)
         threadInt->SetObserver(mOldObserver);
     if (mRunToCompletionDepth)
         mRunToCompletionDepth = 0;
-
-    if (gContentParents) {
-        gContentParents->RemoveElement(this);
-        if (!gContentParents->Length()) {
-            delete gContentParents;
-            gContentParents = NULL;
-        }
-    }
 
     mIsAlive = false;
 
@@ -369,7 +319,7 @@ ContentParent::ActorDestroy(ActorDestroyReason why)
                 notes.Put(NS_LITERAL_CSTRING("ProcessType"), NS_LITERAL_CSTRING("content"));
 
                 char startTime[32];
-                sprintf(startTime, "%lld", static_cast<long long>(mProcessStartTime));
+                sprintf(startTime, "%lld", static_cast<PRInt64>(mProcessStartTime));
                 notes.Put(NS_LITERAL_CSTRING("StartupTime"),
                           nsDependentCString(startTime));
 
@@ -386,15 +336,6 @@ ContentParent::ActorDestroy(ActorDestroyReason why)
         PostTask(FROM_HERE,
                  NewRunnableFunction(DelayedDeleteSubprocess, mSubprocess));
     mSubprocess = NULL;
-
-    // IPDL rules require actors to live on past ActorDestroy, but it
-    // may be that the kungFuDeathGrip above is the last reference to
-    // |this|.  If so, when we go out of scope here, we're deleted and
-    // all hell breaks loose.
-    //
-    // This runnable ensures that a reference to |this| lives on at
-    // least until after the current task finishes running.
-    NS_DispatchToCurrentThread(new DelayedDeleteContentParentTask(this));
 }
 
 TabParent*
@@ -421,7 +362,6 @@ ContentParent::ContentParent()
     , mShouldCallUnblockChild(false)
     , mIsAlive(true)
     , mProcessStartTime(time(NULL))
-    , mSendPermissionUpdates(false)
 {
     NS_ASSERTION(NS_IsMainThread(), "Wrong thread!");
     mSubprocess = new GeckoChildProcessHost(GeckoProcessType_Content);
@@ -432,7 +372,6 @@ ContentParent::ContentParent()
     nsChromeRegistryChrome* chromeRegistry =
         static_cast<nsChromeRegistryChrome*>(registrySvc.get());
     chromeRegistry->SendRegisteredChrome(this);
-    mMessageManager = nsFrameMessageManager::NewProcessMessageManager(this);
 }
 
 ContentParent::~ContentParent()
@@ -441,8 +380,10 @@ ContentParent::~ContentParent()
         base::CloseProcessHandle(OtherProcess());
 
     NS_ASSERTION(NS_IsMainThread(), "Wrong thread!");
-    NS_ASSERTION(!gContentParents || !gContentParents->Contains(this),
-                 "Should have been removed in ActorDestroy");
+    //If the previous content process has died, a new one could have
+    //been started since.
+    if (gSingleton == this)
+        gSingleton = nsnull;
 }
 
 bool
@@ -484,15 +425,13 @@ bool
 ContentParent::RecvReadPermissions(InfallibleTArray<IPC::Permission>* aPermissions)
 {
 #ifdef MOZ_PERMISSIONS
-    nsCOMPtr<nsIPermissionManager> permissionManagerIface =
-        do_GetService(NS_PERMISSIONMANAGER_CONTRACTID);
-    nsPermissionManager* permissionManager =
-        static_cast<nsPermissionManager*>(permissionManagerIface.get());
+    nsRefPtr<nsPermissionManager> permissionManager =
+        nsPermissionManager::GetSingleton();
     NS_ABORT_IF_FALSE(permissionManager,
                  "We have no permissionManager in the Chrome process !");
 
     nsCOMPtr<nsISimpleEnumerator> enumerator;
-    DebugOnly<nsresult> rv = permissionManager->GetEnumerator(getter_AddRefs(enumerator));
+    nsresult rv = permissionManager->GetEnumerator(getter_AddRefs(enumerator));
     NS_ABORT_IF_FALSE(NS_SUCCEEDED(rv), "Could not get enumerator!");
     while(1) {
         PRBool hasMore;
@@ -520,7 +459,7 @@ ContentParent::RecvReadPermissions(InfallibleTArray<IPC::Permission>* aPermissio
     }
 
     // Ask for future changes
-    mSendPermissionUpdates = true;
+    permissionManager->ChildRequestPermissions();
 #endif
 
     return true;
@@ -752,20 +691,14 @@ ContentParent::Observe(nsISupports* aSubject,
             return NS_ERROR_NOT_AVAILABLE;
     }
     else if (!strcmp(aTopic, "child-memory-reporter-request")) {
-        unused << SendPMemoryReportRequestConstructor();
-    }
-    else if (!strcmp(aTopic, "child-gc-request")){
-        SendGarbageCollect();
-    }
-    else if (!strcmp(aTopic, "child-cc-request")){
-        SendCycleCollect();
+        SendPMemoryReportRequestConstructor();
     }
 #ifdef ACCESSIBILITY
     // Make sure accessibility is running in content process when accessibility
     // gets initiated in chrome process.
     else if (aData && (*aData == '1') &&
              !strcmp(aTopic, "a11y-init-or-shutdown")) {
-        unused << SendActivateA11y();
+        SendActivateA11y();
     }
 #endif
 
@@ -1150,7 +1083,7 @@ bool
 ContentParent::RecvSyncMessage(const nsString& aMsg, const nsString& aJSON,
                                InfallibleTArray<nsString>* aRetvals)
 {
-  nsRefPtr<nsFrameMessageManager> ppm = mMessageManager;
+  nsRefPtr<nsFrameMessageManager> ppm = nsFrameMessageManager::sParentProcessManager;
   if (ppm) {
     ppm->ReceiveMessage(static_cast<nsIContentFrameMessageManager*>(ppm.get()),
                         aMsg,PR_TRUE, aJSON, nsnull, aRetvals);
@@ -1161,7 +1094,7 @@ ContentParent::RecvSyncMessage(const nsString& aMsg, const nsString& aJSON,
 bool
 ContentParent::RecvAsyncMessage(const nsString& aMsg, const nsString& aJSON)
 {
-  nsRefPtr<nsFrameMessageManager> ppm = mMessageManager;
+  nsRefPtr<nsFrameMessageManager> ppm = nsFrameMessageManager::sParentProcessManager;
   if (ppm) {
     ppm->ReceiveMessage(static_cast<nsIContentFrameMessageManager*>(ppm.get()),
                         aMsg, PR_FALSE, aJSON, nsnull, nsnull);

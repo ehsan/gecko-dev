@@ -59,6 +59,8 @@
 #include "EditTxn.h"
 #include "nsEditProperty.h"
 #include "nsUnicharUtils.h"
+#include "nsILookAndFeel.h"
+#include "nsWidgetsCID.h"
 #include "DeleteTextTxn.h"
 #include "nsNodeIterator.h"
 #include "nsIDOMNodeFilter.h"
@@ -67,9 +69,10 @@
 #include "nsFrameSelection.h"
 
 #include "mozilla/Preferences.h"
-#include "mozilla/LookAndFeel.h"
 
 using namespace mozilla;
+
+static NS_DEFINE_CID(kLookAndFeelCID, NS_LOOKANDFEEL_CID);
 
 #define CANCEL_OPERATION_IF_READONLY_OR_DISABLED \
   if (IsReadonly() || IsDisabled()) \
@@ -679,7 +682,8 @@ nsTextEditRules::WillInsertText(PRInt32          aAction,
     // manage the password buffer
     mPasswordText.Insert(*outString, start);
 
-    if (LookAndFeel::GetEchoPassword() && !DontEchoPassword()) {
+    nsCOMPtr<nsILookAndFeel> lookAndFeel = do_GetService(kLookAndFeelCID);
+    if (lookAndFeel->GetEchoPassword() && !DontEchoPassword()) {
       HideLastPWInput();
       mLastStart = start;
       mLastLength = outString->Length();
@@ -828,8 +832,9 @@ nsTextEditRules::WillDeleteSelection(nsISelection *aSelection,
     PRUint32 start, end;
     mEditor->GetTextSelectionOffsets(aSelection, start, end);
     NS_ENSURE_SUCCESS(res, res);
+    nsCOMPtr<nsILookAndFeel> lookAndFeel = do_GetService(kLookAndFeelCID);
 
-    if (LookAndFeel::GetEchoPassword()) {
+    if (lookAndFeel->GetEchoPassword()) {
       HideLastPWInput();
       mLastStart = start;
       mLastLength = 0;
@@ -938,7 +943,7 @@ nsTextEditRules::WillUndo(nsISelection *aSelection, PRBool *aCancel, PRBool *aHa
  * Since undo and redo are relatively rare, it makes sense to take the (small) performance hit here.
  */
 nsresult
-nsTextEditRules::DidUndo(nsISelection *aSelection, nsresult aResult)
+nsTextEditRules:: DidUndo(nsISelection *aSelection, nsresult aResult)
 {
   nsresult res = aResult;  // if aResult is an error, we return it.
   if (!aSelection) { return NS_ERROR_NULL_POINTER; }
@@ -1333,7 +1338,12 @@ nsTextEditRules::FillBufWithPWChars(nsAString *aOutString, PRInt32 aLength)
   if (!aOutString) {return NS_ERROR_NULL_POINTER;}
 
   // change the output to the platform password character
-  PRUnichar passwordChar = LookAndFeel::GetPasswordCharacter();
+  PRUnichar passwordChar = PRUnichar('*');
+  nsCOMPtr<nsILookAndFeel> lookAndFeel = do_GetService(kLookAndFeelCID);
+  if (lookAndFeel)
+  {
+    passwordChar = lookAndFeel->GetPasswordCharacter();
+  }
 
   PRInt32 i;
   aOutString->Truncate();

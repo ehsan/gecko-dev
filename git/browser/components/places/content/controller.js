@@ -39,8 +39,6 @@
  * ***** END LICENSE BLOCK ***** */
 
 Components.utils.import("resource://gre/modules/XPCOMUtils.jsm");
-XPCOMUtils.defineLazyModuleGetter(this, "NetUtil",
-                                  "resource://gre/modules/NetUtil.jsm");
 
 // XXXmano: we should move most/all of these constants to PlacesUtils
 const ORGANIZER_ROOT_BOOKMARKS = "place:folder=BOOKMARKS_MENU&excludeItems=1&queryType=1";
@@ -56,9 +54,16 @@ const RELOAD_ACTION_REMOVE = 2;
 // rows.
 const RELOAD_ACTION_MOVE = 3;
 
-// When removing a bunch of pages we split them in chunks to give some breath
-// to the main-thread.
+// when removing a bunch of pages we split them in chunks to avoid passing
+// a too big array to RemovePages
+// 300 is the best choice with an history of about 150000 visits
+// smaller chunks could cause a Slow Script warning with a huge history
 const REMOVE_PAGES_CHUNKLEN = 300;
+// if we are removing less than this pages we will remove them one by one
+// since it will be reflected faster on the UI
+// 10 is a good compromise, since allows the user to delete a little amount of
+// urls for privacy reasons, but does not cause heavy disk access
+const REMOVE_PAGES_MAX_SINGLEREMOVES = 10;
 
 /**
  * Represents an insertion point within a container where we can insert
@@ -264,7 +269,7 @@ PlacesController.prototype = {
         host = queries[0].domain;
       }
       else
-        host = NetUtil.newURI(this._view.selectedNode.uri).host;
+        host = PlacesUtils._uri(this._view.selectedNode.uri).host;
       PlacesUIUtils.privateBrowsing.removeDataFromDomain(host);
       break;
     case "cmd_selectAll":
@@ -311,7 +316,7 @@ PlacesController.prototype = {
                                                      , "keyword"
                                                      , "location"
                                                      , "loadInSidebar" ]
-                                       , uri: NetUtil.newURI(node.uri)
+                                       , uri: PlacesUtils._uri(node.uri)
                                        , title: node.title
                                        }, window.top, true);
       break;
@@ -505,7 +510,7 @@ PlacesController.prototype = {
         case Ci.nsINavHistoryResultNode.RESULT_TYPE_VISIT:
         case Ci.nsINavHistoryResultNode.RESULT_TYPE_FULL_VISIT:
           nodeData["link"] = true;
-          uri = NetUtil.newURI(node.uri);
+          uri = PlacesUtils._uri(node.uri);
           if (PlacesUtils.nodeIsBookmark(node)) {
             nodeData["bookmark"] = true;
             PlacesUtils.nodeIsTagQuery(node.parent)
@@ -882,7 +887,7 @@ PlacesController.prototype = {
         // This is a uri node inside a tag container.  It needs a special
         // untag transaction.
         var tagItemId = PlacesUtils.getConcreteItemId(node.parent);
-        var uri = NetUtil.newURI(node.uri);
+        var uri = PlacesUtils._uri(node.uri);
         transactions.push(PlacesUIUtils.ptm.untagURI(uri, [tagItemId]));
       }
       else if (PlacesUtils.nodeIsTagQuery(node) && node.parent &&
@@ -903,7 +908,8 @@ PlacesController.prototype = {
                PlacesUtils.asQuery(node.parent).queryOptions.queryType ==
                  Ci.nsINavHistoryQueryOptions.QUERY_TYPE_HISTORY) {
         // This is a uri node inside an history query.
-        PlacesUtils.bhistory.removePage(NetUtil.newURI(node.uri));
+        var bhist = PlacesUtils.history.QueryInterface(Ci.nsIBrowserHistory);
+        bhist.removePage(PlacesUtils._uri(node.uri));
         // History deletes are not undoable, so we don't have a transaction.
       }
       else if (node.itemId == -1 &&
@@ -949,69 +955,73 @@ PlacesController.prototype = {
 
   /**
    * Removes the set of selected ranges from history.
-   *
-   * @note history deletes are not undoable.
    */
   _removeRowsFromHistory: function PC__removeRowsFromHistory() {
-    let nodes = this._view.selectedNodes;
-    let URIs = [];
-    for (let i = 0; i < nodes.length; ++i) {
-      let node = nodes[i];
+    // Other containers are history queries, just delete from history
+    // history deletes are not undoable.
+    var nodes = this._view.selectedNodes;
+    var URIs = [];
+    var bhist = PlacesUtils.history.QueryInterface(Ci.nsIBrowserHistory);
+    var root = this._view.result.root;
+
+    for (var i = 0; i < nodes.length; ++i) {
+      var node = nodes[i];
       if (PlacesUtils.nodeIsURI(node)) {
-        let uri = NetUtil.newURI(node.uri);
-        // Avoid duplicates.
+        var uri = PlacesUtils._uri(node.uri);
+        // avoid trying to delete the same url twice
         if (URIs.indexOf(uri) < 0) {
           URIs.push(uri);
         }
       }
       else if (PlacesUtils.nodeIsQuery(node) &&
                PlacesUtils.asQuery(node).queryOptions.queryType ==
-                 Ci.nsINavHistoryQueryOptions.QUERY_TYPE_HISTORY) {
+                 Ci.nsINavHistoryQueryOptions.QUERY_TYPE_HISTORY)
         this._removeHistoryContainer(node);
-      }
     }
 
-    // Do removal in chunks to give some breath to main-thread.
-    function pagesChunkGenerator(aURIs) {
-      while (aURIs.length) {
-        let URIslice = aURIs.splice(0, REMOVE_PAGES_CHUNKLEN);
-        PlacesUtils.bhistory.removePages(URIslice, URIslice.length);
-        Services.tm.mainThread.dispatch(function() {
-          try {
-            gen.next();
-          } catch (ex if ex instanceof StopIteration) {}
-        }, Ci.nsIThread.DISPATCH_NORMAL); 
-        yield;
+    // if we have to delete a lot of urls RemovePage will be slow, it's better
+    // to delete them in bunch and rebuild the full treeView
+    if (URIs.length > REMOVE_PAGES_MAX_SINGLEREMOVES) {
+      // do removal in chunks to avoid passing a too big array to removePages
+      for (var i = 0; i < URIs.length; i += REMOVE_PAGES_CHUNKLEN) {
+        var URIslice = URIs.slice(i, i + REMOVE_PAGES_CHUNKLEN);
+        // set DoBatchNotify (third param) only on the last chunk, so we update
+        // the treeView when we are done.
+        bhist.removePages(URIslice, URIslice.length,
+                          (i + REMOVE_PAGES_CHUNKLEN) >= URIs.length);
       }
     }
-    let gen = pagesChunkGenerator(URIs);
-    gen.next();
+    else {
+      // if we have to delete fewer urls, removepage will allow us to avoid
+      // rebuilding the full treeView
+      for (var i = 0; i < URIs.length; ++i)
+        bhist.removePage(URIs[i]);
+    }
   },
 
   /**
    * Removes history visits for an history container node.
    * @param   [in] aContainerNode
    *          The container node to remove.
-   *
-   * @note history deletes are not undoable.
    */
-  _removeHistoryContainer: function PC__removeHistoryContainer(aContainerNode) {
+  _removeHistoryContainer: function PC_removeHistoryContainer(aContainerNode) {
+    var bhist = PlacesUtils.history.QueryInterface(Ci.nsIBrowserHistory);
     if (PlacesUtils.nodeIsHost(aContainerNode)) {
       // Site container.
-      PlacesUtils.bhistory.removePagesFromHost(aContainerNode.title, true);
+      bhist.removePagesFromHost(aContainerNode.title, true);
     }
     else if (PlacesUtils.nodeIsDay(aContainerNode)) {
       // Day container.
-      let query = aContainerNode.getQueries()[0];
-      let beginTime = query.beginTime;
-      let endTime = query.endTime;
+      var query = aContainerNode.getQueries()[0];
+      var beginTime = query.beginTime;
+      var endTime = query.endTime;
       NS_ASSERT(query && beginTime && endTime,
                 "A valid date container query should exist!");
       // We want to exclude beginTime from the removal because
       // removePagesByTimeframe includes both extremes, while date containers
       // exclude the lower extreme.  So, if we would not exclude it, we would
       // end up removing more history than requested.
-      PlacesUtils.bhistory.removePagesByTimeframe(beginTime + 1, endTime);
+      bhist.removePagesByTimeframe(beginTime+1, endTime);
     }
   },
 
@@ -1289,7 +1299,7 @@ PlacesController.prototype = {
         // Pasting into a tag container means tagging the item, regardless of
         // the requested action.
         transactions.push(
-          new PlacesTagURITransaction(NetUtil.newURI(items[i].uri),
+          new PlacesTagURITransaction(PlacesUtils._uri(items[i].uri),
                                       [ip.itemId])
         );
         continue;
@@ -1366,23 +1376,15 @@ let PlacesControllerDragHelper = {
   },
 
   /**
-   * Extract the first accepted flavor from a list of flavors.
+   * Extract the first accepted flavor from a flavors array.
    * @param aFlavors
-   *        The flavors list of type nsIDOMDOMStringList.
+   *        The flavors array.
    */
   getFirstValidFlavor: function PCDH_getFirstValidFlavor(aFlavors) {
     for (let i = 0; i < aFlavors.length; i++) {
       if (this.GENERIC_VIEW_DROP_TYPES.indexOf(aFlavors[i]) != -1)
         return aFlavors[i];
     }
-
-    // If no supported flavor is found, check if data includes text/plain 
-    // contents.  If so, request them as text/unicode, a conversion will happen 
-    // automatically.
-    if (aFlavors.contains("text/plain")) {
-        return PlacesUtils.TYPE_UNICODE;
-    }
-
     return null;
   },
 
@@ -1556,7 +1558,7 @@ let PlacesControllerDragHelper = {
       // If dragging over a tag container we should tag the item.
       if (insertionPoint.isTag &&
           insertionPoint.orientation == Ci.nsITreeView.DROP_ON) {
-        let uri = NetUtil.newURI(unwrapped.uri);
+        let uri = PlacesUtils._uri(unwrapped.uri);
         let tagItemId = insertionPoint.itemId;
         transactions.push(PlacesUIUtils.ptm.tagURI(uri,[tagItemId]));
       }

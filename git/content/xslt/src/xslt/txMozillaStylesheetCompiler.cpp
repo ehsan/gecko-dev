@@ -62,7 +62,7 @@
 #include "nsMimeTypes.h"
 #include "nsNetUtil.h"
 #include "nsParserCIID.h"
-#include "nsGkAtoms.h"
+#include "txAtoms.h"
 #include "txLog.h"
 #include "txMozillaXSLTProcessor.h"
 #include "txStylesheetCompiler.h"
@@ -498,7 +498,7 @@ txCompileObserver::startLoad(nsIURI* aUri, txStylesheetCompiler* aCompiler,
     nsCOMPtr<nsIHttpChannel> httpChannel(do_QueryInterface(channel));
     if (httpChannel) {
         httpChannel->SetRequestHeader(NS_LITERAL_CSTRING("Accept"),
-                                      NS_LITERAL_CSTRING("*/*"),
+                                      NS_LITERAL_CSTRING("text/xml,application/xml,application/xhtml+xml,application/xslt+xml,*/*;q=0.1"),
                                       PR_FALSE);
 
         nsCOMPtr<nsIURI> referrerURI;
@@ -604,12 +604,14 @@ handleNode(nsINode* aNode, txStylesheetCompiler* aCompiler)
         // explicitly destroy the attrs here since we no longer need it
         atts = nsnull;
 
-        for (nsIContent* child = element->GetFirstChild();
-             child;
-             child = child->GetNextSibling()) {
-             
-            rv = handleNode(child, aCompiler);
-            NS_ENSURE_SUCCESS(rv, rv);
+        PRUint32 childCount = element->GetChildCount();
+        if (childCount > 0) {
+            PRUint32 counter = 0;
+            nsIContent *child;
+            while ((child = element->GetChildAt(counter++))) {
+                rv = handleNode(child, aCompiler);
+                NS_ENSURE_SUCCESS(rv, rv);
+            }
         }
 
         rv = aCompiler->endElement();
@@ -622,10 +624,11 @@ handleNode(nsINode* aNode, txStylesheetCompiler* aCompiler)
         NS_ENSURE_SUCCESS(rv, rv);
     }
     else if (aNode->IsNodeOfType(nsINode::eDOCUMENT)) {
-        for (nsIContent* child = aNode->GetFirstChild();
-             child;
-             child = child->GetNextSibling()) {
-             
+        nsIDocument* document = static_cast<nsIDocument*>(aNode);
+
+        PRUint32 counter = 0;
+        nsIContent *child;
+        while ((child = document->GetChildAt(counter++))) {
             rv = handleNode(child, aCompiler);
             NS_ENSURE_SUCCESS(rv, rv);
         }

@@ -69,7 +69,6 @@ function TabItem(tab, options) {
   let $div = iQ(div);
 
   this._cachedImageData = null;
-  this._thumbnailNeedsSaving = false;
   this.canvasSizeForced = false;
   this.$thumb = iQ('.thumb', $div);
   this.$fav   = iQ('.favicon', $div);
@@ -81,22 +80,18 @@ function TabItem(tab, options) {
 
   this.tabCanvas = new TabCanvas(this.tab, this.$canvas[0]);
 
-  let self = this;
-
-  // when we paint onto the canvas make sure our thumbnail gets saved
-  this.tabCanvas.addSubscriber("painted", function () {
-    self._thumbnailNeedsSaving = true;
-  });
-
   this.defaultSize = new Point(TabItems.tabWidth, TabItems.tabHeight);
   this._hidden = false;
   this.isATabItem = true;
   this.keepProportional = true;
   this._hasBeenDrawn = false;
   this._reconnected = false;
-  this.isDragging = false;
   this.isStacked = false;
   this.url = "";
+
+  var self = this;
+
+  this.isDragging = false;
 
   // Read off the total vertical and horizontal padding on the tab container
   // and cache this value, as it must be the same for every TabItem.
@@ -199,14 +194,11 @@ TabItem.prototype = Utils.extend(new Item(), new Subscribable(), {
   //
   // Parameters:
   //   tabData - the tab data
-  //   imageData - the image data
-  showCachedData: function TabItem_showCachedData(tabData, imageData) {
-    this._cachedImageData = imageData;
+  showCachedData: function TabItem_showCachedData(tabData) {
+    this._cachedImageData = tabData.imageData;
     this.$cachedThumb.attr("src", this._cachedImageData).show();
-    this.$canvas.css({opacity: 0});
+    this.$canvas.css({opacity: 0.0});
     this.$tabTitle.text(tabData.title ? tabData.title : "");
-
-    this._sendToSubscribers("showingCachedData");
   },
 
   // ----------
@@ -222,116 +214,43 @@ TabItem.prototype = Utils.extend(new Item(), new Subscribable(), {
   // ----------
   // Function: getStorageData
   // Get data to be used for persistent storage of this object.
-  getStorageData: function TabItem_getStorageData() {
-    let data = {
+  //
+  // Parameters:
+  //   getImageData - true to include thumbnail pixels (and page title as well); default false
+  getStorageData: function TabItem_getStorageData(getImageData) {
+    let imageData = null;
+
+    if (getImageData) { 
+      if (this._cachedImageData)
+        imageData = this._cachedImageData;
+      else if (this.tabCanvas)
+        imageData = this.tabCanvas.toImageData();
+    }
+
+    return {
       url: this.tab.linkedBrowser.currentURI.spec,
       groupID: (this.parent ? this.parent.id : 0),
-      title: this.tab.label
+      imageData: imageData,
+      title: getImageData && this.tab.label || null
     };
-    if (this.parent && this.parent.getActiveTab() == this)
-      data.active = true;
-
-    return data;
   },
 
   // ----------
   // Function: save
   // Store persistent for this object.
-  save: function TabItem_save() {
-    try {
+  //
+  // Parameters:
+  //   saveImageData - true to include thumbnail pixels (and page title as well); default false
+  save: function TabItem_save(saveImageData) {
+    try{
       if (!this.tab || this.tab.parentNode == null || !this._reconnected) // too soon/late to save
         return;
 
-      let data = this.getStorageData();
+      var data = this.getStorageData(saveImageData);
       if (TabItems.storageSanity(data))
         Storage.saveTab(this.tab, data);
     } catch(e) {
       Utils.log("Error in saving tab value: "+e);
-    }
-  },
-
-  // ----------
-  // Function: loadThumbnail
-  // Loads the tabItems thumbnail.
-  loadThumbnail: function TabItem_loadThumbnail(tabData) {
-    Utils.assert(tabData, "invalid or missing argument <tabData>");
-
-    let self = this;
-
-    function TabItem_loadThumbnail_callback(error, imageData) {
-      // we could have been unlinked while waiting for the thumbnail to load
-      if (error || !imageData || !self.tab)
-        return;
-
-      self._sendToSubscribers("loadedCachedImageData");
-
-      // If we have a cached image, then show it if the loaded URL matches
-      // what the cache is from, OR the loaded URL is blank, which means
-      // that the page hasn't loaded yet.
-      let currentUrl = self.tab.linkedBrowser.currentURI.spec;
-      if (tabData.url == currentUrl || currentUrl == "about:blank")
-        self.showCachedData(tabData, imageData);
-    }
-
-    ThumbnailStorage.loadThumbnail(tabData.url, TabItem_loadThumbnail_callback);
-  },
-
-  // ----------
-  // Function: saveThumbnail
-  // Saves the tabItems thumbnail.
-  saveThumbnail: function TabItem_saveThumbnail(options) {
-    if (!this.tabCanvas)
-      return;
-
-    // nothing to do if the thumbnail hasn't changed
-    if (!this._thumbnailNeedsSaving)
-      return;
-
-    // check the storage policy to see if we're allowed to store the thumbnail
-    if (!StoragePolicy.canStoreThumbnailForTab(this.tab)) {
-      this._sendToSubscribers("deniedToSaveImageData");
-      return;
-    }
-
-    let url = this.tab.linkedBrowser.currentURI.spec;
-    let delayed = this._saveThumbnailDelayed;
-    let synchronously = (options && options.synchronously);
-
-    // is there a delayed save waiting?
-    if (delayed) {
-      // check if url has changed since last call to saveThumbnail
-      if (!synchronously && url == delayed.url)
-        return;
-
-      // url has changed in the meantime, clear the timeout
-      clearTimeout(delayed.timeout);
-    }
-
-    let self = this;
-
-    function callback(error) {
-      if (!error) {
-        self._thumbnailNeedsSaving = false;
-        self._sendToSubscribers("savedCachedImageData");
-      }
-    }
-
-    function doSaveThumbnail() {
-      self._saveThumbnailDelayed = null;
-
-      // we could have been unlinked in the meantime
-      if (!self.tabCanvas)
-        return;
-
-      let imageData = self.tabCanvas.toImageData();
-      ThumbnailStorage.saveThumbnail(url, imageData, callback, options);
-    }
-
-    if (synchronously) {
-      doSaveThumbnail();
-    } else {
-      let timeout = setTimeout(doSaveThumbnail, 2000);
-      this._saveThumbnailDelayed = {url: url, timeout: timeout};
     }
   },
 
@@ -343,13 +262,31 @@ TabItem.prototype = Utils.extend(new Item(), new Subscribable(), {
     Utils.assertThrow(!this._reconnected, "shouldn't already be reconnected");
     Utils.assertThrow(this.tab, "should have a xul:tab");
 
-    let tabData = Storage.getTabData(this.tab);
+    let tabData = null;
+    let self = this;
+    let imageDataCb = function(imageData) {
+      // we could have been unlinked while waiting for the thumbnail to load
+      if (!self.tab)
+        return;
 
+      Utils.assertThrow(tabData, "tabData");
+      tabData.imageData = imageData;
+
+      let currentUrl = self.tab.linkedBrowser.currentURI.spec;
+      // If we have a cached image, then show it if the loaded URL matches
+      // what the cache is from, OR the loaded URL is blank, which means
+      // that the page hasn't loaded yet.
+      if (tabData.imageData &&
+          (tabData.url == currentUrl || currentUrl == 'about:blank')) {
+        self.showCachedData(tabData);
+      }
+    };
+    // getTabData returns the sessionstore contents, but passes
+    // a callback to run when the thumbnail is finally loaded.
+    tabData = Storage.getTabData(this.tab, imageDataCb);
     if (tabData && TabItems.storageSanity(tabData)) {
-      this.loadThumbnail(tabData);
-
-      if (this.parent)
-        this.parent.remove(this, {immediately: true});
+      if (self.parent)
+        self.parent.remove(self, {immediately: true});
 
       let groupItem;
 
@@ -360,26 +297,22 @@ TabItem.prototype = Utils.extend(new Item(), new Subscribable(), {
       }
 
       if (groupItem) {
-        groupItem.add(this, {immediately: true});
-
-        // restore the active tab for each group between browser sessions
-        if (tabData.active)
-          groupItem.setActiveTab(this);
+        groupItem.add(self, {immediately: true});
 
         // if it matches the selected tab or no active tab and the browser
         // tab is hidden, the active group item would be set.
-        if (this.tab == gBrowser.selectedTab ||
-            (!GroupItems.getActiveGroupItem() && !this.tab.hidden))
-          UI.setActive(this.parent);
+        if (self.tab == gBrowser.selectedTab ||
+            (!GroupItems.getActiveGroupItem() && !self.tab.hidden))
+          UI.setActive(self.parent);
       }
     } else {
       // create tab group by double click is handled in UI_init().
-      GroupItems.newTab(this, {immediately: true});
+      GroupItems.newTab(self, {immediately: true});
     }
 
-    this._reconnected = true;
-    this.save();
-    this._sendToSubscribers("reconnected");
+    self._reconnected = true;
+    self.save();
+    self._sendToSubscribers("reconnected");
   },
 
   // ----------
@@ -545,22 +478,29 @@ TabItem.prototype = Utils.extend(new Item(), new Subscribable(), {
     // closing tab doesn't belong to a group and no empty group, create a new 
     // one for the new tab.
     if (!groupClose && gBrowser.tabs.length == 1) {
-      let group = this.tab._tabViewTabItem.parent;
+      let group;
+      if (this.tab._tabViewTabItem.parent) {
+        group = this.tab._tabViewTabItem.parent;
+      } else {
+        let emptyGroups = GroupItems.groupItems.filter(function (groupItem) {
+          return (!groupItem.getChildren().length);
+        });
+        group = (emptyGroups.length ? emptyGroups[0] : GroupItems.newGroup());
+      }
       group.newTab(null, { closedLastTab: true });
     }
-
     // when "TabClose" event is fired, the browser tab is about to close and our 
     // item "close" is fired before the browser tab actually get closed. 
     // Therefore, we need "tabRemoved" event below.
     gBrowser.removeTab(this.tab);
-    let tabClosed = !this.tab;
-
-    if (tabClosed)
+    let tabNotClosed = 
+      Array.some(gBrowser.tabs, function(tab) { return tab == this.tab; }, this);
+    if (!tabNotClosed)
       this._sendToSubscribers("tabRemoved");
 
     // No need to explicitly delete the tab data, becasue sessionstore data
     // associated with the tab will automatically go away
-    return tabClosed;
+    return !tabNotClosed;
   },
 
   // ----------
@@ -608,8 +548,6 @@ TabItem.prototype = Utils.extend(new Item(), new Subscribable(), {
     let self = this;
     let $tabEl = this.$container;
     let $canvas = this.$canvas;
-
-    hideSearch();
 
     UI.setActive(this);
     TabItems._update(this.tab, {force: true});
@@ -808,26 +746,27 @@ let TabItems = {
     this.tempCanvas.height = 112;
 
     // When a tab is opened, create the TabItem
-    this._eventListeners.open = function (event) {
-      let tab = event.target;
+    this._eventListeners["open"] = function(tab) {
+      if (tab.ownerDocument.defaultView != gWindow || tab.pinned)
+        return;
 
-      if (!tab.pinned)
-        self.link(tab);
+      self.link(tab);
     }
     // When a tab's content is loaded, show the canvas and hide the cached data
     // if necessary.
-    this._eventListeners.attrModified = function (event) {
-      let tab = event.target;
+    this._eventListeners["attrModified"] = function(tab) {
+      if (tab.ownerDocument.defaultView != gWindow || tab.pinned)
+        return;
 
-      if (!tab.pinned)
-        self.update(tab);
+      self.update(tab);
     }
     // When a tab is closed, unlink.
-    this._eventListeners.close = function (event) {
-      let tab = event.target;
+    this._eventListeners["close"] = function(tab) {
+      if (tab.ownerDocument.defaultView != gWindow || tab.pinned)
+        return;
 
       // XXX bug #635975 - don't unlink the tab if the dom window is closing.
-      if (!tab.pinned && !UI.isDOMWindowClosing)
+      if (!UI.isDOMWindowClosing)
         self.unlink(tab);
     }
     for (let name in this._eventListeners) {
@@ -835,8 +774,8 @@ let TabItems = {
     }
 
     // For each tab, create the link.
-    AllTabs.tabs.forEach(function (tab) {
-      if (tab.pinned)
+    AllTabs.tabs.forEach(function(tab) {
+      if (tab.ownerDocument.defaultView != gWindow || tab.pinned)
         return;
 
       self.link(tab, {immediately: true});
@@ -1003,7 +942,6 @@ let TabItems = {
       tabItem._lastTabUpdateTime = this._lastUpdateTime;
 
       tabItem.tabCanvas.paint();
-      tabItem.saveThumbnail();
 
       // ___ cache
       if (tabItem.isShowingCachedData())
@@ -1214,22 +1152,13 @@ let TabItems = {
   // ----------
   // Function: saveAll
   // Saves all open <TabItem>s.
-  saveAll: function TabItems_saveAll() {
-    let tabItems = this.getItems();
-
-    tabItems.forEach(function TabItems_saveAll_forEach(tabItem) {
-      tabItem.save();
-    });
-  },
-
-  // ----------
-  // Function: saveAllThumbnails
-  // Saves thumbnails of all open <TabItem>s.
-  saveAllThumbnails: function TabItems_saveAllThumbnails(options) {
-    let tabItems = this.getItems();
-
-    tabItems.forEach(function TabItems_saveAllThumbnails_forEach(tabItem) {
-      tabItem.saveThumbnail(options);
+  //
+  // Parameters:
+  //   saveImageData - true to include thumbnail pixels (and page title as well); default false
+  saveAll: function TabItems_saveAll(saveImageData) {
+    var items = this.getItems();
+    items.forEach(function(item) {
+      item.save(saveImageData);
     });
   },
 
@@ -1419,7 +1348,7 @@ function TabCanvas(tab, canvas) {
   this.canvas = canvas;
 };
 
-TabCanvas.prototype = Utils.extend(new Subscribable(), {
+TabCanvas.prototype = {
   // ----------
   // Function: toString
   // Prints [TabCanvas (tab)] for debug use
@@ -1463,8 +1392,6 @@ TabCanvas.prototype = Utils.extend(new Subscribable(), {
       // Draw directly to the destination canvas
       this._drawWindow(ctx, w, h, bgColor);
     }
-
-    this._sendToSubscribers("painted");
   },
 
   // ----------
@@ -1533,4 +1460,4 @@ TabCanvas.prototype = Utils.extend(new Subscribable(), {
   toImageData: function TabCanvas_toImageData() {
     return this.canvas.toDataURL("image/png");
   }
-});
+};

@@ -1213,7 +1213,6 @@ nsPlaintextEditor::Undo(PRUint32 aCount)
     result = mRules->DidDoAction(selection, &ruleInfo, result);
   } 
    
-  NotifyEditorObservers();
   return result;
 }
 
@@ -1243,7 +1242,6 @@ nsPlaintextEditor::Redo(PRUint32 aCount)
     result = mRules->DidDoAction(selection, &ruleInfo, result);
   } 
    
-  NotifyEditorObservers();
   return result;
 }
 
@@ -1717,8 +1715,8 @@ nsPlaintextEditor::SelectEntireDocument(nsISelection *aSelection)
 already_AddRefed<nsIDOMEventTarget>
 nsPlaintextEditor::GetDOMEventTarget()
 {
-  nsCOMPtr<nsIDOMEventTarget> copy = mEventTarget;
-  return copy.forget();
+  NS_IF_ADDREF(mEventTarget);
+  return mEventTarget.get();
 }
 
 

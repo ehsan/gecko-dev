@@ -44,14 +44,6 @@
 #ifndef TestHarness_h__
 #define TestHarness_h__
 
-#if defined(_MSC_VER) && defined(MOZ_STATIC_JS)
-/*
- * Including jsdbgapi.h may cause build break with --disable-shared-js
- * This is a workaround for bug 673616.
- */
-#define STATIC_JS_API
-#endif
-
 #include "nsComponentManagerUtils.h"
 #include "nsServiceManagerUtils.h"
 #include "nsCOMPtr.h"
@@ -220,8 +212,8 @@ class ScopedXPCOM : public nsIDirectoryServiceProvider2
     already_AddRefed<nsIFile> GetProfileDirectory()
     {
       if (mProfD) {
-        nsCOMPtr<nsIFile> copy = mProfD;
-        return copy.forget();
+        NS_ADDREF(mProfD);
+        return mProfD.get();
       }
 
       // Create a unique temporary folder to use for this test.

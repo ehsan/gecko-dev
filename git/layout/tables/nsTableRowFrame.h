@@ -79,12 +79,12 @@ public:
   /** @see nsIFrame::DidSetStyleContext */
   virtual void DidSetStyleContext(nsStyleContext* aOldStyleContext);
   
-  NS_IMETHOD AppendFrames(ChildListID     aListID,
+  NS_IMETHOD AppendFrames(nsIAtom*        aListName,
                           nsFrameList&    aFrameList);
-  NS_IMETHOD InsertFrames(ChildListID     aListID,
+  NS_IMETHOD InsertFrames(nsIAtom*        aListName,
                           nsIFrame*       aPrevFrame,
                           nsFrameList&    aFrameList);
-  NS_IMETHOD RemoveFrame(ChildListID     aListID,
+  NS_IMETHOD RemoveFrame(nsIAtom*        aListName,
                          nsIFrame*       aOldFrame);
 
   /** instantiate a new instance of nsTableRowFrame.
@@ -204,8 +204,8 @@ public:
   PRBool IsFirstInserted() const;
   void   SetFirstInserted(PRBool aValue);
 
-  nscoord GetContentHeight() const;
-  void    SetContentHeight(nscoord aTwipValue);
+  PRBool GetContentHeight() const;
+  void   SetContentHeight(nscoord aTwipValue);
 
   PRBool HasStyleHeight() const;
 

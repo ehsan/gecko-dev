@@ -80,6 +80,11 @@ class nsBulletFrame;
 class nsLineBox;
 class nsFirstLineFrame;
 class nsIntervalSet;
+/**
+ * Child list name indices
+ * @see #GetAdditionalChildListName()
+ */
+#define NS_BLOCK_LIST_COUNT  (NS_CONTAINER_LIST_COUNT_INCL_OC + 5)
 
 /**
  * Some invariants:
@@ -127,8 +132,10 @@ class nsIntervalSet;
 
 /*
  * Base class for block and inline frames.
- * The block frame has an additional child list, kAbsoluteList, which
- * contains the absolutely positioned frames.
+ * The block frame has an additional named child list:
+ * - "Absolute-list" which contains the absolutely positioned frames
+ *
+ * @see nsGkAtoms::absoluteList
  */ 
 class nsBlockFrame : public nsBlockFrameSuper
 {
@@ -166,19 +173,19 @@ public:
   NS_IMETHOD Init(nsIContent*      aContent,
                   nsIFrame*        aParent,
                   nsIFrame*        aPrevInFlow);
-  NS_IMETHOD SetInitialChildList(ChildListID     aListID,
+  NS_IMETHOD SetInitialChildList(nsIAtom*        aListName,
                                  nsFrameList&    aChildList);
-  NS_IMETHOD  AppendFrames(ChildListID     aListID,
+  NS_IMETHOD  AppendFrames(nsIAtom*        aListName,
                            nsFrameList&    aFrameList);
-  NS_IMETHOD  InsertFrames(ChildListID     aListID,
+  NS_IMETHOD  InsertFrames(nsIAtom*        aListName,
                            nsIFrame*       aPrevFrame,
                            nsFrameList&    aFrameList);
-  NS_IMETHOD  RemoveFrame(ChildListID     aListID,
+  NS_IMETHOD  RemoveFrame(nsIAtom*        aListName,
                           nsIFrame*       aOldFrame);
-  virtual nsFrameList GetChildList(ChildListID aListID) const;
-  virtual void GetChildLists(nsTArray<ChildList>* aLists) const;
+  virtual nsFrameList GetChildList(nsIAtom* aListName) const;
   virtual nscoord GetBaseline() const;
   virtual nscoord GetCaretBaseline() const;
+  virtual nsIAtom* GetAdditionalChildListName(PRInt32 aIndex) const;
   virtual void DestroyFrom(nsIFrame* aDestructRoot);
   virtual nsSplittableType GetSplittableType() const;
   virtual PRBool IsContainingBlock() const;
@@ -334,7 +341,7 @@ protected:
     : nsHTMLContainerFrame(aContext)
     , mMinWidth(NS_INTRINSIC_WIDTH_UNKNOWN)
     , mPrefWidth(NS_INTRINSIC_WIDTH_UNKNOWN)
-    , mAbsoluteContainer(kAbsoluteList)
+    , mAbsoluteContainer(nsGkAtoms::absoluteList)
   {
 #ifdef DEBUG
   InitDebugFlags();

@@ -49,6 +49,7 @@
 #include "nsIDOMRange.h"
 #include "nsIDOMNSRange.h"
 #include "nsIDOMEventTarget.h"
+#include "nsIDOMNSUIEvent.h"
 #include "nsIDOMHTMLTableElement.h"
 #include "nsIDOMHTMLTableCellElement.h"
 #include "nsIContent.h"
@@ -67,8 +68,10 @@
 nsresult
 nsHTMLEditorEventListener::Connect(nsEditor* aEditor)
 {
-  nsCOMPtr<nsIHTMLEditor> htmlEditor = do_QueryObject(aEditor);
-  nsCOMPtr<nsIHTMLInlineTableEditor> htmlInlineTableEditor = do_QueryObject(aEditor);
+  nsCOMPtr<nsIHTMLEditor> htmlEditor =
+    do_QueryInterface(static_cast<nsIEditor*>(aEditor));
+  nsCOMPtr<nsIHTMLInlineTableEditor> htmlInlineTableEditor =
+    do_QueryInterface(static_cast<nsIEditor*>(aEditor));
   NS_PRECONDITION(htmlEditor && htmlInlineTableEditor,
                   "Set nsHTMLEditor or its sub class");
   return nsEditorEventListener::Connect(aEditor);
@@ -149,13 +152,17 @@ nsHTMLEditorEventListener::MouseDown(nsIDOMEvent* aMouseEvent)
     NS_ENSURE_TRUE(selection, NS_OK);
 
     // Get location of mouse within target node
+    nsCOMPtr<nsIDOMNSUIEvent> uiEvent = do_QueryInterface(aMouseEvent);
+    NS_ENSURE_TRUE(uiEvent, NS_ERROR_FAILURE);
+
     nsCOMPtr<nsIDOMNode> parent;
-    res = mouseEvent->GetRangeParent(getter_AddRefs(parent));
+    PRInt32 offset = 0;
+
+    res = uiEvent->GetRangeParent(getter_AddRefs(parent));
     NS_ENSURE_SUCCESS(res, res);
     NS_ENSURE_TRUE(parent, NS_ERROR_FAILURE);
 
-    PRInt32 offset = 0;
-    res = mouseEvent->GetRangeOffset(&offset);
+    res = uiEvent->GetRangeOffset(&offset);
     NS_ENSURE_SUCCESS(res, res);
 
     // Detect if mouse point is within current selection for context click

@@ -74,7 +74,7 @@
     COMPONENT(WINDOWSREGKEY, nsWindowsRegKeyConstructor)
 #endif
 
-#if defined(MOZ_WIDGET_COCOA)
+#ifdef XP_MACOSX
     COMPONENT(MACUTILSIMPL, nsMacUtilsImplConstructor)
 #endif
 

@@ -57,7 +57,6 @@
 #ifdef MOZ_X11
 class gfxXlibSurface;
 #endif
-#include "nsGUIEvent.h"
 
 namespace mozilla {
 namespace plugins {
@@ -130,9 +129,6 @@ public:
                                        NPError* result);
     virtual bool
     AnswerNPN_GetValue_NPNVprivateModeBool(bool* value, NPError* result);
-  
-    virtual bool
-    AnswerNPN_GetValue_NPNVdocumentOrigin(nsCString* value, NPError* result);
 
     virtual bool
     AnswerNPN_SetValue_NPPVpluginWindow(const bool& windowed, NPError* result);
@@ -294,9 +290,6 @@ public:
                                    gfxContext** aCtx);
     nsresult EndUpdateBackground(gfxContext* aCtx,
                                  const nsIntRect& aRect);
-#if defined(MOZ_WIDGET_QT) && (MOZ_PLATFORM_MAEMO == 6)
-    nsresult HandleGUIEvent(const nsGUIEvent& anEvent, bool* handled);
-#endif
 
 private:
     // Create an appropriate platform surface for a background of size

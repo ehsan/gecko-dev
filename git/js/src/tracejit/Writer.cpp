@@ -44,7 +44,6 @@
 #include "jsiter.h"
 #include "Writer.h"
 #include "nanojit.h"
-#include "jsobjinlines.h"
 
 #include "vm/ArgumentsObject.h"
 
@@ -251,9 +250,7 @@ couldBeObjectOrString(LIns *ins)
         // ins = andq ins_oprnd1, ins_oprnd2
         ret = true;
 #endif
-    }
-#ifdef JS_HAS_STATIC_STRINGS
-    else if (ins->isop(LIR_addp) &&
+    } else if (ins->isop(LIR_addp) &&
                ((ins->oprnd1()->isImmP() &&
                  (void *)ins->oprnd1()->immP() == JSAtom::unitStaticTable) ||
                 (ins->oprnd2()->isImmP() &&
@@ -265,7 +262,6 @@ couldBeObjectOrString(LIns *ins)
         // ins = addp JSString::unitStringTable, ...
         ret = true;
     }
-#endif
 
     return ret;
 }
@@ -273,17 +269,15 @@ couldBeObjectOrString(LIns *ins)
 static bool
 isConstPrivatePtr(LIns *ins, unsigned slot)
 {
-    uint32 offset = JSObject::getFixedSlotOffset(slot) + sPayloadOffset;
-
 #if JS_BITS_PER_WORD == 32
     // ins = ldp.slots/c ...[<offset of slot>]
-    return match(ins, LIR_ldp, ACCSET_SLOTS, LOAD_CONST, offset);
+    return match(ins, LIR_ldp, ACCSET_SLOTS, LOAD_CONST, slot * sizeof(Value) + sPayloadOffset);
 #elif JS_BITS_PER_WORD == 64
     // ins_oprnd1 = ldp.slots/c ...[<offset of slot>]
     // ins_oprnd2 = immi 1
     // ins = lshq ins_oprnd1, ins_oprnd2
     return ins->isop(LIR_lshq) &&
-           match(ins->oprnd1(), LIR_ldp, ACCSET_SLOTS, LOAD_CONST, offset) &&
+           match(ins->oprnd1(), LIR_ldp, ACCSET_SLOTS, LOAD_CONST, slot * sizeof(Value)) &&
            ins->oprnd2()->isImmI(1);
 #endif
 }
@@ -405,9 +399,9 @@ void ValidateWriter::checkAccSet(LOpcode op, LIns *base, int32_t disp, AccSet ac
       // base = <JSObject>
       // ins  = ldp.obj<field> base[offsetof(JSObject, <field>)]
       #define OK_OBJ_FIELD(ldop, field) \
-            ((op == (ldop)) && \
-            (disp == offsetof(JSObject, field)) && \
-            couldBeObjectOrString(base))
+            op == ldop && \
+            disp == offsetof(JSObject, field) && \
+            couldBeObjectOrString(base)
 
       case ACCSET_OBJ_CLASP:
         ok = OK_OBJ_FIELD(LIR_ldp, clasp);
@@ -421,11 +415,8 @@ void ValidateWriter::checkAccSet(LOpcode op, LIns *base, int32_t disp, AccSet ac
         ok = OK_OBJ_FIELD(LIR_ldi, objShape);
         break;
 
-      case ACCSET_OBJ_TYPE:
-        ok = ((op == LIR_ldp) &&
-              disp == (int)JSObject::offsetOfType() &&
-              couldBeObjectOrString(base)) ||
-            (op == LIR_ldp && disp == offsetof(types::TypeObject, proto));
+      case ACCSET_OBJ_PROTO:
+        ok = OK_OBJ_FIELD(LIR_ldp, proto);
         break;
 
       case ACCSET_OBJ_PARENT:
@@ -442,7 +433,7 @@ void ValidateWriter::checkAccSet(LOpcode op, LIns *base, int32_t disp, AccSet ac
         break;
 
       case ACCSET_OBJ_CAPACITY:
-        ok = OK_OBJ_FIELD(LIR_ldi, capacity) || OK_OBJ_FIELD(LIR_ldi, initializedLength);
+        ok = OK_OBJ_FIELD(LIR_ldi, capacity);
         break;
 
       case ACCSET_OBJ_SLOTS:

@@ -51,7 +51,7 @@
  * in sync.
  */
 typedef enum {
- 	url_All       = 0         /**< %-escape every byte unconditionally */
+ 	url_All       = 0         /**< %-escape every byte uncondtionally */
 ,	url_XAlphas   = PR_BIT(0) /**< Normal escape - leave alphas intact, escape the rest */
 ,	url_XPAlphas  = PR_BIT(1) /**< As url_XAlphas, but convert spaces (0x20) to '+' and plus to %2B */
 ,	url_Path      = PR_BIT(2) /**< As url_XAlphas, but don't escape slash ('/') */
@@ -68,23 +68,23 @@ extern "C" {
  * @return A newly allocated escaped string that must be free'd with
  *         nsCRT::free, or null on failure
  */
-char * nsEscape(const char * str, nsEscapeMask mask);
+NS_COM char * nsEscape(const char * str, nsEscapeMask mask);
 
-char * nsUnescape(char * str);
+NS_COM char * nsUnescape(char * str);
 	/* decode % escaped hex codes into character values,
 	 * modifies the parameter, returns the same buffer
 	 */
 
-PRInt32 nsUnescapeCount (char * str);
+NS_COM PRInt32 nsUnescapeCount (char * str);
 	/* decode % escaped hex codes into character values,
 	 * modifies the parameter buffer, returns the length of the result
 	 * (result may contain \0's).
 	 */
 
-char *
+NS_COM char *
 nsEscapeHTML(const char * string);
 
-PRUnichar *
+NS_COM PRUnichar *
 nsEscapeHTML2(const PRUnichar *aSourceBuffer,
               PRInt32 aSourceBufferLen = -1);
  /*
@@ -142,7 +142,7 @@ enum EscapeMask {
  *
  * @return TRUE if escaping was performed, FALSE otherwise.
  */
-PRBool NS_EscapeURL(const char *str,
+NS_COM PRBool NS_EscapeURL(const char *str,
                            PRInt32 len,
                            PRUint32 flags,
                            nsACString &result);
@@ -158,7 +158,7 @@ PRBool NS_EscapeURL(const char *str,
  *
  * @return TRUE if unescaping was performed, FALSE otherwise.
  */
-PRBool NS_UnescapeURL(const char *str,
+NS_COM PRBool NS_UnescapeURL(const char *str,
                              PRInt32 len,
                              PRUint32 flags,
                              nsACString &result);

@@ -744,7 +744,7 @@ nsresult InitInstallTriggerGlobalClass(JSContext *jscontext, JSObject *global, v
 //
 nsresult NS_InitInstallTriggerGlobalClass(nsIScriptContext *aContext, void **aPrototype)
 {
-  JSContext *jscontext = aContext->GetNativeContext();
+  JSContext *jscontext = (JSContext *)aContext->GetNativeContext();
   JSObject *proto = nsnull;
   JSObject *constructor = nsnull;
   JSObject *global = JS_GetGlobalObject(jscontext);
@@ -789,7 +789,7 @@ NS_NewScriptInstallTriggerGlobal(nsIScriptContext *aContext,
 
   JSObject *proto;
   JSObject *parent = nsnull;
-  JSContext *jscontext = aContext->GetNativeContext();
+  JSContext *jscontext = (JSContext *)aContext->GetNativeContext();
   nsresult result = NS_OK;
   nsIDOMInstallTriggerGlobal *installTriggerGlobal;
 

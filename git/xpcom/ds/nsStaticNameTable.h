@@ -59,7 +59,7 @@
  *    as long as this table object - typically a static string array.
  */
 
-class nsStaticCaseInsensitiveNameTable
+class NS_COM nsStaticCaseInsensitiveNameTable
 {
 public:
   enum { NOT_FOUND = -1 };

@@ -178,8 +178,7 @@ var Scratchpad = {
         this._previousLocation != this.gBrowser.contentWindow.location.href) {
       let contentWindow = this.gBrowser.selectedBrowser.contentWindow;
       this._contentSandbox = new Cu.Sandbox(contentWindow,
-        { sandboxPrototype: contentWindow, wantXrays: false, 
-          sandboxName: 'scratchpad-content'});
+        { sandboxPrototype: contentWindow, wantXrays: false });
 
       this._previousBrowserWindow = this.browserWindow;
       this._previousBrowser = this.gBrowser.selectedBrowser;
@@ -212,8 +211,7 @@ var Scratchpad = {
     if (!this._chromeSandbox ||
         this.browserWindow != this._previousBrowserWindow) {
       this._chromeSandbox = new Cu.Sandbox(this.browserWindow,
-        { sandboxPrototype: this.browserWindow, wantXrays: false, 
-          sandboxName: 'scratchpad-chrome'});
+        { sandboxPrototype: this.browserWindow, wantXrays: false });
 
       this._previousBrowserWindow = this.browserWindow;
     }
@@ -280,7 +278,7 @@ var Scratchpad = {
       scriptError.initWithWindowID(ex.message + "\n" + ex.stack, ex.fileName,
                                    "", ex.lineNumber, 0, scriptError.errorFlag,
                                    "content javascript",
-                                   this.getInnerWindowId(contentWindow));
+                                   this.getWindowId(contentWindow));
 
       Services.console.logMessage(scriptError);
     }
@@ -633,16 +631,16 @@ var Scratchpad = {
   },
 
   /**
-   * Gets the ID of the inner window of the given DOM window object.
+   * Gets the ID of the outer window of the given DOM window object.
    *
    * @param nsIDOMWindow aWindow
    * @return integer
-   *         the inner window ID
+   *         the outer window ID
    */
-  getInnerWindowId: function SP_getInnerWindowId(aWindow)
+  getWindowId: function SP_getWindowId(aWindow)
   {
     return aWindow.QueryInterface(Ci.nsIInterfaceRequestor).
-           getInterface(Ci.nsIDOMWindowUtils).currentInnerWindowID;
+           getInterface(Ci.nsIDOMWindowUtils).outerWindowID;
   },
 
   /**

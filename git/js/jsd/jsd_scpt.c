@@ -530,10 +530,8 @@ jsd_GetClosestPC(JSDContext* jsdc, JSDScript* jsdscript, uintN line)
     jsuword pc;
     JSCrossCompartmentCall *call;
 
-    if( !jsdscript )
-        return 0;
 #ifdef LIVEWIRE
-    if( jsdscript->lwscript )
+    if( jsdscript && jsdscript->lwscript )
     {
         uintN newline;
         jsdlw_RawToProcessedLineNumber(jsdc, jsdscript, line, &newline);

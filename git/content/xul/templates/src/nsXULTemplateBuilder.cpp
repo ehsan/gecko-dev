@@ -224,7 +224,6 @@ nsXULTemplateBuilder::Uninit(PRBool aIsFinal)
 {
     if (mObservedDocument && aIsFinal) {
         gObserverService->RemoveObserver(this, DOM_WINDOW_DESTROYED_TOPIC);
-        gObserverService->RemoveObserver(this, NS_XPCOM_SHUTDOWN_OBSERVER_ID);
         mObservedDocument->RemoveObserver(this);
         mObservedDocument = nsnull;
     }
@@ -466,8 +465,6 @@ nsXULTemplateBuilder::Init(nsIContent* aElement)
         doc->AddObserver(this);
 
         mObservedDocument = doc;
-        gObserverService->AddObserver(this, NS_XPCOM_SHUTDOWN_OBSERVER_ID,
-                                      PR_FALSE);
         gObserverService->AddObserver(this, DOM_WINDOW_DESTROYED_TOPIC,
                                       PR_FALSE);
     }
@@ -1120,8 +1117,6 @@ nsXULTemplateBuilder::Observe(nsISupports* aSubject,
             if (doc && doc == mObservedDocument)
                 NodeWillBeDestroyed(doc);
         }
-    } else if (!strcmp(aTopic, NS_XPCOM_SHUTDOWN_OBSERVER_ID)) {
-        UninitTrue();
     }
     return NS_OK;
 }
@@ -1420,7 +1415,7 @@ nsXULTemplateBuilder::InitHTMLTemplateRoot()
     if (! context)
         return NS_ERROR_UNEXPECTED;
 
-    JSContext* jscontext = context->GetNativeContext();
+    JSContext* jscontext = reinterpret_cast<JSContext*>(context->GetNativeContext());
     NS_ASSERTION(context != nsnull, "no jscontext");
     if (! jscontext)
         return NS_ERROR_UNEXPECTED;
@@ -1699,9 +1694,10 @@ nsXULTemplateBuilder::GetTemplateRoot(nsIContent** aResult)
     {
         // If root node has no template attribute, then look for a child
         // node which is a template tag
-        for (nsIContent* child = mRoot->GetFirstChild();
-             child;
-             child = child->GetNextSibling()) {
+        PRUint32 count = mRoot->GetChildCount();
+
+        for (PRUint32 i = 0; i < count; ++i) {
+            nsIContent *child = mRoot->GetChildAt(i);
 
             if (IsTemplateElement(child)) {
                 NS_ADDREF(*aResult = child);
@@ -1855,10 +1851,10 @@ nsXULTemplateBuilder::CompileTemplate(nsIContent* aTemplate,
     PRBool isQuerySetMode = PR_FALSE;
     PRBool hasQuerySet = PR_FALSE, hasRule = PR_FALSE, hasQuery = PR_FALSE;
 
-    for (nsIContent* rulenode = aTemplate->GetFirstChild();
-         rulenode;
-         rulenode = rulenode->GetNextSibling()) {
+    PRUint32 count = aTemplate->GetChildCount();
 
+    for (PRUint32 i = 0; i < count; i++) {
+        nsIContent *rulenode = aTemplate->GetChildAt(i);
         nsINodeInfo *ni = rulenode->NodeInfo();
 
         // don't allow more queries than can be supported
@@ -2131,10 +2127,9 @@ nsXULTemplateBuilder::DetermineMemberVariable(nsIContent* aElement)
 {
     // recursively iterate over the children looking for an element
     // with uri="?..."
-    for (nsIContent* child = aElement->GetFirstChild();
-         child;
-         child = child->GetNextSibling()) {
+    for (nsINode::ChildIterator iter(aElement); !iter.IsDone(); iter.Next()) {
         nsAutoString uri;
+        nsIContent *child = iter;
         child->GetAttr(kNameSpaceID_None, nsGkAtoms::uri, uri);
         if (!uri.IsEmpty() && uri[0] == PRUnichar('?')) {
             return NS_NewAtom(uri);
@@ -2242,11 +2237,12 @@ nsXULTemplateBuilder::CompileConditions(nsTemplateRule* aRule,
         aRule->SetTag(tagatom);
     }
 
+    PRUint32 count = aCondition->GetChildCount();
+
     nsTemplateCondition* currentCondition = nsnull;
 
-    for (nsIContent* node = aCondition->GetFirstChild();
-         node;
-         node = node->GetNextSibling()) {
+    for (PRUint32 i = 0; i < count; i++) {
+        nsIContent *node = aCondition->GetChildAt(i);
 
         if (node->NodeInfo()->Equals(nsGkAtoms::where, kNameSpaceID_XUL)) {
             nsresult rv = CompileWhereCondition(aRule, node, &currentCondition);
@@ -2364,9 +2360,10 @@ nsXULTemplateBuilder::CompileBindings(nsTemplateRule* aRule, nsIContent* aBindin
     // Add an extended rule's bindings.
     nsresult rv;
 
-    for (nsIContent* binding = aBindings->GetFirstChild();
-         binding;
-         binding = binding->GetNextSibling()) {
+    PRUint32 count = aBindings->GetChildCount();
+
+    for (PRUint32 i = 0; i < count; ++i) {
+        nsIContent *binding = aBindings->GetChildAt(i);
 
         if (binding->NodeInfo()->Equals(nsGkAtoms::binding,
                                         kNameSpaceID_XUL)) {
@@ -2478,11 +2475,10 @@ nsXULTemplateBuilder::AddSimpleRuleBindings(nsTemplateRule* aRule,
         }
 
         // Push kids onto the stack, and search them next.
-        for (nsIContent* child = element->GetLastChild();
-             child;
-             child = child->GetPreviousSibling()) {
+        count = element->GetChildCount();
 
-            if (!elements.AppendElement(child))
+        while (count-- > 0) {
+            if (elements.AppendElement(element->GetChildAt(count)) == nsnull)
                 return NS_ERROR_OUT_OF_MEMORY;
         }
     }

@@ -77,7 +77,7 @@ public:
   virtual nsIScrollableFrame* GetScrollTargetFrame() {
     if (!IsScrollable())
       return nsnull;
-    return do_QueryFrame(GetFirstPrincipalChild());
+    return do_QueryFrame(GetFirstChild(nsnull));
   }
 
   virtual nscoord GetMinWidth(nsRenderingContext* aRenderingContext);
@@ -128,7 +128,7 @@ public:
 
   // Utility methods to set current widget state
 
-  NS_IMETHOD SetInitialChildList(ChildListID     aListID,
+  NS_IMETHOD SetInitialChildList(nsIAtom*        aListName,
                                  nsFrameList&    aChildList);
 
 //==== BEGIN NSIFORMCONTROLFRAME
@@ -307,15 +307,11 @@ protected:
           mFrame->PresContext()->GetPresShell();
         PRBool observes = shell->ObservesNativeAnonMutationsForPrint();
         shell->ObserveNativeAnonMutationsForPrint(PR_TRUE);
-        // This can cause the frame to be destroyed (and call Revoke())
+        // This can cause the frame to be destroyed (and call Revoke()
         mFrame->EnsureEditorInitialized();
         shell->ObserveNativeAnonMutationsForPrint(observes);
 
-        // The frame can *still* be destroyed even though we have a scriptblocker
-        // Bug 682684
-        if (!mFrame)
-          return NS_ERROR_FAILURE;
-
+        NS_ASSERTION(mFrame,"Frame destroyed even though we had a scriptblocker");
         mFrame->FinishedInitializer();
       }
       return NS_OK;

@@ -198,9 +198,7 @@ private:
   // surface is modified. Possibly vector is not the best choice here.
   std::vector<SourceSurfaceD2DTarget*> mSnapshots;
   // A list of targets we need to flush when we're modified.
-  std::vector<DrawTargetD2D*> mDependentTargets;
-  // A list of targets which have this object in their mDependentTargets array
-  std::vector<DrawTargetD2D*> mDependingOnTargets;
+  std::vector<RefPtr<DrawTargetD2D>> mDependentTargets;
 
   // True of the current clip stack is pushed to the main RT.
   bool mClipsArePushed;

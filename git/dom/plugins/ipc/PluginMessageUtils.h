@@ -110,7 +110,7 @@ typedef nsCString Buffer;
 
 struct NPRemoteWindow
 {
-  uint64_t window;
+  unsigned long window;
   int32_t x;
   int32_t y;
   uint32_t width;
@@ -130,7 +130,7 @@ struct NPRemoteWindow
 typedef HWND NativeWindowHandle;
 #elif defined(MOZ_X11)
 typedef XID NativeWindowHandle;
-#elif defined(XP_MACOSX) || defined(ANDROID) || defined(MOZ_WIDGET_QT)
+#elif defined(XP_MACOSX) || defined(ANDROID)
 typedef intptr_t NativeWindowHandle; // never actually used, will always be 0
 #else
 #error Need NativeWindowHandle for this platform
@@ -213,7 +213,6 @@ NPNVariableToString(NPNVariable aVar)
         VARSTR(NPNVSupportsWindowless);
 
         VARSTR(NPNVprivateModeBool);
-        VARSTR(NPNVdocumentOrigin);
 
     default: return "???";
     }
@@ -364,7 +363,7 @@ struct ParamTraits<mozilla::plugins::NPRemoteWindow>
 
   static void Write(Message* aMsg, const paramType& aParam)
   {
-    aMsg->WriteUInt64(aParam.window);
+    aMsg->WriteULong(aParam.window);
     WriteParam(aMsg, aParam.x);
     WriteParam(aMsg, aParam.y);
     WriteParam(aMsg, aParam.width);
@@ -382,12 +381,12 @@ struct ParamTraits<mozilla::plugins::NPRemoteWindow>
 
   static bool Read(const Message* aMsg, void** aIter, paramType* aResult)
   {
-    uint64 window;
+    unsigned long window;
     int32_t x, y;
     uint32_t width, height;
     NPRect clipRect;
     NPWindowType type;
-    if (!(aMsg->ReadUInt64(aIter, &window) &&
+    if (!(aMsg->ReadULong(aIter, &window) &&
           ReadParam(aMsg, aIter, &x) &&
           ReadParam(aMsg, aIter, &y) &&
           ReadParam(aMsg, aIter, &width) &&
@@ -888,10 +887,10 @@ struct ParamTraits<NPCoordinateSpace>
 #  include "mozilla/plugins/NPEventWindows.h"
 #elif defined(XP_OS2)
 #  error Sorry, OS/2 is not supported
+#elif defined(XP_UNIX) && defined(MOZ_X11)
+#  include "mozilla/plugins/NPEventX11.h"
 #elif defined(ANDROID)
 #  include "mozilla/plugins/NPEventAndroid.h"
-#elif defined(XP_UNIX)
-#  include "mozilla/plugins/NPEventUnix.h"
 #else
 #  error Unsupported platform
 #endif

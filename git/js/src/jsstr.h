@@ -46,6 +46,7 @@
 #include "jshashtable.h"
 #include "jslock.h"
 #include "jsobj.h"
+#include "jsvalue.h"
 #include "jscell.h"
 
 #include "vm/Unicode.h"
@@ -100,6 +101,14 @@ extern JSSubString js_EmptySubString;
 #define JS7_ISLET(c)    ((c) < 128 && isalpha(c))
 
 /* Initialize the String class, returning its prototype object. */
+extern js::Class js_StringClass;
+
+inline bool
+JSObject::isString() const
+{
+    return getClass() == &js_StringClass;
+}
+
 extern JSObject *
 js_InitStringClass(JSContext *cx, JSObject *obj);
 

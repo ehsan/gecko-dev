@@ -72,15 +72,11 @@
 #include "jsstr.h"
 #include "jslibmath.h"
 
-#include "vm/GlobalObject.h"
-
-#include "jsinferinlines.h"
 #include "jsobjinlines.h"
 
 #include "vm/Stack-inl.h"
 
 using namespace js;
-using namespace js::types;
 
 /*
  * The JS 'Date' object is patterned after the Java 'Date' object.
@@ -505,16 +501,16 @@ date_convert(JSContext *cx, JSObject *obj, JSType hint, Value *vp)
  * Other Support routines and definitions
  */
 
-Class js::DateClass = {
+Class js_DateClass = {
     js_Date_str,
     JSCLASS_HAS_RESERVED_SLOTS(JSObject::DATE_CLASS_RESERVED_SLOTS) |
     JSCLASS_HAS_CACHED_PROTO(JSProto_Date),
-    JS_PropertyStub,         /* addProperty */
-    JS_PropertyStub,         /* delProperty */
-    JS_PropertyStub,         /* getProperty */
-    JS_StrictPropertyStub,   /* setProperty */
-    JS_EnumerateStub,
-    JS_ResolveStub,
+    PropertyStub,         /* addProperty */
+    PropertyStub,         /* delProperty */
+    PropertyStub,         /* getProperty */
+    StrictPropertyStub,   /* setProperty */
+    EnumerateStub,
+    ResolveStub,
     date_convert
 };
 
@@ -1228,7 +1224,7 @@ GetUTCTime(JSContext *cx, JSObject *obj, Value *vp, jsdouble *dp)
 {
     if (!obj->isDate()) {
         if (vp)
-            ReportIncompatibleMethod(cx, vp, &DateClass);
+            ReportIncompatibleMethod(cx, vp, &js_DateClass);
         return false;
     }
     *dp = obj->getDateUTCTime().toNumber();
@@ -1410,7 +1406,7 @@ GetAndCacheLocalTime(JSContext *cx, JSObject *obj, Value *vp, jsdouble *time = N
         return false;
     if (!obj->isDate()) {
         if (vp)
-            ReportIncompatibleMethod(cx, vp, &DateClass);
+            ReportIncompatibleMethod(cx, vp, &js_DateClass);
         return false;
     }
 
@@ -1703,7 +1699,7 @@ date_setTime(JSContext *cx, uintN argc, Value *vp)
         return false;
 
     if (!obj->isDate()) {
-        ReportIncompatibleMethod(cx, vp, &DateClass);
+        ReportIncompatibleMethod(cx, vp, &js_DateClass);
         return false;
     }
 
@@ -2108,7 +2104,7 @@ date_toJSON(JSContext *cx, uintN argc, Value *vp)
 
     /* Step 4. */
     Value &toISO = vp[0];
-    if (!obj->getProperty(cx, cx->runtime->atomState.toISOStringAtom, &toISO))
+    if (!obj->getProperty(cx, ATOM_TO_JSID(cx->runtime->atomState.toISOStringAtom), &toISO))
         return false;
 
     /* Step 5. */
@@ -2314,7 +2310,7 @@ date_toLocaleHelper(JSContext *cx, JSObject *obj, const char *format, Value *vp)
     }
 
     if (cx->localeCallbacks && cx->localeCallbacks->localeToUnicode)
-        return cx->localeCallbacks->localeToUnicode(cx, buf, vp);
+        return cx->localeCallbacks->localeToUnicode(cx, buf, Jsvalify(vp));
 
     str = JS_NewStringCopyZ(cx, buf);
     if (!str)
@@ -2607,58 +2603,40 @@ js_Date(JSContext *cx, uintN argc, Value *vp)
 JSObject *
 js_InitDateClass(JSContext *cx, JSObject *obj)
 {
-    JS_ASSERT(obj->isNative());
-
-    /* Set the static LocalTZA. */
+    /* set static LocalTZA */
     LocalTZA = -(PRMJ_LocalGMTDifference() * msPerSecond);
-
-    GlobalObject *global = obj->asGlobal();
-
-    JSObject *dateProto = global->createBlankPrototype(cx, &DateClass);
-    if (!dateProto)
-        return NULL;
-    SetDateToNaN(cx, dateProto);
-
-    JSFunction *ctor = global->createConstructor(cx, js_Date, &DateClass,
-                                                 CLASS_ATOM(cx, Date), MAXARGS);
-    if (!ctor)
+    JSObject *proto = js_InitClass(cx, obj, NULL, &js_DateClass, js_Date, MAXARGS,
+                                   NULL, date_methods, NULL, date_static_methods);
+    if (!proto)
         return NULL;
 
-    if (!LinkConstructorAndPrototype(cx, ctor, dateProto))
-        return NULL;
+    AutoObjectRooter tvr(cx, proto);
 
-    if (!DefinePropertiesAndBrand(cx, ctor, NULL, date_static_methods))
-        return NULL;
+    SetDateToNaN(cx, proto);
 
     /*
-     * Define all Date.prototype.* functions, then brand for trace-jitted code.
-     * Date.prototype.toGMTString has the same initial value as
-     * Date.prototype.toUTCString.
+     * ES5 B.2.6:
+     *   The Function object that is the initial value of
+     *   Date.prototype.toGMTString is the same Function
+     *   object that is the initial value of
+     *   Date.prototype.toUTCString.
      */
-    if (!JS_DefineFunctions(cx, dateProto, date_methods))
-        return NULL;
-    Value toUTCStringFun;
+    AutoValueRooter toUTCStringFun(cx);
     jsid toUTCStringId = ATOM_TO_JSID(cx->runtime->atomState.toUTCStringAtom);
     jsid toGMTStringId = ATOM_TO_JSID(cx->runtime->atomState.toGMTStringAtom);
-    if (!js_GetProperty(cx, dateProto, toUTCStringId, &toUTCStringFun) ||
-        !js_DefineProperty(cx, dateProto, toGMTStringId, &toUTCStringFun,
-                           JS_PropertyStub, JS_StrictPropertyStub, 0))
-    {
+    if (!js_GetProperty(cx, proto, toUTCStringId, toUTCStringFun.addr()) ||
+        !js_DefineProperty(cx, proto, toGMTStringId, toUTCStringFun.addr(),
+                           PropertyStub, StrictPropertyStub, 0)) {
         return NULL;
     }
-    if (!cx->typeInferenceEnabled())
-        dateProto->brand(cx);
 
-    if (!DefineConstructorAndPrototype(cx, global, JSProto_Date, ctor, dateProto))
-        return NULL;
-
-    return dateProto;
+    return proto;
 }
 
 JS_FRIEND_API(JSObject *)
 js_NewDateObjectMsec(JSContext *cx, jsdouble msec_time)
 {
-    JSObject *obj = NewBuiltinClassInstance(cx, &DateClass);
+    JSObject *obj = NewBuiltinClassInstance(cx, &js_DateClass);
     if (!obj || !obj->ensureSlots(cx, JSObject::DATE_CLASS_RESERVED_SLOTS))
         return NULL;
     if (!SetUTCTime(cx, obj, msec_time))

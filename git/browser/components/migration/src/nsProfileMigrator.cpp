@@ -162,6 +162,7 @@ NS_IMPL_ISUPPORTS1(nsProfileMigrator, nsIProfileMigrator)
 
 #define INTERNAL_NAME_IEXPLORE        "iexplore"
 #define INTERNAL_NAME_MOZILLA_SUITE   "apprunner"
+#define INTERNAL_NAME_SEAMONKEY       "seamonkey"
 #define INTERNAL_NAME_OPERA           "opera"
 #endif
 
@@ -242,7 +243,12 @@ nsProfileMigrator::GetDefaultBrowserMigratorKey(nsACString& aKey,
     aKey = "ie";
     return NS_OK;
   }
-  else if (internalName.LowerCaseEqualsLiteral(INTERNAL_NAME_OPERA)) {
+  if (internalName.LowerCaseEqualsLiteral(INTERNAL_NAME_MOZILLA_SUITE) ||
+      internalName.LowerCaseEqualsLiteral(INTERNAL_NAME_SEAMONKEY)) {
+    aKey = "seamonkey";
+    return NS_OK;
+  }
+  if (internalName.LowerCaseEqualsLiteral(INTERNAL_NAME_OPERA)) {
     aKey = "opera";
     return NS_OK;
   }
@@ -261,6 +267,7 @@ nsProfileMigrator::GetDefaultBrowserMigratorKey(nsACString& aKey,
 #if defined(XP_MACOSX)
   CHECK_MIGRATOR("safari");
 #endif
+  CHECK_MIGRATOR("seamonkey");
   CHECK_MIGRATOR("opera");
 
 #undef CHECK_MIGRATOR

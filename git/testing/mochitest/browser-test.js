@@ -56,7 +56,7 @@ Tester.prototype = {
   EventUtils: {},
   SimpleTest: {},
 
-  repeat: 0,
+  loops: 0,
   checker: null,
   currentTestIndex: -1,
   lastStartTime: null,
@@ -71,7 +71,7 @@ Tester.prototype = {
     //if testOnLoad was not called, then gConfig is not defined
     if(!gConfig)
       gConfig = readConfig();
-    this.repeat = gConfig.repeat;
+    this.loops = gConfig.loops;
     this.dumper.dump("*** Start BrowserChrome Test Results ***\n");
     this._cs.registerListener(this);
 
@@ -127,8 +127,8 @@ Tester.prototype = {
   },
 
   finish: function Tester_finish(aSkipSummary) {
-    if (this.repeat > 0) {
-      --this.repeat;
+    if(this.loops > 0){
+      --this.loops;
       this.currentTestIndex = -1;
       this.nextTest();
     }
@@ -315,7 +315,7 @@ Tester.prototype = {
   }
 };
 
-function testResult(aCondition, aName, aDiag, aIsTodo, aStack) {
+function testResult(aCondition, aName, aDiag, aIsTodo) {
   this.msg = aName || "";
 
   this.info = false;
@@ -334,14 +334,6 @@ function testResult(aCondition, aName, aDiag, aIsTodo, aStack) {
         this.msg += " at " + aDiag.fileName + ":" + aDiag.lineNumber;
       }
       this.msg += " - " + aDiag;
-    }
-    if (aStack) {
-      this.msg += "\nStack trace:\n";
-      var frame = aStack;
-      while (frame) {
-        this.msg += "    " + frame + "\n";
-        frame = frame.caller;
-      }
     }
     if (aIsTodo)
       this.result = "TEST-UNEXPECTED-PASS";
@@ -363,29 +355,23 @@ function testScope(aTester, aTest) {
   this.__browserTest = aTest;
 
   var self = this;
-  this.ok = function test_ok(condition, name, diag, stack) {
-    self.__browserTest.addResult(new testResult(condition, name, diag, false,
-                                                stack ? stack : Components.stack.caller));
+  this.ok = function test_ok(condition, name, diag) {
+    self.__browserTest.addResult(new testResult(condition, name, diag, false));
   };
   this.is = function test_is(a, b, name) {
-    self.ok(a == b, name, "Got " + a + ", expected " + b, false,
-            Components.stack.caller);
+    self.ok(a == b, name, "Got " + a + ", expected " + b);
   };
   this.isnot = function test_isnot(a, b, name) {
-    self.ok(a != b, name, "Didn't expect " + a + ", but got it", false,
-            Components.stack.caller);
+    self.ok(a != b, name, "Didn't expect " + a + ", but got it");
   };
-  this.todo = function test_todo(condition, name, diag, stack) {
-    self.__browserTest.addResult(new testResult(!condition, name, diag, true,
-                                                stack ? stack : Components.stack.caller));
+  this.todo = function test_todo(condition, name, diag) {
+    self.__browserTest.addResult(new testResult(!condition, name, diag, true));
   };
   this.todo_is = function test_todo_is(a, b, name) {
-    self.todo(a == b, name, "Got " + a + ", expected " + b,
-              Components.stack.caller);
+    self.todo(a == b, name, "Got " + a + ", expected " + b);
   };
   this.todo_isnot = function test_todo_isnot(a, b, name) {
-    self.todo(a != b, name, "Didn't expect " + a + ", but got it",
-              Components.stack.caller);
+    self.todo(a != b, name, "Didn't expect " + a + ", but got it");
   };
   this.info = function test_info(name) {
     self.__browserTest.addResult(new testMessage(name));

@@ -1131,60 +1131,20 @@ private:
   }
 };
 
-struct nsStyleTextOverflowSide {
-  nsStyleTextOverflowSide() : mType(NS_STYLE_TEXT_OVERFLOW_CLIP) {}
+struct nsStyleTextOverflow {
+  nsStyleTextOverflow() : mType(NS_STYLE_TEXT_OVERFLOW_CLIP) {}
 
-  bool operator==(const nsStyleTextOverflowSide& aOther) const {
+  bool operator==(const nsStyleTextOverflow& aOther) const {
     return mType == aOther.mType &&
            (mType != NS_STYLE_TEXT_OVERFLOW_STRING ||
             mString == aOther.mString);
-  }
-  bool operator!=(const nsStyleTextOverflowSide& aOther) const {
-    return !(*this == aOther);
-  }
-
-  nsString mString;
-  PRUint8  mType;
-};
-
-struct nsStyleTextOverflow {
-  nsStyleTextOverflow() : mLogicalDirections(true) {}
-  bool operator==(const nsStyleTextOverflow& aOther) const {
-    return mLeft == aOther.mLeft && mRight == aOther.mRight;
   }
   bool operator!=(const nsStyleTextOverflow& aOther) const {
     return !(*this == aOther);
   }
 
-  // Returns the value to apply on the left side.
-  const nsStyleTextOverflowSide& GetLeft(PRUint8 aDirection) const {
-    NS_ASSERTION(aDirection == NS_STYLE_DIRECTION_LTR ||
-                 aDirection == NS_STYLE_DIRECTION_RTL, "bad direction");
-    return !mLogicalDirections || aDirection == NS_STYLE_DIRECTION_LTR ?
-             mLeft : mRight;
-  }
-
-  // Returns the value to apply on the right side.
-  const nsStyleTextOverflowSide& GetRight(PRUint8 aDirection) const {
-    NS_ASSERTION(aDirection == NS_STYLE_DIRECTION_LTR ||
-                 aDirection == NS_STYLE_DIRECTION_RTL, "bad direction");
-    return !mLogicalDirections || aDirection == NS_STYLE_DIRECTION_LTR ?
-             mRight : mLeft;
-  }
-
-  // Returns the first value that was specified.
-  const nsStyleTextOverflowSide* GetFirstValue() const {
-    return mLogicalDirections ? &mRight : &mLeft;
-  }
-
-  // Returns the second value, or null if there was only one value specified.
-  const nsStyleTextOverflowSide* GetSecondValue() const {
-    return mLogicalDirections ? nsnull : &mRight;
-  }
-
-  nsStyleTextOverflowSide mLeft;  // start side when mLogicalDirections is true
-  nsStyleTextOverflowSide mRight; // end side when mLogicalDirections is true
-  bool mLogicalDirections;  // true when only one value was specified
+  nsString mString;
+  PRUint8  mType;
 };
 
 struct nsStyleTextReset {
@@ -1559,7 +1519,6 @@ struct nsStyleDisplay {
   nsStyleCoord mChildPerspective; // [reset] coord
   nsStyleCoord mPerspectiveOrigin[2]; // [reset] percent, coord, calc
   PRUint8 mBackfaceVisibility;
-  PRUint8 mTransformStyle;
 
   nsAutoTArray<nsTransition, 1> mTransitions; // [reset]
   // The number of elements in mTransitions that are not from repeating
@@ -1643,7 +1602,7 @@ struct nsStyleDisplay {
 
   /* Returns whether the element has the -moz-transform property. */
   PRBool HasTransform() const {
-    return mSpecifiedTransform != nsnull || mTransformStyle == NS_STYLE_TRANSFORM_STYLE_PRESERVE_3D;
+    return mSpecifiedTransform != nsnull;
   }
 };
 

@@ -93,7 +93,7 @@ public:                                                                       \
 DHASH_WRAPPER(CLASSNAME##Super,ENTRY_CLASS,KEY_TYPE)
 
 #undef DHASH_EXPORT
-#define DHASH_EXPORT
+#define DHASH_EXPORT NS_COM
 
 DECL_DHASH_SET(nsStringHashSet, PLDHashStringEntry, nsAString&)
 DECL_DHASH_SET(nsCStringHashSet,PLDHashCStringEntry,nsACString&)

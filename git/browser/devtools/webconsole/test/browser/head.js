@@ -36,7 +36,7 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
-Cu.import("resource:///modules/HUDService.jsm");
+Cu.import("resource://gre/modules/HUDService.jsm");
 
 function log(aMsg)
 {

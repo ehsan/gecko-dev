@@ -77,6 +77,8 @@ CSRCS = \
 	pk11util.c \
 	$(NULL)
 
+REQUIRES = dbm
+
 LIBRARY_NAME = pk11wrap
 
 LIBRARY_VERSION = 3

@@ -772,8 +772,6 @@ void __stdcall glCompressedTexImage2D(GLenum target, GLint level, GLenum interna
         {
           case GL_COMPRESSED_RGB_S3TC_DXT1_EXT:
           case GL_COMPRESSED_RGBA_S3TC_DXT1_EXT:
-          case GL_COMPRESSED_RGBA_S3TC_DXT3_ANGLE:
-          case GL_COMPRESSED_RGBA_S3TC_DXT5_ANGLE:
             break;
           default:
             return error(GL_INVALID_ENUM);
@@ -823,27 +821,9 @@ void __stdcall glCompressedTexImage2D(GLenum target, GLint level, GLenum interna
                 return error(GL_INVALID_ENUM);
             }
 
-            switch (internalformat) {
-              case GL_COMPRESSED_RGB_S3TC_DXT1_EXT:
-              case GL_COMPRESSED_RGBA_S3TC_DXT1_EXT:
-                if (!context->supportsDXT1Textures())
-                {
-                    return error(GL_INVALID_ENUM); // in this case, it's as though the internal format switch failed
-                }
-                break;
-              case GL_COMPRESSED_RGBA_S3TC_DXT3_ANGLE:
-                if (!context->supportsDXT3Textures())
-                {
-                    return error(GL_INVALID_ENUM); // in this case, it's as though the internal format switch failed
-                }
-                break;
-              case GL_COMPRESSED_RGBA_S3TC_DXT5_ANGLE:
-                if (!context->supportsDXT5Textures())
-                {
-                    return error(GL_INVALID_ENUM); // in this case, it's as though the internal format switch failed
-                }
-                break;
-              default: UNREACHABLE();
+            if (!context->supportsCompressedTextures())
+            {
+                return error(GL_INVALID_ENUM); // in this case, it's as though the internal format switch failed
             }
 
             if (imageSize != gl::ComputeCompressedSize(width, height, internalformat))
@@ -917,8 +897,6 @@ void __stdcall glCompressedTexSubImage2D(GLenum target, GLint level, GLint xoffs
         {
           case GL_COMPRESSED_RGB_S3TC_DXT1_EXT:
           case GL_COMPRESSED_RGBA_S3TC_DXT1_EXT:
-          case GL_COMPRESSED_RGBA_S3TC_DXT3_ANGLE:
-          case GL_COMPRESSED_RGBA_S3TC_DXT5_ANGLE:
             break;
           default:
             return error(GL_INVALID_ENUM);
@@ -938,27 +916,9 @@ void __stdcall glCompressedTexSubImage2D(GLenum target, GLint level, GLint xoffs
                 return error(GL_INVALID_VALUE);
             }
 
-            switch (format) {
-              case GL_COMPRESSED_RGB_S3TC_DXT1_EXT:
-              case GL_COMPRESSED_RGBA_S3TC_DXT1_EXT:
-                if (!context->supportsDXT1Textures())
-                {
-                    return error(GL_INVALID_ENUM); // in this case, it's as though the internal format switch failed
-                }
-                break;
-              case GL_COMPRESSED_RGBA_S3TC_DXT3_ANGLE:
-                if (!context->supportsDXT3Textures())
-                {
-                    return error(GL_INVALID_ENUM); // in this case, it's as though the internal format switch failed
-                }
-                break;
-              case GL_COMPRESSED_RGBA_S3TC_DXT5_ANGLE:
-                if (!context->supportsDXT5Textures())
-                {
-                    return error(GL_INVALID_ENUM); // in this case, it's as though the internal format switch failed
-                }
-                break;
-              default: UNREACHABLE();
+            if (!context->supportsCompressedTextures())
+            {
+                return error(GL_INVALID_ENUM); // in this case, it's as though the format switch has failed.
             }
 
             if (imageSize != gl::ComputeCompressedSize(width, height, format))
@@ -969,7 +929,7 @@ void __stdcall glCompressedTexSubImage2D(GLenum target, GLint level, GLint xoffs
             if (xoffset % 4 != 0 || yoffset % 4 != 0)
             {
                 return error(GL_INVALID_OPERATION); // we wait to check the offsets until this point, because the multiple-of-four restriction
-                                                    // does not exist unless DXT textures are supported.
+                                                    // does not exist unless DXT1 textures are supported.
             }
 
             if (target == GL_TEXTURE_2D)
@@ -1133,27 +1093,7 @@ void __stdcall glCopyTexImage2D(GLenum target, GLint level, GLenum internalforma
                  break;
               case GL_COMPRESSED_RGB_S3TC_DXT1_EXT:
               case GL_COMPRESSED_RGBA_S3TC_DXT1_EXT:
-                if (context->supportsDXT1Textures())
-                {
-                    return error(GL_INVALID_OPERATION);
-                }
-                else
-                {
-                    return error(GL_INVALID_ENUM);
-                }
-                break;
-              case GL_COMPRESSED_RGBA_S3TC_DXT3_ANGLE:
-                if (context->supportsDXT3Textures())
-                {
-                    return error(GL_INVALID_OPERATION);
-                }
-                else
-                {
-                    return error(GL_INVALID_ENUM);
-                }
-                break;
-              case GL_COMPRESSED_RGBA_S3TC_DXT5_ANGLE:
-                if (context->supportsDXT5Textures())
+                if (context->supportsCompressedTextures())
                 {
                     return error(GL_INVALID_OPERATION);
                 }
@@ -1305,8 +1245,6 @@ void __stdcall glCopyTexSubImage2D(GLenum target, GLint level, GLint xoffset, GL
                 break;
               case GL_COMPRESSED_RGB_S3TC_DXT1_EXT:
               case GL_COMPRESSED_RGBA_S3TC_DXT1_EXT:
-              case GL_COMPRESSED_RGBA_S3TC_DXT3_ANGLE:
-              case GL_COMPRESSED_RGBA_S3TC_DXT5_ANGLE:
                 return error(GL_INVALID_OPERATION);
               default:
                 return error(GL_INVALID_OPERATION);
@@ -3222,7 +3160,7 @@ const GLubyte* __stdcall glGetString(GLenum name)
           case GL_VENDOR:
             return (GLubyte*)"Google Inc.";
           case GL_RENDERER:
-            return (GLubyte*)((context != NULL) ? context->getRendererString() : "ANGLE");
+            return (GLubyte*)"ANGLE";
           case GL_VERSION:
             return (GLubyte*)"OpenGL ES 2.0 (ANGLE "VERSION_STRING")";
           case GL_SHADING_LANGUAGE_VERSION:
@@ -4529,8 +4467,6 @@ void __stdcall glTexImage2D(GLenum target, GLint level, GLint internalformat, GL
             break;
           case GL_COMPRESSED_RGB_S3TC_DXT1_EXT:  // error cases for compressed textures are handled below
           case GL_COMPRESSED_RGBA_S3TC_DXT1_EXT:
-          case GL_COMPRESSED_RGBA_S3TC_DXT3_ANGLE:
-          case GL_COMPRESSED_RGBA_S3TC_DXT5_ANGLE:
             break; 
           default:
             return error(GL_INVALID_VALUE);
@@ -4575,10 +4511,10 @@ void __stdcall glTexImage2D(GLenum target, GLint level, GLint internalformat, GL
                 return error(GL_INVALID_ENUM);
             }
 
-            switch (format) {
-              case GL_COMPRESSED_RGB_S3TC_DXT1_EXT:
-              case GL_COMPRESSED_RGBA_S3TC_DXT1_EXT:
-                if (context->supportsDXT1Textures())
+            if (format == GL_COMPRESSED_RGB_S3TC_DXT1_EXT ||
+                format == GL_COMPRESSED_RGBA_S3TC_DXT1_EXT)
+            {
+                if (context->supportsCompressedTextures())
                 {
                     return error(GL_INVALID_OPERATION);
                 }
@@ -4586,29 +4522,6 @@ void __stdcall glTexImage2D(GLenum target, GLint level, GLint internalformat, GL
                 {
                     return error(GL_INVALID_ENUM);
                 }
-                break;
-              case GL_COMPRESSED_RGBA_S3TC_DXT3_ANGLE:
-                if (context->supportsDXT3Textures())
-                {
-                    return error(GL_INVALID_OPERATION);
-                }
-                else
-                {
-                    return error(GL_INVALID_ENUM);
-                }
-                break;
-              case GL_COMPRESSED_RGBA_S3TC_DXT5_ANGLE:
-                if (context->supportsDXT5Textures())
-                {
-                    return error(GL_INVALID_OPERATION);
-                }
-                else
-                {
-                    return error(GL_INVALID_ENUM);
-                }
-                break;
-              default:
-                break;
             }
 
             if (type == GL_FLOAT)

@@ -72,12 +72,12 @@ public:
 
 #ifdef NS_DEBUG
   NS_IMETHOD
-  SetInitialChildList(ChildListID     aListID,
+  SetInitialChildList(nsIAtom*        aListName,
                       nsFrameList&    aChildList)
   {
     NS_ASSERTION(aChildList.NotEmpty() && aChildList.GetLength() == 1,
                  "there must be one and only one child frame");
-    return nsBlockFrame::SetInitialChildList(aListID, aChildList);
+    return nsBlockFrame::SetInitialChildList(aListName, aChildList);
   }
 #endif
 
@@ -89,7 +89,7 @@ public:
 
   // we are just a wrapper and these methods shouldn't be called
   NS_IMETHOD
-  AppendFrames(ChildListID     aListID,
+  AppendFrames(nsIAtom*        aListName,
                nsFrameList&    aFrameList)
   {
     NS_NOTREACHED("unsupported operation");
@@ -97,7 +97,7 @@ public:
   }
 
   NS_IMETHOD
-  InsertFrames(ChildListID     aListID,
+  InsertFrames(nsIAtom*        aListName,
                nsIFrame*       aPrevFrame,
                nsFrameList&    aFrameList)
   {
@@ -108,10 +108,10 @@ public:
   // Our life is bound to the life of our unique child.
   // When our child goes away, we ask our parent to delete us
   NS_IMETHOD
-  RemoveFrame(ChildListID     aListID,
+  RemoveFrame(nsIAtom*        aListName,
               nsIFrame*       aOldFrame)
   {
-    return mParent->RemoveFrame(aListID, this);
+    return mParent->RemoveFrame(aListName, this);
   }
 
 protected:

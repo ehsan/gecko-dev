@@ -42,7 +42,6 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
-#include "base/histogram.h"
 #include "nsComponentManagerUtils.h"
 #include "imgIContainerObserver.h"
 #include "ImageErrors.h"
@@ -192,7 +191,6 @@ RasterImage::RasterImage(imgStatusTracker* aStatusTracker) :
   mDecoder(nsnull),
   mWorker(nsnull),
   mBytesDecoded(0),
-  mDecodeCount(0),
 #ifdef DEBUG
   mFramesNotified(0),
 #endif
@@ -210,7 +208,6 @@ RasterImage::RasterImage(imgStatusTracker* aStatusTracker) :
   // Set up the discard tracker node.
   mDiscardTrackerNode.curr = this;
   mDiscardTrackerNode.prev = mDiscardTrackerNode.next = nsnull;
-  Telemetry::GetHistogramById(Telemetry::IMAGE_DECODE_COUNT)->Add(0);
 
   // Statistics
   num_containers++;
@@ -2200,12 +2197,6 @@ RasterImage::InitDecoder(bool aDoSizeDecode)
 
   // Create a decode worker
   mWorker = new imgDecodeWorker(this);
-
-  if (!aDoSizeDecode) {
-    Telemetry::GetHistogramById(Telemetry::IMAGE_DECODE_COUNT)->Subtract(mDecodeCount);
-    mDecodeCount++;
-    Telemetry::GetHistogramById(Telemetry::IMAGE_DECODE_COUNT)->Add(mDecodeCount);
-  }
   CONTAINER_ENSURE_TRUE(mWorker, NS_ERROR_OUT_OF_MEMORY);
 
   return NS_OK;
@@ -2345,12 +2336,12 @@ RasterImage::RequestDecode()
   if (mError)
     return NS_ERROR_FAILURE;
 
-  // If we're fully decoded, we have nothing to do
-  if (mDecoded)
-    return NS_OK;
-
   // If we're not storing source data, we have nothing to do
   if (!StoringSourceData())
+    return NS_OK;
+
+  // If we're fully decoded, we have nothing to do
+  if (mDecoded)
     return NS_OK;
 
   // If we've already got a full decoder running, we have nothing to do
@@ -2753,7 +2744,7 @@ imgDecodeWorker::Run()
   }
 
   TimeDuration decodeLatency = TimeStamp::Now() - start;
-  if (chunkCount && !image->mDecoder->IsSizeDecode()) {
+  if (chunkCount) {
       Telemetry::Accumulate(Telemetry::IMAGE_DECODE_LATENCY, PRInt32(decodeLatency.ToMicroseconds()));
       Telemetry::Accumulate(Telemetry::IMAGE_DECODE_CHUNKS, chunkCount);
   }
@@ -2772,18 +2763,7 @@ imgDecodeWorker::Run()
 
   // If the decode finished, shutdown the decoder
   if (image->mDecoder && image->IsDecodeFinished()) {
-
-    if (!image->mDecoder->IsSizeDecode()) {
-        Telemetry::Accumulate(Telemetry::IMAGE_DECODE_TIME, PRInt32(mDecodeTime.ToMicroseconds()));
-
-        // We only record the speed for some decoders. The rest have SpeedHistogram return HistogramCount.
-        Telemetry::ID id = image->mDecoder->SpeedHistogram();
-        if (id < Telemetry::HistogramCount) {
-            PRInt32 KBps = PRInt32((image->mBytesDecoded/1024.0)/mDecodeTime.ToSeconds());
-            Telemetry::Accumulate(id, KBps);
-        }
-    }
-
+    Telemetry::Accumulate(Telemetry::IMAGE_DECODE_TIME, PRInt32(mDecodeTime.ToMicroseconds()));
     rv = image->ShutdownDecoder(RasterImage::eShutdownIntent_Done);
     if (NS_FAILED(rv)) {
       image->DoError();

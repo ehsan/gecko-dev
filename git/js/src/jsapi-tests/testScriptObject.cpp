@@ -15,15 +15,15 @@ struct ScriptObjectFixture : public JSAPITest {
             uc_code[i] = code[i];
     }
 
-    bool tryScript(JSScript *script)
+    bool tryScript(JSObject *scriptObj)
     {
-        CHECK(script);
+        CHECK(scriptObj);
 
         JS_GC(cx);
 
         /* After a garbage collection, the script should still work. */
         jsval result;
-        CHECK(JS_ExecuteScript(cx, global, script, &result));
+        CHECK(JS_ExecuteScript(cx, global, scriptObj, &result));
 
         return true;
     }
@@ -87,9 +87,9 @@ BEGIN_FIXTURE_TEST(ScriptObjectFixture, bug438633_JS_CompileFile)
     FILE *script_stream = tempScript.open(script_filename);
     CHECK(fputs(code, script_stream) != EOF);
     tempScript.close();
-    JSScript *script = JS_CompileFile(cx, global, script_filename);
+    JSObject *scriptObj = JS_CompileFile(cx, global, script_filename);
     tempScript.remove();
-    return tryScript(script);
+    return tryScript(scriptObj);
 }
 END_FIXTURE_TEST(ScriptObjectFixture, bug438633_JS_CompileFile)
 
@@ -99,9 +99,9 @@ BEGIN_FIXTURE_TEST(ScriptObjectFixture, bug438633_JS_CompileFile_empty)
     static const char script_filename[] = "temp-bug438633_JS_CompileFile_empty";
     tempScript.open(script_filename);
     tempScript.close();
-    JSScript *script = JS_CompileFile(cx, global, script_filename);
+    JSObject *scriptObj = JS_CompileFile(cx, global, script_filename);
     tempScript.remove();
-    return tryScript(script);
+    return tryScript(scriptObj);
 }
 END_FIXTURE_TEST(ScriptObjectFixture, bug438633_JS_CompileFile_empty)
 

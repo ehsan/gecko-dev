@@ -49,7 +49,6 @@
 #include "nsBidiUtils.h"
 #include "nsToolkit.h"
 #include "nsCocoaUtils.h"
-#include "nsPrintfCString.h"
 
 #ifdef __LP64__
 #include "ComplexTextInputPanel.h"
@@ -1941,24 +1940,6 @@ IMEInputHandler::DispatchTextEvent(const nsString& aText,
   textEvent.rangeArray = textRanges.Elements();
   textEvent.rangeCount = textRanges.Length();
 
-  if (textEvent.theText != mLastDispatchedCompositionString) {
-    nsCompositionEvent compositionUpdate(PR_TRUE, NS_COMPOSITION_UPDATE,
-                                         mWidget);
-    compositionUpdate.time = textEvent.time;
-    compositionUpdate.data = textEvent.theText;
-    mLastDispatchedCompositionString = textEvent.theText;
-    DispatchEvent(compositionUpdate);
-    if (mIsInFocusProcessing || Destroyed()) {
-      PR_LOG(gLog, PR_LOG_ALWAYS,
-        ("%p IMEInputHandler::DispatchTextEvent, compositionupdate causes "
-         "aborting the composition, mIsInFocusProcessing=%s, Destryoed()=%s",
-         this, TrueOrFalse(mIsInFocusProcessing), TrueOrFalse(Destroyed())));
-      if (Destroyed()) {
-        return PR_TRUE;
-      }
-    }
-  }
-
   return DispatchEvent(textEvent);
 }
 
@@ -2028,7 +2009,6 @@ IMEInputHandler::InsertTextAsCommittingComposition(
 
   nsCompositionEvent compEnd(PR_TRUE, NS_COMPOSITION_END, mWidget);
   InitCompositionEvent(compEnd);
-  compEnd.data = mLastDispatchedCompositionString;
   DispatchEvent(compEnd);
   if (Destroyed()) {
     PR_LOG(gLog, PR_LOG_ALWAYS,
@@ -2106,7 +2086,6 @@ IMEInputHandler::SetMarkedText(NSAttributedString* aAttrString,
     if (doCommit) {
       nsCompositionEvent compEnd(PR_TRUE, NS_COMPOSITION_END, mWidget);
       InitCompositionEvent(compEnd);
-      compEnd.data = mLastDispatchedCompositionString;
       DispatchEvent(compEnd);
       if (Destroyed()) {
         PR_LOG(gLog, PR_LOG_ALWAYS,
@@ -2456,8 +2435,6 @@ IMEInputHandler::OnStartIMEComposition()
   NS_ASSERTION(!mIsIMEComposing, "There is a composition already");
   mIsIMEComposing = PR_TRUE;
 
-  mLastDispatchedCompositionString.Truncate();
-
   NS_OBJC_END_TRY_ABORT_BLOCK;
 }
 
@@ -2500,8 +2477,6 @@ IMEInputHandler::OnEndIMEComposition()
     [mIMECompositionString release];
     mIMECompositionString = nsnull;
   }
-
-  mLastDispatchedCompositionString.Truncate();
 
   NS_OBJC_END_TRY_ABORT_BLOCK;
 }

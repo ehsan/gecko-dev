@@ -63,7 +63,6 @@ using nsMouseScrollEvent;
 using nsKeyEvent;
 using RemoteDOMEvent;
 using mozilla::WindowsHandle;
-using nscolor;
 
 namespace mozilla {
 namespace dom {
@@ -191,7 +190,6 @@ parent:
     sync GetWidgetNativeData() returns (WindowsHandle value);
 
     SetCursor(PRUint32 value);
-    SetBackgroundColor(nscolor color);
 
     PContentPermissionRequest(nsCString aType, URI uri);
 

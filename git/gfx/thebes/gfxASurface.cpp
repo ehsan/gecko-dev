@@ -84,7 +84,6 @@
 #include "nsCOMPtr.h"
 #include "nsIConsoleService.h"
 #include "nsServiceManagerUtils.h"
-#include "nsStringGlue.h"
 
 using mozilla::CheckedInt;
 

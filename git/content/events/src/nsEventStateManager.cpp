@@ -99,11 +99,13 @@
 #include "nsIDOMMouseScrollEvent.h"
 #include "nsIDOMDragEvent.h"
 #include "nsIDOMEventTarget.h"
-#include "nsIDOMUIEvent.h"
+#include "nsIDOMNSUIEvent.h"
 #include "nsDOMDragEvent.h"
 #include "nsIDOMNSEditableElement.h"
 
 #include "nsCaret.h"
+#include "nsILookAndFeel.h"
+#include "nsWidgetsCID.h"
 
 #include "nsSubDocumentFrame.h"
 #include "nsIFrameTraversal.h"
@@ -136,7 +138,6 @@
 #include "nsHTMLLabelElement.h"
 
 #include "mozilla/Preferences.h"
-#include "mozilla/LookAndFeel.h"
 
 #ifdef XP_MACOSX
 #import <ApplicationServices/ApplicationServices.h>
@@ -150,6 +151,8 @@ using namespace mozilla::dom;
 #define NS_USER_INTERACTION_INTERVAL 5000 // ms
 
 static NS_DEFINE_CID(kFrameTraversalCID, NS_FRAMETRAVERSAL_CID);
+
+static NS_DEFINE_CID(kLookAndFeelCID, NS_LOOKANDFEEL_CID);
 
 static PRBool sLeftClickOnly = PR_TRUE;
 static PRBool sKeyCausesActivation = PR_TRUE;
@@ -171,8 +174,6 @@ static PRUint32 gPixelScrollDeltaTimeout = 0;
 
 static nscoord
 GetScrollableLineHeight(nsIFrame* aTargetFrame);
-
-TimeStamp nsEventStateManager::sHandlingInputStart;
 
 static inline PRBool
 IsMouseEventReal(nsEvent* aEvent)
@@ -1260,7 +1261,12 @@ nsEventStateManager::PreHandleEvent(nsPresContext* aPresContext,
     }
     break;
   case NS_QUERY_SELECTED_TEXT:
-    DoQuerySelectedText(static_cast<nsQueryContentEvent*>(aEvent));
+    {
+      if (RemoteQueryContentEvent(aEvent))
+        break;
+      nsContentEventHandler handler(mPresContext);
+      handler.OnQuerySelectedText((nsQueryContentEvent*)aEvent);
+    }
     break;
   case NS_QUERY_TEXT_CONTENT:
     {
@@ -1368,19 +1374,6 @@ nsEventStateManager::PreHandleEvent(nsPresContext* aPresContext,
     }
     break;
   case NS_COMPOSITION_START:
-    if (NS_IS_TRUSTED_EVENT(aEvent)) {
-      // If the event is trusted event, set the selected text to data of
-      // composition event.
-      nsCompositionEvent *compositionEvent =
-        static_cast<nsCompositionEvent*>(aEvent);
-      nsQueryContentEvent selectedText(PR_TRUE, NS_QUERY_SELECTED_TEXT,
-                                       compositionEvent->widget);
-      DoQuerySelectedText(&selectedText);
-      NS_ASSERTION(selectedText.mSucceeded, "Failed to get selected text");
-      compositionEvent->data = selectedText.mReply.mString;
-    }
-    // through to compositionend handling
-  case NS_COMPOSITION_UPDATE:
   case NS_COMPOSITION_END:
     {
       nsCompositionEvent *compositionEvent =
@@ -2055,10 +2048,9 @@ nsEventStateManager::GenerateDragGesture(nsPresContext* aPresContext,
     static PRInt32 pixelThresholdY = 0;
 
     if (!pixelThresholdX) {
-      pixelThresholdX =
-        LookAndFeel::GetInt(LookAndFeel::eIntID_DragThresholdX, 0);
-      pixelThresholdY =
-        LookAndFeel::GetInt(LookAndFeel::eIntID_DragThresholdY, 0);
+      nsILookAndFeel *lf = aPresContext->LookAndFeel();
+      lf->GetMetric(nsILookAndFeel::eMetric_DragThresholdX, pixelThresholdX);
+      lf->GetMetric(nsILookAndFeel::eMetric_DragThresholdY, pixelThresholdY);
       if (!pixelThresholdX)
         pixelThresholdX = 5;
       if (!pixelThresholdY)
@@ -2653,8 +2645,8 @@ nsEventStateManager::ComputeWheelDeltaFor(nsMouseScrollEvent* aMouseEvent)
   }
 
   if (ComputeWheelActionFor(aMouseEvent, useSysNumLines) == MOUSE_SCROLL_PAGE) {
-    delta = (delta > 0) ? PRInt32(nsIDOMUIEvent::SCROLL_PAGE_DOWN) :
-                          PRInt32(nsIDOMUIEvent::SCROLL_PAGE_UP);
+    delta = (delta > 0) ? PRInt32(nsIDOMNSUIEvent::SCROLL_PAGE_DOWN) :
+                          PRInt32(nsIDOMNSUIEvent::SCROLL_PAGE_UP);
   }
 
   return delta;
@@ -4393,14 +4385,6 @@ static nsIContent* FindCommonAncestor(nsIContent *aNode1, nsIContent *aNode2)
 }
 
 /* static */
-void
-nsEventStateManager::SetFullScreenState(Element* aElement,
-                                        PRBool aIsFullScreen)
-{
-  DoStateChange(aElement, NS_EVENT_STATE_FULL_SCREEN, aIsFullScreen);
-}
-
-/* static */
 inline void
 nsEventStateManager::DoStateChange(Element* aElement, nsEventStates aState,
                                    PRBool aAddState)
@@ -4853,16 +4837,6 @@ nsEventStateManager::DoQueryScrollTargetInfo(nsQueryContentEvent* aEvent,
 
   DoScrollText(aTargetFrame, &msEvent, unit,
                allowOverrideSystemSettings, aEvent);
-}
-
-void
-nsEventStateManager::DoQuerySelectedText(nsQueryContentEvent* aEvent)
-{
-  if (RemoteQueryContentEvent(aEvent)) {
-    return;
-  }
-  nsContentEventHandler handler(mPresContext);
-  handler.OnQuerySelectedText(aEvent);
 }
 
 void

@@ -49,7 +49,6 @@
 #include "nsRect.h"
 #include "nsRenderingContext.h"
 #include "nsTextFrame.h"
-#include "nsGfxScrollFrame.h"
 
 namespace mozilla {
 namespace css {
@@ -278,11 +277,11 @@ TextOverflow::WillProcessLines(nsDisplayListBuilder*   aBuilder,
       scroll->GetScrollbarStyles().mHorizontal != NS_STYLE_OVERFLOW_HIDDEN;
     textOverflow->mContentArea.MoveBy(scroll->GetScrollPosition());
   }
-  PRUint8 direction = aBlockFrame->GetStyleVisibility()->mDirection;
-  textOverflow->mBlockIsRTL = direction == NS_STYLE_DIRECTION_RTL;
+  textOverflow->mBlockIsRTL =
+    aBlockFrame->GetStyleVisibility()->mDirection == NS_STYLE_DIRECTION_RTL;
   const nsStyleTextReset* style = aBlockFrame->GetStyleTextReset();
-  textOverflow->mLeft.Init(style->mTextOverflow.GetLeft(direction));
-  textOverflow->mRight.Init(style->mTextOverflow.GetRight(direction));
+  textOverflow->mLeft.Init(style->mTextOverflow);
+  textOverflow->mRight.Init(style->mTextOverflow);
   // The left/right marker string is setup in ExamineLineFrames when a line
   // has overflow on that side.
 
@@ -294,10 +293,15 @@ TextOverflow::DidProcessLines()
 {
   nsIScrollableFrame* scroll = nsLayoutUtils::GetScrollableFrameFor(mBlock);
   if (scroll) {
+    // Create a dummy item covering the entire area, it doesn't paint
+    // but reports true for IsVaryingRelativeToMovingFrame().
     nsIFrame* scrollFrame = do_QueryFrame(scroll);
-    // Make sure that the next time this scrollframe is scrolled, we invalidate
-    // its entire contents.
-    scrollFrame->AddStateBits(NS_SCROLLFRAME_INVALIDATE_CONTENTS_ON_SCROLL);
+    nsDisplayItem* marker = new (mBuilder)
+      nsDisplayForcePaintOnScroll(mBuilder, scrollFrame);
+    if (marker) {
+      mMarkerList->AppendNewToBottom(marker);
+      mBlock->PresContext()->SetHasFixedBackgroundFrame();
+    }
   }
 }
 
@@ -336,7 +340,7 @@ TextOverflow::ExamineFrameSubtree(nsIFrame*       aFrame,
     return;
   }
 
-  nsIFrame* child = aFrame->GetFirstPrincipalChild();
+  nsIFrame* child = aFrame->GetFirstChild(nsnull);
   while (child) {
     ExamineFrameSubtree(child, aContentArea, aInsideMarkersArea,
                         aFramesToHide, aAlignmentEdges);
@@ -398,9 +402,11 @@ TextOverflow::ExamineLineFrames(nsLineBox*      aLine,
                                 FrameHashtable* aFramesToHide,
                                 AlignmentEdges* aAlignmentEdges)
 {
-  // No ellipsing for 'clip' style.
-  bool suppressLeft = mLeft.mStyle->mType == NS_STYLE_TEXT_OVERFLOW_CLIP;
-  bool suppressRight = mRight.mStyle->mType == NS_STYLE_TEXT_OVERFLOW_CLIP;
+  // No ellipsing for 'clip' style or on the start edge.
+  bool suppressLeft =
+    mLeft.mStyle->mType == NS_STYLE_TEXT_OVERFLOW_CLIP || !mBlockIsRTL;
+  bool suppressRight =
+    mRight.mStyle->mType == NS_STYLE_TEXT_OVERFLOW_CLIP || mBlockIsRTL;
   if (mCanHaveHorizontalScrollbar) {
     nsIScrollableFrame* scroll = nsLayoutUtils::GetScrollableFrameFor(mBlock);
     nsPoint pos = scroll->GetScrollPosition();
@@ -429,7 +435,7 @@ TextOverflow::ExamineLineFrames(nsLineBox*      aLine,
   const bool rightOverflow =
     !suppressRight && lineRect.XMost() > contentArea.XMost();
   if (!leftOverflow && !rightOverflow) {
-    // The line does not overflow on a side we should ellipsize.
+    // The line does not overflow on the side we should ellipsize.
     return;
   }
 
@@ -438,11 +444,11 @@ TextOverflow::ExamineLineFrames(nsLineBox*      aLine,
   bool guessRight = rightOverflow;
   do {
     // Setup marker strings as needed.
-    if (guessLeft) {
+    if (guessLeft || guessRight) {
       mLeft.SetupString(mBlock);
-    }
-    if (guessRight) {
-      mRight.SetupString(mBlock);
+      mRight.mMarkerString = mLeft.mMarkerString;
+      mRight.mWidth = mLeft.mWidth;
+      mRight.mInitialized = mLeft.mInitialized;
     }
     
     // If there is insufficient space for both markers then keep the one on the
@@ -597,8 +603,7 @@ TextOverflow::CanHaveTextOverflow(nsDisplayListBuilder* aBuilder,
   const nsStyleTextReset* style = aBlockFrame->GetStyleTextReset();
   // Nothing to do for text-overflow:clip or if 'overflow-x:visible'
   // or if we're just building items for event processing.
-  if ((style->mTextOverflow.mLeft.mType == NS_STYLE_TEXT_OVERFLOW_CLIP &&
-       style->mTextOverflow.mRight.mType == NS_STYLE_TEXT_OVERFLOW_CLIP) ||
+  if ((style->mTextOverflow.mType == NS_STYLE_TEXT_OVERFLOW_CLIP) ||
       IsHorizontalOverflowVisible(aBlockFrame) ||
       aBuilder->IsForEventDelivery()) {
     return false;

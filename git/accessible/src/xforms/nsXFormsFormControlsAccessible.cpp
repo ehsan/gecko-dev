@@ -70,7 +70,7 @@ void
 nsXFormsLabelAccessible::Description(nsString& aDescription)
 {
   nsTextEquivUtils::
-    GetTextEquivFromIDRefs(this, nsGkAtoms::aria_describedby,
+    GetTextEquivFromIDRefs(this, nsAccessibilityAtoms::aria_describedby,
                            aDescription);
 }
 

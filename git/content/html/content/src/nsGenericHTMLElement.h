@@ -139,7 +139,6 @@ public:
   virtual nsresult InsertAdjacentHTML(const nsAString& aPosition,
                                       const nsAString& aText);
   nsresult ScrollIntoView(PRBool aTop, PRUint8 optional_argc);
-  nsresult MozRequestFullScreen();
   // Declare Focus(), Blur(), GetTabIndex(), SetTabIndex(), GetHidden(),
   // SetHidden(), GetSpellcheck(), SetSpellcheck(), and GetDraggable() such that
   // classes that inherit interfaces with those methods properly override them.
@@ -607,7 +606,7 @@ protected:
                                 const nsAString* aValue, PRBool aNotify);
 
   virtual nsEventListenerManager*
-    GetEventListenerManagerForAttr(nsIAtom* aAttrName, PRBool* aDefer);
+    GetEventListenerManagerForAttr(PRBool* aDefer);
 
   virtual const nsAttrName* InternalGetExistingAttrNameFromQName(const nsAString& aStr) const;
 
@@ -835,8 +834,6 @@ private:
 
 //----------------------------------------------------------------------
 
-class nsHTMLFieldSetElement;
-
 /**
  * A helper class for form elements that can contain children
  */
@@ -887,7 +884,10 @@ public:
 
   virtual nsresult PreHandleEvent(nsEventChainPreVisitor& aVisitor);
 
-  virtual bool IsDisabled() const;
+  virtual bool IsDisabled() const {
+    return HasAttr(kNameSpaceID_None, nsGkAtoms::disabled) ||
+           (mFieldSet && mFieldSet->IsDisabled());
+  }
 
   /**
    * This callback is called by a fieldest on all its elements whenever its
@@ -911,7 +911,11 @@ public:
    *
    * @param aFieldSet The fieldset being removed.
    */
-  void ForgetFieldSet(nsIContent* aFieldset);
+  void ForgetFieldSet(nsIContent* aFieldset) {
+    if (mFieldSet == aFieldset) {
+      mFieldSet = nsnull;
+    }
+  }
 
   /**
    * Returns if the control can be disabled.
@@ -989,7 +993,7 @@ protected:
   nsHTMLFormElement* mForm;
 
   /* This is a pointer to our closest fieldset parent if any */
-  nsHTMLFieldSetElement* mFieldSet;
+  nsGenericHTMLFormElement* mFieldSet;
 };
 
 // If this flag is set on an nsGenericHTMLFormElement, that means that we have

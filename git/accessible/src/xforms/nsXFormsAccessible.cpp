@@ -204,7 +204,7 @@ void
 nsXFormsAccessible::Description(nsString& aDescription)
 {
   nsTextEquivUtils::
-    GetTextEquivFromIDRefs(this, nsGkAtoms::aria_describedby,
+    GetTextEquivFromIDRefs(this, nsAccessibilityAtoms::aria_describedby,
                            aDescription);
 
   if (aDescription.IsEmpty())
@@ -300,7 +300,7 @@ nsXFormsSelectableAccessible::
   nsXFormsEditableAccessible(aContent, aShell), mIsSelect1Element(nsnull)
 {
   mIsSelect1Element =
-    mContent->NodeInfo()->Equals(nsGkAtoms::select1);
+    mContent->NodeInfo()->Equals(nsAccessibilityAtoms::select1);
 }
 
 bool
@@ -511,12 +511,12 @@ nsXFormsSelectableAccessible::GetItemByIndex(PRUint32* aIndex,
     nsIContent* childContent = child->GetContent();
     nsINodeInfo *nodeInfo = childContent->NodeInfo();
     if (nodeInfo->NamespaceEquals(NS_LITERAL_STRING(NS_NAMESPACE_XFORMS))) {
-      if (nodeInfo->Equals(nsGkAtoms::item)) {
+      if (nodeInfo->Equals(nsAccessibilityAtoms::item)) {
         if (!*aIndex)
           return childContent;
 
         --*aIndex;
-      } else if (nodeInfo->Equals(nsGkAtoms::choices)) {
+      } else if (nodeInfo->Equals(nsAccessibilityAtoms::choices)) {
         nsIContent* itemContent = GetItemByIndex(aIndex, child);
         if (itemContent)
           return itemContent;
@@ -582,13 +582,13 @@ nsXFormsSelectableItemAccessible::IsSelected()
       continue;
 
     nsCOMPtr<nsIDOMNode> DOMNode(do_QueryInterface(mContent));
-    if (nodeinfo->Equals(nsGkAtoms::select)) {
+    if (nodeinfo->Equals(nsAccessibilityAtoms::select)) {
       PRBool isSelected = PR_FALSE;
       rv = sXFormsService->IsSelectItemSelected(select, DOMNode, &isSelected);
       return NS_SUCCEEDED(rv) && isSelected;
     }
 
-    if (nodeinfo->Equals(nsGkAtoms::select1)) {
+    if (nodeinfo->Equals(nsAccessibilityAtoms::select1)) {
       nsCOMPtr<nsIDOMNode> selitem;
       rv = sXFormsService->GetSelectedItemForSelect1(select,
                                                      getter_AddRefs(selitem));

@@ -91,6 +91,7 @@ class nsStyleContext;
 class nsIAtom;
 class nsEventStateManager;
 class nsIURI;
+class nsILookAndFeel;
 class nsICSSPseudoComparator;
 class nsIAtom;
 struct nsStyleBackground;
@@ -296,6 +297,12 @@ public:
   void SetImageAnimationMode(PRUint16 aMode)
   { SetImageAnimationModeExternal(aMode); }
 #endif
+
+  /**
+   * Get cached look and feel service.  This is faster than obtaining it
+   * through the service manager.
+   */
+  nsILookAndFeel* LookAndFeel() { return mLookAndFeel; }
 
   /** 
    * Get medium of presentation
@@ -1043,6 +1050,7 @@ protected:
                                         // since there is no dependency
                                         // from gfx back to layout.
   nsEventStateManager* mEventManager;   // [STRONG]
+  nsILookAndFeel*       mLookAndFeel;   // [STRONG]
   nsRefPtr<nsRefreshDriver> mRefreshDriver;
   nsRefPtr<nsTransitionManager> mTransitionManager;
   nsRefPtr<nsAnimationManager> mAnimationManager;

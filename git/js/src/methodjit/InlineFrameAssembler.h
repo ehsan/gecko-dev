@@ -76,6 +76,7 @@ class InlineFrameAssembler {
     Assembler &masm;
     FrameSize  frameSize;       // size of the caller's frame
     RegisterID funObjReg;       // register containing the function object (callee)
+    jsbytecode *pc;             // bytecode location at the caller call site
     uint32     flags;           // frame flags
 
   public:
@@ -86,7 +87,7 @@ class InlineFrameAssembler {
     Registers  tempRegs;
 
     InlineFrameAssembler(Assembler &masm, ic::CallICInfo &ic, uint32 flags)
-      : masm(masm), flags(flags), tempRegs(Registers::AvailRegs)
+      : masm(masm), pc(ic.pc), flags(flags)
     {
         frameSize = ic.frameSize;
         funObjReg = ic.funObjReg;
@@ -95,24 +96,18 @@ class InlineFrameAssembler {
     }
 
     InlineFrameAssembler(Assembler &masm, Compiler::CallGenInfo &gen, uint32 flags)
-      : masm(masm), flags(flags), tempRegs(Registers::AvailRegs)
+      : masm(masm), pc(gen.pc), flags(flags)
     {
         frameSize = gen.frameSize;
         funObjReg = gen.funObjReg;
         tempRegs.takeReg(funObjReg);
     }
 
-    DataLabelPtr assemble(void *ncode, jsbytecode *pc)
+    DataLabelPtr assemble(void *ncode)
     {
         JS_ASSERT((flags & ~StackFrame::CONSTRUCTING) == 0);
 
         /* Generate StackFrame::initCallFrameCallerHalf. */
-
-        /* Get the actual flags to write. */
-        JS_ASSERT(!(flags & ~StackFrame::CONSTRUCTING));
-        uint32 flags = this->flags | StackFrame::FUNCTION;
-        if (frameSize.lowered(pc))
-            flags |= StackFrame::LOWERED_CALL_APPLY;
 
         DataLabelPtr ncodePatch;
         if (frameSize.isStatic()) {
@@ -120,7 +115,7 @@ class InlineFrameAssembler {
             AdjustedFrame newfp(sizeof(StackFrame) + frameDepth * sizeof(Value));
 
             Address flagsAddr = newfp.addrOf(StackFrame::offsetOfFlags());
-            masm.store32(Imm32(flags), flagsAddr);
+            masm.store32(Imm32(StackFrame::FUNCTION | flags), flagsAddr);
             Address prevAddr = newfp.addrOf(StackFrame::offsetOfPrev());
             masm.storePtr(JSFrameReg, prevAddr);
             Address ncodeAddr = newfp.addrOf(StackFrame::offsetOfNcode());
@@ -136,11 +131,11 @@ class InlineFrameAssembler {
              * dynamic number of arguments) to VMFrame.regs, so we just load it
              * here to get the new frame pointer.
              */
-            RegisterID newfp = tempRegs.takeAnyReg().reg();
+            RegisterID newfp = tempRegs.takeAnyReg();
             masm.loadPtr(FrameAddress(offsetof(VMFrame, regs.sp)), newfp);
 
             Address flagsAddr(newfp, StackFrame::offsetOfFlags());
-            masm.store32(Imm32(flags), flagsAddr);
+            masm.store32(Imm32(StackFrame::FUNCTION | flags), flagsAddr);
             Address prevAddr(newfp, StackFrame::offsetOfPrev());
             masm.storePtr(JSFrameReg, prevAddr);
             Address ncodeAddr(newfp, StackFrame::offsetOfNcode());

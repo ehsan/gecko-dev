@@ -57,10 +57,10 @@
 using namespace mozilla;
 
 // Number of milliseconds between progress events as defined by spec
-static const PRUint32 PROGRESS_MS = 350;
+#define PROGRESS_MS 350
 
 // Number of milliseconds of no data before a stall event is fired as defined by spec
-static const PRUint32 STALL_MS = 3000;
+#define STALL_MS 3000
 
 // Number of estimated seconds worth of data we need to have buffered 
 // ahead of the current playback position before we allow the media decoder
@@ -68,10 +68,10 @@ static const PRUint32 STALL_MS = 3000;
 // catching up with the download. Having this margin make the
 // nsMediaDecoder::CanPlayThrough() calculation more stable in the case of
 // fluctuating bitrates.
-static const PRInt64 CAN_PLAY_THROUGH_MARGIN = 10;
+#define CAN_PLAY_THROUGH_MARGIN 10
 
 nsMediaDecoder::nsMediaDecoder() :
-  mElement(nsnull),
+  mElement(0),
   mRGBWidth(-1),
   mRGBHeight(-1),
   mVideoUpdateLock("nsMediaDecoder.mVideoUpdateLock"),

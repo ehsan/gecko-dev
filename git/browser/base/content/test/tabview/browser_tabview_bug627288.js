@@ -22,8 +22,8 @@ function test() {
         tabItem.addSubscriber("savedCachedImageData", function onSaved() {
           tabItem.removeSubscriber("savedCachedImageData", onSaved);
 
-          tabItem.addSubscriber("showingCachedData", function onLoaded() {
-            tabItem.removeSubscriber("showingCachedData", onLoaded);
+          tabItem.addSubscriber("loadedCachedImageData", function onLoaded() {
+            tabItem.removeSubscriber("loadedCachedImageData", onLoaded);
 
             ok(tabItem.isShowingCachedData(), 'tabItem shows cached data');
             testChangeUrlAfterReconnect();
@@ -33,7 +33,6 @@ function test() {
         });
 
         cw.Storage.saveTab(tab, data);
-        tabItem.saveThumbnail();
       });
     });
   }

@@ -23,11 +23,9 @@ Tests of DOM Worker Threads XHR(Bug 450452 )
 
   var worker = new Worker("xhr_worker.js");
 
-  var gotUploadLoad = false, gotLoadend = false;
-
   worker.onmessage = function(event) {
     is(event.target, worker);
-    var args = event.data;
+    var args = eval(event.data);
     switch (args.type) {
       case "progress": {
         ok(parseInt(args.current) <= parseInt(args.total));
@@ -35,17 +33,12 @@ Tests of DOM Worker Threads XHR(Bug 450452 )
       case "error": {
         ok(false, "XHR error: " + args.error);
       } break;
-      case "upload.load": {
-        gotUploadLoad = true;
-      } break;
       case "load": {
-        ok(gotUploadLoad, "Should have gotten upload load event");
-        gotLoadend = true;
-        is(args.data, "A noisy noise annoys an oyster.", "correct data");
+        is(args.data, "A noisy noise annoys an oyster.");
         document.getElementById("content").textContent = args.data;
       } break;
       case "loadend": {
-        ok(gotLoadend, "Should have gotten load.");
+        ok(true, "Should have got loadend.");
         SimpleTest.finish();
         break;
       }

@@ -367,18 +367,16 @@ nsCookiePermission::CanSetCookie(nsIURI     *aURI,
       }
 
       PRBool rememberDecision = PR_FALSE;
-      PRInt32 dialogRes = nsICookiePromptService::DENY_COOKIE;
       rv = cookiePromptService->CookieDialog(parent, aCookie, hostPort, 
                                              countFromHost, foundCookie,
-                                             &rememberDecision, &dialogRes);
+                                             &rememberDecision, aResult);
       if (NS_FAILED(rv)) return rv;
-
-      *aResult = !!dialogRes;
-      if (dialogRes == nsICookiePromptService::ACCEPT_SESSION_COOKIE)
+      
+      if (*aResult == nsICookiePromptService::ACCEPT_SESSION_COOKIE)
         *aIsSession = PR_TRUE;
 
       if (rememberDecision) {
-        switch (dialogRes) {
+        switch (*aResult) {
           case nsICookiePromptService::DENY_COOKIE:
             mPermMgr->Add(aURI, kPermissionType, (PRUint32) nsIPermissionManager::DENY_ACTION,
                           nsIPermissionManager::EXPIRE_NEVER, 0);

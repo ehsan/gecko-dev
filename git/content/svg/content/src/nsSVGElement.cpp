@@ -79,15 +79,24 @@
 #include "SVGAnimatedLengthList.h"
 #include "SVGAnimatedPointList.h"
 #include "SVGAnimatedPathSegList.h"
-#include "SVGAnimatedTransformList.h"
 #include "nsIDOMSVGUnitTypes.h"
+#include "nsIDOMSVGPointList.h"
+#include "nsIDOMSVGAnimatedPoints.h"
+#include "nsIDOMSVGTransformList.h"
+#include "nsIDOMSVGAnimTransformList.h"
+#include "nsIDOMSVGAnimatedRect.h"
+#include "nsIDOMSVGGradientElement.h"
+#include "nsIDOMSVGPatternElement.h"
 #include "nsSVGRect.h"
 #include "nsIFrame.h"
 #include "prdtoa.h"
 #include <stdarg.h>
 #ifdef MOZ_SMIL
 #include "nsSMILMappedAttribute.h"
+#include "nsSVGTransformSMILAttr.h"
+#include "nsSVGAnimatedTransformList.h"
 #include "SVGMotionSMILAttr.h"
+#include "nsIDOMSVGTransformable.h"
 #endif // MOZ_SMIL
 
 using namespace mozilla;
@@ -343,6 +352,7 @@ nsSVGElement::ParseAttribute(PRInt32 aNamespaceID,
       NS_ENSURE_SUCCESS(rv, PR_FALSE);
 
       svg_value->RemoveObserver(this);
+      ResetOldStyleBaseType(svg_value);
       proxy->SetValueString(aValue);
       proxy->AddObserver(this);
       aResult.SetTo(proxy);
@@ -564,16 +574,6 @@ nsSVGElement::ParseAttribute(PRInt32 aNamespaceID,
           }
           foundMatch = PR_TRUE;
         }
-      // Check for SVGAnimatedTransformList attribute
-      } else if (GetTransformListAttrName() == aAttribute) {
-        SVGAnimatedTransformList *transformList = GetAnimatedTransformList();
-        if (transformList) {
-          rv = transformList->SetBaseValueString(aValue);
-          if (NS_FAILED(rv)) {
-            transformList->ClearBaseValue();
-          }
-          foundMatch = PR_TRUE;
-        }
       // Check for class attribute
       } else if (aAttribute == nsGkAtoms::_class) {
         nsSVGClass *svgClass = GetClass();
@@ -783,17 +783,6 @@ nsSVGElement::UnsetAttr(PRInt32 aNamespaceID, nsIAtom* aName,
         return rv;
       }
     }
-
-    // Check if this is a transform list attribute going away
-    if (GetTransformListAttrName() == aName) {
-      SVGAnimatedTransformList *transformList = GetAnimatedTransformList();
-      if (transformList) {
-        transformList->ClearBaseValue();
-        DidChangeTransformList(PR_FALSE);
-        return rv;
-      }
-    }
-
     // Check if this is a class attribute going away
     if (aName == nsGkAtoms::_class) {
       nsSVGClass *svgClass = GetClass();
@@ -817,7 +806,27 @@ nsSVGElement::UnsetAttr(PRInt32 aNamespaceID, nsIAtom* aName,
     }
   }
 
+  // Now check for one of the old style basetypes going away
+  nsCOMPtr<nsISVGValue> svg_value = GetMappedAttribute(aNamespaceID, aName);
+
+  if (svg_value) {
+    mSuppressNotification = PR_TRUE;
+    ResetOldStyleBaseType(svg_value);
+    mSuppressNotification = PR_FALSE;
+  }
+
   return rv;
+}
+
+void
+nsSVGElement::ResetOldStyleBaseType(nsISVGValue *svg_value)
+{
+  nsCOMPtr<nsIDOMSVGAnimatedTransformList> tl = do_QueryInterface(svg_value);
+  if (tl) {
+    nsCOMPtr<nsIDOMSVGTransformList> transform;
+    tl->GetBaseVal(getter_AddRefs(transform));
+    transform->Clear();
+  }
 }
 
 nsChangeHint
@@ -1481,7 +1490,6 @@ nsSVGElement::SetLength(nsIAtom* aName, const nsSVGLength2 &aLength)
   for (PRUint32 i = 0; i < lengthInfo.mLengthCount; i++) {
     if (aName == *lengthInfo.mLengthInfo[i].mName) {
       lengthInfo.mLengths[i] = aLength;
-      DidChangeLength(i, PR_TRUE);
       return;
     }
   }
@@ -2212,34 +2220,13 @@ nsSVGElement::DidAnimatePreserveAspectRatio()
 }
 
 void
-nsSVGElement::DidChangeTransformList(PRBool aDoSetAttr)
+nsSVGElement::DidAnimateTransform()
 {
-  if (!aDoSetAttr)
-    return;
-
-  SVGAnimatedTransformList* transformList = GetAnimatedTransformList();
-  NS_ABORT_IF_FALSE(transformList,
-                    "DidChangeTransformList on element with no transform list");
-
-  nsAutoString serializedValue;
-  transformList->GetBaseValue().GetValueAsString(serializedValue);
-
-  nsAttrValue attrValue(serializedValue);
-  SetParsedAttr(kNameSpaceID_None, GetTransformListAttrName(), nsnull,
-                attrValue, PR_TRUE);
-}
-
-void
-nsSVGElement::DidAnimateTransformList()
-{
-  NS_ABORT_IF_FALSE(GetTransformListAttrName(),
-                    "Animating non-existent transform data?");
-
   nsIFrame* frame = GetPrimaryFrame();
-
+  
   if (frame) {
     frame->AttributeChanged(kNameSpaceID_None,
-                            GetTransformListAttrName(),
+                            nsGkAtoms::transform,
                             nsIDOMMutationEvent::MODIFICATION);
   }
 }
@@ -2353,9 +2340,39 @@ nsSVGElement::GetAnimatedAttr(PRInt32 aNamespaceID, nsIAtom* aName)
 {
   if (aNamespaceID == kNameSpaceID_None) {
     // Transforms:
-    if (GetTransformListAttrName() == aName) {
-      SVGAnimatedTransformList* transformList = GetAnimatedTransformList();
-      return transformList ?  transformList->ToSMILAttr(this) : nsnull;
+    nsCOMPtr<nsIDOMSVGAnimatedTransformList> transformList;
+    if (aName == nsGkAtoms::transform) {
+      nsCOMPtr<nsIDOMSVGTransformable> transformable(
+              do_QueryInterface(static_cast<nsIContent*>(this)));
+      if (!transformable)
+        return nsnull;
+      nsresult rv = transformable->GetTransform(getter_AddRefs(transformList));
+      NS_ENSURE_SUCCESS(rv, nsnull);
+    }
+    if (aName == nsGkAtoms::gradientTransform) {
+      nsCOMPtr<nsIDOMSVGGradientElement> gradientElement(
+              do_QueryInterface(static_cast<nsIContent*>(this)));
+      if (!gradientElement)
+        return nsnull;
+
+      nsresult rv = gradientElement->GetGradientTransform(getter_AddRefs(transformList));
+      NS_ENSURE_SUCCESS(rv, nsnull);
+    }
+    if (aName == nsGkAtoms::patternTransform) {
+      nsCOMPtr<nsIDOMSVGPatternElement> patternElement(
+              do_QueryInterface(static_cast<nsIContent*>(this)));
+      if (!patternElement)
+        return nsnull;
+
+      nsresult rv = patternElement->GetPatternTransform(getter_AddRefs(transformList));
+      NS_ENSURE_SUCCESS(rv, nsnull);
+    }
+    if (transformList) {
+      nsSVGAnimatedTransformList* list
+        = static_cast<nsSVGAnimatedTransformList*>(transformList.get());
+      NS_ENSURE_TRUE(list, nsnull);
+
+      return new nsSVGTransformSMILAttr(list, this);
     }
 
     // Motion (fake 'attribute' for animateMotion)

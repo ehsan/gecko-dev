@@ -65,7 +65,6 @@
 #include "nsThreadUtils.h"
 #include "DiscardTracker.h"
 #include "mozilla/TimeStamp.h"
-#include "mozilla/Telemetry.h"
 #ifdef DEBUG
   #include "imgIContainerDebug.h"
 #endif
@@ -503,10 +502,6 @@ private: // data
   nsRefPtr<Decoder>              mDecoder;
   nsRefPtr<imgDecodeWorker>      mWorker;
   PRUint32                       mBytesDecoded;
-
-  // How many times we've decoded this image.
-  // This is currently only used for statistics
-  PRInt32                        mDecodeCount;
 
 #ifdef DEBUG
   PRUint32                       mFramesNotified;

@@ -58,7 +58,6 @@ import android.app.NotificationManager;
 import android.app.PendingIntent;
 import android.app.Service;
 import android.content.ActivityNotFoundException;
-import android.content.ContentResolver;
 import android.content.Context;
 import android.content.ContextWrapper;
 import android.content.Intent;
@@ -66,12 +65,9 @@ import android.content.pm.ActivityInfo;
 import android.content.pm.PackageInfo;
 import android.content.pm.PackageManager;
 import android.content.pm.PackageManager.NameNotFoundException;
-import android.os.BatteryManager;
-import android.os.Debug;
 import android.os.IBinder;
 import android.os.PowerManager;
 import android.os.RemoteException;
-import android.provider.Settings;
 import android.util.Log;
 import android.view.Gravity;
 import android.widget.Toast;
@@ -111,6 +107,7 @@ public class WatcherService extends Service
 
 
     private IWatcherService.Stub stub = new IWatcherService.Stub() {
+        @Override
         public int UpdateApplication(String sAppName, String sFileName, String sOutFile, int bReboot) throws RemoteException
             {
             return UpdtApp(sAppName, sFileName, sOutFile, bReboot);
@@ -138,26 +135,11 @@ public class WatcherService extends Service
 
         this.sPingTarget = GetIniData("watcher", "PingTarget", sIniFile, "www.mozilla.org");
         sHold = GetIniData("watcher", "delay", sIniFile, "60000");
-        this.lDelay = Long.parseLong(sHold.trim());
+           this.lDelay = Long.parseLong(sHold.trim());
         sHold = GetIniData("watcher", "period", sIniFile,"300000");
-        this.lPeriod = Long.parseLong(sHold.trim());
+           this.lPeriod = Long.parseLong(sHold.trim());
         sHold = GetIniData("watcher", "strikes", sIniFile,"3");
-        this.nMaxStrikes = Integer.parseInt(sHold.trim());
-
-        sHold = GetIniData("watcher", "stayon", sIniFile,"0");
-        int nStayOn = Integer.parseInt(sHold.trim());
-        
-        try {
-            if (nStayOn != 0) {
-                if (!Settings.System.putInt(getContentResolver(), Settings.System.STAY_ON_WHILE_PLUGGED_IN, BatteryManager.BATTERY_PLUGGED_AC | BatteryManager.BATTERY_PLUGGED_USB)) {
-                    doToast("Screen couldn't be set to Always On [stay on while plugged in]");
-                }
-            }
-        } catch (Exception e) {
-            e.printStackTrace();
-            String sExcept = e.getMessage();
-            doToast("Screen couldn't be set to Always On [exception " + sExcept + "]");
-        }
+           this.nMaxStrikes = Integer.parseInt(sHold.trim());
 
         doToast("WatcherService created");
         }
@@ -892,6 +874,7 @@ public class WatcherService extends Service
             runner.start();
         }
 
+        @Override
         public void run() {
                bInstalling = true;
             UpdtApp(msPkgName, msPkgFileName, msOutFile, mbReboot);

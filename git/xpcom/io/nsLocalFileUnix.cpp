@@ -132,7 +132,7 @@ static nsresult MacErrorMapper(OSErr inErr);
     PR_END_MACRO
 
 /* directory enumerator */
-class
+class NS_COM
 nsDirEnumeratorUnix : public nsISimpleEnumerator,
                       public nsIDirectoryEnumerator
 {
@@ -1429,7 +1429,7 @@ nsLocalFile::IsExecutable(PRBool *_retval)
             "air",         // Adobe AIR installer
             "jar"};        // java application bundle
         nsDependentSubstring ext = Substring(path, dotIdx + 1);
-        for (size_t i = 0; i < NS_ARRAY_LENGTH(executableExts); i++) {
+        for (int i = 0; i < NS_ARRAY_LENGTH(executableExts); i++) {
             if (ext.EqualsASCII(executableExts[i])) {
                 // Found a match.  Set result and quit.
                 *_retval = PR_TRUE;

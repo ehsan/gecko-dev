@@ -117,7 +117,7 @@ nsXBLProtoImplField::InstallField(nsIScriptContext* aContext,
   nsCAutoString uriSpec;
   aBindingDocURI->GetSpec(uriSpec);
   
-  JSContext* cx = aContext->GetNativeContext();
+  JSContext* cx = (JSContext*) aContext->GetNativeContext();
   NS_ASSERTION(!::JS_IsExceptionPending(cx),
                "Shouldn't get here when an exception is pending!");
   

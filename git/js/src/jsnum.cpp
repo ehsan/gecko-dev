@@ -75,20 +75,16 @@
 #include "jsvector.h"
 #include "jslibmath.h"
 
-#include "vm/GlobalObject.h"
-
 #include "jsatominlines.h"
-#include "jsinferinlines.h"
 #include "jsinterpinlines.h"
 #include "jsnuminlines.h"
 #include "jsobjinlines.h"
 #include "jsstrinlines.h"
 
-#include "vm/NumberObject-inl.h"
 #include "vm/String-inl.h"
 
 using namespace js;
-using namespace js::types;
+using namespace mozilla;
 
 #ifndef JS_HAVE_STDINT_H /* Native support is innocent until proven guilty. */
 
@@ -453,7 +449,7 @@ num_parseInt(JSContext *cx, uintN argc, Value *vp)
         if (vp[2].isDouble() &&
             vp[2].toDouble() > -1.0e21 &&
             vp[2].toDouble() < 1.0e21) {
-            vp->setNumber(ParseIntDoubleHelper(vp[2].toDouble()));
+            vp->setDouble(ParseIntDoubleHelper(vp[2].toDouble()));
             return true;
         }
     }
@@ -561,16 +557,16 @@ static JSFunctionSpec number_functions[] = {
     JS_FS_END
 };
 
-Class js::NumberClass = {
+Class js_NumberClass = {
     js_Number_str,
     JSCLASS_HAS_RESERVED_SLOTS(1) | JSCLASS_HAS_CACHED_PROTO(JSProto_Number),
-    JS_PropertyStub,         /* addProperty */
-    JS_PropertyStub,         /* delProperty */
-    JS_PropertyStub,         /* getProperty */
-    JS_StrictPropertyStub,   /* setProperty */
-    JS_EnumerateStub,
-    JS_ResolveStub,
-    JS_ConvertStub
+    PropertyStub,         /* addProperty */
+    PropertyStub,         /* delProperty */
+    PropertyStub,         /* getProperty */
+    StrictPropertyStub,   /* setProperty */
+    EnumerateStub,
+    ResolveStub,
+    ConvertStub
 };
 
 static JSBool
@@ -590,7 +586,7 @@ Number(JSContext *cx, uintN argc, Value *vp)
     if (!isConstructing)
         return true;
 
-    JSObject *obj = NewBuiltinClassInstance(cx, &NumberClass);
+    JSObject *obj = NewBuiltinClassInstance(cx, &js_NumberClass);
     if (!obj)
         return false;
     obj->setPrimitiveThis(vp[0]);
@@ -614,7 +610,7 @@ num_toSource(JSContext *cx, uintN argc, Value *vp)
     }
 
     char buf[64];
-    JS_snprintf(buf, sizeof buf, "(new %s(%s))", NumberClass.name, numStr);
+    JS_snprintf(buf, sizeof buf, "(new %s(%s))", js_NumberClass.name, numStr);
     JSString *str = js_NewStringCopyZ(cx, buf);
     if (!str)
         return false;
@@ -639,8 +635,8 @@ js_IntToString(JSContext *cx, int32 si)
 {
     uint32 ui;
     if (si >= 0) {
-        if (StaticStrings::hasInt(si))
-            return cx->runtime->staticStrings.getInt(si);
+        if (JSAtom::hasIntStatic(si))
+            return &JSAtom::intStatic(si);
         ui = si;
     } else {
         ui = uint32(-si);
@@ -844,7 +840,7 @@ num_toLocaleString(JSContext *cx, uintN argc, Value *vp)
     }
 
     if (cx->localeCallbacks && cx->localeCallbacks->localeToUnicode) {
-        JSBool ok = cx->localeCallbacks->localeToUnicode(cx, buf, vp);
+        JSBool ok = cx->localeCallbacks->localeToUnicode(cx, buf, Jsvalify(vp));
         cx->free_(buf);
         return ok;
     }
@@ -1102,52 +1098,38 @@ FinishRuntimeNumberState(JSRuntime *rt)
 JSObject *
 js_InitNumberClass(JSContext *cx, JSObject *obj)
 {
-    JS_ASSERT(obj->isNative());
+    JSObject *proto, *ctor;
+    JSRuntime *rt;
 
     /* XXX must do at least once per new thread, so do it per JSContext... */
     FIX_FPU();
 
-    GlobalObject *global = obj->asGlobal();
-
-    JSObject *numberProto = global->createBlankPrototype(cx, &NumberClass);
-    if (!numberProto)
-        return NULL;
-    numberProto->asNumber()->setPrimitiveValue(0);
-
-    JSFunction *ctor = global->createConstructor(cx, Number, &NumberClass,
-                                                 CLASS_ATOM(cx, Number), 1);
-    if (!ctor)
+    if (!JS_DefineFunctions(cx, obj, number_functions))
         return NULL;
 
-    if (!LinkConstructorAndPrototype(cx, ctor, numberProto))
+    proto = js_InitClass(cx, obj, NULL, &js_NumberClass, Number, 1,
+                         NULL, number_methods, NULL, NULL);
+    if (!proto || !(ctor = JS_GetConstructor(cx, proto)))
         return NULL;
-
-    /* Add numeric constants (MAX_VALUE, NaN, &c.) to the Number constructor. */
+    proto->setPrimitiveThis(Int32Value(0));
     if (!JS_DefineConstDoubles(cx, ctor, number_constants))
         return NULL;
 
-    if (!DefinePropertiesAndBrand(cx, numberProto, NULL, number_methods))
-        return NULL;
-
-    if (!JS_DefineFunctions(cx, global, number_functions))
-        return NULL;
-
-    /* ES5 15.1.1.1, 15.1.1.2 */
-    if (!DefineNativeProperty(cx, global, ATOM_TO_JSID(cx->runtime->atomState.NaNAtom),
-                              cx->runtime->NaNValue, JS_PropertyStub, JS_StrictPropertyStub,
-                              JSPROP_PERMANENT | JSPROP_READONLY, 0, 0) ||
-        !DefineNativeProperty(cx, global, ATOM_TO_JSID(cx->runtime->atomState.InfinityAtom),
-                              cx->runtime->positiveInfinityValue,
-                              JS_PropertyStub, JS_StrictPropertyStub,
-                              JSPROP_PERMANENT | JSPROP_READONLY, 0, 0))
-    {
+    /* ECMA 15.1.1.1 */
+    rt = cx->runtime;
+    if (!JS_DefineProperty(cx, obj, js_NaN_str, Jsvalify(rt->NaNValue),
+                           JS_PropertyStub, JS_StrictPropertyStub,
+                           JSPROP_PERMANENT | JSPROP_READONLY)) {
         return NULL;
     }
 
-    if (!DefineConstructorAndPrototype(cx, global, JSProto_Number, ctor, numberProto))
+    /* ECMA 15.1.1.2 */
+    if (!JS_DefineProperty(cx, obj, js_Infinity_str, Jsvalify(rt->positiveInfinityValue),
+                           JS_PropertyStub, JS_StrictPropertyStub,
+                           JSPROP_PERMANENT | JSPROP_READONLY)) {
         return NULL;
-
-    return numberProto;
+    }
+    return proto;
 }
 
 namespace v8 {
@@ -1219,14 +1201,14 @@ js_NumberToStringWithBase(JSContext *cx, jsdouble d, jsint base)
 
     int32_t i;
     if (JSDOUBLE_IS_INT32(d, &i)) {
-        if (base == 10 && StaticStrings::hasInt(i))
-            return cx->runtime->staticStrings.getInt(i);
+        if (base == 10 && JSAtom::hasIntStatic(i))
+            return &JSAtom::intStatic(i);
         if (jsuint(i) < jsuint(base)) {
             if (i < 10)
-                return cx->runtime->staticStrings.getInt(i);
+                return &JSAtom::intStatic(i);
             jschar c = 'a' + i - 10;
-            JS_ASSERT(StaticStrings::hasUnit(c));
-            return cx->runtime->staticStrings.getUnit(c);
+            JS_ASSERT(JSAtom::hasUnitStatic(c));
+            return &JSAtom::unitStatic(c);
         }
 
         if (JSFlatString *str = c->dtoaCache.lookup(base, d))
@@ -1273,8 +1255,8 @@ NumberToString(JSContext *cx, jsdouble d)
 JSFixedString *
 IndexToString(JSContext *cx, uint32 index)
 {
-    if (StaticStrings::hasUint(index))
-        return cx->runtime->staticStrings.getUint(index);
+    if (JSAtom::hasUintStatic(index))
+        return &JSAtom::uintStatic(index);
 
     JSCompartment *c = cx->compartment;
     if (JSFixedString *str = c->dtoaCache.lookup(10, index))

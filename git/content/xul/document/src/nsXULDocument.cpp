@@ -68,6 +68,7 @@
 #include "nsIViewManager.h"
 #include "nsIContentViewer.h"
 #include "nsGUIEvent.h"
+#include "nsIDOMNSUIEvent.h"
 #include "nsIDOMXULElement.h"
 #include "nsIPrivateDOMEvent.h"
 #include "nsIRDFNode.h"
@@ -930,14 +931,14 @@ nsXULDocument::ExecuteOnBroadcastHandlerFor(nsIContent* aBroadcaster,
     // execute the handler.
 
     nsCOMPtr<nsIContent> listener = do_QueryInterface(aListener);
-    for (nsIContent* child = listener->GetFirstChild();
-         child;
-         child = child->GetNextSibling()) {
-
+    PRUint32 count = listener->GetChildCount();
+    for (PRUint32 i = 0; i < count; ++i) {
         // Look for an <observes> element beneath the listener. This
         // ought to have an |element| attribute that refers to
         // aBroadcaster, and an |attribute| element that tells us what
         // attriubtes we're listening for.
+        nsIContent *child = listener->GetChildAt(i);
+
         if (!child->NodeInfo()->Equals(nsGkAtoms::observes, kNameSpaceID_XUL))
             continue;
 
@@ -1764,11 +1765,10 @@ nsXULDocument::AddSubtreeToDocument(nsIContent* aContent)
     if (NS_FAILED(rv)) return rv;
 
     // Recurse to children
-    for (nsIContent* child = aElement->GetLastChild();
-         child;
-         child = child->GetPreviousSibling()) {
+    PRUint32 count = aElement->GetChildCount();
 
-        rv = AddSubtreeToDocument(child);
+    while (count-- > 0) {
+        rv = AddSubtreeToDocument(aElement->GetChildAt(count));
         if (NS_FAILED(rv))
             return rv;
     }
@@ -1799,11 +1799,10 @@ nsXULDocument::RemoveSubtreeFromDocument(nsIContent* aContent)
     }
 
     // 1. Remove any children from the document.
-    for (nsIContent* child = aElement->GetLastChild();
-         child;
-         child = child->GetPreviousSibling()) {
+    PRUint32 count = aElement->GetChildCount();
 
-        rv = RemoveSubtreeFromDocument(child);
+    while (count-- > 0) {
+        rv = RemoveSubtreeFromDocument(aElement->GetChildAt(count));
         if (NS_FAILED(rv))
             return rv;
     }
@@ -4048,8 +4047,7 @@ nsXULDocument::OverlayForwardReference::Merge(nsIContent* aTargetNode,
         if (attr == nsGkAtoms::removeelement &&
             value.EqualsLiteral("true")) {
 
-            nsCOMPtr<nsIContent> parent = aTargetNode->GetParent();
-            rv = RemoveElement(parent, aTargetNode);
+            rv = RemoveElement(aTargetNode->GetParent(), aTargetNode);
             if (NS_FAILED(rv)) return rv;
 
             return NS_OK;
@@ -4079,7 +4077,7 @@ nsXULDocument::OverlayForwardReference::Merge(nsIContent* aTargetNode,
     nsCOMPtr<nsIContent> currContent;
 
     for (i = 0; i < childCount; ++i) {
-        currContent = aOverlayNode->GetFirstChild();
+        currContent = aOverlayNode->GetChildAt(0);
 
         nsIAtom *idAtom = currContent->GetID();
 

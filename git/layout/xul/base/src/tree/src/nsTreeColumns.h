@@ -110,7 +110,7 @@ protected:
   nsTreeColumn* GetPrevious() { return mPrevious; }
   void SetNext(nsTreeColumn* aNext) {
     NS_ASSERTION(!mNext, "already have a next sibling");
-    mNext = aNext;
+    NS_IF_ADDREF(mNext = aNext);
   }
   void SetPrevious(nsTreeColumn* aPrevious) { mPrevious = aPrevious; }
 
@@ -138,7 +138,7 @@ private:
   PRInt8 mCropStyle;
   PRInt8 mTextAlignment;
 
-  nsRefPtr<nsTreeColumn> mNext;
+  nsTreeColumn* mNext;
   nsTreeColumn* mPrevious;
 };
 

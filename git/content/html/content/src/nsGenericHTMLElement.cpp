@@ -21,7 +21,7 @@
  * the Initial Developer. All Rights Reserved.
  *
  * Contributor(s):
- *   Mats Palmgren <matspal@gmail.com>
+ *   Mats Palmgren <mats.palmgren@bredband.net>
  *   Ms2ger <ms2ger@gmail.com>
  *
  * Alternatively, the contents of this file may be used under the terms of
@@ -733,10 +733,8 @@ nsGenericHTMLElement::FireMutationEventsForDirectParsing(nsIDocument* aDoc,
     NS_ASSERTION(newChildCount - aOldChildCount >= 0,
                  "What, some unexpected dom mutation has happened?");
     childNodes.SetCapacity(newChildCount - aOldChildCount);
-    for (nsIContent* child = aDest->GetFirstChild();
-         child;
-         child = child->GetNextSibling()) {
-      childNodes.AppendElement(child);
+    for (nsINode::ChildIterator iter(aDest); !iter.IsDone(); iter.Next()) {
+      childNodes.AppendElement(iter);
     }
     nsGenericElement::FireNodeInserted(aDoc, aDest, childNodes);
   }
@@ -785,11 +783,6 @@ nsGenericHTMLElement::SetInnerHTML(const nsAString& aInnerHTML)
                                                   getter_AddRefs(df));
     nsCOMPtr<nsINode> fragment = do_QueryInterface(df);
     if (NS_SUCCEEDED(rv)) {
-      // Suppress assertion about node removal mutation events that can't have
-      // listeners anyway, because no one has had the chance to register mutation
-      // listeners on the fragment that comes from the parser.
-      nsAutoScriptBlockerSuppressNodeRemoved scriptBlocker;
-
       static_cast<nsINode*>(this)->AppendChild(fragment, &rv);
     }
   }
@@ -1236,24 +1229,11 @@ nsGenericHTMLElement::AfterSetAttr(PRInt32 aNamespaceID, nsIAtom* aName,
 }
 
 nsEventListenerManager*
-nsGenericHTMLElement::GetEventListenerManagerForAttr(nsIAtom* aAttrName,
-                                                     PRBool* aDefer)
+nsGenericHTMLElement::GetEventListenerManagerForAttr(PRBool* aDefer)
 {
   // Attributes on the body and frameset tags get set on the global object
-  if ((mNodeInfo->Equals(nsGkAtoms::body) ||
-       mNodeInfo->Equals(nsGkAtoms::frameset)) &&
-      // We only forward some event attributes from body/frameset to window
-      (0
-#define EVENT(name_, id_, type_, struct_) /* nothing */
-#define FORWARDED_EVENT(name_, id_, type_, struct_) \
-       || nsGkAtoms::on##name_ == aAttrName
-#define WINDOW_EVENT FORWARDED_EVENT
-#include "nsEventNameList.h"
-#undef WINDOW_EVENT
-#undef FORWARDED_EVENT
-#undef EVENT
-       )
-      ) {
+  if (mNodeInfo->Equals(nsGkAtoms::body) ||
+      mNodeInfo->Equals(nsGkAtoms::frameset)) {
     nsPIDOMWindow *win;
 
     // If we have a document, and it has a window, add the event
@@ -1266,8 +1246,7 @@ nsGenericHTMLElement::GetEventListenerManagerForAttr(nsIAtom* aAttrName,
     // FIXME (https://bugzilla.mozilla.org/show_bug.cgi?id=431767)
     // nsDocument::GetInnerWindow can return an outer window in some cases,
     // we don't want to stick an event listener on an outer window, so
-    // bail if it does.  See similar code in nsHTMLBodyElement and
-    // nsHTMLFramesetElement
+    // bail if it does.
     *aDefer = PR_FALSE;
     if (document &&
         (win = document->GetInnerWindow()) && win->IsInnerWindow()) {
@@ -1279,8 +1258,7 @@ nsGenericHTMLElement::GetEventListenerManagerForAttr(nsIAtom* aAttrName,
     return nsnull;
   }
 
-  return nsGenericHTMLElementBase::GetEventListenerManagerForAttr(aAttrName,
-                                                                  aDefer);
+  return nsGenericHTMLElementBase::GetEventListenerManagerForAttr(aDefer);
 }
 
 nsresult
@@ -1471,7 +1449,7 @@ nsGenericHTMLElement::GetFormControlFrame(PRBool aFlushFrames)
 
     // If we have generated content, the primary frame will be a
     // wrapper frame..  out real frame will be in its child list.
-    for (frame = frame->GetFirstPrincipalChild();
+    for (frame = frame->GetFirstChild(nsnull);
          frame;
          frame = frame->GetNextSibling()) {
       form_frame = do_QueryFrame(frame);
@@ -2520,7 +2498,7 @@ nsGenericHTMLFormElement::nsGenericHTMLFormElement(already_AddRefed<nsINodeInfo>
 nsGenericHTMLFormElement::~nsGenericHTMLFormElement()
 {
   if (mFieldSet) {
-    mFieldSet->RemoveElement(this);
+    static_cast<nsHTMLFieldSetElement*>(mFieldSet)->RemoveElement(this);
   }
 
   // Check that this element doesn't know anything about its form at this point.
@@ -2857,22 +2835,6 @@ nsGenericHTMLFormElement::PreHandleEvent(nsEventChainPreVisitor& aVisitor)
   return nsGenericHTMLElement::PreHandleEvent(aVisitor);
 }
 
-/* virtual */
-bool
-nsGenericHTMLFormElement::IsDisabled() const
-{
-  return HasAttr(kNameSpaceID_None, nsGkAtoms::disabled) ||
-         (mFieldSet && mFieldSet->IsDisabled());
-}
-
-void
-nsGenericHTMLFormElement::ForgetFieldSet(nsIContent* aFieldset)
-{
-  if (mFieldSet == aFieldset) {
-    mFieldSet = nsnull;
-  }
-}
-
 PRBool
 nsGenericHTMLFormElement::CanBeDisabled() const
 {
@@ -3123,30 +3085,32 @@ nsGenericHTMLFormElement::UpdateFieldSet(PRBool aNotify)
 
   for (parent = GetParent(); parent;
        prev = parent, parent = parent->GetParent()) {
-    nsHTMLFieldSetElement* fieldset =
-      nsHTMLFieldSetElement::FromContent(parent);
-    if (fieldset &&
-        (!prev || fieldset->GetFirstLegend() != prev)) {
-      if (mFieldSet == fieldset) {
-        // We already have the right fieldset;
+    if (parent->IsHTML(nsGkAtoms::fieldset)) {
+      nsHTMLFieldSetElement* fieldset =
+        static_cast<nsHTMLFieldSetElement*>(parent);
+
+      if (!prev || fieldset->GetFirstLegend() != prev) {
+        if (mFieldSet == fieldset) {
+          // We already have the right fieldset;
+          return;
+        }
+
+        if (mFieldSet) {
+          static_cast<nsHTMLFieldSetElement*>(mFieldSet)->RemoveElement(this);
+        }
+        mFieldSet = fieldset;
+        fieldset->AddElement(this);
+
+        // The disabled state may have changed
+        FieldSetDisabledChanged(aNotify);
         return;
       }
-
-      if (mFieldSet) {
-        mFieldSet->RemoveElement(this);
-      }
-      mFieldSet = fieldset;
-      fieldset->AddElement(this);
-
-      // The disabled state may have changed
-      FieldSetDisabledChanged(aNotify);
-      return;
     }
   }
 
   // No fieldset found.
   if (mFieldSet) {
-    mFieldSet->RemoveElement(this);
+    static_cast<nsHTMLFieldSetElement*>(mFieldSet)->RemoveElement(this);
     mFieldSet = nsnull;
     // The disabled state may have changed
     FieldSetDisabledChanged(aNotify);
@@ -3413,50 +3377,6 @@ nsGenericHTMLElement::Focus()
   return fm ? fm->SetFocus(elem, 0) : NS_OK;
 }
 
-nsresult nsGenericHTMLElement::MozRequestFullScreen()
-{
-  // Only grant full-screen requests if this is called from inside a trusted
-  // event handler (i.e. inside an event handler for a user initiated event).
-  // This stops the full-screen from being abused similar to the popups of old,
-  // and it also makes it harder for bad guys' script to go full-screen and
-  // spoof the browser chrome/window and phish logins etc.
-  if (!nsContentUtils::IsFullScreenApiEnabled() ||
-      !nsContentUtils::IsRequestFullScreenAllowed()) {
-    return NS_OK;
-  }
-
-  // Ensure that all ancestor <iframe> elements have the mozallowfullscreen
-  // boolean attribute set.
-  nsINode* node = static_cast<nsINode*>(this);
-  do {
-    nsIContent* content = static_cast<nsIContent*>(node);
-    if (content->IsHTML(nsGkAtoms::iframe) &&
-        !content->HasAttr(kNameSpaceID_None, nsGkAtoms::mozallowfullscreen)) {
-      // The node requesting fullscreen, or one of its crossdoc ancestors,
-      // is an iframe which doesn't have the "mozalllowfullscreen" attribute.
-      // This request is not authorized by the parent document.
-      return NS_OK;
-    }
-    node = nsContentUtils::GetCrossDocParentNode(node);
-  } while (node);
-
-  nsIDocument* doc = GetOwnerDoc();
-  NS_ENSURE_STATE(doc);
-  doc->RequestFullScreen(this);
-#ifdef DEBUG
-  nsCOMPtr<nsPIDOMWindow> window = do_QueryInterface(doc->GetWindow());
-  NS_ENSURE_STATE(window);
-  PRBool fullscreen;
-  window->GetFullScreen(&fullscreen);
-  NS_ASSERTION(fullscreen, "Windows should report fullscreen");
-  nsCOMPtr<nsIDOMDocument> domDocument(do_QueryInterface(doc));
-  domDocument->GetMozFullScreen(&fullscreen);
-  NS_ASSERTION(fullscreen, "Document should report fullscreen");
-  NS_ASSERTION(doc->IsFullScreenDoc(), "Should be in full screen state!");
-#endif
-  return NS_OK;
-}
-
 nsresult nsGenericHTMLElement::Click()
 {
   if (HasFlag(NODE_HANDLING_CLICK))
@@ -3481,7 +3401,7 @@ nsresult nsGenericHTMLElement::Click()
   // is called from chrome code.
   nsMouseEvent event(nsContentUtils::IsCallerChrome(),
                      NS_MOUSE_CLICK, nsnull, nsMouseEvent::eReal);
-  event.inputSource = nsIDOMMouseEvent::MOZ_SOURCE_UNKNOWN;
+  event.inputSource = nsIDOMNSMouseEvent::MOZ_SOURCE_UNKNOWN;
 
   nsEventDispatcher::Dispatch(this, context, &event);
 
@@ -3587,7 +3507,7 @@ nsGenericHTMLElement::PerformAccesskey(PRBool aKeyCausesActivation,
     // Click on it if the users prefs indicate to do so.
     nsMouseEvent event(aIsTrustedEvent, NS_MOUSE_CLICK,
                        nsnull, nsMouseEvent::eReal);
-    event.inputSource = nsIDOMMouseEvent::MOZ_SOURCE_KEYBOARD;
+    event.inputSource = nsIDOMNSMouseEvent::MOZ_SOURCE_KEYBOARD;
 
     nsAutoPopupStatePusher popupStatePusher(aIsTrustedEvent ?
                                             openAllowed : openAbused);
@@ -3676,10 +3596,14 @@ nsGenericHTMLElement::SyncEditorsOnSubtree(nsIContent* content)
   }
 
   /* Sync all children */
-  for (nsIContent* child = content->GetFirstChild();
-       child;
-       child = child->GetNextSibling()) {
-    SyncEditorsOnSubtree(child);
+  PRUint32 childCount = content->GetChildCount();
+  for (PRUint32 i = 0; i < childCount; ++i) {
+    nsIContent* childContent = content->GetChildAt(i);
+    NS_ASSERTION(childContent,
+                 "DOM mutated unexpectedly while syncing editors!");
+    if (childContent) {
+      SyncEditorsOnSubtree(childContent);
+    }
   }
 }
 

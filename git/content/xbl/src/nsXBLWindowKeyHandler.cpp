@@ -42,6 +42,7 @@
 #include "nsXBLWindowKeyHandler.h"
 #include "nsIContent.h"
 #include "nsIAtom.h"
+#include "nsIDOMNSUIEvent.h"
 #include "nsIDOMKeyEvent.h"
 #include "nsIDOMEventTarget.h"
 #include "nsIDOMNSEvent.h"
@@ -211,9 +212,8 @@ BuildHandlerChain(nsIContent* aContent, nsXBLPrototypeHandler** aResult)
   // Since we chain each handler onto the next handler,
   // we'll enumerate them here in reverse so that when we
   // walk the chain they'll come out in the original order
-  for (nsIContent* key = aContent->GetLastChild();
-       key;
-       key = key->GetPreviousSibling()) {
+  for (PRUint32 j = aContent->GetChildCount(); j--; ) {
+    nsIContent *key = aContent->GetChildAt(j);
 
     if (key->NodeInfo()->Equals(nsGkAtoms::key, kNameSpaceID_XUL)) {
       // Check whether the key element has empty value at key/char attribute.
@@ -319,13 +319,15 @@ DoCommandCallback(const char *aCommand, void *aData)
 nsresult
 nsXBLWindowKeyHandler::WalkHandlers(nsIDOMKeyEvent* aKeyEvent, nsIAtom* aEventType)
 {
-  nsCOMPtr<nsIDOMNSEvent> domNSEvent = do_QueryInterface(aKeyEvent);
+  nsCOMPtr<nsIDOMNSUIEvent> evt = do_QueryInterface(aKeyEvent);
   PRBool prevent;
-  domNSEvent->GetPreventDefault(&prevent);
+  evt->GetPreventDefault(&prevent);
   if (prevent)
     return NS_OK;
 
+  nsCOMPtr<nsIDOMNSEvent> domNSEvent = do_QueryInterface(aKeyEvent);
   PRBool trustedEvent = PR_FALSE;
+
   if (domNSEvent) {
     //Don't process the event if it was not dispatched from a trusted source
     domNSEvent->GetIsTrusted(&trustedEvent);
@@ -342,7 +344,7 @@ nsXBLWindowKeyHandler::WalkHandlers(nsIDOMKeyEvent* aKeyEvent, nsIAtom* aEventTy
   if (!el) {
     if (mUserHandler) {
       WalkHandlersInternal(aKeyEvent, aEventType, mUserHandler);
-      domNSEvent->GetPreventDefault(&prevent);
+      evt->GetPreventDefault(&prevent);
       if (prevent)
         return NS_OK; // Handled by the user bindings. Our work here is done.
     }

@@ -291,9 +291,6 @@ class jsdService : public jsdIDebuggerService
 
     PRBool CheckInterruptHook() { return !!mInterruptHook; }
     
-    nsresult DoPause(PRUint32 *_rval, bool internalCall);
-    nsresult DoUnPause(PRUint32 *_rval, bool internalCall);
-
   private:
     PRBool      mOn;
     PRUint32    mPauseLevel;

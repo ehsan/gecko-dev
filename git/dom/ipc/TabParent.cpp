@@ -342,17 +342,6 @@ TabParent::RecvSetCursor(const PRUint32& aCursor)
 }
 
 bool
-TabParent::RecvSetBackgroundColor(const nscolor& aColor)
-{
-  if (nsRefPtr<nsFrameLoader> frameLoader = GetFrameLoader()) {
-    if (RenderFrameParent* frame = frameLoader->GetCurrentRemoteFrame()) {
-      frame->SetBackgroundColor(aColor);
-    }
-  }
-  return true;
-}
-
-bool
 TabParent::RecvNotifyIMEFocus(const PRBool& aFocus,
                               nsIMEUpdatePreference* aPreference,
                               PRUint32* aSeqno)
@@ -488,7 +477,7 @@ TabParent::HandleQueryContentEvent(nsQueryContentEvent& aEvent)
 bool
 TabParent::SendCompositionEvent(nsCompositionEvent& event)
 {
-  mIMEComposing = event.message != NS_COMPOSITION_END;
+  mIMEComposing = event.message == NS_COMPOSITION_START;
   mIMECompositionStart = NS_MIN(mIMESelectionAnchor, mIMESelectionFocus);
   if (mIMECompositionEnding)
     return true;
@@ -638,7 +627,7 @@ TabParent::RecvGetWidgetNativeData(WindowsHandle* aValue)
         vm->GetRootWidget(getter_AddRefs(widget));
         if (widget) {
           *aValue = reinterpret_cast<WindowsHandle>(
-            widget->GetNativeData(NS_NATIVE_SHAREABLE_WINDOW));
+            widget->GetNativeData(NS_NATIVE_WINDOW));
           return true;
         }
       }

@@ -128,7 +128,7 @@ nsXBLProtoImplMethod::InstallMember(nsIScriptContext* aContext,
 {
   NS_PRECONDITION(IsCompiled(),
                   "Should not be installing an uncompiled method");
-  JSContext* cx = aContext->GetNativeContext();
+  JSContext* cx = (JSContext*) aContext->GetNativeContext();
 
   nsIDocument *ownerDoc = aBoundElement->GetOwnerDoc();
   nsIScriptGlobalObject *sgo;
@@ -294,7 +294,7 @@ nsXBLProtoImplAnonymousMethod::Execute(nsIContent* aBoundElement)
     return NS_OK;
   }
   
-  JSContext* cx = context->GetNativeContext();
+  JSContext* cx = (JSContext*) context->GetNativeContext();
 
   JSObject* globalObject = global->GetGlobalJSObject();
 

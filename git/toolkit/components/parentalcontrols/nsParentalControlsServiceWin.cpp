@@ -233,14 +233,10 @@ nsParentalControlsServiceWin::RequestURIOverride(nsIURI *aTarget, nsIInterfaceRe
   if (hWnd == nsnull)
     hWnd = GetDesktopWindow();
 
-  BOOL ret;
   nsRefPtr<IWPCWebSettings> wpcws;
-  if (SUCCEEDED(mPC->GetWebSettings(NULL, getter_AddRefs(wpcws)))) {
+  if (SUCCEEDED(mPC->GetWebSettings(NULL, getter_AddRefs(wpcws))))
     wpcws->RequestURLOverride(hWnd, NS_ConvertUTF8toUTF16(spec).get(),
-                              0, NULL, &ret);
-    *_retval = ret;
-  }
-
+                              0, NULL, _retval);
 
   return NS_OK;
 }
@@ -312,14 +308,11 @@ nsParentalControlsServiceWin::RequestURIOverrides(nsIArray *aTargets, nsIInterfa
 
   if (!uriIdx)
     return NS_ERROR_INVALID_ARG;
-
-  BOOL ret; 
+ 
   nsRefPtr<IWPCWebSettings> wpcws;
-  if (SUCCEEDED(mPC->GetWebSettings(NULL, getter_AddRefs(wpcws)))) {
+  if (SUCCEEDED(mPC->GetWebSettings(NULL, getter_AddRefs(wpcws))))
     wpcws->RequestURLOverride(hWnd, NS_ConvertUTF8toUTF16(rootSpec).get(),
-                             uriIdx, (LPCWSTR*)arrUrls.get(), &ret);
-   *_retval = ret;
-  }
+                             uriIdx, (LPCWSTR*)arrUrls.get(), _retval);
 
   // Free up the allocated strings in our array
   for (idx = 0; idx < uriIdx; idx++)

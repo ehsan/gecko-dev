@@ -57,6 +57,8 @@
 #include "nsStyleConsts.h"
 #include "nsStyleContext.h"
 #include "nsHTMLParts.h"
+#include "nsILookAndFeel.h"
+#include "nsWidgetsCID.h"
 #include "nsIComponentManager.h"
 #include "nsGUIEvent.h"
 #include "nsRenderingContext.h"
@@ -72,7 +74,6 @@
 #include "mozAutoDocUpdate.h"
 #include "mozilla/Preferences.h"
 #include "nsHTMLFrameSetElement.h"
-#include "mozilla/LookAndFeel.h"
 
 using namespace mozilla;
 
@@ -83,6 +84,8 @@ using namespace mozilla;
 #define BOTTOM_VIS 0x0008
 #define ALL_VIS    0x000F
 #define NONE_VIS   0x0000
+
+static NS_DEFINE_CID(kLookAndFeelCID, NS_LOOKANDFEEL_CID);
 
 /*******************************************************************************
  * nsFramesetDrag
@@ -473,18 +476,18 @@ nsHTMLFramesetFrame::Init(nsIContent*      aContent,
 }
 
 NS_IMETHODIMP
-nsHTMLFramesetFrame::SetInitialChildList(ChildListID  aListID,
+nsHTMLFramesetFrame::SetInitialChildList(nsIAtom*     aListName,
                                          nsFrameList& aChildList)
 {
   // We do this weirdness where we create our child frames in Init().  On the
   // other hand, we're going to get a SetInitialChildList() with an empty list
   // and null list name after the frame constructor is done creating us.  So
   // just ignore that call.
-  if (aListID == kPrincipalList && aChildList.IsEmpty()) {
+  if (!aListName && aChildList.IsEmpty()) {
     return NS_OK;
   }
 
-  return nsHTMLContainerFrame::SetInitialChildList(aListID, aChildList);
+  return nsHTMLContainerFrame::SetInitialChildList(aListName, aChildList);
 }
 
 // XXX should this try to allocate twips based on an even pixel boundary?
@@ -1361,10 +1364,13 @@ nsHTMLFramesetFrame::RecalculateBorderResize()
   if (NS_UNLIKELY(!childTypes)) {
     return;
   }
-  PRInt32 childTypeIndex = 0;
+  PRUint32 childIndex, childTypeIndex = 0;
 
-  for (nsIContent *child = mContent->GetFirstChild(); child;
-       child = child->GetNextSibling()) {
+  // number of any type of children
+  PRUint32 numChildren = mContent->GetChildCount();
+  for (childIndex = 0; childIndex < numChildren; childIndex++) {
+    nsIContent *child = mContent->GetChildAt(childIndex);
+
     if (child->IsHTML()) {
       nsINodeInfo *ni = child->NodeInfo();
 
@@ -1679,22 +1685,23 @@ void nsHTMLFramesetBorderFrame::PaintBorder(nsRenderingContext& aRenderingContex
                                             nsPoint aPt)
 {
   nscolor WHITE    = NS_RGB(255, 255, 255);
-
-  nscolor bgColor =
-    LookAndFeel::GetColor(LookAndFeel::eColorID_WidgetBackground,
-                          NS_RGB(200,200,200));
-  nscolor fgColor =
-    LookAndFeel::GetColor(LookAndFeel::eColorID_WidgetForeground,
-                          NS_RGB(0,0,0));
-  nscolor hltColor =
-    LookAndFeel::GetColor(LookAndFeel::eColorID_Widget3DHighlight,
-                          NS_RGB(255,255,255));
-  nscolor sdwColor =
-    LookAndFeel::GetColor(LookAndFeel::eColorID_Widget3DShadow,
-                          NS_RGB(128,128,128));
+  nscolor bgColor  = NS_RGB(200,200,200);
+  nscolor fgColor  = NS_RGB(0,0,0);
+  nscolor hltColor = NS_RGB(255,255,255);
+  nscolor sdwColor = NS_RGB(128,128,128);
 
   nsRenderingContext::AutoPushTranslation
     translate(&aRenderingContext, aPt);
+
+  {
+    nsCOMPtr<nsILookAndFeel> lookAndFeel = do_GetService(kLookAndFeelCID);
+    if (lookAndFeel) {
+      lookAndFeel->GetColor(nsILookAndFeel::eColor_WidgetBackground,  bgColor);
+      lookAndFeel->GetColor(nsILookAndFeel::eColor_WidgetForeground,  fgColor);
+      lookAndFeel->GetColor(nsILookAndFeel::eColor_Widget3DShadow,    sdwColor);
+      lookAndFeel->GetColor(nsILookAndFeel::eColor_Widget3DHighlight, hltColor);
+    }
+  }
 
   nscoord widthInPixels = nsPresContext::AppUnitsToIntCSSPixels(mWidth);
   nscoord pixelWidth    = nsPresContext::CSSPixelsToAppUnits(1);

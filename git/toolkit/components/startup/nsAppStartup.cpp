@@ -100,9 +100,6 @@ static NS_DEFINE_CID(kAppShellCID, NS_APPSHELL_CID);
 
 using namespace mozilla;
 extern PRTime gXRE_mainTimestamp;
-// The following tracks our overhead between reaching XRE_main and loading any XUL
-extern PRTime gCreateTopLevelWindowTimestamp;// Timestamp of the first call to
-                                             // nsAppShellService::CreateTopLevelWindow
 extern PRTime gFirstPaintTimestamp;
 // mfinklesessionstore-browser-state-restored might be a better choice than the one below
 static PRTime gRestoredTimestamp = 0;       // Timestamp of sessionstore-windows-restored
@@ -137,8 +134,7 @@ nsAppStartup::nsAppStartup() :
   mRunning(PR_FALSE),
   mShuttingDown(PR_FALSE),
   mAttemptingQuit(PR_FALSE),
-  mRestart(PR_FALSE),
-  mInterrupted(PR_FALSE)
+  mRestart(PR_FALSE)
 { }
 
 
@@ -456,20 +452,6 @@ nsAppStartup::GetShuttingDown(PRBool *aResult)
   return NS_OK;
 }
 
-NS_IMETHODIMP
-nsAppStartup::SetInterrupted(PRBool aInterrupted)
-{
-  mInterrupted = aInterrupted;
-  return NS_OK;
-}
-
-NS_IMETHODIMP
-nsAppStartup::GetInterrupted(PRBool *aInterrupted)
-{
-  *aInterrupted = mInterrupted;
-  return NS_OK;
-}
-
 //
 // nsAppStartup->nsIWindowCreator
 //
@@ -716,8 +698,7 @@ enum {
   INVALID_PROCESS_CREATION = 0,
   INVALID_MAIN,
   INVALID_FIRST_PAINT,
-  INVALID_SESSION_RESTORED,
-  INVALID_CREATE_TOP_LEVEL_WINDOW
+  INVALID_SESSION_RESTORED
 };
 
 NS_IMETHODIMP
@@ -766,11 +747,6 @@ nsAppStartup::GetStartupInfo()
     MaybeDefineProperty(cx, obj, "main", gXRE_mainTimestamp);
   else
     Telemetry::Accumulate(Telemetry::STARTUP_MEASUREMENT_ERRORS, INVALID_MAIN);
-
-  if (gCreateTopLevelWindowTimestamp >= gProcessCreationTimestamp)
-    MaybeDefineProperty(cx, obj, "createTopLevelWindow", gCreateTopLevelWindowTimestamp);
-  else
-    Telemetry::Accumulate(Telemetry::STARTUP_MEASUREMENT_ERRORS, INVALID_CREATE_TOP_LEVEL_WINDOW);
 
   if (gFirstPaintTimestamp >= gXRE_mainTimestamp)
     MaybeDefineProperty(cx, obj, "firstPaint", gFirstPaintTimestamp);

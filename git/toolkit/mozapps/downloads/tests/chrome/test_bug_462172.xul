@@ -63,8 +63,6 @@ close window
           src="utils.js"/>
   <script type="application/javascript"
           src="chrome://mochikit/content/tests/SimpleTest/EventUtils.js"></script>
-  <script type="application/javascript"
-          src="chrome://mochikit/content/tests/SimpleTest/ChromeUtils.js"></script>
   <script type="application/javascript">
   <![CDATA[
 

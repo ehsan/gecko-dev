@@ -51,7 +51,6 @@ CSRCS            = hyphen.c \
 
 CPPSRCS          = nsHyphenator.cpp \
                    nsHyphenationManager.cpp \
-                   hnjstdio.cpp \
                    $(NULL)
 
 include $(topsrcdir)/config/rules.mk

@@ -80,6 +80,7 @@ using namespace mozilla::widget;
 NS_GENERIC_FACTORY_CONSTRUCTOR(nsWindow)
 NS_GENERIC_FACTORY_CONSTRUCTOR(ChildWindow)
 NS_GENERIC_FACTORY_CONSTRUCTOR(nsFilePicker)
+NS_GENERIC_FACTORY_CONSTRUCTOR(nsLookAndFeel)
 NS_GENERIC_FACTORY_CONSTRUCTOR(nsToolkit)
 NS_GENERIC_FACTORY_CONSTRUCTOR(nsScreenManagerWin)
 NS_GENERIC_FACTORY_CONSTRUCTOR(nsIdleServiceWin)
@@ -122,6 +123,7 @@ NS_DEFINE_NAMED_CID(NS_APPSHELL_CID);
 NS_DEFINE_NAMED_CID(NS_TOOLKIT_CID);
 NS_DEFINE_NAMED_CID(NS_SCREENMANAGER_CID);
 NS_DEFINE_NAMED_CID(NS_GFXINFO_CID);
+NS_DEFINE_NAMED_CID(NS_LOOKANDFEEL_CID);
 NS_DEFINE_NAMED_CID(NS_THEMERENDERER_CID);
 NS_DEFINE_NAMED_CID(NS_IDLE_SERVICE_CID);
 NS_DEFINE_NAMED_CID(NS_CLIPBOARD_CID);
@@ -158,6 +160,7 @@ static const mozilla::Module::CIDEntry kWidgetCIDs[] = {
   { &kNS_TOOLKIT_CID, false, NULL, nsToolkitConstructor },
   { &kNS_SCREENMANAGER_CID, false, NULL, nsScreenManagerWinConstructor },
   { &kNS_GFXINFO_CID, false, NULL, GfxInfoConstructor },
+  { &kNS_LOOKANDFEEL_CID, false, NULL, nsLookAndFeelConstructor },
   { &kNS_THEMERENDERER_CID, false, NULL, NS_NewNativeTheme },
   { &kNS_IDLE_SERVICE_CID, false, NULL, nsIdleServiceWinConstructor },
   { &kNS_CLIPBOARD_CID, false, NULL, nsClipboardConstructor },
@@ -192,6 +195,7 @@ static const mozilla::Module::ContractIDEntry kWidgetContracts[] = {
   { "@mozilla.org/widget/toolkit/win;1", &kNS_TOOLKIT_CID },
   { "@mozilla.org/gfx/screenmanager;1", &kNS_SCREENMANAGER_CID },
   { "@mozilla.org/gfx/info;1", &kNS_GFXINFO_CID },
+  { "@mozilla.org/widget/lookandfeel;1", &kNS_LOOKANDFEEL_CID },
   { "@mozilla.org/chrome/chrome-native-theme;1", &kNS_THEMERENDERER_CID },
   { "@mozilla.org/widget/idleservice;1", &kNS_IDLE_SERVICE_CID },
   { "@mozilla.org/widget/clipboard;1", &kNS_CLIPBOARD_CID },
@@ -218,13 +222,6 @@ static const mozilla::Module::ContractIDEntry kWidgetContracts[] = {
   { NULL }
 };
 
-static void
-nsWidgetWindowsModuleDtor()
-{
-  nsLookAndFeel::Shutdown();
-  nsAppShellShutdown();
-}
-
 static const mozilla::Module kWidgetModule = {
   mozilla::Module::kVersion,
   kWidgetCIDs,
@@ -232,7 +229,7 @@ static const mozilla::Module kWidgetModule = {
   NULL,
   NULL,
   nsAppShellInit,
-  nsWidgetWindowsModuleDtor
+  nsAppShellShutdown
 };
 
 NSMODULE_DEFN(nsWidgetModule) = &kWidgetModule;

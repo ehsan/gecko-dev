@@ -728,7 +728,7 @@ nsXULPDGlobalObject::EnsureScriptEnvironment(PRUint32 lang_id)
   // attach it as the global for this context.  Then, ::SetScriptContext
   // will re-fetch the global and set it up in our language globals array.
   {
-    JSContext *cx = ctxNew->GetNativeContext();
+    JSContext *cx = (JSContext *)ctxNew->GetNativeContext();
     JSAutoRequest ar(cx);
 
     nsIPrincipal *principal = GetPrincipal();

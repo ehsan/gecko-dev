@@ -48,9 +48,7 @@
 #endif
 
 #if defined(DARWIN)
-#if defined(HAVE_CRT_EXTERNS_H)
 #include <crt_externs.h>
-#endif
 #else
 PR_IMPORT_DATA(char **) environ;
 #endif
@@ -187,19 +185,11 @@ ForkAndExec(
 
         if (NULL == childEnvp) {
 #ifdef DARWIN
-#ifdef HAVE_CRT_EXTERNS_H
             childEnvp = *(_NSGetEnviron());
-#else
-            /* _NSGetEnviron() is not available on iOS. */
-            PR_DELETE(process);
-            PR_SetError(PR_NOT_IMPLEMENTED_ERROR, 0);
-            return NULL;
-#endif
 #else
             childEnvp = environ;
 #endif
         }
-
         for (nEnv = 0; childEnvp[nEnv]; nEnv++) {
         }
         newEnvp = (char **) PR_MALLOC((nEnv + 2) * sizeof(char *));

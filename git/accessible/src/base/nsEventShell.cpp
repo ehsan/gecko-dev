@@ -84,7 +84,7 @@ nsEventShell::GetEventAttributes(nsINode *aNode,
   if (aNode != sEventTargetNode)
     return;
 
-  nsAccUtils::SetAccAttr(aAttributes, nsGkAtoms::eventFromInput,
+  nsAccUtils::SetAccAttr(aAttributes, nsAccessibilityAtoms::eventFromInput,
                          sEventFromUserInput ? NS_LITERAL_STRING("true") :
                                                NS_LITERAL_STRING("false"));
 }

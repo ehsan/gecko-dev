@@ -404,7 +404,7 @@ nsHTMLButtonControlFrame::SetAdditionalStyleContext(PRInt32 aIndex,
 }
 
 NS_IMETHODIMP 
-nsHTMLButtonControlFrame::AppendFrames(ChildListID     aListID,
+nsHTMLButtonControlFrame::AppendFrames(nsIAtom*        aListName,
                                        nsFrameList&    aFrameList)
 {
   NS_NOTREACHED("unsupported operation");
@@ -412,7 +412,7 @@ nsHTMLButtonControlFrame::AppendFrames(ChildListID     aListID,
 }
 
 NS_IMETHODIMP
-nsHTMLButtonControlFrame::InsertFrames(ChildListID     aListID,
+nsHTMLButtonControlFrame::InsertFrames(nsIAtom*        aListName,
                                        nsIFrame*       aPrevFrame,
                                        nsFrameList&    aFrameList)
 {
@@ -421,7 +421,7 @@ nsHTMLButtonControlFrame::InsertFrames(ChildListID     aListID,
 }
 
 NS_IMETHODIMP
-nsHTMLButtonControlFrame::RemoveFrame(ChildListID     aListID,
+nsHTMLButtonControlFrame::RemoveFrame(nsIAtom*        aListName,
                                       nsIFrame*       aOldFrame)
 {
   NS_NOTREACHED("unsupported operation");

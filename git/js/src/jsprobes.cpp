@@ -90,10 +90,10 @@ FunctionName(JSContext *cx, const JSFunction *fun, JSAutoByteString* bytes)
 static const char *
 FunctionClassname(const JSFunction *fun)
 {
-    if (!fun || fun->isInterpreted())
+    if (!fun || FUN_INTERPRETED(fun))
         return Probes::nullName;
-    if (!(fun->flags & JSFUN_TRCINFO) && fun->getConstructorClass())
-        return fun->getConstructorClass()->name;
+    if (!(fun->flags & JSFUN_TRCINFO) && FUN_CLASP(fun))
+        return (char *)FUN_CLASP(fun)->name;
     return Probes::nullName;
 }
 

@@ -122,8 +122,7 @@ public:
   virtual void BeginTransactionWithTarget(gfxContext* aTarget);
   virtual bool EndEmptyTransaction();
   virtual void EndTransaction(DrawThebesLayerCallback aCallback,
-                              void* aCallbackData,
-                              EndTransactionFlags aFlags = END_DEFAULT);
+                              void* aCallbackData);
 
   virtual void SetRoot(Layer* aLayer);
 
@@ -172,7 +171,6 @@ public:
   already_AddRefed<gfxContext> PushGroupWithCachedSurface(gfxContext *aTarget,
                                                           gfxASurface::gfxContentType aContent);
   void PopGroupToSourceWithCachedSurface(gfxContext *aTarget, gfxContext *aPushed);
-  already_AddRefed<gfxASurface> PopGroupToSurface(gfxContext *aTarget, gfxContext *aPushed);
 
   virtual PRBool IsCompositingCheap() { return PR_FALSE; }
   virtual bool HasShadowManagerInternal() const { return false; }
@@ -197,8 +195,7 @@ protected:
   void ClearLayer(Layer* aLayer);
 
   bool EndTransactionInternal(DrawThebesLayerCallback aCallback,
-                              void* aCallbackData,
-                              EndTransactionFlags aFlags = END_DEFAULT);
+                              void* aCallbackData);
 
   // Widget whose surface should be used as the basis for ThebesLayer
   // buffers.
@@ -239,8 +236,7 @@ public:
   virtual void BeginTransactionWithTarget(gfxContext* aTarget);
   virtual bool EndEmptyTransaction();
   virtual void EndTransaction(DrawThebesLayerCallback aCallback,
-                              void* aCallbackData,
-                              EndTransactionFlags aFlags = END_DEFAULT);
+                              void* aCallbackData);
 
   virtual void SetRoot(Layer* aLayer);
 

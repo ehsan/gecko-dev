@@ -298,10 +298,12 @@ public:
   NS_DECL_MOZISTORAGECOMPLETIONCALLBACK
 
   PlacesEvent(const char* aTopic);
+  PlacesEvent(const char* aTopic, bool aDoubleEnqueue);
 protected:
   void Notify();
 
   const char* const mTopic;
+  bool mDoubleEnqueue;
 };
 
 } // namespace places

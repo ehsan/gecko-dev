@@ -105,32 +105,6 @@ char * xpc_CheckAccessList(const PRUnichar* wideName, const char* list[])
 }
 
 /***************************************************************************/
-/***************************************************************************/
-/***************************************************************************/
-
-
-
-class nsXPCComponents_Interfaces :
-            public nsIXPCComponents_Interfaces,
-            public nsIXPCScriptable,
-            public nsIClassInfo,
-            public nsISecurityCheckedComponent
-{
-public:
-    // all the interface method declarations...
-    NS_DECL_ISUPPORTS
-    NS_DECL_NSIXPCCOMPONENTS_INTERFACES
-    NS_DECL_NSIXPCSCRIPTABLE
-    NS_DECL_NSICLASSINFO
-    NS_DECL_NSISECURITYCHECKEDCOMPONENT
-
-public:
-    nsXPCComponents_Interfaces();
-    virtual ~nsXPCComponents_Interfaces();
-
-private:
-    nsCOMPtr<nsIInterfaceInfoManager> mManager;
-};
 
 /* void getInterfaces (out PRUint32 count, [array, size_is (count), retval]
                        out nsIIDPtr array); */
@@ -153,7 +127,7 @@ nsXPCComponents_Interfaces::GetInterfaces(PRUint32 *aCount, nsIID * **aArray)
         goto oom;                                                     \
     array[index++] = clone;
 
-    PUSH_IID(nsIXPCComponents_Interfaces)
+    PUSH_IID(nsIScriptableInterfaces)
     PUSH_IID(nsIXPCScriptable)
     PUSH_IID(nsISecurityCheckedComponent)
 #undef PUSH_IID
@@ -236,12 +210,25 @@ nsXPCComponents_Interfaces::~nsXPCComponents_Interfaces()
 }
 
 
+/* [noscript] attribute nsIInterfaceInfoManager manager; */
+NS_IMETHODIMP nsXPCComponents_Interfaces::GetManager(nsIInterfaceInfoManager * *aManager)
+{
+    *aManager = mManager;
+    NS_IF_ADDREF(*aManager);
+    return NS_OK;
+}
+NS_IMETHODIMP nsXPCComponents_Interfaces::SetManager(nsIInterfaceInfoManager * aManager)
+{
+    mManager = aManager;
+    return NS_OK;
+}
+
 NS_INTERFACE_MAP_BEGIN(nsXPCComponents_Interfaces)
-  NS_INTERFACE_MAP_ENTRY(nsIXPCComponents_Interfaces)
+  NS_INTERFACE_MAP_ENTRY(nsIScriptableInterfaces)
   NS_INTERFACE_MAP_ENTRY(nsIXPCScriptable)
   NS_INTERFACE_MAP_ENTRY(nsIClassInfo)
   NS_INTERFACE_MAP_ENTRY(nsISecurityCheckedComponent)
-  NS_INTERFACE_MAP_ENTRY_AMBIGUOUS(nsISupports, nsIXPCComponents_Interfaces)
+  NS_INTERFACE_MAP_ENTRY_AMBIGUOUS(nsISupports, nsIScriptableInterfaces)
 NS_INTERFACE_MAP_END_THREADSAFE
 
 NS_IMPL_THREADSAFE_ADDREF(nsXPCComponents_Interfaces)
@@ -425,7 +412,7 @@ nsXPCComponents_Interfaces::CanSetProperty(const nsIID * iid, const PRUnichar *p
 /***************************************************************************/
 
 class nsXPCComponents_InterfacesByID :
-            public nsIXPCComponents_InterfacesByID,
+            public nsIScriptableInterfacesByID,
             public nsIXPCScriptable,
             public nsIClassInfo,
             public nsISecurityCheckedComponent
@@ -433,7 +420,7 @@ class nsXPCComponents_InterfacesByID :
 public:
     // all the interface method declarations...
     NS_DECL_ISUPPORTS
-    NS_DECL_NSIXPCCOMPONENTS_INTERFACESBYID
+    NS_DECL_NSISCRIPTABLEINTERFACESBYID
     NS_DECL_NSIXPCSCRIPTABLE
     NS_DECL_NSICLASSINFO
     NS_DECL_NSISECURITYCHECKEDCOMPONENT
@@ -468,7 +455,7 @@ nsXPCComponents_InterfacesByID::GetInterfaces(PRUint32 *aCount, nsIID * **aArray
         goto oom;                                                     \
     array[index++] = clone;
 
-    PUSH_IID(nsIXPCComponents_InterfacesByID)
+    PUSH_IID(nsIScriptableInterfacesByID)
     PUSH_IID(nsIXPCScriptable)
     PUSH_IID(nsISecurityCheckedComponent)
 #undef PUSH_IID
@@ -503,7 +490,7 @@ nsXPCComponents_InterfacesByID::GetContractID(char * *aContractID)
 NS_IMETHODIMP
 nsXPCComponents_InterfacesByID::GetClassDescription(char * *aClassDescription)
 {
-    static const char classDescription[] = "XPCComponents_InterfacesByID";
+    static const char classDescription[] = "XPCComponents_Interfaces";
     *aClassDescription = (char*)nsMemory::Clone(classDescription, sizeof(classDescription));
     return *aClassDescription ? NS_OK : NS_ERROR_OUT_OF_MEMORY;
 }
@@ -551,11 +538,11 @@ nsXPCComponents_InterfacesByID::~nsXPCComponents_InterfacesByID()
 }
 
 NS_INTERFACE_MAP_BEGIN(nsXPCComponents_InterfacesByID)
-  NS_INTERFACE_MAP_ENTRY(nsIXPCComponents_InterfacesByID)
+  NS_INTERFACE_MAP_ENTRY(nsIScriptableInterfacesByID)
   NS_INTERFACE_MAP_ENTRY(nsIXPCScriptable)
   NS_INTERFACE_MAP_ENTRY(nsIClassInfo)
   NS_INTERFACE_MAP_ENTRY(nsISecurityCheckedComponent)
-  NS_INTERFACE_MAP_ENTRY_AMBIGUOUS(nsISupports, nsIXPCComponents_InterfacesByID)
+  NS_INTERFACE_MAP_ENTRY_AMBIGUOUS(nsISupports, nsIScriptableInterfacesByID)
 NS_INTERFACE_MAP_END_THREADSAFE
 
 NS_IMPL_THREADSAFE_ADDREF(nsXPCComponents_InterfacesByID)
@@ -1075,7 +1062,7 @@ nsXPCComponents_ClassesByID::GetContractID(char * *aContractID)
 NS_IMETHODIMP 
 nsXPCComponents_ClassesByID::GetClassDescription(char * *aClassDescription)
 {
-    static const char classDescription[] = "XPCComponents_ClassesByID";
+    static const char classDescription[] = "XPCComponents_Interfaces";
     *aClassDescription = (char*)nsMemory::Clone(classDescription, sizeof(classDescription));
     return *aClassDescription ? NS_OK : NS_ERROR_OUT_OF_MEMORY;
 }
@@ -1346,7 +1333,7 @@ nsXPCComponents_Results::GetContractID(char * *aContractID)
 NS_IMETHODIMP 
 nsXPCComponents_Results::GetClassDescription(char * *aClassDescription)
 {
-    static const char classDescription[] = "XPCComponents_Results";
+    static const char classDescription[] = "XPCComponents_Interfaces";
     *aClassDescription = (char*)nsMemory::Clone(classDescription, sizeof(classDescription));
     return *aClassDescription ? NS_OK : NS_ERROR_OUT_OF_MEMORY;
 }
@@ -1575,7 +1562,7 @@ nsXPCComponents_ID::GetContractID(char * *aContractID)
 NS_IMETHODIMP 
 nsXPCComponents_ID::GetClassDescription(char * *aClassDescription)
 {
-    static const char classDescription[] = "XPCComponents_ID";
+    static const char classDescription[] = "XPCComponents_Interfaces";
     *aClassDescription = (char*)nsMemory::Clone(classDescription, sizeof(classDescription));
     return *aClassDescription ? NS_OK : NS_ERROR_OUT_OF_MEMORY;
 }
@@ -1637,7 +1624,7 @@ NS_IMPL_THREADSAFE_RELEASE(nsXPCComponents_ID)
 #define                             XPC_MAP_WANT_CALL
 #define                             XPC_MAP_WANT_CONSTRUCT
 #define                             XPC_MAP_WANT_HASINSTANCE
-#define XPC_MAP_FLAGS               nsIXPCScriptable::ALLOW_PROP_MODS_DURING_RESOLVE
+#define XPC_MAP_FLAGS               0
 #include "xpc_map_end.h" /* This will #undef the above */
 
 
@@ -1803,7 +1790,7 @@ nsXPCComponents_Exception::GetContractID(char * *aContractID)
 NS_IMETHODIMP 
 nsXPCComponents_Exception::GetClassDescription(char * *aClassDescription)
 {
-    static const char classDescription[] = "XPCComponents_Exception";
+    static const char classDescription[] = "XPCComponents_Interfaces";
     *aClassDescription = (char*)nsMemory::Clone(classDescription, sizeof(classDescription));
     return *aClassDescription ? NS_OK : NS_ERROR_OUT_OF_MEMORY;
 }
@@ -1865,7 +1852,7 @@ NS_IMPL_THREADSAFE_RELEASE(nsXPCComponents_Exception)
 #define                             XPC_MAP_WANT_CALL
 #define                             XPC_MAP_WANT_CONSTRUCT
 #define                             XPC_MAP_WANT_HASINSTANCE
-#define XPC_MAP_FLAGS               nsIXPCScriptable::ALLOW_PROP_MODS_DURING_RESOLVE
+#define XPC_MAP_FLAGS               0
 #include "xpc_map_end.h" /* This will #undef the above */
 
 
@@ -2098,7 +2085,7 @@ nsXPCConstructor::GetContractID(char * *aContractID)
 NS_IMETHODIMP 
 nsXPCConstructor::GetClassDescription(char * *aClassDescription)
 {
-    static const char classDescription[] = "XPCConstructor";
+    static const char classDescription[] = "XPCComponents_Interfaces";
     *aClassDescription = (char*)nsMemory::Clone(classDescription, sizeof(classDescription));
     return *aClassDescription ? NS_OK : NS_ERROR_OUT_OF_MEMORY;
 }
@@ -2364,7 +2351,7 @@ nsXPCComponents_Constructor::GetContractID(char * *aContractID)
 NS_IMETHODIMP 
 nsXPCComponents_Constructor::GetClassDescription(char * *aClassDescription)
 {
-    static const char classDescription[] = "XPCComponents_Constructor";
+    static const char classDescription[] = "XPCComponents_Interfaces";
     *aClassDescription = (char*)nsMemory::Clone(classDescription, sizeof(classDescription));
     return *aClassDescription ? NS_OK : NS_ERROR_OUT_OF_MEMORY;
 }
@@ -2426,7 +2413,7 @@ NS_IMPL_THREADSAFE_RELEASE(nsXPCComponents_Constructor)
 #define                             XPC_MAP_WANT_CALL
 #define                             XPC_MAP_WANT_CONSTRUCT
 #define                             XPC_MAP_WANT_HASINSTANCE
-#define XPC_MAP_FLAGS               nsIXPCScriptable::ALLOW_PROP_MODS_DURING_RESOLVE
+#define XPC_MAP_FLAGS               0
 #include "xpc_map_end.h" /* This will #undef the above */
 
 
@@ -2502,7 +2489,7 @@ nsXPCComponents_Constructor::CallOrConstruct(nsIXPConnectWrappedNative *wrapper,
         // argv[1] is an iid name string
         // XXXjband support passing "Components.interfaces.foo"?
 
-        nsCOMPtr<nsIXPCComponents_Interfaces> ifaces;
+        nsCOMPtr<nsIScriptableInterfaces> ifaces;
         nsCOMPtr<nsIXPConnectJSObjectHolder> holder;
         JSObject* ifacesObj = nsnull;
 
@@ -2512,7 +2499,7 @@ nsXPCComponents_Constructor::CallOrConstruct(nsIXPConnectWrappedNative *wrapper,
 
         if(NS_FAILED(comp->GetInterfaces(getter_AddRefs(ifaces))) ||
            NS_FAILED(xpc->WrapNative(cx, obj, ifaces,
-                                     NS_GET_IID(nsIXPCComponents_Interfaces),
+                                     NS_GET_IID(nsIScriptableInterfaces),
                                      getter_AddRefs(holder))) || !holder ||
            NS_FAILED(holder->GetJSObject(&ifacesObj)) || !ifacesObj)
         {
@@ -2887,7 +2874,7 @@ nsXPCComponents_Utils::ReportError()
     if(NS_FAILED(rv) || !argv)
         return NS_OK;
 
-    const PRUint64 innerWindowID = nsJSUtils::GetCurrentlyRunningCodeInnerWindowID(cx);
+    const PRUint64 windowID = nsJSUtils::GetCurrentlyRunningCodeWindowID(cx);
 
     JSErrorReport* err = JS_ErrorFromException(cx, argv[0]);
     if(err)
@@ -2906,7 +2893,7 @@ nsXPCComponents_Utils::ReportError()
                                          err->lineno,
                                          column,
                                          err->flags,
-                                         "XPConnect JavaScript", innerWindowID);
+                                         "XPConnect JavaScript", windowID);
         if(NS_FAILED(rv))
             return NS_OK;
 
@@ -2942,8 +2929,8 @@ nsXPCComponents_Utils::ReportError()
         rv = scripterr->InitWithWindowID(reinterpret_cast<const PRUnichar *>(msgchars),
                                          NS_ConvertUTF8toUTF16(fileName).get(),
                                          nsnull,
-                                         lineNo, 0, 0,
-                                         "XPConnect JavaScript", innerWindowID);
+                                         lineNo, 0,
+                                         0, "XPConnect JavaScript", windowID);
         if(NS_SUCCEEDED(rv))
         {
             nsCOMPtr<nsIScriptError> logError = do_QueryInterface(scripterr);
@@ -2999,7 +2986,6 @@ SandboxDump(JSContext *cx, uintN argc, jsval *vp)
 #endif
 
     fputs(cstr, stderr);
-    fflush(stderr);
     NS_Free(cstr);
     JS_SET_RVAL(cx, vp, JSVAL_TRUE);
     return JS_TRUE;
@@ -3161,7 +3147,7 @@ NS_IMPL_ISUPPORTS0(Identity)
 
 nsresult
 xpc_CreateSandboxObject(JSContext * cx, jsval * vp, nsISupports *prinOrSop, JSObject *proto,
-                        bool wantXrays, const nsACString &sandboxName)
+                        bool wantXrays)
 {
     // Create the sandbox global object
     nsresult rv;
@@ -3247,10 +3233,6 @@ xpc_CreateSandboxObject(JSContext * cx, jsval * vp, nsISupports *prinOrSop, JSOb
             return NS_ERROR_UNEXPECTED;
         }
     }
-
-    xpc::CompartmentPrivate *compartmentPrivate =
-        static_cast<xpc::CompartmentPrivate*>(JS_GetCompartmentPrivate(cx, compartment));
-    compartmentPrivate->location = sandboxName;
 
     return NS_OK;
 }
@@ -3363,8 +3345,6 @@ nsXPCComponents_utils_Sandbox::CallOrConstruct(nsIXPConnectWrappedNative *wrappe
 
     JSObject *proto = nsnull;
     bool wantXrays = true;
-    nsCString sandboxName;
-
     if (argc > 1) {
         if (!JSVAL_IS_OBJECT(argv[1]))
             return ThrowAndFail(NS_ERROR_INVALID_ARG, cx, _retval);
@@ -3396,26 +3376,9 @@ nsXPCComponents_utils_Sandbox::CallOrConstruct(nsIXPConnectWrappedNative *wrappe
 
             wantXrays = JSVAL_TO_BOOLEAN(option);
         }
-
-        if (!JS_HasProperty(cx, optionsObject, "sandboxName", &found))
-            return NS_ERROR_INVALID_ARG;
-
-        if (found) {
-            if (!JS_GetProperty(cx, optionsObject, "sandboxName", &option) ||
-                !JSVAL_IS_STRING(option)) {
-                return ThrowAndFail(NS_ERROR_INVALID_ARG, cx, _retval);
-            }
-
-            char *tmp = JS_EncodeString(cx, JSVAL_TO_STRING(option));
-            if (!tmp) {
-                return ThrowAndFail(NS_ERROR_INVALID_ARG, cx, _retval);
-            }
-
-            sandboxName.Adopt(tmp, strlen(tmp));
-        }
     }
 
-    rv = xpc_CreateSandboxObject(cx, vp, prinOrSop, proto, wantXrays, sandboxName);
+    rv = xpc_CreateSandboxObject(cx, vp, prinOrSop, proto, wantXrays);
 
     if (NS_FAILED(rv)) {
         return ThrowAndFail(rv, cx, _retval);
@@ -4198,8 +4161,8 @@ nsXPCComponents::ClearMembers()
 }
 
 /*******************************************/
-#define XPC_IMPL_GET_OBJ_METHOD(_n) \
-NS_IMETHODIMP nsXPCComponents::Get##_n(nsIXPCComponents_##_n * *a##_n) { \
+#define XPC_IMPL_GET_OBJ_METHOD(_b, _n) \
+NS_IMETHODIMP nsXPCComponents::Get##_n(_b##_n * *a##_n) { \
     NS_ENSURE_ARG_POINTER(a##_n); \
     if(!m##_n) { \
         if(!(m##_n = new nsXPCComponents_##_n())) { \
@@ -4213,15 +4176,15 @@ NS_IMETHODIMP nsXPCComponents::Get##_n(nsIXPCComponents_##_n * *a##_n) { \
     return NS_OK; \
 }
 
-XPC_IMPL_GET_OBJ_METHOD(Interfaces)
-XPC_IMPL_GET_OBJ_METHOD(InterfacesByID)
-XPC_IMPL_GET_OBJ_METHOD(Classes)
-XPC_IMPL_GET_OBJ_METHOD(ClassesByID)
-XPC_IMPL_GET_OBJ_METHOD(Results)
-XPC_IMPL_GET_OBJ_METHOD(ID)
-XPC_IMPL_GET_OBJ_METHOD(Exception)
-XPC_IMPL_GET_OBJ_METHOD(Constructor)
-XPC_IMPL_GET_OBJ_METHOD(Utils)
+XPC_IMPL_GET_OBJ_METHOD(nsIScriptable,     Interfaces)
+XPC_IMPL_GET_OBJ_METHOD(nsIScriptable,     InterfacesByID)
+XPC_IMPL_GET_OBJ_METHOD(nsIXPCComponents_, Classes)
+XPC_IMPL_GET_OBJ_METHOD(nsIXPCComponents_, ClassesByID)
+XPC_IMPL_GET_OBJ_METHOD(nsIXPCComponents_, Results)
+XPC_IMPL_GET_OBJ_METHOD(nsIXPCComponents_, ID)
+XPC_IMPL_GET_OBJ_METHOD(nsIXPCComponents_, Exception)
+XPC_IMPL_GET_OBJ_METHOD(nsIXPCComponents_, Constructor)
+XPC_IMPL_GET_OBJ_METHOD(nsIXPCComponents_, Utils)
 
 #undef XPC_IMPL_GET_OBJ_METHOD
 /*******************************************/

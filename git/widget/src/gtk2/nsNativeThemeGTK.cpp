@@ -51,6 +51,7 @@
 #include "nsIContent.h"
 #include "nsIViewManager.h"
 #include "nsINameSpaceManager.h"
+#include "nsILookAndFeel.h"
 #include "nsGfxCIID.h"
 #include "nsTransform2D.h"
 #include "nsMenuFrame.h"

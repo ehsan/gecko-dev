@@ -49,8 +49,6 @@
 #include "jsgcmark.h"
 #include "jsweakmap.h"
 
-#include "vm/GlobalObject.h"
-
 #include "jsgcinlines.h"
 #include "jsobjinlines.h"
 
@@ -79,6 +77,12 @@ WeakMapBase::sweepAll(JSTracer *tracer)
 }
 
 } /* namespace js */
+
+bool
+JSObject::isWeakMap() const
+{
+    return getClass() == &WeakMapClass;
+}
 
 typedef WeakMap<JSObject *, Value> ObjectValueMap;
 
@@ -260,26 +264,30 @@ WeakMap_construct(JSContext *cx, uintN argc, Value *vp)
     return true;
 }
 
-Class js::WeakMapClass = {
+namespace js {
+
+Class WeakMapClass = {
     "WeakMap",
     JSCLASS_HAS_PRIVATE |
     JSCLASS_HAS_CACHED_PROTO(JSProto_WeakMap),
-    JS_PropertyStub,         /* addProperty */
-    JS_PropertyStub,         /* delProperty */
-    JS_PropertyStub,         /* getProperty */
-    JS_StrictPropertyStub,   /* setProperty */
-    JS_EnumerateStub,
-    JS_ResolveStub,
-    JS_ConvertStub,
+    PropertyStub,         /* addProperty */
+    PropertyStub,         /* delProperty */
+    PropertyStub,         /* getProperty */
+    StrictPropertyStub,   /* setProperty */
+    EnumerateStub,
+    ResolveStub,
+    ConvertStub,
     WeakMap_finalize,
-    NULL,                    /* reserved0   */
-    NULL,                    /* checkAccess */
-    NULL,                    /* call        */
-    NULL,                    /* construct   */
-    NULL,                    /* xdrObject   */
-    NULL,                    /* hasInstance */
+    NULL,                 /* reserved0   */
+    NULL,                 /* checkAccess */
+    NULL,                 /* call        */
+    NULL,                 /* construct   */
+    NULL,                 /* xdrObject   */
+    NULL,                 /* hasInstance */
     WeakMap_mark
 };
+
+}
 
 static JSFunctionSpec weak_map_methods[] = {
     JS_FN("has",    WeakMap_has, 1, 0),
@@ -292,27 +300,12 @@ static JSFunctionSpec weak_map_methods[] = {
 JSObject *
 js_InitWeakMapClass(JSContext *cx, JSObject *obj)
 {
-    JS_ASSERT(obj->isNative());
-
-    GlobalObject *global = obj->asGlobal();
-
-    JSObject *weakMapProto = global->createBlankPrototype(cx, &WeakMapClass);
-    if (!weakMapProto)
-        return NULL;
-    weakMapProto->setPrivate(NULL);
-
-    JSFunction *ctor = global->createConstructor(cx, WeakMap_construct, &WeakMapClass,
-                                                 CLASS_ATOM(cx, WeakMap), 0);
-    if (!ctor)
+    JSObject *proto = js_InitClass(cx, obj, NULL, &WeakMapClass, WeakMap_construct, 0,
+                                   NULL, weak_map_methods, NULL, NULL);
+    if (!proto)
         return NULL;
 
-    if (!LinkConstructorAndPrototype(cx, ctor, weakMapProto))
-        return NULL;
+    proto->setPrivate(NULL);
 
-    if (!DefinePropertiesAndBrand(cx, weakMapProto, NULL, weak_map_methods))
-        return NULL;
-
-    if (!DefineConstructorAndPrototype(cx, global, JSProto_WeakMap, ctor, weakMapProto))
-        return NULL;
-    return weakMapProto;
+    return proto;
 }

@@ -414,7 +414,7 @@ nsGtkIMModule::OnKeyEvent(nsWindow* aCaller, GdkEventKey* aEvent,
 
     if (mIsComposing && !isFiltered) {
         if (aEvent->type == GDK_KEY_PRESS) {
-            if (!mDispatchedCompositionString.IsEmpty()) {
+            if (!mCompositionString.IsEmpty()) {
                 // If there is composition string, we shouldn't dispatch
                 // any keydown events during composition.
                 filterThisEvent = PR_TRUE;
@@ -501,7 +501,7 @@ nsGtkIMModule::ResetInputState(nsWindow* aCaller)
 
     // XXX We should commit composition ourselves temporary...
     ResetIME();
-    CommitCompositionBy(mDispatchedCompositionString);
+    CommitCompositionBy(mCompositionString);
 
     return NS_OK;
 }
@@ -834,8 +834,13 @@ nsGtkIMModule::OnEndCompositionNative(GtkIMContext *aContext)
         return;
     }
 
-    // Be aware, widget can be gone
-    DispatchCompositionEnd();
+#ifdef PR_LOGGING
+    if (!mCompositionString.IsEmpty()) {
+        PR_LOG(gGtkIMLog, PR_LOG_ALWAYS,
+            ("    WARNING, the composition string is still there"));
+    }
+#endif
+    DispatchCompositionEnd(); // Be aware, widget can be gone
 }
 
 /* static */
@@ -865,15 +870,12 @@ nsGtkIMModule::OnChangeCompositionNative(GtkIMContext *aContext)
         return;
     }
 
-    nsAutoString compositionString;
-    GetCompositionString(compositionString);
-    if (!mIsComposing && compositionString.IsEmpty()) {
-        mDispatchedCompositionString.Truncate();
+    GetCompositionString(mCompositionString);
+    if (!mIsComposing && mCompositionString.IsEmpty()) {
         return; // Don't start the composition with empty string.
     }
 
-    // Be aware, widget can be gone
-    DispatchTextEvent(compositionString, PR_TRUE);
+    DispatchTextEvent(PR_TRUE); // Be aware, widget can be gone
 }
 
 /* static */
@@ -1025,12 +1027,12 @@ PRBool
 nsGtkIMModule::CommitCompositionBy(const nsAString& aString)
 {
     PR_LOG(gGtkIMLog, PR_LOG_ALWAYS,
-        ("GtkIMModule(%p): CommitCompositionBy, aString=\"%s\", "
-         "mDispatchedCompositionString=\"%s\"",
+        ("GtkIMModule(%p): CommitCompositionBy, aString=\"%s\", mCompositionString=\"%s\"",
          this, NS_ConvertUTF16toUTF8(aString).get(),
-         NS_ConvertUTF16toUTF8(mDispatchedCompositionString).get()));
+         NS_ConvertUTF16toUTF8(mCompositionString).get()));
 
-    if (!DispatchTextEvent(aString, PR_FALSE)) {
+    mCompositionString = aString;
+    if (!DispatchTextEvent(PR_FALSE)) {
         return PR_FALSE;
     }
     // We should dispatch the compositionend event here because some IMEs
@@ -1091,7 +1093,6 @@ nsGtkIMModule::DispatchCompositionStart()
     }
 
     mCompositionStart = selection.mReply.mOffset;
-    mDispatchedCompositionString.Truncate();
 
     if (mProcessingKeyEvent && !mKeyDownEventWasSent &&
         mProcessingKeyEvent->type == GDK_KEY_PRESS) {
@@ -1139,9 +1140,7 @@ PRBool
 nsGtkIMModule::DispatchCompositionEnd()
 {
     PR_LOG(gGtkIMLog, PR_LOG_ALWAYS,
-        ("GtkIMModule(%p): DispatchCompositionEnd, "
-         "mDispatchedCompositionString=\"%s\"",
-         this, NS_ConvertUTF16toUTF8(mDispatchedCompositionString).get()));
+        ("GtkIMModule(%p): DispatchCompositionEnd", this));
 
     if (!mIsComposing) {
         PR_LOG(gGtkIMLog, PR_LOG_ALWAYS,
@@ -1150,7 +1149,6 @@ nsGtkIMModule::DispatchCompositionEnd()
     }
 
     if (!mLastFocusedWindow) {
-        mDispatchedCompositionString.Truncate();
         PR_LOG(gGtkIMLog, PR_LOG_ALWAYS,
             ("    FAILED, there are no focused window in this module"));
         return PR_FALSE;
@@ -1159,13 +1157,12 @@ nsGtkIMModule::DispatchCompositionEnd()
     nsCompositionEvent compEvent(PR_TRUE, NS_COMPOSITION_END,
                                  mLastFocusedWindow);
     InitEvent(compEvent);
-    compEvent.data = mDispatchedCompositionString;
     nsEventStatus status;
     nsCOMPtr<nsIWidget> kungFuDeathGrip = mLastFocusedWindow;
     mLastFocusedWindow->DispatchEvent(&compEvent, status);
     mIsComposing = PR_FALSE;
     mCompositionStart = PR_UINT32_MAX;
-    mDispatchedCompositionString.Truncate();
+    mCompositionString.Truncate();
     if (static_cast<nsWindow*>(kungFuDeathGrip.get())->IsDestroyed() ||
         kungFuDeathGrip != mLastFocusedWindow) {
         PR_LOG(gGtkIMLog, PR_LOG_ALWAYS,
@@ -1177,8 +1174,7 @@ nsGtkIMModule::DispatchCompositionEnd()
 }
 
 PRBool
-nsGtkIMModule::DispatchTextEvent(const nsAString &aCompositionString,
-                                 PRBool aCheckAttr)
+nsGtkIMModule::DispatchTextEvent(PRBool aCheckAttr)
 {
     PR_LOG(gGtkIMLog, PR_LOG_ALWAYS,
         ("GtkIMModule(%p): DispatchTextEvent, aCheckAttr=%s",
@@ -1199,24 +1195,6 @@ nsGtkIMModule::DispatchTextEvent(const nsAString &aCompositionString,
         }
     }
 
-    nsEventStatus status;
-    nsRefPtr<nsWindow> lastFocusedWindow = mLastFocusedWindow;
-
-    if (aCompositionString != mDispatchedCompositionString) {
-      nsCompositionEvent compositionUpdate(PR_TRUE, NS_COMPOSITION_UPDATE,
-                                           mLastFocusedWindow);
-      InitEvent(compositionUpdate);
-      compositionUpdate.data = aCompositionString;
-      mDispatchedCompositionString = aCompositionString;
-      mLastFocusedWindow->DispatchEvent(&compositionUpdate, status);
-      if (lastFocusedWindow->IsDestroyed() ||
-          lastFocusedWindow != mLastFocusedWindow) {
-          PR_LOG(gGtkIMLog, PR_LOG_ALWAYS,
-              ("    NOTE, the focused widget was destroyed/changed by compositionupdate"));
-          return PR_FALSE;
-      }
-    }
-
     nsTextEvent textEvent(PR_TRUE, NS_TEXT_TEXT, mLastFocusedWindow);
     InitEvent(textEvent);
 
@@ -1224,8 +1202,6 @@ nsGtkIMModule::DispatchTextEvent(const nsAString &aCompositionString,
 
     nsAutoTArray<nsTextRange, 4> textRanges;
     if (aCheckAttr) {
-        // NOTE: SetTextRangeList() assumes that mDispatchedCompositionString
-        //       has been updated already.
         SetTextRangeList(textRanges);
         for (PRUint32 i = 0; i < textRanges.Length(); i++) {
             nsTextRange& range = textRanges[i];
@@ -1239,11 +1215,13 @@ nsGtkIMModule::DispatchTextEvent(const nsAString &aCompositionString,
 
     textEvent.rangeCount = textRanges.Length();
     textEvent.rangeArray = textRanges.Elements();
-    textEvent.theText = mDispatchedCompositionString.get();
+    textEvent.theText = mCompositionString.get();
 
+    nsEventStatus status;
+    nsCOMPtr<nsIWidget> kungFuDeathGrip = mLastFocusedWindow;
     mLastFocusedWindow->DispatchEvent(&textEvent, status);
-    if (lastFocusedWindow->IsDestroyed() ||
-        lastFocusedWindow != mLastFocusedWindow) {
+    if (static_cast<nsWindow*>(kungFuDeathGrip.get())->IsDestroyed() ||
+        kungFuDeathGrip != mLastFocusedWindow) {
         PR_LOG(gGtkIMLog, PR_LOG_ALWAYS,
             ("    NOTE, the focused widget was destroyed/changed by text event"));
         return PR_FALSE;
@@ -1359,8 +1337,8 @@ nsGtkIMModule::SetTextRangeList(nsTArray<nsTextRange> &aTextRangeList)
     nsTextRange range;
     if (cursor_pos < 0) {
         range.mStartOffset = 0;
-    } else if (PRUint32(cursor_pos) > mDispatchedCompositionString.Length()) {
-        range.mStartOffset = mDispatchedCompositionString.Length();
+    } else if (PRUint32(cursor_pos) > mCompositionString.Length()) {
+        range.mStartOffset = mCompositionString.Length();
     } else {
         range.mStartOffset = PRUint32(cursor_pos);
     }

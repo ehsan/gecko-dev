@@ -84,12 +84,6 @@ OPTION_CONVERT_IMPL(String)
 OPTION_CONVERT_IMPL(Int)
 OPTION_CONVERT_IMPL(MultiString)
 
-void
-OptionParser::setArgTerminatesOptions(const char *name, bool enabled)
-{
-    findArgument(name)->setTerminatesOptions(enabled);
-}
-
 OptionParser::Result
 OptionParser::error(const char *fmt, ...)
 {
@@ -290,11 +284,8 @@ OptionParser::extractValue(size_t argc, char **argv, size_t *i, char **value)
 }
 
 OptionParser::Result
-OptionParser::handleOption(Option *opt, size_t argc, char **argv, size_t *i, bool *optionsAllowed)
+OptionParser::handleOption(Option *opt, size_t argc, char **argv, size_t *i)
 {
-    if (opt->getTerminatesOptions())
-        *optionsAllowed = false;
-
     switch (opt->kind) {
       case OptionKindBool:
       {
@@ -338,16 +329,12 @@ OptionParser::handleOption(Option *opt, size_t argc, char **argv, size_t *i, boo
 }
 
 OptionParser::Result
-OptionParser::handleArg(size_t argc, char **argv, size_t *i, bool *optionsAllowed)
+OptionParser::handleArg(size_t argc, char **argv, size_t *i)
 {
     if (nextArgument >= arguments.length())
         return error("Too many arguments provided");
 
     Option *arg = arguments[nextArgument];
-
-    if (arg->getTerminatesOptions())
-        *optionsAllowed = false;
-
     switch (arg->kind) {
       case OptionKindString:
         arg->asStringOption()->value = argv[*i];
@@ -370,15 +357,16 @@ OptionParser::parseArgs(int inputArgc, char **argv)
 {
     JS_ASSERT(inputArgc >= 0);
     size_t argc = inputArgc;
-    /* Permit a "no more options" capability, like |--| offers in many shell interfaces. */
-    bool optionsAllowed = true;
 
     for (size_t i = 1; i < argc; ++i) {
         char *arg = argv[i];
         Result r;
-        /* Note: solo dash option is actually a 'stdin' argument. */
-        if (arg[0] == '-' && arg[1] != '\0' && optionsAllowed) {
+        if (arg[0] == '-') {
             /* Option. */
+            size_t arglen = strlen(arg);
+            if (arglen < 2) /* Do not permit solo dash option. */
+                return error("Invalid dash option");
+
             Option *opt;
             if (arg[1] == '-') {
                 /* Long option. */
@@ -394,12 +382,11 @@ OptionParser::parseArgs(int inputArgc, char **argv)
                     return error("Invalid short option: %s", arg);
             }
 
-            r = handleOption(opt, argc, argv, &i, &optionsAllowed);
+            r = handleOption(opt, argc, argv, &i);
         } else {
             /* Argument. */
-            r = handleArg(argc, argv, &i, &optionsAllowed);
+            r = handleArg(argc, argv, &i);
         }
-
         switch (r) {
           case Okay:
             break;

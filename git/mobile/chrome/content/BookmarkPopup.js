@@ -19,18 +19,20 @@ var BookmarkPopup = {
   show : function show() {
     // Set the box position.
     let button = document.getElementById("tool-star");
-    let anchorPosition = "";
     if (getComputedStyle(button).visibility == "visible") {
       let [tabsSidebar, controlsSidebar] = [Elements.tabs.getBoundingClientRect(), Elements.controls.getBoundingClientRect()];
       this.box.setAttribute(tabsSidebar.left < controlsSidebar.left ? "right" : "left", controlsSidebar.width - this.box.offset);
       this.box.top = button.getBoundingClientRect().top - this.box.offset;
     } else {
       button = document.getElementById("tool-star2");
-      anchorPosition = "after_start";
+      this.box.top = button.getBoundingClientRect().bottom - this.box.offset;
+
+      let chromeReg = Cc["@mozilla.org/chrome/chrome-registry;1"].getService(Ci.nsIXULChromeRegistry);
+      this.box.setAttribute(chromeReg.isLocaleRTL("global") ? "left" : "right", this.box.offset);
     }
 
     this.box.hidden = false;
-    this.box.anchorTo(button, anchorPosition);
+    this.box.anchorTo(button);
 
     // include the star button here, so that click-to-dismiss works as expected
     BrowserUI.pushPopup(this, [this.box, button]);
@@ -47,6 +49,6 @@ var BookmarkPopup = {
     this.hide();
 
     let browser = getBrowser();
-    Util.createShortcut(browser.contentTitle, browser.currentURI.spec, browser.mIconURL, "bookmark");
+    BookmarkHelper.createShortcut(browser.contentTitle, browser.currentURI.spec, browser.mIconURL);
   }
 };

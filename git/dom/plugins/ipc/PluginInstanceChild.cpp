@@ -37,14 +37,6 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
-#if defined(MOZ_WIDGET_QT) && (MOZ_PLATFORM_MAEMO == 6)
-#include <QEvent>
-#include <QKeyEvent>
-#include <QApplication>
-#include <QInputMethodEvent>
-#include "nsQtKeyUtils.h"
-#endif
-
 #include "PluginBackgroundDestroyer.h"
 #include "PluginInstanceChild.h"
 #include "PluginModuleChild.h"
@@ -82,8 +74,6 @@ using namespace mozilla::plugins;
 
 #elif defined(MOZ_WIDGET_QT)
 #include <QX11Info>
-#undef KeyPress
-#undef KeyRelease
 #elif defined(OS_WIN)
 #ifndef WM_MOUSEHWHEEL
 #define WM_MOUSEHWHEEL     0x020E
@@ -212,7 +202,7 @@ NPError
 PluginInstanceChild::InternalGetNPObjectForValue(NPNVariable aValue,
                                                  NPObject** aObject)
 {
-    PluginScriptableObjectChild* actor = NULL;
+    PluginScriptableObjectChild* actor;
     NPError result = NPERR_NO_ERROR;
 
     switch (aValue) {
@@ -356,18 +346,6 @@ PluginInstanceChild::NPN_GetValue(NPNVariable aVar,
             return NPERR_GENERIC_ERROR;
         }
         *static_cast<NPBool*>(aValue) = v;
-        return result;
-    }
-
-    case NPNVdocumentOrigin: {
-        nsCString v;
-        NPError result;
-        if (!CallNPN_GetValue_NPNVdocumentOrigin(&v, &result)) {
-            return NPERR_GENERIC_ERROR;
-        }
-        if (result == NPERR_NO_ERROR) {
-            *static_cast<char**>(aValue) = ToNewCString(v);
-        }
         return result;
     }
 
@@ -997,7 +975,7 @@ PluginInstanceChild::AnswerNPP_SetWindow(const NPRemoteWindow& aWindow)
 #ifdef MOZ_WIDGET_GTK2
     if (gtk_check_version(2,18,7) != NULL) { // older
         if (aWindow.type == NPWindowTypeWindow) {
-            GdkWindow* socket_window = gdk_window_lookup(static_cast<GdkNativeWindow>(aWindow.window));
+            GdkWindow* socket_window = gdk_window_lookup(aWindow.window);
             if (socket_window) {
                 // A GdkWindow for the socket already exists.  Need to
                 // workaround https://bugzilla.gnome.org/show_bug.cgi?id=607061
@@ -1051,7 +1029,7 @@ PluginInstanceChild::AnswerNPP_SetWindow(const NPRemoteWindow& aWindow)
           if (!CreatePluginWindow())
               return false;
 
-          ReparentPluginWindow(reinterpret_cast<HWND>(aWindow.window));
+          ReparentPluginWindow((HWND)aWindow.window);
           SizePluginWindow(aWindow.width, aWindow.height);
 
           mWindow.window = (void*)mPluginWindowHWND;
@@ -1114,8 +1092,6 @@ PluginInstanceChild::AnswerNPP_SetWindow(const NPRemoteWindow& aWindow)
 
 #elif defined(ANDROID)
 #  warning Need Android impl
-#elif defined(MOZ_WIDGET_QT)
-#  warning Need QT-nonX impl
 #else
 #  error Implement me for your OS
 #endif
@@ -1503,19 +1479,15 @@ PluginInstanceChild::HookSetWindowLongPtr()
 
     sUser32Intercept.Init("user32.dll");
 #ifdef _WIN64
-    if (!sUser32SetWindowLongAHookStub)
-        sUser32Intercept.AddHook("SetWindowLongPtrA", reinterpret_cast<intptr_t>(SetWindowLongPtrAHook),
-                                 (void**) &sUser32SetWindowLongAHookStub);
-    if (!sUser32SetWindowLongWHookStub)
-        sUser32Intercept.AddHook("SetWindowLongPtrW", reinterpret_cast<intptr_t>(SetWindowLongPtrWHook),
-                                 (void**) &sUser32SetWindowLongWHookStub);
+    sUser32Intercept.AddHook("SetWindowLongPtrA", reinterpret_cast<intptr_t>(SetWindowLongPtrAHook),
+                             (void**) &sUser32SetWindowLongAHookStub);
+    sUser32Intercept.AddHook("SetWindowLongPtrW", reinterpret_cast<intptr_t>(SetWindowLongPtrWHook),
+                             (void**) &sUser32SetWindowLongWHookStub);
 #else
-    if (!sUser32SetWindowLongAHookStub)
-        sUser32Intercept.AddHook("SetWindowLongA", reinterpret_cast<intptr_t>(SetWindowLongAHook),
-                                 (void**) &sUser32SetWindowLongAHookStub);
-    if (!sUser32SetWindowLongWHookStub)
-        sUser32Intercept.AddHook("SetWindowLongW", reinterpret_cast<intptr_t>(SetWindowLongWHook),
-                                 (void**) &sUser32SetWindowLongWHookStub);
+    sUser32Intercept.AddHook("SetWindowLongA", reinterpret_cast<intptr_t>(SetWindowLongAHook),
+                             (void**) &sUser32SetWindowLongAHookStub);
+    sUser32Intercept.AddHook("SetWindowLongW", reinterpret_cast<intptr_t>(SetWindowLongWHook),
+                             (void**) &sUser32SetWindowLongWHookStub);
 #endif
 }
 
@@ -1587,11 +1559,9 @@ PluginInstanceChild::InitPopupMenuHook()
     // it remains initialized for that particular module for it's
     // lifetime. Additional instances are needed if other modules need
     // to be hooked.
-    if (!sUser32TrackPopupMenuStub) {
-        sUser32Intercept.Init("user32.dll");
-        sUser32Intercept.AddHook("TrackPopupMenu", reinterpret_cast<intptr_t>(TrackPopupHookProc),
-                                 (void**) &sUser32TrackPopupMenuStub);
-    }
+    sUser32Intercept.Init("user32.dll");
+    sUser32Intercept.AddHook("TrackPopupMenu", reinterpret_cast<intptr_t>(TrackPopupHookProc),
+                             (void**) &sUser32TrackPopupMenuStub);
 }
 
 void
@@ -2345,57 +2315,6 @@ PluginInstanceChild::RecvAsyncSetWindow(const gfxSurfaceType& aSurfaceType,
     return true;
 }
 
-bool
-PluginInstanceChild::AnswerHandleKeyEvent(const nsKeyEvent& aKeyEvent,
-                                          bool* handled)
-{
-    AssertPluginThread();
-#if defined(MOZ_WIDGET_QT) && (MOZ_PLATFORM_MAEMO == 6)
-    Qt::KeyboardModifiers modifier;
-    if (aKeyEvent.isShift)
-        modifier |= Qt::ShiftModifier;
-    if (aKeyEvent.isControl)
-        modifier |= Qt::ControlModifier;
-    if (aKeyEvent.isAlt)
-        modifier |= Qt::AltModifier;
-    if (aKeyEvent.isMeta)
-        modifier |= Qt::MetaModifier;
-
-    QEvent::Type type;
-    if (aKeyEvent.message == NS_KEY_DOWN) {
-        type = QEvent::KeyPress;
-    } else if (aKeyEvent.message == NS_KEY_UP) {
-        type = QEvent::KeyRelease;
-    } else {
-        *handled = false;
-        return true;
-    }
-    QKeyEvent keyEv(type, DOMKeyCodeToQtKeyCode(aKeyEvent.keyCode), modifier);
-    *handled = QApplication::sendEvent(qApp, &keyEv);
-#else
-    NS_ERROR("Not implemented");
-#endif
-
-    return true;
-}
-
-bool
-PluginInstanceChild::AnswerHandleTextEvent(const nsTextEvent& aEvent,
-                                           bool* handled)
-{
-    AssertPluginThread();
-#if defined(MOZ_WIDGET_QT) && (MOZ_PLATFORM_MAEMO == 6)
-    QInputMethodEvent event;
-    event.setCommitString(QString((const QChar*)aEvent.theText.get(),
-                          aEvent.theText.Length()));
-    *handled = QApplication::sendEvent(qApp, &event);
-#else
-    NS_ERROR("Not implemented");
-#endif
-
-    return true;
-}
-
 void
 PluginInstanceChild::DoAsyncSetWindow(const gfxSurfaceType& aSurfaceType,
                                       const NPRemoteWindow& aWindow,
@@ -2470,7 +2389,6 @@ PluginInstanceChild::CreateOptSurface(void)
         (mIsTransparent && !mBackground) ? gfxASurface::ImageFormatARGB32 :
                                            gfxASurface::ImageFormatRGB24;
 
-#ifdef MOZ_X11
 #if (MOZ_PLATFORM_MAEMO == 5) || (MOZ_PLATFORM_MAEMO == 6)
     // On Maemo 5, we must send the Visibility event to activate the plugin
     if (mMaemoImageRendering) {
@@ -2482,6 +2400,7 @@ PluginInstanceChild::CreateOptSurface(void)
         mPluginIface->event(&mData, reinterpret_cast<void*>(&pluginEvent));
     }
 #endif
+#ifdef MOZ_X11
     Display* dpy = mWsInfo.display;
     Screen* screen = DefaultScreenOfDisplay(dpy);
     if (format == gfxASurface::ImageFormatRGB24 &&
@@ -2861,7 +2780,6 @@ PluginInstanceChild::PaintRectToPlatformSurface(const nsIntRect& aRect,
         exposeEvent.major_code = 0;
         exposeEvent.minor_code = 0;
         mPluginIface->event(&mData, reinterpret_cast<void*>(&exposeEvent));
-        aSurface->MarkDirty(gfxRect(aRect.x, aRect.y, aRect.width, aRect.height));
     } else
 #endif
     {
@@ -2939,7 +2857,7 @@ PluginInstanceChild::PaintRectToSurface(const nsIntRect& aRect,
     }
 #endif
 
-    if (mIsTransparent && !CanPaintOnBackground()) {
+    if (aColor.a > 0.0) {
        // Clear surface content for transparent rendering
        nsRefPtr<gfxContext> ctx = new gfxContext(renderSurface);
        ctx->SetColor(aColor);

@@ -173,12 +173,6 @@ XPCOMUtils.defineLazyGetter(this, "PopupNotifications", function () {
   }
 });
 
-XPCOMUtils.defineLazyGetter(this, "InspectorUI", function() {
-  let tmp = {};
-  Cu.import("resource:///modules/inspector.jsm", tmp);
-  return new tmp.InspectorUI(window);
-});
-
 let gInitialPages = [
   "about:blank",
   "about:privatebrowsing",
@@ -186,6 +180,7 @@ let gInitialPages = [
 ];
 
 #include browser-fullZoom.js
+#include inspector.js
 #include browser-places.js
 #include browser-tabPreviews.js
 #include browser-tabview.js
@@ -1681,7 +1676,7 @@ function delayedStartup(isLoadingBlank, mustLoadSidebar) {
   TabView.init();
 
   // Enable Inspector?
-  let enabled = gPrefService.getBoolPref("devtools.inspector.enabled");
+  let enabled = gPrefService.getBoolPref(InspectorUI.prefEnabledName);
   if (enabled) {
     document.getElementById("menu_pageinspect").hidden = false;
     document.getElementById("Tools:Inspect").removeAttribute("disabled");
@@ -1729,9 +1724,6 @@ function BrowserShutdown() {
   // load completes). In that case, there's nothing to do here.
   if (!gStartupRan)
     return;
-
-  if (!__lookupGetter__("InspectorUI"))
-    InspectorUI.destroy();
 
   // First clean up services initialized in BrowserStartup (or those whose
   // uninit methods don't depend on the services having been initialized).
@@ -2221,12 +2213,8 @@ var gLastOpenDirectory = {
     return this._lastDir;
   },
   set path(val) {
-    try {
-      if (!val || !val.isDirectory())
-        return;
-    } catch(e) {
+    if (!val || !val.exists() || !val.isDirectory())
       return;
-    }
     this._lastDir = val.clone();
 
     // Don't save the last open directory pref inside the Private Browsing mode
@@ -2251,11 +2239,8 @@ function BrowserOpenFileWindow()
     fp.displayDirectory = gLastOpenDirectory.path;
 
     if (fp.show() == nsIFilePicker.returnOK) {
-      try {
-        if (fp.file)
-          gLastOpenDirectory.path = fp.file.parent.QueryInterface(Ci.nsILocalFile);
-      } catch(e) {
-      }
+      if (fp.file && fp.file.exists())
+        gLastOpenDirectory.path = fp.file.parent.QueryInterface(Ci.nsILocalFile);
       openTopWin(fp.fileURL.spec);
     }
   } catch (ex) {
@@ -4683,7 +4668,7 @@ var LinkTargetDisplay = {
      return this.DELAY_SHOW = Services.prefs.getIntPref("browser.overlink-delay");
   },
 
-  DELAY_HIDE: 250,
+  DELAY_HIDE: 150,
   _timer: 0,
 
   get _isVisible () XULBrowserWindow.statusTextField.label != "",
@@ -7195,10 +7180,7 @@ var gPluginHandler = {
       let link = notification.ownerDocument.createElementNS(XULNS, "label");
       link.className = "text-link";
       link.setAttribute("value", gNavigatorBundle.getString("crashedpluginsMessage.learnMore"));
-      let crashurl = formatURL("app.support.baseURL", true);
-      crashurl += "plugin-crashed-notificationbar";
-      link.href = crashurl;
-
+      link.href = gPluginHandler.crashReportHelpURL;
       let description = notification.ownerDocument.getAnonymousElementByAttribute(notification, "anonid", "messageText");
       description.appendChild(link);
 
@@ -7350,8 +7332,7 @@ var FeedHandler = {
    * a page is loaded or the user switches tabs to a page that has feeds.
    */
   updateFeeds: function() {
-    if (this._updateFeedTimeout)
-      clearTimeout(this._updateFeedTimeout);
+    clearTimeout(this._updateFeedTimeout);
 
     var feeds = gBrowser.selectedBrowser.feeds;
     var haveFeeds = feeds && feeds.length > 0;

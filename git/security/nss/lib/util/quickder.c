@@ -102,7 +102,7 @@ static unsigned char* definite_length_decoder(const unsigned char *buf,
 
 static SECStatus GetItem(SECItem* src, SECItem* dest, PRBool includeTag)
 {
-    if ( (!src) || (!dest) || (!src->data && src->len) )
+    if ( (!src) || (!dest) || (!src->data) )
     {
         PORT_SetError(SEC_ERROR_INVALID_ARGS);
         return SECFailure;
@@ -136,13 +136,13 @@ static SECStatus MatchComponentType(const SEC_ASN1Template* templateEntry,
     unsigned long kind = 0;
     unsigned char tag = 0;
 
-    if ( (!item) || (!item->data && item->len) || (!templateEntry) || (!match) )
+    if ( (!item) || (!templateEntry) || (!match) )
     {
         PORT_SetError(SEC_ERROR_INVALID_ARGS);
         return SECFailure;
     }
 
-    if (!item->len)
+    if (!item->len || !item->data)
     {
         *match = PR_FALSE;
         return SECSuccess;

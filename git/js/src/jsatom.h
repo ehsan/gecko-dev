@@ -48,6 +48,7 @@
 #include "jspubtd.h"
 #include "jsstr.h"
 #include "jslock.h"
+#include "jsvalue.h"
 
 #include "vm/String.h"
 
@@ -126,7 +127,7 @@ IdToValue(jsid id)
 static JS_ALWAYS_INLINE jsval
 IdToJsval(jsid id)
 {
-    return IdToValue(id);
+    return Jsvalify(IdToValue(id));
 }
 
 template<>
@@ -160,6 +161,11 @@ struct DefaultHasher<jsid>
  */
 extern const char *
 js_AtomToPrintableString(JSContext *cx, JSAtom *atom, JSAutoByteString *bytes);
+
+struct JSAtomMap {
+    JSAtom **vector;    /* array of ptrs to indexed atoms */
+    uint32 length;      /* count of (to-be-)indexed atoms */
+};
 
 namespace js {
 
@@ -206,147 +212,147 @@ struct JSAtomState
 
     /*
      * From this point until the end of struct definition the struct must
-     * contain only js::PropertyName fields. We use this to access the storage
-     * occupied by the common atoms in js_FinishCommonAtoms.
+     * contain only JSAtom fields. We use this to access the storage occupied
+     * by the common atoms in js_FinishCommonAtoms.
      *
-     * js_common_atom_names defined in jsatom.cpp contains C strings for atoms
+     * js_common_atom_names defined in jsatom.c contains C strings for atoms
      * in the order of atom fields here. Therefore you must update that array
      * if you change member order here.
      */
 
     /* The rt->emptyString atom, see jsstr.c's js_InitRuntimeStringState. */
-    js::PropertyName    *emptyAtom;
+    JSAtom              *emptyAtom;
 
     /*
      * Literal value and type names.
      * NB: booleanAtoms must come right before typeAtoms!
      */
-    js::PropertyName    *booleanAtoms[2];
-    js::PropertyName    *typeAtoms[JSTYPE_LIMIT];
-    js::PropertyName    *nullAtom;
+    JSAtom              *booleanAtoms[2];
+    JSAtom              *typeAtoms[JSTYPE_LIMIT];
+    JSAtom              *nullAtom;
 
     /* Standard class constructor or prototype names. */
-    js::PropertyName    *classAtoms[JSProto_LIMIT];
+    JSAtom              *classAtoms[JSProto_LIMIT];
 
     /* Various built-in or commonly-used atoms, pinned on first context. */
-    js::PropertyName    *anonymousAtom;
-    js::PropertyName    *applyAtom;
-    js::PropertyName    *argumentsAtom;
-    js::PropertyName    *arityAtom;
-    js::PropertyName    *BYTES_PER_ELEMENTAtom;
-    js::PropertyName    *callAtom;
-    js::PropertyName    *calleeAtom;
-    js::PropertyName    *callerAtom;
-    js::PropertyName    *classPrototypeAtom;
-    js::PropertyName    *constructorAtom;
-    js::PropertyName    *eachAtom;
-    js::PropertyName    *evalAtom;
-    js::PropertyName    *fileNameAtom;
-    js::PropertyName    *getAtom;
-    js::PropertyName    *globalAtom;
-    js::PropertyName    *ignoreCaseAtom;
-    js::PropertyName    *indexAtom;
-    js::PropertyName    *inputAtom;
-    js::PropertyName    *toISOStringAtom;
-    js::PropertyName    *iteratorAtom;
-    js::PropertyName    *joinAtom;
-    js::PropertyName    *lastIndexAtom;
-    js::PropertyName    *lengthAtom;
-    js::PropertyName    *lineNumberAtom;
-    js::PropertyName    *messageAtom;
-    js::PropertyName    *multilineAtom;
-    js::PropertyName    *nameAtom;
-    js::PropertyName    *nextAtom;
-    js::PropertyName    *noSuchMethodAtom;
-    js::PropertyName    *objectNullAtom;
-    js::PropertyName    *objectUndefinedAtom;
-    js::PropertyName    *protoAtom;
-    js::PropertyName    *setAtom;
-    js::PropertyName    *sourceAtom;
-    js::PropertyName    *stackAtom;
-    js::PropertyName    *stickyAtom;
-    js::PropertyName    *toGMTStringAtom;
-    js::PropertyName    *toLocaleStringAtom;
-    js::PropertyName    *toSourceAtom;
-    js::PropertyName    *toStringAtom;
-    js::PropertyName    *toUTCStringAtom;
-    js::PropertyName    *valueOfAtom;
-    js::PropertyName    *toJSONAtom;
-    js::PropertyName    *void0Atom;
-    js::PropertyName    *enumerableAtom;
-    js::PropertyName    *configurableAtom;
-    js::PropertyName    *writableAtom;
-    js::PropertyName    *valueAtom;
-    js::PropertyName    *testAtom;
-    js::PropertyName    *useStrictAtom;
-    js::PropertyName    *locAtom;
-    js::PropertyName    *lineAtom;
-    js::PropertyName    *InfinityAtom;
-    js::PropertyName    *NaNAtom;
-    js::PropertyName    *builderAtom;
+    JSAtom              *anonymousAtom;
+    JSAtom              *applyAtom;
+    JSAtom              *argumentsAtom;
+    JSAtom              *arityAtom;
+    JSAtom              *BYTES_PER_ELEMENTAtom;
+    JSAtom              *callAtom;
+    JSAtom              *calleeAtom;
+    JSAtom              *callerAtom;
+    JSAtom              *classPrototypeAtom;
+    JSAtom              *constructorAtom;
+    JSAtom              *eachAtom;
+    JSAtom              *evalAtom;
+    JSAtom              *fileNameAtom;
+    JSAtom              *getAtom;
+    JSAtom              *globalAtom;
+    JSAtom              *ignoreCaseAtom;
+    JSAtom              *indexAtom;
+    JSAtom              *inputAtom;
+    JSAtom              *toISOStringAtom;
+    JSAtom              *iteratorAtom;
+    JSAtom              *joinAtom;
+    JSAtom              *lastIndexAtom;
+    JSAtom              *lengthAtom;
+    JSAtom              *lineNumberAtom;
+    JSAtom              *messageAtom;
+    JSAtom              *multilineAtom;
+    JSAtom              *nameAtom;
+    JSAtom              *nextAtom;
+    JSAtom              *noSuchMethodAtom;
+    JSAtom              *objectNullAtom;
+    JSAtom              *objectUndefinedAtom;
+    JSAtom              *protoAtom;
+    JSAtom              *setAtom;
+    JSAtom              *sourceAtom;
+    JSAtom              *stackAtom;
+    JSAtom              *stickyAtom;
+    JSAtom              *toGMTStringAtom;
+    JSAtom              *toLocaleStringAtom;
+    JSAtom              *toSourceAtom;
+    JSAtom              *toStringAtom;
+    JSAtom              *toUTCStringAtom;
+    JSAtom              *valueOfAtom;
+    JSAtom              *toJSONAtom;
+    JSAtom              *void0Atom;
+    JSAtom              *enumerableAtom;
+    JSAtom              *configurableAtom;
+    JSAtom              *writableAtom;
+    JSAtom              *valueAtom;
+    JSAtom              *testAtom;
+    JSAtom              *useStrictAtom;
+    JSAtom              *locAtom;
+    JSAtom              *lineAtom;
+    JSAtom              *InfinityAtom;
+    JSAtom              *NaNAtom;
+    JSAtom              *builderAtom;
 
 #if JS_HAS_XML_SUPPORT
-    js::PropertyName    *etagoAtom;
-    js::PropertyName    *namespaceAtom;
-    js::PropertyName    *ptagcAtom;
-    js::PropertyName    *qualifierAtom;
-    js::PropertyName    *spaceAtom;
-    js::PropertyName    *stagoAtom;
-    js::PropertyName    *starAtom;
-    js::PropertyName    *starQualifierAtom;
-    js::PropertyName    *tagcAtom;
-    js::PropertyName    *xmlAtom;
+    JSAtom              *etagoAtom;
+    JSAtom              *namespaceAtom;
+    JSAtom              *ptagcAtom;
+    JSAtom              *qualifierAtom;
+    JSAtom              *spaceAtom;
+    JSAtom              *stagoAtom;
+    JSAtom              *starAtom;
+    JSAtom              *starQualifierAtom;
+    JSAtom              *tagcAtom;
+    JSAtom              *xmlAtom;
 
     /* Represents an invalid URI, for internal use only. */
-    js::PropertyName    *functionNamespaceURIAtom;
+    JSAtom              *functionNamespaceURIAtom;
 #endif
 
-    js::PropertyName    *ProxyAtom;
+    JSAtom              *ProxyAtom;
 
-    js::PropertyName    *getOwnPropertyDescriptorAtom;
-    js::PropertyName    *getPropertyDescriptorAtom;
-    js::PropertyName    *definePropertyAtom;
-    js::PropertyName    *deleteAtom;
-    js::PropertyName    *getOwnPropertyNamesAtom;
-    js::PropertyName    *enumerateAtom;
-    js::PropertyName    *fixAtom;
+    JSAtom              *getOwnPropertyDescriptorAtom;
+    JSAtom              *getPropertyDescriptorAtom;
+    JSAtom              *definePropertyAtom;
+    JSAtom              *deleteAtom;
+    JSAtom              *getOwnPropertyNamesAtom;
+    JSAtom              *enumerateAtom;
+    JSAtom              *fixAtom;
 
-    js::PropertyName    *hasAtom;
-    js::PropertyName    *hasOwnAtom;
-    js::PropertyName    *keysAtom;
-    js::PropertyName    *iterateAtom;
+    JSAtom              *hasAtom;
+    JSAtom              *hasOwnAtom;
+    JSAtom              *keysAtom;
+    JSAtom              *iterateAtom;
 
-    js::PropertyName    *WeakMapAtom;
+    JSAtom              *WeakMapAtom;
 
-    js::PropertyName    *byteLengthAtom;
+    JSAtom              *byteLengthAtom;
 
-    js::PropertyName    *returnAtom;
-    js::PropertyName    *throwAtom;
+    JSAtom              *returnAtom;
+    JSAtom              *throwAtom;
 
     /* Less frequently used atoms, pinned lazily by JS_ResolveStandardClass. */
     struct {
-        js::PropertyName *XMLListAtom;
-        js::PropertyName *decodeURIAtom;
-        js::PropertyName *decodeURIComponentAtom;
-        js::PropertyName *defineGetterAtom;
-        js::PropertyName *defineSetterAtom;
-        js::PropertyName *encodeURIAtom;
-        js::PropertyName *encodeURIComponentAtom;
-        js::PropertyName *escapeAtom;
-        js::PropertyName *hasOwnPropertyAtom;
-        js::PropertyName *isFiniteAtom;
-        js::PropertyName *isNaNAtom;
-        js::PropertyName *isPrototypeOfAtom;
-        js::PropertyName *isXMLNameAtom;
-        js::PropertyName *lookupGetterAtom;
-        js::PropertyName *lookupSetterAtom;
-        js::PropertyName *parseFloatAtom;
-        js::PropertyName *parseIntAtom;
-        js::PropertyName *propertyIsEnumerableAtom;
-        js::PropertyName *unescapeAtom;
-        js::PropertyName *unevalAtom;
-        js::PropertyName *unwatchAtom;
-        js::PropertyName *watchAtom;
+        JSAtom          *XMLListAtom;
+        JSAtom          *decodeURIAtom;
+        JSAtom          *decodeURIComponentAtom;
+        JSAtom          *defineGetterAtom;
+        JSAtom          *defineSetterAtom;
+        JSAtom          *encodeURIAtom;
+        JSAtom          *encodeURIComponentAtom;
+        JSAtom          *escapeAtom;
+        JSAtom          *hasOwnPropertyAtom;
+        JSAtom          *isFiniteAtom;
+        JSAtom          *isNaNAtom;
+        JSAtom          *isPrototypeOfAtom;
+        JSAtom          *isXMLNameAtom;
+        JSAtom          *lookupGetterAtom;
+        JSAtom          *lookupSetterAtom;
+        JSAtom          *parseFloatAtom;
+        JSAtom          *parseIntAtom;
+        JSAtom          *propertyIsEnumerableAtom;
+        JSAtom          *unescapeAtom;
+        JSAtom          *unevalAtom;
+        JSAtom          *unwatchAtom;
+        JSAtom          *watchAtom;
     } lazy;
 
     static const size_t commonAtomsOffset;
@@ -363,7 +369,7 @@ struct JSAtomState
     }
 
     JSAtom **commonAtomsStart() {
-        return reinterpret_cast<JSAtom **>(&emptyAtom);
+        return &emptyAtom;
     }
 
     void checkStaticInvariants();
@@ -536,6 +542,6 @@ js_InternNonIntElementId(JSContext *cx, JSObject *obj, const js::Value &idval,
  * the list and map->vector must point to pre-allocated memory.
  */
 extern void
-js_InitAtomMap(JSContext *cx, js::AtomIndexMap *indices, JSAtom **atoms);
+js_InitAtomMap(JSContext *cx, JSAtomMap *map, js::AtomIndexMap *indices);
 
 #endif /* jsatom_h___ */

@@ -77,6 +77,8 @@
 #include "nsQuickSort.h"
 #include "nsAttrValue.h"
 #include "nsAttrName.h"
+#include "nsILookAndFeel.h"
+#include "nsWidgetsCID.h"
 #include "nsServiceManagerUtils.h"
 #include "nsTArray.h"
 #include "nsContentUtils.h"
@@ -93,7 +95,6 @@
 #include "nsGenericElement.h"
 #include "nsNthIndexCache.h"
 #include "mozilla/Preferences.h"
-#include "mozilla/LookAndFeel.h"
 
 using namespace mozilla;
 using namespace mozilla::dom;
@@ -102,10 +103,11 @@ using namespace mozilla::dom;
 
 static PRBool gSupportVisitedPseudo = PR_TRUE;
 
+static NS_DEFINE_CID(kLookAndFeelCID, NS_LOOKANDFEEL_CID);
 static nsTArray< nsCOMPtr<nsIAtom> >* sSystemMetrics = 0;
 
 #ifdef XP_WIN
-PRUint8 nsCSSRuleProcessor::sWinThemeId = LookAndFeel::eWindowsTheme_Generic;
+PRUint8 nsCSSRuleProcessor::sWinThemeId = nsILookAndFeel::eWindowsTheme_Generic;
 #endif
 
 /**
@@ -1052,111 +1054,104 @@ InitSystemMetrics()
   sSystemMetrics = new nsTArray< nsCOMPtr<nsIAtom> >;
   NS_ENSURE_TRUE(sSystemMetrics, PR_FALSE);
 
+  nsresult rv;
+  nsCOMPtr<nsILookAndFeel> lookAndFeel(do_GetService(kLookAndFeelCID, &rv));
+  NS_ENSURE_SUCCESS(rv, PR_FALSE);
+
   /***************************************************************************
    * ANY METRICS ADDED HERE SHOULD ALSO BE ADDED AS MEDIA QUERIES IN         *
    * nsMediaFeatures.cpp                                                     *
    ***************************************************************************/
 
-  PRInt32 metricResult =
-    LookAndFeel::GetInt(LookAndFeel::eIntID_ScrollArrowStyle);
-  if (metricResult & LookAndFeel::eScrollArrow_StartBackward) {
+  PRInt32 metricResult;
+  lookAndFeel->GetMetric(nsILookAndFeel::eMetric_ScrollArrowStyle, metricResult);
+  if (metricResult & nsILookAndFeel::eMetric_ScrollArrowStartBackward) {
     sSystemMetrics->AppendElement(nsGkAtoms::scrollbar_start_backward);
   }
-  if (metricResult & LookAndFeel::eScrollArrow_StartForward) {
+  if (metricResult & nsILookAndFeel::eMetric_ScrollArrowStartForward) {
     sSystemMetrics->AppendElement(nsGkAtoms::scrollbar_start_forward);
   }
-  if (metricResult & LookAndFeel::eScrollArrow_EndBackward) {
+  if (metricResult & nsILookAndFeel::eMetric_ScrollArrowEndBackward) {
     sSystemMetrics->AppendElement(nsGkAtoms::scrollbar_end_backward);
   }
-  if (metricResult & LookAndFeel::eScrollArrow_EndForward) {
+  if (metricResult & nsILookAndFeel::eMetric_ScrollArrowEndForward) {
     sSystemMetrics->AppendElement(nsGkAtoms::scrollbar_end_forward);
   }
 
-  metricResult =
-    LookAndFeel::GetInt(LookAndFeel::eIntID_ScrollSliderStyle);
-  if (metricResult != LookAndFeel::eScrollThumbStyle_Normal) {
+  lookAndFeel->GetMetric(nsILookAndFeel::eMetric_ScrollSliderStyle, metricResult);
+  if (metricResult != nsILookAndFeel::eMetric_ScrollThumbStyleNormal) {
     sSystemMetrics->AppendElement(nsGkAtoms::scrollbar_thumb_proportional);
   }
 
-  metricResult =
-    LookAndFeel::GetInt(LookAndFeel::eIntID_ImagesInMenus);
+  lookAndFeel->GetMetric(nsILookAndFeel::eMetric_ImagesInMenus, metricResult);
   if (metricResult) {
     sSystemMetrics->AppendElement(nsGkAtoms::images_in_menus);
   }
 
-  metricResult =
-    LookAndFeel::GetInt(LookAndFeel::eIntID_ImagesInButtons);
+  lookAndFeel->GetMetric(nsILookAndFeel::eMetric_ImagesInButtons, metricResult);
   if (metricResult) {
     sSystemMetrics->AppendElement(nsGkAtoms::images_in_buttons);
   }
 
-  metricResult =
-    LookAndFeel::GetInt(LookAndFeel::eIntID_MenuBarDrag);
+  lookAndFeel->GetMetric(nsILookAndFeel::eMetric_MenuBarDrag, metricResult);
   if (metricResult) {
     sSystemMetrics->AppendElement(nsGkAtoms::menubar_drag);
   }
 
-  nsresult rv =
-    LookAndFeel::GetInt(LookAndFeel::eIntID_WindowsDefaultTheme, &metricResult);
+  rv = lookAndFeel->GetMetric(nsILookAndFeel::eMetric_WindowsDefaultTheme, metricResult);
   if (NS_SUCCEEDED(rv) && metricResult) {
     sSystemMetrics->AppendElement(nsGkAtoms::windows_default_theme);
   }
 
-  rv = LookAndFeel::GetInt(LookAndFeel::eIntID_MacGraphiteTheme, &metricResult);
+  rv = lookAndFeel->GetMetric(nsILookAndFeel::eMetric_MacGraphiteTheme, metricResult);
   if (NS_SUCCEEDED(rv) && metricResult) {
     sSystemMetrics->AppendElement(nsGkAtoms::mac_graphite_theme);
   }
 
-  rv = LookAndFeel::GetInt(LookAndFeel::eIntID_MacLionTheme, &metricResult);
-  if (NS_SUCCEEDED(rv) && metricResult) {
-    sSystemMetrics->AppendElement(nsGkAtoms::mac_lion_theme);
-  }
-
-  rv = LookAndFeel::GetInt(LookAndFeel::eIntID_DWMCompositor, &metricResult);
+  rv = lookAndFeel->GetMetric(nsILookAndFeel::eMetric_DWMCompositor, metricResult);
   if (NS_SUCCEEDED(rv) && metricResult) {
     sSystemMetrics->AppendElement(nsGkAtoms::windows_compositor);
   }
 
-  rv = LookAndFeel::GetInt(LookAndFeel::eIntID_WindowsClassic, &metricResult);
+  rv = lookAndFeel->GetMetric(nsILookAndFeel::eMetric_WindowsClassic, metricResult);
   if (NS_SUCCEEDED(rv) && metricResult) {
     sSystemMetrics->AppendElement(nsGkAtoms::windows_classic);
   }
 
-  rv = LookAndFeel::GetInt(LookAndFeel::eIntID_TouchEnabled, &metricResult);
+  rv = lookAndFeel->GetMetric(nsILookAndFeel::eMetric_TouchEnabled, metricResult);
   if (NS_SUCCEEDED(rv) && metricResult) {
     sSystemMetrics->AppendElement(nsGkAtoms::touch_enabled);
   }
  
-  rv = LookAndFeel::GetInt(LookAndFeel::eIntID_MaemoClassic, &metricResult);
+  rv = lookAndFeel->GetMetric(nsILookAndFeel::eMetric_MaemoClassic, metricResult);
   if (NS_SUCCEEDED(rv) && metricResult) {
     sSystemMetrics->AppendElement(nsGkAtoms::maemo_classic);
   }
 
 #ifdef XP_WIN
-  if (NS_SUCCEEDED(
-        LookAndFeel::GetInt(LookAndFeel::eIntID_WindowsThemeIdentifier,
-                            &metricResult))) {
+  if (NS_SUCCEEDED(lookAndFeel->GetMetric(nsILookAndFeel::eMetric_WindowsThemeIdentifier,
+                                          metricResult))) {
     nsCSSRuleProcessor::SetWindowsThemeIdentifier(static_cast<PRUint8>(metricResult));
     switch(metricResult) {
-      case LookAndFeel::eWindowsTheme_Aero:
+      case nsILookAndFeel::eWindowsTheme_Aero:
         sSystemMetrics->AppendElement(nsGkAtoms::windows_theme_aero);
         break;
-      case LookAndFeel::eWindowsTheme_LunaBlue:
+      case nsILookAndFeel::eWindowsTheme_LunaBlue:
         sSystemMetrics->AppendElement(nsGkAtoms::windows_theme_luna_blue);
         break;
-      case LookAndFeel::eWindowsTheme_LunaOlive:
+      case nsILookAndFeel::eWindowsTheme_LunaOlive:
         sSystemMetrics->AppendElement(nsGkAtoms::windows_theme_luna_olive);
         break;
-      case LookAndFeel::eWindowsTheme_LunaSilver:
+      case nsILookAndFeel::eWindowsTheme_LunaSilver:
         sSystemMetrics->AppendElement(nsGkAtoms::windows_theme_luna_silver);
         break;
-      case LookAndFeel::eWindowsTheme_Royale:
+      case nsILookAndFeel::eWindowsTheme_Royale:
         sSystemMetrics->AppendElement(nsGkAtoms::windows_theme_royale);
         break;
-      case LookAndFeel::eWindowsTheme_Zune:
+      case nsILookAndFeel::eWindowsTheme_Zune:
         sSystemMetrics->AppendElement(nsGkAtoms::windows_theme_zune);
         break;
-      case LookAndFeel::eWindowsTheme_Generic:
+      case nsILookAndFeel::eWindowsTheme_Generic:
         sSystemMetrics->AppendElement(nsGkAtoms::windows_theme_generic);
         break;
     }
@@ -1199,6 +1194,29 @@ nsCSSRuleProcessor::GetWindowsThemeIdentifier()
   return sWinThemeId;
 }
 #endif
+
+// If we have a useful @lang, then aLang will end up nonempty.
+static void GetLang(nsIContent* aContent, nsString& aLang)
+{
+  for (nsIContent* content = aContent; content;
+       content = content->GetParent()) {
+    if (content->GetAttrCount() > 0) {
+      // xml:lang has precedence over lang on HTML elements (see
+      // XHTML1 section C.7).
+      PRBool hasAttr = content->GetAttr(kNameSpaceID_XML, nsGkAtoms::lang,
+                                        aLang);
+      if (!hasAttr && content->IsHTML()) {
+        hasAttr = content->GetAttr(kNameSpaceID_None, nsGkAtoms::lang,
+                                   aLang);
+      }
+      NS_ASSERTION(hasAttr || aLang.IsEmpty(),
+                   "GetAttr that returns false should not make string non-empty");
+      if (hasAttr) {
+        return;
+      }
+    }
+  }
+}
 
 /* static */
 nsEventStates
@@ -1679,7 +1697,7 @@ static PRBool SelectorMatches(Element* aElement,
           // from the parent we have to be prepared to look at all parent
           // nodes.  The language itself is encoded in the LANG attribute.
           nsAutoString language;
-          aElement->GetLang(language);
+          GetLang(aElement, language);
           if (!language.IsEmpty()) {
             if (!nsStyleUtil::DashMatchCompare(language,
                                                nsDependentString(pseudoClass->u.mString),

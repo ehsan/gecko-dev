@@ -48,6 +48,7 @@
 #include "nsRenderingContext.h"
 #include "gfxRect.h"
 #include "gfxMatrix.h"
+#include "nsSVGMatrix.h"
 
 class nsIDocument;
 class nsPresContext;
@@ -75,7 +76,6 @@ struct nsStyleFont;
 class nsSVGEnum;
 class nsISVGChildFrame;
 class nsSVGGeometryFrame;
-class nsSVGPathGeometryFrame;
 class nsSVGDisplayContainerFrame;
 
 namespace mozilla {
@@ -453,6 +453,12 @@ public:
                                          PRBool *aResultOverflows);
 
   /*
+   * Convert a nsIDOMSVGMatrix to a gfxMatrix.
+   */
+  static gfxMatrix
+  ConvertSVGMatrixToThebes(nsIDOMSVGMatrix *aMatrix);
+
+  /*
    * Hit test a given rectangle/matrix.
    */
   static PRBool
@@ -558,8 +564,6 @@ public:
    */
   static gfxRect PathExtentsToMaxStrokeExtents(const gfxRect& aPathExtents,
                                                nsSVGGeometryFrame* aFrame);
-  static gfxRect PathExtentsToMaxStrokeExtents(const gfxRect& aPathExtents,
-                                               nsSVGPathGeometryFrame* aFrame);
 
   /**
    * Convert a floating-point value to a 32-bit integer value, clamping to

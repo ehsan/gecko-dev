@@ -55,7 +55,8 @@
 #include "nsIURL.h"
 #include "nsIDocument.h"
 #include "nsStyleContext.h"
-#include "mozilla/LookAndFeel.h"
+#include "nsILookAndFeel.h"
+#include "nsWidgetsCID.h"
 #include "nsIComponentManager.h"
 #include "nsIURIContentListener.h"
 #include "nsIInterfaceRequestor.h"
@@ -179,6 +180,7 @@ destroy_loads(const void * aKey, nsRefPtr<nsImageLoader>& aData, void* closure)
   return PL_DHASH_NEXT;
 }
 
+static NS_DEFINE_CID(kLookAndFeelCID,  NS_LOOKANDFEEL_CID);
 #include "nsContentCID.h"
 
   // NOTE! nsPresContext::operator new() zeroes out all members, so don't
@@ -327,6 +329,7 @@ nsPresContext::~nsPresContext()
                                   this);
 
   NS_IF_RELEASE(mDeviceContext);
+  NS_IF_RELEASE(mLookAndFeel);
   NS_IF_RELEASE(mLanguage);
 }
 
@@ -356,6 +359,7 @@ NS_IMPL_CYCLE_COLLECTION_TRAVERSE_BEGIN(nsPresContext)
   NS_IMPL_CYCLE_COLLECTION_TRAVERSE_NSCOMPTR(mDocument);
   // NS_IMPL_CYCLE_COLLECTION_TRAVERSE_RAWPTR(mDeviceContext); // not xpcom
   NS_IMPL_CYCLE_COLLECTION_TRAVERSE_NSCOMPTR_AMBIGUOUS(mEventManager, nsIObserver);
+  // NS_IMPL_CYCLE_COLLECTION_TRAVERSE_RAWPTR(mLookAndFeel); // a service
   // NS_IMPL_CYCLE_COLLECTION_TRAVERSE_RAWPTR(mLanguage); // an atom
 
   for (PRUint32 i = 0; i < IMAGE_LOAD_TYPE_COUNT; ++i)
@@ -378,6 +382,7 @@ NS_IMPL_CYCLE_COLLECTION_UNLINK_BEGIN(nsPresContext)
     NS_RELEASE(tmp->mEventManager);
   }
 
+  // NS_RELEASE(tmp->mLookAndFeel); // a service
   // NS_RELEASE(tmp->mLanguage); // an atom
 
   // NS_IMPL_CYCLE_COLLECTION_UNLINK_NSCOMPTR(mTheme); // a service
@@ -589,8 +594,7 @@ nsPresContext::GetDocumentColorPreferences()
       usePrefColors = PR_FALSE;
     }
     else {
-      useAccessibilityTheme =
-        LookAndFeel::GetInt(LookAndFeel::eIntID_UseAccessibilityTheme, 0);
+      mLookAndFeel->GetMetric(nsILookAndFeel::eMetric_UseAccessibilityTheme, useAccessibilityTheme);
       usePrefColors = !useAccessibilityTheme;
     }
 
@@ -615,12 +619,12 @@ nsPresContext::GetDocumentColorPreferences()
     }
   }
   else {
-    mDefaultColor =
-      LookAndFeel::GetColor(LookAndFeel::eColorID_WindowForeground,
-                            NS_RGB(0x00, 0x00, 0x00));
-    mBackgroundColor =
-      LookAndFeel::GetColor(LookAndFeel::eColorID_WindowBackground,
-                            NS_RGB(0xFF, 0xFF, 0xFF));
+    mDefaultColor = NS_RGB(0x00, 0x00, 0x00);
+    mBackgroundColor = NS_RGB(0xFF, 0xFF, 0xFF);
+    mLookAndFeel->GetColor(nsILookAndFeel::eColor_WindowForeground,
+                           mDefaultColor);
+    mLookAndFeel->GetColor(nsILookAndFeel::eColor_WindowBackground,
+                           mBackgroundColor);
   }
 
   // Wherever we got the default background color from, ensure it is
@@ -890,6 +894,14 @@ nsPresContext::Init(nsDeviceContext* aDeviceContext)
   for (PRUint32 i = 0; i < IMAGE_LOAD_TYPE_COUNT; ++i)
     if (!mImageLoaders[i].Init())
       return NS_ERROR_OUT_OF_MEMORY;
+  
+  // Get the look and feel service here; default colors will be initialized
+  // from calling GetUserPreferences() when we get a presshell.
+  nsresult rv = CallGetService(kLookAndFeelCID, &mLookAndFeel);
+  if (NS_FAILED(rv)) {
+    NS_ERROR("LookAndFeel service must be implemented for this toolkit");
+    return rv;
+  }
 
   mEventManager = new nsEventStateManager();
   NS_ADDREF(mEventManager);
@@ -977,7 +989,7 @@ nsPresContext::Init(nsDeviceContext* aDeviceContext)
                                 "layout.css.devPixelsPerPx",
                                 this);
 
-  nsresult rv = mEventManager->Init();
+  rv = mEventManager->Init();
   NS_ENSURE_SUCCESS(rv, rv);
 
   mEventManager->SetPresContext(this);
@@ -1535,9 +1547,9 @@ nsPresContext::ThemeChangedInternal()
     sThemeChanged = PR_FALSE;
   }
 
-  // Clear all cached LookAndFeel colors.
-  if (sLookAndFeelChanged) {
-    LookAndFeel::Refresh();
+  // Clear all cached nsILookAndFeel colors.
+  if (mLookAndFeel && sLookAndFeelChanged) {
+    mLookAndFeel->LookAndFeelChanged();
     sLookAndFeelChanged = PR_FALSE;
   }
 
@@ -1572,9 +1584,9 @@ nsPresContext::SysColorChangedInternal()
 {
   mPendingSysColorChanged = PR_FALSE;
   
-  if (sLookAndFeelChanged) {
+  if (mLookAndFeel && sLookAndFeelChanged) {
      // Don't use the cached values for the system colors
-    LookAndFeel::Refresh();
+    mLookAndFeel->LookAndFeelChanged();
     sLookAndFeelChanged = PR_FALSE;
   }
    
@@ -2152,9 +2164,8 @@ static PRUint32 sInterruptCounter;
 static PRUint32 sInterruptChecksToSkip = 200;
 // Number of milliseconds that a reflow should be allowed to run for before we
 // actually allow interruption.  Controlled by the
-// GECKO_REFLOW_MIN_NOINTERRUPT_DURATION env var.  Can't be initialized here,
-// because TimeDuration/TimeStamp is not safe to use in static constructors..
-static TimeDuration sInterruptTimeout;
+// GECKO_REFLOW_MIN_NOINTERRUPT_DURATION env var.
+static TimeDuration sInterruptTimeout = TimeDuration::FromMilliseconds(100);
 
 static void GetInterruptEnv()
 {
@@ -2185,8 +2196,9 @@ static void GetInterruptEnv()
   }
 
   ev = PR_GetEnv("GECKO_REFLOW_MIN_NOINTERRUPT_DURATION");
-  int duration_ms = ev ? atoi(ev) : 100;
-  sInterruptTimeout = TimeDuration::FromMilliseconds(duration_ms);
+  if (ev) {
+    sInterruptTimeout = TimeDuration::FromMilliseconds(atoi(ev));
+  }
 }
 
 PRBool

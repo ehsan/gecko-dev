@@ -59,6 +59,7 @@
 #include "nsIPresShell.h"
 #include "nsFrameList.h"
 #include "nsHTMLParts.h"
+#include "nsILookAndFeel.h"
 #include "nsStyleContext.h"
 #include "nsBoxLayoutState.h"
 #include "nsIXBLService.h"
@@ -660,7 +661,7 @@ nsSplitterFrameInner::MouseDown(nsIDOMEvent* aMouseEvent)
 
   // get our index
   nsPresContext* outerPresContext = mOuter->PresContext();
-  const nsFrameList& siblingList(mParentBox->PrincipalChildList());
+  const nsFrameList& siblingList(mParentBox->GetChildList(nsnull));
   PRInt32 childIndex = siblingList.IndexOf(mOuter);
   // if it's 0 (or not found) then stop right here.
   // It might be not found if we're not in the parent's primary frame list.

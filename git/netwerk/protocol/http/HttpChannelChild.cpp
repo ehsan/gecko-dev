@@ -90,11 +90,7 @@ NS_IMETHODIMP_(nsrefcnt) HttpChannelChild::Release()
   --mRefCnt;
   NS_LOG_RELEASE(this, mRefCnt, "HttpChannelChild");
 
-  // Normally we Send_delete in OnStopRequest, but when we need to retain the
-  // remote channel for security info IPDL itself holds 1 reference, so we
-  // Send_delete when refCnt==1.
-  if (mKeptAlive && mRefCnt == 1) {
-    NS_ASSERTION(mIPCOpen, "mIPCOpen false!");
+  if (mRefCnt == 1 && mKeptAlive && mIPCOpen) {
     mKeptAlive = false;
     // Send_delete calls NeckoChild::DeallocPHttpChannel, which will release
     // again to refcount==0
@@ -148,48 +144,6 @@ HttpChannelChild::ReleaseIPDLReference()
   Release();
 }
 
-class AssociateApplicationCacheEvent : public ChannelEvent
-{
-  public:
-    AssociateApplicationCacheEvent(HttpChannelChild* child,
-                                   const nsCString &groupID,
-                                   const nsCString &clientID)
-    : mChild(child)
-    , groupID(groupID)
-    , clientID(clientID) {}
-
-    void Run() { mChild->AssociateApplicationCache(groupID, clientID); }
-  private:
-    HttpChannelChild* mChild;
-    nsCString groupID;
-    nsCString clientID;
-};
-
-bool
-HttpChannelChild::RecvAssociateApplicationCache(const nsCString &groupID,
-                                                const nsCString &clientID)
-{
-  if (mEventQ.ShouldEnqueue()) {
-    mEventQ.Enqueue(new AssociateApplicationCacheEvent(this, groupID, clientID));
-  } else {
-    AssociateApplicationCache(groupID, clientID);
-  }
-  return true;
-}
-
-void
-HttpChannelChild::AssociateApplicationCache(const nsCString &groupID,
-                                            const nsCString &clientID)
-{
-  nsresult rv;
-  mApplicationCache = do_CreateInstance(NS_APPLICATIONCACHE_CONTRACTID, &rv);
-  if (NS_FAILED(rv))
-    return;
-
-  mLoadedFromApplicationCache = PR_TRUE;
-  mApplicationCache->InitAsHandle(groupID, clientID);
-}
-
 class StartRequestEvent : public ChannelEvent
 {
  public:
@@ -237,6 +191,21 @@ class StartRequestEvent : public ChannelEvent
   PRNetAddr mSelfAddr;
   PRNetAddr mPeerAddr;
 };
+
+bool
+HttpChannelChild::RecvAssociateApplicationCache(const nsCString &groupID,
+                                                const nsCString &clientID)
+{
+  nsresult rv;
+  mApplicationCache = do_CreateInstance(
+    NS_APPLICATIONCACHE_CONTRACTID, &rv);
+  if (NS_FAILED(rv))
+    return true;
+
+  mLoadedFromApplicationCache = PR_TRUE;
+  mApplicationCache->InitAsHandle(groupID, clientID);
+  return true;
+}
 
 bool 
 HttpChannelChild::RecvOnStartRequest(const nsHttpResponseHead& responseHead,
@@ -490,14 +459,15 @@ HttpChannelChild::OnStopRequest(const nsresult& statusCode)
       mLoadGroup->RemoveRequest(this, nsnull, mStatus);
   }
 
-  if (mLoadFlags & LOAD_DOCUMENT_URI) {
-    // Keep IPDL channel open, but only for updating security info.
-    mKeptAlive = true;
-    SendDocumentChannelCleanup();
-  } else {
+  if (!(mLoadFlags & LOAD_DOCUMENT_URI)) {
     // This calls NeckoChild::DeallocPHttpChannel(), which deletes |this| if IPDL
     // holds the last reference.  Don't rely on |this| existing after here.
     PHttpChannelChild::Send__delete__(this);
+  } else {
+    // We need to keep the document loading channel alive for further 
+    // communication, mainly for collecting a security state values.
+    mKeptAlive = true;
+    SendDocumentChannelCleanup();
   }
 }
 
@@ -926,7 +896,7 @@ HttpChannelChild::Cancel(nsresult status)
     // is responsible for cleaning up.
     mCanceled = true;
     mStatus = status;
-    if (RemoteChannelExists())
+    if (mIPCOpen)
       SendCancel(status);
   }
   return NS_OK;
@@ -935,7 +905,7 @@ HttpChannelChild::Cancel(nsresult status)
 NS_IMETHODIMP
 HttpChannelChild::Suspend()
 {
-  NS_ENSURE_TRUE(RemoteChannelExists(), NS_ERROR_NOT_AVAILABLE);
+  NS_ENSURE_TRUE(mIPCOpen, NS_ERROR_NOT_AVAILABLE);
   if (!mSuspendCount++) {
     SendSuspend();
     mEventQ.Suspend();
@@ -959,7 +929,7 @@ HttpChannelChild::CompleteResume()
 NS_IMETHODIMP
 HttpChannelChild::Resume()
 {
-  NS_ENSURE_TRUE(RemoteChannelExists(), NS_ERROR_NOT_AVAILABLE);
+  NS_ENSURE_TRUE(mIPCOpen, NS_ERROR_NOT_AVAILABLE);
   NS_ENSURE_TRUE(mSuspendCount > 0, NS_ERROR_UNEXPECTED);
 
   nsresult rv = NS_OK;
@@ -1172,7 +1142,7 @@ HttpChannelChild::GetCacheTokenCachedCharset(nsACString &_retval)
 NS_IMETHODIMP
 HttpChannelChild::SetCacheTokenCachedCharset(const nsACString &aCharset)
 {
-  if (!mCacheEntryAvailable || !RemoteChannelExists())
+  if (!mCacheEntryAvailable || !mIPCOpen)
     return NS_ERROR_NOT_AVAILABLE;
 
   mCachedCharset = aCharset;
@@ -1219,7 +1189,7 @@ HttpChannelChild::SetPriority(PRInt32 aPriority)
   if (mPriority == newValue)
     return NS_OK;
   mPriority = newValue;
-  if (RemoteChannelExists())
+  if (mIPCOpen) 
     SendSetPriority(mPriority);
   return NS_OK;
 }

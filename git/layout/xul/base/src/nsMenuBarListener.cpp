@@ -41,6 +41,7 @@
 #include "nsMenuBarListener.h"
 #include "nsMenuBarFrame.h"
 #include "nsMenuPopupFrame.h"
+#include "nsIDOMNSUIEvent.h"
 #include "nsIDOMNSEvent.h"
 #include "nsGUIEvent.h"
 
@@ -141,11 +142,6 @@ nsMenuBarListener::ToggleMenuActiveState()
 nsresult
 nsMenuBarListener::KeyUp(nsIDOMEvent* aKeyEvent)
 {  
-  nsCOMPtr<nsIDOMKeyEvent> keyEvent = do_QueryInterface(aKeyEvent);
-  if (!keyEvent) {
-    return NS_OK;
-  }
-
   InitAccessKey();
 
   //handlers shouldn't be triggered by non-trusted events.
@@ -164,6 +160,7 @@ nsMenuBarListener::KeyUp(nsIDOMEvent* aKeyEvent)
     // On a press of the ALT key by itself, we toggle the menu's 
     // active/inactive state.
     // Get the ascii key code.
+    nsCOMPtr<nsIDOMKeyEvent> keyEvent = do_QueryInterface(aKeyEvent);
     PRUint32 theChar;
     keyEvent->GetKeyCode(&theChar);
 
@@ -196,16 +193,16 @@ nsresult
 nsMenuBarListener::KeyPress(nsIDOMEvent* aKeyEvent)
 {
   // if event has already been handled, bail
-  nsCOMPtr<nsIDOMNSEvent> domNSEvent = do_QueryInterface(aKeyEvent);
-  if (domNSEvent) {
+  nsCOMPtr<nsIDOMNSUIEvent> uiEvent ( do_QueryInterface(aKeyEvent) );
+  if ( uiEvent ) {
     PRBool eventHandled = PR_FALSE;
-    domNSEvent->GetPreventDefault(&eventHandled);
-    if (eventHandled) {
+    uiEvent->GetPreventDefault ( &eventHandled );
+    if ( eventHandled )
       return NS_OK;       // don't consume event
-    }
   }
 
   //handlers shouldn't be triggered by non-trusted events.
+  nsCOMPtr<nsIDOMNSEvent> domNSEvent = do_QueryInterface(aKeyEvent);
   PRBool trustedEvent = PR_FALSE;
   if (domNSEvent) {
     domNSEvent->GetIsTrusted(&trustedEvent);
@@ -220,8 +217,11 @@ nsMenuBarListener::KeyPress(nsIDOMEvent* aKeyEvent)
 
   if (mAccessKey)
   {
+    nsCOMPtr<nsIDOMNSUIEvent> nsUIEvent = do_QueryInterface(aKeyEvent);
+
     PRBool preventDefault;
-    domNSEvent->GetPreventDefault(&preventDefault);
+
+    nsUIEvent->GetPreventDefault(&preventDefault);
     if (!preventDefault) {
       nsCOMPtr<nsIDOMKeyEvent> keyEvent = do_QueryInterface(aKeyEvent);
       PRUint32 keyCode, charCode;

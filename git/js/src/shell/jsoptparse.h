@@ -70,16 +70,12 @@ struct Option
     const char  *help;
     OptionKind  kind;
     char        shortflag;
-    bool        terminatesOptions;
 
     Option(OptionKind kind, char shortflag, const char *longflag, const char *help)
-      : longflag(longflag), help(help), kind(kind), shortflag(shortflag), terminatesOptions(false)
+      : longflag(longflag), help(help), kind(kind), shortflag(shortflag)
     {}
 
     virtual ~Option() = 0;
-
-    void setTerminatesOptions(bool enabled) { terminatesOptions = enabled; }
-    bool getTerminatesOptions() const { return terminatesOptions; }
 
     virtual bool isValued() const { return false; }
 
@@ -252,8 +248,8 @@ class OptionParser
 
     Result error(const char *fmt, ...);
     Result extractValue(size_t argc, char **argv, size_t *i, char **value);
-    Result handleArg(size_t argc, char **argv, size_t *i, bool *optsAllowed);
-    Result handleOption(Option *opt, size_t argc, char **argv, size_t *i, bool *optsAllowed);
+    Result handleArg(size_t argc, char **argv, size_t *i);
+    Result handleOption(Option *opt, size_t argc, char **argv, size_t *i);
 
   public:
     explicit OptionParser(const char *usage)
@@ -273,7 +269,6 @@ class OptionParser
     void setDescriptionWidth(size_t width) { descrWidth = width; }
     void setDescription(const char *description) { descr = description; }
     void setHelpOption(char shortflag, const char *longflag, const char *help);
-    void setArgTerminatesOptions(const char *name, bool enabled);
 
     /* Arguments: no further arguments may be added after a variadic argument. */
 

@@ -50,5 +50,7 @@ CSRCS = \
 	pkix_store.c \
 	$(NULL)
 
+REQUIRES = dbm
+
 LIBRARY_NAME = pkixstore
 

@@ -39,11 +39,11 @@
 
 #include "WorkerPrivate.h"
 
-#include "mozIThirdPartyUtil.h"
 #include "nsIClassInfo.h"
 #include "nsIConsoleService.h"
 #include "nsIDOMFile.h"
 #include "nsIDocument.h"
+#include "nsIEffectiveTLDService.h"
 #include "nsIJSContextStack.h"
 #include "nsIMemoryReporter.h"
 #include "nsIScriptError.h"
@@ -979,11 +979,11 @@ public:
       aWorkerPrivate->AssertInnerWindowIsCorrect();
     }
 
-    PRUint64 innerWindowId;
+    PRUint64 windowId;
 
     WorkerPrivate* parent = aWorkerPrivate->GetParent();
     if (parent) {
-      innerWindowId = 0;
+      windowId = 0;
     }
     else {
       AssertIsOnMainThread();
@@ -993,13 +993,13 @@ public:
         return true;
       }
 
-      innerWindowId = aWorkerPrivate->GetInnerWindowId();
+      windowId = aWorkerPrivate->GetOuterWindowId();
     }
 
     return ReportErrorRunnable::ReportError(aCx, parent, true, target, mMessage,
                                             mFilename, mLine, mLineNumber,
                                             mColumnNumber, mFlags,
-                                            mErrorNumber, innerWindowId);
+                                            mErrorNumber, windowId);
   }
 
   static bool
@@ -1007,7 +1007,7 @@ public:
               bool aFireAtScope, JSObject* aTarget, const nsString& aMessage,
               const nsString& aFilename, const nsString& aLine,
               PRUint32 aLineNumber, PRUint32 aColumnNumber, PRUint32 aFlags,
-              PRUint32 aErrorNumber, PRUint64 aInnerWindowId)
+              PRUint32 aErrorNumber, PRUint64 aWindowId)
   {
     if (aWorkerPrivate) {
       aWorkerPrivate->AssertIsOnWorkerThread();
@@ -1113,7 +1113,7 @@ public:
                                                      aLine.get(), aLineNumber,
                                                      aColumnNumber, aFlags,
                                                      "Web Worker",
-                                                     aInnerWindowId))) {
+                                                     aWindowId))) {
         consoleMessage = do_QueryInterface(scriptError);
         NS_ASSERTION(consoleMessage, "This should never fail!");
       }
@@ -2040,10 +2040,10 @@ WorkerPrivateParent<Derived>::PostMessage(JSContext* aCx, jsval aMessage)
 
 template <class Derived>
 PRUint64
-WorkerPrivateParent<Derived>::GetInnerWindowId()
+WorkerPrivateParent<Derived>::GetOuterWindowId()
 {
   AssertIsOnMainThread();
-  return mDocument ? mDocument->InnerWindowID() : 0;
+  return mDocument ? mDocument->OuterWindowID() : 0;
 }
 
 template <class Derived>
@@ -2082,62 +2082,69 @@ WorkerPrivateParent<Derived>::UpdateGCZeal(JSContext* aCx, PRUint8 aGCZeal)
 #endif
 
 template <class Derived>
-void
+nsresult
 WorkerPrivateParent<Derived>::SetBaseURI(nsIURI* aBaseURI)
 {
   AssertIsOnMainThread();
 
   mBaseURI = aBaseURI;
 
-  if (NS_FAILED(aBaseURI->GetSpec(mLocationInfo.mHref))) {
-    mLocationInfo.mHref.Truncate();
-  }
+  nsCOMPtr<nsIURL> url(do_QueryInterface(aBaseURI));
+  NS_ENSURE_TRUE(url, NS_ERROR_NO_INTERFACE);
 
-  if (NS_FAILED(aBaseURI->GetHost(mLocationInfo.mHostname))) {
-    mLocationInfo.mHostname.Truncate();
-  }
+  nsresult rv = url->GetSpec(mLocationInfo.mHref);
+  NS_ENSURE_SUCCESS(rv, rv);
 
-  if (NS_FAILED(aBaseURI->GetPath(mLocationInfo.mPathname))) {
-    mLocationInfo.mPathname.Truncate();
-  }
+  rv = url->GetHost(mLocationInfo.mHostname);
+  NS_ENSURE_SUCCESS(rv, rv);
+
+  rv = url->GetPath(mLocationInfo.mPathname);
+  NS_ENSURE_SUCCESS(rv, rv);
 
   nsCString temp;
 
-  nsCOMPtr<nsIURL> url(do_QueryInterface(aBaseURI));
-  if (url && NS_SUCCEEDED(url->GetQuery(temp)) && !temp.IsEmpty()) {
+  rv = url->GetQuery(temp);
+  NS_ENSURE_SUCCESS(rv, rv);
+
+  if (!temp.IsEmpty()) {
     mLocationInfo.mSearch.AssignLiteral("?");
     mLocationInfo.mSearch.Append(temp);
   }
 
-  if (NS_SUCCEEDED(aBaseURI->GetRef(temp)) && !temp.IsEmpty()) {
+  rv = url->GetRef(temp);
+  NS_ENSURE_SUCCESS(rv, rv);
+
+  if (!temp.IsEmpty()) {
+    nsAutoString unicodeRef;
+
     nsCOMPtr<nsITextToSubURI> converter =
-      do_GetService(NS_ITEXTTOSUBURI_CONTRACTID);
-    if (converter) {
+      do_GetService(NS_ITEXTTOSUBURI_CONTRACTID, &rv);
+    if (NS_SUCCEEDED(rv)) {
       nsCString charset;
-      nsAutoString unicodeRef;
-      if (NS_SUCCEEDED(aBaseURI->GetOriginCharset(charset)) &&
-          NS_SUCCEEDED(converter->UnEscapeURIForUI(charset, temp,
-                                                   unicodeRef))) {
-        mLocationInfo.mHash.AssignLiteral("#");
-        mLocationInfo.mHash.Append(NS_ConvertUTF16toUTF8(unicodeRef));
+      rv = url->GetOriginCharset(charset);
+      if (NS_SUCCEEDED(rv)) {
+        rv = converter->UnEscapeURIForUI(charset, temp, unicodeRef);
+        if (NS_SUCCEEDED(rv)) {
+          mLocationInfo.mHash.AssignLiteral("#");
+          mLocationInfo.mHash.Append(NS_ConvertUTF16toUTF8(unicodeRef));
+        }
       }
     }
 
-    if (mLocationInfo.mHash.IsEmpty()) {
+    if (NS_FAILED(rv)) {
       mLocationInfo.mHash.AssignLiteral("#");
       mLocationInfo.mHash.Append(temp);
     }
   }
 
-  if (NS_SUCCEEDED(aBaseURI->GetScheme(mLocationInfo.mProtocol))) {
-    mLocationInfo.mProtocol.AppendLiteral(":");
-  }
-  else {
-    mLocationInfo.mProtocol.Truncate();
-  }
+  rv = url->GetScheme(mLocationInfo.mProtocol);
+  NS_ENSURE_SUCCESS(rv, rv);
+
+  mLocationInfo.mProtocol.AppendLiteral(":");
 
   PRInt32 port;
-  if (NS_SUCCEEDED(aBaseURI->GetPort(&port)) && port != -1) {
+  rv = url->GetPort(&port);
+  if (NS_SUCCEEDED(rv) && port != -1) {
     mLocationInfo.mPort.AppendInt(port);
 
     nsCAutoString host(mLocationInfo.mHostname);
@@ -2149,6 +2156,8 @@ WorkerPrivateParent<Derived>::SetBaseURI(nsIURI* aBaseURI)
   else {
     mLocationInfo.mHost.Assign(mLocationInfo.mHostname);
   }
+
+  return NS_OK;
 }
 
 template <class Derived>
@@ -2175,7 +2184,8 @@ WorkerPrivateParent<Derived>::ParentJSContext() const
       return RuntimeService::AutoSafeJSContext::GetSafeContext();
     }
 
-    NS_ASSERTION(mParentJSContext == mScriptContext->GetNativeContext(),
+    NS_ASSERTION(mParentJSContext ==
+                 static_cast<JSContext*>(mScriptContext->GetNativeContext()),
                  "Native context has changed!");
   }
 
@@ -2287,7 +2297,8 @@ WorkerPrivate::Create(JSContext* aCx, JSObject* aObj, WorkerPrivate* aParent,
         return nsnull;
       }
 
-      parentContext = scriptContext->GetNativeContext();
+      parentContext =
+        static_cast<JSContext*>(scriptContext->GetNativeContext());
 
       // If we're called from a window then we can dig out the principal and URI
       // from the document.
@@ -2326,14 +2337,14 @@ WorkerPrivate::Create(JSContext* aCx, JSObject* aObj, WorkerPrivate* aParent,
           domain = file;
         }
         else {
-          nsCOMPtr<mozIThirdPartyUtil_BRANCH> thirdPartyUtil =
-            do_GetService(THIRDPARTYUTIL_CONTRACTID);
-          if (!thirdPartyUtil) {
-            JS_ReportError(aCx, "Could not get third party helper service!");
+          nsCOMPtr<nsIEffectiveTLDService> tldService =
+            do_GetService(NS_EFFECTIVETLDSERVICE_CONTRACTID);
+          if (!tldService) {
+            JS_ReportError(aCx, "Could not get TLD service!");
             return nsnull;
           }
 
-          if (NS_FAILED(thirdPartyUtil->GetBaseDomain(codebase, domain))) {
+          if (NS_FAILED(tldService->GetBaseDomain(codebase, 0, domain))) {
             JS_ReportError(aCx, "Could not get domain!");
             return nsnull;
           }

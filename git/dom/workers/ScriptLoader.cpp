@@ -460,7 +460,8 @@ public:
     // worker's primary script.
     if (mIsWorkerScript) {
       // Take care of the base URI first.
-      mWorkerPrivate->SetBaseURI(finalURI);
+      rv = mWorkerPrivate->SetBaseURI(finalURI);
+      NS_ENSURE_SUCCESS(rv, rv);
 
       // Now to figure out which principal to give this worker.
       WorkerPrivate* parent = mWorkerPrivate->GetParent();

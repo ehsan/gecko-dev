@@ -77,12 +77,10 @@ nsPluginNativeWindowQt::nsPluginNativeWindowQt() : nsPluginNativeWindow()
   ws_info = &mWsInfo;
   type = NPWindowTypeWindow;
   mWsInfo.type = 0;
-#if defined(MOZ_X11)
   mWsInfo.display = nsnull;
   mWsInfo.visual = nsnull;
   mWsInfo.colormap = 0;
   mWsInfo.depth = 0;
-#endif
 }
 
 nsPluginNativeWindowQt::~nsPluginNativeWindowQt()

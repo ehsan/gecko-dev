@@ -42,11 +42,16 @@
 #include "txCore.h"
 #include "nsIAtom.h"
 
+class txOutputFormat;
+
+#ifdef TX_EXE
+#include <iostream.h>
+#else
 #define kTXNameSpaceURI "http://www.mozilla.org/TransforMiix"
 #define kTXWrapper "transformiix:result"
 
-class txOutputFormat;
 class nsIDOMDocument;
+#endif
 
 /**
  * An interface for handling XML documents, loosely modeled
@@ -174,6 +179,10 @@ public:
                                   const PRInt32 aNsID);
 
 
+#ifdef TX_EXE
+typedef txAXMLEventHandler txAOutputXMLEventHandler;
+#define TX_DECL_TXAOUTPUTXMLEVENTHANDLER
+#else
 class txAOutputXMLEventHandler : public txAXMLEventHandler
 {
 public:
@@ -187,6 +196,7 @@ public:
 
 #define TX_DECL_TXAOUTPUTXMLEVENTHANDLER                        \
     virtual void getOutputDocument(nsIDOMDocument** aDocument);
+#endif
 
 /**
  * Interface used to create the appropriate outputhandler

@@ -148,9 +148,6 @@ public:
 
     virtual bool RecvActivateA11y();
 
-    virtual bool RecvGarbageCollect();
-    virtual bool RecvCycleCollect();
-
 #ifdef ANDROID
     gfxIntSize GetScreenSize() { return mScreenSize; }
 #endif

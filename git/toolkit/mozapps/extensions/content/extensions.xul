@@ -537,9 +537,7 @@
                   </vbox>
                   <hbox id="detail-desc-container" align="start">
                     <vbox pack="center"> <!-- Necessary to work around bug 394738 -->
-                      <image id="detail-screenshot" hidden="true"
-                             onload="this.removeAttribute('loading');"
-                             onerror="this.setAttribute('loading', 'error');"/>
+                      <image id="detail-screenshot" hidden="true"/>
                     </vbox>
                     <vbox flex="1">
                       <description id="detail-desc"/>

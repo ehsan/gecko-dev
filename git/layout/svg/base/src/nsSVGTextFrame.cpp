@@ -47,6 +47,7 @@
 #include "nsSVGOuterSVGFrame.h"
 #include "nsIDOMSVGRect.h"
 #include "nsSVGRect.h"
+#include "nsSVGMatrix.h"
 #include "nsGkAtoms.h"
 #include "nsSVGTextPathFrame.h"
 #include "nsSVGPathElement.h"
@@ -277,10 +278,10 @@ nsSVGTextFrame::GetCanvasTM()
 
     gfxMatrix tm = content->PrependLocalTransformTo(parent->GetCanvasTM());
 
-    mCanvasTM = new gfxMatrix(tm);
+    mCanvasTM = NS_NewSVGMatrix(tm);
   }
 
-  return *mCanvasTM;
+  return nsSVGUtils::ConvertSVGMatrixToThebes(mCanvasTM);
 }
 
 //----------------------------------------------------------------------

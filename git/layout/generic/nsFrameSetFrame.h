@@ -113,7 +113,7 @@ public:
                   nsIFrame*        aParent,
                   nsIFrame*        aPrevInFlow);
 
-  NS_IMETHOD SetInitialChildList(ChildListID  aListID,
+  NS_IMETHOD SetInitialChildList(nsIAtom*     aListName,
                                  nsFrameList& aChildList);
 
   static PRBool  gDragInProgress;

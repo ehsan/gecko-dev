@@ -73,7 +73,7 @@ class nsStringBuffer
        *
        * @return new string buffer or null if out of memory.
        */
-      static nsStringBuffer* Alloc(size_t storageSize);
+      NS_COM static nsStringBuffer* Alloc(size_t storageSize);
 
       /**
        * Resizes the given string buffer to the specified storage size.  This
@@ -86,18 +86,18 @@ class nsStringBuffer
        *
        * @see IsReadonly
        */
-      static nsStringBuffer* Realloc(nsStringBuffer* buf, size_t storageSize);
+      NS_COM static nsStringBuffer* Realloc(nsStringBuffer* buf, size_t storageSize);
 
       /**
        * Increment the reference count on this string buffer.
        */
-      void NS_FASTCALL AddRef();
+      NS_COM void NS_FASTCALL AddRef();
 
       /**
        * Decrement the reference count on this string buffer.  The string
        * buffer will be destroyed when its reference count reaches zero.
        */
-      void NS_FASTCALL Release();
+      NS_COM void NS_FASTCALL Release();
 
       /**
        * This method returns the string buffer corresponding to the given data
@@ -148,8 +148,8 @@ class nsStringBuffer
        * the returned string buffer must have its reference count incremented
        * via a call to the AddRef method.
        */
-      static nsStringBuffer* FromString(const nsAString &str);
-      static nsStringBuffer* FromString(const nsACString &str);
+      NS_COM static nsStringBuffer* FromString(const nsAString &str);
+      NS_COM static nsStringBuffer* FromString(const nsACString &str);
 
       /**
        * The ToString methods assign this string buffer to a given string
@@ -165,9 +165,9 @@ class nsStringBuffer
        *       however, string length is always measured in storage units
        *       (2-byte units for wide strings).
        */
-      void ToString(PRUint32 len, nsAString &str,
+      NS_COM void ToString(PRUint32 len, nsAString &str,
                            PRBool aMoveOwnership = PR_FALSE);
-      void ToString(PRUint32 len, nsACString &str,
+      NS_COM void ToString(PRUint32 len, nsACString &str,
                            PRBool aMoveOwnership = PR_FALSE);
   };
 
