@@ -44,8 +44,8 @@ struct nsListenerStruct
   nsCOMPtr<nsIAtom>             mTypeAtom;
   uint16_t                      mFlags;
   uint8_t                       mListenerType;
-  bool                          mListenerIsHandler : 1;
-  bool                          mHandlerIsString : 1;
+  bool                          mListenerIsHandler;
+  bool                          mHandlerIsString;
 
   nsIJSEventListener* GetJSListener() const {
     return (mListenerType == eJSEventListener) ?
@@ -182,12 +182,6 @@ public:
    * Returns true if there is at least one event listener for aEventName.
    */
   bool HasListenersFor(const nsAString& aEventName);
-
-  /**
-   * Returns true if there is at least one event listener for aEventNameWithOn.
-   * Note that aEventNameWithOn must start with "on"!
-   */
-  bool HasListenersFor(nsIAtom* aEventNameWithOn);
 
   /**
    * Returns true if there is at least one event listener.

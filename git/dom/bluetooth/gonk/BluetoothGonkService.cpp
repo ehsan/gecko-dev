@@ -128,16 +128,6 @@ StartStopGonkBluetooth(bool aShouldEnable)
   return NS_OK;
 }
 
-int
-BluetoothGonkService::IsEnabledInternal()
-{
-  if (!EnsureBluetoothInit()) {
-    NS_ERROR("Failed to load bluedroid library.\n");
-    return false;
-  }
-  return IsBluetoothEnabled();
-}
-
 nsresult
 BluetoothGonkService::StartInternal()
 {

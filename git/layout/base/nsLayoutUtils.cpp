@@ -615,9 +615,19 @@ bool
 nsLayoutUtils::IsProperAncestorFrameCrossDoc(nsIFrame* aAncestorFrame, nsIFrame* aFrame,
                                              nsIFrame* aCommonAncestor)
 {
-  if (aFrame == aAncestorFrame)
+  if (aFrame == aCommonAncestor)
     return false;
-  return IsAncestorFrameCrossDoc(aAncestorFrame, aFrame, aCommonAncestor);
+
+  nsIFrame* parentFrame = GetCrossDocParentFrame(aFrame);
+
+  while (parentFrame != aCommonAncestor) {
+    if (parentFrame == aAncestorFrame)
+      return true;
+
+    parentFrame = GetCrossDocParentFrame(parentFrame);
+  }
+
+  return false;
 }
 
 // static
@@ -625,12 +635,9 @@ bool
 nsLayoutUtils::IsAncestorFrameCrossDoc(nsIFrame* aAncestorFrame, nsIFrame* aFrame,
                                        nsIFrame* aCommonAncestor)
 {
-  for (nsIFrame* f = aFrame; f != aCommonAncestor;
-       f = GetCrossDocParentFrame(f)) {
-    if (f == aAncestorFrame)
-      return true;
-  }
-  return aCommonAncestor == aAncestorFrame;
+  if (aFrame == aAncestorFrame)
+    return true;
+  return IsProperAncestorFrameCrossDoc(aAncestorFrame, aFrame, aCommonAncestor);
 }
 
 // static
@@ -638,13 +645,21 @@ bool
 nsLayoutUtils::IsProperAncestorFrame(nsIFrame* aAncestorFrame, nsIFrame* aFrame,
                                      nsIFrame* aCommonAncestor)
 {
-  if (aFrame == aAncestorFrame)
+  if (aFrame == aCommonAncestor) {
     return false;
-  for (nsIFrame* f = aFrame; f != aCommonAncestor; f = f->GetParent()) {
-    if (f == aAncestorFrame)
-      return true;
   }
-  return aCommonAncestor == aAncestorFrame;
+
+  nsIFrame* parentFrame = aFrame->GetParent();
+
+  while (parentFrame != aCommonAncestor) {
+    if (parentFrame == aAncestorFrame) {
+      return true;
+    }
+
+    parentFrame = parentFrame->GetParent();
+  }
+
+  return false;
 }
 
 // static

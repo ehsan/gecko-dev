@@ -380,9 +380,11 @@ int main(int argc, char **argv)
     if (test_common_init(&argc, &argv) != 0)
         return -1;
 
+    int rv = -1;
+
     if (argc < 2) {
         printusage();
-        return 0;
+        return NS_OK;
     }
     {
         nsCOMPtr<nsIServiceManager> servMan;
@@ -402,7 +404,7 @@ int main(int argc, char **argv)
                 if (i+1 >= argc)
                 {
                     printusage();
-                    return 0;
+                    return NS_OK;
                 }
             }
             else if (PL_strcasecmp(argv[i], "-abs") == 0)
@@ -419,7 +421,7 @@ int main(int argc, char **argv)
                 if (i+1 >= argc)
                 {
                     printusage();
-                    return 0;
+                    return NS_OK;
                 }
                 gFileIO = argv[i+1];
                 i++;
@@ -432,19 +434,13 @@ int main(int argc, char **argv)
         PRTime startTime = PR_Now();
         if (bMakeAbs)
         {
-            if (url && relativePath) {
-              doMakeAbsTest(url, relativePath);
-            } else {
-              doMakeAbsTest();
-            }
+            rv = (url && relativePath)
+               ? doMakeAbsTest(url, relativePath)
+               : doMakeAbsTest();
         }
         else
         {
-            if (gFileIO) {
-              testURL(0, urlFactory);
-            } else {
-              testURL(url, urlFactory);
-            }
+            rv = gFileIO ? testURL(0, urlFactory) : testURL(url, urlFactory);
         }
         if (gFileIO)
         {
@@ -454,5 +450,6 @@ int main(int argc, char **argv)
         }
     } // this scopes the nsCOMPtrs
     // no nsCOMPtrs are allowed to be alive when you call NS_ShutdownXPCOM
-    return NS_FAILED(NS_ShutdownXPCOM(nullptr)) ? 1 : 0;
+    rv = NS_ShutdownXPCOM(nullptr);
+    return rv;
 }

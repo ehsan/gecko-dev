@@ -156,12 +156,12 @@ struct SharedContext {
     // can have any kind of children.
     //
     // When parsing is done, no context may be in the UNKNOWN strictness state.
-    StrictMode strictModeState;
+    StrictMode::StrictModeState strictModeState;
 
     // If it's function code, fun must be non-NULL and scopeChain must be NULL.
     // If it's global code, fun and funbox must be NULL.
     inline SharedContext(JSContext *cx, JSObject *scopeChain, JSFunction *fun, FunctionBox *funbox,
-                         StrictMode sms);
+                         StrictMode::StrictModeState sms);
 
     // In theory, |fun*| flags are only relevant if |inFunction()| is true.
     // However, we get and set in some cases where |inFunction()| is false,
@@ -297,7 +297,7 @@ struct FunctionBox : public ObjectBox
     size_t          bufStart;
     size_t          bufEnd;
     uint16_t        ndefaults;
-    StrictMode      strictModeState;
+    StrictMode::StrictModeState strictModeState;
     bool            inWith:1;               /* some enclosing scope is a with-statement
                                                or E4X filter-expression */
     bool            inGenexpLambda:1;       /* lambda from generator expression */
@@ -305,13 +305,13 @@ struct FunctionBox : public ObjectBox
     ContextFlags    cxFlags;
 
     FunctionBox(ObjectBox* traceListHead, JSObject *obj, ParseContext *pc,
-                StrictMode sms);
+                StrictMode::StrictModeState sms);
 
     bool funIsGenerator()        const { return cxFlags.funIsGenerator; }
 
     JSFunction *function() const { return (JSFunction *) object; }
 
-    void recursivelySetStrictMode(StrictMode strictness);
+    void recursivelySetStrictMode(StrictMode::StrictModeState strictness);
 };
 
 // Push the C-stack-allocated struct at stmt onto the StmtInfoPC stack.

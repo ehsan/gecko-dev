@@ -835,7 +835,7 @@ main(int argc, char* argv[])
     */
 
     rv = NS_InitXPCOM2(nullptr, nullptr, nullptr);
-    if (NS_FAILED(rv)) return -1;
+    if (NS_FAILED(rv)) return rv;
 
     {
         int i;
@@ -887,5 +887,5 @@ main(int argc, char* argv[])
     } // this scopes the nsCOMPtrs
     // no nsCOMPtrs are allowed to be alive when you call NS_ShutdownXPCOM
     NS_ShutdownXPCOM(nullptr);
-    return NS_FAILED(rv) ? -1 : 0;
+    return rv;
 }

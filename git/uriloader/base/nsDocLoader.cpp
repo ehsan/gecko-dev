@@ -1138,7 +1138,7 @@ NS_IMETHODIMP nsDocLoader::OnStatus(nsIRequest* aRequest, nsISupports* ctxt,
   //
   // Fire progress notifications out to any registered nsIWebProgressListeners
   //
-  if (aStatus != NS_OK) {
+  if (aStatus) {
     // Remember the current status for this request
     nsRequestInfo *info;
     info = GetRequestInfo(aRequest);

@@ -1005,22 +1005,11 @@ bool
 nsEventListenerManager::HasListenersFor(const nsAString& aEventName)
 {
   nsCOMPtr<nsIAtom> atom = do_GetAtom(NS_LITERAL_STRING("on") + aEventName);
-  return HasListenersFor(atom);
-}
 
-bool
-nsEventListenerManager::HasListenersFor(nsIAtom* aEventNameWithOn)
-{
-#ifdef DEBUG
-  nsAutoString name;
-  aEventNameWithOn->ToString(name);
-#endif
-  NS_ASSERTION(StringBeginsWith(name, NS_LITERAL_STRING("on")),
-               "Event name does not start with 'on'");
   uint32_t count = mListeners.Length();
   for (uint32_t i = 0; i < count; ++i) {
     nsListenerStruct* ls = &mListeners.ElementAt(i);
-    if (ls->mTypeAtom == aEventNameWithOn) {
+    if (ls->mTypeAtom == atom) {
       return true;
     }
   }

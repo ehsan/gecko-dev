@@ -40,14 +40,14 @@ main(int argc, char* argv[])
   nsIInputStream* in = nullptr;
 
   nsCOMPtr<nsIIOService> service(do_GetService(kIOServiceCID, &ret));
-  if (NS_FAILED(ret)) return 1;
+  if (NS_FAILED(ret)) return ret;
 
   nsIChannel *channel = nullptr;
   ret = service->NewChannel(NS_LITERAL_CSTRING(TEST_URL), nullptr, nullptr, &channel);
-  if (NS_FAILED(ret)) return 1;
+  if (NS_FAILED(ret)) return ret;
 
   ret = channel->Open(&in);
-  if (NS_FAILED(ret)) return 1;
+  if (NS_FAILED(ret)) return ret;
 
   nsIPersistentProperties* props;
   ret = CallCreateInstance(kPersistentPropertiesCID, &props);
