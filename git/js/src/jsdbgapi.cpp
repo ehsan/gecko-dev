@@ -1227,7 +1227,10 @@ JS_GetFrameCallObject(JSContext *cx, JSStackFrame *fp)
 JS_PUBLIC_API(JSObject *)
 JS_GetFrameThis(JSContext *cx, JSStackFrame *fp)
 {
-    return fp->getThisObject(cx);
+    if (!(fp->flags & JSFRAME_COMPUTED_THIS) && fp->argv)
+        fp->thisv = OBJECT_TO_JSVAL(js_ComputeThis(cx, fp->argv));
+
+    return JSVAL_TO_OBJECT(fp->thisv);
 }
 
 JS_PUBLIC_API(JSFunction *)

@@ -407,7 +407,7 @@ js_ComputeGlobalThis(JSContext *cx, jsval *argv)
         !JSVAL_TO_OBJECT(argv[-2])->getParent()) {
         thisp = cx->globalObject;
     } else {
-        thisp = JSVAL_TO_OBJECT(argv[-2])->getGlobal();
+        thisp = JS_GetGlobalForObject(cx, JSVAL_TO_OBJECT(argv[-2]));
     }
 
     return CallThisObjectHook(cx, thisp, argv);

@@ -1685,7 +1685,9 @@ JS_GetScopeChain(JSContext *cx)
 JS_PUBLIC_API(JSObject *)
 JS_GetGlobalForObject(JSContext *cx, JSObject *obj)
 {
-    return obj->getGlobal();
+   while (JSObject *parent = obj->getParent())
+        obj = parent;
+    return obj;
 }
 
 JS_PUBLIC_API(jsval)
