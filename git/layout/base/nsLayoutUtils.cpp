@@ -113,6 +113,8 @@ using namespace mozilla::layers;
 using namespace mozilla::dom;
 namespace css = mozilla::css;
 
+typedef gfxPattern::GraphicsFilter GraphicsFilter;
+
 /**
  * A namespace class for static layout utilities.
  */
@@ -849,7 +851,7 @@ nsLayoutUtils::GetPopupFrameForEventCoordinates(nsPresContext* aPresContext,
   for (i = 0; i < popups.Length(); i++) {
     nsIFrame* popup = popups[i];
     if (popup->PresContext()->GetRootPresContext() == aPresContext &&
-        popup->GetOverflowRect().Contains(
+        popup->GetScrollableOverflowRect().Contains(
           GetEventCoordinatesRelativeTo(aEvent, popup))) {
       return popup;
     }
@@ -1242,7 +1244,7 @@ nsLayoutUtils::PaintFrame(nsIRenderingContext* aRenderingContext, nsIFrame* aFra
     // document-rendering state.  We rely on PresShell to flush
     // retained layers as needed when that persistent state changes.
     if (!presShell->UsingDisplayPort()) {
-      visibleRegion = aFrame->GetOverflowRectRelativeToSelf();
+      visibleRegion = aFrame->GetVisualOverflowRectRelativeToSelf();
     } else {
       visibleRegion = presShell->GetDisplayPort();
     }
@@ -2787,7 +2789,9 @@ nsLayoutUtils::CalculateContentBottom(nsIFrame* aFrame)
 
   nscoord contentBottom = aFrame->GetRect().height;
 
-  if (aFrame->GetOverflowRect().height > contentBottom) {
+  // We want scrollable overflow rather than visual because this
+  // calculation is intended to affect layout.
+  if (aFrame->GetScrollableOverflowRect().height > contentBottom) {
     nsBlockFrame* blockFrame = GetAsBlock(aFrame);
     nsIAtom* childList = nsnull;
     PRIntn nextListID = 0;
@@ -2831,13 +2835,13 @@ nsLayoutUtils::GetClosestLayer(nsIFrame* aFrame)
   return aFrame->PresContext()->PresShell()->FrameManager()->GetRootFrame();
 }
 
-gfxPattern::GraphicsFilter
+GraphicsFilter
 nsLayoutUtils::GetGraphicsFilterForFrame(nsIFrame* aForFrame)
 {
 #ifdef MOZ_GFX_OPTIMIZE_MOBILE
-  gfxPattern::GraphicsFilter defaultFilter = gfxPattern::FILTER_NEAREST;
+  GraphicsFilter defaultFilter = gfxPattern::FILTER_NEAREST;
 #else
-  gfxPattern::GraphicsFilter defaultFilter = gfxPattern::FILTER_GOOD;
+  GraphicsFilter defaultFilter = gfxPattern::FILTER_GOOD;
 #endif
 #ifdef MOZ_SVG
   nsIFrame *frame = nsCSSRendering::IsCanvasFrame(aForFrame) ?
@@ -3036,7 +3040,7 @@ ComputeSnappedImageDrawingParameters(gfxContext*     aCtx,
 static nsresult
 DrawImageInternal(nsIRenderingContext* aRenderingContext,
                   imgIContainer*       aImage,
-                  gfxPattern::GraphicsFilter aGraphicsFilter,
+                  GraphicsFilter       aGraphicsFilter,
                   const nsRect&        aDest,
                   const nsRect&        aFill,
                   const nsPoint&       aAnchor,
@@ -3070,7 +3074,7 @@ DrawImageInternal(nsIRenderingContext* aRenderingContext,
 /* static */ void
 nsLayoutUtils::DrawPixelSnapped(nsIRenderingContext* aRenderingContext,
                                 gfxDrawable*         aDrawable,
-                                gfxPattern::GraphicsFilter aFilter,
+                                GraphicsFilter       aFilter,
                                 const nsRect&        aDest,
                                 const nsRect&        aFill,
                                 const nsPoint&       aAnchor,
@@ -3113,8 +3117,9 @@ nsLayoutUtils::DrawPixelSnapped(nsIRenderingContext* aRenderingContext,
 /* static */ nsresult
 nsLayoutUtils::DrawSingleUnscaledImage(nsIRenderingContext* aRenderingContext,
                                        imgIContainer*       aImage,
+                                       GraphicsFilter       aGraphicsFilter,
                                        const nsPoint&       aDest,
-                                       const nsRect&        aDirty,
+                                       const nsRect*        aDirty,
                                        PRUint32             aImageFlags,
                                        const nsRect*        aSourceArea)
 {
@@ -3140,14 +3145,15 @@ nsLayoutUtils::DrawSingleUnscaledImage(nsIRenderingContext* aRenderingContext,
   // outside the image bounds, we want to honor the aSourceArea-to-aDest
   // translation but we don't want to actually tile the image.
   fill.IntersectRect(fill, dest);
-  return DrawImageInternal(aRenderingContext, aImage, gfxPattern::FILTER_NEAREST,
-                           dest, fill, aDest, aDirty, imageSize, aImageFlags);
+  return DrawImageInternal(aRenderingContext, aImage, aGraphicsFilter,
+                           dest, fill, aDest, aDirty ? *aDirty : dest,
+                           imageSize, aImageFlags);
 }
 
 /* static */ nsresult
 nsLayoutUtils::DrawSingleImage(nsIRenderingContext* aRenderingContext,
                                imgIContainer*       aImage,
-                               gfxPattern::GraphicsFilter aGraphicsFilter,
+                               GraphicsFilter       aGraphicsFilter,
                                const nsRect&        aDest,
                                const nsRect&        aDirty,
                                PRUint32             aImageFlags,
@@ -3229,7 +3235,7 @@ nsLayoutUtils::ComputeSizeForDrawing(imgIContainer *aImage,
 /* static */ nsresult
 nsLayoutUtils::DrawImage(nsIRenderingContext* aRenderingContext,
                          imgIContainer*       aImage,
-                         gfxPattern::GraphicsFilter aGraphicsFilter,
+                         GraphicsFilter       aGraphicsFilter,
                          const nsRect&        aDest,
                          const nsRect&        aFill,
                          const nsPoint&       aAnchor,
@@ -3708,7 +3714,12 @@ nsLayoutUtils::SurfaceFromElement(nsIDOMElement *aElement,
   result.mSurface = gfxsurf;
   result.mSize = gfxIntSize(imgWidth, imgHeight);
   result.mPrincipal = principal;
-  result.mIsWriteOnly = PR_FALSE;
+
+  // SVG images could have <foreignObject> and/or <image> elements that load
+  // content from another domain.  For safety, they make the canvas write-only.
+  // XXXdholbert We could probably be more permissive here if we check that our
+  // helper SVG document has no elements that could load remote content.
+  result.mIsWriteOnly = (imgContainer->GetType() == imgIContainer::TYPE_VECTOR);
 
   return result;
 }
