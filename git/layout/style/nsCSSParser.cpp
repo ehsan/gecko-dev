@@ -1893,7 +1893,8 @@ CSSParserImpl::ParseMediaQueryExpression(nsMediaQuery* aQuery)
       rv = GetToken(PR_TRUE);
       if (!rv)
         break;
-      rv = mToken.mType == eCSSToken_Dimension && mToken.mNumber > 0.0f;
+      rv = mToken.mType == eCSSToken_Dimension &&
+           mToken.mIntegerValid && mToken.mNumber > 0.0f;
       if (!rv) {
         UngetToken();
         break;

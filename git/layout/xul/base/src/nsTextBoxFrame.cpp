@@ -20,7 +20,6 @@
  * the Initial Developer. All Rights Reserved.
  *
  * Contributor(s):
- *   Eric Vaughan, Netscape Communications
  *   Peter Annema <disttsc@bart.nl>
  *   Dean Tessman <dean_tessman@hotmail.com>
  *   Masayuki Nakano <masayuki@d-toybox.com>
@@ -39,9 +38,15 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
-#include "nsTextBoxFrame.h"
+//
+// Eric Vaughan
+// Netscape Communications
+//
+// See documentation in associated header file
+//
 
 #include "nsReadableUtils.h"
+#include "nsTextBoxFrame.h"
 #include "nsCOMPtr.h"
 #include "nsGkAtoms.h"
 #include "nsPresContext.h"
@@ -66,7 +71,6 @@
 #include "nsIReflowCallback.h"
 #include "nsBoxFrame.h"
 #include "mozilla/Preferences.h"
-#include "nsLayoutUtils.h"
 
 #ifdef IBMBIDI
 #include "nsBidiUtils.h"
@@ -74,6 +78,12 @@
 #endif // IBMBIDI
 
 using namespace mozilla;
+
+#define CROP_LEFT   "left"
+#define CROP_RIGHT  "right"
+#define CROP_CENTER "center"
+#define CROP_START  "start"
+#define CROP_END    "end"
 
 class nsAccessKeyInfo
 {
@@ -88,6 +98,11 @@ PRBool nsTextBoxFrame::gAccessKeyPrefInitialized       = PR_FALSE;
 PRBool nsTextBoxFrame::gInsertSeparatorBeforeAccessKey = PR_FALSE;
 PRBool nsTextBoxFrame::gInsertSeparatorPrefInitialized = PR_FALSE;
 
+//
+// NS_NewToolbarFrame
+//
+// Creates a new Toolbar frame and returns it
+//
 nsIFrame*
 NS_NewTextBoxFrame (nsIPresShell* aPresShell, nsStyleContext* aContext)
 {
@@ -430,18 +445,15 @@ nsTextBoxFrame::DrawText(nsRenderingContext& aRenderingContext,
     PRUint8 overStyle;
     PRUint8 underStyle;
     PRUint8 strikeStyle;
+    nsStyleContext* context = mStyleContext;
 
     // Begin with no decorations
     PRUint8 decorations = NS_STYLE_TEXT_DECORATION_LINE_NONE;
     // A mask of all possible decorations.
     PRUint8 decorMask = NS_STYLE_TEXT_DECORATION_LINE_LINES_MASK;
+    PRBool hasDecorationLines = context->HasTextDecorationLines();
 
-    nsIFrame* f = this;
     do {  // find decoration colors
-      nsStyleContext* context = f->GetStyleContext();
-      if (!context->HasTextDecorationLines()) {
-        break;
-      }
       const nsStyleTextReset* styleText = context->GetStyleTextReset();
       
       if (decorMask & styleText->mTextDecorationLine) {  // a decoration defined here
@@ -452,7 +464,7 @@ nsTextBoxFrame::DrawText(nsRenderingContext& aRenderingContext,
           PRBool isForeground;
           styleText->GetDecorationColor(color, isForeground);
           if (isForeground) {
-            color = nsLayoutUtils::GetColor(f, eCSSProperty_color);
+            color = context->GetVisitedDependentColor(eCSSProperty_color);
           }
         }
         PRUint8 style = styleText->GetDecorationStyle();
@@ -479,9 +491,13 @@ nsTextBoxFrame::DrawText(nsRenderingContext& aRenderingContext,
           decorations |= NS_STYLE_TEXT_DECORATION_LINE_LINE_THROUGH;
         }
       }
-    } while (0 != decorMask &&
-             (f = nsLayoutUtils::GetParentOrPlaceholderFor(
-                                   presContext->FrameManager(), f)));
+      if (0 != decorMask) {
+        context = context->GetParent();
+        if (context) {
+          hasDecorationLines = context->HasTextDecorationLines();
+        }
+      }
+    } while (context && hasDecorationLines && (0 != decorMask));
 
     nsRefPtr<nsFontMetrics> fontMet;
     nsLayoutUtils::GetFontMetricsForFrame(this, getter_AddRefs(fontMet));

@@ -67,6 +67,7 @@
 #include "nsIPresShell.h"
 #include "nsITimer.h"
 #include "nsTArray.h"
+#include "nsIDOMText.h"
 #include "nsIDocument.h"
 #include "nsCSSPseudoElements.h"
 #include "nsCSSFrameConstructor.h"
@@ -3238,7 +3239,7 @@ nsTextPaintStyle::EnsureSufficientContrast(nscolor *aForeColor, nscolor *aBackCo
 nscolor
 nsTextPaintStyle::GetTextColor()
 {
-  return nsLayoutUtils::GetColor(mFrame, eCSSProperty_color);
+  return nsLayoutUtils::GetTextColor(mFrame);
 }
 
 PRBool
@@ -4278,12 +4279,7 @@ nsTextFrame::GetTextDecorations(nsPresContext* aPresContext,
 
   bool nearestBlockFound = false;
 
-  for (nsIFrame* f = this, *fChild = nsnull;
-       f;
-       fChild = f,
-       f = nsLayoutUtils::GetParentOrPlaceholderFor(
-             aPresContext->FrameManager(), f))
-  {
+  for (nsIFrame* f = this, *fParent; f; f = fParent) {
     nsStyleContext *const context = f->GetStyleContext();
     if (!context->HasTextDecorationLines()) {
       break;
@@ -4293,15 +4289,19 @@ nsTextFrame::GetTextDecorations(nsPresContext* aPresContext,
     const PRUint8 textDecorations = styleText->mTextDecorationLine;
 
     if (!useOverride &&
-        (NS_STYLE_TEXT_DECORATION_LINE_OVERRIDE_ALL & textDecorations)) {
+        (NS_STYLE_TEXT_DECORATION_LINE_OVERRIDE_ALL & textDecorations))
+    {
       // This handles the <a href="blah.html"><font color="green">La 
       // la la</font></a> case. The link underline should be green.
       useOverride = PR_TRUE;
-      overrideColor =
-        nsLayoutUtils::GetColor(f, eCSSProperty_text_decoration_color);
+      overrideColor = context->GetVisitedDependentColor(
+                                 eCSSProperty_text_decoration_color);
     }
 
-    const bool firstBlock = !nearestBlockFound && nsLayoutUtils::GetAsBlock(f);
+    fParent = nsLayoutUtils::GetParentOrPlaceholderFor(
+                aPresContext->FrameManager(), f);
+    const bool firstBlock = !nearestBlockFound &&
+                            nsLayoutUtils::GetAsBlock(fParent);
 
     // Not updating positions once we hit a parent block is equivalent to
     // the CSS 2.1 spec that blocks should propagate decorations down to their
@@ -4309,46 +4309,40 @@ nsTextFrame::GetTextDecorations(nsPresContext* aPresContext,
     // However, if we're vertically aligned within a block, then we need to
     // recover the right baseline from the line by querying the FrameProperty
     // that should be set (see nsLineLayout::VerticalAlignLine).
-    if (firstBlock) {
-      // At this point, fChild can't be null since TextFrames can't be blocks
-      const nsStyleCoord& vAlign =
-        fChild->GetStyleContext()->GetStyleTextReset()->mVerticalAlign;
-      if (vAlign.GetUnit() != eStyleUnit_Enumerated ||
-          vAlign.GetIntValue() != NS_STYLE_VERTICAL_ALIGN_BASELINE)
-      {
-        // Since offset is the offset in the child's coordinate space, we have
-        // to undo the accumulation to bring the transform out of the block's
-        // coordinate space
-        baselineOffset =
-          frameTopOffset - (fChild->GetRect().y - fChild->GetRelativeOffset().y)
-          - NS_PTR_TO_INT32(
-              fChild->Properties().Get(nsIFrame::LineBaselineOffset()));
-      }
+    if (firstBlock &&
+        (styleText->mVerticalAlign.GetUnit() != eStyleUnit_Enumerated ||
+         styleText->mVerticalAlign.GetIntValue() !=
+           NS_STYLE_VERTICAL_ALIGN_BASELINE)) {
+      baselineOffset = frameTopOffset -
+        NS_PTR_TO_INT32(f->Properties().Get(nsIFrame::LineBaselineOffset()));
     }
     else if (!nearestBlockFound) {
       baselineOffset = frameTopOffset - f->GetBaseline();
     }
 
     nearestBlockFound = nearestBlockFound || firstBlock;
-    frameTopOffset += f->GetRect().y - f->GetRelativeOffset().y;
+    frameTopOffset += f->GetRect().Y() - f->GetRelativeOffset().y;
 
     const PRUint8 style = styleText->GetDecorationStyle();
     // Accumulate only elements that have decorations with a genuine style
     if (textDecorations && style != NS_STYLE_TEXT_DECORATION_STYLE_NONE) {
       const nscolor color = useOverride ? overrideColor
-        : nsLayoutUtils::GetColor(f, eCSSProperty_text_decoration_color);
+        : context->GetVisitedDependentColor(eCSSProperty_text_decoration_color);
 
       if (textDecorations & NS_STYLE_TEXT_DECORATION_LINE_UNDERLINE) {
         aDecorations.mUnderlines.AppendElement(
-          nsTextFrame::LineDecoration(f, baselineOffset, color, style));
+          nsTextFrame::LineDecoration(f, baselineOffset, color,
+                                      style));
       }
       if (textDecorations & NS_STYLE_TEXT_DECORATION_LINE_OVERLINE) {
         aDecorations.mOverlines.AppendElement(
-          nsTextFrame::LineDecoration(f, baselineOffset, color, style));
+          nsTextFrame::LineDecoration(f, baselineOffset, color,
+                                      style));
       }
       if (textDecorations & NS_STYLE_TEXT_DECORATION_LINE_LINE_THROUGH) {
         aDecorations.mStrikes.AppendElement(
-          nsTextFrame::LineDecoration(f, baselineOffset, color, style));
+          nsTextFrame::LineDecoration(f, baselineOffset, color,
+                                      style));
       }
     }
 

@@ -231,17 +231,14 @@ AccStateChangeEvent::
 
 AccStateChangeEvent::
   AccStateChangeEvent(nsINode* aNode, PRUint64 aState, PRBool aIsEnabled):
-  AccEvent(::nsIAccessibleEvent::EVENT_STATE_CHANGE, aNode,
-           eAutoDetect, eAllowDupes),
+  AccEvent(::nsIAccessibleEvent::EVENT_STATE_CHANGE, aNode),
   mState(aState), mIsEnabled(aIsEnabled)
 {
 }
 
 AccStateChangeEvent::
   AccStateChangeEvent(nsINode* aNode, PRUint64 aState) :
-  AccEvent(::nsIAccessibleEvent::EVENT_STATE_CHANGE, aNode,
-           eAutoDetect, eAllowDupes),
-  mState(aState)
+  AccEvent(::nsIAccessibleEvent::EVENT_STATE_CHANGE, aNode), mState(aState)
 {
   // Use GetAccessibleForNode() because we do not want to store an accessible
   // since it leads to problems with delayed events in the case when

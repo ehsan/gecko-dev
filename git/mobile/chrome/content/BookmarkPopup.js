@@ -43,12 +43,5 @@ var BookmarkPopup = {
       this.show();
     else
       this.hide();
-  },
-
-  addToHome: function addToHome() {
-    this.hide();
-
-    let browser = getBrowser();
-    BookmarkHelper.createShortcut(browser.contentTitle, browser.currentURI.spec, browser.mIconURL);
   }
 };

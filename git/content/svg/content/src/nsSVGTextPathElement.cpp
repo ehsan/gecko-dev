@@ -42,7 +42,6 @@
 #include "nsIFrame.h"
 #include "nsSVGTextPathElement.h"
 #include "nsDOMError.h"
-#include "nsContentUtils.h"
 
 nsSVGElement::LengthInfo nsSVGTextPathElement::sLengthInfo[1] =
 {

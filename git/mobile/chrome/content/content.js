@@ -400,7 +400,7 @@ let Content = {
     switch (aMessage.name) {
       case "Browser:ContextCommand": {
         let wrappedTarget = elementFromPoint(x, y);
-        if (!wrappedTarget || !(wrappedTarget instanceof Ci.nsIDOMNSEditableElement))
+        if (!wrappedTarget)
           break;
         let target = wrappedTarget.QueryInterface(Ci.nsIDOMNSEditableElement);
         if (!target)

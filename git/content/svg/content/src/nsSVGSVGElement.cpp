@@ -61,7 +61,6 @@
 #include "nsSVGUtils.h"
 #include "nsSVGSVGElement.h"
 #include "nsContentErrors.h" // For NS_PROPTABLE_PROP_OVERWRITTEN
-#include "nsContentUtils.h"
 
 #ifdef MOZ_SMIL
 #include "nsEventDispatcher.h"

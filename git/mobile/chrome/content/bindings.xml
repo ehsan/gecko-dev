@@ -1589,15 +1589,12 @@
             return;
 
           // There is a race condition with getBoundingClientRect and when the
-          // box is displayed, the padding is ignored in the size calculation.
-          // A nested timeouts below are used to workaround this problem.
+          // box is displayed, the padding is ignored in the size calculation
           this.getBoundingClientRect();
 
           setTimeout(function(self) {
-            setTimeout(function(self) {
-              let height = Math.floor(self.getBoundingClientRect().height);
-              self.top = window.innerHeight - height;
-            }, 0, self);
+            let height = Math.floor(self.getBoundingClientRect().height);
+            self.top = window.innerHeight - height;
           }, 0, this);
         ]]></body>
       </method>

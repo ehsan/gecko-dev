@@ -44,12 +44,13 @@
 #define nsGenericDOMDataNode_h___
 
 #include "nsIContent.h"
-
+#include "nsIDOMCharacterData.h"
 #include "nsTextFragment.h"
 #include "nsDOMError.h"
 #include "nsEventListenerManager.h"
 #include "nsGenericElement.h"
 #include "nsCycleCollectionParticipant.h"
+#include "nsContentUtils.h"
 #include "nsDOMMemoryReporter.h"
 
 #ifdef MOZ_SMIL

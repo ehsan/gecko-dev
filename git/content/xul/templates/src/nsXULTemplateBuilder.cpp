@@ -107,7 +107,6 @@
 #include "nsXULTemplateQueryProcessorRDF.h"
 #include "nsXULTemplateQueryProcessorXML.h"
 #include "nsXULTemplateQueryProcessorStorage.h"
-#include "nsContentUtils.h"
 
 using namespace mozilla::dom;
 

@@ -3518,13 +3518,7 @@ PluginInstanceChild::SwapSurfaces()
 
         mDoubleBufferCARenderer.ClearFrontSurface();
     }
-#else
-    if (mCurrentSurface && mBackSurface &&
-        (mCurrentSurface->GetSize() != mBackSurface->GetSize() ||
-         mCurrentSurface->GetContentType() != mBackSurface->GetContentType())) {
-        ClearCurrentSurface();
-    }
-#endif
+#endif //MOZ_WIDGET_COCOA
 }
 
 void

@@ -43,7 +43,6 @@
 #include "nsSVGUtils.h"
 #include "nsSVGMarkerElement.h"
 #include "gfxMatrix.h"
-#include "nsContentUtils.h" // NS_ENSURE_FINITE
 
 using namespace mozilla;
 

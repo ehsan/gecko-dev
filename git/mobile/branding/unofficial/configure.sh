@@ -1,3 +1,3 @@
-ANDROID_PACKAGE_NAME=org.mozilla.fennec_`echo $USER`
+ANDROID_PACKAGE_NAME=org.mozilla.fennec_unofficial
 MOZ_APP_DISPLAYNAME=Fennec
 MOZ_UPDATER=

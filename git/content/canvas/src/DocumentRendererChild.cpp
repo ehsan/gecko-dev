@@ -34,8 +34,6 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
-#include "mozilla/ipc/DocumentRendererChild.h"
-
 #include "base/basictypes.h"
 
 #include "gfxImageSurface.h"
@@ -55,7 +53,8 @@
 #include "gfxContext.h"
 #include "gfxImageSurface.h"
 #include "nsLayoutUtils.h"
-#include "nsContentUtils.h"
+
+#include "mozilla/ipc/DocumentRendererChild.h"
 
 using namespace mozilla::ipc;
 

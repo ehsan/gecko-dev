@@ -27,10 +27,6 @@
   <label id="panellabel" value="This is some text." height="65"/>
 </panel>
 
-<panel id="bigpanel" type="arrow" onpopupshown="checkBigPanel(this)" onpopuphidden="SimpleTest.finish()">
-  <button label="This is some text." height="3000"/>
-</panel>
-
 <script type="application/javascript">
 <![CDATA[
 
@@ -140,9 +136,6 @@ function nextTest()
   setScale(frames[0], 1);
 */
 
-  $("bigpanel").openPopup($("topleft"), "after_start", 0, 0, false, false, null);
-  yield;
-
   SimpleTest.finish();
   yield;
 }
@@ -224,12 +217,6 @@ function checkPanelPosition(panel)
   is(arrow.getAttribute("side"), expectedSide, "panel arrow side");
   is(arrow.hidden, false, "panel hidden");
 
-  panel.hidePopup();
-}
-
-function checkBigPanel(panel)
-{
-  ok(panel.firstChild.getBoundingClientRect().height < 2800, "big panel height");
   panel.hidePopup();
 }
 

@@ -144,6 +144,7 @@
 #include "nsIConsoleService.h"
 #include "nsServiceManagerUtils.h"
 #include "nsThreadUtils.h"
+#include "nsTPtrArray.h"
 #include "nsTArray.h"
 #include "mozilla/Services.h"
 #include "nsICycleCollectorListener.h"
@@ -1057,7 +1058,7 @@ struct nsCycleCollector
 
     nsCycleCollectorParams mParams;
 
-    nsTArray<PtrInfo*> *mWhiteNodes;
+    nsTPtrArray<PtrInfo> *mWhiteNodes;
     PRUint32 mWhiteNodeCount;
 
     // mVisitedRefCounted and mVisitedGCed are only used for telemetry
@@ -1090,7 +1091,7 @@ struct nsCycleCollector
                      nsICycleCollectorListener *aListener);
 
     // Prepare for and cleanup after one or more collection(s).
-    PRBool PrepareForCollection(nsTArray<PtrInfo*> *aWhiteNodes);
+    PRBool PrepareForCollection(nsTPtrArray<PtrInfo> *aWhiteNodes);
     void GCIfNeeded(PRBool aForceGC);
     void CleanupAfterCollection();
 
@@ -2600,7 +2601,7 @@ nsCycleCollector::GCIfNeeded(PRBool aForceGC)
 }
 
 PRBool
-nsCycleCollector::PrepareForCollection(nsTArray<PtrInfo*> *aWhiteNodes)
+nsCycleCollector::PrepareForCollection(nsTPtrArray<PtrInfo> *aWhiteNodes)
 {
 #if defined(DEBUG_CC) && !defined(__MINGW32__)
     if (!mParams.mDoNothing && mParams.mHookMalloc)
@@ -2666,7 +2667,7 @@ PRUint32
 nsCycleCollector::Collect(PRUint32 aTryCollections,
                           nsICycleCollectorListener *aListener)
 {
-    nsAutoTArray<PtrInfo*, 4000> whiteNodes;
+    nsAutoTPtrArray<PtrInfo, 4000> whiteNodes;
 
     if (!PrepareForCollection(&whiteNodes))
         return 0;
@@ -3448,12 +3449,6 @@ class nsCycleCollectorRunner : public nsRunnable
     PRBool mShutdown;
     PRBool mCollected;
 
-    nsCycleCollectionJSRuntime *GetJSRuntime()
-    {
-        return static_cast<nsCycleCollectionJSRuntime*>
-                 (mCollector->mRuntimes[nsIProgrammingLanguage::JAVASCRIPT]);
-    }
-
 public:
     NS_IMETHOD Run()
     {
@@ -3484,9 +3479,7 @@ public:
                 return NS_OK;
             }
 
-            GetJSRuntime()->NotifyEnterCycleCollectionThread();
             mCollected = mCollector->BeginCollection(mListener);
-            GetJSRuntime()->NotifyLeaveCycleCollectionThread();
 
             mReply.Notify();
         }
@@ -3518,17 +3511,15 @@ public:
         if (!mRunning)
             return 0;
 
-        nsAutoTArray<PtrInfo*, 4000> whiteNodes;
+        nsAutoTPtrArray<PtrInfo, 4000> whiteNodes;
         if (!mCollector->PrepareForCollection(&whiteNodes))
             return 0;
 
         NS_ASSERTION(!mListener, "Should have cleared this already!");
         mListener = aListener;
 
-        GetJSRuntime()->NotifyLeaveMainThread();
         mRequest.Notify();
         mReply.Wait();
-        GetJSRuntime()->NotifyEnterMainThread();
 
         mListener = nsnull;
 

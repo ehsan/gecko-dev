@@ -42,7 +42,6 @@
 #include "nsIDOMSVGMatrix.h"
 #include "nsSVGPaintServerFrame.h"
 #include "gfxMatrix.h"
-#include "nsIDOMSVGAnimTransformList.h"
 
 class nsIFrame;
 class nsSVGLength2;

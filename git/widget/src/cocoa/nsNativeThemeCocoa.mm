@@ -1797,9 +1797,8 @@ nsNativeThemeCocoa::DrawWidgetBackground(nsRenderingContext* aContext,
     case NS_THEME_MENUPOPUP: {
       HIThemeMenuDrawInfo mdi = {
         version: 0,
-        menuType: IsDisabled(aFrame, eventState) ?
-            static_cast<ThemeMenuType>(kThemeMenuTypeInactive) :
-            static_cast<ThemeMenuType>(kThemeMenuTypePopUp)
+        menuType: IsDisabled(aFrame, eventState) ? kThemeMenuTypeInactive
+                                                 : kThemeMenuTypePopUp
       };
 
       PRBool isLeftOfParent = PR_FALSE;
@@ -1822,10 +1821,9 @@ nsNativeThemeCocoa::DrawWidgetBackground(nsRenderingContext* aContext,
       HIThemeMenuItemDrawInfo drawInfo = {
         version: 0,
         itemType: kThemeMenuItemPlain,
-        state: (IsDisabled(aFrame, eventState) ? static_cast<ThemeMenuState>(kThemeMenuDisabled) :
-                 CheckBooleanAttr(aFrame, nsWidgetAtoms::mozmenuactive) ?
-                    static_cast<ThemeMenuState>(kThemeMenuSelected) :
-                    static_cast<ThemeMenuState>(kThemeMenuActive))
+        state: (IsDisabled(aFrame, eventState) ? kThemeMenuDisabled :
+                 CheckBooleanAttr(aFrame, nsWidgetAtoms::mozmenuactive) ? kThemeMenuSelected :
+                 kThemeMenuActive)
       };
 
       // XXX pass in the menu rect instead of always using the item rect

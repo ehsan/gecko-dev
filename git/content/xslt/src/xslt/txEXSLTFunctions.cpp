@@ -54,6 +54,7 @@
 #include "nsContentCreatorFunctions.h"
 #include "nsIContent.h"
 #include "nsIDOMDocumentFragment.h"
+#include "nsIDOMText.h"
 #include "txMozillaXMLOutput.h"
 #endif
 
