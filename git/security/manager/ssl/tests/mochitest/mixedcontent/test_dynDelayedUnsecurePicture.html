@@ -18,11 +18,10 @@
         "http://example.com/tests/security/ssl/mixedcontent/moonsurface.jpg";
     }, 0);
 
-    waitForSecurityState("broken", function()
-    {
+    window.setTimeout(function() {
       isSecurityState("broken", "src='http://...' changed to broken");
       finish();
-    });
+    }, 500);
   }
 
   function afterNavigationTest()

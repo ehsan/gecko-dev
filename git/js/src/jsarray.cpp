@@ -231,7 +231,7 @@ js_GetLengthProperty(JSContext *cx, JSObject *obj, jsuint *lengthp)
     }
 
     if (obj->isArguments() && !obj->isArgsLengthOverridden()) {
-        *lengthp = obj->getArgsInitialLength();
+        *lengthp = obj->getArgsLength();
         return true;
     }
 
@@ -3050,7 +3050,12 @@ js_NewArrayObject(JSContext *cx, jsuint length, const Value *vector)
      */
     JS_ASSERT(obj->getProto());
 
-    return InitArrayObject(cx, obj, length, vector) ? obj : NULL;
+    if (!InitArrayObject(cx, obj, length, vector))
+        obj = NULL;
+
+    /* Set/clear newborn root, in case we lost it.  */
+    cx->weakRoots.finalizableNewborns[FINALIZE_OBJECT] = obj;
+    return obj;
 }
 
 JSObject *

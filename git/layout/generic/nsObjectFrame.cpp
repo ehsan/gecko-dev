@@ -697,8 +697,10 @@ nsObjectFrame::CreateWidget(nscoord aWidth,
   // XXX is the above comment correct?
   viewMan->SetViewVisibility(view, nsViewVisibility_kHide);
 
+  PRBool usewidgets;
   nsCOMPtr<nsIDeviceContext> dx;
   viewMan->GetDeviceContext(*getter_AddRefs(dx));
+  dx->SupportsNativeWidgets(usewidgets);
 
   //this is ugly. it was ripped off from didreflow(). MMP
   // Position and size view relative to its parent, not relative to our
@@ -717,7 +719,7 @@ nsObjectFrame::CreateWidget(nscoord aWidth,
     return NS_ERROR_FAILURE;
   }
 
-  if (!aViewOnly && !mWidget) {
+  if (!aViewOnly && !mWidget && usewidgets) {
     mInnerView = viewMan->CreateView(GetContentRect() - GetPosition(), view);
     if (!mInnerView) {
       NS_ERROR("Could not create inner view");
@@ -2304,16 +2306,6 @@ nsObjectFrame::StopPluginInternal(PRBool aDelayedStop)
     nsRootPresContext* rootPC = PresContext()->GetRootPresContext();
     NS_ASSERTION(rootPC, "unable to unregister the plugin frame");
     rootPC->UnregisterPluginForGeometryUpdates(this);
-
-    // Make sure the plugin is hidden in case an update of plugin geometry
-    // hasn't happened since this plugin became hidden.
-    nsIWidget* parent = mWidget->GetParent();
-    if (parent) {
-      nsTArray<nsIWidget::Configuration> configurations;
-      GetEmptyClipConfiguration(&configurations);
-      parent->ConfigureChildren(configurations);
-      DidSetWidgetGeometry();
-    }
   }
 
   // Transfer the reference to the instance owner onto the stack so

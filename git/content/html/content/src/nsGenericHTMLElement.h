@@ -494,19 +494,6 @@ public:
   NS_HIDDEN_(nsresult) GetEditor(nsIEditor** aEditor);
   NS_HIDDEN_(nsresult) GetEditorInternal(nsIEditor** aEditor);
 
-  /**
-   * Helper method for NS_IMPL_URI_ATTR macro.
-   * Gets the absolute URI value of an attribute, by resolving any relative
-   * URIs in the attribute against the baseuri of the element. If the attribute
-   * isn't a relative URI the value of the attribute is returned as is. Only
-   * works for attributes in null namespace.
-   *
-   * @param aAttr      name of attribute.
-   * @param aBaseAttr  name of base attribute.
-   * @param aResult    result value [out]
-   */
-  NS_HIDDEN_(nsresult) GetURIAttr(nsIAtom* aAttr, nsIAtom* aBaseAttr, nsAString& aResult);
-
 protected:
   /**
    * Add/remove this element to the documents name cache
@@ -666,6 +653,19 @@ protected:
    * @param aValue   Float value of attribute.
    */
   NS_HIDDEN_(nsresult) SetFloatAttr(nsIAtom* aAttr, float aValue);
+
+  /**
+   * Helper method for NS_IMPL_URI_ATTR macro.
+   * Gets the absolute URI value of an attribute, by resolving any relative
+   * URIs in the attribute against the baseuri of the element. If the attribute
+   * isn't a relative URI the value of the attribute is returned as is. Only
+   * works for attributes in null namespace.
+   *
+   * @param aAttr      name of attribute.
+   * @param aBaseAttr  name of base attribute.
+   * @param aResult    result value [out]
+   */
+  NS_HIDDEN_(nsresult) GetURIAttr(nsIAtom* aAttr, nsIAtom* aBaseAttr, nsAString& aResult);
 
   /**
    * Helper for GetURIAttr and GetHrefURIForAnchors which returns an
@@ -840,11 +840,6 @@ public:
 
   virtual nsresult PreHandleEvent(nsEventChainPreVisitor& aVisitor);
 
-  /**
-   * Returns if the control can be disabled.
-   */
-  PRBool CanBeDisabled() const;
-
 protected:
   virtual nsresult BeforeSetAttr(PRInt32 aNameSpaceID, nsIAtom* aName,
                                  const nsAString* aValue, PRBool aNotify);
@@ -859,6 +854,11 @@ protected:
   {
     return PR_FALSE;
   }
+
+  /**
+   * Returns true if the control can be disabled
+   */
+  PRBool CanBeDisabled() const;
 
   void UpdateEditableFormControlState();
 

@@ -18,6 +18,7 @@ https://bugzilla.mozilla.org/show_bug.cgi?id=535043
   <textarea maxlength="-1"></textarea>
   <textarea maxlength="0"></textarea>
   <textarea maxlength="2"></textarea>
+  <textarea maxlength="257"></textarea>
 </div>
 <pre id="test">
 <script type="text/javascript">
@@ -26,7 +27,7 @@ https://bugzilla.mozilla.org/show_bug.cgi?id=535043
 function checkTextArea(textArea) {
   textArea.value = '';
   textArea.focus();
-  for (var j = 0; j < 3; j++) {
+  for (var j = 0; j < 259; j++) {
     synthesizeKey('x', {});
   }
   var htmlMaxLength = textArea.getAttribute('maxlength');
@@ -44,7 +45,7 @@ function checkTextArea(textArea) {
       'maxlength in DOM does not match provided value');
   }
   if (textArea.maxLength == -1) {
-    is(textArea.value.length, 3,
+    is(textArea.value.length, 259,
       'textarea with maxLength -1 should have no length limit');
   } else {
     is(textArea.value.length, textArea.maxLength, 'textarea has maxLength ' +
@@ -59,7 +60,7 @@ SimpleTest.waitForFocus(function() {
   }
 
   textArea = textAreas[0];
-  testNums = [-42, -1, 0, 2];
+  testNums = [-42, -1, 0, 2, 257];
   for (var i = 0; i < testNums.length; i++) {
     textArea.removeAttribute('maxlength');
 
@@ -79,12 +80,7 @@ SimpleTest.waitForFocus(function() {
     textArea.setAttribute('maxlength', testNums[i]);
     checkTextArea(textArea);
   }
-
-  SimpleTest.finish();
 });
-
-SimpleTest.waitForExplicitFinish();
-
 </script>
 </pre>
 </body>
