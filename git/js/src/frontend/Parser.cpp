@@ -2005,7 +2005,7 @@ BindLet(JSContext *cx, BindData *data, JSAtom *atom, Parser *parser)
      */
     bool redeclared;
     jsid id = AtomToId(atom);
-    Shape *shape = blockObj->addVar(cx, id, blockCount, &redeclared);
+    const Shape *shape = blockObj->addVar(cx, id, blockCount, &redeclared);
     if (!shape) {
         if (redeclared)
             ReportRedeclaration(cx, parser, pn, false, atom);
@@ -2022,7 +2022,7 @@ static inline bool
 ForEachLetDef(TreeContext *tc, StaticBlockObject &blockObj, Op op)
 {
     for (Shape::Range r = blockObj.lastProperty()->all(); !r.empty(); r.popFront()) {
-        Shape &shape = r.front();
+        const Shape &shape = r.front();
 
         /* Beware the destructuring dummy slots. */
         if (JSID_IS_INT(shape.propid()))

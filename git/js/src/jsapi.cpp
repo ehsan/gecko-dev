@@ -4376,7 +4376,7 @@ JS_NextProperty(JSContext *cx, JSObject *iterobj, jsid *idp)
 {
     AssertRootingUnnecessary safe(cx);
     int32_t i;
-    Shape *shape;
+    const Shape *shape;
     JSIdArray *ida;
 
     AssertNoGC(cx);

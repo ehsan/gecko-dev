@@ -1762,13 +1762,13 @@ MakeRangeGCSafe(jsid *vec, size_t len)
 }
 
 static JS_ALWAYS_INLINE void
-MakeRangeGCSafe(Shape **beg, Shape **end)
+MakeRangeGCSafe(const Shape **beg, const Shape **end)
 {
     PodZero(beg, end - beg);
 }
 
 static JS_ALWAYS_INLINE void
-MakeRangeGCSafe(Shape **vec, size_t len)
+MakeRangeGCSafe(const Shape **vec, size_t len)
 {
     PodZero(vec, len);
 }
@@ -1812,12 +1812,12 @@ class AutoObjectVector : public AutoVectorRooter<JSObject *>
     JS_DECL_USE_GUARD_OBJECT_NOTIFIER
 };
 
-class AutoShapeVector : public AutoVectorRooter<Shape *>
+class AutoShapeVector : public AutoVectorRooter<const Shape *>
 {
   public:
     explicit AutoShapeVector(JSContext *cx
                              JS_GUARD_OBJECT_NOTIFIER_PARAM)
-        : AutoVectorRooter<Shape *>(cx, SHAPEVECTOR)
+        : AutoVectorRooter<const Shape *>(cx, SHAPEVECTOR)
     {
         JS_GUARD_OBJECT_NOTIFIER_INIT;
     }

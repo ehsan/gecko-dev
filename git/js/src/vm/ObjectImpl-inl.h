@@ -40,26 +40,26 @@ Debug_SetSlotRangeToCrashOnTouch(HeapSlot *begin, HeapSlot *end)
 
 } // namespace js
 
-inline js::Shape *
+inline const js::Shape *
 js::ObjectImpl::nativeLookup(JSContext *cx, PropertyId pid)
 {
     return nativeLookup(cx, pid.asId());
 }
 
-inline js::Shape *
+inline const js::Shape *
 js::ObjectImpl::nativeLookup(JSContext *cx, PropertyName *name)
 {
     return nativeLookup(cx, PropertyId(name));
 }
 
 #ifdef DEBUG
-inline js::Shape *
+inline const js::Shape *
 js::ObjectImpl::nativeLookupNoAllocation(JSContext *cx, PropertyId pid)
 {
     return nativeLookupNoAllocation(cx, pid.asId());
 }
 
-inline js::Shape *
+inline const js::Shape *
 js::ObjectImpl::nativeLookupNoAllocation(JSContext *cx, PropertyName *name)
 {
     return nativeLookupNoAllocation(cx, PropertyId(name));

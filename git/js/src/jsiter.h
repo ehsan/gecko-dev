@@ -33,7 +33,7 @@ struct NativeIterator {
     HeapPtr<JSFlatString> *props_array;
     HeapPtr<JSFlatString> *props_cursor;
     HeapPtr<JSFlatString> *props_end;
-    Shape **shapes_array;
+    const Shape **shapes_array;
     uint32_t  shapes_length;
     uint32_t  shapes_key;
     uint32_t  flags;
