@@ -100,6 +100,10 @@ public:
   SetPairingConfirmationInternal(const nsAString& aDeviceAddress, bool aConfirm,
                                  BluetoothReplyRunnable* aRunnable) MOZ_OVERRIDE;
 
+  virtual bool
+  SetAuthorizationInternal(const nsAString& aDeviceAddress, bool aAllow,
+                           BluetoothReplyRunnable* aRunnable) MOZ_OVERRIDE;
+
   virtual void
   Connect(const nsAString& aDeviceAddress,
           const uint16_t aProfileId,

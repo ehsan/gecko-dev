@@ -97,8 +97,6 @@ function testUnregistered() {
     is(connection.voice.emergencyCallsOnly, false);
     is(connection.voice.roaming, false);
     is(connection.voice.cell, null);
-    is(connection.voice.signalStrength, null);
-    is(connection.voice.relSignalStrength, null);
 
     testSearching();
   });
@@ -115,8 +113,6 @@ function testSearching() {
     is(connection.voice.emergencyCallsOnly, false);
     is(connection.voice.roaming, false);
     is(connection.voice.cell, null);
-    is(connection.voice.signalStrength, null);
-    is(connection.voice.relSignalStrength, null);
 
     testDenied();
   });
@@ -133,8 +129,6 @@ function testDenied() {
     is(connection.voice.emergencyCallsOnly, false);
     is(connection.voice.roaming, false);
     is(connection.voice.cell, null);
-    is(connection.voice.signalStrength, null);
-    is(connection.voice.relSignalStrength, null);
 
     testRoaming();
   });
@@ -151,10 +145,6 @@ function testRoaming() {
     is(connection.voice.emergencyCallsOnly, false);
     is(connection.voice.roaming, true);
 
-    // Android emulator initializes the signal strength to -99 dBm
-    is(connection.voice.signalStrength, -99);
-    is(connection.voice.relSignalStrength, 44);
-
     testHome();
   });
 }
@@ -169,10 +159,6 @@ function testHome() {
     is(connection.voice.state, "registered");
     is(connection.voice.emergencyCallsOnly, false);
     is(connection.voice.roaming, false);
-
-    // Android emulator initializes the signal strength to -99 dBm
-    is(connection.voice.signalStrength, -99);
-    is(connection.voice.relSignalStrength, 44);
 
     cleanUp();
   });

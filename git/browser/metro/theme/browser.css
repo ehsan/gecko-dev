@@ -187,18 +187,24 @@ documenttab[selected] .documenttab-selection {
 
 /* Start UI ----------------------------------------------------------------- */
 
-#startui-page {
-  overflow-x: scroll;
-  overflow-y: hidden;
-}
-
-#startui-body {
-  height: 100%;
-}
-
 #start-container {
   display: -moz-box;
+}
+
+#start-scrollbox[input="precise"] {
+  overflow-x: scroll;
+}
+
+/* startUI sections, grids */
+#start-scrollbox > .meta-section {
+  /* allot space for at least a single column */
   min-width: @grid_double_column_width@;
+  /* leave margin for horizontal scollbar */
+  margin-bottom: 30px;
+}
+
+#start-scrollbox[input="precise"] > .meta-section {
+  margin-bottom: 5px;
 }
 
 #start-topsites {
@@ -206,11 +212,14 @@ documenttab[selected] .documenttab-selection {
   min-width: calc(3 * @grid_double_column_width@);
 }
 
-#content-viewport[startpage] browser {
-  padding-bottom: @toolbar_height@;
+#start-scrollbox {
+  -moz-box-orient: horizontal;
+  /* Move scrollbar above toolbar,
+   *  discount padding added by .meta in #start-container */
+  margin-bottom: calc(@toolbar_height@ - @metro_spacing_normal@);
 }
 
-#start-container[viewstate="snapped"] {
+#start-container[viewstate="snapped"] #start-scrollbox {
   -moz-box-orient: vertical;
 }
 
@@ -225,7 +234,7 @@ documenttab[selected] .documenttab-selection {
   padding-right: 0;
 }
 
-#start-container[viewstate="snapped"] > .meta-section {
+#start-container[viewstate="snapped"] #start-scrollbox > .meta-section {
   margin: 0 @metro_spacing_xnormal@;
   min-width: @grid_double_column_width@;
 }
@@ -238,22 +247,13 @@ documenttab[selected] .documenttab-selection {
   visibility: visible;
 }
 
-#start-container[viewstate="snapped"] {
-  padding-top: 0;
-}
-
-#start-container[viewstate="snapped"] .meta-section-title,
-#start-container[viewstate="snapped"] richgrid {
-  margin-top: @metro_spacing_xnormal@;
-  padding: 0;
-}
-
-#start-container:not([viewstate="snapped"]) .meta-section-title.narrow-title,
-#start-container[viewstate="snapped"] .meta-section-title.wide-title {
-  display: none;
-}
-
 /* Browser Content Areas ==================================================== */
+
+/* Hide the browser while the start UI is visible */
+#content-viewport[startpage],
+#content-viewport[filtering] {
+  visibility: collapse;
+}
 
 /* a 'margin-top' is applied dynamically in ContentAreaObserver */
 #browsers {
@@ -707,10 +707,6 @@ documenttab[selected] .documenttab-selection {
   opacity: 0;
   visibility: hidden;
   pointer-events: none;
-}
-
-#toolbar[viewstate="snapped"] #toolbar-contextual {
-  visibility: collapse;
 }
 
 .circularprogressindicator-progressButton {

@@ -10,6 +10,7 @@
 #include "SVGAnimatedPathSegList.h"
 #include "nsSVGElement.h"
 #include "nsError.h"
+#include "nsContentUtils.h"
 
 // See the architecture comment in DOMSVGPathSegList.h.
 

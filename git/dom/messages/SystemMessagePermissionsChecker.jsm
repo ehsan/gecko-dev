@@ -34,6 +34,9 @@ this.SystemMessagePermissionsTable = {
   "bluetooth-dialer-command": {
     "telephony": []
   },
+  "bluetooth-authorize": {
+    "bluetooth": []
+  },
   "bluetooth-cancel": {
     "bluetooth": []
   },

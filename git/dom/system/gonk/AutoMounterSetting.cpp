@@ -11,6 +11,7 @@
 #include "nsCOMPtr.h"
 #include "nsDebug.h"
 #include "nsIObserverService.h"
+#include "nsContentUtils.h"
 #include "nsCxPusher.h"
 #include "nsISettingsService.h"
 #include "nsJSUtils.h"

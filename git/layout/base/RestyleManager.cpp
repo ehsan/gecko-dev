@@ -31,7 +31,6 @@
 #include "nsSVGTextPathFrame.h"
 #include "nsIRootBox.h"
 #include "nsIDOMMutationEvent.h"
-#include "nsContentUtils.h"
 
 #ifdef ACCESSIBILITY
 #include "nsAccessibilityService.h"

@@ -12,6 +12,8 @@
 
 BEGIN_BLUETOOTH_NAMESPACE
 
+class BluetoothA2dpManagerObserver;
+
 class BluetoothA2dpManager : public BluetoothProfileManagerBase
 {
 public:

@@ -8,6 +8,7 @@
 
 #include "mozilla/dom/HTMLMediaElement.h"
 #include "mozilla/dom/VideoPlaybackQualityBinding.h"
+#include "nsContentUtils.h"
 #include "nsCycleCollectionParticipant.h"
 #include "nsWrapperCache.h"
 #include "MediaDecoder.h"

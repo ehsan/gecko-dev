@@ -440,7 +440,10 @@ BluetoothHfpManager::Get()
   }
 
   // If we're in shutdown, don't create a new instance
-  NS_ENSURE_FALSE(sInShutdown, nullptr);
+  if (sInShutdown) {
+    NS_WARNING("BluetoothHfpManager can't be created during shutdown");
+    return nullptr;
+  }
 
   // Create a new instance, register, and return
   BluetoothHfpManager* manager = new BluetoothHfpManager();

@@ -7,6 +7,7 @@
 
 #include "mozilla/dom/RectBinding.h"
 #include "nsROCSSPrimitiveValue.h"
+#include "nsContentUtils.h"
 #include "nsDOMCSSRect.h"
 
 using namespace mozilla;

@@ -9,6 +9,7 @@
 #include "nsAutoPtr.h"
 #include "nsCOMPtr.h"
 #include "nsComputedDOMStyle.h"
+#include "nsContentUtils.h"
 #include "nsDebug.h"
 #include "nsEditProperty.h"
 #include "nsError.h"

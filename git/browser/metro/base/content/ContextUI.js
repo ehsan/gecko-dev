@@ -169,6 +169,7 @@ var ContextUI = {
 
   // Display the nav bar
   displayNavbar: function () {
+    this._clearDelayedTimeout();
     Elements.navbar.show();
   },
 
