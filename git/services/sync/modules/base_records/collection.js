@@ -110,6 +110,7 @@ Collection.prototype = {
   // oldest (oldest first)
   // newest (newest first)
   // index
+  // depthindex
   get sort() { return this._sort; },
   set sort(value) {
     this._sort = value;

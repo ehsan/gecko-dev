@@ -34,7 +34,7 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
-const EXPORTED_SYMBOLS = ['Utils', 'Svc'];
+const EXPORTED_SYMBOLS = ['Utils', 'Svc', 'Str'];
 
 const Cc = Components.classes;
 const Ci = Components.interfaces;
@@ -44,6 +44,7 @@ const Cu = Components.utils;
 Cu.import("resource://gre/modules/XPCOMUtils.jsm");
 Cu.import("resource://weave/ext/Preferences.js");
 Cu.import("resource://weave/ext/Observers.js");
+Cu.import("resource://weave/ext/StringBundle.js");
 Cu.import("resource://weave/constants.js");
 Cu.import("resource://weave/log4moz.js");
 
@@ -128,20 +129,6 @@ let Utils = {
     let uuidgen = Cc["@mozilla.org/uuid-generator;1"].
                   getService(Ci.nsIUUIDGenerator);
     return uuidgen.generateUUID().toString().replace(/[{}]/g, '');
-  },
-
-  anno: function anno(id, anno, val, expire) {
-    switch (arguments.length) {
-      case 2:
-        // Get the annotation with 2 args
-        return Svc.Annos.getItemAnnotation(id, anno);
-      case 3:
-        expire = Svc.Annos.EXPIRE_NEVER;
-        // Fallthrough!
-      case 4:
-        // Set the annotation with 3 or 4 args
-        return Svc.Annos.setItemAnnotation(id, anno, val, 0, expire);
-    }
   },
 
   // Returns a nsILocalFile representing a file relative to the
@@ -307,6 +294,11 @@ let Utils = {
       return dest[prop];
     };
     dest.__defineGetter__(prop, getter);
+  },
+
+  lazyStrings: function Weave_lazyStrings(name) {
+    let bundle = "chrome://weave/locale/" + name + ".properties";
+    return function() new StringBundle(bundle);
   },
 
   deepEquals: function eq(a, b) {
@@ -736,8 +728,7 @@ Utils.EventListener.prototype = {
 
 let Svc = {};
 Svc.Prefs = new Preferences(PREFS_BRANCH);
-[["Annos", "@mozilla.org/browser/annotation-service;1", "nsIAnnotationService"],
- ["AppInfo", "@mozilla.org/xre/app-info;1", "nsIXULAppInfo"],
+[["AppInfo", "@mozilla.org/xre/app-info;1", "nsIXULAppInfo"],
  ["Bookmark", "@mozilla.org/browser/nav-bookmarks-service;1", "nsINavBookmarksService"],
  ["Crypto", "@labs.mozilla.com/Weave/Crypto;1", "IWeaveCrypto"],
  ["Directory", "@mozilla.org/file/directory_service;1", "nsIProperties"],
@@ -753,3 +744,7 @@ Svc.Prefs = new Preferences(PREFS_BRANCH);
  ["WinMediator", "@mozilla.org/appshell/window-mediator;1", "nsIWindowMediator"],
  ["WinWatcher", "@mozilla.org/embedcomp/window-watcher;1", "nsIWindowWatcher"],
 ].forEach(function(lazy) Utils.lazySvc(Svc, lazy[0], lazy[1], Ci[lazy[2]]));
+
+let Str = {};
+["service", "about"]
+  .forEach(function(lazy) Utils.lazy2(Str, lazy, Utils.lazyStrings(lazy)));

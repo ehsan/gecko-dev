@@ -41,8 +41,8 @@ const modules = [
 
 function run_test() {
   for each (let m in modules) {
-    _("Attempting to load resource://weave/" + m);
-    Cu.import("resource://weave/" + m, {});
+    dump("Attempting to load resource://weave/" + m + "\n");
+    Components.utils.import("resource://weave/" + m, {});
   }
 }
 
