@@ -154,12 +154,7 @@ int32_t VideoCaptureAndroid::SetAndroidObjects(void* javaVM,
         env->CallStaticObjectMethod(g_javaCmDevInfoClass,
                                     cid, (int) -1,
                                     javaContext);
-    bool exceptionThrown = env->ExceptionCheck();
-    if (!javaCameraDeviceInfoObjLocal || exceptionThrown) {
-      if (exceptionThrown) {
-        env->ExceptionDescribe();
-        env->ExceptionClear();
-      }
+    if (!javaCameraDeviceInfoObjLocal) {
       EARLY_WEBRTC_TRACE(webrtc::kTraceWarning, webrtc::kTraceVideoCapture, -1,
                    "%s: could not create Java Capture Device info object",
                    __FUNCTION__);
@@ -313,6 +308,8 @@ int32_t VideoCaptureAndroid::Init(const int32_t id,
   jclass javaCmDevInfoClass = jniFrame.GetCmDevInfoClass();
   jobject javaCmDevInfoObject = jniFrame.GetCmDevInfoObject();
 
+  int32_t rotation = 0;
+
   WEBRTC_TRACE(webrtc::kTraceDebug, webrtc::kTraceVideoCapture, _id,
                "get method id");
   // get the method ID for the Android Java
@@ -334,7 +331,7 @@ int32_t VideoCaptureAndroid::Init(const int32_t id,
                                                      cid, (jint) id,
                                                      (jlong) this,
                                                      capureIdString);
-  if (!javaCameraObjLocal || jniFrame.CheckForException()) {
+  if (!javaCameraObjLocal) {
     WEBRTC_TRACE(webrtc::kTraceWarning, webrtc::kTraceVideoCapture, _id,
                  "%s: could not create Java Capture object", __FUNCTION__);
     return -1;
@@ -377,7 +374,6 @@ VideoCaptureAndroid::~VideoCaptureAndroid() {
                    "%s: Call DeleteVideoCaptureAndroid", __FUNCTION__);
       // Close the camera by calling the static destruct function.
       env->CallStaticVoidMethod(g_javaCmClass, cid, _javaCaptureObj);
-      jniFrame.CheckForException();
 
       // Delete global object ref to the camera.
       env->DeleteGlobalRef(_javaCaptureObj);
@@ -397,6 +393,7 @@ int32_t VideoCaptureAndroid::StartCapture(
                "%s: ", __FUNCTION__);
 
   int32_t result = 0;
+  int32_t rotation = 0;
 
   AutoLocalJNIFrame jniFrame;
   JNIEnv* env = jniFrame.GetEnv();

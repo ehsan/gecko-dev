@@ -58,7 +58,7 @@ LayerManagerD3D9::Initialize(bool force)
   }
 
   if (!mDefaultDeviceManager) {
-    mDeviceManager = gfxWindowsPlatform::GetPlatform()->GetD3D9DeviceManager();
+    mDeviceManager = new DeviceManagerD3D9;
 
     if (!mDeviceManager->Init()) {
       mDeviceManager = nullptr;
@@ -235,8 +235,7 @@ LayerManagerD3D9::ReportFailure(const nsACString &aMsg, HRESULT aCode)
 void
 LayerManagerD3D9::Render()
 {
-  DeviceManagerState state = mSwapChain->PrepareForRendering();
-  if (state != DeviceOK) {
+  if (!mSwapChain->PrepareForRendering()) {
     return;
   }
   deviceManager()->SetupRenderState();

@@ -452,7 +452,7 @@ GuessPhiType(MPhi *phi)
         }
         if (type == MIRType_None) {
             type = in->type();
-            if (in->canProduceFloat32())
+            if (in->isConstant())
                 convertibleToFloat32 = true;
             continue;
         }
@@ -461,14 +461,17 @@ GuessPhiType(MPhi *phi)
             if (in->resultTypeSet() && in->resultTypeSet()->empty())
                 continue;
 
-            if (convertibleToFloat32 && in->type() == MIRType_Float32) {
-                // If we only saw definitions that can be converted into Float32 before and
-                // encounter a Float32 value, promote previous values to Float32
+            if (IsFloatType(type) && IsFloatType(in->type())) {
+                // Specialize phis with int32 and float32 operands as float32.
+                type = MIRType_Float32;
+            } else if (convertibleToFloat32 && in->type() == MIRType_Float32) {
+                // If we only saw constants before and encounter a Float32 value, promote previous
+                // constants to Float32
                 type = MIRType_Float32;
             } else if (IsNumberType(type) && IsNumberType(in->type())) {
                 // Specialize phis with int32 and double operands as double.
                 type = MIRType_Double;
-                convertibleToFloat32 &= in->canProduceFloat32();
+                convertibleToFloat32 &= in->isConstant();
             } else {
                 return MIRType_Value;
             }
@@ -507,10 +510,8 @@ TypeAnalyzer::propagateSpecialization(MPhi *phi)
             continue;
         }
         if (use->type() != phi->type()) {
-            // Specialize phis with int32 that can be converted to float and float operands as floats.
-            if ((use->type() == MIRType_Int32 && use->canProduceFloat32() && phi->type() == MIRType_Float32) ||
-                (phi->type() == MIRType_Int32 && phi->canProduceFloat32() && use->type() == MIRType_Float32))
-            {
+            // Specialize phis with int32 and float operands as floats.
+            if (IsFloatType(use->type()) && IsFloatType(phi->type())) {
                 if (!respecialize(use, MIRType_Float32))
                     return false;
                 continue;

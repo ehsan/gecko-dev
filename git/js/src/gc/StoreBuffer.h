@@ -420,10 +420,14 @@ class StoreBuffer
     }
     void removeRelocatableValue(JS::Value *valuep) {
         ValueEdge edge(valuep);
+        if (!edge.inRememberedSet(nursery_))
+            return;
         bufferRelocVal.unput(edge);
     }
     void removeRelocatableCell(Cell **cellp) {
         CellPtrEdge edge(cellp);
+        if (!edge.inRememberedSet(nursery_))
+            return;
         bufferRelocCell.unput(edge);
     }
 

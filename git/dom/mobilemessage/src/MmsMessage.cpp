@@ -47,7 +47,7 @@ MmsMessage::MmsMessage(int32_t                          aId,
                        const nsAString&                 aSmil,
                        const nsTArray<MmsAttachment>&   aAttachments,
                        uint64_t                         aExpiryDate,
-                       bool                             aReadReportRequested)
+                       bool                             aIsReadReportRequested)
   : mId(aId),
     mThreadId(aThreadId),
     mIccId(aIccId),
@@ -61,7 +61,7 @@ MmsMessage::MmsMessage(int32_t                          aId,
     mSmil(aSmil),
     mAttachments(aAttachments),
     mExpiryDate(aExpiryDate),
-    mReadReportRequested(aReadReportRequested)
+    mIsReadReportRequested(aIsReadReportRequested)
 {
 }
 
@@ -77,7 +77,7 @@ MmsMessage::MmsMessage(const mobilemessage::MmsMessageData& aData)
   , mSubject(aData.subject())
   , mSmil(aData.smil())
   , mExpiryDate(aData.expiryDate())
-  , mReadReportRequested(aData.readReportRequested())
+  , mIsReadReportRequested(aData.isReadReportRequested())
 {
   uint32_t len = aData.attachments().Length();
   mAttachments.SetCapacity(len);
@@ -339,7 +339,7 @@ MmsMessage::GetData(ContentParent* aParent,
   aData.subject() = mSubject;
   aData.smil() = mSmil;
   aData.expiryDate() = mExpiryDate;
-  aData.readReportRequested() = mReadReportRequested;
+  aData.isReadReportRequested() = mIsReadReportRequested;
 
   aData.deliveryInfo().SetCapacity(mDeliveryInfo.Length());
   for (uint32_t i = 0; i < mDeliveryInfo.Length(); i++) {
@@ -658,9 +658,9 @@ MmsMessage::GetExpiryDate(JSContext* cx, JS::Value* aDate)
 }
 
 NS_IMETHODIMP
-MmsMessage::GetReadReportRequested(bool* aReadReportRequested)
+MmsMessage::GetIsReadReportRequested(bool* aIsReadReportRequested)
 {
-  *aReadReportRequested = mReadReportRequested;
+  *aIsReadReportRequested = mIsReadReportRequested;
   return NS_OK;
 }
 

@@ -3,8 +3,8 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
+#include <windows.h>
 #include "nsNativeThemeWin.h"
-#include "mozilla/WindowsVersion.h"
 #include "nsRenderingContext.h"
 #include "nsRect.h"
 #include "nsSize.h"
@@ -24,6 +24,7 @@
 #include "nsWindow.h"
 #include "nsIComboboxControlFrame.h"
 #include "prinrval.h"
+#include "WinUtils.h"
 
 #include "gfxPlatform.h"
 #include "gfxContext.h"
@@ -36,7 +37,7 @@
 #include "nsUXThemeConstants.h"
 #include <algorithm>
 
-using mozilla::IsVistaOrLater;
+using namespace mozilla::widget;
 
 #ifdef PR_LOGGING
 extern PRLogModuleInfo* gWindowsLog;
@@ -349,7 +350,7 @@ AddPaddingRect(nsIntSize* aSize, CaptionButton button) {
   RECT offset;
   if (!IsAppThemed())
     offset = buttonData[CAPTION_CLASSIC].hotPadding[button];
-  else if (!IsVistaOrLater())
+  else if (WinUtils::GetWindowsVersion() < WinUtils::VISTA_VERSION)
     offset = buttonData[CAPTION_XPTHEME].hotPadding[button];
   else
     offset = buttonData[CAPTION_BASIC].hotPadding[button];
@@ -364,7 +365,7 @@ OffsetBackgroundRect(RECT& rect, CaptionButton button) {
   RECT offset;
   if (!IsAppThemed())
     offset = buttonData[CAPTION_CLASSIC].hotPadding[button];
-  else if (!IsVistaOrLater())
+  else if (WinUtils::GetWindowsVersion() < WinUtils::VISTA_VERSION)
     offset = buttonData[CAPTION_XPTHEME].hotPadding[button];
   else
     offset = buttonData[CAPTION_BASIC].hotPadding[button];
@@ -428,12 +429,12 @@ static int32_t
 GetProgressOverlayStyle(bool aIsVertical)
 { 
   if (aIsVertical) {
-    if (IsVistaOrLater()) {
+    if (WinUtils::GetWindowsVersion() >= WinUtils::VISTA_VERSION) {
       return PP_MOVEOVERLAYVERT;
     }
     return PP_CHUNKVERT;
   } else {
-    if (IsVistaOrLater()) {
+    if (WinUtils::GetWindowsVersion() >= WinUtils::VISTA_VERSION) {
       return PP_MOVEOVERLAY;
     }
     return PP_CHUNK;
@@ -448,7 +449,7 @@ GetProgressOverlayStyle(bool aIsVertical)
 static int32_t
 GetProgressOverlaySize(bool aIsVertical, bool aIsIndeterminate)
 {
-  if (IsVistaOrLater()) {
+  if (WinUtils::GetWindowsVersion() >= WinUtils::VISTA_VERSION) {
     if (aIsVertical) {
       return aIsIndeterminate ? kProgressVerticalIndeterminateOverlaySize
                               : kProgressVerticalOverlaySize;
@@ -656,7 +657,7 @@ nsNativeThemeWin::DrawThemedProgressMeter(nsIFrame* aFrame, int aWidgetType,
   RECT adjWidgetRect, adjClipRect;
   adjWidgetRect = *aWidgetRect;
   adjClipRect = *aClipRect;
-  if (!IsVistaOrLater()) {
+  if (WinUtils::GetWindowsVersion() < WinUtils::VISTA_VERSION) {
     // Adjust clipping out by one pixel. XP progress meters are inset,
     // Vista+ are not.
     InflateRect(&adjWidgetRect, 1, 1);
@@ -676,7 +677,7 @@ nsNativeThemeWin::DrawThemedProgressMeter(nsIFrame* aFrame, int aWidgetType,
   bool indeterminate = IsIndeterminateProgress(parentFrame, eventStates);
   bool animate = indeterminate;
 
-  if (IsVistaOrLater()) {
+  if (WinUtils::GetWindowsVersion() >= WinUtils::VISTA_VERSION) {
     // Vista and up progress meter is fill style, rendered here. We render
     // the pulse overlay in the follow up section below.
     DrawThemeBackground(aTheme, aHdc, aPart, aState,
@@ -697,7 +698,7 @@ nsNativeThemeWin::DrawThemedProgressMeter(nsIFrame* aFrame, int aWidgetType,
     RECT overlayRect =
       CalculateProgressOverlayRect(aFrame, &adjWidgetRect, vertical,
                                    indeterminate, false);
-    if (IsVistaOrLater()) {
+    if (WinUtils::GetWindowsVersion() >= WinUtils::VISTA_VERSION) {
       DrawThemeBackground(aTheme, aHdc, overlayPart, aState, &overlayRect,
                           &adjClipRect);
     } else {
@@ -715,7 +716,7 @@ nsNativeThemeWin::DrawThemedProgressMeter(nsIFrame* aFrame, int aWidgetType,
 HANDLE
 nsNativeThemeWin::GetTheme(uint8_t aWidgetType)
 { 
-  if (!IsVistaOrLater()) {
+  if (WinUtils::GetWindowsVersion() < WinUtils::VISTA_VERSION) {
     // On XP or earlier, render dropdowns as textfields;
     // doing it the right way works fine with the MS themes,
     // but breaks on a lot of custom themes (presumably because MS
@@ -735,7 +736,7 @@ nsNativeThemeWin::GetTheme(uint8_t aWidgetType)
       return nsUXThemeData::GetTheme(eUXEdit);
     case NS_THEME_TOOLTIP:
       // XP/2K3 should force a classic treatment of tooltips
-      return !IsVistaOrLater() ?
+      return WinUtils::GetWindowsVersion() < WinUtils::VISTA_VERSION ?
         nullptr : nsUXThemeData::GetTheme(eUXTooltip);
     case NS_THEME_TOOLBOX:
       return nsUXThemeData::GetTheme(eUXRebar);
@@ -863,7 +864,7 @@ nsresult
 nsNativeThemeWin::GetThemePartAndState(nsIFrame* aFrame, uint8_t aWidgetType, 
                                        int32_t& aPart, int32_t& aState)
 {
-  if (!IsVistaOrLater()) {
+  if (WinUtils::GetWindowsVersion() < WinUtils::VISTA_VERSION) {
     // See GetTheme
     if (aWidgetType == NS_THEME_DROPDOWN)
       aWidgetType = NS_THEME_TEXTFIELD;
@@ -940,7 +941,7 @@ nsNativeThemeWin::GetThemePartAndState(nsIFrame* aFrame, uint8_t aWidgetType,
     case NS_THEME_TEXTFIELD_MULTILINE: {
       nsEventStates eventState = GetContentState(aFrame, aWidgetType);
 
-      if (IsVistaOrLater()) {
+      if (WinUtils::GetWindowsVersion() >= WinUtils::VISTA_VERSION) {
         /* Note: the NOSCROLL type has a rounded corner in each
          * corner.  The more specific HSCROLL, VSCROLL, HVSCROLL types
          * have side and/or top/bottom edges rendered as straight
@@ -1010,10 +1011,10 @@ nsNativeThemeWin::GetThemePartAndState(nsIFrame* aFrame, uint8_t aWidgetType,
       nsEventStates eventStates = GetContentState(parentFrame, aWidgetType);
       if (aWidgetType == NS_THEME_PROGRESSBAR_CHUNK_VERTICAL ||
           IsVerticalProgress(parentFrame)) {
-        aPart = IsVistaOrLater() ?
+        aPart = WinUtils::GetWindowsVersion() >= WinUtils::VISTA_VERSION ?
           PP_FILLVERT : PP_CHUNKVERT;
       } else {
-        aPart = IsVistaOrLater() ?
+        aPart = WinUtils::GetWindowsVersion() >= WinUtils::VISTA_VERSION ?
           PP_FILL : PP_CHUNK;
       }
 
@@ -1077,7 +1078,7 @@ nsNativeThemeWin::GetThemePartAndState(nsIFrame* aFrame, uint8_t aWidgetType,
           aState += TS_ACTIVE;
         else if (eventState.HasState(NS_EVENT_STATE_HOVER))
           aState += TS_HOVER;
-        else if (IsVistaOrLater() &&
+        else if (WinUtils::GetWindowsVersion() >= WinUtils::VISTA_VERSION &&
                  parentState.HasState(NS_EVENT_STATE_HOVER))
           aState = (aWidgetType - NS_THEME_SCROLLBAR_BUTTON_UP) + SP_BUTTON_IMPLICIT_HOVER_BASE;
         else
@@ -1181,7 +1182,7 @@ nsNativeThemeWin::GetThemePartAndState(nsIFrame* aFrame, uint8_t aWidgetType,
     case NS_THEME_SCROLLBAR:
     case NS_THEME_SCROLLBAR_SMALL: {
       aState = 0;
-      if (IsVistaOrLater()) {
+      if (WinUtils::GetWindowsVersion() >= WinUtils::VISTA_VERSION) {
         // On vista, they have a part
         aPart = RP_BACKGROUND;
       } else {
@@ -1313,7 +1314,7 @@ nsNativeThemeWin::GetThemePartAndState(nsIFrame* aFrame, uint8_t aWidgetType,
         aFrame = parentFrame;
 
       nsEventStates eventState = GetContentState(aFrame, aWidgetType);
-      aPart = IsVistaOrLater() ?
+      aPart = WinUtils::GetWindowsVersion() >= WinUtils::VISTA_VERSION ?
         CBP_DROPMARKER_VISTA : CBP_DROPMARKER;
 
       // For HTML controls with author styling, we should fall
@@ -1334,7 +1335,7 @@ nsNativeThemeWin::GetThemePartAndState(nsIFrame* aFrame, uint8_t aWidgetType,
       else
         isOpen = IsOpenButton(aFrame);
 
-      if (IsVistaOrLater()) {
+      if (WinUtils::GetWindowsVersion() >= WinUtils::VISTA_VERSION) {
         if (isHTML || IsMenuListEditable(aFrame)) {
           if (isOpen) {
             /* Hover is propagated, but we need to know whether we're
@@ -1837,7 +1838,7 @@ RENDER_AGAIN:
 
         // On vista, choose our own colors and draw an XP style half focus rect
         // for focused checkboxes and a full rect when active.
-        if (IsVistaOrLater() &&
+        if (WinUtils::GetWindowsVersion() >= WinUtils::VISTA_VERSION &&
             aWidgetType == NS_THEME_CHECKBOX) {
           LOGBRUSH lb;
           lb.lbStyle = BS_SOLID;
@@ -2085,7 +2086,7 @@ nsNativeThemeWin::GetWidgetPadding(nsDeviceContext* aContext,
     return true;
   }
 
-  if (IsVistaOrLater()) {
+  if (WinUtils::GetWindowsVersion() >= WinUtils::VISTA_VERSION) {
     if (aWidgetType == NS_THEME_TEXTFIELD ||
         aWidgetType == NS_THEME_TEXTFIELD_MULTILINE ||
         aWidgetType == NS_THEME_DROPDOWN)
@@ -2178,7 +2179,7 @@ nsNativeThemeWin::GetWidgetOverflow(nsDeviceContext* aContext,
    * a border only shows up if the widget is being hovered.
    */
 #if 0
-  if (IsVistaOrLater()) {
+  if (WinUtils::GetWindowsVersion() >= WinUtils::VISTA_VERSION) {
     /* We explicitly draw dropdown buttons in HTML content 1px bigger
      * up, right, and bottom so that they overlap the dropdown's border
      * like they're supposed to.
@@ -2302,7 +2303,7 @@ nsNativeThemeWin::GetMinimumWidgetSize(nsRenderingContext* aContext, nsIFrame* a
       *aIsOverridable = false;
       // on Vista, GetThemePartAndState returns odd values for
       // scale thumbs, so use a hardcoded size instead.
-      if (IsVistaOrLater()) {
+      if (WinUtils::GetWindowsVersion() >= WinUtils::VISTA_VERSION) {
         if (aWidgetType == NS_THEME_SCALE_THUMB_HORIZONTAL ||
             (aWidgetType == NS_THEME_RANGE_THUMB && IsRangeHorizontal(aFrame))) {
           aResult->width = 12;
@@ -2352,7 +2353,7 @@ nsNativeThemeWin::GetMinimumWidgetSize(nsRenderingContext* aContext, nsIFrame* a
       aResult->width = nsUXThemeData::sCommandButtons[CMDBUTTONIDX_RESTORE].cx;
       aResult->height = nsUXThemeData::sCommandButtons[CMDBUTTONIDX_RESTORE].cy;
       // For XP, subtract 4 from system metrics dimensions.
-      if (!IsVistaOrLater()) {
+      if (WinUtils::GetWindowsVersion() == WinUtils::WINXP_VERSION) {
         aResult->width -= 4;
         aResult->height -= 4;
       }
@@ -2363,7 +2364,7 @@ nsNativeThemeWin::GetMinimumWidgetSize(nsRenderingContext* aContext, nsIFrame* a
     case NS_THEME_WINDOW_BUTTON_MINIMIZE:
       aResult->width = nsUXThemeData::sCommandButtons[CMDBUTTONIDX_MINIMIZE].cx;
       aResult->height = nsUXThemeData::sCommandButtons[CMDBUTTONIDX_MINIMIZE].cy;
-      if (!IsVistaOrLater()) {
+      if (WinUtils::GetWindowsVersion() == WinUtils::WINXP_VERSION) {
         aResult->width -= 4;
         aResult->height -= 4;
       }
@@ -2374,7 +2375,7 @@ nsNativeThemeWin::GetMinimumWidgetSize(nsRenderingContext* aContext, nsIFrame* a
     case NS_THEME_WINDOW_BUTTON_CLOSE:
       aResult->width = nsUXThemeData::sCommandButtons[CMDBUTTONIDX_CLOSE].cx;
       aResult->height = nsUXThemeData::sCommandButtons[CMDBUTTONIDX_CLOSE].cy;
-      if (!IsVistaOrLater()) {
+      if (WinUtils::GetWindowsVersion() == WinUtils::WINXP_VERSION) {
         aResult->width -= 4;
         aResult->height -= 4;
       }
@@ -2487,7 +2488,7 @@ nsNativeThemeWin::WidgetStateChanged(nsIFrame* aFrame, uint8_t aWidgetType,
   }
 
   // On Vista, the scrollbar buttons need to change state when the track has/doesn't have hover
-  if (!IsVistaOrLater() &&
+  if (WinUtils::GetWindowsVersion() < WinUtils::VISTA_VERSION &&
       (aWidgetType == NS_THEME_SCROLLBAR_TRACK_VERTICAL || 
       aWidgetType == NS_THEME_SCROLLBAR_TRACK_HORIZONTAL)) {
     *aShouldRepaint = false;
@@ -2496,7 +2497,7 @@ nsNativeThemeWin::WidgetStateChanged(nsIFrame* aFrame, uint8_t aWidgetType,
 
   // We need to repaint the dropdown arrow in vista HTML combobox controls when
   // the control is closed to get rid of the hover effect.
-  if (IsVistaOrLater() &&
+  if (WinUtils::GetWindowsVersion() >= WinUtils::VISTA_VERSION &&
       (aWidgetType == NS_THEME_DROPDOWN || aWidgetType == NS_THEME_DROPDOWN_BUTTON) &&
       IsHTMLContent(aFrame))
   {
