@@ -63,8 +63,6 @@ public:
                 nsIPrincipal* aLoadingPrincipal,
                 int32_t aCORSMode);
 
-  void ClearLoader();
-
   // Callers must call imgRequestProxy::Notify later.
   void AddProxy(imgRequestProxy *proxy);
 
@@ -191,8 +189,6 @@ private:
 
   bool IsBlockingOnload() const;
   void SetBlockingOnload(bool block) const;
-
-  bool HasConsumers();
 
 public:
   NS_DECL_NSISTREAMLISTENER

@@ -110,7 +110,6 @@ LayerManagerComposite::LayerManagerComposite(Compositor* aCompositor)
 , mIsCompositorReady(false)
 , mDebugOverlayWantsNextFrame(false)
 , mGeometryChanged(true)
-, mLastFrameMissedHWC(false)
 {
   mTextRenderer = new TextRenderer(aCompositor);
   MOZ_ASSERT(aCompositor);
@@ -611,10 +610,7 @@ LayerManagerComposite::Render()
     mCompositor->EndFrameForExternalComposition(mWorldMatrix);
     // Reset the invalid region as compositing is done
     mInvalidRegion.SetEmpty();
-    mLastFrameMissedHWC = false;
     return;
-  } else if (!mTarget) {
-    mLastFrameMissedHWC = !!composer2D;
   }
 
   {

@@ -1075,11 +1075,8 @@ gfxPlatform::UseGraphiteShaping()
 }
 
 gfxFontEntry*
-gfxPlatform::MakePlatformFont(const nsAString& aFontName,
-                              uint16_t aWeight,
-                              int16_t aStretch,
-                              bool aItalic,
-                              const uint8_t* aFontData,
+gfxPlatform::MakePlatformFont(const gfxProxyFontEntry *aProxyEntry,
+                              const uint8_t *aFontData,
                               uint32_t aLength)
 {
     // Default implementation does not handle activating downloaded fonts;

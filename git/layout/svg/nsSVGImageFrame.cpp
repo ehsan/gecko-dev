@@ -63,8 +63,8 @@ public:
 
   // nsISVGChildFrame interface:
   virtual nsresult PaintSVG(nsRenderingContext *aContext,
-                            const gfxMatrix& aTransform,
-                            const nsIntRect* aDirtyRect = nullptr) MOZ_OVERRIDE;
+                            const nsIntRect *aDirtyRect,
+                            nsIFrame* aTransformRoot) MOZ_OVERRIDE;
   virtual nsIFrame* GetFrameForPoint(const gfxPoint& aPoint) MOZ_OVERRIDE;
   virtual void ReflowSVG() MOZ_OVERRIDE;
 
@@ -100,10 +100,13 @@ public:
 
 private:
   gfx::Matrix GetRasterImageTransform(int32_t aNativeWidth,
-                                      int32_t aNativeHeight);
-  gfx::Matrix GetVectorImageTransform();
+                                      int32_t aNativeHeight,
+                                      uint32_t aFor,
+                                      nsIFrame* aTransformRoot = nullptr);
+  gfx::Matrix GetVectorImageTransform(uint32_t aFor,
+                                      nsIFrame* aTransformRoot = nullptr);
   bool TransformContextForPainting(gfxContext* aGfxContext,
-                                   const gfxMatrix& aTransform);
+                                   nsIFrame* aTransformRoot);
 
   nsCOMPtr<imgINotificationObserver> mListener;
 
@@ -227,7 +230,9 @@ nsSVGImageFrame::AttributeChanged(int32_t         aNameSpaceID,
 
 gfx::Matrix
 nsSVGImageFrame::GetRasterImageTransform(int32_t aNativeWidth,
-                                         int32_t aNativeHeight)
+                                         int32_t aNativeHeight,
+                                         uint32_t aFor,
+                                         nsIFrame* aTransformRoot)
 {
   float x, y, width, height;
   SVGImageElement *element = static_cast<SVGImageElement*>(mContent);
@@ -238,11 +243,14 @@ nsSVGImageFrame::GetRasterImageTransform(int32_t aNativeWidth,
                                          0, 0, aNativeWidth, aNativeHeight,
                                          element->mPreserveAspectRatio);
 
-  return viewBoxTM * gfx::Matrix::Translation(x, y);
+  return viewBoxTM *
+         gfx::Matrix::Translation(x, y) *
+         gfx::ToMatrix(GetCanvasTM(aFor, aTransformRoot));
 }
 
 gfx::Matrix
-nsSVGImageFrame::GetVectorImageTransform()
+nsSVGImageFrame::GetVectorImageTransform(uint32_t aFor,
+                                         nsIFrame* aTransformRoot)
 {
   float x, y, width, height;
   SVGImageElement *element = static_cast<SVGImageElement*>(mContent);
@@ -252,16 +260,17 @@ nsSVGImageFrame::GetVectorImageTransform()
   // "native size" that the SVG image has, and it will handle viewBox and
   // preserveAspectRatio on its own once we give it a region to draw into.
 
-  return gfx::Matrix::Translation(x, y);
+  return gfx::Matrix::Translation(x, y) *
+         gfx::ToMatrix(GetCanvasTM(aFor, aTransformRoot));
 }
 
 bool
 nsSVGImageFrame::TransformContextForPainting(gfxContext* aGfxContext,
-                                             const gfxMatrix& aTransform)
+                                             nsIFrame* aTransformRoot)
 {
   gfx::Matrix imageTransform;
   if (mImageContainer->GetType() == imgIContainer::TYPE_VECTOR) {
-    imageTransform = GetVectorImageTransform() * ToMatrix(aTransform);
+    imageTransform = GetVectorImageTransform(FOR_PAINTING, aTransformRoot);
   } else {
     int32_t nativeWidth, nativeHeight;
     if (NS_FAILED(mImageContainer->GetWidth(&nativeWidth)) ||
@@ -270,7 +279,8 @@ nsSVGImageFrame::TransformContextForPainting(gfxContext* aGfxContext,
       return false;
     }
     imageTransform =
-      GetRasterImageTransform(nativeWidth, nativeHeight) * ToMatrix(aTransform);
+      GetRasterImageTransform(nativeWidth, nativeHeight, FOR_PAINTING,
+                              aTransformRoot);
 
     // NOTE: We need to cancel out the effects of Full-Page-Zoom, or else
     // it'll get applied an extra time by DrawSingleUnscaledImage.
@@ -292,8 +302,8 @@ nsSVGImageFrame::TransformContextForPainting(gfxContext* aGfxContext,
 // nsISVGChildFrame methods:
 nsresult
 nsSVGImageFrame::PaintSVG(nsRenderingContext *aContext,
-                          const gfxMatrix& aTransform,
-                          const nsIntRect *aDirtyRect)
+                          const nsIntRect *aDirtyRect,
+                          nsIFrame* aTransformRoot)
 {
   nsresult rv = NS_OK;
 
@@ -324,10 +334,11 @@ nsSVGImageFrame::PaintSVG(nsRenderingContext *aContext,
     if (StyleDisplay()->IsScrollableOverflow()) {
       gfxRect clipRect = nsSVGUtils::GetClipRectForFrame(this, x, y,
                                                          width, height);
-      nsSVGUtils::SetClipRect(ctx, aTransform, clipRect);
+      nsSVGUtils::SetClipRect(ctx, GetCanvasTM(FOR_PAINTING, aTransformRoot),
+                              clipRect);
     }
 
-    if (!TransformContextForPainting(ctx, aTransform)) {
+    if (!TransformContextForPainting(ctx, aTransformRoot)) {
       return NS_ERROR_FAILURE;
     }
 
@@ -352,8 +363,8 @@ nsSVGImageFrame::PaintSVG(nsRenderingContext *aContext,
       dirtyRect = aDirtyRect->ToAppUnits(appUnitsPerDevPx);
       // Adjust dirtyRect to match our local coordinate system.
       nsRect rootRect =
-        nsSVGUtils::TransformFrameRectToOuterSVG(mRect, aTransform,
-                                                 PresContext());
+        nsSVGUtils::TransformFrameRectToOuterSVG(mRect,
+                      GetCanvasTM(FOR_PAINTING), PresContext());
       dirtyRect.MoveBy(-rootRect.TopLeft());
     }
 

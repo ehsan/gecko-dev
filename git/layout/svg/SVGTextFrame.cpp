@@ -3134,21 +3134,14 @@ nsDisplaySVGText::Paint(nsDisplayListBuilder* aBuilder,
   gfxContextAutoDisableSubpixelAntialiasing
     disable(aCtx->ThebesContext(), mDisableSubpixelAA);
 
-  uint32_t appUnitsPerDevPixel = mFrame->PresContext()->AppUnitsPerDevPixel();
-
   // ToReferenceFrame includes our mRect offset, but painting takes
   // account of that too. To avoid double counting, we subtract that
   // here.
   nsPoint offset = ToReferenceFrame() - mFrame->GetPosition();
 
-  gfxPoint devPixelOffset =
-    nsLayoutUtils::PointToGfxPoint(offset, appUnitsPerDevPixel);
-
-  gfxMatrix tm = nsSVGIntegrationUtils::GetCSSPxToDevPxMatrix(mFrame) *
-                   gfxMatrix::Translation(devPixelOffset);
-
   aCtx->PushState();
-  static_cast<SVGTextFrame*>(mFrame)->PaintSVG(aCtx, tm);
+  aCtx->Translate(offset);
+  static_cast<SVGTextFrame*>(mFrame)->PaintSVG(aCtx, nullptr);
   aCtx->PopState();
 }
 
@@ -3388,37 +3381,30 @@ SVGTextFrame::MutationObserver::AttributeChanged(
     return;
   }
 
-  // Attribute changes on this element will be handled by
+  // Attribute changes on this element are handled in
   // SVGTextFrame::AttributeChanged.
   if (aElement == mFrame->GetContent()) {
     return;
   }
 
-  mFrame->HandleAttributeChangeInDescendant(aElement, aNameSpaceID, aAttribute);
-}
-
-void
-SVGTextFrame::HandleAttributeChangeInDescendant(Element* aElement,
-                                                int32_t aNameSpaceID,
-                                                nsIAtom* aAttribute)
-{
+  // Attributes changes on descendent elements.
   if (aElement->Tag() == nsGkAtoms::textPath) {
     if (aNameSpaceID == kNameSpaceID_None &&
         aAttribute == nsGkAtoms::startOffset) {
-      NotifyGlyphMetricsChange();
+      mFrame->NotifyGlyphMetricsChange();
     } else if (aNameSpaceID == kNameSpaceID_XLink &&
                aAttribute == nsGkAtoms::href) {
       // Blow away our reference, if any
       nsIFrame* childElementFrame = aElement->GetPrimaryFrame();
       if (childElementFrame) {
         childElementFrame->Properties().Delete(nsSVGEffects::HrefProperty());
-        NotifyGlyphMetricsChange();
+        mFrame->NotifyGlyphMetricsChange();
       }
     }
   } else {
     if (aNameSpaceID == kNameSpaceID_None &&
         IsGlyphPositioningAttribute(aAttribute)) {
-      NotifyGlyphMetricsChange();
+      mFrame->NotifyGlyphMetricsChange();
     }
   }
 }
@@ -3579,8 +3565,8 @@ ShouldPaintCaret(const TextRenderedRun& aThisRun, nsCaret* aCaret)
 
 nsresult
 SVGTextFrame::PaintSVG(nsRenderingContext* aContext,
-                       const gfxMatrix& aTransform,
-                       const nsIntRect *aDirtyRect)
+                       const nsIntRect *aDirtyRect,
+                       nsIFrame* aTransformRoot)
 {
   nsIFrame* kid = GetFirstPrincipalChild();
   if (!kid)
@@ -3610,12 +3596,13 @@ SVGTextFrame::PaintSVG(nsRenderingContext* aContext,
     return NS_OK;
   }
 
-  if (aTransform.IsSingular()) {
+  gfxMatrix canvasTM = GetCanvasTM(FOR_PAINTING, aTransformRoot);
+  if (canvasTM.IsSingular()) {
     NS_WARNING("Can't render text element!");
     return NS_ERROR_FAILURE;
   }
 
-  gfxMatrix matrixForPaintServers = aTransform * initialMatrix;
+  gfxMatrix matrixForPaintServers = canvasTM * initialMatrix;
 
   // Check if we need to draw anything.
   if (aDirtyRect) {
@@ -3638,12 +3625,12 @@ SVGTextFrame::PaintSVG(nsRenderingContext* aContext,
     }
   }
 
-  // SVG frames' PaintSVG methods paint in CSS px, but normally frames paint in
-  // dev pixels. Here we multiply a CSS-px-to-dev-pixel factor onto aTransform
-  // so our non-SVG nsTextFrame children paint correctly.
+  // SVG paints in CSS px, but normally frames paint in dev pixels. Here we
+  // multiply a CSS-px-to-dev-pixel factor onto canvasTM so our children paint
+  // correctly.
   float cssPxPerDevPx = presContext->
     AppUnitsToFloatCSSPixels(presContext->AppUnitsPerDevPixel());
-  gfxMatrix canvasTMForChildren = aTransform;
+  gfxMatrix canvasTMForChildren = canvasTM;
   canvasTMForChildren.Scale(cssPxPerDevPx, cssPxPerDevPx);
   initialMatrix.Scale(1 / cssPxPerDevPx, 1 / cssPxPerDevPx);
 
@@ -3669,7 +3656,7 @@ SVGTextFrame::PaintSVG(nsRenderingContext* aContext,
     // when they use context-fill etc.
     gfx->SetMatrix(initialMatrix);
     gfxTextContextPaint *outerContextPaint =
-      (gfxTextContextPaint*)aContext->GetDrawTarget()->GetUserData(&gfxTextContextPaint::sUserDataKey);
+      (gfxTextContextPaint*)aContext->GetUserData(&gfxTextContextPaint::sUserDataKey);
 
     nsAutoPtr<gfxTextContextPaint> contextPaint;
     DrawMode drawMode =

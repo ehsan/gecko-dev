@@ -398,9 +398,6 @@ public:
                        const JS::RuntimeOptions& aRuntimeOptions);
 
   void
-  UpdateLanguages(JSContext* aCx, const nsTArray<nsString>& aLanguages);
-
-  void
   UpdatePreference(JSContext* aCx, WorkerPreference aPref, bool aValue);
 
   void
@@ -937,9 +934,6 @@ public:
 
   void
   UpdateRuntimeOptionsInternal(JSContext* aCx, const JS::RuntimeOptions& aRuntimeOptions);
-
-  void
-  UpdateLanguagesInternal(JSContext* aCx, const nsTArray<nsString>& aLanguages);
 
   void
   UpdatePreferenceInternal(JSContext* aCx, WorkerPreference aPref, bool aValue);

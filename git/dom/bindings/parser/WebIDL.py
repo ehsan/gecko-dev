@@ -3474,9 +3474,6 @@ class IDLArgument(IDLObjectWithIdentifier):
             deps.add(self.defaultValue)
         return deps
 
-    def canHaveMissingValue(self):
-        return self.optional and not self.defaultValue
-
 class IDLCallbackType(IDLType, IDLObjectWithScope):
     def __init__(self, location, parentScope, identifier, returnType, arguments):
         assert isinstance(returnType, IDLType)
@@ -4144,8 +4141,8 @@ class Tokenizer(object):
         "long": "LONG",
         "object": "OBJECT",
         "octet": "OCTET",
+        "optional": "OPTIONAL",
         "Promise": "PROMISE",
-        "required": "REQUIRED",
         "sequence": "SEQUENCE",
         "MozMap": "MOZMAP",
         "short": "SHORT",
@@ -4430,21 +4427,15 @@ class Parser(Tokenizer):
 
     def p_DictionaryMember(self, p):
         """
-            DictionaryMember : Required Type IDENTIFIER Default SEMICOLON
+            DictionaryMember : Type IDENTIFIER Default SEMICOLON
         """
         # These quack a lot like optional arguments, so just treat them that way.
-        t = p[2]
+        t = p[1]
         assert isinstance(t, IDLType)
-        identifier = IDLUnresolvedIdentifier(self.getLocation(p, 3), p[3])
-        defaultValue = p[4]
-        optional = not p[1]
+        identifier = IDLUnresolvedIdentifier(self.getLocation(p, 2), p[2])
+        defaultValue = p[3]
 
-        if not optional and defaultValue:
-            raise WebIDLError("Required dictionary members can't have a default value.",
-                              [self.getLocation(p, 4)])
-
-        p[0] = IDLArgument(self.getLocation(p, 3), identifier, t,
-                           optional=optional,
+        p[0] = IDLArgument(self.getLocation(p, 2), identifier, t, optional=True,
                            defaultValue=defaultValue, variadic=False,
                            dictionaryMember=True)
 
@@ -4642,7 +4633,7 @@ class Parser(Tokenizer):
 
     def p_AttributeRest(self, p):
         """
-            AttributeRest : ReadOnly ATTRIBUTE Type AttributeName SEMICOLON
+            AttributeRest : ReadOnly ATTRIBUTE Type IDENTIFIER SEMICOLON
         """
         location = self.getLocation(p, 2)
         readonly = p[1]
@@ -4971,7 +4962,6 @@ class Parser(Tokenizer):
                          | INTERFACE
                          | LEGACYCALLER
                          | PARTIAL
-                         | REQUIRED
                          | SERIALIZER
                          | SETTER
                          | STATIC
@@ -4979,13 +4969,6 @@ class Parser(Tokenizer):
                          | JSONIFIER
                          | TYPEDEF
                          | UNRESTRICTED
-        """
-        p[0] = p[1]
-
-    def p_AttributeName(self, p):
-        """
-            AttributeName : IDENTIFIER
-                          | REQUIRED
         """
         p[0] = p[1]
 
@@ -4998,18 +4981,6 @@ class Parser(Tokenizer):
     def p_OptionalEmpty(self, p):
         """
             Optional :
-        """
-        p[0] = False
-
-    def p_Required(self, p):
-        """
-            Required : REQUIRED
-        """
-        p[0] = True
-
-    def p_RequiredEmpty(self, p):
-        """
-            Required :
         """
         p[0] = False
 

@@ -7,8 +7,6 @@
 
 #include "vm/SavedStacks.h"
 
-#include "mozilla/Attributes.h"
-
 #include "jsapi.h"
 #include "jscompartment.h"
 #include "jsfriendapi.h"
@@ -78,7 +76,7 @@ class SavedFrame::AutoLookupRooter : public JS::CustomAutoRooter
 class SavedFrame::HandleLookup
 {
   public:
-    MOZ_IMPLICIT HandleLookup(SavedFrame::AutoLookupRooter &lookup) : ref(lookup) { }
+    HandleLookup(SavedFrame::AutoLookupRooter &lookup) : ref(lookup) { }
     SavedFrame::Lookup *operator->() { return &ref.get(); }
     operator const SavedFrame::Lookup&() const { return ref; }
   private:

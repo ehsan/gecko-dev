@@ -161,7 +161,6 @@ int32_t VideoSender::RegisterSendCodec(const VideoCodec* sendCodec,
                             sendCodec->startBitrate * 1000,
                             sendCodec->width,
                             sendCodec->height,
-                            sendCodec->resolution_divisor,
                             numLayers,
                             maxPayloadSize);
   return VCM_OK;

@@ -18,7 +18,6 @@
 #include "nsCOMPtr.h"
 #include "nsISupportsPrimitives.h"
 #include "nsReadableUtils.h"
-#include "nsDOMJSUtils.h"
 #include "nsJSUtils.h"
 #include "nsIDocShell.h"
 #include "nsIDocShellTreeItem.h"
@@ -565,13 +564,7 @@ NS_ScriptErrorReporter(JSContext *cx,
   ::JS_ClearPendingException(cx);
 
   MOZ_ASSERT(cx == nsContentUtils::GetCurrentJSContext());
-  nsCOMPtr<nsIGlobalObject> globalObject;
-  if (nsIScriptContext* scx = GetScriptContextFromJSContext(cx)) {
-    nsCOMPtr<nsPIDOMWindow> outer = do_QueryInterface(scx->GetGlobalObject());
-    if (outer) {
-      globalObject = static_cast<nsGlobalWindow*>(outer->GetCurrentInnerWindow());
-    }
-  }
+  nsCOMPtr<nsIGlobalObject> globalObject = GetEntryGlobal();
   if (globalObject) {
 
     nsCOMPtr<nsPIDOMWindow> win = do_QueryInterface(globalObject);

@@ -205,7 +205,7 @@ class LSimdSignMaskX4 : public LInstructionHelper<1, 1, 0>
   public:
     LIR_HEADER(SimdSignMaskX4);
 
-    explicit LSimdSignMaskX4(const LAllocation &input) {
+    LSimdSignMaskX4(const LAllocation &input) {
         setOperand(0, input);
     }
 };
@@ -2794,7 +2794,7 @@ class LClzI : public LInstructionHelper<1, 1, 0>
 {
   public:
     LIR_HEADER(ClzI)
-    explicit LClzI(const LAllocation &num) {
+    LClzI(const LAllocation &num) {
         setOperand(0, num);
     }
 
