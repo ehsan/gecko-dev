@@ -63,7 +63,6 @@ Cu.import("resource://weave/stores.js");
 Cu.import("resource://weave/trackers.js");
 Cu.import("resource://weave/identity.js");
 Cu.import("resource://weave/xmpp/xmppClient.js");
-Cu.import("resource://weave/notifications.js");
 
 Function.prototype.async = Async.sugar;
 
@@ -83,7 +82,7 @@ BookmarksSharingManager.prototype = {
     this._engine = engine;
     this._log = Log4Moz.Service.getLogger("Bookmark Share");
     if ( Utils.prefs.getBoolPref( "xmpp.enabled" ) ) {
-      this._log.info( "Starting XMPP client for bookmark engine..." );
+      dump( "Starting XMPP client for bookmark engine..." );
       this._startXmppClient.async(this);
     }
   },
@@ -96,7 +95,7 @@ BookmarksSharingManager.prototype = {
     let serverUrl = Utils.prefs.getCharPref( "xmpp.server.url" );
     let realm = Utils.prefs.getCharPref( "xmpp.server.realm" );
 
-    /* Username/password for XMPP are the same as the ones for Weave,
+    /* Username/password for XMPP are the same; as the ones for Weave,
         so read them from the weave identity: */
     let clientName = ID.get('WeaveID').username;
     let clientPassword = ID.get('WeaveID').password;
@@ -162,7 +161,7 @@ BookmarksSharingManager.prototype = {
     this._log.info("User " + user + " offered to share folder " + folderName);
 
     let bmkSharing = this;
-    let acceptButton = new NotificationButton(
+    let acceptButton = new Weave.NotificationButton(
       "Accept Share",
       "a",
       function() {
@@ -173,7 +172,7 @@ BookmarksSharingManager.prototype = {
 	return false;
       }
     );
-    let rejectButton = new NotificationButton(
+    let rejectButton = new Weave.NotificationButton(
       "No Thanks",
       "n",
       function() {return false;}
@@ -183,13 +182,13 @@ BookmarksSharingManager.prototype = {
     let description ="Weave user " + user +
       " is offering to share a bookmark folder called " + folderName +
       " with you. Do you want to accept it?";
-    let notification = new Notification(title,
-				        description,
-                                        null,
-                                        Notifications.PRIORITY_INFO,
-                                        [acceptButton, rejectButton]
-                                       );
-    Notifications.add(notification);
+    let notification = Weave.Notification(title,
+					  description,
+					  null,
+					  Weave.Notifications.PRIORITY_INFO,
+					  [acceptButton, rejectButton]
+					 );
+    Weave.Notifications.add(notification);
   },
 
   _share: function BmkSharing__share( selectedFolder, username ) {
@@ -238,10 +237,8 @@ BookmarksSharingManager.prototype = {
 
   _stopSharing: function BmkSharing__stopSharing( selectedFolder, username ) {
     let self = yield;
-    // TODO FIXME the next line says getAttribute is not a function...
     let folderName = selectedFolder.getAttribute( "label" );
-    let folderNode = selectedFolder.node;
-    let serverPath = this._annoSvc.getItemAnnotation(folderNode.itemId,
+    let serverPath = this._annoSvc.getItemAnnotation(folderNode,
                                                      SERVER_PATH_ANNO);
 
     /* LONGTERM TODO: when we move to being able to share one folder with
@@ -330,7 +327,7 @@ BookmarksSharingManager.prototype = {
     let folderGuid = Utils.makeGUID();
 
     /* Create the directory on the server if it does not exist already. */
-    let serverPath = "/0.2/user/" + myUserName + "/share/" + folderGuid;
+    let serverPath = "/user/" + myUserName + "/share/" + folderGuid;
     DAV.MKCOL(serverPath, self.cb);
     let ret = yield;
     if (!ret) {
@@ -362,8 +359,8 @@ BookmarksSharingManager.prototype = {
 
     /* Get public keys for me and the user I'm sharing with.
        Each user's public key is stored in /user/username/public/pubkey. */
-    let idRSA = ID.get('WeaveCryptoID'); // TODO Can get error "Resource not defined"
-    let userPubKeyFile = new Resource("/0.2/user/" + username + "/public/pubkey");
+    let idRSA = ID.get('WeaveCryptoID');
+    let userPubKeyFile = new Resource("/user/" + username + "/public/pubkey");
     userPubKeyFile.get(self.cb);
     let userPubKey = yield;
 
@@ -450,7 +447,6 @@ BookmarksSharingManager.prototype = {
                                                     OUTGOING_SHARED_ANNO );
 
     // Delete the share from the server:
-    // TODO handle error that can happen if these resources do not exist.
     let keyringFile = new Resource(serverPath + "/" + KEYRING_FILE_NAME);
     keyringFile.delete(self.cb);
     yield;
@@ -667,21 +663,8 @@ BookmarksEngine.prototype = {
     this._sharing.updateAllIncomingShares(self.cb);
     yield;
     self.done();
-  },
-
-  _share: function BmkEngine__share(guid, username) {
-    let self = yield;
-    this._sharing.share.async( this._sharing, self.cb, guid, username);
-    yield;
-    self.done(true);
-  },
-
-  _stopSharing: function BmkEngine__stopSharing(guid, username) {
-    let self = yield;
-    this._sharing._stopSharing.async( this._sharing, self.cb, guid, username);
-    yield;
-    self.done();
   }
+
 };
 BookmarksEngine.prototype.__proto__ = new Engine();
 
@@ -1122,12 +1105,11 @@ BookmarksStore.prototype = {
         node.containerOpen = true;
 	// If folder is an outgoing share, wrap its annotations:
 	if (this._ans.itemHasAnnotation(node.itemId, OUTGOING_SHARED_ANNO)) {
+
 	  item.serverPathAnno = this._ans.getItemAnnotation(node.itemId,
                                                       SERVER_PATH_ANNO);
 	  item.outgoingSharedAnno = this._ans.getItemAnnotation(node.itemId,
                                                       OUTGOING_SHARED_ANNO);
-	  // TODO this can throw an error if SERVER_PATH_ANNO doesn't exist
-	  // (which it always should)
 	}
 
         for (var i = 0; i < node.childCount; i++) {
