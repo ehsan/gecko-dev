@@ -225,16 +225,18 @@ SyncEngine.prototype = {
       return null;
     if (url[url.length-1] != '/')
       url += '/';
-    url += "0.3/user/";
+    url += "0.5/";
     return url;
   },
 
   get engineURL() {
-    return this.baseURL + ID.get('WeaveID').username + '/' + this.name + '/';
+    return this.baseURL + ID.get('WeaveID').username +
+      '/storage/' + this.name + '/';
   },
 
   get cryptoMetaURL() {
-    return this.baseURL + ID.get('WeaveID').username + '/crypto/' + this.name;
+    return this.baseURL + ID.get('WeaveID').username +
+      '/storage/crypto/' + this.name;
   },
 
   get lastSync() {
@@ -283,9 +285,7 @@ SyncEngine.prototype = {
       meta.generateIV();
       meta.addUnwrappedKey(pubkey, symkey);
       let res = new Resource(meta.uri);
-      let resp = res.put(meta.serialize());
-      if (!resp.success)
-        throw resp;
+      res.put(meta.serialize());
 
       // Cache the cryto meta that we just put on the server
       CryptoMetas.set(meta.uri, meta);
@@ -343,9 +343,7 @@ SyncEngine.prototype = {
       Sync.sleep(0);
     });
 
-    let resp = newitems.get();
-    if (!resp.success)
-      throw resp;
+    newitems.get();
 
     if (this.lastSync < this._lastSyncTmp)
         this.lastSync = this._lastSyncTmp;
@@ -466,10 +464,7 @@ SyncEngine.prototype = {
       // Upload what we've got so far in the collection
       let doUpload = Utils.bind2(this, function(desc) {
         this._log.info("Uploading " + desc + " of " + outnum + " records");
-        let resp = up.post();
-        if (!resp.success)
-          throw resp;
-
+        up.post();
         if (up.data.modified > this.lastSync)
           this.lastSync = up.data.modified;
         up.clearRecords();

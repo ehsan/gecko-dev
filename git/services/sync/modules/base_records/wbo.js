@@ -131,17 +131,12 @@ RecordManager.prototype = {
   import: function RecordMgr_import(url) {
     this._log.trace("Importing record: " + (url.spec ? url.spec : url));
     try {
-      // Clear out the last response with empty object if GET fails
-      this.response = {};
-      this.response = new Resource(url).get();
-
-      // Don't parse and save the record on failure
-      if (!this.response.success)
-        return null;
+      this.lastResource = new Resource(url);
+      this.lastResource.get();
 
       let record = new this._recordType();
-      record.deserialize(this.response);
-      record.uri = url;
+      record.deserialize(this.lastResource.data);
+      record.uri = url; // NOTE: may override id in this.lastResource.data
 
       return this.set(url, record);
     }

@@ -207,7 +207,6 @@ WeaveSvc.prototype = {
       throw "No server URL set";
     if (url[url.length-1] != '/')
       url += '/';
-    url += "0.3/";
     return url;
   },
   set baseURL(value) {
@@ -220,7 +219,7 @@ WeaveSvc.prototype = {
       return null;
     if (url[url.length-1] != '/')
       url += '/';
-    url += "0.3/user/";
+    url += "0.5/";
     return url;
   },
   set clusterURL(value) {
@@ -262,8 +261,8 @@ WeaveSvc.prototype = {
 
   _genKeyURLs: function WeaveSvc__genKeyURLs() {
     let url = this.clusterURL + this.username;
-    PubKeys.defaultKeyUri = url + "/keys/pubkey";
-    PrivKeys.defaultKeyUri = url + "/keys/privkey";
+    PubKeys.defaultKeyUri = url + "/storage/keys/pubkey";
+    PrivKeys.defaultKeyUri = url + "/storage/keys/privkey";
   },
 
   _checkCrypto: function WeaveSvc__checkCrypto() {
@@ -458,18 +457,21 @@ WeaveSvc.prototype = {
   findCluster: function WeaveSvc_findCluster(username) {
     this._log.debug("Finding cluster for user " + username);
 
-    let res = new Resource(this.baseURL + "api/register/chknode/" + username);
+    let res = new Resource(this.baseURL + "user/1/" +
+      username + '/node/weave');
     try {
-      let node = res.get();
-      switch (node.status) {
+      res.get();
+    } catch(ex) {}
+    
+    try {
+      switch (res.lastChannel.responseStatus) {
         case 404:
           this._log.debug("Using serverURL as data cluster (multi-cluster support disabled)");
           return Svc.Prefs.get("serverURL");
-        case 0:
         case 200:
-          return "https://" + node + "/";
+          return "https://" + res.data + "/";
         default:
-          this._log.debug("Unexpected response code: " + node.status);
+          this._log.debug("Unexpected response code trying to find cluster: " + res.lastChannel.responseStatus);
           break;
       }
     } catch (e) {
@@ -517,11 +519,8 @@ WeaveSvc.prototype = {
       if (isLogin)
         this.clusterURL = url;
 
-      if (url[url.length-1] != '/')
-        url += '/';
-      url += "0.3/user/";
-
-      let res = new Resource(url + username);
+      let res = new Resource(this.clusterURL + username + 
+        '/info/collections');
       res.authenticator = {
         onRequest: function(headers) {
           headers['Authorization'] = 'Basic ' + btoa(username + ':' + password);
@@ -531,8 +530,11 @@ WeaveSvc.prototype = {
 
       // login may fail because of cluster change
       try {
-        let test = res.get();
-        switch (test.status) {
+        res.get();
+      } catch (e) {}
+
+      try {
+        switch (res.lastChannel.responseStatus) {
           case 200:
             if (passphrase && !this.verifyPassphrase(username, password, passphrase)) {
               this._setSyncFailure(LOGIN_FAILED_INVALID_PASSPHRASE);
@@ -547,7 +549,7 @@ WeaveSvc.prototype = {
             this._log.debug("verifyLogin failed: login failed")
             return false;
           default:
-            throw "unexpected HTTP response: " + test.status;
+            throw "unexpected HTTP response: " + res.lastChannel.responseStatus;
         }
       } catch (e) {
         // if we get here, we have either a busted channel or a network error
@@ -590,10 +592,7 @@ WeaveSvc.prototype = {
           privkey.payload.iv, newphrase);
       privkey.payload.keyData = newkey;
 
-      let resp = new Resource(privkey.uri).put(privkey.serialize());
-      if (!resp.success)
-        throw resp;
-
+      new Resource(privkey.uri).put(privkey.serialize());
       this.passphrase = newphrase;
 
       return true;
@@ -601,17 +600,13 @@ WeaveSvc.prototype = {
 
   changePassword: function WeaveSvc_changePassword(newpass)
     this._catch(this._notify("changepwd", "", function() {
-      function enc(x) encodeURIComponent(x);
-      let message = "uid=" + enc(this.username) + "&password=" +
-        enc(this.password) + "&new=" + enc(newpass);
-      let url = Svc.Prefs.get('tmpServerURL') + '0.3/api/register/chpwd';
+      let url = Svc.Prefs.get('tmpServerURL') + 'user/1/' +
+                username + "/password";
       let res = new Weave.Resource(url);
       res.authenticator = new Weave.NoOpAuthenticator();
-      res.setHeader("Content-Type", "application/x-www-form-urlencoded",
-                    "Content-Length", message.length);
 
-      let resp = res.post(message);
-      if (resp.status != 200) {
+      let resp = res.post(newpass);
+      if (res.lastChannel.responseStatus != 200) {
         this._log.info("Password change failed: " + resp);
         throw "Could not change password";
       }
@@ -738,7 +733,7 @@ WeaveSvc.prototype = {
   },
 
   _errorStr: function WeaveSvc__errorStr(code) {
-    switch (code.toString()) {
+    switch (code) {
     case "0":
       return "uid-in-use";
     case "-1":
@@ -771,16 +766,14 @@ WeaveSvc.prototype = {
   },
 
   checkUsername: function WeaveSvc_checkUsername(username) {
-    let url = Svc.Prefs.get('tmpServerURL') +
-      "0.3/api/register/checkuser/" + username;
-
+    let url = Svc.Prefs.get('tmpServerURL') + "/user/1/" + username;
     let res = new Resource(url);
     res.authenticator = new NoOpAuthenticator();
 
     let data = "";
     try {
       data = res.get();
-      if (data.status == 200 && data == "0")
+      if (res.lastChannel.responseStatus == 200 && data == "0")
         return "available";
     }
     catch(ex) {}
@@ -790,41 +783,42 @@ WeaveSvc.prototype = {
   },
 
   createAccount: function WeaveSvc_createAccount(username, password, email,
-                                                 captchaChallenge, captchaResponse) {
-    function enc(x) encodeURIComponent(x);
-    let message = "uid=" + enc(username) + "&password=" + enc(password) +
-      "&mail=" + enc(email) + "&recaptcha_challenge_field=" +
-      enc(captchaChallenge) + "&recaptcha_response_field=" + enc(captchaResponse);
+                                            captchaChallenge, captchaResponse) 
+  {
+    let payload = JSON.stringify({
+      "password": password, "email": email,
+      "captcha_challenge": captchaChallenge,
+      "captcha_response": captchaResponse
+    });
 
-    let url = Svc.Prefs.get('tmpServerURL') + '0.3/api/register/new';
+    let url = Svc.Prefs.get('tmpServerURL') + 'user/1/' + username;
     let res = new Resource(url);
     res.authenticator = new Weave.NoOpAuthenticator();
-    res.setHeader("Content-Type", "application/x-www-form-urlencoded",
-                  "Content-Length", message.length);
 
-    let error = "generic-server-error";
+    let ret = {};
     try {
-      let register = res.post(message);
-      if (register.success) {
-        this._log.info("Account created: " + register);
-        return;
-      }
+      ret.response = res.put(payload);
+      ret.status = res.lastChannel.responseStatus;
 
-      // Must have failed, so figure out the reason
-      switch (register.status) {
+      // No exceptions must have meant it was successful
+      this._log.info("Account created: " + ret.response);
+      return ret;
+    } catch(ex) {
+      this._log.warn("Failed to create account: " + ex);
+      let status = ex.request.responseStatus;
+      switch (status) {
         case 400:
-          error = this._errorStr(register);
+          ret.error = this._errorStr(status);
           break;
         case 417:
-          error = "captcha-incorrect";
+          ret.error = "captcha-incorrect";
+          break;
+        default:
+          ret.error = "generic-server-error";
           break;
       }
+      return ret;
     }
-    catch(ex) {
-      this._log.warn("Failed to create account: " + ex);
-    }
-
-    return error;
   },
 
   // stuff we need to to after login, before we can really do
@@ -833,7 +827,8 @@ WeaveSvc.prototype = {
     let reset = false;
 
     this._log.debug("Fetching global metadata record");
-    let meta = Records.import(this.clusterURL + this.username + "/meta/global");
+    let meta = Records.import(this.clusterURL + this.username + 
+      "/storage/meta/global");
 
     let remoteVersion = (meta && meta.payload.storageVersion)?
       meta.payload.storageVersion : "";
@@ -845,7 +840,7 @@ WeaveSvc.prototype = {
         Svc.Version.compare(COMPATIBLE_VERSION, remoteVersion) > 0) {
 
       // abort the server wipe if the GET status was anything other than 404 or 200
-      let status = Records.response.status;
+      let status = Records.lastResource.lastChannel.responseStatus;
       if (status != 200 && status != 404) {
         this._setSyncFailure(METARECORD_DOWNLOAD_FAIL);
         this._log.warn("Unknown error while downloading metadata record. " +
@@ -914,10 +909,14 @@ WeaveSvc.prototype = {
     }
 
     if (needKeys) {
-      if (PubKeys.response.status != 404 && PrivKeys.response.status != 404) {
+      if (PubKeys.lastResource != null && PrivKeys.lastResource != null &&
+          PubKeys.lastResource.lastChannel.responseStatus != 404 &&
+          PrivKeys.lastResource.lastChannel.responseStatus != 404) {
         this._log.warn("Couldn't download keys from server, aborting sync");
-        this._log.debug("PubKey HTTP status: " + PubKeys.response.status);
-        this._log.debug("PrivKey HTTP status: " + PrivKeys.response.status);
+        this._log.debug("PubKey HTTP response status: " +
+                        PubKeys.lastResource.lastChannel.responseStatus);
+        this._log.debug("PrivKey HTTP response status: " +
+                        PrivKeys.lastResource.lastChannel.responseStatus);
         this._setSyncFailure(KEYS_DOWNLOAD_FAIL);
         return false;
       }
@@ -948,6 +947,8 @@ WeaveSvc.prototype = {
         } catch (e) {
           this._setSyncFailure(KEYS_UPLOAD_FAIL);
           this._log.error("Could not upload keys: " + Utils.exceptionStr(e));
+          // FIXME no lastRequest anymore
+          //this._log.error(keys.pubkey.lastRequest.responseText);
         }
       } else {
         this._setSyncFailure(SETUP_FAILED_NO_PASSPHRASE);
@@ -1063,8 +1064,7 @@ WeaveSvc.prototype = {
     // this is sort of pseudocode, need a way to get at the
     if (!shouldBackoff) {
       try {
-        shouldBackoff = Utils.checkStatus(Records.response.status, null,
-          [500, [502, 504]]);
+        shouldBackoff = Utils.checkStatus(Records.lastResource.lastChannel.responseStatus, null, [500,[502,504]]);
       }
       catch (e) {
         // if responseStatus throws, we have a network issue in play
@@ -1217,9 +1217,10 @@ WeaveSvc.prototype = {
     }
     catch(e) {
       // maybe a 401, cluster update needed?
-      if (e.status == 401 && this.updateCluster(this.username))
-        return this._syncEngine(engine);
-
+      if (e.constructor.name == "RequestException" && e.status == 401) {
+        if (this.updateCluster(this.username))
+          return this._syncEngine(engine);
+      }
       this._syncError = true;
       this._weaveStatusCode = WEAVE_STATUS_PARTIAL;
       this._detailedStatus.setEngineStatus(engine.name, e);
@@ -1238,7 +1239,8 @@ WeaveSvc.prototype = {
     Sync.sleep(2000);
 
     this._log.debug("Uploading new metadata record");
-    meta = new WBORecord(this.clusterURL + this.username + "/meta/global");
+    meta = new WBORecord(this.clusterURL + 
+      this.username + "/storage/meta/global");
     meta.payload.syncID = Clients.syncID;
     this._updateRemoteVersion(meta);
   },
@@ -1250,9 +1252,8 @@ WeaveSvc.prototype = {
 
     this._log.debug("Setting meta payload storage version to " + WEAVE_VERSION);
     meta.payload.storageVersion = WEAVE_VERSION;
-    let resp = new Resource(meta.uri).put(meta.serialize());
-    if (!resp.success)
-      throw resp;
+    let res = new Resource(meta.uri);
+    res.put(meta.serialize());
   },
 
   /**

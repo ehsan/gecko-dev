@@ -365,12 +365,9 @@ BookmarksStore.prototype = {
         record._insertPos, "as", record.title].join(" "));
       break;
     case "livemark":
-      let siteURI = null;
-      if (record.siteUri != null)
-        siteURI = Utils.makeURI(record.siteUri);
-
-      newId = this._ls.createLivemark(record._parent, record.title, siteURI,
-        Utils.makeURI(record.feedUri), record._insertPos);
+      newId = this._ls.createLivemark(record._parent, record.title,
+        Utils.makeURI(record.siteUri), Utils.makeURI(record.feedUri),
+        record._insertPos);
       this._log.debug(["created livemark", newId, "under", record._parent, "at",
         record._insertPos, "as", record.title, record.siteUri, record.feedUri].
         join(" "));
@@ -624,10 +621,7 @@ BookmarksStore.prototype = {
     case this._bms.TYPE_FOLDER:
       if (this._ls.isLivemark(placeId)) {
         record = new Livemark();
-
-        let siteURI = this._ls.getSiteURI(placeId);
-        if (siteURI != null)
-          record.siteUri = siteURI.spec;
+        record.siteUri = this._ls.getSiteURI(placeId).spec;
         record.feedUri = this._ls.getFeedURI(placeId).spec;
 
       } else {
