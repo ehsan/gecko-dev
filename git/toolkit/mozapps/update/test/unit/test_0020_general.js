@@ -13,7 +13,7 @@ function run_test() {
   do_register_cleanup(end_test);
   removeUpdateDirsAndFiles();
   setUpdateURLOverride();
-  setUpdateChannel("test_channel");
+  setUpdateChannel();
   // The mock XMLHttpRequest is MUCH faster
   overrideXHR(callHandleEvent);
   standardInit();
