@@ -979,9 +979,9 @@ mergeTypeMaps(uint8** partial, unsigned* plength, uint8* complete, unsigned clen
 static void
 js_TrashTree(JSContext* cx, Fragment* f);
 
-TraceRecorder::TraceRecorder(JSContext* cx, SideExit* _anchor, Fragment* _fragment,
+TraceRecorder::TraceRecorder(JSContext* cx, VMSideExit* _anchor, Fragment* _fragment,
         TreeInfo* ti, unsigned ngslots, uint8* globalTypeMap, uint8* stackTypeMap,
-        SideExit* innermostNestedGuard, Fragment* outerToBlacklist)
+        VMSideExit* innermostNestedGuard, Fragment* outerToBlacklist)
 {
     JS_ASSERT(!_fragment->vmprivate && ti);
 
@@ -992,8 +992,7 @@ TraceRecorder::TraceRecorder(JSContext* cx, SideExit* _anchor, Fragment* _fragme
     this->fragment = _fragment;
     this->lirbuf = _fragment->lirbuf;
     this->treeInfo = ti;
-    this->callDepth = _fragment->calldepth;
-    JS_ASSERT(!_anchor || _anchor->calldepth == _fragment->calldepth);
+    this->callDepth = _anchor ? _anchor->calldepth : 0;
     this->atoms = cx->fp->script->atomMap.vector;
     this->deepAborted = false;
     this->applyingArguments = false;
@@ -1829,18 +1828,18 @@ TraceRecorder::snapshot(ExitType exitType)
 
     /* Check if we already have a matching side exit. If so use that side exit structure,
        otherwise we have to create our own. */
-    SideExit** exits = treeInfo->sideExits.data();
+    VMSideExit** exits = treeInfo->sideExits.data();
     unsigned nexits = treeInfo->sideExits.length();
     if (exitType == LOOP_EXIT) {
         for (unsigned n = 0; n < nexits; ++n) {
-            SideExit* e = exits[n];
+            VMSideExit* e = exits[n];
             if (e->ip_adj == ip_adj && 
                 !memcmp(getTypeMap(exits[n]), typemap, typemap_size)) {
                 LIns* data = lir_buf_writer->skip(sizeof(GuardRecord));
                 GuardRecord* rec = (GuardRecord*)data->payload();
                 /* setup guard record structure with shared side exit */
                 memset(rec, 0, sizeof(GuardRecord));
-                SideExit* exit = exits[n];
+                VMSideExit* exit = exits[n];
                 rec->exit = exit;
                 exit->addGuard(rec);
                 AUDIT(mergedLoopExits);
@@ -1851,15 +1850,15 @@ TraceRecorder::snapshot(ExitType exitType)
 
     /* We couldn't find a matching side exit, so create our own side exit structure. */
     LIns* data = lir_buf_writer->skip(sizeof(GuardRecord) +
-                                      sizeof(SideExit) + 
+                                      sizeof(VMSideExit) + 
                                       (stackSlots + ngslots) * sizeof(uint8));
     GuardRecord* rec = (GuardRecord*)data->payload();
-    SideExit* exit = (SideExit*)(rec + 1);
+    VMSideExit* exit = (VMSideExit*)(rec + 1);
     /* setup guard record structure */
     memset(rec, 0, sizeof(GuardRecord));
     rec->exit = exit;
     /* setup side exit structure */
-    memset(exit, 0, sizeof(SideExit));
+    memset(exit, 0, sizeof(VMSideExit));
     exit->from = fragment;
     exit->calldepth = callDepth;
     exit->numGlobalSlots = ngslots;
@@ -1987,12 +1986,10 @@ TraceRecorder::deduceTypeStability(Fragment* root_peer, Fragment** stable_peer, 
 
     CLEAR_UNDEMOTE_SLOTLIST(demotes);
 
-    /*
-     * Rather than calculate all of this stuff twice, it gets cached locally.  The "stage" buffers 
+    /* Rather than calculate all of this stuff twice, it gets cached locally.  The "stage" buffers 
      * are for calls to set() that will change the exit types.
      */
     bool success;
-    bool unstable_from_undemotes;
     unsigned stage_count;
     jsval** stage_vals = (jsval**)alloca(sizeof(jsval*) * (ngslots + treeInfo->stackTypeMap.length()));
     LIns** stage_ins = (LIns**)alloca(sizeof(LIns*) * (ngslots + treeInfo->stackTypeMap.length()));
@@ -2000,7 +1997,6 @@ TraceRecorder::deduceTypeStability(Fragment* root_peer, Fragment** stable_peer, 
     /* First run through and see if we can close ourselves - best case! */
     stage_count = 0;
     success = false;
-    unstable_from_undemotes = false;
 
     debug_only_v(printf("Checking type stability against self=%p\n", fragment);)
 
@@ -2028,14 +2024,7 @@ TraceRecorder::deduceTypeStability(Fragment* root_peer, Fragment** stable_peer, 
         ++m;
     );
 
-    /*
-     * If there's an exit that's unstable because of undemotable slots, we want to search for 
-     * peers just in case we can make a connection.
-     */
-    if (NUM_UNDEMOTE_SLOTS(demotes))
-        unstable_from_undemotes = true;
-    else
-        success = true;
+    success = true;
 
 checktype_fail_1:
     /* If we got a success and we don't need to recompile, we should just close here. */
@@ -2077,41 +2066,13 @@ checktype_fail_1:
 
 checktype_fail_2:
         if (success) {
-            /*
-             * There was a successful match.  We don't care about restoring the saved staging, but 
-             * we do need to clear the original undemote list.
-             */
+            /* If we got here, there was a successful match. */
             for (unsigned i = 0; i < stage_count; i++)
                 set(stage_vals[i], stage_ins[i]);
             if (stable_peer)
                 *stable_peer = f;
             return false;
         }
-    }
-
-    JS_ASSERT(NUM_UNDEMOTE_SLOTS(demotes) == 0);
-
-    /*
-     * If this is a loop trace and it would be stable with demotions, build an undemote list 
-     * and return true.  Our caller should sniff this and trash the tree, recording a new one 
-     * that will assumedly stabilize.
-     */
-    if (unstable_from_undemotes && fragment->kind == LoopTrace) {
-        typemap = m = treeInfo->stackTypeMap.data();
-        FORALL_SLOTS_IN_PENDING_FRAMES(cx, 0,
-            if (*m == JSVAL_INT) {
-                JS_ASSERT(isNumber(*vp));
-                if (!isPromoteInt(get(vp)))
-                    ADD_UNDEMOTE_SLOT(demotes, unsigned(m - typemap));
-            } else if (*m == JSVAL_DOUBLE) {
-                JS_ASSERT(isNumber(*vp));
-                ADD_UNDEMOTE_SLOT(demotes, unsigned(m - typemap));
-            } else {
-                JS_ASSERT(*m == JSVAL_TAG(*vp));
-            }
-            m++;
-        );
-        return true;
     }
 
     return false;
@@ -2159,7 +2120,8 @@ TraceRecorder::compile(Fragmento* fragmento)
 }
 
 static bool
-js_JoinPeersIfCompatible(Fragmento* frago, Fragment* stableFrag, TreeInfo* stableTree, SideExit* exit)
+js_JoinPeersIfCompatible(Fragmento* frago, Fragment* stableFrag, TreeInfo* stableTree, 
+                         VMSideExit* exit)
 {
     JS_ASSERT(exit->numStackSlots == stableTree->stackTypeMap.length());
     /* Must have a matching type unstable exit. */
@@ -2184,13 +2146,13 @@ TraceRecorder::closeLoop(Fragmento* fragmento, bool& demote, unsigned *demotes)
     bool stable;
     LIns* exitIns;
     Fragment* peer;
-    SideExit* exit;
+    VMSideExit* exit;
     Fragment* peer_root;
 
     demote = false;
     
     exitIns = snapshot(UNSTABLE_LOOP_EXIT);
-    exit = ((GuardRecord*)exitIns->payload())->exit;
+    exit = (VMSideExit*)((GuardRecord*)exitIns->payload())->exit;
     peer_root = fragmento->getLoop(fragment->root->ip);
     JS_ASSERT(peer_root != NULL);
     stable = deduceTypeStability(peer_root, &peer, demotes);
@@ -2206,9 +2168,18 @@ TraceRecorder::closeLoop(Fragmento* fragmento, bool& demote, unsigned *demotes)
     }
 
     if (stable && NUM_UNDEMOTE_SLOTS(demotes)) {
-        JS_ASSERT(fragment->kind == LoopTrace);
-        demote = true;
-        return false;
+        /* If this is a loop trace, we can demote and recompile */
+        if (fragment->kind == LoopTrace) {
+            demote = true;
+            /* Make sure we use doubles in future trees for all other double slots. */
+            uint8* m = treeInfo->stackTypeMap.data();
+            for (unsigned i = 0; i < treeInfo->stackTypeMap.length(); i++) {
+                if (m[i] == JSVAL_DOUBLE)
+                    ADD_UNDEMOTE_SLOT(demotes, i);
+            }
+            return false;
+        }
+        stable = false;
     }
 
     if (!stable) {
@@ -2381,7 +2352,7 @@ TraceRecorder::prepareTreeCall(Fragment* inner)
 
 /* Record a call to an inner tree. */
 void
-TraceRecorder::emitTreeCall(Fragment* inner, SideExit* exit)
+TraceRecorder::emitTreeCall(Fragment* inner, VMSideExit* exit)
 {
     TreeInfo* ti = (TreeInfo*)inner->vmprivate;
     /* Invoke the inner tree. */
@@ -2474,10 +2445,11 @@ TraceRecorder::fuseIf(jsbytecode* pc, bool cond, LIns* x)
 int
 nanojit::StackFilter::getTop(LInsp guard)
 {
+    VMSideExit* e = (VMSideExit*)guard->record()->exit;
     if (sp == lirbuf->sp)
-        return guard->record()->exit->sp_adj;
+        return e->sp_adj;
     JS_ASSERT(sp == lirbuf->rp);
-    return guard->record()->exit->rp_adj;
+    return e->rp_adj;
 }
 
 #if defined NJ_VERBOSE
@@ -2485,9 +2457,9 @@ void
 nanojit::LirNameMap::formatGuard(LIns *i, char *out)
 {
     uint32_t ip;
-    SideExit *x;
+    VMSideExit *x;
 
-    x = (SideExit *)i->record()->exit;
+    x = (VMSideExit *)i->record()->exit;
     ip = intptr_t(x->from->ip) + x->ip_adj;
     sprintf(out,
         "%s: %s %s -> %s sp%+ld rp%+ld",
@@ -2543,9 +2515,9 @@ js_CheckGlobalObjectShape(JSContext* cx, JSTraceMonitor* tm, JSObject* globalObj
 }
 
 static bool
-js_StartRecorder(JSContext* cx, SideExit* anchor, Fragment* f, TreeInfo* ti,
-        unsigned ngslots, uint8* globalTypeMap, uint8* stackTypeMap, 
-        SideExit* expectedInnerExit, Fragment* outer)
+js_StartRecorder(JSContext* cx, VMSideExit* anchor, Fragment* f, TreeInfo* ti,
+                 unsigned ngslots, uint8* globalTypeMap, uint8* stackTypeMap, 
+                 VMSideExit* expectedInnerExit, Fragment* outer)
 {
     JSTraceMonitor* tm = &JS_TRACE_MONITOR(cx);
 
@@ -2779,7 +2751,6 @@ js_RecordTree(JSContext* cx, JSTraceMonitor* tm, Fragment* f, Fragment* outer, u
     if (f->code())
         f = JS_TRACE_MONITOR(cx).fragmento->getAnchor(f->root->ip);
 
-    f->calldepth = 0;
     f->recordAttempts++;
     f->root = f;
     /* allocate space to store the LIR for this tree */
@@ -2847,7 +2818,7 @@ js_RecordTree(JSContext* cx, JSTraceMonitor* tm, Fragment* f, Fragment* outer, u
 }
 
 static bool
-js_AttemptToStabilizeTree(JSContext* cx, SideExit* exit, Fragment* outer)
+js_AttemptToStabilizeTree(JSContext* cx, VMSideExit* exit, Fragment* outer)
 {
     JSTraceMonitor* tm = &JS_TRACE_MONITOR(cx);
     Fragment* from = exit->from->root;
@@ -2876,7 +2847,7 @@ js_AttemptToStabilizeTree(JSContext* cx, SideExit* exit, Fragment* outer)
 }
 
 static bool
-js_AttemptToExtendTree(JSContext* cx, SideExit* anchor, SideExit* exitedFrom, Fragment* outer)
+js_AttemptToExtendTree(JSContext* cx, VMSideExit* anchor, VMSideExit* exitedFrom, Fragment* outer)
 {
     Fragment* f = anchor->from->root;
     JS_ASSERT(f->vmprivate);
@@ -2915,8 +2886,8 @@ js_AttemptToExtendTree(JSContext* cx, SideExit* anchor, SideExit* exitedFrom, Fr
                guard (anchor) has the type information for everything below the current scope, 
                and the actual guard we exited from has the types for everything in the current
                scope (and whatever it inlined). We have to merge those maps here. */
-            SideExit* e1 = anchor;
-            SideExit* e2 = exitedFrom;
+            VMSideExit* e1 = anchor;
+            VMSideExit* e2 = exitedFrom;
             fullMap.add(getTypeMap(e1) + e1->numGlobalSlots, e1->numStackSlotsBelowCurrentFrame);
             fullMap.add(getTypeMap(e2) + e2->numGlobalSlots, e2->numStackSlots);
             ngslots = e2->numGlobalSlots;
@@ -2929,9 +2900,9 @@ js_AttemptToExtendTree(JSContext* cx, SideExit* anchor, SideExit* exitedFrom, Fr
     return false;
 }
 
-static SideExit*
+static VMSideExit*
 js_ExecuteTree(JSContext* cx, Fragment* f, uintN& inlineCallCount, 
-               SideExit** innermostNestedGuardp);
+               VMSideExit** innermostNestedGuardp);
 
 static nanojit::Fragment*
 js_FindVMCompatiblePeer(JSContext* cx, Fragment* f);
@@ -3040,8 +3011,8 @@ js_RecordLoopEdge(JSContext* cx, TraceRecorder* r, uintN& inlineCallCount)
         }
 
         r->prepareTreeCall(f);
-        SideExit* innermostNestedGuard = NULL;
-        SideExit* lr = js_ExecuteTree(cx, f, inlineCallCount, &innermostNestedGuard);
+        VMSideExit* innermostNestedGuard = NULL;
+        VMSideExit* lr = js_ExecuteTree(cx, f, inlineCallCount, &innermostNestedGuard);
         if (!lr) {
             js_AbortRecording(cx, "Couldn't call inner tree");
             return false;
@@ -3269,9 +3240,9 @@ js_FindVMCompatiblePeer(JSContext* cx, Fragment* f)
 /**
  * Executes a tree.
  */
-static SideExit*
+static VMSideExit*
 js_ExecuteTree(JSContext* cx, Fragment* f, uintN& inlineCallCount, 
-               SideExit** innermostNestedGuardp)
+               VMSideExit** innermostNestedGuardp)
 {
     JS_ASSERT(f->code() && f->vmprivate);
 
@@ -3337,7 +3308,7 @@ js_ExecuteTree(JSContext* cx, Fragment* f, uintN& inlineCallCount,
     bool onTrace = tm->onTrace;
     if (!onTrace)
         tm->onTrace = true;
-    SideExit* lr;
+    VMSideExit* lr;
     
     debug_only(fflush(NULL);)
     GuardRecord* rec;
@@ -3346,7 +3317,7 @@ js_ExecuteTree(JSContext* cx, Fragment* f, uintN& inlineCallCount,
 #else
     rec = u.func(&state, NULL);
 #endif
-    lr = rec->exit;
+    lr = (VMSideExit*)rec->exit;
 
     AUDIT(traceTriggered);
 
@@ -3356,7 +3327,7 @@ js_ExecuteTree(JSContext* cx, Fragment* f, uintN& inlineCallCount,
 
     /* Except if we find that this is a nested bailout, the guard the call returned is the
        one we have to use to adjust pc and sp. */
-    SideExit* innermost = lr;
+    VMSideExit* innermost = lr;
 
     /* While executing a tree we do not update state.sp and state.rp even if they grow. Instead,
        guards tell us by how much sp and rp should be incremented in case of a side exit. When
@@ -3368,7 +3339,7 @@ js_ExecuteTree(JSContext* cx, Fragment* f, uintN& inlineCallCount,
        visible and only the guard we exited on will tells us about). */
     FrameInfo* rp = (FrameInfo*)state.rp;
     if (lr->exitType == NESTED_EXIT) {
-        SideExit* nested = state.lastTreeCallGuard;
+        VMSideExit* nested = state.lastTreeCallGuard;
         if (!nested) {
             /* If lastTreeCallGuard is not set in state, we only have a single level of
                nesting in this exit, so lr itself is the innermost and outermost nested
@@ -3554,8 +3525,8 @@ monitor_loop:
     if (!match) 
         goto monitor_loop;
 
-    SideExit* lr = NULL;
-    SideExit* innermostNestedGuard = NULL;
+    VMSideExit* lr = NULL;
+    VMSideExit* innermostNestedGuard = NULL;
 
     lr = js_ExecuteTree(cx, match, inlineCallCount, &innermostNestedGuard);
     if (!lr)
