@@ -245,6 +245,12 @@ class nsObjectLoadingContent : public nsImageLoadingContent
     void DoStopPlugin(nsPluginInstanceOwner* aInstanceOwner, bool aDelayedStop,
                       bool aForcedReentry = false);
 
+    nsresult BindToTree(nsIDocument* aDocument, nsIContent* aParent,
+                        nsIContent* aBindingParent,
+                        bool aCompileEventHandler);
+    void UnbindFromTree(bool aDeep = true,
+                        bool aNullParent = true);
+
   private:
 
     void NotifyContentObjectWrapper();
@@ -253,6 +259,12 @@ class nsObjectLoadingContent : public nsImageLoadingContent
      * Check whether the given request represents a successful load.
      */
     static bool IsSuccessfulRequest(nsIRequest* aRequest);
+
+    /**
+     * Check if the given baseURI is contained in the same directory as the
+     * aOriginURI (or a child thereof)
+     */
+    static bool IsFileCodebaseAllowable(nsIURI* aBaseURI, nsIURI* aOriginURI);
 
     /**
      * Check whether the URI can be handled internally.
@@ -299,14 +311,6 @@ class nsObjectLoadingContent : public nsImageLoadingContent
      * @return NS_ERROR_NOT_AVAILABLE Unsupported class ID.
      */
     nsresult TypeForClassID(const nsAString& aClassID, nsACString& aType);
-
-    /**
-     * Gets the base URI to be used for this object. This differs from
-     * nsIContent::GetBaseURI in that it takes codebase attributes into
-     * account.
-     */
-    void GetObjectBaseURI(nsIContent* thisContent, nsIURI** aURI);
-
 
     /**
      * Gets the frame that's associated with this content node.
@@ -401,6 +405,10 @@ class nsObjectLoadingContent : public nsImageLoadingContent
     // Used to keep track of whether or not a plugin should be played.
     // This is used for click-to-play plugins.
     bool                        mShouldPlay : 1;
+
+    // Used to keep track of whether or not a plugin has been played.
+    // This is used for click-to-play plugins.
+    bool                        mActivated : 1;
 
     // Protects DoStopPlugin from reentry (bug 724781).
     bool                        mIsStopping : 1;

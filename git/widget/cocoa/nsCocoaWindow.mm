@@ -61,6 +61,7 @@
 #include "nsStyleConsts.h"
 #include "nsNativeThemeColors.h"
 #include "nsChildView.h"
+#include "nsIScreenManager.h"
 
 #include "gfxPlatform.h"
 #include "qcms.h"
@@ -141,6 +142,7 @@ nsCocoaWindow::nsCocoaWindow()
 , mFullScreen(false)
 , mInFullScreenTransition(false)
 , mModal(false)
+, mUsesNativeFullScreen(false)
 , mIsAnimationSuppressed(false)
 , mInReportMoveEvent(false)
 , mNumModalDescendents(0)
@@ -514,7 +516,10 @@ NS_IMETHODIMP nsCocoaWindow::Destroy()
   nsBaseWidget::Destroy();
   nsBaseWidget::OnDestroy();
 
-  if (mFullScreen) {
+  // On Lion we do not have to mess with the OS chrome when in Full Screen mode. So we
+  // can simply skip that. When the Window is destroyed, the OS will take care of removing
+  // the full screen 'Space' that was setup for us.
+  if (!mUsesNativeFullScreen && mFullScreen) {
     nsCocoaUtils::HideOSChromeOnScreen(false, [mWindow screen]);
   }
 
@@ -1035,8 +1040,23 @@ NS_IMETHODIMP nsCocoaWindow::ConstrainPosition(bool aAllowSlop,
     return NS_OK;
   }
 
-  nsIntRect screenBounds(
-    nsCocoaUtils::CocoaRectToGeckoRect([[mWindow screen] visibleFrame]));
+  nsIntRect screenBounds;
+
+  nsCOMPtr<nsIScreenManager> screenMgr = do_GetService("@mozilla.org/gfx/screenmanager;1");
+  if (screenMgr) {
+    nsCOMPtr<nsIScreen> screen;
+    PRInt32 width, height;
+
+    // zero size rects confuse the screen manager
+    width = mBounds.width > 0 ? mBounds.width : 1;
+    height = mBounds.height > 0 ? mBounds.height : 1;
+    screenMgr->ScreenForRect(*aX, *aY, width, height, getter_AddRefs(screen));
+
+    if (screen) {
+      screen->GetRect(&(screenBounds.x), &(screenBounds.y),
+                      &(screenBounds.width), &(screenBounds.height));
+    }
+  }
 
   if (aAllowSlop) {
     if (*aX < screenBounds.x - mBounds.width + kWindowPositionSlop) {
@@ -1181,26 +1201,42 @@ NS_IMETHODIMP nsCocoaWindow::HideWindowChrome(bool aShouldHide)
   NS_OBJC_END_TRY_ABORT_BLOCK_NSRESULT;
 }
 
+void nsCocoaWindow::EnteredFullScreen(bool aFullScreen)
+{
+  mInFullScreenTransition = false;
+  mFullScreen = aFullScreen;
+  DispatchSizeModeEvent();
+}
 
 NS_METHOD nsCocoaWindow::MakeFullScreen(bool aFullScreen)
 {
   NS_OBJC_BEGIN_TRY_ABORT_BLOCK_NSRESULT;
 
-  NS_ASSERTION(mFullScreen != aFullScreen, "Unnecessary MakeFullScreen call");
-
+  // We will call into MakeFullScreen redundantly when entering/exiting
+  // fullscreen mode via OS X controls. When that happens we should just handle
+  // it gracefully - no need to ASSERT.
+  if (mFullScreen == aFullScreen) {
+    return NS_OK;
+  }
   mInFullScreenTransition = true;
-  NSDisableScreenUpdates();
-  // The order here matters. When we exit full screen mode, we need to show the
-  // Dock first, otherwise the newly-created window won't have its minimize
-  // button enabled. See bug 526282.
-  nsCocoaUtils::HideOSChromeOnScreen(aFullScreen, [mWindow screen]);
-  nsresult rv = nsBaseWidget::MakeFullScreen(aFullScreen);
-  NSEnableScreenUpdates();
-  NS_ENSURE_SUCCESS(rv, rv);
 
-  mInFullScreenTransition = false;
-  mFullScreen = aFullScreen;
-  DispatchSizeModeEvent();
+  if (mUsesNativeFullScreen) {
+    // Calling toggleFullScreen will result in windowDid(FailTo)?(Enter|Exit)FullScreen
+    // to be called from the OS. We will call EnteredFullScreen from those methods,
+    // where mFullScreen will be set and a sizemode event will be dispatched.
+    [mWindow toggleFullScreen:nil];
+  } else {
+    NSDisableScreenUpdates();
+    // The order here matters. When we exit full screen mode, we need to show the
+    // Dock first, otherwise the newly-created window won't have its minimize
+    // button enabled. See bug 526282.
+    nsCocoaUtils::HideOSChromeOnScreen(aFullScreen, [mWindow screen]);
+    nsresult rv = nsBaseWidget::MakeFullScreen(aFullScreen);
+    NSEnableScreenUpdates();
+    NS_ENSURE_SUCCESS(rv, rv);
+
+    EnteredFullScreen(aFullScreen);
+  }
 
   return NS_OK;
 
@@ -1650,6 +1686,42 @@ void nsCocoaWindow::SetShowsToolbarButton(bool aShow)
   NS_OBJC_END_TRY_ABORT_BLOCK;
 }
 
+void nsCocoaWindow::SetShowsFullScreenButton(bool aShow)
+{
+  NS_OBJC_BEGIN_TRY_ABORT_BLOCK;
+
+  if (![mWindow respondsToSelector:@selector(toggleFullScreen:)] ||
+      mUsesNativeFullScreen == aShow) {
+    return;
+  }
+
+  // If the window is currently in fullscreen mode, then we're going to
+  // transition out first, then set the collection behavior & toggle
+  // mUsesNativeFullScreen, then transtion back into fullscreen mode. This
+  // prevents us from getting into a conflicting state with MakeFullScreen
+  // where mUsesNativeFullScreen would lead us down the wrong path.
+  bool wasFullScreen = mFullScreen;
+
+  if (wasFullScreen) {
+    MakeFullScreen(false);
+  }
+
+  NSWindowCollectionBehavior newBehavior = [mWindow collectionBehavior];
+  if (aShow) {
+    newBehavior |= NSWindowCollectionBehaviorFullScreenPrimary;
+  } else {
+    newBehavior &= ~NSWindowCollectionBehaviorFullScreenPrimary;
+  }
+  [mWindow setCollectionBehavior:newBehavior];
+  mUsesNativeFullScreen = aShow;
+
+  if (wasFullScreen) {
+    MakeFullScreen(true);
+  }
+
+  NS_OBJC_END_TRY_ABORT_BLOCK;
+}
+
 void nsCocoaWindow::SetWindowAnimationType(nsIWidget::WindowAnimationType aType)
 {
   mAnimationType = aType;
@@ -1881,6 +1953,45 @@ bool nsCocoaWindow::ShouldFocusPlugin()
     return;
 
   mGeckoWindow->ReportMoveEvent();
+}
+
+// Lion's full screen mode will bypass our internal fullscreen tracking, so
+// we need to catch it when we transition and call our own methods, which in
+// turn will fire "fullscreen" events.
+- (void)windowDidEnterFullScreen:(NSNotification *)notification
+{
+  if (!mGeckoWindow) {
+    return;
+  }
+
+  mGeckoWindow->EnteredFullScreen(true);
+}
+
+- (void)windowDidExitFullScreen:(NSNotification *)notification
+{
+  if (!mGeckoWindow) {
+    return;
+  }
+
+  mGeckoWindow->EnteredFullScreen(false);
+}
+
+- (void)windowDidFailToEnterFullScreen:(NSWindow *)window
+{
+  if (!mGeckoWindow) {
+    return;
+  }
+
+  mGeckoWindow->EnteredFullScreen(false);
+}
+
+- (void)windowDidFailToExitFullScreen:(NSWindow *)window
+{
+  if (!mGeckoWindow) {
+    return;
+  }
+
+  mGeckoWindow->EnteredFullScreen(true);
 }
 
 - (void)windowDidBecomeMain:(NSNotification *)aNotification

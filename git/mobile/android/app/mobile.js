@@ -90,7 +90,7 @@ pref("ui.scrollbarsCanOverlapContent", 1);
 
 /* cache prefs */
 pref("browser.cache.disk.enable", true);
-pref("browser.cache.disk.capacity", 10240); // kilobytes
+pref("browser.cache.disk.capacity", 20480); // kilobytes
 pref("browser.cache.disk.smart_size.enabled", false);
 pref("browser.cache.disk.smart_size.first_run", false);
 
@@ -250,9 +250,12 @@ pref("privacy.popups.showBrowserMessage", true);
 
 /* disable opening windows with the dialog feature */
 pref("dom.disable_window_open_dialog_feature", true);
+pref("dom.disable_window_showModalDialog", true);
+pref("dom.disable_window_print", true);
+pref("dom.disable_window_find", true);
 
 pref("keyword.enabled", true);
-pref("keyword.URL", "http://www.google.com/m?ie=UTF-8&oe=UTF-8&sourceid=navclient&gfns=1&q=");
+pref("keyword.URL", "");
 
 pref("accessibility.typeaheadfind", false);
 pref("accessibility.typeaheadfind.timeout", 5000);
@@ -362,6 +365,27 @@ pref("places.frecency.unvisitedTypedBonus", 200);
 // disable color management
 pref("gfx.color_management.mode", 0);
 
+#ifdef ANDROID
+// 0=fixed margin, 1=velocity bias, 2=dynamic resolution, 3=no margins, 4=prediction bias
+pref("gfx.displayport.strategy", 1);
+// all of the following displayport strategy prefs will be divided by 1000
+// to obtain some multiplier which is then used in the strategy.
+// fixed margin strategy options
+pref("gfx.displayport.strategy_fm.multiplier", -1); // displayport dimension multiplier
+pref("gfx.displayport.strategy_fm.danger_x", -1); // danger zone on x-axis when multiplied by viewport width
+pref("gfx.displayport.strategy_fm.danger_y", -1); // danger zone on y-axis when multiplied by viewport height
+// velocity bias strategy options
+pref("gfx.displayport.strategy_vb.multiplier", -1); // displayport dimension multiplier
+pref("gfx.displayport.strategy_vb.threshold", -1); // velocity threshold in inches/frame
+pref("gfx.displayport.strategy_vb.reverse_buffer", -1); // fraction of buffer to keep in reverse direction from scroll
+pref("gfx.displayport.strategy_vb.danger_x_base", -1); // danger zone on x-axis when multiplied by viewport width
+pref("gfx.displayport.strategy_vb.danger_y_base", -1); // danger zone on y-axis when multiplied by viewport height
+pref("gfx.displayport.strategy_vb.danger_x_incr", -1); // additional danger zone on x-axis when multiplied by viewport width and velocity
+pref("gfx.displayport.strategy_vb.danger_y_incr", -1); // additional danger zone on y-axis when multiplied by viewport height and velocity
+// prediction bias strategy options
+pref("gfx.displayport.strategy_pb.threshold", -1); // velocity threshold in inches/frame
+#endif
+
 // don't allow JS to move and resize existing windows
 pref("dom.disable_window_move_resize", true);
 
@@ -420,27 +444,17 @@ pref("dom.max_script_run_time", 20);
 // JS error console
 pref("devtools.errorconsole.enabled", false);
 
-pref("browser.ui.layout.tablet", -1); // on: 1, off: 0, auto: -1
-
-// kinetic tweakables
-pref("browser.ui.kinetic.updateInterval", 16);
-pref("browser.ui.kinetic.exponentialC", 1400);
-pref("browser.ui.kinetic.polynomialC", 100);
-pref("browser.ui.kinetic.swipeLength", 160);
-
 pref("font.size.inflation.minTwips", 120);
 
-// pinch gesture
-pref("browser.ui.pinch.maxGrowth", 150);     // max pinch distance growth
-pref("browser.ui.pinch.maxShrink", 200);     // max pinch distance shrinkage
-pref("browser.ui.pinch.scalingFactor", 500); // scaling factor for above pinch limits
+// When true, zooming will be enabled on all sites, even ones that declare user-scalable=no.
+pref("browser.ui.zoom.force-user-scalable", false);
 
 // Touch radius (area around the touch location to look for target elements),
 // in 1/240-inch pixels:
-pref("browser.ui.touch.left", 8);
-pref("browser.ui.touch.right", 8);
-pref("browser.ui.touch.top", 12);
-pref("browser.ui.touch.bottom", 4);
+pref("browser.ui.touch.left", 32);
+pref("browser.ui.touch.right", 32);
+pref("browser.ui.touch.top", 48);
+pref("browser.ui.touch.bottom", 16);
 pref("browser.ui.touch.weight.visited", 120); // percentage
 
 // plugins
@@ -456,6 +470,7 @@ pref("dom.ipc.plugins.enabled", true);
 #endif
 
 pref("plugins.click_to_play", true);
+pref("plugins.use_placeholder", 1);
 
 // process priority
 // higher values give content process less CPU time
@@ -485,6 +500,7 @@ pref("app.faqURL", "http://www.mozilla.com/%LOCALE%/mobile/beta/faq/");
 pref("app.featuresURL", "http://www.mozilla.com/%LOCALE%/mobile/features/");
 pref("app.faqURL", "http://www.mozilla.com/%LOCALE%/mobile/faq/");
 #endif
+pref("app.marketplaceURL", "https://marketplace.mozilla.org/");
 
 // Name of alternate about: page for certificate errors (when undefined, defaults to about:neterror)
 pref("security.alternate_certificate_error_page", "certerror");
@@ -601,6 +617,8 @@ pref("layers.acceleration.disabled", false);
 pref("layers.acceleration.disabled", true);
 #endif
 
+pref("layers.offmainthreadcomposition.enabled", true);
+
 pref("notification.feature.enabled", true);
 
 // prevent tooltips from showing up
@@ -702,3 +720,33 @@ pref("full-screen-api.enabled", true);
 
 pref("direct-texture.force.enabled", false);
 pref("direct-texture.force.disabled", false);
+
+// show checkerboard pattern on android; we use background colour instead
+pref("gfx.show_checkerboard_pattern", true);
+
+pref("remote-debugger.enabled", false);
+pref("remote-debugger.port", 6000);
+
+// This fraction in 1000ths of velocity remains after every animation frame when the velocity is low.
+pref("ui.scrolling.friction_slow", -1);
+// This fraction in 1000ths of velocity remains after every animation frame when the velocity is high.
+pref("ui.scrolling.friction_fast", -1);
+// Below this velocity (in pixels per frame), the friction starts increasing from friction_fast
+// to friction_slow.
+pref("ui.scrolling.velocity_threshold", -1);
+// The maximum velocity change factor between events, per ms, in 1000ths.
+// Direction changes are excluded.
+pref("ui.scrolling.max_event_acceleration", -1);
+// The rate of deceleration when the surface has overscrolled, in 1000ths.
+pref("ui.scrolling.overscroll_decel_rate", -1);
+// The fraction of the surface which can be overscrolled before it must snap back, in 1000ths.
+pref("ui.scrolling.overscroll_snap_limit", -1);
+// The minimum amount of space that must be present for an axis to be considered scrollable,
+// in 1/1000ths of pixels.
+pref("ui.scrolling.min_scrollable_distance", -1);
+// A comma-separated list of float values in the range [0.0, 1.0) that are used as
+// interpolation frames for zoom animations.
+pref("ui.zooming.animation_frames", "");
+
+// Mobile manages state by autodetection
+pref("network.manage-offline-status", true);

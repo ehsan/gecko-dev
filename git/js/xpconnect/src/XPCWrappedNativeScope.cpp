@@ -43,6 +43,10 @@
 #include "XPCWrapper.h"
 #include "jsproxy.h"
 
+#include "mozilla/dom/bindings/Utils.h"
+
+using namespace mozilla::dom;
+
 /***************************************************************************/
 
 #ifdef XPC_TRACK_SCOPE_STATS
@@ -145,7 +149,8 @@ XPCWrappedNativeScope::XPCWrappedNativeScope(XPCCallContext& ccx,
         mPrototypeJSObject(nsnull),
         mPrototypeNoHelper(nsnull),
         mScriptObjectPrincipal(nsnull),
-        mNewDOMBindingsEnabled(ccx.GetRuntime()->NewDOMBindingsEnabled())
+        mNewDOMBindingsEnabled(ccx.GetRuntime()->NewDOMBindingsEnabled()),
+        mParisBindingsEnabled(ccx.GetRuntime()->ParisBindingsEnabled())
 {
     // add ourselves to the scopes list
     {   // scoped lock
@@ -237,16 +242,28 @@ XPCWrappedNativeScope::SetGlobal(XPCCallContext& ccx, JSObject* aGlobal,
 
     // Try to find the native global object. If we didn't receive it explicitly,
     // we might be able to find it in the private slot.
-    nsISupports* native = aNative;
-    if (!native &&
-        !(~js::GetObjectJSClass(aGlobal)->flags & (JSCLASS_HAS_PRIVATE |
-                                                   JSCLASS_PRIVATE_IS_NSISUPPORTS)))
-    {
-        // Get the private. It might be a WN, in which case we dig deeper.
-        native = (nsISupports*)xpc_GetJSPrivate(aGlobal);
-        nsCOMPtr<nsIXPConnectWrappedNative> wn = do_QueryInterface(native);
+    nsISupports *native;
+    if (aNative) {
+        native = aNative;
+    } else {
+        const JSClass *jsClass = js::GetObjectJSClass(aGlobal);
+        nsISupports *priv;
+        if (!(~jsClass->flags & (JSCLASS_HAS_PRIVATE |
+                                 JSCLASS_PRIVATE_IS_NSISUPPORTS))) {
+            // Our global has an nsISupports native pointer.  Let's
+            // see whether it's what we want.
+            priv = static_cast<nsISupports*>(xpc_GetJSPrivate(aGlobal));
+        } else if ((jsClass->flags & JSCLASS_IS_DOMJSCLASS) &&
+                   bindings::DOMJSClass::FromJSClass(jsClass)->mDOMObjectIsISupports) {
+            priv = bindings::UnwrapDOMObject<nsISupports>(aGlobal, jsClass);
+        } else {
+            priv = nsnull;
+        }
+        nsCOMPtr<nsIXPConnectWrappedNative> wn = do_QueryInterface(priv);
         if (wn)
-            native = static_cast<XPCWrappedNative*>(native)->GetIdentityObject();
+            native = static_cast<XPCWrappedNative*>(wn.get())->GetIdentityObject();
+        else
+            native = priv;
     }
 
     // Now init our script object principal, if the new global has one.
@@ -379,7 +396,7 @@ XPCWrappedNativeScope::SuspectAllWrappers(XPCJSRuntime* rt,
 
 // static
 void
-XPCWrappedNativeScope::FinishedMarkPhaseOfGC(JSContext* cx, XPCJSRuntime* rt)
+XPCWrappedNativeScope::StartFinalizationPhaseOfGC(JSFreeOp *fop, XPCJSRuntime* rt)
 {
     // FIXME The lock may not be necessary since we are inside JSGC_MARK_END
     // callback and GX serializes access to JS runtime. See bug 380139.
@@ -399,7 +416,7 @@ XPCWrappedNativeScope::FinishedMarkPhaseOfGC(JSContext* cx, XPCJSRuntime* rt)
 
         if (cur->mGlobalJSObject &&
             JS_IsAboutToBeFinalized(cur->mGlobalJSObject)) {
-            cur->mGlobalJSObject.finalize(cx);
+            cur->mGlobalJSObject.finalize(fop->runtime());
             cur->mScriptObjectPrincipal = nsnull;
             if (cur->GetCachedDOMPrototypes().IsInitialized())
                  cur->GetCachedDOMPrototypes().Clear();
@@ -414,7 +431,7 @@ XPCWrappedNativeScope::FinishedMarkPhaseOfGC(JSContext* cx, XPCJSRuntime* rt)
         } else {
             if (cur->mPrototypeJSObject &&
                 JS_IsAboutToBeFinalized(cur->mPrototypeJSObject)) {
-                cur->mPrototypeJSObject.finalize(cx);
+                cur->mPrototypeJSObject.finalize(fop->runtime());
             }
             if (cur->mPrototypeNoHelper &&
                 JS_IsAboutToBeFinalized(cur->mPrototypeNoHelper)) {
@@ -429,7 +446,7 @@ XPCWrappedNativeScope::FinishedMarkPhaseOfGC(JSContext* cx, XPCJSRuntime* rt)
 
 // static
 void
-XPCWrappedNativeScope::FinishedFinalizationPhaseOfGC(JSContext* cx)
+XPCWrappedNativeScope::FinishedFinalizationPhaseOfGC()
 {
     XPCJSRuntime* rt = nsXPConnect::GetRuntimeInstance();
 
@@ -955,5 +972,3 @@ XPCWrappedNativeScope::SizeOfIncludingThis(nsMallocSizeOfFun mallocSizeOf)
 
     return n;
 }
-
-

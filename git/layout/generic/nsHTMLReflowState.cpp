@@ -56,9 +56,8 @@
 #include "nsIPercentHeightObserver.h"
 #include "nsLayoutUtils.h"
 #include "mozilla/Preferences.h"
-#ifdef IBMBIDI
 #include "nsBidiUtils.h"
-#endif
+#include "nsFontInflationData.h"
 
 #ifdef NS_DEBUG
 #undef NOISY_VERTICAL_ALIGN
@@ -91,9 +90,6 @@ nsHTMLReflowState::nsHTMLReflowState(nsPresContext*       aPresContext,
   : nsCSSOffsetState(aFrame, aRenderingContext)
   , mBlockDelta(0)
   , mReflowDepth(0)
-  , mRestoreCurrentInflationContainer(aPresContext->mCurrentInflationContainer)
-  , mRestoreCurrentInflationContainerWidth(aPresContext->
-                                             mCurrentInflationContainerWidth)
 {
   NS_PRECONDITION(aPresContext, "no pres context");
   NS_PRECONDITION(aRenderingContext, "no rendering context");
@@ -130,9 +126,6 @@ nsHTMLReflowState::nsHTMLReflowState(nsPresContext*           aPresContext,
   , mBlockDelta(0)
   , mReflowDepth(aParentReflowState.mReflowDepth + 1)
   , mFlags(aParentReflowState.mFlags)
-  , mRestoreCurrentInflationContainer(aPresContext->mCurrentInflationContainer)
-  , mRestoreCurrentInflationContainerWidth(aPresContext->
-                                             mCurrentInflationContainerWidth)
 {
   NS_PRECONDITION(aPresContext, "no pres context");
   NS_PRECONDITION(aFrame, "no frame");
@@ -304,7 +297,36 @@ nsHTMLReflowState::Init(nsPresContext* aPresContext,
              (frame->GetContent() &&
             !(frame->GetContent()->IsHTML(nsGkAtoms::body) ||
               frame->GetContent()->IsHTML(nsGkAtoms::html)))) {
-    frame->AddStateBits(NS_FRAME_IN_CONSTRAINED_HEIGHT);
+
+    // If our height was specified as a percentage, then this could
+    // actually resolve to 'auto', based on:
+    // http://www.w3.org/TR/CSS21/visudet.html#the-height-property
+    nsIFrame* containingBlk = frame;
+    while (containingBlk) {
+      const nsStylePosition* stylePos = containingBlk->GetStylePosition();
+      if ((stylePos->mHeight.IsCoordPercentCalcUnit() &&
+           !stylePos->mHeight.HasPercent()) ||
+          (stylePos->mMaxHeight.IsCoordPercentCalcUnit() &&
+           !stylePos->mMaxHeight.HasPercent())) {
+        frame->AddStateBits(NS_FRAME_IN_CONSTRAINED_HEIGHT);
+        break;
+      } else if ((stylePos->mHeight.IsCoordPercentCalcUnit() &&
+                  stylePos->mHeight.HasPercent()) ||
+                 (stylePos->mMaxHeight.IsCoordPercentCalcUnit() &&
+                  stylePos->mMaxHeight.HasPercent())) {
+        if (!(containingBlk = containingBlk->GetContainingBlock())) {
+          // If we've reached the top of the tree, then we don't have
+          // a constrained height.
+          frame->RemoveStateBits(NS_FRAME_IN_CONSTRAINED_HEIGHT);
+          break;
+        }
+
+        continue;
+      } else {
+        frame->RemoveStateBits(NS_FRAME_IN_CONSTRAINED_HEIGHT);
+        break;
+      }
+    }
   } else {
     frame->RemoveStateBits(NS_FRAME_IN_CONSTRAINED_HEIGHT);
   }
@@ -316,6 +338,12 @@ nsHTMLReflowState::Init(nsPresContext* aPresContext,
                    "have unconstrained width; this should only result from "
                    "very large sizes, not attempts at intrinsic width "
                    "calculation");
+
+  if (frame->GetStateBits() & NS_FRAME_FONT_INFLATION_FLOW_ROOT) {
+    // Create our font inflation data if we don't have it already, and
+    // give it our current width information.
+    nsFontInflationData::UpdateFontInflationDataWidthFor(*this);
+  }
 }
 
 void nsHTMLReflowState::InitCBReflowState()
@@ -1243,9 +1271,13 @@ nsHTMLReflowState::InitAbsoluteConstraints(nsPresContext* aPresContext,
   bool widthIsAuto = eStyleUnit_Auto == mStylePosition->mWidth.GetUnit();
   bool heightIsAuto = eStyleUnit_Auto == mStylePosition->mHeight.GetUnit();
 
-  bool shrinkWrap = leftIsAuto || rightIsAuto;
+  PRUint32 computeSizeFlags = 0;
+  if (leftIsAuto || rightIsAuto) {
+    computeSizeFlags |= nsIFrame::eShrinkWrap;
+  }
+
   {
-    AutoMaybeNullInflationContainer an(frame);
+    AutoMaybeDisableFontInflation an(frame);
 
     nsSize size =
       frame->ComputeSize(rendContext,
@@ -1262,7 +1294,7 @@ nsHTMLReflowState::InitAbsoluteConstraints(nsPresContext* aPresContext,
                                   mComputedPadding.TopBottom()),
                          nsSize(mComputedPadding.LeftRight(),
                                 mComputedPadding.TopBottom()),
-                         shrinkWrap);
+                         computeSizeFlags);
     mComputedWidth = size.width;
     mComputedHeight = size.height;
   }
@@ -1867,13 +1899,21 @@ nsHTMLReflowState::InitConstraints(nsPresContext* aPresContext,
       InitAbsoluteConstraints(aPresContext, cbrs, aContainingBlockWidth,
                               aContainingBlockHeight, aFrameType);
     } else {
-      AutoMaybeNullInflationContainer an(frame);
+      AutoMaybeDisableFontInflation an(frame);
 
-      bool isBlock =
-        NS_CSS_FRAME_TYPE_BLOCK == NS_FRAME_GET_TYPE(mFrameType);
-      // make sure legend frames with display:block and width:auto still
-      // shrink-wrap
-      bool shrinkWrap = !isBlock || aFrameType == nsGkAtoms::legendFrame;
+      bool isBlock = NS_CSS_FRAME_TYPE_BLOCK == NS_FRAME_GET_TYPE(mFrameType);
+      PRUint32 computeSizeFlags = isBlock ? 0 : nsIFrame::eShrinkWrap;
+
+      // Make sure legend frames with display:block and width:auto still
+      // shrink-wrap.
+      if (isBlock &&
+          ((aFrameType == nsGkAtoms::legendFrame &&
+            frame->GetStyleContext()->GetPseudo() != nsCSSAnonBoxes::scrolledContent) ||
+           (aFrameType == nsGkAtoms::scrollFrame &&
+            frame->GetContentInsertionFrame()->GetType() == nsGkAtoms::legendFrame))) {
+        computeSizeFlags |= nsIFrame::eShrinkWrap;
+      }
+
       nsSize size =
         frame->ComputeSize(rendContext,
                            nsSize(aContainingBlockWidth,
@@ -1887,7 +1927,7 @@ nsHTMLReflowState::InitConstraints(nsPresContext* aPresContext,
                                     mComputedPadding.TopBottom()),
                            nsSize(mComputedPadding.LeftRight(),
                                   mComputedPadding.TopBottom()),
-                           shrinkWrap);
+                           computeSizeFlags);
 
       mComputedWidth = size.width;
       mComputedHeight = size.height;
@@ -1906,11 +1946,6 @@ nsHTMLReflowState::InitConstraints(nsPresContext* aPresContext,
   if (!mFlags.mBlinks && BlinkIsAllowed()) {
     const nsStyleTextReset* st = frame->GetStyleTextReset();
     mFlags.mBlinks = (st->mTextBlink != NS_STYLE_TEXT_BLINK_NONE);
-  }
-
-  if (nsLayoutUtils::IsContainerForFontSizeInflation(frame)) {
-    aPresContext->mCurrentInflationContainer = frame;
-    aPresContext->mCurrentInflationContainerWidth = mComputedWidth;
   }
 }
 
@@ -2216,8 +2251,7 @@ nsHTMLReflowState::CalcLineHeight() const
     (mCBReflowState ? mCBReflowState->mComputedHeight : NS_AUTOHEIGHT);
 
   return CalcLineHeight(frame->GetStyleContext(), blockHeight,
-                        nsLayoutUtils::FontSizeInflationFor(frame,
-                          nsLayoutUtils::eInReflow));
+                        nsLayoutUtils::FontSizeInflationFor(frame));
 }
 
 /* static */ nscoord

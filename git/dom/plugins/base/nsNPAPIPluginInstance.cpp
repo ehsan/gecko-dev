@@ -61,6 +61,8 @@
 #include "nsNetCID.h"
 #include "nsIContent.h"
 
+#include "mozilla/Preferences.h"
+
 #ifdef MOZ_WIDGET_ANDROID
 #include "ANPBase.h"
 #include <android/log.h>
@@ -68,6 +70,29 @@
 #include "mozilla/Mutex.h"
 #include "mozilla/CondVar.h"
 #include "AndroidBridge.h"
+
+class PluginEventRunnable : public nsRunnable
+{
+public:
+  PluginEventRunnable(nsNPAPIPluginInstance* instance, ANPEvent* event)
+    : mInstance(instance), mEvent(*event), mCanceled(false) {}
+
+  virtual nsresult Run() {
+    if (mCanceled)
+      return NS_OK;
+
+    mInstance->HandleEvent(&mEvent, nsnull);
+    mInstance->PopPostedEvent(this);
+    return NS_OK;
+  }
+
+  void Cancel() { mCanceled = true; }
+private:
+  nsNPAPIPluginInstance* mInstance;
+  ANPEvent mEvent;
+  bool mCanceled;
+};
+
 #endif
 
 using namespace mozilla;
@@ -78,7 +103,7 @@ static NS_DEFINE_IID(kIPluginStreamListenerIID, NS_IPLUGINSTREAMLISTENER_IID);
 
 NS_IMPL_THREADSAFE_ISUPPORTS0(nsNPAPIPluginInstance)
 
-nsNPAPIPluginInstance::nsNPAPIPluginInstance(nsNPAPIPlugin* plugin)
+nsNPAPIPluginInstance::nsNPAPIPluginInstance()
   :
     mDrawingModel(kDefaultDrawingModel),
 #ifdef MOZ_WIDGET_ANDROID
@@ -92,7 +117,7 @@ nsNPAPIPluginInstance::nsNPAPIPluginInstance(nsNPAPIPlugin* plugin)
     mCached(false),
     mUsesDOMForCursor(false),
     mInPluginInitCall(false),
-    mPlugin(plugin),
+    mPlugin(nsnull),
     mMIMEType(nsnull),
     mOwner(nsnull),
     mCurrentPluginEvent(nsnull),
@@ -102,20 +127,11 @@ nsNPAPIPluginInstance::nsNPAPIPluginInstance(nsNPAPIPlugin* plugin)
     mUsePluginLayersPref(false)
 #endif
 {
-  NS_ASSERTION(mPlugin != NULL, "Plugin is required when creating an instance.");
-
-  // Initialize the NPP structure.
-
   mNPP.pdata = NULL;
   mNPP.ndata = this;
 
-  nsCOMPtr<nsIPrefBranch> prefs(do_GetService(NS_PREFSERVICE_CONTRACTID));
-  if (prefs) {
-    bool useLayersPref;
-    nsresult rv = prefs->GetBoolPref("plugins.use_layers", &useLayersPref);
-    if (NS_SUCCEEDED(rv))
-      mUsePluginLayersPref = useLayersPref;
-  }
+  mUsePluginLayersPref =
+    Preferences::GetBool("plugins.use_layers", mUsePluginLayersPref);
 
   PLUGIN_LOG(PLUGIN_LOG_BASIC, ("nsNPAPIPluginInstance ctor: this=%p\n",this));
 }
@@ -143,30 +159,24 @@ nsNPAPIPluginInstance::StopTime()
   return mStopTime;
 }
 
-nsresult nsNPAPIPluginInstance::Initialize(nsIPluginInstanceOwner* aOwner, const char* aMIMEType)
+nsresult nsNPAPIPluginInstance::Initialize(nsNPAPIPlugin *aPlugin, nsIPluginInstanceOwner* aOwner, const char* aMIMEType)
 {
   PLUGIN_LOG(PLUGIN_LOG_NORMAL, ("nsNPAPIPluginInstance::Initialize this=%p\n",this));
 
+  NS_ENSURE_ARG_POINTER(aPlugin);
+  NS_ENSURE_ARG_POINTER(aOwner);
+
+  mPlugin = aPlugin;
   mOwner = aOwner;
 
   if (aMIMEType) {
     mMIMEType = (char*)PR_Malloc(PL_strlen(aMIMEType) + 1);
-
-    if (mMIMEType)
+    if (mMIMEType) {
       PL_strcpy(mMIMEType, aMIMEType);
+    }
   }
 
-  return InitializePlugin();
-}
-
-nsresult nsNPAPIPluginInstance::Start()
-{
-  PLUGIN_LOG(PLUGIN_LOG_NORMAL, ("nsNPAPIPluginInstance::Start this=%p\n",this));
-
-  if (RUNNING == mRunning)
-    return NS_OK;
-
-  return InitializePlugin();
+  return Start();
 }
 
 nsresult nsNPAPIPluginInstance::Stop()
@@ -228,6 +238,14 @@ nsresult nsNPAPIPluginInstance::Stop()
                    ("NPP Destroy called: this=%p, npp=%p, return=%d\n", this, &mNPP, error));
   }
   mRunning = DESTROYED;
+
+#if MOZ_WIDGET_ANDROID
+  for (PRUint32 i = 0; i < mPostedEvents.Length(); i++) {
+    mPostedEvents[i]->Cancel();
+  }
+
+  mPostedEvents.Clear();
+#endif
 
   nsJSNPRuntime::OnPluginDestroy(&mNPP);
 
@@ -316,8 +334,12 @@ nsNPAPIPluginInstance::FileCachedStreamListeners()
 }
 
 nsresult
-nsNPAPIPluginInstance::InitializePlugin()
-{ 
+nsNPAPIPluginInstance::Start()
+{
+  if (mRunning == RUNNING) {
+    return NS_OK;
+  }
+
   PluginDestructionGuard guard(this);
 
   PRUint16 count = 0;
@@ -428,6 +450,19 @@ nsNPAPIPluginInstance::InitializePlugin()
   // call other NPAPI functions, like NPN_GetURLNotify, that assume this is set
   // before returning. If the plugin returns failure, we'll clear it out below.
   mRunning = RUNNING;
+
+#if MOZ_WIDGET_ANDROID
+  // Flash creates some local JNI references during initialization (NPP_New). It does not
+  // remove these references later, so essentially they are leaked. AutoLocalJNIFrame
+  // prevents this by pushing a JNI frame. As a result, all local references created
+  // by Flash are contained in this frame. AutoLocalJNIFrame pops the frame once we
+  // go out of scope and the local references are deleted, preventing the leak.
+  JNIEnv* env = AndroidBridge::GetJNIEnv();
+  if (!env)
+    return NS_ERROR_FAILURE;
+
+  mozilla::AutoLocalJNIFrame frame(env);
+#endif
 
   nsresult newResult = library->NPP_New((char*)mimetype, &mNPP, (PRUint16)mode, count, (char**)names, (char**)values, NULL, &error);
   mInPluginInitCall = oldVal;
@@ -800,6 +835,19 @@ void nsNPAPIPluginInstance::RequestJavaSurface()
   mSurfaceGetter = new SurfaceGetter(this, mPlugin->PluginFuncs(), mNPP);
 
   ((SurfaceGetter*)mSurfaceGetter.get())->RequestSurface();
+}
+
+void nsNPAPIPluginInstance::PostEvent(void* event)
+{
+  PluginEventRunnable *r = new PluginEventRunnable(this, (ANPEvent*)event);
+  mPostedEvents.AppendElement(nsRefPtr<PluginEventRunnable>(r));
+
+  NS_DispatchToMainThread(r);
+}
+
+void nsNPAPIPluginInstance::PopPostedEvent(PluginEventRunnable* r)
+{
+  mPostedEvents.RemoveElement(r);
 }
 
 #endif

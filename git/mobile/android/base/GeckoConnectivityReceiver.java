@@ -37,15 +37,17 @@
 
 package org.mozilla.gecko;
 
+import android.util.Log;
+
+import android.app.Activity;
 import android.content.BroadcastReceiver;
 import android.content.Context;
 import android.content.Intent;
+import android.content.IntentFilter;
 import android.net.ConnectivityManager;
 import android.net.NetworkInfo;
 
-public class GeckoConnectivityReceiver
-    extends BroadcastReceiver
-{
+public class GeckoConnectivityReceiver extends BroadcastReceiver {
     /*
      * Keep the below constants in sync with
      * http://mxr.mozilla.org/mozilla-central/source/netwerk/base/public/nsINetworkLinkService.idl
@@ -53,6 +55,17 @@ public class GeckoConnectivityReceiver
     private static final String LINK_DATA_UP = "up";
     private static final String LINK_DATA_DOWN = "down";
     private static final String LINK_DATA_UNKNOWN = "unknown";
+
+    private static final String LOGTAG = "GeckoConnectivityReciever";
+
+    private IntentFilter mFilter;
+
+    private static boolean isRegistered = false;
+
+    public GeckoConnectivityReceiver() {
+        mFilter = new IntentFilter();
+        mFilter.addAction(ConnectivityManager.CONNECTIVITY_ACTION);
+    }
 
     @Override
     public void onReceive(Context context, Intent intent) {
@@ -69,5 +82,21 @@ public class GeckoConnectivityReceiver
 
         if (GeckoApp.checkLaunchState(GeckoApp.LaunchState.GeckoRunning))
             GeckoAppShell.onChangeNetworkLinkStatus(status);
+    }
+
+    public void registerFor(Activity activity) {
+        if (!isRegistered) {
+            // registerReciever will return null if registering throws a RemoteException
+            isRegistered = activity.registerReceiver(this, mFilter) != null;
+            if (!isRegistered)
+                Log.e(LOGTAG, "Registering receiver failed");
+        }
+    }
+
+    public void unregisterFor(Activity activity) {
+        if (isRegistered) {
+            activity.unregisterReceiver(this);
+            isRegistered = false;
+        }
     }
 }

@@ -196,7 +196,7 @@ IsVisualCharset(const nsCString& aCharset)
 
 
 static PLDHashOperator
-destroy_loads(const void * aKey, nsRefPtr<nsImageLoader>& aData, void* closure)
+destroy_loads(nsIFrame* aKey, nsRefPtr<nsImageLoader>& aData, void* closure)
 {
   aData->Destroy();
   return PL_DHASH_NEXT;
@@ -209,7 +209,8 @@ destroy_loads(const void * aKey, nsRefPtr<nsImageLoader>& aData, void* closure)
 
 nsPresContext::nsPresContext(nsIDocument* aDocument, nsPresContextType aType)
   : mType(aType), mDocument(aDocument), mMinFontSize(0),
-    mTextZoom(1.0), mFullZoom(1.0), mPageSize(-1, -1), mPPScale(1.0f),
+    mTextZoom(1.0), mFullZoom(1.0), mLastFontInflationScreenWidth(-1.0),
+    mPageSize(-1, -1), mPPScale(1.0f),
     mViewportStyleOverflow(NS_STYLE_OVERFLOW_AUTO, NS_STYLE_OVERFLOW_AUTO),
     mImageAnimationModePref(imgIContainer::kNormalAnimMode)
 {
@@ -344,7 +345,7 @@ NS_IMPL_CYCLE_COLLECTING_ADDREF(nsPresContext)
 NS_IMPL_CYCLE_COLLECTING_RELEASE(nsPresContext)
 
 static PLDHashOperator
-TraverseImageLoader(const void * aKey, nsRefPtr<nsImageLoader>& aData,
+TraverseImageLoader(nsIFrame* aKey, nsRefPtr<nsImageLoader>& aData,
                     void* aClosure)
 {
   nsCycleCollectionTraversalCallback *cb =
@@ -558,7 +559,8 @@ nsPresContext::GetFontPrefsForLang(nsIAtom *aLanguage) const
     &prefs->mDefaultCursiveFont,
     &prefs->mDefaultFantasyFont
   };
-  PR_STATIC_ASSERT(NS_ARRAY_LENGTH(fontTypes) == eDefaultFont_COUNT);
+  MOZ_STATIC_ASSERT(NS_ARRAY_LENGTH(fontTypes) == eDefaultFont_COUNT,
+                    "FontTypes array count is not correct");
 
   // Get attributes specific to each generic font. We do not get the user's
   // generic-font-name-to-specific-family-name preferences because its the
@@ -1253,7 +1255,7 @@ static void SetImgAnimModeOnImgReq(imgIRequest* aImgReq, PRUint16 aMode)
 
  // Enumeration call back for HashTable
 static PLDHashOperator
-set_animation_mode(const void * aKey, nsRefPtr<nsImageLoader>& aData, void* closure)
+set_animation_mode(nsIFrame* aKey, nsRefPtr<nsImageLoader>& aData, void* closure)
 {
   for (nsImageLoader *loader = aData; loader;
        loader = loader->GetNextLoader()) {
@@ -1409,6 +1411,34 @@ nsPresContext::SetFullZoom(float aZoom)
   mSupressResizeReflow = false;
 
   mCurAppUnitsPerDevPixel = AppUnitsPerDevPixel();
+}
+
+float
+nsPresContext::ScreenWidthInchesForFontInflation(bool* aChanged)
+{
+  if (aChanged) {
+    *aChanged = false;
+  }
+
+  nsDeviceContext *dx = DeviceContext();
+  nsRect clientRect;
+  dx->GetClientRect(clientRect); // FIXME: GetClientRect looks expensive
+  float deviceWidthInches =
+    float(clientRect.width) / float(dx->AppUnitsPerPhysicalInch());
+
+  if (deviceWidthInches != mLastFontInflationScreenWidth) {
+    if (mLastFontInflationScreenWidth != -1.0) {
+      if (aChanged) {
+        *aChanged = true;
+      } else {
+        NS_NOTREACHED("somebody should have checked for screen width change "
+                      "and triggered a reflow");
+      }
+    }
+    mLastFontInflationScreenWidth = deviceWidthInches;
+  }
+
+  return deviceWidthInches;
 }
 
 void
@@ -1737,6 +1767,7 @@ nsPresContext::MediaFeatureValuesChanged(bool aCallerWillRebuildStyleData)
 
       for (PRUint32 i = 0, i_end = notifyList.Length(); i != i_end; ++i) {
         if (pusher.RePush(et)) {
+          nsAutoMicroTask mt;
           nsDOMMediaQueryList::HandleChangeData &d = notifyList[i];
           d.listener->HandleChange(d.mql);
         }

@@ -5513,14 +5513,14 @@ nsRuleNode::ComputeBorderData(void* aStartStruct,
 
     case eCSSUnit_Inherit: {
       canStoreInRuleTree = false;
-      nsBorderColors *parentColors;
-      parentBorder->GetCompositeColors(side, &parentColors);
-      if (parentColors) {
-        border->EnsureBorderColors();
-        border->ClearBorderColors(side);
-        border->mBorderColors[side] = parentColors->Clone();
-      } else {
-        border->ClearBorderColors(side);
+      border->ClearBorderColors(side);
+      if (parentContext) {
+        nsBorderColors *parentColors;
+        parentBorder->GetCompositeColors(side, &parentColors);
+        if (parentColors) {
+          border->EnsureBorderColors();
+          border->mBorderColors[side] = parentColors->Clone();
+        }
       }
       break;
     }
@@ -6581,10 +6581,10 @@ nsRuleNode::ComputeColumnData(void* aStartStruct,
 
   // column-fill: enum
   SetDiscrete(*aRuleData->ValueForColumnFill(),
-                column->mColumnFill, canStoreInRuleTree,
-                SETDSC_ENUMERATED, parent->mColumnFill,
-                NS_STYLE_COLUMN_FILL_BALANCE,
-                0, 0, 0, 0);
+              column->mColumnFill, canStoreInRuleTree,
+              SETDSC_ENUMERATED, parent->mColumnFill,
+              NS_STYLE_COLUMN_FILL_BALANCE,
+              0, 0, 0, 0);
 
   COMPUTE_END_RESET(Column, column)
 }
