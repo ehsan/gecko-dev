@@ -651,11 +651,6 @@ BluetoothHfpManager::Listen()
     return false;
   }
 
-  if (GetConnectionStatus() == SocketConnectionStatus::SOCKET_LISTENING) {
-    NS_WARNING("BluetoothHfpManager has been already listening");
-    return true;
-  }
-
   CloseSocket();
 
   BluetoothService* bs = BluetoothService::Get();
@@ -981,8 +976,6 @@ BluetoothHfpManager::OnDisconnect()
   if (mSocketStatus == SocketConnectionStatus::SOCKET_CONNECTED) {
     Listen();
     NotifySettings();
-  } else if (mSocketStatus == SocketConnectionStatus::SOCKET_CONNECTING) {
-    NS_WARNING("BluetoothHfpManager got unexpected socket status!");
   }
 
   sCINDItems[CINDType::CALL].value = CallState::NO_CALL;

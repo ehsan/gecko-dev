@@ -454,7 +454,7 @@ ContentParent::SetManifestFromPreallocated(const nsAString& aAppManifestURL)
 void
 ContentParent::ShutDownProcess()
 {
-  if (!mIsDestroyed) {
+  if (mIsAlive) {
     const InfallibleTArray<PIndexedDBParent*>& idbParents =
       ManagedPIndexedDBParent();
     for (uint32_t i = 0; i < idbParents.Length(); ++i) {
@@ -464,7 +464,6 @@ ContentParent::ShutDownProcess()
     // Close() can only be called once.  It kicks off the
     // destruction sequence.
     Close();
-    mIsDestroyed = true;
   }
   // NB: must MarkAsDead() here so that this isn't accidentally
   // returned from Get*() while in the midst of shutdown.
@@ -670,10 +669,7 @@ ContentParent::NotifyTabDestroyed(PBrowserParent* aTab)
     // There can be more than one PBrowser for a given app process
     // because of popup windows.  When the last one closes, shut
     // us down.
-    if (ManagedPBrowserParent().Length() == 1) {
-        // Prevent this content process from being recycled, since
-        // it's dying.
-        MarkAsDead();
+    if (IsForApp() && ManagedPBrowserParent().Length() == 1) {
         MessageLoop::current()->PostTask(
             FROM_HERE,
             NewRunnableMethod(this, &ContentParent::ShutDownProcess));
@@ -711,7 +707,6 @@ ContentParent::ContentParent(const nsAString& aAppManifestURL,
     , mShouldCallUnblockChild(false)
     , mAppManifestURL(aAppManifestURL)
     , mIsAlive(true)
-    , mIsDestroyed(false)
     , mSendPermissionUpdates(false)
     , mIsForBrowser(aIsForBrowser)
 {
@@ -1024,7 +1019,7 @@ ContentParent::Observe(nsISupports* aSubject,
                        const PRUnichar* aData)
 {
     if (!strcmp(aTopic, "xpcom-shutdown") && mSubprocess) {
-        ShutDownProcess();
+        Close();
         NS_ASSERTION(!mSubprocess, "Close should have nulled mSubprocess");
     }
 
@@ -1155,18 +1150,16 @@ ContentParent::AllocPBrowser(const IPCTabContext& aContext,
 {
     unused << aChromeFlags;
 
-    const IPCTabAppBrowserContext& appBrowser = aContext.appBrowserContext();
-
     // We don't trust the IPCTabContext we receive from the child, so we'll bail
     // if we receive an IPCTabContext that's not a PopupIPCTabContext.
     // (PopupIPCTabContext lets the child process prove that it has access to
     // the app it's trying to open.)
-    if (appBrowser.type() != IPCTabAppBrowserContext::TPopupIPCTabContext) {
+    if (aContext.type() != IPCTabContext::TPopupIPCTabContext) {
         NS_ERROR("Unexpected IPCTabContext type.  Aborting AllocPBrowser.");
         return nullptr;
     }
 
-    const PopupIPCTabContext& popupContext = appBrowser.get_PopupIPCTabContext();
+    const PopupIPCTabContext& popupContext = aContext.get_PopupIPCTabContext();
     TabParent* opener = static_cast<TabParent*>(popupContext.openerParent());
     if (!opener) {
         NS_ERROR("Got null opener from child; aborting AllocPBrowser.");
@@ -1199,12 +1192,9 @@ ContentParent::DeallocPBrowser(PBrowserParent* frame)
 PDeviceStorageRequestParent*
 ContentParent::AllocPDeviceStorageRequest(const DeviceStorageParams& aParams)
 {
-  nsRefPtr<DeviceStorageRequestParent> result = new DeviceStorageRequestParent(aParams);
-  if (!result->EnsureRequiredPermissions(this)) {
-      return nullptr;
-  }
-  result->Dispatch();
-  return result.forget().get();
+  DeviceStorageRequestParent* result = new DeviceStorageRequestParent(aParams);
+  NS_ADDREF(result);
+  return result;
 }
 
 bool

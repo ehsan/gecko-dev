@@ -31,7 +31,6 @@
 
 #include "mozilla/scache/StartupCache.h"
 #include "mozilla/scache/StartupCacheUtils.h"
-#include "mozilla/Preferences.h"
 
 using namespace mozilla::scache;
 
@@ -77,15 +76,11 @@ nsresult
 mozJSSubScriptLoader::ReadScript(nsIURI *uri, JSContext *cx, JSObject *target_obj,
                                  const nsAString& charset, const char *uriStr,
                                  nsIIOService *serv, nsIPrincipal *principal,
-                                 bool reuseGlobal, JSScript **scriptp,
-                                 JSFunction **functionp)
+                                 JSScript **scriptp)
 {
     nsCOMPtr<nsIChannel>     chan;
     nsCOMPtr<nsIInputStream> instream;
     JSErrorReporter  er;
-
-    *scriptp = nullptr;
-    *functionp = nullptr;
 
     nsresult rv;
     // Instead of calling NS_OpenURI, we create the channel ourselves and call
@@ -130,27 +125,13 @@ mozJSSubScriptLoader::ReadScript(nsIURI *uri, JSContext *cx, JSObject *target_ob
             return ReportError(cx, LOAD_ERROR_BADCHARSET);
         }
 
-        if (!reuseGlobal) {
-            *scriptp = JS::Compile(cx, target_obj_root, options,
-                                   reinterpret_cast<const jschar*>(script.get()),
-                                   script.Length());
-        } else {
-            *functionp = JS::CompileFunction(cx, target_obj_root, options,
-                                             nullptr, 0, nullptr,
-                                             reinterpret_cast<const jschar*>(script.get()),
-                                             script.Length());
-        }
+        *scriptp = JS::Compile(cx, target_obj_root, options,
+                               reinterpret_cast<const jschar*>(script.get()), script.Length());
     } else {
         // We only use LAZY_SOURCE when no special encoding is specified because
         // the lazy source loader doesn't know the encoding.
-        if (!reuseGlobal) {
-            options.setSourcePolicy(JS::CompileOptions::LAZY_SOURCE);
-            *scriptp = JS::Compile(cx, target_obj_root, options, buf.get(), len);
-        } else {
-            *functionp = JS::CompileFunction(cx, target_obj_root, options,
-                                             nullptr, 0, nullptr, buf.get(),
-                                             len);
-        }
+        options.setSourcePolicy(JS::CompileOptions::LAZY_SOURCE);
+        *scriptp = JS::Compile(cx, target_obj_root, options, buf.get(), len);
     }
 
     /* repent for our evil deeds */
@@ -194,20 +175,16 @@ mozJSSubScriptLoader::LoadSubScript(const nsAString& url,
     JSAutoRequest ar(cx);
 
     JSObject* targetObj;
-    mozJSComponentLoader* loader = mozJSComponentLoader::Get();
-    rv = loader->FindTargetObject(cx, &targetObj);
-    NS_ENSURE_SUCCESS(rv, rv);
-
-    bool reusingGlobal = !JS_IsGlobalObject(targetObj);
-
-    // We base reusingGlobal off of what the loader told us, but we may not
-    // actually be using that object.
-    JSObject* passedObj;
-    if (!JS_ValueToObject(cx, target, &passedObj))
+    if (!JS_ValueToObject(cx, target, &targetObj))
         return NS_ERROR_ILLEGAL_VALUE;
 
-    if (passedObj)
-        targetObj = passedObj;
+
+    if (!targetObj) {
+        // If the user didn't provide an object to eval onto, find one.
+        mozJSComponentLoader* loader = mozJSComponentLoader::Get();
+        rv = loader->FindTargetObject(cx, &targetObj);
+        NS_ENSURE_SUCCESS(rv, rv);
+    }
 
     // Remember an object out of the calling compartment so that we
     // can properly wrap the result later.
@@ -292,32 +269,20 @@ mozJSSubScriptLoader::LoadSubScript(const nsAString& url,
     cachePath.AppendPrintf("jssubloader/%d", version);
     PathifyURI(uri, cachePath);
 
-    JSFunction* function = nullptr;
     script = nullptr;
     if (cache)
         rv = ReadCachedScript(cache, cachePath, cx, mSystemPrincipal, &script);
     if (!script) {
         rv = ReadScript(uri, cx, targetObj, charset,
                         static_cast<const char*>(uriStr.get()), serv,
-                        principal, reusingGlobal, &script, &function);
-        writeScript = !!script;
+                        principal, &script);
+        writeScript = true;
     }
 
-    if (NS_FAILED(rv) || (!script && !function))
+    if (NS_FAILED(rv) || !script)
         return rv;
 
-    if (function) {
-        script = JS_GetFunctionScript(cx, function);
-    }
-
-    loader->NoteSubScript(script, targetObj);
-
-    bool ok = false;
-    if (function) {
-        ok = JS_CallFunction(cx, targetObj, function, 0, nullptr, retval);
-    } else {
-        ok = JS_ExecuteScriptVersion(cx, targetObj, script, retval, version);
-    }
+    bool ok = JS_ExecuteScriptVersion(cx, targetObj, script, retval, version);
 
     if (ok) {
         JSAutoCompartment rac(cx, result_obj);

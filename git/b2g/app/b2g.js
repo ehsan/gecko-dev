@@ -381,11 +381,8 @@ pref("browser.link.open_newwindow.restriction", 0);
 // work), but make in-process browser frames the default.
 pref("dom.mozBrowserFramesEnabled", true);
 
-// Enable a (virtually) unlimited number of mozbrowser processes.
-// We'll run out of PIDs on UNIX-y systems before we hit this limit.
-pref("dom.ipc.processCount", 100000);
-
 pref("dom.ipc.tabs.disabled", false);
+
 pref("dom.ipc.browser_frames.oop_by_default", false);
 
 // Temporary permission hack for WebSMS
@@ -587,12 +584,10 @@ pref("browser.prompt.allowNative", false);
 // a restart is required to enable a new value.
 pref("network.activity.blipIntervalMilliseconds", 250);
 
-pref("jsloader.reuseGlobal", true);
+pref("jsloader.reuseGlobal", false);
 
 // Enable font inflation for browser tab content.
 pref("font.size.inflation.minTwips", 120);
-// And disable it for lingering master-process UI.
-pref("font.size.inflation.disabledInMasterProcess", true);
 
 // Enable freeing dirty pages when minimizing memory; this reduces memory
 // consumption when applications are sent to the background.

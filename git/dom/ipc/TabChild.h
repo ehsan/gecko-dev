@@ -153,9 +153,8 @@ class TabChild : public PBrowserChild,
                  public ipc::MessageManagerCallback,
                  public TabContext
 {
-    typedef mozilla::dom::ClonedMessageData ClonedMessageData;
     typedef mozilla::layout::RenderFrameChild RenderFrameChild;
-    typedef mozilla::layout::ScrollingBehavior ScrollingBehavior;
+    typedef mozilla::dom::ClonedMessageData ClonedMessageData;
 
 public:
     /** 

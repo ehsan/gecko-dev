@@ -18,7 +18,7 @@
     },
     "gaia": {
         "vcs": "hgtool",
-        "repo": "http://hg.mozilla.org/integration/gaia-nightly",
+        "repo": "http://hg.mozilla.org/projects/gaia",
         "l10n": {
             "vcs": "hgtool",
             "root": "http://hg.mozilla.org/gaia-l10n"

@@ -477,12 +477,8 @@ ContentChild::AllocPImageBridge(mozilla::ipc::Transport* aTransport,
     return ImageBridgeChild::StartUpInChildProcess(aTransport, aOtherProcess);
 }
 
-static CancelableTask* sFirstIdleTask;
-
 static void FirstIdle(void)
 {
-    MOZ_ASSERT(sFirstIdleTask);
-    sFirstIdleTask = nullptr;
     ContentChild::GetSingleton()->SendFirstIdle();
 }
 
@@ -492,9 +488,7 @@ ContentChild::AllocPBrowser(const IPCTabContext& aContext,
 {
     static bool firstIdleTaskPosted = false;
     if (!firstIdleTaskPosted) {
-        MOZ_ASSERT(!sFirstIdleTask);
-        sFirstIdleTask = NewRunnableFunction(FirstIdle);
-        MessageLoop::current()->PostIdleTask(FROM_HERE, sFirstIdleTask);
+        MessageLoop::current()->PostIdleTask(FROM_HERE, NewRunnableFunction(FirstIdle));
         firstIdleTaskPosted = true;
     }
 
@@ -825,10 +819,6 @@ ContentChild::ActorDestroy(ActorDestroyReason why)
     // keep persistent state.
     QuickExit();
 #endif
-
-    if (sFirstIdleTask) {
-        sFirstIdleTask->Cancel();
-    }
 
     mAlertObservers.Clear();
 
