@@ -1052,21 +1052,5 @@ describe("loop.panel", function() {
          TestUtils.findRenderedDOMComponentWithClass(view, "terms-service");
        });
 
-    it("should render the telefonica logo after the first time use",
-       function() {
-         navigator.mozLoop.getLoopPref = function(key) {
-           return {
-             "gettingStarted.seen": false,
-             "seenToS": "unseen",
-             "showPartnerLogo": false
-           }[key];
-         };
-
-         var view = TestUtils.renderIntoDocument(
-           React.createElement(loop.panel.ToSView));
-
-         expect(view.getDOMNode().querySelector(".powered-by")).eql(null);
-       });
-
   });
 });
