@@ -1240,7 +1240,7 @@ void nsHTMLMediaElement::MetadataLoaded()
   DispatchAsyncSimpleEvent(NS_LITERAL_STRING("loadedmetadata"));
 }
 
-void nsHTMLMediaElement::FirstFrameLoaded()
+void nsHTMLMediaElement::FirstFrameLoaded(PRBool aResourceFullyLoaded)
 {
   ChangeReadyState(nsIDOMHTMLMediaElement::HAVE_CURRENT_DATA);
   ChangeDelayLoadStatus(PR_FALSE);
@@ -1248,6 +1248,7 @@ void nsHTMLMediaElement::FirstFrameLoaded()
   NS_ASSERTION(!mSuspendedAfterFirstFrame, "Should not have already suspended");
 
   if (mDecoder && mAllowSuspendAfterFirstFrame && mPaused &&
+      !aResourceFullyLoaded &&
       !HasAttr(kNameSpaceID_None, nsGkAtoms::autoplay) &&
       !HasAttr(kNameSpaceID_None, nsGkAtoms::autobuffer)) {
     mSuspendedAfterFirstFrame = PR_TRUE;
@@ -1276,7 +1277,6 @@ void nsHTMLMediaElement::NetworkError()
 void nsHTMLMediaElement::PlaybackEnded()
 {
   NS_ASSERTION(mDecoder->IsEnded(), "Decoder fired ended, but not in ended state");
-  ChangeReadyState(nsIDOMHTMLMediaElement::HAVE_CURRENT_DATA);
   DispatchAsyncSimpleEvent(NS_LITERAL_STRING("ended"));
 }
 
@@ -1336,9 +1336,7 @@ void nsHTMLMediaElement::UpdateReadyStateForData(NextFrameStatus aNextFrame)
 
   nsMediaDecoder::Statistics stats = mDecoder->GetStatistics();
 
-  if (aNextFrame != NEXT_FRAME_AVAILABLE &&
-      !mDecoder->IsEnded() &&
-      stats.mDownloadPosition < stats.mTotalBytes) {
+  if (aNextFrame != NEXT_FRAME_AVAILABLE) {
     ChangeReadyState(nsIDOMHTMLMediaElement::HAVE_CURRENT_DATA);
     if (!mWaitingFired && aNextFrame == NEXT_FRAME_UNAVAILABLE_BUFFERING) {
       DispatchAsyncSimpleEvent(NS_LITERAL_STRING("waiting"));
