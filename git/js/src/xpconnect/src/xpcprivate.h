@@ -2698,6 +2698,7 @@ public:
     void SetNeedsSOW() { mWrapperWord |= NEEDS_SOW; }
     JSBool NeedsCOW() { return !!(mWrapperWord & NEEDS_COW); }
     void SetNeedsCOW() { mWrapperWord |= NEEDS_COW; }
+    JSBool NeedsXOW() { return !!(mWrapperWord & NEEDS_XOW); }
 
     JSObject* GetWrapper()
     {
@@ -2707,9 +2708,11 @@ public:
     {
         PRWord needsSOW = NeedsSOW() ? NEEDS_SOW : 0;
         PRWord needsCOW = NeedsCOW() ? NEEDS_COW : 0;
+        PRWord needsXOW = NeedsXOW() ? NEEDS_XOW : 0;
         mWrapperWord = PRWord(obj) |
                          needsSOW |
-                         needsCOW;
+                         needsCOW |
+                         needsXOW;
     }
 
     void NoteTearoffs(nsCycleCollectionTraversalCallback& cb);
@@ -2748,11 +2751,18 @@ private:
     enum {
         NEEDS_SOW = JS_BIT(0),
         NEEDS_COW = JS_BIT(1),
+        NEEDS_XOW = JS_BIT(2),
 
-        LAST_FLAG = NEEDS_COW,
+        LAST_FLAG = NEEDS_XOW,
 
         FLAG_MASK = 0x7
     };
+
+protected:
+    void SetNeedsXOW() {
+        NS_ASSERTION(mWrapperWord == 0, "It's too late to call this");
+        mWrapperWord = NEEDS_XOW;
+    }
 
 private:
 
@@ -2794,6 +2804,39 @@ private:
 public:
     nsCOMPtr<nsIThread>          mThread; // Don't want to overload _mOwningThread
 #endif
+};
+
+class XPCWrappedNativeWithXOW : public XPCWrappedNative
+{
+public:
+    XPCWrappedNativeWithXOW(already_AddRefed<nsISupports> aIdentity,
+                            XPCWrappedNativeProto* aProto)
+        : XPCWrappedNative(aIdentity, aProto),
+          mXOW(nsnull)
+    {
+        SetNeedsXOW();
+    }
+    XPCWrappedNativeWithXOW(already_AddRefed<nsISupports> aIdentity,
+                            XPCWrappedNativeScope* aScope,
+                            XPCNativeSet* aSet)
+        : XPCWrappedNative(aIdentity, aScope, aSet),
+          mXOW(nsnull)
+    {
+        SetNeedsXOW();
+    }
+
+    JSObject *GetXOW()
+    {
+        return mXOW;
+    }
+
+    void SetXOW(JSObject *xow)
+    {
+        mXOW = xow;
+    }
+
+private:
+    JSObject *mXOW;
 };
 
 /***************************************************************************

@@ -4701,7 +4701,7 @@ nsDOMClassInfo::PostCreatePrototype(JSContext * cx, JSObject * proto)
   // XXX Is there a better way to check this?
   nsISupports *globalNative = XPConnect()->GetNativeOfWrapper(cx, global);
   nsCOMPtr<nsPIDOMWindow> piwin = do_QueryInterface(globalNative);
-  if (!piwin) {
+  if(!piwin) {
     return NS_OK;
   }
 
@@ -4709,15 +4709,6 @@ nsDOMClassInfo::PostCreatePrototype(JSContext * cx, JSObject * proto)
   if (win->IsClosedOrClosing()) {
     return NS_OK;
   }
-
-  // If the window is in a different compartment than the global object, then
-  // it's likely that global is a sandbox object whose prototype is a window.
-  // Don't do anything in this case.
-  if (win->FastGetGlobalJSObject() &&
-      global->compartment() != win->FastGetGlobalJSObject()->compartment()) {
-    return NS_OK;
-  }
-
   if (win->IsOuterWindow()) {
     // XXXjst: Do security checks here when we remove the security
     // checks on the inner window.
@@ -4955,7 +4946,7 @@ nsWindowSH::PreCreate(nsISupports *nativeObj, JSContext *cx,
     }
 
     *parentObj = win->GetCurrentInnerWindowInternal()->FastGetGlobalJSObject();
-    return NS_OK;
+    return win->IsChromeWindow() ? NS_OK : NS_SUCCESS_NEEDS_XOW;
   }
 
   JSObject *winObj = win->FastGetGlobalJSObject();
