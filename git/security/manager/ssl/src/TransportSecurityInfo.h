@@ -123,7 +123,7 @@ private:
     bool mIsNotValidAtThisTime;
     bool mIsUntrusted;
   };
-  nsDataHashtable<nsCStringHashKey, CertStateBits> mErrorHosts;
+  nsDataHashtableMT<nsCStringHashKey, CertStateBits> mErrorHosts;
 
 public:
   void RememberCertHasError(TransportSecurityInfo * infoobject,

@@ -8,19 +8,32 @@
 #ifndef mozilla_CheckedInt_h_
 #define mozilla_CheckedInt_h_
 
-// Enable relying of Mozilla's MFBT for possibly-available C++11 features
-#define MOZ_CHECKEDINT_USE_MFBT
+/*
+ * Build options. Comment out these #defines to disable the corresponding
+ * optional feature. Disabling features may be useful for code using
+ * CheckedInt outside of Mozilla (e.g. WebKit)
+ */
 
-#ifdef MOZ_CHECKEDINT_USE_MFBT
+// Enable usage of MOZ_STATIC_ASSERT to check for unsupported types.
+// If disabled, static asserts are replaced by regular assert().
+#define MOZ_CHECKEDINT_ENABLE_MOZ_ASSERTS
+
+/*
+ * End of build options
+ */
+
+
+#ifdef MOZ_CHECKEDINT_ENABLE_MOZ_ASSERTS
 #  include "mozilla/Assertions.h"
-#  include "mozilla/StandardInteger.h"
 #else
-#  include <cassert>
-#  include <stdint.h>
-#  define MOZ_STATIC_ASSERT(cond, reason) assert((cond) && reason)
-#  define MOZ_ASSERT(cond, reason) assert((cond) && reason)
-#  define MOZ_DELETE
+#  ifndef MOZ_STATIC_ASSERT
+#    include <cassert>
+#    define MOZ_STATIC_ASSERT(cond, reason) assert((cond) && reason)
+#    define MOZ_ASSERT(cond, reason) assert((cond) && reason)
+#  endif
 #endif
+
+#include "mozilla/StandardInteger.h"
 
 #include <climits>
 #include <cstddef>

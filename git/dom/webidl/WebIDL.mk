@@ -116,7 +116,6 @@ webidl_files = \
   HTMLTimeElement.webidl \
   HTMLTitleElement.webidl \
   HTMLUListElement.webidl \
-  IDBVersionChangeEvent.webidl \
   ImageData.webidl \
   LinkStyle.webidl \
   LocalMediaStream.webidl \

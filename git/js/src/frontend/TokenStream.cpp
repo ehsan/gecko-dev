@@ -695,35 +695,19 @@ CharsMatch(const jschar *p, const char *q) {
 }
 
 bool
-TokenStream::getAtSourceMappingURL(bool isMultiline)
+TokenStream::getAtSourceMappingURL()
 {
-    /* Match comments of the form "//@ sourceMappingURL=<url>" or
-     * "/\* //@ sourceMappingURL=<url> *\/"
-     *
-     * To avoid a crashing bug in IE, several JavaScript transpilers
-     * wrap single line comments containing a source mapping URL
-     * inside a multiline comment to avoid a crashing bug in IE. To
-     * avoid potentially expensive lookahead and backtracking, we
-     * only check for this case if we encounter an '@' character.
-     */
-    jschar peeked[18];
+    /* Match comments of the form "//@ sourceMappingURL=<url>" */
+
+    jschar peeked[19];
     int32_t c;
 
-    if (peekChars(18, peeked) && CharsMatch(peeked, " sourceMappingURL=")) {
-        skipChars(18);
+    if (peekChars(19, peeked) && CharsMatch(peeked, "@ sourceMappingURL=")) {
+        skipChars(19);
         tokenbuf.clear();
 
         while ((c = peekChar()) && c != EOF && !IsSpaceOrBOM2(c)) {
             getChar();
-            /*
-             * Source mapping URLs can occur in both single- and multiline
-             * comments. If we're currently inside a multiline comment, we also
-             * need to recognize multiline comment terminators.
-             */
-            if (isMultiline && c == '*' && peekChar() == '/') {
-                ungetChar('*');
-                break;
-            }
             tokenbuf.append(c);
         }
 
@@ -1440,7 +1424,7 @@ TokenStream::getTokenInternal()
          * Look for a single-line comment.
          */
         if (matchChar('/')) {
-            if (matchChar('@') && !getAtSourceMappingURL(false))
+            if (!getAtSourceMappingURL())
                 goto error;
 
   skipline:
@@ -1466,8 +1450,7 @@ TokenStream::getTokenInternal()
             unsigned linenoBefore = lineno;
             while ((c = getChar()) != EOF &&
                    !(c == '*' && matchChar('/'))) {
-                if (c == '@' && !getAtSourceMappingURL(true))
-                   goto error;
+                /* Ignore all characters until comment close. */
             }
             if (c == EOF) {
                 reportError(JSMSG_UNTERMINATED_COMMENT);

@@ -65,7 +65,6 @@ import android.util.Log;
 import android.util.SparseBooleanArray;
 import android.view.Display;
 import android.view.Gravity;
-import android.view.InputDevice;
 import android.view.KeyEvent;
 import android.view.LayoutInflater;
 import android.view.Menu;
@@ -189,7 +188,6 @@ abstract public class GeckoApp
 
     private static Boolean sIsLargeTablet = null;
     private static Boolean sIsSmallTablet = null;
-    private static Boolean sIsTouchDevice = null;
 
     abstract public int getLayout();
     abstract public boolean hasTabsSideBar();
@@ -1331,23 +1329,6 @@ abstract public class GeckoApp
         }
 
         return sIsSmallTablet;
-    }
-
-    public boolean isTouchDevice() {
-        if (sIsTouchDevice == null) {
-            if (Build.VERSION.SDK_INT >= 9) {
-                sIsTouchDevice = false;
-                for (int inputDeviceId : InputDevice.getDeviceIds()) {
-                    if ((InputDevice.getDevice(inputDeviceId).getSources() & InputDevice.SOURCE_TOUCHSCREEN) == InputDevice.SOURCE_TOUCHSCREEN) {
-                        sIsTouchDevice = true;
-                    }
-                }
-            } else {
-                // pre-gingerbread just assume everything is touch-enabled
-                sIsTouchDevice = true;
-            }
-        }
-        return sIsTouchDevice;
     }
 
     /** Called when the activity is first created. */
