@@ -11,7 +11,6 @@
 #include "libGLESv2/FramebufferAttachment.h"
 #include "libGLESv2/ProgramBinary.h"
 #include "libGLESv2/Framebuffer.h"
-#include "libGLESv2/State.h"
 #include "libGLESv2/renderer/d3d/ProgramD3D.h"
 #include "libGLESv2/renderer/d3d/ShaderD3D.h"
 #include "libGLESv2/renderer/d3d/TextureD3D.h"
@@ -940,16 +939,17 @@ gl::Error Renderer11::applyRenderTarget(gl::Framebuffer *framebuffer)
     return gl::Error(GL_NO_ERROR);
 }
 
-gl::Error Renderer11::applyVertexBuffer(const gl::State &state, GLint first, GLsizei count, GLsizei instances)
+gl::Error Renderer11::applyVertexBuffer(gl::ProgramBinary *programBinary, const gl::VertexAttribute vertexAttributes[], const gl::VertexAttribCurrentValueData currentValues[],
+                                        GLint first, GLsizei count, GLsizei instances)
 {
     TranslatedAttribute attributes[gl::MAX_VERTEX_ATTRIBS];
-    gl::Error error = mVertexDataManager->prepareVertexData(state, first, count, attributes, instances);
+    gl::Error error = mVertexDataManager->prepareVertexData(vertexAttributes, currentValues, programBinary, first, count, attributes, instances);
     if (error.isError())
     {
         return error;
     }
 
-    return mInputLayoutCache.applyVertexBuffers(attributes, state.getCurrentProgramBinary());
+    return mInputLayoutCache.applyVertexBuffers(attributes, programBinary);
 }
 
 gl::Error Renderer11::applyIndexBuffer(const GLvoid *indices, gl::Buffer *elementArrayBuffer, GLsizei count, GLenum mode, GLenum type, TranslatedIndexData *indexInfo)
@@ -986,25 +986,28 @@ gl::Error Renderer11::applyIndexBuffer(const GLvoid *indices, gl::Buffer *elemen
     return gl::Error(GL_NO_ERROR);
 }
 
-void Renderer11::applyTransformFeedbackBuffers(const gl::State& state)
+void Renderer11::applyTransformFeedbackBuffers(gl::Buffer *transformFeedbackBuffers[], GLintptr offsets[])
 {
-    size_t numXFBBindings = state.getTransformFeedbackBufferIndexRange();
-    ASSERT(numXFBBindings <= gl::IMPLEMENTATION_MAX_TRANSFORM_FEEDBACK_BUFFERS);
-
+    ID3D11Buffer* d3dBuffers[gl::IMPLEMENTATION_MAX_TRANSFORM_FEEDBACK_BUFFERS];
+    UINT d3dOffsets[gl::IMPLEMENTATION_MAX_TRANSFORM_FEEDBACK_BUFFERS];
     bool requiresUpdate = false;
-    for (size_t i = 0; i < numXFBBindings; i++)
+    for (size_t i = 0; i < gl::IMPLEMENTATION_MAX_TRANSFORM_FEEDBACK_BUFFERS; i++)
     {
-        gl::Buffer *curXFBBuffer = state.getIndexedTransformFeedbackBuffer(i);
-        GLintptr curXFBOffset = state.getIndexedTransformFeedbackBufferOffset(i);
-        ID3D11Buffer *d3dBuffer = NULL;
-        if (curXFBBuffer)
+        if (transformFeedbackBuffers[i])
         {
-            Buffer11 *storage = Buffer11::makeBuffer11(curXFBBuffer->getImplementation());
-            d3dBuffer = storage->getBuffer(BUFFER_USAGE_VERTEX_OR_TRANSFORM_FEEDBACK);
+            Buffer11 *storage = Buffer11::makeBuffer11(transformFeedbackBuffers[i]->getImplementation());
+            ID3D11Buffer *buffer = storage->getBuffer(BUFFER_USAGE_VERTEX_OR_TRANSFORM_FEEDBACK);
+
+            d3dBuffers[i] = buffer;
+            d3dOffsets[i] = (mAppliedTFBuffers[i] != buffer) ? static_cast<UINT>(offsets[i]) : -1;
+        }
+        else
+        {
+            d3dBuffers[i] = NULL;
+            d3dOffsets[i] = 0;
         }
 
-        // TODO: mAppliedTFBuffers and friends should also be kept in a vector.
-        if (d3dBuffer != mAppliedTFBuffers[i] || curXFBOffset != mAppliedTFOffsets[i])
+        if (d3dBuffers[i] != mAppliedTFBuffers[i] || offsets[i] != mAppliedTFOffsets[i])
         {
             requiresUpdate = true;
         }
@@ -1012,29 +1015,12 @@ void Renderer11::applyTransformFeedbackBuffers(const gl::State& state)
 
     if (requiresUpdate)
     {
-        for (size_t i = 0; i < numXFBBindings; ++i)
+        mDeviceContext->SOSetTargets(ArraySize(d3dBuffers), d3dBuffers, d3dOffsets);
+        for (size_t i = 0; i < gl::IMPLEMENTATION_MAX_TRANSFORM_FEEDBACK_BUFFERS; i++)
         {
-            gl::Buffer *curXFBBuffer = state.getIndexedTransformFeedbackBuffer(i);
-            GLintptr curXFBOffset = state.getIndexedTransformFeedbackBufferOffset(i);
-
-            if (curXFBBuffer)
-            {
-                Buffer11 *storage = Buffer11::makeBuffer11(curXFBBuffer->getImplementation());
-                ID3D11Buffer *d3dBuffer = storage->getBuffer(BUFFER_USAGE_VERTEX_OR_TRANSFORM_FEEDBACK);
-
-                mCurrentD3DOffsets[i] = (mAppliedTFBuffers[i] != d3dBuffer && mAppliedTFOffsets[i] != curXFBOffset) ?
-                                        static_cast<UINT>(curXFBOffset) : -1;
-                mAppliedTFBuffers[i] = d3dBuffer;
-            }
-            else
-            {
-                mAppliedTFBuffers[i] = NULL;
-                mCurrentD3DOffsets[i] = 0;
-            }
-            mAppliedTFOffsets[i] = curXFBOffset;
+            mAppliedTFBuffers[i] = d3dBuffers[i];
+            mAppliedTFOffsets[i] = offsets[i];
         }
-
-        mDeviceContext->SOSetTargets(numXFBBindings, mAppliedTFBuffers, mCurrentD3DOffsets);
     }
 }
 
@@ -1344,21 +1330,8 @@ gl::Error Renderer11::applyShaders(gl::ProgramBinary *programBinary, const gl::V
                                    bool rasterizerDiscard, bool transformFeedbackActive)
 {
     ProgramD3D *programD3D = ProgramD3D::makeProgramD3D(programBinary->getImplementation());
-
-    ShaderExecutable *vertexExe = NULL;
-    gl::Error error = programD3D->getVertexExecutableForInputLayout(inputLayout, &vertexExe);
-    if (error.isError())
-    {
-        return error;
-    }
-
-    ShaderExecutable *pixelExe = NULL;
-    error = programD3D->getPixelExecutableForFramebuffer(framebuffer, &pixelExe);
-    if (error.isError())
-    {
-        return error;
-    }
-
+    ShaderExecutable *vertexExe = programD3D->getVertexExecutableForInputLayout(inputLayout);
+    ShaderExecutable *pixelExe = programD3D->getPixelExecutableForFramebuffer(framebuffer);
     ShaderExecutable *geometryExe = programD3D->getGeometryExecutable();
 
     ID3D11VertexShader *vertexShader = (vertexExe ? ShaderExecutable11::makeShaderExecutable11(vertexExe)->getVertexShader() : NULL);
@@ -2214,10 +2187,13 @@ void Renderer11::releaseShaderCompiler()
     ShaderD3D::releaseCompiler();
 }
 
-gl::Error Renderer11::loadExecutable(const void *function, size_t length, rx::ShaderType type,
-                                     const std::vector<gl::LinkedVarying> &transformFeedbackVaryings,
-                                     bool separatedOutputBuffers, ShaderExecutable **outExecutable)
+ShaderExecutable *Renderer11::loadExecutable(const void *function, size_t length, rx::ShaderType type,
+                                             const std::vector<gl::LinkedVarying> &transformFeedbackVaryings,
+                                             bool separatedOutputBuffers)
 {
+    ShaderExecutable11 *executable = NULL;
+    HRESULT result;
+
     switch (type)
     {
       case rx::SHADER_VERTEX:
@@ -2225,12 +2201,8 @@ gl::Error Renderer11::loadExecutable(const void *function, size_t length, rx::Sh
             ID3D11VertexShader *vertexShader = NULL;
             ID3D11GeometryShader *streamOutShader = NULL;
 
-            HRESULT result = mDevice->CreateVertexShader(function, length, NULL, &vertexShader);
+            result = mDevice->CreateVertexShader(function, length, NULL, &vertexShader);
             ASSERT(SUCCEEDED(result));
-            if (FAILED(result))
-            {
-                return gl::Error(GL_OUT_OF_MEMORY, "Failed to create vertex shader, result: 0x%X.", result);
-            }
 
             if (transformFeedbackVaryings.size() > 0)
             {
@@ -2256,55 +2228,51 @@ gl::Error Renderer11::loadExecutable(const void *function, size_t length, rx::Sh
                 result = mDevice->CreateGeometryShaderWithStreamOutput(function, length, soDeclaration.data(), soDeclaration.size(),
                                                                        NULL, 0, 0, NULL, &streamOutShader);
                 ASSERT(SUCCEEDED(result));
-                if (FAILED(result))
-                {
-                    return gl::Error(GL_OUT_OF_MEMORY, "Failed to create steam output shader, result: 0x%X.", result);
-                }
             }
 
-            *outExecutable = new ShaderExecutable11(function, length, vertexShader, streamOutShader);
+            if (vertexShader)
+            {
+                executable = new ShaderExecutable11(function, length, vertexShader, streamOutShader);
+            }
         }
         break;
       case rx::SHADER_PIXEL:
         {
             ID3D11PixelShader *pixelShader = NULL;
 
-            HRESULT result = mDevice->CreatePixelShader(function, length, NULL, &pixelShader);
+            result = mDevice->CreatePixelShader(function, length, NULL, &pixelShader);
             ASSERT(SUCCEEDED(result));
-            if (FAILED(result))
-            {
-                return gl::Error(GL_OUT_OF_MEMORY, "Failed to create pixel shader, result: 0x%X.", result);
-            }
 
-            *outExecutable = new ShaderExecutable11(function, length, pixelShader);
+            if (pixelShader)
+            {
+                executable = new ShaderExecutable11(function, length, pixelShader);
+            }
         }
         break;
       case rx::SHADER_GEOMETRY:
         {
             ID3D11GeometryShader *geometryShader = NULL;
 
-            HRESULT result = mDevice->CreateGeometryShader(function, length, NULL, &geometryShader);
+            result = mDevice->CreateGeometryShader(function, length, NULL, &geometryShader);
             ASSERT(SUCCEEDED(result));
-            if (FAILED(result))
-            {
-                return gl::Error(GL_OUT_OF_MEMORY, "Failed to create geometry shader, result: 0x%X.", result);
-            }
 
-            *outExecutable = new ShaderExecutable11(function, length, geometryShader);
+            if (geometryShader)
+            {
+                executable = new ShaderExecutable11(function, length, geometryShader);
+            }
         }
         break;
       default:
         UNREACHABLE();
-        return gl::Error(GL_INVALID_OPERATION);
+        break;
     }
 
-    return gl::Error(GL_NO_ERROR);
+    return executable;
 }
 
-gl::Error Renderer11::compileToExecutable(gl::InfoLog &infoLog, const std::string &shaderHLSL, rx::ShaderType type,
-                                          const std::vector<gl::LinkedVarying> &transformFeedbackVaryings,
-                                          bool separatedOutputBuffers, D3DWorkaroundType workaround,
-                                          ShaderExecutable **outExectuable)
+ShaderExecutable *Renderer11::compileToExecutable(gl::InfoLog &infoLog, const std::string &shaderHLSL, rx::ShaderType type,
+                                                  const std::vector<gl::LinkedVarying> &transformFeedbackVaryings,
+                                                  bool separatedOutputBuffers, D3DWorkaroundType workaround)
 {
     const char *profileType = NULL;
     switch (type)
@@ -2320,7 +2288,7 @@ gl::Error Renderer11::compileToExecutable(gl::InfoLog &infoLog, const std::strin
         break;
       default:
         UNREACHABLE();
-        return gl::Error(GL_INVALID_OPERATION);
+        return NULL;
     }
 
     unsigned int profileMajorVersion = 0;
@@ -2341,7 +2309,7 @@ gl::Error Renderer11::compileToExecutable(gl::InfoLog &infoLog, const std::strin
         break;
       default:
         UNREACHABLE();
-        return gl::Error(GL_INVALID_OPERATION);
+        return NULL;
     }
 
     std::string profile = FormatString("%s_%u_%u", profileType, profileMajorVersion, profileMinorVersion);
@@ -2364,30 +2332,17 @@ gl::Error Renderer11::compileToExecutable(gl::InfoLog &infoLog, const std::strin
     configs.push_back(CompileConfig(flags | D3DCOMPILE_SKIP_VALIDATION,   "skip validation"  ));
     configs.push_back(CompileConfig(flags | D3DCOMPILE_SKIP_OPTIMIZATION, "skip optimization"));
 
-    ID3DBlob *binary = NULL;
-    gl::Error error = mCompiler.compileToBinary(infoLog, shaderHLSL, profile, configs, &binary);
-    if (error.isError())
-    {
-        return error;
-    }
-
-    // It's possible that binary is NULL if the compiler failed in all configurations.  Set the executable to NULL
-    // and return GL_NO_ERROR to signify that there was a link error but the internal state is still OK.
+    ID3DBlob *binary = mCompiler.compileToBinary(infoLog, shaderHLSL, profile, configs);
     if (!binary)
     {
-        *outExectuable = NULL;
-        return gl::Error(GL_NO_ERROR);
+        return NULL;
     }
 
-    error = loadExecutable(binary->GetBufferPointer(), binary->GetBufferSize(), type,
-                           transformFeedbackVaryings, separatedOutputBuffers, outExectuable);
+    ShaderExecutable *executable = loadExecutable(binary->GetBufferPointer(), binary->GetBufferSize(), type,
+                                                  transformFeedbackVaryings, separatedOutputBuffers);
     SafeRelease(binary);
-    if (error.isError())
-    {
-        return error;
-    }
 
-    return gl::Error(GL_NO_ERROR);
+    return executable;
 }
 
 rx::UniformStorage *Renderer11::createUniformStorage(size_t storageSize)
@@ -2472,22 +2427,40 @@ gl::Error Renderer11::fastCopyBufferToTexture(const gl::PixelUnpackState &unpack
     return mPixelTransfer->copyBufferToTexture(unpack, offset, destRenderTarget, destinationFormat, sourcePixelsType, destArea);
 }
 
-bool Renderer11::getRenderTargetResource(gl::FramebufferAttachment *colorbuffer, unsigned int *subresourceIndexOut, ID3D11Texture2D **texture2DOut)
+bool Renderer11::getRenderTargetResource(gl::FramebufferAttachment *colorbuffer, unsigned int *subresourceIndex, ID3D11Texture2D **resource)
 {
     ASSERT(colorbuffer != NULL);
 
     RenderTarget11 *renderTarget = d3d11::GetAttachmentRenderTarget(colorbuffer);
-    if (!renderTarget)
+    if (renderTarget)
     {
-        return false;
+        *subresourceIndex = renderTarget->getSubresourceIndex();
+
+        ID3D11RenderTargetView *colorBufferRTV = renderTarget->getRenderTargetView();
+        if (colorBufferRTV)
+        {
+            ID3D11Resource *textureResource = NULL;
+            colorBufferRTV->GetResource(&textureResource);
+
+            if (textureResource)
+            {
+                HRESULT result = textureResource->QueryInterface(__uuidof(ID3D11Texture2D), (void**)resource);
+                SafeRelease(textureResource);
+
+                if (SUCCEEDED(result))
+                {
+                    return true;
+                }
+                else
+                {
+                    ERR("Failed to extract the ID3D11Texture2D from the render target resource, "
+                        "HRESULT: 0x%X.", result);
+                }
+            }
+        }
     }
 
-    ID3D11Resource *renderTargetResource = renderTarget->getTexture();
-
-    *subresourceIndexOut = renderTarget->getSubresourceIndex();
-    *texture2DOut = d3d11::DynamicCastComObject<ID3D11Texture2D>(renderTargetResource);
-
-    return (*texture2DOut != NULL);
+    return false;
 }
 
 gl::Error Renderer11::blitRect(gl::Framebuffer *readTarget, const gl::Rectangle &readRect, gl::Framebuffer *drawTarget, const gl::Rectangle &drawRect,

@@ -11,7 +11,6 @@
 
 #include "mozilla/dom/SpeechRecognitionBinding.h"
 #include "mozilla/dom/MediaStreamTrackBinding.h"
-#include "mozilla/dom/MediaStreamError.h"
 #include "mozilla/MediaManager.h"
 #include "mozilla/Services.h"
 
@@ -23,11 +22,6 @@
 #include "nsServiceManagerUtils.h"
 
 #include <algorithm>
-
-// Undo the windows.h damage
-#if defined(XP_WIN) && defined(GetMessage)
-#undef GetMessage
-#endif
 
 namespace mozilla {
 namespace dom {
@@ -951,26 +945,19 @@ SpeechRecognition::GetUserMediaSuccessCallback::OnSuccess(nsISupports* aStream)
 NS_IMPL_ISUPPORTS(SpeechRecognition::GetUserMediaErrorCallback, nsIDOMGetUserMediaErrorCallback)
 
 NS_IMETHODIMP
-SpeechRecognition::GetUserMediaErrorCallback::OnError(nsISupports* aError)
+SpeechRecognition::GetUserMediaErrorCallback::OnError(const nsAString& aError)
 {
-  nsRefPtr<MediaStreamError> error = do_QueryObject(aError);
-  if (!error) {
-    return NS_OK;
-  }
   SpeechRecognitionErrorCode errorCode;
 
-  nsString name;
-  error->GetName(name);
-  if (name.EqualsLiteral("PERMISSION_DENIED")) {
+  if (aError.EqualsLiteral("PERMISSION_DENIED")) {
     errorCode = SpeechRecognitionErrorCode::Not_allowed;
   } else {
     errorCode = SpeechRecognitionErrorCode::Audio_capture;
   }
 
-  nsString message;
-  error->GetMessage(message);
   mRecognition->DispatchError(SpeechRecognition::EVENT_AUDIO_ERROR, errorCode,
-                              message);
+                              aError);
+
   return NS_OK;
 }
 

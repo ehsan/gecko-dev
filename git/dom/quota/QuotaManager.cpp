@@ -1101,7 +1101,7 @@ QuotaManager::DecreaseUsageForOrigin(PersistenceType aPersistenceType,
                                      const nsACString& aOrigin,
                                      int64_t aSize)
 {
-  MOZ_ASSERT(!NS_IsMainThread());
+  AssertIsOnIOThread();
 
   MutexAutoLock lock(mQuotaMutex);
 

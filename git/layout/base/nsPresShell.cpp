@@ -2224,16 +2224,19 @@ NS_IMETHODIMP PresShell::SetCaretEnabled(bool aInEnable)
 
   if (mCaretEnabled != oldEnabled)
   {
-    MOZ_ASSERT(mCaret);
+/*  Don't change the caret's selection here! This was an evil side-effect of SetCaretEnabled()
+    nsCOMPtr<nsIDOMSelection> domSel;
+    if (NS_SUCCEEDED(GetSelection(nsISelectionController::SELECTION_NORMAL, getter_AddRefs(domSel))) && domSel)
+      mCaret->SetCaretDOMSelection(domSel);
+*/
+
+    MOZ_ASSERT(mCaret || mTouchCaret);
     if (mCaret) {
       mCaret->SetVisible(mCaretEnabled);
     }
-  }
-
-  // We should sync touch caret's visibility with caret every time since touch
-  // caret might be hidden due to timeout while caret is enabled.
-  if (mTouchCaret) {
-    mTouchCaret->SyncVisibilityWithCaret();
+    if (mTouchCaret) {
+      mTouchCaret->SyncVisibilityWithCaret();
+    }
   }
 
   return NS_OK;

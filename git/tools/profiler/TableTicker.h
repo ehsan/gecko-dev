@@ -109,7 +109,7 @@ class TableTicker: public Sampler {
 
 #ifdef MOZ_TASK_TRACER
     if (mTaskTracer) {
-      mozilla::tasktracer::StartLogging(sStartTime);
+      mozilla::tasktracer::StartLogging();
     }
 #endif
   }
