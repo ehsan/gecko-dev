@@ -15,6 +15,7 @@ EditAggregateTxn::EditAggregateTxn()
   : EditTxn()
 {
 }
+NS_IMPL_CYCLE_COLLECTION_CLASS(EditAggregateTxn)
 
 NS_IMPL_CYCLE_COLLECTION_UNLINK_BEGIN_INHERITED(EditAggregateTxn, EditTxn)
   tmp->mChildren.Clear();

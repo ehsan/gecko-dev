@@ -83,6 +83,7 @@ TableRowsCollection::~TableRowsCollection()
   // reference for us.
 }
 
+NS_IMPL_CYCLE_COLLECTION_CLASS(TableRowsCollection)
 NS_IMPL_CYCLE_COLLECTION_UNLINK_BEGIN(TableRowsCollection)
   NS_IMPL_CYCLE_COLLECTION_UNLINK_PRESERVED_WRAPPER
   NS_IMPL_CYCLE_COLLECTION_UNLINK(mOrphanRows)
@@ -326,6 +327,7 @@ HTMLTableElement::WrapNode(JSContext *aCx, JSObject *aScope, bool *aTriedToWrap)
   return HTMLTableElementBinding::Wrap(aCx, aScope, this, aTriedToWrap);
 }
 
+NS_IMPL_CYCLE_COLLECTION_CLASS(HTMLTableElement)
 NS_IMPL_CYCLE_COLLECTION_UNLINK_BEGIN_INHERITED(HTMLTableElement, nsGenericHTMLElement)
   NS_IMPL_CYCLE_COLLECTION_UNLINK(mTBodies)
   if (tmp->mRows) {

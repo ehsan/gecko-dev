@@ -22,7 +22,6 @@
 #include "nsIScriptRuntime.h"
 #include "nsIScriptSecurityManager.h"
 #include "nsIPrincipal.h"
-#include "nsJSPrincipals.h"
 #include "nsContentPolicyUtils.h"
 #include "nsIHttpChannel.h"
 #include "nsIHttpChannelInternal.h"
@@ -856,18 +855,13 @@ nsScriptLoader::EvaluateScript(nsScriptLoadRequest* aRequest,
   nsAutoCString url;
   nsContentUtils::GetWrapperSafeScriptFilename(mDocument, aRequest->mURI, url);
 
-  JSVersion version = JSVersion(aRequest->mJSVersion);
-  if (version != JSVERSION_UNKNOWN) {
-    JS::CompileOptions options(context->GetNativeContext());
-    options.setFileAndLine(url.get(), aRequest->mLineNo)
-           .setVersion(JSVersion(aRequest->mJSVersion));
-    if (aRequest->mOriginPrincipal) {
-      options.setOriginPrincipals(nsJSPrincipals::get(aRequest->mOriginPrincipal));
-    }
-    JS::Value ignored;
-    rv = context->EvaluateString(aScript, *globalObject->GetGlobalJSObject(),
-                                 options, /* aCoerceToString = */ false, &ignored);
-  }
+  bool isUndefined;
+  rv = context->EvaluateString(aScript, globalObject->GetGlobalJSObject(),
+                               mDocument->NodePrincipal(),
+                               aRequest->mOriginPrincipal,
+                               url.get(), aRequest->mLineNo,
+                               JSVersion(aRequest->mJSVersion), nullptr,
+                               &isUndefined);
 
   // Put the old script back in case it wants to do anything else.
   mCurrentScript = oldCurrent;

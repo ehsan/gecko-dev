@@ -8,6 +8,7 @@
 
 #include "mozilla/dom/FromParser.h"
 #include "nsIDOMSVGFitToViewBox.h"
+#include "nsIDOMSVGLocatable.h"
 #include "nsISVGPoint.h"
 #include "nsIDOMSVGSVGElement.h"
 #include "nsSVGEnum.h"
@@ -39,29 +40,57 @@ class SVGViewElement;
 
 class SVGSVGElement;
 
-class DOMSVGTranslatePoint MOZ_FINAL : public nsISVGPoint {
+class nsSVGTranslatePoint {
 public:
-  DOMSVGTranslatePoint(SVGPoint* aPt, SVGSVGElement *aElement)
-    : nsISVGPoint(aPt), mElement(aElement) {}
+  nsSVGTranslatePoint()
+    : mX(0.0f)
+    , mY(0.0f)
+  {}
 
-  DOMSVGTranslatePoint(DOMSVGTranslatePoint* aPt)
-    : nsISVGPoint(&aPt->mPt), mElement(aPt->mElement) {}
+  nsSVGTranslatePoint(float aX, float aY)
+    : mX(aX)
+    , mY(aY)
+  {}
 
-  NS_DECL_CYCLE_COLLECTING_ISUPPORTS
-  NS_DECL_CYCLE_COLLECTION_SCRIPT_HOLDER_CLASS(DOMSVGTranslatePoint)
+  void SetX(float aX)
+    { mX = aX; }
+  void SetY(float aY)
+    { mY = aY; }
+  float GetX() const
+    { return mX; }
+  float GetY() const
+    { return mY; }
 
-  virtual nsISVGPoint* Clone();
+  nsresult ToDOMVal(SVGSVGElement *aElement, nsISupports **aResult);
 
-  // WebIDL
-  virtual float X() { return mPt.GetX(); }
-  virtual float Y() { return mPt.GetY(); }
-  virtual void SetX(float aValue, ErrorResult& rv);
-  virtual void SetY(float aValue, ErrorResult& rv);
-  virtual already_AddRefed<nsISVGPoint> MatrixTransform(SVGMatrix& matrix);
+  bool operator!=(const nsSVGTranslatePoint &rhs) const {
+    return mX != rhs.mX || mY != rhs.mY;
+  }
 
-  virtual nsISupports* GetParentObject() MOZ_OVERRIDE;
+private:
 
-  nsRefPtr<SVGSVGElement> mElement;
+  struct DOMVal MOZ_FINAL : public nsISVGPoint {
+    DOMVal(nsSVGTranslatePoint* aVal, SVGSVGElement *aElement)
+      : nsISVGPoint(), mVal(aVal), mElement(aElement) {}
+
+    NS_DECL_CYCLE_COLLECTING_ISUPPORTS
+    NS_DECL_CYCLE_COLLECTION_SCRIPT_HOLDER_CLASS(DOMVal)
+
+    // WebIDL
+    virtual float X() { return mVal->GetX(); }
+    virtual float Y() { return mVal->GetY(); }
+    virtual void SetX(float aValue, ErrorResult& rv);
+    virtual void SetY(float aValue, ErrorResult& rv);
+    virtual already_AddRefed<nsISVGPoint> MatrixTransform(SVGMatrix& matrix);
+
+    virtual nsISupports* GetParentObject() MOZ_OVERRIDE;
+
+    nsSVGTranslatePoint *mVal; // kept alive because it belongs to mElement
+    nsRefPtr<SVGSVGElement> mElement;
+  };
+
+  float mX;
+  float mY;
 };
 
 class svgFloatSize {
@@ -125,14 +154,14 @@ public:
   /**
    * Retrieve the value of currentScale and currentTranslate.
    */
-  const SVGPoint& GetCurrentTranslate() { return mCurrentTranslate; }
+  const nsSVGTranslatePoint& GetCurrentTranslate() { return mCurrentTranslate; }
   float GetCurrentScale() { return mCurrentScale; }
 
   /**
    * Retrieve the value of currentScale, currentTranslate.x or
    * currentTranslate.y prior to the last change made to any one of them.
    */
-  const SVGPoint& GetPreviousTranslate() { return mPreviousTranslate; }
+  const nsSVGTranslatePoint& GetPreviousTranslate() { return mPreviousTranslate; }
   float GetPreviousScale() { return mPreviousScale; }
 
   nsSMILTimeContainer* GetTimedDocumentRoot();
@@ -384,20 +413,20 @@ private:
   // zoom and pan
   // IMPORTANT: see the comment in RecordCurrentScaleTranslate before writing
   // code to change any of these!
-  SVGPoint mCurrentTranslate;
-  float    mCurrentScale;
-  SVGPoint mPreviousTranslate;
-  float    mPreviousScale;
+  nsSVGTranslatePoint               mCurrentTranslate;
+  float                             mCurrentScale;
+  nsSVGTranslatePoint               mPreviousTranslate;
+  float                             mPreviousScale;
 
   // For outermost <svg> elements created from parsing, animation is started by
   // the onload event in accordance with the SVG spec, but for <svg> elements
   // created by script or promoted from inner <svg> to outermost <svg> we need
   // to manually kick off animation when they are bound to the tree.
-  bool     mStartAnimationOnBindToTree;
-  bool     mImageNeedsTransformInvalidation;
-  bool     mIsPaintingSVGImageElement;
-  bool     mHasChildrenOnlyTransform;
-  bool     mUseCurrentView;
+  bool                              mStartAnimationOnBindToTree;
+  bool                              mImageNeedsTransformInvalidation;
+  bool                              mIsPaintingSVGImageElement;
+  bool                              mHasChildrenOnlyTransform;
+  bool                              mUseCurrentView;
 };
 
 } // namespace dom

@@ -108,6 +108,7 @@ PluginDocument::PluginDocument()
 PluginDocument::~PluginDocument()
 {}
 
+NS_IMPL_CYCLE_COLLECTION_CLASS(PluginDocument)
 
 NS_IMPL_CYCLE_COLLECTION_TRAVERSE_BEGIN_INHERITED(PluginDocument, MediaDocument)
   NS_IMPL_CYCLE_COLLECTION_TRAVERSE(mPluginContent)

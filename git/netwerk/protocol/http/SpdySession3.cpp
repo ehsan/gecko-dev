@@ -496,8 +496,8 @@ SpdySession3::ResetDownstreamState()
   mInputFrameDataStream = nullptr;
 }
 
-template<typename T> void
-SpdySession3::EnsureBuffer(nsAutoArrayPtr<T> &buf,
+void
+SpdySession3::EnsureBuffer(nsAutoArrayPtr<char> &buf,
                           uint32_t newSize,
                           uint32_t preserve,
                           uint32_t &objSize)
@@ -510,25 +510,11 @@ SpdySession3::EnsureBuffer(nsAutoArrayPtr<T> &buf,
   // boundary.
 
   objSize = (newSize + 2048 + 4095) & ~4095;
-
-  MOZ_STATIC_ASSERT(sizeof(T) == 1, "sizeof(T) must be 1");
-  nsAutoArrayPtr<T> tmp(new T[objSize]);
+  
+  nsAutoArrayPtr<char> tmp(new char[objSize]);
   memcpy(tmp, buf, preserve);
   buf = tmp;
 }
-
-// Instantiate supported templates explicitly.
-template void
-SpdySession3::EnsureBuffer(nsAutoArrayPtr<char> &buf,
-                           uint32_t newSize,
-                           uint32_t preserve,
-                           uint32_t &objSize);
-
-template void
-SpdySession3::EnsureBuffer(nsAutoArrayPtr<uint8_t> &buf,
-                           uint32_t newSize,
-                           uint32_t preserve,
-                           uint32_t &objSize);
 
 void
 SpdySession3::zlibInit()

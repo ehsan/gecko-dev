@@ -291,6 +291,7 @@ private:
  * txMozillaXSLTProcessor
  */
 
+NS_IMPL_CYCLE_COLLECTION_CLASS(txMozillaXSLTProcessor)
 NS_IMPL_CYCLE_COLLECTION_UNLINK_BEGIN(txMozillaXSLTProcessor)
     NS_IMPL_CYCLE_COLLECTION_UNLINK(mEmbeddedStylesheetRoot)
     NS_IMPL_CYCLE_COLLECTION_UNLINK(mSource)

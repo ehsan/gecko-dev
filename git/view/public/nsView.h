@@ -296,13 +296,6 @@ public:
   }
 
   /**
-   * Returns true if the view is currently painting
-   * into an alternate destination, such as the titlebar
-   * area on OSX.
-   */
-  bool InAlternatePaint() { return mInAlternatePaint; }
-
-  /**
    * Make aWidget direct its events to this view.
    * The caller must call DetachWidgetEventHandler before this view
    * is destroyed.
@@ -473,6 +466,7 @@ private:
   nsRect            mDimBounds;
   // in our appunits
   nsPoint           mViewToWidgetOffset;
+  float             mOpacity;
   uint32_t          mVFlags;
   bool              mWidgetIsTopLevel;
   bool              mForcedRepaint;

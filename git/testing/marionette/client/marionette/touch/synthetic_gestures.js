@@ -285,7 +285,7 @@ var SyntheticGestures = (function() {
   // x and y are the relative to the viewport.
   // If not specified then the center of the target is used. t is the
   // optional amount of time between touchstart and touchend event.
-  function tap(target, then, x, y, t, sendAll) {
+  function tap(target, then, x, y, t) {
     if (!SyntheticGestures.touchSupported) {
       console.warn('tap: touch events not supported; using mouse instead');
       return mousetap(target, then, x, y, t);
@@ -298,14 +298,9 @@ var SyntheticGestures = (function() {
 
     var c = coordinates(target, x, y);
 
-    if (sendAll) {
-      touch(target, t || 50, [c.x0, c.x0], [c.y0, c.y0],  function() {
-        mousetap(target, then, x, y, t, true);
-      });
-    }
-    else {
-      touch(target, t || 50, [c.x0, c.x0], [c.y0, c.y0], then);
-    }
+    touch(target, t || 50, [c.x0, c.x0], [c.y0, c.y0],  function() {
+      mousetap(target, then, x, y, t, true);
+    });
   }
 
   // Dispatch a dbltap gesture. The arguments are like those to tap()

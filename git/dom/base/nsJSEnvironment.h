@@ -45,10 +45,23 @@ public:
   virtual nsIScriptObjectPrincipal* GetObjectPrincipal();
 
   virtual nsresult EvaluateString(const nsAString& aScript,
-                                  JSObject& aScopeObject,
-                                  JS::CompileOptions &aOptions,
-                                  bool aCoerceToString,
-                                  JS::Value* aRetValue);
+                                  JSObject* aScopeObject,
+                                  nsIPrincipal *principal,
+                                  nsIPrincipal *originPrincipal,
+                                  const char *aURL,
+                                  uint32_t aLineNo,
+                                  JSVersion aVersion,
+                                  nsAString *aRetValue,
+                                  bool* aIsUndefined);
+  virtual nsresult EvaluateStringWithValue(const nsAString& aScript,
+                                           JSObject* aScopeObject,
+                                           nsIPrincipal* aPrincipal,
+                                           const char* aURL,
+                                           uint32_t aLineNo,
+                                           uint32_t aVersion,
+                                           bool aIsXBL,
+                                           JS::Value* aRetValue,
+                                           bool* aIsUndefined);
 
   virtual nsresult CompileScript(const PRUnichar* aText,
                                  int32_t aTextLength,
@@ -59,7 +72,9 @@ public:
                                  nsScriptObjectHolder<JSScript>& aScriptObject,
                                  bool aSaveSource = false);
   virtual nsresult ExecuteScript(JSScript* aScriptObject,
-                                 JSObject* aScopeObject);
+                                 JSObject* aScopeObject,
+                                 nsAString* aRetValue,
+                                 bool* aIsUndefined);
 
   virtual nsresult CompileEventHandler(nsIAtom *aName,
                                        uint32_t aArgCount,
@@ -76,6 +91,17 @@ public:
                                             JSObject *aScope,
                                             JSObject* aHandler,
                                             nsScriptObjectHolder<JSObject>& aBoundHandler);
+  virtual nsresult CompileFunction(JSObject* aTarget,
+                                   const nsACString& aName,
+                                   uint32_t aArgCount,
+                                   const char** aArgArray,
+                                   const nsAString& aBody,
+                                   const char* aURL,
+                                   uint32_t aLineNo,
+                                   uint32_t aVersion,
+                                   bool aShared,
+                                   bool aIsXBL,
+                                   JSObject** aFunctionObject);
 
   virtual nsIScriptGlobalObject *GetGlobalObject();
   inline nsIScriptGlobalObject *GetGlobalObjectRef() { return mGlobalObjectRef; }

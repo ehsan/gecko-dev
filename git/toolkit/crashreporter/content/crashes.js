@@ -5,13 +5,10 @@
 const Cc = Components.classes;
 const Ci = Components.interfaces;
 
-var reportsDir, submittedDir, pendingDir;
+var reportsDir, pendingDir;
 var reportURL;
 
 Components.utils.import("resource://gre/modules/CrashSubmit.jsm");
-Components.utils.import("resource://gre/modules/Services.jsm");
-
-const buildID = Services.appinfo.appBuildID;
 
 function submitSuccess(dumpid, ret) {
   let link = document.getElementById(dumpid);
@@ -97,14 +94,11 @@ function populateReportList() {
 
   reportsDir = directoryService.get("UAppData", Ci.nsIFile);
   reportsDir.append("Crash Reports");
-
-  submittedDir = directoryService.get("UAppData", Ci.nsIFile);
-  submittedDir.append("Crash Reports");
-  submittedDir.append("submitted");
+  reportsDir.append("submitted");
 
   var reports = [];
-  if (submittedDir.exists() && submittedDir.isDirectory()) {
-    var entries = submittedDir.directoryEntries;
+  if (reportsDir.exists() && reportsDir.isDirectory()) {
+    var entries = reportsDir.directoryEntries;
     while (entries.hasMoreElements()) {
       var file = entries.getNext().QueryInterface(Ci.nsIFile);
       var leaf = file.leafName;
@@ -206,23 +200,12 @@ function clearReports() {
                        bundle.GetStringFromName("deleteconfirm.description")))
     return;
 
-  var entries = submittedDir.directoryEntries;
+  var entries = reportsDir.directoryEntries;
   while (entries.hasMoreElements()) {
     var file = entries.getNext().QueryInterface(Ci.nsIFile);
     var leaf = file.leafName;
     if (leaf.substr(0, 3) == "bp-" &&
         leaf.substr(-4) == ".txt") {
-      file.remove(false);
-    }
-  }
-  entries = reportsDir.directoryEntries;
-  var oneYearAgo = Date.now() - 31586000000;
-  while (entries.hasMoreElements()) {
-    var file = entries.getNext().QueryInterface(Ci.nsIFile);
-    var leaf = file.leafName;
-    if (leaf.substr(0, 11) == "InstallTime" &&
-        file.lastModifiedTime < oneYearAgo &&
-        leaf != "InstallTime" + buildID) {
       file.remove(false);
     }
   }

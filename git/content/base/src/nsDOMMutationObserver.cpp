@@ -44,6 +44,8 @@ nsDOMMutationRecord::RemovedNodes()
   return mRemovedNodes;
 }
 
+NS_IMPL_CYCLE_COLLECTION_CLASS(nsDOMMutationRecord)
+
 NS_INTERFACE_MAP_BEGIN_CYCLE_COLLECTION(nsDOMMutationRecord)
   NS_WRAPPERCACHE_INTERFACE_MAP_ENTRY
   NS_INTERFACE_MAP_ENTRY(nsISupports)
@@ -337,6 +339,8 @@ void nsMutationReceiver::NodeWillBeDestroyed(const nsINode *aNode)
 }
 
 // Observer
+
+NS_IMPL_CYCLE_COLLECTION_CLASS(nsDOMMutationObserver)
 
 NS_INTERFACE_MAP_BEGIN_CYCLE_COLLECTION(nsDOMMutationObserver)
   NS_WRAPPERCACHE_INTERFACE_MAP_ENTRY

@@ -642,14 +642,8 @@ StackSpace::containingSegment(const StackFrame *target) const
 void
 StackSpace::markFrame(JSTracer *trc, StackFrame *fp, Value *slotsEnd)
 {
-    /*
-     * JM may leave values with object/string type but a null payload on the
-     * stack. This can happen if the script was initially compiled by Ion,
-     * which replaced dead values with undefined, and later ran under JM which
-     * assumed values were of the original type.
-     */
     Value *slotsBegin = fp->slots();
-    gc::MarkValueRootRangeMaybeNullPayload(trc, slotsEnd - slotsBegin, slotsBegin, "vm_stack");
+    gc::MarkValueRootRange(trc, slotsBegin, slotsEnd, "vm_stack");
 }
 
 void

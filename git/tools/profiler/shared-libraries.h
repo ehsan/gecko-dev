@@ -26,12 +26,12 @@ public:
                 unsigned long aEnd,
                 unsigned long aOffset,
                 const std::string &aBreakpadId,
-                const std::string &aName)
+                const char *aName)
     : mStart(aStart)
     , mEnd(aEnd)
     , mOffset(aOffset)
     , mBreakpadId(aBreakpadId)
-    , mName(aName)
+    , mName(strdup(aName))
   {}
 
   SharedLibrary(const SharedLibrary& aEntry)
@@ -39,7 +39,7 @@ public:
     , mEnd(aEntry.mEnd)
     , mOffset(aEntry.mOffset)
     , mBreakpadId(aEntry.mBreakpadId)
-    , mName(aEntry.mName)
+    , mName(strdup(aEntry.mName))
   {}
 
   SharedLibrary& operator=(const SharedLibrary& aEntry)
@@ -51,7 +51,9 @@ public:
     mEnd = aEntry.mEnd;
     mOffset = aEntry.mOffset;
     mBreakpadId = aEntry.mBreakpadId;
-    mName = aEntry.mName;
+    if (mName)
+      free(mName);
+    mName = strdup(aEntry.mName);
     return *this;
   }
 
@@ -60,24 +62,30 @@ public:
     return (mStart == other.mStart) &&
            (mEnd == other.mEnd) &&
            (mOffset == other.mOffset) &&
-           (mName == other.mName) &&
+           (mName && other.mName && (strcmp(mName, other.mName) == 0)) &&
            (mBreakpadId == other.mBreakpadId);
+  }
+
+  ~SharedLibrary()
+  {
+    free(mName);
+    mName = NULL;
   }
 
   uintptr_t GetStart() const { return mStart; }
   uintptr_t GetEnd() const { return mEnd; }
   uintptr_t GetOffset() const { return mOffset; }
   const std::string &GetBreakpadId() const { return mBreakpadId; }
-  const std::string &GetName() const { return mName; }
+  char* GetName() const { return mName; }
 
 private:
-  SharedLibrary() {}
+  explicit SharedLibrary() {}
 
   uintptr_t mStart;
   uintptr_t mEnd;
   uintptr_t mOffset;
   std::string mBreakpadId;
-  std::string mName;
+  char *mName;
 };
 
 static bool

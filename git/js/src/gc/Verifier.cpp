@@ -51,14 +51,8 @@ CheckStackRoot(JSRuntime *rt, uintptr_t *w, Rooter *begin, Rooter *end)
     VALGRIND_MAKE_MEM_DEFINED(&w, sizeof(w));
 #endif
 
-    void *thing = IsAddressableGCThing(rt, *w);
-    if (!thing)
+    if (!IsAddressableGCThing(rt, *w))
         return;
-
-    /* Don't check atoms as these will never be subject to generational collection. */
-    if (IsAtomsCompartment(reinterpret_cast<Cell *>(thing)->compartment()))
-        return;
-
     /*
      * Note that |thing| may be in a free list (InFreeList(aheader, thing)),
      * but we can skip that check because poisoning the pointer can't hurt; the

@@ -28,6 +28,7 @@ TraverseNamedProperties(const nsAString& aKey, PropertyNodeList* aEntry, void* a
   return PL_DHASH_NEXT;
 }
 
+NS_IMPL_CYCLE_COLLECTION_CLASS(HTMLPropertiesCollection)
 NS_IMPL_CYCLE_COLLECTION_UNLINK_BEGIN(HTMLPropertiesCollection)
   // SetDocument(nullptr) ensures that we remove ourselves as a mutation observer
   tmp->SetDocument(nullptr);
@@ -417,6 +418,7 @@ PropertyNodeList::WrapObject(JSContext *cx, JSObject *scope, bool *triedToWrap)
   return PropertyNodeListBinding::Wrap(cx, scope, this, triedToWrap);
 }
 
+NS_IMPL_CYCLE_COLLECTION_CLASS(PropertyNodeList)
 NS_IMPL_CYCLE_COLLECTION_UNLINK_BEGIN(PropertyNodeList)
   // SetDocument(nullptr) ensures that we remove ourselves as a mutation observer
   tmp->SetDocument(nullptr);
@@ -527,7 +529,13 @@ PropertyStringList::PropertyStringList(HTMLPropertiesCollection* aCollection)
   , mCollection(aCollection)
 { }
 
-NS_IMPL_CYCLE_COLLECTION_1(PropertyStringList, mCollection)
+NS_IMPL_CYCLE_COLLECTION_CLASS(PropertyStringList)
+NS_IMPL_CYCLE_COLLECTION_UNLINK_BEGIN(PropertyStringList)
+  NS_IMPL_CYCLE_COLLECTION_UNLINK(mCollection)
+NS_IMPL_CYCLE_COLLECTION_UNLINK_END
+NS_IMPL_CYCLE_COLLECTION_TRAVERSE_BEGIN(PropertyStringList)
+  NS_IMPL_CYCLE_COLLECTION_TRAVERSE(mCollection)
+NS_IMPL_CYCLE_COLLECTION_TRAVERSE_END
 
 NS_IMPL_CYCLE_COLLECTING_ADDREF(PropertyStringList)
 NS_IMPL_CYCLE_COLLECTING_RELEASE(PropertyStringList)

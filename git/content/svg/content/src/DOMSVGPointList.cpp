@@ -19,8 +19,10 @@
 // local helper functions
 namespace {
 
+using mozilla::DOMSVGPoint;
+
 void
-UpdateListIndicesFromIndex(nsTArray<mozilla::nsISVGPoint*>& aItemsArray,
+UpdateListIndicesFromIndex(nsTArray<DOMSVGPoint*>& aItemsArray,
                            uint32_t aStartingIndex)
 {
   uint32_t length = aItemsArray.Length();
@@ -39,6 +41,7 @@ namespace mozilla {
 static nsSVGAttrTearoffTable<void, DOMSVGPointList>
   sSVGPointListTearoffTable;
 
+NS_IMPL_CYCLE_COLLECTION_CLASS(DOMSVGPointList)
 NS_IMPL_CYCLE_COLLECTION_UNLINK_BEGIN(DOMSVGPointList)
   // No unlinking of mElement, we'd need to null out the value pointer (the
   // object it points to is held by the element) and null-check it everywhere.
@@ -107,10 +110,10 @@ DOMSVGPointList::InternalListWillChangeTo(const SVGPointList& aNewValue)
   uint32_t oldLength = mItems.Length();
 
   uint32_t newLength = aNewValue.Length();
-  if (newLength > nsISVGPoint::MaxListIndex()) {
+  if (newLength > DOMSVGPoint::MaxListIndex()) {
     // It's safe to get out of sync with our internal list as long as we have
     // FEWER items than it does.
-    newLength = nsISVGPoint::MaxListIndex();
+    newLength = DOMSVGPoint::MaxListIndex();
   }
 
   nsRefPtr<DOMSVGPointList> kungFuDeathGrip;
@@ -212,7 +215,11 @@ DOMSVGPointList::Initialize(nsISVGPoint& aNewItem, ErrorResult& aError)
   // clone of aNewItem, it would actually insert aNewItem. To prevent that
   // from happening we have to do the clone here, if necessary.
 
-  nsCOMPtr<nsISVGPoint> domItem = &aNewItem;
+  nsCOMPtr<DOMSVGPoint> domItem = do_QueryInterface(&aNewItem);
+  if (!domItem) {
+    aError.Throw(NS_ERROR_DOM_SVG_WRONG_TYPE_ERR);
+    return nullptr;
+  }
   if (domItem->HasOwner() || domItem->IsReadonly()) {
     domItem = domItem->Clone(); // must do this before changing anything!
   }
@@ -248,12 +255,16 @@ DOMSVGPointList::InsertItemBefore(nsISVGPoint& aNewItem, uint32_t aIndex,
   }
 
   aIndex = std::min(aIndex, LengthNoFlush());
-  if (aIndex >= nsISVGPoint::MaxListIndex()) {
+  if (aIndex >= DOMSVGPoint::MaxListIndex()) {
     aError.Throw(NS_ERROR_DOM_INDEX_SIZE_ERR);
     return nullptr;
   }
 
-  nsCOMPtr<nsISVGPoint> domItem = &aNewItem;
+  nsCOMPtr<DOMSVGPoint> domItem = do_QueryInterface(&aNewItem);
+  if (!domItem) {
+    aError.Throw(NS_ERROR_DOM_SVG_WRONG_TYPE_ERR);
+    return nullptr;
+  }
   if (domItem->HasOwner() || domItem->IsReadonly()) {
     domItem = domItem->Clone(); // must do this before changing anything!
   }
@@ -300,7 +311,11 @@ DOMSVGPointList::ReplaceItem(nsISVGPoint& aNewItem, uint32_t aIndex,
     return nullptr;
   }
 
-  nsCOMPtr<nsISVGPoint> domItem = &aNewItem;
+  nsCOMPtr<DOMSVGPoint> domItem = do_QueryInterface(&aNewItem);
+  if (!domItem) {
+    aError.Throw(NS_ERROR_DOM_SVG_WRONG_TYPE_ERR);
+    return nullptr;
+  }
   if (domItem->HasOwner() || domItem->IsReadonly()) {
     domItem = domItem->Clone(); // must do this before changing anything!
   }
@@ -351,7 +366,7 @@ DOMSVGPointList::RemoveItem(uint32_t aIndex, ErrorResult& aError)
   // Notify the DOM item of removal *before* modifying the lists so that the
   // DOM item can copy its *old* value:
   mItems[aIndex]->RemovingFromList();
-  nsCOMPtr<nsISVGPoint> result = mItems[aIndex];
+  nsRefPtr<DOMSVGPoint> result = mItems[aIndex];
 
   InternalList().RemoveItem(aIndex);
   mItems.RemoveElementAt(aIndex);
@@ -394,7 +409,7 @@ DOMSVGPointList::MaybeInsertNullInAnimValListAt(uint32_t aIndex)
   NS_ABORT_IF_FALSE(animVal->mItems.Length() == mItems.Length(),
                     "animVal list not in sync!");
 
-  animVal->mItems.InsertElementAt(aIndex, static_cast<nsISVGPoint*>(nullptr));
+  animVal->mItems.InsertElementAt(aIndex, static_cast<DOMSVGPoint*>(nullptr));
 
   UpdateListIndicesFromIndex(animVal->mItems, aIndex + 1);
 }

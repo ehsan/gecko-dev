@@ -8,7 +8,7 @@
 #include "nsAString.h"
 #include "nsGenericHTMLElement.h"
 #include "nsHTMLFormElement.h"
-#include "mozilla/dom/ValidityState.h"
+#include "nsDOMValidityState.h"
 #include "nsIFormControl.h"
 #include "nsContentUtils.h"
 
@@ -16,6 +16,7 @@ const uint16_t nsIConstraintValidation::sContentSpecifiedMaxLengthMessage = 256;
 
 nsIConstraintValidation::nsIConstraintValidation()
   : mValidityBitField(0)
+  , mValidity(nullptr)
   // By default, all elements are subjects to constraint validation.
   , mBarredFromConstraintValidation(false)
 {
@@ -28,22 +29,14 @@ nsIConstraintValidation::~nsIConstraintValidation()
   }
 }
 
-mozilla::dom::ValidityState*
-nsIConstraintValidation::Validity()
-{
-  if (!mValidity) {
-    mValidity = new mozilla::dom::ValidityState(this);
-  }
-
-  return mValidity;
-}
-
 nsresult
 nsIConstraintValidation::GetValidity(nsIDOMValidityState** aValidity)
 {
-  NS_ENSURE_ARG_POINTER(aValidity);
+  if (!mValidity) {
+    mValidity = new nsDOMValidityState(this);
+  }
 
-  NS_ADDREF(*aValidity = Validity());
+  NS_ADDREF(*aValidity = mValidity);
 
   return NS_OK;
 }
@@ -96,30 +89,22 @@ nsIConstraintValidation::GetValidationMessage(nsAString& aValidationMessage)
   return NS_OK;
 }
 
-bool
-nsIConstraintValidation::CheckValidity()
+nsresult
+nsIConstraintValidation::CheckValidity(bool* aValidity)
 {
   if (!IsCandidateForConstraintValidation() || IsValid()) {
-    return true;
+    *aValidity = true;
+    return NS_OK;
   }
+
+  *aValidity = false;
 
   nsCOMPtr<nsIContent> content = do_QueryInterface(this);
   NS_ASSERTION(content, "This class should be inherited by HTML elements only!");
 
-  nsContentUtils::DispatchTrustedEvent(content->OwnerDoc(), content,
-                                       NS_LITERAL_STRING("invalid"),
-                                       false, true);
-  return false;
-}
-
-nsresult
-nsIConstraintValidation::CheckValidity(bool* aValidity)
-{
-  NS_ENSURE_ARG_POINTER(aValidity);
-
-  *aValidity = CheckValidity();
-
-  return NS_OK;
+  return nsContentUtils::DispatchTrustedEvent(content->OwnerDoc(), content,
+                                              NS_LITERAL_STRING("invalid"),
+                                              false, true);
 }
 
 void

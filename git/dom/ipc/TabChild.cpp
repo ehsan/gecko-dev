@@ -2081,6 +2081,8 @@ TabChildGlobal::Init()
                                               MM_CHILD);
 }
 
+NS_IMPL_CYCLE_COLLECTION_CLASS(TabChildGlobal)
+
 NS_IMPL_CYCLE_COLLECTION_UNLINK_BEGIN_INHERITED(TabChildGlobal,
                                                 nsDOMEventTargetHelper)
   NS_IMPL_CYCLE_COLLECTION_UNLINK(mMessageManager)

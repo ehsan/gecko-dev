@@ -13,7 +13,6 @@
 #include "nsReadableUtils.h"
 #include "nsXBLProtoImplMethod.h"
 #include "nsIScriptContext.h"
-#include "nsJSUtils.h"
 #include "nsContentUtils.h"
 #include "nsIScriptSecurityManager.h"
 #include "nsIXPConnect.h"
@@ -199,19 +198,17 @@ nsXBLProtoImplMethod::CompileMember(nsIScriptContext* aContext, const nsCString&
   }
 
   JSObject* methodObject = nullptr;
-  JSContext* cx = aContext->GetNativeContext();
-  JSAutoRequest ar(cx);
-  JSAutoCompartment ac(cx, aClassObject);
-  JS::CompileOptions options(cx);
-  options.setFileAndLine(functionUri.get(),
-                         uncompiledMethod->mBodyText.GetLineNumber())
-         .setVersion(JSVERSION_LATEST)
-         .setUserBit(true); // Flag us as XBL
-  js::RootedObject rootedNull(cx, nullptr); // See bug 781070.
-  nsresult rv = nsJSUtils::CompileFunction(cx, rootedNull, options, cname,
-                                           paramCount,
-                                           const_cast<const char**>(args),
-                                           body, &methodObject);
+  nsresult rv = aContext->CompileFunction(aClassObject,
+                                          cname,
+                                          paramCount,
+                                          const_cast<const char**>(args),
+                                          body, 
+                                          functionUri.get(),
+                                          uncompiledMethod->mBodyText.GetLineNumber(),
+                                          JSVERSION_LATEST,
+                                          /* aShared = */ true,
+                                          /* aIsXBL = */ true,
+                                          &methodObject);
 
   // Destroy our uncompiled method and delete our arg list.
   delete uncompiledMethod;

@@ -24,6 +24,6 @@ interface SVGLocatableElement : SVGElement {
   SVGMatrix? getCTM();
   SVGMatrix? getScreenCTM();
   [Throws]
-  SVGMatrix getTransformToElement(SVGLocatableElement element);
+  SVGMatrix getTransformToElement(SVGElement element);
 };
 

@@ -32,6 +32,7 @@ interface nsIDOMSVGSVGElement
     nsIDOMSVGLangSpace,
     nsIDOMSVGExternalResourcesRequired,
     nsIDOMSVGStylable,
+    nsIDOMSVGLocatable,
     nsIDOMSVGFitToViewBox,
     nsIDOMSVGZoomAndPan,
     events::nsIDOMEventTarget,

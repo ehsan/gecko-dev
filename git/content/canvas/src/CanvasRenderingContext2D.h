@@ -17,7 +17,6 @@
 #include "mozilla/ErrorResult.h"
 #include "mozilla/dom/ImageData.h"
 #include "mozilla/dom/UnionTypes.h"
-#include "mozilla/dom/CanvasRenderingContext2DBinding.h"
 
 #define NS_CANVASGRADIENTAZURE_PRIVATE_IID \
     {0x28425a6a, 0x90e0, 0x4d42, {0x9c, 0x75, 0xff, 0x60, 0x09, 0xb3, 0x10, 0xa8}}
@@ -239,10 +238,10 @@ public:
   void FillRect(double x, double y, double w, double h);
   void StrokeRect(double x, double y, double w, double h);
   void BeginPath();
-  void Fill(const CanvasWindingRule& winding);
+  void Fill();
   void Stroke();
-  void Clip(const CanvasWindingRule& winding);
-  bool IsPointInPath(double x, double y, const CanvasWindingRule& winding);
+  void Clip();
+  bool IsPointInPath(double x, double y);
   bool IsPointInStroke(double x, double y);
   void FillText(const nsAString& text, double x, double y,
                 const mozilla::dom::Optional<double>& maxWidth,
@@ -588,7 +587,7 @@ protected:
   void EnsureWritablePath();
 
   // Ensures a path in UserSpace is available.
-  void EnsureUserSpacePath(const CanvasWindingRule& winding = CanvasWindingRuleValues::Nonzero);
+  void EnsureUserSpacePath();
 
   /**
    * Needs to be called before updating the transform. This makes a call to

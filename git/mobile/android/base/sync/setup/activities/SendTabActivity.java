@@ -133,21 +133,21 @@ public class SendTabActivity extends Activity {
       return;
     }
 
-    final SendTabData sendTabData = SendTabData.fromBundle(extras);
+    final String uri = extras.getString(Intent.EXTRA_TEXT);
+    final String title = extras.getString(Intent.EXTRA_SUBJECT);
+    final List<String> guids = arrayAdapter.getCheckedGUIDs();
 
-    if (sendTabData.title == null) {
+    if (title == null) {
       Logger.warn(LOG_TAG, "title was null; ignoring and sending tab anyway.");
     }
 
-    if (sendTabData.uri == null) {
+    if (uri == null) {
       Logger.warn(LOG_TAG, "uri was null; aborting without sending tab.");
       notifyAndFinish(false);
       return;
     }
 
-    final List<String> remoteClientGuids = arrayAdapter.getCheckedGUIDs();
-
-    if (remoteClientGuids == null) {
+    if (guids == null) {
       // Should never happen.
       Logger.warn(LOG_TAG, "guids was null; aborting without sending tab.");
       notifyAndFinish(false);
@@ -168,8 +168,8 @@ public class SendTabActivity extends Activity {
           return false;
         }
 
-        for (String remoteClientGuid : remoteClientGuids) {
-          processor.sendURIToClientForDisplay(sendTabData.uri, remoteClientGuid, sendTabData.title, accountGUID, getApplicationContext());
+        for (String guid : guids) {
+          processor.sendURIToClientForDisplay(uri, guid, title, accountGUID, getApplicationContext());
         }
 
         Logger.info(LOG_TAG, "Requesting immediate clients stage sync.");

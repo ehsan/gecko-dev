@@ -56,6 +56,8 @@ nsXULCommandDispatcher::~nsXULCommandDispatcher()
   Disconnect();
 }
 
+NS_IMPL_CYCLE_COLLECTION_CLASS(nsXULCommandDispatcher)
+
 // QueryInterface implementation for nsXULCommandDispatcher
 
 DOMCI_DATA(XULCommandDispatcher, nsXULCommandDispatcher)

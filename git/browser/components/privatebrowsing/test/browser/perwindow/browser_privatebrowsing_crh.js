@@ -23,22 +23,13 @@ function test() {
   };
 
   let windowsToClose = [];
-  let testURI = "about:blank";
-
-  function testOnWindow(aIsPrivate, aCallback) {
-    whenNewWindowLoaded({private: aIsPrivate}, function(aWin) {
-      windowsToClose.push(aWin);
-      aWin.gBrowser.selectedBrowser.addEventListener("load", function onLoad() {
-        if (aWin.content.location.href != testURI) {
-          aWin.gBrowser.loadURI(testURI);
-          return;
-        }
-        aWin.gBrowser.selectedBrowser.removeEventListener("load", onLoad, true);
-        executeSoon(function() aCallback(aWin));
-      }, true);
-
-      aWin.gBrowser.loadURI(testURI);
-    });
+  function testOnWindow(options, callback) {
+    let win = OpenBrowserWindow(options);
+    win.addEventListener("load", function onLoad() {
+      win.removeEventListener("load", onLoad, false);
+      windowsToClose.push(win);
+      callback(win);
+    }, false);
   };
 
   registerCleanupFunction(function() {
@@ -47,11 +38,9 @@ function test() {
     });
   });
 
-  testOnWindow(true, function(win) {
-    info("Test on private window");
+  testOnWindow({private: true}, function(win) {
     checkDisableOption(true, win, function() {
-      testOnWindow(false, function(win) {
-        info("Test on public window");
+      testOnWindow({}, function(win) {
         checkDisableOption(false, win, finish);
       });
     });

@@ -14,9 +14,7 @@ interface SVGAnimatedRect;
 
 [NoInterfaceObject]
 interface SVGFitToViewBox {
-  [Constant]
   readonly attribute SVGAnimatedRect viewBox;
-  [Constant]
   readonly attribute SVGAnimatedPreserveAspectRatio preserveAspectRatio;
 };
 

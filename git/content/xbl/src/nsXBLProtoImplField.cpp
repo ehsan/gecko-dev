@@ -74,6 +74,7 @@ nsXBLProtoImplField::AppendFieldText(const nsAString& aText)
 nsresult
 nsXBLProtoImplField::InstallField(nsIScriptContext* aContext,
                                   JSObject* aBoundNode,
+                                  nsIPrincipal* aPrincipal,
                                   nsIURI* aBindingDocURI,
                                   bool* aDidInstall) const
 {
@@ -90,7 +91,7 @@ nsXBLProtoImplField::InstallField(nsIScriptContext* aContext,
 
   nsAutoMicroTask mt;
 
-  // EvaluateString and JS_DefineUCProperty can both trigger GC, so
+  // EvaluateStringWithValue and JS_DefineUCProperty can both trigger GC, so
   // protect |result| here.
   nsresult rv;
 
@@ -102,24 +103,25 @@ nsXBLProtoImplField::InstallField(nsIScriptContext* aContext,
                "Shouldn't get here when an exception is pending!");
   
   // compile the literal string
+  bool undefined;
   nsCOMPtr<nsIScriptContext> context = aContext;
 
   JSAutoRequest ar(cx);
   jsval result = JSVAL_NULL;
-
-  JS::CompileOptions options(cx);
-  options.setFileAndLine(uriSpec.get(), mLineNumber)
-         .setVersion(JSVERSION_LATEST)
-         .setUserBit(true); // Flag us as XBL
-  rv = context->EvaluateString(nsDependentString(mFieldText,
-                                                 mFieldTextLength),
-                               *aBoundNode, options,
-                               /* aCoerceToString = */ false,
-                               &result);
+  rv = context->EvaluateStringWithValue(nsDependentString(mFieldText,
+                                                          mFieldTextLength), 
+                                        aBoundNode,
+                                        aPrincipal, uriSpec.get(),
+                                        mLineNumber, JSVERSION_LATEST,
+                                        /* aIsXBL = */ true,
+                                        &result, &undefined);
   if (NS_FAILED(rv)) {
     return rv;
   }
 
+  if (undefined) {
+    result = JSVAL_VOID;
+  }
 
   // Define the evaluated result as a JS property
   nsDependentString name(mName);

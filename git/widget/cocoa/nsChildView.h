@@ -21,7 +21,6 @@
 #include "nsWeakPtr.h"
 #include "TextInputHandler.h"
 #include "nsCocoaUtils.h"
-#include "gfxQuartzSurface.h"
 
 #include "nsString.h"
 #include "nsIDragService.h"
@@ -281,8 +280,6 @@ typedef NSInteger NSEventGestureAxis;
 
 - (void)drawRect:(NSRect)aRect inTitlebarContext:(CGContextRef)aContext;
 
-- (void)drawTitlebar:(NSRect)aRect inTitlebarContext:(CGContextRef)aContext;
-
 - (void)sendMouseEnterOrExitEvent:(NSEvent*)aEvent
                             enter:(BOOL)aEnter
                              type:(nsMouseEvent::exitType)aType;
@@ -391,7 +388,6 @@ public:
   virtual bool            IsEnabled() const;
   NS_IMETHOD              SetFocus(bool aRaise);
   NS_IMETHOD              GetBounds(nsIntRect &aRect);
-  NS_IMETHOD              GetClientBounds(nsIntRect &aRect);
 
   // Returns the "backing scale factor" of the view's window, which is the
   // ratio of pixels in the window's backing store to Cocoa points. Prior to
@@ -508,8 +504,6 @@ public:
 
   NS_IMETHOD        ReparentNativeWidget(nsIWidget* aNewParent);
 
-  virtual void      WillPaint() MOZ_OVERRIDE;
-
   mozilla::widget::TextInputHandler* GetTextInputHandler()
   {
     return mTextInputHandler;
@@ -528,8 +522,6 @@ public:
   NSRect            DevPixelsToCocoaPoints(const nsIntRect& aRect) {
     return nsCocoaUtils::DevPixelsToCocoaPoints(aRect, BackingScaleFactor());
   }
-
-  void CompositeTitlebar(const gfxSize& aSize, CGContextRef aContext);
 
 protected:
 
@@ -566,9 +558,6 @@ protected:
 
   nsRefPtr<gfxASurface> mTempThebesSurface;
   nsRefPtr<mozilla::gl::TextureImage> mResizerImage;
-
-  nsRefPtr<gfxQuartzSurface> mTitlebarSurf;
-  gfxSize mTitlebarSize;
 
   // Cached value of [mView backingScaleFactor], to avoid sending two obj-c
   // messages (respondsToSelector, backingScaleFactor) every time we need to

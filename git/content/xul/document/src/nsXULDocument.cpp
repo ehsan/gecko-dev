@@ -281,6 +281,8 @@ NS_NewXULDocument(nsIXULDocument** result)
 // nsISupports interface
 //
 
+NS_IMPL_CYCLE_COLLECTION_CLASS(nsXULDocument)
+
 static PLDHashOperator
 TraverseTemplateBuilders(nsISupports* aKey, nsIXULTemplateBuilder* aData,
                          void* aContext)
@@ -3540,7 +3542,7 @@ nsXULDocument::ExecuteScript(nsIScriptContext * aContext, JSScript* aScriptObjec
 
     // Execute the precompiled script with the given version
     JSObject* global = mScriptGlobalObject->GetGlobalJSObject();
-    return aContext->ExecuteScript(aScriptObject, global);
+    return aContext->ExecuteScript(aScriptObject, global, nullptr, nullptr);
 }
 
 nsresult

@@ -14,6 +14,8 @@
 
 // NOTE: much of the fancy footwork is done in xpcstubs.cpp
 
+NS_IMPL_CYCLE_COLLECTION_CLASS(nsXPCWrappedJS)
+
 NS_IMETHODIMP
 NS_CYCLE_COLLECTION_CLASSNAME(nsXPCWrappedJS)::TraverseImpl
    (NS_CYCLE_COLLECTION_CLASSNAME(nsXPCWrappedJS) *that, void *p,

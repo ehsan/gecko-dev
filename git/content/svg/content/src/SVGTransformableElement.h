@@ -7,6 +7,7 @@
 #define SVGTransformableElement_h
 
 #include "mozilla/dom/SVGLocatableElement.h"
+#include "nsIDOMSVGTransformable.h"
 #include "gfxMatrix.h"
 #include "SVGAnimatedTransformList.h"
 
@@ -18,7 +19,8 @@ namespace mozilla {
 class DOMSVGAnimatedTransformList;
 
 namespace dom {
-class SVGTransformableElement : public SVGLocatableElement
+class SVGTransformableElement : public SVGLocatableElement,
+                                public nsIDOMSVGTransformable
 {
 public:
   SVGTransformableElement(already_AddRefed<nsINodeInfo> aNodeInfo)
@@ -27,6 +29,7 @@ public:
 
   NS_DECLARE_STATIC_IID_ACCESSOR(MOZILLA_SVGTRANSFORMABLEELEMENT_IID)
   NS_DECL_ISUPPORTS_INHERITED
+  NS_DECL_NSIDOMSVGTRANSFORMABLE
 
   // WebIDL
   already_AddRefed<DOMSVGAnimatedTransformList> Transform();

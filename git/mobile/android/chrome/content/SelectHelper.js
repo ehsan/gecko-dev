@@ -66,7 +66,7 @@ var SelectHelper = {
 
     if (aElement.multiple) {
       result.buttons = [
-        Strings.browser.GetStringFromName("selectHelper.closeMultipleSelectDialog")
+        { label: Strings.browser.GetStringFromName("selectHelper.closeMultipleSelectDialog") },
       ];
     }
 

@@ -338,10 +338,6 @@ const ContentPanning = {
       return nodeContent;
     }
 
-    if (nodeContent.frameElement) {
-      return this._findPannable(nodeContent.frameElement);
-    }
-
     return null;
   },
 
@@ -387,19 +383,9 @@ const ContentPanning = {
       return false;
     };
 
-    function targetParent(node) {
-      if (node.parentNode) {
-        return node.parentNode;
-      }
-      if (node.frameElement) {
-        return node.frameElement;
-      }
-      return null;
-    }
-
     function scroll(delta) {
       for (target = content; target;
-           target = ContentPanning._findPannable(targetParent(target))) {
+          target = ContentPanning._findPannable(target.parentNode)) {
         isScrolling = doScroll(target, delta);
         if (isScrolling || !firstScroll) {
           break;

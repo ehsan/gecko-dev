@@ -253,24 +253,12 @@ private:
 
 };
 
-template<class T>
-class DeleteInstanceRunnable : public nsRunnable
+static void
+DestroyImpl(UnixSocketImpl* impl)
 {
-public:
-  DeleteInstanceRunnable(T* aInstance)
-  : mInstance(aInstance)
-  { }
-
-  NS_IMETHOD Run()
-  {
-    delete mInstance;
-
-    return NS_OK;
-  }
-
-private:
-  T* mInstance;
-};
+  MOZ_ASSERT(impl);
+  delete impl;
+}
 
 class OnSocketEventTask : public nsRunnable
 {
@@ -624,18 +612,9 @@ UnixSocketConsumer::CloseSocket()
   // Line it up to be destructed on the IO Thread
   impl->mConsumer.forget();
   impl->StopTask();
-
-  // The receiver task should have been stopped at this point, but
-  // SocketReceiverTask runnables might still be pending the main
-  // thread. We enqueue the DeleteInstanceRunnable _after_ any pending
-  // SocketReceiverTask. Otherwise we might free 'impl' before those
-  // runnables have been executed.
-  nsRefPtr<nsIRunnable> t(new DeleteInstanceRunnable<UnixSocketImpl>(impl));
-  NS_ENSURE_TRUE_VOID(t);
-  nsresult rv = NS_DispatchToMainThread(t);
-  NS_ENSURE_SUCCESS_VOID(rv);
-  t.forget();
-
+  XRE_GetIOMessageLoop()->PostTask(FROM_HERE,
+                                   NewRunnableFunction(DestroyImpl,
+                                                       impl));
   NotifyDisconnect();
 }
 

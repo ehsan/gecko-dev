@@ -16,6 +16,8 @@
 #include "mozilla/Attributes.h"
 #include "mozilla/ErrorResult.h"
 
+class nsIDOMSVGPoint;
+
 namespace mozilla {
 
 class DOMSVGPoint;
@@ -50,8 +52,7 @@ class SVGAnimatedPointList;
 class DOMSVGPointList MOZ_FINAL : public nsISupports,
                                   public nsWrapperCache
 {
-  friend class nsISVGPoint;
-  friend class mozilla::DOMSVGPoint;
+  friend class DOMSVGPoint;
 
 public:
   NS_DECL_CYCLE_COLLECTING_ISUPPORTS
@@ -207,18 +208,18 @@ private:
 
   SVGAnimatedPointList& InternalAList() const;
 
-  /// Creates an nsISVGPoint for aIndex, if it doesn't already exist.
+  /// Creates a DOMSVGPoint for aIndex, if it doesn't already exist.
   void EnsureItemAt(uint32_t aIndex);
 
   void MaybeInsertNullInAnimValListAt(uint32_t aIndex);
   void MaybeRemoveItemFromAnimValListAt(uint32_t aIndex);
 
-  // Weak refs to our nsISVGPoint items. The items are friends and take care
+  // Weak refs to our DOMSVGPoint items. The items are friends and take care
   // of clearing our pointer to them when they die.
-  nsTArray<nsISVGPoint*> mItems;
+  nsTArray<DOMSVGPoint*> mItems;
 
   // Strong ref to our element to keep it alive. We hold this not only for
-  // ourself, but also for our nsISVGPoint items too.
+  // ourself, but also for our DOMSVGPoint items too.
   nsRefPtr<nsSVGElement> mElement;
 
   bool mIsAnimValList;

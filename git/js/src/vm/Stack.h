@@ -276,9 +276,7 @@ class StackFrame
 
         /* Ion frame state */
         RUNNING_IN_ION       = 0x400000,  /* frame is running in Ion */
-        CALLING_INTO_ION     = 0x800000,  /* frame is calling into Ion */
-
-        JIT_REVISED_STACK   = 0x1000000   /* sp was revised by JIT for lowered apply */
+        CALLING_INTO_ION     = 0x800000   /* frame is calling into Ion */
     };
 
   private:
@@ -1094,13 +1092,6 @@ class StackFrame
     }
     void clearCallingIntoIon() {
         flags_ &= ~CALLING_INTO_ION;
-    }
-
-    bool jitRevisedStack() const {
-        return !!(flags_ & JIT_REVISED_STACK);
-    }
-    void setJitRevisedStack() const {
-        flags_ |= JIT_REVISED_STACK;
     }
 };
 

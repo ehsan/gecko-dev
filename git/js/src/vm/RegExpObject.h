@@ -156,7 +156,9 @@ class RegExpShared
     void trace(JSTracer *trc) {
         MarkStringUnbarriered(trc, &source, "regexpshared source");
     }
-    inline void writeBarrierPre();
+    void writeBarrierPre() {
+        JSString::writeBarrierPre(source);
+    }
 
     /* Static functions to expose some Yarr logic. */
     static inline bool isJITRuntimeEnabled(JSContext *cx);
@@ -219,13 +221,32 @@ class RegExpGuard
     void operator=(const RegExpGuard &) MOZ_DELETE;
 
   public:
-    inline RegExpGuard(JSContext *cx);
-    inline RegExpGuard(JSContext *cx, RegExpShared &re);
-    inline ~RegExpGuard();
+    RegExpGuard(JSContext *cx)
+      : re_(NULL), source_(cx)
+    { }
+
+    RegExpGuard(JSContext *cx, RegExpShared &re)
+      : re_(&re), source_(cx, re.source)
+    {
+        re_->incRef();
+    }
+
+    ~RegExpGuard() { release(); }
 
   public:
-    inline void init(RegExpShared &re);
-    inline void release();
+    void init(RegExpShared &re) {
+        JS_ASSERT(!initialized());
+        re_ = &re;
+        re_->incRef();
+        source_ = re_->source;
+    }
+    void release() {
+        if (re_) {
+            re_->decRef();
+            re_ = NULL;
+            source_ = NULL;
+        }
+    }
 
     bool initialized() const { return !!re_; }
     RegExpShared *re() const { JS_ASSERT(initialized()); return re_; }
@@ -243,12 +264,22 @@ class RegExpHeapGuard
 
   public:
     RegExpHeapGuard() : re_(NULL) { }
-    inline RegExpHeapGuard(RegExpShared &re);
-    inline ~RegExpHeapGuard();
+    RegExpHeapGuard(RegExpShared &re) { init(re); }
+    ~RegExpHeapGuard() { release(); }
 
   public:
-    inline void init(RegExpShared &re);
-    inline void release();
+    void init(RegExpShared &re) {
+        JS_ASSERT(!initialized());
+        re_ = &re;
+        re_->incRef();
+    }
+    void release() {
+        if (re_) {
+            re_->writeBarrierPre();
+            re_->decRef();
+            re_ = NULL;
+        }
+    }
 
     void trace(JSTracer *trc) {
         if (initialized())

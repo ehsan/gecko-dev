@@ -536,9 +536,6 @@ JS_FRIEND_API(bool)
 GetPropertyNames(JSContext *cx, RawObject obj, unsigned flags, js::AutoIdVector *props);
 
 JS_FRIEND_API(bool)
-AppendUnique(JSContext *cx, AutoIdVector &base, AutoIdVector &others);
-
-JS_FRIEND_API(bool)
 GetGeneric(JSContext *cx, JSObject *obj, JSObject *receiver, jsid id, Value *vp);
 
 JS_FRIEND_API(bool)
@@ -971,11 +968,6 @@ CastToJSFreeOp(FreeOp *fop)
  */
 extern JS_FRIEND_API(const jschar*)
 GetErrorTypeName(JSContext* cx, int16_t exnType);
-
-#ifdef DEBUG
-extern JS_FRIEND_API(unsigned)
-GetEnterCompartmentDepth(JSContext* cx);
-#endif
 
 /* Implemented in jswrapper.cpp. */
 typedef enum NukeReferencesToWindow {

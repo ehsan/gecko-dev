@@ -9,16 +9,8 @@
 
 #include "nsEventShell.h"
 
-#include "mozilla/StaticPtr.h"
-
 using namespace mozilla;
 using namespace mozilla::a11y;
-
-StaticRefPtr<Accessible> HyperTextAccessibleWrap::sLastTextChangeAcc;
-StaticAutoPtr<nsString> HyperTextAccessibleWrap::sLastTextChangeString;
-uint32_t HyperTextAccessibleWrap::sLastTextChangeStart = 0;
-uint32_t HyperTextAccessibleWrap::sLastTextChangeEnd = 0;
-bool HyperTextAccessibleWrap::sLastTextChangeWasInsert = false;
 
 NS_IMPL_ISUPPORTS_INHERITED0(HyperTextAccessibleWrap,
                              HyperTextAccessible)
@@ -57,16 +49,19 @@ HyperTextAccessibleWrap::HandleAccEvent(AccEvent* aEvent)
   if (eventType == nsIAccessibleEvent::EVENT_TEXT_REMOVED ||
       eventType == nsIAccessibleEvent::EVENT_TEXT_INSERTED) {
     Accessible* accessible = aEvent->GetAccessible();
-    if (accessible && accessible->IsHyperText()) {
-      sLastTextChangeAcc = accessible;
-      if (!sLastTextChangeString)
-        sLastTextChangeString = new nsString();
+    if (accessible) {
+      nsCOMPtr<nsIWinAccessNode> winAccessNode(do_QueryObject(accessible));
+      if (winAccessNode) {
+        void *instancePtr = NULL;
+        nsresult rv = winAccessNode->QueryNativeInterface(IID_IAccessibleText,
+                                                          &instancePtr);
+        if (NS_SUCCEEDED(rv)) {
+          NS_IF_RELEASE(gTextEvent);
+          NS_IF_ADDREF(gTextEvent = downcast_accEvent(aEvent));
 
-      AccTextChangeEvent* event = downcast_accEvent(aEvent);
-      event->GetModifiedText(*sLastTextChangeString);
-      sLastTextChangeStart = event->GetStartOffset();
-      sLastTextChangeEnd = sLastTextChangeStart + event->GetLength();
-      sLastTextChangeWasInsert = event->IsTextInserted();
+          (static_cast<IUnknown*>(instancePtr))->Release();
+        }
+      }
     }
   }
 
@@ -83,18 +78,20 @@ HyperTextAccessibleWrap::GetModifiedText(bool aGetInsertedText,
   *aStartOffset = 0;
   *aEndOffset = 0;
 
-  if (!sLastTextChangeAcc)
+  if (!gTextEvent)
     return NS_OK;
 
-  if (aGetInsertedText != sLastTextChangeWasInsert)
+  bool isInserted = gTextEvent->IsTextInserted();
+  if (aGetInsertedText != isInserted)
     return NS_OK;
 
-  if (sLastTextChangeAcc != this)
+  Accessible* targetAcc = gTextEvent->GetAccessible();
+  if (targetAcc != this)
     return NS_OK;
 
-  *aStartOffset = sLastTextChangeStart;
-  *aEndOffset = sLastTextChangeEnd;
-  aText.Append(*sLastTextChangeString);
+  *aStartOffset = gTextEvent->GetStartOffset();
+  *aEndOffset = *aStartOffset + gTextEvent->GetLength();
+  gTextEvent->GetModifiedText(aText);
 
   return NS_OK;
 }

@@ -496,6 +496,7 @@ nsTimeout::~nsTimeout()
   MOZ_COUNT_DTOR(nsTimeout);
 }
 
+NS_IMPL_CYCLE_COLLECTION_LEGACY_NATIVE_CLASS(nsTimeout)
 NS_IMPL_CYCLE_COLLECTION_UNLINK_0(nsTimeout)
 NS_IMPL_CYCLE_COLLECTION_TRAVERSE_BEGIN(nsTimeout)
   NS_IMPL_CYCLE_COLLECTION_TRAVERSE(mWindow)
@@ -1172,6 +1173,8 @@ nsGlobalWindow::FreeInnerObjects()
 #define END_OUTER_WINDOW_ONLY                                                 \
     foundInterface = 0;                                                       \
   } else
+
+NS_IMPL_CYCLE_COLLECTION_CLASS(nsGlobalWindow)
 
 DOMCI_DATA(Window, nsGlobalWindow)
 
@@ -3871,9 +3874,8 @@ nsGlobalWindow::GetScreenX(int32_t* aScreenX)
 nsRect
 nsGlobalWindow::GetInnerScreenRect()
 {
-  if (!mDocShell) {
+  if (!mDocShell)
     return nsRect();
-  }
 
   nsGlobalWindow* rootWindow =
     static_cast<nsGlobalWindow*>(GetPrivateRoot());
@@ -3881,18 +3883,12 @@ nsGlobalWindow::GetInnerScreenRect()
     rootWindow->FlushPendingNotifications(Flush_Layout);
   }
 
-  if (!mDocShell) {
-    return nsRect();
-  }
-
   nsCOMPtr<nsIPresShell> presShell = mDocShell->GetPresShell();
-  if (!presShell) {
+  if (!presShell)
     return nsRect();
-  }
   nsIFrame* rootFrame = presShell->GetRootFrame();
-  if (!rootFrame) {
+  if (!rootFrame)
     return nsRect();
-  }
 
   return rootFrame->GetScreenRectInAppUnits();
 }
@@ -9748,12 +9744,11 @@ nsGlobalWindow::RunTimeoutHandler(nsTimeout* aTimeout,
     uint32_t lineNo = 0;
     handler->GetLocation(&filename, &lineNo);
 
-    JS::CompileOptions options(aScx->GetNativeContext());
-    options.setFileAndLine(filename, lineNo)
-           .setVersion(JSVERSION_DEFAULT);
-    JS::Value ignored;
-    aScx->EvaluateString(nsDependentString(script), *FastGetGlobalJSObject(),
-                         options, /*aCoerceToString = */ false, &ignored);
+    bool is_undefined;
+    aScx->EvaluateString(nsDependentString(script), FastGetGlobalJSObject(),
+                         timeout->mPrincipal, timeout->mPrincipal,
+                         filename, lineNo, JSVERSION_DEFAULT, nullptr,
+                         &is_undefined);
   } else {
     nsCOMPtr<nsIVariant> dummy;
     nsCOMPtr<nsISupports> me(static_cast<nsIDOMWindow *>(this));
@@ -10823,6 +10818,7 @@ nsGlobalWindow::SizeOfIncludingThis(nsWindowSizes* aWindowSizes) const
 
 // nsGlobalChromeWindow implementation
 
+NS_IMPL_CYCLE_COLLECTION_CLASS(nsGlobalChromeWindow)
 NS_IMPL_CYCLE_COLLECTION_TRAVERSE_BEGIN_INHERITED(nsGlobalChromeWindow,
                                                   nsGlobalWindow)
   NS_IMPL_CYCLE_COLLECTION_TRAVERSE(mBrowserDOMWindow)

@@ -1269,8 +1269,7 @@ class CallCompiler : public BaseCompiler
 
         JaegerSpew(JSpew_PICs, "generated CALL clone stub %p (%lu bytes)\n",
                    start.executableAddress(), (unsigned long) masm.size());
-        JaegerSpew(JSpew_PICs, "guarding %p with clone %p\n",
-                   static_cast<void*>(original.get()), static_cast<void*>(fun.get()));
+        JaegerSpew(JSpew_PICs, "guarding %p with clone %p\n", original.get(), fun.get());
 
         Repatcher repatch(f.chunk());
         repatch.relink(ic.funJump, start);
@@ -1440,7 +1439,6 @@ ic::SplatApplyArgs(VMFrame &f)
         /* Steps 7-8. */
         f.regs.fp()->forEachUnaliasedActual(CopyTo(f.regs.sp));
 
-        f.regs.fp()->setJitRevisedStack();
         f.regs.sp += length;
         f.u.call.dynamicArgc = length;
         return true;
@@ -1485,7 +1483,6 @@ ic::SplatApplyArgs(VMFrame &f)
         MakeRangeGCSafe(f.regs.sp, delta);
     }
 
-    f.regs.fp()->setJitRevisedStack();
     f.regs.sp += delta;
 
     /* Steps 7-8. */

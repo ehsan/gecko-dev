@@ -43,6 +43,8 @@ xpc_OkToHandOutWrapper(nsWrapperCache *cache)
 
 /***************************************************************************/
 
+NS_IMPL_CYCLE_COLLECTION_CLASS(XPCWrappedNative)
+
 NS_IMETHODIMP
 NS_CYCLE_COLLECTION_CLASSNAME(XPCWrappedNative)::UnlinkImpl(void *p)
 {

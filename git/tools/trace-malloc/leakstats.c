@@ -120,9 +120,8 @@ int main(int argc, char **argv)
         for (i = j = 0; i < argc; i++) {
             fp = fopen(argv[i], "r");
             if (!fp) {
-                fprintf(stderr,
-                        "TEST-UNEXPECTED-FAIL | leakstats | can't open %s: %s\n",
-                        argv[i], strerror(errno));
+                fprintf(stderr, "%s: can't open %s: %s\n",
+                        program, argv[i], strerror(errno));
                 exit(1);
             }
             rv = tmreader_eventloop(tmr, argv[i], my_tmevent_handler);
@@ -137,7 +136,7 @@ int main(int argc, char **argv)
     }
     
     if (!data.finished) {
-        fprintf(stderr, "TEST-UNEXPECTED-FAIL | leakstats | log file incomplete\n");
+        fprintf(stderr, "%s: log file incomplete\n", program);
         exit(1);
     }
 

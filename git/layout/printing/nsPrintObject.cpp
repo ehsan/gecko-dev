@@ -113,11 +113,10 @@ nsPrintObject::DestroyPresentation()
 #endif
     mPresShell->EndObservingDocument();
     nsAutoScriptBlocker scriptBlocker;
-    nsCOMPtr<nsIPresShell> shell = mPresShell;
-    mPresShell = nullptr;
-    shell->Destroy();
+    mPresShell->Destroy();
   }
   mPresContext = nullptr;
+  mPresShell   = nullptr;
   mViewManager = nullptr;
 }
 

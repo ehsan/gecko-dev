@@ -66,7 +66,7 @@ SpdyStream3::SpdyStream3(nsAHttpTransaction *httpTransaction,
   LOG3(("SpdyStream3::SpdyStream3 %p", this));
 
   mRemoteWindow = spdySession->GetServerInitialWindow();
-  mTxInlineFrame = new uint8_t[mTxInlineFrameSize];
+  mTxInlineFrame = new char[mTxInlineFrameSize];
   mDecompressBuffer = new char[mDecompressBufferSize];
 }
 
@@ -556,9 +556,8 @@ SpdyStream3::TransmitFrame(const char *buf,
   // bytes through to the SpdySession3 and then the HttpConnection which calls
   // the socket write function. It will accept all of the inline and stream
   // data because of the above 'commitment' even if it has to buffer
-
-  rv = mSegmentReader->OnReadSegment(reinterpret_cast<char*>(mTxInlineFrame.get()),
-                                     mTxInlineFrameUsed,
+  
+  rv = mSegmentReader->OnReadSegment(mTxInlineFrame, mTxInlineFrameUsed,
                                      &transmittedCount);
   LOG3(("SpdyStream3::TransmitFrame for inline session=%p "
         "stream=%p result %x len=%d",
@@ -572,10 +571,9 @@ SpdyStream3::TransmitFrame(const char *buf,
 
   NS_ABORT_IF_FALSE(transmittedCount == mTxInlineFrameUsed,
                     "inconsistent inline commitment count");
-
+    
   SpdySession3::LogIO(mSession, this, "Writing from Inline Buffer",
-                      reinterpret_cast<char*>(mTxInlineFrame.get()),
-                      transmittedCount);
+                     mTxInlineFrame, transmittedCount);
 
   if (mTxStreamFrameSize) {
     if (!buf) {
@@ -1123,7 +1121,8 @@ SpdyStream3::ExecuteCompress(uint32_t flushMode)
       avail = mTxInlineFrameSize - mTxInlineFrameUsed;
     }
 
-    mZlib->next_out = mTxInlineFrame + mTxInlineFrameUsed;
+    mZlib->next_out = reinterpret_cast<unsigned char *> (mTxInlineFrame.get()) +
+      mTxInlineFrameUsed;
     mZlib->avail_out = avail;
     deflate(mZlib, flushMode);
     mTxInlineFrameUsed += avail - mZlib->avail_out;
@@ -1239,7 +1238,7 @@ SpdyStream3::OnReadSegment(const char *buf,
     dataLength = std::min(count, mChunkSize);
 
     if (dataLength > mRemoteWindow)
-      dataLength = static_cast<uint32_t>(mRemoteWindow);
+      dataLength = mRemoteWindow;
 
     LOG3(("SpdyStream3 this=%p id 0x%X remote window is %d. Chunk is %d\n", 
           this, mStreamID, mRemoteWindow, dataLength));

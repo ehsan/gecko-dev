@@ -220,6 +220,7 @@ ImageDocument::~ImageDocument()
 {
 }
 
+NS_IMPL_CYCLE_COLLECTION_CLASS(ImageDocument)
 
 NS_IMPL_CYCLE_COLLECTION_TRAVERSE_BEGIN_INHERITED(ImageDocument, MediaDocument)
   NS_IMPL_CYCLE_COLLECTION_TRAVERSE(mImageContent)

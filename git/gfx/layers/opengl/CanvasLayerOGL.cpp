@@ -83,7 +83,15 @@ MakeIOSurfaceTexture(void* aCGIOSurfaceContext, mozilla::gl::GLContext* aGL)
 
   return ioSurfaceTexture;
 }
-#endif // XP_MACOSX
+
+#else
+static GLuint
+MakeIOSurfaceTexture(void* aCGIOSurfaceContext, mozilla::gl::GLContext* aGL)
+{
+  NS_RUNTIMEABORT("Not implemented");
+  return 0;
+}
+#endif
 
 void
 CanvasLayerOGL::Destroy()

@@ -8,7 +8,7 @@
 
 // Keep others in (case-insensitive) order:
 #include "nsGkAtoms.h"
-#include "SVGTransformableElement.h"
+#include "nsIDOMSVGTransformable.h"
 #include "nsIFrame.h"
 #include "SVGGraphicsElement.h"
 #include "nsSVGIntegrationUtils.h"
@@ -33,7 +33,7 @@ nsSVGGFrame::Init(nsIContent* aContent,
                   nsIFrame* aParent,
                   nsIFrame* aPrevInFlow)
 {
-  nsCOMPtr<SVGTransformableElement> transformable = do_QueryInterface(aContent);
+  nsCOMPtr<nsIDOMSVGTransformable> transformable = do_QueryInterface(aContent);
   NS_ASSERTION(transformable,
                "The element doesn't support nsIDOMSVGTransformable\n");
 

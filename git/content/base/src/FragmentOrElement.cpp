@@ -963,6 +963,8 @@ FragmentOrElement::FireNodeInserted(nsIDocument* aDoc,
 
 // nsISupports implementation
 
+NS_IMPL_CYCLE_COLLECTION_CLASS(FragmentOrElement)
+
 #define SUBTREE_UNBINDINGS_PER_RUNNABLE 500
 
 class ContentUnbinder : public nsRunnable

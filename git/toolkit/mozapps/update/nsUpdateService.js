@@ -1001,15 +1001,6 @@ function cleanUpUpdatesDir(aBackgroundUpdate) {
       // back to applying the update on application restart.
       continue;
     }
-#ifdef MOZ_WIDGET_GONK
-    if (f.leafName == FILE_UPDATE_LINK) {
-      let linkedFile = getFileFromUpdateLink(updateDir);
-      if (linkedFile && linkedFile.exists()) {
-        linkedFile.remove(false);
-      }
-    }
-#endif
-
     // Now, recursively remove this file.  The recursive removal is really
     // only needed on Mac OSX because this directory will contain a copy of
     // updater.app, which is itself a directory.
@@ -3526,6 +3517,7 @@ Downloader.prototype = {
 
 #ifdef MOZ_WIDGET_GONK
     let status = readStatusFile(updateDir);
+LOG("status read " + status);
     if (isInterruptedUpdate(status)) {
       LOG("Downloader:downloadUpdate - interruptted update");
       // The update was interrupted. Try to locate the existing patch file.
@@ -3580,18 +3572,11 @@ Downloader.prototype = {
       return STATE_NONE;
     }
 
-#ifdef MOZ_WIDGET_GONK
     if (patchFile.path.indexOf(updateDir.path) != 0) {
       // The patchFile is in a directory which is different from the
       // updateDir, create a link file.
       writeLinkFile(updateDir, patchFile);
-
-      if (!isInterruptedUpdate(status) && patchFile.exists()) {
-        // Remove stale patchFile
-        patchFile.remove(false);
-      }
     }
-#endif
 
     var uri = Services.io.newURI(this._patch.URL, null, null);
 
