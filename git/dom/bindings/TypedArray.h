@@ -13,6 +13,7 @@
 #include "js/Tracer.h"
 #include "mozilla/Attributes.h"
 #include "mozilla/dom/BindingDeclarations.h"
+#include "mozilla/Util.h" // for Maybe
 #include "nsWrapperCache.h"
 
 namespace mozilla {

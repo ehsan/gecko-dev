@@ -19,6 +19,7 @@
 #include "mozilla/dom/BluetoothAdapterBinding.h"
 #include "mozilla/dom/ContentChild.h"
 #include "mozilla/LazyIdleThread.h"
+#include "mozilla/Util.h"
 
 #include "BluetoothAdapter.h"
 #include "BluetoothDevice.h"

@@ -14,7 +14,6 @@ mfbt_headers = [
     'Alignment.h',
     'AllocPolicy.h',
     'Array.h',
-    'ArrayUtils.h',
     'Assertions.h',
     'Atomics.h',
     'Attributes.h',
@@ -58,6 +57,7 @@ mfbt_headers = [
     'TypedEnum.h',
     'Types.h',
     'TypeTraits.h',
+    'Util.h',
     'Vector.h',
     'WeakPtr.h',
 ]

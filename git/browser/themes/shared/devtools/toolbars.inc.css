@@ -488,16 +488,16 @@
   color: #b6babf;
   margin: 0;
   padding: 0;
-  -moz-border-start: 1px solid #42484f;
+  border-left: 1px solid #42484f;
   -moz-box-align: center;
 }
 
 .devtools-tab:first-child {
-  -moz-border-start-width: 0;
+  border-left-width: 0;
 }
 
 .devtools-tab:last-child {
-  -moz-border-end: 1px solid #42484f;
+  border-right: 1px solid #5a6169;
 }
 
 .devtools-tab > image {
@@ -522,7 +522,7 @@
 }
 
 .devtools-tab:active > image,
-.devtools-tab[selected=true] > image {
+.devtools-tab[selected=true] > label {
   opacity: 1;
 }
 
@@ -546,16 +546,12 @@
 }
 
 .devtools-tab[selected=true]:not(:first-child) {
-  -moz-padding-start: 1px;
-}
-
-.devtools-tab[selected=true]:last-child {
-  -moz-padding-end: 1px;
+  padding-left: 1px;
 }
 
 .devtools-tab[selected=true] + .devtools-tab {
-  -moz-border-start-width: 0;
-  -moz-padding-start: 1px;
+  border-left-width: 0;
+  padding-left: 1px;
 }
 
 .devtools-tab:not([selected=true]).highlighted {

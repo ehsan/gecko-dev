@@ -24,7 +24,6 @@
 #include "SharedSurfaceGralloc.h"
 #endif
 
-using namespace mozilla::gfx;
 using namespace mozilla::gl;
 
 namespace mozilla {

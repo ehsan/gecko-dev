@@ -9,6 +9,7 @@
 
 #include "mozilla/Atomics.h"
 #include "mozilla/MemoryReporting.h"
+#include "mozilla/Util.h"
 
 #include "jscntxt.h"
 #include "jsgc.h"

@@ -71,10 +71,6 @@ TestTabActor.prototype = {
     return { wrappedJSObject: this._global };
   },
 
-  get url() {
-    return this._global.__name;
-  },
-
   form: function() {
     let response = { actor: this.actorID, title: this._global.__name };
 

@@ -1094,7 +1094,7 @@ class MacroAssembler : public MacroAssemblerSpecific
 
     void finish();
 
-    void assumeUnreachable(const char *output);
+    void assume_unreachable(const char *output);
     void printf(const char *output);
     void printf(const char *output, Register value);
 

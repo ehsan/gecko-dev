@@ -406,8 +406,8 @@ const CustomizableWidgets = [{
           updateZoomResetButton();
         }.bind(this),
 
-        onWidgetReset: function(aWidgetNode) {
-          if (aWidgetNode != node)
+        onWidgetReset: function(aWidgetId) {
+          if (aWidgetId != this.id)
             return;
           updateCombinedWidgetStyle(node, this.currentArea, true);
           updateZoomResetButton();
@@ -506,8 +506,8 @@ const CustomizableWidgets = [{
           updateCombinedWidgetStyle(node);
         }.bind(this),
 
-        onWidgetReset: function(aWidgetNode) {
-          if (aWidgetNode != node)
+        onWidgetReset: function(aWidgetId) {
+          if (aWidgetId != this.id)
             return;
           updateCombinedWidgetStyle(node, this.currentArea);
         }.bind(this),

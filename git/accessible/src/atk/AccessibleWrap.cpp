@@ -25,7 +25,7 @@
 #include "States.h"
 #include "nsISimpleEnumerator.h"
 
-#include "mozilla/ArrayUtils.h"
+#include "mozilla/Util.h"
 #include "nsXPCOMStrings.h"
 #include "nsComponentManagerUtils.h"
 #include "nsIPersistentProperties2.h"

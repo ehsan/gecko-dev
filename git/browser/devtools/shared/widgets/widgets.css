@@ -50,9 +50,9 @@
   overflow: hidden;
 }
 
-.variables-view-scope[untitled] > .title,
-.variable-or-property[untitled] > .title,
-.variable-or-property[unmatched] > .title {
+.variables-view-scope[non-header] > .title,
+.variable-or-property[non-header] > .title,
+.variable-or-property[non-match] > .title {
   display: none;
 }
 
