@@ -691,14 +691,6 @@ public:
 #undef NS_ROOT_EVENT_CLASS
 
   /**
-   * Returns true if the event is WidgetInputEvent or inherits it.
-   */
-  bool IsInputDerivedEvent() const;
-  /**
-   * Returns true if the event is WidgetMouseEvent or inherits it.
-   */
-  bool IsMouseDerivedEvent() const;
-  /**
    * Returns true if the event is a query content event.
    */
   bool IsQueryContentEvent() const;
@@ -737,14 +729,6 @@ public:
    */
   bool HasPluginActivationEventMessage() const;
 
-  /**
-   * Returns true if left click event.
-   */
-  bool IsLeftClickEvent() const;
-  /**
-   * Returns true if the event is a context menu event caused by key.
-   */
-  bool IsContextMenuKeyEvent() const;
   /**
    * Returns true if the event is native event deliverer event for plugin and
    * it should be retarted to focused document.
