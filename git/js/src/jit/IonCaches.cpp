@@ -172,7 +172,7 @@ class IonCache::StubAttacher
     CodeOffsetLabel stubCodePatchOffset_;
 
   public:
-    explicit StubAttacher(CodeLocationLabel rejoinLabel)
+    StubAttacher(CodeLocationLabel rejoinLabel)
       : hasNextStubOffset_(false),
         hasStubCodePatchOffset_(false),
         rejoinLabel_(rejoinLabel),
@@ -261,7 +261,7 @@ class RepatchIonCache::RepatchStubAppender : public IonCache::StubAttacher
     RepatchIonCache &cache_;
 
   public:
-    explicit RepatchStubAppender(RepatchIonCache &cache)
+    RepatchStubAppender(RepatchIonCache &cache)
       : StubAttacher(cache.rejoinLabel()),
         cache_(cache)
     {
@@ -321,7 +321,7 @@ class DispatchIonCache::DispatchStubPrepender : public IonCache::StubAttacher
     DispatchIonCache &cache_;
 
   public:
-    explicit DispatchStubPrepender(DispatchIonCache &cache)
+    DispatchStubPrepender(DispatchIonCache &cache)
       : StubAttacher(cache.rejoinLabel_),
         cache_(cache)
     {

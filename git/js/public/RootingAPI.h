@@ -414,20 +414,20 @@ class MOZ_NONHEAP_CLASS Handle : public js::HandleBase<T>
     }
 
     /* Create a handle for a nullptr pointer. */
-    MOZ_IMPLICIT Handle(js::NullPtr) {
+    Handle(js::NullPtr) {
         static_assert(mozilla::IsPointer<T>::value,
                       "js::NullPtr overload not valid for non-pointer types");
         ptr = reinterpret_cast<const T *>(&js::NullPtr::constNullValue);
     }
 
     /* Create a handle for a nullptr pointer. */
-    MOZ_IMPLICIT Handle(JS::NullPtr) {
+    Handle(JS::NullPtr) {
         static_assert(mozilla::IsPointer<T>::value,
                       "JS::NullPtr overload not valid for non-pointer types");
         ptr = reinterpret_cast<const T *>(&JS::NullPtr::constNullValue);
     }
 
-    MOZ_IMPLICIT Handle(MutableHandle<T> handle) {
+    Handle(MutableHandle<T> handle) {
         ptr = handle.address();
     }
 
@@ -509,8 +509,8 @@ template <typename T>
 class MOZ_STACK_CLASS MutableHandle : public js::MutableHandleBase<T>
 {
   public:
-    inline MOZ_IMPLICIT MutableHandle(Rooted<T> *root);
-    inline MOZ_IMPLICIT MutableHandle(PersistentRooted<T> *root);
+    inline MutableHandle(Rooted<T> *root);
+    inline MutableHandle(PersistentRooted<T> *root);
 
   private:
     // Disallow true nullptr and emulated nullptr (gcc 4.4/4.5, __null, appears
@@ -625,7 +625,7 @@ class InternalHandle<T*>
      * Make this private to prevent accidental misuse; this is only for
      * fromMarkedLocation().
      */
-    explicit InternalHandle(T *field)
+    InternalHandle(T *field)
       : holder(reinterpret_cast<void * const *>(&js::NullPtr::constNullValue)),
         offset(uintptr_t(field))
     {}
@@ -711,8 +711,8 @@ class MOZ_STACK_CLASS Rooted : public js::RootedBase<T>
     }
 
   public:
-    explicit Rooted(JSContext *cx
-                    MOZ_GUARD_OBJECT_NOTIFIER_PARAM)
+    Rooted(JSContext *cx
+           MOZ_GUARD_OBJECT_NOTIFIER_PARAM)
       : ptr(js::GCMethods<T>::initial())
     {
         MOZ_GUARD_OBJECT_NOTIFIER_INIT;
@@ -733,8 +733,8 @@ class MOZ_STACK_CLASS Rooted : public js::RootedBase<T>
         init(js::ContextFriendFields::get(cx));
     }
 
-    explicit Rooted(js::ContextFriendFields *cx
-                    MOZ_GUARD_OBJECT_NOTIFIER_PARAM)
+    Rooted(js::ContextFriendFields *cx
+           MOZ_GUARD_OBJECT_NOTIFIER_PARAM)
       : ptr(js::GCMethods<T>::initial())
     {
         MOZ_GUARD_OBJECT_NOTIFIER_INIT;
@@ -749,8 +749,8 @@ class MOZ_STACK_CLASS Rooted : public js::RootedBase<T>
         init(cx);
     }
 
-    explicit Rooted(js::PerThreadDataFriendFields *pt
-                    MOZ_GUARD_OBJECT_NOTIFIER_PARAM)
+    Rooted(js::PerThreadDataFriendFields *pt
+           MOZ_GUARD_OBJECT_NOTIFIER_PARAM)
       : ptr(js::GCMethods<T>::initial())
     {
         MOZ_GUARD_OBJECT_NOTIFIER_INIT;
@@ -765,8 +765,8 @@ class MOZ_STACK_CLASS Rooted : public js::RootedBase<T>
         init(pt);
     }
 
-    explicit Rooted(JSRuntime *rt
-                    MOZ_GUARD_OBJECT_NOTIFIER_PARAM)
+    Rooted(JSRuntime *rt
+           MOZ_GUARD_OBJECT_NOTIFIER_PARAM)
       : ptr(js::GCMethods<T>::initial())
     {
         MOZ_GUARD_OBJECT_NOTIFIER_INIT;
@@ -886,7 +886,7 @@ class JS_PUBLIC_API(RootedGeneric)
   public:
     JS::Rooted<GCType> rooter;
 
-    explicit RootedGeneric(js::ContextFriendFields *cx)
+    RootedGeneric(js::ContextFriendFields *cx)
         : rooter(cx)
     {
     }
@@ -974,11 +974,11 @@ template <typename T>
 class FakeMutableHandle : public js::MutableHandleBase<T>
 {
   public:
-    MOZ_IMPLICIT FakeMutableHandle(T *t) {
+    FakeMutableHandle(T *t) {
         ptr = t;
     }
 
-    MOZ_IMPLICIT FakeMutableHandle(FakeRooted<T> *root) {
+    FakeMutableHandle(FakeRooted<T> *root) {
         ptr = root->address();
     }
 
@@ -1145,7 +1145,7 @@ class PersistentRooted : private mozilla::LinkedListElement<PersistentRooted<T> 
     }
 
   public:
-    explicit PersistentRooted(JSContext *cx) : ptr(js::GCMethods<T>::initial())
+    PersistentRooted(JSContext *cx) : ptr(js::GCMethods<T>::initial())
     {
         registerWithRuntime(js::GetRuntime(cx));
     }
@@ -1155,7 +1155,7 @@ class PersistentRooted : private mozilla::LinkedListElement<PersistentRooted<T> 
         registerWithRuntime(js::GetRuntime(cx));
     }
 
-    explicit PersistentRooted(JSRuntime *rt) : ptr(js::GCMethods<T>::initial())
+    PersistentRooted(JSRuntime *rt) : ptr(js::GCMethods<T>::initial())
     {
         registerWithRuntime(rt);
     }
@@ -1219,7 +1219,7 @@ namespace js {
 class CompilerRootNode
 {
   protected:
-    explicit CompilerRootNode(js::gc::Cell *ptr) : next(nullptr), ptr_(ptr) {}
+    CompilerRootNode(js::gc::Cell *ptr) : next(nullptr), ptr_(ptr) {}
 
   public:
     void **address() { return (void **)&ptr_; }

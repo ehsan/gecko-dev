@@ -979,7 +979,7 @@ class AutoPropertyDescArray
     JSPropertyDescArray descArray_;
 
   public:
-    explicit AutoPropertyDescArray(JSContext *cx)
+    AutoPropertyDescArray(JSContext *cx)
       : cx_(cx)
     {
         PodZero(&descArray_);

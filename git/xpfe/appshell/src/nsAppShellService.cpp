@@ -656,11 +656,13 @@ nsAppShellService::GetHiddenDOMWindow(nsIDOMWindow **aWindow)
 
   rv = mHiddenWindow->GetDocShell(getter_AddRefs(docShell));
   NS_ENSURE_SUCCESS(rv, rv);
-  NS_ENSURE_TRUE(docShell, NS_ERROR_FAILURE);
 
-  nsCOMPtr<nsIDOMWindow> hiddenDOMWindow(docShell->GetWindow());
-  hiddenDOMWindow.forget(aWindow);
-  return *aWindow ? NS_OK : NS_ERROR_FAILURE;
+  nsCOMPtr<nsIDOMWindow> hiddenDOMWindow(do_GetInterface(docShell, &rv));
+  NS_ENSURE_SUCCESS(rv, rv);
+
+  *aWindow = hiddenDOMWindow;
+  NS_IF_ADDREF(*aWindow);
+  return NS_OK;
 }
 
 NS_IMETHODIMP
@@ -686,11 +688,13 @@ nsAppShellService::GetHiddenPrivateDOMWindow(nsIDOMWindow **aWindow)
 
   rv = mHiddenPrivateWindow->GetDocShell(getter_AddRefs(docShell));
   NS_ENSURE_SUCCESS(rv, rv);
-  NS_ENSURE_TRUE(docShell, NS_ERROR_FAILURE);
 
-  nsCOMPtr<nsIDOMWindow> hiddenPrivateDOMWindow(docShell->GetWindow());
-  hiddenPrivateDOMWindow.forget(aWindow);
-  return *aWindow ? NS_OK : NS_ERROR_FAILURE;
+  nsCOMPtr<nsIDOMWindow> hiddenPrivateDOMWindow(do_GetInterface(docShell, &rv));
+  NS_ENSURE_SUCCESS(rv, rv);
+
+  *aWindow = hiddenPrivateDOMWindow;
+  NS_IF_ADDREF(*aWindow);
+  return NS_OK;
 }
 
 NS_IMETHODIMP
@@ -718,16 +722,14 @@ nsAppShellService::GetHiddenWindowAndJSContext(nsIDOMWindow **aWindow,
                 nsCOMPtr<nsIDocShell> docShell;
                 rv = mHiddenWindow->GetDocShell(getter_AddRefs(docShell));
                 if (NS_FAILED(rv)) break;
-                if (!docShell) {
-                  break;
-                }
 
                 // 2. Convert that to an nsIDOMWindow.
-                nsCOMPtr<nsIDOMWindow> hiddenDOMWindow(docShell->GetWindow());
+                nsCOMPtr<nsIDOMWindow> hiddenDOMWindow(do_GetInterface(docShell));
                 if(!hiddenDOMWindow) break;
 
                 // 3. Get script global object for the window.
-                nsCOMPtr<nsIScriptGlobalObject> sgo = docShell->GetScriptGlobalObject();
+                nsCOMPtr<nsIScriptGlobalObject> sgo;
+                sgo = do_QueryInterface( hiddenDOMWindow );
                 if (!sgo) { rv = NS_ERROR_FAILURE; break; }
 
                 // 4. Get script context from that.
@@ -769,9 +771,7 @@ nsAppShellService::RegisterTopLevelWindow(nsIXULWindow* aWindow)
 
   nsCOMPtr<nsIDocShell> docShell;
   aWindow->GetDocShell(getter_AddRefs(docShell));
-  NS_ENSURE_TRUE(docShell, NS_ERROR_FAILURE);
-
-  nsCOMPtr<nsPIDOMWindow> domWindow(docShell->GetWindow());
+  nsCOMPtr<nsPIDOMWindow> domWindow(do_GetInterface(docShell));
   NS_ENSURE_TRUE(domWindow, NS_ERROR_FAILURE);
   domWindow->SetInitialPrincipalToSubject();
 
@@ -843,7 +843,7 @@ nsAppShellService::UnregisterTopLevelWindow(nsIXULWindow* aWindow)
     nsCOMPtr<nsIDocShell> docShell;
     aWindow->GetDocShell(getter_AddRefs(docShell));
     if (docShell) {
-      nsCOMPtr<nsIDOMWindow> domWindow(docShell->GetWindow());
+      nsCOMPtr<nsIDOMWindow> domWindow(do_GetInterface(docShell));
       if (domWindow)
         wwatcher->RemoveWindow(domWindow);
     }

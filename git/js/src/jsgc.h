@@ -979,7 +979,7 @@ class GCHelperThread {
     void doSweep();
 
   public:
-    explicit GCHelperThread(JSRuntime *rt)
+    GCHelperThread(JSRuntime *rt)
       : rt(rt),
         thread(nullptr),
         wakeup(nullptr),
@@ -1223,9 +1223,9 @@ class AutoSuppressGC
     int32_t &suppressGC_;
 
   public:
-    explicit AutoSuppressGC(ExclusiveContext *cx);
-    explicit AutoSuppressGC(JSCompartment *comp);
-    explicit AutoSuppressGC(JSRuntime *rt);
+    AutoSuppressGC(ExclusiveContext *cx);
+    AutoSuppressGC(JSCompartment *comp);
+    AutoSuppressGC(JSRuntime *rt);
 
     ~AutoSuppressGC()
     {
@@ -1271,7 +1271,7 @@ class AutoDisableProxyCheck
 #else
 struct AutoDisableProxyCheck
 {
-    explicit AutoDisableProxyCheck(JSRuntime *rt) {}
+    AutoDisableProxyCheck(JSRuntime *rt) {}
 };
 #endif
 

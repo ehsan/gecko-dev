@@ -3549,7 +3549,10 @@ XULDocument::OnStreamComplete(nsIStreamLoader* aLoader,
             mOffThreadCompileStringBuf = nullptr;
             mOffThreadCompileStringLength = 0;
 
-            rv = mCurrentScriptProto->Compile(srcBuf, uri, 1, this, this);
+            rv = mCurrentScriptProto->Compile(srcBuf,
+                                              uri, 1, this,
+                                              mMasterPrototype,
+                                              this);
             if (NS_SUCCEEDED(rv) && !mCurrentScriptProto->GetScriptObject()) {
                 // We will be notified via OnOffThreadCompileComplete when the
                 // compile finishes. Keep the contents of the compiled script
@@ -4246,7 +4249,7 @@ XULDocument::BroadcasterHookup::~BroadcasterHookup()
         }
         else {
             mObservesElement->GetAttr(kNameSpaceID_None, nsGkAtoms::observes, broadcasterID);
-            attribute.Assign('*');
+            attribute.AssignLiteral("*");
         }
 
         nsAutoCString attributeC,broadcasteridC;
@@ -4395,7 +4398,7 @@ XULDocument::FindBroadcaster(Element* aElement,
         *aListener = aElement;
         NS_ADDREF(*aListener);
 
-        aAttribute.Assign('*');
+        aAttribute.AssignLiteral("*");
     }
 
     // Make sure we got a valid listener.
@@ -4697,11 +4700,9 @@ XULDocument::ParserObserver::OnStopRequest(nsIRequest *request,
 already_AddRefed<nsPIWindowRoot>
 XULDocument::GetWindowRoot()
 {
-  if (!mDocumentContainer) {
-    return nullptr;
-  }
-
-    nsCOMPtr<nsPIDOMWindow> piWin = mDocumentContainer->GetWindow();
+    nsCOMPtr<nsIInterfaceRequestor> ir(mDocumentContainer);
+    nsCOMPtr<nsIDOMWindow> window(do_GetInterface(ir));
+    nsCOMPtr<nsPIDOMWindow> piWin(do_QueryInterface(window));
     return piWin ? piWin->GetTopWindowRoot() : nullptr;
 }
 

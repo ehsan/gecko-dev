@@ -10,12 +10,6 @@
  */
 callback InstallTriggerCallback = void(DOMString url, short status);
 
-dictionary InstallTriggerData {
-  DOMString URL;
-  DOMString? IconURL;
-  DOMString? Hash;
-};
-
 /**
  * The interface for the InstallTrigger object available to all websites.
  */
@@ -57,8 +51,7 @@ interface InstallTriggerImpl {
    *         A callback to call as each installation succeeds or fails
    * @return true if the installations were successfully started
    */
-  boolean install(MozMap<(DOMString or InstallTriggerData)> installs,
-                  optional InstallTriggerCallback callback);
+  boolean install(object installs, optional InstallTriggerCallback callback);
 
   /**
    * Starts installing a new add-on.

@@ -22,7 +22,6 @@
 class  nsIURI;
 class  nsIDocShellTreeItem;
 class  nsIDocShellTreeOwner;
-class nsPIDOMWindow;
 class  nsIWebBrowserChrome;
 class  nsString;
 class  nsWatcherWindowEnumerator;
@@ -65,7 +64,7 @@ protected:
   
   // Unlike GetWindowByName this will look for a caller on the JS
   // stack, and then fall back on aCurrentWindow if it can't find one.
-  nsPIDOMWindow*
+  already_AddRefed<nsIDOMWindow>
     SafeGetWindowByName(const nsAString& aName, nsIDOMWindow* aCurrentWindow);
 
   // Just like OpenWindowJS, but knows whether it got called via OpenWindowJS

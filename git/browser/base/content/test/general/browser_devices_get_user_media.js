@@ -589,7 +589,8 @@ let gTests = [
         expectObserverCalled("recording-window-ended");
       }
       else {
-        let expectedMessage = aExpectStream ? "ok" : "error: PERMISSION_DENIED";
+        let allow = (aAllowVideo && aRequestVideo) || (aAllowAudio && aRequestAudio);
+        let expectedMessage = allow ? "ok" : "error: PERMISSION_DENIED";
         yield promiseMessage(expectedMessage, gum);
 
         if (expectedMessage == "ok") {
@@ -634,9 +635,9 @@ let gTests = [
     info("deny audio, allow video, request audio+video, expect ok (video)");
     yield usePerm(false, true, true, true, true);
     info("deny audio, allow video, request audio, expect denied");
-    yield usePerm(false, true, true, false, false);
+    yield usePerm(false, true, true, false, true);
     info("deny audio, allow video, request video, expect ok (video)");
-    yield usePerm(false, true, false, true, true);
+    yield usePerm(false, true, false, true, false);
 
     // Allow audio, video not set.
     info("allow audio, request audio+video, expect prompt");

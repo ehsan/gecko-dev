@@ -61,8 +61,6 @@ public class ToolbarEditText extends CustomEditText
     private boolean mSettingAutoComplete;
     // Spans used for marking the autocomplete text
     private Object[] mAutoCompleteSpans;
-    // Do not process autocomplete result
-    private boolean mDiscardAutoCompleteResult;
 
     public ToolbarEditText(Context context, AttributeSet attrs) {
         super(context, attrs);
@@ -228,12 +226,6 @@ public class ToolbarEditText extends CustomEditText
      */
     @Override
     public final void onAutocomplete(final String result) {
-        // If mDiscardAutoCompleteResult is true, we temporarily disabled
-        // autocomplete (due to backspacing, etc.) and we should bail early.
-        if (mDiscardAutoCompleteResult) {
-            return;
-        }
-
         if (!isEnabled() || result == null) {
             mAutoCompleteResult = "";
             return;
@@ -385,6 +377,18 @@ public class ToolbarEditText extends CustomEditText
                 }
                 return super.setComposingText(text, newCursorPosition);
             }
+
+            @Override
+            public boolean sendKeyEvent(final KeyEvent event) {
+                if ((event.getKeyCode() == KeyEvent.KEYCODE_DEL ||
+                    (Build.VERSION.SDK_INT >= 11 &&
+                        event.getKeyCode() == KeyEvent.KEYCODE_FORWARD_DEL)) &&
+                    removeAutocomplete(getText())) {
+                    // Delete autocomplete text when backspacing or forward deleting.
+                    return false;
+                }
+                return super.sendKeyEvent(event);
+            }
         };
     }
 
@@ -432,10 +436,6 @@ public class ToolbarEditText extends CustomEditText
             }
 
             mAutoCompletePrefixLength = textLength;
-
-            // If we are not autocompleting, we set mDiscardAutoCompleteResult to true
-            // to discard any autocomplete results that are in-flight, and vice versa.
-            mDiscardAutoCompleteResult = !doAutocomplete;
 
             if (doAutocomplete && mAutoCompleteResult.startsWith(text)) {
                 // If this text already matches our autocomplete text, autocomplete likely
@@ -515,14 +515,6 @@ public class ToolbarEditText extends CustomEditText
                     mDismissListener.onDismiss();
                 }
 
-                return true;
-            }
-
-            if ((keyCode == KeyEvent.KEYCODE_DEL ||
-                (Build.VERSION.SDK_INT >= 11 &&
-                    keyCode == KeyEvent.KEYCODE_FORWARD_DEL)) &&
-                removeAutocomplete(getText())) {
-                // Delete autocomplete text when backspacing or forward deleting.
                 return true;
             }
 

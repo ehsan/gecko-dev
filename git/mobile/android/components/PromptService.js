@@ -234,7 +234,7 @@ InternalPrompt.prototype = {
     this.addCheckbox(p, aCheckMsg, aCheckState);
     let data = this.showPrompt(p);
     if (aCheckState && data.button > -1)
-      aCheckState.value = data.checkbox0;
+      aCheckState.value = data.checkbox0 == "true";
   },
 
   confirm: function confirm(aTitle, aText) {
@@ -250,7 +250,7 @@ InternalPrompt.prototype = {
     let data = this.showPrompt(p);
     let ok = data.button == 0;
     if (aCheckState && data.button > -1)
-      aCheckState.value = data.checkbox0;
+      aCheckState.value = data.checkbox0 == "true";
     return ok;
   },
 
@@ -297,7 +297,7 @@ InternalPrompt.prototype = {
     this.addCheckbox(p, aCheckMsg, aCheckState);
     let data = this.showPrompt(p);
     if (aCheckState && data.button > -1)
-      aCheckState.value = data.checkbox0;
+      aCheckState.value = data.checkbox0 == "true";
     return data.button;
   },
 
@@ -310,7 +310,7 @@ InternalPrompt.prototype = {
 
     let ok = data.button == 0;
     if (aCheckState && data.button > -1)
-      aCheckState.value = data.checkbox0;
+      aCheckState.value = data.checkbox0 == "true";
     if (ok)
       aValue.value = data.textbox0;
     return ok;
@@ -325,7 +325,7 @@ InternalPrompt.prototype = {
 
     let ok = data.button == 0;
     if (aCheckState && data.button > -1)
-      aCheckState.value = data.checkbox0;
+      aCheckState.value = data.checkbox0 == "true";
     if (ok)
       aPassword.value = data.password0;
     return ok;
@@ -341,8 +341,7 @@ InternalPrompt.prototype = {
 
     let ok = data.button == 0;
     if (aCheckState && data.button > -1)
-      aCheckState.value = data.checkbox0;
-
+      aCheckState.value = data.checkbox0 == "true";
     if (ok) {
       aUsername.value = data.textbox0;
       aPassword.value = data.password0;

@@ -33,7 +33,6 @@ const console = require("resource://gre/modules/devtools/Console.jsm").console;
 
 const LOAD_ERROR = "error-load";
 const STYLE_EDITOR_TEMPLATE = "stylesheet";
-const PREF_MEDIA_SIDEBAR = "devtools.styleeditor.showMediaSidebar";
 
 /**
  * StyleEditorUI is controls and builds the UI of the Style Editor, including
@@ -64,17 +63,14 @@ function StyleEditorUI(debuggee, target, panelDoc) {
   this.selectedEditor = null;
   this.savedLocations = {};
 
-  this._updateContextMenu = this._updateContextMenu.bind(this);
+  this._updateSourcesLabel = this._updateSourcesLabel.bind(this);
   this._onStyleSheetCreated = this._onStyleSheetCreated.bind(this);
   this._onNewDocument = this._onNewDocument.bind(this);
-  this._onMediaPrefChanged = this._onMediaPrefChanged.bind(this);
-  this._updateMediaList = this._updateMediaList.bind(this);
   this._clear = this._clear.bind(this);
   this._onError = this._onError.bind(this);
 
   this._prefObserver = new PrefObserver("devtools.styleeditor.");
   this._prefObserver.on(PREF_ORIG_SOURCES, this._onNewDocument);
-  this._prefObserver.on(PREF_MEDIA_SIDEBAR, this._onMediaPrefChanged);
 }
 
 StyleEditorUI.prototype = {
@@ -144,34 +140,24 @@ StyleEditorUI.prototype = {
 
     this._contextMenu = this._panelDoc.getElementById("sidebar-context");
     this._contextMenu.addEventListener("popupshowing",
-                                       this._updateContextMenu);
+                                       this._updateSourcesLabel);
 
     this._sourcesItem = this._panelDoc.getElementById("context-origsources");
     this._sourcesItem.addEventListener("command",
                                        this._toggleOrigSources);
-    this._mediaItem = this._panelDoc.getElementById("context-show-media");
-    this._mediaItem.addEventListener("command",
-                                     this._toggleMediaSidebar);
   },
 
   /**
-   * Update text of context menu option to reflect current preference
-   * settings
+   * Update text of context menu option to reflect whether we're showing
+   * original sources (e.g. Sass files) or not.
    */
-  _updateContextMenu: function() {
-    let sourceString = "showOriginalSources";
+  _updateSourcesLabel: function() {
+    let string = "showOriginalSources";
     if (Services.prefs.getBoolPref(PREF_ORIG_SOURCES)) {
-      sourceString = "showCSSSources";
+      string = "showCSSSources";
     }
-    this._sourcesItem.setAttribute("label", _(sourceString + ".label"));
-    this._sourcesItem.setAttribute("accesskey", _(sourceString + ".accesskey"));
-
-    let mediaString = "showMediaSidebar"
-    if (Services.prefs.getBoolPref(PREF_MEDIA_SIDEBAR)) {
-      mediaString = "hideMediaSidebar";
-    }
-    this._mediaItem.setAttribute("label", _(mediaString + ".label"));
-    this._mediaItem.setAttribute("accesskey", _(mediaString + ".accesskey"));
+    this._sourcesItem.setAttribute("label", _(string + ".label"));
+    this._sourcesItem.setAttribute("accesskey", _(string + ".accesskey"));
   },
 
   /**
@@ -216,7 +202,7 @@ StyleEditorUI.prototype = {
       let {line, ch} = this.selectedEditor.sourceEditor.getCursor();
 
       this._styleSheetToSelect = {
-        stylesheet: href,
+        href: href,
         line: line,
         col: ch
       };
@@ -288,7 +274,6 @@ StyleEditorUI.prototype = {
       new StyleSheetEditor(styleSheet, this._window, file, isNew, this._walker);
 
     editor.on("property-change", this._summaryChange.bind(this, editor));
-    editor.on("media-rules-changed", this._updateMediaList.bind(this, editor));
     editor.on("linked-css-file", this._summaryChange.bind(this, editor));
     editor.on("linked-css-file-error", this._summaryChange.bind(this, editor));
     editor.on("error", this._onError);
@@ -317,7 +302,7 @@ StyleEditorUI.prototype = {
       }
       NetUtil.asyncFetch(file, (stream, status) => {
         if (!Components.isSuccessCode(status)) {
-          this.emit("error", { key: LOAD_ERROR });
+          this.emit("error", LOAD_ERROR);
           return;
         }
         let source = NetUtil.readInputStreamToString(stream, stream.available());
@@ -347,34 +332,21 @@ StyleEditorUI.prototype = {
    *
    * @param  {string} event
    *         Event name
-   * @param  {data} data
-   *         The event data
+   * @param  {string} errorCode
+   *         Code represeting type of error
+   * @param  {string} message
+   *         The full error message
    */
-  _onError: function(event, data) {
-    this.emit("error", data);
+  _onError: function(event, errorCode, message) {
+    this.emit("error", errorCode, message);
   },
 
   /**
-   * Toggle the original sources pref.
+   *  Toggle the original sources pref.
    */
   _toggleOrigSources: function() {
     let isEnabled = Services.prefs.getBoolPref(PREF_ORIG_SOURCES);
     Services.prefs.setBoolPref(PREF_ORIG_SOURCES, !isEnabled);
-  },
-
-  /**
-   * Toggle the pref for showing a @media rules sidebar in each editor.
-   */
-  _toggleMediaSidebar: function() {
-    let isEnabled = Services.prefs.getBoolPref(PREF_MEDIA_SIDEBAR);
-    Services.prefs.setBoolPref(PREF_MEDIA_SIDEBAR, !isEnabled);
-  },
-
-  /**
-   * Toggle the @media sidebar in each editor depending on the setting.
-   */
-  _onMediaPrefChanged: function() {
-    this.editors.forEach(this._updateMediaList);
   },
 
   /**
@@ -429,7 +401,6 @@ StyleEditorUI.prototype = {
       onCreate: function(summary, details, data) {
         let editor = data.editor;
         editor.summary = summary;
-        editor.details = details;
 
         wire(summary, ".stylesheet-enabled", function onToggleDisabled(event) {
           event.stopPropagation();
@@ -471,7 +442,7 @@ StyleEditorUI.prototype = {
           }
 
           if (this._styleSheetToSelect
-              && this._styleSheetToSelect.stylesheet == editor.styleSheet.href) {
+              && this._styleSheetToSelect.href == editor.styleSheet.href) {
             yield this.switchToSelectedSheet();
           }
 
@@ -499,29 +470,15 @@ StyleEditorUI.prototype = {
 
           editor.onShow();
 
-          this.emit("editor-selected", editor);
-
-          // Is there any CSS coverage markup to include?
           csscoverage.getUsage(this._target).then(usage => {
             let href = editor.styleSheet.href || editor.styleSheet.nodeHref;
             usage.createEditorReport(href).then(data => {
               editor.removeAllUnusedRegions();
-
-              if (data.reports.length > 0) {
-                // So there is some coverage markup, but can we apply it?
-                let text = editor.sourceEditor.getText() + "\r";
-                // If the CSS text contains a '}' with some non-whitespace
-                // after then we assume this is compressed CSS and stop
-                // marking-up.
-                if (!/}\s*\S+\s*\r/.test(text)) {
-                  editor.addUnusedRegions(data.reports);
-                }
-                else {
-                  this.emit("error", { key: "error-compressed", level: "info" });
-                }
-              }
+              editor.addUnusedRegions(data.reports);
             });
           }, console.error);
+
+          this.emit("editor-selected", editor);
         }.bind(this)).then(null, Cu.reportError);
       }.bind(this)
     });
@@ -535,11 +492,9 @@ StyleEditorUI.prototype = {
    */
   switchToSelectedSheet: function() {
     let sheet = this._styleSheetToSelect;
-    let isHref = sheet.stylesheet === null || typeof sheet.stylesheet == "string";
 
     for (let editor of this.editors) {
-      if ((isHref && editor.styleSheet.href == sheet.stylesheet) ||
-          sheet.stylesheet == editor.styleSheet) {
+      if (editor.styleSheet.href == sheet.href) {
         // The _styleSheetBoundToSelect will always hold the latest pending
         // requested style sheet (with line and column) which is not yet
         // selected by the source editor. Only after we select that particular
@@ -599,24 +554,6 @@ StyleEditorUI.prototype = {
     return deferred.promise;
   },
 
-  getEditorDetails: function(editor) {
-    if (editor.details) {
-      return promise.resolve(editor.details);
-    }
-
-    let deferred = promise.defer();
-    let self = this;
-
-    this.on("editor-added", function onAdd(e, selected) {
-      if (selected == editor) {
-        self.off("editor-added", onAdd);
-        deferred.resolve(editor.details);
-      }
-    });
-
-    return deferred.promise;
-  },
-
   /**
    * Returns an identifier for the given style sheet.
    *
@@ -632,16 +569,19 @@ StyleEditorUI.prototype = {
   /**
    * selects a stylesheet and optionally moves the cursor to a selected line
    *
-   * @param {StyleSheetFront} [stylesheet]
-   *        Stylesheet to select or href of stylesheet to select
+   * @param {string} [href]
+   *        Href of stylesheet that should be selected. If a stylesheet is not passed
+   *        and the editor is not initialized we focus the first stylesheet. If
+   *        a stylesheet is not passed and the editor is initialized we ignore
+   *        the call.
    * @param {Number} [line]
    *        Line to which the caret should be moved (zero-indexed).
    * @param {Number} [col]
    *        Column to which the caret should be moved (zero-indexed).
    */
-  selectStyleSheet: function(stylesheet, line, col) {
+  selectStyleSheet: function(href, line, col) {
     this._styleSheetToSelect = {
-      stylesheet: stylesheet,
+      href: href,
       line: line,
       col: col,
     };
@@ -713,66 +653,10 @@ StyleEditorUI.prototype = {
       PluralForm.get(ruleCount, _("ruleCount.label")).replace("#1", ruleCount));
   },
 
-  /**
-   * Update the @media rules sidebar for an editor. Hide if there are no rules
-   * Display a list of the @media rules in the editor's associated style sheet.
-   * Emits a 'media-list-changed' event after updating the UI.
-   *
-   * @param  {StyleSheetEditor} editor
-   *         Editor to update @media sidebar of
-   */
-  _updateMediaList: function(editor) {
-    this.getEditorDetails(editor).then((details) => {
-      let list = details.querySelector(".stylesheet-media-list");
-
-      while (list.firstChild) {
-        list.removeChild(list.firstChild);
-      }
-
-      let rules = editor.mediaRules;
-      let showSidebar = Services.prefs.getBoolPref(PREF_MEDIA_SIDEBAR);
-      let sidebar = details.querySelector(".stylesheet-sidebar");
-      sidebar.hidden = !showSidebar || !rules.length;
-
-      for (let rule of rules) {
-        let div = this._panelDoc.createElement("div");
-        div.className = "media-rule-label";
-        div.addEventListener("click", this._jumpToMediaRule.bind(this, rule));
-
-        let cond = this._panelDoc.createElement("div");
-        cond.textContent = rule.conditionText;
-        cond.className = "media-rule-condition"
-        if (!rule.matches) {
-          cond.classList.add("media-condition-unmatched");
-        }
-        div.appendChild(cond);
-
-        let line = this._panelDoc.createElement("div");
-        line.className = "media-rule-line theme-link";
-        line.textContent = ":" + rule.line;
-        div.appendChild(line);
-
-        list.appendChild(div);
-      }
-      this.emit("media-list-changed", editor);
-    });
-  },
-
-  /**
-   * Jump cursor to the editor for a stylesheet and line number for a rule.
-   *
-   * @param  {MediaRuleFront} rule
-   *         Rule to jump to.
-   */
-  _jumpToMediaRule: function(rule) {
-    this.selectStyleSheet(rule.parentStyleSheet, rule.line - 1, rule.column - 1);
-  },
-
   destroy: function() {
     this._clearStyleSheetEditors();
 
     this._prefObserver.off(PREF_ORIG_SOURCES, this._onNewDocument);
-    this._prefObserver.off(PREF_MEDIA_SIDEBAR, this._onMediaPrefChanged);
     this._prefObserver.destroy();
   }
 }

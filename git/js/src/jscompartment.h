@@ -75,15 +75,15 @@ struct CrossCompartmentKey
 
     CrossCompartmentKey()
       : kind(ObjectWrapper), debugger(nullptr), wrapped(nullptr) {}
-    explicit CrossCompartmentKey(JSObject *wrapped)
+    CrossCompartmentKey(JSObject *wrapped)
       : kind(ObjectWrapper), debugger(nullptr), wrapped(wrapped) {}
-    explicit CrossCompartmentKey(JSString *wrapped)
+    CrossCompartmentKey(JSString *wrapped)
       : kind(StringWrapper), debugger(nullptr), wrapped(wrapped) {}
-    explicit CrossCompartmentKey(Value wrapped)
+    CrossCompartmentKey(Value wrapped)
       : kind(wrapped.isString() ? StringWrapper : ObjectWrapper),
         debugger(nullptr),
         wrapped((js::gc::Cell *)wrapped.toGCThing()) {}
-    explicit CrossCompartmentKey(const RootedValue &wrapped)
+    CrossCompartmentKey(const RootedValue &wrapped)
       : kind(wrapped.get().isString() ? StringWrapper : ObjectWrapper),
         debugger(nullptr),
         wrapped((js::gc::Cell *)wrapped.get().toGCThing()) {}
@@ -322,7 +322,7 @@ struct JSCompartment
     bool putWrapper(JSContext *cx, const js::CrossCompartmentKey& wrapped, const js::Value& wrapper);
 
     js::WrapperMap::Ptr lookupWrapper(const js::Value& wrapped) {
-        return crossCompartmentWrappers.lookup(js::CrossCompartmentKey(wrapped));
+        return crossCompartmentWrappers.lookup(wrapped);
     }
 
     void removeWrapper(js::WrapperMap::Ptr p) {
@@ -330,7 +330,7 @@ struct JSCompartment
     }
 
     struct WrapperEnum : public js::WrapperMap::Enum {
-        explicit WrapperEnum(JSCompartment *c) : js::WrapperMap::Enum(c->crossCompartmentWrappers) {}
+        WrapperEnum(JSCompartment *c) : js::WrapperMap::Enum(c->crossCompartmentWrappers) {}
     };
 
     void trace(JSTracer *trc);
@@ -541,8 +541,8 @@ ExclusiveContext::global() const
 class AssertCompartmentUnchanged
 {
   public:
-    explicit AssertCompartmentUnchanged(JSContext *cx
-                                        MOZ_GUARD_OBJECT_NOTIFIER_PARAM)
+    AssertCompartmentUnchanged(JSContext *cx
+                                MOZ_GUARD_OBJECT_NOTIFIER_PARAM)
       : cx(cx), oldCompartment(cx->compartment())
     {
         MOZ_GUARD_OBJECT_NOTIFIER_INIT;

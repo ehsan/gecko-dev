@@ -32,7 +32,7 @@ struct JS_PUBLIC_API(SliceBudget)
     SliceBudget();
 
     /* Instantiate as SliceBudget(Time/WorkBudget(n)). */
-    explicit SliceBudget(int64_t budget);
+    SliceBudget(int64_t budget);
 
     void reset() {
         deadline = unlimitedDeadline;

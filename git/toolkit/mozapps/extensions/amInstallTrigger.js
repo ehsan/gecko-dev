@@ -137,8 +137,7 @@ InstallTrigger.prototype = {
       let item = installs[name];
       if (typeof item === "string") {
         item = { URL: item };
-      }
-      if (!item.URL) {
+      } else if (!("URL" in item) || !item.URL) {
         throw new this._window.DOMError("Error", "Missing URL property for '" + name + "'");
       }
 
@@ -148,15 +147,20 @@ InstallTrigger.prototype = {
       }
 
       let iconUrl = null;
-      if (item.IconURL) {
+      if ("IconURL" in item && typeof item.IconURL == "string" && item.IconURL) {
         iconUrl = this._resolveURL(item.IconURL);
         if (!this._checkLoadURIFromScript(iconUrl)) {
           iconUrl = null; // If page can't load the icon, just ignore it
         }
       }
 
+      let hash = null;
+      if ("Hash" in item && typeof item.Hash === "string" && item.Hash) {
+        hash = item.Hash;
+      }
+
       installData.uris.push(url.spec);
-      installData.hashes.push(item.Hash || null);
+      installData.hashes.push(hash);
       installData.names.push(name);
       installData.icons.push(iconUrl ? iconUrl.spec : null);
     }

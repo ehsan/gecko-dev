@@ -91,16 +91,8 @@ function StyleSheetEditor(styleSheet, win, file, isNew, walker) {
 
   this._onPropertyChange = this._onPropertyChange.bind(this);
   this._onError = this._onError.bind(this);
-  this._onMediaRuleMatchesChange = this._onMediaRuleMatchesChange.bind(this);
-  this._onMediaRulesChanged = this._onMediaRulesChanged.bind(this)
   this.checkLinkedFileForChanges = this.checkLinkedFileForChanges.bind(this);
   this.markLinkedFileBroken = this.markLinkedFileBroken.bind(this);
-
-  this.mediaRules = [];
-  if (this.styleSheet.getMediaRules) {
-    this.styleSheet.getMediaRules().then(this._onMediaRulesChanged);
-  }
-  this.styleSheet.on("media-rules-changed", this._onMediaRulesChanged);
 
   this._focusOnSourceEditorReady = false;
 
@@ -231,7 +223,7 @@ StyleSheetEditor.prototype = {
         return source;
       });
     }, e => {
-      this.emit("error", { key: LOAD_ERROR, append: this.styleSheet.href });
+      this.emit("error", LOAD_ERROR, this.styleSheet.href);
       throw e;
     })
   },
@@ -284,44 +276,14 @@ StyleSheetEditor.prototype = {
   },
 
   /**
-   * Handles changes to the list of @media rules in the stylesheet.
-   * Emits 'media-rules-changed' if the list has changed.
-   *
-   * @param  {array} rules
-   *         Array of MediaRuleFronts for new media rules of sheet.
-   */
-  _onMediaRulesChanged: function(rules) {
-    if (!rules.length && !this.mediaRules.length) {
-      return;
-    }
-    for (let rule of this.mediaRules) {
-      rule.off("matches-change", this._onMediaRuleMatchesChange);
-      rule.destroy();
-    }
-    this.mediaRules = rules;
-
-    for (let rule of rules) {
-      rule.on("matches-change", this._onMediaRuleMatchesChange);
-    }
-    this.emit("media-rules-changed", rules);
-  },
-
-  /**
-   * Forward media-rules-changed event from stylesheet.
-   */
-  _onMediaRuleMatchesChange: function() {
-    this.emit("media-rules-changed", this.mediaRules);
-  },
-
-  /**
    * Forward error event from stylesheet.
    *
    * @param  {string} event
    *         Event type
    * @param  {string} errorCode
    */
-  _onError: function(event, data) {
-    this.emit("error", data);
+  _onError: function(event, errorCode) {
+    this.emit("error", errorCode);
   },
 
   /**
@@ -502,7 +464,7 @@ StyleSheetEditor.prototype = {
           if (callback) {
             callback(null);
           }
-          this.emit("error", { key: SAVE_ERROR });
+          this.emit("error", SAVE_ERROR);
           return;
         }
         FileUtils.closeSafeFileOutputStream(ostream);
@@ -628,7 +590,6 @@ StyleSheetEditor.prototype = {
     if (this.sourceEditor) {
       this.sourceEditor.destroy();
     }
-    this.styleSheet.off("media-rules-changed", this._onMediaRulesChanged);
     this.styleSheet.off("property-change", this._onPropertyChange);
     this.styleSheet.off("error", this._onError);
   }

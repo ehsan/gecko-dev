@@ -142,8 +142,8 @@ class AutoValueArray : public AutoGCRooter
     Value elements_[N];
 
   public:
-    explicit AutoValueArray(JSContext *cx
-                            MOZ_GUARD_OBJECT_NOTIFIER_PARAM)
+    AutoValueArray(JSContext *cx
+                   MOZ_GUARD_OBJECT_NOTIFIER_PARAM)
       : AutoGCRooter(cx, VALARRAY), length_(N)
     {
         /* Always initialize in case we GC before assignment. */
@@ -600,16 +600,16 @@ class HandleValueArray
     HandleValueArray(size_t len, const Value *elements) : length_(len), elements_(elements) {}
 
   public:
-    explicit HandleValueArray(const RootedValue& value) : length_(1), elements_(value.address()) {}
+    HandleValueArray(const RootedValue& value) : length_(1), elements_(value.address()) {}
 
-    MOZ_IMPLICIT HandleValueArray(const AutoValueVector& values)
+    HandleValueArray(const AutoValueVector& values)
       : length_(values.length()), elements_(values.begin()) {}
 
     template <size_t N>
     HandleValueArray(const AutoValueArray<N>& values) : length_(N), elements_(values.begin()) {}
 
     /* CallArgs must already be rooted somewhere up the stack. */
-    MOZ_IMPLICIT HandleValueArray(const JS::CallArgs& args) : length_(args.length()), elements_(args.array()) {}
+    HandleValueArray(const JS::CallArgs& args) : length_(args.length()), elements_(args.array()) {}
 
     /* Use with care! Only call this if the data is guaranteed to be marked. */
     static HandleValueArray fromMarkedLocation(size_t len, const Value *elements) {
@@ -643,7 +643,7 @@ struct JSFreeOp {
     JSRuntime   *runtime_;
 
   protected:
-    explicit JSFreeOp(JSRuntime *rt)
+    JSFreeOp(JSRuntime *rt)
       : runtime_(rt) { }
 
   public:
@@ -1342,8 +1342,8 @@ AssertHeapIsIdle(JSContext *cx);
 class JSAutoRequest
 {
   public:
-    explicit JSAutoRequest(JSContext *cx
-                           MOZ_GUARD_OBJECT_NOTIFIER_PARAM)
+    JSAutoRequest(JSContext *cx
+                  MOZ_GUARD_OBJECT_NOTIFIER_PARAM)
       : mContext(cx)
     {
         MOZ_GUARD_OBJECT_NOTIFIER_INIT;
@@ -1367,8 +1367,8 @@ class JSAutoRequest
 class JSAutoCheckRequest
 {
   public:
-    explicit JSAutoCheckRequest(JSContext *cx
-                                MOZ_GUARD_OBJECT_NOTIFIER_PARAM)
+    JSAutoCheckRequest(JSContext *cx
+                       MOZ_GUARD_OBJECT_NOTIFIER_PARAM)
     {
 #if defined JS_THREADSAFE && defined JS_DEBUG
         mContext = cx;
@@ -1622,7 +1622,7 @@ ContextOptionsRef(JSContext *cx);
 
 class JS_PUBLIC_API(AutoSaveContextOptions) {
   public:
-    explicit AutoSaveContextOptions(JSContext *cx)
+    AutoSaveContextOptions(JSContext *cx)
       : cx_(cx),
         oldOptions_(ContextOptionsRef(cx_))
     {
@@ -1735,7 +1735,7 @@ class JS_PUBLIC_API(JSAutoNullCompartment)
     JSContext *cx_;
     JSCompartment *oldCompartment_;
   public:
-    explicit JSAutoNullCompartment(JSContext *cx);
+    JSAutoNullCompartment(JSContext *cx);
     ~JSAutoNullCompartment();
 };
 
@@ -4874,8 +4874,8 @@ UnhideScriptedCaller(JSContext *cx);
 class AutoHideScriptedCaller
 {
   public:
-    explicit AutoHideScriptedCaller(JSContext *cx
-                                    MOZ_GUARD_OBJECT_NOTIFIER_PARAM)
+    AutoHideScriptedCaller(JSContext *cx
+                           MOZ_GUARD_OBJECT_NOTIFIER_PARAM)
       : mContext(cx)
     {
         MOZ_GUARD_OBJECT_NOTIFIER_INIT;
@@ -5014,7 +5014,7 @@ class MOZ_STACK_CLASS JS_PUBLIC_API(ForOfIterator) {
     ForOfIterator &operator=(const ForOfIterator &) MOZ_DELETE;
 
   public:
-    explicit ForOfIterator(JSContext *cx) : cx_(cx), iterator(cx_), index(NOT_ARRAY) { }
+    ForOfIterator(JSContext *cx) : cx_(cx), iterator(cx_), index(NOT_ARRAY) { }
 
     enum NonIterableBehavior {
         ThrowOnNonIterable,

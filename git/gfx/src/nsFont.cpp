@@ -115,7 +115,6 @@ bool nsFont::BaseEquals(const nsFont& aOther) const
       (synthesis == aOther.synthesis) &&
       (fontFeatureSettings == aOther.fontFeatureSettings) &&
       (languageOverride == aOther.languageOverride) &&
-      (variant == aOther.variant) &&
       (variantAlternates == aOther.variantAlternates) &&
       (variantCaps == aOther.variantCaps) &&
       (variantEastAsian == aOther.variantEastAsian) &&
@@ -133,6 +132,7 @@ bool nsFont::BaseEquals(const nsFont& aOther) const
 bool nsFont::Equals(const nsFont& aOther) const
 {
   if (BaseEquals(aOther) &&
+      (variant == aOther.variant) &&
       (decorations == aOther.decorations)) {
     return true;
   }

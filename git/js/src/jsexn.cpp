@@ -192,7 +192,7 @@ struct SuppressErrorsGuard
     JSErrorReporter prevReporter;
     JS::AutoSaveExceptionState prevState;
 
-    explicit SuppressErrorsGuard(JSContext *cx)
+    SuppressErrorsGuard(JSContext *cx)
       : cx(cx),
         prevReporter(JS_SetErrorReporter(cx, nullptr)),
         prevState(cx)

@@ -232,14 +232,14 @@ var SimpleServiceDiscovery = {
     }
   },
 
-  findAppForService: function findAppForService(aService) {
+  findAppForService: function findAppForService(aService, aApp) {
     if (!aService || !aService.target) {
       return null;
     }
 
     // Find the registration for the target
     if (this._targets.has(aService.target)) {
-      return this._targets.get(aService.target).factory(aService);
+      return this._targets.get(aService.target).factory(aService, aApp);
     }
     return null;
   },

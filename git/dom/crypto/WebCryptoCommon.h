@@ -74,9 +74,10 @@ ReadString(JSStructuredCloneReader* aReader, nsString& aString)
     return false;
   }
 
-  aString.SetLength(nameLength);
+  aString.SetCapacity(nameLength+1);
   size_t charSize = sizeof(nsString::char_type);
   read = JS_ReadBytes(aReader, (void*) aString.BeginWriting(), nameLength * charSize);
+  aString.SetCharAt('\0', nameLength);
   if (!read) {
     return false;
   }

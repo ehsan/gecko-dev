@@ -96,7 +96,7 @@ struct AtomHasher
         {
             hash = mozilla::HashString(chars, length);
         }
-        inline explicit Lookup(const JSAtom *atom);
+        inline Lookup(const JSAtom *atom);
     };
 
     static HashNumber hash(const Lookup &l) { return l.hash; }

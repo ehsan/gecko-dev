@@ -896,7 +896,7 @@ class ScopedThreadSafeStringInspector
     const jschar *chars_;
 
   public:
-    explicit ScopedThreadSafeStringInspector(JSString *str)
+    ScopedThreadSafeStringInspector(JSString *str)
       : str_(str),
         chars_(nullptr)
     { }

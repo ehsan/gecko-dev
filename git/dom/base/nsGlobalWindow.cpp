@@ -3378,7 +3378,7 @@ nsPIDOMWindow::MaybeCreateDoc()
     // Note that |document| here is the same thing as our mDoc, but we
     // don't have to explicitly set the member variable because the docshell
     // has already called SetNewDocument().
-    nsCOMPtr<nsIDocument> document = docShell->GetDocument();
+    nsCOMPtr<nsIDocument> document = do_GetInterface(docShell);
   }
 }
 
@@ -3801,8 +3801,9 @@ nsGlobalWindow::GetRealParent(nsIDOMWindow** aParent)
   mDocShell->GetSameTypeParentIgnoreBrowserAndAppBoundaries(getter_AddRefs(parent));
 
   if (parent) {
-    nsCOMPtr<nsPIDOMWindow> win = parent->GetWindow();
-    win.forget(aParent);
+    nsCOMPtr<nsIScriptGlobalObject> globalObject(do_GetInterface(parent));
+    NS_ENSURE_SUCCESS(CallQueryInterface(globalObject.get(), aParent),
+                      NS_ERROR_FAILURE);
   }
   else {
     *aParent = static_cast<nsIDOMWindow*>(this);
@@ -3967,11 +3968,7 @@ nsGlobalWindow::GetContentInternal(ErrorResult& aError)
     treeOwner->GetPrimaryContentShell(getter_AddRefs(primaryContent));
   }
 
-  if (!primaryContent) {
-    return nullptr;
-  }
-
-  domWindow = primaryContent->GetWindow();
+  domWindow = do_GetInterface(primaryContent);
   return domWindow.forget();
 }
 
@@ -5712,7 +5709,7 @@ nsGlobalWindow::GetLength(uint32_t* aLength)
   return NS_OK;
 }
 
-nsPIDOMWindow*
+already_AddRefed<nsIDOMWindow>
 nsGlobalWindow::GetChildWindow(const nsAString& aName)
 {
   nsCOMPtr<nsIDocShell> docShell(GetDocShell());
@@ -5723,7 +5720,8 @@ nsGlobalWindow::GetChildWindow(const nsAString& aName)
                               false, true, nullptr, nullptr,
                               getter_AddRefs(child));
 
-  return child ? child->GetWindow() : nullptr;
+  nsCOMPtr<nsIDOMWindow> child_win(do_GetInterface(child));
+  return child_win.forget();
 }
 
 bool
@@ -5890,7 +5888,7 @@ nsGlobalWindow::SetFullScreenInternal(bool aFullScreen, bool aRequireTrust)
   // call SetFullScreen on that window instead.
   nsCOMPtr<nsIDocShellTreeItem> rootItem;
   mDocShell->GetRootTreeItem(getter_AddRefs(rootItem));
-  nsCOMPtr<nsPIDOMWindow> window = rootItem ? rootItem->GetWindow() : nullptr;
+  nsCOMPtr<nsPIDOMWindow> window = do_GetInterface(rootItem);
   if (!window)
     return NS_ERROR_FAILURE;
   if (rootItem != mDocShell)
@@ -5974,7 +5972,7 @@ nsGlobalWindow::GetFullScreen(ErrorResult& aError)
     nsCOMPtr<nsIDocShellTreeItem> rootItem;
     mDocShell->GetRootTreeItem(getter_AddRefs(rootItem));
     if (rootItem != mDocShell) {
-      nsCOMPtr<nsIDOMWindow> window = rootItem->GetWindow();
+      nsCOMPtr<nsIDOMWindow> window = do_GetInterface(rootItem);
       if (window) {
         bool fullScreen = false;
         aError = window->GetFullScreen(&fullScreen);
@@ -6447,7 +6445,7 @@ nsGlobalWindow::Focus(ErrorResult& aError)
 
   nsCOMPtr<nsIDocShellTreeItem> rootItem;
   mDocShell->GetRootTreeItem(getter_AddRefs(rootItem));
-  nsCOMPtr<nsIDOMWindow> rootWin = rootItem ? rootItem->GetWindow() : nullptr;
+  nsCOMPtr<nsIDOMWindow> rootWin = do_GetInterface(rootItem);
   bool isActive = (rootWin == activeWindow);
 
   nsCOMPtr<nsIBaseWindow> treeOwnerAsWin = GetTreeOwnerWindow();
@@ -6490,8 +6488,7 @@ nsGlobalWindow::Focus(ErrorResult& aError)
   mDocShell->GetParent(getter_AddRefs(parentDsti));
 
   // set the parent's current focus to the frame containing this window.
-  nsCOMPtr<nsPIDOMWindow> parent =
-    parentDsti ? parentDsti->GetWindow() : nullptr;
+  nsCOMPtr<nsPIDOMWindow> parent = do_GetInterface(parentDsti);
   if (parent) {
     nsCOMPtr<nsIDocument> parentdoc = parent->GetDoc();
     if (!parentdoc) {
@@ -8422,8 +8419,7 @@ nsGlobalWindow::ReallyCloseWindow()
       nsCOMPtr<nsIBrowserDOMWindow> bwin;
       nsCOMPtr<nsIDocShellTreeItem> rootItem;
       mDocShell->GetRootTreeItem(getter_AddRefs(rootItem));
-      nsCOMPtr<nsIDOMWindow> rootWin =
-       rootItem ? rootItem->GetWindow() : nullptr;
+      nsCOMPtr<nsIDOMWindow> rootWin(do_GetInterface(rootItem));
       nsCOMPtr<nsIDOMChromeWindow> chromeWin(do_QueryInterface(rootWin));
       if (chromeWin)
         chromeWin->GetBrowserDOMWindow(getter_AddRefs(bwin));
@@ -9788,11 +9784,7 @@ nsGlobalWindow::SetKeyboardIndicators(UIStateChangeType aShowAccelerators,
     for (int32_t i = 0; i < childCount; ++i) {
       nsCOMPtr<nsIDocShellTreeItem> childShell;
       docShell->GetChildAt(i, getter_AddRefs(childShell));
-      if (!childShell) {
-        continue;
-      }
-
-      nsCOMPtr<nsPIDOMWindow> childWindow = childShell->GetWindow();
+      nsCOMPtr<nsPIDOMWindow> childWindow = do_GetInterface(childShell);
       if (childWindow) {
         childWindow->SetKeyboardIndicators(aShowAccelerators, aShowFocusRings);
       }
@@ -11386,7 +11378,7 @@ nsGlobalWindow::FireDelayedDOMEvents()
       docShell->GetChildAt(i, getter_AddRefs(childShell));
       NS_ASSERTION(childShell, "null child shell");
 
-      nsCOMPtr<nsPIDOMWindow> pWin = childShell->GetWindow();
+      nsCOMPtr<nsPIDOMWindow> pWin = do_GetInterface(childShell);
       if (pWin) {
         nsGlobalWindow *win =
           static_cast<nsGlobalWindow*>
@@ -12756,7 +12748,7 @@ nsGlobalWindow::SuspendTimeouts(uint32_t aIncrease,
       docShell->GetChildAt(i, getter_AddRefs(childShell));
       NS_ASSERTION(childShell, "null child shell");
 
-      nsCOMPtr<nsPIDOMWindow> pWin = childShell->GetWindow();
+      nsCOMPtr<nsPIDOMWindow> pWin = do_GetInterface(childShell);
       if (pWin) {
         nsGlobalWindow *win =
           static_cast<nsGlobalWindow*>
@@ -12864,7 +12856,7 @@ nsGlobalWindow::ResumeTimeouts(bool aThawChildren)
       docShell->GetChildAt(i, getter_AddRefs(childShell));
       NS_ASSERTION(childShell, "null child shell");
 
-      nsCOMPtr<nsPIDOMWindow> pWin = childShell->GetWindow();
+      nsCOMPtr<nsPIDOMWindow> pWin = do_GetInterface(childShell);
       if (pWin) {
         nsGlobalWindow *win =
           static_cast<nsGlobalWindow*>
@@ -13123,7 +13115,6 @@ NS_IMPL_CYCLE_COLLECTION_TRAVERSE_BEGIN_INHERITED(nsGlobalChromeWindow,
                                                   nsGlobalWindow)
   NS_IMPL_CYCLE_COLLECTION_TRAVERSE(mBrowserDOMWindow)
   NS_IMPL_CYCLE_COLLECTION_TRAVERSE(mMessageManager)
-  NS_IMPL_CYCLE_COLLECTION_TRAVERSE(mGroupMessageManagers)
 NS_IMPL_CYCLE_COLLECTION_TRAVERSE_END
 
 
@@ -13135,10 +13126,6 @@ NS_IMPL_CYCLE_COLLECTION_UNLINK_BEGIN_INHERITED(nsGlobalChromeWindow,
       tmp->mMessageManager.get())->Disconnect();
     NS_IMPL_CYCLE_COLLECTION_UNLINK(mMessageManager)
   }
-
-  tmp->mGroupMessageManagers.EnumerateRead(DisconnectGroupMessageManager, nullptr);
-  tmp->mGroupMessageManagers.Clear();
-  NS_IMPL_CYCLE_COLLECTION_UNLINK(mGroupMessageManagers)
 NS_IMPL_CYCLE_COLLECTION_UNLINK_END
 
 DOMCI_DATA(ChromeWindow, nsGlobalChromeWindow)
@@ -13505,39 +13492,6 @@ nsGlobalWindow::GetMessageManager(ErrorResult& aError)
                                 MM_CHROME | MM_BROADCASTER);
   }
   return myself->mMessageManager;
-}
-
-NS_IMETHODIMP
-nsGlobalChromeWindow::GetGroupMessageManager(const nsAString& aGroup,
-                                             nsIMessageBroadcaster** aManager)
-{
-  ErrorResult rv;
-  NS_IF_ADDREF(*aManager = GetGroupMessageManager(aGroup, rv));
-  return rv.ErrorCode();
-}
-
-nsIMessageBroadcaster*
-nsGlobalWindow::GetGroupMessageManager(const nsAString& aGroup,
-                                       ErrorResult& aError)
-{
-  FORWARD_TO_INNER_OR_THROW(GetGroupMessageManager, (aGroup, aError), aError, nullptr);
-  MOZ_ASSERT(IsChromeWindow());
-
-  nsGlobalChromeWindow* myself = static_cast<nsGlobalChromeWindow*>(this);
-  nsCOMPtr<nsIMessageBroadcaster> messageManager =
-    myself->mGroupMessageManagers.Get(aGroup);
-
-  if (!messageManager) {
-    nsFrameMessageManager* parent =
-      static_cast<nsFrameMessageManager*>(GetMessageManager(aError));
-
-    messageManager = new nsFrameMessageManager(nullptr,
-                                               parent,
-                                               MM_CHROME | MM_BROADCASTER);
-    myself->mGroupMessageManagers.Put(aGroup, messageManager);
-  }
-
-  return messageManager;
 }
 
 // nsGlobalModalWindow implementation

@@ -811,7 +811,7 @@ BluetoothHfpManager::ReceiveSocketData(BluetoothSocket* aSocket,
     message.AppendInt(mNetworkSelectionMode);
     message.AppendLiteral(",0,\"");
     message.Append(NS_ConvertUTF16toUTF8(mOperatorName));
-    message.Append('"');
+    message.AppendLiteral("\"");
     SendLine(message.get());
   } else if (msg.Find("AT+VTS=") != -1) {
     ParseAtCommand(msg, 7, atCommandValues);
@@ -1529,7 +1529,7 @@ BluetoothHfpManager::HandleCallStateChanged(uint32_t aCallIndex,
 
         nsAutoString number(aNumber);
         if (!mCLIP) {
-          number.Truncate();
+          number.AssignLiteral("");
         }
 
         MessageLoop::current()->PostDelayedTask(

@@ -143,12 +143,9 @@ public:
 
 class TestAPZCTreeManager : public APZCTreeManager {
 public:
-  // Expose these so test code can call it directly.
+  // Expose this so test code can call it directly.
   void BuildOverscrollHandoffChain(AsyncPanZoomController* aApzc) {
     APZCTreeManager::BuildOverscrollHandoffChain(aApzc);
-  }
-  void ClearOverscrollHandoffChain() {
-    APZCTreeManager::ClearOverscrollHandoffChain();
   }
 };
 
@@ -238,10 +235,6 @@ void ApzcPan(AsyncPanZoomController* apzc,
   aTime += TIME_BETWEEN_TOUCH_EVENT;
   mti.mTouches.AppendElement(SingleTouchData(0, ScreenIntPoint(10, aTouchEndY), ScreenSize(0, 0), 0, 0));
   status = apzc->ReceiveInputEvent(mti);
-
-  // Since we've explicitly built the overscroll handoff chain before
-  // touch-start, we need to explicitly clear it after touch-end.
-  aTreeManager->ClearOverscrollHandoffChain();
 }
 
 static
@@ -1106,7 +1099,7 @@ static already_AddRefed<AsyncPanZoomController>
 GetTargetAPZC(APZCTreeManager* manager, const ScreenPoint& aPoint,
               gfx3DMatrix& aTransformToApzcOut, gfx3DMatrix& aTransformToGeckoOut)
 {
-  nsRefPtr<AsyncPanZoomController> hit = manager->GetTargetAPZC(aPoint, nullptr);
+  nsRefPtr<AsyncPanZoomController> hit = manager->GetTargetAPZC(aPoint);
   if (hit) {
     manager->GetInputTransforms(hit.get(), aTransformToApzcOut, aTransformToGeckoOut);
   }

@@ -19,7 +19,7 @@ class AutoInflatedString {
     size_t length_;
 
   public:
-    explicit AutoInflatedString(JSContext *cx) : cx(cx), chars_(nullptr), length_(0) { }
+    AutoInflatedString(JSContext *cx) : cx(cx), chars_(nullptr), length_(0) { }
     ~AutoInflatedString() {
         JS_free(cx, chars_);
     }

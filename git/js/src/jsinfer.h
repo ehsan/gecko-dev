@@ -34,7 +34,7 @@ class TaggedProto
     static JSObject * const LazyProto;
 
     TaggedProto() : proto(nullptr) {}
-    explicit TaggedProto(JSObject *proto) : proto(proto) {}
+    TaggedProto(JSObject *proto) : proto(proto) {}
 
     uintptr_t toWord() const { return uintptr_t(proto); }
 
@@ -223,7 +223,7 @@ class TypeObjectKey;
 class Type
 {
     uintptr_t data;
-    explicit Type(uintptr_t data) : data(data) {}
+    Type(uintptr_t data) : data(data) {}
 
   public:
 
@@ -674,7 +674,7 @@ class TemporaryTypeSet : public TypeSet
 {
   public:
     TemporaryTypeSet() {}
-    explicit TemporaryTypeSet(Type type);
+    TemporaryTypeSet(Type type);
 
     TemporaryTypeSet(uint32_t flags, TypeObjectKey **objectSet) {
         this->flags = flags;
@@ -799,7 +799,7 @@ struct Property
     /* Possible types for this property, including types inherited from prototypes. */
     HeapTypeSet types;
 
-    explicit Property(jsid id)
+    Property(jsid id)
       : id(id)
     {}
 
@@ -821,7 +821,7 @@ struct TypeObjectAddendum
         TypedObject
     };
 
-    explicit TypeObjectAddendum(Kind kind);
+    TypeObjectAddendum(Kind kind);
 
     const Kind kind;
 
@@ -905,7 +905,7 @@ struct TypeTypedObject : public TypeObjectAddendum
     HeapPtrObject descr_;
 
   public:
-    explicit TypeTypedObject(Handle<TypeDescr*> descr);
+    TypeTypedObject(Handle<TypeDescr*> descr);
 
     HeapPtrObject &descrHeapPtr() {
         return descr_;
@@ -1423,7 +1423,7 @@ struct TypeObjectKey
     bool hasFlags(CompilerConstraintList *constraints, TypeObjectFlags flags);
     void watchStateChangeForInlinedCall(CompilerConstraintList *constraints);
     void watchStateChangeForNewScriptTemplate(CompilerConstraintList *constraints);
-    void watchStateChangeForTypedArrayData(CompilerConstraintList *constraints);
+    void watchStateChangeForTypedArrayBuffer(CompilerConstraintList *constraints);
     HeapTypeSetKey property(jsid id);
     void ensureTrackedProperty(JSContext *cx, jsid id);
 
@@ -1541,7 +1541,7 @@ class RecompileInfo
     uint32_t outputIndex;
 
   public:
-    explicit RecompileInfo(uint32_t outputIndex = uint32_t(-1))
+    RecompileInfo(uint32_t outputIndex = uint32_t(-1))
       : outputIndex(outputIndex)
     {}
 
@@ -1632,7 +1632,7 @@ struct TypeZone
     /* Pending recompilations to perform before execution of JIT code can resume. */
     Vector<RecompileInfo> *pendingRecompiles;
 
-    explicit TypeZone(JS::Zone *zone);
+    TypeZone(JS::Zone *zone);
     ~TypeZone();
 
     JS::Zone *zone() const { return zone_; }

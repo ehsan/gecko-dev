@@ -386,7 +386,7 @@ Http2Stream::ParseHttpRequestHeaders(const char *buf,
       return NS_ERROR_UNEXPECTED;
     }
     authorityHeader = ci->GetHost();
-    authorityHeader.Append(':');
+    authorityHeader.AppendLiteral(":");
     authorityHeader.AppendInt(ci->Port());
   }
 

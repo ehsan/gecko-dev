@@ -121,7 +121,6 @@ public:
                           const CryptoOperationData& aData)
   {
     CryptoOperationData dummy;
-    dummy.SetAsArrayBuffer(aCx);
     return SignVerifyTask(aCx, aAlgorithm, aKey, dummy, aData, true);
   }
 

@@ -412,7 +412,7 @@ class BarrieredBase : public BarrieredBaseMixins<T>
   protected:
     T value;
 
-    explicit BarrieredBase(T v) : value(v) {}
+    BarrieredBase(T v) : value(v) {}
     ~BarrieredBase() { pre(); }
 
   public:
@@ -468,10 +468,7 @@ class PreBarriered : public BarrieredBase<T>
 {
   public:
     PreBarriered() : BarrieredBase<T>(GCMethods<T>::initial()) {}
-    /*
-     * Allow implicit construction for use in generic contexts, such as DebuggerWeakMap::markKeys.
-     */
-    MOZ_IMPLICIT PreBarriered(T v) : BarrieredBase<T>(v) {}
+    PreBarriered(T v) : BarrieredBase<T>(v) {}
     explicit PreBarriered(const PreBarriered<T> &v)
       : BarrieredBase<T>(v.value) {}
 
@@ -738,8 +735,8 @@ class ReadBarriered
 
   public:
     ReadBarriered() : value(nullptr) {}
-    explicit ReadBarriered(T value) : value(value) {}
-    explicit ReadBarriered(const Rooted<T> &rooted) : value(rooted) {}
+    ReadBarriered(T value) : value(value) {}
+    ReadBarriered(const Rooted<T> &rooted) : value(rooted) {}
 
     T get() const {
         if (!InternalGCMethods<T>::isMarkable(value))
@@ -917,7 +914,7 @@ class HeapSlotArray
     HeapSlot *array;
 
   public:
-    explicit HeapSlotArray(HeapSlot *array) : array(array) {}
+    HeapSlotArray(HeapSlot *array) : array(array) {}
 
     operator const Value *() const { return Valueify(array); }
     operator HeapSlot *() const { return array; }

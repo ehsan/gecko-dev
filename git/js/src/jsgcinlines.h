@@ -22,7 +22,7 @@ class Shape;
  */
 struct AutoMarkInDeadZone
 {
-    explicit AutoMarkInDeadZone(JS::Zone *zone)
+    AutoMarkInDeadZone(JS::Zone *zone)
       : zone(zone),
         scheduled(zone->scheduledForDestruction)
     {
@@ -243,7 +243,7 @@ class ArenaCellIterImpl
 class ArenaCellIterUnderGC : public ArenaCellIterImpl
 {
   public:
-    explicit ArenaCellIterUnderGC(ArenaHeader *aheader) {
+    ArenaCellIterUnderGC(ArenaHeader *aheader) {
         JS_ASSERT(aheader->zone->runtimeFromAnyThread()->isHeapBusy());
         init(aheader);
     }
@@ -252,7 +252,7 @@ class ArenaCellIterUnderGC : public ArenaCellIterImpl
 class ArenaCellIterUnderFinalize : public ArenaCellIterImpl
 {
   public:
-    explicit ArenaCellIterUnderFinalize(ArenaHeader *aheader) {
+    ArenaCellIterUnderFinalize(ArenaHeader *aheader) {
         initUnsynchronized(aheader);
     }
 };
@@ -319,7 +319,7 @@ class AutoAssertNoAlloc
 
   public:
     AutoAssertNoAlloc() : gc(nullptr) {}
-    explicit AutoAssertNoAlloc(JSRuntime *rt) : gc(nullptr) {
+    AutoAssertNoAlloc(JSRuntime *rt) : gc(nullptr) {
         disallowAlloc(rt);
     }
     void disallowAlloc(JSRuntime *rt) {
@@ -334,7 +334,7 @@ class AutoAssertNoAlloc
 #else
   public:
     AutoAssertNoAlloc() {}
-    explicit AutoAssertNoAlloc(JSRuntime *) {}
+    AutoAssertNoAlloc(JSRuntime *) {}
     void disallowAlloc(JSRuntime *rt) {}
 #endif
 };
@@ -394,7 +394,7 @@ class GCZonesIter
     ZonesIter zone;
 
   public:
-    explicit GCZonesIter(JSRuntime *rt) : zone(rt, WithAtoms) {
+    GCZonesIter(JSRuntime *rt) : zone(rt, WithAtoms) {
         if (!zone->isCollecting())
             next();
     }
@@ -425,7 +425,7 @@ class GCZoneGroupIter {
     JS::Zone *current;
 
   public:
-    explicit GCZoneGroupIter(JSRuntime *rt) {
+    GCZoneGroupIter(JSRuntime *rt) {
         JS_ASSERT(rt->isHeapBusy());
         current = rt->gc.currentZoneGroup;
     }

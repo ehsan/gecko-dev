@@ -36,7 +36,6 @@
 #include "prclist.h"
 #include "nsThreadUtils.h"
 #include "ScrollbarStyles.h"
-#include "nsIMessageManager.h"
 
 class nsBidiPresUtils;
 class nsAString;
@@ -784,12 +783,6 @@ public:
    * displays, so that the ratio of points to device pixels changes.
    */
   NS_HIDDEN_(void) UIResolutionChanged();
-
-  /**
-   * Recursively notify all remote leaf descendants of a given message manager
-   * that the resolution of the user interface has changed.
-   */
-  NS_HIDDEN_(void) NotifyUIResolutionChanged(nsIMessageBroadcaster* aManager);
 
   /*
    * Notify the pres context that a system color has changed
