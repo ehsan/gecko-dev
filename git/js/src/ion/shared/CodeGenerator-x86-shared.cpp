@@ -198,6 +198,9 @@ CodeGeneratorX86Shared::toMoveOperand(const LAllocation *a)
 bool
 CodeGeneratorX86Shared::visitMoveGroup(LMoveGroup *group)
 {
+    if (!group->numMoves())
+        return true;
+
     MoveResolver &resolver = masm.moveResolver();
 
     for (size_t i = 0; i < group->numMoves(); i++) {
@@ -223,7 +226,7 @@ CodeGeneratorX86Shared::visitMoveGroup(LMoveGroup *group)
         return false;
 
     MoveEmitter emitter(masm);
-    emitter.emit(resolver, group->freeRegs());
+    emitter.emit(resolver);
     emitter.finish();
 
     return true;
