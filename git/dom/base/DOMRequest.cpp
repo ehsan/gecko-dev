@@ -17,8 +17,8 @@ using mozilla::dom::DOMRequest;
 using mozilla::dom::DOMRequestService;
 
 DOMRequest::DOMRequest(nsIDOMWindow* aWindow)
-  : mResult(JSVAL_VOID)
-  , mDone(false)
+  : mDone(false)
+  , mResult(JSVAL_VOID)
   , mRooted(false)
 {
   nsCOMPtr<nsPIDOMWindow> window = do_QueryInterface(aWindow);
@@ -34,18 +34,14 @@ NS_IMPL_CYCLE_COLLECTION_TRAVERSE_BEGIN_INHERITED(DOMRequest,
                                                   nsDOMEventTargetHelper)
   NS_CYCLE_COLLECTION_TRAVERSE_EVENT_HANDLER(success)
   NS_CYCLE_COLLECTION_TRAVERSE_EVENT_HANDLER(error)
-  NS_IMPL_CYCLE_COLLECTION_TRAVERSE_NSCOMPTR(mError)
 NS_IMPL_CYCLE_COLLECTION_TRAVERSE_END
 
 NS_IMPL_CYCLE_COLLECTION_UNLINK_BEGIN_INHERITED(DOMRequest,
                                                 nsDOMEventTargetHelper)
-  if (tmp->mRooted) {
-    tmp->mResult = JSVAL_VOID;
-    tmp->UnrootResultVal();
-  }
+  tmp->mResult = JSVAL_VOID;
+  tmp->UnrootResultVal();
   NS_CYCLE_COLLECTION_UNLINK_EVENT_HANDLER(success)
   NS_CYCLE_COLLECTION_UNLINK_EVENT_HANDLER(error)
-  NS_IMPL_CYCLE_COLLECTION_UNLINK_NSCOMPTR(mError)
 NS_IMPL_CYCLE_COLLECTION_UNLINK_END
 
 NS_IMPL_CYCLE_COLLECTION_TRACE_BEGIN_INHERITED(DOMRequest,
@@ -102,54 +98,35 @@ DOMRequest::GetError(nsIDOMDOMError** aError)
 void
 DOMRequest::FireSuccess(jsval aResult)
 {
-  NS_ASSERTION(!mDone, "mDone shouldn't have been set to true already!");
-  NS_ASSERTION(!mError, "mError shouldn't have been set!");
-  NS_ASSERTION(mResult == JSVAL_VOID, "mResult shouldn't have been set!");
+  NS_ABORT_IF_FALSE(!mDone, "Already fired success/error");
 
   mDone = true;
-  if (JSVAL_IS_GCTHING(aResult)) {
-    RootResultVal();
-  }
+  RootResultVal();
   mResult = aResult;
 
-  FireEvent(NS_LITERAL_STRING("success"), false, false);
+  FireEvent(NS_LITERAL_STRING("success"));
 }
 
 void
 DOMRequest::FireError(const nsAString& aError)
 {
-  NS_ASSERTION(!mDone, "mDone shouldn't have been set to true already!");
-  NS_ASSERTION(!mError, "mError shouldn't have been set!");
-  NS_ASSERTION(mResult == JSVAL_VOID, "mResult shouldn't have been set!");
+  NS_ABORT_IF_FALSE(!mDone, "Already fired success/error");
 
   mDone = true;
   mError = DOMError::CreateWithName(aError);
 
-  FireEvent(NS_LITERAL_STRING("error"), true, true);
+  FireEvent(NS_LITERAL_STRING("error"));
 }
 
 void
-DOMRequest::FireError(nsresult aError)
-{
-  NS_ASSERTION(!mDone, "mDone shouldn't have been set to true already!");
-  NS_ASSERTION(!mError, "mError shouldn't have been set!");
-  NS_ASSERTION(mResult == JSVAL_VOID, "mResult shouldn't have been set!");
-
-  mDone = true;
-  mError = DOMError::CreateForNSResult(aError);
-
-  FireEvent(NS_LITERAL_STRING("error"), true, true);
-}
-
-void
-DOMRequest::FireEvent(const nsAString& aType, bool aBubble, bool aCancelable)
+DOMRequest::FireEvent(const nsAString& aType)
 {
   if (NS_FAILED(CheckInnerWindowCorrectness())) {
     return;
   }
 
   nsRefPtr<nsDOMEvent> event = new nsDOMEvent(nsnull, nsnull);
-  nsresult rv = event->InitEvent(aType, aBubble, aCancelable);
+  nsresult rv = event->InitEvent(aType, false, false);
   if (NS_FAILED(rv)) {
     return;
   }
@@ -161,22 +138,6 @@ DOMRequest::FireEvent(const nsAString& aType, bool aBubble, bool aCancelable)
 
   bool dummy;
   DispatchEvent(event, &dummy);
-}
-
-void
-DOMRequest::RootResultVal()
-{
-  NS_ASSERTION(!mRooted, "Don't call me if already rooted!");
-  NS_HOLD_JS_OBJECTS(this, DOMRequest);
-  mRooted = true;
-}
-
-void
-DOMRequest::UnrootResultVal()
-{
-  NS_ASSERTION(mRooted, "Don't call me if not rooted!");
-  NS_DROP_JS_OBJECTS(this, DOMRequest);
-  mRooted = false;
 }
 
 NS_IMPL_ISUPPORTS1(DOMRequestService, nsIDOMRequestService)

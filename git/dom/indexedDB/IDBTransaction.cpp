@@ -113,8 +113,6 @@ IDBTransaction::CreateInternal(IDBDatabase* aDatabase,
 
   IndexedDBTransactionChild* actor = nsnull;
 
-  transaction->mCreatedFileInfos.Init();
-
   if (IndexedDatabaseManager::IsMainProcess()) {
     transaction->mCachedStatements.Init();
 
@@ -472,18 +470,10 @@ IDBTransaction::GetOrCreateObjectStore(const nsAString& aName,
   return retval.forget();
 }
 
-already_AddRefed<FileInfo>
-IDBTransaction::GetFileInfo(nsIDOMBlob* aBlob)
-{
-  nsRefPtr<FileInfo> fileInfo;
-  mCreatedFileInfos.Get(aBlob, getter_AddRefs(fileInfo));
-  return fileInfo.forget();
-}
-
 void
-IDBTransaction::AddFileInfo(nsIDOMBlob* aBlob, FileInfo* aFileInfo)
+IDBTransaction::OnNewFileInfo(FileInfo* aFileInfo)
 {
-  mCreatedFileInfos.Put(aBlob, aFileInfo);
+  mCreatedFileInfos.AppendElement(aFileInfo);
 }
 
 void

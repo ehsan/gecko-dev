@@ -2,8 +2,6 @@
    http://creativecommons.org/publicdomain/zero/1.0/ */
 "use strict";
 
-let tiltOpened = false;
-
 function test() {
   if (!isTiltEnabled()) {
     info("Skipping part of the arcball test because Tilt isn't enabled.");
@@ -22,8 +20,6 @@ function test() {
     createTilt({
       onTiltOpen: function(instance)
       {
-        tiltOpened = true;
-
         performTest(instance.presenter.canvas,
                     instance.controller.arcball, function() {
 
@@ -34,10 +30,6 @@ function test() {
           InspectorUI.closeInspectorUI();
         });
       }
-    }, false, function suddenDeath()
-    {
-      info("Tilt could not be initialized properly.");
-      cleanup();
     });
   });
 }
@@ -125,7 +117,7 @@ function performTest(canvas, arcball, callback) {
 function cleanup() {
   info("Cleaning up arcball reset test.");
 
-  if (tiltOpened) { Services.obs.removeObserver(cleanup, DESTROYED); }
+  Services.obs.removeObserver(cleanup, DESTROYED);
   gBrowser.removeCurrentTab();
   finish();
 }

@@ -48,12 +48,12 @@ function compareBuffers(buffer1, buffer2)
 
 function getBlob(type, view)
 {
-  return utils.getBlob([view], {type: type});
+  return new Blob([view], {type: type});
 }
 
 function getFile(name, type, view)
 {
-  return utils.getFile(name, [view], {type: type});
+  return new Blob([view], {type: type});
 }
 
 function getRandomBlob(size)
@@ -210,11 +210,6 @@ function getUsageSync()
 function scheduleGC()
 {
   SpecialPowers.exactGC(window, continueToNextStep);
-}
-
-function getFileId(file)
-{
-  return utils.getFileId(file);
 }
 
 function hasFileInfo(name, id)

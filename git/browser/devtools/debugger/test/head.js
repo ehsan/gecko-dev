@@ -55,30 +55,14 @@ function removeTab(aTab) {
   gBrowser.removeTab(aTab);
 }
 
-function closeDebuggerAndFinish(aRemoteFlag, aCallback) {
-  let debuggerClosed = false;
-  let debuggerDisconnected = false;
-
-  function _maybeFinish() {
-    if (debuggerClosed && debuggerDisconnected) {
-      if (!aCallback)
-        aCallback = finish;
-      aCallback();
-    }
-  }
-
+function closeDebuggerAndFinish(aRemoteFlag) {
   DebuggerUI.chromeWindow.addEventListener("Debugger:Shutdown", function cleanup() {
     DebuggerUI.chromeWindow.removeEventListener("Debugger:Shutdown", cleanup, false);
-    debuggerDisconnected = true;
-    _maybeFinish();
+    finish();
   }, false);
   if (!aRemoteFlag) {
-    DebuggerUI.getDebugger().close(function() {
-      debuggerClosed = true;
-      _maybeFinish();
-    });
+    DebuggerUI.getDebugger().close();
   } else {
-    debuggerClosed = true;
     DebuggerUI.getRemoteDebugger().close();
   }
 }
@@ -130,18 +114,6 @@ function debug_tab_pane(aURL, aOnDebugging)
       });
     }, true);
   });
-}
-
-function wait_for_connect_and_resume(aOnDebugging)
-{
-  window.document.addEventListener("Debugger:Connecting", function dbgConnected(aEvent) {
-    window.document.removeEventListener("Debugger:Connecting", dbgConnected, true);
-
-    // Wait for the initial resume...
-    aEvent.target.ownerDocument.defaultView.gClient.addOneTimeListener("resumed", function() {
-      aOnDebugging();
-    });
-  }, true);
 }
 
 function debug_remote(aURL, aOnDebugging, aBeforeTabAdded)

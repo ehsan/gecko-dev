@@ -11,15 +11,10 @@ function executeSoon(aFun)
 }
 
 if (!window.runTest) {
-  window.runTest = function(limitedQuota)
+  window.runTest = function()
   {
     allowIndexedDB();
-    if (limitedQuota) {
-      denyUnlimitedQuota();
-    }
-    else {
-      allowUnlimitedQuota();
-    }
+    allowUnlimitedQuota();
 
     SimpleTest.waitForExplicitFinish();
     testGenerator.next();

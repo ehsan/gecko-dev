@@ -11,9 +11,7 @@ function run_test() {
 
 add_test(function test_roundtrip() {
   _("Do a simple write of an array to json and read");
-  CommonUtils.jsonSave("foo", {}, ["v1", "v2"], ensureThrows(function(error) {
-    do_check_eq(error, null);
-
+  CommonUtils.jsonSave("foo", {}, ["v1", "v2"], ensureThrows(function() {
     CommonUtils.jsonLoad("foo", {}, ensureThrows(function(val) {
       let foo = val;
       do_check_eq(typeof foo, "object");
@@ -27,9 +25,7 @@ add_test(function test_roundtrip() {
 
 add_test(function test_string() {
   _("Try saving simple strings");
-  CommonUtils.jsonSave("str", {}, "hi", ensureThrows(function(error) {
-    do_check_eq(error, null);
-
+  CommonUtils.jsonSave("str", {}, "hi", ensureThrows(function() {
     CommonUtils.jsonLoad("str", {}, ensureThrows(function(val) {
       let str = val;
       do_check_eq(typeof str, "string");
@@ -43,9 +39,7 @@ add_test(function test_string() {
 
 add_test(function test_number() {
   _("Try saving a number");
-  CommonUtils.jsonSave("num", {}, 42, ensureThrows(function(error) {
-    do_check_eq(error, null);
-
+  CommonUtils.jsonSave("num", {}, 42, ensureThrows(function() {
     CommonUtils.jsonLoad("num", {}, ensureThrows(function(val) {
       let num = val;
       do_check_eq(typeof num, "number");

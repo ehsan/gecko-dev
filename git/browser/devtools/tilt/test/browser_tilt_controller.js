@@ -118,17 +118,9 @@ function test() {
       },
       onEnd: function()
       {
-        cleanup();
+        gBrowser.removeCurrentTab();
+        finish();
       }
-    }, true, function suddenDeath()
-    {
-      info("Tilt could not be initialized properly.");
-      cleanup();
-    });
+    }, true);
   });
-}
-
-function cleanup() {
-  gBrowser.removeCurrentTab();
-  finish();
 }

@@ -487,7 +487,6 @@ DOMCI_CLASS(WebSocket)
 DOMCI_CLASS(CloseEvent)
 
 DOMCI_CLASS(IDBFactory)
-DOMCI_CLASS(IDBFileHandle)
 DOMCI_CLASS(IDBRequest)
 DOMCI_CLASS(IDBDatabase)
 DOMCI_CLASS(IDBObjectStore)
@@ -527,7 +526,3 @@ DOMCI_CLASS(BluetoothAdapter)
 
 DOMCI_CLASS(DOMError)
 DOMCI_CLASS(DOMRequest)
-
-DOMCI_CLASS(DOMFileHandle)
-DOMCI_CLASS(FileRequest)
-DOMCI_CLASS(LockedFile)

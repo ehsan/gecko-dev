@@ -2,8 +2,6 @@
    http://creativecommons.org/publicdomain/zero/1.0/ */
 "use strict";
 
-let pickDone = false;
-
 function test() {
   if (!isTiltEnabled()) {
     info("Skipping picking test because Tilt isn't enabled.");
@@ -32,23 +30,18 @@ function test() {
               ok(data.index > 0,
                 "Simply picking a node didn't work properly.");
 
-              pickDone = true;
               Services.obs.addObserver(cleanup, DESTROYED, false);
               InspectorUI.closeInspectorUI();
             }
           });
         };
       }
-    }, false, function suddenDeath()
-    {
-      info("Tilt could not be initialized properly.");
-      cleanup();
     });
   });
 }
 
 function cleanup() {
-  if (pickDone) { Services.obs.removeObserver(cleanup, DESTROYED); }
+  Services.obs.removeObserver(cleanup, DESTROYED);
   gBrowser.removeCurrentTab();
   finish();
 }

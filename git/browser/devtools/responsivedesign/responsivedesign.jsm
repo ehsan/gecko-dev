@@ -1,8 +1,41 @@
 /* -*- Mode: C++; tab-width: 8; indent-tabs-mode: nil; c-basic-offset: 2 -*- */
 /* vim: set ft=javascript ts=2 et sw=2 tw=80: */
-/* This Source Code Form is subject to the terms of the Mozilla Public
- * License, v. 2.0. If a copy of the MPL was not distributed with this
- * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
+/* ***** BEGIN LICENSE BLOCK *****
+ * Version: MPL 1.1/GPL 2.0/LGPL 2.1
+ *
+ * The contents of this file are subject to the Mozilla Public License Version
+ * 1.1 (the "License"); you may not use this file except in compliance with
+ * the License. You may obtain a copy of the License at
+ * http://www.mozilla.org/MPL/
+ *
+ * Software distributed under the License is distributed on an "AS IS" basis,
+ * WITHOUT WARRANTY OF ANY KIND, either express or implied. See the License
+ * for the specific language governing rights and limitations under the
+ * License.
+ *
+ * The Original Code is the Mozilla Responsive UI Module.
+ *
+ * The Initial Developer of the Original Code is
+ * The Mozilla Foundation.
+ * Portions created by the Initial Developer are Copyright (C) 2012
+ * the Initial Developer. All Rights Reserved.
+ *
+ * Contributor(s):
+ *   Paul Rouget <paul@mozilla.com> (original author)
+ *
+ * Alternatively, the contents of this file may be used under the terms of
+ * either the GNU General Public License Version 2 or later (the "GPL"), or
+ * the GNU Lesser General Public License Version 2.1 or later (the "LGPL"),
+ * in which case the provisions of the GPL or the LGPL are applicable instead
+ * of those above. If you wish to allow use of your version of this file only
+ * under the terms of either the GPL or the LGPL, and not to allow others to
+ * use your version of this file under the terms of the MPL, indicate your
+ * decision by deleting the provisions above and replace them with the notice
+ * and other provisions required by the GPL or the LGPL. If you do not delete
+ * the provisions above, a recipient may use your version of this file under
+ * the terms of any one of the MPL, the GPL or the LGPL.
+ *
+ * ***** END LICENSE BLOCK ***** */
 
 const Ci = Components.interfaces;
 const Cu = Components.utils;
@@ -14,9 +47,6 @@ var EXPORTED_SYMBOLS = ["ResponsiveUIManager"];
 
 const MIN_WIDTH = 50;
 const MIN_HEIGHT = 50;
-
-const MAX_WIDTH = 10000;
-const MAX_HEIGHT = 10000;
 
 let ResponsiveUIManager = {
   /**
@@ -36,21 +66,21 @@ let ResponsiveUIManager = {
   },
 }
 
-let presets = [
+let presets =  [
   // Phones
-  {key: "320x480", width: 320, height: 480},    // iPhone, B2G, with <meta viewport>
-  {key: "360x640", width: 360, height: 640},    // Android 4, phones, with <meta viewport>
+  {width: 320, height: 480},    // iPhone, B2G, with <meta viewport>
+  {width: 360, height: 640},    // Android 4, phones, with <meta viewport>
 
   // Tablets
-  {key: "768x1024", width: 768, height: 1024},   // iPad, with <meta viewport>
-  {key: "800x1280", width: 800, height: 1280},   // Android 4, Tablet, with <meta viewport>
+  {width: 768, height: 1024},   // iPad, with <meta viewport>
+  {width: 800, height: 1280},   // Android 4, Tablet, with <meta viewport>
 
   // Default width for mobile browsers, no <meta viewport>
-  {key: "980x1280", width: 980, height: 1280},
+  {width: 980, height: 1280},
 
   // Computer
-  {key: "1280x600", width: 1280, height: 600},
-  {key: "1920x900", width: 1920, height: 900},
+  {width: 1280, height: 600},
+  {width: 1920, height: 900},
 ];
 
 function ResponsiveUI(aWindow, aTab)
@@ -73,29 +103,17 @@ function ResponsiveUI(aWindow, aTab)
   }
 
   if (Array.isArray(presets)) {
-    this.presets = [{key: "custom", custom: true}].concat(presets)
+    this.presets = [{custom: true}].concat(presets)
   } else {
     Cu.reportError("Presets value (devtools.responsiveUI.presets) is malformated.");
-    this.presets = [{key: "custom", custom: true}];
+    this.presets = [{custom: true}];
   }
 
-  try {
-    let width = Services.prefs.getIntPref("devtools.responsiveUI.customWidth");
-    let height = Services.prefs.getIntPref("devtools.responsiveUI.customHeight");
-    this.presets[0].width = Math.min(MAX_WIDTH, width);
-    this.presets[0].height = Math.min(MAX_HEIGHT, height);
-
-    let key = Services.prefs.getCharPref("devtools.responsiveUI.currentPreset");
-    let idx = this.getPresetIdx(key);
-    this.currentPreset = (idx == -1 ? 0 : idx);
-  } catch(e) {
-    // Default size. The first preset (custom) is the one that will be used.
-    let bbox = this.stack.getBoundingClientRect();
-
-    this.presets[0].width = bbox.width - 40; // horizontal padding of the container
-    this.presets[0].height = bbox.height - 80; // vertical padding + toolbar height
-    this.currentPreset = 0; // Custom
-  }
+  // Default size. The first preset (custom) is the one that will be used.
+  let bbox = this.stack.getBoundingClientRect();
+  this.presets[0].width = bbox.width - 40; // horizontal padding of the container
+  this.presets[0].height = bbox.height - 80; // vertical padding + toolbar height
+  this.currentPreset = 0; // Custom
 
   this.container.setAttribute("responsivemode", "true");
   this.stack.setAttribute("responsivemode", "true");
@@ -115,26 +133,9 @@ function ResponsiveUI(aWindow, aTab)
 
   this.buildUI();
   this.checkMenus();
-
-  try {
-    if (Services.prefs.getBoolPref("devtools.responsiveUI.rotate")) {
-      this.rotate();
-    }
-  } catch(e) {}
 }
 
 ResponsiveUI.prototype = {
-  _transitionsEnabled: true,
-  get transitionsEnabled() this._transitionsEnabled,
-  set transitionsEnabled(aValue) {
-    this._transitionsEnabled = aValue;
-    if (aValue && !this._resizing && this.stack.hasAttribute("responsivemode")) {
-      this.stack.removeAttribute("notransition");
-    } else if (!aValue) {
-      this.stack.setAttribute("notransition", "true");
-    }
-  },
-
   /**
    * Destroy the nodes. Remove listeners. Reset the style.
    */
@@ -147,10 +148,7 @@ ResponsiveUI.prototype = {
                 "min-height: 0;";
     this.stack.setAttribute("style", style);
 
-    if (this.isResizing)
-      this.stopResizing();
-
-    this.saveCurrentPreset();
+    this.stopResizing();
 
     // Remove listeners.
     this.mainWindow.removeEventListener("keypress", this.bound_onKeypress, true);
@@ -170,21 +168,6 @@ ResponsiveUI.prototype = {
 
     delete this.tab.responsiveUI;
   },
-
-  /**
-   * Retrieve a preset from its key.
-   *
-   * @param aKey preset's key.
-   * @returns the index of the preset, -1 if not found.
-   */
-   getPresetIdx: function RUI_getPresetIdx(aKey) {
-     for (let i = 0; i < this.presets.length; i++) {
-       if (this.presets[i].key == aKey) {
-         return i;
-       }
-     }
-     return -1;
-   },
 
   /**
    * Handle keypressed.
@@ -296,14 +279,12 @@ ResponsiveUI.prototype = {
   registerPresets: function RUI_registerPresets(aParent) {
     let fragment = this.chromeDoc.createDocumentFragment();
     let doc = this.chromeDoc;
-
-    for (let i = 0; i < this.presets.length; i++) {
-      let menuitem = doc.createElement("menuitem");
-      if (i == this.currentPreset)
-        menuitem.setAttribute("selected", "true");
-      this.setMenuLabel(menuitem, this.presets[i]);
-      fragment.appendChild(menuitem);
-    }
+    let self = this;
+    this.presets.forEach(function(preset) {
+        let menuitem = doc.createElement("menuitem");
+        self.setMenuLabel(menuitem, preset);
+        fragment.appendChild(menuitem);
+    });
     aParent.appendChild(fragment);
   },
 
@@ -327,7 +308,6 @@ ResponsiveUI.prototype = {
    * When a preset is selected, apply it.
    */
   presetSelected: function RUI_presetSelected() {
-    this.rotateValue = false;
     this.currentPreset = this.menulist.selectedIndex;
     let preset = this.presets[this.currentPreset];
     this.loadPreset(preset);
@@ -347,11 +327,6 @@ ResponsiveUI.prototype = {
    */
   rotate: function RUI_rotate() {
     this.setSize(this.currentHeight, this.currentWidth);
-    if (this.currentPreset == 0) {
-      this.saveCustomSize();
-    } else {
-      this.rotateValue = !this.rotateValue;
-    }
   },
 
   /**
@@ -409,15 +384,12 @@ ResponsiveUI.prototype = {
     this.mainWindow.addEventListener("mousemove", this.bound_onDrag, true);
     this.container.style.pointerEvents = "none";
 
-    this._resizing = true;
     this.stack.setAttribute("notransition", "true");
 
     this.lastClientX = aEvent.clientX;
     this.lastClientY = aEvent.clientY;
 
     this.ignoreY = (aEvent.target === this.resizeBar);
-
-    this.isResizing = true;
   },
 
   /**
@@ -459,32 +431,9 @@ ResponsiveUI.prototype = {
     this.mainWindow.removeEventListener("mouseup", this.bound_stopResizing, true);
     this.mainWindow.removeEventListener("mousemove", this.bound_onDrag, true);
 
-    this.saveCustomSize();
-
-    delete this._resizing;
-    if (this.transitionsEnabled) {
-      this.stack.removeAttribute("notransition");
-    }
+    this.stack.removeAttribute("notransition");
     this.ignoreY = false;
-    this.isResizing = false;
   },
-
-  /**
-   * Store the custom size as a pref.
-   */
-   saveCustomSize: function RUI_saveCustomSize() {
-     Services.prefs.setIntPref("devtools.responsiveUI.customWidth", this.currentWidth);
-     Services.prefs.setIntPref("devtools.responsiveUI.customHeight", this.currentHeight);
-   },
-
-  /**
-   * Store the current preset as a pref.
-   */
-   saveCurrentPreset: function RUI_saveCurrentPreset() {
-     let key = this.presets[this.currentPreset].key;
-     Services.prefs.setCharPref("devtools.responsiveUI.currentPreset", key);
-     Services.prefs.setBoolPref("devtools.responsiveUI.rotate", this.rotateValue);
-   },
 }
 
 XPCOMUtils.defineLazyGetter(ResponsiveUI.prototype, "strings", function () {
