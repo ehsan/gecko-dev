@@ -13,7 +13,6 @@
 #include "GeneratedEvents.h"
 
 #include "nsContentUtils.h"
-#include "nsCxPusher.h"
 #include "nsDOMClassInfo.h"
 #include "nsIDOMBluetoothDeviceEvent.h"
 #include "nsTArrayHelpers.h"
@@ -104,8 +103,7 @@ public:
       return false;
     }
 
-    AutoPushJSContext cx(sc->GetNativeContext());
-    rv = nsTArrayToJSArray(cx, devices, &JsDevices);
+    rv = nsTArrayToJSArray(sc->GetNativeContext(), devices, &JsDevices);
     if (!JsDevices) {
       NS_WARNING("Cannot create JS array!");
       SetError(NS_LITERAL_STRING("BluetoothError"));
@@ -261,8 +259,9 @@ BluetoothAdapter::SetPropertyByValue(const BluetoothNamedValue& aValue)
     nsIScriptContext* sc = GetContextForEventHandlers(&rv);
     NS_ENSURE_SUCCESS_VOID(rv);
 
-    AutoPushJSContext cx(sc->GetNativeContext());
-    if (NS_FAILED(nsTArrayToJSArray(cx, mUuids, &mJsUuids))) {
+    if (NS_FAILED(nsTArrayToJSArray(sc->GetNativeContext(),
+                                    mUuids,
+                                    &mJsUuids))) {
       NS_WARNING("Cannot set JS UUIDs object!");
       return;
     }
@@ -279,8 +278,8 @@ BluetoothAdapter::SetPropertyByValue(const BluetoothNamedValue& aValue)
     nsIScriptContext* sc = GetContextForEventHandlers(&rv);
     NS_ENSURE_SUCCESS_VOID(rv);
 
-    AutoPushJSContext cx(sc->GetNativeContext());
-    if (NS_FAILED(nsTArrayToJSArray(cx, mDeviceAddresses,
+    if (NS_FAILED(nsTArrayToJSArray(sc->GetNativeContext(),
+                                    mDeviceAddresses,
                                     &mJsDeviceAddresses))) {
       NS_WARNING("Cannot set JS Devices object!");
       return;

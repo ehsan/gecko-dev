@@ -122,9 +122,9 @@ BluetoothDevice::SetPropertyByValue(const BluetoothNamedValue& aValue)
     nsIScriptContext* sc = GetContextForEventHandlers(&rv);
     NS_ENSURE_SUCCESS_VOID(rv);
 
-    AutoPushJSContext cx(sc->GetNativeContext());
-
-    if (NS_FAILED(nsTArrayToJSArray(cx, mUuids, &mJsUuids))) {
+    if (NS_FAILED(nsTArrayToJSArray(sc->GetNativeContext(),
+                                    mUuids,
+                                    &mJsUuids))) {
       NS_WARNING("Cannot set JS UUIDs object!");
       return;
     }
@@ -135,9 +135,9 @@ BluetoothDevice::SetPropertyByValue(const BluetoothNamedValue& aValue)
     nsIScriptContext* sc = GetContextForEventHandlers(&rv);
     NS_ENSURE_SUCCESS_VOID(rv);
 
-    AutoPushJSContext cx(sc->GetNativeContext());
-
-    if (NS_FAILED(nsTArrayToJSArray(cx, mServices, &mJsServices))) {
+    if (NS_FAILED(nsTArrayToJSArray(sc->GetNativeContext(),
+                                    mServices,
+                                    &mJsServices))) {
       NS_WARNING("Cannot set JS Services object!");
       return;
     }

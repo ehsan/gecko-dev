@@ -39,8 +39,3 @@ CSRCS += [
     'user_sctp_timer_iterate.c',
     'user_socket.c',
 ]
-
-if CONFIG['OS_TARGET'] == 'Android':
-    CPP_SOURCES += [
-        'ifaddrs_android.cpp',
-    ]
