@@ -1,11 +1,8 @@
 /* Any copyright is dedicated to the Public Domain.
    http://creativecommons.org/publicdomain/zero/1.0/ */
 
-const HAWK_TOKEN_LENGTH = 64;
-const {
-  LOOP_SESSION_TYPE,
-  MozLoopServiceInternal,
-} = Cu.import("resource:///modules/loop/MozLoopService.jsm", {});
+const MozLoopServiceInternal = Cu.import("resource:///modules/loop/MozLoopService.jsm", {}).
+                               MozLoopServiceInternal;
 
 var gMozLoopAPI;
 
@@ -99,12 +96,9 @@ function promiseOAuthParamsSetup(baseURL, params) {
 
 function resetFxA() {
   let global = Cu.import("resource:///modules/loop/MozLoopService.jsm", {});
-  global.gHawkClient = null;
   global.gFxAOAuthClientPromise = null;
   global.gFxAOAuthClient = null;
   global.gFxAOAuthTokenData = null;
-  const fxASessionPref = MozLoopServiceInternal.getSessionTokenPrefName(LOOP_SESSION_TYPE.FXA);
-  Services.prefs.clearUserPref(fxASessionPref);
 }
 
 function promiseDeletedOAuthParams(baseURL) {

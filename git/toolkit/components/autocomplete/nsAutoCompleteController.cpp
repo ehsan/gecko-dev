@@ -1583,6 +1583,8 @@ nsAutoCompleteController::GetFinalDefaultCompleteValue(nsAString &_retval)
     _retval = finalCompleteValue;
   }
 
+  MOZ_ASSERT(FindInReadable(inputValue, _retval, nsCaseInsensitiveStringComparator()),
+             "Return value must include input value.");
   return NS_OK;
 }
 

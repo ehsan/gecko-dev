@@ -416,20 +416,21 @@ WifiGeoPositionProvider.prototype = {
       let result = [];
       for (let i = 0; i < numInterfaces; i++) {
         LOG("Looking for SIM in slot:" + i + " of " + numInterfaces);
+        let radio = radioService.getRadioInterface(i);
+        let iccInfo = radio.rilContext.iccInfo;
         let voice = service.getVoiceConnectionInfo(i);
         let cell = voice.cell;
         let type = voice.type;
-        let network = voice.network;
 
-        if (network && cell && type) {
+        if (iccInfo && cell && type) {
           if (type === "gsm" || type === "gprs" || type === "edge") {
             type = "gsm";
           } else {
             type = "wcdma";
           }
           result.push({ radio: type,
-                      mobileCountryCode: voice.network.mcc,
-                      mobileNetworkCode: voice.network.mnc,
+                      mobileCountryCode: iccInfo.mcc,
+                      mobileNetworkCode: iccInfo.mnc,
                       locationAreaCode: cell.gsmLocationAreaCode,
                       cellId: cell.gsmCellId });
         }

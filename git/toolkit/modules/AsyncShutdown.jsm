@@ -117,11 +117,7 @@ function safeGetState(fetchState) {
   try {
     // Evaluate fetchState(), normalize the result into something that we can
     // safely stringify or upload.
-    let state = fetchState();
-    if (!state) {
-      return "(none)";
-    }
-    string = JSON.stringify(state);
+    string = JSON.stringify(fetchState());
     data = JSON.parse(string);
     // Simplify the rest of the code by ensuring that we can simply
     // concatenate the result to a message.
@@ -132,10 +128,6 @@ function safeGetState(fetchState) {
     }
     return data;
   } catch (ex) {
-
-    // Make sure that this causes test failures
-    Promise.reject(ex);
-
     if (string) {
       return string;
     }
@@ -225,20 +217,10 @@ function getPhase(topic) {
      * resulting promise is either resolved or rejected. If
      * |condition| is not a function but another value |v|, it behaves
      * as if it were a function returning |v|.
-     * @param {object*} details Optionally, an object with details
-     * that may be useful for error reporting, as a subset of of the following
-     * fields:
-     * - fetchState (strongly recommended) A function returning
-     *    information about the current state of the blocker as an
-     *    object. Used for providing more details when logging errors or
-     *    crashing.
-     * - stack. A string containing stack information. This module can
-     *    generally infer stack information if it is not provided.
-     * - lineNumber A number containing the line number for the caller.
-     *    This module can generally infer this information if it is not
-     *    provided.
-     * - filename A string containing the filename for the caller. This
-     *    module can generally infer  the information if it is not provided.
+     * @param {function*} fetchState Optionally, a function returning
+     * information about the current state of the blocker as an
+     * object. Used for providing more details when logging errors or
+     * crashing.
      *
      * Examples:
      * AsyncShutdown.profileBeforeChange.addBlocker("Module: just a promise",
@@ -261,8 +243,8 @@ function getPhase(topic) {
      *       // No specific guarantee about completion of profileBeforeChange
      * });
      */
-    addBlocker: function(name, condition, details = null) {
-      spinner.addBlocker(name, condition, details);
+    addBlocker: function(name, condition, fetchState = null) {
+      spinner.addBlocker(name, condition, fetchState);
     },
     /**
      * Remove the blocker for a condition.
@@ -279,11 +261,6 @@ function getPhase(topic) {
     removeBlocker: function(condition) {
       return spinner.removeBlocker(condition);
     },
-
-    get name() {
-      return spinner.name;
-    },
-
     /**
      * Trigger the phase without having to broadcast a
      * notification. For testing purposes only.
@@ -321,17 +298,25 @@ Spinner.prototype = {
   /**
    * Register a new condition for this phase.
    *
-   * See the documentation of `addBlocker` in property `client`
-   * of instances of `Barrier`.
+   * @param {object} condition A Condition that must be fulfilled before
+   * we complete this Phase.
+   * Must contain fields:
+   * - {string} name The human-readable name of the condition. Used
+   * for debugging/error reporting.
+   * - {function} action An action that needs to be completed
+   * before we proceed to the next runstate. If |action| returns a promise,
+   * we wait until the promise is resolved/rejected before proceeding
+   * to the next runstate.
    */
-  addBlocker: function(name, condition, details) {
-    this._barrier.client.addBlocker(name, condition, details);
+  addBlocker: function(name, condition, fetchState) {
+    this._barrier.client.addBlocker(name, condition, fetchState);
   },
   /**
    * Remove the blocker for a condition.
    *
-   * See the documentation of `removeBlocker` in rpoperty `client`
-   * of instances of `Barrier`
+   * If several blockers have been registered for the same
+   * condition, remove all these blockers. If no blocker has been
+   * registered for this condition, this is a noop.
    *
    * @return {boolean} true if a blocker has been removed, false
    * otherwise. Note that a result of false may mean either that
@@ -340,10 +325,6 @@ Spinner.prototype = {
    */
   removeBlocker: function(condition) {
     return this._barrier.client.removeBlocker(condition);
-  },
-
-  get name() {
-    return this._barrier.client.name;
   },
 
   // nsIObserver.observe
@@ -387,16 +368,11 @@ Spinner.prototype = {
  *     reporting.
  */
 function Barrier(name) {
-  if (!name) {
-    throw new TypeError("Instances of Barrier need a (non-empty) name");
-  }
-
   /**
    * The set of conditions registered by clients, as a map.
    *
    * Key: condition (function)
-   * Value: Array of {name: string, fetchState: function, filename: string,
-   *   lineNumber: number, stack: string}
+   * Value: Array of {name: string, fetchState: function}
    */
   this._conditions = new Map();
 
@@ -430,13 +406,6 @@ function Barrier(name) {
    */
   this.client = {
     /**
-     * The name of the barrier owning this client.
-     */
-    get name() {
-      return name;
-    },
-
-    /**
      * Register a blocker for the completion of this barrier.
      *
      * @param {string} name The human-readable name of the blocker. Used
@@ -450,34 +419,17 @@ function Barrier(name) {
      * resulting promise is either resolved or rejected. If
      * |condition| is not a function but another value |v|, it behaves
      * as if it were a function returning |v|.
-     * @param {object*} details Optionally, an object with details
-     * that may be useful for error reporting, as a subset of of the following
-     * fields:
-     * - fetchState (strongly recommended) A function returning
-     *    information about the current state of the blocker as an
-     *    object. Used for providing more details when logging errors or
-     *    crashing.
-     * - stack. A string containing stack information. This module can
-     *    generally infer stack information if it is not provided.
-     * - lineNumber A number containing the line number for the caller.
-     *    This module can generally infer this information if it is not
-     *    provided.
-     * - filename A string containing the filename for the caller. This
-     *    module can generally infer  the information if it is not provided.
+     * @param {function*} fetchState Optionally, a function returning
+     * information about the current state of the blocker as an
+     * object. Used for providing more details when logging errors or
+     * crashing.
      */
-    addBlocker: function(name, condition, details) {
+    addBlocker: function(name, condition, fetchState) {
       if (typeof name != "string") {
         throw new TypeError("Expected a human-readable name as first argument");
       }
-      if (details && typeof details == "function") {
-        details = {
-          fetchState: details
-        };
-      } else if (!details) {
-        details = {};
-      }
-      if (typeof details != "object") {
-        throw new TypeError("Expected an object as third argument to `addBlocker`, got " + details);
+      if (fetchState && typeof fetchState != "function") {
+        throw new TypeError("Expected nothing or a function as third argument");
       }
       if (!this._conditions) {
 	throw new Error("Phase " + this._name +
@@ -485,37 +437,23 @@ function Barrier(name) {
 			" completion condition '" + name + "'.");
       }
 
-      let fetchState = details.fetchState || null;
-      let filename = details.filename || "?";
-      let lineNumber = details.lineNumber || -1;
-      let stack = details.stack || undefined;
-
-      if (filename == "?" || lineNumber == -1 || stack === undefined) {
-        // Determine the filename and line number of the caller.
-        let leaf = Components.stack;
-        let frame;
-        for (frame = leaf; frame != null && frame.filename == leaf.filename; frame = frame.caller) {
-          // Climb up the stack
-        }
-
-        if (filename == "?") {
-          filename = frame ? frame.filename : "?";
-        }
-        if (lineNumber == -1) {
-          lineNumber = frame ? frame.lineNumber : -1;
-        }
-
-        // Now build the rest of the stack as a string, using Task.jsm's rewriting
-        // to ensure that we do not lose information at each call to `Task.spawn`.
-        let frames = [];
-        while (frame != null) {
-          frames.push(frame.filename + ":" + frame.name + ":" + frame.lineNumber);
-          frame = frame.caller;
-        }
-        if (stack === undefined) {
-          stack = Task.Debugging.generateReadableStack(frames.join("\n")).split("\n");
-        }
+      // Determine the filename and line number of the caller.
+      let leaf = Components.stack;
+      let frame;
+      for (frame = leaf; frame != null && frame.filename == leaf.filename; frame = frame.caller) {
+        // Climb up the stack
       }
+      let filename = frame ? frame.filename : "?";
+      let lineNumber = frame ? frame.lineNumber : -1;
+
+      // Now build the rest of the stack as a string, using Task.jsm's rewriting
+      // to ensure that we do not lose information at each call to `Task.spawn`.
+      let frames = [];
+      while (frame != null) {
+        frames.push(frame.filename + ":" + frame.name + ":" + frame.lineNumber);
+        frame = frame.caller;
+      }
+      let stack = Task.Debugging.generateReadableStack(frames.join("\n")).split("\n");
 
       let set = this._conditions.get(condition);
       if (!set) {
@@ -554,6 +492,7 @@ function Barrier(name) {
         }
         return this._indirections.delete(condition);
       }
+
       // wait() is complete.
       return false;
     }.bind(this),
@@ -836,7 +775,6 @@ this.AsyncShutdown.profileChangeTeardown = getPhase("profile-change-teardown");
 this.AsyncShutdown.profileBeforeChange = getPhase("profile-before-change");
 this.AsyncShutdown.sendTelemetry = getPhase("profile-before-change2");
 this.AsyncShutdown.webWorkersShutdown = getPhase("web-workers-shutdown");
-this.AsyncShutdown.xpcomThreadsShutdown = getPhase("xpcom-threads-shutdown");
 
 this.AsyncShutdown.Barrier = Barrier;
 

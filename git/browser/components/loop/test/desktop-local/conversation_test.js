@@ -126,6 +126,7 @@ describe("loop.conversation", function() {
           conversation: conversation,
           notifications: notifications
         });
+        sandbox.stub(router, "loadView");
         sandbox.stub(conversation, "incoming");
       });
 

@@ -18,7 +18,6 @@ import org.mozilla.gecko.util.ThreadUtils.AssertBehavior;
 import android.app.Application;
 import android.graphics.Bitmap;
 import android.graphics.Canvas;
-import android.graphics.Color;
 import android.graphics.Paint;
 import android.graphics.Rect;
 import android.graphics.Shader;
@@ -26,7 +25,6 @@ import android.graphics.drawable.BitmapDrawable;
 import android.graphics.drawable.Drawable;
 import android.os.Handler;
 import android.os.Looper;
-import android.text.TextUtils;
 import android.util.DisplayMetrics;
 import android.util.Log;
 import android.view.Gravity;
@@ -79,8 +77,7 @@ public class LightweightTheme implements GeckoEventListener {
         try {
             if (event.equals("LightweightTheme:Update")) {
                 JSONObject lightweightTheme = message.getJSONObject("data");
-                final String headerURL = lightweightTheme.getString("headerURL");
-                final String color = lightweightTheme.optString("accentcolor");
+                final String headerURL = lightweightTheme.getString("headerURL"); 
 
                 // Move any heavy lifting off the Gecko thread
                 ThreadUtils.postToBackgroundThread(new Runnable() {
@@ -96,7 +93,7 @@ public class LightweightTheme implements GeckoEventListener {
                         mHandler.post(new Runnable() {
                             @Override
                             public void run() {
-                                setLightweightTheme(bitmap, color);
+                                setLightweightTheme(bitmap);
                             }
                         });
                     }
@@ -120,56 +117,41 @@ public class LightweightTheme implements GeckoEventListener {
      * bitmap to a single thread.
      *
      * @param bitmap The bitmap used for the lightweight theme.
-     * @param color  The background/accent color used for the lightweight theme.
      */
-    private void setLightweightTheme(Bitmap bitmap, String color) {
+    private void setLightweightTheme(Bitmap bitmap) {
         if (bitmap == null || bitmap.getWidth() == 0 || bitmap.getHeight() == 0) {
             mBitmap = null;
             return;
         }
 
-        // Get the max display dimension so we can crop or expand the theme.
+        // To find the dominant color only once, take the bottom 25% of pixels.
         DisplayMetrics dm = mApplication.getResources().getDisplayMetrics();
         int maxWidth = Math.max(dm.widthPixels, dm.heightPixels);
+        int height = (int) (bitmap.getHeight() * 0.25);
 
         // The lightweight theme image's width and height.
-        final int bitmapWidth = bitmap.getWidth();
-        final int bitmapHeight = bitmap.getHeight();
+        int bitmapWidth = bitmap.getWidth();
+        int bitmapHeight = bitmap.getHeight();
 
-        boolean useDominantColor = true;
-        if (!TextUtils.isEmpty(color)) {
-            try {
-                mColor = Color.parseColor(color);
-                useDominantColor = false;
-            } catch (IllegalArgumentException e) {
-                // Malformed color.
-            }
-        }
+        // A cropped bitmap of the bottom 25% of pixels.
+        Bitmap cropped = Bitmap.createBitmap(bitmap,
+                                             bitmapWidth > maxWidth ? bitmapWidth - maxWidth : 0,
+                                             bitmapHeight - height, 
+                                             bitmapWidth > maxWidth ? maxWidth : bitmapWidth,
+                                             height);
 
-        // Calculate the dominant color the hard way, if not given to us.
-        if (useDominantColor) {
-            // To find the dominant color, take <toolbar height> of pixels.
-            int cropLength = mApplication.getResources().getDimensionPixelSize(R.dimen.browser_toolbar_height);
-
-            // A cropped bitmap of the top/left pixels.
-            Bitmap cropped = Bitmap.createBitmap(bitmap,
-                                                 0, 0,
-                                                 cropLength > bitmapWidth ? bitmapWidth : cropLength,
-                                                 cropLength > bitmapHeight ? bitmapHeight : cropLength);
-
-            // Dominant color based on the cropped bitmap.
-            mColor = BitmapUtils.getDominantColor(cropped, false);
-        }
+        // Dominant color based on the cropped bitmap.
+        mColor = BitmapUtils.getDominantColor(cropped, false);
 
         // Calculate the luminance to determine if it's a light or a dark theme.
-        double luminance = (0.2125 * ((mColor & 0x00FF0000) >> 16)) +
-                           (0.7154 * ((mColor & 0x0000FF00) >> 8)) +
+        double luminance = (0.2125 * ((mColor & 0x00FF0000) >> 16)) + 
+                           (0.7154 * ((mColor & 0x0000FF00) >> 8)) + 
                            (0.0721 * (mColor &0x000000FF));
         mIsLight = luminance > 110;
 
         // The bitmap image might be smaller than the device's width.
         // If it's smaller, fill the extra space on the left with the dominant color.
-        if (bitmapWidth >= maxWidth) {
+        if (bitmap.getWidth() >= maxWidth) {
             mBitmap = bitmap;
         } else {
             Paint paint = new Paint();

@@ -17,7 +17,6 @@ Components.utils.import("resource://gre/modules/NetUtil.jsm");
  */
 function handleRequest(request, response) {
   // Look at the query string but ignore past the encoded ? when deciding on the handler.
-  dump("loop_fxa.sjs request for: " + request.queryString + "\n");
   switch (request.queryString.replace(/%3F.*/,"")) {
     case "/setup_params": // Test-only
       setup_params(request, response);
@@ -103,14 +102,6 @@ function params(request, response) {
   // Save the result so we have the effective `state` value.
   setSharedState("/fxa-oauth/params", JSON.stringify(params));
   response.setHeader("Content-Type", "application/json; charset=utf-8", false);
-
-  let client_id = params.client_id || "";
-  // Pad the client_id with "X" until the token length to simulate a token
-  let padding = "X".repeat(HAWK_TOKEN_LENGTH - client_id.length);
-  if (params.test_error !== "params_no_hawk") {
-    response.setHeader("Hawk-Session-Token", client_id + padding, false);
-  }
-
   response.write(JSON.stringify(params, null, 2));
 }
 
@@ -141,13 +132,6 @@ function token(request, response) {
     return;
   }
 
-  if (!request.hasHeader("Authorization") ||
-        !request.getHeader("Authorization").startsWith("Hawk")) {
-    response.setStatusLine(request.httpVersion, 401, "Missing Hawk");
-    response.write("401 Missing Hawk Authorization header");
-    return;
-  }
-
   let body = NetUtil.readInputStreamToString(request.bodyInputStream,
                                              request.bodyInputStream.available());
   let payload = JSON.parse(body);
@@ -169,20 +153,18 @@ function token(request, response) {
 /**
  * POST /registration
  *
- * Mock Loop registration endpoint. Hawk Authorization headers are expected only for FxA sessions.
+ * Mock Loop registration endpoint which simply returns the simplePushURL with
+ * padding as the hawk session token.
  */
 function registration(request, response) {
   let body = NetUtil.readInputStreamToString(request.bodyInputStream,
                                              request.bodyInputStream.available());
   let payload = JSON.parse(body);
-  if (payload.simplePushURL == "https://localhost/pushUrl/fxa" &&
-       (!request.hasHeader("Authorization") ||
-        !request.getHeader("Authorization").startsWith("Hawk"))) {
-    response.setStatusLine(request.httpVersion, 401, "Missing Hawk");
-    response.write("401 Missing Hawk Authorization header");
-    return;
-  }
   setSharedState("/registration", body);
+  let pushURL = payload.simplePushURL;
+  // Pad the pushURL with "X" to the token length to simulate a token
+  let padding = new Array(HAWK_TOKEN_LENGTH - pushURL.length).fill("X").join("");
+  response.setHeader("hawk-session-token", pushURL + padding, false);
 }
 
 /**

@@ -11,10 +11,10 @@ var loop = loop || {};
 loop.panel = (function(_, mozL10n) {
   "use strict";
 
-  var sharedViews = loop.shared.views;
-  var sharedModels = loop.shared.models;
-  var sharedMixins = loop.shared.mixins;
-  var __ = mozL10n.get; // aliasing translation function as __ for concision
+  var sharedViews = loop.shared.views,
+      sharedModels = loop.shared.models,
+      // aliasing translation function as __ for concision
+      __ = mozL10n.get;
 
   /**
    * Panel router.
@@ -22,62 +22,41 @@ loop.panel = (function(_, mozL10n) {
    */
   var router;
 
-  var TabView = React.createClass({
+  /**
+   * Dropdown menu mixin.
+   * @type {Object}
+   */
+  var DropdownMenuMixin = {
     getInitialState: function() {
-      return {
-        selectedTab: "call"
-      };
+      return {showMenu: false};
     },
 
-    handleSelectTab: function(event) {
-      var tabName = event.target.dataset.tabName;
-      this.setState({selectedTab: tabName});
-
-      if (this.props.onSelect) {
-        this.props.onSelect(tabName);
-      }
+    _onBodyClick: function() {
+      this.setState({showMenu: false});
     },
 
-    render: function() {
-      var cx = React.addons.classSet;
-      var tabButtons = [];
-      var tabs = [];
-      React.Children.forEach(this.props.children, function(tab, i) {
-        var tabName = tab.props.name;
-        var isSelected = (this.state.selectedTab == tabName);
-        tabButtons.push(
-          <li className={cx({selected: isSelected})}
-              key={i}
-              data-tab-name={tabName}
-              onClick={this.handleSelectTab}>
-          </li>
-        );
-        tabs.push(
-          <div key={i} className={cx({tab: true, selected: isSelected})}>
-            {tab.props.children}
-          </div>
-        );
-      }, this);
-      return (
-        <div className="tab-view-container">
-          <ul className="tab-view">{tabButtons}</ul>
-          {tabs}
-        </div>
-      );
-    }
-  });
+    componentDidMount: function() {
+      document.body.addEventListener("click", this._onBodyClick);
+    },
 
-  var Tab = React.createClass({
-    render: function() {
-      return null;
+    componentWillUnmount: function() {
+      document.body.removeEventListener("click", this._onBodyClick);
+    },
+
+    showDropdownMenu: function() {
+      this.setState({showMenu: true});
+    },
+
+    hideDropdownMenu: function() {
+      this.setState({showMenu: false});
     }
-  });
+  };
 
   /**
    * Availability drop down menu subview.
    */
   var AvailabilityDropdown = React.createClass({
-    mixins: [sharedMixins.DropdownMenuMixin],
+    mixins: [DropdownMenuMixin],
 
     getInitialState: function() {
       return {
@@ -209,7 +188,7 @@ loop.panel = (function(_, mozL10n) {
    * Panel settings (gear) menu.
    */
   var SettingsDropdown = React.createClass({
-    mixins: [sharedMixins.DropdownMenuMixin],
+    mixins: [DropdownMenuMixin],
 
     handleClickSettingsEntry: function() {
       // XXX to be implemented
@@ -279,12 +258,7 @@ loop.panel = (function(_, mozL10n) {
     }
   });
 
-  /**
-   * Call url result view.
-   */
   var CallUrlResult = React.createClass({
-    mixins: [sharedMixins.DocumentVisibilityMixin],
-
     propTypes: {
       callUrl:        React.PropTypes.string,
       callUrlExpiry:  React.PropTypes.number,
@@ -299,14 +273,6 @@ loop.panel = (function(_, mozL10n) {
         callUrl: this.props.callUrl || "",
         callUrlExpiry: 0
       };
-    },
-
-    /**
-     * Provided by DocumentVisibilityMixin. Schedules retrieval of a new call
-     * URL everytime the panel is reopened.
-     */
-    onDocumentVisible: function() {
-      this._fetchCallUrl();
     },
 
     /**
@@ -325,13 +291,6 @@ loop.panel = (function(_, mozL10n) {
         return;
       }
 
-      this._fetchCallUrl();
-    },
-
-    /**
-     * Fetches a call URL.
-     */
-    _fetchCallUrl: function() {
       this.setState({pending: true});
       this.props.client.requestCallUrl(this.conversationIdentifier(),
                                        this._onCallUrlReceived);
@@ -464,19 +423,11 @@ loop.panel = (function(_, mozL10n) {
 
       return (
         <div>
-          <NotificationListView notifications={this.props.notifications}
-                                clearOnDocumentHidden={true} />
-          <TabView onSelect={this.selectTab}>
-            <Tab name="call">
-              <CallUrlResult client={this.props.client}
-                             notifications={this.props.notifications}
-                             callUrl={this.props.callUrl} />
-              <ToSView />
-            </Tab>
-            <Tab name="contacts">
-              <span>contacts</span>
-            </Tab>
-          </TabView>
+          <NotificationListView notifications={this.props.notifications} />
+          <CallUrlResult client={this.props.client}
+                         notifications={this.props.notifications}
+                         callUrl={this.props.callUrl} />
+          <ToSView />
           <div className="footer">
             <AvailabilityDropdown />
             <AuthLink />
@@ -503,12 +454,42 @@ loop.panel = (function(_, mozL10n) {
       if (!options.document) {
         throw new Error("missing required document");
       }
+      this.document = options.document;
+
+      this._registerVisibilityChangeEvent();
+
+      this.on("panel:open", this.reset, this);
+    },
+
+    /**
+     * Register the DOM visibility API event for the whole document, and trigger
+     * appropriate events accordingly:
+     *
+     * - `panel:opened` when the panel is open
+     * - `panel:closed` when the panel is closed
+     *
+     * @link  http://www.w3.org/TR/page-visibility/
+     */
+    _registerVisibilityChangeEvent: function() {
+      // XXX pass in the visibility status to detect when to generate a new
+      // panel view
+      this.document.addEventListener("visibilitychange", function(event) {
+        this.trigger(event.currentTarget.hidden ? "panel:closed"
+                                                : "panel:open");
+      }.bind(this));
     },
 
     /**
      * Default entry point.
      */
     home: function() {
+      this.reset();
+    },
+
+    /**
+     * Resets this router to its initial state.
+     */
+    reset: function() {
       this._notifications.reset();
       var client = new loop.Client({
         baseServerUrl: navigator.mozLoop.serverUrl
