@@ -45,22 +45,18 @@
 #include "prtypes.h"
 #include "nsAString.h"
 #include "nsCSSProperty.h"
-#include "nsCoord.h"
-#include "nsColor.h"
 
 class nsCSSDeclaration;
 class nsIContent;
 class nsPresContext;
+class nsStyleCoord;
 class nsStyleContext;
-struct nsCSSValueList;
-struct nsCSSValuePair;
 
 /**
  * Utility class to handle animated style values
  */
 class nsStyleAnimation {
 public:
-  class Value;
 
   // Mathematical methods
   // --------------------
@@ -76,18 +72,11 @@ public:
    * @param aCount      The number of times to add aValueToAdd.
    * @return PR_TRUE on success, PR_FALSE on failure.
    */
-  static PRBool Add(Value& aDest, const Value& aValueToAdd,
-                    PRUint32 aCount) {
-    return AddWeighted(1.0, aDest, aCount, aValueToAdd, aDest);
-  }
+  static PRBool Add(nsStyleCoord& aDest, const nsStyleCoord& aValueToAdd,
+                    PRUint32 aCount);
 
   /**
    * Calculates a measure of 'distance' between two values.
-   *
-   * This measure of Distance is guaranteed to be proportional to
-   * portions passed to Interpolate, Add, or AddWeighted.  However, for
-   * some types of Value it may not produce sensible results for paced
-   * animation.
    *
    * If this method succeeds, the returned distance value is guaranteed to be
    * non-negative.
@@ -99,8 +88,8 @@ public:
    * @param aDistance   The result of the calculation.
    * @return PR_TRUE on success, PR_FALSE on failure.
    */
-  static PRBool ComputeDistance(const Value& aStartValue,
-                                const Value& aEndValue,
+  static PRBool ComputeDistance(const nsStyleCoord& aStartValue,
+                                const nsStyleCoord& aEndValue,
                                 double& aDistance);
 
   /**
@@ -119,37 +108,15 @@ public:
    * @param [out] aResultValue The resulting interpolated value.
    * @return PR_TRUE on success, PR_FALSE on failure.
    */
-  static PRBool Interpolate(const Value& aStartValue,
-                            const Value& aEndValue,
+  static PRBool Interpolate(const nsStyleCoord& aStartValue,
+                            const nsStyleCoord& aEndValue,
                             double aPortion,
-                            Value& aResultValue) {
-    NS_ABORT_IF_FALSE(0.0 <= aPortion && aPortion <= 1.0, "out of range");
-    return AddWeighted(1.0 - aPortion, aStartValue, aPortion, aEndValue,
-                       aResultValue);
-  }
-
-  /**
-   * Does the calculation:
-   *   aResultValue = aCoeff1 * aValue1 + aCoeff2 * aValue2
-   *
-   * @param [out] aResultValue The resulting interpolated value.  May be
-   *                           the same as aValue1 or aValue2.
-   * @return PR_TRUE on success, PR_FALSE on failure.
-   *
-   * NOTE: Current callers always pass aCoeff1 and aCoeff2 >= 0.  They
-   * are currently permitted to be negative; however, if, as we add
-   * support more value types types, we find that this causes
-   * difficulty, we might change this to restrict them to being
-   * positive.
-   */
-  static PRBool AddWeighted(double aCoeff1, const Value& aValue1,
-                            double aCoeff2, const Value& aValue2,
-                            Value& aResultValue);
+                            nsStyleCoord& aResultValue);
 
   // Type-conversion methods
   // -----------------------
   /**
-   * Creates a computed value for the given specified value
+   * Creates a computed value (nsStyleCoord) for the given specified value
    * (property ID + string).  A style context is needed in case the
    * specified value depends on inherited style or on the values of other
    * properties.
@@ -171,19 +138,17 @@ public:
   static PRBool ComputeValue(nsCSSProperty aProperty,
                              nsIContent* aElement,
                              const nsAString& aSpecifiedValue,
-                             Value& aComputedValue);
+                             nsStyleCoord& aComputedValue);
 
   /**
-   * Creates a specified value for the given computed value.
+   * Creates a specified value for the given computed value
+   * (nsStyleCoord).
    *
    * The first form fills in one of the nsCSSType types into the void*;
    * for some types this means that the void* is pointing to memory
-   * owned by the nsStyleAnimation::Value.  (For all complex types, the
-   * nsStyleAnimation::Value owns the necessary objects so that the
-   * caller does not need to do anything to free them.  However, this
-   * means that callers using the void* variant must keep
-   * |aComputedValue| alive longer than the structure into which they've
-   * filled the value.)
+   * owned by the nsStyleCoord.  (For all complex types, the
+   * nsStyleCoord owns the necessary objects so that the caller does not
+   * need to do anything to free them.)
    *
    * @param aProperty      The property whose value we're uncomputing.
    * @param aPresContext   The presentation context for the document in
@@ -194,11 +159,11 @@ public:
    */
   static PRBool UncomputeValue(nsCSSProperty aProperty,
                                nsPresContext* aPresContext,
-                               const Value& aComputedValue,
+                               const nsStyleCoord& aComputedValue,
                                void* aSpecifiedValue);
   static PRBool UncomputeValue(nsCSSProperty aProperty,
                                nsPresContext* aPresContext,
-                               const Value& aComputedValue,
+                               const nsStyleCoord& aComputedValue,
                                nsAString& aSpecifiedValue);
 
   /**
@@ -212,126 +177,7 @@ public:
    */
   static PRBool ExtractComputedValue(nsCSSProperty aProperty,
                                      nsStyleContext* aStyleContext,
-                                     Value& aComputedValue);
-
-  /**
-   * The types and values for the values that we extract and animate.
-   */
-  enum Unit {
-    eUnit_Null, // not initialized
-    eUnit_Normal,
-    eUnit_Auto,
-    eUnit_None,
-    eUnit_Enumerated,
-    eUnit_Coord,
-    eUnit_Percent,
-    eUnit_Float,
-    eUnit_Color,
-    eUnit_CSSValuePair, // nsCSSValuePair* (never null)
-    eUnit_Dasharray, // nsCSSValueList* (never null)
-    eUnit_Shadow  // nsCSSValueList* (may be null)
-  };
-
-  class Value {
-  private:
-    Unit mUnit;
-    union {
-      PRInt32 mInt;
-      nscoord mCoord;
-      float mFloat;
-      nscolor mColor;
-      nsCSSValuePair* mCSSValuePair;
-      nsCSSValueList* mCSSValueList;
-    } mValue;
-  public:
-    Unit GetUnit() const {
-      NS_ASSERTION(mUnit != eUnit_Null, "uninitialized");
-      return mUnit;
-    }
-
-    // Accessor to let us verify assumptions about presence of null unit,
-    // without tripping the assertion in GetUnit().
-    PRBool IsNull() const {
-      return mUnit == eUnit_Null;
-    }
-
-    PRInt32 GetIntValue() const {
-      NS_ASSERTION(mUnit == eUnit_Enumerated, "unit mismatch");
-      return mValue.mInt;
-    }
-    nscoord GetCoordValue() const {
-      NS_ASSERTION(mUnit == eUnit_Coord, "unit mismatch");
-      return mValue.mCoord;
-    }
-    float GetPercentValue() const {
-      NS_ASSERTION(mUnit == eUnit_Percent, "unit mismatch");
-      return mValue.mFloat;
-    }
-    float GetFloatValue() const {
-      NS_ASSERTION(mUnit == eUnit_Float, "unit mismatch");
-      return mValue.mFloat;
-    }
-    nscolor GetColorValue() const {
-      NS_ASSERTION(mUnit == eUnit_Color, "unit mismatch");
-      return mValue.mColor;
-    }
-    nsCSSValuePair* GetCSSValuePairValue() const {
-      NS_ASSERTION(IsCSSValuePairUnit(mUnit), "unit mismatch");
-      return mValue.mCSSValuePair;
-    }
-    nsCSSValueList* GetCSSValueListValue() const {
-      NS_ASSERTION(IsCSSValueListUnit(mUnit), "unit mismatch");
-      return mValue.mCSSValueList;
-    }
-
-    explicit Value(Unit aUnit = eUnit_Null) : mUnit(aUnit) {
-      NS_ASSERTION(aUnit == eUnit_Null || aUnit == eUnit_Normal ||
-                   aUnit == eUnit_Auto || aUnit == eUnit_None,
-                   "must be valueless unit");
-    }
-    Value(const Value& aOther) : mUnit(eUnit_Null) { *this = aOther; }
-    enum EnumeratedConstructorType { EnumeratedConstructor };
-    Value(PRInt32 aInt, EnumeratedConstructorType);
-    enum CoordConstructorType { CoordConstructor };
-    Value(nscoord aLength, CoordConstructorType);
-    enum PercentConstructorType { PercentConstructor };
-    Value(float aPercent, PercentConstructorType);
-    enum FloatConstructorType { FloatConstructor };
-    Value(float aFloat, FloatConstructorType);
-    enum ColorConstructorType { ColorConstructor };
-    Value(nscolor aColor, ColorConstructorType);
-
-    ~Value() { FreeValue(); }
-
-    void SetNormalValue();
-    void SetAutoValue();
-    void SetNoneValue();
-    void SetIntValue(PRInt32 aInt, Unit aUnit);
-    void SetCoordValue(nscoord aCoord);
-    void SetPercentValue(float aPercent);
-    void SetFloatValue(float aFloat);
-    void SetColorValue(nscolor aColor);
-    // These setters take ownership of |aValue|, and are therefore named
-    // "SetAndAdopt*".
-    void SetAndAdoptCSSValueListValue(nsCSSValueList *aValue, Unit aUnit);
-    void SetAndAdoptCSSValuePairValue(nsCSSValuePair *aValue, Unit aUnit);
-
-    Value& operator=(const Value& aOther);
-
-    PRBool operator==(const Value& aOther) const;
-    PRBool operator!=(const Value& aOther) const
-      { return !(*this == aOther); }
-
-  private:
-    void FreeValue();
-
-    static PRBool IsCSSValuePairUnit(Unit aUnit) {
-      return aUnit == eUnit_CSSValuePair;
-    }
-    static PRBool IsCSSValueListUnit(Unit aUnit) {
-      return aUnit == eUnit_Dasharray || aUnit == eUnit_Shadow;
-    }
-  };
+                                     nsStyleCoord& aComputedValue);
 };
 
 #endif

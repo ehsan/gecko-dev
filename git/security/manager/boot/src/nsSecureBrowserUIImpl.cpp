@@ -728,15 +728,7 @@ nsSecureBrowserUIImpl::OnStateChange(nsIWebProgress* aWebProgress,
     }
   }
 
-  PRBool isNoContentResponse = PR_FALSE;
-  nsCOMPtr<nsIHttpChannel> httpChannel = do_QueryInterface(aRequest);
-  if (httpChannel) 
-  {
-    PRUint32 response;
-    isNoContentResponse = NS_SUCCEEDED(httpChannel->GetResponseStatus(&response)) &&
-        (response == 204 || response == 205);
-  }
-  const PRBool isToplevelProgress = (windowForProgress.get() == window.get()) && !isNoContentResponse;
+  const PRBool isToplevelProgress = (windowForProgress.get() == window.get());
   
 #ifdef PR_LOGGING
   if (windowForProgress)

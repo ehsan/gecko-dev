@@ -365,6 +365,12 @@ GeoEnabledChangedCallback(const char *aPrefName, void *aClosure)
 
 nsresult nsGeolocationService::Init()
 {
+  nsCOMPtr<nsIObserverService> obs = do_GetService("@mozilla.org/observer-service;1");
+  if (!obs)
+    return NS_ERROR_FAILURE;
+
+  obs->AddObserver(this, "quit-application", false);
+
   mTimeout = nsContentUtils::GetIntPref("geo.timeout", 6000);
 
   nsContentUtils::RegisterPrefCallback("geo.enabled",
@@ -384,13 +390,6 @@ nsresult nsGeolocationService::Init()
   nsCOMPtr<nsICategoryManager> catMan(do_GetService("@mozilla.org/categorymanager;1"));
   if (!catMan)
     return NS_ERROR_FAILURE;
-
-  // geolocation service can be enabled -> now register observer
-  nsCOMPtr<nsIObserverService> obs = do_GetService("@mozilla.org/observer-service;1");
-  if (!obs)
-    return NS_ERROR_FAILURE;
-
-  obs->AddObserver(this, "quit-application", false);
 
   nsCOMPtr<nsISimpleEnumerator> geoproviders;
   catMan->EnumerateCategory("geolocation-provider", getter_AddRefs(geoproviders));

@@ -334,6 +334,7 @@ protected:
   static jsval sOndragover_id;
   static jsval sOndragstart_id;
   static jsval sOndrop_id;
+  static jsval sScrollIntoView_id;
   static jsval sScrollX_id;
   static jsval sScrollY_id;
   static jsval sScrollMaxX_id;
@@ -348,6 +349,7 @@ protected:
   static jsval sFrames_id;
   static jsval sSelf_id;
   static jsval sOpener_id;
+  static jsval sAdd_id;
   static jsval sAll_id;
   static jsval sTags_id;
   static jsval sAddEventListener_id;
@@ -976,12 +978,37 @@ public:
 };
 
 
-// HTMLBodyElement helper
+// HTMLElement helper
 
-class nsHTMLBodyElementSH : public nsElementSH
+class nsHTMLElementSH : public nsElementSH
 {
 protected:
-  nsHTMLBodyElementSH(nsDOMClassInfoData* aData) : nsElementSH(aData)
+  nsHTMLElementSH(nsDOMClassInfoData* aData) : nsElementSH(aData)
+  {
+  }
+
+  virtual ~nsHTMLElementSH()
+  {
+  }
+
+  static JSBool ScrollIntoView(JSContext *cx, JSObject *obj, uintN argc,
+                               jsval *argv, jsval *rval);
+
+public:
+  NS_IMETHOD NewResolve(nsIXPConnectWrappedNative *wrapper, JSContext *cx,
+                        JSObject *obj, jsval id, PRUint32 flags,
+                        JSObject **objp, PRBool *_retval);
+
+  static nsIClassInfo *doCreate(nsDOMClassInfoData* aData)
+  {
+    return new nsHTMLElementSH(aData);
+  }
+};
+
+class nsHTMLBodyElementSH : public nsHTMLElementSH
+{
+protected:
+  nsHTMLBodyElementSH(nsDOMClassInfoData* aData) : nsHTMLElementSH(aData)
   {
   }
 
@@ -1010,10 +1037,10 @@ public:
 
 // HTMLFormElement helper
 
-class nsHTMLFormElementSH : public nsElementSH
+class nsHTMLFormElementSH : public nsHTMLElementSH
 {
 protected:
-  nsHTMLFormElementSH(nsDOMClassInfoData* aData) : nsElementSH(aData)
+  nsHTMLFormElementSH(nsDOMClassInfoData* aData) : nsHTMLElementSH(aData)
   {
   }
 
@@ -1046,10 +1073,10 @@ public:
 
 // HTMLSelectElement helper
 
-class nsHTMLSelectElementSH : public nsElementSH
+class nsHTMLSelectElementSH : public nsHTMLElementSH
 {
 protected:
-  nsHTMLSelectElementSH(nsDOMClassInfoData* aData) : nsElementSH(aData)
+  nsHTMLSelectElementSH(nsDOMClassInfoData* aData) : nsHTMLElementSH(aData)
   {
   }
 
@@ -1076,11 +1103,11 @@ public:
 
 // HTMLEmbed/Object/AppletElement helper
 
-class nsHTMLPluginObjElementSH : public nsElementSH
+class nsHTMLPluginObjElementSH : public nsHTMLElementSH
 {
 protected:
   nsHTMLPluginObjElementSH(nsDOMClassInfoData* aData)
-    : nsElementSH(aData)
+    : nsHTMLElementSH(aData)
   {
   }
 
@@ -1135,9 +1162,15 @@ protected:
   {
   }
 
+  static JSBool Add(JSContext *cx, JSObject *obj, uintN argc, jsval *argv,
+                    jsval *rval);
+
 public:
   NS_IMETHOD SetProperty(nsIXPConnectWrappedNative *wrapper, JSContext *cx,
                          JSObject *obj, jsval id, jsval *vp, PRBool *_retval);
+  NS_IMETHOD NewResolve(nsIXPConnectWrappedNative *wrapper, JSContext *cx,
+                        JSObject *obj, jsval id, PRUint32 flags,
+                        JSObject **objp, PRBool *_retval);
   
   static nsIClassInfo *doCreate(nsDOMClassInfoData* aData)
   {

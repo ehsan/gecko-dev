@@ -82,7 +82,7 @@ XPCWrapper::Unwrap(JSContext *cx, JSObject *wrapper)
   if (clasp == &sXPC_SJOW_JSClass.base) {
     JSObject *wrappedObj = STOBJ_GET_PARENT(wrapper);
 
-    if (NS_FAILED(CanAccessWrapper(cx, wrappedObj, nsnull))) {
+    if (NS_FAILED(CanAccessWrapper(cx, wrappedObj))) {
       JS_ClearPendingException(cx);
 
       return nsnull;

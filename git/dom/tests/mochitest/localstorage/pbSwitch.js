@@ -34,7 +34,6 @@ function leavePrivateBrowsing()
 
     var prefBranch = Components.classes["@mozilla.org/preferences-service;1"].
                      getService(Components.interfaces.nsIPrefBranch);
-    if (prefBranch.prefHasUserValue("browser.privatebrowsing.keep_current_session"))
-      prefBranch.clearUserPref("browser.privatebrowsing.keep_current_session");
+    prefBranch.clearUserPref("browser.privatebrowsing.keep_current_session");
   }
 }

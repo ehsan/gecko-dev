@@ -587,10 +587,11 @@ GL_SAME_METHOD_1(Clear, Clear, PRUint32)
 
 GL_SAME_METHOD_4(ClearColor, ClearColor, float, float, float, float)
 
+// XXX the Web IDL method should be glClearDepth!
 #ifdef USE_GLES2
-GL_SAME_METHOD_1(ClearDepthf, ClearDepth, float)
+GL_SAME_METHOD_1(ClearDepthf, ClearDepthf, float)
 #else
-GL_SAME_METHOD_1(ClearDepth, ClearDepth, float)
+GL_SAME_METHOD_1(ClearDepth, ClearDepthf, float)
 #endif
 
 GL_SAME_METHOD_1(ClearStencil, ClearStencil, PRInt32)
@@ -862,10 +863,11 @@ GL_SAME_METHOD_1(DepthFunc, DepthFunc, GLenum)
 
 GL_SAME_METHOD_1(DepthMask, DepthMask, GLboolean)
 
+// XXX should just be glDepthRange in webgl!
 #ifdef USE_GLES2
-GL_SAME_METHOD_2(DepthRangef, DepthRange, float, float)
+GL_SAME_METHOD_2(DepthRangef, DepthRangef, float, float)
 #else
-GL_SAME_METHOD_2(DepthRange, DepthRange, float, float)
+GL_SAME_METHOD_2(DepthRange, DepthRangef, float, float)
 #endif
 
 // XXX arg check!
@@ -2963,6 +2965,7 @@ WebGLContext::TexImage2D()
 
     if (js.argc == 3) {
         JSObject *argPixelsObj;
+        jsuint argPixelsLen;
         if (!::JS_ConvertArguments(js.ctx, js.argc, js.argv, "uuo",
                                    &argTarget, &argLevel,
                                    &argPixelsObj) ||

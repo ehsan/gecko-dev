@@ -60,16 +60,12 @@ function test() {
       // wait for all frames to load (and reload!) completely
       if (frameCount++ < 2)
         return;
-      this.removeEventListener("load", arguments.callee, true);
-
-      let pass = 0;
-      const MAX_PASS = 6;
+      
+      let maxWait = Date.now() + 1000;
       executeSoon(function() {
-        info("Checking innerHTML, pass: " + (pass + 1));
         let iframes = tab2.linkedBrowser.contentWindow.frames;
-        if (iframes[1].document.body.innerHTML != uniqueValue &&
-            ++pass <= MAX_PASS) {
-          setTimeout(arguments.callee, 500);
+        if (iframes[1].document.body.innerHTML != uniqueValue && Date.now() < maxWait) {
+          executeSoon(arguments.callee);
           return;
         }
         is(iframes[1].document.body.innerHTML, uniqueValue,

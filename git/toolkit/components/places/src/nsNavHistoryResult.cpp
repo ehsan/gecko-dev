@@ -3060,19 +3060,11 @@ nsNavHistoryQueryResultNode::OnItemChanged(PRInt64 aItemId,
   // For example, when a title of a bookmark changes, we want that to refresh.
 
   if (mLiveUpdate == QUERYUPDATE_COMPLEX_WITH_BOOKMARKS) {
-    switch (aItemType) {
-      case nsINavBookmarksService::TYPE_SEPARATOR:
-        // No separators in queries.
-        return NS_OK;
-      case nsINavBookmarksService::TYPE_FOLDER:
-        // Queries never result as "folders", but the tags-query results as
-        // special "tag" containers, which should follow their corresponding
-        // folders titles.
-        if (mOptions->ResultType() != nsINavHistoryQueryOptions::RESULTS_AS_TAG_QUERY)
-          return NS_OK;
-      default:
-        (void)Refresh();
-    }
+    // Make sure it's not a folder or a separator.
+    if (aItemType != nsINavBookmarksService::TYPE_BOOKMARK)
+      return NS_OK;
+
+    (void)Refresh();
   }
   else {
     NS_WARNING("history observers should not get OnItemChanged, but should get the corresponding history notifications instead");

@@ -1,3 +1,9 @@
+%ifdef PLACES_QUERY_BUILDER
+.history-calendar {
+  -moz-binding: url("chrome://browser/content/places/places.xml#calendar");
+}
+%endif
+
 #contentTitle {
   width: 0px;
 }

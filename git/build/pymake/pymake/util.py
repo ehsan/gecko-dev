@@ -2,7 +2,7 @@ import os
 
 class MakeError(Exception):
     def __init__(self, message, loc=None):
-        self.msg = message
+        self.message = message
         self.loc = loc
 
     def __str__(self):
@@ -10,7 +10,7 @@ class MakeError(Exception):
         if self.loc is not None:
             locstr = "%s:" % (self.loc,)
 
-        return "%s%s" % (locstr, self.msg)
+        return "%s%s" % (locstr, self.message)
 
 def joiniter(fd, it):
     """
@@ -32,8 +32,6 @@ def checkmsyscompat():
     letting Python use the system shell."""
     if 'SHELL' in os.environ:
         shell = os.environ['SHELL']
-    elif 'MOZILLABUILD' in os.environ:
-        shell = os.environ['MOZILLABUILD'] + '/msys/bin/sh.exe'
     elif 'COMSPEC' in os.environ:
         shell = os.environ['COMSPEC']
     else:

@@ -192,13 +192,12 @@ SetupCairoColor(gfxContext *aContext, nscolor aRGB, float aOpacity)
 }
 
 float
-nsSVGGeometryFrame::MaybeOptimizeOpacity(float aFillOrStrokeOpacity)
+nsSVGGeometryFrame::MaybeOptimizeOpacity(float aOpacity)
 {
-  float opacity = GetStyleDisplay()->mOpacity;
-  if (opacity < 1 && nsSVGUtils::CanOptimizeOpacity(this)) {
-    return aFillOrStrokeOpacity * opacity;
+  if (nsSVGUtils::CanOptimizeOpacity(this)) {
+    aOpacity *= GetStyleDisplay()->mOpacity;
   }
-  return aFillOrStrokeOpacity;
+  return aOpacity;
 }
 
 PRBool
@@ -236,11 +235,9 @@ nsSVGGeometryFrame::SetupCairoFill(gfxContext *aContext)
 }
 
 PRBool
-nsSVGGeometryFrame::HasStroke()
+nsSVGGeometryFrame::HasStroke(gfxContext *aContext)
 {
-  const nsStyleSVG *style = GetStyleSVG();
-  return style->mStroke.mType != eStyleSVGPaintType_None &&
-         style->mStrokeOpacity > 0 &&
+  return GetStyleSVG()->mStroke.mType != eStyleSVGPaintType_None && 
          GetStrokeWidth() > 0;
 }
 
@@ -298,7 +295,7 @@ nsSVGGeometryFrame::SetupCairoStrokeHitGeometry(gfxContext *aContext)
 PRBool
 nsSVGGeometryFrame::SetupCairoStroke(gfxContext *aContext)
 {
-  if (!HasStroke()) {
+  if (!HasStroke(aContext)) {
     return PR_FALSE;
   }
   SetupCairoStrokeHitGeometry(aContext);

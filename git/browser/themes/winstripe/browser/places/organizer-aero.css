@@ -21,7 +21,7 @@
   color: -moz-win-mediatext;
 }
 
-#placesMenu > menu > .menubar-text:-moz-system-metric(windows-default-theme) {
+#placesMenu:-moz-system-metric(windows-default-theme) > menu > label {
   -moz-padding-end: 15px;
   background-image: url(chrome://browser/skin/places/dropDown.png);
 }

@@ -214,14 +214,17 @@ EnsureLegalActivity(JSContext *cx, JSObject *obj,
   JSStackFrame *fp;
   nsIPrincipal *subjectPrincipal = ssm->GetCxSubjectPrincipalAndFrame(cx, &fp);
   if (!subjectPrincipal || !fp) {
-    // We must allow access if there is no code running.
+    // We must allow the access if there is no code running.
     return JS_TRUE;
   }
 
-  PRBool isSystem;
-  if (NS_SUCCEEDED(ssm->IsSystemPrincipal(subjectPrincipal, &isSystem)) &&
-      isSystem) {
-    // Chrome code is running.
+  // This might be chrome code or content code with UniversalXPConnect.
+  void *annotation = JS_GetFrameAnnotation(cx, fp);
+  PRBool isPrivileged = PR_FALSE;
+  nsresult rv = subjectPrincipal->IsCapabilityEnabled("UniversalXPConnect",
+                                                      annotation,
+                                                      &isPrivileged);
+  if (NS_SUCCEEDED(rv) && isPrivileged) {
     return JS_TRUE;
   }
 
@@ -233,13 +236,6 @@ EnsureLegalActivity(JSContext *cx, JSObject *obj,
     PRBool subsumes;
     if (NS_FAILED(subjectPrincipal->Subsumes(objectPrincipal, &subsumes)) ||
         !subsumes) {
-      // This might be chrome code or content code with UniversalXPConnect.
-      PRBool isPrivileged = PR_FALSE;
-      nsresult rv =
-        ssm->IsCapabilityEnabled("UniversalXPConnect", &isPrivileged);
-      if (NS_SUCCEEDED(rv) && isPrivileged) {
-        return JS_TRUE;
-      }
 
       JSObject* flatObj;
       if (!JSVAL_IS_VOID(id) &&
@@ -295,9 +291,23 @@ XPCNativeWrapper::GetWrappedNative(JSContext *cx, JSObject *obj,
     return JS_TRUE;
   }
 
-  nsIPrincipal *subjectPrincipal = ssm->GetCxSubjectPrincipal(cx);
+  JSStackFrame *fp;
+  nsIPrincipal *subjectPrincipal = ssm->GetCxSubjectPrincipalAndFrame(cx, &fp);
   if (!subjectPrincipal) {
     return JS_TRUE;
+  }
+
+  if (fp) {
+    void *annotation = JS_GetFrameAnnotation(cx, fp);
+
+    PRBool isPrivileged;
+    nsresult rv =
+      subjectPrincipal->IsCapabilityEnabled("UniversalXPConnect",
+                                            annotation,
+                                            &isPrivileged);
+    if (NS_SUCCEEDED(rv) && isPrivileged) {
+      return JS_TRUE;
+    }
   }
 
   XPCWrappedNativeScope *scope = wn->GetScope();
@@ -306,9 +316,7 @@ XPCNativeWrapper::GetWrappedNative(JSContext *cx, JSObject *obj,
   PRBool subsumes;
   nsresult rv = subjectPrincipal->Subsumes(objectPrincipal, &subsumes);
   if (NS_FAILED(rv) || !subsumes) {
-    PRBool isPrivileged;
-    rv = ssm->IsCapabilityEnabled("UniversalXPConnect", &isPrivileged);
-    return NS_SUCCEEDED(rv) && isPrivileged;
+    return JS_FALSE;
   }
 
   return JS_TRUE;
@@ -410,7 +418,7 @@ XPC_NW_DelProperty(JSContext *cx, JSObject *obj, jsval id, jsval *vp)
     }
   );
 
-  return JS_TRUE;
+  return ThrowException(NS_ERROR_XPC_SECURITY_MANAGER_VETO, cx);
 }
 
 JSBool

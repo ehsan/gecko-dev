@@ -133,7 +133,7 @@ treechildren::-moz-tree-cell-text(date, session-continue) {
   margin-bottom: 2px;
 }
 
-#viewButton > .button-box > .button-menu-dropmarker {
+#viewButton > hbox > dropmarker {
   height: auto;
   width: auto;
   -moz-margin-end: -3px;

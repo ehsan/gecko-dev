@@ -116,29 +116,20 @@ NS_GetMainThread(nsIThread **result)
 #endif
 }
 
-#ifndef MOZILLA_INTERNAL_API
-bool NS_IsMainThread()
+NS_METHOD_(PRBool)
+NS_IsMainThread()
 {
   PRBool result = PR_FALSE;
+#ifdef MOZILLA_INTERNAL_API
+  nsThreadManager::get()->nsThreadManager::GetIsMainThread(&result);
+#else
   nsCOMPtr<nsIThreadManager> mgr =
-    do_GetService(NS_THREADMANAGER_CONTRACTID);
+      do_GetService(NS_THREADMANAGER_CONTRACTID);
   if (mgr)
     mgr->GetIsMainThread(&result);
-  return bool(result);
-}
-#elif !defined(NS_TLS)
-bool NS_IsMainThread()
-{
-  PRBool result = PR_FALSE;
-  nsThreadManager::get()->nsThreadManager::GetIsMainThread(&result);
-  return bool(result);
-}
-#elif !defined(MOZ_ENABLE_LIBXUL)
-bool NS_IsMainThread()
-{
-  return gTLSIsMainThread;
-}
 #endif
+  return result;
+}
 
 NS_METHOD
 NS_DispatchToCurrentThread(nsIRunnable *event)

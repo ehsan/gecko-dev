@@ -78,6 +78,7 @@ const BrowserGlueServiceFactory = {
 // Constructor
 
 function BrowserGlue() {
+
   XPCOMUtils.defineLazyServiceGetter(this, "_prefs",
                                      "@mozilla.org/preferences-service;1",
                                      "nsIPrefBranch");
@@ -90,23 +91,13 @@ function BrowserGlue() {
                                      "@mozilla.org/widget/idleservice;1",
                                      "nsIIdleService");
 
+  XPCOMUtils.defineLazyServiceGetter(this, "_observerService",
+                                     "@mozilla.org/observer-service;1",
+                                     "nsIObserverService");
+
   XPCOMUtils.defineLazyGetter(this, "_distributionCustomizer", function() {
                                 return new DistributionCustomizer();
                               });
-
-  XPCOMUtils.defineLazyGetter(this, "_sanitizer",
-    function() {
-      let sanitizerScope = {};
-      Cc["@mozilla.org/moz/jssubscript-loader;1"].
-      getService(Ci.mozIJSSubScriptLoader).
-      loadSubScript("chrome://browser/content/sanitize.js", sanitizerScope);
-      return sanitizerScope.Sanitizer;
-    });
-
-  // The observer service is immediately used in _init(), so there's no reason
-  // to have a getter.
-  this._observerService = Cc["@mozilla.org/observer-service;1"].
-                          getService(Ci.nsIObserverService);
 
   this._init();
 }
@@ -118,17 +109,15 @@ function BrowserGlue() {
 #endif
 
 BrowserGlue.prototype = {
+  
   _saveSession: false,
   _isIdleObserver: false,
   _isPlacesInitObserver: false,
   _isPlacesLockedObserver: false,
   _isPlacesDatabaseLocked: false,
 
-  _setPrefToSaveSession: function(aForce)
+  _setPrefToSaveSession: function()
   {
-    if (!this._saveSession && !aForce)
-      return;
-
     this._prefs.setBoolPref("browser.sessionstore.resume_session_once", true);
 
     // This method can be called via [NSApplication terminate:] on Mac, which
@@ -164,9 +153,12 @@ BrowserGlue.prototype = {
         this._onQuitRequest(subject, data);
         break;
       case "quit-application-granted":
-        // This pref must be set here because SessionStore will use its value
-        // on quit-application.
-        this._setPrefToSaveSession();
+        if (this._saveSession) {
+          this._setPrefToSaveSession();
+        }
+        // Everything that uses Places during shutdown should be here, since
+        // on quit-application Places database connection will be closed
+        // and history synchronization could fail.
         this._onProfileShutdown();
         break;
 #ifdef OBSERVE_LASTWINDOW_CLOSE_TOPICS
@@ -176,11 +168,12 @@ BrowserGlue.prototype = {
         this._onQuitRequest(subject, "lastwindow");
         break;
       case "browser-lastwindow-close-granted":
-        this._setPrefToSaveSession();
+        if (this._saveSession)
+          this._setPrefToSaveSession();
         break;
 #endif
       case "session-save":
-        this._setPrefToSaveSession(true);
+        this._setPrefToSaveSession();
         subject.QueryInterface(Ci.nsISupportsPRBool);
         subject.data = true;
         break;
@@ -198,8 +191,8 @@ BrowserGlue.prototype = {
         break;
       case "places-database-locked":
         this._isPlacesDatabaseLocked = true;
-        // Stop observing, so further attempts to load history service
-        // will not show the prompt.
+        // stop observing, so further attempts to load history service
+        // do not show the prompt.
         this._observerService.removeObserver(this, "places-database-locked");
         this._isPlacesLockedObserver = false;
         break;
@@ -275,7 +268,7 @@ BrowserGlue.prototype = {
   // profile startup handler (contains profile initialization routines)
   _onProfileStartup: function() 
   {
-    this._sanitizer.onStartup();
+    this.Sanitizer.onStartup();
     // check if we're in safe mode
     var app = Cc["@mozilla.org/xre/app-info;1"].getService(Ci.nsIXULAppInfo).
               QueryInterface(Ci.nsIXULRuntime);
@@ -309,8 +302,7 @@ BrowserGlue.prototype = {
       }
     }
 
-    this._observerService
-        .notifyObservers(null, "browser-ui-startup-complete", "");
+    this._observerService.notifyObservers(null, "browser-ui-startup-complete", "");
   },
 
   // profile shutdown handler (contains profile cleanup routines)
@@ -319,7 +311,7 @@ BrowserGlue.prototype = {
     this._shutdownPlaces();
     this._idleService.removeIdleObserver(this, BOOKMARKS_BACKUP_IDLE_TIME);
     this._isIdleObserver = false;
-    this._sanitizer.onShutdown();
+    this.Sanitizer.onShutdown();
   },
 
   // Browser startup complete. All initial windows have opened.
@@ -578,6 +570,17 @@ BrowserGlue.prototype = {
     var win = this.getMostRecentBrowserWindow();
     var browser = win.gBrowser;
     browser.selectedTab = browser.addTab(updateUrl);
+  },
+
+  // returns the (cached) Sanitizer constructor
+  get Sanitizer() 
+  {
+    if(typeof(Sanitizer) != "function") { // we should dynamically load the script
+      Cc["@mozilla.org/moz/jssubscript-loader;1"].
+      getService(Ci.mozIJSSubScriptLoader).
+      loadSubScript("chrome://browser/content/sanitize.js", null);
+    }
+    return Sanitizer;
   },
 
   /**
@@ -904,7 +907,7 @@ BrowserGlue.prototype = {
   
   sanitize: function(aParentWindow) 
   {
-    this._sanitizer.sanitize(aParentWindow);
+    this.Sanitizer.sanitize(aParentWindow);
   },
 
   ensurePlacesDefaultQueriesInitialized: function() {
@@ -918,7 +921,7 @@ BrowserGlue.prototype = {
     const SMART_BOOKMARKS_ANNO = "Places/SmartBookmark";
     const SMART_BOOKMARKS_PREF = "browser.places.smartBookmarksVersion";
 
-    // TODO bug 399268: should this be a pref?
+    // XXX should this be a pref?  see bug #399268
     const MAX_RESULTS = 10;
 
     // get current smart bookmarks version

@@ -74,6 +74,7 @@ class nsQueryFrame
 public:
   enum FrameIID {
     BRFrame_id,
+    CanvasFrame_id,
     nsAutoRepeatBoxFrame_id,
     nsBCTableCellFrame_id,
     nsBlockFrame_id,
@@ -81,7 +82,6 @@ public:
     nsBoxFrame_id,
     nsBulletFrame_id,
     nsButtonBoxFrame_id,
-    nsCanvasFrame_id,
     nsColumnSetFrame_id,
     nsComboboxControlFrame_id,
     nsComboboxDisplayFrame_id,
@@ -111,6 +111,7 @@ public:
     nsHTMLScrollFrame_id,
     nsIAnonymousContentCreator_id,
     nsICSSPseudoComparator_id,
+    nsICanvasFrame_id,
     nsICheckboxControlFrame_id,
     nsIComboboxControlFrame_id,
     nsIFormControlFrame_id,

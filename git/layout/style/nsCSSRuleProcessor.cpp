@@ -809,69 +809,64 @@ InitSystemMetrics()
   nsCOMPtr<nsILookAndFeel> lookAndFeel(do_GetService(kLookAndFeelCID, &rv));
   NS_ENSURE_SUCCESS(rv, PR_FALSE);
 
-  /***************************************************************************
-   * ANY METRICS ADDED HERE SHOULD ALSO BE ADDED AS MEDIA QUERIES IN         *
-   * nsMediaFeatures.cpp                                                     *
-   ***************************************************************************/
-
   PRInt32 metricResult;
   lookAndFeel->GetMetric(nsILookAndFeel::eMetric_ScrollArrowStyle, metricResult);
   if (metricResult & nsILookAndFeel::eMetric_ScrollArrowStartBackward) {
-    sSystemMetrics->AppendElement(nsGkAtoms::scrollbar_start_backward);
+    sSystemMetrics->AppendElement(do_GetAtom("scrollbar-start-backward"));
   }
   if (metricResult & nsILookAndFeel::eMetric_ScrollArrowStartForward) {
-    sSystemMetrics->AppendElement(nsGkAtoms::scrollbar_start_forward);
+    sSystemMetrics->AppendElement(do_GetAtom("scrollbar-start-forward"));
   }
   if (metricResult & nsILookAndFeel::eMetric_ScrollArrowEndBackward) {
-    sSystemMetrics->AppendElement(nsGkAtoms::scrollbar_end_backward);
+    sSystemMetrics->AppendElement(do_GetAtom("scrollbar-end-backward"));
   }
   if (metricResult & nsILookAndFeel::eMetric_ScrollArrowEndForward) {
-    sSystemMetrics->AppendElement(nsGkAtoms::scrollbar_end_forward);
+    sSystemMetrics->AppendElement(do_GetAtom("scrollbar-end-forward"));
   }
 
   lookAndFeel->GetMetric(nsILookAndFeel::eMetric_ScrollSliderStyle, metricResult);
   if (metricResult != nsILookAndFeel::eMetric_ScrollThumbStyleNormal) {
-    sSystemMetrics->AppendElement(nsGkAtoms::scrollbar_thumb_proportional);
+    sSystemMetrics->AppendElement(do_GetAtom("scrollbar-thumb-proportional"));
   }
 
   lookAndFeel->GetMetric(nsILookAndFeel::eMetric_ImagesInMenus, metricResult);
   if (metricResult) {
-    sSystemMetrics->AppendElement(nsGkAtoms::images_in_menus);
+    sSystemMetrics->AppendElement(do_GetAtom("images-in-menus"));
   }
 
   lookAndFeel->GetMetric(nsILookAndFeel::eMetric_ImagesInButtons, metricResult);
   if (metricResult) {
-    sSystemMetrics->AppendElement(nsGkAtoms::images_in_buttons);
+    sSystemMetrics->AppendElement(do_GetAtom("images-in-buttons"));
   }
 
   rv = lookAndFeel->GetMetric(nsILookAndFeel::eMetric_WindowsDefaultTheme, metricResult);
   if (NS_SUCCEEDED(rv) && metricResult) {
-    sSystemMetrics->AppendElement(nsGkAtoms::windows_default_theme);
+    sSystemMetrics->AppendElement(do_GetAtom("windows-default-theme"));
   }
 
   rv = lookAndFeel->GetMetric(nsILookAndFeel::eMetric_MacGraphiteTheme, metricResult);
   if (NS_SUCCEEDED(rv) && metricResult) {
-    sSystemMetrics->AppendElement(nsGkAtoms::mac_graphite_theme);
+    sSystemMetrics->AppendElement(do_GetAtom("mac-graphite-theme"));
   }
 
   rv = lookAndFeel->GetMetric(nsILookAndFeel::eMetric_DWMCompositor, metricResult);
   if (NS_SUCCEEDED(rv) && metricResult) {
-    sSystemMetrics->AppendElement(nsGkAtoms::windows_compositor);
+    sSystemMetrics->AppendElement(do_GetAtom("windows-compositor"));
   }
 
   rv = lookAndFeel->GetMetric(nsILookAndFeel::eMetric_WindowsClassic, metricResult);
   if (NS_SUCCEEDED(rv) && metricResult) {
-    sSystemMetrics->AppendElement(nsGkAtoms::windows_classic);
+    sSystemMetrics->AppendElement(do_GetAtom("windows-classic"));
   }
 
   rv = lookAndFeel->GetMetric(nsILookAndFeel::eMetric_TouchEnabled, metricResult);
   if (NS_SUCCEEDED(rv) && metricResult) {
-    sSystemMetrics->AppendElement(nsGkAtoms::touch_enabled);
+    sSystemMetrics->AppendElement(do_GetAtom("touch-enabled"));
   }
  
   rv = lookAndFeel->GetMetric(nsILookAndFeel::eMetric_MaemoClassic, metricResult);
   if (NS_SUCCEEDED(rv) && metricResult) {
-    sSystemMetrics->AppendElement(nsGkAtoms::maemo_classic);
+    sSystemMetrics->AppendElement(do_GetAtom("maemo-classic"));
   }
 
   return PR_TRUE;
@@ -882,15 +877,6 @@ nsCSSRuleProcessor::FreeSystemMetrics()
 {
   delete sSystemMetrics;
   sSystemMetrics = nsnull;
-}
-
-/* static */ PRBool
-nsCSSRuleProcessor::HasSystemMetric(nsIAtom* aMetric)
-{
-  if (!sSystemMetrics && !InitSystemMetrics()) {
-    return PR_FALSE;
-  }
-  return sSystemMetrics->IndexOf(aMetric) != sSystemMetrics->NoIndex;
 }
 
 RuleProcessorData::RuleProcessorData(nsPresContext* aPresContext,
@@ -1438,9 +1424,13 @@ static PRBool SelectorMatches(RuleProcessorData &data,
       result = (child == nsnull);
     }
     else if (nsCSSPseudoClasses::mozSystemMetric == pseudoClass->mAtom) {
+      if (!sSystemMetrics && !InitSystemMetrics()) {
+        return PR_FALSE;
+      }
       NS_ASSERTION(pseudoClass->u.mString, "Must have string!");
       nsCOMPtr<nsIAtom> metric = do_GetAtom(pseudoClass->u.mString);
-      result = nsCSSRuleProcessor::HasSystemMetric(metric);
+      result = sSystemMetrics->IndexOf(metric) !=
+               sSystemMetrics->NoIndex;
     }
     else if (nsCSSPseudoClasses::mozHasHandlerRef == pseudoClass->mAtom) {
       nsIContent *child = nsnull;

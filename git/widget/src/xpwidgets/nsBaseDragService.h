@@ -128,7 +128,6 @@ protected:
                              PRInt32* aScreenX, PRInt32* aScreenY);
 
   PRPackedBool mCanDrop;
-  PRPackedBool mOnlyChromeDrop;
   PRPackedBool mDoingDrag;
   // true if mImage should be used to set a drag image
   PRPackedBool mHasImage;

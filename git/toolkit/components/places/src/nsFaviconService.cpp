@@ -69,7 +69,6 @@
 #include "mozIStorageStatementCallback.h"
 #include "mozIStorageError.h"
 #include "nsPlacesTables.h"
-#include "nsIPrefService.h"
 
 // For favicon optimization
 #include "imgITools.h"
@@ -82,13 +81,10 @@
 
 #define CONTENT_SNIFFING_SERVICES "content-sniffing-services"
 
-
-// Default value for mOptimizedIconDimension
-#define OPTIMIZED_FAVICON_DIMENSION 16
-
-// Most icons will be smaller than this rough estimate of the size of an
-// uncompressed 16x16 RGBA image of the same dimensions.
-#define MAX_ICON_FILESIZE(s) ((PRUint32) s*s*4)
+// If favicon is bigger than this size we will try to optimize it into a
+// 16x16 png. An uncompressed 16x16 RGBA image is 1024 bytes, and almost all
+// sensible 16x16 icons are under 1024 bytes.
+#define OPTIMIZED_FAVICON_SIZE 1024
 
 /**
  * The maximum time we will keep a favicon around.  We always ask the cache, if
@@ -147,7 +143,6 @@ NS_IMPL_ISUPPORTS1(
 // nsFaviconService::nsFaviconService
 
 nsFaviconService::nsFaviconService() : mExpirationRunning(false)
-                                     , mOptimizedIconDimension(OPTIMIZED_FAVICON_DIMENSION)
                                      , mFailedFaviconSerial(0)
 {
   NS_ASSERTION(! gFaviconService, "ATTEMPTING TO CREATE TWO FAVICON SERVICES!");
@@ -225,10 +220,6 @@ nsFaviconService::Init()
   // failed favicon cache
   if (! mFailedFavicons.Init(MAX_FAVICON_CACHE_SIZE))
     return NS_ERROR_OUT_OF_MEMORY;
-
-  nsCOMPtr<nsIPrefBranch> pb = do_GetService(NS_PREFSERVICE_CONTRACTID);
-  if (pb)
-    pb->GetIntPref("places.favicons.optimizeToDimension", &mOptimizedIconDimension);
 
   return NS_OK;
 }
@@ -706,7 +697,7 @@ nsFaviconService::SetFaviconData(nsIURI* aFaviconURI, const PRUint8* aData,
   // If the page provided a large image for the favicon (eg, a highres image
   // or a multiresolution .ico file), we don't want to store more data than
   // needed.
-  if (aDataLen > MAX_ICON_FILESIZE(mOptimizedIconDimension)) {
+  if (aDataLen > OPTIMIZED_FAVICON_SIZE) {
     rv = OptimizeFaviconImage(aData, aDataLen, aMimeType, newData, newMimeType);
     if (NS_SUCCEEDED(rv) && newData.Length() < aDataLen) {
       data = reinterpret_cast<PRUint8*>(const_cast<char*>(newData.get())),
@@ -1111,9 +1102,7 @@ nsFaviconService::OptimizeFaviconImage(const PRUint8* aData, PRUint32 aDataLen,
 
   // scale and recompress
   nsCOMPtr<nsIInputStream> iconStream;
-  rv = imgtool->EncodeScaledImage(container, aNewMimeType,
-                                  mOptimizedIconDimension,
-                                  mOptimizedIconDimension,
+  rv = imgtool->EncodeScaledImage(container, aNewMimeType, 16, 16,
                                   getter_AddRefs(iconStream));
   NS_ENSURE_SUCCESS(rv, rv);
 

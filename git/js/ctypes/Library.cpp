@@ -44,7 +44,6 @@
 #include "nsString.h"
 #include "nsIXPConnect.h"
 #include "nsILocalFile.h"
-#include "nsNativeCharsetUtils.h"
 
 namespace mozilla {
 namespace ctypes {
@@ -74,20 +73,12 @@ Library::Create(JSContext* cx, jsval aPath)
   if (!libraryObj)
     return NULL;
 
-  // initialize the library
-  if (!JS_SetReservedSlot(cx, libraryObj, 0, PRIVATE_TO_JSVAL(NULL)))
-    return NULL;
-
-  // initialize our Function list to empty
-  if (!JS_SetReservedSlot(cx, libraryObj, 1, PRIVATE_TO_JSVAL(NULL)))
-    return NULL;
-
   // attach API functions
   if (!JS_DefineFunctions(cx, libraryObj, sLibraryFunctions))
     return NULL;
 
   nsresult rv;
-  PRLibrary* library;
+  nsCOMPtr<nsILocalFile> localFile;
 
   // get the path argument. we accept either an nsILocalFile or a string path.
   // determine which we have...
@@ -96,34 +87,20 @@ Library::Create(JSContext* cx, jsval aPath)
     if (!path)
       return NULL;
 
-    // We don't use nsILocalFile.
-    // Because this interface doesn't resolve library path to use system search rule.
-    PRLibSpec libSpec;
-#ifdef XP_WIN
-    // On Windows, converting to native charset may corrupt path string.
-    // So, we have to use Unicode path directly.
-    libSpec.value.pathname_u = reinterpret_cast<const PRUnichar*>(path);
-    libSpec.type = PR_LibSpec_PathnameU;
-#else
-    nsCAutoString nativePath;
-    NS_CopyUnicodeToNative(nsDependentString(reinterpret_cast<const PRUnichar*>(path)), nativePath);
-    libSpec.value.pathname = nativePath.get();
-    libSpec.type = PR_LibSpec_Pathname;
-#endif
-    library = PR_LoadLibraryWithFlags(libSpec, 0);
-    if (!library)
+    localFile = do_CreateInstance(NS_LOCAL_FILE_CONTRACTID);
+    if (!localFile)
+      return NULL;
+
+    rv = localFile->InitWithPath(nsDependentString(reinterpret_cast<const PRUnichar*>(path)));
+    if (NS_FAILED(rv))
       return NULL;
 
   } else if (JSVAL_IS_OBJECT(aPath)) {
     nsCOMPtr<nsIXPConnect> xpc = do_GetService(nsIXPConnect::GetCID());
 
     nsISupports* file = xpc->GetNativeOfWrapper(cx, JSVAL_TO_OBJECT(aPath));
-    nsCOMPtr<nsILocalFile> localFile = do_QueryInterface(file);
+    localFile = do_QueryInterface(file);
     if (!localFile)
-      return NULL;
-
-    rv = localFile->Load(&library);
-    if (NS_FAILED(rv))
       return NULL;
 
   } else {
@@ -131,8 +108,17 @@ Library::Create(JSContext* cx, jsval aPath)
     return NULL;
   }
 
+  PRLibrary* library;
+  rv = localFile->Load(&library);
+  if (NS_FAILED(rv))
+    return NULL;
+
   // stash the library
   if (!JS_SetReservedSlot(cx, libraryObj, 0, PRIVATE_TO_JSVAL(library)))
+    return NULL;
+
+  // initialize our Function list to empty
+  if (!JS_SetReservedSlot(cx, libraryObj, 1, PRIVATE_TO_JSVAL(NULL)))
     return NULL;
 
   return libraryObj;

@@ -186,7 +186,7 @@ private:
     PRUint32     mCrc32;
     PRUint16     mDate;
     PRUint16     mTime;
-    PRUint16     mCompression;
+    PRUint8      mCompression;
     PRPackedBool mIsDirectory; 
     PRPackedBool mIsSynthetic;
 };
@@ -203,14 +203,13 @@ public:
     NS_DECL_ISUPPORTS
     NS_DECL_NSIUTF8STRINGENUMERATOR
 
-    nsJAREnumerator(nsZipFind *aFind) : mFind(aFind), mName(nsnull) { 
+    nsJAREnumerator(nsZipFind *aFind) : mFind(aFind), mCurr(nsnull) { 
       NS_ASSERTION(mFind, "nsJAREnumerator: Missing zipFind.");
     }
 
 private:
     nsZipFind    *mFind;
-    const char*   mName;    // pointer to an name owned by mArchive -- DON'T delete
-    PRUint16      mNameLen;
+    const char*   mCurr;    // pointer to an name owned by mArchive -- DON'T delete
 
     ~nsJAREnumerator() { delete mFind; }
 };

@@ -408,30 +408,14 @@ nsAccUtils::GetARIATreeItemParent(nsIAccessible *aStartTreeItem,
                                   nsIAccessible **aTreeItemParentResult)
 {
   *aTreeItemParentResult = nsnull;
-
-  nsCOMPtr<nsIAccessible> parentAccessible;
-  aStartTreeItem->GetParent(getter_AddRefs(parentAccessible));
-  if (!parentAccessible)
-    return;
-
-  PRUint32 startTreeItemRole = nsAccUtils::Role(aStartTreeItem);
-
-  // Calculate tree grid row parent only if the row inside of ARIA treegrid.
-  if (startTreeItemRole == nsIAccessibleRole::ROLE_ROW) {
-    PRUint32 role = nsAccUtils::Role(parentAccessible);
-    if (role != nsIAccessibleRole::ROLE_TREE_TABLE)
-      return;
-  }
-
-  // This is a tree or treegrid that uses aria-level to define levels, so find
-  // the first previous sibling accessible where level is defined to be less
-  // than the current level.
   nsAutoString levelStr;
+  PRInt32 level = 0;
   if (nsAccUtils::HasDefinedARIAToken(aStartContent, nsAccessibilityAtoms::aria_level) &&
       aStartContent->GetAttr(kNameSpaceID_None, nsAccessibilityAtoms::aria_level, levelStr)) {
-
+    // This is a tree that uses aria-level to define levels, so find the first previous
+    // sibling accessible where level is defined to be less than the current level
     PRInt32 success;
-    PRInt32 level = levelStr.ToInteger(&success);
+    level = levelStr.ToInteger(&success);
     if (level > 1 && NS_SUCCEEDED(success)) {
       nsCOMPtr<nsIAccessible> currentAccessible = aStartTreeItem, prevAccessible;
       while (PR_TRUE) {
@@ -442,9 +426,8 @@ nsAccUtils::GetARIATreeItemParent(nsIAccessible *aStartTreeItem,
           break; // Reached top of tree, no higher level found
         }
         PRUint32 role = nsAccUtils::Role(currentAccessible);
-        if (role != startTreeItemRole)
+        if (role != nsIAccessibleRole::ROLE_OUTLINEITEM)
           continue;
-
         nsCOMPtr<nsIDOMNode> treeItemNode;
         accessNode->GetDOMNode(getter_AddRefs(treeItemNode));
         nsCOMPtr<nsIContent> treeItemContent = do_QueryInterface(treeItemNode);
@@ -462,25 +445,19 @@ nsAccUtils::GetARIATreeItemParent(nsIAccessible *aStartTreeItem,
     }
   }
 
-  // In the case of ARIA treegrid, return its parent since ARIA group isn't
-  // used to organize levels in ARIA treegrids.
-
-  if (startTreeItemRole == nsIAccessibleRole::ROLE_ROW) {
-    NS_ADDREF(*aTreeItemParentResult = parentAccessible);
-    return; // The container for the tree grid rows
-  }
-
-  // In the case of ARIA tree, a tree can be arranged by using role="group" to
-  // organize levels. In this case the parent of the tree item will be a group
-  // and the previous sibling of that should be the tree item parent. Or, if
-  // the parent is something other than a tree we will return that.
-
+  // Possibly a tree arranged by using role="group" to organize levels
+  // In this case the parent of the tree item will be a group and the
+  // previous sibling of that should be the tree item parent.
+  // Or, if the parent is something other than a tree we will return that.
+  nsCOMPtr<nsIAccessible> parentAccessible;
+  aStartTreeItem->GetParent(getter_AddRefs(parentAccessible));
+  if (!parentAccessible)
+    return;
   PRUint32 role = nsAccUtils::Role(parentAccessible);
   if (role != nsIAccessibleRole::ROLE_GROUPING) {
     NS_ADDREF(*aTreeItemParentResult = parentAccessible);
     return; // The container for the tree items
   }
-
   nsCOMPtr<nsIAccessible> prevAccessible;
   parentAccessible->GetPreviousSibling(getter_AddRefs(prevAccessible));
   if (!prevAccessible)

@@ -1412,14 +1412,6 @@ getter_AddRefs( nsCOMPtr<T>& aSmartPtr )
     return nsGetterAddRefs<T>(aSmartPtr);
   }
 
-template <class T, class DestinationType>
-inline
-nsresult
-CallQueryInterface( T* aSource, nsGetterAddRefs<DestinationType> aDestination )
-{
-    return CallQueryInterface(aSource,
-                              static_cast<DestinationType**>(aDestination));
-}
 
 
   // Comparing two |nsCOMPtr|s

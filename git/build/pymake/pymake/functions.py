@@ -2,7 +2,7 @@
 Makefile functions.
 """
 
-import parser, util
+import parser, data, util
 import subprocess, os, logging
 from globrelative import glob
 from cStringIO import StringIO
@@ -546,8 +546,8 @@ class EvalFunction(Function):
             # command execution. This seems really dumb to me, so I don't!
             raise data.DataError("$(eval) not allowed via recursive expansion after parsing is finished", self.loc)
 
-        stmts = parser.parsestring(self._arguments[0].resolvestr(makefile, variables, setting),
-                                   'evaluation from %s' % self.loc)
+        text = StringIO(self._arguments[0].resolvestr(makefile, variables, setting))
+        stmts = parser.parsestream(text, 'evaluation from %s' % self.loc)
         stmts.execute(makefile)
 
 class OriginFunction(Function):
@@ -693,5 +693,3 @@ functionmap = {
     'warning': WarningFunction,
     'info': InfoFunction,
 }
-
-import data

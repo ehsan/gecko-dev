@@ -1118,7 +1118,7 @@ nsLayoutUtils::PaintFrame(nsIRenderingContext* aRenderingContext, nsIFrame* aFra
 #endif
 
   nsRegion visibleRegion = aDirtyRegion;
-  list.ComputeVisibility(&builder, &visibleRegion, nsnull);
+  list.ComputeVisibility(&builder, &visibleRegion);
 
 #ifdef DEBUG
   if (gDumpPaintList) {
@@ -1285,8 +1285,7 @@ nsLayoutUtils::ComputeRepaintRegionForCopy(nsIFrame* aRootFrame,
   // Optimize for visibility, but frames under aMovingFrame will not be
   // considered opaque, so they don't cover non-moving frames.
   nsRegion visibleRegion(aUpdateRect);
-  nsRegion visibleRegionBeforeMove(aUpdateRect);
-  list.ComputeVisibility(&builder, &visibleRegion, &visibleRegionBeforeMove);
+  list.ComputeVisibility(&builder, &visibleRegion);
 
 #ifdef DEBUG
   if (gDumpRepaintRegionForCopy) {
@@ -2102,10 +2101,8 @@ nsLayoutUtils::ComputeWidthValue(
 {
   NS_PRECONDITION(aFrame, "non-null frame expected");
   NS_PRECONDITION(aRenderingContext, "non-null rendering context expected");
-  NS_WARN_IF_FALSE(aContainingBlockWidth != NS_UNCONSTRAINEDSIZE,
-                   "have unconstrained width; this should only result from "
-                   "very large sizes, not attempts at intrinsic width "
-                   "calculation");
+  NS_PRECONDITION(aContainingBlockWidth != NS_UNCONSTRAINEDSIZE,
+                  "unconstrained widths no longer supported");
   NS_PRECONDITION(aContainingBlockWidth >= 0,
                   "width less than zero");
 

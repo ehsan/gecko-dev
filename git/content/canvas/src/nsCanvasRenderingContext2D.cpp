@@ -488,17 +488,14 @@ protected:
      * Gets the pres shell from either the canvas element or the doc shell
      */
     nsIPresShell *GetPresShell() {
+      nsIPresShell *presShell = nsnull;
       nsCOMPtr<nsIContent> content = do_QueryInterface(mCanvasElement);
       if (content) {
-        nsIDocument* ownerDoc = content->GetOwnerDoc();
-        return ownerDoc ? ownerDoc->GetPrimaryShell() : nsnull;
+          presShell = content->GetOwnerDoc()->GetPrimaryShell();
+      } else if (mDocShell) {
+          mDocShell->GetPresShell(&presShell);
       }
-      if (mDocShell) {
-        nsCOMPtr<nsIPresShell> shell;
-        mDocShell->GetPresShell(getter_AddRefs(shell));
-        return shell.get();
-      }
-      return nsnull;
+      return presShell;
     }
 
     // text
@@ -620,6 +617,14 @@ protected:
     inline ContextState& CurrentState() {
         return mStyleStack[mSaveCount];
     }
+
+    // stolen from nsJSUtils
+    static PRBool ConvertJSValToUint32(PRUint32* aProp, JSContext* aContext,
+                                       jsval aValue);
+    static PRBool ConvertJSValToXPCObject(nsISupports** aSupports, REFNSIID aIID,
+                                          JSContext* aContext, jsval aValue);
+    static PRBool ConvertJSValToDouble(double* aProp, JSContext* aContext,
+                                       jsval aValue);
 
     // other helpers
     void GetAppUnitsValues(PRUint32 *perDevPixel, PRUint32 *perCSSPixel) {
@@ -2920,18 +2925,44 @@ bitblt(gfxImageSurface *s, int src_x, int src_y, int width, int height,
 //   -- render the region defined by (sx,sy,sw,wh) in image-local space into the region (dx,dy,dw,dh) on the canvas
 
 NS_IMETHODIMP
-nsCanvasRenderingContext2D::DrawImage(nsIDOMElement *imgElt, float a1,
-                                      float a2, float a3, float a4, float a5,
-                                      float a6, float a7, float a8,
-                                      PRUint8 optional_argc)
+nsCanvasRenderingContext2D::DrawImage()
 {
-    NS_ENSURE_ARG(imgElt);
-
     nsresult rv;
     gfxRect dirty;
 
+    nsAXPCNativeCallContext *ncc = nsnull;
+    rv = nsContentUtils::XPConnect()->
+        GetCurrentNativeCallContext(&ncc);
+    NS_ENSURE_SUCCESS(rv, rv);
+
+    if (!ncc)
+        return NS_ERROR_FAILURE;
+
+    JSContext *ctx = nsnull;
+
+    rv = ncc->GetJSContext(&ctx);
+    NS_ENSURE_SUCCESS(rv, rv);
+
+    PRUint32 argc;
+    jsval *argv = nsnull;
+
+    ncc->GetArgc(&argc);
+    ncc->GetArgvPtr(&argv);
+
+    // we always need at least an image and a dx,dy
+    if (argc < 3)
+        return NS_ERROR_INVALID_ARG;
+
+    JSAutoRequest ar(ctx);
+
     double sx,sy,sw,sh;
     double dx,dy,dw,dh;
+
+    nsCOMPtr<nsIDOMElement> imgElt;
+    if (!ConvertJSValToXPCObject(getter_AddRefs(imgElt),
+                                 NS_GET_IID(nsIDOMElement),
+                                 ctx, argv[0]))
+        return NS_ERROR_DOM_TYPE_MISMATCH_ERR;
 
     gfxMatrix matrix;
     nsRefPtr<gfxPattern> pattern;
@@ -2966,36 +2997,40 @@ nsCanvasRenderingContext2D::DrawImage(nsIDOMElement *imgElt, float a1,
 
     gfxContextPathAutoSaveRestore pathSR(mThebes, PR_FALSE);
 
+#define GET_ARG(dest,whicharg) \
+    do { if (!ConvertJSValToDouble(dest, ctx, whicharg)) { rv = NS_ERROR_INVALID_ARG; goto FINISH; } } while (0)
+
     rv = NS_OK;
 
-    if (optional_argc == 0) {
-        dx = a1;
-        dy = a2;
+    if (argc == 3) {
+        GET_ARG(&dx, argv[1]);
+        GET_ARG(&dy, argv[2]);
         sx = sy = 0.0;
         dw = sw = (double) imgSize.width;
         dh = sh = (double) imgSize.height;
-    } else if (optional_argc == 2) {
-        dx = a1;
-        dy = a2;
-        dw = a3;
-        dh = a4;
+    } else if (argc == 5) {
+        GET_ARG(&dx, argv[1]);
+        GET_ARG(&dy, argv[2]);
+        GET_ARG(&dw, argv[3]);
+        GET_ARG(&dh, argv[4]);
         sx = sy = 0.0;
         sw = (double) imgSize.width;
         sh = (double) imgSize.height;
-    } else if (optional_argc == 6) {
-        sx = a1;
-        sy = a2;
-        sw = a3;
-        sh = a4;
-        dx = a5;
-        dy = a6;
-        dw = a7;
-        dh = a8;
+    } else if (argc == 9) {
+        GET_ARG(&sx, argv[1]);
+        GET_ARG(&sy, argv[2]);
+        GET_ARG(&sw, argv[3]);
+        GET_ARG(&sh, argv[4]);
+        GET_ARG(&dx, argv[5]);
+        GET_ARG(&dy, argv[6]);
+        GET_ARG(&dw, argv[7]);
+        GET_ARG(&dh, argv[8]);
     } else {
         // XXX ERRMSG we need to report an error to developers here! (bug 329026)
         rv = NS_ERROR_INVALID_ARG;
         goto FINISH;
     }
+#undef GET_ARG
 
     if (dw == 0.0 || dh == 0.0) {
         rv = NS_OK;
@@ -3004,7 +3039,7 @@ nsCanvasRenderingContext2D::DrawImage(nsIDOMElement *imgElt, float a1,
         goto FINISH;
     }
 
-    if (!FloatValidate(sx, sy, sw, sh) || !FloatValidate(dx, dy, dw, dh)) {
+    if (!FloatValidate(sx,sy,sw,sh) || !FloatValidate(dx,dy,dw,dh)) {
         rv = NS_ERROR_DOM_SYNTAX_ERR;
         goto FINISH;
     }
@@ -3190,6 +3225,61 @@ nsCanvasRenderingContext2D::GetGlobalCompositeOperation(nsAString& op)
 }
 
 
+//
+// Utils
+//
+PRBool
+nsCanvasRenderingContext2D::ConvertJSValToUint32(PRUint32* aProp, JSContext* aContext,
+                                                 jsval aValue)
+{
+  uint32 temp;
+  if (::JS_ValueToECMAUint32(aContext, aValue, &temp)) {
+    *aProp = (PRUint32)temp;
+  }
+  else {
+    ::JS_ReportError(aContext, "Parameter must be an integer");
+    return JS_FALSE;
+  }
+
+  return JS_TRUE;
+}
+
+PRBool
+nsCanvasRenderingContext2D::ConvertJSValToDouble(double* aProp, JSContext* aContext,
+                                                 jsval aValue)
+{
+  jsdouble temp;
+  if (::JS_ValueToNumber(aContext, aValue, &temp)) {
+    *aProp = (jsdouble)temp;
+  }
+  else {
+    ::JS_ReportError(aContext, "Parameter must be a number");
+    return JS_FALSE;
+  }
+
+  return JS_TRUE;
+}
+
+PRBool
+nsCanvasRenderingContext2D::ConvertJSValToXPCObject(nsISupports** aSupports, REFNSIID aIID,
+                                                    JSContext* aContext, jsval aValue)
+{
+  *aSupports = nsnull;
+  if (JSVAL_IS_NULL(aValue)) {
+    return JS_TRUE;
+  }
+
+  if (JSVAL_IS_OBJECT(aValue)) {
+    // WrapJS does all the work to recycle an existing wrapper and/or do a QI
+    nsresult rv = nsContentUtils::XPConnect()->
+      WrapJS(aContext, JSVAL_TO_OBJECT(aValue), aIID, (void**)aSupports);
+
+    return NS_SUCCEEDED(rv);
+  }
+
+  return JS_FALSE;
+}
+
 static void
 FlushLayoutForTree(nsIDOMWindow* aWindow)
 {
@@ -3308,15 +3398,6 @@ nsCanvasRenderingContext2D::DrawWindow(nsIDOMWindow* aWindow, float aX, float aY
 //
 // device pixel getting/setting
 //
-extern "C" {
-#include "jstypes.h"
-JS_FRIEND_API(JSBool)
-js_CoerceArrayToCanvasImageData(JSObject *obj, jsuint offset, jsuint count,
-                                JSUint8 *dest);
-JS_FRIEND_API(JSObject *)
-js_NewArrayObjectWithCapacity(JSContext *cx, jsuint capacity, jsval **vector);
-}
-
 
 // ImageData getImageData (in float x, in float y, in float width, in float height);
 NS_IMETHODIMP
@@ -3388,14 +3469,10 @@ nsCanvasRenderingContext2D::GetImageData()
     if (len > (((PRUint32)0xfff00000)/sizeof(jsval)))
         return NS_ERROR_INVALID_ARG;
 
-    jsval *dest;
-    JSObject *dataArray = js_NewArrayObjectWithCapacity(ctx, len, &dest);
-    if (!dataArray)
+    nsAutoArrayPtr<jsval> jsvector(new (std::nothrow) jsval[w * h * 4]);
+    if (!jsvector)
         return NS_ERROR_OUT_OF_MEMORY;
-
-    nsAutoGCRoot arrayGCRoot(&dataArray, &rv);
-    NS_ENSURE_SUCCESS(rv, rv);
-
+    jsval *dest = jsvector.get();
     PRUint8 *row;
     for (int j = 0; j < h; j++) {
         row = surfaceData + surfaceDataOffset + (surfaceDataStride * j);
@@ -3427,8 +3504,13 @@ nsCanvasRenderingContext2D::GetImageData()
         }
     }
 
-    // Allocate result object after array, so if we have to trigger gc
-    // we do it now.
+    JSObject *dataArray = JS_NewArrayObject(ctx, w*h*4, jsvector.get());
+    if (!dataArray)
+        return NS_ERROR_OUT_OF_MEMORY;
+
+    nsAutoGCRoot arrayGCRoot(&dataArray, &rv);
+    NS_ENSURE_SUCCESS(rv, rv);
+
     JSObject *result = JS_NewObject(ctx, NULL, NULL, NULL);
     if (!result)
         return NS_ERROR_OUT_OF_MEMORY;
@@ -3447,6 +3529,13 @@ nsCanvasRenderingContext2D::GetImageData()
     ncc->SetReturnValueWasSet(PR_TRUE);
 
     return NS_OK;
+}
+
+extern "C" {
+#include "jstypes.h"
+JS_FRIEND_API(JSBool)
+js_CoerceArrayToCanvasImageData(JSObject *obj, jsuint offset, jsuint count,
+                                JSUint8 *dest);
 }
 
 static inline PRUint8 ToUint8(jsint aInput)
@@ -3714,19 +3803,21 @@ nsCanvasRenderingContext2D::CreateImageData()
     if (len / 4 != len0)
         return NS_ERROR_DOM_INDEX_SIZE_ERR;
 
-    jsval *dest;
-    JSObject *dataArray = js_NewArrayObjectWithCapacity(ctx, len, &dest);
+    nsAutoArrayPtr<jsval> jsvector(new (std::nothrow) jsval[w * h * 4]);
+    if (!jsvector)
+        return NS_ERROR_OUT_OF_MEMORY;
+
+    jsval *dest = jsvector.get();
+    for (PRUint32 i = 0; i < len; i++)
+        *dest++ = JSVAL_ZERO;
+
+    JSObject *dataArray = JS_NewArrayObject(ctx, w*h*4, jsvector.get());
     if (!dataArray)
         return NS_ERROR_OUT_OF_MEMORY;
 
     nsAutoGCRoot arrayGCRoot(&dataArray, &rv);
     NS_ENSURE_SUCCESS(rv, rv);
 
-    for (PRUint32 i = 0; i < len; i++)
-        *dest++ = JSVAL_ZERO;
-
-    // Allocate result object after array, so if we have to trigger gc
-    // we do it now.
     JSObject *result = JS_NewObject(ctx, NULL, NULL, NULL);
     if (!result)
         return NS_ERROR_OUT_OF_MEMORY;

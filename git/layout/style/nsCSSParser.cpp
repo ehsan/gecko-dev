@@ -121,6 +121,8 @@
 #define VARIANT_AHI  (VARIANT_AH | VARIANT_INTEGER)
 #define VARIANT_AHK  (VARIANT_AH | VARIANT_KEYWORD)
 #define VARIANT_AHKLP (VARIANT_AHLP | VARIANT_KEYWORD)
+#define VARIANT_AUK  (VARIANT_AUTO | VARIANT_URL | VARIANT_KEYWORD)
+#define VARIANT_AHUK (VARIANT_AH | VARIANT_URL | VARIANT_KEYWORD)
 #define VARIANT_AHL  (VARIANT_AH | VARIANT_LENGTH)
 #define VARIANT_AHKL (VARIANT_AHK | VARIANT_LENGTH)
 #define VARIANT_HK   (VARIANT_INHERIT | VARIANT_KEYWORD)
@@ -138,15 +140,14 @@
 #define VARIANT_HMKI (VARIANT_HMK | VARIANT_INTEGER)
 #define VARIANT_HC   (VARIANT_INHERIT | VARIANT_COLOR)
 #define VARIANT_HCK  (VARIANT_HK | VARIANT_COLOR)
-#define VARIANT_HUK  (VARIANT_HK | VARIANT_URL)
 #define VARIANT_HUO  (VARIANT_INHERIT | VARIANT_URL | VARIANT_NONE)
 #define VARIANT_AHUO (VARIANT_AUTO | VARIANT_HUO)
 #define VARIANT_HPN  (VARIANT_INHERIT | VARIANT_PERCENT | VARIANT_NUMBER)
+#define VARIANT_HOK  (VARIANT_HK | VARIANT_NONE)
 #define VARIANT_HN   (VARIANT_INHERIT | VARIANT_NUMBER)
 #define VARIANT_HON  (VARIANT_HN | VARIANT_NONE)
 #define VARIANT_HOS  (VARIANT_INHERIT | VARIANT_NONE | VARIANT_STRING)
 #define VARIANT_TIMING_FUNCTION (VARIANT_KEYWORD | VARIANT_CUBIC_BEZIER)
-#define VARIANT_UK   (VARIANT_URL | VARIANT_KEYWORD)
 
 //----------------------------------------------------------------------
 
@@ -1822,7 +1823,7 @@ CSSParserImpl::ParseMediaQueryExpression(nsMediaQuery* aQuery)
       break;
     case nsMediaFeature::eEnumerated:
       rv = ParseVariant(expr->mValue, VARIANT_KEYWORD,
-                        feature->mData.mKeywordTable);
+                        feature->mKeywordTable);
       break;
   }
   if (!rv || !ExpectSymbol(')', PR_TRUE)) {
@@ -2530,8 +2531,6 @@ CSSParserImpl::ParseSelectorGroup(nsCSSSelectorList*& aList)
           return PR_FALSE;
         }
         list->AddSelector(empty);
-        // Save the weight of the non-pseudo-element part of this selector now
-        weight += listSel->CalcWeight();
         listSel = list->mSelectors; // use the new one for the pseudo
       }
       NS_ASSERTION(!listSel->mLowercaseTag &&
@@ -2540,7 +2539,6 @@ CSSParserImpl::ParseSelectorGroup(nsCSSSelectorList*& aList)
                    "already initialized");
       listSel->mLowercaseTag.swap(pseudoElement);
       listSel->mPseudoClassList = pseudoElementArgs.forget();
-      havePseudoElement = PR_TRUE;
     }
 
     combinator = PRUnichar(0);
@@ -4631,8 +4629,12 @@ CSSParserImpl::ParseCounter(nsCSSValue& aValue)
                      (keyword = nsCSSKeywords::LookupKeyword(mToken.mIdent)) !=
                       eCSSKeyword_UNKNOWN;
     if (success) {
-      success = nsCSSProps::FindKeyword(keyword,
-                                        nsCSSProps::kListStyleKTable, type);
+      if (keyword == eCSSKeyword_none) {
+        type = NS_STYLE_LIST_STYLE_NONE;
+      } else {
+        success = nsCSSProps::FindKeyword(keyword,
+                                          nsCSSProps::kListStyleKTable, type);
+      }
     }
     if (!success) {
       SkipUntil(')');
@@ -4640,7 +4642,11 @@ CSSParserImpl::ParseCounter(nsCSSValue& aValue)
     }
   }
   PRInt32 typeItem = eCSSUnit_Counters == unit ? 2 : 1;
-  val->Item(typeItem).SetIntValue(type, eCSSUnit_Enumerated);
+  if (type == NS_STYLE_LIST_STYLE_NONE) {
+    val->Item(typeItem).SetNoneValue();
+  } else {
+    val->Item(typeItem).SetIntValue(type, eCSSUnit_Enumerated);
+  }
 
   if (!ExpectSymbol(')', PR_TRUE)) {
     SkipUntil(')');
@@ -5707,7 +5713,7 @@ CSSParserImpl::ParseSingleValueProperty(nsCSSValue& aValue,
   case eCSSProperty_border_start_style_value: // for internal use
   case eCSSProperty_border_top_style:
   case eCSSProperty__moz_column_rule_style:
-    return ParseVariant(aValue, VARIANT_HK,
+    return ParseVariant(aValue, VARIANT_HOK,
                         nsCSSProps::kBorderStyleKTable);
   case eCSSProperty_border_bottom_width:
   case eCSSProperty_border_end_width_value: // for internal use
@@ -5755,10 +5761,10 @@ CSSParserImpl::ParseSingleValueProperty(nsCSSValue& aValue,
                         nsCSSProps::kFillRuleKTable);
   case eCSSProperty_color_interpolation:
   case eCSSProperty_color_interpolation_filters:
-    return ParseVariant(aValue, VARIANT_HK,
+    return ParseVariant(aValue, VARIANT_AHK,
                         nsCSSProps::kColorInterpolationKTable);
   case eCSSProperty_dominant_baseline:
-    return ParseVariant(aValue, VARIANT_HK,
+    return ParseVariant(aValue, VARIANT_AHK,
                         nsCSSProps::kDominantBaselineKTable);
   case eCSSProperty_fill_opacity:
     return ParseVariant(aValue, VARIANT_HN,
@@ -5773,7 +5779,7 @@ CSSParserImpl::ParseSingleValueProperty(nsCSSValue& aValue,
   case eCSSProperty_flood_opacity:
     return ParseVariant(aValue, VARIANT_HN, nsnull);
   case eCSSProperty_image_rendering:
-    return ParseVariant(aValue, VARIANT_HK,
+    return ParseVariant(aValue, VARIANT_AHK,
                         nsCSSProps::kImageRenderingKTable);
   case eCSSProperty_lighting_color:
     return ParseVariant(aValue, VARIANT_HC, nsnull);
@@ -5784,7 +5790,7 @@ CSSParserImpl::ParseSingleValueProperty(nsCSSValue& aValue,
   case eCSSProperty_mask:
     return ParseVariant(aValue, VARIANT_HUO, nsnull);
   case eCSSProperty_shape_rendering:
-    return ParseVariant(aValue, VARIANT_HK,
+    return ParseVariant(aValue, VARIANT_AHK,
                         nsCSSProps::kShapeRenderingKTable);
   case eCSSProperty_stop_color:
     return ParseVariant(aValue, VARIANT_HC,
@@ -5815,7 +5821,7 @@ CSSParserImpl::ParseSingleValueProperty(nsCSSValue& aValue,
     return ParseVariant(aValue, VARIANT_HK,
                         nsCSSProps::kTextAnchorKTable);
   case eCSSProperty_text_rendering:
-    return ParseVariant(aValue, VARIANT_HK,
+    return ParseVariant(aValue, VARIANT_AHK,
                         nsCSSProps::kTextRenderingKTable);
 #endif
   case eCSSProperty_box_sizing:
@@ -5832,7 +5838,7 @@ CSSParserImpl::ParseSingleValueProperty(nsCSSValue& aValue,
     return ParseVariant(aValue, VARIANT_HK,
                         nsCSSProps::kCaptionSideKTable);
   case eCSSProperty_clear:
-    return ParseVariant(aValue, VARIANT_HK,
+    return ParseVariant(aValue, VARIANT_HOK,
                         nsCSSProps::kClearKTable);
   case eCSSProperty_color:
     return ParseVariant(aValue, VARIANT_HC, nsnull);
@@ -5843,7 +5849,7 @@ CSSParserImpl::ParseSingleValueProperty(nsCSSValue& aValue,
     return ParseVariant(aValue, VARIANT_HK,
                         nsCSSProps::kDirectionKTable);
   case eCSSProperty_display:
-    if (ParseVariant(aValue, VARIANT_HK, nsCSSProps::kDisplayKTable)) {
+    if (ParseVariant(aValue, VARIANT_HOK, nsCSSProps::kDisplayKTable)) {
       if (aValue.GetUnit() == eCSSUnit_Enumerated) {
         switch (aValue.GetIntValue()) {
           case NS_STYLE_DISPLAY_MARKER:        // bug 2055
@@ -5862,7 +5868,7 @@ CSSParserImpl::ParseSingleValueProperty(nsCSSValue& aValue,
     return ParseVariant(aValue, VARIANT_HK,
                         nsCSSProps::kEmptyCellsKTable);
   case eCSSProperty_float:
-    return ParseVariant(aValue, VARIANT_HK,
+    return ParseVariant(aValue, VARIANT_HOK,
                         nsCSSProps::kFloatKTable);
   case eCSSProperty_float_edge:
     return ParseVariant(aValue, VARIANT_HK,
@@ -5880,15 +5886,15 @@ CSSParserImpl::ParseSingleValueProperty(nsCSSValue& aValue,
     return ParseVariant(aValue, VARIANT_HMK | VARIANT_SYSFONT,
                         nsCSSProps::kFontStretchKTable);
   case eCSSProperty_font_style:
-    return ParseVariant(aValue, VARIANT_HK | VARIANT_SYSFONT,
+    return ParseVariant(aValue, VARIANT_HMK | VARIANT_SYSFONT,
                         nsCSSProps::kFontStyleKTable);
   case eCSSProperty_font_variant:
-    return ParseVariant(aValue, VARIANT_HK | VARIANT_SYSFONT,
+    return ParseVariant(aValue, VARIANT_HMK | VARIANT_SYSFONT,
                         nsCSSProps::kFontVariantKTable);
   case eCSSProperty_font_weight:
     return ParseFontWeight(aValue);
   case eCSSProperty_ime_mode:
-    return ParseVariant(aValue, VARIANT_HK,
+    return ParseVariant(aValue, VARIANT_AHK | VARIANT_NORMAL,
                         nsCSSProps::kIMEModeKTable);
   case eCSSProperty__moz_tab_size:
     return ParseNonNegativeVariant(aValue, VARIANT_HI, nsnull);
@@ -5902,7 +5908,7 @@ CSSParserImpl::ParseSingleValueProperty(nsCSSValue& aValue,
   case eCSSProperty_list_style_position:
     return ParseVariant(aValue, VARIANT_HK, nsCSSProps::kListStylePositionKTable);
   case eCSSProperty_list_style_type:
-    return ParseVariant(aValue, VARIANT_HK, nsCSSProps::kListStyleKTable);
+    return ParseVariant(aValue, VARIANT_HOK, nsCSSProps::kListStyleKTable);
   case eCSSProperty_margin_bottom:
   case eCSSProperty_margin_end_value: // for internal use
   case eCSSProperty_margin_left_value: // for internal use
@@ -5933,7 +5939,7 @@ CSSParserImpl::ParseSingleValueProperty(nsCSSValue& aValue,
     return ParseVariant(aValue, VARIANT_HCK,
                         nsCSSProps::kOutlineColorKTable);
   case eCSSProperty_outline_style:
-    return ParseVariant(aValue, VARIANT_HK,
+    return ParseVariant(aValue, VARIANT_HOK | VARIANT_AUTO,
                         nsCSSProps::kOutlineStyleKTable);
   case eCSSProperty_outline_width:
     return ParseNonNegativeVariant(aValue, VARIANT_HKL,
@@ -5942,7 +5948,7 @@ CSSParserImpl::ParseSingleValueProperty(nsCSSValue& aValue,
     return ParseVariant(aValue, VARIANT_HL, nsnull);
   case eCSSProperty_overflow_x:
   case eCSSProperty_overflow_y:
-    return ParseVariant(aValue, VARIANT_HK,
+    return ParseVariant(aValue, VARIANT_AHK,
                         nsCSSProps::kOverflowSubKTable);
   case eCSSProperty_padding_bottom:
   case eCSSProperty_padding_end_value: // for internal use
@@ -5955,10 +5961,10 @@ CSSParserImpl::ParseSingleValueProperty(nsCSSValue& aValue,
     return ParseVariant(aValue, VARIANT_AUTO | VARIANT_IDENTIFIER, nsnull);
   case eCSSProperty_page_break_after:
   case eCSSProperty_page_break_before:
-    return ParseVariant(aValue, VARIANT_HK,
+    return ParseVariant(aValue, VARIANT_AHK,
                         nsCSSProps::kPageBreakKTable);
   case eCSSProperty_page_break_inside:
-    return ParseVariant(aValue, VARIANT_HK,
+    return ParseVariant(aValue, VARIANT_AHK,
                         nsCSSProps::kPageBreakInsideKTable);
   case eCSSProperty_pause_after:
   case eCSSProperty_pause_before:
@@ -5968,7 +5974,7 @@ CSSParserImpl::ParseSingleValueProperty(nsCSSValue& aValue,
   case eCSSProperty_pitch_range:
     return ParseVariant(aValue, VARIANT_HN, nsnull);
   case eCSSProperty_pointer_events:
-    return ParseVariant(aValue, VARIANT_HK,
+    return ParseVariant(aValue, VARIANT_HOK,
                         nsCSSProps::kPointerEventsKTable);
   case eCSSProperty_position:
     return ParseVariant(aValue, VARIANT_HK, nsCSSProps::kPositionKTable);
@@ -5985,7 +5991,7 @@ CSSParserImpl::ParseSingleValueProperty(nsCSSValue& aValue,
     return ParseVariant(aValue, VARIANT_HI, nsnull);
 #endif
   case eCSSProperty_speak:
-    return ParseVariant(aValue, VARIANT_HK,
+    return ParseVariant(aValue, VARIANT_HMK | VARIANT_NONE,
                         nsCSSProps::kSpeakKTable);
   case eCSSProperty_speak_header:
     return ParseVariant(aValue, VARIANT_HK,
@@ -5994,7 +6000,7 @@ CSSParserImpl::ParseSingleValueProperty(nsCSSValue& aValue,
     return ParseVariant(aValue, VARIANT_HK,
                         nsCSSProps::kSpeakNumeralKTable);
   case eCSSProperty_speak_punctuation:
-    return ParseVariant(aValue, VARIANT_HK,
+    return ParseVariant(aValue, VARIANT_HOK,
                         nsCSSProps::kSpeakPunctuationKTable);
   case eCSSProperty_speech_rate:
     return ParseVariant(aValue, VARIANT_HN | VARIANT_KEYWORD,
@@ -6005,7 +6011,7 @@ CSSParserImpl::ParseSingleValueProperty(nsCSSValue& aValue,
   case eCSSProperty_stress:
     return ParseVariant(aValue, VARIANT_HN, nsnull);
   case eCSSProperty_table_layout:
-    return ParseVariant(aValue, VARIANT_HK,
+    return ParseVariant(aValue, VARIANT_AHK,
                         nsCSSProps::kTableLayoutKTable);
   case eCSSProperty_text_align:
     // When we support aligning on a string, we can parse text-align
@@ -6017,22 +6023,22 @@ CSSParserImpl::ParseSingleValueProperty(nsCSSValue& aValue,
   case eCSSProperty_text_indent:
     return ParseVariant(aValue, VARIANT_HLP, nsnull);
   case eCSSProperty_text_transform:
-    return ParseVariant(aValue, VARIANT_HK,
+    return ParseVariant(aValue, VARIANT_HOK,
                         nsCSSProps::kTextTransformKTable);
   case eCSSProperty_unicode_bidi:
-    return ParseVariant(aValue, VARIANT_HK,
+    return ParseVariant(aValue, VARIANT_HMK,
                         nsCSSProps::kUnicodeBidiKTable);
   case eCSSProperty_user_focus:
-    return ParseVariant(aValue, VARIANT_HK,
+    return ParseVariant(aValue, VARIANT_HMK | VARIANT_NONE,
                         nsCSSProps::kUserFocusKTable);
   case eCSSProperty_user_input:
-    return ParseVariant(aValue, VARIANT_HK,
+    return ParseVariant(aValue, VARIANT_AHK | VARIANT_NONE,
                         nsCSSProps::kUserInputKTable);
   case eCSSProperty_user_modify:
     return ParseVariant(aValue, VARIANT_HK,
                         nsCSSProps::kUserModifyKTable);
   case eCSSProperty_user_select:
-    return ParseVariant(aValue, VARIANT_HK,
+    return ParseVariant(aValue, VARIANT_AHK | VARIANT_NONE,
                         nsCSSProps::kUserSelectKTable);
   case eCSSProperty_vertical_align:
     return ParseVariant(aValue, VARIANT_HKLP,
@@ -6046,13 +6052,13 @@ CSSParserImpl::ParseSingleValueProperty(nsCSSValue& aValue,
     return ParseVariant(aValue, VARIANT_HPN | VARIANT_KEYWORD,
                         nsCSSProps::kVolumeKTable);
   case eCSSProperty_white_space:
-    return ParseVariant(aValue, VARIANT_HK,
+    return ParseVariant(aValue, VARIANT_HMK,
                         nsCSSProps::kWhitespaceKTable);
   case eCSSProperty__moz_window_shadow:
-    return ParseVariant(aValue, VARIANT_HK,
+    return ParseVariant(aValue, VARIANT_HOK,
                         nsCSSProps::kWindowShadowKTable);
   case eCSSProperty_word_wrap:
-    return ParseVariant(aValue, VARIANT_HK,
+    return ParseVariant(aValue, VARIANT_HMK,
                         nsCSSProps::kWordwrapKTable);
   case eCSSProperty_z_index:
     return ParseVariant(aValue, VARIANT_AHI, nsnull);
@@ -6893,7 +6899,7 @@ CSSParserImpl::ParseBorderSide(const nsCSSProperty aPropIDs[],
     values[0].SetIntValue(NS_STYLE_BORDER_WIDTH_MEDIUM, eCSSUnit_Enumerated);
   }
   if ((found & 2) == 0) { // Provide default border-style
-    values[1].SetIntValue(NS_STYLE_BORDER_STYLE_NONE, eCSSUnit_Enumerated);
+    values[1].SetNoneValue();
   }
   if ((found & 4) == 0) { // text color will be used
     values[2].SetIntValue(NS_STYLE_COLOR_MOZ_USE_TEXT_COLOR, eCSSUnit_Enumerated);
@@ -6951,7 +6957,7 @@ CSSParserImpl::ParseDirectionalBorderSide(const nsCSSProperty aPropIDs[],
     values[0].SetIntValue(NS_STYLE_BORDER_WIDTH_MEDIUM, eCSSUnit_Enumerated);
   }
   if ((found & 2) == 0) { // Provide default border-style
-    values[1].SetIntValue(NS_STYLE_BORDER_STYLE_NONE, eCSSUnit_Enumerated);
+    values[1].SetNoneValue();
   }
   if ((found & 4) == 0) { // text color will be used
     values[2].SetIntValue(NS_STYLE_COLOR_MOZ_USE_TEXT_COLOR, eCSSUnit_Enumerated);
@@ -7273,7 +7279,7 @@ CSSParserImpl::ParseCursor()
       break;
     }
     if (!ParseVariant(cur->mValue,
-                      (cur == list) ? VARIANT_HUK : VARIANT_UK,
+                      (cur == list) ? VARIANT_AHUK : VARIANT_AUK,
                       nsCSSProps::kCursorKTable)) {
       break;
     }
@@ -7365,11 +7371,11 @@ CSSParserImpl::ParseFont()
   }
   if ((found & 1) == 0) {
     // Provide default font-style
-    values[0].SetIntValue(NS_FONT_STYLE_NORMAL, eCSSUnit_Enumerated);
+    values[0].SetNormalValue();
   }
   if ((found & 2) == 0) {
     // Provide default font-variant
-    values[1].SetIntValue(NS_FONT_VARIANT_NORMAL, eCSSUnit_Enumerated);
+    values[1].SetNormalValue();
   }
   if ((found & 4) == 0) {
     // Provide default font-weight
@@ -8097,7 +8103,7 @@ CSSParserImpl::ParseListStyle()
   // Provide default values
   if ((found & 2) == 0) {
     if (found & 1) {
-      values[1].SetIntValue(NS_STYLE_LIST_STYLE_NONE, eCSSUnit_Enumerated);
+      values[1].SetNoneValue();
     } else {
       values[1].SetIntValue(NS_STYLE_LIST_STYLE_DISC, eCSSUnit_Enumerated);
     }
@@ -8143,18 +8149,13 @@ CSSParserImpl::ParseMargin()
 PRBool
 CSSParserImpl::ParseMarks(nsCSSValue& aValue)
 {
-  if (ParseVariant(aValue, VARIANT_HK, nsCSSProps::kPageMarksKTable)) {
+  if (ParseVariant(aValue, VARIANT_HOK, nsCSSProps::kPageMarksKTable)) {
     if (eCSSUnit_Enumerated == aValue.GetUnit()) {
-      if (NS_STYLE_PAGE_MARKS_NONE != aValue.GetIntValue() &&
-          PR_FALSE == CheckEndProperty()) {
-        nsCSSValue second;
+      if (PR_FALSE == CheckEndProperty()) {
+        nsCSSValue  second;
         if (ParseEnum(second, nsCSSProps::kPageMarksKTable)) {
-          // 'none' keyword in conjuction with others is not allowed
-          if (NS_STYLE_PAGE_MARKS_NONE != second.GetIntValue()) {
-            aValue.SetIntValue(aValue.GetIntValue() | second.GetIntValue(),
-                               eCSSUnit_Enumerated);
-            return PR_TRUE;
-          }
+          aValue.SetIntValue(aValue.GetIntValue() | second.GetIntValue(), eCSSUnit_Enumerated);
+          return PR_TRUE;
         }
         return PR_FALSE;
       }
@@ -8181,17 +8182,17 @@ CSSParserImpl::ParseOutline()
   }
 
   // Provide default values
-  if ((found & 1) == 0) { // Provide default outline-color
+  if ((found & 1) == 0) {
 #ifdef GFX_HAS_INVERT
     values[0].SetIntValue(NS_STYLE_COLOR_INVERT, eCSSUnit_Enumerated);
 #else
     values[0].SetIntValue(NS_STYLE_COLOR_MOZ_USE_TEXT_COLOR, eCSSUnit_Enumerated);
 #endif
   }
-  if ((found & 2) == 0) { // Provide default outline-style
-    values[1].SetIntValue(NS_STYLE_BORDER_STYLE_NONE, eCSSUnit_Enumerated);
+  if ((found & 2) == 0) {
+    values[1].SetNoneValue();
   }
-  if ((found & 4) == 0) { // Provide default outline-width
+  if ((found & 4) == 0) {
     values[2].SetIntValue(NS_STYLE_BORDER_WIDTH_MEDIUM, eCSSUnit_Enumerated);
   }
 
@@ -8206,8 +8207,8 @@ PRBool
 CSSParserImpl::ParseOverflow()
 {
   nsCSSValue overflow;
-  if (!ParseVariant(overflow, VARIANT_HK,
-                    nsCSSProps::kOverflowKTable) ||
+  if (!ParseVariant(overflow, VARIANT_AHK,
+                   nsCSSProps::kOverflowKTable) ||
       !ExpectEndProperty())
     return PR_FALSE;
 
@@ -8355,30 +8356,25 @@ CSSParserImpl::ParseSize()
 PRBool
 CSSParserImpl::ParseTextDecoration(nsCSSValue& aValue)
 {
-  if (ParseVariant(aValue, VARIANT_HK, nsCSSProps::kTextDecorationKTable)) {
-    if (eCSSUnit_Enumerated == aValue.GetUnit()) {
+  if (ParseVariant(aValue, VARIANT_HOK, nsCSSProps::kTextDecorationKTable)) {
+    if (eCSSUnit_Enumerated == aValue.GetUnit()) {  // look for more keywords
       PRInt32 intValue = aValue.GetIntValue();
-      if (intValue != NS_STYLE_TEXT_DECORATION_NONE) {
-        // look for more keywords
-        nsCSSValue  keyword;
-        PRInt32 index;
-        for (index = 0; index < 3; index++) {
-          if (ParseEnum(keyword, nsCSSProps::kTextDecorationKTable)) {
-            PRInt32 newValue = keyword.GetIntValue();
-            if (newValue == NS_STYLE_TEXT_DECORATION_NONE ||
-                newValue & intValue) {
-              // 'none' keyword in conjuction with others is not allowed, and
-              // duplicate keyword is not allowed.
-              return PR_FALSE;
-            }
-            intValue |= newValue;
+      nsCSSValue  keyword;
+      PRInt32 index;
+      for (index = 0; index < 3; index++) {
+        if (ParseEnum(keyword, nsCSSProps::kTextDecorationKTable)) {
+          PRInt32 newValue = keyword.GetIntValue();
+          if (newValue & intValue) {
+            // duplicate keyword is not allowed
+            return PR_FALSE;
           }
-          else {
-            break;
-          }
+          intValue |= newValue;
         }
-        aValue.SetIntValue(intValue, eCSSUnit_Enumerated);
+        else {
+          break;
+        }
       }
+      aValue.SetIntValue(intValue, eCSSUnit_Enumerated);
     }
     return PR_TRUE;
   }

@@ -270,7 +270,6 @@ class nsFastLoadFileReader
     }
 
     virtual ~nsFastLoadFileReader() {
-        Close();
         MOZ_COUNT_DTOR(nsFastLoadFileReader);
     }
 

@@ -138,7 +138,6 @@ nsHttpChannel::nsHttpChannel()
     , mLoadedFromApplicationCache(PR_FALSE)
     , mTracingEnabled(PR_TRUE)
     , mForceAllowThirdPartyCookie(PR_FALSE)
-    , mCustomConditionalRequest(PR_FALSE)
 {
     LOG(("Creating nsHttpChannel @%x\n", this));
 
@@ -272,6 +271,17 @@ nsHttpChannel::AsyncCall(nsAsyncCallback funcPtr,
     }
 
     return rv;
+}
+
+PRBool
+nsHttpChannel::RequestIsConditional()
+{
+    // Is our consumer issuing a conditional request?
+    return mRequestHead.PeekHeader(nsHttp::If_Modified_Since) ||
+           mRequestHead.PeekHeader(nsHttp::If_None_Match) ||
+           mRequestHead.PeekHeader(nsHttp::If_Unmodified_Since) ||
+           mRequestHead.PeekHeader(nsHttp::If_Match) ||
+           mRequestHead.PeekHeader(nsHttp::If_Range);
 }
 
 nsresult
@@ -1491,11 +1501,6 @@ nsHttpChannel::ProcessNotModified()
 
     LOG(("nsHttpChannel::ProcessNotModified [this=%x]\n", this)); 
 
-    if (mCustomConditionalRequest) {
-        LOG(("Bypassing ProcessNotModified due to custom conditional headers")); 
-        return NS_ERROR_FAILURE;
-    }
-
     NS_ENSURE_TRUE(mCachedResponseHead, NS_ERROR_NOT_INITIALIZED);
     NS_ENSURE_TRUE(mCacheEntry, NS_ERROR_NOT_INITIALIZED);
 
@@ -1676,6 +1681,12 @@ nsHttpChannel::OpenCacheEntry(PRBool offline, PRBool *delayed)
     // byte range requests.
     if (IsSubRangeRequest(mRequestHead))
         return NS_OK;
+
+    if (RequestIsConditional()) {
+        // don't use the cache if our consumer is making a conditional request
+        // (see bug 331825).
+        return NS_OK;
+    }
 
     GenerateCacheKey(mPostID, cacheKey);
 
@@ -1870,6 +1881,12 @@ nsHttpChannel::OpenOfflineCacheEntryForWriting()
     // byte range requests.
     if (IsSubRangeRequest(mRequestHead))
         return NS_OK;
+
+    if (RequestIsConditional()) {
+        // don't use the cache if our consumer is making a conditional request
+        // (see bug 331825).
+        return NS_OK;
+    }
 
     nsCAutoString cacheKey;
     GenerateCacheKey(mPostID, cacheKey);
@@ -2091,12 +2108,9 @@ nsHttpChannel::CheckCache()
     PRBool doValidation = PR_FALSE;
     PRBool canAddImsHeader = PR_TRUE;
 
-    mCustomConditionalRequest = 
-        mRequestHead.PeekHeader(nsHttp::If_Modified_Since) ||
-        mRequestHead.PeekHeader(nsHttp::If_None_Match) ||
-        mRequestHead.PeekHeader(nsHttp::If_Unmodified_Since) ||
-        mRequestHead.PeekHeader(nsHttp::If_Match) ||
-        mRequestHead.PeekHeader(nsHttp::If_Range);
+    // Be optimistic: assume that we won't need to do validation
+    mRequestHead.ClearHeader(nsHttp::If_Modified_Since);
+    mRequestHead.ClearHeader(nsHttp::If_None_Match);
 
     // If the LOAD_FROM_CACHE flag is set, any cached data can simply be used.
     if (mLoadFlags & LOAD_FROM_CACHE) {
@@ -2173,20 +2187,6 @@ nsHttpChannel::CheckCache()
         LOG(("%salidating based on expiration time\n", doValidation ? "V" : "Not v"));
     }
 
-    if (!doValidation && mRequestHead.PeekHeader(nsHttp::If_Match) &&
-        (method == nsHttp::Get || method == nsHttp::Head)) {
-        const char *requestedETag, *cachedETag;
-        cachedETag = mCachedResponseHead->PeekHeader(nsHttp::ETag);
-        requestedETag = mRequestHead.PeekHeader(nsHttp::If_Match);
-        if (cachedETag && (!strncmp(cachedETag, "W/", 2) ||
-            strcmp(requestedETag, cachedETag))) {
-            // User has defined If-Match header, if the cached entry is not 
-            // matching the provided header value or the cached ETag is weak,
-            // force validation.
-            doValidation = PR_TRUE;
-        }
-    }
-
     if (!doValidation) {
         //
         // Check the authorization headers used to generate the cache entry.
@@ -2226,11 +2226,9 @@ nsHttpChannel::CheckCache()
         //
         // the request method MUST be either GET or HEAD (see bug 175641).
         //
-        // do not override conditional headers when consumer has defined its own
         if (!mCachedResponseHead->NoStore() &&
             (mRequestHead.Method() == nsHttp::Get ||
-             mRequestHead.Method() == nsHttp::Head) &&
-             !mCustomConditionalRequest) {
+             mRequestHead.Method() == nsHttp::Head)) {
             const char *val;
             // Add If-Modified-Since header if a Last-Modified was given
             // and we are allowed to do this (see bugs 510359 and 269303)

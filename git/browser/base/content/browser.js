@@ -220,13 +220,8 @@ function SetClickAndHoldHandlers() {
     if (aEvent.button == 0 &&
         aEvent.target == aEvent.currentTarget &&
         !aEvent.currentTarget.open &&
-        !aEvent.currentTarget.disabled) {
-      let cmdEvent = document.createEvent("xulcommandevent");
-      cmdEvent.initCommandEvent("command", true, true, window, 0,
-                                aEvent.ctrlKey, aEvent.altKey, aEvent.shiftKey,
-                                aEvent.metaKey, null);
-      aEvent.currentTarget.dispatchEvent(cmdEvent);
-    }
+        !aEvent.currentTarget.disabled)
+      aEvent.currentTarget.doCommand();
   }
 
   function stopTimer(aEvent) {
@@ -682,8 +677,8 @@ let gGestureSupport = {
     let addRemove = aAddListener ? window.addEventListener :
       window.removeEventListener;
 
-    gestureEvents.forEach(function (event) addRemove("Moz" + event, this, true),
-                          this);
+    for each (let event in gestureEvents)
+      addRemove("Moz" + event, this, true);
   },
 
   /**
@@ -791,14 +786,13 @@ let gGestureSupport = {
   _power: function GS__power(aArray) {
     // Create a bitmask based on the length of the array
     let num = 1 << aArray.length;
-    while (--num >= 0) {
+    while (--num >= 0)
       // Only select array elements where the current bit is set
-      yield aArray.reduce(function (aPrev, aCurr, aIndex) {
+      yield aArray.reduce(function(aPrev, aCurr, aIndex) {
         if (num & 1 << aIndex)
           aPrev.push(aCurr);
         return aPrev;
       }, []);
-    }
   },
 
   /**
@@ -813,44 +807,47 @@ let gGestureSupport = {
    *         command is found, no value is returned (undefined).
    */
   _doAction: function GS__doAction(aEvent, aGesture) {
+    // Create a fake event that pretends the gesture is a button click
+    let fakeEvent = { shiftKey: aEvent.shiftKey, ctrlKey: aEvent.ctrlKey,
+      metaKey: aEvent.metaKey, altKey: aEvent.altKey, button: 0 };
+
     // Create an array of pressed keys in a fixed order so that a command for
     // "meta" is preferred over "ctrl" when both buttons are pressed (and a
     // command for both don't exist)
     let keyCombos = [];
-    ["shift", "alt", "ctrl", "meta"].forEach(function (key) {
+    const keys = ["shift", "alt", "ctrl", "meta"];
+    for each (let key in keys)
       if (aEvent[key + "Key"])
         keyCombos.push(key);
-    });
 
-    // Try each combination of key presses in decreasing order for commands
-    for each (let subCombo in this._power(keyCombos)) {
-      // Convert a gesture and pressed keys into the corresponding command
-      // action where the preference has the gesture before "shift" before
-      // "alt" before "ctrl" before "meta" all separated by periods
-      let command;
-      try {
-        command = this._getPref(aGesture.concat(subCombo).join("."));
-      } catch (e) {}
+    try {
+      // Try each combination of key presses in decreasing order for commands
+      for (let subCombo in this._power(keyCombos)) {
+        // Convert a gesture and pressed keys into the corresponding command
+        // action where the preference has the gesture before "shift" before
+        // "alt" before "ctrl" before "meta" all separated by periods
+        let command = this._getPref(aGesture.concat(subCombo).join("."));
 
-      if (!command)
-        continue;
+        // Do the command if we found one to do
+        if (command) {
+          let node = document.getElementById(command);
+          // Use the command element if it exists
+          if (node && node.hasAttribute("oncommand")) {
+            // XXX: Use node.oncommand(event) once bug 246720 is fixed
+            if (node.getAttribute("disabled") != "true")
+              new Function("event", node.getAttribute("oncommand")).
+                call(node, fakeEvent);
+          }
+          // Otherwise it should be a "standard" command
+          else
+            goDoCommand(command);
 
-      let node = document.getElementById(command);
-      if (node) {
-        if (node.getAttribute("disabled") != "true") {
-          let cmdEvent = document.createEvent("xulcommandevent");
-          cmdEvent.initCommandEvent("command", true, true, window, 0,
-                                    aEvent.ctrlKey, aEvent.altKey, aEvent.shiftKey,
-                                    aEvent.metaKey, null);
-          node.dispatchEvent(cmdEvent);
+          return command;
         }
-      } else {
-        goDoCommand(command);
       }
-
-      return command;
     }
-    return null;
+    // The generator ran out of key combinations, so just do nothing
+    catch (e) {}
   },
 
   /**
@@ -871,10 +868,9 @@ let gGestureSupport = {
    */
   onSwipe: function GS_onSwipe(aEvent) {
     // Figure out which one (and only one) direction was triggered 
-    ["UP", "RIGHT", "DOWN", "LEFT"].forEach(function (dir) {
+    for each (let dir in ["UP", "RIGHT", "DOWN", "LEFT"])
       if (aEvent.direction == aEvent["DIRECTION_" + dir])
         return this._doAction(aEvent, ["swipe", dir.toLowerCase()]);
-    }, this);
   },
 
   /**
@@ -1541,7 +1537,8 @@ function initializeSanitizer()
    */
   if (!gPrefService.getBoolPref("privacy.sanitize.migrateFx3Prefs")) {
     let itemBranch = gPrefService.getBranch("privacy.item.");
-    let itemArray = itemBranch.getChildList("");
+    let itemCount = { value: 0 };
+    let itemArray = itemBranch.getChildList("", itemCount);
 
     // See if any privacy.item prefs are set
     let doMigrate = itemArray.some(function (name) itemBranch.prefHasUserValue(name));
@@ -2085,9 +2082,9 @@ function BrowserViewSourceOfDocument(aDocument)
 
 // doc - document to use for source, or null for this window's document
 // initialTab - name of the initial tab to display, or null for the first tab
-// imageElement - image to load in the Media Tab of the Page Info window; can be null/omitted
-function BrowserPageInfo(doc, initialTab, imageElement) {
-  var args = {doc: doc, initialTab: initialTab, imageElement: imageElement};
+function BrowserPageInfo(doc, initialTab)
+{
+  var args = {doc: doc, initialTab: initialTab};
   return toOpenDialogByTypeAndUrl("Browser:page-info",
                                   doc ? doc.location : window.content.document.location,
                                   "chrome://browser/content/pageinfo/pageInfo.xul",
@@ -2630,7 +2627,7 @@ function FillInHTMLTooltip(tipElement)
   var tipNode = document.getElementById("aHTMLTooltip");
   tipNode.style.direction = direction;
   
-  [titleText, XLinkTitleText].forEach(function (t) {
+  for each (var t in [titleText, XLinkTitleText]) {
     if (t && /\S/.test(t)) {
 
       // Per HTML 4.01 6.2 (CDATA section), literal CRs and tabs should be
@@ -2644,7 +2641,7 @@ function FillInHTMLTooltip(tipElement)
       tipNode.setAttribute("label", t);
       retVal = true;
     }
-  });
+  }
 
   return retVal;
 }
@@ -6117,7 +6114,6 @@ var FeedHandler = {
       var menuItem = document.createElement("menuitem");
       var baseTitle = feedInfo.title || feedInfo.href;
       var labelStr = gNavigatorBundle.getFormattedString("feedShowFeedNew", [baseTitle]);
-      menuItem.setAttribute("class", "feed-menuitem");
       menuItem.setAttribute("label", labelStr);
       menuItem.setAttribute("feed", feedInfo.href);
       menuItem.setAttribute("tooltiptext", feedInfo.href);
@@ -7065,14 +7061,6 @@ var LightWeightThemeWebInstaller = {
   handleEvent: function (event) {
     switch (event.type) {
       case "InstallBrowserTheme":
-      case "PreviewBrowserTheme":
-      case "ResetBrowserThemePreview":
-        // ignore requests from background tabs
-        if (event.target.ownerDocument.defaultView.top != content)
-          return;
-    }
-    switch (event.type) {
-      case "InstallBrowserTheme":
         this._installRequest(event);
         break;
       case "PreviewBrowserTheme":
@@ -7080,10 +7068,6 @@ var LightWeightThemeWebInstaller = {
         break;
       case "ResetBrowserThemePreview":
         this._resetPreview(event);
-        break;
-      case "pagehide":
-      case "TabSelect":
-        this._resetPreview();
         break;
     }
   },
@@ -7177,7 +7161,6 @@ var LightWeightThemeWebInstaller = {
       });
   },
 
-  _previewWindow: null,
   _preview: function (event) {
     if (!this._isAllowed(event.target))
       return;
@@ -7186,23 +7169,12 @@ var LightWeightThemeWebInstaller = {
     if (!data)
       return;
 
-    this._resetPreview();
-
-    this._previewWindow = event.target.ownerDocument.defaultView;
-    this._previewWindow.addEventListener("pagehide", this, true);
-    gBrowser.tabContainer.addEventListener("TabSelect", this, false);
-
     this._manager.previewTheme(data);
   },
 
   _resetPreview: function (event) {
-    if (!this._previewWindow ||
-        event && !this._isAllowed(event.target))
+    if (!this._isAllowed(event.target))
       return;
-
-    this._previewWindow.removeEventListener("pagehide", this, true);
-    this._previewWindow = null;
-    gBrowser.tabContainer.removeEventListener("TabSelect", this, false);
 
     this._manager.resetPreview();
   },

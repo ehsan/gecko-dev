@@ -57,7 +57,6 @@ function test() {
     
     ss.setTabState(tab, "{ entries: [] }");
     tab.linkedBrowser.addEventListener("load", function(aEvent) {
-      this.removeEventListener("load", arguments.callee, true);
       ok(history.count == 0, "the tab was restored without any history whatsoever");
       
       tabbrowser.removeTab(tab);
@@ -65,8 +64,7 @@ function test() {
          "The closed blank tab wasn't added to Recently Closed Tabs");
       
       // clean up
-      if (gPrefService.prefHasUserValue("browser.sessionstore.max_tabs_undo"))
-        gPrefService.clearUserPref("browser.sessionstore.max_tabs_undo");
+      gPrefService.clearUserPref("browser.sessionstore.max_tabs_undo");
       finish();
     }, true);
   }, true);

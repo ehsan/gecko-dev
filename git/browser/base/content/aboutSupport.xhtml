@@ -134,49 +134,6 @@ td {
 const Cc = Components.classes;
 const Ci = Components.interfaces;
 
-let gPrefService = Cc["@mozilla.org/preferences-service;1"]
-                     .getService(Ci.nsIPrefService)
-                     .QueryInterface(Ci.nsIPrefBranch2);
-
-const ELLIPSIS = gPrefService.getComplexValue("intl.ellipsis",
-                                              Ci.nsIPrefLocalizedString).data;
-
-// We use a preferences whitelist to make sure we only show preferences that
-// are useful for support and won't compromise the user's privacy.  Note that
-// entries are *prefixes*: for example, "accessibility." applies to all prefs
-// under the "accessibility.*" branch.
-const PREFS_WHITELIST = [
-  "accessibility.",
-  "browser.fixup.",
-  "browser.history_expire_",
-  "browser.link.open_newwindow",
-  "browser.mousewheel.",
-  "browser.places.",
-  "browser.startup.homepage",
-  "browser.tabs.",
-  "browser.zoom.",
-  "dom.",
-  "extensions.checkCompatibility",
-  "extensions.lastAppVersion",
-  "font.",
-  "general.useragent.",
-  "gfx.color_management.mode",
-  "javascript.",
-  "keyword.", 
-  "layout.css.dpi",
-  "network.",
-  "places.",
-  "print.",
-  "privacy.",
-  "security."
-];
-
-// The blacklist, unlike the whitelist, is a list of regular expressions.
-const PREFS_BLACKLIST = [
-  /^network[.]proxy[.]/,
-  /[.]print_to_filename$/,
-];
-
 window.onload = function () {
   // Get the FUEL Application object.
   let Application = Cc["@mozilla.org/fuel/application;1"]
@@ -187,9 +144,16 @@ window.onload = function () {
                        .getService(Ci.nsIURLFormatter);
   let supportUrl = urlFormatter.formatURLPref("app.support.baseURL");
 
+  // Get the profile directory.
+  let propertiesService = Cc["@mozilla.org/file/directory_service;1"]
+                            .getService(Ci.nsIProperties);
+  let currProfD = propertiesService.get("ProfD", Ci.nsIFile);
+  let profileDir = currProfD.path;
+
   // Update the application basics section.
   document.getElementById("application-box").textContent = Application.name;
   document.getElementById("version-box").textContent = Application.version;
+  document.getElementById("profile-box").textContent = profileDir;
   document.getElementById("supportLink").href = supportUrl;
 
   // Update the other sections.
@@ -227,26 +191,14 @@ function populatePreferencesSection() {
   let sortedPrefs = modifiedPrefs.sort(comparePrefs);
 
   let trPrefs = [];
-  sortedPrefs.forEach(function (pref) {
+  for each (let pref in sortedPrefs) {
     let tdName = createElement("td", pref.name, "pref-name");
-    let tdValue = createElement("td", formatPrefValue(pref.value), "pref-value");
+    let tdValue = createElement("td", pref.value, "pref-value");
     let tr = createParentElement("tr", [tdName, tdValue]);
     trPrefs.push(tr);
-  });
+  }
 
   appendChildren(document.getElementById("prefs-tbody"), trPrefs);
-}
-
-function formatPrefValue(prefValue) {
-  // Some pref values are really long and don't have spaces.  This can cause
-  // problems when copying and pasting into some WYSIWYG editors.  In general
-  // the exact contents of really long pref values aren't particularly useful,
-  // so we truncate them to some reasonable length. 
-  let maxPrefValueLen = 120;
-  let text = "" + prefValue;
-  if (text.length > maxPrefValueLen)
-    text = text.substring(0, maxPrefValueLen) + ELLIPSIS;
-  return text;
 }
 
 function getModifiedPrefs() {
@@ -254,25 +206,14 @@ function getModifiedPrefs() {
   // modified, rather that Application.prefs.all since the latter is
   // much, much slower.  Application.prefs.all also gets slower each
   // time it's called.  See bug 517312.
-  let prefNames = getWhitelistedPrefNames();
+  let prefService = Cc["@mozilla.org/preferences-service;1"]
+                      .getService(Ci.nsIPrefService);
+  let prefRootBranch = prefService.getBranch("");
+  let prefNames = prefRootBranch.getChildList("", { value: 0 });
   let prefs = [Application.prefs.get(prefName)
                       for each (prefName in prefNames)
-                          if (gPrefService.prefHasUserValue(prefName)
-                            && !isBlacklisted(prefName))];
+                          if (prefRootBranch.prefHasUserValue(prefName))];        
   return prefs;
-}
-
-function getWhitelistedPrefNames() {
-  let results = [];
-  PREFS_WHITELIST.forEach(function (prefStem) {
-    let prefNames = gPrefService.getChildList(prefStem);
-    results = results.concat(prefNames);
-  });
-  return results;
-}
-
-function isBlacklisted(prefName) {
-  return PREFS_BLACKLIST.some(function (re) re.test(prefName));
 }
 
 function createParentElement(tagName, childElems) {
@@ -334,12 +275,7 @@ function createTextForElement(elem) {
   // Trim extraneous whitespace before newlines, then squash extraneous
   // blank lines.
   text = text.replace(/[ \t]+\n/g, "\n");
-  text = text.replace(/\n\n\n+/g, "\n\n");
-  
-  // Actual CR/LF pairs are needed for some Windows text editors.
-#ifdef XP_WIN
-  text = text.replace(/\n/g, "\r\n");
-#endif
+  text = text.replace(/\n\n\n*/g, "\n\n");
 
   return text;
 }
@@ -378,19 +314,6 @@ function generateTextForTextNode(node, indent, textFragmentAccumulator) {
   // any internal line breaks.  
   let text = node.textContent.trim().replace("\n[ \t]*", "\n" + indent);
   textFragmentAccumulator.push(text);
-}
-
-function openProfileDirectory() {
-  // Get the profile directory.
-  let propertiesService = Cc["@mozilla.org/file/directory_service;1"]
-                            .getService(Ci.nsIProperties);
-  let currProfD = propertiesService.get("ProfD", Ci.nsIFile);
-  let profileDir = currProfD.path;
-
-  // Show the profile directory.
-  let nsLocalFile = Components.Constructor("@mozilla.org/file/local;1",
-                                           "nsILocalFile", "initWithPath");
-  new nsLocalFile(profileDir).reveal();
 }
 
     ]]></script>
@@ -446,17 +369,10 @@ function openProfileDirectory() {
               &aboutSupport.appBasicsProfileDir;
             </th>
 
-            <td>
-              <button onclick="openProfileDirectory()">
-#ifdef XP_MACOSX
-                &aboutSupport.showMac.label;
-#else
-                &aboutSupport.show.label;
-#endif
-               </button>
+            <td id="profile-box">
             </td>
           </tr>
-
+            
           <tr>
             <th class="column">
               &aboutSupport.appBasicsPlugins;

@@ -117,7 +117,6 @@
 #include "nsISecurityEventSink.h"
 #include "nsIChannelEventSink.h"
 #include "imgIRequest.h"
-#include "nsIDOMDOMImplementation.h"
 
 #define XML_DECLARATION_BITS_DECLARATION_EXISTS   (1 << 0)
 #define XML_DECLARATION_BITS_ENCODING_EXISTS      (1 << 1)
@@ -321,8 +320,7 @@ public:
 private:
   void FireChangeCallbacks(nsIContent* aOldContent, nsIContent* aNewContent);
 
-  // empty if there are no nodes with this ID.
-  // The content nodes are stored addrefed.
+  // empty if there are no nodes with this ID
   nsSmallVoidArray mIdContentList;
   // NAME_NOT_VALID if this id cannot be used as a 'name'
   nsBaseContentList *mNameContentList;
@@ -1171,8 +1169,14 @@ protected:
 
   // True if the document has been detached from its content viewer.
   PRPackedBool mIsGoingAway:1;
+  // True if our content viewer has been removed from the docshell
+  // (it may still be displayed, but in zombie state). Form control data
+  // has been saved.
+  PRPackedBool mRemovedFromDocShell:1;
   // True if the document is being destroyed.
   PRPackedBool mInDestructor:1;
+  // True if the document "page" is not hidden
+  PRPackedBool mVisible:1;
   // True if document has ever had script handling object.
   PRPackedBool mHasHadScriptHandlingObject:1;
 
@@ -1271,8 +1275,6 @@ private:
 
   // All images in process of being preloaded
   nsCOMArray<imgIRequest> mPreloadingImages;
-
-  nsCOMPtr<nsIDOMDOMImplementation> mDOMImplementation;
 
 #ifdef MOZ_SMIL
   nsAutoPtr<nsSMILAnimationController> mAnimationController;

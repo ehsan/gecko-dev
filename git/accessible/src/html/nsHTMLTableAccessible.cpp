@@ -924,12 +924,20 @@ NS_IMETHODIMP
 nsHTMLTableAccessible::GetCellAt(PRInt32 aRow, PRInt32 aColumn,
                                  nsIAccessible **aTableCellAccessible)
 {
+  NS_ENSURE_TRUE(IsValidRow(aRow) && IsValidColumn(aColumn), NS_ERROR_INVALID_ARG);
+
+  nsresult rv = NS_OK;
+
   nsCOMPtr<nsIDOMElement> cellElement;
-  nsresult rv = GetCellAt(aRow, aColumn, *getter_AddRefs(cellElement));
+  rv = GetCellAt(aRow, aColumn, *getter_AddRefs(cellElement));
   NS_ENSURE_SUCCESS(rv, rv);
 
-  return GetAccService()->GetAccessibleInWeakShell(cellElement, mWeakShell,
-                                                   aTableCellAccessible);
+  nsCOMPtr<nsIAccessibilityService>
+    accService(do_GetService("@mozilla.org/accessibilityService;1"));
+  NS_ENSURE_TRUE(accService, NS_ERROR_FAILURE);
+
+  return accService->GetAccessibleInWeakShell(cellElement, mWeakShell,
+                                              aTableCellAccessible);
 }
 
 NS_IMETHODIMP
@@ -937,6 +945,8 @@ nsHTMLTableAccessible::GetCellIndexAt(PRInt32 aRow, PRInt32 aColumn,
                                       PRInt32 *aIndex)
 {
   NS_ENSURE_ARG_POINTER(aIndex);
+
+  NS_ENSURE_TRUE(IsValidRow(aRow) && IsValidColumn(aColumn), NS_ERROR_INVALID_ARG);
 
   nsITableLayout *tableLayout = GetTableLayout();
   NS_ENSURE_STATE(tableLayout);
@@ -960,10 +970,7 @@ nsHTMLTableAccessible::GetColumnIndexAt(PRInt32 aIndex, PRInt32 *aColumn)
   NS_ENSURE_STATE(tableLayout);
 
   PRInt32 row;
-  nsresult rv = tableLayout->GetRowAndColumnByIndex(aIndex, &row, aColumn);
-  NS_ENSURE_SUCCESS(rv, rv);
-
-  return (row == -1 || *aColumn == -1) ? NS_ERROR_INVALID_ARG : NS_OK;
+  return tableLayout->GetRowAndColumnByIndex(aIndex, &row, aColumn);
 }
 
 NS_IMETHODIMP
@@ -978,10 +985,7 @@ nsHTMLTableAccessible::GetRowIndexAt(PRInt32 aIndex, PRInt32 *aRow)
   NS_ENSURE_STATE(tableLayout);
 
   PRInt32 column;
-  nsresult rv = tableLayout->GetRowAndColumnByIndex(aIndex, aRow, &column);
-  NS_ENSURE_SUCCESS(rv, rv);
-
-  return (*aRow == -1 || column == -1) ? NS_ERROR_INVALID_ARG : NS_OK;
+  return tableLayout->GetRowAndColumnByIndex(aIndex, aRow, &column);
 }
 
 NS_IMETHODIMP
@@ -989,6 +993,9 @@ nsHTMLTableAccessible::GetColumnExtentAt(PRInt32 aRowIndex,
                                          PRInt32 aColumnIndex,
                                          PRInt32 *aExtentCount)
 {
+  NS_ENSURE_TRUE(IsValidRow(aRowIndex) && IsValidColumn(aColumnIndex),
+                 NS_ERROR_INVALID_ARG);
+
   nsITableLayout *tableLayout = GetTableLayout();
   NS_ENSURE_STATE(tableLayout);
 
@@ -996,18 +1003,19 @@ nsHTMLTableAccessible::GetColumnExtentAt(PRInt32 aRowIndex,
   PRInt32 startRowIndex, startColIndex, rowSpan, colSpan, actualRowSpan;
   PRBool isSelected;
 
-  nsresult rv = tableLayout->
+  return tableLayout->
     GetCellDataAt(aRowIndex, aColumnIndex, *getter_AddRefs(domElement),
                   startRowIndex, startColIndex, rowSpan, colSpan,
                   actualRowSpan, *aExtentCount, isSelected);
-
-  return (rv == NS_TABLELAYOUT_CELL_NOT_FOUND) ? NS_ERROR_INVALID_ARG : NS_OK;
 }
 
 NS_IMETHODIMP
 nsHTMLTableAccessible::GetRowExtentAt(PRInt32 aRowIndex, PRInt32 aColumnIndex,
                                       PRInt32 *aExtentCount)
 {
+  NS_ENSURE_TRUE(IsValidRow(aRowIndex) && IsValidColumn(aColumnIndex),
+                 NS_ERROR_INVALID_ARG);
+
   nsITableLayout *tableLayout = GetTableLayout();
   NS_ENSURE_STATE(tableLayout);
 
@@ -1015,12 +1023,10 @@ nsHTMLTableAccessible::GetRowExtentAt(PRInt32 aRowIndex, PRInt32 aColumnIndex,
   PRInt32 startRowIndex, startColIndex, rowSpan, colSpan, actualColSpan;
   PRBool isSelected;
 
-  nsresult rv = tableLayout->
+  return tableLayout->
     GetCellDataAt(aRowIndex, aColumnIndex, *getter_AddRefs(domElement),
                   startRowIndex, startColIndex, rowSpan, colSpan,
                   *aExtentCount, actualColSpan, isSelected);
-
-  return (rv == NS_TABLELAYOUT_CELL_NOT_FOUND) ? NS_ERROR_INVALID_ARG : NS_OK;
 }
 
 NS_IMETHODIMP
@@ -1036,63 +1042,51 @@ nsHTMLTableAccessible::GetRowDescription(PRInt32 aRow, nsAString &_retval)
 }
 
 NS_IMETHODIMP
-nsHTMLTableAccessible::IsColumnSelected(PRInt32 aColumn, PRBool *aIsSelected)
+nsHTMLTableAccessible::IsColumnSelected(PRInt32 aColumn, PRBool *_retval)
 {
-  NS_ENSURE_ARG_POINTER(aIsSelected);
-  *aIsSelected = PR_FALSE;
+  NS_ENSURE_ARG_POINTER(_retval);
 
-  PRInt32 colCount = 0;
-  nsresult rv = GetColumnCount(&colCount);
+  NS_ENSURE_TRUE(IsValidColumn(aColumn), NS_ERROR_INVALID_ARG);
+
+  nsresult rv = NS_OK;
+
+  PRInt32 rows;
+  rv = GetRowCount(&rows);
   NS_ENSURE_SUCCESS(rv, rv);
 
-  if (aColumn < 0 || aColumn >= colCount)
-    return NS_ERROR_INVALID_ARG;
-
-  PRInt32 rowCount = 0;
-  rv = GetRowCount(&rowCount);
-  NS_ENSURE_SUCCESS(rv, rv);
-
-  for (PRInt32 rowIdx = 0; rowIdx < rowCount; rowIdx++) {
-    PRBool isSelected = PR_FALSE;
-    rv = IsCellSelected(rowIdx, aColumn, &isSelected);
-    if (NS_SUCCEEDED(rv)) {
-      *aIsSelected = isSelected;
-      if (!isSelected)
-        break;
+  for (PRInt32 index = 0; index < rows; index++) {
+    rv = IsCellSelected(index, aColumn, _retval);
+    NS_ENSURE_SUCCESS(rv, rv);
+    if (!*_retval) {
+      break;
     }
   }
 
-  return NS_OK;
+  return rv;
 }
 
 NS_IMETHODIMP
-nsHTMLTableAccessible::IsRowSelected(PRInt32 aRow, PRBool *aIsSelected)
+nsHTMLTableAccessible::IsRowSelected(PRInt32 aRow, PRBool *_retval)
 {
-  NS_ENSURE_ARG_POINTER(aIsSelected);
-  *aIsSelected = PR_FALSE;
+  NS_ENSURE_ARG_POINTER(_retval);
 
-  PRInt32 rowCount = 0;
-  nsresult rv = GetRowCount(&rowCount);
+  NS_ENSURE_TRUE(IsValidRow(aRow), NS_ERROR_INVALID_ARG);
+
+  nsresult rv = NS_OK;
+
+  PRInt32 columns;
+  rv = GetColumnCount(&columns);
   NS_ENSURE_SUCCESS(rv, rv);
 
-  if (aRow < 0 || aRow >= rowCount)
-    return NS_ERROR_INVALID_ARG;
-
-  PRInt32 colCount = 0;
-  rv = GetColumnCount(&colCount);
-  NS_ENSURE_SUCCESS(rv, rv);
-
-  for (PRInt32 colIdx = 0; colIdx < colCount; colIdx++) {
-    PRBool isSelected = PR_FALSE;
-    rv = IsCellSelected(aRow, colIdx, &isSelected);
-    if (NS_SUCCEEDED(rv)) {
-      *aIsSelected = isSelected;
-      if (!isSelected)
-        break;
+  for (PRInt32 index = 0; index < columns; index++) {
+    rv = IsCellSelected(aRow, index, _retval);
+    NS_ENSURE_SUCCESS(rv, rv);
+    if (!*_retval) {
+      break;
     }
   }
 
-  return NS_OK;
+  return rv;
 }
 
 NS_IMETHODIMP
@@ -1101,6 +1095,9 @@ nsHTMLTableAccessible::IsCellSelected(PRInt32 aRow, PRInt32 aColumn,
 {
   NS_ENSURE_ARG_POINTER(aIsSelected);
   *aIsSelected = PR_FALSE;
+
+  NS_ENSURE_TRUE(IsValidRow(aRow) && IsValidColumn(aColumn),
+                 NS_ERROR_INVALID_ARG);
 
   nsITableLayout *tableLayout = GetTableLayout();
   NS_ENSURE_STATE(tableLayout);
@@ -1117,6 +1114,22 @@ nsHTMLTableAccessible::IsCellSelected(PRInt32 aRow, PRInt32 aColumn,
   if (rv == NS_TABLELAYOUT_CELL_NOT_FOUND)
     return NS_ERROR_INVALID_ARG;
   return rv;
+}
+
+PRBool
+nsHTMLTableAccessible::IsValidColumn(PRInt32 aColumn)
+{
+  PRInt32 colCount = 0;
+  nsresult rv = GetColumnCount(&colCount);
+  return NS_SUCCEEDED(rv) && (aColumn >= 0) && (aColumn < colCount);
+}
+
+PRBool
+nsHTMLTableAccessible::IsValidRow(PRInt32 aRow)
+{
+  PRInt32 rowCount = 0;
+  nsresult rv = GetRowCount(&rowCount);
+  return NS_SUCCEEDED(rv) && (aRow >= 0) && (aRow < rowCount);
 }
 
 NS_IMETHODIMP

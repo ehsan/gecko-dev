@@ -97,8 +97,7 @@ function test() {
       is(cookie.path, cookie2.path, "cookie path successfully restored");
 
       // clean up
-      if (gPrefService.prefHasUserValue("browser.sessionstore.interval"))
-        gPrefService.clearUserPref("browser.sessionstore.interval");
+      gPrefService.clearUserPref("browser.sessionstore.interval");
       cs.removeAll();
       newWin.close();
       finish();

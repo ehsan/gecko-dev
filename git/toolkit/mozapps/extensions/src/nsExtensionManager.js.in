@@ -54,7 +54,6 @@ const Cr = Components.results;
 
 Components.utils.import("resource://gre/modules/XPCOMUtils.jsm");
 Components.utils.import("resource://gre/modules/LightweightThemeManager.jsm");
-Components.utils.import("resource://gre/modules/FileUtils.jsm");
 
 const PREF_EM_CHECK_COMPATIBILITY     = "extensions.checkCompatibility";
 const PREF_EM_CHECK_UPDATE_SECURITY   = "extensions.checkUpdateSecurity";
@@ -89,6 +88,7 @@ const FILE_EXTENSIONS                 = "extensions.rdf";
 const FILE_EXTENSION_MANIFEST         = "extensions.ini";
 const FILE_EXTENSIONS_STARTUP_CACHE   = "extensions.cache";
 const FILE_EXTENSIONS_LOG             = "extensions.log";
+const FILE_AUTOREG                    = ".autoreg";
 const FILE_INSTALL_MANIFEST           = "install.rdf";
 const FILE_CHROME_MANIFEST            = "chrome.manifest";
 
@@ -173,6 +173,15 @@ const INSTALLERROR_INVALID_MANIFEST      = -8;
 const INSTALLERROR_RESTRICTED            = -9;
 const INSTALLERROR_SOFTBLOCKED           = -10;
 
+const MODE_RDONLY   = 0x01;
+const MODE_WRONLY   = 0x02;
+const MODE_CREATE   = 0x08;
+const MODE_APPEND   = 0x10;
+const MODE_TRUNCATE = 0x20;
+
+const PERMS_FILE      = 0644;
+const PERMS_DIRECTORY = 0755;
+
 const REQ_VERSION = 2;
 
 var gApp  = null;
@@ -186,6 +195,7 @@ var gOSTarget             = null;
 var gConsole              = null;
 var gInstallManifestRoot  = null;
 var gVersionChecker       = null;
+var gDirService           = null;
 var gLoggingEnabled       = null;
 var gCheckCompatibility   = true;
 var gCheckUpdateSecurity  = true;
@@ -202,11 +212,7 @@ var gDefaultTheme         = "classic/1.0";
 var gIDTest = /^(\{[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\}|[a-z0-9-\._]*\@[a-z0-9-\._]+)$/i;
 
 // shared code for suppressing bad cert dialogs
-XPCOMUtils.defineLazyGetter(this, "gCertUtils", function() {
-  let temp = { };
-  Components.utils.import("resource://gre/modules/CertUtils.jsm", temp);
-  return temp;
-});
+#include ../../shared/src/badCertHandler.js
 
 /**
  * Creates a Version Checker object.
@@ -333,6 +339,85 @@ function makeItem(id, version, locationKey, minVersion, maxVersion, name,
 }
 
 /**
+ * Gets the specified directory at the specified hierarchy under a
+ * Directory Service key.
+ * @param   key
+ *          The Directory Service Key to start from
+ * @param   pathArray
+ *          An array of path components to locate beneath the directory
+ *          specified by |key|
+ * @return  nsIFile object for the location specified. If the directory
+ *          requested does not exist, it is created, along with any
+ *          parent directories that need to be created.
+ */
+function getDir(key, pathArray) {
+  return getDirInternal(key, pathArray, true);
+}
+
+/**
+ * Gets the specified directory at the specified hierarchy under a
+ * Directory Service key.
+ * @param   key
+ *          The Directory Service Key to start from
+ * @param   pathArray
+ *          An array of path components to locate beneath the directory
+ *          specified by |key|
+ * @return  nsIFile object for the location specified. If the directory
+ *          requested does not exist, it is NOT created.
+ */
+function getDirNoCreate(key, pathArray) {
+  return getDirInternal(key, pathArray, false);
+}
+
+/**
+ * Gets the specified directory at the specified hierarchy under a
+ * Directory Service key.
+ * @param   key
+ *          The Directory Service Key to start from
+ * @param   pathArray
+ *          An array of path components to locate beneath the directory
+ *          specified by |key|
+ * @param   shouldCreate
+ *          true if the directory hierarchy specified in |pathArray|
+ *          should be created if it does not exist,
+ *          false otherwise.
+ * @return  nsIFile object for the location specified.
+ */
+function getDirInternal(key, pathArray, shouldCreate) {
+  if (!gDirService) {
+    gDirService = Cc["@mozilla.org/file/directory_service;1"].
+                  getService(Ci.nsIProperties);
+  }
+
+  var dir = gDirService.get(key, Ci.nsILocalFile);
+  for (var i = 0; i < pathArray.length; ++i) {
+    dir.append(pathArray[i]);
+    if (shouldCreate && !dir.exists())
+      dir.create(Ci.nsILocalFile.DIRECTORY_TYPE, PERMS_DIRECTORY);
+  }
+  dir.followLinks = false;
+  return dir;
+}
+
+/**
+ * Gets the file at the specified hierarchy under a Directory Service key.
+ * @param   key
+ *          The Directory Service Key to start from
+ * @param   pathArray
+ *          An array of path components to locate beneath the directory
+ *          specified by |key|. The last item in this array must be the
+ *          leaf name of a file.
+ * @return  nsIFile object for the file specified. The file is NOT created
+ *          if it does not exist, however all required directories along
+ *          the way are.
+ */
+function getFile(key, pathArray) {
+  var file = getDir(key, pathArray.slice(0, -1));
+  file.append(pathArray[pathArray.length - 1]);
+  return file;
+}
+
+/**
  * Gets the descriptor of a directory as a relative path to common base
  * directories (profile, user home, app install dir, etc).
  *
@@ -396,6 +481,37 @@ function fileIsItemPackage(file) {
 }
 
 /**
+ * Opens a safe file output stream for writing.
+ * @param   file
+ *          The file to write to.
+ * @param   modeFlags
+ *          (optional) File open flags. Can be undefined.
+ * @returns nsIFileOutputStream to write to.
+ */
+function openSafeFileOutputStream(file, modeFlags) {
+  var fos = Cc["@mozilla.org/network/safe-file-output-stream;1"].
+            createInstance(Ci.nsIFileOutputStream);
+  if (modeFlags === undefined)
+    modeFlags = MODE_WRONLY | MODE_CREATE | MODE_TRUNCATE;
+  if (!file.exists())
+    file.create(Ci.nsILocalFile.NORMAL_FILE_TYPE, PERMS_FILE);
+  fos.init(file, modeFlags, PERMS_FILE, 0);
+  return fos;
+}
+
+/**
+ * Closes a safe file output stream.
+ * @param   stream
+ *          The stream to close.
+ */
+function closeSafeFileOutputStream(stream) {
+  if (stream instanceof Ci.nsISafeOutputStream)
+    stream.finish();
+  else
+    stream.close();
+}
+
+/**
  * Deletes a directory and its children. First it tries nsIFile::Remove(true).
  * If that fails it will fall back to recursing, setting the appropriate
  * permissions, and deleting the current entry. This is needed for when we have
@@ -420,11 +536,11 @@ function removeDirRecursive(dir) {
       removeDirRecursive(entry);
     }
     else {
-      entry.permissions = FileUtils.PERMS_FILE;
+      entry.permissions = PERMS_FILE;
       entry.remove(false);
     }
   }
-  dir.permissions = FileUtils.PERMS_DIRECTORY;
+  dir.permissions = PERMS_DIRECTORY;
   dir.remove(true);
 }
 
@@ -477,7 +593,7 @@ function ERROR(string) {
   }
   try {
     var tstamp = new Date();
-    var logfile = FileUtils.getFile(KEY_PROFILEDIR, [FILE_EXTENSIONS_LOG]);
+    var logfile = getFile(KEY_PROFILEDIR, [FILE_EXTENSIONS_LOG]);
     var stream = Cc["@mozilla.org/network/file-output-stream;1"].
                  createInstance(Ci.nsIFileOutputStream);
     stream.init(logfile, 0x02 | 0x08 | 0x10, 0666, 0); // write, create, append
@@ -789,7 +905,7 @@ function verifyZipSigning(zip, principal) {
  * @return  The file created in the temp directory.
  */
 function extractRDFFileToTempDir(zipFile, fileName, suppressErrors) {
-  var file = FileUtils.getFile(KEY_TEMPDIR, [getRandomFileName(fileName)]);
+  var file = getFile(KEY_TEMPDIR, [getRandomFileName(fileName)]);
   try {
     var zipReader = getZipReaderForFile(zipFile);
     zipReader.extract(fileName, file);
@@ -1165,8 +1281,7 @@ DirectoryInstallLocation.prototype = {
     var testFile = this.location;
     testFile.append("Access Privileges Test");
     try {
-      testFile.createUnique(Ci.nsILocalFile.DIRECTORY_TYPE,
-                            FileUtils.PERMS_DIRECTORY);
+      testFile.createUnique(Ci.nsILocalFile.DIRECTORY_TYPE, PERMS_DIRECTORY);
       testFile.remove(false);
       this._canAccess = true;
     }
@@ -1192,8 +1307,7 @@ DirectoryInstallLocation.prototype = {
     if (itemLocation.exists() && !itemLocation.isDirectory())
       return this._readDirectoryFromFile(itemLocation);
     if (!itemLocation.exists() && this.canAccess)
-      itemLocation.create(Ci.nsILocalFile.DIRECTORY_TYPE,
-                          FileUtils.PERMS_DIRECTORY);
+      itemLocation.create(Ci.nsILocalFile.DIRECTORY_TYPE, PERMS_DIRECTORY);
     return itemLocation;
   },
 
@@ -1243,7 +1357,7 @@ DirectoryInstallLocation.prototype = {
 
     // If the file has incorrect permissions set, correct them now.
     if (!stagedFile.isWritable())
-      stagedFile.permissions = FileUtils.PERMS_FILE;
+      stagedFile.permissions = PERMS_FILE;
 
     return stagedFile;
   },
@@ -1592,8 +1706,7 @@ function safeInstallOperation(itemID, installLocation, file) {
       var target = installLocation.getItemFile(itemID, entryName);
       if (!target.exists()) {
         try {
-          target.create(Ci.nsILocalFile.DIRECTORY_TYPE,
-                        FileUtils.PERMS_DIRECTORY);
+          target.create(Ci.nsILocalFile.DIRECTORY_TYPE, PERMS_DIRECTORY);
         }
         catch (e) {
           ERROR("extractFiles: failed to create target directory for extraction " +
@@ -1610,7 +1723,7 @@ function safeInstallOperation(itemID, installLocation, file) {
         continue;
 
       try {
-        target.create(Ci.nsILocalFile.NORMAL_FILE_TYPE, FileUtils.PERMS_FILE);
+        target.create(Ci.nsILocalFile.NORMAL_FILE_TYPE, PERMS_FILE);
       }
       catch (e) {
         ERROR("extractFiles: failed to create target file for extraction " +
@@ -1684,8 +1797,7 @@ function safeInstallOperation(itemID, installLocation, file) {
           throw e;
         }
       }
-      itemLocationTrash.create(Ci.nsILocalFile.DIRECTORY_TYPE,
-                               FileUtils.PERMS_DIRECTORY);
+      itemLocationTrash.create(Ci.nsILocalFile.DIRECTORY_TYPE, PERMS_DIRECTORY);
       // Move the pointer file to the trash.
       moveFile(pointerFile, itemLocationTrash);
     }
@@ -1965,8 +2077,7 @@ var StartupCache = {
    * mtime for each path, and the GUID of the item at that path.
    */
   read: function StartupCache_read() {
-    var itemChangeManifest = FileUtils.getFile(KEY_PROFILEDIR,
-                                               [FILE_EXTENSIONS_STARTUP_CACHE]);
+    var itemChangeManifest = getFile(KEY_PROFILEDIR, [FILE_EXTENSIONS_STARTUP_CACHE]);
     if (!itemChangeManifest.exists()) {
       // There is no change manifest for some reason, either we're in an initial
       // state or something went wrong with one of the other files and the
@@ -2012,9 +2123,8 @@ var StartupCache = {
    * Writes the Startup Cache to disk
    */
   write: function StartupCache_write() {
-    var extensionsCacheFile = FileUtils.getFile(KEY_PROFILEDIR,
-                                                [FILE_EXTENSIONS_STARTUP_CACHE]);
-    var fos = FileUtils.openSafeFileOutputStream(extensionsCacheFile);
+    var extensionsCacheFile = getFile(KEY_PROFILEDIR, [FILE_EXTENSIONS_STARTUP_CACHE]);
+    var fos = openSafeFileOutputStream(extensionsCacheFile);
     for (var locationKey in this.entries) {
       for (var id in this.entries[locationKey]) {
         var entry = this.entries[locationKey][id];
@@ -2038,7 +2148,7 @@ var StartupCache = {
         }
       }
     }
-    FileUtils.closeSafeFileOutputStream(fos);
+    closeSafeFileOutputStream(fos);
   }
 };
 
@@ -2081,8 +2191,7 @@ function ExtensionManager() {
   gInstallManifestRoot = gRDF.GetResource(RDFURI_INSTALL_MANIFEST_ROOT);
 
   // Register Global Install Location
-  var appGlobalExtensions = FileUtils.getDir(KEY_APPDIR, [DIR_EXTENSIONS],
-                                             false);
+  var appGlobalExtensions = getDirNoCreate(KEY_APPDIR, [DIR_EXTENSIONS]);
   var priority = Ci.nsIInstallLocation.PRIORITY_APP_SYSTEM_GLOBAL;
   var globalLocation = new DirectoryInstallLocation(KEY_APP_GLOBAL,
                                                     appGlobalExtensions, true,
@@ -2090,8 +2199,7 @@ function ExtensionManager() {
   InstallLocations.put(globalLocation);
 
   // Register App-Profile Install Location
-  var appProfileExtensions = FileUtils.getDir(KEY_PROFILEDS, [DIR_EXTENSIONS],
-                                              false);
+  var appProfileExtensions = getDirNoCreate(KEY_PROFILEDS, [DIR_EXTENSIONS]);
   var priority = Ci.nsIInstallLocation.PRIORITY_APP_PROFILE;
   var profileLocation = new DirectoryInstallLocation(KEY_APP_PROFILE,
                                                      appProfileExtensions, false,
@@ -2100,7 +2208,7 @@ function ExtensionManager() {
 
   // Register per-user Install Location
   try {
-    var appSystemUExtensions = FileUtils.getDir("XREUSysExt", [gApp.ID], false);
+    var appSystemUExtensions = getDirNoCreate("XREUSysExt", [gApp.ID]);
   }
   catch(e) { }
 
@@ -2115,7 +2223,7 @@ function ExtensionManager() {
 
   // Register App-System-Shared Install Location
   try {
-    var appSystemSExtensions = FileUtils.getDir("XRESysSExtPD", [gApp.ID], false);
+    var appSystemSExtensions = getDirNoCreate("XRESysSExtPD", [gApp.ID]);
   }
   catch (e) { }
 
@@ -2129,7 +2237,7 @@ function ExtensionManager() {
 
   // Register App-System-Local Install Location
   try {
-    var appSystemLExtensions = FileUtils.getDir("XRESysLExtPD", [gApp.ID], false);
+    var appSystemLExtensions = getDirNoCreate("XRESysLExtPD", [gApp.ID]);
   }
   catch (e) { }
 
@@ -2231,10 +2339,8 @@ ExtensionManager.prototype = {
       else {
         // Cancel any pending theme change and allow the lightweight theme
         // change to go ahead
-        if (gPref.prefHasUserValue(PREF_DSS_SWITCHPENDING))
-          gPref.clearUserPref(PREF_DSS_SWITCHPENDING);
-        if (gPref.prefHasUserValue(PREF_DSS_SKIN_TO_SELECT))
-          gPref.clearUserPref(PREF_DSS_SKIN_TO_SELECT);
+        gPref.clearUserPref(PREF_DSS_SWITCHPENDING);
+        gPref.clearUserPref(PREF_DSS_SKIN_TO_SELECT);
       }
       break;
     case "xpcom-shutdown":
@@ -2318,8 +2424,7 @@ ExtensionManager.prototype = {
         // If we've changed to a non-default theme make sure there is no
         // lightweight theme selected
         if (toSelect != gDefaultTheme) {
-          if (gPref.prefHasUserValue(PREF_LWTHEME_TO_SELECT))
-            gPref.clearUserPref(PREF_LWTHEME_TO_SELECT);
+          gPref.clearUserPref(PREF_LWTHEME_TO_SELECT);
           LightweightThemeManager.currentTheme = null;
         }
       }
@@ -2420,6 +2525,7 @@ ExtensionManager.prototype = {
     gPref = null;
     gConsole = null;
     gVersionChecker = null;
+    gDirService = null;
     gInstallManifestRoot = null;
     gApp = null;
   },
@@ -2432,7 +2538,7 @@ ExtensionManager.prototype = {
    *          be rebuilt, false otherwise.
    */
   _ensureDatasetIntegrity: function EM__ensureDatasetIntegrity() {
-    var profD = FileUtils.getDir(KEY_PROFILEDIR, [], false);
+    var profD = getDirNoCreate(KEY_PROFILEDIR, []);
     var extensionsDS = profD.clone();
     extensionsDS.append(FILE_EXTENSIONS);
     var extensionsINI = profD.clone();
@@ -3314,8 +3420,8 @@ ExtensionManager.prototype = {
         // Remember the list of add-ons that were disabled this time around
         gPref.setCharPref(PREF_EM_DISABLED_ADDONS_LIST, disabledAddons.join(","));
       }
-    } else if (gPref.prefHasUserValue(PREF_EM_DISABLED_ADDONS_LIST)) {
-      // Clear the disabled addons list if necessary
+    } else {
+      // Clear the disabled addons list
       gPref.clearUserPref(PREF_EM_DISABLED_ADDONS_LIST);
     }
 
@@ -3448,9 +3554,8 @@ ExtensionManager.prototype = {
                                                Ci.nsIUpdateItem.TYPE_THEME);
     var validThemes     = this._getActiveItems(Ci.nsIUpdateItem.TYPE_THEME);
 
-    var extensionsLocationsFile = FileUtils.getFile(KEY_PROFILEDIR,
-                                                    [FILE_EXTENSION_MANIFEST]);
-    var fos = FileUtils.openSafeFileOutputStream(extensionsLocationsFile);
+    var extensionsLocationsFile = getFile(KEY_PROFILEDIR, [FILE_EXTENSION_MANIFEST]);
+    var fos = openSafeFileOutputStream(extensionsLocationsFile);
 
     var enabledItems = [];
     var extensionSectionHeader = "[ExtensionDirs]\r\n";
@@ -3475,7 +3580,7 @@ ExtensionManager.prototype = {
       enabledItems.push(e.id + ":" + e.version);
     }
 
-    FileUtils.closeSafeFileOutputStream(fos);
+    closeSafeFileOutputStream(fos);
 
     // Cache the enabled list for annotating the crash report subsequently
     gPref.setCharPref(PREF_EM_ENABLED_ITEMS, enabledItems.join(","));
@@ -3490,13 +3595,16 @@ ExtensionManager.prototype = {
    */
   set _extensionListChanged(val) {
     // When an extension has an operation perform on it (e.g. install, upgrade,
-    // disable, etc.) we are responsible for writing this information to 
-    // compatibility.ini, and nsAppRunner is responsible for checking this on 
-    // restart. At some point it may make sense to be able to cancel a 
-    // registration but for now we only create the file.
-    if (val) {
-      let XRE = Cc["@mozilla.org/xre/app-info;1"].getService(Ci.nsIXULRuntime);
-      XRE.invalidateCachesOnRestart();
+    // disable, etc.) we are responsible for creating the .autoreg file and
+    // nsAppRunner is responsible for removing it on restart. At some point it
+    // may make sense to be able to cancel a registration but for now we only
+    // create the file.
+    try {
+      var autoregFile = getFile(KEY_PROFILEDIR, [FILE_AUTOREG]);
+      if (val && !autoregFile.exists())
+        autoregFile.create(Ci.nsILocalFile.NORMAL_FILE_TYPE, PERMS_FILE);
+    }
+    catch (e) {
     }
     return val;
   },
@@ -3825,10 +3933,9 @@ ExtensionManager.prototype = {
         var entries = zipReader.findEntries(searchForEntries[i]);
         while (entries.hasMore()) {
           var entryName = entries.getNext();
-          var target = FileUtils.getFile(KEY_TEMPDIR, [entryName]);
+          var target = getFile(KEY_TEMPDIR, [entryName]);
           try {
-            target.createUnique(Ci.nsILocalFile.NORMAL_FILE_TYPE,
-                                FileUtils.PERMS_FILE);
+            target.createUnique(Ci.nsILocalFile.NORMAL_FILE_TYPE, PERMS_FILE);
           }
           catch (e) {
             LOG("installMultiXPI: failed to create target file for extraction " +
@@ -5941,7 +6048,7 @@ RDFItemUpdater.prototype = {
     var request = Cc["@mozilla.org/xmlextras/xmlhttprequest;1"].
                   createInstance(Ci.nsIXMLHttpRequest);
     request.open("GET", uri.spec, true);
-    request.channel.notificationCallbacks = new gCertUtils.BadCertHandler();
+    request.channel.notificationCallbacks = new BadCertHandler();
     request.overrideMimeType("text/xml");
     request.channel.loadFlags |= Ci.nsIRequest.LOAD_BYPASS_CACHE;
 
@@ -5954,7 +6061,7 @@ RDFItemUpdater.prototype = {
   onXMLLoad: function RDFItemUpdater_onXMLLoad(aEvent, aItem) {
     var request = aEvent.target;
     try {
-      gCertUtils.checkCert(request.channel);
+      checkCert(request.channel);
     }
     catch (e) {
       // This may be overly restrictive in two cases: corporate installations
@@ -7581,7 +7688,7 @@ ExtensionsDataSource.prototype = {
    * Load the Extensions Datasource from disk.
    */
   loadExtensions: function EMDS_loadExtensions() {
-    var extensionsFile = FileUtils.getFile(KEY_PROFILEDIR, [FILE_EXTENSIONS]);
+    var extensionsFile  = getFile(KEY_PROFILEDIR, [FILE_EXTENSIONS]);
     try {
       this._inner = gRDF.GetDataSourceBlocking(getURLSpecFromFile(extensionsFile));
     }

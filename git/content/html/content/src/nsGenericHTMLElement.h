@@ -142,7 +142,7 @@ public:
   nsresult GetOffsetParent(nsIDOMElement** aOffsetParent);
   virtual nsresult GetInnerHTML(nsAString& aInnerHTML);
   virtual nsresult SetInnerHTML(const nsAString& aInnerHTML);
-  nsresult ScrollIntoView(PRBool aTop, PRUint8 optional_argc);
+  nsresult ScrollIntoView(PRBool aTop);
   // Declare Focus(), Blur(), GetTabIndex(), SetTabIndex(), GetSpellcheck(),
   // SetSpellcheck(), and GetDraggable() such that classes that inherit interfaces
   // with those methods properly override them
@@ -930,7 +930,7 @@ protected:
   nsresult LoadSrc();
   nsresult GetContentDocument(nsIDOMDocument** aContentDocument);
 
-  nsRefPtr<nsFrameLoader> mFrameLoader;
+  nsCOMPtr<nsIFrameLoader> mFrameLoader;
 };
 
 //----------------------------------------------------------------------

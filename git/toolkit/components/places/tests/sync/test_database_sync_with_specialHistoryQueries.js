@@ -98,7 +98,7 @@ var observer = {
       root.containerOpen = false;
 
       os.removeObserver(this, kSyncFinished);
-      do_test_finished();
+      finish_test();
     }
   }
 }

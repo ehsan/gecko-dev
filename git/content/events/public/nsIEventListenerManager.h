@@ -48,16 +48,13 @@ class nsIDOMEventTarget;
 class nsIDOMEventGroup;
 class nsIAtom;
 class nsPIDOMEventTarget;
-class nsIEventListenerInfo;
-template<class E> class nsCOMArray;
-class nsCxPusher;
 
 /*
  * Event listener manager interface.
  */
 #define NS_IEVENTLISTENERMANAGER_IID \
-{ 0x2412fcd0, 0xd168, 0x4a1c, \
-  { 0xaa, 0x28, 0x70, 0xed, 0x58, 0xf0, 0x4c, 0xec } }
+{ 0xadfdc265, 0xea1c, 0x4c0b, \
+  { 0x91, 0xca, 0x37, 0x67, 0x2c, 0x83, 0x92, 0x1f } }
 
 class nsIEventListenerManager : public nsISupports {
 
@@ -66,8 +63,6 @@ public:
 
   nsIEventListenerManager() : mMayHavePaintEventListener(PR_FALSE),
     mMayHaveMutationListeners(PR_FALSE),
-    mMayHaveCapturingListeners(PR_FALSE),
-    mMayHaveSystemGroupListeners(PR_FALSE),
     mNoListenerForEvent(0)
   {}
 
@@ -150,8 +145,7 @@ public:
                          nsIDOMEvent** aDOMEvent,
                          nsPIDOMEventTarget* aCurrentTarget,
                          PRUint32 aFlags,
-                         nsEventStatus* aEventStatus,
-                         nsCxPusher* aPusher) = 0;
+                         nsEventStatus* aEventStatus) = 0;
 
   /**
   * Tells the event listener manager that its target (which owns it) is
@@ -196,12 +190,6 @@ public:
   virtual PRUint32 MutationListenerBits() = 0;
 
   /**
-   * Sets aList to the list of nsIEventListenerInfo objects representing the
-   * listeners managed by this listener manager.
-   */
-  virtual nsresult GetListenerInfo(nsCOMArray<nsIEventListenerInfo>* aList) = 0;
-
-  /**
    * Returns PR_TRUE if there is at least one event listener for aEventName.
    */
   virtual PRBool HasListenersFor(const nsAString& aEventName) = 0;
@@ -221,9 +209,10 @@ public:
 protected:
   PRUint32 mMayHavePaintEventListener : 1;
   PRUint32 mMayHaveMutationListeners : 1;
-  PRUint32 mMayHaveCapturingListeners : 1;
-  PRUint32 mMayHaveSystemGroupListeners : 1;
-  PRUint32 mNoListenerForEvent : 28;
+  // These two member variables are used to cache the information
+  // about the last event which was handled but for which event listener manager
+  // didn't have event listeners.
+  PRUint32 mNoListenerForEvent : 30;
 };
 
 NS_DEFINE_STATIC_IID_ACCESSOR(nsIEventListenerManager,

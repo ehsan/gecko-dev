@@ -653,13 +653,6 @@ nsFocusManager::WindowRaised(nsIDOMWindow* aWindow)
   // is updated on the window
   window->ActivateOrDeactivate(PR_TRUE);
 
-  // send activate event
-  nsCOMPtr<nsIDocument> document = do_QueryInterface(window->GetExtantDocument());
-  nsContentUtils::DispatchTrustedEvent(document,
-                                       window,
-                                       NS_LITERAL_STRING("activate"),
-                                       PR_TRUE, PR_TRUE, nsnull);
-
   // retrieve the last focused element within the window that was raised
   nsCOMPtr<nsPIDOMWindow> currentWindow;
   nsCOMPtr<nsIContent> currentFocus =
@@ -715,13 +708,6 @@ nsFocusManager::WindowLowered(nsIDOMWindow* aWindow)
   // inform the DOM window that it has deactivated, so that the active
   // attribute is updated on the window
   window->ActivateOrDeactivate(PR_FALSE);
-
-  // send deactivate event
-  nsCOMPtr<nsIDocument> document = do_QueryInterface(window->GetExtantDocument());
-  nsContentUtils::DispatchTrustedEvent(document,
-                                       window,
-                                       NS_LITERAL_STRING("deactivate"),
-                                       PR_TRUE, PR_TRUE, nsnull);
 
   // keep track of the window being lowered, so that attempts to raise the
   // window can be prevented until we return. Otherwise, focus can get into
@@ -786,7 +772,7 @@ nsFocusManager::ContentRemoved(nsIDocument* aDocument, nsIContent* aContent)
 }
 
 NS_IMETHODIMP
-nsFocusManager::WindowShown(nsIDOMWindow* aWindow, PRBool aNeedsFocus)
+nsFocusManager::WindowShown(nsIDOMWindow* aWindow)
 {
   nsCOMPtr<nsPIDOMWindow> window = do_QueryInterface(aWindow);
   NS_ENSURE_TRUE(window, NS_ERROR_INVALID_ARG);
@@ -815,19 +801,11 @@ nsFocusManager::WindowShown(nsIDOMWindow* aWindow, PRBool aNeedsFocus)
   if (mFocusedWindow != window)
     return NS_OK;
 
-  if (aNeedsFocus) {
-    nsCOMPtr<nsPIDOMWindow> currentWindow;
-    nsCOMPtr<nsIContent> currentFocus =
-      GetFocusedDescendant(window, PR_TRUE, getter_AddRefs(currentWindow));
-    if (currentWindow)
-      Focus(currentWindow, currentFocus, 0, PR_TRUE, PR_FALSE, PR_FALSE);
-  }
-  else {
-    // Sometimes, an element in a window can be focused before the window is
-    // visible, which would mean that the widget may not be properly focused.
-    // When the window becomes visible, make sure the right widget is focused.
-    EnsureCurrentWidgetFocused();
-  }
+  nsCOMPtr<nsPIDOMWindow> currentWindow;
+  nsCOMPtr<nsIContent> currentFocus =
+    GetFocusedDescendant(window, PR_TRUE, getter_AddRefs(currentWindow));
+  if (currentWindow)
+    Focus(currentWindow, currentFocus, 0, PR_TRUE, PR_FALSE, PR_FALSE);
 
   return NS_OK;
 }

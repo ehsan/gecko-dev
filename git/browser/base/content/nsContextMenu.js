@@ -257,8 +257,6 @@ nsContextMenu.prototype = {
     this.showItem("context-sep-viewbgimage", shouldShow && !this._hasMultipleBGImages);
     document.getElementById("context-viewbgimage")
             .disabled = !this.hasBGImage;
-
-    this.showItem("context-viewimageinfo", this.onImage);
   },
 
   initMiscItems: function CM_initMiscItems() {
@@ -776,11 +774,6 @@ nsContextMenu.prototype = {
 
   viewInfo: function() {
     BrowserPageInfo(this.target.ownerDocument.defaultView.top.document);
-  },
-
-  viewImageInfo: function() {
-    BrowserPageInfo(this.target.ownerDocument.defaultView.top.document,
-                    "mediaTab", this.target);
   },
 
   viewFrameInfo: function() {

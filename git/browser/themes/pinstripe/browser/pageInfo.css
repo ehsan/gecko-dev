@@ -184,7 +184,7 @@ treechildren::-moz-tree-cell-text(broken) {
   background-color: -moz-field;
 }
 
-.permission {
+#permList > vbox {
   padding-top: 6px;
   padding-bottom: 6px;
   -moz-padding-start: 7px;
@@ -193,11 +193,11 @@ treechildren::-moz-tree-cell-text(broken) {
   border-bottom: 1px dotted #C0C0C0;
 }
 
-.permissionLabel {
+#permList > vbox > label {
   font-weight: bold;
 }
 
-.permission:hover {
+#permList > vbox:hover {
   background-color: -moz-dialog;
 }
 

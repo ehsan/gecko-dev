@@ -165,9 +165,6 @@ public:
                                                    PRUint32 aModifierFlags,
                                                    const nsAString& aCharacters,
                                                    const nsAString& aUnmodifiedCharacters);
-  virtual nsresult        SynthesizeNativeMouseEvent(nsIntPoint aPoint,
-                                                     PRUint32 aNativeMessage,
-                                                     PRUint32 aModifierFlags);
   NS_IMETHOD              ResetInputState();
   NS_IMETHOD              SetIMEOpenState(PRBool aState);
   NS_IMETHOD              GetIMEOpenState(PRBool* aState);
@@ -469,6 +466,9 @@ protected:
 
   // Graphics
   HDC                   mPaintDC; // only set during painting
+
+  static nsAutoPtr<PRUint8> sSharedSurfaceData;
+  static gfxIntSize     sSharedSurfaceSize;
 
   // Transparency
 #ifdef MOZ_XUL

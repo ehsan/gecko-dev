@@ -619,7 +619,7 @@ nsCSSSelector::AppendToStringWithoutCombinatorsOrNegations
       }
     }
     nsAutoString prefix;
-    (isPseudoElement ? mLowercaseTag : mCasedTag)->ToString(prefix);
+    mLowercaseTag->ToString(prefix);
     aString.Append(prefix);
   }
 
@@ -651,22 +651,17 @@ nsCSSSelector::AppendToStringWithoutCombinatorsOrNegations
     while (list != nsnull) {
       aString.Append(PRUnichar('['));
       // Append the namespace prefix
-      if (list->mNameSpace == kNameSpaceID_Unknown) {
-        aString.Append(PRUnichar('*'));
-        aString.Append(PRUnichar('|'));
-      } else if (list->mNameSpace != kNameSpaceID_None) {
+      if (list->mNameSpace > 0) {
         if (aSheet) {
           nsXMLNameSpaceMap *sheetNS = aSheet->GetNameSpaceMap();
+          // will return null if namespace was the default
           nsIAtom *prefixAtom = sheetNS->FindPrefix(list->mNameSpace);
-          // Default namespaces don't apply to attribute selectors, so
-          // we must have a useful prefix.
-          NS_ASSERTION(prefixAtom,
-                       "How did we end up with a namespace if the prefix "
-                       "is unknown?");
-          nsAutoString prefix;
-          prefixAtom->ToString(prefix);
-          aString.Append(prefix);
-          aString.Append(PRUnichar('|'));
+          if (prefixAtom) { 
+            nsAutoString prefix;
+            prefixAtom->ToString(prefix);
+            aString.Append(prefix);
+            aString.Append(PRUnichar('|'));
+          }
         }
       }
       // Append the attribute name

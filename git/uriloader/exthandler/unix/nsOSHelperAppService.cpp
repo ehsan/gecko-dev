@@ -1580,12 +1580,7 @@ nsOSHelperAppService::GetMIMEInfoFromOS(const nsACString& aType,
       return retval;
     }
 
-    // Copy the attributes of retval (mimeinfo from type) onto miByExt, to
-    // return it 
-    // but reset to just collected mDefaultAppDescription (from ext)
-    nsAutoString byExtDefault;
-    miByExt->GetDefaultDescription(byExtDefault);
-    retval->SetDefaultDescription(byExtDefault);
+    // Copy the attributes of retval onto miByExt, to return it
     retval->CopyBasicDataTo(miByExt);
 
     miByExt.swap(retval);

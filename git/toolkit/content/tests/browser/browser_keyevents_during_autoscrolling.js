@@ -103,8 +103,7 @@ function test()
     root.removeEventListener("keyup", onKey, true);
 
     // restore the changed prefs
-    if (prefSvc.prefHasUserValue(kPrefName_AutoScroll))
-      prefSvc.clearUserPref(kPrefName_AutoScroll);
+    prefSvc.clearUserPref(kPrefName_AutoScroll);
 
     // cleaning-up
     gBrowser.addTab().linkedBrowser.stop();

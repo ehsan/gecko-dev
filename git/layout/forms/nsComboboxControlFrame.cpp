@@ -824,12 +824,9 @@ nsComboboxControlFrame::HandleRedisplayTextEvent()
   // ActuallyDisplayText, since that flushes out the content sink by
   // calling SetText on a DOM node with aNotify set to true.  See bug
   // 289730.
-  nsWeakFrame weakThis(this);
   PresContext()->Document()->
     FlushPendingNotifications(Flush_ContentAndNotify);
-  if (!weakThis.IsAlive())
-    return;
-
+  
   // Redirect frame insertions during this method (see GetContentInsertionFrame())
   // so that any reframing that the frame constructor forces upon us is inserted
   // into the correct parent (mDisplayFrame). See bug 282607.
@@ -893,7 +890,6 @@ nsComboboxControlFrame::AddOption(PRInt32 aIndex)
 NS_IMETHODIMP
 nsComboboxControlFrame::RemoveOption(PRInt32 aIndex)
 {
-  nsWeakFrame weakThis(this);
   if (mListControlFrame->GetNumberOfOptions() > 0) {
     if (aIndex < mDisplayedIndex) {
       --mDisplayedIndex;
@@ -906,9 +902,6 @@ nsComboboxControlFrame::RemoveOption(PRInt32 aIndex)
     // If we removed the last option, we need to blank things out
     RedisplayText(-1);
   }
-
-  if (!weakThis.IsAlive())
-    return NS_OK;
 
   nsListControlFrame* lcf = static_cast<nsListControlFrame*>(mDropdownFrame);
   return lcf->RemoveOption(aIndex);

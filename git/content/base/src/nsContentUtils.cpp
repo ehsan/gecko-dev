@@ -3018,18 +3018,6 @@ nsContentUtils::IsChromeDoc(nsIDocument *aDocument)
 }
 
 PRBool
-nsContentUtils::IsChildOfSameType(nsIDocument* aDoc)
-{
-  nsCOMPtr<nsISupports> container = aDoc->GetContainer();
-  nsCOMPtr<nsIDocShellTreeItem> docShellAsItem(do_QueryInterface(container));
-  nsCOMPtr<nsIDocShellTreeItem> sameTypeParent;
-  if (docShellAsItem) {
-    docShellAsItem->GetSameTypeParent(getter_AddRefs(sameTypeParent));
-  }
-  return sameTypeParent != nsnull;
-}
-
-PRBool
 nsContentUtils::GetWrapperSafeScriptFilename(nsIDocument *aDocument,
                                              nsIURI *aURI,
                                              nsACString& aScriptURI)
@@ -4601,9 +4589,11 @@ nsContentUtils::ProcessViewportInfo(nsIDocument *aDocument,
 void
 nsContentUtils::HidePopupsInDocument(nsIDocument* aDocument)
 {
+  NS_PRECONDITION(aDocument, "Null document");
+
 #ifdef MOZ_XUL
   nsXULPopupManager* pm = nsXULPopupManager::GetInstance();
-  if (pm && aDocument) {
+  if (pm) {
     nsCOMPtr<nsISupports> container = aDocument->GetContainer();
     nsCOMPtr<nsIDocShellTreeItem> docShellToHide = do_QueryInterface(container);
     if (docShellToHide)
@@ -5069,10 +5059,13 @@ nsContentUtils::CanAccessNativeAnon()
     fp = nsnull;
   }
 
+  void *annotation = fp ? JS_GetFrameAnnotation(cx, fp) : nsnull;
   PRBool privileged;
-  if (NS_SUCCEEDED(sSecurityManager->IsSystemPrincipal(principal, &privileged)) &&
+  if (NS_SUCCEEDED(principal->IsCapabilityEnabled("UniversalXPConnect",
+                                                  annotation,
+                                                  &privileged)) &&
       privileged) {
-    // Chrome things are allowed to touch us.
+    // UniversalXPConnect things are allowed to touch us.
     return PR_TRUE;
   }
 
@@ -5083,12 +5076,6 @@ nsContentUtils::CanAccessNativeAnon()
   if (fp && fp->script &&
       (filename = fp->script->filename) &&
       !strncmp(filename, prefix, NS_ARRAY_LENGTH(prefix) - 1)) {
-    return PR_TRUE;
-  }
-
-  // Before we throw, check for UniversalXPConnect.
-  nsresult rv = sSecurityManager->IsCapabilityEnabled("UniversalXPConnect", &privileged);
-  if (NS_SUCCEEDED(rv) && privileged) {
     return PR_TRUE;
   }
 

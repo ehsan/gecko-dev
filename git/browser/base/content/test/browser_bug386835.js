@@ -2,8 +2,8 @@ var gTestPage = "http://example.org/browser/browser/base/content/test/dummy_page
 var gTestImage = "http://example.org/browser/browser/base/content/test/moz.png";
 var gTab1, gTab2, gTab3;
 var gLevel;
-const BACK = 0;
-const FORWARD = 1;
+const kBack = 0;
+const kForward = 1;
 
 function test() {
   waitForExplicitFinish();
@@ -59,8 +59,8 @@ function imageLoaded() {
 }
 
 function imageZoomSwitch() {
-  navigate(BACK, function () {
-    navigate(FORWARD, function () {
+  navigate(kBack, function() {
+    navigate(kForward, function() {
       zoomTest(gTab1, 1, "Tab 1 should not be zoomed when an image loads");
       gBrowser.selectedTab = gTab2;
       zoomTest(gTab1, 1, "Tab 1 should still not be zoomed when deselected");
@@ -85,8 +85,7 @@ function runPrintPreviewTests() {
       testPrintPreview(gTab1, function() {
         // test print preview of HTML document with siteSpecific set to false
         testPrintPreview(gTab2, function() {
-          if (gPrefService.prefHasUserValue("browser.zoom.siteSpecific"))
-            gPrefService.clearUserPref("browser.zoom.siteSpecific");
+          gPrefService.clearUserPref("browser.zoom.siteSpecific");
           finishTest();
         });
       });
@@ -117,9 +116,9 @@ function testPrintPreview(aTab, aCallback) {
     aCallback();
   };
 
-  executeSoon(function () {
-    document.getElementById("cmd_printPreview").doCommand();
-  });
+  let printPreview = new Function(document.getElementById("cmd_printPreview")
+                                          .getAttribute("oncommand"));
+  executeSoon(printPreview);
 }
 
 function finishTest() {
@@ -146,12 +145,12 @@ function load(tab, url, cb) {
 }
 
 function navigate(direction, cb) {
-  gBrowser.addEventListener("pageshow", function (event) {
+  gBrowser.addEventListener("pageshow", function(event) {
     gBrowser.removeEventListener("pageshow", arguments.callee, true);
-    executeSoon(cb);
+    setTimeout(cb, 0);
   }, true);
-  if (direction == BACK)
+  if (direction == kBack)
     gBrowser.goBack();
-  else if (direction == FORWARD)
+  else if (direction == kForward)
     gBrowser.goForward();
 }

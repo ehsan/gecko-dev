@@ -55,7 +55,12 @@ CPPSRCS	= \
 
 # Canvas 3D Pieces
 
-ifdef MOZ_WEBGL
+# only allow on platforms/toolkits we know are good
+ifneq (,$(NS_OSSO)$(WINCE)$(filter-out windows cocoa gtk2,$(MOZ_WIDGET_TOOLKIT)))
+DISABLE_WEBGL=1
+endif
+
+ifndef DISABLE_WEBGL
 
 CPPSRCS += \
 	WebGLContext.cpp \

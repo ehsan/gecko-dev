@@ -323,15 +323,6 @@ function openDownload(aDownload)
     }
   }
   try {
-    try {
-      let download = gDownloadManager.getDownload(aDownload.getAttribute("dlid"));
-      let mimeInfo = download.MIMEInfo;
-      if (mimeInfo.preferredAction == mimeInfo.useHelperApp) {
-        mimeInfo.launchWithFile(f);
-        return;
-      }
-    } catch (ex) {
-    }
     f.launch();
   } catch (ex) {
     // if launch fails, try sending it through the system's external

@@ -142,7 +142,6 @@ _TEST_FILES =	test_acid3_test46.html \
 		test_units_frequency.html \
 		test_units_length.html \
 		test_units_time.html \
-		test_value_cloning.html \
 		test_value_computation.html \
 		test_value_storage.html \
 		test_visited_pref.html \
@@ -169,7 +168,6 @@ _TEST_FILES =	test_acid3_test46.html \
 		media_queries_dynamic_xbl_iframe.html \
 		media_queries_dynamic_xbl_style.css \
 		bug453896_iframe.html \
-		test_bug524175.html \
 		$(NULL)
 
 _BROWSER_FILES = \

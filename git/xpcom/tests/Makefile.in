@@ -117,13 +117,15 @@ CPP_UNIT_TESTS += \
 endif
 
 ifdef MOZ_DEBUG
-# FIXME bug 523392: TestDeadlockDetector doesn't like Windows
-# FIXME bug 523378: also fails on OS X
-ifneq (,$(filter-out WINNT WINCE Darwin,$(OS_ARCH)))
+# FIXME bug 456272: testing assertion failures is fragile,
+# and TestDeadlockDetector doesn't like Windows
+ifneq ($(OS_ARCH), WINNT)
+ifneq ($(OS_ARCH), WINCE)
 CPP_UNIT_TESTS += \
                   TestDeadlockDetector.cpp \
                   TestDeadlockDetectorScalability.cpp \
                   $(NULL)
+endif
 endif
 endif
 
@@ -144,6 +146,10 @@ LIBS += $(XPCOM_LIBS)
 # Needed to resolve __yylex (?)
 ifeq ($(OS_ARCH)$(OS_RELEASE),FreeBSD2)
 LIBS		+= -lpcap
+endif
+
+ifdef SOLARIS_SUNPRO_CXX
+CXXFLAGS += -features=extensions -D__FUNCTION__=__func__
 endif
 
 ENABLE_CXX_EXCEPTIONS = 1

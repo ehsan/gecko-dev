@@ -47,7 +47,6 @@ function test() {
   
   // set a unique value on a new, blank tab
   var tab = gBrowser.addTab();
-  tab.linkedBrowser.stop();
   ss.setTabValue(tab, uniqueName, uniqueValue);
   let valueWasCleaned = false;
   
@@ -86,8 +85,7 @@ function test() {
       // clean up
       gBrowser.removeTab(tab);
       os.removeObserver(this, aTopic, false);
-      if (gPrefService.prefHasUserValue("browser.sessionstore.interval"))
-        gPrefService.clearUserPref("browser.sessionstore.interval");
+      gPrefService.clearUserPref("browser.sessionstore.interval");
       finish();
     }
   };

@@ -286,18 +286,8 @@ nsMediaChannelStream::OnStopRequest(nsIRequest* aRequest, nsresult aStatus)
     mChannelStatistics.Stop(TimeStamp::Now());
   }
 
-  // Note that aStatus might have succeeded --- this might be a normal close
-  // --- even in situations where the server cut us off because we were
-  // suspended. So we need to "reopen on error" in that case too. The only
-  // cases where we don't need to reopen are when *we* closed the stream.
-  // But don't reopen if we need to seek and we don't think we can... that would
-  // cause us to just re-read the stream, which would be really bad.
-  if (mReopenOnError &&
-      aStatus != NS_ERROR_PARSED_DATA_CACHED && aStatus != NS_BINDING_ABORTED &&
-      (mOffset == 0 || mCacheStream.IsSeekable())) {
-    // If the stream did close normally, then if the server is seekable we'll
-    // just seek to the end of the resource and get an HTTP 416 error because
-    // there's nothing there, so this isn't bad.
+  if (NS_FAILED(aStatus) && aStatus != NS_ERROR_PARSED_DATA_CACHED &&
+      mReopenOnError) {
     nsresult rv = CacheClientSeek(mOffset, PR_FALSE);
     if (NS_SUCCEEDED(rv))
       return rv;
@@ -540,7 +530,7 @@ PRInt64 nsMediaChannelStream::Tell()
 
 void nsMediaChannelStream::Suspend(PRBool aCloseImmediately)
 {
-  NS_ASSERTION(NS_IsMainThread(), "Don't call on non-main thread");
+  NS_ASSERTION(NS_IsMainThread(), "Don't call on main thread");
 
   nsHTMLMediaElement* element = mDecoder->GetMediaElement();
   if (!element) {
@@ -569,7 +559,7 @@ void nsMediaChannelStream::Suspend(PRBool aCloseImmediately)
 
 void nsMediaChannelStream::Resume()
 {
-  NS_ASSERTION(NS_IsMainThread(), "Don't call on non-main thread");
+  NS_ASSERTION(NS_IsMainThread(), "Don't call on main thread");
   NS_ASSERTION(mSuspendCount > 0, "Too many resumes!");
 
   nsHTMLMediaElement* element = mDecoder->GetMediaElement();
@@ -641,9 +631,7 @@ nsMediaChannelStream::DoNotifyDataReceived()
 void
 nsMediaChannelStream::CacheClientNotifyDataReceived()
 {
-  NS_ASSERTION(NS_IsMainThread(), "Don't call on non-main thread");
-  // NOTE: this can be called with the media cache lock held, so don't
-  // block or do anything which might try to acquire a lock!
+  NS_ASSERTION(NS_IsMainThread(), "Don't call on main thread");
 
   if (mDataReceivedEvent.IsPending())
     return;
@@ -669,9 +657,7 @@ private:
 void
 nsMediaChannelStream::CacheClientNotifyDataEnded(nsresult aStatus)
 {
-  NS_ASSERTION(NS_IsMainThread(), "Don't call on non-main thread");
-  // NOTE: this can be called with the media cache lock held, so don't
-  // block or do anything which might try to acquire a lock!
+  NS_ASSERTION(NS_IsMainThread(), "Don't call on main thread");
 
   nsCOMPtr<nsIRunnable> event = new DataEnded(mDecoder, aStatus);
   NS_DispatchToMainThread(event, NS_DISPATCH_NORMAL);
@@ -680,7 +666,7 @@ nsMediaChannelStream::CacheClientNotifyDataEnded(nsresult aStatus)
 nsresult
 nsMediaChannelStream::CacheClientSeek(PRInt64 aOffset, PRBool aResume)
 {
-  NS_ASSERTION(NS_IsMainThread(), "Don't call on non-main thread");
+  NS_ASSERTION(NS_IsMainThread(), "Don't call on main thread");
 
   CloseChannel();
 
@@ -707,7 +693,12 @@ nsMediaChannelStream::CacheClientSuspend()
   }
   Suspend(PR_FALSE);
 
-  mDecoder->NotifySuspendedStatusChanged();
+  // We have to spawn an event here since we're being called back from
+  // a sensitive place in nsMediaCache, which doesn't want us to reenter
+  // the decoder and cause deadlocks or other unpleasantness
+  nsCOMPtr<nsIRunnable> event =
+    NS_NEW_RUNNABLE_METHOD(nsMediaDecoder, mDecoder, NotifySuspendedStatusChanged);
+  NS_DispatchToMainThread(event, NS_DISPATCH_NORMAL);
   return NS_OK;
 }
 
@@ -720,7 +711,12 @@ nsMediaChannelStream::CacheClientResume()
     --mCacheSuspendCount;
   }
 
-  mDecoder->NotifySuspendedStatusChanged();
+  // We have to spawn an event here since we're being called back from
+  // a sensitive place in nsMediaCache, which doesn't want us to reenter
+  // the decoder and cause deadlocks or other unpleasantness
+  nsCOMPtr<nsIRunnable> event =
+    NS_NEW_RUNNABLE_METHOD(nsMediaDecoder, mDecoder, NotifySuspendedStatusChanged);
+  NS_DispatchToMainThread(event, NS_DISPATCH_NORMAL);
   return NS_OK;
 }
 

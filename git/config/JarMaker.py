@@ -250,7 +250,6 @@ class JarMaker(object):
     that against the l10nbases. l10nbases can either be path strings, or 
     callables. In the latter case, that will be called with the 
     relativesrcdir as argument, and is expected to return a path string.
-    This logic is disabled if the jar.mn path is not inside the topsrcdir.
     '''
     topsourcedir = os.path.normpath(os.path.abspath(topsourcedir))
     def resolveL10nBase(relpath):
@@ -266,18 +265,13 @@ class JarMaker(object):
       l10ndir = srcdir
       if os.path.basename(srcdir) == 'locales':
         l10ndir = os.path.dirname(l10ndir)
-
-      l10ndirs = None
-      # srcdir may not be a child of topsourcedir, in which case
-      # we assume that the caller passed in suitable sourcedirs,
-      # and just skip passing in localedirs
-      if srcdir.startswith(topsourcedir):
-        rell10ndir = l10ndir[len(topsourcedir):].lstrip(os.sep)
-
-        l10ndirs = map(resolveL10nBase(rell10ndir), l10nbases)
-        if localedirs is not None:
-          l10ndirs += [os.path.normpath(os.path.abspath(s))
-                       for s in localedirs]
+      assert srcdir.startswith(topsourcedir), "src dir %s not in topsourcedir %s" % (srcdir, topsourcedir)
+      rell10ndir = l10ndir[len(topsourcedir):].lstrip(os.sep)
+      
+      l10ndirs = map(resolveL10nBase(rell10ndir), l10nbases)
+      if localedirs is not None:
+        l10ndirs += [os.path.normpath(os.path.abspath(s))
+                     for s in localedirs]
       srcdirs = [os.path.normpath(os.path.abspath(s))
                  for s in sourcedirs] + [srcdir]
       self.makeJar(infile=infile,
@@ -381,7 +375,7 @@ class JarMaker(object):
       if realsrc is None:
         if jf is not None:
           jf.close()
-        raise RuntimeError('File "%s" not found in %s' % (src, ', '.join(src_base)))
+        raise RuntimeError("file not found: " + src)
       if m.group('optPreprocess'):
         outf = outHelper.getOutput(out)
         inf = open(realsrc)

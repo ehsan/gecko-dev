@@ -721,7 +721,6 @@ class Method(object):
     noscript = False
     notxpcom = False
     binaryname = None
-    optional_argc = False
 
     def __init__(self, type, name, attlist, paramlist, location, doccomments, raises):
         self.type = type
@@ -748,8 +747,6 @@ class Method(object):
                 self.noscript = True
             elif name == 'notxpcom':
                 self.notxpcom = True
-            elif name == 'optional_argc':
-                self.optional_argc = True
             else:
                 raise IDLError("Unexpected attribute '%s'", aloc)
 

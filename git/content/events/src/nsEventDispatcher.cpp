@@ -46,8 +46,6 @@
 #include "nsMutationEvent.h"
 #include NEW_H
 #include "nsFixedSizeAllocator.h"
-#include "nsINode.h"
-#include "nsPIDOMWindow.h"
 
 #define NS_TARGET_CHAIN_FORCE_CONTENT_DISPATCH  (1 << 0)
 #define NS_TARGET_CHAIN_WANTS_WILL_HANDLE_EVENT (1 << 1)
@@ -147,8 +145,7 @@ public:
   nsresult HandleEventTargetChain(nsEventChainPostVisitor& aVisitor,
                                   PRUint32 aFlags,
                                   nsDispatchingCallback* aCallback,
-                                  PRBool aMayHaveNewListenerManagers,
-                                  nsCxPusher* aPusher);
+                                  PRBool aMayHaveNewListenerManagers);
 
   /**
    * Resets aVisitor object and calls PreHandleEvent.
@@ -162,8 +159,7 @@ public:
    * and calls nsIEventListenerManager::HandleEvent().
    */
   nsresult HandleEvent(nsEventChainPostVisitor& aVisitor, PRUint32 aFlags,
-                       PRBool aMayHaveNewListenerManagers,
-                       nsCxPusher* aPusher);
+                       PRBool aMayHaveNewListenerManagers);
 
   /**
    * Copies mItemFlags and mItemData to aVisitor and calls PostHandleEvent.
@@ -225,8 +221,7 @@ nsEventTargetChainItem::PreHandleEvent(nsEventChainPreVisitor& aVisitor)
 nsresult
 nsEventTargetChainItem::HandleEvent(nsEventChainPostVisitor& aVisitor,
                                     PRUint32 aFlags,
-                                    PRBool aMayHaveNewListenerManagers,
-                                    nsCxPusher* aPusher)
+                                    PRBool aMayHaveNewListenerManagers)
 {
   if (WantsWillHandleEvent()) {
     mTarget->WillHandleEvent(aVisitor);
@@ -246,8 +241,7 @@ nsEventTargetChainItem::HandleEvent(nsEventChainPostVisitor& aVisitor,
     mManager->HandleEvent(aVisitor.mPresContext, aVisitor.mEvent,
                           &aVisitor.mDOMEvent,
                           CurrentTarget(), aFlags,
-                          &aVisitor.mEventStatus,
-                          aPusher);
+                          &aVisitor.mEventStatus);
     NS_ASSERTION(aVisitor.mEvent->currentTarget == nsnull,
                  "CurrentTarget should be null!");
   }
@@ -266,8 +260,7 @@ nsEventTargetChainItem::PostHandleEvent(nsEventChainPostVisitor& aVisitor)
 nsresult
 nsEventTargetChainItem::HandleEventTargetChain(nsEventChainPostVisitor& aVisitor, PRUint32 aFlags,
                                                nsDispatchingCallback* aCallback,
-                                               PRBool aMayHaveNewListenerManagers,
-                                               nsCxPusher* aPusher)
+                                               PRBool aMayHaveNewListenerManagers)
 {
   PRUint32 createdELMs = nsEventListenerManager::sCreatedCount;
   // Save the target so that it can be restored later.
@@ -283,8 +276,7 @@ nsEventTargetChainItem::HandleEventTargetChain(nsEventChainPostVisitor& aVisitor
         !(aVisitor.mEvent->flags & NS_EVENT_FLAG_STOP_DISPATCH)) {
       item->HandleEvent(aVisitor, aFlags & NS_EVENT_CAPTURE_MASK,
                         aMayHaveNewListenerManagers ||
-                        createdELMs != nsEventListenerManager::sCreatedCount,
-                        aPusher);
+                        createdELMs != nsEventListenerManager::sCreatedCount);
     }
 
     if (item->GetNewTarget()) {
@@ -313,8 +305,7 @@ nsEventTargetChainItem::HandleEventTargetChain(nsEventChainPostVisitor& aVisitor
     //       <xul:dialog>'s buttons. Bug 235441.
     item->HandleEvent(aVisitor, aFlags,
                       aMayHaveNewListenerManagers ||
-                      createdELMs != nsEventListenerManager::sCreatedCount,
-                      aPusher);
+                      createdELMs != nsEventListenerManager::sCreatedCount);
   }
   if (aFlags & NS_EVENT_FLAG_SYSTEM_EVENT) {
     item->PostHandleEvent(aVisitor);
@@ -336,8 +327,7 @@ nsEventTargetChainItem::HandleEventTargetChain(nsEventChainPostVisitor& aVisitor
            item->ForceContentDispatch()) &&
           !(aVisitor.mEvent->flags & NS_EVENT_FLAG_STOP_DISPATCH)) {
         item->HandleEvent(aVisitor, aFlags & NS_EVENT_BUBBLE_MASK,
-                          createdELMs != nsEventListenerManager::sCreatedCount,
-                          aPusher);
+                          createdELMs != nsEventListenerManager::sCreatedCount);
       }
       if (aFlags & NS_EVENT_FLAG_SYSTEM_EVENT) {
         item->PostHandleEvent(aVisitor);
@@ -367,8 +357,7 @@ nsEventTargetChainItem::HandleEventTargetChain(nsEventChainPostVisitor& aVisitor
     aVisitor.mEvent->target = firstTarget;
     HandleEventTargetChain(aVisitor, aFlags | NS_EVENT_FLAG_SYSTEM_EVENT,
                            aCallback,
-                           createdELMs != nsEventListenerManager::sCreatedCount,
-                           aPusher);
+                           createdELMs != nsEventListenerManager::sCreatedCount);
   }
 
   return NS_OK;
@@ -438,35 +427,11 @@ nsEventDispatcher::Dispatch(nsISupports* aTarget,
                             nsEvent* aEvent,
                             nsIDOMEvent* aDOMEvent,
                             nsEventStatus* aEventStatus,
-                            nsDispatchingCallback* aCallback,
-                            nsCOMArray<nsPIDOMEventTarget>* aTargets)
+                            nsDispatchingCallback* aCallback)
 {
   NS_ASSERTION(aEvent, "Trying to dispatch without nsEvent!");
   NS_ENSURE_TRUE(!NS_IS_EVENT_IN_DISPATCH(aEvent),
                  NS_ERROR_ILLEGAL_VALUE);
-  NS_ASSERTION(!aTargets || !aEvent->message, "Wrong parameters!");
-
-  if (aEvent->flags & NS_EVENT_FLAG_ONLY_CHROME_DISPATCH) {
-    nsCOMPtr<nsINode> node = do_QueryInterface(aTarget);
-    if (!node) {
-      nsCOMPtr<nsPIDOMWindow> win = do_QueryInterface(aTarget);
-      if (win) {
-        node = do_QueryInterface(win->GetExtantDocument());
-      }
-    }
-
-    NS_ENSURE_STATE(node);
-    nsIDocument* doc = node->GetOwnerDoc();
-    if (!nsContentUtils::IsChromeDoc(doc)) {
-      nsPIDOMWindow* win = doc ? doc->GetInnerWindow() : nsnull;
-      // If we can't dispatch the event to chrome, do nothing.
-      NS_ENSURE_TRUE(win && win->GetChromeEventHandler(), NS_OK);
-      // Set the target to be the original dispatch target,
-      aEvent->target = aTarget;
-      // but use chrome event handler for event target chain.
-      aTarget = win->GetChromeEventHandler();
-    }
-  }
 
   nsCOMPtr<nsPIDOMEventTarget> target = do_QueryInterface(aTarget);
 #ifdef DEBUG
@@ -565,29 +530,18 @@ nsEventDispatcher::Dispatch(nsISupports* aTarget,
       }
     }
     if (NS_SUCCEEDED(rv)) {
-      if (aTargets) {
-        aTargets->Clear();
-        nsEventTargetChainItem* item = targetEtci;
-        while(item) {
-          aTargets->AppendObject(item->CurrentTarget()->GetTargetForDOMEvent());
-          item = item->mParent;
-        }
-      } else {
-        // Event target chain is created. Handle the chain.
-        nsEventChainPostVisitor postVisitor(preVisitor);
-        nsCxPusher pusher;
-        rv = topEtci->HandleEventTargetChain(postVisitor,
-                                             NS_EVENT_FLAG_BUBBLE |
-                                             NS_EVENT_FLAG_CAPTURE,
-                                             aCallback,
-                                             PR_TRUE,
-                                             &pusher);
-  
-        preVisitor.mEventStatus = postVisitor.mEventStatus;
-        // If the DOM event was created during event flow.
-        if (!preVisitor.mDOMEvent && postVisitor.mDOMEvent) {
-          preVisitor.mDOMEvent = postVisitor.mDOMEvent;
-        }
+      // Event target chain is created. Handle the chain.
+      nsEventChainPostVisitor postVisitor(preVisitor);
+      rv = topEtci->HandleEventTargetChain(postVisitor,
+                                           NS_EVENT_FLAG_BUBBLE |
+                                           NS_EVENT_FLAG_CAPTURE,
+                                           aCallback,
+                                           PR_TRUE);
+
+      preVisitor.mEventStatus = postVisitor.mEventStatus;
+      // If the DOM event was created during event flow.
+      if (!preVisitor.mDOMEvent && postVisitor.mDOMEvent) {
+        preVisitor.mDOMEvent = postVisitor.mDOMEvent;
       }
     }
   }

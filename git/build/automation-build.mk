@@ -21,6 +21,7 @@ endif
 endif
 
 _PROFILE_DIR = $(TARGET_DEPTH)/_profile/pgo
+_SYMBOLS_PATH = $(TARGET_DIST)/crashreporter-symbols
 
 ABSOLUTE_TOPSRCDIR = $(call core_abspath,$(MOZILLA_DIR))
 _CERTS_SRC_DIR = $(ABSOLUTE_TOPSRCDIR)/build/pgo/certs
@@ -31,6 +32,7 @@ AUTOMATION_PPARGS = 	\
 			-DBIN_SUFFIX=\"$(BIN_SUFFIX)\" \
 			-DPROFILE_DIR=\"$(_PROFILE_DIR)\" \
 			-DCERTS_SRC_DIR=\"$(_CERTS_SRC_DIR)\" \
+			-DSYMBOLS_PATH=\"$(_SYMBOLS_PATH)\" \
 			-DPERL="\"$(PERL)\"" \
 			$(NULL)
 
@@ -66,12 +68,6 @@ ifeq ($(MOZ_DEBUG), 1)
 AUTOMATION_PPARGS += -DIS_DEBUG_BUILD=1
 else
 AUTOMATION_PPARGS += -DIS_DEBUG_BUILD=0
-endif
-
-ifdef MOZ_CRASHREPORTER
-AUTOMATION_PPARGS += -DCRASHREPORTER=1
-else
-AUTOMATION_PPARGS += -DCRASHREPORTER=0
 endif
 
 $(CURDIR)/automationutils.py: $(MOZILLA_DIR)/build/automationutils.py

@@ -321,13 +321,11 @@ WifiGeoPositionProvider.prototype = {
             request.access_token = accessToken;
 
         if (accessPoints != null) {
-            function filterBlankSSIDs(ap) ap.ssid != ""
-            function deconstruct(ap) ({
-                    mac_address: ap.mac,
+            request.wifi_towers = accessPoints.map(function (ap) ({
+                        mac_address: ap.mac,
                         ssid: ap.ssid,
-                        signal_strength: ap.signal
-                        })
-            request.wifi_towers = accessPoints.filter(filterBlankSSIDs).map(deconstruct);
+                        signal_strength: ap.signal,
+                    }));
         }
 
         var jsonString = JSON.stringify(request);

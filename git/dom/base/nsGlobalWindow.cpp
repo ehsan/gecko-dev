@@ -82,7 +82,7 @@
 
 // Interfaces Needed
 #include "nsIFrame.h"
-#include "nsCanvasFrame.h"
+#include "nsICanvasFrame.h"
 #include "nsIWidget.h"
 #include "nsIBaseWindow.h"
 #include "nsIAccelerometer.h"
@@ -511,7 +511,7 @@ nsDummyJavaPluginOwner::ShowStatus(const PRUnichar *aStatusMsg)
 NPError
 nsDummyJavaPluginOwner::ShowNativeContextMenu(NPMenu* menu, void* event)
 {
-  return NPERR_GENERIC_ERROR;
+  return NS_ERROR_NOT_IMPLEMENTED;
 }
 
 NPBool
@@ -5540,7 +5540,7 @@ nsGlobalWindow::Close()
   if (!mInClose && !mIsClosed && cv) {
     PRBool canClose;
 
-    rv = cv->PermitUnload(PR_FALSE, &canClose);
+    rv = cv->PermitUnload(&canClose);
     if (NS_SUCCEEDED(rv) && !canClose)
       return NS_OK;
 
@@ -6836,12 +6836,15 @@ nsGlobalWindow::SetReadyForFocus()
 {
   FORWARD_TO_INNER_VOID(SetReadyForFocus, ());
 
-  PRBool oldNeedsFocus = mNeedsFocus;
+  // if we don't need to be focused, then just return
+  if (!mNeedsFocus)
+    return;
+
   mNeedsFocus = PR_FALSE;
 
   nsIFocusManager* fm = nsFocusManager::GetFocusManager();
   if (fm)
-    fm->WindowShown(this, oldNeedsFocus);
+    fm->WindowShown(this);
 }
 
 void
@@ -6887,11 +6890,11 @@ nsGlobalWindow::FireHashchange()
                                               PR_FALSE, PR_FALSE);
 }
 
-// Find an nsCanvasFrame under aFrame.  Only search the principal
+// Find an nsICanvasFrame under aFrame.  Only search the principal
 // child lists.  aFrame must be non-null.
-static nsCanvasFrame* FindCanvasFrame(nsIFrame* aFrame)
+static nsICanvasFrame* FindCanvasFrame(nsIFrame* aFrame)
 {
-    nsCanvasFrame* canvasFrame = do_QueryFrame(aFrame);
+    nsICanvasFrame* canvasFrame = do_QueryFrame(aFrame);
     if (canvasFrame) {
         return canvasFrame;
     }
@@ -6939,7 +6942,7 @@ nsGlobalWindow::UpdateCanvasFocus(PRBool aFocusChanged, nsIContent* aNewContent)
           nsIFrame* frame = presShell->GetPrimaryFrameFor(rootContent);
           if (frame) {
               frame = frame->GetParent();
-              nsCanvasFrame* canvasFrame = do_QueryFrame(frame);
+              nsICanvasFrame* canvasFrame = do_QueryFrame(frame);
               if (canvasFrame) {
                   canvasFrame->SetHasFocus(mHasFocus && rootContent == aNewContent);
               }
@@ -6949,7 +6952,7 @@ nsGlobalWindow::UpdateCanvasFocus(PRBool aFocusChanged, nsIContent* aNewContent)
       // Look for the frame the hard way
       nsIFrame* frame = presShell->GetRootFrame();
       if (frame) {
-          nsCanvasFrame* canvasFrame = FindCanvasFrame(frame);
+          nsICanvasFrame* canvasFrame = FindCanvasFrame(frame);
           if (canvasFrame) {
               canvasFrame->SetHasFocus(PR_FALSE);
           }

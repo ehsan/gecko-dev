@@ -38,15 +38,10 @@
 
 #include "nsThreadManager.h"
 #include "nsThread.h"
-#include "nsThreadUtils.h"
 #include "nsIClassInfoImpl.h"
 #include "nsTArray.h"
 #include "nsAutoPtr.h"
 #include "nsAutoLock.h"
-
-#ifdef NS_TLS
-NS_TLS bool gTLSIsMainThread = false;
-#endif
 
 typedef nsTArray< nsRefPtr<nsThread> > nsThreadArray;
 
@@ -105,10 +100,6 @@ nsThreadManager::Init()
   // We need to keep a pointer to the current thread, so we can satisfy
   // GetIsMainThread calls that occur post-Shutdown.
   mMainThread->GetPRThread(&mMainPRThread);
-
-#ifdef NS_TLS
-  gTLSIsMainThread = true;
-#endif
 
   mInitialized = PR_TRUE;
   return NS_OK;

@@ -1116,21 +1116,6 @@ function togglePluginDisabled(aName, aDesc)
   gExtensionsView.selectedItem.focus();
 }
 
-// Disable the "Install Updates" button when no Add-ons are selected for update
-function toggleInstallUpdates()
-{
-  var disableInstallUpdate = true;
-  var children = gExtensionsView.children;
-  for (var i = 0; i < children.length; ++i) {
-    var includeUpdate = document.getAnonymousElementByAttribute(children[i], "anonid", "includeUpdate");
-    if (includeUpdate && includeUpdate.checked) {
-      disableInstallUpdate = false;
-      break;
-    }
-  }
-  setElementDisabledByID("cmd_installUpdatesAll", disableInstallUpdate);
-}
-
 ///////////////////////////////////////////////////////////////////////////////
 // Startup, Shutdown
 function Startup()
@@ -2238,8 +2223,7 @@ const gLWThemeObserver = {
     }
     else if (aTopic == "lightweight-theme-changed") {
       gLWThemeToSelect = LightweightThemeManager.currentTheme;
-      if (gPref.prefHasUserValue(PREF_LWTHEME_TO_SELECT))
-          gPref.clearUserPref(PREF_LWTHEME_TO_SELECT);
+      gPref.clearUserPref(PREF_LWTHEME_TO_SELECT);
     }
   }
 };
@@ -2789,10 +2773,8 @@ var gExtensionsViewController = {
 
         // If choosing the current skin just reset the pending change
         if (gThemeToSelect == gCurrentTheme) {
-          if (gPref.prefHasUserValue(PREF_EXTENSIONS_DSS_SWITCHPENDING))
-            gPref.clearUserPref(PREF_EXTENSIONS_DSS_SWITCHPENDING);
-          if (gPref.prefHasUserValue(PREF_DSS_SKIN_TO_SELECT))
-            gPref.clearUserPref(PREF_DSS_SKIN_TO_SELECT);
+          gPref.clearUserPref(PREF_EXTENSIONS_DSS_SWITCHPENDING);
+          gPref.clearUserPref(PREF_DSS_SKIN_TO_SELECT);
           gLWThemeToSelect = LightweightThemeManager.currentTheme = null;
           clearRestartMessage();
         }
@@ -2912,8 +2894,6 @@ var gExtensionsViewController = {
     {
       var includeUpdate = document.getAnonymousElementByAttribute(aSelectedItem, "anonid", "includeUpdate");
       includeUpdate.checked = !includeUpdate.checked;
-
-      toggleInstallUpdates();
     },
 
     cmd_uninstall: function (aSelectedItem)

@@ -238,10 +238,6 @@ SimpleTest.waitForFocus = function (callback, targetWindow) {
     var fm = Components.classes["@mozilla.org/focus-manager;1"].
                         getService(Components.interfaces.nsIFocusManager);
 
-    var usedTargetWindow = {};
-    fm.getFocusedElementForWindow(targetWindow, true, usedTargetWindow);
-    targetWindow = usedTargetWindow.value;
-
     function debugFocusLog(prefix) {
         netscape.security.PrivilegeManager.enablePrivilege("UniversalXPConnect");
 
@@ -562,7 +558,7 @@ window.onerror = function simpletestOnerror(errorMsg, url, lineNumber) {
   var funcIdentifier = "[SimpleTest/SimpleTest.js, window.onerror] ";
 
   // Log the message.
-  ok(false, funcIdentifier + "An error occurred", errorMsg + " at " + url + ":" + lineNumber);
+  ok(false, funcIdentifier + "An error occurred", errorMsg);
   // There is no Components.stack.caller to log. (See bug 511888.)
 
   // Call previous handler.

@@ -42,8 +42,8 @@
 #include "nsIDOMPageTransitionEvent.h"
 #include "nsDOMEvent.h"
 
-class nsDOMPageTransitionEvent : public nsDOMEvent,
-                                 public nsIDOMPageTransitionEvent
+class nsDOMPageTransitionEvent : public nsIDOMPageTransitionEvent,
+                                 public nsDOMEvent
 {
 public:
   nsDOMPageTransitionEvent(nsPresContext* aPresContext, nsEvent* aEvent) :

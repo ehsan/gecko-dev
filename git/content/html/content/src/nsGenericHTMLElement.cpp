@@ -721,7 +721,7 @@ nsGenericHTMLElement::SetInnerHTML(const nsAString& aInnerHTML)
 }
 
 nsresult
-nsGenericHTMLElement::ScrollIntoView(PRBool aTop, PRUint8 optional_argc)
+nsGenericHTMLElement::ScrollIntoView(PRBool aTop)
 {
   nsIDocument *document = GetCurrentDoc();
 
@@ -733,10 +733,6 @@ nsGenericHTMLElement::ScrollIntoView(PRBool aTop, PRUint8 optional_argc)
   nsCOMPtr<nsIPresShell> presShell = document->GetPrimaryShell();
   if (!presShell) {
     return NS_OK;
-  }
-
-  if (!optional_argc) {
-    aTop = PR_TRUE;
   }
 
   PRIntn vpercent = aTop ? NS_PRESSHELL_SCROLL_TOP :
@@ -2789,14 +2785,6 @@ nsGenericHTMLFrameElement::GetFrameLoader(nsIFrameLoader **aFrameLoader)
 {
   NS_IF_ADDREF(*aFrameLoader = mFrameLoader);
   return NS_OK;
-}
-
-NS_IMETHODIMP_(already_AddRefed<nsFrameLoader>)
-nsGenericHTMLFrameElement::GetFrameLoader()
-{
-  nsFrameLoader* loader = mFrameLoader;
-  NS_IF_ADDREF(loader);
-  return loader;
 }
 
 NS_IMETHODIMP

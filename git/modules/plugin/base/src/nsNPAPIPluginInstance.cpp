@@ -881,7 +881,6 @@ nsNPAPIPluginInstance::nsNPAPIPluginInstance(NPPluginFuncs* callbacks,
 #endif
 #endif
     mWindowless(PR_FALSE),
-    mWindowlessLocal(PR_FALSE),
     mTransparent(PR_FALSE),
     mStarted(PR_FALSE),
     mCached(PR_FALSE),
@@ -1383,14 +1382,6 @@ NS_IMETHODIMP nsNPAPIPluginInstance::HandleEvent(void* event, PRBool* handled)
 
 NS_IMETHODIMP nsNPAPIPluginInstance::GetValueFromPlugin(NPPVariable variable, void* value)
 {
-#ifdef MOZ_PLATFORM_HILDON
-  // The maemo flash plugin does not remember this.  It sets the
-  // value, but doesn't support the get value.
-  if (variable == NPPVpluginWindowlessLocalBool) {
-    *(NPBool*)value = mWindowlessLocal;
-    return NS_OK;
-  }
-#endif
   nsresult  res = NS_OK;
   if (mCallbacks->getvalue && mStarted) {
     PluginDestructionGuard guard(this);
@@ -1427,12 +1418,6 @@ nsresult nsNPAPIPluginInstance::GetCallbacks(const NPPluginFuncs ** aCallbacks)
 NPError nsNPAPIPluginInstance::SetWindowless(PRBool aWindowless)
 {
   mWindowless = aWindowless;
-  return NPERR_NO_ERROR;
-}
-
-NPError nsNPAPIPluginInstance::SetWindowlessLocal(PRBool aWindowlessLocal)
-{
-  mWindowlessLocal = aWindowlessLocal;
   return NPERR_NO_ERROR;
 }
 

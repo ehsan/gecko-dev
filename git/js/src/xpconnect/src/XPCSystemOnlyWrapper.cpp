@@ -164,7 +164,6 @@ GetWrappedObject(JSContext *cx, JSObject *wrapper)
 JSBool
 AllowedToAct(JSContext *cx, jsval idval)
 {
-  // TODO bug 508928: Refactor this with the XOW security checking code.
   nsIScriptSecurityManager *ssm = XPCWrapper::GetSecurityManager();
   if (!ssm) {
     return JS_TRUE;
@@ -190,10 +189,13 @@ AllowedToAct(JSContext *cx, jsval idval)
     fp = nsnull;
   }
 
+  void *annotation = fp ? JS_GetFrameAnnotation(cx, fp) : nsnull;
   PRBool privileged;
-  if (NS_SUCCEEDED(ssm->IsSystemPrincipal(principal, &privileged)) &&
+  if (NS_SUCCEEDED(principal->IsCapabilityEnabled("UniversalXPConnect",
+                                                  annotation,
+                                                  &privileged)) &&
       privileged) {
-    // Chrome things are allowed to touch us.
+    // UniversalXPConnect things are allowed to touch us.
     return JS_TRUE;
   }
 
@@ -204,12 +206,6 @@ AllowedToAct(JSContext *cx, jsval idval)
   if (fp &&
       (filename = fp->script->filename) &&
       !strncmp(filename, prefix, NS_ARRAY_LENGTH(prefix) - 1)) {
-    return JS_TRUE;
-  }
-
-  // Before we throw, check for UniversalXPConnect.
-  nsresult rv = ssm->IsCapabilityEnabled("UniversalXPConnect", &privileged);
-  if (NS_SUCCEEDED(rv) && privileged) {
     return JS_TRUE;
   }
 

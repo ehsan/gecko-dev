@@ -817,11 +817,6 @@ public:
   static PRBool IsChromeDoc(nsIDocument *aDocument);
 
   /**
-   * Returns true if aDocument is in a docshell whose parent is the same type
-   */
-  static PRBool IsChildOfSameType(nsIDocument* aDoc);
-
-  /**
    * Get the script file name to use when compiling the script
    * referenced by aURI. In cases where there's no need for any extra
    * security wrapper automation the script file name that's returned
@@ -1294,7 +1289,7 @@ public:
 
   /**
    * Hide any XUL popups associated with aDocument, including any documents
-   * displayed in child frames. Does nothing if aDocument is null.
+   * displayed in child frames.
    */
   static void HidePopupsInDocument(nsIDocument* aDocument);
 
@@ -1606,7 +1601,6 @@ public:
   // Pop() will be a no-op if Push() or PushNull() fail
   void Pop();
 
-  nsIScriptContext* GetCurrentScriptContext() { return mScx; }
 private:
   // Combined code for PushNull() and Push(JSContext*)
   PRBool DoPush(JSContext* cx);

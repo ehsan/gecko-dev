@@ -300,8 +300,7 @@ static void updatePermissions( const char* aPref,
             rv = NS_NewURI(getter_AddRefs(uri), host);
             if (NS_SUCCEEDED(rv))
             {
-                aPermissionManager->Add( uri, XPI_PERMISSION, aPermission, 
-                                         nsIPermissionManager::EXPIRE_NEVER, 0 );
+                aPermissionManager->Add( uri, XPI_PERMISSION, aPermission );
             }
             start = match+1;
         } while ( match > 0 );

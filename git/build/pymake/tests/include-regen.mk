@@ -1,6 +1,5 @@
-# avoid infinite loops by not remaking makefiles with
-# double-colon no-dependency rules
-# http://www.gnu.org/software/make/manual/make.html#Remaking-Makefiles
+# make should only consider -included makefiles for remaking if they actually exist:
+
 -include notfound.mk
 
 all:

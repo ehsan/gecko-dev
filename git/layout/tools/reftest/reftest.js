@@ -275,15 +275,12 @@ function ReadManifest(aURL)
     var xr = CC[NS_XREAPPINFO_CONTRACTID].getService(CI.nsIXULRuntime);
     sandbox.MOZ_WIDGET_TOOLKIT = xr.widgetToolkit;
     sandbox.isDebugBuild = gDebug.isDebugBuild;
-    sandbox.xulRuntime = {widgetToolkit: xr.widgetToolkit, OS: xr.OS};
+    sandbox.xulRuntime = {widgetToolkit: xr.widgettoolkit, OS: xr.OS};
 
-    // xr.XPCOMABI throws exception for configurations without full ABI
-    // support (mobile builds on ARM)
+    // xr.XPCOMABI throws exception for configurations without full ABI support (mobile builds on ARM)
     try {
-      sandbox.xulRuntime.XPCOMABI = xr.XPCOMABI;
-    } catch(e) {
-      sandbox.xulRuntime.XPCOMABI = "";
-    }
+      sandbox.XPCOMABI = xr.XPCOMABI;
+    } catch(e) {}
 
     var hh = CC[NS_NETWORK_PROTOCOL_CONTRACTID_PREFIX + "http"].
                  getService(CI.nsIHttpProtocolHandler);
@@ -854,8 +851,7 @@ function InitCurrentCanvasWithSnapshot()
     ctx.drawWindow(win, win.scrollX, win.scrollY,
                    Math.ceil(gCurrentCanvas.width / scale),
                    Math.ceil(gCurrentCanvas.height / scale),
-                   "rgb(255,255,255)",
-                   ctx.DRAWWINDOW_DRAW_CARET);
+                   "rgb(255,255,255)");
     ctx.restore();
 }
 
@@ -884,8 +880,7 @@ function UpdateCurrentCanvasForEvent(event)
         ctx.translate(left, top);
         ctx.drawWindow(win, left + win.scrollX, top + win.scrollY,
                        right - left, bottom - top,
-                       "rgb(255,255,255)",
-                       ctx.DRAWWINDOW_DRAW_CARET);
+                       "rgb(255,255,255)");
         ctx.restore();
     }
 }

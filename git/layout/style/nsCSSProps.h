@@ -69,10 +69,6 @@
  * Types of animatable values.
  */
 enum nsStyleAnimType {
-  // requires a custom implementation in
-  // nsStyleAnimation::ExtractComputedValue
-  eStyleAnimType_Custom,
-
   // nsStyleCoord with animatable values
   eStyleAnimType_Coord,
 
@@ -83,21 +79,8 @@ enum nsStyleAnimType {
   eStyleAnimType_Sides_Bottom,
   eStyleAnimType_Sides_Left,
 
-  // similar, but for the *pair* of coord members of an nsStyleCorners
-  // for the relevant corner
-  eStyleAnimType_Corner_TopLeft,
-  eStyleAnimType_Corner_TopRight,
-  eStyleAnimType_Corner_BottomRight,
-  eStyleAnimType_Corner_BottomLeft,
-
   // nscoord values
   eStyleAnimType_nscoord,
-
-  // enumerated values (stored in a PRUint8)
-  // In order for a property to use this unit, _all_ of its enumerated values
-  // must be listed in its keyword table, so that any enumerated value can be
-  // converted into a string via a nsCSSValue of type eCSSUnit_Enumerated.
-  eStyleAnimType_EnumU8,
 
   // float values
   eStyleAnimType_float,
@@ -107,9 +90,6 @@ enum nsStyleAnimType {
 
   // nsStyleSVGPaint values
   eStyleAnimType_PaintServer,
-
-  // nsRefPtr<nsCSSShadowArray> values
-  eStyleAnimType_Shadow,
 
   // property not animatable
   eStyleAnimType_None

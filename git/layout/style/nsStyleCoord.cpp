@@ -52,6 +52,12 @@ nsStyleCoord::nsStyleCoord(nsStyleUnit aUnit)
   mValue.mInt = 0;
 }
 
+nsStyleCoord::nsStyleCoord(nscoord aValue)
+  : mUnit(eStyleUnit_Coord)
+{
+  mValue.mInt = aValue;
+}
+
 nsStyleCoord::nsStyleCoord(PRInt32 aValue, nsStyleUnit aUnit)
   : mUnit(aUnit)
 {
@@ -82,6 +88,12 @@ nsStyleCoord::nsStyleCoord(float aValue, nsStyleUnit aUnit)
     mUnit = eStyleUnit_Null;
     mValue.mInt = 0;
   }
+}
+
+nsStyleCoord::nsStyleCoord(nscolor aValue)
+  : mUnit(eStyleUnit_Color)
+{
+  mValue.mColor = aValue;
 }
 
 nsStyleCoord& nsStyleCoord::operator=(const nsStyleCoord& aCopy)
@@ -119,6 +131,12 @@ void nsStyleCoord::SetCoordValue(nscoord aValue)
 {
   mUnit = eStyleUnit_Coord;
   mValue.mInt = aValue;
+}
+
+void nsStyleCoord::SetColorValue(nscolor aValue)
+{
+  mUnit = eStyleUnit_Color;
+  mValue.mColor = aValue;
 }
 
 void nsStyleCoord::SetIntValue(PRInt32 aValue, nsStyleUnit aUnit)

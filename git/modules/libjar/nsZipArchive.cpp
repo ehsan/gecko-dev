@@ -49,6 +49,7 @@
  * or pointers to it across thread boundaries.
  */
 
+
 #define READTYPE  PRInt32
 #include "zlib.h"
 #include "nsISupportsUtils.h"
@@ -58,6 +59,7 @@
 #include "prlog.h"
 #include "stdlib.h"
 #include "nsWildCard.h"
+#include "zipstruct.h"
 #include "nsZipArchive.h"
 
 /**
@@ -98,16 +100,12 @@ nsRecyclingAllocator *gZlibAllocator = NULL;
 #  endif
 #endif  /* XP_UNIX */
 
-
-static const PRUint32 kMaxNameLength = PATH_MAX; /* Maximum name length */
-// For synthetic zip entries. Date/time corresponds to 1980-01-01 00:00.
-static const PRUint16 kSyntheticTime = 0;
-static const PRUint16 kSyntheticDate = (1 + (1 << 5) + (0 << 9));
-
-static PRUint16 xtoint(const unsigned char *ii);
-static PRUint32 xtolong(const unsigned char *ll);
-static PRUint32 HashName(const char* aName, PRUint16 nameLen);
+static PRUint16 xtoint(unsigned char *ii);
+static PRUint32 xtolong(unsigned char *ll);
+static PRUint16 ExtractMode(unsigned char *ll);
+static PRUint32 HashName(const char* aName);
 #if defined(XP_UNIX) || defined(XP_BEOS)
+static PRBool IsSymlink(unsigned char *ll);
 static nsresult ResolveSymlink(const char *path);
 #endif
 
@@ -124,10 +122,10 @@ static void *
 zlibAlloc(void *opaque, uInt items, uInt size)
 {
   nsRecyclingAllocator *zallocator = (nsRecyclingAllocator *)opaque;
-  if (zallocator) {
-    return gZlibAllocator->Malloc(items * size);
+  if (gZlibAllocator) {
+    return gZlibAllocator->Calloc(items, size);
   }
-  return malloc(items * size);
+  return calloc(items, size);
 }
 
 static void
@@ -245,7 +243,7 @@ nsresult nsZipArchive::Test(const char *aEntryName)
     if (!currItem)
       return NS_ERROR_FILE_TARGET_DOES_NOT_EXIST;
     //-- don't test (synthetic) directory items
-    if (currItem->IsDirectory())
+    if (currItem->isDirectory)
       return NS_OK;
     return ExtractFile(currItem, 0, 0);
   }
@@ -254,7 +252,7 @@ nsresult nsZipArchive::Test(const char *aEntryName)
   for (int i = 0; i < ZIP_TABSIZE; i++) {
     for (currItem = mFiles[i]; currItem; currItem = currItem->next) {
       //-- don't test (synthetic) directory items
-      if (currItem->IsDirectory())
+      if (currItem->isDirectory)
         continue;
       nsresult rv = ExtractFile(currItem, 0, 0);
       if (rv != NS_OK)
@@ -293,20 +291,19 @@ nsresult nsZipArchive::CloseArchive()
 nsZipItem*  nsZipArchive::GetItem(const char * aEntryName)
 {
   if (aEntryName) {
-    PRUint32 len = strlen(aEntryName);
     //-- If the request is for a directory, make sure that synthetic entries 
     //-- are created for the directories without their own entry.
     if (!mBuiltSynthetics) {
+        PRUint32 len = strlen(aEntryName);
         if ((len > 0) && (aEntryName[len-1] == '/')) {
             if (BuildSynthetics() != NS_OK)
                 return 0;
         }
     }
 
-    nsZipItem* item = mFiles[ HashName(aEntryName, len) ];
+    nsZipItem* item = mFiles[ HashName(aEntryName) ];
     while (item) {
-      if ((len == item->nameLength) && 
-         (!memcmp(aEntryName, item->Name(), len)))
+      if (!strcmp(aEntryName, item->name))
         return item; //-- found it
       item = item->next;
     }
@@ -331,12 +328,12 @@ nsresult nsZipArchive::ExtractFile(nsZipItem *item, const char *outname,
 
   // Directory extraction is handled in nsJAR::Extract,
   // so the item to be extracted should never be a directory
-  PR_ASSERT(!item->IsDirectory());
+  PR_ASSERT(!item->isDirectory);
 
   nsresult rv;
 
   //-- extract the file using the appropriate method
-  switch(item->Compression())
+  switch(item->compression)
   {
     case STORED:
       rv = CopyItemToDisk(item, aFd);
@@ -357,7 +354,7 @@ nsresult nsZipArchive::ExtractFile(nsZipItem *item, const char *outname,
     if (rv != NS_OK)
       PR_Delete(outname);
 #if defined(XP_UNIX) || defined(XP_BEOS)
-    else if (item->IsSymlink())
+    else if (item->isSymlink)
       rv = ResolveSymlink(outname);
 #endif
   }
@@ -426,13 +423,12 @@ nsZipArchive::FindInit(const char * aPattern, nsZipFind **aFind)
 //---------------------------------------------
 // nsZipFind::FindNext
 //---------------------------------------------
-nsresult nsZipFind::FindNext(const char ** aResult, PRUint16 *aNameLen)
+nsresult nsZipFind::FindNext(const char ** aResult)
 {
-  if (!mArchive || !aResult || !aNameLen)
+  if (!mArchive || !aResult)
     return NS_ERROR_ILLEGAL_VALUE;
 
   *aResult = 0;
-  *aNameLen = 0;
 
   // we start from last match, look for next
   while (mSlot < ZIP_TABSIZE)
@@ -446,19 +442,12 @@ nsresult nsZipFind::FindNext(const char ** aResult, PRUint16 *aNameLen)
     else if (!mPattern)
       found = PR_TRUE;            // always match
     else if (mRegExp)
-    {
-      char buf[kMaxNameLength+1];
-      memcpy(buf, mItem->Name(), mItem->nameLength);
-      buf[mItem->nameLength]='\0';
-      found = (NS_WildCardMatch(buf, mPattern, PR_FALSE) == MATCH);
-    }
+      found = (NS_WildCardMatch(mItem->name, mPattern, PR_FALSE) == MATCH);
     else
-      found = ((mItem->nameLength == strlen(mPattern)) &&
-               (memcmp(mItem->Name(), mPattern, mItem->nameLength) == 0));
+      found = (PL_strcmp(mItem->name, mPattern) == 0);
+
     if (found) {
-      // Need also to return the name length, as it is NOT zero-terminatdd...
-      *aResult = mItem->Name();
-      *aNameLen = mItem->nameLength;
+      *aResult = mItem->name;
       return NS_OK;
     }
   }
@@ -494,14 +483,17 @@ static nsresult ResolveSymlink(const char *path)
 //      nsZipArchive  --  private implementation
 //***********************************************************
 
+#define BR_BUF_SIZE 1024 /* backward read buffer size */
+
 //---------------------------------------------
 //  nsZipArchive::CreateZipItem
 //---------------------------------------------
-nsZipItem* nsZipArchive::CreateZipItem()
+nsZipItem* nsZipArchive::CreateZipItem(PRUint16 namelen)
 {
+  // sizeof(nsZipItem) includes space for name's null byte
   // Arena allocate the nsZipItem
   void *mem;
-  PL_ARENA_ALLOCATE(mem, &mArena, sizeof(nsZipItem));
+  PL_ARENA_ALLOCATE(mem, &mArena, sizeof(nsZipItem)+namelen);
   return (nsZipItem*)mem;
 }
 
@@ -512,21 +504,20 @@ nsresult nsZipArchive::BuildFileList()
 {
   // Get archive size using end pos
   PRUint8* buf;
-  PRUint8* startp = mFd->mFileData;
-  PRUint8* endp = startp + mFd->mLen;
+  PRUint8* endp = mFd->mFileData + mFd->mLen;
 
   for (buf = endp - ZIPEND_SIZE; xtolong(buf) != ENDSIG; buf--)
   {
-    if (buf == startp) {
+    if (buf == mFd->mFileData) {
       // We're at the beginning of the file, and still no sign
       // of the end signature.  File must be corrupted!
       return NS_ERROR_FILE_CORRUPTED;
     }
   }
-  PRUint32 centralOffset = xtolong(((ZipEnd *)buf)->offset_central_dir);
+  PRUint32 central = xtolong(((ZipEnd *)buf)->offset_central_dir);
 
   //-- Read the central directory headers
-  buf = startp + centralOffset;
+  buf = mFd->mFileData + central;
   PRUint32 sig = xtolong(buf);
   while (sig == CENTRALSIG) {
     // Make sure there is enough data available.
@@ -540,27 +531,44 @@ nsresult nsZipArchive::BuildFileList()
     PRUint16 extralen = xtoint(central->extrafield_len);
     PRUint16 commentlen = xtoint(central->commentfield_len);
 
-    // Point to the next item at the top of loop
-    buf += ZIPCENTRAL_SIZE + namelen + extralen + commentlen;
-
     // Sanity check variable sizes and refuse to deal with
     // anything too big: it's likely a corrupt archive.
-    if (namelen > kMaxNameLength || buf >= endp)
+    if (namelen > BR_BUF_SIZE || extralen > BR_BUF_SIZE || commentlen > 2*BR_BUF_SIZE)
       return NS_ERROR_FILE_CORRUPTED;
 
-    nsZipItem* item = CreateZipItem();
+    nsZipItem* item = CreateZipItem(namelen);
     if (!item)
       return NS_ERROR_OUT_OF_MEMORY;
 
-    item->central = central;
-    item->nameLength = namelen;
-    item->isSynthetic = false;
+    item->headerOffset  = xtolong(central->localhdr_offset);
+    item->size          = xtolong(central->size);
+    item->realsize      = xtolong(central->orglen);
+    item->crc32         = xtolong(central->crc32);
+    item->time          = xtoint(central->time);
+    item->date          = xtoint(central->date);
+    item->isSynthetic   = PR_FALSE;
+    item->compression   = PR_MIN(xtoint(central->method), UNSUPPORTED);
+    item->mode          = ExtractMode(central->external_attributes);
+#if defined(XP_UNIX) || defined(XP_BEOS)
+    // Check if item is a symlink
+    item->isSymlink = IsSymlink(central->external_attributes);
+#endif
+
+    buf += ZIPCENTRAL_SIZE;
+
+    // Get the item name
+    memcpy(item->name, buf, namelen);
+    item->name[namelen] = 0;
+    // An item whose name ends with '/' is a directory
+    item->isDirectory = ('/' == item->name[namelen - 1]);
 
     // Add item to file table
-    PRUint32 hash = HashName(item->Name(), namelen);
+    PRUint32 hash = HashName(item->name);
     item->next = mFiles[hash];
     mFiles[hash] = item;
 
+    // Point to the next item at the top of loop
+    buf += namelen + extralen + commentlen;
     sig = xtolong(buf);
   } /* while reading central directory records */
 
@@ -593,40 +601,64 @@ nsresult nsZipArchive::BuildSynthetics()
       //-- create already exists
       //-- start just before the last char so as to not add the item
       //-- twice if it's a directory
-      PRUint16 namelen = item->nameLength;
-      const char *name = item->Name();
-      for (PRUint16 dirlen = namelen - 1; dirlen > 0; dirlen--)
+      PRUint16 namelen = strlen(item->name);
+      for (char* p = item->name + namelen - 2; p >= item->name; p--)
       {
-        if (name[dirlen-1] != '/')
+        if ('/' != *p)
           continue;
 
-        // Is the directory already in the file table?
-        PRUint32 hash = HashName(item->Name(), dirlen);
+        // See whether we need to create any more implicit directories,
+        // because if we don't we can avoid a lot of work.
+        // We can even avoid (de)allocating space for a bogus dirname with
+        // a little trickery -- save the char at item->name[dirnamelen],
+        // set it to 0, compare the strings, and restore the saved
+        // char when done
+        const PRUint32 dirnamelen = p + 1 - item->name;
+        const char savedChar = item->name[dirnamelen];
+        item->name[dirnamelen] = 0;
+
+        // Is the directory in the file table?
+        PRUint32 hash = HashName(item->name);
         PRBool found = PR_FALSE;
         for (nsZipItem* zi = mFiles[hash]; zi != NULL; zi = zi->next)
         {
-          if ((dirlen == zi->nameLength) &&
-              (0 == memcmp(item->Name(), zi->Name(), dirlen)))
+          if (0 == strcmp(item->name, zi->name))
           {
             // we've already added this dir and all its parents
             found = PR_TRUE;
             break;
           }
         }
+
+        // restore the char immediately
+        item->name[dirnamelen] = savedChar;
+
         // if the directory was found, break out of the directory
         // creation loop now that we know all implicit directories
         // are there -- otherwise, start creating the zip item
         if (found)
           break;
 
-        nsZipItem* diritem = CreateZipItem();
+        nsZipItem* diritem = CreateZipItem(dirnamelen);
         if (!diritem)
           return NS_ERROR_OUT_OF_MEMORY;
 
-        // Point to the central record of the original item for the name part.
-        diritem->central =  item->central;
-        diritem->nameLength = dirlen;
-        diritem->isSynthetic = true;
+        memcpy(diritem->name, item->name, dirnamelen);
+        diritem->name[dirnamelen] = 0;
+
+        diritem->isDirectory = PR_TRUE;
+        diritem->isSynthetic = PR_TRUE;
+        diritem->compression = STORED;
+        diritem->size = diritem->realsize = 0;
+        diritem->crc32 = 0;
+        diritem->mode = 0755;
+
+        // Set an obviously wrong last-modified date/time, because
+        // finding something more accurate like the most recent
+        // last-modified date/time of the dir's contents is a lot
+        // of effort.  The date/time corresponds to 1980-01-01 00:00.
+        diritem->time = 0;
+        diritem->date = 1 + (1 << 5) + (0 << 9);
 
         // add diritem to the file table
         diritem->next = mFiles[hash];
@@ -653,29 +685,27 @@ PRUint8* nsZipArchive::GetData(nsZipItem* aItem)
 
   //-- read local header to get variable length values and calculate
   //-- the real data offset
-  PRUint32 len = mFd->mLen;
-  PRUint8* data = mFd->mFileData;
-  PRUint32 offset = aItem->LocalOffset();
-  if (offset + ZIPLOCAL_SIZE > len)
+  if (aItem->headerOffset + ZIPLOCAL_SIZE > mFd->mLen)
     return nsnull;
 
   // -- check signature before using the structure, in case the zip file is corrupt
-  ZipLocal* Local = (ZipLocal*)(data + offset);
+  ZipLocal* Local = (ZipLocal*)(mFd->mFileData + aItem->headerOffset);
   if ((xtolong(Local->signature) != LOCALSIG))
     return nsnull;
 
   //-- NOTE: extralen is different in central header and local header
   //--       for archives created using the Unix "zip" utility. To set
   //--       the offset accurately we need the _local_ extralen.
-  offset += ZIPLOCAL_SIZE +
-            xtoint(Local->filename_len) +
-            xtoint(Local->extrafield_len);
+  PRUint32 dataOffset = aItem->headerOffset +
+                        ZIPLOCAL_SIZE +
+                        xtoint(Local->filename_len) +
+                        xtoint(Local->extrafield_len);
 
   // -- check if there is enough source data in the file
-  if (offset + aItem->Size() > len)
+  if (dataOffset + aItem->size > mFd->mLen)
     return nsnull;
 
-  return data + offset;
+  return mFd->mFileData + dataOffset;
 }
 
 //---------------------------------------------
@@ -691,16 +721,16 @@ nsZipArchive::CopyItemToDisk(nsZipItem *item, PRFileDesc* outFD)
   if (!itemData)
     return NS_ERROR_FILE_CORRUPTED;
 
-  if (outFD && PR_Write(outFD, itemData, item->Size()) < (READTYPE)item->Size())
+  if (outFD && PR_Write(outFD, itemData, item->size) < (READTYPE)item->size)
   {
     //-- Couldn't write all the data (disk full?)
     return NS_ERROR_FILE_DISK_FULL;
   }
 
   //-- Calculate crc
-  PRUint32 crc = crc32(0L, (const unsigned char*)itemData, item->Size());
+  PRUint32 crc = crc32(0L, (const unsigned char*)itemData, item->size);
   //-- verify crc32
-  if (crc != item->CRC32())
+  if (crc != item->crc32)
       return NS_ERROR_FILE_CORRUPTED;
 
   return NS_OK;
@@ -728,7 +758,7 @@ nsresult nsZipArchive::InflateItem(nsZipItem * item, PRFileDesc* outFD)
     return NS_ERROR_FAILURE;
 
   //-- inflate loop
-  zs.avail_in = item->Size();
+  zs.avail_in = item->size;
   zs.next_in = (Bytef*)GetData(item);
   if (!zs.next_in)
     return NS_ERROR_FILE_CORRUPTED;
@@ -762,7 +792,7 @@ nsresult nsZipArchive::InflateItem(nsZipItem * item, PRFileDesc* outFD)
   inflateEnd(&zs);
 
   //-- verify crc32
-  if ((status == NS_OK) && (crc != item->CRC32()))
+  if ((status == NS_OK) && (crc != item->crc32))
   {
     status = NS_ERROR_FILE_CORRUPTED;
   }
@@ -820,15 +850,13 @@ nsZipFind::~nsZipFind()
  *
  * returns a hash key for the entry name 
  */
-static PRUint32 HashName(const char* aName, PRUint16 len)
+static PRUint32 HashName(const char* aName)
 {
   PR_ASSERT(aName != 0);
 
-  const PRUint8* p = (const PRUint8*)aName;
-  const PRUint8* endp = p + len;
   PRUint32 val = 0;
-  while (p != endp) {
-    val = val*37 + *p++;
+  for (PRUint8* c = (PRUint8*)aName; *c != 0; c++) {
+    val = val*37 + *c;
   }
 
   return (val % ZIP_TABSIZE);
@@ -840,7 +868,7 @@ static PRUint32 HashName(const char* aName, PRUint16 len)
  *  Converts a two byte ugly endianed integer
  *  to our platform's integer.
  */
-static PRUint16 xtoint (const unsigned char *ii)
+static PRUint16 xtoint (unsigned char *ii)
 {
   return (PRUint16) ((ii [0]) | (ii [1] << 8));
 }
@@ -851,7 +879,7 @@ static PRUint16 xtoint (const unsigned char *ii)
  *  Converts a four byte ugly endianed integer
  *  to our platform's integer.
  */
-static PRUint32 xtolong (const unsigned char *ll)
+static PRUint32 xtolong (unsigned char *ll)
 {
   return (PRUint32)( (ll [0] <<  0) |
                      (ll [1] <<  8) |
@@ -859,56 +887,28 @@ static PRUint32 xtolong (const unsigned char *ll)
                      (ll [3] << 24) );
 }
 
-PRUint32 const nsZipItem::LocalOffset()
+/*
+ * ExtractMode
+ *
+ * Extracts bits 17-24 from a 32-bit unsigned long
+ * representation of the external attributes field.
+ * Subsequently it tacks on the implicit user-read
+ * bit.
+ */
+static PRUint16 ExtractMode(unsigned char *ll)
 {
-  return xtolong(central->localhdr_offset);
-}
-
-PRUint32 const nsZipItem::Size()
-{
-  return isSynthetic ? 0 : xtolong(central->size);
-}
-
-PRUint32 const nsZipItem::RealSize()
-{
-  return isSynthetic ? 0 : xtolong(central->orglen);
-}
-
-PRUint32 const nsZipItem::CRC32()
-{
-  return isSynthetic ? 0 : xtolong(central->crc32);
-}
-
-PRUint16 const nsZipItem::Date()
-{
-  return isSynthetic ? kSyntheticDate : xtoint(central->date);
-}
-
-PRUint16 const nsZipItem::Time()
-{
-  return isSynthetic ? kSyntheticTime : xtoint(central->time);
-}
-
-PRUint16 const nsZipItem::Compression()
-{
-  return isSynthetic ? STORED : xtoint(central->method);
-}
-
-bool const nsZipItem::IsDirectory()
-{
-  return isSynthetic || ((nameLength > 0) && ('/' == Name()[nameLength - 1]));
-}
-
-PRUint16 const nsZipItem::Mode()
-{
-  if (isSynthetic) return 0755;
-  return ((PRUint16)(central->external_attributes[2]) | 0x100);
+    return ((PRUint16)(ll[2])) | 0x0100;
 }
 
 #if defined(XP_UNIX) || defined(XP_BEOS)
-bool const nsZipItem::IsSymlink()
+/*
+ *
+ *  Return true if the attributes are for a symbolic link
+ *
+ */
+
+static PRBool IsSymlink(unsigned char *ll)
 {
-  if (isSynthetic) return false;
-  return (xtoint(central->external_attributes+2) & S_IFMT) == S_IFLNK;
+  return ((xtoint(ll+2) & S_IFMT) == S_IFLNK);
 }
 #endif

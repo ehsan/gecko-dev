@@ -65,7 +65,6 @@ static NPClass sNPClass;
 typedef bool (* ScriptableFunction)
   (NPObject* npobj, const NPVariant* args, uint32_t argCount, NPVariant* result);
 
-static bool npnEvaluateTest(NPObject* npobj, const NPVariant* args, uint32_t argCount, NPVariant* result);
 static bool npnInvokeTest(NPObject* npobj, const NPVariant* args, uint32_t argCount, NPVariant* result);
 static bool npnInvokeDefaultTest(NPObject* npobj, const NPVariant* args, uint32_t argCount, NPVariant* result);
 static bool setUndefinedValueTest(NPObject* npobj, const NPVariant* args, uint32_t argCount, NPVariant* result);
@@ -85,11 +84,8 @@ static bool getLastMouseX(NPObject* npobj, const NPVariant* args, uint32_t argCo
 static bool getLastMouseY(NPObject* npobj, const NPVariant* args, uint32_t argCount, NPVariant* result);
 static bool getError(NPObject* npobj, const NPVariant* args, uint32_t argCount, NPVariant* result);
 static bool doInternalConsistencyCheck(NPObject* npobj, const NPVariant* args, uint32_t argCount, NPVariant* result);
-static bool setColor(NPObject* npobj, const NPVariant* args, uint32_t argCount, NPVariant* result);
-static bool throwExceptionNextInvoke(NPObject* npobj, const NPVariant* args, uint32_t argCount, NPVariant* result);
 
 static const NPUTF8* sPluginMethodIdentifierNames[] = {
-  "npnEvaluateTest",
   "npnInvokeTest",
   "npnInvokeDefaultTest",
   "setUndefinedValueTest",
@@ -109,12 +105,9 @@ static const NPUTF8* sPluginMethodIdentifierNames[] = {
   "getLastMouseY",
   "getError",
   "doInternalConsistencyCheck",
-  "setColor",
-  "throwExceptionNextInvoke",
 };
 static NPIdentifier sPluginMethodIdentifiers[ARRAY_LENGTH(sPluginMethodIdentifierNames)];
 static const ScriptableFunction sPluginMethodFunctions[ARRAY_LENGTH(sPluginMethodIdentifierNames)] = {
-  npnEvaluateTest,
   npnInvokeTest,
   npnInvokeDefaultTest,
   setUndefinedValueTest,
@@ -134,8 +127,6 @@ static const ScriptableFunction sPluginMethodFunctions[ARRAY_LENGTH(sPluginMetho
   getLastMouseY,
   getError,
   doInternalConsistencyCheck,
-  setColor,
-  throwExceptionNextInvoke,
 };
 
 static const char* NPN_GetURLNotifyCookie = "NPN_GetURLNotify_Cookie";
@@ -454,7 +445,6 @@ NPP_New(NPMIMEType pluginType, NPP instance, uint16_t mode, int16_t argc, char* 
   instanceData->streamBufSize = 0;
   instanceData->fileBuf = NULL;
   instanceData->fileBufSize = 0;
-  instanceData->throwOnNextInvoke = false;
   instanceData->testrange = NULL;
   instanceData->hasWidget = false;
   instanceData->npnNewStream = false;
@@ -485,7 +475,7 @@ NPP_New(NPMIMEType pluginType, NPP instance, uint16_t mode, int16_t argc, char* 
         scriptableObject->drawMode = DM_SOLID_COLOR;    
     }
     else if (strcmp(argn[i], "color") == 0) {
-      scriptableObject->drawColor = parseHexColor(argv[i], strlen(argv[i]));
+      scriptableObject->drawColor = parseHexColor(argv[i]);
     }
     else if (strcmp(argn[i], "wmode") == 0) {
       if (strcmp(argv[i], "window") == 0) {
@@ -996,12 +986,6 @@ NPN_SetValue(NPP instance, NPPVariable variable, void* value)
   return sBrowserFuncs->setvalue(instance, variable, value);
 }
 
-void
-NPN_InvalidateRect(NPP instance, NPRect* rect)
-{
-  sBrowserFuncs->invalidaterect(instance, rect);
-}
-
 bool
 NPN_HasProperty(NPP instance, NPObject* obj, NPIdentifier propertyName)
 {
@@ -1151,18 +1135,6 @@ NPN_GetProperty(NPP instance,
   return sBrowserFuncs->getproperty(instance, npobj, propertyName, result);
 }
 
-bool
-NPN_Evaluate(NPP instance, NPObject *npobj, NPString *script, NPVariant *result)
-{
-  return sBrowserFuncs->evaluate(instance, npobj, script, result);
-}
-
-void
-NPN_SetException(NPObject *npobj, const NPUTF8 *message)
-{
-  return sBrowserFuncs->setexception(npobj, message);
-}
-
 //
 // npruntime object functions
 //
@@ -1201,22 +1173,6 @@ scriptableHasMethod(NPObject* npobj, NPIdentifier name)
 bool
 scriptableInvoke(NPObject* npobj, NPIdentifier name, const NPVariant* args, uint32_t argCount, NPVariant* result)
 {
-  NPP npp = static_cast<TestNPObject*>(npobj)->npp;
-  InstanceData* id = static_cast<InstanceData*>(npp->pdata);
-  if (id->throwOnNextInvoke) {
-    id->throwOnNextInvoke = false;
-    if (argCount == 0) {
-      NPN_SetException(npobj, NULL);
-    }
-    else {
-      for (uint32_t i = 0; i < argCount; i++) {
-        const NPString* argstr = &NPVARIANT_TO_STRING(args[i]);
-        NPN_SetException(npobj, argstr->UTF8Characters);
-      }
-    }
-    return false;
-  }
-  
   for (int i = 0; i < int(ARRAY_LENGTH(sPluginMethodIdentifiers)); i++) {
     if (name == sPluginMethodIdentifiers[i])
       return sPluginMethodFunctions[i](npobj, args, argCount, result);
@@ -1227,46 +1183,7 @@ scriptableInvoke(NPObject* npobj, NPIdentifier name, const NPVariant* args, uint
 bool
 scriptableInvokeDefault(NPObject* npobj, const NPVariant* args, uint32_t argCount, NPVariant* result)
 {
-  NPP npp = static_cast<TestNPObject*>(npobj)->npp;
-  InstanceData* id = static_cast<InstanceData*>(npp->pdata);
-  if (id->throwOnNextInvoke) {
-    id->throwOnNextInvoke = false;
-    if (argCount == 0) {
-      NPN_SetException(npobj, NULL);
-    }
-    else {
-      for (uint32_t i = 0; i < argCount; i++) {
-        const NPString* argstr = &NPVARIANT_TO_STRING(args[i]);
-        NPN_SetException(npobj, argstr->UTF8Characters);
-      }
-    }
-    return false;
-  }
-
-  ostringstream value;
-  value << PLUGIN_NAME;
-  for (uint32_t i = 0; i < argCount; i++) {
-    switch(args[i].type) {
-      case NPVariantType_Int32:
-        value << ";" << NPVARIANT_TO_INT32(args[i]);
-        break;
-      case NPVariantType_String: {
-        const NPString* argstr = &NPVARIANT_TO_STRING(args[i]);
-        value << ";" << argstr->UTF8Characters;
-        break;
-      }
-      case NPVariantType_Void:
-        value << ";undefined";
-        break;
-      case NPVariantType_Null:
-        value << ";null";
-        break;
-      default:
-        value << ";other";
-    }
-  }
-  STRINGZ_TO_NPVARIANT(strdup(value.str().c_str()), *result);
-  return true;
+  return false;
 }
 
 bool
@@ -1418,16 +1335,6 @@ compareVariants(NPP instance, const NPVariant* var1, const NPVariant* var2)
 }
 
 static bool
-throwExceptionNextInvoke(NPObject* npobj, const NPVariant* args, uint32_t argCount, NPVariant* result)
-{
-  NPP npp = static_cast<TestNPObject*>(npobj)->npp;
-  InstanceData* id = static_cast<InstanceData*>(npp->pdata);
-  id->throwOnNextInvoke = true;
-  BOOLEAN_TO_NPVARIANT(true, *result);
-  return true;  
-}
-
-static bool
 npnInvokeDefaultTest(NPObject* npobj, const NPVariant* args, uint32_t argCount, NPVariant* result)
 {
   bool success = false;
@@ -1449,8 +1356,8 @@ npnInvokeDefaultTest(NPObject* npobj, const NPVariant* args, uint32_t argCount, 
       NPObject* selfObject = NPVARIANT_TO_OBJECT(objectVariant);
       if (selfObject != NULL) {
         NPVariant resultVariant;
-        if (NPN_InvokeDefault(npp, selfObject, argCount > 1 ? &args[1] : NULL, 
-            argCount - 1, &resultVariant)) {
+        if (NPN_InvokeDefault(npp, selfObject, &args[1], argCount - 1,
+            &resultVariant)) {
           *result = resultVariant;
           success = true;
         }
@@ -1491,29 +1398,6 @@ npnInvokeTest(NPObject* npobj, const NPVariant* args, uint32_t argCount, NPVaria
   NPN_ReleaseVariantValue(&invokeResult);
   BOOLEAN_TO_NPVARIANT(invokeReturn && compareResult, *result);
   return true;
-}
-
-static bool
-npnEvaluateTest(NPObject* npobj, const NPVariant* args, uint32_t argCount, NPVariant* result)
-{
-  bool success = false;
-  NPP npp = static_cast<TestNPObject*>(npobj)->npp;
-  
-  if (argCount != 1)
-    return false;
-  
-  if (!NPVARIANT_IS_STRING(args[0]))
-    return false;
-
-  NPObject* windowObject;
-  NPN_GetValue(npp, NPNVWindowNPObject, &windowObject);
-  if (!windowObject)
-    return false;
-  
-  success = NPN_Evaluate(npp, windowObject, (NPString*)&NPVARIANT_TO_STRING(args[0]), result);
-  
-  NPN_ReleaseObject(windowObject);
-  return success;
 }
 
 static bool
@@ -1782,30 +1666,5 @@ doInternalConsistencyCheck(NPObject* npobj, const NPVariant* args, uint32_t argC
   }
   memcpy(utf8String, error.c_str(), error.length() + 1);
   STRINGZ_TO_NPVARIANT(utf8String, *result);
-  return true;
-}
-
-static bool
-setColor(NPObject* npobj, const NPVariant* args, uint32_t argCount, NPVariant* result)
-{
-  if (argCount != 1)
-    return false;
-  if (!NPVARIANT_IS_STRING(args[0]))
-    return false;
-  const NPString* str = &NPVARIANT_TO_STRING(args[0]);
-
-  NPP npp = static_cast<TestNPObject*>(npobj)->npp;
-  InstanceData* id = static_cast<InstanceData*>(npp->pdata);
-
-  id->scriptableObject->drawColor =
-    parseHexColor(str->UTF8Characters, str->UTF8Length);
-
-  NPRect r;
-  r.left = 0;
-  r.top = 0;
-  r.right = id->window.width;
-  r.bottom = id->window.height;
-  NPN_InvalidateRect(npp, &r);
-
   return true;
 }

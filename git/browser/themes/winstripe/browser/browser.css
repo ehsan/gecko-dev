@@ -47,11 +47,11 @@
 @namespace html url("http://www.w3.org/1999/xhtml");
 
 #urlbar:-moz-lwtheme:not([focused="true"]),
-.searchbar-textbox:-moz-lwtheme:not([focused="true"]) {
+#searchbar:-moz-lwtheme > textbox:not([focused="true"]) {
   opacity: .85;
 }
 
-.tabbrowser-tab:-moz-lwtheme[selected="true"] {
+.tabbrowser-tab[selected="true"]:-moz-lwtheme {
   text-shadow: none;
 }
 
@@ -69,12 +69,16 @@
   -moz-box-orient: vertical; /* for flex hack */
 }
 
-#main-menubar {
+#menubar-items > menubar {
   -moz-box-flex: 1; /* make menu items expand to fill toolbar height */
 }
 
 #personal-bookmarks {
   min-height: 24px;
+}
+
+#wrapper-search-container #searchbar html|*.textbox-input {
+  visibility: hidden;
 }
 
 #navigator-toolbox:-moz-system-metric(windows-default-theme) {
@@ -128,12 +132,11 @@ toolbarbutton.bookmark-item[open="true"] {
 #wrapper-personal-bookmarks[place="palette"] > .toolbarpaletteitem-box {
   width: 16px;
   height: 16px;
-  background: url("chrome://browser/skin/places/bookmarksToolbar.png") no-repeat;
+  background: url("chrome://browser/skin/Bookmarks-folder.png") no-repeat;
 }
 
 .bookmarks-toolbar-customize {
   max-width: 15em !important;
-  list-style-image: url("chrome://browser/skin/places/bookmarksToolbar.png") !important;
 }
 
 /* ::::: bookmark menus ::::: */
@@ -1405,7 +1408,6 @@ tabpanels {
 
 .tabbrowser-arrowscrollbox > .scrollbutton-down {
   list-style-image: url("chrome://browser/skin/tabbrowser/tab-arrow-right.png");
-  outline-color: Highlight;
 }
 
 .tabbrowser-arrowscrollbox > .scrollbutton-down:-moz-locale-dir(rtl),
@@ -1460,6 +1462,19 @@ tabpanels {
 .tabs-alltabs-button[type="menu"]:hover:active > .toolbarbutton-icon,
 .tabs-alltabs-button[type="menu"][open="true"] > .toolbarbutton-icon {
   -moz-image-region: rect(0, 26px, 11px, 13px);
+}
+
+.tabs-alltabs-box-animate {
+  margin-top: 2px;
+  margin-bottom: 4px;
+  width: 18px !important;
+  background-image: url("chrome://browser/skin/tabbrowser/alltabs-box-overflow-end-bkgnd-animate.png");
+  background-repeat: no-repeat;
+  opacity: 0.0;
+}
+
+.tabs-alltabs-box-animate:-moz-locale-dir(rtl) {
+  background-image: url("chrome://browser/skin/tabbrowser/alltabs-box-overflow-start-bkgnd-animate.png");
 }
 
 /* All tabs menupopup */
@@ -1762,13 +1777,14 @@ toolbarbutton.bookmark-item[dragover="true"][open="true"] {
 }
 
 /* Popup Body Text */
-.identity-popup-description {
+#identity-popup-content-box > description,
+#identity-popup-encryption-label {
   white-space: pre-wrap;
   -moz-padding-start: 15px;
   margin: 2px 0 4px;
 }
 
-.identity-popup-label {
+#identity-popup-content-box > label {
   white-space: pre-wrap;
   -moz-padding-start: 15px;
   margin: 0;
@@ -1830,6 +1846,7 @@ toolbarbutton.bookmark-item[dragover="true"][open="true"] {
 }
 
 #identity-popup-container {
+  background-image: none;
   min-width: 280px;
   padding: 9px;
 }

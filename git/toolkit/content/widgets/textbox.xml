@@ -21,7 +21,7 @@
       <children/>
       <xul:hbox class="textbox-input-box" flex="1" xbl:inherits="context,spellcheck">
         <html:input class="textbox-input" flex="1" anonid="input"
-                    xbl:inherits="onfocus,onblur,value,type,maxlength,disabled,size,readonly,tabindex,accesskey,noinitialfocus"/>
+                    xbl:inherits="onfocus,onblur,value,type,maxlength,disabled,size,readonly,tabindex,accesskey"/>
       </xul:hbox>
     </content>
 
@@ -629,8 +629,11 @@
               return null;
 
             try {
-              Components.utils.import("resource://gre/modules/InlineSpellChecker.jsm", this);
-              this.InlineSpellCheckerUI = new this.InlineSpellChecker(textbox.editor);
+              var loader = Components.classes["@mozilla.org/moz/jssubscript-loader;1"].
+                             getService(CI.mozIJSSubScriptLoader);
+              loader.loadSubScript("chrome://global/content/inlineSpellCheckUI.js", this);
+              if ("InlineSpellCheckerUI" in this)
+                this.InlineSpellCheckerUI.init(textbox.editor);
             } catch(ex) { }
           }
 
