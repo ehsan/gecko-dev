@@ -9203,7 +9203,7 @@ nsHTMLEditRules::DocumentModifiedWorker()
   }
 
   // DeleteNode below may cause a flush, which could destroy the editor
-  nsAutoScriptBlockerSuppressNodeRemoved scriptBlocker;
+  nsAutoRemovableScriptBlocker scriptBlocker;
 
   nsCOMPtr<nsIHTMLEditor> kungFuDeathGrip(mHTMLEditor);
   nsCOMPtr<nsISelection> selection;

@@ -979,7 +979,7 @@ public:
   virtual NS_HIDDEN_(nsresult) RemoveImage(imgIRequest* aImage);
   virtual NS_HIDDEN_(nsresult) SetImageLockingState(PRBool aLocked);
 
-  virtual nsresult GetStateObject(nsIVariant** aResult);
+  virtual nsresult GetMozCurrentStateObject(nsIVariant** aResult);
 
 protected:
   friend class nsNodeUtils;

@@ -145,7 +145,6 @@ const LEVELS = {
   warn: SEVERITY_WARNING,
   info: SEVERITY_INFO,
   log: SEVERITY_LOG,
-  trace: SEVERITY_LOG,
 };
 
 // The lowest HTTP response code (inclusive) that is considered an error.
@@ -1439,8 +1438,7 @@ HUD_SERVICE.prototype =
    */
   deactivateHUDForContext: function HS_deactivateHUDForContext(aContext, aAnimated)
   {
-    let browser = aContext.linkedBrowser;
-    let window = browser.contentWindow;
+    let window = aContext.linkedBrowser.contentWindow;
     let nBox = aContext.ownerDocument.defaultView.
       getNotificationBox(window);
     let hudId = "hud_" + nBox.id;
@@ -1451,12 +1449,7 @@ HUD_SERVICE.prototype =
         this.storeHeight(hudId);
       }
 
-      let hud = this.hudReferences[hudId];
-      browser.webProgress.removeProgressListener(hud.progressListener);
-      delete hud.progressListener;
-
       this.unregisterDisplay(displayNode);
-
       window.focus();
     }
   },
@@ -1988,89 +1981,12 @@ HUD_SERVICE.prototype =
     function formatResult(x) {
       return (typeof(x) == "string") ? x : hud.jsterm.formatResult(x);
     }
-
-    let body = null;
-    let clipboardText = null;
-    let sourceURL = null;
-    let sourceLine = 0;
-
-    switch (aLevel) {
-      case "log":
-      case "info":
-      case "warn":
-      case "error":
-      case "debug":
-        let mappedArguments = Array.map(aArguments, formatResult);
-        body = Array.join(mappedArguments, " ");
-        break;
-
-      case "trace":
-        let filename = ConsoleUtils.abbreviateSourceURL(aArguments[0].filename);
-        let functionName = aArguments[0].functionName ||
-                           this.getStr("stacktrace.anonymousFunction");
-        let lineNumber = aArguments[0].lineNumber;
-
-        body = this.getFormatStr("stacktrace.outputMessage",
-                                 [filename, functionName, lineNumber]);
-
-        sourceURL = aArguments[0].filename;
-        sourceLine = aArguments[0].lineNumber;
-
-        clipboardText = "";
-
-        aArguments.forEach(function(aFrame) {
-          clipboardText += aFrame.filename + " :: " +
-                           aFrame.functionName + " :: " +
-                           aFrame.lineNumber + "\n";
-        });
-
-        clipboardText = clipboardText.trimRight();
-        break;
-
-      default:
-        Cu.reportError("Unknown Console API log level: " + aLevel);
-        return;
-    }
-
+    let mappedArguments = Array.map(aArguments, formatResult);
+    let joinedArguments = Array.join(mappedArguments, " ");
     let node = ConsoleUtils.createMessageNode(hud.outputNode.ownerDocument,
                                               CATEGORY_WEBDEV,
                                               LEVELS[aLevel],
-                                              body,
-                                              sourceURL,
-                                              sourceLine,
-                                              clipboardText);
-
-    // Make the node bring up the property panel, to allow the user to inspect
-    // the stack trace.
-    if (aLevel == "trace") {
-      node._stacktrace = aArguments;
-
-      let linkNode = node.querySelector(".webconsole-msg-body");
-      linkNode.classList.add("hud-clickable");
-      linkNode.setAttribute("aria-haspopup", "true");
-
-      node.addEventListener("mousedown", function(aEvent) {
-        this._startX = aEvent.clientX;
-        this._startY = aEvent.clientY;
-      }, false);
-
-      node.addEventListener("click", function(aEvent) {
-        if (aEvent.detail != 1 || aEvent.button != 0 ||
-            (this._startX != aEvent.clientX &&
-             this._startY != aEvent.clientY)) {
-          return;
-        }
-
-        if (!this._panelOpen) {
-          let propPanel = hud.jsterm.openPropertyPanel(null,
-                                                       node._stacktrace,
-                                                       this);
-          propPanel.panel.setAttribute("hudId", aHUDId);
-          this._panelOpen = true;
-        }
-      }, false);
-    }
-
+                                              joinedArguments);
     ConsoleUtils.outputMessageNode(node, aHUDId);
   },
 
@@ -2725,6 +2641,27 @@ HUD_SERVICE.prototype =
   },
 
   /**
+   * Closes the Console, if any, that resides on the given tab.
+   *
+   * @param nsIDOMNode aTab
+   *        The tab on which to close the console.
+   * @returns void
+   */
+  closeConsoleOnTab: function HS_closeConsoleOnTab(aTab)
+  {
+    let xulDocument = aTab.ownerDocument;
+    let xulWindow = xulDocument.defaultView;
+    let gBrowser = xulWindow.gBrowser;
+    let linkedBrowser = aTab.linkedBrowser;
+    let notificationBox = gBrowser.getNotificationBox(linkedBrowser);
+    let hudId = "hud_" + notificationBox.getAttribute("id");
+    let outputNode = xulDocument.getElementById(hudId);
+    if (outputNode != null) {
+      this.unregisterDisplay(outputNode);
+    }
+  },
+
+  /**
    * onTabClose event handler function
    *
    * @param aEvent
@@ -2732,7 +2669,7 @@ HUD_SERVICE.prototype =
    */
   onTabClose: function HS_onTabClose(aEvent)
   {
-    this.deactivateHUDForContext(aEvent.target, false);
+    this.closeConsoleOnTab(aEvent.target);
   },
 
   /**
@@ -2750,7 +2687,7 @@ HUD_SERVICE.prototype =
 
     let tab = tabContainer.firstChild;
     while (tab != null) {
-      this.deactivateHUDForContext(tab, false);
+      this.closeConsoleOnTab(tab);
       tab = tab.nextSibling;
     }
   },
@@ -2822,11 +2759,6 @@ HUD_SERVICE.prototype =
       HUDService.registerHUDReference(hud);
       let windowId = this.getWindowId(aContentWindow.top);
       this.windowIds[windowId] = hudId;
-
-      hud.progressListener = new ConsoleProgressListener(hudId);
-
-      _browser.webProgress.addProgressListener(hud.progressListener,
-        Ci.nsIWebProgress.NOTIFY_STATE_ALL);
     }
     else {
       hud = this.hudReferences[hudId];
@@ -2981,14 +2913,8 @@ HUD_SERVICE.prototype =
 
     let strings = [];
     let newGroup = false;
-
-    let children = aOutputNode.children;
-
-    for (let i = 0; i < children.length; i++) {
-      let item = children[i];
-      if (!item.selected) {
-        continue;
-      }
+    for (let i = 0; i < aOutputNode.selectedCount; i++) {
+      let item = aOutputNode.selectedItems[i];
 
       // Add dashes between groups so that group boundaries show up in the
       // copied output.
@@ -3601,7 +3527,7 @@ let ConsoleAPIObserver = {
       HUDService.logConsoleAPIMessage(hudId, aMessage.level, aMessage.arguments);
     }
     else if (aTopic == "quit-application-granted") {
-      HUDService.shutdown();
+      this.shutdown();
     }
   },
 
@@ -3861,10 +3787,6 @@ function JSPropertyProvider(aScope, aInputValue)
 
 function isIteratorOrGenerator(aObject)
 {
-  if (aObject === null) {
-    return false;
-  }
-
   if (typeof aObject == "object") {
     if (typeof aObject.__iterator__ == "function" ||
         aObject.constructor && aObject.constructor.name == "Iterator") {
@@ -5523,18 +5445,6 @@ HeadsUpDisplayUICommands = {
   },
 
   /**
-   * Find the hudId for the active chrome window.
-   * @return string|null
-   *         The hudId or null if the active chrome window has no open Web
-   *         Console.
-   */
-  getOpenHUD: function UIC_getOpenHUD() {
-    let chromeWindow = HUDService.currentContext();
-    let contentWindow = chromeWindow.gBrowser.selectedBrowser.contentWindow;
-    return HUDService.getHudIdByWindow(contentWindow);
-  },
-
-  /**
    * The event handler that is called whenever a user switches a filter on or
    * off.
    *
@@ -5935,7 +5845,7 @@ HUDWindowObserver = {
   uninit: function HWO_uninit()
   {
     Services.obs.removeObserver(this, "content-document-global-created");
-    Services.obs.removeObserver(this, "xpcom-shutdown");
+    HUDService.shutdown();
     this.initialConsoleCreated = false;
   },
 
@@ -6095,87 +6005,6 @@ HUDConsoleObserver = {
         return;
     }
   }
-};
-
-/**
- * A WebProgressListener that listens for location changes, to update HUDService
- * state information on page navigation.
- *
- * @constructor
- * @param string aHudId
- *        The HeadsUpDisplay ID.
- */
-function ConsoleProgressListener(aHudId)
-{
-  this.hudId = aHudId;
-}
-
-ConsoleProgressListener.prototype = {
-  QueryInterface: XPCOMUtils.generateQI([Ci.nsIWebProgressListener,
-                                         Ci.nsISupportsWeakReference]),
-
-  onStateChange: function CPL_onStateChange(aProgress, aRequest, aState,
-                                            aStatus)
-  {
-    if (!(aState & Ci.nsIWebProgressListener.STATE_START)) {
-      return;
-    }
-
-    let uri = null;
-    if (aRequest instanceof Ci.imgIRequest) {
-      let imgIRequest = aRequest.QueryInterface(Ci.imgIRequest);
-      uri = imgIRequest.URI;
-    }
-    else if (aRequest instanceof Ci.nsIChannel) {
-      let nsIChannel = aRequest.QueryInterface(Ci.nsIChannel);
-      uri = nsIChannel.URI;
-    }
-
-    if (!uri || !uri.schemeIs("file") && !uri.schemeIs("ftp")) {
-      return;
-    }
-
-    let outputNode = HUDService.hudReferences[this.hudId].outputNode;
-
-    let chromeDocument = outputNode.ownerDocument;
-    let msgNode = chromeDocument.createElementNS(HTML_NS, "html:span");
-
-    // Create the clickable URL part of the message.
-    let linkNode = chromeDocument.createElementNS(HTML_NS, "html:span");
-    linkNode.appendChild(chromeDocument.createTextNode(uri.spec));
-    linkNode.classList.add("hud-clickable");
-    linkNode.classList.add("webconsole-msg-url");
-
-    linkNode.addEventListener("mousedown", function(aEvent) {
-      this._startX = aEvent.clientX;
-      this._startY = aEvent.clientY;
-    }, false);
-
-    linkNode.addEventListener("click", function(aEvent) {
-      if (aEvent.detail == 1 && aEvent.button == 0 &&
-          this._startX == aEvent.clientX && this._startY == aEvent.clientY) {
-        let viewSourceUtils = chromeDocument.defaultView.gViewSourceUtils;
-        viewSourceUtils.viewSource(uri.spec, null, chromeDocument);
-      }
-    }, false);
-
-    msgNode.appendChild(linkNode);
-
-    let messageNode = ConsoleUtils.createMessageNode(chromeDocument,
-                                                     CATEGORY_NETWORK,
-                                                     SEVERITY_LOG,
-                                                     msgNode,
-                                                     null,
-                                                     null,
-                                                     uri.spec);
-
-    ConsoleUtils.outputMessageNode(messageNode, this.hudId);
-  },
-
-  onLocationChange: function() {},
-  onStatusChange: function() {},
-  onProgressChange: function() {},
-  onSecurityChange: function() {},
 };
 
 ///////////////////////////////////////////////////////////////////////////
