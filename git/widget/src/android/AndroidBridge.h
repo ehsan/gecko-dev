@@ -205,6 +205,8 @@ public:
 
     bool IsNetworkLinkKnown();
 
+    int GetNetworkLinkType();
+
     void SetSelectedLocale(const nsAString&);
 
     void GetSystemColors(AndroidSystemColors *aColors);
@@ -346,6 +348,7 @@ protected:
     jmethodID jSetKeepScreenOn;
     jmethodID jIsNetworkLinkUp;
     jmethodID jIsNetworkLinkKnown;
+    jmethodID jGetNetworkLinkType;
     jmethodID jSetSelectedLocale;
     jmethodID jScanMedia;
     jmethodID jGetSystemColors;

@@ -62,6 +62,7 @@ import android.util.*;
 import android.net.*;
 import android.database.*;
 import android.provider.*;
+import android.telephony.*;
 import android.content.pm.*;
 import android.content.pm.PackageManager.*;
 import dalvik.system.*;
@@ -86,6 +87,7 @@ abstract public class GeckoApp
     public Handler mMainHandler;
     private IntentFilter mConnectivityFilter;
     private BroadcastReceiver mConnectivityReceiver;
+    private PhoneStateListener mPhoneStateListener;
 
     enum LaunchState {PreLaunch, Launching, WaitButton,
                       Launched, GeckoRunning, GeckoExiting};
@@ -396,6 +398,8 @@ abstract public class GeckoApp
         mConnectivityFilter.addAction(ConnectivityManager.CONNECTIVITY_ACTION);
         mConnectivityReceiver = new GeckoConnectivityReceiver();
 
+        mPhoneStateListener = new GeckoPhoneStateListener();
+
         if (!checkAndSetLaunchState(LaunchState.PreLaunch,
                                     LaunchState.Launching))
             return;
@@ -481,6 +485,10 @@ abstract public class GeckoApp
         super.onPause();
 
         unregisterReceiver(mConnectivityReceiver);
+
+        TelephonyManager tm = (TelephonyManager)
+            GeckoApp.mAppContext.getSystemService(Context.TELEPHONY_SERVICE);
+        tm.listen(mPhoneStateListener, PhoneStateListener.LISTEN_NONE);
     }
 
     @Override
@@ -499,6 +507,13 @@ abstract public class GeckoApp
             onNewIntent(getIntent());
 
         registerReceiver(mConnectivityReceiver, mConnectivityFilter);
+
+        TelephonyManager tm = (TelephonyManager)
+            GeckoApp.mAppContext.getSystemService(Context.TELEPHONY_SERVICE);
+        tm.listen(mPhoneStateListener, PhoneStateListener.LISTEN_DATA_CONNECTION_STATE);
+
+        // Notify if network state changed since we paused
+        GeckoAppShell.onNetworkStateChange(true);
     }
 
     @Override
