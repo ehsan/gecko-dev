@@ -17,7 +17,6 @@ Cu.import("resource://gre/modules/SettingsQueue.jsm");
 Cu.import("resource://gre/modules/SettingsDB.jsm");
 Cu.import("resource://gre/modules/XPCOMUtils.jsm");
 Cu.import("resource://gre/modules/Services.jsm");
-Cu.import("resource://gre/modules/ObjectWrapper.jsm")
 
 XPCOMUtils.defineLazyServiceGetter(this, "cpmm",
                                    "@mozilla.org/childprocessmessagemanager;1",
@@ -41,10 +40,6 @@ SettingsLock.prototype = {
 
   get closed() {
     return !this._open;
-  },
-
-  _wrap: function _wrap(obj) {
-    return ObjectWrapper.wrap(obj, this._settingsManager._window);
   },
 
   process: function process() {
@@ -132,25 +127,35 @@ SettingsLock.prototype = {
                                            : store.mozGetAll(info.name);
 
           getReq.onsuccess = function(event) {
-            if (DEBUG) debug("Request for '" + info.name + "' successful. " +
+            if (DEBUG) debug("Request for '" + info.name + "' successful. " + 
                   "Record count: " + event.target.result.length);
 
             if (event.target.result.length == 0) {
               if (DEBUG) debug("MOZSETTINGS-GET-WARNING: " + info.name + " is not in the database.\n");
             }
 
-            let results = {};
+            let results = {
+              __exposedProps__: {
+              }
+            };
 
             for (var i in event.target.result) {
               let result = event.target.result[i];
               var name = result.settingName;
               if (DEBUG) debug("VAL: " + result.userValue +", " + result.defaultValue + "\n");
               var value = result.userValue !== undefined ? result.userValue : result.defaultValue;
-              results[name] = this._wrap(value);
+              results[name] = value;
+              results.__exposedProps__[name] = "r";
+              // If the value itself is an object, expose the properties.
+              if (typeof value == "object" && value != null) {
+                var exposed = {};
+                Object.keys(value).forEach(function(key) { exposed[key] = 'r'; });
+                results[name].__exposedProps__ = exposed;
+              }
             }
 
             this._open = true;
-            Services.DOMRequest.fireSuccess(request, this._wrap(results));
+            Services.DOMRequest.fireSuccess(request, results);
             this._open = false;
           }.bind(lock);
 
@@ -267,10 +272,6 @@ SettingsManager.prototype = {
   _onsettingchange: null,
   _callbacks: null,
 
-  _wrap: function _wrap(obj) {
-    return ObjectWrapper.wrap(obj, this._window);
-  },
-
   nextTick: function nextTick(aCallback, thisObj) {
     if (thisObj)
       aCallback = aCallback.bind(thisObj);
@@ -325,14 +326,15 @@ SettingsManager.prototype = {
           if (this._callbacks && this._callbacks[msg.key]) {
             if (DEBUG) debug("observe callback called! " + msg.key + " " + this._callbacks[msg.key].length);
             this._callbacks[msg.key].forEach(function(cb) {
-              cb(this._wrap({settingName: msg.key, settingValue: msg.value}));
-            }.bind(this));
+              cb({settingName: msg.key, settingValue: msg.value,
+                  __exposedProps__: {settingName: 'r', settingValue: 'r'}});
+            });
           }
         } else {
           if (DEBUG) debug("no observers stored!");
         }
         break;
-      default:
+      default: 
         if (DEBUG) debug("Wrong message: " + aMessage.name);
     }
   },

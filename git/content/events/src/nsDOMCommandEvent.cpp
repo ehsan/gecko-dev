@@ -18,7 +18,6 @@ nsDOMCommandEvent::nsDOMCommandEvent(mozilla::dom::EventTarget* aOwner,
   } else {
     mEventIsInternal = true;
   }
-  SetIsDOMBinding();
 }
 
 nsDOMCommandEvent::~nsDOMCommandEvent()

@@ -76,23 +76,6 @@ nsDOMUIEvent::nsDOMUIEvent(mozilla::dom::EventTarget* aOwner,
   }
 }
 
-//static
-already_AddRefed<nsDOMUIEvent>
-nsDOMUIEvent::Constructor(const mozilla::dom::GlobalObject& aGlobal,
-                          const nsAString& aType,
-                          const mozilla::dom::UIEventInit& aParam,
-                          mozilla::ErrorResult& aRv)
-{
-  nsCOMPtr<mozilla::dom::EventTarget> t = do_QueryInterface(aGlobal.Get());
-  nsRefPtr<nsDOMUIEvent> e = new nsDOMUIEvent(t, nullptr, nullptr);
-  e->SetIsDOMBinding();
-  bool trusted = e->Init(t);
-  aRv = e->InitUIEvent(aType, aParam.mBubbles, aParam.mCancelable, aParam.mView,
-                       aParam.mDetail);
-  e->SetTrusted(trusted);
-  return e.forget();
-}
-
 NS_IMPL_CYCLE_COLLECTION_UNLINK_BEGIN_INHERITED(nsDOMUIEvent, nsDOMEvent)
   NS_IMPL_CYCLE_COLLECTION_UNLINK(mView)
 NS_IMPL_CYCLE_COLLECTION_UNLINK_END
@@ -256,14 +239,17 @@ nsDOMUIEvent::GetWhich(uint32_t* aWhich)
   return Which(aWhich);
 }
 
-already_AddRefed<nsINode>
-nsDOMUIEvent::GetRangeParent()
+NS_IMETHODIMP
+nsDOMUIEvent::GetRangeParent(nsIDOMNode** aRangeParent)
 {
+  NS_ENSURE_ARG_POINTER(aRangeParent);
   nsIFrame* targetFrame = nullptr;
 
   if (mPresContext) {
     targetFrame = mPresContext->EventStateManager()->GetEventTarget();
   }
+
+  *aRangeParent = nullptr;
 
   if (targetFrame) {
     nsPoint pt = nsLayoutUtils::GetEventCoordinatesRelativeTo(mEvent,
@@ -272,24 +258,12 @@ nsDOMUIEvent::GetRangeParent()
     if (parent) {
       if (parent->ChromeOnlyAccess() &&
           !nsContentUtils::CanAccessNativeAnon()) {
-        return nullptr;
+        return NS_OK;
       }
-      return parent.forget().get();
+      return CallQueryInterface(parent, aRangeParent);
     }
   }
 
-  return nullptr;
-}
-
-NS_IMETHODIMP
-nsDOMUIEvent::GetRangeParent(nsIDOMNode** aRangeParent)
-{
-  NS_ENSURE_ARG_POINTER(aRangeParent);
-  *aRangeParent = nullptr;
-  nsCOMPtr<nsINode> n = GetRangeParent();
-  if (n) {
-    CallQueryInterface(n, aRangeParent);
-  }
   return NS_OK;
 }
 
@@ -317,7 +291,7 @@ NS_IMETHODIMP
 nsDOMUIEvent::GetCancelBubble(bool* aCancelBubble)
 {
   NS_ENSURE_ARG_POINTER(aCancelBubble);
-  *aCancelBubble = CancelBubble();
+  *aCancelBubble = mEvent->mFlags.mPropagationStopped;
   return NS_OK;
 }
 
@@ -537,6 +511,5 @@ nsresult NS_NewDOMUIEvent(nsIDOMEvent** aInstancePtrResult,
                           nsGUIEvent *aEvent) 
 {
   nsDOMUIEvent* it = new nsDOMUIEvent(aOwner, aPresContext, aEvent);
-  it->SetIsDOMBinding();
   return CallQueryInterface(it, aInstancePtrResult);
 }

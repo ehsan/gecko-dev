@@ -265,6 +265,7 @@ class CGInterfaceObjectJSClass(CGThing):
         else:
             ctorname = "ThrowingConstructor"
         if NeedsGeneratedHasInstance(self.descriptor):
+            assert self.descriptor.interface.hasInterfacePrototypeObject()
             hasinstance = HASINSTANCE_HOOK_NAME
         elif self.descriptor.interface.hasInterfacePrototypeObject():
             hasinstance = "InterfaceHasInstance"
@@ -496,13 +497,11 @@ class CGHeaders(CGWrapper):
         bindingIncludes = set(self.getDeclarationFilename(d) for d in interfaceDeps)
 
         # Grab all the implementation declaration files we need.
-        implementationIncludes = set(d.headerFile for d in descriptors if d.needsHeaderInclude())
+        implementationIncludes = set(d.headerFile for d in descriptors)
 
         # Grab the includes for the things that involve XPCOM interfaces
         hasInstanceIncludes = set("nsIDOM" + d.interface.identifier.name + ".h" for d
-                                  in descriptors if
-                                  NeedsGeneratedHasInstance(d) and
-                                  d.interface.hasInterfaceObject())
+                                  in descriptors if NeedsGeneratedHasInstance(d))
 
         # Now find all the things we'll need as arguments because we
         # need to wrap or unwrap them.
@@ -1053,23 +1052,16 @@ class CGClassHasInstanceHook(CGAbstractStaticMethod):
 
     def generate_code(self):
         assert self.descriptor.nativeOwnership == 'nsisupports'
-        if self.descriptor.interface.hasInterfacePrototypeObject():
-            hasInstanceCode = """
-  bool ok = InterfaceHasInstance(cx, obj, instance, bp);
-  if (!ok || *bp) {
-    return ok;
-  }
-        """
-        else:
-            hasInstanceCode = ""
-
         return """  if (!vp.isObject()) {
     *bp = false;
     return true;
   }
 
   JSObject* instance = &vp.toObject();
-  %s
+  bool ok = InterfaceHasInstance(cx, obj, instance, bp);
+  if (!ok || *bp) {
+    return ok;
+  }
 
   // FIXME Limit this to chrome by checking xpc::AccessCheck::isChrome(obj).
   nsISupports* native =
@@ -1077,7 +1069,7 @@ class CGClassHasInstanceHook(CGAbstractStaticMethod):
                                                     js::UnwrapObject(instance));
   nsCOMPtr<nsIDOM%s> qiResult = do_QueryInterface(native);
   *bp = !!qiResult;
-  return true;""" % (hasInstanceCode, self.descriptor.interface.identifier.name)
+  return true;""" % self.descriptor.interface.identifier.name
 
 def isChromeOnly(m):
     return m.getExtendedAttribute("ChromeOnly")

@@ -320,13 +320,12 @@ public:
   }
 
 private:
-  static bool gPropertyEnabled[eCSSProperty_COUNT_with_aliases];
+  static bool gPropertyEnabled[eCSSProperty_COUNT];
 
 public:
 
   static bool IsEnabled(nsCSSProperty aProperty) {
-    NS_ABORT_IF_FALSE(0 <= aProperty &&
-                      aProperty < eCSSProperty_COUNT_with_aliases,
+    NS_ABORT_IF_FALSE(0 <= aProperty && aProperty < eCSSProperty_COUNT,
                       "out of range");
     return gPropertyEnabled[aProperty];
   }

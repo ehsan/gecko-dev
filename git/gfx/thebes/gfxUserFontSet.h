@@ -86,8 +86,7 @@ public:
     void ReplaceFontEntry(gfxFontEntry *aOldFontEntry,
                           gfxFontEntry *aNewFontEntry) {
         uint32_t numFonts = mAvailableFonts.Length();
-        uint32_t i;
-        for (i = 0; i < numFonts; i++) {
+        for (uint32_t i = 0; i < numFonts; i++) {
             gfxFontEntry *fe = mAvailableFonts[i];
             if (fe == aOldFontEntry) {
                 // note that this may delete aOldFontEntry, if there's no
@@ -97,7 +96,6 @@ public:
                 break;
             }
         }
-        NS_ASSERTION(i < numFonts, "font entry not found in family!");
         ResetCharacterMap();
     }
 

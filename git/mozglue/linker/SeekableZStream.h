@@ -141,11 +141,4 @@ private:
   Array<unsigned char> dictionary;
 };
 
-inline void
-operator++(SeekableZStream::FilterId &other)
-{
-  const int orig = static_cast<int>(other);
-  other = static_cast<SeekableZStream::FilterId>(orig + 1);
-}
-
 #endif /* SeekableZStream_h */

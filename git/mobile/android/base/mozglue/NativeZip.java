@@ -43,7 +43,6 @@ public class NativeZip implements NativeReference {
         release();
     }
 
-    @Override
     public void release() {
         if (mObj != 0) {
             _release(mObj);
@@ -52,7 +51,6 @@ public class NativeZip implements NativeReference {
         mInput = null;
     }
 
-    @Override
     public boolean isReleased() {
         return (mObj == 0);
     }

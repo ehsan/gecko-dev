@@ -36,9 +36,9 @@ class Configuration:
             self.interfaces[iface.identifier.name] = iface
             if iface.identifier.name not in config:
                 # Completely skip consequential interfaces with no descriptor
-                # if they have no interface object because chances are we
-                # don't need to do anything interesting with them.
-                if iface.isConsequential() and not iface.hasInterfaceObject():
+                # because chances are we don't need to do anything interesting
+                # with them.
+                if iface.isConsequential():
                     continue
                 entry = {}
             else:
@@ -446,15 +446,6 @@ class Descriptor(DescriptorProvider):
     def needsConstructHookHolder(self):
         assert self.interface.hasInterfaceObject()
         return False
-
-    def needsHeaderInclude(self):
-        """
-        An interface doesn't need a header file if it is not concrete,
-        not pref-controlled, and has only consts.
-        """
-        return (self.interface.isExternal() or self.concrete or
-            self.interface.getExtendedAttribute("PrefControlled") or
-            not all(m.isConst() for m in self.interface.members))
 
 # Some utility methods
 def getTypesFromDescriptor(descriptor):

@@ -6,7 +6,6 @@
 #ifndef mozilla_dom_SVGMaskElement_h
 #define mozilla_dom_SVGMaskElement_h
 
-#include "nsIDOMSVGUnitTypes.h"
 #include "nsSVGEnum.h"
 #include "nsSVGLength2.h"
 #include "nsSVGElement.h"
@@ -24,8 +23,7 @@ namespace dom {
 typedef nsSVGElement SVGMaskElementBase;
 
 class SVGMaskElement MOZ_FINAL : public SVGMaskElementBase,
-                                 public nsIDOMSVGElement,
-                                 public nsIDOMSVGUnitTypes
+                                 public nsIDOMSVGElement
 {
   friend class ::nsSVGMaskFrame;
 

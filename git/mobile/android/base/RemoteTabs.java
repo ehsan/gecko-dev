@@ -4,6 +4,8 @@
 
 package org.mozilla.gecko;
 
+import org.mozilla.gecko.widget.TwoWayView;
+
 import android.content.Context;
 import android.text.TextUtils;
 import android.util.AttributeSet;

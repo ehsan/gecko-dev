@@ -522,7 +522,6 @@ interface TestChildInterface : TestParentInterface {
 interface TestNonWrapperCacheInterface {
 };
 
-[NoInterfaceObject]
 interface ImplementedInterfaceParent {
   void implementedParentMethod();
   attribute boolean implementedParentProperty;
@@ -540,7 +539,6 @@ interface IndirectlyImplementedInterface {
   const long indirectlyImplementedConstant = 9;
 };
 
-[NoInterfaceObject]
 interface ImplementedInterface : ImplementedInterfaceParent {
   void implementedMethod();
   attribute boolean implementedProperty;
@@ -548,20 +546,15 @@ interface ImplementedInterface : ImplementedInterfaceParent {
   const long implementedConstant = 5;
 };
 
-[NoInterfaceObject]
 interface DiamondImplements {
   readonly attribute long diamondImplementedProperty;
 };
-[NoInterfaceObject]
 interface DiamondBranch1A {
 };
-[NoInterfaceObject]
 interface DiamondBranch1B {
 };
-[NoInterfaceObject]
 interface DiamondBranch2A : DiamondImplements {
 };
-[NoInterfaceObject]
 interface DiamondBranch2B : DiamondImplements {
 };
 TestInterface implements DiamondBranch1A;

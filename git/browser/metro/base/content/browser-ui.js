@@ -94,7 +94,6 @@ var BrowserUI = {
     window.addEventListener("MozImprecisePointer", this, true);
 
     Services.prefs.addObserver("browser.tabs.tabsOnly", this, false);
-    Services.prefs.addObserver("browser.cache.disk_cache_ssl", this, false);
     Services.obs.addObserver(this, "metro_viewstate_changed", false);
 
     // Init core UI modules
@@ -529,14 +528,8 @@ var BrowserUI = {
   observe: function BrowserUI_observe(aSubject, aTopic, aData) {
     switch (aTopic) {
       case "nsPref:changed":
-        switch (aData) {
-          case "browser.tabs.tabsOnly":
-            this._updateTabsOnly();
-            break;
-          case "browser.cache.disk_cache_ssl":
-            this._sslDiskCacheEnabled = Services.prefs.getBoolPref(aData);
-            break;
-        }
+        if (aData == "browser.tabs.tabsOnly")
+          this._updateTabsOnly();
         break;
       case "metro_viewstate_changed":
         this._adjustDOMforViewState();
@@ -888,22 +881,14 @@ var BrowserUI = {
         return false;
       }
 
-      // Don't capture HTTPS pages unless the user enabled it.
-      if (uri.schemeIs("https") && !this.sslDiskCacheEnabled) {
+      // Desktop has a pref that allows users to override this. We do not
+      //   support that pref currently
+      if (uri.schemeIs("https")) {
         return false;
       }
     }
 
     return true;
-  },
-
-  _sslDiskCacheEnabled: null,
-
-  get sslDiskCacheEnabled() {
-    if (this._sslDiskCacheEnabled === null) {
-      this._sslDiskCacheEnabled = Services.prefs.getBoolPref("browser.cache.disk_cache_ssl");
-    }
-    return this._sslDiskCacheEnabled;
   },
 
   supportsCommand : function(cmd) {

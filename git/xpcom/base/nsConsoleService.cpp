@@ -38,7 +38,6 @@ NS_IMPL_QUERY_INTERFACE1_CI(nsConsoleService, nsIConsoleService)
 NS_IMPL_CI_INTERFACE_GETTER1(nsConsoleService, nsIConsoleService)
 
 static bool sLoggingEnabled = true;
-static bool sLoggingBuffered = true;
 
 nsConsoleService::nsConsoleService()
     : mMessages(nullptr)
@@ -65,23 +64,14 @@ nsConsoleService::~nsConsoleService()
         nsMemory::Free(mMessages);
 }
 
-class AddConsolePrefWatchers : public nsRunnable
+class AddConsoleEnabledPrefWatcher : public nsRunnable
 {
 public:
-    AddConsolePrefWatchers(nsConsoleService* aConsole) : mConsole(aConsole) {}
-
     NS_IMETHOD Run()
     {
         Preferences::AddBoolVarCache(&sLoggingEnabled, "consoleservice.enabled", true);
-        Preferences::AddBoolVarCache(&sLoggingBuffered, "consoleservice.buffered", true);
-        if (!sLoggingBuffered) {
-            mConsole->Reset();
-        }
         return NS_OK;
     }
-
-private:
-    nsRefPtr<nsConsoleService> mConsole;
 };
 
 nsresult
@@ -96,7 +86,7 @@ nsConsoleService::Init()
     memset(mMessages, 0, mBufferSize * sizeof(nsIConsoleMessage *));
 
     mListeners.Init();
-    NS_DispatchToMainThread(new AddConsolePrefWatchers(this));
+    NS_DispatchToMainThread(new AddConsoleEnabledPrefWatcher);
 
     return NS_OK;
 }
@@ -176,9 +166,7 @@ nsConsoleService::LogMessageWithMode(nsIConsoleMessage *message, nsConsoleServic
     nsRefPtr<LogMessageRunnable> r;
     nsIConsoleMessage *retiredMessage;
 
-    if (sLoggingBuffered) {
-        NS_ADDREF(message); // early, in case it's same as replaced below.
-    }
+    NS_ADDREF(message); // early, in case it's same as replaced below.
 
     /*
      * Lock while updating buffer, and while taking snapshot of
@@ -212,13 +200,11 @@ nsConsoleService::LogMessageWithMode(nsIConsoleMessage *message, nsConsoleServic
          * save a pointer to it, so we can release below outside the lock.
          */
         retiredMessage = mMessages[mCurrent];
-
-        if (sLoggingBuffered) {
-            mMessages[mCurrent++] = message;
-            if (mCurrent == mBufferSize) {
-                mCurrent = 0; // wrap around.
-                mFull = true;
-            }
+        
+        mMessages[mCurrent++] = message;
+        if (mCurrent == mBufferSize) {
+            mCurrent = 0; // wrap around.
+            mFull = true;
         }
 
         if (mListeners.Count() > 0) {
@@ -276,7 +262,7 @@ nsConsoleService::GetMessageArray(uint32_t *count, nsIConsoleMessage ***messages
         *messageArray = nullptr;
         *messages = messageArray;
         *count = 0;
-
+        
         return NS_OK;
     }
 

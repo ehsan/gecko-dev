@@ -8,8 +8,6 @@
 #include "ion/Ion.h"
 #include "ion/IonFrames.h"
 
-#include "jsscriptinlines.h"
-
 using namespace js;
 using namespace js::ion;
 

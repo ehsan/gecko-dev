@@ -150,10 +150,8 @@
 
 .devtools-tab {
   -moz-appearance: none;
-  width: 47px;
-  min-width: 47px;
+  min-width: 88px;
   min-height: 32px;
-  max-width: 137px;
   color: #b6babf;
   margin: 0;
   padding: 0;
@@ -165,23 +163,25 @@
   border-right: 1px solid hsla(206,37%,4%,.45);
 }
 
-.devtools-tab > image {
+.devtools-tab > .radio-label-center-box > .radio-label-box {
+  -moz-appearance: none;
   border: none;
+  padding: 0 16px;
+}
+
+.devtools-tab > .radio-label-center-box >.radio-label-box > .radio-icon {
   -moz-margin-end: 6px;
-  -moz-margin-start: 16px;
   opacity: 0.6;
 }
 
-.devtools-tab > label {
-  white-space: nowrap;
-}
-
-.devtools-tab:hover > image {
+.devtools-tab:hover > .radio-label-center-box > .radio-label-box >
+.radio-icon {
   opacity: 0.8;
 }
 
-.devtools-tab:active > image,
-.devtools-tab[selected=true] > label {
+.devtools-tab:active > .radio-label-center-box > .radio-label-box > .radio-icon,
+.devtools-tab[selected=true] > .radio-label-center-box > .radio-label-box >
+.radio-icon {
   opacity: 1;
 }
 

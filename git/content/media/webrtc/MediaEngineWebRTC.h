@@ -11,7 +11,6 @@
 #include "nsIRunnable.h"
 
 #include "mozilla/Mutex.h"
-#include "mozilla/Monitor.h"
 #include "nsCOMPtr.h"
 #include "nsDOMFile.h"
 #include "nsThreadUtils.h"
@@ -140,16 +139,18 @@ private:
   // from kStarted to kStopped (which are combined with EndTrack() and
   // image changes).  Note that mSources is not accessed from other threads
   // for video and is not protected.
-  Monitor mMonitor; // Monitor for processing WebRTC frames.
+  mozilla::ReentrantMonitor mMonitor; // Monitor for processing WebRTC frames.
   nsTArray<SourceMediaStream *> mSources; // When this goes empty, we shut down HW
 
   bool mInitDone;
-
   bool mInSnapshotMode;
   nsString* mSnapshotPath;
 
   nsRefPtr<layers::Image> mImage;
   nsRefPtr<layers::ImageContainer> mImageContainer;
+
+  PRLock* mSnapshotLock;
+  PRCondVar* mSnapshotCondVar;
 
   // These are in UTF-8 but webrtc api uses char arrays
   char mDeviceName[KMaxDeviceNameLength];
@@ -223,7 +224,7 @@ private:
   // mMonitor protects mSources[] access/changes, and transitions of mState
   // from kStarted to kStopped (which are combined with EndTrack()).
   // mSources[] is accessed from webrtc threads.
-  Monitor mMonitor;
+  mozilla::ReentrantMonitor mMonitor;
   nsTArray<SourceMediaStream *> mSources; // When this goes empty, we shut down HW
 
   int mCapIndex;

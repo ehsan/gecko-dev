@@ -21,6 +21,7 @@
 /* For gathering statistics regarding message queues */
 typedef struct {
     char name[16];
+    uint16_t maxCount;
     uint16_t currentCount;
     uint32_t totalCount;
     uint32_t rcvTimeouts;
@@ -35,6 +36,16 @@ typedef struct {
  * Mutex for updating the message queue list
  */
 extern pthread_mutex_t msgQueueListMutex;
+
+/**
+ * cprShowMessageQueueStats
+ *
+ * Display statistics for all message queues
+ *
+ * Comments: Function only applicable to CNU
+ */
+int32_t
+cprShowMessageQueueStats(int32_t argc, const char *argv[]);
 
 /**
  * cprGetDepth

@@ -40,7 +40,6 @@ nsDOMMessageEvent::nsDOMMessageEvent(mozilla::dom::EventTarget* aOwner,
     mData(JSVAL_VOID),
     mDataRooted(false)
 {
-  SetIsDOMBinding();
 }
 
 nsDOMMessageEvent::~nsDOMMessageEvent()
