@@ -6544,10 +6544,6 @@ jit::TypeSetIncludes(types::TypeSet *types, MIRType input, types::TypeSet *input
 bool
 jit::NeedsPostBarrier(CompileInfo &info, MDefinition *value)
 {
-#ifdef JSGC_GENERATIONAL
-    if (!GetIonContext()->runtime->gcNursery().exists())
-        return false;
-#endif
     return info.executionMode() != ParallelExecution && value->mightBeType(MIRType_Object);
 }
 

@@ -72,8 +72,5 @@ MOZ_DEVICES=1
 # Enable second screen using native Android libraries
 MOZ_NATIVE_DEVICES=
 
-# Mark as WebGL conformant
-MOZ_WEBGL_CONFORMANT=1
-
 # Don't enable the Search Activity.
 # MOZ_ANDROID_SEARCH_ACTIVITY=1

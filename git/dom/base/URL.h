@@ -69,55 +69,55 @@ public:
   static void RevokeObjectURL(const GlobalObject& aGlobal,
                               const nsAString& aURL);
 
-  void GetHref(nsString& aHref, ErrorResult& aRv) const;
+  void GetHref(nsString& aHref) const;
 
   void SetHref(const nsAString& aHref, ErrorResult& aRv);
 
-  void GetOrigin(nsString& aOrigin, ErrorResult& aRv) const;
+  void GetOrigin(nsString& aOrigin) const;
 
-  void GetProtocol(nsString& aProtocol, ErrorResult& aRv) const;
+  void GetProtocol(nsString& aProtocol) const;
 
-  void SetProtocol(const nsAString& aProtocol, ErrorResult& aRv);
+  void SetProtocol(const nsAString& aProtocol);
 
-  void GetUsername(nsString& aUsername, ErrorResult& aRv) const;
+  void GetUsername(nsString& aUsername) const;
 
-  void SetUsername(const nsAString& aUsername, ErrorResult& aRv);
+  void SetUsername(const nsAString& aUsername);
 
-  void GetPassword(nsString& aPassword, ErrorResult& aRv) const;
+  void GetPassword(nsString& aPassword) const;
 
-  void SetPassword(const nsAString& aPassword, ErrorResult& aRv);
+  void SetPassword(const nsAString& aPassword);
 
-  void GetHost(nsString& aHost, ErrorResult& aRv) const;
+  void GetHost(nsString& aHost) const;
 
-  void SetHost(const nsAString& aHost, ErrorResult& aRv);
+  void SetHost(const nsAString& aHost);
 
-  void GetHostname(nsString& aHostname, ErrorResult& aRv) const;
+  void GetHostname(nsString& aHostname) const;
 
-  void SetHostname(const nsAString& aHostname, ErrorResult& aRv);
+  void SetHostname(const nsAString& aHostname);
 
-  void GetPort(nsString& aPort, ErrorResult& aRv) const;
+  void GetPort(nsString& aPort) const;
 
-  void SetPort(const nsAString& aPort, ErrorResult& aRv);
+  void SetPort(const nsAString& aPort);
 
-  void GetPathname(nsString& aPathname, ErrorResult& aRv) const;
+  void GetPathname(nsString& aPathname) const;
 
-  void SetPathname(const nsAString& aPathname, ErrorResult& aRv);
+  void SetPathname(const nsAString& aPathname);
 
-  void GetSearch(nsString& aRetval, ErrorResult& aRv) const;
+  void GetSearch(nsString& aRetval) const;
 
-  void SetSearch(const nsAString& aArg, ErrorResult& aRv);
+  void SetSearch(const nsAString& aArg);
 
   URLSearchParams* SearchParams();
 
   void SetSearchParams(URLSearchParams& aSearchParams);
 
-  void GetHash(nsString& aRetval, ErrorResult& aRv) const;
+  void GetHash(nsString& aRetval) const;
 
-  void SetHash(const nsAString& aArg, ErrorResult& aRv);
+  void SetHash(const nsAString& aArg);
 
-  void Stringify(nsString& aRetval, ErrorResult& aRv) const
+  void Stringify(nsString& aRetval) const
   {
-    GetHref(aRetval, aRv);
+    GetHref(aRetval);
   }
 
   // URLSearchParamsObserver

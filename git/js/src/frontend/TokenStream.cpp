@@ -9,7 +9,6 @@
 #include "frontend/TokenStream.h"
 
 #include "mozilla/PodOperations.h"
-#include "mozilla/UniquePtr.h"
 
 #include <ctype.h>
 #include <stdarg.h>
@@ -36,7 +35,6 @@ using mozilla::Maybe;
 using mozilla::PodAssign;
 using mozilla::PodCopy;
 using mozilla::PodZero;
-using mozilla::UniquePtr;
 
 struct KeywordInfo {
     const char  *chars;         // C string with keyword text
@@ -356,6 +354,9 @@ TokenStream::TokenStream(ExclusiveContext *cx, const ReadOnlyCompileOptions &opt
 
 TokenStream::~TokenStream()
 {
+    js_free(displayURL_);
+    js_free(sourceMapURL_);
+
     JS_ASSERT_IF(originPrincipals, originPrincipals->refcount);
 }
 
@@ -654,13 +655,11 @@ TokenStream::reportCompileErrorNumberVA(uint32_t offset, unsigned flags, unsigne
     }
 
     // If we have no location information, try to get one from the caller.
-    bool callerFilename = false;
     if (offset != NoOffset && !err.report.filename && cx->isJSContext()) {
         NonBuiltinFrameIter iter(cx->asJSContext(),
                                  FrameIter::ALL_CONTEXTS, FrameIter::GO_THROUGH_SAVED,
                                  cx->compartment()->principals);
         if (!iter.done() && iter.scriptFilename()) {
-            callerFilename = true;
             err.report.filename = iter.scriptFilename();
             err.report.lineno = iter.computeLine(&err.report.column);
         }
@@ -682,7 +681,7 @@ TokenStream::reportCompileErrorNumberVA(uint32_t offset, unsigned flags, unsigne
     // So we don't even try, leaving report.linebuf and friends zeroed.  This
     // means that any error involving a multi-line token (e.g. an unterminated
     // multi-line string literal) won't have a context printed.
-    if (offset != NoOffset && err.report.lineno == lineno && !callerFilename) {
+    if (offset != NoOffset && err.report.lineno == lineno) {
         const jschar *tokenStart = userbuf.base() + offset;
 
         // We show only a portion (a "window") of the line around the erroneous
@@ -855,9 +854,7 @@ TokenStream::getDirectives(bool isMultiline, bool shouldWarnDeprecated)
 bool
 TokenStream::getDirective(bool isMultiline, bool shouldWarnDeprecated,
                           const char *directive, int directiveLength,
-                          const char *errorMsgPragma,
-                          UniquePtr<jschar[], JS::FreePolicy> *destination)
-{
+                          const char *errorMsgPragma, jschar **destination) {
     JS_ASSERT(directiveLength <= 18);
     jschar peeked[18];
     int32_t c;
@@ -889,11 +886,12 @@ TokenStream::getDirective(bool isMultiline, bool shouldWarnDeprecated,
 
         size_t length = tokenbuf.length();
 
-        *destination = cx->make_pod_array<jschar>(length + 1);
+        js_free(*destination);
+        *destination = cx->pod_malloc<jschar>(length + 1);
         if (!*destination)
             return false;
 
-        PodCopy(destination->get(), tokenbuf.begin(), length);
+        PodCopy(*destination, tokenbuf.begin(), length);
         (*destination)[length] = '\0';
     }
 

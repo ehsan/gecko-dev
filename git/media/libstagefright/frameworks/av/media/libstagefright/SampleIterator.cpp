@@ -139,8 +139,17 @@ status_t SampleIterator::seekTo(uint32_t sampleIndex) {
         return err;
     }
 
-    // mTTSDuration is set by findSampleTime()
-    mCurrentSampleDuration = mTTSDuration;
+    if (sampleIndex + 1 == mTable->mNumSampleSizes) {
+        mCurrentSampleDuration = 0;
+    }
+    else {
+        uint32_t nextSampleTime;
+        if ((err = findSampleTime(sampleIndex + 1, &nextSampleTime)) != OK ) {
+            ALOGE("findSampleTime return error");
+            return err;
+        }
+        mCurrentSampleDuration = nextSampleTime - mCurrentSampleTime;
+    }
 
     mCurrentSampleIndex = sampleIndex;
 

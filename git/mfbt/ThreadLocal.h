@@ -73,29 +73,30 @@ template<typename T>
 class ThreadLocal
 {
 #if defined(XP_WIN)
-  typedef unsigned long key_t;
+    typedef unsigned long key_t;
 #else
-  typedef pthread_key_t key_t;
+    typedef pthread_key_t key_t;
 #endif
 
-  union Helper
-  {
-    void* mPtr;
-    T mValue;
-  };
+    union Helper {
+      void* ptr;
+      T value;
+    };
 
-public:
-  MOZ_WARN_UNUSED_RESULT inline bool init();
+  public:
+    MOZ_WARN_UNUSED_RESULT inline bool init();
 
-  inline T get() const;
+    inline T get() const;
 
-  inline void set(const T aValue);
+    inline void set(const T value);
 
-  bool initialized() const { return mInited; }
+    bool initialized() const {
+      return inited;
+    }
 
-private:
-  key_t mKey;
-  bool mInited;
+  private:
+    key_t key;
+    bool inited;
 };
 
 template<typename T>
@@ -107,12 +108,12 @@ ThreadLocal<T>::init()
                 "a pointer");
   MOZ_ASSERT(!initialized());
 #ifdef XP_WIN
-  mKey = TlsAlloc();
-  mInited = mKey != 0xFFFFFFFFUL; // TLS_OUT_OF_INDEXES
+  key = TlsAlloc();
+  inited = key != 0xFFFFFFFFUL; // TLS_OUT_OF_INDEXES
 #else
-  mInited = !pthread_key_create(&mKey, nullptr);
+  inited = !pthread_key_create(&key, nullptr);
 #endif
-  return mInited;
+  return inited;
 }
 
 template<typename T>
@@ -122,28 +123,28 @@ ThreadLocal<T>::get() const
   MOZ_ASSERT(initialized());
   Helper h;
 #ifdef XP_WIN
-  h.mPtr = TlsGetValue(mKey);
+  h.ptr = TlsGetValue(key);
 #else
-  h.mPtr = pthread_getspecific(mKey);
+  h.ptr = pthread_getspecific(key);
 #endif
-  return h.mValue;
+  return h.value;
 }
 
 template<typename T>
 inline void
-ThreadLocal<T>::set(const T aValue)
+ThreadLocal<T>::set(const T value)
 {
   MOZ_ASSERT(initialized());
   Helper h;
-  h.mValue = aValue;
+  h.value = value;
+  bool succeeded;
 #ifdef XP_WIN
-  bool succeeded = TlsSetValue(mKey, h.mPtr);
+  succeeded = TlsSetValue(key, h.ptr);
 #else
-  bool succeeded = !pthread_setspecific(mKey, h.mPtr);
+  succeeded = !pthread_setspecific(key, h.ptr);
 #endif
-  if (!succeeded) {
+  if (!succeeded)
     MOZ_CRASH();
-  }
 }
 
 } // namespace mozilla

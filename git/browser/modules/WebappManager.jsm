@@ -134,39 +134,45 @@ this.WebappManager = {
 
         let manifestURL = aData.app.manifestURL;
 
-        let nativeApp = new NativeApp(aData.app, jsonManifest,
-                                      aData.app.categories);
-
-        this.installations[manifestURL] = Promise.defer();
-        this.installations[manifestURL].promise.then(() => {
-          notifyInstallSuccess(aData.app, nativeApp, bundle);
-        }, (error) => {
-          Cu.reportError("Error installing webapp: " + error);
-        }).then(() => {
+        let cleanup = () => {
           popupProgressContent.removeChild(progressMeter);
           delete this.installations[manifestURL];
           if (Object.getOwnPropertyNames(this.installations).length == 0) {
             notification.remove();
           }
+        };
+
+        this.installations[manifestURL] = Promise.defer();
+        this.installations[manifestURL].promise.then(null, (error) => {
+          Cu.reportError("Error installing webapp: " + error);
+          cleanup();
         });
 
+        let nativeApp = new NativeApp(aData.app, jsonManifest,
+                                      aData.app.categories);
         let localDir;
         try {
           localDir = nativeApp.createProfile();
         } catch (ex) {
+          Cu.reportError("Error installing webapp: " + ex);
           DOMApplicationRegistry.denyInstall(aData);
+          cleanup();
           return;
         }
 
         DOMApplicationRegistry.confirmInstall(aData, localDir,
-          Task.async(function*(aApp, aManifest, aZipPath) {
+          (aApp, aManifest, aZipPath) => Task.spawn((function*() {
             try {
               yield nativeApp.install(aApp, aManifest, aZipPath);
+              yield this.installations[manifestURL].promise;
+              notifyInstallSuccess(aApp, nativeApp, bundle);
             } catch (ex) {
               Cu.reportError("Error installing webapp: " + ex);
-              throw ex;
+              // TODO: Notify user that the installation has failed
+            } finally {
+              cleanup();
             }
-          })
+          }).bind(this))
         );
       }
     };

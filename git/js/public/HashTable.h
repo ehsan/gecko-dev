@@ -1016,7 +1016,7 @@ class HashTable : private AllocPolicy
 #endif
 
     friend class mozilla::ReentrancyGuard;
-    mutable mozilla::DebugOnly<bool> mEntered;
+    mutable mozilla::DebugOnly<bool> entered;
     mozilla::DebugOnly<uint64_t>     mutationCount;
 
     // The default initial capacity is 32 (enough to hold 16 elements), but it
@@ -1076,7 +1076,7 @@ class HashTable : private AllocPolicy
         gen(0),
         removedCount(0),
         table(nullptr),
-        mEntered(false),
+        entered(false),
         mutationCount(0)
     {}
 
@@ -1452,7 +1452,7 @@ class HashTable : private AllocPolicy
 
     void finish()
     {
-        MOZ_ASSERT(!mEntered);
+        MOZ_ASSERT(!entered);
 
         if (!table)
             return;

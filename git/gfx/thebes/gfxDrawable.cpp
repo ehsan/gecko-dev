@@ -52,12 +52,9 @@ DeviceToImageTransform(gfxContext* aContext,
     nsRefPtr<gfxASurface> currentTarget =
         aContext->CurrentSurface(&deviceX, &deviceY);
     gfxMatrix currentMatrix = aContext->CurrentMatrix();
-    gfxMatrix deviceToUser = currentMatrix;
-    if (!deviceToUser.Invert()) {
-        return gfxMatrix(0, 0, 0, 0, 0, 0); // singular
-    }
+    gfxMatrix deviceToUser = gfxMatrix(currentMatrix).Invert();
     deviceToUser.Translate(-gfxPoint(-deviceX, -deviceY));
-    return deviceToUser * aUserSpaceToImageSpace;
+    return gfxMatrix(deviceToUser).Multiply(aUserSpaceToImageSpace);
 }
 
 static void
@@ -159,7 +156,7 @@ gfxSurfaceDrawable::Draw(gfxContext* aContext,
         PreparePatternForUntiledDrawing(pattern, deviceSpaceToImageSpace,
                                         currentTarget, filter);
     }
-    pattern->SetMatrix(aTransform * mTransform);
+    pattern->SetMatrix(gfxMatrix(aTransform).Multiply(mTransform));
     aContext->NewPath();
     aContext->SetPattern(pattern);
     aContext->Rectangle(aFillRect);
@@ -297,7 +294,7 @@ gfxPatternDrawable::Draw(gfxContext* aContext,
 
     aContext->NewPath();
     gfxMatrix oldMatrix = mPattern->GetMatrix();
-    mPattern->SetMatrix(aTransform * oldMatrix);
+    mPattern->SetMatrix(gfxMatrix(aTransform).Multiply(oldMatrix));
     aContext->SetPattern(mPattern);
     aContext->Rectangle(aFillRect);
     aContext->Fill();

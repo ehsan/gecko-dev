@@ -4,14 +4,16 @@
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
 #include "SharedSurfaceEGL.h"
-
-#include "GLBlitHelper.h"
 #include "GLContextEGL.h"
-#include "GLLibraryEGL.h"
-#include "GLReadTexImageHelper.h"
+#include "GLBlitHelper.h"
 #include "ScopedGLHelpers.h"
-#include "SharedSurface.h"
+#include "SharedSurfaceGL.h"
+#include "SurfaceFactory.h"
+#include "GLLibraryEGL.h"
 #include "TextureGarbageBin.h"
+#include "GLReadTexImageHelper.h"
+
+using namespace mozilla::gfx;
 
 namespace mozilla {
 namespace gl {
@@ -67,11 +69,11 @@ SharedSurface_EGLImage::SharedSurface_EGLImage(GLContext* gl,
                                                const GLFormats& formats,
                                                GLuint prodTex,
                                                EGLImage image)
-    : SharedSurface(SharedSurfaceType::EGLImageShare,
-                    AttachmentType::GLTexture,
-                    gl,
-                    size,
-                    hasAlpha)
+    : SharedSurface_GL(SharedSurfaceType::EGLImageShare,
+                        AttachmentType::GLTexture,
+                        gl,
+                        size,
+                        hasAlpha)
     , mMutex("SharedSurface_EGLImage mutex")
     , mEGL(egl)
     , mFormats(formats)

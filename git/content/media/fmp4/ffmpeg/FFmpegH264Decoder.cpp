@@ -53,7 +53,6 @@ FFmpegH264Decoder<LIBAV_VER>::DecodeFrame(mp4_demuxer::MP4Sample* aSample)
   AVPacket packet;
   av_init_packet(&packet);
 
-  aSample->Pad(FF_INPUT_BUFFER_PADDING_SIZE);
   packet.data = aSample->data;
   packet.size = aSample->size;
   packet.pts = aSample->composition_timestamp;
@@ -138,11 +137,7 @@ FFmpegH264Decoder<LIBAV_VER>::AllocateBufferCb(AVCodecContext* aCodecContext,
 FFmpegH264Decoder<LIBAV_VER>::ReleaseBufferCb(AVCodecContext* aCodecContext,
                                               AVFrame* aFrame)
 {
-  Image* image = reinterpret_cast<Image*>(aFrame->opaque);
-  avcodec_default_release_buffer(aCodecContext, aFrame);
-  if (image) {
-    image->Release();
-  }
+  reinterpret_cast<Image*>(aFrame->opaque)->Release();
 }
 
 int

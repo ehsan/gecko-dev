@@ -24,7 +24,6 @@
 #include "nsIDOMWakeLockListener.h"
 #include "nsIPowerManagerService.h"
 #include "nsINetworkLinkService.h"
-#include "nsCategoryManagerUtils.h"
 
 #include "mozilla/Services.h"
 #include "mozilla/unused.h"
@@ -183,7 +182,6 @@ nsAppShell::Init()
         mozilla::services::GetObserverService();
     if (obsServ) {
         obsServ->AddObserver(this, "xpcom-shutdown", false);
-        obsServ->AddObserver(this, "browser-delayed-startup-finished", false);
     }
 
     if (sPowerManagerService)
@@ -209,9 +207,6 @@ nsAppShell::Observe(nsISupports* aSubject,
                nsDependentString(aData).Equals(NS_LITERAL_STRING(PREFNAME_COALESCE_TOUCHES))) {
         mAllowCoalescingTouches = Preferences::GetBool(PREFNAME_COALESCE_TOUCHES, true);
         return NS_OK;
-    } else if (!strcmp(aTopic, "browser-delayed-startup-finished")) {
-        NS_CreateServicesFromCategory("browser-delayed-startup-finished", nullptr,
-                                      "browser-delayed-startup-finished");
     }
     return NS_OK;
 }

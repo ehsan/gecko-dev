@@ -31,7 +31,6 @@
 #include "nsIXPConnect.h"
 #include "mozilla/unused.h"
 #include "nsContentUtils.h" // for nsAutoScriptBlocker
-#include "nsJSUtils.h"
 #include "mozilla/ipc/URIUtils.h"
 #include "nsPrintfCString.h"
 #include "nsTHashtable.h"
@@ -327,10 +326,14 @@ GetJSValueAsString(JSContext* aCtx,
     _string.Truncate();
     return;
   }
-
-  if (!AssignJSString(aCtx, _string, aValue.toString())) {
+  size_t length;
+  const jschar* chars =
+    JS_GetStringCharsZAndLength(aCtx, aValue.toString(), &length);
+  if (!chars) {
     _string.SetIsVoid(true);
+    return;
   }
+  _string.Assign(static_cast<const char16_t*>(chars), length);
 }
 
 /**

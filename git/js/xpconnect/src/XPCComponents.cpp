@@ -557,10 +557,9 @@ nsXPCComponents_InterfacesByID::NewResolve(nsIXPConnectWrappedNative *wrapper,
     if (38 != JS_GetStringLength(str))
         return NS_OK;
 
-    JSAutoByteString utf8str;
-    if (utf8str.encodeUtf8(cx, str)) {
+    if (const jschar *name = JS_GetInternedStringChars(str)) {
         nsID iid;
-        if (!iid.Parse(utf8str.ptr()))
+        if (!iid.Parse(NS_ConvertUTF16toUTF8(name).get()))
             return NS_OK;
 
         nsCOMPtr<nsIInterfaceInfo> info;
@@ -2606,12 +2605,13 @@ nsXPCComponents_Utils::ReportError(HandleValue error, JSContext *cx)
         frame->GetLineNumber(&lineNo);
     }
 
-    nsAutoJSString msg;
-    if (!msg.init(cx, msgstr))
+    const jschar *msgchars = JS_GetStringCharsZ(cx, msgstr);
+    if (!msgchars)
         return NS_OK;
 
     nsresult rv = scripterr->InitWithWindowID(
-            msg, fileName, EmptyString(), lineNo, 0, 0,
+            nsDependentString(static_cast<const char16_t *>(msgchars)),
+            fileName, EmptyString(), lineNo, 0, 0,
             "XPConnect JavaScript", innerWindowID);
     NS_ENSURE_SUCCESS(rv, NS_OK);
 
@@ -3113,7 +3113,7 @@ nsXPCComponents_Utils::IsCrossProcessWrapper(HandleValue obj, bool *out)
     if (obj.isPrimitive())
         return NS_ERROR_INVALID_ARG;
 
-    *out = jsipc::IsWrappedCPOW(&obj.toObject());
+    *out = jsipc::IsCPOW(js::CheckedUnwrap(&obj.toObject()));
     return NS_OK;
 }
 
@@ -3243,7 +3243,7 @@ nsXPCComponents_Utils::Dispatch(HandleValue runnableArg, HandleValue scope,
     }
 
 GENERATE_JSCONTEXTOPTION_GETTER_SETTER(Strict, extraWarnings, setExtraWarnings)
-GENERATE_JSRUNTIMEOPTION_GETTER_SETTER(Werror, werror, setWerror)
+GENERATE_JSCONTEXTOPTION_GETTER_SETTER(Werror, werror, setWerror)
 GENERATE_JSCONTEXTOPTION_GETTER_SETTER(Strict_mode, strictMode, setStrictMode)
 GENERATE_JSRUNTIMEOPTION_GETTER_SETTER(Ion, ion, setIon)
 

@@ -537,15 +537,6 @@ function rsqrt_object(i) {
     return i;
 }
 
-var uceFault_str_split = eval(uneval(uceFault).replace('uceFault', 'uceFault_str_split'))
-function rstr_split(i) {
-    var x = "str01234567899876543210rts".split("" + i);
-    if (uceFault_str_split(i) || uceFault_str_split(i)) {
-        assertEq(x[0], "str012345678");
-    }
-    return i;
-}
-
 for (i = 0; i < 100; i++) {
     rbitnot_number(i);
     rbitnot_object(i);
@@ -604,7 +595,6 @@ for (i = 0; i < 100; i++) {
     rsqrt_number(i);
     rsqrt_float(i);
     rsqrt_object(i);
-    rstr_split(i);
 }
 
 // Test that we can refer multiple time to the same recover instruction, as well

@@ -1031,21 +1031,15 @@ IonScript::copyCallTargetEntries(JSScript **callTargets)
 
 void
 IonScript::copyPatchableBackedges(JSContext *cx, JitCode *code,
-                                  PatchableBackedgeInfo *backedges,
-                                  MacroAssembler &masm)
+                                  PatchableBackedgeInfo *backedges)
 {
     for (size_t i = 0; i < backedgeEntries_; i++) {
-        PatchableBackedgeInfo &info = backedges[i];
+        const PatchableBackedgeInfo &info = backedges[i];
         PatchableBackedge *patchableBackedge = &backedgeList()[i];
 
-        // Convert to actual offsets for the benefit of the ARM backend.
-        info.backedge.fixup(&masm);
-        uint32_t loopHeaderOffset = masm.actualOffset(info.loopHeader->offset());
-        uint32_t interruptCheckOffset = masm.actualOffset(info.interruptCheck->offset());
-
         CodeLocationJump backedge(code, info.backedge);
-        CodeLocationLabel loopHeader(code, CodeOffsetLabel(loopHeaderOffset));
-        CodeLocationLabel interruptCheck(code, CodeOffsetLabel(interruptCheckOffset));
+        CodeLocationLabel loopHeader(code, CodeOffsetLabel(info.loopHeader->offset()));
+        CodeLocationLabel interruptCheck(code, CodeOffsetLabel(info.interruptCheck->offset()));
         new(patchableBackedge) PatchableBackedge(backedge, loopHeader, interruptCheck);
 
         // Point the backedge to either of its possible targets, according to

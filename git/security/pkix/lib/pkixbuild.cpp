@@ -65,7 +65,6 @@ public:
   }
 
   SECStatus Check(const SECItem& potentialIssuerDER,
-                  /*optional*/ const SECItem* additionalNameConstraints,
                   /*out*/ bool& keepGoing);
 
   Result CheckResult() const;
@@ -131,7 +130,6 @@ PathBuildingStep::CheckResult() const
 // The code that executes in the inner loop of BuildForward
 SECStatus
 PathBuildingStep::Check(const SECItem& potentialIssuerDER,
-                        /*optional*/ const SECItem* additionalNameConstraints,
                         /*out*/ bool& keepGoing)
 {
   BackCert potentialIssuer(potentialIssuerDER, EndEntityOrCA::MustBeCA,
@@ -159,20 +157,9 @@ PathBuildingStep::Check(const SECItem& potentialIssuerDER,
     }
   }
 
-  if (potentialIssuer.GetNameConstraints()) {
-    rv = CheckNameConstraints(*potentialIssuer.GetNameConstraints(),
-                              subject, requiredEKUIfPresent);
-    if (rv != Success) {
-       return RecordResult(PR_GetError(), keepGoing);
-    }
-  }
-
-  if (additionalNameConstraints) {
-    rv = CheckNameConstraints(*additionalNameConstraints, subject,
-                              requiredEKUIfPresent);
-    if (rv != Success) {
-       return RecordResult(PR_GetError(), keepGoing);
-    }
+  rv = CheckNameConstraints(potentialIssuer, requiredEKUIfPresent);
+  if (rv != Success) {
+    return RecordResult(PR_GetError(), keepGoing);
   }
 
   // RFC 5280, Section 4.2.1.3: "If the keyUsage extension is present, then the

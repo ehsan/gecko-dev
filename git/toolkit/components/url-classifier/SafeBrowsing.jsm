@@ -35,8 +35,7 @@ function log(...stuff) {
   if (!debug)
     return;
 
-  var d = new Date();
-  let msg = "SafeBrowsing: " + d.toTimeString() + ": " + stuff.join(" ");
+  let msg = "SafeBrowsing: " + stuff.join(" ");
   Services.console.logStringMessage(msg);
   dump(msg + "\n");
 }
@@ -50,7 +49,6 @@ this.SafeBrowsing = {
     }
 
     Services.prefs.addObserver("browser.safebrowsing", this.readPrefs.bind(this), false);
-    Services.prefs.addObserver("privacy.trackingprotection", this.readPrefs.bind(this), false);
     this.readPrefs();
 
     // Register our two types of tables, and add custom Mozilla entries
@@ -114,9 +112,8 @@ this.SafeBrowsing = {
     // XXX The listManager backend gets confused if this is called before the
     // lists are registered. So only call it here when a pref changes, and not
     // when doing initialization. I expect to refactor this later, so pardon the hack.
-    if (this.initialized) {
+    if (this.initialized)
       this.controlUpdateChecking();
-    }
   },
 
 
@@ -151,8 +148,7 @@ this.SafeBrowsing = {
   },
 
   controlUpdateChecking: function() {
-    log("phishingEnabled:", this.phishingEnabled, "malwareEnabled:",
-        this.malwareEnabled, "trackingEnabled:", this.trackingEnabled);
+    log("phishingEnabled:", this.phishingEnabled, "malwareEnabled:", this.malwareEnabled);
 
     let listManager = Cc["@mozilla.org/url-classifier/listmanager;1"].
                       getService(Ci.nsIUrlListManager);
@@ -192,7 +188,6 @@ this.SafeBrowsing = {
         listManager.disableUpdate(trackingProtectionLists[i]);
       }
     }
-    listManager.maybeToggleUpdateChecking();
   },
 
 

@@ -55,11 +55,8 @@ public:
 
       if (state.patternTransformChanged) {
         Matrix mat = mContext->GetDTTransform();
-        if (!mat.Invert()) {
-          mPattern = new (mColorPattern.addr())
-          ColorPattern(Color()); // transparent black to paint nothing
-          return *mPattern;
-        }
+        mat.Invert();
+
         transform = transform * state.patternTransform * mat;
       }
 
@@ -92,8 +89,6 @@ gfxContext::gfxContext(DrawTarget *aTarget, const Point& aDeviceOffset)
   , mDT(aTarget)
   , mOriginalDT(aTarget)
 {
-  MOZ_ASSERT(aTarget, "Don't create a gfxContext without a DrawTarget");
-
   MOZ_COUNT_CTOR(gfxContext);
 
   mStateStack.SetLength(1);
@@ -116,16 +111,18 @@ gfxContext::~gfxContext()
   if (mRefCairo) {
     cairo_destroy(mRefCairo);
   }
-  for (int i = mStateStack.Length() - 1; i >= 0; i--) {
-    for (unsigned int c = 0; c < mStateStack[i].pushedClips.Length(); c++) {
-      mDT->PopClip();
-    }
+  if (mDT) {
+    for (int i = mStateStack.Length() - 1; i >= 0; i--) {
+      for (unsigned int c = 0; c < mStateStack[i].pushedClips.Length(); c++) {
+        mDT->PopClip();
+      }
 
-    if (mStateStack[i].clipWasReset) {
-      break;
+      if (mStateStack[i].clipWasReset) {
+        break;
+      }
     }
+    mDT->Flush();
   }
-  mDT->Flush();
   MOZ_COUNT_DTOR(gfxContext);
 }
 
@@ -235,16 +232,18 @@ gfxContext::ClosePath()
   mPathBuilder->Close();
 }
 
-TemporaryRef<Path> gfxContext::GetPath()
+already_AddRefed<gfxPath> gfxContext::CopyPath()
 {
   EnsurePath();
-  return mPath;
+  nsRefPtr<gfxPath> path = new gfxPath(mPath);
+  return path.forget();
 }
 
-void gfxContext::SetPath(Path* path)
+void gfxContext::SetPath(gfxPath* path)
 {
-  MOZ_ASSERT(path->GetBackendType() == mDT->GetBackendType());
-  mPath = path;
+  MOZ_ASSERT(path->mMoz2DPath, "Can't mix cairo and azure paths!");
+  MOZ_ASSERT(path->mMoz2DPath->GetBackendType() == mDT->GetBackendType());
+  mPath = path->mMoz2DPath;
   mPathBuilder = nullptr;
   mPathIsRect = false;
   mTransformChanged = false;
@@ -361,12 +360,10 @@ gfxContext::Rectangle(const gfxRect& rect, bool snapToPixels)
     gfxRect newRect(rect);
     if (UserToDevicePixelSnapped(newRect, true)) {
       gfxMatrix mat = ThebesMatrix(mTransform);
-      if (mat.Invert()) {
-        // We need the user space rect.
-        rec = ToRect(mat.TransformBounds(newRect));
-      } else {
-        rec = Rect();
-      }
+      mat.Invert();
+
+      // We need the user space rect.
+      rec = ToRect(mat.TransformBounds(newRect));
     }
   }
 
@@ -1030,6 +1027,9 @@ gfxContext::Mask(gfxASurface *surface, const gfxPoint& offset)
 void
 gfxContext::Mask(SourceSurface *surface, const Point& offset)
 {
+  MOZ_ASSERT(mDT);
+
+
   // We clip here to bind to the mask surface bounds, see above.
   mDT->MaskSurface(GeneralPattern(this),
             surface,
@@ -1314,19 +1314,31 @@ gfxContext::RoundedRectangle(const gfxRect& rect,
 void
 gfxContext::WriteAsPNG(const char* aFile)
 {
-  gfxUtils::WriteAsPNG(mDT, aFile);
+  if (mDT) {
+    gfxUtils::WriteAsPNG(mDT, aFile);
+  } else {
+    NS_WARNING("No DrawTarget found!");
+  }
 }
 
 void 
 gfxContext::DumpAsDataURI()
 {
-  gfxUtils::DumpAsDataURI(mDT);
+  if (mDT) {
+    gfxUtils::DumpAsDataURI(mDT);
+  } else {
+    NS_WARNING("No DrawTarget found!");
+  }
 }
 
 void 
 gfxContext::CopyAsDataURI()
 {
-  gfxUtils::CopyAsDataURI(mDT);
+  if (mDT) {
+    gfxUtils::CopyAsDataURI(mDT);
+  } else {
+    NS_WARNING("No DrawTarget found!");
+  }
 }
 #endif
 

@@ -12,6 +12,7 @@
 #include "nsGkAtoms.h"
 
 #include "mozilla/dom/HTMLVideoElement.h"
+#include "nsIDOMHTMLVideoElement.h"
 #include "nsIDOMHTMLImageElement.h"
 #include "nsDisplayList.h"
 #include "nsGenericHTMLElement.h"
@@ -617,8 +618,8 @@ nsVideoFrame::AttributeChanged(int32_t aNameSpaceID,
 }
 
 bool nsVideoFrame::HasVideoElement() {
-  nsCOMPtr<nsIDOMHTMLMediaElement> mediaDomElement = do_QueryInterface(mContent);
-  return mediaDomElement->IsVideo();
+  nsCOMPtr<nsIDOMHTMLVideoElement> videoDomElement = do_QueryInterface(mContent);
+  return videoDomElement != nullptr;
 }
 
 bool nsVideoFrame::HasVideoData()

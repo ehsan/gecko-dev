@@ -6777,7 +6777,7 @@ CodeGenerator::link(JSContext *cx, types::CompilerConstraintList *constraints)
     if (callTargets.length() > 0)
         ionScript->copyCallTargetEntries(callTargets.begin());
     if (patchableBackedges_.length() > 0)
-        ionScript->copyPatchableBackedges(cx, code, patchableBackedges_.begin(), masm);
+        ionScript->copyPatchableBackedges(cx, code, patchableBackedges_.begin());
 
 #ifdef JS_TRACE_LOGGING
     TraceLogger *logger = TraceLoggerForMainThread(cx->runtime());

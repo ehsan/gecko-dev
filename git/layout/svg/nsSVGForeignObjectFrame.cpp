@@ -222,8 +222,9 @@ nsSVGForeignObjectFrame::PaintSVG(nsRenderingContext *aContext,
                  "Display lists handle dirty rect intersection test");
     // Transform the dirty rect into app units in our userspace.
     gfxMatrix invmatrix = canvasTM;
-    DebugOnly<bool> ok = invmatrix.Invert();
-    NS_ASSERTION(ok, "inverse of non-singular matrix should be non-singular");
+    invmatrix.Invert();
+    NS_ASSERTION(!invmatrix.IsSingular(),
+                 "inverse of non-singular matrix should be non-singular");
 
     gfxRect transDirtyRect = gfxRect(aDirtyRect->x, aDirtyRect->y,
                                      aDirtyRect->width, aDirtyRect->height);
@@ -296,11 +297,10 @@ nsSVGForeignObjectFrame::GetFrameForPoint(const nsPoint &aPoint)
   static_cast<nsSVGElement*>(mContent)->
     GetAnimatedLengthValues(&x, &y, &width, &height, nullptr);
 
-  gfxMatrix tm = GetCanvasTM(FOR_HIT_TESTING);
-  if (!tm.Invert()) {
+  gfxMatrix tm = GetCanvasTM(FOR_HIT_TESTING).Invert();
+  if (tm.IsSingular())
     return nullptr;
-  }
-
+  
   // Convert aPoint from app units in canvas space to user space:
 
   gfxPoint pt = gfxPoint(aPoint.x, aPoint.y) / PresContext()->AppUnitsPerCSSPixel();

@@ -25,6 +25,7 @@
 #include "mozilla/layers/CompositorTypes.h"
 
 class gfxASurface;
+class gfxImageSurface;
 class gfxFont;
 class gfxFontGroup;
 struct gfxFontStyle;

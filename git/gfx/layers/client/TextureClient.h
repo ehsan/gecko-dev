@@ -31,9 +31,12 @@ class gfxReusableSurfaceWrapper;
 class gfxImageSurface;
 
 namespace mozilla {
+namespace gfx {
+class SurfaceStream;
+}
+
 namespace gl {
 class GLContext;
-class SurfaceStream;
 }
 
 namespace layers {
@@ -573,7 +576,7 @@ public:
 
   virtual bool HasInternalBuffer() const MOZ_OVERRIDE { return false; }
 
-  void InitWith(gl::SurfaceStream* aStream);
+  void InitWith(gfx::SurfaceStream* aStream);
 
   virtual gfx::IntSize GetSize() const { return gfx::IntSize(); }
 
@@ -590,7 +593,7 @@ public:
 
 protected:
   bool mIsLocked;
-  RefPtr<gl::SurfaceStream> mStream;
+  RefPtr<gfx::SurfaceStream> mStream;
   RefPtr<gl::GLContext> mGL; // Just for reference holding.
 };
 

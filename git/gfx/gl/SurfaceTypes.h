@@ -16,7 +16,9 @@ namespace layers {
 class ISurfaceAllocator;
 }
 
-namespace gl {
+namespace gfx {
+
+typedef uintptr_t SurfaceStreamHandle;
 
 struct SurfaceCaps MOZ_FINAL
 {
@@ -89,6 +91,15 @@ MOZ_BEGIN_ENUM_CLASS(SurfaceStreamType, uint8_t)
     TripleBuffer,
     Max
 MOZ_END_ENUM_CLASS(SurfaceStreamType)
+
+
+MOZ_BEGIN_ENUM_CLASS(APITypeT, uint8_t)
+    Generic = 0,
+
+    OpenGL,
+
+    Max
+MOZ_END_ENUM_CLASS(APITypeT)
 
 
 MOZ_BEGIN_ENUM_CLASS(AttachmentType, uint8_t)

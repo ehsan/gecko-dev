@@ -584,13 +584,6 @@ MediaEngineWebRTCVideoSource::Stop(SourceMediaStream *aSource, TrackID aID)
   return NS_OK;
 }
 
-void
-MediaEngineWebRTCVideoSource::SetDirectListeners(bool aHasDirectListeners)
-{
-  LOG((__FUNCTION__));
-  mHasDirectListeners = aHasDirectListeners;
-}
-
 nsresult
 MediaEngineWebRTCVideoSource::Snapshot(uint32_t aDuration, nsIDOMFile** aFile)
 {
@@ -741,19 +734,16 @@ GetRotateAmount(ScreenOrientation aScreen, int aCameraMountAngle, bool aBackCame
 }
 
 // undefine to remove on-the-fly rotation support
-#define DYNAMIC_GUM_ROTATION
+// #define DYNAMIC_GUM_ROTATION
 
 void
 MediaEngineWebRTCVideoSource::Notify(const hal::ScreenConfiguration& aConfiguration) {
 #ifdef DYNAMIC_GUM_ROTATION
-  if (mHasDirectListeners) {
-    // aka hooked to PeerConnection
-    MonitorAutoLock enter(mMonitor);
-    mRotation = GetRotateAmount(aConfiguration.orientation(), mCameraAngle, mBackCamera);
+  MonitorAutoLock enter(mMonitor);
+  mRotation = GetRotateAmount(aConfiguration.orientation(), mCameraAngle, mBackCamera);
 
-    LOG(("*** New orientation: %d (Camera %d Back %d MountAngle: %d)",
-         mRotation, mCaptureIndex, mBackCamera, mCameraAngle));
-  }
+  LOG(("*** New orientation: %d (Camera %d Back %d MountAngle: %d)",
+       mRotation, mCaptureIndex, mBackCamera, mCameraAngle));
 #endif
 }
 

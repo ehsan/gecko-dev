@@ -14,5 +14,4 @@ EXTRA_JS_MODULES += [
     'MozLoopAPI.jsm',
     'MozLoopPushHandler.jsm',
     'MozLoopService.jsm',
-    'MozLoopWorker.js',
 ]

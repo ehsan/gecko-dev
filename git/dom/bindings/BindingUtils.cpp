@@ -86,13 +86,10 @@ ThrowInvalidThis(JSContext* aCx, const JS::CallArgs& aArgs,
   MOZ_ASSERT(func);
   JS::Rooted<JSString*> funcName(aCx, JS_GetFunctionDisplayId(func));
   MOZ_ASSERT(funcName);
-  nsAutoJSString funcNameStr;
-  if (!funcNameStr.init(aCx, funcName)) {
-    return false;
-  }
   JS_ReportErrorNumberUC(aCx, GetErrorMessage, nullptr,
                          static_cast<const unsigned>(aErrorNumber),
-                         funcNameStr.get(), ifaceName.get());
+                         JS_GetStringCharsZ(aCx, funcName),
+                         ifaceName.get());
   return false;
 }
 
@@ -913,14 +910,6 @@ GetInterfaceImpl(JSContext* aCx, nsIInterfaceRequestor* aRequestor,
 }
 
 bool
-UnforgeableValueOf(JSContext* cx, unsigned argc, JS::Value* vp)
-{
-  JS::CallArgs args = JS::CallArgsFromVp(argc, vp);
-  args.rval().set(args.thisv());
-  return true;
-}
-
-bool
 ThrowingConstructor(JSContext* cx, unsigned argc, JS::Value* vp)
 {
   return ThrowErrorMessage(cx, MSG_ILLEGAL_CONSTRUCTOR);
@@ -1064,91 +1053,18 @@ XrayResolveAttribute(JSContext* cx, JS::Handle<JSObject*> wrapper,
   return true;
 }
 
-static bool
-XrayResolveMethod(JSContext* cx, JS::Handle<JSObject*> wrapper,
-                  JS::Handle<JSObject*> obj, JS::Handle<jsid> id,
-                  const Prefable<const JSFunctionSpec>* methods,
-                  jsid* methodIds,
-                  const JSFunctionSpec* methodsSpecs,
-                  JS::MutableHandle<JSPropertyDescriptor> desc)
-{
-  const Prefable<const JSFunctionSpec>* method;
-  for (method = methods; method->specs; ++method) {
-    if (method->isEnabled(cx, obj)) {
-      // Set i to be the index into our full list of ids/specs that we're
-      // looking at now.
-      size_t i = method->specs - methodsSpecs;
-      for ( ; methodIds[i] != JSID_VOID; ++i) {
-        if (id == methodIds[i]) {
-          const JSFunctionSpec& methodSpec = methodsSpecs[i];
-          JSFunction *fun;
-          if (methodSpec.selfHostedName) {
-            fun = JS::GetSelfHostedFunction(cx, methodSpec.selfHostedName, id, methodSpec.nargs);
-            if (!fun) {
-              return false;
-            }
-            MOZ_ASSERT(!methodSpec.call.op, "Bad FunctionSpec declaration: non-null native");
-            MOZ_ASSERT(!methodSpec.call.info, "Bad FunctionSpec declaration: non-null jitinfo");
-          } else {
-            fun = JS_NewFunctionById(cx, methodSpec.call.op, methodSpec.nargs, 0, wrapper, id);
-            if (!fun) {
-              return false;
-            }
-            SET_JITINFO(fun, methodSpec.call.info);
-          }
-          JSObject *funobj = JS_GetFunctionObject(fun);
-          desc.value().setObject(*funobj);
-          desc.setAttributes(methodSpec.flags);
-          desc.object().set(wrapper);
-          desc.setSetter(nullptr);
-          desc.setGetter(nullptr);
-          return true;
-        }
-      }
-    }
-  }
-  return true;
-}
-
 /* static */ bool
 XrayResolveUnforgeableProperty(JSContext* cx, JS::Handle<JSObject*> wrapper,
                                JS::Handle<JSObject*> obj, JS::Handle<jsid> id,
                                JS::MutableHandle<JSPropertyDescriptor> desc,
                                const NativeProperties* nativeProperties)
 {
-  if (!nativeProperties) {
-    return true;
-  }
-
-  if (nativeProperties->unforgeableAttributes) {
-    if (!XrayResolveAttribute(cx, wrapper, obj, id,
+  return !nativeProperties || !nativeProperties->unforgeableAttributes ||
+         XrayResolveAttribute(cx, wrapper, obj, id,
                               nativeProperties->unforgeableAttributes,
                               nativeProperties->unforgeableAttributeIds,
                               nativeProperties->unforgeableAttributeSpecs,
-                              desc)) {
-      return false;
-    }
-
-    if (desc.object()) {
-      return true;
-    }
-  }
-
-  if (nativeProperties->unforgeableMethods) {
-    if (!XrayResolveMethod(cx, wrapper, obj, id,
-                           nativeProperties->unforgeableMethods,
-                           nativeProperties->unforgeableMethodIds,
-                           nativeProperties->unforgeableMethodSpecs,
-                           desc)) {
-      return false;
-    }
-
-    if (desc.object()) {
-      return true;
-    }
-  }
-
-  return true;
+                              desc);
 }
 
 static bool
@@ -1170,12 +1086,40 @@ XrayResolveProperty(JSContext* cx, JS::Handle<JSObject*> wrapper,
     methodsSpecs = nativeProperties->methodsSpecs;
   }
   if (methods) {
-    if (!XrayResolveMethod(cx, wrapper, obj, id, methods, methodIds,
-                           methodsSpecs, desc)) {
-      return false;
-    }
-    if (desc.object()) {
-      return true;
+    const Prefable<const JSFunctionSpec>* method;
+    for (method = methods; method->specs; ++method) {
+      if (method->isEnabled(cx, obj)) {
+        // Set i to be the index into our full list of ids/specs that we're
+        // looking at now.
+        size_t i = method->specs - methodsSpecs;
+        for ( ; methodIds[i] != JSID_VOID; ++i) {
+          if (id == methodIds[i]) {
+            const JSFunctionSpec& methodSpec = methodsSpecs[i];
+            JSFunction *fun;
+            if (methodSpec.selfHostedName) {
+              fun = JS::GetSelfHostedFunction(cx, methodSpec.selfHostedName, id, methodSpec.nargs);
+              if (!fun) {
+                return false;
+              }
+              MOZ_ASSERT(!methodSpec.call.op, "Bad FunctionSpec declaration: non-null native");
+              MOZ_ASSERT(!methodSpec.call.info, "Bad FunctionSpec declaration: non-null jitinfo");
+            } else {
+              fun = JS_NewFunctionById(cx, methodSpec.call.op, methodSpec.nargs, 0, wrapper, id);
+              if (!fun) {
+                return false;
+              }
+              SET_JITINFO(fun, methodSpec.call.info);
+            }
+            JSObject *funobj = JS_GetFunctionObject(fun);
+            desc.value().setObject(*funobj);
+            desc.setAttributes(methodSpec.flags);
+            desc.object().set(wrapper);
+            desc.setSetter(nullptr);
+            desc.setGetter(nullptr);
+           return true;
+          }
+        }
+      }
     }
   }
 
@@ -1959,10 +1903,11 @@ InterfaceHasInstance(JSContext* cx, JS::Handle<JSObject*> obj,
     return true;
   }
 
-  if (jsipc::IsWrappedCPOW(instance)) {
+  JS::Rooted<JSObject*> unwrapped(cx, js::CheckedUnwrap(instance, true));
+  if (unwrapped && jsipc::IsCPOW(unwrapped)) {
     bool boolp = false;
-    if (!jsipc::DOMInstanceOf(cx, js::CheckedUnwrap(instance), clasp->mPrototypeID,
-                              clasp->mDepth, &boolp)) {
+    if (!jsipc::DOMInstanceOf(cx, unwrapped, clasp->mPrototypeID,
+                                                clasp->mDepth, &boolp)) {
       return false;
     }
     *bp = boolp;

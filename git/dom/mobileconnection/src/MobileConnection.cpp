@@ -62,12 +62,6 @@ public:
     MOZ_ASSERT(mMobileConnection);
     mMobileConnection = nullptr;
   }
-
-private:
-  ~Listener()
-  {
-    MOZ_ASSERT(!mMobileConnection);
-  }
 };
 
 NS_IMPL_ISUPPORTS(MobileConnection::Listener, nsIMobileConnectionListener)
@@ -134,11 +128,6 @@ MobileConnection::Shutdown()
     mVoice = nullptr;
     mData = nullptr;
   }
-}
-
-MobileConnection::~MobileConnection()
-{
-  MOZ_ASSERT(!(mProvider || mListener || mVoice || mData));
 }
 
 JSObject*

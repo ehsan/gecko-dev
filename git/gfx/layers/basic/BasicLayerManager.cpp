@@ -210,12 +210,10 @@ public:
   bool mPushedOpaqueRect;
 };
 
-BasicLayerManager::BasicLayerManager(nsIWidget* aWidget)
-  : mPhase(PHASE_NONE)
-  , mWidget(aWidget)
-  , mDoubleBuffering(BufferMode::BUFFER_NONE)
-  , mType(BLM_WIDGET)
-  , mUsingDefaultTarget(false)
+BasicLayerManager::BasicLayerManager(nsIWidget* aWidget) :
+  mPhase(PHASE_NONE),
+  mWidget(aWidget)
+  , mDoubleBuffering(BufferMode::BUFFER_NONE), mUsingDefaultTarget(false)
   , mTransactionIncomplete(false)
   , mCompositorMightResample(false)
 {
@@ -223,16 +221,13 @@ BasicLayerManager::BasicLayerManager(nsIWidget* aWidget)
   NS_ASSERTION(aWidget, "Must provide a widget");
 }
 
-BasicLayerManager::BasicLayerManager(BasicLayerManagerType aType)
-  : mPhase(PHASE_NONE)
-  , mWidget(nullptr)
-  , mDoubleBuffering(BufferMode::BUFFER_NONE)
-  , mType(aType)
-  , mUsingDefaultTarget(false)
+BasicLayerManager::BasicLayerManager() :
+  mPhase(PHASE_NONE),
+  mWidget(nullptr)
+  , mDoubleBuffering(BufferMode::BUFFER_NONE), mUsingDefaultTarget(false)
   , mTransactionIncomplete(false)
 {
   MOZ_COUNT_CTOR(BasicLayerManager);
-  MOZ_ASSERT(mType != BLM_WIDGET);
 }
 
 BasicLayerManager::~BasicLayerManager()

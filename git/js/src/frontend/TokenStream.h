@@ -11,7 +11,6 @@
 
 #include "mozilla/DebugOnly.h"
 #include "mozilla/PodOperations.h"
-#include "mozilla/UniquePtr.h"
 
 #include <stdarg.h>
 #include <stddef.h>
@@ -643,7 +642,7 @@ class MOZ_STACK_CLASS TokenStream
     }
 
     jschar *displayURL() {
-        return displayURL_.get();
+        return displayURL_;
     }
 
     bool hasSourceMapURL() const {
@@ -651,7 +650,7 @@ class MOZ_STACK_CLASS TokenStream
     }
 
     jschar *sourceMapURL() {
-        return sourceMapURL_.get();
+        return sourceMapURL_;
     }
 
     // If the name at s[0:length] is not a keyword in this version, return
@@ -857,8 +856,7 @@ class MOZ_STACK_CLASS TokenStream
     bool getDirectives(bool isMultiline, bool shouldWarnDeprecated);
     bool getDirective(bool isMultiline, bool shouldWarnDeprecated,
                       const char *directive, int directiveLength,
-                      const char *errorMsgPragma,
-                      mozilla::UniquePtr<jschar[], JS::FreePolicy> *destination);
+                      const char *errorMsgPragma, jschar **destination);
     bool getDisplayURL(bool isMultiline, bool shouldWarnDeprecated);
     bool getSourceMappingURL(bool isMultiline, bool shouldWarnDeprecated);
 
@@ -900,8 +898,8 @@ class MOZ_STACK_CLASS TokenStream
     const jschar        *prevLinebase;      // start of previous line;  nullptr if on the first line
     TokenBuf            userbuf;            // user input buffer
     const char          *filename;          // input filename or null
-    mozilla::UniquePtr<jschar[], JS::FreePolicy> displayURL_; // the user's requested source URL or null
-    mozilla::UniquePtr<jschar[], JS::FreePolicy> sourceMapURL_; // source map's filename or null
+    jschar              *displayURL_;       // the user's requested source URL or null
+    jschar              *sourceMapURL_;     // source map's filename or null
     CharBuffer          tokenbuf;           // current token string buffer
     bool                maybeEOL[256];      // probabilistic EOL lookup table
     bool                maybeStrSpecial[256];   // speeds up string scanning

@@ -38,99 +38,95 @@ struct PairHelper;
 template<typename A, typename B>
 struct PairHelper<A, B, AsMember, AsMember>
 {
-protected:
-  template<typename AArg, typename BArg>
-  PairHelper(AArg&& aA, BArg&& aB)
-    : mFirstA(Forward<AArg>(aA)),
-      mSecondB(Forward<BArg>(aB))
-  {}
+  protected:
+    template<typename AArg, typename BArg>
+    PairHelper(AArg&& a, BArg&& b)
+      : firstA(Forward<AArg>(a)),
+        secondB(Forward<BArg>(b))
+    {}
 
-  A& first() { return mFirstA; }
-  const A& first() const { return mFirstA; }
-  B& second() { return mSecondB; }
-  const B& second() const { return mSecondB; }
+    A& first() { return firstA; }
+    const A& first() const { return firstA; }
+    B& second() { return secondB; }
+    const B& second() const { return secondB; }
 
-  void swap(PairHelper& aOther)
-  {
-    Swap(mFirstA, aOther.mFirstA);
-    Swap(mSecondB, aOther.mSecondB);
-  }
+    void swap(PairHelper& other) {
+      Swap(firstA, other.firstA);
+      Swap(secondB, other.secondB);
+    }
 
-private:
-  A mFirstA;
-  B mSecondB;
+  private:
+    A firstA;
+    B secondB;
 };
 
 template<typename A, typename B>
 struct PairHelper<A, B, AsMember, AsBase> : private B
 {
-protected:
-  template<typename AArg, typename BArg>
-  PairHelper(AArg&& aA, BArg&& aB)
-    : B(Forward<BArg>(aB)),
-      mFirstA(Forward<AArg>(aA))
-  {}
+  protected:
+    template<typename AArg, typename BArg>
+    PairHelper(AArg&& a, BArg&& b)
+      : B(Forward<BArg>(b)),
+        firstA(Forward<AArg>(a))
+    {}
 
-  A& first() { return mFirstA; }
-  const A& first() const { return mFirstA; }
-  B& second() { return *this; }
-  const B& second() const { return *this; }
+    A& first() { return firstA; }
+    const A& first() const { return firstA; }
+    B& second() { return *this; }
+    const B& second() const { return *this; }
 
-  void swap(PairHelper& aOther)
-  {
-    Swap(mFirstA, aOther.mFirstA);
-    Swap(static_cast<B&>(*this), static_cast<B&>(aOther));
-  }
+    void swap(PairHelper& other) {
+      Swap(firstA, other.firstA);
+      Swap(static_cast<B&>(*this), static_cast<B&>(other));
+    }
 
-private:
-  A mFirstA;
+  private:
+    A firstA;
 };
 
 template<typename A, typename B>
 struct PairHelper<A, B, AsBase, AsMember> : private A
 {
-protected:
-  template<typename AArg, typename BArg>
-  PairHelper(AArg&& aA, BArg&& aB)
-    : A(Forward<AArg>(aA)),
-      mSecondB(Forward<BArg>(aB))
-  {}
+  protected:
+    template<typename AArg, typename BArg>
+    PairHelper(AArg&& a, BArg&& b)
+      : A(Forward<AArg>(a)),
+        secondB(Forward<BArg>(b))
+    {}
 
-  A& first() { return *this; }
-  const A& first() const { return *this; }
-  B& second() { return mSecondB; }
-  const B& second() const { return mSecondB; }
+    A& first() { return *this; }
+    const A& first() const { return *this; }
+    B& second() { return secondB; }
+    const B& second() const { return secondB; }
 
-  void swap(PairHelper& aOther)
-  {
-    Swap(static_cast<A&>(*this), static_cast<A&>(aOther));
-    Swap(mSecondB, aOther.mSecondB);
-  }
+    void swap(PairHelper& other) {
+      Swap(static_cast<A&>(*this), static_cast<A&>(other));
+      Swap(secondB, other.secondB);
+    }
 
-private:
-  B mSecondB;
+  private:
+    B secondB;
 };
 
 template<typename A, typename B>
 struct PairHelper<A, B, AsBase, AsBase> : private A, private B
 {
-protected:
-  template<typename AArg, typename BArg>
-  PairHelper(AArg&& aA, BArg&& aB)
-    : A(Forward<AArg>(aA)),
-      B(Forward<BArg>(aB))
-  {}
+  protected:
+    template<typename AArg, typename BArg>
+    PairHelper(AArg&& a, BArg&& b)
+      : A(Forward<AArg>(a)),
+        B(Forward<BArg>(b))
+    {}
 
-  A& first() { return static_cast<A&>(*this); }
-  const A& first() const { return static_cast<A&>(*this); }
-  B& second() { return static_cast<B&>(*this); }
-  const B& second() const { return static_cast<B&>(*this); }
+    A& first() { return static_cast<A&>(*this); }
+    const A& first() const { return static_cast<A&>(*this); }
+    B& second() { return static_cast<B&>(*this); }
+    const B& second() const { return static_cast<B&>(*this); }
 
-  void swap(PairHelper& aOther)
-  {
-    Swap(static_cast<A&>(*this), static_cast<A&>(aOther));
-    Swap(static_cast<B&>(*this), static_cast<B&>(aOther));
-  }
+    void swap(PairHelper& other) {
+      Swap(static_cast<A&>(*this), static_cast<A&>(other));
+      Swap(static_cast<B&>(*this), static_cast<B&>(other));
+    }
 };
 
 } // namespace detail
@@ -152,31 +148,33 @@ template<typename A, typename B>
 struct Pair
   : private detail::PairHelper<A, B>
 {
-  typedef typename detail::PairHelper<A, B> Base;
+    typedef typename detail::PairHelper<A, B> Base;
 
-public:
-  template<typename AArg, typename BArg>
-  Pair(AArg&& aA, BArg&& aB)
-    : Base(Forward<AArg>(aA), Forward<BArg>(aB))
-  {}
+  public:
+    template<typename AArg, typename BArg>
+    Pair(AArg&& a, BArg&& b)
+      : Base(Forward<AArg>(a), Forward<BArg>(b))
+    {}
 
-  /** The A instance. */
-  using Base::first;
-  /** The B instance. */
-  using Base::second;
+    /** The A instance. */
+    using Base::first;
+    /** The B instance. */
+    using Base::second;
 
-  /** Swap this pair with another pair. */
-  void swap(Pair& aOther) { Base::swap(aOther); }
+    /** Swap this pair with another pair. */
+    void swap(Pair& other) {
+      Base::swap(other);
+    }
 
-private:
-  Pair(const Pair&) MOZ_DELETE;
+  private:
+    Pair(const Pair&) MOZ_DELETE;
 };
 
 template<typename A, class B>
 void
-Swap(Pair<A, B>& aX, Pair<A, B>& aY)
+Swap(Pair<A, B>& x, Pair<A, B>& y)
 {
-  aX.swap(aY);
+  x.swap(y);
 }
 
 } // namespace mozilla

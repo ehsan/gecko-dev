@@ -8,8 +8,8 @@
 #include "GLContext.h"                  // for GLContext
 #include "GLScreenBuffer.h"             // for GLScreenBuffer
 #include "SharedSurface.h"              // for SharedSurface
-#include "SharedSurfaceGL.h"              // for SharedSurface
-#include "SurfaceStream.h"              // for SurfaceStream
+#include "SharedSurfaceGL.h"            // for SharedSurface_GL, etc
+#include "SurfaceTypes.h"               // for APITypeT, APITypeT::OpenGL, etc
 #include "gfxMatrix.h"                  // for gfxMatrix
 #include "gfxPattern.h"                 // for gfxPattern, etc
 #include "gfxPlatform.h"                // for gfxPlatform, gfxImageFormat
@@ -98,9 +98,9 @@ CopyableCanvasLayer::UpdateTarget(DrawTarget* aDestTarget)
   }
 
   if (mGLContext) {
-    SharedSurface* sharedSurf = nullptr;
+    SharedSurface_GL* sharedSurf = nullptr;
     if (mStream) {
-      sharedSurf = mStream->SwapConsumer();
+      sharedSurf = SharedSurface_GL::Cast(mStream->SwapConsumer());
     } else {
       sharedSurf = mGLContext->RequestFrame();
     }
@@ -110,11 +110,11 @@ CopyableCanvasLayer::UpdateTarget(DrawTarget* aDestTarget)
       return;
     }
 
-    IntSize readSize(sharedSurf->mSize);
+    IntSize readSize(sharedSurf->Size());
     SurfaceFormat format = (GetContentFlags() & CONTENT_OPAQUE)
                             ? SurfaceFormat::B8G8R8X8
                             : SurfaceFormat::B8G8R8A8;
-    bool needsPremult = sharedSurf->mHasAlpha && !mIsAlphaPremultiplied;
+    bool needsPremult = sharedSurf->HasAlpha() && !mIsAlphaPremultiplied;
 
     // Try to read back directly into aDestTarget's output buffer
     if (aDestTarget) {
@@ -138,7 +138,7 @@ CopyableCanvasLayer::UpdateTarget(DrawTarget* aDestTarget)
     }
 
     RefPtr<SourceSurface> resultSurf;
-    if (sharedSurf->mType == SharedSurfaceType::Basic && !needsPremult) {
+    if (sharedSurf->Type() == SharedSurfaceType::Basic && !needsPremult) {
       SharedSurface_Basic* sharedSurf_Basic = SharedSurface_Basic::Cast(sharedSurf);
       resultSurf = sharedSurf_Basic->GetData();
     } else {

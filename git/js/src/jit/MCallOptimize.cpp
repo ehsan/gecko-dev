@@ -1157,11 +1157,9 @@ IonBuilder::inlineStringSplit(CallInfo &callInfo)
     }
 
     callInfo.setImplicitlyUsedUnchecked();
-    MConstant *templateObjectDef = MConstant::New(alloc(), ObjectValue(*templateObject), constraints());
-    current->add(templateObjectDef);
 
     MStringSplit *ins = MStringSplit::New(alloc(), constraints(), callInfo.thisArg(),
-                                          callInfo.getArg(0), templateObjectDef);
+                                          callInfo.getArg(0), templateObject);
     current->add(ins);
     current->push(ins);
 

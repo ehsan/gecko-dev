@@ -539,10 +539,7 @@ nsSVGUtils::PaintFrameWithEffects(nsRenderingContext *aContext,
       if (static_cast<nsSVGContainerFrame*>(aFrame)->
             HasChildrenOnlyTransform(&childrenOnlyTM)) {
         // Undo the children-only transform:
-        if (!childrenOnlyTM.Invert()) {
-          return;
-        }
-        tm = ThebesMatrix(childrenOnlyTM) * tm;
+        tm = ThebesMatrix(childrenOnlyTM).Invert() * tm;
       }
     }
     nsIntRect bounds = TransformFrameRectToOuterSVG(overflowRect,
@@ -1125,7 +1122,8 @@ PathExtentsToMaxStrokeExtents(const gfxRect& aPathExtents,
   double style_expansion =
     aStyleExpansionFactor * nsSVGUtils::GetStrokeWidth(aFrame);
 
-  gfxMatrix matrix = aMatrix * nsSVGUtils::GetStrokeTransform(aFrame);
+  gfxMatrix matrix = aMatrix;
+  matrix.Multiply(nsSVGUtils::GetStrokeTransform(aFrame));
 
   double dx = style_expansion * (fabs(matrix._11) + fabs(matrix._21));
   double dy = style_expansion * (fabs(matrix._22) + fabs(matrix._12));

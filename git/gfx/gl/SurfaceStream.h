@@ -18,6 +18,9 @@ namespace mozilla {
 
 namespace gl {
 class GLContext;
+}
+
+namespace gfx {
 class SharedSurface;
 class SurfaceFactory;
 
@@ -37,6 +40,14 @@ public:
     static SurfaceStream* CreateForType(SurfaceStreamType type,
                                         mozilla::gl::GLContext* glContext,
                                         SurfaceStream* prevStream = nullptr);
+
+    SurfaceStreamHandle GetShareHandle() {
+        return reinterpret_cast<SurfaceStreamHandle>(this);
+    }
+
+    static SurfaceStream* FromHandle(SurfaceStreamHandle handle) {
+        return (SurfaceStream*)handle;
+    }
 
     const SurfaceStreamType mType;
 
@@ -218,7 +229,7 @@ public:
 };
 
 
-} // namespace gl
-} // namespace mozilla
+} /* namespace gfx */
+} /* namespace mozilla */
 
-#endif // SURFACESTREAM_H_
+#endif /* SURFACESTREAM_H_ */

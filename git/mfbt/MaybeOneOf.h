@@ -12,7 +12,8 @@
 #include "mozilla/Move.h"
 #include "mozilla/TemplateLib.h"
 
-#include <new>    // For placement new
+// For placement new
+#include <new>
 
 namespace mozilla {
 
@@ -34,15 +35,13 @@ class MaybeOneOf
   template <class T, class Ignored = void> struct Type2State {};
 
   template <class T>
-  T& as()
-  {
+  T& as() {
     MOZ_ASSERT(state == Type2State<T>::result);
     return *(T*)storage.addr();
   }
 
   template <class T>
-  const T& as() const
-  {
+  const T& as() const {
     MOZ_ASSERT(state == Type2State<T>::result);
     return *(T*)storage.addr();
   }
@@ -125,16 +124,14 @@ private:
 
 template <class T1, class T2>
 template <class Ignored>
-struct MaybeOneOf<T1, T2>::Type2State<T1, Ignored>
-{
+struct MaybeOneOf<T1, T2>::Type2State<T1, Ignored> {
   typedef MaybeOneOf<T1, T2> Enclosing;
   static const typename Enclosing::State result = Enclosing::SomeT1;
 };
 
 template <class T1, class T2>
 template <class Ignored>
-struct MaybeOneOf<T1, T2>::Type2State<T2, Ignored>
-{
+struct MaybeOneOf<T1, T2>::Type2State<T2, Ignored> {
   typedef MaybeOneOf<T1, T2> Enclosing;
   static const typename Enclosing::State result = Enclosing::SomeT2;
 };

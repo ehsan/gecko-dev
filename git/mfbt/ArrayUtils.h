@@ -144,8 +144,7 @@ template<typename T>
 inline bool
 IsInRange(T* aPtr, uintptr_t aBegin, uintptr_t aEnd)
 {
-  return IsInRange(aPtr,
-                   reinterpret_cast<T*>(aBegin), reinterpret_cast<T*>(aEnd));
+  return IsInRange(aPtr, reinterpret_cast<T*>(aBegin), reinterpret_cast<T*>(aEnd));
 }
 
 namespace detail {

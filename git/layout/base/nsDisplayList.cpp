@@ -1280,7 +1280,7 @@ void nsDisplayList::PaintForFrame(nsDisplayListBuilder* aBuilder,
       NS_WARNING("Nowhere to paint into");
       return;
     }
-    layerManager = new BasicLayerManager(BasicLayerManager::BLM_OFFSCREEN);
+    layerManager = new BasicLayerManager();
   }
 
   // Store the existing layer builder to reinstate it on return.

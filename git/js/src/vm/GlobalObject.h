@@ -208,6 +208,11 @@ class GlobalObject : public JSObject
         return !getConstructor(key).isUndefined();
     }
 
+    bool isStandardClassResolved(const js::Class *clasp) const {
+        JSProtoKey key = JSCLASS_CACHED_PROTO_KEY(clasp);
+        return isStandardClassResolved(key);
+    }
+
   private:
     bool arrayClassInitialized() const {
         return classIsInitialized(JSProto_Array);
@@ -805,15 +810,6 @@ GenericCreatePrototype(JSContext *cx, JSProtoKey key)
         return nullptr;
     JSObject *parentProto = &cx->global()->getPrototype(parentKey).toObject();
     return cx->global()->createBlankPrototypeInheriting(cx, clasp, *parentProto);
-}
-
-inline JSProtoKey
-StandardProtoKeyOrNull(const JSObject *obj)
-{
-    JSProtoKey key = JSCLASS_CACHED_PROTO_KEY(obj->getClass());
-    if (key == JSProto_Error)
-        return GetExceptionProtoKey(obj->as<ErrorObject>().type());
-    return key;
 }
 
 } // namespace js

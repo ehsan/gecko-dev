@@ -50,7 +50,6 @@ JS_MODULES_PATH = 'modules/media'
 EXTRA_JS_MODULES += [
     'IdpProxy.jsm',
     'PeerConnectionIdp.jsm',
-    'RTCStatsReport.jsm',
 ]
 
 if CONFIG['MOZ_B2G']:

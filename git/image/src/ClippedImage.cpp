@@ -388,18 +388,19 @@ ClippedImage::DrawSingleTile(gfxContext* aContext,
   }
 
   // Add a translation to the transform to reflect the clipping region.
-  gfxMatrix transform =
-    aUserSpaceToImageSpace * gfxMatrix::Translation(mClip.x, mClip.y);
+  gfxMatrix transform(aUserSpaceToImageSpace);
+  transform.Multiply(gfxMatrix().Translate(gfxPoint(mClip.x, mClip.y)));
 
   // "Clamp the source rectangle" to the clipping region's width and height.
   // Really, this means modifying the transform to get the results we want.
   gfxRect sourceRect = transform.Transform(aFill);
   if (sourceRect.width > mClip.width || sourceRect.height > mClip.height) {
-    gfxMatrix clampSource = gfxMatrix::Translation(sourceRect.TopLeft());
+    gfxMatrix clampSource;
+    clampSource.Translate(gfxPoint(sourceRect.x, sourceRect.y));
     clampSource.Scale(ClampFactor(sourceRect.width, mClip.width),
                       ClampFactor(sourceRect.height, mClip.height));
-    clampSource.Translate(-sourceRect.TopLeft());
-    transform *= clampSource;
+    clampSource.Translate(gfxPoint(-sourceRect.x, -sourceRect.y));
+    transform.Multiply(clampSource);
   }
 
   return InnerImage()->Draw(aContext, aFilter, transform, aFill, aSubimage,
