@@ -756,7 +756,7 @@ TraceRecorder::getCallDepth() const
 bool
 TraceRecorder::trackLoopEdges()
 {
-    return loopEdgeCount++ < 3;
+    return loopEdgeCount++ < 1;
 }
 
 /* Determine the offset in the native global frame for a jsval we track */
@@ -1936,7 +1936,7 @@ js_ExecuteTree(JSContext* cx, Fragment** treep, uintN& inlineCallCount,
                GuardRecord** innermostNestedGuardp);
 
 bool
-js_RecordBranch(JSContext* cx, TraceRecorder* r, jsbytecode* oldpc, uintN& inlineCallCount)
+js_RecordLoopEdge(JSContext* cx, TraceRecorder* r, jsbytecode* oldpc, uintN& inlineCallCount)
 {
 #ifdef JS_THREADSAFE
     if (OBJ_SCOPE(JS_GetGlobalForObject(cx, cx->fp->scopeChain))->title.ownercx != cx) {
@@ -1945,17 +1945,6 @@ js_RecordBranch(JSContext* cx, TraceRecorder* r, jsbytecode* oldpc, uintN& inlin
     }
 #endif
     Fragmento* fragmento = JS_TRACE_MONITOR(cx).fragmento;
-    /* If we hit a break, end the loop and generate an always taken loop exit guard. For other
-       downward gotos (like if/else) continue recording. */
-    if (js_isBreak(cx, cx->fp->script, cx->fp->regs->pc)) {
-        AUDIT(traceCompleted);
-        r->endLoop(fragmento);
-        js_DeleteRecorder(cx);
-        return false; /* done recording */
-    }
-    /* Silently ignore other downward branches during recording (i.e. if/else branches). */
-    if (cx->fp->regs->pc > oldpc)
-        return true;
     /* If we hit our own loop header, close the loop and compile the trace. */
     if (r->isLoopHeader(cx)) { 
         if (fragmento->assm()->error()) {
@@ -2210,24 +2199,20 @@ js_ExecuteTree(JSContext* cx, Fragment** treep, uintN& inlineCallCount,
 }
 
 bool
-js_MonitorBranch(JSContext* cx, jsbytecode* oldpc, uintN& inlineCallCount)
+js_MonitorLoopEdge(JSContext* cx, jsbytecode* oldpc, uintN& inlineCallCount)
 {
     JSTraceMonitor* tm = &JS_TRACE_MONITOR(cx);
 
     /* Is the recorder currently active? */
     if (tm->recorder) {
-        if (js_RecordBranch(cx, tm->recorder, oldpc, inlineCallCount))
+        if (js_RecordLoopEdge(cx, tm->recorder, oldpc, inlineCallCount))
             return true;
         /* recording was aborted, treat like a regular loop edge hit */
     }
     JS_ASSERT(!tm->recorder);
 
-    /* If the recorder is not active, and this is not a backwards branch, just ignore it. */
-    jsbytecode* pc = cx->fp->regs->pc;
-    if (pc > oldpc)
-        return false;
-    
     /* check if our quick cache has an entry for this ip, otherwise ask fragmento. */
+    jsbytecode* pc = cx->fp->regs->pc;
     Fragment* f;
     JSFragmentCacheEntry* cacheEntry = &tm->fcache[jsuword(pc) & JS_FRAGMENT_CACHE_MASK];
     if (cacheEntry->pc == pc) {
@@ -2269,6 +2254,21 @@ js_MonitorBranch(JSContext* cx, jsbytecode* oldpc, uintN& inlineCallCount)
         /* No, this was an unusual exit (i.e. out of memory/GC), so just resume interpretation. */
         return false;
     }
+}
+
+bool
+js_MonitorGoto(JSContext* cx)
+{
+    /* If we hit a break, end the loop and generate an always taken loop exit guard. For other
+       downward gotos (like if/else) continue recording. */
+    if (js_isBreak(cx, cx->fp->script, cx->fp->regs->pc)) {
+        AUDIT(traceCompleted);
+        JS_TRACE_MONITOR(cx).recorder->endLoop(JS_TRACE_MONITOR(cx).fragmento);
+        js_DeleteRecorder(cx);
+        return false; /* done recording */
+    }
+    /* If its not a break, continue recording and follow the trace. */
+    return true;
 }
 
 void
@@ -2540,7 +2540,7 @@ TraceRecorder::ifop()
     jsval& v = stackval(-1);
     if (JSVAL_TAG(v) == JSVAL_BOOLEAN) {
         guard(JSVAL_TO_BOOLEAN(v) != 1,
-              lir->ins_eq0(lir->ins2i(LIR_eq, get(&v), 1)),
+              lir->ins_eq0(lir->ins2(LIR_eq, get(&v), lir->insImm(1))),
               BRANCH_EXIT);
     } else if (JSVAL_IS_OBJECT(v)) {
         guard(JSVAL_IS_NULL(v), lir->ins_eq0(get(&v)), BRANCH_EXIT);
@@ -2770,7 +2770,7 @@ TraceRecorder::cmp(LOpcode op, bool negate)
 
     /* We update the stack after the guard. This is safe since
        the guard bails out at the comparison and the interpreter
-       will therefore re-execute the comparison. This way the
+       will this re-execute the comparison. This way the
        value of the condition doesn't have to be calculated and
        saved on the stack in most cases. */
     set(&l, x);
@@ -2946,12 +2946,8 @@ TraceRecorder::test_property_cache(JSObject* obj, LIns* obj_ins, JSObject*& obj2
                   MISMATCH_EXIT);
         }
     } else {
-#ifdef DEBUG
-        ptrdiff_t pcoff = (mode == JOF_VARPROP) ? SLOTNO_LEN : 0;
-        jsatomid index = js_GetIndexFromBytecode(cx, cx->fp->script, cx->fp->regs->pc, pcoff);
-        JS_ASSERT(entry->kpc == (jsbytecode*) atoms[index]);
+        JS_ASSERT(entry->kpc == (jsbytecode*) atoms[GET_INDEX(cx->fp->regs->pc)]);
         JS_ASSERT(entry->kshape == jsuword(aobj));
-#endif
         if (aobj != globalObj) {
             guard(true, addName(lir->ins2i(LIR_eq, obj_ins, entry->kshape), "guard(kobj)"),
                   MISMATCH_EXIT);
@@ -3091,7 +3087,7 @@ TraceRecorder::box_jsval(jsval v, LIns*& v_ins)
     if (isNumber(v)) {
         LIns* args[] = { v_ins, cx_ins };
         v_ins = lir->insCall(F_BoxDouble, args);
-        guard(false, lir->ins2(LIR_eq, v_ins, INS_CONST(JSVAL_ERROR_COOKIE)),
+        guard(false, lir->ins2(LIR_eq, v_ins, INS_CONSTPTR(JSVAL_ERROR_COOKIE)),
               OOM_EXIT);
         return true;
     }
@@ -3406,7 +3402,7 @@ TraceRecorder::record_JSOP_EQ()
 
         /* We update the stack after the guard. This is safe since
            the guard bails out at the comparison and the interpreter
-           will therefore re-execute the comparison. This way the
+           will this re-execute the comparison. This way the
            value of the condition doesn't have to be calculated and
            saved on the stack in most cases. */
         set(&l, x);
@@ -3422,7 +3418,7 @@ TraceRecorder::record_JSOP_EQ()
 
         /* We update the stack after the guard. This is safe since
            the guard bails out at the comparison and the interpreter
-           will therefore re-execute the comparison. This way the
+           will this re-execute the comparison. This way the
            value of the condition doesn't have to be calculated and
            saved on the stack in most cases. */
         set(&l, x);
@@ -3448,7 +3444,7 @@ TraceRecorder::record_JSOP_NE()
 
         /* We update the stack after the guard. This is safe since
            the guard bails out at the comparison and the interpreter
-           will therefore re-execute the comparison. This way the
+           will this re-execute the comparison. This way the
            value of the condition doesn't have to be calculated and
            saved on the stack in most cases. */
         set(&l, x);
@@ -3464,7 +3460,7 @@ TraceRecorder::record_JSOP_NE()
 
         /* We update the stack after the guard. This is safe since
            the guard bails out at the comparison and the interpreter
-           will therefore re-execute the comparison. This way the
+           will this re-execute the comparison. This way the
            value of the condition doesn't have to be calculated and
            saved on the stack in most cases. */
         set(&l, x);
@@ -3781,7 +3777,7 @@ TraceRecorder::record_JSOP_NEW()
             break;
           }
           case FAIL_VOID:
-            guard(false, lir->ins2i(LIR_eq, res_ins, JSVAL_TO_BOOLEAN(JSVAL_VOID)), OOM_EXIT);
+            guard(false, lir->ins2i(LIR_eq, res_ins, 2), OOM_EXIT);
             break;
           default:;
         }
@@ -4027,7 +4023,7 @@ TraceRecorder::record_JSOP_GETELEM()
 
         LIns* args[] = { get(&r), get(&l), cx_ins };
         LIns* v_ins = lir->insCall(F_Any_getelem, args);
-        guard(false, lir->ins2(LIR_eq, v_ins, INS_CONST(JSVAL_ERROR_COOKIE)),
+        guard(false, lir->ins2(LIR_eq, v_ins, INS_CONSTPTR(JSVAL_ERROR_COOKIE)),
               MISMATCH_EXIT);
         if (!unbox_jsval(v, v_ins))
             ABORT_TRACE("JSOP_GETELEM");
@@ -4414,7 +4410,7 @@ TraceRecorder::record_JSOP_CALL()
             break;
           }
           case FAIL_VOID:
-            guard(false, lir->ins2i(LIR_eq, res_ins, JSVAL_TO_BOOLEAN(JSVAL_VOID)), OOM_EXIT);
+            guard(false, lir->ins2i(LIR_eq, res_ins, 2), OOM_EXIT);
             break;
           default:;
         }
@@ -4930,15 +4926,13 @@ TraceRecorder::record_JSOP_ITER()
 bool
 TraceRecorder::forInLoop(jsval* vp)
 {
-    if (!JSVAL_IS_STRING(*vp))
-        ABORT_TRACE("for-in loop variable changed type from string");
     jsval& iterobj_val = stackval(-1);
     if (!JSVAL_IS_PRIMITIVE(iterobj_val)) {
         LIns* args[] = { get(&iterobj_val), cx_ins };
         LIns* v_ins = lir->insCall(F_FastCallIteratorNext, args);
-        guard(false, lir->ins2(LIR_eq, v_ins, INS_CONST(JSVAL_ERROR_COOKIE)), OOM_EXIT);
+        guard(false, lir->ins2(LIR_eq, v_ins, INS_CONSTPTR(JSVAL_ERROR_COOKIE)), OOM_EXIT);
 
-        LIns* flag_ins = lir->ins_eq0(lir->ins2(LIR_eq, v_ins, INS_CONST(JSVAL_HOLE)));
+        LIns* flag_ins = lir->ins_eq0(lir->ins2(LIR_eq, v_ins, INS_CONSTPTR(JSVAL_HOLE)));
         LIns* iter_ins = get(vp);
         if (!box_jsval(JSVAL_STRING, iter_ins))
             return false;
@@ -5068,10 +5062,13 @@ TraceRecorder::record_JSOP_IN()
         ABORT_TRACE("JSOP_IN on E4X QName left operand");
 
     jsid id;
-    if (JSVAL_IS_INT(lval))
+    if (JSVAL_IS_INT(lval)) {
         id = INT_JSVAL_TO_JSID(lval);
-    else if (!JSVAL_IS_STRING(lval))
-        ABORT_TRACE("non-string left operand to JSOP_IN");
+    } else {
+        if (!js_ValueToStringId(cx, lval, &id))
+            ABORT_TRACE("OOM under js_ValueToStringId in JSOP_IN");
+        lval = ID_TO_VALUE(id);
+    }
 
     // Expect what we see at trace recording time (hit or miss) to be the same
     // when executing the trace. Use a builtin helper for named properties, as
@@ -5116,7 +5113,7 @@ TraceRecorder::record_JSOP_IN()
 
         LIns* args[] = { get(&lval), obj_ins, cx_ins };
         x = lir->insCall(F_HasNamedProperty, args);
-        guard(false, lir->ins2i(LIR_eq, x, JSVAL_TO_BOOLEAN(JSVAL_VOID)), OOM_EXIT);
+        guard(false, lir->ins2i(LIR_eq, x, 2), OOM_EXIT);
         x = lir->ins2i(LIR_eq, x, 1);
     } while (0);
 
@@ -5127,7 +5124,7 @@ TraceRecorder::record_JSOP_IN()
 
     /* We update the stack after the guard. This is safe since
        the guard bails out at the comparison and the interpreter
-       will therefore re-execute the comparison. This way the
+       will this re-execute the comparison. This way the
        value of the condition doesn't have to be calculated and
        saved on the stack in most cases. */
     set(&lval, x);

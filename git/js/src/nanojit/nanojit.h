@@ -75,10 +75,19 @@ namespace nanojit
 
 	#if defined(_DEBUG)
 		
+		// The NANO_DIE macro matches the JS_Assert function in jsutil.cpp.
+		#if defined(WIN32)
+		#define NANO_DIE do { DebugBreak(); exit(3); } while(0)
+		#elif defined(XP_OS2) || (defined(__GNUC__) && defined(__i386))
+		#define NANO_DIE do { asm("int $3"); abort(); } while(0)
+        #else
+		#define NANO_DIE do { abort(); } while(0)
+		#endif
+		
 		#define __NanoAssertMsgf(a, file_, line_, f, ...)  \
 			if (!(a)) { \
 				fprintf(stderr, "Assertion failed: " f "%s (%s:%d)\n", __VA_ARGS__, #a, file_, line_); \
-				NanoAssertFail(); \
+				NANO_DIE; \
 			}
 			
 		#define _NanoAssertMsgf(a, file_, line_, f, ...)   __NanoAssertMsgf(a, file_, line_, f, __VA_ARGS__)
