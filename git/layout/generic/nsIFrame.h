@@ -2631,11 +2631,6 @@ class nsWeakFrame {
 public:
   nsWeakFrame() : mPrev(nsnull), mFrame(nsnull) { }
 
-  nsWeakFrame(const nsWeakFrame& aOther) : mPrev(nsnull), mFrame(nsnull)
-  {
-    Init(aOther.GetFrame());
-  }
-
   nsWeakFrame(nsIFrame* aFrame) : mPrev(nsnull), mFrame(nsnull)
   {
     Init(aFrame);
@@ -2671,7 +2666,7 @@ public:
 
   PRBool IsAlive() { return !!mFrame; }
 
-  nsIFrame* GetFrame() const { return mFrame; }
+  nsIFrame* GetFrame() { return mFrame; }
 
   nsWeakFrame* GetPreviousWeakFrame() { return mPrev; }
 

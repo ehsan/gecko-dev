@@ -1,7 +1,6 @@
 ////////////////////////////////////////////////////////////////////////////////
 // Constants
 
-const EVENT_ALERT = nsIAccessibleEvent.EVENT_ALERT;
 const EVENT_DOCUMENT_LOAD_COMPLETE = nsIAccessibleEvent.EVENT_DOCUMENT_LOAD_COMPLETE;
 const EVENT_DOCUMENT_RELOAD = nsIAccessibleEvent.EVENT_DOCUMENT_RELOAD;
 const EVENT_DOCUMENT_LOAD_STOPPED = nsIAccessibleEvent.EVENT_DOCUMENT_LOAD_STOPPED;
@@ -316,48 +315,37 @@ function eventQueue(aEventType)
       invoker.debugCheck(aEvent);
 
     // Search through unexpected events to ensure no one of them was handled.
-    var idx = 0;
-    for (; idx < this.mEventSeq.length; idx++) {
+    for (var idx = 0; idx < this.mEventSeq.length; idx++) {
       if (this.mEventSeq[idx].unexpected && this.compareEvents(idx, aEvent))
         invoker.wasCaught[idx] = true;
     }
 
-    // We've handled all expected events, next invoker processing is pending.
-    if (this.mEventSeqIdx == this.mEventSeq.length)
-      return;
+    // Wait for next expected event in an order specified by event sequence.
 
     // Compute next expected event index.
-    for (idx = this.mEventSeqIdx + 1;
-         idx < this.mEventSeq.length && this.mEventSeq[idx].unexpected;
-         idx++);
+    for (var idx = this.mEventSeqIdx + 1;
+         idx < this.mEventSeq.length && this.mEventSeq[idx].unexpected; idx++);
 
-    // No expected events were registered, proceed to next invoker to ensure
-    // unexpected events for current invoker won't be handled.
     if (idx == this.mEventSeq.length) {
-      this.mEventSeqIdx = idx;
+      // There is no expected events in the sequence.
       this.processNextInvokerInTimeout();
       return;
     }
 
-    // Check if handled event matches expected event.
     var matched = this.compareEvents(idx, aEvent);
     this.dumpEventToDOM(aEvent, idx, matched);
 
     if (matched) {
       this.checkEvent(idx, aEvent);
       invoker.wasCaught[idx] = true;
-      this.mEventSeqIdx = idx;
 
-      // Get next expected event index.
-      while (++idx < this.mEventSeq.length && this.mEventSeq[idx].unexpected);
-
-      // If the last expected event was processed, proceed next invoker in
-      // timeout to ensure unexpected events for current invoker won't be
-      // handled.
-      if (idx == this.mEventSeq.length) {
-        this.mEventSeqIdx = idx;
+      // The last event is expected and was handled, proceed next invoker.
+      if (idx == this.mEventSeq.length - 1) {
         this.processNextInvokerInTimeout();
+        return;
       }
+
+      this.mEventSeqIdx = idx;
     }
   }
 
