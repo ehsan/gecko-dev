@@ -108,12 +108,6 @@ onconnect = function(e) {
               unshareTooltip: "Unshare this page",
               sharedLabel: "This page has been shared",
               unsharedLabel: "This page is no longer shared",
-              unshareLabel: "You have already shared this page",
-              portraitLabel: "Your pretty face",
-              unshareConfirmLabel: "Unshare it!",
-              unshareConfirmAccessKey: "U",
-              unshareCancelLabel: "Got it!",
-              unshareCancelAccessKey: "G"
             }
           }
         });

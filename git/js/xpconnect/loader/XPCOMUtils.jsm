@@ -171,13 +171,9 @@ var XPCOMUtils = {
    */
   defineLazyGetter: function XPCU_defineLazyGetter(aObject, aName, aLambda)
   {
-    Object.defineProperty(aObject, aName, {
-      get: function () {
-        delete aObject[aName];
-        return aObject[aName] = aLambda.apply(aObject);
-      },
-      configurable: true,
-      enumerable: true
+    aObject.__defineGetter__(aName, function() {
+      delete aObject[aName];
+      return aObject[aName] = aLambda.apply(aObject);
     });
   },
 

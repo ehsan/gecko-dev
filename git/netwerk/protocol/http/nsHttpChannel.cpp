@@ -4,7 +4,6 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-#include "nsHttp.h"
 #include "nsHttpChannel.h"
 #include "nsHttpHandler.h"
 #include "nsStandardURL.h"
@@ -4080,12 +4079,12 @@ nsHttpChannel::ContinueProcessRedirectionAfterFallback(nsresult rv)
         }
     }
 
-    bool rewriteToGET = nsHttp::ShouldRewriteRedirectToGET(
-                                    mRedirectType, mRequestHead.Method());
+    bool rewriteToGET = HttpBaseChannel::ShouldRewriteRedirectToGET(
+        mRedirectType, mRequestHead.Method());
       
     // prompt if the method is not safe (such as POST, PUT, DELETE, ...)
     if (!rewriteToGET &&
-        !nsHttp::IsSafeMethod(mRequestHead.Method())) {
+        !HttpBaseChannel::IsSafeMethod(mRequestHead.Method())) {
         rv = PromptTempRedirect();
         if (NS_FAILED(rv)) return rv;
     }

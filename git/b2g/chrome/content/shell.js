@@ -373,8 +373,7 @@ var shell = {
       name: 'view',
       data: {
         type: handler.type,
-        url: handler.url,
-        extras: handler.extras
+        url: handler.url
       }
     });
   }

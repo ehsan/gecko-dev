@@ -168,6 +168,7 @@ HTMLListBulletAccessible::Name(nsString &aName)
 
   // Native anonymous content, ARIA can't be used. Get list bullet text.
   nsBlockFrame* blockFrame = do_QueryFrame(mContent->GetPrimaryFrame());
+  NS_ASSERTION(blockFrame, "No frame for list item!");
   if (blockFrame) {
     blockFrame->GetBulletText(aName);
 
@@ -196,6 +197,7 @@ HTMLListBulletAccessible::AppendTextTo(nsAString& aText, uint32_t aStartOffset,
 {
   nsAutoString bulletText;
   nsBlockFrame* blockFrame = do_QueryFrame(mContent->GetPrimaryFrame());
+  NS_ASSERTION(blockFrame, "No frame for list item!");
   if (blockFrame)
     blockFrame->GetBulletText(bulletText);
 

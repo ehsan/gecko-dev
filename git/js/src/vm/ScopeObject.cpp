@@ -170,7 +170,7 @@ CallObject::createTemplateObject(JSContext *cx, JSScript *script)
 
     CallObject *callobj = CallObject::create(cx, shape, type, slots);
     if (!callobj) {
-        js_free(slots);
+        js_delete(slots);
         return NULL;
     }
 

@@ -459,8 +459,6 @@ DOMCI_CLASS(WebGLExtensionStandardDerivatives)
 DOMCI_CLASS(WebGLExtensionTextureFilterAnisotropic)
 DOMCI_CLASS(WebGLExtensionLoseContext)
 DOMCI_CLASS(WebGLExtensionCompressedTextureS3TC)
-DOMCI_CLASS(WebGLExtensionCompressedTextureATC)
-DOMCI_CLASS(WebGLExtensionCompressedTexturePVRTC)
 DOMCI_CLASS(WebGLExtensionDepthTexture)
 
 DOMCI_CLASS(PaintRequest)

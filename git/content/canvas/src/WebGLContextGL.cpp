@@ -4225,13 +4225,17 @@ WebGLContext::CompressedTexImage2D(WebGLenum target, WebGLint level, WebGLenum i
         return;
     }
 
+    if (!ValidateLevelWidthHeightForTarget(target, level, width, height, "compressedTexImage2D")) {
+        return;
+    }
+
     if (border) {
         ErrorInvalidValue("compressedTexImage2D: border is not 0");
         return;
     }
 
     uint32_t byteLength = view.Length();
-    if (!ValidateCompressedTextureSize(target, level, internalformat, width, height, byteLength, "compressedTexImage2D")) {
+    if (!ValidateCompressedTextureSize(level, internalformat, width, height, byteLength, "compressedTexImage2D")) {
         return;
     }
 
@@ -4277,7 +4281,7 @@ WebGLContext::CompressedTexSubImage2D(WebGLenum target, WebGLint level, WebGLint
     }
 
     uint32_t byteLength = view.Length();
-    if (!ValidateCompressedTextureSize(target, level, format, width, height, byteLength, "compressedTexSubImage2D")) {
+    if (!ValidateCompressedTextureSize(level, format, width, height, byteLength, "compressedTexSubImage2D")) {
         return;
     }
 
@@ -4318,19 +4322,6 @@ WebGLContext::CompressedTexSubImage2D(WebGLenum target, WebGLint level, WebGLint
                 return;
             }
             break;
-        }
-        case LOCAL_GL_COMPRESSED_RGB_PVRTC_4BPPV1:
-        case LOCAL_GL_COMPRESSED_RGB_PVRTC_2BPPV1:
-        case LOCAL_GL_COMPRESSED_RGBA_PVRTC_4BPPV1:
-        case LOCAL_GL_COMPRESSED_RGBA_PVRTC_2BPPV1:
-        {
-            if (xoffset || yoffset ||
-                width != imageInfo.Width() ||
-                height != imageInfo.Height())
-            {
-                ErrorInvalidValue("compressedTexSubImage2D: the update rectangle doesn't match the existing image");
-                return;
-            }
         }
     }
 

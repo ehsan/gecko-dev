@@ -83,8 +83,6 @@ YoutubeProtocolHandler.prototype = {
 
       let bestType = -1;
 
-      let extras = { }
-
       streams.forEach(function(aStream) {
         let params = extractParameters(aStream);
         let url = params["url"];
@@ -97,18 +95,12 @@ YoutubeProtocolHandler.prototype = {
           mimeType = type;
           bestType = index;
         }
-        for (let param in params) {
-          if (["thumbnail_url", "length_seconds", "title"].indexOf(param) != -1) {
-            extras[param] = decodeURIComponent(params[param]);
-          }
-        }
       });
 
       if (uri && mimeType) {
         cpmm.sendAsyncMessage("content-handler", {
           url: uri,
-          type: mimeType,
-          extras: extras
+          type: mimeType
         });
       }
     });

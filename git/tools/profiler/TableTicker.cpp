@@ -481,7 +481,7 @@ public:
     t->SetPaused(true);
 
     // Get file path
-#ifdef MOZ_WIDGET_ANDROID
+#ifdef ANDROID
     nsCString tmpPath;
     tmpPath.AppendPrintf("/sdcard/profile_%i_%i.txt", XRE_GetProcessType(), getpid());
 #else

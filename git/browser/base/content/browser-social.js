@@ -325,7 +325,7 @@ let SocialShareButton = {
   },
 
   updateProfileInfo: function SSB_updateProfileInfo() {
-    let profileRow = document.getElementById("unsharePopupHeader");
+    let profileRow = document.getElementById("editSharePopupHeader");
     let profile = Social.provider.profile;
     this.promptImages = null;
     this.promptMessages = null;
@@ -384,11 +384,7 @@ let SocialShareButton = {
       }
       promptImages[sub] = url;
     }
-    for (let sub of ["shareTooltip", "unshareTooltip",
-                     "sharedLabel", "unsharedLabel", "unshareLabel",
-                     "portraitLabel", 
-                     "unshareConfirmLabel", "unshareConfirmAccessKey",
-                     "unshareCancelLabel", "unshareCancelAccessKey"]) {
+    for (let sub of ["shareTooltip", "unshareTooltip", "sharedLabel", "unsharedLabel"]) {
       if (typeof data.messages[sub] != "string" || data.messages[sub].length == 0) {
         return reportError('messages["' + sub + '"] is not a valid string');
       }
@@ -402,12 +398,12 @@ let SocialShareButton = {
   get shareButton() {
     return document.getElementById("share-button");
   },
-  get unsharePopup() {
-    return document.getElementById("unsharePopup");
+  get sharePopup() {
+    return document.getElementById("editSharePopup");
   },
 
-  dismissUnsharePopup: function SSB_dismissUnsharePopup() {
-    this.unsharePopup.hidePopup();
+  dismissSharePopup: function SSB_dismissSharePopup() {
+    this.sharePopup.hidePopup();
   },
 
   updateButtonHiddenState: function SSB_updateButtonHiddenState() {
@@ -428,42 +424,27 @@ let SocialShareButton = {
   },
 
   panelShown: function SSB_panelShown(aEvent) {
-    function updateElement(id, attrs) {
-      let el = document.getElementById(id);
-      Object.keys(attrs).forEach(function(attr) {
-        el.setAttribute(attr, attrs[attr]);
-      });
-    }
-    let continueSharingButton = document.getElementById("unsharePopupContinueSharingButton");
-    continueSharingButton.focus();
-    updateElement("unsharePopupContinueSharingButton",
-                  {label: this.promptMessages.unshareCancelLabel,
-                   accesskey: this.promptMessages.unshareCancelAccessKey});
-    updateElement("unsharePopupStopSharingButton",
-                  {label: this.promptMessages.unshareConfirmLabel,
-                  accesskey: this.promptMessages.unshareConfirmAccessKey});
-    updateElement("socialUserPortrait",
-                  {"aria-label": this.promptMessages.portraitLabel});
-    updateElement("socialUserRecommendedText",
-                  {value: this.promptMessages.unshareLabel});
+    let sharePopupOkButton = document.getElementById("editSharePopupOkButton");
+    if (sharePopupOkButton)
+      sharePopupOkButton.focus();
   },
 
   sharePage: function SSB_sharePage() {
-    this.unsharePopup.hidden = false;
+    this.sharePopup.hidden = false;
 
     let uri = gBrowser.currentURI;
     if (!Social.isPageShared(uri)) {
       Social.sharePage(uri);
       this.updateShareState();
     } else {
-      this.unsharePopup.openPopup(this.shareButton, "bottomcenter topright");
+      this.sharePopup.openPopup(this.shareButton, "bottomcenter topright");
     }
   },
 
   unsharePage: function SSB_unsharePage() {
     Social.unsharePage(gBrowser.currentURI);
     this.updateShareState();
-    this.dismissUnsharePopup();
+    this.dismissSharePopup();
   },
 
   updateShareState: function SSB_updateShareState() {

@@ -631,7 +631,7 @@ CanReify(Value *vp)
 
 struct AutoCloseIterator
 {
-    AutoCloseIterator(JSContext *cx, JSObject *obj) : cx(cx), obj(cx, obj) {}
+    AutoCloseIterator(JSContext *cx, JSObject *obj) : cx(cx), obj(obj) {}
 
     ~AutoCloseIterator() { if (obj) CloseIterator(cx, obj); }
 
@@ -639,13 +639,13 @@ struct AutoCloseIterator
 
   private:
     JSContext *cx;
-    RootedObject obj;
+    JSObject *obj;
 };
 
 static bool
 Reify(JSContext *cx, JSCompartment *origin, Value *vp)
 {
-    Rooted<PropertyIteratorObject*> iterObj(cx, &vp->toObject().asPropertyIterator());
+    PropertyIteratorObject *iterObj = &vp->toObject().asPropertyIterator();
     NativeIterator *ni = iterObj->getNativeIterator();
 
     AutoCloseIterator close(cx, iterObj);

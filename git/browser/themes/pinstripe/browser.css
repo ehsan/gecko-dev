@@ -1280,11 +1280,11 @@ window[tabsontop="false"] richlistitem[type~="action"][actiontype="switchtab"][s
   text-decoration: underline;
 }
 
-#unsharePopupText {
+#editSharePopupText {
   height: 48px;
 }
 
-#unsharePopupBottomButtons {
+#editSharePopupBottomButtons {
   margin-top: 1em;
 }
 

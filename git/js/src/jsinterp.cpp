@@ -1029,7 +1029,7 @@ IteratorMore(JSContext *cx, JSObject *iterobj, bool *cond, MutableHandleValue rv
 }
 
 static inline bool
-IteratorNext(JSContext *cx, HandleObject iterobj, MutableHandleValue rval)
+IteratorNext(JSContext *cx, JSObject *iterobj, MutableHandleValue rval)
 {
     if (iterobj->isPropertyIterator()) {
         NativeIterator *ni = iterobj->asPropertyIterator().getNativeIterator();
@@ -1778,9 +1778,7 @@ BEGIN_CASE(JSOP_ITERNEXT)
     JS_ASSERT(regs.sp[-1].isObject());
     PUSH_NULL();
     MutableHandleValue res = MutableHandleValue::fromMarkedLocation(&regs.sp[-1]);
-    RootedObject &obj = rootObject0;
-    obj = &regs.sp[-2].toObject();
-    if (!IteratorNext(cx, obj, res))
+    if (!IteratorNext(cx, &regs.sp[-2].toObject(), res))
         goto error;
 }
 END_CASE(JSOP_ITERNEXT)
@@ -1788,9 +1786,7 @@ END_CASE(JSOP_ITERNEXT)
 BEGIN_CASE(JSOP_ENDITER)
 {
     JS_ASSERT(regs.stackDepth() >= 1);
-    RootedObject &obj = rootObject0;
-    obj = &regs.sp[-1].toObject();
-    bool ok = CloseIterator(cx, obj);
+    bool ok = CloseIterator(cx, &regs.sp[-1].toObject());
     regs.sp--;
     if (!ok)
         goto error;
@@ -3920,9 +3916,7 @@ END_CASE(JSOP_ARRAYPUSH)
               case JSTRY_ITER: {
                 /* This is similar to JSOP_ENDITER in the interpreter loop. */
                 JS_ASSERT(JSOp(*regs.pc) == JSOP_ENDITER);
-                RootedObject &obj = rootObject0;
-                obj = &regs.sp[-1].toObject();
-                bool ok = UnwindIteratorForException(cx, obj);
+                bool ok = UnwindIteratorForException(cx, &regs.sp[-1].toObject());
                 regs.sp -= 1;
                 if (!ok)
                     goto error;

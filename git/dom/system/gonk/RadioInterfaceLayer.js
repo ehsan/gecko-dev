@@ -448,9 +448,7 @@ RadioInterfaceLayer.prototype = {
         let callback = this._contactsCallbacks[message.requestId];
         if (callback) {
           delete this._contactsCallbacks[message.requestId];
-          callback.receiveContactsList(message.errorMsg,
-                                       message.contactType,
-                                       message.contacts);
+          callback.receiveContactsList(message.contactType, message.contacts);
         }
         break;
       case "iccmbdn":
@@ -1004,14 +1002,6 @@ RadioInterfaceLayer.prototype = {
                                            message.timestamp,
                                            false);
 
-    gSystemMessenger.broadcastMessage("sms-received",
-                                      {id: id,
-                                       delivery: DOM_SMS_DELIVERY_RECEIVED,
-                                       sender: message.sender || null,
-                                       receiver: message.receiver || null,
-                                       body: message.fullBody || null,
-                                       timestamp: message.timestamp,
-                                       read: false});
     Services.obs.notifyObservers(sms, kSmsReceivedObserverTopic, null);
   },
 
@@ -1866,7 +1856,7 @@ RadioInterfaceLayer.prototype = {
   getICCContacts: function getICCContacts(contactType, callback) {
     if (!this._contactsCallbacks) {
       this._contactsCallbacks = {};
-    }
+    } 
     let requestId = Math.floor(Math.random() * 1000);
     this._contactsCallbacks[requestId] = callback;
     this.worker.postMessage({rilMessageType: "getICCContacts",

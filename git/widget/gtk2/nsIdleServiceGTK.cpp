@@ -12,6 +12,9 @@
 #include "nsDebug.h"
 #include "prlink.h"
 #include "prlog.h"
+#if (MOZ_WIDGET_GTK == 2)
+#include "gtk2compat.h"
+#endif
 
 #ifdef PR_LOGGING
 static PRLogModuleInfo* sIdleLog = nullptr;
