@@ -13,9 +13,7 @@ import android.support.v4.app.LoaderManager;
 import android.support.v4.content.AsyncTaskLoader;
 import android.support.v4.content.Loader;
 import android.text.Editable;
-import android.text.SpannableString;
 import android.text.TextWatcher;
-import android.text.style.ForegroundColorSpan;
 import android.view.KeyEvent;
 import android.view.LayoutInflater;
 import android.view.View;
@@ -30,7 +28,6 @@ import android.widget.TextView;
 
 import org.mozilla.search.R;
 
-import java.util.ArrayList;
 import java.util.List;
 
 /**
@@ -50,9 +47,6 @@ public class SearchFragment extends Fragment
 
     // Maximum number of results returned by the suggestion client
     private static final int SUGGESTION_MAX = 5;
-
-    // Color of search term match in search suggestion
-    private static final int SUGGESTION_HIGHLIGHT_COLOR = 0xFF999999;
 
     private SuggestClient suggestClient;
     private SuggestionLoaderCallbacks suggestionLoaderCallbacks;
@@ -161,8 +155,8 @@ public class SearchFragment extends Fragment
         suggestionDropdown.setOnItemClickListener(new AdapterView.OnItemClickListener() {
             @Override
             public void onItemClick(AdapterView<?> parent, View view, int position, long id) {
-                final Suggestion suggestion = (Suggestion) suggestionDropdown.getItemAtPosition(position);
-                startSearch(suggestion.value);
+                final String query = (String) suggestionDropdown.getItemAtPosition(position);
+                startSearch(query);
             }
         });
 
@@ -258,48 +252,32 @@ public class SearchFragment extends Fragment
         editText.setSelection(suggestion.length());
     }
 
-    public static class Suggestion {
-
-        private static final ForegroundColorSpan COLOR_SPAN =
-                new ForegroundColorSpan(SUGGESTION_HIGHLIGHT_COLOR);
-
-        public final String value;
-        public final SpannableString display;
-
-        public Suggestion(String value, String searchTerm) {
-            this.value = value;
-
-            display = new SpannableString(value);
-
-            // Highlight mixed-case matches.
-            final int start = value.toLowerCase().indexOf(searchTerm.toLowerCase());
-            if (start >= 0) {
-                display.setSpan(COLOR_SPAN, start, searchTerm.length(), 0);
-            }
-        }
-    }
-
-    private class SuggestionLoaderCallbacks implements LoaderManager.LoaderCallbacks<List<Suggestion>> {
+    private class SuggestionLoaderCallbacks implements LoaderManager.LoaderCallbacks<List<String>> {
         @Override
-        public Loader<List<Suggestion>> onCreateLoader(int id, Bundle args) {
+        public Loader<List<String>> onCreateLoader(int id, Bundle args) {
+            // suggestClient is set to null in onDestroyView(), so using it
+            // safely here relies on the fact that onCreateLoader() is called
+            // synchronously in restartLoader().
             return new SuggestionAsyncLoader(getActivity(), suggestClient, args.getString(KEY_SEARCH_TERM));
         }
 
         @Override
-        public void onLoadFinished(Loader<List<Suggestion>> loader, List<Suggestion> suggestions) {
+        public void onLoadFinished(Loader<List<String>> loader, List<String> suggestions) {
             autoCompleteAdapter.update(suggestions);
         }
 
         @Override
-        public void onLoaderReset(Loader<List<Suggestion>> loader) {
-            autoCompleteAdapter.update(null);
+        public void onLoaderReset(Loader<List<String>> loader) {
+            if (autoCompleteAdapter != null) {
+                autoCompleteAdapter.update(null);
+            }
         }
     }
 
-    private static class SuggestionAsyncLoader extends AsyncTaskLoader<List<Suggestion>> {
+    private static class SuggestionAsyncLoader extends AsyncTaskLoader<List<String>> {
         private final SuggestClient suggestClient;
         private final String searchTerm;
-        private List<Suggestion> suggestions;
+        private List<String> suggestions;
 
         public SuggestionAsyncLoader(Context context, SuggestClient suggestClient, String searchTerm) {
             super(context);
@@ -309,19 +287,12 @@ public class SearchFragment extends Fragment
         }
 
         @Override
-        public List<Suggestion> loadInBackground() {
-            final List<String> values = suggestClient.query(searchTerm);
-
-            final List<Suggestion> result = new ArrayList<Suggestion>(values.size());
-            for (String value : values) {
-                result.add(new Suggestion(value, searchTerm));
-            }
-
-            return result;
+        public List<String> loadInBackground() {
+            return suggestClient.query(searchTerm);
         }
 
         @Override
-        public void deliverResult(List<Suggestion> suggestions) {
+        public void deliverResult(List<String> suggestions) {
             this.suggestions = suggestions;
 
             if (isStarted()) {

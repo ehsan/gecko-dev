@@ -98,7 +98,7 @@ BreakpointStore.prototype = {
   get size() { return this._size; },
 
   /**
-   * Add a breakpoint to the breakpoint store if it doesn't already exist.
+   * Add a breakpoint to the breakpoint store.
    *
    * @param Object aBreakpoint
    *        The breakpoint to be added (not copied). It is an object with the
@@ -109,11 +109,10 @@ BreakpointStore.prototype = {
    *            the whole line)
    *          - condition (optional)
    *          - actor (optional)
-   * @returns Object aBreakpoint
-   *          The new or existing breakpoint.
    */
   addBreakpoint: function (aBreakpoint) {
     let { url, line, column } = aBreakpoint;
+    let updating = false;
 
     if (column != null) {
       if (!this._breakpoints[url]) {
@@ -122,22 +121,16 @@ BreakpointStore.prototype = {
       if (!this._breakpoints[url][line]) {
         this._breakpoints[url][line] = [];
       }
-      if (!this._breakpoints[url][line][column]) {
-        this._breakpoints[url][line][column] = aBreakpoint;
-        this._size++;
-      }
-      return this._breakpoints[url][line][column];
+      this._breakpoints[url][line][column] = aBreakpoint;
     } else {
       // Add a breakpoint that breaks on the whole line.
       if (!this._wholeLineBreakpoints[url]) {
         this._wholeLineBreakpoints[url] = [];
       }
-      if (!this._wholeLineBreakpoints[url][line]) {
-        this._wholeLineBreakpoints[url][line] = aBreakpoint;
-        this._size++;
-      }
-      return this._wholeLineBreakpoints[url][line];
+      this._wholeLineBreakpoints[url][line] = aBreakpoint;
     }
+
+    this._size++;
   },
 
   /**
@@ -1446,7 +1439,9 @@ ThreadActor.prototype = {
 
     let locationPromise = this.sources.getGeneratedLocation(aRequest.location);
     return locationPromise.then(({url, line, column}) => {
-      if (line == null || line < 0) {
+      if (line == null ||
+          line < 0 ||
+          this.dbg.findScripts({ url: url }).length == 0) {
         return {
           error: "noScript",
           message: "Requested setting a breakpoint on "
@@ -1542,11 +1537,12 @@ ThreadActor.prototype = {
     // Find all scripts matching the given location
     let scripts = this.dbg.findScripts(aLocation);
     if (scripts.length == 0) {
-      // Since we did not find any scripts to set the breakpoint on now, return
-      // early. When a new script that matches this breakpoint location is
-      // introduced, the breakpoint actor will already be in the breakpoint store
-      // and will be set at that time.
       return {
+        error: "noScript",
+        message: "Requested setting a breakpoint on "
+          + aLocation.url + ":" + aLocation.line
+          + (aLocation.column != null ? ":" + aLocation.column : "")
+          + " but there is no Debugger.Script at that location",
         actor: actor.actorID
       };
     }
@@ -1865,11 +1861,6 @@ ThreadActor.prototype = {
         let listenerDO = this.globalDebugObject.makeDebuggeeValue(listener);
         // If the listener is an object with a 'handleEvent' method, use that.
         if (listenerDO.class == "Object" || listenerDO.class == "XULElement") {
-          // For some events we don't have permission to access the
-          // 'handleEvent' property when running in content scope.
-          if (!listenerDO.unwrap()) {
-            continue;
-          }
           let heDesc;
           while (!heDesc && listenerDO) {
             heDesc = listenerDO.getOwnPropertyDescriptor("handleEvent");
@@ -3565,27 +3556,14 @@ exports.ObjectActor = ObjectActor;
 DebuggerServer.ObjectActorPreviewers = {
   String: [function({obj, threadActor}, aGrip) {
     let result = genericObjectPreviewer("String", String, obj, threadActor);
-    let length = DevToolsUtils.getProperty(obj, "length");
+    if (result) {
+      let length = DevToolsUtils.getProperty(obj, "length");
+      if (typeof length != "number") {
+        return false;
+      }
 
-    if (!result || typeof length != "number") {
-      return false;
-    }
-
-    aGrip.preview = {
-      kind: "ArrayLike",
-      length: length
-    };
-
-    if (threadActor._gripDepth > 1) {
+      aGrip.displayString = result.value;
       return true;
-    }
-
-    let items = aGrip.preview.items = [];
-
-    const max = Math.min(result.value.length, OBJECT_PREVIEW_MAX_ITEMS);
-    for (let i = 0; i < max; i++) {
-      let value = threadActor.createValueGrip(result.value[i]);
-      items.push(value);
     }
 
     return true;

@@ -36,6 +36,8 @@ function openNewWindowTab(url, options) {
     if (options.onLoad) {
       options.onLoad({ target: { defaultView: window } })
     }
+
+    return newTab;
   });
 }
 
@@ -536,7 +538,7 @@ exports.testConstructor = function(assert, done) {
       assert.equal(widgetCount2(), widgetStartCount2, "2nd window has correct number of child elements after second destroy");
 
       close(browserWindow).then(doneTest);
-    }}).catch(assert.fail);
+    }});
   });
 
   // test window closing
@@ -632,7 +634,7 @@ exports.testConstructor = function(assert, done) {
         browserWindow.setToolbarVisibility(container(), true);
 
         close(browserWindow2).then(doneTest);
-      }}).catch(assert.fail);
+      }});
     });
   }
 
@@ -1177,7 +1179,7 @@ exports.testReinsertion = function(assert, done) {
       loader.unload();
       done();
     });
-  }}).catch(assert.fail);
+  }});
 };
 
 exports.testWideWidget = function testWideWidget(assert) {

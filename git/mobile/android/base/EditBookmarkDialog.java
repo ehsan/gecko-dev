@@ -10,7 +10,6 @@ import org.mozilla.gecko.db.BrowserDB;
 import org.mozilla.gecko.util.ThreadUtils;
 import org.mozilla.gecko.util.UiAsyncTask;
 
-import android.content.ContentResolver;
 import android.content.Context;
 import android.app.AlertDialog;
 import android.content.DialogInterface;
@@ -25,11 +24,12 @@ import android.widget.Toast;
 /**
  * A dialog that allows editing a bookmarks url, title, or keywords
  * <p>
- * Invoked by calling one of the {@link org.mozilla.gecko.EditBookmarkDialog#show(String)}
+ * Invoked by calling one of the {@link org.mozilla.gecko.EditBookmarkDialog.show}
  * methods.
  */
 public class EditBookmarkDialog {
-    private final Context mContext;
+    private static final String LOGTAG = "GeckoEditBookmarkDialog";
+    private Context mContext;
 
     public EditBookmarkDialog(Context context) {
         mContext = context;
@@ -39,10 +39,10 @@ public class EditBookmarkDialog {
      * A private struct to make it easier to pass bookmark data across threads
      */
     private class Bookmark {
-        final int id;
-        final String title;
-        final String url;
-        final String keyword;
+        int id;
+        String title;
+        String url;
+        String keyword;
 
         public Bookmark(int aId, String aTitle, String aUrl, String aKeyword) {
             id = aId;
@@ -140,11 +140,10 @@ public class EditBookmarkDialog {
      *            information about the first it finds.
      */
     public void show(final String url) {
-        final ContentResolver cr = mContext.getContentResolver();
         (new UiAsyncTask<Void, Void, Bookmark>(ThreadUtils.getBackgroundHandler()) {
             @Override
             public Bookmark doInBackground(Void... params) {
-                final Cursor cursor = BrowserDB.getBookmarkForUrl(cr, url);
+                Cursor cursor = BrowserDB.getBookmarkForUrl(mContext.getContentResolver(), url);
                 if (cursor == null) {
                     return null;
                 }
@@ -164,9 +163,8 @@ public class EditBookmarkDialog {
 
             @Override
             public void onPostExecute(Bookmark bookmark) {
-                if (bookmark == null) {
+                if (bookmark == null)
                     return;
-                }
 
                 show(bookmark.id, bookmark.title, bookmark.url, bookmark.keyword);
             }
@@ -185,10 +183,8 @@ public class EditBookmarkDialog {
      * @param keyword The initial keyword to show in the dialog
      */
     public void show(final int id, final String title, final String url, final String keyword) {
-        final Context context = mContext;
-
-        AlertDialog.Builder editPrompt = new AlertDialog.Builder(context);
-        final View editView = LayoutInflater.from(context).inflate(R.layout.bookmark_edit, null);
+        AlertDialog.Builder editPrompt = new AlertDialog.Builder(mContext);
+        final View editView = LayoutInflater.from(mContext).inflate(R.layout.bookmark_edit, null);
         editPrompt.setTitle(R.string.bookmark_edit_title);
         editPrompt.setView(editView);
 
@@ -207,13 +203,13 @@ public class EditBookmarkDialog {
                     public Void doInBackground(Void... params) {
                         String newUrl = locationText.getText().toString().trim();
                         String newKeyword = keywordText.getText().toString().trim();
-                        BrowserDB.updateBookmark(context.getContentResolver(), id, newUrl, nameText.getText().toString(), newKeyword);
+                        BrowserDB.updateBookmark(mContext.getContentResolver(), id, newUrl, nameText.getText().toString(), newKeyword);
                         return null;
                     }
 
                     @Override
                     public void onPostExecute(Void result) {
-                        Toast.makeText(context, R.string.bookmark_updated, Toast.LENGTH_SHORT).show();
+                        Toast.makeText(mContext, R.string.bookmark_updated, Toast.LENGTH_SHORT).show();
                     }
                 }).execute();
             }

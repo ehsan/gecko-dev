@@ -1757,17 +1757,14 @@ ThreadClient.prototype = {
       this.client.request(packet, (aResponse) => {
         // Ignoring errors, since the user may be setting a breakpoint in a
         // dead script that will reappear on a page reload.
-        let bpClient;
-        if (aResponse.actor) {
+        if (aOnResponse) {
           let root = this.client.mainRoot;
-          bpClient = new BreakpointClient(
+          let bpClient = new BreakpointClient(
             this.client,
             aResponse.actor,
             location,
             root.traits.conditionalBreakpoints ? condition : undefined
           );
-        }
-        if (aOnResponse) {
           aOnResponse(aResponse, bpClient);
         }
         if (aCallback) {
