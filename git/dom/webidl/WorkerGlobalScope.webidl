@@ -39,9 +39,6 @@ partial interface WorkerGlobalScope {
 WorkerGlobalScope implements WindowTimers;
 WorkerGlobalScope implements WindowBase64;
 
-// Not implemented yet: bug 1072107.
-// WorkerGlobalScope implements FontFaceSource;
-
 // Mozilla extensions
 partial interface WorkerGlobalScope {
   attribute EventHandler onclose;

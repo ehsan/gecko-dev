@@ -8,7 +8,6 @@
 #include "nsError.h"
 #include <math.h>
 #include "mozilla/dom/SVGMatrixBinding.h"
-#include "mozilla/FloatingPoint.h"
 
 const double radPerDegree = 2.0 * M_PI / 360.0;
 
@@ -195,7 +194,7 @@ already_AddRefed<SVGMatrix>
 SVGMatrix::SkewX(float angle, ErrorResult& rv)
 {
   double ta = tan( angle*radPerDegree );
-  if (!IsFinite(ta)) {
+  if (!NS_finite(ta)) {
     rv.Throw(NS_ERROR_DOM_INVALID_ACCESS_ERR);
     return nullptr;
   }
@@ -212,7 +211,7 @@ already_AddRefed<SVGMatrix>
 SVGMatrix::SkewY(float angle, ErrorResult& rv)
 {
   double ta = tan( angle*radPerDegree );
-  if (!IsFinite(ta)) {
+  if (!NS_finite(ta)) {
     rv.Throw(NS_ERROR_DOM_INVALID_ACCESS_ERR);
     return nullptr;
   }

@@ -117,35 +117,29 @@ static const int kBeginReserveFileDescriptor = STDERR_FILENO + 1;
 
 class ProcLoaderParent : public PProcLoaderParent
 {
+private:
+  nsAutoPtr<FileDescriptor> mChannelFd; // To keep a reference.
+
 public:
-  ProcLoaderParent() {}
-  virtual ~ProcLoaderParent() {}
+  ProcLoaderParent(FileDescriptor *aFd) : mChannelFd(aFd) {}
 
   virtual void ActorDestroy(ActorDestroyReason aWhy) MOZ_OVERRIDE;
 
   virtual bool RecvLoadComplete(const int32_t &aPid,
                                 const int32_t &aCookie) MOZ_OVERRIDE;
+
+  virtual void OnChannelError() MOZ_OVERRIDE;
 };
 
 void
 ProcLoaderParent::ActorDestroy(ActorDestroyReason aWhy)
 {
-  if (aWhy == AbnormalShutdown) {
-    NS_WARNING("ProcLoaderParent is destroyed abnormally.");
-  }
-
-  if (sProcLoaderClientOnDeinit) {
-    // Get error for closing while the channel is already error.
-    return;
-  }
-
-  // Destroy self asynchronously.
-  ProcLoaderClientDeinit();
 }
 
 static void
 _ProcLoaderParentDestroy(PProcLoaderParent *aLoader)
 {
+  aLoader->Close();
   delete aLoader;
   sProcLoaderClientOnDeinit = false;
 }
@@ -154,6 +148,7 @@ bool
 ProcLoaderParent::RecvLoadComplete(const int32_t &aPid,
                                    const int32_t &aCookie)
 {
+  ProcLoaderClientDeinit();
   return true;
 }
 
@@ -163,6 +158,17 @@ CloseFileDescriptors(FdArray& aFds)
   for (size_t i = 0; i < aFds.length(); i++) {
     unused << HANDLE_EINTR(close(aFds[i]));
   }
+}
+
+void
+ProcLoaderParent::OnChannelError()
+{
+  if (sProcLoaderClientOnDeinit) {
+    // Get error for closing while the channel is already error.
+    return;
+  }
+  NS_WARNING("ProcLoaderParent is in channel error");
+  ProcLoaderClientDeinit();
 }
 
 /**
@@ -198,11 +204,11 @@ ProcLoaderClientGeckoInit()
 
   sProcLoaderClientGeckoInitialized = true;
 
-  TransportDescriptor fd;
-  fd.mFd = base::FileDescriptor(sProcLoaderChannelFd, /*auto_close=*/ false);
+  FileDescriptor *fd = new FileDescriptor(sProcLoaderChannelFd);
+  close(sProcLoaderChannelFd);
   sProcLoaderChannelFd = -1;
-  Transport *transport = OpenDescriptor(fd, Transport::MODE_CLIENT);
-  sProcLoaderParent = new ProcLoaderParent();
+  Transport *transport = OpenDescriptor(*fd, Transport::MODE_CLIENT);
+  sProcLoaderParent = new ProcLoaderParent(fd);
   sProcLoaderParent->Open(transport,
                           sProcLoaderPid,
                           XRE_GetIOMessageLoop(),
@@ -542,8 +548,8 @@ ProcLoaderServiceRun(pid_t aPeerPid, int aFd,
       MOZ_CRASH();
     }
 
-    TransportDescriptor fd;
-    fd.mFd = base::FileDescriptor(aFd, /*auto_close =*/false);
+    FileDescriptor fd(aFd);
+    close(aFd);
 
     MOZ_ASSERT(!sProcLoaderServing);
     MessageLoop loop;

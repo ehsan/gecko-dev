@@ -128,22 +128,22 @@ class GlobalObject : public JSObject
 
   public:
     void setThrowTypeError(JSFunction *fun) {
-        MOZ_ASSERT(getSlotRef(THROWTYPEERROR).isUndefined());
+        JS_ASSERT(getSlotRef(THROWTYPEERROR).isUndefined());
         setSlot(THROWTYPEERROR, ObjectValue(*fun));
     }
 
     void setOriginalEval(JSObject *evalobj) {
-        MOZ_ASSERT(getSlotRef(EVAL).isUndefined());
+        JS_ASSERT(getSlotRef(EVAL).isUndefined());
         setSlot(EVAL, ObjectValue(*evalobj));
     }
 
     void setIntrinsicsHolder(JSObject *obj) {
-        MOZ_ASSERT(getSlotRef(INTRINSICS).isUndefined());
+        JS_ASSERT(getSlotRef(INTRINSICS).isUndefined());
         setSlot(INTRINSICS, ObjectValue(*obj));
     }
 
     Value getConstructor(JSProtoKey key) const {
-        MOZ_ASSERT(key <= JSProto_LIMIT);
+        JS_ASSERT(key <= JSProto_LIMIT);
         return getSlot(APPLICATION_SLOTS + key);
     }
     static bool ensureConstructor(JSContext *cx, Handle<GlobalObject*> global, JSProtoKey key);
@@ -152,22 +152,22 @@ class GlobalObject : public JSObject
                                        JSProtoKey key, HandleObject ctor, HandleObject proto);
 
     void setConstructor(JSProtoKey key, const Value &v) {
-        MOZ_ASSERT(key <= JSProto_LIMIT);
+        JS_ASSERT(key <= JSProto_LIMIT);
         setSlot(APPLICATION_SLOTS + key, v);
     }
 
     Value getPrototype(JSProtoKey key) const {
-        MOZ_ASSERT(key <= JSProto_LIMIT);
+        JS_ASSERT(key <= JSProto_LIMIT);
         return getSlot(APPLICATION_SLOTS + JSProto_LIMIT + key);
     }
 
     void setPrototype(JSProtoKey key, const Value &value) {
-        MOZ_ASSERT(key <= JSProto_LIMIT);
+        JS_ASSERT(key <= JSProto_LIMIT);
         setSlot(APPLICATION_SLOTS + JSProto_LIMIT + key, value);
     }
 
     static uint32_t constructorPropertySlot(JSProtoKey key) {
-        MOZ_ASSERT(key <= JSProto_LIMIT);
+        JS_ASSERT(key <= JSProto_LIMIT);
         return APPLICATION_SLOTS + JSProto_LIMIT * 2 + key;
     }
 
@@ -181,13 +181,13 @@ class GlobalObject : public JSObject
 
     bool classIsInitialized(JSProtoKey key) const {
         bool inited = !getConstructor(key).isUndefined();
-        MOZ_ASSERT(inited == !getPrototype(key).isUndefined());
+        JS_ASSERT(inited == !getPrototype(key).isUndefined());
         return inited;
     }
 
     bool functionObjectClassesInitialized() const {
         bool inited = classIsInitialized(JSProto_Function);
-        MOZ_ASSERT(inited == classIsInitialized(JSProto_Object));
+        JS_ASSERT(inited == classIsInitialized(JSProto_Object));
         return inited;
     }
 
@@ -239,20 +239,20 @@ class GlobalObject : public JSObject
     }
 
     Value createArrayFromBufferHelper(uint32_t slot) const {
-        MOZ_ASSERT(FROM_BUFFER_UINT8 <= slot && slot <= FROM_BUFFER_UINT8CLAMPED);
-        MOZ_ASSERT(!getSlot(slot).isUndefined());
+        JS_ASSERT(FROM_BUFFER_UINT8 <= slot && slot <= FROM_BUFFER_UINT8CLAMPED);
+        JS_ASSERT(!getSlot(slot).isUndefined());
         return getSlot(slot);
     }
 
     void setCreateArrayFromBufferHelper(uint32_t slot, Handle<JSFunction*> fun) {
-        MOZ_ASSERT(getSlotRef(slot).isUndefined());
+        JS_ASSERT(getSlotRef(slot).isUndefined());
         setSlot(slot, ObjectValue(*fun));
     }
 
   public:
     /* XXX Privatize me! */
     void setCreateDataViewForThis(Handle<JSFunction*> fun) {
-        MOZ_ASSERT(getSlotRef(CREATE_DATAVIEW_FOR_THIS).isUndefined());
+        JS_ASSERT(getSlotRef(CREATE_DATAVIEW_FOR_THIS).isUndefined());
         setSlot(CREATE_DATAVIEW_FOR_THIS, ObjectValue(*fun));
     }
 
@@ -383,22 +383,22 @@ class GlobalObject : public JSObject
     }
 
     void setFloat32x4TypeDescr(JSObject &obj) {
-        MOZ_ASSERT(getSlotRef(FLOAT32X4_TYPE_DESCR).isUndefined());
+        JS_ASSERT(getSlotRef(FLOAT32X4_TYPE_DESCR).isUndefined());
         setSlot(FLOAT32X4_TYPE_DESCR, ObjectValue(obj));
     }
 
     JSObject &float32x4TypeDescr() {
-        MOZ_ASSERT(getSlotRef(FLOAT32X4_TYPE_DESCR).isObject());
+        JS_ASSERT(getSlotRef(FLOAT32X4_TYPE_DESCR).isObject());
         return getSlotRef(FLOAT32X4_TYPE_DESCR).toObject();
     }
 
     void setInt32x4TypeDescr(JSObject &obj) {
-        MOZ_ASSERT(getSlotRef(INT32X4_TYPE_DESCR).isUndefined());
+        JS_ASSERT(getSlotRef(INT32X4_TYPE_DESCR).isUndefined());
         setSlot(INT32X4_TYPE_DESCR, ObjectValue(obj));
     }
 
     JSObject &int32x4TypeDescr() {
-        MOZ_ASSERT(getSlotRef(INT32X4_TYPE_DESCR).isObject());
+        JS_ASSERT(getSlotRef(INT32X4_TYPE_DESCR).isObject());
         return getSlotRef(INT32X4_TYPE_DESCR).toObject();
     }
 
@@ -524,7 +524,7 @@ class GlobalObject : public JSObject
     }
 
     JSObject *intrinsicsHolder() {
-        MOZ_ASSERT(!getSlot(INTRINSICS).isUndefined());
+        JS_ASSERT(!getSlot(INTRINSICS).isUndefined());
         return &getSlot(INTRINSICS).toObject();
     }
 
@@ -557,7 +557,7 @@ class GlobalObject : public JSObject
     bool setIntrinsicValue(JSContext *cx, PropertyName *name, HandleValue value) {
 #ifdef DEBUG
         RootedObject self(cx, this);
-        MOZ_ASSERT(cx->runtime()->isSelfHostingGlobal(self));
+        JS_ASSERT(cx->runtime()->isSelfHostingGlobal(self));
 #endif
         RootedObject holder(cx, intrinsicsHolder());
         RootedValue valCopy(cx, value);
@@ -579,7 +579,7 @@ class GlobalObject : public JSObject
     }
 
     Value createDataViewForThis() const {
-        MOZ_ASSERT(dataViewClassInitialized());
+        JS_ASSERT(dataViewClassInitialized());
         return getSlot(CREATE_DATAVIEW_FOR_THIS);
     }
 
@@ -611,7 +611,6 @@ class GlobalObject : public JSObject
 
     // Implemented in jsiter.cpp.
     static bool initIteratorClasses(JSContext *cx, Handle<GlobalObject*> global);
-    static bool initStopIterationClass(JSContext *cx, Handle<GlobalObject*> global);
 
     // Implemented in builtin/MapObject.cpp.
     static bool initMapIteratorProto(JSContext *cx, Handle<GlobalObject*> global);
@@ -627,8 +626,6 @@ class GlobalObject : public JSObject
     static bool initTypedObjectModule(JSContext *cx, Handle<GlobalObject*> global);
 
     static bool initStandardClasses(JSContext *cx, Handle<GlobalObject*> global);
-    static bool initSelfHostingBuiltins(JSContext *cx, Handle<GlobalObject*> global,
-                                        const JSFunctionSpec *builtins);
 
     typedef js::Vector<js::Debugger *, 0, js::SystemAllocPolicy> DebuggerVector;
 

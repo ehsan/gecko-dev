@@ -34,7 +34,7 @@ LIRGeneratorX86Shared::newLTableSwitchV(MTableSwitch *tableswitch)
 bool
 LIRGeneratorX86Shared::visitGuardShape(MGuardShape *ins)
 {
-    MOZ_ASSERT(ins->obj()->type() == MIRType_Object);
+    JS_ASSERT(ins->obj()->type() == MIRType_Object);
 
     LGuardShape *guard = new(alloc()) LGuardShape(useRegisterAtStart(ins->obj()));
     if (!assignSnapshot(guard, ins->bailoutKind()))
@@ -47,7 +47,7 @@ LIRGeneratorX86Shared::visitGuardShape(MGuardShape *ins)
 bool
 LIRGeneratorX86Shared::visitGuardObjectType(MGuardObjectType *ins)
 {
-    MOZ_ASSERT(ins->obj()->type() == MIRType_Object);
+    JS_ASSERT(ins->obj()->type() == MIRType_Object);
 
     LGuardObjectType *guard = new(alloc()) LGuardObjectType(useRegisterAtStart(ins->obj()));
     if (!assignSnapshot(guard, Bailout_ObjectIdentityOrTypeGuard))
@@ -61,7 +61,7 @@ bool
 LIRGeneratorX86Shared::visitPowHalf(MPowHalf *ins)
 {
     MDefinition *input = ins->input();
-    MOZ_ASSERT(input->type() == MIRType_Double);
+    JS_ASSERT(input->type() == MIRType_Double);
     LPowHalfD *lir = new(alloc()) LPowHalfD(useRegisterAtStart(input));
     return defineReuseInput(lir, ins, 0);
 }
@@ -215,7 +215,7 @@ LIRGeneratorX86Shared::visitAsmJSNeg(MAsmJSNeg *ins)
     if (ins->type() == MIRType_Float32)
         return defineReuseInput(new(alloc()) LNegF(useRegisterAtStart(ins->input())), ins, 0);
 
-    MOZ_ASSERT(ins->type() == MIRType_Double);
+    JS_ASSERT(ins->type() == MIRType_Double);
     return defineReuseInput(new(alloc()) LNegD(useRegisterAtStart(ins->input())), ins, 0);
 }
 
@@ -247,12 +247,12 @@ LIRGeneratorX86Shared::lowerUrshD(MUrsh *mir)
     MDefinition *lhs = mir->lhs();
     MDefinition *rhs = mir->rhs();
 
-    MOZ_ASSERT(lhs->type() == MIRType_Int32);
-    MOZ_ASSERT(rhs->type() == MIRType_Int32);
-    MOZ_ASSERT(mir->type() == MIRType_Double);
+    JS_ASSERT(lhs->type() == MIRType_Int32);
+    JS_ASSERT(rhs->type() == MIRType_Int32);
+    JS_ASSERT(mir->type() == MIRType_Double);
 
 #ifdef JS_CODEGEN_X64
-    MOZ_ASSERT(ecx == rcx);
+    JS_ASSERT(ecx == rcx);
 #endif
 
     LUse lhsUse = useRegisterAtStart(lhs);
@@ -294,7 +294,7 @@ bool
 LIRGeneratorX86Shared::lowerTruncateDToInt32(MTruncateToInt32 *ins)
 {
     MDefinition *opd = ins->input();
-    MOZ_ASSERT(opd->type() == MIRType_Double);
+    JS_ASSERT(opd->type() == MIRType_Double);
 
     LDefinition maybeTemp = Assembler::HasSSE3() ? LDefinition::BogusTemp() : tempDouble();
     return define(new(alloc()) LTruncateDToInt32(useRegister(opd), maybeTemp), ins);
@@ -304,7 +304,7 @@ bool
 LIRGeneratorX86Shared::lowerTruncateFToInt32(MTruncateToInt32 *ins)
 {
     MDefinition *opd = ins->input();
-    MOZ_ASSERT(opd->type() == MIRType_Float32);
+    JS_ASSERT(opd->type() == MIRType_Float32);
 
     LDefinition maybeTemp = Assembler::HasSSE3() ? LDefinition::BogusTemp() : tempFloat32();
     return define(new(alloc()) LTruncateFToInt32(useRegister(opd), maybeTemp), ins);

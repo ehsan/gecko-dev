@@ -153,7 +153,7 @@ struct ParseContext : public GenericParseContext
     }
 
     uint32_t numArgs() const {
-        MOZ_ASSERT(sc->isFunctionBox());
+        JS_ASSERT(sc->isFunctionBox());
         return args_.length();
     }
 

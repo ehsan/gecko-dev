@@ -145,7 +145,7 @@ IonSpewer::beginFunction(MIRGraph *graph, HandleScript function)
         return;
 
     if (!FilterContainsLocation(function)) {
-        MOZ_ASSERT(!this->graph);
+        JS_ASSERT(!this->graph);
         // filter out logs during the compilation.
         filteredOutCompilations++;
         return;
@@ -190,7 +190,7 @@ IonSpewer::endFunction()
 {
     if (!isSpewingFunction()) {
         if (inited_) {
-            MOZ_ASSERT(filteredOutCompilations != 0);
+            JS_ASSERT(filteredOutCompilations != 0);
             filteredOutCompilations--;
         }
         return;
@@ -430,21 +430,21 @@ jit::JitSpewHeader(JitSpewChannel channel)
 bool
 jit::JitSpewEnabled(JitSpewChannel channel)
 {
-    MOZ_ASSERT(LoggingChecked);
+    JS_ASSERT(LoggingChecked);
     return (LoggingBits & (1 << uint32_t(channel))) && !filteredOutCompilations;
 }
 
 void
 jit::EnableChannel(JitSpewChannel channel)
 {
-    MOZ_ASSERT(LoggingChecked);
+    JS_ASSERT(LoggingChecked);
     LoggingBits |= (1 << uint32_t(channel));
 }
 
 void
 jit::DisableChannel(JitSpewChannel channel)
 {
-    MOZ_ASSERT(LoggingChecked);
+    JS_ASSERT(LoggingChecked);
     LoggingBits &= ~(1 << uint32_t(channel));
 }
 

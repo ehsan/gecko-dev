@@ -134,47 +134,47 @@ class GlobalHelperThreadState
     }
 
     IonBuilderVector &ionWorklist() {
-        MOZ_ASSERT(isLocked());
+        JS_ASSERT(isLocked());
         return ionWorklist_;
     }
     IonBuilderVector &ionFinishedList() {
-        MOZ_ASSERT(isLocked());
+        JS_ASSERT(isLocked());
         return ionFinishedList_;
     }
     IonBuilderList &ionLazyLinkList() {
-        MOZ_ASSERT(isLocked());
+        JS_ASSERT(isLocked());
         return ionLazyLinkList_;
     }
 
     AsmJSParallelTaskVector &asmJSWorklist() {
-        MOZ_ASSERT(isLocked());
+        JS_ASSERT(isLocked());
         return asmJSWorklist_;
     }
     AsmJSParallelTaskVector &asmJSFinishedList() {
-        MOZ_ASSERT(isLocked());
+        JS_ASSERT(isLocked());
         return asmJSFinishedList_;
     }
 
     ParseTaskVector &parseWorklist() {
-        MOZ_ASSERT(isLocked());
+        JS_ASSERT(isLocked());
         return parseWorklist_;
     }
     ParseTaskVector &parseFinishedList() {
-        MOZ_ASSERT(isLocked());
+        JS_ASSERT(isLocked());
         return parseFinishedList_;
     }
     ParseTaskVector &parseWaitingOnGC() {
-        MOZ_ASSERT(isLocked());
+        JS_ASSERT(isLocked());
         return parseWaitingOnGC_;
     }
 
     SourceCompressionTaskVector &compressionWorklist() {
-        MOZ_ASSERT(isLocked());
+        JS_ASSERT(isLocked());
         return compressionWorklist_;
     }
 
     GCHelperStateVector &gcHelperWorklist() {
-        MOZ_ASSERT(isLocked());
+        JS_ASSERT(isLocked());
         return gcHelperWorklist_;
     }
 
@@ -193,14 +193,14 @@ class GlobalHelperThreadState
     HelperThread *highestPriorityPausedIonCompile();
 
     uint32_t harvestFailedAsmJSJobs() {
-        MOZ_ASSERT(isLocked());
+        JS_ASSERT(isLocked());
         uint32_t n = numAsmJSFailedJobs;
         numAsmJSFailedJobs = 0;
         return n;
     }
     void noteAsmJSFailure(void *func) {
         // Be mindful to signal the main thread after calling this function.
-        MOZ_ASSERT(isLocked());
+        JS_ASSERT(isLocked());
         if (!asmJSFailedFunction)
             asmJSFailedFunction = func;
         numAsmJSFailedJobs++;

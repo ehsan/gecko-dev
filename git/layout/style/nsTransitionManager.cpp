@@ -515,8 +515,7 @@ nsTransitionManager::ConsiderStartingTransition(
   timing.mFillMode = NS_STYLE_ANIMATION_FILL_MODE_BACKWARDS;
 
   nsRefPtr<ElementPropertyTransition> pt =
-    new ElementPropertyTransition(aElement->OwnerDoc(), aElement,
-                                  aNewStyleContext->GetPseudoType(), timing);
+    new ElementPropertyTransition(aElement->OwnerDoc(), timing);
   pt->mStartForReversingTest = startForReversingTest;
   pt->mReversePortion = reversePortion;
 

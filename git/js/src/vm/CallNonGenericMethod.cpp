@@ -19,7 +19,7 @@ JS::detail::CallMethodIfWrapped(JSContext *cx, IsAcceptableThis test, NativeImpl
                                 CallArgs args)
 {
     HandleValue thisv = args.thisv();
-    MOZ_ASSERT(!test(thisv));
+    JS_ASSERT(!test(thisv));
 
     if (thisv.isObject()) {
         JSObject &thisObj = args.thisv().toObject();

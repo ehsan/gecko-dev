@@ -100,7 +100,6 @@
 #include "mozilla/dom/TextMetrics.h"
 #include "mozilla/dom/UnionTypes.h"
 #include "mozilla/dom/SVGMatrix.h"
-#include "mozilla/FloatingPoint.h"
 #include "nsGlobalWindow.h"
 #include "GLContext.h"
 #include "GLContextProvider.h"
@@ -4355,8 +4354,8 @@ CanvasRenderingContext2D::GetImageData(JSContext* aCx, double aSx,
     return nullptr;
   }
 
-  if (!IsFinite(aSx) || !IsFinite(aSy) ||
-      !IsFinite(aSw) || !IsFinite(aSh)) {
+  if (!NS_finite(aSx) || !NS_finite(aSy) ||
+      !NS_finite(aSw) || !NS_finite(aSh)) {
     error.Throw(NS_ERROR_DOM_NOT_SUPPORTED_ERR);
     return nullptr;
   }

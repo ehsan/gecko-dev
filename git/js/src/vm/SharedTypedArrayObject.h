@@ -126,7 +126,7 @@ IsSharedTypedArrayConstructor(HandleValue v, uint32_t type);
 inline Scalar::Type
 SharedTypedArrayObject::type() const
 {
-    MOZ_ASSERT(IsSharedTypedArrayClass(getClass()));
+    JS_ASSERT(IsSharedTypedArrayClass(getClass()));
     return static_cast<Scalar::Type>(getClass() - &classes[0]);
 }
 

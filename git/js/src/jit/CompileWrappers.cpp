@@ -30,7 +30,7 @@ CompileRuntime::onMainThread()
 js::PerThreadData *
 CompileRuntime::mainThread()
 {
-    MOZ_ASSERT(onMainThread());
+    JS_ASSERT(onMainThread());
     return &runtime()->mainThread;
 }
 

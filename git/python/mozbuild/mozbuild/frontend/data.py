@@ -103,6 +103,7 @@ class DirectoryTraversal(ContextDerived):
     __slots__ = (
         'dirs',
         'test_dirs',
+        'tier_dirs',
     )
 
     def __init__(self, context):
@@ -110,6 +111,7 @@ class DirectoryTraversal(ContextDerived):
 
         self.dirs = []
         self.test_dirs = []
+        self.tier_dirs = OrderedDict()
 
 
 class BaseConfigSubstitution(ContextDerived):

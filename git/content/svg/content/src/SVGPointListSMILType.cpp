@@ -7,7 +7,6 @@
 #include "nsSMILValue.h"
 #include "SVGPointList.h"
 #include "nsMathUtils.h"
-#include "mozilla/FloatingPoint.h"
 #include <math.h>
 
 namespace mozilla {
@@ -136,7 +135,7 @@ SVGPointListSMILType::ComputeDistance(const nsSMILValue& aFrom,
     total += dx * dx + dy * dy;
   }
   double distance = sqrt(total);
-  if (!IsFinite(distance)) {
+  if (!NS_finite(distance)) {
     return NS_ERROR_FAILURE;
   }
   aDistance = distance;

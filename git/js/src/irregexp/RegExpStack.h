@@ -109,7 +109,7 @@ class RegExpStack
     void *limit_;
 
     void updateLimit() {
-        MOZ_ASSERT(size >= kStackLimitSlack * sizeof(void *));
+        JS_ASSERT(size >= kStackLimitSlack * sizeof(void *));
         limit_ = static_cast<uint8_t *>(base()) + size - (kStackLimitSlack * sizeof(void *));
     }
 };

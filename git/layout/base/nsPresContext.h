@@ -58,6 +58,7 @@ struct nsStyleBorder;
 class nsIRunnable;
 class gfxUserFontSet;
 class gfxTextPerfMetrics;
+class nsUserFontSet;
 struct nsFontFaceRuleContainer;
 class nsPluginFrame;
 class nsTransitionManager;
@@ -71,7 +72,6 @@ class EventStateManager;
 class RestyleManager;
 class CounterStyleManager;
 namespace dom {
-class FontFaceSet;
 class MediaQueryList;
 }
 namespace layers {
@@ -871,8 +871,6 @@ public:
   // user font set is changed and fonts become unavailable).
   void UserFontSetUpdated();
 
-  mozilla::dom::FontFaceSet* Fonts();
-
   void FlushCounterStyles();
   void RebuildCounterStyles(); // asynchronously
 
@@ -921,17 +919,6 @@ public:
                  "should never nest");
     mProcessingAnimationStyleChange = aProcessing;
   }
-
-  /**
-   * Returns whether there are any pending restyles or reflows.
-   */
-  bool HasPendingRestyleOrReflow();
-
-  /**
-   * Informs the document's FontFaceSet that the refresh driver ticked,
-   * flushing style and layout.
-   */
-  void NotifyFontFaceSetOnRefresh();
 
   /**
    * Notify the prescontext that the presshell is about to reflow a reflow root.
@@ -1260,7 +1247,7 @@ protected:
   nsInvalidateRequestList mUndeliveredInvalidateRequestsBeforeLastPaint;
 
   // container for per-context fonts (downloadable, SVG, etc.)
-  nsRefPtr<mozilla::dom::FontFaceSet> mFontFaceSet;
+  nsUserFontSet*        mUserFontSet;
 
   // text performance metrics
   nsAutoPtr<gfxTextPerfMetrics>   mTextPerf;
@@ -1341,8 +1328,8 @@ protected:
   // Has there been a change to the viewport's dimensions?
   unsigned              mPendingViewportChange : 1;
 
-  // Is the current mFontFaceSet valid?
-  unsigned              mFontFaceSetDirty : 1;
+  // Is the current mUserFontSet valid?
+  unsigned              mUserFontSetDirty : 1;
   // Has GetUserFontSet() been called?
   unsigned              mGetUserFontSetCalled : 1;
   // Do we currently have an event posted to call FlushUserFontSet?

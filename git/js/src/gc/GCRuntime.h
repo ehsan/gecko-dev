@@ -90,7 +90,7 @@ struct ConservativeGCData
          * The conservative GC scanner should be disabled when the thread leaves
          * the last request.
          */
-        MOZ_ASSERT(!hasStackToScan());
+        JS_ASSERT(!hasStackToScan());
     }
 
     MOZ_NEVER_INLINE void recordStackTop();
@@ -344,19 +344,19 @@ class GCRuntime
 #endif // DEBUG
 
     void assertCanLock() {
-        MOZ_ASSERT(!currentThreadOwnsGCLock());
+        JS_ASSERT(!currentThreadOwnsGCLock());
     }
 
     void lockGC() {
         PR_Lock(lock);
-        MOZ_ASSERT(!lockOwner);
+        JS_ASSERT(!lockOwner);
 #ifdef DEBUG
         lockOwner = PR_GetCurrentThread();
 #endif
     }
 
     void unlockGC() {
-        MOZ_ASSERT(lockOwner == PR_GetCurrentThread());
+        JS_ASSERT(lockOwner == PR_GetCurrentThread());
         lockOwner = nullptr;
         PR_Unlock(lock);
     }
@@ -365,21 +365,21 @@ class GCRuntime
     bool isAllocAllowed() { return noGCOrAllocationCheck == 0; }
     void disallowAlloc() { ++noGCOrAllocationCheck; }
     void allowAlloc() {
-        MOZ_ASSERT(!isAllocAllowed());
+        JS_ASSERT(!isAllocAllowed());
         --noGCOrAllocationCheck;
     }
 
     bool isInsideUnsafeRegion() { return inUnsafeRegion != 0; }
     void enterUnsafeRegion() { ++inUnsafeRegion; }
     void leaveUnsafeRegion() {
-        MOZ_ASSERT(inUnsafeRegion > 0);
+        JS_ASSERT(inUnsafeRegion > 0);
         --inUnsafeRegion;
     }
 
     bool isStrictProxyCheckingEnabled() { return disableStrictProxyCheckingCount == 0; }
     void disableStrictProxyChecking() { ++disableStrictProxyCheckingCount; }
     void enableStrictProxyChecking() {
-        MOZ_ASSERT(disableStrictProxyCheckingCount > 0);
+        JS_ASSERT(disableStrictProxyCheckingCount > 0);
         --disableStrictProxyCheckingCount;
     }
 #endif
@@ -425,7 +425,7 @@ class GCRuntime
     void setManipulatingDeadZones(bool value) { manipulatingDeadZones = value; }
     unsigned objectsMarkedInDeadZonesCount() { return objectsMarkedInDeadZones; }
     void incObjectsMarkedInDeadZone() {
-        MOZ_ASSERT(manipulatingDeadZones);
+        JS_ASSERT(manipulatingDeadZones);
         ++objectsMarkedInDeadZones;
     }
 

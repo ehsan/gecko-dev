@@ -23,7 +23,6 @@
 #include "nsIMIMEService.h"
 #include "nsCExternalHandlerService.h"
 #include "nsDirectoryServiceDefs.h"
-#include "nsProxyRelease.h"
 
 #ifdef _WIN32_WINNT
 #undef _WIN32_WINNT
@@ -68,16 +67,7 @@ nsIconChannel::nsIconChannel()
 }
 
 nsIconChannel::~nsIconChannel() 
-{
-  if (mLoadInfo) {
-    nsCOMPtr<nsIThread> mainThread;
-    NS_GetMainThread(getter_AddRefs(mainThread));
-
-    nsILoadInfo *forgetableLoadInfo;
-    mLoadInfo.forget(&forgetableLoadInfo);
-    NS_ProxyRelease(mainThread, forgetableLoadInfo, false);
-  }
-}
+{}
 
 NS_IMPL_ISUPPORTS(nsIconChannel, 
                   nsIChannel, 

@@ -211,13 +211,13 @@ SET_UINT32_INDEX(jsbytecode *pc, uint32_t index)
 static inline unsigned
 LoopEntryDepthHint(jsbytecode *pc)
 {
-    MOZ_ASSERT(*pc == JSOP_LOOPENTRY);
+    JS_ASSERT(*pc == JSOP_LOOPENTRY);
     return GET_UINT8(pc) & 0x7f;
 }
 static inline bool
 LoopEntryCanIonOsr(jsbytecode *pc)
 {
-    MOZ_ASSERT(*pc == JSOP_LOOPENTRY);
+    JS_ASSERT(*pc == JSOP_LOOPENTRY);
     return GET_UINT8(pc) & 0x80;
 }
 static inline uint8_t
@@ -349,10 +349,10 @@ public:
     void advanceTo(ptrdiff_t relpc) {
         // Must always advance! If the same or an earlier PC is erroneously
         // passed in, we will already be past the relevant src notes
-        MOZ_ASSERT_IF(offset > 0, relpc > offset);
+        JS_ASSERT_IF(offset > 0, relpc > offset);
 
         // Next src note should be for after the current offset
-        MOZ_ASSERT_IF(offset > 0, SN_IS_TERMINATOR(sn) || SN_DELTA(sn) > 0);
+        JS_ASSERT_IF(offset > 0, SN_IS_TERMINATOR(sn) || SN_DELTA(sn) > 0);
 
         // The first PC requested is always considered to be a line header
         lineHeader = (offset == 0);
@@ -539,7 +539,7 @@ GetDecomposeLength(jsbytecode *pc, size_t len)
      * The last byte of a DECOMPOSE op stores the decomposed length.  This is a
      * constant: perhaps we should just hardcode values instead?
      */
-    MOZ_ASSERT(size_t(js_CodeSpec[*pc].length) == len);
+    JS_ASSERT(size_t(js_CodeSpec[*pc].length) == len);
     return (unsigned) pc[len - 1];
 }
 
@@ -547,7 +547,7 @@ static inline unsigned
 GetBytecodeLength(jsbytecode *pc)
 {
     JSOp op = (JSOp)*pc;
-    MOZ_ASSERT(op < JSOP_LIMIT);
+    JS_ASSERT(op < JSOP_LIMIT);
 
     if (js_CodeSpec[op].length != -1)
         return js_CodeSpec[op].length;
@@ -798,7 +798,7 @@ class PCCounts
     double *rawCounts() const { return counts; }
 
     double& get(size_t which) {
-        MOZ_ASSERT(which < capacity);
+        JS_ASSERT(which < capacity);
         return counts[which];
     }
 

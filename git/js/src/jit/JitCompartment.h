@@ -274,12 +274,12 @@ class JitRuntime
     }
 
     ExecutableAllocator *getIonAlloc(JSContext *cx) {
-        MOZ_ASSERT(cx->runtime()->currentThreadOwnsInterruptLock());
+        JS_ASSERT(cx->runtime()->currentThreadOwnsInterruptLock());
         return ionAlloc_ ? ionAlloc_ : createIonAlloc(cx);
     }
 
     ExecutableAllocator *ionAlloc(JSRuntime *rt) {
-        MOZ_ASSERT(rt->currentThreadOwnsInterruptLock());
+        JS_ASSERT(rt->currentThreadOwnsInterruptLock());
         return ionAlloc_;
     }
 
@@ -391,8 +391,8 @@ class JitRuntime
         return v;
     }
     void setIonReturnOverride(const js::Value &v) {
-        MOZ_ASSERT(!hasIonReturnOverride());
-        MOZ_ASSERT(!v.isMagic());
+        JS_ASSERT(!hasIonReturnOverride());
+        JS_ASSERT(!v.isMagic());
         ionReturnOverride_ = v;
     }
 
@@ -401,7 +401,7 @@ class JitRuntime
     }
 
     JitcodeGlobalTable *getJitcodeGlobalTable() {
-        MOZ_ASSERT(hasJitcodeGlobalTable());
+        JS_ASSERT(hasJitcodeGlobalTable());
         return jitcodeGlobalTable_;
     }
 
@@ -466,32 +466,32 @@ class JitCompartment
         // Make sure to do a lookupForAdd(key) and then insert into that slot, because
         // that way if stubCode gets moved due to a GC caused by lookupForAdd, then
         // we still write the correct pointer.
-        MOZ_ASSERT(!stubCodes_->has(key));
+        JS_ASSERT(!stubCodes_->has(key));
         ICStubCodeMap::AddPtr p = stubCodes_->lookupForAdd(key);
         return stubCodes_->add(p, key, stubCode.get());
     }
     void initBaselineCallReturnAddr(void *addr) {
-        MOZ_ASSERT(baselineCallReturnAddr_ == nullptr);
+        JS_ASSERT(baselineCallReturnAddr_ == nullptr);
         baselineCallReturnAddr_ = addr;
     }
     void *baselineCallReturnAddr() {
-        MOZ_ASSERT(baselineCallReturnAddr_ != nullptr);
+        JS_ASSERT(baselineCallReturnAddr_ != nullptr);
         return baselineCallReturnAddr_;
     }
     void initBaselineGetPropReturnAddr(void *addr) {
-        MOZ_ASSERT(baselineGetPropReturnAddr_ == nullptr);
+        JS_ASSERT(baselineGetPropReturnAddr_ == nullptr);
         baselineGetPropReturnAddr_ = addr;
     }
     void *baselineGetPropReturnAddr() {
-        MOZ_ASSERT(baselineGetPropReturnAddr_ != nullptr);
+        JS_ASSERT(baselineGetPropReturnAddr_ != nullptr);
         return baselineGetPropReturnAddr_;
     }
     void initBaselineSetPropReturnAddr(void *addr) {
-        MOZ_ASSERT(baselineSetPropReturnAddr_ == nullptr);
+        JS_ASSERT(baselineSetPropReturnAddr_ == nullptr);
         baselineSetPropReturnAddr_ = addr;
     }
     void *baselineSetPropReturnAddr() {
-        MOZ_ASSERT(baselineSetPropReturnAddr_ != nullptr);
+        JS_ASSERT(baselineSetPropReturnAddr_ != nullptr);
         return baselineSetPropReturnAddr_;
     }
 

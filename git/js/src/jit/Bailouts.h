@@ -139,7 +139,7 @@ class IonBailoutIterator : public JitFrameIterator
         return JitFrameIterator::machineState();
     }
     size_t topFrameSize() const {
-        MOZ_ASSERT(topIonScript_);
+        JS_ASSERT(topIonScript_);
         return topFrameSize_;
     }
     IonScript *ionScript() const {

@@ -227,7 +227,6 @@ WebGLContextOptions::WebGLContextOptions()
 
 WebGLContext::WebGLContext()
     : gl(nullptr)
-    , mNeedsFakeNoAlpha(false)
 {
     SetIsDOMBinding();
 
@@ -927,12 +926,6 @@ WebGLContext::SetDimensions(int32_t sWidth, int32_t sHeight)
     MOZ_ASSERT(gl->Caps().antialias == mOptions.antialias || !gl->Caps().antialias);
     MOZ_ASSERT(gl->Caps().preserve == mOptions.preserveDrawingBuffer);
 
-    if (gl->WorkAroundDriverBugs() && gl->IsANGLE()) {
-        if (!mOptions.alpha) {
-            mNeedsFakeNoAlpha = true;
-        }
-    }
-
     AssertCachedBindings();
     AssertCachedState();
 
@@ -1347,12 +1340,7 @@ WebGLContext::ForceClearFramebufferWithDefaultValues(GLbitfield mask, const bool
         }
 
         gl->fColorMask(1, 1, 1, 1);
-
-        if (mNeedsFakeNoAlpha) {
-            gl->fClearColor(0.0f, 0.0f, 0.0f, 1.0f);
-        } else {
-            gl->fClearColor(0.0f, 0.0f, 0.0f, 0.0f);
-        }
+        gl->fClearColor(0.0f, 0.0f, 0.0f, 0.0f);
     }
 
     if (initializeDepthBuffer) {
@@ -1817,32 +1805,9 @@ bool WebGLContext::TexImageFromVideoElement(const TexImageTarget texImageTarget,
     return ok;
 }
 
-////////////////////////////////////////////////////////////////////////////////
-
-
-WebGLContext::ScopedMaskWorkaround::ScopedMaskWorkaround(WebGLContext& webgl)
-    : mWebGL(webgl)
-    , mNeedsChange(NeedsChange(webgl))
-{
-    if (mNeedsChange) {
-        mWebGL.gl->fColorMask(mWebGL.mColorWriteMask[0],
-                              mWebGL.mColorWriteMask[1],
-                              mWebGL.mColorWriteMask[2],
-                              false);
-    }
-}
-
-WebGLContext::ScopedMaskWorkaround::~ScopedMaskWorkaround()
-{
-    if (mNeedsChange) {
-        mWebGL.gl->fColorMask(mWebGL.mColorWriteMask[0],
-                              mWebGL.mColorWriteMask[1],
-                              mWebGL.mColorWriteMask[2],
-                              mWebGL.mColorWriteMask[3]);
-    }
-}
-////////////////////////////////////////////////////////////////////////////////
+//
 // XPCOM goop
+//
 
 NS_IMPL_CYCLE_COLLECTING_ADDREF(WebGLContext)
 NS_IMPL_CYCLE_COLLECTING_RELEASE(WebGLContext)

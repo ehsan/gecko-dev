@@ -9,7 +9,6 @@
 #include "nsDebug.h"
 #include "nsIDOMSVGLength.h"
 #include "nsMathUtils.h"
-#include "mozilla/FloatingPoint.h"
 
 class nsSVGElement;
 
@@ -140,7 +139,7 @@ private:
 
 #ifdef DEBUG
   bool IsValid() const {
-    return IsFinite(mValue) && IsValidUnitType(mUnit);
+    return NS_finite(mValue) && IsValidUnitType(mUnit);
   }
 #endif
 

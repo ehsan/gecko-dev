@@ -47,7 +47,7 @@ class MoveOperand
         code_(reg.code()),
         disp_(disp)
     {
-        MOZ_ASSERT(isMemoryOrEffectiveAddress());
+        JS_ASSERT(isMemoryOrEffectiveAddress());
 
         // With a zero offset, this is a plain reg-to-reg move.
         if (disp == 0 && kind_ == EFFECTIVE_ADDRESS)
@@ -74,19 +74,19 @@ class MoveOperand
         return isMemory() || isEffectiveAddress();
     }
     Register reg() const {
-        MOZ_ASSERT(isGeneralReg());
+        JS_ASSERT(isGeneralReg());
         return Register::FromCode(code_);
     }
     FloatRegister floatReg() const {
-        MOZ_ASSERT(isFloatReg());
+        JS_ASSERT(isFloatReg());
         return FloatRegister::FromCode(code_);
     }
     Register base() const {
-        MOZ_ASSERT(isMemoryOrEffectiveAddress());
+        JS_ASSERT(isMemoryOrEffectiveAddress());
         return Register::FromCode(code_);
     }
     int32_t disp() const {
-        MOZ_ASSERT(isMemoryOrEffectiveAddress());
+        JS_ASSERT(isMemoryOrEffectiveAddress());
         return disp_;
     }
 
@@ -96,10 +96,10 @@ class MoveOperand
         // only appear in controlled circumstances in the trampoline code
         // which ensures these cases never come up.
 
-        MOZ_ASSERT_IF(isMemoryOrEffectiveAddress() && other.isGeneralReg(),
-                      base() != other.reg());
-        MOZ_ASSERT_IF(other.isMemoryOrEffectiveAddress() && isGeneralReg(),
-                      other.base() != reg());
+        JS_ASSERT_IF(isMemoryOrEffectiveAddress() && other.isGeneralReg(),
+                     base() != other.reg());
+        JS_ASSERT_IF(other.isMemoryOrEffectiveAddress() && isGeneralReg(),
+                     other.base() != reg());
 
         if (kind_ != other.kind_)
             return false;
@@ -194,7 +194,7 @@ class MoveOp
         return type_;
     }
     Type endCycleType() const {
-        MOZ_ASSERT(isCycleBegin());
+        JS_ASSERT(isCycleBegin());
         return endCycleType_;
     }
 };
@@ -214,13 +214,13 @@ class MoveResolver
         { }
 
         void setCycleBegin(Type endCycleType, int cycleSlot) {
-            MOZ_ASSERT(!cycleBegin_);
+            JS_ASSERT(!cycleBegin_);
             cycleBegin_ = true;
             cycleBeginSlot_ = cycleSlot;
             endCycleType_ = endCycleType;
         }
         void setCycleEnd(int cycleSlot) {
-            MOZ_ASSERT(!cycleEnd_);
+            JS_ASSERT(!cycleEnd_);
             cycleEnd_ = true;
             cycleEndSlot_ = cycleSlot;
         }

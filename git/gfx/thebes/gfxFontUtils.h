@@ -553,10 +553,7 @@ struct PostTable {
     AutoSwap_PRUint32    maxMemType1;
 };
 
-// This structure is used for both 'hhea' and 'vhea' tables.
-// The field names here are those of the horizontal version; the
-// vertical table just exchanges vertical and horizontal coordinates.
-struct MetricsHeader {
+struct HheaTable {
     AutoSwap_PRUint32    version;
     AutoSwap_PRInt16     ascender;
     AutoSwap_PRInt16     descender;
@@ -573,7 +570,7 @@ struct MetricsHeader {
     AutoSwap_PRInt16     reserved3;
     AutoSwap_PRInt16     reserved4;
     AutoSwap_PRInt16     metricDataFormat;
-    AutoSwap_PRUint16    numOfLongMetrics;
+    AutoSwap_PRUint16    numOfLongHorMetrics;
 };
 
 struct MaxpTableHeader {

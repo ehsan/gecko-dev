@@ -97,7 +97,7 @@ class LDivOrModConstantI : public LInstructionHelper<1, 1, 1>
         return denominator_;
     }
     MBinaryArithInstruction *mir() const {
-        MOZ_ASSERT(mir_->isDiv() || mir_->isMod());
+        JS_ASSERT(mir_->isDiv() || mir_->isMod());
         return static_cast<MBinaryArithInstruction *>(mir_);
     }
     bool canBeNegativeDividend() const {
@@ -152,7 +152,7 @@ class LUDivOrMod : public LBinaryMath<1>
     }
 
     MBinaryArithInstruction *mir() const {
-        MOZ_ASSERT(mir_->isDiv() || mir_->isMod());
+        JS_ASSERT(mir_->isDiv() || mir_->isMod());
         return static_cast<MBinaryArithInstruction *>(mir_);
     }
 

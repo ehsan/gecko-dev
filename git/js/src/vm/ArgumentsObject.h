@@ -152,7 +152,7 @@ class ArgumentsObject : public JSObject
      */
     uint32_t initialLength() const {
         uint32_t argc = uint32_t(getFixedSlot(INITIAL_LENGTH_SLOT).toInt32()) >> PACKED_BITS_COUNT;
-        MOZ_ASSERT(argc <= ARGS_LENGTH_MAX);
+        JS_ASSERT(argc <= ARGS_LENGTH_MAX);
         return argc;
     }
 
@@ -187,7 +187,7 @@ class ArgumentsObject : public JSObject
      * ArgumentsData::slots.
      */
     bool isElementDeleted(uint32_t i) const {
-        MOZ_ASSERT(i < data()->numArgs);
+        JS_ASSERT(i < data()->numArgs);
         if (i >= initialLength())
             return false;
         return IsBitArrayElementSet(data()->deletedBits, initialLength(), i);
@@ -221,16 +221,16 @@ class ArgumentsObject : public JSObject
     inline void setElement(JSContext *cx, uint32_t i, const Value &v);
 
     const Value &arg(unsigned i) const {
-        MOZ_ASSERT(i < data()->numArgs);
+        JS_ASSERT(i < data()->numArgs);
         const Value &v = data()->args[i];
-        MOZ_ASSERT(!v.isMagic());
+        JS_ASSERT(!v.isMagic());
         return v;
     }
 
     void setArg(unsigned i, const Value &v) {
-        MOZ_ASSERT(i < data()->numArgs);
+        JS_ASSERT(i < data()->numArgs);
         HeapValue &lhs = data()->args[i];
-        MOZ_ASSERT(!lhs.isMagic());
+        JS_ASSERT(!lhs.isMagic());
         lhs = v;
     }
 

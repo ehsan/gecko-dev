@@ -63,7 +63,7 @@ CodeGeneratorMIPS::generateEpilogue()
 #endif
 
     masm.freeStack(frameSize());
-    MOZ_ASSERT(masm.framePushed() == 0);
+    JS_ASSERT(masm.framePushed() == 0);
     masm.ret();
     return true;
 }
