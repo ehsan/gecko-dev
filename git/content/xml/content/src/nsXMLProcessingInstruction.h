@@ -59,9 +59,6 @@ public:
   // nsIDOMNode
   NS_FORWARD_NSIDOMNODE(nsGenericDOMDataNode::)
 
-  // nsIDOMCharacterData
-  NS_FORWARD_NSIDOMCHARACTERDATA(nsGenericDOMDataNode::)
-
   // nsIDOMProcessingInstruction
   NS_DECL_NSIDOMPROCESSINGINSTRUCTION
 
