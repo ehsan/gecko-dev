@@ -163,9 +163,6 @@ include ../../modules/plugin/test/reftest/reftest.list
 include printing/reftest.list
 include pagination/reftest.list
 
-# scrolling
-include scrolling/reftest.list
-
 # selection
 include selection/reftest.list
 

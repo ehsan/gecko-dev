@@ -318,9 +318,7 @@ gfxASurface::CreateSimilarSurface(gfxContentType aContent,
         return nsnull;
     }
 
-    nsRefPtr<gfxASurface> result = Wrap(surface);
-    cairo_surface_destroy(surface);
-    return result.forget();
+    return Wrap(surface);
 }
 
 int

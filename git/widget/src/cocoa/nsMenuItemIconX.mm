@@ -117,7 +117,7 @@ nsMenuItemIconX::SetupIcon()
 
   // Still don't have one, then something is wrong, get out of here.
   if (!mNativeMenuItem) {
-    NS_ERROR("No native menu item");
+    NS_ERROR("No native menu item\n");
     return NS_ERROR_FAILURE;
   }
 

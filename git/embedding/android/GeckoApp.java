@@ -149,16 +149,6 @@ abstract public class GeckoApp
     }
 
     @Override
-    protected void onNewIntent(Intent intent) {
-        final String action = intent.getAction();
-        if (Intent.ACTION_VIEW.equals(action)) {
-            String uri = intent.getDataString();
-            GeckoAppShell.sendEventToGecko(new GeckoEvent(uri));
-            Log.i("GeckoApp","onNewIntent: "+uri);
-        }
-    }
-
-    @Override
     public void onPause()
     {
         GeckoAppShell.sendEventToGecko(new GeckoEvent(GeckoEvent.ACTIVITY_PAUSING));

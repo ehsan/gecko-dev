@@ -538,7 +538,7 @@ nsresult nsCARenderer::SetupRenderer(void *aCALayer, int aWidth, int aHeight) {
     GLenum fboStatus;
     fboStatus = ::glCheckFramebufferStatusEXT(GL_FRAMEBUFFER_EXT);
     if (fboStatus != GL_FRAMEBUFFER_COMPLETE_EXT) {
-      NS_ERROR("FBO not supported");
+      NS_ERROR("FBO not supported\n");
       if (oldContext)
         ::CGLSetCurrentContext(oldContext);
       Destroy();
@@ -563,7 +563,7 @@ nsresult nsCARenderer::SetupRenderer(void *aCALayer, int aWidth, int aHeight) {
 
   GLenum result = ::glGetError();
   if (result != GL_NO_ERROR) {
-    NS_ERROR("Unexpected OpenGL Error");
+    NS_ERROR("Unexpected OpenGL Error\n");
     Destroy();
     if (oldContext)
       ::CGLSetCurrentContext(oldContext);
@@ -633,7 +633,7 @@ nsresult nsCARenderer::Render(int aWidth, int aHeight,
 
   GLenum result = ::glGetError();
   if (result != GL_NO_ERROR) {
-    NS_ERROR("Unexpected OpenGL Error");
+    NS_ERROR("Unexpected OpenGL Error\n");
     Destroy();
     if (oldContext)
       ::CGLSetCurrentContext(oldContext);

@@ -71,7 +71,6 @@
 #include "nsContentErrors.h"
 #include "nsRuleProcessorData.h"
 #include "mozilla/dom/Element.h"
-#include "nsCSSFrameConstructor.h"
 
 using namespace mozilla::dom;
 
@@ -456,46 +455,52 @@ nsHTMLStyleSheet::Reset(nsIURI* aURL)
 }
 
 nsresult
-nsHTMLStyleSheet::ImplLinkColorSetter(nsRefPtr<HTMLColorRule>& aRule, nscolor aColor)
+nsHTMLStyleSheet::SetLinkColor(nscolor aColor)
 {
-  if (aRule && aRule->mColor == aColor) {
+  if (mLinkRule) {
+    if (mLinkRule->mColor == aColor)
       return NS_OK;
   }
 
-  aRule = new HTMLColorRule();
-  if (!aRule)
+  mLinkRule = new HTMLColorRule();
+  if (!mLinkRule)
     return NS_ERROR_OUT_OF_MEMORY;
 
-  aRule->mColor = aColor;
-  // Now make sure we restyle any links that might need it.  This
-  // shouldn't happen often, so just rebuilding everything is ok.
-  if (mDocument && mDocument->GetPrimaryShell()) {
-    Element* root = mDocument->GetRootElement();
-    if (root) {
-      mDocument->GetPrimaryShell()->FrameConstructor()->
-        PostRestyleEvent(root, eRestyle_Subtree, NS_STYLE_HINT_NONE);
-    }
-  }
+  mLinkRule->mColor = aColor;
   return NS_OK;
-}
-
-nsresult
-nsHTMLStyleSheet::SetLinkColor(nscolor aColor)
-{
-  return ImplLinkColorSetter(mLinkRule, aColor);
 }
 
 
 nsresult
 nsHTMLStyleSheet::SetActiveLinkColor(nscolor aColor)
 {
-  return ImplLinkColorSetter(mActiveRule, aColor);
+  if (mActiveRule) {
+    if (mActiveRule->mColor == aColor)
+      return NS_OK;
+  }
+
+  mActiveRule = new HTMLColorRule();
+  if (!mActiveRule)
+    return NS_ERROR_OUT_OF_MEMORY;
+
+  mActiveRule->mColor = aColor;
+  return NS_OK;
 }
 
 nsresult
 nsHTMLStyleSheet::SetVisitedLinkColor(nscolor aColor)
 {
-  return ImplLinkColorSetter(mVisitedRule, aColor);
+  if (mVisitedRule) {
+    if (mVisitedRule->mColor == aColor)
+      return NS_OK;
+  }
+
+  mVisitedRule = new HTMLColorRule();
+  if (!mVisitedRule)
+    return NS_ERROR_OUT_OF_MEMORY;
+
+  mVisitedRule->mColor = aColor;
+  return NS_OK;
 }
 
 already_AddRefed<nsMappedAttributes>

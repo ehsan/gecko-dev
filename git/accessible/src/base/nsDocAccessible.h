@@ -124,6 +124,8 @@ public:
 
   // nsDocAccessible
 
+  nsIDocument *GetDOMDocument() const { return mDocument; }
+
   /**
    * Return true if associated DOM document was loaded and isn't unloading.
    */

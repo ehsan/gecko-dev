@@ -165,7 +165,8 @@ NS_IMETHODIMP DeleteRangeTxn::DoTransaction(void)
   if (gNoisy) { printf("Do Delete Range\n"); }
 #endif
 
-  NS_ENSURE_TRUE(mStartParent && mEndParent && mCommonParent && mEditor, NS_ERROR_NOT_INITIALIZED);
+  if (!mStartParent || !mEndParent || !mCommonParent || !mEditor) 
+    return NS_ERROR_NOT_INITIALIZED;
 
   nsresult result; 
   // build the child transactions
@@ -195,7 +196,7 @@ NS_IMETHODIMP DeleteRangeTxn::DoTransaction(void)
     result = EditAggregateTxn::DoTransaction();
   }
 
-  NS_ENSURE_SUCCESS(result, result);
+  if (NS_FAILED(result)) return result;
   
   // only set selection to deletion point if editor gives permission
   PRBool bAdjustSelection;
@@ -204,8 +205,8 @@ NS_IMETHODIMP DeleteRangeTxn::DoTransaction(void)
   {
     nsCOMPtr<nsISelection> selection;
     result = mEditor->GetSelection(getter_AddRefs(selection));
-    NS_ENSURE_SUCCESS(result, result);
-    NS_ENSURE_TRUE(selection, NS_ERROR_NULL_POINTER);
+    if (NS_FAILED(result)) return result;
+    if (!selection) return NS_ERROR_NULL_POINTER;
     result = selection->Collapse(mStartParent, mStartOffset);
   }
   else
@@ -222,7 +223,8 @@ NS_IMETHODIMP DeleteRangeTxn::UndoTransaction(void)
   if (gNoisy) { printf("Undo Delete Range\n"); }
 #endif
 
-  NS_ENSURE_TRUE(mStartParent && mEndParent && mCommonParent && mEditor, NS_ERROR_NOT_INITIALIZED);
+  if (!mStartParent || !mEndParent || !mCommonParent || !mEditor) 
+    return NS_ERROR_NOT_INITIALIZED;
 
   return EditAggregateTxn::UndoTransaction();
 }
@@ -233,7 +235,8 @@ NS_IMETHODIMP DeleteRangeTxn::RedoTransaction(void)
   if (gNoisy) { printf("Redo Delete Range\n"); }
 #endif
 
-  NS_ENSURE_TRUE(mStartParent && mEndParent && mCommonParent && mEditor, NS_ERROR_NOT_INITIALIZED);
+  if (!mStartParent || !mEndParent || !mCommonParent || !mEditor) 
+    return NS_ERROR_NOT_INITIALIZED;
 
   return EditAggregateTxn::RedoTransaction();
 }
@@ -255,7 +258,8 @@ DeleteRangeTxn::CreateTxnsToDeleteBetween(nsIDOMNode *aStartParent,
   if (textNode)
   { // if the node is a text node, then delete text content
     nsRefPtr<DeleteTextTxn> txn = new DeleteTextTxn();
-    NS_ENSURE_TRUE(txn, NS_ERROR_OUT_OF_MEMORY);
+    if (!txn)
+      return NS_ERROR_OUT_OF_MEMORY;
 
     PRInt32 numToDel;
     if (aStartOffset==aEndOffset)
@@ -270,8 +274,8 @@ DeleteRangeTxn::CreateTxnsToDeleteBetween(nsIDOMNode *aStartParent,
   {
     nsCOMPtr<nsIDOMNodeList> children;
     result = aStartParent->GetChildNodes(getter_AddRefs(children));
-    NS_ENSURE_SUCCESS(result, result);
-    NS_ENSURE_TRUE(children, NS_ERROR_NULL_POINTER);
+    if (NS_FAILED(result)) return result;
+    if (!children) return NS_ERROR_NULL_POINTER;
 
 #ifdef DEBUG
     PRUint32 childCount;
@@ -283,11 +287,12 @@ DeleteRangeTxn::CreateTxnsToDeleteBetween(nsIDOMNode *aStartParent,
     {
       nsCOMPtr<nsIDOMNode> child;
       result = children->Item(i, getter_AddRefs(child));
-      NS_ENSURE_SUCCESS(result, result);
-      NS_ENSURE_TRUE(child, NS_ERROR_NULL_POINTER);
+      if (NS_FAILED(result)) return result;
+      if (!child) return NS_ERROR_NULL_POINTER;
 
       nsRefPtr<DeleteElementTxn> txn = new DeleteElementTxn();
-      NS_ENSURE_TRUE(txn, NS_ERROR_OUT_OF_MEMORY);
+      if (!txn)
+        return NS_ERROR_OUT_OF_MEMORY;
 
       result = txn->Init(mEditor, child, mRangeUpdater);
       if (NS_SUCCEEDED(result))
@@ -322,7 +327,8 @@ NS_IMETHODIMP DeleteRangeTxn::CreateTxnsToDeleteContent(nsIDOMNode *aParent,
     if (numToDelete)
     {
       nsRefPtr<DeleteTextTxn> txn = new DeleteTextTxn();
-      NS_ENSURE_TRUE(txn, NS_ERROR_OUT_OF_MEMORY);
+      if (!txn)
+        return NS_ERROR_OUT_OF_MEMORY;
 
       result = txn->Init(mEditor, textNode, start, numToDelete, mRangeUpdater);
       if (NS_SUCCEEDED(result))
@@ -336,18 +342,20 @@ NS_IMETHODIMP DeleteRangeTxn::CreateTxnsToDeleteContent(nsIDOMNode *aParent,
 NS_IMETHODIMP DeleteRangeTxn::CreateTxnsToDeleteNodesBetween()
 {
   nsCOMPtr<nsIContentIterator> iter = do_CreateInstance("@mozilla.org/content/subtree-content-iterator;1");
-  NS_ENSURE_TRUE(iter, NS_ERROR_NULL_POINTER);
+  if (!iter) return NS_ERROR_NULL_POINTER;
 
   nsresult result = iter->Init(mRange);
-  NS_ENSURE_SUCCESS(result, result);
+  if (NS_FAILED(result)) return result;
 
   while (!iter->IsDone() && NS_SUCCEEDED(result))
   {
     nsCOMPtr<nsIDOMNode> node = do_QueryInterface(iter->GetCurrentNode());
-    NS_ENSURE_TRUE(node, NS_ERROR_NULL_POINTER);
+    if (!node)
+      return NS_ERROR_NULL_POINTER;
 
     nsRefPtr<DeleteElementTxn> txn = new DeleteElementTxn();
-    NS_ENSURE_TRUE(txn, NS_ERROR_OUT_OF_MEMORY);
+    if (!txn)
+      return NS_ERROR_OUT_OF_MEMORY;
 
     result = txn->Init(mEditor, node, mRangeUpdater);
     if (NS_SUCCEEDED(result))

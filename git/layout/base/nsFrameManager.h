@@ -57,12 +57,6 @@
 #include "nsChangeHint.h"
 #include "nsFrameManagerBase.h"
 
-namespace mozilla {
-namespace css {
-class RestyleTracker;
-} // namespace css
-} // namespace mozilla
-
 /**
  * Frame manager interface. The frame manager serves two purposes:
  * <li>provides a service for mapping from content to frame and from
@@ -76,8 +70,6 @@ class RestyleTracker;
 
 class nsFrameManager : public nsFrameManagerBase
 {
-  typedef mozilla::css::RestyleTracker RestyleTracker;
-
 public:
   nsFrameManager() NS_HIDDEN;
   ~nsFrameManager() NS_HIDDEN;
@@ -159,9 +151,7 @@ public:
   NS_HIDDEN_(void)
     ComputeStyleChangeFor(nsIFrame* aFrame,
                           nsStyleChangeList* aChangeList,
-                          nsChangeHint aMinChange,
-                          RestyleTracker& aRestyleTracker,
-                          PRBool aRestyleDescendants);
+                          nsChangeHint aMinChange);
 
   /*
    * Capture/restore frame state for the frame subtree rooted at aFrame.
@@ -202,20 +192,13 @@ public:
   }
 
 private:
-  // Use eRestyle_Self for the aRestyleHint argument to mean
-  // "reresolve our style context but not kids", use eRestyle_Subtree
-  // to mean "reresolve our style context and kids", and use
-  // nsRestyleHint(0) to mean recompute a new style context for our
-  // current parent and existing rulenode, and the same for kids.
   NS_HIDDEN_(nsChangeHint)
     ReResolveStyleContext(nsPresContext    *aPresContext,
                           nsIFrame          *aFrame,
                           nsIContent        *aParentContent,
                           nsStyleChangeList *aChangeList, 
                           nsChangeHint       aMinChange,
-                          nsRestyleHint      aRestyleHint,
-                          PRBool             aFireAccessibilityEvents,
-                          RestyleTracker&    aRestyleTracker);
+                          PRBool             aFireAccessibilityEvents);
 };
 
 #endif
