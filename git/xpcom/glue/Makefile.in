@@ -66,11 +66,9 @@ CPPSRCS		= \
 		GenericModule.cpp \
 		$(NULL)
 
-# TODO nsAutoLock.h should die soon
 SDK_HEADERS = \
 		nsArrayEnumerator.h \
 		nsArrayUtils.h \
-		nsAutoLock.h \
 		nsBaseHashtable.h \
 		nsCOMArray.h \
 		nsCOMPtr.h \
@@ -134,6 +132,7 @@ EXPORTS_mozilla = \
   Monitor.h \
   Mutex.h \
   SSE.h \
+  arm.h \
   unused.h \
   $(NULL)
 

@@ -672,9 +672,7 @@ nsPluginStreamListenerPeer::OnStartRequest(nsIRequest *request,
           mPluginInstance->Start();
           mOwner->CreateWidget();
           // If we've got a native window, the let the plugin know about it.
-          nsCOMPtr<nsIPluginInstanceOwner_MOZILLA_2_0_BRANCH> owner = do_QueryInterface(mOwner);
-          if (owner)
-            owner->SetWindow();
+          mOwner->SetWindow();
         }
       }
     }
@@ -876,9 +874,7 @@ nsresult nsPluginStreamListenerPeer::ServeStreamAsFile(nsIRequest *request,
       window->window = widget->GetNativeData(NS_NATIVE_PLUGIN_PORT);
     }
 #endif
-    nsCOMPtr<nsIPluginInstanceOwner_MOZILLA_2_0_BRANCH> owner = do_QueryInterface(mOwner);
-    if (owner)
-      owner->SetWindow();
+    owner->SetWindow();
   }
   
   mSeekable = PR_FALSE;
@@ -969,7 +965,7 @@ NS_IMETHODIMP nsPluginStreamListenerPeer::OnDataAvailable(nsIRequest *request,
       brr->GetStartRange(&absoluteOffset64);
       
       // XXX handle 64-bit for real
-      PRInt32 absoluteOffset = (PRInt32)nsInt64(absoluteOffset64);
+      PRInt32 absoluteOffset = (PRInt32)PRInt64(absoluteOffset64);
       
       // we need to track how much data we have forwarded to the
       // plugin.
@@ -1049,7 +1045,7 @@ NS_IMETHODIMP nsPluginStreamListenerPeer::OnStopRequest(nsIRequest *request,
     PRInt64 absoluteOffset64 = LL_ZERO;
     brr->GetStartRange(&absoluteOffset64);
     // XXX support 64-bit offsets
-    PRInt32 absoluteOffset = (PRInt32)nsInt64(absoluteOffset64);
+    PRInt32 absoluteOffset = (PRInt32)PRInt64(absoluteOffset64);
     
     nsPRUintKey key(absoluteOffset);
     

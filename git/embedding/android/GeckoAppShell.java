@@ -59,6 +59,8 @@ import android.widget.*;
 import android.hardware.*;
 import android.location.*;
 import android.webkit.MimeTypeMap;
+import android.media.MediaScannerConnection;
+import android.media.MediaScannerConnection.MediaScannerConnectionClient;
 
 import android.util.*;
 import android.net.Uri;
@@ -117,6 +119,36 @@ public class GeckoAppShell
             } catch (InterruptedException ie) {}
             Looper.loop();
         }
+    }
+
+    private static class GeckoMediaScannerClient implements MediaScannerConnectionClient {
+        private String mFile = "";
+        private String mMimeType = "";
+        private MediaScannerConnection mScanner = null;
+
+        public GeckoMediaScannerClient(Context aContext, String aFile, String aMimeType) {
+            mFile = aFile;
+            mMimeType = aMimeType;
+            mScanner = new MediaScannerConnection(aContext, this);
+            if (mScanner != null)
+                mScanner.connect();
+        }
+
+        public void onMediaScannerConnected() {
+            mScanner.scanFile(mFile, mMimeType);
+        }
+
+        public void onScanCompleted(String path, Uri uri) {
+            if(path.equals(mFile)) {
+                mScanner.disconnect();
+                mScanner = null;
+            }
+        }
+    }
+
+    // Get a Handler for the main java thread
+    public static Handler getMainHandler() {
+        return GeckoApp.mAppContext.mMainHandler;
     }
 
     private static Handler sHandler = null;
@@ -490,7 +522,8 @@ public class GeckoAppShell
     }
 
     public static void notifyIMEEnabled(int state, String typeHint,
-                                        String actionHint) {
+                                        String actionHint, boolean landscapeFS)
+    {
         if (GeckoApp.surfaceView == null)
             return;
 
@@ -499,6 +532,7 @@ public class GeckoAppShell
         GeckoApp.surfaceView.mIMEState = state;
         GeckoApp.surfaceView.mIMETypeHint = typeHint;
         GeckoApp.surfaceView.mIMEActionHint = actionHint;
+        GeckoApp.surfaceView.mIMELandscapeFS = landscapeFS;
         IMEStateUpdater.enableIME();
     }
 
@@ -558,24 +592,32 @@ public class GeckoAppShell
         }
     }
 
-    public static void enableLocation(boolean enable) {
-        LocationManager lm = (LocationManager)
-            GeckoApp.surfaceView.getContext().getSystemService(Context.LOCATION_SERVICE);
+    public static void enableLocation(final boolean enable) {
+     
+        getMainHandler().post(new Runnable() { 
+                public void run() {
+                    GeckoSurfaceView view = GeckoApp.surfaceView;
+                    LocationManager lm = (LocationManager)
+                        view.getContext().getSystemService(Context.LOCATION_SERVICE);
 
-        if (enable) {
-            Criteria crit = new Criteria();
-            crit.setAccuracy(Criteria.ACCURACY_FINE);
-            String provider = lm.getBestProvider(crit, true);
-            if (provider == null)
-                return;
+                    if (enable) {
+                        Criteria crit = new Criteria();
+                        crit.setAccuracy(Criteria.ACCURACY_FINE);
+                        String provider = lm.getBestProvider(crit, true);
+                        if (provider == null)
+                            return;
 
-            Location loc = lm.getLastKnownLocation(provider);
-            if (loc != null)
-                sendEventToGecko(new GeckoEvent(loc, null));
-            lm.requestLocationUpdates(provider, 100, (float).5, GeckoApp.surfaceView, Looper.getMainLooper());
-        } else {
-            lm.removeUpdates(GeckoApp.surfaceView);
-        }
+                        Looper l = Looper.getMainLooper();
+                        Location loc = lm.getLastKnownLocation(provider);
+                        if (loc != null) {
+                            view.onLocationChanged(loc);
+                        }
+                        lm.requestLocationUpdates(provider, 100, (float).5, view, l);
+                    } else {
+                        lm.removeUpdates(view);
+                    }
+                }
+            });
     }
 
     public static void moveTaskToBack() {
@@ -1051,5 +1093,10 @@ public class GeckoAppShell
                 Thread.currentThread().sleep(100);
             } catch (InterruptedException ie) {}
         }
+    }
+
+    public static void scanMedia(String aFile, String aMimeType) {
+        Context context = GeckoApp.surfaceView.getContext();
+        GeckoMediaScannerClient client = new GeckoMediaScannerClient(context, aFile, aMimeType);
     }
 }

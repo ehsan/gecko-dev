@@ -54,6 +54,7 @@
 #include "nsContentUtils.h"
 
 using mozilla::TimeStamp;
+using mozilla::TimeDuration;
 
 #define DEFAULT_FRAME_RATE 60
 #define DEFAULT_THROTTLED_FRAME_RATE 1
@@ -95,7 +96,7 @@ nsRefreshDriver::GetRefreshTimerType() const
     return nsITimer::TYPE_ONE_SHOT;
   }
   if (HaveAnimationFrameListeners() || sPrecisePref) {
-    return nsITimer::TYPE_REPEATING_PRECISE;
+    return nsITimer::TYPE_REPEATING_PRECISE_CAN_SKIP;
   }
   return nsITimer::TYPE_REPEATING_SLACK;
 }
@@ -104,7 +105,9 @@ nsRefreshDriver::nsRefreshDriver(nsPresContext *aPresContext)
   : mPresContext(aPresContext),
     mFrozen(false),
     mThrottled(false),
-    mTimerIsPrecise(false)
+    mTestControllingRefreshes(false),
+    mTimerIsPrecise(false),
+    mLastTimerInterval(0)
 {
 }
 
@@ -113,6 +116,32 @@ nsRefreshDriver::~nsRefreshDriver()
   NS_ABORT_IF_FALSE(ObserverCount() == 0,
                     "observers should have unregistered");
   NS_ABORT_IF_FALSE(!mTimer, "timer should be gone");
+}
+
+// Method for testing.  See nsIDOMWindowUtils.advanceTimeAndRefresh
+// for description.
+void
+nsRefreshDriver::AdvanceTimeAndRefresh(PRInt64 aMilliseconds)
+{
+  mTestControllingRefreshes = true;
+  mMostRecentRefreshEpochTime += aMilliseconds * 1000;
+  mMostRecentRefresh += TimeDuration::FromMilliseconds(aMilliseconds);
+  nsCxPusher pusher;
+  if (pusher.PushNull()) {
+    Notify(nsnull);
+    pusher.Pop();
+  }
+}
+
+void
+nsRefreshDriver::RestoreNormalRefresh()
+{
+  mTestControllingRefreshes = false;
+  nsCxPusher pusher;
+  if (pusher.PushNull()) {
+    Notify(nsnull); // will call UpdateMostRecentRefresh()
+    pusher.Pop();
+  }
 }
 
 TimeStamp
@@ -168,7 +197,7 @@ nsRefreshDriver::EnsureTimerStarted()
   }
 
   PRInt32 timerType = GetRefreshTimerType();
-  mTimerIsPrecise = (timerType == nsITimer::TYPE_REPEATING_PRECISE);
+  mTimerIsPrecise = (timerType == nsITimer::TYPE_REPEATING_PRECISE_CAN_SKIP);
 
   nsresult rv = mTimer->InitWithCallback(this,
                                          GetRefreshTimerInterval(),
@@ -210,6 +239,10 @@ nsRefreshDriver::ObserverCount() const
 void
 nsRefreshDriver::UpdateMostRecentRefresh()
 {
+  if (mTestControllingRefreshes) {
+    return;
+  }
+
   // Call JS_Now first, since that can have nonzero latency in some rare cases.
   mMostRecentRefreshEpochTime = JS_Now();
   mMostRecentRefresh = TimeStamp::Now();
@@ -242,10 +275,17 @@ NS_IMPL_ISUPPORTS1(nsRefreshDriver, nsITimerCallback)
  */
 
 NS_IMETHODIMP
-nsRefreshDriver::Notify(nsITimer * /* unused */)
+nsRefreshDriver::Notify(nsITimer *aTimer)
 {
   NS_PRECONDITION(!mFrozen, "Why are we notified while frozen?");
   NS_PRECONDITION(mPresContext, "Why are we notified after disconnection?");
+  NS_PRECONDITION(!nsContentUtils::GetCurrentJSContext(),
+                  "Shouldn't have a JSContext on the stack");
+
+  if (mTestControllingRefreshes && aTimer) {
+    // Ignore real refreshes from our timer (but honor the others).
+    return NS_OK;
+  }
 
   UpdateMostRecentRefresh();
 
@@ -353,7 +393,7 @@ nsRefreshDriver::Notify(nsITimer * /* unused */)
 
   if (mThrottled ||
       (mTimerIsPrecise !=
-       (GetRefreshTimerType() == nsITimer::TYPE_REPEATING_PRECISE))) {
+       (GetRefreshTimerType() == nsITimer::TYPE_REPEATING_PRECISE_CAN_SKIP))) {
     // Stop the timer now and restart it here.  Stopping is in the mThrottled
     // case ok because either it's already one-shot, and it just fired, and all
     // we need to do is null it out, or it's repeating and we need to reset it

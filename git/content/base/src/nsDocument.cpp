@@ -1629,6 +1629,12 @@ nsDocument::~nsDocument()
     mStyleSheetSetList->Disconnect();
   }
 
+#ifdef MOZ_SMIL
+  if (mAnimationController) {
+    mAnimationController->Disconnect();
+  }
+#endif // MOZ_SMIL
+
   mParentDocument = nsnull;
 
   // Kill the subdocument map, doing this will release its strong
@@ -1759,14 +1765,9 @@ NS_INTERFACE_TABLE_HEAD(nsDocument)
 NS_INTERFACE_MAP_END
 
 
-NS_IMPL_CYCLE_COLLECTING_ADDREF_AMBIGUOUS(nsDocument, nsIDocument)
-NS_IMPL_CYCLE_COLLECTING_RELEASE_AMBIGUOUS_WITH_DESTROY(nsDocument, 
-                                                        nsIDocument,
-                                                        nsNodeUtils::LastRelease(this))
-
-NS_IMPL_CYCLE_COLLECTION_ROOT_BEGIN(nsDocument)
-  NS_IMPL_CYCLE_COLLECTION_UNLINK_PRESERVED_WRAPPER
-NS_IMPL_CYCLE_COLLECTION_ROOT_END
+NS_IMPL_CYCLE_COLLECTING_ADDREF(nsDocument)
+NS_IMPL_CYCLE_COLLECTING_RELEASE_WITH_DESTROY(nsDocument, 
+                                              nsNodeUtils::LastRelease(this))
 
 static PLDHashOperator
 SubDocTraverser(PLDHashTable *table, PLDHashEntryHdr *hdr, PRUint32 number,
@@ -1967,6 +1968,7 @@ NS_IMPL_CYCLE_COLLECTION_UNLINK_BEGIN(nsDocument)
   NS_IMPL_CYCLE_COLLECTION_UNLINK_NSCOMPTR(mOriginalDocument)
   NS_IMPL_CYCLE_COLLECTION_UNLINK_NSCOMPTR(mCachedEncoder)
 
+  NS_IMPL_CYCLE_COLLECTION_UNLINK_PRESERVED_WRAPPER
   NS_IMPL_CYCLE_COLLECTION_UNLINK_USERDATA
 
   tmp->mParentDocument = nsnull;
@@ -4266,11 +4268,10 @@ nsDocument::EndLoad()
 }
 
 void
-nsDocument::ContentStatesChanged(nsIContent* aContent1, nsIContent* aContent2,
-                                 nsEventStates aStateMask)
+nsDocument::ContentStateChanged(nsIContent* aContent, nsEventStates aStateMask)
 {
-  NS_DOCUMENT_NOTIFY_OBSERVERS(ContentStatesChanged,
-                               (this, aContent1, aContent2, aStateMask));
+  NS_DOCUMENT_NOTIFY_OBSERVERS(ContentStateChanged,
+                               (this, aContent, aStateMask));
 }
 
 void
@@ -5568,7 +5569,7 @@ nsDocument::GetAnimationController()
   if (!NS_SMILEnabled() || mLoadedAsData || mLoadedAsInteractiveData)
     return nsnull;
 
-  mAnimationController = NS_NewSMILAnimationController(this);
+  mAnimationController = new nsSMILAnimationController(this);
   
   // If there's a presContext then check the animation mode and pause if
   // necessary.
@@ -5774,12 +5775,6 @@ nsDocument::GetPrefix(nsAString& aPrefix)
   SetDOMStringToNull(aPrefix);
 
   return NS_OK;
-}
-
-NS_IMETHODIMP
-nsDocument::SetPrefix(const nsAString& aPrefix)
-{
-  return NS_ERROR_DOM_NO_MODIFICATION_ALLOWED_ERR;
 }
 
 NS_IMETHODIMP
@@ -6761,10 +6756,8 @@ nsDocument::WalkRadioGroup(const nsAString& aName,
     return NS_OK;
   }
 
-  PRBool stop = PR_FALSE;
   for (int i = 0; i < radioGroup->mRadioButtons.Count(); i++) {
-    aVisitor->Visit(radioGroup->mRadioButtons[i], &stop);
-    if (stop) {
+    if (!aVisitor->Visit(radioGroup->mRadioButtons[i])) {
       return NS_OK;
     }
   }
@@ -8351,12 +8344,10 @@ PLDHashOperator UnlockEnumerator(imgIRequest* aKey,
 nsresult
 nsDocument::SetImageLockingState(PRBool aLocked)
 {
-#ifdef MOZ_IPC
   if (XRE_GetProcessType() == GeckoProcessType_Content &&
       !nsContentUtils::GetBoolPref("content.image.allow_locking", PR_TRUE)) {
     return NS_OK;
   }
-#endif // MOZ_IPC
 
   // If there's no change, there's nothing to do.
   if (mLockingImages == aLocked)

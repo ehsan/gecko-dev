@@ -103,7 +103,6 @@
 #include "nsIHttpChannel.h"
 #include "nsIFile.h"
 #include "nsIEventListenerManager.h"
-#include "nsISelectElement.h"
 #include "nsFrameSelection.h"
 #include "nsISelectionPrivate.h"//for toStringwithformat code
 
@@ -2613,7 +2612,7 @@ FindNamedItems(nsIAtom* aName, nsIContent *aContent,
   NS_ASSERTION(!aEntry->IsInvalidName(),
                "Entry that should never have a list passed to FindNamedItems()!");
 
-  if (aContent->HasFlag(NODE_HAS_NAME)) {
+  if (aContent->HasName()) {
     NS_ASSERTION(nsGenericHTMLElement::FromContent(aContent),
                  "Only HTML Elements should have a name");
   
@@ -3145,9 +3144,9 @@ NotifyEditableStateChange(nsINode *aNode, nsIDocument *aDocument,
   for (i = 0; i < n; ++i) {
     nsIContent *child = aNode->GetChildAt(i);
     if (child->HasFlag(NODE_IS_EDITABLE) != aEditable) {
-      aDocument->ContentStatesChanged(child, nsnull,
-                                      NS_EVENT_STATE_MOZ_READONLY |
-                                      NS_EVENT_STATE_MOZ_READWRITE);
+      aDocument->ContentStateChanged(child,
+                                     NS_EVENT_STATE_MOZ_READONLY |
+                                     NS_EVENT_STATE_MOZ_READWRITE);
     }
     NotifyEditableStateChange(child, aDocument, aEditable);
   }

@@ -560,6 +560,9 @@ MakeTextRun(const PRUnichar *aText, PRUint32 aLength,
         gTextRuns->RemoveFromCache(textRun);
         return nsnull;
     }
+#ifdef NOISY_BIDI
+    printf("Created textrun\n");
+#endif
     return textRun.forget();
 }
 
@@ -584,6 +587,9 @@ MakeTextRun(const PRUint8 *aText, PRUint32 aLength,
         gTextRuns->RemoveFromCache(textRun);
         return nsnull;
     }
+#ifdef NOISY_BIDI
+    printf("Created textrun\n");
+#endif
     return textRun.forget();
 }
 
@@ -3035,7 +3041,7 @@ void nsBlinkTimer::Start()
   nsresult rv;
   mTimer = do_CreateInstance("@mozilla.org/timer;1", &rv);
   if (NS_OK == rv) {
-    mTimer->InitWithCallback(this, 250, nsITimer::TYPE_REPEATING_PRECISE);
+    mTimer->InitWithCallback(this, 250, nsITimer::TYPE_REPEATING_PRECISE_CAN_SKIP);
   }
 }
 
@@ -6066,8 +6072,25 @@ nsTextFrame::AddInlineMinWidthForFlow(nsIRenderingContext *aRenderingContext,
   // OK since we can't really handle tabs for intrinsic sizing anyway.
   const nsStyleText* textStyle = GetStyleText();
   const nsTextFragment* frag = mContent->GetText();
+
+  // If we're hyphenating, the PropertyProvider needs the actual length;
+  // otherwise we can just pass PR_INT32_MAX to mean "all the text"
+  PRInt32 len = PR_INT32_MAX;
+  PRBool hyphenating = frag->GetLength() > 0 &&
+    (mTextRun->GetFlags() & gfxTextRunFactory::TEXT_ENABLE_HYPHEN_BREAKS) != 0;
+  if (hyphenating) {
+    len = GetContentOffset() + GetInFlowContentLength() - iter.GetOriginalOffset();
+#ifdef DEBUG
+    // check that the length we're going to pass to PropertyProvider matches
+    // the expected range of text in the run
+    gfxSkipCharsIterator tmpIter(iter);
+    tmpIter.AdvanceOriginal(len);
+    NS_ASSERTION(tmpIter.GetSkippedOffset() == flowEndInTextRun,
+                 "nsTextFragment length mismatch?");
+#endif
+  }
   PropertyProvider provider(mTextRun, textStyle, frag, this,
-                            iter, PR_INT32_MAX, nsnull, 0);
+                            iter, len, nsnull, 0);
 
   PRBool collapseWhitespace = !textStyle->WhiteSpaceIsSignificant();
   PRBool preformatNewlines = textStyle->NewlineIsSignificant();
@@ -6076,7 +6099,16 @@ nsTextFrame::AddInlineMinWidthForFlow(nsIRenderingContext *aRenderingContext,
   PRUint32 start =
     FindStartAfterSkippingWhitespace(&provider, aData, textStyle, &iter, flowEndInTextRun);
 
-  // XXX Should we consider hyphenation here?
+  nsAutoTArray<PRPackedBool,BIG_TEXT_NODE_SIZE> hyphBuffer;
+  PRPackedBool *hyphBreakBefore = nsnull;
+  if (hyphenating) {
+    hyphBreakBefore = hyphBuffer.AppendElements(flowEndInTextRun - start);
+    if (hyphBreakBefore) {
+      provider.GetHyphenationBreaks(start, flowEndInTextRun - start,
+                                    hyphBreakBefore);
+    }
+  }
+
   for (PRUint32 i = start, wordStart = start; i <= flowEndInTextRun; ++i) {
     PRBool preformattedNewline = PR_FALSE;
     PRBool preformattedTab = PR_FALSE;
@@ -6086,8 +6118,11 @@ nsTextFrame::AddInlineMinWidthForFlow(nsIRenderingContext *aRenderingContext,
       // starts?
       preformattedNewline = preformatNewlines && mTextRun->GetChar(i) == '\n';
       preformattedTab = preformatTabs && mTextRun->GetChar(i) == '\t';
-      if (!mTextRun->CanBreakLineBefore(i) && !preformattedNewline &&
-          !preformattedTab) {
+      if (!mTextRun->CanBreakLineBefore(i) &&
+          !preformattedNewline &&
+          !preformattedTab &&
+          (!hyphBreakBefore || !hyphBreakBefore[i - start]))
+      {
         // we can't break here (and it's not the end of the flow)
         continue;
       }
@@ -6129,6 +6164,8 @@ nsTextFrame::AddInlineMinWidthForFlow(nsIRenderingContext *aRenderingContext,
          (mTextRun->GetFlags() & nsTextFrameUtils::TEXT_HAS_TRAILING_BREAK))) {
       if (preformattedNewline) {
         aData->ForceBreak(aRenderingContext);
+      } else if (hyphBreakBefore && hyphBreakBefore[i - start]) {
+        aData->OptionallyBreak(aRenderingContext, provider.GetHyphenWidth());
       } else {
         aData->OptionallyBreak(aRenderingContext);
       }
@@ -6574,6 +6611,10 @@ nsTextFrame::ReflowText(nsLineLayout& aLineLayout, nscoord aAvailableWidth,
       nsBlinkTimer::RemoveBlinkFrame(this);
     }
   }
+
+#ifdef NOISY_BIDI
+    printf("Reflowed textframe\n");
+#endif
 
   const nsStyleText* textStyle = GetStyleText();
 

@@ -30,9 +30,9 @@ load ligature-with-space-1.html
 == soft-hyphens-1b.html soft-hyphens-1-ref.html
 == soft-hyphens-1c.html soft-hyphens-1-ref.html
 # Tests for soft hyphens in table cells, bug 418975
-fails != soft-hyphen-in-table-1.html soft-hyphen-in-table-1-notref.html # bug 418975
-fails == soft-hyphen-in-table-1.html soft-hyphen-in-table-1-ref.html # bug 418975
-fails == soft-hyphen-in-table-2.html soft-hyphen-in-table-2-ref.html # bug 418975
+!= soft-hyphen-in-table-1.html soft-hyphen-in-table-1-notref.html
+== soft-hyphen-in-table-1.html soft-hyphen-in-table-1-ref.html
+== soft-hyphen-in-table-2.html soft-hyphen-in-table-2-ref.html
 # Cairo's FreeType and GDI backends snap glyphs to pixels, while Mac (usually)
 # and D2D have subpixel positioning.  The tests for pixel-snapping assume that
 # 1 CSS pixel == 1 device pixel
@@ -84,3 +84,5 @@ random-if(winWidget) HTTP(..) != kerning-01.html kerning-01-notref.html
 random-if(!cocoaWidget) == 577380.html 577380-ref.html
 # Test for OpenType Arabic shaping support
 HTTP(..) == arabic-shaping-1.html arabic-shaping-1-ref.html
+# check ligature in Arial Bold on Windows, for bug 644184; may fail on other platforms depending on fonts
+random-if(!winWidget) == arial-bold-lam-alef-1.html arial-bold-lam-alef-1-ref.html

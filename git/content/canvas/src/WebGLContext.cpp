@@ -259,7 +259,7 @@ WebGLContext::Invalidate()
 #endif
 
     mInvalidated = PR_TRUE;
-    HTMLCanvasElement()->InvalidateFrame();
+    HTMLCanvasElement()->InvalidateCanvasContent(nsnull);
 }
 
 /* readonly attribute nsIDOMHTMLCanvasElement canvas; */
@@ -352,9 +352,11 @@ WebGLContext::SetContextOptions(nsIPropertyBag *aOptions)
 NS_IMETHODIMP
 WebGLContext::SetDimensions(PRInt32 width, PRInt32 height)
 {
-    ScopedGfxFeatureReporter reporter("WebGL");
+    if (mCanvasElement) {
+        HTMLCanvasElement()->InvalidateCanvas();
+    }
 
-    if (mWidth == width && mHeight == height)
+    if (gl && mWidth == width && mHeight == height)
         return NS_OK;
 
     // If we already have a gl context, then we just need to resize
@@ -368,6 +370,8 @@ WebGLContext::SetDimensions(PRInt32 width, PRInt32 height)
         mResetLayer = PR_TRUE;
         return NS_OK;
     }
+
+    ScopedGfxFeatureReporter reporter("WebGL");
 
     // We're going to create an entirely new context.  If our
     // generation is not 0 right now (that is, if this isn't the first
@@ -761,8 +765,8 @@ WebGLContext::MozGetUnderlyingParamString(PRUint32 pname, nsAString& retval)
 // XPCOM goop
 //
 
-NS_IMPL_CYCLE_COLLECTING_ADDREF_AMBIGUOUS(WebGLContext, nsIDOMWebGLRenderingContext)
-NS_IMPL_CYCLE_COLLECTING_RELEASE_AMBIGUOUS(WebGLContext, nsIDOMWebGLRenderingContext)
+NS_IMPL_CYCLE_COLLECTING_ADDREF(WebGLContext)
+NS_IMPL_CYCLE_COLLECTING_RELEASE(WebGLContext)
 
 NS_IMPL_CYCLE_COLLECTION_CLASS(WebGLContext)
 NS_IMPL_CYCLE_COLLECTION_UNLINK_BEGIN(WebGLContext)

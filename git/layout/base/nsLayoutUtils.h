@@ -49,6 +49,7 @@ class nsIScrollableFrame;
 class nsIDOMEvent;
 class nsRegion;
 class nsDisplayListBuilder;
+class nsDisplayItem;
 class nsIFontMetrics;
 class nsClientRectList;
 
@@ -328,6 +329,13 @@ public:
   static nsIFrame* GetActiveScrolledRootFor(nsIFrame* aFrame,
                                             nsIFrame* aStopAtAncestor);
 
+  static nsIFrame* GetActiveScrolledRootFor(nsDisplayItem* aItem,
+                                            nsDisplayListBuilder* aBuilder,
+                                            PRBool* aShouldFixToViewport = nsnull);
+
+  static PRBool ScrolledByViewportScrolling(nsIFrame* aActiveScrolledRoot,
+                                            nsDisplayListBuilder* aBuilder);
+
   /**
     * GetFrameFor returns the root frame for a view
     * @param aView is the view to return the root frame for
@@ -500,6 +508,18 @@ public:
                                    nsTArray<nsIFrame*> &aOutFrames,
                                    PRBool aShouldIgnoreSuppression = PR_FALSE,
                                    PRBool aIgnoreRootScrollFrame = PR_FALSE);
+
+  /**
+   * Returns the CTM at the specified frame. This matrix can be used to map
+   * coordinates from aFrame's to aStopAtAncestor's coordinate system.
+   *
+   * @param aFrame The frame at which we should calculate the CTM.
+   * @param aStopAtAncestor is an ancestor frame to stop at. If it's nsnull,
+   * matrix accumulating stops at root.
+   * @return The CTM at the specified frame.
+   */
+  static gfxMatrix GetTransformToAncestor(nsIFrame *aFrame,
+                                          nsIFrame* aStopAtAncestor = nsnull);
 
   /**
    * Given a point in the global coordinate space, returns that point expressed
@@ -873,7 +893,7 @@ public:
     return (aCoord.GetUnit() == eStyleUnit_Coord &&
             aCoord.GetCoordValue() == 0) ||
            (aCoord.GetUnit() == eStyleUnit_Percent &&
-            aCoord.GetPercentValue() == 0.0) ||
+            aCoord.GetPercentValue() == 0.0f) ||
            (aCoord.IsCalcUnit() &&
             // clamp negative calc() to 0
             nsRuleNode::ComputeCoordPercentCalc(aCoord, nscoord_MAX) <= 0 &&
@@ -885,7 +905,7 @@ public:
     return (aCoord.GetUnit() == eStyleUnit_Coord &&
             aCoord.GetCoordValue() == 0) ||
            (aCoord.GetUnit() == eStyleUnit_Percent &&
-            aCoord.GetPercentValue() == 0.0) ||
+            aCoord.GetPercentValue() == 0.0f) ||
            (aCoord.IsCalcUnit() &&
             nsRuleNode::ComputeCoordPercentCalc(aCoord, nscoord_MAX) == 0 &&
             nsRuleNode::ComputeCoordPercentCalc(aCoord, 0) == 0);

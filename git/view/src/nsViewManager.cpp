@@ -53,7 +53,6 @@
 #include "nsIPrefBranch.h"
 #include "nsIPrefService.h"
 #include "nsRegion.h"
-#include "nsInt64.h"
 #include "nsHashtable.h"
 #include "nsCOMArray.h"
 #include "nsThreadUtils.h"
@@ -242,10 +241,10 @@ nsViewManager::CreateView(const nsRect& aBounds,
   return v;
 }
 
-NS_IMETHODIMP nsViewManager::GetRootView(nsIView *&aView)
+NS_IMETHODIMP_(nsIView*)
+nsViewManager::GetRootView()
 {
-  aView = mRootView;
-  return NS_OK;
+  return mRootView;
 }
 
 NS_IMETHODIMP nsViewManager::SetRootView(nsIView *aView)
@@ -442,20 +441,11 @@ void nsViewManager::RenderViews(nsView *aView, nsIWidget *aWidget,
                                 PRBool aPaintDefaultBackground,
                                 PRBool aWillSendDidPaint)
 {
-  nsView* displayRoot = GetDisplayRootFor(aView);
-  // Make sure we call Paint from the view manager that owns displayRoot.
-  // (Bug 485275)
-  nsViewManager* displayRootVM = displayRoot->GetViewManager();
-  if (displayRootVM && displayRootVM != this) {
-    displayRootVM->
-      RenderViews(aView, aWidget, aRegion, aIntRegion, aPaintDefaultBackground,
-                  aWillSendDidPaint);
-    return;
-  }
+  NS_ASSERTION(GetDisplayRootFor(aView) == aView,
+               "Widgets that we paint must all be display roots");
 
   if (mObserver) {
-    nsRegion region = ConvertRegionBetweenViews(aRegion, aView, displayRoot);
-    mObserver->Paint(displayRoot, aView, aWidget, region, aIntRegion,
+    mObserver->Paint(aView, aWidget, aRegion, aIntRegion,
                      aPaintDefaultBackground, aWillSendDidPaint);
     if (!gFirstPaintTimestamp)
       gFirstPaintTimestamp = PR_Now();
@@ -659,7 +649,7 @@ ShouldIgnoreInvalidation(nsViewManager* aVM)
     if (vo && vo->ShouldIgnoreInvalidation()) {
       return PR_TRUE;
     }
-    nsView* view = aVM->GetRootView()->GetParent();
+    nsView* view = aVM->GetRootViewImpl()->GetParent();
     aVM = view ? view->GetViewManager() : nsnull;
   }
   return PR_FALSE;

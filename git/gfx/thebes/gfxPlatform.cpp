@@ -152,8 +152,8 @@ SRGBOverrideObserver::Observe(nsISupports *aSubject,
 #define GFX_DOWNLOADABLE_FONTS_SANITIZE_PRESERVE_OTL \
             "gfx.downloadable_fonts.sanitize.preserve_otl_tables"
 
-#define GFX_PREF_HARFBUZZ_LEVEL "gfx.font_rendering.harfbuzz.level"
-#define HARFBUZZ_LEVEL_DEFAULT  0
+#define GFX_PREF_HARFBUZZ_SCRIPTS "gfx.font_rendering.harfbuzz.scripts"
+#define HARFBUZZ_SCRIPTS_DEFAULT  gfxUnicodeProperties::SHAPING_DEFAULT
 
 class FontPrefsObserver : public nsIObserver
 {
@@ -222,7 +222,7 @@ static const char *gPrefLangNames[] = {
 
 gfxPlatform::gfxPlatform()
 {
-    mUseHarfBuzzLevel = UNINITIALIZED_VALUE;
+    mUseHarfBuzzScripts = UNINITIALIZED_VALUE;
     mAllowDownloadableFonts = UNINITIALIZED_VALUE;
     mDownloadableFontsSanitize = UNINITIALIZED_VALUE;
     mSanitizePreserveOTLTables = UNINITIALIZED_VALUE;
@@ -469,22 +469,24 @@ gfxPlatform::PreserveOTLTablesWhenSanitizing()
     return mSanitizePreserveOTLTables;
 }
 
-PRInt8
-gfxPlatform::UseHarfBuzzLevel()
+PRBool
+gfxPlatform::UseHarfBuzzForScript(PRInt32 aScriptCode)
 {
-    if (mUseHarfBuzzLevel == UNINITIALIZED_VALUE) {
-        mUseHarfBuzzLevel = HARFBUZZ_LEVEL_DEFAULT;
+    if (mUseHarfBuzzScripts == UNINITIALIZED_VALUE) {
+        mUseHarfBuzzScripts = HARFBUZZ_SCRIPTS_DEFAULT;
         nsCOMPtr<nsIPrefBranch2> prefs = do_GetService(NS_PREFSERVICE_CONTRACTID);
         if (prefs) {
-            PRInt32 level;
-            nsresult rv = prefs->GetIntPref(GFX_PREF_HARFBUZZ_LEVEL, &level);
+            PRInt32 scripts;
+            nsresult rv = prefs->GetIntPref(GFX_PREF_HARFBUZZ_SCRIPTS, &scripts);
             if (NS_SUCCEEDED(rv)) {
-                mUseHarfBuzzLevel = level;
+                mUseHarfBuzzScripts = scripts;
             }
         }
     }
 
-    return mUseHarfBuzzLevel;
+    PRInt32 shapingType = gfxUnicodeProperties::ScriptShapingType(aScriptCode);
+
+    return (mUseHarfBuzzScripts & shapingType) != 0;
 }
 
 gfxFontEntry*
@@ -684,6 +686,11 @@ gfxPlatform::GetFontPrefLangFor(PRUint8 aUnicodeRange)
         case kRangeGurmukhi:   return eFontPrefLang_Gurmukhi;
         case kRangeKhmer:      return eFontPrefLang_Khmer;
         case kRangeMalayalam:  return eFontPrefLang_Malayalam;
+        case kRangeOriya:      return eFontPrefLang_Oriya;
+        case kRangeTelugu:     return eFontPrefLang_Telugu;
+        case kRangeKannada:    return eFontPrefLang_Kannada;
+        case kRangeSinhala:    return eFontPrefLang_Sinhala;
+        case kRangeTibetan:    return eFontPrefLang_Tibetan;
         case kRangeSetCJK:     return eFontPrefLang_CJKSet;
         default:               return eFontPrefLang_Others;
     }
@@ -1260,8 +1267,8 @@ gfxPlatform::FontsPrefsChanged(nsIPrefBranch *aPrefBranch, const char *aPref)
         mDownloadableFontsSanitize = UNINITIALIZED_VALUE;
     } else if (!strcmp(GFX_DOWNLOADABLE_FONTS_SANITIZE_PRESERVE_OTL, aPref)) {
         mSanitizePreserveOTLTables = UNINITIALIZED_VALUE;
-    } else if (!strcmp(GFX_PREF_HARFBUZZ_LEVEL, aPref)) {
-        mUseHarfBuzzLevel = UNINITIALIZED_VALUE;
+    } else if (!strcmp(GFX_PREF_HARFBUZZ_SCRIPTS, aPref)) {
+        mUseHarfBuzzScripts = UNINITIALIZED_VALUE;
         gfxTextRunWordCache::Flush();
         gfxFontCache::GetCache()->AgeAllGenerations();
     }

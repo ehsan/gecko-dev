@@ -49,7 +49,6 @@
 #include "nsComputedDOMStyle.h"
 #include "nsCSSParser.h"
 #include "mozilla/css/Declaration.h"
-#include "nsCSSStruct.h"
 #include "mozilla/dom/Element.h"
 #include "prlog.h"
 #include <math.h>
@@ -1819,7 +1818,8 @@ BuildStyleRule(nsCSSProperty aProperty,
     return nsnull;
   }
 
-  return NS_NewCSSStyleRule(nsnull, declaration.forget());
+  nsRefPtr<css::StyleRule> rule = new css::StyleRule(nsnull, declaration.forget());
+  return rule.forget();
 }
 
 inline

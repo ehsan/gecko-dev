@@ -23,6 +23,7 @@
 #   Benjamin Smedberg <bsmedberg@covad.net>
 #   Arthur Wiebe <artooro@gmail.com>
 #   Mark Mentovai <mark@moxienet.com>
+#   Robert Strong <robert.bugzilla@gmail.com>
 #
 # Alternatively, the contents of this file may be used under the terms of
 # either of the GNU General Public License Version 2 or later (the "GPL"),
@@ -66,16 +67,8 @@ endif
 endif
 endif # MOZ_PKG_FORMAT
 
-ifeq ($(OS_ARCH),OS2)
-INSTALLER_DIR   = os2
-else
 ifneq (,$(filter WINNT WINCE,$(OS_ARCH)))
 INSTALLER_DIR   = windows
-else
-ifneq (cocoa,$(MOZ_WIDGET_TOOLKIT))
-INSTALLER_DIR   = unix
-endif
-endif
 endif
 
 PACKAGE       = $(PKG_PATH)$(PKG_BASENAME)$(PKG_SUFFIX)
@@ -148,9 +141,100 @@ INNER_MAKE_PACKAGE	= rm -f app.7z && \
   mv core $(MOZ_PKG_DIR) && \
   cat $(SFX_HEADER) app.7z > $(PACKAGE) && \
   chmod 0755 $(PACKAGE)
-INNER_UNMAKE_PACKAGE	= $(CYGWIN_WRAPPER) 7z x $(UNPACKAGE) && \
+INNER_UNMAKE_PACKAGE	= $(CYGWIN_WRAPPER) 7z x $(UNPACKAGE) core && \
   mv core $(MOZ_PKG_DIR)
 endif
+
+#Create an RPM file
+ifeq ($(MOZ_PKG_FORMAT),RPM)
+PKG_SUFFIX  = .rpm
+MOZ_NUMERIC_APP_VERSION = $(shell echo $(MOZ_PKG_VERSION) | sed "s/[^0-9.].*//" )
+MOZ_RPM_RELEASE = $(shell echo $(MOZ_PKG_VERSION) | sed "s/[0-9.]*//" )
+
+RPMBUILD_TOPDIR=$(_ABS_DIST)/rpmbuild
+RPMBUILD_RPMDIR=$(_ABS_DIST)
+RPMBUILD_SRPMDIR=$(_ABS_DIST)
+RPMBUILD_SOURCEDIR=$(RPMBUILD_TOPDIR)/SOURCES
+RPMBUILD_SPECDIR=$(topsrcdir)/toolkit/mozapps/installer/linux/rpm
+RPMBUILD_BUILDDIR=$(_ABS_DIST)/..
+
+SPEC_FILE = $(RPMBUILD_SPECDIR)/mozilla.spec
+RPM_INCIDENTALS=$(topsrcdir)/toolkit/mozapps/installer/linux/rpm
+
+RPM_CMD = \
+  echo Creating RPM && \
+  mkdir -p $(RPMBUILD_SOURCEDIR) && \
+  $(PYTHON) $(topsrcdir)/config/Preprocessor.py \
+  	-DMOZ_APP_NAME=$(MOZ_APP_NAME) \
+	-DMOZ_APP_DISPLAYNAME=$(MOZ_APP_DISPLAYNAME) \
+	< $(RPM_INCIDENTALS)/mozilla.desktop \
+	> $(RPMBUILD_SOURCEDIR)/$(MOZ_APP_NAME).desktop && \
+  rm -rf $(_ABS_DIST)/$(TARGET_CPU) && \
+  $(RPMBUILD) -bb \
+  $(SPEC_FILE) \
+  --target $(TARGET_CPU) \
+  --buildroot $(RPMBUILD_TOPDIR)/BUILDROOT \
+  --define "moz_app_name $(MOZ_APP_NAME)" \
+  --define "moz_app_displayname $(MOZ_APP_DISPLAYNAME)" \
+  --define "moz_app_version $(MOZ_APP_VERSION)" \
+  --define "moz_numeric_app_version $(MOZ_NUMERIC_APP_VERSION)" \
+  --define "moz_rpm_release $(MOZ_RPM_RELEASE)" \
+  --define "buildid $(BUILDID)" \
+  --define "moz_source_repo $(MOZ_SOURCE_REPO)" \
+  --define "moz_source_stamp $(MOZ_SOURCE_STAMP)" \
+  --define "moz_branding_directory $(topsrcdir)/$(MOZ_BRANDING_DIRECTORY)" \
+  --define "_topdir $(RPMBUILD_TOPDIR)" \
+  --define "_rpmdir $(RPMBUILD_RPMDIR)" \
+  --define "_sourcedir $(RPMBUILD_SOURCEDIR)" \
+  --define "_specdir $(RPMBUILD_SPECDIR)" \
+  --define "_srcrpmdir $(RPMBUILD_SRPMDIR)" \
+  --define "_builddir $(RPMBUILD_BUILDDIR)" \
+  --define "_prefix $(prefix)" \
+  --define "_libdir $(libdir)" \
+  --define "_bindir $(bindir)" \
+  --define "_datadir $(datadir)" \
+  --define "_installdir $(installdir)" 
+
+ifdef ENABLE_TESTS
+RPM_CMD += \
+  --define "createtests yes" \
+  --define "_testsinstalldir $(shell basename $(installdir))" 
+endif 
+
+ifdef INSTALL_SDK
+RPM_CMD += \
+  --define "createdevel yes" \
+  --define "_idldir $(idldir)" \
+  --define "_sdkdir $(sdkdir)" \
+  --define "_includedir $(includedir)" 
+endif
+
+#For each of the main, tests, sdk rpms we want to make sure that
+#if they exist that they are in objdir/dist/ and that they get 
+#uploaded and that they are beside the other build artifacts
+MAIN_RPM= $(MOZ_APP_NAME)-$(MOZ_NUMERIC_APP_VERSION)-$(MOZ_RPM_RELEASE).$(BUILDID).$(TARGET_CPU)$(PKG_SUFFIX)
+UPLOAD_EXTRA_FILES += $(MAIN_RPM)
+RPM_CMD += && mv $(TARGET_CPU)/$(MAIN_RPM) $(_ABS_DIST)/
+
+ifdef ENABLE_TESTS
+TESTS_RPM=$(MOZ_APP_NAME)-tests-$(MOZ_NUMERIC_APP_VERSION)-$(MOZ_RPM_RELEASE).$(BUILDID).$(TARGET_CPU)$(PKG_SUFFIX)
+UPLOAD_EXTRA_FILES += $(TESTS_RPM)
+RPM_CMD += && mv $(TARGET_CPU)/$(TESTS_RPM) $(_ABS_DIST)/
+endif
+
+ifdef INSTALL_SDK
+SDK_RPM=$(MOZ_APP_NAME)-devel-$(MOZ_NUMERIC_APP_VERSION)-$(MOZ_RPM_RELEASE).$(BUILDID).$(TARGET_CPU)$(PKG_SUFFIX)
+UPLOAD_EXTRA_FILES += $(SDK_RPM)
+RPM_CMD += && mv $(TARGET_CPU)/$(SDK_RPM) $(_ABS_DIST)/
+endif
+
+INNER_MAKE_PACKAGE = $(RPM_CMD)
+#Avoiding rpm repacks, going to try creating/uploading xpi in rpm files instead
+INNER_UNMAKE_PACKAGE = $(error Try using rpm2cpio and cpio)
+
+endif #Create an RPM file
+
+
 ifeq ($(MOZ_PKG_FORMAT),APK)
 
 # we have custom stuff for Android
@@ -190,9 +274,7 @@ UPLOAD_EXTRA_FILES += gecko-unsigned-unaligned.apk
 
 include $(topsrcdir)/ipc/app/defs.mk
 
-ifdef MOZ_IPC
 DIST_FILES += $(MOZ_CHILD_PROCESS_NAME)
-endif
 
 ifdef MOZ_THUMB2
 ABI_DIR = armeabi-v7a
@@ -338,10 +420,11 @@ UNPACK_OMNIJAR	= \
   sed -e 's/^\#binary-component/binary-component/' components/components.manifest > components.manifest && \
   mv components.manifest components
 
-MAKE_PACKAGE	= (cd $(STAGEPATH)$(MOZ_PKG_DIR)$(_BINPATH) && $(PACK_OMNIJAR)) && $(INNER_MAKE_PACKAGE)
+MAKE_PACKAGE	= (cd $(STAGEPATH)$(MOZ_PKG_DIR)$(_BINPATH) && $(PACK_OMNIJAR)) && \
+	              (cd $(STAGEPATH)$(MOZ_PKG_DIR)$(_BINPATH) && $(CREATE_PRECOMPLETE_CMD)) && $(INNER_MAKE_PACKAGE)
 UNMAKE_PACKAGE	= $(INNER_UNMAKE_PACKAGE) && (cd $(STAGEPATH)$(MOZ_PKG_DIR)$(_BINPATH) && $(UNPACK_OMNIJAR))
 else
-MAKE_PACKAGE	= $(INNER_MAKE_PACKAGE)
+MAKE_PACKAGE	= (cd $(STAGEPATH)$(MOZ_PKG_DIR)$(_BINPATH) && $(CREATE_PRECOMPLETE_CMD)) && $(INNER_MAKE_PACKAGE)
 UNMAKE_PACKAGE	= $(INNER_UNMAKE_PACKAGE)
 endif
 
@@ -450,8 +533,6 @@ STRIP_FLAGS	= -f
 endif
 ifeq ($(OS_ARCH),OS2)
 STRIP		= $(MOZILLA_DIR)/toolkit/mozapps/installer/os2/strip.cmd
-STRIP_FLAGS	=
-PLATFORM_EXCLUDE_LIST = ! -name "*.ico" ! -name "$(MOZ_PKG_APPNAME).exe"
 endif
 
 ifneq (,$(filter WINNT WINCE OS2,$(OS_ARCH)))
@@ -486,13 +567,19 @@ ifdef MOZ_OMNIJAR
 	@(cd $(DIST)/$(STAGEPATH)$(MOZ_PKG_DIR)$(_BINPATH) && $(PACK_OMNIJAR))
 endif
 	@cp -av $(DIST)/$(STAGEPATH)$(MOZ_PKG_DIR)$(_BINPATH)/. $(DEPTH)/installer-stage/core
+	@(cd $(DEPTH)/installer-stage/core && $(CREATE_PRECOMPLETE_CMD))
 ifdef MOZ_OPTIONAL_PKG_LIST
 	@$(NSINSTALL) -D $(DEPTH)/installer-stage/optional
 	$(call PACKAGER_COPY, "$(call core_abspath,$(DIST))",\
 	  "$(call core_abspath,$(DEPTH)/installer-stage/optional)", \
 	  "$(MOZ_PKG_MANIFEST)", "$(PKGCP_OS)", 1, 0, 1 \
 	  $(foreach pkg,$(MOZ_OPTIONAL_PKG_LIST),$(PKG_ARG)) )
-	@cd $(DEPTH)/installer-stage/optional/extensions; find -maxdepth 1 -mindepth 1 -exec rm -r ../../core/extensions/{} \;
+	if test -d $(DEPTH)/installer-stage/optional/extensions ; then \
+		cd $(DEPTH)/installer-stage/optional/extensions; find -maxdepth 1 -mindepth 1 -exec rm -r ../../core/extensions/{} \; ; \
+	fi
+	if test -d $(DEPTH)/installer-stage/optional/distribution/extensions/ ; then \
+		cd $(DEPTH)/installer-stage/optional/distribution/extensions/; find -maxdepth 1 -mindepth 1 -exec rm -r ../../../core/distribution/extensions/{} \; ; \
+	fi
 endif
 
 elfhack:
@@ -552,31 +639,37 @@ endif # MOZ_PKG_MANIFEST
 endif # UNIVERSAL_BINARY
 	$(OPTIMIZE_JARS_CMD) --optimize $(DIST)/jarlog/ $(DIST)/bin/chrome $(DIST)/$(STAGEPATH)$(MOZ_PKG_DIR)/chrome
 ifndef PKG_SKIP_STRIP
-	@echo "Stripping package directory..."
-	@cd $(DIST)/$(STAGEPATH)$(MOZ_PKG_DIR); find . ! -type d \
-			! -name "*.js" \
-			! -name "*.xpt" \
-			! -name "*.gif" \
-			! -name "*.jpg" \
-			! -name "*.png" \
-			! -name "*.xpm" \
-			! -name "*.txt" \
-			! -name "*.rdf" \
-			! -name "*.sh" \
-			! -name "*.properties" \
-			! -name "*.dtd" \
-			! -name "*.html" \
-			! -name "*.xul" \
-			! -name "*.css" \
-			! -name "*.xml" \
-			! -name "*.jar" \
-			! -name "*.dat" \
-			! -name "*.tbl" \
-			! -name "*.src" \
-			! -name "*.reg" \
-			$(PLATFORM_EXCLUDE_LIST) \
-			-exec $(STRIP) $(STRIP_FLAGS) {} >/dev/null 2>&1 \;
-	$(SIGN_NSS)
+  ifeq ($(OS_ARCH),OS2)
+		@echo "Stripping package directory..."
+		@cd $(DIST)/$(STAGEPATH)$(MOZ_PKG_DIR) && $(STRIP)
+		$(SIGN_NSS)
+  else
+		@echo "Stripping package directory..."
+		@cd $(DIST)/$(STAGEPATH)$(MOZ_PKG_DIR); find . ! -type d \
+				! -name "*.js" \
+				! -name "*.xpt" \
+				! -name "*.gif" \
+				! -name "*.jpg" \
+				! -name "*.png" \
+				! -name "*.xpm" \
+				! -name "*.txt" \
+				! -name "*.rdf" \
+				! -name "*.sh" \
+				! -name "*.properties" \
+				! -name "*.dtd" \
+				! -name "*.html" \
+				! -name "*.xul" \
+				! -name "*.css" \
+				! -name "*.xml" \
+				! -name "*.jar" \
+				! -name "*.dat" \
+				! -name "*.tbl" \
+				! -name "*.src" \
+				! -name "*.reg" \
+				$(PLATFORM_EXCLUDE_LIST) \
+				-exec $(STRIP) $(STRIP_FLAGS) {} >/dev/null 2>&1 \;
+		$(SIGN_NSS)
+  endif
 else
 ifdef UNIVERSAL_BINARY
 # universal binaries will have had their .chk files removed prior to the unify

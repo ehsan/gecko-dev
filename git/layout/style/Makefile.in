@@ -68,12 +68,10 @@ EXPORTS		= \
 		nsCSSPseudoElements.h \
 		nsCSSRuleProcessor.h \
 		nsCSSStyleSheet.h \
-		nsCSSStruct.h \
 		nsCSSValue.h \
 		nsDOMCSSAttrDeclaration.h \
 		nsDOMCSSDeclaration.h \
 		nsICSSDeclaration.h \
-		nsICSSGroupRule.h \
 		nsICSSLoaderObserver.h \
 		nsICSSPseudoComparator.h \
 		nsICSSRule.h \
@@ -100,6 +98,7 @@ EXPORTS		= \
 
 EXPORTS_mozilla/css = \
 		Declaration.h \
+		GroupRule.h \
 		ImportRule.h \
 		Loader.h \
 		NameSpaceRule.h \
@@ -107,6 +106,7 @@ EXPORTS_mozilla/css = \
 		$(NULL)
 
 CPPSRCS		= \
+		AnimationCommon.cpp \
 		nsCSSAnonBoxes.cpp \
 		nsCSSDataBlock.cpp \
 		Declaration.cpp \
@@ -119,7 +119,6 @@ CPPSRCS		= \
 		nsCSSRuleProcessor.cpp \
 		nsCSSRules.cpp \
 		nsCSSScanner.cpp \
-		nsCSSStruct.cpp \
 		nsCSSStyleSheet.cpp \
 		nsCSSValue.cpp \
 		nsComputedDOMStyle.cpp \
@@ -133,6 +132,7 @@ CPPSRCS		= \
 		nsHTMLStyleSheet.cpp \
 		nsLayoutStylesheetCache.cpp \
 		nsMediaFeatures.cpp \
+		nsNthIndexCache.cpp \
 		nsROCSSPrimitiveValue.cpp \
 		nsRuleData.cpp \
 		nsRuleNode.cpp \
@@ -146,6 +146,12 @@ CPPSRCS		= \
 		nsTransitionManager.cpp \
 		StyleRule.cpp \
 		$(NULL)
+
+ifdef MOZ_CSS_ANIMATIONS
+CPPSRCS		+= \
+		nsAnimationManager.cpp \
+		$(NULL)
+endif
 
 FORCE_STATIC_LIB = 1
 

@@ -43,10 +43,8 @@
  * as <frame>, <iframe>, and some <object>s
  */
 
-#ifdef MOZ_IPC
 #include "mozilla/layout/RenderFrameParent.h"
 using mozilla::layout::RenderFrameParent;
-#endif
 
 #include "nsSubDocumentFrame.h"
 #include "nsCOMPtr.h"
@@ -277,7 +275,6 @@ nsSubDocumentFrame::BuildDisplayList(nsDisplayListBuilder*   aBuilder,
   if (!mInnerView)
     return NS_OK;
 
-#ifdef MOZ_IPC
   nsFrameLoader* frameLoader = FrameLoader();
   if (frameLoader) {
     RenderFrameParent* rfp = frameLoader->GetCurrentRemoteFrame();
@@ -285,7 +282,6 @@ nsSubDocumentFrame::BuildDisplayList(nsDisplayListBuilder*   aBuilder,
       return rfp->BuildDisplayList(aBuilder, this, aDirtyRect, aLists);
     }
   }
-#endif
 
   nsIView* subdocView = mInnerView->GetFirstChild();
   if (!subdocView)
@@ -391,9 +387,9 @@ nsSubDocumentFrame::BuildDisplayList(nsDisplayListBuilder*   aBuilder,
       // Add the canvas background color to the bottom of the list. This
       // happens after we've built the list so that AddCanvasBackgroundColorItem
       // can monkey with the contents if necessary.
-      PRUint32 flags = nsIPresShell_MOZILLA_2_0_BRANCH::FORCE_DRAW;
+      PRUint32 flags = nsIPresShell::FORCE_DRAW;
       if (presContext->IsRootContentDocument()) {
-        flags |= nsIPresShell_MOZILLA_2_0_BRANCH::ROOT_CONTENT_DOC_BG;
+        flags |= nsIPresShell::ROOT_CONTENT_DOC_BG;
       }
       rv = presShell->AddCanvasBackgroundColorItem(
              *aBuilder, childItems, subdocRootFrame ? subdocRootFrame : this,

@@ -280,6 +280,7 @@ _TEST_FILES1 = 	test_bug5141.html \
 		file_XHRDocURI.xml^headers^ \
 		file_XHRDocURI.text \
 		file_XHRDocURI.text^headers^ \
+		test_DOMException.html \
 		$(NULL)
 
 _TEST_FILES2 = \
@@ -471,7 +472,9 @@ _TEST_FILES2 = \
 		test_bug558431.html \
 		file_bug558431.html \
 		file_bug558431.html^headers^ \
+		test_bug604592.html \
 		test_bug628938.html \
+		test_bug626262.html \
 		$(NULL)
 
 # This test fails on the Mac for some reason

@@ -257,7 +257,6 @@ public:
 
     virtual ~nsXULPrototypeElement()
     {
-        UnlinkJSObjects();
         Unlink();
     }
 
@@ -286,7 +285,6 @@ public:
 
     nsresult SetAttrAt(PRUint32 aPos, const nsAString& aValue, nsIURI* aDocumentURI);
 
-    void UnlinkJSObjects();
     void Unlink();
 
     nsPrototypeArray         mChildren;
@@ -359,7 +357,9 @@ public:
     {
         NS_ASSERTION(!mScriptObject.mObject, "Leaking script object.");
         if (!aObject) {
-          return;
+            mScriptObject.mObject = nsnull;
+
+            return;
         }
 
         nsresult rv = nsContentUtils::HoldScriptObject(mScriptObject.mLangID,
@@ -619,7 +619,7 @@ protected:
     class nsXULSlots : public nsGenericElement::nsDOMSlots
     {
     public:
-       nsXULSlots(PtrBits aFlags);
+       nsXULSlots();
        virtual ~nsXULSlots();
 
        nsRefPtr<nsFrameLoader> mFrameLoader;

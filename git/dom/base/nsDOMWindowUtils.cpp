@@ -49,6 +49,7 @@
 #include "nsIEventStateManager.h"
 #include "nsEventStateManager.h"
 #include "nsFrameManager.h"
+#include "nsRefreshDriver.h"
 
 #include "nsIScrollableFrame.h"
 
@@ -448,7 +449,6 @@ nsDOMWindowUtils::SendMouseEventCommon(const nsAString& aType,
                           appPerDev);
   event.ignoreRootScrollFrame = aIgnoreRootScrollFrame;
 
-  nsresult rv;
   nsEventStatus status;
   if (aToWindow) {
     nsIPresShell* presShell = presContext->PresShell();
@@ -460,17 +460,14 @@ nsDOMWindowUtils::SendMouseEventCommon(const nsAString& aType,
     nsIViewManager* viewManager = presShell->GetViewManager();
     if (!viewManager)
       return NS_ERROR_FAILURE;
-    nsIView* view = nsnull;
-    rv = viewManager->GetRootView(view);
-    if (NS_FAILED(rv) || !view)
+    nsIView* view = viewManager->GetRootView();
+    if (!view)
       return NS_ERROR_FAILURE;
 
     status = nsEventStatus_eIgnore;
-    rv = vo->HandleEvent(view, &event, PR_FALSE, &status);
-  } else {
-    rv = widget->DispatchEvent(&event, status);
+    return vo->HandleEvent(view, &event, PR_FALSE, &status);
   }
-  return rv;
+  return widget->DispatchEvent(&event, status);
 }
 
 NS_IMETHODIMP
@@ -1646,6 +1643,30 @@ ComputeAnimationValue(nsCSSProperty aProperty,
   }
 
   return PR_TRUE;
+}
+
+NS_IMETHODIMP
+nsDOMWindowUtils::AdvanceTimeAndRefresh(PRInt64 aMilliseconds)
+{
+  if (!IsUniversalXPConnectCapable()) {
+    return NS_ERROR_DOM_SECURITY_ERR;
+  }
+
+  GetPresContext()->RefreshDriver()->AdvanceTimeAndRefresh(aMilliseconds);
+
+  return NS_OK;
+}
+
+NS_IMETHODIMP
+nsDOMWindowUtils::RestoreNormalRefresh()
+{
+  if (!IsUniversalXPConnectCapable()) {
+    return NS_ERROR_DOM_SECURITY_ERR;
+  }
+
+  GetPresContext()->RefreshDriver()->RestoreNormalRefresh();
+
+  return NS_OK;
 }
 
 NS_IMETHODIMP

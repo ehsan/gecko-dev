@@ -303,6 +303,10 @@ public:
   // with the decode monitor held. Called on the state machine thread and
   // the main thread.
   virtual void StartBuffering() = 0;
+
+  // Sets the current size of the framebuffer used in MozAudioAvailable events.
+  // Called on the state machine thread and the main thread.
+  virtual void SetFrameBufferLength(PRUint32 aLength) = 0;
 };
 
 class nsBuiltinDecoder : public nsMediaDecoder
@@ -436,12 +440,19 @@ class nsBuiltinDecoder : public nsMediaDecoder
   // Constructs the time ranges representing what segments of the media
   // are buffered and playable.
   virtual nsresult GetBuffered(nsTimeRanges* aBuffered) {
-    return mDecoderStateMachine->GetBuffered(aBuffered);
+    if (mDecoderStateMachine) {
+      return mDecoderStateMachine->GetBuffered(aBuffered);
+    }
+    return NS_ERROR_FAILURE;
   }
 
   virtual void NotifyDataArrived(const char* aBuffer, PRUint32 aLength, PRUint32 aOffset) {
     return mDecoderStateMachine->NotifyDataArrived(aBuffer, aLength, aOffset);
   }
+
+  // Sets the length of the framebuffer used in MozAudioAvailable events.
+  // The new size must be between 512 and 16384.
+  virtual nsresult RequestFrameBufferLength(PRUint32 aLength);
 
  public:
   // Return the current state. Can be called on any thread. If called from
@@ -488,8 +499,7 @@ class nsBuiltinDecoder : public nsMediaDecoder
   // Called when the metadata from the media file has been read.
   // Call on the main thread only.
   void MetadataLoaded(PRUint32 aChannels,
-                      PRUint32 aRate,
-                      PRUint32 aFrameBufferLength);
+                      PRUint32 aRate);
 
   // Called when the first frame has been loaded.
   // Call on the main thread only.

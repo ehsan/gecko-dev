@@ -49,6 +49,8 @@
 #include "mozilla/FunctionTimer.h"
 #include "prsystem.h"
 
+using namespace mozilla;
+
 /***************************************************************************/
 
 const char* XPCJSRuntime::mStrings[] = {
@@ -339,10 +341,10 @@ void XPCJSRuntime::TraceJS(JSTracer* trc, void* data)
     // bad locking problems with the thread iteration otherwise.
     if(!self->GetXPConnect()->IsShuttingDown())
     {
-        PRLock* threadLock = XPCPerThreadData::GetLock();
+        Mutex* threadLock = XPCPerThreadData::GetLock();
         if(threadLock)
         { // scoped lock
-            nsAutoLock lock(threadLock);
+            MutexAutoLock lock(*threadLock);
 
             XPCPerThreadData* iterp = nsnull;
             XPCPerThreadData* thread;
@@ -757,10 +759,10 @@ JSBool XPCJSRuntime::GCCallback(JSContext *cx, JSGCStatus status)
             // bad locking problems with the thread iteration otherwise.
             if(!self->GetXPConnect()->IsShuttingDown())
             {
-                PRLock* threadLock = XPCPerThreadData::GetLock();
+                Mutex* threadLock = XPCPerThreadData::GetLock();
                 if(threadLock)
                 { // scoped lock
-                    nsAutoLock lock(threadLock);
+                    MutexAutoLock lock(*threadLock);
 
                     XPCPerThreadData* iterp = nsnull;
                     XPCPerThreadData* thread;
@@ -851,13 +853,13 @@ JSBool XPCJSRuntime::GCCallback(JSContext *cx, JSGCStatus status)
             // bad locking problems with the thread iteration otherwise.
             if(!self->GetXPConnect()->IsShuttingDown())
             {
-                PRLock* threadLock = XPCPerThreadData::GetLock();
+                Mutex* threadLock = XPCPerThreadData::GetLock();
                 if(threadLock)
                 {
                     // Do the marking...
                     
                     { // scoped lock
-                        nsAutoLock lock(threadLock);
+                        MutexAutoLock lock(*threadLock);
 
                         XPCPerThreadData* iterp = nsnull;
                         XPCPerThreadData* thread;
@@ -975,7 +977,7 @@ XPCJSRuntime::WatchdogMain(void *arg)
     while (self->mWatchdogThread)
     {
         // Sleep only 1 second if recently (or currently) active; otherwise, hibernate
-        if (self->mLastActiveTime == -1 || PR_Now() - self->mLastActiveTime <= 2*PR_USEC_PER_SEC)
+        if (self->mLastActiveTime == -1 || PR_Now() - self->mLastActiveTime <= PRTime(2*PR_USEC_PER_SEC))
             sleepInterval = PR_TicksPerSecond();
         else
         {
@@ -1474,7 +1476,7 @@ XPCJSRuntime::OnJSContextNew(JSContext *cx)
         return JS_FALSE;
 
     JS_SetNativeStackQuota(cx, 128 * sizeof(size_t) * 1024);
-    PRInt64 totalMemory = PR_GetPhysicalMemorySize();
+    PRUint64 totalMemory = PR_GetPhysicalMemorySize();
     size_t quota = PR_MIN(PR_UINT32_MAX, PR_MAX(25 * sizeof(size_t) * 1024 * 1024,
                                                 totalMemory / 4));
     JS_SetScriptStackQuota(cx, quota);
