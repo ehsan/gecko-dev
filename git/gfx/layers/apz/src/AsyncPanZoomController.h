@@ -776,6 +776,12 @@ public:
   bool ArePointerEventsConsumable(TouchBlockState* aBlock, uint32_t aTouchPoints);
 
   /**
+   * Return true if there are are touch listeners registered on content
+   * scrolled by this APZC.
+   */
+  bool NeedToWaitForContent() const;
+
+  /**
    * Clear internal state relating to input handling.
    */
   void ResetInputState();

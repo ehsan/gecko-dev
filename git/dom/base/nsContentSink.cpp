@@ -33,7 +33,6 @@
 #include "nsIApplicationCacheContainer.h"
 #include "nsIApplicationCacheChannel.h"
 #include "nsIScriptSecurityManager.h"
-#include "nsISpeculativeConnect.h"
 #include "nsICookieService.h"
 #include "nsContentUtils.h"
 #include "nsNodeInfoManager.h"
@@ -687,10 +686,6 @@ nsContentSink::ProcessLink(const nsSubstring& aAnchor, const nsSubstring& aHref,
     PrefetchDNS(aHref);
   }
 
-  if (!aHref.IsEmpty() && (linkTypes & nsStyleLinkElement::ePRECONNECT)) {
-    Preconnect(aHref);
-  }
-
   // is it a stylesheet link?
   if (!(linkTypes & nsStyleLinkElement::eSTYLESHEET)) {
     return NS_OK;
@@ -859,26 +854,6 @@ nsContentSink::PrefetchDNS(const nsAString &aHref)
 
   if (!hostname.IsEmpty() && nsHTMLDNSPrefetch::IsAllowed(mDocument)) {
     nsHTMLDNSPrefetch::PrefetchLow(hostname);
-  }
-}
-
-void
-nsContentSink::Preconnect(const nsAString &aHref)
-{
-  nsCOMPtr<nsISpeculativeConnect>
-    speculator(do_QueryInterface(nsContentUtils::GetIOService()));
-  if (!speculator) {
-    return;
-  }
-
-  // construct URI using document charset
-  const nsACString& charset = mDocument->GetDocumentCharacterSet();
-  nsCOMPtr<nsIURI> uri;
-  NS_NewURI(getter_AddRefs(uri), aHref,
-            charset.IsEmpty() ? nullptr : PromiseFlatCString(charset).get(),
-            mDocument->GetDocBaseURI());
-  if (uri) {
-    speculator->SpeculativeConnect(uri, nullptr);
   }
 }
 

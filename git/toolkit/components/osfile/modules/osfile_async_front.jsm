@@ -305,9 +305,7 @@ let Scheduler = this.Scheduler = {
         let message = ["Meta_shutdown", [reset]];
 
         Scheduler.latestReceived = [];
-        Scheduler.latestSent = [Date.now(),
-          Task.Debugging.generateReadableStack(new Error().stack),
-          ...message];
+        Scheduler.latestSent = [Date.now(), ...message];
 
         // Wait for result
         let resources;
@@ -983,7 +981,7 @@ if (!SharedAll.Constants.Win) {
 /**
  * Gets the number of bytes available on disk to the current user.
  *
- * @param {string} Platform-specific path to a directory on the disk to
+ * @param {string} Platform-specific path to a directory on the disk to 
  * query for free available bytes.
  *
  * @return {number} The number of bytes available for the current user.

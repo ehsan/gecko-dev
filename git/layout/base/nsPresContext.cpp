@@ -191,8 +191,7 @@ IsVisualCharset(const nsCString& aCharset)
 
 nsPresContext::nsPresContext(nsIDocument* aDocument, nsPresContextType aType)
   : mType(aType), mDocument(aDocument), mBaseMinFontSize(0),
-    mTextZoom(1.0), mFullZoom(1.0),
-    mLastFontInflationScreenSize(gfxSize(-1.0, -1.0)),
+    mTextZoom(1.0), mFullZoom(1.0), mLastFontInflationScreenWidth(-1.0),
     mPageSize(-1, -1), mPPScale(1.0f),
     mViewportStyleScrollbar(NS_STYLE_OVERFLOW_AUTO, NS_STYLE_OVERFLOW_AUTO),
     mImageAnimationModePref(imgIContainer::kNormalAnimMode),
@@ -1506,8 +1505,8 @@ nsPresContext::SetFullZoom(float aZoom)
   mSupressResizeReflow = false;
 }
 
-gfxSize
-nsPresContext::ScreenSizeInchesForFontInflation(bool* aChanged)
+float
+nsPresContext::ScreenWidthInchesForFontInflation(bool* aChanged)
 {
   if (aChanged) {
     *aChanged = false;
@@ -1516,20 +1515,19 @@ nsPresContext::ScreenSizeInchesForFontInflation(bool* aChanged)
   nsDeviceContext *dx = DeviceContext();
   nsRect clientRect;
   dx->GetClientRect(clientRect); // FIXME: GetClientRect looks expensive
-  float unitsPerInch = dx->AppUnitsPerPhysicalInch();
-  gfxSize deviceSizeInches(float(clientRect.width) / unitsPerInch,
-                           float(clientRect.height) / unitsPerInch);
+  float deviceWidthInches =
+    float(clientRect.width) / float(dx->AppUnitsPerPhysicalInch());
 
-  if (mLastFontInflationScreenSize == gfxSize(-1.0, -1.0)) {
-    mLastFontInflationScreenSize = deviceSizeInches;
+  if (mLastFontInflationScreenWidth == -1.0) {
+    mLastFontInflationScreenWidth = deviceWidthInches;
   }
 
-  if (deviceSizeInches != mLastFontInflationScreenSize && aChanged) {
+  if (deviceWidthInches != mLastFontInflationScreenWidth && aChanged) {
     *aChanged = true;
-    mLastFontInflationScreenSize = deviceSizeInches;
+    mLastFontInflationScreenWidth = deviceWidthInches;
   }
 
-  return deviceSizeInches;
+  return deviceWidthInches;
 }
 
 void

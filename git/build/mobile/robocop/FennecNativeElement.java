@@ -14,12 +14,10 @@ import android.widget.TextView;
 public class FennecNativeElement implements Element {
     private final Activity mActivity;
     private final Integer mId;
-    private final String mName;
 
     public FennecNativeElement(Integer id, Activity activity) {
         mId = id;
         mActivity = activity;
-        mName = activity.getResources().getResourceName(id);
     }
 
     @Override
@@ -42,11 +40,11 @@ public class FennecNativeElement implements Element {
                             mClickSuccess = true;
                         } else {
                             FennecNativeDriver.log(FennecNativeDriver.LogLevel.WARN,
-                                "Robocop called click on an element with no listener " + mId + " " + mName);
+                                "Robocop called click on an element with no listener");
                         }
                     } else {
                         FennecNativeDriver.log(FennecNativeDriver.LogLevel.ERROR,
-                            "click: unable to find view " + mId + " " + mName);
+                            "click: unable to find view "+mId);
                     }
                 }
             });
@@ -81,17 +79,17 @@ public class FennecNativeElement implements Element {
                         mText = ((TextView)v).getText(); 
                     } else if (v == null) {
                         FennecNativeDriver.log(FennecNativeDriver.LogLevel.ERROR,
-                            "getText: unable to find view " + mId + " " + mName);
+                            "getText: unable to find view "+mId);
                     } else {
                         FennecNativeDriver.log(FennecNativeDriver.LogLevel.ERROR,
-                            "getText: unhandled type for view " + mId + " " + mName);
+                            "getText: unhandled type for view "+mId);
                     }
                 } // end of run() method definition
             } // end of anonymous Runnable object instantiation
         );
         if (mText == null) {
             FennecNativeDriver.log(FennecNativeDriver.LogLevel.WARN,
-                "getText: Text is null for view " + mId + " " + mName);
+                "getText: Text is null for view "+mId);
             return null;
         }
         return mText.toString();

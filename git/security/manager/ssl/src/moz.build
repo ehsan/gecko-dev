@@ -30,7 +30,6 @@ UNIFIED_SOURCES += [
     'nsCertVerificationThread.cpp',
     'nsClientAuthRemember.cpp',
     'nsCrypto.cpp',
-    'nsCryptoHash.cpp',
     'nsDataSignatureVerifier.cpp',
     'nsKeygenHandler.cpp',
     'nsKeygenHandlerContent.cpp',
@@ -44,12 +43,10 @@ UNIFIED_SOURCES += [
     'nsNSSCertificateFakeTransport.cpp',
     'nsNSSCertTrust.cpp',
     'nsNSSCertValidity.cpp',
-    'nsNSSComponent.cpp',
     'nsNSSErrors.cpp',
     'nsNSSIOLayer.cpp',
     'nsNSSModule.cpp',
     'nsNSSShutDown.cpp',
-    'nsNSSVersion.cpp',
     'nsNTLMAuthModule.cpp',
     'nsPK11TokenDB.cpp',
     'nsPKCS11Slot.cpp',
@@ -63,7 +60,6 @@ UNIFIED_SOURCES += [
     'nsSSLStatus.cpp',
     'nsTLSSocketProvider.cpp',
     'nsUsageArrayHelper.cpp',
-    'PSMContentListener.cpp',
     'PSMRunnable.cpp',
     'SharedSSLState.cpp',
     'SSLServerCertVerification.cpp',
@@ -71,8 +67,14 @@ UNIFIED_SOURCES += [
 ]
 
 # nsNSSCertificateDB.cpp needs to include nscert.h before everything else.
+# The rest cannot be built in unified mode because they want to force NSPR
+# logging.
 SOURCES += [
+    'nsCryptoHash.cpp',
     'nsNSSCertificateDB.cpp',
+    'nsNSSComponent.cpp',
+    'nsNSSVersion.cpp',
+    'PSMContentListener.cpp',
 ]
 
 LOCAL_INCLUDES += [

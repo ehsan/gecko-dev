@@ -419,8 +419,7 @@ HTMLImageElement::AfterSetAttr(int32_t aNameSpaceID, nsIAtom* aName,
     // SetAttr handles setting src since it needs to catch img.src =
     // img.src, so we only need to handle the unset case
     if (InResponsiveMode()) {
-      if (mResponsiveSelector &&
-          mResponsiveSelector->Content() == this) {
+      if (mResponsiveSelector->Content() == this) {
         mResponsiveSelector->SetDefaultSource(NullString());
       }
       QueueImageLoadTask();

@@ -70,7 +70,18 @@ PluginWidgetParent::~PluginWidgetParent()
   // A destroy call can actually get skipped if a widget is associated
   // with the last out-of-process page, make sure and cleanup any left
   // over widgets if we have them.
-  KillWidget();
+  if (mWidget) {
+#if defined(MOZ_WIDGET_GTK)
+    mWidget->SetNativeData(NS_NATIVE_PLUGIN_OBJECT_PTR, (uintptr_t)0);
+    mWrapper = nullptr;
+#elif defined(XP_WIN)
+    ::RemovePropW((HWND)mWidget->GetNativeData(NS_NATIVE_WINDOW),
+                  kPluginWidgetParentProperty);
+#endif
+    mWidget->UnregisterPluginWindowForRemoteUpdates();
+    mWidget->Destroy();
+    mWidget = nullptr;
+  }
 }
 
 mozilla::dom::TabParent*
@@ -124,7 +135,6 @@ PluginWidgetParent::RecvCreate(nsresult* aResult)
   // we can send over to content -> plugin.
   PLUG_NewPluginNativeWindow((nsPluginNativeWindow**)&mWrapper);
   if (!mWrapper) {
-    KillWidget();
     return false;
   }
   // Give a copy of this to the widget, which handles some update
@@ -137,7 +147,6 @@ PluginWidgetParent::RecvCreate(nsresult* aResult)
   // If this fails, bail.
   if (!parentWidget) {
     *aResult = NS_ERROR_NOT_AVAILABLE;
-    KillWidget();
     return true;
   }
 
@@ -149,7 +158,8 @@ PluginWidgetParent::RecvCreate(nsresult* aResult)
   *aResult = mWidget->Create(parentWidget.get(), nullptr, nsIntRect(0,0,0,0),
                              &initData);
   if (NS_FAILED(*aResult)) {
-    KillWidget();
+    mWidget->Destroy();
+    mWidget = nullptr;
     // This should never fail, abort.
     return false;
   }
@@ -182,29 +192,13 @@ PluginWidgetParent::RecvCreate(nsresult* aResult)
 }
 
 void
-PluginWidgetParent::KillWidget()
+PluginWidgetParent::Shutdown(ShutdownType aType)
 {
-  PWLOG("PluginWidgetParent::KillWidget() widget=%p\n", (void*)mWidget.get());
   if (mWidget) {
     mWidget->UnregisterPluginWindowForRemoteUpdates();
     DebugOnly<nsresult> rv = mWidget->Destroy();
     NS_ASSERTION(NS_SUCCEEDED(rv), "widget destroy failure");
-#if defined(MOZ_WIDGET_GTK)
-    mWidget->SetNativeData(NS_NATIVE_PLUGIN_OBJECT_PTR, (uintptr_t)0);
-    mWrapper = nullptr;
-#elif defined(XP_WIN)
-    ::RemovePropW((HWND)mWidget->GetNativeData(NS_NATIVE_WINDOW),
-                  kPluginWidgetParentProperty);
-#endif
     mWidget = nullptr;
-  }
-}
-
-void
-PluginWidgetParent::Shutdown(ShutdownType aType)
-{
-  if (mWidget) {
-    KillWidget();
     unused << SendParentShutdown(aType);
   }
 }
@@ -213,7 +207,6 @@ void
 PluginWidgetParent::ActorDestroy(ActorDestroyReason aWhy)
 {
   PWLOG("PluginWidgetParent::ActorDestroy()\n");
-  KillWidget();
 }
 
 // Called by TabParent's Destroy() in response to an early tear down (Early

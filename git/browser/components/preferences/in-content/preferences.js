@@ -85,6 +85,10 @@ function init_all() {
   Services.obs.notifyObservers(window, "advanced-pane-loaded", null);
 }
 
+window.addEventListener("unload", function onUnload() {
+  gSubDialog.uninit();
+});
+
 // Make the space above the categories list shrink on low window heights
 function init_dynamic_padding() {
   let categories = document.getElementById("categories");

@@ -5,10 +5,8 @@
  * http://creativecommons.org/licenses/publicdomain/
  */
 
-if (!(this.SharedArrayBuffer && this.getSharedArrayBuffer && this.setSharedArrayBuffer)) {
-    reportCompare(true,true);
+if (!(this.SharedArrayBuffer && this.getSharedArrayBuffer && this.setSharedArrayBuffer))
     quit(0);
-}
 
 var DEBUG = false;
 

@@ -11,8 +11,6 @@
 #include "mozilla/Monitor.h"
 #include "mozilla/RefPtr.h"
 
-#include "nsString.h"
-
 #include <stdint.h>
 
 namespace mozilla {
@@ -21,8 +19,14 @@ namespace Telemetry {
 class ThreadHangStats;
 };
 
+// Disabled for Beta/Release builds because of bug 965392.
+// Disabled for debug builds because of bug 979069.
+#if !defined(RELEASE_BUILD) && !defined(DEBUG)
+// Undefine to disable background hang monitor
+#define MOZ_ENABLE_BACKGROUND_HANG_MONITOR
+#endif
+
 class BackgroundHangThread;
-class BackgroundHangManager;
 
 /**
  * The background hang monitor is responsible for detecting and reporting
@@ -110,12 +114,7 @@ class BackgroundHangManager;
 class BackgroundHangMonitor
 {
 private:
-  friend BackgroundHangManager;
-
   RefPtr<BackgroundHangThread> mThread;
-
-  static bool ShouldDisableOnBeta(const nsCString &);
-  static bool DisableOnBeta();
 
 public:
   static const uint32_t kNoTimeout = 0;
@@ -169,11 +168,6 @@ public:
    * Can be called without destroying all BackgroundHangMonitors first.
    */
   static void Shutdown();
-
-  /**
-   * Returns true if BHR is disabled.
-   */
-  static bool IsDisabled();
 
   /**
    * Start monitoring hangs for the current thread.
