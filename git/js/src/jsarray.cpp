@@ -626,7 +626,6 @@ array_length_setter(JSContext *cx, JSObject *obj, jsval id, jsval *vp)
 {
     jsuint newlen, oldlen, gap, index;
     jsval junk;
-    JSObject *iter;
     JSTempValueRooter tvr;
     JSBool ok;
 
@@ -638,32 +637,30 @@ array_length_setter(JSContext *cx, JSObject *obj, jsval id, jsval *vp)
 
     newlen = ValueIsLength(cx, vp);
     if (JSVAL_IS_NULL(*vp))
-        return JS_FALSE;
+        return false;
     oldlen = obj->fslots[JSSLOT_ARRAY_LENGTH];
 
     if (oldlen == newlen)
-        return JS_TRUE;
+        return true;
 
     if (!IndexToValue(cx, newlen, vp))
-        return JS_FALSE;
+        return false;
 
     if (oldlen < newlen) {
         obj->fslots[JSSLOT_ARRAY_LENGTH] = newlen;
-        return JS_TRUE;
+        return true;
     }
 
     if (obj->isDenseArray()) {
         /* Don't reallocate if we're not actually shrinking our slots. */
         jsuint capacity = js_DenseArrayCapacity(obj);
         if (capacity > newlen && !ResizeSlots(cx, obj, capacity, newlen))
-            return JS_FALSE;
+            return false;
     } else if (oldlen - newlen < (1 << 24)) {
         do {
             --oldlen;
-            if (!JS_CHECK_OPERATION_LIMIT(cx) ||
-                !DeleteArrayElement(cx, obj, oldlen)) {
-                return JS_FALSE;
-            }
+            if (!JS_CHECK_OPERATION_LIMIT(cx) || !DeleteArrayElement(cx, obj, oldlen))
+                return false;
         } while (oldlen != newlen);
     } else {
         /*
@@ -673,9 +670,9 @@ array_length_setter(JSContext *cx, JSObject *obj, jsval id, jsval *vp)
          * correspond to indexes in the half-open range [newlen, oldlen).  See
          * bug 322135.
          */
-        iter = JS_NewPropertyIterator(cx, obj);
+        JSObject *iter = JS_NewPropertyIterator(cx, obj);
         if (!iter)
-            return JS_FALSE;
+            return false;
 
         /* Protect iter against GC under JSObject::deleteProperty. */
         JS_PUSH_TEMP_ROOT_OBJECT(cx, iter, &tvr);
@@ -695,11 +692,11 @@ array_length_setter(JSContext *cx, JSObject *obj, jsval id, jsval *vp)
         }
         JS_POP_TEMP_ROOT(cx, &tvr);
         if (!ok)
-            return JS_FALSE;
+            return false;
     }
 
     obj->fslots[JSSLOT_ARRAY_LENGTH] = newlen;
-    return JS_TRUE;
+    return true;
 }
 
 /*
@@ -2288,7 +2285,7 @@ array_sort(JSContext *cx, uintN argc, jsval *vp)
             }
             tvr.u.array = vec;
             mergesort_tmp = vec + 2 * newlen;
-            memset(mergesort_tmp, 0, newlen * 2 * sizeof(jsval));
+            PodZero(mergesort_tmp, newlen * 2);
             tvr.count = newlen * 4;
             elemsize = 2 * sizeof(jsval);
         }
@@ -3470,10 +3467,7 @@ js_InitArrayClass(JSContext *cx, JSObject *obj)
 JSObject *
 js_NewArrayObject(JSContext *cx, jsuint length, jsval *vector, JSBool holey)
 {
-    JSTempValueRooter tvr;
-    JSObject *obj;
-
-    obj = js_NewObject(cx, &js_ArrayClass, NULL, NULL);
+    JSObject *obj = js_NewObject(cx, &js_ArrayClass, NULL, NULL);
     if (!obj)
         return NULL;
 
@@ -3483,10 +3477,11 @@ js_NewArrayObject(JSContext *cx, jsuint length, jsval *vector, JSBool holey)
      */
     JS_ASSERT(obj->getProto());
 
-    JS_PUSH_TEMP_ROOT_OBJECT(cx, obj, &tvr);
-    if (!InitArrayObject(cx, obj, length, vector, holey))
-        obj = NULL;
-    JS_POP_TEMP_ROOT(cx, &tvr);
+    {
+        JSAutoTempValueRooter tvr(cx, obj);
+        if (!InitArrayObject(cx, obj, length, vector, holey))
+            obj = NULL;
+    }
 
     /* Set/clear newborn root, in case we lost it.  */
     cx->weakRoots.finalizableNewborns[FINALIZE_OBJECT] = obj;

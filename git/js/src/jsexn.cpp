@@ -63,6 +63,8 @@
 #include "jsscript.h"
 #include "jsstaticcheck.h"
 
+using namespace js;
+
 /* Forward declarations for js_ErrorClass's initializer. */
 static JSBool
 Exception(JSContext *cx, JSObject *obj, uintN argc, jsval *argv, jsval *rval);
@@ -349,7 +351,7 @@ InitExnPrivate(JSContext *cx, JSObject *exnObject, JSString *message,
          * Construct a new copy of the error report struct. We can't use the
          * error report struct that was passed in, because it's allocated on
          * the stack, and also because it may point to transient data in the
-         * JSTokenStream.
+         * TokenStream.
          */
         priv->errorReport = CopyErrorReport(cx, report);
         if (!priv->errorReport) {
@@ -824,131 +826,134 @@ exn_toSource(JSContext *cx, uintN argc, jsval *vp)
     JSObject *obj;
     JSString *name, *message, *filename, *lineno_as_str, *result;
     jsval localroots[3] = {JSVAL_NULL, JSVAL_NULL, JSVAL_NULL};
-    JSTempValueRooter tvr;
-    JSBool ok;
     uint32 lineno;
     size_t lineno_length, name_length, message_length, filename_length, length;
     jschar *chars, *cp;
 
     obj = JS_THIS_OBJECT(cx, vp);
     if (!obj || !obj->getProperty(cx, ATOM_TO_JSID(cx->runtime->atomState.nameAtom), vp))
-        return JS_FALSE;
+        return false;
     name = js_ValueToString(cx, *vp);
     if (!name)
-        return JS_FALSE;
+        return false;
     *vp = STRING_TO_JSVAL(name);
 
-    MUST_FLOW_THROUGH("out");
-    JS_PUSH_TEMP_ROOT(cx, 3, localroots, &tvr);
+    JSTempValueRooter tvr;
+    {
+        JSBool ok;
+
+        MUST_FLOW_THROUGH("out");
+        JS_PUSH_TEMP_ROOT(cx, 3, localroots, &tvr);
 
 #ifdef __GNUC__
-    message = filename = NULL;
+        message = filename = NULL;
 #endif
-    ok = JS_GetProperty(cx, obj, js_message_str, &localroots[0]) &&
-         (message = js_ValueToSource(cx, localroots[0]));
-    if (!ok)
-        goto out;
-    localroots[0] = STRING_TO_JSVAL(message);
+        ok = JS_GetProperty(cx, obj, js_message_str, &localroots[0]) &&
+              (message = js_ValueToSource(cx, localroots[0]));
+        if (!ok)
+            goto out;
+        localroots[0] = STRING_TO_JSVAL(message);
 
-    ok = JS_GetProperty(cx, obj, js_fileName_str, &localroots[1]) &&
-         (filename = js_ValueToSource(cx, localroots[1]));
-    if (!ok)
-        goto out;
-    localroots[1] = STRING_TO_JSVAL(filename);
+        ok = JS_GetProperty(cx, obj, js_fileName_str, &localroots[1]) &&
+             (filename = js_ValueToSource(cx, localroots[1]));
+        if (!ok)
+            goto out;
+        localroots[1] = STRING_TO_JSVAL(filename);
 
-    ok = JS_GetProperty(cx, obj, js_lineNumber_str, &localroots[2]);
-    if (!ok)
-        goto out;
-    lineno = js_ValueToECMAUint32 (cx, &localroots[2]);
-    ok = !JSVAL_IS_NULL(localroots[2]);
-    if (!ok)
-        goto out;
+        ok = JS_GetProperty(cx, obj, js_lineNumber_str, &localroots[2]);
+        if (!ok)
+            goto out;
+        lineno = js_ValueToECMAUint32 (cx, &localroots[2]);
+        ok = !JSVAL_IS_NULL(localroots[2]);
+        if (!ok)
+            goto out;
 
-    if (lineno != 0) {
-        lineno_as_str = js_ValueToString(cx, localroots[2]);
-        if (!lineno_as_str) {
+        if (lineno != 0) {
+            lineno_as_str = js_ValueToString(cx, localroots[2]);
+            if (!lineno_as_str) {
+                ok = JS_FALSE;
+                goto out;
+            }
+            lineno_length = lineno_as_str->length();
+        } else {
+            lineno_as_str = NULL;
+            lineno_length = 0;
+        }
+
+        /* Magic 8, for the characters in ``(new ())''. */
+        name_length = name->length();
+        message_length = message->length();
+        length = 8 + name_length + message_length;
+
+        filename_length = filename->length();
+        if (filename_length != 0) {
+            /* append filename as ``, {filename}'' */
+            length += 2 + filename_length;
+            if (lineno_as_str) {
+                /* append lineno as ``, {lineno_as_str}'' */
+                length += 2 + lineno_length;
+            }
+        } else {
+            if (lineno_as_str) {
+                /*
+                 * no filename, but have line number,
+                 * need to append ``, "", {lineno_as_str}''
+                 */
+                length += 6 + lineno_length;
+            }
+        }
+
+        cp = chars = (jschar *) cx->malloc((length + 1) * sizeof(jschar));
+        if (!chars) {
             ok = JS_FALSE;
             goto out;
         }
-        lineno_length = lineno_as_str->length();
-    } else {
-        lineno_as_str = NULL;
-        lineno_length = 0;
-    }
 
-    /* Magic 8, for the characters in ``(new ())''. */
-    name_length = name->length();
-    message_length = message->length();
-    length = 8 + name_length + message_length;
+        *cp++ = '('; *cp++ = 'n'; *cp++ = 'e'; *cp++ = 'w'; *cp++ = ' ';
+        js_strncpy(cp, name->chars(), name_length);
+        cp += name_length;
+        *cp++ = '(';
+        if (message_length != 0) {
+            js_strncpy(cp, message->chars(), message_length);
+            cp += message_length;
+        }
 
-    filename_length = filename->length();
-    if (filename_length != 0) {
-        /* append filename as ``, {filename}'' */
-        length += 2 + filename_length;
+        if (filename_length != 0) {
+            /* append filename as ``, {filename}'' */
+            *cp++ = ','; *cp++ = ' ';
+            js_strncpy(cp, filename->chars(), filename_length);
+            cp += filename_length;
+        } else {
+            if (lineno_as_str) {
+                /*
+                 * no filename, but have line number,
+                 * need to append ``, "", {lineno_as_str}''
+                 */
+                *cp++ = ','; *cp++ = ' '; *cp++ = '"'; *cp++ = '"';
+            }
+        }
         if (lineno_as_str) {
             /* append lineno as ``, {lineno_as_str}'' */
-            length += 2 + lineno_length;
+            *cp++ = ','; *cp++ = ' ';
+            js_strncpy(cp, lineno_as_str->chars(), lineno_length);
+            cp += lineno_length;
         }
-    } else {
-        if (lineno_as_str) {
-            /*
-             * no filename, but have line number,
-             * need to append ``, "", {lineno_as_str}''
-             */
-            length += 6 + lineno_length;
+
+        *cp++ = ')'; *cp++ = ')'; *cp = 0;
+
+        result = js_NewString(cx, chars, length);
+        if (!result) {
+            cx->free(chars);
+            ok = JS_FALSE;
+            goto out;
         }
+        *vp = STRING_TO_JSVAL(result);
+        ok = JS_TRUE;
     }
 
-    cp = chars = (jschar *) cx->malloc((length + 1) * sizeof(jschar));
-    if (!chars) {
-        ok = JS_FALSE;
-        goto out;
-    }
-
-    *cp++ = '('; *cp++ = 'n'; *cp++ = 'e'; *cp++ = 'w'; *cp++ = ' ';
-    js_strncpy(cp, name->chars(), name_length);
-    cp += name_length;
-    *cp++ = '(';
-    if (message_length != 0) {
-        js_strncpy(cp, message->chars(), message_length);
-        cp += message_length;
-    }
-
-    if (filename_length != 0) {
-        /* append filename as ``, {filename}'' */
-        *cp++ = ','; *cp++ = ' ';
-        js_strncpy(cp, filename->chars(), filename_length);
-        cp += filename_length;
-    } else {
-        if (lineno_as_str) {
-            /*
-             * no filename, but have line number,
-             * need to append ``, "", {lineno_as_str}''
-             */
-            *cp++ = ','; *cp++ = ' '; *cp++ = '"'; *cp++ = '"';
-        }
-    }
-    if (lineno_as_str) {
-        /* append lineno as ``, {lineno_as_str}'' */
-        *cp++ = ','; *cp++ = ' ';
-        js_strncpy(cp, lineno_as_str->chars(), lineno_length);
-        cp += lineno_length;
-    }
-
-    *cp++ = ')'; *cp++ = ')'; *cp = 0;
-
-    result = js_NewString(cx, chars, length);
-    if (!result) {
-        cx->free(chars);
-        ok = JS_FALSE;
-        goto out;
-    }
-    *vp = STRING_TO_JSVAL(result);
-    ok = JS_TRUE;
-
-out:
+  out:
     JS_POP_TEMP_ROOT(cx, &tvr);
-    return ok;
+    return JS_FALSE;
 }
 #endif
 
@@ -998,7 +1003,7 @@ js_InitExceptionClasses(JSContext *cx, JSObject *obj)
     if (!js_GetClassPrototype(cx, obj, JSProto_Object, &obj_proto))
         return NULL;
 
-    memset(roots, 0, sizeof(roots));
+    PodArrayZero(roots);
     JSAutoTempValueRooter tvr(cx, JS_ARRAY_LENGTH(roots), roots);
 
 #ifdef __GNUC__
@@ -1109,7 +1114,6 @@ js_ErrorToException(JSContext *cx, const char *message, JSErrorReport *reportp,
     const JSErrorFormatString *errorString;
     JSExnType exn;
     jsval tv[4];
-    JSTempValueRooter tvr;
     JSBool ok;
     JSObject *errProto, *errObject;
     JSString *messageStr, *filenameStr;
@@ -1157,7 +1161,9 @@ js_ErrorToException(JSContext *cx, const char *message, JSErrorReport *reportp,
     cx->generatingError = JS_TRUE;
 
     /* Protect the newly-created strings below from nesting GCs. */
-    memset(tv, 0, sizeof tv);
+    PodArrayZero(tv);
+
+    JSTempValueRooter tvr;
     JS_PUSH_TEMP_ROOT(cx, JS_ARRAY_LENGTH(tv), tv, &tvr);
 
     /*
@@ -1213,20 +1219,21 @@ js_ReportUncaughtException(JSContext *cx)
     jsval exn;
     JSObject *exnObject;
     jsval roots[5];
-    JSTempValueRooter tvr;
     JSErrorReport *reportp, report;
     JSString *str;
     const char *bytes;
-    JSBool ok;
 
     if (!JS_IsExceptionPending(cx))
-        return JS_TRUE;
+        return true;
 
     if (!JS_GetPendingException(cx, &exn))
-        return JS_FALSE;
+        return false;
 
-    memset(roots, 0, sizeof roots);
+    PodArrayZero(roots);
+    JSBool ok = JS_TRUE;
+    JSTempValueRooter tvr;
     JS_PUSH_TEMP_ROOT(cx, JS_ARRAY_LENGTH(roots), roots, &tvr);
+    MUST_FLOW_THROUGH("out");
 
     /*
      * Because js_ValueToString below could error and an exception object
@@ -1256,17 +1263,15 @@ js_ReportUncaughtException(JSContext *cx)
             goto out;
         }
     }
-    ok = JS_TRUE;
 
-    if (!reportp &&
-        exnObject &&
-        OBJ_GET_CLASS(cx, exnObject) == &js_ErrorClass) {
+    if (!reportp && exnObject && exnObject->getClass() == &js_ErrorClass) {
         const char *filename;
         uint32 lineno;
 
-        ok = JS_GetProperty(cx, exnObject, js_message_str, &roots[2]);
-        if (!ok)
+        if (!JS_GetProperty(cx, exnObject, js_message_str, &roots[2])) {
+            ok = JS_FALSE;
             goto out;
+        }
         if (JSVAL_IS_STRING(roots[2])) {
             bytes = js_GetStringBytes(cx, JSVAL_TO_STRING(roots[2]));
             if (!bytes) {
@@ -1298,7 +1303,7 @@ js_ReportUncaughtException(JSContext *cx)
             goto out;
 
         reportp = &report;
-        memset(&report, 0, sizeof report);
+        PodZero(&report);
         report.filename = filename;
         report.lineno = (uintN) lineno;
     }
@@ -1316,7 +1321,7 @@ js_ReportUncaughtException(JSContext *cx)
         JS_ClearPendingException(cx);
     }
 
-out:
+  out:
     JS_POP_TEMP_ROOT(cx, &tvr);
     return ok;
 }

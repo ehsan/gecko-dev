@@ -56,11 +56,13 @@ include $(topsrcdir)/config/rules.mk
 # Harness files from the srcdir
 TEST_HARNESS_FILES := \
   runxpcshelltests.py \
+  remotexpcshelltests.py \
   head.js \
   $(NULL)
 
 # Extra files needed from $(topsrcdir)/build
 EXTRA_BUILD_FILES := \
+  mobile/devicemanager.py \
   automationutils.py \
   $(NULL)
 

@@ -563,12 +563,13 @@ JSRuntime::JSRuntime()
 bool
 JSRuntime::init(uint32 maxbytes)
 {
-    if (!js_InitDtoa() ||
-        !js_InitGC(this, maxbytes) ||
-        !js_InitAtomState(this) ||
-        !js_InitDeflatedStringCache(this)) {
+    if (!js_InitGC(this, maxbytes) || !js_InitAtomState(this))
         return false;
-    }
+
+    deflatedStringCache = new js::DeflatedStringCache();
+    if (!deflatedStringCache || !deflatedStringCache->init())
+        return false;
+
 #ifdef JS_THREADSAFE
     gcLock = JS_NEW_LOCK();
     if (!gcLock)
@@ -599,7 +600,7 @@ JSRuntime::init(uint32 maxbytes)
     if (!deallocatorThread || !deallocatorThread->init())
         return false;
 #endif
-    return js_InitPropertyTree(this) && js_InitThreads(this);
+    return propertyTree.init() && js_InitThreads(this);
 }
 
 JSRuntime::~JSRuntime()
@@ -629,7 +630,7 @@ JSRuntime::~JSRuntime()
      * Finish the deflated string cache after the last GC and after
      * calling js_FinishAtomState, which finalizes strings.
      */
-    js_FinishDeflatedStringCache(this);
+    delete deflatedStringCache;
     js_FinishGC(this);
 #ifdef JS_THREADSAFE
     if (gcLock)
@@ -651,7 +652,7 @@ JSRuntime::~JSRuntime()
         delete deallocatorThread;
     }
 #endif
-    js_FinishPropertyTree(this);
+    propertyTree.finish();
 }
 
 
@@ -753,7 +754,6 @@ JS_ShutDown(void)
     reprmeter::js_DumpReprMeter();
 #endif
 
-    js_FinishDtoa();
 #ifdef JS_THREADSAFE
     js_CleanupLocks();
 #endif
@@ -871,6 +871,26 @@ JS_ResumeRequest(JSContext *cx, jsrefcount saveDepth)
         JS_BeginRequest(cx);
         cx->outstandingRequests--;  /* compensate for JS_BeginRequest */
     }
+#endif
+}
+
+JS_PUBLIC_API(void)
+JS_TransferRequest(JSContext *cx, JSContext *another)
+{
+    JS_ASSERT(cx != another);
+    JS_ASSERT(cx->runtime == another->runtime);
+#ifdef JS_THREADSAFE
+    JS_ASSERT(cx->thread);
+    JS_ASSERT(another->thread);
+    JS_ASSERT(cx->thread == another->thread);
+    JS_ASSERT(cx->requestDepth != 0);
+    JS_ASSERT(another->requestDepth == 0);
+
+    /* Serialize access to JSContext::requestDepth from other threads. */
+    JS_LOCK_GC(cx->runtime);
+    another->requestDepth = cx->requestDepth;
+    cx->requestDepth = 0;
+    JS_UNLOCK_GC(cx->runtime);
 #endif
 }
 
@@ -1343,7 +1363,6 @@ static JSStdName object_prototype_names[] = {
     /* Object.prototype properties (global delegates to Object.prototype). */
     {js_InitObjectClass,        EAGER_ATOM(proto), NULL},
     {js_InitObjectClass,        EAGER_ATOM(parent), NULL},
-    {js_InitObjectClass,        EAGER_ATOM(count), NULL},
 #if JS_HAS_TOSOURCE
     {js_InitObjectClass,        EAGER_ATOM(toSource), NULL},
 #endif
@@ -2785,10 +2804,8 @@ JS_SealObject(JSContext *cx, JSObject *obj, JSBool deep)
     /* Ensure that obj has its own, mutable scope, and seal that scope. */
     JS_LOCK_OBJ(cx, obj);
     scope = js_GetMutableScope(cx, obj);
-    if (scope) {
-        scope->sealingShapeChange(cx);
-        scope->setSealed();
-    }
+    if (scope)
+        scope->seal(cx);
     JS_UNLOCK_OBJ(cx, obj);
     if (!scope)
         return JS_FALSE;
@@ -2853,7 +2870,7 @@ DefineProperty(JSContext *cx, JSObject *obj, const char *name, jsval value,
     JSAtom *atom;
 
     if (attrs & JSPROP_INDEX) {
-        id = INT_TO_JSID(JS_PTR_TO_INT32(name));
+        id = INT_TO_JSID(intptr_t(name));
         atom = NULL;
         attrs &= ~JSPROP_INDEX;
     } else {
@@ -2972,6 +2989,13 @@ JS_DefinePropertyWithTinyId(JSContext *cx, JSObject *obj, const char *name,
                           JSScopeProperty::HAS_SHORTID, tinyid);
 }
 
+JS_PUBLIC_API(JSBool)
+JS_DefineOwnProperty(JSContext *cx, JSObject *obj, jsid id, jsval descriptor, JSBool *bp)
+{
+    CHECK_REQUEST(cx);
+    return js_DefineOwnProperty(cx, obj, id, descriptor, bp);
+}
+
 static JSBool
 LookupPropertyById(JSContext *cx, JSObject *obj, jsid id, uintN flags,
                    JSObject **objp, JSProperty **propp)
@@ -3036,7 +3060,7 @@ JS_AliasProperty(JSContext *cx, JSObject *obj, const char *name,
         sprop = (JSScopeProperty *)prop;
         ok = (js_AddNativeProperty(cx, obj, ATOM_TO_JSID(atom),
                                    sprop->getter(), sprop->setter(), sprop->slot,
-                                   sprop->attrs, sprop->getFlags() | JSScopeProperty::ALIAS,
+                                   sprop->attributes(), sprop->getFlags() | JSScopeProperty::ALIAS,
                                    sprop->shortid)
               != NULL);
     }
@@ -3377,6 +3401,13 @@ JS_GetPropertyDescriptorById(JSContext *cx, JSObject *obj, jsid id, uintN flags,
 }
 
 JS_PUBLIC_API(JSBool)
+JS_GetOwnPropertyDescriptor(JSContext *cx, JSObject *obj, jsid id, jsval *vp)
+{
+    CHECK_REQUEST(cx);
+    return js_GetOwnPropertyDescriptor(cx, obj, id, vp);
+}
+
+JS_PUBLIC_API(JSBool)
 JS_GetProperty(JSContext *cx, JSObject *obj, const char *name, jsval *vp)
 {
     JSAtom *atom;
@@ -3709,7 +3740,7 @@ JS_AliasElement(JSContext *cx, JSObject *obj, const char *name, jsint alias)
     sprop = (JSScopeProperty *)prop;
     ok = (js_AddNativeProperty(cx, obj, INT_TO_JSID(alias),
                                sprop->getter(), sprop->setter(), sprop->slot,
-                               sprop->attrs, sprop->getFlags() | JSScopeProperty::ALIAS,
+                               sprop->attributes(), sprop->getFlags() | JSScopeProperty::ALIAS,
                                sprop->shortid)
           != NULL);
     obj->dropProperty(cx, prop);
@@ -4413,6 +4444,7 @@ JS_DefineUCFunction(JSContext *cx, JSObject *obj,
 {
     JSAtom *atom;
 
+    CHECK_REQUEST(cx);
     atom = js_AtomizeChars(cx, name, AUTO_NAMELEN(name, namelen), 0);
     if (!atom)
         return NULL;
@@ -4959,6 +4991,31 @@ JS_CallFunctionValue(JSContext *cx, JSObject *obj, jsval fval, uintN argc,
     return ok;
 }
 
+JS_PUBLIC_API(JSObject *)
+JS_New(JSContext *cx, JSObject *ctor, uintN argc, jsval *argv)
+{
+    CHECK_REQUEST(cx);
+
+    // This is not a simple variation of JS_CallFunctionValue because JSOP_NEW
+    // is not a simple variation of JSOP_CALL. We have to determine what class
+    // of object to create, create it, and clamp the return value to an object,
+    // among other details. js_InvokeConstructor does the hard work.
+    void *mark;
+    jsval *vp = js_AllocStack(cx, 2 + argc, &mark);
+    if (!vp)
+        return NULL;
+    vp[0] = OBJECT_TO_JSVAL(ctor);
+    vp[1] = JSVAL_NULL;
+    memcpy(vp + 2, argv, argc * sizeof(jsval));
+
+    JSBool ok = js_InvokeConstructor(cx, argc, JS_TRUE, vp);
+    JSObject *obj = ok ? JSVAL_TO_OBJECT(vp[0]) : NULL;
+
+    js_FreeStack(cx, mark);
+    LAST_FRAME_CHECKS(cx, ok);
+    return obj;
+}
+
 JS_PUBLIC_API(JSOperationCallback)
 JS_SetOperationCallback(JSContext *cx, JSOperationCallback callback)
 {
@@ -5064,7 +5121,7 @@ JS_NewString(JSContext *cx, char *bytes, size_t nbytes)
     }
 
     /* Hand off bytes to the deflated string cache, if possible. */
-    if (!js_SetStringBytes(cx, str, bytes, nbytes))
+    if (!cx->runtime->deflatedStringCache->setBytes(cx, str, bytes))
         cx->free(bytes);
     return str;
 }
@@ -5193,7 +5250,7 @@ JS_GetStringChars(JSString *str)
         if (s) {
             memcpy(s, str->dependentChars(), n * sizeof *s);
             s[n] = 0;
-            str->reinitFlat(s, n);
+            str->initFlat(s, n);
         } else {
             s = str->dependentChars();
         }

@@ -98,17 +98,12 @@ typedef struct JSCompiler           JSCompiler;
 typedef struct JSFunctionBox        JSFunctionBox;
 typedef struct JSObjectBox          JSObjectBox;
 typedef struct JSParseNode          JSParseNode;
-typedef struct JSPropCacheEntry     JSPropCacheEntry;
 typedef struct JSProperty           JSProperty;
 typedef struct JSSharpObjectMap     JSSharpObjectMap;
 typedef struct JSEmptyScope         JSEmptyScope;
 typedef struct JSTempValueRooter    JSTempValueRooter;
 typedef struct JSThread             JSThread;
 typedef struct JSThreadData         JSThreadData;
-typedef struct JSToken              JSToken;
-typedef struct JSTokenPos           JSTokenPos;
-typedef struct JSTokenPtr           JSTokenPtr;
-typedef struct JSTokenStream        JSTokenStream;
 typedef struct JSTreeContext        JSTreeContext;
 typedef struct JSTryNote            JSTryNote;
 typedef struct JSWeakRoots          JSWeakRoots;
@@ -150,6 +145,11 @@ class TraceRecorder;
 struct TraceMonitor;
 class CallStack;
 
+struct TokenStream;
+struct Token;
+struct TokenPos;
+struct TokenPtr;
+
 class ContextAllocPolicy;
 class SystemAllocPolicy;
 
@@ -172,6 +172,10 @@ template <class T,
           class AllocPolicy = ContextAllocPolicy>
 class HashSet;
 
+class DeflatedStringCache;
+
+struct PropertyCache;
+struct PropertyCacheEntry;
 } /* namespace js */
 
 /* Common instantiations. */

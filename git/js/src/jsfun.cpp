@@ -231,7 +231,7 @@ js_GetArgsObject(JSContext *cx, JSStackFrame *fp)
      */
     JS_ASSERT(fp->fun);
     JS_ASSERT_IF(fp->fun->flags & JSFUN_HEAVYWEIGHT,
-                 fp->varobj(js_ContainingCallStack(cx, fp)));
+                 fp->varobj(cx->containingCallStack(fp)));
 
     /* Skip eval and debugger frames. */
     while (fp->flags & JSFRAME_SPECIAL)
@@ -1682,7 +1682,7 @@ js_XDRFunctionObject(JSXDRState *xdr, JSObject **objp)
                 ok = JS_FALSE;
                 goto release_mark;
             }
-            memset(bitmap, 0, bitmapLength * sizeof *bitmap);
+            PodZero(bitmap, bitmapLength);
             for (i = 0; i != n; ++i) {
                 if (i < fun->nargs
                     ? JS_LOCAL_NAME_TO_ATOM(names[i]) != NULL
@@ -2194,12 +2194,12 @@ Function(JSContext *cx, JSObject *obj, uintN argc, jsval *argv, jsval *rval)
     const char *filename;
     JSBool ok;
     JSString *str, *arg;
-    JSTokenStream ts(cx);
+    TokenStream ts(cx);
     JSPrincipals *principals;
     jschar *collected_args, *cp;
     void *mark;
     size_t arg_length, args_length, old_args_length;
-    JSTokenType tt;
+    TokenKind tt;
 
     if (!JS_IsConstructing(cx)) {
         obj = js_NewObject(cx, &js_FunctionClass, NULL, NULL);
@@ -2255,6 +2255,17 @@ Function(JSContext *cx, JSObject *obj, uintN argc, jsval *argv, jsval *rval)
     /* Belt-and-braces: check that the caller has access to parent. */
     if (!js_CheckPrincipalsAccess(cx, parent, principals,
                                   CLASS_ATOM(cx, Function))) {
+        return JS_FALSE;
+    }
+
+    /*
+     * CSP check: whether new Function() is allowed at all.
+     * Report errors via CSP is done in the script security manager.
+     * js_CheckContentSecurityPolicy is defined in jsobj.cpp
+     */
+    if (!js_CheckContentSecurityPolicy(cx)) {
+        JS_ReportErrorNumber(cx, js_GetErrorMessage, NULL, 
+                             JSMSG_CSP_BLOCKED_FUNCTION);
         return JS_FALSE;
     }
 
@@ -2330,13 +2341,13 @@ Function(JSContext *cx, JSObject *obj, uintN argc, jsval *argv, jsval *rval)
         }
 
         /* Initialize a tokenstream that reads from the given string. */
-        if (!ts.init(cx, collected_args, args_length, NULL, filename, lineno)) {
+        if (!ts.init(collected_args, args_length, NULL, filename, lineno)) {
             JS_ARENA_RELEASE(&cx->tempPool, mark);
             return JS_FALSE;
         }
 
         /* The argument string may be empty or contain no tokens. */
-        tt = js_GetToken(cx, &ts);
+        tt = ts.getToken();
         if (tt != TOK_EOF) {
             for (;;) {
                 /*
@@ -2351,19 +2362,16 @@ Function(JSContext *cx, JSObject *obj, uintN argc, jsval *argv, jsval *rval)
                  * stream; we're assured at this point that it's a valid
                  * identifier.
                  */
-                atom = CURRENT_TOKEN(&ts).t_atom;
+                atom = ts.currentToken().t_atom;
 
                 /* Check for a duplicate parameter name. */
                 if (js_LookupLocal(cx, fun, atom, NULL) != JSLOCAL_NONE) {
                     const char *name;
 
                     name = js_AtomToPrintableString(cx, atom);
-                    ok = name &&
-                         js_ReportCompileErrorNumber(cx, &ts, NULL,
-                                                     JSREPORT_WARNING |
-                                                     JSREPORT_STRICT,
-                                                     JSMSG_DUPLICATE_FORMAL,
-                                                     name);
+                    ok = name && ReportCompileErrorNumber(cx, &ts, NULL,
+                                                          JSREPORT_WARNING | JSREPORT_STRICT,
+                                                          JSMSG_DUPLICATE_FORMAL, name);
                     if (!ok)
                         goto after_args;
                 }
@@ -2374,12 +2382,12 @@ Function(JSContext *cx, JSObject *obj, uintN argc, jsval *argv, jsval *rval)
                  * Get the next token.  Stop on end of stream.  Otherwise
                  * insist on a comma, get another name, and iterate.
                  */
-                tt = js_GetToken(cx, &ts);
+                tt = ts.getToken();
                 if (tt == TOK_EOF)
                     break;
                 if (tt != TOK_COMMA)
                     goto after_args;
-                tt = js_GetToken(cx, &ts);
+                tt = ts.getToken();
             }
         }
 
@@ -2393,7 +2401,7 @@ Function(JSContext *cx, JSObject *obj, uintN argc, jsval *argv, jsval *rval)
             JS_ReportErrorNumber(cx, js_GetErrorMessage, NULL,
                                  JSMSG_BAD_FORMAL);
         }
-        ts.close(cx);
+        ts.close();
         JS_ARENA_RELEASE(&cx->tempPool, mark);
         if (state != OK)
             return JS_FALSE;
@@ -3049,7 +3057,7 @@ js_GetLocalNameArray(JSContext *cx, JSFunction *fun, JSArenaPool *pool)
 
 #if JS_HAS_DESTRUCTURING
     /* Some parameter names can be NULL due to destructuring patterns. */
-    memset(names, 0, fun->nargs * sizeof *names);
+    PodZero(names, fun->nargs);
 #endif
     map = fun->u.i.names.map;
     args.fun = fun;

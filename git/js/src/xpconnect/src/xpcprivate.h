@@ -50,6 +50,14 @@
 #include <stdlib.h>
 #include <stdarg.h>
 #include <math.h>
+#include "jsapi.h"
+#include "jsdhash.h"
+#include "jsprf.h"
+#include "prprf.h"
+#include "jsinterp.h"
+#include "jscntxt.h"
+#include "jsdbgapi.h"
+#include "jsgc.h"
 #include "nscore.h"
 #include "nsXPCOM.h"
 #include "nsAutoPtr.h"
@@ -74,14 +82,6 @@
 #include "nsIModule.h"
 #include "nsAutoLock.h"
 #include "nsXPTCUtils.h"
-#include "jsapi.h"
-#include "jsdhash.h"
-#include "jsprf.h"
-#include "prprf.h"
-#include "jsinterp.h"
-#include "jscntxt.h"
-#include "jsdbgapi.h"
-#include "jsgc.h"
 #include "xptinfo.h"
 #include "xpcforwards.h"
 #include "xpclog.h"
@@ -3769,136 +3769,6 @@ private:
     PRUint32 mColumnNumber;
     PRUint32 mFlags;
     nsCString mCategory;
-};
-
-/***************************************************************************/
-// XXX allowing for future notifications to XPCCallContext
-
-class AutoJSRequest
-{
-public:
-    AutoJSRequest(XPCCallContext& aCCX)
-      : mCCX(aCCX), mCX(aCCX.GetJSContext()) {BeginRequest();}
-    ~AutoJSRequest() {EndRequest();}
-
-    void EndRequest() {
-        if(mCX) {
-            JS_EndRequest(mCX);
-            mCX = nsnull;
-        }
-    }
-private:
-    void BeginRequest() {
-        if(JS_GetContextThread(mCX))
-            JS_BeginRequest(mCX);
-        else
-            mCX = nsnull;
-    }
-private:
-    XPCCallContext& mCCX;
-    JSContext* mCX;
-};
-
-class AutoJSSuspendRequest
-{
-public:
-    AutoJSSuspendRequest(XPCCallContext& aCCX)
-      : mCX(aCCX.GetJSContext()) {SuspendRequest();}
-    ~AutoJSSuspendRequest() {ResumeRequest();}
-
-    void ResumeRequest() {
-        if(mCX) {
-            JS_ResumeRequest(mCX, mDepth);
-            mCX = nsnull;
-        }
-    }
-private:
-    void SuspendRequest() {
-        if(JS_GetContextThread(mCX))
-            mDepth = JS_SuspendRequest(mCX);
-        else
-            mCX = nsnull;
-    }
-private:
-    JSContext* mCX;
-    jsrefcount mDepth;
-};
-
-class AutoJSSuspendRequestWithNoCallContext
-{
-public:
-    AutoJSSuspendRequestWithNoCallContext(JSContext *aCX)
-      : mCX(aCX) {SuspendRequest();}
-    ~AutoJSSuspendRequestWithNoCallContext() {ResumeRequest();}
-
-    void ResumeRequest() {
-        if(mCX) {
-            JS_ResumeRequest(mCX, mDepth);
-            mCX = nsnull;
-        }
-    }
-private:
-    void SuspendRequest() {
-        if(JS_GetContextThread(mCX))
-            mDepth = JS_SuspendRequest(mCX);
-        else
-            mCX = nsnull;
-    }
-private:
-    JSContext* mCX;
-    jsrefcount mDepth;
-};
-
-class AutoJSSuspendNonMainThreadRequest
-{
-public:
-    AutoJSSuspendNonMainThreadRequest(JSContext *aCX)
-        : mCX(aCX) {SuspendRequest();}
-    ~AutoJSSuspendNonMainThreadRequest() {ResumeRequest();}
-
-    void ResumeRequest() {
-        if (mCX) {
-            JS_ResumeRequest(mCX, mDepth);
-            mCX = nsnull;
-        }
-    }
-
-private:
-    void SuspendRequest() {
-        if (mCX && !XPCPerThreadData::IsMainThread(mCX))
-            mDepth = JS_SuspendRequest(mCX);
-        else
-            mCX = nsnull;
-    }
-
-    JSContext *mCX;
-    jsrefcount mDepth;
-};
-        
-
-/*****************************************/
-
-class AutoJSRequestWithNoCallContext
-{
-public:
-    AutoJSRequestWithNoCallContext(JSContext* aCX) : mCX(aCX) {BeginRequest();}
-    ~AutoJSRequestWithNoCallContext() {EndRequest();}
-
-    void EndRequest() {
-        if(mCX) {
-            JS_EndRequest(mCX);
-            mCX = nsnull;
-        }
-    }
-private:
-    void BeginRequest() {
-        if(JS_GetContextThread(mCX))
-            JS_BeginRequest(mCX);
-        else
-            mCX = nsnull;
-    }
-private:
-    JSContext* mCX;
 };
 
 /***************************************************************************/
