@@ -301,6 +301,7 @@ function RTCPeerConnection() {
 
   this._localType = null;
   this._remoteType = null;
+  this._trickleIce = false;
   this._peerIdentity = null;
 
   /**
@@ -325,6 +326,7 @@ RTCPeerConnection.prototype = {
   init: function(win) { this._win = win; },
 
   __init: function(rtcConfig) {
+    this._trickleIce = Services.prefs.getBoolPref("media.peerconnection.trickle_ice");
     if (!rtcConfig.iceServers ||
         !Services.prefs.getBoolPref("media.peerconnection.use_document_iceservers")) {
       rtcConfig.iceServers =
@@ -363,7 +365,8 @@ RTCPeerConnection.prototype = {
     this._queueOrRun({
       func: this._initialize,
       args: [rtcConfig],
-      wait: false
+      // If not trickling, suppress start.
+      wait: !this._trickleIce
     });
   },
 
@@ -497,11 +500,7 @@ RTCPeerConnection.prototype = {
   },
 
   dispatchEvent: function(event) {
-    // PC can close while events are firing if there is an async dispatch
-    // in c++ land
-    if (!this._closed) {
-      this.__DOM_IMPL__.dispatchEvent(event);
-    }
+    this.__DOM_IMPL__.dispatchEvent(event);
   },
 
   // Log error message to web console and window.onerror, if present.

@@ -39,7 +39,7 @@ function testAudioPlayPause() {
     audio.pause();
   });
 
-  function testAudioPlayListener(topic, state) {
+  navigator.mozPower.addWakeLockListener(function testAudioPlayListener(topic, state) {
     is(topic, "cpu", "Audio element locked the target == cpu");
     var locked = state == "locked-foreground" ||
                  state == "locked-background";
@@ -58,9 +58,8 @@ function testAudioPlayPause() {
       navigator.mozPower.removeWakeLockListener(testAudioPlayListener);
       runTests();
     }
-  };
+  });
 
-  navigator.mozPower.addWakeLockListener(testAudioPlayListener);
   audio.play();
 }
 
@@ -79,7 +78,7 @@ function testAudioPlay() {
     startDate = new Date();
   });
 
-  function testAudioPlayListener(topic, state) {
+  navigator.mozPower.addWakeLockListener(function testAudioPlayListener(topic, state) {
     is(topic, "cpu", "Audio element locked the target == cpu");
     var locked = state == "locked-foreground" ||
                  state == "locked-background";
@@ -102,9 +101,8 @@ function testAudioPlay() {
       navigator.mozPower.removeWakeLockListener(testAudioPlayListener);
       runTests();
     }
-  };
+  });
 
-  navigator.mozPower.addWakeLockListener(testAudioPlayListener);
   audio.play();
 }
 
@@ -119,11 +117,8 @@ function runTests() {
   test();
 };
 
-SpecialPowers.pushPermissions(
-  [{'type': 'power', 'allow': true, 'context': document}],
-  function() {
-    SpecialPowers.pushPrefEnv({"set": [["media.wakelock_timeout", 500]]}, runTests);
-  });
+SpecialPowers.addPermission("power", true, document);
+SpecialPowers.pushPrefEnv({"set": [["media.wakelock_timeout", 500]]}, runTests);
 
 SimpleTest.waitForExplicitFinish();
 

@@ -11,6 +11,7 @@
 
 const { classes: Cc, interfaces: Ci, results: Cr, utils: Cu } = Components;
 
+const TOPIC_SHUTDOWN = "places-shutdown";
 const TOPIC_PREFCHANGED = "nsPref:changed";
 
 const DEFAULT_BEHAVIOR = 0;
@@ -628,9 +629,7 @@ Search.prototype = {
   },
 
   /**
-   * Cancels this search.
-   * After invoking this method, we won't run any more searches or heuristics,
-   * and no new matches may be added to the current result.
+   * Used to cancel this search, will stop providing results.
    */
   cancel: function () {
     if (this._sleepTimer)
@@ -981,10 +980,6 @@ Search.prototype = {
         break;
     }
     this._addMatch(match);
-    // If the search has been canceled by the user or by _addMatch reaching the
-    // maximum number of results, we can stop the underlying Sqlite query.
-    if (!this.pending)
-      throw StopIteration;
   },
 
   _maybeRestyleSearchMatch: function (match) {
@@ -1046,19 +1041,22 @@ Search.prototype = {
                                match.comment,
                                match.icon || PlacesUtils.favicons.defaultFavicon.spec,
                                match.style,
-                               match.finalCompleteValue || "");
+                               match.finalCompleteValue);
       notifyResults = true;
     }
 
     if (this._result.matchCount == 6)
       TelemetryStopwatch.finish(TELEMETRY_6_FIRST_RESULTS);
 
-    if (this._result.matchCount == Prefs.maxRichResults) {
+    if (this._result.matchCount == Prefs.maxRichResults || !this.pending) {
       // We have enough results, so stop running our search.
-      // We don't need to notify results in this case, cause the main promise
-      // chain will do that for us when finishSearch is invoked.
       this.cancel();
-    } else if (notifyResults) {
+      // This tells Sqlite.jsm to stop providing us results and cancel the
+      // underlying query.
+      throw StopIteration;
+    }
+
+    if (notifyResults) {
       // Notify about results if we've gotten them.
       this.notifyResults(true);
     }
@@ -1462,9 +1460,19 @@ Search.prototype = {
 //// component @mozilla.org/autocomplete/search;1?name=unifiedcomplete
 
 function UnifiedComplete() {
+  Services.obs.addObserver(this, TOPIC_SHUTDOWN, true);
 }
 
 UnifiedComplete.prototype = {
+  //////////////////////////////////////////////////////////////////////////////
+  //// nsIObserver
+
+  observe: function (subject, topic, data) {
+    if (topic === TOPIC_SHUTDOWN) {
+      this.ensureShutdown();
+    }
+  },
+
   //////////////////////////////////////////////////////////////////////////////
   //// Database handling
 
@@ -1489,18 +1497,6 @@ UnifiedComplete.prototype = {
           readOnly: true
         });
 
-        try {
-           Sqlite.shutdown.addBlocker("Places UnifiedComplete.js clone closing",
-                                      Task.async(function* () {
-                                        SwitchToTabStorage.shutdown();
-                                        yield conn.close();
-                                      }));
-        } catch (ex) {
-          // It's too late to block shutdown, just close the connection.
-          yield conn.close();
-          throw ex;
-        }
-
         // Autocomplete often fallbacks to a table scan due to lack of text
         // indices.  A larger cache helps reducing IO and improving performance.
         // The value used here is larger than the default Storage value defined
@@ -1514,6 +1510,20 @@ UnifiedComplete.prototype = {
                                        Cu.reportError(ex); });
     }
     return this._promiseDatabase;
+  },
+
+  /**
+   * Used to stop running queries and close the database handle.
+   */
+  ensureShutdown: function () {
+    if (this._promiseDatabase) {
+      Task.spawn(function* () {
+        let conn = yield this.getDatabaseHandle();
+        SwitchToTabStorage.shutdown();
+        yield conn.close()
+      }.bind(this)).then(null, Cu.reportError);
+      this._promiseDatabase = null;
+    }
   },
 
   //////////////////////////////////////////////////////////////////////////////

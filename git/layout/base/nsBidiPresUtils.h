@@ -160,8 +160,7 @@ public:
   static void ReorderFrames(nsIFrame*            aFirstFrameOnLine,
                             int32_t              aNumFramesOnLine,
                             mozilla::WritingMode aLineWM,
-                            nscoord&             aLineWidth,
-                            nscoord              aStart);
+                            nscoord&             aLineWidth);
 
   /**
    * Format Unicode text, taking into account bidi capabilities
@@ -398,8 +397,8 @@ private:
                               bool                   aIsEvenLevel,
                               nscoord&               aStart,
                               nsContinuationStates*  aContinuationStates,
-                              mozilla::WritingMode   aContainerWM,
-                              nscoord&               aContainerWidth);
+                              mozilla::WritingMode   aLineWM,
+                              nscoord&               aLineWidth);
 
   /*
    * Initialize the continuation state(nsFrameContinuationState) to
@@ -413,32 +412,22 @@ private:
                                      nsContinuationStates*  aContinuationStates);
 
   /*
-   * Determine if aFrame is first or last, and set aIsFirst and
-   * aIsLast values. Also set continuation states of
-   * aContinuationStates.
+   * Determine if aFrame is leftmost or rightmost, and set aIsLeftMost and
+   * aIsRightMost values. Also set continuation states of aContinuationStates.
    *
-   * A frame is first if it's the first appearance of its continuation
-   * chain on the line and the chain is on its first line.
-   * A frame is last if it's the last appearance of its continuation
-   * chain on the line and the chain is on its last line.
+   * A frame is leftmost if it's the first appearance of its continuation chain
+   * on the line and the chain is on its first line if it's LTR or the chain is
+   * on its last line if it's RTL.
+   * A frame is rightmost if it's the last appearance of its continuation chain
+   * on the line and the chain is on its first line if it's RTL or the chain is
+   * on its last line if it's LTR.
    *
-   * N.B: "First appearance" and "Last appearance" in the previous
-   * paragraph refer to the frame's inline direction, not necessarily
-   * the line's.
-   *
-   * @param aContinuationStates        A map from nsIFrame* to
-   *                                    nsFrameContinuationState
-   * @param[in] aSpanDirMatchesLineDir TRUE means that the inline
-   *                                    direction of aFrame is the same
-   *                                    as its container
-   * @param[out] aIsFirst              TRUE means aFrame is first frame
-   *                                    or continuation
-   * @param[out] aIsLast               TRUE means aFrame is last frame
-   *                                    or continuation
+   * @param aContinuationStates  A map from nsIFrame* to nsFrameContinuationState
+   * @param[out] aIsLeftMost     TRUE means aFrame is leftmost frame or continuation
+   * @param[out] aIsRightMost    TRUE means aFrame is rightmost frame or continuation
    */
    static void IsFirstOrLast(nsIFrame*              aFrame,
                              nsContinuationStates*  aContinuationStates,
-                             bool                   aSpanInLineOrder /* in */,
                              bool&                  aIsFirst /* out */,
                              bool&                  aIsLast /* out */);
 
@@ -452,8 +441,7 @@ private:
   static void RepositionInlineFrames(BidiLineData* aBld,
                                      nsIFrame* aFirstChild,
                                      mozilla::WritingMode aLineWM,
-                                     nscoord& aLineWidth,
-                                     nscoord& aStart);
+                                     nscoord& aLineWidth);
   
   /**
    * Helper method for Resolve()

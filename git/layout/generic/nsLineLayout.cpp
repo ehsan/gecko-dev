@@ -2598,21 +2598,19 @@ nsLineLayout::TextAlignLine(nsLineBox* aLine,
     }
   }
 
-  if (mPresContext->BidiEnabled() &&
-      (!mPresContext->IsVisualMode() || !lineWM.IsBidiLTR())) {
-    nsBidiPresUtils::ReorderFrames(psd->mFirstFrame->mFrame,
-                                   aLine->GetChildCount(),
-                                   lineWM, mContainerWidth,
-                                   psd->mIStart + mTextIndent + dx);
-    if (dx) {
-      aLine->IndentBy(dx, mContainerWidth);
-    }
-  } else if (dx) {
+  if (dx) {
     for (PerFrameData* pfd = psd->mFirstFrame; pfd; pfd = pfd->mNext) {
       pfd->mBounds.IStart(lineWM) += dx;
       pfd->mFrame->SetRect(lineWM, pfd->mBounds, mContainerWidth);
     }
     aLine->IndentBy(dx, mContainerWidth);
+  }
+
+  if (mPresContext->BidiEnabled() &&
+      (!mPresContext->IsVisualMode() || !lineWM.IsBidiLTR())) {
+    nsBidiPresUtils::ReorderFrames(psd->mFirstFrame->mFrame,
+                                   aLine->GetChildCount(),
+                                   lineWM, mContainerWidth);
   }
 }
 

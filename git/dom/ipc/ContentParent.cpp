@@ -30,6 +30,8 @@
 #include "CrashReporterParent.h"
 #include "IHistory.h"
 #include "mozIApplication.h"
+#include "mozilla/a11y/DocAccessibleParent.h"
+#include "nsAccessibilityService.h"
 #include "mozilla/ClearOnShutdown.h"
 #include "mozilla/dom/DataStoreService.h"
 #include "mozilla/dom/DOMStorageIPC.h"
@@ -342,7 +344,6 @@ namespace mozilla {
 namespace dom {
 
 #ifdef MOZ_NUWA_PROCESS
-int32_t ContentParent::sNuwaPid = 0;
 bool ContentParent::sNuwaReady = false;
 #endif
 
@@ -588,7 +589,6 @@ ContentParent::RunNuwaProcess()
                           /* aIsNuwaProcess = */ true);
     nuwaProcess->Init();
 #ifdef MOZ_NUWA_PROCESS
-    sNuwaPid = nuwaProcess->Pid();
     sNuwaReady = false;
 #endif
     return nuwaProcess.forget();
@@ -1992,7 +1992,6 @@ ContentParent::~ContentParent()
 #ifdef MOZ_NUWA_PROCESS
     if (IsNuwaProcess()) {
         sNuwaReady = false;
-        sNuwaPid = 0;
     }
 #endif
 }
@@ -2698,6 +2697,34 @@ ContentParent::Observe(nsISupports* aSubject,
         unused << SendOnAppThemeChanged();
     }
     return NS_OK;
+}
+
+  a11y::PDocAccessibleParent*
+ContentParent::AllocPDocAccessibleParent(PDocAccessibleParent* aParent, const uint64_t&)
+{
+  return new a11y::DocAccessibleParent();
+}
+
+bool
+ContentParent::DeallocPDocAccessibleParent(PDocAccessibleParent* aParent)
+{
+  delete static_cast<a11y::DocAccessibleParent*>(aParent);
+  return true;
+}
+
+bool
+ContentParent::RecvPDocAccessibleConstructor(PDocAccessibleParent* aDoc, PDocAccessibleParent* aParentDoc, const uint64_t& aParentID)
+{
+  auto doc = static_cast<a11y::DocAccessibleParent*>(aDoc);
+  if (aParentDoc) {
+    MOZ_ASSERT(aParentID);
+    auto parentDoc = static_cast<a11y::DocAccessibleParent*>(aParentDoc);
+    return parentDoc->AddChildDoc(doc, aParentID);
+  } else {
+    MOZ_ASSERT(!aParentID);
+    GetAccService()->RemoteDocAdded(doc);
+  }
+  return true;
 }
 
 PCompositorParent*
@@ -3702,12 +3729,6 @@ ContentParent::DoSendAsyncMessage(JSContext* aCx,
     if (aCpows && !GetCPOWManager()->Wrap(aCx, aCpows, &cpows)) {
         return false;
     }
-#ifdef MOZ_NUWA_PROCESS
-    if (IsNuwaProcess() && IsNuwaReady()) {
-        // Nuwa won't receive frame messages after it is frozen.
-        return true;
-    }
-#endif
     return SendAsyncMessage(nsString(aMessage), data, cpows, Principal(aPrincipal));
 }
 

@@ -128,11 +128,8 @@ describe("loop.CallConnectionWebSocket", function() {
             data: '{"messageType":"hello", "state":"init"}'
           });
 
-          promise.then(function(state) {
-            expect(state).eql("init");
+          promise.then(function() {
             done();
-          }, function() {
-            done(new Error("shouldn't have rejected the promise"));
           });
         });
     });

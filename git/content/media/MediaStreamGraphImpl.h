@@ -153,16 +153,8 @@ public:
   void AssertOnGraphThreadOrNotRunning() {
     // either we're on the right thread (and calling CurrentDriver() is safe),
     // or we're going to assert anyways, so don't cross-check CurrentDriver
-#ifdef DEBUG
-    // if all the safety checks fail, assert we own the monitor
-    if (!mDriver->OnThread()) {
-      if (!(mDetectedNotRunning &&
-            mLifecycleState > LIFECYCLE_RUNNING &&
-            NS_IsMainThread())) {
-        mMonitor.AssertCurrentThreadOwns();
-      }
-    }
-#endif
+    MOZ_ASSERT(mDriver->OnThread() ||
+               (mLifecycleState > LIFECYCLE_RUNNING && NS_IsMainThread()));
   }
   /*
    * This does the actual iteration: Message processing, MediaStream ordering,
@@ -432,7 +424,12 @@ public:
    * Not safe to call off the MediaStreamGraph thread unless monitor is held!
    */
   GraphDriver* CurrentDriver() {
-    AssertOnGraphThreadOrNotRunning();
+#ifdef DEBUG
+    // #ifdef since we're not wrapping it all in MOZ_ASSERT()
+    if (!mDriver->OnThread()) {
+      mMonitor.AssertCurrentThreadOwns();
+    }
+#endif
     return mDriver;
   }
 
@@ -445,7 +442,12 @@ public:
    * monitor is held
    */
   void SetCurrentDriver(GraphDriver* aDriver) {
-    AssertOnGraphThreadOrNotRunning();
+#ifdef DEBUG
+    // #ifdef since we're not wrapping it all in MOZ_ASSERT()
+    if (!mDriver->OnThread()) {
+      mMonitor.AssertCurrentThreadOwns();
+    }
+#endif
     mDriver = aDriver;
   }
 
@@ -654,8 +656,6 @@ public:
   nsRefPtr<AudioOutputObserver> mFarendObserverRef;
 #endif
 
-  uint32_t AudioChannel() const { return mAudioChannel; }
-
 private:
   virtual ~MediaStreamGraphImpl();
 
@@ -689,9 +689,6 @@ private:
   bool mCanRunMessagesSynchronously;
 #endif
 
-  // We use uint32_t instead AudioChannel because this is just used as key for
-  // the hashtable gGraphs.
-  uint32_t mAudioChannel;
 };
 
 }

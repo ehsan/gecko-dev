@@ -74,9 +74,6 @@ abstract class UITest extends BaseRobocopTest
         // Helpers depend on components so initialize them first.
         initComponents();
         initHelpers();
-
-        // Ensure Robocop tests are run with Display powered on.
-        throwIfScreenNotOn();
     }
 
     @Override

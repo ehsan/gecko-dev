@@ -11,9 +11,8 @@ var loop = loop || {};
 loop.conversation = (function(mozL10n) {
   "use strict";
 
-  var sharedViews = loop.shared.views;
-  var sharedModels = loop.shared.models;
-  var OutgoingConversationView = loop.conversationViews.OutgoingConversationView;
+  var sharedViews = loop.shared.views,
+      sharedModels = loop.shared.models;
 
   var IncomingCallView = React.createClass({displayName: 'IncomingCallView',
 
@@ -110,23 +109,26 @@ loop.conversation = (function(mozL10n) {
 
     render: function() {
       /* jshint ignore:start */
+      var btnClassAccept = "btn btn-accept";
+      var btnClassDecline = "btn btn-error btn-decline";
+      var conversationPanelClass = "incoming-call";
       var dropdownMenuClassesDecline = React.addons.classSet({
         "native-dropdown-menu": true,
         "conversation-window-dropdown": true,
         "visually-hidden": !this.state.showDeclineMenu
       });
       return (
-        React.DOM.div({className: "call-window"}, 
+        React.DOM.div({className: conversationPanelClass}, 
           React.DOM.h2(null, mozL10n.get("incoming_call_title2")), 
-          React.DOM.div({className: "btn-group call-action-group"}, 
+          React.DOM.div({className: "btn-group incoming-call-action-group"}, 
 
-            React.DOM.div({className: "fx-embedded-call-button-spacer"}), 
+            React.DOM.div({className: "fx-embedded-incoming-call-button-spacer"}), 
 
             React.DOM.div({className: "btn-chevron-menu-group"}, 
               React.DOM.div({className: "btn-group-chevron"}, 
                 React.DOM.div({className: "btn-group"}, 
 
-                  React.DOM.button({className: "btn btn-error btn-decline", 
+                  React.DOM.button({className: btnClassDecline, 
                           onClick: this._handleDecline}, 
                     mozL10n.get("incoming_call_cancel_button")
                   ), 
@@ -144,11 +146,11 @@ loop.conversation = (function(mozL10n) {
               )
             ), 
 
-            React.DOM.div({className: "fx-embedded-call-button-spacer"}), 
+            React.DOM.div({className: "fx-embedded-incoming-call-button-spacer"}), 
 
             AcceptCallButton({mode: this._answerModeProps()}), 
 
-            React.DOM.div({className: "fx-embedded-call-button-spacer"})
+            React.DOM.div({className: "fx-embedded-incoming-call-button-spacer"})
 
           )
         )
@@ -368,10 +370,8 @@ loop.conversation = (function(mozL10n) {
         websocketToken: this.props.conversation.get("websocketToken"),
         callId: this.props.conversation.get("callId"),
       });
-      this._websocket.promiseConnect().then(function(progressStatus) {
-        this.setState({
-          callStatus: progressStatus === "terminated" ? "close" : "incoming"
-        });
+      this._websocket.promiseConnect().then(function() {
+        this.setState({callStatus: "incoming"});
       }.bind(this), function() {
         this._handleSessionError();
         return;
@@ -490,55 +490,6 @@ loop.conversation = (function(mozL10n) {
   });
 
   /**
-   * Master controller view for handling if incoming or outgoing calls are
-   * in progress, and hence, which view to display.
-   */
-  var ConversationControllerView = React.createClass({displayName: 'ConversationControllerView',
-    propTypes: {
-      // XXX Old types required for incoming call view.
-      client: React.PropTypes.instanceOf(loop.Client).isRequired,
-      conversation: React.PropTypes.instanceOf(sharedModels.ConversationModel)
-                         .isRequired,
-      notifications: React.PropTypes.instanceOf(sharedModels.NotificationCollection)
-                          .isRequired,
-      sdk: React.PropTypes.object.isRequired,
-
-      // XXX New types for OutgoingConversationView
-      store: React.PropTypes.instanceOf(loop.store.ConversationStore).isRequired
-    },
-
-    getInitialState: function() {
-      return this.props.store.attributes;
-    },
-
-    componentWillMount: function() {
-      this.props.store.on("change:outgoing", function() {
-        this.setState(this.props.store.attributes);
-      }, this);
-    },
-
-    render: function() {
-      // Don't display anything, until we know what type of call we are.
-      if (this.state.outgoing === undefined) {
-        return null;
-      }
-
-      if (this.state.outgoing) {
-        return (OutgoingConversationView({
-          store: this.props.store}
-        ));
-      }
-
-      return (IncomingConversationView({
-        client: this.props.client, 
-        conversation: this.props.conversation, 
-        notifications: this.props.notifications, 
-        sdk: this.props.sdk}
-      ));
-    }
-  });
-
-  /**
    * Panel initialisation.
    */
   function init() {
@@ -558,57 +509,36 @@ loop.conversation = (function(mozL10n) {
       }
     });
 
-    var dispatcher = new loop.Dispatcher();
+    document.body.classList.add(loop.shared.utils.getTargetPlatform());
+
     var client = new loop.Client();
-    var conversationStore = new loop.store.ConversationStore({}, {
-      client: client,
-      dispatcher: dispatcher
-    });
-
-    // XXX For now key this on the pref, but this should really be
-    // set by the information from the mozLoop API when we can get it (bug 1072323).
-    var outgoingEmail = navigator.mozLoop.getLoopCharPref("outgoingemail");
-
-    // XXX Old class creation for the incoming conversation view, whilst
-    // we transition across (bug 1072323).
     var conversation = new sharedModels.ConversationModel(
       {},                // Model attributes
       {sdk: window.OT}   // Model dependencies
     );
     var notifications = new sharedModels.NotificationCollection();
 
-    // Obtain the callId and pass it through
-    var helper = new loop.shared.utils.Helper();
-    var locationHash = helper.locationHash();
-    var callId;
-    if (locationHash) {
-      callId = locationHash.match(/\#incoming\/(.*)/)[1]
-      conversation.set("callId", callId);
-    }
-
     window.addEventListener("unload", function(event) {
       // Handle direct close of dialog box via [x] control.
       navigator.mozLoop.releaseCallData(conversation.get("callId"));
     });
 
-    document.body.classList.add(loop.shared.utils.getTargetPlatform());
+    // Obtain the callId and pass it to the conversation
+    var helper = new loop.shared.utils.Helper();
+    var locationHash = helper.locationHash();
+    if (locationHash) {
+      conversation.set("callId", locationHash.match(/\#incoming\/(.*)/)[1]);
+    }
 
-    React.renderComponent(ConversationControllerView({
-      store: conversationStore, 
+    React.renderComponent(IncomingConversationView({
       client: client, 
       conversation: conversation, 
       notifications: notifications, 
       sdk: window.OT}
     ), document.querySelector('#main'));
-
-    dispatcher.dispatch(new loop.shared.actions.GatherCallData({
-      callId: callId,
-      calleeId: outgoingEmail
-    }));
   }
 
   return {
-    ConversationControllerView: ConversationControllerView,
     IncomingConversationView: IncomingConversationView,
     IncomingCallView: IncomingCallView,
     init: init

@@ -83,28 +83,28 @@ NS_SVGNewGetBBoxEnabled()
 // we only take the address of this:
 static mozilla::gfx::UserDataKey sSVGAutoRenderStateKey;
 
-SVGAutoRenderState::SVGAutoRenderState(DrawTarget* aDrawTarget,
+SVGAutoRenderState::SVGAutoRenderState(nsRenderingContext *aContext,
                                        RenderMode aMode
                                        MOZ_GUARD_OBJECT_NOTIFIER_PARAM_IN_IMPL)
-  : mDrawTarget(aDrawTarget)
+  : mContext(aContext)
   , mOriginalRenderState(nullptr)
   , mMode(aMode)
   , mPaintingToWindow(false)
 {
   MOZ_GUARD_OBJECT_NOTIFIER_INIT;
   mOriginalRenderState =
-    aDrawTarget->RemoveUserData(&sSVGAutoRenderStateKey);
+    aContext->GetDrawTarget()->RemoveUserData(&sSVGAutoRenderStateKey);
   // We always remove ourselves from aContext before it dies, so
   // passing nullptr as the destroy function is okay.
-  aDrawTarget->AddUserData(&sSVGAutoRenderStateKey, this, nullptr);
+  aContext->GetDrawTarget()->AddUserData(&sSVGAutoRenderStateKey, this, nullptr);
 }
 
 SVGAutoRenderState::~SVGAutoRenderState()
 {
-  mDrawTarget->RemoveUserData(&sSVGAutoRenderStateKey);
+  mContext->GetDrawTarget()->RemoveUserData(&sSVGAutoRenderStateKey);
   if (mOriginalRenderState) {
-    mDrawTarget->AddUserData(&sSVGAutoRenderStateKey,
-                             mOriginalRenderState, nullptr);
+    mContext->GetDrawTarget()->AddUserData(&sSVGAutoRenderStateKey,
+                                           mOriginalRenderState, nullptr);
   }
 }
 
@@ -115,9 +115,9 @@ SVGAutoRenderState::SetPaintingToWindow(bool aPaintingToWindow)
 }
 
 /* static */ SVGAutoRenderState::RenderMode
-SVGAutoRenderState::GetRenderMode(DrawTarget* aDrawTarget)
+SVGAutoRenderState::GetRenderMode(nsRenderingContext *aContext)
 {
-  void *state = aDrawTarget->GetUserData(&sSVGAutoRenderStateKey);
+  void *state = aContext->GetDrawTarget()->GetUserData(&sSVGAutoRenderStateKey);
   if (state) {
     return static_cast<SVGAutoRenderState*>(state)->mMode;
   }
@@ -125,9 +125,9 @@ SVGAutoRenderState::GetRenderMode(DrawTarget* aDrawTarget)
 }
 
 /* static */ bool
-SVGAutoRenderState::IsPaintingToWindow(DrawTarget* aDrawTarget)
+SVGAutoRenderState::IsPaintingToWindow(nsRenderingContext *aContext)
 {
-  void *state = aDrawTarget->GetUserData(&sSVGAutoRenderStateKey);
+  void *state = aContext->GetDrawTarget()->GetUserData(&sSVGAutoRenderStateKey);
   if (state) {
     return static_cast<SVGAutoRenderState*>(state)->mPaintingToWindow;
   }
@@ -774,6 +774,25 @@ nsSVGUtils::GetCoveredRegion(const nsFrameList &aFrames)
   return rect;
 }
 
+nsPoint
+nsSVGUtils::TransformOuterSVGPointToChildFrame(nsPoint aPoint,
+                                               const gfxMatrix& aFrameToCanvasTM,
+                                               nsPresContext* aPresContext)
+{
+  NS_ABORT_IF_FALSE(!aFrameToCanvasTM.IsSingular(),
+                    "Callers must not pass a singular matrix");
+  gfxMatrix canvasDevToFrameUserSpace = aFrameToCanvasTM;
+  canvasDevToFrameUserSpace.Invert();
+  gfxPoint cssPxPt =
+    gfxPoint(aPoint.x, aPoint.y) / aPresContext->AppUnitsPerCSSPixel();
+  gfxPoint userPt = canvasDevToFrameUserSpace.Transform(cssPxPt);
+  gfxPoint appPt = (userPt * aPresContext->AppUnitsPerCSSPixel()).Round();
+  userPt.x = clamped(appPt.x, gfxFloat(nscoord_MIN), gfxFloat(nscoord_MAX));
+  userPt.y = clamped(appPt.y, gfxFloat(nscoord_MIN), gfxFloat(nscoord_MAX));
+  // now guaranteed to be safe:
+  return nsPoint(nscoord(userPt.x), nscoord(userPt.y));
+}
+
 nsRect
 nsSVGUtils::TransformFrameRectToOuterSVG(const nsRect& aRect,
                                          const gfxMatrix& aMatrix,
@@ -1100,26 +1119,31 @@ nsSVGUtils::GetFirstNonAAncestorFrame(nsIFrame* aStartFrame)
   return nullptr;
 }
 
-bool
-nsSVGUtils::GetNonScalingStrokeTransform(nsIFrame *aFrame,
-                                         gfxMatrix* aUserToOuterSVG)
+gfxMatrix
+nsSVGUtils::GetStrokeTransform(nsIFrame *aFrame)
 {
   if (aFrame->GetContent()->IsNodeOfType(nsINode::eTEXT)) {
     aFrame = aFrame->GetParent();
   }
 
-  if (aFrame->StyleSVGReset()->mVectorEffect !=
-        NS_STYLE_VECTOR_EFFECT_NON_SCALING_STROKE) {
-    return false;
+  if (aFrame->StyleSVGReset()->mVectorEffect ==
+      NS_STYLE_VECTOR_EFFECT_NON_SCALING_STROKE) {
+ 
+    nsIContent *content = aFrame->GetContent();
+    NS_ABORT_IF_FALSE(content->IsSVG(), "bad cast");
+
+    // a non-scaling stroke is in the screen co-ordinate
+    // space rather so we need to invert the transform
+    // to the screen co-ordinate space to get there.
+    // See http://www.w3.org/TR/SVGTiny12/painting.html#NonScalingStroke
+    gfx::Matrix transform = SVGContentUtils::GetCTM(
+                              static_cast<nsSVGElement*>(content), true);
+    if (!transform.IsSingular()) {
+      transform.Invert();
+      return ThebesMatrix(transform);
+    }
   }
-
-  nsIContent *content = aFrame->GetContent();
-  NS_ABORT_IF_FALSE(content->IsSVG(), "bad cast");
-
-  *aUserToOuterSVG = ThebesMatrix(SVGContentUtils::GetCTM(
-                       static_cast<nsSVGElement*>(content), true));
-
-  return !aUserToOuterSVG->IsIdentity();
+  return gfxMatrix();
 }
 
 // The logic here comes from _cairo_stroke_style_max_distance_from_path
@@ -1132,13 +1156,7 @@ PathExtentsToMaxStrokeExtents(const gfxRect& aPathExtents,
   double style_expansion =
     aStyleExpansionFactor * nsSVGUtils::GetStrokeWidth(aFrame);
 
-  gfxMatrix matrix = aMatrix;
-
-  gfxMatrix outerSVGToUser;
-  if (nsSVGUtils::GetNonScalingStrokeTransform(aFrame, &outerSVGToUser)) {
-    outerSVGToUser.Invert();
-    matrix *= outerSVGToUser;
-  }
+  gfxMatrix matrix = aMatrix * nsSVGUtils::GetStrokeTransform(aFrame);
 
   double dx = style_expansion * (fabs(matrix._11) + fabs(matrix._21));
   double dy = style_expansion * (fabs(matrix._22) + fabs(matrix._12));
@@ -1478,10 +1496,9 @@ nsSVGUtils::SetupCairoStrokeGeometry(nsIFrame* aFrame,
   aContext->SetLineWidth(width);
 
   // Apply any stroke-specific transform
-  gfxMatrix outerSVGToUser;
-  if (GetNonScalingStrokeTransform(aFrame, &outerSVGToUser) &&
-      outerSVGToUser.Invert()) {
-    aContext->Multiply(outerSVGToUser);
+  gfxMatrix strokeTransform = GetStrokeTransform(aFrame);
+  if (!strokeTransform.IsIdentity()) {
+    aContext->Multiply(strokeTransform);
   }
 
   const nsStyleSVG* style = aFrame->StyleSVG();
