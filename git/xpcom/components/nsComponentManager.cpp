@@ -1797,8 +1797,9 @@ nsFactoryEntry::GetFactory()
             factory.swap(mFactory);
         }
     }
-    nsCOMPtr<nsIFactory> factory = mFactory;
-    return factory.forget();
+    nsIFactory* factory = mFactory;
+    factory->AddRef();
+    return factory;
 }
 
 size_t

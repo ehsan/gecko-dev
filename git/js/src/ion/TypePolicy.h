@@ -229,12 +229,6 @@ class StoreTypedArrayHolePolicy : public StoreTypedArrayPolicy
     bool adjustInputs(MInstruction *ins);
 };
 
-class StoreTypedArrayElementStaticPolicy : public StoreTypedArrayPolicy
-{
-  public:
-    bool adjustInputs(MInstruction *ins);
-};
-
 // Accepts integers and doubles. Everything else is boxed.
 class ClampPolicy : public BoxInputsPolicy
 {

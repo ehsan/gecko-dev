@@ -13,7 +13,6 @@ module.metadata = {
 };
 
 const { setTimeout } = require("../timers");
-const { deprecateFunction } = require("../util/deprecate");
 
 /**
  * Takes `lambda` function and returns a method. When returned method is
@@ -56,15 +55,14 @@ function invoke(callee, params, self) callee.apply(self, params);
 exports.invoke = invoke;
 
 /**
- * Takes a function and bind values to one or more arguments, returning a new
- * function of smaller arity.
+ * Curries a function with the arguments given.
  *
  * @param {Function} fn
- *    The function to partial
+ *    The function to curry
  *
- * @returns The new function with binded values
+ * @returns The function curried
  */
-function partial(fn) {
+function curry(fn) {
   if (typeof fn !== "function")
     throw new TypeError(String(fn) + " is not a function");
 
@@ -72,12 +70,7 @@ function partial(fn) {
 
   return function() fn.apply(this, args.concat(Array.slice(arguments)));
 }
-exports.partial = partial;
-
-exports.curry = deprecateFunction(partial,
-  'curry is deprecated, ' +
-  'please use require("sdk/lang/functional").partial instead.'
-);
+exports.curry = curry;
 
 /**
  * Returns the composition of a list of functions, where each function consumes

@@ -1866,19 +1866,12 @@ NS_IMPL_CYCLE_COLLECTION_UNLINK_BEGIN(nsDocument)
   tmp->mInUnlinkOrDeletion = false;
 NS_IMPL_CYCLE_COLLECTION_UNLINK_END
 
-static bool sPrefsInitialized = false;
-static int32_t sOnloadDecodeLimit = 0;
 
 nsresult
 nsDocument::Init()
 {
   if (mCSSLoader || mStyleImageLoader || mNodeInfoManager || mScriptLoader) {
     return NS_ERROR_ALREADY_INITIALIZED;
-  }
-
-  if (!sPrefsInitialized) {
-    sPrefsInitialized = true;
-    Preferences::AddIntVarCache(&sOnloadDecodeLimit, "image.onload.decode.limit", 0);
   }
 
   mIdentifierMap.Init();
@@ -7671,17 +7664,17 @@ nsDocument::RemovedFromDocShell()
 already_AddRefed<nsILayoutHistoryState>
 nsDocument::GetLayoutHistoryState() const
 {
-  nsCOMPtr<nsILayoutHistoryState> state;
+  nsILayoutHistoryState* state = nullptr;
   if (!mScriptGlobalObject) {
-    state = mLayoutHistoryState;
+    NS_IF_ADDREF(state = mLayoutHistoryState);
   } else {
     nsCOMPtr<nsIDocShell> docShell(do_QueryReferent(mDocumentContainer));
     if (docShell) {
-      docShell->GetLayoutHistoryState(getter_AddRefs(state));
+      docShell->GetLayoutHistoryState(&state);
     }
   }
 
-  return state.forget();
+  return state;
 }
 
 void
@@ -8926,11 +8919,9 @@ nsDocument::AddImage(imgIRequest* aImage)
 
   // If this is the first insertion and we're locking images, lock this image
   // too.
-  if (oldCount == 0) {
-    if (mLockingImages)
-      rv = aImage->LockImage();
-    if (NS_SUCCEEDED(rv) && (!sOnloadDecodeLimit ||
-                             mImageTracker.Count() < sOnloadDecodeLimit))
+  if (oldCount == 0 && mLockingImages) {
+    rv = aImage->LockImage();
+    if (NS_SUCCEEDED(rv))
       rv = aImage->StartDecoding();
   }
 

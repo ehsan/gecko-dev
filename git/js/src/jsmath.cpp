@@ -8,8 +8,6 @@
  * JS math package.
  */
 
-#include "jsmath.h"
-
 #include "mozilla/Constants.h"
 #include "mozilla/FloatingPoint.h"
 #include "mozilla/MathAlgorithms.h"
@@ -21,9 +19,13 @@
 #include "jsatom.h"
 #include "jscntxt.h"
 #include "jsversion.h"
+#include "jslock.h"
+#include "jsmath.h"
+#include "jsnum.h"
 #include "jslibmath.h"
 #include "jscompartment.h"
 
+#include "jsinferinlines.h"
 #include "jsobjinlines.h"
 
 using namespace js;

@@ -5,7 +5,6 @@
 #include "sdp_os_defs.h"
 #include "sdp.h"
 #include "sdp_private.h"
-#include "vcm.h"
 #include "CSFLog.h"
 
 static const char* logTag = "sdp_main";

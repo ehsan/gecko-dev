@@ -1443,8 +1443,7 @@ ContentParent::Observe(nsISupports* aSubject,
 
     // listening for memory pressure event
     if (!strcmp(aTopic, "memory-pressure") &&
-        !StringEndsWith(nsDependentString(aData),
-                        NS_LITERAL_STRING("-no-forward"))) {
+        !NS_LITERAL_STRING("low-memory-no-forward").Equals(aData)) {
         unused << SendFlushMemory(nsDependentString(aData));
     }
     // listening for remotePrefs...

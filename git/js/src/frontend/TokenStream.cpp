@@ -243,8 +243,7 @@ TokenStream::SourceCoords::lineNumAndColumnIndex(uint32_t offset, uint32_t *line
 
 /* Initialize members that aren't initialized in |init|. */
 TokenStream::TokenStream(JSContext *cx, const CompileOptions &options,
-                         const jschar *base, size_t length, StrictModeGetter *smg,
-                         AutoKeepAtoms& keepAtoms)
+                         const jschar *base, size_t length, StrictModeGetter *smg)
   : srcCoords(cx, options.lineno),
     tokens(),
     cursor(),
@@ -263,7 +262,6 @@ TokenStream::TokenStream(JSContext *cx, const CompileOptions &options,
     originPrincipals(JSScript::normalizeOriginPrincipals(options.principals,
                                                          options.originPrincipals)),
     strictModeGetter(smg),
-    lastFunctionKeyword(keepAtoms),
     tokenSkip(cx, &tokens),
     linebaseSkip(cx, &linebase),
     prevLinebaseSkip(cx, &prevLinebase)

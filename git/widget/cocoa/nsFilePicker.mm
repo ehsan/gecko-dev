@@ -320,9 +320,7 @@ nsFilePicker::GetLocalFiles(const nsString& inTitle, bool inAllowMultiple, nsCOM
       theDir = @"";
   }
 
-  if (theDir) {
-    [thePanel setDirectoryURL:[[NSURL alloc] initFileURLWithPath:theDir isDirectory:YES]];
-  }
+  [thePanel setDirectoryURL:[[NSURL alloc] initFileURLWithPath:theDir isDirectory:YES]];
 
   int result;
   nsCocoaUtils::PrepareForNativeAppModalDialog();
@@ -413,9 +411,7 @@ nsFilePicker::GetLocalFolder(const nsString& inTitle, nsIFile** outFile)
 
   // set up default directory
   NSString *theDir = PanelDefaultDirectory();
-  if (theDir) {
-    [thePanel setDirectoryURL:[[NSURL alloc] initFileURLWithPath:theDir isDirectory:YES]];
-  }
+  [thePanel setDirectoryURL:[[NSURL alloc] initFileURLWithPath:theDir isDirectory:YES]];
   nsCocoaUtils::PrepareForNativeAppModalDialog();
   int result = [thePanel runModal];
   nsCocoaUtils::CleanUpAfterNativeAppModalDialog();
@@ -464,9 +460,7 @@ nsFilePicker::PutLocalFile(const nsString& inTitle, const nsString& inDefaultNam
 
   // set up default directory
   NSString *theDir = PanelDefaultDirectory();
-  if (theDir) {
-    [thePanel setDirectoryURL:[[NSURL alloc] initFileURLWithPath:theDir isDirectory:YES]];
-  }
+  [thePanel setDirectoryURL:[[NSURL alloc] initFileURLWithPath:theDir isDirectory:YES]];
 
   // load the panel
   nsCocoaUtils::PrepareForNativeAppModalDialog();

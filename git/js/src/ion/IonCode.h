@@ -170,8 +170,8 @@ struct IonScript
     // per-platform if we want.
     uint32_t invalidateEpilogueDataOffset_;
 
-    // Number of times this script bailed out without invalidation.
-    uint32_t numBailouts_;
+    // Flag set when we bailout, to avoid frequent bailouts.
+    uint32_t bailoutExpected_;
 
     // Flag set when we bailed out in parallel execution and should ensure its
     // call targets are compiled.
@@ -302,6 +302,9 @@ struct IonScript
     static inline size_t offsetOfOsrEntryOffset() {
         return offsetof(IonScript, osrEntryOffset_);
     }
+    static size_t offsetOfBailoutExpected() {
+        return offsetof(IonScript, bailoutExpected_);
+    }
 
   public:
     IonCode *method() const {
@@ -351,14 +354,11 @@ struct IonScript
         JS_ASSERT(invalidateEpilogueDataOffset_);
         return invalidateEpilogueDataOffset_;
     }
-    void incNumBailouts() {
-        numBailouts_++;
-    }
-    uint32_t numBailouts() const {
-        return numBailouts_;
+    void setBailoutExpected() {
+        bailoutExpected_ = 1;
     }
     bool bailoutExpected() const {
-        return numBailouts_ > 0;
+        return bailoutExpected_ ? true : false;
     }
     void setHasInvalidatedCallTarget() {
         hasInvalidatedCallTarget_ = true;

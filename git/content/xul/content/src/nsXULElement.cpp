@@ -225,8 +225,10 @@ nsXULElement::Create(nsXULPrototypeElement* aPrototype, nsINodeInfo *aNodeInfo,
                      bool aIsScriptable, bool aIsRoot)
 {
     nsCOMPtr<nsINodeInfo> ni = aNodeInfo;
-    nsRefPtr<nsXULElement> element = new nsXULElement(ni.forget());
+    nsXULElement *element = new nsXULElement(ni.forget());
     if (element) {
+        NS_ADDREF(element);
+
         if (aPrototype->mHasIdAttribute) {
             element->SetHasID();
         }
@@ -257,7 +259,7 @@ nsXULElement::Create(nsXULPrototypeElement* aPrototype, nsINodeInfo *aNodeInfo,
         }
     }
 
-    return element.forget();
+    return element;
 }
 
 nsresult
@@ -1472,8 +1474,9 @@ nsXULElement::GetFrameLoader()
     if (!slots)
         return nullptr;
 
-    nsRefPtr<nsFrameLoader> loader = slots->mFrameLoader;
-    return loader.forget();
+    nsFrameLoader* loader = slots->mFrameLoader;
+    NS_IF_ADDREF(loader);
+    return loader;
 }
 
 nsresult

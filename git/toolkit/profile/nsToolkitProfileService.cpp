@@ -232,9 +232,6 @@ nsToolkitProfile::Remove(bool removeFiles)
     if (mLock)
         return NS_ERROR_FILE_IS_LOCKED;
 
-    if (!mPrev && !mNext && nsToolkitProfileService::gService->mFirst != this)
-        return NS_ERROR_NOT_INITIALIZED;
-
     if (removeFiles) {
         bool equals;
         nsresult rv = mRootDir->Equals(mLocalDir, &equals);

@@ -117,11 +117,8 @@ function ignoreGCFunction(fun)
 
 function isRootedTypeName(name)
 {
-    if (name == "mozilla::ErrorResult" ||
-        name == "js::frontend::TokenStream::Position")
-    {
+    if (name == "mozilla::ErrorResult")
         return true;
-    }
     return false;
 }
 

@@ -4145,14 +4145,14 @@ nsCSSFrameConstructor::BeginBuildingScrollFrame(nsFrameConstructorState& aState,
 
   // we used the style that was passed in. So resolve another one.
   nsStyleSet *styleSet = mPresShell->StyleSet();
-  nsRefPtr<nsStyleContext> scrolledChildStyle =
-    styleSet->ResolveAnonymousBoxStyle(aScrolledPseudo, contentStyle);
+  nsStyleContext* aScrolledChildStyle =
+    styleSet->ResolveAnonymousBoxStyle(aScrolledPseudo, contentStyle).get();
 
   if (gfxScrollFrame) {
      gfxScrollFrame->SetInitialChildList(kPrincipalList, anonymousItems);
   }
 
-  return scrolledChildStyle.forget();
+  return aScrolledChildStyle;
 }
 
 void

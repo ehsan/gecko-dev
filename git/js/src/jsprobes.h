@@ -12,16 +12,20 @@
 #endif
 #include "jspubtd.h"
 #include "jsprvtd.h"
-#include "jscntxt.h"
-#include "jsobj.h"
 #include "jsscript.h"
+#include "jsobj.h"
+
+#ifdef JS_METHODJIT
+#include "methodjit/MethodJIT.h"
+#endif
+
+#include "vm/ObjectImpl-inl.h"
 
 namespace js {
 
 namespace mjit {
 struct NativeAddressInfo;
 struct JSActiveFrame;
-struct JITChunk;
 }
 
 namespace Probes {

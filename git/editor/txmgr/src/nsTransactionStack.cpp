@@ -57,23 +57,24 @@ nsTransactionStack::PopBottom()
 already_AddRefed<nsTransactionItem>
 nsTransactionStack::Peek()
 {
-  nsRefPtr<nsTransactionItem> transaction;
+  nsTransactionItem* transaction = nullptr;
   if (mQue.GetSize()) {
-    transaction = static_cast<nsTransactionItem*>(mQue.Last());
+    NS_IF_ADDREF(transaction = static_cast<nsTransactionItem*>(mQue.Last()));
   }
 
-  return transaction.forget();
+  return transaction;
 }
 
 already_AddRefed<nsTransactionItem>
 nsTransactionStack::GetItem(int32_t aIndex)
 {
-  nsRefPtr<nsTransactionItem> transaction;
+  nsTransactionItem* transaction = nullptr;
   if (aIndex >= 0 && aIndex < mQue.GetSize()) {
-    transaction = static_cast<nsTransactionItem*>(mQue.ObjectAt(aIndex));
+    NS_IF_ADDREF(transaction =
+                 static_cast<nsTransactionItem*>(mQue.ObjectAt(aIndex)));
   }
 
-  return transaction.forget();
+  return transaction;
 }
 
 void

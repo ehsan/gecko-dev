@@ -7,11 +7,16 @@
 /*
  * Portable double to alphanumeric string and back converters.
  */
-#include "jsdtoa.h"
-
 #include "jstypes.h"
+#include "jsdtoa.h"
 #include "jsprf.h"
-#include "jsutil.h"
+#include "jsapi.h"
+#include "jsprvtd.h"
+#include "jsnum.h"
+#include "jslibmath.h"
+#include "jscntxt.h"
+
+#include "jsobjinlines.h"
 
 using namespace js;
 

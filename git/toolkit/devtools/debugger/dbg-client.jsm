@@ -194,8 +194,7 @@ const UnsolicitedPauses = {
   "resumeLimit": "resumeLimit",
   "debuggerStatement": "debuggerStatement",
   "breakpoint": "breakpoint",
-  "watchpoint": "watchpoint",
-  "exception": "exception"
+  "watchpoint": "watchpoint"
 };
 
 const ROOT_ACTOR_NAME = "root";

@@ -9,11 +9,10 @@
  *
  * Try to keep this file in sync with xpcom/glue/pldhash.cpp.
  */
-#include "jsdhash.h"
-
 #include <stdio.h>
+#include <stdlib.h>
 #include <string.h>
-
+#include "jsdhash.h"
 #include "jsutil.h"
 
 using namespace js;

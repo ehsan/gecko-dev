@@ -57,12 +57,22 @@ let gMgr = Cc["@mozilla.org/memory-reporter-manager;1"]
 
 let gUnnamedProcessStr = "Main Process";
 
+// Because about:memory and about:compartments are non-standard URLs,
+// location.search is undefined, so we have to use location.href here.
+// The toLowerCase() calls ensure that addresses like "ABOUT:MEMORY" work.
 let gIsDiff = false;
-
 {
   let split = document.location.href.split('?');
-  // The toLowerCase() calls ensure that addresses like "ABOUT:MEMORY" work.
   document.title = split[0].toLowerCase();
+
+  if (split.length === 2) {
+    let searchSplit = split[1].split('&');
+    for (let i = 0; i < searchSplit.length; i++) {
+      if (searchSplit[i].toLowerCase() === 'diff') {
+        gIsDiff = true;
+      }
+    }
+  }
 }
 
 let gChildMemoryListener = undefined;
@@ -203,13 +213,7 @@ function processMemoryReporters(aIgnoreSingle, aIgnoreMulti, aHandleReport)
   while (e.hasMoreElements()) {
     let mr = e.getNext().QueryInterface(Ci.nsIMemoryMultiReporter);
     if (!aIgnoreMulti(mr.name)) {
-      // |collectReports| never passes in a |presence| argument.
-      let handleReport = function(aProcess, aUnsafePath, aKind, aUnits,
-                                  aAmount, aDescription) {
-        aHandleReport(aProcess, aUnsafePath, aKind, aUnits, aAmount,
-                      aDescription, /* presence = */ undefined);
-      }
-      mr.collectReports(handleReport, null);
+      mr.collectReports(aHandleReport, null);
     }
   }
 }
@@ -233,7 +237,7 @@ function processMemoryReportsFromFile(aReports, aIgnoreSingle, aHandleReport)
     let r = aReports[i];
     if (!aIgnoreSingle(r.path)) {
       aHandleReport(r.process, r.path, r.kind, r.units, r.amount,
-                    r.description, r._presence);
+                    r.description);
     }
   }
 }
@@ -409,15 +413,6 @@ function appendButton(aP, aTitle, aOnClick, aText, aId)
   return b;
 }
 
-function appendHiddenFileInput(aP, aId, aChangeListener)
-{
-  let input = appendElementWithText(aP, "input", "hidden", "");
-  input.type = "file";
-  input.id = aId;      // used in testing
-  input.addEventListener("change", aChangeListener);
-  return input;
-}
-
 function onLoadAboutMemory()
 {
   // Generate the header.
@@ -425,38 +420,17 @@ function onLoadAboutMemory()
   let header = appendElement(document.body, "div", "ancillary");
 
   // A hidden file input element that can be invoked when necessary.
-  let fileInput1 = appendHiddenFileInput(header, "fileInput1", function() {
+  let filePickerInput = appendElementWithText(header, "input", "hidden", "");
+  filePickerInput.type = "file";
+  filePickerInput.id = "filePickerInput";   // used in testing
+  filePickerInput.addEventListener("change", function() {
     let file = this.files[0];
     let filename = file.mozFullPath;
     updateAboutMemoryFromFile(filename);
   });
 
-  // Ditto.
-  let fileInput2 =
-      appendHiddenFileInput(header, "fileInput2", function(e) {
-    let file = this.files[0];
-    // First time around, we stash a copy of the filename and reinvoke.  Second
-    // time around we do the diff and display.
-    if (!this.filename1) {
-      this.filename1 = file.mozFullPath;
-
-      // e.skipClick is only true when testing -- it allows fileInput2's
-      // onchange handler to be re-called without having to go via the file
-      // picker.
-      if (!e.skipClick) {
-        this.click();
-      }
-    } else {
-      let filename1 = this.filename1;
-      delete this.filename1;
-      updateAboutMemoryFromTwoFiles(filename1, file.mozFullPath);
-    }
-  }); 
-
   const CuDesc = "Measure current memory reports and show.";
   const LdDesc = "Load memory reports from file and show.";
-  const DfDesc = "Load memory report data from two files and show the " +
-                 "difference.";
   const RdDesc = "Read memory reports from the clipboard and show.";
 
   const SvDesc = "Save memory reports to file.";
@@ -486,9 +460,7 @@ function onLoadAboutMemory()
 
   // The "measureButton" id is used for testing.
   appendButton(row1, CuDesc, doMeasure, "Measure", "measureButton");
-  appendButton(row1, LdDesc, () => fileInput1.click(), "Load" + kEllipsis);
-  appendButton(row1, DfDesc, () => fileInput2.click(),
-               "Load and diff" + kEllipsis);
+  appendButton(row1, LdDesc, () => filePickerInput.click(), "Load" + kEllipsis);
   appendButton(row1, RdDesc, updateAboutMemoryFromClipboard,
                "Read from clipboard");
 
@@ -525,9 +497,7 @@ function onLoadAboutMemory()
   appendElementWithText(gFooter, "div", "legend", legendText1);
   appendElementWithText(gFooter, "div", "legend hiddenOnMobile", legendText2);
 
-  // See if we're loading from a file.  (Because about:memory and
-  // about:compartments are non-standard URLs, location.search is undefined, so
-  // we have to use location.href instead.)
+  // Check location.href to see if we're loading from a file.
   let search = location.href.split('?')[1];
   if (search) {
     let searchSplit = search.split('&');
@@ -540,8 +510,6 @@ function onLoadAboutMemory()
     }
   }
 }
-
-//---------------------------------------------------------------------------
 
 function doGC()
 {
@@ -574,6 +542,8 @@ function doMeasure()
   addChildObserversAndUpdate(updateAboutMemoryFromReporters);
 }
 
+//---------------------------------------------------------------------------
+
 /**
  * Top-level function that does the work of generating the page from the memory
  * reporters.
@@ -602,25 +572,27 @@ function updateAboutMemoryFromReporters()
 var gCurrentFileFormatVersion = 1;
 
 /**
- * Populate about:memory using the data in the given JSON object.
+ * Populate about:memory using the data in the given JSON string.
  *
- * @param aObj
- *        An object containing JSON data that (hopefully!) conforms to the
- *        schema used by nsIMemoryInfoDumper.
+ * @param aJSONString
+ *        A string containing JSON data conforming to the schema used by
+ *        nsIMemoryReporterManager::dumpReports.
  */
-function updateAboutMemoryFromJSONObject(aObj)
+function updateAboutMemoryFromJSONString(aJSONString)
 {
   try {
-    assertInput(aObj.version === gCurrentFileFormatVersion,
+    let json = JSON.parse(aJSONString);
+    assertInput(json.version === gCurrentFileFormatVersion,
                 "data version number missing or doesn't match");
-    assertInput(aObj.hasMozMallocUsableSize !== undefined,
+    assertInput(json.hasMozMallocUsableSize !== undefined,
                 "missing 'hasMozMallocUsableSize' property");
-    assertInput(aObj.reports && aObj.reports instanceof Array,
+    assertInput(json.reports && json.reports instanceof Array,
                 "missing or non-array 'reports' property");
     let process = function(aIgnoreSingle, aIgnoreMulti, aHandleReport) {
-      processMemoryReportsFromFile(aObj.reports, aIgnoreSingle, aHandleReport);
+      processMemoryReportsFromFile(json.reports, aIgnoreSingle,
+                                   aHandleReport);
     }
-    appendAboutMemoryMain(process, aObj.hasMozMallocUsableSize,
+    appendAboutMemoryMain(process, json.hasMozMallocUsableSize,
                           /* forceShowSmaps = */ true);
   } catch (ex) {
     handleException(ex);
@@ -628,31 +600,16 @@ function updateAboutMemoryFromJSONObject(aObj)
 }
 
 /**
- * Populate about:memory using the data in the given JSON string.
- *
- * @param aStr
- *        A string containing JSON data conforming to the schema used by
- *        nsIMemoryReporterManager::dumpReports.
- */
-function updateAboutMemoryFromJSONString(aStr)
-{
-  try {
-    let obj = JSON.parse(aStr);
-    updateAboutMemoryFromJSONObject(obj);
-  } catch (ex) {
-    handleException(ex);
-  }
-}
-
-/**
- * Loads the contents of a file into a string and passes that to a callback.
+ * Like updateAboutMemoryFromReporters(), but gets its data from a file instead
+ * of the memory reporters.
  *
  * @param aFilename
  *        The name of the file being read from.
- * @param aFn
- *        The function to call and pass the read string to upon completion.
+ *
+ *        The expected format of the file's contents is described in the
+ *        comment describing nsIMemoryReporterManager::dumpReports.
  */
-function loadMemoryReportsFromFile(aFilename, aFn)
+function updateAboutMemoryFromFile(aFilename)
 {
   updateMainAndFooter("Loading...", HIDE_FOOTER);
 
@@ -662,7 +619,7 @@ function loadMemoryReportsFromFile(aFilename, aFn)
     reader.onabort = () => { throw "FileReader.onabort"; };
     reader.onload = (aEvent) => {
       updateMainAndFooter("", SHOW_FOOTER);  // Clear "Loading..." from above.
-      aFn(aEvent.target.result);
+      updateAboutMemoryFromJSONString(aEvent.target.result);
     };
 
     // If it doesn't have a .gz suffix, read it as a (legacy) ungzipped file.
@@ -702,46 +659,6 @@ function loadMemoryReportsFromFile(aFilename, aFn)
 }
 
 /**
- * Like updateAboutMemoryFromReporters(), but gets its data from a file instead
- * of the memory reporters.
- *
- * @param aFilename
- *        The name of the file being read from.  The expected format of the
- *        file's contents is described in a comment in nsIMemoryInfoDumper.idl.
- */
-function updateAboutMemoryFromFile(aFilename)
-{
-  loadMemoryReportsFromFile(aFilename,
-                            updateAboutMemoryFromJSONString);
-}
-
-/**
- * Like updateAboutMemoryFromFile(), but gets its data from a two files and
- * diffs them.
- *
- * @param aFilename1
- *        The name of the first file being read from.
- * @param aFilename2
- *        The name of the first file being read from.
- */
-function updateAboutMemoryFromTwoFiles(aFilename1, aFilename2)
-{
-  loadMemoryReportsFromFile(aFilename1, function(aStr1) {
-    loadMemoryReportsFromFile(aFilename2, function f2(aStr2) {
-      try {
-        let obj1 = JSON.parse(aStr1);
-        let obj2 = JSON.parse(aStr2);
-        gIsDiff = true;
-        updateAboutMemoryFromJSONObject(diffJSONObjects(obj1, obj2));
-        gIsDiff = false;
-      } catch (ex) {
-        handleException(ex);
-      }
-    });
-  });
-}
-
-/**
  * Like updateAboutMemoryFromFile(), but gets its data from the clipboard
  * instead of a file.
  */
@@ -773,198 +690,6 @@ function updateAboutMemoryFromClipboard()
   }
 }
 
-//---------------------------------------------------------------------------
-
-// Something unlikely to appear in a process name.
-let kProcessPathSep = "^:^:^";
-
-// Short for "diff report".
-function DReport(aKind, aUnits, aAmount, aDescription, aNMerged, aPresence)
-{
-  this._kind = aKind;
-  this._units = aUnits;
-  this._amount = aAmount;
-  this._description = aDescription;
-  this._nMerged = aNMerged;
-  if (aPresence !== undefined) {
-    this._presence = aPresence;
-  }
-}
-
-DReport.prototype = {
-  assertCompatible: function(aKind, aUnits)
-  {
-    assert(this._kind  == aKind,  "Mismatched kinds");
-    assert(this._units == aUnits, "Mismatched units");
-
-    // We don't check that the "description" properties match.  This is because
-    // on Linux we can get cases where the paths are the same but the
-    // descriptions differ, like this:
-    //
-    //   "path": "size/other-files/icon-theme.cache/[r--p]",
-    //   "description": "/usr/share/icons/gnome/icon-theme.cache (read-only, not executable, private)"
-    //
-    //   "path": "size/other-files/icon-theme.cache/[r--p]"
-    //   "description": "/usr/share/icons/hicolor/icon-theme.cache (read-only, not executable, private)"
-    //
-    // In those cases, we just use the description from the first-encountered
-    // one, which is what about:memory also does.
-  },
-
-  merge: function(aJr) {
-    this.assertCompatible(aJr.kind, aJr.units);
-    this._amount += aJr.amount;
-    this._nMerged++;
-  },
-
-  toJSON: function(aProcess, aPath, aAmount) {
-    return {
-      process:     aProcess,
-      path:        aPath,
-      kind:        this._kind,
-      units:       this._units,
-      amount:      aAmount,
-      description: this._description,
-      _presence:   this._presence
-    };
-  }
-};
-
-// Constants that indicate if a DReport was present in both data sets, or
-// added/removed in the second data set.
-DReport.PRESENT_IN_FIRST_ONLY  = 1;
-DReport.PRESENT_IN_SECOND_ONLY = 2;
-
-/**
- * Make a report map, which has combined path+process strings for keys, and
- * DReport objects for values.
- *
- * @param aJSONReports
- *        The |reports| field of a JSON object.
- * @return The constructed report map.
- */
-function makeDReportMap(aJSONReports)
-{
-  let dreportMap = {};
-  for (let i = 0; i < aJSONReports.length; i++) {
-    let jr = aJSONReports[i];
-
-    assert(jr.process     !== undefined, "Missing process");
-    assert(jr.path        !== undefined, "Missing path");
-    assert(jr.kind        !== undefined, "Missing kind");
-    assert(jr.units       !== undefined, "Missing units");
-    assert(jr.amount      !== undefined, "Missing amount");
-    assert(jr.description !== undefined, "Missing description");
-
-    // Strip out some non-deterministic stuff that prevents clean diffs --
-    // e.g. PIDs, addresses.
-    let strippedProcess = jr.process.replace(/pid \d+/, "pid NNN");
-    let strippedPath = jr.path.replace(/0x[0-9A-Fa-f]+/, "0xNNN");
-    let processPath = strippedProcess + kProcessPathSep + strippedPath;
-
-    let rOld = dreportMap[processPath];
-    if (rOld === undefined) {
-      dreportMap[processPath] =
-        new DReport(jr.kind, jr.units, jr.amount, jr.description, 1, undefined);
-    } else {
-      rOld.merge(jr);
-    }
-  }
-  return dreportMap;
-}
-
-// Return a new dreportMap which is the diff of two dreportMaps.  Empties
-// aDReportMap2 along the way.
-function diffDReportMaps(aDReportMap1, aDReportMap2)
-{
-  let result = {};
-
-  for (let processPath in aDReportMap1) {
-    let r1 = aDReportMap1[processPath];
-    let r2 = aDReportMap2[processPath];
-    let r2_amount, r2_nMerged;
-    let presence;
-    if (r2 !== undefined) {
-      r1.assertCompatible(r2._kind, r2._units);
-      r2_amount = r2._amount;
-      r2_nMerged = r2._nMerged;
-      delete aDReportMap2[processPath];
-      presence = undefined;   // represents that it's present in both
-    } else {
-      r2_amount = 0;
-      r2_nMerged = 0;
-      presence = DReport.PRESENT_IN_FIRST_ONLY;
-    }
-    result[processPath] =
-      new DReport(r1._kind, r1._units, r2_amount - r1._amount, r1._description,
-                  Math.max(r1._nMerged, r2_nMerged), presence);
-  }
-
-  for (let processPath in aDReportMap2) {
-    let r2 = aDReportMap2[processPath];
-    result[processPath] = new DReport(r2._kind, r2._units, r2._amount,
-                                      r2._description, r2._nMerged,
-                                      DReport.PRESENT_IN_SECOND_ONLY);
-  }
-
-  return result;
-}
-
-function makeJSONReports(aDReportMap)
-{
-  let reports = [];
-  for (let processPath in aDReportMap) {
-    let r = aDReportMap[processPath];
-    if (r._amount !== 0) {
-      // If _nMerged > 1, we give the full (aggregated) amount in the first
-      // copy, and then use amount=0 in the remainder.  When viewed in
-      // about:memory, this shows up as an entry with a "[2]"-style suffix
-      // and the correct amount.
-      let split = processPath.split(kProcessPathSep);
-      assert(split.length >= 2);
-      let process = split.shift();
-      let path = split.join();
-      reports.push(r.toJSON(process, path, r._amount));
-      for (let i = 1; i < r._nMerged; i++) {
-        reports.push(r.toJSON(process, path, 0));
-      }
-    }
-  }
-
-  return reports;
-}
-
-
-// Diff two JSON objects holding memory reports.
-function diffJSONObjects(aJson1, aJson2)
-{
-  function simpleProp(aProp)
-  {
-    assert(aJson1[aProp] !== undefined && aJson1[aProp] === aJson2[aProp],
-           aProp + " properties don't match");
-    return aJson1[aProp];
-  }
-
-  return {
-    version: simpleProp("version"),
-
-    hasMozMallocUsableSize: simpleProp("hasMozMallocUsableSize"),
-
-    reports: makeJSONReports(diffDReportMaps(makeDReportMap(aJson1.reports),
-                                             makeDReportMap(aJson2.reports)))
-  };
-}
-
-//---------------------------------------------------------------------------
-
-// |PColl| is short for "process collection".
-function PColl()
-{
-  this._trees = {};
-  this._degenerates = {};
-  this._heapTotal = 0;
-}
-
 /**
  * Processes reports (whether from reporters or from a file) and append the
  * main part of the page.
@@ -981,10 +706,12 @@ function PColl()
 function appendAboutMemoryMain(aProcess, aHasMozMallocUsableSize,
                                aForceShowSmaps)
 {
-  let pcollsByProcess = getPCollsByProcess(aProcess, aForceShowSmaps);
+  let treesByProcess = {}, degeneratesByProcess = {}, heapTotalByProcess = {};
+  getTreesByProcess(aProcess, treesByProcess, degeneratesByProcess,
+                    heapTotalByProcess, aForceShowSmaps);
 
-  // Sort the processes.
-  let processes = Object.keys(pcollsByProcess);
+  // Sort our list of processes.
+  let processes = Object.keys(treesByProcess);
   processes.sort(function(aProcessA, aProcessB) {
     assert(aProcessA != aProcessB,
            "Elements of Object.keys() should be unique, but " +
@@ -999,8 +726,8 @@ function appendAboutMemoryMain(aProcess, aHasMozMallocUsableSize,
     }
 
     // Then sort by resident size.
-    let nodeA = pcollsByProcess[aProcessA]._degenerates['resident'];
-    let nodeB = pcollsByProcess[aProcessB]._degenerates['resident'];
+    let nodeA = degeneratesByProcess[aProcessA]['resident'];
+    let nodeB = degeneratesByProcess[aProcessB]['resident'];
     let residentA = nodeA ? nodeA._amount : -1;
     let residentB = nodeB ? nodeB._amount : -1;
 
@@ -1028,12 +755,19 @@ function appendAboutMemoryMain(aProcess, aHasMozMallocUsableSize,
     let section = appendElement(gMain, 'div', 'section');
 
     appendProcessAboutMemoryElements(section, process,
-                                     pcollsByProcess[process]._trees,
-                                     pcollsByProcess[process]._degenerates,
-                                     pcollsByProcess[process]._heapTotal,
+                                     treesByProcess[process],
+                                     degeneratesByProcess[process],
+                                     heapTotalByProcess[process],
                                      aHasMozMallocUsableSize);
   }
 }
+
+//---------------------------------------------------------------------------
+
+// This regexp matches sentences and sentence fragments, i.e. strings that
+// start with a capital letter and ends with a '.'.  (The final sentence may be
+// in parentheses, so a ')' might appear after the '.'.)
+const gSentenceRegExp = /^[A-Z].*\.\)?$/m;
 
 /**
  * This function reads all the memory reports, and puts that data in structures
@@ -1042,20 +776,23 @@ function appendAboutMemoryMain(aProcess, aHasMozMallocUsableSize,
  * @param aProcessMemoryReports
  *        Function that extracts the memory reports from the reporters or from
  *        file.
+ * @param aTreesByProcess
+ *        Table of non-degenerate trees, indexed by process, which this
+ *        function appends to.
+ * @param aDegeneratesByProcess
+ *        Table of degenerate trees, indexed by process, which this function
+ *        appends to.
+ * @param aHeapTotalByProcess
+ *        Table of heap total counts, indexed by process, which this function
+ *        appends to.
  * @param aForceShowSmaps
  *        True if we should show the smaps memory reporters even if we're not
  *        in verbose mode.
- * @return The table of PColls by process.
  */
-function getPCollsByProcess(aProcessMemoryReports, aForceShowSmaps)
+function getTreesByProcess(aProcessMemoryReports, aTreesByProcess,
+                           aDegeneratesByProcess, aHeapTotalByProcess,
+                           aForceShowSmaps)
 {
-  let pcollsByProcess = {};
-
-  // This regexp matches sentences and sentence fragments, i.e. strings that
-  // start with a capital letter and ends with a '.'.  (The final sentence may
-  // be in parentheses, so a ')' might appear after the '.'.)
-  const gSentenceRegExp = /^[A-Z].*\.\)?$/m;
-
   // Ignore the "smaps" multi-reporter in non-verbose mode unless we're reading
   // from a file or the clipboard, and ignore the "compartments" and
   // "ghost-windows" multi-reporters all the time.  (Note that reports from
@@ -1088,7 +825,7 @@ function getPCollsByProcess(aProcessMemoryReports, aForceShowSmaps)
   }
 
   function handleReport(aProcess, aUnsafePath, aKind, aUnits, aAmount,
-                        aDescription, aPresence)
+                        aDescription)
   {
     if (isExplicitPath(aUnsafePath)) {
       assertInput(aKind === KIND_HEAP || aKind === KIND_NONHEAP,
@@ -1107,26 +844,25 @@ function getPCollsByProcess(aProcessMemoryReports, aForceShowSmaps)
                   "non-sentence other description");
     }
 
-    assert(aPresence === undefined || 
-           aPresence == DReport.PRESENT_IN_FIRST_ONLY ||
-           aPresence == DReport.PRESENT_IN_SECOND_ONLY);
-
     let process = aProcess === "" ? gUnnamedProcessStr : aProcess;
     let unsafeNames = aUnsafePath.split('/');
     let unsafeName0 = unsafeNames[0];
     let isDegenerate = unsafeNames.length === 1;
 
-    // Get the PColl table for the process, creating it if necessary.
-    let pcoll = pcollsByProcess[process];
-    if (!pcollsByProcess[process]) {
-      pcoll = pcollsByProcess[process] = new PColl();
+    // Get the appropriate trees table (non-degenerate or degenerate) for the
+    // process, creating it if necessary.
+    let t;
+    let thingsByProcess =
+      isDegenerate ? aDegeneratesByProcess : aTreesByProcess;
+    let things = thingsByProcess[process];
+    if (!thingsByProcess[process]) {
+      things = thingsByProcess[process] = {};
     }
 
     // Get the root node, creating it if necessary.
-    let psubcoll = isDegenerate ? pcoll._degenerates : pcoll._trees;
-    let t = psubcoll[unsafeName0];
+    t = things[unsafeName0];
     if (!t) {
-      t = psubcoll[unsafeName0] =
+      t = things[unsafeName0] =
         new TreeNode(unsafeName0, aUnits, isDegenerate);
     }
 
@@ -1148,7 +884,10 @@ function getPCollsByProcess(aProcessMemoryReports, aForceShowSmaps)
 
       // Update the heap total if necessary.
       if (unsafeName0 === "explicit" && aKind == KIND_HEAP) {
-        pcollsByProcess[process]._heapTotal += aAmount;
+        if (!aHeapTotalByProcess[process]) {
+          aHeapTotalByProcess[process] = 0;
+        }
+        aHeapTotalByProcess[process] += aAmount;
       }
     }
 
@@ -1156,20 +895,14 @@ function getPCollsByProcess(aProcessMemoryReports, aForceShowSmaps)
       // Duplicate!  Sum the values and mark it as a dup.
       t._amount += aAmount;
       t._nMerged = t._nMerged ? t._nMerged + 1 : 2;
-      assert(t._presence === aPresence, "presence mismatch");
     } else {
-      // New leaf node.  Fill in extra node details from the report.
+      // New leaf node.  Fill in extra details node from the report.
       t._amount = aAmount;
       t._description = aDescription;
-      if (aPresence !== undefined) {
-        t._presence = aPresence;
-      }
     }
   }
 
   aProcessMemoryReports(ignoreSingle, ignoreMulti, handleReport);
-
-  return pcollsByProcess;
 }
 
 //---------------------------------------------------------------------------
@@ -1192,7 +925,6 @@ function TreeNode(aUnsafeName, aUnits, aIsDegenerate)
   // - _amount
   // - _description
   // - _nMerged (only defined if > 1)
-  // - _presence (only defined if value is PRESENT_IN_{FIRST,SECOND}_ONLY)
   //
   // Non-leaf TreeNodes have these properties added later:
   // - _kids
@@ -1489,19 +1221,18 @@ function appendProcessAboutMemoryElements(aP, aProcess, aTrees, aDegenerates,
   let hasKnownHeapAllocated;
   {
     let treeName = "explicit";
-    let pre = appendSectionHeader(aP, kSectionNames[treeName]);
     let t = aTrees[treeName];
-    if (t) {
-      fillInTree(t);
-      hasKnownHeapAllocated =
-        aDegenerates &&
-        addHeapUnclassifiedNode(t, aDegenerates["heap-allocated"], aHeapTotal);
-      sortTreeAndInsertAggregateNodes(t._amount, t);
-      t._description = kTreeDescriptions[treeName];
-      appendTreeElements(pre, t, aProcess, "");
-      delete aTrees[treeName];
-    }
+    assertInput(t, "no explicit reports");
+    fillInTree(t);
+    hasKnownHeapAllocated =
+      aDegenerates &&
+      addHeapUnclassifiedNode(t, aDegenerates["heap-allocated"], aHeapTotal);
+    sortTreeAndInsertAggregateNodes(t._amount, t);
+    t._description = kTreeDescriptions[treeName];
+    let pre = appendSectionHeader(aP, kSectionNames[treeName]);
+    appendTreeElements(pre, t, aProcess, "");
     appendTextNode(aP, "\n");  // gives nice spacing when we cut and paste
+    delete aTrees[treeName];
   }
 
   // The smaps trees, which are only present in aTrees in verbose mode or when
@@ -1511,14 +1242,14 @@ function appendProcessAboutMemoryElements(aP, aProcess, aTrees, aDegenerates,
     // unsafePath.
     let t = aTrees[aTreeName];
     if (t) {
-      let pre = appendSectionHeader(aP, kSectionNames[aTreeName]);
       fillInTree(t);
       sortTreeAndInsertAggregateNodes(t._amount, t);
       t._description = kTreeDescriptions[aTreeName];
       t._hideKids = true;   // smaps trees are always initially collapsed
+      let pre = appendSectionHeader(aP, kSectionNames[aTreeName]);
       appendTreeElements(pre, t, aProcess, "");
-      delete aTrees[aTreeName];
       appendTextNode(aP, "\n");  // gives nice spacing when we cut and paste
+      delete aTrees[aTreeName];
     }
   });
 
@@ -1703,11 +1434,10 @@ const kNoKidsSep                    = " \u2500\u2500 ",
       kHideKidsSep                  = " ++ ",
       kShowKidsSep                  = " -- ";
 
-function appendMrNameSpan(aP, aDescription, aUnsafeName, aIsInvalid, aNMerged,
-                          aPresence)
+function appendMrNameSpan(aP, aDescription, aUnsafeName, aIsInvalid, aNMerged)
 {
   let safeName = flipBackslashes(aUnsafeName);
-  if (!aIsInvalid && !aNMerged && !aPresence) {
+  if (!aIsInvalid && !aNMerged) {
     safeName += "\n";
   }
   let nameSpan = appendElementWithText(aP, "span", "mrName", safeName);
@@ -1725,34 +1455,11 @@ function appendMrNameSpan(aP, aDescription, aUnsafeName, aIsInvalid, aNMerged,
   }
 
   if (aNMerged) {
-    let noteText = " [" + aNMerged + "]";
-    if (!aPresence) {
-      noteText += "\n";
-    }
-    let noteSpan = appendElementWithText(aP, "span", "mrNote", noteText);
+    let noteSpan = appendElementWithText(aP, "span", "mrNote",
+                                         " [" + aNMerged + "]\n");
     noteSpan.title =
       "This value is the sum of " + aNMerged +
       " memory reporters that all have the same path.";
-  }
-
-  if (aPresence) {
-    let c, nth;
-    switch (aPresence) {
-     case DReport.PRESENT_IN_FIRST_ONLY:
-      c = '-';
-      nth = "first";
-      break;
-     case DReport.PRESENT_IN_SECOND_ONLY:
-      c = '+';
-      nth = "second";
-      break;
-     default: assert(false, "bad presence");
-      break;
-    }
-    let noteSpan = appendElementWithText(aP, "span", "mrNote",
-                                         " [" + c + "]\n");
-    noteSpan.title =
-      "This value was only present in the " + nth + " set of memory reports.";
   }
 }
 
@@ -1948,7 +1655,7 @@ function appendTreeElements(aP, aRoot, aProcess, aPadText)
 
     // The entry's name.
     appendMrNameSpan(d, aT._description, aT._unsafeName,
-                     tIsInvalid, aT._nMerged, aT._presence);
+                     tIsInvalid, aT._nMerged);
 
     // In non-verbose mode, invalid nodes can be hidden in collapsed sub-trees.
     // But it's good to always see them, so force this.
@@ -2180,7 +1887,7 @@ function GhostWindow(aUnsafeURL)
 }
 
 GhostWindow.prototype = {
-  merge: function(aR) {
+  merge: function(r) {
     this._nMerged = this._nMerged ? this._nMerged + 1 : 2;
   }
 };

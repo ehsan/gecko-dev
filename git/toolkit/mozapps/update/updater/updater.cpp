@@ -2439,6 +2439,7 @@ int NS_main(int argc, NS_tchar **argv)
 #endif
 
 #ifdef XP_WIN
+  int possibleWriteError; // Variable holding one of the errors 46-48
   if (pid > 0) {
     HANDLE parent = OpenProcess(SYNCHRONIZE, false, (DWORD) pid);
     // May return NULL if the parent process has already gone away.
@@ -2449,7 +2450,12 @@ int NS_main(int argc, NS_tchar **argv)
       CloseHandle(parent);
       if (result != WAIT_OBJECT_0)
         return 1;
+      possibleWriteError = WRITE_ERROR_SHARING_VIOLATION_SIGNALED;
+    } else {
+      possibleWriteError = WRITE_ERROR_SHARING_VIOLATION_NOPROCESSFORPID;
     }
+  } else {
+    possibleWriteError = WRITE_ERROR_SHARING_VIOLATION_NOPID;
   }
 #else
   if (pid > 0)
@@ -2942,8 +2948,7 @@ int NS_main(int argc, NS_tchar **argv)
 
       // Since the process may be signaled as exited by WaitForSingleObject before
       // the release of the executable image try to lock the main executable file
-      // multiple times before giving up.  If we end up giving up, we won't
-      // fail the update.
+      // multiple times before giving up.
       const int max_retries = 10;
       int retries = 1;
       DWORD lastWriteError = 0;
@@ -2967,30 +2972,26 @@ int NS_main(int argc, NS_tchar **argv)
         Sleep(100);
       } while (++retries <= max_retries);
 
-      // CreateFileW will fail if the callback executable is already in use.
-      // We don't fail the update though.
+      // CreateFileW will fail if the callback executable is already in use. Since
+      // it isn't possible to update write the status file and return.
       if (callbackFile == INVALID_HANDLE_VALUE) {
         LOG(("NS_main: file in use - failed to exclusively open executable " \
              "file: " LOG_S, argv[callbackIndex]));
         LogFinish();
-
-        if (lastWriteError == ERROR_SHARING_VIOLATION) {
-          LOG(("NS_main: callback in use, continuing without exclusive access"));
+        if (ERROR_ACCESS_DENIED == lastWriteError) {
+          WriteStatusFile(WRITE_ERROR_ACCESS_DENIED);
+        } else if (ERROR_SHARING_VIOLATION == lastWriteError) {
+          WriteStatusFile(possibleWriteError);
         } else {
-          if (lastWriteError == ERROR_ACCESS_DENIED) {
-            WriteStatusFile(WRITE_ERROR_ACCESS_DENIED);
-          } else {
-            WriteStatusFile(WRITE_ERROR_CALLBACK_APP);
-          }
-
-          NS_tremove(gCallbackBackupPath);
-          EXIT_WHEN_ELEVATED(elevatedLockFilePath, updateLockFileHandle, 1);
-          LaunchCallbackApp(argv[4],
-                            argc - callbackIndex,
-                            argv + callbackIndex,
-                            sUsingService);
-          return 1;
+          WriteStatusFile(WRITE_ERROR_CALLBACK_APP);
         }
+        NS_tremove(gCallbackBackupPath);
+        EXIT_WHEN_ELEVATED(elevatedLockFilePath, updateLockFileHandle, 1);
+        LaunchCallbackApp(argv[4],
+                          argc - callbackIndex,
+                          argv + callbackIndex,
+                          sUsingService);
+        return 1;
       }
     }
   }
@@ -3019,9 +3020,7 @@ int NS_main(int argc, NS_tchar **argv)
 
 #ifdef XP_WIN
   if (argc > callbackIndex && !sReplaceRequest) {
-    if (callbackFile != INVALID_HANDLE_VALUE) {
-      CloseHandle(callbackFile);
-    }
+    CloseHandle(callbackFile);
     // Remove the copy of the callback executable.
     NS_tremove(gCallbackBackupPath);
   }

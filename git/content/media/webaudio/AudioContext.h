@@ -7,7 +7,7 @@
 #ifndef AudioContext_h_
 #define AudioContext_h_
 
-#include "nsDOMEventTargetHelper.h"
+#include "nsWrapperCache.h"
 #include "nsCycleCollectionParticipant.h"
 #include "mozilla/Attributes.h"
 #include "nsCOMPtr.h"
@@ -51,20 +51,19 @@ class GlobalObject;
 class PannerNode;
 class ScriptProcessorNode;
 
-class AudioContext MOZ_FINAL : public nsDOMEventTargetHelper,
+class AudioContext MOZ_FINAL : public nsWrapperCache,
                                public EnableWebAudioCheck
 {
   explicit AudioContext(nsPIDOMWindow* aParentWindow);
   ~AudioContext();
 
 public:
-  NS_DECL_ISUPPORTS_INHERITED
-  NS_DECL_CYCLE_COLLECTION_CLASS_INHERITED(AudioContext,
-                                           nsDOMEventTargetHelper)
+  NS_INLINE_DECL_CYCLE_COLLECTING_NATIVE_REFCOUNTING(AudioContext)
+  NS_DECL_CYCLE_COLLECTION_SCRIPT_HOLDER_NATIVE_CLASS(AudioContext)
 
   nsPIDOMWindow* GetParentObject() const
   {
-    return GetOwner();
+    return mWindow;
   }
 
   void Shutdown();
@@ -165,6 +164,7 @@ private:
   friend struct ::mozilla::WebAudioDecodeJob;
 
 private:
+  nsCOMPtr<nsPIDOMWindow> mWindow;
   nsRefPtr<AudioDestinationNode> mDestination;
   nsRefPtr<AudioListener> mListener;
   MediaBufferDecoder mDecoder;

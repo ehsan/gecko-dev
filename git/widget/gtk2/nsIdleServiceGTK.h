@@ -31,13 +31,14 @@ public:
 
     static already_AddRefed<nsIdleServiceGTK> GetInstance()
     {
-        nsRefPtr<nsIdleServiceGTK> idleService =
-            nsIdleService::GetInstance().downcast<nsIdleServiceGTK>();
+        nsIdleServiceGTK* idleService =
+            static_cast<nsIdleServiceGTK*>(nsIdleService::GetInstance().get());
         if (!idleService) {
             idleService = new nsIdleServiceGTK();
+            NS_ADDREF(idleService);
         }
 
-        return idleService.forget();
+        return idleService;
     }
 
 private:

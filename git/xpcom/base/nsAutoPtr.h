@@ -983,7 +983,7 @@ class nsRefPtr
         {
           T* temp = 0;
           swap(temp);
-          return already_AddRefed<T>(temp);
+          return temp;
         }
 
       template <typename I>

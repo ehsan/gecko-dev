@@ -7,7 +7,6 @@
 
 #include "nsDBusService.h"
 #include "nsComponentManagerUtils.h"
-#include "nsAutoPtr.h"
 
 #include <glib.h>
 #include <dbus/dbus-glib-lowlevel.h>
@@ -37,8 +36,8 @@ nsDBusService::Get() {
   if (!gSingleton) {
     gSingleton = new nsDBusService();
   }
-  nsRefPtr<nsDBusService> ret = gSingleton;
-  return ret.forget();
+  NS_IF_ADDREF(gSingleton);
+  return gSingleton;
 }
   
 nsresult

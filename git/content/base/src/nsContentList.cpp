@@ -196,7 +196,7 @@ NS_GetContentList(nsINode* aRootNode,
 {
   NS_ASSERTION(aRootNode, "content list has to have a root");
 
-  nsRefPtr<nsContentList> list;
+  nsContentList* list = nullptr;
 
   static PLDHashTableOps hash_table_ops =
   {
@@ -255,7 +255,9 @@ NS_GetContentList(nsINode* aRootNode,
     }
   }
 
-  return list.forget();
+  NS_ADDREF(list);
+
+  return list;
 }
 
 #ifdef DEBUG
@@ -317,7 +319,7 @@ GetFuncStringContentList(nsINode* aRootNode,
 {
   NS_ASSERTION(aRootNode, "content list has to have a root");
 
-  nsRefPtr<nsCacheableFuncStringContentList> list;
+  nsCacheableFuncStringContentList* list = nullptr;
 
   static PLDHashTableOps hash_table_ops =
   {
@@ -371,9 +373,11 @@ GetFuncStringContentList(nsINode* aRootNode,
     }
   }
 
+  NS_ADDREF(list);
+
   // Don't cache these lists globally
 
-  return list.forget();
+  return list;
 }
 
 already_AddRefed<nsContentList>

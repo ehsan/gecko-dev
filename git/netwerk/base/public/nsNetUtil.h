@@ -1089,8 +1089,8 @@ NS_BufferOutputStream(nsIOutputStream *aOutputStream,
     if (NS_SUCCEEDED(rv))
         return bos.forget();
 
-    bos = aOutputStream;
-    return bos.forget();
+    NS_ADDREF(aOutputStream);
+    return aOutputStream;
 }
 
 // returns an input stream compatible with nsIUploadChannel::SetUploadStream()
@@ -1626,21 +1626,21 @@ NS_TryToMakeImmutable(nsIURI* uri,
     nsresult rv;
     nsCOMPtr<nsINetUtil> util = do_GetNetUtil(&rv);
 
-    nsCOMPtr<nsIURI> result;
+    nsIURI* result = nullptr;
     if (NS_SUCCEEDED(rv)) {
         NS_ASSERTION(util, "do_GetNetUtil lied");
-        rv = util->ToImmutableURI(uri, getter_AddRefs(result));
+        rv = util->ToImmutableURI(uri, &result);
     }
 
     if (NS_FAILED(rv)) {
-        result = uri;
+        NS_IF_ADDREF(result = uri);
     }
 
     if (outRv) {
         *outRv = rv;
     }
 
-    return result.forget();
+    return result;
 }
 
 /**
@@ -1664,23 +1664,22 @@ NS_URIChainHasFlags(nsIURI   *uri,
  * value could be just the object passed in if it's not a nested URI.
  */
 inline already_AddRefed<nsIURI>
-NS_GetInnermostURI(nsIURI* aURI)
+NS_GetInnermostURI(nsIURI *uri)
 {
-    NS_PRECONDITION(aURI, "Must have URI");
-
-    nsCOMPtr<nsIURI> uri = aURI;
+    NS_PRECONDITION(uri, "Must have URI");
     
     nsCOMPtr<nsINestedURI> nestedURI(do_QueryInterface(uri));
     if (!nestedURI) {
-        return uri.forget();
+        NS_ADDREF(uri);
+        return uri;
     }
 
-    nsresult rv = nestedURI->GetInnermostURI(getter_AddRefs(uri));
+    nsresult rv = nestedURI->GetInnermostURI(&uri);
     if (NS_FAILED(rv)) {
         return nullptr;
     }
 
-    return uri.forget();
+    return uri;
 }
 
 /**

@@ -986,8 +986,9 @@ nsObjectLoadingContent::GetFrameLoader(nsIFrameLoader** aFrameLoader)
 NS_IMETHODIMP_(already_AddRefed<nsFrameLoader>)
 nsObjectLoadingContent::GetFrameLoader()
 {
-  nsRefPtr<nsFrameLoader> loader = mFrameLoader;
-  return loader.forget();
+  nsFrameLoader* loader = mFrameLoader;
+  NS_IF_ADDREF(loader);
+  return loader;
 }
 
 NS_IMETHODIMP

@@ -1293,7 +1293,7 @@ CanvasToImageSurface(nsIDOMHTMLCanvasElement* aCanvas)
   nsLayoutUtils::SurfaceFromElementResult result =
     nsLayoutUtils::SurfaceFromElement(node->AsElement(),
                                       nsLayoutUtils::SFE_WANT_IMAGE_SURFACE);
-  return result.mSurface.forget().downcast<gfxImageSurface>();
+  return static_cast<gfxImageSurface*>(result.mSurface.forget().get());
 }
 
 NS_IMETHODIMP
