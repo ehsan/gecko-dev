@@ -2846,9 +2846,3 @@ pref("html5.opqueue.maxtime", 100);
 pref("html5.opqueue.minlength", 100);
 // Maximum number of tree ops to flush regardless of time (takes precedence over the maxtime pref)
 pref("html5.opqueue.maxlength", 4500); // most top sites stay under this value
-
-// Push/Pop/Replace State prefs
-pref("browser.history.allowPushState", true);
-pref("browser.history.allowReplaceState", true);
-pref("browser.history.allowPopState", true);
-pref("browser.history.maxStateObjectSize", 655360);
