@@ -3740,6 +3740,15 @@ static JSObjectOp lazy_prototype_init[JSProto_LIMIT] = {
 
 JS_END_EXTERN_C
 
+static jsval
+GetGlobalObjectReservedSlot(JSContext *cx, JSObject *obj, uint32 index)
+{
+    JSClass *clasp = obj->getClass();
+    JS_ASSERT(clasp->flags & JSCLASS_IS_GLOBAL);
+    uint32 slot = JSSLOT_START(clasp) + index;
+    return (slot < obj->numSlots()) ? obj->getSlot(slot) : JSVAL_VOID;
+}
+
 JSBool
 js_GetClassObject(JSContext *cx, JSObject *obj, JSProtoKey key,
                   JSObject **objp)
@@ -3758,7 +3767,7 @@ js_GetClassObject(JSContext *cx, JSObject *obj, JSProtoKey key,
         return JS_TRUE;
     }
 
-    v = obj->getReservedSlot(key);
+    v = GetGlobalObjectReservedSlot(cx, obj, key);
     if (!JSVAL_IS_PRIMITIVE(v)) {
         *objp = JSVAL_TO_OBJECT(v);
         return JS_TRUE;
@@ -3782,7 +3791,7 @@ js_GetClassObject(JSContext *cx, JSObject *obj, JSProtoKey key,
         if (!init(cx, obj)) {
             ok = JS_FALSE;
         } else {
-            v = obj->getReservedSlot(key);
+            v = GetGlobalObjectReservedSlot(cx, obj, key);
             if (!JSVAL_IS_PRIMITIVE(v))
                 cobj = JSVAL_TO_OBJECT(v);
         }
@@ -5743,7 +5752,7 @@ js_GetClassPrototype(JSContext *cx, JSObject *scope, JSProtoKey protoKey,
         }
         scope = scope->getGlobal();
         if (scope->getClass()->flags & JSCLASS_IS_GLOBAL) {
-            jsval v = scope->getReservedSlot(JSProto_LIMIT + protoKey);
+            jsval v = GetGlobalObjectReservedSlot(cx, scope, JSProto_LIMIT + protoKey);
             if (!JSVAL_IS_PRIMITIVE(v)) {
                 *protop = JSVAL_TO_OBJECT(v);
                 return true;
@@ -6317,8 +6326,7 @@ js_ReportGetterOnlyAssignment(JSContext *cx)
 JSCompartment *
 JSObject::getCompartment(JSContext *cx) {
     JSObject *obj = getGlobal();
-    JS_ASSERT(obj->getClass()->flags & JSCLASS_IS_GLOBAL);
-    jsval v = obj->getReservedSlot(JSRESERVED_GLOBAL_COMPARTMENT);
+    jsval v = GetGlobalObjectReservedSlot(cx, obj, JSRESERVED_GLOBAL_COMPARTMENT);
     return (JSCompartment *) JSVAL_TO_PRIVATE(v);
 }
 
@@ -6395,9 +6403,7 @@ js_DumpAtom(JSAtom *atom)
 void
 dumpValue(jsval val)
 {
-    if ((val & 0xfffffff0) == 0xdadadad0) {
-        fprintf(stderr, "**uninitialized** %p", (void *) val);
-    } else if (JSVAL_IS_NULL(val)) {
+    if (JSVAL_IS_NULL(val)) {
         fprintf(stderr, "null");
     } else if (JSVAL_IS_VOID(val)) {
         fprintf(stderr, "undefined");
@@ -6631,6 +6637,8 @@ js_DumpStackFrame(JSContext *cx, JSStackFrame *start)
             fprintf(stderr, " none");
         if (fp->flags & JSFRAME_CONSTRUCTING)
             fprintf(stderr, " constructing");
+        if (fp->flags & JSFRAME_COMPUTED_THIS)
+            fprintf(stderr, " computed_this");
         if (fp->flags & JSFRAME_ASSIGNING)
             fprintf(stderr, " assigning");
         if (fp->flags & JSFRAME_DEBUGGER)

@@ -99,10 +99,13 @@ js_ChangeExternalStringFinalizer(JSStringFinalizeOp oldop,
                                  JSStringFinalizeOp newop);
 
 extern JSBool
-js_AddRoot(JSContext *cx, jsval *vp, const char *name);
+js_AddRoot(JSContext *cx, void *rp, const char *name);
 
 extern JSBool
-js_AddGCThingRoot(JSContext *cx, void **rp, const char *name);
+js_AddRootRT(JSRuntime *rt, void *rp, const char *name);
+
+extern JSBool
+js_RemoveRoot(JSRuntime *rt, void *rp);
 
 #ifdef DEBUG
 extern void

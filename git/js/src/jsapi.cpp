@@ -1443,7 +1443,9 @@ JS_ResolveStandardClass(JSContext *cx, JSObject *obj, jsval id, JSBool *resolved
             return JS_TRUE;
 
         JSProtoKey key = JSCLASS_CACHED_PROTO_KEY(stdnm->clasp);
-        jsval v = obj->getReservedSlot(key);
+        jsval v;
+        if (!js_GetReservedSlot(cx, obj, key, &v))
+            return JS_FALSE;
         if (!JSVAL_IS_PRIMITIVE(v))
             return JS_TRUE;
 
@@ -1768,110 +1770,37 @@ JS_NewNumberValue(JSContext *cx, jsdouble d, jsval *rval)
 }
 
 #undef JS_AddRoot
-
 JS_PUBLIC_API(JSBool)
-JS_AddValueRoot(JSContext *cx, jsval *vp)
+JS_AddRoot(JSContext *cx, void *rp)
 {
     CHECK_REQUEST(cx);
-    return js_AddRoot(cx, vp, NULL);
+    return js_AddRoot(cx, rp, NULL);
 }
 
 JS_PUBLIC_API(JSBool)
-JS_AddStringRoot(JSContext *cx, JSString **rp)
+JS_AddNamedRootRT(JSRuntime *rt, void *rp, const char *name)
 {
-    CHECK_REQUEST(cx);
-    return js_AddGCThingRoot(cx, (void **)rp, NULL);
+    return js_AddRootRT(rt, rp, name);
 }
 
 JS_PUBLIC_API(JSBool)
-JS_AddObjectRoot(JSContext *cx, JSObject **rp)
+JS_RemoveRoot(JSContext *cx, void *rp)
 {
     CHECK_REQUEST(cx);
-    return js_AddGCThingRoot(cx, (void **)rp, NULL);
+    return js_RemoveRoot(cx->runtime, rp);
 }
 
 JS_PUBLIC_API(JSBool)
-JS_AddDoubleRoot(JSContext *cx, jsdouble **rp)
+JS_RemoveRootRT(JSRuntime *rt, void *rp)
 {
-    CHECK_REQUEST(cx);
-    return js_AddGCThingRoot(cx, (void **)rp, NULL);
+    return js_RemoveRoot(rt, rp);
 }
 
 JS_PUBLIC_API(JSBool)
-JS_AddGCThingRoot(JSContext *cx, void **rp)
+JS_AddNamedRoot(JSContext *cx, void *rp, const char *name)
 {
     CHECK_REQUEST(cx);
-    return js_AddGCThingRoot(cx, (void **)rp, NULL);
-}
-
-JS_PUBLIC_API(JSBool)
-JS_AddNamedValueRoot(JSContext *cx, jsval *vp, const char *name)
-{
-    CHECK_REQUEST(cx);
-    return js_AddRoot(cx, vp, name);
-}
-
-JS_PUBLIC_API(JSBool)
-JS_AddNamedStringRoot(JSContext *cx, JSString **rp, const char *name)
-{
-    CHECK_REQUEST(cx);
-    return js_AddGCThingRoot(cx, (void **)rp, name);
-}
-
-JS_PUBLIC_API(JSBool)
-JS_AddNamedObjectRoot(JSContext *cx, JSObject **rp, const char *name)
-{
-    CHECK_REQUEST(cx);
-    return js_AddGCThingRoot(cx, (void **)rp, name);
-}
-
-JS_PUBLIC_API(JSBool)
-JS_AddNamedDoubleRoot(JSContext *cx, jsdouble **rp, const char *name)
-{
-    CHECK_REQUEST(cx);
-    return js_AddGCThingRoot(cx, (void **)rp, name);
-}
-
-JS_PUBLIC_API(JSBool)
-JS_AddNamedGCThingRoot(JSContext *cx, void **rp, const char *name)
-{
-    CHECK_REQUEST(cx);
-    return js_AddGCThingRoot(cx, (void **)rp, name);
-}
-
-JS_PUBLIC_API(JSBool)
-JS_RemoveValueRoot(JSContext *cx, jsval *vp)
-{
-    CHECK_REQUEST(cx);
-    return js_RemoveRoot(cx->runtime, (void *)vp);
-}
-
-JS_PUBLIC_API(JSBool)
-JS_RemoveStringRoot(JSContext *cx, JSString **rp)
-{
-    CHECK_REQUEST(cx);
-    return js_RemoveRoot(cx->runtime, (void *)rp);
-}
-
-JS_PUBLIC_API(JSBool)
-JS_RemoveObjectRoot(JSContext *cx, JSObject **rp)
-{
-    CHECK_REQUEST(cx);
-    return js_RemoveRoot(cx->runtime, (void *)rp);
-}
-
-JS_PUBLIC_API(JSBool)
-JS_RemoveDoubleRoot(JSContext *cx, jsdouble **rp)
-{
-    CHECK_REQUEST(cx);
-    return js_RemoveRoot(cx->runtime, (void *)rp);
-}
-
-JS_PUBLIC_API(JSBool)
-JS_RemoveGCThingRoot(JSContext *cx, void **rp)
-{
-    CHECK_REQUEST(cx);
-    return js_RemoveRoot(cx->runtime, (void *)rp);
+    return js_AddRoot(cx, rp, name);
 }
 
 JS_PUBLIC_API(void)
@@ -4081,7 +4010,8 @@ js_generic_fast_native_method_dispatcher(JSContext *cx, uintN argc, jsval *vp)
     JSObject *tmp;
     JSFastNative native;
 
-    fsv = JSVAL_TO_OBJECT(*vp)->getReservedSlot(0);
+    if (!js_GetReservedSlot(cx, JSVAL_TO_OBJECT(*vp), 0, &fsv))
+        return JS_FALSE;
     fs = (JSFunctionSpec *) JSVAL_TO_PRIVATE(fsv);
     JS_ASSERT((~fs->flags & (JSFUN_FAST_NATIVE | JSFUN_GENERIC_NATIVE)) == 0);
 
@@ -4136,7 +4066,8 @@ js_generic_native_method_dispatcher(JSContext *cx, JSObject *obj,
     JSFunctionSpec *fs;
     JSObject *tmp;
 
-    fsv = JSVAL_TO_OBJECT(argv[-2])->getReservedSlot(0);
+    if (!js_GetReservedSlot(cx, JSVAL_TO_OBJECT(argv[-2]), 0, &fsv))
+        return JS_FALSE;
     fs = (JSFunctionSpec *) JSVAL_TO_PRIVATE(fsv);
     JS_ASSERT((fs->flags & (JSFUN_FAST_NATIVE | JSFUN_GENERIC_NATIVE)) ==
               JSFUN_GENERIC_NATIVE);
@@ -4670,8 +4601,11 @@ JS_PUBLIC_API(JSBool)
 JS_CallFunction(JSContext *cx, JSObject *obj, JSFunction *fun, uintN argc, jsval *argv,
                 jsval *rval)
 {
+    JSBool ok;
+
     CHECK_REQUEST(cx);
-    JSBool ok = js_InternalCall(cx, obj, OBJECT_TO_JSVAL(FUN_OBJECT(fun)), argc, argv, rval);
+    ok = js_InternalCall(cx, obj, OBJECT_TO_JSVAL(FUN_OBJECT(fun)), argc, argv,
+                         rval);
     LAST_FRAME_CHECKS(cx, ok);
     return ok;
 }
@@ -4695,8 +4629,10 @@ JS_PUBLIC_API(JSBool)
 JS_CallFunctionValue(JSContext *cx, JSObject *obj, jsval fval, uintN argc, jsval *argv,
                      jsval *rval)
 {
+    JSBool ok;
+
     CHECK_REQUEST(cx);
-    JSBool ok = js_InternalCall(cx, obj, fval, argc, argv, rval);
+    ok = js_InternalCall(cx, obj, fval, argc, argv, rval);
     LAST_FRAME_CHECKS(cx, ok);
     return ok;
 }
@@ -5393,7 +5329,7 @@ JS_DropExceptionState(JSContext *cx, JSExceptionState *state)
     CHECK_REQUEST(cx);
     if (state) {
         if (state->throwing && JSVAL_IS_GCTHING(state->exception))
-            JS_RemoveValueRoot(cx, &state->exception);
+            JS_RemoveRoot(cx, &state->exception);
         cx->free(state);
     }
 }
