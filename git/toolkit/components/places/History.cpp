@@ -6,6 +6,7 @@
 
 #include "mozilla/Attributes.h"
 #include "mozilla/DebugOnly.h"
+#include "mozilla/MemoryReporting.h"
 #include "mozilla/Util.h"
 
 #include "mozilla/dom/ContentChild.h"
@@ -873,9 +874,12 @@ public:
       if (!known) {
         nsresult rv = mHistory->FetchPageInfo(place, &known);
         if (NS_FAILED(rv)) {
-          nsCOMPtr<nsIRunnable> event =
-            new NotifyPlaceInfoCallback(mCallback, place, true, rv);
-          return NS_DispatchToMainThread(event);
+          if (mCallback) {
+            nsCOMPtr<nsIRunnable> event =
+              new NotifyPlaceInfoCallback(mCallback, place, true, rv);
+            return NS_DispatchToMainThread(event);
+          }
+          return NS_OK;
         }
       }
 
@@ -2218,13 +2222,13 @@ History::FetchPageInfo(VisitData& _place, bool* _exists)
 }
 
 /* static */ size_t
-History::SizeOfEntryExcludingThis(KeyClass* aEntry, nsMallocSizeOfFun aMallocSizeOf, void *)
+History::SizeOfEntryExcludingThis(KeyClass* aEntry, mozilla::MallocSizeOf aMallocSizeOf, void *)
 {
   return aEntry->array.SizeOfExcludingThis(aMallocSizeOf);
 }
 
 size_t
-History::SizeOfIncludingThis(nsMallocSizeOfFun aMallocSizeOfThis)
+History::SizeOfIncludingThis(mozilla::MallocSizeOf aMallocSizeOfThis)
 {
   return aMallocSizeOfThis(this) +
          mObservers.SizeOfExcludingThis(SizeOfEntryExcludingThis, aMallocSizeOfThis);

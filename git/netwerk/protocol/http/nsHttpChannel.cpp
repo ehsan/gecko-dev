@@ -4,6 +4,9 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
+// HttpLog.h should generally be included first
+#include "HttpLog.h"
+
 #include "nsHttp.h"
 #include "nsHttpChannel.h"
 #include "nsHttpHandler.h"
@@ -248,10 +251,10 @@ private:
     const uint32_t mLoadFlags;
     const bool mCacheForOfflineUse;
     const bool mFallbackChannel;
-    const InfallableCopyCString mClientID;
+    const nsCString mClientID;
     const nsCacheStoragePolicy mStoragePolicy;
     const bool mUsingPrivateBrowsing;
-    const InfallableCopyCString mCacheKey;
+    const nsCString mCacheKey;
     const nsCacheAccessMode mAccessToRequest;
     const bool mNoWait;
     const bool mUsingSSL;

@@ -9,6 +9,7 @@
 #ifndef jsscript_h
 #define jsscript_h
 
+#include "mozilla/MemoryReporting.h"
 #include "mozilla/PodOperations.h"
 
 #include "jsdbgapi.h"
@@ -278,10 +279,9 @@ typedef HashMap<JSScript *,
                 DefaultHasher<JSScript *>,
                 SystemAllocPolicy> DebugScriptMap;
 
-struct ScriptSource
+class ScriptSource
 {
     friend class SourceCompressorThread;
-  private:
     union {
         // Before setSourceCopy or setSource are successfully called, this union
         // has a NULL pointer. When the script source is ready,
@@ -346,7 +346,7 @@ struct ScriptSource
     }
     const jschar *chars(JSContext *cx);
     JSStableString *substring(JSContext *cx, uint32_t start, uint32_t stop);
-    size_t sizeOfIncludingThis(JSMallocSizeOfFun mallocSizeOf);
+    size_t sizeOfIncludingThis(mozilla::MallocSizeOf mallocSizeOf);
 
     // XDR handling
     template <XDRMode mode>
@@ -454,6 +454,7 @@ class JSScript : public js::gc::Cell
     uint32_t        dataSize;   /* size of the used part of the data array */
 
     uint32_t        lineno;     /* base line number of script */
+    uint32_t        column;     /* base column of script, optionally set */
 
     uint32_t        mainOffset; /* offset of main entry point from code, after
                                    predef'ing prolog */
@@ -468,7 +469,6 @@ class JSScript : public js::gc::Cell
     uint32_t        useCount;   /* Number of times the script has been called
                                  * or has had backedges taken. Reset if the
                                  * script's JIT code is forcibly discarded. */
-    uint32_t        PADDING32;
 
 #ifdef DEBUG
     // Unique identifier within the compartment for this script, used for
@@ -760,6 +760,7 @@ class JSScript : public js::gc::Cell
 
     static bool loadSource(JSContext *cx, js::HandleScript scr, bool *worked);
 
+    void setSourceObject(js::ScriptSourceObject *object);
     js::ScriptSourceObject *sourceObject() const;
     js::ScriptSource *scriptSource() const { return sourceObject()->source(); }
     const char *filename() const { return scriptSource()->filename(); }
@@ -850,7 +851,7 @@ class JSScript : public js::gc::Cell
      * (which can be larger than the in-use size).
      */
     size_t computedSizeOfData();
-    size_t sizeOfData(JSMallocSizeOfFun mallocSizeOf);
+    size_t sizeOfData(mozilla::MallocSizeOf mallocSizeOf);
 
     uint32_t numNotes();  /* Number of srcnote slots in the srcnotes section */
 
@@ -1257,7 +1258,7 @@ class LazyScript : public js::gc::Cell
     void markChildren(JSTracer *trc);
     void finalize(js::FreeOp *fop);
 
-    size_t sizeOfExcludingThis(JSMallocSizeOfFun mallocSizeOf)
+    size_t sizeOfExcludingThis(mozilla::MallocSizeOf mallocSizeOf)
     {
         return mallocSizeOf(table_);
     }
@@ -1326,7 +1327,7 @@ class SourceCompressorThread
 
 struct SourceCompressionToken
 {
-    friend struct ScriptSource;
+    friend class ScriptSource;
     friend class SourceCompressorThread;
   private:
     JSContext *cx;

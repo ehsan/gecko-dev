@@ -6,6 +6,7 @@
 
 /* Per JSRuntime object */
 
+#include "mozilla/MemoryReporting.h"
 #include "mozilla/Util.h"
 
 #include "xpcprivate.h"
@@ -1116,7 +1117,7 @@ XPCJSRuntime::CTypesActivityCallback(JSContext *cx, js::CTypesActivityType type)
 }
 
 size_t
-XPCJSRuntime::SizeOfIncludingThis(nsMallocSizeOfFun mallocSizeOf)
+XPCJSRuntime::SizeOfIncludingThis(MallocSizeOf mallocSizeOf)
 {
     size_t n = 0;
     n += mallocSizeOf(this);
@@ -2532,7 +2533,7 @@ PreserveWrapper(JSContext *cx, JSObject *objArg)
 
     // For pre-Paris DOM bindings objects, we only support Node.
     if (nsCOMPtr<nsINode> node = do_QueryInterface(supports)) {
-        nsContentUtils::PreserveWrapper(supports, node);
+        node->PreserveWrapper(supports);
         return true;
     }
     return false;

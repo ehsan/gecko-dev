@@ -1216,9 +1216,8 @@ ScriptFrameIter::numFrameSlots() const
 #endif
       }
       case SCRIPTED:
-        JS_ASSERT(data_.cx_);
-        JS_ASSERT(data_.cx_->interpreterRegs().spForStackDepth(0) == interpFrame()->base());
-        return data_.cx_->interpreterRegs().sp - interpFrame()->base();
+        JS_ASSERT(data_.interpFrames_.sp() >= interpFrame()->base());
+        return data_.interpFrames_.sp() - interpFrame()->base();
     }
     JS_NOT_REACHED("Unexpected state");
     return 0;
@@ -1302,6 +1301,20 @@ js::CheckLocalUnaliased(MaybeCheckAliasing checkAliasing, JSScript *script,
     }
 }
 #endif
+
+void
+Activation::setActive(bool active)
+{
+    // Only allowed to deactivate/activate if activation is top.
+    // (Not tested and will probably fail in other situations.)
+    JS_ASSERT(cx()->mainThread().activation_ == this);
+    JS_ASSERT(active != active_);
+    active_ = active;
+
+    // Restore ionTop
+    if (!active && isJit())
+        cx()->mainThread().ionTop = asJit()->prevIonTop();
+}
 
 ion::JitActivation::JitActivation(JSContext *cx, bool firstFrameIsConstructing, bool active)
   : Activation(cx, Jit, active),

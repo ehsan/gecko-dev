@@ -11,6 +11,7 @@
 #include "nsIXULAppInfo.h"
 #include "nsPluginArray.h"
 #include "nsMimeTypeArray.h"
+#include "mozilla/MemoryReporting.h"
 #include "mozilla/dom/DesktopNotification.h"
 #include "nsGeolocation.h"
 #include "nsIHttpProtocolHandler.h"
@@ -40,6 +41,7 @@
 #include "Connection.h"
 #include "nsDOMClassInfo.h"
 #include "nsDOMEvent.h"
+#include "nsGlobalWindow.h"
 #ifdef MOZ_B2G_RIL
 #include "IccManager.h"
 #include "MobileConnection.h"
@@ -1535,7 +1537,7 @@ Navigator::GetMozCameras(nsISupports** aCameraManager)
 }
 
 size_t
-Navigator::SizeOfIncludingThis(nsMallocSizeOfFun aMallocSizeOf) const
+Navigator::SizeOfIncludingThis(mozilla::MallocSizeOf aMallocSizeOf) const
 {
   size_t n = aMallocSizeOf(this);
 

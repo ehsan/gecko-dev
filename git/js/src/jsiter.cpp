@@ -8,6 +8,7 @@
 
 #include "jsiter.h"
 
+#include "mozilla/MemoryReporting.h"
 #include "mozilla/PodOperations.h"
 #include "mozilla/Util.h"
 
@@ -378,8 +379,12 @@ NewPropertyIteratorObject(JSContext *cx, unsigned flags)
         if (!type)
             return NULL;
 
+        JSObject *metadata = NULL;
+        if (!NewObjectMetadata(cx, &metadata))
+            return NULL;
+
         Class *clasp = &PropertyIteratorObject::class_;
-        RootedShape shape(cx, EmptyShape::getInitialShape(cx, clasp, NULL, NULL, NewObjectMetadata(cx),
+        RootedShape shape(cx, EmptyShape::getInitialShape(cx, clasp, NULL, NULL, metadata,
                                                           ITERATOR_FINALIZE_KIND));
         if (!shape)
             return NULL;
@@ -809,7 +814,7 @@ iterator_iteratorObject(JSContext *cx, HandleObject obj, JSBool keysonly)
 }
 
 size_t
-PropertyIteratorObject::sizeOfMisc(JSMallocSizeOfFun mallocSizeOf) const
+PropertyIteratorObject::sizeOfMisc(mozilla::MallocSizeOf mallocSizeOf) const
 {
     return mallocSizeOf(getPrivate());
 }

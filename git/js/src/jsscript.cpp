@@ -12,6 +12,7 @@
 
 #include <string.h>
 
+#include "mozilla/MemoryReporting.h"
 #include "mozilla/PodOperations.h"
 
 #include "jstypes.h"
@@ -789,6 +790,12 @@ template bool
 js::XDRScript(XDRState<XDR_DECODE> *, HandleObject, HandleScript, HandleFunction,
               MutableHandleScript);
 
+void
+JSScript::setSourceObject(js::ScriptSourceObject *object)
+{
+    sourceObject_ = object;
+}
+
 js::ScriptSourceObject *
 JSScript::sourceObject() const
 {
@@ -1350,7 +1357,7 @@ ScriptSource::destroy()
 }
 
 size_t
-ScriptSource::sizeOfIncludingThis(JSMallocSizeOfFun mallocSizeOf)
+ScriptSource::sizeOfIncludingThis(mozilla::MallocSizeOf mallocSizeOf)
 {
     // |data| is a union, but both members are pointers to allocated memory,
     // |emptySource|, or NULL, so just using |data.compressed| will work.
@@ -1947,7 +1954,7 @@ JSScript::computedSizeOfData()
 }
 
 size_t
-JSScript::sizeOfData(JSMallocSizeOfFun mallocSizeOf)
+JSScript::sizeOfData(mozilla::MallocSizeOf mallocSizeOf)
 {
     return mallocSizeOf(data);
 }
@@ -2052,6 +2059,8 @@ JSScript::finalize(FreeOp *fop)
         JS_POISON(data, 0xdb, computedSizeOfData());
         fop->free_(data);
     }
+
+    fop->runtime()->lazyScriptCache.remove(this);
 }
 
 static const uint32_t GSN_CACHE_THRESHOLD = 100;
@@ -2417,6 +2426,7 @@ js::CloneScript(JSContext *cx, HandleObject enclosingScope, HandleFunction fun, 
     dst->funNeedsDeclEnvObject = src->funNeedsDeclEnvObject;
     dst->funHasAnyAliasedFormal = src->funHasAnyAliasedFormal;
     dst->hasSingletons = src->hasSingletons;
+    dst->treatAsRunOnce = src->treatAsRunOnce;
     dst->isGenerator = src->isGenerator;
     dst->isGeneratorExp = src->isGeneratorExp;
 
@@ -3046,4 +3056,74 @@ JSScript::updateBaselineOrIonRaw()
         baselineOrIonSkipArgCheck = NULL;
     }
 #endif
+}
+
+static inline void
+LazyScriptHash(uint32_t lineno, uint32_t column, uint32_t begin, uint32_t end,
+               HashNumber hashes[3])
+{
+    HashNumber hash = lineno;
+    hash = JS_ROTATE_LEFT32(hash, 4) ^ column;
+    hash = JS_ROTATE_LEFT32(hash, 4) ^ begin;
+    hash = JS_ROTATE_LEFT32(hash, 4) ^ end;
+
+    hashes[0] = hash;
+    hashes[1] = JS_ROTATE_LEFT32(hashes[0], 4) ^ begin;
+    hashes[2] = JS_ROTATE_LEFT32(hashes[1], 4) ^ end;
+}
+
+void
+LazyScriptHashPolicy::hash(const Lookup &lookup, HashNumber hashes[3])
+{
+    LazyScript *lazy = lookup.lazy;
+    LazyScriptHash(lazy->lineno(), lazy->column(), lazy->begin(), lazy->end(), hashes);
+}
+
+void
+LazyScriptHashPolicy::hash(JSScript *script, HashNumber hashes[3])
+{
+    LazyScriptHash(script->lineno, script->column, script->sourceStart, script->sourceEnd, hashes);
+}
+
+bool
+LazyScriptHashPolicy::match(JSScript *script, const Lookup &lookup)
+{
+    JSContext *cx = lookup.cx;
+    LazyScript *lazy = lookup.lazy;
+
+    // To be a match, the script and lazy script need to have the same line
+    // and column and to be at the same position within their respective
+    // source blobs, and to have the same source contents and version.
+    //
+    // While the surrounding code in the source may differ, this is
+    // sufficient to ensure that compiling the lazy script will yield an
+    // identical result to compiling the original script.
+    //
+    // Note that the filenames and origin principals of the lazy script and
+    // original script can differ. If there is a match, these will be fixed
+    // up in the resulting clone by the caller.
+
+    if (script->lineno != lazy->lineno() ||
+        script->column != lazy->column() ||
+        script->getVersion() != lazy->version() ||
+        script->sourceStart != lazy->begin() ||
+        script->sourceEnd != lazy->end())
+    {
+        return false;
+    }
+
+    // GC activity may destroy the character pointers being compared below.
+    AutoSuppressGC suppress(cx);
+
+    const jschar *scriptChars = script->scriptSource()->chars(cx);
+    if (!scriptChars)
+        return false;
+
+    const jschar *lazyChars = lazy->source()->chars(cx);
+    if (!lazyChars)
+        return false;
+
+    size_t begin = script->sourceStart;
+    size_t length = script->sourceEnd - begin;
+    return !memcmp(scriptChars + begin, lazyChars + begin, length);
 }

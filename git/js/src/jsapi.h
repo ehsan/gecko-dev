@@ -10,6 +10,7 @@
 #define jsapi_h
 
 #include "mozilla/FloatingPoint.h"
+#include "mozilla/MemoryReporting.h"
 #include "mozilla/RangedPtr.h"
 #include "mozilla/StandardInteger.h"
 #include "mozilla/ThreadLocal.h"
@@ -378,10 +379,10 @@ class AutoHashMapRooter : protected AutoGCRooter
         return map.capacity();
     }
 
-    size_t sizeOfExcludingThis(JSMallocSizeOfFun mallocSizeOf) const {
+    size_t sizeOfExcludingThis(mozilla::MallocSizeOf mallocSizeOf) const {
         return map.sizeOfExcludingThis(mallocSizeOf);
     }
-    size_t sizeOfIncludingThis(JSMallocSizeOfFun mallocSizeOf) const {
+    size_t sizeOfIncludingThis(mozilla::MallocSizeOf mallocSizeOf) const {
         return map.sizeOfIncludingThis(mallocSizeOf);
     }
 
@@ -493,10 +494,10 @@ class AutoHashSetRooter : protected AutoGCRooter
         return set.capacity();
     }
 
-    size_t sizeOfExcludingThis(JSMallocSizeOfFun mallocSizeOf) const {
+    size_t sizeOfExcludingThis(mozilla::MallocSizeOf mallocSizeOf) const {
         return set.sizeOfExcludingThis(mallocSizeOf);
     }
-    size_t sizeOfIncludingThis(JSMallocSizeOfFun mallocSizeOf) const {
+    size_t sizeOfIncludingThis(mozilla::MallocSizeOf mallocSizeOf) const {
         return set.sizeOfIncludingThis(mallocSizeOf);
     }
 
@@ -4998,6 +4999,15 @@ JS_ScheduleGC(JSContext *cx, uint32_t count);
 
 extern JS_PUBLIC_API(void)
 JS_SetParallelCompilationEnabled(JSContext *cx, bool enabled);
+
+typedef enum JSCompilerOption {
+    JSCOMPILER_BASELINE_USECOUNT_TRIGGER,
+    JSCOMPILER_ION_USECOUNT_TRIGGER,
+    JSCOMPILER_PJS_ENABLE
+} JSCompilerOption;
+
+extern JS_PUBLIC_API(void)
+JS_SetGlobalCompilerOption(JSContext *cx, JSCompilerOption opt, uint32_t value);
 
 /*
  * Convert a uint32_t index into a jsid.

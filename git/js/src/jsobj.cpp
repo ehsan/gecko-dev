@@ -11,6 +11,7 @@
 
 #include <string.h>
 
+#include "mozilla/MemoryReporting.h"
 #include "mozilla/Util.h"
 
 #include "jstypes.h"
@@ -1250,8 +1251,12 @@ NewObject(JSContext *cx, Class *clasp, types::TypeObject *type_, JSObject *paren
 
     RootedTypeObject type(cx, type_);
 
+    JSObject *metadata = NULL;
+    if (!NewObjectMetadata(cx, &metadata))
+        return NULL;
+
     RootedShape shape(cx, EmptyShape::getInitialShape(cx, clasp, TaggedProto(type->proto),
-                                                      parent, NewObjectMetadata(cx), kind));
+                                                      parent, metadata, kind));
     if (!shape)
         return NULL;
 
@@ -1548,7 +1553,9 @@ js::CreateThisForFunctionWithProto(JSContext *cx, HandleObject callee, JSObject 
     }
 
     if (res && cx->typeInferenceEnabled()) {
-        JSScript *script = callee->as<JSFunction>().nonLazyScript();
+        JSScript *script = callee->as<JSFunction>().getOrCreateScript(cx);
+        if (!script)
+            return NULL;
         TypeScript::SetThis(cx, script, types::Type::ObjectType(res));
     }
 
@@ -5302,7 +5309,7 @@ js_DumpBacktrace(JSContext *cx)
     fprintf(stdout, "%s", sprinter.string());
 }
 void
-JSObject::sizeOfExcludingThis(JSMallocSizeOfFun mallocSizeOf, JS::ObjectsExtraSizes *sizes)
+JSObject::sizeOfExcludingThis(mozilla::MallocSizeOf mallocSizeOf, JS::ObjectsExtraSizes *sizes)
 {
     if (hasDynamicSlots())
         sizes->slots = mallocSizeOf(slots);
