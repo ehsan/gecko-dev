@@ -167,10 +167,8 @@ function test(spec, charCode, keyCode, offset, modifiers)
          "Unexpected start time for animation with begin: " + spec);
     }
   } catch(e) {
-    is(e.name, "InvalidStateError",
-       "Unexpected exception: " + e.name);
     is(e.code, DOMException.INVALID_STATE_ERR,
-       "Unexpected exception code: " + e.code);
+       "Unexpected exception code: " + e);
     gotStartTimeOk = false;
   }
 
@@ -231,8 +229,6 @@ function testOpenEnd()
     is(anim.getStartTime(), 2,
        "Unexpected start time for second interval of open-ended animation");
   } catch(e) {
-    is(e.name, "InvalidStateError",
-       "Unexpected exception:" + e.name);
     is(e.code, DOMException.INVALID_STATE_ERR,
        "Unexpected exception code:" + e.code);
     ok(false, "Failed to recognise accessKey as qualifying for creating an " +

@@ -229,14 +229,8 @@ NS_NewChannel(nsIChannel           **result,
                 rv |= chan->SetLoadGroup(loadGroup);
             if (callbacks)
                 rv |= chan->SetNotificationCallbacks(callbacks);
-            if (loadFlags != nsIRequest::LOAD_NORMAL) {
-                // Retain the LOAD_REPLACE load flag if set.
-                nsLoadFlags normalLoadFlags = 0;
-                chan->GetLoadFlags(&normalLoadFlags);
-                rv |= chan->SetLoadFlags(loadFlags | 
-                                         (normalLoadFlags & 
-                                          nsIChannel::LOAD_REPLACE));
-            }
+            if (loadFlags != nsIRequest::LOAD_NORMAL)
+                rv |= chan->SetLoadFlags(loadFlags);
             if (channelPolicy) {
                 nsCOMPtr<nsIWritablePropertyBag2> props = do_QueryInterface(chan);
                 if (props) {

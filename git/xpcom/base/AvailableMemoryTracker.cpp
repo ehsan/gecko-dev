@@ -396,7 +396,7 @@ public:
         "value.");
     }
     else {
-      aDescription.Append(nsPrintfCString(
+      aDescription.Append(nsPrintfCString(1024,
         "We fire such an event if we notice there is less than %d MB of virtual "
         "address space available (controlled by the "
         "'memory.low_virtual_mem_threshold_mb' pref).  We'll likely crash if "
@@ -438,7 +438,7 @@ public:
         "value.");
     }
     else {
-      aDescription.Append(nsPrintfCString(
+      aDescription.Append(nsPrintfCString(1024,
         "We fire such an event if we notice there is less than %d MB of "
         "available commit space (controlled by the "
         "'memory.low_commit_space_threshold_mb' pref).  Windows will likely "
@@ -480,7 +480,7 @@ public:
         "value.");
     }
     else {
-      aDescription.Append(nsPrintfCString(
+      aDescription.Append(nsPrintfCString(1024,
         "We fire such an event if we notice there is less than %d MB of "
         "available physical memory (controlled by the "
         "'memory.low_physical_memory_threshold_mb' pref).  The machine will start "
@@ -501,7 +501,6 @@ namespace AvailableMemoryTracker {
 
 void Activate()
 {
-#if defined(_M_IX86)
   MOZ_ASSERT(sInitialized);
   MOZ_ASSERT(!sHooksActive);
 
@@ -528,26 +527,21 @@ void Activate()
     NS_RegisterMemoryReporter(new NumLowVirtualMemoryEventsMemoryReporter());
   }
   sHooksActive = true;
-#endif
 }
 
 void Init()
 {
-  // Do nothing on x86-64, because nsWindowsDllInterceptor is not thread-safe
-  // on 64-bit.  (On 32-bit, it's probably thread-safe.)  Even if we run Init()
-  // before any other of our threads are running, another process may have
-  // started a remote thread which could call VirtualAlloc!
-  //
-  // Moreover, the benefit of this code is less clear when we're a 64-bit
-  // process, because we aren't going to run out of virtual memory, and the
-  // system is likely to have a fair bit of physical memory.
-
-#if defined(_M_IX86)
   // Don't register the hooks if we're a build instrumented for PGO: If we're
   // an instrumented build, the compiler adds function calls all over the place
   // which may call VirtualAlloc; this makes it hard to prevent
   // VirtualAllocHook from reentering itself.
+
   if (!PR_GetEnv("MOZ_PGO_INSTRUMENTED")) {
+    // Careful, this is not thread-safe!  AddHook sets up the trampoline before
+    // writing to the out param, and anyway, it writes to the function
+    // non-atomically.  So this must happen before any other threads which
+    // might call VirtualAlloc, MapViewOfFile, or CreateDIBSection start up.
+
     sKernel32Intercept.Init("Kernel32.dll");
     sKernel32Intercept.AddHook("VirtualAlloc",
       reinterpret_cast<intptr_t>(VirtualAllocHook),
@@ -563,7 +557,6 @@ void Init()
   }
 
   sInitialized = true;
-#endif
 }
 
 } // namespace AvailableMemoryTracker

@@ -39,16 +39,14 @@
 
 #include "nsTextEquivUtils.h"
 
-#include "Accessible-inl.h"
 #include "AccIterator.h"
 #include "nsAccessibilityService.h"
+#include "nsAccessible.h"
 #include "nsAccUtils.h"
 
 #include "nsIDOMXULLabeledControlEl.h"
 
 #include "nsArrayUtils.h"
-
-using namespace mozilla::a11y;
 
 #define NS_OK_NO_NAME_CLAUSE_HANDLED \
 NS_ERROR_GENERATE_SUCCESS(NS_ERROR_MODULE_GENERAL, 0x24)
@@ -229,16 +227,19 @@ nsTextEquivUtils::AppendFromAccessible(nsAccessible *aAccessible,
       return rv;
   }
 
+  nsAutoString text;
+  nsresult rv = aAccessible->GetName(text);
+  NS_ENSURE_SUCCESS(rv, rv);
+
   bool isEmptyTextEquiv = true;
 
   // If the name is from tooltip then append it to result string in the end
   // (see h. step of name computation guide).
-  nsAutoString text;
-  if (aAccessible->Name(text) != eNameFromTooltip)
+  if (rv != NS_OK_NAME_FROM_TOOLTIP)
     isEmptyTextEquiv = !AppendString(aString, text);
 
   // Implementation of f. step.
-  nsresult rv = AppendFromValue(aAccessible, aString);
+  rv = AppendFromValue(aAccessible, aString);
   NS_ENSURE_SUCCESS(rv, rv);
 
   if (rv != NS_OK_NO_NAME_CLAUSE_HANDLED)

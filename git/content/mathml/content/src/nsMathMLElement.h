@@ -129,8 +129,6 @@ public:
                              bool aNotify);
 
   virtual nsXPCClassInfo* GetClassInfo();
-
-  virtual nsIDOMNode* AsDOMNode() { return this; }
 private:
   bool mIncrementScriptLevel;
 };

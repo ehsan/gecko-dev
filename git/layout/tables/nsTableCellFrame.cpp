@@ -107,10 +107,6 @@ nsTableCellFrame::Init(nsIContent*      aContent,
   // Let the base class do its initialization
   nsresult rv = nsContainerFrame::Init(aContent, aParent, aPrevInFlow);
 
-  if (GetStateBits() & NS_FRAME_FONT_INFLATION_CONTAINER) {
-    AddStateBits(NS_FRAME_FONT_INFLATION_FLOW_ROOT);
-  }
-
   if (aPrevInFlow) {
     // Set the column index
     nsTableCellFrame* cellFrame = (nsTableCellFrame*)aPrevInFlow;
@@ -459,8 +455,7 @@ nsTableCellFrame::BuildDisplayList(nsDisplayListBuilder*   aBuilder,
       }
     
       // display outset box-shadows if we need to.
-      const nsStyleBorder* borderStyle = GetStyleBorder();
-      bool hasBoxShadow = !!borderStyle->mBoxShadow;
+      bool hasBoxShadow = !!(GetStyleBorder()->mBoxShadow);
       if (hasBoxShadow) {
         nsresult rv = aLists.BorderBackground()->AppendNewToTop(
             new (aBuilder) nsDisplayBoxShadowOuter(aBuilder, this));
@@ -489,7 +484,7 @@ nsTableCellFrame::BuildDisplayList(nsDisplayListBuilder*   aBuilder,
       }
     
       // display borders if we need to
-      if (!tableFrame->IsBorderCollapse() && borderStyle->HasBorder() &&
+      if (!tableFrame->IsBorderCollapse() && HasBorder() &&
           emptyCellStyle == NS_STYLE_TABLE_EMPTY_CELLS_SHOW) {
         nsresult rv = aLists.BorderBackground()->AppendNewToTop(new (aBuilder)
             nsDisplayBorder(aBuilder, this));

@@ -55,7 +55,6 @@
 #include "nsStringGlue.h"
 #include "nsTArray.h"
 #include "nsTPriorityQueue.h"
-#include "StructuredCloneTags.h"
 
 #include "EventTarget.h"
 #include "Queue.h"
@@ -69,7 +68,6 @@ class nsIScriptContext;
 class nsIURI;
 class nsPIDOMWindow;
 class nsITimer;
-class nsIXPCScriptNotify;
 
 BEGIN_WORKERS_NAMESPACE
 
@@ -133,8 +131,6 @@ protected:
 
   virtual void
   PostRun(JSContext* aCx, WorkerPrivate* aWorkerPrivate, bool aRunResult);
-
-  void NotifyScriptExecutedIfNeeded() const;
 
 private:
   NS_DECL_NSIRUNNABLE
@@ -210,7 +206,6 @@ private:
   // Main-thread things.
   nsCOMPtr<nsPIDOMWindow> mWindow;
   nsCOMPtr<nsIScriptContext> mScriptContext;
-  nsCOMPtr<nsIXPCScriptNotify> mScriptNotify;
   nsCOMPtr<nsIURI> mBaseURI;
   nsCOMPtr<nsIURI> mScriptURI;
   nsCOMPtr<nsIPrincipal> mPrincipal;
@@ -388,13 +383,6 @@ public:
   {
     AssertIsOnMainThread();
     return mScriptContext;
-  }
-
-  nsIXPCScriptNotify*
-  GetScriptNotify() const
-  {
-    AssertIsOnMainThread();
-    return mScriptNotify;
   }
 
   JSObject*
@@ -824,7 +812,7 @@ GetWorkerPrivateFromContext(JSContext* aCx);
 
 enum WorkerStructuredDataType
 {
-  DOMWORKER_SCTAG_FILE = SCTAG_DOM_MAX,
+  DOMWORKER_SCTAG_FILE = JS_SCTAG_USER_MIN + 0x1000,
   DOMWORKER_SCTAG_BLOB,
 
   DOMWORKER_SCTAG_END

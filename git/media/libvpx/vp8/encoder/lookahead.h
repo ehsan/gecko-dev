@@ -47,23 +47,18 @@ void vp8_lookahead_destroy(struct lookahead_ctx *ctx);
  * This function will copy the source image into a new framebuffer with
  * the expected stride/border.
  *
- * If active_map is non-NULL and there is only one frame in the queue, then copy
- * only active macroblocks.
- *
- * \param[in] ctx         Pointer to the lookahead context
- * \param[in] src         Pointer to the image to enqueue
- * \param[in] ts_start    Timestamp for the start of this frame
- * \param[in] ts_end      Timestamp for the end of this frame
- * \param[in] flags       Flags set on this frame
- * \param[in] active_map  Map that specifies which macroblock is active
+ * \param[in] ctx       Pointer to the lookahead context
+ * \param[in] src       Pointer to the image to enqueue
+ * \param[in] ts_start  Timestamp for the start of this frame
+ * \param[in] ts_end    Timestamp for the end of this frame
+ * \param[in] flags     Flags set on this frame
  */
 int
 vp8_lookahead_push(struct lookahead_ctx *ctx,
                    YV12_BUFFER_CONFIG   *src,
                    int64_t               ts_start,
                    int64_t               ts_end,
-                   unsigned int          flags,
-                   unsigned char        *active_map);
+                   unsigned int          flags);
 
 
 /**\brief Get the next source buffer to encode
@@ -92,7 +87,7 @@ vp8_lookahead_pop(struct lookahead_ctx *ctx,
  */
 struct lookahead_entry*
 vp8_lookahead_peek(struct lookahead_ctx *ctx,
-                   unsigned int          index);
+                   int                   index);
 
 
 /**\brief Get the number of frames currently in the lookahead queue

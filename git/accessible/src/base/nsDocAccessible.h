@@ -92,6 +92,7 @@ public:
   virtual ~nsDocAccessible();
 
   // nsIAccessible
+  NS_IMETHOD GetName(nsAString& aName);
   NS_IMETHOD GetAttributes(nsIPersistentProperties **aAttributes);
   NS_IMETHOD TakeFocus(void);
 
@@ -110,7 +111,6 @@ public:
   virtual nsIDocument* GetDocumentNode() const { return mDocument; }
 
   // nsAccessible
-  virtual mozilla::a11y::ENameValueFlag Name(nsString& aName);
   virtual void Description(nsString& aDescription);
   virtual nsAccessible* FocusedChild();
   virtual mozilla::a11y::role NativeRole();
@@ -122,8 +122,6 @@ public:
 #ifdef DEBUG_ACCDOCMGR
   virtual nsresult HandleAccEvent(AccEvent* aAccEvent);
 #endif
-
-  virtual void GetBoundsRect(nsRect& aRect, nsIFrame** aRelativeFrame);
 
   // nsHyperTextAccessible
   virtual already_AddRefed<nsIEditor> GetEditor() const;
@@ -386,6 +384,7 @@ protected:
   virtual void CacheChildren();
 
   // nsDocAccessible
+    virtual void GetBoundsRect(nsRect& aRect, nsIFrame** aRelativeFrame);
     virtual nsresult AddEventListeners();
     virtual nsresult RemoveEventListeners();
 

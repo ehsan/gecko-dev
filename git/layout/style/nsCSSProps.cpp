@@ -1394,14 +1394,7 @@ const PRInt32 nsCSSProps::kWindowShadowKTable[] = {
   eCSSKeyword_UNKNOWN,-1
 };
 
-const PRInt32 nsCSSProps::kWordBreakKTable[] = {
-  eCSSKeyword_normal, NS_STYLE_WORDBREAK_NORMAL,
-  eCSSKeyword_break_all, NS_STYLE_WORDBREAK_BREAK_ALL,
-  eCSSKeyword_keep_all, NS_STYLE_WORDBREAK_KEEP_ALL,
-  eCSSKeyword_UNKNOWN,-1
-};
-
-const PRInt32 nsCSSProps::kWordWrapKTable[] = {
+const PRInt32 nsCSSProps::kWordwrapKTable[] = {
   eCSSKeyword_normal, NS_STYLE_WORDWRAP_NORMAL,
   eCSSKeyword_break_word, NS_STYLE_WORDWRAP_BREAK_WORD,
   eCSSKeyword_UNKNOWN,-1

@@ -38,7 +38,6 @@
 
 #include "nsHTMLSelectAccessible.h"
 
-#include "Accessible-inl.h"
 #include "nsAccessibilityService.h"
 #include "nsAccUtils.h"
 #include "nsDocAccessible.h"
@@ -256,6 +255,22 @@ nsHTMLSelectOptionAccessible::GetNameInternal(nsAString& aName)
   return NS_OK;
 }
 
+// nsAccessible protected
+nsIFrame* nsHTMLSelectOptionAccessible::GetBoundsFrame()
+{
+  PRUint64 state = 0;
+  nsIContent* content = GetSelectState(&state);
+  if (state & states::COLLAPSED) {
+    if (content) {
+      return content->GetPrimaryFrame();
+    }
+
+    return nsnull;
+  }
+
+  return nsAccessible::GetBoundsFrame();
+}
+
 PRUint64
 nsHTMLSelectOptionAccessible::NativeState()
 {
@@ -332,16 +347,8 @@ nsHTMLSelectOptionAccessible::GetLevelInternal()
   return level;
 }
 
-void
-nsHTMLSelectOptionAccessible::GetBoundsRect(nsRect& aTotalBounds,
-                                            nsIFrame** aBoundingFrame)
-{
-  nsAccessible* combobox = GetCombobox();
-  if (combobox && (combobox->State() & states::COLLAPSED))
-    combobox->GetBoundsRect(aTotalBounds, aBoundingFrame);
-  else
-    nsHyperTextAccessibleWrap::GetBoundsRect(aTotalBounds, aBoundingFrame);
-}
+////////////////////////////////////////////////////////////////////////////////
+// nsHTMLSelectOptionAccessible: nsIAccessible
 
 /** select us! close combo box if necessary*/
 NS_IMETHODIMP nsHTMLSelectOptionAccessible::GetActionName(PRUint8 aIndex, nsAString& aName)
@@ -543,6 +550,8 @@ nsHTMLComboboxAccessible::Shutdown()
   }
 }
 
+/**
+  */
 PRUint64
 nsHTMLComboboxAccessible::NativeState()
 {
@@ -551,7 +560,8 @@ nsHTMLComboboxAccessible::NativeState()
   // Get focus status from base class
   PRUint64 state = nsAccessible::NativeState();
 
-  nsIComboboxControlFrame* comboFrame = do_QueryFrame(GetFrame());
+  nsIFrame *frame = GetBoundsFrame();
+  nsIComboboxControlFrame *comboFrame = do_QueryFrame(frame);
   if (comboFrame && comboFrame->IsDroppedDown())
     state |= states::EXPANDED;
   else
@@ -583,7 +593,7 @@ nsHTMLComboboxAccessible::Value(nsString& aValue)
   // Use accessible name of selected option.
   nsAccessible* option = SelectedOption();
   if (option)
-    option->Name(aValue);
+    option->GetName(aValue);
 }
 
 PRUint8
@@ -739,7 +749,8 @@ nsHTMLComboboxListAccessible::NativeState()
   // Get focus status from base class
   PRUint64 state = nsAccessible::NativeState();
 
-  nsIComboboxControlFrame* comboFrame = do_QueryFrame(mParent->GetFrame());
+  nsIFrame *boundsFrame = GetBoundsFrame();
+  nsIComboboxControlFrame* comboFrame = do_QueryFrame(boundsFrame);
   if (comboFrame && comboFrame->IsDroppedDown())
     state |= states::FLOATING;
   else

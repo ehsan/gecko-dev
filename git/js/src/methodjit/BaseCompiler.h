@@ -154,7 +154,8 @@ class LinkerHelper : public JSC::LinkBuffer
     JSC::ExecutablePool *init(JSContext *cx) {
         // The pool is incref'd after this call, so it's necessary to release()
         // on any failure.
-        JSC::ExecutableAllocator *allocator = &cx->runtime->execAlloc();
+        JSScript *script = cx->fp()->script();
+        JSC::ExecutableAllocator *allocator = script->compartment()->jaegerCompartment()->execAlloc();
         allocator->setDestroyCallback(Probes::discardExecutableRegion);
         JSC::ExecutablePool *pool;
         m_code = executableAllocAndCopy(masm, allocator, &pool);
@@ -170,7 +171,7 @@ class LinkerHelper : public JSC::LinkBuffer
     JSC::CodeLocationLabel finalize(VMFrame &f) {
         masm.finalize(*this);
         JSC::CodeLocationLabel label = finalizeCodeAddendum();
-        Probes::registerICCode(f.cx, f.chunk(), f.script(), f.pc(),
+        Probes::registerICCode(f.cx, f.jit(), f.script(), f.pc(),
                                label.executableAddress(), masm.size());
         return label;
     }

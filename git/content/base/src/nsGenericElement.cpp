@@ -3280,9 +3280,6 @@ nsGenericElement::UnbindFromTree(bool aDeep, bool aNullParent)
       // Fully exit full-screen.
       nsIDocument::ExitFullScreen(false);
     }
-    if (HasPointerLock()) {
-      nsIDocument::UnlockPointer();
-    }
     if (GetParent()) {
       NS_RELEASE(mParent);
     } else {
@@ -3610,7 +3607,7 @@ nsGenericElement::GetInlineStyleRule()
   return nsnull;
 }
 
-nsresult
+NS_IMETHODIMP
 nsGenericElement::SetInlineStyleRule(css::StyleRule* aStyleRule,
                                      const nsAString* aSerialized,
                                      bool aNotify)
@@ -3944,7 +3941,10 @@ nsGenericElement::DispatchClickEvent(nsPresContext* aPresContext,
   event.pressure = pressure;
   event.clickCount = clickCount;
   event.inputSource = inputSource;
-  event.modifiers = aSourceEvent->modifiers;
+  event.isShift = aSourceEvent->isShift;
+  event.isControl = aSourceEvent->isControl;
+  event.isAlt = aSourceEvent->isAlt;
+  event.isMeta = aSourceEvent->isMeta;
   event.flags |= aFlags; // Be careful not to overwrite existing flags!
 
   return DispatchEvent(aPresContext, &event, aTarget, aFullDispatch, aStatus);
@@ -5985,8 +5985,8 @@ nsGenericElement::PostHandleEventForLinks(nsEventChainPostVisitor& aVisitor)
   case NS_MOUSE_CLICK:
     if (NS_IS_MOUSE_LEFT_CLICK(aVisitor.mEvent)) {
       nsInputEvent* inputEvent = static_cast<nsInputEvent*>(aVisitor.mEvent);
-      if (inputEvent->IsControl() || inputEvent->IsMeta() ||
-          inputEvent->IsAlt() ||inputEvent->IsShift()) {
+      if (inputEvent->isControl || inputEvent->isMeta ||
+          inputEvent->isAlt ||inputEvent->isShift) {
         break;
       }
 
@@ -6453,13 +6453,6 @@ nsINode::Contains(nsIDOMNode* aOther, bool* aReturn)
 {
   nsCOMPtr<nsINode> node = do_QueryInterface(aOther);
   *aReturn = Contains(node);
-  return NS_OK;
-}
-
-NS_IMETHODIMP
-nsGenericElement::MozRequestPointerLock()
-{
-  OwnerDoc()->RequestPointerLock(this);
   return NS_OK;
 }
 

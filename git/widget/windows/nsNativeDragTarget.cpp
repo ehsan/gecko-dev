@@ -201,9 +201,10 @@ nsNativeDragTarget::DispatchDragDropEvent(PRUint32 aEventType, POINTL aPT)
     event.refPoint.y = 0;
   }
 
-  nsModifierKeyState modifierKeyState;
-  modifierKeyState.InitInputEvent(event);
-
+  event.isShift   = IsKeyDown(NS_VK_SHIFT);
+  event.isControl = IsKeyDown(NS_VK_CONTROL);
+  event.isMeta    = false;
+  event.isAlt     = IsKeyDown(NS_VK_ALT);
   event.inputSource = static_cast<nsBaseDragService*>(mDragService)->GetInputSource();
 
   mWindow->DispatchEvent(&event, status);

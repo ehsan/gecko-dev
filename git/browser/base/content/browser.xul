@@ -529,7 +529,6 @@
             <image id="indexedDB-notification-icon" class="notification-anchor-icon" role="button"/>
             <image id="password-notification-icon" class="notification-anchor-icon" role="button"/>
             <image id="webapps-notification-icon" class="notification-anchor-icon" role="button"/>
-            <image id="plugins-notification-icon" class="notification-anchor-icon" role="button"/>
           </box>
           <!-- Use onclick instead of normal popup= syntax since the popup
                code fires onmousedown, and hence eats our favicon drag events.
@@ -542,8 +541,9 @@
             <hbox id="identity-box-inner" align="center">
               <hbox id="page-proxy-stack"
                     onclick="PageProxyClickHandler(event);">
-                <image id="page-proxy-favicon"
-                       pageproxystate="invalid"/>
+                <image id="page-proxy-favicon" validate="never"
+                       pageproxystate="invalid"
+                       onerror="this.removeAttribute('src');"/>
               </hbox>
               <hbox id="identity-icon-labels">
                 <label id="identity-icon-label" class="plain" flex="1"/>
@@ -854,9 +854,6 @@
                      label="&printButton.label;" command="cmd_print"
                      tooltiptext="&printButton.tooltip;"/>
 
-      <!-- This is a placeholder for the Downloads Indicator.  It is visible
-           only during the customization of the toolbar or in the palette, and
-           is replaced when customization is done. -->
       <toolbarbutton id="downloads-button" class="toolbarbutton-1 chromeclass-toolbar-additional"
                      observes="Tools:Downloads"
                      ondrop="DownloadsButtonDNDObserver.onDrop(event)"
@@ -1010,9 +1007,9 @@
                      command="Inspector:Inspect"/>
       <toolbarbutton id="inspector-treepanel-toolbutton"
                      class="devtools-toolbarbutton"
-                     tabindex="0"
-                     aria-label="&markupButton.arialabel;"
-                     accesskey="&markupButton.accesskey;"
+                     label="&htmlPanel.label;"
+                     accesskey="&htmlPanel.accesskey;"
+                     tooltiptext="&htmlPanel.tooltiptext;"
                      command="Inspector:HTMLPanel"/>
       <arrowscrollbox id="inspector-breadcrumbs"
                       flex="1" orient="horizontal"
@@ -1023,13 +1020,11 @@
                        hidden="true"
                        label="&inspect3DViewButton.label;"
                        accesskey="&inspect3DViewButton.accesskey;"
-                       tabindex="0"
                        command="Inspector:Tilt"/>
         <toolbarbutton id="inspector-style-button"
                        class="devtools-toolbarbutton"
                        label="&inspectStyleButton.label;"
                        accesskey="&inspectStyleButton.accesskey;"
-                       tabindex="0"
                        command="Inspector:Sidebar"/>
         <!-- registered tools go here -->
       </hbox>

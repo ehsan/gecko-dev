@@ -53,6 +53,9 @@ class Image
     void markDirty() {mDirty = true;}
     void markClean() {mDirty = false;}
 
+    HRESULT lock(D3DLOCKED_RECT *lockedRect, const RECT *rect);
+    void unlock();
+
     bool isRenderableFormat() const;
     D3DFORMAT getD3DFormat() const;
 
@@ -67,55 +70,55 @@ class Image
     void updateSurface(IDirect3DSurface9 *dest, GLint xoffset, GLint yoffset, GLsizei width, GLsizei height);
 
     void loadData(GLint xoffset, GLint yoffset, GLsizei width, GLsizei height, GLenum type,
-                  GLint unpackAlignment, const void *input);
+                  GLint unpackAlignment, const void *input, std::size_t outputPitch, void *output) const;
 
-    void loadAlphaData(GLsizei width, GLsizei height,
+    void loadAlphaData(GLint xoffset, GLint yoffset, GLsizei width, GLsizei height,
                        int inputPitch, const void *input, size_t outputPitch, void *output) const;
-    void loadAlphaFloatData(GLsizei width, GLsizei height,
+    void loadAlphaFloatData(GLint xoffset, GLint yoffset, GLsizei width, GLsizei height,
                             int inputPitch, const void *input, size_t outputPitch, void *output) const;
-    void loadAlphaHalfFloatData(GLsizei width, GLsizei height,
+    void loadAlphaHalfFloatData(GLint xoffset, GLint yoffset, GLsizei width, GLsizei height,
                                 int inputPitch, const void *input, size_t outputPitch, void *output) const;
-    void loadLuminanceData(GLsizei width, GLsizei height,
+    void loadLuminanceData(GLint xoffset, GLint yoffset, GLsizei width, GLsizei height,
                            int inputPitch, const void *input, size_t outputPitch, void *output, bool native) const;
-    void loadLuminanceFloatData(GLsizei width, GLsizei height,
+    void loadLuminanceFloatData(GLint xoffset, GLint yoffset, GLsizei width, GLsizei height,
                                 int inputPitch, const void *input, size_t outputPitch, void *output) const;
-    void loadLuminanceHalfFloatData(GLsizei width, GLsizei height,
+    void loadLuminanceHalfFloatData(GLint xoffset, GLint yoffset, GLsizei width, GLsizei height,
                                     int inputPitch, const void *input, size_t outputPitch, void *output) const;
-    void loadLuminanceAlphaData(GLsizei width, GLsizei height,
+    void loadLuminanceAlphaData(GLint xoffset, GLint yoffset, GLsizei width, GLsizei height,
                                 int inputPitch, const void *input, size_t outputPitch, void *output, bool native) const;
-    void loadLuminanceAlphaFloatData(GLsizei width, GLsizei height,
+    void loadLuminanceAlphaFloatData(GLint xoffset, GLint yoffset, GLsizei width, GLsizei height,
                                      int inputPitch, const void *input, size_t outputPitch, void *output) const;
-    void loadLuminanceAlphaHalfFloatData(GLsizei width, GLsizei height,
+    void loadLuminanceAlphaHalfFloatData(GLint xoffset, GLint yoffset, GLsizei width, GLsizei height,
                                          int inputPitch, const void *input, size_t outputPitch, void *output) const;
-    void loadRGBUByteData(GLsizei width, GLsizei height,
+    void loadRGBUByteData(GLint xoffset, GLint yoffset, GLsizei width, GLsizei height,
                           int inputPitch, const void *input, size_t outputPitch, void *output) const;
-    void loadRGB565Data(GLsizei width, GLsizei height,
+    void loadRGB565Data(GLint xoffset, GLint yoffset, GLsizei width, GLsizei height,
                         int inputPitch, const void *input, size_t outputPitch, void *output) const;
-    void loadRGBFloatData(GLsizei width, GLsizei height,
+    void loadRGBFloatData(GLint xoffset, GLint yoffset, GLsizei width, GLsizei height,
                           int inputPitch, const void *input, size_t outputPitch, void *output) const;
-    void loadRGBHalfFloatData(GLsizei width, GLsizei height,
+    void loadRGBHalfFloatData(GLint xoffset, GLint yoffset, GLsizei width, GLsizei height,
                               int inputPitch, const void *input, size_t outputPitch, void *output) const;
-    void loadRGBAUByteDataSSE2(GLsizei width, GLsizei height,
+    void loadRGBAUByteDataSSE2(GLint xoffset, GLint yoffset, GLsizei width, GLsizei height,
                                int inputPitch, const void *input, size_t outputPitch, void *output) const;
-    void loadRGBAUByteData(GLsizei width, GLsizei height,
+    void loadRGBAUByteData(GLint xoffset, GLint yoffset, GLsizei width, GLsizei height,
                            int inputPitch, const void *input, size_t outputPitch, void *output) const;
-    void loadRGBA4444Data(GLsizei width, GLsizei height,
+    void loadRGBA4444Data(GLint xoffset, GLint yoffset, GLsizei width, GLsizei height,
                           int inputPitch, const void *input, size_t outputPitch, void *output) const;
-    void loadRGBA5551Data(GLsizei width, GLsizei height,
+    void loadRGBA5551Data(GLint xoffset, GLint yoffset, GLsizei width, GLsizei height,
                           int inputPitch, const void *input, size_t outputPitch, void *output) const;
-    void loadRGBAFloatData(GLsizei width, GLsizei height,
+    void loadRGBAFloatData(GLint xoffset, GLint yoffset, GLsizei width, GLsizei height,
                            int inputPitch, const void *input, size_t outputPitch, void *output) const;
-    void loadRGBAHalfFloatData(GLsizei width, GLsizei height,
+    void loadRGBAHalfFloatData(GLint xoffset, GLint yoffset, GLsizei width, GLsizei height,
                                int inputPitch, const void *input, size_t outputPitch, void *output) const;
-    void loadBGRAData(GLsizei width, GLsizei height,
+    void loadBGRAData(GLint xoffset, GLint yoffset, GLsizei width, GLsizei height,
                       int inputPitch, const void *input, size_t outputPitch, void *output) const;
     void loadCompressedData(GLint xoffset, GLint yoffset, GLsizei width, GLsizei height,
-                            const void *input);
-    void loadDXT1Data(GLsizei width, GLsizei height,
+                            int inputPitch, const void *input, size_t outputPitch, void *output) const;
+    void loadDXT1Data(GLint xoffset, GLint yoffset, GLsizei width, GLsizei height,
                       int inputPitch, const void *input, size_t outputPitch, void *output) const;
-    void loadDXT3Data(GLsizei width, GLsizei height,
+    void loadDXT3Data(GLint xoffset, GLint yoffset, GLsizei width, GLsizei height,
                       int inputPitch, const void *input, size_t outputPitch, void *output) const;
-    void loadDXT5Data(GLsizei width, GLsizei height,
+    void loadDXT5Data(GLint xoffset, GLint yoffset, GLsizei width, GLsizei height,
                       int inputPitch, const void *input, size_t outputPitch, void *output) const;
 
     void copy(GLint xoffset, GLint yoffset, GLint x, GLint y, GLsizei width, GLsizei height, IDirect3DSurface9 *renderTarget);
@@ -124,9 +127,6 @@ class Image
     DISALLOW_COPY_AND_ASSIGN(Image);
 
     void createSurface();
-
-    HRESULT lock(D3DLOCKED_RECT *lockedRect, const RECT *rect);
-    void unlock();
 
     GLsizei mWidth;
     GLsizei mHeight;

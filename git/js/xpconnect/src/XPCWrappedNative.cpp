@@ -55,7 +55,6 @@
 
 #include "nsContentUtils.h"
 
-#include "mozilla/StandardInteger.h"
 #include "mozilla/Util.h"
 
 bool
@@ -80,6 +79,26 @@ NS_CYCLE_COLLECTION_CLASSNAME(XPCWrappedNative)::Unlink(void *p)
     XPCWrappedNative *tmp = static_cast<XPCWrappedNative*>(p);
     tmp->ExpireWrapper();
     return NS_OK;
+}
+
+struct TraverseExpandoObjectClosure
+{
+    XPCWrappedNative *wn;
+    nsCycleCollectionTraversalCallback &cb;
+};
+
+static PLDHashOperator
+TraverseExpandoObjects(xpc::PtrAndPrincipalHashKey *aKey, JSCompartment *compartment, void *aClosure)
+{
+    TraverseExpandoObjectClosure *closure = static_cast<TraverseExpandoObjectClosure*>(aClosure);
+    xpc::CompartmentPrivate *priv =
+        static_cast<xpc::CompartmentPrivate *>(JS_GetCompartmentPrivate(compartment));
+
+    NS_CYCLE_COLLECTION_NOTE_EDGE_NAME(closure->cb, "XPCWrappedNative expando object");
+    closure->cb.NoteScriptChild(nsIProgrammingLanguage::JAVASCRIPT,
+                                priv->LookupExpandoObjectPreserveColor(closure->wn));
+
+    return PL_DHASH_NEXT;
 }
 
 NS_IMETHODIMP
@@ -119,18 +138,13 @@ NS_CYCLE_COLLECTION_CLASSNAME(XPCWrappedNative)::Traverse(void *p,
 
         JSObject *obj = tmp->GetFlatJSObjectPreserveColor();
         NS_CYCLE_COLLECTION_NOTE_EDGE_NAME(cb, "mFlatJSObject");
-        cb.NoteJSChild(obj);
+        cb.NoteScriptChild(nsIProgrammingLanguage::JAVASCRIPT, obj);
     }
 
     if (tmp->MightHaveExpandoObject()) {
         XPCJSRuntime *rt = tmp->GetRuntime();
-        XPCCompartmentSet &set = rt->GetCompartmentSet();
-        for (XPCCompartmentRange r = set.all(); !r.empty(); r.popFront()) {
-            xpc::CompartmentPrivate *priv = (xpc::CompartmentPrivate *)
-                JS_GetCompartmentPrivate(r.front());
-            NS_CYCLE_COLLECTION_NOTE_EDGE_NAME(cb, "XPCWrappedNative expando object");
-            cb.NoteJSChild(priv->LookupExpandoObjectPreserveColor(tmp));
-        }
+        TraverseExpandoObjectClosure closure = { tmp, cb };
+        rt->GetCompartmentMap().EnumerateRead(TraverseExpandoObjects, &closure);
     }
 
     // XPCWrappedNative keeps its native object alive.
@@ -954,7 +968,7 @@ XPCWrappedNative::~XPCWrappedNative()
     Destroy();
 }
 
-static const intptr_t WRAPPER_WORD_POISON = 0xa8a8a8a8;
+static const PRWord WRAPPER_WORD_POISON = 0xa8a8a8a8;
 
 void
 XPCWrappedNative::Destroy()
@@ -1668,8 +1682,6 @@ XPCWrappedNative::ReparentWrapperIfFound(XPCCallContext& ccx,
                 JSObject *ww = wrapper->GetWrapper();
                 if (ww) {
                     JSObject *newwrapper;
-                    MOZ_ASSERT(!xpc::WrapperFactory::IsComponentsObject(flat), 
-                               "Components object should never get here");
                     if (xpc::WrapperFactory::IsLocationObject(flat)) {
                         newwrapper = xpc::WrapperFactory::WrapLocationObject(ccx, newobj);
                         if (!newwrapper)
@@ -2225,10 +2237,6 @@ XPCWrappedNative::GetSameCompartmentSecurityWrapper(JSContext *cx)
             return NULL;
     } else if (NeedsSOW()) {
         wrapper = xpc::WrapperFactory::WrapSOWObject(cx, flat);
-        if (!wrapper)
-            return NULL;
-    } else if (xpc::WrapperFactory::IsComponentsObject(flat)) {
-        wrapper = xpc::WrapperFactory::WrapComponentsObject(cx, flat);
         if (!wrapper)
             return NULL;
     }

@@ -188,8 +188,12 @@ def run_all_tests(tests, results, options):
         timeout = get_max_wait(tasks, results, options.timeout)
         read_input(tasks, timeout)
 
-        kill_undead(tasks, results, options.timeout)
-        tasks = reap_zombies(tasks, results, options.timeout)
+        # We attempt to reap once before forcibly killing timed out tasks so
+        # that anything that died during our sleep is not marked as timed out
+        # in the test results.
+        tasks = reap_zombies(tasks, results, False)
+        if kill_undead(tasks, results, options.timeout):
+            tasks = reap_zombies(tasks, results, options.timeout)
 
         if results.pb:
             results.pb.update(results.n)

@@ -558,11 +558,9 @@ PluginModuleParent::RecvBackUpXResources(const FileDescriptor& aXSocketFd)
 #ifndef MOZ_X11
     NS_RUNTIMEABORT("This message only makes sense on X11 platforms");
 #else
-    NS_ABORT_IF_FALSE(0 > mPluginXSocketFdDup.get(),
+    NS_ABORT_IF_FALSE(0 > mPluginXSocketFdDup.mFd,
                       "Already backed up X resources??");
-    int fd = aXSocketFd.fd; // Copy to discard |const| qualifier
-    mPluginXSocketFdDup.forget();
-    mPluginXSocketFdDup.reset(fd);
+    mPluginXSocketFdDup.mFd = aXSocketFd.fd;
 #endif
     return true;
 }
@@ -750,6 +748,9 @@ PluginModuleParent::NP_Initialize(NPNetscapeFuncs* bFuncs, NPPluginFuncs* pFuncs
     }
 
     uint32_t flags = 0;
+    if (mozilla::Preferences::GetBool("plugin.allow.asyncdrawing", false)) {
+      flags |= kAllowAsyncDrawing;
+    }
 
     if (!CallNP_Initialize(flags, error)) {
         return NS_ERROR_FAILURE;
@@ -776,9 +777,9 @@ PluginModuleParent::NP_Initialize(NPNetscapeFuncs* bFuncs, NPError* error)
     }
 
     uint32_t flags = 0;
-#ifdef XP_WIN
-    flags |= kAllowAsyncDrawing;
-#endif
+    if (mozilla::Preferences::GetBool("plugin.allow.asyncdrawing", false)) {
+      flags |= kAllowAsyncDrawing;
+    }
 
     if (!CallNP_Initialize(flags, error))
         return NS_ERROR_FAILURE;

@@ -136,12 +136,15 @@ ScriptErrorReporter(JSContext *cx,
     int i, j, k, n;
     char *prefix = NULL, *tmp;
     const char *ctmp;
+    JSStackFrame * fp = nsnull;
     nsCOMPtr<nsIXPConnect> xpc;
 
     // Don't report an exception from inner JS frames as the callers may intend
     // to handle it.
-    if (JS_DescribeScriptedCaller(cx, nsnull, nsnull)) {
-        return;
+    while ((fp = JS_FrameIterator(cx, &fp))) {
+        if (JS_IsScriptFrame(cx, fp)) {
+            return;
+        }
     }
 
     // In some cases cx->fp is null here so use XPConnect to tell us about inner
@@ -522,6 +525,22 @@ DumpHeap(JSContext *cx,
 
 #endif /* DEBUG */
 
+static JSBool
+Clear(JSContext *cx,
+      unsigned argc,
+      jsval *vp)
+{
+    jsval *argv = JS_ARGV(cx, vp);
+    if (argc > 0 && !JSVAL_IS_PRIMITIVE(argv[0])) {
+        JS_ClearScope(cx, JSVAL_TO_OBJECT(argv[0]));
+    } else {
+        JS_ReportError(cx, "'clear' requires an object");
+        return JS_FALSE;
+    }
+    JS_SET_RVAL(cx, vp, JSVAL_VOID);
+    return JS_TRUE;
+}
+
 JSFunctionSpec gGlobalFunctions[] =
 {
     {"print",           Print,          0,0},
@@ -535,6 +554,7 @@ JSFunctionSpec gGlobalFunctions[] =
 #ifdef JS_GC_ZEAL
     {"gczeal",          GCZeal,         1,0},
 #endif
+    {"clear",           Clear,          1,0},
 #ifdef DEBUG
     {"dumpHeap",        DumpHeap,       5,0},
 #endif
@@ -841,6 +861,26 @@ NS_IMETHODIMP
 FullTrustSecMan::EnableCapability(const char *capability)
 {
     return NS_OK;;
+}
+
+NS_IMETHODIMP
+FullTrustSecMan::RevertCapability(const char *capability)
+{
+    return NS_OK;
+}
+
+NS_IMETHODIMP
+FullTrustSecMan::DisableCapability(const char *capability)
+{
+    return NS_OK;
+}
+
+NS_IMETHODIMP
+FullTrustSecMan::SetCanEnableCapability(const nsACString & certificateFingerprint,
+                                        const char *capability,
+                                        PRInt16 canEnable)
+{
+    return NS_OK;
 }
 
 NS_IMETHODIMP

@@ -231,15 +231,12 @@ ImageContainer::GetCurrentAsSurface(gfxIntSize *aSize)
     CrossProcessMutexAutoLock autoLock(*mRemoteDataMutex);
     EnsureActiveImage();
 
-    if (!mActiveImage)
-      return nsnull;
     *aSize = mRemoteData->mSize;
-  } else {
-    if (!mActiveImage)
-      return nsnull;
-    *aSize = mActiveImage->GetSize();
+    return mActiveImage ? mActiveImage->GetAsSurface() : nsnull;
   }
-  return mActiveImage->GetAsSurface();
+
+  *aSize = mActiveImage->GetSize();
+  return mActiveImage ? mActiveImage->GetAsSurface() : nsnull;
 }
 
 gfxIntSize
@@ -266,9 +263,8 @@ void
 ImageContainer::SetRemoteImageData(RemoteImageData *aData, CrossProcessMutex *aMutex)
 {
   ReentrantMonitorAutoEnter mon(mReentrantMonitor);
-
-  NS_ASSERTION(!mActiveImage || !aData, "No active image expected when SetRemoteImageData is called with non-NULL aData.");
-  NS_ASSERTION(!mRemoteData || !aData, "No remote data expected when SetRemoteImageData is called with non-NULL aData.");
+  NS_ASSERTION(!mActiveImage, "No active image expected when SetRemoteImageData is called.");
+  NS_ASSERTION(!mRemoteData, "No remote data expected when SetRemoteImageData is called.");
 
   mRemoteData = aData;
 

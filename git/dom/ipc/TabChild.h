@@ -94,7 +94,6 @@ class TabChildGlobal : public nsDOMEventTargetHelper,
 {
 public:
   TabChildGlobal(TabChild* aTabChild);
-  void Init();
   NS_DECL_ISUPPORTS_INHERITED
   NS_DECL_CYCLE_COLLECTION_CLASS_INHERITED(TabChildGlobal, nsDOMEventTargetHelper)
   NS_FORWARD_SAFE_NSIFRAMEMESSAGEMANAGER(mMessageManager)

@@ -109,8 +109,7 @@ public:
       BuildLayer(aBuilder, aManager, this);
   }
   virtual LayerState GetLayerState(nsDisplayListBuilder* aBuilder,
-                                   LayerManager* aManager,
-                                   const FrameLayerBuilder::ContainerParameters& aParameters)
+                                   LayerManager* aManager)
   {
     if (CanvasElementFromContent(mFrame->GetContent())->ShouldForceInactiveLayer(aManager))
       return LAYER_INACTIVE;

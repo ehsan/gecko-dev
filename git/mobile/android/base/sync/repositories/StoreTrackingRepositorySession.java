@@ -4,7 +4,6 @@
 
 package org.mozilla.gecko.sync.repositories;
 
-import java.util.Collection;
 import java.util.Iterator;
 
 import org.mozilla.gecko.sync.Logger;
@@ -39,45 +38,25 @@ public abstract class StoreTrackingRepositorySession extends RepositorySession {
   }
 
   @Override
-  protected synchronized void trackGUID(String guid) {
+  protected synchronized void trackRecord(Record record) {
     if (this.storeTracker == null) {
       throw new IllegalStateException("Store tracker not yet initialized!");
     }
-    this.storeTracker.trackRecordForExclusion(guid);
-  }
-
-  @Override
-  protected synchronized void untrackGUID(String guid) {
-    if (this.storeTracker == null) {
-      throw new IllegalStateException("Store tracker not yet initialized!");
-    }
-    this.storeTracker.untrackStoredForExclusion(guid);
-  }
-
-  @Override
-  protected synchronized void untrackGUIDs(Collection<String> guids) {
-    if (this.storeTracker == null) {
-      throw new IllegalStateException("Store tracker not yet initialized!");
-    }
-    if (guids == null) {
-      return;
-    }
-    for (String guid : guids) {
-      this.storeTracker.untrackStoredForExclusion(guid);
-    }
-  }
-
-  protected void trackRecord(Record record) {
 
     Logger.debug(LOG_TAG, "Tracking record " + record.guid +
                            " (" + record.lastModified + ") to avoid re-upload.");
     // Future: we care about the timestamp…
-    trackGUID(record.guid);
+    this.storeTracker.trackRecordForExclusion(record.guid);
   }
 
-  protected void untrackRecord(Record record) {
+  @Override
+  protected synchronized void untrackRecord(Record record) {
+    if (this.storeTracker == null) {
+      throw new IllegalStateException("Store tracker not yet initialized!");
+    }
+
     Logger.debug(LOG_TAG, "Un-tracking record " + record.guid + ".");
-    untrackGUID(record.guid);
+    this.storeTracker.untrackStoredForExclusion(record.guid);
   }
 
   @Override

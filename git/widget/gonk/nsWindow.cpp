@@ -79,7 +79,7 @@ static android::FramebufferNativeWindow *gNativeWindow = nsnull;
 static bool sFramebufferOpen;
 static bool sUsingOMTC;
 static nsRefPtr<gfxASurface> sOMTCSurface;
-static pthread_t sFramebufferWatchThread;
+static nsCOMPtr<nsIThread> sFramebufferWatchThread;
 
 namespace {
 
@@ -112,21 +112,23 @@ private:
 static const char* kSleepFile = "/sys/power/wait_for_fb_sleep";
 static const char* kWakeFile = "/sys/power/wait_for_fb_wake";
 
-static void *frameBufferWatcher(void *) {
+class FramebufferWatcher : public nsRunnable {
+public:
+    FramebufferWatcher()
+        : mScreenOnEvent(new ScreenOnOffEvent(true))
+        , mScreenOffEvent(new ScreenOnOffEvent(false))
+    {}
 
-    int len = 0;
-    char buf;
+    NS_IMETHOD Run() {
+        int len = 0;
+        char buf;
 
-    nsRefPtr<ScreenOnOffEvent> mScreenOnEvent = new ScreenOnOffEvent(true);
-    nsRefPtr<ScreenOnOffEvent> mScreenOffEvent = new ScreenOnOffEvent(false);
-
-    while (true) {
         // Cannot use epoll here because kSleepFile and kWakeFile are
         // always ready to read and blocking.
         {
             ScopedClose fd(open(kSleepFile, O_RDONLY, 0));
             do {
-                len = read(fd.get(), &buf, 1);
+                len = read(fd.mFd, &buf, 1);
             } while (len < 0 && errno == EINTR);
             NS_WARN_IF_FALSE(len >= 0, "WAIT_FOR_FB_SLEEP failed");
             NS_DispatchToMainThread(mScreenOffEvent);
@@ -135,15 +137,22 @@ static void *frameBufferWatcher(void *) {
         {
             ScopedClose fd(open(kWakeFile, O_RDONLY, 0));
             do {
-                len = read(fd.get(), &buf, 1);
+                len = read(fd.mFd, &buf, 1);
             } while (len < 0 && errno == EINTR);
             NS_WARN_IF_FALSE(len >= 0, "WAIT_FOR_FB_WAKE failed");
             NS_DispatchToMainThread(mScreenOnEvent);
         }
+
+        // Dispatch to ourself.
+        NS_DispatchToCurrentThread(this);
+
+        return NS_OK;
     }
-    
-    return NULL;
-}
+
+private:
+    nsRefPtr<ScreenOnOffEvent> mScreenOnEvent;
+    nsRefPtr<ScreenOnOffEvent> mScreenOffEvent;
+};
 
 } // anonymous namespace
 
@@ -153,11 +162,8 @@ nsWindow::nsWindow()
         // workaround Bug 725143
         hal::SetScreenEnabled(true);
 
-        // Watching screen on/off state by using a pthread
-        // which implicitly calls exit() when the main thread ends
-        if (pthread_create(&sFramebufferWatchThread, NULL, frameBufferWatcher, NULL)) {
-            NS_RUNTIMEABORT("Failed to create framebufferWatcherThread, aborting...");
-        }
+        // Watching screen on/off state
+        NS_NewThread(getter_AddRefs(sFramebufferWatchThread), new FramebufferWatcher());
 
         sUsingOMTC = Preferences::GetBool("layers.offmainthreadcomposition.enabled", false);
 
@@ -674,8 +680,6 @@ nsScreenGonk::SetRotation(PRUint32 aRotation)
         sTopWindows[i]->Resize(sVirtualBounds.width,
                                sVirtualBounds.height,
                                !i);
-
-    nsAppShell::NotifyScreenRotation();
 
     return NS_OK;
 }

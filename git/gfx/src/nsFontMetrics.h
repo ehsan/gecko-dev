@@ -221,12 +221,6 @@ public:
                                          PRUint32 aLength,
                                          nsRenderingContext *aContext);
 
-    // Returns the LOOSE_INK_EXTENTS bounds of the text for determing the
-    // overflow area of the string.
-    nsBoundingMetrics GetInkBoundsForVisualOverflow(const PRUnichar *aString,
-                                                    PRUint32 aLength,
-                                                    nsRenderingContext *aContext);
-
     void SetTextRunRTL(bool aIsRTL) { mTextRunRTL = aIsRTL; }
     bool GetTextRunRTL() { return mTextRunRTL; }
 

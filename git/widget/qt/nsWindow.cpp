@@ -213,19 +213,15 @@ isContextMenuKeyEvent(const QKeyEvent *qe)
 static void
 InitKeyEvent(nsKeyEvent &aEvent, QKeyEvent *aQEvent)
 {
-    aEvent.InitBasicModifiers(aQEvent->modifiers() & Qt::ControlModifier,
-                              aQEvent->modifiers() & Qt::AltModifier,
-                              aQEvent->modifiers() & Qt::ShiftModifier,
-                              aQEvent->modifiers() & Qt::MetaModifier);
-
-    // TODO: Needs to set .location for desktop Qt build.
-#ifdef MOZ_PLATFORM_MAEMO
-    aEvent.location  = nsIDOMKeyEvent::DOM_KEY_LOCATION_MOBILE;
-#endif
+    aEvent.isShift   = (aQEvent->modifiers() & Qt::ShiftModifier) ? true : false;
+    aEvent.isControl = (aQEvent->modifiers() & Qt::ControlModifier) ? true : false;
+    aEvent.isAlt     = (aQEvent->modifiers() & Qt::AltModifier) ? true : false;
+    aEvent.isMeta    = (aQEvent->modifiers() & Qt::MetaModifier) ? true : false;
     aEvent.time      = 0;
 
     if (sAltGrModifier) {
-        aEvent.modifiers |= (widget::MODIFIER_CONTROL | widget::MODIFIER_ALT);
+        aEvent.isControl = true;
+        aEvent.isAlt = true;
     }
 
     // The transformations above and in qt for the keyval are not invertible
@@ -1358,10 +1354,10 @@ nsWindow::InitButtonEvent(nsMouseEvent &aMoveEvent,
     aMoveEvent.refPoint.x = nscoord(aEvent->pos().x());
     aMoveEvent.refPoint.y = nscoord(aEvent->pos().y());
 
-    aMoveEvent.InitBasicModifiers(aEvent->modifiers() & Qt::ControlModifier,
-                                  aEvent->modifiers() & Qt::AltModifier,
-                                  aEvent->modifiers() & Qt::ShiftModifier,
-                                  aEvent->modifiers() & Qt::MetaModifier);
+    aMoveEvent.isShift         = ((aEvent->modifiers() & Qt::ShiftModifier) != 0);
+    aMoveEvent.isControl       = ((aEvent->modifiers() & Qt::ControlModifier) != 0);
+    aMoveEvent.isAlt           = ((aEvent->modifiers() & Qt::AltModifier) != 0);
+    aMoveEvent.isMeta          = ((aEvent->modifiers() & Qt::MetaModifier) != 0);
     aMoveEvent.clickCount      = aClickCount;
 }
 
@@ -1762,9 +1758,9 @@ nsWindow::OnKeyPressEvent(QKeyEvent *aEvent)
              // At that time, we need to reset the modifiers
              // because nsEditor will not accept a key event
              // for text input if one or more modifiers are set.
-        event.modifiers &= ~(widget::MODIFIER_CONTROL |
-                             widget::MODIFIER_ALT |
-                             widget::MODIFIER_META);
+        event.isControl = false;
+        event.isAlt = false;
+        event.isMeta = false;
     }
 
     KeySym keysym = NoSymbol;
@@ -1998,10 +1994,10 @@ nsWindow::OnScrollEvent(QGraphicsSceneWheelEvent *aEvent)
     event.refPoint.x = nscoord(aEvent->scenePos().x());
     event.refPoint.y = nscoord(aEvent->scenePos().y());
 
-    event.InitBasicModifiers(aEvent->modifiers() & Qt::ControlModifier,
-                             aEvent->modifiers() & Qt::AltModifier,
-                             aEvent->modifiers() & Qt::ShiftModifier,
-                             aEvent->modifiers() & Qt::MetaModifier);
+    event.isShift         = aEvent->modifiers() & Qt::ShiftModifier;
+    event.isControl       = aEvent->modifiers() & Qt::ControlModifier;
+    event.isAlt           = aEvent->modifiers() & Qt::AltModifier;
+    event.isMeta          = aEvent->modifiers() & Qt::MetaModifier;
     event.time            = 0;
 
     return DispatchEvent(&event);
@@ -2146,10 +2142,10 @@ nsWindow::DispatchGestureEvent(PRUint32 aMsg, PRUint32 aDirection,
 
     Qt::KeyboardModifiers modifiers = QApplication::keyboardModifiers();
 
-    mozGesture.InitBasicModifiers(modifiers & Qt::ControlModifier,
-                                  modifiers & Qt::AltModifier,
-                                  modifiers & Qt::ShiftModifier,
-                                  false);
+    mozGesture.isShift   = (modifiers & Qt::ShiftModifier) ? true : false;
+    mozGesture.isControl = (modifiers & Qt::ControlModifier) ? true : false;
+    mozGesture.isMeta    = false;
+    mozGesture.isAlt     = (modifiers & Qt::AltModifier) ? true : false;
     mozGesture.button    = 0;
     mozGesture.time      = 0;
 
@@ -2607,12 +2603,10 @@ initialize_prefs(void)
 inline bool
 is_context_menu_key(const nsKeyEvent& aKeyEvent)
 {
-    return ((aKeyEvent.keyCode == NS_VK_F10 && aKeyEvent.IsShift() &&
-             !aKeyEvent.IsControl() && !aKeyEvent.IsMeta() &&
-             !aKeyEvent.IsAlt()) ||
-            (aKeyEvent.keyCode == NS_VK_CONTEXT_MENU && !aKeyEvent.IsShift() &&
-             !aKeyEvent.IsControl() && !aKeyEvent.IsMeta() &&
-             !aKeyEvent.IsAlt()));
+    return ((aKeyEvent.keyCode == NS_VK_F10 && aKeyEvent.isShift &&
+             !aKeyEvent.isControl && !aKeyEvent.isMeta && !aKeyEvent.isAlt) ||
+            (aKeyEvent.keyCode == NS_VK_CONTEXT_MENU && !aKeyEvent.isShift &&
+             !aKeyEvent.isControl && !aKeyEvent.isMeta && !aKeyEvent.isAlt));
 }
 
 void
@@ -2620,7 +2614,10 @@ key_event_to_context_menu_event(nsMouseEvent &aEvent,
                                 QKeyEvent *aGdkEvent)
 {
     aEvent.refPoint = nsIntPoint(0, 0);
-    aEvent.modifiers = 0;
+    aEvent.isShift = false;
+    aEvent.isControl = false;
+    aEvent.isAlt = false;
+    aEvent.isMeta = false;
     aEvent.time = 0;
     aEvent.clickCount = 1;
 }
@@ -2644,13 +2641,6 @@ nsPopupWindow::nsPopupWindow()
 
 nsPopupWindow::~nsPopupWindow()
 {
-}
-
-NS_IMETHODIMP_(bool)
-nsWindow::HasGLContext()
-{
-    QGraphicsView *view = qobject_cast<QGraphicsView*>(GetViewWidget());
-    return view && qobject_cast<QGLWidget*>(view->viewport());
 }
 
 MozQWidget*
@@ -2718,14 +2708,12 @@ nsWindow::createQWidget(MozQWidget *parent,
             newView->setWindowModality(Qt::WindowModal);
         }
 
-#if defined(MOZ_PLATFORM_MAEMO) || defined(MOZ_GL_PROVIDER)
+#ifdef MOZ_PLATFORM_MAEMO
         if (GetShouldAccelerate()) {
             // Only create new OGL widget if it is not yet installed
-            if (!HasGLContext()) {
-                MozQGraphicsView *qview = qobject_cast<MozQGraphicsView*>(newView);
-                if (qview) {
-                    qview->setGLWidgetEnabled(true);
-                }
+            QGLWidget *glWidget = qobject_cast<QGLWidget*>(newView->viewport());
+            if (!glWidget) {
+                newView->setViewport(new QGLWidget());
             }
         }
 #endif

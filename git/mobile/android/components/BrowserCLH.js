@@ -14,7 +14,6 @@ function openWindow(aParent, aURL, aTarget, aFeatures, aArgs) {
   let argsArray = Cc["@mozilla.org/supports-array;1"].createInstance(Ci.nsISupportsArray);
   let urlString = null;
   let restoreSessionBool = Cc["@mozilla.org/supports-PRBool;1"].createInstance(Ci.nsISupportsPRBool);
-  let pinnedBool = Cc["@mozilla.org/supports-PRBool;1"].createInstance(Ci.nsISupportsPRBool);
   let widthInt = Cc["@mozilla.org/supports-PRInt32;1"].createInstance(Ci.nsISupportsPRInt32);
   let heightInt = Cc["@mozilla.org/supports-PRInt32;1"].createInstance(Ci.nsISupportsPRInt32);
 
@@ -25,13 +24,11 @@ function openWindow(aParent, aURL, aTarget, aFeatures, aArgs) {
   restoreSessionBool.data = "restoreSession" in aArgs ? aArgs.restoreSession : false;
   widthInt.data = "width" in aArgs ? aArgs.width : 1;
   heightInt.data = "height" in aArgs ? aArgs.height : 1;
-  pinnedBool.data = "pinned" in aArgs ? aArgs.pinned : false;
 
   argsArray.AppendElement(urlString, false);
   argsArray.AppendElement(restoreSessionBool, false);
   argsArray.AppendElement(widthInt, false);
   argsArray.AppendElement(heightInt, false);
-  argsArray.AppendElement(pinnedBool, false);
   return Services.ww.openWindow(aParent, aURL, aTarget, aFeatures, argsArray);
 }
 
@@ -55,20 +52,13 @@ function BrowserCLH() {}
 
 BrowserCLH.prototype = {
   handle: function fs_handle(aCmdLine) {
-    let openURL = "about:home";
-    let pinned = false;
-
+    let urlParam = "about:home";
     let restoreSession = false;
     let width = 1;
     let height = 1;
-
     try {
-      openURL = aCmdLine.handleFlagWithParam("url", false);
+      urlParam = aCmdLine.handleFlagWithParam("remote", false);
     } catch (e) { /* Optional */ }
-    try {
-      pinned = aCmdLine.handleFlag("webapp", false);
-    } catch (e) { /* Optional */ }
-
     try {
       restoreSession = aCmdLine.handleFlag("restoresession", false);
     } catch (e) { /* Optional */ }
@@ -80,19 +70,17 @@ BrowserCLH.prototype = {
     } catch (e) { /* Optional */ }
 
     try {
-      let uri = resolveURIInternal(aCmdLine, openURL);
+      let uri = resolveURIInternal(aCmdLine, urlParam);
       if (!uri)
         return;
 
       let browserWin = Services.wm.getMostRecentWindow("navigator:browser");
       if (browserWin) {
-        let whereFlags = pinned ? Ci.nsIBrowserDOMWindow.OPEN_SWITCHTAB : Ci.nsIBrowserDOMWindow.OPEN_NEWTAB;
-        browserWin.browserDOMWindow.openURI(uri, null, whereFlags, Ci.nsIBrowserDOMWindow.OPEN_EXTERNAL);
+        browserWin.browserDOMWindow.openURI(uri, null, Ci.nsIBrowserDOMWindow.OPEN_NEWTAB, Ci.nsIBrowserDOMWindow.OPEN_EXTERNAL);
       } else {
         let args = {
-          url: openURL,
+          url: urlParam,
           restoreSession: restoreSession,
-          pinned: pinned,
           width: width,
           height: height
         };

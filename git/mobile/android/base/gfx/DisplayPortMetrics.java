@@ -6,7 +6,6 @@
 package org.mozilla.gecko.gfx;
 
 import android.graphics.RectF;
-import org.mozilla.gecko.FloatUtils;
 
 /*
  * This class keeps track of the area we request Gecko to paint, as well
@@ -33,11 +32,6 @@ public final class DisplayPortMetrics {
         return mPosition.contains(rect);
     }
 
-    public boolean fuzzyEquals(DisplayPortMetrics metrics) {
-        return RectUtils.fuzzyEquals(mPosition, metrics.mPosition)
-            && FloatUtils.fuzzyEquals(mResolution, metrics.mResolution);
-    }
-
     public String toJSON() {
         StringBuffer sb = new StringBuffer(256);
         sb.append("{ \"left\": ").append(mPosition.left)
@@ -49,10 +43,9 @@ public final class DisplayPortMetrics {
         return sb.toString();
     }
 
-    @Override
     public String toString() {
-        return "DisplayPortMetrics v=(" + mPosition.left + ","
+        return "DisplayPortMetrics(" + mPosition.left + ","
                 + mPosition.top + "," + mPosition.right + ","
-                + mPosition.bottom + ") z=" + mResolution;
+                + mPosition.bottom + "," + mResolution + ")";
     }
 }

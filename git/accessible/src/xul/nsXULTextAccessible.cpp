@@ -40,7 +40,6 @@
 // NOTE: groups are alphabetically ordered
 #include "nsXULTextAccessible.h"
 
-#include "Accessible-inl.h"
 #include "nsAccUtils.h"
 #include "nsBaseWidgetAccessible.h"
 #include "nsCoreUtils.h"

@@ -16,7 +16,6 @@ const {classes: Cc, interfaces: Ci, utils: Cu, results: Cr} = Components;
 Cu.import("resource://services-common/log4moz.js");
 Cu.import("resource://services-common/preferences.js");
 Cu.import("resource://services-common/rest.js");
-Cu.import("resource://services-common/utils.js");
 
 const Prefs = new Preferences("services.common.tokenserverclient.");
 
@@ -165,32 +164,13 @@ TokenServerClient.prototype = {
         return;
       }
 
-      let self = this;
-      function callCallback(error, result) {
-        if (!cb) {
-          self._log.warn("Callback already called! Did it throw?");
-          return;
-        }
-
-        try {
-          cb(error, result);
-        } catch (ex) {
-          self._log.warn("Exception when calling user-supplied callback: " +
-                         CommonUtils.exceptionStr(ex));
-        }
-
-        cb = null;
-      }
-
       try {
-        client._processTokenResponse(this.response, callCallback);
+        client._processTokenResponse(this.response, cb);
       } catch (ex) {
-        this._log.warn("Error processing token server response: " +
-                       CommonUtils.exceptionStr(ex));
-
         let error = new TokenServerClientError(ex);
         error.response = this.response;
-        callCallback(error, null);
+        cb(error, null);
+        return;
       }
     });
   },
@@ -236,7 +216,7 @@ TokenServerClient.prototype = {
       return;
     }
 
-    for each (let k in ["id", "key", "api_endpoint", "uid"]) {
+    for each (let k in ["id", "secret", "api_endpoint", "uid"]) {
       if (!(k in result)) {
         let error = new TokenServerClientServerError("Expected key not " +
                                                      " present in result: " +
@@ -250,7 +230,7 @@ TokenServerClient.prototype = {
     this._log.debug("Successful token response: " + result.id);
     cb(null, {
       id:       result.id,
-      key:      result.key,
+      key:      result.secret,
       endpoint: result.api_endpoint,
       uid:      result.uid,
     });

@@ -42,9 +42,9 @@
 #include "nsDocAccessibleWrap.h"
 #include "ISimpleDOMDocument_i.c"
 #include "nsIAccessibilityService.h"
+#include "nsRootAccessible.h"
 #include "nsWinUtils.h"
 #include "Role.h"
-#include "RootAccessible.h"
 #include "Statistics.h"
 
 #include "nsIDocShell.h"
@@ -57,7 +57,6 @@
 #include "nsIViewManager.h"
 #include "nsIWebNavigation.h"
 
-using namespace mozilla;
 using namespace mozilla::a11y;
 
 /* For documentation of the accessibility architecture, 
@@ -281,7 +280,7 @@ nsDocAccessibleWrap::DoInitialUpdate()
       mozilla::dom::TabChild* tabChild =
         mozilla::dom::GetTabChildFrom(mDocument->GetShell());
 
-      a11y::RootAccessible* rootDocument = RootAccessible();
+      nsRootAccessible* rootDocument = RootAccessible();
 
       mozilla::WindowsHandle nativeData = nsnull;
       if (tabChild)

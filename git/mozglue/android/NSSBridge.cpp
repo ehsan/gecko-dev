@@ -15,10 +15,12 @@
 #include "ElfLoader.h"
 #endif
 
+#define DEBUG 1
+
 #ifdef DEBUG
 #define LOG(x...) __android_log_print(ANDROID_LOG_INFO, "GeckoJNI", x)
 #else
-#define LOG(x...)
+#define LOG(x...) printf(x);
 #endif
 
 static bool initialized = false;
@@ -44,8 +46,9 @@ setup_nss_functions(void *nss_handle,
                         void *nspr_handle,
                         void *plc_handle)
 {
+  __android_log_print(ANDROID_LOG_ERROR, "GeckoLibLoad", "setup nss 1");
   if (nss_handle == NULL || nspr_handle == NULL || plc_handle == NULL) {
-    LOG("Missing handle\n");
+    LOG("missing handle\n");
     return FAILURE;
   }
 #define GETFUNC(name) f_ ## name = (name ## _t) __wrap_dlsym(nss_handle, #name); \
@@ -150,7 +153,7 @@ doCrypto(JNIEnv* jenv, const char *path, const char *value, char** result, bool 
     SECStatus rv;
     PK11SlotInfo *slot;
     if (!initialized) {
-      LOG("Initialize crypto in %s\n", path);
+      LOG("initialize crypto %s\n", path);
       rv = f_NSS_Initialize(path, "", "", "secmod.db", NSS_INIT_NOROOTINIT);
       if (rv != SECSuccess) {
           throwError(jenv, "NSS_Initialize");
@@ -166,7 +169,7 @@ doCrypto(JNIEnv* jenv, const char *path, const char *value, char** result, bool 
     }
 
     if (f_PK11_NeedUserInit(slot)) {
-      LOG("Initializing key3.db with default blank password.\n");
+      LOG("Initializing key3.db with default blank password.");
       rv = f_PK11_InitPin(slot, NULL, NULL);
       if (rv != SECSuccess) {
         throwError(jenv, "PK11_InitPin");
@@ -181,8 +184,7 @@ doCrypto(JNIEnv* jenv, const char *path, const char *value, char** result, bool 
     reply.len = 0;
 
     if (encrypt) {
-      // This can print sensitive data. Uncomment if you need it.
-      // LOG("Encrypting: %s\n", value);
+      LOG("encrypting %s\n", value);
       request.data = (unsigned char*)value;
       request.len = strlen(value);
 
@@ -201,9 +203,9 @@ doCrypto(JNIEnv* jenv, const char *path, const char *value, char** result, bool 
           throwError(jenv, "encode");
           goto done;
       }
-      LOG("Encrypted: %s\n", *result);
+      LOG("encrypted %s\n", *result);
     } else {
-      LOG("Decoding: %s\n", value);
+      LOG("decoding %s\n", value);
       rv = decode(value, &request.data, (PRInt32*)&request.len);
       if (rv != SECSuccess) {
           throwError(jenv, "decode");
@@ -216,12 +218,12 @@ doCrypto(JNIEnv* jenv, const char *path, const char *value, char** result, bool 
         goto done;
       }
 
-      *result = (char *)malloc(reply.len+1);
-      strncpy(*result, (char *)reply.data, reply.len);
+      *result = (char *)malloc(reply.len);
       (*result)[reply.len] = '\0';
+      strncpy(*result, (char *)reply.data, reply.len);
+      //asprintf(result, "%s", (char *)reply.data);
 
-      // This can print sensitive data. Uncomment if you need it.
-      // LOG("Decoded %i letters: %s\n", reply.len, *result);
+      LOG("decoded %i letters %s\n", reply.len, *result);
       free(request.data);
     }
 
@@ -244,7 +246,7 @@ encode(const unsigned char *data, PRInt32 dataLen, char **_retval)
     rv = SECFailure;
 
   if (rv == SECSuccess) {
-    *_retval = (char *)malloc(strlen(encoded)+1);
+    *_retval = (char *)malloc(strlen(encoded));
     strcpy(*_retval, encoded);
   }
 
@@ -276,13 +278,14 @@ decode(const char *data, unsigned char **result, PRInt32 *length)
   if (!decoded) {
     return SECFailure;
   }
+
+  LOG("xxx Decoded: %s\n", decoded);
+
   if (!*decoded) {
     return SECFailure;
   }
 
   *length = (len*3)/4 - adjust;
-  LOG("Decoded %i chars into %i chars\n", len, *length);
-
   *result = (unsigned char*)malloc((size_t)len);
 
   if (!*result) {

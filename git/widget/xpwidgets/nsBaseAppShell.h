@@ -42,8 +42,8 @@
 #include "nsIThreadInternal.h"
 #include "nsIObserver.h"
 #include "nsIRunnable.h"
+#include "nsCOMArray.h"
 #include "nsCOMPtr.h"
-#include "nsTArray.h"
 #include "prinrval.h"
 
 /**
@@ -106,41 +106,12 @@ protected:
   PRUint32 mEventloopNestingLevel;
 
 private:
-  bool DoProcessNextNativeEvent(bool mayWait, PRUint32 recursionDepth);
-
-  bool DispatchDummyEvent(nsIThread* target);
+  bool DoProcessNextNativeEvent(bool mayWait);
 
   /**
    * Runs all synchronous sections which are queued up in mSyncSections.
    */
-  void RunSyncSectionsInternal(bool stable, PRUint32 threadRecursionLevel);
-
-  void RunSyncSections(bool stable, PRUint32 threadRecursionLevel)
-  {
-    if (!mSyncSections.IsEmpty()) {
-      RunSyncSectionsInternal(stable, threadRecursionLevel);
-    }
-  }
-
-  void ScheduleSyncSection(nsIRunnable* runnable, bool stable);
-
-  struct SyncSection {
-    SyncSection()
-    : mStable(false), mEventloopNestingLevel(0), mThreadRecursionLevel(0)
-    { }
-
-    void Forget(SyncSection* other) {
-      other->mStable = mStable;
-      other->mEventloopNestingLevel = mEventloopNestingLevel;
-      other->mThreadRecursionLevel = mThreadRecursionLevel;
-      other->mRunnable = mRunnable.forget();
-    }
-
-    bool mStable;
-    PRUint32 mEventloopNestingLevel;
-    PRUint32 mThreadRecursionLevel;
-    nsCOMPtr<nsIRunnable> mRunnable;
-  };
+  void RunSyncSections();
 
   nsCOMPtr<nsIRunnable> mDummyEvent;
   /**
@@ -161,7 +132,7 @@ private:
     eEventloopOther  // innermost native event loop is a native library/plugin etc
   };
   EventloopNestingState mEventloopNestingState;
-  nsTArray<SyncSection> mSyncSections;
+  nsCOMArray<nsIRunnable> mSyncSections;
   bool mRunning;
   bool mExiting;
   /**

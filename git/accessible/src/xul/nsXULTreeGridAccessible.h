@@ -60,11 +60,6 @@ public:
   // nsIAccessibleTable
   NS_DECL_OR_FORWARD_NSIACCESSIBLETABLE_WITH_XPCACCESSIBLETABLE
 
-  // TableAccessible
-  virtual PRUint32 ColCount();
-  virtual PRUint32 RowCount();
-  virtual void UnselectRow(PRUint32 aRowIdx);
-
   // nsAccessNode
   virtual void Shutdown();
 
@@ -103,7 +98,7 @@ public:
 
   // nsAccessible
   virtual mozilla::a11y::role NativeRole();
-  virtual mozilla::a11y::ENameValueFlag Name(nsString& aName);
+  NS_IMETHOD GetName(nsAString& aName);
   virtual nsAccessible* ChildAtPoint(PRInt32 aX, PRInt32 aY,
                                      EWhichChildAtPoint aWhichChild);
 
@@ -155,6 +150,7 @@ public:
 
   // nsIAccessible
 
+  NS_IMETHOD GetName(nsAString& aName);
   NS_IMETHOD GetBounds(PRInt32 *aX, PRInt32 *aY,
                        PRInt32 *aWidth, PRInt32 *aHeight);
 
@@ -169,7 +165,6 @@ public:
   virtual bool IsPrimaryForNode() const;
 
   // nsAccessible
-  virtual mozilla::a11y::ENameValueFlag Name(nsString& aName);
   virtual nsAccessible* FocusedChild();
   virtual nsresult GetAttributesInternal(nsIPersistentProperties *aAttributes);
   virtual PRInt32 IndexInParent() const;
@@ -210,7 +205,7 @@ protected:
   enum { eAction_Click = 0 };
 
   nsCOMPtr<nsITreeBoxObject> mTree;
-  nsITreeView* mTreeView;
+  nsCOMPtr<nsITreeView> mTreeView;
 
   PRInt32 mRow;
   nsCOMPtr<nsITreeColumn> mColumn;

@@ -112,9 +112,7 @@ public class DoorHangerPopup extends PopupWindow {
         tab.addDoorHanger(value, dh);
         mContent.addView(dh);
 
-        // Only update the popup if we're adding a notifcation to the selected tab
-        if (tab.equals(Tabs.getInstance().getSelectedTab()))
-            updatePopup();
+        updatePopup();
     }
 
     // Updates popup contents to show doorhangers for the selected tab

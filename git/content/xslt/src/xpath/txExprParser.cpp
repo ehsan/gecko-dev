@@ -337,9 +337,9 @@ txExprParser::createExpr(txExprLexer& lexer, txIParseContext* aContext,
             }
         }
 
-        short tokPrecedence = precedence(lexer.peek());
+        Token* tok = lexer.nextToken();
+        short tokPrecedence = precedence(tok);
         if (tokPrecedence != 0) {
-            Token* tok = lexer.nextToken();
             while (!exprs.isEmpty() && tokPrecedence
                    <= precedence(static_cast<Token*>(ops.peek()))) {
                 // can't use expr as argument due to order of evaluation
@@ -357,6 +357,7 @@ txExprParser::createExpr(txExprLexer& lexer, txIParseContext* aContext,
             ops.push(tok);
         }
         else {
+            lexer.pushBack();
             done = true;
         }
     }
@@ -384,16 +385,16 @@ txExprParser::createFilterOrStep(txExprLexer& lexer, txIParseContext* aContext,
     *aResult = nsnull;
 
     nsresult rv = NS_OK;
-    Token* tok = lexer.peek();
+    Token* tok = lexer.nextToken();
 
     nsAutoPtr<Expr> expr;
     switch (tok->mType) {
         case Token::FUNCTION_NAME_AND_PAREN:
+            lexer.pushBack();
             rv = createFunctionCall(lexer, aContext, getter_Transfers(expr));
             NS_ENSURE_SUCCESS(rv, rv);
             break;
         case Token::VAR_REFERENCE :
-            lexer.nextToken();
             {
                 nsCOMPtr<nsIAtom> prefix, lName;
                 PRInt32 nspace;
@@ -405,26 +406,24 @@ txExprParser::createFilterOrStep(txExprLexer& lexer, txIParseContext* aContext,
             }
             break;
         case Token::L_PAREN:
-            lexer.nextToken();
             rv = createExpr(lexer, aContext, getter_Transfers(expr));
             NS_ENSURE_SUCCESS(rv, rv);
 
-            if (lexer.peek()->mType != Token::R_PAREN) {
+            if (lexer.nextToken()->mType != Token::R_PAREN) {
+                lexer.pushBack();
                 return NS_ERROR_XPATH_PAREN_EXPECTED;
             }
-            lexer.nextToken();
             break;
         case Token::LITERAL :
-            lexer.nextToken();
             expr = new txLiteralExpr(tok->Value());
             break;
         case Token::NUMBER:
         {
-            lexer.nextToken();
             expr = new txLiteralExpr(txDouble::toDouble(tok->Value()));
             break;
         }
         default:
+            lexer.pushBack();
             return createLocationStep(lexer, aContext, aResult);
     }
 
@@ -583,10 +582,9 @@ txExprParser::createLocationStep(txExprLexer& lexer, txIParseContext* aContext,
     //-- get NodeTest unless an AbbreviatedStep was found
     nsresult rv = NS_OK;
     if (!nodeTest) {
-        tok = lexer.peek();
+        tok = lexer.nextToken();
 
         if (tok->mType == Token::CNAME) {
-            lexer.nextToken();
             // resolve QName
             nsCOMPtr<nsIAtom> prefix, lName;
             PRInt32 nspace;
@@ -602,6 +600,7 @@ txExprParser::createLocationStep(txExprLexer& lexer, txIParseContext* aContext,
                              static_cast<PRUint16>(txXPathNodeType::ELEMENT_NODE));
         }
         else {
+            lexer.pushBack();
             rv = createNodeTypeTest(lexer, getter_Transfers(nodeTest));
             NS_ENSURE_SUCCESS(rv, rv);
         }
@@ -629,29 +628,25 @@ txExprParser::createNodeTypeTest(txExprLexer& lexer, txNodeTest** aTest)
     *aTest = 0;
     nsAutoPtr<txNodeTypeTest> nodeTest;
 
-    Token* nodeTok = lexer.peek();
+    Token* nodeTok = lexer.nextToken();
 
     switch (nodeTok->mType) {
         case Token::COMMENT_AND_PAREN:
-            lexer.nextToken();
             nodeTest = new txNodeTypeTest(txNodeTypeTest::COMMENT_TYPE);
             break;
         case Token::NODE_AND_PAREN:
-            lexer.nextToken();
             nodeTest = new txNodeTypeTest(txNodeTypeTest::NODE_TYPE);
             break;
         case Token::PROC_INST_AND_PAREN:
-            lexer.nextToken();
             nodeTest = new txNodeTypeTest(txNodeTypeTest::PI_TYPE);
             break;
         case Token::TEXT_AND_PAREN:
-            lexer.nextToken();
             nodeTest = new txNodeTypeTest(txNodeTypeTest::TEXT_TYPE);
             break;
         default:
+            lexer.pushBack();
             return NS_ERROR_XPATH_NO_NODE_TYPE_TEST;
     }
-
     NS_ENSURE_TRUE(nodeTest, NS_ERROR_OUT_OF_MEMORY);
 
     if (nodeTok->mType == Token::PROC_INST_AND_PAREN &&
@@ -659,10 +654,10 @@ txExprParser::createNodeTypeTest(txExprLexer& lexer, txNodeTest** aTest)
         Token* tok = lexer.nextToken();
         nodeTest->setNodeName(tok->Value());
     }
-    if (lexer.peek()->mType != Token::R_PAREN) {
+    if (lexer.nextToken()->mType != Token::R_PAREN) {
+        lexer.pushBack();
         return NS_ERROR_XPATH_PAREN_EXPECTED;
     }
-    lexer.nextToken();
 
     *aTest = nodeTest.forget();
     return NS_OK;
@@ -684,11 +679,12 @@ txExprParser::createPathExpr(txExprLexer& lexer, txIParseContext* aContext,
 
     // is this a root expression?
     if (tok->mType == Token::PARENT_OP) {
-        if (!isLocationStepToken(lexer.peekAhead())) {
-            lexer.nextToken();
+        lexer.nextToken();
+        if (!isLocationStepToken(lexer.peek())) {
             *aResult = new RootExpr();
             return NS_OK;
         }
+        lexer.pushBack();
     }
 
     // parse first step (possibly a FilterExpr)
@@ -725,7 +721,8 @@ txExprParser::createPathExpr(txExprLexer& lexer, txIParseContext* aContext,
     // this is ugly
     while (1) {
         PathExpr::PathOperator pathOp;
-        switch (lexer.peek()->mType) {
+        tok = lexer.nextToken();
+        switch (tok->mType) {
             case Token::ANCESTOR_OP :
                 pathOp = PathExpr::DESCENDANT_OP;
                 break;
@@ -733,11 +730,11 @@ txExprParser::createPathExpr(txExprLexer& lexer, txIParseContext* aContext,
                 pathOp = PathExpr::RELATIVE_OP;
                 break;
             default:
+                lexer.pushBack();
                 *aResult = pathExpr.forget();
                 return NS_OK;
         }
-        lexer.nextToken();
-
+        
         rv = createLocationStep(lexer, aContext, getter_Transfers(expr));
         NS_ENSURE_SUCCESS(rv, rv);
 
@@ -831,10 +828,10 @@ txExprParser::parsePredicates(PredicateList* aPredicateList,
 
         expr.forget();
 
-        if (lexer.peek()->mType != Token::R_BRACKET) {
+        if (lexer.nextToken()->mType != Token::R_BRACKET) {
+            lexer.pushBack();
             return NS_ERROR_XPATH_BRACKET_EXPECTED;
         }
-        lexer.nextToken();
     }
     return NS_OK;
 }
@@ -868,14 +865,13 @@ txExprParser::parseParameters(FunctionCall* aFnCall, txExprLexer& lexer,
             NS_ENSURE_SUCCESS(rv, rv);
         }
                     
-        switch (lexer.peek()->mType) {
+        switch (lexer.nextToken()->mType) {
             case Token::R_PAREN :
-                lexer.nextToken();
                 return NS_OK;
             case Token::COMMA: //-- param separator
-                lexer.nextToken();
                 break;
             default:
+                lexer.pushBack();
                 return NS_ERROR_XPATH_PAREN_EXPECTED;
         }
     }

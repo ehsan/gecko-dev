@@ -40,12 +40,10 @@
 
 #include "nsAccUtils.h"
 #include "Role.h"
-#include "AccIterator.h"
 #include "States.h"
 
 #include "imgIContainer.h"
 #include "imgIRequest.h"
-#include "nsGenericHTMLElement.h"
 #include "nsIDocument.h"
 #include "nsIImageLoadingContent.h"
 #include "nsILink.h"
@@ -65,7 +63,6 @@ nsHTMLImageAccessible::
   nsHTMLImageAccessible(nsIContent* aContent, nsDocAccessible* aDoc) :
   nsLinkableAccessible(aContent, aDoc)
 {
-  mFlags |= eImageAccessible;
 }
 
 NS_IMPL_ISUPPORTS_INHERITED1(nsHTMLImageAccessible, nsAccessible,
@@ -149,7 +146,7 @@ nsHTMLImageAccessible::GetActionName(PRUint8 aIndex, nsAString& aName)
   if (IsDefunct())
     return NS_ERROR_FAILURE;
 
-  if (IsLongDescIndex(aIndex) && HasLongDesc()) {
+  if (IsValidLongDescIndex(aIndex)) {
     aName.AssignLiteral("showlongdesc"); 
     return NS_OK;
   }
@@ -162,27 +159,24 @@ nsHTMLImageAccessible::DoAction(PRUint8 aIndex)
   if (IsDefunct())
     return NS_ERROR_FAILURE;
 
-  // Get the long description uri and open in a new window.
-  if (!IsLongDescIndex(aIndex))
-    return nsLinkableAccessible::DoAction(aIndex);
+  if (IsValidLongDescIndex(aIndex)) {
+    //get the long description uri and open in a new window
+    nsCOMPtr<nsIDOMHTMLImageElement> element(do_QueryInterface(mContent));
+    NS_ENSURE_TRUE(element, NS_ERROR_FAILURE);
 
-  nsCOMPtr<nsIURI> uri = GetLongDescURI();
-  if (!uri)
-    return NS_ERROR_INVALID_ARG;
+    nsAutoString longDesc;
+    nsresult rv = element->GetLongDesc(longDesc);
+    NS_ENSURE_SUCCESS(rv, rv);
 
-  nsCAutoString utf8spec;
-  uri->GetSpec(utf8spec);
-  NS_ConvertUTF8toUTF16 spec(utf8spec);
-
-  nsIDocument* document = mContent->OwnerDoc();
-  nsCOMPtr<nsPIDOMWindow> piWindow = document->GetWindow();
-  nsCOMPtr<nsIDOMWindow> win = do_QueryInterface(piWindow);
-  NS_ENSURE_STATE(win);
-
-  nsCOMPtr<nsIDOMWindow> tmp;
-  return win->Open(spec, EmptyString(), EmptyString(),
-                   getter_AddRefs(tmp));
-
+    nsIDocument* document = mContent->OwnerDoc();
+    nsCOMPtr<nsPIDOMWindow> piWindow = document->GetWindow();
+    nsCOMPtr<nsIDOMWindow> win = do_QueryInterface(piWindow);
+    NS_ENSURE_TRUE(win, NS_ERROR_FAILURE);
+    nsCOMPtr<nsIDOMWindow> tmp;
+    return win->Open(longDesc, EmptyString(), EmptyString(),
+                     getter_AddRefs(tmp));
+  }
+  return nsLinkableAccessible::DoAction(aIndex);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -228,41 +222,20 @@ nsHTMLImageAccessible::GetAttributesInternal(nsIPersistentProperties *aAttribute
 ////////////////////////////////////////////////////////////////////////////////
 // Private methods
 
-already_AddRefed<nsIURI>
-nsHTMLImageAccessible::GetLongDescURI() const
+bool
+nsHTMLImageAccessible::HasLongDesc()
 {
-  if (mContent->HasAttr(kNameSpaceID_None, nsGkAtoms::longdesc)) {
-    nsGenericHTMLElement* element = 
-      nsGenericHTMLElement::FromContent(mContent);
-    if (element) {
-      nsCOMPtr<nsIURI> uri;
-      element->GetURIAttr(nsGkAtoms::longdesc, nsnull, getter_AddRefs(uri));
-      return uri.forget();
-    }
-  }
+  if (IsDefunct())
+    return false;
 
-  nsDocAccessible* document = Document();
-  if (document) {
-    IDRefsIterator iter(document, mContent, nsGkAtoms::aria_describedby);
-    while (nsIContent* target = iter.NextElem()) {
-      if ((target->IsHTML(nsGkAtoms::a) || target->IsHTML(nsGkAtoms::area)) &&
-          target->HasAttr(kNameSpaceID_None, nsGkAtoms::href)) {
-        nsGenericHTMLElement* element =
-          nsGenericHTMLElement::FromContent(target);
-
-        nsCOMPtr<nsIURI> uri;
-        element->GetURIAttr(nsGkAtoms::href, nsnull, getter_AddRefs(uri));
-        return uri.forget();
-      }
-    }
-  }
-
-  return nsnull;
+  return mContent->HasAttr(kNameSpaceID_None, nsGkAtoms::longdesc);
 }
 
 bool
-nsHTMLImageAccessible::IsLongDescIndex(PRUint8 aIndex)
+nsHTMLImageAccessible::IsValidLongDescIndex(PRUint8 aIndex)
 {
+  if (!HasLongDesc())
+    return false;
+
   return aIndex == nsLinkableAccessible::ActionCount();
 }
-

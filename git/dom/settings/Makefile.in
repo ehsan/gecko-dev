@@ -18,13 +18,6 @@ LIBXUL_LIBRARY = 1
 EXTRA_COMPONENTS =         \
   SettingsManager.js       \
   SettingsManager.manifest \
-  SettingsService.js \
-  SettingsService.manifest \
-  $(NULL)
-
-EXTRA_JS_MODULES =   \
-  SettingsQueue.jsm  \
-  SettingsDB.jsm     \
   $(NULL)
 
 ifdef ENABLE_TESTS

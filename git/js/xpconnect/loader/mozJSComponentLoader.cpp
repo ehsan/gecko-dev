@@ -657,6 +657,9 @@ mozJSComponentLoader::GlobalForLocation(nsILocalFile *aComponentFile,
 
     JS_AbortIfWrongThread(JS_GetRuntime(cx));
 
+    // preserve caller's compartment
+    js::AutoPreserveCompartment pc(cx);
+
     nsCOMPtr<nsIXPCScriptable> backstagePass;
     rv = mRuntimeService->GetBackstagePass(getter_AddRefs(backstagePass));
     NS_ENSURE_SUCCESS(rv, rv);
@@ -666,6 +669,10 @@ mozJSComponentLoader::GlobalForLocation(nsILocalFile *aComponentFile,
     nsCOMPtr<nsIXPConnect> xpc =
         do_GetService(kXPConnectServiceContractID, &rv);
     NS_ENSURE_SUCCESS(rv, rv);
+
+    // Make sure InitClassesWithNewWrappedGlobal() installs the
+    // backstage pass as the global in our compilation context.
+    JS_SetGlobalObject(cx, nsnull);
 
     nsCOMPtr<nsIXPConnectJSObjectHolder> holder;
     rv = xpc->InitClassesWithNewWrappedGlobal(cx, backstagePass,

@@ -218,7 +218,6 @@ private:
   PRUint32                        mOpenBlocked               : 1;
   PRUint32                        mOpenRunning               : 1;
   PRUint32                        mChannelWasOpened          : 1;
-  PRUint32                        mDataStarted               : 1;
 
   PRInt32                         mMaxMessageSize;
   nsresult                        mStopOnClose;

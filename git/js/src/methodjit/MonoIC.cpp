@@ -86,12 +86,12 @@ PatchGetFallback(VMFrame &f, ic::GetGlobalNameIC *ic)
 void JS_FASTCALL
 ic::GetGlobalName(VMFrame &f, ic::GetGlobalNameIC *ic)
 {
-    JSObject &obj = f.fp()->global();
+    JSObject &obj = f.fp()->scopeChain().global();
     PropertyName *name = f.script()->getName(GET_UINT32_INDEX(f.pc()));
 
     RecompilationMonitor monitor(f.cx);
 
-    const Shape *shape = obj.nativeLookup(f.cx, NameToId(name));
+    const Shape *shape = obj.nativeLookup(f.cx, js_CheckForStringIndex(ATOM_TO_JSID(name)));
 
     if (monitor.recompiled()) {
         stubs::Name(f);
@@ -190,13 +190,13 @@ UpdateSetGlobalName(VMFrame &f, ic::SetGlobalNameIC *ic, JSObject *obj, const Sh
 void JS_FASTCALL
 ic::SetGlobalName(VMFrame &f, ic::SetGlobalNameIC *ic)
 {
-    JSObject &obj = f.fp()->global();
+    JSObject &obj = f.fp()->scopeChain().global();
     JSScript *script = f.script();
     PropertyName *name = script->getName(GET_UINT32_INDEX(f.pc()));
 
     RecompilationMonitor monitor(f.cx);
 
-    const Shape *shape = obj.nativeLookup(f.cx, NameToId(name));
+    const Shape *shape = obj.nativeLookup(f.cx, ATOM_TO_JSID(name));
 
     if (!monitor.recompiled()) {
         LookupStatus status = UpdateSetGlobalName(f, ic, &obj, shape);
@@ -1118,7 +1118,7 @@ ic::SplatApplyArgs(VMFrame &f)
     }
 
     /* Steps 4-5. */
-    RootedVarObject aobj(cx, &args[1].toObject());
+    JSObject *aobj = &args[1].toObject();
     uint32_t length;
     if (!js_GetLengthProperty(cx, aobj, &length))
         THROWV(false);

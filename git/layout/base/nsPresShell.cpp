@@ -228,7 +228,7 @@ using namespace mozilla::dom;
 using namespace mozilla::layers;
 
 CapturingContentInfo nsIPresShell::gCaptureInfo =
-  { false /* mAllowed */, false /* mPointerLock */, false /* mRetargetToElement */,
+  { false /* mAllowed */,     false /* mRetargetToElement */,
     false /* mPreventDrag */, nsnull /* mContent */ };
 nsIContent* nsIPresShell::gKeyDownTarget;
 nsInterfaceHashtable<nsUint32HashKey, nsIDOMTouch> nsIPresShell::gCaptureTouchList;
@@ -465,6 +465,131 @@ protected:
 // layout.reflow.timeslice pref.
 #define NS_MAX_REFLOW_TIME    1000000
 static PRInt32 gMaxRCProcessingTime = -1;
+
+StackArena::StackArena()
+{
+  mMarkLength = 0;
+  mMarks = nsnull;
+
+  // allocate our stack memory
+  mBlocks = new StackBlock();
+  mCurBlock = mBlocks;
+
+  mStackTop = 0;
+  mPos = 0;
+}
+
+StackArena::~StackArena()
+{
+  // free up our data
+  delete[] mMarks;
+  while(mBlocks)
+  {
+    StackBlock* toDelete = mBlocks;
+    mBlocks = mBlocks->mNext;
+    delete toDelete;
+  }
+} 
+
+void
+StackArena::Push()
+{
+  // Resize the mark array if we overrun it.  Failure to allocate the
+  // mark array is not fatal; we just won't free to that mark.  This
+  // allows callers not to worry about error checking.
+  if (mStackTop >= mMarkLength)
+  {
+    PRUint32 newLength = mStackTop + STACK_ARENA_MARK_INCREMENT;
+    StackMark* newMarks = new StackMark[newLength];
+    if (newMarks) {
+      if (mMarkLength)
+        memcpy(newMarks, mMarks, sizeof(StackMark)*mMarkLength);
+      // Fill in any marks that we couldn't allocate during a prior call
+      // to Push().
+      for (; mMarkLength < mStackTop; ++mMarkLength) {
+        NS_NOTREACHED("should only hit this on out-of-memory");
+        newMarks[mMarkLength].mBlock = mCurBlock;
+        newMarks[mMarkLength].mPos = mPos;
+      }
+      delete [] mMarks;
+      mMarks = newMarks;
+      mMarkLength = newLength;
+    }
+  }
+
+  // set a mark at the top (if we can)
+  NS_ASSERTION(mStackTop < mMarkLength, "out of memory");
+  if (mStackTop < mMarkLength) {
+    mMarks[mStackTop].mBlock = mCurBlock;
+    mMarks[mStackTop].mPos = mPos;
+  }
+
+  mStackTop++;
+}
+
+void*
+StackArena::Allocate(size_t aSize)
+{
+  NS_ASSERTION(mStackTop > 0, "Allocate called without Push");
+
+  // make sure we are aligned. Beard said 8 was safer then 4. 
+  // Round size to multiple of 8
+  aSize = NS_ROUNDUP<size_t>(aSize, 8);
+
+  // if the size makes the stack overflow. Grab another block for the stack
+  if (mPos + aSize >= STACK_ARENA_BLOCK_INCREMENT)
+  {
+    NS_ASSERTION(aSize <= STACK_ARENA_BLOCK_INCREMENT,
+                 "Requested memory is greater that our block size!!");
+    if (mCurBlock->mNext == nsnull)
+      mCurBlock->mNext = new StackBlock();
+
+    mCurBlock =  mCurBlock->mNext;
+    mPos = 0;
+  }
+
+  // return the chunk they need.
+  void *result = mCurBlock->mBlock + mPos;
+  mPos += aSize;
+
+  return result;
+}
+
+void
+StackArena::Pop()
+{
+  // pop off the mark
+  NS_ASSERTION(mStackTop > 0, "unmatched pop");
+  mStackTop--;
+
+  if (mStackTop >= mMarkLength) {
+    // We couldn't allocate the marks array at the time of the push, so
+    // we don't know where we're freeing to.
+    NS_NOTREACHED("out of memory");
+    if (mStackTop == 0) {
+      // But we do know if we've completely pushed the stack.
+      mCurBlock = mBlocks;
+      mPos = 0;
+    }
+    return;
+  }
+
+#ifdef DEBUG
+  // Mark the "freed" memory with 0xdd to help with debugging of memory
+  // allocation problems.
+  {
+    StackBlock *block = mMarks[mStackTop].mBlock, *block_end = mCurBlock;
+    size_t pos = mMarks[mStackTop].mPos;
+    for (; block != block_end; block = block->mNext, pos = 0) {
+      memset(block->mBlock + pos, 0xdd, sizeof(block->mBlock) - pos);
+    }
+    memset(block->mBlock + pos, 0xdd, mPos - pos);
+  }
+#endif
+
+  mCurBlock = mMarks[mStackTop].mBlock;
+  mPos      = mMarks[mStackTop].mPos;
+}
 
 struct nsCallbackEventRequest
 {
@@ -706,8 +831,6 @@ PresShell::PresShell()
   mYResolution = 1.0;
   mViewportOverridden = false;
 
-  mScrollPositionClampingScrollPortSizeSet = false;
-
   static bool addedSynthMouseMove = false;
   if (!addedSynthMouseMove) {
     Preferences::AddBoolVarCache(&sSynthMouseMove,
@@ -775,6 +898,8 @@ PresShell::Init(nsIDocument* aDocument,
     NS_WARNING("PresShell double init'ed");
     return NS_ERROR_ALREADY_INITIALIZED;
   }
+  result = mStackArena.Init();
+  NS_ENSURE_SUCCESS(result, result);
 
   if (!mFramesToDirty.Init()) {
     return NS_ERROR_OUT_OF_MEMORY;
@@ -1070,52 +1195,47 @@ PresShell::Destroy()
   mHaveShutDown = true;
 }
 
+                  // Dynamic stack memory allocation
+/* virtual */ void
+PresShell::PushStackMemory()
+{
+  mStackArena.Push();
+}
+
+/* virtual */ void
+PresShell::PopStackMemory()
+{
+  mStackArena.Pop();
+}
+
+/* virtual */ void*
+PresShell::AllocateStackMemory(size_t aSize)
+{
+  return mStackArena.Allocate(aSize);
+}
+
 void
-PresShell::FreeFrame(nsQueryFrame::FrameIID aID, void* aPtr)
+PresShell::FreeFrame(nsQueryFrame::FrameIID aCode, void* aPtr)
 {
 #ifdef DEBUG
   mPresArenaAllocCount--;
 #endif
   if (PRESARENA_MUST_FREE_DURING_DESTROY || !mIsDestroying)
-    mFrameArena.FreeByFrameID(aID, aPtr);
+    mFrameArena.FreeByCode(aCode, aPtr);
 }
 
 void*
-PresShell::AllocateFrame(nsQueryFrame::FrameIID aID, size_t aSize)
+PresShell::AllocateFrame(nsQueryFrame::FrameIID aCode, size_t aSize)
 {
 #ifdef DEBUG
   mPresArenaAllocCount++;
 #endif
-  void* result = mFrameArena.AllocateByFrameID(aID, aSize);
+  void* result = mFrameArena.AllocateByCode(aCode, aSize);
 
   if (result) {
     memset(result, 0, aSize);
   }
   return result;
-}
-
-void*
-PresShell::AllocateByObjectID(nsPresArena::ObjectID aID, size_t aSize)
-{
-#ifdef DEBUG
-  mPresArenaAllocCount++;
-#endif
-  void* result = mFrameArena.AllocateByObjectID(aID, aSize);
-
-  if (result) {
-    memset(result, 0, aSize);
-  }
-  return result;
-}
-
-void
-PresShell::FreeByObjectID(nsPresArena::ObjectID aID, void* aPtr)
-{
-#ifdef DEBUG
-  mPresArenaAllocCount--;
-#endif
-  if (PRESARENA_MUST_FREE_DURING_DESTROY || !mIsDestroying)
-    mFrameArena.FreeByObjectID(aID, aPtr);
 }
 
 void
@@ -4914,14 +5034,9 @@ void PresShell::UpdateCanvasBackground()
     // style frame but we don't have access to the canvasframe here. It isn't
     // a problem because only a few frames can return something other than true
     // and none of them would be a canvas frame or root element style frame.
-    bool drawBackgroundImage;
-    bool drawBackgroundColor;
-
     mCanvasBackgroundColor =
       nsCSSRendering::DetermineBackgroundColor(mPresContext, bgStyle,
-                                               rootStyleFrame,
-                                               drawBackgroundImage,
-                                               drawBackgroundColor);
+                                               rootStyleFrame);
     if (GetPresContext()->IsRootContentDocument() &&
         !IsTransparentContainerElement(mPresContext)) {
       mCanvasBackgroundColor =
@@ -4945,8 +5060,7 @@ void PresShell::UpdateCanvasBackground()
 nscolor PresShell::ComputeBackstopColor(nsIView* aDisplayRoot)
 {
   nsIWidget* widget = aDisplayRoot->GetWidget();
-  if (widget && (widget->GetTransparencyMode() != eTransparencyOpaque ||
-                 widget->WidgetPaintsBackground())) {
+  if (widget && widget->GetTransparencyMode() != eTransparencyOpaque) {
     // Within a transparent widget, so the backstop color must be
     // totally transparent.
     return NS_RGBA(0,0,0,0);
@@ -5204,8 +5318,7 @@ PresShell::ProcessSynthMouseMoveEvent(bool aFromScroll)
                      nsMouseEvent::eSynthesized);
   event.refPoint = refpoint.ToNearestPixels(viewAPD);
   event.time = PR_IntervalNow();
-  // XXX set event.modifiers ?
-  // XXX mnakano I think that we should get the latest information from widget.
+  // XXX set event.isShift, event.isControl, event.isAlt, event.isMeta ?
 
   nsCOMPtr<nsIPresShell> shell = pointVM->GetPresShell();
   if (shell) {
@@ -5335,27 +5448,16 @@ PresShell::Paint(nsIView*           aViewToPaint,
 void
 nsIPresShell::SetCapturingContent(nsIContent* aContent, PRUint8 aFlags)
 {
-  // If capture was set for pointer lock, don't unlock unless we are coming
-  // out of pointer lock explicitly.
-  if (!aContent && gCaptureInfo.mPointerLock &&
-      !(aFlags & CAPTURE_POINTERLOCK)) {
-    return;
-  }
-
   NS_IF_RELEASE(gCaptureInfo.mContent);
 
-  // only set capturing content if allowed or the CAPTURE_IGNOREALLOWED or
-  // CAPTURE_POINTERLOCK flags are used.
-  if ((aFlags & CAPTURE_IGNOREALLOWED) || gCaptureInfo.mAllowed ||
-      (aFlags & CAPTURE_POINTERLOCK)) {
+  // only set capturing content if allowed or the CAPTURE_IGNOREALLOWED flag
+  // is used
+  if ((aFlags & CAPTURE_IGNOREALLOWED) || gCaptureInfo.mAllowed) {
     if (aContent) {
       NS_ADDREF(gCaptureInfo.mContent = aContent);
     }
-    // CAPTURE_POINTERLOCK is the same as CAPTURE_RETARGETTOELEMENT & CAPTURE_IGNOREALLOWED
-    gCaptureInfo.mRetargetToElement = ((aFlags & CAPTURE_RETARGETTOELEMENT) != 0) ||
-                                      ((aFlags & CAPTURE_POINTERLOCK) != 0);
+    gCaptureInfo.mRetargetToElement = (aFlags & CAPTURE_RETARGETTOELEMENT) != 0;
     gCaptureInfo.mPreventDrag = (aFlags & CAPTURE_PREVENTDRAG) != 0;
-    gCaptureInfo.mPointerLock = (aFlags & CAPTURE_POINTERLOCK) != 0;
   }
 }
 
@@ -5596,6 +5698,10 @@ EvictTouchPoint(nsCOMPtr<nsIDOMTouch>& aTouch)
     return;
   }
   nsTouchEvent event(true, NS_TOUCH_END, widget);
+  event.isShift = false;
+  event.isControl = false;
+  event.isAlt = false;
+  event.isMeta = false;
   event.widget = widget;
   event.time = PR_IntervalNow();
   event.touches.AppendElement(aTouch);
@@ -5645,8 +5751,7 @@ PresShell::HandleEvent(nsIFrame        *aFrame,
   NS_TIME_FUNCTION_MIN(1.0);
 
   nsIContent* capturingContent =
-    NS_IS_MOUSE_EVENT(aEvent) || aEvent->eventStructType == NS_MOUSE_SCROLL_EVENT ?
-      GetCapturingContent() : nsnull;
+    NS_IS_MOUSE_EVENT(aEvent) ? GetCapturingContent() : nsnull;
 
   nsCOMPtr<nsIDocument> retargetEventDoc;
   if (!aDontRetargetEvents) {
@@ -5674,10 +5779,6 @@ PresShell::HandleEvent(nsIFrame        *aFrame,
       // if the mouse is being captured then retarget the mouse event at the
       // document that is being captured.
       retargetEventDoc = capturingContent->GetCurrentDoc();
-#ifdef ANDROID
-    } else if (aEvent->eventStructType == NS_TOUCH_EVENT) {
-      retargetEventDoc = GetTouchEventTargetDocument();
-#endif
     }
 
     if (retargetEventDoc) {
@@ -5819,12 +5920,6 @@ PresShell::HandleEvent(nsIFrame        *aFrame,
         ClearMouseCapture(nsnull);
         capturingContent = nsnull;
       }
-    }
-
-    // all touch events except for touchstart use a captured target
-    if (aEvent->eventStructType == NS_TOUCH_EVENT &&
-        aEvent->message != NS_TOUCH_START) {
-      captureRetarget = true;
     }
 
     bool isWindowLevelMouseExit = (aEvent->message == NS_MOUSE_EXIT) &&
@@ -6078,36 +6173,6 @@ PresShell::HandleEvent(nsIFrame        *aFrame,
 
   return rv;
 }
-
-#ifdef ANDROID
-nsIDocument*
-PresShell::GetTouchEventTargetDocument()
-{
-  nsPresContext* context = GetPresContext();
-  if (!context || !context->IsRoot()) {
-    return nsnull;
-  }
-
-  nsCOMPtr<nsISupports> container = context->GetContainer();
-  nsCOMPtr<nsIDocShellTreeItem> shellAsTreeItem = do_QueryInterface(container);
-  if (!shellAsTreeItem) {
-    return nsnull;
-  }
-
-  nsCOMPtr<nsIDocShellTreeOwner> owner;
-  shellAsTreeItem->GetTreeOwner(getter_AddRefs(owner));
-  if (!owner) {
-    return nsnull;
-  }
-
-  // now get the primary content shell (active tab)
-  nsCOMPtr<nsIDocShellTreeItem> item;
-  owner->GetPrimaryContentShell(getter_AddRefs(item));
-  nsCOMPtr<nsIDocShell> childDocShell = do_QueryInterface(item);
-  nsCOMPtr<nsIDocument> result = do_GetInterface(childDocShell);
-  return result;
-}
-#endif
 
 #ifdef NS_DEBUG
 void
@@ -6457,7 +6522,7 @@ PresShell::HandleEventInternal(nsEvent* aEvent, nsEventStatus* aStatus)
           !AdjustContextMenuKeyEvent(me)) {
         return NS_OK;
       }
-      if (me->IsShift())
+      if (me->isShift)
         aEvent->flags |= NS_EVENT_FLAG_ONLY_CHROME_DISPATCH |
                          NS_EVENT_RETARGET_TO_NON_NATIVE_ANONYMOUS;
     }
@@ -9038,6 +9103,7 @@ PresShell::SizeOfIncludingThis(nsMallocSizeOfFun aMallocSizeOf,
                                size_t *aTextRunsSize) const
 {
   *aArenasSize = aMallocSizeOf(this);
+  *aArenasSize += mStackArena.SizeOfExcludingThis(aMallocSizeOf);
   *aArenasSize += mFrameArena.SizeOfExcludingThis(aMallocSizeOf);
 
   *aStyleSetsSize = StyleSet()->SizeOfIncludingThis(aMallocSizeOf);
@@ -9062,10 +9128,3 @@ PresShell::SizeOfTextRuns(nsMallocSizeOfFun aMallocSizeOf) const
                                                 /* clear = */false);
 }
 
-void
-nsIPresShell::SetScrollPositionClampingScrollPortSize(nscoord aWidth, nscoord aHeight)
-{
-  mScrollPositionClampingScrollPortSizeSet = true;
-  mScrollPositionClampingScrollPortSize.width = aWidth;
-  mScrollPositionClampingScrollPortSize.height = aHeight;
-}

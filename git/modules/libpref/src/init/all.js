@@ -187,19 +187,12 @@ pref("media.raw.enabled", true);
 #ifdef MOZ_OGG
 pref("media.ogg.enabled", true);
 #endif
-#ifdef MOZ_OPUS
-pref("media.opus.enabled", false);
-#endif
 #ifdef MOZ_WAVE
 pref("media.wave.enabled", true);
 #endif
 #ifdef MOZ_WEBM
 pref("media.webm.enabled", true);
 #endif
-#ifdef MOZ_GSTREAMER
-pref("media.h264.enabled", true);
-#endif
-
 
 // Whether to autostart a media element with an |autoplay| attribute
 pref("media.autoplay.enabled", true);
@@ -214,8 +207,6 @@ pref("gfx.color_management.enablev4", false);
 pref("gfx.downloadable_fonts.enabled", true);
 pref("gfx.downloadable_fonts.fallback_delay", 3000);
 pref("gfx.downloadable_fonts.sanitize", true);
-
-pref("gfx.filter.nearest.force-enabled", false);
 
 // whether to always search all font cmaps during system font fallback
 pref("gfx.font_rendering.fallback.always_use_cmaps", false);
@@ -308,6 +299,9 @@ pref("accessibility.typeaheadfind.prefillwithselection", true);
 
 // use Mac OS X Appearance panel text smoothing setting when rendering text, disabled by default
 pref("gfx.use_text_smoothing_setting", false);
+
+// show checkerboard pattern on android, enabled by default (option exists for image analysis testing)
+pref("gfx.show_checkerboard_pattern", true);
 
 // loading and rendering of framesets and iframes
 pref("browser.frames.enabled", true);
@@ -645,7 +639,7 @@ pref("dom.min_background_timeout_value", 1000);
 // Use the new DOM bindings (only affects any scopes created after the pref is
 // changed)
 pref("dom.new_bindings", true);
-pref("dom.experimental_bindings", true);
+pref("dom.paris_bindings", true);
 
 // Parsing perf prefs. For now just mimic what the old code did.
 #ifndef XP_WIN
@@ -826,11 +820,9 @@ pref("network.http.pipelining.max-optimistic-requests" , 4);
 
 pref("network.http.pipelining.aggressive", false);
 pref("network.http.pipelining.maxsize" , 300000);
-pref("network.http.pipelining.reschedule-on-timeout", true);
-pref("network.http.pipelining.reschedule-timeout", 1500);
 
 // The read-timeout is a ms timer that causes the transaction to be completely
-// restarted without pipelining.
+// restarted without pipelining. Set to 0 to disable.
 pref("network.http.pipelining.read-timeout", 30000);
 
 // Prompt for 307 redirects
@@ -959,7 +951,6 @@ pref("network.IDN.whitelist.dk", true);
 pref("network.IDN.whitelist.ee", true);
 pref("network.IDN.whitelist.es", true);
 pref("network.IDN.whitelist.fi", true);
-pref("network.IDN.whitelist.fr", true);
 pref("network.IDN.whitelist.gr", true);
 pref("network.IDN.whitelist.hu", true);
 pref("network.IDN.whitelist.il", true);
@@ -976,20 +967,15 @@ pref("network.IDN.whitelist.no", true);
 pref("network.IDN.whitelist.nu", true);
 pref("network.IDN.whitelist.nz", true);
 pref("network.IDN.whitelist.pl", true);
-pref("network.IDN.whitelist.pm", true);
 pref("network.IDN.whitelist.pr", true);
-pref("network.IDN.whitelist.re", true);
 pref("network.IDN.whitelist.se", true);
 pref("network.IDN.whitelist.sh", true);
 pref("network.IDN.whitelist.si", true);
-pref("network.IDN.whitelist.tf", true);
 pref("network.IDN.whitelist.th", true);
 pref("network.IDN.whitelist.tm", true);
 pref("network.IDN.whitelist.tw", true);
 pref("network.IDN.whitelist.ua", true);
 pref("network.IDN.whitelist.vn", true);
-pref("network.IDN.whitelist.wf", true);
-pref("network.IDN.whitelist.yt", true);
 
 // IDN ccTLDs
 // ae, UAE, .<Emarat>
@@ -1687,28 +1673,6 @@ pref("font.size.inflation.emPerLine", 0);
  * used.
  */
 pref("font.size.inflation.minTwips", 0);
-/*
- * Since the goal of font size inflation is to avoid having to
- * repeatedly scroll side to side to read a block of text, and there are
- * a number of page layouts where a relatively small chunk of text is
- * better of not being inflated according to the same algorithm we use
- * for larger chunks of text, we want a threshold for an amount of text
- * that triggers font size inflation.  This preference controls that
- * threshold.
- *
- * It controls the threshold used within an *approximation* of the
- * number of lines of text we use.  In particular, if we assume that
- * each character (collapsing collapsible whitespace) has a width the
- * same as the em-size of the font (when, normally, it's actually quite
- * a bit smaller on average), this preference gives the percentage of a
- * number of lines of text we'd need to trigger inflation.  This means
- * that a percentage of 100 means that we'd need a number of characters
- * (we know the font size and the width) equivalent to one line of
- * square text (which is actually a lot less than a real line of text).
- *
- * A value of 0 means there's no character length threshold.
- */
-pref("font.size.inflation.lineThreshold", 400);
 
 #ifdef XP_WIN
 
@@ -3468,12 +3432,6 @@ pref("layers.acceleration.draw-fps", false);
 
 pref("layers.offmainthreadcomposition.enabled", false);
 
-#ifdef MOZ_X11
-#ifdef MOZ_WIDGET_GTK2
-pref("gfx.xrender.enabled",true);
-#endif
-#endif
-
 #ifdef XP_WIN
 // Whether to disable the automatic detection and use of direct2d.
 #ifdef MOZ_E10S_COMPAT
@@ -3534,7 +3492,6 @@ pref("full-screen-api.allow-trusted-requests-only", true);
 pref("full-screen-api.key-input-restricted", true);
 pref("full-screen-api.warning.enabled", true);
 pref("full-screen-api.exit-on-deactivate", true);
-pref("full-screen-api.pointer-lock.enabled", true);
 
 // Time limit, in milliseconds, for nsEventStateManager::IsHandlingUserInput().
 // Used to detect long running handlers of user-generated events.

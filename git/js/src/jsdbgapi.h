@@ -91,7 +91,6 @@ JS_FRIEND_API(void) js_DumpValue(const js::Value &val);
 JS_FRIEND_API(void) js_DumpId(jsid id);
 JS_FRIEND_API(void) js_DumpStackFrame(JSContext *cx, js::StackFrame *start = NULL);
 #endif
-JS_FRIEND_API(void) js_DumpBacktrace(JSContext *cx);
 
 JS_BEGIN_EXTERN_C
 #endif
@@ -374,6 +373,13 @@ typedef struct JSPropertyDescArray {
 
 typedef struct JSScopeProperty JSScopeProperty;
 
+extern JS_PUBLIC_API(JSScopeProperty *)
+JS_PropertyIterator(JSObject *obj, JSScopeProperty **iteratorp);
+
+extern JS_PUBLIC_API(JSBool)
+JS_GetPropertyDesc(JSContext *cx, JSObject *obj, JSScopeProperty *shape,
+                   JSPropertyDesc *pd);
+
 extern JS_PUBLIC_API(JSBool)
 JS_GetPropertyDescArray(JSContext *cx, JSObject *obj, JSPropertyDescArray *pda);
 
@@ -525,16 +531,6 @@ js_ResumeVtune();
 
 #endif /* MOZ_VTUNE */
 
-#ifdef __linux__
-
-extern JS_FRIEND_API(JSBool)
-js_StartPerf();
-
-extern JS_FRIEND_API(JSBool)
-js_StopPerf();
-
-#endif /* __linux__ */
-
 extern JS_PUBLIC_API(void)
 JS_DumpBytecode(JSContext *cx, JSScript *script);
 
@@ -549,9 +545,6 @@ JS_DumpCompartmentPCCounts(JSContext *cx);
 
 extern JS_PUBLIC_API(JSObject *)
 JS_UnwrapObject(JSObject *obj);
-
-extern JS_PUBLIC_API(JSObject *)
-JS_UnwrapObjectAndInnerize(JSObject *obj);
 
 /* Call the context debug handler on the topmost scripted frame. */
 extern JS_FRIEND_API(JSBool)

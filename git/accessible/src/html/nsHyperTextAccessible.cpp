@@ -39,7 +39,6 @@
 
 #include "nsHyperTextAccessible.h"
 
-#include "Accessible-inl.h"
 #include "nsAccessibilityService.h"
 #include "nsAccUtils.h"
 #include "nsDocAccessible.h"
@@ -93,9 +92,15 @@ nsresult nsHyperTextAccessible::QueryInterface(REFNSIID aIID, void** aInstancePt
     return NS_OK;
   }
 
-  // ARIA roles that these interfaces are not appropriate for.
-  if (!IsTextRole())
+  if (mRoleMapEntry &&
+      (mRoleMapEntry->role == roles::GRAPHIC ||
+       mRoleMapEntry->role == roles::IMAGE_MAP ||
+       mRoleMapEntry->role == roles::SLIDER ||
+       mRoleMapEntry->role == roles::PROGRESSBAR ||
+       mRoleMapEntry->role == roles::SEPARATOR)) {
+    // ARIA roles that these interfaces are not appropriate for
     return nsAccessible::QueryInterface(aIID, aInstancePtr);
+  }
 
   if (aIID.Equals(NS_GET_IID(nsIAccessibleText))) {
     *aInstancePtr = static_cast<nsIAccessibleText*>(this);
@@ -122,9 +127,6 @@ role
 nsHyperTextAccessible::NativeRole()
 {
   nsIAtom *tag = mContent->Tag();
-
-  if (tag == nsGkAtoms::dd)
-    return roles::DEFINITION;
 
   if (tag == nsGkAtoms::form)
     return roles::FORM;
@@ -2244,11 +2246,11 @@ nsHyperTextAccessible::GetChildIndexAtOffset(PRUint32 aOffset)
 // nsHyperTextAccessible protected
 
 nsresult
-nsHyperTextAccessible::GetDOMPointByFrameOffset(nsIFrame* aFrame,
+nsHyperTextAccessible::GetDOMPointByFrameOffset(nsIFrame *aFrame,
                                                 PRInt32 aOffset,
-                                                nsAccessible* aAccessible,
-                                                nsIDOMNode** aNode,
-                                                PRInt32* aNodeOffset)
+                                                nsIAccessible *aAccessible,
+                                                nsIDOMNode **aNode,
+                                                PRInt32 *aNodeOffset)
 {
   NS_ENSURE_ARG(aAccessible);
 
@@ -2257,13 +2259,13 @@ nsHyperTextAccessible::GetDOMPointByFrameOffset(nsIFrame* aFrame,
   if (!aFrame) {
     // If the given frame is null then set offset after the DOM node of the
     // given accessible.
-    NS_ASSERTION(!aAccessible->IsDoc(), 
-                 "Shouldn't be called on document accessible!");
+    nsCOMPtr<nsIDOMNode> DOMNode;
+    aAccessible->GetDOMNode(getter_AddRefs(DOMNode));
+    nsCOMPtr<nsIContent> content(do_QueryInterface(DOMNode));
+    NS_ENSURE_STATE(content);
 
-    nsIContent* content = aAccessible->GetContent();
-    NS_ASSERTION(content, "Shouldn't operate on defunct accessible!");
-
-    nsIContent* parent = content->GetParent();
+    nsCOMPtr<nsIContent> parent(content->GetParent());
+    NS_ENSURE_STATE(parent);
 
     *aNodeOffset = parent->IndexOf(content) + 1;
     node = do_QueryInterface(parent);
@@ -2394,18 +2396,4 @@ nsHyperTextAccessible::GetSpellTextAttribute(nsINode* aNode,
   }
 
   return NS_OK;
-}
-
-bool 
-nsHyperTextAccessible::IsTextRole()
-{
-  if (mRoleMapEntry &&
-      (mRoleMapEntry->role == roles::GRAPHIC ||
-       mRoleMapEntry->role == roles::IMAGE_MAP ||
-       mRoleMapEntry->role == roles::SLIDER ||
-       mRoleMapEntry->role == roles::PROGRESSBAR ||
-       mRoleMapEntry->role == roles::SEPARATOR))
-    return false;
-
-  return true;
 }

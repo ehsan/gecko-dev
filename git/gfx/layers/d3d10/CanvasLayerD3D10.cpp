@@ -264,14 +264,29 @@ CanvasLayerD3D10::RenderLayer()
 
   SetEffectTransformAndOpacity();
 
-  PRUint8 shaderFlags = 0;
-  shaderFlags |= LoadMaskTexture();
-  shaderFlags |= mDataIsPremultiplied
-                ? SHADER_PREMUL : SHADER_NON_PREMUL | SHADER_RGBA;
-  shaderFlags |= mHasAlpha ? SHADER_RGBA : SHADER_RGB;
-  shaderFlags |= mFilter == gfxPattern::FILTER_NEAREST
-                ? SHADER_POINT : SHADER_LINEAR;
-  ID3D10EffectTechnique* technique = SelectShader(shaderFlags);
+  ID3D10EffectTechnique *technique;
+
+  if (mDataIsPremultiplied) {
+    if (!mHasAlpha) {
+      if (mFilter == gfxPattern::FILTER_NEAREST) {
+        technique = effect()->GetTechniqueByName("RenderRGBLayerPremulPoint");
+      } else {
+        technique = effect()->GetTechniqueByName("RenderRGBLayerPremul");
+      }
+    } else {
+      if (mFilter == gfxPattern::FILTER_NEAREST) {
+        technique = effect()->GetTechniqueByName("RenderRGBALayerPremulPoint");
+      } else {
+        technique = effect()->GetTechniqueByName("RenderRGBALayerPremul");
+      }
+    }
+  } else {
+    if (mFilter == gfxPattern::FILTER_NEAREST) {
+      technique = effect()->GetTechniqueByName("RenderRGBALayerNonPremulPoint");
+    } else {
+      technique = effect()->GetTechniqueByName("RenderRGBALayerNonPremul");
+    }
+  }
 
   if (mSRView) {
     effect()->GetVariableByName("tRGB")->AsShaderResource()->SetResource(mSRView);

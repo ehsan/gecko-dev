@@ -14,7 +14,7 @@
         # manually maintained ones.
         '../samples/build_samples.gyp:*',
         '../src/build_angle.gyp:*',
-        '../tests/build_tests.gyp:*',
+        # '../tests/tests.gyp:*',
       ],
     },
   ],

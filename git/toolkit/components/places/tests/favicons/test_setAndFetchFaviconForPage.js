@@ -54,7 +54,6 @@ add_test(function test_aboutURI_bookmarked()
 add_test(function test_privateBrowsing_bookmarked()
 {
   if (!("@mozilla.org/privatebrowsing;1" in Cc)) {
-    do_log_info("Private Browsing service is not available, bail out.");
     run_next_test();
     return;
   }

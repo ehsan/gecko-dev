@@ -53,11 +53,9 @@ using namespace js;
 using namespace js::frontend;
 
 bool
-DefineGlobals(JSContext *cx, GlobalScope &globalScope, JSScript* script)
+DefineGlobals(JSContext *cx, GlobalScope &globalScope, JSScript *script)
 {
-    Root<JSScript*> root(cx, &script);
-
-    HandleObject globalObj = globalScope.globalObj;
+    JSObject *globalObj = globalScope.globalObj;
 
     /* Define and update global properties. */
     for (size_t i = 0; i < globalScope.defs.length(); i++) {
@@ -67,7 +65,7 @@ DefineGlobals(JSContext *cx, GlobalScope &globalScope, JSScript* script)
         if (!def.atom)
             continue;
 
-        jsid id = AtomToId(def.atom);
+        jsid id = ATOM_TO_JSID(def.atom);
         Value rval;
 
         if (def.funbox) {
@@ -112,8 +110,8 @@ DefineGlobals(JSContext *cx, GlobalScope &globalScope, JSScript* script)
         JSScript *outer = worklist.back();
         worklist.popBack();
 
-        if (outer->hasObjects()) {
-            ObjectArray *arr = outer->objects();
+        if (JSScript::isValidOffset(outer->objectsOffset)) {
+            JSObjectArray *arr = outer->objects();
 
             /*
              * If this is an eval script, don't treat the saved caller function
@@ -132,14 +130,16 @@ DefineGlobals(JSContext *cx, GlobalScope &globalScope, JSScript* script)
                     outer->isOuterFunction = true;
                     inner->isInnerFunction = true;
                 }
-                if (!inner->hasGlobals() && !inner->hasObjects())
+                if (!JSScript::isValidOffset(inner->globalsOffset) &&
+                    !JSScript::isValidOffset(inner->objectsOffset)) {
                     continue;
+                }
                 if (!worklist.append(inner))
                     return false;
             }
         }
 
-        if (!outer->hasGlobals())
+        if (!JSScript::isValidOffset(outer->globalsOffset))
             continue;
 
         GlobalSlotArray *globalUses = outer->globals();
@@ -165,6 +165,7 @@ frontend::CompileScript(JSContext *cx, JSObject *scopeChain, StackFrame *callerF
 {
     TokenKind tt;
     ParseNode *pn;
+    JSScript *script;
     bool inDirectivePrologue;
 
     JS_ASSERT(!(tcflags & ~(TCF_COMPILE_N_GO | TCF_NO_SCRIPT_RVAL | TCF_COMPILE_FOR_EVAL
@@ -198,7 +199,8 @@ frontend::CompileScript(JSContext *cx, JSObject *scopeChain, StackFrame *callerF
     JS_ASSERT_IF(globalObj, globalObj->isNative());
     JS_ASSERT_IF(globalObj, JSCLASS_HAS_GLOBAL_FLAG_AND_SLOTS(globalObj->getClass()));
 
-    RootedVar<JSScript*> script(cx);
+    /* Null script early in case of error, to reduce our code footprint. */
+    script = NULL;
 
     GlobalScope globalScope(cx, globalObj, &bce);
     bce.flags |= tcflags;
@@ -375,12 +377,12 @@ frontend::CompileFunctionBody(JSContext *cx, JSFunction *fun,
              * NB: do not use AutoLocalNameArray because it will release space
              * allocated from cx->tempLifoAlloc by DefineArg.
              */
-            BindingNames names(cx);
+            Vector<JSAtom *> names(cx);
             if (!funbce.bindings.getLocalNameArray(cx, &names)) {
                 fn = NULL;
             } else {
                 for (unsigned i = 0; i < nargs; i++) {
-                    if (!DefineArg(fn, names[i].maybeAtom, i, &funbce)) {
+                    if (!DefineArg(fn, names[i], i, &funbce)) {
                         fn = NULL;
                         break;
                     }

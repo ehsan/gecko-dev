@@ -53,16 +53,11 @@
 #include "nsIStringBundle.h"
 #include "nsWeakReference.h"
 
-class ApplicationAccessible;
 class nsAccessNode;
+class nsApplicationAccessible;
 class nsDocAccessible;
 class nsIAccessibleDocument;
-
-namespace mozilla {
-namespace a11y {
-class RootAccessible;
-}
-}
+class nsRootAccessible;
 
 class nsIPresShell;
 class nsPresContext;
@@ -88,7 +83,7 @@ public:
   /**
    * Return an application accessible.
    */
-  static ApplicationAccessible* GetApplicationAccessible();
+  static nsApplicationAccessible* GetApplicationAccessible();
 
   /**
    * Return the document accessible for this access node.
@@ -98,7 +93,7 @@ public:
   /**
    * Return the root document accessible for this accessnode.
    */
-  mozilla::a11y::RootAccessible* RootAccessible() const;
+  nsRootAccessible* RootAccessible() const;
 
   /**
    * Initialize the access node object, add it to the cache.
@@ -164,6 +159,11 @@ protected:
   nsCOMPtr<nsIContent> mContent;
   nsDocAccessible* mDoc;
 
+  /**
+   * Notify global nsIObserver's that a11y is getting init'd or shutdown.
+   */
+  static void NotifyA11yInitOrShutdown(bool aIsInit);
+
   // Static data, we do our own refcounting for our static data.
   static nsIStringBundle* gStringBundle;
 
@@ -174,7 +174,7 @@ private:
   nsAccessNode(const nsAccessNode&) MOZ_DELETE;
   nsAccessNode& operator =(const nsAccessNode&) MOZ_DELETE;
   
-  static ApplicationAccessible* gApplicationAccessible;
+  static nsApplicationAccessible *gApplicationAccessible;
 };
 
 #endif

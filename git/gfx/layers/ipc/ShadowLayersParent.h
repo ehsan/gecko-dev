@@ -81,9 +81,6 @@ protected:
                                       const bool& isFirstPaint,
                                       EditReplyArray* reply);
 
-  NS_OVERRIDE virtual bool RecvUpdateNoSwap(const EditArray& cset,
-                                            const bool& isFirstPaint);
-
   NS_OVERRIDE virtual PLayerParent* AllocPLayer();
   NS_OVERRIDE virtual bool DeallocPLayer(PLayerParent* actor);
 

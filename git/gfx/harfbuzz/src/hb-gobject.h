@@ -28,7 +28,6 @@
 #define HB_GOBJECT_H
 
 #include "hb.h"
-
 #include <glib-object.h>
 
 HB_BEGIN_DECLS

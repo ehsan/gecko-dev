@@ -797,8 +797,7 @@ nsJISx4051LineBreaker::WordMove(const PRUnichar* aText, PRUint32 aLen,
       ret = end;
     }
   } else {
-    GetJISx4051Breaks(aText + begin, end - begin, nsILineBreaker::kWordBreak_Normal,
-                      breakState.Elements());
+    GetJISx4051Breaks(aText + begin, end - begin, breakState.Elements());
 
     ret = aPos;
     do {
@@ -834,7 +833,6 @@ nsJISx4051LineBreaker::Prev(const PRUnichar* aText, PRUint32 aLen,
 
 void
 nsJISx4051LineBreaker::GetJISx4051Breaks(const PRUnichar* aChars, PRUint32 aLength,
-                                         PRUint8 aWordBreak,
                                          PRUint8* aBreakBefore)
 {
   PRUint32 cur;
@@ -857,16 +855,16 @@ nsJISx4051LineBreaker::GetJISx4051Breaks(const PRUnichar* aChars, PRUint32 aLeng
       cl = GetClass(ch);
     }
 
-    bool allowBreak = false;
+    bool allowBreak;
     if (cur > 0) {
       NS_ASSERTION(CLASS_COMPLEX != lastClass || CLASS_COMPLEX != cl,
                    "Loop should have prevented adjacent complex chars here");
-      if (aWordBreak == nsILineBreaker::kWordBreak_Normal) {
-        allowBreak = (state.UseConservativeBreaking()) ?
-          GetPairConservative(lastClass, cl) : GetPair(lastClass, cl);
-      } else if (aWordBreak == nsILineBreaker::kWordBreak_BreakAll) {
-        allowBreak = true;
-      }
+      if (state.UseConservativeBreaking())
+        allowBreak = GetPairConservative(lastClass, cl);
+      else
+        allowBreak = GetPair(lastClass, cl);
+    } else {
+      allowBreak = false;
     }
     aBreakBefore[cur] = allowBreak;
     if (allowBreak)
@@ -881,13 +879,6 @@ nsJISx4051LineBreaker::GetJISx4051Breaks(const PRUnichar* aChars, PRUint32 aLeng
 
       NS_GetComplexLineBreaks(aChars + cur, end - cur, aBreakBefore + cur);
 
-      // We have to consider word-break value again for complex characters
-      if (aWordBreak != nsILineBreaker::kWordBreak_Normal) {
-        // Respect word-break property 
-        for (PRUint32 i = cur; i < end; i++)
-          aBreakBefore[i] = (aWordBreak == nsILineBreaker::kWordBreak_BreakAll);
-      }
-
       // restore breakability at chunk begin, which was always set to false
       // by the complex line breaker
       aBreakBefore[cur] = allowBreak;
@@ -899,7 +890,6 @@ nsJISx4051LineBreaker::GetJISx4051Breaks(const PRUnichar* aChars, PRUint32 aLeng
 
 void
 nsJISx4051LineBreaker::GetJISx4051Breaks(const PRUint8* aChars, PRUint32 aLength,
-                                         PRUint8 aWordBreak,
                                          PRUint8* aBreakBefore)
 {
   PRUint32 cur;
@@ -922,14 +912,14 @@ nsJISx4051LineBreaker::GetJISx4051Breaks(const PRUint8* aChars, PRUint32 aLength
       cl = GetClass(ch);
     }
 
-    bool allowBreak = false;
+    bool allowBreak;
     if (cur > 0) {
-      if (aWordBreak == nsILineBreaker::kWordBreak_Normal) {
-        allowBreak = (state.UseConservativeBreaking()) ?
-          GetPairConservative(lastClass, cl) : GetPair(lastClass, cl);
-      } else if (aWordBreak == nsILineBreaker::kWordBreak_BreakAll) {
-        allowBreak = true;
-      }
+      if (state.UseConservativeBreaking())
+        allowBreak = GetPairConservative(lastClass, cl);
+      else
+        allowBreak = GetPair(lastClass, cl);
+    } else {
+      allowBreak = false;
     }
     aBreakBefore[cur] = allowBreak;
     if (allowBreak)

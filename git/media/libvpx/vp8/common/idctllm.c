@@ -24,31 +24,28 @@
  **************************************************************************/
 static const int cospi8sqrt2minus1 = 20091;
 static const int sinpi8sqrt2      = 35468;
-
-void vp8_short_idct4x4llm_c(short *input, unsigned char *pred_ptr,
-                            int pred_stride, unsigned char *dst_ptr,
-                            int dst_stride)
+static const int rounding = 0;
+void vp8_short_idct4x4llm_c(short *input, short *output, int pitch)
 {
     int i;
-    int r, c;
     int a1, b1, c1, d1;
-    short output[16];
+
     short *ip = input;
     short *op = output;
     int temp1, temp2;
-    int shortpitch = 4;
+    int shortpitch = pitch >> 1;
 
     for (i = 0; i < 4; i++)
     {
         a1 = ip[0] + ip[8];
         b1 = ip[0] - ip[8];
 
-        temp1 = (ip[4] * sinpi8sqrt2) >> 16;
-        temp2 = ip[12] + ((ip[12] * cospi8sqrt2minus1) >> 16);
+        temp1 = (ip[4] * sinpi8sqrt2 + rounding) >> 16;
+        temp2 = ip[12] + ((ip[12] * cospi8sqrt2minus1 + rounding) >> 16);
         c1 = temp1 - temp2;
 
-        temp1 = ip[4] + ((ip[4] * cospi8sqrt2minus1) >> 16);
-        temp2 = (ip[12] * sinpi8sqrt2) >> 16;
+        temp1 = ip[4] + ((ip[4] * cospi8sqrt2minus1 + rounding) >> 16);
+        temp2 = (ip[12] * sinpi8sqrt2 + rounding) >> 16;
         d1 = temp1 + temp2;
 
         op[shortpitch*0] = a1 + d1;
@@ -69,12 +66,12 @@ void vp8_short_idct4x4llm_c(short *input, unsigned char *pred_ptr,
         a1 = ip[0] + ip[2];
         b1 = ip[0] - ip[2];
 
-        temp1 = (ip[1] * sinpi8sqrt2) >> 16;
-        temp2 = ip[3] + ((ip[3] * cospi8sqrt2minus1) >> 16);
+        temp1 = (ip[1] * sinpi8sqrt2 + rounding) >> 16;
+        temp2 = ip[3] + ((ip[3] * cospi8sqrt2minus1 + rounding) >> 16);
         c1 = temp1 - temp2;
 
-        temp1 = ip[1] + ((ip[1] * cospi8sqrt2minus1) >> 16);
-        temp2 = (ip[3] * sinpi8sqrt2) >> 16;
+        temp1 = ip[1] + ((ip[1] * cospi8sqrt2minus1 + rounding) >> 16);
+        temp2 = (ip[3] * sinpi8sqrt2 + rounding) >> 16;
         d1 = temp1 + temp2;
 
 
@@ -87,31 +84,27 @@ void vp8_short_idct4x4llm_c(short *input, unsigned char *pred_ptr,
         ip += shortpitch;
         op += shortpitch;
     }
+}
 
-    ip = output;
-    for (r = 0; r < 4; r++)
+void vp8_short_idct4x4llm_1_c(short *input, short *output, int pitch)
+{
+    int i;
+    int a1;
+    short *op = output;
+    int shortpitch = pitch >> 1;
+    a1 = ((input[0] + 4) >> 3);
+
+    for (i = 0; i < 4; i++)
     {
-        for (c = 0; c < 4; c++)
-        {
-            int a = ip[c] + pred_ptr[c] ;
-
-            if (a < 0)
-                a = 0;
-
-            if (a > 255)
-                a = 255;
-
-            dst_ptr[c] = (unsigned char) a ;
-        }
-        ip += 4;
-        dst_ptr += dst_stride;
-        pred_ptr += pred_stride;
+        op[0] = a1;
+        op[1] = a1;
+        op[2] = a1;
+        op[3] = a1;
+        op += shortpitch;
     }
 }
 
-void vp8_dc_only_idct_add_c(short input_dc, unsigned char *pred_ptr,
-                            int pred_stride, unsigned char *dst_ptr,
-                            int dst_stride)
+void vp8_dc_only_idct_add_c(short input_dc, unsigned char *pred_ptr, unsigned char *dst_ptr, int pitch, int stride)
 {
     int a1 = ((input_dc + 4) >> 3);
     int r, c;
@@ -131,15 +124,14 @@ void vp8_dc_only_idct_add_c(short input_dc, unsigned char *pred_ptr,
             dst_ptr[c] = (unsigned char) a ;
         }
 
-        dst_ptr += dst_stride;
-        pred_ptr += pred_stride;
+        dst_ptr += stride;
+        pred_ptr += pitch;
     }
 
 }
 
-void vp8_short_inv_walsh4x4_c(short *input, short *mb_dqcoeff)
+void vp8_short_inv_walsh4x4_c(short *input, short *output)
 {
-    short output[16];
     int i;
     int a1, b1, c1, d1;
     int a2, b2, c2, d2;
@@ -184,21 +176,22 @@ void vp8_short_inv_walsh4x4_c(short *input, short *mb_dqcoeff)
         ip += 4;
         op += 4;
     }
-
-    for(i = 0; i < 16; i++)
-    {
-        mb_dqcoeff[i * 16] = output[i];
-    }
 }
 
-void vp8_short_inv_walsh4x4_1_c(short *input, short *mb_dqcoeff)
+void vp8_short_inv_walsh4x4_1_c(short *input, short *output)
 {
     int i;
     int a1;
+    short *op = output;
 
     a1 = ((input[0] + 3) >> 3);
-    for(i = 0; i < 16; i++)
+
+    for (i = 0; i < 4; i++)
     {
-        mb_dqcoeff[i * 16] = a1;
+        op[0] = a1;
+        op[1] = a1;
+        op[2] = a1;
+        op[3] = a1;
+        op += 4;
     }
 }

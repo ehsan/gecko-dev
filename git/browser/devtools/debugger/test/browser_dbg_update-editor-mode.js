@@ -22,38 +22,32 @@ function test()
 {
   let scriptShown = false;
   let framesAdded = false;
-  let testStarted = false;
-  let resumed = false;
 
   debug_tab_pane(TAB_URL, function(aTab, aDebuggee, aPane) {
     gTab = aTab;
     gDebuggee = aDebuggee;
     gPane = aPane;
-    gDebugger = gPane.contentWindow;
-    resumed = true;
+    gDebugger = gPane.debuggerWindow;
 
-    gDebugger.DebuggerController.activeThread.addOneTimeListener("framesadded", function() {
+    gPane.activeThread.addOneTimeListener("framesadded", function() {
       framesAdded = true;
-      executeSoon(startTest);
+      runTest();
     });
-
-    executeSoon(function() {
-      gDebuggee.firstCall();
-    });
+    gDebuggee.firstCall();
   });
 
-  function onScriptShown(aEvent) {
-    scriptShown = aEvent.detail.url.indexOf("test-editor-mode") != -1;
-    executeSoon(startTest);
-  }
+  window.addEventListener("Debugger:ScriptShown", function _onEvent(aEvent) {
+    let url = aEvent.detail.url;
+    if (url.indexOf("editor-mode") != -1) {
+      scriptShown = true;
+      window.removeEventListener(aEvent.type, _onEvent);
+      runTest();
+    }
+  });
 
-  window.addEventListener("Debugger:ScriptShown", onScriptShown);
-
-  function startTest()
+  function runTest()
   {
-    if (scriptShown && framesAdded && resumed && !testStarted) {
-      window.removeEventListener("Debugger:ScriptShown", onScriptShown);
-      testStarted = true;
+    if (scriptShown && framesAdded) {
       Services.tm.currentThread.dispatch({ run: testScriptsDisplay }, 0);
     }
   }
@@ -62,7 +56,7 @@ function test()
 function testScriptsDisplay() {
   gScripts = gDebugger.DebuggerView.Scripts._scripts;
 
-  is(gDebugger.DebuggerController.activeThread.state, "paused",
+  is(gDebugger.StackFrames.activeThread.state, "paused",
     "Should only be getting stack frames while paused.");
 
   is(gScripts.itemCount, 2, "Found the expected number of scripts.");
@@ -96,7 +90,7 @@ function testSwitchPaused()
   is(gDebugger.editor.getMode(), SourceEditor.MODES.JAVASCRIPT,
      "Found the expected editor mode.");
 
-  gDebugger.DebuggerController.activeThread.resume(function() {
+  gDebugger.StackFrames.activeThread.resume(function() {
     closeDebuggerAndFinish(gTab);
   });
 }

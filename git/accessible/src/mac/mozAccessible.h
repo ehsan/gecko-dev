@@ -109,9 +109,6 @@ GetObjectOrRepresentedView(id <mozAccessible> aObject)
 // the role might be "textfield", while the subrole is "password textfield".
 - (NSString*)subrole;
 
-// Return the role description, as there are a few exceptions.
-- (NSString*)roleDescription;
-
 // returns the native window we're inside.
 - (NSWindow*)window;
 

@@ -80,8 +80,6 @@ public:
   virtual void DoneAddingChildren(bool aHaveNotified);
 
   virtual nsXPCClassInfo* GetClassInfo();
-
-  virtual nsIDOMNode* AsDOMNode() { return this; }
 private:
   void SendTitleChangeEvent(bool aBound);
 };

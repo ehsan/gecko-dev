@@ -52,7 +52,8 @@ CPPSRCS = \
   nsAccessNodeWrap.cpp \
   nsAccessibleWrap.cpp \
   nsDocAccessibleWrap.cpp \
-  ApplicationAccessibleWrap.cpp \
+  nsRootAccessibleWrap.cpp \
+  nsApplicationAccessibleWrap.cpp \
   nsMaiInterfaceComponent.cpp \
   nsMaiInterfaceAction.cpp \
   nsMaiInterfaceText.cpp \
@@ -65,7 +66,6 @@ CPPSRCS = \
   nsMaiInterfaceTable.cpp \
   nsMaiInterfaceDocument.cpp \
   nsMaiInterfaceImage.cpp \
-  RootAccessibleWrap.cpp \
   $(NULL)
 
 EXPORTS = \
@@ -74,6 +74,7 @@ EXPORTS = \
   nsAccessNodeWrap.h \
   nsAccessibleWrap.h \
   nsDocAccessibleWrap.h \
+  nsRootAccessibleWrap.h \
   nsTextAccessibleWrap.h \
   nsXULMenuAccessibleWrap.h \
   nsXULListboxAccessibleWrap.h \

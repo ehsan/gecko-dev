@@ -22,22 +22,19 @@ function test() {
     ok(DebuggerUI.preferences.height,
       "The debugger preferences should have a saved height value.");
 
-    is(DebuggerUI.preferences.height, pane._frame.height,
+    is(DebuggerUI.preferences.height, pane.frame.height,
       "The debugger pane height should be the same as the preferred value.");
 
-    pane._frame.height = someHeight;
+    pane.frame.height = someHeight;
     ok(DebuggerUI.preferences.height !== someHeight,
       "Height preferences shouldn't have been updated yet.");
 
-    pane._frame.addEventListener("Debugger:Connecting", function dbgConnected() {
-      pane._frame.removeEventListener("Debugger:Connecting", dbgConnected, true);
-
+    pane.onConnected = function() {
       removeTab(tab1);
       finish();
 
       is(DebuggerUI.preferences.height, someHeight,
         "Height preferences should have been updated by now.");
-
-    }, true);
+    };
   });
 }

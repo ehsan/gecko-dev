@@ -670,7 +670,11 @@ TISInputSourceWrapper::InitKeyEvent(NSEvent *aNativeKeyEvent,
 
   aKeyEvent.time = PR_IntervalNow();
 
-  nsCocoaUtils::InitInputEvent(aKeyEvent, aNativeKeyEvent);
+  NSUInteger modifiers = [aNativeKeyEvent modifierFlags];
+  aKeyEvent.isShift   = ((modifiers & NSShiftKeyMask) != 0);
+  aKeyEvent.isControl = ((modifiers & NSControlKeyMask) != 0);
+  aKeyEvent.isAlt     = ((modifiers & NSAlternateKeyMask) != 0);
+  aKeyEvent.isMeta    = ((modifiers & NSCommandKeyMask) != 0);
 
   aKeyEvent.refPoint = nsIntPoint(0, 0);
   aKeyEvent.isChar = false; // XXX not used in XP level
@@ -682,52 +686,11 @@ TISInputSourceWrapper::InitKeyEvent(NSEvent *aNativeKeyEvent,
   aKeyEvent.keyCode =
     TextInputHandler::ComputeGeckoKeyCode([aNativeKeyEvent keyCode], str);
 
-  switch ([aNativeKeyEvent keyCode]) {
-    case kCommandKeyCode:
-    case kShiftKeyCode:
-    case kOptionkeyCode:
-    case kControlKeyCode:
-      aKeyEvent.location = nsIDOMKeyEvent::DOM_KEY_LOCATION_LEFT;
-      break;
-
-    case kRCommandKeyCode:
-    case kRShiftKeyCode:
-    case kROptionKeyCode:
-    case kRControlKeyCode:
-      aKeyEvent.location = nsIDOMKeyEvent::DOM_KEY_LOCATION_RIGHT;
-      break;
-
-    case kKeypad0KeyCode:
-    case kKeypad1KeyCode:
-    case kKeypad2KeyCode:
-    case kKeypad3KeyCode:
-    case kKeypad4KeyCode:
-    case kKeypad5KeyCode:
-    case kKeypad6KeyCode:
-    case kKeypad7KeyCode:
-    case kKeypad8KeyCode:
-    case kKeypad9KeyCode:
-    case kKeypadMultiplyKeyCode:
-    case kKeypadAddKeyCode:
-    case kKeypadSubtractKeyCode:
-    case kKeypadDecimalKeyCode:
-    case kKeypadDivideKeyCode:
-    case kKeypadEqualsKeyCode:
-    case kEnterKeyCode:
-    case kPowerbookEnterKeyCode:
-      aKeyEvent.location = nsIDOMKeyEvent::DOM_KEY_LOCATION_NUMPAD;
-      break;
-
-    default:
-      aKeyEvent.location = nsIDOMKeyEvent::DOM_KEY_LOCATION_STANDARD;
-      break;
-  }
-
   PR_LOG(gLog, PR_LOG_ALWAYS,
     ("%p TISInputSourceWrapper::InitKeyEvent, "
      "shift=%s, ctrl=%s, alt=%s, meta=%s",
-     this, OnOrOff(aKeyEvent.IsShift()), OnOrOff(aKeyEvent.IsControl()),
-     OnOrOff(aKeyEvent.IsAlt()), OnOrOff(aKeyEvent.IsMeta())));
+     this, OnOrOff(aKeyEvent.isShift), OnOrOff(aKeyEvent.isControl),
+     OnOrOff(aKeyEvent.isAlt), OnOrOff(aKeyEvent.isMeta)));
 
   if (aKeyEvent.message == NS_KEY_PRESS &&
       !TextInputHandler::IsSpecialGeckoKey([aNativeKeyEvent keyCode])) {
@@ -765,8 +728,8 @@ TISInputSourceWrapper::InitKeyPressEvent(NSEvent *aNativeKeyEvent,
   }
 
   // convert control-modified charCode to raw charCode (with appropriate case)
-  if (aKeyEvent.IsControl() && aKeyEvent.charCode <= 26) {
-    aKeyEvent.charCode += (aKeyEvent.IsShift()) ? ('A' - 1) : ('a' - 1);
+  if (aKeyEvent.isControl && aKeyEvent.charCode <= 26) {
+    aKeyEvent.charCode += (aKeyEvent.isShift) ? ('A' - 1) : ('a' - 1);
   }
 
   if (aKeyEvent.charCode != 0) {
@@ -778,7 +741,7 @@ TISInputSourceWrapper::InitKeyPressEvent(NSEvent *aNativeKeyEvent,
      "aKeyEvent.keyCode=0x%X, aKeyEvent.charCode=0x%X",
      this, aKeyEvent.keyCode, aKeyEvent.charCode));
 
-  if (!aKeyEvent.IsControl() && !aKeyEvent.IsMeta() && !aKeyEvent.IsAlt()) {
+  if (!aKeyEvent.isControl && !aKeyEvent.isMeta && !aKeyEvent.isAlt) {
     return;
   }
 
@@ -841,7 +804,7 @@ TISInputSourceWrapper::InitKeyPressEvent(NSEvent *aNativeKeyEvent,
   // normal characters.  These are the characters that the user is most
   // likely to associate with this key.
   if ((unshiftedChar || shiftedChar) &&
-      (!aKeyEvent.IsMeta() || !isDvorakQWERTY)) {
+      (!aKeyEvent.isMeta || !isDvorakQWERTY)) {
     nsAlternativeCharCode altCharCodes(unshiftedChar, shiftedChar);
     aKeyEvent.alternativeCharCodes.AppendElement(altCharCodes);
   }
@@ -849,7 +812,7 @@ TISInputSourceWrapper::InitKeyPressEvent(NSEvent *aNativeKeyEvent,
     ("%p TISInputSourceWrapper::InitKeyPressEvent, "
      "aKeyEvent.isMeta=%s, isDvorakQWERTY=%s, "
      "unshiftedChar=U+%X, shiftedChar=U+%X",
-     this, OnOrOff(aKeyEvent.IsMeta()), TrueOrFalse(isDvorakQWERTY),
+     this, OnOrOff(aKeyEvent.isMeta), TrueOrFalse(isDvorakQWERTY),
      unshiftedChar, shiftedChar));
 
   // Most keyboard layouts provide the same characters in the NSEvents
@@ -903,10 +866,10 @@ TISInputSourceWrapper::InitKeyPressEvent(NSEvent *aNativeKeyEvent,
   // keys are expected to be Latin characters.
   //
   // XXX We should do something similar when Control is down (bug 429510).
-  if (aKeyEvent.IsMeta() && !(aKeyEvent.IsControl() || aKeyEvent.IsAlt())) {
+  if (aKeyEvent.isMeta && !(aKeyEvent.isControl || aKeyEvent.isAlt)) {
     // The character to use for charCode.
     PRUint32 preferredCharCode = 0;
-    preferredCharCode = aKeyEvent.IsShift() ? cmdedShiftChar : cmdedChar;
+    preferredCharCode = aKeyEvent.isShift ? cmdedShiftChar : cmdedChar;
 
     if (preferredCharCode) {
       aKeyEvent.charCode = preferredCharCode;
@@ -924,7 +887,7 @@ TISInputSourceWrapper::InitKeyPressEvent(NSEvent *aNativeKeyEvent,
   // command key is pressed because when command key isn't pressed, uncmded
   // chars have been appended already.
   if ((cmdedChar || cmdedShiftChar) && isCmdSwitchLayout &&
-      (aKeyEvent.IsMeta() || !isDvorakQWERTY)) {
+      (aKeyEvent.isMeta || !isDvorakQWERTY)) {
     nsAlternativeCharCode altCharCodes(cmdedChar, cmdedShiftChar);
     aKeyEvent.alternativeCharCodes.AppendElement(altCharCodes);
   }
@@ -1091,7 +1054,8 @@ TextInputHandler::HandleKeyDownEvent(NSEvent* aNativeEvent)
       nsMouseEvent contextMenuEvent(true, NS_CONTEXTMENU,
                                     [mView widget], nsMouseEvent::eReal,
                                     nsMouseEvent::eContextMenuKey);
-      contextMenuEvent.modifiers = 0;
+      contextMenuEvent.isShift = contextMenuEvent.isControl =
+        contextMenuEvent.isAlt = contextMenuEvent.isMeta = false;
 
       bool cmEventHandled = DispatchEvent(contextMenuEvent);
       PR_LOG(gLog, PR_LOG_ALWAYS,
@@ -1375,6 +1339,7 @@ TextInputHandler::InsertText(NSAttributedString *aAttrString)
 
   // Dispatch keypress event with char instead of textEvent
   nsKeyEvent keypressEvent(true, NS_KEY_PRESS, mWidget);
+  keypressEvent.time      = PR_IntervalNow();
   keypressEvent.charCode  = str.CharAt(0);
   keypressEvent.keyCode   = 0;
   keypressEvent.isChar    = true;
@@ -1390,7 +1355,6 @@ TextInputHandler::InsertText(NSAttributedString *aAttrString)
 
   if (currentKeyEvent) {
     NSEvent* keyEvent = currentKeyEvent->mKeyEvent;
-    nsCocoaUtils::InitInputEvent(keypressEvent, keyEvent);
 
     // XXX The ASCII characters inputting mode of egbridge (Japanese IME)
     // might send the keyDown event with wrong keyboard layout if other
@@ -1407,6 +1371,7 @@ TextInputHandler::InsertText(NSAttributedString *aAttrString)
       keypressEvent.flags |= NS_EVENT_FLAG_NO_DEFAULT;
     }
 
+    keypressEvent.isShift = ([keyEvent modifierFlags] & NSShiftKeyMask) != 0;
     if (!IsPrintableChar(keypressEvent.charCode)) {
       keypressEvent.keyCode =
         ComputeGeckoKeyCode([keyEvent keyCode],
@@ -1414,7 +1379,6 @@ TextInputHandler::InsertText(NSAttributedString *aAttrString)
       keypressEvent.charCode = 0;
     }
   } else {
-    nsCocoaUtils::InitInputEvent(keypressEvent, static_cast<NSEvent*>(nsnull));
     // Note that insertText is not called only at key pressing.
     if (!IsPrintableChar(keypressEvent.charCode)) {
       keypressEvent.keyCode =
@@ -1422,12 +1386,6 @@ TextInputHandler::InsertText(NSAttributedString *aAttrString)
       keypressEvent.charCode = 0;
     }
   }
-
-  // Remove basic modifiers from keypress event because if they are included,
-  // nsPlaintextEditor ignores the event.
-  keypressEvent.modifiers &= ~(widget::MODIFIER_CONTROL |
-                               widget::MODIFIER_ALT |
-                               widget::MODIFIER_META);
 
   // TODO:
   // If mCurrentKeyEvent.mKeyEvent is null and when we implement textInput
@@ -3117,20 +3075,6 @@ PluginTextInputHandler::HandleCarbonPluginKeyEvent(EventRef aKeyEvent)
                                &modifiers);
   NS_ENSURE_TRUE(status == noErr, );
 
-  NSUInteger cocoaModifiers = 0;
-  if (modifiers & shiftKey) {
-    cocoaModifiers |= NSShiftKeyMask;
-  }
-  if (modifiers & controlKey) {
-    cocoaModifiers |= NSControlKeyMask;
-  }
-  if (modifiers & optionKey) {
-    cocoaModifiers |= NSAlternateKeyMask;
-  }
-  if (modifiers & cmdKey) { // Should never happen
-    cocoaModifiers |= NSCommandKeyMask;
-  }
-
   UInt32 macKeyCode;
   status = ::GetEventParameter(aKeyEvent, kEventParamKeyCode,
                                typeUInt32, NULL, sizeof(macKeyCode), NULL,
@@ -3146,7 +3090,6 @@ PluginTextInputHandler::HandleCarbonPluginKeyEvent(EventRef aKeyEvent)
     EventRecord eventRec;
     if (::ConvertEventRefToEventRecord(cloneEvent, &eventRec)) {
       nsKeyEvent keydownEvent(true, NS_KEY_DOWN, mWidget);
-      nsCocoaUtils::InitInputEvent(keydownEvent, cocoaModifiers);
 
       PRUint32 keyCode = ComputeGeckoKeyCode(macKeyCode, @"");
       PRUint32 charCode(charCodes.ElementAt(i));
@@ -3159,6 +3102,10 @@ PluginTextInputHandler::HandleCarbonPluginKeyEvent(EventRef aKeyEvent)
         keydownEvent.charCode = charCode;
         keydownEvent.isChar   = true;
       }
+      keydownEvent.isShift   = ((modifiers & shiftKey) != 0);
+      keydownEvent.isControl = ((modifiers & controlKey) != 0);
+      keydownEvent.isAlt     = ((modifiers & optionKey) != 0);
+      keydownEvent.isMeta = ((modifiers & cmdKey) != 0); // Should never happen
       DispatchEvent(keydownEvent);
       if (Destroyed()) {
         break;
@@ -3559,7 +3506,7 @@ TextInputHandlerBase::DispatchEvent(nsGUIEvent& aEvent)
 {
   if (aEvent.message == NS_KEY_PRESS) {
     nsInputEvent& inputEvent = static_cast<nsInputEvent&>(aEvent);
-    if (!inputEvent.IsMeta()) {
+    if (!inputEvent.isMeta) {
       PR_LOG(gLog, PR_LOG_ALWAYS,
         ("%p TextInputHandlerBase::DispatchEvent, hiding mouse cursor", this));
       [NSCursor setHiddenUntilMouseMoves:YES];
@@ -3869,7 +3816,7 @@ TextInputHandlerBase::IsSpecialGeckoKey(UInt32 aNativeKeyCode)
 TextInputHandlerBase::IsNormalCharInputtingEvent(const nsKeyEvent& aKeyEvent)
 {
   // this is not character inputting event, simply.
-  if (!aKeyEvent.isChar || !aKeyEvent.charCode || aKeyEvent.IsMeta()) {
+  if (!aKeyEvent.isChar || !aKeyEvent.charCode || aKeyEvent.isMeta) {
     return false;
   }
   // if this is unicode char inputting event, we don't need to check
@@ -3878,7 +3825,7 @@ TextInputHandlerBase::IsNormalCharInputtingEvent(const nsKeyEvent& aKeyEvent)
     return true;
   }
   // ASCII chars should be inputted without ctrl/alt/command keys
-  return !aKeyEvent.IsControl() && !aKeyEvent.IsAlt();
+  return !aKeyEvent.isControl && !aKeyEvent.isAlt;
 }
 
 /* static */ bool

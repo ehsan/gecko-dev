@@ -55,6 +55,7 @@
 #include "jsexn.h"
 #include "jsfun.h"
 #include "jsgc.h"
+#include "jsgcmark.h"
 #include "jsinterp.h"
 #include "jslock.h"
 #include "jsnum.h"
@@ -69,7 +70,6 @@
 #include "frontend/BytecodeCompiler.h"
 #include "frontend/BytecodeEmitter.h"
 #include "frontend/TokenStream.h"
-#include "gc/Marking.h"
 #include "vm/Debugger.h"
 #include "vm/MethodGuard.h"
 #include "vm/ScopeObject.h"
@@ -122,32 +122,15 @@ fun_getProperty(JSContext *cx, JSObject *obj, jsid id, Value *vp)
     vp->setNull();
 
     /* Find fun's top-most activation record. */
-    StackIter iter(cx);
-    for (; !iter.done(); ++iter) {
-        if (!iter.isFunctionFrame() || iter.isEvalFrame())
+    StackFrame *fp = js_GetTopStackFrame(cx, FRAME_EXPAND_NONE);
+    for (; fp; fp = fp->prev()) {
+        if (!fp->isFunctionFrame() || fp->isEvalFrame())
             continue;
-        if (iter.callee() == fun)
+        if (fp->callee().toFunction() == fun)
             break;
     }
-    if (iter.done())
+    if (!fp)
         return true;
-
-    StackFrame *fp = iter.fp();
-
-    if (JSID_IS_ATOM(id, cx->runtime->atomState.argumentsAtom)) {
-        /* Warn if strict about f.arguments or equivalent unqualified uses. */
-        if (!JS_ReportErrorFlagsAndNumber(cx, JSREPORT_WARNING | JSREPORT_STRICT, js_GetErrorMessage,
-                                          NULL, JSMSG_DEPRECATED_USAGE, js_arguments_str)) {
-            return false;
-        }
-
-        ArgumentsObject *argsobj = ArgumentsObject::createUnexpected(cx, fp);
-        if (!argsobj)
-            return false;
-
-        *vp = ObjectValue(*argsobj);
-        return true;
-    }
 
 #ifdef JS_METHODJIT
     if (JSID_IS_ATOM(id, cx->runtime->atomState.callerAtom) && fp && fp->prev()) {
@@ -167,17 +150,35 @@ fun_getProperty(JSContext *cx, JSObject *obj, jsid id, Value *vp)
     }
 #endif
 
-    if (JSID_IS_ATOM(id, cx->runtime->atomState.callerAtom)) {
-        StackIter prev(iter);
-        do {
-            ++prev;
-        } while (!prev.done() && prev.isImplicitNativeCall());
+    if (JSID_IS_ATOM(id, cx->runtime->atomState.argumentsAtom)) {
+        /* Warn if strict about f.arguments or equivalent unqualified uses. */
+        if (!JS_ReportErrorFlagsAndNumber(cx, JSREPORT_WARNING | JSREPORT_STRICT, js_GetErrorMessage,
+                                          NULL, JSMSG_DEPRECATED_USAGE, js_arguments_str)) {
+            return false;
+        }
 
-        if (prev.done() || !prev.isFunctionFrame()) {
+        ArgumentsObject *argsobj = ArgumentsObject::createUnexpected(cx, fp);
+        if (!argsobj)
+            return false;
+
+        *vp = ObjectValue(*argsobj);
+        return true;
+    }
+
+    if (JSID_IS_ATOM(id, cx->runtime->atomState.callerAtom)) {
+        if (!fp->prev())
+            return true;
+
+        StackFrame *frame = fp->prev();
+        while (frame && frame->isDummyFrame())
+            frame = frame->prev();
+
+        if (!frame || !frame->isFunctionFrame()) {
             JS_ASSERT(vp->isNull());
             return true;
         }
-        *vp = prev.calleev();
+
+        vp->setObject(frame->callee());
 
         /* Censor the caller if it is from another compartment. */
         JSObject &caller = vp->toObject();
@@ -204,8 +205,8 @@ fun_getProperty(JSContext *cx, JSObject *obj, jsid id, Value *vp)
 /* NB: no sentinels at ends -- use ArrayLength to bound loops.
  * Properties censored into [[ThrowTypeError]] in strict mode. */
 static const uint16_t poisonPillProps[] = {
-    NAME_OFFSET(arguments),
-    NAME_OFFSET(caller),
+    ATOM_OFFSET(arguments),
+    ATOM_OFFSET(caller),
 };
 
 static JSBool
@@ -219,22 +220,22 @@ fun_enumerate(JSContext *cx, JSObject *obj)
     bool found;
 
     if (!obj->isBoundFunction()) {
-        id = NameToId(cx->runtime->atomState.classPrototypeAtom);
+        id = ATOM_TO_JSID(cx->runtime->atomState.classPrototypeAtom);
         if (!obj->hasProperty(cx, id, &found, JSRESOLVE_QUALIFIED))
             return false;
     }
 
-    id = NameToId(cx->runtime->atomState.lengthAtom);
+    id = ATOM_TO_JSID(cx->runtime->atomState.lengthAtom);
     if (!obj->hasProperty(cx, id, &found, JSRESOLVE_QUALIFIED))
         return false;
         
-    id = NameToId(cx->runtime->atomState.nameAtom);
+    id = ATOM_TO_JSID(cx->runtime->atomState.nameAtom);
     if (!obj->hasProperty(cx, id, &found, JSRESOLVE_QUALIFIED))
         return false;
 
     for (unsigned i = 0; i < ArrayLength(poisonPillProps); i++) {
         const uint16_t offset = poisonPillProps[i];
-        id = NameToId(OFFSET_TO_NAME(cx->runtime, offset));
+        id = ATOM_TO_JSID(OFFSET_TO_ATOM(cx->runtime, offset));
         if (!obj->hasProperty(cx, id, &found, JSRESOLVE_QUALIFIED))
             return false;
     }
@@ -243,7 +244,7 @@ fun_enumerate(JSContext *cx, JSObject *obj)
 }
 
 static JSObject *
-ResolveInterpretedFunctionPrototype(JSContext *cx, HandleObject obj)
+ResolveInterpretedFunctionPrototype(JSContext *cx, JSObject *obj)
 {
 #ifdef DEBUG
     JSFunction *fun = obj->toFunction();
@@ -266,7 +267,7 @@ ResolveInterpretedFunctionPrototype(JSContext *cx, HandleObject obj)
     JSObject *objProto = obj->global().getOrCreateObjectPrototype(cx);
     if (!objProto)
         return NULL;
-    RootedVarObject proto(cx, NewObjectWithGivenProto(cx, &ObjectClass, objProto, NULL));
+    JSObject *proto = NewObjectWithGivenProto(cx, &ObjectClass, objProto, NULL);
     if (!proto || !proto->setSingletonType(cx))
         return NULL;
 
@@ -341,7 +342,7 @@ fun_resolve(JSContext *cx, JSObject *obj, jsid id, unsigned flags,
     for (unsigned i = 0; i < ArrayLength(poisonPillProps); i++) {
         const uint16_t offset = poisonPillProps[i];
 
-        if (JSID_IS_ATOM(id, OFFSET_TO_NAME(cx->runtime, offset))) {
+        if (JSID_IS_ATOM(id, OFFSET_TO_ATOM(cx->runtime, offset))) {
             JS_ASSERT(!IsInternalFunctionObject(fun));
 
             PropertyOp getter;
@@ -374,7 +375,6 @@ template<XDRMode mode>
 bool
 js::XDRInterpretedFunction(XDRState<mode> *xdr, JSObject **objp, JSScript *parentScript)
 {
-    /* NB: Keep this in sync with CloneInterpretedFunction. */
     JSFunction *fun;
     JSAtom *atom;
     uint32_t firstword;           /* flag telling whether fun->atom is non-null,
@@ -442,35 +442,6 @@ js::XDRInterpretedFunction(XDRState<XDR_ENCODE> *xdr, JSObject **objp, JSScript 
 
 template bool
 js::XDRInterpretedFunction(XDRState<XDR_DECODE> *xdr, JSObject **objp, JSScript *parentScript);
-
-JSObject *
-js::CloneInterpretedFunction(JSContext *cx, JSFunction *srcFun)
-{
-    /* NB: Keep this in sync with XDRInterpretedFunction. */
-
-    RootedVarObject parent(cx, NULL);
-    JSFunction *clone = js_NewFunction(cx, NULL, NULL, 0, JSFUN_INTERPRETED, parent, NULL);
-    if (!clone)
-        return NULL;
-    if (!clone->clearParent(cx))
-        return NULL;
-    if (!clone->clearType(cx))
-        return NULL;
-
-    JSScript *clonedScript = CloneScript(cx, srcFun->script());
-    if (!clonedScript)
-        return NULL;
-
-    clone->nargs = srcFun->nargs;
-    clone->flags = srcFun->flags;
-    clone->atom.init(srcFun->atom);
-    clone->initScript(clonedScript);
-    if (!clonedScript->typeSetFunction(cx, clone))
-        return NULL;
-
-    js_CallNewScriptHook(cx, clone->script(), clone);
-    return clone;
-}
 
 /*
  * [[HasInstance]] internal method for Function objects: fetch the .prototype
@@ -553,36 +524,6 @@ JS_FRIEND_DATA(Class) js::FunctionClass = {
 };
 
 JSString *
-ToSourceCache::lookup(JSFunction *fun)
-{
-    if (!map_)
-        return NULL;
-    if (Map::Ptr p = map_->lookup(fun))
-        return p->value;
-    return NULL;
-}
-
-void
-ToSourceCache::put(JSFunction *fun, JSString *str)
-{
-    if (!map_) {
-        map_ = OffTheBooks::new_<Map>();
-        if (!map_)
-            return;
-        map_->init();
-    }
-
-    (void) map_->put(fun, str);
-}
-
-void
-ToSourceCache::purge()
-{
-    Foreground::delete_(map_);
-    map_ = NULL;
-}
-
-JSString *
 fun_toStringHelper(JSContext *cx, JSObject *obj, unsigned indent)
 {
     if (!obj->isFunction()) {
@@ -599,17 +540,28 @@ fun_toStringHelper(JSContext *cx, JSObject *obj, unsigned indent)
     if (!fun)
         return NULL;
 
-    if (!indent) {
-        if (JSString *str = cx->runtime->toSourceCache.lookup(fun))
-            return str;
+    if (!indent && !cx->compartment->toSourceCache.empty()) {
+        ToSourceCache::Ptr p = cx->compartment->toSourceCache.ref().lookup(fun);
+        if (p)
+            return p->value;
     }
 
     JSString *str = JS_DecompileFunction(cx, fun, indent);
     if (!str)
         return NULL;
 
-    if (!indent)
-        cx->runtime->toSourceCache.put(fun, str);
+    if (!indent) {
+        Maybe<ToSourceCache> &lazy = cx->compartment->toSourceCache;
+
+        if (lazy.empty()) {
+            lazy.construct();
+            if (!lazy.ref().init())
+                return NULL;
+        }
+
+        if (!lazy.ref().put(fun, str))
+            return NULL;
+    }
 
     return str;
 }
@@ -695,7 +647,7 @@ JSBool
 js_fun_apply(JSContext *cx, unsigned argc, Value *vp)
 {
     /* Step 1. */
-    RootedVarValue fval(cx, vp[1]);
+    Value fval = vp[1];
     if (!js_IsCallable(fval)) {
         ReportIncompatibleMethod(cx, CallReceiverFromVp(vp), &FunctionClass);
         return false;
@@ -737,7 +689,7 @@ js_fun_apply(JSContext *cx, unsigned argc, Value *vp)
          * Steps 4-5 (note erratum removing steps originally numbered 5 and 7 in
          * original version of ES5).
          */
-        RootedVarObject aobj(cx, &vp[3].toObject());
+        JSObject *aobj = &vp[3].toObject();
         uint32_t length;
         if (!js_GetLengthProperty(cx, aobj, &length))
             return false;
@@ -781,31 +733,29 @@ static const uint32_t JSSLOT_BOUND_FUNCTION_ARGS_COUNT = 1;
 static const uint32_t BOUND_FUNCTION_RESERVED_SLOTS = 2;
 
 inline bool
-JSFunction::initBoundFunction(JSContext *cx, HandleValue thisArg,
+JSFunction::initBoundFunction(JSContext *cx, const Value &thisArg,
                               const Value *args, unsigned argslen)
 {
     JS_ASSERT(isFunction());
-
-    RootedVarFunction self(cx, this);
 
     /*
      * Convert to a dictionary to set the BOUND_FUNCTION flag and increase
      * the slot span to cover the arguments and additional slots for the 'this'
      * value and arguments count.
      */
-    if (!self->toDictionaryMode(cx))
+    if (!toDictionaryMode(cx))
         return false;
 
-    if (!self->setFlag(cx, BaseShape::BOUND_FUNCTION))
+    if (!setFlag(cx, BaseShape::BOUND_FUNCTION))
         return false;
 
-    if (!self->setSlotSpan(cx, BOUND_FUNCTION_RESERVED_SLOTS + argslen))
+    if (!setSlotSpan(cx, BOUND_FUNCTION_RESERVED_SLOTS + argslen))
         return false;
 
-    self->setSlot(JSSLOT_BOUND_FUNCTION_THIS, thisArg);
-    self->setSlot(JSSLOT_BOUND_FUNCTION_ARGS_COUNT, PrivateUint32Value(argslen));
+    setSlot(JSSLOT_BOUND_FUNCTION_THIS, thisArg);
+    setSlot(JSSLOT_BOUND_FUNCTION_ARGS_COUNT, PrivateUint32Value(argslen));
 
-    self->initSlotRange(BOUND_FUNCTION_RESERVED_SLOTS, args, argslen);
+    initSlotRange(BOUND_FUNCTION_RESERVED_SLOTS, args, argslen);
 
     return true;
 }
@@ -946,7 +896,7 @@ fun_bind(JSContext *cx, unsigned argc, Value *vp)
     }
 
     /* Steps 7-9. */
-    RootedVarValue thisArg(cx, args.length() >= 1 ? args[0] : UndefinedValue());
+    Value thisArg = args.length() >= 1 ? args[0] : UndefinedValue();
 
     JSObject *boundFunction = js_fun_bind(cx, target, thisArg, boundArgs, argslen);
     if (!boundFunction)
@@ -958,7 +908,7 @@ fun_bind(JSContext *cx, unsigned argc, Value *vp)
 }
 
 JSObject*
-js_fun_bind(JSContext *cx, HandleObject target, HandleValue thisArg,
+js_fun_bind(JSContext *cx, HandleObject target, Value thisArg,
             Value *boundArgs, unsigned argslen)
 {
     /* Steps 15-16. */
@@ -972,14 +922,14 @@ js_fun_bind(JSContext *cx, HandleObject target, HandleValue thisArg,
     /* Step 4-6, 10-11. */
     JSAtom *name = target->isFunction() ? target->toFunction()->atom.get() : NULL;
 
-    RootedVarObject funobj(cx);
-    funobj = js_NewFunction(cx, NULL, CallOrConstructBoundFunction, length,
-                            JSFUN_CONSTRUCTOR, target, name);
+    JSObject *funobj =
+        js_NewFunction(cx, NULL, CallOrConstructBoundFunction, length,
+                       JSFUN_CONSTRUCTOR, target, name);
     if (!funobj)
         return NULL;
 
     /* NB: Bound functions abuse |parent| to store their target. */
-    if (!JSObject::setParent(cx, funobj, target))
+    if (!funobj->setParent(cx, target))
         return NULL;
 
     if (!funobj->toFunction()->initBoundFunction(cx, thisArg, boundArgs, argslen))
@@ -1034,7 +984,6 @@ Function(JSContext *cx, unsigned argc, Value *vp)
     }
 
     Bindings bindings(cx);
-    Bindings::StackRoot bindingsRoot(cx, &bindings);
 
     const char *filename;
     unsigned lineno;
@@ -1129,7 +1078,7 @@ Function(JSContext *cx, unsigned argc, Value *vp)
                     return OnBadFormal(cx, tt);
 
                 /* Check for a duplicate parameter name. */
-                RootedVar<PropertyName*> name(cx, ts.currentToken().name());
+                PropertyName *name = ts.currentToken().name();
                 if (bindings.hasBinding(cx, name)) {
                     JSAutoByteString bytes;
                     if (!js_AtomToPrintableString(cx, name, &bytes))
@@ -1164,8 +1113,6 @@ Function(JSContext *cx, unsigned argc, Value *vp)
     const jschar *chars;
     size_t length;
 
-    SkipRoot skip(cx, &chars);
-
     if (args.length()) {
         JSString *str = ToString(cx, args[args.length() - 1]);
         if (!str)
@@ -1184,8 +1131,8 @@ Function(JSContext *cx, unsigned argc, Value *vp)
      * Thus 'var x = 42; f = new Function("return x"); print(f())' prints 42,
      * and so would a call to f from another top-level's script or function.
      */
-    RootedVarFunction fun(cx, js_NewFunction(cx, NULL, NULL, 0, JSFUN_LAMBDA | JSFUN_INTERPRETED,
-                                             global, cx->runtime->atomState.anonymousAtom));
+    JSFunction *fun = js_NewFunction(cx, NULL, NULL, 0, JSFUN_LAMBDA | JSFUN_INTERPRETED,
+                                     global, cx->runtime->atomState.anonymousAtom);
     if (!fun)
         return false;
 
@@ -1203,7 +1150,7 @@ IsBuiltinFunctionConstructor(JSFunction *fun)
 }
 
 const Shape *
-LookupInterpretedFunctionPrototype(JSContext *cx, RootedVarObject funobj)
+LookupInterpretedFunctionPrototype(JSContext *cx, JSObject *funobj)
 {
 #ifdef DEBUG
     JSFunction *fun = funobj->toFunction();
@@ -1212,12 +1159,11 @@ LookupInterpretedFunctionPrototype(JSContext *cx, RootedVarObject funobj)
     JS_ASSERT(!funobj->isBoundFunction());
 #endif
 
-    jsid id = NameToId(cx->runtime->atomState.classPrototypeAtom);
-    RootedVar<const Shape*> shape(cx, funobj->nativeLookup(cx, id));
+    jsid id = ATOM_TO_JSID(cx->runtime->atomState.classPrototypeAtom);
+    const Shape *shape = funobj->nativeLookup(cx, id);
     if (!shape) {
         if (!ResolveInterpretedFunctionPrototype(cx, funobj))
             return NULL;
-        id = NameToId(cx->runtime->atomState.classPrototypeAtom);
         shape = funobj->nativeLookup(cx, id);
     }
     JS_ASSERT(!shape->configurable());
@@ -1230,13 +1176,11 @@ LookupInterpretedFunctionPrototype(JSContext *cx, RootedVarObject funobj)
 
 JSFunction *
 js_NewFunction(JSContext *cx, JSObject *funobj, Native native, unsigned nargs,
-               unsigned flags, HandleObject parent, JSAtom *atom_, js::gc::AllocKind kind)
+               unsigned flags, HandleObject parent, JSAtom *atom, js::gc::AllocKind kind)
 {
     JS_ASSERT(kind == JSFunction::FinalizeKind || kind == JSFunction::ExtendedFinalizeKind);
     JS_ASSERT(sizeof(JSFunction) <= gc::Arena::thingSize(JSFunction::FinalizeKind));
     JS_ASSERT(sizeof(FunctionExtended) <= gc::Arena::thingSize(JSFunction::ExtendedFinalizeKind));
-
-    RootedVarAtom atom(cx, atom_);
 
     JSFunction *fun;
 
@@ -1274,8 +1218,8 @@ js_NewFunction(JSContext *cx, JSObject *funobj, Native native, unsigned nargs,
 }
 
 JSFunction * JS_FASTCALL
-js_CloneFunctionObject(JSContext *cx, HandleFunction fun, HandleObject parent,
-                       HandleObject proto, gc::AllocKind kind)
+js_CloneFunctionObject(JSContext *cx, JSFunction *fun, JSObject *parent,
+                       JSObject *proto, gc::AllocKind kind)
 {
     JS_ASSERT(parent);
     JS_ASSERT(proto);
@@ -1283,7 +1227,7 @@ js_CloneFunctionObject(JSContext *cx, HandleFunction fun, HandleObject parent,
     JSObject *cloneobj = NewObjectWithClassProto(cx, &FunctionClass, NULL, SkipScopeParent(parent), kind);
     if (!cloneobj)
         return NULL;
-    RootedVarFunction clone(cx, static_cast<JSFunction *>(cloneobj));
+    JSFunction *clone = static_cast<JSFunction *>(cloneobj);
 
     clone->nargs = fun->nargs;
     clone->flags = fun->flags & ~JSFUN_EXTENDED;
@@ -1408,6 +1352,7 @@ void
 js_ReportIsNotFunction(JSContext *cx, const Value *vp, unsigned flags)
 {
     const char *name = NULL, *source = NULL;
+    AutoValueRooter tvr(cx);
     unsigned error = (flags & JSV2F_CONSTRUCT) ? JSMSG_NOT_CONSTRUCTOR : JSMSG_NOT_FUNCTION;
 
     /*
@@ -1424,9 +1369,9 @@ js_ReportIsNotFunction(JSContext *cx, const Value *vp, unsigned flags)
      */
     ptrdiff_t spindex = 0;
 
-    ScriptFrameIter i(cx);
+    FrameRegsIter i(cx);
     if (!i.done()) {
-        unsigned depth = js_ReconstructStackDepth(cx, i.script(), i.pc());
+        unsigned depth = js_ReconstructStackDepth(cx, i.fp()->script(), i.pc());
         Value *simsp = i.fp()->base() + depth;
         if (i.fp()->base() <= vp && vp < Min(simsp, i.sp()))
             spindex = vp - simsp;

@@ -93,7 +93,7 @@
 
       event = yield;
       is(event.type, "error", "Got request error event");
-      is(event.target.error.name, "AbortError", "Right error");
+      is(event.target.errorCode, IDBDatabaseException.ABORT_ERR, "Right error code");
 
       let request = mozIndexedDB.open(window.location.pathname, 1);
       request.onerror = errorHandler;

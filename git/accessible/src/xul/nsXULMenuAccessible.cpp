@@ -38,13 +38,12 @@
 
 #include "nsXULMenuAccessible.h"
 
-#include "Accessible-inl.h"
 #include "nsAccessibilityService.h"
 #include "nsAccUtils.h"
 #include "nsDocAccessible.h"
+#include "nsXULFormControlAccessible.h"
 #include "Role.h"
 #include "States.h"
-#include "XULFormControlAccessible.h"
 
 #include "nsIDOMElement.h"
 #include "nsIDOMXULElement.h"
@@ -463,19 +462,23 @@ nsXULMenupopupAccessible::NativeState()
 {
   PRUint64 state = nsAccessible::NativeState();
 
-#ifdef DEBUG
+#ifdef DEBUG_A11Y
   // We are onscreen if our parent is active
-  bool isActive = mContent->HasAttr(kNameSpaceID_None, nsGkAtoms::menuactive);
+  bool isActive = mContent->HasAttr(kNameSpaceID_None,
+                                      nsGkAtoms::menuactive);
   if (!isActive) {
     nsAccessible* parent = Parent();
-    if (parent) {
-      nsIContent* parentContent = parent->GetContent();
-      if (parentContent)
-        isActive = parentContent->HasAttr(kNameSpaceID_None, nsGkAtoms::open);
-    }
+    if (!parent)
+      return state;
+
+    nsIContent *parentContent = parnet->GetContent();
+    NS_ENSURE_TRUE(parentContent, state);
+
+    isActive = parentContent->HasAttr(kNameSpaceID_None,
+                                      nsGkAtoms::open);
   }
 
-  NS_ASSERTION(isActive || (state & states::INVISIBLE),
+  NS_ASSERTION(isActive || states & states::INVISIBLE,
                "XULMenupopup doesn't have INVISIBLE when it's inactive");
 #endif
 

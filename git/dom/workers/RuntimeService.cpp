@@ -53,7 +53,7 @@
 #include "nsITimer.h"
 #include "nsPIDOMWindow.h"
 
-#include "mozilla/dom/EventTargetBinding.h"
+#include "mozilla/dom/bindings/EventTargetBinding.h"
 #include "mozilla/Preferences.h"
 #include "nsContentUtils.h"
 #include "nsDOMJSUtils.h"
@@ -70,13 +70,14 @@
 #include "WorkerPrivate.h"
 
 using namespace mozilla;
-using namespace mozilla::dom;
+using namespace mozilla::dom::bindings::prototypes;
 
 USING_WORKERS_NAMESPACE
 
 using mozilla::MutexAutoLock;
 using mozilla::MutexAutoUnlock;
 using mozilla::Preferences;
+using namespace mozilla::xpconnect::memory;
 
 // The size of the worker runtime heaps in bytes. May be changed via pref.
 #define WORKER_DEFAULT_RUNTIME_HEAPSIZE 32 * 1024 * 1024
@@ -449,7 +450,7 @@ ResolveWorkerClasses(JSContext* aCx, JSObject* aObj, jsid aId, unsigned aFlags,
       return true;
     }
 
-    JSObject* eventTarget = EventTargetBinding_workers::GetProtoObject(aCx, aObj, aObj);
+    JSObject* eventTarget = EventTarget_workers::GetProtoObject(aCx, aObj);
     if (!eventTarget) {
       return false;
     }
@@ -1336,8 +1337,8 @@ RuntimeService::AutoSafeJSContext::GetSafeContext()
   nsIThreadJSContextStack* stack = nsContentUtils::ThreadJSContextStack();
   NS_ASSERTION(stack, "This should never be null!");
 
-  JSContext* cx = stack->GetSafeJSContext();
-  if (!cx) {
+  JSContext* cx;
+  if (NS_FAILED(stack->GetSafeJSContext(&cx))) {
     NS_ERROR("Couldn't get safe JSContext!");
     return nsnull;
   }

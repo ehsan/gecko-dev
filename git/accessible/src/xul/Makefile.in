@@ -54,7 +54,7 @@ CPPSRCS = \
   nsXULAlertAccessible.cpp \
   nsXULColorPickerAccessible.cpp \
   nsXULComboboxAccessible.cpp \
-  XULFormControlAccessible.cpp \
+  nsXULFormControlAccessible.cpp \
   nsXULListboxAccessible.cpp \
   nsXULMenuAccessible.cpp \
   nsXULSliderAccessible.cpp \

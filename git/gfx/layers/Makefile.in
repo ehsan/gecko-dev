@@ -61,11 +61,8 @@ endif
 
 EXPORTS = \
         BasicLayers.h \
-        BasicTiledThebesLayer.h \
-        BasicImplData.h \
         ImageLayers.h \
         Layers.h \
-        LayerManagerOGLShaders.h \
         LayerManagerOGL.h \
         LayerManagerOGLProgram.h \
         ReadbackLayer.h \
@@ -75,7 +72,6 @@ EXPORTS = \
 CPPSRCS = \
         BasicImages.cpp \
         BasicLayers.cpp \
-        BasicTiledThebesLayer.cpp \
         Layers.cpp \
         RenderTrace.cpp \
         ReadbackProcessor.cpp \
@@ -86,9 +82,6 @@ CPPSRCS = \
         ImageLayerOGL.cpp \
         LayerManagerOGL.cpp \
         ThebesLayerOGL.cpp \
-        TiledThebesLayerOGL.cpp \
-        ReusableTileStoreOGL.cpp \
-        LayerManagerOGLProgram.cpp \
         LayerSorter.cpp \
         ImageLayers.cpp \
         $(NULL)
@@ -170,3 +163,10 @@ include $(topsrcdir)/config/rules.mk
 include $(topsrcdir)/ipc/chromium/chromium-config.mk
 
 CXXFLAGS += $(MOZ_CAIRO_CFLAGS) $(TK_CFLAGS)
+
+LayerManagerOGLShaders.h: LayerManagerOGLShaders.txt genshaders.py $(GLOBAL_DEPS)
+	$(PYTHON) $(srcdir)/opengl/genshaders.py $< $@
+
+LayerManagerOGL.$(OBJ_SUFFIX): LayerManagerOGLShaders.h
+
+GARBAGE += LayerManagerOGLShaders.h

@@ -37,7 +37,7 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
-#include "Accessible-inl.h"
+#include "nsAccessible.h"
 
 #include "nsIXBLAccessible.h"
 
@@ -50,10 +50,10 @@
 #include "nsAccTreeWalker.h"
 #include "nsIAccessibleRelation.h"
 #include "nsEventShell.h"
+#include "nsRootAccessible.h"
 #include "nsTextEquivUtils.h"
 #include "Relation.h"
 #include "Role.h"
-#include "RootAccessible.h"
 #include "States.h"
 #include "StyleInfo.h"
 
@@ -209,8 +209,9 @@ nsAccessible::nsAccessible(nsIContent* aContent, nsDocAccessible* aDoc) :
              NS_ConvertUTF16toUTF8(content->NodeInfo()->QualifiedName()).get(),
              (void *)content.get());
       nsAutoString buf;
-      Name(buf);
-      printf(" Name:[%s]", NS_ConvertUTF16toUTF8(buf).get());
+      if (NS_SUCCEEDED(GetName(buf))) {
+        printf(" Name:[%s]", NS_ConvertUTF16toUTF8(buf).get());
+       }
      }
      printf("\n");
    }
@@ -257,7 +258,8 @@ nsAccessible::GetRootDocument(nsIAccessibleDocument **aRootDocument)
 {
   NS_ENSURE_ARG_POINTER(aRootDocument);
 
-  NS_IF_ADDREF(*aRootDocument = RootAccessible());
+  nsRootAccessible* rootDocument = RootAccessible();
+  NS_IF_ADDREF(*aRootDocument = rootDocument);
   return NS_OK;
 }
 
@@ -276,52 +278,45 @@ nsAccessible::GetName(nsAString& aName)
   if (IsDefunct())
     return NS_ERROR_FAILURE;
 
-  nsAutoString name;
-  Name(name);
-  aName.Assign(name);
-
-  return NS_OK;
-}
-
-ENameValueFlag
-nsAccessible::Name(nsString& aName)
-{
-  aName.Truncate();
-
   GetARIAName(aName);
   if (!aName.IsEmpty())
-    return eNameOK;
+    return NS_OK;
 
   nsCOMPtr<nsIXBLAccessible> xblAccessible(do_QueryInterface(mContent));
   if (xblAccessible) {
     xblAccessible->GetAccessibleName(aName);
     if (!aName.IsEmpty())
-      return eNameOK;
+      return NS_OK;
   }
 
   nsresult rv = GetNameInternal(aName);
+  NS_ENSURE_SUCCESS(rv, rv);
+
   if (!aName.IsEmpty())
-    return eNameOK;
+    return NS_OK;
 
   // In the end get the name from tooltip.
-  if (mContent->IsHTML()) {
-    if (mContent->GetAttr(kNameSpaceID_None, nsGkAtoms::title, aName)) {
-      aName.CompressWhitespace();
-      return eNameFromTooltip;
-    }
-  } else if (mContent->IsXUL()) {
-    if (mContent->GetAttr(kNameSpaceID_None, nsGkAtoms::tooltiptext, aName)) {
-      aName.CompressWhitespace();
-      return eNameFromTooltip;
-    }
-  } else {
-    return eNameOK;
+  nsIAtom *tooltipAttr = nsnull;
+
+  if (mContent->IsHTML())
+    tooltipAttr = nsGkAtoms::title;
+  else if (mContent->IsXUL())
+    tooltipAttr = nsGkAtoms::tooltiptext;
+  else
+    return NS_OK;
+
+  // XXX: if CompressWhiteSpace worked on nsAString we could avoid a copy.
+  nsAutoString name;
+  if (mContent->GetAttr(kNameSpaceID_None, tooltipAttr, name)) {
+    name.CompressWhitespace();
+    aName = name;
+    return NS_OK_NAME_FROM_TOOLTIP;
   }
 
   if (rv != NS_OK_EMPTY_NAME)
     aName.SetIsVoid(true);
 
-  return eNameOK;
+  return NS_OK;
 }
 
 NS_IMETHODIMP
@@ -369,7 +364,7 @@ nsAccessible::Description(nsString& aDescription)
                                     nsGkAtoms::title;
         if (mContent->GetAttr(kNameSpaceID_None, descAtom, aDescription)) {
           nsAutoString name;
-          Name(name);
+          GetName(name);
           if (name.IsEmpty() || aDescription == name)
             // Don't use tooltip for a description if this object
             // has no name or the tooltip is the same as the name
@@ -914,7 +909,7 @@ void nsAccessible::GetBoundsRect(nsRect& aTotalBounds, nsIFrame** aBoundingFrame
 
   // Initialization area
   *aBoundingFrame = nsnull;
-  nsIFrame* firstFrame = GetFrame();
+  nsIFrame *firstFrame = GetBoundsFrame();
   if (!firstFrame)
     return;
 
@@ -1027,6 +1022,13 @@ nsAccessible::GetBounds(PRInt32* aX, PRInt32* aY,
   *aY += orgRectPixels.y;
 
   return NS_OK;
+}
+
+// helpers
+
+nsIFrame* nsAccessible::GetBoundsFrame()
+{
+  return GetFrame();
 }
 
 NS_IMETHODIMP nsAccessible::SetSelected(bool aSelect)
@@ -2102,7 +2104,7 @@ nsAccessible::RelationByType(PRUint32 aType)
           if (form) {
             nsCOMPtr<nsIContent> formContent =
               do_QueryInterface(form->GetDefaultSubmitElement());
-            return Relation(mDoc, formContent);
+            return Relation(formContent);
           }
         }
       } else {
@@ -2143,13 +2145,13 @@ nsAccessible::RelationByType(PRUint32 aType)
             }
           }
           nsCOMPtr<nsIContent> relatedContent(do_QueryInterface(buttonEl));
-          return Relation(mDoc, relatedContent);
+          return Relation(relatedContent);
         }
       }
       return Relation();
     }
     case nsIAccessibleRelation::RELATION_MEMBER_OF:
-      return Relation(mDoc, GetAtomicRegion());
+      return Relation(GetAtomicRegion());
     case nsIAccessibleRelation::RELATION_SUBWINDOW_OF:
     case nsIAccessibleRelation::RELATION_EMBEDS:
     case nsIAccessibleRelation::RELATION_EMBEDDED_BY:

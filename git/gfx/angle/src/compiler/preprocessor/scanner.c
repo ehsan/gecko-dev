@@ -59,15 +59,12 @@ NVIDIA HAS BEEN ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #endif
 
 #include "compiler/preprocessor/slglobals.h"
-#include "compiler/preprocessor/lexer_glue.h"
 #include "compiler/util.h"
 
 typedef struct StringInputSrc {
     InputSrc base;
     char *p;
 } StringInputSrc;
-
-static int ScanFromString(const char *s);
 
 static int eof_scan(InputSrc *is, yystypepp * yylvalpp)
 {
@@ -127,25 +124,6 @@ int InitScanner(CPPStruct *cpp)
 int FreeScanner(void)
 {
     return (FreeCPP());
-}
-
-// Define this to 1 to use the new lexer.
-#define CPP_USE_NEW_LEXER 0
-
-int InitScannerInput(CPPStruct *cpp, int count, const char* const string[], const int length[])
-{
-#if CPP_USE_NEW_LEXER
-    InputSrc* in = LexerInputSrc(count, string, length);
-    if (!in) return 1;
-    cpp->currentInput = in;
-#else
-    cpp->PaWhichStr = 0;
-    cpp->PaArgv     = string;
-    cpp->PaArgc     = count;
-    cpp->PaStrLen   = length;
-    ScanFromString(string[0]);
-#endif
-    return 0;
 }
 
 /*
@@ -687,6 +665,8 @@ int yylex_CPP(char* buf, int maxSize)
             return 0;
         }
     }
+
+    return 0;
 } // yylex
 
 //Checks if the token just read is EOF or not.

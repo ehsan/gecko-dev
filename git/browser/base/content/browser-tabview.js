@@ -214,8 +214,6 @@ let TabView = {
 
     this._isFrameLoading = true;
 
-    TelemetryStopwatch.start("PANORAMA_INITIALIZATION_TIME_MS");
-
     // ___ find the deck
     this._deck = document.getElementById("tab-view-deck");
 
@@ -230,8 +228,6 @@ let TabView = {
 
     window.addEventListener("tabviewframeinitialized", function onInit() {
       window.removeEventListener("tabviewframeinitialized", onInit, false);
-
-      TelemetryStopwatch.finish("PANORAMA_INITIALIZATION_TIME_MS");
 
       self._isFrameLoading = false;
       self._window = self._iframe.contentWindow;

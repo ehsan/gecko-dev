@@ -38,17 +38,18 @@
 
 #include "nsAccessNode.h"
 
-#include "ApplicationAccessibleWrap.h"
 #include "nsAccessibilityService.h"
 #include "nsAccUtils.h"
+#include "nsApplicationAccessibleWrap.h"
 #include "nsCoreUtils.h"
-#include "RootAccessible.h"
+#include "nsRootAccessible.h"
 
 #include "nsIDocShell.h"
 #include "nsIDocShellTreeItem.h"
 #include "nsIDOMWindow.h"
 #include "nsIFrame.h"
 #include "nsIInterfaceRequestorUtils.h"
+#include "nsIObserverService.h"
 #include "nsIPrefBranch.h"
 #include "nsIPrefService.h"
 #include "nsIPresShell.h"
@@ -58,8 +59,6 @@
 #include "nsPresContext.h"
 #include "mozilla/Services.h"
 
-using namespace mozilla::a11y;
-
 /* For documentation of the accessibility architecture, 
  * see http://lxr.mozilla.org/seamonkey/source/accessible/accessible-docs.html
  */
@@ -68,7 +67,7 @@ nsIStringBundle *nsAccessNode::gStringBundle = 0;
 
 bool nsAccessNode::gIsFormFillEnabled = false;
 
-ApplicationAccessible* nsAccessNode::gApplicationAccessible = nsnull;
+nsApplicationAccessible *nsAccessNode::gApplicationAccessible = nsnull;
 
 /*
  * Class nsAccessNode
@@ -93,6 +92,9 @@ nsAccessNode::
   nsAccessNode(nsIContent* aContent, nsDocAccessible* aDoc) :
   mContent(aContent), mDoc(aDoc)
 {
+#ifdef DEBUG_A11Y
+  mIsInitialized = false;
+#endif
 }
 
 nsAccessNode::~nsAccessNode()
@@ -128,16 +130,18 @@ nsAccessNode::Shutdown()
   mDoc = nsnull;
 }
 
-ApplicationAccessible*
+nsApplicationAccessible*
 nsAccessNode::GetApplicationAccessible()
 {
   NS_ASSERTION(!nsAccessibilityService::IsShutdown(),
                "Accessibility wasn't initialized!");
 
   if (!gApplicationAccessible) {
-    ApplicationAccessibleWrap::PreCreate();
+    nsApplicationAccessibleWrap::PreCreate();
 
-    gApplicationAccessible = new ApplicationAccessibleWrap();
+    gApplicationAccessible = new nsApplicationAccessibleWrap();
+    if (!gApplicationAccessible)
+      return nsnull;
 
     // Addref on create. Will Release in ShutdownXPAccessibility()
     NS_ADDREF(gApplicationAccessible);
@@ -167,6 +171,23 @@ void nsAccessNode::InitXPAccessibility()
   if (prefBranch) {
     prefBranch->GetBoolPref("browser.formfill.enable", &gIsFormFillEnabled);
   }
+
+  NotifyA11yInitOrShutdown(true);
+}
+
+// nsAccessNode protected static
+void nsAccessNode::NotifyA11yInitOrShutdown(bool aIsInit)
+{
+  nsCOMPtr<nsIObserverService> obsService =
+    mozilla::services::GetObserverService();
+  NS_ASSERTION(obsService, "No observer service to notify of a11y init/shutdown");
+  if (!obsService)
+    return;
+
+  static const PRUnichar kInitIndicator[] = { '1', 0 };
+  static const PRUnichar kShutdownIndicator[] = { '0', 0 }; 
+  obsService->NotifyObservers(nsnull, "a11y-init-or-shutdown",
+                              aIsInit ? kInitIndicator  : kShutdownIndicator);
 }
 
 void nsAccessNode::ShutdownXPAccessibility()
@@ -179,14 +200,16 @@ void nsAccessNode::ShutdownXPAccessibility()
 
   // Release gApplicationAccessible after everything else is shutdown
   // so we don't accidently create it again while tearing down root accessibles
-  ApplicationAccessibleWrap::Unload();
+  nsApplicationAccessibleWrap::Unload();
   if (gApplicationAccessible) {
     gApplicationAccessible->Shutdown();
     NS_RELEASE(gApplicationAccessible);
   }
+
+  NotifyA11yInitOrShutdown(false);
 }
 
-RootAccessible*
+nsRootAccessible*
 nsAccessNode::RootAccessible() const
 {
   nsCOMPtr<nsIDocShellTreeItem> docShellTreeItem =

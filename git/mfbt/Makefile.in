@@ -57,8 +57,7 @@ include $(srcdir)/exported_headers.mk
 # sources.mk defines the source files built for mfbt. It is included by mfbt
 # itself and by the JS engine, which, when built standalone, must do the work
 # to build mfbt sources itself.
-MFBT_ROOT = $(srcdir)
-include $(MFBT_ROOT)/sources.mk
+include $(srcdir)/sources.mk
 
 DEFINES += -DIMPL_MFBT
 

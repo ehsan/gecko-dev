@@ -72,8 +72,7 @@ public:
                                   PRInt64 aTimeThreshold);
 
   virtual bool HasAudio() {
-    return (mVorbisState != 0 && mVorbisState->mActive) ||
-           (mOpusState != 0 && mOpusState->mActive);
+    return mVorbisState != 0 && mVorbisState->mActive;
   }
 
   virtual bool HasVideo() {
@@ -217,10 +216,6 @@ private:
   // audio queue.
   nsresult DecodeVorbis(ogg_packet* aPacket);
 
-  // Decodes a packet of Opus data, and inserts its samples into the
-  // audio queue.
-  nsresult DecodeOpus(ogg_packet* aPacket);
-
   // Decodes a packet of Theora data, and inserts its frame into the
   // video queue. May return NS_ERROR_OUT_OF_MEMORY. Caller must have obtained
   // the reader's monitor. aTimeThreshold is the current playback position
@@ -257,14 +252,6 @@ private:
 
   // Decode state of the Vorbis bitstream we're decoding, if we have audio.
   nsVorbisState* mVorbisState;
-
-  // Decode state of the Opus bitstream we're decoding, if we have one.
-  nsOpusState *mOpusState;
-
-  // Represents the user pref media.opus.enabled at the time our
-  // contructor was called. We can't check it dynamically because
-  // we're not on the main thread;
-  bool mOpusEnabled;
 
   // Decode state of the Skeleton bitstream.
   nsSkeletonState* mSkeletonState;

@@ -1041,7 +1041,7 @@ insert:
 }
 
 // Update the font and rendering context if there is a family change
-static bool
+static void
 SetFontFamily(nsStyleContext*      aStyleContext,
               nsRenderingContext&  aRenderingContext,
               nsFont&              aFont,
@@ -1052,24 +1052,14 @@ SetFontFamily(nsStyleContext*      aStyleContext,
   const nsAString& family =
     aGlyphCode.font ? aGlyphTable->FontNameFor(aGlyphCode) : aDefaultFamily;
   if (! family.Equals(aFont.name)) {
-    nsFont font = aFont;
-    font.name = family;
+    aFont.name = family;
     nsRefPtr<nsFontMetrics> fm;
-    aRenderingContext.DeviceContext()->GetMetricsFor(font,
+    aRenderingContext.DeviceContext()->GetMetricsFor(aFont,
       aStyleContext->GetStyleFont()->mLanguage,
       aStyleContext->PresContext()->GetUserFontSet(),
       *getter_AddRefs(fm));
-    // Set the font if it is an unicode table
-    // or if the same family name has been found
-    if (aGlyphTable == &gGlyphTableList->mUnicodeTable ||
-        fm->GetThebesFontGroup()->GetFontAt(0)->GetFontEntry()->
-        FamilyName() == family) {
-      aFont.name = family;
-      aRenderingContext.SetFont(fm);
-    } else
-        return false; // We did not set the font
+    aRenderingContext.SetFont(fm);
   }
-  return true;
 }
 
 class nsMathMLChar::StretchEnumContext {
@@ -1099,6 +1089,9 @@ public:
   EnumCallback(const nsString& aFamily, bool aGeneric, void *aData);
 
 private:
+  static bool
+  ResolverCallback (const nsAString& aFamily, void *aData);
+
   bool TryVariants(nsGlyphTable* aGlyphTable, const nsAString& aFamily);
   bool TryParts(nsGlyphTable* aGlyphTable, const nsAString& aFamily);
 
@@ -1157,12 +1150,7 @@ nsMathMLChar::StretchEnumContext::TryVariants(nsGlyphTable*    aGlyphTable,
   nsGlyphCode ch;
   while ((ch = aGlyphTable->BigOf(mPresContext, mChar, size)).Exists()) {
 
-    if(!SetFontFamily(sc, mRenderingContext, font, aGlyphTable, ch, aFamily)) {
-      // if largeopOnly is set, break now
-      if (largeopOnly) break;
-      ++size;
-      continue;
-    }
+    SetFontFamily(sc, mRenderingContext, font, aGlyphTable, ch, aFamily);
 
     NS_ASSERTION(maxWidth || ch.code[0] != mChar->mGlyph.code[0] ||
                  ch.code[1] != mChar->mGlyph.code[1] ||
@@ -1286,10 +1274,8 @@ nsMathMLChar::StretchEnumContext::TryParts(nsGlyphTable*    aGlyphTable,
       sizedata[i] = mTargetSize;
     }
     else {
-      if (!SetFontFamily(mChar->mStyleContext, mRenderingContext,
-                         font, aGlyphTable, ch, aFamily))
-        return false;
-
+      SetFontFamily(mChar->mStyleContext, mRenderingContext,
+                    font, aGlyphTable, ch, aFamily);
       nsBoundingMetrics bm = mRenderingContext.GetBoundingMetrics(ch.code,
                                                                   ch.Length());
 
@@ -1384,6 +1370,38 @@ nsMathMLChar::StretchEnumContext::TryParts(nsGlyphTable*    aGlyphTable,
   return IsSizeOK(mPresContext, computedSize, mTargetSize, mStretchHint);
 }
 
+// This is only called for glyph table corresponding to a family that exists.
+// See if the table has a glyph that matches the container
+bool
+nsMathMLChar::StretchEnumContext::ResolverCallback (const nsAString& aFamily,
+                                                    void *aData)
+{
+  StretchEnumContext* context = static_cast<StretchEnumContext*>(aData);
+  nsGlyphTable* glyphTable = context->mGlyphTable;
+
+  // Only try this table once.
+  context->mTablesTried.AppendElement(glyphTable);
+
+  // If the unicode table is being used, then search all font families.  If a
+  // special table is being used then the font in this family should have the
+  // specified glyphs.
+  const nsAString& family = glyphTable == &gGlyphTableList->mUnicodeTable ?
+    context->mFamilies : aFamily;
+
+  if(context->mTryVariants) {
+    bool isOK = context->TryVariants(glyphTable, family);
+    if (isOK)
+      return false; // no need to continue
+  }
+
+  if(context->mTryParts) {
+    bool isOK = context->TryParts(glyphTable, family);
+    if (isOK)
+      return false; // no need to continue
+  }
+  return true;
+}
+
 // This is called for each family, whether it exists or not
 bool
 nsMathMLChar::StretchEnumContext::EnumCallback(const nsString& aFamily,
@@ -1399,32 +1417,16 @@ nsMathMLChar::StretchEnumContext::EnumCallback(const nsString& aFamily,
   if (context->mTablesTried.Contains(glyphTable))
     return true; // already tried this one
 
-  // Check font family if it is not a generic one
-  // We test with the kNullGlyph
-  nsStyleContext *sc = context->mChar->mStyleContext;
-  nsFont font = sc->GetStyleFont()->mFont;
-  if (!aGeneric && !SetFontFamily(sc, context->mRenderingContext,
-                                  font, NULL, kNullGlyph, aFamily))
-     return true; // Could not set the family
-
   context->mGlyphTable = glyphTable;
 
-  // Now see if the table has a glyph that matches the container
+  if (aGeneric)
+    return ResolverCallback(aFamily, aData);
 
-  // Only try this table once.
-  context->mTablesTried.AppendElement(glyphTable);
-
-  // If the unicode table is being used, then search all font families.  If a
-  // special table is being used then the font in this family should have the
-  // specified glyphs.
-  const nsAString& family = glyphTable == &gGlyphTableList->mUnicodeTable ?
-    context->mFamilies : aFamily;
-
-  if((context->mTryVariants && context->TryVariants(glyphTable, family)) ||
-     (context->mTryParts && context->TryParts(glyphTable, family)))
-    return false; // no need to continue
-
-  return true; // true means continue
+  bool aborted;
+  gfxPlatform *pf = gfxPlatform::GetPlatform();
+  nsresult rv =
+    pf->ResolveFontName(aFamily, ResolverCallback, aData, aborted);
+  return NS_SUCCEEDED(rv) && !aborted; // true means continue
 }
 
 nsresult
@@ -1897,9 +1899,8 @@ class nsDisplayMathMLCharForeground : public nsDisplayItem {
 public:
   nsDisplayMathMLCharForeground(nsDisplayListBuilder* aBuilder,
                                 nsIFrame* aFrame, nsMathMLChar* aChar,
-				                PRUint32 aIndex, bool aIsSelected)
-    : nsDisplayItem(aBuilder, aFrame), mChar(aChar), 
-      mIndex(aIndex), mIsSelected(aIsSelected) {
+				                        bool aIsSelected)
+    : nsDisplayItem(aBuilder, aFrame), mChar(aChar), mIsSelected(aIsSelected) {
     MOZ_COUNT_CTOR(nsDisplayMathMLCharForeground);
   }
 #ifdef NS_BUILD_REFCNT_LOGGING
@@ -1933,12 +1934,9 @@ public:
     bool snap;
     return GetBounds(aBuilder, &snap);
   }
-  
-  virtual PRUint32 GetPerFrameKey() { return (mIndex << nsDisplayItem::TYPE_BITS) | nsDisplayItem::GetPerFrameKey(); }
 
 private:
   nsMathMLChar* mChar;
-  PRUint32      mIndex;
   bool          mIsSelected;
 };
 
@@ -1984,7 +1982,6 @@ nsresult
 nsMathMLChar::Display(nsDisplayListBuilder*   aBuilder,
                       nsIFrame*               aForFrame,
                       const nsDisplayListSet& aLists,
-                      PRUint32                aIndex,
                       const nsRect*           aSelectedRect)
 {
   nsresult rv = NS_OK;
@@ -2029,7 +2026,6 @@ nsMathMLChar::Display(nsDisplayListBuilder*   aBuilder,
   }
   return aLists.Content()->AppendNewToTop(new (aBuilder)
         nsDisplayMathMLCharForeground(aBuilder, aForFrame, this,
-                                      aIndex,
                                       aSelectedRect && !aSelectedRect->IsEmpty()));
 }
 

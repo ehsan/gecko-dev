@@ -731,37 +731,27 @@ nsTSubstring_CharT::StripChars( const char_type* aChars, PRUint32 aOffset )
     mLength = to - mData;
   }
 
-PRIntn
-nsTSubstring_CharT::AppendFunc(void* arg, const char* s, PRUint32 len)
+void nsTSubstring_CharT::AppendPrintf31( const char* format, ...)
   {
-    self_type* self = static_cast<self_type*>(arg);
-
-    // NSPR sends us the final null terminator even though we don't want it
-    if (len && s[len - 1] == '\0') {
-      --len;
-    }
-
-    self->AppendASCII(s, len);
-
-    return len;
+    char buf[32];
+    va_list ap;
+    va_start(ap, format);
+    PRUint32 len = PR_vsnprintf(buf, sizeof(buf), format, ap);
+    AppendASCII(buf, len);
+    va_end(ap);
   }
 
 void nsTSubstring_CharT::AppendPrintf( const char* format, ...)
   {
+    char *buf;
     va_list ap;
     va_start(ap, format);
-    PRUint32 r = PR_vsxprintf(AppendFunc, this, format, ap);
-    if (r == (PRUint32) -1)
-      NS_RUNTIMEABORT("Allocation or other failure in PR_vsxprintf");
+    buf = PR_vsmprintf(format, ap);
+    AppendASCII(buf);
+    PR_smprintf_free(buf);
     va_end(ap);
   }
 
-void nsTSubstring_CharT::AppendPrintf( const char* format, va_list ap )
-  {
-    PRUint32 r = PR_vsxprintf(AppendFunc, this, format, ap);
-    if (r == (PRUint32) -1)
-      NS_RUNTIMEABORT("Allocation or other failure in PR_vsxprintf");
-  }
 
 /* hack to make sure we define Modified_cnvtf only once */
 #ifdef CharT_is_PRUnichar

@@ -148,6 +148,10 @@ sendMouseEvent(PRUint32 msg, uint64_t timeMs, int x, int y)
     event.refPoint.x = x;
     event.refPoint.y = y;
     event.time = timeMs;
+    event.isShift = false;
+    event.isControl = false;
+    event.isMeta = false;
+    event.isAlt = false;
     event.button = nsMouseEvent::eLeftButton;
     if (msg != NS_MOUSE_MOVE)
         event.clickCount = 1;
@@ -195,6 +199,10 @@ sendTouchEvent(UserInputData& data)
     nsTouchEvent event(true, msg, NULL);
 
     event.time = data.timeMs;
+    event.isShift = false;
+    event.isControl = false;
+    event.isMeta = false;
+    event.isAlt = false;
 
     int32_t i;
     if (msg == NS_TOUCH_END) {
@@ -217,7 +225,6 @@ sendKeyEventWithMsg(PRUint32 keyCode,
 {
     nsKeyEvent event(true, msg, NULL);
     event.keyCode = keyCode;
-    event.location = nsIDOMKeyEvent::DOM_KEY_LOCATION_MOBILE;
     event.time = timeMs;
     event.flags |= flags;
     return nsWindow::DispatchInputEvent(event);
@@ -697,15 +704,8 @@ nsAppShell::NotifyNativeEvent()
     write(signalfds[1], "w", 1);
 }
 
-/* static */ void
+/*static*/ void
 nsAppShell::NotifyScreenInitialized()
 {
     gAppShell->InitInputDevices();
-}
-
-/* static */ void
-nsAppShell::NotifyScreenRotation()
-{
-    gAppShell->mReaderPolicy->setDisplayInfo();
-    gAppShell->mReader->requestRefreshConfiguration(InputReaderConfiguration::CHANGE_DISPLAY_INFO);
 }

@@ -88,6 +88,7 @@
 #include "nsIContentSecurityPolicy.h"
 #include "nsJSEnvironment.h"
 #include "xpcpublic.h"
+#include "sampler.h"
 
 using namespace mozilla::dom;
 using namespace mozilla::hal;
@@ -290,10 +291,6 @@ nsEventListenerManager::AddEventListener(nsIDOMEventListener *aListener,
     }
   } else if (aTypeAtom == nsGkAtoms::ondeviceorientation) {
     EnableDevice(NS_DEVICE_ORIENTATION);
-  } else if (aTypeAtom == nsGkAtoms::ondeviceproximity) {
-    EnableDevice(NS_DEVICE_PROXIMITY);
-  } else if (aTypeAtom == nsGkAtoms::ondevicelight) {
-    EnableDevice(NS_DEVICE_LIGHT);
   } else if (aTypeAtom == nsGkAtoms::ondevicemotion) {
     EnableDevice(NS_DEVICE_MOTION);
   } else if ((aType >= NS_MOZTOUCH_DOWN && aType <= NS_MOZTOUCH_UP) ||
@@ -350,12 +347,6 @@ nsEventListenerManager::EnableDevice(PRUint32 aType)
     case NS_DEVICE_ORIENTATION:
       window->EnableDeviceSensor(SENSOR_ORIENTATION);
       break;
-    case NS_DEVICE_PROXIMITY:
-      window->EnableDeviceSensor(SENSOR_PROXIMITY);
-      break;
-    case NS_DEVICE_LIGHT:
-      window->EnableDeviceSensor(SENSOR_LIGHT);
-      break;
     case NS_DEVICE_MOTION:
       window->EnableDeviceSensor(SENSOR_ACCELERATION);
       window->EnableDeviceSensor(SENSOR_LINEAR_ACCELERATION);
@@ -385,12 +376,6 @@ nsEventListenerManager::DisableDevice(PRUint32 aType)
       window->DisableDeviceSensor(SENSOR_ACCELERATION);
       window->DisableDeviceSensor(SENSOR_LINEAR_ACCELERATION);
       window->DisableDeviceSensor(SENSOR_GYROSCOPE);
-      break;
-    case NS_DEVICE_PROXIMITY:
-      window->DisableDeviceSensor(SENSOR_PROXIMITY);
-      break;
-    case NS_DEVICE_LIGHT:
-      window->DisableDeviceSensor(SENSOR_LIGHT);
       break;
     default:
       NS_WARNING("Disabling an unknown device sensor.");
@@ -563,8 +548,7 @@ nsEventListenerManager::AddScriptEventListener(nsIAtom *aName,
     // Try to get context from doc
     // XXX sXBL/XBL2 issue -- do we really want the owner here?  What
     // if that's the XBL document?
-    doc = node->OwnerDoc();
-    global = doc->GetScriptGlobalObject();
+    global = node->OwnerDoc()->GetScriptGlobalObject();
   } else {
     nsCOMPtr<nsPIDOMWindow> win(do_QueryInterface(mTarget));
     if (win) {
@@ -852,6 +836,7 @@ nsEventListenerManager::HandleEventInternal(nsPresContext* aPresContext,
                                             nsEventStatus* aEventStatus,
                                             nsCxPusher* aPusher)
 {
+  SAMPLE_LABEL("nsEventListenerManager", "HandleEventInternal");
   //Set the value of the internal PreventDefault flag properly based on aEventStatus
   if (*aEventStatus == nsEventStatus_eConsumeNoDefault) {
     aEvent->flags |= NS_EVENT_FLAG_NO_DEFAULT;

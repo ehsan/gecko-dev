@@ -39,7 +39,7 @@
  * ***** END LICENSE BLOCK ***** */
 
 #include "jscntxt.h"
-#include "gc/Marking.h"
+#include "jsgcmark.h"
 #include "methodjit/MethodJIT.h"
 #include "Stack.h"
 
@@ -484,16 +484,11 @@ StackSpace::markFrameSlots(JSTracer *trc, StackFrame *fp, Value *slotsEnd, jsbyt
     for (Value *vp = slotsBegin; vp < fixedEnd; vp++) {
         uint32_t slot = analyze::LocalSlot(script, vp - slotsBegin);
 
-        /*
-         * Will this slot be synced by the JIT? If not, replace with a dummy
-         * value with the same type tag.
-         */
+        /* Will this slot be synced by the JIT? */
         if (!analysis->trackSlot(slot) || analysis->liveness(slot).live(offset))
             gc::MarkValueRoot(trc, vp, "vm_stack");
-        else if (vp->isObject())
-            *vp = ObjectValue(fp->scopeChain()->global());
-        else if (vp->isString())
-            *vp = StringValue(trc->runtime->atomState.nullAtom);
+        else
+            *vp = UndefinedValue();
     }
 
     gc::MarkValueRootRange(trc, fixedEnd, slotsEnd, "vm_stack");
@@ -1170,18 +1165,10 @@ StackIter::settleOnNewState()
             }
 
             state_ = SCRIPTED;
-            script_ = fp_->script();
-
-            /*
-             * Check sp and pc. JM's getter ICs may push 2 extra values on the
-             * stack; this is okay since the methodjit reserves some extra slots
-             * for loop temporaries.
-             */
-            if (op == JSOP_GETPROP || op == JSOP_CALLPROP)
-                JS_ASSERT(sp_ >= fp_->base() && sp_ <= fp_->slots() + script_->nslots + 2);
-            else if (op != JSOP_FUNAPPLY)
-                JS_ASSERT(sp_ >= fp_->base() && sp_ <= fp_->slots() + script_->nslots);
-            JS_ASSERT(pc_ >= script_->code && pc_ < script_->code + script_->length);
+            DebugOnly<JSScript *> script = fp_->script();
+            JS_ASSERT_IF(op != JSOP_FUNAPPLY,
+                         sp_ >= fp_->base() && sp_ <= fp_->slots() + script->nslots);
+            JS_ASSERT(pc_ >= script->code && pc_ < script->code + script->length);
             return;
         }
 
@@ -1227,9 +1214,10 @@ StackIter::StackIter(JSContext *cx, SavedOption savedOption)
 StackIter &
 StackIter::operator++()
 {
+    JS_ASSERT(!done());
     switch (state_) {
       case DONE:
-        JS_NOT_REACHED("Unexpected state");
+        JS_NOT_REACHED("");
       case SCRIPTED:
         popFrame();
         settleOnNewState();
@@ -1253,120 +1241,6 @@ StackIter::operator==(const StackIter &rhs) const
             (isScript() == rhs.isScript() &&
              ((isScript() && fp() == rhs.fp()) ||
               (!isScript() && nativeArgs().base() == rhs.nativeArgs().base()))));
-}
-
-bool
-StackIter::isFunctionFrame() const
-{
-    switch (state_) {
-      case DONE:
-        break;
-      case SCRIPTED:
-        return fp()->isFunctionFrame();
-      case NATIVE:
-      case IMPLICIT_NATIVE:
-        return false;
-    }
-    JS_NOT_REACHED("Unexpected state");
-    return false;
-}
-
-bool
-StackIter::isEvalFrame() const
-{
-    switch (state_) {
-      case DONE:
-        break;
-      case SCRIPTED:
-        return fp()->isEvalFrame();
-      case NATIVE:
-      case IMPLICIT_NATIVE:
-        return false;
-    }
-    JS_NOT_REACHED("Unexpected state");
-    return false;
-}
-
-bool
-StackIter::isNonEvalFunctionFrame() const
-{
-    JS_ASSERT(!done());
-    switch (state_) {
-      case DONE:
-        break;
-      case SCRIPTED:
-        return fp()->isNonEvalFunctionFrame();
-      case NATIVE:
-      case IMPLICIT_NATIVE:
-        return !isEvalFrame() && isFunctionFrame();
-    }
-    JS_NOT_REACHED("Unexpected state");
-    return false;
-}
-
-bool
-StackIter::isConstructing() const
-{
-    switch (state_) {
-      case DONE:
-        JS_NOT_REACHED("Unexpected state");
-        return false;
-      case SCRIPTED:
-      case NATIVE:
-      case IMPLICIT_NATIVE:
-        return fp()->isConstructing();
-    }
-    return false;
-}
-
-JSFunction *
-StackIter::callee() const
-{
-    switch (state_) {
-      case DONE:
-        break;
-      case SCRIPTED:
-        JS_ASSERT(isFunctionFrame());
-        return fp()->callee().toFunction();
-      case NATIVE:
-      case IMPLICIT_NATIVE:
-        return nativeArgs().callee().toFunction();
-    }
-    JS_NOT_REACHED("Unexpected state");
-    return NULL;
-}
-
-Value
-StackIter::calleev() const
-{
-    switch (state_) {
-      case DONE:
-        break;
-      case SCRIPTED:
-        JS_ASSERT(isFunctionFrame());
-        return fp()->calleev();
-      case NATIVE:
-      case IMPLICIT_NATIVE:
-        return nativeArgs().calleev();
-    }
-    JS_NOT_REACHED("Unexpected state");
-    return Value();
-}
-
-Value
-StackIter::thisv() const
-{
-    switch (state_) {
-      case DONE:
-        MOZ_NOT_REACHED("Unexpected state");
-        return Value();
-      case SCRIPTED:
-      case NATIVE:
-      case IMPLICIT_NATIVE:
-        return fp()->thisValue();
-    }
-    MOZ_NOT_REACHED("unexpected state");
-    return Value();
 }
 
 /*****************************************************************************/

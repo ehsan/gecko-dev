@@ -40,6 +40,7 @@
             'PreprocessorDefinitions': [
               '_CRT_SECURE_NO_DEPRECATE',
               '_HAS_EXCEPTIONS=0',
+              '_HAS_TR1=0',
               '_WIN32_WINNT=0x0600',
               '_WINDOWS',
               'NOMINMAX',
@@ -48,8 +49,7 @@
               'WINVER=0x0600',
             ],
             'RuntimeTypeInfo': 'false',
-            'WarningLevel': '4',
-            'DisableSpecificWarnings': '4100;4127;4189;4239;4244;4245;4512;4702',
+            'WarningLevel': '3',
           },
           'VCLinkerTool': {
             'FixedBaseAddress': '1',

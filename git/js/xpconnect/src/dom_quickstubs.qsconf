@@ -457,6 +457,7 @@ members = [
     'nsIIDBCursor.*',
     'nsIIDBCursorWithValue.*',
     'nsIIDBDatabase.*',
+    'nsIIDBDatabaseException.*',
     'nsIIDBIndex.*',
     'nsIIDBKeyRange.*',
     'nsIIDBObjectStore.*',
@@ -467,11 +468,6 @@ members = [
     'nsIIDBVersionChangeEvent.*',
     'nsIIndexedDatabaseUsageCallback.*',
     'nsIIndexedDatabaseManager.*',
-
-    # Performance
-    'nsIDOMPerformance.*',
-    'nsIDOMPerformanceTiming.*',
-    'nsIDOMPerformanceNavigation.*',
 
     'nsIDOMDOMError.*',
     ]

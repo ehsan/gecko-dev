@@ -48,7 +48,18 @@ let tab1;
 
 function waitForRuleView(aCallback)
 {
-  InspectorUI.currentInspector.once("sidebaractivated-ruleview", aCallback);
+  if (InspectorUI.ruleView) {
+    aCallback();
+    return;
+  }
+
+  let ruleViewFrame = InspectorUI.getToolIframe(InspectorUI.ruleViewObject);
+  ruleViewFrame.addEventListener("load", function(evt) {
+    ruleViewFrame.removeEventListener(evt.type, arguments.callee, true);
+    executeSoon(function() {
+      aCallback();
+    });
+  }, true);
 }
 
 function inspectorTabOpen1()
@@ -66,17 +77,17 @@ function inspectorUIOpen1()
   // Highlight a node.
   div = content.document.getElementsByTagName("div")[0];
   InspectorUI.inspectNode(div);
-  InspectorUI.stopInspecting();
 
   // Open the rule view sidebar.
   waitForRuleView(ruleViewOpened1);
-  InspectorUI.sidebar.show();
-  InspectorUI.sidebar.activatePanel("ruleview");
+
+  InspectorUI.showSidebar();
+  InspectorUI.ruleButton.click();
 }
 
 function ruleViewOpened1()
 {
-  let prop = ruleView()._elementStyle.rules[0].textProps[0];
+  let prop = InspectorUI.ruleView._elementStyle.rules[0].textProps[0];
   is(prop.name, "background-color", "First prop is the background color prop.");
   prop.setEnabled(false);
 
@@ -113,7 +124,7 @@ function inspectorFocusTab1()
 
 function ruleViewOpened2()
 {
-  let prop = ruleView()._elementStyle.rules[0].textProps[0];
+  let prop = InspectorUI.ruleView._elementStyle.rules[0].textProps[0];
   is(prop.name, "background-color", "First prop is the background color prop.");
   ok(!prop.enabled, "First prop should be disabled.");
 

@@ -44,6 +44,7 @@
 #include "nsAutoRef.h"
 #include "nsThreadUtils.h"
 
+
 typedef struct _cairo_surface cairo_surface_t;
 typedef struct _cairo_user_data_key cairo_user_data_key_t;
 

@@ -36,8 +36,6 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
-#include "mozilla/FloatingPoint.h"
-
 #include "txExpr.h"
 #include <math.h>
 #include "txIXPathContext.h"
@@ -72,16 +70,16 @@ txNumberExpr::evaluate(txIEvalContext* aContext, txAExprResult** aResult)
             if (rightDbl == 0) {
 #if defined(XP_WIN)
                 /* XXX MSVC miscompiles such that (NaN == 0) */
-                if (MOZ_DOUBLE_IS_NaN(rightDbl))
-                    result = MOZ_DOUBLE_NaN();
+                if (txDouble::isNaN(rightDbl))
+                    result = txDouble::NaN;
                 else
 #endif
-                if (leftDbl == 0 || MOZ_DOUBLE_IS_NaN(leftDbl))
-                    result = MOZ_DOUBLE_NaN();
-                else if (MOZ_DOUBLE_IS_NEGATIVE(leftDbl) ^ MOZ_DOUBLE_IS_NEGATIVE(rightDbl))
-                    result = MOZ_DOUBLE_NEGATIVE_INFINITY();
+                if (leftDbl == 0 || txDouble::isNaN(leftDbl))
+                    result = txDouble::NaN;
+                else if (txDouble::isNeg(leftDbl) ^ txDouble::isNeg(rightDbl))
+                    result = txDouble::NEGATIVE_INFINITY;
                 else
-                    result = MOZ_DOUBLE_POSITIVE_INFINITY();
+                    result = txDouble::POSITIVE_INFINITY;
             }
             else
                 result = leftDbl / rightDbl;
@@ -89,12 +87,12 @@ txNumberExpr::evaluate(txIEvalContext* aContext, txAExprResult** aResult)
 
         case MODULUS:
             if (rightDbl == 0) {
-                result = MOZ_DOUBLE_NaN();
+                result = txDouble::NaN;
             }
             else {
 #if defined(XP_WIN)
                 /* Workaround MS fmod bug where 42 % (1/0) => NaN, not 42. */
-                if (!MOZ_DOUBLE_IS_INFINITE(leftDbl) && MOZ_DOUBLE_IS_INFINITE(rightDbl))
+                if (!txDouble::isInfinite(leftDbl) && txDouble::isInfinite(rightDbl))
                     result = leftDbl;
                 else
 #endif

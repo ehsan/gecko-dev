@@ -72,7 +72,6 @@ class nsHTMLDocument : public nsDocument,
 {
 public:
   using nsDocument::SetDocumentURI;
-  using nsDocument::GetPlugins;
 
   nsHTMLDocument();
   virtual nsresult Init();

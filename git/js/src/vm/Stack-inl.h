@@ -69,7 +69,7 @@ IsCacheableNonGlobalScope(JSObject *obj)
     return cacheable;
 }
 
-inline HandleObject
+inline JSObject &
 StackFrame::scopeChain() const
 {
     JS_ASSERT_IF(!(flags_ & HAS_SCOPECHAIN), isFunctionFrame());
@@ -77,19 +77,13 @@ StackFrame::scopeChain() const
         scopeChain_ = callee().toFunction()->environment();
         flags_ |= HAS_SCOPECHAIN;
     }
-    return HandleObject::fromMarkedLocation(&scopeChain_);
-}
-
-inline GlobalObject &
-StackFrame::global() const
-{
-    return scopeChain()->global();
+    return *scopeChain_;
 }
 
 inline JSObject &
 StackFrame::varObj()
 {
-    JSObject *obj = scopeChain();
+    JSObject *obj = &scopeChain();
     while (!obj->isVarObj())
         obj = obj->enclosingScope();
     return *obj;
@@ -98,8 +92,8 @@ StackFrame::varObj()
 inline JSCompartment *
 StackFrame::compartment() const
 {
-    JS_ASSERT_IF(isScriptFrame(), scopeChain()->compartment() == script()->compartment());
-    return scopeChain()->compartment();
+    JS_ASSERT_IF(isScriptFrame(), scopeChain().compartment() == script()->compartment());
+    return scopeChain().compartment();
 }
 
 inline void
@@ -336,7 +330,7 @@ StackFrame::callObj() const
 {
     JS_ASSERT_IF(isNonEvalFunctionFrame() || isStrictEvalFrame(), hasCallObj());
 
-    JSObject *pobj = scopeChain();
+    JSObject *pobj = &scopeChain();
     while (JS_UNLIKELY(!pobj->isCall()))
         pobj = pobj->enclosingScope();
     return pobj->asCall();
@@ -358,7 +352,10 @@ StackFrame::functionPrologue(JSContext *cx)
     JS_ASSERT(isNonEvalFunctionFrame());
     JS_ASSERT(!isGeneratorFrame());
 
-    if (fun()->isHeavyweight()) {
+    JSFunction *fun = this->fun();
+    JSScript *script = fun->script();
+
+    if (fun->isHeavyweight()) {
         if (!CallObject::createForFunction(cx, this))
             return false;
     } else {
@@ -366,7 +363,7 @@ StackFrame::functionPrologue(JSContext *cx)
         scopeChain();
     }
 
-    if (script()->nesting()) {
+    if (script->nesting()) {
         JS_ASSERT(maintainNestingState());
         types::NestingPrologue(cx, this);
     }
@@ -648,10 +645,10 @@ ContextStack::currentScriptWithDiagnostics(jsbytecode **ppc) const
     return script;
 }
 
-inline HandleObject
+inline JSObject *
 ContextStack::currentScriptedScopeChain() const
 {
-    return fp()->scopeChain();
+    return &fp()->scopeChain();
 }
 
 } /* namespace js */

@@ -302,9 +302,7 @@ ContainerRender(Container* aContainer,
 
     aContainer->SetShaderTransformAndOpacity();
 
-    aManager->SetShaderMode(DeviceManagerD3D9::RGBALAYER,
-                            aContainer->GetMaskLayer(),
-                            aContainer->GetTransform().CanDraw2D());
+    aManager->SetShaderMode(DeviceManagerD3D9::RGBALAYER);
 
     aManager->device()->SetTexture(0, renderTexture);
     aManager->device()->DrawPrimitive(D3DPT_TRIANGLESTRIP, 0, 2);

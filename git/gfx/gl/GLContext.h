@@ -72,8 +72,6 @@ typedef char realGLboolean;
 
 #include "GLContextSymbols.h"
 
-#include "mozilla/mozalloc.h"
-
 namespace mozilla {
   namespace layers {
     class LayerManagerOGL;
@@ -731,7 +729,6 @@ public:
     bool CanUploadSubTextures();
     bool CanUploadNonPowerOfTwo();
     bool WantsSmallTiles();
-    virtual bool HasLockSurface() { return false; }
 
     /**
      * If this context wraps a double-buffered target, swap the back
@@ -832,7 +829,7 @@ public:
      */
     virtual bool ResizeOffscreen(const gfxIntSize& aNewSize) {
         if (mOffscreenDrawFBO || mOffscreenReadFBO)
-            return ResizeOffscreenFBOs(aNewSize, mOffscreenReadFBO != 0);
+            return ResizeOffscreenFBO(aNewSize, mOffscreenReadFBO != 0);
         return false;
     }
 
@@ -1382,10 +1379,6 @@ public:
      * \param aPixelBuffer Pass true to upload texture data with an
      *  offset from the base data (generally for pixel buffer objects), 
      *  otherwise textures are upload with an absolute pointer to the data.
-     * \param aTextureUnit, the texture unit used temporarily to upload the
-     *  surface. This testure may be overridden, clients should not rely on
-     *  the contents of this texture after this call or even on this
-     *  texture unit being active.
      * \return Shader program needed to render this texture.
      */
     ShaderProgramType UploadSurfaceToTexture(gfxASurface *aSurface, 
@@ -1393,8 +1386,7 @@ public:
                                              GLuint& aTexture,
                                              bool aOverwrite = false,
                                              const nsIntPoint& aSrcPoint = nsIntPoint(0, 0),
-                                             bool aPixelBuffer = false,
-                                             GLenum aTextureUnit = LOCAL_GL_TEXTURE0);
+                                             bool aPixelBuffer = false);
 
     
     void TexImage2D(GLenum target, GLint level, GLint internalformat, 
@@ -1637,62 +1629,30 @@ protected:
     // Helper to create/resize an offscreen FBO,
     // for offscreen implementations that use FBOs.
     // Note that it does -not- clear the resized buffers.
-    bool ResizeOffscreenFBOs(const ContextFormat& aCF, const gfxIntSize& aSize, const bool aNeedsReadBuffer);
-    bool ResizeOffscreenFBOs(const gfxIntSize& aSize, const bool aNeedsReadBuffer) {
-        if (!IsOffscreenSizeAllowed(aSize))
-            return false;
-
-        ContextFormat format(mCreationFormat);
-
-        if (format.samples) {
-            // AA path
-            if (ResizeOffscreenFBOs(format, aSize, aNeedsReadBuffer))
-                return true;
-
-            NS_WARNING("ResizeOffscreenFBOs failed to resize an AA context! Falling back to no AA...");
-            format.samples = 0;
-        }
-
-        if (ResizeOffscreenFBOs(format, aSize, aNeedsReadBuffer))
+    bool ResizeOffscreenFBO(const gfxIntSize& aSize, const bool aUseReadFBO, const bool aDisableAA);
+    bool ResizeOffscreenFBO(const gfxIntSize& aSize, const bool aUseReadFBO) {
+        if (ResizeOffscreenFBO(aSize, aUseReadFBO, false))
             return true;
 
-        NS_WARNING("ResizeOffscreenFBOs failed to resize non-AA context!");
+        if (!mCreationFormat.samples) {
+            NS_WARNING("ResizeOffscreenFBO failed to resize non-AA context!");
+            return false;
+        } else {
+            NS_WARNING("ResizeOffscreenFBO failed to resize AA context! Falling back to no AA...");
+        }
+
+        if (DebugMode()) {
+            printf_stderr("Requested level of multisampling is unavailable, continuing without multisampling\n");
+        }
+
+        if (ResizeOffscreenFBO(aSize, aUseReadFBO, true))
+            return true;
+
+        NS_WARNING("ResizeOffscreenFBO failed to resize AA context even without AA!");
         return false;
     }
 
-    struct GLFormats {
-        GLFormats()
-            : texColor(0)
-            , texColorType(0)
-            , rbColor(0)
-            , depthStencil(0)
-            , depth(0)
-            , stencil(0)
-            , samples(0)
-        {}
-
-        GLenum texColor;
-        GLenum texColorType;
-        GLenum rbColor;
-        GLenum depthStencil;
-        GLenum depth;
-        GLenum stencil;
-        GLsizei samples;
-    };
-
-    GLFormats ChooseGLFormats(ContextFormat& aCF);
-    void CreateTextureForOffscreen(const GLFormats& aFormats, const gfxIntSize& aSize,
-                                   GLuint& texture);
-    void CreateRenderbuffersForOffscreen(const GLContext::GLFormats& aFormats, const gfxIntSize& aSize,
-                                         GLuint& colorMSRB, GLuint& depthRB, GLuint& stencilRB);
-    bool AssembleOffscreenFBOs(const GLuint colorMSRB,
-                               const GLuint depthRB,
-                               const GLuint stencilRB,
-                               const GLuint texture,
-                               GLuint& drawFBO,
-                               GLuint& readFBO);
-
-    void DeleteOffscreenFBOs();
+    void DeleteOffscreenFBO();
 
     GLuint mOffscreenDrawFBO;
     GLuint mOffscreenReadFBO;
@@ -2068,16 +2028,6 @@ public:
     void fBufferData(GLenum target, GLsizeiptr size, const GLvoid* data, GLenum usage) {
         BEFORE_GL_CALL;
         mSymbols.fBufferData(target, size, data, usage);
-
-        // bug 744888
-        if (WorkAroundDriverBugs() &&
-            !data &&
-            Vendor() == VendorNVIDIA)
-        {
-            char c = 0;
-            mSymbols.fBufferSubData(target, size-1, 1, &c);
-        }
-
         AFTER_GL_CALL;
     }
 

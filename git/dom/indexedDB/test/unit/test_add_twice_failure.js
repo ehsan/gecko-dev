@@ -30,7 +30,7 @@ function testSteps()
   is(request.result, key, "Correct key");
 
   request = objectStore.add({}, key);
-  request.onerror = new ExpectError("ConstraintError");
+  request.onerror = new ExpectError(IDBDatabaseException.CONSTRAINT_ERR);
   request.onsuccess = unexpectedSuccessHandler;
   yield;
 

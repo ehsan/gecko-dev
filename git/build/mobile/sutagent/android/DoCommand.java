@@ -137,7 +137,7 @@ public class DoCommand {
     String ffxProvider = "org.mozilla.ffxcp";
     String fenProvider = "org.mozilla.fencp";
 
-    private final String prgVersion = "SUTAgentAndroid Version 1.08";
+    private final String prgVersion = "SUTAgentAndroid Version 1.07";
 
     public enum Command
         {
@@ -1531,7 +1531,7 @@ private void CancelNotification()
             }
             catch (FileNotFoundException e) {
                 sRet += " file not found";
-                Log.d("SUT", "HashFile: "+e);
+                e.printStackTrace();
             }
             catch (IOException e) {
                 sRet += " io exception";
@@ -1944,14 +1944,6 @@ private void CancelNotification()
             if (dstFile != null) {
                 dstFile.flush();
                 dstFile.close();
-                // set the new file's permissions to rwxrwxrwx, if possible
-                Process pProc = Runtime.getRuntime().exec("chmod 777 "+sTmpFileName);
-                RedirOutputThread outThrd = new RedirOutputThread(pProc, null);
-                outThrd.start();
-                try {
-                    outThrd.join(5000);
-                } catch (InterruptedException e) {
-                }
             }
 
             if (lRead == lSize)    {
@@ -2291,21 +2283,8 @@ private void CancelNotification()
         else {
             File dir = new File(sTmpDir);
 
-            if (dir.mkdirs()) {
-                // set the new dir's permissions to rwxrwxrwx, if possible
-                try {
-                    Process pProc = Runtime.getRuntime().exec("chmod 777 "+sTmpDir);
-                    RedirOutputThread outThrd = new RedirOutputThread(pProc, null);
-                    outThrd.start();
-                    try {
-                        outThrd.join(5000);
-                    } catch (InterruptedException e) {
-                    }
-                } catch (IOException e) {
-                    e.printStackTrace();
-                }
+            if (dir.mkdirs())
                 sRet = sDir + " successfully created";
-            }
         }
 
         return (sRet);
@@ -2409,12 +2388,8 @@ private void CancelNotification()
         int lcv = 0;
         String strProcName = "";
         int    nPID = 0;
-        int nProcs = 0;
 
-        if (lProcesses != null) 
-            nProcs = lProcesses.size();
-
-        for (lcv = 0; lcv < nProcs; lcv++)
+        for (lcv = 0; lcv < lProcesses.size(); lcv++)
             {
             if (lProcesses.get(lcv).processName.contains(sProcName))
                 {
@@ -2466,10 +2441,7 @@ private void CancelNotification()
             {
             sRet = "Successfully killed " + nPID + " " + strProcName + "\n";
             lProcesses = aMgr.getRunningAppProcesses();
-            nProcs = 0;
-            if (lProcesses != null) 
-                nProcs = lProcesses.size();
-            for (lcv = 0; lcv < nProcs; lcv++)
+            for (lcv = 0; lcv < lProcesses.size(); lcv++)
                 {
                 if (lProcesses.get(lcv).processName.contains(sProcName))
                     {
@@ -2552,14 +2524,11 @@ private void CancelNotification()
         String sRet = "";
         ActivityManager aMgr = (ActivityManager) contextWrapper.getSystemService(Activity.ACTIVITY_SERVICE);
         List <ActivityManager.RunningAppProcessInfo> lProcesses = aMgr.getRunningAppProcesses();
-        int    nProcs = 0;
+        int    nProcs = lProcesses.size();
         int lcv = 0;
         String strProcName = "";
         int    nPID = 0;
         int nUser = 0;
-
-        if (lProcesses != null) 
-            nProcs = lProcesses.size();
 
         for (lcv = 0; lcv < nProcs; lcv++)
             {
@@ -3539,7 +3508,7 @@ private void CancelNotification()
                     }
                 catch (IllegalThreadStateException itse) {
                     lcv++;
-                    Log.d("SUT", "StartPrg waited 10s for "+progArray[0]);
+                    itse.printStackTrace();
                     }
                 }
             }
@@ -3670,7 +3639,7 @@ private void CancelNotification()
                         }
                     catch (IllegalThreadStateException itse) {
                         lcv++;
-                        Log.d("SUT", "StartPrg2 waited 10s for "+theArgs[0]);
+                        itse.printStackTrace();
                         }
                     }
                 }

@@ -1226,12 +1226,6 @@ nsHttpTransaction::HandleContentStart()
             LOG(("this response should not contain a body.\n"));
             break;
         }
-        
-        if (mResponseHead->Status() == 200 &&
-            mConnection->IsProxyConnectInProgress()) {
-            // successful CONNECTs do not have response bodies
-            mNoContent = true;
-        }
         mConnection->SetLastTransactionExpectedNoContent(mNoContent);
         if (mInvalidResponseBytesRead)
             gHttpHandler->ConnMgr()->PipelineFeedbackInfo(

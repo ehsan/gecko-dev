@@ -187,14 +187,14 @@ public:
 
  */
 
-class nsXULPrototypeNode : public nsISupports
+class nsXULPrototypeNode
 {
 public:
     enum Type { eType_Element, eType_Script, eType_Text, eType_PI };
 
     Type                     mType;
 
-    NS_DECL_CYCLE_COLLECTING_ISUPPORTS
+    nsAutoRefCnt             mRefCnt;
 
     virtual ~nsXULPrototypeNode() {}
     virtual nsresult Serialize(nsIObjectOutputStream* aStream,
@@ -210,6 +210,17 @@ public:
     virtual PRUint32 ClassSize() = 0;
 #endif
 
+    void AddRef() {
+        ++mRefCnt;
+        NS_LOG_ADDREF(this, mRefCnt, ClassName(), ClassSize());
+    }
+    void Release()
+    {
+        --mRefCnt;
+        NS_LOG_RELEASE(this, mRefCnt, ClassName());
+        if (mRefCnt == 0)
+            delete this;
+    }
     /**
      * The prototype document must call ReleaseSubtree when it is going
      * away.  This makes the parents through the tree stop owning their
@@ -220,7 +231,7 @@ public:
      */
     virtual void ReleaseSubtree() { }
 
-    NS_DECL_CYCLE_COLLECTION_SCRIPT_HOLDER_CLASS(nsXULPrototypeNode)
+    NS_DECL_CYCLE_COLLECTION_SCRIPT_HOLDER_NATIVE_CLASS(nsXULPrototypeNode)
 
 protected:
     nsXULPrototypeNode(Type aType)
@@ -292,7 +303,7 @@ class nsXULDocument;
 class nsXULPrototypeScript : public nsXULPrototypeNode
 {
 public:
-    nsXULPrototypeScript(PRUint32 aLineNo, PRUint32 version);
+    nsXULPrototypeScript(PRUint32 aLangID, PRUint32 aLineNo, PRUint32 version);
     virtual ~nsXULPrototypeScript();
 
 #ifdef NS_BUILD_REFCNT_LOGGING
@@ -321,18 +332,23 @@ public:
 
     void Set(nsScriptObjectHolder<JSScript>& aHolder)
     {
+        NS_ASSERTION(mScriptObject.mLangID == aHolder.getScriptTypeID(),
+                     "Wrong language, this will leak the previous object.");
+
+        mScriptObject.mLangID = aHolder.getScriptTypeID();
         Set(aHolder.get());
     }
     void Set(JSScript* aObject);
 
     struct ScriptObjectHolder
     {
-        ScriptObjectHolder() : mObject(nsnull)
+        ScriptObjectHolder(PRUint32 aLangID) : mLangID(aLangID),
+                                               mObject(nsnull)
         {
         }
+        PRUint32 mLangID;
         JSScript* mObject;
     };
-
     nsCOMPtr<nsIURI>         mSrcURI;
     PRUint32                 mLineNo;
     bool                     mSrcLoading;
@@ -548,8 +564,6 @@ public:
     virtual nsAttrInfo GetAttrInfo(PRInt32 aNamespaceID, nsIAtom* aName) const;
 
     virtual nsXPCClassInfo* GetClassInfo();
-
-    virtual nsIDOMNode* AsDOMNode() { return this; }
 protected:
     // XXX This can be removed when nsNodeUtils::CloneAndAdopt doesn't need
     //     access to mPrototype anymore.

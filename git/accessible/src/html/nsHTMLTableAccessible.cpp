@@ -39,7 +39,6 @@
 
 #include "nsHTMLTableAccessible.h"
 
-#include "Accessible-inl.h"
 #include "nsAccessibilityService.h"
 #include "nsAccTreeWalker.h"
 #include "nsAccUtils.h"
@@ -554,33 +553,45 @@ nsHTMLTableAccessible::Caption()
   return child && child->Role() == roles::CAPTION ? child : nsnull;
 }
 
-void
-nsHTMLTableAccessible::Summary(nsString& aSummary)
+NS_IMETHODIMP
+nsHTMLTableAccessible::GetSummary(nsAString &aSummary)
 {
   nsCOMPtr<nsIDOMHTMLTableElement> table(do_QueryInterface(mContent));
-  
-  if (table)
-    table->GetSummary(aSummary);
+  NS_ENSURE_TRUE(table, NS_ERROR_FAILURE);
+
+  return table->GetSummary(aSummary);
 }
 
-PRUint32
-nsHTMLTableAccessible::ColCount()
+NS_IMETHODIMP
+nsHTMLTableAccessible::GetColumnCount(PRInt32 *acolumnCount)
 {
-  nsITableLayout* tableLayout = GetTableLayout();
+  NS_ENSURE_ARG_POINTER(acolumnCount);
+  *acolumnCount = nsnull;
 
-  PRInt32 rowCount = 0, colCount = 0;
-  tableLayout->GetTableSize(rowCount, colCount);
-  return colCount;
+  if (IsDefunct())
+    return NS_ERROR_FAILURE;
+
+  nsITableLayout *tableLayout = GetTableLayout();
+  NS_ENSURE_STATE(tableLayout);
+
+  PRInt32 rows;
+  return tableLayout->GetTableSize(rows, *acolumnCount);
 }
 
-PRUint32
-nsHTMLTableAccessible::RowCount()
+NS_IMETHODIMP
+nsHTMLTableAccessible::GetRowCount(PRInt32 *arowCount)
 {
-  nsITableLayout* tableLayout = GetTableLayout();
+  NS_ENSURE_ARG_POINTER(arowCount);
+  *arowCount = 0;
 
-  PRInt32 rowCount = 0, colCount = 0;
-  tableLayout->GetTableSize(rowCount, colCount);
-  return rowCount;
+  if (IsDefunct())
+    return NS_ERROR_FAILURE;
+
+  nsITableLayout *tableLayout = GetTableLayout();
+  NS_ENSURE_STATE(tableLayout);
+
+  PRInt32 columns;
+  return tableLayout->GetTableSize(*arowCount, columns);
 }
 
 NS_IMETHODIMP
@@ -1139,20 +1150,28 @@ nsHTMLTableAccessible::SelectColumn(PRInt32 aColumn)
                                    nsISelectionPrivate::TABLESELECTION_COLUMN);
 }
 
-void
-nsHTMLTableAccessible::UnselectRow(PRUint32 aRowIdx)
+NS_IMETHODIMP
+nsHTMLTableAccessible::UnselectRow(PRInt32 aRow)
 {
-  RemoveRowsOrColumnsFromSelection(aRowIdx,
-                                   nsISelectionPrivate::TABLESELECTION_ROW,
-                                   false);
+  if (IsDefunct())
+    return NS_ERROR_FAILURE;
+
+  return
+    RemoveRowsOrColumnsFromSelection(aRow,
+                                     nsISelectionPrivate::TABLESELECTION_ROW,
+                                     false);
 }
 
-void
-nsHTMLTableAccessible::UnselectCol(PRUint32 aColIdx)
+NS_IMETHODIMP
+nsHTMLTableAccessible::UnselectColumn(PRInt32 aColumn)
 {
-  RemoveRowsOrColumnsFromSelection(aColIdx,
-                                   nsISelectionPrivate::TABLESELECTION_COLUMN,
-                                   false);
+  if (IsDefunct())
+    return NS_ERROR_FAILURE;
+
+  return
+    RemoveRowsOrColumnsFromSelection(aColumn,
+                                     nsISelectionPrivate::TABLESELECTION_COLUMN,
+                                     false);
 }
 
 nsresult
@@ -1297,7 +1316,9 @@ nsHTMLTableAccessible::Description(nsString& aDescription)
     bool isProbablyForLayout = IsProbablyLayoutTable();
     aDescription = mLayoutHeuristic;
   }
+#ifdef DEBUG_A11Y
   printf("\nTABLE: %s\n", NS_ConvertUTF16toUTF8(mLayoutHeuristic).get());
+#endif
 #endif
 }
 

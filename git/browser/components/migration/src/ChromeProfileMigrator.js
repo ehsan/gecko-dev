@@ -20,7 +20,7 @@ Cu.import("resource://gre/modules/XPCOMUtils.jsm");
 Cu.import("resource://gre/modules/Services.jsm");
 Cu.import("resource://gre/modules/NetUtil.jsm");
 Cu.import("resource://gre/modules/FileUtils.jsm");
-Cu.import("resource:///modules/MigrationUtils.jsm");
+Cu.import("resource://gre/modules/MigrationUtils.jsm");
 
 XPCOMUtils.defineLazyModuleGetter(this, "PlacesUtils",
                                   "resource://gre/modules/PlacesUtils.jsm");
@@ -176,7 +176,7 @@ function GetBookmarksResource(aProfileFolder) {
     return null;
 
   return {
-    type: MigrationUtils.resourceTypes.BOOKMARKS,
+    type: Ci.nsIBrowserProfileMigrator.BOOKMARKS,
 
     migrate: function(aCallback) {
       NetUtil.asyncFetch(bookmarksFile, MigrationUtils.wrapMigrateFunction(
@@ -227,7 +227,7 @@ function GetHistoryResource(aProfileFolder) {
     return null;
 
   return {
-    type: MigrationUtils.resourceTypes.HISTORY,
+    type: Ci.nsIBrowserProfileMigrator.HISTORY,
 
     migrate: function(aCallback) {
       let dbConn = Services.storage.openUnsharedDatabase(historyFile);
@@ -288,7 +288,7 @@ function GetCookiesResource(aProfileFolder) {
     return null;
 
   return {
-    type: MigrationUtils.resourceTypes.COOKIES,
+    type: Ci.nsIBrowserProfileMigrator.COOKIES,
 
     migrate: function(aCallback) {
       let dbConn = Services.storage.openUnsharedDatabase(cookiesFile);

@@ -697,24 +697,13 @@ nsGenericHTMLElement::GetMarkup(bool aIncludeSelf, nsAString& aMarkup)
 
   NS_ENSURE_TRUE(docEncoder, NS_ERROR_FAILURE);
 
-  PRUint32 flags = nsIDocumentEncoder::OutputEncodeBasicEntities |
-                   // Output DOM-standard newlines
-                   nsIDocumentEncoder::OutputLFLineBreak |
-                   // Don't do linebreaking that's not present in
-                   // the source
-                   nsIDocumentEncoder::OutputRaw |
-                   // Only check for mozdirty when necessary (bug 599983)
-                   nsIDocumentEncoder::OutputIgnoreMozDirty;
-
-  if (IsEditable()) {
-    nsCOMPtr<nsIEditor> editor;
-    GetEditorInternal(getter_AddRefs(editor));
-    if (editor && editor->OutputsMozDirty()) {
-      flags &= ~nsIDocumentEncoder::OutputIgnoreMozDirty;
-    }
-  }
-
-  nsresult rv = docEncoder->NativeInit(doc, contentType, flags);
+  nsresult rv = docEncoder->NativeInit(doc, contentType,
+                                       nsIDocumentEncoder::OutputEncodeBasicEntities |
+                                       // Output DOM-standard newlines
+                                       nsIDocumentEncoder::OutputLFLineBreak |
+                                       // Don't do linebreaking that's not present in
+                                       // the source
+                                       nsIDocumentEncoder::OutputRaw);
   NS_ENSURE_SUCCESS(rv, rv);
 
   if (aIncludeSelf) {
@@ -2929,7 +2918,8 @@ nsGenericHTMLFormElement::CanBeDisabled() const
   return
     type != NS_FORM_LABEL &&
     type != NS_FORM_OBJECT &&
-    type != NS_FORM_OUTPUT;
+    type != NS_FORM_OUTPUT &&
+    type != NS_FORM_PROGRESS;
 }
 
 bool

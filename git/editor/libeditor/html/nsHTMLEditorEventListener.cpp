@@ -141,11 +141,6 @@ nsHTMLEditorEventListener::MouseDown(nsIDOMEvent* aMouseEvent)
   NS_ENSURE_TRUE(target, NS_ERROR_NULL_POINTER);
   nsCOMPtr<nsIDOMElement> element = do_QueryInterface(target);
 
-  // Contenteditable should disregard mousedowns outside it
-  if (element && !htmlEditor->IsNodeInActiveEditor(element)) {
-    return NS_OK;
-  }
-
   if (isContextClick || (buttonNumber == 0 && clickCount == 2))
   {
     nsCOMPtr<nsISelection> selection;

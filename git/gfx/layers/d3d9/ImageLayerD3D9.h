@@ -62,11 +62,6 @@ public:
   virtual Layer* GetLayer();
 
   virtual void RenderLayer();
-
-  virtual already_AddRefed<IDirect3DTexture9> GetAsTexture(gfxIntSize* aSize);
-
-private:
-  IDirect3DTexture9* GetTexture(Image *aImage, bool& aHasAlpha);
 };
 
 class THEBES_API ImageD3D9
@@ -107,8 +102,6 @@ public:
   virtual Layer* GetLayer();
 
   virtual void RenderLayer();
-
-  virtual already_AddRefed<IDirect3DTexture9> GetAsTexture(gfxIntSize* aSize);
 
 private:
   nsRefPtr<ShadowBufferD3D9> mBuffer;

@@ -962,19 +962,8 @@ public class BrowserProvider extends ContentProvider {
             if (dbHelper != null) {
                 return dbHelper;
             }
-
-            String databasePath = getDatabasePath(profile, isTest);
-            dbHelper = new DatabaseHelper(getContext(), databasePath);
+            dbHelper = new DatabaseHelper(getContext(), getDatabasePath(profile, isTest));
             mDatabasePerProfile.put(profile, dbHelper);
-
-            // When running inside a test or on Android releases older than 8,
-            // the returned database path is just filename, not the full path.
-            // We need the full path when unlocking the database.
-            if (isTest || Build.VERSION.SDK_INT <= 8) {
-                databasePath = mContext.getDatabasePath(databasePath).getAbsolutePath();
-            }
-
-            DBUtils.ensureDatabaseIsNotLocked(dbHelper, databasePath);
         }
 
         debug("Created database helper for profile: " + profile);
@@ -1489,46 +1478,39 @@ public class BrowserProvider extends ContentProvider {
         MatrixCursor cursor = new MatrixCursor(projection);
         MatrixCursor.RowBuilder row = cursor.newRow();
         synchronized (this) {
-            boolean wantBookmarks = false;
-            boolean wantHistory   = false;
-
             for (String key : projection) {
-                if (key.equals(Control.ENSURE_BOOKMARKS_MIGRATED)) {
-                    wantBookmarks = true;
-                } else if (key.equals(Control.ENSURE_HISTORY_MIGRATED)) {
-                    wantHistory = true;
-                }
-            }
-
-            if (wantHistory || wantBookmarks) {
                 ProfileMigrator migrator =
-                    new ProfileMigrator(mContext, profileDir);
+                    new ProfileMigrator(mContext.getContentResolver(), profileDir);
+                if (key.equals(Control.ENSURE_BOOKMARKS_MIGRATED)) {
+                    if (migrator.isBookmarksMigrated()) {
+                        // generic Cursor has no boolean support, use ints.
+                        row.add(1);
+                    } else {
+                        // Start migration.
+                        migrator.launch();
+                        boolean bookmarksDone = migrator.isBookmarksMigrated();
 
-                boolean needBookmarks = wantBookmarks && !migrator.areBookmarksMigrated();
-                boolean needHistory = wantHistory && !migrator.isHistoryMigrated();
+                        // We expect bookmarks to finish in one pass. Warn if
+                        // this is not the case.
+                        if (!bookmarksDone) {
+                            Log.w(LOGTAG, "Bookmarks migration did not finish.");
+                        }
 
-                if (needBookmarks || needHistory) {
-                    migrator.launchPlaces();
-
-                    needBookmarks = wantBookmarks && !migrator.areBookmarksMigrated();
-                    needHistory = wantHistory && !migrator.isHistoryMigrated();
-                    // Bookmarks are expected to finish at the first run.
-                    if (needBookmarks) {
-                        Log.w(LOGTAG, "Bookmarks migration did not finish.");
+                        row.add(bookmarksDone ? 1 : 0);
                     }
-                }
-
-                // Now set the results.
-                for (String key: projection) {
-                    if (key.equals(Control.ENSURE_BOOKMARKS_MIGRATED)) {
-                        row.add(needBookmarks ? 0 : 1);
-                    } else if (key.equals(Control.ENSURE_HISTORY_MIGRATED)) {
-                        row.add(needHistory   ? 0 : 1);
+                } else if (key.equals(Control.ENSURE_HISTORY_MIGRATED)) {
+                    // Are we done?
+                    if (migrator.hasMigrationFinished()) {
+                        row.add(1);
+                    } else {
+                        // Migrate some more
+                        migrator.launch();
+                        // Are we done now?
+                        row.add(migrator.hasMigrationFinished() ? 1 : 0);
                     }
                 }
             }
         }
-
         return cursor;
     }
 
@@ -2052,10 +2034,9 @@ public class BrowserProvider extends ContentProvider {
         values.put(History.DATE_CREATED, 0);
         values.put(History.DATE_LAST_VISITED, 0);
         values.put(History.VISITS, 0);
-        values.put(History.DATE_MODIFIED, System.currentTimeMillis());
 
         cleanupSomeDeletedRecords(uri, History.CONTENT_URI, TABLE_HISTORY);
-        return db.update(TABLE_HISTORY, values, selection, selectionArgs);
+        return updateHistory(uri, values, selection, selectionArgs);
     }
 
     int deleteBookmarks(Uri uri, String selection, String[] selectionArgs) {

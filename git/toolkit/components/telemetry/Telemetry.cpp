@@ -263,7 +263,6 @@ TelemetryHistogramType(Histogram *h, PRUint32 *result)
     break;
   case Histogram::FLAG_HISTOGRAM:
     *result = nsITelemetry::HISTOGRAM_FLAG;
-    break;
   default:
     return false;
   }
@@ -1353,7 +1352,7 @@ TelemetrySessionData::LoadFromDisk(nsIFile *file, TelemetrySessionData **ptr)
   }
 
   AutoFDClose fd;
-  rv = f->OpenNSPRFileDesc(PR_RDONLY, 0, &fd.rwget());
+  rv = f->OpenNSPRFileDesc(PR_RDONLY, 0, &fd);
   if (NS_FAILED(rv)) {
     return NS_ERROR_FAILURE;
   }
@@ -1440,7 +1439,7 @@ TelemetrySessionData::SaveToDisk(nsIFile *file, const nsACString &uuid)
   }
 
   AutoFDClose fd;
-  rv = f->OpenNSPRFileDesc(PR_WRONLY | PR_CREATE_FILE | PR_TRUNCATE, 0600, &fd.rwget());
+  rv = f->OpenNSPRFileDesc(PR_WRONLY | PR_CREATE_FILE | PR_TRUNCATE, 0600, &fd);
   if (NS_FAILED(rv)) {
     return rv;
   }

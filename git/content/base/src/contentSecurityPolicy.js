@@ -239,10 +239,8 @@ ContentSecurityPolicy.prototype = {
 
     // If there is a policy-uri, fetch the policy, then re-call this function.
     // (1) parse and create a CSPRep object
-    // Note that we pass the full URI since when it's parsed as 'self' to construct a 
-    // CSPSource only the scheme, host, and port are kept. 
     var newpolicy = CSPRep.fromString(aPolicy,
-				      selfURI,
+                                      selfURI.scheme + "://" + selfURI.hostPort,
                                       this._docRequest,
                                       this);
 

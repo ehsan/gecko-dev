@@ -43,8 +43,6 @@
 #include "nsContentUtils.h"
 #include "DictionaryHelpers.h"
 
-using namespace mozilla;
-
 nsDOMMouseEvent::nsDOMMouseEvent(nsPresContext* aPresContext,
                                  nsInputEvent* aEvent)
   : nsDOMUIEvent(aPresContext, aEvent ? aEvent :
@@ -125,7 +123,10 @@ nsDOMMouseEvent::InitMouseEvent(const nsAString & aType, bool aCanBubble, bool a
        static_cast<nsMouseEvent_base*>(mEvent)->relatedTarget = aRelatedTarget;
        static_cast<nsMouseEvent_base*>(mEvent)->button = aButton;
        nsInputEvent* inputEvent = static_cast<nsInputEvent*>(mEvent);
-       inputEvent->InitBasicModifiers(aCtrlKey, aAltKey, aShiftKey, aMetaKey);
+       inputEvent->isControl = aCtrlKey;
+       inputEvent->isAlt = aAltKey;
+       inputEvent->isShift = aShiftKey;
+       inputEvent->isMeta = aMetaKey;
        mClientPoint.x = aClientX;
        mClientPoint.y = aClientY;
        inputEvent->refPoint.x = aScreenX;
@@ -145,71 +146,17 @@ nsDOMMouseEvent::InitMouseEvent(const nsAString & aType, bool aCanBubble, bool a
 }   
 
 nsresult
-nsDOMMouseEvent::InitMouseEvent(const nsAString& aType,
-                                bool aCanBubble,
-                                bool aCancelable,
-                                nsIDOMWindow* aView,
-                                PRInt32 aDetail,
-                                PRInt32 aScreenX,
-                                PRInt32 aScreenY,
-                                PRInt32 aClientX,
-                                PRInt32 aClientY,
-                                PRUint16 aButton,
-                                nsIDOMEventTarget *aRelatedTarget,
-                                const nsAString& aModifiersList)
-{
-  Modifiers modifiers = ComputeModifierState(aModifiersList);
-
-  nsresult rv = InitMouseEvent(aType, aCanBubble, aCancelable, aView,
-                               aDetail, aScreenX, aScreenY, aClientX, aClientY,
-                               (modifiers & widget::MODIFIER_CONTROL) != 0,
-                               (modifiers & widget::MODIFIER_ALT) != 0,
-                               (modifiers & widget::MODIFIER_SHIFT) != 0,
-                               (modifiers & widget::MODIFIER_META) != 0,
-                               aButton, aRelatedTarget);
-  NS_ENSURE_SUCCESS(rv, rv);
-
-  switch(mEvent->eventStructType) {
-    case NS_MOUSE_EVENT:
-    case NS_MOUSE_SCROLL_EVENT:
-    case NS_DRAG_EVENT:
-    case NS_SIMPLE_GESTURE_EVENT:
-    case NS_MOZTOUCH_EVENT:
-      static_cast<nsInputEvent*>(mEvent)->modifiers = modifiers;
-      return NS_OK;
-    default:
-      MOZ_NOT_REACHED("There is no space to store the modifiers");
-      return NS_ERROR_FAILURE;
-  }
-}
-
-nsresult
 nsDOMMouseEvent::InitFromCtor(const nsAString& aType,
                               JSContext* aCx, jsval* aVal)
 {
   mozilla::dom::MouseEventInit d;
   nsresult rv = d.Init(aCx, aVal);
   NS_ENSURE_SUCCESS(rv, rv);
-  rv = InitMouseEvent(aType, d.bubbles, d.cancelable,
-                      d.view, d.detail, d.screenX, d.screenY,
-                      d.clientX, d.clientY, 
-                      d.ctrlKey, d.altKey, d.shiftKey, d.metaKey,
-                      d.button, d.relatedTarget);
-  NS_ENSURE_SUCCESS(rv, rv);
-
-  switch(mEvent->eventStructType) {
-    case NS_MOUSE_EVENT:
-    case NS_MOUSE_SCROLL_EVENT:
-    case NS_DRAG_EVENT:
-    case NS_SIMPLE_GESTURE_EVENT:
-    case NS_MOZTOUCH_EVENT:
-      static_cast<nsMouseEvent_base*>(mEvent)->buttons = d.buttons;
-      break;
-    default:
-      break;
-  }
-
-  return NS_OK;
+  return InitMouseEvent(aType, d.bubbles, d.cancelable,
+                        d.view, d.detail, d.screenX, d.screenY,
+                        d.clientX, d.clientY, 
+                        d.ctrlKey, d.altKey, d.shiftKey, d.metaKey,
+                        d.button, d.relatedTarget);
 }
 
 NS_IMETHODIMP
@@ -253,27 +200,6 @@ nsDOMMouseEvent::GetButton(PRUint16* aButton)
 }
 
 NS_IMETHODIMP
-nsDOMMouseEvent::GetButtons(PRUint16* aButtons)
-{
-  NS_ENSURE_ARG_POINTER(aButtons);
-  switch(mEvent->eventStructType)
-  {
-    case NS_MOUSE_EVENT:
-    case NS_MOUSE_SCROLL_EVENT:
-    case NS_DRAG_EVENT:
-    case NS_SIMPLE_GESTURE_EVENT:
-    case NS_MOZTOUCH_EVENT:
-      *aButtons = static_cast<nsMouseEvent_base*>(mEvent)->buttons;
-      break;
-    default:
-      MOZ_NOT_REACHED("Tried to get mouse buttons for non-mouse event!");
-      *aButtons = 0;
-      break;
-  }
-  return NS_OK;
-}
-
-NS_IMETHODIMP
 nsDOMMouseEvent::GetRelatedTarget(nsIDOMEventTarget** aRelatedTarget)
 {
   NS_ENSURE_ARG_POINTER(aRelatedTarget);
@@ -304,24 +230,6 @@ nsDOMMouseEvent::GetRelatedTarget(nsIDOMEventTarget** aRelatedTarget)
 
     CallQueryInterface(relatedTarget, aRelatedTarget);
   }
-  return NS_OK;
-}
-
-NS_IMETHODIMP
-nsDOMMouseEvent::GetMozMovementX(PRInt32* aMovementX)
-{
-  NS_ENSURE_ARG_POINTER(aMovementX);
-  *aMovementX = GetMovementPoint().x;
-
-  return NS_OK;
-}
-
-NS_IMETHODIMP
-nsDOMMouseEvent::GetMozMovementY(PRInt32* aMovementY)
-{
-  NS_ENSURE_ARG_POINTER(aMovementY);
-  *aMovementY = GetMovementPoint().y;
-
   return NS_OK;
 }
 
@@ -370,7 +278,7 @@ NS_IMETHODIMP
 nsDOMMouseEvent::GetAltKey(bool* aIsDown)
 {
   NS_ENSURE_ARG_POINTER(aIsDown);
-  *aIsDown = static_cast<nsInputEvent*>(mEvent)->IsAlt();
+  *aIsDown = ((nsInputEvent*)mEvent)->isAlt;
   return NS_OK;
 }
 
@@ -378,7 +286,7 @@ NS_IMETHODIMP
 nsDOMMouseEvent::GetCtrlKey(bool* aIsDown)
 {
   NS_ENSURE_ARG_POINTER(aIsDown);
-  *aIsDown = static_cast<nsInputEvent*>(mEvent)->IsControl();
+  *aIsDown = ((nsInputEvent*)mEvent)->isControl;
   return NS_OK;
 }
 
@@ -386,7 +294,7 @@ NS_IMETHODIMP
 nsDOMMouseEvent::GetShiftKey(bool* aIsDown)
 {
   NS_ENSURE_ARG_POINTER(aIsDown);
-  *aIsDown = static_cast<nsInputEvent*>(mEvent)->IsShift();
+  *aIsDown = ((nsInputEvent*)mEvent)->isShift;
   return NS_OK;
 }
 
@@ -394,17 +302,7 @@ NS_IMETHODIMP
 nsDOMMouseEvent::GetMetaKey(bool* aIsDown)
 {
   NS_ENSURE_ARG_POINTER(aIsDown);
-  *aIsDown = static_cast<nsInputEvent*>(mEvent)->IsMeta();
-  return NS_OK;
-}
-
-NS_IMETHODIMP
-nsDOMMouseEvent::GetModifierState(const nsAString& aKey,
-                                  bool* aState)
-{
-  NS_ENSURE_ARG_POINTER(aState);
-
-  *aState = GetModifierStateInternal(aKey);
+  *aIsDown = ((nsInputEvent*)mEvent)->isMeta;
   return NS_OK;
 }
 

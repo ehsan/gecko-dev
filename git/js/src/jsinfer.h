@@ -43,12 +43,12 @@
 #define jsinfer_h___
 
 #include "jsalloc.h"
+#include "jscell.h"
 #include "jsfriendapi.h"
 #include "jsprvtd.h"
 
 #include "ds/LifoAlloc.h"
 #include "gc/Barrier.h"
-#include "gc/Heap.h"
 #include "js/HashTable.h"
 
 namespace JS {
@@ -107,7 +107,10 @@ class Type
         return data > JSVAL_TYPE_UNKNOWN;
     }
 
-    inline TypeObjectKey *objectKey() const;
+    TypeObjectKey *objectKey() const {
+        JS_ASSERT(isObject());
+        return (TypeObjectKey *) data;
+    }
 
     /* Accessors for JSObject types */
 
@@ -115,7 +118,10 @@ class Type
         return isObject() && !!(data & 1);
     }
 
-    inline JSObject *singleObject() const;
+    JSObject *singleObject() const {
+        JS_ASSERT(isSingleObject());
+        return (JSObject *) (data ^ 1);
+    }
 
     /* Accessors for TypeObject types */
 
@@ -123,7 +129,10 @@ class Type
         return isObject() && !(data & 1);
     }
 
-    inline TypeObject *typeObject() const;
+    TypeObject *typeObject() const {
+        JS_ASSERT(isTypeObject());
+        return (TypeObject *) data;
+    }
 
     bool operator == (Type o) const { return data == o.data; }
     bool operator != (Type o) const { return data != o.data; }
@@ -925,8 +934,8 @@ struct TypeCallsite
     bool isNew;
 
     /* Types of each argument to the call. */
-    unsigned argumentCount;
     TypeSet **argumentTypes;
+    unsigned argumentCount;
 
     /* Types of the this variable. */
     TypeSet *thisTypes;
@@ -1141,36 +1150,17 @@ struct RecompileInfo
 /* Type information for a compartment. */
 struct TypeCompartment
 {
-    /* Constraint solving worklist structures. */
-
-    /*
-     * Worklist of types which need to be propagated to constraints. We use a
-     * worklist to avoid blowing the native stack.
-     */
-    struct PendingWork
-    {
-        TypeConstraint *constraint;
-        TypeSet *source;
-        Type type;
-    };
-    PendingWork *pendingArray;
-    unsigned pendingCount;
-    unsigned pendingCapacity;
-
-    /* Whether we are currently resolving the pending worklist. */
-    bool resolving;
-
     /* Whether type inference is enabled in this compartment. */
     bool inferenceEnabled;
+
+    /* Number of scripts in this compartment. */
+    unsigned scriptCount;
 
     /*
      * Bit set if all current types must be marked as unknown, and all scripts
      * recompiled. Caused by OOM failure within inference operations.
      */
     bool pendingNukeTypes;
-
-    /* Number of scripts in this compartment. */
-    unsigned scriptCount;
 
     /* Pending recompilations to perform before execution of JIT code can resume. */
     Vector<RecompileInfo> *pendingRecompiles;
@@ -1200,6 +1190,25 @@ struct TypeCompartment
 
     void fixArrayType(JSContext *cx, JSObject *obj);
     void fixObjectType(JSContext *cx, JSObject *obj);
+
+    /* Constraint solving worklist structures. */
+
+    /*
+     * Worklist of types which need to be propagated to constraints. We use a
+     * worklist to avoid blowing the native stack.
+     */
+    struct PendingWork
+    {
+        TypeConstraint *constraint;
+        TypeSet *source;
+        Type type;
+    };
+    PendingWork *pendingArray;
+    unsigned pendingCount;
+    unsigned pendingCapacity;
+
+    /* Whether we are currently resolving the pending worklist. */
+    bool resolving;
 
     /* Logging fields */
 

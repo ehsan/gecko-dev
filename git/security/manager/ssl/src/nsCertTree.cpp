@@ -264,17 +264,15 @@ nsCertTree::CountOrganizations()
   certCount = mDispInfo.Length();
   if (certCount == 0) return 0;
   nsCOMPtr<nsIX509Cert> orgCert = nsnull;
-  nsCertAddonInfo *addonInfo = mDispInfo.ElementAt(0)->mAddonInfo;
-  if (addonInfo) {
-    orgCert = addonInfo->mCert;
+  if (mDispInfo.ElementAt(0)->mAddonInfo) {
+    orgCert = mDispInfo.ElementAt(0)->mAddonInfo->mCert;
   }
   nsCOMPtr<nsIX509Cert> nextCert = nsnull;
   PRInt32 orgCount = 1;
   for (i=1; i<certCount; i++) {
     nextCert = nsnull;
-    addonInfo = mDispInfo.SafeElementAt(i, NULL)->mAddonInfo;
-    if (addonInfo) {
-      nextCert = addonInfo->mCert;
+    if (mDispInfo.ElementAt(i)->mAddonInfo) {
+      nextCert = mDispInfo.ElementAt(i)->mAddonInfo->mCert;
     }
     // XXX we assume issuer org is always criterion 1
     if (CmpBy(&mCompareCache, orgCert, nextCert, sort_IssuerOrg, sort_None, sort_None) != 0) {
@@ -344,7 +342,7 @@ nsCertTree::GetDispInfoAtIndex(PRInt32 index,
       PRInt32 certIndex = cIndex + index - idx;
       if (outAbsoluteCertOffset)
         *outAbsoluteCertOffset = certIndex;
-      nsRefPtr<nsCertTreeDispInfo> certdi = mDispInfo.SafeElementAt(certIndex, NULL);
+      nsRefPtr<nsCertTreeDispInfo> certdi = mDispInfo.ElementAt(certIndex);
       if (certdi) {
         nsCertTreeDispInfo *raw = certdi.get();
         NS_IF_ADDREF(raw);
@@ -621,9 +619,9 @@ nsCertTree::GetCertsByTypeFromCertList(CERTCertList *aCertList,
       int InsertPosition = 0;
       for (; InsertPosition < count; ++InsertPosition) {
         nsCOMPtr<nsIX509Cert> cert = nsnull;
-        nsRefPtr<nsCertTreeDispInfo> elem = mDispInfo.SafeElementAt(InsertPosition, NULL);
-        if (elem && elem->mAddonInfo) {
-          cert = elem->mAddonInfo->mCert;
+        nsRefPtr<nsCertTreeDispInfo> elem = mDispInfo.ElementAt(InsertPosition);
+        if (elem->mAddonInfo) {
+          cert = mDispInfo.ElementAt(InsertPosition)->mAddonInfo->mCert;
         }
         if ((*aCertCmpFn)(aCertCmpFnArg, pipCert, cert) < 0) {
           break;
@@ -754,9 +752,8 @@ nsCertTree::UpdateUIContents()
 if (count) {
   PRUint32 j = 0;
   nsCOMPtr<nsIX509Cert> orgCert = nsnull;
-  nsCertAddonInfo *addonInfo = mDispInfo.ElementAt(j)->mAddonInfo;
-  if (addonInfo) {
-    orgCert = addonInfo->mCert;
+  if (mDispInfo.ElementAt(j)->mAddonInfo) {
+    orgCert = mDispInfo.ElementAt(j)->mAddonInfo->mCert;
   }
   for (PRInt32 i=0; i<mNumOrgs; i++) {
     nsString &orgNameRef = mTreeArray[i].orgName;
@@ -773,17 +770,15 @@ if (count) {
     mTreeArray[i].numChildren = 1;
     if (++j >= count) break;
     nsCOMPtr<nsIX509Cert> nextCert = nsnull;
-    nsCertAddonInfo *addonInfo = mDispInfo.SafeElementAt(j, NULL)->mAddonInfo;
-    if (addonInfo) {
-      nextCert = addonInfo->mCert;
+    if (mDispInfo.ElementAt(j)->mAddonInfo) {
+      nextCert = mDispInfo.ElementAt(j)->mAddonInfo->mCert;
     }
     while (0 == CmpBy(&mCompareCache, orgCert, nextCert, sort_IssuerOrg, sort_None, sort_None)) {
       mTreeArray[i].numChildren++;
       if (++j >= count) break;
       nextCert = nsnull;
-      addonInfo = mDispInfo.SafeElementAt(j, NULL)->mAddonInfo;
-      if (addonInfo) {
-        nextCert = addonInfo->mCert;
+      if (mDispInfo.ElementAt(j)->mAddonInfo) {
+        nextCert = mDispInfo.ElementAt(j)->mAddonInfo->mCert;
       }
     }
     orgCert = nextCert;
@@ -823,57 +818,52 @@ nsCertTree::DeleteEntryObject(PRUint32 index)
     if (index < idx + nc) { // cert is within range of this thread
       PRInt32 certIndex = cIndex + index - idx;
 
-      bool canRemoveEntry = false;
-      nsRefPtr<nsCertTreeDispInfo> certdi = mDispInfo.SafeElementAt(certIndex, NULL);
-      
-      // We will remove the element from the visual tree.
-      // Only if we have a certdi, then we can check for additional actions.
+      nsRefPtr<nsCertTreeDispInfo> certdi = mDispInfo.ElementAt(certIndex);
       nsCOMPtr<nsIX509Cert> cert = nsnull;
-      if (certdi) {
+      if (certdi->mAddonInfo) {
+        cert = certdi->mAddonInfo->mCert;
+      }
+      bool canRemoveEntry = false;
+
+      if (certdi->mTypeOfEntry == nsCertTreeDispInfo::host_port_override) {
+        mOverrideService->ClearValidityOverride(certdi->mAsciiHost, certdi->mPort);
         if (certdi->mAddonInfo) {
-          cert = certdi->mAddonInfo->mCert;
-        }
-        nsCertAddonInfo *addonInfo = certdi->mAddonInfo ? certdi->mAddonInfo : nsnull;
-        if (certdi->mTypeOfEntry == nsCertTreeDispInfo::host_port_override) {
-          mOverrideService->ClearValidityOverride(certdi->mAsciiHost, certdi->mPort);
-          if (addonInfo) {
-            addonInfo->mUsageCount--;
-            if (addonInfo->mUsageCount == 0) {
-              // The certificate stored in the database is no longer
-              // referenced by any other object displayed.
-              // That means we no longer need to keep it around
-              // and really can remove it.
-              canRemoveEntry = true;
-            }
-          } 
-        }
-        else {
-          if (addonInfo && addonInfo->mUsageCount > 1) {
-            // user is trying to delete a perm trusted cert,
-            // although there are still overrides stored,
-            // so, we keep the cert, but remove the trust
-
-            CERTCertificate *nsscert = nsnull;
-            CERTCertificateCleaner nsscertCleaner(nsscert);
-
-            nsCOMPtr<nsIX509Cert2> cert2 = do_QueryInterface(cert);
-            if (cert2) {
-              nsscert = cert2->GetCert();
-            }
-
-            if (nsscert) {
-              CERTCertTrust trust;
-              memset((void*)&trust, 0, sizeof(trust));
-            
-              SECStatus srv = CERT_DecodeTrustString(&trust, ""); // no override 
-              if (srv == SECSuccess) {
-                CERT_ChangeCertTrust(CERT_GetDefaultCertDB(), nsscert, &trust);
-              }
-            }
-          }
-          else {
+          certdi->mAddonInfo->mUsageCount--;
+          if (certdi->mAddonInfo->mUsageCount == 0) {
+            // The certificate stored in the database is no longer
+            // referenced by any other object displayed.
+            // That means we no longer need to keep it around
+            // and really can remove it.
             canRemoveEntry = true;
           }
+        } 
+      }
+      else {
+        if (certdi->mAddonInfo->mUsageCount > 1) {
+          // user is trying to delete a perm trusted cert,
+          // although there are still overrides stored,
+          // so, we keep the cert, but remove the trust
+
+          CERTCertificate *nsscert = nsnull;
+          CERTCertificateCleaner nsscertCleaner(nsscert);
+
+          nsCOMPtr<nsIX509Cert2> cert2 = do_QueryInterface(cert);
+          if (cert2) {
+            nsscert = cert2->GetCert();
+          }
+
+          if (nsscert) {
+            CERTCertTrust trust;
+            memset((void*)&trust, 0, sizeof(trust));
+          
+            SECStatus srv = CERT_DecodeTrustString(&trust, ""); // no override 
+            if (srv == SECSuccess) {
+              CERT_ChangeCertTrust(CERT_GetDefaultCertDB(), nsscert, &trust);
+            }
+          }
+        }
+        else {
+          canRemoveEntry = true;
         }
       }
 

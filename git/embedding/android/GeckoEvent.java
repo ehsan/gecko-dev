@@ -117,7 +117,6 @@ public class GeckoEvent {
 
     public int mMetaState, mFlags;
     public int mKeyCode, mUnicodeChar;
-    public int mRepeatCount;
     public int mOffset, mCount;
     public String mCharacters, mCharactersExtra;
     public int mRangeType, mRangeStyles;
@@ -148,7 +147,6 @@ public class GeckoEvent {
         mFlags = k.getFlags();
         mKeyCode = k.getKeyCode();
         mUnicodeChar = k.getUnicodeChar();
-        mRepeatCount = k.getRepeatCount();
         mCharacters = k.getCharacters();
     }
 

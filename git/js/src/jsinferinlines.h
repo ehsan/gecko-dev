@@ -42,10 +42,9 @@
 #include "jsarray.h"
 #include "jsanalyze.h"
 #include "jscompartment.h"
+#include "jsgcmark.h"
 #include "jsinfer.h"
 #include "jsprf.h"
-
-#include "gc/Marking.h"
 #include "vm/GlobalObject.h"
 
 #include "vm/Stack-inl.h"
@@ -1014,33 +1013,6 @@ HashSetLookup(U **values, unsigned count, T key)
     return NULL;
 }
 
-inline TypeObjectKey *
-Type::objectKey() const
-{
-    JS_ASSERT(isObject());
-    if (isTypeObject())
-        TypeObject::readBarrier((TypeObject *) data);
-    else
-        JSObject::readBarrier((JSObject *) (data ^ 1));
-    return (TypeObjectKey *) data;
-}
-
-inline JSObject *
-Type::singleObject() const
-{
-    JS_ASSERT(isSingleObject());
-    JSObject::readBarrier((JSObject *) (data ^ 1));
-    return (JSObject *) (data ^ 1);
-}
-
-inline TypeObject *
-Type::typeObject() const
-{
-    JS_ASSERT(isTypeObject());
-    TypeObject::readBarrier((TypeObject *) data);
-    return (TypeObject *) data;
-}
-
 inline bool
 TypeSet::hasType(Type type)
 {
@@ -1276,11 +1248,8 @@ TypeObject::getProperty(JSContext *cx, jsid id, bool assign)
 
     if (!*pprop) {
         setBasePropertyCount(propertyCount);
-        if (!addProperty(cx, id, pprop)) {
-            setBasePropertyCount(0);
-            propertySet = NULL;
+        if (!addProperty(cx, id, pprop))
             return NULL;
-        }
         if (propertyCount == OBJECT_FLAG_PROPERTY_COUNT_LIMIT) {
             markUnknown(cx);
             TypeSet *types = TypeSet::make(cx, "propertyOverflow");
@@ -1458,11 +1427,11 @@ inline bool
 JSScript::ensureRanAnalysis(JSContext *cx, JSObject *scope)
 {
     JSScript *self = this;
-    JS::SkipRoot root(cx, &self);
 
     if (!self->ensureHasTypes(cx))
         return false;
     if (!self->types->hasScope()) {
+        js::CheckRoot root(cx, &self);
         js::RootObject objRoot(cx, &scope);
         if (!js::types::TypeScript::SetScope(cx, self, scope))
             return false;

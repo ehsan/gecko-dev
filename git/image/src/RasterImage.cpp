@@ -2634,7 +2634,7 @@ RasterImage::Draw(gfxContext *aContext,
                       mSize.width - framerect.XMost(),
                       mSize.height - framerect.YMost());
 
-  frame->Draw(aContext, aFilter, aUserSpaceToImageSpace, aFill, padding, aSubimage, aFlags);
+  frame->Draw(aContext, aFilter, aUserSpaceToImageSpace, aFill, padding, aSubimage);
 
   if (mDecoded && !mDrawStartTime.IsNull()) {
       TimeDuration drawLatency = TimeStamp::Now() - mDrawStartTime;

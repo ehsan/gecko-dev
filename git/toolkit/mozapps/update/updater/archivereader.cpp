@@ -219,6 +219,8 @@ ArchiveReader::VerifyProductInformation(const char *MARChannelID,
     }
   }
 
+// Temporarily disabled - see Bug 735784
+#if 0
   if (rv == OK) {
     /* Compare both versions to ensure we don't have a downgrade
         -1 if appVersion is older than productInfoBlock.productVersion
@@ -230,11 +232,12 @@ ArchiveReader::VerifyProductInformation(const char *MARChannelID,
         - 12.0a1 being older than 12.0
         - 12.0 being older than 12.1a1 */
     int versionCompareResult = 
-      mozilla::CompareVersions(appVersion, productInfoBlock.productVersion);
+      NS_CompareVersions(appVersion, productInfoBlock.productVersion);
     if (1 == versionCompareResult) {
       rv = VERSION_DOWNGRADE_ERROR;
     }
   }
+#endif
 
   free((void *)productInfoBlock.MARChannelID);
   free((void *)productInfoBlock.productVersion);

@@ -141,7 +141,7 @@ public class ScrollbarLayer extends TileLayer {
     };
 
     private ScrollbarLayer(LayerRenderer renderer, CairoImage image, boolean vertical, ByteBuffer buffer) {
-        super(image, TileLayer.PaintMode.NORMAL);
+        super(false, image);
         mVertical = vertical;
         mBuffer = buffer;
         mRenderer = renderer;
@@ -233,8 +233,11 @@ public class ScrollbarLayer extends TileLayer {
             return false;
         }
         beginTransaction(); // called on compositor thread
-        mOpacity = Math.max(mOpacity - FADE_AMOUNT, 0.0f);
-        endTransaction();
+        try {
+            mOpacity = Math.max(mOpacity - FADE_AMOUNT, 0.0f);
+        } finally {
+            endTransaction();
+        }
         return true;
     }
 
@@ -248,8 +251,11 @@ public class ScrollbarLayer extends TileLayer {
             return false;
         }
         beginTransaction(); // called on compositor thread
-        mOpacity = 1.0f;
-        endTransaction();
+        try {
+            mOpacity = 1.0f;
+        } finally {
+            endTransaction();
+        }
         return true;
     }
 
@@ -306,9 +312,6 @@ public class ScrollbarLayer extends TileLayer {
         // clean up after themselves
         coordBuffer.position(0);
         coordBuffer.put(bodyCoords);
-
-        // Unbind any the current array buffer so we can use client side buffers
-        GLES20.glBindBuffer(GLES20.GL_ARRAY_BUFFER, 0);
 
         // Vertex coordinates are x,y,z starting at position 0 into the buffer.
         coordBuffer.position(0);

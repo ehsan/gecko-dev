@@ -1313,23 +1313,11 @@ nsFrameSelection::MoveCaret(PRUint32          aKeycode,
 NS_IMETHODIMP
 nsTypedSelection::ToString(PRUnichar **aReturn)
 {
-  if (!aReturn) {
-    return NS_ERROR_NULL_POINTER;
-  }
-  // We need Flush_Style here to make sure frames have been created for
-  // the selected content.
-  nsCOMPtr<nsIPresShell> shell;
-  nsresult rv = GetPresShell(getter_AddRefs(shell));
-  if (NS_FAILED(rv) || !shell) {
-    *aReturn = ToNewUnicode(EmptyString());
-    return NS_OK;
-  }
-  shell->FlushPendingNotifications(Flush_Style);
-
   return ToStringWithFormat("text/plain",
                             nsIDocumentEncoder::SkipInvisibleContent,
                             0, aReturn);
 }
+
 
 NS_IMETHODIMP
 nsTypedSelection::ToStringWithFormat(const char * aFormatType, PRUint32 aFlags, 
@@ -1809,6 +1797,12 @@ nsFrameSelection::TakeFocus(nsIContent *aNewFocus,
   mStartSelectedCell = nsnull;
   mEndSelectedCell = nsnull;
   mAppendStartSelectedCell = nsnull;
+
+  //HACKHACKHACK
+  if (!aNewFocus->GetParent())
+    return NS_ERROR_FAILURE;
+  //END HACKHACKHACK /checking for root frames/content
+
   mHint = aHint;
   
   PRInt8 index = GetIndexFromSelectionType(nsISelectionController::SELECTION_NORMAL);
@@ -1887,7 +1881,7 @@ printf(" * TakeFocus - moving into new cell\n");
 
         // XXXX We need to REALLY get the current key shift state
         //  (we'd need to add event listener -- let's not bother for now)
-        event.modifiers &= ~widget::MODIFIER_SHIFT; //aContinueSelection;
+        event.isShift = false; //aContinueSelection;
         if (parent)
         {
           mCellParent = cellparent;
@@ -2433,7 +2427,7 @@ printf("HandleTableSelection: Dragged into a new cell\n");
         // Hold down shift, then start selecting in one direction
         // If next cell dragged into is in same row, select entire row,
         //   if next cell is in same column, select entire column
-        if (mStartSelectedCell && aMouseEvent->IsShift())
+        if (mStartSelectedCell && aMouseEvent->isShift)
         {
           result = GetCellIndexes(mStartSelectedCell, startRowIndex, startColIndex);
           if (NS_FAILED(result)) return result;
@@ -2570,7 +2564,7 @@ printf("HandleTableSelection: Mouse UP event. mDragSelectingCells=%d, mStartSele
       if (NS_FAILED(result)) 
         return result;
 
-      if (rangeCount > 0 && aMouseEvent->IsShift() && 
+      if (rangeCount > 0 && aMouseEvent->isShift && 
           mAppendStartSelectedCell && mAppendStartSelectedCell != childContent)
       {
         // Shift key is down: append a block selection
@@ -2589,9 +2583,9 @@ printf("HandleTableSelection: Mouse UP event. mDragSelectingCells=%d, mStartSele
       //  else stop table selection mode
       bool doMouseUpAction = false;
 #ifdef XP_MACOSX
-      doMouseUpAction = aMouseEvent->IsMeta();
+      doMouseUpAction = aMouseEvent->isMeta;
 #else
-      doMouseUpAction = aMouseEvent->IsControl();
+      doMouseUpAction = aMouseEvent->isControl;
 #endif
       if (!doMouseUpAction)
       {

@@ -930,35 +930,16 @@ nsTextBoxFrame::DoLayout(nsBoxLayoutState& aBoxLayoutState)
     CalcDrawRect(*aBoxLayoutState.GetRenderingContext());
 
     const nsStyleText* textStyle = GetStyleText();
-    
-    nsRect scrollBounds(nsPoint(0, 0), GetSize());
-    nsRect textRect = mTextDrawRect;
-    
-    nsRefPtr<nsFontMetrics> fontMet;
-    nsLayoutUtils::GetFontMetricsForFrame(this, getter_AddRefs(fontMet));
-    nsBoundingMetrics metrics = 
-      fontMet->GetInkBoundsForVisualOverflow(mCroppedTitle.get(),
-                                             mCroppedTitle.Length(),
-                                             aBoxLayoutState.GetRenderingContext());
-
-    textRect.x -= metrics.leftBearing;
-    textRect.width = metrics.width;
-    // In DrawText() we always draw with the baseline at MaxAscent() (relative to mTextDrawRect), 
-    textRect.y += fontMet->MaxAscent() - metrics.ascent;
-    textRect.height = metrics.ascent + metrics.descent;
-
-    // Our scrollable overflow is our bounds; our visual overflow may
-    // extend beyond that.
-    nsRect visualBounds;
-    visualBounds.UnionRect(scrollBounds, textRect);
-    nsOverflowAreas overflow(visualBounds, scrollBounds);
-
     if (textStyle->mTextShadow) {
-      // text-shadow extends our visual but not scrollable bounds
+      nsRect bounds(nsPoint(0, 0), GetSize());
+      nsOverflowAreas overflow(bounds, bounds);
+      // Our scrollable overflow is our bounds; our visual overflow may
+      // extend beyond that.
+      nsPoint origin(0,0);
       nsRect &vis = overflow.VisualOverflow();
       vis.UnionRect(vis, nsLayoutUtils::GetTextShadowRectsUnion(mTextDrawRect, this));
+      FinishAndStoreOverflow(overflow, GetSize());
     }
-    FinishAndStoreOverflow(overflow, GetSize());
 
     return rv;
 }
@@ -966,7 +947,8 @@ nsTextBoxFrame::DoLayout(nsBoxLayoutState& aBoxLayoutState)
 nsRect
 nsTextBoxFrame::GetComponentAlphaBounds()
 {
-  return GetVisualOverflowRectRelativeToSelf();
+  return nsLayoutUtils::GetTextShadowRectsUnion(mTextDrawRect, this,
+                                                nsLayoutUtils::EXCLUDE_BLUR_SHADOWS);
 }
 
 bool

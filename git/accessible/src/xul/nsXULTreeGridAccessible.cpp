@@ -72,21 +72,39 @@ NS_IMPL_ISUPPORTS_INHERITED1(nsXULTreeGridAccessible,
 ////////////////////////////////////////////////////////////////////////////////
 // nsXULTreeGridAccessible: nsIAccessibleTable implementation
 
-PRUint32
-nsXULTreeGridAccessible::ColCount()
+NS_IMETHODIMP
+nsXULTreeGridAccessible::GetSummary(nsAString &aSummary)
 {
-  return nsCoreUtils::GetSensibleColumnCount(mTree);
+  aSummary.Truncate();
+  return IsDefunct() ? NS_ERROR_FAILURE : NS_OK;
 }
 
-PRUint32
-nsXULTreeGridAccessible::RowCount()
+NS_IMETHODIMP
+nsXULTreeGridAccessible::GetColumnCount(PRInt32 *aColumnCount)
 {
-  if (!mTreeView)
-    return 0;
+  NS_ENSURE_ARG_POINTER(aColumnCount);
+  *aColumnCount = 0;
 
-  PRInt32 rowCount = 0;
-  mTreeView->GetRowCount(&rowCount);
-  return rowCount >= 0 ? rowCount : 0;
+  if (IsDefunct())
+    return NS_ERROR_FAILURE;
+
+  *aColumnCount = nsCoreUtils::GetSensibleColumnCount(mTree);
+  return NS_OK;
+}
+
+NS_IMETHODIMP
+nsXULTreeGridAccessible::GetRowCount(PRInt32* aRowCount)
+{
+  NS_ENSURE_ARG_POINTER(aRowCount);
+  *aRowCount = 0;
+
+  if (IsDefunct())
+    return NS_ERROR_FAILURE;
+
+  if (!mTreeView)
+    return NS_OK;
+
+  return mTreeView->GetRowCount(aRowCount);
 }
 
 NS_IMETHODIMP
@@ -545,17 +563,23 @@ nsXULTreeGridAccessible::SelectColumn(PRInt32 aColumnIndex)
   return NS_OK;
 }
 
-void
-nsXULTreeGridAccessible::UnselectRow(PRUint32 aRowIdx)
+NS_IMETHODIMP
+nsXULTreeGridAccessible::UnselectRow(PRInt32 aRowIndex)
 {
   if (!mTreeView)
-    return;
+    return NS_ERROR_INVALID_ARG;
 
   nsCOMPtr<nsITreeSelection> selection;
   mTreeView->GetSelection(getter_AddRefs(selection));
-  
-  if (selection)
-    selection->ClearRange(aRowIdx, aRowIdx);
+  NS_ENSURE_STATE(selection);
+
+  return selection->ClearRange(aRowIndex, aRowIndex);
+}
+
+NS_IMETHODIMP
+nsXULTreeGridAccessible::UnselectColumn(PRInt32 aColumnIndex)
+{
+  return NS_OK;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -657,10 +681,13 @@ nsXULTreeGridRowAccessible::NativeRole()
   return roles::ROW;
 }
 
-ENameValueFlag
-nsXULTreeGridRowAccessible::Name(nsString& aName)
+NS_IMETHODIMP
+nsXULTreeGridRowAccessible::GetName(nsAString& aName)
 {
   aName.Truncate();
+
+  if (IsDefunct())
+    return NS_ERROR_FAILURE;
 
   // XXX: the row name sholdn't be a concatenation of cell names (bug 664384).
   nsCOMPtr<nsITreeColumn> column = nsCoreUtils::GetFirstSensibleColumn(mTree);
@@ -675,7 +702,7 @@ nsXULTreeGridRowAccessible::Name(nsString& aName)
     column = nsCoreUtils::GetNextSensibleColumn(column);
   }
 
-  return eNameOK;
+  return NS_OK;
 }
 
 nsAccessible*
@@ -815,12 +842,14 @@ NS_IMPL_CYCLE_COLLECTION_CLASS(nsXULTreeGridCellAccessible)
 NS_IMPL_CYCLE_COLLECTION_TRAVERSE_BEGIN_INHERITED(nsXULTreeGridCellAccessible,
                                                   nsLeafAccessible)
   NS_IMPL_CYCLE_COLLECTION_TRAVERSE_NSCOMPTR(mTree)
+  NS_IMPL_CYCLE_COLLECTION_TRAVERSE_NSCOMPTR(mTreeView)
   NS_IMPL_CYCLE_COLLECTION_TRAVERSE_NSCOMPTR(mColumn)
 NS_IMPL_CYCLE_COLLECTION_TRAVERSE_END
 
 NS_IMPL_CYCLE_COLLECTION_UNLINK_BEGIN_INHERITED(nsXULTreeGridCellAccessible,
                                                 nsLeafAccessible)
   NS_IMPL_CYCLE_COLLECTION_UNLINK_NSCOMPTR(mTree)
+  NS_IMPL_CYCLE_COLLECTION_UNLINK_NSCOMPTR(mTreeView)
   NS_IMPL_CYCLE_COLLECTION_UNLINK_NSCOMPTR(mColumn)
 NS_IMPL_CYCLE_COLLECTION_UNLINK_END
 
@@ -841,13 +870,13 @@ nsXULTreeGridCellAccessible::FocusedChild()
   return nsnull;
 }
 
-ENameValueFlag
-nsXULTreeGridCellAccessible::Name(nsString& aName)
+NS_IMETHODIMP
+nsXULTreeGridCellAccessible::GetName(nsAString& aName)
 {
   aName.Truncate();
 
-  if (!mTreeView)
-    return eNameOK;
+  if (IsDefunct() || !mTreeView)
+    return NS_ERROR_FAILURE;
 
   mTreeView->GetCellText(mRow, mColumn, aName);
 
@@ -859,7 +888,7 @@ nsXULTreeGridCellAccessible::Name(nsString& aName)
   if (aName.IsEmpty())
     mTreeView->GetCellValue(mRow, mColumn, aName);
 
-  return eNameOK;
+  return NS_OK;
 }
 
 NS_IMETHODIMP

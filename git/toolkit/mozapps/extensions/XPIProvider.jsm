@@ -5641,13 +5641,9 @@ var XPIDatabase = {
 
     if (fullCount > 0) {
       LOG("Writing add-ons list");
-
-      let addonsListTmp = FileUtils.getFile(KEY_PROFILEDIR, [FILE_XPI_ADDONS_LIST + ".tmp"],
-                                            true);
-      var fos = FileUtils.openFileOutputStream(addonsListTmp);
+      var fos = FileUtils.openSafeFileOutputStream(addonsList);
       fos.write(text, text.length);
-      fos.close();
-      addonsListTmp.moveTo(addonsListTmp.parent, FILE_XPI_ADDONS_LIST);
+      FileUtils.closeSafeFileOutputStream(fos);
 
       Services.prefs.setCharPref(PREF_EM_ENABLED_ADDONS, enabledAddons.join(","));
     }

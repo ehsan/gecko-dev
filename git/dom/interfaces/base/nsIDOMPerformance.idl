@@ -37,16 +37,14 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
-#include "domstubs.idl"
+#include "nsISupports.idl"
 interface nsIDOMPerformanceTiming;
 interface nsIDOMPerformanceNavigation;
 
-[scriptable, uuid(ac274ec8-ee9f-44ef-b2f0-b13c22225a98)]
+[scriptable, uuid(446faf26-000b-4e66-a5fd-ae37c5ed6beb)]
 interface nsIDOMPerformance : nsISupports
 {
   readonly attribute nsIDOMPerformanceTiming timing;
   readonly attribute nsIDOMPerformanceNavigation navigation;
-
-  DOMHighResTimeStamp now();
 };
 

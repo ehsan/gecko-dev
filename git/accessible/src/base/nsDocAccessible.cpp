@@ -36,16 +36,15 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
-#include "Accessible-inl.h"
 #include "AccIterator.h"
 #include "nsAccCache.h"
 #include "nsAccessibilityService.h"
 #include "nsAccessiblePivot.h"
 #include "nsAccTreeWalker.h"
 #include "nsAccUtils.h"
+#include "nsRootAccessible.h"
 #include "nsTextEquivUtils.h"
 #include "Role.h"
-#include "RootAccessible.h"
 #include "States.h"
 
 #include "nsIMutableArray.h"
@@ -213,26 +212,26 @@ NS_IMPL_RELEASE_INHERITED(nsDocAccessible, nsHyperTextAccessible)
 ////////////////////////////////////////////////////////////////////////////////
 // nsIAccessible
 
-ENameValueFlag
-nsDocAccessible::Name(nsString& aName)
+NS_IMETHODIMP
+nsDocAccessible::GetName(nsAString& aName)
 {
+  nsresult rv = NS_OK;
   aName.Truncate();
-
   if (mParent) {
-    mParent->Name(aName); // Allow owning iframe to override the name
+    rv = mParent->GetName(aName); // Allow owning iframe to override the name
   }
   if (aName.IsEmpty()) {
     // Allow name via aria-labelledby or title attribute
-    nsAccessible::Name(aName);
+    rv = nsAccessible::GetName(aName);
   }
   if (aName.IsEmpty()) {
-    GetTitle(aName);   // Try title element
+    rv = GetTitle(aName);   // Try title element
   }
   if (aName.IsEmpty()) {   // Last resort: use URL
-    GetURL(aName);
+    rv = GetURL(aName);
   }
- 
-  return eNameOK;
+
+  return rv;
 }
 
 // nsAccessible public method
@@ -285,7 +284,7 @@ nsDocAccessible::SetRoleMapEntry(nsRoleMapEntry* aRoleMapEntry)
   // Allow use of ARIA role from outer to override
   nsIContent *ownerContent = parentDoc->FindContentForSubDocument(mDocument);
   if (ownerContent) {
-    nsRoleMapEntry* roleMapEntry = aria::GetRoleMap(ownerContent);
+    nsRoleMapEntry *roleMapEntry = nsAccUtils::GetRoleMapEntry(ownerContent);
     if (roleMapEntry)
       mRoleMapEntry = roleMapEntry; // Override
   }
@@ -764,7 +763,7 @@ nsresult nsDocAccessible::AddEventListeners()
   nsCOMPtr<nsIDocShellTreeItem> rootTreeItem;
   docShellTreeItem->GetRootTreeItem(getter_AddRefs(rootTreeItem));
   if (rootTreeItem) {
-    a11y::RootAccessible* rootAccessible = RootAccessible();
+    nsRootAccessible* rootAccessible = RootAccessible();
     NS_ENSURE_TRUE(rootAccessible, NS_ERROR_FAILURE);
     nsRefPtr<nsCaretAccessible> caretAccessible = rootAccessible->GetCaretAccessible();
     if (caretAccessible) {
@@ -811,7 +810,7 @@ nsresult nsDocAccessible::RemoveEventListeners()
     NS_RELEASE_THIS(); // Kung fu death grip
   }
 
-  a11y::RootAccessible* rootAccessible = RootAccessible();
+  nsRootAccessible* rootAccessible = RootAccessible();
   if (rootAccessible) {
     nsRefPtr<nsCaretAccessible> caretAccessible = rootAccessible->GetCaretAccessible();
     if (caretAccessible)
@@ -1137,6 +1136,16 @@ nsDocAccessible::ARIAAttributeChanged(nsIContent* aContent, nsIAtom* aAttribute)
     return;
   }
 
+  // For aria drag and drop changes we fire a generic attribute change event;
+  // at least until native API comes up with a more meaningful event.
+  if (aAttribute == nsGkAtoms::aria_grabbed ||
+      aAttribute == nsGkAtoms::aria_dropeffect ||
+      aAttribute == nsGkAtoms::aria_hidden ||
+      aAttribute == nsGkAtoms::aria_sort) {
+    FireDelayedAccessibleEvent(nsIAccessibleEvent::EVENT_OBJECT_ATTRIBUTE_CHANGED,
+                               aContent);
+  }
+
   // We treat aria-expanded as a global ARIA state for historical reasons
   if (aAttribute == nsGkAtoms::aria_expanded) {
     nsRefPtr<AccEvent> event =
@@ -1144,13 +1153,6 @@ nsDocAccessible::ARIAAttributeChanged(nsIContent* aContent, nsIAtom* aAttribute)
     FireDelayedAccessibleEvent(event);
     return;
   }
-
-  // For aria attributes like drag and drop changes we fire a generic attribute
-  // change event; at least until native API comes up with a more meaningful event.
-  PRUint8 attrFlags = nsAccUtils::GetAttributeCharacteristics(aAttribute);
-  if (!(attrFlags & ATTR_BYPASSOBJ))
-    FireDelayedAccessibleEvent(nsIAccessibleEvent::EVENT_OBJECT_ATTRIBUTE_CHANGED,
-                               aContent);
 
   if (!aContent->HasAttr(kNameSpaceID_None, nsGkAtoms::role)) {
     // We don't care about these other ARIA attribute changes unless there is
@@ -1695,7 +1697,7 @@ nsDocAccessible::UpdateAccessibleOnAttrChange(dom::Element* aElement,
     // It is common for js libraries to set the role on the body element after
     // the document has loaded. In this case we just update the role map entry.
     if (mContent == aElement) {
-      SetRoleMapEntry(aria::GetRoleMap(aElement));
+      SetRoleMapEntry(nsAccUtils::GetRoleMapEntry(aElement));
       return true;
     }
 
@@ -1767,6 +1769,11 @@ nsDocAccessible::ProcessPendingEvent(AccEvent* aEvent)
     PRInt32 caretOffset;
     if (hyperText &&
         NS_SUCCEEDED(hyperText->GetCaretOffset(&caretOffset))) {
+#ifdef DEBUG_A11Y
+      PRUnichar chAtOffset;
+      hyperText->GetCharacterAtOffset(caretOffset, &chAtOffset);
+      printf("\nCaret moved to %d with char %c", caretOffset, chAtOffset);
+#endif
       nsRefPtr<AccEvent> caretMoveEvent =
         new AccCaretMoveEvent(hyperText, caretOffset);
       nsEventShell::FireEvent(caretMoveEvent);

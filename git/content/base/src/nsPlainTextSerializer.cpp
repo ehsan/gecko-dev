@@ -410,9 +410,8 @@ nsPlainTextSerializer::AppendElementEnd(Element* aElement,
   mOutputString = nsnull;
 
   if (id == nsGkAtoms::head) {
-    NS_ASSERTION(mHeadLevel != 0,
-                 "mHeadLevel being decremented below 0");
     --mHeadLevel;
+    NS_ASSERTION(mHeadLevel >= 0, "mHeadLevel < 0");
   }
 
   return rv;

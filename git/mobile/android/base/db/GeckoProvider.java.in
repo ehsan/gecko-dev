@@ -160,10 +160,9 @@ public abstract class GeckoProvider extends ContentProvider {
 
         SQLiteBridge db = null;
         synchronized (this) {
-          String dbPath = getDatabasePathForProfile(profile);
-          db = mDatabasePerProfile.get(dbPath);
+          db = mDatabasePerProfile.get(profile);
           if (db == null) {
-              db = getDB(mContext, dbPath);
+              db = getDB(mContext, getDatabasePathForProfile(profile));
           }
         }
 

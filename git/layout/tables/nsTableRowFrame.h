@@ -255,10 +255,6 @@ public:
   void SetContinuousBCBorderWidth(PRUint8     aForSide,
                                   BCPixelSize aPixelValue);
 
-#ifdef ACCESSIBILITY
-  virtual already_AddRefed<nsAccessible> CreateAccessible();
-#endif
-
 protected:
 
   /** protected constructor.

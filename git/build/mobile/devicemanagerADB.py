@@ -1,7 +1,3 @@
-# This Source Code Form is subject to the terms of the Mozilla Public
-# License, v. 2.0. If a copy of the MPL was not distributed with this file,
-# You can obtain one at http://mozilla.org/MPL/2.0/.
-
 import subprocess
 from devicemanager import DeviceManager, DMError, _pop_last_line
 import re
@@ -57,8 +53,6 @@ class DeviceManagerADB(DeviceManager):
       pass
 
     # Can we run things as root? (currently not required)
-    useRunAsTmp = self.useRunAs
-    self.useRunAs = False
     try:
       self.verifyRoot()
     except DMError, e:
@@ -69,11 +63,10 @@ class DeviceManagerADB(DeviceManager):
         # to check again ourselves that we have root now.
         self.verifyRoot()
       except DMError:
-        if useRunAsTmp:
+        if self.useRunAs:
           print "restarting as root failed, but run-as available"
         else:
           print "restarting as root failed"
-    self.useRunAs = useRunAsTmp
 
     # can we use zip to speed up some file operations? (currently not
     # required)
@@ -223,7 +216,7 @@ class DeviceManagerADB(DeviceManager):
           self.useZip = False
           self.pushDir(localDir, remoteDir)
       else:
-        for root, dirs, files in os.walk(localDir, followlinks=True):
+        for root, dirs, files in os.walk(localDir, followlinks='true'):
           relRoot = os.path.relpath(root, localDir)
           for file in files:
             localFile = os.path.join(root, file)
@@ -320,10 +313,6 @@ class DeviceManagerADB(DeviceManager):
           if (data[0].find("No such file or directory") != -1):
               return []
           if (data[0].find("Not a directory") != -1):
-              return []
-          if (data[0].find("Permission denied") != -1):
-              return []
-          if (data[0].find("opendir failed") != -1):
               return []
       return data
 
@@ -788,9 +777,10 @@ class DeviceManagerADB(DeviceManager):
   def verifyRoot(self):
     # a test to see if we have root privs
     files = self.listFiles("/data/data")
-    if (len(files) == 0):
-      print "NOT running as root"
-      raise DMError("not running as root")
+    if (len(files) == 1):
+      if (files[0].find("Permission denied") != -1):
+        print "NOT running as root"
+        raise DMError("not running as root")
 
     self.haveRoot = True
 

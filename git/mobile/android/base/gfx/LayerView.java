@@ -230,7 +230,7 @@ public class LayerView extends SurfaceView implements SurfaceHolder.Callback {
     }
 
 
-    public LayerRenderer getRenderer() {
+    public GLSurfaceView.Renderer getRenderer() {
         return mRenderer;
     }
 
@@ -280,7 +280,7 @@ public class LayerView extends SurfaceView implements SurfaceHolder.Callback {
     public interface Listener {
         void renderRequested();
         void compositionPauseRequested();
-        void compositionResumeRequested(int width, int height);
+        void compositionResumeRequested();
         void surfaceChanged(int width, int height);
     }
 

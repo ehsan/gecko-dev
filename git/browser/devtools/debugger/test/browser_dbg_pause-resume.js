@@ -12,30 +12,30 @@ function test() {
   debug_tab_pane(STACK_URL, function(aTab, aDebuggee, aPane) {
     gTab = aTab;
     gPane = aPane;
-    gDebugger = gPane.contentWindow;
+    gDebugger = gPane.debuggerWindow;
 
     testPause();
   });
 }
 
 function testPause() {
-  is(gDebugger.DebuggerController.activeThread.paused, false,
+  is(gDebugger.StackFrames.activeThread.paused, false,
     "Should be running after debug_tab_pane.");
 
   let button = gDebugger.document.getElementById("resume");
-  is(button.label, gDebugger.L10N.getStr("pauseLabel"),
+  is(button.label, gDebugger.DebuggerView.getStr("pauseLabel"),
     "Button label should be pause when running.");
 
-  gDebugger.DebuggerController.activeThread.addOneTimeListener("paused", function() {
+  gPane.activeThread.addOneTimeListener("paused", function() {
     Services.tm.currentThread.dispatch({ run: function() {
 
-      let frames = gDebugger.DebuggerView.StackFrames._frames;
+      let frames = gDebugger.DebuggerView.Stackframes._frames;
       let childNodes = frames.childNodes;
 
-      is(gDebugger.DebuggerController.activeThread.paused, true,
+      is(gDebugger.StackFrames.activeThread.paused, true,
         "Should be paused after an interrupt request.");
 
-      is(button.label, gDebugger.L10N.getStr("resumeLabel"),
+      is(button.label, gDebugger.DebuggerView.getStr("resumeLabel"),
         "Button label should be resume when paused.");
 
       is(frames.querySelectorAll(".dbg-stackframe").length, 0,
@@ -51,14 +51,14 @@ function testPause() {
 }
 
 function testResume() {
-  gDebugger.DebuggerController.activeThread.addOneTimeListener("resumed", function() {
+  gPane.activeThread.addOneTimeListener("resumed", function() {
     Services.tm.currentThread.dispatch({ run: function() {
 
-      is(gDebugger.DebuggerController.activeThread.paused, false,
+      is(gDebugger.StackFrames.activeThread.paused, false,
         "Should be paused after an interrupt request.");
 
       let button = gDebugger.document.getElementById("resume");
-      is(button.label, gDebugger.L10N.getStr("pauseLabel"),
+      is(button.label, gDebugger.DebuggerView.getStr("pauseLabel"),
         "Button label should be pause when running.");
 
       closeDebuggerAndFinish(gTab);

@@ -54,11 +54,6 @@ function e(id) {
   return document.getElementById(id);
 }
 
-function requestFullscreen(element) {
-  element.focus();
-  element.mozRequestFullScreen();
-}
-
 function begin() {
   addListener("change", change1);
   e("fse").mozRequestFullScreen();
@@ -70,7 +65,7 @@ function change1() {
   is(document.mozFullScreenElement, e("fse"), "Body should be FSE");
   
   // Request full-screen from element not descendent from current FSE.
-  requestFullscreen(e("non-fse"));
+  e("non-fse").mozRequestFullScreen();
 }
 
 function error1() {
@@ -78,7 +73,7 @@ function error1() {
   addListener("change", change2);
   is(document.mozFullScreenElement, e("fse"), "FSE should not change");
   var iframe = e("subdoc");
-  requestFullscreen(iframe.contentDocument.body);
+  iframe.contentDocument.body.mozRequestFullScreen();
 }
 
 function change2() {
@@ -101,14 +96,14 @@ function change4() {
   removeListener("change", change4);
   is(document.mozFullScreenElement, null, "Should have left full-screen entirely");
   addListener("change", change5);
-  requestFullscreen(e("fse"));
+  e("fse").mozRequestFullScreen();
 }
 
 function change5() {
   removeListener("change", change5);
   addListener("change", change6);
   is(document.mozFullScreenElement, e("fse"), "FSE should be e('fse')");
-  requestFullscreen(e("fse-inner"));
+  e("fse-inner").mozRequestFullScreen();
 }
 
 function change6() {

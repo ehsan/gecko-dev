@@ -9,13 +9,14 @@
  */
 
 
+#include "vp8/common/type_aliases.h"
 #include "vp8/common/blockd.h"
 #include "onyxd_int.h"
 #include "vpx_mem/vpx_mem.h"
 #include "vpx_ports/mem.h"
 #include "detokenize.h"
 
-#define BOOL_DATA unsigned char
+#define BOOL_DATA UINT8
 
 #define OCB_X PREV_COEF_CONTEXTS * ENTROPY_NODES
 DECLARE_ALIGNED(16, static const unsigned char, coef_bands_x[16]) =
@@ -157,10 +158,10 @@ DECLARE_ALIGNED(16, extern const unsigned char, vp8_norm[256]);
     DECODE_AND_APPLYSIGN(val) \
     Prob = coef_probs + (ENTROPY_NODES*2); \
     if(c < 15){\
-        qcoeff_ptr [ scan[c] ] = (int16_t) v; \
+        qcoeff_ptr [ scan[c] ] = (INT16) v; \
         ++c; \
         goto DO_WHILE; }\
-    qcoeff_ptr [ 15 ] = (int16_t) v; \
+    qcoeff_ptr [ 15 ] = (INT16) v; \
     goto BLOCK_FINISHED;
 
 
@@ -172,7 +173,7 @@ DECLARE_ALIGNED(16, extern const unsigned char, vp8_norm[256]);
     {\
         range = range-split;\
         value = value-bigsplit;\
-        val += ((uint16_t)1<<bits_count);\
+        val += ((UINT16)1<<bits_count);\
     }\
     else\
     {\
@@ -204,34 +205,33 @@ int vp8_decode_mb_tokens(VP8D_COMP *dx, MACROBLOCKD *x)
     VP8_BD_VALUE value;
     const int *scan;
     register unsigned int shift;
-    unsigned int split;
+    UINT32 split;
     VP8_BD_VALUE bigsplit;
-    short *qcoeff_ptr;
+    INT16 *qcoeff_ptr;
 
     const vp8_prob *coef_probs;
+    int type;
     int stop;
-    int val, bits_count;
-    int c;
-    int v;
+    INT16 val, bits_count;
+    INT16 c;
+    INT16 v;
     const vp8_prob *Prob;
-    int start_coeff;
 
-
+    type = 3;
     i = 0;
     stop = 16;
 
     scan = vp8_default_zig_zag1d;
     qcoeff_ptr = &x->qcoeff[0];
-    coef_probs = fc->coef_probs [3] [ 0 ] [0];
 
     if (x->mode_info_context->mbmi.mode != B_PRED &&
         x->mode_info_context->mbmi.mode != SPLITMV)
     {
         i = 24;
         stop = 24;
+        type = 1;
         qcoeff_ptr += 24*16;
         eobtotal -= 16;
-        coef_probs = fc->coef_probs [1] [ 0 ] [0];
     }
 
     bufend  = bc->user_buffer_end;
@@ -240,24 +240,23 @@ int vp8_decode_mb_tokens(VP8D_COMP *dx, MACROBLOCKD *x)
     count   = bc->count;
     range   = bc->range;
 
-    start_coeff = 0;
+
+    coef_probs = fc->coef_probs [type] [ 0 ] [0];
 
 BLOCK_LOOP:
     a = A + vp8_block2above[i];
     l = L + vp8_block2left[i];
 
-    c = start_coeff;
+    c = (INT16)(!type);
 
+    /*Dest = ((A)!=0) + ((B)!=0);*/
     VP8_COMBINEENTROPYCONTEXTS(v, *a, *l);
-
     Prob = coef_probs;
     Prob += v * ENTROPY_NODES;
-    *a = *l = 0;
 
 DO_WHILE:
     Prob += coef_bands_x[c];
     DECODE_AND_BRANCH_IF_ZERO(Prob[EOB_CONTEXT_NODE], BLOCK_FINISHED);
-    *a = *l = 1;
 
 CHECK_0_:
     DECODE_AND_LOOP_IF_ZERO(Prob[ZERO_CONTEXT_NODE], CHECK_0_);
@@ -340,14 +339,14 @@ ONE_CONTEXT_NODE_0_:
 
     if (c < 15)
     {
-        qcoeff_ptr [ scan[c] ] = (int16_t) v;
+        qcoeff_ptr [ scan[c] ] = (INT16) v;
         ++c;
         goto DO_WHILE;
     }
 
-    qcoeff_ptr [ 15 ] = (int16_t) v;
+    qcoeff_ptr [ 15 ] = (INT16) v;
 BLOCK_FINISHED:
-    eobs[i] = c;
+    *a = *l = ((eobs[i] = c) != !type);   /* any nonzero data? */
     eobtotal += c;
     qcoeff_ptr += 16;
 
@@ -358,18 +357,18 @@ BLOCK_FINISHED:
 
     if (i == 25)
     {
-        start_coeff = 1;
+        type = 0;
         i = 0;
         stop = 16;
-        coef_probs = fc->coef_probs [0] [ 0 ] [0];
+        coef_probs = fc->coef_probs [type] [ 0 ] [0];
         qcoeff_ptr -= (24*16 + 16);
         goto BLOCK_LOOP;
     }
 
     if (i == 16)
     {
-        start_coeff = 0;
-        coef_probs = fc->coef_probs [2] [ 0 ] [0];
+        type = 2;
+        coef_probs = fc->coef_probs [type] [ 0 ] [0];
         stop = 24;
         goto BLOCK_LOOP;
     }

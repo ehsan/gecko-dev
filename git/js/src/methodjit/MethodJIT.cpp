@@ -40,8 +40,8 @@
 #include "Logging.h"
 #include "assembler/jit/ExecutableAllocator.h"
 #include "assembler/assembler/RepatchBuffer.h"
-#include "gc/Marking.h"
 #include "js/MemoryMetrics.h"
+#include "jsgcmark.h"
 #include "BaseAssembler.h"
 #include "Compiler.h"
 #include "MonoIC.h"
@@ -145,7 +145,7 @@ PushActiveVMFrame(VMFrame &f)
 {
     f.oldregs = &f.cx->stack.regs();
     f.cx->stack.repointRegs(&f.regs);
-    f.cx->jaegerRuntime().pushActiveFrame(&f);
+    f.entryfp->script()->compartment()->jaegerCompartment()->pushActiveFrame(&f);
     f.entryfp->setNativeReturnAddress(JS_FUNC_TO_DATA_PTR(void*, JaegerTrampolineReturn));
     f.regs.clearInlined();
 }
@@ -154,7 +154,7 @@ PushActiveVMFrame(VMFrame &f)
 extern "C" void JS_FASTCALL
 PopActiveVMFrame(VMFrame &f)
 {
-    f.cx->jaegerRuntime().popActiveFrame();
+    f.entryfp->script()->compartment()->jaegerCompartment()->popActiveFrame();
     f.cx->stack.repointRegs(f.oldregs);
 }
 
@@ -983,20 +983,24 @@ JS_STATIC_ASSERT(JSVAL_PAYLOAD_MASK == 0x00007FFFFFFFFFFFLL);
 
 #endif                   /* _WIN64 */
 
-JaegerRuntime::JaegerRuntime()
+JaegerCompartment::JaegerCompartment()
     : orphanedNativeFrames(SystemAllocPolicy()), orphanedNativePools(SystemAllocPolicy())
 {}
 
 bool
-JaegerRuntime::init(JSContext *cx)
+JaegerCompartment::Initialize(JSContext *cx)
 {
-    JSC::ExecutableAllocator *execAlloc = cx->runtime->getExecAlloc(cx);
-    if (!execAlloc)
+    execAlloc_ = js::OffTheBooks::new_<JSC::ExecutableAllocator>(
+        cx->runtime->getJitHardening() ? JSC::AllocationCanRandomize : JSC::AllocationDeterministic);
+    if (!execAlloc_)
         return false;
-
-    TrampolineCompiler tc(execAlloc, &trampolines);
-    if (!tc.compile())
+    
+    TrampolineCompiler tc(execAlloc_, &trampolines);
+    if (!tc.compile()) {
+        js::Foreground::delete_(execAlloc_);
+        execAlloc_ = NULL;
         return false;
+    }
 
 #ifdef JS_METHODJIT_PROFILE_STUBS
     for (size_t i = 0; i < STUB_CALLS_FOR_OP_COUNT; ++i)
@@ -1010,9 +1014,10 @@ JaegerRuntime::init(JSContext *cx)
 }
 
 void
-JaegerRuntime::finish()
+JaegerCompartment::Finish()
 {
     TrampolineCompiler::release(&trampolines);
+    Foreground::delete_(execAlloc_);
 #ifdef JS_METHODJIT_PROFILE_STUBS
     FILE *fp = fopen("/tmp/stub-profiling", "wt");
 # define OPDEF(op,val,name,image,length,nuses,ndefs,prec,format) \
@@ -1052,7 +1057,7 @@ mjit::EnterMethodJIT(JSContext *cx, StackFrame *fp, void *code, Value *stackLimi
     JaegerSpew(JSpew_Prof, "script run took %d ms\n", prof.time_ms());
 #endif
 
-    JaegerStatus status = cx->jaegerRuntime().lastUnfinished();
+    JaegerStatus status = cx->compartment->jaegerCompartment()->lastUnfinished();
     if (status) {
         if (partial) {
             /*
@@ -1075,9 +1080,6 @@ mjit::EnterMethodJIT(JSContext *cx, StackFrame *fp, void *code, Value *stackLimi
 
         return ok ? Jaeger_Returned : Jaeger_Throwing;
     }
-
-    cx->regs().refreshFramePointer(fp);
-    cx->regs().setToEndOfScript();
 
     /* The entry frame should have finished. */
     JS_ASSERT(fp == cx->fp());
@@ -1326,7 +1328,7 @@ JITScript::destroyChunk(FreeOp *fop, unsigned chunkIndex, bool resetUses)
     ChunkDescriptor &desc = chunkDescriptor(chunkIndex);
 
     if (desc.chunk) {
-        Probes::discardMJITCode(fop, this, desc.chunk, desc.chunk->code.m_code.executableAddress());
+        Probes::discardMJITCode(fop, this, script, desc.chunk->code.m_code.executableAddress());
         fop->delete_(desc.chunk);
         desc.chunk = NULL;
 
@@ -1481,8 +1483,6 @@ JITScript::nativeToPC(void *returnAddress, CallSite **pinline)
 {
     JITChunk *chunk = findCodeChunk(returnAddress);
     JS_ASSERT(chunk);
-
-    JS_ASSERT(chunk->isValidCode(returnAddress));
 
     size_t low = 0;
     size_t high = chunk->nCallICs;

@@ -41,8 +41,8 @@
 #define jsgc_barrier_h___
 
 #include "jsapi.h"
+#include "jscell.h"
 
-#include "gc/Heap.h"
 #include "js/HashTable.h"
 
 /*
@@ -140,10 +140,12 @@
  * and jsid, respectively.
  *
  * One additional note: not all object writes need to be barriered. Writes to
- * newly allocated objects do not need a pre-barrier.  In these cases, we use
- * the "obj->field.init(value)" method instead of "obj->field = value". We use
- * the init naming idiom in many places to signify that a field is being
- * assigned for the first time.
+ * newly allocated objects do not need a barrier as long as the GC is not
+ * allowed to run in between the allocation and the write. In these cases, we
+ * use the "obj->field.init(value)" method instead of "obj->field = value".
+ * We use the init naming idiom in many places to signify that a field is being
+ * assigned for the first time, and that no GCs have taken place between the
+ * object allocation and the assignment.
  */
 
 struct JSXML;
@@ -247,6 +249,7 @@ struct Shape;
 class BaseShape;
 namespace types { struct TypeObject; }
 
+typedef HeapPtr<JSAtom> HeapPtrAtom;
 typedef HeapPtr<JSObject> HeapPtrObject;
 typedef HeapPtr<JSFunction> HeapPtrFunction;
 typedef HeapPtr<JSString> HeapPtrString;
@@ -289,9 +292,6 @@ class EncapsulatedValue
     ~EncapsulatedValue() {}
 
   public:
-    inline bool operator==(const EncapsulatedValue &v) const { return value == v.value; }
-    inline bool operator!=(const EncapsulatedValue &v) const { return value != v.value; }
-
     const Value &get() const { return value; }
     Value *unsafeGet() { return &value; }
     operator const Value &() const { return value; }
@@ -365,18 +365,6 @@ class HeapValue : public EncapsulatedValue
     inline void post(JSCompartment *comp);
 };
 
-class RelocatableValue : public EncapsulatedValue
-{
-  public:
-    explicit inline RelocatableValue();
-    explicit inline RelocatableValue(const Value &v);
-    explicit inline RelocatableValue(const RelocatableValue &v);
-    inline ~RelocatableValue();
-
-    inline RelocatableValue &operator=(const Value &v);
-    inline RelocatableValue &operator=(const RelocatableValue &v);
-};
-
 class HeapSlot : public EncapsulatedValue
 {
     /*
@@ -440,47 +428,14 @@ class HeapSlotArray
     HeapSlotArray operator +(uint32_t offset) const { return HeapSlotArray(array + offset); }
 };
 
-class EncapsulatedId
+class HeapId
 {
-  protected:
     jsid value;
 
-    explicit EncapsulatedId() : value(JSID_VOID) {}
-    explicit inline EncapsulatedId(jsid id) : value(id) {}
-    ~EncapsulatedId() {}
-
-  private:
-    EncapsulatedId(const EncapsulatedId &v) MOZ_DELETE;
-    EncapsulatedId &operator=(const EncapsulatedId &v) MOZ_DELETE;
-
   public:
-    bool operator==(jsid id) const { return value == id; }
-    bool operator!=(jsid id) const { return value != id; }
-
-    jsid get() const { return value; }
-    jsid *unsafeGet() { return &value; }
-    operator jsid() const { return value; }
-
-  protected:
-    inline void pre();
-};
-
-class RelocatableId : public EncapsulatedId
-{
-  public:
-    explicit RelocatableId() : EncapsulatedId() {}
-    explicit inline RelocatableId(jsid id) : EncapsulatedId(id) {}
-    inline ~RelocatableId();
-
-    inline RelocatableId &operator=(jsid id);
-    inline RelocatableId &operator=(const RelocatableId &v);
-};
-
-class HeapId : public EncapsulatedId
-{
-  public:
-    explicit HeapId() : EncapsulatedId() {}
+    explicit HeapId() : value(JSID_VOID) {}
     explicit inline HeapId(jsid id);
+
     inline ~HeapId();
 
     inline void init(jsid id);
@@ -488,10 +443,18 @@ class HeapId : public EncapsulatedId
     inline HeapId &operator=(jsid id);
     inline HeapId &operator=(const HeapId &v);
 
+    bool operator==(jsid id) const { return value == id; }
+    bool operator!=(jsid id) const { return value != id; }
+
+    jsid get() const { return value; }
+    jsid *unsafeGet() { return &value; }
+    operator jsid() const { return value; }
+
   private:
+    inline void pre();
     inline void post();
 
-    HeapId(const HeapId &v) MOZ_DELETE;
+    HeapId(const HeapId &v);
 };
 
 /*
@@ -546,15 +509,6 @@ class ReadBarrieredValue
     inline JSObject &toObject() const;
 };
 
-namespace tl {
-
-template <class T> struct IsPostBarrieredType<HeapPtr<T> > {
-                                                    static const bool result = true; };
-template <> struct IsPostBarrieredType<HeapSlot>  { static const bool result = true; };
-template <> struct IsPostBarrieredType<HeapValue> { static const bool result = true; };
-template <> struct IsPostBarrieredType<HeapId>    { static const bool result = true; };
-
-} /* namespace tl */
-} /* namespace js */
+}
 
 #endif /* jsgc_barrier_h___ */
