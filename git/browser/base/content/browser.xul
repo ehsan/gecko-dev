@@ -559,7 +559,6 @@
             <menupopup id="appmenu_webDeveloper_popup">
               <menuitem id="appmenu_webConsole"
                         label="&webConsoleCmd.label;"
-                        type="checkbox"
                         oncommand="HUDConsoleUI.toggleHUD();"
                         key="key_webConsole"/>
               <menuitem id="appmenu_pageInspect"
@@ -783,6 +782,10 @@
                             label="&helpTroubleshootingInfo.label;"
                             oncommand="openTroubleshootingPage()"
                             onclick="checkForMiddleClick(this,event);"/>
+                  <menuitem id="appmenu_feedbackPage"
+                            label="&helpFeedbackPage.label;"
+                            oncommand="openFeedbackPage()"
+                            onclick="checkForMiddleClick(this, event);"/>
                   <menuseparator/>
                   <menuitem id="appmenu_safeMode"
                             accesskey="&appMenuSafeMode.accesskey;"
@@ -1304,7 +1307,9 @@
   </hbox>
 
   <vbox id="browser-bottombox" layer="true">
-    <toolbar id="addon-bar" toolbarname="&addonBarCmd.label;" collapsed="true"
+    <toolbar id="addon-bar"
+             toolbarname="&addonBarCmd.label;" accesskey="&addonBarCmd.accesskey;"
+             collapsed="true"
              class="toolbar-primary chromeclass-toolbar"
              context="toolbar-context-menu" toolboxid="navigator-toolbox"
              mode="icons" iconsize="small" defaulticonsize="small"

@@ -254,7 +254,7 @@ load 461294-1.html
 load 463350-1.html
 load 463350-2.html
 load 463350-3.html
-asserts(3-4) load 463741-1.html # Bug 575011
+asserts(6-8) load 463741-1.html # Bug 575011
 load 465651-1.html
 load 467137-1.html
 load 467213-1.html
@@ -326,6 +326,7 @@ load 551635-1.html
 load 564368-1.xhtml
 load 564968.xhtml
 load 570160.html
+load 570289-1.html
 load 571618-1.svg
 load 574958.xhtml
 load 580504-1.xhtml
@@ -334,5 +335,6 @@ load 586806-1.html
 load 586806-2.html
 load 586806-3.html
 load 586973-1.html
+load 589002-1.html
 load 590404.html
 load 591141.html
