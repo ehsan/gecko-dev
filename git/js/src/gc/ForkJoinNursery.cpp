@@ -235,7 +235,7 @@ ForkJoinNursery::pjsCollection(int op)
     const unsigned currentNumActiveChunks_ = numActiveChunks_;
     const char *msg = "";
 
-    JS_ASSERT(!rt->needsIncrementalBarrier());
+    JS_ASSERT(!rt->needsBarrier());
 
     TIME_START(pjsCollection);
 

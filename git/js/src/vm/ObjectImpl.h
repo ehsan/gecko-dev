@@ -1006,7 +1006,7 @@ ObjectImpl::privateWriteBarrierPre(void **oldval)
 {
 #ifdef JSGC_INCREMENTAL
     JS::shadow::Zone *shadowZone = this->shadowZoneFromAnyThread();
-    if (shadowZone->needsIncrementalBarrier()) {
+    if (shadowZone->needsBarrier()) {
         if (*oldval && getClass()->trace)
             getClass()->trace(shadowZone->barrierTracer(), this->asObjectPtr());
     }

@@ -191,9 +191,9 @@ CompileZone::get(Zone *zone)
 }
 
 const void *
-CompileZone::addressOfNeedsIncrementalBarrier()
+CompileZone::addressOfNeedsBarrier()
 {
-    return zone()->addressOfNeedsIncrementalBarrier();
+    return zone()->addressOfNeedsBarrier();
 }
 
 const void *

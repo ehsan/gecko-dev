@@ -124,35 +124,41 @@ NetworkService.prototype = {
   getNetworkInterfaceStats: function(networkName, callback) {
     if(DEBUG) debug("getNetworkInterfaceStats for " + networkName);
 
+    if (this.shutdown) {
+      return;
+    }
+
     let file = new FileUtils.File("/proc/net/dev");
     if (!file) {
-      callback.networkStatsAvailable(false, 0, 0, Date.now());
+      callback.networkStatsAvailable(false, -1, -1, new Date());
       return;
     }
 
     NetUtil.asyncFetch(file, function(inputStream, status) {
-      let rxBytes = 0,
-          txBytes = 0,
-          now = Date.now();
+      let result = {
+        success: true,  // netd always return success even interface doesn't exist.
+        rxBytes: 0,
+        txBytes: 0
+      };
+      result.date = new Date();
 
       if (Components.isSuccessCode(status)) {
         // Find record for corresponding interface.
         let statExpr = /(\S+): +(\d+) +\d+ +\d+ +\d+ +\d+ +\d+ +\d+ +\d+ +(\d+) +\d+ +\d+ +\d+ +\d+ +\d+ +\d+ +\d+/;
-        let data =
-          NetUtil.readInputStreamToString(inputStream, inputStream.available())
-                 .split("\n");
+        let data = NetUtil.readInputStreamToString(inputStream,
+                    inputStream.available()).split("\n");
         for (let i = 2; i < data.length; i++) {
           let parseResult = statExpr.exec(data[i]);
           if (parseResult && parseResult[1] === networkName) {
-            rxBytes = parseInt(parseResult[2], 10);
-            txBytes = parseInt(parseResult[3], 10);
+            result.rxBytes = parseInt(parseResult[2], 10);
+            result.txBytes = parseInt(parseResult[3], 10);
             break;
           }
         }
       }
 
-      // netd always return success even interface doesn't exist.
-      callback.networkStatsAvailable(true, rxBytes, txBytes, now);
+      callback.networkStatsAvailable(result.success, result.rxBytes,
+                                     result.txBytes, result.date);
     });
   },
 

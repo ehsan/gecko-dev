@@ -44,8 +44,7 @@
 
 args_orig=$@
 args="-nologo -W3"
-static_crt=
-debug_crt=
+md=-MD
 cl="cl"
 ml="ml"
 safeseh="-safeseh"
@@ -115,14 +114,9 @@ do
       defines="$defines $1"
       shift 1
     ;;
-    -DUSE_STATIC_RTL)
-      # Link against static CRT.
-      static_crt=1
-      shift 1
-    ;;
     -DUSE_DEBUG_RTL)
       # Link against debug CRT.
-      debug_crt=1
+      md=-MDd
       shift 1
     ;;
     -c)
@@ -215,16 +209,6 @@ done
 # NOTE: These arguments must come after all others.
 if [ -n "$opt" ]; then
     args="$args -link -OPT:REF -OPT:ICF -INCREMENTAL:NO"
-fi
-
-if [ -n "$static_crt" ]; then
-    md=-MT
-else
-    md=-MD
-fi
-
-if [ -n "$debug_crt" ]; then
-    md="${md}d"
 fi
 
 if [ -n "$assembly" ]; then

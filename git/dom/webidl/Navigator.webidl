@@ -84,7 +84,7 @@ interface NavigatorStorageUtils {
 [NoInterfaceObject]
 interface NavigatorFeatures {
   [CheckPermissions="feature-detection", Throws]
-  Promise<any> getFeature(DOMString name);
+  Promise getFeature(DOMString name);
 };
 
 // Things that definitely need to be in the spec and and are not for some
@@ -123,8 +123,7 @@ Navigator implements NavigatorBattery;
 [NoInterfaceObject]
 interface NavigatorDataStore {
     [Throws, NewObject, Func="Navigator::HasDataStoreSupport"]
-    Promise<sequence<DataStore>> getDataStores(DOMString name,
-                                               optional DOMString? owner = null);
+    Promise getDataStores(DOMString name, optional DOMString? owner = null);
 };
 Navigator implements NavigatorDataStore;
 
@@ -162,9 +161,8 @@ interface NavigatorMobileId {
     // Ideally we would use [CheckPermissions] here, but the "mobileid"
     // permission is set to PROMPT_ACTION and [CheckPermissions] only checks
     // for ALLOW_ACTION.
-    // XXXbz what is this promise resolved with?
     [Throws, NewObject, Func="Navigator::HasMobileIdSupport"]
-    Promise<any> getMobileIdAssertion(optional MobileIdOptions options);
+    Promise getMobileIdAssertion(optional MobileIdOptions options);
 };
 Navigator implements NavigatorMobileId;
 #endif // MOZ_B2G

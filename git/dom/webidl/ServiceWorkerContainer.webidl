@@ -18,17 +18,21 @@ interface ServiceWorkerContainer {
   [Unforgeable] readonly attribute ServiceWorker? active;
   [Unforgeable] readonly attribute ServiceWorker? controller;
 
+  // Promise<ServiceWorker>
   [Throws]
-  readonly attribute Promise<any> ready;
+  readonly attribute Promise ready;
 
+  // Promise<sequence<ServiceWorker>?>
   [Throws]
-  Promise<any> getAll();
+  Promise getAll();
 
+  // Promise<ServiceWorker>
   [Throws]
-  Promise<ServiceWorker> register(DOMString url, optional RegistrationOptionList options);
+  Promise register(DOMString url, optional RegistrationOptionList options);
 
+  // Promise<any>
   [Throws]
-  Promise<any> unregister(DOMString? scope);
+  Promise unregister(DOMString? scope);
 
   attribute EventHandler onupdatefound;
   attribute EventHandler oncontrollerchange;
@@ -40,7 +44,7 @@ interface ServiceWorkerContainer {
 [ChromeOnly, Pref="dom.serviceWorkers.testing.enabled"]
 partial interface ServiceWorkerContainer {
   [Throws]
-  Promise<any> clearAllServiceWorkerData();
+  Promise clearAllServiceWorkerData();
 
   [Throws]
   DOMString getScopeForUrl(DOMString url);

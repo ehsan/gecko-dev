@@ -422,7 +422,7 @@ void
 BaselineScript::writeBarrierPre(Zone *zone, BaselineScript *script)
 {
 #ifdef JSGC_INCREMENTAL
-    if (zone->needsIncrementalBarrier())
+    if (zone->needsBarrier())
         script->trace(zone->barrierTracer());
 #endif
 }

@@ -359,8 +359,8 @@ ForkJoinActivation::ForkJoinActivation(JSContext *cx)
 
     cx->runtime()->gc.waitBackgroundSweepEnd();
 
-    JS_ASSERT(!cx->runtime()->needsIncrementalBarrier());
-    JS_ASSERT(!cx->zone()->needsIncrementalBarrier());
+    JS_ASSERT(!cx->runtime()->needsBarrier());
+    JS_ASSERT(!cx->zone()->needsBarrier());
 }
 
 ForkJoinActivation::~ForkJoinActivation()

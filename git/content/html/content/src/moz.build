@@ -8,7 +8,6 @@ EXPORTS += [
     'HTMLPropertiesCollection.h',
     'nsGenericHTMLElement.h',
     'nsHTMLDNSPrefetch.h',
-    'nsTextEditorState.h',
 ]
 
 EXPORTS.mozilla.dom += [

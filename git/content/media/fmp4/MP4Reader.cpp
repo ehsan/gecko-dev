@@ -463,8 +463,7 @@ MP4Reader::Decode(TrackType aTrack)
     // if we need output.
     while (prevNumFramesOutput == data.mNumSamplesOutput &&
            (data.mInputExhausted ||
-           (data.mNumSamplesInput - data.mNumSamplesOutput) < data.mDecodeAhead) &&
-           !data.mEOS) {
+           (data.mNumSamplesInput - data.mNumSamplesOutput) < data.mDecodeAhead)) {
       data.mMonitor.AssertCurrentThreadOwns();
       data.mMonitor.Unlock();
       nsAutoPtr<MP4Sample> compressed(PopSample(aTrack));
@@ -472,9 +471,6 @@ MP4Reader::Decode(TrackType aTrack)
         // EOS, or error. Send the decoder a signal to drain.
         LOG("Draining %s", TrackTypeToStr(aTrack));
         data.mMonitor.Lock();
-        MOZ_ASSERT(!data.mEOS);
-        data.mEOS = true;
-        MOZ_ASSERT(!data.mDrainComplete);
         data.mDrainComplete = false;
         data.mMonitor.Unlock();
         data.mDecoder->Drain();
@@ -502,27 +498,15 @@ MP4Reader::Decode(TrackType aTrack)
     data.mMonitor.AssertCurrentThreadOwns();
     while (!data.mError &&
            prevNumFramesOutput == data.mNumSamplesOutput &&
-           (!data.mInputExhausted || data.mEOS) &&
+           !data.mInputExhausted &&
            !data.mDrainComplete) {
       data.mMonitor.Wait();
     }
-    if (data.mError ||
-        (data.mEOS && data.mDrainComplete)) {
-      break;
-    }
   }
   data.mMonitor.AssertCurrentThreadOwns();
-  bool rv = !(data.mEOS || data.mError);
+  bool drainComplete = data.mDrainComplete;
   data.mMonitor.Unlock();
-  return rv;
-}
-
-nsresult
-MP4Reader::ResetDecode()
-{
-  Flush(kAudio);
-  Flush(kVideo);
-  return MediaDecoderReader::ResetDecode();
+  return !drainComplete;
 }
 
 void
@@ -607,8 +591,6 @@ MP4Reader::Flush(TrackType aTrack)
   {
     MonitorAutoLock mon(data.mMonitor);
     data.mIsFlushing = true;
-    data.mDrainComplete = false;
-    data.mEOS = false;
   }
   data.mDecoder->Flush();
   {
@@ -686,6 +668,9 @@ MP4Reader::Seek(int64_t aTime,
   if (!mDecoder->GetResource()->IsTransportSeekable() || !mDemuxer->CanSeek()) {
     return NS_ERROR_FAILURE;
   }
+  Flush(kVideo);
+  Flush(kAudio);
+  ResetDecode();
 
   mQueuedVideoSample = nullptr;
   if (mDemuxer->HasValidVideo()) {

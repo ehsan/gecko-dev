@@ -132,9 +132,9 @@ interface ResourceStatsManager
    *
    * If success, the fulfillment value is a ResourceStats object.
    */
-  Promise<ResourceStats> getStats(optional ResourceStatsOptions statsOptions,
-                                  [EnforceRange] optional DOMTimeStamp? start = null,
-                                  [EnforceRange] optional DOMTimeStamp? end = null);
+  Promise getStats(optional ResourceStatsOptions statsOptions,
+                   [EnforceRange] optional DOMTimeStamp? start = null,
+                   [EnforceRange] optional DOMTimeStamp? end = null);
 
   /**
    * Clear resource statistics stored in database.
@@ -145,16 +145,14 @@ interface ResourceStatsManager
    * If |start| is null or undefined, delete the stats since measurements.
    * If |end| is null or undefined. delete the stats until the current time.
    */
-  // XXXbz What is this promise resolved with?
-  Promise<any> clearStats(optional ResourceStatsOptions statsOptions,
-                          [EnforceRange] optional DOMTimeStamp? start = null,
-                          [EnforceRange] optional DOMTimeStamp? end = null);
+  Promise clearStats(optional ResourceStatsOptions statsOptions,
+                     [EnforceRange] optional DOMTimeStamp? start = null,
+                     [EnforceRange] optional DOMTimeStamp? end = null);
 
   /**
    * Clear all resource statistics stored in database.
    */
-  // XXXbz What is this promise resolved with?
-  Promise<any> clearAllStats();
+  Promise clearAllStats();
 
   /**
    * Install an alarm to monitor resource usage.
@@ -169,9 +167,9 @@ interface ResourceStatsManager
    *
    * If success, the fulfillment value is an alarm ID.
    */
-  Promise<unsigned long> addAlarm([EnforceRange] unsigned long long threshold,
-                                  optional ResourceStatsOptions statsOptions,
-                                  optional ResourceStatsAlarmOptions alarmOptions);
+  Promise addAlarm([EnforceRange] unsigned long long threshold,
+                   optional ResourceStatsOptions statsOptions,
+                   optional ResourceStatsAlarmOptions alarmOptions);
 
   /**
    * Obtain alarms.
@@ -182,28 +180,26 @@ interface ResourceStatsManager
    *
    * If success, the fulfillment value is an array of ResourceStatsAlarm.
    */
-  Promise<sequence<ResourceStatsAlarm>> getAlarms(optional ResourceStatsOptions statsOptions);
+  Promise getAlarms(optional ResourceStatsOptions statsOptions);
 
   /**
    * Remove the specified alarm.
    *
    * |alarmId| specifies the alarm to be removed.
    */
-  // XXXbz What is this promise resolved with?
-  Promise<any> removeAlarm([EnforceRange] unsigned long alarmId);
+  Promise removeAlarm([EnforceRange] unsigned long alarmId);
 
   /**
    * Remove all alarms.
    */
-  // XXXbz What is this promise resolved with?
-  Promise<any> removeAllAlarms();
+  Promise removeAllAlarms();
 
   /**
    * Enumerate components that have stored statistics in database.
    *
    * If success, the fulfillment value is an array of DOMString.
    */
-  Promise<sequence<DOMString>> getAvailableComponents();
+  Promise getAvailableComponents();
 
   /**
    * Return supporting resource statistics, i.e. ["Network", "Power"]

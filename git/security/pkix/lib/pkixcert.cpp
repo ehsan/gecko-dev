@@ -37,13 +37,17 @@ BackCert::Init()
   //         signatureAlgorithm   AlgorithmIdentifier,
   //         signatureValue       BIT STRING  }
 
-  Reader tbsCertificate;
+  Input tbsCertificate;
 
   // The scope of |input| and |certificate| are limited to this block so we
   // don't accidentally confuse them for tbsCertificate later.
   {
-    Reader input(der);
-    Reader certificate;
+    Input input;
+    rv = input.Init(der.data, der.len);
+    if (rv != Success) {
+      return rv;
+    }
+    Input certificate;
     rv = der::ExpectTagAndGetValue(input, der::SEQUENCE, certificate);
     if (rv != Success) {
       return rv;
@@ -158,10 +162,8 @@ BackCert::Init()
   return der::End(tbsCertificate);
 }
 
-// XXX: The second value is of type |const Input&| instead of type |Input| due
-// to limitations in our std::bind polyfill.
 Result
-BackCert::RememberExtension(Reader& extnID, const Input& extnValue,
+BackCert::RememberExtension(Input& extnID, const SECItem& extnValue,
                             /*out*/ bool& understood)
 {
   understood = false;
@@ -203,7 +205,7 @@ BackCert::RememberExtension(Reader& extnID, const Input& extnValue,
     0x2b, 0x06, 0x01, 0x05, 0x05, 0x07, 0x01, 0x01
   };
 
-  Input* out = nullptr;
+  SECItem* out = nullptr;
 
   // We already enforce the maximum possible constraints for policies so we
   // can safely ignore even critical policy constraint extensions.
@@ -211,7 +213,7 @@ BackCert::RememberExtension(Reader& extnID, const Input& extnValue,
   // XXX: Doing it this way won't allow us to detect duplicate
   // policyConstraints extensions, but that's OK because (and only because) we
   // ignore the extension.
-  Input dummyPolicyConstraints;
+  SECItem dummyPolicyConstraints = { siBuffer, nullptr, 0 };
 
   // RFC says "Conforming CAs MUST mark this extension as non-critical" for
   // both authorityKeyIdentifier and subjectKeyIdentifier, and we do not use
@@ -239,14 +241,15 @@ BackCert::RememberExtension(Reader& extnID, const Input& extnValue,
 
   if (out) {
     // Don't allow an empty value for any extension we understand. This way, we
-    // can test out->GetLength() != 0 or out->Init() to check for duplicates.
-    if (extnValue.GetLength() == 0) {
-      return Result::ERROR_EXTENSION_VALUE_INVALID;
+    // can test out->len to check for duplicates.
+    if (extnValue.len == 0) {
+      return Fail(SEC_ERROR_EXTENSION_VALUE_INVALID);
     }
-    if (out->Init(extnValue) != Success) {
+    if (out->len != 0) {
       // Duplicate extension
-      return Result::ERROR_EXTENSION_VALUE_INVALID;
+      return Fail(SEC_ERROR_EXTENSION_VALUE_INVALID);
     }
+    *out = extnValue;
     understood = true;
   }
 

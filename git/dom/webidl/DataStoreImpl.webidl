@@ -24,20 +24,26 @@ interface DataStoreImpl {
   // is readOnly a F(current_app, datastore) function? yes
   readonly attribute boolean readOnly;
 
-  Promise<any> get(DataStoreKey... id);
+  // Promise<any>
+  Promise get(DataStoreKey... id);
 
-  Promise<void> put(any obj, DataStoreKey id, optional DOMString revisionId = "");
+  // Promise<void>
+  Promise put(any obj, DataStoreKey id, optional DOMString revisionId = "");
 
-  Promise<DataStoreKey> add(any obj, optional DataStoreKey id,
-                            optional DOMString revisionId = "");
+  // Promise<DataStoreKey>
+  Promise add(any obj, optional DataStoreKey id,
+              optional DOMString revisionId = "");
 
-  Promise<boolean> remove(DataStoreKey id, optional DOMString revisionId = "");
+  // Promise<boolean>
+  Promise remove(DataStoreKey id, optional DOMString revisionId = "");
 
-  Promise<void> clear(optional DOMString revisionId = "");
+  // Promise<void>
+  Promise clear(optional DOMString revisionId = "");
 
   readonly attribute DOMString revisionId;
 
-  Promise<unsigned long> getLength();
+  // Promise<unsigned long>
+  Promise getLength();
 
   [NewObject]
   DataStoreCursor sync(optional DOMString revisionId = "");
@@ -55,7 +61,8 @@ interface DataStoreCursorImpl {
   // the DataStore
   readonly attribute DataStore store;
 
-  Promise<DataStoreTask> next();
+  // Promise<DataStoreTask>
+  Promise next();
 
   void close();
 };
