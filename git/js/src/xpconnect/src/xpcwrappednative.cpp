@@ -2155,9 +2155,9 @@ XPCWrappedNative::CallMethod(XPCCallContext& ccx,
                        "Expected either enough arguments or an optional argument");
           jsval arg = i < argc ? argv[i] : JSVAL_NULL;
           if(JSVAL_IS_PRIMITIVE(arg) ||
-             !JS_GetPropertyById(ccx, JSVAL_TO_OBJECT(arg),
-                                 rt->GetStringID(XPCJSRuntime::IDX_VALUE),
-                                 &src))
+             !OBJ_GET_PROPERTY(ccx, JSVAL_TO_OBJECT(arg),
+                               rt->GetStringID(XPCJSRuntime::IDX_VALUE),
+                               &src))
           {
               ThrowBadParam(NS_ERROR_XPC_NEED_OUT_OBJECT, i, ccx);
               goto done;
@@ -2336,7 +2336,7 @@ XPCWrappedNative::CallMethod(XPCCallContext& ccx,
                                "Expected either enough arguments or an optional argument");
                   jsval arg = i < argc ? argv[i] : JSVAL_NULL;
                   if(JSVAL_IS_PRIMITIVE(arg) ||
-                     !JS_GetPropertyById(ccx, JSVAL_TO_OBJECT(arg),
+                     !OBJ_GET_PROPERTY(ccx, JSVAL_TO_OBJECT(arg),
                          rt->GetStringID(XPCJSRuntime::IDX_VALUE), &src))
                   {
                       ThrowBadParam(NS_ERROR_XPC_NEED_OUT_OBJECT, i, ccx);
@@ -2534,7 +2534,7 @@ XPCWrappedNative::CallMethod(XPCCallContext& ccx,
         {
             // we actually assured this before doing the invoke
             NS_ASSERTION(JSVAL_IS_OBJECT(argv[i]), "out var is not object");
-            if(!JS_SetPropertyById(ccx, JSVAL_TO_OBJECT(argv[i]),
+            if(!OBJ_SET_PROPERTY(ccx, JSVAL_TO_OBJECT(argv[i]),
                         rt->GetStringID(XPCJSRuntime::IDX_VALUE), &v))
             {
                 ThrowBadParam(NS_ERROR_XPC_CANT_SET_OUT_VAL, i, ccx);

@@ -1,19 +1,31 @@
+// defines for prompt - button position
+const ACCEPT = 0;
+const ACCEPT_FUZZ = 1;
+const DECLINE = 2;
 
-function stop_geolocationProvider()
-{
-  netscape.security.PrivilegeManager.enablePrivilege('UniversalXPConnect');
+// set if there should be a delay before prompt is accepted
+var DELAYED_PROMPT = 0;
 
-  var observerService = Components.classes["@mozilla.org/observer-service;1"].getService(Components.interfaces.nsIObserverService);
-  observerService.notifyObservers(null, "geolocation-test-control", "stop-responding");
-}
+var prompt_delay = timeout * 2;
 
-function resume_geolocationProvider()
-{
-  netscape.security.PrivilegeManager.enablePrivilege('UniversalXPConnect');
+// the prompt that was registered at runtime
+var old_prompt;
 
-  var observerService = Components.classes["@mozilla.org/observer-service;1"].getService(Components.interfaces.nsIObserverService);
-  observerService.notifyObservers(null, "geolocation-test-control", "start-responding");
-}
+// whether the prompt was accepted
+var prompted = 0;
+
+// which prompt option to select when prompt is fired
+var promptOption;
+
+// number of position changes for testLocationProvider to make
+var num_pos_changes = 3;
+
+ // based on testLocationProvider's interval
+var timer_interval = 500;
+var slack = 500;
+
+// time needed for provider to make position changes
+var timeout = num_pos_changes * timer_interval + slack;
 
 function check_geolocation(location) {
 
@@ -35,61 +47,100 @@ function check_geolocation(location) {
   ok("speed" in coords, "Check to see if there is a speed");
 }
 
+//TODO: test for fuzzed location when this is implemented
+function check_fuzzed_geolocation(location) {
+  check_geolocation(location);
+}
 
-function getNotificationBox()
-{
-  netscape.security.PrivilegeManager.enablePrivilege('UniversalXPConnect');
+function check_no_geolocation(location) {
+   ok(!location, "Check to see if this location is null");
+}
 
-  const Ci = Components.interfaces;
-  
-  function getChromeWindow(aWindow) {
-      var chromeWin = aWindow 
-          .QueryInterface(Ci.nsIInterfaceRequestor)
-          .getInterface(Ci.nsIWebNavigation)
-          .QueryInterface(Ci.nsIDocShellTreeItem)
-          .rootTreeItem
-          .QueryInterface(Ci.nsIInterfaceRequestor)
-          .getInterface(Ci.nsIDOMWindow)
-          .QueryInterface(Ci.nsIDOMChromeWindow);
-      return chromeWin;
+function success_callback(position) {
+  if(prompted == 0)
+    ok(0, "Should not call success callback before prompt accepted");
+  if(position == null)
+    ok(1, "No geolocation available");
+  else {
+    switch(promptOption) {
+      case ACCEPT:
+        check_geolocation(position);
+        break;
+      case ACCEPT_FUZZ:
+        check_fuzzed_geolocation(position);
+        break;
+      case DECLINE:
+        check_no_geolocation(position);
+        break;
+      default:
+        break;
+    }
   }
-
-  var notifyWindow = window.top;
-
-  var chromeWin = getChromeWindow(notifyWindow);
-
-  var notifyBox = chromeWin.getNotificationBox(notifyWindow);
-
-  return notifyBox;
 }
 
-
-function clickNotificationButton(aBar, aButtonName) {
+function geolocation_prompt(request) {
   netscape.security.PrivilegeManager.enablePrivilege('UniversalXPConnect');
-
-  // This is a bit of a hack. The notification doesn't have an API to
-  // trigger buttons, so we dive down into the implementation and twiddle
-  // the buttons directly.
-  var buttons = aBar.getElementsByTagName("button");
-  var clicked = false;
-  for (var i = 0; i < buttons.length; i++) {
-      if (buttons[i].label == aButtonName) {
-          buttons[i].click();
-          clicked = true;
-          break;
-      }
+	prompted = 1;
+  switch(promptOption) {
+    case ACCEPT:
+      request.allow();
+      break;
+    case ACCEPT_FUZZ:
+      request.allowButFuzz();
+      break;
+    case DECLINE:
+      request.cancel();
+      break;
+    default:
+      break;
   }
-  
-  ok(clicked, "Clicked \"" + aButtonName + "\" button"); 
+  return 1;
 }
 
-
-function clickAccept()
-{
-  clickNotificationButton(getNotificationBox().currentNotification, "Exact Location (within 10 feet)");
+function delayed_prompt(request) {
+  setTimeout(geolocation_prompt, prompt_delay, request);
 }
 
-function clickDeny()
-{
-  clickNotificationButton(getNotificationBox().currentNotification, "Nothing");
+var TestPromptFactory = {
+    QueryInterface: function(iid) {
+        if (iid.equals(Components.interfaces.nsISupports) || iid.equals(Components.interfaces.nsIFactory))
+            return this;
+        throw Components.results.NS_ERROR_NO_INTERFACE;
+    },
+
+    createInstance: function(outer, iid) {
+        if (outer)
+            throw Components.results.NS_ERROR_NO_AGGREGATION;
+
+        if(DELAYED_PROMPT)
+            return delayed_prompt;
+        else
+            return  geolocation_prompt;
+    },
+
+    lockFactory: function(lock) {
+        throw Components.results.NS_ERROR_NOT_IMPLEMENTED;
+    },
+};
+
+function attachPrompt() {
+  netscape.security.PrivilegeManager.enablePrivilege('UniversalXPConnect');
+  old_prompt  =  Components.manager.nsIComponentRegistrar.contractIDToCID("@mozilla.org/geolocation/prompt;1");
+  old_factory =  Components.manager.getClassObjectByContractID("@mozilla.org/geolocation/prompt;1", Components.interfaces.nsIFactory)
+
+  const testing_prompt_cid = Components.ID("{20C27ECF-A22E-4022-9757-2CFDA88EAEAA}");
+  Components.manager.nsIComponentRegistrar.registerFactory(testing_prompt_cid,
+                                                           "Test Geolocation Prompt",
+                                                           "@mozilla.org/geolocation/prompt;1",
+                                                           TestPromptFactory);
+}
+
+function removePrompt() {
+  netscape.security.PrivilegeManager.enablePrivilege('UniversalXPConnect');
+  const testing_prompt_cid = Components.ID("{20C27ECF-A22E-4022-9757-2CFDA88EAEAA}");
+  Components.manager.nsIComponentRegistrar.unregisterFactory(testing_prompt_cid, TestPromptFactory);
+  Components.manager.nsIComponentRegistrar.registerFactory(old_prompt,
+                                                           "Geolocation Prompt restored!",
+                                                           "@mozilla.org/geolocation/prompt;1",
+                                                           old_factory);
 }

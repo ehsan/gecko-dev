@@ -68,6 +68,7 @@
 #include "jscntxt.h"
 #include "jsdbgapi.h"
 #include "jsnum.h"
+#include "jsscope.h"
 
 // General helper includes
 #include "nsGlobalWindow.h"
@@ -4916,22 +4917,29 @@ nsWindowSH::AddProperty(nsIXPConnectWrappedNative *wrapper, JSContext *cx,
 #endif
 
       jsid interned_id;
-      if (!JS_ValueToId(cx, id, &interned_id)) {
+      if (!::JS_ValueToId(cx, id, &interned_id)) {
         *_retval = JS_FALSE;
         return NS_OK;
       }
 
-      JSPropertyDescriptor desc;
-      if (!JS_GetPropertyDescriptorById(cx, obj, interned_id,
-                                        JSRESOLVE_QUALIFIED, &desc)) {
+      JSProperty *prop = nsnull;
+      JSObject *pobj;
+      if (!OBJ_LOOKUP_PROPERTY(cx, obj, interned_id, &pobj, &prop)) {
         *_retval = JS_FALSE;
         return NS_OK;
       }
+
+      NS_ASSERTION(prop && obj == pobj, "The JS engine lies");
+      JSScopeProperty *sprop = reinterpret_cast<JSScopeProperty *>(prop);
+      JSPropertyOp getter = sprop->getter;
+      JSPropertyOp setter = sprop->setter;
+      uintN attrs = sprop->attrs;
+      OBJ_DROP_PROPERTY(cx, pobj, prop);
 
       // Forward the add to the inner object
-      *_retval = JS_DefinePropertyById(cx, innerObj, interned_id, *vp,
-                                       desc.getter, desc.setter,
-                                       desc.attrs | JSPROP_ENUMERATE);
+      *_retval = OBJ_DEFINE_PROPERTY(cx, innerObj, interned_id, *vp, getter,
+                                     setter, attrs | JSPROP_ENUMERATE, nsnull);
+
       return NS_OK;
     }
   }
@@ -4989,8 +4997,8 @@ nsWindowSH::DelProperty(nsIXPConnectWrappedNative *wrapper, JSContext *cx,
 
       // Forward the del to the inner object
       jsid interned_id;
-      *_retval = (JS_ValueToId(cx, id, &interned_id) &&
-                  JS_DeletePropertyById(cx, innerObj, interned_id));
+      *_retval = (::JS_ValueToId(cx, id, &interned_id) &&
+                  OBJ_DELETE_PROPERTY(cx, innerObj, interned_id, vp));
 
       return NS_OK;
     }

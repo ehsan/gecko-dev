@@ -4,7 +4,7 @@
 https://bugzilla.mozilla.org/show_bug.cgi?id=
 -->
 <head>
-  <title>Test for getCurrentPosition </title>
+  <title>Test for geolocation prompt </title>
   <script type="text/javascript" src="/MochiKit/MochiKit.js"></script>
   <script type="text/javascript" src="/tests/SimpleTest/SimpleTest.js"></script>
   <script type="text/javascript" src="prompt_common.js"></script>
@@ -21,19 +21,7 @@ https://bugzilla.mozilla.org/show_bug.cgi?id=
 <pre id="test">
 <script class="testbody" type="text/javascript">
 
-var numCallbacks = 5;
-var callbackCounter = new Array(numCallbacks);
-
-// define success callbacks
-for(var i = 0; i < numCallbacks; i++) {
-  eval("function successCallback" + i + "(position) {" +
-          "callbackCounter[" + i + "]++;" +
-          "success_callback(position);" +
-       "}"
-  );
-}
-
-function testAccepted() {
+function testPrompt() {
   removePrompt();
   SimpleTest.finish();
 }
@@ -42,19 +30,22 @@ function testAccepted() {
 
 SimpleTest.waitForExplicitFinish();
 
+DELAYED_PROMPT = 1;
+
 attachPrompt();
 
 ok(navigator.geolocation, "Ensure that the geolocation object is present");
 
 promptOption = ACCEPT;
 
-// one-shot position requests
-for(var i = 0; i < numCallbacks; i++) {
-  eval("navigator.geolocation.getCurrentPosition(successCallback" + i + ", null, null);");
-}
+// try get current
+navigator.geolocation.getCurrentPosition(success_callback, null, null);
+
+// try watch position
+navigator.geolocation.watchPosition(success_callback, null, null);
 
 // wait for position change
-setTimeout(testAccepted, timeout);
+setTimeout(testPrompt, timeout);
 
 </script>
 </pre>
