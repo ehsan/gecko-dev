@@ -54,24 +54,14 @@ include config.mk
 
 #NS_USE_NATIVE = 1
 
-ifndef NANOJIT_ARCH
-$(warning NANOJIT_ARCH not defined in config/$(OS_CONFIG).mk, JIT disabled)
-else
-ENABLE_JIT=1
-endif
-
-ifdef ENABLE_JIT
 DEFINES += -DJS_TRACER
-DEFINES += -DFEATURE_NANOJIT
-INCLUDES += -Inanojit
-endif
 
 ifdef NARCISSUS
 DEFINES += -DNARCISSUS
 endif
 
 # Look in OBJDIR to find jsautocfg.h and jsautokw.h
-INCLUDES   += -I. -I$(OBJDIR)
+INCLUDES   += -I. -Inanojit -I$(OBJDIR)
 
 ifdef JS_THREADSAFE
 DEFINES += -DJS_THREADSAFE
@@ -91,6 +81,7 @@ ifdef JS_HAS_FILE_OBJECT
 DEFINES += -DJS_HAS_FILE_OBJECT
 endif
 
+DEFINES += -DFEATURE_NANOJIT -DAVMPLUS_IA32 -DTRACEMONKEY
 
 #
 # XCFLAGS may be set in the environment or on the gmake command line
@@ -167,6 +158,7 @@ JS_HFILES =		\
 	jsfun.h		\
 	jsgc.h		\
 	jsinterp.h	\
+	jsinterpinlines.h \
 	jsiter.h	\
 	jslibmath.h	\
 	jslock.h	\
@@ -181,6 +173,7 @@ JS_HFILES =		\
 	jsdtoa.h	\
 	jshash.h	\
 	jslong.h	\
+	jstracerinlines.h \
 	jstypes.h	\
 	jsprvtd.h	\
 	jspubtd.h	\
@@ -191,23 +184,19 @@ JS_HFILES =		\
 	jsstr.h		\
 	jsxdrapi.h	\
 	jsxml.h		\
-	$(NULL)
-
-ifdef ENABLE_JIT
-JS_HFILES +=			\
-	jstracer.h		\
 	nanojit/Assembler.h     \
 	nanojit/LIR.h		\
-	nanojit/Native$(NANOJIT_ARCH).h	\
+	nanojit/NativeARM.h	\
+	nanojit/Nativei386.h	\
 	nanojit/avmplus.h	\
 	nanojit/vm_fops.h	\
 	nanojit/Fragmento.h	\
 	nanojit/Native.h	\
+	nanojit/NativeThumb.h	\
 	nanojit/RegAlloc.h	\
 	nanojit/nanojit.h	\
 	nanojit/TraceTreeDrawer.h \
 	$(NULL)
-endif
 
 API_HFILES =		\
 	jsapi.h		\
@@ -227,11 +216,8 @@ OTHER_HFILES =		\
 	js.msg		\
 	jsshell.msg	\
 	jskeyword.tbl	\
+	builtins.tbl    \
 	$(NULL)
-
-ifdef ENABLE_JIT
-OTHER_HFILES += builtins.tbl
-endif
 
 ifndef PREBUILT_CPUCFG
 OTHER_HFILES += $(OBJDIR)/jsautocfg.h
@@ -246,6 +232,7 @@ JS_CPPFILES =		\
 	jsarray.cpp	\
 	jsatom.cpp	\
 	jsbool.cpp	\
+	jsbuiltins.cpp  \
 	jscntxt.cpp	\
 	jsdate.cpp	\
 	jsdbgapi.cpp	\
@@ -273,28 +260,20 @@ JS_CPPFILES =		\
 	jsscope.cpp	\
 	jsscript.cpp	\
 	jsstr.cpp	\
+	jstracer.cpp	\
 	jsutil.cpp	\
 	jsxdrapi.cpp	\
 	jsxml.cpp	\
 	prmjtime.cpp	\
-	$(NULL)
-
-ifdef ENABLE_JIT
-JS_CPPFILES +=		       \
-	jsbuiltins.cpp         \
-	jstracer.cpp	       \
 	nanojit/Assembler.cpp  \
 	nanojit/Fragmento.cpp  \
 	nanojit/LIR.cpp        \
-	nanojit/Native$(NANOJIT_ARCH).cpp \
+	nanojit/Nativei386.cpp \
 	nanojit/RegAlloc.cpp   \
 	nanojit/avmplus.cpp    \
+	nanojit/Tests.cpp      \
+	nanojit/TraceTreeDrawer.cpp \
 	$(NULL)
-
-ifdef DEBUG
-JS_CPPFILES += nanojit/TraceTreeDrawer.cpp
-endif
-endif
 
 ifdef JS_LIVECONNECT
 DIRS      += liveconnect
