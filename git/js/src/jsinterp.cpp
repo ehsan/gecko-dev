@@ -76,6 +76,8 @@
 #include "jstracer.h"
 #include "jslibmath.h"
 #include "jsvector.h"
+#include "methodjit/MethodJIT.h"
+#include "methodjit/Logging.h"
 
 #include "jsatominlines.h"
 #include "jscntxtinlines.h"
@@ -321,7 +323,7 @@ Class js_NoSuchMethodClass = {
  * call by name, and args is an Array containing this invocation's actual
  * parameters.
  */
-JS_STATIC_INTERPRET JSBool
+JSBool
 js_OnUnknownMethod(JSContext *cx, Value *vp)
 {
     JS_ASSERT(!vp[1].isPrimitive());
@@ -397,6 +399,53 @@ const uint32 PrimitiveValue::Masks[PrimitiveValue::THISP_ARRAY_SIZE] = {
     JSVAL_MASK32_BOOLEAN | FAKE_NUMBER_MASK,                       /* 110 */
     JSVAL_MASK32_BOOLEAN | FAKE_NUMBER_MASK | JSVAL_MASK32_STRING  /* 111 */
 };
+
+struct AutoInterpPreparer 
+{
+    JSContext *cx;
+    JSScript *script;
+
+    AutoInterpPreparer(JSContext *cx, JSScript *script)
+      : cx(cx), script(script)
+    {
+        if (script->staticLevel < JS_DISPLAY_SIZE) {
+            JSStackFrame **disp = &cx->display[script->staticLevel];
+            cx->fp->displaySave = *disp;
+            *disp = cx->fp;
+        }
+        cx->interpLevel++;
+    }
+
+    ~AutoInterpPreparer()
+    {
+        if (script->staticLevel < JS_DISPLAY_SIZE)
+            cx->display[script->staticLevel] = cx->fp->displaySave;
+        --cx->interpLevel;
+    }
+};
+
+JS_REQUIRES_STACK bool
+RunScript(JSContext *cx, JSScript *script, JSFunction *fun, JSObject *scopeChain)
+{
+    JS_ASSERT(script);
+
+#ifdef JS_METHODJIT_SPEW
+    JMCheckLogging();
+#endif
+
+    AutoInterpPreparer prepareInterp(cx, script);
+
+#ifdef JS_METHODJIT
+    mjit::CompileStatus status = mjit::CanMethodJIT(cx, script, fun, scopeChain);
+    if (status == mjit::Compile_Error)
+        return JS_FALSE;
+
+    if (status == mjit::Compile_Okay)
+        return mjit::JaegerShot(cx);
+#endif
+
+    return Interpret(cx);
+}
 
 /*
  * Find a function reference and its 'this' object implicit first parameter
@@ -627,7 +676,7 @@ Invoke(JSContext *cx, const InvokeArgsGuard &args, uintN flags)
 #endif
     } else {
         JS_ASSERT(script);
-        ok = Interpret(cx);
+        ok = RunScript(cx, script, fun, fp->scopeChain);
     }
 
     DTrace::exitJSFun(cx, fp, fun, fp->rval);
@@ -814,7 +863,7 @@ Execute(JSContext *cx, JSObject *chain, JSScript *script,
     if (JSInterpreterHook hook = cx->debugHooks->executeHook)
         hookData = hook(cx, fp, JS_TRUE, 0, cx->debugHooks->executeHookData);
 
-    JSBool ok = Interpret(cx);
+    JSBool ok = RunScript(cx, script, fp->fun, fp->scopeChain);
     if (result)
         *result = fp->rval;
 
@@ -1204,7 +1253,7 @@ js_IsActiveWithOrBlock(JSContext *cx, JSObject *obj, int stackDepth)
  * Unwind block and scope chains to match the given depth. The function sets
  * fp->sp on return to stackDepth.
  */
-JS_STATIC_INTERPRET JS_REQUIRES_STACK JSBool
+JS_REQUIRES_STACK JSBool
 js_UnwindScope(JSContext *cx, jsint stackDepth, JSBool normalUnwind)
 {
     JSObject *obj;
@@ -2198,7 +2247,7 @@ Interpret(JSContext *cx)
      */
 #define CHECK_BRANCH()                                                        \
     JS_BEGIN_MACRO                                                            \
-        if (!JS_CHECK_OPERATION_LIMIT(cx))                                    \
+        if (cx->interruptFlags && !js_HandleExecutionInterrupt(cx))           \
             goto error;                                                       \
     JS_END_MACRO
 
@@ -2243,13 +2292,6 @@ Interpret(JSContext *cx)
     JSVersion originalVersion = (JSVersion) cx->version;
     if (currentVersion != originalVersion)
         js_SetVersion(cx, currentVersion);
-
-    /* Update the static-link display. */
-    if (script->staticLevel < JS_DISPLAY_SIZE) {
-        JSStackFrame **disp = &cx->display[script->staticLevel];
-        fp->displaySave = *disp;
-        *disp = fp;
-    }
 
 #define CHECK_INTERRUPT_HANDLER()                                             \
     JS_BEGIN_MACRO                                                            \
@@ -2577,8 +2619,6 @@ Interpret(JSContext *cx)
     JS_ASSERT_IF(!fp->isGenerator(), !js_IsActiveWithOrBlock(cx, fp->scopeChain, 0));
 
     /* Undo the remaining effects committed on entry to Interpret. */
-    if (script->staticLevel < JS_DISPLAY_SIZE)
-        cx->display[script->staticLevel] = fp->displaySave;
     if (cx->version == currentVersion && currentVersion != originalVersion)
         js_SetVersion(cx, originalVersion);
     --cx->interpLevel;

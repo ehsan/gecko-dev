@@ -524,6 +524,9 @@ JSThreadData::init()
 #ifdef JS_TRACER
     InitJIT(&traceMonitor);
 #endif
+#ifdef JS_METHODJIT
+    jmData.Initialize();
+#endif
     dtoaState = js_NewDtoaState();
     if (!dtoaState) {
         finish();
@@ -550,6 +553,9 @@ JSThreadData::finish()
     propertyCache.~PropertyCache();
 #if defined JS_TRACER
     FinishJIT(&traceMonitor);
+#endif
+#if defined JS_METHODJIT
+    jmData.Finish();
 #endif
     stackSpace.finish();
 }
@@ -2225,14 +2231,15 @@ js_GetErrorMessage(void *userRef, const char *locale, const uintN errorNumber)
 JSBool
 js_InvokeOperationCallback(JSContext *cx)
 {
-    JS_ASSERT(cx->operationCallbackFlag);
+    JS_ASSERT(cx->interruptFlags & JSContext::INTERRUPT_OPERATION_CALLBACK);
 
     /*
      * Reset the callback flag first, then yield. If another thread is racing
      * us here we will accumulate another callback request which will be
      * serviced at the next opportunity.
      */
-    cx->operationCallbackFlag = 0;
+    JS_ATOMIC_CLEAR_MASK(&cx->interruptFlags,
+                         JSContext::INTERRUPT_OPERATION_CALLBACK);
 
     /*
      * Unless we are going to run the GC, we automatically yield the current
@@ -2273,6 +2280,15 @@ js_InvokeOperationCallback(JSContext *cx)
      */
 
     return !cb || cb(cx);
+}
+
+JSBool
+js_HandleExecutionInterrupt(JSContext *cx)
+{
+    JSBool result = JS_TRUE;
+    if (cx->interruptFlags & JSContext::INTERRUPT_OPERATION_CALLBACK)
+        result = js_InvokeOperationCallback(cx) && result;
+    return result;
 }
 
 void
