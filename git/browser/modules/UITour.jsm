@@ -11,7 +11,6 @@ const {classes: Cc, interfaces: Ci, utils: Cu, results: Cr} = Components;
 Cu.import("resource://gre/modules/Services.jsm");
 Cu.import("resource://gre/modules/XPCOMUtils.jsm");
 Cu.import("resource://gre/modules/Promise.jsm");
-Cu.import("resource://gre/modules/Task.jsm");
 
 XPCOMUtils.defineLazyModuleGetter(this, "LightweightThemeManager",
   "resource://gre/modules/LightweightThemeManager.jsm");
@@ -40,9 +39,6 @@ const BUCKET_TIMESTEPS    = [
 
 // Time after which seen Page IDs expire.
 const SEENPAGEID_EXPIRY  = 8 * 7 * 24 * 60 * 60 * 1000; // 8 weeks.
-
-// Prefix for any target matching a search engine.
-const TARGET_SEARCHENGINE_PREFIX = "searchEngine-";
 
 
 this.UITour = {
@@ -102,11 +98,6 @@ this.UITour = {
     }],
     ["help",        {query: "#PanelUI-help"}],
     ["home",        {query: "#home-button"}],
-    ["forget", {
-      query: "#panic-button",
-      widgetName: "panic-button",
-      allowAdd: true }],
-    ["privateWindow",  {query: "#privatebrowsing-button"}],
     ["quit",        {query: "#PanelUI-quit"}],
     ["search",      {
       query: "#searchbar",
@@ -379,10 +370,7 @@ this.UITour = {
       }
 
       case "showMenu": {
-        this.showMenu(window, data.name, () => {
-          if (typeof data.showCallbackID == "string")
-            this.sendPageCallback(contentDocument, data.showCallbackID);
-        });
+        this.showMenu(window, data.name);
         break;
       }
 
@@ -436,15 +424,6 @@ this.UITour = {
         // accept arbitrary actions just to be safe...
         // We want to replace the current tab.
         contentDocument.location.href = "about:accounts?action=signup";
-        break;
-      }
-
-      case "addNavBarWidget": {
-        // Add a widget to the toolbar
-        let targetPromise = this.getTarget(window, data.name);
-        targetPromise.then(target => {
-          this.addNavBarWidget(target, contentDocument, data.callbackID);
-        }).then(null, Cu.reportError);
         break;
       }
     }
@@ -695,11 +674,6 @@ this.UITour = {
       return deferred.promise;
     }
 
-    if (aTargetName.startsWith(TARGET_SEARCHENGINE_PREFIX)) {
-      let engineID = aTargetName.slice(TARGET_SEARCHENGINE_PREFIX.length);
-      return this.getSearchEngineTarget(aWindow, engineID);
-    }
-
     let targetObject = this.targets.get(aTargetName);
     if (!targetObject) {
       deferred.reject("The specified target name is not in the allowed set");
@@ -725,7 +699,6 @@ this.UITour = {
         removeTargetListener: targetObject.removeTargetListener,
         targetName: aTargetName,
         widgetName: targetObject.widgetName,
-        allowAdd: targetObject.allowAdd,
       });
     }).then(null, Cu.reportError);
     return deferred.promise;
@@ -832,22 +805,8 @@ this.UITour = {
    * @see UITour.highlightEffects
    */
   showHighlight: function(aTarget, aEffect = "none") {
-    let window = aTarget.node.ownerDocument.defaultView;
-
-    function showHighlightPanel() {
-      if (aTarget.targetName.startsWith(TARGET_SEARCHENGINE_PREFIX)) {
-        // This won't affect normal higlights done via the panel, so we need to
-        // manually hide those.
-        this.hideHighlight(window);
-        aTarget.node.setAttribute("_moz-menuactive", true);
-        return;
-      }
-
-      // Conversely, highlights for search engines are highlighted via CSS
-      // rather than a panel, so need to be manually removed.
-      this._hideSearchEngineHighlight(window);
-
-      let highlighter = aTarget.node.ownerDocument.getElementById("UITourHighlight");
+    function showHighlightPanel(aTargetEl) {
+      let highlighter = aTargetEl.ownerDocument.getElementById("UITourHighlight");
 
       let effect = aEffect;
       if (effect == "random") {
@@ -859,22 +818,12 @@ this.UITour = {
       }
       // Toggle the effect attribute to "none" and flush layout before setting it so the effect plays.
       highlighter.setAttribute("active", "none");
-      aTarget.node.ownerDocument.defaultView.getComputedStyle(highlighter).animationName;
+      aTargetEl.ownerDocument.defaultView.getComputedStyle(highlighter).animationName;
       highlighter.setAttribute("active", effect);
       highlighter.parentElement.setAttribute("targetName", aTarget.targetName);
       highlighter.parentElement.hidden = false;
 
-      let highlightAnchor;
-      // If the target is in the overflow panel, just highlight the overflow button.
-      if (aTarget.node.getAttribute("overflowedItem")) {
-        let doc = aTarget.node.ownerDocument;
-        let placement = CustomizableUI.getPlacementOfWidget(aTarget.widgetName || aTarget.node.id);
-        let areaNode = doc.getElementById(placement.area);
-        highlightAnchor = areaNode.overflowable._chevron;
-      } else {
-        highlightAnchor = aTarget.node;
-      }
-      let targetRect = highlightAnchor.getBoundingClientRect();
+      let targetRect = aTargetEl.getBoundingClientRect();
       let highlightHeight = targetRect.height;
       let highlightWidth = targetRect.width;
       let minDimension = Math.min(highlightHeight, highlightWidth);
@@ -898,7 +847,7 @@ this.UITour = {
       }
       /* The "overlap" position anchors from the top-left but we want to centre highlights at their
          minimum size. */
-      let highlightWindow = aTarget.node.ownerDocument.defaultView;
+      let highlightWindow = aTargetEl.ownerDocument.defaultView;
       let containerStyle = highlightWindow.getComputedStyle(highlighter.parentElement);
       let paddingTopPx = 0 - parseFloat(containerStyle.paddingTop);
       let paddingLeftPx = 0 - parseFloat(containerStyle.paddingLeft);
@@ -909,8 +858,9 @@ this.UITour = {
                       - (Math.max(0, highlightWidthWithMin - targetRect.width) / 2);
       let offsetY = paddingLeftPx
                       - (Math.max(0, highlightHeightWithMin - targetRect.height) / 2);
+
       this._addAnnotationPanelMutationObserver(highlighter.parentElement);
-      highlighter.parentElement.openPopup(highlightAnchor, "overlap", offsetX, offsetY);
+      highlighter.parentElement.openPopup(aTargetEl, "overlap", offsetX, offsetY);
     }
 
     // Prevent showing a panel at an undefined position.
@@ -919,7 +869,7 @@ this.UITour = {
 
     this._setAppMenuStateForAnnotation(aTarget.node.ownerDocument.defaultView, "highlight",
                                        this.targetIsInAppMenu(aTarget),
-                                       showHighlightPanel.bind(this));
+                                       showHighlightPanel.bind(this, aTarget.node));
   },
 
   hideHighlight: function(aWindow) {
@@ -933,24 +883,6 @@ this.UITour = {
     highlighter.removeAttribute("active");
 
     this._setAppMenuStateForAnnotation(aWindow, "highlight", false);
-    this._hideSearchEngineHighlight(aWindow);
-  },
-
-  _hideSearchEngineHighlight: function(aWindow) {
-    // We special case highlighting items in the search engines dropdown,
-    // so just blindly remove any highlight there.
-    let searchMenuBtn = null;
-    try {
-      searchMenuBtn = this.targets.get("searchProvider").query(aWindow.document);
-    } catch (e) { /* This is ok to fail. */ }
-    if (searchMenuBtn) {
-      let searchPopup = aWindow.document
-                               .getAnonymousElementByAttribute(searchMenuBtn,
-                                                               "anonid",
-                                                               "searchbar-popup");
-      for (let menuItem of searchPopup.children)
-        menuItem.removeAttribute("_moz-menuactive");
-    }
   },
 
   /**
@@ -1050,11 +982,6 @@ this.UITour = {
     if (!this.isElementVisible(aAnchor.node))
       return;
 
-    // Due to a platform limitation, we can't anchor a panel to an element in a
-    // <menupopup>. So we can't support showing info panels for search engines.
-    if (aAnchor.targetName.startsWith(TARGET_SEARCHENGINE_PREFIX))
-      return;
-
     this._setAppMenuStateForAnnotation(aAnchor.node.ownerDocument.defaultView, "info",
                                        this.targetIsInAppMenu(aAnchor),
                                        showInfoPanel.bind(this, aAnchor.node));
@@ -1074,15 +1001,15 @@ this.UITour = {
   },
 
   showMenu: function(aWindow, aMenuName, aOpenCallback = null) {
-    function openMenuButton(aMenuBtn) {
-      if (!aMenuBtn || !aMenuBtn.boxObject || aMenuBtn.open) {
-        if (aOpenCallback)
-          aOpenCallback();
+    function openMenuButton(aID) {
+      let menuBtn = aWindow.document.getElementById(aID);
+      if (!menuBtn || !menuBtn.boxObject) {
+        aOpenCallback();
         return;
       }
       if (aOpenCallback)
-        aMenuBtn.addEventListener("popupshown", onPopupShown);
-      aMenuBtn.boxObject.QueryInterface(Ci.nsIMenuBoxObject).openMenu(true);
+        menuBtn.addEventListener("popupshown", onPopupShown);
+      menuBtn.boxObject.QueryInterface(Ci.nsIMenuBoxObject).openMenu(true);
     }
     function onPopupShown(event) {
       this.removeEventListener("popupshown", onPopupShown);
@@ -1102,19 +1029,15 @@ this.UITour = {
       }
       aWindow.PanelUI.show();
     } else if (aMenuName == "bookmarks") {
-      let menuBtn = aWindow.document.getElementById("bookmarks-menu-button");
-      openMenuButton(menuBtn);
-    } else if (aMenuName == "searchEngines") {
-      this.getTarget(aWindow, "searchProvider").then(target => {
-        openMenuButton(target.node);
-      }).catch(Cu.reportError);
+      openMenuButton("bookmarks-menu-button");
     }
   },
 
   hideMenu: function(aWindow, aMenuName) {
-    function closeMenuButton(aMenuBtn) {
-      if (aMenuBtn && aMenuBtn.boxObject)
-        aMenuBtn.boxObject.QueryInterface(Ci.nsIMenuBoxObject).openMenu(false);
+    function closeMenuButton(aID) {
+      let menuBtn = aWindow.document.getElementById(aID);
+      if (menuBtn && menuBtn.boxObject)
+        menuBtn.boxObject.QueryInterface(Ci.nsIMenuBoxObject).openMenu(false);
     }
 
     if (aMenuName == "appMenu") {
@@ -1122,11 +1045,7 @@ this.UITour = {
       aWindow.PanelUI.hide();
       this.recreatePopup(aWindow.PanelUI.panel);
     } else if (aMenuName == "bookmarks") {
-      let menuBtn = aWindow.document.getElementById("bookmarks-menu-button");
-      closeMenuButton(menuBtn);
-    } else if (aMenuName == "searchEngines") {
-      let menuBtn = this.targets.get("searchProvider").query(aWindow.document);
-      closeMenuButton(menuBtn);
+      closeMenuButton("bookmarks-menu-button");
     }
   },
 
@@ -1221,62 +1140,36 @@ this.UITour = {
   },
 
   getAvailableTargets: function(aContentDocument, aCallbackID) {
-    Task.spawn(function*() {
-      let window = this.getChromeWindow(aContentDocument);
-      let data = this.availableTargetsCache.get(window);
-      if (data) {
-        this.sendPageCallback(aContentDocument, aCallbackID, data);
-        return;
-      }
+    let window = this.getChromeWindow(aContentDocument);
+    let data = this.availableTargetsCache.get(window);
+    if (data) {
+      this.sendPageCallback(aContentDocument, aCallbackID, data);
+      return;
+    }
 
-      let promises = [];
-      for (let targetName of this.targets.keys()) {
-        promises.push(this.getTarget(window, targetName));
-      }
-      let targetObjects = yield Promise.all(promises);
-
+    let promises = [];
+    for (let targetName of this.targets.keys()) {
+      promises.push(this.getTarget(window, targetName));
+    }
+    Promise.all(promises).then((targetObjects) => {
       let targetNames = [
         "pinnedTab",
       ];
-
       for (let targetObject of targetObjects) {
         if (targetObject.node)
           targetNames.push(targetObject.targetName);
       }
-
-      targetNames = targetNames.concat(
-        yield this.getAvailableSearchEngineTargets(window)
-      );
-
-      data = {
+      let data = {
         targets: targetNames,
       };
       this.availableTargetsCache.set(window, data);
       this.sendPageCallback(aContentDocument, aCallbackID, data);
-    }.bind(this)).catch(err => {
+    }, (err) => {
       Cu.reportError(err);
       this.sendPageCallback(aContentDocument, aCallbackID, {
         targets: [],
       });
     });
-  },
-
-  addNavBarWidget: function (aTarget, aContentDocument, aCallbackID) {
-    if (aTarget.node) {
-      Cu.reportError("UITour: can't add a widget already present: " + data.target);
-      return;
-    }
-    if (!aTarget.allowAdd) {
-      Cu.reportError("UITour: not allowed to add this widget: " + data.target);
-      return;
-    }
-    if (!aTarget.widgetName) {
-      Cu.reportError("UITour: can't add a widget without a widgetName property: " + data.target);
-      return;
-    }
-
-    CustomizableUI.addWidgetToArea(aTarget.widgetName, CustomizableUI.AREA_NAVBAR);
-    this.sendPageCallback(aContentDocument, aCallbackID);
   },
 
   _addAnnotationPanelMutationObserver: function(aPanelEl) {
@@ -1319,55 +1212,6 @@ this.UITour = {
       return;
     }
   },
-
-  getAvailableSearchEngineTargets: function(aWindow) {
-    return new Promise(resolve => {
-      this.getTarget(aWindow, "search").then(searchTarget => {
-        if (!searchTarget.node || this.targetIsInAppMenu(searchTarget))
-          return resolve([]);
-
-        Services.search.init(() => {
-          let engines = Services.search.getVisibleEngines();
-          resolve([TARGET_SEARCHENGINE_PREFIX + engine.identifier
-                   for (engine of engines)
-                   if (engine.identifier)]);
-        });
-      }).catch(() => resolve([]));
-    });
-  },
-
-  // We only allow matching based on a search engine's identifier - this gives
-  // us a non-changing ID and guarentees we only match against app-provided
-  // engines.
-  getSearchEngineTarget: function(aWindow, aIdentifier) {
-    return new Promise((resolve, reject) => {
-      Task.spawn(function*() {
-        let searchTarget = yield this.getTarget(aWindow, "search");
-        // We're not supporting having the searchbar in the app-menu, because
-        // popups within popups gets crazy. This restriction should be lifted
-        // once bug 988151 is implemented, as the page can then be responsible
-        // for opening each menu when appropriate.
-        if (!searchTarget.node || this.targetIsInAppMenu(searchTarget))
-          return reject("Search engine not available");
-
-        yield Services.search.init();
-
-        let searchPopup = searchTarget.node._popup;
-        for (let engineNode of searchPopup.children) {
-          let engine = engineNode.engine;
-          if (engine && engine.identifier == aIdentifier) {
-            return resolve({
-              targetName: TARGET_SEARCHENGINE_PREFIX + engine.identifier,
-              node: engineNode,
-            });
-          }
-        }
-        reject("Search engine not available");
-      }.bind(this)).catch(() => {
-        reject("Search engine not available");
-      });
-    });
-  }
 };
 
 this.UITour.init();

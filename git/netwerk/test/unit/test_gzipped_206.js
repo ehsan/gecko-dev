@@ -1,5 +1,4 @@
 Cu.import("resource://testing-common/httpd.js");
-Cu.import("resource://gre/modules/Services.jsm");
 
 var httpserver = null;
 
@@ -64,22 +63,16 @@ function continue_test(request, data) {
   chan.asyncOpen(new ChannelListener(finish_test, null, CL_EXPECT_GZIP), null);
 }
 
-var enforcePref;
-
 function finish_test(request, data, ctx) {
   do_check_eq(request.status, 0);
   do_check_eq(data.length, responseBody.length);
   for (var i = 0; i < data.length; ++i) {
     do_check_eq(data.charCodeAt(i), responseBody[i]);
   }
-  Services.prefs.setBoolPref("network.http.enforce-framing.http1", enforcePref);
   httpserver.stop(do_test_finished);
 }
 
 function run_test() {
-  enforcePref = Services.prefs.getBoolPref("network.http.enforce-framing.http1");
-  Services.prefs.setBoolPref("network.http.enforce-framing.http1", false);
-
   httpserver = new HttpServer();
   httpserver.registerPathHandler("/cached/test.gz", cachedHandler);
   httpserver.start(-1);
@@ -89,6 +82,6 @@ function run_test() {
 
   var chan = make_channel("http://localhost:" +
                           httpserver.identity.primaryPort + "/cached/test.gz");
-  chan.asyncOpen(new ChannelListener(continue_test, null, CL_EXPECT_GZIP | CL_IGNORE_CL), null);
+  chan.asyncOpen(new ChannelListener(continue_test, null, CL_EXPECT_GZIP|CL_EXPECT_LATE_FAILURE), null);
   do_test_pending();
 }
