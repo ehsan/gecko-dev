@@ -16,7 +16,7 @@
 namespace mozilla {
 namespace dom {
 
-class FileHandle;
+class LockedFile;
 
 class File : public nsDOMFileCC
 {
@@ -27,11 +27,11 @@ public:
 
   // Create as a file
   File(const nsAString& aName, const nsAString& aContentType,
-       uint64_t aLength, nsIFile* aFile, FileHandle* aFileHandle);
+       uint64_t aLength, nsIFile* aFile, LockedFile* aLockedFile);
 
   // Create as a stored file
   File(const nsAString& aName, const nsAString& aContentType,
-       uint64_t aLength, nsIFile* aFile, FileHandle* aFileHandle,
+       uint64_t aLength, nsIFile* aFile, LockedFile* aLockedFile,
        FileInfo* aFileInfo);
 
   // Overrides
@@ -72,7 +72,7 @@ protected:
 
 private:
   nsCOMPtr<nsIFile> mFile;
-  nsRefPtr<FileHandle> mFileHandle;
+  nsRefPtr<LockedFile> mLockedFile;
 
   bool mWholeFile;
   bool mStoredFile;

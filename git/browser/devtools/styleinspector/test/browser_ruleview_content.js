@@ -4,10 +4,10 @@
 
 "use strict";
 
-// Test that the rule-view content is correct
+// Test the rule-view content
 
 let test = asyncTest(function*() {
-  yield addTab("data:text/html;charset=utf-8,browser_ruleview_content.js");
+  yield addTab("data:text/html;charset=utf-8,browser_ruleview_ui.js");
   let {toolbox, inspector, view} = yield openRuleView();
 
   info("Creating the test document");

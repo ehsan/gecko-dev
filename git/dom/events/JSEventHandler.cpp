@@ -18,7 +18,6 @@
 #include "nsDOMJSUtils.h"
 #include "WorkerPrivate.h"
 #include "mozilla/ContentEvents.h"
-#include "mozilla/CycleCollectedJSRuntime.h"
 #include "mozilla/HoldDropJSObjects.h"
 #include "mozilla/JSEventHandler.h"
 #include "mozilla/Likely.h"
@@ -156,7 +155,7 @@ JSEventHandler::HandleEvent(nsIDOMEvent* aEvent)
 
       ThreadsafeAutoJSContext cx;
       error.Construct(cx);
-      scriptEvent->GetError(cx, &error.Value());
+      error.Value() = scriptEvent->Error(cx);
     } else {
       msgOrEvent.SetAsEvent() = aEvent->InternalDOMEvent();
     }
@@ -211,8 +210,8 @@ JSEventHandler::HandleEvent(nsIDOMEvent* aEvent)
   MOZ_ASSERT(mTypedHandler.Type() == TypedEventHandler::eNormal);
   ErrorResult rv;
   nsRefPtr<EventHandlerNonNull> handler = mTypedHandler.NormalEventHandler();
-  JS::Rooted<JS::Value> retval(CycleCollectedJSRuntime::Get()->Runtime());
-  handler->Call(mTarget, *(aEvent->InternalDOMEvent()), &retval, rv);
+  JS::Value retval =
+    handler->Call(mTarget, *(aEvent->InternalDOMEvent()), rv);
   if (rv.Failed()) {
     return rv.ErrorCode();
   }

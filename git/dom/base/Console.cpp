@@ -697,7 +697,7 @@ Console::ProfileMethod(JSContext* aCx, const nsAString& aAction,
   }
 
   JS::Rooted<JS::Value> eventValue(aCx);
-  if (!ToJSValue(aCx, event, &eventValue)) {
+  if (!event.ToObject(aCx, &eventValue)) {
     return;
   }
 
@@ -1111,7 +1111,7 @@ Console::ProcessCallData(ConsoleCallData* aData)
   JSAutoCompartment ac2(cx, xpc::GetJunkScope());
 
   JS::Rooted<JS::Value> eventValue(cx);
-  if (!ToJSValue(cx, event, &eventValue)) {
+  if (!event.ToObject(cx, &eventValue)) {
     return;
   }
 
@@ -1485,7 +1485,7 @@ Console::StartTimer(JSContext* aCx, const JS::Value& aName,
     RootedDictionary<ConsoleTimerError> error(aCx);
 
     JS::Rooted<JS::Value> value(aCx);
-    if (!ToJSValue(aCx, error, &value)) {
+    if (!error.ToObject(aCx, &value)) {
       return JS::UndefinedValue();
     }
 
@@ -1517,7 +1517,7 @@ Console::StartTimer(JSContext* aCx, const JS::Value& aName,
   timer.mStarted = aTimestamp;
 
   JS::Rooted<JS::Value> value(aCx);
-  if (!ToJSValue(aCx, timer, &value)) {
+  if (!timer.ToObject(aCx, &value)) {
     return JS::UndefinedValue();
   }
 
@@ -1551,7 +1551,7 @@ Console::StopTimer(JSContext* aCx, const JS::Value& aName,
   timer.mDuration = aTimestamp - entry;
 
   JS::Rooted<JS::Value> value(aCx);
-  if (!ToJSValue(aCx, timer, &value)) {
+  if (!timer.ToObject(aCx, &value)) {
     return JS::UndefinedValue();
   }
 
@@ -1599,7 +1599,7 @@ Console::IncreaseCounter(JSContext* aCx, const ConsoleStackEntry& aFrame,
       RootedDictionary<ConsoleCounterError> error(aCx);
 
       JS::Rooted<JS::Value> value(aCx);
-      if (!ToJSValue(aCx, error, &value)) {
+      if (!error.ToObject(aCx, &value)) {
         return JS::UndefinedValue();
       }
 
@@ -1615,7 +1615,7 @@ Console::IncreaseCounter(JSContext* aCx, const ConsoleStackEntry& aFrame,
   data.mCount = count;
 
   JS::Rooted<JS::Value> value(aCx);
-  if (!ToJSValue(aCx, data, &value)) {
+  if (!data.ToObject(aCx, &value)) {
     return JS::UndefinedValue();
   }
 

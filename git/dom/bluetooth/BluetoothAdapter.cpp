@@ -429,34 +429,30 @@ BluetoothAdapter::StopDiscovery(ErrorResult& aRv)
   return StartStopDiscovery(false, aRv);
 }
 
-void
-BluetoothAdapter::GetDevices(JSContext* aContext,
-                             JS::MutableHandle<JS::Value> aDevices,
-                             ErrorResult& aRv)
+JS::Value
+BluetoothAdapter::GetDevices(JSContext* aContext, ErrorResult& aRv)
 {
   if (!mJsDeviceAddresses) {
     BT_WARNING("Devices not yet set!\n");
     aRv.Throw(NS_ERROR_FAILURE);
-    return;
+    return JS::NullValue();
   }
 
   JS::ExposeObjectToActiveJS(mJsDeviceAddresses);
-  aDevices.setObject(*mJsDeviceAddresses);
+  return JS::ObjectValue(*mJsDeviceAddresses);
 }
 
-void
-BluetoothAdapter::GetUuids(JSContext* aContext,
-                           JS::MutableHandle<JS::Value> aUuids,
-                           ErrorResult& aRv)
+JS::Value
+BluetoothAdapter::GetUuids(JSContext* aContext, ErrorResult& aRv)
 {
   if (!mJsUuids) {
     BT_WARNING("UUIDs not yet set!\n");
     aRv.Throw(NS_ERROR_FAILURE);
-    return;
+    return JS::NullValue();
   }
 
   JS::ExposeObjectToActiveJS(mJsUuids);
-  aUuids.setObject(*mJsUuids);
+  return JS::ObjectValue(*mJsUuids);
 }
 
 already_AddRefed<DOMRequest>

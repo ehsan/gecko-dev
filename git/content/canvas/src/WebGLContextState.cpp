@@ -454,14 +454,11 @@ WebGLContext::GetParameter(JSContext* cx, GLenum pname, ErrorResult& rv)
     return JS::NullValue();
 }
 
-void
-WebGLContext::GetParameterIndexed(JSContext* cx, GLenum pname, GLuint index,
-                                  JS::MutableHandle<JS::Value> retval)
+JS::Value
+WebGLContext::GetParameterIndexed(JSContext* cx, GLenum pname, GLuint index)
 {
-    if (IsContextLost()) {
-        retval.setNull();
-        return;
-    }
+    if (IsContextLost())
+        return JS::NullValue();
 
     MakeContextCurrent();
 
@@ -470,11 +467,9 @@ WebGLContext::GetParameterIndexed(JSContext* cx, GLenum pname, GLuint index,
         {
             if (index >= mGLMaxTransformFeedbackSeparateAttribs) {
                 ErrorInvalidValue("getParameterIndexed: index should be less than MAX_TRANSFORM_FEEDBACK_SEPARATE_ATTRIBS", index);
-                retval.setNull();
-                return;
+                return JS::NullValue();
             }
-            retval.setNull(); // See bug 903594
-            return;
+            return JS::NullValue(); // See bug 903594
         }
 
         default:
@@ -482,7 +477,7 @@ WebGLContext::GetParameterIndexed(JSContext* cx, GLenum pname, GLuint index,
     }
 
     ErrorInvalidEnumInfo("getParameterIndexed: parameter", pname);
-    retval.setNull();
+    return JS::NullValue();
 }
 
 bool

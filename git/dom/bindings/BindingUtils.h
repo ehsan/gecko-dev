@@ -1649,17 +1649,15 @@ WantsQueryInterface
   }
 };
 
-void
+JS::Value
 GetInterfaceImpl(JSContext* aCx, nsIInterfaceRequestor* aRequestor,
-                 nsWrapperCache* aCache, nsIJSID* aIID,
-                 JS::MutableHandle<JS::Value> aRetval, ErrorResult& aError);
+                 nsWrapperCache* aCache, nsIJSID* aIID, ErrorResult& aError);
 
 template<class T>
-void
-GetInterface(JSContext* aCx, T* aThis, nsIJSID* aIID,
-             JS::MutableHandle<JS::Value> aRetval, ErrorResult& aError)
+JS::Value
+GetInterface(JSContext* aCx, T* aThis, nsIJSID* aIID, ErrorResult& aError)
 {
-  GetInterfaceImpl(aCx, aThis, aThis, aIID, aRetval, aError);
+  return GetInterfaceImpl(aCx, aThis, aThis, aIID, aError);
 }
 
 bool

@@ -494,8 +494,7 @@ public:
     return XMLHttpRequestResponseType(mResponseType);
   }
   void SetResponseType(XMLHttpRequestResponseType aType, ErrorResult& aRv);
-  void GetResponse(JSContext* aCx, JS::MutableHandle<JS::Value> aResponse,
-                   ErrorResult& aRv);
+  JS::Value GetResponse(JSContext* aCx, ErrorResult& aRv);
   void GetResponseText(nsString& aResponseText, ErrorResult& aRv);
   nsIDocument* GetResponseXML(ErrorResult& aRv);
 
@@ -511,8 +510,7 @@ public:
   }
 
   // We need a GetInterface callable from JS for chrome JS
-  void GetInterface(JSContext* aCx, nsIJSID* aIID,
-                    JS::MutableHandle<JS::Value> aRetval, ErrorResult& aRv);
+  JS::Value GetInterface(JSContext* aCx, nsIJSID* aIID, ErrorResult& aRv);
 
   // This creates a trusted readystatechange event, which is not cancelable and
   // doesn't bubble.

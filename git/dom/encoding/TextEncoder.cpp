@@ -34,12 +34,11 @@ TextEncoder::Init(const nsAString& aEncoding, ErrorResult& aRv)
   mEncoder = EncodingUtils::EncoderForEncoding(mEncoding);
 }
 
-void
+JSObject*
 TextEncoder::Encode(JSContext* aCx,
                     JS::Handle<JSObject*> aObj,
                     const nsAString& aString,
                     const bool aStream,
-		    JS::MutableHandle<JSObject*> aRetval,
                     ErrorResult& aRv)
 {
   // Run the steps of the encoding algorithm.
@@ -49,7 +48,7 @@ TextEncoder::Encode(JSContext* aCx,
   nsresult rv = mEncoder->GetMaxLength(data, srcLen, &maxLen);
   if (NS_FAILED(rv)) {
     aRv.Throw(rv);
-    return;
+    return nullptr;
   }
   // Need a fallible allocator because the caller may be a content
   // and the content can specify the length of the string.
@@ -57,7 +56,7 @@ TextEncoder::Encode(JSContext* aCx,
   nsAutoArrayPtr<char> buf(new (fallible) char[maxLen + 1]);
   if (!buf) {
     aRv.Throw(NS_ERROR_OUT_OF_MEMORY);
-    return;
+    return nullptr;
   }
 
   int32_t dstLen = maxLen;
@@ -81,14 +80,14 @@ TextEncoder::Encode(JSContext* aCx,
                                  reinterpret_cast<uint8_t*>(buf.get()));
     if (!outView) {
       aRv.Throw(NS_ERROR_OUT_OF_MEMORY);
-      return;
+      return nullptr;
     }
   }
 
   if (NS_FAILED(rv)) {
     aRv.Throw(rv);
   }
-  aRetval.set(outView);
+  return outView;
 }
 
 void

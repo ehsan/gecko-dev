@@ -4,7 +4,7 @@
 
 // https rather than chrome to improve coverage
 const TESTCASE_URI = TEST_BASE_HTTPS + "media-rules.html";
-const MEDIA_PREF = "devtools.styleeditor.showMediaSidebar";
+const PREF = "devtools.styleeditor.showMediaSidebar";
 
 const RESIZE = 300;
 const LABELS = ["not all", "all", "(max-width: 400px)"];
@@ -13,6 +13,8 @@ const LINE_NOS = [2, 8, 20];
 waitForExplicitFinish();
 
 let test = asyncTest(function*() {
+  Services.prefs.setBoolPref(PREF, true);
+
   let {UI} = yield addTabAndOpenStyleEditors(2, null, TESTCASE_URI);
 
   is(UI.editors.length, 2, "correct number of editors");
@@ -27,36 +29,19 @@ let test = asyncTest(function*() {
   yield openEditor(mediaEditor);
   testMediaEditor(mediaEditor);
 
-  // Test that sidebar hides when flipping pref
-  testShowHide(mediaEditor);
-
   // Test resizing and seeing @media matching state change
   let originalWidth = window.outerWidth;
   let originalHeight = window.outerHeight;
 
-  let onMatchesChange = listenForMediaChange(UI);
+  let onMatchesChange = listenForMatchesChange(UI);
   window.resizeTo(RESIZE, RESIZE);
   yield onMatchesChange;
 
   testMediaMatchChanged(mediaEditor);
 
   window.resizeTo(originalWidth, originalHeight);
+  Services.prefs.clearUserPref(PREF);
 });
-
-function* testShowHide(editor) {
-  let sidebarChange = listenForMediaChange(UI);
-  Services.prefs.setBoolPref(MEDIA_PREF, false);
-  yield sidebarChange;
-
-  let sidebar = editor.details.querySelector(".stylesheet-sidebar");
-  is(sidebar.hidden, true, "sidebar is hidden after flipping pref");
-
-  sidebarChange = listenForMediaChange(UI);
-  Services.prefs.clearUserPref(MEDIA_PREF);
-  yield sidebarChange;
-
-  is(sidebar.hidden, false, "sidebar is showing after flipping pref back");
-}
 
 function testPlainEditor(editor) {
   let sidebar = editor.details.querySelector(".stylesheet-sidebar");
@@ -104,7 +89,7 @@ function openEditor(editor) {
   return editor.getSourceEditor();
 }
 
-function listenForMediaChange(UI) {
+function listenForMatchesChange(UI) {
   let deferred = promise.defer();
   UI.once("media-list-changed", () => {
     deferred.resolve();

@@ -277,7 +277,6 @@ class Type
     }
 
     inline JSObject *singleObject() const;
-    inline JSObject *singleObjectNoBarrier() const;
 
     /* Accessors for TypeObject types */
 
@@ -286,7 +285,6 @@ class Type
     }
 
     inline TypeObject *typeObject() const;
-    inline TypeObject *typeObjectNoBarrier() const;
 
     bool operator == (Type o) const { return data == o.data; }
     bool operator != (Type o) const { return data != o.data; }
@@ -580,8 +578,6 @@ class TypeSet
     inline TypeObjectKey *getObject(unsigned i) const;
     inline JSObject *getSingleObject(unsigned i) const;
     inline TypeObject *getTypeObject(unsigned i) const;
-    inline JSObject *getSingleObjectNoBarrier(unsigned i) const;
-    inline TypeObject *getTypeObjectNoBarrier(unsigned i) const;
 
     /* The Class of an object in this set. */
     inline const Class *getObjectClass(unsigned i) const;
@@ -620,9 +616,6 @@ class TypeSet
 
     // Create a new TemporaryTypeSet where undefined and/or null has been filtered out.
     TemporaryTypeSet *filter(LifoAlloc *alloc, bool filterUndefined, bool filterNull) const;
-
-    // Trigger a read barrier on all the contents of a type set.
-    static void readBarrier(const TypeSet *types);
 
   protected:
     uint32_t baseObjectCount() const {
@@ -1367,11 +1360,14 @@ struct TypeObjectKey
         return (uintptr_t(this) & 1) != 0;
     }
 
-    inline TypeObject *asTypeObject();
-    inline JSObject *asSingleObject();
-
-    inline TypeObject *asTypeObjectNoBarrier();
-    inline JSObject *asSingleObjectNoBarrier();
+    TypeObject *asTypeObject() {
+        JS_ASSERT(isTypeObject());
+        return (TypeObject *) this;
+    }
+    JSObject *asSingleObject() {
+        JS_ASSERT(isSingleObject());
+        return (JSObject *) (uintptr_t(this) & ~1);
+    }
 
     const Class *clasp();
     TaggedProto proto();

@@ -101,12 +101,10 @@ ImageBridgeParent::RecvUpdate(const EditArray& aEdits, EditReplyArray* aReply)
     aReply->AppendElements(&replyv.front(), replyv.size());
   }
 
-  if (!IsSameProcess()) {
-    // Ensure that any pending operations involving back and front
-    // buffers have completed, so that neither process stomps on the
-    // other's buffer contents.
-    LayerManagerComposite::PlatformSyncBeforeReplyUpdate();
-  }
+  // Ensure that any pending operations involving back and front
+  // buffers have completed, so that neither process stomps on the
+  // other's buffer contents.
+  LayerManagerComposite::PlatformSyncBeforeReplyUpdate();
 
   return true;
 }

@@ -538,14 +538,14 @@ public abstract class GeckoApp
             final String url = message.getString("url");
             final String title = message.getString("title");
             final Context context = this;
-            ThreadUtils.postToBackgroundThread(new Runnable() {
+            ThreadUtils.postToUiThread(new Runnable() {
                 @Override
                 public void run() {
-                    BrowserDB.addBookmark(getContentResolver(), title, url);
-                    ThreadUtils.postToUiThread(new Runnable() {
+                    Toast.makeText(context, R.string.bookmark_added, Toast.LENGTH_SHORT).show();
+                    ThreadUtils.postToBackgroundThread(new Runnable() {
                         @Override
                         public void run() {
-                            Toast.makeText(context, R.string.bookmark_added, Toast.LENGTH_SHORT).show();
+                            BrowserDB.addBookmark(getContentResolver(), title, url);
                         }
                     });
                 }

@@ -32,7 +32,6 @@ interface HmacKeyAlgorithm : KeyAlgorithm {
 [NoInterfaceObject]
 interface RsaKeyAlgorithm : KeyAlgorithm {
   readonly attribute unsigned long modulusLength;
-  [Throws]
   readonly attribute BigInteger publicExponent;
 };
 

@@ -15,53 +15,53 @@
     var testBuffer = getRandomBuffer(100000);
 
     for each (let fileStorage in fileStorages) {
-      let request = getMutableFile(fileStorage.key, "test.bin");
+      let request = getFileHandle(fileStorage.key, "test.bin");
       request.onerror = errorHandler;
       request.onsuccess = grabEventAndContinueHandler;
       let event = yield undefined;
 
-      let mutableFile = event.target.result;
-      mutableFile.onerror = errorHandler;
+      let fileHandle = event.target.result;
+      fileHandle.onerror = errorHandler;
 
-      let fileHandle = mutableFile.open("readwrite");
-      request = fileHandle.write(testBuffer);
+      let lockedFile = fileHandle.open("readwrite");
+      request = lockedFile.write(testBuffer);
       request.onsuccess = grabEventAndContinueHandler;
       event = yield undefined;
 
-      is(fileHandle.location, 100000, "Correct location");
+      is(lockedFile.location, 100000, "Correct location");
 
       for (let i = 0; i < 10; i++) {
-        let location = fileHandle.location - 10000;
-        fileHandle.location = location;
+        let location = lockedFile.location - 10000;
+        lockedFile.location = location;
 
-        request = fileHandle.truncate();
+        request = lockedFile.truncate();
         request.onsuccess = grabEventAndContinueHandler;
         event = yield undefined;
 
-        is(fileHandle.location, location, "Correct location");
+        is(lockedFile.location, location, "Correct location");
 
-        request = fileHandle.getMetadata({ size: true });
+        request = lockedFile.getMetadata({ size: true });
         request.onsuccess = grabEventAndContinueHandler;
         event = yield undefined;
 
         is(event.target.result.size, location, "Correct size");
       }
 
-      request = fileHandle.write(testBuffer);
+      request = lockedFile.write(testBuffer);
       request.onsuccess = grabEventAndContinueHandler;
       event = yield undefined;
 
-      let location = fileHandle.location;
+      let location = lockedFile.location;
       for (let i = 0; i < 10; i++) {
         location -= 10000;
 
-        request = fileHandle.truncate(location);
+        request = lockedFile.truncate(location);
         request.onsuccess = grabEventAndContinueHandler;
         event = yield undefined;
 
-        is(fileHandle.location, location, "Correct location");
+        is(lockedFile.location, location, "Correct location");
 
-        request = fileHandle.getMetadata({ size: true });
+        request = lockedFile.getMetadata({ size: true });
         request.onsuccess = grabEventAndContinueHandler;
         event = yield undefined;
 

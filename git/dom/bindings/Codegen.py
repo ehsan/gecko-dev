@@ -2143,9 +2143,10 @@ class MethodDefiner(PropertyDefiner):
                         accessor = "genericCrossOriginMethod"
                     elif self.descriptor.needsSpecialGenericOps():
                         if m.get("returnsPromise", False):
-                            accessor = "genericPromiseReturningMethod"
-                        else:
-                            accessor = "genericMethod"
+                            raise TypeError("%s returns a Promise but needs "
+                                            "special generic ops?" %
+                                            accessor)
+                        accessor = "genericMethod"
                     elif m.get("returnsPromise", False):
                         accessor = "GenericPromiseReturningBindingMethod"
                     else:
@@ -5443,7 +5444,7 @@ def getWrapTemplateForType(type, descriptorProvider, result, successCode,
                 False)
 
     if type.isDictionary():
-        return (wrapAndSetPtr("%s.ToObjectInternal(cx, ${jsvalHandle})" % result),
+        return (wrapAndSetPtr("%s.ToObject(cx, ${jsvalHandle})" % result),
                 False)
 
     if type.isDate():
@@ -5593,10 +5594,8 @@ def getRetvalDeclarationForType(returnType, descriptorProvider,
     1) A CGThing for the type of the return value, or None if there is no need
        for a return value.
 
-    2) A value indicating the kind of ourparam to pass the value as.  Valid
-       options are None to not pass as an out param at all, "ref" (to pass a
-       reference as an out param), and "ptr" (to pass a pointer as an out
-       param).
+    2) A boolean indicating whether the return value is passed as an out
+       parameter.
 
     3) A CGThing for a tracer for the return value, or None if no tracing is
        needed.
@@ -5606,23 +5605,23 @@ def getRetvalDeclarationForType(returnType, descriptorProvider,
     """
     if returnType is None or returnType.isVoid():
         # Nothing to declare
-        return None, None, None, None
+        return None, False, None, None
     if returnType.isPrimitive() and returnType.tag() in builtinNames:
         result = CGGeneric(builtinNames[returnType.tag()])
         if returnType.nullable():
             result = CGTemplatedType("Nullable", result)
-        return result, None, None, None
+        return result, False, None, None
     if returnType.isDOMString():
         if isMember:
-            return CGGeneric("nsString"), "ref", None, None
-        return CGGeneric("DOMString"), "ref", None, None
+            return CGGeneric("nsString"), True, None, None
+        return CGGeneric("DOMString"), True, None, None
     if returnType.isByteString():
-        return CGGeneric("nsCString"), "ref", None, None
+        return CGGeneric("nsCString"), True, None, None
     if returnType.isEnum():
         result = CGGeneric(returnType.unroll().inner.identifier.name)
         if returnType.nullable():
             result = CGTemplatedType("Nullable", result)
-        return result, None, None, None
+        return result, False, None, None
     if returnType.isGeckoInterface():
         result = CGGeneric(descriptorProvider.getDescriptor(
             returnType.unroll().inner.identifier.name).nativeType)
@@ -5633,18 +5632,14 @@ def getRetvalDeclarationForType(returnType, descriptorProvider,
             result = CGTemplatedType("nsRefPtr", result)
         else:
             result = CGWrapper(result, post="*")
-        return result, None, None, None
+        return result, False, None, None
     if returnType.isCallback():
         name = returnType.unroll().identifier.name
-        return CGGeneric("nsRefPtr<%s>" % name), None, None, None
+        return CGGeneric("nsRefPtr<%s>" % name), False, None, None
     if returnType.isAny():
-        if isMember:
-            return CGGeneric("JS::Value"), None, None, None
-        return CGGeneric("JS::Rooted<JS::Value>"), "ptr", None, "cx"
+        return CGGeneric("JS::Value"), False, None, None
     if returnType.isObject() or returnType.isSpiderMonkeyInterface():
-        if isMember:
-            return CGGeneric("JSObject*"), None, None, None
-        return CGGeneric("JS::Rooted<JSObject*>"), "ptr", None, "cx"
+        return CGGeneric("JSObject*"), False, None, None
     if returnType.isSequence():
         nullable = returnType.nullable()
         if nullable:
@@ -5664,7 +5659,7 @@ def getRetvalDeclarationForType(returnType, descriptorProvider,
         result = CGTemplatedType("nsTArray", result)
         if nullable:
             result = CGTemplatedType("Nullable", result)
-        return result, "ref", rooter, None
+        return result, True, rooter, None
     if returnType.isMozMap():
         nullable = returnType.nullable()
         if nullable:
@@ -5684,7 +5679,7 @@ def getRetvalDeclarationForType(returnType, descriptorProvider,
         result = CGTemplatedType("MozMap", result)
         if nullable:
             result = CGTemplatedType("Nullable", result)
-        return result, "ref", rooter, None
+        return result, True, rooter, None
     if returnType.isDictionary():
         nullable = returnType.nullable()
         dictName = CGDictionary.makeDictionaryName(returnType.unroll().inner)
@@ -5699,7 +5694,7 @@ def getRetvalDeclarationForType(returnType, descriptorProvider,
             if nullable:
                 result = CGTemplatedType("Nullable", result)
             resultArgs = None
-        return result, "ref", None, resultArgs
+        return result, True, None, resultArgs
     if returnType.isUnion():
         result = CGGeneric(CGUnionStruct.unionTypeName(returnType.unroll(), True))
         if not isMember and typeNeedsRooting(returnType):
@@ -5712,12 +5707,12 @@ def getRetvalDeclarationForType(returnType, descriptorProvider,
             if returnType.nullable():
                 result = CGTemplatedType("Nullable", result)
             resultArgs = None
-        return result, "ref", None, resultArgs
+        return result, True, None, resultArgs
     if returnType.isDate():
         result = CGGeneric("Date")
         if returnType.nullable():
             result = CGTemplatedType("Nullable", result)
-        return result, None, None, None
+        return result, False, None, None
     raise TypeError("Don't know how to declare return value for %s" %
                     returnType)
 
@@ -5806,13 +5801,8 @@ class CGCallGenerator(CGThing):
             args.append(arg)
 
         # Return values that go in outparams go here
-        if resultOutParam is not None:
-            if resultOutParam is "ref":
-                args.append(CGGeneric("result"))
-            else:
-                assert resultOutParam is "ptr"
-                args.append(CGGeneric("&result"))
-
+        if resultOutParam:
+            args.append(CGGeneric("result"))
         if isFallible:
             args.append(CGGeneric("rv"))
         args.extend(CGGeneric(arg) for arg in argsPost)
@@ -6913,53 +6903,6 @@ class CGGenericMethod(CGAbstractBindingMethod):
             #endif
             return ok;
             """))
-
-class CGGenericPromiseReturningMethod(CGAbstractBindingMethod):
-    """
-    A class for generating the C++ code for an IDL method that returns a Promise.
-
-    Does not handle cross-origin this.
-    """
-    def __init__(self, descriptor):
-        args = [Argument('JSContext*', 'cx'),
-                Argument('unsigned', 'argc'),
-                Argument('JS::Value*', 'vp')]
-        unwrapFailureCode = dedent("""
-            ThrowInvalidThis(cx, args, GetInvalidThisErrorForMethod(%%(securityError)s), "%s");\n
-            return ConvertExceptionToPromise(cx, xpc::XrayAwareCalleeGlobal(callee),
-                                             args.rval());\n""" %
-            descriptor.interface.identifier.name)
-
-        name = "genericPromiseReturningMethod"
-        customCallArgs = dedent("""
-            JS::CallArgs args = JS::CallArgsFromVp(argc, vp);
-            // Make sure to save the callee before someone maybe messes with rval().
-            JS::Rooted<JSObject*> callee(cx, &args.callee());
-        """)
-
-        CGAbstractBindingMethod.__init__(self, descriptor, name,
-                                         args,
-                                         callArgs=customCallArgs,
-                                         unwrapFailureCode=unwrapFailureCode)
-
-    def generate_code(self):
-        return CGGeneric(dedent("""
-            const JSJitInfo *info = FUNCTION_VALUE_TO_JITINFO(args.calleev());
-            MOZ_ASSERT(info->type() == JSJitInfo::Method);
-            JSJitMethodOp method = info->method;
-            bool ok = method(cx, obj, self, JSJitMethodCallArgs(args));
-            if (ok) {
-            #ifdef DEBUG
-              AssertReturnTypeMatchesJitinfo(info, args.rval());
-            #endif
-              return true;
-            }
-
-            MOZ_ASSERT(info->returnType() == JSVAL_TYPE_OBJECT);
-            return ConvertExceptionToPromise(cx, xpc::XrayAwareCalleeGlobal(callee),
-                                             args.rval());
-            """))
-
 
 
 class CGSpecializedMethod(CGAbstractStaticMethod):
@@ -10210,8 +10153,7 @@ class CGDescriptor(CGThing):
         # These are set to true if at least one non-static
         # method/getter/setter or jsonifier exist on the interface.
         (hasMethod, hasGetter, hasLenientGetter, hasSetter, hasJsonifier,
-            hasLenientSetter,
-            hasPromiseReturningMethod) = False, False, False, False, False, False, False
+            hasLenientSetter) = False, False, False, False, False, False
         crossOriginMethods, crossOriginGetters, crossOriginSetters = set(), set(), set()
         for n in descriptor.interface.namedConstructors:
             cgThings.append(CGClassConstructor(descriptor, n,
@@ -10234,8 +10176,6 @@ class CGDescriptor(CGThing):
                     specializedMethod = CGSpecializedMethod(descriptor, m)
                     cgThings.append(specializedMethod)
                     if m.returnsPromise():
-                        if descriptor.needsSpecialGenericOps():
-                            hasPromiseReturningMethod = True
                         cgThings.append(CGMethodPromiseWrapper(descriptor, specializedMethod))
                     cgThings.append(CGMemberJITInfo(descriptor, m))
                     if m.getExtendedAttribute("CrossOriginCallable"):
@@ -10294,8 +10234,6 @@ class CGDescriptor(CGThing):
             cgThings.append(CGMemberJITInfo(descriptor, jsonifierMethod))
         if hasMethod:
             cgThings.append(CGGenericMethod(descriptor))
-        if hasPromiseReturningMethod:
-            cgThings.append(CGGenericPromiseReturningMethod(descriptor))
         if len(crossOriginMethods):
             cgThings.append(CGGenericMethod(descriptor,
                                             allowCrossOriginThis=True))
@@ -10662,7 +10600,7 @@ class CGDictionary(CGThing):
                 return Init(cx, json);
                 """))
 
-    def toObjectInternalMethod(self):
+    def toObjectMethod(self):
         body = ""
         if self.needToInitIds:
             body += fill(
@@ -10679,7 +10617,7 @@ class CGDictionary(CGThing):
             body += fill(
                 """
                 // Per spec, we define the parent's members first
-                if (!${dictName}::ToObjectInternal(cx, rval)) {
+                if (!${dictName}::ToObject(cx, rval)) {
                   return false;
                 }
                 JS::Rooted<JSObject*> obj(cx, &rval.toObject());
@@ -10702,7 +10640,7 @@ class CGDictionary(CGThing):
                               for m in self.memberInfo)
         body += "\nreturn true;\n"
 
-        return ClassMethod("ToObjectInternal", "bool", [
+        return ClassMethod("ToObject", "bool", [
             Argument('JSContext*', 'cx'),
             Argument('JS::MutableHandle<JS::Value>', 'rval'),
         ], const=True, body=body)
@@ -10788,11 +10726,11 @@ class CGDictionary(CGThing):
         methods.append(self.initMethod())
         methods.append(self.initFromJSONMethod())
         try:
-            methods.append(self.toObjectInternalMethod())
+            methods.append(self.toObjectMethod())
         except MethodNotNewObjectError:
-            # If we can't have a ToObjectInternal() because one of our members
-            # can only be returned from [NewObject] methods, then just skip
-            # generating ToObjectInternal().
+            # If we can't have a ToObject() because one of our members can only
+            # be returned from [NewObject] methods, then just skip generating
+            # ToObject().
             pass
         methods.append(self.traceDictionaryMethod())
 
@@ -11583,26 +11521,15 @@ class CGNativeMember(ClassMethod):
             return ("already_AddRefed<%s>" % type.unroll().identifier.name,
                     "nullptr", "return ${declName}.forget();\n")
         if type.isAny():
-            if isMember:
-                # No need for a third element in the isMember case
-                return "JS::Value", None, None
-            # Outparam
-            return "void", "", "aRetVal.set(${declName});\n"
-
+            return "JS::Value", "JS::UndefinedValue()", "return ${declName};\n"
         if type.isObject():
-            if isMember:
-                # No need for a third element in the isMember case
-                return "JSObject*", None, None
-            return "void", "", "aRetVal.set(${declName});\n"
+            return "JSObject*", "nullptr", "return ${declName};\n"
         if type.isSpiderMonkeyInterface():
-            if isMember:
-                # No need for a third element in the isMember case
-                return "JSObject*", None, None
             if type.nullable():
-                returnCode = "${declName}.IsNull() ? nullptr : ${declName}.Value().Obj();\n"
+                returnCode = "return ${declName}.IsNull() ? nullptr : ${declName}.Value().Obj();\n"
             else:
-                returnCode = "${declName}.Obj();\n"
-            return "void", "", "aRetVal.set(%s);\n" % returnCode
+                returnCode = "return ${declName}.Obj();\n"
+            return "JSObject*", "nullptr", returnCode
         if type.isSequence():
             # If we want to handle sequence-of-sequences return values, we're
             # going to need to fix example codegen to not produce nsTArray<void>
@@ -11692,11 +11619,6 @@ class CGNativeMember(ClassMethod):
             args.append(Argument("%s&" %
                                  CGUnionStruct.unionTypeDecl(returnType, True),
                                  "aRetVal"))
-        elif returnType.isAny():
-            args.append(Argument("JS::MutableHandle<JS::Value>", "aRetVal"))
-        elif returnType.isObject() or returnType.isSpiderMonkeyInterface():
-            args.append(Argument("JS::MutableHandle<JSObject*>", "aRetVal"))
-
         # And the ErrorResult
         if 'infallible' not in self.extendedAttrs:
             # Use aRv so it won't conflict with local vars named "rv"
@@ -11874,9 +11796,6 @@ class CGNativeMember(ClassMethod):
             decl = CGWrapper(decl, pre="const ", post="&")
 
         return Argument(decl.define(), arg.identifier.name)
-
-    def arguments(self):
-        return self.member.signatures()[0][1]
 
 
 class CGExampleMethod(CGNativeMember):
@@ -13579,16 +13498,14 @@ class CGEventGetter(CGNativeMember):
                 if (${memberName}) {
                   JS::ExposeObjectToActiveJS(${memberName});
                 }
-                aRetVal.set(${memberName});
-                return;
+                return ${memberName};
                 """,
                 memberName=memberName)
         if type.isAny():
             return fill(
                 """
                 JS::ExposeValueToActiveJS(${memberName});
-                aRetVal.set(${memberName});
-                return;
+                return ${memberName};
                 """,
                 memberName=memberName)
         if type.isUnion():
@@ -13645,9 +13562,9 @@ class CGEventMethod(CGNativeMember):
     def declare(self, cgClass):
         self.args = list(self.originalArgs)
         self.args.insert(0, Argument("mozilla::dom::EventTarget*", "aOwner"))
-        constructorForNativeCaller = CGNativeMember.declare(self, cgClass)
+        constructorForNativeCaller = CGNativeMember.declare(self, cgClass) + "\n"
         self.args = list(self.originalArgs)
-        if needCx(None, self.arguments(), [], True):
+        if needCx(None, self.descriptorProvider.interface.members, [], True):
             self.args.insert(0, Argument("JSContext*", "aCx"))
         self.args.insert(0, Argument("const GlobalObject&", "aGlobal"))
         self.args.append(Argument('ErrorResult&', 'aRv'))
@@ -13698,7 +13615,7 @@ class CGEventMethod(CGNativeMember):
             """,
             arg0=self.args[0].name,
             arg1=self.args[1].name)
-        if needCx(None, self.arguments(), [], True):
+        if needCx(None, self.descriptorProvider.interface.members, [], True):
             self.args.insert(0, Argument("JSContext*", "aCx"))
         self.args.insert(0, Argument("const GlobalObject&", "aGlobal"))
         self.args.append(Argument('ErrorResult&', 'aRv'))

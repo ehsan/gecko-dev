@@ -640,27 +640,27 @@ DataTransfer::MozGetDataAt(const nsAString& aFormat, uint32_t aIndex,
   return NS_OK;
 }
 
-void
+JS::Value
 DataTransfer::MozGetDataAt(JSContext* aCx, const nsAString& aFormat,
-                           uint32_t aIndex,
-                           JS::MutableHandle<JS::Value> aRetval,
-                           mozilla::ErrorResult& aRv)
+                           uint32_t aIndex, mozilla::ErrorResult& aRv)
 {
   nsCOMPtr<nsIVariant> data;
   aRv = MozGetDataAt(aFormat, aIndex, getter_AddRefs(data));
   if (aRv.Failed()) {
-    return;
+    return JS::UndefinedValue();
   }
 
   if (!data) {
-    return;
+    return JS::NullValue();
   }
 
   JS::Rooted<JS::Value> result(aCx);
-  if (!VariantToJsval(aCx, data, aRetval)) {
+  if (!VariantToJsval(aCx, data, &result)) {
     aRv = NS_ERROR_FAILURE;
-    return;
+    return JS::UndefinedValue();
   }
+
+  return result;
 }
 
 NS_IMETHODIMP

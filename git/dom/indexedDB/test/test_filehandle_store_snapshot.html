@@ -37,22 +37,22 @@
 
     is(event.type, "success", "Got correct event type");
 
-    request = db.createMutableFile("random.bin", "binary/random");
+    request = db.mozCreateFileHandle("random.bin", "binary/random");
     request.onsuccess = grabEventAndContinueHandler;
     event = yield undefined;
 
-    let mutableFile = event.target.result;
-    mutableFile.onerror = errorHandler;
+    let fileHandle = event.target.result;
+    fileHandle.onerror = errorHandler;
 
-    let fileHandle = mutableFile.open("readwrite");
+    let lockedFile = fileHandle.open("readwrite");
 
-    is(getFileId(mutableFile), 1, "Correct file id");
+    is(getFileId(fileHandle), 1, "Correct file id");
 
-    request = fileHandle.write(testFile);
+    request = lockedFile.write(testFile);
     request.onsuccess = grabEventAndContinueHandler;
     event = yield undefined;
 
-    request = mutableFile.getFile();
+    request = fileHandle.getFile();
     request.onsuccess = grabEventAndContinueHandler;
     event = yield undefined;
 
@@ -73,7 +73,7 @@
     }
     catch (e) {
       ok(e instanceof DOMException, "Got exception.");
-      is(e.name, "FileHandleInactiveError", "Good error.");
+      is(e.name, "LockedFileInactiveError", "Good error.");
       is(e.code, 0, "Good error code.");
     }
 

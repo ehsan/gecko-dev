@@ -66,10 +66,8 @@ public:
     return mConnected;
   }
 
-  void GetUuids(JSContext* aContext, JS::MutableHandle<JS::Value> aUuids,
-                ErrorResult& aRv);
-  void GetServices(JSContext* aContext, JS::MutableHandle<JS::Value> aServices,
-                   ErrorResult& aRv);
+  JS::Value GetUuids(JSContext* aContext, ErrorResult& aRv);
+  JS::Value GetServices(JSContext* aContext, ErrorResult& aRv);
 
   nsISupports*
   ToISupports()

@@ -10,7 +10,6 @@
 #include "mozilla/dom/MozClirModeEvent.h"
 #include "mozilla/dom/MozEmergencyCbModeEvent.h"
 #include "mozilla/dom/MozOtaStatusEvent.h"
-#include "mozilla/dom/ToJSValue.h"
 #include "mozilla/dom/USSDReceivedEvent.h"
 #include "mozilla/Preferences.h"
 #include "mozilla/Services.h"
@@ -606,7 +605,7 @@ MobileConnection::SetCallForwardingOption(const MozCallForwardingOptions& aOptio
 
   AutoSafeJSContext cx;
   JS::Rooted<JS::Value> options(cx);
-  if (!ToJSValue(cx, aOptions, &options)) {
+  if (!aOptions.ToObject(cx, &options)) {
     aRv.Throw(NS_ERROR_TYPE_ERR);
     return nullptr;
   }
@@ -637,7 +636,7 @@ MobileConnection::GetCallBarringOption(const MozCallBarringOptions& aOptions,
 
   AutoSafeJSContext cx;
   JS::Rooted<JS::Value> options(cx);
-  if (!ToJSValue(cx, aOptions, &options)) {
+  if (!aOptions.ToObject(cx, &options)) {
     aRv.Throw(NS_ERROR_TYPE_ERR);
     return nullptr;
   }
@@ -668,7 +667,7 @@ MobileConnection::SetCallBarringOption(const MozCallBarringOptions& aOptions,
 
   AutoSafeJSContext cx;
   JS::Rooted<JS::Value> options(cx);
-  if (!ToJSValue(cx, aOptions, &options)) {
+  if (!aOptions.ToObject(cx, &options)) {
     aRv.Throw(NS_ERROR_TYPE_ERR);
     return nullptr;
   }
@@ -699,7 +698,7 @@ MobileConnection::ChangeCallBarringPassword(const MozCallBarringOptions& aOption
 
   AutoSafeJSContext cx;
   JS::Rooted<JS::Value> options(cx);
-  if (!ToJSValue(cx, aOptions, &options)) {
+  if (!aOptions.ToObject(cx, &options)) {
     aRv.Throw(NS_ERROR_TYPE_ERR);
     return nullptr;
   }

@@ -174,9 +174,4 @@ if (typeof Mozilla == 'undefined') {
 			configuration: configName,
 		});
 	};
-
-	Mozilla.UITour.showFirefoxAccounts = function() {
-		_sendEvent('showFirefoxAccounts');
-	};
-
 })();

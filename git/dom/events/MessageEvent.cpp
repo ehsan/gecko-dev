@@ -66,19 +66,18 @@ NS_IMETHODIMP
 MessageEvent::GetData(JSContext* aCx, JS::MutableHandle<JS::Value> aData)
 {
   ErrorResult rv;
-  GetData(aCx, aData, rv);
+  aData.set(GetData(aCx, rv));
   return rv.ErrorCode();
 }
 
-void
-MessageEvent::GetData(JSContext* aCx, JS::MutableHandle<JS::Value> aData,
-                      ErrorResult& aRv)
+JS::Value
+MessageEvent::GetData(JSContext* aCx, ErrorResult& aRv)
 {
-  JS::ExposeValueToActiveJS(mData);
-  aData.set(mData);
-  if (!JS_WrapValue(aCx, aData)) {
+  JS::Rooted<JS::Value> data(aCx, mData);
+  if (!JS_WrapValue(aCx, &data)) {
     aRv.Throw(NS_ERROR_FAILURE);
   }
+  return data;
 }
 
 NS_IMETHODIMP

@@ -3,7 +3,6 @@
  * file, You can obtain one at http:mozilla.org/MPL/2.0/. */
 
 #include "mozilla/dom/NetDashboardBinding.h"
-#include "mozilla/dom/ToJSValue.h"
 #include "mozilla/net/Dashboard.h"
 #include "mozilla/net/HttpInfo.h"
 #include "nsCxPusher.h"
@@ -21,7 +20,6 @@
 
 using mozilla::AutoSafeJSContext;
 using mozilla::dom::Sequence;
-using mozilla::dom::ToJSValue;
 
 namespace mozilla {
 namespace net {
@@ -320,7 +318,7 @@ LookupHelper::ConstructAnswer(LookupArgument *aArgument)
     }
 
     JS::RootedValue val(cx);
-    if (!ToJSValue(cx, dict, &val)) {
+    if (!dict.ToObject(cx, &val)) {
         return NS_ERROR_FAILURE;
     }
 
@@ -404,7 +402,7 @@ Dashboard::GetSockets(SocketData *aSocketData)
     dict.mSent += socketData->mTotalSent;
     dict.mReceived += socketData->mTotalRecv;
     JS::RootedValue val(cx);
-    if (!ToJSValue(cx, dict, &val))
+    if (!dict.ToObject(cx, &val))
         return NS_ERROR_FAILURE;
     socketData->mCallback->OnDashboardDataAvailable(val);
 
@@ -504,7 +502,7 @@ Dashboard::GetHttpConnections(HttpData *aHttpData)
     }
 
     JS::RootedValue val(cx);
-    if (!ToJSValue(cx, dict, &val)) {
+    if (!dict.ToObject(cx, &val)) {
         return NS_ERROR_FAILURE;
     }
 
@@ -632,7 +630,7 @@ Dashboard::GetWebSocketConnections(WebSocketRequest *aWsRequest)
     }
 
     JS::RootedValue val(cx);
-    if (!ToJSValue(cx, dict, &val)) {
+    if (!dict.ToObject(cx, &val)) {
         return NS_ERROR_FAILURE;
     }
     wsRequest->mCallback->OnDashboardDataAvailable(val);
@@ -720,7 +718,7 @@ Dashboard::GetDNSCacheEntries(DnsData *dnsData)
     }
 
     JS::RootedValue val(cx);
-    if (!ToJSValue(cx, dict, &val)) {
+    if (!dict.ToObject(cx, &val)) {
         return NS_ERROR_FAILURE;
     }
     dnsData->mCallback->OnDashboardDataAvailable(val);
@@ -824,7 +822,7 @@ Dashboard::GetConnectionStatus(ConnectionData *aConnectionData)
     dict.mStatus = connectionData->mStatus;
 
     JS::RootedValue val(cx);
-    if (!ToJSValue(cx, dict, &val))
+    if (!dict.ToObject(cx, &val))
         return NS_ERROR_FAILURE;
 
     connectionData->mCallback->OnDashboardDataAvailable(val);

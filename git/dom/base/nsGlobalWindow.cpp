@@ -59,7 +59,6 @@
 #include "nsCCUncollectableMarker.h"
 #include "mozilla/dom/workers/Workers.h"
 #include "mozilla/dom/MessagePortList.h"
-#include "mozilla/dom/ToJSValue.h"
 #include "nsJSPrincipals.h"
 #include "mozilla/Attributes.h"
 #include "mozilla/Debug.h"
@@ -3929,48 +3928,45 @@ nsGlobalWindow::GetRealTop(nsIDOMWindow** aTop)
   return GetTopImpl(outer, aTop, /* aScriptable = */ false);
 }
 
-void
-nsGlobalWindow::GetContent(JSContext* aCx,
-                           JS::MutableHandle<JSObject*> aRetval,
-                           ErrorResult& aError)
+JSObject*
+nsGlobalWindow::GetContent(JSContext* aCx, ErrorResult& aError)
 {
-  FORWARD_TO_OUTER_OR_THROW(GetContent, (aCx, aRetval, aError), aError, );
+  FORWARD_TO_OUTER_OR_THROW(GetContent, (aCx, aError), aError, nullptr);
 
   nsCOMPtr<nsIDOMWindow> content = GetContentInternal(aError);
   if (aError.Failed()) {
-    return;
+    return nullptr;
   }
 
   if (content) {
     JS::Rooted<JS::Value> val(aCx);
     aError = nsContentUtils::WrapNative(aCx, content, &val);
     if (aError.Failed()) {
-      return;
+      return nullptr;
     }
 
-    aRetval.set(&val.toObject());
-    return;
+    return &val.toObject();
   }
 
   if (!nsContentUtils::IsCallerChrome() || !IsChromeWindow()) {
     aError.Throw(NS_ERROR_FAILURE);
-    return;
+    return nullptr;
   }
 
   // Something tries to get .content on a ChromeWindow, try to fetch the CPOW.
   nsCOMPtr<nsIDocShellTreeOwner> treeOwner = GetTreeOwner();
   if (!treeOwner) {
     aError.Throw(NS_ERROR_FAILURE);
-    return;
+    return nullptr;
   }
 
   JS::Rooted<JS::Value> val(aCx, JS::NullValue());
   aError = treeOwner->GetContentWindow(aCx, &val);
   if (aError.Failed()) {
-    return;
+    return nullptr;
   }
 
-  aRetval.set(val.toObjectOrNull());
+  return val.toObjectOrNull();
 }
 
 already_AddRefed<nsIDOMWindow>
@@ -4038,8 +4034,7 @@ NS_IMETHODIMP
 nsGlobalWindow::GetScriptableContent(JSContext* aCx, JS::MutableHandle<JS::Value> aVal)
 {
   ErrorResult rv;
-  JS::Rooted<JSObject*> content(aCx);
-  GetContent(aCx, &content, rv);
+  JS::Rooted<JSObject*> content(aCx, GetContent(aCx, rv));
   if (!rv.Failed()) {
     aVal.setObjectOrNull(content);
   }
@@ -4507,17 +4502,17 @@ nsGlobalWindow::GetOpenerWindow(ErrorResult& aError)
   return nullptr;
 }
 
-void
-nsGlobalWindow::GetOpener(JSContext* aCx, JS::MutableHandle<JS::Value> aRetval,
-                          ErrorResult& aError)
+JS::Value
+nsGlobalWindow::GetOpener(JSContext* aCx, ErrorResult& aError)
 {
   nsCOMPtr<nsIDOMWindow> opener = GetOpenerWindow(aError);
   if (aError.Failed() || !opener) {
-    aRetval.setNull();
-    return;
+    return JS::NullValue();
   }
 
-  aError = nsContentUtils::WrapNative(aCx, opener, aRetval);
+  JS::Rooted<JS::Value> val(aCx);
+  aError = nsContentUtils::WrapNative(aCx, opener, &val);
+  return val;
 }
 
 NS_IMETHODIMP
@@ -4525,7 +4520,7 @@ nsGlobalWindow::GetScriptableOpener(JSContext* aCx,
                                     JS::MutableHandle<JS::Value> aOpener)
 {
   ErrorResult rv;
-  GetOpener(aCx, aOpener, rv);
+  aOpener.set(GetOpener(aCx, rv));
 
   return rv.ErrorCode();
 }
@@ -5830,7 +5825,7 @@ nsGlobalWindow::DispatchResizeEvent(const nsIntSize& aSize)
   detail.mWidth = aSize.width;
   detail.mHeight = aSize.height;
   JS::Rooted<JS::Value> detailValue(cx);
-  if (!ToJSValue(cx, detail, &detailValue)) {
+  if (!detail.ToObject(cx, &detailValue)) {
     return false;
   }
 
@@ -9114,11 +9109,10 @@ nsGlobalWindow::ShowModalDialog(const nsAString& aUrl, nsIVariant* aArgument,
   return retVal.forget();
 }
 
-void
+JS::Value
 nsGlobalWindow::ShowModalDialog(JSContext* aCx, const nsAString& aUrl,
                                 JS::Handle<JS::Value> aArgument,
                                 const nsAString& aOptions,
-                                JS::MutableHandle<JS::Value> aRetval,
                                 ErrorResult& aError)
 {
   nsCOMPtr<nsIVariant> args;
@@ -9126,22 +9120,23 @@ nsGlobalWindow::ShowModalDialog(JSContext* aCx, const nsAString& aUrl,
                                                     aArgument,
                                                     getter_AddRefs(args));
   if (aError.Failed()) {
-    return;
+    return JS::UndefinedValue();
   }
 
   nsCOMPtr<nsIVariant> retVal = ShowModalDialog(aUrl, args, aOptions, aError);
   if (aError.Failed()) {
-    return;
+    return JS::UndefinedValue();
   }
 
   JS::Rooted<JS::Value> result(aCx);
   if (retVal) {
     aError = nsContentUtils::XPConnect()->VariantToJS(aCx,
                                                       FastGetGlobalJSObject(),
-                                                      retVal, aRetval);
+                                                      retVal, &result);
   } else {
-    aRetval.setNull();
+    result = JS::NullValue();
   }
+  return result;
 }
 
 NS_IMETHODIMP
@@ -10589,12 +10584,10 @@ nsGlobalWindow::GetInterface(const nsIID & aIID, void **aSink)
   return *aSink ? NS_OK : NS_ERROR_NO_INTERFACE;
 }
 
-void
-nsGlobalWindow::GetInterface(JSContext* aCx, nsIJSID* aIID,
-                             JS::MutableHandle<JS::Value> aRetval,
-                             ErrorResult& aError)
+JS::Value
+nsGlobalWindow::GetInterface(JSContext* aCx, nsIJSID* aIID, ErrorResult& aError)
 {
-  dom::GetInterface(aCx, this, aIID, aRetval, aError);
+  return dom::GetInterface(aCx, this, aIID, aError);
 }
 
 void
@@ -12104,8 +12097,7 @@ nsGlobalWindow::RunTimeoutHandler(nsTimeout* aTimeout,
     // Hold strong ref to ourselves while we call the callback.
     nsCOMPtr<nsISupports> me(static_cast<nsIDOMWindow *>(this));
     ErrorResult ignored;
-    JS::Rooted<JS::Value> ignoredVal(CycleCollectedJSRuntime::Get()->Runtime());
-    callback->Call(me, handler->GetArgs(), &ignoredVal, ignored);
+    callback->Call(me, handler->GetArgs(), ignored);
   }
 
   // We ignore any failures from calling EvaluateString() on the context or
@@ -13630,29 +13622,28 @@ NS_IMPL_ADDREF_INHERITED(nsGlobalModalWindow, nsGlobalWindow)
 NS_IMPL_RELEASE_INHERITED(nsGlobalModalWindow, nsGlobalWindow)
 
 
-void
-nsGlobalWindow::GetDialogArguments(JSContext* aCx,
-                                   JS::MutableHandle<JS::Value> aRetval,
-                                   ErrorResult& aError)
+JS::Value
+nsGlobalWindow::GetDialogArguments(JSContext* aCx, ErrorResult& aError)
 {
-  FORWARD_TO_OUTER_OR_THROW(GetDialogArguments, (aCx, aRetval, aError),
-                            aError, );
+  FORWARD_TO_OUTER_OR_THROW(GetDialogArguments, (aCx, aError), aError,
+                            JS::UndefinedValue());
 
   MOZ_ASSERT(IsModalContentWindow(),
              "This should only be called on modal windows!");
 
   if (!mDialogArguments) {
     MOZ_ASSERT(mIsClosed, "This window should be closed!");
-    aRetval.setUndefined();
-    return;
+    return JS::UndefinedValue();
   }
 
   // This does an internal origin check, and returns undefined if the subject
   // does not subsumes the origin of the arguments.
   JS::Rooted<JSObject*> wrapper(aCx, GetWrapper());
   JSAutoCompartment ac(aCx, wrapper);
+  JS::Rooted<JS::Value> args(aCx);
   mDialogArguments->Get(aCx, wrapper, nsContentUtils::SubjectPrincipal(),
-                        aRetval, aError);
+                        &args, aError);
+  return args;
 }
 
 NS_IMETHODIMP
@@ -13666,25 +13657,23 @@ nsGlobalModalWindow::GetDialogArguments(nsIVariant **aArguments)
   return mDialogArguments->Get(nsContentUtils::SubjectPrincipal(), aArguments);
 }
 
-void
-nsGlobalWindow::GetReturnValue(JSContext* aCx,
-                               JS::MutableHandle<JS::Value> aReturnValue,
-                               ErrorResult& aError)
+JS::Value
+nsGlobalWindow::GetReturnValue(JSContext* aCx, ErrorResult& aError)
 {
-  FORWARD_TO_OUTER_OR_THROW(GetReturnValue, (aCx, aReturnValue, aError),
-                            aError, );
+  FORWARD_TO_OUTER_OR_THROW(GetReturnValue, (aCx, aError), aError,
+                            JS::UndefinedValue());
 
   MOZ_ASSERT(IsModalContentWindow(),
              "This should only be called on modal windows!");
 
+  JS::Rooted<JS::Value> returnValue(aCx);
   if (mReturnValue) {
     JS::Rooted<JSObject*> wrapper(aCx, GetWrapper());
     JSAutoCompartment ac(aCx, wrapper);
     mReturnValue->Get(aCx, wrapper, nsContentUtils::SubjectPrincipal(),
-                      aReturnValue, aError);
-  } else {
-    aReturnValue.setUndefined();
+                      &returnValue, aError);
   }
+  return returnValue;
 }
 
 NS_IMETHODIMP

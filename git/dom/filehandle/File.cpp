@@ -6,7 +6,7 @@
 
 #include "File.h"
 
-#include "FileHandle.h"
+#include "LockedFile.h"
 #include "mozilla/Assertions.h"
 #include "nsDebug.h"
 
@@ -17,25 +17,25 @@ using indexedDB::IndexedDatabaseManager;
 
   // Create as a file
 File::File(const nsAString& aName, const nsAString& aContentType,
-           uint64_t aLength, nsIFile* aFile, FileHandle* aFileHandle)
+           uint64_t aLength, nsIFile* aFile, LockedFile* aLockedFile)
 : nsDOMFileCC(aName, aContentType, aLength),
-  mFile(aFile), mFileHandle(aFileHandle),
+  mFile(aFile), mLockedFile(aLockedFile),
   mWholeFile(true), mStoredFile(false)
 {
   MOZ_ASSERT(mFile, "Null file!");
-  MOZ_ASSERT(mFileHandle, "Null file handle!");
+  MOZ_ASSERT(mLockedFile, "Null locked file!");
 }
 
 // Create as a stored file
 File::File(const nsAString& aName, const nsAString& aContentType,
-           uint64_t aLength, nsIFile* aFile, FileHandle* aFileHandle,
+           uint64_t aLength, nsIFile* aFile, LockedFile* aLockedFile,
            FileInfo* aFileInfo)
 : nsDOMFileCC(aName, aContentType, aLength),
-  mFile(aFile), mFileHandle(aFileHandle),
+  mFile(aFile), mLockedFile(aLockedFile),
   mWholeFile(true), mStoredFile(true)
 {
   MOZ_ASSERT(mFile, "Null file!");
-  MOZ_ASSERT(mFileHandle, "Null file handle!");
+  MOZ_ASSERT(mLockedFile, "Null locked file!");
   mFileInfos.AppendElement(aFileInfo);
 }
 
@@ -43,11 +43,11 @@ File::File(const nsAString& aName, const nsAString& aContentType,
 File::File(const File* aOther, uint64_t aStart, uint64_t aLength,
            const nsAString& aContentType)
 : nsDOMFileCC(aContentType, aOther->mStart + aStart, aLength),
-  mFile(aOther->mFile), mFileHandle(aOther->mFileHandle),
+  mFile(aOther->mFile), mLockedFile(aOther->mLockedFile),
   mWholeFile(false), mStoredFile(aOther->mStoredFile)
 {
-  MOZ_ASSERT(mFile, "Null file!");
-  MOZ_ASSERT(mFileHandle, "Null file handle!");
+  NS_ASSERTION(mFile, "Null file!");
+  NS_ASSERTION(mLockedFile, "Null locked file!");
 
   if (mStoredFile) {
     FileInfo* fileInfo;
@@ -69,7 +69,7 @@ File::~File()
 }
 
 NS_IMPL_CYCLE_COLLECTION_INHERITED(File, nsDOMFileCC,
-                                   mFileHandle)
+                                   mLockedFile)
 
 NS_INTERFACE_MAP_BEGIN_CYCLE_COLLECTION_INHERITED(File)
 NS_INTERFACE_MAP_END_INHERITING(nsDOMFileCC)
@@ -82,7 +82,7 @@ File::GetInternalStream(nsIInputStream **aStream)
 {
   NS_ASSERTION(NS_IsMainThread(), "Wrong thread!");
 
-  nsresult rv = mFileHandle->OpenInputStream(mWholeFile, mStart, mLength,
+  nsresult rv = mLockedFile->OpenInputStream(mWholeFile, mStart, mLength,
                                              aStream);
   NS_ENSURE_SUCCESS(rv, rv);
 

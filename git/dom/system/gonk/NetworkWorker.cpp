@@ -7,7 +7,6 @@
 #include <nsThreadUtils.h>
 #include "mozilla/ModuleUtils.h"
 #include "mozilla/ClearOnShutdown.h"
-#include "mozilla/dom/ToJSValue.h"
 #include "nsXULAppAPI.h"
 #include "nsCxPusher.h"
 
@@ -241,7 +240,7 @@ NetworkWorker::DispatchNetworkResult(const NetworkResultOptions& aOptions)
   mozilla::AutoSafeJSContext cx;
   JS::RootedValue val(cx);
 
-  if (!ToJSValue(cx, aOptions, &val)) {
+  if (!aOptions.ToObject(cx, &val)) {
     return;
   }
 

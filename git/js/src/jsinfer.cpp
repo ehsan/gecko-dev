@@ -614,22 +614,6 @@ TypeSet::print()
     }
 }
 
-/* static */ void
-TypeSet::readBarrier(const TypeSet *types)
-{
-    if (types->unknownObject())
-        return;
-
-    for (unsigned i = 0; i < types->getObjectCount(); i++) {
-        if (TypeObjectKey *object = types->getObject(i)) {
-            if (object->isSingleObject())
-                (void) object->asSingleObject();
-            else
-                (void) object->asTypeObject();
-        }
-    }
-}
-
 bool
 TypeSet::clone(LifoAlloc *alloc, TemporaryTypeSet *result) const
 {

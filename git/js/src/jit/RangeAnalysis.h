@@ -414,7 +414,6 @@ class Range : public TempObject {
     static Range *abs(TempAllocator &alloc, const Range *op);
     static Range *min(TempAllocator &alloc, const Range *lhs, const Range *rhs);
     static Range *max(TempAllocator &alloc, const Range *lhs, const Range *rhs);
-    static Range *floor(TempAllocator &alloc, const Range *op);
 
     static bool negativeZeroMul(const Range *lhs, const Range *rhs);
 
@@ -587,6 +586,11 @@ class Range : public TempObject {
     }
     void setSymbolicUpper(SymbolicBound *bound) {
         symbolicUpper_ = bound;
+    }
+
+    void resetFractionalPart() {
+        canHaveFractionalPart_ = false;
+        optimize();
     }
 };
 

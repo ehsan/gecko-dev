@@ -213,9 +213,8 @@ public:
   void
   SetResponseType(XMLHttpRequestResponseType aResponseType, ErrorResult& aRv);
 
-  void
-  GetResponse(JSContext* /* unused */, JS::MutableHandle<JS::Value> aResponse,
-              ErrorResult& aRv);
+  jsval
+  GetResponse(JSContext* /* unused */, ErrorResult& aRv);
 
   void
   GetResponseText(nsAString& aResponseText, ErrorResult& aRv);
@@ -232,11 +231,11 @@ public:
     return nullptr;
   }
 
-  void
-  GetInterface(JSContext* cx, JS::Handle<JSObject*> aIID,
-               JS::MutableHandle<JS::Value> aRetval, ErrorResult& aRv)
+  JS::Value
+  GetInterface(JSContext* cx, JS::Handle<JSObject*> aIID, ErrorResult& aRv)
   {
     aRv.Throw(NS_ERROR_FAILURE);
+    return JSVAL_NULL;
   }
 
   XMLHttpRequestUpload*

@@ -4641,12 +4641,6 @@ class MConcat
     AliasSet getAliasSet() const {
         return AliasSet::None();
     }
-
-    bool writeRecoverData(CompactBufferWriter &writer) const;
-    bool canRecoverOnBailout() const {
-        return true;
-    }
-
 };
 
 class MConcatPar

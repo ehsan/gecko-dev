@@ -27,12 +27,9 @@ public:
 
   virtual JSObject* WrapObject(JSContext *aCx) MOZ_OVERRIDE;
 
-  void GetCurve(JSContext* aCx, JS::MutableHandle<JSObject*> aRetval) const
+  JSObject* GetCurve(JSContext* aCx) const
   {
-    if (mCurve) {
-      JS::ExposeObjectToActiveJS(mCurve);
-    }
-    aRetval.set(mCurve);
+    return mCurve;
   }
   void SetCurve(const Nullable<Float32Array>& aData);
 

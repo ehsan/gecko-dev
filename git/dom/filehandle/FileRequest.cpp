@@ -6,10 +6,10 @@
 
 #include "FileRequest.h"
 
-#include "FileHandle.h"
 #include "FileHelper.h"
 #include "js/RootingAPI.h"
 #include "jsapi.h"
+#include "LockedFile.h"
 #include "MainThreadUtils.h"
 #include "mozilla/dom/FileRequestBinding.h"
 #include "mozilla/EventDispatcher.h"
@@ -38,13 +38,13 @@ FileRequest::~FileRequest()
 
 // static
 already_AddRefed<FileRequest>
-FileRequest::Create(nsPIDOMWindow* aOwner, FileHandle* aFileHandle,
+FileRequest::Create(nsPIDOMWindow* aOwner, LockedFile* aLockedFile,
                     bool aWrapAsDOMRequest)
 {
   NS_ASSERTION(NS_IsMainThread(), "Wrong thread!");
 
   nsRefPtr<FileRequest> request = new FileRequest(aOwner);
-  request->mFileHandle = aFileHandle;
+  request->mLockedFile = aLockedFile;
   request->mWrapAsDOMRequest = aWrapAsDOMRequest;
 
   return request.forget();
@@ -56,7 +56,7 @@ FileRequest::PreHandleEvent(EventChainPreVisitor& aVisitor)
   NS_ASSERTION(NS_IsMainThread(), "Wrong thread!");
 
   aVisitor.mCanHandle = true;
-  aVisitor.mParentTarget = mFileHandle;
+  aVisitor.mParentTarget = mLockedFile;
   return NS_OK;
 }
 
@@ -103,7 +103,7 @@ FileRequest::NotifyHelperCompleted(FileHelper* aFileHelper)
 }
 
 NS_IMPL_CYCLE_COLLECTION_INHERITED(FileRequest, DOMRequest,
-                                   mFileHandle)
+                                   mLockedFile)
 
 NS_INTERFACE_MAP_BEGIN_CYCLE_COLLECTION_INHERITED(FileRequest)
 NS_INTERFACE_MAP_END_INHERITING(DOMRequest)
@@ -121,11 +121,11 @@ FileRequest::WrapObject(JSContext* aCx)
   return FileRequestBinding::Wrap(aCx, this);
 }
 
-FileHandle*
-FileRequest::GetFileHandle() const
+LockedFile*
+FileRequest::GetLockedFile() const
 {
   MOZ_ASSERT(NS_IsMainThread(), "Wrong thread!");
-  return mFileHandle;
+  return mLockedFile;
 }
 
 void

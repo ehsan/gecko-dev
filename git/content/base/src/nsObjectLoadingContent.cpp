@@ -3204,11 +3204,10 @@ nsObjectLoadingContent::GetContentDocument()
   return sub_doc;
 }
 
-void
+JS::Value
 nsObjectLoadingContent::LegacyCall(JSContext* aCx,
                                    JS::Handle<JS::Value> aThisVal,
                                    const Sequence<JS::Value>& aArguments,
-                                   JS::MutableHandle<JS::Value> aRetval,
                                    ErrorResult& aRv)
 {
   nsCOMPtr<nsIContent> thisContent =
@@ -3222,12 +3221,12 @@ nsObjectLoadingContent::LegacyCall(JSContext* aCx,
   // this is not an Xray situation by hand.
   if (!JS_WrapObject(aCx, &obj)) {
     aRv.Throw(NS_ERROR_UNEXPECTED);
-    return;
+    return JS::UndefinedValue();
   }
 
   if (nsDOMClassInfo::ObjectIsNativeWrapper(aCx, obj)) {
     aRv.Throw(NS_ERROR_NOT_AVAILABLE);
-    return;
+    return JS::UndefinedValue();
   }
 
   obj = thisContent->GetWrapper();
@@ -3236,33 +3235,33 @@ nsObjectLoadingContent::LegacyCall(JSContext* aCx,
   JS::AutoValueVector args(aCx);
   if (!args.append(aArguments.Elements(), aArguments.Length())) {
     aRv.Throw(NS_ERROR_OUT_OF_MEMORY);
-    return;
+    return JS::UndefinedValue();
   }
 
   for (size_t i = 0; i < args.length(); i++) {
     if (!JS_WrapValue(aCx, args[i])) {
       aRv.Throw(NS_ERROR_UNEXPECTED);
-      return;
+      return JS::UndefinedValue();
     }
   }
 
   JS::Rooted<JS::Value> thisVal(aCx, aThisVal);
   if (!JS_WrapValue(aCx, &thisVal)) {
     aRv.Throw(NS_ERROR_UNEXPECTED);
-    return;
+    return JS::UndefinedValue();
   }
 
   nsRefPtr<nsNPAPIPluginInstance> pi;
   nsresult rv = ScriptRequestPluginInstance(aCx, getter_AddRefs(pi));
   if (NS_FAILED(rv)) {
     aRv.Throw(rv);
-    return;
+    return JS::UndefinedValue();
   }
 
   // if there's no plugin around for this object, throw.
   if (!pi) {
     aRv.Throw(NS_ERROR_NOT_AVAILABLE);
-    return;
+    return JS::UndefinedValue();
   }
 
   JS::Rooted<JSObject*> pi_obj(aCx);
@@ -3271,21 +3270,23 @@ nsObjectLoadingContent::LegacyCall(JSContext* aCx,
   rv = GetPluginJSObject(aCx, obj, pi, &pi_obj, &pi_proto);
   if (NS_FAILED(rv)) {
     aRv.Throw(rv);
-    return;
+    return JS::UndefinedValue();
   }
 
   if (!pi_obj) {
     aRv.Throw(NS_ERROR_NOT_AVAILABLE);
-    return;
+    return JS::UndefinedValue();
   }
 
-  bool ok = JS::Call(aCx, thisVal, pi_obj, args, aRetval);
+  JS::Rooted<JS::Value> retval(aCx);
+  bool ok = JS::Call(aCx, thisVal, pi_obj, args, &retval);
   if (!ok) {
     aRv.Throw(NS_ERROR_FAILURE);
-    return;
+    return JS::UndefinedValue();
   }
 
   Telemetry::Accumulate(Telemetry::PLUGIN_CALLED_DIRECTLY, true);
+  return retval;
 }
 
 void

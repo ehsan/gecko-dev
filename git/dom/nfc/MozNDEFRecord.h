@@ -60,28 +60,46 @@ public:
     return mTnf;
   }
 
-  void GetType(JSContext* cx, JS::MutableHandle<JSObject*> retval) const
+  JSObject* GetType(JSContext* cx) const
   {
     if (mType) {
-      JS::ExposeObjectToActiveJS(mType);
+      return GetTypeObject();
+    } else {
+      return nullptr;
     }
-    retval.set(mType);
+  }
+  JSObject* GetTypeObject() const
+  {
+    JS::ExposeObjectToActiveJS(mType);
+    return mType;
   }
 
-  void GetId(JSContext* cx, JS::MutableHandle<JSObject*> retval) const
+  JSObject* GetId(JSContext* cx) const
   {
     if (mId) {
-      JS::ExposeObjectToActiveJS(mId);
+      return GetIdObject();
+    } else {
+      return nullptr;
     }
-    retval.set(mId);
+  }
+  JSObject* GetIdObject() const
+  {
+    JS::ExposeObjectToActiveJS(mId);
+    return mId;
   }
 
-  void GetPayload(JSContext* cx, JS::MutableHandle<JSObject*> retval) const
+  JSObject* GetPayload(JSContext* cx) const
   {
     if (mPayload) {
-      JS::ExposeObjectToActiveJS(mPayload);
+      return GetPayloadObject();
+    } else {
+      return nullptr;
     }
-    retval.set(mPayload);
+  }
+  JSObject* GetPayloadObject() const
+  {
+    JS::ExposeObjectToActiveJS(mPayload);
+    return mPayload;
   }
 
 private:

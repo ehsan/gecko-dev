@@ -408,8 +408,7 @@ IndexedDBDatabaseParent::HandleRequestEvent(nsIDOMEvent* aEvent,
   AutoSafeJSContext cx;
 
   ErrorResult error;
-  JS::Rooted<JS::Value> result(cx);
-  mOpenRequest->GetResult(cx, &result, error);
+  JS::Rooted<JS::Value> result(cx, mOpenRequest->GetResult(cx, error));
   ENSURE_SUCCESS(error, error.ErrorCode());
 
   MOZ_ASSERT(!result.isPrimitive());

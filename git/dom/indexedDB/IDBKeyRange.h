@@ -156,13 +156,11 @@ public:
     return mGlobal;
   }
 
-  void
-  GetLower(JSContext* aCx, JS::MutableHandle<JS::Value> aResult,
-           ErrorResult& aRv);
+  JS::Value
+  GetLower(JSContext* aCx, ErrorResult& aRv);
 
-  void
-  GetUpper(JSContext* aCx, JS::MutableHandle<JS::Value> aResult,
-           ErrorResult& aRv);
+  JS::Value
+  GetUpper(JSContext* aCx, ErrorResult& aRv);
 
   bool
   LowerOpen() const

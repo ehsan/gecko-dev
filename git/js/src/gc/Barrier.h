@@ -161,11 +161,6 @@ class PropertyName;
 #ifdef DEBUG
 bool
 RuntimeFromMainThreadIsHeapMajorCollecting(JS::shadow::Zone *shadowZone);
-
-// Barriers can't be triggered during backend Ion compilation, which may run on
-// a helper thread.
-bool
-CurrentThreadIsIonCompiling();
 #endif
 
 bool
@@ -203,7 +198,6 @@ class BarrieredCell : public gc::Cell
 
     static MOZ_ALWAYS_INLINE void readBarrier(T *thing) {
 #ifdef JSGC_INCREMENTAL
-        JS_ASSERT(!CurrentThreadIsIonCompiling());
         JS::shadow::Zone *shadowZone = thing->shadowZoneFromAnyThread();
         if (shadowZone->needsBarrier()) {
             MOZ_ASSERT(!RuntimeFromMainThreadIsHeapMajorCollecting(shadowZone));
@@ -226,7 +220,6 @@ class BarrieredCell : public gc::Cell
 
     static MOZ_ALWAYS_INLINE void writeBarrierPre(T *thing) {
 #ifdef JSGC_INCREMENTAL
-        JS_ASSERT(!CurrentThreadIsIonCompiling());
         if (isNullLike(thing) || !thing->shadowRuntimeFromAnyThread()->needsBarrier())
             return;
 
@@ -324,7 +317,6 @@ struct InternalGCMethods<Value>
 
     static void preBarrier(Value v) {
 #ifdef JSGC_INCREMENTAL
-        JS_ASSERT(!CurrentThreadIsIonCompiling());
         if (v.isMarkable() && shadowRuntimeFromAnyThread(v)->needsBarrier())
             preBarrier(ZoneOfValueFromAnyThread(v), v);
 #endif
@@ -332,7 +324,6 @@ struct InternalGCMethods<Value>
 
     static void preBarrier(Zone *zone, Value v) {
 #ifdef JSGC_INCREMENTAL
-        JS_ASSERT(!CurrentThreadIsIonCompiling());
         if (v.isString() && StringIsPermanentAtom(v.toString()))
             return;
         JS::shadow::Zone *shadowZone = JS::shadow::Zone::asShadowZone(zone);
@@ -347,7 +338,6 @@ struct InternalGCMethods<Value>
 
     static void postBarrier(Value *vp) {
 #ifdef JSGC_GENERATIONAL
-        JS_ASSERT(!CurrentThreadIsIonCompiling());
         if (vp->isObject()) {
             gc::StoreBuffer *sb = reinterpret_cast<gc::Cell *>(&vp->toObject())->storeBuffer();
             if (sb)
@@ -358,7 +348,6 @@ struct InternalGCMethods<Value>
 
     static void postBarrierRelocate(Value *vp) {
 #ifdef JSGC_GENERATIONAL
-        JS_ASSERT(!CurrentThreadIsIonCompiling());
         if (vp->isObject()) {
             gc::StoreBuffer *sb = reinterpret_cast<gc::Cell *>(&vp->toObject())->storeBuffer();
             if (sb)
@@ -371,7 +360,6 @@ struct InternalGCMethods<Value>
 #ifdef JSGC_GENERATIONAL
         JS_ASSERT(vp);
         JS_ASSERT(vp->isMarkable());
-        JS_ASSERT(!CurrentThreadIsIonCompiling());
         JSRuntime *rt = static_cast<js::gc::Cell *>(vp->toGCThing())->runtimeFromAnyThread();
         JS::shadow::Runtime *shadowRuntime = JS::shadow::Runtime::asShadowRuntime(rt);
         shadowRuntime->gcStoreBufferPtr()->removeRelocatableValueFromAnyThread(vp);

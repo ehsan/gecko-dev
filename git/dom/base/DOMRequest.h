@@ -49,12 +49,11 @@ public:
                  : DOMRequestReadyState::Pending;
   }
 
-  void GetResult(JSContext*, JS::MutableHandle<JS::Value> aRetval) const
+  JS::Value Result(JSContext* = nullptr) const
   {
     NS_ASSERTION(mDone || mResult == JSVAL_VOID,
-                 "Result should be undefined when pending");
-    JS::ExposeValueToActiveJS(mResult);
-    aRetval.set(mResult);
+               "Result should be undefined when pending");
+    return mResult;
   }
 
   DOMError* GetError() const

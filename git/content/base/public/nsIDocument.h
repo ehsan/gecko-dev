@@ -2087,10 +2087,9 @@ public:
                                     const nsAString& aTypeExtension,
                                     uint32_t aNamespaceID,
                                     mozilla::ErrorResult& rv) = 0;
-  virtual void
+  virtual JSObject*
     RegisterElement(JSContext* aCx, const nsAString& aName,
                     const mozilla::dom::ElementRegistrationOptions& aOptions,
-                    JS::MutableHandle<JSObject*> aRetval,
                     mozilla::ErrorResult& rv) = 0;
 
   /**

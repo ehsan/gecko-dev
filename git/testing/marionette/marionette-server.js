@@ -716,7 +716,6 @@ MarionetteServerConnection.prototype = {
                     createInstance(Ci.nsIFileInputStream);
       stream.init(this.importedScripts, -1, 0, 0);
       let data = NetUtil.readInputStreamToString(stream, stream.available());
-      stream.close();
       script = data + script;
     }
 

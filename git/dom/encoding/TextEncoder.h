@@ -46,13 +46,12 @@ public:
     return TextEncoderBinding::Wrap(aCx, this, aTookOwnership);
   }
 
-  void Encode(JSContext* aCx,
-	      JS::Handle<JSObject*> aObj,
-	      const nsAString& aString,
-	      const TextEncodeOptions& aOptions,
-	      JS::MutableHandle<JSObject*> aRetval,
-	      ErrorResult& aRv) {
-    TextEncoder::Encode(aCx, aObj, aString, aOptions.mStream, aRetval, aRv);
+  JSObject* Encode(JSContext* aCx,
+                   JS::Handle<JSObject*> aObj,
+                   const nsAString& aString,
+                   const TextEncodeOptions& aOptions,
+                   ErrorResult& aRv) {
+    return TextEncoder::Encode(aCx, aObj, aString, aOptions.mStream, aRv);
   }
 
 protected:
@@ -86,15 +85,13 @@ public:
    *                   If the streaming option is false, then the encoding
    *                   algorithm state will get reset. If set to true then
    *                   the previous encoding is reused/continued.
-   * @return JSObject* The Uint8Array wrapped in a JS object.  Returned via
-   *                   the aRetval out param.
+   * @return JSObject* The Uint8Array wrapped in a JS object.
    */
-  void Encode(JSContext* aCx,
-	      JS::Handle<JSObject*> aObj,
-	      const nsAString& aString,
-	      const bool aStream,
-	      JS::MutableHandle<JSObject*> aRetval,
-	      ErrorResult& aRv);
+  JSObject* Encode(JSContext* aCx,
+                   JS::Handle<JSObject*> aObj,
+                   const nsAString& aString,
+                   const bool aStream,
+                   ErrorResult& aRv);
 
 private:
   nsCString mEncoding;

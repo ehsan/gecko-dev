@@ -61,9 +61,9 @@ public:
   {
     return mHeight;
   }
-  void GetData(JSContext* cx, JS::MutableHandle<JSObject*> aData) const
+  JSObject* Data(JSContext* cx) const
   {
-    aData.set(GetDataObject());
+    return GetDataObject();
   }
   JSObject* GetDataObject() const
   {
