@@ -1098,14 +1098,10 @@ nsTreeSanitizer::MustPrune(PRInt32 aNamespace,
                        nsGkAtoms::datalist == aLocal)) {
       return true;
     }
-    if (mDropMedia && (nsGkAtoms::img == aLocal
-#ifdef MOZ_MEDIA
-                       ||
+    if (mDropMedia && (nsGkAtoms::img == aLocal ||
                        nsGkAtoms::video == aLocal ||
                        nsGkAtoms::audio == aLocal ||
-                       nsGkAtoms::source == aLocal
-#endif
-                       )) {
+                       nsGkAtoms::source == aLocal)) {
       return true;
     }
     if (nsGkAtoms::meta == aLocal &&
@@ -1379,31 +1375,24 @@ nsTreeSanitizer::SanitizeURL(mozilla::dom::Element* aElement,
   nsCOMPtr<nsIURI> baseURI = aElement->GetBaseURI();
   nsCOMPtr<nsIURI> attrURI;
   nsresult rv = NS_NewURI(getter_AddRefs(attrURI), v, nsnull, baseURI);
-  if (NS_SUCCEEDED(rv)) { 
-    if (mCidEmbedsOnly &&
-        kNameSpaceID_None == aNamespace) {
-      if (nsGkAtoms::src == aLocalName || nsGkAtoms::background == aLocalName) {
-        // comm-central uses a hack that makes nsIURIs created with cid: specs
-        // actually have an about:blank spec. Therefore, nsIURI facilities are
-        // useless for cid: when comm-central code is participating.
-        if (!(v.Length() > 4 &&
-              (v[0] == 'c' || v[0] == 'C') &&
-              (v[1] == 'i' || v[1] == 'I') &&
-              (v[2] == 'd' || v[2] == 'D') &&
-              v[3] == ':')) {
-          rv = NS_ERROR_FAILURE;
-        }
-      } else if (nsGkAtoms::cdgroup_ == aLocalName ||
-                 nsGkAtoms::altimg_ == aLocalName ||
-                 nsGkAtoms::definitionURL_ == aLocalName) {
-        // Gecko doesn't fetch these now and shouldn't in the future, but
-        // in case someone goofs with these in the future, let's drop them.
+  if (NS_SUCCEEDED(rv)) {
+    rv = secMan->CheckLoadURIWithPrincipal(sNullPrincipal, attrURI, flags);
+  }
+  if (mCidEmbedsOnly &&
+      NS_SUCCEEDED(rv) &&
+      kNameSpaceID_None == aNamespace) {
+    if (nsGkAtoms::src == aLocalName || nsGkAtoms::background == aLocalName) {
+      bool isCid;
+      attrURI->SchemeIs("cid", &isCid);
+      if (!isCid) {
         rv = NS_ERROR_FAILURE;
-      } else {
-        rv = secMan->CheckLoadURIWithPrincipal(sNullPrincipal, attrURI, flags);
       }
-    } else {
-      rv = secMan->CheckLoadURIWithPrincipal(sNullPrincipal, attrURI, flags);
+    } else if (nsGkAtoms::cdgroup_ == aLocalName ||
+               nsGkAtoms::altimg_ == aLocalName ||
+               nsGkAtoms::definitionURL_ == aLocalName) {
+      // Gecko doesn't fetch these now and shouldn't in the future, but
+      // in case someone goofs with these in the future, let's drop them.
+      rv = NS_ERROR_FAILURE;
     }
   }
   if (NS_FAILED(rv)) {

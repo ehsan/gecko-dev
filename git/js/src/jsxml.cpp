@@ -232,12 +232,12 @@ JS_FRIEND_DATA(Class) js::NamespaceClass = {
     JS_EnumerateStub,
     JS_ResolveStub,
     JS_ConvertStub,
-    NULL,                    /* finalize    */
+    JS_FinalizeStub,
     NULL,                    /* checkAccess */
     NULL,                    /* call        */
     NULL,                    /* construct   */
     NULL,                    /* hasInstance */
-    NULL,                    /* trace       */
+    NULL,                    /* mark        */
     {
         namespace_equality,
         NULL,                /* outerObject    */
@@ -346,12 +346,12 @@ JS_FRIEND_DATA(Class) js::QNameClass = {
     JS_EnumerateStub,
     JS_ResolveStub,
     JS_ConvertStub,
-    NULL,                    /* finalize    */
+    JS_FinalizeStub,
     NULL,                    /* checkAccess */
     NULL,                    /* call        */
     NULL,                    /* construct   */
     NULL,                    /* hasInstance */
-    NULL,                    /* trace       */
+    NULL,                    /* mark        */
     {
         qname_equality,
         NULL,                /* outerObject    */
@@ -377,7 +377,8 @@ JS_FRIEND_DATA(Class) js::AttributeNameClass = {
     JS_StrictPropertyStub,   /* setProperty */
     JS_EnumerateStub,
     JS_ResolveStub,
-    JS_ConvertStub
+    JS_ConvertStub,
+    JS_FinalizeStub
 };
 
 JS_FRIEND_DATA(Class) js::AnyNameClass = {
@@ -390,7 +391,8 @@ JS_FRIEND_DATA(Class) js::AnyNameClass = {
     JS_StrictPropertyStub,   /* setProperty */
     JS_EnumerateStub,
     JS_ResolveStub,
-    JS_ConvertStub
+    JS_ConvertStub,
+    JS_FinalizeStub
 };
 
 #define QNAME_ATTRS (JSPROP_ENUMERATE | JSPROP_READONLY | JSPROP_PERMANENT | JSPROP_SHARED)
@@ -4719,6 +4721,11 @@ HasProperty(JSContext *cx, JSObject *obj, jsval id, JSBool *found)
     return JS_TRUE;
 }
 
+static void
+xml_finalize(JSContext *cx, JSObject *obj)
+{
+}
+
 /*
  * XML objects are native. Thus xml_lookupGeneric must return a valid
  * Shape pointer parameter via *propp to signify "property found". Since the
@@ -5369,10 +5376,10 @@ JS_FRIEND_DATA(Class) js::XMLClass = {
     JS_EnumerateStub,
     JS_ResolveStub,
     xml_convert,
-    NULL,                    /* finalize    */
-    NULL,                    /* checkAccess */
-    NULL,                    /* call        */
-    NULL,                    /* construct   */
+    xml_finalize,
+    NULL,                 /* checkAccess */
+    NULL,                 /* call        */
+    NULL,                 /* construct   */
     xml_hasInstance,
     xml_trace,
     JS_NULL_CLASS_EXT,

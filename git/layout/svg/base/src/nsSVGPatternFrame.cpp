@@ -40,7 +40,6 @@
 
 #include "nsGkAtoms.h"
 #include "nsIDOMSVGAnimatedRect.h"
-#include "nsRenderingContext.h"
 #include "SVGAnimatedTransformList.h"
 #include "nsStyleContext.h"
 #include "nsINameSpaceManager.h"

@@ -95,7 +95,6 @@ public:
   // Methods for resampling all animations
   // (A resample performs the same operations as a sample but doesn't advance
   // the current time and doesn't check if the container is paused)
-  // This will flush pending style changes for the document.
   void Resample() { DoSample(false); }
 
   void SetResampleNeeded()
@@ -107,8 +106,6 @@ public:
       mResampleNeeded = true;
     }
   }
-
-  // This will flush pending style changes for the document.
   void FlushResampleRequests()
   {
     if (!mResampleNeeded)

@@ -37,18 +37,32 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
-#include "InterfaceInitFuncs.h"
+#include "nsMaiInterfaceAction.h"
 
-#include "nsMai.h"
+#include "nsAccUtils.h"
+#include "nsRoleMap.h"
+#include "nsString.h"
 #include "Role.h"
 
-#include "nsString.h"
+#include "nsIDOMDOMStringList.h"
 
 using namespace mozilla::a11y;
 
-extern "C" {
+void
+actionInterfaceInitCB(AtkActionIface *aIface)
+{
+    NS_ASSERTION(aIface, "Invalid aIface");
+    if (!aIface)
+        return;
 
-static gboolean
+    aIface->do_action = doActionCB;
+    aIface->get_n_actions = getActionCountCB;
+    aIface->get_description = getActionDescriptionCB;
+    aIface->get_keybinding = getKeyBindingCB;
+    aIface->get_name = getActionNameCB;
+}
+
+gboolean
 doActionCB(AtkAction *aAction, gint aActionIndex)
 {
     nsAccessibleWrap *accWrap = GetAccessibleWrap(ATK_OBJECT(aAction));
@@ -59,14 +73,14 @@ doActionCB(AtkAction *aAction, gint aActionIndex)
     return (NS_FAILED(rv)) ? FALSE : TRUE;
 }
 
-static gint
+gint
 getActionCountCB(AtkAction *aAction)
 {
   nsAccessibleWrap* accWrap = GetAccessibleWrap(ATK_OBJECT(aAction));
   return accWrap ? accWrap->ActionCount() : 0;
 }
 
-static const gchar*
+const gchar *
 getActionDescriptionCB(AtkAction *aAction, gint aActionIndex)
 {
     nsAccessibleWrap *accWrap = GetAccessibleWrap(ATK_OBJECT(aAction));
@@ -79,7 +93,7 @@ getActionDescriptionCB(AtkAction *aAction, gint aActionIndex)
     return nsAccessibleWrap::ReturnString(description);
 }
 
-static const gchar*
+const gchar *
 getActionNameCB(AtkAction *aAction, gint aActionIndex)
 {
     nsAccessibleWrap *accWrap = GetAccessibleWrap(ATK_OBJECT(aAction));
@@ -92,7 +106,7 @@ getActionNameCB(AtkAction *aAction, gint aActionIndex)
     return nsAccessibleWrap::ReturnString(autoStr);
 }
 
-static const gchar*
+const gchar *
 getKeyBindingCB(AtkAction *aAction, gint aActionIndex)
 {
   nsAccessibleWrap* acc = GetAccessibleWrap(ATK_OBJECT(aAction));
@@ -141,19 +155,4 @@ getKeyBindingCB(AtkAction *aAction, gint aActionIndex)
   }
 
   return nsAccessibleWrap::ReturnString(keyBindingsStr);
-}
-}
-
-void
-actionInterfaceInitCB(AtkActionIface* aIface)
-{
-  NS_ASSERTION(aIface, "Invalid aIface");
-  if (NS_UNLIKELY(!aIface))
-    return;
-
-  aIface->do_action = doActionCB;
-  aIface->get_n_actions = getActionCountCB;
-  aIface->get_description = getActionDescriptionCB;
-  aIface->get_keybinding = getKeyBindingCB;
-  aIface->get_name = getActionNameCB;
 }

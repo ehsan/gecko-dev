@@ -150,6 +150,8 @@ static void
 GetChromeHangReport(Telemetry::HangStack &callStack, SharedLibraryInfo &moduleMap)
 {
   MOZ_ASSERT(winMainThreadHandle);
+  moduleMap = SharedLibraryInfo::GetInfoForSelf();
+  moduleMap.SortByAddress();
 
   DWORD ret = ::SuspendThread(winMainThreadHandle);
   if (ret == -1) {
@@ -165,9 +167,6 @@ GetChromeHangReport(Telemetry::HangStack &callStack, SharedLibraryInfo &moduleMa
     moduleMap.Clear();
     return;
   }
-
-  moduleMap = SharedLibraryInfo::GetInfoForSelf();
-  moduleMap.SortByAddress();
 
   // Remove all modules not referenced by a PC on the stack
   Telemetry::HangStack sortedStack = callStack;

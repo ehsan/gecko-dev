@@ -1268,8 +1268,7 @@ let RIL = {
         // Ignore 2 bytes prefix, which is 4 chars
         let number = GsmPDUHelper.readStringAsBCD().toString().substr(4); 
         if (DEBUG) debug("MSISDN: " + number);
-        this.MSISDN = number || null;
-        this.sendDOMMessage({type: "siminfo", msisdn: this.MSISDN});
+        this.MSISDN = number;
         break;
     } 
   },

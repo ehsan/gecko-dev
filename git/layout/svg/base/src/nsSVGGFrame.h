@@ -39,8 +39,8 @@
 #ifndef NSSVGGFRAME_H
 #define NSSVGGFRAME_H
 
-#include "gfxMatrix.h"
 #include "nsSVGContainerFrame.h"
+#include "gfxMatrix.h"
 
 typedef nsSVGDisplayContainerFrame nsSVGGFrameBase;
 

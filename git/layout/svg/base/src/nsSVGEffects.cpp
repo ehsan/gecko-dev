@@ -331,7 +331,7 @@ nsSVGPaintingProperty::DoUpdate()
     return;
 
   if (mFrame->IsFrameOfType(nsIFrame::eSVG)) {
-    nsSVGUtils::InvalidateBounds(mFrame);
+    nsSVGUtils::InvalidateCoveredRegion(mFrame);
   } else {
     InvalidateAllContinuations(mFrame);
   }

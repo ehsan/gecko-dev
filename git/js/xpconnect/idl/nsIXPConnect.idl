@@ -50,8 +50,6 @@
 #include "nsIInterfaceInfoManager.idl"
 #include "nsIExceptionService.idl"
 #include "nsIVariant.idl"
-#include "nsIObjectOutputStream.idl"
-#include "nsIObjectInputStream.idl"
 
 %{ C++
 #include "jspubtd.h"
@@ -72,7 +70,6 @@ class nsWrapperCache;
 [ptr] native JSValConstPtr(const jsval);
       native JSPropertyOp(JSPropertyOp);
       native JSEqualityOp(JSEqualityOp);
-[ptr] native JSScriptPtr(JSScript);
 [ptr] native voidPtrPtr(void*);
 [ptr] native nsScriptObjectTracerPtr(nsScriptObjectTracer);
 [ref] native nsCCTraversalCallbackRef(nsCycleCollectionTraversalCallback);
@@ -408,7 +405,7 @@ enum nsGCType {
 };
 %}
 
-[uuid(08ad2253-3ed6-40ed-beec-6472f2d8dc7f)]
+[uuid(0213cb40-2dd5-4ac8-a9d3-157bd53c3824)]
 interface nsIXPConnect : nsISupports
 {
 %{ C++
@@ -804,18 +801,4 @@ interface nsIXPConnect : nsISupports
      */
     [noscript] void setDebugModeWhenPossible(in boolean mode,
                                              in boolean allowSyncDisable);
-
-    [noscript] void writeScript(in nsIObjectOutputStream aStream,
-                                in JSContextPtr aJSContext,
-                                in JSScriptPtr aJSScript);
-
-    [noscript] JSScriptPtr readScript(in nsIObjectInputStream aStream,
-                                      in JSContextPtr aJSContext);
-
-    [noscript] void writeFunction(in nsIObjectOutputStream aStream,
-                                  in JSContextPtr aJSContext,
-                                  in JSObjectPtr aJSObject);
-
-    [noscript] JSObjectPtr readFunction(in nsIObjectInputStream aStream,
-                                        in JSContextPtr aJSContext);
 };

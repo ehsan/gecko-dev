@@ -43,7 +43,6 @@
 #include "nsQueryFrame.h"
 
 class nsIDOMSVGPoint;
-class nsSVGGlyphFrame;
 
 class nsISVGGlyphFragmentNode : public nsQueryFrame
 {

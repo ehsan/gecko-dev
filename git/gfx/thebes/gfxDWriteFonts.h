@@ -90,8 +90,6 @@ public:
 
     virtual PRInt32 GetGlyphWidth(gfxContext *aCtx, PRUint16 aGID);
 
-    virtual mozilla::TemporaryRef<mozilla::gfx::GlyphRenderingOptions> GetGlyphRenderingOptions();
-
 protected:
     friend class gfxDWriteShaper;
 

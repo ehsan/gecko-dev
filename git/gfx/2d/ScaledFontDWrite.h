@@ -63,22 +63,6 @@ private:
   Float mSize;
 };
 
-class GlyphRenderingOptionsDWrite : public GlyphRenderingOptions
-{
-public:
-  GlyphRenderingOptionsDWrite(IDWriteRenderingParams *aParams)
-    : mParams(aParams)
-  {
-  }
-
-  virtual FontType GetType() const { return FONT_DWRITE; }
-
-private:
-  friend class DrawTargetD2D;
-
-  RefPtr<IDWriteRenderingParams> mParams;
-};
-
 }
 }
 

@@ -15,7 +15,7 @@ Test that restricted key pressed drop documents out of DOM full-screen mode.
   }
   </style>
 </head>
-<body>
+<body onload="document.body.mozRequestFullScreen();">
 
 <script type="application/javascript">
 
@@ -92,35 +92,28 @@ function testScriptInitiatedKeyEvents() {
 
 function testNextKey() {
   if (!document.mozFullScreen) {
-    document.addEventListener("mozfullscreenchange", reallyTestNextKey, false);
     document.body.mozRequestFullScreen();
   }
-  else {
-    reallyTestNextKey();
-  }
-}
+  // mozRequestFullScreen() is async...
+  setTimeout(
+    function() {
+      ok(document.mozFullScreen, "Must be in full-screen mode");
 
-function reallyTestNextKey() {
-  document.removeEventListener("mozfullscreenchange", reallyTestNextKey, false);
+      gKeyName = keyList[gKeyTestIndex].code;
+      gKeyCode = KeyEvent["DOM_" + gKeyName];
+      gKeySuppressed = keyList[gKeyTestIndex].suppressed;
+      gKeyTestIndex++;
 
-  ok(document.mozFullScreen, "Must be in full-screen mode");
-
-  gKeyName = keyList[gKeyTestIndex].code;
-  gKeyCode = KeyEvent["DOM_" + gKeyName];
-  gKeySuppressed = keyList[gKeyTestIndex].suppressed;
-  gKeyTestIndex++;
-
-  testScriptInitiatedKeyEvents();
-  testTrustedKeyEvents();
+      testScriptInitiatedKeyEvents();
+      testTrustedKeyEvents();
+    }, 0);
 }
 
 window.addEventListener("keydown", keyHandler, true);
 window.addEventListener("keyup", keyHandler, true);
 window.addEventListener("keypress", keyHandler, true);
+setTimeout(testNextKey, 0);
 
-function begin() {
-  testNextKey();
-}
 </script>
 </pre>
 </body>

@@ -325,9 +325,10 @@ FunctionName(JSContext *cx, const JSFunction *fun, JSAutoByteString* bytes)
 {
     if (!fun)
         return Probes::nullName;
-    if (!fun->atom)
+    JSAtom *atom = const_cast<JSAtom*>(fun->atom);
+    if (!atom)
         return Probes::anonymousName;
-    return bytes->encode(cx, fun->atom) ? bytes->ptr() : Probes::nullName;
+    return bytes->encode(cx, atom) ? bytes->ptr() : Probes::nullName;
 }
 
 static const char *

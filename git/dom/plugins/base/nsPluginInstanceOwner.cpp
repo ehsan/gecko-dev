@@ -1804,7 +1804,7 @@ bool nsPluginInstanceOwner::AddPluginView(const gfxRect& aRect)
 
 void nsPluginInstanceOwner::RemovePluginView()
 {
-  if (!mInstance)
+  if (!mInstance || !mObjectFrame)
     return;
 
   void* surface = mInstance->GetJavaSurface();

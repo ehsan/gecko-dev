@@ -37,11 +37,10 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
-#include "InterfaceInitFuncs.h"
+#include "nsMaiInterfaceDocument.h"
 
 #include "nsAccessibleWrap.h"
 #include "nsDocAccessible.h"
-#include "nsMai.h"
 
 static const char* const kDocTypeName = "W3C-doctype";
 static const char* const kDocUrlName = "DocURL";
@@ -59,7 +58,7 @@ void
 documentInterfaceInitCB(AtkDocumentIface *aIface)
 {
     NS_ASSERTION(aIface, "Invalid Interface");
-    if(NS_UNLIKELY(!aIface))
+    if(!aIface)
         return;
 
     /*

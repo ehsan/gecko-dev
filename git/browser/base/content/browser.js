@@ -156,9 +156,6 @@ __defineSetter__("PluralForm", function (val) {
   return this.PluralForm = val;
 });
 
-XPCOMUtils.defineLazyModuleGetter(this, "TelemetryStopwatch",
-                                  "resource:///modules/TelemetryStopwatch.jsm");
-
 #ifdef MOZ_SERVICES_SYNC
 XPCOMUtils.defineLazyGetter(this, "Weave", function() {
   let tmp = {};
@@ -3647,19 +3644,6 @@ function toOpenWindowByType(inType, uri, features)
 
 function OpenBrowserWindow()
 {
-  var telemetryObj = {};
-  TelemetryStopwatch.start("FX_NEW_WINDOW_MS", telemetryObj);
-
-  function newDocumentShown(doc, topic, data) {
-    if (topic == "document-shown" &&
-        doc != document &&
-        doc.defaultView == win) {
-      Services.obs.removeObserver(newDocumentShown, "document-shown");
-      TelemetryStopwatch.finish("FX_NEW_WINDOW_MS", telemetryObj);
-    }
-  };
-  Services.obs.addObserver(newDocumentShown, "document-shown", false);
-
   var charsetArg = new String();
   var handler = Components.classes["@mozilla.org/browser/clh;1"]
                           .getService(Components.interfaces.nsIBrowserHandler);
@@ -3916,22 +3900,9 @@ var FullScreen = {
     if (event && event.type == "fullscreen")
       enterFS = !enterFS;
 
-    // Toggle the View:FullScreen command, which controls elements like the
-    // fullscreen menuitem, menubars, and the appmenu.
-    document.getElementById("View:FullScreen").setAttribute("checked", enterFS);
-
-    // On OS X Lion we don't want to hide toolbars when entering fullscreen, unless
-    // we're entering DOM fullscreen, in which case we should hide the toolbars.
-    // If we're leaving fullscreen, then we'll go through the exit code below to
-    // make sure toolbars are made visible in the case of DOM fullscreen.
-    if (enterFS && this.useLionFullScreen) {
-      if (document.mozFullScreen)
-        this.showXULChrome("toolbar", false);
-      return;
-    }
-
-    // show/hide menubars, toolbars (except the full screen toolbar)
+    // show/hide all menubars, toolbars (except the full screen toolbar)
     this.showXULChrome("toolbar", !enterFS);
+    document.getElementById("View:FullScreen").setAttribute("checked", enterFS);
 
     if (enterFS) {
       // Add a tiny toolbar to receive mouseover and dragenter events, and provide affordance.
@@ -4039,8 +4010,7 @@ var FullScreen = {
     gBrowser.tabContainer.addEventListener("TabSelect", this.exitDomFullScreen);
 
     // Exit DOM full-screen mode when the browser window loses focus (ALT+TAB, etc).
-    if (!this.useLionFullScreen &&
-        gPrefService.getBoolPref("full-screen-api.exit-on-deactivate")) {
+    if (gPrefService.getBoolPref("full-screen-api.exit-on-deactivate")) {
       window.addEventListener("deactivate", this);
     }
 
@@ -4076,9 +4046,7 @@ var FullScreen = {
       gBrowser.tabContainer.removeEventListener("TabOpen", this.exitDomFullScreen);
       gBrowser.tabContainer.removeEventListener("TabClose", this.exitDomFullScreen);
       gBrowser.tabContainer.removeEventListener("TabSelect", this.exitDomFullScreen);
-      if (this.useLionFullScreen) {
-        window.removeEventListener("deactivate", this);
-      }
+      window.removeEventListener("deactivate", this);
     }
   },
 
@@ -4428,18 +4396,6 @@ var FullScreen = {
       controls[i].hidden = aShow;
   }
 };
-XPCOMUtils.defineLazyGetter(FullScreen, "useLionFullScreen", function() {
-  // We'll only use OS X Lion full screen if we're
-  // * on OS X
-  // * on Lion (Darwin 11.x) -- this will need to be updated for OS X 10.8
-  // * have fullscreenbutton="true"
-#ifdef XP_MACOSX
-  return /^11\./.test(Services.sysinfo.getProperty("version")) &&
-         document.documentElement.getAttribute("fullscreenbutton") == "true";
-#else
-  return false;
-#endif
-});
 
 /**
  * Returns true if |aMimeType| is text-based, false otherwise.
@@ -6200,7 +6156,6 @@ var gPageStyleMenu = {
         menuItem.setAttribute("label", currentStyleSheet.title);
         menuItem.setAttribute("data", currentStyleSheet.title);
         menuItem.setAttribute("checked", !currentStyleSheet.disabled && !styleDisabled);
-        menuItem.setAttribute("oncommand", "gPageStyleMenu.switchStyleSheet(this.getAttribute('data'));");
         menuPopup.appendChild(menuItem);
         currentStyleSheets[currentStyleSheet.title] = menuItem;
       } else if (currentStyleSheet.disabled) {
@@ -6212,6 +6167,7 @@ var gPageStyleMenu = {
     persistentOnly.setAttribute("checked", !altStyleSelected && !styleDisabled);
     persistentOnly.hidden = (window.content.document.preferredStyleSheetSet) ? haveAltSheets : false;
     sep.hidden = (noStyle.hidden && persistentOnly.hidden) || !haveAltSheets;
+    return true;
   },
 
   _stylesheetInFrame: function (frame, title) {
@@ -6225,7 +6181,9 @@ var gPageStyleMenu = {
     for (let i = 0; i < docStyleSheets.length; ++i) {
       let docStyleSheet = docStyleSheets[i];
 
-      if (docStyleSheet.title)
+      if (title == "_nostyle")
+        docStyleSheet.disabled = true;
+      else if (docStyleSheet.title)
         docStyleSheet.disabled = (docStyleSheet.title != title);
       else if (docStyleSheet.disabled)
         docStyleSheet.disabled = false;
@@ -6233,7 +6191,7 @@ var gPageStyleMenu = {
   },
 
   _stylesheetSwitchAll: function (frameset, title) {
-    if (!title || this._stylesheetInFrame(frameset, title))
+    if (!title || title == "_nostyle" || this._stylesheetInFrame(frameset, title))
       this._stylesheetSwitchFrame(frameset, title);
 
     for (let i = 0; i < frameset.frames.length; i++)

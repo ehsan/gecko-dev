@@ -352,26 +352,28 @@ public class LayerController implements Tabs.OnTabsChangedListener {
     /**
      * Converts a point from layer view coordinates to layer coordinates. In other words, given a
      * point measured in pixels from the top left corner of the layer view, returns the point in
-     * pixels measured from the last scroll position we sent to Gecko, in CSS pixels. Assuming the
-     * events being sent to Gecko are processed in FIFO order, this calculation should always be
-     * correct.
+     * pixels measured from the top left corner of the root layer, in the coordinate system of the
+     * layer itself (CSS pixels). This method is used as part of the process of translating touch
+     * events to Gecko's coordinate system.
      */
     public PointF convertViewPointToLayerPoint(PointF viewPoint) {
+        if (mRootLayer == null)
+            return null;
+
         ImmutableViewportMetrics viewportMetrics = mViewportMetrics;
         PointF origin = viewportMetrics.getOrigin();
         float zoom = viewportMetrics.zoomFactor;
-        ViewportMetrics geckoViewport = mLayerClient.getGeckoViewportMetrics();
-        PointF geckoOrigin = geckoViewport.getOrigin();
-        float geckoZoom = geckoViewport.getZoomFactor();
+        Rect rootPosition = mRootLayer.getPosition();
+        float rootScale = mRootLayer.getResolution();
 
         // viewPoint + origin gives the coordinate in device pixels from the top-left corner of the page.
         // Divided by zoom, this gives us the coordinate in CSS pixels from the top-left corner of the page.
-        // geckoOrigin / geckoZoom is where Gecko thinks it is (scrollTo position) in CSS pixels from
+        // rootPosition / rootScale is where Gecko thinks it is (scrollTo position) in CSS pixels from
         // the top-left corner of the page. Subtracting the two gives us the offset of the viewPoint from
         // the current Gecko coordinate in CSS pixels.
         PointF layerPoint = new PointF(
-                ((viewPoint.x + origin.x) / zoom) - (geckoOrigin.x / geckoZoom),
-                ((viewPoint.y + origin.y) / zoom) - (geckoOrigin.y / geckoZoom));
+                ((viewPoint.x + origin.x) / zoom) - (rootPosition.left / rootScale),
+                ((viewPoint.y + origin.y) / zoom) - (rootPosition.top / rootScale));
 
         return layerPoint;
     }

@@ -343,7 +343,8 @@ JSClass FileReaderSync::sClass = {
   "FileReaderSync",
   JSCLASS_HAS_PRIVATE,
   JS_PropertyStub, JS_PropertyStub, JS_PropertyStub, JS_StrictPropertyStub,
-  JS_EnumerateStub, JS_ResolveStub, JS_ConvertStub, Finalize
+  JS_EnumerateStub, JS_ResolveStub, JS_ConvertStub, Finalize,
+  JSCLASS_NO_OPTIONAL_MEMBERS
 };
 
 JSFunctionSpec FileReaderSync::sFunctions[] = {

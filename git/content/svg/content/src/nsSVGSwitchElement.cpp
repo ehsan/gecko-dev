@@ -87,22 +87,18 @@ nsSVGSwitchElement::nsSVGSwitchElement(already_AddRefed<nsINodeInfo> aNodeInfo)
 void
 nsSVGSwitchElement::MaybeInvalidate()
 {
-  // We must not change mActiveChild until after
-  // InvalidateAndScheduleBoundsUpdate has been called, otherwise
-  // it will not correctly invalidate the old mActiveChild area.
+  // We don't reuse UpdateActiveChild() and check if mActiveChild has changed
+  // to determine if we should invalidate. If we did that,
+  // nsSVGUtils::UpdateGraphic would not invalidate the old mActiveChild area!
 
-  nsIContent *newActiveChild = FindActiveChild();
-
-  if (newActiveChild == mActiveChild) {
+  if (FindActiveChild() == mActiveChild) {
     return;
   }
 
   nsIFrame *frame = GetPrimaryFrame();
   if (frame) {
-    nsSVGUtils::InvalidateAndScheduleBoundsUpdate(frame);
+    nsSVGUtils::UpdateGraphic(frame);
   }
-
-  mActiveChild = newActiveChild;
 }
 
 //----------------------------------------------------------------------

@@ -527,7 +527,7 @@ XDRScript(JSXDRState *xdr, JSScript **scriptp)
         prologLength = script->mainOffset;
         JS_ASSERT(script->getVersion() != JSVERSION_UNKNOWN);
         version = (uint32_t)script->getVersion() | (script->nfixed << 16);
-        lineno = script->lineno;
+        lineno = (uint32_t)script->lineno;
         nslots = (uint32_t)script->nslots;
         nslots = (uint32_t)((script->staticLevel << 16) | script->nslots);
         natoms = script->natoms;
@@ -665,9 +665,9 @@ XDRScript(JSXDRState *xdr, JSScript **scriptp)
             Foreground::free_(filename);
             if (!script->filename)
                 return false;
+            if (!xdr->sharedFilename)
+                xdr->sharedFilename = script->filename;
         }
-        if (!xdr->sharedFilename)
-            xdr->sharedFilename = script->filename;
     } else if (scriptBits & (1 << SharedFilename)) {
         JS_ASSERT(xdr->sharedFilename);
         if (xdr->mode == JSXDR_DECODE)
@@ -675,14 +675,11 @@ XDRScript(JSXDRState *xdr, JSScript **scriptp)
     }
 
     if (xdr->mode == JSXDR_DECODE) {
-        script->lineno = lineno;
-        script->nslots = uint16_t(nslots);
-        script->staticLevel = uint16_t(nslots >> 16);
-
-        /* The origin principals must be normalized at this point. */ 
-        JS_ASSERT_IF(xdr->principals, xdr->originPrincipals);
         JS_ASSERT(!script->principals);
         JS_ASSERT(!script->originPrincipals);
+
+        /* The origin principals must be normalized at this point. */ 
+        JS_ASSERT_IF(script->principals, script->originPrincipals);
         if (xdr->principals) {
             script->principals = xdr->principals;
             JS_HoldPrincipals(xdr->principals);
@@ -691,6 +688,12 @@ XDRScript(JSXDRState *xdr, JSScript **scriptp)
             script->originPrincipals = xdr->originPrincipals;
             JS_HoldPrincipals(xdr->originPrincipals);
         }
+    }
+
+    if (xdr->mode == JSXDR_DECODE) {
+        script->lineno = (unsigned)lineno;
+        script->nslots = uint16_t(nslots);
+        script->staticLevel = uint16_t(nslots >> 16);
     }
 
     for (i = 0; i != natoms; ++i) {
@@ -1708,7 +1711,9 @@ CloneScript(JSContext *cx, JSScript *script)
     JS_XDRMemSetData(r, p, nbytes);
     JS_XDRMemSetData(w, NULL, 0);
 
-    JS_XDRSetPrincipals(r, cx->compartment->principals, script->originPrincipals);
+    r->principals = cx->compartment->principals;
+    r->originPrincipals = JSScript::normalizeOriginPrincipals(cx->compartment->principals,
+                                                              script->originPrincipals);
     JSScript *newScript = NULL;
     if (!XDRScript(r, &newScript))
         return NULL;

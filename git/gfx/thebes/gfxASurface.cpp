@@ -555,7 +555,7 @@ static const char *sDefaultSurfaceDescription =
     "Memory used by gfx surface of the given type.";
 
 struct SurfaceMemoryReporterAttrs {
-  const char *path;
+  const char *name;
   const char *description;
 };
 
@@ -600,59 +600,74 @@ PR_STATIC_ASSERT(PRUint32(CAIRO_SURFACE_TYPE_D2D) ==
 PR_STATIC_ASSERT(PRUint32(CAIRO_SURFACE_TYPE_SKIA) ==
                  PRUint32(gfxASurface::SurfaceTypeSkia));
 
-/* Surface size memory reporting */
+static const char *
+SurfaceMemoryReporterPathForType(gfxASurface::gfxSurfaceType aType)
+{
+    if (aType < 0 ||
+        aType >= gfxASurface::SurfaceTypeMax)
+        return "gfx-surface-unknown";
 
+    return sSurfaceMemoryReporterAttrs[aType].name;
+}
+
+static const char *
+SurfaceMemoryReporterDescriptionForType(gfxASurface::gfxSurfaceType aType)
+{
+    if (aType >= 0 && aType < gfxASurface::SurfaceTypeMax &&
+        sSurfaceMemoryReporterAttrs[aType].description)
+        return sSurfaceMemoryReporterAttrs[aType].description;
+
+    return sDefaultSurfaceDescription;
+}
+
+/* Surface size memory reporting */
+static nsIMemoryReporter *gSurfaceMemoryReporters[gfxASurface::SurfaceTypeMax] = { 0 };
 static PRInt64 gSurfaceMemoryUsed[gfxASurface::SurfaceTypeMax] = { 0 };
 
 class SurfaceMemoryReporter :
-    public nsIMemoryMultiReporter
+    public nsIMemoryReporter
 {
 public:
-    SurfaceMemoryReporter()
+    SurfaceMemoryReporter(gfxASurface::gfxSurfaceType aType)
+        : mType(aType)
     { }
 
     NS_DECL_ISUPPORTS
 
-    NS_IMETHOD GetName(nsACString &name)
-    {
-        name.AssignLiteral("gfx-surface");
+    NS_IMETHOD GetProcess(nsACString &process) {
+        process.Truncate();
         return NS_OK;
     }
 
-    NS_IMETHOD CollectReports(nsIMemoryMultiReporterCallback *aCb,
-                              nsISupports *aClosure)
-    {
-        size_t len = NS_ARRAY_LENGTH(sSurfaceMemoryReporterAttrs);
-        for (size_t i = 0; i < len; i++) {
-            PRInt64 amount = gSurfaceMemoryUsed[i];
-
-            if (amount != 0) {
-                const char *path = sSurfaceMemoryReporterAttrs[i].path;
-                const char *desc = sSurfaceMemoryReporterAttrs[i].description;
-                if (!desc) {
-                    desc = sDefaultSurfaceDescription;
-                }
-
-                nsresult rv = aCb->Callback(EmptyCString(), nsCString(path),
-                                            nsIMemoryReporter::KIND_OTHER,
-                                            nsIMemoryReporter::UNITS_BYTES, 
-                                            gSurfaceMemoryUsed[i],
-                                            nsCString(desc), aClosure);
-                NS_ENSURE_SUCCESS(rv, rv);
-            }
-        }
-
+    NS_IMETHOD GetPath(nsACString &path) {
+        path.Assign(SurfaceMemoryReporterPathForType(mType));
         return NS_OK;
     }
 
-    NS_IMETHOD GetExplicitNonHeap(PRInt64 *n)
-    {
-        *n = 0; // this reporter makes neither "explicit" non NONHEAP reports
+    NS_IMETHOD GetKind(PRInt32 *kind) {
+        *kind = KIND_OTHER;
         return NS_OK;
     }
+    
+    NS_IMETHOD GetUnits(PRInt32 *units) {
+        *units = UNITS_BYTES;
+        return NS_OK;
+    }
+
+    NS_IMETHOD GetAmount(PRInt64 *amount) {
+        *amount = gSurfaceMemoryUsed[mType];
+        return NS_OK;
+    }
+
+    NS_IMETHOD GetDescription(nsACString &desc) {
+        desc.Assign(SurfaceMemoryReporterDescriptionForType(mType));
+        return NS_OK;
+    }
+
+    gfxASurface::gfxSurfaceType mType;
 };
 
-NS_IMPL_ISUPPORTS1(SurfaceMemoryReporter, nsIMemoryMultiReporter)
+NS_IMPL_ISUPPORTS1(SurfaceMemoryReporter, nsIMemoryReporter)
 
 void
 gfxASurface::RecordMemoryUsedForSurfaceType(gfxASurface::gfxSurfaceType aType,
@@ -663,10 +678,9 @@ gfxASurface::RecordMemoryUsedForSurfaceType(gfxASurface::gfxSurfaceType aType,
         return;
     }
 
-    static bool registered = false;
-    if (!registered) {
-        NS_RegisterMemoryMultiReporter(new SurfaceMemoryReporter());
-        registered = true;
+    if (gSurfaceMemoryReporters[aType] == 0) {
+        gSurfaceMemoryReporters[aType] = new SurfaceMemoryReporter(aType);
+        NS_RegisterMemoryReporter(gSurfaceMemoryReporters[aType]);
     }
 
     gSurfaceMemoryUsed[aType] += aBytes;

@@ -454,7 +454,8 @@ WrapAndReturnHistogram(Histogram *h, JSContext *cx, jsval *ret)
     "JSHistogram",  /* name */
     JSCLASS_HAS_PRIVATE, /* flags */
     JS_PropertyStub, JS_PropertyStub, JS_PropertyStub, JS_StrictPropertyStub,
-    JS_EnumerateStub, JS_ResolveStub, JS_ConvertStub
+    JS_EnumerateStub, JS_ResolveStub, JS_ConvertStub, JS_FinalizeStub,
+    JSCLASS_NO_OPTIONAL_MEMBERS
   };
 
   JSObject *obj = JS_NewObject(cx, &JSHistogram_class, NULL, NULL);
@@ -1087,20 +1088,6 @@ TelemetryImpl::GetChromeHangs(JSContext *cx, jsval *ret)
       }
       val = STRING_TO_JSVAL(str);
       if (!JS_SetElement(cx, moduleInfoArray, 4, &val)) {
-        return NS_ERROR_FAILURE;
-      }
-
-      // Name of associated PDB file
-      const char *pdbName = "";
-#if defined(MOZ_PROFILING) && defined(XP_WIN)
-      pdbName = module.GetPdbName();
-#endif
-      str = JS_NewStringCopyZ(cx, pdbName);
-      if (!str) {
-        return NS_ERROR_FAILURE;
-      }
-      val = STRING_TO_JSVAL(str);
-      if (!JS_SetElement(cx, moduleInfoArray, 5, &val)) {
         return NS_ERROR_FAILURE;
       }
     }

@@ -202,6 +202,7 @@ nsSVGSVGElement::nsSVGSVGElement(already_AddRefed<nsINodeInfo> aNodeInfo,
     mCurrentScale(1.0f),
     mPreviousTranslate(0.0f, 0.0f),
     mPreviousScale(1.0f),
+    mRedrawSuspendCount(0),
     mStartAnimationOnBindToTree(!aFromParser),
     mImageNeedsTransformInvalidation(false),
     mIsPaintingSVGImageElement(false)
@@ -378,9 +379,20 @@ nsSVGSVGElement::GetCurrentTranslate(nsIDOMSVGPoint * *aCurrentTranslate)
 NS_IMETHODIMP
 nsSVGSVGElement::SuspendRedraw(PRUint32 max_wait_milliseconds, PRUint32 *_retval)
 {
-  // suspendRedraw is a no-op in Mozilla, so it doesn't matter what
-  // we set the ID out-param to:
   *_retval = 1;
+
+  if (++mRedrawSuspendCount > 1) 
+    return NS_OK;
+
+  nsIFrame* frame = GetPrimaryFrame();
+  if (frame) {
+    nsISVGSVGFrame* svgframe = do_QueryFrame(frame);
+    // might fail this check if we've failed conditional processing
+    if (svgframe) {
+      svgframe->SuspendRedraw();
+    }
+  }
+  
   return NS_OK;
 }
 
@@ -388,15 +400,32 @@ nsSVGSVGElement::SuspendRedraw(PRUint32 max_wait_milliseconds, PRUint32 *_retval
 NS_IMETHODIMP
 nsSVGSVGElement::UnsuspendRedraw(PRUint32 suspend_handle_id)
 {
-  // no-op
-  return NS_OK;
+  if (mRedrawSuspendCount == 0) {
+    return NS_ERROR_FAILURE;
+  }
+                 
+  if (mRedrawSuspendCount > 1) {
+    --mRedrawSuspendCount;
+    return NS_OK;
+  }
+  
+  return UnsuspendRedrawAll();
 }
 
 /* void unsuspendRedrawAll (); */
 NS_IMETHODIMP
 nsSVGSVGElement::UnsuspendRedrawAll()
 {
-  // no-op
+  mRedrawSuspendCount = 0;
+
+  nsIFrame* frame = GetPrimaryFrame();
+  if (frame) {
+    nsISVGSVGFrame* svgframe = do_QueryFrame(frame);
+    // might fail this check if we've failed conditional processing
+    if (svgframe) {
+      svgframe->UnsuspendRedraw();
+    }
+  }  
   return NS_OK;
 }
 

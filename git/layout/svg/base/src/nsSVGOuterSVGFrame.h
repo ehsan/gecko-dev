@@ -39,9 +39,13 @@
 #ifndef __NS_SVGOUTERSVGFRAME_H__
 #define __NS_SVGOUTERSVGFRAME_H__
 
-#include "gfxMatrix.h"
-#include "nsISVGSVGFrame.h"
 #include "nsSVGContainerFrame.h"
+#include "nsISVGSVGFrame.h"
+#include "nsIDOMSVGPoint.h"
+#include "nsIDOMSVGNumber.h"
+#include "gfxMatrix.h"
+
+class nsSVGForeignObjectFrame;
 
 ////////////////////////////////////////////////////////////////////////
 // nsSVGOuterSVGFrame class
@@ -59,6 +63,13 @@ protected:
 public:
   NS_DECL_QUERYFRAME
   NS_DECL_FRAMEARENA_HELPERS
+
+#ifdef DEBUG
+  ~nsSVGOuterSVGFrame() {
+    NS_ASSERTION(mForeignObjectHash.Count() == 0,
+                 "foreignObject(s) still registered!");
+  }
+#endif
 
   // nsIFrame:
   virtual nscoord GetMinWidth(nsRenderingContext *aRenderingContext);
@@ -114,10 +125,20 @@ public:
                                PRInt32         aModType);
 
   // nsISVGSVGFrame interface:
+  virtual void SuspendRedraw();
+  virtual void UnsuspendRedraw();
   virtual void NotifyViewportChange();
 
   // nsSVGContainerFrame methods:
   virtual gfxMatrix GetCanvasTM();
+
+  /* Methods to allow descendant nsSVGForeignObjectFrame frames to register and
+   * unregister themselves with their nearest nsSVGOuterSVGFrame ancestor so
+   * they can be reflowed. The methods return true on success or false on
+   * failure.
+   */
+  void RegisterForeignObject(nsSVGForeignObjectFrame* aFrame);
+  void UnregisterForeignObject(nsSVGForeignObjectFrame* aFrame);
 
 #ifdef XP_MACOSX
   bool BitmapFallbackEnabled() const {
@@ -135,17 +156,7 @@ public:
    */
   bool VerticalScrollbarNotNeeded() const;
 
-#ifdef DEBUG
-  bool IsCallingUpdateBounds() const {
-    return mCallingUpdateBounds;
-  }
-#endif
-
 protected:
-
-#ifdef DEBUG
-  bool mCallingUpdateBounds;
-#endif
 
   /* Returns true if our content is the document element and our document is
    * embedded in an HTML 'object', 'embed' or 'applet' element. Set
@@ -158,8 +169,14 @@ protected:
    */
   bool IsRootOfImage();
 
+  // A hash-set containing our nsSVGForeignObjectFrame descendants. Note we use
+  // a hash-set to avoid the O(N^2) behavior we'd get tearing down an SVG frame
+  // subtree if we were to use a list (see bug 381285 comment 20).
+  nsTHashtable<nsVoidPtrHashKey> mForeignObjectHash;
+
   nsAutoPtr<gfxMatrix> mCanvasTM;
 
+  PRUint32 mRedrawSuspendCount;
   float mFullZoom;
 
   bool mViewportInitialized;

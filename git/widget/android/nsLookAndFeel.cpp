@@ -423,11 +423,8 @@ nsLookAndFeel::GetIntImpl(IntID aID, PRInt32 &aResult)
             aResult = eScrollThumbStyle_Proportional;
             break;
 
-        case eIntID_TouchEnabled:
-            aResult = 1;
-            break;
-
         case eIntID_WindowsDefaultTheme:
+        case eIntID_TouchEnabled:
         case eIntID_MaemoClassic:
         case eIntID_WindowsThemeIdentifier:
             aResult = 0;

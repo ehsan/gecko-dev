@@ -47,6 +47,7 @@ struct nsJSPrincipals : nsIPrincipal, JSPrincipals
 {
   static JSBool Subsume(JSPrincipals *jsprin, JSPrincipals *other);
   static void Destroy(JSPrincipals *jsprin);
+  static JSBool Transcode(JSXDRState *xdr, JSPrincipals **jsprinp);
 
   /*
    * Get a weak reference to nsIPrincipal associated with the given JS

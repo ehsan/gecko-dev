@@ -85,6 +85,7 @@ import android.widget.ArrayAdapter;
 import android.widget.FrameLayout;
 import android.widget.GridView;
 import android.widget.ImageView;
+import android.widget.LinearLayout;
 import android.widget.ListView;
 import android.widget.RelativeLayout;
 import android.widget.ScrollView;
@@ -123,9 +124,9 @@ public class AboutHomeContent extends ScrollView
     protected SimpleCursorAdapter mTopSitesAdapter;
     protected GridView mTopSitesGrid;
 
-    protected AboutHomeSection mAddons;
-    protected AboutHomeSection mLastTabs;
-    protected AboutHomeSection mRemoteTabs;
+    protected LinearLayout mAddonsLayout;
+    protected LinearLayout mLastTabsLayout;
+    protected LinearLayout mRemoteTabsLayout;
 
     private View.OnClickListener mRemoteTabClickListener;
 
@@ -179,9 +180,9 @@ public class AboutHomeContent extends ScrollView
             }
         });
 
-        mAddons = (AboutHomeSection) findViewById(R.id.recommended_addons);
-        mLastTabs = (AboutHomeSection) findViewById(R.id.last_tabs);
-        mRemoteTabs = (AboutHomeSection) findViewById(R.id.remote_tabs);
+        mAddonsLayout = (LinearLayout) findViewById(R.id.recommended_addons);
+        mLastTabsLayout = (LinearLayout) findViewById(R.id.last_tabs);
+        mRemoteTabsLayout = (LinearLayout) findViewById(R.id.remote_tabs);
 
         TextView allTopSitesText = (TextView) findViewById(R.id.all_top_sites_text);
         allTopSitesText.setOnClickListener(new View.OnClickListener() {
@@ -190,14 +191,16 @@ public class AboutHomeContent extends ScrollView
             }
         });
 
-        mAddons.setOnMoreTextClickListener(new View.OnClickListener() {
+        TextView allAddonsText = (TextView) findViewById(R.id.all_addons_text);
+        allAddonsText.setOnClickListener(new View.OnClickListener() {
             public void onClick(View v) {
                 if (mUriLoadCallback != null)
                     mUriLoadCallback.callback("https://addons.mozilla.org/android");
             }
         });
 
-        mRemoteTabs.setOnMoreTextClickListener(new View.OnClickListener() {
+        TextView allRemoteTabsText = (TextView) findViewById(R.id.all_remote_tabs_text);
+        allRemoteTabsText.setOnClickListener(new View.OnClickListener() {
             public void onClick(View v) {
                 Context context = v.getContext();
                 context.startActivity(new Intent(context, RemoteTabs.class));
@@ -253,10 +256,17 @@ public class AboutHomeContent extends ScrollView
     }
 
     void setLastTabsVisibility(boolean visible) {
-        if (visible)
-            mLastTabs.show();
-        else
-            mLastTabs.hide();
+        int visibility = visible ? View.VISIBLE : View.GONE;
+        findViewById(R.id.last_tabs_title).setVisibility(visibility);
+        findViewById(R.id.last_tabs).setVisibility(visibility);
+        findViewById(R.id.last_tabs_open_all).setVisibility(visibility);
+    }
+
+    private void setAddonsVisibility(boolean visible) {
+        int visibility = visible ? View.VISIBLE : View.GONE;
+        findViewById(R.id.recommended_addons_title).setVisibility(visibility);
+        findViewById(R.id.recommended_addons).setVisibility(visibility);
+        findViewById(R.id.all_addons_text).setVisibility(visibility);
     }
 
     private void setTopSitesVisibility(boolean visible, boolean hasTopSites) {
@@ -268,6 +278,14 @@ public class AboutHomeContent extends ScrollView
         findViewById(R.id.top_sites_title).setVisibility(visibility);
         findViewById(R.id.all_top_sites_text).setVisibility(visibilityWithTopSites);
         findViewById(R.id.no_top_sites_text).setVisibility(visibilityWithoutTopSites);
+    }
+
+    private void setRemoteTabsVisibility(boolean visible) {
+        int visibility = visible ? View.VISIBLE : View.GONE;
+        findViewById(R.id.remote_tabs_title).setVisibility(visibility);
+        findViewById(R.id.remote_tabs_client).setVisibility(visibility);
+        findViewById(R.id.remote_tabs).setVisibility(visibility);
+        findViewById(R.id.all_remote_tabs_text).setVisibility(visibility);
     }
 
     private void setSyncVisibility(boolean visible) {
@@ -500,14 +518,14 @@ public class AboutHomeContent extends ScrollView
             public void run() {
                 try {
                     if (array == null || array.length() == 0) {
-                        mAddons.hide();
+                        setAddonsVisibility(false);
                         return;
                     }
 
                     for (int i = 0; i < array.length(); i++) {
                         JSONObject jsonobj = array.getJSONObject(i);
 
-                        final View row = mInflater.inflate(R.layout.abouthome_addon_row, mAddons.getItemsContainer(), false);
+                        final View row = mInflater.inflate(R.layout.abouthome_addon_row, mAddonsLayout, false);
                         ((TextView) row.findViewById(R.id.addon_title)).setText(jsonobj.getString("name"));
                         ((TextView) row.findViewById(R.id.addon_version)).setText(jsonobj.getString("version"));
 
@@ -533,10 +551,10 @@ public class AboutHomeContent extends ScrollView
                             }
                         });
 
-                        mAddons.addItem(row);
+                        mAddonsLayout.addView(row);
                     }
 
-                    mAddons.show();
+                    setAddonsVisibility(true);
                 } catch (JSONException e) {
                     Log.i(LOGTAG, "error reading json file", e);
                 }
@@ -593,7 +611,7 @@ public class AboutHomeContent extends ScrollView
 
             GeckoApp.mAppContext.mMainHandler.post(new Runnable() {
                 public void run() {
-                    View container = mInflater.inflate(R.layout.abouthome_last_tabs_row, mLastTabs.getItemsContainer(), false);
+                    View container = mInflater.inflate(R.layout.abouthome_last_tabs_row, mLastTabsLayout, false);
                     ((TextView) container.findViewById(R.id.last_tab_title)).setText(title);
                     ((TextView) container.findViewById(R.id.last_tab_url)).setText(url);
                     if (favicon != null)
@@ -605,38 +623,39 @@ public class AboutHomeContent extends ScrollView
                         }
                     });
 
-                    mLastTabs.addItem(container);
+                    mLastTabsLayout.addView(container);
                 }
             });
         }
 
-        final int numLastTabs = lastTabUrlsList.size();
-        GeckoApp.mAppContext.mMainHandler.post(new Runnable() {
-            public void run() {
-                if (numLastTabs > 1) {
-                    mLastTabs.showMoreText();
-                    mLastTabs.setOnMoreTextClickListener(new View.OnClickListener() {
-                        public void onClick(View v) {
-                            for (String url : lastTabUrlsList)
-                                GeckoApp.mAppContext.loadUrlInTab(url);
-                        }
-                    });
-                    mLastTabs.show();
-                } else if (numLastTabs == 1) {
-                    mLastTabs.hideMoreText();
-                    mLastTabs.show();
+        int numLastTabs = lastTabUrlsList.size();
+        if (numLastTabs > 0) {
+            GeckoApp.mAppContext.mMainHandler.post(new Runnable() {
+                public void run() {
+                    findViewById(R.id.last_tabs_title).setVisibility(View.VISIBLE);
                 }
+            });
+
+            if (numLastTabs > 1) {
+                GeckoApp.mAppContext.mMainHandler.post(new Runnable() {
+                    public void run() {
+                        LinkTextView openAll = (LinkTextView) findViewById(R.id.last_tabs_open_all);
+                        openAll.setVisibility(View.VISIBLE);
+                        openAll.setOnClickListener(new LinkTextView.OnClickListener() {
+                            public void onClick(View v) {
+                                for (String url : lastTabUrlsList)
+                                    GeckoApp.mAppContext.loadUrlInTab(url);
+                            }
+                        });
+                    }
+                });
             }
-        });
+        }
     }
 
     private void loadRemoteTabs(final Activity activity) {
         if (!isSyncSetup()) {
-            GeckoApp.mAppContext.mMainHandler.post(new Runnable() {
-                public void run() {
-                    mRemoteTabs.hide();
-                }
-            });
+            setRemoteTabsVisibility(false);
             return;
         }
 
@@ -647,11 +666,11 @@ public class AboutHomeContent extends ScrollView
     public void onQueryTabsComplete(List<TabsAccessor.RemoteTab> tabsList) {
         ArrayList<TabsAccessor.RemoteTab> tabs = new ArrayList<TabsAccessor.RemoteTab> (tabsList);
         if (tabs == null || tabs.size() == 0) {
-            mRemoteTabs.hide();
+            setRemoteTabsVisibility(false);
             return;
         }
         
-        mRemoteTabs.clear();
+        mRemoteTabsLayout.removeAllViews();
         
         String client = null;
         
@@ -661,15 +680,15 @@ public class AboutHomeContent extends ScrollView
             else if (!TextUtils.equals(client, tab.name))
                 break;
 
-            final TextView row = (TextView) mInflater.inflate(R.layout.abouthome_remote_tab_row, mRemoteTabs.getItemsContainer(), false);
-            row.setText(TextUtils.isEmpty(tab.title) ? tab.url : tab.title);
+            final TextView row = (TextView) mInflater.inflate(R.layout.abouthome_remote_tab_row, mRemoteTabsLayout, false);
+            row.setText(tab.title);
             row.setTag(tab.url);
-            mRemoteTabs.addItem(row);
+            mRemoteTabsLayout.addView(row);
             row.setOnClickListener(mRemoteTabClickListener);
         }
         
-        mRemoteTabs.setSubtitle(client);
-        mRemoteTabs.show();
+        ((TextView) findViewById(R.id.remote_tabs_client)).setText(client);
+        setRemoteTabsVisibility(true);
     }
 
     public static class TopSitesGridView extends GridView {

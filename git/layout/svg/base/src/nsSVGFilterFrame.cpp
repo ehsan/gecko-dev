@@ -35,8 +35,6 @@
  * ***** END LICENSE BLOCK ***** */
 
 #include "nsSVGFilterFrame.h"
-
-#include "nsRenderingContext.h"
 #include "nsIDocument.h"
 #include "nsSVGOuterSVGFrame.h"
 #include "nsGkAtoms.h"

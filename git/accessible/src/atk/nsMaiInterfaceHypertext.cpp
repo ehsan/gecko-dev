@@ -37,15 +37,20 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
-#include "InterfaceInitFuncs.h"
-
+#include "nsMaiInterfaceHypertext.h"
 #include "nsHyperTextAccessible.h"
-#include "nsMai.h"
-#include "nsMaiHyperlink.h"
 
-extern "C" {
+void
+hypertextInterfaceInitCB(AtkHypertextIface *aIface)
+{
+    g_return_if_fail(aIface != NULL);
 
-static AtkHyperlink*
+    aIface->get_link = getLinkCB;
+    aIface->get_n_links = getLinkCountCB;
+    aIface->get_link_index = getLinkIndexCB;
+}
+
+AtkHyperlink *
 getLinkCB(AtkHypertext *aText, gint aLinkIndex)
 {
     nsAccessibleWrap *accWrap = GetAccessibleWrap(ATK_OBJECT(aText));
@@ -68,7 +73,7 @@ getLinkCB(AtkHypertext *aText, gint aLinkIndex)
     return maiHyperlink->GetAtkHyperlink();
 }
 
-static gint
+gint
 getLinkCountCB(AtkHypertext *aText)
 {
     nsAccessibleWrap *accWrap = GetAccessibleWrap(ATK_OBJECT(aText));
@@ -81,7 +86,7 @@ getLinkCountCB(AtkHypertext *aText)
     return hyperText->GetLinkCount();
 }
 
-static gint
+gint
 getLinkIndexCB(AtkHypertext *aText, gint aCharIndex)
 {
     nsAccessibleWrap *accWrap = GetAccessibleWrap(ATK_OBJECT(aText));
@@ -96,17 +101,4 @@ getLinkIndexCB(AtkHypertext *aText, gint aCharIndex)
     NS_ENSURE_SUCCESS(rv, -1);
 
     return index;
-}
-}
-
-void
-hypertextInterfaceInitCB(AtkHypertextIface* aIface)
-{
-  NS_ASSERTION(aIface, "no interface!");
-  if (NS_UNLIKELY(!aIface))
-    return;
-
-  aIface->get_link = getLinkCB;
-  aIface->get_n_links = getLinkCountCB;
-  aIface->get_link_index = getLinkIndexCB;
 }

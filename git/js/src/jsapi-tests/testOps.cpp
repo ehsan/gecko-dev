@@ -18,7 +18,8 @@ static JSClass myClass = {
     "MyClass",
     0,
     JS_PropertyStub, JS_PropertyStub, JS_PropertyStub, JS_StrictPropertyStub,
-    JS_EnumerateStub, JS_ResolveStub, my_convert
+    JS_EnumerateStub, JS_ResolveStub, my_convert, JS_FinalizeStub,
+    JSCLASS_NO_OPTIONAL_MEMBERS
 };
 
 static JSBool

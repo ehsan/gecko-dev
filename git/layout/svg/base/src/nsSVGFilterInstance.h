@@ -37,24 +37,21 @@
 #ifndef __NS_SVGFILTERINSTANCE_H__
 #define __NS_SVGFILTERINSTANCE_H__
 
-#include "gfxMatrix.h"
-#include "gfxPoint.h"
-#include "gfxRect.h"
-#include "nsCOMPtr.h"
-#include "nsHashKeys.h"
-#include "nsPoint.h"
+#include "nsIDOMSVGLength.h"
+#include "nsIDOMSVGFilters.h"
 #include "nsRect.h"
-#include "nsSize.h"
+#include "nsIContent.h"
+#include "nsAutoPtr.h"
 #include "nsSVGFilters.h"
 #include "nsSVGNumber2.h"
 #include "nsSVGNumberPair.h"
-#include "nsTArray.h"
 
-class gfxASurface;
-class gfxImageSurface;
-class nsIFrame;
+#include "gfxImageSurface.h"
+
+class nsSVGElement;
 class nsSVGFilterElement;
 class nsSVGFilterPaintCallback;
+struct gfxRect;
 
 /**
  * This class performs all filter processing.

@@ -37,12 +37,18 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
-#include "InterfaceInitFuncs.h"
-
+#include "nsMaiInterfaceHyperlinkImpl.h"
 #include "nsMaiHyperlink.h"
 
-extern "C" {
-static AtkHyperlink*
+void
+hyperlinkImplInterfaceInitCB(AtkHyperlinkImplIface *aIface)
+{
+    g_return_if_fail(aIface != NULL);
+
+    aIface->get_hyperlink = getHyperlinkCB;
+}
+
+AtkHyperlink*
 getHyperlinkCB(AtkHyperlinkImpl* aImpl)
 {
   nsAccessibleWrap* accWrap = GetAccessibleWrap(ATK_OBJECT(aImpl));
@@ -54,15 +60,4 @@ getHyperlinkCB(AtkHyperlinkImpl* aImpl)
   MaiHyperlink* maiHyperlink = accWrap->GetMaiHyperlink();
   NS_ENSURE_TRUE(maiHyperlink, nsnull);
   return maiHyperlink->GetAtkHyperlink();
-}
-}
-
-void
-hyperlinkImplInterfaceInitCB(AtkHyperlinkImplIface *aIface)
-{
-  NS_ASSERTION(aIface, "no interface!");
-  if (NS_UNLIKELY(!aIface))
-    return;
-
-  aIface->get_hyperlink = getHyperlinkCB;
 }

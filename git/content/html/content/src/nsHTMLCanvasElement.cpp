@@ -326,10 +326,7 @@ nsHTMLCanvasElement::ToDataURLImpl(const nsAString& aMimeType,
   }
 
   nsAutoString type;
-  nsresult rv = nsContentUtils::ASCIIToLower(aMimeType, type);
-  if (NS_FAILED(rv)) {
-    return rv;
-  }
+  nsContentUtils::ASCIIToLower(aMimeType, type);
 
   nsAutoString params;
 
@@ -370,7 +367,8 @@ nsHTMLCanvasElement::ToDataURLImpl(const nsAString& aMimeType,
   }
 
   nsCOMPtr<nsIInputStream> stream;
-  rv = ExtractData(type, params, getter_AddRefs(stream), fallbackToPNG);
+  nsresult rv = ExtractData(type, params, getter_AddRefs(stream),
+                            fallbackToPNG);
 
   // If there are unrecognized custom parse options, we should fall back to 
   // the default values for the encoder without any options at all.

@@ -10,8 +10,6 @@ import java.io.InputStream;
 import java.io.InputStreamReader;
 import java.net.URI;
 
-import org.mozilla.gecko.sync.Logger;
-
 import ch.boye.httpclientandroidlib.Header;
 import ch.boye.httpclientandroidlib.HttpEntity;
 import ch.boye.httpclientandroidlib.HttpResponse;
@@ -27,26 +25,8 @@ import ch.boye.httpclientandroidlib.impl.client.DefaultHttpClient;
  *
  */
 public class SyncStorageCollectionRequest extends SyncStorageRequest {
-  private static final String LOG_TAG = "CollectionRequest";
-
   public SyncStorageCollectionRequest(URI uri) {
     super(uri);
-  }
-
-  protected volatile boolean aborting = false;
-
-  /**
-   * Instruct the request that it should process no more records,
-   * and decline to notify any more delegate callbacks.
-   */
-  public void abort() {
-    aborting = true;
-    try {
-      this.resource.request.abort();
-    } catch (Exception e) {
-      // Just in case.
-      Logger.warn(LOG_TAG, "Got exception in abort: " + e);
-    }
   }
 
   @Override
@@ -58,9 +38,6 @@ public class SyncStorageCollectionRequest extends SyncStorageRequest {
   public class SyncCollectionResourceDelegate extends
       SyncStorageResourceDelegate {
 
-    private static final String CONTENT_TYPE_INCREMENTAL = "application/newlines";
-    private static final int FETCH_BUFFER_SIZE = 16 * 1024;   // 16K chars.
-
     SyncCollectionResourceDelegate(SyncStorageCollectionRequest request) {
       super(request);
     }
@@ -68,16 +45,12 @@ public class SyncStorageCollectionRequest extends SyncStorageRequest {
     @Override
     public void addHeaders(HttpRequestBase request, DefaultHttpClient client) {
       super.addHeaders(request, client);
-      request.setHeader("Accept", CONTENT_TYPE_INCREMENTAL);
+      request.setHeader("Accept", "application/newlines");
       // Caller is responsible for setting full=1.
     }
 
     @Override
     public void handleHttpResponse(HttpResponse response) {
-      if (aborting) {
-        return;
-      }
-
       if (response.getStatusLine().getStatusCode() != 200) {
         super.handleHttpResponse(response);
         return;
@@ -85,7 +58,7 @@ public class SyncStorageCollectionRequest extends SyncStorageRequest {
 
       HttpEntity entity = response.getEntity();
       Header contentType = entity.getContentType();
-      if (!contentType.getValue().startsWith(CONTENT_TYPE_INCREMENTAL)) {
+      if (!contentType.getValue().startsWith("application/newlines")) {
         // Not incremental!
         super.handleHttpResponse(response);
         return;
@@ -103,12 +76,12 @@ public class SyncStorageCollectionRequest extends SyncStorageRequest {
       BufferedReader br = null;
       try {
         content = entity.getContent();
-        br = new BufferedReader(new InputStreamReader(content), FETCH_BUFFER_SIZE);
+        int bufSize = 1024 * 1024;         // 1MB. TODO: lift and consider.
+        br = new BufferedReader(new InputStreamReader(content), bufSize);
         String line;
 
         // This relies on connection timeouts at the HTTP layer.
-        while (!aborting &&
-               null != (line = br.readLine())) {
+        while (null != (line = br.readLine())) {
           try {
             delegate.handleRequestProgress(line);
           } catch (Exception ex) {
@@ -117,14 +90,8 @@ public class SyncStorageCollectionRequest extends SyncStorageRequest {
             return;
           }
         }
-        if (aborting) {
-          // So we don't hit the success case below.
-          return;
-        }
       } catch (IOException ex) {
-        if (!aborting) {
-          delegate.handleRequestError(ex);
-        }
+        delegate.handleRequestError(ex);
         BaseResource.consumeEntity(entity);
         return;
       } finally {

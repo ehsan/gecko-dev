@@ -1400,21 +1400,11 @@ nsScriptSecurityManager::CheckLoadURIWithPrincipal(nsIPrincipal* aPrincipal,
     NS_ENSURE_ARG_POINTER(aPrincipal);
     NS_ENSURE_ARG_POINTER(aTargetURI);
 
-    // If DISALLOW_INHERIT_PRINCIPAL is set, we prevent loading of URIs which
-    // would do such inheriting. That would be URIs that do not have their own
-    // security context. We do this even for the system principal.
-    if (aFlags & nsIScriptSecurityManager::DISALLOW_INHERIT_PRINCIPAL) {
-        nsresult rv =
-            DenyAccessIfURIHasFlags(aTargetURI,
-                                    nsIProtocolHandler::URI_INHERITS_SECURITY_CONTEXT);
-        NS_ENSURE_SUCCESS(rv, rv);
-    }
-
     if (aPrincipal == mSystemPrincipal) {
         // Allow access
         return NS_OK;
     }
-
+    
     nsCOMPtr<nsIURI> sourceURI;
     aPrincipal->GetURI(getter_AddRefs(sourceURI));
     if (!sourceURI) {
@@ -1428,6 +1418,16 @@ nsScriptSecurityManager::CheckLoadURIWithPrincipal(nsIPrincipal* aPrincipal,
         nsresult rv =
             DenyAccessIfURIHasFlags(sourceURI,
                                     nsIProtocolHandler::URI_FORBIDS_AUTOMATIC_DOCUMENT_REPLACEMENT);
+        NS_ENSURE_SUCCESS(rv, rv);
+    }
+
+    // If DISALLOW_INHERIT_PRINCIPAL is set, we prevent loading of URIs which
+    // would do such inheriting.  That would be URIs that do not have their own
+    // security context.
+    if (aFlags & nsIScriptSecurityManager::DISALLOW_INHERIT_PRINCIPAL) {
+        nsresult rv =
+            DenyAccessIfURIHasFlags(aTargetURI,
+                                    nsIProtocolHandler::URI_INHERITS_SECURITY_CONTEXT);
         NS_ENSURE_SUCCESS(rv, rv);
     }
 
@@ -2170,7 +2170,8 @@ nsScriptSecurityManager::GetPrincipalFromContext(JSContext *cx,
 
 // static
 nsIPrincipal*
-nsScriptSecurityManager::GetScriptPrincipal(JSScript *script,
+nsScriptSecurityManager::GetScriptPrincipal(JSContext *cx,
+                                            JSScript *script,
                                             nsresult* rv)
 {
     NS_PRECONDITION(rv, "Null out param");
@@ -2179,7 +2180,7 @@ nsScriptSecurityManager::GetScriptPrincipal(JSScript *script,
     {
         return nsnull;
     }
-    JSPrincipals *jsp = JS_GetScriptPrincipals(script);
+    JSPrincipals *jsp = JS_GetScriptPrincipals(cx, script);
     if (!jsp) {
         *rv = NS_ERROR_FAILURE;
         NS_ERROR("Script compiled without principals!");
@@ -2252,7 +2253,7 @@ nsScriptSecurityManager::GetFunctionObjectPrincipal(JSContext *cx,
         return result;
     }
 
-    return GetScriptPrincipal(script, rv);
+    return GetScriptPrincipal(cx, script, rv);
 }
 
 nsIPrincipal*
@@ -2266,7 +2267,7 @@ nsScriptSecurityManager::GetFramePrincipal(JSContext *cx,
     {
         // Must be in a top-level script. Get principal from the script.
         JSScript *script = JS_GetFrameScript(cx, fp);
-        return GetScriptPrincipal(script, rv);
+        return GetScriptPrincipal(cx, script, rv);
     }
 
     nsIPrincipal* result = GetFunctionObjectPrincipal(cx, obj, fp, rv);
@@ -3380,6 +3381,7 @@ nsresult nsScriptSecurityManager::Init()
     static const JSSecurityCallbacks securityCallbacks = {
         CheckObjectAccess,
         nsJSPrincipals::Subsume,
+        nsJSPrincipals::Transcode,
         ObjectPrincipalFinder,
         ContentSecurityPolicyPermitsJSAction
     };

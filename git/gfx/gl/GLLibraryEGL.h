@@ -323,6 +323,16 @@ public:
         return b;
     }
 
+#ifdef MOZ_WIDGET_GONK
+    EGLBoolean fSetSwapRectangleANDROID(EGLDisplay dpy, EGLSurface surface, EGLint left, EGLint top, EGLint width, EGLint height)
+    {
+        BEFORE_GL_CALL;
+        EGLBoolean b = mSymbols.fSetSwapRectangleANDROID(dpy, surface, left, top, width, height);
+        AFTER_GL_CALL;
+        return b;
+    }
+#endif
+
     // New extension which allow us to lock texture and get raw image pointer
     EGLBoolean fLockSurfaceKHR(EGLDisplay dpy, EGLSurface surface, const EGLint *attrib_list)
     {
@@ -457,6 +467,10 @@ public:
         pfnCreateImageKHR fCreateImageKHR;
         typedef EGLBoolean (GLAPIENTRY * pfnDestroyImageKHR)(EGLDisplay dpy, EGLImageKHR image);
         pfnDestroyImageKHR fDestroyImageKHR;
+#ifdef MOZ_WIDGET_GONK
+        typedef EGLBoolean (GLAPIENTRY * pfnSetSwapRectangleANDROID)(EGLDisplay dpy, EGLSurface surface, EGLint left, EGLint top, EGLint width, EGLint height);
+        pfnSetSwapRectangleANDROID fSetSwapRectangleANDROID;
+#endif
 
         // New extension which allow us to lock texture and get raw image pointer
         typedef EGLBoolean (GLAPIENTRY * pfnLockSurfaceKHR)(EGLDisplay dpy, EGLSurface surface, const EGLint *attrib_list);

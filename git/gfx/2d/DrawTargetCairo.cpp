@@ -587,8 +587,7 @@ void
 DrawTargetCairo::FillGlyphs(ScaledFont *aFont,
                             const GlyphBuffer &aBuffer,
                             const Pattern &aPattern,
-                            const DrawOptions &aOptions,
-                            const GlyphRenderingOptions*)
+                            const DrawOptions &aOptions)
 {
   AutoPrepareForDrawing prep(this, mContext);
 

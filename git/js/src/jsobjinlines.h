@@ -666,7 +666,7 @@ namespace js {
 static inline JSAtom *
 CallObjectLambdaName(JSFunction *fun)
 {
-    return (fun->flags & JSFUN_LAMBDA) ? fun->atom.get() : NULL;
+    return (fun->flags & JSFUN_LAMBDA) ? fun->atom : NULL;
 }
 
 } /* namespace js */
@@ -678,7 +678,7 @@ JSObject::getDateUTCTime() const
     return getFixedSlot(JSSLOT_DATE_UTC_TIME);
 }
 
-inline void
+inline void 
 JSObject::setDateUTCTime(const js::Value &time)
 {
     JS_ASSERT(isDate());

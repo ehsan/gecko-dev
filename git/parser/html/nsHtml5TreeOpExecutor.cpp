@@ -117,20 +117,6 @@ nsHtml5TreeOpExecutor::WillParse()
   return NS_ERROR_NOT_IMPLEMENTED;
 }
 
-NS_IMETHODIMP
-nsHtml5TreeOpExecutor::WillBuildModel(nsDTDMode aDTDMode)
-{
-  if (mDocShell && !GetDocument()->GetScriptGlobalObject()) {
-    // Not loading as data but script global object not ready
-    return MarkAsBroken(NS_ERROR_DOM_INVALID_STATE_ERR);
-  }
-  mDocument->AddObserver(this);
-  WillBuildModelImpl();
-  GetDocument()->BeginLoad();
-  return NS_OK;
-}
-
-
 // This is called when the tree construction has ended
 NS_IMETHODIMP
 nsHtml5TreeOpExecutor::DidBuildModel(bool aTerminated)
@@ -157,9 +143,7 @@ nsHtml5TreeOpExecutor::DidBuildModel(bool aTerminated)
   GetParser()->DropStreamParser();
 
   // This comes from nsXMLContentSink and nsHTMLContentSink
-  // If this parser has been marked as broken, treat the end of parse as
-  // forced termination.
-  DidBuildModelImpl(aTerminated || IsBroken());
+  DidBuildModelImpl(aTerminated);
 
   if (!mLayoutStarted) {
     // We never saw the body, and layout never got started. Force
@@ -290,12 +274,12 @@ nsHtml5TreeOpExecutor::UpdateChildCounts()
   // No-op
 }
 
-nsresult
-nsHtml5TreeOpExecutor::MarkAsBroken(nsresult aReason)
+void
+nsHtml5TreeOpExecutor::MarkAsBroken()
 {
   NS_ASSERTION(NS_IsMainThread(), "Wrong thread!");
   NS_ASSERTION(!mRunsToCompletion, "Fragment parsers can't be broken!");
-  mBroken = aReason;
+  mBroken = true;
   if (mStreamParser) {
     mStreamParser->Terminate();
   }
@@ -309,7 +293,6 @@ nsHtml5TreeOpExecutor::MarkAsBroken(nsresult aReason)
       NS_WARNING("failed to dispatch executor flush event");
     }
   }
-  return aReason;
 }
 
 nsresult

@@ -1028,14 +1028,6 @@ GetSurfaceForQWidget(QWidget* aDrawable)
 }
 #endif
 
-static void
-DispatchDidPaint(nsIWidget* aWidget)
-{
-    nsEventStatus status;
-    nsPaintEvent didPaintEvent(true, NS_DID_PAINT, aWidget);
-    aWidget->DispatchEvent(&didPaintEvent, status);
-}
-
 nsEventStatus
 nsWindow::DoPaint(QPainter* aPainter, const QStyleOptionGraphicsItem* aOption, QWidget* aWidget)
 {
@@ -1043,15 +1035,6 @@ nsWindow::DoPaint(QPainter* aPainter, const QStyleOptionGraphicsItem* aOption, Q
         LOG(("Expose event on destroyed window [%p] window %p\n",
              (void *)this, mWidget));
         return nsEventStatus_eIgnore;
-    }
-
-    // Dispatch WILL_PAINT to allow scripts etc. to run before we
-    // dispatch PAINT
-    {
-        nsEventStatus status;
-        nsPaintEvent willPaintEvent(true, NS_WILL_PAINT, this);
-        willPaintEvent.willSendDidPaint = true;
-        DispatchEvent(&willPaintEvent, status);
     }
 
     if (!mWidget)
@@ -1078,9 +1061,7 @@ nsWindow::DoPaint(QPainter* aPainter, const QStyleOptionGraphicsItem* aOption, Q
     }
 
     if (GetLayerManager(nsnull)->GetBackendType() == LayerManager::LAYERS_OPENGL) {
-        aPainter->beginNativePainting();
         nsPaintEvent event(true, NS_PAINT, this);
-        event.willSendDidPaint = true;
         event.refPoint.x = r.x();
         event.refPoint.y = r.y();
         event.region = nsIntRegion(rect);
@@ -1097,10 +1078,7 @@ nsWindow::DoPaint(QPainter* aPainter, const QStyleOptionGraphicsItem* aOption, Q
             SetWorldTransform(matr);
 #endif //MOZ_ENABLE_QTMOBILITY
 
-        status = DispatchEvent(&event);
-        aPainter->endNativePainting();
-        DispatchDidPaint(this);
-        return status;
+        return DispatchEvent(&event);
     }
 
     gfxQtPlatform::RenderMode renderMode = gfxQtPlatform::GetPlatform()->GetRenderMode();
@@ -1150,7 +1128,6 @@ nsWindow::DoPaint(QPainter* aPainter, const QStyleOptionGraphicsItem* aOption, Q
     }
 
     nsPaintEvent event(true, NS_PAINT, this);
-    event.willSendDidPaint = true;
     event.refPoint.x = rect.x;
     event.refPoint.y = rect.y;
     event.region = nsIntRegion(rect);
@@ -1229,7 +1206,6 @@ nsWindow::DoPaint(QPainter* aPainter, const QStyleOptionGraphicsItem* aOption, Q
 
     ctx = nsnull;
     targetSurface = nsnull;
-    DispatchDidPaint(this);
 
     // check the return value!
     return status;

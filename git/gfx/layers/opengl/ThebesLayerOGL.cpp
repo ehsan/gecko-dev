@@ -1121,10 +1121,7 @@ ProgressiveUploadCallback(gl::TextureImage* aImage, int aTileNumber,
 void
 ShadowThebesLayerOGL::ProgressiveUpload()
 {
-  // Mark the task as completed
-  mUploadTask = nsnull;
-
-  if (mRegionPendingUpload.IsEmpty() || mBuffer == nsnull)
+  if (mRegionPendingUpload.IsEmpty())
     return;
 
   // Set a tile iteration callback so we can cancel the upload after a tile
@@ -1142,6 +1139,9 @@ ShadowThebesLayerOGL::ProgressiveUpload()
 
   // Remove the iteration callback
   tiledImage->SetIterationCallback(nsnull, nsnull);
+
+  // Mark the task as completed
+  mUploadTask = nsnull;
 
   if (!mRegionPendingUpload.IsEmpty()) {
     // Schedule another upload task
@@ -1240,12 +1240,6 @@ void
 ShadowThebesLayerOGL::DestroyFrontBuffer()
 {
   if (ShouldDoubleBuffer()) {
-    // Cancel the progressive upload task, if it's running
-    if (mUploadTask) {
-      mUploadTask->Cancel();
-      mUploadTask = nsnull;
-    }
-
     mFrontBuffer.Clear();
     mOldValidRegion.SetEmpty();
 
@@ -1268,7 +1262,7 @@ ShadowThebesLayerOGL::Destroy()
 {
   if (!mDestroyed) {
     mDestroyed = true;
-    DestroyFrontBuffer();
+    mBuffer = nsnull;
   }
 }
 

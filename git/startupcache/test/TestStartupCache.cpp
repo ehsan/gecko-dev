@@ -418,7 +418,8 @@ int main(int argc, char** argv)
     JS_PropertyStub,  JS_PropertyStub,
     JS_PropertyStub,  JS_StrictPropertyStub,
     JS_EnumerateStub, JS_ResolveStub,
-    JS_ConvertStub
+    JS_ConvertStub,   JS_FinalizeStub,
+    JSCLASS_NO_OPTIONAL_MEMBERS
   };
   JSObject *glob = nsnull;
   if (use_js)

@@ -37,18 +37,41 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
-#include "InterfaceInitFuncs.h"
+#include "nsMaiInterfaceTable.h"
 
-#include "nsAccessibleWrap.h"
 #include "nsAccUtils.h"
-#include "nsIAccessibleTable.h"
-#include "nsMai.h"
 
 #include "nsArrayUtils.h"
 
-extern "C" {
+void
+tableInterfaceInitCB(AtkTableIface *aIface)
 
-static AtkObject*
+{
+    g_return_if_fail(aIface != NULL);
+
+    aIface->ref_at = refAtCB;
+    aIface->get_index_at = getIndexAtCB;
+    aIface->get_column_at_index = getColumnAtIndexCB;
+    aIface->get_row_at_index = getRowAtIndexCB;
+    aIface->get_n_columns = getColumnCountCB;
+    aIface->get_n_rows = getRowCountCB;
+    aIface->get_column_extent_at = getColumnExtentAtCB;
+    aIface->get_row_extent_at = getRowExtentAtCB;
+    aIface->get_caption = getCaptionCB;
+    aIface->get_column_description = getColumnDescriptionCB;
+    aIface->get_column_header = getColumnHeaderCB;
+    aIface->get_row_description = getRowDescriptionCB;
+    aIface->get_row_header = getRowHeaderCB;
+    aIface->get_summary = getSummaryCB;
+    aIface->get_selected_columns = getSelectedColumnsCB;
+    aIface->get_selected_rows = getSelectedRowsCB;
+    aIface->is_column_selected = isColumnSelectedCB;
+    aIface->is_row_selected = isRowSelectedCB;
+    aIface->is_selected = isCellSelectedCB;
+}
+
+/* static */
+AtkObject*
 refAtCB(AtkTable *aTable, gint aRow, gint aColumn)
 {
     nsAccessibleWrap *accWrap = GetAccessibleWrap(ATK_OBJECT(aTable));
@@ -72,7 +95,7 @@ refAtCB(AtkTable *aTable, gint aRow, gint aColumn)
     return cellAtkObj;
 }
 
-static gint
+gint
 getIndexAtCB(AtkTable *aTable, gint aRow, gint aColumn)
 {
     nsAccessibleWrap *accWrap = GetAccessibleWrap(ATK_OBJECT(aTable));
@@ -91,7 +114,7 @@ getIndexAtCB(AtkTable *aTable, gint aRow, gint aColumn)
     return static_cast<gint>(index);
 }
 
-static gint
+gint
 getColumnAtIndexCB(AtkTable *aTable, gint aIndex)
 {
     nsAccessibleWrap *accWrap = GetAccessibleWrap(ATK_OBJECT(aTable));
@@ -110,7 +133,7 @@ getColumnAtIndexCB(AtkTable *aTable, gint aIndex)
     return static_cast<gint>(col);
 }
 
-static gint
+gint
 getRowAtIndexCB(AtkTable *aTable, gint aIndex)
 {
     nsAccessibleWrap *accWrap = GetAccessibleWrap(ATK_OBJECT(aTable));
@@ -129,7 +152,7 @@ getRowAtIndexCB(AtkTable *aTable, gint aIndex)
     return static_cast<gint>(row);
 }
 
-static gint
+gint
 getColumnCountCB(AtkTable *aTable)
 {
     nsAccessibleWrap *accWrap = GetAccessibleWrap(ATK_OBJECT(aTable));
@@ -148,7 +171,7 @@ getColumnCountCB(AtkTable *aTable)
     return static_cast<gint>(count);
 }
 
-static gint
+gint
 getRowCountCB(AtkTable *aTable)
 {
     nsAccessibleWrap *accWrap = GetAccessibleWrap(ATK_OBJECT(aTable));
@@ -167,7 +190,7 @@ getRowCountCB(AtkTable *aTable)
     return static_cast<gint>(count);
 }
 
-static gint
+gint
 getColumnExtentAtCB(AtkTable *aTable,
                     gint aRow, gint aColumn)
 {
@@ -187,7 +210,7 @@ getColumnExtentAtCB(AtkTable *aTable,
     return static_cast<gint>(extent);
 }
 
-static gint
+gint
 getRowExtentAtCB(AtkTable *aTable,
                  gint aRow, gint aColumn)
 {
@@ -207,7 +230,7 @@ getRowExtentAtCB(AtkTable *aTable,
     return static_cast<gint>(extent);
 }
 
-static AtkObject*
+AtkObject*
 getCaptionCB(AtkTable *aTable)
 {
     nsAccessibleWrap *accWrap = GetAccessibleWrap(ATK_OBJECT(aTable));
@@ -227,7 +250,7 @@ getCaptionCB(AtkTable *aTable)
     return nsAccessibleWrap::GetAtkObject(caption);
 }
 
-static const gchar*
+const gchar*
 getColumnDescriptionCB(AtkTable *aTable, gint aColumn)
 {
     nsAccessibleWrap *accWrap = GetAccessibleWrap(ATK_OBJECT(aTable));
@@ -246,7 +269,7 @@ getColumnDescriptionCB(AtkTable *aTable, gint aColumn)
     return nsAccessibleWrap::ReturnString(autoStr);
 }
 
-static AtkObject*
+AtkObject*
 getColumnHeaderCB(AtkTable *aTable, gint aColumn)
 {
     nsAccessibleWrap *accWrap = GetAccessibleWrap(ATK_OBJECT(aTable));
@@ -288,7 +311,7 @@ getColumnHeaderCB(AtkTable *aTable, gint aColumn)
     return nsnull;
 }
 
-static const gchar*
+const gchar*
 getRowDescriptionCB(AtkTable *aTable, gint aRow)
 {
     nsAccessibleWrap *accWrap = GetAccessibleWrap(ATK_OBJECT(aTable));
@@ -307,7 +330,7 @@ getRowDescriptionCB(AtkTable *aTable, gint aRow)
     return nsAccessibleWrap::ReturnString(autoStr);
 }
 
-static AtkObject*
+AtkObject*
 getRowHeaderCB(AtkTable *aTable, gint aRow)
 {
     nsAccessibleWrap *accWrap = GetAccessibleWrap(ATK_OBJECT(aTable));
@@ -349,7 +372,7 @@ getRowHeaderCB(AtkTable *aTable, gint aRow)
     return nsnull;
 }
 
-static AtkObject*
+AtkObject*
 getSummaryCB(AtkTable *aTable)
 {
     // Neither html:table nor xul:tree nor ARIA grid/tree have an ability to
@@ -359,7 +382,7 @@ getSummaryCB(AtkTable *aTable)
     return nsnull;
 }
 
-static gint
+gint
 getSelectedColumnsCB(AtkTable *aTable, gint **aSelected)
 {
     nsAccessibleWrap *accWrap = GetAccessibleWrap(ATK_OBJECT(aTable));
@@ -394,7 +417,7 @@ getSelectedColumnsCB(AtkTable *aTable, gint **aSelected)
     return size;
 }
 
-static gint
+gint
 getSelectedRowsCB(AtkTable *aTable, gint **aSelected)
 {
     nsAccessibleWrap *accWrap = GetAccessibleWrap(ATK_OBJECT(aTable));
@@ -429,7 +452,7 @@ getSelectedRowsCB(AtkTable *aTable, gint **aSelected)
     return size;
 }
 
-static gboolean
+gboolean
 isColumnSelectedCB(AtkTable *aTable, gint aColumn)
 {
     nsAccessibleWrap *accWrap = GetAccessibleWrap(ATK_OBJECT(aTable));
@@ -446,7 +469,7 @@ isColumnSelectedCB(AtkTable *aTable, gint aColumn)
     return NS_FAILED(rv) ? FALSE : static_cast<gboolean>(outValue);
 }
 
-static gboolean
+gboolean
 isRowSelectedCB(AtkTable *aTable, gint aRow)
 {
     nsAccessibleWrap *accWrap = GetAccessibleWrap(ATK_OBJECT(aTable));
@@ -463,7 +486,7 @@ isRowSelectedCB(AtkTable *aTable, gint aRow)
     return NS_FAILED(rv) ? FALSE : static_cast<gboolean>(outValue);
 }
 
-static gboolean
+gboolean
 isCellSelectedCB(AtkTable *aTable, gint aRow, gint aColumn)
 {
     nsAccessibleWrap *accWrap = GetAccessibleWrap(ATK_OBJECT(aTable));
@@ -478,33 +501,4 @@ isCellSelectedCB(AtkTable *aTable, gint aRow, gint aColumn)
     bool outValue;
     nsresult rv = accTable->IsCellSelected(aRow, aColumn, &outValue);
     return NS_FAILED(rv) ? FALSE : static_cast<gboolean>(outValue);
-}
-}
-
-void
-tableInterfaceInitCB(AtkTableIface* aIface)
-{
-  NS_ASSERTION(aIface, "no interface!");
-  if (NS_UNLIKELY(!aIface))
-    return;
-
-  aIface->ref_at = refAtCB;
-  aIface->get_index_at = getIndexAtCB;
-  aIface->get_column_at_index = getColumnAtIndexCB;
-  aIface->get_row_at_index = getRowAtIndexCB;
-  aIface->get_n_columns = getColumnCountCB;
-  aIface->get_n_rows = getRowCountCB;
-  aIface->get_column_extent_at = getColumnExtentAtCB;
-  aIface->get_row_extent_at = getRowExtentAtCB;
-  aIface->get_caption = getCaptionCB;
-  aIface->get_column_description = getColumnDescriptionCB;
-  aIface->get_column_header = getColumnHeaderCB;
-  aIface->get_row_description = getRowDescriptionCB;
-  aIface->get_row_header = getRowHeaderCB;
-  aIface->get_summary = getSummaryCB;
-  aIface->get_selected_columns = getSelectedColumnsCB;
-  aIface->get_selected_rows = getSelectedRowsCB;
-  aIface->is_column_selected = isColumnSelectedCB;
-  aIface->is_row_selected = isRowSelectedCB;
-  aIface->is_selected = isCellSelectedCB;
 }

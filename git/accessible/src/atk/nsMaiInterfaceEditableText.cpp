@@ -37,18 +37,31 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
-#include "InterfaceInitFuncs.h"
-
-#include "nsHyperTextAccessible.h"
-#include "nsMai.h"
-
 #include "nsString.h"
+#include "nsMaiInterfaceEditableText.h"
 
-extern "C" {
+void
+editableTextInterfaceInitCB(AtkEditableTextIface *aIface)
+{
+    NS_ASSERTION(aIface, "Invalid aIface");
+    if (!aIface)
+        return;
 
-static gboolean
+    aIface->set_run_attributes = setRunAttributesCB;
+    aIface->set_text_contents = setTextContentsCB;
+    aIface->insert_text = insertTextCB;
+    aIface->copy_text = copyTextCB;
+    aIface->cut_text = cutTextCB;
+    aIface->delete_text = deleteTextCB;
+    aIface->paste_text = pasteTextCB;
+}
+
+/* static, callbacks for atkeditabletext virutal functions */
+
+gboolean
 setRunAttributesCB(AtkEditableText *aText, AtkAttributeSet *aAttribSet,
                    gint aStartOffset, gint aEndOffset)
+
 {
     nsAccessibleWrap *accWrap = GetAccessibleWrap(ATK_OBJECT(aText));
     if (!accWrap)
@@ -67,7 +80,7 @@ setRunAttributesCB(AtkEditableText *aText, AtkAttributeSet *aAttribSet,
     return NS_FAILED(rv) ? FALSE : TRUE;
 }
 
-static void
+void
 setTextContentsCB(AtkEditableText *aText, const gchar *aString)
 {
     nsAccessibleWrap *accWrap = GetAccessibleWrap(ATK_OBJECT(aText));
@@ -86,7 +99,7 @@ setTextContentsCB(AtkEditableText *aText, const gchar *aString)
     accText->SetTextContents(strContent);
 }
 
-static void
+void
 insertTextCB(AtkEditableText *aText,
              const gchar *aString, gint aLength, gint *aPosition)
 {
@@ -114,7 +127,7 @@ insertTextCB(AtkEditableText *aText,
                    aString, aLength, *aPosition));
 }
 
-static void
+void
 copyTextCB(AtkEditableText *aText, gint aStartPos, gint aEndPos)
 {
     nsAccessibleWrap *accWrap = GetAccessibleWrap(ATK_OBJECT(aText));
@@ -132,7 +145,7 @@ copyTextCB(AtkEditableText *aText, gint aStartPos, gint aEndPos)
     accText->CopyText(aStartPos, aEndPos);
 }
 
-static void
+void
 cutTextCB(AtkEditableText *aText, gint aStartPos, gint aEndPos)
 {
     nsAccessibleWrap *accWrap = GetAccessibleWrap(ATK_OBJECT(aText));
@@ -149,7 +162,7 @@ cutTextCB(AtkEditableText *aText, gint aStartPos, gint aEndPos)
     accText->CutText(aStartPos, aEndPos);
 }
 
-static void
+void
 deleteTextCB(AtkEditableText *aText, gint aStartPos, gint aEndPos)
 {
     nsAccessibleWrap *accWrap = GetAccessibleWrap(ATK_OBJECT(aText));
@@ -167,7 +180,7 @@ deleteTextCB(AtkEditableText *aText, gint aStartPos, gint aEndPos)
     accText->DeleteText(aStartPos, aEndPos);
 }
 
-static void
+void
 pasteTextCB(AtkEditableText *aText, gint aPosition)
 {
     nsAccessibleWrap *accWrap = GetAccessibleWrap(ATK_OBJECT(aText));
@@ -182,21 +195,4 @@ pasteTextCB(AtkEditableText *aText, gint aPosition)
 
     MAI_LOG_DEBUG(("EditableText: pasteTextCB, aPosition=%d", aPosition));
     accText->PasteText(aPosition);
-}
-}
-
-void
-editableTextInterfaceInitCB(AtkEditableTextIface* aIface)
-{
-  NS_ASSERTION(aIface, "Invalid aIface");
-  if (NS_UNLIKELY(!aIface))
-    return;
-
-  aIface->set_run_attributes = setRunAttributesCB;
-  aIface->set_text_contents = setTextContentsCB;
-  aIface->insert_text = insertTextCB;
-  aIface->copy_text = copyTextCB;
-  aIface->cut_text = cutTextCB;
-  aIface->delete_text = deleteTextCB;
-  aIface->paste_text = pasteTextCB;
 }

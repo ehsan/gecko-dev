@@ -175,7 +175,8 @@ static JSClass
 PointerHolderClass = {
     "Pointer", JSCLASS_HAS_PRIVATE,
     JS_PropertyStub, JS_PropertyStub, JS_PropertyStub, JS_StrictPropertyStub,
-    JS_EnumerateStub, JS_ResolveStub, JS_ConvertStub, PointerFinalize
+    JS_EnumerateStub, JS_ResolveStub, JS_ConvertStub, PointerFinalize,
+    JSCLASS_NO_OPTIONAL_MEMBERS
 };
 
 template<typename Op>
