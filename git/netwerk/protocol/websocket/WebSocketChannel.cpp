@@ -121,7 +121,7 @@ public:
     mLastFailure = TimeStamp::Now();
     // We use a truncated exponential backoff as suggested by RFC 6455,
     // but multiply by 1.5 instead of 2 to be more gradual.
-    mNextDelay = PR_MIN(kWSReconnectMaxDelay, mNextDelay * 1.5);
+    mNextDelay = NS_MIN<double>(kWSReconnectMaxDelay, mNextDelay * 1.5);
     LOG(("WebSocket: FailedAgain: host=%s, port=%d: incremented delay to %lu",
          mAddress.get(), mPort, mNextDelay));
   }
@@ -930,7 +930,7 @@ WebSocketChannel::WebSocketChannel() :
   mDataStarted(0),
   mIncrementedSessionCount(0),
   mDecrementedSessionCount(0),
-  mMaxMessageSize(PR_INT32_MAX),
+  mMaxMessageSize(INT32_MAX),
   mStopOnClose(NS_OK),
   mServerCloseCode(CLOSE_ABNORMAL),
   mScriptCloseCode(0),
@@ -1456,7 +1456,7 @@ WebSocketChannel::ApplyMask(uint32_t mask, uint8_t *data, uint64_t len)
   // but the buffer might not be alligned. So we first deal with
   // 0 to 3 bytes of preamble individually
 
-  while (len && (reinterpret_cast<PRUptrdiff>(data) & 3)) {
+  while (len && (reinterpret_cast<uintptr_t>(data) & 3)) {
     *data ^= mask >> 24;
     mask = PR_ROTATE_LEFT32(mask, 8);
     data++;
@@ -1992,7 +1992,7 @@ WebSocketChannel::HandleExtensions()
   LOG(("WebSocketChannel::HandleExtensions() %p\n", this));
 
   nsresult rv;
-  nsCAutoString extensions;
+  nsAutoCString extensions;
 
   NS_ABORT_IF_FALSE(NS_IsMainThread(), "not main thread");
 
@@ -2095,7 +2095,7 @@ WebSocketChannel::SetupRequest()
                                    false);
 
   uint8_t      *secKey;
-  nsCAutoString secKeyString;
+  nsAutoCString secKeyString;
 
   rv = mRandomGenerator->GenerateRandomBytes(16, &secKey);
   NS_ENSURE_SUCCESS(rv, rv);
@@ -2283,7 +2283,7 @@ WebSocketChannel::AsyncOnChannelRedirect(
     // It's only a HSTS redirect if we started with non-secure, are going to
     // secure, and the new URI is otherwise the same as the old one.
     if (!(!currentIsHttps && newuriIsHttps && uriEqual)) {
-      nsCAutoString newSpec;
+      nsAutoCString newSpec;
       rv = newuri->GetSpec(newSpec);
       NS_ENSURE_SUCCESS(rv, rv);
 
@@ -2294,7 +2294,7 @@ WebSocketChannel::AsyncOnChannelRedirect(
   }
 
   if (mEncrypted && !newuriIsHttps) {
-    nsCAutoString spec;
+    nsAutoCString spec;
     if (NS_SUCCEEDED(newuri->GetSpec(spec)))
       LOG(("WebSocketChannel: Redirect to %s violates encryption rule\n",
            spec.get()));
@@ -2481,7 +2481,7 @@ WebSocketChannel::AsyncOpen(nsIURI *aURI,
     rv = prefService->GetIntPref("network.websocket.max-message-size", 
                                  &intpref);
     if (NS_SUCCEEDED(rv)) {
-      mMaxMessageSize = clamped(intpref, 1024, PR_INT32_MAX);
+      mMaxMessageSize = clamped(intpref, 1024, INT32_MAX);
     }
     rv = prefService->GetIntPref("network.websocket.timeout.close", &intpref);
     if (NS_SUCCEEDED(rv)) {
@@ -2774,7 +2774,7 @@ WebSocketChannel::OnStartRequest(nsIRequest *aRequest,
     return NS_ERROR_CONNECTION_REFUSED;
   }
 
-  nsCAutoString respUpgrade;
+  nsAutoCString respUpgrade;
   rv = mHttpChannel->GetResponseHeader(
     NS_LITERAL_CSTRING("Upgrade"), respUpgrade);
 
@@ -2798,7 +2798,7 @@ WebSocketChannel::OnStartRequest(nsIRequest *aRequest,
     return rv;
   }
 
-  nsCAutoString respConnection;
+  nsAutoCString respConnection;
   rv = mHttpChannel->GetResponseHeader(
     NS_LITERAL_CSTRING("Connection"), respConnection);
 
@@ -2822,7 +2822,7 @@ WebSocketChannel::OnStartRequest(nsIRequest *aRequest,
     return rv;
   }
 
-  nsCAutoString respAccept;
+  nsAutoCString respAccept;
   rv = mHttpChannel->GetResponseHeader(
                        NS_LITERAL_CSTRING("Sec-WebSocket-Accept"),
                        respAccept);
@@ -2841,7 +2841,7 @@ WebSocketChannel::OnStartRequest(nsIRequest *aRequest,
   // If it does not, set mProtocol to "" so the protocol attribute
   // of the WebSocket JS object reflects that
   if (!mProtocol.IsEmpty()) {
-    nsCAutoString respProtocol;
+    nsAutoCString respProtocol;
     rv = mHttpChannel->GetResponseHeader(
                          NS_LITERAL_CSTRING("Sec-WebSocket-Protocol"), 
                          respProtocol);
@@ -3050,10 +3050,10 @@ NS_IMETHODIMP
 WebSocketChannel::OnDataAvailable(nsIRequest *aRequest,
                                     nsISupports *aContext,
                                     nsIInputStream *aInputStream,
-                                    uint32_t aOffset,
+                                    uint64_t aOffset,
                                     uint32_t aCount)
 {
-  LOG(("WebSocketChannel::OnDataAvailable() %p [%p %p %p %u %u]\n",
+  LOG(("WebSocketChannel::OnDataAvailable() %p [%p %p %p %llu %u]\n",
          this, aRequest, aContext, aInputStream, aOffset, aCount));
 
   if (aContext == mSocketIn) {

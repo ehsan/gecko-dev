@@ -7,7 +7,6 @@
 #include "nsMenuPopupFrame.h"
 #include "nsGkAtoms.h"
 #include "nsIContent.h"
-#include "prtypes.h"
 #include "nsIAtom.h"
 #include "nsPresContext.h"
 #include "nsStyleContext.h"
@@ -169,6 +168,8 @@ nsMenuPopupFrame::Init(nsIContent*      aContent,
       rootBox->SetDefaultTooltip(aContent);
     }
   }
+
+  AddStateBits(NS_FRAME_IN_POPUP);
 
   return rv;
 }
@@ -444,20 +445,20 @@ nsMenuPopupFrame::LayoutPopup(nsBoxLayoutState& aState, nsIFrame* aParentMenu, b
   }
 
   nsPresContext* pc = PresContext();
+  nsIView* view = GetView();
+
+  if (sizeChanged) {
+    // If the size of the popup changed, apply any size constraints.
+    nsIWidget* widget = view->GetWidget();
+    if (widget) {
+      SetSizeConstraints(pc, widget, minSize, maxSize);
+    }
+  }
+
   if (isOpen) {
-    nsIView* view = GetView();
     nsIViewManager* viewManager = view->GetViewManager();
     nsRect rect = GetRect();
     rect.x = rect.y = 0;
-
-    if (sizeChanged) {
-      // If the size of the popup changed, apply any size constraints.
-      nsIWidget* widget = view->GetWidget();
-      if (widget) {
-        SetSizeConstraints(pc, widget, minSize, maxSize);
-      }
-    }
-
     viewManager->ResizeView(view, rect);
 
     viewManager->SetViewVisibility(view, nsViewVisibility_kShow);
@@ -810,14 +811,6 @@ nsMenuPopupFrame::HidePopup(bool aDeselectMenu, nsPopupState aNewState)
   if (menuFrame) {
     menuFrame->PopupClosed(aDeselectMenu);
   }
-}
-
-void
-nsMenuPopupFrame::InvalidateInternal(const nsRect& aDamageRect,
-                                     nscoord aX, nscoord aY, nsIFrame* aForChild,
-                                     uint32_t aFlags)
-{
-  InvalidateRoot(aDamageRect + nsPoint(aX, aY), aFlags);
 }
 
 void
@@ -1908,7 +1901,7 @@ nsMenuPopupFrame::CreatePopupView()
   // Create a view
   nsIView* parentView = viewManager->GetRootView();
   nsViewVisibility visibility = nsViewVisibility_kHide;
-  int32_t zIndex = PR_INT32_MAX;
+  int32_t zIndex = INT32_MAX;
   bool    autoZIndex = false;
 
   NS_ASSERTION(parentView, "no parent view");

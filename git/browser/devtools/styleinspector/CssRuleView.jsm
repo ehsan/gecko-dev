@@ -1404,7 +1404,34 @@ RuleEditor.prototype = {
    */
   populate: function RuleEditor_populate()
   {
-    this.selectorText.textContent = this.rule.selectorText;
+    // Clear out existing viewers.
+    while (this.selectorText.hasChildNodes()) {
+      this.selectorText.removeChild(this.selectorText.lastChild);
+    }
+
+    // If selector text comes from a css rule, highlight selectors that
+    // actually match.  For custom selector text (such as for the 'element'
+    // style, just show the text directly.
+    if (this.rule.domRule && this.rule.domRule.selectorText) {
+      let selectors = CssLogic.getSelectors(this.rule.selectorText);
+      let element = this.rule.inherited || this.ruleView._viewedElement;
+      for (let i = 0; i < selectors.length; i++) {
+        let selector = selectors[i];
+        if (i != 0) {
+          createChild(this.selectorText, "span", {
+            class: "ruleview-selector-separator",
+            textContent: ", "
+          });
+        }
+        let cls = element.mozMatchesSelector(selector) ? "ruleview-selector-matched" : "ruleview-selector-unmatched";
+        createChild(this.selectorText, "span", {
+          class: cls,
+          textContent: selector
+        });
+      }
+    } else {
+      this.selectorText.textContent = this.rule.selectorText;
+    }
 
     for (let prop of this.rule.textProps) {
       if (!prop.editor) {
@@ -1602,13 +1629,6 @@ TextPropertyEditor.prototype = {
       tabindex: "0",
     });
 
-    editableField({
-      start: this._onStartEditing,
-      element: this.valueSpan,
-      done: this._onValueDone,
-      advanceChars: ';'
-    });
-
     // Save the initial value as the last committed value,
     // for restoring after pressing escape.
     this.committed = { name: this.prop.name,
@@ -1627,6 +1647,15 @@ TextPropertyEditor.prototype = {
     // will be populated in |_updateComputed|.
     this.computed = createChild(this.element, "ul", {
       class: "ruleview-computedlist",
+    });
+
+    editableField({
+      start: this._onStartEditing,
+      element: this.valueSpan,
+      done: this._onValueDone,
+      validate: this._validate.bind(this),
+      warning: this.warning,
+      advanceChars: ';'
     });
   },
 
@@ -1814,17 +1843,30 @@ TextPropertyEditor.prototype = {
   /**
    * Validate this property.
    *
+   * @param {String} [aValue]
+   *        Override the actual property value used for validation without
+   *        applying property values e.g. validate as you type.
+   *
    * @returns {Boolean}
    *          True if the property value is valid, false otherwise.
    */
-  _validate: function TextPropertyEditor_validate()
+  _validate: function TextPropertyEditor_validate(aValue)
   {
     let name = this.prop.name;
-    let value = this.prop.value;
+    let value = typeof aValue == "undefined" ? this.prop.value : aValue;
+    let val = this._parseValue(value);
     let style = this.doc.createElementNS(HTML_NS, "div").style;
+    let prefs = Services.prefs;
 
-    style.setProperty(name, value, null);
+    // We toggle output of errors whilst the user is typing a property value.
+    let prefVal = Services.prefs.getBoolPref("layout.css.report_errors");
+    prefs.setBoolPref("layout.css.report_errors", false);
 
+    try {
+      style.setProperty(name, val.value, val.priority);
+    } finally {
+      prefs.setBoolPref("layout.css.report_errors", prefVal);
+    }
     return !!style.getPropertyValue(name);
   },
 };
@@ -1944,6 +1986,7 @@ function InplaceEditor(aOptions, aEvent)
   this._onBlur = this._onBlur.bind(this);
   this._onKeyPress = this._onKeyPress.bind(this);
   this._onInput = this._onInput.bind(this);
+  this._onKeyup = this._onKeyup.bind(this);
 
   this._createInput();
   this._autosize();
@@ -1970,6 +2013,13 @@ function InplaceEditor(aOptions, aEvent)
   this.input.addEventListener("keypress", this._onKeyPress, false);
   this.input.addEventListener("input", this._onInput, false);
   this.input.addEventListener("mousedown", function(aEvt) { aEvt.stopPropagation(); }, false);
+
+  this.warning = aOptions.warning;
+  this.validate = aOptions.validate;
+
+  if (this.warning && this.validate) {
+    this.input.addEventListener("keyup", this._onKeyup, false);
+  }
 
   if (aOptions.start) {
     aOptions.start(this, aEvent);
@@ -1999,6 +2049,7 @@ InplaceEditor.prototype = {
 
     this.input.removeEventListener("blur", this._onBlur, false);
     this.input.removeEventListener("keypress", this._onKeyPress, false);
+    this.input.removeEventListener("keyup", this._onKeyup, false);
     this.input.removeEventListener("oninput", this._onInput, false);
     this._stopAutosize();
 
@@ -2101,10 +2152,12 @@ InplaceEditor.prototype = {
   /**
    * Handle loss of focus by calling done if it hasn't been called yet.
    */
-  _onBlur: function InplaceEditor_onBlur(aEvent)
+  _onBlur: function InplaceEditor_onBlur(aEvent, aDoNotClear)
   {
     this._apply();
-    this._clear();
+    if (!aDoNotClear) {
+      this._clear();
+    }
   },
 
   _onKeyPress: function InplaceEditor_onKeyPress(aEvent)
@@ -2167,10 +2220,25 @@ InplaceEditor.prototype = {
   },
 
   /**
+   * Handle the input field's keyup event.
+   */
+  _onKeyup: function(aEvent) {
+    // Validate the entered value.
+    this.warning.hidden = this.validate(this.input.value);
+    this._applied = false;
+    this._onBlur(null, true);
+  },
+
+  /**
    * Handle changes the input text.
    */
   _onInput: function InplaceEditor_onInput(aEvent)
   {
+    // Validate the entered value.
+    if (this.warning && this.validate) {
+      this.warning.hidden = this.validate(this.input.value);
+    }
+
     // Update size if we're autosizing.
     if (this._measurement) {
       this._updateSize();

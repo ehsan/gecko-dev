@@ -12,7 +12,6 @@ include $(DEPTH)/config/autoconf.mk
 
 MOCHITEST_BROWSER_TESTS = \
 	browser_dbg_leaktest.js \
-	browser_dbg_createRemote.js \
 	browser_dbg_createChrome.js \
 	browser_dbg_debugger-tab-switch.js \
 	browser_dbg_debugger-tab-switch-window.js \
@@ -20,8 +19,7 @@ MOCHITEST_BROWSER_TESTS = \
 	browser_dbg_listtabs.js \
 	browser_dbg_tabactor-01.js \
 	browser_dbg_tabactor-02.js \
-	browser_dbg_contextactor-01.js \
-	browser_dbg_contextactor-02.js \
+	browser_dbg_globalactor-01.js \
 	testactors.js \
 	browser_dbg_nav-01.js \
 	browser_dbg_propertyview-01.js \
@@ -56,6 +54,8 @@ MOCHITEST_BROWSER_TESTS = \
 	browser_dbg_scripts-searching-05.js \
 	browser_dbg_scripts-searching-06.js \
 	browser_dbg_scripts-searching-07.js \
+	browser_dbg_scripts-searching-08.js \
+	browser_dbg_scripts-searching-popup.js \
 	browser_dbg_pause-resume.js \
 	browser_dbg_update-editor-mode.js \
 	$(warning browser_dbg_select-line.js temporarily disabled due to oranges, see bug 726609) \
@@ -72,6 +72,15 @@ MOCHITEST_BROWSER_TESTS = \
 	browser_dbg_breakpoint-new-script.js \
 	head.js \
 	$(NULL)
+
+# Disabled on Windows for frequent intermittent failures
+ifneq ($(OS_ARCH), WINNT)
+MOCHITEST_BROWSER_TESTS += \
+	browser_dbg_createRemote.js \
+	$(NULL)
+else
+$(warning browser_dbg_createRemote.js is disabled on Windows for intermittent failures. Bug 753225)
+endif
 
 MOCHITEST_BROWSER_PAGES = \
 	browser_dbg_tab1.html \

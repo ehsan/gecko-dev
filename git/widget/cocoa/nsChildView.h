@@ -411,6 +411,16 @@ public:
   NS_IMETHOD              SetFocus(bool aRaise);
   NS_IMETHOD              GetBounds(nsIntRect &aRect);
 
+  // Returns the "backing scale factor" of the view's window, which is the
+  // ratio of pixels in the window's backing store to Cocoa points. Prior to
+  // HiDPI support in OS X 10.7, this was always 1.0, but in HiDPI mode it
+  // will be 2.0 (and might potentially other values as screen resolutions
+  // evolve). This gives the relationship between what Gecko calls "device
+  // pixels" and the Cocoa "points" coordinate system.
+  CGFloat                 BackingScaleFactor();
+
+  virtual double          GetDefaultScale();
+
   NS_IMETHOD              Invalidate(const nsIntRect &aRect);
 
   virtual void*           GetNativeData(uint32_t aDataType);
@@ -507,8 +517,6 @@ public:
 
   bool IsPluginView() { return (mWindowType == eWindowType_plugin); }
 
-  void PaintQD();
-
   nsCocoaWindow*    GetXULWindowWidget();
 
   NS_IMETHOD        ReparentNativeWidget(nsIWidget* aNewParent);
@@ -516,6 +524,20 @@ public:
   mozilla::widget::TextInputHandler* GetTextInputHandler()
   {
     return mTextInputHandler;
+  }
+
+  // unit conversion convenience functions
+  nsIntPoint        CocoaPointsToDevPixels(const NSPoint& aPt) {
+    return nsCocoaUtils::CocoaPointsToDevPixels(aPt, BackingScaleFactor());
+  }
+  nsIntRect         CocoaPointsToDevPixels(const NSRect& aRect) {
+    return nsCocoaUtils::CocoaPointsToDevPixels(aRect, BackingScaleFactor());
+  }
+  CGFloat           DevPixelsToCocoaPoints(int32_t aPixels) {
+    return nsCocoaUtils::DevPixelsToCocoaPoints(aPixels, BackingScaleFactor());
+  }
+  NSRect            DevPixelsToCocoaPoints(const nsIntRect& aRect) {
+    return nsCocoaUtils::DevPixelsToCocoaPoints(aRect, BackingScaleFactor());
   }
 
 protected:
@@ -554,15 +576,18 @@ protected:
   nsRefPtr<gfxASurface> mTempThebesSurface;
   nsRefPtr<mozilla::gl::TextureImage> mResizerImage;
 
+  // Cached value of [mView backingScaleFactor], to avoid sending two obj-c
+  // messages (respondsToSelector, backingScaleFactor) every time we need to
+  // use it.
+  // ** We'll need to reinitialize this if the backing resolution changes. **
+  CGFloat               mBackingScaleFactor;
+
   bool                  mVisible;
   bool                  mDrawing;
   bool                  mPluginDrawing;
   bool                  mIsDispatchPaint; // Is a paint event being dispatched
 
   NP_CGContext          mPluginCGContext;
-#ifndef NP_NO_QUICKDRAW
-  NP_Port               mPluginQDPort;
-#endif
   nsIPluginInstanceOwner* mPluginInstanceOwner; // [WEAK]
 
   static uint32_t sLastInputEventCount;

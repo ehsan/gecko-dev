@@ -28,6 +28,7 @@ class ShadowCanvasLayer;
 class ShadowColorLayer;
 class ReadbackProcessor;
 class ImageFactory;
+class PaintContext;
 
 /**
  * This is a cairo/Thebes-only, main-thread-only implementation of layers.
@@ -151,13 +152,23 @@ public:
   void PopGroupToSourceWithCachedSurface(gfxContext *aTarget, gfxContext *aPushed);
 
   virtual bool IsCompositingCheap() { return false; }
-  virtual int32_t GetMaxTextureSize() const { return PR_INT32_MAX; }
+  virtual int32_t GetMaxTextureSize() const { return INT32_MAX; }
+  bool CompositorMightResample() { return mCompositorMightResample; }
 
 protected:
   enum TransactionPhase {
     PHASE_NONE, PHASE_CONSTRUCTION, PHASE_DRAWING, PHASE_FORWARD
   };
   TransactionPhase mPhase;
+
+  // This is the main body of the PaintLayer routine which will if it has
+  // children, recurse into PaintLayer() otherwise it will paint using the
+  // underlying Paint() method of the Layer. It will not do both.
+  void PaintSelfOrChildren(PaintContext& aPaintContext, gfxContext* aGroupTarget);
+
+  // Paint the group onto the underlying target. This is used by PaintLayer to
+  // flush the group to the underlying target.
+  void FlushGroup(PaintContext& aPaintContext, bool aNeedsClipToVisibleRegion);
 
   // Paints aLayer to mTarget.
   void PaintLayer(gfxContext* aTarget,
@@ -182,18 +193,27 @@ protected:
   nsRefPtr<gfxContext> mDefaultTarget;
   // The context to draw into.
   nsRefPtr<gfxContext> mTarget;
-  // A context we want our shadow to draw into.
+  // When we're doing a transaction in order to draw to a non-default
+  // target, the layers transaction is only performed in order to send
+  // a PLayers:Update.  We save the original non-default target to
+  // mShadowTarget, and then perform the transaction using
+  // mDummyTarget as the render target.  After the transaction ends,
+  // we send a message to our remote side to capture the actual pixels
+  // being drawn to the default target, and then copy those pixels
+  // back to mShadowTarget.
   nsRefPtr<gfxContext> mShadowTarget;
+  nsRefPtr<gfxContext> mDummyTarget;
   // Image factory we use.
   nsRefPtr<ImageFactory> mFactory;
 
   // Cached surface for double buffering
   gfxCachedTempSurface mCachedSurface;
 
-  BufferMode   mDoubleBuffering;
+  BufferMode mDoubleBuffering;
   bool mUsingDefaultTarget;
   bool mCachedSurfaceInUse;
-  bool         mTransactionIncomplete;
+  bool mTransactionIncomplete;
+  bool mCompositorMightResample;
 };
  
 
@@ -251,6 +271,14 @@ public:
   virtual void SetIsFirstPaint() MOZ_OVERRIDE;
 
   void SetRepeatTransaction() { mRepeatTransaction = true; }
+
+  /**
+   * Determines if a progressive update should be cancelled. This is only called
+   * if gfxPlatform::UseProgressiveTilePainting() returns true.
+   * aHasPendingNewThebesContent is true if there is a Thebes layer update
+   * that will cause its valid region to expand.
+   */
+  bool ShouldAbortProgressiveUpdate(bool aHasPendingNewThebesContent);
 
 private:
   /**

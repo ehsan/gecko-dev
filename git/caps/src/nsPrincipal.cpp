@@ -30,6 +30,9 @@
 #include "mozilla/Preferences.h"
 #include "mozilla/HashFunctions.h"
 
+#include "nsIAppsService.h"
+#include "mozIApplication.h"
+
 using namespace mozilla;
 
 static bool gCodeBasePrincipalSupport = false;
@@ -131,7 +134,7 @@ nsBasePrincipal::CertificateEquals(nsIPrincipal *aOther)
   if (!mCert)
     return true;
 
-  nsCAutoString str;
+  nsAutoCString str;
   aOther->GetFingerprint(str);
   if (!str.Equals(mCert->fingerprint))
     return false;
@@ -187,7 +190,7 @@ nsBasePrincipal::CanEnableCapability(const char *capability, int16_t *result)
   for(;;) {
     const char *space = PL_strchr(start, ' ');
     int32_t len = space ? space - start : strlen(start);
-    nsCAutoString capString(start, len);
+    nsAutoCString capString(start, len);
     nsCStringKey key(capString);
     int16_t value =
       mCapabilities ? (int16_t)NS_PTR_TO_INT32(mCapabilities->Get(&key)) : 0;
@@ -234,7 +237,7 @@ nsBasePrincipal::SetCanEnableCapability(const char *capability,
   for(;;) {
     const char *space = PL_strchr(start, ' ');
     int len = space ? space - start : strlen(start);
-    nsCAutoString capString(start, len);
+    nsAutoCString capString(start, len);
     nsCStringKey key(capString);
     mCapabilities->Put(&key, NS_INT32_TO_PTR(canEnable));
     if (!space) {
@@ -260,7 +263,7 @@ nsBasePrincipal::IsCapabilityEnabled(const char *capability, void *annotation,
   for(;;) {
     const char *space = PL_strchr(start, ' ');
     int len = space ? space - start : strlen(start);
-    nsCAutoString capString(start, len);
+    nsAutoCString capString(start, len);
     nsCStringKey key(capString);
     *result = (ht->Get(&key) == (void *) AnnotationEnabled);
     if (!*result) {
@@ -309,7 +312,7 @@ nsBasePrincipal::SetCapability(const char *capability, void **annotation,
   for(;;) {
     const char *space = PL_strchr(start, ' ');
     int len = space ? space - start : strlen(start);
-    nsCAutoString capString(start, len);
+    nsAutoCString capString(start, len);
     nsCStringKey key(capString);
     nsHashtable *ht = static_cast<nsHashtable *>(*annotation);
     ht->Put(&key, (void *) value);
@@ -521,7 +524,7 @@ nsBasePrincipal::GetPreferences(char** aPrefName, char** aID,
   }
 
   //-- Capabilities
-  nsCAutoString grantedListStr, deniedListStr;
+  nsAutoCString grantedListStr, deniedListStr;
   if (mCapabilities) {
     CapabilityList capList = CapabilityList();
     capList.granted = &grantedListStr;
@@ -599,7 +602,7 @@ FreeAnnotationEntry(nsIObjectInputStream* aStream, nsHashKey* aKey,
 #ifdef DEBUG
 void nsPrincipal::dumpImpl()
 {
-  nsCAutoString str;
+  nsAutoCString str;
   GetScriptLocation(str);
   fprintf(stderr, "nsPrincipal (%p) = %s\n", static_cast<void*>(this), str.get());
 }
@@ -677,7 +680,7 @@ nsPrincipal::GetOriginForURI(nsIURI* aURI, char **aOrigin)
     return NS_ERROR_FAILURE;
   }
 
-  nsCAutoString hostPort;
+  nsAutoCString hostPort;
 
   // chrome: URLs don't have a meaningful origin, so make
   // sure we just get the full spec for them.
@@ -705,7 +708,7 @@ nsPrincipal::GetOriginForURI(nsIURI* aURI, char **aOrigin)
       hostPort.AppendInt(port, 10);
     }
 
-    nsCAutoString scheme;
+    nsAutoCString scheme;
     rv = origin->GetScheme(scheme);
     NS_ENSURE_SUCCESS(rv, rv);
 
@@ -714,7 +717,7 @@ nsPrincipal::GetOriginForURI(nsIURI* aURI, char **aOrigin)
   else {
     // Some URIs (e.g., nsSimpleURI) don't support asciiHost. Just
     // get the full spec.
-    nsCAutoString spec;
+    nsAutoCString spec;
     // XXX nsMozIconURI and nsJARURI don't implement this correctly, they
     // both fall back to GetSpec.  That needs to be fixed.
     rv = origin->GetAsciiSpec(spec);
@@ -1109,6 +1112,13 @@ nsPrincipal::GetIsInBrowserElement(bool* aIsInBrowserElement)
 }
 
 NS_IMETHODIMP
+nsPrincipal::GetUnknownAppId(bool* aUnknownAppId)
+{
+  *aUnknownAppId = mAppId == nsIScriptSecurityManager::UNKNOWN_APP_ID;
+  return NS_OK;
+}
+
+NS_IMETHODIMP
 nsPrincipal::Read(nsIObjectInputStream* aStream)
 {
   bool hasCapabilities;
@@ -1299,10 +1309,45 @@ nsPrincipal::GetAppStatus()
 
   // Installed apps have a valid app id (not NO_APP_ID or UNKNOWN_APP_ID)
   // and they are not inside a mozbrowser.
-  return mAppId != nsIScriptSecurityManager::NO_APP_ID &&
-         mAppId != nsIScriptSecurityManager::UNKNOWN_APP_ID && !mInMozBrowser
-          ? nsIPrincipal::APP_STATUS_INSTALLED
-          : nsIPrincipal::APP_STATUS_NOT_INSTALLED;
+  if (mAppId == nsIScriptSecurityManager::NO_APP_ID ||
+      mAppId == nsIScriptSecurityManager::UNKNOWN_APP_ID || mInMozBrowser) {
+    return nsIPrincipal::APP_STATUS_NOT_INSTALLED;
+  }
+
+  nsCOMPtr<nsIAppsService> appsService = do_GetService(APPS_SERVICE_CONTRACTID);
+  NS_ENSURE_TRUE(appsService, nsIPrincipal::APP_STATUS_NOT_INSTALLED);
+
+  nsCOMPtr<mozIDOMApplication> domApp;
+  appsService->GetAppByLocalId(mAppId, getter_AddRefs(domApp));
+  nsCOMPtr<mozIApplication> app = do_QueryInterface(domApp);
+  NS_ENSURE_TRUE(app, nsIPrincipal::APP_STATUS_NOT_INSTALLED);
+
+  uint16_t status = nsIPrincipal::APP_STATUS_INSTALLED;
+  NS_ENSURE_SUCCESS(app->GetAppStatus(&status),
+                    nsIPrincipal::APP_STATUS_NOT_INSTALLED);
+
+  nsAutoCString origin;
+  NS_ENSURE_SUCCESS(GetOrigin(getter_Copies(origin)),
+                    nsIPrincipal::APP_STATUS_NOT_INSTALLED);
+  nsString appOrigin;
+  NS_ENSURE_SUCCESS(app->GetOrigin(appOrigin),
+                    nsIPrincipal::APP_STATUS_NOT_INSTALLED);
+
+  // We go from string -> nsIURI -> origin to be sure we
+  // compare two punny-encoded origins.
+  nsCOMPtr<nsIURI> appURI;
+  NS_ENSURE_SUCCESS(NS_NewURI(getter_AddRefs(appURI), appOrigin),
+                    nsIPrincipal::APP_STATUS_NOT_INSTALLED);
+
+  nsAutoCString appOriginPunned;
+  NS_ENSURE_SUCCESS(GetOriginForURI(appURI, getter_Copies(appOriginPunned)),
+                    nsIPrincipal::APP_STATUS_NOT_INSTALLED);
+
+  if (!appOriginPunned.Equals(origin)) {
+    return nsIPrincipal::APP_STATUS_NOT_INSTALLED;
+  }
+
+  return status;
 }
 
 /************************************************************************************************************************/
@@ -1495,6 +1540,13 @@ NS_IMETHODIMP
 nsExpandedPrincipal::GetIsInBrowserElement(bool* aIsInBrowserElement)
 {
   return NS_ERROR_NOT_AVAILABLE;
+}
+
+NS_IMETHODIMP
+nsExpandedPrincipal::GetUnknownAppId(bool* aUnknownAppId)
+{
+  *aUnknownAppId = false;
+  return NS_OK;
 }
 
 void

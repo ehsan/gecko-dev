@@ -13,10 +13,6 @@ Cu.import("resource://gre/modules/XPCOMUtils.jsm");
 Cu.import("resource://gre/modules/Services.jsm");
 Cu.import("resource://gre/modules/ObjectWrapper.jsm");
 
-const messageManager = Cc["@mozilla.org/globalmessagemanager;1"]
-                         .getService(Ci.nsIMessageBroadcaster);
-
-
 // -----------------------------------------------------------------------
 // MozKeyboard
 // -----------------------------------------------------------------------
@@ -39,9 +35,6 @@ MozKeyboard.prototype = {
   }),
 
   init: function mozKeyboardInit(win) {
-    messageManager.loadFrameScript(kFormsFrameScript, true);
-    messageManager.addMessageListener("Forms:Input", this);
-
     Services.obs.addObserver(this, "inner-window-destroyed", false);
     Services.obs.addObserver(this, 'in-process-browser-frame-shown', false);
     Services.obs.addObserver(this, 'remote-browser-frame-shown', false);
@@ -56,7 +49,7 @@ MozKeyboard.prototype = {
 
   uninit: function mozKeyboardUninit() {
     Services.obs.removeObserver(this, "inner-window-destroyed");
-    messageManager.removeMessageListener("Forms:Input", this);
+    this._messageManager = null;
     this._window = null;
     this._utils = null;
     this._focusHandler = null;
@@ -70,19 +63,19 @@ MozKeyboard.prototype = {
   },
 
   setSelectedOption: function mozKeyboardSetSelectedOption(index) {
-    messageManager.broadcastAsyncMessage("Forms:Select:Choice", {
+    this._messageManager.sendAsyncMessage("Forms:Select:Choice", {
       "index": index
     });
   },
 
   setValue: function mozKeyboardSetValue(value) {
-    messageManager.broadcastAsyncMessage("Forms:Input:Value", {
+    this._messageManager.sendAsyncMessage("Forms:Input:Value", {
       "value": value
     });
   },
 
   setSelectedOptions: function mozKeyboardSetSelectedOptions(indexes) {
-    messageManager.broadcastAsyncMessage("Forms:Select:Choice", {
+    this._messageManager.sendAsyncMessage("Forms:Select:Choice", {
       "indexes": indexes || []
     });
   },
@@ -95,7 +88,7 @@ MozKeyboard.prototype = {
     return this._focusHandler;
   },
 
-  receiveMessage: function mozKeyboardReceiveMessage(msg) {
+  handleMessage: function mozKeyboardHandleMessage(msg) {
     let handler = this._focusHandler;
     if (!handler || !(handler instanceof Ci.nsIDOMEventListener))
       return;
@@ -122,7 +115,12 @@ MozKeyboard.prototype = {
     case 'in-process-browser-frame-shown': {
       let frameLoader = subject.QueryInterface(Ci.nsIFrameLoader);
       let mm = frameLoader.messageManager;
-      mm.addMessageListener("Forms:Input", this);
+      mm.addMessageListener("Forms:Input", (function receiveMessage(msg) {
+        // Need to save mm here so later the message can be sent back to the
+        // correct app in the methods called by the value selector.
+        this._messageManager = mm;
+        this.handleMessage(msg);
+      }).bind(this));
       try {
         mm.loadFrameScript(kFormsFrameScript, true);
       } catch (e) {

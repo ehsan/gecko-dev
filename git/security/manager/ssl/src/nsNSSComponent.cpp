@@ -97,13 +97,12 @@ int nsNSSComponent::mInstanceCount = 0;
 bool nsNSSComponent::globalConstFlagUsePKIXVerification = false;
 
 // XXX tmp callback for slot password
-extern char * PR_CALLBACK 
-pk11PasswordPrompt(PK11SlotInfo *slot, PRBool retry, void *arg);
+extern char* pk11PasswordPrompt(PK11SlotInfo *slot, PRBool retry, void *arg);
 
 #define PIPNSS_STRBUNDLE_URL "chrome://pipnss/locale/pipnss.properties"
 #define NSSERR_STRBUNDLE_URL "chrome://pipnss/locale/nsserrors.properties"
 
-static PLHashNumber PR_CALLBACK certHashtable_keyHash(const void *key)
+static PLHashNumber certHashtable_keyHash(const void *key)
 {
   if (!key)
     return 0;
@@ -123,7 +122,7 @@ static PLHashNumber PR_CALLBACK certHashtable_keyHash(const void *key)
   return hash;
 }
 
-static int PR_CALLBACK certHashtable_keyCompare(const void *k1, const void *k2)
+static int certHashtable_keyCompare(const void *k1, const void *k2)
 {
   // return type is a bool, answering the question "are the keys equal?"
 
@@ -150,7 +149,7 @@ static int PR_CALLBACK certHashtable_keyCompare(const void *k1, const void *k2)
   return true;
 }
 
-static int PR_CALLBACK certHashtable_valueCompare(const void *v1, const void *v2)
+static int certHashtable_valueCompare(const void *v1, const void *v2)
 {
   // two values are identical if their keys are identical
   
@@ -163,7 +162,7 @@ static int PR_CALLBACK certHashtable_valueCompare(const void *v1, const void *v2
   return certHashtable_keyCompare(&cert1->certKey, &cert2->certKey);
 }
 
-static int PR_CALLBACK certHashtable_clearEntry(PLHashEntry *he, int /*index*/, void * /*userdata*/)
+static int certHashtable_clearEntry(PLHashEntry *he, int /*index*/, void * /*userdata*/)
 {
   if (he && he->value) {
     CERT_DestroyCertificate((CERTCertificate*)he->value);
@@ -841,7 +840,7 @@ nsNSSComponent::InstallLoadableRoots()
         continue;
       }
 
-      nsCAutoString processDir;
+      nsAutoCString processDir;
       mozFile->GetNativePath(processDir);
       fullLibraryPath = PR_GetLibraryName(processDir.get(), "nssckbi");
     }
@@ -1271,7 +1270,7 @@ nsresult nsNSSComponent::getParamsForNextCrlToDownload(nsAutoString *url, PRTime
     nsAutoString tempCrlKey;
 
     //Now, generate the crl key. Same key would be used as hashkey as well
-    nsCAutoString enabledPrefCString(*(allCrlsToBeUpdated+i));
+    nsAutoCString enabledPrefCString(*(allCrlsToBeUpdated+i));
     enabledPrefCString.ReplaceSubstring(updateEnabledPref,".");
     tempCrlKey.AssignWithConversion(enabledPrefCString.get());
       
@@ -1286,7 +1285,7 @@ nsresult nsNSSComponent::getParamsForNextCrlToDownload(nsAutoString *url, PRTime
 
     char *tempTimeString;
     PRTime tempTime;
-    nsCAutoString timingPrefCString(updateTimePref);
+    nsAutoCString timingPrefCString(updateTimePref);
     LossyAppendUTF16toASCII(tempCrlKey, timingPrefCString);
     // No PRTime/Int64 type in prefs; stored as string; parsed here as int64_t
     rv = pref->GetCharPref(timingPrefCString.get(), &tempTimeString);
@@ -1326,7 +1325,7 @@ nsresult nsNSSComponent::getParamsForNextCrlToDownload(nsAutoString *url, PRTime
     }
 
     if(nearestUpdateTime == 0 || tempTime < nearestUpdateTime){
-      nsCAutoString urlPrefCString(updateURLPref);
+      nsAutoCString urlPrefCString(updateURLPref);
       LossyAppendUTF16toASCII(tempCrlKey, urlPrefCString);
       rv = pref->GetCharPref(urlPrefCString.get(), &tempUrl);
       if (NS_FAILED(rv) || (!tempUrl)){
@@ -1417,7 +1416,7 @@ nsNSSComponent::DefineNextTimer()
      
   //Define the firing interval, from NOW
   if ( now < nextFiring) {
-    LL_SUB(diff,nextFiring,now);
+    diff = nextFiring - now;
     LL_L2UI(interval, diff);
     //Now, we are doing 32 operations - so, don't need LL_ functions...
     interval = interval/PR_USEC_PER_MSEC;
@@ -1640,7 +1639,7 @@ nsNSSComponent::InitializeNSS(bool showWarningBox)
     }
     
     nsresult rv;
-    nsCAutoString profileStr;
+    nsAutoCString profileStr;
     nsCOMPtr<nsIFile> profilePath;
 
     rv = NS_GetSpecialDirectory(NS_APP_USER_PROFILE_50_DIR,
@@ -2779,11 +2778,11 @@ nsCryptoHash::UpdateFromStream(nsIInputStream *data, uint32_t aLen)
   if (NS_FAILED(rv))
     return rv;
 
-  // if the user has passed PR_UINT32_MAX, then read
+  // if the user has passed UINT32_MAX, then read
   // everything in the stream
 
   uint64_t len = aLen;
-  if (aLen == PR_UINT32_MAX)
+  if (aLen == UINT32_MAX)
     len = n;
 
   // So, if the stream has NO data available for the hash,
@@ -2972,11 +2971,11 @@ NS_IMETHODIMP nsCryptoHMAC::UpdateFromStream(nsIInputStream *aStream, uint32_t a
   if (NS_FAILED(rv))
     return rv;
 
-  // if the user has passed PR_UINT32_MAX, then read
+  // if the user has passed UINT32_MAX, then read
   // everything in the stream
 
   uint64_t len = aLen;
-  if (aLen == PR_UINT32_MAX)
+  if (aLen == UINT32_MAX)
     len = n;
 
   // So, if the stream has NO data available for the hash,
@@ -3183,7 +3182,7 @@ NS_IMETHODIMP
 PSMContentDownloader::OnDataAvailable(nsIRequest* request,
                                 nsISupports* context,
                                 nsIInputStream *aIStream,
-                                uint32_t aSourceOffset,
+                                uint64_t aSourceOffset,
                                 uint32_t aLength)
 {
   if (!mByteData)
@@ -3291,8 +3290,8 @@ PSMContentDownloader::handleContentDownloadError(nsresult errCode)
       
     if (mDoSilentDownload) {
       //This is the case for automatic download. Update failure history
-      nsCAutoString updateErrCntPrefStr(CRL_AUTOUPDATE_ERRCNT_PREF);
-      nsCAutoString updateErrDetailPrefStr(CRL_AUTOUPDATE_ERRDETAIL_PREF);
+      nsAutoCString updateErrCntPrefStr(CRL_AUTOUPDATE_ERRCNT_PREF);
+      nsAutoCString updateErrDetailPrefStr(CRL_AUTOUPDATE_ERRDETAIL_PREF);
       nsCString errMsg;
       int32_t errCnt;
 

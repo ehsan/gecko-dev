@@ -39,16 +39,10 @@ NS_IMPL_CYCLE_COLLECTION_CLASS(SmsManager)
 
 NS_IMPL_CYCLE_COLLECTION_TRAVERSE_BEGIN_INHERITED(SmsManager,
                                                   nsDOMEventTargetHelper)
-  NS_CYCLE_COLLECTION_TRAVERSE_EVENT_HANDLER(received)
-  NS_CYCLE_COLLECTION_TRAVERSE_EVENT_HANDLER(sent)
-  NS_CYCLE_COLLECTION_TRAVERSE_EVENT_HANDLER(delivered)
 NS_IMPL_CYCLE_COLLECTION_TRAVERSE_END
 
 NS_IMPL_CYCLE_COLLECTION_UNLINK_BEGIN_INHERITED(SmsManager,
                                                 nsDOMEventTargetHelper)
-  NS_CYCLE_COLLECTION_UNLINK_EVENT_HANDLER(received)
-  NS_CYCLE_COLLECTION_UNLINK_EVENT_HANDLER(sent)
-  NS_CYCLE_COLLECTION_UNLINK_EVENT_HANDLER(delivered)
 NS_IMPL_CYCLE_COLLECTION_UNLINK_END
 
 NS_INTERFACE_MAP_BEGIN_CYCLE_COLLECTION_INHERITED(SmsManager)
@@ -61,36 +55,42 @@ NS_INTERFACE_MAP_END_INHERITING(nsDOMEventTargetHelper)
 NS_IMPL_ADDREF_INHERITED(SmsManager, nsDOMEventTargetHelper)
 NS_IMPL_RELEASE_INHERITED(SmsManager, nsDOMEventTargetHelper)
 
+NS_IMPL_EVENT_HANDLER(SmsManager, received)
+NS_IMPL_EVENT_HANDLER(SmsManager, sent)
+NS_IMPL_EVENT_HANDLER(SmsManager, delivered)
+
 /* static */already_AddRefed<SmsManager>
-SmsManager::CheckPermissionAndCreateInstance(nsPIDOMWindow* aWindow)
+SmsManager::CreateInstanceIfAllowed(nsPIDOMWindow* aWindow)
 {
   NS_ASSERTION(aWindow, "Null pointer!");
+
+#ifndef MOZ_WEBSMS_BACKEND
+  return nullptr;
+#endif
 
   // First of all, the general pref has to be turned on.
   bool enabled = false;
   Preferences::GetBool("dom.sms.enabled", &enabled);
   NS_ENSURE_TRUE(enabled, nullptr);
 
-  nsPIDOMWindow* innerWindow = aWindow->IsInnerWindow() ?
-    aWindow :
-    aWindow->GetCurrentInnerWindow();
-
-  // Need the document for security check.
-  nsCOMPtr<nsIDocument> document =
-    do_QueryInterface(innerWindow->GetExtantDocument());
-  NS_ENSURE_TRUE(document, nullptr);
-
-  nsCOMPtr<nsIPrincipal> principal = document->NodePrincipal();
-  NS_ENSURE_TRUE(principal, nullptr);
-
   nsCOMPtr<nsIPermissionManager> permMgr =
     do_GetService(NS_PERMISSIONMANAGER_CONTRACTID);
   NS_ENSURE_TRUE(permMgr, nullptr);
 
   uint32_t permission = nsIPermissionManager::DENY_ACTION;
-  permMgr->TestPermissionFromPrincipal(principal, "sms", &permission);
+  permMgr->TestPermissionFromWindow(aWindow, "sms", &permission);
 
   if (permission != nsIPermissionManager::ALLOW_ACTION) {
+    return nullptr;
+  }
+
+  // Check the Sms Service:
+  nsCOMPtr<nsISmsService> smsService = do_GetService(SMS_SERVICE_CONTRACTID);
+  NS_ENSURE_TRUE(smsService, nullptr);
+
+  bool result = false;
+  smsService->HasSupport(&result);
+  if (!result) {
     return nullptr;
   }
 
@@ -344,10 +344,6 @@ SmsManager::MarkMessageRead(int32_t aId, bool aValue,
   return NS_OK;
 }
 
-NS_IMPL_EVENT_HANDLER(SmsManager, received)
-NS_IMPL_EVENT_HANDLER(SmsManager, sent)
-NS_IMPL_EVENT_HANDLER(SmsManager, delivered)
-
 nsresult
 SmsManager::DispatchTrustedSmsEventToSelf(const nsAString& aEventName, nsIDOMMozSmsMessage* aMessage)
 {
@@ -356,14 +352,7 @@ SmsManager::DispatchTrustedSmsEventToSelf(const nsAString& aEventName, nsIDOMMoz
                                                           false, aMessage);
   NS_ENSURE_SUCCESS(rv, rv);
 
-  rv = event->SetTrusted(true);
-  NS_ENSURE_SUCCESS(rv, rv);
-
-  bool dummy;
-  rv = DispatchEvent(event, &dummy);
-  NS_ENSURE_SUCCESS(rv, rv);
-
-  return NS_OK;
+  return DispatchTrustedEvent(event);
 }
 
 NS_IMETHODIMP

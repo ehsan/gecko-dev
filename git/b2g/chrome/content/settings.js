@@ -35,7 +35,7 @@ var SettingsListener = {
       throw new Error('Callback is not a function');
     }
 
-    var req = settings.getLock().get(name);
+    var req = settings.createLock().get(name);
     req.addEventListener('success', (function onsuccess() {
       callback(typeof(req.result[name]) != 'undefined' ?
         req.result[name] : defaultValue);
@@ -81,6 +81,45 @@ SettingsListener.observe('language.current', 'en-US', function(value) {
   });
 })();
 
+//=================== DeviceInfo ====================
+Components.utils.import('resource://gre/modules/XPCOMUtils.jsm');
+Components.utils.import('resource://gre/modules/ctypes.jsm');
+(function DeviceInfoToSettings() {
+  XPCOMUtils.defineLazyServiceGetter(this, 'gSettingsService',
+                                     '@mozilla.org/settingsService;1',
+                                     'nsISettingsService');
+  let lock = gSettingsService.createLock();
+  //MOZ_B2G_VERSION is set in b2g/confvars.sh, and is outputed as a #define value
+  //from configure.in, defaults to 1.0.0 if this value is not exist
+#filter attemptSubstitution
+  let os_version = '@MOZ_B2G_VERSION@';
+#unfilter attemptSubstitution
+  lock.set('deviceinfo.os', os_version, null, null);
+
+  //Get the hardware info from android properties
+  var hardware_version = null;
+  try {
+    let cutils = ctypes.open('libcutils.so');
+    let cbuf = ctypes.char.array(128)();
+    let c_property_get = cutils.declare('property_get', ctypes.default_abi,
+                                        ctypes.int,       // return value: length
+                                        ctypes.char.ptr,  // key
+                                        ctypes.char.ptr,  // value
+                                        ctypes.char.ptr); // default
+    let property_get = function (key, defaultValue) {
+      if (defaultValue === undefined) {
+        defaultValue = null;
+      }
+      c_property_get(key, cbuf, defaultValue);
+      return cbuf.readString();
+    }
+    hardware_version = property_get('ro.hardware');
+    cutils.close();
+  } catch(e) {
+    //Error
+  }
+  lock.set('deviceinfo.hardware', hardware_version, null, null);
+})();
 
 // =================== Debugger ====================
 SettingsListener.observe('devtools.debugger.remote-enabled', false, function(enabled) {
@@ -103,3 +142,11 @@ SettingsListener.observe('debug.log-animations.enabled', false, function(value) 
   Services.prefs.setBoolPref('layers.offmainthreadcomposition.log-animations', value);
 });
 
+SettingsListener.observe('debug.dev-mode', false, function(value) {
+  Services.prefs.setBoolPref('dom.mozApps.dev_mode', value);
+});
+
+// =================== Privacy ====================
+SettingsListener.observe('privacy.donottrackheader.enabled', false, function(value) {
+  Services.prefs.setBoolPref('privacy.donottrackheader.enabled', value);
+});

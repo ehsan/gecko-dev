@@ -30,7 +30,6 @@
 #include "mozilla/Services.h"
 
 #include "ManifestParser.h"
-#include "mozilla/FunctionTimer.h"
 
 using namespace mozilla;
 class nsIComponentLoaderManager;
@@ -732,9 +731,6 @@ NS_CreateServicesFromCategory(const char *category,
                               nsISupports *origin,
                               const char *observerTopic)
 {
-  NS_TIME_FUNCTION_FMT("NS_CreateServicesFromCategory: %s (%s)",
-                       category, observerTopic ? observerTopic : "(no topic)");
-
   nsresult rv;
 
   nsCOMPtr<nsICategoryManager> categoryManager = 
@@ -758,7 +754,7 @@ NS_CreateServicesFromCategory(const char *category,
   bool hasMore;
   while (NS_SUCCEEDED(senumerator->HasMore(&hasMore)) && hasMore) {
     // From here on just skip any error we get.
-    nsCAutoString entryString;
+    nsAutoCString entryString;
     if (NS_FAILED(senumerator->GetNext(entryString)))
       continue;
       
@@ -767,8 +763,6 @@ NS_CreateServicesFromCategory(const char *category,
                                            getter_Copies(contractID));
     if (NS_FAILED(rv))
       continue;
-        
-    NS_TIME_FUNCTION_MARK("getservice: %s", contractID.get());
 
     nsCOMPtr<nsISupports> instance = do_GetService(contractID);
     if (!instance) {
@@ -778,8 +772,6 @@ NS_CreateServicesFromCategory(const char *category,
     }
 
     if (observerTopic) {
-      NS_TIME_FUNCTION_MARK("observe: %s", contractID.get());
-
       // try an observer, if it implements it.
       nsCOMPtr<nsIObserver> observer = do_QueryInterface(instance);
       if (observer)

@@ -82,6 +82,7 @@ MAKEFILES_dom="
   dom/src/storage/Makefile
   dom/system/Makefile
   dom/workers/Makefile
+  dom/time/Makefile
 "
 
 MAKEFILES_editor="
@@ -254,7 +255,7 @@ MAKEFILES_layout="
   layout/style/Makefile
   layout/style/xbl-marquee/Makefile
   layout/tables/Makefile
-  layout/svg/base/src/Makefile
+  layout/svg/Makefile
   layout/xul/base/public/Makefile
   layout/xul/base/src/Makefile
 "
@@ -614,7 +615,6 @@ elif [ "$MOZ_WIDGET_TOOLKIT" = "cocoa" ]; then
     toolkit/themes/pinstripe/global/Makefile
     toolkit/themes/pinstripe/mozapps/Makefile
     toolkit/components/alerts/mac/Makefile
-    toolkit/components/alerts/mac/growl/Makefile
     widget/cocoa/Makefile
   "
 elif [ "$MOZ_WIDGET_TOOLKIT" = "gtk2" ]; then
@@ -854,6 +854,7 @@ if [ "$ENABLE_TESTS" ]; then
     js/xpconnect/tests/components/native/Makefile
     js/xpconnect/tests/idl/Makefile
     js/xpconnect/tests/mochitest/Makefile
+    testing/specialpowers/Makefile
     layout/base/tests/Makefile
     layout/base/tests/chrome/Makefile
     layout/base/tests/cpp-tests/Makefile
@@ -870,6 +871,7 @@ if [ "$ENABLE_TESTS" ]; then
     layout/tools/reftest/Makefile
     layout/xul/base/test/Makefile
     layout/xul/test/Makefile
+    media/webrtc/signaling/test/Makefile
     modules/libjar/test/Makefile
     modules/libjar/test/chrome/Makefile
     modules/libjar/test/mochitest/Makefile
@@ -891,12 +893,10 @@ if [ "$ENABLE_TESTS" ]; then
     services/crypto/component/tests/Makefile
     startupcache/test/Makefile
     storage/test/Makefile
-    testing/firebug/Makefile
     testing/mochitest/Makefile
     testing/mochitest/MochiKit/Makefile
     testing/mochitest/chrome/Makefile
     testing/mochitest/dynamic/Makefile
-    testing/mochitest/specialpowers/Makefile
     testing/mochitest/ssltunnel/Makefile
     testing/mochitest/static/Makefile
     testing/mochitest/tests/Makefile
@@ -1213,6 +1213,18 @@ if [ "$MOZ_B2G_RIL" ]; then
   "
 fi
 
+if [ "$MOZ_PAY" ]; then
+  add_makefiles "
+    dom/payment/Makefile
+  "
+fi
+
+if [ "$MOZ_B2G_FM" ]; then
+  add_makefiles "
+    dom/fm/Makefile
+  "
+fi
+
 if [ "$MOZ_CRASHREPORTER" ]; then
   add_makefiles "
     toolkit/crashreporter/Makefile
@@ -1415,7 +1427,7 @@ if [ "$MOZ_UPDATER" ]; then
       modules/libbz2/src/Makefile
     "
   fi
-  if [ "$OS_TARGET" != "Android" ]; then
+  if [ "$MOZ_WIDGET_TOOLKIT" != "android" ]; then
     add_makefiles "
       toolkit/mozapps/update/updater/Makefile
     "
@@ -1703,6 +1715,10 @@ fi
 if [ "$MOZ_WEBRTC" ]; then
  add_makefiles "
    media/webrtc/Makefile
+   media/mtransport/test/Makefile 
+   media/mtransport/build/Makefile
+   media/mtransport/standalone/Makefile
+   media/webrtc/signaling/test/Makefile
  "
 fi
 

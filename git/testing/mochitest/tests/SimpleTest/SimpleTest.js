@@ -240,15 +240,13 @@ SimpleTest.ok = function (condition, name, diag) {
 **/
 SimpleTest.is = function (a, b, name) {
     var pass = (a == b);
-    var diag = pass ? repr(a) + " should equal " + repr(b)
-                    : "got " + repr(a) + ", expected " + repr(b)
+    var diag = pass ? "" : "got " + repr(a) + ", expected " + repr(b)
     SimpleTest.ok(pass, name, diag);
 };
 
 SimpleTest.isnot = function (a, b, name) {
     var pass = (a != b);
-    var diag = pass ? repr(a) + " should not equal " + repr(b)
-                    : "didn't expect " + repr(a) + ", but got it";
+    var diag = pass ? "" : "didn't expect " + repr(a) + ", but got it";
     SimpleTest.ok(pass, name, diag);
 };
 
@@ -257,8 +255,7 @@ SimpleTest.isnot = function (a, b, name) {
 **/
 SimpleTest.ise = function (a, b, name) {
     var pass = (a === b);
-    var diag = pass ? repr(a) + " should strictly equal " + repr(b)
-                    : "got " + repr(a) + ", strictly expected " + repr(b)
+    var diag = pass ? "" : "got " + repr(a) + ", strictly expected " + repr(b)
     SimpleTest.ok(pass, name, diag);
 };
 
@@ -663,6 +660,12 @@ SimpleTest.executeSoon = function(aFunc) {
  * SimpleTest.waitForExplicitFinish() has been invoked.
 **/
 SimpleTest.finish = function () {
+    if (SimpleTest._alreadyFinished) {
+        SimpleTest.ok(false, "[SimpleTest.finish()] this test already called finish!");
+    }
+
+    SimpleTest._alreadyFinished = true;
+
     if (SimpleTest._expectingUncaughtException) {
         SimpleTest.ok(false, "expectUncaughtException was called but no uncaught exception was detected!");
     }
@@ -781,6 +784,9 @@ SimpleTest._deepCheck = function (e1, e2, stack, seen) {
         ok = SimpleTest._eqArray(e1, e2, stack, seen);
     } else if (typeof e1 == "object" && typeof e2 == "object") {
         ok = SimpleTest._eqAssoc(e1, e2, stack, seen);
+    } else if (typeof e1 == "number" && typeof e2 == "number"
+               && isNaN(e1) && isNaN(e2)) {
+        ok = true;
     } else {
         // If we get here, they're not the same (function references must
         // always simply reference the same function).

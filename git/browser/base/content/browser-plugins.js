@@ -37,7 +37,7 @@ function getPluginInfo(pluginElement)
   }
 
   if (tagMimetype) {
-    let navMimeType = navigator.mimeTypes[tagMimetype];
+    let navMimeType = navigator.mimeTypes.namedItem(tagMimetype);
     if (navMimeType && navMimeType.enabledPlugin) {
       pluginName = navMimeType.enabledPlugin.name;
       pluginName = gPluginHandler.makeNicePluginName(pluginName);
@@ -484,7 +484,7 @@ var gPluginHandler = {
 
     let messageString = gNavigatorBundle.getString("activatePluginsMessage.message");
     let mainAction = {
-      label: gNavigatorBundle.getString("activatePluginsMessage.label"),
+      label: gNavigatorBundle.getString("activateAllPluginsMessage.label"),
       accessKey: gNavigatorBundle.getString("activatePluginsMessage.accesskey"),
       callback: function() { gPluginHandler.activatePlugins(contentWindow); }
     };

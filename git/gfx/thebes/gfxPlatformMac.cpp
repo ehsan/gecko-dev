@@ -70,8 +70,9 @@ gfxPlatformMac::gfxPlatformMac()
     }
     mFontAntiAliasingThreshold = ReadAntiAliasingThreshold();
 
-    uint32_t backendMask = (1 << BACKEND_CAIRO) | (1 << BACKEND_SKIA) | (1 << BACKEND_COREGRAPHICS);
-    InitCanvasBackend(backendMask);
+    uint32_t canvasMask = (1 << BACKEND_CAIRO) | (1 << BACKEND_SKIA) | (1 << BACKEND_COREGRAPHICS);
+    uint32_t contentMask = 0;
+    InitBackendPrefs(canvasMask, contentMask);
 }
 
 gfxPlatformMac::~gfxPlatformMac()
@@ -135,11 +136,11 @@ gfxPlatformMac::OptimizeImage(gfxImageSurface *aSurface,
     return ret.forget();
 }
 
-RefPtr<ScaledFont>
+TemporaryRef<ScaledFont>
 gfxPlatformMac::GetScaledFontForFont(DrawTarget* aTarget, gfxFont *aFont)
 {
     gfxMacFont *font = static_cast<gfxMacFont*>(aFont);
-    return font->GetScaledFont();
+    return font->GetScaledFont(aTarget);
 }
 
 nsresult
@@ -409,7 +410,7 @@ bool
 gfxPlatformMac::UseAcceleratedCanvas()
 {
   // Lion or later is required
-  return false && OSXVersion() >= 0x1070 && Preferences::GetBool("gfx.canvas.azure.accelerated", false);
+  return OSXVersion() >= 0x1070 && Preferences::GetBool("gfx.canvas.azure.accelerated", false);
 }
 
 qcms_profile *

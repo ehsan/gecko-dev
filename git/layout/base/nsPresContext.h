@@ -8,6 +8,7 @@
 #ifndef nsPresContext_h___
 #define nsPresContext_h___
 
+#include "mozilla/Attributes.h"
 #include "nsISupports.h"
 #include "nsColor.h"
 #include "nsCoord.h"
@@ -31,6 +32,7 @@
 #include "nsIWidget.h"
 #include "mozilla/TimeStamp.h"
 #include "prclist.h"
+#include "Layers.h"
 
 #ifdef IBMBIDI
 class nsBidiPresUtils;
@@ -110,6 +112,17 @@ public:
 
   nsTArray<Request> mRequests;
 };
+
+/**
+ * Layer UserData for ContainerLayers that want to be notified
+ * of local invalidations of them and their descendant layers.
+ * Pass a callback to ComputeDifferences to have these called.
+ */
+class ContainerLayerPresContext : public mozilla::layers::LayerUserData {
+public:
+  nsPresContext* mPresContext;
+};
+extern uint8_t gNotifySubDocInvalidationData;
 
 /* Used by nsPresContext::HasAuthorSpecifiedRules */
 #define NS_AUTHOR_SPECIFIED_BACKGROUND      (1 << 0)
@@ -792,15 +805,21 @@ public:
   // Returns true on success and false on failure (not safe).
   bool EnsureSafeToHandOutCSSRules();
 
+  void NotifyInvalidation(uint32_t aFlags);
   void NotifyInvalidation(const nsRect& aRect, uint32_t aFlags);
+  // aRect is in device pixels
+  void NotifyInvalidation(const nsIntRect& aRect, uint32_t aFlags);
   void NotifyDidPaintForSubtree();
   void FireDOMPaintEvent();
 
-  bool IsDOMPaintEventPending() {
-    return !mInvalidateRequests.mRequests.IsEmpty();
-  }
+  // Callback for catching invalidations in ContainerLayers
+  // Passed to LayerProperties::ComputeDifference
+  static void NotifySubDocInvalidation(mozilla::layers::ContainerLayer* aContainer,
+                                       const nsIntRegion& aRegion);
+  bool IsDOMPaintEventPending();
   void ClearMozAfterPaintEvents() {
     mInvalidateRequests.mRequests.Clear();
+    mAllInvalidated = false;
   }
 
   bool IsProcessingRestyles() const {
@@ -897,6 +916,15 @@ public:
   }
 
   bool IsRootContentDocument();
+  bool IsCrossProcessRootContentDocument();
+
+  bool IsGlyph() const {
+    return mIsGlyph;
+  }
+
+  void SetIsGlyph(bool aValue) {
+    mIsGlyph = aValue;
+  }
 
 protected:
   friend class nsRunnableMethod<nsPresContext>;
@@ -993,11 +1021,21 @@ protected:
 public:
   void DoChangeCharSet(const nsCString& aCharSet);
 
+  /**
+   * Checks for MozAfterPaint listeners on the document
+   */
+  bool MayHavePaintEventListener();
+
+  /**
+   * Checks for MozAfterPaint listeners on the document and 
+   * any subdocuments, except for subdocuments that are non-top-level
+   * content documents.
+   */
+  bool MayHavePaintEventListenerInSubDocument();
+
 protected:
   void InvalidateThebesLayers();
   void AppUnitsPerDevPixelChanged();
-
-  bool MayHavePaintEventListener();
 
   void HandleRebuildUserFontSet() {
     mPostedFlushUserFontSet = false;
@@ -1130,6 +1168,10 @@ protected:
   unsigned              mPendingMediaFeatureValuesChanged : 1;
   unsigned              mPrefChangePendingNeedsReflow : 1;
   unsigned              mMayHaveFixedBackgroundFrames : 1;
+  unsigned              mAllInvalidated : 1;
+
+  // Are we currently drawing an SVG glyph?
+  unsigned              mIsGlyph : 1;
 
   // Is the current mUserFontSet valid?
   unsigned              mUserFontSetDirty : 1;
@@ -1247,7 +1289,7 @@ public:
    */
   void DidApplyPluginGeometryUpdates();
 
-  virtual bool IsRoot() { return true; }
+  virtual bool IsRoot() MOZ_OVERRIDE { return true; }
 
   /**
    * Call this after reflow and scrolling to ensure that the geometry

@@ -59,9 +59,8 @@ interface nsIDNSService : nsISupports
                             in nsresult          aReason);
     
     /**
-     * called to synchronously resolve a hostname.  warning this method may
-     * block the calling thread for a long period of time.  it is extremely
-     * unwise to call this function on the UI thread of an application.
+     * Called to synchronously resolve a hostname.  This method will fail
+     * if called from the main thread.
      *
      * @param aHostName
      *        the hostname or IP-address-literal to resolve.
@@ -111,4 +110,10 @@ interface nsIDNSService : nsISupports
      * If set, only IPv4 addresses will be returned from resolve/asyncResolve.
      */
     const unsigned long RESOLVE_DISABLE_IPV6 = (1 << 5);
+
+    /**
+     * If set, only literals and cached entries will be returned from resolve/
+     * asyncResolve.
+     */
+    const unsigned long RESOLVE_OFFLINE = (1 << 6);
 };

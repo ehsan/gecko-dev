@@ -118,7 +118,6 @@ public:
   NS_IMETHOD              MoveClient(int32_t aX, int32_t aY);
   NS_IMETHOD              ResizeClient(int32_t aWidth, int32_t aHeight, bool aRepaint);
   NS_IMETHOD              ResizeClient(int32_t aX, int32_t aY, int32_t aWidth, int32_t aHeight, bool aRepaint);
-  NS_IMETHOD              SetBounds(const nsIntRect &aRect);
   NS_IMETHOD              GetBounds(nsIntRect &aRect);
   NS_IMETHOD              GetClientBounds(nsIntRect &aRect);
   NS_IMETHOD              GetScreenBounds(nsIntRect &aRect);
@@ -316,6 +315,8 @@ protected:
                       NS_MIN(mSizeConstraints.mMaxSize.height, *aHeight));
   }
 
+  virtual CompositorChild* GetRemoteRenderer() MOZ_OVERRIDE;
+
 protected:
   /**
    * Starts the OMTC compositor destruction sequence.
@@ -345,6 +346,7 @@ protected:
   bool              mForceLayersAcceleration;
   bool              mTemporarilyUseBasicLayerManager;
   bool              mUseAttachedEvents;
+  bool              mContextInitialized;
   nsIntRect         mBounds;
   nsIntRect*        mOriginalBounds;
   // When this pointer is null, the widget is not clipped
@@ -368,19 +370,19 @@ protected:
   static void debug_DumpInvalidate(FILE *                aFileOut,
                                    nsIWidget *           aWidget,
                                    const nsIntRect *     aRect,
-                                   const nsCAutoString & aWidgetName,
+                                   const nsAutoCString & aWidgetName,
                                    int32_t               aWindowID);
 
   static void debug_DumpEvent(FILE *                aFileOut,
                               nsIWidget *           aWidget,
                               nsGUIEvent *          aGuiEvent,
-                              const nsCAutoString & aWidgetName,
+                              const nsAutoCString & aWidgetName,
                               int32_t               aWindowID);
 
   static void debug_DumpPaintEvent(FILE *                aFileOut,
                                    nsIWidget *           aWidget,
                                    const nsIntRegion &   aPaintEvent,
-                                   const nsCAutoString & aWidgetName,
+                                   const nsAutoCString & aWidgetName,
                                    int32_t               aWindowID);
 
   static bool debug_GetCachedBoolPref(const char* aPrefName);

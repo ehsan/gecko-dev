@@ -45,7 +45,7 @@
 #include "nsFocusManager.h"
 #include "mozilla/dom/Element.h"
 
-#ifdef DEBUG
+#ifdef A11Y_LOG
 #include "Logging.h"
 #endif
 
@@ -386,7 +386,7 @@ DocAccessible::GetURL(nsAString& aURL)
 
   nsCOMPtr<nsISupports> container = mDocument->GetContainer();
   nsCOMPtr<nsIWebNavigation> webNav(do_GetInterface(container));
-  nsCAutoString theURL;
+  nsAutoCString theURL;
   if (webNav) {
     nsCOMPtr<nsIURI> pURI;
     webNav->GetCurrentURI(getter_AddRefs(pURI));
@@ -607,7 +607,7 @@ DocAccessible::GetAccessible(nsINode* aNode) const
 void
 DocAccessible::Init()
 {
-#ifdef DEBUG
+#ifdef A11Y_LOG
   if (logging::IsEnabled(logging::eDocCreate))
     logging::DocCreate("document initialize", mDocument, this);
 #endif
@@ -630,7 +630,7 @@ DocAccessible::Shutdown()
   if (!mPresShell) // already shutdown
     return;
 
-#ifdef DEBUG
+#ifdef A11Y_LOG
   if (logging::IsEnabled(logging::eDocDestroy))
     logging::DocDestroy("document shutdown", mDocument, this);
 #endif
@@ -856,7 +856,7 @@ DocAccessible::AddScrollListener()
   nsIScrollableFrame* sf = mPresShell->GetRootScrollFrameAsScrollableExternal();
   if (sf) {
     sf->AddScrollPositionListener(this);
-#ifdef DEBUG
+#ifdef A11Y_LOG
     if (logging::IsEnabled(logging::eDocCreate))
       logging::Text("add scroll listener");
 #endif
@@ -1221,17 +1221,20 @@ DocAccessible::ARIAAttributeChanged(nsIContent* aContent, nsIAtom* aAttribute)
 void
 DocAccessible::ARIAActiveDescendantChanged(nsIContent* aElm)
 {
-  if (FocusMgr()->HasDOMFocus(aElm)) {
+  Accessible* widget = GetAccessible(aElm);
+  if (widget && widget->IsActiveWidget()) {
     nsAutoString id;
     if (aElm->GetAttr(kNameSpaceID_None, nsGkAtoms::aria_activedescendant, id)) {
-      nsIDocument* DOMDoc = aElm->OwnerDoc();
-      dom::Element* activeDescendantElm = DOMDoc->GetElementById(id);
+      dom::Element* activeDescendantElm = aElm->OwnerDoc()->GetElementById(id);
       if (activeDescendantElm) {
         Accessible* activeDescendant = GetAccessible(activeDescendantElm);
         if (activeDescendant) {
           FocusMgr()->ActiveItemChanged(activeDescendant, false);
-          A11YDEBUG_FOCUS_ACTIVEITEMCHANGE_CAUSE("ARIA activedescedant changed",
-                                                 activeDescendant)
+#ifdef A11Y_LOG
+          if (logging::IsEnabled(logging::eFocus))
+            logging::ActiveItemChangeCausedBy("ARIA activedescedant changed",
+                                              activeDescendant);
+#endif
         }
       }
     }
@@ -1315,7 +1318,7 @@ DocAccessible::ParentChainChanged(nsIContent* aContent)
 ////////////////////////////////////////////////////////////////////////////////
 // Accessible
 
-#ifdef DEBUG
+#ifdef A11Y_LOG
 nsresult
 DocAccessible::HandleAccEvent(AccEvent* aEvent)
 {
@@ -1413,7 +1416,10 @@ DocAccessible::UnbindFromDocument(Accessible* aAccessible)
   // from the tree.
   if (FocusMgr()->IsActiveItem(aAccessible)) {
     FocusMgr()->ActiveItemChanged(nullptr);
-    A11YDEBUG_FOCUS_ACTIVEITEMCHANGE_CAUSE("tree shutdown", aAccessible)
+#ifdef A11Y_LOG
+          if (logging::IsEnabled(logging::eFocus))
+            logging::ActiveItemChangeCausedBy("tree shutdown", aAccessible);
+#endif
   }
 
   // Remove an accessible from node-to-accessible map if it exists there.
@@ -1758,7 +1764,7 @@ DocAccessible::FireDelayedAccessibleEvent(AccEvent* aEvent)
 {
   NS_ENSURE_ARG(aEvent);
 
-#ifdef DEBUG
+#ifdef A11Y_LOG
   if (logging::IsEnabled(logging::eDocLoad))
     logging::DocLoadEventFired(aEvent);
 #endif
@@ -1849,7 +1855,7 @@ DocAccessible::UpdateTree(Accessible* aContainer, nsIContent* aChildNode,
 
   // If child node is not accessible then look for its accessible children.
   Accessible* child = GetAccessible(aChildNode);
-#ifdef DEBUG
+#ifdef A11Y_LOG
   if (logging::IsEnabled(logging::eTree)) {
     logging::MsgBegin("TREE", "process content %s",
                       (aIsInsert ? "insertion" : "removal"));

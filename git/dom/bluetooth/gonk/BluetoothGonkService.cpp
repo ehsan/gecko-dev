@@ -15,11 +15,13 @@
  * limitations under the License.
  */
 
+#include "base/basictypes.h"
 #include "BluetoothGonkService.h"
 #include "BluetoothDBusService.h"
 
 #include "nsDebug.h"
 #include "nsError.h"
+#include "nsThreadUtils.h"
 #include <dlfcn.h>
 
 USING_BLUETOOTH_NAMESPACE
@@ -138,7 +140,7 @@ BluetoothGonkService::StartInternal()
   ret = StartStopGonkBluetooth(true);
 
   if (NS_FAILED(ret)) {
-    return ret;    
+    return ret;
   }
 
   return BluetoothDBusService::StartInternal();
@@ -148,14 +150,15 @@ nsresult
 BluetoothGonkService::StopInternal()
 {
   NS_ASSERTION(!NS_IsMainThread(), "This should not run on the main thread!");
+
   nsresult ret;
 
-  ret = StartStopGonkBluetooth(false);
+  ret = BluetoothDBusService::StopInternal();
 
   if (NS_FAILED(ret)) {
-    return ret;    
+    return ret;
   }
 
-  return BluetoothDBusService::StopInternal();
+  return StartStopGonkBluetooth(false);
 }
 

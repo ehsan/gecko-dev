@@ -6,11 +6,13 @@
 
 interface nsIDOMEventListener;
 interface nsIDOMDOMRequest;
+interface nsIDOMMozMobileICCInfo;
 interface nsIDOMMozMobileConnectionInfo;
 interface nsIDOMMozMobileNetworkInfo;
 interface nsIDOMMozMobileCellInfo;
+interface nsIDOMMozIccManager;
 
-[scriptable, builtinclass, uuid(e7309c47-9a2e-4e12-84ab-f8f39214eaba)]
+[scriptable, builtinclass, uuid(5362762c-7091-4da9-aecd-ba878bc51b3d)]
 interface nsIDOMMozMobileConnection : nsIDOMEventTarget
 {
   /**
@@ -20,6 +22,11 @@ interface nsIDOMMozMobileConnection : nsIDOMEventTarget
    * 'networkLocked', 'ready'.
    */
   readonly attribute DOMString cardState;
+
+  /**
+   * Information stored in the device's ICC card.
+   */
+  readonly attribute nsIDOMMozMobileICCInfo iccInfo;
 
   /**
    * Information about the voice connection.
@@ -37,6 +44,11 @@ interface nsIDOMMozMobileConnection : nsIDOMEventTarget
    * Possible values: null (unknown), 'automatic', 'manual'
    */
   readonly attribute DOMString networkSelectionMode;
+
+  /**
+   * IccManager provides access to ICC related funcionality.
+   */
+  readonly attribute nsIDOMMozIccManager icc;
 
   /**
    * Search for available networks.
@@ -107,7 +119,12 @@ interface nsIDOMMozMobileConnection : nsIDOMEventTarget
    *   unlockCardLock({lockType: "pin",
    *                   pin: "..."});
    *
-   * (2) Unlocking the PUK and supplying a new PIN:
+   * (2) Network depersonalization. Unlocking the network control key (NCK).
+   *
+   *   unlockCardLock({lockType: "nck",
+   *                   pin: "..."});
+   *
+   * (3) Unlocking the PUK and supplying a new PIN:
    *
    *   unlockCardLock({lockType: "puk",
    *                   puk: "...",
@@ -184,43 +201,71 @@ interface nsIDOMMozMobileConnection : nsIDOMEventTarget
   nsIDOMDOMRequest setCardLock(in jsval info);
 
   /**
-   * Send a USSD message.
+   * Send a MMI message.
    *
-   * The network reply will be reported via onussdreceived event.
+   * @param mmi
+   *        DOMString containing an MMI string that can be associated to a
+   *        USSD request or other RIL functionality.
    *
-   * The 'success' event for the request means the USSD message has been sent
-   * successfully.
+   * @return a nsIDOMDOMRequest
+   *         The request's result will be an object containing information
+   *         about the operation.
+   *
+   * In case that the MMI code requires sending an USSD request, the DOMrequest
+   * 'success' event means that the RIL has successfully processed and sent the
+   * USSD request to the network. The network reply will be reported via
+   * 'onussdreceived' event. If the MMI code is not associated to a USSD but to
+   * other RIL request its result, if one is needed, will be notified via the
+   * returned DOMRequest 'success' or 'error' event.
    */
-  nsIDOMDOMRequest sendUSSD(in DOMString ussd);
+  nsIDOMDOMRequest sendMMI(in DOMString mmi);
 
   /**
-   * Cancel the current USSD session if one exists.
+   * Cancel the current MMI request if one exists.
    */
-  nsIDOMDOMRequest cancelUSSD();
+  nsIDOMDOMRequest cancelMMI();
 
   /**
    * The 'cardstatechange' event is notified when the 'cardState' attribute
    * changes value.
    */
-  attribute nsIDOMEventListener oncardstatechange;
+  [implicit_jscontext] attribute jsval oncardstatechange;
+
+   /**
+   * The 'iccinfochange' event is notified whenever the icc info object
+   * changes.
+   */
+  [implicit_jscontext] attribute jsval oniccinfochange;
 
   /**
    * The 'voicechange' event is notified whenever the voice connection object
    * changes.
    */
-  attribute nsIDOMEventListener onvoicechange;
+  [implicit_jscontext] attribute jsval onvoicechange;
 
   /**
    * The 'datachange' event is notified whenever the data connection object
    * changes values.
    */
-  attribute nsIDOMEventListener ondatachange;
+  [implicit_jscontext] attribute jsval ondatachange;
 
   /**
    * The 'ussdreceived' event is notified whenever a new USSD message is
    * received.
    */
-  attribute nsIDOMEventListener onussdreceived;
+  [implicit_jscontext] attribute jsval onussdreceived;
+
+  /**
+   * The 'dataerror' event is notified whenever the data connection object
+   * receives an error from the RIL
+   */
+  [implicit_jscontext] attribute jsval ondataerror;
+
+  /**
+   * The 'icccardlockerror' event is notified whenever 'unlockCardLock' or
+   * 'setCardLock' fails.
+   */
+  [implicit_jscontext] attribute jsval onicccardlockerror;
 };
 
 [scriptable, uuid(5ea0e4a9-4684-40da-9930-8ebb61d187f3)]
@@ -327,4 +372,23 @@ interface nsIDOMMozMobileCellInfo: nsISupports
    * Mobile Cell ID for GSM/WCDMA networks.
    */
   readonly attribute unsigned long gsmCellId;
+};
+
+[scriptable, uuid(8854ee5f-8ffa-45c1-84d6-e87d82de6ae8)]
+interface nsIDOMMozMobileICCInfo : nsISupports
+{
+   /**
+   * Integrated Circuit Card Identifier.
+   */
+  readonly attribute DOMString iccid;
+
+  /**
+   * Mobile Country Code (MCC) of the subscriber's home network.
+   */
+  readonly attribute unsigned short mcc;
+
+  /**
+   * Mobile Network Code (MNC) of the subscriber's home network.
+   */
+  readonly attribute unsigned short mnc;
 };

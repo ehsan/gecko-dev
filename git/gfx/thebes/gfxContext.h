@@ -260,6 +260,12 @@ public:
      * transformations.
      */
     void Multiply(const gfxMatrix& other);
+    /**
+     * As "Multiply", but also nudges any entries in the resulting matrix that
+     * are close to an integer to that integer, to correct for
+     * compounded rounding errors.
+     */
+    void MultiplyAndNudgeToIntegers(const gfxMatrix& other);
 
     /**
      * Replaces the current transformation matrix with matrix.
@@ -732,6 +738,8 @@ private:
     mozilla::gfx::AntialiasMode aaMode;
     bool patternTransformChanged;
     Matrix patternTransform;
+    // This is used solely for using minimal intermediate surface size.
+    mozilla::gfx::Point deviceOffset;
   };
 
   // This ensures mPath contains a valid path (in user space!)
@@ -742,6 +750,10 @@ private:
   void PushClipsToDT(mozilla::gfx::DrawTarget *aDT);
   CompositionOp GetOp();
   void ChangeTransform(const mozilla::gfx::Matrix &aNewMatrix);
+  Rect GetAzureDeviceSpaceClipBounds();
+  Matrix GetDeviceTransform() const;
+  Matrix GetDTTransform() const;
+  void PushNewDT(gfxASurface::gfxContentType content);
 
   bool mPathIsRect;
   bool mTransformChanged;

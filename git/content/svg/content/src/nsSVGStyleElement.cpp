@@ -10,6 +10,9 @@
 #include "nsIDocument.h"
 #include "nsStyleLinkElement.h"
 #include "nsContentUtils.h"
+#include "nsStubMutationObserver.h"
+
+using namespace mozilla;
 
 typedef nsSVGElement nsSVGStyleElementBase;
 
@@ -26,6 +29,9 @@ protected:
 public:
   NS_DECL_ISUPPORTS_INHERITED
   NS_DECL_NSIDOMSVGSTYLEELEMENT
+
+  NS_DECL_CYCLE_COLLECTION_CLASS_INHERITED(nsSVGStyleElement,
+                                           nsSVGStyleElementBase)
 
   // xxx I wish we could use virtual inheritance
   NS_FORWARD_NSIDOMNODE(nsSVGStyleElementBase::)
@@ -48,6 +54,10 @@ public:
                            bool aNotify);
   virtual nsresult UnsetAttr(int32_t aNameSpaceID, nsIAtom* aAttribute,
                              bool aNotify);
+  virtual bool ParseAttribute(int32_t aNamespaceID,
+                              nsIAtom* aAttribute,
+                              const nsAString& aValue,
+                              nsAttrValue& aResult);
 
   virtual nsresult Clone(nsINodeInfo *aNodeInfo, nsINode **aResult) const;
 
@@ -76,6 +86,8 @@ protected:
                          nsAString& aType,
                          nsAString& aMedia,
                          bool* aIsAlternate);
+  virtual CORSMode GetCORSMode() const;
+
   /**
    * Common method to call from the various mutation observer methods.
    * aContent is a content node that's either the one that changed or its
@@ -96,13 +108,23 @@ NS_IMPL_RELEASE_INHERITED(nsSVGStyleElement,nsSVGStyleElementBase)
 
 DOMCI_NODE_DATA(SVGStyleElement, nsSVGStyleElement)
 
-NS_INTERFACE_TABLE_HEAD(nsSVGStyleElement)
+NS_INTERFACE_TABLE_HEAD_CYCLE_COLLECTION_INHERITED(nsSVGStyleElement)
   NS_NODE_INTERFACE_TABLE7(nsSVGStyleElement, nsIDOMNode, nsIDOMElement,
                            nsIDOMSVGElement, nsIDOMSVGStyleElement,
                            nsIDOMLinkStyle, nsIStyleSheetLinkingElement,
                            nsIMutationObserver)
   NS_DOM_INTERFACE_MAP_ENTRY_CLASSINFO(SVGStyleElement)
 NS_INTERFACE_MAP_END_INHERITING(nsSVGStyleElementBase)
+
+NS_IMPL_CYCLE_COLLECTION_CLASS(nsSVGStyleElement)
+NS_IMPL_CYCLE_COLLECTION_TRAVERSE_BEGIN_INHERITED(nsSVGStyleElement,
+                                                  nsSVGStyleElementBase)
+  tmp->nsStyleLinkElement::Traverse(cb);
+NS_IMPL_CYCLE_COLLECTION_TRAVERSE_END
+NS_IMPL_CYCLE_COLLECTION_UNLINK_BEGIN_INHERITED(nsSVGStyleElement,
+                                                nsSVGStyleElementBase)
+  tmp->nsStyleLinkElement::Unlink();
+NS_IMPL_CYCLE_COLLECTION_UNLINK_END
 
 //----------------------------------------------------------------------
 // Implementation
@@ -182,6 +204,22 @@ nsSVGStyleElement::UnsetAttr(int32_t aNameSpaceID, nsIAtom* aAttribute,
   }
 
   return rv;
+}
+
+bool
+nsSVGStyleElement::ParseAttribute(int32_t aNamespaceID,
+                                  nsIAtom* aAttribute,
+                                  const nsAString& aValue,
+                                  nsAttrValue& aResult)
+{
+  if (aNamespaceID == kNameSpaceID_None &&
+      aAttribute == nsGkAtoms::crossorigin) {
+    ParseCORSValue(aValue, aResult);
+    return true;
+  }
+
+  return nsSVGStyleElementBase::ParseAttribute(aNamespaceID, aAttribute, aValue,
+                                               aResult);
 }
 
 //----------------------------------------------------------------------
@@ -316,4 +354,10 @@ nsSVGStyleElement::GetStyleSheetInfo(nsAString& aTitle,
   }
 
   return;
+}
+
+CORSMode
+nsSVGStyleElement::GetCORSMode() const
+{
+  return AttrValueToCORSMode(GetParsedAttr(nsGkAtoms::crossorigin));
 }

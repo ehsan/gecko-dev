@@ -32,9 +32,6 @@
 class nsIFile;
 class nsIInputStream;
 class nsIClassInfo;
-class nsIBlobBuilder;
-
-nsresult NS_NewBlobBuilder(nsISupports* *aSupports);
 
 class nsDOMFileBase : public nsIDOMFile,
                       public nsIXHRSendable,
@@ -428,6 +425,20 @@ public:
 #endif
 
     return static_cast<nsDOMFileList*>(aSupports);
+  }
+
+  nsIDOMFile* Item(uint32_t aIndex)
+  {
+    return mFiles.SafeObjectAt(aIndex);
+  }
+  nsIDOMFile* IndexedGetter(uint32_t aIndex, bool& aFound)
+  {
+    aFound = aIndex < static_cast<uint32_t>(mFiles.Count());
+    return aFound ? mFiles.ObjectAt(aIndex) : nullptr;
+  }
+  uint32_t Length()
+  {
+    return mFiles.Count();
   }
 
 private:

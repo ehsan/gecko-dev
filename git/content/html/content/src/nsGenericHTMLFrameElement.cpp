@@ -31,8 +31,13 @@ NS_INTERFACE_TABLE_HEAD(nsGenericHTMLFrameElement)
   NS_INTERFACE_TABLE_TO_MAP_SEGUE_CYCLE_COLLECTION(nsGenericHTMLFrameElement)
 NS_INTERFACE_MAP_END_INHERITING(nsGenericHTMLElement)
 
-NS_IMPL_INT_ATTR(nsGenericHTMLFrameElement, TabIndex, tabindex)
 NS_IMPL_BOOL_ATTR(nsGenericHTMLFrameElement, Mozbrowser, mozbrowser)
+
+int32_t
+nsGenericHTMLFrameElement::TabIndexDefault()
+{
+  return 0;
+}
 
 nsGenericHTMLFrameElement::~nsGenericHTMLFrameElement()
 {
@@ -325,8 +330,20 @@ nsGenericHTMLFrameElement::GetAppManifestURL(nsAString& aOut)
     return NS_OK;
   }
 
-  // TODO: We surely need a permissions check here, particularly once we no
-  // longer rely on the mozbrowser permission check.
+  // Check permission.
+  nsIPrincipal *principal = NodePrincipal();
+  nsCOMPtr<nsIPermissionManager> permMgr =
+    do_GetService(NS_PERMISSIONMANAGER_CONTRACTID);
+  NS_ENSURE_STATE(permMgr);
+
+  uint32_t permission = nsIPermissionManager::DENY_ACTION;
+  nsresult rv = permMgr->TestPermissionFromPrincipal(principal,
+                                                     "embed-apps",
+                                                     &permission);
+  NS_ENSURE_SUCCESS(rv, NS_OK);
+  if (permission != nsIPermissionManager::ALLOW_ACTION) {
+    return NS_OK;
+  }
 
   nsAutoString manifestURL;
   GetAttr(kNameSpaceID_None, nsGkAtoms::mozapp, manifestURL);

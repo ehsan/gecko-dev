@@ -19,18 +19,20 @@
 #include "AudioChild.h"
 #endif
 
+#include "mozilla/Attributes.h"
 #include "mozilla/dom/ExternalHelperAppChild.h"
 #include "mozilla/dom/PCrashReporterChild.h"
 #include "mozilla/dom/StorageChild.h"
+#include "mozilla/Hal.h"
 #include "mozilla/hal_sandbox/PHalChild.h"
 #include "mozilla/ipc/TestShellChild.h"
 #include "mozilla/ipc/XPCShellEnvironment.h"
 #include "mozilla/jsipc/PContextWrapperChild.h"
 #include "mozilla/layers/CompositorChild.h"
+#include "mozilla/layers/ImageBridgeChild.h"
 #include "mozilla/layers/PCompositorChild.h"
 #include "mozilla/net/NeckoChild.h"
 #include "mozilla/Preferences.h"
-#include "mozilla/Attributes.h"
 
 #if defined(MOZ_SYDNEYAUDIO)
 #include "nsAudioStream.h"
@@ -90,16 +92,21 @@
 #include "mozilla/dom/indexedDB/PIndexedDBChild.h"
 #include "mozilla/dom/sms/SmsChild.h"
 #include "mozilla/dom/devicestorage/DeviceStorageRequestChild.h"
+#include "mozilla/dom/bluetooth/PBluetoothChild.h"
 
 #include "nsDOMFile.h"
 #include "nsIRemoteBlob.h"
+#include "ProcessUtils.h"
 #include "StructuredCloneUtils.h"
 #include "URIUtils.h"
 #include "nsIScriptSecurityManager.h"
 #include "nsContentUtils.h"
 #include "nsIPrincipal.h"
+#include "nsDeviceStorage.h"
 
+using namespace base;
 using namespace mozilla::docshell;
+using namespace mozilla::dom::bluetooth;
 using namespace mozilla::dom::devicestorage;
 using namespace mozilla::dom::sms;
 using namespace mozilla::dom::indexedDB;
@@ -286,7 +293,33 @@ ContentChild::Init(MessageLoop* aIOLoop,
 #endif
 #endif
 
+    bool startBackground = true;
+    SendGetProcessAttributes(&mID, &startBackground,
+                             &mIsForApp, &mIsForBrowser);
+    hal::SetProcessPriority(
+        GetCurrentProcId(),
+        startBackground ? hal::PROCESS_PRIORITY_BACKGROUND:
+                          hal::PROCESS_PRIORITY_FOREGROUND);
+    if (mIsForApp && !mIsForBrowser) {
+        SetProcessName(NS_LITERAL_STRING("(App)"));
+    } else {
+        SetProcessName(NS_LITERAL_STRING("Browser"));
+    }
+
     return true;
+}
+
+void
+ContentChild::SetProcessName(const nsAString& aName)
+{
+    mProcessName = aName;
+    mozilla::ipc::SetThisProcessName(NS_LossyConvertUTF16toASCII(aName).get());
+}
+
+const void
+ContentChild::GetProcessName(nsAString& aName)
+{
+    aName.Assign(mProcessName);
 }
 
 void
@@ -409,6 +442,20 @@ ContentChild::DeallocPMemoryReportRequest(PMemoryReportRequestChild* actor)
     return true;
 }
 
+bool
+ContentChild::RecvDumpMemoryReportsToFile(const nsString& aIdentifier,
+                                          const bool& aMinimizeMemoryUsage,
+                                          const bool& aDumpChildProcesses)
+{
+    nsCOMPtr<nsIMemoryReporterManager> mgr =
+        do_GetService("@mozilla.org/memory-reporter-manager;1");
+    NS_ENSURE_TRUE(mgr, true);
+    mgr->DumpMemoryReportsToFile(aIdentifier,
+                                 aMinimizeMemoryUsage,
+                                 aDumpChildProcesses);
+    return true;
+}
+
 PCompositorChild*
 ContentChild::AllocPCompositor(mozilla::ipc::Transport* aTransport,
                                base::ProcessId aOtherProcess)
@@ -416,14 +463,21 @@ ContentChild::AllocPCompositor(mozilla::ipc::Transport* aTransport,
     return CompositorChild::Create(aTransport, aOtherProcess);
 }
 
+PImageBridgeChild*
+ContentChild::AllocPImageBridge(mozilla::ipc::Transport* aTransport,
+                                base::ProcessId aOtherProcess)
+{
+    return ImageBridgeChild::StartUpInChildProcess(aTransport, aOtherProcess);
+}
+
 PBrowserChild*
 ContentChild::AllocPBrowser(const uint32_t& aChromeFlags,
                             const bool& aIsBrowserElement, const AppId& aApp)
 {
-    uint32_t appId = aApp.get_uint32_t();
-    nsRefPtr<TabChild> iframe = new TabChild(aChromeFlags, aIsBrowserElement,
-                                             appId);
-    return NS_SUCCEEDED(iframe->Init()) ? iframe.forget().get() : NULL;
+    nsRefPtr<TabChild> child =
+        TabChild::Create(aChromeFlags, aIsBrowserElement, aApp.get_uint32_t());
+    // The ref here is released below.
+    return child.forget().get();
 }
 
 bool
@@ -674,6 +728,30 @@ ContentChild::DeallocPStorage(PStorageChild* aActor)
     StorageChild* child = static_cast<StorageChild*>(aActor);
     child->ReleaseIPDLReference();
     return true;
+}
+
+PBluetoothChild*
+ContentChild::AllocPBluetooth()
+{
+#ifdef MOZ_B2G_BT
+    MOZ_NOT_REACHED("No one should be allocating PBluetoothChild actors");
+    return nullptr;
+#else
+    MOZ_NOT_REACHED("No support for bluetooth on this platform!");
+    return nullptr;
+#endif
+}
+
+bool
+ContentChild::DeallocPBluetooth(PBluetoothChild* aActor)
+{
+#ifdef MOZ_B2G_BT
+    delete aActor;
+    return true;
+#else
+    MOZ_NOT_REACHED("No support for bluetooth on this platform!");
+    return false;
+#endif
 }
 
 bool
@@ -929,6 +1007,8 @@ PreloadSlowThings()
 {
     // This fetches and creates all the built-in stylesheets.
     nsLayoutStylesheetCache::UserContentSheet();
+
+    TabChild::PreloadSlowThings();
 }
 
 bool
@@ -942,20 +1022,6 @@ ContentChild::RecvAppInfo(const nsCString& version, const nsCString& buildID)
 }
 
 bool
-ContentChild::RecvSetProcessAttributes(const uint64_t &id,
-                                       const bool& aIsForApp,
-                                       const bool& aIsForBrowser)
-{
-    if (mID != uint64_t(-1)) {
-        NS_WARNING("Setting content child's ID twice?");
-    }
-    mID = id;
-    mIsForApp = aIsForApp;
-    mIsForBrowser = aIsForBrowser;
-    return true;
-}
-
-bool
 ContentChild::RecvLastPrivateDocShellDestroyed()
 {
     nsCOMPtr<nsIObserverService> obs = mozilla::services::GetObserverService();
@@ -964,15 +1030,17 @@ ContentChild::RecvLastPrivateDocShellDestroyed()
 }
 
 bool
-ContentChild::RecvFilePathUpdate(const nsString& path, const nsCString& aReason)
+ContentChild::RecvFilePathUpdate(const nsString& type, const nsString& path, const nsCString& aReason)
 {
     nsCOMPtr<nsIFile> file;
     NS_NewLocalFile(path, false, getter_AddRefs(file));
 
+    nsRefPtr<DeviceStorageFile> dsf = new DeviceStorageFile(type, file);
+
     nsString reason;
     CopyASCIItoUTF16(aReason, reason);
     nsCOMPtr<nsIObserverService> obs = mozilla::services::GetObserverService();
-    obs->NotifyObservers(file, "file-watcher-update", reason.get());
+    obs->NotifyObservers(dsf, "file-watcher-update", reason.get());
     return true;
 }
 

@@ -144,6 +144,17 @@ AppendToString(nsACString& s, const nsIntRect& r,
 }
 
 nsACString&
+AppendToString(nsACString& s, const Rect& r,
+               const char* pfx="", const char* sfx="")
+{
+  s += pfx;
+  s.AppendPrintf(
+    "(x=%f, y=%f, w=%f, h=%f)",
+    r.x, r.y, r.width, r.height);
+  return s += sfx;
+}
+
+nsACString&
 AppendToString(nsACString& s, const nsIntRegion& r,
                const char* pfx="", const char* sfx="")
 {
@@ -173,7 +184,7 @@ AppendToString(nsACString& s, const FrameMetrics& m,
 {
   s += pfx;
   AppendToString(s, m.mViewport, "{ viewport=");
-  AppendToString(s, m.mViewportScrollOffset, " viewportScroll=");
+  AppendToString(s, m.mScrollOffset, " viewportScroll=");
   AppendToString(s, m.mDisplayPort, " displayport=");
   AppendToString(s, m.mScrollId, " scrollId=", " }");
   return s += sfx;
@@ -186,6 +197,37 @@ namespace layers {
 
 //--------------------------------------------------
 // LayerManager
+Layer*
+LayerManager::GetPrimaryScrollableLayer()
+{
+  if (!mRoot) {
+    return nullptr;
+  }
+
+  nsTArray<Layer*> queue;
+  queue.AppendElement(mRoot);
+  while (queue.Length()) {
+    ContainerLayer* containerLayer = queue[0]->AsContainerLayer();
+    queue.RemoveElementAt(0);
+    if (!containerLayer) {
+      continue;
+    }
+
+    const FrameMetrics& frameMetrics = containerLayer->GetFrameMetrics();
+    if (frameMetrics.IsScrollable()) {
+      return containerLayer;
+    }
+
+    Layer* child = containerLayer->GetFirstChild();
+    while (child) {
+      queue.AppendElement(child);
+      child = child->GetNextSibling();
+    }
+  }
+
+  return mRoot;
+}
+
 already_AddRefed<gfxASurface>
 LayerManager::CreateOptimalSurface(const gfxIntSize &aSize,
                                    gfxASurface::gfxImageFormat aFormat)
@@ -456,6 +498,15 @@ Layer::SetAnimations(const AnimationArray& aAnimations)
   Mutated();
 }
 
+void
+Layer::ApplyPendingUpdatesToSubtree()
+{
+  ApplyPendingUpdatesForThisTransaction();
+  for (Layer* child = GetFirstChild(); child; child = child->GetNextSibling()) {
+    child->ApplyPendingUpdatesToSubtree();
+  }
+}
+
 bool
 Layer::CanUseOpaqueSurface()
 {
@@ -621,6 +672,16 @@ Layer::GetLocalTransform()
   }
   transform.ScalePost(mPostXScale, mPostYScale, 1.0f);
   return transform;
+}
+
+void
+Layer::ApplyPendingUpdatesForThisTransaction()
+{
+  if (mPendingTransform && *mPendingTransform != mTransform) {
+    mTransform = *mPendingTransform;
+    Mutated();
+  }
+  mPendingTransform = nullptr;
 }
 
 const float
@@ -884,13 +945,13 @@ Layer::Dump(FILE* aFile, const char* aPrefix, bool aDumpHtml)
   }
 
   if (Layer* mask = GetMaskLayer()) {
-    nsCAutoString pfx(aPrefix);
+    nsAutoCString pfx(aPrefix);
     pfx += "  Mask layer: ";
     mask->Dump(aFile, pfx.get());
   }
 
   if (Layer* kid = GetFirstChild()) {
-    nsCAutoString pfx(aPrefix);
+    nsAutoCString pfx(aPrefix);
     pfx += "  ";
     if (aDumpHtml) {
       fprintf(aFile, "<ul>");
@@ -911,7 +972,7 @@ Layer::Dump(FILE* aFile, const char* aPrefix, bool aDumpHtml)
 void
 Layer::DumpSelf(FILE* aFile, const char* aPrefix)
 {
-  nsCAutoString str;
+  nsAutoCString str;
   PrintInfo(str, aPrefix);
   fprintf(FILEOrDefault(aFile), "%s\n", str.get());
 }
@@ -925,7 +986,7 @@ Layer::Log(const char* aPrefix)
   LogSelf(aPrefix);
 
   if (Layer* kid = GetFirstChild()) {
-    nsCAutoString pfx(aPrefix);
+    nsAutoCString pfx(aPrefix);
     pfx += "  ";
     kid->Log(pfx.get());
   }
@@ -940,7 +1001,7 @@ Layer::LogSelf(const char* aPrefix)
   if (!IsLogEnabled())
     return;
 
-  nsCAutoString str;
+  nsAutoCString str;
   PrintInfo(str, aPrefix);
   MOZ_LAYERS_LOG(("%s", str.get()));
 }
@@ -964,6 +1025,8 @@ Layer::PrintInfo(nsACString& aTo, const char* aPrefix)
   }
   if (!mVisibleRegion.IsEmpty()) {
     AppendToString(aTo, mVisibleRegion, " [visible=", "]");
+  } else {
+    aTo += " [not visible]";
   }
   if (1.0 != mOpacity) {
     aTo.AppendPrintf(" [opacity=%g]", mOpacity);
@@ -1083,7 +1146,7 @@ LayerManager::Dump(FILE* aFile, const char* aPrefix, bool aDumpHtml)
   }
 #endif
 
-  nsCAutoString pfx(aPrefix);
+  nsAutoCString pfx(aPrefix);
   pfx += "  ";
   if (!GetRoot()) {
     fprintf(file, "%s(null)", pfx.get());
@@ -1106,7 +1169,7 @@ LayerManager::Dump(FILE* aFile, const char* aPrefix, bool aDumpHtml)
 void
 LayerManager::DumpSelf(FILE* aFile, const char* aPrefix)
 {
-  nsCAutoString str;
+  nsAutoCString str;
   PrintInfo(str, aPrefix);
   fprintf(FILEOrDefault(aFile), "%s\n", str.get());
 }
@@ -1119,7 +1182,7 @@ LayerManager::Log(const char* aPrefix)
 
   LogSelf(aPrefix);
 
-  nsCAutoString pfx(aPrefix);
+  nsAutoCString pfx(aPrefix);
   pfx += "  ";
   if (!GetRoot()) {
     MOZ_LAYERS_LOG(("%s(null)", pfx.get()));
@@ -1132,7 +1195,7 @@ LayerManager::Log(const char* aPrefix)
 void
 LayerManager::LogSelf(const char* aPrefix)
 {
-  nsCAutoString str;
+  nsAutoCString str;
   PrintInfo(str, aPrefix);
   MOZ_LAYERS_LOG(("%s", str.get()));
 }

@@ -88,7 +88,7 @@ public:
 
   virtual NS_HIDDEN_(void) BeginObservingDocument();
   virtual NS_HIDDEN_(void) EndObservingDocument();
-  virtual NS_HIDDEN_(nsresult) InitialReflow(nscoord aWidth, nscoord aHeight);
+  virtual NS_HIDDEN_(nsresult) Initialize(nscoord aWidth, nscoord aHeight);
   virtual NS_HIDDEN_(nsresult) ResizeReflow(nscoord aWidth, nscoord aHeight);
   virtual NS_HIDDEN_(nsresult) ResizeReflowOverride(nscoord aWidth, nscoord aHeight);
   virtual NS_HIDDEN_(void) StyleChangeReflow();
@@ -320,6 +320,9 @@ public:
                            size_t *aTextRunsSize,
                            size_t *aPresContextSize);
   size_t SizeOfTextRuns(nsMallocSizeOfFun aMallocSizeOf) const;
+
+  virtual void AddInvalidateHiddenPresShellObserver(nsRefreshDriver *aDriver);
+
 
   // This data is stored as a content property (nsGkAtoms::scrolling) on
   // mContentToScrollTo when we have a pending ScrollIntoView.
@@ -613,7 +616,7 @@ protected:
         mPresShell = nullptr;
       }
     }
-    virtual void WillRefresh(mozilla::TimeStamp aTime) {
+    virtual void WillRefresh(mozilla::TimeStamp aTime) MOZ_OVERRIDE {
       if (mPresShell)
         mPresShell->ProcessSynthMouseMoveEvent(mFromScroll);
     }

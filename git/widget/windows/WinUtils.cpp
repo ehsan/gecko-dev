@@ -73,10 +73,10 @@ WinUtils::GetRegistryKey(HKEY aRoot,
 
   HKEY key;
   LONG result =
-    ::RegOpenKeyExW(aRoot, aKeyName, NULL, KEY_READ | KEY_WOW64_32KEY, &key);
+    ::RegOpenKeyExW(aRoot, aKeyName, 0, KEY_READ | KEY_WOW64_32KEY, &key);
   if (result != ERROR_SUCCESS) {
     result =
-      ::RegOpenKeyExW(aRoot, aKeyName, NULL, KEY_READ | KEY_WOW64_64KEY, &key);
+      ::RegOpenKeyExW(aRoot, aKeyName, 0, KEY_READ | KEY_WOW64_64KEY, &key);
     if (result != ERROR_SUCCESS) {
       return false;
     }
@@ -496,11 +496,11 @@ AsyncWriteIconToDisk::AsyncWriteIconToDisk(const nsAString &aIconPath,
                                            uint8_t *aBuffer, 
                                            uint32_t aBufferLength,
                                            const bool aURLShortcut): 
+  mURLShortcut(aURLShortcut),
   mIconPath(aIconPath),
   mMimeTypeOfInputData(aMimeTypeOfInputData),
   mBuffer(aBuffer),
-  mBufferLength(aBufferLength),
-  mURLShortcut(aURLShortcut)
+  mBufferLength(aBufferLength)
 
 {
 }
@@ -593,7 +593,7 @@ NS_IMETHODIMP AsyncWriteIconToDisk::Run()
   uint64_t bufSize64;
   rv = iconStream->Available(&bufSize64);
   NS_ENSURE_SUCCESS(rv, rv);
-  NS_ENSURE_TRUE(bufSize64 <= PR_UINT32_MAX, NS_ERROR_FILE_TOO_BIG);
+  NS_ENSURE_TRUE(bufSize64 <= UINT32_MAX, NS_ERROR_FILE_TOO_BIG);
 
   uint32_t bufSize = (uint32_t)bufSize64;
 
@@ -692,7 +692,6 @@ NS_IMETHODIMP AsyncDeleteAllFaviconsFromDisk::Run()
     if (NS_FAILED(currFile->GetPath(path)))
       continue;
 
-    int32_t len = path.Length();
     if (StringTail(path, 4).LowerCaseEqualsASCII(".ico")) {
       // Check if the cached ICO file exists
       bool exists;
@@ -774,7 +773,7 @@ nsresult FaviconHelper::HashURI(nsCOMPtr<nsICryptoHash> &aCryptoHash,
   if (!aUri)
     return NS_ERROR_INVALID_ARG;
 
-  nsCAutoString spec;
+  nsAutoCString spec;
   nsresult rv = aUri->GetSpec(spec);
   NS_ENSURE_SUCCESS(rv, rv);
 
@@ -804,7 +803,7 @@ nsresult FaviconHelper::GetOutputIconPath(nsCOMPtr<nsIURI> aFaviconPageURI,
   bool aURLShortcut)
 {
   // Hash the input URI and replace any / with _
-  nsCAutoString inputURIHash;
+  nsAutoCString inputURIHash;
   nsCOMPtr<nsICryptoHash> cryptoHash;
   nsresult rv = HashURI(cryptoHash, aFaviconPageURI,
                         inputURIHash);

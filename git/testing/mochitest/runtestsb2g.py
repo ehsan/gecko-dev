@@ -19,6 +19,7 @@ from runtests import Mochitest
 from runtests import MochitestOptions
 from runtests import MochitestServer
 
+import devicemanager
 import devicemanagerADB
 import manifestparser
 
@@ -45,6 +46,11 @@ class B2GOptions(MochitestOptions):
                     type="string", dest = "emulator",
                     help = "Architecture of emulator to use: x86 or arm")
         defaults["emulator"] = None
+
+        self.add_option("--sdcard", action="store", 
+                    type="string", dest = "sdcard", 
+                    help = "Define size of sdcard: 1MB, 50MB...etc")
+        defaults["sdcard"] = None
 
         self.add_option("--no-window", action="store_true",
                     dest = "noWindow",
@@ -91,6 +97,12 @@ class B2GOptions(MochitestOptions):
                     help = "name of the pidfile to generate")
         defaults["pidFile"] = ""
 
+        self.add_option("--gecko-path", action="store",
+                        type="string", dest="geckoPath",
+                        help="the path to a gecko distribution that should "
+                        "be installed on the emulator prior to test")
+        defaults["geckoPath"] = None
+
         defaults["remoteTestRoot"] = None
         defaults["logFile"] = "mochitest.log"
         defaults["autorun"] = True
@@ -111,8 +123,10 @@ class B2GOptions(MochitestOptions):
             if os.name != "nt":
                 options.remoteWebServer = automation.getLanIp()
             else:
-                print "ERROR: you must specify a --remote-webserver=<ip address>\n"
-                return None
+                self.error("You must specify a --remote-webserver=<ip address>")
+
+        if options.geckoPath and not options.emulator:
+            self.error("You must specify --emulator if you specify --gecko-path")
 
         options.webServer = options.remoteWebServer
 
@@ -202,9 +216,9 @@ class B2GMochitest(Mochitest):
 
     def copyRemoteFile(self, src, dest):
         if self._dm.useDDCopy:
-            self._dm.checkCmdAs(['shell', 'dd', 'if=%s' % src,'of=%s' % dest])
+            self._dm._checkCmdAs(['shell', 'dd', 'if=%s' % src,'of=%s' % dest])
         else:
-            self._dm.checkCmdAs(['shell', 'cp', src, dest])
+            self._dm._checkCmdAs(['shell', 'cp', src, dest])
 
     def origUserJSExists(self):
         return self._dm.fileExists('/data/local/user.js.orig')
@@ -216,7 +230,7 @@ class B2GMochitest(Mochitest):
 
         if not options.emulator:
             # Remove the test profile
-            self._dm.checkCmdAs(['shell', 'rm', '-r', self.remoteProfile])
+            self._dm._checkCmdAs(['shell', 'rm', '-r', self.remoteProfile])
 
             if self.origUserJSExists():
                 # Restore the original user.js
@@ -374,9 +388,12 @@ user_pref("network.dns.localDomains","app://system.gaiamobile.org");\n
         f.close()
 
         # Copy the profile to the device.
-        self._dm.checkCmdAs(['shell', 'rm', '-r', self.remoteProfile])
-        if self._dm.pushDir(options.profilePath, self.remoteProfile) == None:
-            raise devicemanager.FileError("Unable to copy profile to device.")
+        self._dm._checkCmdAs(['shell', 'rm', '-r', self.remoteProfile])
+        try:
+            self._dm.pushDir(options.profilePath, self.remoteProfile)
+        except devicemanager.DMError:
+            print "Automation Error: Unable to copy profile to device."
+            raise
 
         # In B2G, user.js is always read from /data/local, not the profile
         # directory.  Backup the original user.js first so we can restore it.
@@ -402,6 +419,11 @@ def main():
         auto.setEmulator(True)
         if options.noWindow:
             kwargs['noWindow'] = True
+        if options.geckoPath:
+            kwargs['gecko_path'] = options.geckoPath
+    # needless to say sdcard is only valid if using an emulator
+    if options.sdcard:
+        kwargs['sdcard'] = options.sdcard
     if options.b2gPath:
         kwargs['homedir'] = options.b2gPath
     if options.marionette:

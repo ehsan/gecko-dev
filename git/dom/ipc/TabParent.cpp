@@ -25,6 +25,7 @@
 #include "nsContentUtils.h"
 #include "nsDebug.h"
 #include "nsEventDispatcher.h"
+#include "nsEventStateManager.h"
 #include "nsFocusManager.h"
 #include "nsFrameLoader.h"
 #include "nsIContent.h"
@@ -66,6 +67,8 @@ using namespace mozilla::dom::indexedDB;
 namespace mozilla {
 namespace dom {
 
+TabParent* sEventCapturer;
+
 TabParent *TabParent::mIMETabParent = nullptr;
 
 NS_IMPL_ISUPPORTS3(TabParent, nsITabParent, nsIAuthPromptProvider, nsISecureBrowserUI)
@@ -79,8 +82,9 @@ TabParent::TabParent(mozIApplication* aApp, bool aIsBrowserElement)
   , mIMECompositionEnding(false)
   , mIMECompositionStart(0)
   , mIMESeqno(0)
+  , mEventCaptureDepth(0)
+  , mDimensions(0, 0)
   , mDPI(0)
-  , mActive(false)
   , mIsBrowserElement(aIsBrowserElement)
   , mShown(false)
 {
@@ -105,6 +109,12 @@ TabParent::Destroy()
   // destroy itself and send back __delete__().
   unused << SendDestroy();
 
+  const InfallibleTArray<PIndexedDBParent*>& idbParents =
+    ManagedPIndexedDBParent();
+  for (uint32_t i = 0; i < idbParents.Length(); ++i) {
+    static_cast<IndexedDBParent*>(idbParents[i])->Disconnect();
+  }
+
   if (RenderFrameParent* frame = GetRenderFrame()) {
     frame->Destroy();
   }
@@ -121,10 +131,15 @@ TabParent::Recv__delete__()
 void
 TabParent::ActorDestroy(ActorDestroyReason why)
 {
-  if (mIMETabParent == this)
+  if (sEventCapturer == this) {
+    sEventCapturer = nullptr;
+  }
+  if (mIMETabParent == this) {
     mIMETabParent = nullptr;
+  }
   nsRefPtr<nsFrameLoader> frameLoader = GetFrameLoader();
   if (frameLoader) {
+    ReceiveMessage(CHILD_PROCESS_SHUTDOWN_MESSAGE, false, nullptr, nullptr);
     frameLoader->DestroyChild();
 
     if (why == AbnormalShutdown) {
@@ -172,6 +187,11 @@ TabParent::AnswerCreateWindow(PBrowserParent** retval)
         return false;
     }
 
+    // Only non-app, non-browser processes may call CreateWindow.
+    if (GetApp() || IsBrowserElement()) {
+        return false;
+    }
+
     // Get a new rendering area from the browserDOMWin.  We don't want
     // to be starting any loads here, so get it with a null URI.
     nsCOMPtr<nsIFrameLoaderOwner> frameLoaderOwner;
@@ -196,7 +216,7 @@ void
 TabParent::LoadURL(nsIURI* aURI)
 {
     if (!mShown) {
-      nsCAutoString spec;
+      nsAutoCString spec;
       if (aURI) {
         aURI->GetSpec(spec);
       }
@@ -216,6 +236,7 @@ TabParent::Show(const nsIntSize& size)
 {
     // sigh
     mShown = true;
+    mDimensions = size;
     unused << SendShow(size);
 }
 
@@ -226,6 +247,7 @@ TabParent::UpdateDimensions(const nsRect& rect, const nsIntSize& size)
   if (RenderFrameParent* rfp = GetRenderFrame()) {
     rfp->NotifyDimensionsChanged(size.width, size.height);
   }
+  mDimensions = size;
 }
 
 void
@@ -239,24 +261,21 @@ void TabParent::HandleDoubleTap(const nsIntPoint& aPoint)
   unused << SendHandleDoubleTap(aPoint);
 }
 
+void TabParent::HandleSingleTap(const nsIntPoint& aPoint)
+{
+  unused << SendHandleSingleTap(aPoint);
+}
+
 void
 TabParent::Activate()
 {
-    mActive = true;
     unused << SendActivate();
 }
 
 void
 TabParent::Deactivate()
 {
-  mActive = false;
   unused << SendDeactivate();
-}
-
-bool
-TabParent::Active()
-{
-  return mActive;
 }
 
 NS_IMETHODIMP
@@ -356,11 +375,70 @@ bool TabParent::SendRealKeyEvent(nsKeyEvent& event)
 
 bool TabParent::SendRealTouchEvent(nsTouchEvent& event)
 {
+  if (event.message == NS_TOUCH_START) {
+    MOZ_ASSERT((!sEventCapturer && mEventCaptureDepth == 0) ||
+               (sEventCapturer == this && mEventCaptureDepth > 0));
+    // We want to capture all remaining touch events in this series
+    // for fast-path dispatch.
+    sEventCapturer = this;
+    ++mEventCaptureDepth;
+  }
+
   nsTouchEvent e(event);
+  // PresShell::HandleEventInternal adds touches on touch end/cancel,
+  // when we're not capturing raw events from the widget backend.
+  // This hack filters those out. Bug 785554
+  if (sEventCapturer != this &&
+      (event.message == NS_TOUCH_END || event.message == NS_TOUCH_CANCEL)) {
+    for (int i = e.touches.Length() - 1; i >= 0; i--) {
+      if (!e.touches[i]->mChanged)
+        e.touches.RemoveElementAt(i);
+    }
+  }
+
   MaybeForwardEventToRenderFrame(event, &e);
   return (e.message == NS_TOUCH_MOVE) ?
     PBrowserParent::SendRealTouchMoveEvent(e) :
     PBrowserParent::SendRealTouchEvent(e);
+}
+
+/*static*/ TabParent*
+TabParent::GetEventCapturer()
+{
+  return sEventCapturer;
+}
+
+bool
+TabParent::TryCapture(const nsGUIEvent& aEvent)
+{
+  MOZ_ASSERT(sEventCapturer == this && mEventCaptureDepth > 0);
+
+  if (aEvent.eventStructType != NS_TOUCH_EVENT) {
+    // Only capture of touch events is implemented, for now.
+    return false;
+  }
+
+  nsTouchEvent event(static_cast<const nsTouchEvent&>(aEvent));
+
+  bool isTouchPointUp = (event.message == NS_TOUCH_END ||
+                         event.message == NS_TOUCH_CANCEL);
+  if (event.message == NS_TOUCH_START || isTouchPointUp) {
+    // Let the DOM see touch start/end events so that its touch-point
+    // state stays consistent.
+    if (isTouchPointUp && 0 == --mEventCaptureDepth) {
+      // All event series are un-captured, don't try to catch any
+      // more.
+      sEventCapturer = nullptr;
+    }
+    return false;
+  }
+
+  // Adjust the widget coordinates to be relative to our frame.
+  nsRefPtr<nsFrameLoader> frameLoader = GetFrameLoader();
+  nsEventStateManager::MapEventCoordinatesForChildProcess(frameLoader, &event);
+
+  SendRealTouchEvent(event);
+  return true;
 }
 
 bool
@@ -902,7 +980,7 @@ TabParent::HandleDelayedDialogs()
                                 data->mName, data->mFeatures,
                                 params, mFrameElement);
     } else if (ww) {
-      nsCAutoString url;
+      nsAutoCString url;
       if (data->mType) {
         if (data->mType == nsIDialogCreator::SELECT_DIALOG) {
           url.Assign("chrome://global/content/selectDialog.xul");
@@ -960,14 +1038,15 @@ TabParent::DeallocPRenderFrame(PRenderFrameParent* aFrame)
 mozilla::docshell::POfflineCacheUpdateParent*
 TabParent::AllocPOfflineCacheUpdate(const URIParams& aManifestURI,
                                     const URIParams& aDocumentURI,
-                                    const nsCString& aClientID,
+                                    const bool& isInBrowserElement,
+                                    const uint32_t& appId,
                                     const bool& stickDocument)
 {
   nsRefPtr<mozilla::docshell::OfflineCacheUpdateParent> update =
     new mozilla::docshell::OfflineCacheUpdateParent();
 
-  nsresult rv = update->Schedule(aManifestURI, aDocumentURI, aClientID,
-                                 stickDocument);
+  nsresult rv = update->Schedule(aManifestURI, aDocumentURI,
+                                 isInBrowserElement, appId, stickDocument);
   if (NS_FAILED(rv))
     return nullptr;
 
@@ -1103,10 +1182,36 @@ TabParent::RecvBrowserFrameOpenWindow(PBrowserParent* aOpener,
 }
 
 bool
+TabParent::RecvPRenderFrameConstructor(PRenderFrameParent* actor,
+                                       ScrollingBehavior* scrolling,
+                                       LayersBackend* backend,
+                                       int32_t* maxTextureSize,
+                                       uint64_t* layersId)
+{
+  RenderFrameParent* rfp = GetRenderFrame();
+  if (mDimensions != nsIntSize() && rfp) {
+    rfp->NotifyDimensionsChanged(mDimensions.width, mDimensions.height);
+  }
+
+  return true;
+}
+
+bool
 TabParent::RecvZoomToRect(const gfxRect& aRect)
 {
   if (RenderFrameParent* rfp = GetRenderFrame()) {
     rfp->ZoomToRect(aRect);
+  }
+  return true;
+}
+
+bool
+TabParent::RecvUpdateZoomConstraints(const bool& aAllowZoom,
+                                     const float& aMinZoom,
+                                     const float& aMaxZoom)
+{
+  if (RenderFrameParent* rfp = GetRenderFrame()) {
+    rfp->UpdateZoomConstraints(aAllowZoom, aMinZoom, aMaxZoom);
   }
   return true;
 }

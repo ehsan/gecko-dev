@@ -6,7 +6,6 @@
 #ifndef GFX_FONT_H
 #define GFX_FONT_H
 
-#include "prtypes.h"
 #include "nsAlgorithm.h"
 #include "gfxTypes.h"
 #include "nsString.h"
@@ -43,6 +42,8 @@ class gfxFontGroup;
 class gfxUserFontSet;
 class gfxUserFontData;
 class gfxShapedWord;
+class gfxSVGGlyphs;
+class gfxTextObjectPaint;
 
 class nsILanguageAtomService;
 
@@ -208,6 +209,7 @@ public:
         mSymbolFont(false),
         mIgnoreGDEF(false),
         mIgnoreGSUB(false),
+        mSVGInitialized(false),
         mWeight(500), mStretch(NS_FONT_STRETCH_NORMAL),
 #ifdef MOZ_GRAPHITE
         mCheckedForGraphiteTables(false),
@@ -215,6 +217,7 @@ public:
         mHasCmapTable(false),
         mUVSOffset(0), mUVSData(nullptr),
         mUserFontData(nullptr),
+        mSVGGlyphs(nullptr),
         mLanguageOverride(NO_FONT_LANGUAGE_OVERRIDE),
         mFamily(aFamily)
     { }
@@ -275,6 +278,13 @@ public:
     uint16_t GetUVSGlyph(uint32_t aCh, uint32_t aVS);
     virtual nsresult ReadCMAP();
 
+    bool TryGetSVGData();
+    bool HasSVGGlyph(uint32_t aGlyphId);
+    bool GetSVGGlyphExtents(gfxContext *aContext, uint32_t aGlyphId,
+                            gfxRect *aResult);
+    bool RenderSVGGlyph(gfxContext *aContext, uint32_t aGlyphId, int aDrawMode,
+                        gfxTextObjectPaint *aObjectPaint);
+
     virtual bool MatchesGenericFamily(const nsACString& aGeneric) const {
         return true;
     }
@@ -332,6 +342,7 @@ public:
     bool             mSymbolFont  : 1;
     bool             mIgnoreGDEF  : 1;
     bool             mIgnoreGSUB  : 1;
+    bool             mSVGInitialized : 1;
 
     uint16_t         mWeight;
     int16_t          mStretch;
@@ -345,6 +356,7 @@ public:
     uint32_t         mUVSOffset;
     nsAutoArrayPtr<uint8_t> mUVSData;
     gfxUserFontData* mUserFontData;
+    gfxSVGGlyphs    *mSVGGlyphs;
 
     nsTArray<gfxFontFeature> mFeatureSettings;
     uint32_t         mLanguageOverride;
@@ -366,6 +378,7 @@ protected:
         mSymbolFont(false),
         mIgnoreGDEF(false),
         mIgnoreGSUB(false),
+        mSVGInitialized(false),
         mWeight(500), mStretch(NS_FONT_STRETCH_NORMAL),
 #ifdef MOZ_GRAPHITE
         mCheckedForGraphiteTables(false),
@@ -373,6 +386,7 @@ protected:
         mHasCmapTable(false),
         mUVSOffset(0), mUVSData(nullptr),
         mUserFontData(nullptr),
+        mSVGGlyphs(nullptr),
         mLanguageOverride(NO_FONT_LANGUAGE_OVERRIDE),
         mFamily(nullptr)
     { }
@@ -1049,7 +1063,6 @@ private:
         float x, y, width, height;
     };
 
-    typedef PRUptrdiff PtrBits;
     enum { BLOCK_SIZE_BITS = 7, BLOCK_SIZE = 1 << BLOCK_SIZE_BITS }; // 128-glyph blocks
 
     class GlyphWidths {
@@ -1059,7 +1072,7 @@ private:
             uint32_t block = aIndex >> BLOCK_SIZE_BITS;
             if (block >= mBlocks.Length())
                 return INVALID_WIDTH;
-            PtrBits bits = mBlocks[block];
+            uintptr_t bits = mBlocks[block];
             if (!bits)
                 return INVALID_WIDTH;
             uint32_t indexInBlock = aIndex & (BLOCK_SIZE - 1);
@@ -1077,19 +1090,19 @@ private:
         ~GlyphWidths();
 
     private:
-        static uint32_t GetGlyphOffset(PtrBits aBits) {
+        static uint32_t GetGlyphOffset(uintptr_t aBits) {
             NS_ASSERTION(aBits & 0x1, "This is really a pointer...");
             return (aBits >> 1) & ((1 << BLOCK_SIZE_BITS) - 1);
         }
-        static uint32_t GetWidth(PtrBits aBits) {
+        static uint32_t GetWidth(uintptr_t aBits) {
             NS_ASSERTION(aBits & 0x1, "This is really a pointer...");
             return aBits >> (1 + BLOCK_SIZE_BITS);
         }
-        static PtrBits MakeSingle(uint32_t aGlyphOffset, uint16_t aWidth) {
+        static uintptr_t MakeSingle(uint32_t aGlyphOffset, uint16_t aWidth) {
             return (aWidth << (1 + BLOCK_SIZE_BITS)) + (aGlyphOffset << 1) + 1;
         }
 
-        nsTArray<PtrBits> mBlocks;
+        nsTArray<uintptr_t> mBlocks;
     };
 
     GlyphWidths             mContainedGlyphWidths;
@@ -1407,6 +1420,9 @@ public:
      * that there is no spacing.
      * @param aDrawMode specifies whether the fill or stroke of the glyph should be
      * drawn, or if it should be drawn into the current path
+     * @param aObjectPaint information about how to construct the fill and
+     * stroke pattern. Can be NULL if we are not stroking the text, which
+     * indicates that the current source from aContext should be used for filling
      * 
      * Callers guarantee:
      * -- aStart and aEnd are aligned to cluster and ligature boundaries
@@ -1417,7 +1433,7 @@ public:
      */
     virtual void Draw(gfxTextRun *aTextRun, uint32_t aStart, uint32_t aEnd,
                       gfxContext *aContext, DrawMode aDrawMode, gfxPoint *aBaselineOrigin,
-                      Spacing *aSpacing, gfxPattern *aStrokePattern);
+                      Spacing *aSpacing, gfxTextObjectPaint *aObjectPaint);
 
     /**
      * Measure a run of characters. See gfxTextRun::Metrics.
@@ -1553,6 +1569,9 @@ public:
 
     virtual FontType GetType() const = 0;
 
+    virtual mozilla::TemporaryRef<mozilla::gfx::ScaledFont> GetScaledFont(mozilla::gfx::DrawTarget *aTarget)
+    { return gfxPlatform::GetPlatform()->GetScaledFontForFont(aTarget, this); }
+
 protected:
     // Call the appropriate shaper to generate glyphs for aText and store
     // them into aShapedWord.
@@ -1675,6 +1694,7 @@ protected:
 #ifdef MOZ_GRAPHITE
     nsAutoPtr<gfxFontShaper>   mGraphiteShaper;
 #endif
+    mozilla::RefPtr<mozilla::gfx::ScaledFont> mAzureScaledFont;
 
     // Create a default platform text shaper for this font.
     // (TODO: This should become pure virtual once all font backends have
@@ -1698,6 +1718,9 @@ protected:
     // some fonts have bad metrics, this method sanitize them.
     // if this font has bad underline offset, aIsBadUnderlineFont should be true.
     void SanitizeMetrics(gfxFont::Metrics *aMetrics, bool aIsBadUnderlineFont);
+
+    bool RenderSVGGlyph(gfxContext *aContext, gfxPoint aPoint, DrawMode aDrawMode,
+                        uint32_t aGlyphId, gfxTextObjectPaint *aObjectPaint);
 
     // Bug 674909. When synthetic bolding text by drawing twice, need to
     // render using a pixel offset in device pixels, otherwise text
@@ -1778,7 +1801,7 @@ public:
         // then we convert the text to an 8-bit version and call the 8-bit
         // Create function instead.
         if (aFlags & gfxTextRunFactory::TEXT_IS_8BIT) {
-            nsCAutoString narrowText;
+            nsAutoCString narrowText;
             LossyAppendUTF16toASCII(nsDependentSubstring(aText, aLength),
                                     narrowText);
             return Create((const uint8_t*)(narrowText.BeginReading()),
@@ -2056,7 +2079,7 @@ public:
     }
 
     float GetDirection() const {
-        return IsRightToLeft() ? -1.0 : 1.0;
+        return IsRightToLeft() ? -1.0f : 1.0f;
     }
 
     bool DisableLigatures() const {
@@ -2512,7 +2535,7 @@ public:
               gfxFont::DrawMode aDrawMode,
               uint32_t aStart, uint32_t aLength,
               PropertyProvider *aProvider,
-              gfxFloat *aAdvanceWidth, gfxPattern *aStrokePattern,
+              gfxFloat *aAdvanceWidth, gfxTextObjectPaint *aObjectPaint,
               DrawCallbacks *aCallbacks = nullptr);
 
     /**
@@ -2584,7 +2607,7 @@ public:
      * SetLineBreaks(aStart, result, aLineBreakBefore, result < aMaxLength, aProvider)
      * and the returned metrics and the invariants above reflect this.
      *
-     * @param aMaxLength this can be PR_UINT32_MAX, in which case the length used
+     * @param aMaxLength this can be UINT32_MAX, in which case the length used
      * is up to the end of the string
      * @param aLineBreakBefore set to true if and only if there is an actual
      * line break at the start of this string.
@@ -2608,7 +2631,7 @@ public:
      * the maximal N such that
      *       N < aMaxLength && line break at N && GetAdvanceWidth(aStart, N) <= aWidth
      *   OR  N < aMaxLength && hyphen break at N && GetAdvanceWidth(aStart, N) + GetHyphenWidth() <= aWidth
-     * or PR_UINT32_MAX if no such N exists, where GetAdvanceWidth assumes
+     * or UINT32_MAX if no such N exists, where GetAdvanceWidth assumes
      * the effect of
      * SetLineBreaks(aStart, N, aLineBreakBefore, N < aMaxLength, aProvider)
      *
@@ -2960,8 +2983,8 @@ private:
     // **** drawing helper ****
     void DrawGlyphs(gfxFont *aFont, gfxContext *aContext,
                     gfxFont::DrawMode aDrawMode, gfxPoint *aPt,
-                    gfxPattern *aStrokePattern, uint32_t aStart, uint32_t aEnd,
-                    PropertyProvider *aProvider,
+                    gfxTextObjectPaint *aObjectPaint, uint32_t aStart,
+                    uint32_t aEnd, PropertyProvider *aProvider,
                     uint32_t aSpacingStart, uint32_t aSpacingEnd);
 
     nsAutoPtr<DetailedGlyphStore>   mDetailedGlyphs;
@@ -3084,7 +3107,7 @@ public:
     // If this group has such "bad" font, each platform's gfxFontGroup initialized mUnderlineOffset.
     // The value should be lower value of first font's metrics and the bad font's metrics.
     // Otherwise, this returns from first font's metrics.
-    enum { UNDERLINE_OFFSET_NOT_SET = PR_INT16_MAX };
+    enum { UNDERLINE_OFFSET_NOT_SET = INT16_MAX };
     virtual gfxFloat GetUnderlineOffset() {
         if (mUnderlineOffset == UNDERLINE_OFFSET_NOT_SET)
             mUnderlineOffset = GetFontAt(0)->GetMetrics().underlineOffset;

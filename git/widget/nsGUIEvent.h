@@ -85,7 +85,6 @@ class nsHashKey;
 #define NS_SELECTION_EVENT                38
 #define NS_CONTENT_COMMAND_EVENT          39
 #define NS_GESTURENOTIFY_EVENT            40
-#define NS_MOZTOUCH_EVENT                 42
 #define NS_PLUGIN_EVENT                   43
 #define NS_TOUCH_EVENT                    44
 #define NS_WHEEL_EVENT                    45
@@ -249,7 +248,6 @@ class nsHashKey;
 #define NS_SCROLLPORT_START           1700
 #define NS_SCROLLPORT_UNDERFLOW       (NS_SCROLLPORT_START)
 #define NS_SCROLLPORT_OVERFLOW        (NS_SCROLLPORT_START+1)
-#define NS_SCROLLPORT_OVERFLOWCHANGED (NS_SCROLLPORT_START+2)
 
 // Mutation events defined elsewhere starting at 1800
 
@@ -420,11 +418,6 @@ class nsHashKey;
 #define NS_SMIL_END                  (NS_SMIL_TIME_EVENT_START + 1)
 #define NS_SMIL_REPEAT               (NS_SMIL_TIME_EVENT_START + 2)
 
-#define NS_MOZTOUCH_EVENT_START      4400
-#define NS_MOZTOUCH_DOWN             (NS_MOZTOUCH_EVENT_START)
-#define NS_MOZTOUCH_MOVE             (NS_MOZTOUCH_EVENT_START+1)
-#define NS_MOZTOUCH_UP               (NS_MOZTOUCH_EVENT_START+2)
-
 // script notification events
 #define NS_NOTIFYSCRIPT_START        4500
 #define NS_BEFORE_SCRIPT_EXECUTE     (NS_NOTIFYSCRIPT_START)
@@ -472,6 +465,14 @@ class nsHashKey;
 
 #define NS_WHEEL_EVENT_START         5400
 #define NS_WHEEL_WHEEL               (NS_WHEEL_EVENT_START)
+
+//System time is changed
+#define NS_MOZ_TIME_CHANGE_EVENT     5500
+
+// Network packet events.
+#define NS_NETWORK_EVENT_START       5600
+#define NS_NETWORK_UPLOAD_EVENT      (NS_NETWORK_EVENT_START + 1)
+#define NS_NETWORK_DOWNLOAD_EVENT    (NS_NETWORK_EVENT_START + 2)
 
 /**
  * Return status for event processors, nsEventStatus, is defined in
@@ -1182,6 +1183,10 @@ public:
   {
   }
 
+  // NOTE: deltaX, deltaY and deltaZ may be customized by
+  //       mousewheel.*.delta_multiplier_* prefs which are applied by
+  //       nsEventStateManager.  So, after widget dispatches this event,
+  //       these delta values may have different values than before.
   double deltaX;
   double deltaY;
   double deltaZ;
@@ -1242,8 +1247,15 @@ public:
   };
   ScrollType scrollType;
 
-  // overflowed delta values, these values are the result of dispatching this
-  // event.
+  // overflowed delta values for scroll, these values are set by
+  // nsEventStateManger.  If the default action of the wheel event isn't scroll,
+  // these values always zero.  Otherwise, remaning delta values which are
+  // not used by scroll are set.
+  // NOTE: deltaX, deltaY and deltaZ may be modified by nsEventStateManager.
+  //       However, overflowDeltaX and overflowDeltaY indicate unused original
+  //       delta values which are not applied the delta_multiplier prefs.
+  //       So, if widget wanted to know the actual direction to be scrolled,
+  //       it would need to check the deltaX and deltaY.
   double overflowDeltaX;
   double overflowDeltaY;
 };
@@ -1367,7 +1379,7 @@ public:
   } mReply;
 
   enum {
-    NOT_FOUND = PR_UINT32_MAX
+    NOT_FOUND = UINT32_MAX
   };
 
   // values of mComputedScrollAction
@@ -1456,19 +1468,6 @@ public:
 
   bool mSucceeded;                                 // [out]
   bool mIsEnabled;                                 // [out]
-};
-
-class nsMozTouchEvent : public nsMouseEvent_base
-{
-public:
-  nsMozTouchEvent(bool isTrusted, uint32_t msg, nsIWidget* w,
-                  uint32_t streamIdArg)
-    : nsMouseEvent_base(isTrusted, msg, w, NS_MOZTOUCH_EVENT),
-      streamId(streamIdArg)
-  {
-  }
-
-  uint32_t streamId;
 };
 
 class nsTouchEvent : public nsInputEvent
@@ -1647,7 +1646,6 @@ enum nsDragDropEventStatus {
         ((evnt)->eventStructType == NS_TOUCH_EVENT) || \
         ((evnt)->eventStructType == NS_DRAG_EVENT) || \
         ((evnt)->eventStructType == NS_MOUSE_SCROLL_EVENT) || \
-        ((evnt)->eventStructType == NS_MOZTOUCH_EVENT) || \
         ((evnt)->eventStructType == NS_SIMPLE_GESTURE_EVENT))
 
 #define NS_IS_MOUSE_EVENT(evnt) \

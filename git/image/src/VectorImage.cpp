@@ -575,6 +575,14 @@ VectorImage::RequestDecode()
   return NS_OK;
 }
 
+NS_IMETHODIMP
+VectorImage::StartDecoding()
+{
+  // Nothing to do for SVG images
+  return NS_OK;
+}
+
+
 //******************************************************************************
 /* void lockImage() */
 NS_IMETHODIMP
@@ -693,7 +701,7 @@ VectorImage::OnStopRequest(nsIRequest* aRequest, nsISupports* aCtxt,
                         in unsigned long count); */
 NS_IMETHODIMP
 VectorImage::OnDataAvailable(nsIRequest* aRequest, nsISupports* aCtxt,
-                             nsIInputStream* aInStr, uint32_t aSourceOffset,
+                             nsIInputStream* aInStr, uint64_t aSourceOffset,
                              uint32_t aCount)
 {
   if (mError)

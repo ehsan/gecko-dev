@@ -82,14 +82,12 @@ struct nsExternalDOMClassInfoData : public nsDOMClassInfoData
 };
 
 
-typedef PRUptrdiff PtrBits;
-
 // To be used with the nsDOMClassInfoData::mCachedClassInfo pointer.
 // The low bit is set when we created a generic helper for an external
 // (which holds on to the nsDOMClassInfoData).
-#define GET_CLEAN_CI_PTR(_ptr) (nsIClassInfo*)(PtrBits(_ptr) & ~0x1)
-#define MARK_EXTERNAL(_ptr) (nsIClassInfo*)(PtrBits(_ptr) | 0x1)
-#define IS_EXTERNAL(_ptr) (PtrBits(_ptr) & 0x1)
+#define GET_CLEAN_CI_PTR(_ptr) (nsIClassInfo*)(uintptr_t(_ptr) & ~0x1)
+#define MARK_EXTERNAL(_ptr) (nsIClassInfo*)(uintptr_t(_ptr) | 0x1)
+#define IS_EXTERNAL(_ptr) (uintptr_t(_ptr) & 0x1)
 
 
 class nsDOMClassInfo : public nsXPCClassInfo
@@ -339,6 +337,30 @@ public:
   }
 };
 
+class nsDOMMutationObserverSH : public nsDOMGenericSH
+{
+protected:
+  nsDOMMutationObserverSH(nsDOMClassInfoData* aData) : nsDOMGenericSH(aData)
+  {
+  }
+
+  virtual ~nsDOMMutationObserverSH()
+  {
+  }
+public:
+  NS_IMETHOD PreCreate(nsISupports* aNativeObj, JSContext* aCx,
+                       JSObject* aGlobalObj, JSObject** aParentObj);
+  NS_IMETHOD AddProperty(nsIXPConnectWrappedNative* aWrapper, JSContext* aCx,
+                         JSObject* aObj, jsid aId, jsval* aVp, bool* aRetval);
+
+  virtual void PreserveWrapper(nsISupports* aNative);
+
+  static nsIClassInfo* doCreate(nsDOMClassInfoData* aData)
+  {
+    return new nsDOMMutationObserverSH(aData);
+  }
+};
+
 // Window scriptable helper
 
 class nsWindowSH : public nsDOMGenericSH
@@ -396,7 +418,7 @@ public:
                                           JSMutableHandleValue vp);
   static JSBool SecurityCheckOnSetProp(JSContext *cx, JSHandleObject obj, JSHandleId id,
                                        JSBool strict, JSMutableHandleValue vp);
-  static void InvalidateGlobalScopePolluter(JSContext *cx, JSObject *obj);
+  static JSBool InvalidateGlobalScopePolluter(JSContext *cx, JSObject *obj);
   static nsresult InstallGlobalScopePolluter(JSContext *cx, JSObject *obj,
                                              nsIHTMLDocument *doc);
   static nsIClassInfo *doCreate(nsDOMClassInfoData* aData)
@@ -456,32 +478,6 @@ public:
   static nsIClassInfo *doCreate(nsDOMClassInfoData* aData)
   {
     return new nsNavigatorSH(aData);
-  }
-};
-
-// WebGLExtension scriptable helper
-
-class WebGLExtensionSH : public nsDOMGenericSH
-{
-protected:
-  WebGLExtensionSH(nsDOMClassInfoData* aData) : nsDOMGenericSH(aData)
-  {
-  }
-
-  virtual ~WebGLExtensionSH()
-  {
-  }
-
-public:
-  NS_IMETHOD PreCreate(nsISupports *nativeObj, JSContext *cx,
-                       JSObject *globalObj, JSObject **parentObj);
-  NS_IMETHOD AddProperty(nsIXPConnectWrappedNative *wrapper, JSContext *cx,
-                         JSObject *obj, jsid id, jsval *vp, bool *_retval);
-  virtual void PreserveWrapper(nsISupports *aNative);
-
-  static nsIClassInfo *doCreate(nsDOMClassInfoData* aData)
-  {
-    return new WebGLExtensionSH(aData);
   }
 };
 
@@ -1488,38 +1484,6 @@ public:
   static nsIClassInfo *doCreate(nsDOMClassInfoData* aData)
   {
     return new nsNewDOMBindingSH<T, BaseType>(aData);
-  }
-};
-
-class nsWebGLViewportHandlerSH
-  : public nsNewDOMBindingSH<nsICanvasRenderingContextInternal>
-{
-protected:
-  nsWebGLViewportHandlerSH(nsDOMClassInfoData *aData)
-    : nsNewDOMBindingSH<nsICanvasRenderingContextInternal>(aData)
-  {
-  }
-
-  virtual ~nsWebGLViewportHandlerSH()
-  {
-  }
-
-public:
-  NS_IMETHOD PostCreatePrototype(JSContext * cx, JSObject * proto) {
-    nsresult rv = nsDOMGenericSH::PostCreatePrototype(cx, proto);
-    if (NS_SUCCEEDED(rv)) {
-      if (!::JS_DefineProperty(cx, proto, "VIEWPORT", INT_TO_JSVAL(0x0BA2),
-                               nullptr, nullptr, JSPROP_ENUMERATE))
-      {
-        return NS_ERROR_UNEXPECTED;
-      }
-    }
-    return rv;
-  }
-
-  static nsIClassInfo *doCreate(nsDOMClassInfoData* aData)
-  {
-    return new nsWebGLViewportHandlerSH(aData);
   }
 };
 

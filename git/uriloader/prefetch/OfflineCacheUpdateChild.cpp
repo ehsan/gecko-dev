@@ -55,6 +55,7 @@ namespace docshell {
 //-----------------------------------------------------------------------------
 
 NS_INTERFACE_MAP_BEGIN(OfflineCacheUpdateChild)
+  NS_INTERFACE_MAP_ENTRY(nsISupports)
   NS_INTERFACE_MAP_ENTRY(nsIOfflineCacheUpdate)
 NS_INTERFACE_MAP_END
 
@@ -90,7 +91,7 @@ OfflineCacheUpdateChild::~OfflineCacheUpdateChild()
     LOG(("OfflineCacheUpdateChild::~OfflineCacheUpdateChild [%p]", this));
 }
 
-nsresult
+void
 OfflineCacheUpdateChild::GatherObservers(nsCOMArray<nsIOfflineCacheUpdateObserver> &aObservers)
 {
     for (int32_t i = 0; i < mWeakObservers.Count(); i++) {
@@ -105,8 +106,6 @@ OfflineCacheUpdateChild::GatherObservers(nsCOMArray<nsIOfflineCacheUpdateObserve
     for (int32_t i = 0; i < mObservers.Count(); i++) {
         aObservers.AppendObject(mObservers[i]);
     }
-
-    return NS_OK;
 }
 
 void
@@ -158,7 +157,7 @@ OfflineCacheUpdateChild::AssociateDocument(nsIDOMDocument *aDocument,
     if (!existingCache) {
 #if defined(PR_LOGGING)
         if (LOG_ENABLED()) {
-            nsCAutoString clientID;
+            nsAutoCString clientID;
             if (aApplicationCache) {
                 aApplicationCache->GetClientID(clientID);
             }
@@ -182,7 +181,8 @@ NS_IMETHODIMP
 OfflineCacheUpdateChild::Init(nsIURI *aManifestURI,
                               nsIURI *aDocumentURI,
                               nsIDOMDocument *aDocument,
-                              nsIFile *aCustomProfileDir)
+                              nsIFile *aCustomProfileDir,
+                              nsILoadContext *aLoadContext)
 {
     nsresult rv;
 
@@ -222,6 +222,8 @@ OfflineCacheUpdateChild::Init(nsIURI *aManifestURI,
 
     if (aDocument)
         SetDocument(aDocument);
+
+    mLoadContext = aLoadContext;
 
     return NS_OK;
 }
@@ -413,11 +415,20 @@ OfflineCacheUpdateChild::Schedule()
     // See also nsOfflineCacheUpdate::ScheduleImplicit.
     bool stickDocument = mDocument != nullptr; 
 
+    // Carry load context to the parent
+    bool isInBrowserElement = false;
+    uint32_t appId = NECKO_NO_APP_ID;
+    if (mLoadContext) {
+        mLoadContext->GetIsInBrowserElement(&isInBrowserElement);
+        mLoadContext->GetAppId(&appId);
+    }
+
     // Need to addref ourself here, because the IPC stack doesn't hold
     // a reference to us. Will be released in RecvFinish() that identifies 
     // the work has been done.
     child->SendPOfflineCacheUpdateConstructor(this, manifestURI, documentURI,
-                                              mClientID, stickDocument);
+                                              isInBrowserElement, appId,
+                                              stickDocument);
 
     mIPCActivated = true;
     this->AddRef();
@@ -445,8 +456,7 @@ OfflineCacheUpdateChild::RecvAssociateDocuments(const nsCString &cacheGroupId,
     }
 
     nsCOMArray<nsIOfflineCacheUpdateObserver> observers;
-    rv = GatherObservers(observers);
-    NS_ENSURE_SUCCESS(rv, rv);
+    GatherObservers(observers);
 
     for (int32_t i = 0; i < observers.Count(); i++)
         observers[i]->ApplicationCacheAvailable(cache);
@@ -477,8 +487,7 @@ OfflineCacheUpdateChild::RecvNotifyStateEvent(const uint32_t &event,
     }
 
     nsCOMArray<nsIOfflineCacheUpdateObserver> observers;
-    nsresult rv = GatherObservers(observers);
-    NS_ENSURE_SUCCESS(rv, rv);
+    GatherObservers(observers);
 
     for (int32_t i = 0; i < observers.Count(); i++)
         observers[i]->UpdateStateChanged(this, event);

@@ -43,8 +43,8 @@ function doTest() {
 
   setTimeout(function() {
     // Check if the 10px were scrolled.
-    is(scrollbox.scrollTop, 10, "Starting a 0-delta scroll shouldn't cancel a pending async scroll.");
-
+    todo(false, "Starting a 0-delta scroll shouldn't cancel a pending async scroll is disabled, see bug 752786");
+    //is(scrollbox.scrollTop, 10, "Starting a 0-delta scroll shouldn't cancel a pending async scroll.");
 
     // Second test
     scrollbox.scrollTop = 20;

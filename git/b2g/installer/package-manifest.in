@@ -114,8 +114,8 @@
 #endif
 @BINPATH@/blocklist.xml
 #ifdef XP_UNIX
-@BINPATH@/run-mozilla.sh
 #ifndef XP_MACOSX
+@BINPATH@/run-mozilla.sh
 @BINPATH@/mozilla-xremote-client
 #endif
 #endif
@@ -160,6 +160,10 @@
 @BINPATH@/components/dom_telephony.xpt
 @BINPATH@/components/dom_wifi.xpt
 @BINPATH@/components/dom_system_gonk.xpt
+@BINPATH@/components/dom_icc.xpt
+#endif
+#ifdef MOZ_B2G_FM
+@BINPATH@/components/dom_fm.xpt
 #endif
 @BINPATH@/components/dom_battery.xpt
 #ifdef MOZ_B2G_BT
@@ -181,6 +185,7 @@
 @BINPATH@/components/dom_html.xpt
 @BINPATH@/components/dom_indexeddb.xpt
 @BINPATH@/components/dom_offline.xpt
+@BINPATH@/components/dom_payment.xpt
 @BINPATH@/components/dom_json.xpt
 #ifdef MOZ_B2G_RIL
 @BINPATH@/components/dom_mms.xpt
@@ -190,6 +195,7 @@
 @BINPATH@/components/dom_power.xpt
 @BINPATH@/components/dom_range.xpt
 @BINPATH@/components/dom_settings.xpt
+@BINPATH@/components/dom_permissionsettings.xpt
 @BINPATH@/components/dom_sidebar.xpt
 @BINPATH@/components/dom_sms.xpt
 @BINPATH@/components/dom_storage.xpt
@@ -201,6 +207,7 @@
 @BINPATH@/components/dom_xpath.xpt
 @BINPATH@/components/dom_xul.xpt
 @BINPATH@/components/dom_loadsave.xpt
+@BINPATH@/components/dom_time.xpt
 @BINPATH@/components/downloads.xpt
 @BINPATH@/components/editor.xpt
 @BINPATH@/components/embed_base.xpt
@@ -325,6 +332,8 @@
 @BINPATH@/components/BrowserElementParent.js
 @BINPATH@/components/ContactManager.js
 @BINPATH@/components/ContactManager.manifest
+@BINPATH@/components/PermissionSettings.js
+@BINPATH@/components/PermissionSettings.manifest
 @BINPATH@/components/AlarmsManager.js
 @BINPATH@/components/AlarmsManager.manifest
 @BINPATH@/components/FeedProcessor.manifest
@@ -344,8 +353,6 @@
 @BINPATH@/components/nsPrivateBrowsingService.manifest
 @BINPATH@/components/nsPrivateBrowsingService.js
 @BINPATH@/components/toolkitsearch.manifest
-@BINPATH@/components/nsSearchService.js
-@BINPATH@/components/nsSearchSuggestions.js
 @BINPATH@/components/nsTryToClose.manifest
 @BINPATH@/components/nsTryToClose.js
 @BINPATH@/components/passwordmgr.manifest
@@ -365,8 +372,6 @@
 @BINPATH@/components/nsHelperAppDlg.js
 @BINPATH@/components/nsDownloadManagerUI.manifest
 @BINPATH@/components/nsDownloadManagerUI.js
-@BINPATH@/components/nsProxyAutoConfig.manifest
-@BINPATH@/components/nsProxyAutoConfig.js
 @BINPATH@/components/NetworkGeolocationProvider.manifest
 @BINPATH@/components/NetworkGeolocationProvider.js
 @BINPATH@/components/GPSDGeolocationProvider.manifest
@@ -450,6 +455,12 @@
 @BINPATH@/components/WifiWorker.manifest
 @BINPATH@/components/DOMWifiManager.js
 @BINPATH@/components/DOMWifiManager.manifest
+@BINPATH@/components/NetworkStatsManager.js
+@BINPATH@/components/NetworkStatsManager.manifest
+#endif
+#ifdef MOZ_B2G_FM
+@BINPATH@/components/DOMFMRadioChild.js
+@BINPATH@/components/DOMFMRadio.manifest
 #endif
 #ifdef XP_MACOSX
 @BINPATH@/components/libalerts.dylib
@@ -485,10 +496,16 @@
 @BINPATH@/components/ActivityWrapper.js
 
 @BINPATH@/components/TCPSocket.js
+@BINPATH@/components/TCPSocketParentIntermediary.js
 @BINPATH@/components/TCPSocket.manifest
 
 @BINPATH@/components/AppProtocolHandler.js
 @BINPATH@/components/AppProtocolHandler.manifest
+
+@BINPATH@/components/Payment.js
+@BINPATH@/components/PaymentFlowInfo.js
+@BINPATH@/components/PaymentRequestInfo.js
+@BINPATH@/components/Payment.manifest
 
 ; Modules
 @BINPATH@/modules/*
@@ -691,7 +708,16 @@ bin/components/@DLL_PREFIX@nkgnomevfs@DLL_SUFFIX@
 @BINPATH@/components/ActivitiesGlue.js
 @BINPATH@/components/ProcessGlobal.js
 @BINPATH@/components/ContentHandler.js
+@BINPATH@/components/PaymentGlue.js
+@BINPATH@/components/YoutubeProtocolHandler.js
+@BINPATH@/components/RecoveryService.js
 
 #ifdef XP_MACOSX
 @BINPATH@/@DLL_PREFIX@plugin_child_interpose@DLL_SUFFIX@
+#endif
+
+#ifdef PACKAGE_GAIA
+[gaia]
+@BINPATH@/gaia/*
+@BINPATH@/b2g-bin@BIN_SUFFIX@
 #endif

@@ -26,11 +26,13 @@
 #include "mozilla/dom/ExternalHelperAppParent.h"
 #include "mozilla/dom/PMemoryReportRequestParent.h"
 #include "mozilla/dom/StorageParent.h"
+#include "mozilla/dom/bluetooth/PBluetoothParent.h"
 #include "mozilla/dom/devicestorage/DeviceStorageRequestParent.h"
 #include "mozilla/dom/sms/SmsParent.h"
 #include "mozilla/hal_sandbox/PHalParent.h"
 #include "mozilla/ipc/TestShellParent.h"
 #include "mozilla/layers/CompositorParent.h"
+#include "mozilla/layers/ImageBridgeParent.h"
 #include "mozilla/net/NeckoParent.h"
 #include "mozilla/Preferences.h"
 #include "mozilla/Services.h"
@@ -104,10 +106,16 @@
 #include "nsIVolumeService.h"
 #endif
 
+#ifdef MOZ_B2G_BT
+#include "BluetoothParent.h"
+#include "BluetoothService.h"
+#endif
+
 static NS_DEFINE_CID(kCClipboardCID, NS_CLIPBOARD_CID);
 static const char* sClipboardTextFlavors[] = { kUnicodeMime };
 
 using base::KillProcess;
+using namespace mozilla::dom::bluetooth;
 using namespace mozilla::dom::devicestorage;
 using namespace mozilla::dom::sms;
 using namespace mozilla::dom::indexedDB;
@@ -188,7 +196,8 @@ ContentParent::PreallocateAppProcess()
 
     sPreallocatedAppProcess =
         new ContentParent(MAGIC_PREALLOCATED_APP_MANIFEST_URL,
-                          /*isBrowserElement=*/false);
+                          /*isBrowserElement=*/false,
+                          base::PRIVILEGES_DEFAULT);
     sPreallocatedAppProcess->Init();
 }
 
@@ -230,12 +239,12 @@ ContentParent::StartUp()
     }
 
     sKeepAppProcessPreallocated =
-        Preferences::GetBool("dom.ipc.processPrelauch.enabled", false);
+        Preferences::GetBool("dom.ipc.processPrelaunch.enabled", false);
     if (sKeepAppProcessPreallocated) {
         ClearOnShutdown(&sPreallocatedAppProcess);
 
         sPreallocateDelayMs = Preferences::GetUint(
-            "dom.ipc.processPrelauch.delayMs", 1000);
+            "dom.ipc.processPrelaunch.delayMs", 1000);
 
         MOZ_ASSERT(!sPreallocateAppProcessTask);
         ScheduleDelayedPreallocateAppProcess();
@@ -272,6 +281,30 @@ ContentParent::GetNewOrUsed(bool aForBrowserElement)
     p->Init();
     gNonAppContentParents->AppendElement(p);
     return p;
+}
+
+static bool
+AppNeedsInheritedOSPrivileges(mozIApplication* aApp)
+{
+    const char* const needInheritPermissions[] = {
+        // FIXME/bug 785592: implement a CameraBridge so we don't have
+        // to hack around with OS permissions
+        "camera",
+        // FIXME/bug 793034: change our video architecture so that we
+        // can stream video from remote processes
+        "deprecated-hwvideo",
+    };
+    for (size_t i = 0; i < ArrayLength(needInheritPermissions); ++i) {
+        const char* const permission = needInheritPermissions[i];
+        bool needsInherit = false;
+        if (NS_FAILED(aApp->HasPermission(permission, &needsInherit))) {
+            NS_WARNING("Unable to check permissions.  Breakage may follow.");
+            return false;
+        } else if (needsInherit) {
+            return true;
+        }
+    }
+    return false;
 }
 
 /*static*/ TabParent*
@@ -325,13 +358,20 @@ ContentParent::CreateBrowser(mozIApplication* aApp, bool aIsBrowserElement)
 
     nsRefPtr<ContentParent> p = gAppContentParents->Get(manifestURL);
     if (!p) {
-        p = MaybeTakePreallocatedAppProcess();
-        if (p) {
-            p->SetManifestFromPreallocated(manifestURL);
-        } else {
-            NS_WARNING("Unable to use pre-allocated app process");
-            p = new ContentParent(manifestURL, aIsBrowserElement);
+        if (AppNeedsInheritedOSPrivileges(aApp)) {
+            p = new ContentParent(manifestURL, aIsBrowserElement,
+                                  base::PRIVILEGES_INHERIT);
             p->Init();
+        } else {
+            p = MaybeTakePreallocatedAppProcess();
+            if (p) {
+                p->SetManifestFromPreallocated(manifestURL);
+            } else {
+                NS_WARNING("Unable to use pre-allocated app process");
+                p = new ContentParent(manifestURL, aIsBrowserElement,
+                                      base::PRIVILEGES_DEFAULT);
+                p->Init();
+            }
         }
         gAppContentParents->Put(manifestURL, p);
     }
@@ -364,6 +404,10 @@ ContentParent::GetAll(nsTArray<ContentParent*>& aArray)
 
     if (gAppContentParents) {
         gAppContentParents->EnumerateRead(&AppendToTArray, &aArray);
+    }
+
+    if (sPreallocatedAppProcess) {
+        aArray.AppendElement(sPreallocatedAppProcess);
     }
 }
 
@@ -418,14 +462,20 @@ ContentParent::SetManifestFromPreallocated(const nsAString& aAppManifestURL)
 void
 ContentParent::ShutDownProcess()
 {
-    if (mIsAlive) {
-        // Close() can only be called once.  It kicks off the
-        // destruction sequence.
-        Close();
+  if (mIsAlive) {
+    const InfallibleTArray<PIndexedDBParent*>& idbParents =
+      ManagedPIndexedDBParent();
+    for (uint32_t i = 0; i < idbParents.Length(); ++i) {
+      static_cast<IndexedDBParent*>(idbParents[i])->Disconnect();
     }
-    // NB: must MarkAsDead() here so that this isn't accidentally
-    // returned from Get*() while in the midst of shutdown.
-    MarkAsDead();
+
+    // Close() can only be called once.  It kicks off the
+    // destruction sequence.
+    Close();
+  }
+  // NB: must MarkAsDead() here so that this isn't accidentally
+  // returned from Get*() while in the midst of shutdown.
+  MarkAsDead();
 }
 
 void
@@ -459,7 +509,7 @@ ContentParent::MarkAsDead()
 }
 
 void
-ContentParent::OnChannelConnected(int32 pid)
+ContentParent::OnChannelConnected(int32_t pid)
 {
     ProcessHandle handle;
     if (!base::OpenPrivilegedProcessHandle(pid, &handle)) {
@@ -501,17 +551,8 @@ ContentParent::ProcessingError(Result what)
         // Messages sent after crashes etc. are not a big deal.
         return;
     }
-    // Other errors are big deals.  This ensures the process is
-    // eventually killed, but doesn't immediately KILLITWITHFIRE
-    // because we want to get a minidump if possible.  After a timeout
-    // though, the process is forceably killed.
-    if (!KillProcess(OtherProcess(), 1, false)) {
-        NS_WARNING("failed to kill subprocess!");
-    }
-    XRE_GetIOMessageLoop()->PostTask(
-        FROM_HERE,
-        NewRunnableFunction(&ProcessWatcher::EnsureProcessTerminated,
-                            OtherProcess(), /*force=*/true));
+    // Other errors are big deals.
+    KillHard();
 }
 
 namespace {
@@ -542,6 +583,12 @@ struct DelayedDeleteContentParentTask : public nsRunnable
 void
 ContentParent::ActorDestroy(ActorDestroyReason why)
 {
+    nsRefPtr<nsFrameMessageManager> ppm = mMessageManager;
+    if (ppm) {
+      ppm->ReceiveMessage(static_cast<nsIContentFrameMessageManager*>(ppm.get()),
+                          CHILD_PROCESS_SHUTDOWN_MESSAGE, false,
+                          nullptr, nullptr, nullptr);
+    }
     nsCOMPtr<nsIThreadObserver>
         kungFuDeathGrip(static_cast<nsIThreadObserver*>(this));
     nsCOMPtr<nsIObserverService> obs = mozilla::services::GetObserverService();
@@ -657,20 +704,25 @@ ContentParent::GetTestShellSingleton()
 }
 
 ContentParent::ContentParent(const nsAString& aAppManifestURL,
-                             bool aIsForBrowser)
-    : mGeolocationWatchID(-1)
+                             bool aIsForBrowser,
+                             ChildOSPrivileges aOSPrivileges)
+    : mSubprocess(nullptr)
+    , mOSPrivileges(aOSPrivileges)
+    , mGeolocationWatchID(-1)
     , mRunToCompletionDepth(0)
     , mShouldCallUnblockChild(false)
+    , mAppManifestURL(aAppManifestURL)
     , mIsAlive(true)
     , mSendPermissionUpdates(false)
-    , mAppManifestURL(aAppManifestURL)
+    , mIsForBrowser(aIsForBrowser)
 {
     // From this point on, NS_WARNING, NS_ASSERTION, etc. should print out the
     // PID along with the warning.
     nsDebugImpl::SetMultiprocessMode("Parent");
 
     NS_ASSERTION(NS_IsMainThread(), "Wrong thread!");
-    mSubprocess = new GeckoChildProcessHost(GeckoProcessType_Content);
+    mSubprocess = new GeckoChildProcessHost(GeckoProcessType_Content,
+                                            aOSPrivileges);
 
     bool useOffMainThreadCompositing = !!CompositorParent::CompositorLoop();
     if (useOffMainThreadCompositing) {
@@ -681,8 +733,6 @@ ContentParent::ContentParent(const nsAString& aAppManifestURL,
         mSubprocess->AsyncLaunch();
     }
     Open(mSubprocess->GetChannel(), mSubprocess->GetChildProcessHandle());
-    unused << SendSetProcessAttributes(gContentChildID++,
-                                       IsForApp(), aIsForBrowser);
 
     // NB: internally, this will send an IPC message to the child
     // process to get it to create the CompositorChild.  This
@@ -695,6 +745,11 @@ ContentParent::ContentParent(const nsAString& aAppManifestURL,
     if (useOffMainThreadCompositing) {
         DebugOnly<bool> opened = PCompositor::Open(this);
         MOZ_ASSERT(opened);
+
+        if (Preferences::GetBool("layers.async-video.enabled",false)) {
+            opened = PImageBridge::Open(this);
+            MOZ_ASSERT(opened);
+        }
     }
 
     nsCOMPtr<nsIChromeRegistry> registrySvc = nsChromeRegistry::GetService();
@@ -725,8 +780,12 @@ ContentParent::~ContentParent()
         MOZ_ASSERT(!gNonAppContentParents ||
                    !gNonAppContentParents->Contains(this));
     } else {
+        // In general, we expect gAppContentParents->Get(mAppManifestURL) to be
+        // NULL.  But it could be that we created another ContentParent for this
+        // app after we did this->ActorDestroy(), so the right check is that
+        // gAppContentParent->Get(mAppManifestURL) != this.
         MOZ_ASSERT(!gAppContentParents ||
-                   !gAppContentParents->Get(mAppManifestURL));
+                   gAppContentParents->Get(mAppManifestURL) != this);
     }
 }
 
@@ -1005,14 +1064,12 @@ ContentParent::Observe(nsISupports* aSubject,
     else if (!strcmp(aTopic, "file-watcher-update")) {
         nsCString creason;
         CopyUTF16toUTF8(aData, creason);
-        nsCOMPtr<nsIFile> file = do_QueryInterface(aSubject);
-        if (!file) {
-            return NS_OK;
-        }
+        DeviceStorageFile* file = static_cast<DeviceStorageFile*>(aSubject);
 
         nsString path;
-        file->GetPath(path);
-        unused << SendFilePathUpdate(path, creason);
+        file->mFile->GetPath(path);
+
+        unused << SendFilePathUpdate(file->mStorageType, path, creason);
     }
 #ifdef MOZ_WIDGET_GONK
     else if(!strcmp(aTopic, NS_VOLUME_STATE_CHANGED)) {
@@ -1049,6 +1106,25 @@ ContentParent::AllocPCompositor(mozilla::ipc::Transport* aTransport,
                                 base::ProcessId aOtherProcess)
 {
     return CompositorParent::Create(aTransport, aOtherProcess);
+}
+
+PImageBridgeParent*
+ContentParent::AllocPImageBridge(mozilla::ipc::Transport* aTransport,
+                                 base::ProcessId aOtherProcess)
+{
+    return ImageBridgeParent::Create(aTransport, aOtherProcess);
+}
+
+bool
+ContentParent::RecvGetProcessAttributes(uint64_t* aId, bool* aStartBackground,
+                                        bool* aIsForApp, bool* aIsForBrowser)
+{
+    *aId = gContentChildID++;
+    *aStartBackground =
+        (mAppManifestURL == MAGIC_PREALLOCATED_APP_MANIFEST_URL);
+    *aIsForApp = IsForApp();
+    *aIsForBrowser = mIsForBrowser;
+    return true;
 }
 
 PBrowserParent*
@@ -1182,6 +1258,22 @@ ContentParent::GetOrCreateActorForBlob(nsIDOMBlob* aBlob)
   }
 
   return actor;
+}
+
+void
+ContentParent::KillHard()
+{
+    // This ensures the process is eventually killed, but doesn't
+    // immediately KILLITWITHFIRE because we want to get a minidump if
+    // possible.  After a timeout though, the process is forceably
+    // killed.
+    if (!KillProcess(OtherProcess(), 1, false)) {
+        NS_WARNING("failed to kill subprocess!");
+    }
+    XRE_GetIOMessageLoop()->PostTask(
+        FROM_HERE,
+        NewRunnableFunction(&ProcessWatcher::EnsureProcessTerminated,
+                            OtherProcess(), /*force=*/true));
 }
 
 PCrashReporterParent*
@@ -1378,7 +1470,7 @@ ContentParent::DeallocPExternalHelperApp(PExternalHelperAppParent* aService)
 PSmsParent*
 ContentParent::AllocPSms()
 {
-    if (!AppProcessHasPermission(this, "sms")) {
+    if (!AssertAppProcessPermission(this, "sms")) {
         return nullptr;
     }
     return new SmsParent();
@@ -1402,6 +1494,46 @@ ContentParent::DeallocPStorage(PStorageParent* aActor)
 {
     delete aActor;
     return true;
+}
+
+PBluetoothParent*
+ContentParent::AllocPBluetooth()
+{
+#ifdef MOZ_B2G_BT
+    if (!AssertAppProcessPermission(this, "bluetooth")) {
+        return nullptr;
+    }
+    return new mozilla::dom::bluetooth::BluetoothParent();
+#else
+    MOZ_NOT_REACHED("No support for bluetooth on this platform!");
+    return nullptr;
+#endif
+}
+
+bool
+ContentParent::DeallocPBluetooth(PBluetoothParent* aActor)
+{
+#ifdef MOZ_B2G_BT
+    delete aActor;
+    return true;
+#else
+    MOZ_NOT_REACHED("No support for bluetooth on this platform!");
+    return false;
+#endif
+}
+
+bool
+ContentParent::RecvPBluetoothConstructor(PBluetoothParent* aActor)
+{
+#ifdef MOZ_B2G_BT
+    nsRefPtr<BluetoothService> btService = BluetoothService::Get();
+    NS_ENSURE_TRUE(btService, false);
+
+    return static_cast<BluetoothParent*>(aActor)->InitWithService(btService);
+#else
+    MOZ_NOT_REACHED("No support for bluetooth on this platform!");
+    return false;
+#endif
 }
 
 void
@@ -1743,7 +1875,7 @@ ContentParent::RecvScriptError(const nsString& aMessage,
       return true;
 
   nsCOMPtr<nsIScriptError> msg(do_CreateInstance(NS_SCRIPTERROR_CONTRACTID));
-  nsresult rv = msg->Init(aMessage.get(), aSourceName.get(), aSourceLine.get(),
+  nsresult rv = msg->Init(aMessage, aSourceName, aSourceLine,
                           aLineNumber, aColNumber, aFlags, aCategory.get());
   if (NS_FAILED(rv))
     return true;
@@ -1770,6 +1902,38 @@ ContentParent::RecvPrivateDocShellsExist(const bool& aExist)
   }
   return true;
 }
+
+bool
+ContentParent::DoSendAsyncMessage(const nsAString& aMessage,
+                                  const mozilla::dom::StructuredCloneData& aData)
+{
+  ClonedMessageData data;
+  SerializedStructuredCloneBuffer& buffer = data.data();
+  buffer.data = aData.mData;
+  buffer.dataLength = aData.mDataLength;
+  const nsTArray<nsCOMPtr<nsIDOMBlob> >& blobs = aData.mClosure.mBlobs;
+  if (!blobs.IsEmpty()) {
+    InfallibleTArray<PBlobParent*>& blobParents = data.blobsParent();
+    uint32_t length = blobs.Length();
+    blobParents.SetCapacity(length);
+    for (uint32_t i = 0; i < length; ++i) {
+      BlobParent* blobParent = GetOrCreateActorForBlob(blobs[i]);
+      if (!blobParent) {
+        return false;
+      }
+      blobParents.AppendElement(blobParent);
+    }
+  }
+
+  return SendAsyncMessage(nsString(aMessage), data);
+}
+
+bool
+ContentParent::CheckPermission(const nsAString& aPermission)
+{
+  return AssertAppProcessPermission(this, NS_ConvertUTF16toUTF8(aPermission).get());
+}
+
 
 } // namespace dom
 } // namespace mozilla

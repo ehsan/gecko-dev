@@ -13,6 +13,7 @@
 
 #include "methodjit/MethodJIT.h"
 #include "vm/Stack.h"
+#include "ion/IonFrameIterator-inl.h"
 
 #include "jsscriptinlines.h"
 
@@ -289,6 +290,13 @@ struct CopyTo
     void operator()(const Value &src) { *dst++ = src; }
 };
 
+struct CopyToHeap
+{
+    HeapValue *dst;
+    CopyToHeap(HeapValue *dst) : dst(dst) {}
+    void operator()(const Value &src) { dst->init(src); ++dst; }
+};
+
 inline unsigned
 StackFrame::numFormalArgs() const
 {
@@ -436,7 +444,7 @@ ContextStack::getCallFrame(JSContext *cx, MaybeReportError report, const CallArg
 JS_ALWAYS_INLINE bool
 ContextStack::pushInlineFrame(JSContext *cx, FrameRegs &regs, const CallArgs &args,
                               JSFunction &callee, JSScript *script,
-                              InitialFrameFlags initial)
+                              InitialFrameFlags initial, MaybeReportError report)
 {
     JS_ASSERT(onTop());
     JS_ASSERT(regs.sp == args.end());
@@ -444,7 +452,7 @@ ContextStack::pushInlineFrame(JSContext *cx, FrameRegs &regs, const CallArgs &ar
     JS_ASSERT(script == callee.script());
 
     StackFrame::Flags flags = ToFrameFlags(initial);
-    StackFrame *fp = getCallFrame(cx, REPORT_ERROR, args, &callee, script, &flags);
+    StackFrame *fp = getCallFrame(cx, report, args, &callee, script, &flags);
     if (!fp)
         return false;
 
@@ -527,6 +535,16 @@ ContextStack::currentScript(jsbytecode **ppc,
     FrameRegs &regs = this->regs();
     StackFrame *fp = regs.fp();
 
+#ifdef JS_ION
+    if (fp->beginsIonActivation()) {
+        RootedScript script(cx_);
+        ion::GetPcScript(cx_, &script, ppc);
+        if (!allowCrossCompartment && script->compartment() != cx_->compartment)
+            return NULL;
+        return script;
+    }
+#endif
+
 #ifdef JS_METHODJIT
     mjit::CallSite *inlined = regs.inlined();
     if (inlined) {
@@ -555,6 +573,16 @@ inline HandleObject
 ContextStack::currentScriptedScopeChain() const
 {
     return fp()->scopeChain();
+}
+
+template <class Op>
+inline void
+StackIter::ionForEachCanonicalActualArg(Op op)
+{
+    JS_ASSERT(isIon());
+#ifdef JS_ION
+    ionInlineFrames_.forEachCanonicalActualArg(op, 0, -1);
+#endif
 }
 
 } /* namespace js */

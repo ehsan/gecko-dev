@@ -33,6 +33,9 @@ typedef uint16_t nsMediaReadyState;
 namespace mozilla {
 class MediaResource;
 }
+#ifdef MOZ_DASH
+class nsDASHDecoder;
+#endif
 
 class nsHTMLMediaElement : public nsGenericHTMLElement,
                            public nsIObserver
@@ -45,6 +48,10 @@ public:
   typedef mozilla::MediaResource MediaResource;
 
   typedef nsDataHashtable<nsCStringHashKey, nsCString> MetadataTags;
+
+#ifdef MOZ_DASH
+  friend class nsDASHDecoder;
+#endif
 
   enum CanPlayStatus {
     CANPLAY_NO,
@@ -307,10 +314,28 @@ public:
   static char const *const gH264Codecs[7];
 #endif
 
+#ifdef MOZ_WIDGET_GONK
+  static bool IsOmxEnabled();
+  static bool IsH264Type(const nsACString& aType);
+  static const char gH264Types[3][16];
+  static char const *const gH264Codecs[7];
+#endif
+
 #ifdef MOZ_MEDIA_PLUGINS
   static bool IsMediaPluginsEnabled();
   static bool IsMediaPluginsType(const nsACString& aType);
 #endif
+
+#ifdef MOZ_DASH
+  static bool IsDASHEnabled();
+  static bool IsDASHMPDType(const nsACString& aType);
+  static const char gDASHMPDTypes[1][21];
+#endif
+
+  /**
+   * Get the mime type for this element.
+   */
+  void GetMimeType(nsCString& aMimeType);
 
   /**
    * Called when a child source element is added to this media element. This
@@ -872,6 +897,13 @@ protected:
 
   // True if the media's channel's download has been suspended.
   bool mDownloadSuspendedByCache;
+
+  // The Content-Type for this media. When we are sniffing for the Content-Type,
+  // and we are recreating a channel after the initial load, we need that
+  // information to give it as a hint to the channel for it to bypass the
+  // sniffing phase, that would fail because sniffing only works when applied to
+  // the first bytes of the stream.
+  nsCString mMimeType;
 };
 
 #endif

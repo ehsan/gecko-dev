@@ -74,6 +74,17 @@ bool EnableAlarm();
  */
 void DisableAlarm();
 
+/**
+ * Enable system time change notifications from the backend.
+ */
+void EnableSystemTimeChangeNotifications();
+
+/**
+ * Disable system time change notifications from the backend.
+ */
+void DisableSystemTimeChangeNotifications();
+
+bool IsHalChildLive();
 } // namespace MOZ_HAL_NAMESPACE
 } // namespace mozilla
 

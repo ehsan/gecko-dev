@@ -20,7 +20,7 @@
 
 using namespace js;
 
-
+
 /*** OrderedHashTable ****************************************************************************/
 
 /*
@@ -117,11 +117,15 @@ class OrderedHashTable
         dataCapacity = capacity;
         liveCount = 0;
         hashShift = HashNumberSizeBits - initialBucketsLog2();
-        JS_ASSERT(hashBuckets() == buckets);
+        MOZ_ASSERT(hashBuckets() == buckets);
         return true;
     }
 
     ~OrderedHashTable() {
+        for (Range *r = ranges, *next; r; r = next) {
+            next = r->next;
+            r->onTableDestroyed();
+        }
         alloc.free_(hashTable);
         freeData(data, dataLength);
     }
@@ -226,7 +230,10 @@ class OrderedHashTable
      *     }
      *
      * Ranges remain valid for the lifetime of the OrderedHashTable, even if
-     * entries are added or removed or the table is resized.
+     * entries are added or removed or the table is resized. Don't do anything
+     * to a Range, except destroy it, after the OrderedHashTable has been
+     * destroyed. (We support destroying the two objects in either order to
+     * humor the GC, bless its nondeterministic heart.)
      *
      * Warning: The behavior when the current front() entry is removed from the
      * table is subtly different from js::HashTable<>::Enum::removeFront()!
@@ -244,7 +251,8 @@ class OrderedHashTable
      *         // ...do things that might modify map...
      *     }
      */
-    class Range {
+    class Range
+    {
         friend class OrderedHashTable;
 
         OrderedHashTable &ht;
@@ -311,6 +319,7 @@ class OrderedHashTable
          * j is the index of the removed entry.
          */
         void onRemove(uint32_t j) {
+            MOZ_ASSERT(valid());
             if (j < i)
                 count--;
             if (j == i)
@@ -324,11 +333,25 @@ class OrderedHashTable
          * will make i and count equal.
          */
         void onCompact() {
+            MOZ_ASSERT(valid());
             i = count;
         }
 
+        bool valid() const {
+            return next != this;
+        }
+
+        void onTableDestroyed() {
+            MOZ_ASSERT(valid());
+            prevp = &next;
+            next = this;
+        }
+
       public:
-        bool empty() const { return i >= ht.dataLength; }
+        bool empty() const {
+            MOZ_ASSERT(valid());
+            return i >= ht.dataLength;
+        }
 
         /*
          * Return the first element in the range. This must not be called if
@@ -339,6 +362,7 @@ class OrderedHashTable
          * front() invalid. If in doubt, check empty() before calling front().
          */
         T &front() {
+            MOZ_ASSERT(valid());
             MOZ_ASSERT(!empty());
             return ht.data[i].element;
         }
@@ -353,6 +377,7 @@ class OrderedHashTable
          * popFront().
          */
         void popFront() {
+            MOZ_ASSERT(valid());
             MOZ_ASSERT(!empty());
             MOZ_ASSERT(!Ops::isEmpty(Ops::getKey(ht.data[i].element)));
             count++;
@@ -368,6 +393,7 @@ class OrderedHashTable
          * when the entry was added to the table.
          */
         void rekeyFront(const Key &k) {
+            MOZ_ASSERT(valid());
             Data &entry = ht.data[i];
             HashNumber oldHash = prepareHash(Ops::getKey(entry.element)) >> ht.hashShift;
             HashNumber newHash = prepareHash(k) >> ht.hashShift;
@@ -403,13 +429,14 @@ class OrderedHashTable
          * code that the current key had when it was inserted.
          */
         void rekeyFrontWithSameHashCode(const Key &k) {
+            MOZ_ASSERT(valid());
 #ifdef DEBUG
             // Assert that k falls in the same hash bucket as the old key.
             HashNumber h = Ops::hash(k) >> ht.hashShift;
             Data *e = ht.hashTable[h];
             while (e && e != &ht.data[i])
                 e = e->chain;
-            JS_ASSERT(e == &ht.data[i]);
+            MOZ_ASSERT(e == &ht.data[i]);
 #endif
             Ops::setKey(ht.data[i].element, k);
         }
@@ -546,7 +573,7 @@ class OrderedHashTable
         dataLength = liveCount;
         dataCapacity = newCapacity;
         hashShift = newHashShift;
-        JS_ASSERT(hashBuckets() == newHashBuckets);
+        MOZ_ASSERT(hashBuckets() == newHashBuckets);
 
         compacted();
         return true;
@@ -713,12 +740,13 @@ HashableValue::mark(JSTracer *trc) const
 
 /*** MapIterator *********************************************************************************/
 
-class js::MapIteratorObject : public JSObject {
+class js::MapIteratorObject : public JSObject
+{
   public:
     enum { TargetSlot, RangeSlot, SlotCount };
     static JSFunctionSpec methods[];
     static MapIteratorObject *create(JSContext *cx, HandleObject mapobj, ValueMap *data);
-    static void finalize(FreeOp *fop, JSObject *obj);
+    static void finalize(FreeOp *fop, RawObject obj);
 
   private:
     static inline bool is(const Value &v);
@@ -789,7 +817,7 @@ MapIteratorObject::create(JSContext *cx, HandleObject mapobj, ValueMap *data)
 
     JSObject *iterobj = NewObjectWithGivenProto(cx, &MapIteratorClass, proto, global);
     if (!iterobj) {
-        cx->delete_(range);
+        js_delete(range);
         return NULL;
     }
     iterobj->setSlot(TargetSlot, ObjectValue(*mapobj));
@@ -798,7 +826,7 @@ MapIteratorObject::create(JSContext *cx, HandleObject mapobj, ValueMap *data)
 }
 
 void
-MapIteratorObject::finalize(FreeOp *fop, JSObject *obj)
+MapIteratorObject::finalize(FreeOp *fop, RawObject obj)
 {
     fop->delete_(obj->asMapIterator().range());
 }
@@ -817,7 +845,7 @@ MapIteratorObject::next_impl(JSContext *cx, CallArgs args)
     if (!range)
         return js_ThrowStopIteration(cx);
     if (range->empty()) {
-        cx->delete_(range);
+        js_delete(range);
         thisobj.setReservedSlot(RangeSlot, PrivateValue(NULL));
         return js_ThrowStopIteration(cx);
     }
@@ -888,8 +916,7 @@ InitClass(JSContext *cx, Handle<GlobalObject*> global, Class *clasp, JSProtoKey 
         return NULL;
     proto->setPrivate(NULL);
 
-    JSAtom *atom = cx->runtime->atomState.classAtoms[key];
-    Rooted<JSFunction*> ctor(cx, global->createConstructor(cx, construct, atom, 1));
+    Rooted<JSFunction*> ctor(cx, global->createConstructor(cx, construct, ClassName(key, cx), 1));
     if (!ctor ||
         !LinkConstructorAndPrototype(cx, ctor, proto) ||
         !DefinePropertiesAndBrand(cx, proto, NULL, methods) ||
@@ -935,7 +962,7 @@ MarkKey(Range &r, const HashableValue &key, JSTracer *trc)
 }
 
 void
-MapObject::mark(JSTracer *trc, JSObject *obj)
+MapObject::mark(JSTracer *trc, RawObject obj)
 {
     if (ValueMap *map = obj->asMap().getData()) {
         for (ValueMap::Range r = map->all(); !r.empty(); r.popFront()) {
@@ -946,7 +973,7 @@ MapObject::mark(JSTracer *trc, JSObject *obj)
 }
 
 void
-MapObject::finalize(FreeOp *fop, JSObject *obj)
+MapObject::finalize(FreeOp *fop, RawObject obj)
 {
     if (ValueMap *map = obj->asMap().getData())
         fop->delete_(map);
@@ -1153,7 +1180,7 @@ MapObject::iterator(JSContext *cx, unsigned argc, Value *vp)
 }
 
 JSObject *
-js_InitMapClass(JSContext *cx, JSObject *obj)
+js_InitMapClass(JSContext *cx, HandleObject obj)
 {
     return MapObject::initClass(cx, obj);
 }
@@ -1161,12 +1188,13 @@ js_InitMapClass(JSContext *cx, JSObject *obj)
 
 /*** SetIterator *********************************************************************************/
 
-class js::SetIteratorObject : public JSObject {
+class js::SetIteratorObject : public JSObject
+{
   public:
     enum { TargetSlot, RangeSlot, SlotCount };
     static JSFunctionSpec methods[];
     static SetIteratorObject *create(JSContext *cx, HandleObject setobj, ValueSet *data);
-    static void finalize(FreeOp *fop, JSObject *obj);
+    static void finalize(FreeOp *fop, RawObject obj);
 
   private:
     static inline bool is(const Value &v);
@@ -1236,7 +1264,7 @@ SetIteratorObject::create(JSContext *cx, HandleObject setobj, ValueSet *data)
 
     JSObject *iterobj = NewObjectWithGivenProto(cx, &SetIteratorClass, proto, global);
     if (!iterobj) {
-        cx->delete_(range);
+        js_delete(range);
         return NULL;
     }
     iterobj->setSlot(TargetSlot, ObjectValue(*setobj));
@@ -1245,7 +1273,7 @@ SetIteratorObject::create(JSContext *cx, HandleObject setobj, ValueSet *data)
 }
 
 void
-SetIteratorObject::finalize(FreeOp *fop, JSObject *obj)
+SetIteratorObject::finalize(FreeOp *fop, RawObject obj)
 {
     fop->delete_(obj->asSetIterator().range());
 }
@@ -1264,7 +1292,7 @@ SetIteratorObject::next_impl(JSContext *cx, CallArgs args)
     if (!range)
         return js_ThrowStopIteration(cx);
     if (range->empty()) {
-        cx->delete_(range);
+        js_delete(range);
         thisobj.setReservedSlot(RangeSlot, PrivateValue(NULL));
         return js_ThrowStopIteration(cx);
     }
@@ -1327,7 +1355,7 @@ SetObject::initClass(JSContext *cx, JSObject *obj)
 }
 
 void
-SetObject::mark(JSTracer *trc, JSObject *obj)
+SetObject::mark(JSTracer *trc, RawObject obj)
 {
     SetObject *setobj = static_cast<SetObject *>(obj);
     if (ValueSet *set = setobj->getData()) {
@@ -1337,7 +1365,7 @@ SetObject::mark(JSTracer *trc, JSObject *obj)
 }
 
 void
-SetObject::finalize(FreeOp *fop, JSObject *obj)
+SetObject::finalize(FreeOp *fop, RawObject obj)
 {
     SetObject *setobj = static_cast<SetObject *>(obj);
     if (ValueSet *set = setobj->getData())
@@ -1493,7 +1521,7 @@ SetObject::iterator(JSContext *cx, unsigned argc, Value *vp)
 }
 
 JSObject *
-js_InitSetClass(JSContext *cx, JSObject *obj)
+js_InitSetClass(JSContext *cx, HandleObject obj)
 {
     return SetObject::initClass(cx, obj);
 }

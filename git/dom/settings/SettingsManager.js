@@ -209,7 +209,7 @@ SettingsLock.prototype = {
 };
 
 const SETTINGSMANAGER_CONTRACTID = "@mozilla.org/settingsManager;1";
-const SETTINGSMANAGER_CID        = Components.ID("{dd9f5380-a454-11e1-b3dd-0800200c9a66}");
+const SETTINGSMANAGER_CID        = Components.ID("{c40b1c70-00fb-11e2-a21f-0800200c9a66}");
 const nsIDOMSettingsManager      = Ci.nsIDOMSettingsManager;
 
 let myGlobal = this;
@@ -217,8 +217,10 @@ let myGlobal = this;
 function SettingsManager()
 {
   this._locks = new Queue();
-  var idbManager = Components.classes["@mozilla.org/dom/indexeddb/manager;1"].getService(Ci.nsIIndexedDatabaseManager);
-  idbManager.initWindowless(myGlobal);
+  if (!("indexedDB" in myGlobal)) {
+    let idbManager = Components.classes["@mozilla.org/dom/indexeddb/manager;1"].getService(Ci.nsIIndexedDatabaseManager);
+    idbManager.initWindowless(myGlobal);
+  }
   this._settingsDB = new SettingsDB();
   this._settingsDB.init(myGlobal);
 }
@@ -235,17 +237,21 @@ SettingsManager.prototype = {
   },
 
   set onsettingchange(aCallback) {
-    if (this.hasPrivileges)
+    if (this.hasPrivileges) {
+      if (!this._onsettingchange) {
+        cpmm.sendAsyncMessage("Settings:RegisterForMessages");
+      }
       this._onsettingchange = aCallback;
-    else
+    } else {
       throw Components.results.NS_ERROR_NOT_IMPLEMENTED;
+    }
   },
 
   get onsettingchange() {
     return this._onsettingchange;
   },
 
-  getLock: function() {
+  createLock: function() {
     debug("get lock!");
     var lock = new SettingsLock(this);
     this._locks.enqueue(lock);
@@ -292,8 +298,10 @@ SettingsManager.prototype = {
 
   addObserver: function addObserver(aName, aCallback) {
     debug("addObserver " + aName);
-    if (!this._callbacks)
+    if (!this._callbacks) {
+      cpmm.sendAsyncMessage("Settings:RegisterForMessages");
       this._callbacks = {};
+    }
     if (!this._callbacks[aName]) {
       this._callbacks[aName] = [aCallback];
     } else {

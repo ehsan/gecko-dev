@@ -39,7 +39,8 @@
 #include "nsMediaFeatures.h"
 #include "nsDOMClassInfoID.h"
 
-namespace css = mozilla::css;
+using namespace mozilla;
+
 
 // -------------------------------
 // Style Rule List for the DOM
@@ -763,8 +764,10 @@ nsMediaList::Append(const nsAString& aNewMedium)
 //
 
 
-nsCSSStyleSheetInner::nsCSSStyleSheetInner(nsCSSStyleSheet* aPrimarySheet)
+nsCSSStyleSheetInner::nsCSSStyleSheetInner(nsCSSStyleSheet* aPrimarySheet,
+                                           CORSMode aCORSMode)
   : mSheets(),
+    mCORSMode(aCORSMode),
     mComplete(false)
 #ifdef DEBUG
     , mPrincipalSet(false)
@@ -884,6 +887,7 @@ nsCSSStyleSheetInner::nsCSSStyleSheetInner(nsCSSStyleSheetInner& aCopy,
     mOriginalSheetURI(aCopy.mOriginalSheetURI),
     mBaseURI(aCopy.mBaseURI),
     mPrincipal(aCopy.mPrincipal),
+    mCORSMode(aCopy.mCORSMode),
     mComplete(aCopy.mComplete)
 #ifdef DEBUG
     , mPrincipalSet(aCopy.mPrincipalSet)
@@ -1012,7 +1016,7 @@ nsCSSStyleSheetInner::SizeOfIncludingThis(nsMallocSizeOfFun aMallocSizeOf) const
 // CSS Style Sheet
 //
 
-nsCSSStyleSheet::nsCSSStyleSheet()
+nsCSSStyleSheet::nsCSSStyleSheet(CORSMode aCORSMode)
   : mTitle(), 
     mParent(nullptr),
     mOwnerRule(nullptr),
@@ -1024,7 +1028,7 @@ nsCSSStyleSheet::nsCSSStyleSheet()
     mRuleProcessors(nullptr)
 {
 
-  mInner = new nsCSSStyleSheetInner(this);
+  mInner = new nsCSSStyleSheetInner(this, aCORSMode);
 }
 
 nsCSSStyleSheet::nsCSSStyleSheet(const nsCSSStyleSheet& aCopy,
@@ -1071,14 +1075,8 @@ nsCSSStyleSheet::~nsCSSStyleSheet()
       child->mDocument = nullptr;
     }
   }
-  if (nullptr != mRuleCollection) {
-    mRuleCollection->DropReference();
-    NS_RELEASE(mRuleCollection);
-  }
-  if (mMedia) {
-    mMedia->SetStyleSheet(nullptr);
-    mMedia = nullptr;
-  }
+  DropRuleCollection();
+  DropMedia();
   mInner->RemoveSheet(this);
   // XXX The document reference is not reference counted and should
   // not be released. The document will let us know when it is going
@@ -1089,11 +1087,85 @@ nsCSSStyleSheet::~nsCSSStyleSheet()
   }
 }
 
+void
+nsCSSStyleSheet::DropRuleCollection()
+{
+  if (mRuleCollection) {
+    mRuleCollection->DropReference();
+    NS_RELEASE(mRuleCollection);
+  }
+}
+
+void
+nsCSSStyleSheet::DropMedia()
+{
+  if (mMedia) {
+    mMedia->SetStyleSheet(nullptr);
+    mMedia = nullptr;
+  }
+}
+
+void
+nsCSSStyleSheet::UnlinkInner()
+{
+  // We can only have a cycle through our inner if we have a unique inner,
+  // because otherwise there are no JS wrappers for anything in the inner.
+  if (mInner->mSheets.Length() != 1) {
+    return;
+  }
+
+  mInner->mOrderedRules.EnumerateForwards(SetStyleSheetReference, nullptr);
+  mInner->mOrderedRules.Clear();
+
+  // Have to be a bit careful with child sheets, because we want to
+  // drop their mNext pointers and null out their mParent and
+  // mDocument, but don't want to work with deleted objects.  And we
+  // don't want to do any addrefing in the process, just to make sure
+  // we don't confuse the cycle collector (though on the face of it,
+  // addref/release pairs during unlink should probably be ok).
+  nsRefPtr<nsCSSStyleSheet> child;
+  child.swap(mInner->mFirstChild);
+  while (child) {
+    MOZ_ASSERT(child->mParent == this, "We have a unique inner!");
+    child->mParent = nullptr;
+    child->mDocument = nullptr;
+    nsRefPtr<nsCSSStyleSheet> next;
+    // Null out child->mNext, but don't let it die yet
+    next.swap(child->mNext);
+    // Switch to looking at the old value of child->mNext next iteration
+    child.swap(next);
+    // "next" is now our previous value of child; it'll get released
+    // as we loop around.
+  }
+}
+
+void
+nsCSSStyleSheet::TraverseInner(nsCycleCollectionTraversalCallback &cb)
+{
+  // We can only have a cycle through our inner if we have a unique inner,
+  // because otherwise there are no JS wrappers for anything in the inner.
+  if (mInner->mSheets.Length() != 1) {
+    return;
+  }
+
+  nsRefPtr<nsCSSStyleSheet>* childSheetSlot = &mInner->mFirstChild;
+  while (*childSheetSlot) {
+    NS_CYCLE_COLLECTION_NOTE_EDGE_NAME(cb, "child sheet");
+    cb.NoteXPCOMChild(NS_ISUPPORTS_CAST(nsIStyleSheet*, childSheetSlot->get()));
+    childSheetSlot = &(*childSheetSlot)->mNext;
+  }
+
+  const nsCOMArray<css::Rule>& rules = mInner->mOrderedRules;
+  for (int32_t i = 0, count = rules.Count(); i < count; ++i) {
+    NS_CYCLE_COLLECTION_NOTE_EDGE_NAME(cb, "mOrderedRules[i]");
+    cb.NoteXPCOMChild(rules[i]->GetExistingDOMRule());
+  }
+}
 
 DOMCI_DATA(CSSStyleSheet, nsCSSStyleSheet)
 
 // QueryInterface implementation for nsCSSStyleSheet
-NS_INTERFACE_MAP_BEGIN(nsCSSStyleSheet)
+NS_INTERFACE_MAP_BEGIN_CYCLE_COLLECTION(nsCSSStyleSheet)
   NS_INTERFACE_MAP_ENTRY(nsIStyleSheet)
   NS_INTERFACE_MAP_ENTRY(nsIDOMStyleSheet)
   NS_INTERFACE_MAP_ENTRY(nsIDOMCSSStyleSheet)
@@ -1106,8 +1178,26 @@ NS_INTERFACE_MAP_BEGIN(nsCSSStyleSheet)
 NS_INTERFACE_MAP_END
 
 
-NS_IMPL_ADDREF(nsCSSStyleSheet)
-NS_IMPL_RELEASE(nsCSSStyleSheet)
+NS_IMPL_CYCLE_COLLECTING_ADDREF(nsCSSStyleSheet)
+NS_IMPL_CYCLE_COLLECTING_RELEASE(nsCSSStyleSheet)
+
+NS_IMPL_CYCLE_COLLECTION_CLASS(nsCSSStyleSheet)
+NS_IMPL_CYCLE_COLLECTION_UNLINK_BEGIN(nsCSSStyleSheet)
+  tmp->DropMedia();
+  // We do not unlink mNext; our parent will handle that.  If we
+  // unlinked it here, our parent would not be able to walk its list
+  // of child sheets and null out the back-references to it, if we got
+  // unlinked before it does.
+  tmp->DropRuleCollection();
+  tmp->UnlinkInner();
+NS_IMPL_CYCLE_COLLECTION_UNLINK_END
+NS_IMPL_CYCLE_COLLECTION_TRAVERSE_BEGIN(nsCSSStyleSheet)
+  NS_IMPL_CYCLE_COLLECTION_TRAVERSE_NSCOMPTR(mMedia)
+  // We do not traverse mNext; our parent will handle that.  See
+  // comments in Unlink for why.
+  NS_IMPL_CYCLE_COLLECTION_TRAVERSE_RAWPTR(mRuleCollection)
+  tmp->TraverseInner(cb);
+NS_IMPL_CYCLE_COLLECTION_TRAVERSE_END
 
 
 nsresult
@@ -1521,7 +1611,7 @@ nsCSSStyleSheet::List(FILE* out, int32_t aIndent) const
   for (index = aIndent; --index >= 0; ) fputs("  ", out);
 
   fputs("CSS Style Sheet: ", out);
-  nsCAutoString urlSpec;
+  nsAutoCString urlSpec;
   nsresult rv = mInner->mSheetURI->GetSpec(urlSpec);
   if (NS_SUCCEEDED(rv) && !urlSpec.IsEmpty()) {
     fputs(urlSpec.get(), out);
@@ -1585,7 +1675,7 @@ nsCSSStyleSheet::DidDirty()
 }
 
 nsresult
-nsCSSStyleSheet::SubjectSubsumesInnerPrincipal() const
+nsCSSStyleSheet::SubjectSubsumesInnerPrincipal()
 {
   // Get the security manager and do the subsumes check
   nsIScriptSecurityManager *securityManager =
@@ -1608,7 +1698,26 @@ nsCSSStyleSheet::SubjectSubsumesInnerPrincipal() const
   }
   
   if (!nsContentUtils::IsCallerTrustedForWrite()) {
-    return NS_ERROR_DOM_SECURITY_ERR;
+    // Allow access only if CORS mode is not NONE
+    if (GetCORSMode() == CORS_NONE) {
+      return NS_ERROR_DOM_SECURITY_ERR;
+    }
+
+    // Now make sure we set the principal of our inner to the
+    // subjectPrincipal.  That means we need a unique inner, of
+    // course.  But we don't want to do that if we're not complete
+    // yet.  Luckily, all the callers of this method throw anyway if
+    // not complete, so we can just do that here too.
+    if (!mInner->mComplete) {
+      return NS_ERROR_DOM_INVALID_ACCESS_ERR;
+    }
+
+    rv = WillDirty();
+    NS_ENSURE_SUCCESS(rv, rv);
+
+    mInner->mPrincipal = subjectPrincipal;
+
+    DidDirty();
   }
 
   return NS_OK;
@@ -1672,7 +1781,7 @@ NS_IMETHODIMP
 nsCSSStyleSheet::GetHref(nsAString& aHref)
 {
   if (mInner->mOriginalSheetURI) {
-    nsCAutoString str;
+    nsAutoCString str;
     mInner->mOriginalSheetURI->GetSpec(str);
     CopyUTF8toUTF16(str, aHref);
   } else {
@@ -1799,7 +1908,7 @@ nsCSSStyleSheet::InsertRuleInternal(const nsAString& aRule,
   if (aIndex > uint32_t(mInner->mOrderedRules.Count()))
     return NS_ERROR_DOM_INDEX_SIZE_ERR;
   
-  NS_ASSERTION(uint32_t(mInner->mOrderedRules.Count()) <= PR_INT32_MAX,
+  NS_ASSERTION(uint32_t(mInner->mOrderedRules.Count()) <= INT32_MAX,
                "Too many style rules!");
 
   // Hold strong ref to the CSSLoader in case the document update
@@ -1933,7 +2042,7 @@ nsCSSStyleSheet::DeleteRule(uint32_t aIndex)
     if (aIndex >= uint32_t(mInner->mOrderedRules.Count()))
       return NS_ERROR_DOM_INDEX_SIZE_ERR;
 
-    NS_ASSERTION(uint32_t(mInner->mOrderedRules.Count()) <= PR_INT32_MAX,
+    NS_ASSERTION(uint32_t(mInner->mOrderedRules.Count()) <= INT32_MAX,
                  "Too many style rules!");
 
     // Hold a strong ref to the rule so it doesn't die when we RemoveObjectAt
@@ -2111,8 +2220,6 @@ nsCSSStyleSheet::ParseSheet(const nsAString& aInput)
     loader = new css::Loader();
   }
 
-  nsCSSParser parser(loader, this);
-
   mozAutoDocUpdate updateBatch(mDocument, UPDATE_STYLE, true);
 
   nsresult rv = WillDirty();
@@ -2140,6 +2247,8 @@ nsCSSStyleSheet::ParseSheet(const nsAString& aInput)
 
   // allow unsafe rules if the style sheet's principal is the system principal
   bool allowUnsafeRules = nsContentUtils::IsSystemPrincipal(mInner->mPrincipal);
+
+  nsCSSParser parser(loader, this);
   rv = parser.ParseSheet(aInput, mInner->mSheetURI, mInner->mBaseURI,
                          mInner->mPrincipal, 1, allowUnsafeRules);
   DidDirty(); // we are always 'dirty' here since we always remove rules first

@@ -364,6 +364,10 @@ IndexedDatabaseManager::FireWindowOnError(nsPIDOMWindow* aOwner,
 
   nsScriptErrorEvent event(true, NS_LOAD_ERROR);
   request->FillScriptErrorEvent(&event);
+  NS_ABORT_IF_FALSE(event.fileName,
+                    "FillScriptErrorEvent should give us a non-null string "
+                    "for our error's fileName");
+
   event.errorMsg = errorName.get();
 
   nsCOMPtr<nsIScriptGlobalObject> sgo(do_QueryInterface(aOwner));
@@ -385,9 +389,9 @@ IndexedDatabaseManager::FireWindowOnError(nsPIDOMWindow* aOwner,
     do_CreateInstance(NS_SCRIPTERROR_CONTRACTID, &rv);
   NS_ENSURE_SUCCESS(rv, rv);
 
-  if (NS_FAILED(scriptError->InitWithWindowID(event.errorMsg,
-                                              event.fileName,
-                                              nullptr, event.lineNr,
+  if (NS_FAILED(scriptError->InitWithWindowID(errorName,
+                                              nsDependentString(event.fileName),
+                                              EmptyString(), event.lineNr,
                                               0, 0,
                                               "IndexedDB",
                                               aOwner->WindowID()))) {
@@ -986,7 +990,7 @@ IndexedDatabaseManager::GetASCIIOriginFromWindow(nsPIDOMWindow* aWindow,
     aASCIIOrigin.AssignLiteral("chrome");
   }
   else {
-    nsresult rv = nsContentUtils::GetASCIIOrigin(principal, aASCIIOrigin);
+    nsresult rv = principal->GetExtendedOrigin(aASCIIOrigin);
     NS_ENSURE_SUCCESS(rv, NS_ERROR_DOM_INDEXEDDB_UNKNOWN_ERR);
 
     if (aASCIIOrigin.EqualsLiteral("null")) {
@@ -1526,9 +1530,9 @@ inline void
 IncrementUsage(uint64_t* aUsage, uint64_t aDelta)
 {
   // Watch for overflow!
-  if ((LL_MAXINT - *aUsage) <= aDelta) {
+  if ((INT64_MAX - *aUsage) <= aDelta) {
     NS_WARNING("Database sizes exceed max we can report!");
-    *aUsage = LL_MAXINT;
+    *aUsage = INT64_MAX;
   }
   else {
     *aUsage += aDelta;
@@ -1846,14 +1850,25 @@ IndexedDatabaseManager::InitWindowless(const jsval& aObj, JSContext* aCx)
   NS_ENSURE_TRUE(nsContentUtils::IsCallerChrome(), NS_ERROR_NOT_AVAILABLE);
   NS_ENSURE_ARG(!JSVAL_IS_PRIMITIVE(aObj));
 
+  JSObject* obj = JSVAL_TO_OBJECT(aObj);
+
+  JSBool hasIndexedDB;
+  if (!JS_HasProperty(aCx, obj, "indexedDB", &hasIndexedDB)) {
+    return NS_ERROR_FAILURE;
+  }
+
+  if (hasIndexedDB) {
+    NS_WARNING("Passed object already has an 'indexedDB' property!");
+    return NS_ERROR_FAILURE;
+  }
+
   // Instantiating this class will register exception providers so even 
   // in xpcshell we will get typed (dom) exceptions, instead of general
   // exceptions.
   nsCOMPtr<nsIDOMScriptObjectFactory> sof(do_GetService(kDOMSOF_CID));
 
-  JSObject* obj = JSVAL_TO_OBJECT(aObj);
-
   JSObject* global = JS_GetGlobalForObject(aCx, obj);
+  NS_ASSERTION(global, "What?! No global!");
 
   nsRefPtr<IDBFactory> factory;
   nsresult rv =

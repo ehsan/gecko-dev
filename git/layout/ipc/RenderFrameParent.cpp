@@ -158,7 +158,7 @@ ComputeShadowTreeTransform(nsIFrame* aContainerFrame,
   nsIntPoint scrollOffset =
     aConfig.mScrollOffset.ToNearestPixels(auPerDevPixel);
   // metricsScrollOffset is in layer coordinates.
-  gfx::Point metricsScrollOffset = aMetrics->mViewportScrollOffset;
+  gfx::Point metricsScrollOffset = aMetrics->GetScrollOffsetInLayerPixels();
   nsIntPoint roundedMetricsScrollOffset =
     nsIntPoint(NS_lround(metricsScrollOffset.x), NS_lround(metricsScrollOffset.y));
 
@@ -217,7 +217,9 @@ BuildListForLayer(Layer* aLayer,
     nsRect bounds;
     {
       nscoord auPerDevPixel = aSubdocFrame->PresContext()->AppUnitsPerDevPixel();
-      bounds = metrics->mViewport.ToAppUnits(auPerDevPixel);
+      gfx::Rect viewport = metrics->mViewport;
+      bounds = nsIntRect(viewport.x, viewport.y,
+                         viewport.width, viewport.height).ToAppUnits(auPerDevPixel);
       ApplyTransform(bounds, tmpTransform, auPerDevPixel);
 
     }
@@ -362,6 +364,7 @@ BuildViewMap(ViewMap& oldContentViews, ViewMap& newContentViews,
   if (metrics.IsScrollable()) {
     nscoord auPerDevPixel = aFrameLoader->GetPrimaryFrameOfOwningContent()
                                         ->PresContext()->AppUnitsPerDevPixel();
+    nscoord auPerCSSPixel = auPerDevPixel * metrics.mDevPixelsPerCSSPixel;
     nsContentView* view = FindViewForId(oldContentViews, scrollId);
     if (view) {
       // View already exists. Be sure to propagate scales for any values
@@ -392,8 +395,8 @@ BuildViewMap(ViewMap& oldContentViews, ViewMap& newContentViews,
       // The default scale is 1, so no need to propagate scale down.
       ViewConfig config;
       config.mScrollOffset = nsPoint(
-        NSIntPixelsToAppUnits(metrics.mViewportScrollOffset.x, auPerDevPixel) * aXScale,
-        NSIntPixelsToAppUnits(metrics.mViewportScrollOffset.y, auPerDevPixel) * aYScale);
+        NSIntPixelsToAppUnits(metrics.mScrollOffset.x, auPerCSSPixel) * aXScale,
+        NSIntPixelsToAppUnits(metrics.mScrollOffset.y, auPerCSSPixel) * aYScale);
       view = new nsContentView(aFrameLoader, scrollId, config);
       view->mParentScaleX = aAccConfigXScale;
       view->mParentScaleY = aAccConfigYScale;
@@ -511,6 +514,23 @@ public:
     }
   }
 
+  virtual void HandleSingleTap(const nsIntPoint& aPoint) MOZ_OVERRIDE
+  {
+    if (MessageLoop::current() != mUILoop) {
+      // We have to send this message from the "UI thread" (main
+      // thread).
+      mUILoop->PostTask(
+        FROM_HERE,
+        NewRunnableMethod(this, &RemoteContentController::HandleSingleTap,
+                          aPoint));
+      return;
+    }
+    if (mRenderFrame) {
+      TabParent* browser = static_cast<TabParent*>(mRenderFrame->Manager());
+      browser->HandleSingleTap(aPoint);
+    }
+  }
+
   void ClearRenderFrame() { mRenderFrame = nullptr; }
 
 private:
@@ -604,7 +624,8 @@ RenderFrameParent::BuildLayer(nsDisplayListBuilder* aBuilder,
                               nsIFrame* aFrame,
                               LayerManager* aManager,
                               const nsIntRect& aVisibleRect,
-                              nsDisplayItem* aItem)
+                              nsDisplayItem* aItem,
+                              const ContainerParameters& aContainerParameters)
 {
   NS_ABORT_IF_FALSE(aFrame,
                     "makes no sense to have a shadow tree without a frame");
@@ -628,7 +649,7 @@ RenderFrameParent::BuildLayer(nsDisplayListBuilder* aBuilder,
     MOZ_ASSERT(!GetRootLayer());
 
     nsRefPtr<Layer> layer =
-      (aManager->GetLayerBuilder()->GetLeafLayerFor(aBuilder, aManager, aItem));
+      (aManager->GetLayerBuilder()->GetLeafLayerFor(aBuilder, aItem));
     if (!layer) {
       layer = aManager->CreateRefLayer();
     }
@@ -641,7 +662,8 @@ RenderFrameParent::BuildLayer(nsDisplayListBuilder* aBuilder,
     layer->SetVisibleRegion(aVisibleRect);
     nsIntPoint rootFrameOffset = GetRootFrameOffset(aFrame, aBuilder);
     layer->SetBaseTransform(
-      gfx3DMatrix::Translation(rootFrameOffset.x, rootFrameOffset.y, 0.0));
+      gfx3DMatrix::Translation(rootFrameOffset.x + aContainerParameters.mOffset.x, 
+                               rootFrameOffset.y + aContainerParameters.mOffset.y, 0.0));
 
     return layer.forget();
   }
@@ -709,7 +731,8 @@ void
 RenderFrameParent::NotifyDimensionsChanged(int width, int height)
 {
   if (mPanZoomController) {
-    mPanZoomController->UpdateViewportSize(width, height);
+    mPanZoomController->UpdateCompositionBounds(
+      nsIntRect(0, 0, width, height));
   }
 }
 
@@ -819,17 +842,7 @@ RenderFrameParent::TriggerRepaint()
     return;
   }
 
-  // FIXME/cjones: we should collect the rects/regions updated for
-  // Painted*Layer() calls and pass that region to here, then only
-  // invalidate that rect
-  //
-  // We pass INVALIDATE_NO_THEBES_LAYERS here because we're
-  // invalidating the <browser> on behalf of its counterpart in the
-  // content process.  Not only do we not need to invalidate the
-  // shadow layers, things would just break if we did --- we have no
-  // way to repaint shadow layers from this process.
-  nsRect rect = nsRect(nsPoint(0, 0), docFrame->GetRect().Size());
-  docFrame->InvalidateWithFlags(rect, nsIFrame::INVALIDATE_NO_THEBES_LAYERS);
+  docFrame->SchedulePaint();
 }
 
 ShadowLayersParent*
@@ -876,7 +889,7 @@ RenderFrameParent::BuildDisplayList(nsDisplayListBuilder* aBuilder,
   }
 
   // Clip the shadow layers to subdoc bounds
-  nsPoint offset = aFrame->GetOffsetToCrossDoc(aBuilder->ReferenceFrame());
+  nsPoint offset = aBuilder->ToReferenceFrame(aFrame);
   nsRect bounds = aFrame->EnsureInnerView()->GetBounds() + offset;
 
   return aLists.Content()->AppendNewToTop(
@@ -900,6 +913,14 @@ RenderFrameParent::ContentReceivedTouch(bool aPreventDefault)
   }
 }
 
+void
+RenderFrameParent::UpdateZoomConstraints(bool aAllowZoom, float aMinZoom, float aMaxZoom)
+{
+  if (mPanZoomController) {
+    mPanZoomController->UpdateZoomConstraints(aAllowZoom, aMinZoom, aMaxZoom);
+  }
+}
+
 }  // namespace layout
 }  // namespace mozilla
 
@@ -910,7 +931,8 @@ nsDisplayRemote::BuildLayer(nsDisplayListBuilder* aBuilder,
 {
   int32_t appUnitsPerDevPixel = mFrame->PresContext()->AppUnitsPerDevPixel();
   nsIntRect visibleRect = GetVisibleRect().ToNearestPixels(appUnitsPerDevPixel);
-  nsRefPtr<Layer> layer = mRemoteFrame->BuildLayer(aBuilder, mFrame, aManager, visibleRect, this);
+  visibleRect += aContainerParameters.mOffset;
+  nsRefPtr<Layer> layer = mRemoteFrame->BuildLayer(aBuilder, mFrame, aManager, visibleRect, this, aContainerParameters);
   return layer.forget();
 }
 

@@ -41,7 +41,7 @@ public:
                                             MOZ_OVERRIDE;
 
   virtual ChildProcessSendResult
-  MaybeSendResponseToChildProcess(nsresult aResultCode) MOZ_OVERRIDE;
+  SendResponseToChildProcess(nsresult aResultCode) MOZ_OVERRIDE;
 
   virtual nsresult
   GetSuccessResult(JSContext* aCx, jsval* aVal) MOZ_OVERRIDE;
@@ -86,7 +86,7 @@ public:
                                             MOZ_OVERRIDE;
 
   virtual ChildProcessSendResult
-  MaybeSendResponseToChildProcess(nsresult aResultCode) MOZ_OVERRIDE;
+  SendResponseToChildProcess(nsresult aResultCode) MOZ_OVERRIDE;
 
   virtual nsresult
   DoDatabaseWork(mozIStorageConnection* aConnection) MOZ_OVERRIDE;
@@ -110,7 +110,7 @@ public:
                                             MOZ_OVERRIDE;
 
   virtual ChildProcessSendResult
-  MaybeSendResponseToChildProcess(nsresult aResultCode) MOZ_OVERRIDE;
+  SendResponseToChildProcess(nsresult aResultCode) MOZ_OVERRIDE;
 
   virtual nsresult
   GetSuccessResult(JSContext* aCx, jsval* aVal) MOZ_OVERRIDE;
@@ -248,7 +248,7 @@ IndexedDBDatabaseChild::SetRequest(IDBOpenDBRequest* aRequest)
 
 bool
 IndexedDBDatabaseChild::EnsureDatabase(
-                           IDBRequest* aRequest,
+                           IDBOpenDBRequest* aRequest,
                            const DatabaseInfoGuts& aDBInfo,
                            const InfallibleTArray<ObjectStoreInfoGuts>& aOSInfo)
 {
@@ -293,8 +293,8 @@ IndexedDBDatabaseChild::EnsureDatabase(
 
   if (!mDatabase) {
     nsRefPtr<IDBDatabase> database =
-      IDBDatabase::Create(aRequest, dbInfo.forget(), aDBInfo.origin, NULL,
-                          NULL);
+      IDBDatabase::Create(aRequest, aRequest->Factory(), dbInfo.forget(),
+                          aDBInfo.origin, NULL, NULL);
     if (!database) {
       NS_WARNING("Failed to create database!");
       return false;
@@ -1147,8 +1147,8 @@ IPCOpenDatabaseHelper::UnpackResponseFromParentProcess(
   return NS_ERROR_DOM_INDEXEDDB_UNKNOWN_ERR;
 }
 
-HelperBase::ChildProcessSendResult
-IPCOpenDatabaseHelper::MaybeSendResponseToChildProcess(nsresult aResultCode)
+AsyncConnectionHelper::ChildProcessSendResult
+IPCOpenDatabaseHelper::SendResponseToChildProcess(nsresult aResultCode)
 {
   MOZ_NOT_REACHED("Don't call me!");
   return Error;
@@ -1176,8 +1176,8 @@ IPCSetVersionHelper::UnpackResponseFromParentProcess(
   return NS_ERROR_DOM_INDEXEDDB_UNKNOWN_ERR;
 }
 
-HelperBase::ChildProcessSendResult
-IPCSetVersionHelper::MaybeSendResponseToChildProcess(nsresult aResultCode)
+AsyncConnectionHelper::ChildProcessSendResult
+IPCSetVersionHelper::SendResponseToChildProcess(nsresult aResultCode)
 {
   MOZ_NOT_REACHED("Don't call me!");
   return Error;
@@ -1214,8 +1214,8 @@ IPCDeleteDatabaseHelper::UnpackResponseFromParentProcess(
   return NS_ERROR_FAILURE;
 }
 
-HelperBase::ChildProcessSendResult
-IPCDeleteDatabaseHelper::MaybeSendResponseToChildProcess(nsresult aResultCode)
+AsyncConnectionHelper::ChildProcessSendResult
+IPCDeleteDatabaseHelper::SendResponseToChildProcess(nsresult aResultCode)
 {
   MOZ_NOT_REACHED("Don't call me!");
   return Error;

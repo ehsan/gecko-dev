@@ -348,7 +348,7 @@ public:
   virtual NS_HIDDEN_(void) PopPopupControlState(PopupControlState state) const;
   virtual NS_HIDDEN_(PopupControlState) GetPopupControlState() const;
 
-  virtual NS_HIDDEN_(nsresult) SaveWindowState(nsISupports **aState);
+  virtual already_AddRefed<nsISupports> SaveWindowState();
   virtual NS_HIDDEN_(nsresult) RestoreWindowState(nsISupports *aState);
   virtual NS_HIDDEN_(void) SuspendTimeouts(uint32_t aIncrease = 1,
                                            bool aFreezeChildren = true);
@@ -389,6 +389,10 @@ public:
 
   // nsIInterfaceRequestor
   NS_DECL_NSIINTERFACEREQUESTOR
+
+  // WebIDL interface.
+  uint32_t GetLength();
+  already_AddRefed<nsIDOMWindow> IndexedGetter(uint32_t aIndex, bool& aFound);
 
   // Object Management
   nsGlobalWindow(nsGlobalWindow *aOuterWindow);
@@ -533,6 +537,12 @@ public:
 
   virtual void EnableDeviceSensor(uint32_t aType);
   virtual void DisableDeviceSensor(uint32_t aType);
+
+  virtual void EnableTimeChangeNotifications();
+  virtual void DisableTimeChangeNotifications();
+
+  virtual void EnableNetworkEvent(uint32_t aType);
+  virtual void DisableNetworkEvent(uint32_t aType);
 
   virtual nsresult SetArguments(nsIArray *aArguments, nsIPrincipal *aOrigin);
 
@@ -914,6 +924,9 @@ protected:
 
   // Helper for creating performance objects.
   void CreatePerformanceObjectIfNeeded();
+
+  // Outer windows only.
+  nsDOMWindowList* GetWindowList();
 
   // When adding new member variables, be careful not to create cycles
   // through JavaScript.  If there is any chance that a member variable

@@ -1,5 +1,7 @@
-/* -*- Mode: C++; tab-width: 4; indent-tabs-mode: nil; c-basic-offset: 4 -*- */
-/* This Source Code Form is subject to the terms of the Mozilla Public
+/* -*- Mode: C++; tab-width: 4; indent-tabs-mode: nil; c-basic-offset: 4 -*-
+ * vim: set ts=4 sw=4 et tw=79:
+ *
+ * This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
@@ -20,6 +22,10 @@
 
 namespace js {
 
+namespace ion {
+    class IonCompartment;
+}
+
 /*
  * A single-entry cache for some base-10 double-to-string conversions. This
  * helps date-format-xparb.js.  It also avoids skewing the results for
@@ -30,21 +36,21 @@ namespace js {
 class DtoaCache {
     double        d;
     int         base;
-    JSFixedString *s;      // if s==NULL, d and base are not valid
+    JSFlatString *s;      // if s==NULL, d and base are not valid
+
   public:
     DtoaCache() : s(NULL) {}
     void purge() { s = NULL; }
 
-    JSFixedString *lookup(int base, double d) {
+    JSFlatString *lookup(int base, double d) {
         return this->s && base == this->base && d == this->d ? this->s : NULL;
     }
 
-    void cache(int base, double d, JSFixedString *s) {
+    void cache(int base, double d, JSFlatString *s) {
         this->base = base;
         this->d = d;
         this->s = s;
     }
-
 };
 
 /* If HashNumber grows, need to change WrapperHasher. */
@@ -164,6 +170,10 @@ struct JSCompartment
     }
 
     void setNeedsBarrier(bool needs);
+
+    static size_t OffsetOfNeedsBarrier() {
+        return offsetof(JSCompartment, needsBarrier_);
+    }
 
     js::GCMarker *barrierTracer() {
         JS_ASSERT(needsBarrier_);
@@ -289,12 +299,10 @@ struct JSCompartment
     js::types::TypeObjectSet     lazyTypeObjects;
     void sweepNewTypeObjectTable(js::types::TypeObjectSet &table);
 
-    js::ReadBarriered<js::types::TypeObject> emptyTypeObject;
+    js::types::TypeObject *getNewType(JSContext *cx, js::TaggedProto proto,
+                                      JSFunction *fun = NULL, bool isDOM = false);
 
-    /* Get the default 'new' type for objects with a NULL prototype. */
-    inline js::types::TypeObject *getEmptyType(JSContext *cx);
-
-    js::types::TypeObject *getLazyType(JSContext *cx, JSObject *proto);
+    js::types::TypeObject *getLazyType(JSContext *cx, js::Handle<js::TaggedProto> proto);
 
     /*
      * Keeps track of the total number of malloc bytes connected to a
@@ -339,6 +347,7 @@ struct JSCompartment
     bool wrap(JSContext *cx, js::PropertyDescriptor *desc);
     bool wrap(JSContext *cx, js::AutoIdVector &props);
 
+    void mark(JSTracer *trc);
     void markTypes(JSTracer *trc);
     void discardJitCode(js::FreeOp *fop, bool discardConstraints);
     bool isDiscardingJitCode(JSTracer *trc);
@@ -422,6 +431,17 @@ struct JSCompartment
     js::ScriptCountsMap *scriptCountsMap;
 
     js::DebugScriptMap *debugScriptMap;
+	
+#ifdef JS_ION
+  private:
+    js::ion::IonCompartment *ionCompartment_;
+
+  public:
+    bool ensureIonCompartmentExists(JSContext *cx);
+    js::ion::IonCompartment *ionCompartment() {
+        return ionCompartment_;
+    }
+#endif
 };
 
 // For use when changing the debug mode flag on one or more compartments.

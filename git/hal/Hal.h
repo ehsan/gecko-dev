@@ -50,6 +50,8 @@ class WindowIdentifier;
 extern PRLogModuleInfo *sHalLog;
 #define HAL_LOG(msg) PR_LOG(mozilla::hal::sHalLog, PR_LOG_DEBUG, msg)
 
+typedef Observer<SystemTimeChange> SystemTimeObserver;
+
 } // namespace hal
 
 namespace MOZ_HAL_NAMESPACE {
@@ -240,7 +242,7 @@ void NotifyNetworkChange(const hal::NetworkInformation& aNetworkInfo);
  * Adjusting system clock.
  * @param aDeltaMilliseconds The difference compared with current system clock.
  */
-void AdjustSystemClock(int32_t aDeltaMilliseconds);
+void AdjustSystemClock(int64_t aDeltaMilliseconds);
 
 /**
  * Set timezone
@@ -250,12 +252,40 @@ void AdjustSystemClock(int32_t aDeltaMilliseconds);
 void SetTimezone(const nsCString& aTimezoneSpec);
 
 /**
+ * Get timezone
+ * http://en.wikipedia.org/wiki/List_of_tz_database_time_zones
+ */
+nsCString GetTimezone();
+
+/**
+ * Register observer for system time changed notification.
+ * @param aObserver The observer that should be added.
+ */
+void RegisterSystemTimeChangeObserver(hal::SystemTimeObserver* aObserver);
+
+/**
+ * Unregister the observer for system time changed.
+ * @param aObserver The observer that should be removed.
+ */
+void UnregisterSystemTimeChangeObserver(hal::SystemTimeObserver* aObserver);
+
+/**
+ * Notify of a change in the system cloeck or time zone.
+ * @param aReason
+ */
+void NotifySystemTimeChange(const hal::SystemTimeChange& aReason);
+
+/**
  * Reboot the device.
+ * 
+ * This API is currently only allowed to be used from the main process.
  */
 void Reboot();
 
 /**
  * Power off the device.
+ * 
+ * This API is currently only allowed to be used from the main process.
  */
 void PowerOff();
 
@@ -410,6 +440,82 @@ bool SetAlarm(int32_t aSeconds, int32_t aNanoseconds);
  * ignore this call entirely.
  */
 void SetProcessPriority(int aPid, hal::ProcessPriority aPriority);
+
+/**
+ * Register an observer for the FM radio.
+ */
+void RegisterFMRadioObserver(hal::FMRadioObserver* aRadioObserver);
+
+/**
+ * Unregister the observer for the FM radio.
+ */
+void UnregisterFMRadioObserver(hal::FMRadioObserver* aRadioObserver);
+
+/**
+ * Notify observers that a call to EnableFMRadio, DisableFMRadio, or FMRadioSeek
+ * has completed, and indicate what the call returned.
+ */
+void NotifyFMRadioStatus(const hal::FMRadioOperationInformation& aRadioState);
+
+/**
+ * Enable the FM radio and configure it according to the settings in aInfo.
+ */
+void EnableFMRadio(const hal::FMRadioSettings& aInfo);
+
+/**
+ * Disable the FM radio.
+ */
+void DisableFMRadio();
+
+/**
+ * Seek to an available FM radio station.
+ *
+ */
+void FMRadioSeek(const hal::FMRadioSeekDirection& aDirection);
+
+/**
+ * Get the current FM radio settings.
+ */
+void GetFMRadioSettings(hal::FMRadioSettings* aInfo);
+
+/**
+ * Set the FM radio's frequency.
+ */
+void SetFMRadioFrequency(const uint32_t frequency);
+
+/**
+ * Get the FM radio's frequency.
+ */
+uint32_t GetFMRadioFrequency();
+
+/**
+ * Get FM radio power state
+ */
+bool IsFMRadioOn();
+
+/**
+ * Get FM radio signal strength
+ */
+uint32_t GetFMRadioSignalStrength();
+
+/**
+ * Cancel FM radio seeking
+ */
+void CancelFMRadioSeek();
+
+/**
+ * Get FM radio band settings by country.
+ */
+hal::FMRadioSettings GetFMBandSettings(hal::FMRadioCountry aCountry);
+
+/**
+ * Start a watchdog to compulsively shutdown the system if it hangs.
+ * @param aMode Specify how to shutdown the system.
+ * @param aTimeoutSecs Specify the delayed seconds to shutdown the system.
+ * 
+ * This API is currently only allowed to be used from the main process.
+ */
+void StartForceQuitWatchdog(hal::ShutdownMode aMode, int32_t aTimeoutSecs);
 
 } // namespace MOZ_HAL_NAMESPACE
 } // namespace mozilla

@@ -66,10 +66,39 @@ public:
     mozIApplication* GetApp() { return mApp; }
     bool IsBrowserElement() { return mIsBrowserElement; }
 
+    /**
+     * Return the TabParent that has decided it wants to capture an
+     * event series for fast-path dispatch to its subprocess, if one
+     * has.
+     *
+     * DOM event dispatch and widget are free to ignore capture
+     * requests from TabParents; the end result wrt remote content is
+     * (must be) always the same, albeit usually slower without
+     * subprocess capturing.  This allows frontends/widget backends to
+     * "opt in" to faster cross-process dispatch.
+     */
+    static TabParent* GetEventCapturer();
+    /**
+     * If this is the current event capturer, give this a chance to
+     * capture the event.  If it was captured, return true, false
+     * otherwise.  Un-captured events should follow normal DOM
+     * dispatch; captured events should result in no further
+     * processing from the caller of TryCapture().
+     *
+     * It's an error to call TryCapture() if this isn't the event
+     * capturer.
+     */
+    bool TryCapture(const nsGUIEvent& aEvent);
+
     void Destroy();
 
     virtual bool RecvMoveFocus(const bool& aForward);
     virtual bool RecvEvent(const RemoteDOMEvent& aEvent);
+    virtual bool RecvPRenderFrameConstructor(PRenderFrameParent* actor,
+                                             ScrollingBehavior* scrolling,
+                                             LayersBackend* backend,
+                                             int32_t* maxTextureSize,
+                                             uint64_t* layersId);
     virtual bool RecvBrowserFrameOpenWindow(PBrowserParent* aOpener,
                                             const nsString& aURL,
                                             const nsString& aName,
@@ -107,6 +136,9 @@ public:
     virtual bool RecvGetDPI(float* aValue);
     virtual bool RecvGetWidgetNativeData(WindowsHandle* aValue);
     virtual bool RecvZoomToRect(const gfxRect& aRect);
+    virtual bool RecvUpdateZoomConstraints(const bool& aAllowZoom,
+                                           const float& aMinZoom,
+                                           const float& aMaxZoom);
     virtual bool RecvContentReceivedTouch(const bool& aPreventDefault);
     virtual PContentDialogParent* AllocPContentDialog(const uint32_t& aType,
                                                       const nsCString& aName,
@@ -128,14 +160,9 @@ public:
     void UpdateDimensions(const nsRect& rect, const nsIntSize& size);
     void UpdateFrame(const layers::FrameMetrics& aFrameMetrics);
     void HandleDoubleTap(const nsIntPoint& aPoint);
+    void HandleSingleTap(const nsIntPoint& aPoint);
     void Activate();
     void Deactivate();
-
-    /**
-     * Is this object active?  That is, was Activate() called more recently than
-     * Deactivate()?
-     */
-    bool Active();
 
     void SendMouseEvent(const nsAString& aType, float aX, float aY,
                         int32_t aButton, int32_t aClickCount,
@@ -162,7 +189,8 @@ public:
     virtual POfflineCacheUpdateParent* AllocPOfflineCacheUpdate(
             const URIParams& aManifestURI,
             const URIParams& aDocumentURI,
-            const nsCString& aClientID,
+            const bool& isInBrowserElement,
+            const uint32_t& appId,
             const bool& stickDocument);
     virtual bool DeallocPOfflineCacheUpdate(POfflineCacheUpdateParent* actor);
 
@@ -246,8 +274,11 @@ protected:
     uint32_t mIMECompositionStart;
     uint32_t mIMESeqno;
 
+    // The number of event series we're currently capturing.
+    int32_t mEventCaptureDepth;
+
+    nsIntSize mDimensions;
     float mDPI;
-    bool mActive;
     bool mIsBrowserElement;
     bool mShown;
 

@@ -209,6 +209,8 @@ public:
 
     void SetOwner(nsOfflineCacheUpdateOwner *aOwner);
 
+    bool IsForGroupID(const nsCSubstring &groupID);
+
     virtual nsresult UpdateFinished(nsOfflineCacheUpdate *aUpdate);
 
 protected:
@@ -227,10 +229,10 @@ private:
     nsresult AddExistingItems(uint32_t aType,
                               nsTArray<nsCString>* namespaceFilter = nullptr);
     nsresult ScheduleImplicit();
-    nsresult AssociateDocuments(nsIApplicationCache* cache);
+    void AssociateDocuments(nsIApplicationCache* cache);
 
-    nsresult GatherObservers(nsCOMArray<nsIOfflineCacheUpdateObserver> &aObservers);
-    nsresult NotifyState(uint32_t state);
+    void GatherObservers(nsCOMArray<nsIOfflineCacheUpdateObserver> &aObservers);
+    void NotifyState(uint32_t state);
     nsresult Finish();
     nsresult FinishNoNotify();
 
@@ -254,9 +256,11 @@ private:
     bool mObsolete;
 
     nsCString mUpdateDomain;
+    nsCString mGroupID;
     nsCOMPtr<nsIURI> mManifestURI;
     nsCOMPtr<nsIURI> mDocumentURI;
     nsCOMPtr<nsIFile> mCustomProfileDir;
+    nsCOMPtr<nsILoadContext> mLoadContext;
 
     nsCOMPtr<nsIApplicationCache> mApplicationCache;
     nsCOMPtr<nsIApplicationCache> mPreviousApplicationCache;
@@ -308,7 +312,7 @@ public:
 
     nsresult ScheduleUpdate(nsOfflineCacheUpdate *aUpdate);
     nsresult FindUpdate(nsIURI *aManifestURI,
-                        nsIURI *aDocumentURI,
+                        nsILoadContext *aLoadContext,
                         nsOfflineCacheUpdate **aUpdate);
 
     nsresult Schedule(nsIURI *aManifestURI,

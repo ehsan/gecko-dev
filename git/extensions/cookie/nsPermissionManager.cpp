@@ -24,6 +24,9 @@
 #include "nsIPrincipal.h"
 #include "nsContentUtils.h"
 #include "nsIScriptSecurityManager.h"
+#include "nsIAppsService.h"
+#include "mozIApplication.h"
+#include "mozilla/Attributes.h"
 
 static nsPermissionManager *gPermissionManager = nullptr;
 
@@ -120,6 +123,33 @@ GetHostForPrincipal(nsIPrincipal* aPrincipal, nsACString& aHost)
 
   return NS_OK;
 }
+
+class AppUninstallObserver MOZ_FINAL : public nsIObserver {
+public:
+  NS_DECL_ISUPPORTS
+
+  // nsIObserver implementation.
+  NS_IMETHODIMP
+  Observe(nsISupports *aSubject, const char *aTopic, const PRUnichar *data)
+  {
+    MOZ_ASSERT(!nsCRT::strcmp(aTopic, "webapps-uninstall"));
+
+    nsCOMPtr<nsIAppsService> appsService = do_GetService("@mozilla.org/AppsService;1");
+    nsCOMPtr<mozIApplication> app;
+
+    appsService->GetAppFromObserverMessage(nsAutoString(data), getter_AddRefs(app));
+    NS_ENSURE_TRUE(app, NS_ERROR_UNEXPECTED);
+
+    uint32_t appId;
+    app->GetLocalId(&appId);
+    MOZ_ASSERT(appId != nsIScriptSecurityManager::NO_APP_ID);
+
+    nsCOMPtr<nsIPermissionManager> permManager = do_GetService("@mozilla.org/permissionmanager;1");
+    return permManager->RemovePermissionsForApp(appId);
+  }
+};
+
+NS_IMPL_ISUPPORTS1(AppUninstallObserver, nsIObserver)
 
 } // anonymous namespace
 
@@ -236,6 +266,13 @@ NS_IMETHODIMP DeleteFromMozHostListener::HandleCompletion(uint16_t aReason)
   }
 
   return NS_OK;
+}
+
+/* static */ void
+nsPermissionManager::AppUninstallObserverInit()
+{
+  nsCOMPtr<nsIObserverService> observerService = do_GetService("@mozilla.org/observer-service;1");
+  observerService->AddObserver(new AppUninstallObserver(), "webapps-uninstall", /* holdsWeak= */ false);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -462,18 +499,18 @@ nsPermissionManager::InitDB(bool aRemoveFile)
   mDBConn->ExecuteSimpleSQL(NS_LITERAL_CSTRING("PRAGMA synchronous = OFF"));
 
   // cache frequently used statements (for insertion, deletion, and updating)
-  rv = mDBConn->CreateStatement(NS_LITERAL_CSTRING(
+  rv = mDBConn->CreateAsyncStatement(NS_LITERAL_CSTRING(
     "INSERT INTO moz_hosts "
     "(id, host, type, permission, expireType, expireTime, appId, isInBrowserElement) "
     "VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8)"), getter_AddRefs(mStmtInsert));
   NS_ENSURE_SUCCESS(rv, rv);
 
-  rv = mDBConn->CreateStatement(NS_LITERAL_CSTRING(
+  rv = mDBConn->CreateAsyncStatement(NS_LITERAL_CSTRING(
     "DELETE FROM moz_hosts "
     "WHERE id = ?1"), getter_AddRefs(mStmtDelete));
   NS_ENSURE_SUCCESS(rv, rv);
 
-  rv = mDBConn->CreateStatement(NS_LITERAL_CSTRING(
+  rv = mDBConn->CreateAsyncStatement(NS_LITERAL_CSTRING(
     "UPDATE moz_hosts "
     "SET permission = ?2, expireType= ?3, expireTime = ?4 WHERE id = ?1"),
     getter_AddRefs(mStmtUpdate));
@@ -565,7 +602,7 @@ nsPermissionManager::AddInternal(nsIPrincipal* aPrincipal,
                                  NotifyOperationType   aNotifyOperation,
                                  DBOperationType       aDBOperation)
 {
-  nsCAutoString host;
+  nsAutoCString host;
   nsresult rv = GetHostForPrincipal(aPrincipal, host);
   NS_ENSURE_SUCCESS(rv, rv);
 
@@ -873,6 +910,26 @@ nsPermissionManager::TestPermission(nsIURI     *aURI,
 }
 
 NS_IMETHODIMP
+nsPermissionManager::TestPermissionFromWindow(nsIDOMWindow* aWindow,
+                                              const char* aType,
+                                              uint32_t* aPermission)
+{
+  nsCOMPtr<nsPIDOMWindow> window = do_QueryInterface(aWindow);
+  NS_ENSURE_TRUE(window, NS_NOINTERFACE);
+
+  nsPIDOMWindow* innerWindow = window->IsInnerWindow() ?
+    window.get() :
+    window->GetCurrentInnerWindow();
+
+  // Get the document for security check
+  nsCOMPtr<nsIDocument> document = innerWindow->GetExtantDoc();
+  NS_ENSURE_TRUE(document, NS_NOINTERFACE);
+
+  nsCOMPtr<nsIPrincipal> principal = document->NodePrincipal();
+  return TestPermissionFromPrincipal(principal, aType, aPermission);
+}
+
+NS_IMETHODIMP
 nsPermissionManager::TestPermissionFromPrincipal(nsIPrincipal* aPrincipal,
                                                  const char* aType,
                                                  uint32_t* aPermission)
@@ -905,7 +962,7 @@ nsPermissionManager::CommonTestPermission(nsIPrincipal* aPrincipal,
   nsresult rv = aPrincipal->GetURI(getter_AddRefs(uri));
   NS_ENSURE_SUCCESS(rv, rv);
 
-  nsCAutoString host;
+  nsAutoCString host;
   rv = GetHostForPrincipal(aPrincipal, host);
 
   // No host doesn't mean an error. Just return the default. Unless this is
@@ -1072,6 +1129,88 @@ NS_IMETHODIMP nsPermissionManager::Observe(nsISupports *aSubject, const char *aT
   return NS_OK;
 }
 
+PLDHashOperator
+nsPermissionManager::GetPermissionsForApp(nsPermissionManager::PermissionHashKey* entry, void* arg)
+{
+  GetPermissionsForAppStruct* data = static_cast<GetPermissionsForAppStruct*>(arg);
+
+  for (uint32_t i = 0; i < entry->GetPermissions().Length(); ++i) {
+    nsPermissionManager::PermissionEntry& permEntry = entry->GetPermissions()[i];
+
+    if (entry->GetKey()->mAppId != data->appId) {
+      continue;
+    }
+
+    data->permissions.AppendObject(new nsPermission(entry->GetKey()->mHost,
+                                                    entry->GetKey()->mAppId,
+                                                    entry->GetKey()->mIsInBrowserElement,
+                                                    gPermissionManager->mTypeArray.ElementAt(permEntry.mType),
+                                                    permEntry.mPermission,
+                                                    permEntry.mExpireType,
+                                                    permEntry.mExpireTime));
+  }
+
+  return PL_DHASH_NEXT;
+}
+
+NS_IMETHODIMP
+nsPermissionManager::RemovePermissionsForApp(uint32_t aAppId)
+{
+  ENSURE_NOT_CHILD_PROCESS;
+  NS_ENSURE_ARG(aAppId != nsIScriptSecurityManager::NO_APP_ID);
+
+  // We begin by removing all the permissions from the DB.
+  // After clearing the DB, we call AddInternal() to make sure that all
+  // processes are aware of this change and the representation of the DB in
+  // memory is updated.
+  // We have to get all permissions associated with an application and then
+  // remove those because doing so in EnumerateEntries() would fail because
+  // we might happen to actually delete entries from the list.
+
+  nsAutoCString sql;
+  sql.AppendLiteral("DELETE FROM moz_hosts WHERE appId=");
+  sql.AppendInt(aAppId);
+
+  nsCOMPtr<mozIStorageAsyncStatement> removeStmt;
+  nsresult rv = mDBConn->CreateAsyncStatement(sql, getter_AddRefs(removeStmt));
+  NS_ENSURE_SUCCESS(rv, rv);
+
+  nsCOMPtr<mozIStoragePendingStatement> pending;
+  rv = removeStmt->ExecuteAsync(nullptr, getter_AddRefs(pending));
+  NS_ENSURE_SUCCESS(rv, rv);
+
+  GetPermissionsForAppStruct data(aAppId);
+  mPermissionTable.EnumerateEntries(GetPermissionsForApp, &data);
+
+  for (int32_t i=0; i<data.permissions.Count(); ++i) {
+    nsAutoCString host;
+    bool isInBrowserElement;
+    nsAutoCString type;
+
+    data.permissions[i]->GetHost(host);
+    data.permissions[i]->GetIsInBrowserElement(&isInBrowserElement);
+    data.permissions[i]->GetType(type);
+
+    nsCOMPtr<nsIPrincipal> principal;
+    if (NS_FAILED(GetPrincipal(host, aAppId, isInBrowserElement,
+                               getter_AddRefs(principal)))) {
+      NS_ERROR("GetPrincipal() failed!");
+      continue;
+    }
+
+    AddInternal(principal,
+                type,
+                nsIPermissionManager::UNKNOWN_ACTION,
+                0,
+                nsIPermissionManager::EXPIRE_NEVER,
+                0,
+                nsPermissionManager::eNotify,
+                nsPermissionManager::eNoDBOperation);
+  }
+
+  return NS_OK;
+}
+
 //*****************************************************************************
 //*** nsPermissionManager private methods
 //*****************************************************************************
@@ -1179,7 +1318,7 @@ nsPermissionManager::Read()
   NS_ENSURE_SUCCESS(rv, rv);
 
   int64_t id;
-  nsCAutoString host, type;
+  nsAutoCString host, type;
   uint32_t permission;
   uint32_t expireType;
   int64_t expireTime;
@@ -1256,7 +1395,7 @@ nsPermissionManager::Import()
    * permission is an integer between 1 and 15
    */
 
-  nsCAutoString buffer;
+  nsAutoCString buffer;
   bool isMore = true;
   while (isMore && NS_SUCCEEDED(lineInputStream->ReadLine(buffer, &isMore))) {
     if (buffer.IsEmpty() || buffer.First() == '#') {
@@ -1313,16 +1452,16 @@ nsPermissionManager::NormalizeToACE(nsCString &aHost)
 }
 
 void
-nsPermissionManager::UpdateDB(OperationType         aOp,
-                              mozIStorageStatement* aStmt,
-                              int64_t               aID,
-                              const nsACString     &aHost,
-                              const nsACString     &aType,
-                              uint32_t              aPermission,
-                              uint32_t              aExpireType,
-                              int64_t               aExpireTime,
-                              uint32_t              aAppId,
-                              bool                  aIsInBrowserElement)
+nsPermissionManager::UpdateDB(OperationType aOp,
+                              mozIStorageAsyncStatement* aStmt,
+                              int64_t aID,
+                              const nsACString &aHost,
+                              const nsACString &aType,
+                              uint32_t aPermission,
+                              uint32_t aExpireType,
+                              int64_t aExpireTime,
+                              uint32_t aAppId,
+                              bool aIsInBrowserElement)
 {
   ENSURE_NOT_CHILD_PROCESS_NORET;
 
@@ -1389,13 +1528,13 @@ nsPermissionManager::UpdateDB(OperationType         aOp,
     }
   }
 
-  if (NS_SUCCEEDED(rv)) {
-    bool hasResult;
-    rv = aStmt->ExecuteStep(&hasResult);
-    aStmt->Reset();
+  if (NS_FAILED(rv)) {
+    NS_WARNING("db change failed!");
+    return;
   }
 
-  if (NS_FAILED(rv))
-    NS_WARNING("db change failed!");
+  nsCOMPtr<mozIStoragePendingStatement> pending;
+  rv = aStmt->ExecuteAsync(nullptr, getter_AddRefs(pending));
+  MOZ_ASSERT(NS_SUCCEEDED(rv));
 }
 

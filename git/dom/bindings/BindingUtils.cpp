@@ -591,7 +591,10 @@ bool
 GetPropertyOnPrototype(JSContext* cx, JSObject* proxy, jsid id, bool* found,
                        JS::Value* vp)
 {
-  JSObject* proto = js::GetObjectProto(proxy);
+  JSObject* proto;
+  if (!js::GetObjectProto(cx, proxy, &proto)) {
+    return false;
+  }
   if (!proto) {
     *found = false;
     return true;
@@ -624,6 +627,27 @@ HasPropertyOnPrototype(JSContext* cx, JSObject* proxy, DOMProxyHandler* handler,
   bool found;
   // We ignore an error from GetPropertyOnPrototype.
   return !GetPropertyOnPrototype(cx, proxy, id, &found, NULL) || found;
+}
+
+JSObject*
+GetXrayExpandoChain(JSObject* obj)
+{
+  MOZ_ASSERT(IsDOMObject(obj));
+  JS::Value v = IsDOMProxy(obj) ? js::GetProxyExtra(obj, JSPROXYSLOT_XRAY_EXPANDO)
+                                : js::GetReservedSlot(obj, DOM_XRAY_EXPANDO_SLOT);
+  return v.isUndefined() ? nullptr : &v.toObject();
+}
+
+void
+SetXrayExpandoChain(JSObject* obj, JSObject* chain)
+{
+  MOZ_ASSERT(IsDOMObject(obj));
+  JS::Value v = chain ? JS::ObjectValue(*chain) : JSVAL_VOID;
+  if (IsDOMProxy(obj)) {
+    js::SetProxyExtra(obj, JSPROXYSLOT_XRAY_EXPANDO, v);
+  } else {
+    js::SetReservedSlot(obj, DOM_XRAY_EXPANDO_SLOT, v);
+  }
 }
 
 } // namespace dom

@@ -95,7 +95,9 @@ public:
     nsHttpChannel();
     virtual ~nsHttpChannel();
 
-    virtual nsresult Init(nsIURI *aURI, uint8_t aCaps, nsProxyInfo *aProxyInfo);
+    virtual nsresult Init(nsIURI *aURI, uint8_t aCaps, nsProxyInfo *aProxyInfo,
+                          uint32_t aProxyResolveFlags,
+                          nsIURI *aProxyURI);
 
     // Methods HttpBaseChannel didn't implement for us or that we override.
     //
@@ -121,7 +123,7 @@ public: /* internal necko use only */
       { mUploadStreamHasHeaders = hasHeaders; }
 
     nsresult SetReferrerInternal(nsIURI *referrer) {
-        nsCAutoString spec;
+        nsAutoCString spec;
         nsresult rv = referrer->GetAsciiSpec(spec);
         if (NS_FAILED(rv)) return rv;
         mReferrer = referrer;
@@ -150,6 +152,7 @@ private:
     typedef nsresult (nsHttpChannel::*nsContinueRedirectionFunc)(nsresult result);
 
     bool     RequestIsConditional();
+    nsresult BeginConnect();
     nsresult Connect();
     nsresult ContinueConnect();
     void     SpeculativeConnect();
@@ -186,8 +189,6 @@ private:
     nsresult ProxyFailover();
     nsresult AsyncDoReplaceWithProxy(nsIProxyInfo *);
     nsresult ContinueDoReplaceWithProxy(nsresult);
-    void HandleAsyncReplaceWithProxy();
-    nsresult ContinueHandleAsyncReplaceWithProxy(nsresult);
     nsresult ResolveProxy();
 
     // cache specific methods
@@ -239,6 +240,7 @@ private:
     void     HandleAsyncRedirectChannelToHttps();
     nsresult AsyncRedirectChannelToHttps();
     nsresult ContinueAsyncRedirectChannelToHttps(nsresult rv);
+    nsresult OpenRedirectChannel(nsresult rv);
 
     /**
      * A function that takes care of reading STS headers and enforcing STS 
@@ -256,7 +258,7 @@ private:
     // Ref RFC2616 13.10: "invalidation... MUST only be performed if
     // the host part is the same as in the Request-URI"
     inline bool HostPartIsTheSame(nsIURI *uri) {
-        nsCAutoString tmpHost1, tmpHost2;
+        nsAutoCString tmpHost1, tmpHost2;
         return (NS_SUCCEEDED(mURI->GetAsciiHost(tmpHost1)) &&
                 NS_SUCCEEDED(uri->GetAsciiHost(tmpHost2)) &&
                 (tmpHost1 == tmpHost2));
@@ -302,9 +304,6 @@ private:
 
     // auth specific data
     nsCOMPtr<nsIHttpChannelAuthProvider> mAuthProvider;
-
-    // Proxy info to replace with
-    nsCOMPtr<nsIProxyInfo>            mTargetProxyInfo;
 
     // If the channel is associated with a cache, and the URI matched
     // a fallback namespace, this will hold the key for the fallback

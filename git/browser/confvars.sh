@@ -15,13 +15,14 @@ if test "$OS_ARCH" = "WINNT"; then
   fi
 fi
 
+MOZ_STUB_INSTALLER=1
 MOZ_CHROME_FILE_FORMAT=omni
 MOZ_SAFE_BROWSING=1
 MOZ_SERVICES_AITC=1
 MOZ_SERVICES_NOTIFICATIONS=1
 MOZ_SERVICES_SYNC=1
 MOZ_APP_VERSION=$FIREFOX_VERSION
-MOZ_EXTENSIONS_DEFAULT=" gnomevfs"
+MOZ_EXTENSIONS_DEFAULT=" gio"
 # MOZ_APP_DISPLAYNAME will be set by branding/configure.sh
 # Changing MOZ_*BRANDING_DIRECTORY requires a clobber to ensure correct results,
 # because branding dependencies are broken.
@@ -30,15 +31,15 @@ MOZ_EXTENSIONS_DEFAULT=" gnomevfs"
 # For mozilla-beta, mozilla-release, or mozilla-central repositories, use
 # "nightly" branding (until bug 659568 is fixed).
 # For the mozilla-aurora repository, use "aurora".
-MOZ_BRANDING_DIRECTORY=browser/branding/aurora
+MOZ_BRANDING_DIRECTORY=browser/branding/nightly
 MOZ_OFFICIAL_BRANDING_DIRECTORY=browser/branding/official
 MOZ_APP_ID={ec8030f7-c20a-464f-9b0e-13a3a9e97384}
 # This should usually be the same as the value MAR_CHANNEL_ID.
 # If more than one ID is needed, then you should use a comma separated list
 # of values.
-ACCEPTED_MAR_CHANNEL_IDS=firefox-mozilla-aurora
+ACCEPTED_MAR_CHANNEL_IDS=firefox-mozilla-central
 # The MAR_CHANNEL_ID must not contain the following 3 characters: ",\t "
-MAR_CHANNEL_ID=firefox-mozilla-aurora
+MAR_CHANNEL_ID=firefox-mozilla-central
 MOZ_PROFILE_MIGRATOR=1
 MOZ_EXTENSION_MANAGER=1
 MOZ_APP_STATIC_INI=1

@@ -8,6 +8,7 @@
 #ifndef nsCanvasFrame_h___
 #define nsCanvasFrame_h___
 
+#include "mozilla/Attributes.h"
 #include "nsContainerFrame.h"
 #include "nsIScrollPositionListener.h"
 #include "nsDisplayList.h"
@@ -41,21 +42,21 @@ public:
   virtual void DestroyFrom(nsIFrame* aDestructRoot);
 
   NS_IMETHOD SetInitialChildList(ChildListID     aListID,
-                                 nsFrameList&    aChildList);
+                                 nsFrameList&    aChildList) MOZ_OVERRIDE;
   NS_IMETHOD AppendFrames(ChildListID     aListID,
-                          nsFrameList&    aFrameList);
+                          nsFrameList&    aFrameList) MOZ_OVERRIDE;
   NS_IMETHOD InsertFrames(ChildListID     aListID,
                           nsIFrame*       aPrevFrame,
-                          nsFrameList&    aFrameList);
+                          nsFrameList&    aFrameList) MOZ_OVERRIDE;
   NS_IMETHOD RemoveFrame(ChildListID     aListID,
-                         nsIFrame*       aOldFrame);
+                         nsIFrame*       aOldFrame) MOZ_OVERRIDE;
 
-  virtual nscoord GetMinWidth(nsRenderingContext *aRenderingContext);
-  virtual nscoord GetPrefWidth(nsRenderingContext *aRenderingContext);
+  virtual nscoord GetMinWidth(nsRenderingContext *aRenderingContext) MOZ_OVERRIDE;
+  virtual nscoord GetPrefWidth(nsRenderingContext *aRenderingContext) MOZ_OVERRIDE;
   NS_IMETHOD Reflow(nsPresContext*          aPresContext,
                     nsHTMLReflowMetrics&     aDesiredSize,
                     const nsHTMLReflowState& aReflowState,
-                    nsReflowStatus&          aStatus);
+                    nsReflowStatus&          aStatus) MOZ_OVERRIDE;
   virtual bool IsFrameOfType(uint32_t aFlags) const
   {
     return nsContainerFrame::IsFrameOfType(aFlags &
@@ -69,7 +70,7 @@ public:
 
   NS_IMETHOD BuildDisplayList(nsDisplayListBuilder*   aBuilder,
                               const nsRect&           aDirtyRect,
-                              const nsDisplayListSet& aLists);
+                              const nsDisplayListSet& aLists) MOZ_OVERRIDE;
 
   void PaintFocus(nsRenderingContext& aRenderingContext, nsPoint aPt);
 
@@ -82,11 +83,11 @@ public:
    *
    * @see nsGkAtoms::canvasFrame
    */
-  virtual nsIAtom* GetType() const;
+  virtual nsIAtom* GetType() const MOZ_OVERRIDE;
 
   virtual nsresult StealFrame(nsPresContext* aPresContext,
                               nsIFrame*      aChild,
-                              bool           aForceNormal)
+                              bool           aForceNormal) MOZ_OVERRIDE
   {
     NS_ASSERTION(!aForceNormal, "No-one should be passing this in here");
 
@@ -100,10 +101,10 @@ public:
   }
 
 #ifdef DEBUG
-  NS_IMETHOD GetFrameName(nsAString& aResult) const;
+  NS_IMETHOD GetFrameName(nsAString& aResult) const MOZ_OVERRIDE;
 #endif
   NS_IMETHOD GetContentForEvent(nsEvent* aEvent,
-                                nsIContent** aContent);
+                                nsIContent** aContent) MOZ_OVERRIDE;
 
   nsRect CanvasArea() const;
 
@@ -115,6 +116,28 @@ protected:
   bool                      mAddedScrollPositionListener;
 };
 
+class nsDisplayCanvasBackgroundGeometry : public nsDisplayItemGeometry
+{
+public:
+  nsDisplayCanvasBackgroundGeometry(nsDisplayItem* aItem, nsDisplayListBuilder* aBuilder, const nsRect& aChildBorder)
+    : nsDisplayItemGeometry(aItem, aBuilder)
+    , mChildBorder(aChildBorder)
+    , mPaddingRect(aItem->GetPaddingRect())
+    , mContentRect(aItem->GetContentRect())
+  {}
+
+  virtual void MoveBy(const nsPoint& aOffset)
+  {
+    mBounds.MoveBy(aOffset);
+    mPaddingRect.MoveBy(aOffset);
+    mContentRect.MoveBy(aOffset);
+  }
+
+  nsRect mChildBorder;
+  nsRect mPaddingRect;
+  nsRect mContentRect;
+};
+
 /**
  * Override nsDisplayBackground methods so that we pass aBGClipRect to
  * PaintBackground, covering the whole overflow area.
@@ -123,29 +146,29 @@ protected:
  */
 class nsDisplayCanvasBackground : public nsDisplayBackground {
 public:
-  nsDisplayCanvasBackground(nsDisplayListBuilder* aBuilder, nsIFrame *aFrame)
-    : nsDisplayBackground(aBuilder, aFrame)
+  nsDisplayCanvasBackground(nsDisplayListBuilder* aBuilder, nsIFrame *aFrame, uint32_t aLayer)
+    : nsDisplayBackground(aBuilder, aFrame, aLayer, true)
   {
     mExtraBackgroundColor = NS_RGBA(0,0,0,0);
   }
 
   virtual bool ComputeVisibility(nsDisplayListBuilder* aBuilder,
                                  nsRegion* aVisibleRegion,
-                                 const nsRect& aAllowVisibleRegionExpansion)
+                                 const nsRect& aAllowVisibleRegionExpansion) MOZ_OVERRIDE
   {
     return NS_GET_A(mExtraBackgroundColor) > 0 ||
       nsDisplayBackground::ComputeVisibility(aBuilder, aVisibleRegion,
                                              aAllowVisibleRegionExpansion);
   }
   virtual nsRegion GetOpaqueRegion(nsDisplayListBuilder* aBuilder,
-                                   bool* aSnap)
+                                   bool* aSnap) MOZ_OVERRIDE
   {
     if (NS_GET_A(mExtraBackgroundColor) == 255) {
       return nsRegion(GetBounds(aBuilder, aSnap));
     }
     return nsDisplayBackground::GetOpaqueRegion(aBuilder, aSnap);
   }
-  virtual bool IsUniform(nsDisplayListBuilder* aBuilder, nscolor* aColor)
+  virtual bool IsUniform(nsDisplayListBuilder* aBuilder, nscolor* aColor) MOZ_OVERRIDE
   {
     nscolor background;
     if (!nsDisplayBackground::IsUniform(aBuilder, &background))
@@ -156,21 +179,53 @@ public:
     *aColor = mExtraBackgroundColor;
     return true;
   }
-  virtual nsRect GetBounds(nsDisplayListBuilder* aBuilder, bool* aSnap)
+  virtual nsRect GetBounds(nsDisplayListBuilder* aBuilder, bool* aSnap) MOZ_OVERRIDE
   {
     nsCanvasFrame* frame = static_cast<nsCanvasFrame*>(mFrame);
     *aSnap = true;
     return frame->CanvasArea() + ToReferenceFrame();
   }
   virtual void HitTest(nsDisplayListBuilder* aBuilder, const nsRect& aRect,
-                       HitTestState* aState, nsTArray<nsIFrame*> *aOutFrames)
+                       HitTestState* aState, nsTArray<nsIFrame*> *aOutFrames) MOZ_OVERRIDE
   {
     // We need to override so we don't consider border-radius.
     aOutFrames->AppendElement(mFrame);
   }
+  
+  virtual nsDisplayItemGeometry* AllocateGeometry(nsDisplayListBuilder* aBuilder)
+  {
+    nsIFrame *child = mFrame->GetFirstPrincipalChild();
+    return new nsDisplayCanvasBackgroundGeometry(this, aBuilder, 
+                                                 child ? child->GetRect() : nsRect());;
+  }
 
+  virtual void ComputeInvalidationRegion(nsDisplayListBuilder* aBuilder,
+                                         const nsDisplayItemGeometry* aGeometry,
+                                         nsRegion* aInvalidRegion)
+  {
+    const nsDisplayCanvasBackgroundGeometry* geometry = static_cast<const nsDisplayCanvasBackgroundGeometry*>(aGeometry);
+    if (ShouldFixToViewport(aBuilder)) {
+      // This is incorrect, We definitely need to check more things here. 
+      return;
+    }
+
+    nsIFrame *child = mFrame->GetFirstPrincipalChild();
+
+    bool snap;
+    if (!geometry->mBounds.IsEqualInterior(GetBounds(aBuilder, &snap)) ||
+        (child && !geometry->mChildBorder.IsEqualInterior(child->GetRect())) ||
+        !geometry->mPaddingRect.IsEqualInterior(GetPaddingRect()) ||
+        !geometry->mContentRect.IsEqualInterior(GetContentRect())) {
+      if (!RenderingMightDependOnFrameSize() && geometry->mBounds.TopLeft() == GetBounds(aBuilder, &snap).TopLeft()) {
+        aInvalidRegion->Xor(GetBounds(aBuilder, &snap), geometry->mBounds);
+      } else {
+        aInvalidRegion->Or(GetBounds(aBuilder, &snap), geometry->mBounds);
+      }
+    }
+  }
+  
   virtual void Paint(nsDisplayListBuilder* aBuilder,
-                     nsRenderingContext* aCtx);
+                     nsRenderingContext* aCtx) MOZ_OVERRIDE;
 
   void SetExtraBackgroundColor(nscolor aColor)
   {

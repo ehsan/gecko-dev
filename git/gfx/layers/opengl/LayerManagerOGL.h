@@ -42,6 +42,7 @@ class ShadowContainerLayer;
 class ShadowImageLayer;
 class ShadowCanvasLayer;
 class ShadowColorLayer;
+struct FPSState;
 
 /**
  * This is the LayerManager used for OpenGL 2.1 and OpenGL ES 2.0.
@@ -57,8 +58,6 @@ public:
   LayerManagerOGL(nsIWidget *aWidget, int aSurfaceWidth = -1, int aSurfaceHeight = -1,
                   bool aIsRenderingToEGLSurface = false);
   virtual ~LayerManagerOGL();
-
-  void CleanupResources();
 
   void Destroy();
 
@@ -354,6 +353,14 @@ public:
   bool CompositingDisabled() { return mCompositingDisabled; }
   void SetCompositingDisabled(bool aCompositingDisabled) { mCompositingDisabled = aCompositingDisabled; }
 
+  /**
+   * Creates a DrawTarget which is optimized for inter-operating with this
+   * layermanager.
+   */
+  virtual TemporaryRef<mozilla::gfx::DrawTarget>
+    CreateDrawTarget(const mozilla::gfx::IntSize &aSize,
+                     mozilla::gfx::SurfaceFormat aFormat);
+
 private:
   /** Widget associated with this layer manager */
   nsIWidget *mWidget;
@@ -438,34 +445,10 @@ private:
   DrawThebesLayerCallback mThebesLayerCallback;
   void *mThebesLayerCallbackData;
   gfxMatrix mWorldMatrix;
-
-  struct FPSState
-  {
-      GLuint texture;
-      int fps;
-      bool initialized;
-      int fcount;
-      TimeStamp last;
-
-      int contentFps;
-      int contentFCount;
-      TimeStamp contentLast;
-
-      FPSState()
-        : texture(0)
-        , fps(0)
-        , initialized(false)
-        , fcount(0)
-        , contentFps(0)
-        , contentFCount(0)
-      {
-        contentLast = last = TimeStamp::Now();
-      }
-      void DrawFPS(GLContext*, ShaderProgramOGL*);
-      void NotifyShadowTreeTransaction();
-  } mFPS;
+  nsAutoPtr<FPSState> mFPS;
 
   static bool sDrawFPS;
+  static bool sFrameCounter;
 };
 
 /**

@@ -24,6 +24,8 @@
 #include "nsAsyncDOMEvent.h"
 
 #include "Link.h"
+
+using namespace mozilla;
 using namespace mozilla::dom;
 
 class nsHTMLLinkElement : public nsGenericHTMLElement,
@@ -38,6 +40,10 @@ public:
 
   // nsISupports
   NS_DECL_ISUPPORTS_INHERITED
+
+  // CC
+  NS_DECL_CYCLE_COLLECTION_CLASS_INHERITED(nsHTMLLinkElement,
+                                           nsGenericHTMLElement)
 
   // nsIDOMNode
   NS_FORWARD_NSIDOMNODE(nsGenericHTMLElement::)
@@ -63,6 +69,10 @@ public:
                               bool aCompileEventHandlers);
   virtual void UnbindFromTree(bool aDeep = true,
                               bool aNullParent = true);
+  virtual bool ParseAttribute(int32_t aNamespaceID,
+                              nsIAtom* aAttribute,
+                              const nsAString& aValue,
+                              nsAttrValue& aResult);
   void CreateAndDispatchEvent(nsIDocument* aDoc, const nsAString& aEventName);
   nsresult SetAttr(int32_t aNameSpaceID, nsIAtom* aName,
                    const nsAString& aValue, bool aNotify)
@@ -94,6 +104,7 @@ protected:
                                  nsAString& aType,
                                  nsAString& aMedia,
                                  bool* aIsAlternate);
+  virtual CORSMode GetCORSMode() const;
 protected:
   virtual void GetItemValueText(nsAString& text);
   virtual void SetItemValueText(const nsAString& text);
@@ -113,6 +124,15 @@ nsHTMLLinkElement::~nsHTMLLinkElement()
 {
 }
 
+NS_IMPL_CYCLE_COLLECTION_CLASS(nsHTMLLinkElement)
+NS_IMPL_CYCLE_COLLECTION_TRAVERSE_BEGIN_INHERITED(nsHTMLLinkElement,
+                                                  nsGenericHTMLElement)
+  tmp->nsStyleLinkElement::Traverse(cb);
+NS_IMPL_CYCLE_COLLECTION_TRAVERSE_END
+NS_IMPL_CYCLE_COLLECTION_UNLINK_BEGIN_INHERITED(nsHTMLLinkElement,
+                                                nsGenericHTMLElement)
+  tmp->nsStyleLinkElement::Unlink();
+NS_IMPL_CYCLE_COLLECTION_UNLINK_END
 
 NS_IMPL_ADDREF_INHERITED(nsHTMLLinkElement, nsGenericElement) 
 NS_IMPL_RELEASE_INHERITED(nsHTMLLinkElement, nsGenericElement) 
@@ -121,7 +141,7 @@ NS_IMPL_RELEASE_INHERITED(nsHTMLLinkElement, nsGenericElement)
 DOMCI_NODE_DATA(HTMLLinkElement, nsHTMLLinkElement)
 
 // QueryInterface implementation for nsHTMLLinkElement
-NS_INTERFACE_TABLE_HEAD(nsHTMLLinkElement)
+NS_INTERFACE_TABLE_HEAD_CYCLE_COLLECTION_INHERITED(nsHTMLLinkElement)
   NS_HTML_CONTENT_INTERFACE_TABLE5(nsHTMLLinkElement,
                                    nsIDOMHTMLLinkElement,
                                    nsIDOMLinkStyle,
@@ -173,6 +193,7 @@ NS_IMPL_STRING_ATTR(nsHTMLLinkElement, Rel, rel)
 NS_IMPL_STRING_ATTR(nsHTMLLinkElement, Rev, rev)
 NS_IMPL_STRING_ATTR(nsHTMLLinkElement, Target, target)
 NS_IMPL_STRING_ATTR(nsHTMLLinkElement, Type, type)
+NS_IMPL_STRING_ATTR(nsHTMLLinkElement, CrossOrigin, crossorigin)
 
 void
 nsHTMLLinkElement::GetItemValueText(nsAString& aValue)
@@ -240,6 +261,22 @@ nsHTMLLinkElement::UnbindFromTree(bool aDeep, bool aNullParent)
   CreateAndDispatchEvent(oldDoc, NS_LITERAL_STRING("DOMLinkRemoved"));
   nsGenericHTMLElement::UnbindFromTree(aDeep, aNullParent);
   UpdateStyleSheetInternal(oldDoc);
+}
+
+bool
+nsHTMLLinkElement::ParseAttribute(int32_t aNamespaceID,
+                                  nsIAtom* aAttribute,
+                                  const nsAString& aValue,
+                                  nsAttrValue& aResult)
+{
+  if (aNamespaceID == kNameSpaceID_None &&
+      aAttribute == nsGkAtoms::crossorigin) {
+    ParseCORSValue(aValue, aResult);
+    return true;
+  }
+
+  return nsGenericHTMLElement::ParseAttribute(aNamespaceID, aAttribute, aValue,
+                                              aResult);
 }
 
 void
@@ -441,6 +478,12 @@ nsHTMLLinkElement::GetStyleSheetInfo(nsAString& aTitle,
   aType.AssignLiteral("text/css");
 
   return;
+}
+
+CORSMode
+nsHTMLLinkElement::GetCORSMode() const
+{
+  return AttrValueToCORSMode(GetParsedAttr(nsGkAtoms::crossorigin)); 
 }
 
 nsEventStates

@@ -59,6 +59,7 @@
 #include "nsMathMLAtoms.h"
 #include "nsMathMLOperators.h"
 #include "Navigator.h"
+#include "nsDOMStorageBaseDB.h"
 
 #ifdef MOZ_XUL
 #include "nsXULPopupManager.h"
@@ -98,6 +99,9 @@
 #include "nsWindowMemoryReporter.h"
 #include "mozilla/dom/ContentParent.h"
 #include "mozilla/dom/ipc/ProcessPriorityManager.h"
+#include "nsPermissionManager.h"
+#include "nsCookieService.h"
+#include "nsApplicationCacheService.h"
 
 extern void NS_ShutdownChainItemPool();
 
@@ -251,6 +255,12 @@ nsLayoutStatics::Initialize()
   nsSVGUtils::Init();
 
   InitProcessPriorityManager();
+
+  nsPermissionManager::AppUninstallObserverInit();
+  nsCookieService::AppClearDataObserverInit();
+  nsApplicationCacheService::AppClearDataObserverInit();
+
+  nsDOMStorageBaseDB::Init();
 
   return NS_OK;
 }

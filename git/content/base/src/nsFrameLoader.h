@@ -22,6 +22,7 @@
 #include "mozilla/dom/Element.h"
 #include "mozilla/Attributes.h"
 #include "FrameMetrics.h"
+#include "nsStubMutationObserver.h"
 
 class nsIURI;
 class nsSubDocumentFrame;
@@ -29,11 +30,15 @@ class nsIView;
 class nsIInProcessContentFrameMessageManager;
 class AutoResetInShow;
 class nsITabParent;
+class nsIDocShellTreeItem;
+class nsIDocShellTreeOwner;
+class nsIDocShellTreeNode;
 
 namespace mozilla {
 namespace dom {
 class PBrowserParent;
 class TabParent;
+struct StructuredCloneData;
 }
 
 namespace layout {
@@ -135,7 +140,9 @@ private:
 
 
 class nsFrameLoader MOZ_FINAL : public nsIFrameLoader,
-                                public nsIContentViewManager
+                                public nsIContentViewManager,
+                                public nsStubMutationObserver,
+                                public mozilla::dom::ipc::MessageManagerCallback
 {
   friend class AutoResetInShow;
   typedef mozilla::dom::PBrowserParent PBrowserParent;
@@ -166,12 +173,22 @@ public:
   NS_DECL_CYCLE_COLLECTION_CLASS_AMBIGUOUS(nsFrameLoader, nsIFrameLoader)
   NS_DECL_NSIFRAMELOADER
   NS_DECL_NSICONTENTVIEWMANAGER
+  NS_DECL_NSIMUTATIONOBSERVER_ATTRIBUTECHANGED
   NS_HIDDEN_(nsresult) CheckForRecursiveLoad(nsIURI* aURI);
   nsresult ReallyStartLoading();
   void Finalize();
   nsIDocShell* GetExistingDocShell() { return mDocShell; }
   nsIDOMEventTarget* GetTabChildGlobalAsEventTarget();
   nsresult CreateStaticClone(nsIFrameLoader* aDest);
+
+  /**
+   * MessageManagerCallback methods that we override.
+   */
+  virtual bool DoLoadFrameScript(const nsAString& aURL);
+  virtual bool DoSendAsyncMessage(const nsAString& aMessage,
+                                  const mozilla::dom::StructuredCloneData& aData);
+  virtual bool CheckPermission(const nsAString& aPermission);
+
 
   /**
    * Called from the layout frame associated with this frame loader;
@@ -337,9 +354,19 @@ private:
   // Tell the remote browser that it's now "virtually visible"
   bool ShowRemoteFrame(const nsIntSize& size);
 
+  bool AddTreeItemToTreeOwner(nsIDocShellTreeItem* aItem,
+                              nsIDocShellTreeOwner* aOwner,
+                              int32_t aParentType,
+                              nsIDocShellTreeNode* aParentNode);
+
+  nsIAtom* TypeAttrName() const {
+    return mOwnerContent->IsXUL() ? nsGkAtoms::type : nsGkAtoms::mozframetype;
+  }
+
   nsCOMPtr<nsIDocShell> mDocShell;
   nsCOMPtr<nsIURI> mURIToLoad;
   mozilla::dom::Element* mOwnerContent; // WEAK
+
 public:
   // public because a callback needs these.
   nsRefPtr<nsFrameMessageManager> mMessageManager;
@@ -373,6 +400,7 @@ private:
   bool mClipSubdocument : 1;
   bool mClampScrollPosition : 1;
   bool mRemoteBrowserInitialized : 1;
+  bool mObservingOwnerContent : 1;
 
   // XXX leaking
   nsCOMPtr<nsIObserver> mChildHost;

@@ -12,7 +12,6 @@
 
 #include <string.h>
 
-#include "prtypes.h"
 #include "nsAlgorithm.h"
 #include "nscore.h"
 #include "nsQuickSort.h"
@@ -35,6 +34,8 @@
 //
 
 #if defined(MOZALLOC_HAVE_XMALLOC)
+#include "mozilla/mozalloc_abort.h"
+
 struct nsTArrayFallibleAllocator
 {
   static void* Malloc(size_t size) {
@@ -47,6 +48,9 @@ struct nsTArrayFallibleAllocator
 
   static void Free(void* ptr) {
     moz_free(ptr);
+  }
+
+  static void SizeTooBig() {
   }
 };
 
@@ -62,6 +66,10 @@ struct nsTArrayInfallibleAllocator
 
   static void Free(void* ptr) {
     moz_free(ptr);
+  }
+
+  static void SizeTooBig() {
+    mozalloc_abort("Trying to allocate an infallible array that's too big");
   }
 };
 
@@ -80,6 +88,9 @@ struct nsTArrayFallibleAllocator
 
   static void Free(void* ptr) {
     free(ptr);
+  }
+
+  static void SizeTooBig() {
   }
 };
 
@@ -646,9 +657,8 @@ public:
   template<class Item, class Comparator>
   index_type LastIndexOf(const Item& item, index_type start,
                          const Comparator& comp) const {
-    if (start >= Length())
-      start = Length() - 1;
-    const elem_type* end = Elements() - 1, *iter = end + start + 1;
+    size_type endOffset = start >= Length() ? Length() : start + 1;
+    const elem_type* end = Elements() - 1, *iter = end + endOffset;
     for (; iter != end; --iter) {
       if (comp.Equals(*iter, item))
         return index_type(iter - Elements());
@@ -1337,7 +1347,9 @@ private:
   // __attribute__((aligned(foo))).
   union {
     char mAutoBuf[sizeof(nsTArrayHeader) + N * sizeof(elem_type)];
-    mozilla::AlignedElem<PR_MAX(MOZ_ALIGNOF(Header), MOZ_ALIGNOF(elem_type))> mAlign;
+    // Do the max operation inline to ensure that it is a compile-time constant.
+    mozilla::AlignedElem<(MOZ_ALIGNOF(Header) > MOZ_ALIGNOF(elem_type))
+                         ? MOZ_ALIGNOF(Header) : MOZ_ALIGNOF(elem_type)> mAlign;
   };
 };
 

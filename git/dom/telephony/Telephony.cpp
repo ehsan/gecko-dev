@@ -20,6 +20,7 @@
 #include "nsServiceManagerUtils.h"
 #include "SystemWorkerManager.h"
 #include "nsRadioInterfaceLayer.h"
+#include "nsTArrayHelpers.h"
 
 #include "CallEvent.h"
 #include "TelephonyCall.h"
@@ -32,49 +33,6 @@ namespace {
 typedef nsAutoTArray<Telephony*, 2> TelephonyList;
 
 TelephonyList* gTelephonyList;
-
-template <class T>
-inline nsresult
-nsTArrayToJSArray(JSContext* aCx, JSObject* aGlobal,
-                  const nsTArray<nsRefPtr<T> >& aSourceArray,
-                  JSObject** aResultArray)
-{
-  NS_ASSERTION(aCx, "Null context!");
-  NS_ASSERTION(aGlobal, "Null global!");
-
-  JSAutoRequest ar(aCx);
-  JSAutoCompartment ac(aCx, aGlobal);
-
-  JSObject* arrayObj;
-
-  if (aSourceArray.IsEmpty()) {
-    arrayObj = JS_NewArrayObject(aCx, 0, nullptr);
-  } else {
-    uint32_t valLength = aSourceArray.Length();
-    mozilla::ScopedDeleteArray<jsval> valArray(new jsval[valLength]);
-    JS::AutoArrayRooter tvr(aCx, 0, valArray);
-    for (uint32_t index = 0; index < valLength; index++) {
-      nsISupports* obj = aSourceArray[index]->ToISupports();
-      nsresult rv =
-        nsContentUtils::WrapNative(aCx, aGlobal, obj, &valArray[index]);
-      NS_ENSURE_SUCCESS(rv, rv);
-      tvr.changeLength(index + 1);
-    }
-    arrayObj = JS_NewArrayObject(aCx, valLength, valArray);
-  }
-
-  if (!arrayObj) {
-    return NS_ERROR_OUT_OF_MEMORY;
-  }
-
-  // XXX This is not what Jonas wants. He wants it to be live.
-  if (!JS_FreezeObject(aCx, arrayObj)) {
-    return NS_ERROR_FAILURE;
-  }
-
-  *aResultArray = arrayObj;
-  return NS_OK;
-}
 
 } // anonymous namespace
 
@@ -222,8 +180,6 @@ NS_IMPL_CYCLE_COLLECTION_CLASS(Telephony)
 NS_IMPL_CYCLE_COLLECTION_TRAVERSE_BEGIN_INHERITED(Telephony,
                                                   nsDOMEventTargetHelper)
   NS_IMPL_CYCLE_COLLECTION_TRAVERSE_SCRIPT_OBJECTS
-  NS_CYCLE_COLLECTION_TRAVERSE_EVENT_HANDLER(incoming)
-  NS_CYCLE_COLLECTION_TRAVERSE_EVENT_HANDLER(callschanged)
   for (uint32_t index = 0; index < tmp->mCalls.Length(); index++) {
     NS_CYCLE_COLLECTION_NOTE_EDGE_NAME(cb, "mCalls[i]");
     cb.NoteXPCOMChild(tmp->mCalls[index]->ToISupports());
@@ -237,8 +193,6 @@ NS_IMPL_CYCLE_COLLECTION_TRACE_END
 
 NS_IMPL_CYCLE_COLLECTION_UNLINK_BEGIN_INHERITED(Telephony,
                                                 nsDOMEventTargetHelper)
-  NS_CYCLE_COLLECTION_UNLINK_EVENT_HANDLER(incoming)
-  NS_CYCLE_COLLECTION_UNLINK_EVENT_HANDLER(callschanged)
   tmp->mCalls.Clear();
   tmp->mActiveCall = nullptr;
   tmp->mCallsArray = nullptr;
@@ -338,9 +292,7 @@ Telephony::GetCalls(jsval* aCalls)
     nsIScriptContext* sc = GetContextForEventHandlers(&rv);
     NS_ENSURE_SUCCESS(rv, rv);
     if (sc) {
-      rv =
-        nsTArrayToJSArray(sc->GetNativeContext(),
-                          sc->GetNativeGlobal(), mCalls, &calls);
+      rv = nsTArrayToJSArray(sc->GetNativeContext(), mCalls, &calls);
       NS_ENSURE_SUCCESS(rv, rv);
 
       if (!mRooted) {
@@ -540,21 +492,13 @@ NS_NewTelephony(nsPIDOMWindow* aWindow, nsIDOMTelephony** aTelephony)
     aWindow :
     aWindow->GetCurrentInnerWindow();
 
-  // Need the document for security check.
-  nsCOMPtr<nsIDocument> document =
-    do_QueryInterface(innerWindow->GetExtantDocument());
-  NS_ENSURE_TRUE(document, NS_NOINTERFACE);
-
-  nsCOMPtr<nsIPrincipal> principal = document->NodePrincipal();
-  NS_ENSURE_TRUE(principal, NS_ERROR_UNEXPECTED);
-
   nsCOMPtr<nsIPermissionManager> permMgr =
     do_GetService(NS_PERMISSIONMANAGER_CONTRACTID);
   NS_ENSURE_TRUE(permMgr, NS_ERROR_UNEXPECTED);
 
   uint32_t permission;
   nsresult rv =
-    permMgr->TestPermissionFromPrincipal(principal, "telephony", &permission);
+    permMgr->TestPermissionFromWindow(aWindow, "telephony", &permission);
   NS_ENSURE_SUCCESS(rv, rv);
 
   if (permission != nsIPermissionManager::ALLOW_ACTION) {

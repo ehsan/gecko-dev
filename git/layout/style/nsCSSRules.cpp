@@ -40,7 +40,9 @@
 namespace css = mozilla::css;
 
 #define IMPL_STYLE_RULE_INHERIT_GET_DOM_RULE_WEAK(class_, super_) \
-/* virtual */ nsIDOMCSSRule* class_::GetDOMRule() \
+  /* virtual */ nsIDOMCSSRule* class_::GetDOMRule()               \
+  { return this; }                                                \
+  /* virtual */ nsIDOMCSSRule* class_::GetExistingDOMRule()       \
   { return this; }
 #define IMPL_STYLE_RULE_INHERIT_MAP_RULE_INFO_INTO(class_, super_) \
 /* virtual */ void class_::MapRuleInfoInto(nsRuleData* aRuleData) \
@@ -55,8 +57,25 @@ IMPL_STYLE_RULE_INHERIT_MAP_RULE_INFO_INTO(class_, super_)
 namespace mozilla {
 namespace css {
 
-NS_IMPL_ADDREF(Rule)
-NS_IMPL_RELEASE(Rule)
+nsCSSStyleSheet*
+Rule::GetStyleSheet() const
+{
+  if (!(mSheet & 0x1)) {
+    return reinterpret_cast<nsCSSStyleSheet*>(mSheet);
+  }
+
+  return nullptr;
+}
+
+nsHTMLCSSStyleSheet*
+Rule::GetHTMLCSSStyleSheet() const
+{
+  if (mSheet & 0x1) {
+    return reinterpret_cast<nsHTMLCSSStyleSheet*>(mSheet & ~uintptr_t(0x1));
+  }
+
+  return nullptr;
+}
 
 /* virtual */ void
 Rule::SetStyleSheet(nsCSSStyleSheet* aSheet)
@@ -64,7 +83,17 @@ Rule::SetStyleSheet(nsCSSStyleSheet* aSheet)
   // We don't reference count this up reference. The style sheet
   // will tell us when it's going away or when we're detached from
   // it.
-  mSheet = aSheet;
+  mSheet = reinterpret_cast<uintptr_t>(aSheet);
+}
+
+void
+Rule::SetHTMLCSSStyleSheet(nsHTMLCSSStyleSheet* aSheet)
+{
+  // We don't reference count this up reference. The style sheet
+  // will tell us when it's going away or when we're detached from
+  // it.
+  mSheet = reinterpret_cast<uintptr_t>(aSheet);
+  mSheet |= 0x1;
 }
 
 nsresult
@@ -83,7 +112,7 @@ Rule::GetParentStyleSheet(nsIDOMCSSStyleSheet** aSheet)
 {
   NS_ENSURE_ARG_POINTER(aSheet);
 
-  NS_IF_ADDREF(*aSheet = mSheet);
+  NS_IF_ADDREF(*aSheet = GetStyleSheet());
   return NS_OK;
 }
 
@@ -211,8 +240,8 @@ CharsetRule::CharsetRule(const CharsetRule& aCopy)
 {
 }
 
-NS_IMPL_ADDREF_INHERITED(CharsetRule, Rule)
-NS_IMPL_RELEASE_INHERITED(CharsetRule, Rule)
+NS_IMPL_ADDREF(CharsetRule)
+NS_IMPL_RELEASE(CharsetRule)
 
 // QueryInterface implementation for CharsetRule
 NS_INTERFACE_MAP_BEGIN(CharsetRule)
@@ -345,8 +374,8 @@ ImportRule::~ImportRule()
   }
 }
 
-NS_IMPL_ADDREF_INHERITED(ImportRule, Rule)
-NS_IMPL_RELEASE_INHERITED(ImportRule, Rule)
+NS_IMPL_ADDREF(ImportRule)
+NS_IMPL_RELEASE(ImportRule)
 
 // QueryInterface implementation for ImportRule
 NS_INTERFACE_MAP_BEGIN(ImportRule)
@@ -535,6 +564,13 @@ GroupRule::~GroupRule()
   }
 }
 
+NS_IMPL_CYCLE_COLLECTION_CLASS(GroupRule)
+NS_IMPL_CYCLE_COLLECTING_ADDREF(GroupRule)
+NS_IMPL_CYCLE_COLLECTING_RELEASE(GroupRule)
+
+NS_INTERFACE_MAP_BEGIN_CYCLE_COLLECTION(GroupRule)
+NS_INTERFACE_MAP_END
+
 IMPL_STYLE_RULE_INHERIT_MAP_RULE_INFO_INTO(GroupRule, Rule)
 
 static bool
@@ -545,11 +581,44 @@ SetStyleSheetReference(Rule* aRule, void* aSheet)
   return true;
 }
 
+NS_IMPL_CYCLE_COLLECTION_UNLINK_BEGIN(GroupRule)
+  tmp->mRules.EnumerateForwards(SetParentRuleReference, nullptr);
+  // If tmp does not have a stylesheet, neither do its descendants.  In that
+  // case, don't try to null out their stylesheet, to avoid O(N^2) behavior in
+  // depth of group rule nesting.  But if tmp _does_ have a stylesheet (which
+  // can happen if it gets unlinked earlier than its owning stylesheet), then we
+  // need to null out the stylesheet pointer on descendants now, before we clear
+  // tmp->mRules.
+  if (tmp->GetStyleSheet()) {
+    tmp->mRules.EnumerateForwards(SetStyleSheetReference, nullptr);
+  }
+  tmp->mRules.Clear();
+  if (tmp->mRuleCollection) {
+    tmp->mRuleCollection->DropReference();
+    tmp->mRuleCollection = nullptr;
+  }
+NS_IMPL_CYCLE_COLLECTION_UNLINK_END
+
+NS_IMPL_CYCLE_COLLECTION_TRAVERSE_BEGIN(GroupRule)
+  const nsCOMArray<Rule>& rules = tmp->mRules;
+  for (int32_t i = 0, count = rules.Count(); i < count; ++i) {
+    NS_CYCLE_COLLECTION_NOTE_EDGE_NAME(cb, "mRules[i]");
+    cb.NoteXPCOMChild(rules[i]->GetExistingDOMRule());
+  }
+  NS_IMPL_CYCLE_COLLECTION_TRAVERSE_NSCOMPTR(mRuleCollection)
+NS_IMPL_CYCLE_COLLECTION_TRAVERSE_END
+
 /* virtual */ void
 GroupRule::SetStyleSheet(nsCSSStyleSheet* aSheet)
 {
-  mRules.EnumerateForwards(SetStyleSheetReference, aSheet);
-  Rule::SetStyleSheet(aSheet);
+  // Don't set the sheet on the kids if it's already the same as the sheet we
+  // already have.  This is needed to avoid O(N^2) behavior in group nesting
+  // depth when seting the sheet to null during unlink, if we happen to unlin in
+  // order from most nested rule up to least nested rule.
+  if (aSheet != GetStyleSheet()) {
+    mRules.EnumerateForwards(SetStyleSheetReference, aSheet);
+    Rule::SetStyleSheet(aSheet);
+  }
 }
 
 #ifdef DEBUG
@@ -571,10 +640,11 @@ void
 GroupRule::AppendStyleRule(Rule* aRule)
 {
   mRules.AppendObject(aRule);
-  aRule->SetStyleSheet(mSheet);
+  nsCSSStyleSheet* sheet = GetStyleSheet();
+  aRule->SetStyleSheet(sheet);
   aRule->SetParentRule(this);
-  if (mSheet) {
-    mSheet->SetModifiedByChildRule();
+  if (sheet) {
+    sheet->SetModifiedByChildRule();
   }
 }
 
@@ -612,7 +682,7 @@ nsresult
 GroupRule::InsertStyleRulesAt(uint32_t aIndex,
                               nsCOMArray<Rule>& aRules)
 {
-  aRules.EnumerateForwards(SetStyleSheetReference, mSheet);
+  aRules.EnumerateForwards(SetStyleSheetReference, GetStyleSheet());
   aRules.EnumerateForwards(SetParentRuleReference, this);
   if (! mRules.InsertObjectsAt(aRules, aIndex)) {
     return NS_ERROR_FAILURE;
@@ -626,7 +696,7 @@ GroupRule::ReplaceStyleRule(Rule* aOld, Rule* aNew)
   int32_t index = mRules.IndexOf(aOld);
   NS_ENSURE_TRUE(index != -1, NS_ERROR_UNEXPECTED);
   mRules.ReplaceObjectAt(aNew, index);
-  aNew->SetStyleSheet(mSheet);
+  aNew->SetStyleSheet(GetStyleSheet());
   aNew->SetParentRule(this);
   aOld->SetStyleSheet(nullptr);
   aOld->SetParentRule(nullptr);
@@ -671,29 +741,31 @@ GroupRule::GetCssRules(nsIDOMCSSRuleList* *aRuleList)
 nsresult
 GroupRule::InsertRule(const nsAString & aRule, uint32_t aIndex, uint32_t* _retval)
 {
-  NS_ENSURE_TRUE(mSheet, NS_ERROR_FAILURE);
+  nsCSSStyleSheet* sheet = GetStyleSheet();
+  NS_ENSURE_TRUE(sheet, NS_ERROR_FAILURE);
   
   if (aIndex > uint32_t(mRules.Count()))
     return NS_ERROR_DOM_INDEX_SIZE_ERR;
 
-  NS_ASSERTION(uint32_t(mRules.Count()) <= PR_INT32_MAX,
+  NS_ASSERTION(uint32_t(mRules.Count()) <= INT32_MAX,
                "Too many style rules!");
 
-  return mSheet->InsertRuleIntoGroup(aRule, this, aIndex, _retval);
+  return sheet->InsertRuleIntoGroup(aRule, this, aIndex, _retval);
 }
 
 nsresult
 GroupRule::DeleteRule(uint32_t aIndex)
 {
-  NS_ENSURE_TRUE(mSheet, NS_ERROR_FAILURE);
+  nsCSSStyleSheet* sheet = GetStyleSheet();
+  NS_ENSURE_TRUE(sheet, NS_ERROR_FAILURE);
 
   if (aIndex >= uint32_t(mRules.Count()))
     return NS_ERROR_DOM_INDEX_SIZE_ERR;
 
-  NS_ASSERTION(uint32_t(mRules.Count()) <= PR_INT32_MAX,
+  NS_ASSERTION(uint32_t(mRules.Count()) <= INT32_MAX,
                "Too many style rules!");
 
-  return mSheet->DeleteRuleFromGroup(this, aIndex);
+  return sheet->DeleteRuleFromGroup(this, aIndex);
 }
 
 /* virtual */ size_t
@@ -722,7 +794,7 @@ MediaRule::MediaRule(const MediaRule& aCopy)
     aCopy.mMedia->Clone(getter_AddRefs(mMedia));
     if (mMedia) {
       // XXXldb This doesn't really make sense.
-      mMedia->SetStyleSheet(aCopy.mSheet);
+      mMedia->SetStyleSheet(aCopy.GetStyleSheet());
     }
   }
 }
@@ -744,7 +816,7 @@ NS_INTERFACE_MAP_BEGIN(MediaRule)
   NS_INTERFACE_MAP_ENTRY(nsIDOMCSSMediaRule)
   NS_INTERFACE_MAP_ENTRY_AMBIGUOUS(nsISupports, nsIStyleRule)
   NS_DOM_INTERFACE_MAP_ENTRY_CLASSINFO(CSSMediaRule)
-NS_INTERFACE_MAP_END
+NS_INTERFACE_MAP_END_INHERITING(GroupRule)
 
 /* virtual */ void
 MediaRule::SetStyleSheet(nsCSSStyleSheet* aSheet)
@@ -796,7 +868,7 @@ MediaRule::SetMedia(nsMediaList* aMedia)
 {
   mMedia = aMedia;
   if (aMedia)
-    mMedia->SetStyleSheet(mSheet);
+    mMedia->SetStyleSheet(GetStyleSheet());
   return NS_OK;
 }
 
@@ -924,7 +996,7 @@ NS_INTERFACE_MAP_BEGIN(DocumentRule)
   NS_INTERFACE_MAP_ENTRY(nsIDOMCSSMozDocumentRule)
   NS_INTERFACE_MAP_ENTRY_AMBIGUOUS(nsISupports, nsIStyleRule)
   NS_DOM_INTERFACE_MAP_ENTRY_CLASSINFO(CSSMozDocumentRule)
-NS_INTERFACE_MAP_END
+NS_INTERFACE_MAP_END_INHERITING(GroupRule)
 
 #ifdef DEBUG
 /* virtual */ void
@@ -932,7 +1004,7 @@ DocumentRule::List(FILE* out, int32_t aIndent) const
 {
   for (int32_t indent = aIndent; --indent >= 0; ) fputs("  ", out);
 
-  nsCAutoString str;
+  nsAutoCString str;
   str.AssignLiteral("@-moz-document ");
   for (URL *url = mURLs; url; url = url->next) {
     switch (url->func) {
@@ -949,7 +1021,7 @@ DocumentRule::List(FILE* out, int32_t aIndent) const
         str.AppendLiteral("regexp(\"");
         break;
     }
-    nsCAutoString escapedURL(url->url);
+    nsAutoCString escapedURL(url->url);
     escapedURL.ReplaceSubstring("\"", "\\\""); // escape quotes
     str.Append(escapedURL);
     str.AppendLiteral("\"), ");
@@ -1054,7 +1126,7 @@ DocumentRule::UseForPresentation(nsPresContext* aPresContext,
 {
   nsIDocument *doc = aPresContext->Document();
   nsIURI *docURI = doc->GetDocumentURI();
-  nsCAutoString docURISpec;
+  nsAutoCString docURISpec;
   if (docURI)
     docURI->GetSpec(docURISpec);
 
@@ -1069,7 +1141,7 @@ DocumentRule::UseForPresentation(nsPresContext* aPresContext,
           return true;
       } break;
       case eDomain: {
-        nsCAutoString host;
+        nsAutoCString host;
         if (docURI)
           docURI->GetHost(host);
         int32_t lenDiff = host.Length() - url->url.Length();
@@ -1144,8 +1216,8 @@ NameSpaceRule::~NameSpaceRule()
 {
 }
 
-NS_IMPL_ADDREF_INHERITED(NameSpaceRule, Rule)
-NS_IMPL_RELEASE_INHERITED(NameSpaceRule, Rule)
+NS_IMPL_ADDREF(NameSpaceRule)
+NS_IMPL_RELEASE(NameSpaceRule)
 
 // QueryInterface implementation for NameSpaceRule
 NS_INTERFACE_MAP_BEGIN(NameSpaceRule)
@@ -1334,7 +1406,7 @@ AppendSerializedUnicodeRange(nsCSSValue const & aValue,
     return;
 
   nsCSSValue::Array const & sources = *aValue.GetArrayValue();
-  nsCAutoString buf;
+  nsAutoCString buf;
 
   NS_ABORT_IF_FALSE(sources.Count() % 2 == 0,
                     "odd number of entries in a unicode-range: array");
@@ -1887,8 +1959,8 @@ nsCSSKeyframeRule::Clone() const
   return clone.forget();
 }
 
-NS_IMPL_ADDREF_INHERITED(nsCSSKeyframeRule, Rule)
-NS_IMPL_RELEASE_INHERITED(nsCSSKeyframeRule, Rule)
+NS_IMPL_ADDREF(nsCSSKeyframeRule)
+NS_IMPL_RELEASE(nsCSSKeyframeRule)
 
 DOMCI_DATA(MozCSSKeyframeRule, nsCSSKeyframeRule)
 
@@ -2000,8 +2072,9 @@ nsCSSKeyframeRule::SetKeyText(const nsAString& aKeyText)
     // for now, we don't do anything if the parse fails
   }
 
-  if (mSheet) {
-    mSheet->SetModifiedByChildRule();
+  nsCSSStyleSheet* sheet = GetStyleSheet();
+  if (sheet) {
+    sheet->SetModifiedByChildRule();
   }
 
   return NS_OK;
@@ -2026,8 +2099,9 @@ nsCSSKeyframeRule::ChangeDeclaration(css::Declaration* aDeclaration)
     mDeclaration = aDeclaration;
   }
 
-  if (mSheet) {
-    mSheet->SetModifiedByChildRule();
+  nsCSSStyleSheet* sheet = GetStyleSheet();
+  if (sheet) {
+    sheet->SetModifiedByChildRule();
   }
 }
 
@@ -2080,7 +2154,7 @@ NS_INTERFACE_MAP_BEGIN(nsCSSKeyframesRule)
   NS_INTERFACE_MAP_ENTRY(nsIDOMMozCSSKeyframesRule)
   NS_INTERFACE_MAP_ENTRY_AMBIGUOUS(nsISupports, nsIStyleRule)
   NS_DOM_INTERFACE_MAP_ENTRY_CLASSINFO(MozCSSKeyframesRule)
-NS_INTERFACE_MAP_END
+NS_INTERFACE_MAP_END_INHERITING(GroupRule)
 
 #ifdef DEBUG
 void
@@ -2150,8 +2224,9 @@ nsCSSKeyframesRule::SetName(const nsAString& aName)
 {
   mName = aName;
 
-  if (mSheet) {
-    mSheet->SetModifiedByChildRule();
+  nsCSSStyleSheet* sheet = GetStyleSheet();
+  if (sheet) {
+    sheet->SetModifiedByChildRule();
   }
 
   return NS_OK;
@@ -2212,8 +2287,9 @@ nsCSSKeyframesRule::DeleteRule(const nsAString& aKey)
   uint32_t index = FindRuleIndexForKey(aKey);
   if (index != RULE_NOT_FOUND) {
     mRules.RemoveObjectAt(index);
-    if (mSheet) {
-      mSheet->SetModifiedByChildRule();
+    nsCSSStyleSheet* sheet = GetStyleSheet();
+    if (sheet) {
+      sheet->SetModifiedByChildRule();
     }
   }
   return NS_OK;
@@ -2316,7 +2392,7 @@ NS_INTERFACE_MAP_BEGIN(CSSSupportsRule)
   NS_INTERFACE_MAP_ENTRY(nsIDOMCSSSupportsRule)
   NS_INTERFACE_MAP_ENTRY_AMBIGUOUS(nsISupports, nsIStyleRule)
   NS_DOM_INTERFACE_MAP_ENTRY_CLASSINFO(CSSSupportsRule)
-NS_INTERFACE_MAP_END
+NS_INTERFACE_MAP_END_INHERITING(GroupRule)
 
 // nsIDOMCSSRule methods
 NS_IMETHODIMP

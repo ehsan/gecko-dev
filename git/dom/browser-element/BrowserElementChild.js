@@ -74,6 +74,8 @@ BrowserElementChild.prototype = {
     docShell.QueryInterface(Ci.nsIDocShellTreeItem).name =
       sendSyncMsg('get-name')[0];
 
+    docShell.setFullscreenAllowed(sendSyncMsg('get-fullscreen-allowed')[0]);
+
     BrowserElementPromptService.mapWindowToBrowserElementChild(content, this);
 
     docShell.QueryInterface(Ci.nsIWebProgress)
@@ -104,6 +106,12 @@ BrowserElementChild.prototype = {
 
     addEventListener('DOMLinkAdded',
                      this._iconChangedHandler.bind(this),
+                     /* useCapture = */ true,
+                     /* wantsUntrusted = */ false);
+
+    this._afterPaintHandlerClosure = this._afterPaintHandler.bind(this);
+    addEventListener('MozAfterPaint',
+                     this._afterPaintHandlerClosure,
                      /* useCapture = */ true,
                      /* wantsUntrusted = */ false);
 
@@ -348,6 +356,19 @@ BrowserElementChild.prototype = {
       else {
         debug("Not top level!");
       }
+    }
+  },
+
+  _afterPaintHandler: function(e) {
+    let uri = docShell.QueryInterface(Ci.nsIWebNavigation).currentURI;
+    debug("Got afterpaint event: " + uri.spec);
+    if (uri.spec != "about:blank") {
+      /* this._afterPaintHandlerClosure == arguments.callee, except we're in
+       * strict mode so we don't have arguments.callee. */
+      removeEventListener('MozAfterPaint', this._afterPaintHandlerClosure,
+                          /* useCapture */ true);
+
+      sendAsyncMsg('firstpaint');
     }
   },
 
@@ -656,6 +677,18 @@ BrowserElementChild.prototype = {
     onProgressChange: function(webProgress, request, curSelfProgress,
                                maxSelfProgress, curTotalProgress, maxTotalProgress) {},
   },
+
+  // Expose the message manager for WebApps and others.
+  _messageManagerPublic: {
+    sendAsyncMessage: global.sendAsyncMessage.bind(global),
+    sendSyncMessage: global.sendSyncMessage.bind(global),
+    addMessageListener: global.addMessageListener.bind(global),
+    removeMessageListener: global.removeMessageListener.bind(global)
+  },
+
+  get messageManager() {
+    return this._messageManagerPublic;
+  }
 };
 
 var api = new BrowserElementChild();

@@ -23,12 +23,10 @@ NS_IMPL_CYCLE_COLLECTION_CLASS(Voicemail)
 
 NS_IMPL_CYCLE_COLLECTION_TRAVERSE_BEGIN_INHERITED(Voicemail,
                                                   nsDOMEventTargetHelper)
-  NS_CYCLE_COLLECTION_TRAVERSE_EVENT_HANDLER(statuschanged)
 NS_IMPL_CYCLE_COLLECTION_TRAVERSE_END
 
 NS_IMPL_CYCLE_COLLECTION_UNLINK_BEGIN_INHERITED(Voicemail,
                                                 nsDOMEventTargetHelper)
-  NS_CYCLE_COLLECTION_UNLINK_EVENT_HANDLER(statuschanged)
 NS_IMPL_CYCLE_COLLECTION_UNLINK_END
 
 NS_INTERFACE_MAP_BEGIN_CYCLE_COLLECTION_INHERITED(Voicemail)
@@ -102,14 +100,7 @@ Voicemail::VoicemailNotification(nsIDOMMozVoicemailStatus* aStatus)
                                           false, false, aStatus);
   NS_ENSURE_SUCCESS(rv, rv);
 
-  rv = event->SetTrusted(true);
-  NS_ENSURE_SUCCESS(rv, rv);
-
-  bool dummy;
-  rv = DispatchEvent(static_cast<nsIDOMMozVoicemailEvent*>(event), &dummy);
-  NS_ENSURE_SUCCESS(rv, rv);
-
-  return NS_OK;
+  return DispatchTrustedEvent(static_cast<nsIDOMMozVoicemailEvent*>(event));
 }
 
 nsresult

@@ -36,9 +36,11 @@
 #include "nsNetUtil.h"
 #include "nsFrameMessageManager.h"
 #include "nsIScriptContext.h"
+#include "nsIWebProgressListener.h"
 #include "nsDOMEventTargetHelper.h"
 #include "nsIDialogCreator.h"
 #include "nsIDialogParamBlock.h"
+#include "nsIDOMWindowUtils.h"
 #include "nsIPresShell.h"
 #include "nsIPrincipal.h"
 #include "nsIScriptObjectPrincipal.h"
@@ -48,6 +50,7 @@
 #include "nsITabChild.h"
 #include "mozilla/Attributes.h"
 #include "FrameMetrics.h"
+#include "ProcessUtils.h"
 
 struct gfxMatrix;
 
@@ -140,27 +143,34 @@ class TabChild : public PBrowserChild,
                  public nsIWebBrowserChromeFocus,
                  public nsIInterfaceRequestor,
                  public nsIWindowProvider,
+                 public nsIDOMEventListener,
+                 public nsIWebProgressListener,
                  public nsSupportsWeakReference,
                  public nsIDialogCreator,
                  public nsITabChild,
-                 public nsIObserver
+                 public nsIObserver,
+                 public mozilla::dom::ipc::MessageManagerCallback
 {
     typedef mozilla::layout::RenderFrameChild RenderFrameChild;
     typedef mozilla::dom::ClonedMessageData ClonedMessageData;
 
 public:
-    /**
-     * Create a new TabChild object.
-     *
-     * |aIsBrowserElement| indicates whether the tab is inside an <iframe mozbrowser>.
-     * |aAppId| is the app id of the app containing this tab. If the tab isn't
-     * contained in an app, aAppId will be nsIScriptSecurityManager::NO_APP_ID.
+    /** 
+     * This is expected to be called off the critical path to content
+     * startup.  This is an opportunity to load things that are slow
+     * on the critical path.
      */
-    TabChild(uint32_t aChromeFlags, bool aIsBrowserElement, uint32_t aAppId);
+    static void PreloadSlowThings();
+
+    /** Return a TabChild with the given attributes. */
+    static already_AddRefed<TabChild> 
+    Create(uint32_t aChromeFlags, bool aIsBrowserElement, uint32_t aAppId);
+
     virtual ~TabChild();
-    nsresult Init();
 
     uint32_t GetAppId() { return mAppId; }
+
+    bool IsRootContentDocument();
 
     NS_DECL_ISUPPORTS
     NS_DECL_NSIWEBBROWSERCHROME
@@ -169,15 +179,27 @@ public:
     NS_DECL_NSIWEBBROWSERCHROMEFOCUS
     NS_DECL_NSIINTERFACEREQUESTOR
     NS_DECL_NSIWINDOWPROVIDER
+    NS_DECL_NSIDOMEVENTLISTENER
+    NS_DECL_NSIWEBPROGRESSLISTENER
     NS_DECL_NSIDIALOGCREATOR
     NS_DECL_NSITABCHILD
     NS_DECL_NSIOBSERVER
+
+    /**
+     * MessageManagerCallback methods that we override.
+     */
+    virtual bool DoSendSyncMessage(const nsAString& aMessage,
+                                   const mozilla::dom::StructuredCloneData& aData,
+                                   InfallibleTArray<nsString>* aJSONRetVal);
+    virtual bool DoSendAsyncMessage(const nsAString& aMessage,
+                                    const mozilla::dom::StructuredCloneData& aData);
 
     virtual bool RecvLoadURL(const nsCString& uri);
     virtual bool RecvShow(const nsIntSize& size);
     virtual bool RecvUpdateDimensions(const nsRect& rect, const nsIntSize& size);
     virtual bool RecvUpdateFrame(const mozilla::layers::FrameMetrics& aFrameMetrics);
     virtual bool RecvHandleDoubleTap(const nsIntPoint& aPoint);
+    virtual bool RecvHandleSingleTap(const nsIntPoint& aPoint);
     virtual bool RecvActivate();
     virtual bool RecvDeactivate();
     virtual bool RecvMouseEvent(const nsString& aType,
@@ -247,9 +269,11 @@ public:
     virtual PContentPermissionRequestChild* AllocPContentPermissionRequest(const nsCString& aType, const IPC::Principal& aPrincipal);
     virtual bool DeallocPContentPermissionRequest(PContentPermissionRequestChild* actor);
 
-    virtual POfflineCacheUpdateChild* AllocPOfflineCacheUpdate(const URIParams& manifestURI,
+    virtual POfflineCacheUpdateChild* AllocPOfflineCacheUpdate(
+            const URIParams& manifestURI,
             const URIParams& documentURI,
-            const nsCString& clientID,
+            const bool& isInBrowserElement,
+            const uint32_t& appId,
             const bool& stickDocument);
     virtual bool DeallocPOfflineCacheUpdate(POfflineCacheUpdateChild* offlineCacheUpdate);
 
@@ -258,6 +282,9 @@ public:
     JSContext* GetJSContext() { return mCx; }
 
     nsIPrincipal* GetPrincipal() { return mPrincipal; }
+
+    /** Return the DPI of the widget this TabChild draws to. */
+    void GetDPI(float* aDPI);
 
     void SetBackgroundColor(const nscolor& aColor);
 
@@ -281,16 +308,41 @@ protected:
     virtual bool DeallocPIndexedDB(PIndexedDBChild* aActor);
 
 private:
+    /**
+     * Create a new TabChild object.
+     *
+     * |aIsBrowserElement| indicates whether the tab is inside an <iframe mozbrowser>.
+     * |aAppId| is the app id of the app containing this tab. If the tab isn't
+     * contained in an app, aAppId will be nsIScriptSecurityManager::NO_APP_ID.
+     */
+    TabChild(uint32_t aChromeFlags, bool aIsBrowserElement, uint32_t aAppId);
+
+    nsresult Init();
+
+    void SetAppBrowserConfig(bool aIsBrowserElement, uint32_t aAppId);
+
     bool UseDirectCompositor();
 
     void ActorDestroy(ActorDestroyReason why);
 
-    bool InitTabChildGlobal();
-    bool InitWidget(const nsIntSize& size);
+    enum FrameScriptLoading { DONT_LOAD_SCRIPTS, DEFAULT_LOAD_SCRIPTS };
+    bool InitTabChildGlobal(FrameScriptLoading aScriptLoading = DEFAULT_LOAD_SCRIPTS);
+    bool InitRenderingState();
     void DestroyWindow();
+    void SetProcessNameToAppName();
 
     // Call RecvShow(nsIntSize(0, 0)) and block future calls to RecvShow().
     void DoFakeShow();
+
+    // Wrapper for nsIDOMWindowUtils.setCSSViewport(). This updates some state
+    // variables local to this class before setting it.
+    void SetCSSViewport(float aX, float aY);
+
+    // Recalculates the display state, including the CSS viewport. This should
+    // be called whenever we believe the meta viewport data on a document may
+    // have changed. If it didn't change, this function doesn't do anything.
+    // However, it should not be called all the time as it is fairly expensive.
+    void HandlePossibleMetaViewportChange();
 
     // Wraps up a JSON object as a structured clone and sends it to the browser
     // chrome script.
@@ -300,6 +352,9 @@ private:
     void DispatchMessageManagerMessage(const nsAString& aMessageName,
                                        const nsACString& aJSONData);
 
+    // Sends a simulated mouse event from a touch event for compatibility.
+    void DispatchSynthesizedMouseEvent(const nsTouchEvent& aEvent);
+
     nsresult
     BrowserFrameProvideWindow(nsIDOMWindow* aOpener,
                               nsIURI* aURI,
@@ -308,18 +363,31 @@ private:
                               bool* aWindowIsNew,
                               nsIDOMWindow** aReturn);
 
+    nsIDOMWindowUtils* GetDOMWindowUtils()
+    {
+        nsCOMPtr<nsPIDOMWindow> window = do_GetInterface(mWebNav);
+        nsCOMPtr<nsIDOMWindowUtils> utils = do_GetInterface(window);
+        return utils;
+    }
+
     nsCOMPtr<nsIWebNavigation> mWebNav;
     nsCOMPtr<nsIWidget> mWidget;
+    nsCOMPtr<nsIURI> mLastURI;
+    FrameMetrics mLastMetrics;
     RenderFrameChild* mRemoteFrame;
     nsRefPtr<TabChildGlobal> mTabChildGlobal;
     uint32_t mChromeFlags;
     nsIntRect mOuterRect;
+    nsIntSize mInnerSize;
+    float mOldViewportWidth;
     nscolor mLastBackgroundColor;
     ScrollingBehavior mScrolling;
+    uint32_t mAppId;
     bool mDidFakeShow;
     bool mIsBrowserElement;
     bool mNotified;
-    uint32_t mAppId;
+    bool mContentDocumentIsDisplayed;
+    bool mTriedBrowserInit;
 
     DISALLOW_EVIL_CONSTRUCTORS(TabChild);
 };

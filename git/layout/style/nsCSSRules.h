@@ -65,6 +65,10 @@ public:
   {
     return this;
   }
+  virtual nsIDOMCSSRule* GetExistingDOMRule()
+  {
+    return this;
+  }
 
   // nsIDOMCSSRule interface
   NS_DECL_NSIDOMCSSRULE
@@ -107,6 +111,10 @@ public:
   virtual int32_t GetType() const;
   virtual already_AddRefed<Rule> Clone() const;
   virtual nsIDOMCSSRule* GetDOMRule()
+  {
+    return this;
+  }
+  virtual nsIDOMCSSRule* GetExistingDOMRule()
   {
     return this;
   }
@@ -169,8 +177,8 @@ public:
     SetIsDOMBinding();
   }
 
-  virtual nsINode *GetParentObject();
-  virtual void IndexedGetter(uint32_t aIndex, bool& aFound, nsAString& aPropName);
+  virtual nsINode *GetParentObject() MOZ_OVERRIDE;
+  virtual void IndexedGetter(uint32_t aIndex, bool& aFound, nsAString& aPropName) MOZ_OVERRIDE;
 
   nsresult GetPropertyValue(nsCSSFontDesc aFontDescID,
                             nsAString & aResult) const;
@@ -229,7 +237,7 @@ public:
   void SetDesc(nsCSSFontDesc aDescID, nsCSSValue const & aValue);
   void GetDesc(nsCSSFontDesc aDescID, nsCSSValue & aValue);
 
-  virtual size_t SizeOfIncludingThis(nsMallocSizeOfFun aMallocSizeOf) const;
+  virtual size_t SizeOfIncludingThis(nsMallocSizeOfFun aMallocSizeOf) const MOZ_OVERRIDE;
 
 protected:
   friend class nsCSSFontFaceStyleDecl;
@@ -271,7 +279,7 @@ private:
   ~CharsetRule() {}
 
 public:
-  NS_DECL_ISUPPORTS_INHERITED
+  NS_DECL_ISUPPORTS
 
   DECL_STYLE_RULE_INHERIT
 
@@ -308,12 +316,12 @@ public:
   nsCSSKeyframeStyleDeclaration(nsCSSKeyframeRule *aRule);
   virtual ~nsCSSKeyframeStyleDeclaration();
 
-  NS_IMETHOD GetParentRule(nsIDOMCSSRule **aParent);
+  NS_IMETHOD GetParentRule(nsIDOMCSSRule **aParent) MOZ_OVERRIDE;
   void DropReference() { mRule = nullptr; }
-  virtual mozilla::css::Declaration* GetCSSDeclaration(bool aAllocate);
-  virtual nsresult SetCSSDeclaration(mozilla::css::Declaration* aDecl);
-  virtual void GetCSSParsingEnvironment(CSSParsingEnvironment& aCSSParseEnv);
-  virtual nsIDocument* DocToUpdate();
+  virtual mozilla::css::Declaration* GetCSSDeclaration(bool aAllocate) MOZ_OVERRIDE;
+  virtual nsresult SetCSSDeclaration(mozilla::css::Declaration* aDecl) MOZ_OVERRIDE;
+  virtual void GetCSSParsingEnvironment(CSSParsingEnvironment& aCSSParseEnv) MOZ_OVERRIDE;
+  virtual nsIDocument* DocToUpdate() MOZ_OVERRIDE;
 
   NS_DECL_CYCLE_COLLECTING_ISUPPORTS
   NS_DECL_CYCLE_COLLECTION_SCRIPT_HOLDER_CLASS_AMBIGUOUS(nsCSSKeyframeStyleDeclaration,
@@ -342,7 +350,7 @@ private:
   nsCSSKeyframeRule(const nsCSSKeyframeRule& aCopy);
   ~nsCSSKeyframeRule();
 public:
-  NS_DECL_ISUPPORTS_INHERITED
+  NS_DECL_ISUPPORTS
 
   // nsIStyleRule methods
 #ifdef DEBUG
@@ -365,7 +373,7 @@ public:
 
   void ChangeDeclaration(mozilla::css::Declaration* aDeclaration);
 
-  virtual size_t SizeOfIncludingThis(nsMallocSizeOfFun aMallocSizeOf) const;
+  virtual size_t SizeOfIncludingThis(nsMallocSizeOfFun aMallocSizeOf) const MOZ_OVERRIDE;
 
 private:
   nsAutoTArray<float, 1>                     mKeys;
@@ -400,6 +408,10 @@ public:
   {
     return this;
   }
+  virtual nsIDOMCSSRule* GetExistingDOMRule()
+  {
+    return this;
+  }
 
   // nsIDOMCSSRule interface
   NS_DECL_NSIDOMCSSRULE
@@ -413,7 +425,7 @@ public:
 
   const nsString& GetName() { return mName; }
 
-  virtual size_t SizeOfIncludingThis(nsMallocSizeOfFun aMallocSizeOf) const;
+  virtual size_t SizeOfIncludingThis(nsMallocSizeOfFun aMallocSizeOf) const MOZ_OVERRIDE;
 
 private:
   uint32_t FindRuleIndexForKey(const nsAString& aKey);
@@ -441,6 +453,10 @@ public:
   virtual bool UseForPresentation(nsPresContext* aPresContext,
                                   nsMediaQueryResultCacheKey& aKey);
   virtual nsIDOMCSSRule* GetDOMRule()
+  {
+    return this;
+  }
+  virtual nsIDOMCSSRule* GetExistingDOMRule()
   {
     return this;
   }

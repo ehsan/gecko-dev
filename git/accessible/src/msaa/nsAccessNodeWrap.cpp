@@ -56,7 +56,8 @@ NS_IMPL_ISUPPORTS_INHERITED1(nsAccessNodeWrap, nsAccessNode, nsIWinAccessNode);
 NS_IMETHODIMP
 nsAccessNodeWrap::QueryNativeInterface(REFIID aIID, void** aInstancePtr)
 {
-  return QueryInterface(aIID, aInstancePtr);
+  // XXX Wrong for E_NOINTERFACE
+  return static_cast<nsresult>(QueryInterface(aIID, aInstancePtr));
 }
 
 //-----------------------------------------------------
@@ -129,7 +130,7 @@ nsAccessNodeWrap::QueryService(REFGUID guidService, REFIID iid, void** ppv)
 
   // Can get to IAccessibleApplication from any node via QS
   if (guidService == IID_IAccessibleApplication) {
-    ApplicationAccessible* applicationAcc = GetApplicationAccessible();
+    ApplicationAccessible* applicationAcc = ApplicationAcc();
     if (!applicationAcc)
       return E_NOINTERFACE;
 
@@ -500,7 +501,7 @@ __try {
     return E_FAIL; // Node already shut down
 
   nsAutoString innerHTML;
-  htmlElement->GetInnerHTML(innerHTML);
+  htmlElement->GetDOMInnerHTML(innerHTML);
   if (innerHTML.IsEmpty())
     return S_FALSE;
 
@@ -557,8 +558,6 @@ void nsAccessNodeWrap::ShutdownAccessibility()
   ::DestroyCaret();
 
   nsWinUtils::ShutdownWindowEmulation();
-
-  nsAccessNode::ShutdownXPAccessibility();
 }
 
 int nsAccessNodeWrap::FilterA11yExceptions(unsigned int aCode, EXCEPTION_POINTERS *aExceptionInfo)

@@ -230,7 +230,8 @@ parent:
      *   has already been cached (stickDocument=false).
      */
     POfflineCacheUpdate(URIParams manifestURI, URIParams documentURI,
-                        nsCString clientID, bool stickDocument);
+                        bool isInBrowserElement, uint32_t appId,
+                        bool stickDocument);
 
     sync PIndexedDB(nsCString asciiOrigin)
         returns (bool allowed);
@@ -265,6 +266,12 @@ parent:
      */
     ContentReceivedTouch(bool aPreventDefault);
 
+    /**
+     * Updates any zoom constraints on the parent and anything tied to it. This
+     * is useful for control logic that resides outside of the remote browser.
+     */
+    UpdateZoomConstraints(bool aAllowZoom, float aMinZoom, float aMaxZoom);
+
     __delete__();
 
 child:
@@ -281,9 +288,9 @@ child:
 
     LoadURL(nsCString uri);
 
-    UpdateDimensions(nsRect rect, nsIntSize size);
+    UpdateDimensions(nsRect rect, nsIntSize size) compress;
 
-    UpdateFrame(FrameMetrics frame);
+    UpdateFrame(FrameMetrics frame) compress;
 
     /**
      * Requests handling of a double tap. |point| is in CSS pixels, relative to
@@ -291,6 +298,13 @@ child:
      * ZoomToRect() with a rect indicating where we should zoom to.
      */
     HandleDoubleTap(nsIntPoint point);
+
+    /**
+     * Requests handling of a single tap. |point| is in CSS pixels, relative to
+     * the scroll offset. This message is expected to send a "mousedown" and
+     * "mouseup" series of events at this point.
+     */
+    HandleSingleTap(nsIntPoint point);
 
     /**
      * Sending an activate message moves focus to the child.

@@ -30,7 +30,6 @@ const PREF_APP_UPDATE_CERT_CHECKATTRS     = "app.update.cert.checkAttributes";
 const PREF_APP_UPDATE_CERT_ERRORS         = "app.update.cert.errors";
 const PREF_APP_UPDATE_CERT_MAXERRORS      = "app.update.cert.maxErrors";
 const PREF_APP_UPDATE_CERT_REQUIREBUILTIN = "app.update.cert.requireBuiltIn";
-const PREF_APP_UPDATE_CHANNEL             = "app.update.channel";
 const PREF_APP_UPDATE_ENABLED             = "app.update.enabled";
 const PREF_APP_UPDATE_IDLETIME            = "app.update.idletime";
 const PREF_APP_UPDATE_INCOMPATIBLE_MODE   = "app.update.incompatible.mode";
@@ -50,7 +49,6 @@ const PREF_APP_UPDATE_SERVICE_ENABLED     = "app.update.service.enabled";
 const PREF_APP_UPDATE_SERVICE_ERRORS      = "app.update.service.errors";
 const PREF_APP_UPDATE_SERVICE_MAX_ERRORS  = "app.update.service.maxErrors";
 
-const PREF_PARTNER_BRANCH                 = "app.partner.";
 const PREF_APP_DISTRIBUTION               = "distribution.id";
 const PREF_APP_DISTRIBUTION_VERSION       = "distribution.version";
 
@@ -75,6 +73,14 @@ const KEY_GRED            = "GreD";
 
 #ifdef USE_UPDROOT
 const KEY_UPDROOT         = "UpdRootD";
+#endif
+
+#ifdef XP_WIN
+#define SKIP_STAGE_UPDATES_TEST
+#elifdef MOZ_WIDGET_GONK
+// In Gonk, the updater will remount the /system partition to move staged files
+// into place, so we skip the test here to keep things isolated.
+#define SKIP_STAGE_UPDATES_TEST
 #endif
 
 const DIR_UPDATES         = "updates";
@@ -126,14 +132,17 @@ const SERVICE_UPDATER_NOT_FIXED_DRIVE      = 31;
 const SERVICE_COULD_NOT_LOCK_UPDATER       = 32;
 const SERVICE_INSTALLDIR_ERROR             = 33;
 
-const WRITE_ERROR_ACCESS_DENIED       = 35;
-const WRITE_ERROR_SHARING_VIOLATION   = 36;
-const WRITE_ERROR_CALLBACK_APP        = 37;
-const INVALID_UPDATER_STATUS_CODE     = 38;
-const UNEXPECTED_BZIP_ERROR           = 39;
-const UNEXPECTED_MAR_ERROR            = 40;
-const UNEXPECTED_BSPATCH_ERROR        = 41;
-const UNEXPECTED_FILE_OPERATION_ERROR = 42;
+const WRITE_ERROR_ACCESS_DENIED        = 35;
+const WRITE_ERROR_SHARING_VIOLATION    = 36;
+const WRITE_ERROR_CALLBACK_APP         = 37;
+const INVALID_UPDATER_STATUS_CODE      = 38;
+const UNEXPECTED_BZIP_ERROR            = 39;
+const UNEXPECTED_MAR_ERROR             = 40;
+const UNEXPECTED_BSPATCH_ERROR         = 41;
+const UNEXPECTED_FILE_OPERATION_ERROR  = 42;
+const FILESYSTEM_MOUNT_READWRITE_ERROR = 43;
+const FOTA_GENERAL_ERROR               = 44;
+const FOTA_UNKNOWN_ERROR               = 45;
 
 const CERT_ATTR_CHECK_FAILED_NO_UPDATE  = 100;
 const CERT_ATTR_CHECK_FAILED_HAS_UPDATE = 101;
@@ -150,6 +159,9 @@ const UPDATE_WINDOW_NAME      = "Update:Wizard";
 const DEFAULT_SERVICE_MAX_ERRORS = 10;
 
 var gLocale     = null;
+
+XPCOMUtils.defineLazyModuleGetter(this, "UpdateChannel",
+                                  "resource://gre/modules/UpdateChannel.jsm");
 
 XPCOMUtils.defineLazyGetter(this, "gLogEnabled", function aus_gLogEnabled() {
   return getPref("getBoolPref", PREF_APP_UPDATE_LOG, false);
@@ -443,7 +455,7 @@ XPCOMUtils.defineLazyGetter(this, "gCanStageUpdates", function aus_gCanStageUpda
     return false;
   }
 
-#ifdef XP_WIN
+#ifdef SKIP_STAGE_UPDATES_TEST
   if (getPref("getBoolPref", PREF_APP_UPDATE_SERVICE_ENABLED, false)) {
     // No need to perform directory write checks, the maintenance service will
     // be able to write to all directories.
@@ -864,44 +876,6 @@ function getLocale() {
   return gLocale;
 }
 
-/**
- * Read the update channel from defaults only.  We do this to ensure that
- * the channel is tightly coupled with the application and does not apply
- * to other instances of the application that may use the same profile.
- */
-function getUpdateChannel() {
-  // Preprocess the channel name that is defined when building to allow updating
-  // even when the preference file that defines the channel name doesn't exist.
-  var channel = "@MOZ_UPDATE_CHANNEL@";
-  var prefName;
-  var prefValue;
-
-  try {
-    channel = Services.prefs.getDefaultBranch(null).
-              getCharPref(PREF_APP_UPDATE_CHANNEL);
-  } catch (e) {
-    // Use the channel name from above that was preprocessed when building.
-  }
-
-  try {
-    var partners = Services.prefs.getChildList(PREF_PARTNER_BRANCH);
-    if (partners.length) {
-      channel += "-cck";
-      partners.sort();
-
-      for each (prefName in partners) {
-        prefValue = Services.prefs.getCharPref(prefName);
-        channel += "-" + prefValue;
-      }
-    }
-  }
-  catch (e) {
-    Components.utils.reportError(e);
-  }
-
-  return channel;
-}
-
 /* Get the distribution pref values, from defaults only */
 function getDistributionPrefValue(aPrefName) {
   var prefValue = "default";
@@ -985,7 +959,10 @@ function handleUpdateFailure(update, errorCode) {
   if (update.errorCode == WRITE_ERROR || 
       update.errorCode == WRITE_ERROR_ACCESS_DENIED ||
       update.errorCode == WRITE_ERROR_SHARING_VIOLATION ||
-      update.errorCode == WRITE_ERROR_CALLBACK_APP) {
+      update.errorCode == WRITE_ERROR_CALLBACK_APP ||
+      update.errorCode == FILESYSTEM_MOUNT_READWRITE_ERROR ||
+      update.errorCode == FOTA_GENERAL_ERROR ||
+      update.errorCode == FOTA_UNKNOWN_ERROR) {
     Cc["@mozilla.org/updates/update-prompt;1"].
       createInstance(Ci.nsIUpdatePrompt).
       showUpdateError(update);
@@ -1199,6 +1176,7 @@ function Update(update) {
   this._properties = {};
   this._patches = [];
   this.isCompleteUpdate = false;
+  this.isOSUpdate = false;
   this.showPrompt = false;
   this.showSurvey = false;
   this.showNeverForVersion = false;
@@ -1259,6 +1237,8 @@ function Update(update) {
       this.isCompleteUpdate = attr.value == "true";
     else if (attr.name == "isSecurityUpdate")
       this.isSecurityUpdate = attr.value == "true";
+    else if (attr.name == "isOSUpdate")
+      this.isOSUpdate = attr.value == "true";
     else if (attr.name == "showNeverForVersion")
       this.showNeverForVersion = attr.value == "true";
     else if (attr.name == "showPrompt")
@@ -1397,6 +1377,7 @@ Update.prototype = {
     update.setAttribute("extensionVersion", this.appVersion);
     update.setAttribute("installDate", this.installDate);
     update.setAttribute("isCompleteUpdate", this.isCompleteUpdate);
+    update.setAttribute("isOSUpdate", this.isOSUpdate);
     update.setAttribute("name", this.name);
     update.setAttribute("serviceURL", this.serviceURL);
     update.setAttribute("showNeverForVersion", this.showNeverForVersion);
@@ -1608,6 +1589,29 @@ UpdateService.prototype = {
       }
       return;
     }
+
+#ifdef MOZ_WIDGET_GONK
+    if (status == STATE_APPLIED && update && update.isOSUpdate) {
+      // In gonk, we need to check for OS update status after startup, since
+      // the recovery partition won't write to update.status for us
+      var recoveryService = Cc["@mozilla.org/recovery-service;1"].
+                            getService(Ci.nsIRecoveryService);
+
+      var fotaStatus = recoveryService.getFotaUpdateStatus();
+      switch (fotaStatus) {
+        case Ci.nsIRecoveryService.FOTA_UPDATE_SUCCESS:
+          status = STATE_SUCCEEDED;
+          break;
+        case Ci.nsIRecoveryService.FOTA_UPDATE_FAIL:
+          status = STATE_FAILED + ": " + FOTA_GENERAL_ERROR;
+          break;
+        case Ci.nsIRecoveryService.FOTA_UPDATE_UNKNOWN:
+        default:
+          status = STATE_FAILED + ": " + FOTA_UNKNOWN_ERROR;
+          break;
+      }
+    }
+#endif
 
     if (!update)
       update = new Update(null);
@@ -2440,7 +2444,7 @@ UpdateManager.prototype = {
    */
   get activeUpdate() {
     if (this._activeUpdate &&
-        this._activeUpdate.channel != getUpdateChannel()) {
+        this._activeUpdate.channel != UpdateChannel.get()) {
       // User switched channels, clear out any old active updates and remove
       // partial downloads
       this._activeUpdate = null;
@@ -2651,7 +2655,7 @@ Checker.prototype = {
     url = url.replace(/%OS_VERSION%/g, gOSVersion);
     if (/%LOCALE%/.test(url))
       url = url.replace(/%LOCALE%/g, getLocale());
-    url = url.replace(/%CHANNEL%/g, getUpdateChannel());
+    url = url.replace(/%CHANNEL%/g, UpdateChannel.get());
     url = url.replace(/%PLATFORM_VERSION%/g, Services.appinfo.platformVersion);
     url = url.replace(/%DISTRIBUTION%/g,
                       getDistributionPrefValue(PREF_APP_DISTRIBUTION));
@@ -2744,7 +2748,7 @@ Checker.prototype = {
         continue;
       }
       update.serviceURL = this.getUpdateURL(this._forced);
-      update.channel = getUpdateChannel();
+      update.channel = UpdateChannel.get();
       updates.push(update);
     }
 
@@ -3503,7 +3507,10 @@ UpdatePrompt.prototype = {
         (update.errorCode == WRITE_ERROR ||
          update.errorCode == WRITE_ERROR_ACCESS_DENIED ||
          update.errorCode == WRITE_ERROR_SHARING_VIOLATION ||
-         update.errorCode == WRITE_ERROR_CALLBACK_APP)) {
+         update.errorCode == WRITE_ERROR_CALLBACK_APP ||
+         update.errorCode == FILESYSTEM_MOUNT_READWRITE_ERROR ||
+         update.errorCode == FOTA_GENERAL_ERROR ||
+         update.errorCode == FOTA_UNKNOWN_ERROR)) {
       var title = gUpdateBundle.GetStringFromName("updaterIOErrorTitle");
       var text = gUpdateBundle.formatStringFromName("updaterIOErrorMsg",
                                                     [Services.appinfo.name,

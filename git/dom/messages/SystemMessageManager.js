@@ -177,6 +177,9 @@ SystemMessageManager.prototype = {
                         .getService(Ci.nsIAppsService);
     this._manifest = appsService.getManifestURLByLocalId(principal.appId);
     this._window = aWindow;
+    cpmm.sendAsyncMessage("SystemMessageManager:Register",
+                          { manifest: this._manifest });
+    debug("done");
   },
 
   classID: Components.ID("{bc076ea0-609b-4d8f-83d7-5af7cbdc3bb2}"),

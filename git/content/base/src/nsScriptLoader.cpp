@@ -44,7 +44,6 @@
 #include "nsCrossSiteListenerProxy.h"
 #include "nsSandboxFlags.h"
 
-#include "mozilla/FunctionTimer.h"
 #include "mozilla/CORSMode.h"
 #include "mozilla/Attributes.h"
 
@@ -320,10 +319,12 @@ nsScriptLoader::StartLoad(nsScriptLoadRequest *aRequest, const nsAString &aType)
 
   if (aRequest->mCORSMode != CORS_NONE) {
     bool withCredentials = (aRequest->mCORSMode == CORS_USE_CREDENTIALS);
-    listener =
-      new nsCORSListenerProxy(listener, mDocument->NodePrincipal(), channel,
-                              withCredentials, &rv);
+    nsRefPtr<nsCORSListenerProxy> corsListener =
+      new nsCORSListenerProxy(listener, mDocument->NodePrincipal(),
+                              withCredentials);
+    rv = corsListener->Init(channel);
     NS_ENSURE_SUCCESS(rv, rv);
+    listener = corsListener;
   }
 
   rv = channel->AsyncOpen(listener, aRequest);
@@ -480,6 +481,10 @@ nsScriptLoader::ProcessScriptElement(nsIScriptElement *aElement)
     // external script
     nsCOMPtr<nsIURI> scriptURI = aElement->GetScriptURI();
     if (!scriptURI) {
+      // Asynchronously report the failure to create a URI object
+      NS_DispatchToCurrentThread(
+        NS_NewRunnableMethod(aElement,
+                             &nsIScriptElement::FireErrorEvent));
       return false;
     }
     CORSMode ourCORSMode = aElement->GetCORSMode();
@@ -514,7 +519,13 @@ nsScriptLoader::ProcessScriptElement(nsIScriptElement *aElement)
       request->mIsInline = false;
       request->mLoading = true;
       rv = StartLoad(request, type);
-      NS_ENSURE_SUCCESS(rv, false);
+      if (NS_FAILED(rv)) {
+        // Asynchronously report the load failure
+        NS_DispatchToCurrentThread(
+          NS_NewRunnableMethod(aElement,
+                               &nsIScriptElement::FireErrorEvent));
+        return false;
+      }
     }
 
     request->mJSVersion = version;
@@ -616,7 +627,7 @@ nsScriptLoader::ProcessScriptElement(nsIScriptElement *aElement)
       PR_LOG(gCspPRLog, PR_LOG_DEBUG, ("CSP blocked inline scripts (2)"));
       // gather information to log with violation report
       nsIURI* uri = mDocument->GetDocumentURI();
-      nsCAutoString asciiSpec;
+      nsAutoCString asciiSpec;
       uri->GetAsciiSpec(asciiSpec);
       nsAutoString scriptText;
       aElement->GetScriptText(scriptText);
@@ -689,8 +700,6 @@ nsScriptLoader::ProcessRequest(nsScriptLoadRequest* aRequest)
   NS_ENSURE_ARG(aRequest);
   nsAFlatString* script;
   nsAutoString textData;
-
-  NS_TIME_FUNCTION;
 
   nsCOMPtr<nsIDocument> doc;
 
@@ -829,7 +838,7 @@ nsScriptLoader::EvaluateScript(nsScriptLoadRequest* aRequest,
 
   // It's very important to use aRequest->mURI, not the final URI of the channel
   // aRequest ended up getting script data from, as the script filename.
-  nsCAutoString url;
+  nsAutoCString url;
   nsContentUtils::GetWrapperSafeScriptFilename(mDocument, aRequest->mURI, url);
 
   bool isUndefined;
@@ -995,7 +1004,7 @@ nsScriptLoader::ConvertToUTF16(nsIChannel* aChannel, const uint8_t* aData,
     return NS_OK;
   }
 
-  nsCAutoString characterSet;
+  nsAutoCString characterSet;
 
   nsresult rv = NS_OK;
   if (aChannel) {

@@ -38,8 +38,14 @@ XPCOMUtils.defineLazyModuleGetter(this, "PageThumbs",
 XPCOMUtils.defineLazyModuleGetter(this, "NewTabUtils",
                                   "resource:///modules/NewTabUtils.jsm");
 
+XPCOMUtils.defineLazyModuleGetter(this, "BrowserNewTabPreloader",
+                                  "resource:///modules/BrowserNewTabPreloader.jsm");
+
 XPCOMUtils.defineLazyModuleGetter(this, "PdfJs",
                                   "resource://pdf.js/PdfJs.jsm");
+
+XPCOMUtils.defineLazyModuleGetter(this, "webrtcUI",
+                                  "resource:///modules/webrtcUI.jsm");
 
 const PREF_PLUGINS_NOTIFYUSER = "plugins.update.notifyUser";
 const PREF_PLUGINS_UPDATEURL  = "plugins.update.url";
@@ -317,6 +323,7 @@ BrowserGlue.prototype = {
     UserAgentOverrides.uninit();
     webappsUI.uninit();
     SignInToWebsiteUX.uninit();
+    webrtcUI.uninit();
   },
 
   _onAppDefaults: function BG__onAppDefaults() {
@@ -345,8 +352,10 @@ BrowserGlue.prototype = {
     webappsUI.init();
     PageThumbs.init();
     NewTabUtils.init();
+    BrowserNewTabPreloader.init();
     SignInToWebsiteUX.init();
     PdfJs.init();
+    webrtcUI.init();
 
     Services.obs.notifyObservers(null, "browser-ui-startup-complete", "");
   },
@@ -370,6 +379,7 @@ BrowserGlue.prototype = {
     this._shutdownPlaces();
     this._sanitizer.onShutdown();
     PageThumbs.uninit();
+    BrowserNewTabPreloader.uninit();
   },
 
   // All initial windows have opened.
@@ -1202,7 +1212,7 @@ BrowserGlue.prototype = {
   },
 
   _migrateUI: function BG__migrateUI() {
-    const UI_VERSION = 7;
+    const UI_VERSION = 8;
     const BROWSER_DOCURL = "chrome://browser/content/browser.xul#";
     let currentUIVersion = 0;
     try {
@@ -1334,6 +1344,15 @@ BrowserGlue.prototype = {
                                           "$1downloads-button,window-controls$2")
         }
         this._setPersist(toolbarResource, currentsetResource, currentset);
+      }
+    }
+
+    if (currentUIVersion < 8) {
+      // Reset homepage pref for users who have it set to google.com/firefox
+      let uri = Services.prefs.getComplexValue("browser.startup.homepage",
+                                               Ci.nsIPrefLocalizedString).data;
+      if (uri && /^https?:\/\/(www\.)?google(\.\w{2,3}){1,2}\/firefox\/?$/.test(uri)) {
+        Services.prefs.clearUserPref("browser.startup.homepage");
       }
     }
 
