@@ -67,9 +67,9 @@
     <command id="variablesFocusCommand"
              oncommand="DebuggerView.Filtering._doVariablesFocus()"/>
     <command id="addBreakpointCommand"
-             oncommand="DebuggerView.Sources._onCmdAddBreakpoint(event)"/>
+             oncommand="DebuggerView.Sources._onCmdAddBreakpoint()"/>
     <command id="addConditionalBreakpointCommand"
-             oncommand="DebuggerView.Sources._onCmdAddConditionalBreakpoint(event)"/>
+             oncommand="DebuggerView.Sources._onCmdAddConditionalBreakpoint()"/>
     <command id="addWatchExpressionCommand"
              oncommand="DebuggerView.WatchExpressions._onCmdAddExpression()"/>
     <command id="removeAllWatchExpressionsCommand"
