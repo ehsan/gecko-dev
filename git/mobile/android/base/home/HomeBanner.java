@@ -43,8 +43,8 @@ public class HomeBanner extends LinearLayout
     // Used to detect for upwards scroll to push banner all the way up
     private boolean mSnapBannerToTop;
 
-    // Tracks whether or not the banner should be shown.
-    private boolean mActive = false;
+    // Tracks if the banner has been enabled by HomePager to avoid race conditions.
+    private boolean mEnabled = false;
 
     // The user is currently swiping between HomePager pages
     private boolean mScrollingPages = false;
@@ -138,11 +138,7 @@ public class HomeBanner extends LinearLayout
                 public void run() {
                     mTextView.setText(text);
                     setVisibility(VISIBLE);
-
-                    // Animate the banner if it is currently active.
-                    if (mActive) {
-                        animateUp();
-                    }
+                    animateUp();
                 }
             });
         } catch (JSONException e) {
@@ -165,20 +161,14 @@ public class HomeBanner extends LinearLayout
         });
     }
 
-    public void setActive(boolean active) {
+    public void setEnabled(boolean enabled) {
         // No need to animate if not changing
-        if (mActive == active) {
+        if (mEnabled == enabled) {
             return;
         }
 
-        mActive = active;
-
-        // Don't animate if the banner isn't visible.
-        if (getVisibility() != View.VISIBLE) {
-            return;
-        }
-
-        if (active) {
+        mEnabled = enabled;
+        if (enabled) {
             animateUp();
         } else {
             animateDown();
@@ -186,9 +176,14 @@ public class HomeBanner extends LinearLayout
     }
 
     private void animateUp() {
-        // Don't try to animate if the banner is already translated, or if the user swiped
-        // the banner down previously to hide it.
-        if (ViewHelper.getTranslationY(this) == 0 || mUserSwipedDown) {
+        // Check to make sure that message has been received and the banner has been enabled.
+        // Necessary to avoid race conditions between show() and handleMessage() calls.
+        if (!mEnabled || TextUtils.isEmpty(mTextView.getText()) || mUserSwipedDown) {
+            return;
+        }
+
+        // No need to animate if already translated.
+        if (ViewHelper.getTranslationY(this) == 0) {
             return;
         }
 
@@ -198,7 +193,7 @@ public class HomeBanner extends LinearLayout
     }
 
     private void animateDown() {
-        // Don't try to animate if the banner is already translated.
+        // No need to animate if already translated or gone.
         if (ViewHelper.getTranslationY(this) == getHeight()) {
             return;
         }
@@ -209,7 +204,7 @@ public class HomeBanner extends LinearLayout
     }
 
     public void handleHomeTouch(MotionEvent event) {
-        if (!mActive || getVisibility() == GONE || mScrollingPages) {
+        if (!mEnabled || getVisibility() == GONE || mScrollingPages) {
             return;
         }
 

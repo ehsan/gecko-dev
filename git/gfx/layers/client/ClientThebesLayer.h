@@ -60,6 +60,7 @@ public:
     NS_ASSERTION(ClientManager()->InConstruction(),
                  "Can only set properties in construction phase");
     mInvalidRegion.Or(mInvalidRegion, aRegion);
+    mInvalidRegion.SimplifyOutward(10);
     mValidRegion.Sub(mValidRegion, mInvalidRegion);
   }
 

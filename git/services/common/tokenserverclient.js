@@ -34,12 +34,6 @@ this.TokenServerClientError = function TokenServerClientError(message) {
 }
 TokenServerClientError.prototype = new Error();
 TokenServerClientError.prototype.constructor = TokenServerClientError;
-TokenServerClientError.prototype._toStringFields = function() {
-  return {message: this.message};
-}
-TokenServerClientError.prototype.toString = function() {
-  return this.name + "(" + JSON.stringify(this._toStringFields()) + ")";
-}
 
 /**
  * Represents a TokenServerClient error that occurred in the network layer.
@@ -55,9 +49,6 @@ this.TokenServerClientNetworkError =
 TokenServerClientNetworkError.prototype = new TokenServerClientError();
 TokenServerClientNetworkError.prototype.constructor =
   TokenServerClientNetworkError;
-TokenServerClientNetworkError.prototype._toStringFields = function() {
-  return {error: this.error};
-}
 
 /**
  * Represents a TokenServerClient error that occurred on the server.
@@ -91,7 +82,6 @@ TokenServerClientNetworkError.prototype._toStringFields = function() {
  */
 this.TokenServerClientServerError =
  function TokenServerClientServerError(message, cause="general") {
-  this.now = new Date().toISOString(); // may be useful to diagnose time-skew issues.
   this.name = "TokenServerClientServerError";
   this.message = message || "Server error.";
   this.cause = cause;
@@ -99,20 +89,6 @@ this.TokenServerClientServerError =
 TokenServerClientServerError.prototype = new TokenServerClientError();
 TokenServerClientServerError.prototype.constructor =
   TokenServerClientServerError;
-
-TokenServerClientServerError.prototype._toStringFields = function() {
-  let fields = {
-    now: this.now,
-    message: this.message,
-    cause: this.cause,
-  };
-  if (this.response) {
-    fields.response_body = this.response.body;
-    fields.response_headers = this.response.headers;
-    fields.response_status = this.response.status;
-  }
-  return fields;
-};
 
 /**
  * Represents a client to the Token Server.

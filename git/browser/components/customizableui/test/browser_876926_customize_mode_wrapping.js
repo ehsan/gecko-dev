@@ -129,8 +129,11 @@ add_task(function MoveWidgetsInTwoWindows() {
       checkPalette(widgetId, method);
     }
   }
-  yield promiseWindowClosed(otherWin);
+  otherWin.close();
   otherWin = null;
+  if (otherWin) {
+    otherWin.close();
+  }
   yield endCustomizing();
 });
 

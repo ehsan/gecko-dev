@@ -20,7 +20,6 @@
 #include "nsIControllers.h"
 #include "nsIStringBundle.h"
 #include "nsFocusManager.h"
-#include "nsColorControlFrame.h"
 #include "nsNumberControlFrame.h"
 #include "nsPIDOMWindow.h"
 #include "nsRepeatService.h"
@@ -2806,12 +2805,12 @@ HTMLInputElement::SetValueInternal(const nsAString& aValue,
         OnValueChanged(!mParserCreating);
       }
 
+      // Call parent's SetAttr for color input so its control frame is notified
+      // and updated
       if (mType == NS_FORM_INPUT_COLOR) {
-        // Update color frame, to reflect color changes
-        nsColorControlFrame* colorControlFrame = do_QueryFrame(GetPrimaryFrame());
-        if (colorControlFrame) {
-          colorControlFrame->UpdateColor();
-        }
+        return nsGenericHTMLFormElement::SetAttr(kNameSpaceID_None,
+                                                 nsGkAtoms::value, aValue,
+                                                 true);
       }
 
       return NS_OK;

@@ -1112,7 +1112,7 @@ nsDisplayList::ComputeVisibilityForSublist(nsDisplayListBuilder* aBuilder,
 
   mIsOpaque = !aVisibleRegion->Intersects(mVisibleRect);
   mForceTransparentSurface = forceTransparentSurface;
-#if defined(DEBUG) || defined(MOZ_DUMP_PAINTING)
+#ifdef DEBUG
   mDidComputeVisibility = true;
 #endif
   return anyVisible;

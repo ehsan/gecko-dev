@@ -25,9 +25,8 @@ public:
 
   virtual void DestroyFrom(nsIFrame* aDestructRoot) MOZ_OVERRIDE;
 
-  NS_DECL_QUERYFRAME_TARGET(nsColorControlFrame)
-  NS_DECL_QUERYFRAME
   NS_DECL_FRAMEARENA_HELPERS
+  NS_DECL_QUERYFRAME
 
   virtual nsIAtom* GetType() const MOZ_OVERRIDE;
 
@@ -49,11 +48,11 @@ public:
 
   virtual Element* GetPseudoElement(nsCSSPseudoElements::Type aType) MOZ_OVERRIDE;
 
-  // Refresh the color swatch, using associated input's value
-  nsresult UpdateColor();
-
 private:
   nsColorControlFrame(nsStyleContext* aContext);
+
+  // Update the color swatch
+  nsresult UpdateColor();
 
   nsCOMPtr<Element> mColorContent;
 };

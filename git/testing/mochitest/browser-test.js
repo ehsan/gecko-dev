@@ -17,9 +17,6 @@ XPCOMUtils.defineLazyModuleGetter(this, "Services",
 XPCOMUtils.defineLazyModuleGetter(this, "BrowserNewTabPreloader",
   "resource:///modules/BrowserNewTabPreloader.jsm", "BrowserNewTabPreloader");
 
-XPCOMUtils.defineLazyModuleGetter(this, "CustomizationTabPreloader",
-  "resource:///modules/CustomizationTabPreloader.jsm", "CustomizationTabPreloader");
-
 window.addEventListener("load", testOnLoad, false);
 
 function testOnLoad() {
@@ -61,9 +58,6 @@ function testOnLoad() {
     var listener = 'data:,function doLoad(e) { var data=e.getData("data");removeEventListener("contentEvent", function (e) { doLoad(e); }, false, true);sendAsyncMessage("chromeEvent", {"data":data}); };addEventListener("contentEvent", function (e) { doLoad(e); }, false, true);';
     messageManager.loadFrameScript(listener, true);
     messageManager.addMessageListener("chromeEvent", messageHandler);
-  }
-  if (gConfig.e10s) {
-    e10s_init();
   }
 }
 
@@ -432,7 +426,6 @@ Tester.prototype = {
           BackgroundPageThumbs._destroy();
 
           BrowserNewTabPreloader.uninit();
-          CustomizationTabPreloader.uninit();
           SocialFlyout.unload();
           SocialShare.uninit();
           TabView.uninit();

@@ -72,7 +72,10 @@ add_task(function() {
   assertWidgetExists(private1, false);
   assertWidgetExists(private2, false);
 
-  yield Promise.all([plain1, plain2, private1, private2].map(promiseWindowClosed));
+  plain1.close();
+  plain2.close();
+  private1.close();
+  private2.close();
 
   CustomizableUI.destroyWidget("some-widget");
 });
@@ -124,7 +127,10 @@ add_task(function() {
   assertWidgetExists(private1, false);
   assertWidgetExists(private2, false);
 
-  yield Promise.all([plain1, plain2, private1, private2].map(promiseWindowClosed));
+  plain1.close();
+  plain2.close();
+  private1.close();
+  private2.close();
 
   CustomizableUI.destroyWidget("some-widget");
 });
