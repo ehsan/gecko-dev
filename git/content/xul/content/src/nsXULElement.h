@@ -257,6 +257,7 @@ public:
 
     virtual ~nsXULPrototypeElement()
     {
+        UnlinkJSObjects();
         Unlink();
     }
 
@@ -285,6 +286,7 @@ public:
 
     nsresult SetAttrAt(PRUint32 aPos, const nsAString& aValue, nsIURI* aDocumentURI);
 
+    void UnlinkJSObjects();
     void Unlink();
 
     nsPrototypeArray         mChildren;

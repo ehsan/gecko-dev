@@ -139,7 +139,11 @@ public:
    */
   void StopPluginInternal(PRBool aDelayedStop);
 
-  NS_IMETHOD GetCursor(const nsPoint& aPoint, nsIFrame::Cursor& aCursor);
+  /* fail on any requests to get a cursor from us because plugins set their own! see bug 118877 */
+  NS_IMETHOD GetCursor(const nsPoint& aPoint, nsIFrame::Cursor& aCursor) 
+  {
+    return NS_ERROR_NOT_IMPLEMENTED;
+  }
 
   // Compute the desired position of the plugin's widget, on the assumption
   // that it is not visible (clipped out or covered by opaque content).

@@ -106,7 +106,6 @@ protected:
     DeallocPPluginInstance(PPluginInstanceParent* aActor);
 
 public:
-    // aFilePath is UTF8, not native!
     PluginModuleParent(const char* aFilePath);
     virtual ~PluginModuleParent();
 

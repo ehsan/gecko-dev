@@ -64,7 +64,6 @@
 #include "nsIInterfaceRequestorUtils.h"
 #include "BasicLayers.h"
 #include "nsBoxFrame.h"
-#include "nsViewportFrame.h"
 
 using namespace mozilla;
 using namespace mozilla::layers;
@@ -87,10 +86,7 @@ nsDisplayListBuilder::nsDisplayListBuilder(nsIFrame* aReferenceFrame,
       mInTransform(PR_FALSE),
       mSyncDecodeImages(PR_FALSE),
       mIsPaintingToWindow(PR_FALSE),
-      mSnappingEnabled(PR_TRUE),
-      mHasDisplayPort(PR_FALSE),
-      mHasFixedItems(PR_FALSE)
-{
+      mSnappingEnabled(PR_TRUE) {
   MOZ_COUNT_CTOR(nsDisplayListBuilder);
   PL_InitArenaPool(&mPool, "displayListArena", 1024,
                    NS_MAX(NS_ALIGNMENT_OF(void*),NS_ALIGNMENT_OF(double))-1);
@@ -102,13 +98,6 @@ nsDisplayListBuilder::nsDisplayListBuilder(nsIFrame* aReferenceFrame,
     if (selcon) {
       selcon->GetSelection(nsISelectionController::SELECTION_NORMAL,
                            getter_AddRefs(mBoundingSelection));
-    }
-  }
-
-  if(mReferenceFrame->GetType() == nsGkAtoms::viewportFrame) {
-    ViewportFrame* viewportFrame = static_cast<ViewportFrame*>(mReferenceFrame);
-    if (!viewportFrame->GetChildList(nsGkAtoms::fixedList).IsEmpty()) {
-      mHasFixedItems = PR_TRUE;
     }
   }
 
@@ -132,38 +121,10 @@ static void MarkFrameForDisplay(nsIFrame* aFrame, nsIFrame* aStopAtFrame) {
   }
 }
 
-static PRBool IsFixedFrame(nsIFrame* aFrame)
-{
-  return aFrame && aFrame->GetParent() && !aFrame->GetParent()->GetParent();
-}
-
-static PRBool IsFixedItem(nsDisplayItem *aItem, nsDisplayListBuilder* aBuilder)
-{
-  nsIFrame* activeScrolledRoot =
-    nsLayoutUtils::GetActiveScrolledRootFor(aItem, aBuilder);
-  return activeScrolledRoot &&
-         !nsLayoutUtils::ScrolledByViewportScrolling(activeScrolledRoot,
-                                                     aBuilder);
-}
-
-static PRBool ForceVisiblityForFixedItem(nsDisplayListBuilder* aBuilder,
-                                         nsDisplayItem* aItem)
-{
-  return aBuilder->GetHasDisplayPort() && aBuilder->GetHasFixedItems() &&
-         IsFixedItem(aItem, aBuilder);
-}
-
-void nsDisplayListBuilder::MarkOutOfFlowFrameForDisplay(nsIFrame* aDirtyFrame,
-                                                        nsIFrame* aFrame,
-                                                        const nsRect& aDirtyRect)
-{
+static void MarkOutOfFlowFrameForDisplay(nsIFrame* aDirtyFrame, nsIFrame* aFrame,
+                                         const nsRect& aDirtyRect) {
   nsRect dirty = aDirtyRect - aFrame->GetOffsetTo(aDirtyFrame);
   nsRect overflowRect = aFrame->GetVisualOverflowRect();
-
-  if (mHasDisplayPort && IsFixedFrame(aFrame)) {
-    dirty = overflowRect;
-  }
-
   if (!dirty.IntersectRect(dirty, overflowRect))
     return;
   aFrame->Properties().Set(nsDisplayListBuilder::OutOfFlowDirtyRectProperty(),
@@ -468,10 +429,6 @@ nsDisplayList::ComputeVisibilityForSublist(nsDisplayListBuilder* aBuilder,
     nsRegion itemVisible;
     itemVisible.And(*aVisibleRegion, bounds);
     item->mVisibleRect = itemVisible.GetBounds();
-
-    if (ForceVisiblityForFixedItem(aBuilder, item)) {
-      item->mVisibleRect = bounds;
-    }
 
     PRBool containsRootContentDocBG = PR_FALSE;
     if (item->ComputeVisibility(aBuilder, aVisibleRegion, aAllowVisibleRegionExpansion,
@@ -800,10 +757,6 @@ PRBool nsDisplayItem::RecomputeVisibility(nsDisplayListBuilder* aBuilder,
   itemVisible.And(*aVisibleRegion, bounds);
   mVisibleRect = itemVisible.GetBounds();
 
-  if (ForceVisiblityForFixedItem(aBuilder, this)) {
-    mVisibleRect = bounds;
-  }
-
   // When we recompute visibility within layers we don't need to
   // expand the visible region for content behind plugins (the plugin
   // is not in the layer).
@@ -866,20 +819,11 @@ nsDisplayBackground::nsDisplayBackground(nsDisplayListBuilder* aBuilder,
   const nsStyleDisplay* disp = mFrame->GetStyleDisplay();
   mIsThemed = mFrame->IsThemed(disp, &mThemeTransparency);
 
-  if (mIsThemed) {
-    // Perform necessary RegisterThemeGeometry
-    if (disp->mAppearance == NS_THEME_MOZ_MAC_UNIFIED_TOOLBAR ||
-        disp->mAppearance == NS_THEME_TOOLBAR) {
-      RegisterThemeGeometry(aBuilder, aFrame);
-    }
-  } else {
-    // Set HasFixedItems if we construct a background-attachment:fixed item
-    nsPresContext* presContext = mFrame->PresContext();
-    nsStyleContext* bgSC;
-    PRBool hasBG = nsCSSRendering::FindBackground(presContext, mFrame, &bgSC);
-    if (hasBG && bgSC->GetStyleBackground()->HasFixedBackground()) {
-      aBuilder->SetHasFixedItems();
-    }
+  // Perform necessary RegisterThemeGeometry
+  if (mIsThemed &&
+      (disp->mAppearance == NS_THEME_MOZ_MAC_UNIFIED_TOOLBAR ||
+       disp->mAppearance == NS_THEME_TOOLBAR)) {
+    RegisterThemeGeometry(aBuilder, aFrame);
   }
 }
 
@@ -1186,7 +1130,7 @@ nsDisplayBackground::IsVaryingRelativeToMovingFrame(nsDisplayListBuilder* aBuild
 }
 
 PRBool
-nsDisplayBackground::ShouldFixToViewport(nsDisplayListBuilder* aBuilder)
+nsDisplayBackground::IsFixedAndCoveringViewport(nsDisplayListBuilder* aBuilder)
 {
   if (mIsThemed)
     return PR_FALSE;
