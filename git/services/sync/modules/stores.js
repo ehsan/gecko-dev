@@ -369,8 +369,6 @@ BookmarksStore.prototype = {
 
       if (command.data.type == "microsummary") {
         this._log.debug("   \-> is a microsummary");
-        this._ans.setItemAnnotation(newId, "bookmarks/staticTitle",
-                                    command.data.staticTitle || "", 0, this._ans.EXPIRE_NEVER);
         let genURI = Utils.makeURI(command.data.generatorURI);
         try {
           let micsum = this._ms.createMicrosummary(URI, genURI);
@@ -580,7 +578,6 @@ BookmarksStore.prototype = {
         item.type = "microsummary";
         let micsum = this._ms.getMicrosummary(node.itemId);
         item.generatorURI = micsum.generator.uri.spec; // breaks local generators
-        item.staticTitle = this._ans.getItemAnnotation(node.itemId, "bookmarks/staticTitle");
       } else if (node.type == node.RESULT_TYPE_QUERY) {
         item.type = "query";
         item.title = node.title;
