@@ -277,7 +277,7 @@ WidgetKeyboardEvent::GetDOMKeyName(KeyNameIndex aKeyNameIndex,
 
   static const uint16_t kKeyNameOffsets[] = {
 #define NS_DEFINE_KEYNAME(aCPPName, aDOMKeyName)          \
-    offsetof(struct KeyNameTable, KEY_STR_NUM(__LINE__)) / sizeof(char16_t),
+    offsetof(struct KeyNameTable, KEY_STR_NUM(__LINE__)),
 #include "nsDOMKeyNameList.h"
 #undef NS_DEFINE_KEYNAME
     // Include this entry so we can compute lengths easily.

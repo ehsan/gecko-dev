@@ -17,7 +17,6 @@
 
 #include "jsinferinlines.h"
 #include "jsobjinlines.h"
-#include "jsopcodeinlines.h"
 
 #include "jit/shared/Lowering-shared-inl.h"
 
@@ -593,7 +592,7 @@ ReorderComparison(JSOp op, MDefinition **lhsp, MDefinition **rhsp)
     if (lhs->isConstant()) {
         *rhsp = lhs;
         *lhsp = rhs;
-        return ReverseCompareOp(op);
+        return js::analyze::ReverseCompareOp(op);
     }
     return op;
 }

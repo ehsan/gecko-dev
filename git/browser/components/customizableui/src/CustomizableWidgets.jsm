@@ -44,12 +44,12 @@ function setAttributes(aNode, aAttrs) {
   }
 }
 
-function updateCombinedWidgetStyle(aNode, aArea, aModifyCloseMenu) {
+function updateCombinedWidgetStyle(aNode, aArea, aModifyAutoclose) {
   let inPanel = (aArea == CustomizableUI.AREA_PANEL);
   let cls = inPanel ? "panel-combined-button" : "toolbarbutton-1";
   let attrs = {class: cls};
-  if (aModifyCloseMenu) {
-    attrs.closemenu = inPanel ? "none" : null;
+  if (aModifyAutoclose) {
+    attrs.noautoclose = inPanel ? true : null;
   }
   for (let i = 0, l = aNode.childNodes.length; i < l; ++i) {
     if (aNode.childNodes[i].localName == "separator")
@@ -311,7 +311,7 @@ const CustomizableWidgets = [{
       let areaType = CustomizableUI.getAreaType(this.currentArea);
       let inPanel = areaType == CustomizableUI.TYPE_MENU_PANEL;
       let inToolbar = areaType == CustomizableUI.TYPE_TOOLBAR;
-      let closeMenu = inPanel ? "none" : null;
+      let noautoclose = inPanel ? "true" : null;
       let cls = inPanel ? "panel-combined-button" : "toolbarbutton-1";
 
       if (!this.currentArea)
@@ -319,20 +319,20 @@ const CustomizableWidgets = [{
 
       let buttons = [{
         id: "zoom-out-button",
-        closemenu: closeMenu,
+        noautoclose: noautoclose,
         command: "cmd_fullZoomReduce",
         class: cls,
         label: true,
         tooltiptext: true
       }, {
         id: "zoom-reset-button",
-        closemenu: closeMenu,
+        noautoclose: noautoclose,
         command: "cmd_fullZoomReset",
         class: cls,
         tooltiptext: true
       }, {
         id: "zoom-in-button",
-        closemenu: closeMenu,
+        noautoclose: noautoclose,
         command: "cmd_fullZoomEnlarge",
         class: cls,
         label: true,

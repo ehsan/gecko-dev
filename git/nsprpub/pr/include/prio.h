@@ -1856,11 +1856,7 @@ NSPR_API(PRStatus) PR_CloseFileMap(PRFileMap *fmap);
 
 /*
  * Synchronously flush the given memory-mapped address range of the given open
- * file to disk. The function does not return until all modified data have
- * been written to disk.
- *
- * On some platforms, the function will call PR_Sync(fd) internally if it is
- * necessary for flushing modified data to disk synchronously.
+ * file to disk.
  */
 NSPR_API(PRStatus) PR_SyncMemMap(
     PRFileDesc *fd,

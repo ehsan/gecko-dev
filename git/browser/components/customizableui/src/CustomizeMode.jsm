@@ -48,8 +48,6 @@ function CustomizeMode(aWindow) {
   // user. Then there's the visible palette, which gets populated and displayed
   // to the user when in customizing mode.
   this.visiblePalette = this.document.getElementById(kPaletteId);
-  this.paletteEmptyNotice = this.document.getElementById("customization-empty");
-  this.paletteSpacer = this.document.getElementById("customization-spacer");
 };
 
 CustomizeMode.prototype = {
@@ -230,8 +228,6 @@ CustomizeMode.prototype = {
 
       // Show the palette now that the transition has finished.
       this.visiblePalette.hidden = false;
-      this.paletteSpacer.hidden = true;
-      this._updateEmptyPaletteNotice();
 
       this._handler.isEnteringCustomizeMode = false;
       this.dispatchToolboxEvent("customizationready");
@@ -277,9 +273,7 @@ CustomizeMode.prototype = {
     let documentElement = document.documentElement;
 
     // Hide the palette before starting the transition for increased perf.
-    this.paletteSpacer.hidden = false;
     this.visiblePalette.hidden = true;
-    this.paletteEmptyNotice.hidden = true;
 
     this._transitioning = true;
 
@@ -919,13 +913,7 @@ CustomizeMode.prototype = {
   _onUIChange: function() {
     this._changed = true;
     this._updateResetButton();
-    this._updateEmptyPaletteNotice();
     this.dispatchToolboxEvent("customizationchange");
-  },
-
-  _updateEmptyPaletteNotice: function() {
-    let paletteItems = this.visiblePalette.getElementsByTagName("toolbarpaletteitem");
-    this.paletteEmptyNotice.hidden = !!paletteItems.length;
   },
 
   _updateResetButton: function() {

@@ -1114,7 +1114,7 @@ class StringSegmentRange
       : stack(cx), cur(cx)
     {}
 
-    MOZ_WARN_UNUSED_RESULT bool init(JSString *str) {
+    JS_WARN_UNUSED_RESULT bool init(JSString *str) {
         JS_ASSERT(stack.empty());
         return settle(str);
     }
@@ -1128,7 +1128,7 @@ class StringSegmentRange
         return cur;
     }
 
-    MOZ_WARN_UNUSED_RESULT bool popFront() {
+    JS_WARN_UNUSED_RESULT bool popFront() {
         JS_ASSERT(!empty());
         if (stack.empty()) {
             cur = nullptr;

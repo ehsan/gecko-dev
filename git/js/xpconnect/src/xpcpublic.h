@@ -119,6 +119,9 @@ struct RuntimeStats;
 
 #define XPCONNECT_GLOBAL_FLAGS XPCONNECT_GLOBAL_FLAGS_WITH_EXTRA_SLOTS(0)
 
+extern bool
+xpc_OkToHandOutWrapper(nsWrapperCache *cache);
+
 inline JSObject*
 xpc_FastGetCachedWrapper(nsWrapperCache *cache, JSObject *scope, JS::MutableHandleValue vp)
 {
@@ -126,8 +129,8 @@ xpc_FastGetCachedWrapper(nsWrapperCache *cache, JSObject *scope, JS::MutableHand
         JSObject* wrapper = cache->GetWrapper();
         if (wrapper &&
             js::GetObjectCompartment(wrapper) == js::GetObjectCompartment(scope) &&
-            !(cache->IsDOMBinding() && cache->HasSystemOnlyWrapper()))
-        {
+            (cache->IsDOMBinding() ? !cache->HasSystemOnlyWrapper() :
+                                     xpc_OkToHandOutWrapper(cache))) {
             vp.setObject(*wrapper);
             return wrapper;
         }

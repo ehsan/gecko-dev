@@ -305,6 +305,19 @@ ShapeTable::grow(ThreadSafeContext *cx)
     return true;
 }
 
+Shape *
+Shape::getChildBinding(ExclusiveContext *cx, const StackShape &child)
+{
+    JS_ASSERT(!inDictionary());
+
+    /* Try to allocate all slots inline. */
+    uint32_t slots = child.slotSpan();
+    gc::AllocKind kind = gc::GetGCObjectKind(slots);
+    uint32_t nfixed = gc::GetGCKindSlots(kind);
+
+    return cx->compartment()->propertyTree.getChild(cx, this, nfixed, child);
+}
+
 /* static */ Shape *
 Shape::replaceLastProperty(ExclusiveContext *cx, const StackBaseShape &base,
                            TaggedProto proto, HandleShape shape)
@@ -326,7 +339,8 @@ Shape::replaceLastProperty(ExclusiveContext *cx, const StackBaseShape &base,
     StackShape child(shape);
     child.base = nbase;
 
-    return cx->compartment()->propertyTree.getChild(cx, shape->parent, child);
+    return cx->compartment()->propertyTree.getChild(cx, shape->parent,
+                                                    shape->numFixedSlots(), child);
 }
 
 /*
@@ -385,7 +399,7 @@ JSObject::getChildProperty(ExclusiveContext *cx,
     RootedShape shape(cx, getChildPropertyOnDictionary(cx, obj, parent, child));
 
     if (!obj->inDictionaryMode()) {
-        shape = cx->compartment()->propertyTree.getChild(cx, parent, child);
+        shape = cx->compartment()->propertyTree.getChild(cx, parent, obj->numFixedSlots(), child);
         if (!shape)
             return nullptr;
         //JS_ASSERT(shape->parent == parent);
@@ -620,7 +634,7 @@ JSObject::addPropertyInternal(typename ExecutionModeTraits<mode>::ExclusiveConte
                 return nullptr;
         }
 
-        StackShape child(nbase, id, slot, attrs, flags, shortid);
+        StackShape child(nbase, id, slot, obj->numFixedSlots(), attrs, flags, shortid);
         shape = getOrLookupChildProperty<mode>(cx, obj, last, child);
     }
 
@@ -704,8 +718,8 @@ js::NewReshapedObject(JSContext *cx, HandleTypeObject type, JSObject *parent,
                 return nullptr;
         }
 
-        StackShape child(nbase, id, i, JSPROP_ENUMERATE, 0, 0);
-        newShape = cx->compartment()->propertyTree.getChild(cx, newShape, child);
+        StackShape child(nbase, id, i, res->numFixedSlots(), JSPROP_ENUMERATE, 0, 0);
+        newShape = cx->compartment()->propertyTree.getChild(cx, newShape, res->numFixedSlots(), child);
         if (!newShape)
             return nullptr;
         if (!JSObject::setLastProperty(cx, res, newShape))
@@ -901,7 +915,7 @@ JSObject::putProperty(typename ExecutionModeTraits<mode>::ExclusiveContextType c
         JS_ASSERT(shape == obj->lastProperty());
 
         /* Find or create a property tree node labeled by our arguments. */
-        StackShape child(nbase, id, slot, attrs, flags, shortid);
+        StackShape child(nbase, id, slot, obj->numFixedSlots(), attrs, flags, shortid);
         RootedShape parent(cx, shape->parent);
         Shape *newShape = getOrLookupChildProperty<mode>(cx, obj, parent, child);
 

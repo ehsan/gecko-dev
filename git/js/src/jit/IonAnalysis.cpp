@@ -19,7 +19,6 @@
 
 #include "jsinferinlines.h"
 #include "jsobjinlines.h"
-#include "jsopcodeinlines.h"
 
 using namespace js;
 using namespace js::jit;
@@ -1523,7 +1522,7 @@ jit::ExtractLinearInequality(MTest *test, BranchDirection direction,
 
     JSOp jsop = compare->jsop();
     if (direction == FALSE_BRANCH)
-        jsop = NegateCompareOp(jsop);
+        jsop = analyze::NegateCompareOp(jsop);
 
     SimpleLinearSum lsum = ExtractLinearSum(lhs);
     SimpleLinearSum rsum = ExtractLinearSum(rhs);
