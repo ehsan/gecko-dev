@@ -333,6 +333,10 @@ using mozilla::dom::workers::ResolveWorkerClasses;
 #include "TimeManager.h"
 #endif
 
+#ifdef MOZ_WEBRTC
+#include "nsIDOMDataChannel.h"
+#endif
+
 using namespace mozilla;
 using namespace mozilla::dom;
 
@@ -897,6 +901,11 @@ static nsDOMClassInfoData sClassInfoData[] = {
 #ifdef MOZ_TIME_MANAGER
   NS_DEFINE_CLASSINFO_DATA(MozTimeManager, nsDOMGenericSH,
                            DOM_DEFAULT_SCRIPTABLE_FLAGS)
+#endif
+
+#ifdef MOZ_WEBRTC
+  NS_DEFINE_CLASSINFO_DATA(DataChannel, nsEventTargetSH,
+                           EVENTTARGET_SCRIPTABLE_FLAGS)
 #endif
 };
 
@@ -2260,6 +2269,13 @@ nsDOMClassInfo::Init()
 #ifdef MOZ_TIME_MANAGER
   DOM_CLASSINFO_MAP_BEGIN(MozTimeManager, nsIDOMMozTimeManager)
     DOM_CLASSINFO_MAP_ENTRY(nsIDOMMozTimeManager)
+  DOM_CLASSINFO_MAP_END
+#endif
+
+#ifdef MOZ_WEBRTC
+  DOM_CLASSINFO_MAP_BEGIN(DataChannel, nsIDOMDataChannel)
+    DOM_CLASSINFO_MAP_ENTRY(nsIDOMDataChannel)
+    DOM_CLASSINFO_MAP_ENTRY(nsIDOMEventTarget)
   DOM_CLASSINFO_MAP_END
 #endif
 
