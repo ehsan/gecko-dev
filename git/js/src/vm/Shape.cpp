@@ -893,7 +893,7 @@ NativeObject::changeProperty(ExclusiveContext *cx, HandleNativeObject obj,
     MOZ_ASSERT(!((attrs ^ shape->attrs) & JSPROP_SHARED) ||
                !(attrs & JSPROP_SHARED));
 
-    MarkTypePropertyNonData(cx, obj, shape->propid());
+    types::MarkTypePropertyNonData(cx, obj, shape->propid());
 
     if (!CheckCanChangeAttrs(cx, obj, shape, &attrs))
         return nullptr;

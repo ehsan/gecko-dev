@@ -21,6 +21,7 @@
 #include "vm/Shape-inl.h"
 
 using namespace js;
+using namespace js::types;
 
 using js::frontend::IsIdentifier;
 using mozilla::ArrayLength;

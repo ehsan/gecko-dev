@@ -406,9 +406,7 @@ interface TestInterface {
   sequence<object?> receiveNullableObjectSequence();
 
   void passSequenceOfSequences(sequence<sequence<long>> arg);
-  void passSequenceOfSequencesOfSequences(sequence<sequence<sequence<long>>> arg);
   sequence<sequence<long>> receiveSequenceOfSequences();
-  sequence<sequence<sequence<long>>> receiveSequenceOfSequencesOfSequences();
 
   // MozMap types
   void passMozMap(MozMap<long> arg);

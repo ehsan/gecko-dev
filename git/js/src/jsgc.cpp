@@ -1127,7 +1127,7 @@ GCRuntime::GCRuntime(JSRuntime *rt) :
 #endif
     validate(true),
     fullCompartmentChecks(false),
-    mallocBytesUntilGC(0),
+    mallocBytes(0),
     mallocGCTriggered(false),
     alwaysPreserveCode(false),
 #ifdef DEBUG
@@ -1655,14 +1655,14 @@ GCRuntime::setMaxMallocBytes(size_t value)
 void
 GCRuntime::resetMallocBytes()
 {
-    mallocBytesUntilGC = ptrdiff_t(maxMallocBytes);
+    mallocBytes = ptrdiff_t(maxMallocBytes);
     mallocGCTriggered = false;
 }
 
 void
 GCRuntime::updateMallocCounter(JS::Zone *zone, size_t nbytes)
 {
-    mallocBytesUntilGC -= ptrdiff_t(nbytes);
+    mallocBytes -= ptrdiff_t(nbytes);
     if (MOZ_UNLIKELY(isTooMuchMalloc()))
         onTooMuchMalloc();
     else if (zone)
@@ -2218,7 +2218,7 @@ GCRuntime::sweepTypesAfterCompacting(Zone *zone)
     FreeOp *fop = rt->defaultFreeOp();
     zone->beginSweepTypes(fop, rt->gc.releaseObservedTypes && !zone->isPreservingCode());
 
-    AutoClearTypeInferenceStateOnOOM oom(zone);
+    types::AutoClearTypeInferenceStateOnOOM oom(zone);
 
     for (ZoneCellIterUnderGC i(zone, FINALIZE_SCRIPT); !i.done(); i.next()) {
         JSScript *script = i.get<JSScript>();
@@ -3208,12 +3208,12 @@ GCRuntime::maybeGC(Zone *zone)
 #ifdef JS_GC_ZEAL
     if (zealMode == ZealAllocValue || zealMode == ZealPokeValue) {
         JS::PrepareForFullGC(rt);
-        gc(GC_NORMAL, JS::gcreason::DEBUG_GC);
+        gc(GC_NORMAL, JS::gcreason::MAYBEGC);
         return true;
     }
 #endif
 
-    if (gcIfRequested())
+    if (gcIfNeeded())
         return true;
 
     if (zone->usage.gcBytes() > 1024 * 1024 &&
@@ -3222,7 +3222,7 @@ GCRuntime::maybeGC(Zone *zone)
         !isBackgroundSweeping())
     {
         PrepareZoneForGC(zone);
-        startGC(GC_NORMAL, JS::gcreason::EAGER_ALLOC_TRIGGER);
+        startGC(GC_NORMAL, JS::gcreason::MAYBEGC);
         return true;
     }
 
@@ -3248,7 +3248,7 @@ GCRuntime::maybePeriodicFullGC()
             numArenasFreeCommitted > decommitThreshold)
         {
             JS::PrepareForFullGC(rt);
-            startGC(GC_SHRINK, JS::gcreason::PERIODIC_FULL_GC);
+            startGC(GC_SHRINK, JS::gcreason::MAYBEGC);
         } else {
             nextFullGCTime = now + GC_IDLE_FULL_SPAN;
         }
@@ -5191,13 +5191,13 @@ SweepThing(Shape *shape)
 }
 
 static void
-SweepThing(JSScript *script, AutoClearTypeInferenceStateOnOOM *oom)
+SweepThing(JSScript *script, types::AutoClearTypeInferenceStateOnOOM *oom)
 {
     script->maybeSweepTypes(oom);
 }
 
 static void
-SweepThing(ObjectGroup *group, AutoClearTypeInferenceStateOnOOM *oom)
+SweepThing(ObjectGroup *group, types::AutoClearTypeInferenceStateOnOOM *oom)
 {
     group->maybeSweep(oom);
 }
@@ -5245,7 +5245,7 @@ GCRuntime::sweepPhase(SliceBudget &sliceBudget)
             for (; sweepZone; sweepZone = sweepZone->nextNodeInGroup()) {
                 ArenaLists &al = sweepZone->arenas;
 
-                AutoClearTypeInferenceStateOnOOM oom(sweepZone);
+                types::AutoClearTypeInferenceStateOnOOM oom(sweepZone);
 
                 if (!SweepArenaList<JSScript>(&al.gcScriptArenasToUpdate, sliceBudget, &oom))
                     return NotFinished;
@@ -6091,7 +6091,7 @@ IsDeterministicGCReason(JS::gcreason::Reason reason)
         return false;
     }
 
-    if (reason == JS::gcreason::EAGER_ALLOC_TRIGGER)
+    if (reason == JS::gcreason::MAYBEGC)
         return false;
 
     return true;
@@ -6418,7 +6418,7 @@ GCRuntime::enableGenerationalGC()
 }
 
 bool
-GCRuntime::gcIfRequested(JSContext *cx /* = nullptr */)
+GCRuntime::gcIfNeeded(JSContext *cx /* = nullptr */)
 {
     // This method returns whether a major GC was performed.
 

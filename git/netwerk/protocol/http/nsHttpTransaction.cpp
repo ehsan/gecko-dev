@@ -136,7 +136,6 @@ nsHttpTransaction::nsHttpTransaction()
     , mCountRecv(0)
     , mCountSent(0)
     , mAppId(NECKO_NO_APP_ID)
-    , mIsInBrowser(false)
     , mClassOfService(0)
 {
     LOG(("Creating nsHttpTransaction @%p\n", this));
@@ -245,7 +244,8 @@ nsHttpTransaction::Init(uint32_t caps,
     mChannel = do_QueryInterface(eventsink);
     nsCOMPtr<nsIChannel> channel = do_QueryInterface(eventsink);
     if (channel) {
-        NS_GetAppInfo(channel, &mAppId, &mIsInBrowser);
+        bool isInBrowser;
+        NS_GetAppInfo(channel, &mAppId, &isInBrowser);
     }
 
 #ifdef MOZ_WIDGET_GONK
@@ -792,7 +792,7 @@ nsHttpTransaction::SaveNetworkStats(bool enforce)
     // Create the event to save the network statistics.
     // the event is then dispathed to the main thread.
     nsRefPtr<nsRunnable> event =
-        new SaveNetworkStatsEvent(mAppId, mIsInBrowser, mActiveNetwork,
+        new SaveNetworkStatsEvent(mAppId, mActiveNetwork,
                                   mCountRecv, mCountSent, false);
     NS_DispatchToMainThread(event);
 

@@ -12,6 +12,7 @@
 #include "mozilla/UniquePtr.h"
 
 #include "jscntxt.h"
+#include "jsinfer.h"
 #include "jsobj.h"
 #include "jsscript.h"
 #include "jsstr.h"

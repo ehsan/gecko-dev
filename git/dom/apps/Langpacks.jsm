@@ -224,12 +224,13 @@ this.Langpacks = {
 
   // Check if this app is a langpack and update registration if needed.
   register: function(aApp, aManifest) {
+    debug("register app " + aApp.manifestURL + " role=" + aApp.role);
+
     if (aApp.role !== "langpack") {
+      debug("Not a langpack.");
       // Not a langpack, but that's fine.
       return;
     }
-
-    debug("register app " + aApp.manifestURL);
 
     if (!this.checkManifest(aManifest)) {
       debug("Invalid langpack manifest.");
@@ -282,31 +283,32 @@ this.Langpacks = {
   // Check if this app is a langpack and update registration by removing all
   // the entries from this app.
   unregister: function(aApp, aManifest) {
-    if (aApp.role !== "langpack") {
-      // Not a langpack, but that's fine.
-      return;
-    }
+    debug("unregister app " + aApp.manifestURL + " role=" + aApp.role);
 
-    debug("unregister app " + aApp.manifestURL);
+      if (aApp.role !== "langpack") {
+        debug("Not a langpack.");
+        // Not a langpack, but that's fine.
+        return;
+      }
 
-    for (let app in this._data) {
-      let sendEvent = false;
-      for (let lang in this._data[app].langs) {
-        if (this._data[app].langs[lang].from == aApp.manifestURL) {
-          sendEvent = true;
-          delete this._data[app].langs[lang];
+      for (let app in this._data) {
+        let sendEvent = false;
+        for (let lang in this._data[app].langs) {
+          if (this._data[app].langs[lang].from == aApp.manifestURL) {
+            sendEvent = true;
+            delete this._data[app].langs[lang];
+          }
+        }
+        // Fire additionallanguageschange event.
+        // This will only be dispatched to documents using the langpack api.
+        if (sendEvent) {
+          this.sendAppUpdate(app);
+          ppmm.broadcastAsyncMessage(
+              "Webapps:AdditionalLanguageChange",
+              { manifestURL: app,
+                languages: this.getAdditionalLanguages(app).langs });
         }
       }
-      // Fire additionallanguageschange event.
-      // This will only be dispatched to documents using the langpack api.
-      if (sendEvent) {
-        this.sendAppUpdate(app);
-        ppmm.broadcastAsyncMessage(
-            "Webapps:AdditionalLanguageChange",
-            { manifestURL: app,
-              languages: this.getAdditionalLanguages(app).langs });
-      }
-    }
   }
 }
 

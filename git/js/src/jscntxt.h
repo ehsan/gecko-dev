@@ -467,6 +467,10 @@ struct JSContext : public js::ExclusiveContext,
         runtime_->gc.minorGC(this, reason);
     }
 
+    void gcIfNeeded() {
+        runtime_->gc.gcIfNeeded(this);
+    }
+
   public:
     bool isExceptionPending() {
         return throwing;

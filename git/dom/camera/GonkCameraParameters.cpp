@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2013-2015 Mozilla Foundation
+ * Copyright (C) 2013-2014 Mozilla Foundation
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -217,10 +217,6 @@ GonkCameraParameters::MapIsoToGonk(const nsAString& aIso, nsACString& aIsoOut)
 nsresult
 GonkCameraParameters::MapIsoFromGonk(const char* aIso, nsAString& aIsoOut)
 {
-  if (!aIso) {
-    return NS_ERROR_NOT_AVAILABLE;
-  }
-
   if (strcmp(aIso, "ISO_HJR") == 0) {
     aIsoOut.AssignASCII("hjr");
   } else if (strcmp(aIso, "auto") == 0) {
@@ -364,12 +360,10 @@ GonkCameraParameters::GetTranslated(uint32_t aKey, nsAString& aValue)
   if (NS_FAILED(rv)) {
     return rv;
   }
-  if (val) {
-    if (aKey == CAMERA_PARAM_ISOMODE) {
-      rv = MapIsoFromGonk(val, aValue);
-    } else {
-      aValue.AssignASCII(val);
-    }
+  if (aKey == CAMERA_PARAM_ISOMODE) {
+    rv = MapIsoFromGonk(val, aValue);
+  } else if(val) {
+    aValue.AssignASCII(val);
   } else {
     aValue.Truncate(0);
   }

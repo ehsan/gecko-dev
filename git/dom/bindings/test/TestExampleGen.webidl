@@ -271,7 +271,6 @@ interface TestExampleInterface {
   sequence<object?> receiveNullableObjectSequence();
 
   void passSequenceOfSequences(sequence<sequence<long>> arg);
-  void passSequenceOfSequencesOfSequences(sequence<sequence<sequence<long>>> arg);
   //XXXbz No support for sequence of sequence return values yet.
   //sequence<sequence<long>> receiveSequenceOfSequences();
 

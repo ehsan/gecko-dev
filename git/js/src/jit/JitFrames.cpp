@@ -7,6 +7,7 @@
 #include "jit/JitFrames-inl.h"
 
 #include "jsfun.h"
+#include "jsinfer.h"
 #include "jsobj.h"
 #include "jsscript.h"
 
@@ -30,14 +31,13 @@
 #include "vm/Interpreter.h"
 #include "vm/SPSProfiler.h"
 #include "vm/TraceLogging.h"
-#include "vm/TypeInference.h"
 
+#include "jsinferinlines.h"
 #include "jsscriptinlines.h"
 #include "gc/Nursery-inl.h"
 #include "jit/JitFrameIterator-inl.h"
 #include "vm/Debugger-inl.h"
 #include "vm/Probes-inl.h"
-#include "vm/TypeInference-inl.h"
 
 namespace js {
 namespace jit {
@@ -2115,7 +2115,7 @@ SnapshotIterator::computeInstructionResults(JSContext *cx, RInstructionResults *
 
         // Use AutoEnterAnalysis to avoid invoking the object metadata callback,
         // which could try to walk the stack while bailing out.
-        AutoEnterAnalysis enter(cx);
+        types::AutoEnterAnalysis enter(cx);
 
         // Fill with the results of recover instructions.
         SnapshotIterator s(*this);

@@ -58,6 +58,7 @@ NfcMessageHandler::Marshall(Parcel& aParcel, const CommandOptions& aOptions)
     mPendingReqQueue.AppendElement(NfcRequest::FormatReq);
   } else if (!strcmp(type, kTransceiveRequest)) {
     result = TransceiveRequest(aParcel, aOptions);
+    mPendingReqQueue.AppendElement(NfcRequest::TransceiveReq);
   } else {
     result = false;
   }

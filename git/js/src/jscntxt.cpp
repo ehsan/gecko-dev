@@ -253,7 +253,7 @@ js::DestroyContext(JSContext *cx, DestroyContextMode mode)
          * This printing depends on atoms still existing.
          */
         for (CompartmentsIter c(rt, SkipAtoms); !c.done(); c.next())
-            PrintTypes(cx, c, false);
+            types::PrintTypes(cx, c, false);
     }
     if (mode == DCM_FORCE_GC) {
         MOZ_ASSERT(!rt->isHeapBusy());

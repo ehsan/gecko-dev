@@ -415,7 +415,6 @@ this.NetworkStatsService = {
       }
     }
 
-    let browsingTrafficOnly = msg.browsingTrafficOnly || false;
     let serviceType = msg.serviceType || "";
 
     let start = new Date(msg.start);
@@ -425,7 +424,7 @@ this.NetworkStatsService = {
       this._db.find(function onStatsFound(aError, aResult) {
         mm.sendAsyncMessage("NetworkStats:Get:Return",
                             { id: msg.id, error: aError, result: aResult });
-      }, appId, browsingTrafficOnly, serviceType, network, start, end, appManifestURL);
+      }, appId, serviceType, network, start, end, appManifestURL);
     }).bind(this);
 
     this.validateNetwork(network, function onValidateNetwork(aNetId) {
@@ -440,7 +439,6 @@ this.NetworkStatsService = {
       if (this._networks[aNetId].status == NETWORK_STATUS_READY) {
         debug("getstats for network " + network.id + " of type " + network.type);
         debug("appId: " + appId + " from appManifestURL: " + appManifestURL);
-        debug("browsingTrafficOnly: " + browsingTrafficOnly);
         debug("serviceType: " + serviceType);
 
         if (appId || serviceType) {
@@ -458,7 +456,7 @@ this.NetworkStatsService = {
       this._db.find(function onStatsFound(aError, aResult) {
         mm.sendAsyncMessage("NetworkStats:Get:Return",
                             { id: msg.id, error: aError, result: aResult });
-      }, appId, browsingTrafficOnly, serviceType, network, start, end, appManifestURL);
+      }, appId, serviceType, network, start, end, appManifestURL);
     }.bind(this));
   },
 
@@ -707,7 +705,6 @@ this.NetworkStatsService = {
     }
 
     let stats = { appId:          0,
-                  isInBrowser:    false,
                   serviceType:    "",
                   networkId:      this._networks[aNetId].network.id,
                   networkType:    this._networks[aNetId].network.type,
@@ -733,8 +730,8 @@ this.NetworkStatsService = {
   /*
    * Function responsible for receiving stats which are not from netd.
    */
-  saveStats: function saveStats(aAppId, aIsInBrowser, aServiceType, aNetwork,
-                                aTimeStamp, aRxBytes, aTxBytes, aIsAccumulative,
+  saveStats: function saveStats(aAppId, aServiceType, aNetwork, aTimeStamp,
+                                aRxBytes, aTxBytes, aIsAccumulative,
                                 aCallback) {
     let netId = this.convertNetworkInterface(aNetwork);
     if (!netId) {
@@ -756,7 +753,6 @@ this.NetworkStatsService = {
     }
 
     let stats = { appId:          aAppId,
-                  isInBrowser:    aIsInBrowser,
                   serviceType:    aServiceType,
                   networkId:      this._networks[netId].network.id,
                   networkType:    this._networks[netId].network.type,
@@ -776,16 +772,14 @@ this.NetworkStatsService = {
    *
    */
   writeCache: function writeCache(aStats, aCallback) {
-    debug("saveStats: " + aStats.appId + " " + aStats.isInBrowser + " " +
-          aStats.serviceType + " " + aStats.networkId + " " +
-          aStats.networkType + " " + aStats.date + " " +
-          aStats.rxBytes + " " + aStats.txBytes);
+    debug("saveStats: " + aStats.appId + " " + aStats.serviceType + " " +
+          aStats.networkId + " " + aStats.networkType + " " + aStats.date + " "
+          + aStats.date + " " + aStats.rxBytes + " " + aStats.txBytes);
 
-    // Generate an unique key from |appId|, |isInBrowser|, |serviceType| and
-    // |netId|, which is used to retrieve data in |cachedStats|.
+    // Generate an unique key from |appId|, |serviceType| and |netId|,
+    // which is used to retrieve data in |cachedStats|.
     let netId = this.getNetworkId(aStats.networkId, aStats.networkType);
-    let key = aStats.appId + "" + aStats.isInBrowser + "" +
-              aStats.serviceType + "" + netId;
+    let key = aStats.appId + "" + aStats.serviceType + "" + netId;
 
     // |cachedStats| only keeps the data with the same date.
     // If the incoming date is different from |cachedStatsDate|,

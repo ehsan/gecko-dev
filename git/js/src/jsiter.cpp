@@ -33,6 +33,8 @@
 #include "vm/StopIterationObject.h"
 #include "vm/TypedArrayCommon.h"
 
+#include "jsinferinlines.h"
+#include "jsobjinlines.h"
 #include "jsscriptinlines.h"
 
 #include "vm/NativeObject-inl.h"
@@ -578,7 +580,7 @@ VectorToKeyIterator(JSContext *cx, HandleObject obj, unsigned flags, AutoIdVecto
 
     if (obj->isSingleton() && !obj->setIteratedSingleton(cx))
         return false;
-    MarkObjectGroupFlags(cx, obj, OBJECT_FLAG_ITERATED);
+    types::MarkObjectGroupFlags(cx, obj, OBJECT_FLAG_ITERATED);
 
     Rooted<PropertyIteratorObject *> iterobj(cx, NewPropertyIteratorObject(cx, flags));
     if (!iterobj)
@@ -621,7 +623,7 @@ VectorToValueIterator(JSContext *cx, HandleObject obj, unsigned flags, AutoIdVec
 
     if (obj->isSingleton() && !obj->setIteratedSingleton(cx))
         return false;
-    MarkObjectGroupFlags(cx, obj, OBJECT_FLAG_ITERATED);
+    types::MarkObjectGroupFlags(cx, obj, OBJECT_FLAG_ITERATED);
 
     Rooted<PropertyIteratorObject*> iterobj(cx, NewPropertyIteratorObject(cx, flags));
     if (!iterobj)

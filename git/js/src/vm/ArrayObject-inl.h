@@ -11,7 +11,7 @@
 
 #include "vm/String.h"
 
-#include "vm/TypeInference-inl.h"
+#include "jsinferinlines.h"
 
 namespace js {
 
@@ -22,7 +22,7 @@ ArrayObject::setLength(ExclusiveContext *cx, uint32_t length)
 
     if (length > INT32_MAX) {
         /* Track objects with overflowing lengths in type information. */
-        MarkObjectGroupFlags(cx, this, OBJECT_FLAG_LENGTH_OVERFLOW);
+        types::MarkObjectGroupFlags(cx, this, OBJECT_FLAG_LENGTH_OVERFLOW);
     }
 
     getElementsHeader()->length = length;

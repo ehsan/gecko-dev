@@ -1118,15 +1118,15 @@ UpdateShapeTypeAndValue(ExclusiveContext *cx, NativeObject *obj, Shape *shape, c
         // Per the acquired properties analysis, when the shape of a partially
         // initialized object is changed to its fully initialized shape, its
         // group can be updated as well.
-        if (TypeNewScript *newScript = obj->groupRaw()->newScript()) {
+        if (types::TypeNewScript *newScript = obj->groupRaw()->newScript()) {
             if (newScript->initializedShape() == shape)
                 obj->setGroup(newScript->initializedGroup());
         }
     }
     if (!shape->hasSlot() || !shape->hasDefaultGetter() || !shape->hasDefaultSetter())
-        MarkTypePropertyNonData(cx, obj, id);
+        types::MarkTypePropertyNonData(cx, obj, id);
     if (!shape->writable())
-        MarkTypePropertyNonWritable(cx, obj, id);
+        types::MarkTypePropertyNonWritable(cx, obj, id);
     return true;
 }
 
@@ -1596,7 +1596,7 @@ GetExistingProperty(JSContext *cx,
                       !obj->isSingleton() &&
                       !obj->template is<ScopeObject>() &&
                       shape->hasDefaultGetter(),
-                      ObjectGroupHasProperty(cx, obj->group(), shape->propid(), vp));
+                      js::types::TypeHasProperty(cx, obj->group(), shape->propid(), vp));
     } else {
         vp.setUndefined();
     }
@@ -2294,7 +2294,7 @@ js::NativeSetPropertyAttributes(JSContext *cx, HandleNativeObject obj, HandleId 
         if (!NativeObject::changePropertyAttributes(cx, nobj.as<NativeObject>(), shape, *attrsp))
             return false;
         if (*attrsp & JSPROP_READONLY)
-            MarkTypePropertyNonWritable(cx, nobj, id);
+            types::MarkTypePropertyNonWritable(cx, nobj, id);
         return true;
     } else {
         return SetPropertyAttributes(cx, nobj, id, attrsp);

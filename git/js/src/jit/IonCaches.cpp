@@ -1268,9 +1268,10 @@ GetPropertyIC::allowArrayLength(Context cx, HandleObject obj) const
     CacheLocation *locs = ion->getCacheLocs(locationIndex);
     for (size_t i = 0; i < numLocations; i++) {
         CacheLocation &curLoc = locs[i];
-        StackTypeSet *bcTypes = TypeScript::BytecodeTypes(curLoc.script, curLoc.pc);
+        types::StackTypeSet *bcTypes =
+            types::TypeScript::BytecodeTypes(curLoc.script, curLoc.pc);
 
-        if (!bcTypes->hasType(TypeSet::Int32Type()))
+        if (!bcTypes->hasType(types::Type::Int32Type()))
             return false;
     }
 
@@ -1854,7 +1855,7 @@ GetPropertyIC::update(JSContext *cx, size_t cacheIndex,
 
         // Monitor changes to cache entry.
         if (!cache.monitoredResult())
-            TypeScript::Monitor(cx, script, pc, vp);
+            types::TypeScript::Monitor(cx, script, pc, vp);
     }
 
     return true;
@@ -1899,11 +1900,11 @@ CheckTypeSetForWrite(MacroAssembler &masm, JSObject *obj, jsid id,
     ObjectGroup *group = obj->group();
     if (group->unknownProperties())
         return;
-    HeapTypeSet *propTypes = group->maybeGetProperty(id);
+    types::HeapTypeSet *propTypes = group->maybeGetProperty(id);
     MOZ_ASSERT(propTypes);
 
     // guardTypeSet can read from type sets without triggering read barriers.
-    TypeSet::readBarrier(propTypes);
+    types::TypeSet::readBarrier(propTypes);
 
     Register scratch = object;
     masm.guardTypeSet(valReg, propTypes, BarrierKind::TypeSet, scratch, failure);
@@ -2580,7 +2581,7 @@ CanInlineSetPropTypeCheck(JSObject *obj, jsid id, ConstantOrRegister val, bool *
     bool shouldCheck = false;
     ObjectGroup *group = obj->group();
     if (!group->unknownProperties()) {
-        HeapTypeSet *propTypes = group->maybeGetProperty(id);
+        types::HeapTypeSet *propTypes = group->maybeGetProperty(id);
         if (!propTypes)
             return false;
         if (!propTypes->unknown()) {
@@ -2589,7 +2590,7 @@ CanInlineSetPropTypeCheck(JSObject *obj, jsid id, ConstantOrRegister val, bool *
             shouldCheck = true;
             if (val.constant()) {
                 // If the input is a constant, then don't bother if the barrier will always fail.
-                if (!propTypes->hasType(TypeSet::GetValueType(val.value())))
+                if (!propTypes->hasType(types::GetValueType(val.value())))
                     return false;
                 shouldCheck = false;
             } else {
@@ -2600,7 +2601,7 @@ CanInlineSetPropTypeCheck(JSObject *obj, jsid id, ConstantOrRegister val, bool *
                 // contains the specific object, but doesn't have ANYOBJECT set.
                 if (reg.hasTyped() && reg.type() != MIRType_Object) {
                     JSValueType valType = ValueTypeFromMIRType(reg.type());
-                    if (!propTypes->hasType(TypeSet::PrimitiveType(valType)))
+                    if (!propTypes->hasType(types::Type::PrimitiveType(valType)))
                         return false;
                     shouldCheck = false;
                 }
@@ -3408,7 +3409,7 @@ GetElementIC::update(JSContext *cx, size_t cacheIndex, HandleObject obj,
         if (!GetObjectElementOperation(cx, JSOp(*pc), obj, idval, res))
             return false;
         if (!cache.monitoredResult())
-            TypeScript::Monitor(cx, script, pc, res);
+            types::TypeScript::Monitor(cx, script, pc, res);
         return true;
     }
 
@@ -3462,7 +3463,7 @@ GetElementIC::update(JSContext *cx, size_t cacheIndex, HandleObject obj,
     }
 
     if (!cache.monitoredResult())
-        TypeScript::Monitor(cx, script, pc, res);
+        types::TypeScript::Monitor(cx, script, pc, res);
     return true;
 }
 
@@ -4142,7 +4143,7 @@ NameIC::update(JSContext *cx, size_t cacheIndex, HandleObject scopeChain,
     }
 
     // Monitor changes to cache entry.
-    TypeScript::Monitor(cx, script, pc, vp);
+    types::TypeScript::Monitor(cx, script, pc, vp);
 
     return true;
 }

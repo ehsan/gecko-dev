@@ -2736,7 +2736,7 @@ nsFrame::IsSelectable(bool* aSelectable, uint8_t* aSelectStyle) const
         }
         break;
     }
-    frame = nsLayoutUtils::GetParentOrPlaceholderFor(frame);
+    frame = frame->GetParent();
   }
 
   // convert internal values to standard values

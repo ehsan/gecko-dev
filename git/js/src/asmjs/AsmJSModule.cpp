@@ -535,13 +535,13 @@ TryEnablingJit(JSContext *cx, AsmJSModule &module, HandleFunction fun, uint32_t 
     // BaselineScript, so if those checks hold now they must hold at least until
     // the BaselineScript is discarded and when that happens the FFI exit is
     // patched back.
-    if (!TypeScript::ThisTypes(script)->hasType(TypeSet::UndefinedType()))
+    if (!types::TypeScript::ThisTypes(script)->hasType(types::Type::UndefinedType()))
         return true;
     for (uint32_t i = 0; i < fun->nargs(); i++) {
-        StackTypeSet *typeset = TypeScript::ArgTypes(script, i);
-        TypeSet::Type type = TypeSet::DoubleType();
+        types::StackTypeSet *typeset = types::TypeScript::ArgTypes(script, i);
+        types::Type type = types::Type::DoubleType();
         if (!argv[i].isDouble())
-            type = TypeSet::PrimitiveType(argv[i].extractNonDoubleType());
+            type = types::Type::PrimitiveType(argv[i].extractNonDoubleType());
         if (!typeset->hasType(type))
             return true;
     }

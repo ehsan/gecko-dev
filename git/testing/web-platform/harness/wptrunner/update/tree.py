@@ -237,24 +237,20 @@ class GitTree(object):
                         of filenames (which must already be in the repo)
                         to commit
         """
+        assert self.message is not None
+
         if include is not None:
             args = tuple(include)
         else:
             args = ()
 
         if self.git("status", "-uno", "-z", *args).strip():
-            self.git("add", *args)
+            self.git("commit", "-m", self.message, *args)
             return True
         return False
 
     def commit_patch(self):
-        assert self.message is not None
-
-        if self.git("diff", "--name-only", "--staged", "-z").strip():
-            self.git("commit", "-m", self.message)
-            return True
-
-        return False
+        pass
 
     def init(self):
         self.git("init")
@@ -323,13 +319,6 @@ class GitTree(object):
             parts = line.split(" ")
             rv.append(parts[1])
         return rv
-
-    def contains_commit(self, commit):
-        try:
-            self.git("rev-parse", "--verify", commit.sha1)
-            return True
-        except subprocess.CalledProcessError:
-            return False
 
 
 class CommitMessage(object):

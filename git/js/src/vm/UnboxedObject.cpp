@@ -6,6 +6,7 @@
 
 #include "vm/UnboxedObject.h"
 
+#include "jsinferinlines.h"
 #include "jsobjinlines.h"
 
 #include "vm/Shape-inl.h"
@@ -41,10 +42,10 @@ UnboxedLayout::sizeOfIncludingThis(mozilla::MallocSizeOf mallocSizeOf)
 }
 
 void
-UnboxedLayout::setNewScript(TypeNewScript *newScript, bool writeBarrier /* = true */)
+UnboxedLayout::setNewScript(types::TypeNewScript *newScript, bool writeBarrier /* = true */)
 {
     if (newScript_ && writeBarrier)
-        TypeNewScript::writeBarrierPre(newScript_);
+        types::TypeNewScript::writeBarrierPre(newScript_);
     newScript_ = newScript;
 }
 
@@ -91,7 +92,7 @@ UnboxedPlainObject::setValue(JSContext *cx, const UnboxedLayout::Property &prope
             // Update property types when writing object properties. Types for
             // other properties were captured when the unboxed layout was
             // created.
-            AddTypePropertyId(cx, this, NameToId(property.name), v);
+            types::AddTypePropertyId(cx, this, NameToId(property.name), v);
 
             *reinterpret_cast<HeapPtrObject*>(p) = v.toObjectOrNull();
             return true;
@@ -439,7 +440,7 @@ PropertiesAreSuperset(const UnboxedLayout::PropertyVector &properties, UnboxedLa
 
 bool
 js::TryConvertToUnboxedLayout(JSContext *cx, Shape *templateShape,
-                              ObjectGroup *group, PreliminaryObjectArray *objects)
+                              ObjectGroup *group, types::PreliminaryObjectArray *objects)
 {
     if (!cx->runtime()->options().unboxedObjects())
         return true;
@@ -452,7 +453,7 @@ js::TryConvertToUnboxedLayout(JSContext *cx, Shape *templateShape,
         return false;
 
     size_t objectCount = 0;
-    for (size_t i = 0; i < PreliminaryObjectArray::COUNT; i++) {
+    for (size_t i = 0; i < types::PreliminaryObjectArray::COUNT; i++) {
         JSObject *obj = objects->get(i);
         if (!obj)
             continue;
@@ -624,7 +625,7 @@ js::TryConvertToUnboxedLayout(JSContext *cx, Shape *templateShape,
     Vector<Value, 0, SystemAllocPolicy> values;
     if (!values.reserve(objectCount * templateShape->slotSpan()))
         return false;
-    for (size_t i = 0; i < PreliminaryObjectArray::COUNT; i++) {
+    for (size_t i = 0; i < types::PreliminaryObjectArray::COUNT; i++) {
         if (!objects->get(i))
             continue;
 
@@ -638,14 +639,14 @@ js::TryConvertToUnboxedLayout(JSContext *cx, Shape *templateShape,
         obj->setLastPropertyMakeNonNative(newShape);
     }
 
-    if (TypeNewScript *newScript = group->newScript())
+    if (types::TypeNewScript *newScript = group->newScript())
         layout->setNewScript(newScript);
 
     group->setClasp(&UnboxedPlainObject::class_);
     group->setUnboxedLayout(layout.get());
 
     size_t valueCursor = 0;
-    for (size_t i = 0; i < PreliminaryObjectArray::COUNT; i++) {
+    for (size_t i = 0; i < types::PreliminaryObjectArray::COUNT; i++) {
         if (!objects->get(i))
             continue;
         UnboxedPlainObject *obj = &objects->get(i)->as<UnboxedPlainObject>();

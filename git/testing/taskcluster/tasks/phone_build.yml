@@ -8,9 +8,7 @@ task:
   deadline: '{{#from_now}}24 hours{{/from_now}}'
   metadata:
     source: http://todo.com/soon
-    owner: mozilla-taskcluster-maintenance@mozilla.com
-  tags:
-    createdForUser: {{owner}}
+    owner: {{owner}}
 
   workerType: b2gbuild
   provisionerId: aws-provisioner

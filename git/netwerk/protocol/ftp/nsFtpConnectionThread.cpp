@@ -2313,8 +2313,7 @@ nsFtpState::SaveNetworkStats(bool enforce)
     // Create the event to save the network statistics.
     // the event is then dispathed to the main thread.
     nsRefPtr<nsRunnable> event =
-        new SaveNetworkStatsEvent(appId, isInBrowser, mActiveNetwork,
-                                  mCountRecv, 0, false);
+        new SaveNetworkStatsEvent(appId, mActiveNetwork, mCountRecv, 0, false);
     NS_DispatchToMainThread(event);
 
     // Reset the counters after saving.

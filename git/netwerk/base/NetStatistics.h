@@ -45,13 +45,11 @@ GetActiveNetworkInterface(nsCOMPtr<nsINetworkInterface> &aNetworkInterface)
 class SaveNetworkStatsEvent : public nsRunnable {
 public:
   SaveNetworkStatsEvent(uint32_t aAppId,
-                        bool aIsInBrowser,
                         nsMainThreadPtrHandle<nsINetworkInterface> &aActiveNetwork,
                         uint64_t aCountRecv,
                         uint64_t aCountSent,
                         bool aIsAccumulative)
     : mAppId(aAppId),
-      mIsInBrowser(aIsInBrowser),
       mActiveNetwork(aActiveNetwork),
       mCountRecv(aCountRecv),
       mCountSent(aCountSent),
@@ -74,7 +72,6 @@ public:
 
     // save the network stats through NetworkStatsServiceProxy
     mNetworkStatsServiceProxy->SaveAppStats(mAppId,
-                                            mIsInBrowser,
                                             mActiveNetwork,
                                             PR_Now() / 1000,
                                             mCountRecv,
@@ -86,7 +83,6 @@ public:
   }
 private:
   uint32_t mAppId;
-  bool     mIsInBrowser;
   nsMainThreadPtrHandle<nsINetworkInterface> mActiveNetwork;
   uint64_t mCountRecv;
   uint64_t mCountSent;

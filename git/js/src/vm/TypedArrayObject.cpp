@@ -39,12 +39,15 @@
 #include "vm/WrapperObject.h"
 
 #include "jsatominlines.h"
+#include "jsinferinlines.h"
+#include "jsobjinlines.h"
 
 #include "vm/NativeObject-inl.h"
 #include "vm/Shape-inl.h"
 
 using namespace js;
 using namespace js::gc;
+using namespace js::types;
 
 using mozilla::IsNaN;
 using mozilla::NegativeInfinity;

@@ -44,13 +44,15 @@
 #include "vm/ScopeObject.h"
 #include "vm/StringBuffer.h"
 
+#include "jsinferinlines.h"
+
 #include "vm/Interpreter-inl.h"
 #include "vm/String-inl.h"
 #include "vm/StringObject-inl.h"
-#include "vm/TypeInference-inl.h"
 
 using namespace js;
 using namespace js::gc;
+using namespace js::types;
 using namespace js::unicode;
 
 using JS::Symbol;
@@ -3786,7 +3788,7 @@ js::str_split(JSContext *cx, unsigned argc, Value *vp)
     RootedObjectGroup group(cx, ObjectGroup::callingAllocationSiteGroup(cx, JSProto_Array));
     if (!group)
         return false;
-    AddTypePropertyId(cx, group, JSID_VOID, TypeSet::StringType());
+    AddTypePropertyId(cx, group, JSID_VOID, Type::StringType());
 
     /* Step 5: Use the second argument as the split limit, if given. */
     uint32_t limit;

@@ -11,6 +11,7 @@
 #include "jscntxt.h"
 #include "jscompartment.h"
 #include "jshashutil.h"
+#include "jsinfer.h"
 #include "jsnum.h"
 #include "jsobj.h"
 #include "jswrapper.h"
@@ -29,6 +30,7 @@
 #include "vm/WrapperObject.h"
 
 #include "jsgcinlines.h"
+#include "jsinferinlines.h"
 #include "jsobjinlines.h"
 #include "jsopcodeinlines.h"
 #include "jsscriptinlines.h"
@@ -1908,7 +1910,7 @@ UpdateExecutionObservabilityOfScriptsInZone(JSContext *cx, Zone *zone,
     // Iterate through observable scripts, invalidating their Ion scripts and
     // appending them to a vector for discarding their baseline scripts later.
     {
-        AutoEnterAnalysis enter(fop, zone);
+        types::AutoEnterAnalysis enter(fop, zone);
         if (JSScript *script = obs.singleScriptForZoneInvalidation()) {
             if (obs.shouldRecompileOrInvalidate(script)) {
                 if (!AppendAndInvalidateScript(cx, zone, script, scripts))
