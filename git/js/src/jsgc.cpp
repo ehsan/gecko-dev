@@ -2076,7 +2076,8 @@ fail:
         JS_UNLOCK_GC(rt);
 #endif
     METER(astats->fail++);
-    js_ReportOutOfMemory(cx);
+    if (!JS_ON_TRACE(cx))
+        JS_ReportOutOfMemory(cx);
     return NULL;
 }
 
@@ -2122,7 +2123,8 @@ RefillDoubleFreeList(JSContext *cx)
                     if (didGC || JS_ON_TRACE(cx)) {
                         METER(rt->gcStats.doubleArenaStats.fail++);
                         JS_UNLOCK_GC(rt);
-                        js_ReportOutOfMemory(cx);
+                        if (!JS_ON_TRACE(cx))
+                            JS_ReportOutOfMemory(cx);
                         return NULL;
                     }
                     js_GC(cx, GC_LAST_DITCH);
