@@ -121,14 +121,10 @@
     ; We check to see if the maintenance service install was already attempted.
     ; Since the Maintenance service can be installed either x86 or x64,
     ; always use the 64-bit registry for checking if an attempt was made.
-    ${If} ${RunningX64}
-      SetRegView 64
-    ${EndIf}
+    SetRegView 64
     ReadRegDWORD $5 HKLM "Software\Mozilla\MaintenanceService" "Attempted"
     ClearErrors
-    ${If} ${RunningX64}
-      SetRegView lastused
-    ${EndIf}
+    SetRegView lastused
 
     ; If the maintenance service is already installed, do nothing.
     ; The maintenance service will launch:
@@ -622,15 +618,12 @@
     ; with at most one certificate.  A fallback certificate can only be used
     ; if the binary is replaced with a different certificate.
     ; We always use the 64bit registry for certs.
-    ${If} ${RunningX64}
-      SetRegView 64
-    ${EndIf}
+    ; This call is ignored on 32-bit systems.
+    SetRegView 64
     DeleteRegKey HKLM "$R0"
     WriteRegStr HKLM "$R0\0" "name" "${CERTIFICATE_NAME}"
     WriteRegStr HKLM "$R0\0" "issuer" "${CERTIFICATE_ISSUER}"
-    ${If} ${RunningX64}
-      SetRegView lastused
-    ${EndIf}
+    SetRegView lastused
     ClearErrors
   ${EndIf} 
   ; Restore the previously used value back
