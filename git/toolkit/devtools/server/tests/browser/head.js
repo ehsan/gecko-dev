@@ -56,7 +56,7 @@ function initDebuggerServer() {
     // tests.
     DebuggerServer.destroy();
   } catch (ex) { }
-  DebuggerServer.init();
+  DebuggerServer.init(() => true);
   DebuggerServer.addBrowserActors();
 }
 

@@ -62,9 +62,9 @@ function submit() {
   // Initiate the connection
   let transport;
   try {
-    transport = DebuggerClient.socketConnect(host, port);
+    transport = debuggerSocketConnect(host, port);
   } catch(e) {
-    // Bug 921850: catch rare exception from DebuggerClient.socketConnect
+    // Bug 921850: catch rare exception from debuggerSocketConnect
     showError("unexpected");
     return;
   }

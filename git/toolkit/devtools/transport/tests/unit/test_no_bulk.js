@@ -13,7 +13,7 @@ let { Promise: promise } = Cu.import("resource://gre/modules/Promise.jsm", {});
 function run_test() {
   DebuggerServer.registerModule("xpcshell-test/testactors-no-bulk");
   // Allow incoming connections.
-  DebuggerServer.init();
+  DebuggerServer.init(function () { return true; });
 
   add_task(function() {
     yield test_bulk_send_error(socket_transport);

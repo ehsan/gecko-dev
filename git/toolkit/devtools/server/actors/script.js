@@ -2121,7 +2121,21 @@ ThreadActor.prototype = {
    * @returns true, if the script can be added, false otherwise.
    */
   _allowSource: function (aSource) {
-    return !isHiddenSource(aSource);
+    let url = getSourceURL(aSource);
+
+    if (isHiddenSource(aSource)) {
+      return false;
+    }
+
+    // Ignore XBL bindings for content debugging.
+    if (url && url.indexOf("chrome://") == 0) {
+      return false;
+    }
+    // Ignore about:* pages for content debugging.
+    if (url && url.indexOf("about:") == 0) {
+      return false;
+    }
+    return true;
   },
 
   /**
@@ -5187,7 +5201,16 @@ update(ChromeDebuggerActor.prototype, {
   constructor: ChromeDebuggerActor,
 
   // A constant prefix that will be used to form the actor ID by the server.
-  actorPrefix: "chromeDebugger"
+  actorPrefix: "chromeDebugger",
+
+  /**
+   * Override the eligibility check for scripts and sources to make sure every
+   * script and source with a URL is stored when debugging chrome.
+   */
+
+  _allowSource: function(aSource) {
+    return !isHiddenSource(aSource);
+  }
 });
 
 exports.ChromeDebuggerActor = ChromeDebuggerActor;

@@ -21,7 +21,7 @@ function connect_client(callback)
 
 function run_test()
 {
-  DebuggerServer.init();
+  DebuggerServer.init(() => true);
   DebuggerServer.addBrowserActors();
 
   connect_client((client, actor) => {
