@@ -586,8 +586,9 @@ js_NativeStackSlots(JSContext *cx, unsigned callDepth)
         if (fp->callee)
             slots += fp->script->nfixed;
         if (callDepth-- == 0) {
-            if (fp->callee)
+            if (fp->callee) {
                 slots += 2/*callee,this*/ + fp->fun->nargs;
+            }
 #if defined _DEBUG
             unsigned int m = 0;
             FORALL_SLOTS_IN_PENDING_FRAMES(cx, origCallDepth, m++);
@@ -814,7 +815,7 @@ done:
         fp = *fsp;
         if (fp->callee) {
             if (fsp == fstack) {
-                if (size_t(p - &fp->argv[-2]) < size_t(2/*callee,this*/ + fp->fun->nargs))
+                if (size_t(p - &fp->argv[-2]) < 2/*callee,this*/ + fp->fun->nargs)
                     RETURN(offset + size_t(p - &fp->argv[-2]) * sizeof(double));
                 offset += (2/*callee,this*/ + fp->fun->nargs) * sizeof(double);
             }
@@ -1866,9 +1867,10 @@ js_RecordTree(JSContext* cx, JSTraceMonitor* tm, Fragment* f)
 }
 
 static bool
-js_AttemptToExtendTree(JSContext* cx, GuardRecord* lr, Fragment* f, GuardRecord* expectedInnerExit)
+js_AttemptToExtendTree(JSContext* cx, GuardRecord* lr, GuardRecord* expectedInnerExit)
 {
-    JS_ASSERT(f->root == f && f->vmprivate);
+    Fragment* f = lr->from->root;
+    JS_ASSERT(f->vmprivate);
 
     debug_only_v(printf("trying to attach another branch to the tree\n");)
 
@@ -1940,7 +1942,7 @@ js_ContinueRecording(JSContext* cx, TraceRecorder* r, jsbytecode* oldpc, uintN& 
             /* If the inner tree exited on an unknown loop exit, grow the tree around it. */
             if (innermostNestedGuard) {
                 js_AbortRecording(cx, oldpc, "Inner tree took different side exit, abort recording");
-                return js_AttemptToExtendTree(cx, innermostNestedGuard, innermostNestedGuard->from->root, lr);
+                return js_AttemptToExtendTree(cx, innermostNestedGuard, lr);
             }
             /* emit a call to the inner tree and continue recording the outer tree trace */
             r->emitTreeCall(f, lr);
@@ -1948,7 +1950,7 @@ js_ContinueRecording(JSContext* cx, TraceRecorder* r, jsbytecode* oldpc, uintN& 
         case BRANCH_EXIT:
             /* abort recording the outer tree, extend the inner tree */
             js_AbortRecording(cx, oldpc, "Inner tree is trying to grow, abort outer recording");
-            return js_AttemptToExtendTree(cx, lr, lr->from->root, NULL);
+            return js_AttemptToExtendTree(cx, lr, NULL);
         default:
             debug_only_v(printf("exit_type=%d\n", lr->exit->exitType);)
             js_AbortRecording(cx, oldpc, "Inner tree not suitable for calling");
@@ -2048,10 +2050,10 @@ js_ExecuteTree(JSContext* cx, Fragment** treep, uintN& inlineCallCount,
     uint64 start = rdtsc();
 #endif
 
-    JS_ASSERT(!cx->runningJittedCode);
-    cx->runningJittedCode = JS_TRUE;
+    JS_ASSERT(!cx->gcDontBlock);
+    cx->gcDontBlock = JS_TRUE;
     GuardRecord* lr = u.func(&state, NULL);
-    cx->runningJittedCode = JS_FALSE;
+    cx->gcDontBlock = JS_FALSE;
 
     /* If we bail out on a nested exit, the compiled code returns the outermost nesting
        guard but what we are really interested in is the innermost guard that we hit
@@ -2062,8 +2064,7 @@ js_ExecuteTree(JSContext* cx, Fragment** treep, uintN& inlineCallCount,
         do {
             if (innermostNestedGuardp)
                 *innermostNestedGuardp = lr;
-            debug_only_v(printf("processing tree call guard %p, calldepth=%d\n",
-                                lr, lr->calldepth);)
+            debug_only_v(printf("processing tree call guard %p, calldepth=%d\n", lr, lr->calldepth);)
             unsigned calldepth = lr->calldepth;
             if (calldepth > 0) {
                 /* We found a nesting guard that holds a frame, write it back. */
@@ -2205,10 +2206,10 @@ js_LoopEdge(JSContext* cx, jsbytecode* oldpc, uintN& inlineCallCount)
     SideExit* exit = lr->exit;
     switch (exit->exitType) {
     case BRANCH_EXIT:
-        return js_AttemptToExtendTree(cx, lr, lr->from->root, NULL);
+        return js_AttemptToExtendTree(cx, lr, NULL);
     case LOOP_EXIT:
         if (innermostNestedGuard)
-            return js_AttemptToExtendTree(cx, innermostNestedGuard, innermostNestedGuard->from->root, lr);
+            return js_AttemptToExtendTree(cx, innermostNestedGuard, lr);
         return false;
     default:
         /* No, this was an unusual exit (i.e. out of memory/GC), so just resume interpretation. */
