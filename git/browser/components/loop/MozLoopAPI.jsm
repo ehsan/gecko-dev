@@ -89,15 +89,7 @@ const cloneValueInto = function(value, targetWindow) {
     return cloneErrorObject(value, targetWindow);
   }
 
-  let clone;
-  try {
-    clone = Cu.cloneInto(value, targetWindow);
-  } catch (ex) {
-    MozLoopService.log.debug("Failed to clone value:", value);
-    throw ex;
-  }
-
-  return clone;
+  return Cu.cloneInto(value, targetWindow);
 };
 
 /**
@@ -114,18 +106,11 @@ const injectObjectAPI = function(api, targetWindow) {
   Object.keys(api).forEach(func => {
     injectedAPI[func] = function(...params) {
       let lastParam = params.pop();
-      let callbackIsFunction = (typeof lastParam == "function");
 
       // If the last parameter is a function, assume its a callback
       // and wrap it differently.
-      if (callbackIsFunction) {
+      if (lastParam && typeof lastParam === "function") {
         api[func](...params, function(...results) {
-          // When the function was garbage collected due to async events, like
-          // closing a window, we want to circumvent a JS error.
-          if (callbackIsFunction && typeof lastParam != "function") {
-            MozLoopService.log.debug(func + ": callback function was lost.");
-            return;
-          }
           lastParam(...[cloneValueInto(r, targetWindow) for (r of results)]);
         });
       } else {
@@ -246,7 +231,7 @@ function injectLoopAPI(targetWindow) {
       enumerable: true,
       writable: true,
       value: function(conversationWindowId) {
-        return cloneValueInto(MozLoopService.getConversationWindowData(conversationWindowId),
+        return Cu.cloneInto(MozLoopService.getConversationWindowData(conversationWindowId),
           targetWindow);
       }
     },
@@ -510,16 +495,9 @@ function injectLoopAPI(targetWindow) {
       writable: true,
       value: function(sessionType, path, method, payloadObj, callback) {
         // XXX Should really return a DOM promise here.
-        let callbackIsFunction = (typeof callback == "function");
         MozLoopService.hawkRequest(sessionType, path, method, payloadObj).then((response) => {
           callback(null, response.body);
         }, hawkError => {
-          // When the function was garbage collected due to async events, like
-          // closing a window, we want to circumvent a JS error.
-          if (callbackIsFunction && typeof callback != "function") {
-            MozLoopService.log.debug("hawkRequest: callback function was lost.");
-            return;
-          }
           // The hawkError.error property, while usually a string representing
           // an HTTP response status message, may also incorrectly be a native
           // error object that will cause the cloning function to fail.

@@ -167,7 +167,6 @@
 @RESPATH@/components/appstartup.xpt
 @RESPATH@/components/autocomplete.xpt
 @RESPATH@/components/autoconfig.xpt
-@RESPATH@/components/browser-element.xpt
 @RESPATH@/browser/components/browsercompsbase.xpt
 @RESPATH@/browser/components/browser-feeds.xpt
 @RESPATH@/components/caps.xpt
