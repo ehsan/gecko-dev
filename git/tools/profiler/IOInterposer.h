@@ -35,25 +35,16 @@ public:
   class Observation
   {
   protected:
-    /**
-     * This constructor is for use by subclasses that are intended to take
-     * timing measurements via RAII. The |aShouldReport| parameter may be
-     * used to make the measurement and reporting conditional on the
-     * satisfaction of an arbitrary predicate that was evaluated
-     * in the subclass. Note that IOInterposer::IsObservedOperation() is
-     * always ANDed with aShouldReport, so the subclass does not need to
-     * include a call to that function explicitly.
-     */
-    Observation(Operation aOperation, const char* aReference,
-                bool aShouldReport = true);
-
+    Observation()
+    {
+    }
   public:
-    /**
-     * Since this constructor accepts start and end times, it does *not* take
-     * its own timings, nor does it report itself.
-     */
     Observation(Operation aOperation, const TimeStamp& aStart,
-                const TimeStamp& aEnd, const char* aReference);
+                const TimeStamp& aEnd, const char* aReference)
+     : mOperation(aOperation), mStart(aStart), mEnd(aEnd),
+       mReference(aReference)
+    {
+    }
 
     /**
      * Operation observed, this is either OpRead, OpWrite or OpFSync,
@@ -101,7 +92,7 @@ public:
     }
 
     /** Request filename associated with the I/O operation, null if unknown */
-    virtual const char16_t* Filename()
+    virtual const char* Filename()
     {
       return nullptr;
     }
@@ -109,16 +100,11 @@ public:
     virtual ~Observation()
     {
     }
-
   protected:
-    void
-    Report();
-
     Operation   mOperation;
     TimeStamp   mStart;
     TimeStamp   mEnd;
-    const char* mReference;     // Identifies the source of the Observation
-    bool        mShouldReport;  // Measure and report if true
+    const char* mReference;
   };
 
   /**

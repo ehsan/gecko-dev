@@ -1314,29 +1314,13 @@ let CustomizableUIInternal = {
       }
     }
 
-    // We can't use event.target because we might have passed a panelview
-    // anonymous content boundary as well, and so target points to the
-    // panelmultiview in that case. Unfortunately, this means we get
-    // anonymous child nodes instead of the real ones, so looking for the 
-    // 'stoooop, don't close me' attributes is more involved.
-    let target = aEvent.originalTarget;
-    let closemenu = "auto";
-    let widgetType = "button";
-    while (target.localName != "panel") {
-      closemenu = target.getAttribute("closemenu");
-      widgetType = target.getAttribute("widget-type");
-      if (closemenu == "none" || closemenu == "single" ||
-          widgetType == "view") {
-        break;
-      }
-      target = target.parentNode;
-    }
-    if (closemenu == "none" || widgetType == "view") {
+    if (aEvent.originalTarget.getAttribute("closemenu") == "none" ||
+        aEvent.originalTarget.getAttribute("widget-type") == "view") {
       return;
     }
 
-    if (closemenu == "single") {
-      let panel = this._getPanelForNode(target);
+    if (aEvent.originalTarget.getAttribute("closemenu") == "single") {
+      let panel = this._getPanelForNode(aEvent.originalTarget);
       let multiview = panel.querySelector("panelmultiview");
       if (multiview.showingSubView) {
         multiview.showMainView();

@@ -17,4 +17,4 @@ function* gen() {
 var iter = gen();
 assertIteratorNext(iter, '1');
 assertEq(iter.next(), '!');
-assertIteratorDone(iter);
+assertThrowsInstanceOf(iter.next.bind(iter), TypeError);

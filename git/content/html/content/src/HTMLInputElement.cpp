@@ -1453,17 +1453,6 @@ HTMLInputElement::AfterSetAttr(int32_t aNameSpaceID, nsIAtom* aName,
     } else if (aName == nsGkAtoms::dir &&
                aValue && aValue->Equals(nsGkAtoms::_auto, eIgnoreCase)) {
       SetDirectionIfAuto(true, aNotify);
-    } else if (aName == nsGkAtoms::lang) {
-      if (mType == NS_FORM_INPUT_NUMBER) {
-        // Update the value that is displayed to the user to the new locale:
-        nsAutoString value;
-        GetValueInternal(value);
-        nsNumberControlFrame* numberControlFrame =
-          do_QueryFrame(GetPrimaryFrame());
-        if (numberControlFrame) {
-          numberControlFrame->SetValueOfAnonTextControl(value);
-        }
-      }
     }
 
     UpdateState(aNotify);
@@ -1676,8 +1665,7 @@ HTMLInputElement::ClearFiles(bool aSetValueChanged)
   SetFiles(files, aSetValueChanged);
 }
 
-/* static */ Decimal
-HTMLInputElement::StringToDecimal(const nsAString& aValue)
+static Decimal StringToDecimal(nsAString& aValue)
 {
   if (!IsASCII(aValue)) {
     return Decimal::nan();
@@ -2785,7 +2773,7 @@ HTMLInputElement::SetValueInternal(const nsAString& aValue,
           nsNumberControlFrame* numberControlFrame =
             do_QueryFrame(GetPrimaryFrame());
           if (numberControlFrame) {
-            numberControlFrame->SetValueOfAnonTextControl(value);
+            numberControlFrame->UpdateForValueChange(value);
           }
         }
       }
@@ -3467,9 +3455,9 @@ HTMLInputElement::PreHandleEvent(nsEventChainPreVisitor& aVisitor)
     if (textControl && aVisitor.mEvent->originalTarget == textControl) {
       if (aVisitor.mEvent->message == NS_FORM_INPUT) {
         // Propogate the anon text control's new value to our HTMLInputElement:
-        nsAutoString value;
-        numberControlFrame->GetValueOfAnonTextControl(value);
         numberControlFrame->HandlingInputEvent(true);
+        nsAutoString value;
+        textControl->GetValue(value);
         nsWeakFrame weakNumberControlFrame(numberControlFrame);
         SetValueInternal(value, false, true);
         if (weakNumberControlFrame.IsAlive()) {

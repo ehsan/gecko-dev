@@ -106,9 +106,10 @@ TraceCycleDetectionSet(JSTracer *trc, ObjectSet &set);
 
 struct AutoResolving;
 class DtoaCache;
-class ForkJoinContext;
+class ForkJoinSlice;
 class RegExpCompartment;
 class RegExpStatics;
+class ForkJoinSlice;
 
 namespace frontend { struct CompileError; }
 
@@ -138,7 +139,7 @@ namespace frontend { struct CompileError; }
  * to an ExclusiveContext or ThreadSafeContext.
  *
  * Contexts which are a ThreadSafeContext but not an ExclusiveContext are used
- * to represent a ForkJoinContext, the per-thread parallel context used in PJS.
+ * to represent a ForkJoinSlice, the per-thread parallel context used in PJS.
  */
 
 struct ThreadSafeContext : ContextFriendFields,
@@ -212,8 +213,8 @@ struct ThreadSafeContext : ContextFriendFields,
         return maybeExclusiveContext();
     }
 
-    bool isForkJoinContext() const;
-    ForkJoinContext *asForkJoinContext();
+    bool isForkJoinSlice() const;
+    ForkJoinSlice *asForkJoinSlice();
 
     // The generational GC nursery may only be used on the main thread.
 #ifdef JSGC_GENERATIONAL
@@ -282,6 +283,8 @@ struct ThreadSafeContext : ContextFriendFields,
     PropertyName *emptyString() { return runtime_->emptyString; }
     FreeOp *defaultFreeOp() { return runtime_->defaultFreeOp(); }
     bool useHelperThreads() { return runtime_->useHelperThreads(); }
+    unsigned cpuCount() { return runtime_->cpuCount(); }
+    size_t workerThreadCount() { return runtime_->workerThreadCount(); }
     void *runtimeAddressForJit() { return runtime_; }
     void *stackLimitAddress(StackKind kind) { return &runtime_->mainThread.nativeStackLimit[kind]; }
     void *stackLimitAddressForJitCode(StackKind kind);
@@ -387,6 +390,15 @@ class ExclusiveContext : public ThreadSafeContext
     ScriptDataTable &scriptDataTable() {
         return runtime_->scriptDataTable();
     }
+
+#ifdef JS_THREADSAFE
+    // Since JSRuntime::workerThreadState is necessarily initialized from the
+    // main thread before the first worker thread can access it, there is no
+    // possibility for a race read/writing it.
+    WorkerThreadState *workerThreadState() {
+        return runtime_->workerThreadState;
+    }
+#endif
 
     // Methods specific to any WorkerThread for the context.
     frontend::CompileError &addPendingCompileError();
@@ -1029,7 +1041,7 @@ class AutoLockForExclusiveAccess
     void init(JSRuntime *rt) {
         runtime = rt;
         if (runtime->numExclusiveThreads) {
-            runtime->assertCanLock(ExclusiveAccessLock);
+            runtime->assertCanLock(JSRuntime::ExclusiveAccessLock);
             PR_Lock(runtime->exclusiveAccessLock);
 #ifdef DEBUG
             runtime->exclusiveAccessOwner = PR_GetCurrentThread();
@@ -1084,7 +1096,7 @@ class AutoLockForCompilation
     void init(JSRuntime *rt) {
         runtime = rt;
         if (runtime->numCompilationThreads) {
-            runtime->assertCanLock(CompilationLock);
+            runtime->assertCanLock(JSRuntime::CompilationLock);
             PR_Lock(runtime->compilationLock);
 #ifdef DEBUG
             runtime->compilationLockOwner = PR_GetCurrentThread();

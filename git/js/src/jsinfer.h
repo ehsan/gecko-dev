@@ -178,10 +178,10 @@ template <> struct ExecutionModeTraits<SequentialExecution>
 
 template <> struct ExecutionModeTraits<ParallelExecution>
 {
-    typedef ForkJoinContext * ContextType;
-    typedef ForkJoinContext * ExclusiveContextType;
+    typedef ForkJoinSlice * ContextType;
+    typedef ForkJoinSlice * ExclusiveContextType;
 
-    static inline ForkJoinContext *toContextType(ForkJoinContext *cx) { return cx; }
+    static inline ForkJoinSlice *toContextType(ForkJoinSlice *cx) { return cx; }
 };
 
 namespace jit {

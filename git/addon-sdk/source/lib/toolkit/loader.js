@@ -693,9 +693,7 @@ const Loader = iced(function Loader(options) {
   } = override({
     paths: {},
     modules: {},
-    globals: {
-      console: console
-    },
+    globals: {},
     resolve: options.isNative ?
       exports.nodeResolve :
       exports.resolve,

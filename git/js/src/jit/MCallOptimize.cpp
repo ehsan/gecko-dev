@@ -1417,7 +1417,7 @@ IonBuilder::inlineNewDenseArrayForParallelExecution(CallInfo &callInfo)
     callInfo.setImplicitlyUsedUnchecked();
 
     MNewDenseArrayPar *newObject = MNewDenseArrayPar::New(alloc(),
-                                                          graph().forkJoinContext(),
+                                                          graph().forkJoinSlice(),
                                                           callInfo.getArg(0),
                                                           templateObject);
     current->add(newObject);

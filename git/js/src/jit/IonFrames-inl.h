@@ -88,9 +88,9 @@ GetTopIonJSScript(JSContext *cx, void **returnAddrOut = nullptr)
 }
 
 inline JSScript *
-GetTopIonJSScript(ForkJoinContext *cx, void **returnAddrOut = nullptr)
+GetTopIonJSScript(ForkJoinSlice *slice, void **returnAddrOut = nullptr)
 {
-    return GetTopIonJSScript(cx->perThreadData->ionTop, returnAddrOut, ParallelExecution);
+    return GetTopIonJSScript(slice->perThreadData->ionTop, returnAddrOut, ParallelExecution);
 }
 
 } // namespace jit

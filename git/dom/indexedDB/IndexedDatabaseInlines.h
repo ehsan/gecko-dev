@@ -21,18 +21,6 @@ StructuredCloneWriteInfo::StructuredCloneWriteInfo()
 }
 
 inline
-StructuredCloneWriteInfo::StructuredCloneWriteInfo(
-                                    StructuredCloneWriteInfo&& aCloneWriteInfo)
-: mCloneBuffer(Move(aCloneWriteInfo.mCloneBuffer))
-, mTransaction(aCloneWriteInfo.mTransaction)
-, mOffsetToKeyProp(aCloneWriteInfo.mOffsetToKeyProp)
-{
-  mFiles.SwapElements(aCloneWriteInfo.mFiles);
-  aCloneWriteInfo.mTransaction = nullptr;
-  aCloneWriteInfo.mOffsetToKeyProp = 0;
-}
-
-inline
 bool
 StructuredCloneWriteInfo::SetFromSerialized(
                                const SerializedStructuredCloneWriteInfo& aOther)
@@ -53,19 +41,6 @@ inline
 StructuredCloneReadInfo::StructuredCloneReadInfo()
 : mDatabase(nullptr)
 {
-}
-
-inline StructuredCloneReadInfo&
-StructuredCloneReadInfo::operator=(StructuredCloneReadInfo&& aCloneReadInfo)
-{
-  MOZ_ASSERT(&aCloneReadInfo != this);
-
-  mCloneBuffer = Move(aCloneReadInfo.mCloneBuffer);
-  mFiles.Clear();
-  mFiles.SwapElements(aCloneReadInfo.mFiles);
-  mDatabase = aCloneReadInfo.mDatabase;
-  aCloneReadInfo.mDatabase = nullptr;
-  return *this;
 }
 
 inline

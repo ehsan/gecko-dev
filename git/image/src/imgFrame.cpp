@@ -291,6 +291,7 @@ nsresult imgFrame::Optimize()
 #ifdef XP_MACOSX
   if (mQuartzSurface) {
     mQuartzSurface->Flush();
+    mOptSurface = mQuartzSurface;
   }
 #endif
 

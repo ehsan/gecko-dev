@@ -6239,17 +6239,16 @@ TryAttachPrimitiveGetPropStub(JSContext *cx, HandleScript script, jsbytecode *pc
 
     JSValueType primitiveType;
     RootedObject proto(cx);
-    Rooted<GlobalObject*> global(cx, &script->global());
     if (val.isString()) {
         primitiveType = JSVAL_TYPE_STRING;
-        proto = GlobalObject::getOrCreateStringPrototype(cx, global);
+        proto = script->global().getOrCreateStringPrototype(cx);
     } else if (val.isNumber()) {
         primitiveType = JSVAL_TYPE_DOUBLE;
-        proto = GlobalObject::getOrCreateNumberPrototype(cx, global);
+        proto = script->global().getOrCreateNumberPrototype(cx);
     } else {
         JS_ASSERT(val.isBoolean());
         primitiveType = JSVAL_TYPE_BOOLEAN;
-        proto = GlobalObject::getOrCreateBooleanPrototype(cx, global);
+        proto = script->global().getOrCreateBooleanPrototype(cx);
     }
     if (!proto)
         return false;

@@ -59,7 +59,6 @@ using mozilla::dom::quota::FileOutputStream;
 using mozilla::ErrorResult;
 using mozilla::fallible_t;
 using mozilla::LittleEndian;
-using mozilla::Move;
 using mozilla::NativeEndian;
 
 BEGIN_INDEXEDDB_NAMESPACE
@@ -160,15 +159,14 @@ public:
   AddHelper(IDBTransaction* aTransaction,
             IDBRequest* aRequest,
             IDBObjectStore* aObjectStore,
-            StructuredCloneWriteInfo&& aCloneWriteInfo,
+            StructuredCloneWriteInfo& aCloneWriteInfo,
             const Key& aKey,
             bool aOverwrite,
             nsTArray<IndexUpdateInfo>& aIndexUpdateInfo)
-  : ObjectStoreHelper(aTransaction, aRequest, aObjectStore),
-    mCloneWriteInfo(Move(aCloneWriteInfo)),
-    mKey(aKey),
+  : ObjectStoreHelper(aTransaction, aRequest, aObjectStore), mKey(aKey),
     mOverwrite(aOverwrite)
   {
+    mCloneWriteInfo.Swap(aCloneWriteInfo);
     mIndexUpdateInfo.SwapElements(aIndexUpdateInfo);
   }
 
@@ -1943,7 +1941,7 @@ IDBObjectStore::AddOrPut(JSContext* aCx, JS::Handle<JS::Value> aValue,
   }
 
   nsRefPtr<AddHelper> helper =
-    new AddHelper(mTransaction, request, this, Move(cloneWriteInfo), key,
+    new AddHelper(mTransaction, request, this, cloneWriteInfo, key,
                   aOverwrite, updateInfo);
 
   nsresult rv = helper->DispatchToTransactionPool();
@@ -2055,8 +2053,8 @@ IDBObjectStore::AddOrPutInternal(
   nsTArray<IndexUpdateInfo> updateInfo(aUpdateInfoArray);
 
   nsRefPtr<AddHelper> helper =
-    new AddHelper(mTransaction, request, this, Move(cloneWriteInfo), key,
-                  aOverwrite, updateInfo);
+    new AddHelper(mTransaction, request, this, cloneWriteInfo, key, aOverwrite,
+                  updateInfo);
 
   nsresult rv = helper->DispatchToTransactionPool();
   IDB_ENSURE_SUCCESS(rv, NS_ERROR_DOM_INDEXEDDB_UNKNOWN_ERR);
@@ -2405,7 +2403,7 @@ IDBObjectStore::OpenCursorFromChildProcess(
 
   nsRefPtr<IDBCursor> cursor =
     IDBCursor::Create(aRequest, mTransaction, this, direction, Key(),
-                      EmptyCString(), EmptyCString(), aKey, Move(cloneInfo));
+                      EmptyCString(), EmptyCString(), aKey, cloneInfo);
   IDB_ENSURE_TRUE(cursor, NS_ERROR_DOM_INDEXEDDB_UNKNOWN_ERR);
 
   NS_ASSERTION(!cloneInfo.mCloneBuffer.data(), "Should have swapped!");
@@ -3916,7 +3914,7 @@ OpenCursorHelper::EnsureCursor()
   nsRefPtr<IDBCursor> cursor =
     IDBCursor::Create(mRequest, mTransaction, mObjectStore, mDirection,
                       mRangeKey, mContinueQuery, mContinueToQuery, mKey,
-                      Move(mCloneReadInfo));
+                      mCloneReadInfo);
   IDB_ENSURE_TRUE(cursor, NS_ERROR_DOM_INDEXEDDB_UNKNOWN_ERR);
 
   NS_ASSERTION(!mCloneReadInfo.mCloneBuffer.data(), "Should have swapped!");
