@@ -36,7 +36,6 @@
 #include "jit/JitCompartment.h"
 #include "jit/PcScriptCache.h"
 #include "js/MemoryMetrics.h"
-#include "js/SliceBudget.h"
 #include "yarr/BumpPointerAllocator.h"
 
 #include "jscntxtinlines.h"

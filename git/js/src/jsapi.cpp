@@ -61,7 +61,6 @@
 #include "gc/Marking.h"
 #include "jit/AsmJSLink.h"
 #include "js/CharacterEncoding.h"
-#include "js/SliceBudget.h"
 #include "js/StructuredClone.h"
 #if ENABLE_INTL_API
 #include "unicode/uclean.h"
@@ -1095,7 +1094,7 @@ JS_TransplantObject(JSContext *cx, HandleObject origobj, HandleObject target)
         // There might already be a wrapper for the original object in
         // the new compartment. If there is, we use its identity and swap
         // in the contents of |target|.
-        newIdentity = &p->value().toObject();
+        newIdentity = &p->value.toObject();
 
         // When we remove origv from the wrapper map, its wrapper, newIdentity,
         // must immediately cease to be a cross-compartment wrapper. Neuter it.

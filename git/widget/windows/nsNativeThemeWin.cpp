@@ -24,7 +24,6 @@
 #include "nsWindow.h"
 #include "nsIComboboxControlFrame.h"
 #include "prinrval.h"
-#include "WinUtils.h"
 
 #include "gfxPlatform.h"
 #include "gfxContext.h"
@@ -38,7 +37,6 @@
 #include <algorithm>
 
 using mozilla::IsVistaOrLater;
-using namespace mozilla::widget;
 
 #ifdef PR_LOGGING
 extern PRLogModuleInfo* gWindowsLog;
@@ -2603,12 +2601,6 @@ nsNativeThemeWin::WidgetAppearanceDependsOnWindowFocus(uint8_t aWidgetType)
     default:
       return false;
   }
-}
-
-bool
-nsNativeThemeWin::ShouldHideScrollbars()
-{
-  return WinUtils::ShouldHideScrollbars();
 }
 
 nsITheme::Transparency

@@ -1311,11 +1311,6 @@ ContentChild::RecvActivateA11y()
 bool
 ContentChild::RecvGarbageCollect()
 {
-    // Rebroadcast the "child-gc-request" so that workers will GC.
-    nsCOMPtr<nsIObserverService> obs = mozilla::services::GetObserverService();
-    if (obs) {
-        obs->NotifyObservers(nullptr, "child-gc-request", nullptr);
-    }
     nsJSContext::GarbageCollectNow(JS::gcreason::DOM_IPC);
     return true;
 }
@@ -1323,11 +1318,7 @@ ContentChild::RecvGarbageCollect()
 bool
 ContentChild::RecvCycleCollect()
 {
-    // Rebroadcast the "child-cc-request" so that workers will CC.
-    nsCOMPtr<nsIObserverService> obs = mozilla::services::GetObserverService();
-    if (obs) {
-        obs->NotifyObservers(nullptr, "child-cc-request", nullptr);
-    }
+    nsJSContext::GarbageCollectNow(JS::gcreason::DOM_IPC);
     nsJSContext::CycleCollectNow();
     return true;
 }
@@ -1410,13 +1401,12 @@ ContentChild::RecvFileSystemUpdate(const nsString& aFsName,
                                    const int32_t& aState,
                                    const int32_t& aMountGeneration,
                                    const bool& aIsMediaPresent,
-                                   const bool& aIsSharing,
-                                   const bool& aIsFormatting)
+                                   const bool& aIsSharing)
 {
 #ifdef MOZ_WIDGET_GONK
     nsRefPtr<nsVolume> volume = new nsVolume(aFsName, aVolumeName, aState,
                                              aMountGeneration, aIsMediaPresent,
-                                             aIsSharing, aIsFormatting);
+                                             aIsSharing);
 
     nsRefPtr<nsVolumeService> vs = nsVolumeService::GetSingleton();
     if (vs) {
@@ -1430,7 +1420,6 @@ ContentChild::RecvFileSystemUpdate(const nsString& aFsName,
     unused << aMountGeneration;
     unused << aIsMediaPresent;
     unused << aIsSharing;
-    unused << aIsFormatting;
 #endif
     return true;
 }

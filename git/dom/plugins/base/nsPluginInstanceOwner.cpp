@@ -59,7 +59,6 @@ using mozilla::DefaultXDisplay;
 #include "ImageContainer.h"
 #include "nsIDOMHTMLCollection.h"
 #include "GLContext.h"
-#include "GLSharedHandleHelpers.h"
 #include "nsIContentInlines.h"
 #include "mozilla/MiscEvents.h"
 #include "mozilla/MouseEvents.h"
@@ -1509,10 +1508,9 @@ already_AddRefed<ImageContainer> nsPluginInstanceOwner::GetImageContainerForVide
   SharedTextureImage::Data data;
 
   data.mShareType = gl::SameProcess;
-  data.mHandle = gl::CreateSharedHandle(mInstance->GLContext(),
-                                        data.mShareType,
-                                        aVideoInfo->mSurfaceTexture,
-                                        gl::SurfaceTexture);
+  data.mHandle = mInstance->GLContext()->CreateSharedHandle(data.mShareType,
+                                                            aVideoInfo->mSurfaceTexture,
+                                                            gl::SurfaceTexture);
 
   // The logic below for Honeycomb is just a guess, but seems to work. We don't have a separate
   // inverted flag for video.

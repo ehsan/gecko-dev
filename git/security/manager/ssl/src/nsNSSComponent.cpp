@@ -84,6 +84,9 @@ bool nsNSSComponent::globalConstFlagUsePKIXVerification = false;
 // XXX tmp callback for slot password
 extern char* pk11PasswordPrompt(PK11SlotInfo *slot, PRBool retry, void *arg);
 
+#define PIPNSS_STRBUNDLE_URL "chrome://pipnss/locale/pipnss.properties"
+#define NSSERR_STRBUNDLE_URL "chrome://pipnss/locale/nsserrors.properties"
+
 #ifndef MOZ_DISABLE_CRYPTOLEGACY
 //This class is used to run the callback code
 //passed to the event handlers for smart card notification
@@ -807,13 +810,13 @@ nsNSSComponent::InitializePIPNSSBundle()
   nsCOMPtr<nsIStringBundleService> bundleService(do_GetService(NS_STRINGBUNDLE_CONTRACTID, &rv));
   if (NS_FAILED(rv) || !bundleService) 
     return NS_ERROR_FAILURE;
-
-  bundleService->CreateBundle("chrome://pipnss/locale/pipnss.properties",
+  
+  bundleService->CreateBundle(PIPNSS_STRBUNDLE_URL,
                               getter_AddRefs(mPIPNSSBundle));
   if (!mPIPNSSBundle)
     rv = NS_ERROR_FAILURE;
 
-  bundleService->CreateBundle("chrome://pipnss/locale/nsserrors.properties",
+  bundleService->CreateBundle(NSSERR_STRBUNDLE_URL,
                               getter_AddRefs(mNSSErrorsBundle));
   if (!mNSSErrorsBundle)
     rv = NS_ERROR_FAILURE;
@@ -891,6 +894,14 @@ static const CipherPref sCipherPrefs[] = {
 
  {"security.ssl3.rsa_fips_des_ede3_sha", SSL_RSA_FIPS_WITH_3DES_EDE_CBC_SHA},
  {"security.ssl3.dhe_dss_camellia_256_sha", TLS_DHE_DSS_WITH_CAMELLIA_256_CBC_SHA}, // 256-bit Camellia encryption with DSA, DHE, and a SHA1 MAC
+ {"security.ssl3.ecdh_ecdsa_aes_256_sha", TLS_ECDH_ECDSA_WITH_AES_256_CBC_SHA}, // 256-bit AES encryption with ECDH-ECDSA and a SHA1 MAC
+ {"security.ssl3.ecdh_ecdsa_aes_128_sha", TLS_ECDH_ECDSA_WITH_AES_128_CBC_SHA}, // 128-bit AES encryption with ECDH-ECDSA and a SHA1 MAC
+ {"security.ssl3.ecdh_ecdsa_des_ede3_sha", TLS_ECDH_ECDSA_WITH_3DES_EDE_CBC_SHA}, // 168-bit Triple DES with ECDH-ECDSA and a SHA1 MAC
+ {"security.ssl3.ecdh_ecdsa_rc4_128_sha", TLS_ECDH_ECDSA_WITH_RC4_128_SHA}, // 128-bit RC4 encryption with ECDH-ECDSA and a SHA1 MAC
+ {"security.ssl3.ecdh_rsa_aes_256_sha", TLS_ECDH_RSA_WITH_AES_256_CBC_SHA}, // 256-bit AES encryption with ECDH-RSA and a SHA1 MAC
+ {"security.ssl3.ecdh_rsa_aes_128_sha", TLS_ECDH_RSA_WITH_AES_128_CBC_SHA}, // 128-bit AES encryption with ECDH-RSA and a SHA1 MAC
+ {"security.ssl3.ecdh_rsa_des_ede3_sha", TLS_ECDH_RSA_WITH_3DES_EDE_CBC_SHA}, // 168-bit Triple DES with ECDH-RSA and a SHA1 MAC
+ {"security.ssl3.ecdh_rsa_rc4_128_sha", TLS_ECDH_RSA_WITH_RC4_128_SHA}, // 128-bit RC4 encryption with ECDH-RSA and a SHA1 MAC
  {"security.ssl3.dhe_dss_camellia_128_sha", TLS_DHE_DSS_WITH_CAMELLIA_128_CBC_SHA}, // 128-bit Camellia encryption with DSA, DHE, and a SHA1 MAC
  {"security.ssl3.rsa_seed_sha", TLS_RSA_WITH_SEED_CBC_SHA}, // SEED encryption with RSA and a SHA1 MAC
  {nullptr, 0} /* end marker */
@@ -910,10 +921,20 @@ setNonPkixOcspEnabled(int32_t ocspEnabled)
   }
 }
 
-static const int32_t OCSP_ENABLED_DEFAULT = 1;
+#define CRL_DOWNLOAD_DEFAULT false
+#define OCSP_ENABLED_DEFAULT 1
+#define OCSP_REQUIRED_DEFAULT false
+#define FRESH_REVOCATION_REQUIRED_DEFAULT false
+#define MISSING_CERT_DOWNLOAD_DEFAULT false
+#define FIRST_REVO_METHOD_DEFAULT "ocsp"
+#define USE_NSS_LIBPKIX_DEFAULT false
+#define OCSP_STAPLING_ENABLED_DEFAULT true
+
+static const bool SUPPRESS_WARNING_PREF_DEFAULT = false;
 static const bool REQUIRE_SAFE_NEGOTIATION_DEFAULT = false;
 static const bool ALLOW_UNRESTRICTED_RENEGO_DEFAULT = false;
 static const bool FALSE_START_ENABLED_DEFAULT = true;
+static const bool CIPHER_ENABLED_DEFAULT = false;
 
 namespace {
 
@@ -999,25 +1020,26 @@ void nsNSSComponent::setValidationOptions()
   nsNSSShutDownPreventionLock locker;
 
   bool crlDownloading = Preferences::GetBool("security.CRL_download.enabled",
-                                             false);
+                                             CRL_DOWNLOAD_DEFAULT);
   // 0 = disabled, 1 = enabled
   int32_t ocspEnabled = Preferences::GetInt("security.OCSP.enabled",
                                             OCSP_ENABLED_DEFAULT);
 
-  bool ocspRequired = Preferences::GetBool("security.OCSP.require", false);
+  bool ocspRequired = Preferences::GetBool("security.OCSP.require",
+                                           OCSP_REQUIRED_DEFAULT);
   bool anyFreshRequired = Preferences::GetBool("security.fresh_revocation_info.require",
-                                               false);
+                                               FRESH_REVOCATION_REQUIRED_DEFAULT);
   bool aiaDownloadEnabled = Preferences::GetBool("security.missing_cert_download.enabled",
-                                                 false);
+                                                 MISSING_CERT_DOWNLOAD_DEFAULT);
 
   nsCString firstNetworkRevo =
     Preferences::GetCString("security.first_network_revocation_method");
   if (firstNetworkRevo.IsEmpty()) {
-    firstNetworkRevo = "ocsp";
+    firstNetworkRevo = FIRST_REVO_METHOD_DEFAULT;
   }
 
   bool ocspStaplingEnabled = Preferences::GetBool("security.ssl.enable_ocsp_stapling",
-                                                  true);
+                                                  OCSP_STAPLING_ENABLED_DEFAULT);
   if (!ocspEnabled) {
     ocspStaplingEnabled = false;
   }
@@ -1193,11 +1215,12 @@ nsNSSComponent::InitializeNSS(bool showWarningBox)
 
 #ifndef NSS_NO_LIBPKIX
     globalConstFlagUsePKIXVerification =
-      Preferences::GetBool("security.use_libpkix_verification", false);
+      Preferences::GetBool("security.use_libpkix_verification", USE_NSS_LIBPKIX_DEFAULT);
 #endif
 
     bool suppressWarningPref =
-      Preferences::GetBool("security.suppress_nss_rw_impossible_warning", false);
+      Preferences::GetBool("security.suppress_nss_rw_impossible_warning",
+                           SUPPRESS_WARNING_PREF_DEFAULT);
 
     // init phase 2, init calls to NSS library
 
@@ -1605,14 +1628,11 @@ nsNSSComponent::RandomUpdate(void *entropy, int32_t bufLen)
   return NS_OK;
 }
 
-static const char* const PROFILE_CHANGE_NET_TEARDOWN_TOPIC
-  = "profile-change-net-teardown";
-static const char* const PROFILE_CHANGE_NET_RESTORE_TOPIC
-  = "profile-change-net-restore";
-static const char* const PROFILE_CHANGE_TEARDOWN_TOPIC
-  = "profile-change-teardown";
-static const char* const PROFILE_BEFORE_CHANGE_TOPIC = "profile-before-change";
-static const char* const PROFILE_DO_CHANGE_TOPIC = "profile-do-change";
+#define PROFILE_CHANGE_NET_TEARDOWN_TOPIC "profile-change-net-teardown"
+#define PROFILE_CHANGE_NET_RESTORE_TOPIC "profile-change-net-restore"
+#define PROFILE_CHANGE_TEARDOWN_TOPIC "profile-change-teardown"
+#define PROFILE_BEFORE_CHANGE_TOPIC "profile-before-change"
+#define PROFILE_DO_CHANGE_TOPIC "profile-do-change"
 
 NS_IMETHODIMP
 nsNSSComponent::Observe(nsISupports *aSubject, const char *aTopic, 

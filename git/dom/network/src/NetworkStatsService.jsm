@@ -34,9 +34,10 @@ XPCOMUtils.defineLazyServiceGetter(this, "ppmm",
                                    "@mozilla.org/parentprocessmessagemanager;1",
                                    "nsIMessageListenerManager");
 
-XPCOMUtils.defineLazyServiceGetter(this, "gRil",
-                                   "@mozilla.org/ril;1",
-                                   "nsIRadioInterfaceLayer");
+XPCOMUtils.defineLazyServiceGetter(this, "networkManager",
+                                   "@mozilla.org/network/manager;1",
+                                   "nsINetworkManager");
+
 
 XPCOMUtils.defineLazyServiceGetter(this, "networkService",
                                    "@mozilla.org/network/service;1",
@@ -193,20 +194,6 @@ this.NetworkStatsService = {
   /*
    * nsINetworkStatsService
    */
-  getRilNetworks: function() {
-    let networks = {};
-    let numRadioInterfaces = gRil.numRadioInterfaces;
-    for (let i = 0; i < numRadioInterfaces; i++) {
-      let radioInterface = gRil.getRadioInterface(i);
-      if (radioInterface.rilContext.iccInfo) {
-        let netId = this.getNetworkId(radioInterface.rilContext.iccInfo.iccid,
-                                      NET_TYPE_MOBILE);
-        networks[netId] = { id : radioInterface.rilContext.iccInfo.iccid,
-                            type: NET_TYPE_MOBILE };
-      }
-    }
-    return networks;
-  },
 
   convertNetworkInterface: function(aNetwork) {
     if (aNetwork.type != NET_TYPE_MOBILE &&
@@ -242,25 +229,7 @@ this.NetworkStatsService = {
   },
 
   getAvailableNetworks: function getAvailableNetworks(mm, msg) {
-    let self = this;
-    let rilNetworks = this.getRilNetworks();
     this._db.getAvailableNetworks(function onGetNetworks(aError, aResult) {
-
-      // Also return the networks that are valid but have not
-      // established connections yet.
-      for (let netId in rilNetworks) {
-        let found = false;
-        for (let i = 0; i < aResult.length; i++) {
-          if (netId == self.getNetworkId(aResult[i].id, aResult[i].type)) {
-            found = true;
-            break;
-          }
-        }
-        if (!found) {
-          aResult.push(rilNetworks[netId]);
-        }
-      }
-
       mm.sendAsyncMessage("NetworkStats:GetAvailableNetworks:Return",
                           { id: msg.id, error: aError, result: aResult });
     });
@@ -314,23 +283,8 @@ this.NetworkStatsService = {
     // Check if the network is available in the DB. If yes, we also
     // retrieve the stats for it from the DB.
     this._db.isNetworkAvailable(network, function(aError, aResult) {
-      let toFind = false;
       if (aResult) {
-        toFind = true;
-      } else if (!aError) {
-        // Network is not found in the database without any errors.
-        // Check if network is valid but has not established a connection yet.
-        let rilNetworks = self.getRilNetworks();
-        if (rilNetworks[netId]) {
-          // find will not get data for network from the database but will format the
-          // result object in order to make NetworkStatsManager be able to construct a
-          // nsIDOMMozNetworkStats object.
-          toFind = true;
-        }
-      }
-
-      if (toFind) {
-        // If network is not active, there is no need to update stats before finding.
+        // If network is not active, there is no need to update stats.
         self._db.find(function onStatsFound(aError, aResult) {
           mm.sendAsyncMessage("NetworkStats:Get:Return",
                               { id: msg.id, error: aError, result: aResult });
@@ -354,18 +308,8 @@ this.NetworkStatsService = {
     debug("clear stats for network " + network.id + " of type " + network.type);
 
     if (!this._networks[netId]) {
-      let error = "Invalid networkType";
-      let result = null;
-
-      // Check if network is valid but has not established a connection yet.
-      let rilNetworks = this.getRilNetworks();
-      if (rilNetworks[netId]) {
-        error = null;
-        result = true;
-      }
-
       mm.sendAsyncMessage("NetworkStats:Clear:Return",
-                          { id: msg.id, error: error, result: result });
+                          { id: msg.id, error: "Invalid networkType", result: null });
       return;
     }
 

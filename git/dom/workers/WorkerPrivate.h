@@ -494,9 +494,6 @@ public:
   void
   GarbageCollect(JSContext* aCx, bool aShrinking);
 
-  void
-  CycleCollect(JSContext* aCx, bool aDummy);
-
   bool
   RegisterSharedWorker(JSContext* aCx, SharedWorker* aSharedWorker);
 
@@ -1008,9 +1005,6 @@ public:
   void
   GarbageCollectInternal(JSContext* aCx, bool aShrinking,
                          bool aCollectChildren);
-
-  void
-  CycleCollectInternal(JSContext* aCx, bool aCollectChildren);
 
   JSContext*
   GetJSContext() const
