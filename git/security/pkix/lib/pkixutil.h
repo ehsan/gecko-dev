@@ -94,7 +94,6 @@ public:
     , encodedExtendedKeyUsage(nullptr)
     , encodedKeyUsage(nullptr)
     , encodedNameConstraints(nullptr)
-    , encodedInhibitAnyPolicy(nullptr)
     , childCert(childCert)
     , nssCert(nssCert)
     , constrainedNames(nullptr)
@@ -109,7 +108,6 @@ public:
   const SECItem* encodedExtendedKeyUsage;
   const SECItem* encodedKeyUsage;
   const SECItem* encodedNameConstraints;
-  const SECItem* encodedInhibitAnyPolicy;
 
   BackCert* const childCert;
 

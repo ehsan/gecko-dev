@@ -312,9 +312,6 @@ RtspOmxReader::ReadMetadata(MediaInfo* aInfo,
 }
 
 void RtspOmxReader::SetIdle() {
-  // Call parent class to set OMXCodec idle.
-  MediaOmxReader::SetIdle();
-
   // Need to pause RTSP streaming OMXCodec decoding.
   if (mRtspResource) {
     nsIStreamingProtocolController* controller =
@@ -323,6 +320,9 @@ void RtspOmxReader::SetIdle() {
       controller->Pause();
     }
   }
+
+  // Call parent class to set OMXCodec idle.
+  MediaOmxReader::SetIdle();
 }
 
 void RtspOmxReader::SetActive() {

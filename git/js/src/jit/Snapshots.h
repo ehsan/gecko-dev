@@ -327,21 +327,17 @@ class SnapshotWriter
   public:
     bool init();
 
-    SnapshotOffset startSnapshot(RecoverOffset recoverOffset, BailoutKind kind);
+    SnapshotOffset startSnapshot(uint32_t frameCount, BailoutKind kind, bool resumeAfter);
 #ifdef TRACK_SNAPSHOTS
     void trackSnapshot(uint32_t pcOpcode, uint32_t mirOpcode, uint32_t mirId,
                        uint32_t lirOpcode, uint32_t lirId);
 #endif
     bool add(const RValueAllocation &slot);
 
-    uint32_t allocWritten() const {
-        return allocWritten_;
-    }
     void endSnapshot();
 
     bool oom() const {
-        return writer_.oom() || writer_.length() >= MAX_BUFFER_SIZE ||
-            allocWriter_.oom() || allocWriter_.length() >= MAX_BUFFER_SIZE;
+        return writer_.oom() || writer_.length() >= MAX_BUFFER_SIZE;
     }
 
     size_t listSize() const {
@@ -361,28 +357,22 @@ class SnapshotWriter
 
 class RecoverWriter
 {
-    CompactBufferWriter writer_;
+    SnapshotWriter &snapshot_;
+
+    uint32_t nallocs_;
 
     uint32_t nframes_;
     uint32_t framesWritten_;
 
   public:
-    SnapshotOffset startRecover(uint32_t frameCount, bool resumeAfter);
+    RecoverWriter(SnapshotWriter &snapshot);
 
-    void writeFrame(JSFunction *fun, JSScript *script, jsbytecode *pc, uint32_t exprStack);
+    SnapshotOffset startRecover(uint32_t frameCount, BailoutKind kind, bool resumeAfter);
+
+    void startFrame(JSFunction *fun, JSScript *script, jsbytecode *pc, uint32_t exprStack);
+    void endFrame();
 
     void endRecover();
-
-    size_t size() const {
-        return writer_.length();
-    }
-    const uint8_t *buffer() const {
-        return writer_.buffer();
-    }
-
-    bool oom() const {
-        return writer_.oom() || writer_.length() >= MAX_BUFFER_SIZE;
-    }
 };
 
 class RecoverReader;
@@ -399,9 +389,10 @@ class SnapshotReader
     CompactBufferReader allocReader_;
     const uint8_t* allocTable_;
 
+    uint32_t frameCount_;
     BailoutKind bailoutKind_;
     uint32_t allocRead_;          // Number of slots that have been read.
-    RecoverOffset recoverOffset_; // Offset of the recover instructions.
+    bool resumeAfter_;
 
 #ifdef TRACK_SNAPSHOTS
   private:
@@ -412,7 +403,6 @@ class SnapshotReader
     uint32_t lirId_;
 
   public:
-    void readTrackSnapshot();
     void spewBailingFrom() const;
 #endif
 
@@ -429,27 +419,23 @@ class SnapshotReader
     BailoutKind bailoutKind() const {
         return bailoutKind_;
     }
-    RecoverOffset recoverOffset() const {
-        return recoverOffset_;
+    bool resumeAfter() const {
+        return resumeAfter_;
     }
 };
 
 class RecoverReader
 {
-    CompactBufferReader reader_;
-
     uint32_t frameCount_;
     uint32_t framesRead_;         // Number of frame headers that have been read.
     uint32_t pcOffset_;           // Offset from script->code.
     uint32_t allocCount_;         // Number of slots.
-    bool resumeAfter_;
 
   private:
-    void readRecoverHeader();
     void readFrame(SnapshotReader &snapshot);
 
   public:
-    RecoverReader(SnapshotReader &snapshot, const uint8_t *recovers, uint32_t size);
+    RecoverReader(SnapshotReader &snapshot);
 
     bool moreFrames() const {
         return framesRead_ < frameCount_;
@@ -463,9 +449,6 @@ class RecoverReader
 
     uint32_t pcOffset() const {
         return pcOffset_;
-    }
-    bool resumeAfter() const {
-        return resumeAfter_;
     }
 
     uint32_t allocations() const {

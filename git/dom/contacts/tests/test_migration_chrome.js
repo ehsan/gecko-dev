@@ -14,19 +14,18 @@ Cu.import("resource://gre/modules/ContactService.jsm", imports);
 Cu.import("resource://gre/modules/Promise.jsm", imports);
 Cu.importGlobalProperties(["indexedDB"]);
 
-const {
+// |const| will not work because
+// it will make the Promise object immutable before assigning.
+// Using |let| and Object.freeze() instead.
+let {
   STORE_NAME,
   SAVED_GETALL_STORE_NAME,
   REVISION_STORE,
   DB_NAME,
   ContactService,
+  Promise
 } = imports;
-// |const| will not work because
-// it will make the Promise object immutable before assigning.
-// Using Object.defineProperty() instead.
-Object.defineProperty(this, "Promise", {
-  value: imports.Promise, writable: false, configurable: false
-});
+Object.freeze(imports);
 
 let DEBUG = false;
 function debug(str) {

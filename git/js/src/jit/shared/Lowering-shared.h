@@ -31,7 +31,6 @@ class LIRGeneratorShared : public MInstructionVisitorWithDefaults
     LIRGraph &lirGraph_;
     LBlock *current;
     MResumePoint *lastResumePoint_;
-    LRecoverInfo *cachedRecoverInfo_;
     LOsiPoint *osiPoint_;
 
   public:
@@ -40,7 +39,6 @@ class LIRGeneratorShared : public MInstructionVisitorWithDefaults
         graph(graph),
         lirGraph_(lirGraph),
         lastResumePoint_(nullptr),
-        cachedRecoverInfo_(nullptr),
         osiPoint_(nullptr)
     { }
 
@@ -162,7 +160,6 @@ class LIRGeneratorShared : public MInstructionVisitorWithDefaults
         return tmp;
     }
 
-    LRecoverInfo *getRecoverInfo(MResumePoint *rp);
     LSnapshot *buildSnapshot(LInstruction *ins, MResumePoint *rp, BailoutKind kind);
     bool assignPostSnapshot(MInstruction *mir, LInstruction *ins);
 

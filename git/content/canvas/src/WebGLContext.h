@@ -816,6 +816,7 @@ protected:
     WebGLVertexAttrib0Status WhatDoesVertexAttrib0Need();
     bool DoFakeVertexAttrib0(GLuint vertexCount);
     void UndoFakeVertexAttrib0();
+    void InvalidateFakeVertexAttrib0();
 
     static CheckedUint32 GetImageSize(GLsizei height,
                                       GLsizei width,

@@ -596,9 +596,10 @@ var shell = {
   },
 
   openAppForSystemMessage: function shell_openAppForSystemMessage(msg) {
+    let origin = Services.io.newURI(msg.manifest, null, null).prePath;
     let payload = {
-      url: msg.pageURL,
-      manifestURL: msg.manifestURL,
+      url: msg.uri,
+      manifestURL: msg.manifest,
       isActivity: (msg.type == 'activity'),
       onlyShowApp: msg.onlyShowApp,
       showApp: msg.showApp,
@@ -876,7 +877,7 @@ var AlertsHelper = {
     });
   },
 
-  showNotification: function alert_showNotification(imageURL,
+  showNotification: function alert_showNotification(imageUrl,
                                                     title,
                                                     text,
                                                     textClickable,
@@ -884,37 +885,37 @@ var AlertsHelper = {
                                                     uid,
                                                     bidi,
                                                     lang,
-                                                    manifestURL) {
+                                                    manifestUrl) {
     function send(appName, appIcon) {
       shell.sendChromeEvent({
         type: "desktop-notification",
         id: uid,
-        icon: imageURL,
+        icon: imageUrl,
         title: title,
         text: text,
         bidi: bidi,
         lang: lang,
         appName: appName,
         appIcon: appIcon,
-        manifestURL: manifestURL
+        manifestURL: manifestUrl
       });
     }
 
-    if (!manifestURL || !manifestURL.length) {
+    if (!manifestUrl || !manifestUrl.length) {
       send(null, null);
       return;
     }
 
     // If we have a manifest URL, get the icon and title from the manifest
     // to prevent spoofing.
-    let app = DOMApplicationRegistry.getAppByManifestURL(manifestURL);
-    DOMApplicationRegistry.getManifestFor(manifestURL).then((aManifest) => {
+    let app = DOMApplicationRegistry.getAppByManifestURL(manifestUrl);
+    DOMApplicationRegistry.getManifestFor(manifestUrl).then((aManifest) => {
       let helper = new ManifestHelper(aManifest, app.origin);
       send(helper.name, helper.iconURLForSize(128));
     });
   },
 
-  showAlertNotification: function alert_showAlertNotification(imageURL,
+  showAlertNotification: function alert_showAlertNotification(imageUrl,
                                                               title,
                                                               text,
                                                               textClickable,
@@ -929,7 +930,7 @@ var AlertsHelper = {
     }
 
     this.registerListener(name, cookie, alertListener);
-    this.showNotification(imageURL, title, text, textClickable, cookie,
+    this.showNotification(imageUrl, title, text, textClickable, cookie,
                           name, bidi, lang, null);
   },
 

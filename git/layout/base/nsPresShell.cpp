@@ -4927,13 +4927,23 @@ PresShell::PaintRangePaintInfo(nsTArray<nsAutoPtr<RangePaintInfo> >* aItems,
   aScreenRect->width = pixelArea.width;
   aScreenRect->height = pixelArea.height;
 
-  RefPtr<DrawTarget> dt =
-   gfxPlatform::GetPlatform()->CreateOffscreenContentDrawTarget(
-                                 IntSize(pixelArea.width, pixelArea.height),
-                                 SurfaceFormat::B8G8R8A8);
-  if (!dt) {
+  nsRefPtr<gfxImageSurface> surface =
+    new gfxImageSurface(gfxIntSize(pixelArea.width, pixelArea.height),
+                        gfxImageFormat::ARGB32);
+  if (surface->CairoStatus()) {
     return nullptr;
   }
+
+  // clear the image
+  gfxContext context(surface);
+  context.SetOperator(gfxContext::OPERATOR_CLEAR);
+  context.Rectangle(gfxRect(0, 0, pixelArea.width, pixelArea.height));
+  context.Fill();
+
+
+  RefPtr<DrawTarget> dt =
+    gfxPlatform::GetPlatform()->
+      CreateDrawTargetForSurface(surface, gfx::IntSize(pixelArea.width, pixelArea.height));
 
   nsRefPtr<gfxContext> ctx = new gfxContext(dt);
   nsRefPtr<nsRenderingContext> rc = new nsRenderingContext();

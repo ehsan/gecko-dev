@@ -13,13 +13,10 @@
 #include "mozilla/layers/ShadowLayerUtilsGralloc.h"
 #include <ui/GraphicBuffer.h>
 
-
-namespace android {
-class MediaBuffer;
-};
-
 namespace mozilla {
 namespace layers {
+
+class GraphicBufferLocked;
 
 /**
  * A TextureClient implementation based on android::GraphicBuffer (also referred to
@@ -105,26 +102,15 @@ public:
 
   virtual size_t GetBufferSize() const MOZ_OVERRIDE;
 
-  /**
-   * Hold android::MediaBuffer.
-   * MediaBuffer needs to be add refed to keep MediaBuffer alive
-   * during TextureClient is in use.
-   */
-  void SetMediaBuffer(android::MediaBuffer* aMediaBuffer)
-  {
-    mMediaBuffer = aMediaBuffer;
-  }
-
-  android::MediaBuffer* GetMediaBuffer()
-  {
-    return mMediaBuffer;
-  }
+  void SetGraphicBufferLocked(GraphicBufferLocked* aBufferLocked);
 
 protected:
   /**
    * Unfortunately, until bug 879681 is fixed we need to use a GrallocBufferActor.
    */
   GrallocBufferActor* mGrallocActor;
+
+  RefPtr<GraphicBufferLocked> mBufferLocked;
 
   android::sp<android::GraphicBuffer> mGraphicBuffer;
 
@@ -142,8 +128,6 @@ protected:
    * Extra size member is necessary. See Bug 850566.
    */
   gfx::IntSize mSize;
-
-  android::MediaBuffer* mMediaBuffer;
 };
 
 } // namespace layers

@@ -40,7 +40,7 @@ add_test(function test_default() {
   do_print("Force a detailed ping from a pretend service");
 
   // Poke the service directly to get the discovery to happen
-  SimpleServiceDiscovery._processService(service);
+  SimpleServiceDiscovery._found(service);
 });
 
 run_next_test();
