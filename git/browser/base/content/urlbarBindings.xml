@@ -2132,7 +2132,8 @@
       <method name="onLinkClick">
         <body><![CDATA[
           // Open a new selected tab and close the current panel.
-          openUILinkIn(this._promolink.getAttribute("href"), "tab");
+          gBrowser.loadOneTab(this._promolink.getAttribute("href"),
+                              { inBackground: false });
           this._panel.hidePopup();
         ]]></body>
       </method>

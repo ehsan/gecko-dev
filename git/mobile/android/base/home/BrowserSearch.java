@@ -225,7 +225,6 @@ public class BrowserSearch extends HomeFragment
     @Override
     public void onViewCreated(View view, Bundle savedInstanceState) {
         super.onViewCreated(view, savedInstanceState);
-        mList.setTag(HomePager.LIST_TAG_BROWSER_SEARCH);
 
         mList.setOnItemClickListener(new AdapterView.OnItemClickListener() {
             @Override

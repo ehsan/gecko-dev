@@ -8581,8 +8581,7 @@ class MAsmJSLoadHeap : public MUnaryInstruction, public MAsmJSHeapAccess
     MAsmJSLoadHeap(ArrayBufferView::ViewType vt, MDefinition *ptr)
       : MUnaryInstruction(ptr), MAsmJSHeapAccess(vt, false)
     {
-        // Disabled due to errors, see bug 919958
-        // setMovable();
+        setMovable();
         if (vt == ArrayBufferView::TYPE_FLOAT32 || vt == ArrayBufferView::TYPE_FLOAT64)
             setResultType(MIRType_Double);
         else
@@ -8629,7 +8628,7 @@ class MAsmJSStoreHeap : public MBinaryInstruction, public MAsmJSHeapAccess
 class MAsmJSLoadGlobalVar : public MNullaryInstruction
 {
     MAsmJSLoadGlobalVar(MIRType type, unsigned globalDataOffset, bool isConstant)
-      : globalDataOffset_(globalDataOffset), isConstant_(isConstant)
+      : globalDataOffset_(globalDataOffset)
     {
         JS_ASSERT(type == MIRType_Int32 || type == MIRType_Double);
         setResultType(type);
@@ -8637,7 +8636,6 @@ class MAsmJSLoadGlobalVar : public MNullaryInstruction
     }
 
     unsigned globalDataOffset_;
-    bool isConstant_;
 
   public:
     INSTRUCTION_HEADER(AsmJSLoadGlobalVar);
@@ -8651,7 +8649,7 @@ class MAsmJSLoadGlobalVar : public MNullaryInstruction
     bool congruentTo(MDefinition *ins) const;
 
     AliasSet getAliasSet() const {
-        return isConstant_ ? AliasSet::None() : AliasSet::Load(AliasSet::AsmJSGlobalVar);
+        return AliasSet::Load(AliasSet::AsmJSGlobalVar);
     }
 
     bool mightAlias(MDefinition *def);

@@ -10,7 +10,6 @@ import os
 import sys
 import which
 
-from configobj import ConfigObjError
 from StringIO import StringIO
 
 from mozversioncontrol.repoupdate import (
@@ -106,13 +105,7 @@ class MercurialSetupWizard(object):
                 'up to date.')
             return 1
 
-        try:
-            c = MercurialConfig(config_paths)
-        except ConfigObjError as e:
-            print('Error importing existing Mercurial config!\n'
-                  '%s\n'
-                  'If using quotes, they must wrap the entire string.' % e)
-            return 1
+        c = MercurialConfig(config_paths)
 
         print(INITIAL_MESSAGE)
         raw_input()
