@@ -189,7 +189,7 @@ NS_SMILEnabled()
   if (!sInitialized) {
     /* check and register ourselves with the pref */
     gSMILEnabled = Preferences::GetBool(SMIL_PREF_STR);
-    Preferences::RegisterCallback(SMILPrefChanged, SMIL_PREF_STR);
+    nsContentUtils::RegisterPrefCallback(SMIL_PREF_STR, SMILPrefChanged, nsnull);
 
     sInitialized = PR_TRUE;
   }

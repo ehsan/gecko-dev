@@ -99,8 +99,6 @@
 #include "common/linux/guid_creator.h"
 #include "common/linux/eintr_wrapper.h"
 
-#include "linux/sched.h"
-
 #ifndef PR_SET_PTRACER
 #define PR_SET_PTRACER 0x59616d61
 #endif

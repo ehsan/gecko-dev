@@ -2010,6 +2010,7 @@ private:
   PRInt32 mAPD, mParentAPD;
 };
 
+#ifdef MOZ_SVG
 /**
  * A display item to paint a stacking context with effects
  * set by the stacking context root frame's style.
@@ -2043,6 +2044,7 @@ private:
   // relative to mEffectsFrame
   nsRect    mBounds;
 };
+#endif
 
 /* A display item that applies a transformation to all of its descendant
  * elements.  This wrapper should only be used if there is a transform applied

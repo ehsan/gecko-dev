@@ -1645,10 +1645,12 @@ CanScrollWithBlitting(nsIFrame* aFrame)
     if (f->GetStyleDisplay()->HasTransform()) {
       return PR_FALSE;
     }
+#ifdef MOZ_SVG
     if (nsSVGIntegrationUtils::UsingEffectsForFrame(f) ||
         f->IsFrameOfType(nsIFrame::eSVG)) {
       return PR_FALSE;
     }
+#endif
     nsIScrollableFrame* sf = do_QueryFrame(f);
     if (sf && nsLayoutUtils::HasNonZeroCorner(f->GetStyleBorder()->mBorderRadius))
       return PR_FALSE;

@@ -68,9 +68,11 @@
 #include "nsIDOMDocumentType.h"
 #include "nsIDOMElement.h"
 #include "Link.h"
+#ifdef MOZ_SVG
 #include "nsIDOMSVGElement.h"
 #include "nsIDOMSVGTitleElement.h"
 #include "nsIDOMSVGForeignObjectElem.h"
+#endif
 #include "nsIDOMEvent.h"
 #include "nsIDOMMouseEvent.h"
 #include "nsIDOMNSUIEvent.h"
@@ -1053,6 +1055,7 @@ DefaultTooltipTextProvider::DefaultTooltipTextProvider()
     mTag_window       = do_GetAtom("window");   
 }
 
+#ifdef MOZ_SVG
 //
 // UseSVGTitle
 //
@@ -1081,6 +1084,7 @@ UseSVGTitle(nsIDOMElement *currElement)
   return (parentSVGContent != nsnull);
 }
 
+#endif
 /* void getNodeText (in nsIDOMNode aNode, out wstring aText); */
 NS_IMETHODIMP
 DefaultTooltipTextProvider::GetNodeText(nsIDOMNode *aNode, PRUnichar **aText,
@@ -1142,6 +1146,7 @@ DefaultTooltipTextProvider::GetNodeText(nsIDOMNode *aNode, PRUnichar **aText,
                   found = PR_TRUE;
               }
             }
+#ifdef MOZ_SVG
             else {
               if (lookingForSVGTitle) {
                 lookingForSVGTitle = UseSVGTitle(currElement);
@@ -1165,6 +1170,7 @@ DefaultTooltipTextProvider::GetNodeText(nsIDOMNode *aNode, PRUnichar **aText,
                 }
               }
             }
+#endif
           }
         }
       }

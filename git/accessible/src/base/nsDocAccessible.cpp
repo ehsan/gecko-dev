@@ -54,6 +54,8 @@
 #include "nsIDOMCharacterData.h"
 #include "nsIDOMDocument.h"
 #include "nsIDOMDocumentType.h"
+#include "nsIDOMNSDocument.h"
+#include "nsIDOMNSHTMLDocument.h"
 #include "nsIDOMXULDocument.h"
 #include "nsIDOMMutationEvent.h"
 #include "nsPIDOMWindow.h"
@@ -409,24 +411,22 @@ NS_IMETHODIMP nsDocAccessible::GetURL(nsAString& aURL)
   return NS_OK;
 }
 
-NS_IMETHODIMP
-nsDocAccessible::GetTitle(nsAString& aTitle)
+NS_IMETHODIMP nsDocAccessible::GetTitle(nsAString& aTitle)
 {
-  nsCOMPtr<nsIDOMDocument> domDocument = do_QueryInterface(mDocument);
-  if (!domDocument) {
-    return NS_ERROR_FAILURE;
+  nsCOMPtr<nsIDOMNSDocument> domnsDocument(do_QueryInterface(mDocument));
+  if (domnsDocument) {
+    return domnsDocument->GetTitle(aTitle);
   }
-  return domDocument->GetTitle(aTitle);
+  return NS_ERROR_FAILURE;
 }
 
-NS_IMETHODIMP
-nsDocAccessible::GetMimeType(nsAString& aMimeType)
+NS_IMETHODIMP nsDocAccessible::GetMimeType(nsAString& aMimeType)
 {
-  nsCOMPtr<nsIDOMDocument> domDocument = do_QueryInterface(mDocument);
-  if (!domDocument) {
-    return NS_ERROR_FAILURE;
+  nsCOMPtr<nsIDOMNSDocument> domnsDocument(do_QueryInterface(mDocument));
+  if (domnsDocument) {
+    return domnsDocument->GetContentType(aMimeType);
   }
-  return domDocument->GetContentType(aMimeType);
+  return NS_ERROR_FAILURE;
 }
 
 NS_IMETHODIMP nsDocAccessible::GetDocType(nsAString& aDocType)
@@ -676,8 +676,8 @@ nsDocAccessible::GetFrame() const
   return root;
 }
 
-bool
-nsDocAccessible::IsDefunct() const
+PRBool
+nsDocAccessible::IsDefunct()
 {
   return nsHyperTextAccessibleWrap::IsDefunct() || !mDocument;
 }

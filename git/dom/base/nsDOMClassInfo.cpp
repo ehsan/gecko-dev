@@ -83,6 +83,7 @@
 #include "nsIDocument.h"
 #include "nsIDOMDocument.h"
 #include "nsIDOMXMLDocument.h"
+#include "nsIDOMNSDocument.h"
 #include "nsIDOMEvent.h"
 #include "nsIDOMNSEvent.h"
 #include "nsIDOMKeyEvent.h"
@@ -254,6 +255,7 @@
 #include "nsIDOMElementCSSInlineStyle.h"
 #include "nsIDOMLinkStyle.h"
 #include "nsIDOMHTMLDocument.h"
+#include "nsIDOMNSHTMLDocument.h"
 #include "nsIDOMHTMLElement.h"
 #include "nsIDOMNSHTMLElement.h"
 #include "nsIDOMHTMLAnchorElement.h"
@@ -276,6 +278,7 @@
 #include "nsIDOMHTMLFrameSetElement.h"
 #include "nsIDOMNSHTMLFrameElement.h"
 #include "nsIDOMHTMLHRElement.h"
+#include "nsIDOMNSHTMLHRElement.h"
 #include "nsIDOMHTMLHeadElement.h"
 #include "nsIDOMHTMLHeadingElement.h"
 #include "nsIDOMHTMLHtmlElement.h"
@@ -2321,6 +2324,7 @@ nsDOMClassInfo::RegisterExternalClasses()
   }
 
 #define DOM_CLASSINFO_DOCUMENT_MAP_ENTRIES                                    \
+    DOM_CLASSINFO_MAP_ENTRY(nsIDOMNSDocument)                                 \
     DOM_CLASSINFO_MAP_ENTRY(nsIDOMDocumentXBL)                                \
     DOM_CLASSINFO_MAP_ENTRY(nsIDOMNSEventTarget)                              \
     DOM_CLASSINFO_MAP_ENTRY(nsIDOMEventTarget)                                \
@@ -2644,12 +2648,14 @@ nsDOMClassInfo::Init()
   if (nsDOMTouchEvent::PrefEnabled()) {
     DOM_CLASSINFO_MAP_BEGIN(HTMLDocument, nsIDOMHTMLDocument)
       DOM_CLASSINFO_MAP_ENTRY(nsIDOMHTMLDocument)
+      DOM_CLASSINFO_MAP_ENTRY(nsIDOMNSHTMLDocument)
       DOM_CLASSINFO_MAP_ENTRY(nsIDOMDocumentTouch)
       DOM_CLASSINFO_DOCUMENT_MAP_ENTRIES
     DOM_CLASSINFO_MAP_END
   } else {
     DOM_CLASSINFO_MAP_BEGIN(HTMLDocument, nsIDOMHTMLDocument)
       DOM_CLASSINFO_MAP_ENTRY(nsIDOMHTMLDocument)
+      DOM_CLASSINFO_MAP_ENTRY(nsIDOMNSHTMLDocument)
       DOM_CLASSINFO_DOCUMENT_MAP_ENTRIES
     DOM_CLASSINFO_MAP_END
   }
@@ -2762,6 +2768,7 @@ nsDOMClassInfo::Init()
 
   DOM_CLASSINFO_MAP_BEGIN(HTMLHRElement, nsIDOMHTMLHRElement)
     DOM_CLASSINFO_MAP_ENTRY(nsIDOMHTMLHRElement)
+    DOM_CLASSINFO_MAP_ENTRY(nsIDOMNSHTMLHRElement)
     DOM_CLASSINFO_GENERIC_HTML_MAP_ENTRIES
   DOM_CLASSINFO_MAP_END
 
@@ -3143,6 +3150,7 @@ nsDOMClassInfo::Init()
   DOM_CLASSINFO_MAP_BEGIN(ImageDocument, nsIImageDocument)
     DOM_CLASSINFO_MAP_ENTRY(nsIDOMHTMLDocument)
     DOM_CLASSINFO_MAP_ENTRY(nsIImageDocument)
+    DOM_CLASSINFO_MAP_ENTRY(nsIDOMNSHTMLDocument)
     DOM_CLASSINFO_DOCUMENT_MAP_ENTRIES
   DOM_CLASSINFO_MAP_END
 
@@ -8726,7 +8734,7 @@ nsDocumentSH::NewResolve(nsIXPConnectWrappedNative *wrapper, JSContext *cx,
     // Define the location property on the document object itself so
     // that we can intercept getting and setting of document.location.
 
-    nsCOMPtr<nsIDOMDocument> doc = do_QueryWrappedNative(wrapper, obj);
+    nsCOMPtr<nsIDOMNSDocument> doc(do_QueryWrappedNative(wrapper, obj));
     NS_ENSURE_TRUE(doc, NS_ERROR_UNEXPECTED);
 
     nsCOMPtr<nsIDOMLocation> location;
@@ -8789,10 +8797,11 @@ nsDocumentSH::SetProperty(nsIXPConnectWrappedNative *wrapper, JSContext *cx,
                           JSObject *obj, jsid id, jsval *vp, PRBool *_retval)
 {
   if (id == sLocation_id) {
-    nsCOMPtr<nsIDOMDocument> doc = do_QueryWrappedNative(wrapper);
+    nsCOMPtr<nsIDOMNSDocument> doc(do_QueryWrappedNative(wrapper));
     NS_ENSURE_TRUE(doc, NS_ERROR_UNEXPECTED);
 
     nsCOMPtr<nsIDOMLocation> location;
+
     nsresult rv = doc->GetLocation(getter_AddRefs(location));
     NS_ENSURE_SUCCESS(rv, rv);
 
@@ -8925,7 +8934,7 @@ nsHTMLDocumentSH::DocumentOpen(JSContext *cx, uintN argc, jsval *vp)
     return JS_FALSE;
   }
 
-  nsCOMPtr<nsIDOMHTMLDocument> doc = do_QueryInterface(native);
+  nsCOMPtr<nsIDOMNSHTMLDocument> doc = do_QueryInterface(native);
   NS_ENSURE_TRUE(doc, JS_FALSE);
 
   nsCAutoString contentType("text/html");

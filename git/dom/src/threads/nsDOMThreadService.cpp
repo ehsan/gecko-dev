@@ -1567,7 +1567,8 @@ nsDOMThreadService::RegisterPrefCallbacks()
 {
   NS_ASSERTION(NS_IsMainThread(), "Wrong thread!");
   for (PRUint32 index = 0; index < NS_ARRAY_LENGTH(sPrefsToWatch); index++) {
-    Preferences::RegisterCallback(PrefCallback, sPrefsToWatch[index]);
+    nsContentUtils::RegisterPrefCallback(sPrefsToWatch[index], PrefCallback,
+                                         nsnull);
     PrefCallback(sPrefsToWatch[index], nsnull);
   }
 }
@@ -1577,7 +1578,8 @@ nsDOMThreadService::UnregisterPrefCallbacks()
 {
   NS_ASSERTION(NS_IsMainThread(), "Wrong thread!");
   for (PRUint32 index = 0; index < NS_ARRAY_LENGTH(sPrefsToWatch); index++) {
-    Preferences::UnregisterCallback(PrefCallback, sPrefsToWatch[index]);
+    nsContentUtils::UnregisterPrefCallback(sPrefsToWatch[index], PrefCallback,
+                                           nsnull);
   }
 }
 

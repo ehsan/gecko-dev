@@ -1097,12 +1097,6 @@ nsWindow::Show(PRBool aState)
         }
     }
 
-#ifdef ACCESSIBILITY
-    if (aState && sAccessibilityEnabled) {
-        CreateRootAccessible();
-    }
-#endif
-
     NativeShow(aState);
 
     return NS_OK;
@@ -4253,6 +4247,10 @@ nsWindow::Create(nsIWidget        *aParent,
 
         }
     }
+    if (sAccessibilityEnabled) {
+        LOG(("nsWindow:: Create Toplevel Accessibility\n"));
+        CreateRootAccessible();
+    }
 #endif
 
 #ifdef MOZ_DFB
@@ -6330,7 +6328,6 @@ void
 nsWindow::CreateRootAccessible()
 {
     if (mIsTopLevel && !mRootAccessible) {
-        LOG(("nsWindow:: Create Toplevel Accessibility\n"));
         nsAccessible *acc = DispatchAccessibleEvent();
 
         if (acc) {

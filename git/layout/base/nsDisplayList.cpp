@@ -54,7 +54,9 @@
 #include "nsStyleStructInlines.h"
 #include "nsStyleTransformMatrix.h"
 #include "gfxMatrix.h"
+#ifdef MOZ_SVG
 #include "nsSVGIntegrationUtils.h"
+#endif
 #include "nsLayoutUtils.h"
 #include "nsIScrollableFrame.h"
 #include "nsThemeConstants.h"
@@ -2662,6 +2664,7 @@ nsRect nsDisplayTransform::UntransformRect(const nsRect &aUntransformedBounds,
                                             factor);
 }
 
+#ifdef MOZ_SVG
 nsDisplaySVGEffects::nsDisplaySVGEffects(nsDisplayListBuilder* aBuilder,
                                          nsIFrame* aFrame, nsDisplayList* aList)
     : nsDisplayWrapList(aBuilder, aFrame, aList), mEffectsFrame(aFrame),
@@ -2737,3 +2740,4 @@ PRBool nsDisplaySVGEffects::TryMerge(nsDisplayListBuilder* aBuilder, nsDisplayIt
     other->mBounds + other->mEffectsFrame->GetOffsetTo(mEffectsFrame));
   return PR_TRUE;
 }
+#endif
