@@ -12,3 +12,4 @@ LIBRARY = $(LIB_PREFIX)$(LIBRARY_NAME).$(LIB_SUFFIX)
 include $(topsrcdir)/config/rules.mk
 
 CXXFLAGS += -fuse-cxa-atexit
+INCLUDES += -I$(srcdir)/stlport

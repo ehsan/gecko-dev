@@ -9,6 +9,9 @@ DOMCI_CLASS(Location)
 DOMCI_CLASS(DOMPrototype)
 DOMCI_CLASS(DOMConstructor)
 
+DOMCI_CLASS(DeviceAcceleration)
+DOMCI_CLASS(DeviceRotationRate)
+
 // CSS classes
 DOMCI_CLASS(CSSStyleRule)
 DOMCI_CLASS(CSSCharsetRule)

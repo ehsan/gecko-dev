@@ -607,8 +607,7 @@ nsXPCWrappedJS::SystemIsBeingShutDown()
 NS_IMETHODIMP
 nsXPCWrappedJS::GetEnumerator(nsISimpleEnumerator * *aEnumerate)
 {
-    AutoJSContext cx;
-    XPCCallContext ccx(NATIVE_CALLER, cx);
+    XPCCallContext ccx(NATIVE_CALLER);
     if (!ccx.IsValid())
         return NS_ERROR_UNEXPECTED;
 
@@ -620,8 +619,7 @@ nsXPCWrappedJS::GetEnumerator(nsISimpleEnumerator * *aEnumerate)
 NS_IMETHODIMP
 nsXPCWrappedJS::GetProperty(const nsAString & name, nsIVariant **_retval)
 {
-    AutoJSContext cx;
-    XPCCallContext ccx(NATIVE_CALLER, cx);
+    XPCCallContext ccx(NATIVE_CALLER);
     if (!ccx.IsValid())
         return NS_ERROR_UNEXPECTED;
 

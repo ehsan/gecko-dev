@@ -38,7 +38,6 @@ PRLogModuleInfo *gOmxDecoderLog;
 
 using namespace MPAPI;
 using namespace mozilla;
-using namespace mozilla::gfx;
 
 namespace mozilla {
 
@@ -829,7 +828,7 @@ bool OmxDecoder::ReadVideo(VideoFrame *aFrame, int64_t aTimeUs,
       // GraphicBuffer's size and actual video size is different.
       // See Bug 850566.
       mozilla::layers::SurfaceDescriptorGralloc newDescriptor = descriptor->get_SurfaceDescriptorGralloc();
-      newDescriptor.size() = IntSize(mVideoWidth, mVideoHeight);
+      newDescriptor.size() = nsIntSize(mVideoWidth, mVideoHeight);
 
       mozilla::layers::SurfaceDescriptor descWrapper(newDescriptor);
       aFrame->mGraphicBuffer = new mozilla::layers::VideoGraphicBuffer(this, mVideoBuffer, descWrapper);

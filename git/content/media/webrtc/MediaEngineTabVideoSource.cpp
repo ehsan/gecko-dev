@@ -18,8 +18,6 @@
 #include "nsIPrefService.h"
 namespace mozilla {
 
-using namespace mozilla::gfx;
-
 NS_IMPL_ISUPPORTS1(MediaEngineTabVideoSource, MediaEngineVideoSource)
 
 MediaEngineTabVideoSource::MediaEngineTabVideoSource()
@@ -173,7 +171,7 @@ NotifyPull(MediaStreamGraph*, SourceMediaStream* aSource, mozilla::TrackID aID, 
 void
 MediaEngineTabVideoSource::Draw() {
 
-  IntSize size(mBufW, mBufH);
+  nsIntSize size(mBufW, mBufH);
 
   nsresult rv;
   float scale = 1.0;
@@ -243,8 +241,8 @@ MediaEngineTabVideoSource::Draw() {
 
   nsRefPtr<layers::ImageContainer> container = layers::LayerManager::CreateImageContainer();
   nsRefPtr<gfxASurface> surf;
-  surf = new gfxImageSurface(static_cast<unsigned char*>(mData),
-                             ThebesIntSize(size), stride, format);
+  surf = new gfxImageSurface(static_cast<unsigned char*>(mData), size,
+                             stride, format);
   if (surf->CairoStatus() != 0) {
     return;
   }

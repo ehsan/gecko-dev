@@ -273,7 +273,7 @@ ClientLayerManager::MakeSnapshotIfRequired()
       nsIntRect bounds;
       mWidget->GetBounds(bounds);
       SurfaceDescriptor inSnapshot, snapshot;
-      if (mForwarder->AllocSurfaceDescriptor(bounds.Size().ToIntSize(),
+      if (mForwarder->AllocSurfaceDescriptor(bounds.Size(),
                                              GFX_CONTENT_COLOR_ALPHA,
                                              &inSnapshot) &&
           // The compositor will usually reuse |snapshot| and return

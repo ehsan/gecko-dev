@@ -32,8 +32,6 @@
 #define CNW_LOGE(...)   {(void)printf_stderr(__VA_ARGS__);}
 
 using namespace android;
-using namespace mozilla;
-using namespace mozilla::gfx;
 using namespace mozilla::layers;
 
 GonkNativeWindow::GonkNativeWindow() :
@@ -340,7 +338,7 @@ status_t GonkNativeWindow::dequeueBuffer(int *outBuf, uint32_t w, uint32_t h,
         status_t error;
         ibc = ImageBridgeChild::GetSingleton();
         CNW_LOGD("dequeueBuffer: about to alloc surface descriptor");
-        ibc->AllocSurfaceDescriptorGralloc(IntSize(w, h),
+        ibc->AllocSurfaceDescriptorGralloc(gfxIntSize(w, h),
                                            format,
                                            usage,
                                            &desc);

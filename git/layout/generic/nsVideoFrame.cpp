@@ -31,7 +31,6 @@
 using namespace mozilla;
 using namespace mozilla::layers;
 using namespace mozilla::dom;
-using namespace mozilla::gfx;
 
 nsIFrame*
 NS_NewHTMLVideoFrame(nsIPresShell* aPresShell, nsStyleContext* aContext)
@@ -199,8 +198,8 @@ nsVideoFrame::BuildLayer(nsDisplayListBuilder* aBuilder,
   if (r.IsEmpty()) {
     return nullptr;
   }
-  IntSize scaleHint(static_cast<int32_t>(r.Width()),
-                    static_cast<int32_t>(r.Height()));
+  gfxIntSize scaleHint(static_cast<int32_t>(r.Width()),
+                       static_cast<int32_t>(r.Height()));
   container->SetScaleHint(scaleHint);
 
   nsRefPtr<ImageLayer> layer = static_cast<ImageLayer*>

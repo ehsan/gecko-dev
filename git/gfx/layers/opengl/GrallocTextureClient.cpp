@@ -16,7 +16,6 @@
 namespace mozilla {
 namespace layers {
 
-using namespace mozilla::gfx;
 using namespace android;
 
 class GraphicBufferLockedTextureClientData : public TextureClientData {
@@ -62,8 +61,7 @@ public:
     // We just need to wrap the actor in a SurfaceDescriptor because that's what
     // ISurfaceAllocator uses as input, we don't care about the other parameters.
     SurfaceDescriptor sd = SurfaceDescriptorGralloc(nullptr, mGrallocActor,
-                                                    IntSize(0, 0),
-                                                    false, false);
+                                                    nsIntSize(0,0), false, false);
     allocator->DestroySharedSurface(&sd);
     mGrallocActor = nullptr;
   }
@@ -123,8 +121,7 @@ GrallocTextureClientOGL::~GrallocTextureClientOGL()
       // We just need to wrap the actor in a SurfaceDescriptor because that's what
       // ISurfaceAllocator uses as input, we don't care about the other parameters.
       SurfaceDescriptor sd = SurfaceDescriptorGralloc(nullptr, mGrallocActor,
-                                                      IntSize(0, 0),
-                                                      false, false);
+                                                      nsIntSize(0,0), false, false);
       mCompositable->GetForwarder()->DestroySharedSurface(&sd);
     }
   }

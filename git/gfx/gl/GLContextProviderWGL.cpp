@@ -393,7 +393,7 @@ public:
         }
     }
 
-    bool ResizeOffscreen(const gfx::IntSize& aNewSize);
+    bool ResizeOffscreen(const gfxIntSize& aNewSize);
 
     HGLRC Context() { return mContext; }
 
@@ -443,7 +443,7 @@ IsValidSizeForFormat(HDC hDC, int format,
 }
 
 bool
-GLContextWGL::ResizeOffscreen(const gfx::IntSize& aNewSize)
+GLContextWGL::ResizeOffscreen(const gfxIntSize& aNewSize)
 {
     return ResizeScreenBuffer(aNewSize);
 }
@@ -696,7 +696,7 @@ GLContextProviderWGL::CreateOffscreen(const gfxIntSize& size,
         return nullptr;
     }
 
-    if (!glContext->InitOffscreen(ToIntSize(size), caps))
+    if (!glContext->InitOffscreen(size, caps))
         return nullptr;
 
     return glContext.forget();

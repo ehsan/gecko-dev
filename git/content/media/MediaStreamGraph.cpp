@@ -27,7 +27,6 @@
 
 using namespace mozilla::layers;
 using namespace mozilla::dom;
-using namespace mozilla::gfx;
 
 namespace mozilla {
 
@@ -896,7 +895,7 @@ SetImageToBlackPixel(PlanarYCbCrImage* aImage)
   data.mCbChannel = blackPixel + 1;
   data.mCrChannel = blackPixel + 2;
   data.mYStride = data.mCbCrStride = 1;
-  data.mPicSize = data.mYSize = data.mCbCrSize = IntSize(1, 1);
+  data.mPicSize = data.mYSize = data.mCbCrSize = gfxIntSize(1, 1);
   aImage->SetData(data);
 }
 

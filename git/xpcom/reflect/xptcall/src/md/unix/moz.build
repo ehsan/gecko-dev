@@ -309,9 +309,4 @@ if CONFIG['OS_ARCH'] == 'Linux':
 
 FINAL_LIBRARY = 'xpcom_core'
 
-LOCAL_INCLUDES += [
-    '../..',
-    '../../../../xptinfo/src',
-]
-
 NO_PGO = True

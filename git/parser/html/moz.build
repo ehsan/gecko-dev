@@ -88,8 +88,3 @@ MSVC_ENABLE_PGO = True
 FINAL_LIBRARY = 'gklayout'
 
 # DEFINES['ENABLE_VOID_MENUITEM'] = True
-
-LOCAL_INCLUDES += [
-    '../../content/base/src',
-]
-

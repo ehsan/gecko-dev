@@ -17,6 +17,10 @@
 #include "chrome/common/x11_util.h"
 #endif
 
+namespace gfx {
+class Size;
+}
+
 // -----------------------------------------------------------------------------
 // A TransportDIB is a block of memory that is used to transport pixels
 // between processes: from the renderer process to the browser, and

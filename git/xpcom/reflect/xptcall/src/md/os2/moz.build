@@ -12,10 +12,3 @@ SOURCES += [
 FINAL_LIBRARY = 'xpcom_core'
 
 DEFINES['MOZ_NEED_LEADING_UNDERSCORE'] = True
-
-LOCAL_INCLUDES += [
-    '../..',
-    '../../../../xptinfo/src',
-    '../unix',
-]
-
