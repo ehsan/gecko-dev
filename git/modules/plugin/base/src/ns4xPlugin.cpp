@@ -765,12 +765,14 @@ ns4xPlugin::CreatePlugin(nsIServiceManagerObsolete* aServiceMgr,
 
   nsPluginFile pluginFile(pluginPath);
   pluginRefNum = pluginFile.OpenPluginResource();
+  if (pluginRefNum == -1)
+    return NS_ERROR_FAILURE;
 
   ns4xPlugin* plugin = new ns4xPlugin(nsnull, aLibrary, nsnull, aServiceMgr);
-  ::UseResFile(appRefNum);
-  if (!plugin)
+  if (plugin == NULL)
     return NS_ERROR_OUT_OF_MEMORY;
 
+  ::UseResFile(appRefNum);
   *aResult = plugin;
 
   NS_ADDREF(*aResult);
@@ -889,8 +891,7 @@ ns4xPlugin::Shutdown(void)
   if (fShutdownEntry != nsnull) {
 #if defined(XP_MACOSX)
     CallNPP_ShutdownProc(fShutdownEntry);
-    if (fPluginRefNum > 0)
-      ::CloseResFile(fPluginRefNum);
+    ::CloseResFile(fPluginRefNum);
 #else
     NS_TRY_SAFE_CALL_VOID(fShutdownEntry(), fLibrary, nsnull);
 #endif
