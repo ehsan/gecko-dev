@@ -79,9 +79,10 @@ namespace storage {
 #define PREF_TS_SYNCHRONOUS "toolkit.storage.synchronous"
 
 ////////////////////////////////////////////////////////////////////////////////
-//// Variant Specialization Functions (variantToSQLiteT)
+//// sqlite3_context Specialization Functions
 
-static int
+template < >
+int
 sqlite3_T_int(sqlite3_context *aCtx,
               int aValue)
 {
@@ -89,7 +90,8 @@ sqlite3_T_int(sqlite3_context *aCtx,
   return SQLITE_OK;
 }
 
-static int
+template < >
+int
 sqlite3_T_int64(sqlite3_context *aCtx,
                 sqlite3_int64 aValue)
 {
@@ -97,7 +99,8 @@ sqlite3_T_int64(sqlite3_context *aCtx,
   return SQLITE_OK;
 }
 
-static int
+template < >
+int
 sqlite3_T_double(sqlite3_context *aCtx,
                  double aValue)
 {
@@ -105,36 +108,28 @@ sqlite3_T_double(sqlite3_context *aCtx,
   return SQLITE_OK;
 }
 
-static int
-sqlite3_T_text(sqlite3_context *aCtx,
-               const nsCString &aValue)
-{
-  ::sqlite3_result_text(aCtx,
-                        aValue.get(),
-                        aValue.Length(),
-                        SQLITE_TRANSIENT);
-  return SQLITE_OK;
-}
-
-static int
+template < >
+int
 sqlite3_T_text16(sqlite3_context *aCtx,
-                 const nsString &aValue)
+                 nsString aValue)
 {
   ::sqlite3_result_text16(aCtx,
-                          aValue.get(),
+                          PromiseFlatString(aValue).get(),
                           aValue.Length() * 2, // Number of bytes.
                           SQLITE_TRANSIENT);
   return SQLITE_OK;
 }
 
-static int
+template < >
+int
 sqlite3_T_null(sqlite3_context *aCtx)
 {
   ::sqlite3_result_null(aCtx);
   return SQLITE_OK;
 }
 
-static int
+template < >
+int
 sqlite3_T_blob(sqlite3_context *aCtx,
                const void *aData,
                int aSize)
@@ -142,8 +137,6 @@ sqlite3_T_blob(sqlite3_context *aCtx,
   ::sqlite3_result_blob(aCtx, aData, aSize, NS_Free);
   return SQLITE_OK;
 }
-
-#include "variantToSQLiteT_impl.h"
 
 ////////////////////////////////////////////////////////////////////////////////
 //// Local Functions

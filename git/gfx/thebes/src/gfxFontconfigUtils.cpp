@@ -275,16 +275,14 @@ gfxFontconfigUtils::gfxFontconfigUtils()
 }
 
 nsresult
-gfxFontconfigUtils::GetFontList(nsIAtom *aLangGroup,
+gfxFontconfigUtils::GetFontList(const nsACString& aLangGroup,
                                 const nsACString& aGenericFamily,
                                 nsTArray<nsString>& aListOfFonts)
 {
     aListOfFonts.Clear();
 
     nsTArray<nsCString> fonts;
-    nsCString langGroupStr;
-    aLangGroup->ToUTF8String(langGroupStr);
-    nsresult rv = GetFontListInternal(fonts, langGroupStr);
+    nsresult rv = GetFontListInternal(fonts, aLangGroup);
     if (NS_FAILED(rv))
         return rv;
 

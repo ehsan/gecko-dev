@@ -57,9 +57,6 @@ const PR_UINT32_MAX = Math.pow(2, 32) - 1;
 /** True if debugging output is enabled, false otherwise. */
 var DEBUG = false; // non-const *only* so tweakable in server tests
 
-/** True if debugging output should be timestamped. */
-var DEBUG_TIMESTAMP = false; // non-const so tweakable in server tests
-
 var gGlobalObject = this;
 
 /**
@@ -78,7 +75,7 @@ function NS_ASSERT(cond, msg)
 
     var stack = new Error().stack.split(/\n/);
     dumpn(stack.map(function(val) { return "###!!!   " + val; }).join("\n"));
-
+    
     throw Cr.NS_ERROR_ABORT;
   }
 }
@@ -167,32 +164,12 @@ const HEADERS_SUFFIX = HIDDEN_CHAR + "headers" + HIDDEN_CHAR;
 /** Type used to denote SJS scripts for CGI-like functionality. */
 const SJS_TYPE = "sjs";
 
-/** Base for relative timestamps produced by dumpn(). */
-var firstStamp = 0;
 
-/** dump(str) with a trailing "\n" -- only outputs if DEBUG. */
+/** dump(str) with a trailing "\n" -- only outputs if DEBUG */
 function dumpn(str)
 {
   if (DEBUG)
-  {
-    var prefix = "HTTPD-INFO | ";
-    if (DEBUG_TIMESTAMP)
-    {
-      if (firstStamp === 0)
-        firstStamp = Date.now();
-
-      var elapsed = Date.now() - firstStamp; // milliseconds
-      var min = Math.floor(elapsed / 60000);
-      var sec = (elapsed % 60000) / 1000;
-
-      if (sec < 10)
-        prefix += min + ":0" + sec.toFixed(3) + " | ";
-      else
-        prefix += min + ":" + sec.toFixed(3) + " | ";
-    }
-
-    dump(prefix + str + "\n");
-  }
+    dump(str + "\n");
 }
 
 /** Dumps the current JS stack if DEBUG. */
@@ -207,17 +184,6 @@ function dumpStack()
 /** The XPCOM thread manager. */
 var gThreadManager = null;
 
-/** The XPCOM prefs service. */
-var gRootPrefBranch = null;
-function getRootPrefBranch()
-{
-  if (!gRootPrefBranch)
-  {
-    gRootPrefBranch = Cc["@mozilla.org/preferences-service;1"]
-                        .getService(Ci.nsIPrefBranch);
-  }
-  return gRootPrefBranch;
-}
 
 /**
  * JavaScript constructors for commonly-used classes; precreating these is a
@@ -508,21 +474,16 @@ nsHttpServer.prototype =
     this._port = port;
     this._doQuit = this._socketClosed = false;
 
-    // The listen queue needs to be long enough to handle
-    // network.http.max-connections-per-server concurrent connections,
-    // plus a safety margin in case some other process is talking to
-    // the server as well.
-    var prefs = getRootPrefBranch();
-    var maxConnections =
-      prefs.getIntPref("network.http.max-connections-per-server") + 5;
-
     try
     {
       var socket = new ServerSocket(this._port,
                                     true, // loopback only
-                                    maxConnections);
-      dumpn(">>> listening on port " + socket.port + ", " + maxConnections +
-            " pending connections");
+                                    20);  // the listen queue needs to be
+                                          // larger than the browser's max
+                                          // number of concurrent connections
+                                          // (presently 15).
+
+      dumpn(">>> listening on port " + socket.port);
       socket.asyncListen(this);
       this._identity._initialize(port, true);
       this._socket = socket;

@@ -263,29 +263,14 @@ NS_IMPL_CI_INTERFACE_GETTER2(nsDOMWorkerMessageEvent, nsIDOMEvent,
 
 NS_IMPL_THREADSAFE_DOM_CI_GETINTERFACES(nsDOMWorkerMessageEvent)
 
-nsresult
-nsDOMWorkerMessageEvent::SetJSONData(JSContext* aCx,
-                                     jsval aData,
-                                     PRBool aIsJSON,
-                                     PRBool aIsPrimitive)
-{
-  NS_ASSERTION(JSVAL_IS_STRING(aData), "Bad jsval!");
-
-  mIsJSON = aIsJSON ? PR_TRUE : PR_FALSE;
-  mIsPrimitive = aIsPrimitive ? PR_TRUE : PR_FALSE;
-
-  if (!mDataVal.Hold(aCx)) {
-    NS_WARNING("Failed to hold jsval!");
-    return NS_ERROR_FAILURE;
-  }
-
-  mDataVal = aData;
-  return NS_OK;
-}
-
 NS_IMETHODIMP
 nsDOMWorkerMessageEvent::GetData(nsAString& aData)
 {
+  if (!mIsJSON) {
+    aData.Assign(mData);
+    return NS_OK;
+  }
+
   nsIXPConnect* xpc = nsContentUtils::XPConnect();
   NS_ENSURE_TRUE(xpc, NS_ERROR_UNEXPECTED);
 
@@ -297,12 +282,6 @@ nsDOMWorkerMessageEvent::GetData(nsAString& aData)
   jsval* retval;
   rv = cc->GetRetValPtr(&retval);
   NS_ENSURE_SUCCESS(rv, rv);
-
-  if (!mIsJSON) {
-    cc->SetReturnValueWasSet(PR_TRUE);
-    *retval = mDataVal;
-    return NS_OK;
-  }
 
   if (mHaveCachedJSVal) {
     cc->SetReturnValueWasSet(PR_TRUE);
@@ -325,17 +304,14 @@ nsDOMWorkerMessageEvent::GetData(nsAString& aData)
   JSBool ok = mCachedJSVal.Hold(cx);
   NS_ENSURE_TRUE(ok, NS_ERROR_FAILURE);
 
-  NS_ASSERTION(JSVAL_IS_STRING(mDataVal), "Bad jsval!");
-  JSString* str = JSVAL_TO_STRING(mDataVal);
-
   JSONParser* parser = JS_BeginJSONParse(cx, mCachedJSVal.ToJSValPtr());
   NS_ENSURE_TRUE(parser, NS_ERROR_UNEXPECTED);
 
   // This is slightly sneaky, but now that JS_BeginJSONParse succeeded we always
   // need call JS_FinishJSONParse even if JS_ConsumeJSONText fails. We'll report
   // an error if either failed, though.
-  ok = JS_ConsumeJSONText(cx, parser, JS_GetStringChars(str),
-                          JS_GetStringLength(str));
+  ok = JS_ConsumeJSONText(cx, parser, (jschar*)mData.get(),
+                          (uint32)mData.Length());
 
   // Note the '&& ok' after the call here!
   ok = JS_FinishJSONParse(cx, parser, JSVAL_NULL) && ok;
@@ -360,7 +336,7 @@ nsDOMWorkerMessageEvent::GetData(nsAString& aData)
   }
 
   // We no longer need to hold this copy of the data around.
-  mDataVal.Release();
+  mData.Truncate();
 
   // Now that everything has succeeded we'll set this flag so that we return the
   // cached jsval in the future.
@@ -394,6 +370,7 @@ nsDOMWorkerMessageEvent::InitMessageEvent(const nsAString& aTypeArg,
                                           const nsAString& aOriginArg,
                                           nsISupports* aSourceArg)
 {
+  mData.Assign(aDataArg);
   mOrigin.Assign(aOriginArg);
   mSource = aSourceArg;
   return nsDOMWorkerEvent::InitEvent(aTypeArg, aCanBubbleArg, aCancelableArg);

@@ -221,7 +221,7 @@ void Area::ParseCoords(const nsAString& aSpec)
       {
         if (*tptr == ',')
         {
-          if (!has_comma)
+          if (has_comma == PR_FALSE)
           {
             has_comma = PR_TRUE;
           }
@@ -235,7 +235,7 @@ void Area::ParseCoords(const nsAString& aSpec)
       /*
        * If this was trailing whitespace we skipped, we are done.
        */
-      if ((*tptr == '\0') && !has_comma)
+      if ((*tptr == '\0')&&(has_comma == PR_FALSE))
       {
         break;
       }
@@ -243,7 +243,7 @@ void Area::ParseCoords(const nsAString& aSpec)
        * Else if the separator is all whitespace, and this is not the
        * end of the string, add a comma to the separator.
        */
-      else if (!has_comma)
+      else if (has_comma == PR_FALSE)
       {
         *n_str = ',';
       }

@@ -239,10 +239,6 @@ public:
   virtual PRBool GetAllowsAnonChildAccessibles();
 
 protected:
-  // nsAccessible
-  virtual void CacheChildren();
-
-  // nsXULTextFieldAccessible
   already_AddRefed<nsIDOMNode> GetInputField();
 };
 

@@ -1191,7 +1191,7 @@ struct nsStyleVisibility {
   
   PRUint8 mDirection;                  // [inherited] see nsStyleConsts.h NS_STYLE_DIRECTION_*
   PRUint8   mVisible;                  // [inherited]
-  nsCOMPtr<nsIAtom> mLanguage;         // [inherited]
+  nsCOMPtr<nsIAtom> mLangGroup;        // [inherited]
   PRUint8 mPointerEvents;              // [inherited] see nsStyleConsts.h
 
   PRBool IsVisible() const {

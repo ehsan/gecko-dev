@@ -545,7 +545,7 @@ nsWifiMonitor::DoScan()
     nsAutoMonitor mon(mMonitor);
     mon.Wait(PR_SecondsToInterval(60));
   }
-  while (mKeepGoing);
+  while (mKeepGoing == PR_TRUE);
 
 
 
@@ -702,7 +702,7 @@ nsWifiMonitor::DoScan()
       nsAutoMonitor mon(mMonitor);
       mon.Wait(PR_SecondsToInterval(60));
     }
-    while (mKeepGoing);
+    while (mKeepGoing == PR_TRUE);
   }
 #endif
   return NS_OK;

@@ -88,7 +88,7 @@ gfxBeOSPlatform::CreateOffscreenSurface (PRUint32 width,
 }
 
 nsresult
-gfxBeOSPlatform::GetFontList(nsIAtom *aLangGroup,
+gfxBeOSPlatform::GetFontList(const nsACString& aLangGroup,
                              const nsACString& aGenericFamily,
                              nsTArray<nsString>& aListOfFonts)
 {

@@ -45,9 +45,9 @@
 // Internal static functions
 ////////////////////////////////////////////////////////////////////////////////
 
-// Callback used when traversing the cache by cycle collector.
 static PLDHashOperator
-ElementTraverser(const void *aKey, nsAccessNode *aAccessNode, void *aUserArg)
+ElementTraverser(const void *aKey, nsIAccessNode *aAccessNode,
+                 void *aUserArg)
 {
   nsCycleCollectionTraversalCallback *cb = 
     static_cast<nsCycleCollectionTraversalCallback*>(aUserArg);
@@ -739,23 +739,26 @@ nsXULTreeGridRowAccessible::GetCellAccessible(nsITreeColumn* aColumn,
   *aAccessible = nsnull;
 
   void* key = static_cast<void*>(aColumn);
-  nsRefPtr<nsAccessNode> accessNode = mAccessNodeCache.GetWeak(key);
+
+  nsCOMPtr<nsIAccessNode> accessNode;
+  GetCacheEntry(mAccessNodeCache, key, getter_AddRefs(accessNode));
 
   if (!accessNode) {
-    accessNode =
+    nsRefPtr<nsAccessNode> cellAcc =
       new nsXULTreeGridCellAccessibleWrap(mDOMNode, mWeakShell, this, mTree,
                                           mTreeView, mRow, aColumn);
-    if (!accessNode)
+    if (!cellAcc)
       return;
 
-    nsresult rv = accessNode->Init();
+    nsresult rv = cellAcc->Init();
     if (NS_FAILED(rv))
       return;
 
-    mAccessNodeCache.Put(key, accessNode);
+    accessNode = cellAcc;
+    PutCacheEntry(mAccessNodeCache, key, accessNode);
   }
 
-  CallQueryInterface(accessNode.get(), aAccessible);
+  CallQueryInterface(accessNode, aAccessible);
 }
 
 void

@@ -342,7 +342,6 @@ Any type, naked or pointer, can be const (const T) or ref (T&).
                     T=copy.deepcopy(self.T, memo))
 Type.BOOL = Type('bool')
 Type.INT = Type('int')
-Type.INT32 = Type('int32')
 Type.INTPTR = Type('intptr_t')
 Type.UINT32 = Type('uint32')
 Type.SIZE = Type('size_t')
@@ -716,7 +715,6 @@ class StmtSwitch(Block):
 
     def addcase(self, case, block):
         '''NOTE: |case| is not checked for uniqueness'''
-        assert not isinstance(case, str)
         assert (isinstance(block, StmtBreak)
                 or isinstance(block, StmtReturn)
                 or (hasattr(block, 'stmts')

@@ -933,7 +933,7 @@ nsLineLayout::ReflowFrame(nsIFrame* aFrame,
         pfd->SetFlag(PFD_ISLETTERFRAME, PR_TRUE);
       }
       if (pfd->mSpan) {
-        isEmpty = !pfd->mSpan->mHasNonemptyContent;
+        isEmpty = !pfd->mSpan->mHasNonemptyContent && pfd->mFrame->IsSelfEmpty();
       } else {
         isEmpty = pfd->mFrame->IsEmpty();
       }

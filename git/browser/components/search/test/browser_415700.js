@@ -38,19 +38,21 @@ var gSS = Cc["@mozilla.org/browser/search-service;1"].
 var gObs = Cc["@mozilla.org/observer-service;1"].
            getService(Ci.nsIObserverService);
 
-function observers(aSubject, aTopic, aData) {
-  switch (aData) {
-    case "engine-added":
-      test2();
-      break;
-    case "engine-current":
-      test3();
-      break;
-    case "engine-removed":
-      test4();
-      break;
+var observers = {
+  observe: function(aSubject, aTopic, aData) {
+    switch (aData) {
+      case "engine-added":
+        test2();
+        break;
+      case "engine-current":
+        test3();
+        break;
+      case "engine-removed":
+        test4();
+        break;
+    }
   }
-}
+};
 
 function test() {
   waitForExplicitFinish();

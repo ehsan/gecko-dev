@@ -79,7 +79,6 @@
 #include "nsDisplayList.h"
 #include "nsBidiUtils.h"
 #include "nsFrameManager.h"
-#include "nsIPrefService.h"
 
 //----------------------------------------------------------------------
 
@@ -103,12 +102,6 @@ nsresult
 nsHTMLScrollFrame::CreateAnonymousContent(nsTArray<nsIContent*>& aElements)
 {
   return mInner.CreateAnonymousContent(aElements);
-}
-
-void
-nsHTMLScrollFrame::AppendAnonymousContentTo(nsBaseContentList& aElements)
-{
-  mInner.AppendAnonymousContentTo(aElements);
 }
 
 void
@@ -492,7 +485,7 @@ nsHTMLScrollFrame::ReflowScrolledFrame(ScrollReflowState* aState,
 
   // Temporarily set mHasHorizontalScrollbar/mHasVerticalScrollbar to
   // reflect our assumptions while we reflow the child.
-  PRBool didHaveHorizontalScrollbar = mInner.mHasHorizontalScrollbar;
+  PRBool didHaveHorizonalScrollbar = mInner.mHasHorizontalScrollbar;
   PRBool didHaveVerticalScrollbar = mInner.mHasVerticalScrollbar;
   mInner.mHasHorizontalScrollbar = aAssumeHScroll;
   mInner.mHasVerticalScrollbar = aAssumeVScroll;
@@ -502,7 +495,7 @@ nsHTMLScrollFrame::ReflowScrolledFrame(ScrollReflowState* aState,
                             kidReflowState, 0, 0,
                             NS_FRAME_NO_MOVE_FRAME | NS_FRAME_NO_MOVE_VIEW, status);
 
-  mInner.mHasHorizontalScrollbar = didHaveHorizontalScrollbar;
+  mInner.mHasHorizontalScrollbar = didHaveHorizonalScrollbar;
   mInner.mHasVerticalScrollbar = didHaveVerticalScrollbar;
 
   // Don't resize or position the view (if any) because we're going to resize
@@ -957,12 +950,6 @@ nsresult
 nsXULScrollFrame::CreateAnonymousContent(nsTArray<nsIContent*>& aElements)
 {
   return mInner.CreateAnonymousContent(aElements);
-}
-
-void
-nsXULScrollFrame::AppendAnonymousContentTo(nsBaseContentList& aElements)
-{
-  mInner.AppendAnonymousContentTo(aElements);
 }
 
 void
@@ -1785,7 +1772,7 @@ nsGfxScrollFrameInner::ScrollToImpl(nsPoint aPt)
                "curPos.y not a multiple of device pixels");
 
   // notify the listeners.
-  for (PRInt32 i = 0; i < mListeners.Length(); i++) {
+  for (PRInt32 i = 0; i < mListeners.Count(); i++) {
     mListeners[i]->ScrollPositionWillChange(pt.x, pt.y);
   }
   
@@ -1800,7 +1787,7 @@ nsGfxScrollFrameInner::ScrollToImpl(nsPoint aPt)
   PostScrollEvent();
 
   // notify the listeners.
-  for (PRInt32 i = 0; i < mListeners.Length(); i++) {
+  for (PRInt32 i = 0; i < mListeners.Count(); i++) {
     mListeners[i]->ScrollPositionDidChange(pt.x, pt.y);
   }
 }
@@ -2251,14 +2238,6 @@ nsGfxScrollFrameInner::CreateAnonymousContent(nsTArray<nsIContent*>& aElements)
 }
 
 void
-nsGfxScrollFrameInner::AppendAnonymousContentTo(nsBaseContentList& aElements)
-{
-  aElements.MaybeAppendElement(mHScrollbarContent);
-  aElements.MaybeAppendElement(mVScrollbarContent);
-  aElements.MaybeAppendElement(mScrollCornerContent);
-}
-
-void
 nsGfxScrollFrameInner::Destroy()
 {
   // Unbind any content created in CreateAnonymousContent from the tree
@@ -2518,9 +2497,6 @@ nsXULScrollFrame::LayoutScrollArea(nsBoxLayoutState& aState,
                             mInner.mScrollPort.Size());
   PRInt32 flags = NS_FRAME_NO_MOVE_VIEW;
 
-  nsRect originalRect = mInner.mScrolledFrame->GetRect();
-  nsRect originalOverflow = mInner.mScrolledFrame->GetOverflowRect();
-
   nsSize minSize = mInner.mScrolledFrame->GetMinSize(aState);
   
   if (minSize.height > childRect.height)
@@ -2545,28 +2521,6 @@ nsXULScrollFrame::LayoutScrollArea(nsBoxLayoutState& aState,
     // because we've already accounted for it
     mInner.mScrolledFrame->SetBounds(aState, childRect);
     mInner.mScrolledFrame->ClearOverflowRect();
-  }
-
-  nsRect finalRect = mInner.mScrolledFrame->GetRect();
-  nsRect finalOverflow = mInner.mScrolledFrame->GetOverflowRect();
-  // The position of the scrolled frame shouldn't change, but if it does or
-  // the position of the overflow rect changes just invalidate both the old
-  // and new overflow rect.
-  if (originalRect.TopLeft() != finalRect.TopLeft() ||
-      originalOverflow.TopLeft() != finalOverflow.TopLeft())
-  {
-    // The old overflow rect needs to be adjusted if the frame's position
-    // changed.
-    mInner.mScrolledFrame->Invalidate(
-      originalOverflow + originalRect.TopLeft() - finalRect.TopLeft());
-    mInner.mScrolledFrame->Invalidate(finalOverflow);
-  } else if (!originalOverflow.IsExactEqual(finalOverflow)) {
-    // If the overflow rect changed then invalidate the difference between the
-    // old and new overflow rects.
-    mInner.mScrolledFrame->CheckInvalidateSizeChange(
-      originalRect, originalOverflow, finalRect.Size());
-    mInner.mScrolledFrame->InvalidateRectDifference(
-      originalOverflow, finalOverflow);
   }
 
   aState.SetLayoutFlags(oldflags);

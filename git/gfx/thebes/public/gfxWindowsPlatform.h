@@ -100,7 +100,7 @@ public:
     RenderMode GetRenderMode() { return mRenderMode; }
     void SetRenderMode(RenderMode rmode) { mRenderMode = rmode; }
 
-    nsresult GetFontList(nsIAtom *aLangGroup,
+    nsresult GetFontList(const nsACString& aLangGroup,
                          const nsACString& aGenericFamily,
                          nsTArray<nsString>& aListOfFonts);
 

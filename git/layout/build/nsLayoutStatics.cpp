@@ -88,7 +88,6 @@
 #include "nsFocusManager.h"
 #include "nsFrameList.h"
 #include "nsListControlFrame.h"
-#include "nsFileControlFrame.h"
 
 #ifdef MOZ_XUL
 #include "nsXULPopupManager.h"
@@ -255,11 +254,7 @@ nsLayoutStatics::Initialize()
     return rv;
   }
 
-  rv = nsCSSRuleProcessor::Startup();
-  if (NS_FAILED(rv)) {
-    NS_ERROR("Could not initialize nsCSSRuleProcessor");
-    return rv;
-  }
+  nsCSSRuleProcessor::Startup();
 
 #ifdef MOZ_XUL
   rv = nsXULPopupManager::Init();
@@ -310,9 +305,10 @@ nsLayoutStatics::Shutdown()
   nsDOMAttribute::Shutdown();
   nsDOMEventRTTearoff::Shutdown();
   nsEventListenerManager::Shutdown();
+  nsContentList::Shutdown();
   nsComputedDOMStyle::Shutdown();
   CSSLoaderImpl::Shutdown();
-  nsCSSRuleProcessor::Shutdown();
+  nsCSSRuleProcessor::FreeSystemMetrics();
   nsTextFrameTextRunCache::Shutdown();
   nsHTMLDNSPrefetch::Shutdown();
   nsCSSRendering::Shutdown();
@@ -388,8 +384,6 @@ nsLayoutStatics::Shutdown()
   NS_ShutdownChainItemPool();
 
   nsFrameList::Shutdown();
-
-  nsFileControlFrame::DestroyUploadLastDir();
 }
 
 void

@@ -114,11 +114,10 @@ public:
   virtual PRBool IsLink(nsIURI** aURI) const;
   virtual void GetLinkTarget(nsAString& aTarget);
   virtual nsLinkState GetLinkState() const;
+  virtual void SetLinkState(nsLinkState aState);
   virtual already_AddRefed<nsIURI> GetHrefURI() const;
 
   virtual nsresult Clone(nsINodeInfo *aNodeInfo, nsINode **aResult) const;
-
-  virtual PRInt32 IntrinsicState() const;
 
 protected:
   virtual already_AddRefed<nsIURI> GetStyleSheetURL(PRBool* aIsInline);
@@ -148,12 +147,11 @@ NS_IMPL_RELEASE_INHERITED(nsHTMLLinkElement, nsGenericElement)
 
 // QueryInterface implementation for nsHTMLLinkElement
 NS_INTERFACE_TABLE_HEAD(nsHTMLLinkElement)
-  NS_HTML_CONTENT_INTERFACE_TABLE5(nsHTMLLinkElement,
+  NS_HTML_CONTENT_INTERFACE_TABLE4(nsHTMLLinkElement,
                                    nsIDOMHTMLLinkElement,
                                    nsIDOMLinkStyle,
                                    nsILink,
-                                   nsIStyleSheetLinkingElement,
-                                   Link)
+                                   nsIStyleSheetLinkingElement)
   NS_HTML_CONTENT_INTERFACE_TABLE_TO_MAP_SEGUE(nsHTMLLinkElement,
                                                nsGenericHTMLElement)
 NS_HTML_CONTENT_INTERFACE_TABLE_TAIL_CLASSINFO(HTMLLinkElement)
@@ -205,8 +203,6 @@ nsHTMLLinkElement::BindToTree(nsIDocument* aDocument, nsIContent* aParent,
                               nsIContent* aBindingParent,
                               PRBool aCompileEventHandlers)
 {
-  Link::ResetLinkState(false);
-
   nsresult rv = nsGenericHTMLElement::BindToTree(aDocument, aParent,
                                                  aBindingParent,
                                                  aCompileEventHandlers);
@@ -218,7 +214,7 @@ nsHTMLLinkElement::BindToTree(nsIDocument* aDocument, nsIContent* aParent,
 
   CreateAndDispatchEvent(aDocument, NS_LITERAL_STRING("DOMLinkAdded"));
 
-  return rv;
+  return rv;  
 }
 
 NS_IMETHODIMP
@@ -238,9 +234,7 @@ nsHTMLLinkElement::LinkRemoved()
 void
 nsHTMLLinkElement::UnbindFromTree(PRBool aDeep, PRBool aNullParent)
 {
-  // If this link is ever reinserted into a document, it might
-  // be under a different xml:base, so forget the cached state now.
-  Link::ResetLinkState(false);
+  Link::ResetLinkState();
 
   // Once we have XPCOMGC we shouldn't need to call UnbindFromTree during Unlink
   // and so this messy event dispatch can go away.
@@ -285,18 +279,12 @@ nsHTMLLinkElement::SetAttr(PRInt32 aNameSpaceID, nsIAtom* aName,
                            nsIAtom* aPrefix, const nsAString& aValue,
                            PRBool aNotify)
 {
-  nsresult rv = nsGenericHTMLElement::SetAttr(aNameSpaceID, aName, aPrefix,
-                                              aValue, aNotify);
-
-  // The ordering of the parent class's SetAttr call and Link::ResetLinkState
-  // is important here!  The attribute is not set until SetAttr returns, and
-  // we will need the updated attribute value because notifying the document
-  // that content states have changed will call IntrinsicState, which will try
-  // to get updated information about the visitedness from Link.
   if (aName == nsGkAtoms::href && kNameSpaceID_None == aNameSpaceID) {
-    Link::ResetLinkState(!!aNotify);
+    Link::ResetLinkState();
   }
 
+  nsresult rv = nsGenericHTMLElement::SetAttr(aNameSpaceID, aName, aPrefix,
+                                              aValue, aNotify);
   if (NS_SUCCEEDED(rv)) {
     PRBool dropSheet = PR_FALSE;
     if (aNameSpaceID == kNameSpaceID_None && aName == nsGkAtoms::rel &&
@@ -322,7 +310,7 @@ nsHTMLLinkElement::UnsetAttr(PRInt32 aNameSpaceID, nsIAtom* aAttribute,
                              PRBool aNotify)
 {
   if (aAttribute == nsGkAtoms::href && kNameSpaceID_None == aNameSpaceID) {
-    Link::ResetLinkState(!!aNotify);
+    Link::ResetLinkState();
   }
 
   nsresult rv = nsGenericHTMLElement::UnsetAttr(aNameSpaceID, aAttribute,
@@ -372,6 +360,12 @@ nsHTMLLinkElement::GetLinkState() const
   return Link::GetLinkState();
 }
 
+void
+nsHTMLLinkElement::SetLinkState(nsLinkState aState)
+{
+  Link::SetLinkState(aState);
+}
+
 already_AddRefed<nsIURI>
 nsHTMLLinkElement::GetHrefURI() const
 {
@@ -382,7 +376,7 @@ already_AddRefed<nsIURI>
 nsHTMLLinkElement::GetStyleSheetURL(PRBool* aIsInline)
 {
   *aIsInline = PR_FALSE;
-  return Link::GetURI();
+  return GetHrefURIForAnchors();
 }
 
 void
@@ -435,10 +429,4 @@ nsHTMLLinkElement::GetStyleSheetInfo(nsAString& aTitle,
   aType.AssignLiteral("text/css");
 
   return;
-}
-
-PRInt32
-nsHTMLLinkElement::IntrinsicState() const
-{
-  return Link::LinkState() | nsGenericHTMLElement::IntrinsicState();
 }

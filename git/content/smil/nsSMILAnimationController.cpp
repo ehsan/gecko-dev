@@ -256,22 +256,6 @@ nsSMILAnimationController::StopTimer()
 // Sample-related methods and callbacks
 
 PR_CALLBACK PLDHashOperator
-TransferCachedBaseValue(nsSMILCompositor* aCompositor,
-                        void* aData)
-{
-  nsSMILCompositorTable* lastCompositorTable =
-    static_cast<nsSMILCompositorTable*>(aData);
-  nsSMILCompositor* lastCompositor =
-    lastCompositorTable->GetEntry(aCompositor->GetKey());
-
-  if (lastCompositor) {
-    aCompositor->StealCachedBaseValue(lastCompositor);
-  }
-
-  return PL_DHASH_NEXT;  
-}
-
-PR_CALLBACK PLDHashOperator
 RemoveCompositorFromTable(nsSMILCompositor* aCompositor,
                           void* aData)
 {
@@ -351,18 +335,15 @@ nsSMILAnimationController::DoSample(PRBool aSkipUnchangedContainers)
 
   SampleAnimationParams saParams = { &activeContainers,
                                      currentCompositorTable };
-  mAnimationElementTable.EnumerateEntries(SampleAnimation,
-                                          &saParams);
+  nsresult rv = mAnimationElementTable.EnumerateEntries(SampleAnimation,
+                                                        &saParams);
+  if (NS_FAILED(rv)) {
+    NS_WARNING("SampleAnimationParams failed");
+  }
   activeContainers.Clear();
 
-  // STEP 4: Compare previous sample's compositors against this sample's.
-  // (Transfer cached base values across, & remove animation effects from 
-  // no-longer-animated targets.)
+  // STEP 4: Remove animation effects from any no-longer-animated elems/attrs
   if (mLastCompositorTable) {
-    // * Transfer over cached base values, from last sample's compositors
-    currentCompositorTable->EnumerateEntries(TransferCachedBaseValue,
-                                             mLastCompositorTable);
-
     // * For each compositor in current sample's hash table, remove entry from
     // prev sample's hash table -- we don't need to clear animation
     // effects of those compositors, since they're still being animated.
@@ -580,44 +561,31 @@ nsSMILAnimationController::AddAnimationToCompositorTable(
   nsISMILAnimationElement* aElement, nsSMILCompositorTable* aCompositorTable)
 {
   // Add a compositor to the hash table if there's not already one there
-  nsSMILTargetIdentifier key;
-  if (!GetTargetIdentifierForAnimation(aElement, key))
+  nsSMILCompositorKey key;
+  if (!GetCompositorKeyForAnimation(aElement, key))
     // Something's wrong/missing about animation's target; skip this animation
     return;
 
   nsSMILAnimationFunction& func = aElement->AnimationFunction();
 
   // Only add active animation functions. If there are no active animations
-  // targeting an attribute, no compositor will be created and any previously
+  // targetting an attribute, no compositor will be created and any previously
   // applied animations will be cleared.
   if (func.IsActiveOrFrozen()) {
-    // Look up the compositor for our target, & add our animation function
-    // to its list of animation functions.
     nsSMILCompositor* result = aCompositorTable->PutEntry(key);
+
+    // Add this animationElement's animation function to the compositor's list
+    // of animation functions.
     result->AddAnimationFunction(&func);
-
-  } else if (func.HasChanged()) {
-    // Look up the compositor for our target, and force it to skip the
-    // "nothing's changed so don't bother compositing" optimization for this
-    // sample. |func| is inactive, but it's probably *newly* inactive (since
-    // it's got HasChanged() == PR_TRUE), so we need to make sure to recompose
-    // its target.
-    nsSMILCompositor* result = aCompositorTable->PutEntry(key);
-    result->ToggleForceCompositing();
-
-    // We've now made sure that |func|'s inactivity will be reflected as of
-    // this sample. We need to clear its HasChanged() flag so that it won't
-    // trigger this same clause in future samples (until it changes again).
-    func.ClearHasChanged();
   }
 }
 
 // Helper function that, given a nsISMILAnimationElement, looks up its target
-// element & target attribute and populates a nsSMILTargetIdentifier
+// element & target attribute and returns a newly-constructed nsSMILCompositor
 // for this target.
 /*static*/ PRBool
-nsSMILAnimationController::GetTargetIdentifierForAnimation(
-    nsISMILAnimationElement* aAnimElem, nsSMILTargetIdentifier& aResult)
+nsSMILAnimationController::GetCompositorKeyForAnimation(
+    nsISMILAnimationElement* aAnimElem, nsSMILCompositorKey& aResult)
 {
   // Look up target (animated) element
   nsIContent* targetElem = aAnimElem->GetTargetElementContent();

@@ -44,7 +44,7 @@
 #include "nsIAccessibleDocument.h"
 #include "nsIAccessibleHyperText.h"
 #include "nsIXBLAccessible.h"
-#include "nsAccTreeWalker.h"
+#include "nsAccessibleTreeWalker.h"
 
 #include "nsIDOMElement.h"
 #include "nsIDOMDocument.h"
@@ -2498,7 +2498,7 @@ nsAccessible::DoCommand(nsIContent *aContent, PRUint32 aActionIndex)
 {
   nsCOMPtr<nsIContent> content = aContent;
   if (!content)
-    content = nsCoreUtils::GetRoleContent(mDOMNode);
+    content = do_QueryInterface(mDOMNode);
 
   NS_DISPATCH_RUNNABLEMETHOD_ARG2(DispatchClickEvent, this,
                                   content, aActionIndex)
@@ -2987,20 +2987,32 @@ nsAccessible::GetCachedFirstChild()
 void
 nsAccessible::CacheChildren()
 {
-  nsAccTreeWalker walker(mWeakShell, nsCoreUtils::GetRoleContent(mDOMNode),
-                         GetAllowsAnonChildAccessibles());
+  PRBool allowsAnonChildren = GetAllowsAnonChildAccessibles();
+  nsAccessibleTreeWalker walker(mWeakShell, mDOMNode, allowsAnonChildren);
 
-  nsRefPtr<nsAccessible> child;
-  while ((child = walker.GetNextChild())) {
-    mChildren.AppendElement(child);
-    child->SetParent(this);
+  // Seed the frame hint early while we're still on a container node.
+  // This is better than doing the GetPrimaryFrameFor() later on
+  // a text node, because text nodes aren't in the frame map.
+  // XXXbz is this code still needed?
+  walker.mState.frame = GetFrame();
+
+  walker.GetFirstChild();
+  while (walker.mState.accessible) {
+    nsRefPtr<nsAccessible> acc =
+      nsAccUtils::QueryObject<nsAccessible>(walker.mState.accessible);
+
+    mChildren.AppendElement(acc);
+
+    acc->SetParent(this);
+
+    walker.GetNextSibling();
   }
 }
 
 void
 nsAccessible::TestChildCache(nsAccessible *aCachedChild)
 {
-#ifdef DEBUG
+#ifdef DEBUG_A11Y
   // All cached accessible nodes should be in the parent
   // It will assert if not all the children were created
   // when they were first cached, and no invalidation
@@ -3008,13 +3020,12 @@ nsAccessible::TestChildCache(nsAccessible *aCachedChild)
   PRUint32 childCount = mChildren.Length();
   if (childCount == 0) {
     NS_ASSERTION(mAreChildrenInitialized,
-                 "Children are stored but not initialized!");
+                 "Children are stored but not initailzied!");
     return;
   }
 
-  nsAccessible *child;
   for (PRInt32 childIdx = 0; childIdx < childCount; childIdx++) {
-    child = GetChildAt(childIdx);
+    nsAccessible *child = GetChildAt(childIdx);
     if (child == aCachedChild)
       break;
   }
@@ -3085,13 +3096,13 @@ nsAccessible::GetSiblingAtOffset(PRInt32 aOffset, nsresult* aError)
 already_AddRefed<nsIAccessible>
 nsAccessible::GetFirstAvailableAccessible(nsIDOMNode *aStartNode)
 {
+  nsIAccessibilityService *accService = GetAccService();
   nsCOMPtr<nsIAccessible> accessible;
   nsCOMPtr<nsIDOMTreeWalker> walker; 
   nsCOMPtr<nsIDOMNode> currentNode(aStartNode);
 
   while (currentNode) {
-    GetAccService()->GetAccessibleInWeakShell(currentNode, mWeakShell,
-                                              getter_AddRefs(accessible));
+    accService->GetAccessibleInWeakShell(currentNode, mWeakShell, getter_AddRefs(accessible)); // AddRef'd
     if (accessible)
       return accessible.forget();
 
@@ -3203,7 +3214,8 @@ nsAccessible::GetActionRule(PRUint32 aStates)
       return eClickAction;
 
   // Has registered 'click' event handler.
-  PRBool isOnclick = nsCoreUtils::HasClickListener(content);
+  PRBool isOnclick = nsCoreUtils::HasListener(content,
+                                              NS_LITERAL_STRING("click"));
 
   if (isOnclick)
     return eClickAction;

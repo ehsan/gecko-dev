@@ -81,7 +81,6 @@ public:
   void ReloadChildFrames();
 
   nsresult CreateAnonymousContent(nsTArray<nsIContent*>& aElements);
-  void AppendAnonymousContentTo(nsBaseContentList& aElements);
   nsresult FireScrollPortEvent();
   void PostOverflowEvent();
   void Destroy();
@@ -169,10 +168,10 @@ public:
   }
 
   void AddScrollPositionListener(nsIScrollPositionListener* aListener) {
-    mListeners.AppendElement(aListener);
+    mListeners.AppendObject(aListener);
   }
   void RemoveScrollPositionListener(nsIScrollPositionListener* aListener) {
-    mListeners.RemoveElement(aListener);
+    mListeners.RemoveObject(aListener);
   }
 
   static void SetScrollbarVisibility(nsIBox* aScrollbar, PRBool aVisible);
@@ -233,7 +232,7 @@ public:
   nsIBox* mScrollCornerBox;
   nsContainerFrame* mOuter;
   AsyncScroll* mAsyncScroll;
-  nsTArray<nsIScrollPositionListener*> mListeners;
+  nsCOMArray<nsIScrollPositionListener> mListeners;
   nsRect mScrollPort;
   // Where we're currently scrolling to, if we're scrolling asynchronously.
   // If we're not in the middle of an asynchronous scroll then this is
@@ -373,7 +372,6 @@ public:
 
   // nsIAnonymousContentCreator
   virtual nsresult CreateAnonymousContent(nsTArray<nsIContent*>& aElements);
-  virtual void AppendAnonymousContentTo(nsBaseContentList& aElements);
 
   // nsIScrollableFrame
   virtual nsIFrame* GetScrolledFrame() const {
@@ -568,7 +566,6 @@ public:
 
   // nsIAnonymousContentCreator
   virtual nsresult CreateAnonymousContent(nsTArray<nsIContent*>& aElements);
-  virtual void AppendAnonymousContentTo(nsBaseContentList& aElements);
 
   virtual nsSize GetMinSize(nsBoxLayoutState& aBoxLayoutState);
   virtual nsSize GetPrefSize(nsBoxLayoutState& aBoxLayoutState);

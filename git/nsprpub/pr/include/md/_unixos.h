@@ -235,9 +235,6 @@ extern void _MD_unix_init_running_cpu(struct _PRCPU *cpu);
 
 extern void _PR_UnixInit(void);
 
-extern void _PR_UnixCleanup(void);
-#define _MD_EARLY_CLEANUP _PR_UnixCleanup
-
 /************************************************************************/
 
 struct _MDProcess {

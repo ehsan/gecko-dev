@@ -295,7 +295,8 @@ nsAccReorderEvent::HasAccessibleInReasonSubtree()
     return PR_FALSE;
 
   nsCOMPtr<nsIAccessible> accessible;
-  GetAccService()->GetAccessibleFor(mReasonNode, getter_AddRefs(accessible));
+  nsAccessNode::GetAccService()->GetAccessibleFor(mReasonNode,
+                                                  getter_AddRefs(accessible));
 
   return accessible || nsAccUtils::HasAccessibleChildren(mReasonNode);
 }

@@ -598,7 +598,7 @@ nsCSSSelector::AppendToStringWithoutCombinatorsOrNegations
                    "without a prefix?");
       nsAutoString prefix;
       prefixAtom->ToString(prefix);
-      nsStyleUtil::AppendEscapedCSSIdent(prefix, aString);
+      aString.Append(prefix);
       aString.Append(PRUnichar('|'));
       wroteNamespace = PR_TRUE;
     } else {
@@ -625,8 +625,6 @@ nsCSSSelector::AppendToStringWithoutCombinatorsOrNegations
     }
   } else {
     // Append the tag name
-    nsAutoString tag;
-    (isPseudoElement ? mLowercaseTag : mCasedTag)->ToString(tag);
     if (isPseudoElement) {
       if (!mNext) {
         // Lone pseudo-element selector -- toss in a wildcard type selector
@@ -636,14 +634,10 @@ nsCSSSelector::AppendToStringWithoutCombinatorsOrNegations
       if (!nsCSSPseudoElements::IsCSS2PseudoElement(mLowercaseTag)) {
         aString.Append(PRUnichar(':'));
       }
-      // This should not be escaped since (a) the pseudo-element string
-      // has a ":" that can't be escaped and (b) all pseudo-elements at
-      // this point are known, and therefore we know they don't need
-      // escaping.
-      aString.Append(tag);
-    } else {
-      nsStyleUtil::AppendEscapedCSSIdent(tag, aString);
     }
+    nsAutoString prefix;
+    (isPseudoElement ? mLowercaseTag : mCasedTag)->ToString(prefix);
+    aString.Append(prefix);
   }
 
   // Append the id, if there is one
@@ -652,7 +646,7 @@ nsCSSSelector::AppendToStringWithoutCombinatorsOrNegations
     while (list != nsnull) {
       list->mAtom->ToString(temp);
       aString.Append(PRUnichar('#'));
-      nsStyleUtil::AppendEscapedCSSIdent(temp, aString);
+      aString.Append(temp);
       list = list->mNext;
     }
   }
@@ -663,7 +657,7 @@ nsCSSSelector::AppendToStringWithoutCombinatorsOrNegations
     while (list != nsnull) {
       list->mAtom->ToString(temp);
       aString.Append(PRUnichar('.'));
-      nsStyleUtil::AppendEscapedCSSIdent(temp, aString);
+      aString.Append(temp);
       list = list->mNext;
     }
   }
@@ -688,13 +682,13 @@ nsCSSSelector::AppendToStringWithoutCombinatorsOrNegations
                        "is unknown?");
           nsAutoString prefix;
           prefixAtom->ToString(prefix);
-          nsStyleUtil::AppendEscapedCSSIdent(prefix, aString);
+          aString.Append(prefix);
           aString.Append(PRUnichar('|'));
         }
       }
       // Append the attribute name
       list->mCasedAttr->ToString(temp);
-      nsStyleUtil::AppendEscapedCSSIdent(temp, aString);
+      aString.Append(temp);
 
       if (list->mFunction != NS_ATTR_FUNC_SET) {
         // Append the function
@@ -731,7 +725,7 @@ nsCSSSelector::AppendToStringWithoutCombinatorsOrNegations
       for (nsPseudoClassList* list = mPseudoClassList; list;
            list = list->mNext) {
         list->mAtom->ToString(temp);
-        nsStyleUtil::AppendEscapedCSSIdent(temp, aString);
+        aString.Append(temp);
         NS_ABORT_IF_FALSE(!list->u.mMemory, "data not expected");
         aString.Append(PRUnichar(','));
       }
@@ -744,16 +738,11 @@ nsCSSSelector::AppendToStringWithoutCombinatorsOrNegations
   } else {
     for (nsPseudoClassList* list = mPseudoClassList; list; list = list->mNext) {
       list->mAtom->ToString(temp);
-      // This should not be escaped since (a) the pseudo-class string
-      // has a ":" that can't be escaped and (b) all pseudo-classes at
-      // this point are known, and therefore we know they don't need
-      // escaping.
       aString.Append(temp);
       if (list->u.mMemory) {
         aString.Append(PRUnichar('('));
         if (nsCSSPseudoClasses::HasStringArg(list->mAtom)) {
-          nsStyleUtil::AppendEscapedCSSIdent(
-            nsDependentString(list->u.mString), aString);
+          aString.Append(list->u.mString);
         } else {
           NS_ASSERTION(nsCSSPseudoClasses::HasNthPairArg(list->mAtom),
                        "unexpected pseudo-class");

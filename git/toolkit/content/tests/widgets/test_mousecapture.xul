@@ -17,7 +17,6 @@ SimpleTest.waitForExplicitFinish();
 var captureRetargetMode = false;
 var cachedMouseDown = null;
 var previousWidth = 0, originalWidth = 0;
-var loadInWindow = false;
 
 function splitterCallback(adjustment)
 {
@@ -61,6 +60,10 @@ function selectionScrollCheck()
 {
   var element = otherWindow.document.documentElement;
 
+  disableNonTestMouseEvents(true);
+  synthesizeMouse(element, 2, 2, { type: "mousedown" }, otherWindow);
+  synthesizeMouse(element, 4, otherWindow.innerHeight + 20, { type: "mousemove" }, otherWindow);
+
   var count = 0;
   function selectionScrollDone() {
     // wait for 6 scroll events to occur
@@ -77,27 +80,10 @@ function selectionScrollCheck()
     synthesizeMouse(element, 4, otherWindow.innerHeight + 25, { type: "mouseup" }, otherWindow);
     disableNonTestMouseEvents(false);
     otherWindow.close();
-
-    if (loadInWindow) {
-      SimpleTest.finish();
-    }
-    else {
-      // now try again, but open the page in a new window
-      loadInWindow = true;
-      synthesizeMouse(document.getElementById("custom"), 2, 2, { type: "mousedown" });
-
-      // check to ensure that selection dragging scrolls the right scrollable area
-      otherWindow = window.open("data:text/html,<html><p style='margin-top: 4000px'>This is some text</p></html>", "_blank", "width=200,height=200,scrollbars=yes");
-      SimpleTest.waitForFocus(selectionScrollCheck, otherWindow);
-    }
+    SimpleTest.finish();
   }
 
-  SimpleTest.executeSoon(function () {
-    disableNonTestMouseEvents(true);
-    synthesizeMouse(element, 2, 2, { type: "mousedown" }, otherWindow);
-    synthesizeMouse(element, 4, otherWindow.innerHeight + 20, { type: "mousemove" }, otherWindow);
-    otherWindow.addEventListener("scroll", selectionScrollDone, false);
-  });
+  otherWindow.addEventListener("scroll", selectionScrollDone, false);
 }
 
 function runTests()
@@ -144,14 +130,6 @@ function runTests()
                              $("leftbox"), "mousemove", "setCapture only works on elements in documents");
   synthesizeMouse(custom6, 2, 2, { type: "mouseup" });
 
-  // test that mousedown on an image with setCapture followed by a big enough
-  // mouse move does not start a drag (bug 517737)
-  var image = document.getElementById("image");
-  synthesizeMouse(image, 2, 2, { type: "mousedown" });
-  synthesizeMouseExpectEvent($("leftbox"), 2, 2, { type: "mousemove" },
-                             image, "mousemove", "setCapture works on images");
-  synthesizeMouse(image, 2, 2, { type: "mouseup" });
-
   var b = frames[0].document.getElementById("b");
   runCaptureTest(b, selectionCallback);
 
@@ -181,10 +159,7 @@ function runTests()
   is(select.selectedIndex, 9, "scroll select");
   synthesizeMouse(document.getElementById("select"), 2, 2, { type: "mouseup" });
 
-  synthesizeMouse(custom, 2, 2, { type: "mousedown" });
-
-  // check to ensure that selection dragging scrolls the right scrollable area.
-  // This should open the page in a new tab.
+  // check to ensure that selection dragging scrolls the right scrollable area
   otherWindow = window.open("data:text/html,<html><p style='margin-top: 4000px'>This is some text</p></html>", "_blank");
   SimpleTest.waitForFocus(selectionScrollCheck, otherWindow);
 }
@@ -298,13 +273,6 @@ SimpleTest.waitForFocus(runTests);
     <option id="option9">Nine</option>
     <option id="option10">Ten</option>
   </select>
-</hbox>
-
-<hbox>
-  <img id="image" xmlns="http://www.w3.org/1999/xhtml"
-       onmousedown="this.setCapture();" onmouseup="this.releaseCapture();"
-       ondragstart="ok(false, 'should not get a drag when a setCapture is active');"
-       src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAABQAAAAUCAIAAAAC64paAAAAG0lEQVR42mP8z0A%2BYKJA76jmUc2jmkc1U0EzACKcASfOgGoMAAAAAElFTkSuQmCC"/>
 </hbox>
 
 <body id="body" xmlns="http://www.w3.org/1999/xhtml">

@@ -699,13 +699,10 @@ GetFontExtensionPref(nsIPrefBranch* aPrefBranch, PRUnichar aChar,
   {
     case eExtension_base:
       extension.AssignLiteral(".base");
-      break;
     case eExtension_variants:
       extension.AssignLiteral(".variants");
-      break;
     case eExtension_parts:
       extension.AssignLiteral(".parts");
-      break;
     default:
       return PR_FALSE;
   }
@@ -721,8 +718,8 @@ GetFontExtensionPref(nsIPrefBranch* aPrefBranch, PRUnichar aChar,
   nsCAutoString alternateKey;
   alternateKey.AssignASCII(kMathFontPrefix);
   NS_ConvertUTF16toUTF8 tmp(&aChar, 1);
-  alternateKey.Append(tmp);
-  alternateKey.Append(extension);
+  key.Append(tmp);
+  key.Append(extension);
 
   return GetPrefValue(aPrefBranch, key.get(), aValue) ||
     GetPrefValue(aPrefBranch, alternateKey.get(), aValue);
@@ -1171,7 +1168,7 @@ SetFontFamily(nsPresContext*       aPresContext,
     aGlyphCode.font ? aGlyphTable->FontNameFor(aGlyphCode) : aDefaultFamily;
   if (! family.Equals(aFont.name)) {
     aFont.name = family;
-    aRenderingContext.SetFont(aFont, aPresContext->GetUserFontSet());
+    aRenderingContext.SetFont(aFont, nsnull, aPresContext->GetUserFontSet());
   }
 }
 
@@ -1584,9 +1581,9 @@ nsMathMLChar::StretchInternal(nsPresContext*           aPresContext,
     // Record the families in case there is no stretch.  But don't bother
     // storing families when they are just those from the StyleContext.
     mFamily = families;
-  }
+  }    
 
-  aRenderingContext.SetFont(font, aPresContext->GetUserFontSet());
+  aRenderingContext.SetFont(font, nsnull, aPresContext->GetUserFontSet());
   nsresult rv =
     aRenderingContext.GetBoundingMetrics(mData.get(), PRUint32(mData.Length()),
                                          aDesiredStretchSize);
@@ -2096,7 +2093,7 @@ nsMathMLChar::PaintForeground(nsPresContext* aPresContext,
   if (! mFamily.IsEmpty()) {
     theFont.name = mFamily;
   }
-  aRenderingContext.SetFont(theFont, aPresContext->GetUserFontSet());
+  aRenderingContext.SetFont(theFont, nsnull, aPresContext->GetUserFontSet());
 
   if (NS_STRETCH_DIRECTION_UNSUPPORTED == mDirection) {
     // normal drawing if there is nothing special about this char ...

@@ -700,6 +700,7 @@ MAKEFILES_xulapp="
   toolkit/components/commandlines/src/Makefile
   toolkit/components/console/Makefile
   toolkit/components/contentprefs/Makefile
+  toolkit/components/contentprefs/public/Makefile
   toolkit/components/contentprefs/src/Makefile
   toolkit/components/cookie/Makefile
   toolkit/components/downloads/public/Makefile
@@ -752,9 +753,10 @@ MAKEFILES_xulapp="
   toolkit/mozapps/extensions/Makefile
   toolkit/mozapps/handling/Makefile
   toolkit/mozapps/plugins/Makefile
-  toolkit/mozapps/readstrings/Makefile
   toolkit/mozapps/update/Makefile
-  toolkit/mozapps/update/updater/Makefile
+  toolkit/mozapps/update/public/Makefile
+  toolkit/mozapps/update/src/Makefile
+  toolkit/mozapps/update/src/updater/Makefile
   toolkit/mozapps/xpinstall/Makefile
   toolkit/profile/Makefile
   toolkit/profile/public/Makefile

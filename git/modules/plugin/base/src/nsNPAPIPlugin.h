@@ -68,7 +68,10 @@
 typedef NS_NPAPIPLUGIN_CALLBACK(NPError, NP_GETENTRYPOINTS) (NPPluginFuncs* pCallbacks);
 typedef NS_NPAPIPLUGIN_CALLBACK(NPError, NP_PLUGININIT) (const NPNetscapeFuncs* pCallbacks);
 typedef NS_NPAPIPLUGIN_CALLBACK(NPError, NP_PLUGINUNIXINIT) (const NPNetscapeFuncs* pCallbacks, NPPluginFuncs* fCallbacks);
-typedef NS_NPAPIPLUGIN_CALLBACK(NPError, NP_PLUGINSHUTDOWN) ();
+typedef NS_NPAPIPLUGIN_CALLBACK(NPError, NP_PLUGINSHUTDOWN) (void);
+#ifdef XP_MACOSX
+typedef NS_NPAPIPLUGIN_CALLBACK(NPError, NP_MAIN) (NPNetscapeFuncs* nCallbacks, NPPluginFuncs* pCallbacks, NPP_ShutdownProcPtr* unloadProcPtr);
+#endif
 
 class nsNPAPIPlugin : public nsIPlugin
 {
@@ -93,23 +96,26 @@ public:
 
 #ifdef MOZ_IPC
   // The IPC mechanism notifies the nsNPAPIPlugin if the plugin crashes and is
-  // no longer usable. dumpID is the ID of a minidump that was written,
-  // or empty if no minidump was written.
-  void PluginCrashed(const nsAString& dumpID);
+  // no longer usable.
+  void PluginCrashed();
 #endif
 
 protected:
-  // Ensures that the static browser functions are properly initialized
-  static void CheckClassInitialized();
+  // Ensures that the static CALLBACKS is properly initialized
+  static void CheckClassInitialized(void);
 
 #ifdef XP_MACOSX
-  short mPluginRefNum;
+  short fPluginRefNum;
 #endif
 
   // The plugin-side callbacks that the browser calls. One set of
   // plugin callbacks for each plugin.
-  NPPluginFuncs mPluginFuncs;
-  PluginLibrary* mLibrary;
+  NPPluginFuncs fCallbacks;
+  PluginLibrary* fLibrary;
+  PRLibrary* fPRLibrary;
+
+  // Browser-side callbacks that the plugin calls.
+  static NPNetscapeFuncs CALLBACKS;
 };
 
 namespace mozilla {
@@ -294,7 +300,7 @@ _memalloc (uint32_t size);
 
 // Deprecated entry points for the old Java plugin.
 void* NP_CALLBACK /* OJI type: JRIEnv* */
-_getJavaEnv();
+_getJavaEnv(void);
 
 void* NP_CALLBACK /* OJI type: jref */
 _getJavaPeer(NPP npp);

@@ -66,8 +66,7 @@ public:
   static nsresult ParseValues(const nsAString& aSpec,
                               const nsISMILAnimationElement* aSrcElement,
                               const nsISMILAttr& aAttribute,
-                              nsTArray<nsSMILValue>& aValuesArray,
-                              PRBool& aCanCache);
+                              nsTArray<nsSMILValue>& aValuesArray);
 
   static nsresult ParseRepeatCount(const nsAString& aSpec,
                                    nsSMILRepeatCount& aResult);

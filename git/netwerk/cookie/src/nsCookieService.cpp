@@ -1727,7 +1727,11 @@ nsCookieService::AddInternal(const nsCString &aBaseDomain,
 
  ** Begin BNF:
     token         = 1*<any allowed-chars except separators>
-    value         = 1*<any allowed-chars except value-sep>
+    value         = token-value | quoted-string
+    token-value   = 1*<any allowed-chars except value-sep>
+    quoted-string = ( <"> *( qdtext | quoted-pair ) <"> )
+    qdtext        = <any allowed-chars except <">>             ; CR | LF removed by necko
+    quoted-pair   = "\" <any OCTET except NUL or cookie-sep>   ; CR | LF removed by necko
     separators    = ";" | "="
     value-sep     = ";"
     cookie-sep    = CR | LF
@@ -1762,6 +1766,7 @@ nsCookieService::AddInternal(const nsCString &aBaseDomain,
 // helper functions for GetTokenValue
 static inline PRBool iswhitespace     (char c) { return c == ' '  || c == '\t'; }
 static inline PRBool isterminator     (char c) { return c == '\n' || c == '\r'; }
+static inline PRBool isquoteterminator(char c) { return isterminator(c) || c == '"'; }
 static inline PRBool isvalueseparator (char c) { return isterminator(c) || c == ';'; }
 static inline PRBool istokenseparator (char c) { return isvalueseparator(c) || c == '='; }
 
@@ -1801,16 +1806,39 @@ nsCookieService::GetTokenValue(nsASingleFragmentCString::const_char_iterator &aI
 
     start = aIter;
 
-    // process <token>
-    // just look for ';' to terminate ('=' allowed)
-    while (aIter != aEndIter && !isvalueseparator(*aIter))
-      ++aIter;
+    if (*aIter == '"') {
+      // process <quoted-string>
+      // (note: cookie terminators, CR | LF, can't happen:
+      // they're removed by necko before the header gets here)
+      // assume value mangled if no terminating '"', return
+      while (++aIter != aEndIter && !isquoteterminator(*aIter)) {
+        // if <qdtext> (backwhacked char), skip over it. this allows '\"' in <quoted-string>.
+        // we increment once over the backwhack, nullcheck, then continue to the 'while',
+        // which increments over the backwhacked char. one exception - we don't allow
+        // CR | LF here either (see above about necko)
+        if (*aIter == '\\' && (++aIter == aEndIter || isterminator(*aIter)))
+          break;
+      }
 
-    // remove trailing <LWS>; first check we're not at the beginning
-    if (aIter != start) {
-      lastSpace = aIter;
-      while (--lastSpace != start && iswhitespace(*lastSpace));
-      aTokenValue.Rebind(start, ++lastSpace);
+      if (aIter != aEndIter && !isterminator(*aIter)) {
+        // include terminating quote in attribute string
+        aTokenValue.Rebind(start, ++aIter);
+        // skip to next ';'
+        while (aIter != aEndIter && !isvalueseparator(*aIter))
+          ++aIter;
+      }
+    } else {
+      // process <token-value>
+      // just look for ';' to terminate ('=' allowed)
+      while (aIter != aEndIter && !isvalueseparator(*aIter))
+        ++aIter;
+
+      // remove trailing <LWS>; first check we're not at the beginning
+      if (aIter != start) {
+        lastSpace = aIter;
+        while (--lastSpace != start && iswhitespace(*lastSpace));
+        aTokenValue.Rebind(start, ++lastSpace);
+      }
     }
   }
 
@@ -1872,6 +1900,10 @@ nsCookieService::ParseAttributes(nsDependentCString &aCookieHeader,
     if (!tokenValue.IsEmpty()) {
       tokenValue.BeginReading(tempBegin);
       tokenValue.EndReading(tempEnd);
+      if (*tempBegin == '"' && *--tempEnd == '"') {
+        // our parameter is a quoted-string; remove quotes for later parsing
+        tokenValue.Rebind(++tempBegin, tempEnd);
+      }
     }
 
     // decide which attribute we have, and copy the string
@@ -2237,14 +2269,17 @@ nsCookieService::GetExpiry(nsCookieAttributes &aCookieAttributes,
 
   // check for expires attribute
   } else if (!aCookieAttributes.expires.IsEmpty()) {
-    PRTime expires;
+    PRTime tempExpires;
+    PRInt64 expires;
 
     // parse expiry time
-    if (PR_ParseTimeString(aCookieAttributes.expires.get(), PR_TRUE, &expires) != PR_SUCCESS) {
+    if (PR_ParseTimeString(aCookieAttributes.expires.get(), PR_TRUE, &tempExpires) == PR_SUCCESS) {
+      expires = tempExpires / PR_USEC_PER_SEC;
+    } else {
       return PR_TRUE;
     }
 
-    delta = expires / PR_USEC_PER_SEC - aServerTime;
+    delta = expires - aServerTime;
 
   // default to session cookie if no attributes found
   } else {

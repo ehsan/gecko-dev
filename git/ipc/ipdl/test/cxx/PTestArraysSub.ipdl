@@ -3,11 +3,11 @@ include protocol "PTestArrays.ipdl";
 namespace mozilla {
 namespace _ipdltest {
 
-sync protocol PTestArraysSub {
+protocol PTestArraysSub {
     manager PTestArrays;
 
 parent:
-    sync __delete__();
+    __delete__();
 };
 
 } // namespace _ipdltest

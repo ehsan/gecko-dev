@@ -109,7 +109,6 @@ using mozilla::PluginPRLibrary;
 using mozilla::plugins::PluginModuleParent;
 #endif
 
-static NPNetscapeFuncs sBrowserFuncs;
 static PRLock *sPluginThreadAsyncCallLock = nsnull;
 static PRCList sPendingAsyncCalls = PR_INIT_STATIC_CLIST(&sPendingAsyncCalls);
 
@@ -143,8 +142,10 @@ void NS_NotifyPluginCall(PRIntervalTime startTime)
                                    runTime);
 }
 
+NPNetscapeFuncs nsNPAPIPlugin::CALLBACKS;
+
 void
-nsNPAPIPlugin::CheckClassInitialized()
+nsNPAPIPlugin::CheckClassInitialized(void)
 {
   static PRBool initialized = PR_FALSE;
 
@@ -152,60 +153,62 @@ nsNPAPIPlugin::CheckClassInitialized()
     return;
 
   // XXX It'd be nice to make this const and initialize it statically...
-  sBrowserFuncs.size = sizeof(sBrowserFuncs);
-  sBrowserFuncs.version = (NP_VERSION_MAJOR << 8) + NP_VERSION_MINOR;
-  sBrowserFuncs.geturl = ((NPN_GetURLProcPtr)_geturl);
-  sBrowserFuncs.posturl = ((NPN_PostURLProcPtr)_posturl);
-  sBrowserFuncs.requestread = ((NPN_RequestReadProcPtr)_requestread);
-  sBrowserFuncs.newstream = ((NPN_NewStreamProcPtr)_newstream);
-  sBrowserFuncs.write = ((NPN_WriteProcPtr)_write);
-  sBrowserFuncs.destroystream = ((NPN_DestroyStreamProcPtr)_destroystream);
-  sBrowserFuncs.status = ((NPN_StatusProcPtr)_status);
-  sBrowserFuncs.uagent = ((NPN_UserAgentProcPtr)_useragent);
-  sBrowserFuncs.memalloc = ((NPN_MemAllocProcPtr)_memalloc);
-  sBrowserFuncs.memfree = ((NPN_MemFreeProcPtr)_memfree);
-  sBrowserFuncs.memflush = ((NPN_MemFlushProcPtr)_memflush);
-  sBrowserFuncs.reloadplugins = ((NPN_ReloadPluginsProcPtr)_reloadplugins);
-  sBrowserFuncs.getJavaEnv = ((NPN_GetJavaEnvProcPtr)_getJavaEnv);
-  sBrowserFuncs.getJavaPeer = ((NPN_GetJavaPeerProcPtr)_getJavaPeer);
-  sBrowserFuncs.geturlnotify = ((NPN_GetURLNotifyProcPtr)_geturlnotify);
-  sBrowserFuncs.posturlnotify = ((NPN_PostURLNotifyProcPtr)_posturlnotify);
-  sBrowserFuncs.getvalue = ((NPN_GetValueProcPtr)_getvalue);
-  sBrowserFuncs.setvalue = ((NPN_SetValueProcPtr)_setvalue);
-  sBrowserFuncs.invalidaterect = ((NPN_InvalidateRectProcPtr)_invalidaterect);
-  sBrowserFuncs.invalidateregion = ((NPN_InvalidateRegionProcPtr)_invalidateregion);
-  sBrowserFuncs.forceredraw = ((NPN_ForceRedrawProcPtr)_forceredraw);
-  sBrowserFuncs.getstringidentifier = ((NPN_GetStringIdentifierProcPtr)_getstringidentifier);
-  sBrowserFuncs.getstringidentifiers = ((NPN_GetStringIdentifiersProcPtr)_getstringidentifiers);
-  sBrowserFuncs.getintidentifier = ((NPN_GetIntIdentifierProcPtr)_getintidentifier);
-  sBrowserFuncs.identifierisstring = ((NPN_IdentifierIsStringProcPtr)_identifierisstring);
-  sBrowserFuncs.utf8fromidentifier = ((NPN_UTF8FromIdentifierProcPtr)_utf8fromidentifier);
-  sBrowserFuncs.intfromidentifier = ((NPN_IntFromIdentifierProcPtr)_intfromidentifier);
-  sBrowserFuncs.createobject = ((NPN_CreateObjectProcPtr)_createobject);
-  sBrowserFuncs.retainobject = ((NPN_RetainObjectProcPtr)_retainobject);
-  sBrowserFuncs.releaseobject = ((NPN_ReleaseObjectProcPtr)_releaseobject);
-  sBrowserFuncs.invoke = ((NPN_InvokeProcPtr)_invoke);
-  sBrowserFuncs.invokeDefault = ((NPN_InvokeDefaultProcPtr)_invokeDefault);
-  sBrowserFuncs.evaluate = ((NPN_EvaluateProcPtr)_evaluate);
-  sBrowserFuncs.getproperty = ((NPN_GetPropertyProcPtr)_getproperty);
-  sBrowserFuncs.setproperty = ((NPN_SetPropertyProcPtr)_setproperty);
-  sBrowserFuncs.removeproperty = ((NPN_RemovePropertyProcPtr)_removeproperty);
-  sBrowserFuncs.hasproperty = ((NPN_HasPropertyProcPtr)_hasproperty);
-  sBrowserFuncs.hasmethod = ((NPN_HasMethodProcPtr)_hasmethod);
-  sBrowserFuncs.enumerate = ((NPN_EnumerateProcPtr)_enumerate);
-  sBrowserFuncs.construct = ((NPN_ConstructProcPtr)_construct);
-  sBrowserFuncs.releasevariantvalue = ((NPN_ReleaseVariantValueProcPtr)_releasevariantvalue);
-  sBrowserFuncs.setexception = ((NPN_SetExceptionProcPtr)_setexception);
-  sBrowserFuncs.pushpopupsenabledstate = ((NPN_PushPopupsEnabledStateProcPtr)_pushpopupsenabledstate);
-  sBrowserFuncs.poppopupsenabledstate = ((NPN_PopPopupsEnabledStateProcPtr)_poppopupsenabledstate);
-  sBrowserFuncs.pluginthreadasynccall = ((NPN_PluginThreadAsyncCallProcPtr)_pluginthreadasynccall);
-  sBrowserFuncs.getvalueforurl = ((NPN_GetValueForURLPtr)_getvalueforurl);
-  sBrowserFuncs.setvalueforurl = ((NPN_SetValueForURLPtr)_setvalueforurl);
-  sBrowserFuncs.getauthenticationinfo = ((NPN_GetAuthenticationInfoPtr)_getauthenticationinfo);
-  sBrowserFuncs.scheduletimer = ((NPN_ScheduleTimerPtr)_scheduletimer);
-  sBrowserFuncs.unscheduletimer = ((NPN_UnscheduleTimerPtr)_unscheduletimer);
-  sBrowserFuncs.popupcontextmenu = ((NPN_PopUpContextMenuPtr)_popupcontextmenu);
-  sBrowserFuncs.convertpoint = ((NPN_ConvertPointPtr)_convertpoint);
+  CALLBACKS.size = sizeof(CALLBACKS);
+  CALLBACKS.version = (NP_VERSION_MAJOR << 8) + NP_VERSION_MINOR;
+  CALLBACKS.geturl = ((NPN_GetURLProcPtr)_geturl);
+  CALLBACKS.posturl = ((NPN_PostURLProcPtr)_posturl);
+  CALLBACKS.requestread = ((NPN_RequestReadProcPtr)_requestread);
+  CALLBACKS.newstream = ((NPN_NewStreamProcPtr)_newstream);
+  CALLBACKS.write = ((NPN_WriteProcPtr)_write);
+  CALLBACKS.destroystream = ((NPN_DestroyStreamProcPtr)_destroystream);
+  CALLBACKS.status = ((NPN_StatusProcPtr)_status);
+  CALLBACKS.uagent = ((NPN_UserAgentProcPtr)_useragent);
+  CALLBACKS.memalloc = ((NPN_MemAllocProcPtr)_memalloc);
+  CALLBACKS.memfree = ((NPN_MemFreeProcPtr)_memfree);
+  CALLBACKS.memflush = ((NPN_MemFlushProcPtr)_memflush);
+  CALLBACKS.reloadplugins = ((NPN_ReloadPluginsProcPtr)_reloadplugins);
+
+  // Deprecated API callbacks.
+  CALLBACKS.getJavaEnv = ((NPN_GetJavaEnvProcPtr)_getJavaEnv);
+  CALLBACKS.getJavaPeer = ((NPN_GetJavaPeerProcPtr)_getJavaPeer);
+  CALLBACKS.geturlnotify = ((NPN_GetURLNotifyProcPtr)_geturlnotify);
+  CALLBACKS.posturlnotify = ((NPN_PostURLNotifyProcPtr)_posturlnotify);
+  CALLBACKS.getvalue = ((NPN_GetValueProcPtr)_getvalue);
+  CALLBACKS.setvalue = ((NPN_SetValueProcPtr)_setvalue);
+  CALLBACKS.invalidaterect = ((NPN_InvalidateRectProcPtr)_invalidaterect);
+  CALLBACKS.invalidateregion = ((NPN_InvalidateRegionProcPtr)_invalidateregion);
+  CALLBACKS.forceredraw = ((NPN_ForceRedrawProcPtr)_forceredraw);
+  CALLBACKS.getstringidentifier = ((NPN_GetStringIdentifierProcPtr)_getstringidentifier);
+  CALLBACKS.getstringidentifiers = ((NPN_GetStringIdentifiersProcPtr)_getstringidentifiers);
+  CALLBACKS.getintidentifier = ((NPN_GetIntIdentifierProcPtr)_getintidentifier);
+  CALLBACKS.identifierisstring = ((NPN_IdentifierIsStringProcPtr)_identifierisstring);
+  CALLBACKS.utf8fromidentifier = ((NPN_UTF8FromIdentifierProcPtr)_utf8fromidentifier);
+  CALLBACKS.intfromidentifier = ((NPN_IntFromIdentifierProcPtr)_intfromidentifier);
+  CALLBACKS.createobject = ((NPN_CreateObjectProcPtr)_createobject);
+  CALLBACKS.retainobject = ((NPN_RetainObjectProcPtr)_retainobject);
+  CALLBACKS.releaseobject = ((NPN_ReleaseObjectProcPtr)_releaseobject);
+  CALLBACKS.invoke = ((NPN_InvokeProcPtr)_invoke);
+  CALLBACKS.invokeDefault = ((NPN_InvokeDefaultProcPtr)_invokeDefault);
+  CALLBACKS.evaluate = ((NPN_EvaluateProcPtr)_evaluate);
+  CALLBACKS.getproperty = ((NPN_GetPropertyProcPtr)_getproperty);
+  CALLBACKS.setproperty = ((NPN_SetPropertyProcPtr)_setproperty);
+  CALLBACKS.removeproperty = ((NPN_RemovePropertyProcPtr)_removeproperty);
+  CALLBACKS.hasproperty = ((NPN_HasPropertyProcPtr)_hasproperty);
+  CALLBACKS.hasmethod = ((NPN_HasMethodProcPtr)_hasmethod);
+  CALLBACKS.enumerate = ((NPN_EnumerateProcPtr)_enumerate);
+  CALLBACKS.construct = ((NPN_ConstructProcPtr)_construct);
+  CALLBACKS.releasevariantvalue = ((NPN_ReleaseVariantValueProcPtr)_releasevariantvalue);
+  CALLBACKS.setexception = ((NPN_SetExceptionProcPtr)_setexception);
+  CALLBACKS.pushpopupsenabledstate = ((NPN_PushPopupsEnabledStateProcPtr)_pushpopupsenabledstate);
+  CALLBACKS.poppopupsenabledstate = ((NPN_PopPopupsEnabledStateProcPtr)_poppopupsenabledstate);
+  CALLBACKS.pluginthreadasynccall = ((NPN_PluginThreadAsyncCallProcPtr)_pluginthreadasynccall);
+  CALLBACKS.getvalueforurl = ((NPN_GetValueForURLPtr)_getvalueforurl);
+  CALLBACKS.setvalueforurl = ((NPN_SetValueForURLPtr)_setvalueforurl);
+  CALLBACKS.getauthenticationinfo = ((NPN_GetAuthenticationInfoPtr)_getauthenticationinfo);
+  CALLBACKS.scheduletimer = ((NPN_ScheduleTimerPtr)_scheduletimer);
+  CALLBACKS.unscheduletimer = ((NPN_UnscheduleTimerPtr)_unscheduletimer);
+  CALLBACKS.popupcontextmenu = ((NPN_PopUpContextMenuPtr)_popupcontextmenu);
+  CALLBACKS.convertpoint = ((NPN_ConvertPointPtr)_convertpoint);
 
   if (!sPluginThreadAsyncCallLock)
     sPluginThreadAsyncCallLock = nsAutoLock::NewLock("sPluginThreadAsyncCallLock");
@@ -220,22 +223,21 @@ NS_IMPL_ISUPPORTS1(nsNPAPIPlugin, nsIPlugin)
 nsNPAPIPlugin::nsNPAPIPlugin(NPPluginFuncs* callbacks, 
                              PluginLibrary* aLibrary)
 {
-  memset((void*) &mPluginFuncs, 0, sizeof(mPluginFuncs));
+  memset((void*) &fCallbacks, 0, sizeof(fCallbacks));
 
-  mPluginFuncs.size = sizeof(mPluginFuncs);
-  mLibrary = nsnull;
+  fCallbacks.size = sizeof(fCallbacks);
+  fLibrary = nsnull;
 
 #if defined(XP_WIN) || defined(XP_OS2)
-  // On Windows and OS/2 we need to keep a direct reference to
-  // the plugin's function struct, we can't just copy it. See
-  // Mozilla bug 85334.
+  // On Windows (and Mac) we need to keep a direct reference to the
+  // fCallbacks and NOT just copy the struct. See Bugzilla 85334
 
   NPError gepError;
-  nsresult gepResult = aLibrary->NP_GetEntryPoints(&mPluginFuncs, &gepError);
+  nsresult gepResult = aLibrary->NP_GetEntryPoints(&fCallbacks, &gepError);
   if (gepResult != NS_OK || gepError != NPERR_NO_ERROR)
     return;
 
-  NS_ASSERTION(HIBYTE(mPluginFuncs.version) >= NP_VERSION_MAJOR,
+  NS_ASSERTION(HIBYTE(fCallbacks.version) >= NP_VERSION_MAJOR,
                "callback version is less than NP version");
 
 #elif defined(XP_MACOSX)
@@ -251,7 +253,7 @@ nsNPAPIPlugin::nsNPAPIPlugin(NPPluginFuncs* callbacks,
   // we call NP_Initialize before getting function pointers to match
   // WebKit's behavior. They implemented this first on Mac OS X.
   NPError initError;
-  nsresult initResult = aLibrary->NP_Initialize(&(sBrowserFuncs), &initError);
+  nsresult initResult = aLibrary->NP_Initialize(&(nsNPAPIPlugin::CALLBACKS), &initError);
   if (initResult != NS_OK || initError != NPERR_NO_ERROR)
     return;
   NPError gepError;
@@ -259,34 +261,34 @@ nsNPAPIPlugin::nsNPAPIPlugin(NPPluginFuncs* callbacks,
   if (gepResult != NS_OK || gepError != NPERR_NO_ERROR)
     return;
 
-  mPluginFuncs.version = np_callbacks.version;
-  mPluginFuncs.newp = (NPP_NewProcPtr)np_callbacks.newp;
-  mPluginFuncs.destroy = (NPP_DestroyProcPtr)np_callbacks.destroy;
-  mPluginFuncs.setwindow = (NPP_SetWindowProcPtr)np_callbacks.setwindow;
-  mPluginFuncs.newstream = (NPP_NewStreamProcPtr)np_callbacks.newstream;
-  mPluginFuncs.destroystream = (NPP_DestroyStreamProcPtr)np_callbacks.destroystream;
-  mPluginFuncs.asfile = (NPP_StreamAsFileProcPtr)np_callbacks.asfile;
-  mPluginFuncs.writeready = (NPP_WriteReadyProcPtr)np_callbacks.writeready;
-  mPluginFuncs.write = (NPP_WriteProcPtr)np_callbacks.write;
-  mPluginFuncs.print = (NPP_PrintProcPtr)np_callbacks.print;
-  mPluginFuncs.event = (NPP_HandleEventProcPtr)np_callbacks.event;
-  mPluginFuncs.urlnotify = (NPP_URLNotifyProcPtr)np_callbacks.urlnotify;
-  mPluginFuncs.getvalue = (NPP_GetValueProcPtr)np_callbacks.getvalue;
-  mPluginFuncs.setvalue = (NPP_SetValueProcPtr)np_callbacks.setvalue;
+  fCallbacks.version = np_callbacks.version;
+  fCallbacks.newp = (NPP_NewProcPtr)np_callbacks.newp;
+  fCallbacks.destroy = (NPP_DestroyProcPtr)np_callbacks.destroy;
+  fCallbacks.setwindow = (NPP_SetWindowProcPtr)np_callbacks.setwindow;
+  fCallbacks.newstream = (NPP_NewStreamProcPtr)np_callbacks.newstream;
+  fCallbacks.destroystream = (NPP_DestroyStreamProcPtr)np_callbacks.destroystream;
+  fCallbacks.asfile = (NPP_StreamAsFileProcPtr)np_callbacks.asfile;
+  fCallbacks.writeready = (NPP_WriteReadyProcPtr)np_callbacks.writeready;
+  fCallbacks.write = (NPP_WriteProcPtr)np_callbacks.write;
+  fCallbacks.print = (NPP_PrintProcPtr)np_callbacks.print;
+  fCallbacks.event = (NPP_HandleEventProcPtr)np_callbacks.event;
+  fCallbacks.urlnotify = (NPP_URLNotifyProcPtr)np_callbacks.urlnotify;
+  fCallbacks.getvalue = (NPP_GetValueProcPtr)np_callbacks.getvalue;
+  fCallbacks.setvalue = (NPP_SetValueProcPtr)np_callbacks.setvalue;
 #else // for everyone else
-  memcpy((void*) &mPluginFuncs, (void*) callbacks, sizeof(mPluginFuncs));
+  memcpy((void*) &fCallbacks, (void*) callbacks, sizeof(fCallbacks));
 #endif
 
-  mLibrary = aLibrary;
-  mLibrary->SetPlugin(this);
+  fLibrary = aLibrary;
+  fLibrary->SetPlugin(this);
 }
 
 nsNPAPIPlugin::~nsNPAPIPlugin()
 {
   // reset the callbacks list
-  memset((void*) &mPluginFuncs, 0, sizeof(mPluginFuncs));
-  delete mLibrary;
-  mLibrary = NULL;
+  memset((void*) &fCallbacks, 0, sizeof(fCallbacks));
+  delete fLibrary;
+  fLibrary = NULL;
 }
 
 
@@ -294,16 +296,16 @@ nsNPAPIPlugin::~nsNPAPIPlugin()
 void
 nsNPAPIPlugin::SetPluginRefNum(short aRefNum)
 {
-  mPluginRefNum = aRefNum;
+  fPluginRefNum = aRefNum;
 }
 #endif
 
 #ifdef MOZ_IPC
 void
-nsNPAPIPlugin::PluginCrashed(const nsAString& dumpID)
+nsNPAPIPlugin::PluginCrashed()
 {
   nsRefPtr<nsPluginHost> host = dont_AddRef(nsPluginHost::GetInst());
-  host->PluginCrashed(this, dumpID);
+  host->PluginCrashed(this);
 }
 #endif
 
@@ -405,14 +407,14 @@ nsNPAPIPlugin::CreatePlugin(const char* aFilePath, PRLibrary* aLibrary,
   plptr->Initialize();
 
   NPError initError;
-  nsresult initResult = pluginLib->NP_Initialize(&(sBrowserFuncs),&callbacks, &initError);
+  nsresult initResult = pluginLib->NP_Initialize(&(nsNPAPIPlugin::CALLBACKS),&callbacks, &initError);
   if (initResult != NS_OK || initError != NPERR_NO_ERROR) {
     NS_RELEASE(*aResult);
     return NS_ERROR_UNEXPECTED;
   }
 
   // now copy function table back to nsNPAPIPlugin instance
-  memcpy((void*) &(plptr->mPluginFuncs), (void*)&callbacks, sizeof(callbacks));
+  memcpy((void*) &(plptr->fCallbacks), (void*)&callbacks, sizeof(callbacks));
 #endif
 
 #ifdef XP_WIN
@@ -437,7 +439,7 @@ nsNPAPIPlugin::CreatePlugin(const char* aFilePath, PRLibrary* aLibrary,
   }
 
   NPError initError;
-  nsresult initResult = pluginLib->NP_Initialize(&(sBrowserFuncs), &initError);
+  nsresult initResult = pluginLib->NP_Initialize(&(nsNPAPIPlugin::CALLBACKS), &initError);
   if (initResult != NS_OK || initError != NPERR_NO_ERROR)
     return NS_ERROR_FAILURE;
 #endif
@@ -509,7 +511,7 @@ nsNPAPIPlugin::CreatePlugin(const char* aFilePath, PRLibrary* aLibrary,
     bChangedDir = TRUE;
   }
 
-  nsresult rv = pfnInitialize(&(sBrowserFuncs));
+  nsresult rv = pfnInitialize(&(nsNPAPIPlugin::CALLBACKS));
 
   if (bChangedDisk) {
     rc= DosSetDefaultDisk(origDiskNum);
@@ -529,12 +531,14 @@ nsNPAPIPlugin::CreatePlugin(const char* aFilePath, PRLibrary* aLibrary,
 #ifndef __LP64__
   short appRefNum = ::CurResFile();
   short pluginRefNum;
+#endif
 
   nsCOMPtr<nsILocalFile> pluginPath;
   NS_NewNativeLocalFile(nsDependentCString(aFilePath), PR_TRUE,
                         getter_AddRefs(pluginPath));
   nsPluginFile pluginFile(pluginPath);
 
+#ifndef __LP64__
   pluginRefNum = pluginFile.OpenPluginResource();
 #endif
 
@@ -593,11 +597,11 @@ nsNPAPIPlugin::CreatePlugin(const char* aFilePath, PRLibrary* aLibrary,
   if (!pfnInitialize)
     return NS_ERROR_FAILURE;
 
-  if (pfnInitialize(&(sBrowserFuncs),&callbacks) != NS_OK)
+  if (pfnInitialize(&(nsNPAPIPlugin::CALLBACKS),&callbacks) != NS_OK)
     return NS_ERROR_FAILURE;
 
   // now copy function table back to nsNPAPIPlugin instance
-  memcpy((void*) &(plptr->mPluginFuncs), (void*)&callbacks, sizeof(callbacks));
+  memcpy((void*) &(plptr->fCallbacks), (void*)&callbacks, sizeof(callbacks));
 #endif
 
   return NS_OK;
@@ -612,7 +616,7 @@ nsNPAPIPlugin::CreatePluginInstance(nsIPluginInstance **aResult)
   *aResult = NULL;
 
   nsRefPtr<nsNPAPIPluginInstance> inst =
-    new nsNPAPIPluginInstance(&mPluginFuncs, mLibrary);
+    new nsNPAPIPluginInstance(&fCallbacks, fLibrary);
   if (!inst)
     return NS_ERROR_OUT_OF_MEMORY;
 
@@ -622,24 +626,24 @@ nsNPAPIPlugin::CreatePluginInstance(nsIPluginInstance **aResult)
 }
 
 nsresult
-nsNPAPIPlugin::Initialize()
+nsNPAPIPlugin::Initialize(void)
 {
-  if (!mLibrary)
+  if (!fLibrary)
     return NS_ERROR_FAILURE;
   return NS_OK;
 }
 
 nsresult
-nsNPAPIPlugin::Shutdown()
+nsNPAPIPlugin::Shutdown(void)
 {
   NPP_PLUGIN_LOG(PLUGIN_LOG_BASIC,
                  ("NPP Shutdown to be called: this=%p\n", this));
 
   NPError shutdownError;
-  mLibrary->NP_Shutdown(&shutdownError);
+  fLibrary->NP_Shutdown(&shutdownError);
 #ifdef XP_MACOSX
-  if (shutdownError == NS_OK && mPluginRefNum > 0)
-    ::CloseResFile(mPluginRefNum);
+  if (shutdownError == NS_OK && fPluginRefNum > 0)
+    ::CloseResFile(fPluginRefNum);
 #endif
   return NS_OK;
 }
@@ -647,7 +651,7 @@ nsNPAPIPlugin::Shutdown()
 nsresult
 nsNPAPIPlugin::GetMIMEDescription(const char* *resultingDesc)
 {
-  nsresult gmdResult = mLibrary->NP_GetMIMEDescription(resultingDesc);
+  nsresult gmdResult = fLibrary->NP_GetMIMEDescription((char**)resultingDesc);
   if (gmdResult != NS_OK) {
     return gmdResult;
   }
@@ -662,7 +666,7 @@ nsNPAPIPlugin::GetValue(NPPVariable variable, void *value)
   ("nsNPAPIPlugin::GetValue called: this=%p, variable=%d\n", this, variable));
 
   NPError gvError;
-  mLibrary->NP_GetValue(nsnull, variable, value, &gvError);
+  fLibrary->NP_GetValue(nsnull, variable, value, &gvError);
 
   return gvError;
 }
@@ -740,7 +744,7 @@ public:
   ~nsNPAPIStreamWrapper();
 
   void GetStream(nsIOutputStream* &result);
-  NPStream* GetNPStream() { return &fNPStream; }
+  NPStream* GetNPStream(void) { return &fNPStream; }
 };
 
 class nsPluginThreadRunnable : public nsRunnable,
@@ -863,7 +867,7 @@ nsNPAPIStreamWrapper::nsNPAPIStreamWrapper(nsIOutputStream* stream)
   fNPStream.ndata = (void*) this;
 }
 
-nsNPAPIStreamWrapper::~nsNPAPIStreamWrapper()
+nsNPAPIStreamWrapper::~nsNPAPIStreamWrapper(void)
 {
   fStream->Close();
   NS_IF_RELEASE(fStream);
@@ -2017,11 +2021,7 @@ _getvalue(NPP npp, NPNVariable variable, void *result)
         inst->GetValueFromPlugin(NPPVpluginNeedsXEmbed, &needXEmbed);
       }
       if (windowless || needXEmbed) {
-#ifdef MOZ_WIDGET_GTK2
         (*(Display **)result) = GDK_DISPLAY();
-#else
-        (*(Display **)result) = QX11Info::display();
-#endif
         return NPERR_NO_ERROR;
       }
     }
@@ -2120,7 +2120,7 @@ _getvalue(NPP npp, NPNVariable variable, void *result)
   case NPNVPluginElementNPObject: {
     *(NPObject **)result = _getpluginelement(npp);
 
-    return *(NPObject **)result ? NPERR_NO_ERROR : NPERR_GENERIC_ERROR;
+    return NPERR_NO_ERROR;
   }
 
   case NPNVSupportsWindowless: {
@@ -2143,7 +2143,7 @@ _getvalue(NPP npp, NPNVariable variable, void *result)
     return NPERR_GENERIC_ERROR;
   }
 
-#if (MOZ_PLATFORM_MAEMO == 5)
+#ifdef MOZ_PLATFORM_HILDON
   case NPNVSupportsWindowlessLocal: {
     *(NPBool*)result = PR_TRUE;
     return NPERR_NO_ERROR;
@@ -2281,7 +2281,7 @@ _setvalue(NPP npp, NPPVariable variable, void *result)
       return inst->SetWindowless(bWindowless);
 #endif
     }
-#if (MOZ_PLATFORM_MAEMO == 5)
+#ifdef MOZ_PLATFORM_HILDON
     case NPPVpluginWindowlessLocalBool: {
       NPBool bWindowlessLocal = (result != nsnull);
       return inst->SetWindowlessLocal(bWindowlessLocal);
@@ -2387,7 +2387,7 @@ _requestread(NPStream *pstream, NPByteRange *rangeList)
 
 // Deprecated, only stubbed out
 void* NP_CALLBACK /* OJI type: JRIEnv* */
-_getJavaEnv()
+_getJavaEnv(void)
 {
   NPN_PLUGIN_LOG(PLUGIN_LOG_NORMAL, ("NPN_GetJavaEnv\n"));
   return NULL;
@@ -2439,7 +2439,7 @@ _pushpopupsenabledstate(NPP npp, NPBool enabled)
     NPN_PLUGIN_LOG(PLUGIN_LOG_ALWAYS,("NPN_pushpopupsenabledstate called from the wrong thread\n"));
     return;
   }
-  nsNPAPIPluginInstance *inst = npp ? (nsNPAPIPluginInstance *)npp->ndata : NULL;
+  nsNPAPIPluginInstance *inst = (nsNPAPIPluginInstance *)npp->ndata;
   if (!inst)
     return;
 
@@ -2453,7 +2453,7 @@ _poppopupsenabledstate(NPP npp)
     NPN_PLUGIN_LOG(PLUGIN_LOG_ALWAYS,("NPN_poppopupsenabledstate called from the wrong thread\n"));
     return;
   }
-  nsNPAPIPluginInstance *inst = npp ? (nsNPAPIPluginInstance *)npp->ndata : NULL;
+  nsNPAPIPluginInstance *inst = (nsNPAPIPluginInstance *)npp->ndata;
   if (!inst)
     return;
 

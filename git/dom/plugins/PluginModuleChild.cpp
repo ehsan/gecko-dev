@@ -37,10 +37,6 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
-#ifdef MOZ_WIDGET_QT
-#include <QApplication>
-#endif
-
 #include "mozilla/plugins/PluginModuleChild.h"
 
 #ifdef MOZ_WIDGET_GTK2
@@ -59,7 +55,6 @@
 #include "mozilla/plugins/StreamNotifyChild.h"
 #include "mozilla/plugins/BrowserStreamChild.h"
 #include "mozilla/plugins/PluginStreamChild.h"
-#include "mozilla/plugins/PluginThreadChild.h"
 
 #include "nsNPAPIPlugin.h"
 
@@ -69,9 +64,6 @@ using namespace mozilla::plugins;
 
 namespace {
 PluginModuleChild* gInstance = nsnull;
-#ifdef MOZ_WIDGET_QT
-static QApplication *gQApp = nsnull;
-#endif
 }
 
 
@@ -96,11 +88,6 @@ PluginModuleChild::~PluginModuleChild()
     if (mLibrary) {
         PR_UnloadLibrary(mLibrary);
     }
-#ifdef MOZ_WIDGET_QT
-    if (gQApp)
-        delete gQApp;
-    gQApp = nsnull;
-#endif
     gInstance = nsnull;
 }
 
@@ -248,10 +235,6 @@ PluginModuleChild::InitGraphics()
 {
     // FIXME/cjones: is this the place for this?
 #if defined(MOZ_WIDGET_GTK2)
-    // Work around plugins that don't interact well with GDK
-    // client-side windows.
-    PR_SetEnv("GDK_NATIVE_WINDOWS=1");
-
     gtk_init(0, 0);
 
     // GtkPlug is a static class so will leak anyway but this ref makes sure.
@@ -271,8 +254,6 @@ PluginModuleChild::InitGraphics()
     real_gtk_plug_embedded = *embedded;
     *embedded = wrap_gtk_plug_embedded;
 #elif defined(MOZ_WIDGET_QT)
-    if (!qApp)
-        gQApp = new QApplication(0, NULL);
 #else
     // may not be necessary on all platforms
 #endif
@@ -665,14 +646,6 @@ _getvalue(NPP aNPP,
     AssertPluginThread();
 
     switch (aVariable) {
-        // Copied from nsNPAPIPlugin.cpp
-        case NPNVToolkit:
-#ifdef MOZ_WIDGET_GTK2
-            *static_cast<NPNToolkitType*>(aValue) = NPNVGtk2;
-            return NPERR_NO_ERROR;
-#endif
-            return NPERR_GENERIC_ERROR;
-
         case NPNVjavascriptEnabledBool: // Intentional fall-through
         case NPNVasdEnabledBool: // Intentional fall-through
         case NPNVisOfflineBool: // Intentional fall-through
@@ -1276,9 +1249,8 @@ _pluginthreadasynccall(NPP aNPP,
     if (!aFunc)
         return;
 
-    PluginThreadChild::current()->message_loop()
-        ->PostTask(FROM_HERE, new ChildAsyncCall(InstCast(aNPP), aFunc,
-                                                 aUserData));
+    nsCOMPtr<nsIRunnable> e(new ChildAsyncCall(InstCast(aNPP), aFunc, aUserData));
+    NS_DispatchToMainThread(e);
 }
 
 NPError NP_CALLBACK

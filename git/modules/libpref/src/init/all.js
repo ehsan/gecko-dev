@@ -67,7 +67,7 @@ pref("browser.cache.disk.capacity",         20000);
 pref("browser.cache.memory.enable",         true);
 //pref("browser.cache.memory.capacity",     -1);
 // -1 = determine dynamically, 0 = none, n = memory capacity in kilobytes
-pref("browser.cache.disk_cache_ssl",        true);
+pref("browser.cache.disk_cache_ssl",        false);
 // 0 = once-per-session, 1 = each-time, 2 = never, 3 = when-appropriate/automatically
 pref("browser.cache.check_doc_frequency",   3);
 
@@ -1214,25 +1214,6 @@ pref("editor.positioning.offset",            0);
 
 pref("dom.max_chrome_script_run_time", 20);
 pref("dom.max_script_run_time", 10);
-
-// How long a plugin is allowed to process a synchronous IPC message
-// before we consider it "hung".
-//
-// NB: chosen to match dom.max_script_run_time by default
-#ifndef DEBUG
-pref("dom.ipc.plugins.timeoutSecs", 10);
-#else
-// No timeout in DEBUG builds
-pref("dom.ipc.plugins.timeoutSecs", 0);
-#endif
-
-#ifndef XP_MACOSX
-#ifdef XP_UNIX
-// Linux plugins using Xt instead of Xembed don't work out-of-process yet.
-pref("dom.ipc.plugins.enabled.libvlcplugin.so", false);
-pref("dom.ipc.plugins.enabled.nppdf.so", false);
-#endif
-#endif
 
 pref("svg.enabled", true);
 pref("svg.smil.enabled", true);
@@ -2857,12 +2838,6 @@ pref("html5.flushtimer.continuedelay", 150);
 // Time in milliseconds between timer firings once the timer has starting 
 // firing.
 pref("html5.flushtimer.interval", 100);
-
-// Push/Pop/Replace State prefs
-pref("browser.history.allowPushState", true);
-pref("browser.history.allowReplaceState", true);
-pref("browser.history.allowPopState", true);
-pref("browser.history.maxStateObjectSize", 655360);
 // Initial max length for number of tree ops in on flush.
 pref("html5.opqueue.initiallengthlimit", 200);
 // Maximum time in milliseconds to spend flushing the tree op queue when not forced to completion
@@ -2871,3 +2846,9 @@ pref("html5.opqueue.maxtime", 100);
 pref("html5.opqueue.minlength", 100);
 // Maximum number of tree ops to flush regardless of time (takes precedence over the maxtime pref)
 pref("html5.opqueue.maxlength", 4500); // most top sites stay under this value
+
+// Push/Pop/Replace State prefs
+pref("browser.history.allowPushState", true);
+pref("browser.history.allowReplaceState", true);
+pref("browser.history.allowPopState", true);
+pref("browser.history.maxStateObjectSize", 655360);

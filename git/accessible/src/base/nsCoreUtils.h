@@ -57,10 +57,10 @@ class nsCoreUtils
 {
 public:
   /**
-   * Return true if the given node has registered click, mousedown or mouseup
-   * event listeners.
+   * Return true if the given node has registered event listener of the given
+   * type.
    */
-  static PRBool HasClickListener(nsIContent *aContent);
+  static PRBool HasListener(nsIContent *aContent, const nsAString& aEventType);
 
   /**
    * Dispatch click event to XUL tree cell.

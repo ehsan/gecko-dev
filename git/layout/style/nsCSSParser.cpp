@@ -308,18 +308,18 @@ protected:
   PRBool ParseMediaQuery(PRUnichar aStopSymbol, nsMediaQuery **aQuery,
                          PRBool *aParsedSomething, PRBool *aHitStop);
   PRBool ParseMediaQueryExpression(nsMediaQuery* aQuery);
-  void ProcessImport(const nsString& aURLSpec,
-                     nsMediaList* aMedia,
-                     RuleAppendFunc aAppendFunc,
-                     void* aProcessData);
+  PRBool ProcessImport(const nsString& aURLSpec,
+                       nsMediaList* aMedia,
+                       RuleAppendFunc aAppendFunc,
+                       void* aProcessData);
   PRBool ParseGroupRule(nsICSSGroupRule* aRule, RuleAppendFunc aAppendFunc,
                         void* aProcessData);
   PRBool ParseMediaRule(RuleAppendFunc aAppendFunc, void* aProcessData);
   PRBool ParseMozDocumentRule(RuleAppendFunc aAppendFunc, void* aProcessData);
   PRBool ParseNameSpaceRule(RuleAppendFunc aAppendFunc, void* aProcessData);
-  void ProcessNameSpace(const nsString& aPrefix,
-                        const nsString& aURLSpec, RuleAppendFunc aAppendFunc,
-                        void* aProcessData);
+  PRBool ProcessNameSpace(const nsString& aPrefix,
+                          const nsString& aURLSpec, RuleAppendFunc aAppendFunc,
+                          void* aProcessData);
 
   PRBool ParseFontFaceRule(RuleAppendFunc aAppendFunc, void* aProcessData);
   PRBool ParseFontDescriptor(nsCSSFontFaceRule* aRule);
@@ -1358,7 +1358,7 @@ CSSParserImpl::GetURLInParens(nsString& aURL)
 void
 CSSParserImpl::UngetToken()
 {
-  NS_PRECONDITION(!mHavePushBack, "double pushback");
+  NS_PRECONDITION(mHavePushBack == PR_FALSE, "double pushback");
   mHavePushBack = PR_TRUE;
 }
 
@@ -1900,7 +1900,7 @@ CSSParserImpl::ParseImportRule(RuleAppendFunc aAppendFunc, void* aData)
 }
 
 
-void
+PRBool
 CSSParserImpl::ProcessImport(const nsString& aURLSpec,
                              nsMediaList* aMedia,
                              RuleAppendFunc aAppendFunc,
@@ -1908,32 +1908,28 @@ CSSParserImpl::ProcessImport(const nsString& aURLSpec,
 {
   nsCOMPtr<nsICSSImportRule> rule;
   nsresult rv = NS_NewCSSImportRule(getter_AddRefs(rule), aURLSpec, aMedia);
-  if (NS_FAILED(rv)) { // out of memory
+  if (NS_FAILED(rv)) {
     mScanner.SetLowLevelError(rv);
-    return;
+    return PR_FALSE;
   }
   (*aAppendFunc)(rule, aData);
 
-  // Diagnose bad URIs even if we don't have a child loader.
-  nsCOMPtr<nsIURI> url;
-  // Charset will be deduced from mBaseURL, which is more or less correct.
-  rv = NS_NewURI(getter_AddRefs(url), aURLSpec, nsnull, mBaseURL);
-
-  if (NS_FAILED(rv)) {
-    if (rv == NS_ERROR_MALFORMED_URI) {
-      // import url is bad
-      const PRUnichar *params[] = {
-        aURLSpec.get()
-      };
-      REPORT_UNEXPECTED_P(PEImportBadURI, params);
-      OUTPUT_ERROR();
-    }
-    return;
-  }
-
   if (mChildLoader) {
+    nsCOMPtr<nsIURI> url;
+    // XXX should pass a charset!
+    rv = NS_NewURI(getter_AddRefs(url), aURLSpec, nsnull, mBaseURL);
+
+    if (NS_FAILED(rv)) {
+      // import url is bad
+      // XXX log this somewhere for easier web page debugging
+      mScanner.SetLowLevelError(rv);
+      return PR_FALSE;
+    }
+
     mChildLoader->LoadChildSheet(mSheet, url, aMedia, rule);
   }
+
+  return PR_TRUE;
 }
 
 // Parse the {} part of an @media or @-moz-document rule.
@@ -2104,12 +2100,14 @@ CSSParserImpl::ParseNameSpaceRule(RuleAppendFunc aAppendFunc, void* aData)
   return PR_FALSE;
 }
 
-void
+PRBool
 CSSParserImpl::ProcessNameSpace(const nsString& aPrefix,
                                 const nsString& aURLSpec,
                                 RuleAppendFunc aAppendFunc,
                                 void* aData)
 {
+  PRBool result = PR_FALSE;
+
   nsCOMPtr<nsICSSNameSpaceRule> rule;
   nsCOMPtr<nsIAtom> prefix;
 
@@ -2127,6 +2125,8 @@ CSSParserImpl::ProcessNameSpace(const nsString& aPrefix,
       mNameSpaceMap = mSheet->GetNameSpaceMap();
     }
   }
+
+  return result;
 }
 
 // font-face-rule: '@font-face' '{' font-description '}'

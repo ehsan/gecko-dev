@@ -256,6 +256,8 @@ NS_IMETHODIMP nsViewManager::Init(nsIDeviceContext* aContext)
   }
   mContext = aContext;
 
+  mRefreshEnabled = PR_TRUE;
+
   return NS_OK;
 }
 
@@ -519,7 +521,7 @@ void nsViewManager::ProcessPendingUpdates(nsView* aView, PRBool aDoInvalidate)
   if (aDoInvalidate && aView->HasNonEmptyDirtyRegion()) {
     // Push out updates after we've processed the children; ensures that
     // damage is applied based on the final widget geometry
-    NS_ASSERTION(IsRefreshEnabled(), "Cannot process pending updates with refresh disabled");
+    NS_ASSERTION(mRefreshEnabled, "Cannot process pending updates with refresh disabled");
     nsRegion* dirtyRegion = aView->GetDirtyRegion();
     if (dirtyRegion) {
       nsView* nearestViewWithWidget = aView;
@@ -580,11 +582,13 @@ nsViewManager::WillBitBlit(nsIView* aView, const nsRect& aRect,
   ++mScrollCnt;
   
   nsView* v = static_cast<nsView*>(aView);
+
+  // Since the view is actually moving the widget by -aScrollAmount, that's the
+  // offset we want to use when accumulating dirty rects.
   if (v->HasNonEmptyDirtyRegion()) {
     nsRegion* dirty = v->GetDirtyRegion();
-    nsRegion intersection = *dirty;
-    intersection.MoveBy(-aCopyDelta);
-    intersection.And(intersection, aRect);
+    nsRegion intersection;
+    intersection.And(*dirty, aRect);
     if (!intersection.IsEmpty()) {
       dirty->Or(*dirty, intersection);
       // Random simplification number...
@@ -1597,15 +1601,29 @@ nsViewManager::CreateRenderingContext(nsView &aView)
   return cx;
 }
 
-void nsViewManager::TriggerRefresh(PRUint32 aUpdateFlags)
+NS_IMETHODIMP nsViewManager::DisableRefresh(void)
 {
   if (!IsRootVM()) {
-    RootViewManager()->TriggerRefresh(aUpdateFlags);
-    return;
+    return RootViewManager()->DisableRefresh();
   }
   
   if (mUpdateBatchCnt > 0)
-    return;
+    return NS_OK;
+
+  mRefreshEnabled = PR_FALSE;
+  return NS_OK;
+}
+
+NS_IMETHODIMP nsViewManager::EnableRefresh(PRUint32 aUpdateFlags)
+{
+  if (!IsRootVM()) {
+    return RootViewManager()->EnableRefresh(aUpdateFlags);
+  }
+  
+  if (mUpdateBatchCnt > 0)
+    return NS_OK;
+
+  mRefreshEnabled = PR_TRUE;
 
   // nested batching can combine IMMEDIATE with DEFERRED. Favour
   // IMMEDIATE over DEFERRED and DEFERRED over NO_SYNC.  We need to
@@ -1622,6 +1640,8 @@ void nsViewManager::TriggerRefresh(PRUint32 aUpdateFlags)
   } else { // NO_SYNC
     FlushPendingInvalidates();
   }
+
+  return NS_OK;
 }
 
 nsIViewManager* nsViewManager::BeginUpdateViewBatch(void)
@@ -1630,11 +1650,15 @@ nsIViewManager* nsViewManager::BeginUpdateViewBatch(void)
     return RootViewManager()->BeginUpdateViewBatch();
   }
   
+  nsresult result = NS_OK;
+  
   if (mUpdateBatchCnt == 0) {
     mUpdateBatchFlags = 0;
+    result = DisableRefresh();
   }
 
-  ++mUpdateBatchCnt;
+  if (NS_SUCCEEDED(result))
+    ++mUpdateBatchCnt;
 
   return this;
 }
@@ -1643,6 +1667,8 @@ NS_IMETHODIMP nsViewManager::EndUpdateViewBatch(PRUint32 aUpdateFlags)
 {
   NS_ASSERTION(IsRootVM(), "Should only be called on root");
   
+  nsresult result = NS_OK;
+
   --mUpdateBatchCnt;
 
   NS_ASSERTION(mUpdateBatchCnt >= 0, "Invalid batch count!");
@@ -1655,10 +1681,10 @@ NS_IMETHODIMP nsViewManager::EndUpdateViewBatch(PRUint32 aUpdateFlags)
 
   mUpdateBatchFlags |= aUpdateFlags;
   if (mUpdateBatchCnt == 0) {
-    TriggerRefresh(mUpdateBatchFlags);
+    result = EnableRefresh(mUpdateBatchFlags);
   }
 
-  return NS_OK;
+  return result;
 }
 
 NS_IMETHODIMP nsViewManager::GetRootWidget(nsIWidget **aWidget)
@@ -1742,9 +1768,17 @@ nsViewManager::FlushPendingInvalidates()
     // all of them together.  We don't use
     // BeginUpdateViewBatch/EndUpdateViewBatch, since that would reenter this
     // exact code, but we want the effect of a single big update batch.
+    PRBool refreshEnabled = mRefreshEnabled;
+    mRefreshEnabled = PR_FALSE;
     ++mUpdateBatchCnt;
     CallWillPaintOnObservers();
     --mUpdateBatchCnt;
+
+    // Someone could have called EnableRefresh on us from inside WillPaint().
+    // Only reset the old mRefreshEnabled value if the current value is false.
+    if (!mRefreshEnabled) {
+      mRefreshEnabled = refreshEnabled;
+    }
   }
   
   if (mHasPendingUpdates) {

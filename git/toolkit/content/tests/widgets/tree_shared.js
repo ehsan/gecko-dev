@@ -35,11 +35,7 @@ function testtag_tree(treeid, treerowinfoid, seltype, columnstype, testid)
 
   var tree = document.getElementById(treeid);
   var treerowinfo = document.getElementById(treerowinfoid);
-  var rowInfo;
-  if (testid =="tree view")
-    rowInfo = getCustomTreeViewCellInfo();
-  else
-    rowInfo = convertDOMtoTreeRowInfo(treerowinfo, 0, { value: -1 });
+  var rowInfo = convertDOMtoTreeRowInfo(treerowinfo, 0, { value: -1 });
   var columnInfo = (columnstype == "simple") ? columns_simpletree : columns_hiertree;
 
   is(tree.view.selection.currentColumn, null, testid + " initial currentColumn");
@@ -102,9 +98,7 @@ function testtag_tree(treeid, treerowinfoid, seltype, columnstype, testid)
   is(tree.view.getCellText(1, ecolumn), "Changed Value", testid + "edit cell no accept");
 
   // do the sorting tests last as it will cause the rows to rearrange
-  // skip them for the custom tree view
-  if (testid !="tree view")
-    testtag_tree_TreeView_rows_sort(tree, testid, rowInfo);
+  testtag_tree_TreeView_rows_sort(tree, testid, rowInfo);
 
   testtag_tree_mousescroll(tree);
 

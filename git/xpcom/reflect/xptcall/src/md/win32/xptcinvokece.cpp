@@ -35,6 +35,8 @@
 
 /* Platform specific code to invoke XPCOM methods on native objects */
 
+#include "prlog.h"
+
 #include "xptcprivate.h"
 
 extern "C" PRUint32 *

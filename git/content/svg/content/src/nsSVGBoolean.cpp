@@ -69,19 +69,12 @@ nsSVGBoolean::SetBaseValueString(const nsAString &aValueAsString,
   else
     return NS_ERROR_DOM_SYNTAX_ERR;
 
-  mBaseVal = val;
-  if (!mIsAnimated) {
-    mAnimVal = mBaseVal;
-  }
+  mBaseVal = mAnimVal = val;
 #ifdef MOZ_SMIL
-  else {
+  if (mIsAnimated) {
     aSVGElement->AnimationNeedsResample();
   }
 #endif
-
-  // We don't need to call DidChange* here - we're only called by
-  // nsSVGElement::ParseAttribute under nsGenericElement::SetAttr,
-  // which takes care of notifying.
   return NS_OK;
 }
 
@@ -100,16 +93,13 @@ nsSVGBoolean::SetBaseValue(PRBool aValue,
   NS_PRECONDITION(aValue == PR_TRUE || aValue == PR_FALSE, "Boolean out of range");
 
   if (aValue != mBaseVal) {
-    mBaseVal = aValue;
-    if (!mIsAnimated) {
-      mAnimVal = mBaseVal;
-    }
+    mAnimVal = mBaseVal = aValue;
+    aSVGElement->DidChangeBoolean(mAttrEnum, PR_TRUE);
 #ifdef MOZ_SMIL
-    else {
+    if (mIsAnimated) {
       aSVGElement->AnimationNeedsResample();
     }
 #endif
-    aSVGElement->DidChangeBoolean(mAttrEnum, PR_TRUE);
   }
 }
 
@@ -143,8 +133,7 @@ nsSVGBoolean::ToSMILAttr(nsSVGElement *aSVGElement)
 nsresult
 nsSVGBoolean::SMILBool::ValueFromString(const nsAString& aStr,
                                         const nsISMILAnimationElement* /*aSrcElement*/,
-                                        nsSMILValue& aValue,
-                                        PRBool& aCanCache) const
+                                        nsSMILValue& aValue) const
 {
   nsSMILValue val(&SMILBoolType::sSingleton);
 
@@ -156,7 +145,6 @@ nsSVGBoolean::SMILBool::ValueFromString(const nsAString& aStr,
     return NS_ERROR_FAILURE;
 
   aValue = val;
-  aCanCache = PR_TRUE;
   return NS_OK;
 }
 

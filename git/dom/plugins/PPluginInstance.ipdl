@@ -70,6 +70,10 @@ child:
   rpc NPP_SetWindow(NPRemoteWindow window)
     returns (NPError rv);
 
+  rpc NPP_GetValue_NPPVpluginWindow()
+    returns (bool value, NPError result);
+  rpc NPP_GetValue_NPPVpluginTransparent()
+    returns (bool value, NPError result);
   // this message is not used on non-X platforms
   rpc NPP_GetValue_NPPVpluginNeedsXEmbed()
     returns (bool value, NPError result);
@@ -160,7 +164,6 @@ parent:
 
 parent:
   rpc PluginGotFocus();
-  sync SetNestedEventState(bool aState);
 child:
   rpc SetPluginFocus();
   rpc UpdateWindow();

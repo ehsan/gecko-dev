@@ -41,7 +41,7 @@
 #include "nsXULFormControlAccessible.h"
 #include "nsHTMLFormControlAccessible.h"
 #include "nsAccessibilityAtoms.h"
-#include "nsAccTreeWalker.h"
+#include "nsAccessibleTreeWalker.h"
 #include "nsXULMenuAccessible.h"
 #include "nsIDOMHTMLInputElement.h"
 #include "nsIDOMNSEditableElement.h"
@@ -204,36 +204,44 @@ nsXULButtonAccessible::CacheChildren()
   if (!isMenu && !isMenuButton)
     return;
 
-  nsRefPtr<nsAccessible> menupopupAccessible;
-  nsRefPtr<nsAccessible> buttonAccessible;
+  nsCOMPtr<nsIAccessible> buttonAccessible;
+  nsCOMPtr<nsIAccessible> menupopupAccessible;
 
-  nsAccTreeWalker walker(mWeakShell, content, PR_TRUE);
+  nsAccessibleTreeWalker walker(mWeakShell, mDOMNode, PR_TRUE);
+  walker.GetFirstChild();
 
-  nsRefPtr<nsAccessible> child;
-  while ((child = walker.GetNextChild())) {
-    PRUint32 role = nsAccUtils::Role(child);
+  while (walker.mState.accessible) {
+    PRUint32 role = nsAccUtils::Role(walker.mState.accessible);
 
     if (role == nsIAccessibleRole::ROLE_MENUPOPUP) {
       // Get an accessbile for menupopup or panel elements.
-      menupopupAccessible.swap(child);
+      menupopupAccessible = walker.mState.accessible;
 
     } else if (isMenuButton && role == nsIAccessibleRole::ROLE_PUSHBUTTON) {
       // Button type="menu-button" contains a real button. Get an accessible
       // for it. Ignore dropmarker button what is placed as a last child.
-      buttonAccessible.swap(child);
+      buttonAccessible = walker.mState.accessible;
       break;
     }
+
+    walker.GetNextSibling();
   }
 
   if (!menupopupAccessible)
     return;
 
-  mChildren.AppendElement(menupopupAccessible);
-  menupopupAccessible->SetParent(this);
+  nsRefPtr<nsAccessible> menupopupAcc =
+    nsAccUtils::QueryObject<nsAccessible>(menupopupAccessible);
+
+  mChildren.AppendElement(menupopupAcc);
+  menupopupAcc->SetParent(this);
 
   if (buttonAccessible) {
-    mChildren.AppendElement(buttonAccessible);
-    buttonAccessible->SetParent(this);
+    nsRefPtr<nsAccessible> buttonAcc =
+      nsAccUtils::QueryObject<nsAccessible>(buttonAccessible);
+
+    mChildren.AppendElement(buttonAcc);
+    buttonAcc->SetParent(this);
   }
 }
 
@@ -864,9 +872,9 @@ nsXULToolbarSeparatorAccessible::GetStateInternal(PRUint32 *aState,
   return NS_OK;
 }
 
-////////////////////////////////////////////////////////////////////////////////
-// nsXULTextFieldAccessible
-////////////////////////////////////////////////////////////////////////////////
+/**
+  * XUL Textfield
+  */
 
 nsXULTextFieldAccessible::nsXULTextFieldAccessible(nsIDOMNode* aNode, nsIWeakReference* aShell) :
  nsHyperTextAccessibleWrap(aNode, aShell)
@@ -874,9 +882,6 @@ nsXULTextFieldAccessible::nsXULTextFieldAccessible(nsIDOMNode* aNode, nsIWeakRef
 }
 
 NS_IMPL_ISUPPORTS_INHERITED3(nsXULTextFieldAccessible, nsAccessible, nsHyperTextAccessible, nsIAccessibleText, nsIAccessibleEditableText)
-
-////////////////////////////////////////////////////////////////////////////////
-// nsXULTextFieldAccessible: nsIAccessible
 
 NS_IMETHODIMP nsXULTextFieldAccessible::GetValue(nsAString& aValue)
 {
@@ -898,7 +903,6 @@ NS_IMETHODIMP nsXULTextFieldAccessible::GetValue(nsAString& aValue)
   return NS_ERROR_FAILURE;
 }
 
-// nsXULTextFieldAccessible protected
 already_AddRefed<nsIDOMNode> nsXULTextFieldAccessible::GetInputField()
 {
   nsIDOMNode *inputField = nsnull;
@@ -1057,26 +1061,4 @@ NS_IMETHODIMP nsXULTextFieldAccessible::GetAssociatedEditor(nsIEditor **aEditor)
   nsCOMPtr<nsIDOMNSEditableElement> editableElt(do_QueryInterface(inputField));
   NS_ENSURE_TRUE(editableElt, NS_ERROR_FAILURE);
   return editableElt->GetEditor(aEditor);
-}
-
-////////////////////////////////////////////////////////////////////////////////
-// nsXULTextFieldAccessible: nsAccessible protected
-
-void
-nsXULTextFieldAccessible::CacheChildren()
-{
-  // Create child accessibles for native anonymous content of underlying HTML
-  // input element.
-  nsCOMPtr<nsIDOMNode> inputNode(GetInputField());
-  nsCOMPtr<nsIContent> inputContent(do_QueryInterface(inputNode));
-  if (!inputContent)
-    return;
-
-  nsAccTreeWalker walker(mWeakShell, inputContent, PR_FALSE);
-
-  nsRefPtr<nsAccessible> child;
-  while ((child = walker.GetNextChild())) {
-    mChildren.AppendElement(child);
-    child->SetParent(this);
-  }
 }

@@ -156,6 +156,9 @@ public:
 
 protected:
 
+  // nsAccessible
+  virtual void CacheChildren();
+
   // nsHyperTextAccessible
 
   /*

@@ -120,6 +120,9 @@ NS_IMETHODIMP nsXULSelectableAccessible::GetSelectedChildren(nsIArray **aChildre
     return NS_ERROR_FAILURE;
   }
 
+  nsCOMPtr<nsIAccessibilityService> accService = GetAccService();
+  NS_ENSURE_TRUE(accService, NS_ERROR_FAILURE);
+
   nsCOMPtr<nsIMutableArray> selectedAccessibles =
     do_CreateInstance(NS_ARRAY_CONTRACTID);
   NS_ENSURE_STATE(selectedAccessibles);
@@ -135,8 +138,8 @@ NS_IMETHODIMP nsXULSelectableAccessible::GetSelectedChildren(nsIArray **aChildre
       nsCOMPtr<nsIDOMXULSelectControlItemElement> selectedItem;
       xulMultiSelect->GetSelectedItem(index, getter_AddRefs(selectedItem));
       nsCOMPtr<nsIDOMNode> selectedNode(do_QueryInterface(selectedItem));
-      GetAccService()->GetAccessibleInWeakShell(selectedNode, mWeakShell,
-                                            getter_AddRefs(selectedAccessible));
+      accService->GetAccessibleInWeakShell(selectedNode, mWeakShell,
+                                           getter_AddRefs(selectedAccessible));
       if (selectedAccessible)
         selectedAccessibles->AppendElement(selectedAccessible, PR_FALSE);
     }
@@ -146,8 +149,8 @@ NS_IMETHODIMP nsXULSelectableAccessible::GetSelectedChildren(nsIArray **aChildre
     mSelectControl->GetSelectedItem(getter_AddRefs(selectedItem));
     nsCOMPtr<nsIDOMNode> selectedNode(do_QueryInterface(selectedItem));
     if(selectedNode) {
-      GetAccService()->GetAccessibleInWeakShell(selectedNode, mWeakShell,
-                                            getter_AddRefs(selectedAccessible));
+      accService->GetAccessibleInWeakShell(selectedNode, mWeakShell,
+                                           getter_AddRefs(selectedAccessible));
       if (selectedAccessible)
         selectedAccessibles->AppendElement(selectedAccessible, PR_FALSE);
     }
@@ -179,11 +182,18 @@ NS_IMETHODIMP nsXULSelectableAccessible::RefSelection(PRInt32 aIndex, nsIAccessi
   if (aIndex == 0)
     mSelectControl->GetSelectedItem(getter_AddRefs(selectedItem));
 
-  if (selectedItem)
-    GetAccService()->GetAccessibleInWeakShell(selectedItem, mWeakShell,
-                                              aAccessible);
+  if (selectedItem) {
+    nsCOMPtr<nsIAccessibilityService> accService = GetAccService();
+    if (accService) {
+      accService->GetAccessibleInWeakShell(selectedItem, mWeakShell, aAccessible);
+      if (*aAccessible) {
+        NS_ADDREF(*aAccessible);
+        return NS_OK;
+      }
+    }
+  }
 
-  return (*aAccessible) ? NS_OK : NS_ERROR_FAILURE;
+  return NS_ERROR_FAILURE;
 }
 
 NS_IMETHODIMP nsXULSelectableAccessible::GetSelectionCount(PRInt32 *aSelectionCount)
@@ -344,8 +354,8 @@ nsXULMenuitemAccessible::GetStateInternal(PRUint32 *aState,
         grandParentAcc->GetState(&grandParentState, &grandParentExtState);
         *aState &= ~(nsIAccessibleStates::STATE_OFFSCREEN |
                      nsIAccessibleStates::STATE_INVISIBLE);
-        *aState |= (grandParentState & nsIAccessibleStates::STATE_OFFSCREEN) |
-                   (grandParentState & nsIAccessibleStates::STATE_INVISIBLE);
+        *aState |= grandParentState & nsIAccessibleStates::STATE_OFFSCREEN |
+                   grandParentState & nsIAccessibleStates::STATE_INVISIBLE;
         if (aExtraState) {
           *aExtraState |=
             grandParentExtState & nsIAccessibleStates::EXT_STATE_OPAQUE;

@@ -873,7 +873,7 @@ nsSVGSVGElement::SetCurrentScaleTranslate(float s, float x, float y)
   if (doc) {
     nsCOMPtr<nsIPresShell> presShell = doc->GetPrimaryShell();
     if (presShell && IsRoot()) {
-      PRBool scaling = (mPreviousScale != mCurrentScale);
+      PRBool scaling = (s != mCurrentScale);
       nsEventStatus status = nsEventStatus_eIgnore;
       nsGUIEvent event(PR_TRUE, scaling ? NS_SVG_ZOOM : NS_SVG_SCROLL, 0);
       event.eventStructType = scaling ? NS_SVGZOOM_EVENT : NS_SVG_EVENT;
@@ -989,7 +989,7 @@ nsSVGSVGElement::GetViewBoxTransform()
 
   nsSVGViewBoxRect viewBox;
   if (mViewBox.IsValid()) {
-    viewBox = mViewBox.GetAnimValue(this);
+    viewBox = mViewBox.GetAnimValue();
   } else {
     viewBox.x = viewBox.y = 0.0f;
     viewBox.width  = viewportWidth;
@@ -1000,8 +1000,7 @@ nsSVGSVGElement::GetViewBoxTransform()
     return gfxMatrix(0.0, 0.0, 0.0, 0.0, 0.0, 0.0); // singular
   }
 
-  return nsSVGUtils::GetViewBoxTransform(this,
-                                         viewportWidth, viewportHeight,
+  return nsSVGUtils::GetViewBoxTransform(viewportWidth, viewportHeight,
                                          viewBox.x, viewBox.y,
                                          viewBox.width, viewBox.height,
                                          mPreserveAspectRatio);
@@ -1114,7 +1113,7 @@ nsSVGSVGElement::GetLength(PRUint8 aCtxType)
   float h, w;
 
   if (mViewBox.IsValid()) {
-    const nsSVGViewBoxRect& viewbox = mViewBox.GetAnimValue(this);
+    const nsSVGViewBoxRect& viewbox = mViewBox.GetAnimValue();
     w = viewbox.width;
     h = viewbox.height;
   } else {
@@ -1212,14 +1211,6 @@ nsSVGSVGElement::DidChangeViewBox(PRBool aDoSetAttr)
   InvalidateTransformNotifyFrame();
 }
 
-void
-nsSVGSVGElement::DidAnimateViewBox()
-{
-  nsSVGSVGElementBase::DidAnimateViewBox();
-  
-  InvalidateTransformNotifyFrame();
-}
-
 nsSVGViewBox *
 nsSVGSVGElement::GetViewBox()
 {
@@ -1230,14 +1221,6 @@ void
 nsSVGSVGElement::DidChangePreserveAspectRatio(PRBool aDoSetAttr)
 {
   nsSVGSVGElementBase::DidChangePreserveAspectRatio(aDoSetAttr);
-
-  InvalidateTransformNotifyFrame();
-}
-
-void
-nsSVGSVGElement::DidAnimatePreserveAspectRatio()
-{
-  nsSVGSVGElementBase::DidAnimatePreserveAspectRatio();
 
   InvalidateTransformNotifyFrame();
 }

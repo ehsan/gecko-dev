@@ -60,7 +60,6 @@
 #include "nsIURL.h"
 #include "nsNetUtil.h"
 #include "nsIFrame.h"
-#include "nsIAnonymousContentCreator.h"
 #include "nsIPresShell.h"
 #include "nsPresContext.h"
 #include "nsStyleConsts.h"
@@ -1125,8 +1124,7 @@ nsNSElementTearoff::SetCapture(PRBool aRetargetToElement)
   if (node)
     return NS_OK;
 
-  nsIPresShell::SetCapturingContent(mContent, CAPTURE_PREVENTDRAG |
-    (aRetargetToElement ? CAPTURE_RETARGETTOELEMENT : 0));
+  nsIPresShell::SetCapturingContent(mContent, aRetargetToElement ? CAPTURE_RETARGETTOELEMENT : 0);
   return NS_OK;
 }
 
@@ -2646,6 +2644,10 @@ nsGenericElement::UnbindFromTree(PRBool aDeep, PRBool aNullParent)
     // anonymous content that the document is changing.
     document->BindingManager()->ChangeDocumentFor(this, document, nsnull);
 
+    if (HasAttr(kNameSpaceID_XLink, nsGkAtoms::href)) {
+      document->ForgetLink(this);
+    }
+
     document->ClearBoxObjectFor(this);
   }
 
@@ -2692,74 +2694,6 @@ nsGenericElement::UnbindFromTree(PRBool aDeep, PRBool aNullParent)
 
   nsNodeUtils::ParentChainChanged(this);
 }
-
-already_AddRefed<nsINodeList>
-nsGenericElement::GetChildren(PRInt32 aChildType)
-{
-  nsRefPtr<nsBaseContentList> list = new nsBaseContentList();
-  if (!list) {
-    return nsnull;
-  }
-
-  nsIFrame *frame = GetPrimaryFrame();
-
-  // Append :before generated content.
-  if (frame) {
-    nsIFrame *beforeFrame = nsLayoutUtils::GetBeforeFrame(frame);
-    if (beforeFrame) {
-      list->AppendElement(beforeFrame->GetContent());
-    }
-  }
-
-  // If XBL is bound to this node then append XBL anonymous content including
-  // explict content altered by insertion point if we were requested for XBL
-  // anonymous content, otherwise append explicit content with respect to
-  // insertion point if any.
-  nsINodeList *childList = nsnull;
-
-  nsIDocument* document = GetOwnerDoc();
-  if (document) {
-    if (aChildType != eAllButXBL) {
-      childList = document->BindingManager()->GetXBLChildNodesFor(this);
-      if (!childList) {
-        childList = GetChildNodesList();
-      }
-
-    } else {
-      childList = document->BindingManager()->GetContentListFor(this);
-    }
-  } else {
-    childList = GetChildNodesList();
-  }
-
-  if (childList) {
-    PRUint32 length = 0;
-    childList->GetLength(&length);
-    for (PRUint32 idx = 0; idx < length; idx++) {
-      nsIContent* child = childList->GetNodeAt(idx);
-      list->AppendElement(child);
-    }
-  }
-
-  if (frame) {
-    // Append native anonymous content to the end.
-    nsIAnonymousContentCreator* creator = do_QueryFrame(frame);
-    if (creator) {
-      creator->AppendAnonymousContentTo(*list);
-    }
-
-    // Append :after generated content.
-    nsIFrame *afterFrame = nsLayoutUtils::GetAfterFrame(frame);
-    if (afterFrame) {
-      list->AppendElement(afterFrame->GetContent());
-    }
-  }
-
-  nsINodeList* returnList = nsnull;
-  list.forget(&returnList);
-  return returnList;
-}
-
 
 nsresult
 nsGenericElement::PreHandleEvent(nsEventChainPreVisitor& aVisitor)
@@ -3986,10 +3920,11 @@ nsGenericElement::doReplaceOrInsertBefore(PRBool aReplace,
       }
     }
 
-    // FIXME https://bugzilla.mozilla.org/show_bug.cgi?id=544654
-    //       We need to reparent here for nodes for which the parent of their
-    //       wrapper is not the wrapper for their ownerDocument (XUL elements,
-    //       form controls, ...).
+    if (!newContent->IsXUL()) {
+      nsContentUtils::ReparentContentWrapper(newContent, aParent,
+                                             container->GetOwnerDoc(),
+                                             container->GetOwnerDoc());
+    }
 
     res = container->InsertChildAt(newContent, insPos, PR_TRUE);
     NS_ENSURE_SUCCESS(res, res);
@@ -4295,6 +4230,20 @@ nsGenericElement::SetAttr(PRInt32 aNamespaceID, nsIAtom* aName,
   NS_ASSERTION(aNamespaceID != kNameSpaceID_Unknown,
                "Don't call SetAttr with unknown namespace");
 
+  nsIDocument* doc = GetCurrentDoc();
+  if (kNameSpaceID_XLink == aNamespaceID && nsGkAtoms::href == aName) {
+    // XLink URI(s) might be changing. Drop the link from the map. If it
+    // is still style relevant it will be re-added by
+    // nsStyleUtil::IsLink. Make sure to keep the style system
+    // consistent so this remains true! In particular if the style system
+    // were to get smarter and not restyling an XLink element if the href
+    // doesn't change in a "significant" way, we'd need to do the same
+    // significance check here.
+    if (doc) {
+      doc->ForgetLink(this);
+    }
+  }
+
   nsAutoString oldValue;
   PRBool modification = PR_FALSE;
   PRBool hasListeners = aNotify &&
@@ -4327,24 +4276,16 @@ nsGenericElement::SetAttr(PRInt32 aNamespaceID, nsIAtom* aName,
     }
   }
 
-
   nsresult rv = BeforeSetAttr(aNamespaceID, aName, &aValue, aNotify);
   NS_ENSURE_SUCCESS(rv, rv);
   
-  PRUint8 modType = modification ?
-    static_cast<PRUint8>(nsIDOMMutationEvent::MODIFICATION) :
-    static_cast<PRUint8>(nsIDOMMutationEvent::ADDITION);
-  if (aNotify) {
-    nsNodeUtils::AttributeWillChange(this, aNamespaceID, aName, modType);
-  }
-
   nsAttrValue attrValue;
   if (!ParseAttribute(aNamespaceID, aName, aValue, attrValue)) {
     attrValue.SetTo(aValue);
   }
 
   return SetAttrAndNotify(aNamespaceID, aName, aPrefix, oldValue,
-                          attrValue, modType, hasListeners, aNotify,
+                          attrValue, modification, hasListeners, aNotify,
                           &aValue);
 }
   
@@ -4354,12 +4295,15 @@ nsGenericElement::SetAttrAndNotify(PRInt32 aNamespaceID,
                                    nsIAtom* aPrefix,
                                    const nsAString& aOldValue,
                                    nsAttrValue& aParsedValue,
-                                   PRUint8 aModType,
+                                   PRBool aModification,
                                    PRBool aFireMutation,
                                    PRBool aNotify,
                                    const nsAString* aValueForAfterSetAttr)
 {
   nsresult rv;
+  PRUint8 modType = aModification ?
+    static_cast<PRUint8>(nsIDOMMutationEvent::MODIFICATION) :
+    static_cast<PRUint8>(nsIDOMMutationEvent::ADDITION);
 
   nsIDocument* document = GetCurrentDoc();
   mozAutoDocUpdate updateBatch(document, UPDATE_CONTENT_MODEL, aNotify);
@@ -4369,6 +4313,8 @@ nsGenericElement::SetAttrAndNotify(PRInt32 aNamespaceID,
   PRUint32 stateMask;
   if (aNotify) {
     stateMask = PRUint32(IntrinsicState());
+    
+    nsNodeUtils::AttributeWillChange(this, aNamespaceID, aName, modType);
   }
 
   if (aNamespaceID == kNameSpaceID_None) {
@@ -4406,7 +4352,7 @@ nsGenericElement::SetAttrAndNotify(PRInt32 aNamespaceID,
       MOZ_AUTO_DOC_UPDATE(document, UPDATE_CONTENT_STATE, aNotify);
       document->ContentStatesChanged(this, nsnull, stateMask);
     }
-    nsNodeUtils::AttributeChanged(this, aNamespaceID, aName, aModType);
+    nsNodeUtils::AttributeChanged(this, aNamespaceID, aName, modType);
   }
 
   if (aNamespaceID == kNameSpaceID_XMLEvents && 
@@ -4440,7 +4386,7 @@ nsGenericElement::SetAttrAndNotify(PRInt32 aNamespaceID,
     if (!aOldValue.IsEmpty()) {
       mutation.mPrevAttrValue = do_GetAtom(aOldValue);
     }
-    mutation.mAttrChange = aModType;
+    mutation.mAttrChange = modType;
 
     mozAutoSubtreeModified subtree(GetOwnerDoc(), this);
     nsEventDispatcher::Dispatch(this, nsnull, &mutation);
@@ -4609,6 +4555,12 @@ nsGenericElement::UnsetAttr(PRInt32 aNameSpaceID, nsIAtom* aName,
   if (aNotify) {
     nsNodeUtils::AttributeWillChange(this, aNameSpaceID, aName,
                                      nsIDOMMutationEvent::REMOVAL);
+  }
+
+  if (document && kNameSpaceID_XLink == aNameSpaceID &&
+      nsGkAtoms::href == aName) {
+    // XLink URI might be changing.
+    document->ForgetLink(this);
   }
 
   // When notifying, make sure to keep track of states whose value

@@ -64,7 +64,6 @@ CPPSRCS = \
           nsPlacesModule.cpp \
           SQLFunctions.cpp \
           Helpers.cpp \
-          History.cpp \
           $(NULL)
 
 EXTRA_DSO_LDOPTS += \

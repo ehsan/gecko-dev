@@ -43,7 +43,8 @@
 
 #include "PluginMessageUtils.h"
 #include "npapi.h"
-#include "base/timer.h"
+#include "nsITimer.h"
+#include "nsCOMPtr.h"
 
 namespace mozilla {
 namespace plugins {
@@ -61,9 +62,16 @@ public:
              uint32_t interval,
              bool repeat,
              TimerFunc func);
-  ~ChildTimer() { }
+  ~ChildTimer() {
+    NS_ASSERTION(!mTimer, "Timer should already be cancelled");
+  }
 
   uint32_t ID() const { return mID; }
+
+  /**
+   * Called by the instance, cancels the timer and deletes this object.
+   */
+  void Destroy();
 
   class IDComparator
   {
@@ -76,13 +84,11 @@ public:
 private:
   PluginInstanceChild* mInstance;
   TimerFunc mFunc;
-  bool mRepeating;
   uint32_t mID;
-  base::RepeatingTimer<ChildTimer> mTimer;
-
-  void Run();
+  nsCOMPtr<nsITimer> mTimer;
 
   static uint32_t gNextTimerID;
+  static void Callback(nsITimer* aTimer, void* aClosure);
 };
 
 } // namespace plugins

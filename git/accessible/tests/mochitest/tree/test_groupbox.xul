@@ -23,7 +23,7 @@
 
     function doTest()
     {
-      var accTree = {
+      accTree = {
         role: ROLE_GROUPING,
         children: [
           {

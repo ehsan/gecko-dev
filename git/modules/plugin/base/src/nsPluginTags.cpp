@@ -285,9 +285,6 @@ static nsresult ConvertToUTF8(nsIUnicodeDecoder *aUnicodeDecoder,
 
 nsresult nsPluginTag::EnsureMembersAreUTF8()
 {
-#ifdef XP_WIN
-  return NS_OK;
-#else
   nsresult rv;
   
   nsCOMPtr<nsIPlatformCharset> pcs =
@@ -325,7 +322,6 @@ nsresult nsPluginTag::EnsureMembersAreUTF8()
     }
   }
   return NS_OK;
-#endif
 }
 
 void nsPluginTag::SetHost(nsPluginHost * aHost)

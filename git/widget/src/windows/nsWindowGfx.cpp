@@ -332,40 +332,15 @@ PRBool nsWindow::OnPaint(HDC aDC)
 {
 #ifdef MOZ_IPC
   if (mWindowType == eWindowType_plugin) {
-
-    /**
-     * After we CallUpdateWindow to the child, occasionally a WM_PAINT message
-     * is posted to the parent event loop with an empty update rect. Do a
-     * dummy paint so that Windows stops dispatching WM_PAINT in an inifinite
-     * loop. See bug 543788.
-     */
-    RECT updateRect;
-    if (!GetUpdateRect(mWnd, &updateRect, FALSE) ||
-        (updateRect.left == updateRect.right &&
-         updateRect.top == updateRect.bottom)) {
-      PAINTSTRUCT ps;
-      BeginPaint(mWnd, &ps);
-      EndPaint(mWnd, &ps);
-      return PR_TRUE;
-    }
-
     PluginInstanceParent* instance = reinterpret_cast<PluginInstanceParent*>(
       ::GetPropW(mWnd, L"PluginInstanceParentProperty"));
     if (instance) {
-      instance->CallUpdateWindow();
+      if (!instance->CallUpdateWindow())
+        NS_ERROR("Failed to send message!");
       ValidateRect(mWnd, NULL);
       return PR_TRUE;
     }
   }
-#endif
-
-#ifdef MOZ_IPC
-  // We never have reentrant paint events, except when we're running our RPC
-  // windows event spin loop. If we don't trap for this, we'll try to paint,
-  // but view manager will refuse to paint the surface, resulting is black
-  // flashes on the plugin rendering surface.
-  if (mozilla::ipc::RPCChannel::IsSpinLoopActive() && mPainting)
-    return PR_FALSE;
 #endif
 
   nsPaintEvent willPaintEvent(PR_TRUE, NS_WILL_PAINT, this);
@@ -731,6 +706,12 @@ nsresult nsWindowGfx::CreateIcon(imgIContainer *aContainer,
                                   HICON *aIcon) {
 
   nsresult rv;
+  PRInt32 maxWidth = GetSystemMetrics(SM_CXICON);
+  PRInt32 maxHeight = GetSystemMetrics(SM_CYICON);
+
+  if (!maxWidth || !maxHeight)
+    return NS_ERROR_UNEXPECTED;
+
   PRUint32 nFrames;
   rv = aContainer->GetNumFrames(&nFrames);
   NS_ENSURE_SUCCESS(rv, rv);
@@ -751,6 +732,9 @@ nsresult nsWindowGfx::CreateIcon(imgIContainer *aContainer,
   PRInt32 width = frame->Width();
   PRInt32 height = frame->Height();
 
+  if (width > maxWidth || height > maxHeight)
+    return NS_ERROR_INVALID_ARG;
+
   HBITMAP bmp = DataToBitmap(data, width, -height, 32);
   PRUint8* a1data = Data32BitTo1Bit(data, width, height);
   if (!a1data) {
@@ -766,7 +750,7 @@ nsresult nsWindowGfx::CreateIcon(imgIContainer *aContainer,
   info.yHotspot = aHotspotY;
   info.hbmMask = mbmp;
   info.hbmColor = bmp;
-
+  
   HCURSOR icon = ::CreateIconIndirect(&info);
   ::DeleteObject(mbmp);
   ::DeleteObject(bmp);

@@ -55,7 +55,7 @@ toolbarbutton:not([disabled="true"]):active:hover {
 }
 
 .toolbarbutton-icon {
-  padding: 1px 0;
+	padding: 1px 0px 1px 0px;
 }
 
 .toolbarbutton-text {
@@ -64,6 +64,13 @@ toolbarbutton:not([disabled="true"]):active:hover {
   text-align: center;
   vertical-align: middle;
 }
+
+toolbarbutton:hover:active[buttonstyle="text"],
+toolbarbutton[open="true"][buttonstyle="text"] {
+  color: #2c498c;
+}
+
+
 
 toolbarbutton[disabled="true"],
 toolbarbutton[disabled="true"]:hover,
@@ -81,7 +88,7 @@ toolbarbutton[checked="true"] {
     border-left: 1px solid #b9b9b9;
     color: ButtonText !important;
 }
-
+    
 /* ::::: toolbarbutton menu ::::: */
 
 .toolbarbutton-menu-dropmarker {
@@ -121,6 +128,7 @@ toolbarbutton[type="menu-button"][disabled="true"]:hover:active {
   -moz-box-orient: vertical;
 }
 
+
 /* .......... dropmarker .......... */
 
 .toolbarbutton-menubutton-dropmarker {
@@ -140,3 +148,4 @@ toolbarbutton[type="menu-button"][disabled="true"]:hover:active {
 toolbarbutton.tabbable {
   -moz-user-focus: normal !important;
 }
+

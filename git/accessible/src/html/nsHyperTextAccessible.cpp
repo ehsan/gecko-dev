@@ -40,6 +40,7 @@
 #include "nsHyperTextAccessible.h"
 #include "nsAccessibilityAtoms.h"
 #include "nsAccessibilityService.h"
+#include "nsAccessibleTreeWalker.h"
 #include "nsTextAttrs.h"
 
 #include "nsIClipboard.h"
@@ -198,6 +199,47 @@ nsHyperTextAccessible::GetStateInternal(PRUint32 *aState, PRUint32 *aExtraState)
   }
 
   return NS_OK;
+}
+
+void
+nsHyperTextAccessible::CacheChildren()
+{
+  PRUint32 role;
+  GetRoleInternal(&role);
+  if (role != nsIAccessibleRole::ROLE_ENTRY &&
+      role != nsIAccessibleRole::ROLE_PASSWORD_TEXT) {
+    nsAccessible::CacheChildren();
+    return;
+  }
+
+  nsCOMPtr<nsIEditor> editor;
+  GetAssociatedEditor(getter_AddRefs(editor));
+  if (!editor) {
+    nsAccessible::CacheChildren();
+    return;
+  }
+
+  // Special case for text entry fields, go directly to editor's root for
+  // children.
+
+  nsCOMPtr<nsIDOMElement> editorRoot;
+  editor->GetRootElement(getter_AddRefs(editorRoot));
+  nsCOMPtr<nsIDOMNode> editorRootDOMNode = do_QueryInterface(editorRoot);
+  if (!editorRootDOMNode)
+    return;
+
+  nsAccessibleTreeWalker walker(mWeakShell, editorRootDOMNode, PR_TRUE);
+
+  walker.GetFirstChild();
+  while (walker.mState.accessible) {
+    nsRefPtr<nsAccessible> acc =
+      nsAccUtils::QueryObject<nsAccessible>(walker.mState.accessible);
+
+    mChildren.AppendElement(acc);
+    acc->SetParent(this);
+
+    walker.GetNextSibling();
+  }
 }
 
 // Substring must be entirely within the same text node
@@ -585,14 +627,16 @@ nsresult nsHyperTextAccessible::DOMPointToHypertextOffset(nsIDOMNode* aNode, PRI
   if (findNode) {
     nsCOMPtr<nsIContent> findContent = do_QueryInterface(findNode);
     if (findContent->IsHTML() && 
-        findContent->NodeInfo()->Equals(nsAccessibilityAtoms::br) &&
-        findContent->AttrValueIs(kNameSpaceID_None,
-                                 nsAccessibilityAtoms::mozeditorbogusnode,
-                                 nsAccessibilityAtoms::_true,
-                                 eIgnoreCase)) {
-      // This <br> is the hacky "bogus node" used when there is no text in a control
-      *aHyperTextOffset = 0;
-      return NS_OK;
+        findContent->NodeInfo()->Equals(nsAccessibilityAtoms::br)) {
+      nsIContent *parent = findContent->GetParent();
+      if (parent &&
+          parent->IsRootOfNativeAnonymousSubtree() &&
+          parent->GetChildCount() == 1) {
+        // This <br> is the only node in a text control, therefore it is the hacky
+        // "bogus node" used when there is no text in a control
+        *aHyperTextOffset = 0;
+        return NS_OK;
+      }
     }
     descendantAccessible = GetFirstAvailableAccessible(findNode);
   }
@@ -1412,71 +1456,56 @@ NS_IMETHODIMP nsHyperTextAccessible::SetTextContents(const nsAString &aText)
   return NS_ERROR_FAILURE;
 }
 
-NS_IMETHODIMP
-nsHyperTextAccessible::InsertText(const nsAString &aText, PRInt32 aPosition)
+NS_IMETHODIMP nsHyperTextAccessible::InsertText(const nsAString &aText, PRInt32 aPosition)
 {
-  nsCOMPtr<nsIEditor> editor;
-  GetAssociatedEditor(getter_AddRefs(editor));
+  if (NS_SUCCEEDED(SetCaretOffset(aPosition))) {
+    nsCOMPtr<nsIEditor> editor;
+    GetAssociatedEditor(getter_AddRefs(editor));
+    nsCOMPtr<nsIPlaintextEditor> peditor(do_QueryInterface(editor));
+    return peditor ? peditor->InsertText(aText) : NS_ERROR_FAILURE;
+  }
 
-  nsCOMPtr<nsIPlaintextEditor> peditor(do_QueryInterface(editor));
-  NS_ENSURE_STATE(peditor);
-
-  nsresult rv = SetSelectionRange(aPosition, aPosition);
-  NS_ENSURE_SUCCESS(rv, rv);
-
-  return peditor->InsertText(aText);
+  return NS_ERROR_FAILURE;
 }
 
-NS_IMETHODIMP
-nsHyperTextAccessible::CopyText(PRInt32 aStartPos, PRInt32 aEndPos)
+NS_IMETHODIMP nsHyperTextAccessible::CopyText(PRInt32 aStartPos, PRInt32 aEndPos)
 {
   nsCOMPtr<nsIEditor> editor;
   GetAssociatedEditor(getter_AddRefs(editor));
-  NS_ENSURE_STATE(editor);
+  if (editor && NS_SUCCEEDED(SetSelectionRange(aStartPos, aEndPos)))
+    return editor->Copy();
 
-  nsresult rv = SetSelectionRange(aStartPos, aEndPos);
-  NS_ENSURE_SUCCESS(rv, rv);
-
-  return editor->Copy();
+  return NS_ERROR_FAILURE;
 }
 
-NS_IMETHODIMP
-nsHyperTextAccessible::CutText(PRInt32 aStartPos, PRInt32 aEndPos)
+NS_IMETHODIMP nsHyperTextAccessible::CutText(PRInt32 aStartPos, PRInt32 aEndPos)
 {
   nsCOMPtr<nsIEditor> editor;
   GetAssociatedEditor(getter_AddRefs(editor));
-  NS_ENSURE_STATE(editor);
+  if (editor && NS_SUCCEEDED(SetSelectionRange(aStartPos, aEndPos)))
+    return editor->Cut();
 
-  nsresult rv = SetSelectionRange(aStartPos, aEndPos);
-  NS_ENSURE_SUCCESS(rv, rv);
-
-  return editor->Cut();
+  return NS_ERROR_FAILURE;
 }
 
-NS_IMETHODIMP
-nsHyperTextAccessible::DeleteText(PRInt32 aStartPos, PRInt32 aEndPos)
+NS_IMETHODIMP nsHyperTextAccessible::DeleteText(PRInt32 aStartPos, PRInt32 aEndPos)
 {
   nsCOMPtr<nsIEditor> editor;
   GetAssociatedEditor(getter_AddRefs(editor));
-  NS_ENSURE_STATE(editor);
+  if (editor && NS_SUCCEEDED(SetSelectionRange(aStartPos, aEndPos)))
+    return editor->DeleteSelection(nsIEditor::eNone);
 
-  nsresult rv = SetSelectionRange(aStartPos, aEndPos);
-  NS_ENSURE_SUCCESS(rv, rv);
-
-  return editor->DeleteSelection(nsIEditor::eNone);
+  return NS_ERROR_FAILURE;
 }
 
-NS_IMETHODIMP
-nsHyperTextAccessible::PasteText(PRInt32 aPosition)
+NS_IMETHODIMP nsHyperTextAccessible::PasteText(PRInt32 aPosition)
 {
   nsCOMPtr<nsIEditor> editor;
   GetAssociatedEditor(getter_AddRefs(editor));
-  NS_ENSURE_STATE(editor);
+  if (editor && NS_SUCCEEDED(SetCaretOffset(aPosition)))
+    return editor->Paste(nsIClipboard::kGlobalClipboard);
 
-  nsresult rv = SetSelectionRange(aPosition, aPosition);
-  NS_ENSURE_SUCCESS(rv, rv);
-
-  return editor->Paste(nsIClipboard::kGlobalClipboard);
+  return NS_ERROR_FAILURE;
 }
 
 NS_IMETHODIMP
@@ -1525,14 +1554,10 @@ nsHyperTextAccessible::GetAssociatedEditor(nsIEditor **aEditor)
   * =================== Caret & Selection ======================
   */
 
-nsresult
-nsHyperTextAccessible::SetSelectionRange(PRInt32 aStartPos, PRInt32 aEndPos)
+nsresult nsHyperTextAccessible::SetSelectionRange(PRInt32 aStartPos, PRInt32 aEndPos)
 {
-  nsresult rv = TakeFocus();
-  NS_ENSURE_SUCCESS(rv, rv);
-
   // Set the selection
-  SetSelectionBounds(0, aStartPos, aEndPos);
+  nsresult rv = SetSelectionBounds(0, aStartPos, aEndPos);
   NS_ENSURE_SUCCESS(rv, rv);
 
   // If range 0 was successfully set, clear any additional selection 
@@ -1562,8 +1587,7 @@ nsHyperTextAccessible::SetSelectionRange(PRInt32 aStartPos, PRInt32 aEndPos)
   return NS_OK;
 }
 
-NS_IMETHODIMP
-nsHyperTextAccessible::SetCaretOffset(PRInt32 aCaretOffset)
+NS_IMETHODIMP nsHyperTextAccessible::SetCaretOffset(PRInt32 aCaretOffset)
 {
   return SetSelectionRange(aCaretOffset, aCaretOffset);
 }

@@ -50,7 +50,6 @@
 #include "nsContentUtils.h"
 #include "nsIContent.h"
 #include "nsIPrincipal.h"
-#include "nsNodeUtils.h"
 
 nsDOMCSSAttributeDeclaration::nsDOMCSSAttributeDeclaration(nsIContent *aContent
 #ifdef MOZ_SMIL
@@ -109,19 +108,6 @@ nsDOMCSSAttributeDeclaration::DeclarationChanged()
 nsIDocument*
 nsDOMCSSAttributeDeclaration::DocToUpdate()
 {
-  // XXXbz this is a bit of a hack, especially doing it before the
-  // BeginUpdate(), but this is a good chokepoint where we know we
-  // plan to modify the CSSDeclaration, so need to notify
-  // AttributeWillChange if this is inline style.
-#ifdef MOZ_SMIL
-  if (!mIsSMILOverride)
-#endif
-  {
-    nsNodeUtils::AttributeWillChange(mContent, kNameSpaceID_None,
-                                     nsGkAtoms::style,
-                                     nsIDOMMutationEvent::MODIFICATION);
-  }
-  
   // We need GetOwnerDoc() rather than GetCurrentDoc() because it might
   // be the BeginUpdate call that inserts mContent into the document.
   return mContent->GetOwnerDoc();

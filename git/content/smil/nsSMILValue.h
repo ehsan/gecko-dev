@@ -46,7 +46,7 @@ class nsSMILValue
 {
 public:
   nsSMILValue() : mU(), mType(&nsSMILNullType::sSingleton) { }
-  explicit nsSMILValue(const nsISMILType* aType);
+  nsSMILValue(const nsISMILType* aType);
   nsSMILValue(const nsSMILValue& aVal);
 
   ~nsSMILValue()
@@ -55,13 +55,6 @@ public:
   }
 
   const nsSMILValue& operator=(const nsSMILValue& aVal);
-
-  // Equality operators. These are allowed to be conservative (return PR_FALSE
-  // more than you'd expect) - see comment above nsISMILType::IsEqual.
-  PRBool operator==(const nsSMILValue& aVal) const;
-  PRBool operator!=(const nsSMILValue& aVal) const {
-    return !(*this == aVal);
-  }
 
   PRBool IsNull() const
   {
@@ -80,19 +73,9 @@ public:
     PRUint64 mUint;
     PRInt64 mInt;
     double mDouble;
-    struct {
-      float mAngle;
-      PRUint16 mUnit;
-      PRUint16 mOrientType;
-    } mOrient;
     void* mPtr;
   } mU;
   const nsISMILType* mType;
-
-protected:
-  nsresult InitAndCheckPostcondition(const nsISMILType* aNewType);
-  void     DestroyAndCheckPostcondition();
-  nsresult DestroyAndReinit(const nsISMILType* aNewType);
 };
 
 #endif  // NS_SMILVALUE_H_

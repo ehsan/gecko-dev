@@ -40,7 +40,7 @@
 #ifndef nsWindowRoot_h__
 #define nsWindowRoot_h__
 
-class nsPIDOMWindow;
+class nsIDOMWindow;
 class nsIDOMEventListener;
 class nsIEventListenerManager;
 class nsIDOMEvent;
@@ -52,6 +52,7 @@ class nsEventChainPostVisitor;
 #include "nsIDOMNSEventTarget.h"
 #include "nsIEventListenerManager.h"
 #include "nsPIWindowRoot.h"
+#include "nsIFocusController.h"
 #include "nsIDOMEventTarget.h"
 #include "nsCycleCollectionParticipant.h"
 
@@ -61,7 +62,7 @@ class nsWindowRoot : public nsIDOMEventTarget,
                      public nsPIWindowRoot
 {
 public:
-  nsWindowRoot(nsPIDOMWindow* aWindow);
+  nsWindowRoot(nsIDOMWindow* aWindow);
   virtual ~nsWindowRoot();
 
   NS_DECL_CYCLE_COLLECTING_ISUPPORTS
@@ -88,29 +89,22 @@ public:
   }
 
   // nsPIWindowRoot
+  NS_IMETHOD GetFocusController(nsIFocusController** aResult);
 
-  virtual nsPIDOMWindow* GetWindow();
-
-  virtual nsresult GetControllers(nsIControllers** aResult);
-  virtual nsresult GetControllerForCommand(const char * aCommand,
-                                           nsIController** _retval);
-
-  virtual void GetPopupNode(nsIDOMNode** aNode);
-  virtual void SetPopupNode(nsIDOMNode* aNode);
+  virtual nsIDOMWindow* GetWindow();
 
   NS_DECL_CYCLE_COLLECTION_CLASS_AMBIGUOUS(nsWindowRoot, nsIDOMEventTarget)
 
 protected:
   // Members
-  nsPIDOMWindow* mWindow; // [Weak]. The window will hold on to us and let go when it dies.
+  nsIDOMWindow* mWindow; // [Weak]. The window will hold on to us and let go when it dies.
   nsCOMPtr<nsIEventListenerManager> mListenerManager; // [Strong]. We own the manager, which owns event listeners attached
                                                       // to us.
-
-  nsCOMPtr<nsIDOMNode> mPopupNode; // [OWNER]
+  nsCOMPtr<nsIFocusController> mFocusController; // The focus controller for the root.
 };
 
 extern nsresult
-NS_NewWindowRoot(nsPIDOMWindow* aWindow,
+NS_NewWindowRoot(nsIDOMWindow* aWindow,
                  nsPIDOMEventTarget** aResult);
 
 #endif

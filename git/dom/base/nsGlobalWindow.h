@@ -289,6 +289,7 @@ public:
   virtual NS_HIDDEN_(nsPIDOMWindow*) GetPrivateRoot();
   virtual NS_HIDDEN_(void) ActivateOrDeactivate(PRBool aActivate);
   virtual NS_HIDDEN_(void) SetChromeEventHandler(nsPIDOMEventTarget* aChromeEventHandler);
+  virtual NS_HIDDEN_(nsIFocusController*) GetRootFocusController();
 
   virtual NS_HIDDEN_(void) SetOpenerScriptPrincipal(nsIPrincipal* aPrincipal);
   virtual NS_HIDDEN_(nsIPrincipal*) GetOpenerScriptPrincipal();
@@ -661,8 +662,6 @@ protected:
   virtual PRUint32 GetFocusMethod();
 
   void UpdateCanvasFocus(PRBool aFocusChanged, nsIContent* aNewContent);
-
-  already_AddRefed<nsPIWindowRoot> GetTopWindowRoot();
 
   static void NotifyDOMWindowDestroyed(nsGlobalWindow* aWindow);
 

@@ -217,7 +217,6 @@ NS_IMETHODIMP nsSVGMarkerElement::SetOrientToAngle(nsIDOMSVGAngle *angle)
 
   float f;
   angle->GetValue(&f);
-  NS_ENSURE_FINITE(f, NS_ERROR_DOM_SVG_WRONG_TYPE_ERR);
   mAngleAttributes[ORIENT].SetBaseValue(f, this);
 
   return NS_OK;
@@ -380,19 +379,19 @@ nsSVGMarkerElement::GetPreserveAspectRatio()
 
 gfxMatrix
 nsSVGMarkerElement::GetMarkerTransform(float aStrokeWidth,
-                                       float aX, float aY, float aAutoAngle)
+                                       float aX, float aY, float aAngle)
 {
   float scale = 1.0;
   if (mEnumAttributes[MARKERUNITS].GetAnimValue(this) ==
       SVG_MARKERUNITS_STROKEWIDTH)
     scale = aStrokeWidth;
 
-  float angle = mOrientType.GetAnimValue() == SVG_MARKER_ORIENT_AUTO ?
-                aAutoAngle :
-                mAngleAttributes[ORIENT].GetAnimValue() * M_PI / 180.0;
+  if (mOrientType.GetAnimValue() != SVG_MARKER_ORIENT_AUTO) {
+    aAngle = mAngleAttributes[ORIENT].GetAnimValue();
+  }
 
-  return gfxMatrix(cos(angle) * scale,   sin(angle) * scale,
-                   -sin(angle) * scale,  cos(angle) * scale,
+  return gfxMatrix(cos(aAngle) * scale,   sin(aAngle) * scale,
+                   -sin(aAngle) * scale,  cos(aAngle) * scale,
                    aX,                    aY);
 }
 
@@ -405,7 +404,7 @@ nsSVGMarkerElement::GetViewBoxTransform()
     float viewportHeight = 
       mLengthAttributes[MARKERHEIGHT].GetAnimValue(mCoordCtx);
    
-    const nsSVGViewBoxRect& viewbox = mViewBox.GetAnimValue(this); 
+    const nsSVGViewBoxRect& viewbox = mViewBox.GetAnimValue(); 
 
     if (viewbox.width <= 0.0f || viewbox.height <= 0.0f) {
       return gfxMatrix(0.0, 0.0, 0.0, 0.0, 0.0, 0.0); // invalid - don't paint element
@@ -415,8 +414,7 @@ nsSVGMarkerElement::GetViewBoxTransform()
     float refY = mLengthAttributes[REFY].GetAnimValue(mCoordCtx);
 
     gfxMatrix viewBoxTM =
-      nsSVGUtils::GetViewBoxTransform(this,
-                                      viewportWidth, viewportHeight,
+      nsSVGUtils::GetViewBoxTransform(viewportWidth, viewportHeight,
                                       viewbox.x, viewbox.y,
                                       viewbox.width, viewbox.height,
                                       mPreserveAspectRatio,

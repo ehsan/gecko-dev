@@ -63,9 +63,7 @@
 #define APPLICATION_GZIP3                   "application/x-gunzip"
 #define APPLICATION_ZIP                     "application/zip"
 #define APPLICATION_HTTP_INDEX_FORMAT       "application/http-index-format"
-#define APPLICATION_ECMASCRIPT              "application/ecmascript"
-#define APPLICATION_JAVASCRIPT              "application/javascript"
-#define APPLICATION_XJAVASCRIPT             "application/x-javascript"
+#define APPLICATION_JAVASCRIPT              "application/x-javascript"
 #define APPLICATION_NETSCAPE_REVOCATION     "application/x-netscape-revocation"
 #define APPLICATION_NS_PROXY_AUTOCONFIG     "application/x-ns-proxy-autoconfig"
 #define APPLICATION_NS_JAVASCRIPT_AUTOCONFIG        "application/x-javascript-config"
@@ -96,10 +94,6 @@
 #define APPLICATION_MARIMBA                 "application/marimba"
 #define APPLICATION_XMARIMBA                "application/x-marimba"
 #define APPLICATION_XPINSTALL               "application/x-xpinstall"
-#define APPLICATION_XML                     "application/xml"
-#define APPLICATION_XHTML_XML               "application/xhtml+xml"
-#define APPLICATION_MATHML_XML              "application/mathml+xml"
-#define APPLICATION_RDF_XML                 "application/rdf+xml"
 
 #define AUDIO_BASIC                         "audio/basic"
 #define AUDIO_OGG                           "audio/ogg"
@@ -119,7 +113,6 @@
 #define IMAGE_ICO                           "image/x-icon"
 #define IMAGE_MNG                           "video/x-mng"
 #define IMAGE_JNG                           "image/x-jng"
-#define IMAGE_SVG_XML                       "image/svg+xml"
 
 #define MESSAGE_EXTERNAL_BODY               "message/external-body"
 #define MESSAGE_NEWS                        "message/news"
@@ -150,9 +143,6 @@
 #define TEXT_XML                            "text/xml"
 #define TEXT_RDF                            "text/rdf"
 #define TEXT_XUL                            "application/vnd.mozilla.xul+xml"
-#define TEXT_ECMASCRIPT                     "text/ecmascript"
-#define TEXT_JAVASCRIPT                     "text/javascript"
-#define TEXT_XSL                            "text/xsl"
 
 #define VIDEO_MPEG                          "video/mpeg"
 #define VIDEO_OGG                           "video/ogg"
@@ -199,15 +189,6 @@
 #define PARAM_MICALG_SHA1_3                 "rsa-sha1"
 #define PARAM_MICALG_SHA1_4                 "rsa-sha-1"
 #define PARAM_MICALG_SHA1_5                 "rsa-sha"
-#define PARAM_MICALG_SHA256                 "sha-256"
-#define PARAM_MICALG_SHA256_2               "sha256"
-#define PARAM_MICALG_SHA256_3               "2.16.840.1.101.3.4.2.1"
-#define PARAM_MICALG_SHA384                 "sha-384"
-#define PARAM_MICALG_SHA384_2               "sha384"
-#define PARAM_MICALG_SHA384_3               "2.16.840.1.101.3.4.2.2"
-#define PARAM_MICALG_SHA512                 "sha-512"
-#define PARAM_MICALG_SHA512_2               "sha512"
-#define PARAM_MICALG_SHA512_3               "2.16.840.1.101.3.4.2.3"
 #define PARAM_X_MAC_CREATOR                 "x-mac-creator"
 #define PARAM_X_MAC_TYPE                    "x-mac-type"
 #define PARAM_FORMAT                        "format"
@@ -217,6 +198,5 @@
 #define VIEWSOURCE_CONTENT_TYPE             "application/x-view-source"
 
 #define APPLICATION_DIRECTORY				        "application/directory" /* text/x-vcard is synonym */
-#define APPLICATION_CACHED_XUL              "mozilla.application/cached-xul"
 
 #endif /* nsMimeTypes_h_ */

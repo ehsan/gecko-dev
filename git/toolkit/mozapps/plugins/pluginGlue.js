@@ -20,8 +20,6 @@
  *
  * Contributor(s):
  *
- *  Justin Dolske <dolske@mozilla.com>
- *
  * Alternatively, the contents of this file may be used under the terms of
  * either the GNU General Public License Version 2 or later (the "GPL"), or
  * the GNU Lesser General Public License Version 2.1 or later (the "LGPL"),
@@ -36,24 +34,45 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
-Components.utils.import("resource://gre/modules/XPCOMUtils.jsm");
+/**
+ * @file
+ * This file contains the agent style sheet registration code for the
+ * pluginfinder XBL binding. It's not a real module, it only exists so that we
+ * can call addCategoryEntry / deleteCategoryEntry.
+ */
 
-function pluginBindings() { }
+var module = {
+    categoryEntry: "pluginfinder xbl binding",
+    categoryValue: "chrome://mozapps/content/plugins/missingPluginBinding.css",
 
-pluginBindings.prototype = {
-    // This isn't a real component, we're just using categories to
-    // automatically add our stylesheets during module registration.
-    classDescription: "plugin bindings",
-    classID:          Components.ID("12663f3a-a311-4606-83eb-b6b9108dcc36"),
-    contractID:       "@mozilla.org/plugin-bindings;1",
-    QueryInterface: XPCOMUtils.generateQI([]),
+    // registerSelf: Register this component.
+    registerSelf: function (compMgr, fileSpec, location, type) {
+      var catman = Components.classes['@mozilla.org/categorymanager;1']
+                             .getService(Components.interfaces.nsICategoryManager);
+      catman.addCategoryEntry("agent-style-sheets", this.categoryEntry,
+                              this.categoryValue, true, true);
 
-    _xpcom_categories: [{ category: "agent-style-sheets",
-                          entry:    "pluginfinder xbl binding",
-                          value:    "chrome://mozapps/content/plugins/pluginFinderBinding.css"},
-                        { category: "agent-style-sheets",
-                          entry:    "pluginproblem xbl binding",
-                          value:    "chrome://mozapps/content/plugins/pluginProblemBinding.css"}]
+    },
+
+    // unregisterSelf: Unregister this component.
+    unregisterSelf: function (aCompMgr, aLocation, aLoaderStr) {
+      catman.deleteCategoryEntry("agent-style-sheets", this.categoryEntry,
+                                 true);
+    },
+
+    // getClassObject: Return this component's factory object.
+    getClassObject: function (compMgr, cid, iid) {
+        throw Components.results.NS_ERROR_NOT_IMPLEMENTED;
+    },
+
+    // canUnload: n/a (returns true)
+    canUnload: function(compMgr) {
+        return true;
+    }
 };
 
-var NSGetModule = XPCOMUtils.generateNSGetModule([pluginBindings]);
+// NSGetModule: Return the nsIModule object.
+function NSGetModule(compMgr, fileSpec) {
+    return module;
+}
+

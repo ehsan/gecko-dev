@@ -38,8 +38,6 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
-Components.utils.import("resource://gre/modules/XPCOMUtils.jsm");
-
 // XXXmano: we should move most/all of these constants to PlacesUtils
 const ORGANIZER_ROOT_BOOKMARKS = "place:folder=BOOKMARKS_MENU&excludeItems=1&queryType=1";
 const ORGANIZER_SUBSCRIPTIONS_QUERY = "place:annotation=livemark%2FfeedURI";
@@ -461,7 +459,7 @@ PlacesController.prototype = {
 
       // We don't use the nodeIs* methods here to avoid going through the type
       // property way too often
-      switch (nodeType) {
+      switch(nodeType) {
         case Ci.nsINavHistoryResultNode.RESULT_TYPE_QUERY:
           nodeData["query"] = true;
           if (node.parent) {
@@ -1332,11 +1330,19 @@ PlacesController.prototype = {
  * the view that the item(s) have been dropped on was not necessarily active. 
  * Drop functions are passed the view that is being dropped on. 
  */
-let PlacesControllerDragHelper = {
+var PlacesControllerDragHelper = {
   /**
    * DOM Element currently being dragged over
    */
   currentDropTarget: null,
+
+  /**
+   * Current nsIDOMDataTransfer
+   * We need to cache this because we don't have access to the event in the
+   * treeView's canDrop or drop methods, and session.dataTransfer would not be
+   * filled for drag and drop from external sources (eg. the OS).
+   */
+  currentDataTransfer: null,
 
   /**
    * Determines if the mouse is currently being dragged over a child node of
@@ -1348,7 +1354,7 @@ let PlacesControllerDragHelper = {
    *          the container, false otherwise.
    */
   draggingOverChildNode: function PCDH_draggingOverChildNode(node) {
-    let currentNode = this.currentDropTarget;
+    var currentNode = this.currentDropTarget;
     while (currentNode) {
       if (currentNode == node)
         return true;
@@ -1361,7 +1367,9 @@ let PlacesControllerDragHelper = {
    * @returns The current active drag session. Returns null if there is none.
    */
   getSession: function PCDH__getSession() {
-    return this.dragService.getCurrentSession();
+    var dragService = Cc["@mozilla.org/widget/dragservice;1"].
+                      getService(Ci.nsIDragService);
+    return dragService.getCurrentSession();
   },
 
   /**
@@ -1370,7 +1378,7 @@ let PlacesControllerDragHelper = {
    *        The flavors array.
    */
   getFirstValidFlavor: function PCDH_getFirstValidFlavor(aFlavors) {
-    for (let i = 0; i < aFlavors.length; i++) {
+    for (var i = 0; i < aFlavors.length; i++) {
       if (this.GENERIC_VIEW_DROP_TYPES.indexOf(aFlavors[i]) != -1)
         return aFlavors[i];
     }
@@ -1381,19 +1389,22 @@ let PlacesControllerDragHelper = {
    * Determines whether or not the data currently being dragged can be dropped
    * on a places view.
    * @param ip
-   *        The insertion point where the items should be dropped.
+   *        The insertion point where the items should be dropped
    */
-  canDrop: function PCDH_canDrop(ip, dt) {
-    let dropCount = dt.mozItemCount;
+  canDrop: function PCDH_canDrop(ip) {
+    var dt = this.currentDataTransfer;
+    var dropCount = dt.mozItemCount;
 
-    // Check every dragged item.
-    for (let i = 0; i < dropCount; i++) {
-      let flavor = this.getFirstValidFlavor(dt.mozTypesAt(i));
+    // Check every dragged item
+    for (var i = 0; i < dropCount; i++) {
+      var flavor = this.getFirstValidFlavor(dt.mozTypesAt(i));
       if (!flavor)
         return false;
 
-      // Urls can be dropped on any insertionpoint.
-      // XXXmano: remember that this method is called for each dragover event!
+      var data = dt.mozGetDataAt(flavor, i);
+
+      // urls can be dropped on any insertionpoint
+      // XXXmano: // Remember: this method is called for each dragover event!
       // Thus we shouldn't use unwrapNodes here at all if possible.
       // I think it would be OK to accept bogus data here (e.g. text which was
       // somehow wrapped as TAB_DROP_TYPE, this is not in our control, and
@@ -1405,15 +1416,13 @@ let PlacesControllerDragHelper = {
       if (flavor == TAB_DROP_TYPE)
         continue;
 
-      let data = dt.mozGetDataAt(flavor, i);
-      let dragged;
       try {
-        dragged = PlacesUtils.unwrapNodes(data, flavor)[0];
+        var dragged = PlacesUtils.unwrapNodes(data, flavor)[0];
       } catch (e) {
         return false;
       }
 
-      // Only bookmarks and urls can be dropped into tag containers.
+      // Only bookmarks and urls can be dropped into tag containers
       if (ip.isTag && ip.orientation == Ci.nsITreeView.DROP_ON &&
           dragged.type != PlacesUtils.TYPE_X_MOZ_URL &&
           (dragged.type != PlacesUtils.TYPE_X_MOZ_PLACE ||
@@ -1424,7 +1433,7 @@ let PlacesControllerDragHelper = {
       // on any of its descendants.
       if (dragged.type == PlacesUtils.TYPE_X_MOZ_PLACE_CONTAINER ||
           /^place:/.test(dragged.uri)) {
-        let parentId = ip.itemId;
+        var parentId = ip.itemId;
         while (parentId != PlacesUtils.placesRootId) {
           if (dragged.concreteId == parentId || dragged.id == parentId)
             return false;
@@ -1445,22 +1454,22 @@ let PlacesControllerDragHelper = {
    */
   canMoveNode:
   function PCDH_canMoveNode(aNode) {
-    // Can't move query root.
+    // can't move query root
     if (!aNode.parent)
       return false;
 
-    let parentId = PlacesUtils.getConcreteItemId(aNode.parent);
-    let concreteId = PlacesUtils.getConcreteItemId(aNode);
+    var parentId = PlacesUtils.getConcreteItemId(aNode.parent);
+    var concreteId = PlacesUtils.getConcreteItemId(aNode);
 
-    // Can't move children of tag containers.
+    // can't move children of tag containers
     if (PlacesUtils.nodeIsTagQuery(aNode.parent))
       return false;
 
-    // Can't move children of read-only containers.
+    // can't move children of read-only containers
     if (PlacesUtils.nodeIsReadOnly(aNode.parent))
       return false;
 
-    // Check for special folders, etc.
+    // check for special folders, etc
     if (PlacesUtils.nodeIsContainer(aNode) &&
         !this.canMoveContainer(aNode.itemId, parentId))
       return false;
@@ -1482,14 +1491,14 @@ let PlacesControllerDragHelper = {
     if (aId == -1)
       return false;
 
-    // Disallow moving of roots and special folders.
+    // Disallow moving of roots and special folders
     const ROOTS = [PlacesUtils.placesRootId, PlacesUtils.bookmarksMenuFolderId,
                    PlacesUtils.tagsFolderId, PlacesUtils.unfiledBookmarksFolderId,
                    PlacesUtils.toolbarFolderId];
     if (ROOTS.indexOf(aId) != -1)
       return false;
 
-    // Get parent id if necessary.
+    // Get parent id if necessary
     if (aParentId == null || aParentId == -1)
       aParentId = PlacesUtils.bookmarks.getFolderIdForItem(aId);
 
@@ -1504,28 +1513,29 @@ let PlacesControllerDragHelper = {
    * @param   insertionPoint
    *          The insertion point where the items should be dropped
    */
-  onDrop: function PCDH_onDrop(insertionPoint, dt) {
-    let doCopy = ["copy", "link"].indexOf(dt.dropEffect) != -1;
+  onDrop: function PCDH_onDrop(insertionPoint) {
+    var dt = this.currentDataTransfer;
+    var doCopy = ["copy", "link"].indexOf(dt.dropEffect) != -1;
 
-    let transactions = [];
-    let dropCount = dt.mozItemCount;
-    let movedCount = 0;
-    for (let i = 0; i < dropCount; ++i) {
-      let flavor = this.getFirstValidFlavor(dt.mozTypesAt(i));
+    var transactions = [];
+    var dropCount = dt.mozItemCount;
+    var movedCount = 0;
+    for (var i = 0; i < dropCount; ++i) {
+      var flavor = this.getFirstValidFlavor(dt.mozTypesAt(i));
       if (!flavor)
         return false;
 
-      let data = dt.mozGetDataAt(flavor, i);
-      let unwrapped;
+      var data = dt.mozGetDataAt(flavor, i);
+      var unwrapped;
       if (flavor != TAB_DROP_TYPE) {
         // There's only ever one in the D&D case.
         unwrapped = PlacesUtils.unwrapNodes(data, flavor)[0];
       }
       else if (data instanceof XULElement && data.localName == "tab" &&
                data.ownerDocument.defaultView instanceof ChromeWindow) {
-        let uri = data.linkedBrowser.currentURI;
-        let spec = uri ? uri.spec : "about:blank";
-        let title = data.label;
+        var uri = data.linkedBrowser.currentURI;
+        var spec = uri ? uri.spec : "about:blank";
+        var title = data.label;
         unwrapped = { uri: spec,
                       title: data.label,
                       type: PlacesUtils.TYPE_X_MOZ_URL};
@@ -1533,21 +1543,21 @@ let PlacesControllerDragHelper = {
       else
         throw("bogus data was passed as a tab")
 
-      let index = insertionPoint.index;
+      var index = insertionPoint.index;
 
       // Adjust insertion index to prevent reversal of dragged items. When you
       // drag multiple elts upward: need to increment index or each successive
       // elt will be inserted at the same index, each above the previous.
-      let dragginUp = insertionPoint.itemId == unwrapped.parent &&
+      var dragginUp = insertionPoint.itemId == unwrapped.parent &&
                       index < PlacesUtils.bookmarks.getItemIndex(unwrapped.id);
       if (index != -1 && dragginUp)
         index+= movedCount++;
 
-      // If dragging over a tag container we should tag the item.
+      // if dragging over a tag container we should tag the item
       if (insertionPoint.isTag &&
           insertionPoint.orientation == Ci.nsITreeView.DROP_ON) {
-        let uri = PlacesUtils._uri(unwrapped.uri);
-        let tagItemId = insertionPoint.itemId;
+        var uri = PlacesUtils._uri(unwrapped.uri);
+        var tagItemId = insertionPoint.itemId;
         transactions.push(PlacesUIUtils.ptm.tagURI(uri,[tagItemId]));
       }
       else {
@@ -1557,7 +1567,7 @@ let PlacesControllerDragHelper = {
       }
     }
 
-    let txn = PlacesUIUtils.ptm.aggregateTransactions("DropItems", transactions);
+    var txn = PlacesUIUtils.ptm.aggregateTransactions("DropItems", transactions);
     PlacesUIUtils.ptm.doTransaction(txn);
   },
 
@@ -1568,10 +1578,10 @@ let PlacesControllerDragHelper = {
    */
   disallowInsertion: function(aContainer) {
     NS_ASSERT(aContainer, "empty container");
-    // Allow dropping into Tag containers.
+    // allow dropping into Tag containers
     if (PlacesUtils.nodeIsTagQuery(aContainer))
       return false;
-    // Disallow insertion of items under readonly folders.
+    // Disallow insertion of items under readonly folders
     return (!PlacesUtils.nodeIsFolder(aContainer) ||
              PlacesUtils.nodeIsReadOnly(aContainer));
   },
@@ -1587,12 +1597,18 @@ let PlacesControllerDragHelper = {
                             PlacesUtils.TYPE_X_MOZ_URL,
                             TAB_DROP_TYPE,
                             PlacesUtils.TYPE_UNICODE],
+
+  /**
+   * Returns our flavourSet
+   */
+  get flavourSet() {
+    delete this.flavourSet;
+    var flavourSet = new FlavourSet();
+    var acceptedDropFlavours = this.GENERIC_VIEW_DROP_TYPES;
+    acceptedDropFlavours.forEach(flavourSet.appendFlavour, flavourSet);
+    return this.flavourSet = flavourSet;
+  }
 };
-
-
-XPCOMUtils.defineLazyServiceGetter(PlacesControllerDragHelper, "dragService",
-                                   "@mozilla.org/widget/dragservice;1",
-                                   "nsIDragService");
 
 function goUpdatePlacesCommands() {
   // Get the controller for one of the places commands.

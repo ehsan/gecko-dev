@@ -157,12 +157,8 @@ public:
 
   virtual void DidAnimateLength(PRUint8 aAttrEnum);
   virtual void DidAnimateNumber(PRUint8 aAttrEnum);
-  virtual void DidAnimateInteger(PRUint8 aAttrEnum);
-  virtual void DidAnimateAngle(PRUint8 aAttrEnum);
   virtual void DidAnimateBoolean(PRUint8 aAttrEnum);
   virtual void DidAnimateEnum(PRUint8 aAttrEnum);
-  virtual void DidAnimateViewBox();
-  virtual void DidAnimatePreserveAspectRatio();
 
   void GetAnimatedLengthValues(float *aFirst, ...);
   void GetAnimatedNumberValues(float *aFirst, ...);
@@ -363,20 +359,6 @@ private:
                               PRUint32 aIndex1, PRUint32 aIndex2);
 
   void ResetOldStyleBaseType(nsISVGValue *svg_value);
-
-  struct ObservableModificationData {
-    // Only to be used if |name| is non-null.  Otherwise, modType will
-    // be 0 to indicate NS_OK should be returned and 1 to indicate
-    // NS_ERROR_UNEXPECTED should be returned.
-    ObservableModificationData(const nsAttrName* aName, PRUint32 aModType):
-      name(aName), modType(aModType)
-    {}
-    const nsAttrName* name;
-    PRUint8 modType;
-  };
-  ObservableModificationData
-    GetModificationDataForObservable(nsISVGValue* aObservable,
-                                     nsISVGValue::modificationType aModType);
 
   nsCOMPtr<nsICSSStyleRule> mContentStyleRule;
   nsAttrAndChildArray mMappedAttributes;

@@ -111,19 +111,15 @@ typedef PRUint32 nsFrameState;
 #define CAPTURE_IGNOREALLOWED 1
 // true if events should be targeted at the capturing content or its children
 #define CAPTURE_RETARGETTOELEMENT 2
-// true if the current capture wants drags to be prevented
-#define CAPTURE_PREVENTDRAG 4
 
 typedef struct CapturingContentInfo {
   // capture should only be allowed during a mousedown event
   PRPackedBool mAllowed;
   PRPackedBool mRetargetToElement;
-  PRPackedBool mPreventDrag;
   nsIContent* mContent;
 
   CapturingContentInfo() :
-    mAllowed(PR_FALSE), mRetargetToElement(PR_FALSE), mPreventDrag(PR_FALSE),
-    mContent(nsnull) { }
+    mAllowed(PR_FALSE), mRetargetToElement(PR_FALSE), mContent(nsnull) { }
 } CapturingContentInfo;
 
 #define NS_IPRESSHELL_IID     \
@@ -962,9 +958,6 @@ public:
    * descendants. That is, descendants of aContent receive mouse events as
    * they normally would, but mouse events outside of aContent are retargeted
    * to aContent.
-   *
-   * If CAPTURE_PREVENTDRAG is set then drags are prevented from starting while
-   * this capture is active.
    */
   static void SetCapturingContent(nsIContent* aContent, PRUint8 aFlags);
 
@@ -982,15 +975,6 @@ public:
   static void AllowMouseCapture(PRBool aAllowed)
   {
     gCaptureInfo.mAllowed = aAllowed;
-  }
-
-  /**
-   * Returns true if there is an active mouse capture that wants to prevent
-   * drags.
-   */
-  static PRBool IsMouseCapturePreventingDrag()
-  {
-    return gCaptureInfo.mPreventDrag && gCaptureInfo.mContent;
   }
 
 protected:

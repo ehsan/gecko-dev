@@ -96,6 +96,7 @@ STATIC_LIBS += \
   domplugins_s \
   mozipc_s \
   mozipdlgen_s \
+  chromium_s \
   gfxipc_s \
   $(NULL)
 
@@ -116,10 +117,6 @@ STATIC_LIBS += \
 	ucvutil_s \
 	gkgfx \
 	$(NULL)
-
-ifdef MOZ_IPC
-STATIC_LIBS += chromium_s
-endif
 
 ifndef WINCE
 ifdef MOZ_XPINSTALL
@@ -366,7 +363,7 @@ COMPONENT_LIBS += gkdebug
 endif
 
 ifeq ($(MOZ_WIDGET_TOOLKIT),cocoa)
-OS_LIBS += -framework OpenGL -lcups
+EXTRA_DSO_LDOPTS += -framework OpenGL -lcups
 endif
 
 EXTRA_DSO_LDOPTS += \

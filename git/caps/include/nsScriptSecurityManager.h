@@ -410,7 +410,8 @@ public:
 
     static nsresult
     CheckSameOriginPrincipal(nsIPrincipal* aSubject,
-                             nsIPrincipal* aObject);
+                             nsIPrincipal* aObject,
+                             PRBool aIsCheckConnect);
     static PRUint32
     HashPrincipalByOrigin(nsIPrincipal* aPrincipal);
 
@@ -457,7 +458,8 @@ private:
     nsresult
     CheckSameOriginDOMProp(nsIPrincipal* aSubject, 
                            nsIPrincipal* aObject,
-                           PRUint32 aAction);
+                           PRUint32 aAction,
+                           PRBool aIsCheckConnect);
 
     nsresult
     LookupPolicy(nsIPrincipal* principal,

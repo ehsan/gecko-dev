@@ -40,7 +40,6 @@
 
 #include "nsDataHashtable.h"
 #include "nsRefPtrHashtable.h"
-#include "nsHashSets.h"
 
 #include "gfxFontUtils.h"
 #include "gfxFont.h"
@@ -74,7 +73,7 @@ public:
         sPlatformFontList = nsnull;
     }
 
-    void GetFontList (nsIAtom *aLangGroup,
+    void GetFontList (const nsACString& aLangGroup,
                       const nsACString& aGenericFamily,
                       nsTArray<nsString>& aListOfFonts);
 
@@ -206,7 +205,7 @@ protected:
     // on pages with lots of problems
     nsString mReplacementCharFallbackFamily;
 
-    nsStringHashSet mBadUnderlineFamilyNames;
+    nsTHashtable<nsStringHashKey> mBadUnderlineFamilyNames;
 
     // data used as part of the font cmap loading process
     nsTArray<nsRefPtr<gfxFontFamily> > mFontFamiliesToLoad;

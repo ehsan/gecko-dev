@@ -90,12 +90,10 @@ public:
   {
     nsCOMPtr<nsIThread> newThread;
     nsresult rv = NS_NewThread(getter_AddRefs(newThread));
-    if (NS_FAILED(rv))
-      return;
+    NS_ENSURE_SUCCESS(rv,);
 
     rv = newThread->GetPRThread(&mNativeThread);
-    if (NS_FAILED(rv))
-      return;
+    NS_ENSURE_SUCCESS(rv,);
 
     LOG(("Created test thread [0x%p]", static_cast<void*>(mNativeThread)));
 

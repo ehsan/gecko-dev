@@ -56,7 +56,6 @@ _TEST_FILES = 	test_bug589.html \
 		test_bug3348.html \
 		test_bug6296.html \
 		test_bug24958.html \
-		test_bug41464.html \
 		bug100533_load.html \
 		bug100533_iframe.html \
 		test_bug100533.html \
@@ -136,19 +135,16 @@ _TEST_FILES = 	test_bug589.html \
 		test_bug347174_xslp.html \
 		347174transformable.xml \
 		347174transform.xsl \
-		test_anchor_href_cache_invalidation.html \
 		test_bug481335.xhtml \
 		test_bug500885.html \
 		test_bug514856.html \
 		bug514856_iframe.html \
-		test_bug518122.html \
 		test_bug519987.html \
 		test_bug523771.html \
 		form_submit_server.sjs \
 		test_bug529819.html \
 		test_bug529859.html \
 		test_bug535043.html \
-		test_bug547850.html \
 		$(NULL)
 
 libs:: $(_TEST_FILES)

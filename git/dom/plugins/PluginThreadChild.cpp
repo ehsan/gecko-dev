@@ -46,29 +46,25 @@
 #include "chrome/common/child_process.h"
 #include "chrome/common/chrome_switches.h"
 
-using mozilla::ipc::MozillaChildThread;
+using mozilla::ipc::GeckoThread;
 
 namespace mozilla {
 namespace plugins {
 
 PluginThreadChild::PluginThreadChild(ProcessHandle aParentHandle) :
-    MozillaChildThread(aParentHandle, MessageLoop::TYPE_UI)
+    GeckoThread(aParentHandle),
+    mPlugin()
 {
-    NS_ASSERTION(!gInstance, "Two PluginThreadChild?");
-    gInstance = this;
 }
 
 PluginThreadChild::~PluginThreadChild()
 {
-    gInstance = NULL;
 }
-
-PluginThreadChild* PluginThreadChild::gInstance;
 
 void
 PluginThreadChild::Init()
 {
-    MozillaChildThread::Init();
+    GeckoThread::Init();
 
     std::string pluginFilename;
 
@@ -101,7 +97,7 @@ void
 PluginThreadChild::CleanUp()
 {
     mPlugin.CleanUp();
-    MozillaChildThread::CleanUp();
+    GeckoThread::CleanUp();
 }
 
 } // namespace plugins

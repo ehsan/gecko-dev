@@ -159,7 +159,7 @@ main (int argc, char **argv) {
                            NS_FONT_STRETCH_NORMAL,
                            139,
                            10.0,
-                           NS_NewPermanentAtom("en"),
+                           nsDependentCString("x-western"),
                            0.0,
                            PR_FALSE, PR_FALSE, PR_FALSE);
 

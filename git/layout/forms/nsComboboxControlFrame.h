@@ -99,7 +99,6 @@ public:
 
   // nsIAnonymousContentCreator
   virtual nsresult CreateAnonymousContent(nsTArray<nsIContent*>& aElements);
-  virtual void AppendAnonymousContentTo(nsBaseContentList& aElements);
   virtual nsIFrame* CreateFrameFor(nsIContent* aContent);
 
 #ifdef ACCESSIBILITY

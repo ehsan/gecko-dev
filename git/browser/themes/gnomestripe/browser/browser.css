@@ -866,8 +866,13 @@ toolbar[iconsize="small"] #fullscreen-button {
   background-color: rgba(0, 0, 0, .1);
 }
 
-#identity-icon-labels {
+#identity-icon-label {
   padding: 0 2px;
+  margin: 0;
+}
+
+#identity-icon-label[value=""] {
+  display: none;
 }
 
 #identity-box.verifiedDomain {
@@ -1106,6 +1111,11 @@ statusbarpanel#statusbar-display {
   list-style-image: url("chrome://global/skin/icons/notloading_16.png");
 }
 
+
+tabpanels {
+  -moz-appearance: none;
+}
+
 /* Tabs */
 .tabbrowser-tab {
   border: none !important;
@@ -1189,6 +1199,15 @@ statusbarpanel#statusbar-display {
 
 #context_closeTab {
   list-style-image: url("moz-icon://stock/gtk-close?size=menu");
+}
+
+/* tabbrowser-tab focus ring */
+.tabbrowser-tab > .tab-text {
+  border: 1px dotted transparent;
+}
+
+.tabbrowser-tab:focus > .tab-text {
+  border: 1px dotted -moz-DialogText;
 }
 
 /* Tab drag and drop */

@@ -106,17 +106,10 @@ class nsSMILValue;
 class nsSVGTransformSMILType : public nsISMILType
 {
 public:
-  // Singleton for nsSMILValue objects to hold onto.
-  static nsSVGTransformSMILType sSingleton;
-
-protected:
-  // nsISMILType Methods
-  // -------------------
+  // nsISMILType
   virtual nsresult Init(nsSMILValue& aValue) const;
   virtual void     Destroy(nsSMILValue& aValue) const;
   virtual nsresult Assign(nsSMILValue& aDest, const nsSMILValue& aSrc) const;
-  virtual PRBool   IsEqual(const nsSMILValue& aLeft,
-                           const nsSMILValue& aRight) const;
   virtual nsresult Add(nsSMILValue& aDest,
                        const nsSMILValue& aValueToAdd,
                        PRUint32 aCount) const;
@@ -129,22 +122,20 @@ protected:
                                const nsSMILValue& aEndVal,
                                double aUnitDistance,
                                nsSMILValue& aResult) const;
-
-public:
   // Transform array accessors
-  // -------------------------
-  static PRUint32 GetNumTransforms(const nsSMILValue& aValue);
-  static const nsSVGSMILTransform* GetTransformAt(PRUint32 aIndex,
-                                                  const nsSMILValue& aValue);
-  static nsresult AppendTransform(const nsSVGSMILTransform& aTransform,
-                                  nsSMILValue& aValue);
+  PRUint32 GetNumTransforms(const nsSMILValue& aValue) const;
+  const nsSVGSMILTransform* GetTransformAt(PRUint32 aIndex,
+                                           const nsSMILValue& aValue) const;
+  nsresult AppendTransform(const nsSVGSMILTransform& aTransform,
+                           nsSMILValue& aValue) const;
 
+  static nsSVGTransformSMILType sSingleton;
+
+protected:
+  typedef nsTArray<nsSVGSMILTransform> TransformArray;
 
 private:
-  // Private constructor & destructor: prevent instances beyond my singleton,
-  // and prevent others from deleting my singleton.
-  nsSVGTransformSMILType()  {}
-  ~nsSVGTransformSMILType() {}
+  nsSVGTransformSMILType() {}
 };
 
 #endif // NS_SVGTRANSFORMSMILTYPE_H_

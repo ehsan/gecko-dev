@@ -72,8 +72,8 @@ enum nsLinkState {
 
 // IID for the nsIContent interface
 #define NS_ICONTENT_IID       \
-{ 0xc19d6f16, 0xab13, 0x4dde, \
- { 0x99, 0x7a, 0x51, 0x04, 0xc3, 0x64, 0xd2, 0x51 } }
+{ 0xe88a767e, 0x1ca1, 0x4855, \
+ { 0xa7, 0xa4, 0x37, 0x9f, 0x07, 0x89, 0x45, 0xef } }
 
 /**
  * A node of content in a document's content model. This interface
@@ -151,45 +151,6 @@ public:
   {
     return GetCurrentDoc();
   }
-
-  enum {
-    /**
-     * All XBL flattened tree children of the node, as well as :before and
-     * :after anonymous content and native anonymous children.
-     *
-     * @note the result children order is
-     *   1. :before generated node
-     *   2. XBL flattened tree children of this node
-     *   3. native anonymous nodes
-     *   4. :after generated node
-     */
-    eAllChildren = 0,
-
-    /**
-     * All XBL explicit children of the node (see
-     * http://www.w3.org/TR/xbl/#explicit3 ), as well as :before and :after
-     * anonymous content and native anonymous children.
-     *
-     * @note the result children order is
-     *   1. :before generated node
-     *   2. XBL explicit children of the node
-     *   3. native anonymous nodes
-     *   4. :after generated node
-     */
-    eAllButXBL = 1
-  };
-
-  /**
-   * Return either the XBL explicit children of the node or the XBL flattened
-   * tree children of the node, depending on the child type, as well as any
-   * native anonymous children.
-   *
-   * @note calling this method with eAllButXBL will return children that are
-   *  also in the eAllButXBL and eAllChildren child lists of other descendants
-   *  of this node in the tree, but those other nodes cannot be reached from the
-   *  eAllButXBL child list.
-   */
-  virtual already_AddRefed<nsINodeList> GetChildren(PRInt32 aChildType) = 0;
 
   /**
    * Get whether this content is C++-generated anonymous content
@@ -668,6 +629,17 @@ public:
    */
   virtual PRBool IsLink(nsIURI** aURI) const = 0;
 
+   /**
+   * If the implementing element is a link, calling this method forces it to
+   * clear its cached href, if it has one.
+   *
+   * This function does not notify the document that it may need to restyle the
+   * link.
+   */
+  virtual void DropCachedHref()
+  {
+  }
+
   /**
    * Get the cached state of the link.  If the state is unknown, 
    * return eLinkState_Unknown.
@@ -677,6 +649,17 @@ public:
   virtual nsLinkState GetLinkState() const
   {
     return eLinkState_NotLink;
+  }
+
+  /**
+   * Set the cached state of the link.
+   *
+   * @param aState The cached link state of the link.
+   */
+  virtual void SetLinkState(nsLinkState aState)
+  {
+    NS_ASSERTION(aState == eLinkState_NotLink,
+                 "Need to override SetLinkState?");
   }
 
   /**

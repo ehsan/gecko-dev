@@ -57,8 +57,7 @@
 
 #include "nsBaseFilePicker.h"
 
-#define FILEPICKER_TITLES "chrome://global/locale/filepicker.properties"
-#define FILEPICKER_FILTERS "chrome://global/content/filepicker.properties"
+#define FILEPICKER_PROPERTIES "chrome://global/locale/filepicker.properties"
 
 nsBaseFilePicker::nsBaseFilePicker()
 {
@@ -128,13 +127,9 @@ nsBaseFilePicker::AppendFilters(PRInt32 aFilterMask)
   nsCOMPtr<nsIStringBundleService> stringService = do_GetService(NS_STRINGBUNDLE_CONTRACTID, &rv);
   NS_ENSURE_SUCCESS(rv, rv);
 
-  nsCOMPtr<nsIStringBundle> titleBundle, filterBundle;
+  nsCOMPtr<nsIStringBundle> stringBundle;
 
-  rv = stringService->CreateBundle(FILEPICKER_TITLES, getter_AddRefs(titleBundle));
-  if (NS_FAILED(rv))
-    return NS_ERROR_FAILURE;
-
-  rv = stringService->CreateBundle(FILEPICKER_FILTERS, getter_AddRefs(filterBundle));
+  rv = stringService->CreateBundle(FILEPICKER_PROPERTIES, getter_AddRefs(stringBundle));
   if (NS_FAILED(rv))
     return NS_ERROR_FAILURE;
 
@@ -142,37 +137,36 @@ nsBaseFilePicker::AppendFilters(PRInt32 aFilterMask)
   nsXPIDLString filter;
 
   if (aFilterMask & filterAll) {
-    titleBundle->GetStringFromName(NS_LITERAL_STRING("allTitle").get(), getter_Copies(title));
-    filterBundle->GetStringFromName(NS_LITERAL_STRING("allFilter").get(), getter_Copies(filter));
+    stringBundle->GetStringFromName(NS_LITERAL_STRING("allTitle").get(), getter_Copies(title));
+    stringBundle->GetStringFromName(NS_LITERAL_STRING("allFilter").get(), getter_Copies(filter));
     AppendFilter(title,filter);
   }
   if (aFilterMask & filterHTML) {
-    titleBundle->GetStringFromName(NS_LITERAL_STRING("htmlTitle").get(), getter_Copies(title));
-    filterBundle->GetStringFromName(NS_LITERAL_STRING("htmlFilter").get(), getter_Copies(filter));
+    stringBundle->GetStringFromName(NS_LITERAL_STRING("htmlTitle").get(), getter_Copies(title));
+    stringBundle->GetStringFromName(NS_LITERAL_STRING("htmlFilter").get(), getter_Copies(filter));
     AppendFilter(title,filter);
   }
   if (aFilterMask & filterText) {
-    titleBundle->GetStringFromName(NS_LITERAL_STRING("textTitle").get(), getter_Copies(title));
-    filterBundle->GetStringFromName(NS_LITERAL_STRING("textFilter").get(), getter_Copies(filter));
+    stringBundle->GetStringFromName(NS_LITERAL_STRING("textTitle").get(), getter_Copies(title));
+    stringBundle->GetStringFromName(NS_LITERAL_STRING("textFilter").get(), getter_Copies(filter));
     AppendFilter(title,filter);
   }
   if (aFilterMask & filterImages) {
-    titleBundle->GetStringFromName(NS_LITERAL_STRING("imageTitle").get(), getter_Copies(title));
-    filterBundle->GetStringFromName(NS_LITERAL_STRING("imageFilter").get(), getter_Copies(filter));
-    AppendFilter(title,filter);
+    stringBundle->GetStringFromName(NS_LITERAL_STRING("imageTitle").get(), getter_Copies(title));
+    AppendFilter(title,NS_LITERAL_STRING("*.jpg; *.jpeg; *.gif; *.png; *.bmp; *.ico"));
   }
   if (aFilterMask & filterXML) {
-    titleBundle->GetStringFromName(NS_LITERAL_STRING("xmlTitle").get(), getter_Copies(title));
-    filterBundle->GetStringFromName(NS_LITERAL_STRING("xmlFilter").get(), getter_Copies(filter));
+    stringBundle->GetStringFromName(NS_LITERAL_STRING("xmlTitle").get(), getter_Copies(title));
+    stringBundle->GetStringFromName(NS_LITERAL_STRING("xmlFilter").get(), getter_Copies(filter));
     AppendFilter(title,filter);
   }
   if (aFilterMask & filterXUL) {
-    titleBundle->GetStringFromName(NS_LITERAL_STRING("xulTitle").get(), getter_Copies(title));
-    filterBundle->GetStringFromName(NS_LITERAL_STRING("xulFilter").get(), getter_Copies(filter));
+    stringBundle->GetStringFromName(NS_LITERAL_STRING("xulTitle").get(), getter_Copies(title));
+    stringBundle->GetStringFromName(NS_LITERAL_STRING("xulFilter").get(), getter_Copies(filter));
     AppendFilter(title, filter);
   }
   if (aFilterMask & filterApps) {
-    titleBundle->GetStringFromName(NS_LITERAL_STRING("appsTitle").get(), getter_Copies(title));
+    stringBundle->GetStringFromName(NS_LITERAL_STRING("appsTitle").get(), getter_Copies(title));
     // Pass the magic string "..apps" to the platform filepicker, which it
     // should recognize and do the correct platform behavior for.
     AppendFilter(title, NS_LITERAL_STRING("..apps"));

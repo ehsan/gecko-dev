@@ -56,7 +56,7 @@
 #include "nsIStringBundle.h"
 #include "nsWeakReference.h"
 #include "nsInterfaceHashtable.h"
-#include "nsAccessibilityService.h"
+#include "nsIAccessibilityService.h"
 
 class nsIPresShell;
 class nsPresContext;
@@ -70,7 +70,7 @@ class nsIDocShellTreeItem;
 #define ACCESSIBLE_BUNDLE_URL "chrome://global-platform/locale/accessible.properties"
 #define PLATFORM_KEYS_BUNDLE_URL "chrome://global-platform/locale/platformKeys.properties"
 
-typedef nsInterfaceHashtable<nsVoidPtrHashKey, nsAccessNode>
+typedef nsInterfaceHashtable<nsVoidPtrHashKey, nsIAccessNode>
         nsAccessNodeHashtable;
 
 // What we want is: NS_INTERFACE_MAP_ENTRY(self) for static IID accessors,
@@ -127,10 +127,14 @@ class nsAccessNode: public nsIAccessNode
      */
     static already_AddRefed<nsApplicationAccessibleWrap> GetApplicationAccessible();
 
-  /**
-   * Clear the cache and shutdown the access nodes.
-   */
-  static void ClearCache(nsAccessNodeHashtable& aCache);
+    // Static methods for handling per-document cache
+    static void PutCacheEntry(nsAccessNodeHashtable& aCache,
+                              void* aUniqueID, nsIAccessNode *aAccessNode);
+    static void GetCacheEntry(nsAccessNodeHashtable& aCache,
+                              void* aUniqueID, nsIAccessNode **aAccessNode);
+    static void ClearCache(nsAccessNodeHashtable& aCache);
+
+    static PLDHashOperator ClearCacheEntry(const void* aKey, nsCOMPtr<nsIAccessNode>& aAccessNode, void* aUserArg);
 
     // Static cache methods for global document cache
     static already_AddRefed<nsIAccessibleDocument> GetDocAccessibleFor(nsIDocument *aDocument);
@@ -141,7 +145,7 @@ class nsAccessNode: public nsIAccessNode
     already_AddRefed<nsRootAccessible> GetRootAccessible();
 
     static nsIDOMNode *gLastFocusedNode;
-
+    static nsIAccessibilityService* GetAccService();
     already_AddRefed<nsIDOMNode> GetCurrentFocus();
 
     /**
@@ -174,13 +178,6 @@ class nsAccessNode: public nsIAccessNode
    * version of IsDefunct() method.
    */
   PRBool HasWeakShell() const { return !!mWeakShell; }
-
-#ifdef DEBUG
-  /**
-   * Return true if the access node is cached.
-   */
-  PRBool IsInCache();
-#endif
 
 protected:
     nsresult MakeAccessNode(nsIDOMNode *aNode, nsIAccessNode **aAccessNode);

@@ -49,34 +49,48 @@
 #include "nsSVGElement.h"
 #include "nsISVGValue.h"
 #include "prdtoa.h"
-#include "prlog.h"
+
+nsISMILType*
+nsSVGTransformSMILAttr::GetSMILType() const
+{
+  return &nsSVGTransformSMILType::sSingleton;
+}
 
 nsresult
 nsSVGTransformSMILAttr::ValueFromString(const nsAString& aStr,
                                      const nsISMILAnimationElement* aSrcElement,
-                                     nsSMILValue& aValue,
-                                     PRBool& aCanCache) const
+                                     nsSMILValue& aValue) const
 {
   NS_ENSURE_TRUE(aSrcElement, NS_ERROR_FAILURE);
   NS_ASSERTION(aValue.IsNull(),
     "aValue should have been cleared before calling ValueFromString");
 
+  nsSMILValue val(&nsSVGTransformSMILType::sSingleton);
+  if (val.IsNull())
+    return NS_ERROR_FAILURE;
+
   const nsAttrValue* typeAttr = aSrcElement->GetAnimAttr(nsGkAtoms::type);
+
   const nsIAtom* transformType = typeAttr
                                ? typeAttr->GetAtomValue()
                                : nsGkAtoms::translate;
 
-  ParseValue(aStr, transformType, aValue);
-  aCanCache = PR_TRUE;
-  return aValue.IsNull() ? NS_ERROR_FAILURE : NS_OK;
+  nsresult rv = ParseValue(aStr, transformType, val);
+  if (NS_FAILED(rv))
+    return rv;
+
+  aValue = val;
+
+  return NS_OK;
 }
 
 nsSMILValue
 nsSVGTransformSMILAttr::GetBaseValue() const
 {
-  nsSMILValue val(&nsSVGTransformSMILType::sSingleton);
+  nsSVGTransformSMILType *type = &nsSVGTransformSMILType::sSingleton;
+  nsSMILValue val(type);
   if (val.IsNull())
-    return val; // Initialization failed
+    return val;
 
   nsIDOMSVGTransformList *list = mVal->mBaseVal.get();
 
@@ -87,7 +101,7 @@ nsSVGTransformSMILAttr::GetBaseValue() const
     nsresult rv = list->GetItem(i, getter_AddRefs(transform));
     if (NS_SUCCEEDED(rv) && transform) {
       rv = AppendSVGTransformToSMILValue(transform.get(), val);
-      NS_ENSURE_SUCCESS(rv, nsSMILValue());
+      NS_ENSURE_SUCCESS(rv,nsSMILValue());
     }
   }
 
@@ -135,15 +149,19 @@ nsSVGTransformSMILAttr::SetAnimValue(const nsSMILValue& aValue)
 //----------------------------------------------------------------------
 // Implementation helpers
 
-void
+nsresult
 nsSVGTransformSMILAttr::ParseValue(const nsAString& aSpec,
                                    const nsIAtom* aTransformType,
-                                   nsSMILValue& aResult)
+                                   nsSMILValue& aResult) const
 {
-  NS_ASSERTION(aResult.IsNull(), "Unexpected type for SMIL value");
+  nsSVGTransformSMILType* type = &nsSVGTransformSMILType::sSingleton;
+  NS_ASSERTION(
+      type == static_cast<nsSVGTransformSMILType const *>(aResult.mType),
+      "Unexpected type for SMIL value result");
 
-  // nsSVGSMILTransform constructor should be expecting array with 3 params
-  PR_STATIC_ASSERT(nsSVGSMILTransform::NUM_SIMPLE_PARAMS == 3);
+  // Reset the result so we can just append to it
+  nsresult rv = type->Init(aResult);
+  NS_ENSURE_SUCCESS(rv,rv);
 
   float params[3] = { 0.f };
   PRInt32 numParsed = ParseParameterList(aSpec, params, 3);
@@ -152,12 +170,12 @@ nsSVGTransformSMILAttr::ParseValue(const nsAString& aSpec,
   if (aTransformType == nsGkAtoms::translate) {
     // tx [ty=0]
     if (numParsed != 1 && numParsed != 2)
-      return;
+      return NS_ERROR_FAILURE;
     transformType = nsSVGSMILTransform::TRANSFORM_TRANSLATE;
   } else if (aTransformType == nsGkAtoms::scale) {
     // sx [sy=sx]
     if (numParsed != 1 && numParsed != 2)
-      return;
+      return NS_ERROR_FAILURE;
     if (numParsed == 1) {
       params[1] = params[0];
     }
@@ -165,41 +183,35 @@ nsSVGTransformSMILAttr::ParseValue(const nsAString& aSpec,
   } else if (aTransformType == nsGkAtoms::rotate) {
     // r [cx=0 cy=0]
     if (numParsed != 1 && numParsed != 3)
-      return;
+      return NS_ERROR_FAILURE;
     transformType = nsSVGSMILTransform::TRANSFORM_ROTATE;
   } else if (aTransformType == nsGkAtoms::skewX) {
     // x-angle
     if (numParsed != 1)
-      return;
+      return NS_ERROR_FAILURE;
     transformType = nsSVGSMILTransform::TRANSFORM_SKEWX;
   } else if (aTransformType == nsGkAtoms::skewY) {
     // y-angle
     if (numParsed != 1)
-      return;
+      return NS_ERROR_FAILURE;
     transformType = nsSVGSMILTransform::TRANSFORM_SKEWY;
   } else {
-    return;
+    return NS_ERROR_FAILURE;
   }
 
-  nsSMILValue val(&nsSVGTransformSMILType::sSingleton);
-  nsSVGSMILTransform transform(transformType, params);
-  if (NS_FAILED(nsSVGTransformSMILType::AppendTransform(transform, val))) {
-    return;
-  }
-
-  // Success! Initialize our outparam with parsed value.
-  aResult = val;
+  return type->AppendTransform(nsSVGSMILTransform(transformType, params),
+                               aResult);
 }
 
 inline PRBool
-IsSpace(const char c)
+nsSVGTransformSMILAttr::IsSpace(const char c) const
 {
   return (c == 0x9 || c == 0xA || c == 0xD || c == 0x20);
 }
 
 inline void
-SkipWsp(nsACString::const_iterator& aIter,
-        const nsACString::const_iterator& aIterEnd)
+nsSVGTransformSMILAttr::SkipWsp(nsACString::const_iterator& aIter,
+                               const nsACString::const_iterator& aIterEnd) const
 {
   while (aIter != aIterEnd && IsSpace(*aIter))
     ++aIter;
@@ -208,7 +220,7 @@ SkipWsp(nsACString::const_iterator& aIter,
 PRInt32
 nsSVGTransformSMILAttr::ParseParameterList(const nsAString& aSpec,
                                            float* aVars,
-                                           PRInt32 aNVars)
+                                           PRInt32 aNVars) const
 {
   NS_ConvertUTF16toUTF8 spec(aSpec);
 
@@ -246,10 +258,9 @@ nsSVGTransformSMILAttr::ParseParameterList(const nsAString& aSpec,
 
 nsresult
 nsSVGTransformSMILAttr::AppendSVGTransformToSMILValue(
-  nsIDOMSVGTransform* aTransform, nsSMILValue& aValue)
+  nsIDOMSVGTransform* aTransform, nsSMILValue& aValue) const
 {
-  NS_ASSERTION(aValue.mType == &nsSVGTransformSMILType::sSingleton,
-               "Unexpected type for SMIL value");
+  nsSVGTransformSMILType* type = &nsSVGTransformSMILType::sSingleton;
 
   PRUint16 svgTransformType = nsIDOMSVGTransform::SVG_TRANSFORM_MATRIX;
   aTransform->GetType(&svgTransformType);
@@ -259,8 +270,6 @@ nsSVGTransformSMILAttr::AppendSVGTransformToSMILValue(
   if (NS_FAILED(rv) || !matrix)
     return NS_ERROR_FAILURE;
 
-  // nsSVGSMILTransform constructor should be expecting array with 3 params
-  PR_STATIC_ASSERT(nsSVGSMILTransform::NUM_SIMPLE_PARAMS == 3);
   float params[3] = { 0.f };
   nsSVGSMILTransform::TransformType transformType;
 
@@ -312,9 +321,6 @@ nsSVGTransformSMILAttr::AppendSVGTransformToSMILValue(
 
     case nsIDOMSVGTransform::SVG_TRANSFORM_MATRIX:
       {
-        // nsSVGSMILTransform constructor for TRANSFORM_MATRIX type should be
-        // expecting array with 6 params
-        PR_STATIC_ASSERT(nsSVGSMILTransform::NUM_STORED_PARAMS == 6);
         float mx[6];
         matrix->GetA(&mx[0]);
         matrix->GetB(&mx[1]);
@@ -322,9 +328,10 @@ nsSVGTransformSMILAttr::AppendSVGTransformToSMILValue(
         matrix->GetD(&mx[3]);
         matrix->GetE(&mx[4]);
         matrix->GetF(&mx[5]);
-        return nsSVGTransformSMILType::AppendTransform(nsSVGSMILTransform(mx),
-                                                       aValue);
+        rv = type->AppendTransform(nsSVGSMILTransform(mx), aValue);
+        transformType = nsSVGSMILTransform::TRANSFORM_MATRIX;
       }
+      break;
 
     case nsIDOMSVGTransform::SVG_TRANSFORM_UNKNOWN:
       // If it's 'unknown', it's probably not initialised, so just skip it.
@@ -335,11 +342,12 @@ nsSVGTransformSMILAttr::AppendSVGTransformToSMILValue(
       return NS_ERROR_FAILURE;
   }
 
-  NS_ABORT_IF_FALSE(transformType != nsSVGSMILTransform::TRANSFORM_MATRIX,
-                    "generalized matrix case should have returned above");
+  if (transformType != nsSVGSMILTransform::TRANSFORM_MATRIX) {
+    rv =
+      type->AppendTransform(nsSVGSMILTransform(transformType, params), aValue);
+  }
 
-  return nsSVGTransformSMILType::
-    AppendTransform(nsSVGSMILTransform(transformType, params), aValue);
+  return rv;
 }
 
 nsresult
@@ -388,48 +396,52 @@ nsSVGTransformSMILAttr::UpdateFromSMILValue(
 nsresult
 nsSVGTransformSMILAttr::GetSVGTransformFromSMILValue(
     const nsSVGSMILTransform& aSMILTransform,
-    nsIDOMSVGTransform* aSVGTransform)
+    nsIDOMSVGTransform* aSVGTransform) const
 {
+  nsresult rv = NS_ERROR_FAILURE;
+
   switch (aSMILTransform.mTransformType)
   {
     case nsSVGSMILTransform::TRANSFORM_TRANSLATE:
-      return aSVGTransform->SetTranslate(aSMILTransform.mParams[0],
-                                         aSMILTransform.mParams[1]);
+      rv = aSVGTransform->SetTranslate(aSMILTransform.mParams[0],
+                                       aSMILTransform.mParams[1]);
+      break;
 
     case nsSVGSMILTransform::TRANSFORM_SCALE:
-      return aSVGTransform->SetScale(aSMILTransform.mParams[0],
+      rv = aSVGTransform->SetScale(aSMILTransform.mParams[0],
                                    aSMILTransform.mParams[1]);
+      break;
 
     case nsSVGSMILTransform::TRANSFORM_ROTATE:
-      return aSVGTransform->SetRotate(aSMILTransform.mParams[0],
-                                      aSMILTransform.mParams[1],
-                                      aSMILTransform.mParams[2]);
+      rv = aSVGTransform->SetRotate(aSMILTransform.mParams[0],
+                                    aSMILTransform.mParams[1],
+                                    aSMILTransform.mParams[2]);
+      break;
 
     case nsSVGSMILTransform::TRANSFORM_SKEWX:
-      return aSVGTransform->SetSkewX(aSMILTransform.mParams[0]);
+      rv = aSVGTransform->SetSkewX(aSMILTransform.mParams[0]);
+      break;
 
     case nsSVGSMILTransform::TRANSFORM_SKEWY:
-      return aSVGTransform->SetSkewY(aSMILTransform.mParams[0]);
+      rv = aSVGTransform->SetSkewY(aSMILTransform.mParams[0]);
+      break;
 
     case nsSVGSMILTransform::TRANSFORM_MATRIX:
-    {
-      nsCOMPtr<nsIDOMSVGMatrix> svgMatrix;
-      nsresult rv =
-        NS_NewSVGMatrix(getter_AddRefs(svgMatrix),
-                        aSMILTransform.mParams[0],
-                        aSMILTransform.mParams[1],
-                        aSMILTransform.mParams[2],
-                        aSMILTransform.mParams[3],
-                        aSMILTransform.mParams[4],
-                        aSMILTransform.mParams[5]);
-      NS_ENSURE_SUCCESS(rv, rv);
-      NS_ABORT_IF_FALSE(svgMatrix,
-                        "NS_NewSVGMatrix succeeded, so it should have "
-                        "given us a non-null result");
-      return aSVGTransform->SetMatrix(svgMatrix);
-    }
-    default:
-      NS_WARNING("Unexpected transform type");
-      return NS_ERROR_FAILURE;
+      {
+        nsCOMPtr<nsIDOMSVGMatrix> svgMatrix;
+        rv = NS_NewSVGMatrix(getter_AddRefs(svgMatrix),
+                             aSMILTransform.mParams[0],
+                             aSMILTransform.mParams[1],
+                             aSMILTransform.mParams[2],
+                             aSMILTransform.mParams[3],
+                             aSMILTransform.mParams[4],
+                             aSMILTransform.mParams[5]);
+        NS_ENSURE_SUCCESS(rv,rv);
+        NS_ENSURE_TRUE(svgMatrix,NS_ERROR_FAILURE);
+        rv = aSVGTransform->SetMatrix(svgMatrix);
+      }
+      break;
   }
+
+  return rv;
 }

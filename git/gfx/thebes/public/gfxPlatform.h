@@ -63,7 +63,6 @@ class gfxProxyFontEntry;
 class gfxPlatformFontList;
 class gfxTextRun;
 class nsIURI;
-class nsIAtom;
 
 // pref lang id's for font prefs
 // !!! needs to match the list of pref font.default.xx entries listed in all.js !!!
@@ -159,7 +158,7 @@ public:
      * that correspond to the given language group or generic font family
      * (or both, or neither).
      */
-    virtual nsresult GetFontList(nsIAtom *aLangGroup,
+    virtual nsresult GetFontList(const nsACString& aLangGroup,
                                  const nsACString& aGenericFamily,
                                  nsTArray<nsString>& aListOfFonts);
 
@@ -233,7 +232,7 @@ public:
     // check whether format is supported on a platform or not (if unclear, returns true)
     virtual PRBool IsFontFormatSupported(nsIURI *aFontURI, PRUint32 aFormatFlags) { return PR_FALSE; }
 
-    void GetPrefFonts(nsIAtom *aLanguage, nsString& array, PRBool aAppendUnicode = PR_TRUE);
+    void GetPrefFonts(const char *aLangGroup, nsString& array, PRBool aAppendUnicode = PR_TRUE);
 
     // in some situations, need to make decisions about ambiguous characters, may need to look at multiple pref langs
     void GetLangPrefs(eFontPrefLang aPrefLangs[], PRUint32 &aLen, eFontPrefLang aCharLang, eFontPrefLang aPageLang);
@@ -249,11 +248,8 @@ public:
                                   PrefFontCallback aCallback,
                                   void *aClosure);
 
-    // convert a lang group to enum constant (i.e. "zh-TW" ==> eFontPrefLang_ChineseTW)
+    // convert a lang group string to enum constant (i.e. "zh-TW" ==> eFontPrefLang_ChineseTW)
     static eFontPrefLang GetFontPrefLangFor(const char* aLang);
-
-    // convert a lang group atom to enum constant
-    static eFontPrefLang GetFontPrefLangFor(nsIAtom *aLang);
 
     // convert a enum constant to lang group string (i.e. eFontPrefLang_ChineseTW ==> "zh-TW")
     static const char* GetPrefLangName(eFontPrefLang aLang);

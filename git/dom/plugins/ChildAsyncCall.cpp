@@ -60,13 +60,14 @@ ChildAsyncCall::Cancel()
   mData = NULL;
 }
 
-void
+NS_IMETHODIMP
 ChildAsyncCall::Run()
 {
   if (mFunc) {
-    mInstance->mPendingAsyncCalls.RemoveElement(this);
     mFunc(mData);
+    mInstance->mPendingAsyncCalls.RemoveElement(this);
   }
+  return NS_OK;
 }
 
 } // namespace plugins

@@ -51,7 +51,7 @@ AttachNewConstructorObject(XPCCallContext &ccx, JSObject *aGlobalObject);
 
 JSObject *
 GetNewOrUsed(JSContext *cx, XPCWrappedNative *wrapper,
-             JSObject *scope, nsIPrincipal *aObjectPrincipal);
+             nsIPrincipal *aObjectPrincipal);
 JSBool
 CreateExplicitWrapper(JSContext *cx, XPCWrappedNative *wrapper, JSBool deep,
                       jsval *rval);

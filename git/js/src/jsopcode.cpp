@@ -5583,14 +5583,8 @@ ReconstructPCStack(JSContext *cx, JSScript *script, jsbytecode *target,
             }
         }
 
-        /*
-         * Ignore early-exit code, which is SRC_HIDDEN, but do not ignore the
-         * hidden POP that sometimes appears after an UNBRAND. See bug 543565.
-         */
-        if (sn && SN_TYPE(sn) == SRC_HIDDEN &&
-            (op != JSOP_POP || js_GetOpcode(cx, script, pc - 1) != JSOP_UNBRAND)) {
+        if (sn && SN_TYPE(sn) == SRC_HIDDEN)
             continue;
-        }
 
         if (SimulateOp(cx, script, op, cs, pc, pcstack, pcdepth) < 0)
             return -1;

@@ -258,7 +258,7 @@ gfxPlatformGtk::CreateOffscreenSurface(const gfxIntSize& size,
 #ifdef MOZ_PANGO
 
 nsresult
-gfxPlatformGtk::GetFontList(nsIAtom *aLangGroup,
+gfxPlatformGtk::GetFontList(const nsACString& aLangGroup,
                             const nsACString& aGenericFamily,
                             nsTArray<nsString>& aListOfFonts)
 {

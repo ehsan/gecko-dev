@@ -49,8 +49,6 @@
 #include "nsIWebProgressListener.h"
 #include "nsWeakReference.h"
 
-class nsAccessNode;
-class nsAccessible;
 class nsIFrame;
 class nsIWeakReference;
 class nsIDOMNode;
@@ -84,44 +82,19 @@ public:
                                    nsIWeakReference **weakShell);
 
   /**
+   * Return accessibility service (static instance of this class).
+   */
+  static nsresult GetAccessibilityService(nsIAccessibilityService** aResult);
+
+  /**
+   * Return cached accessibility service.
+   */
+  static nsIAccessibilityService* GetAccessibilityService();
+
+  /**
    * Indicates whether accessibility service was shutdown.
    */
   static PRBool gIsShutdown;
-
-  /**
-   * Return an accessible for the given DOM node.
-   *
-   * @param  aNode       [in] the given node
-   * @param  aPresShell  [in] the pres shell of the node
-   * @param  aWeakShell  [in] the weak shell for the pres shell
-   * @param  aIsHidden   [out, optional] indicates whether the node's frame is
-   *                       hidden
-   */
-  already_AddRefed<nsAccessible>
-    GetAccessible(nsIDOMNode *aNode, nsIPresShell *aPresShell,
-                  nsIWeakReference *aWeakShell, PRBool *aIsHidden = nsnull);
-
-  /**
-   * Return an accessible for a DOM node in the given pres shell.
-   * 
-   * @param aNode       [in] the given node.
-   * @param aPresShell  [in] the presentation shell of the given node.
-   * @param aAccessible [out] the nsIAccessible for the given node.
-   */
-  nsresult GetAccessibleInWeakShell(nsIDOMNode *aNode,
-                                    nsIWeakReference *aPresShell,
-                                    nsIAccessible **aAccessible);
-
-  /**
-   * Return an access node for the DOM node in the given presentation shell if
-   * the access node already exists, otherwise null.
-   *
-   * @param  aNode       [in] the DOM node to get an access node for
-   * @param  aPresShell  [in] the presentation shell which contains layout info
-   *                       for the DOM node
-   */
-  nsAccessNode* GetCachedAccessNode(nsIDOMNode *aNode,
-                                    nsIWeakReference *aShell);
 
 private:
   /**
@@ -140,48 +113,38 @@ private:
    * Initialize an accessible and cache it. The method should be called for
    * every created accessible.
    *
-   * @param  aAccessible    [in] accessible to initialize.
-   * @param  aRoleMapEntry  [in] the role map entry role the ARIA role or nsnull
-   *                          if none
-   *
-   * @return true if the accessible was initialized, otherwise false
+   * @param aAccessibleIn - accessible to initialize.
+   * @param aAcccessibleOut - set to the same thing as aAccessibleIn, unless there was
+   *                          an error initializing the accessible, in which case
+   *                          it is set to nsnull
+   * @param aRoleMapEntry - The role map entry role the ARIA role or nsnull if none
    */
-  PRBool InitAccessible(nsAccessible *aAccessible,
-                        nsRoleMapEntry *aRoleMapEntry);
+  nsresult InitAccessible(nsIAccessible *aAccessibleIn, nsIAccessible **aAccessibleOut,
+                          nsRoleMapEntry *aRoleMapEntry = nsnull);
 
   /**
-   * Create accessible for the element implementing nsIAccessibleProvider
+   * Return accessible object for elements implementing nsIAccessibleProvider
    * interface.
+   *
+   * @param aNode - DOM node that accessible is returned for.
    */
-  already_AddRefed<nsAccessible>
-    CreateAccessibleByType(nsIDOMNode *aNode, nsIWeakReference *aWeakShell);
+  nsresult GetAccessibleByType(nsIDOMNode *aNode, nsIAccessible **aAccessible);
 
   /**
-   * Create document or root accessible.
+   * Return accessible object if parent is a deck frame.
+   *
+   * @param aNode - DOMNode that accessible is returned for.
    */
-  already_AddRefed<nsAccessible>
-    CreateDocOrRootAccessible(nsIPresShell *aShell, nsIDocument *aDocument);
-
-  /**
-   * Create accessible for HTML node by tag name.
-   */
-  already_AddRefed<nsAccessible>
-    CreateHTMLAccessibleByMarkup(nsIFrame *aFrame, nsIWeakReference *aWeakShell,
-                                 nsIDOMNode *aNode);
-
-  /**
-   * Create accessible if parent is a deck frame.
-   */
-  already_AddRefed<nsAccessible>
-    CreateAccessibleForDeckChild(nsIFrame *aFrame, nsIDOMNode *aNode,
-                                 nsIWeakReference *aWeakShell);
+  nsresult GetAccessibleForDeckChildren(nsIDOMNode *aNode,
+                                        nsIAccessible **aAccessible);
 
 #ifdef MOZ_XUL
   /**
    * Create accessible for XUL tree element.
    */
-  already_AddRefed<nsAccessible>
-    CreateAccessibleForXULTree(nsIDOMNode *aNode, nsIWeakReference *aWeakShell);
+  nsresult GetAccessibleForXULTree(nsIDOMNode *aNode,
+                                   nsIWeakReference *aWeakShell,
+                                   nsIAccessible **aAccessible);
 #endif
   
   static nsAccessibilityService *gAccessibilityService;
@@ -207,23 +170,9 @@ private:
    */
   void ProcessDocLoadEvent(nsIWebProgress *aWebProgress, PRUint32 aEventType);
 
-  friend nsAccessibilityService* GetAccService();
-
-  friend nsresult  NS_GetAccessibilityService(nsIAccessibilityService** aResult);
-
-  
   NS_DECL_RUNNABLEMETHOD_ARG2(nsAccessibilityService, ProcessDocLoadEvent,
                               nsCOMPtr<nsIWebProgress>, PRUint32)
 };
-
-/**
- * Return the accessibility service instance. (Handy global function)
- */
-inline nsAccessibilityService*
-GetAccService()
-{
-  return nsAccessibilityService::gAccessibilityService;
-}
 
 /**
  * Map nsIAccessibleRole constants to strings. Used by

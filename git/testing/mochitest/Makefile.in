@@ -60,7 +60,6 @@ include $(topsrcdir)/build/automation-build.mk
 _SERV_FILES = 	\
 		runtests.py \
 		automation.py \
-		$(topsrcdir)/build/devicemanager.py \
 		$(topsrcdir)/build/automationutils.py \
 		gen_template.pl \
 		server.js \
@@ -107,7 +106,7 @@ TEST_HARNESS_BINS += \
 endif
 
 ifeq ($(OS_ARCH),Darwin)
-TEST_HARNESS_BINS += fix_macosx_stack.py
+TEST_HARNESS_BINS += fix-macosx-stack.pl
 endif
 
 ifeq ($(OS_ARCH),Linux)

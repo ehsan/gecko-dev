@@ -21,7 +21,6 @@
  *
  * Contributor(s):
  *   Mats Palmgren <mats.palmgren@bredband.net>
- *   Geoff Lankow <geoff@darktrojan.net>
  *
  * Alternatively, the contents of this file may be used under the terms of
  * either of the GNU General Public License Version 2 or later (the "GPL"),
@@ -78,57 +77,12 @@
 #ifdef ACCESSIBILITY
 #include "nsIAccessibilityService.h"
 #endif
-
-#include "nsInterfaceHashtable.h"
-#include "nsURIHashKey.h"
-#include "nsILocalFile.h"
-#include "nsIPrivateBrowsingService.h"
-#include "nsNetCID.h"
-#include "nsIObserver.h"
-#include "nsIObserverService.h"
-#include "nsWeakReference.h"
 #include "nsIVariant.h"
 #include "nsIContentPrefService.h"
-#include "nsIContentURIGrouper.h"
 
 #define SYNC_TEXT 0x1
 #define SYNC_BUTTON 0x2
 #define SYNC_BOTH 0x3
-
-#define CPS_PREF_NAME NS_LITERAL_STRING("browser.upload.lastDir")
-
-class UploadLastDir : public nsIObserver, public nsSupportsWeakReference {
-public:
-  NS_DECL_ISUPPORTS
-  NS_DECL_NSIOBSERVER
-
-  UploadLastDir();
-
-  /**
-   * Fetch the last used directory for this location from the content
-   * pref service, if it is available.
-   *
-   * @param aURI URI of the current page
-   * @param aFile path to the last used directory
-   */
-  nsresult FetchLastUsedDirectory(nsIURI* aURI, nsILocalFile** aFile);
-
-  /**
-   * Store the last used directory for this location using the
-   * content pref service, if it is available
-   * @param aURI URI of the current page
-   * @param aFile file chosen by the user - the path to the parent of this
-   *        file will be stored
-   */
-  nsresult StoreLastUsedDirectory(nsIURI* aURI, nsILocalFile* aFile);
-private:
-  // Directories are stored here during private browsing mode
-  nsInterfaceHashtable<nsStringHashKey, nsILocalFile> mUploadLastDirStore;
-  PRBool mInPrivateBrowsing;
-};
-
-NS_IMPL_ISUPPORTS2(UploadLastDir, nsIObserver, nsISupportsWeakReference)
-UploadLastDir* gUploadLastDir = nsnull;
 
 nsIFrame*
 NS_NewFileControlFrame(nsIPresShell* aPresShell, nsStyleContext* aContext)
@@ -164,9 +118,6 @@ nsFileControlFrame::Init(nsIContent* aContent,
 
   mMouseListener = new MouseListener(this);
   NS_ENSURE_TRUE(mMouseListener, NS_ERROR_OUT_OF_MEMORY);
-
-  if (!gUploadLastDir)
-    nsFileControlFrame::InitUploadLastDir();
 
   return rv;
 }
@@ -289,13 +240,6 @@ nsFileControlFrame::CreateAnonymousContent(nsTArray<nsIContent*>& aElements)
   return NS_OK;
 }
 
-void
-nsFileControlFrame::AppendAnonymousContentTo(nsBaseContentList& aElements)
-{
-  aElements.MaybeAppendElement(mTextContent);
-  aElements.MaybeAppendElement(mBrowse);
-}
-
 NS_QUERYFRAME_HEAD(nsFileControlFrame)
   NS_QUERYFRAME_ENTRY(nsIAnonymousContentCreator)
   NS_QUERYFRAME_ENTRY(nsIFormControlFrame)
@@ -403,9 +347,10 @@ nsFileControlFrame::MouseListener::MouseClick(nsIDOMEvent* aMouseEvent)
     }
   } else {
     // Attempt to retrieve the last used directory from the content pref service
-    nsCOMPtr<nsILocalFile> localFile;
-    if (NS_SUCCEEDED(gUploadLastDir->FetchLastUsedDirectory(
-                     doc->GetDocumentURI(), getter_AddRefs(localFile))))
+    nsCOMPtr<nsILocalFile> localFile = do_CreateInstance(NS_LOCAL_FILE_CONTRACTID);
+    if (!localFile)
+      return NS_ERROR_OUT_OF_MEMORY;
+    if (NS_SUCCEEDED(FetchLastUsedDirectory(doc->GetDocumentURI(), localFile)))
       filePicker->SetDisplayDirectory(localFile);
   }
 
@@ -438,18 +383,16 @@ nsFileControlFrame::MouseListener::MouseClick(nsIDOMEvent* aMouseEvent)
     nsCOMPtr<nsISupports> tmp;
     PRBool prefSaved = PR_FALSE;
     while (NS_SUCCEEDED(iter->GetNext(getter_AddRefs(tmp)))) {
-      nsCOMPtr<nsILocalFile> localFile = do_QueryInterface(tmp);
-      if (localFile) {
+      nsCOMPtr<nsIFile> file = do_QueryInterface(tmp);
+      if (file) {
         nsString unicodePath;
-        result = localFile->GetPath(unicodePath);
+        result = file->GetPath(unicodePath);
         if (!unicodePath.IsEmpty()) {
           newFileNames.AppendElement(unicodePath);
         }
         if (!prefSaved) {
           // Store the last used directory using the content pref service
-          result = gUploadLastDir->StoreLastUsedDirectory(doc->GetDocumentURI(), 
-                                                          localFile);
-          NS_ENSURE_SUCCESS(result, result);
+          StoreLastUsedDirectory(doc->GetDocumentURI(), file);
           prefSaved = PR_TRUE;
         }
       }
@@ -465,9 +408,7 @@ nsFileControlFrame::MouseListener::MouseClick(nsIDOMEvent* aMouseEvent)
         newFileNames.AppendElement(unicodePath);
       }
       // Store the last used directory using the content pref service
-      result = gUploadLastDir->StoreLastUsedDirectory(doc->GetDocumentURI(),
-                                                      localFile);
-      NS_ENSURE_SUCCESS(result, result);
+      StoreLastUsedDirectory(doc->GetDocumentURI(), localFile);
     }
   }
 
@@ -488,55 +429,9 @@ nsFileControlFrame::MouseListener::MouseClick(nsIDOMEvent* aMouseEvent)
   return NS_OK;
 }
 
-void nsFileControlFrame::InitUploadLastDir() {
-  gUploadLastDir = new UploadLastDir();
-  NS_IF_ADDREF(gUploadLastDir);
-
-  nsCOMPtr<nsIObserverService> observerService =
-    do_GetService("@mozilla.org/observer-service;1");
-  if (observerService && gUploadLastDir) {
-    observerService->AddObserver(gUploadLastDir, NS_PRIVATE_BROWSING_SWITCH_TOPIC, PR_TRUE);
-    observerService->AddObserver(gUploadLastDir, "browser:purge-session-history", PR_TRUE);
-  }
-}
-
-void nsFileControlFrame::DestroyUploadLastDir() {
-  if (gUploadLastDir)
-    NS_RELEASE(gUploadLastDir);
-}
-
-UploadLastDir::UploadLastDir():
-  mInPrivateBrowsing(PR_FALSE)
-{
-  nsCOMPtr<nsIPrivateBrowsingService> pbService =
-    do_GetService(NS_PRIVATE_BROWSING_SERVICE_CONTRACTID);
-  if (pbService) {
-    pbService->GetPrivateBrowsingEnabled(&mInPrivateBrowsing);
-  }
-
-  mUploadLastDirStore.Init();
-}
-
 nsresult
-UploadLastDir::FetchLastUsedDirectory(nsIURI* aURI, nsILocalFile** aFile)
+nsFileControlFrame::FetchLastUsedDirectory(nsIURI* aURI, nsILocalFile* aFile)
 {
-  NS_PRECONDITION(aURI, "aURI is null");
-  NS_PRECONDITION(aFile, "aFile is null");
-  // Retrieve the data from memory if it's present during private browsing mode,
-  // otherwise fall through to check the CPS
-  if (mInPrivateBrowsing) {
-    nsCOMPtr<nsIContentURIGrouper> hostnameGrouperService =
-      do_GetService(NS_HOSTNAME_GROUPER_SERVICE_CONTRACTID);
-    if (!hostnameGrouperService)
-      return NS_ERROR_NOT_AVAILABLE;
-    nsString group;
-    hostnameGrouperService->Group(aURI, group);
-
-    if (mUploadLastDirStore.Get(group, aFile)) {
-      return NS_OK;
-    }
-  }
-
   // Attempt to get the CPS, if it's not present we'll just return
   nsCOMPtr<nsIContentPrefService> contentPrefService =
     do_GetService(NS_CONTENT_PREF_SERVICE_CONTRACTID);
@@ -546,91 +441,46 @@ UploadLastDir::FetchLastUsedDirectory(nsIURI* aURI, nsILocalFile** aFile)
   if (!uri)
     return NS_ERROR_OUT_OF_MEMORY;
   uri->SetAsISupports(aURI);
+  NS_NAMED_LITERAL_STRING(prefName, "lastUploadDirectory");
 
   // Get the last used directory, if it is stored
   PRBool hasPref;
-  if (NS_SUCCEEDED(contentPrefService->HasPref(uri, CPS_PREF_NAME, &hasPref)) && hasPref) {
+  if (NS_SUCCEEDED(contentPrefService->HasPref(uri, prefName, &hasPref)) && hasPref) {
     nsCOMPtr<nsIVariant> pref;
-    contentPrefService->GetPref(uri, CPS_PREF_NAME, nsnull, getter_AddRefs(pref));
+    contentPrefService->GetPref(uri, prefName, getter_AddRefs(pref));
     nsString prefStr;
     pref->GetAsAString(prefStr);
-
-    nsCOMPtr<nsILocalFile> localFile = do_CreateInstance(NS_LOCAL_FILE_CONTRACTID);
-    if (!localFile)
-      return NS_ERROR_OUT_OF_MEMORY;
-    localFile->InitWithPath(prefStr);
-
-    *aFile = localFile;
-    NS_ADDREF(*aFile);
+    return aFile->InitWithPath(prefStr);
   }
   return NS_OK;
 }
 
-nsresult
-UploadLastDir::StoreLastUsedDirectory(nsIURI* aURI, nsILocalFile* aFile)
+void
+nsFileControlFrame::StoreLastUsedDirectory(nsIURI* aURI, nsIFile* aFile)
 {
-  NS_PRECONDITION(aURI, "aURI is null");
-  NS_PRECONDITION(aFile, "aFile is null");
-  nsCOMPtr<nsIFile> parentFile;
-  aFile->GetParent(getter_AddRefs(parentFile));
-  nsCOMPtr<nsILocalFile> localFile = do_QueryInterface(parentFile);
-
-  // Store the data in memory instead of the CPS during private browsing mode
-  if (mInPrivateBrowsing) {
-    nsCOMPtr<nsIContentURIGrouper> hostnameGrouperService =
-      do_GetService(NS_HOSTNAME_GROUPER_SERVICE_CONTRACTID);
-    if (!hostnameGrouperService)
-      return NS_ERROR_NOT_AVAILABLE;
-    nsString group;
-    hostnameGrouperService->Group(aURI, group);
-
-    return mUploadLastDirStore.Put(group, localFile);
-  }
-
   // Attempt to get the CPS, if it's not present we'll just return
   nsCOMPtr<nsIContentPrefService> contentPrefService =
     do_GetService(NS_CONTENT_PREF_SERVICE_CONTRACTID);
   if (!contentPrefService)
-    return NS_ERROR_NOT_AVAILABLE;
+    return;
   nsCOMPtr<nsIWritableVariant> uri = do_CreateInstance(NS_VARIANT_CONTRACTID);
   if (!uri)
-    return NS_ERROR_OUT_OF_MEMORY;
+    return;
   uri->SetAsISupports(aURI);
- 
-  // Find the parent of aFile, and store it
-  nsString unicodePath;
-  parentFile->GetPath(unicodePath);
-  if (unicodePath.IsEmpty()) // nothing to do
-    return NS_OK;
-  nsCOMPtr<nsIWritableVariant> prefValue = do_CreateInstance(NS_VARIANT_CONTRACTID);
-  if (!prefValue)
-    return NS_ERROR_OUT_OF_MEMORY;
-  prefValue->SetAsAString(unicodePath);
-  return contentPrefService->SetPref(uri, CPS_PREF_NAME, prefValue);
-}
+  NS_NAMED_LITERAL_STRING(prefName, "lastUploadDirectory");
 
-NS_IMETHODIMP
-UploadLastDir::Observe(nsISupports *aSubject, char const *aTopic, PRUnichar const *aData)
-{
-  if (strcmp(aTopic, NS_PRIVATE_BROWSING_SWITCH_TOPIC) == 0) {
-    if (NS_LITERAL_STRING(NS_PRIVATE_BROWSING_ENTER).Equals(aData)) {
-      mInPrivateBrowsing = PR_TRUE;
-    } else if (NS_LITERAL_STRING(NS_PRIVATE_BROWSING_LEAVE).Equals(aData)) {
-      mInPrivateBrowsing = PR_FALSE;
-      if (mUploadLastDirStore.IsInitialized()) {
-        mUploadLastDirStore.Clear();
-      }
-    }
-  } else if (strcmp(aTopic, "browser:purge-session-history") == 0) {
-    if (mUploadLastDirStore.IsInitialized()) {
-      mUploadLastDirStore.Clear();
-    }
-    nsCOMPtr<nsIContentPrefService> contentPrefService =
-      do_GetService(NS_CONTENT_PREF_SERVICE_CONTRACTID);
-    if (contentPrefService)
-      contentPrefService->RemovePrefsByName(CPS_PREF_NAME);
+  // Find the parent of aFile, and store it
+  nsCOMPtr<nsIFile> parentFile;
+  nsString unicodePath;
+  aFile->GetParent(getter_AddRefs(parentFile));
+  parentFile->GetPath(unicodePath);
+  if (!unicodePath.IsEmpty()) {
+    nsCOMPtr<nsIWritableVariant> prefValue = do_CreateInstance(NS_VARIANT_CONTRACTID);
+    if (!prefValue)
+      return;
+    prefValue->SetAsAString(unicodePath);
+    contentPrefService->SetPref(uri, prefName, prefValue);
   }
-  return NS_OK;
 }
 
 nscoord

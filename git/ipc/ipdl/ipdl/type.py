@@ -237,7 +237,7 @@ class ProtocolType(IPDLType):
     def __init__(self, qname, sendSemantics, stateless=False):
         self.qname = qname
         self.sendSemantics = sendSemantics
-        self.managers = set()           # ProtocolType
+        self.manager = None
         self.manages = [ ]
         self.stateless = stateless
     def isProtocol(self): return True
@@ -247,31 +247,23 @@ class ProtocolType(IPDLType):
     def fullname(self):
         return str(self.qname)
 
-    def addManager(self, mgrtype):
-        assert mgrtype.isIPDL() and mgrtype.isProtocol()
-        self.managers.add(mgrtype)
-
     def managedBy(self, mgr):
-        self.managers = mgr
+        self.manager = mgr
 
     def toplevel(self):
         if self.isToplevel():
             return self
-        for mgr in self.managers:
-            return mgr.toplevel()
+        return self.manager.toplevel()
 
     def isManagerOf(self, pt):
         for managed in self.manages:
             if pt is managed:
                 return True
         return False
-    def isManagedBy(self, pt):
-        return pt in self.managers
-    
     def isManager(self):
         return len(self.manages) > 0
     def isManaged(self):
-        return 0 < len(self.managers)
+        return self.manager is not None
     def isToplevel(self):
         return not self.isManaged()
 
@@ -604,22 +596,15 @@ class GatherDecls(TcheckVisitor):
         # protocol scope
         self.symtab.enterScope(p)
 
-        seenmgrs = set()
-        for mgr in p.managers:
-            if mgr.name in seenmgrs:
-                self.error(mgr.loc, "manager `%s' appears multiple times",
-                           mgr.name)
-                continue
-
-            seenmgrs.add(mgr.name)
-            mgr.of = p
-            mgr.accept(self)
+        if p.manager is not None:
+            p.manager.of = p
+            p.manager.accept(self)
 
         for managed in p.managesStmts:
             managed.manager = p
             managed.accept(self)
 
-        if 0 == len(p.managers) and 0 == len(p.messageDecls):
+        if p.manager is None and 0 == len(p.messageDecls):
             self.error(p.loc,
                        "top-level protocol `%s' cannot be empty",
                        p.name)
@@ -634,8 +619,8 @@ class GatherDecls(TcheckVisitor):
             if not dtordecl:
                 self.error(
                     p.loc,
-                    "destructor declaration `%s(...)' required for managed protocol `%s'",
-                    _DELETE_MSG, p.name)
+                    "destructor declaration `delete(...)' required for managed protocol `%s'",
+                    p.name)
 
         for managed in p.managesStmts:
             mgdname = managed.name
@@ -737,7 +722,7 @@ class GatherDecls(TcheckVisitor):
         self.symtab.exitScope(p)
 
 
-    def visitManager(self, mgr):
+    def visitManagerStmt(self, mgr):
         mgrdecl = self.symtab.lookup(mgr.name)
         pdecl = mgr.of.decl
         assert pdecl
@@ -756,8 +741,9 @@ class GatherDecls(TcheckVisitor):
                 "entity `%s' referenced as |manager| of `%s' is not of `protocol' type; instead it is of type `%s'",
                 mgrname, pname, mgrdecl.type.typename())
         else:
+            assert pdecl.type.manager is None
             mgr.decl = mgrdecl
-            pdecl.type.addManager(mgrdecl.type)
+            pdecl.type.manager = mgrdecl.type
 
 
     def visitManagesStmt(self, mgs):
@@ -960,14 +946,15 @@ class CheckTypes(TcheckVisitor):
 
 
     def visitProtocol(self, p):
-        # check that we require no more "power" than our manager protocols
+        # check that we require no more "power" than our manager protocol
         ptype, pname = p.decl.type, p.decl.shortname
-        for mgrtype in ptype.managers:
-            if mgrtype is not None and ptype.needsMoreJuiceThan(mgrtype):
-                self.error(
-                    p.decl.loc,
-                    "protocol `%s' requires more powerful send semantics than its manager `%s' provides",
-                    pname, mgrtype.name())
+        mgrtype = ptype.manager
+        if mgrtype is not None and ptype.needsMoreJuiceThan(mgrtype):
+            mgrname = p.manager.decl.shortname
+            self.error(
+                p.decl.loc,
+                "protocol `%s' requires more powerful send semantics than its manager `%s' provides",
+                pname, mgrname)
 
         # XXX currently we don't require a delete() message of top-level
         # actors.  need to let experience guide this decision
@@ -993,19 +980,21 @@ class CheckTypes(TcheckVisitor):
         loc = mgs.loc
 
         # we added this information; sanity check it
-        assert ptype.isManagerOf(mgstype)
+        for managed in ptype.manages:
+            if managed is mgstype:
+                break
+        else:
+            assert False
 
         # check that the "managed" protocol agrees
-        if not mgstype.isManagedBy(ptype):
+        if mgstype.manager is not ptype:
             self.error(
                 loc,
                 "|manages| declaration in protocol `%s' does not match any |manager| declaration in protocol `%s'",
                 pname, mgsname)
 
 
-    def visitManager(self, mgr):
-        # FIXME/bug 541126: check that the protocol graph is acyclic
-        
+    def visitManagerStmt(self, mgr):
         pdecl = mgr.of.decl
         ptype, pname = pdecl.type, pdecl.shortname
 
@@ -1013,7 +1002,7 @@ class CheckTypes(TcheckVisitor):
         mgrtype, mgrname = mgrdecl.type, mgrdecl.shortname
 
         # we added this information; sanity check it
-        assert ptype.isManagedBy(mgrtype)
+        assert ptype.manager is mgrtype
 
         loc = mgr.loc
 

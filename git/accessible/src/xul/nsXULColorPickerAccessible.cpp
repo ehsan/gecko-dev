@@ -38,7 +38,7 @@
 
 #include "nsXULColorPickerAccessible.h"
 
-#include "nsAccTreeWalker.h"
+#include "nsAccessibleTreeWalker.h"
 
 #include "nsIDOMElement.h"
 
@@ -166,19 +166,24 @@ nsXULColorPickerAccessible::GetRoleInternal(PRUint32 *aRole)
 void
 nsXULColorPickerAccessible::CacheChildren()
 {
-  nsCOMPtr<nsIContent> node(do_QueryInterface(mDOMNode));
-  nsAccTreeWalker walker(mWeakShell, node, PR_TRUE);
+  nsCOMPtr<nsIAccessible> menupopupAccessible;
+  nsAccessibleTreeWalker walker(mWeakShell, mDOMNode, PR_TRUE);
+  walker.GetFirstChild();
 
-  nsRefPtr<nsAccessible> child;
-  while ((child = walker.GetNextChild())) {
-    PRUint32 role = nsAccUtils::Role(child);
+  while (walker.mState.accessible) {
+    PRUint32 role = nsAccUtils::Role(walker.mState.accessible);
 
     // Get an accessbile for menupopup or panel elements.
     if (role == nsIAccessibleRole::ROLE_ALERT) {
-      mChildren.AppendElement(child);
-      child->SetParent(this);
+      nsRefPtr<nsAccessible> menupopupAcc =
+        nsAccUtils::QueryObject<nsAccessible>(walker.mState.accessible);
+
+      mChildren.AppendElement(menupopupAcc);
+      menupopupAcc->SetParent(this);
 
       return;
     }
+
+    walker.GetNextSibling();
   }
 }

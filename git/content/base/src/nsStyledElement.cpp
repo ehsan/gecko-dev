@@ -50,7 +50,6 @@
 #include "nsICSSStyleRule.h"
 #include "nsICSSParser.h"
 #include "nsICSSLoader.h"
-#include "nsIDOMMutationEvent.h"
 
 #ifdef MOZ_SVG
 #include "nsIDOMSVGStylable.h"
@@ -85,7 +84,7 @@ nsStyledElement::ParseAttribute(PRInt32 aNamespaceID, nsIAtom* aAttribute,
   if (aNamespaceID == kNameSpaceID_None) {
     if (aAttribute == nsGkAtoms::style) {
       SetFlags(NODE_MAY_HAVE_STYLE);
-      ParseStyleAttribute(aValue, aResult, PR_FALSE);
+      ParseStyleAttribute(this, aValue, aResult, PR_FALSE);
       return PR_TRUE;
     }
     if (aAttribute == nsGkAtoms::_class) {
@@ -128,13 +127,8 @@ nsStyledElement::SetInlineStyleRule(nsICSSStyleRule* aStyleRule, PRBool aNotify)
 
   nsAttrValue attrValue(aStyleRule);
 
-  // XXXbz do we ever end up with ADDITION here?  I doubt it.
-  PRUint8 modType = modification ?
-    static_cast<PRUint8>(nsIDOMMutationEvent::MODIFICATION) :
-    static_cast<PRUint8>(nsIDOMMutationEvent::ADDITION);
-
   return SetAttrAndNotify(kNameSpaceID_None, nsGkAtoms::style, nsnull,
-                          oldValueStr, attrValue, modType, hasListeners,
+                          oldValueStr, attrValue, modification, hasListeners,
                           aNotify, nsnull);
 }
 
@@ -209,7 +203,7 @@ nsStyledElement::ReparseStyleAttribute(PRBool aForceInDataDoc)
     nsAttrValue attrValue;
     nsAutoString stringValue;
     oldVal->ToString(stringValue);
-    ParseStyleAttribute(stringValue, attrValue, aForceInDataDoc);
+    ParseStyleAttribute(this, stringValue, attrValue, aForceInDataDoc);
     // Don't bother going through SetInlineStyleRule, we don't want to fire off
     // mutation events or document notifications anyway
     nsresult rv = mAttrsAndChildren.SetAndTakeAttr(nsGkAtoms::style, attrValue);
@@ -220,20 +214,21 @@ nsStyledElement::ReparseStyleAttribute(PRBool aForceInDataDoc)
 }
 
 void
-nsStyledElement::ParseStyleAttribute(const nsAString& aValue,
+nsStyledElement::ParseStyleAttribute(nsIContent* aContent,
+                                     const nsAString& aValue,
                                      nsAttrValue& aResult,
                                      PRBool aForceInDataDoc)
 {
   nsresult result = NS_OK;
-  nsIDocument* doc = GetOwnerDoc();
+  nsIDocument* doc = aContent->GetOwnerDoc();
 
   if (doc && (aForceInDataDoc ||
               !doc->IsLoadedAsData() ||
               doc->IsStaticDocument())) {
     PRBool isCSS = PR_TRUE; // assume CSS until proven otherwise
 
-    if (!IsInNativeAnonymousSubtree()) {  // native anonymous content
-                                          // always assumes CSS
+    if (!aContent->IsInNativeAnonymousSubtree()) {  // native anonymous content
+                                                    // always assumes CSS
       nsAutoString styleType;
       doc->GetHeaderData(nsGkAtoms::headerContentStyleType, styleType);
       if (!styleType.IsEmpty()) {
@@ -247,12 +242,12 @@ nsStyledElement::ParseStyleAttribute(const nsAString& aValue,
       nsCOMPtr<nsICSSParser> cssParser;
       result = cssLoader->GetParserFor(nsnull, getter_AddRefs(cssParser));
       if (cssParser) {
-        nsCOMPtr<nsIURI> baseURI = GetBaseURI();
+        nsCOMPtr<nsIURI> baseURI = aContent->GetBaseURI();
 
         nsCOMPtr<nsICSSStyleRule> rule;
         result = cssParser->ParseStyleAttribute(aValue, doc->GetDocumentURI(),
                                                 baseURI,
-                                                NodePrincipal(),
+                                                aContent->NodePrincipal(),
                                                 getter_AddRefs(rule));
         cssLoader->RecycleParser(cssParser);
 

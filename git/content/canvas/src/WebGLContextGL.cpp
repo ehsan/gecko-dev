@@ -840,7 +840,7 @@ WebGLContext::DrawElements(GLenum mode, GLuint count, GLenum type, GLuint offset
 
     // XXX cache results for this count,offset pair!
     for (PRUint32 i = 0; i < count; ++i)
-        maxindex = NS_MAX(maxindex, *ubuf++);
+        maxindex = PR_MAX(maxindex, *ubuf++);
 
     gl->fUnmapBuffer(LOCAL_GL_ELEMENT_ARRAY_BUFFER);
 
@@ -2402,13 +2402,9 @@ WebGLContext::ValidateGL()
 
     //fprintf(stderr, "GL_MAX_VERTEX_ATTRIBS: %d\n", val);
 
-    // Note: GL_MAX_TEXTURE_UNITS is fixed at 4 for most desktop hardware,
-    // even though the hardware supports much more.  The
-    // GL_MAX_{COMBINED_}TEXTURE_IMAGE_UNITS value is the accurate
-    // value.  For GLES2, GL_MAX_TEXTURE_UNITS is still correc.t
-    gl->fGetIntegerv(LOCAL_GL_MAX_COMBINED_TEXTURE_IMAGE_UNITS, &val);
+    gl->fGetIntegerv(LOCAL_GL_MAX_TEXTURE_UNITS, &val);
     if (val == 0) {
-        LogMessage("GL_MAX_COMBINED_TEXTURE_IMAGE_UNITS is 0!");
+        LogMessage("GL_MAX_TEXTURE_UNITS is 0!");
         return PR_FALSE;
     }
 

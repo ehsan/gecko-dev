@@ -47,7 +47,7 @@
 #include "nsHTMLTableAccessible.h"
 #include "nsDocAccessible.h"
 #include "nsAccessibilityAtoms.h"
-#include "nsAccTreeWalker.h"
+#include "nsAccessibleTreeWalker.h"
 #include "nsAccessible.h"
 #include "nsARIAMap.h"
 #include "nsXULTreeGridAccessible.h"
@@ -172,7 +172,8 @@ nsAccUtils::GetPositionAndSizeForXULSelectControlItem(nsIDOMNode *aNode,
     nsCOMPtr<nsIDOMNode> currNode(do_QueryInterface(currItem));
 
     nsCOMPtr<nsIAccessible> itemAcc;
-    GetAccService()->GetAccessibleFor(currNode, getter_AddRefs(itemAcc));
+    nsAccessNode::GetAccService()->GetAccessibleFor(currNode,
+                                                    getter_AddRefs(itemAcc));
     if (!itemAcc ||
         State(itemAcc) & nsIAccessibleStates::STATE_INVISIBLE) {
       (*aSetSize)--;
@@ -213,7 +214,8 @@ nsAccUtils::GetPositionAndSizeForXULContainerItem(nsIDOMNode *aNode,
     container->GetItemAtIndex(index, getter_AddRefs(item));
 
     nsCOMPtr<nsIAccessible> itemAcc;
-    GetAccService()->GetAccessibleFor(item, getter_AddRefs(itemAcc));
+    nsAccessNode::GetAccService()->GetAccessibleFor(item,
+                                                    getter_AddRefs(itemAcc));
 
     if (itemAcc) {
       PRUint32 itemRole = Role(itemAcc);
@@ -234,7 +236,8 @@ nsAccUtils::GetPositionAndSizeForXULContainerItem(nsIDOMNode *aNode,
     container->GetItemAtIndex(index, getter_AddRefs(item));
     
     nsCOMPtr<nsIAccessible> itemAcc;
-    GetAccService()->GetAccessibleFor(item, getter_AddRefs(itemAcc));
+    nsAccessNode::GetAccService()->GetAccessibleFor(item,
+                                                    getter_AddRefs(itemAcc));
 
     if (itemAcc) {
       PRUint32 itemRole = Role(itemAcc);
@@ -362,11 +365,14 @@ nsAccUtils::HasAccessibleChildren(nsIDOMNode *aNode)
   nsIFrame *frame = content->GetPrimaryFrame();
   if (!frame)
     return PR_FALSE;
-
+  
   nsCOMPtr<nsIWeakReference> weakShell(do_GetWeakReference(presShell));
-  nsAccTreeWalker walker(weakShell, content, PR_FALSE);
-  nsRefPtr<nsAccessible> accessible = walker.GetNextChild();
-  return accessible ? PR_TRUE : PR_FALSE;
+  nsAccessibleTreeWalker walker(weakShell, aNode, PR_FALSE);
+
+  walker.mState.frame = frame;
+
+  walker.GetFirstChild();
+  return walker.mState.accessible ? PR_TRUE : PR_FALSE;
 }
 
 already_AddRefed<nsIAccessible>
@@ -518,7 +524,8 @@ already_AddRefed<nsIAccessible>
 nsAccUtils::GetMultiSelectableContainer(nsIDOMNode *aNode)
 {
   nsCOMPtr<nsIAccessible> accessible;
-  GetAccService()->GetAccessibleFor(aNode, getter_AddRefs(accessible));
+  nsAccessNode::GetAccService()->GetAccessibleFor(aNode,
+                                                  getter_AddRefs(accessible));
 
   nsCOMPtr<nsIAccessible> container =
     GetSelectableContainer(accessible, State(accessible));
@@ -566,20 +573,25 @@ nsAccUtils::GetTextAccessibleFromSelection(nsISelection *aSelection,
   nsCOMPtr<nsIDOMNode> resultNode =
     nsCoreUtils::GetDOMNodeFromDOMPoint(focusNode, focusOffset);
 
+  nsIAccessibilityService *accService = nsAccessNode::GetAccService();
+
   // Get text accessible containing the result node.
   while (resultNode) {
     // Make sure to get the correct starting node for selection events inside
     // XBL content trees.
     nsCOMPtr<nsIDOMNode> relevantNode;
-    GetAccService()->GetRelevantContentNodeFor(resultNode, 
-                                               getter_AddRefs(relevantNode));
+    nsresult rv = accService->
+      GetRelevantContentNodeFor(resultNode, getter_AddRefs(relevantNode));
+    if (NS_FAILED(rv))
+      return nsnull;
+
     if (relevantNode)
       resultNode.swap(relevantNode);
 
     nsCOMPtr<nsIContent> content = do_QueryInterface(resultNode);
     if (!content || !content->IsNodeOfType(nsINode::eTEXT)) {
       nsCOMPtr<nsIAccessible> accessible;
-      GetAccService()->GetAccessibleFor(resultNode, getter_AddRefs(accessible));
+      accService->GetAccessibleFor(resultNode, getter_AddRefs(accessible));
       if (accessible) {
         nsIAccessibleText *textAcc = nsnull;
         CallQueryInterface(accessible, &textAcc);
@@ -944,7 +956,8 @@ PRBool
 nsAccUtils::IsNodeRelevant(nsIDOMNode *aNode)
 {
   nsCOMPtr<nsIDOMNode> relevantNode;
-  GetAccService()->GetRelevantContentNodeFor(aNode, getter_AddRefs(relevantNode));
+  nsAccessNode::GetAccService()->GetRelevantContentNodeFor(aNode,
+                                                           getter_AddRefs(relevantNode));
   return aNode == relevantNode;
 }
 

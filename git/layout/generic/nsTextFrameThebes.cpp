@@ -1344,7 +1344,7 @@ BuildTextRunsScanner::ContinueTextRunAcrossFrames(nsTextFrame* aFrame1, nsTextFr
   const nsStyleFont* fontStyle2 = sc2->GetStyleFont();
   const nsStyleText* textStyle2 = sc2->GetStyleText();
   return fontStyle1->mFont.BaseEquals(fontStyle2->mFont) &&
-    sc1->GetStyleVisibility()->mLanguage == sc2->GetStyleVisibility()->mLanguage &&
+    sc1->GetStyleVisibility()->mLangGroup == sc2->GetStyleVisibility()->mLangGroup &&
     nsLayoutUtils::GetTextRunFlagsForStyle(sc1, textStyle1, fontStyle1) ==
       nsLayoutUtils::GetTextRunFlagsForStyle(sc2, textStyle2, fontStyle2);
 }
@@ -1870,7 +1870,7 @@ BuildTextRunsScanner::SetupBreakSinksForTextRun(gfxTextRun* aTextRun,
                                                 PRBool aSuppressSink)
 {
   // textruns have uniform language
-  nsIAtom* language = mMappedFlows[0].mStartFrame->GetStyleVisibility()->mLanguage;
+  nsIAtom* lang = mMappedFlows[0].mStartFrame->GetStyleVisibility()->mLangGroup;
   // We keep this pointed at the skip-chars data for the current mappedFlow.
   // This lets us cheaply check whether the flow has compressed initial
   // whitespace...
@@ -1918,10 +1918,10 @@ BuildTextRunsScanner::SetupBreakSinksForTextRun(gfxTextRun* aTextRun,
     if (length > 0) {
       BreakSink* sink = aSuppressSink ? nsnull : (*breakSink).get();
       if (aTextRun->GetFlags() & gfxFontGroup::TEXT_IS_8BIT) {
-        mLineBreaker.AppendText(language, aTextRun->GetText8Bit() + offset,
+        mLineBreaker.AppendText(lang, aTextRun->GetText8Bit() + offset,
                                 length, flags, sink);
       } else {
-        mLineBreaker.AppendText(language, aTextRun->GetTextUnicode() + offset,
+        mLineBreaker.AppendText(lang, aTextRun->GetTextUnicode() + offset,
                                 length, flags, sink);
       }
     }
@@ -2161,16 +2161,13 @@ static PRInt32 FindChar(const nsTextFragment* frag,
   return -1;
 }
 
-static PRBool IsChineseOrJapanese(nsIFrame* aFrame)
+static PRBool IsChineseJapaneseLangGroup(nsIFrame* aFrame)
 {
-  nsIAtom* language = aFrame->GetStyleVisibility()->mLanguage;
-  if (!language) {
-    return PR_FALSE;
-  }
-  const char *lang;
-  language->GetUTF8String(&lang);
-  return (!strncmp(lang, "ja", 2) || !strncmp(lang, "zh", 2)) &&
-         (lang[2] == '\0' || lang[2] == '-');
+  nsIAtom* langGroup = aFrame->GetStyleVisibility()->mLangGroup;
+  return langGroup == nsGkAtoms::Japanese
+      || langGroup == nsGkAtoms::Chinese
+      || langGroup == nsGkAtoms::Taiwanese
+      || langGroup == nsGkAtoms::HongKongChinese;
 }
 
 #ifdef DEBUG
@@ -2330,7 +2327,7 @@ PropertyProvider::ComputeJustifiableCharacters(PRInt32 aOffset, PRInt32 aLength)
     run(mStart, nsSkipCharsRunIterator::LENGTH_INCLUDES_SKIPPED, aLength);
   run.SetOriginalOffset(aOffset);
   PRUint32 justifiableChars = 0;
-  PRBool isCJK = IsChineseOrJapanese(mFrame);
+  PRBool isCJK = IsChineseJapaneseLangGroup(mFrame);
   while (run.NextRun()) {
     PRInt32 i;
     for (i = 0; i < run.GetRunLength(); ++i) {
@@ -2455,7 +2452,7 @@ PropertyProvider::GetSpacingInternal(PRUint32 aStart, PRUint32 aLength,
     gfxFloat halfJustificationSpace = mJustificationSpacing/2;
     // Scan non-skipped characters and adjust justifiable chars, adding
     // justification space on either side of the cluster
-    PRBool isCJK = IsChineseOrJapanese(mFrame);
+    PRBool isCJK = IsChineseJapaneseLangGroup(mFrame);
     gfxSkipCharsIterator justificationStart(mStart), justificationEnd(mStart);
     FindJustificationRange(&justificationStart, &justificationEnd);
 
@@ -6129,7 +6126,7 @@ nsTextFrame::Reflow(nsPresContext*           aPresContext,
   // Restrict preformatted text to the nearest newline
   PRInt32 newLineOffset = -1; // this will be -1 or a content offset
   // Pointer to the nsGkAtoms::newline set on this frame's element
-  NewlineProperty* cachedNewlineOffset = nsnull;
+  NewlineProperty* cachedNewlineOffset;
   if (textStyle->NewlineIsSignificant()) {
     cachedNewlineOffset =
       static_cast<NewlineProperty*>(mContent->GetProperty(nsGkAtoms::newline));
@@ -6602,7 +6599,7 @@ nsTextFrame::TrimTrailingWhiteSpace(nsIRenderingContext* aRC)
     // Check if any character in the last cluster is justifiable
     PropertyProvider provider(mTextRun, textStyle, frag, this, start, contentLength,
                               nsnull, 0);
-    PRBool isCJK = IsChineseOrJapanese(this);
+    PRBool isCJK = IsChineseJapaneseLangGroup(this);
     gfxSkipCharsIterator justificationStart(start), justificationEnd(trimmedEndIter);
     provider.FindJustificationRange(&justificationStart, &justificationEnd);
 

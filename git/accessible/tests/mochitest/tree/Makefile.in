@@ -52,7 +52,6 @@ _TEST_FILES =\
 		test_filectrl.html \
 		test_formctrl.html \
 		test_formctrl.xul \
-		test_gencontent.html \
 		test_groupbox.xul \
 		test_iframe.html \
 		test_img.html \
@@ -67,7 +66,6 @@ _TEST_FILES =\
 		test_tree.xul \
 		test_txtcntr.html \
 		test_txtctrl.html \
-		test_txtctrl.xul \
 		$(NULL)
 
 libs:: $(_TEST_FILES)

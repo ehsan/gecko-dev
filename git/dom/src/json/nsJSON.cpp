@@ -607,7 +607,7 @@ nsJSONListener::OnDataAvailable(nsIRequest *aRequest, nsISupports *aContext,
   while (bytesRemaining) {
     unsigned int bytesRead;
     rv = aStream->Read(buffer,
-                       NS_MIN((unsigned long)sizeof(buffer), bytesRemaining),
+                       PR_MIN(sizeof(buffer), bytesRemaining),
                        &bytesRead);
     NS_ENSURE_SUCCESS(rv, rv);
     rv = ProcessBytes(buffer, bytesRead);

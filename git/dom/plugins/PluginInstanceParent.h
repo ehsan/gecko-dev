@@ -227,9 +227,6 @@ public:
     virtual bool
     AnswerPluginGotFocus();
 
-    virtual bool
-    RecvSetNestedEventState(const bool& aState);
-
 private:
     bool InternalGetValueForNPObject(NPNVariable aVariable,
                                      PPluginScriptableObjectParent** aValue,
@@ -262,7 +259,6 @@ private:
     nsIntRect          mSharedSize;
     HWND               mPluginHWND;
     WNDPROC            mPluginWndProc;
-    bool               mNestedEventState;
 #endif // defined(XP_WIN)
 };
 

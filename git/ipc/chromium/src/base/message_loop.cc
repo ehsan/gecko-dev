@@ -19,13 +19,8 @@
 #if defined(OS_POSIX)
 #include "base/message_pump_libevent.h"
 #endif
-#if defined(OS_LINUX)
-#ifdef MOZ_WIDGET_GTK2
+#if defined(OS_LINUX) && !defined(CHROMIUM_MOZILLA_BUILD)
 #include "base/message_pump_glib.h"
-#endif
-#ifdef MOZ_WIDGET_QT
-#include "base/message_pump_qt.h"
-#endif
 #endif
 
 #ifdef CHROMIUM_MOZILLA_BUILD
@@ -94,7 +89,7 @@ MessageLoop::MessageLoop(Type type)
   lazy_tls_ptr.Pointer()->Set(this);
 
 #ifdef CHROMIUM_MOZILLA_BUILD
-  if (type_ == TYPE_MOZILLA_UI) {
+  if (type_ == TYPE_UI) {
     pump_ = new mozilla::ipc::MessagePump();
     return;
   }
@@ -117,7 +112,7 @@ MessageLoop::MessageLoop(Type type)
   if (type_ == TYPE_UI) {
 #if defined(OS_MACOSX)
     pump_ = base::MessagePumpMac::Create();
-#elif defined(OS_LINUX)
+#elif defined(OS_LINUX) && !defined(CHROMIUM_MOZILLA_BUILD)
     pump_ = new base::MessagePumpForUI();
 #endif  // OS_LINUX
   } else if (type_ == TYPE_IO) {
@@ -314,11 +309,6 @@ void MessageLoop::SetNestableTasksAllowed(bool allowed) {
     // Start the native pump if we are not already pumping.
     pump_->ScheduleWork();
   }
-}
-
-void MessageLoop::ScheduleWork() {
-  // Start the native pump if we are not already pumping.
-  pump_->ScheduleWork();
 }
 
 bool MessageLoop::NestableTasksAllowed() const {

@@ -23,7 +23,7 @@
  *   Original Author: David W. Hyatt (hyatt@netscape.com)
  *   Pierre Phaneuf <pp@ludusdesign.com>
  *   Dean Tessman <dean_tessman@hotmail.com>
- *   Mats Palmgren <matspal@gmail.com>
+ *   Mats Palmgren <mats.palmgren@bredband.net>
  *
  * Alternatively, the contents of this file may be used under the terms of
  * either of the GNU General Public License Version 2 or later (the "GPL"),
@@ -48,8 +48,30 @@
 #include "nsBoxLayoutState.h"
 #include "nsIScrollableFrame.h"
 #include "nsIRootBox.h"
-#include "nsMenuPopupFrame.h"
 
+nsPopupFrameList::nsPopupFrameList(nsIContent* aPopupContent, nsPopupFrameList* aNext)
+:mNextPopup(aNext), 
+ mPopupFrame(nsnull),
+ mPopupContent(aPopupContent)
+{
+}
+
+void nsPopupFrameList::Destroy(nsIFrame* aDestructRoot)
+{
+  if (mPopupFrame) {
+    nsIFrame* prevSib = mPopupFrame->GetPrevSibling();
+    if (prevSib)
+      prevSib->SetNextSibling(mPopupFrame->GetNextSibling());
+    mPopupFrame->SetNextSibling(nsnull);
+    mPopupFrame->DestroyFrom((aDestructRoot) ? aDestructRoot : mPopupFrame);
+  }
+}
+
+//
+// NS_NewPopupSetFrame
+//
+// Wrapper for creating a new menu popup container
+//
 nsIFrame*
 NS_NewPopupSetFrame(nsIPresShell* aPresShell, nsStyleContext* aContext)
 {
@@ -86,8 +108,7 @@ nsPopupSetFrame::AppendFrames(nsIAtom*        aListName,
                               nsFrameList&    aFrameList)
 {
   if (aListName == nsGkAtoms::popupList) {
-    AddPopupFrameList(aFrameList);
-    return NS_OK;
+    return AddPopupFrameList(aFrameList);
   }
   return nsBoxFrame::AppendFrames(aListName, aFrameList);
 }
@@ -97,8 +118,7 @@ nsPopupSetFrame::RemoveFrame(nsIAtom*        aListName,
                              nsIFrame*       aOldFrame)
 {
   if (aListName == nsGkAtoms::popupList) {
-    RemovePopupFrame(aOldFrame);
-    return NS_OK;
+    return RemovePopupFrame(aOldFrame);
   }
   return nsBoxFrame::RemoveFrame(aListName, aOldFrame);
 }
@@ -109,8 +129,7 @@ nsPopupSetFrame::InsertFrames(nsIAtom*        aListName,
                               nsFrameList&    aFrameList)
 {
   if (aListName == nsGkAtoms::popupList) {
-    AddPopupFrameList(aFrameList);
-    return NS_OK;
+    return AddPopupFrameList(aFrameList);
   }
   return nsBoxFrame::InsertFrames(aListName, aPrevFrame, aFrameList);
 }
@@ -120,13 +139,7 @@ nsPopupSetFrame::SetInitialChildList(nsIAtom*        aListName,
                                      nsFrameList&    aChildList)
 {
   if (aListName == nsGkAtoms::popupList) {
-    // XXXmats this asserts because we don't implement
-    // GetChildList(nsGkAtoms::popupList) so nsCSSFrameConstructor
-    // believes it's empty and calls us multiple times.
-    //NS_ASSERTION(mPopupList.IsEmpty(),
-    //             "SetInitialChildList on non-empty child list");
-    AddPopupFrameList(aChildList);
-    return NS_OK;
+    return AddPopupFrameList(aChildList);
   }
   return nsBoxFrame::SetInitialChildList(aListName, aChildList);
 }
@@ -134,7 +147,12 @@ nsPopupSetFrame::SetInitialChildList(nsIAtom*        aListName,
 void
 nsPopupSetFrame::DestroyFrom(nsIFrame* aDestructRoot)
 {
-  mPopupList.DestroyFramesFrom(aDestructRoot);
+  // remove each popup from the list as we go.
+  while (mPopupList) {
+    nsPopupFrameList* temp = mPopupList;
+    mPopupList = mPopupList->mNextPopup;
+    temp->Destroy(aDestructRoot); // destroys frame
+  }
 
   // Normally the root box is our grandparent, but in case of wrapping
   // it can be our great-grandparent.
@@ -153,9 +171,10 @@ nsPopupSetFrame::DoLayout(nsBoxLayoutState& aState)
   nsresult rv = nsBoxFrame::DoLayout(aState);
 
   // lay out all of our currently open popups.
-  for (nsFrameList::Enumerator e(mPopupList); !e.AtEnd(); e.Next()) {
-    nsMenuPopupFrame* popupChild = static_cast<nsMenuPopupFrame*>(e.get());
-    if (popupChild->IsOpen()) {
+  nsPopupFrameList* currEntry = mPopupList;
+  while (currEntry) {
+    nsMenuPopupFrame* popupChild = currEntry->mPopupFrame;
+    if (popupChild && popupChild->IsOpen()) {
       // then get its preferred size
       nsSize prefSize = popupChild->GetPrefSize(aState);
       nsSize minSize = popupChild->GetMinSize(aState);
@@ -164,7 +183,7 @@ nsPopupSetFrame::DoLayout(nsBoxLayoutState& aState)
       prefSize = BoundsCheck(minSize, prefSize, maxSize);
 
       popupChild->SetPreferredBounds(aState, nsRect(0,0,prefSize.width, prefSize.height));
-      popupChild->SetPopupPosition(nsnull, PR_FALSE);
+      popupChild->SetPopupPosition(nsnull);
 
       // is the new size too small? Make sure we handle scrollbars correctly
       nsIBox* child = popupChild->GetChildBox();
@@ -199,36 +218,100 @@ nsPopupSetFrame::DoLayout(nsBoxLayoutState& aState)
         // the size after layout was larger than the preferred size,
         // so set the preferred size accordingly
         popupChild->SetPreferredSize(popupChild->GetSize());
-        popupChild->SetPopupPosition(nsnull, PR_FALSE);
+        popupChild->SetPopupPosition(nsnull);
       }
       popupChild->AdjustView();
     }
+
+    currEntry = currEntry->mNextPopup;
   }
 
   return rv;
 }
 
-void
+nsresult
 nsPopupSetFrame::RemovePopupFrame(nsIFrame* aPopup)
 {
-  NS_PRECONDITION((aPopup->GetStateBits() & NS_FRAME_OUT_OF_FLOW) &&
-                  aPopup->GetType() == nsGkAtoms::menuPopupFrame,
-                  "removing wrong type of frame in popupset's ::popupList");
+  // This was called by the Destroy() method of the popup, so all we have to do is
+  // get the popup out of our list, so we don't reflow it later.
+#ifdef DEBUG
+  PRBool found = PR_FALSE;
+#endif
+  nsPopupFrameList* currEntry = mPopupList;
+  nsPopupFrameList* temp = nsnull;
+  while (currEntry) {
+    if (currEntry->mPopupFrame == aPopup) {
+      // Remove this entry.
+      if (temp)
+        temp->mNextPopup = currEntry->mNextPopup;
+      else
+        mPopupList = currEntry->mNextPopup;
+      
+      NS_ASSERTION((aPopup->GetStateBits() & NS_FRAME_OUT_OF_FLOW) &&
+                   aPopup->GetType() == nsGkAtoms::menuPopupFrame,
+                   "found wrong type of frame in popupset's ::popupList");
+      // Delete the entry.
+      currEntry->mNextPopup = nsnull;
+      currEntry->Destroy(); // destroys the frame
+#ifdef DEBUG
+      found = PR_TRUE;
+#endif
 
-  mPopupList.DestroyFrame(aPopup);
+      // Break out of the loop.
+      break;
+    }
+
+    temp = currEntry;
+    currEntry = currEntry->mNextPopup;
+  }
+
+  NS_ASSERTION(found, "frame to remove is not in our ::popupList");
+  return NS_OK;
 }
 
-void
+nsresult
 nsPopupSetFrame::AddPopupFrameList(nsFrameList& aPopupFrameList)
 {
-#ifdef DEBUG
-  for (nsFrameList::Enumerator e(aPopupFrameList); !e.AtEnd(); e.Next()) {
-    NS_ASSERTION((e.get()->GetStateBits() & NS_FRAME_OUT_OF_FLOW) &&
-                 e.get()->GetType() == nsGkAtoms::menuPopupFrame,
-                 "adding wrong type of frame in popupset's ::popupList");
+  while (!aPopupFrameList.IsEmpty()) {
+    nsIFrame* f = aPopupFrameList.FirstChild();
+    // Clears out prev/next sibling points appropriately. Every frame
+    // in our popup list has null next and prev pointers, they're logically
+    // each in their own list.
+    aPopupFrameList.RemoveFrame(f);
+    nsresult rv = AddPopupFrame(f);
+    NS_ENSURE_SUCCESS(rv, rv);
   }
-#endif
-  mPopupList.InsertFrames(nsnull, nsnull, aPopupFrameList);
+  return NS_OK;
+}
+
+nsresult
+nsPopupSetFrame::AddPopupFrame(nsIFrame* aPopup)
+{
+  NS_ASSERTION((aPopup->GetStateBits() & NS_FRAME_OUT_OF_FLOW) &&
+               aPopup->GetType() == nsGkAtoms::menuPopupFrame,
+               "adding wrong type of frame in popupset's ::popupList");
+
+  // The entry should already exist, but might not (if someone decided to make their
+  // popup visible straightaway, e.g., the autocomplete widget).
+  // First look for an entry by content.
+  nsIContent* content = aPopup->GetContent();
+  nsPopupFrameList* entry = mPopupList;
+  while (entry && entry->mPopupContent != content)
+    entry = entry->mNextPopup;
+  if (!entry) {
+    entry = new nsPopupFrameList(content, mPopupList);
+    if (!entry)
+      return NS_ERROR_OUT_OF_MEMORY;
+    mPopupList = entry;
+  }
+  else {
+    NS_ASSERTION(!entry->mPopupFrame, "Leaking a popup frame");
+  }
+
+  // Set the frame connection.
+  entry->mPopupFrame = static_cast<nsMenuPopupFrame *>(aPopup);
+  
+  return NS_OK;
 }
 
 #ifdef DEBUG
@@ -306,7 +389,7 @@ nsPopupSetFrame::List(FILE* out, PRInt32 aIndent) const
   // XXXmats the above is copy-pasted from nsContainerFrame::List which is lame,
   // clean this up after bug 399111 is implemented.
 
-  if (!mPopupList.IsEmpty()) {
+  if (mPopupList) {
     fputs("<\n", out);
     ++aIndent;
     IndentBy(out, aIndent);
@@ -317,8 +400,8 @@ nsPopupSetFrame::List(FILE* out, PRInt32 aIndent) const
     ListTag(out);
     fputs(" <\n", out);
     ++aIndent;
-    for (nsFrameList::Enumerator e(mPopupList); !e.AtEnd(); e.Next()) {
-      e.get()->List(out, aIndent);
+    for (nsPopupFrameList* l = mPopupList; l; l = l->mNextPopup) {
+      l->mPopupFrame->List(out, aIndent);
     }
     --aIndent;
     IndentBy(out, aIndent);

@@ -385,24 +385,28 @@ nsHTMLImageAccessible::GetAreaAccessible(nsIDOMHTMLCollection *aAreaCollection,
   aAreaCollection->Item(aAreaNum,getter_AddRefs(domNode));
   if (!domNode)
     return nsnull;
-
-  void* key = reinterpret_cast<void*>(aAreaNum);
-  nsRefPtr<nsAccessNode> accessNode = mAccessNodeCache->GetWeak(key);
-
+  
+  nsCOMPtr<nsIAccessNode> accessNode;
+  GetCacheEntry(*mAccessNodeCache, (void*)(aAreaNum),
+                getter_AddRefs(accessNode));
+  
   if (!accessNode) {
     accessNode = new nsHTMLAreaAccessible(domNode, this, mWeakShell);
     if (!accessNode)
       return nsnull;
-
-    nsresult rv = accessNode->Init();
+    
+    nsRefPtr<nsAccessNode> accNode = nsAccUtils::QueryAccessNode(accessNode);
+    nsresult rv = accNode->Init();
     if (NS_FAILED(rv))
       return nsnull;
-
-    mAccessNodeCache->Put(key, accessNode);
+    
+    PutCacheEntry(*mAccessNodeCache, (void*)(aAreaNum), accessNode);
   }
 
-  nsCOMPtr<nsIAccessible> accessible = do_QueryInterface(accessNode);
-  return accessible.forget();
+  nsIAccessible *accessible = nsnull;
+  CallQueryInterface(accessNode, &accessible);
+
+  return accessible;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

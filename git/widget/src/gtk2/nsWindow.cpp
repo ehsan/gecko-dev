@@ -38,7 +38,7 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
-#ifdef MOZ_PLATFORM_MAEMO
+#ifdef MOZ_PLATFORM_HILDON
 #define MAEMO_CHANGES
 #endif
 
@@ -305,7 +305,7 @@ static GdkEventKey *gKeyEvent = NULL;
 static PRBool       gKeyEventCommitted = PR_FALSE;
 static PRBool       gKeyEventChanged = PR_FALSE;
 static PRBool       gIMESuppressCommit = PR_FALSE;
-#ifdef MOZ_PLATFORM_MAEMO
+#ifdef MOZ_PLATFORM_HILDON
 static PRBool       gIMEVirtualKeyboardOpened = PR_FALSE;
 #endif
 
@@ -3500,7 +3500,7 @@ nsWindow::OnVisibilityNotifyEvent(GtkWidget *aWidget,
 
         mIsFullyObscured = PR_FALSE;
 
-#ifdef MOZ_PLATFORM_MAEMO
+#ifdef MOZ_PLATFORM_HILDON
 #ifdef USE_XIM
         // In Hildon/Maemo, a browser window will get into 'patially visible' state wheneven an
         // autocomplete feature is dropped down (from urlbar or from an entry form completion),
@@ -3510,7 +3510,7 @@ nsWindow::OnVisibilityNotifyEvent(GtkWidget *aWidget,
         // to this it until the pointer is ungrabbed.
         if(!gIMEVirtualKeyboardOpened)
 #endif // USE_XIM
-#endif // MOZ_PLATFORM_MAEMO
+#endif // MOZ_PLATFORM_HILDON
         // if we have to retry the grab, retry it.
         EnsureGrabs();
         break;
@@ -3609,36 +3609,6 @@ nsWindow::ThemeChanged()
     }
 }
 
-void
-nsWindow::CheckNeedDragLeaveEnter(nsWindow* aInnerMostWidget,
-                                  nsIDragService* aDragService,
-                                  GdkDragContext *aDragContext,
-                                  nscoord aX, nscoord aY)
-{
-    // check to see if there was a drag motion window already in place
-    if (mLastDragMotionWindow) {
-        // same as the last window so no need for dragenter and dragleave events
-        if (mLastDragMotionWindow == aInnerMostWidget) {
-            UpdateDragStatus(aDragContext, aDragService);
-            return;
-        }
-
-        // send a dragleave event to the last window that got a motion event
-        nsRefPtr<nsWindow> kungFuDeathGrip = mLastDragMotionWindow;
-        mLastDragMotionWindow->OnDragLeave();
-    }
-
-    // Make sure that the drag service knows we're now dragging
-    aDragService->StartDragSession();
-
-    // update our drag status and send a dragenter event to the window
-    UpdateDragStatus(aDragContext, aDragService);
-    aInnerMostWidget->OnDragEnter(aX, aY);
-
-    // set the last window to the innerMostWidget
-    mLastDragMotionWindow = aInnerMostWidget;
-}
-
 gboolean
 nsWindow::OnDragMotionEvent(GtkWidget *aWidget,
                             GdkDragContext *aDragContext,
@@ -3687,17 +3657,29 @@ nsWindow::OnDragMotionEvent(GtkWidget *aWidget,
     if (!innerMostWidget)
         innerMostWidget = this;
 
-    // update the drag context
-    dragSessionGTK->TargetSetLastContext(aWidget, aDragContext, aTime);
+    // check to see if there was a drag motion window already in place
+    if (mLastDragMotionWindow) {
+        // if it wasn't this
+        if (mLastDragMotionWindow != innerMostWidget) {
+            // send a drag event to the last window that got a motion event
+            nsRefPtr<nsWindow> kungFuDeathGrip = mLastDragMotionWindow;
+            mLastDragMotionWindow->OnDragLeave();
+            // and enter on the new one
+            innerMostWidget->OnDragEnter(retx, rety);
+        }
+    }
+    else {
+        // if there was no other motion window, then we're starting a
+        // drag. Send an enter event to initiate the drag.
 
-    // clear any drag leave timer that might be pending so that it
-    // doesn't get processed when we actually go out to get data.
-    if (mDragLeaveTimer) {
-        mDragLeaveTimer->Cancel();
-        mDragLeaveTimer = nsnull;
+        innerMostWidget->OnDragEnter(retx, rety);
     }
 
-    CheckNeedDragLeaveEnter(innerMostWidget, dragService, aDragContext, retx, rety);
+    // set the last window to the innerMostWidget
+    mLastDragMotionWindow = innerMostWidget;
+
+    // update the drag context
+    dragSessionGTK->TargetSetLastContext(aWidget, aDragContext, aTime);
 
     // notify the drag service that we are starting a drag motion.
     dragSessionGTK->TargetStartDragMotion();
@@ -3707,6 +3689,9 @@ nsWindow::OnDragMotionEvent(GtkWidget *aWidget,
     nsDragEvent event(PR_TRUE, NS_DRAGDROP_OVER, innerMostWidget);
 
     InitDragEvent(event);
+
+    // now that we have initialized the event update our drag status
+    UpdateDragStatus(event, aDragContext, dragService);
 
     event.refPoint.x = retx;
     event.refPoint.y = rety;
@@ -3776,11 +3761,28 @@ nsWindow::OnDragDropEvent(GtkWidget *aWidget,
                                                   &retx, &rety);
     nsRefPtr<nsWindow> innerMostWidget = get_window_for_gdk_window(innerWindow);
 
+    // set this now before any of the drag enter or leave events happen
+    dragSessionGTK->TargetSetLastContext(aWidget, aDragContext, aTime);
+
     if (!innerMostWidget)
         innerMostWidget = this;
 
-    // set this now before any of the drag enter or leave events happen
-    dragSessionGTK->TargetSetLastContext(aWidget, aDragContext, aTime);
+    // check to see if there was a drag motion window already in place
+    if (mLastDragMotionWindow) {
+        // if it wasn't this
+        if (mLastDragMotionWindow != innerMostWidget) {
+            // send a drag event to the last window that got a motion event
+            nsRefPtr<nsWindow> kungFuDeathGrip = mLastDragMotionWindow;
+            mLastDragMotionWindow->OnDragLeave();
+            // and enter on the new one
+            innerMostWidget->OnDragEnter(retx, rety);
+        }
+    }
+    else {
+        // if there was no other motion window, send an enter event to
+        // initiate the drag session.
+        innerMostWidget->OnDragEnter(retx, rety);
+    }
 
     // clear any drag leave timer that might be pending so that it
     // doesn't get processed when we actually go out to get data.
@@ -3789,7 +3791,8 @@ nsWindow::OnDragDropEvent(GtkWidget *aWidget,
         mDragLeaveTimer = nsnull;
     }
 
-    CheckNeedDragLeaveEnter(innerMostWidget, dragService, aDragContext, retx, rety);
+    // set the last window to this
+    mLastDragMotionWindow = innerMostWidget;
 
     // What we do here is dispatch a new drag motion event to
     // re-validate the drag target and then we do the drop.  The events
@@ -3798,6 +3801,9 @@ nsWindow::OnDragDropEvent(GtkWidget *aWidget,
     nsDragEvent event(PR_TRUE, NS_DRAGDROP_OVER, innerMostWidget);
 
     InitDragEvent(event);
+
+    // now that we have initialized the event update our drag status
+    UpdateDragStatus(event, aDragContext, dragService);
 
     event.refPoint.x = retx;
     event.refPoint.y = rety;
@@ -3902,6 +3908,13 @@ nsWindow::OnDragEnter(nscoord aX, nscoord aY)
     // XXX Do we want to pass this on only if the event's subwindow is null?
 
     LOGDRAG(("nsWindow::OnDragEnter(%p)\n", (void*)this));
+
+    nsCOMPtr<nsIDragService> dragService = do_GetService(kCDragServiceCID);
+
+    if (dragService) {
+        // Make sure that the drag service knows we're now dragging.
+        dragService->StartDragSession();
+    }
 
     nsDragEvent event(PR_TRUE, NS_DRAGDROP_ENTER, this);
 
@@ -6090,7 +6103,8 @@ nsWindow::InitDragEvent(nsDragEvent &aEvent)
 // and what the source is offering.
 
 void
-nsWindow::UpdateDragStatus(GdkDragContext *aDragContext,
+nsWindow::UpdateDragStatus(nsDragEvent   &aEvent,
+                           GdkDragContext *aDragContext,
                            nsIDragService *aDragService)
 {
     // default is to do nothing
@@ -6853,7 +6867,7 @@ nsWindow::IMEGetContext()
 static PRBool
 IsIMEEnabledState(PRUint32 aState)
 {
-#ifdef MOZ_PLATFORM_MAEMO
+#ifdef MOZ_PLATFORM_HILDON
     return aState == nsIWidget::IME_STATUS_ENABLED ||
            aState == nsIWidget::IME_STATUS_PLUGIN  ||
            aState == nsIWidget::IME_STATUS_PASSWORD;
@@ -7061,7 +7075,7 @@ nsWindow::SetIMEEnabled(PRUint32 aState)
         // Even when aState is not PR_TRUE, we need to set IME focus.
         // Because some IMs are updating the status bar of them in this time.
         focusedWin->IMESetFocus();
-#ifdef MOZ_PLATFORM_MAEMO
+#ifdef MOZ_PLATFORM_HILDON
         if (mIMEData->mEnabled) {
             // It is not desired that the hildon's autocomplete mechanism displays
             // user previous entered passwds, so lets make completions invisible
@@ -7437,7 +7451,7 @@ IM_get_input_context(nsWindow *aWindow)
         data->mEnabled == nsIWidget::IME_STATUS_PLUGIN)
         return data->mContext;
     if (data->mEnabled == nsIWidget::IME_STATUS_PASSWORD)
-#ifdef MOZ_PLATFORM_MAEMO
+#ifdef MOZ_PLATFORM_HILDON
         return data->mContext;
 #else
         return data->mSimpleContext;

@@ -3837,10 +3837,8 @@ nsBlockFrame::ReflowInlineFrame(nsBlockReflowState& aState,
     
     // If we just ended a first-letter frame or reflowed a placeholder then 
     // don't split the line and don't stop the line reflow...
-    // But if we are going to stop anyways we'd better split the line.
-    if ((!(frameReflowStatus & NS_INLINE_BREAK_FIRST_LETTER_COMPLETE) && 
-         nsGkAtoms::placeholderFrame != frameType) ||
-        *aLineReflowStatus == LINE_REFLOW_STOP) {
+    if (!(frameReflowStatus & NS_INLINE_BREAK_FIRST_LETTER_COMPLETE) && 
+        nsGkAtoms::placeholderFrame != frameType) {
       // Split line after the current frame
       *aLineReflowStatus = LINE_REFLOW_STOP;
       rv = SplitLine(aState, aLineLayout, aLine, aFrame->GetNextSibling(), aLineReflowStatus);

@@ -1,4 +1,3 @@
-/* -*- Mode: C++; tab-width: 2; indent-tabs-mode: nil; c-basic-offset: 2 -*- */
 /* vim: set shiftwidth=2 tabstop=8 autoindent cindent expandtab: */
 /* ***** BEGIN LICENSE BLOCK *****
  * Version: MPL 1.1/GPL 2.0/LGPL 2.1
@@ -59,8 +58,7 @@
 using mozilla::TimeStamp;
 
 nsRefreshDriver::nsRefreshDriver(nsPresContext *aPresContext)
-  : mPresContext(aPresContext),
-    mFrozen(PR_FALSE)
+  : mPresContext(aPresContext)
 {
 }
 
@@ -102,9 +100,8 @@ nsRefreshDriver::RemoveRefreshObserver(nsARefreshObserver *aObserver,
 void
 nsRefreshDriver::EnsureTimerStarted()
 {
-  if (mTimer || mFrozen || !mPresContext) {
-    // It's already been started, or we don't want to start it now or
-    // we've been disconnected.
+  if (mTimer) {
+    // It's already been started.
     return;
   }
 
@@ -176,13 +173,15 @@ NS_IMPL_ISUPPORTS1(nsRefreshDriver, nsITimerCallback)
  */
 
 NS_IMETHODIMP
-nsRefreshDriver::Notify(nsITimer * /* unused */)
+nsRefreshDriver::Notify(nsITimer *aTimer)
 {
-  NS_PRECONDITION(!mFrozen, "Why are we notified while frozen?");
-  NS_PRECONDITION(mPresContext, "Why are we notified after disconnection?");
-
   UpdateMostRecentRefresh();
 
+  if (!mPresContext) {
+    // Things are being destroyed.
+    NS_ABORT_IF_FALSE(!mTimer, "timer should have been stopped");
+    return NS_OK;
+  }
   nsCOMPtr<nsIPresShell> presShell = mPresContext->GetPresShell();
   if (!presShell || ObserverCount() == 0) {
     // Things are being destroyed, or we no longer have any observers.
@@ -218,51 +217,13 @@ nsRefreshDriver::Notify(nsITimer * /* unused */)
       // FIXME: Maybe we should only flush if the WillRefresh calls did
       // something?  It's probably ok as-is, though, especially as we
       // hook up more things here (or to the replacement of this class).
+      // FIXME: We should probably flush for other sets of observers
+      // too.  But we should only flush layout once nsRefreshDriver is
+      // the driver for the interruptible layout timer (and we should
+      // then Flush_InterruptibleLayout).
       presShell->FlushPendingNotifications(Flush_Style);
-    } else if  (i == 1) {
-      // This is the Flush_Layout case.
-      presShell->FlushPendingNotifications(Flush_InterruptibleLayout);
     }
   }
 
   return NS_OK;
 }
-
-void
-nsRefreshDriver::Freeze()
-{
-  NS_ASSERTION(!mFrozen, "Freeze called on already-frozen refresh driver");
-  StopTimer();
-  mFrozen = PR_TRUE;
-}
-
-void
-nsRefreshDriver::Thaw()
-{
-  NS_ASSERTION(mFrozen, "Thaw called on an unfrozen refresh driver");
-  mFrozen = PR_FALSE;
-  if (ObserverCount()) {
-    NS_DispatchToCurrentThread(NS_NEW_RUNNABLE_METHOD(nsRefreshDriver, this,
-                                                      DoRefresh));
-    EnsureTimerStarted();
-  }
-}
-
-void
-nsRefreshDriver::DoRefresh()
-{
-  // Don't do a refresh unless we're in a state where we should be refreshing.
-  if (!mFrozen && mPresContext && mTimer) {
-    Notify(nsnull);
-  }
-}
-
-#ifdef DEBUG
-PRBool
-nsRefreshDriver::IsRefreshObserver(nsARefreshObserver *aObserver,
-                                   mozFlushType aFlushType)
-{
-  ObserverArray& array = ArrayFor(aFlushType);
-  return array.Contains(aObserver);
-}
-#endif

@@ -136,13 +136,6 @@ nsVideoFrame::CreateAnonymousContent(nsTArray<nsIContent*>& aElements)
 }
 
 void
-nsVideoFrame::AppendAnonymousContentTo(nsBaseContentList& aElements)
-{
-  aElements.MaybeAppendElement(mPosterImage);
-  aElements.MaybeAppendElement(mVideoControls);
-}
-
-void
 nsVideoFrame::DestroyFrom(nsIFrame* aDestructRoot)
 {
   nsContentUtils::DestroyAnonymousContent(&mVideoControls);

@@ -1011,7 +1011,7 @@ nsPipeOutputStream::Wait()
         mon.Wait();
         mBlocked = PR_FALSE;
         LOG(("OOO pipe output: woke up [pipe-status=%x writable=%u]\n",
-            mPipe->mStatus, mWritable));
+            mPipe->mStatus, mWritable == PR_TRUE));
     }
 
     return mPipe->mStatus == NS_BASE_STREAM_CLOSED ? NS_OK : mPipe->mStatus;

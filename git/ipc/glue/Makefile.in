@@ -55,9 +55,8 @@ EXPORTS_IPC = IPCMessageUtils.h
 
 EXPORTS_mozilla/ipc = \
   AsyncChannel.h \
-  BrowserProcessSubThread.h \
   GeckoChildProcessHost.h \
-  MozillaChildThread.h \
+  GeckoThread.h \
   ProtocolUtils.h \
   RPCChannel.h \
   SharedMemory.h \
@@ -70,9 +69,8 @@ ENABLE_CXX_EXCEPTIONS = 1
 
 CPPSRCS += \
   AsyncChannel.cpp \
-  BrowserProcessSubThread.cpp \
   GeckoChildProcessHost.cpp \
-  MozillaChildThread.cpp \
+  GeckoThread.cpp \
   MessagePump.cpp \
   RPCChannel.cpp \
   ScopedXREEmbed.cpp \

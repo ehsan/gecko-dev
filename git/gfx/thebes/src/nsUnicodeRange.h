@@ -37,8 +37,6 @@
 
 #include "nscore.h"
 
-class nsIAtom;
-
 // The following constants define unicode subranges
 // values below kRangeNum must be continuous so that we can map to 
 // lang group directly.
@@ -114,4 +112,4 @@ const PRUint8   kRangeTertiaryTable  = 145; // leave room for 16 subtable
 
 
 PRUint32 FindCharUnicodeRange(PRUnichar ch);
-nsIAtom* LangGroupFromUnicodeRange(PRUint8 unicodeRange);
+const char* LangGroupFromUnicodeRange(PRUint8 unicodeRange);

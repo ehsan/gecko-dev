@@ -61,7 +61,6 @@ TEST_HARNESS_FILES := \
 
 # Extra files needed from $(topsrcdir)/build
 EXTRA_BUILD_FILES := \
-  devicemanager.py \
   automationutils.py \
   $(NULL)
 

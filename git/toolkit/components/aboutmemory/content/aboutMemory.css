@@ -14,7 +14,7 @@
  * The Original Code is about:memory.
  *
  * The Initial Developer of the Original Code is
- *   Mozilla Corporation
+ *   Mozilla Corporation   
  * Portions created by the Initial Developer are Copyright (C) 2009
  * the Initial Developer. All Rights Reserved.
  *
@@ -36,13 +36,13 @@
  * ***** END LICENSE BLOCK ***** */
 
 html {
-  background: -moz-Dialog;
-  color: -moz-DialogText;
+  background: -moz-dialog;
 }
 
 body {
   margin: 0;
   padding: 0 1em;
+  color: -moz-FieldText;
   font: message-box;
 }
 
@@ -63,11 +63,10 @@ h2 {
 
 .memBox {
     max-width: 30em;
-    background: -moz-Field;
-    color: -moz-FieldText;
+    background: white;
     margin-top: 25px;
     padding: 5px;
-    border: 1px solid -moz-FieldText;
+    border: 1px solid black;
     -moz-border-radius: 10px 10px;
 }
 

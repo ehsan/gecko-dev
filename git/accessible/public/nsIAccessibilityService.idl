@@ -44,15 +44,17 @@ interface nsIFrame;
 interface nsObjectFrame;
 interface nsIContent;
 
-[uuid(4df7499d-d96e-48f8-a936-8a22ec0d4915)]
+[uuid(e0498def-1552-4763-8c47-6c6cc36c7aa0)]
 interface nsIAccessibilityService : nsIAccessibleRetrieval
 {
   nsIAccessible createOuterDocAccessible(in nsIDOMNode aNode);
+  nsIAccessible createRootAccessible(in nsIPresShell aShell, in nsIDocument aDocument);
 
   nsIAccessible createHTML4ButtonAccessible(in nsIFrame aFrame);
   nsIAccessible createHyperTextAccessible(in nsIFrame aFrame);
   nsIAccessible createHTMLBRAccessible(in nsIFrame aFrame);
   nsIAccessible createHTMLButtonAccessible(in nsIFrame aFrame);
+  nsIAccessible createHTMLAccessibleByMarkup(in nsIFrame aFrame, in nsIWeakReference aWeakShell, in nsIDOMNode aDOMNode);
   nsIAccessible createHTMLLIAccessible(in nsIFrame aFrame, in nsIFrame aBulletFrame, in AString aBulletText);
   nsIAccessible createHTMLCheckboxAccessible(in nsIFrame aFrame);
   nsIAccessible createHTMLComboboxAccessible(in nsIDOMNode aNode, in nsIWeakReference aPresShell);
@@ -71,6 +73,19 @@ interface nsIAccessibilityService : nsIAccessibleRetrieval
   nsIAccessible createHTMLTextAccessible(in nsIFrame aFrame);
   nsIAccessible createHTMLTextFieldAccessible(in nsIFrame aFrame);
   nsIAccessible createHTMLCaptionAccessible(in nsIFrame aFrame);
+
+  /**
+   * Return an accessible for the given DOM node.
+   *
+   * @param  aNode       [in] the given node
+   * @param  aPresShell  [in] the pres shell of the node
+   * @param  aWeakShell  [in] the weak shell for the pres shell
+   * @param  aFrameHint  [in] the frame of the given node
+   * @param  aIsHidden   [out] indicates whether the node's frame is hidden
+   */
+  nsIAccessible getAccessible(in nsIDOMNode aNode, in nsIPresShell aPresShell,
+                              in nsIWeakReference aWeakShell,
+                              in nsIFrame aFrameHint, out boolean aIsHidden);
 
   // For gtk+ native window accessible
   nsIAccessible addNativeRootAccessible(in voidPtr aAtkAccessible);

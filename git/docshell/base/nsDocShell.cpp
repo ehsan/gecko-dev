@@ -160,7 +160,6 @@
 #include "nsIEditingSession.h"
 
 #include "nsPIDOMWindow.h"
-#include "nsPIWindowRoot.h"
 #include "nsIDOMDocument.h"
 #include "nsICachingChannel.h"
 #include "nsICacheVisitor.h"
@@ -180,6 +179,7 @@
 #include "nsCExternalHandlerService.h"
 #include "nsIExternalProtocolService.h"
 
+#include "nsIFocusController.h"
 #include "nsFocusManager.h"
 
 #include "nsITextToSubURI.h"
@@ -2112,8 +2112,8 @@ nsDocShell::HistoryPurged(PRInt32 aNumEntries)
     // eviction.  We need to adjust by the number of entries that we
     // just purged from history, so that we look at the right session history
     // entries during eviction.
-    mPreviousTransIndex = NS_MAX(-1, mPreviousTransIndex - aNumEntries);
-    mLoadedTransIndex = NS_MAX(0, mLoadedTransIndex - aNumEntries);
+    mPreviousTransIndex = PR_MAX(-1, mPreviousTransIndex - aNumEntries);
+    mLoadedTransIndex = PR_MAX(0, mLoadedTransIndex - aNumEntries);
 
     PRInt32 count = mChildList.Count();
     for (PRInt32 i = 0; i < count; ++i) {
@@ -3621,11 +3621,6 @@ nsDocShell::DisplayLoadError(nsresult aError, nsIURI *aURI,
         CopyUTF8toUTF16(host, formatStrs[0]);
         formatStrCount = 1;
         error.AssignLiteral("netTimeout");
-    }
-    else if (NS_ERROR_CSP_FRAME_ANCESTOR_VIOLATION == aError) {
-        // CSP error
-        cssClass.AssignLiteral("neterror");
-        error.AssignLiteral("cspFrameAncestorBlocked");
     }
     else if (NS_ERROR_GET_MODULE(aError) == NS_ERROR_MODULE_SECURITY) {
         nsCOMPtr<nsINSSErrorsService> nsserr =
@@ -6247,7 +6242,7 @@ nsDocShell::CanSavePresentation(PRUint32 aLoadType,
     // then we should not cache the presentation.
     PRBool canSaveState;
     mOSHE->GetSaveLayoutStateFlag(&canSaveState);
-    if (!canSaveState)
+    if (canSaveState == PR_FALSE)
         return PR_FALSE;
 
     // If the document is not done loading, don't cache it.
@@ -9516,7 +9511,7 @@ nsDocShell::AddToSessionHistory(nsIURI * aURI, nsIChannel * aChannel,
          
         }
     }
-    if (expired)
+    if (expired == PR_TRUE)
         entry->SetExpirationStatus(PR_TRUE);
 
 
@@ -10970,16 +10965,18 @@ nsDocShell::GetControllerForCommand(const char * inCommand,
 {
   NS_ENSURE_ARG_POINTER(outController);
   *outController = nsnull;
-
-  nsCOMPtr<nsPIDOMWindow> window(do_QueryInterface(mScriptGlobal));
+  
+  nsresult rv = NS_ERROR_FAILURE;
+  
+  nsCOMPtr<nsPIDOMWindow> window ( do_QueryInterface(mScriptGlobal) );
   if (window) {
-      nsCOMPtr<nsPIWindowRoot> root = window->GetTopWindowRoot();
-      if (root) {
-          return root->GetControllerForCommand(inCommand, outController);
-      }
-  }
+    nsIFocusController *focusController = window->GetRootFocusController();
+    if (focusController)
+      rv = focusController->GetControllerForCommand (window, inCommand, outController);
+  } // if window
 
-  return NS_ERROR_FAILURE;
+  return rv;
+  
 }
 
 nsresult
@@ -11345,6 +11342,30 @@ nsDocShell::OnLeaveLink()
   return rv;
 }
 
+NS_IMETHODIMP
+nsDocShell::GetLinkState(nsIURI* aLinkURI, nsLinkState& aState)
+{
+  if (!aLinkURI) {
+    // No uri means not a link
+    aState = eLinkState_NotLink;
+    return NS_OK;
+  }
+    
+  aState = eLinkState_Unvisited;
+
+  // no history, leave state unchanged
+  if (!mGlobalHistory)
+    return NS_OK;
+
+  PRBool isVisited;
+  NS_ENSURE_SUCCESS(mGlobalHistory->IsVisited(aLinkURI, &isVisited),
+                    NS_ERROR_FAILURE);
+  if (isVisited)
+    aState = eLinkState_Visited;
+  
+  return NS_OK;
+}
+
 //----------------------------------------------------------------------
 // Web Shell Services API
 
@@ -11389,6 +11410,20 @@ nsDocShell::StopDocumentLoad(void)
   {
     Stop(nsIWebNavigation::STOP_ALL);
     return NS_OK;
+  }
+  //return failer if this request is not accepted due to mCharsetReloadState
+  return NS_ERROR_DOCSHELL_REQUEST_REJECTED;
+}
+
+NS_IMETHODIMP
+nsDocShell::SetRendering(PRBool aRender)
+{
+  if(eCharsetReloadRequested != mCharsetReloadState) 
+  {
+    if (mContentViewer) {
+       mContentViewer->SetEnableRendering(aRender);
+       return NS_OK;
+    }
   }
   //return failer if this request is not accepted due to mCharsetReloadState
   return NS_ERROR_DOCSHELL_REQUEST_REJECTED;

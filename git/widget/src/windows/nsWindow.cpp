@@ -105,7 +105,7 @@
  **************************************************************/
 
 #ifdef MOZ_IPC
-#include "mozilla/ipc/RPCChannel.h"
+#include "mozilla/ipc/SyncChannel.h"
 #endif
 
 #include "nsWindow.h"
@@ -283,12 +283,6 @@ LPFNLRESULTFROMOBJECT
 const PRUnichar* kOOPPPluginFocusEventId   = L"OOPP Plugin Focus Widget Event";
 PRUint32        nsWindow::sOOPPPluginFocusEvent   =
                   RegisterWindowMessageW(kOOPPPluginFocusEventId);
-// Used in OOPP hang detection.
-const PRUnichar* kOOPPGetBaseMessageEventId   = L"Get Base Widget Event Message";
-PRUint32        nsWindow::sOOPPGetBaseMessageEvent =
-                  RegisterWindowMessage(kOOPPGetBaseMessageEventId);
-PRInt32         nsWindow::sCallDepth              = 0;
-UINT            nsWindow::sBaseMsg                = 0;
 #endif
 
 /**************************************************************
@@ -2145,45 +2139,20 @@ nsWindow::MakeFullScreen(PRBool aFullScreen)
   RECT rc;
   if (aFullScreen) {
     SetForegroundWindow(mWnd);
-    if (nsWindowCE::sMenuBarShown) {
-      SIPINFO sipInfo;
-      memset(&sipInfo, 0, sizeof(SIPINFO));
-      sipInfo.cbSize = sizeof(SIPINFO);
-      if (SipGetInfo(&sipInfo))
-        SetRect(&rc, 0, 0, GetSystemMetrics(SM_CXSCREEN), 
-                sipInfo.rcVisibleDesktop.bottom);
-      else
-        SetRect(&rc, 0, 0, GetSystemMetrics(SM_CXSCREEN), 
-                GetSystemMetrics(SM_CYSCREEN));
-      RECT menuBarRect;
-      if (GetWindowRect(nsWindowCE::sSoftKeyMenuBarHandle, &menuBarRect) && 
-          menuBarRect.top < rc.bottom)
-        rc.bottom = menuBarRect.top;
-      SHFullScreen(mWnd, SHFS_HIDETASKBAR | SHFS_HIDESTARTICON | SHFS_SHOWSIPBUTTON);
-    } else {
-      
-      SHFullScreen(mWnd, SHFS_HIDETASKBAR | SHFS_HIDESTARTICON | SHFS_HIDESIPBUTTON);
-      SetRect(&rc, 0, 0, GetSystemMetrics(SM_CXSCREEN), GetSystemMetrics(SM_CYSCREEN));
-    }
+    SHFullScreen(mWnd, SHFS_HIDETASKBAR | SHFS_HIDESTARTICON | SHFS_HIDESIPBUTTON);
+    SetRect(&rc, 0, 0, GetSystemMetrics(SM_CXSCREEN), GetSystemMetrics(SM_CYSCREEN));
   }
   else {
     SHFullScreen(mWnd, SHFS_SHOWTASKBAR | SHFS_SHOWSTARTICON);
     SystemParametersInfo(SPI_GETWORKAREA, 0, &rc, FALSE);
   }
+  MoveWindow(mWnd, rc.left, rc.top, rc.right-rc.left, rc.bottom-rc.top, TRUE);
 
   if (aFullScreen)
     mSizeMode = nsSizeMode_Fullscreen;
-
-  // nsBaseWidget hides the chrome and resizes the window, replicate that here
-  HideWindowChrome(aFullScreen);
-  Resize(rc.left, rc.top, rc.right-rc.left, rc.bottom-rc.top, PR_TRUE);
-
-  return NS_OK;
-
-#else
+#endif
 
   return nsBaseWidget::MakeFullScreen(aFullScreen);
-#endif
 }
 
 /**************************************************************
@@ -2886,18 +2855,16 @@ nsWindow::OverrideSystemMouseScrollSpeed(PRInt32 aOriginalDelta,
   // on the document of SystemParametersInfo in MSDN.
   const PRInt32 kSystemDefaultScrollingSpeed = 3;
 
-  PRInt32 absOriginDelta = PR_ABS(aOriginalDelta);
-
   // Compute the simple overridden speed.
-  PRInt32 absComputedOverriddenDelta;
+  PRInt32 computedOverriddenDelta;
   nsresult rv =
-    nsBaseWidget::OverrideSystemMouseScrollSpeed(absOriginDelta, aIsHorizontal,
-                                                 absComputedOverriddenDelta);
+    nsBaseWidget::OverrideSystemMouseScrollSpeed(aOriginalDelta, aIsHorizontal,
+                                                 computedOverriddenDelta);
   NS_ENSURE_SUCCESS(rv, rv);
 
   aOverriddenDelta = aOriginalDelta;
 
-  if (absComputedOverriddenDelta == absOriginDelta) {
+  if (computedOverriddenDelta == aOriginalDelta) {
     // We don't override now.
     return NS_OK;
   }
@@ -2931,23 +2898,14 @@ nsWindow::OverrideSystemMouseScrollSpeed(PRInt32 aOriginalDelta,
   // driver might accelerate the scrolling speed already.  If so, we shouldn't
   // override the scrolling speed for preventing the unexpected high speed
   // scrolling.
-  PRInt32 absDeltaLimit;
+  PRInt32 deltaLimit;
   rv =
     nsBaseWidget::OverrideSystemMouseScrollSpeed(kSystemDefaultScrollingSpeed,
-                                                 aIsHorizontal, absDeltaLimit);
+                                                 aIsHorizontal, deltaLimit);
   NS_ENSURE_SUCCESS(rv, rv);
 
-  // If the given delta is larger than our computed limitation value, the delta
-  // was accelerated by the mouse driver.  So, we should do nothing here.
-  if (absDeltaLimit <= absOriginDelta) {
-    return NS_OK;
-  }
+  aOverriddenDelta = PR_MIN(computedOverriddenDelta, deltaLimit);
 
-  absComputedOverriddenDelta =
-    PR_MIN(absComputedOverriddenDelta, absDeltaLimit);
-
-  aOverriddenDelta = (aOriginalDelta > 0) ? absComputedOverriddenDelta :
-                                            -absComputedOverriddenDelta;
   return NS_OK;
 }
 
@@ -3614,79 +3572,6 @@ PRBool nsWindow::ConvertStatus(nsEventStatus aStatus)
 }
 
 /**************************************************************
- *
- * SECTION: IPC
- *
- * IPC related helpers.
- *
- **************************************************************/
-
-#ifdef MOZ_IPC
-
-// static
-bool
-nsWindow::IsAsyncResponseEvent(UINT aMsg, LRESULT& aResult)
-{
-  switch(aMsg) {
-    case WM_SETFOCUS:
-    case WM_KILLFOCUS:
-    case WM_ENABLE:
-    case WM_WINDOWPOSCHANGING:
-    case WM_WINDOWPOSCHANGED:
-    case WM_PARENTNOTIFY:
-    case WM_ACTIVATEAPP:
-    case WM_NCACTIVATE:
-    case WM_ACTIVATE:
-    case WM_CHILDACTIVATE:
-    case WM_IME_SETCONTEXT:
-    case WM_IME_NOTIFY:
-    case WM_SHOWWINDOW:
-    case WM_CANCELMODE:
-    case WM_MOUSEACTIVATE:
-      aResult = 0;
-    return true;
-
-    case WM_SETTINGCHANGE:
-    case WM_SETCURSOR:
-    return false;
-  }
-
-#ifdef DEBUG
-  char szBuf[200];
-  sprintf(szBuf,
-    "An unhandled ISMEX_SEND message was received during spin loop! (%X)", aMsg);
-  NS_WARNING(szBuf);
-#endif
-
-  return false;
-}
-
-void
-nsWindow::IPCWindowProcHandler(UINT& msg, WPARAM& wParam, LPARAM& lParam)
-{
-  NS_ASSERTION(!mozilla::ipc::SyncChannel::IsPumpingMessages(),
-               "Failed to prevent a nonqueued message from running!");
-
-  // Windowed plugins receiving focus triggering WM_ACTIVATE app messages.
-  if (mWindowType == eWindowType_plugin && msg == WM_SETFOCUS &&
-      ::GetPropW(mWnd, L"PluginInstanceParentProperty")) {
-      ::ReplyMessage(0);
-      return;
-  }
-
-  // Modal UI being displayed in windowless plugins.
-  if (mozilla::ipc::RPCChannel::IsSpinLoopActive() &&
-      (::InSendMessageEx(NULL)&(ISMEX_REPLIED|ISMEX_SEND)) == ISMEX_SEND) {
-    LRESULT res;
-    if (IsAsyncResponseEvent(msg, res)) {
-      ::ReplyMessage(res);
-    }
-  }
-}
-
-#endif // MOZ_IPC
-
-/**************************************************************
  **************************************************************
  **
  ** BLOCK: Native events
@@ -3709,12 +3594,9 @@ nsWindow::IPCWindowProcHandler(UINT& msg, WPARAM& wParam, LPARAM& lParam)
 // The WndProc procedure for all nsWindows in this toolkit
 LRESULT CALLBACK nsWindow::WindowProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam)
 {
-  // Get the window which caused the event and ask it to process the message
-  nsWindow *someWindow = GetNSWindowPtr(hWnd);
-
 #ifdef MOZ_IPC
-  if (someWindow)
-    someWindow->IPCWindowProcHandler(msg, wParam, lParam);
+  NS_ASSERTION(!mozilla::ipc::SyncChannel::IsPumpingMessages(),
+               "Failed to prevent a nonqueued message from running!");
 #endif
 
   // create this here so that we store the last rolled up popup until after
@@ -3722,8 +3604,11 @@ LRESULT CALLBACK nsWindow::WindowProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM
   nsAutoRollup autoRollup;
 
   LRESULT popupHandlingResult;
-  if (DealWithPopups(hWnd, msg, wParam, lParam, &popupHandlingResult))
+  if ( DealWithPopups(hWnd, msg, wParam, lParam, &popupHandlingResult) )
     return popupHandlingResult;
+
+  // Get the window which caused the event and ask it to process the message
+  nsWindow *someWindow = GetNSWindowPtr(hWnd);
 
   // XXX This fixes 50208 and we are leaving 51174 open to further investigate
   // why we are hitting this assert
@@ -3748,30 +3633,16 @@ LRESULT CALLBACK nsWindow::WindowProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM
     }
   }
 
-#ifdef MOZ_IPC
-  // Track the base event, used in focus hang detection for OOPP.
-  NS_ASSERTION(nsWindow::sCallDepth >= 0, "Call depth out of sync.");
-  if (++nsWindow::sCallDepth == 1)
-    nsWindow::sBaseMsg = msg;
-#endif
-
   // Call ProcessMessage
-  LRESULT retValue;
-  if (PR_TRUE == someWindow->ProcessMessage(msg, wParam, lParam, &retValue)) {
-#ifdef MOZ_IPC
-    nsWindow::sCallDepth--;
-#endif
-    return retValue;
+  if (nsnull != someWindow) {
+    LRESULT retValue;
+    if (PR_TRUE == someWindow->ProcessMessage(msg, wParam, lParam, &retValue)) {
+      return retValue;
+    }
   }
 
-  LRESULT res = ::CallWindowProcW(someWindow->GetPrevWindowProc(),
-                                  hWnd, msg, wParam, lParam);
-
-#ifdef MOZ_IPC
-  nsWindow::sCallDepth--;
-#endif
-
-  return res;
+  return ::CallWindowProcW(someWindow->GetPrevWindowProc(),
+                           hWnd, msg, wParam, lParam);
 }
 
 // The main windows message processing method for plugins.
@@ -3859,12 +3730,6 @@ PRBool nsWindow::ProcessMessage(UINT msg, WPARAM &wParam, LPARAM &lParam,
   if (mWindowHook.Notify(mWnd, msg, wParam, lParam, aRetValue))
     return PR_TRUE;
   
-#if defined(EVENT_DEBUG_OUTPUT)
-  // First param shows all events, second param indicates whether
-  // to show mouse move events. See nsWindowDbg for details.
-  PrintEvent(msg, SHOW_REPEAT_EVENTS, SHOW_MOUSEMOVE_EVENTS);
-#endif
-
   PRBool eatMessage;
   if (nsIMM32Handler::ProcessMessage(this, msg, wParam, lParam, aRetValue,
                                      eatMessage)) {
@@ -3884,6 +3749,12 @@ PRBool nsWindow::ProcessMessage(UINT msg, WPARAM &wParam, LPARAM &lParam,
   *aRetValue = 0;
 
   static PRBool getWheelInfo = PR_TRUE;
+
+#if defined(EVENT_DEBUG_OUTPUT)
+  // First param shows all events, second param indicates whether
+  // to show mouse move events. See nsWindowDbg for details.
+  PrintEvent(msg, SHOW_REPEAT_EVENTS, SHOW_MOUSEMOVE_EVENTS);
+#endif
 
   switch (msg) {
     case WM_COMMAND:
@@ -4722,23 +4593,13 @@ PRBool nsWindow::ProcessMessage(UINT msg, WPARAM &wParam, LPARAM &lParam,
         SetHasTaskbarIconBeenCreated();
 #endif
 #ifdef MOZ_IPC
-      if (msg == sOOPPPluginFocusEvent) {
-        // With OOPP, the plugin window exists in another process and is a child of
-        // this window. This window is a placeholder plugin window for the dom. We
-        // receive this event when the child window receives focus. (sent from
-        // PluginInstanceParent.cpp)
-        ::SendMessage(mWnd, WM_MOUSEACTIVATE, 0, 0); // See nsPluginNativeWindowWin.cpp
-      }
-      else if (msg == sOOPPGetBaseMessageEvent && wParam) {
-        // PluginInstanceParent uses this to retreive the base event for a nested
-        // event it receives. Used in preventing hangs on events forwared from
-        // child.
-        NS_ASSERTION(nsWindow::sCallDepth > 0,
-                     "Call depth not 0 when requesting base message?");
-        *(reinterpret_cast<UINT*>(wParam)) = sBaseMsg;
-        *aRetValue = 1;
-        return PR_TRUE;
-      }
+    if (msg == sOOPPPluginFocusEvent) {
+      // With OOPP, the plugin window exists in another process and is a child of
+      // this window. This window is a placeholder plugin window for the dom. We
+      // receive this event when the child window receives focus. (sent from
+      // PluginInstanceParent.cpp)
+      ::SendMessage(mWnd, WM_MOUSEACTIVATE, 0, 0); // See nsPluginNativeWindowWin.cpp
+    } 
 #endif
     }
     break;

@@ -50,7 +50,6 @@
 #include "nsWeakReference.h"
 
 #include "nsWidgetAtoms.h"
-#include <qgraphicswidget.h>
 
 #ifdef MOZ_LOGGING
 
@@ -98,7 +97,6 @@ extern PRLogModuleInfo *gWidgetDrawLog;
 class QEvent;
 
 class MozQWidget;
-class QGraphicsScene;
 
 class nsWindow : public nsBaseWidget,
                  public nsSupportsWeakReference
@@ -106,8 +104,6 @@ class nsWindow : public nsBaseWidget,
 public:
     nsWindow();
     virtual ~nsWindow();
-
-    nsEventStatus DoPaint( QPainter* aPainter, const QStyleOptionGraphicsItem * aOption );
 
     static void ReleaseGlobals();
 
@@ -146,6 +142,7 @@ public:
                               PRInt32 aWidth,
                               PRInt32 aHeight,
                               PRBool   aRepaint);
+    NS_IMETHOD         SetZIndex(PRInt32 aZIndex);
     NS_IMETHOD         PlaceBehind(nsTopLevelWidgetZPlacement  aPlacement,
                                    nsIWidget                  *aWidget,
                                    PRBool                      aActivate);
@@ -190,6 +187,9 @@ public:
     //
     // utility methods
     //
+
+    qint32             ConvertBorderStyles(nsBorderStyle aStyle);
+
     void               QWidgetDestroyed();
 
     /***** from CommonWidget *****/
@@ -230,10 +230,6 @@ protected:
     // shouldn't be automatically set to 0,0 for first show.
     PRBool              mPlaced;
 
-    // Remember the last sizemode so that we can restore it when
-    // leaving fullscreen
-    nsSizeMode         mLastSizeMode;
-
     /**
      * Event handlers (proxied from the actual qwidget).
      * They follow normal Qt widget semantics.
@@ -243,31 +239,34 @@ protected:
     friend class InterceptContainer;
     friend class MozQWidget;
 
-    virtual nsEventStatus OnMoveEvent(QGraphicsSceneHoverEvent *);
-    virtual nsEventStatus OnResizeEvent(QGraphicsSceneResizeEvent *);
+    virtual nsEventStatus OnPaintEvent(QPaintEvent *);
+    virtual nsEventStatus OnMoveEvent(QMoveEvent *);
+    virtual nsEventStatus OnResizeEvent(QResizeEvent *);
     virtual nsEventStatus OnCloseEvent(QCloseEvent *);
-    virtual nsEventStatus OnEnterNotifyEvent(QGraphicsSceneHoverEvent *);
-    virtual nsEventStatus OnLeaveNotifyEvent(QGraphicsSceneHoverEvent *);
-    virtual nsEventStatus OnMotionNotifyEvent(QGraphicsSceneMouseEvent *);
-    virtual nsEventStatus OnButtonPressEvent(QGraphicsSceneMouseEvent *);
-    virtual nsEventStatus OnButtonReleaseEvent(QGraphicsSceneMouseEvent *);
-    virtual nsEventStatus mouseDoubleClickEvent(QGraphicsSceneMouseEvent *);
-    virtual nsEventStatus OnFocusInEvent(QEvent *);
-    virtual nsEventStatus OnFocusOutEvent(QEvent *);
+    virtual nsEventStatus OnEnterNotifyEvent(QEvent *);
+    virtual nsEventStatus OnLeaveNotifyEvent(QEvent *);
+    virtual nsEventStatus OnMotionNotifyEvent(QMouseEvent *);
+    virtual nsEventStatus OnButtonPressEvent(QMouseEvent *);
+    virtual nsEventStatus OnButtonReleaseEvent(QMouseEvent *);
+    virtual nsEventStatus mouseDoubleClickEvent(QMouseEvent *);
+    virtual nsEventStatus OnFocusInEvent(QFocusEvent *);
+    virtual nsEventStatus OnFocusOutEvent(QFocusEvent *);
     virtual nsEventStatus OnKeyPressEvent(QKeyEvent *);
     virtual nsEventStatus OnKeyReleaseEvent(QKeyEvent *);
-    virtual nsEventStatus OnScrollEvent(QGraphicsSceneWheelEvent *);
+    virtual nsEventStatus OnScrollEvent(QWheelEvent *);
 
-    virtual nsEventStatus contextMenuEvent(QGraphicsSceneContextMenuEvent *);
+    virtual nsEventStatus contextMenuEvent(QContextMenuEvent *);
     virtual nsEventStatus imStartEvent(QEvent *);
     virtual nsEventStatus imComposeEvent(QEvent *);
     virtual nsEventStatus imEndEvent(QEvent *);
-    virtual nsEventStatus OnDragEnter (QGraphicsSceneDragDropEvent *);
-    virtual nsEventStatus OnDragMotionEvent(QGraphicsSceneDragDropEvent *);
-    virtual nsEventStatus OnDragLeaveEvent(QGraphicsSceneDragDropEvent *);
-    virtual nsEventStatus OnDragDropEvent (QGraphicsSceneDragDropEvent *);
+    virtual nsEventStatus OnDragEnter (QDragEnterEvent *);
+    virtual nsEventStatus OnDragMotionEvent(QDragMoveEvent *);
+    virtual nsEventStatus OnDragLeaveEvent(QDragLeaveEvent *);
+    virtual nsEventStatus OnDragDropEvent (QDropEvent *);
     virtual nsEventStatus showEvent(QShowEvent *);
     virtual nsEventStatus hideEvent(QHideEvent *);
+
+    nsEventStatus         OnWindowStateEvent(QEvent *aEvent);
 
     void               NativeResize(PRInt32 aWidth,
                                     PRInt32 aHeight,
@@ -288,29 +287,29 @@ protected:
     };
 
     void               SetPluginType(PluginType aPluginType);
+    void               SetNonXEmbedPluginFocus(void);
+    void               LoseNonXEmbedPluginFocus(void);
 
     void               ThemeChanged(void);
 
-    gfxASurface*       GetThebesSurface();
+   gfxASurface        *GetThebesSurface();
 
 private:
-    void               GetToplevelWidget(MozQWidget **aWidget);
-    void*              SetupPluginPort(void);
+    void               GetToplevelWidget(QWidget **aWidget);
+    void               SetUrgencyHint(QWidget *top_window, PRBool state);
+    void              *SetupPluginPort(void);
     nsresult           SetWindowIconList(const nsTArray<nsCString> &aIconList);
     void               SetDefaultIcon(void);
-    void               InitButtonEvent(nsMouseEvent &event, QGraphicsSceneMouseEvent *aEvent, int aClickCount = 1);
+    void               InitButtonEvent(nsMouseEvent &event, QMouseEvent *aEvent, int aClickCount = 1);
     PRBool             DispatchCommandEvent(nsIAtom* aCommand);
-    MozQWidget*        createQWidget(MozQWidget *parent, nsWidgetInitData *aInitData);
+    MozQWidget        *createQWidget(QWidget *parent, nsWidgetInitData *aInitData);
 
-    QWidget*           GetViewWidget();
+    MozQWidget * mWidget;
 
-    MozQWidget*        mWidget;
-    QGraphicsScene*    mScene;
-
-    PRUint32           mIsVisible : 1,
-                       mActivatePending : 1;
-    PRInt32            mSizeState;
-    PluginType         mPluginType;
+    PRUint32            mIsVisible : 1,
+                        mActivatePending : 1;
+    PRInt32             mSizeState;
+    PluginType          mPluginType;
 
     nsRefPtr<gfxASurface> mThebesSurface;
 
@@ -362,16 +361,16 @@ public:
     nsChildWindow();
     ~nsChildWindow();
 
-    PRInt32 mChildID;
+  PRInt32 mChildID;
 };
 
 class nsPopupWindow : public nsWindow
 {
 public:
-    nsPopupWindow ();
-    ~nsPopupWindow ();
+  nsPopupWindow ();
+  ~nsPopupWindow ();
 
-    PRInt32 mChildID;
+  PRInt32 mChildID;
 };
 #endif /* __nsWindow_h__ */
 

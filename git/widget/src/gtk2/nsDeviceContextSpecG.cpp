@@ -1018,7 +1018,7 @@ GlobalPrinters::GetDefaultPrinterName(PRUnichar **aDefaultPrinterName)
 {
   *aDefaultPrinterName = nsnull;
   
-  PRBool allocate = !GlobalPrinters::GetInstance()->PrintersAreAllocated();
+  PRBool allocate = (GlobalPrinters::GetInstance()->PrintersAreAllocated() == PR_FALSE);
   
   if (allocate) {
     nsresult rv = GlobalPrinters::GetInstance()->InitializeGlobalPrinters();

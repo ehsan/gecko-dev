@@ -43,7 +43,6 @@
 #include "nsNetUtil.h"
 #include "nsScriptLoader.h"
 #include "nsICSSLoaderObserver.h"
-#include "nsIDocument.h"
 
 /**
  * Used if we need to pass an nsICSSLoaderObserver as parameter,
@@ -60,8 +59,8 @@ public:
 
 NS_IMPL_ISUPPORTS1(nsHtml5DummyCSSLoaderObserver, nsICSSLoaderObserver)
 
-nsHtml5SpeculativeLoader::nsHtml5SpeculativeLoader(nsHtml5TreeOpExecutor* aExecutor)
-  : mExecutor(aExecutor)
+nsHtml5SpeculativeLoader::nsHtml5SpeculativeLoader(nsIDocument* aDocument)
+  : mDocument(aDocument)
 {
   MOZ_COUNT_CTOR(nsHtml5SpeculativeLoader);
   mPreloadedURLs.Init(23); // Mean # of preloadable resources per page on dmoz
@@ -79,12 +78,8 @@ NS_IMPL_THREADSAFE_RELEASE(nsHtml5SpeculativeLoader)
 already_AddRefed<nsIURI>
 nsHtml5SpeculativeLoader::ConvertIfNotPreloadedYet(const nsAString& aURL)
 {
-  nsIDocument* doc = mExecutor->GetDocument();
-  if (!doc) {
-    return nsnull;
-  }
-  nsIURI* base = doc->GetBaseURI();
-  const nsCString& charset = doc->GetDocumentCharacterSet();
+  nsIURI* base = mDocument->GetBaseURI();
+  const nsCString& charset = mDocument->GetDocumentCharacterSet();
   nsCOMPtr<nsIURI> uri;
   nsresult rv = NS_NewURI(getter_AddRefs(uri), aURL, charset.get(), base);
   if (NS_FAILED(rv)) {
@@ -111,10 +106,7 @@ nsHtml5SpeculativeLoader::PreloadScript(const nsAString& aURL,
   if (!uri) {
     return;
   }
-  nsIDocument* doc = mExecutor->GetDocument();
-  if (doc) {
-    doc->ScriptLoader()->PreloadURI(uri, aCharset, aType);
-  }
+  mDocument->ScriptLoader()->PreloadURI(uri, aCharset, aType);
 }
 
 void
@@ -126,13 +118,9 @@ nsHtml5SpeculativeLoader::PreloadStyle(const nsAString& aURL,
     return;
   }
   nsCOMPtr<nsICSSLoaderObserver> obs = new nsHtml5DummyCSSLoaderObserver();
-  nsIDocument* doc = mExecutor->GetDocument();
-  if (doc) {
-    doc->CSSLoader()->LoadSheet(uri, 
-                                doc->NodePrincipal(),
-                                NS_LossyConvertUTF16toASCII(aCharset),
-                                obs);
-  }
+  mDocument->CSSLoader()->LoadSheet(uri, mDocument->NodePrincipal(),
+                                    NS_LossyConvertUTF16toASCII(aCharset),
+                                    obs);
 }
 
 void
@@ -142,14 +130,5 @@ nsHtml5SpeculativeLoader::PreloadImage(const nsAString& aURL)
   if (!uri) {
     return;
   }
-  nsIDocument* doc = mExecutor->GetDocument();
-  if (doc) {
-    doc->MaybePreLoadImage(uri);
-  }
-}
-
-void
-nsHtml5SpeculativeLoader::ProcessManifest(const nsAString& aURL)
-{
-  mExecutor->ProcessOfflineManifest(aURL);
+  mDocument->MaybePreLoadImage(uri);
 }

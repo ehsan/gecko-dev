@@ -115,24 +115,29 @@ function test() {
 
             // only watch for a confirmation dialog every other time being called
             if (showMode) {
-                ww.registerNotification(function (aSubject, aTopic, aData) {
-                    if (aTopic == "domwindowclosed")
-                        ww.unregisterNotification(arguments.callee);
-                    else if (aTopic == "domwindowopened") {
-                        let win = aSubject.QueryInterface(Ci.nsIDOMEventTarget);
-                        SimpleTest.waitForFocus(function() {
-                            EventUtils.synthesizeKey("VK_RETURN", {}, win)
-                        }, win);
+                let obs = {
+                    observe: function(aSubject, aTopic, aData) {
+                        if (aTopic == "domwindowclosed")
+                            ww.unregisterNotification(this);
+                        else if (aTopic == "domwindowopened") {
+                            let win = aSubject.QueryInterface(Ci.nsIDOMEventTarget);
+                            SimpleTest.waitForFocus(function() {
+                                EventUtils.synthesizeKey("VK_RETURN", {}, win)
+                            }, win);
+                        }
                     }
-                });
+                };
+                ww.registerNotification(obs);
             }
 
             let obsSvc = Cc["@mozilla.org/observer-service;1"].
                          getService(Ci.nsIObserverService);
-            obsSvc.addObserver(function (aSubject, aTopic, aData) {
-                if (aTopic == "passwordmgr-password-toggle-complete") {
-                    obsSvc.removeObserver(arguments.callee, aTopic, false);
-                    func();
+            obsSvc.addObserver({
+                observe: function(aSubject, aTopic, aData) {
+                    if (aTopic == "passwordmgr-password-toggle-complete") {
+                        obsSvc.removeObserver(this, "passwordmgr-password-toggle-complete", false);
+                        func();
+                    }
                 }
             }, "passwordmgr-password-toggle-complete", false);
 
@@ -234,12 +239,14 @@ function test() {
                 checkColumnEntries(2, expectedValues);
                 checkSortDirection(passwordCol, true);
                 // cleanup
-                ww.registerNotification(function (aSubject, aTopic, aData) {
-                    // unregister ourself
-                    ww.unregisterNotification(arguments.callee);
-
-                    pwmgr.removeAllLogins();
-                    finish();
+                ww.registerNotification({
+                    observe: function(aSubject, aTopic, aData) {
+                        // unregister ourself
+                        ww.unregisterNotification(this);
+    
+                        pwmgr.removeAllLogins();
+                        finish();
+                    }
                 });
                 pwmgrdlg.close();
             }

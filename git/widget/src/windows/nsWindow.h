@@ -385,11 +385,6 @@ private:
 protected:
 #endif // MOZ_XUL
 
-#ifdef MOZ_IPC
-  static bool             IsAsyncResponseEvent(UINT aMsg, LRESULT& aResult);
-  void                    IPCWindowProcHandler(UINT& msg, WPARAM& wParam, LPARAM& lParam);
-#endif // MOZ_IPC
-
   /**
    * Misc.
    */
@@ -449,9 +444,6 @@ protected:
   static PRBool         sTrackPointHack;
 #ifdef MOZ_IPC
   static PRUint32       sOOPPPluginFocusEvent;
-  static PRUint32       sOOPPGetBaseMessageEvent;
-  static PRInt32        sCallDepth;
-  static UINT           sBaseMsg;
 #endif
 
   // Hook Data Memebers for Dropdowns. sProcessHook Tells the

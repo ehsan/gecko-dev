@@ -71,9 +71,6 @@ include ../../content/test/reftest/reftest.list
 # counters/
 include counters/reftest.list
 
-# editor/
-include editor/reftest.list
-
 # generated-content/
 include generated-content/reftest.list
 
@@ -149,6 +146,9 @@ include selection/reftest.list
 
 # svg/
 include svg/reftest.list
+
+# svg-integration/
+include svg-integration/reftest.list
 
 # tab-size/
 include tab-size/reftest.list

@@ -1051,7 +1051,7 @@ InitWebGLTypes(JSContext *aJSContext, JSObject *aGlobalJSObj)
     // Alias WebGLArrayBuffer -> ArrayBuffer
     if(!JS_GetProperty(aJSContext, aGlobalJSObj, "ArrayBuffer", &v) ||
        !JS_DefineProperty(aJSContext, aGlobalJSObj, "WebGLArrayBuffer", v,
-                          NULL, NULL, JSPROP_PERMANENT))
+                          NULL, NULL, JSPROP_PERMANENT | JSPROP_ENUMERATE))
         return PR_FALSE;
 
     const int webglTypes[] = {
@@ -1080,7 +1080,7 @@ InitWebGLTypes(JSContext *aJSContext, JSObject *aGlobalJSObj)
     {
         if(!JS_GetProperty(aJSContext, aGlobalJSObj, js::TypedArray::slowClasses[webglTypes[i]].name, &v) ||
            !JS_DefineProperty(aJSContext, aGlobalJSObj, webglNames[i], v,
-                              NULL, NULL, JSPROP_PERMANENT))
+                              NULL, NULL, JSPROP_PERMANENT | JSPROP_ENUMERATE))
             return PR_FALSE;
     }
 
@@ -1095,11 +1095,10 @@ nsXPConnect::InitClasses(JSContext * aJSContext, JSObject * aGlobalJSObj)
     NS_ASSERTION(aJSContext, "bad param");
     NS_ASSERTION(aGlobalJSObj, "bad param");
 
-    // Nest frame chain save/restore in request created by XPCCallContext.
+    SaveFrame sf(aJSContext);
     XPCCallContext ccx(NATIVE_CALLER, aJSContext);
     if(!ccx.IsValid())
         return UnexpectedFailure(NS_ERROR_FAILURE);
-    SaveFrame sf(aJSContext);
 
     if(!xpc_InitJSxIDClassObjects())
         return UnexpectedFailure(NS_ERROR_FAILURE);
@@ -1136,11 +1135,10 @@ nsXPConnect::InitClasses(JSContext * aJSContext, JSObject * aGlobalJSObj)
 /* void initClassesForOuterObject (in JSContextPtr aJSContext, in JSObjectPtr aGlobalJSObj); */
 NS_IMETHODIMP nsXPConnect::InitClassesForOuterObject(JSContext * aJSContext, JSObject * aGlobalJSObj)
 {
-    // Nest frame chain save/restore in request created by XPCCallContext.
+    SaveFrame sf(aJSContext);
     XPCCallContext ccx(NATIVE_CALLER, aJSContext);
     if(!ccx.IsValid())
         return UnexpectedFailure(NS_ERROR_FAILURE);
-    SaveFrame sf(aJSContext);
 
     XPCWrappedNativeScope* scope =
         XPCWrappedNativeScope::GetNewOrUsed(ccx, aGlobalJSObj);
@@ -1256,7 +1254,6 @@ nsXPConnect::InitClassesWithNewWrappedGlobal(JSContext * aJSContext,
     }
 
     if(!(aFlags & nsIXPConnect::OMIT_COMPONENTS_OBJECT)) {
-        // XPCCallContext gives us an active request needed to save/restore.
         SaveFrame sf(ccx);
         if(!nsXPCComponents::AttachNewComponentsObject(ccx, scope, globalJSObj))
             return UnexpectedFailure(NS_ERROR_FAILURE);
@@ -2569,12 +2566,12 @@ nsXPConnect::GetWrapperForObject(JSContext* aJSContext,
         }
 
         wrappedObj = XPCNativeWrapper::GetNewOrUsed(aJSContext, wrapper,
-                                                    aScope, aPrincipal);
+                                                    aPrincipal);
     }
     else if(aFilenameFlags & JSFILENAME_SYSTEM)
     {
         jsval val = OBJECT_TO_JSVAL(aObject);
-        if(XPCSafeJSObjectWrapper::WrapObject(aJSContext, aScope, val, &val))
+        if(XPCSafeJSObjectWrapper::WrapObject(aJSContext, nsnull, val, &val))
             wrappedObj = JSVAL_TO_OBJECT(val);
     }
     else

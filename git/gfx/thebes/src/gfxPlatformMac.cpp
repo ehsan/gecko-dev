@@ -214,7 +214,7 @@ gfxPlatformMac::IsFontFormatSupported(nsIURI *aFontURI, PRUint32 aFormatFlags)
 
 // these will also move to gfxPlatform once all platforms support the fontlist
 nsresult
-gfxPlatformMac::GetFontList(nsIAtom *aLangGroup,
+gfxPlatformMac::GetFontList(const nsACString& aLangGroup,
                             const nsACString& aGenericFamily,
                             nsTArray<nsString>& aListOfFonts)
 {

@@ -40,6 +40,7 @@
 #define _nsXULMenuAccessible_H_
 
 #include "nsAccessibleWrap.h"
+#include "nsAccessibleTreeWalker.h"
 #include "nsIAccessibleSelectable.h"
 #include "nsIDOMXULSelectCntrlEl.h"
 

@@ -141,4 +141,3 @@ ifneq (,$(filter gtk2,$(MOZ_WIDGET_TOOLKIT)))
 CXXFLAGS        += $(MOZ_GTK2_CFLAGS)
 endif
 
-LOCAL_INCLUDES += -I$(srcdir)/../build

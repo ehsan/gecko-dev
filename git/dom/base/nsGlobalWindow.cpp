@@ -660,9 +660,9 @@ nsGlobalWindow::nsGlobalWindow(nsGlobalWindow *aOuterWindow)
     mTimeoutPublicIdCounter(1),
     mTimeoutFiringDepth(0),
     mJSObject(nsnull),
-    mPendingStorageEventsObsolete(nsnull),
     mTimeoutsSuspendDepth(0),
-    mFocusMethod(0)
+    mFocusMethod(0),
+    mPendingStorageEventsObsolete(nsnull)
 #ifdef DEBUG
     , mSetOpenerWindowCalled(PR_FALSE)
 #endif
@@ -3748,10 +3748,10 @@ nsGlobalWindow::GetScrollMaxXY(PRInt32* aScrollMaxX, PRInt32* aScrollMaxY)
   nsRect scrollRange = sf->GetScrollRange();
 
   if (aScrollMaxX)
-    *aScrollMaxX = NS_MAX(0,
+    *aScrollMaxX = PR_MAX(0,
       (PRInt32)floor(nsPresContext::AppUnitsToFloatCSSPixels(scrollRange.XMost())));
   if (aScrollMaxY)
-    *aScrollMaxY = NS_MAX(0,
+    *aScrollMaxY = PR_MAX(0,
       (PRInt32)floor(nsPresContext::AppUnitsToFloatCSSPixels(scrollRange.YMost())));
 
   return NS_OK;
@@ -4585,10 +4585,12 @@ nsGlobalWindow::Print()
       webBrowserPrint->GetGlobalPrintSettings(getter_AddRefs(printSettings));
       webBrowserPrint->Print(printSettings, nsnull);
     }
-  }
-#endif //NS_PRINTING
+  } 
 
   return NS_OK;
+#else
+  return NS_ERROR_NOT_AVAILABLE;
+#endif
 }
 
 NS_IMETHODIMP
@@ -4771,20 +4773,20 @@ nsGlobalWindow::SizeToContent()
 NS_IMETHODIMP
 nsGlobalWindow::GetWindowRoot(nsIDOMEventTarget **aWindowRoot)
 {
-  nsCOMPtr<nsPIWindowRoot> root = GetTopWindowRoot();
-  return CallQueryInterface(root, aWindowRoot);
-}
+  *aWindowRoot = nsnull;
 
-already_AddRefed<nsPIWindowRoot>
-nsGlobalWindow::GetTopWindowRoot()
-{
-  nsIDOMWindowInternal *rootWindow = GetPrivateRoot();
+  nsIDOMWindowInternal *rootWindow = nsGlobalWindow::GetPrivateRoot();
   nsCOMPtr<nsPIDOMWindow> piWin(do_QueryInterface(rootWindow));
-  if (!piWin)
-    return nsnull;
+  if (!piWin) {
+    return NS_OK;
+  }
 
-  nsCOMPtr<nsPIWindowRoot> window = do_QueryInterface(piWin->GetChromeEventHandler());
-  return window.forget();
+  nsPIDOMEventTarget *chromeHandler = piWin->GetChromeEventHandler();
+  if (!chromeHandler) {
+    return NS_OK;
+  }
+
+  return CallQueryInterface(chromeHandler, aWindowRoot);
 }
 
 NS_IMETHODIMP
@@ -6857,6 +6859,27 @@ nsGlobalWindow::SetChromeEventHandler(nsPIDOMEventTarget* aChromeEventHandler)
     static_cast<nsGlobalWindow*>(mOuterWindow)->
       SetChromeEventHandlerInternal(aChromeEventHandler);
   }
+}
+
+nsIFocusController*
+nsGlobalWindow::GetRootFocusController()
+{
+  nsIDOMWindowInternal* rootWindow = nsGlobalWindow::GetPrivateRoot();
+  nsCOMPtr<nsIFocusController> fc;
+
+  nsCOMPtr<nsPIDOMWindow> piWin(do_QueryInterface(rootWindow));
+  if (piWin) {
+    // Obtain the chrome event handler.
+    nsPIDOMEventTarget* chromeHandler = piWin->GetChromeEventHandler();
+    nsCOMPtr<nsPIWindowRoot> windowRoot(do_QueryInterface(chromeHandler));
+    if (windowRoot) {
+      windowRoot->GetFocusController(getter_AddRefs(fc));
+    }
+  }
+
+  // this reference is going away, but the root (if found) holds onto
+  // it
+  return fc;
 }
 
 nsIContent*
@@ -9073,8 +9096,8 @@ nsGlobalWindow::ResumeTimeouts(PRBool aThawChildren)
       // likely to always be positive here, but cast anyways for
       // consistency).
       PRUint32 delay =
-        NS_MAX(((PRUint32)(t->mWhen / (PRTime)PR_USEC_PER_MSEC)),
-               (PRUint32)DOM_MIN_TIMEOUT_VALUE);
+        PR_MAX(((PRUint32)(t->mWhen / (PRTime)PR_USEC_PER_MSEC)),
+                DOM_MIN_TIMEOUT_VALUE);
 
       // Set mWhen back to the time when the timer is supposed to
       // fire.

@@ -121,7 +121,7 @@ gfxFT2FontList::AppendFacesFromFontFile(const PRUnichar *aFileName)
                 if (!family) {
                     family = new gfxFontFamily(name);
                     mFontFamilies.Put(name, family);
-                    if (mBadUnderlineFamilyNames.Contains(name))
+                    if (mBadUnderlineFamilyNames.GetEntry(name))
                         family->SetBadUnderlineFamily();
                 }
                 family->AddFontEntry(fe);

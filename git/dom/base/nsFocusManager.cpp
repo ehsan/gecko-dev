@@ -158,7 +158,8 @@ nsFocusManager::nsFocusManager()
 
 nsFocusManager::~nsFocusManager()
 {
-  nsIPrefBranch2* prefBranch = nsContentUtils::GetPrefBranch();
+  nsCOMPtr<nsIPrefBranch2> prefBranch =
+    do_QueryInterface(nsContentUtils::GetPrefBranch());
 
   if (prefBranch) {
     prefBranch->RemoveObserver("accessibility.browsewithcaret", this);
@@ -179,7 +180,8 @@ nsFocusManager::Init()
     nsContentUtils::GetBoolPref("accessibility.tabfocus_applies_to_xul",
                                 nsIContent::sTabFocusModelAppliesToXUL);
 
-  nsIPrefBranch2* prefBranch = nsContentUtils::GetPrefBranch();
+  nsCOMPtr<nsIPrefBranch2> prefBranch =
+    do_QueryInterface(nsContentUtils::GetPrefBranch());
   prefBranch->AddObserver("accessibility.browsewithcaret", fm, PR_TRUE);
   prefBranch->AddObserver("accessibility.tabfocus_applies_to_xul", fm, PR_TRUE);
 
@@ -712,9 +714,6 @@ nsFocusManager::WindowLowered(nsIDOMWindow* aWindow)
   if (mActiveWindow != window)
     return NS_OK;
 
-  // clear the mouse capture as the active window has changed
-  nsIPresShell::SetCapturingContent(nsnull, 0);
-
   // inform the DOM window that it has deactivated, so that the active
   // attribute is updated on the window
   window->ActivateOrDeactivate(PR_FALSE);
@@ -1205,7 +1204,7 @@ nsFocusManager::GetCommonAncestor(nsPIDOMWindow* aWindow1,
   PRUint32 pos2 = parents2.Length();
   nsIDocShellTreeItem* parent = nsnull;
   PRUint32 len;
-  for (len = NS_MIN(pos1, pos2); len > 0; --len) {
+  for (len = PR_MIN(pos1, pos2); len > 0; --len) {
     nsIDocShellTreeItem* child1 = parents1.ElementAt(--pos1);
     nsIDocShellTreeItem* child2 = parents2.ElementAt(--pos2);
     if (child1 != child2) {
@@ -2149,7 +2148,7 @@ nsFocusManager::DetermineElementToMoveFocus(nsPIDOMWindow* aWindow,
                                   PR_FALSE, 0, PR_FALSE, aNextContent);
   }
 
-  PRBool forward = (aType == MOVEFOCUS_FORWARD || aType == MOVEFOCUS_CARET);
+  PRBool forward = (aType == MOVEFOCUS_FORWARD);
   PRBool doNavigation = PR_TRUE;
   PRBool ignoreTabIndex = PR_FALSE;
   // when a popup is open, we want to ensure that tab navigation occurs only
@@ -2231,18 +2230,13 @@ nsFocusManager::DetermineElementToMoveFocus(nsPIDOMWindow* aWindow,
             startContent = nsnull;
         }
 
-        if (aType == MOVEFOCUS_CARET) {
-          // GetFocusInSelection finds a focusable link near the caret.
-          // If there is no start content though, don't do this to avoid
-          // focusing something unexpected.
-          if (startContent) {
+        if (startContent) {
+          if (aType == MOVEFOCUS_CARET) {
             GetFocusInSelection(aWindow, startContent,
                                 endSelectionContent, aNextContent);
+            return NS_OK;
           }
-          return NS_OK;
-        }
 
-        if (startContent) {
           // when starting from a selection, we always want to find the next or
           // previous element in the document. So the tabindex on elements
           // should be ignored.

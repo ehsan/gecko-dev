@@ -88,7 +88,6 @@
 #include "nsIPrivateDOMEvent.h"
 #include "nsIDOMWindowInternal.h"
 #include "nsPIDOMWindow.h"
-#include "nsPIWindowRoot.h"
 #include "nsIDOMEventTarget.h"
 #include "nsIEnumerator.h"
 #include "nsIDocShellTreeItem.h"
@@ -151,6 +150,7 @@
 #ifdef MOZ_XUL
 #include "nsTreeBodyFrame.h"
 #endif
+#include "nsIFocusController.h"
 #include "nsIController.h"
 #include "nsICommandParams.h"
 
@@ -787,7 +787,8 @@ nsEventStateManager::Init()
 
   observerService->AddObserver(this, NS_XPCOM_SHUTDOWN_OBSERVER_ID, PR_TRUE);
 
-  nsIPrefBranch2* prefBranch = nsContentUtils::GetPrefBranch();
+  nsCOMPtr<nsIPrefBranch2> prefBranch =
+    do_QueryInterface(nsContentUtils::GetPrefBranch());
 
   if (prefBranch) {
     if (sESMInstanceCount == 1) {
@@ -866,7 +867,8 @@ nsEventStateManager::~nsEventStateManager()
 nsresult
 nsEventStateManager::Shutdown()
 {
-  nsIPrefBranch2* prefBranch = nsContentUtils::GetPrefBranch();
+  nsCOMPtr<nsIPrefBranch2> prefBranch =
+    do_QueryInterface(nsContentUtils::GetPrefBranch());
 
   if (prefBranch) {
     prefBranch->RemoveObserver("accessibility.accesskeycausesactivation", this);
@@ -1131,6 +1133,7 @@ nsEventStateManager::PreHandleEvent(nsPresContext* aPresContext,
     KillClickHoldTimer();
     break;
 #endif
+  case NS_DRAGDROP_DROP:
   case NS_DRAGDROP_OVER:
     // NS_DRAGDROP_DROP is fired before NS_DRAGDROP_DRAGDROP so send
     // the enter/exit events before NS_DRAGDROP_DROP.
@@ -1887,12 +1890,6 @@ nsEventStateManager::GenerateDragGesture(nsPresContext* aPresContext,
         StopTrackingDragGesture();
         return;
       }
-    }
-
-    // If non-native code is capturing the mouse don't start a drag.
-    if (nsIPresShell::IsMouseCapturePreventingDrag()) {
-      StopTrackingDragGesture();
-      return;
     }
 
     static PRInt32 pixelThresholdX = 0;
@@ -3344,7 +3341,7 @@ nsEventStateManager::SetCursor(PRInt32 aCursor, imgIContainer* aContainer,
       aContainer->GetWidth(&imgWidth);
       aContainer->GetHeight(&imgHeight);
 
-      // XXX NS_MAX(NS_lround(x), 0)?
+      // XXX PR_MAX(NS_lround(x), 0)?
       hotspotX = aHotspotX > 0.0f
                    ? PRUint32(aHotspotX + 0.5f) : PRUint32(0);
       if (hotspotX >= PRUint32(imgWidth))
@@ -3632,6 +3629,7 @@ nsEventStateManager::GenerateDragDropEnterExit(nsPresContext* aPresContext,
     }
     break;
 
+  case NS_DRAGDROP_DROP:
   case NS_DRAGDROP_EXIT:
     {
       //This is actually the window mouse exit event.
@@ -4360,11 +4358,10 @@ nsEventStateManager::DoContentCommandEvent(nsContentCommandEvent* aEvent)
 {
   EnsureDocument(mPresContext);
   NS_ENSURE_TRUE(mDocument, NS_ERROR_FAILURE);
-  nsCOMPtr<nsPIDOMWindow> window(mDocument->GetWindow());
+  nsCOMPtr<nsPIDOMWindow> window(do_QueryInterface(mDocument->GetWindow()));
   NS_ENSURE_TRUE(window, NS_ERROR_FAILURE);
-
-  nsCOMPtr<nsPIWindowRoot> root = window->GetTopWindowRoot();
-  NS_ENSURE_TRUE(root, NS_ERROR_FAILURE);
+  nsIFocusController* fc = window->GetRootFocusController();
+  NS_ENSURE_TRUE(fc, NS_ERROR_FAILURE);
   const char* cmd;
   switch (aEvent->message) {
     case NS_CONTENT_COMMAND_CUT:
@@ -4392,7 +4389,7 @@ nsEventStateManager::DoContentCommandEvent(nsContentCommandEvent* aEvent)
       return NS_ERROR_NOT_IMPLEMENTED;
   }
   nsCOMPtr<nsIController> controller;
-  nsresult rv = root->GetControllerForCommand(cmd, getter_AddRefs(controller));
+  nsresult rv = fc->GetControllerForCommand(window, cmd, getter_AddRefs(controller));
   NS_ENSURE_SUCCESS(rv, rv);
   if (!controller) {
     // When GetControllerForCommand succeeded but there is no controller, the

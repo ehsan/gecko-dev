@@ -104,7 +104,6 @@ nsSMILAnimationFunction::nsSMILAnimationFunction()
     mRepeatIteration(0),
     mLastValue(PR_FALSE),
     mHasChanged(PR_TRUE),
-    mValueNeedsReparsingEverySample(PR_FALSE),
     mBeginTime(LL_MININT),
     mAnimationElement(nsnull),
     mErrorFlags(0)
@@ -220,7 +219,6 @@ nsSMILAnimationFunction::Activate(nsSMILTime aBeginTime)
   mIsActive = PR_TRUE;
   mIsFrozen = PR_FALSE;
   mFrozenValue = nsSMILValue();
-  mHasChanged = PR_TRUE;
 }
 
 void
@@ -288,11 +286,8 @@ nsSMILAnimationFunction::ComposeResult(const nsISMILAttr& aSMILAttr,
   } else {
 
     // Interpolation
-    if (NS_FAILED(InterpolateResult(values, result, aResult)))
-      return;
-
-    if (NS_FAILED(AccumulateResult(values, result)))
-      return;
+    NS_ENSURE_SUCCESS(InterpolateResult(values, result, aResult),);
+    NS_ENSURE_SUCCESS(AccumulateResult(values, result),);
 
     if (IsToAnimation() && mIsFrozen) {
       mFrozenValue = result;
@@ -355,24 +350,14 @@ nsSMILAnimationFunction::WillReplace() const
    * here we return false for to animation as it builds on the underlying value
    * unless its a frozen to animation.
    */
-  return !mErrorFlags && (!(IsAdditive() || IsToAnimation()) ||
-                          (IsToAnimation() && mIsFrozen && !mHasChanged));
+  return !(IsAdditive() || IsToAnimation()) ||
+    (IsToAnimation() && mIsFrozen && !mHasChanged);
 }
 
 PRBool
 nsSMILAnimationFunction::HasChanged() const
 {
-  return mHasChanged || mValueNeedsReparsingEverySample;
-}
-
-PRBool
-nsSMILAnimationFunction::UpdateCachedTarget(const nsSMILTargetIdentifier& aNewTarget)
-{
-  if (!mLastTarget.Equals(aNewTarget)) {
-    mLastTarget = aNewTarget;
-    return PR_TRUE;
-  }
-  return PR_FALSE;
+  return mHasChanged;
 }
 
 //----------------------------------------------------------------------
@@ -489,7 +474,7 @@ nsSMILAnimationFunction::AccumulateResult(const nsSMILValueArray& aValues,
 {
   if (!IsToAnimation() && GetAccumulate() && mRepeatIteration)
   {
-    const nsSMILValue& lastValue = aValues[aValues.Length() - 1];
+    nsSMILValue lastValue = aValues[aValues.Length() - 1];
 
     // If the target attribute type doesn't support addition, Add will
     // fail and we leave aResult untouched.
@@ -688,33 +673,23 @@ nsSMILAnimationFunction::GetAttr(nsIAtom* aAttName, nsAString& aResult) const
  * A utility function to make querying an attribute that corresponds to an
  * nsSMILValue a little neater.
  *
- * @param aAttName    The attribute name (in the global namespace).
- * @param aSMILAttr   The SMIL attribute to perform the parsing.
- * @param[out] aResult        The resulting nsSMILValue.
- * @param[out] aCanCacheSoFar If |aResult| cannot be cached (as reported by
- *                            nsISMILAttr::ValueFromString), then this outparam
- *                            will be set to PR_FALSE. Otherwise, this outparam
- *                            won't be modified.
+ * @param aAttName    The attribute name (in the global namespace)
+ * @param aSMILAttr   The SMIL attribute to perform the parsing
+ * @param aResult     The resulting nsSMILValue
  *
  * Returns PR_FALSE if a parse error occurred, otherwise returns PR_TRUE.
  */
 PRBool
 nsSMILAnimationFunction::ParseAttr(nsIAtom* aAttName,
                                    const nsISMILAttr& aSMILAttr,
-                                   nsSMILValue& aResult,
-                                   PRBool& aCanCacheSoFar) const
+                                   nsSMILValue& aResult) const
 {
   nsAutoString attValue;
   if (GetAttr(aAttName, attValue)) {
-    PRBool canCache;
-    nsresult rv = aSMILAttr.ValueFromString(attValue, mAnimationElement,
-                                            aResult, canCache);
+    nsresult rv =
+      aSMILAttr.ValueFromString(attValue, mAnimationElement, aResult);
     if (NS_FAILED(rv))
       return PR_FALSE;
-
-    if (!canCache) {
-      aCanCacheSoFar = PR_FALSE;
-    }
   }
   return PR_TRUE;
 }
@@ -740,34 +715,25 @@ nsSMILAnimationFunction::GetValues(const nsISMILAttr& aSMILAttr,
   if (!mAnimationElement)
     return NS_ERROR_FAILURE;
 
-  mValueNeedsReparsingEverySample = PR_FALSE;
   nsSMILValueArray result;
 
   // If "values" is set, use it
   if (HasAttr(nsGkAtoms::values)) {
     nsAutoString attValue;
     GetAttr(nsGkAtoms::values, attValue);
-    PRBool canCache;
     nsresult rv = nsSMILParserUtils::ParseValues(attValue, mAnimationElement,
-                                                 aSMILAttr, result, canCache);
+                                                 aSMILAttr, result);
     if (NS_FAILED(rv))
       return rv;
 
-    if (!canCache) {
-      mValueNeedsReparsingEverySample = PR_TRUE;
-    }
   // Else try to/from/by
   } else {
-    PRBool canCacheSoFar = PR_TRUE;
+
     PRBool parseOk = PR_TRUE;
     nsSMILValue to, from, by;
-    parseOk &= ParseAttr(nsGkAtoms::to,   aSMILAttr, to,   canCacheSoFar);
-    parseOk &= ParseAttr(nsGkAtoms::from, aSMILAttr, from, canCacheSoFar);
-    parseOk &= ParseAttr(nsGkAtoms::by,   aSMILAttr, by,   canCacheSoFar);
-    
-    if (!canCacheSoFar) {
-      mValueNeedsReparsingEverySample = PR_TRUE;
-    }
+    parseOk &= ParseAttr(nsGkAtoms::to,   aSMILAttr, to);
+    parseOk &= ParseAttr(nsGkAtoms::from, aSMILAttr, from);
+    parseOk &= ParseAttr(nsGkAtoms::by,   aSMILAttr, by);
 
     if (!parseOk)
       return NS_ERROR_FAILURE;
@@ -902,7 +868,7 @@ nsSMILAnimationFunction::GetAccumulate() const
   if (!value)
     return PR_FALSE;
 
-  return value->GetEnumValue();
+  return (value->GetEnumValue() == PR_TRUE);
 }
 
 PRBool
@@ -912,7 +878,7 @@ nsSMILAnimationFunction::GetAdditive() const
   if (!value)
     return PR_FALSE;
 
-  return value->GetEnumValue();
+  return (value->GetEnumValue() == PR_TRUE);
 }
 
 nsSMILAnimationFunction::nsSMILCalcMode

@@ -376,7 +376,13 @@ LoginManager.prototype = {
                     var [usernameField, passwordField, ignored] =
                         this._pwmgr._getFormFields(acForm, false);
                     if (usernameField == acInputField && passwordField) {
-                        this._pwmgr._fillForm(acForm, true, true, true, null);
+                        let oldValue = passwordField.value;
+                        // Clobber any existing password.
+                        passwordField.value = "";
+                        let [didFillForm, foundLogins] =
+                            this._pwmgr._fillForm(acForm, true, true, null);
+                        if (!didFillForm)
+                            passwordField.value = oldValue;
                     } else {
                         this._pwmgr.log("Oops, form changed before AC invoked");
                     }
@@ -1033,7 +1039,7 @@ LoginManager.prototype = {
                 previousActionOrigin = actionOrigin;
             }
             this.log("_fillDocument processing form[" + i + "]");
-            foundLogins = this._fillForm(form, autofillForm, false, false, foundLogins)[1];
+            foundLogins = this._fillForm(form, autofillForm, false, foundLogins)[1];
         } // foreach form
     },
 
@@ -1050,8 +1056,7 @@ LoginManager.prototype = {
      * autocomplete=off attributes, and foundLogins is an array of nsILoginInfo
      * for optimization
      */
-    _fillForm : function (form, autofillForm, ignoreAutocomplete,
-                          clobberPassword, foundLogins) {
+    _fillForm : function (form, autofillForm, ignoreAutocomplete, foundLogins) {
         // Heuristically determine what the user/pass fields are
         // We do this before checking to see if logins are stored,
         // so that the user isn't prompted for a master password
@@ -1122,7 +1127,7 @@ LoginManager.prototype = {
             this._attachToInput(usernameField);
 
         // Don't clobber an existing password.
-        if (passwordField.value && !clobberPassword) {
+        if (passwordField.value) {
             didntFillReason = "existingPassword";
             this._notifyFoundLogins(didntFillReason, usernameField,
                                     passwordField, foundLogins, null);
@@ -1271,7 +1276,7 @@ LoginManager.prototype = {
      */
     fillForm : function (form) {
         this.log("fillForm processing form[id=" + form.id + "]");
-        return this._fillForm(form, true, true, false, null)[0];
+        return this._fillForm(form, true, true, null)[0];
     },
 
 

@@ -207,18 +207,15 @@ static JSBool
 DelayedReleaseGCCallback(JSContext* cx, JSGCStatus status)
 {
   if (JSGC_END == status) {
-    // Take ownership of sDelayedReleases and null it out now. The
-    // _releaseobject call below can reenter GC and double-free these objects.
-    nsAutoPtr<nsTArray<NPObject*> > delayedReleases(sDelayedReleases);
-    sDelayedReleases = nsnull;
-
-    if (delayedReleases) {
-      for (PRUint32 i = 0; i < delayedReleases->Length(); ++i) {
-        NPObject* obj = (*delayedReleases)[i];
+    if (sDelayedReleases) {
+      for (PRInt32 i = 0; i < sDelayedReleases->Length(); ++i) {
+        NPObject* obj = (*sDelayedReleases)[i];
         if (obj)
           _releaseobject(obj);
         OnWrapperDestroyed();
       }
+      delete sDelayedReleases;
+      sDelayedReleases = NULL;
     }
   }
   return JS_TRUE;
@@ -1355,7 +1352,7 @@ CallNPMethodInternal(JSContext *cx, JSObject *obj, uintN argc, jsval *argv,
 
   NPObject *npobj = (NPObject *)::JS_GetPrivate(cx, obj);
 
-  if (!npobj || !npobj->_class) {
+  if (!npobj || !npobj->_class || !npobj->_class->invoke) {
     ThrowJSException(cx, "Bad NPObject as private data!");
 
     return JS_FALSE;

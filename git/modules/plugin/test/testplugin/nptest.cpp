@@ -46,7 +46,6 @@
 #ifdef XP_WIN
 #include <process.h>
 #include <float.h>
-#include <windows.h>
 #define getpid _getpid
 #else
 #include <unistd.h>
@@ -67,8 +66,8 @@
 
 int gCrashCount = 0;
 
-static void
-NoteIntentionalCrash()
+void
+IntentionalCrash()
 {
   char* bloatLog = getenv("XPCOM_MEM_BLOAT_LOG");
   if (bloatLog) {
@@ -85,13 +84,6 @@ NoteIntentionalCrash()
     fprintf(processfd, "==> process %d will purposefully crash\n", getpid());
     fclose(processfd);
   }
-}
-
-static void
-IntentionalCrash()
-{
-  NoteIntentionalCrash();
-
   int *pi = NULL;
   *pi = 55; // Crash dereferencing null pointer
   ++gCrashCount;
@@ -152,8 +144,6 @@ static bool setCookie(NPObject* npobj, const NPVariant* args, uint32_t argCount,
 static bool getCookie(NPObject* npobj, const NPVariant* args, uint32_t argCount, NPVariant* result);
 static bool getAuthInfo(NPObject* npobj, const NPVariant* args, uint32_t argCount, NPVariant* result);
 static bool asyncCallbackTest(NPObject* npobj, const NPVariant* args, uint32_t argCount, NPVariant* result);
-static bool checkGCRace(NPObject* npobj, const NPVariant* args, uint32_t argCount, NPVariant* result);
-static bool hangPlugin(NPObject* npobj, const NPVariant* args, uint32_t argCount, NPVariant* result);
 
 static const NPUTF8* sPluginMethodIdentifierNames[] = {
   "npnEvaluateTest",
@@ -191,8 +181,6 @@ static const NPUTF8* sPluginMethodIdentifierNames[] = {
   "getCookie",
   "getAuthInfo",
   "asyncCallbackTest",
-  "checkGCRace",
-  "hang",
 };
 static NPIdentifier sPluginMethodIdentifiers[ARRAY_LENGTH(sPluginMethodIdentifierNames)];
 static const ScriptableFunction sPluginMethodFunctions[ARRAY_LENGTH(sPluginMethodIdentifierNames)] = {
@@ -231,8 +219,6 @@ static const ScriptableFunction sPluginMethodFunctions[ARRAY_LENGTH(sPluginMetho
   getCookie,
   getAuthInfo,
   asyncCallbackTest,
-  checkGCRace,
-  hangPlugin,
 };
 
 struct URLNotifyData
@@ -2462,121 +2448,5 @@ asyncCallbackTest(NPObject* npobj, const NPVariant* args, uint32_t argCount, NPV
   id->asyncCallbackResult = true;
   NPN_PluginThreadAsyncCall(npp, asyncCallback, (void*)npobj);
   
-  return true;
-}
-
-static bool
-GCRaceInvoke(NPObject*, NPIdentifier, const NPVariant*, uint32_t, NPVariant*)
-{
-  return false;
-}
-
-static bool
-GCRaceInvokeDefault(NPObject* o, const NPVariant* args, uint32_t argCount,
-		    NPVariant* result)
-{
-  if (1 != argCount || !NPVARIANT_IS_INT32(args[0]) ||
-      35 != NPVARIANT_TO_INT32(args[0]))
-    return false;
-
-  return true;
-}
-
-static const NPClass kGCRaceClass = {
-  NP_CLASS_STRUCT_VERSION,
-  NULL,
-  NULL,
-  NULL,
-  NULL,
-  GCRaceInvoke,
-  GCRaceInvokeDefault,
-  NULL,
-  NULL,
-  NULL,
-  NULL,
-  NULL,
-  NULL
-};
-
-struct GCRaceData
-{
-  GCRaceData(NPP npp, NPObject* callback, NPObject* localFunc)
-    : npp_(npp)
-    , callback_(callback)
-    , localFunc_(localFunc)
-  {
-    NPN_RetainObject(callback_);
-    NPN_RetainObject(localFunc_);
-  }
-
-  ~GCRaceData()
-  {
-    NPN_ReleaseObject(callback_);
-    NPN_ReleaseObject(localFunc_);
-  }
-
-  NPP npp_;
-  NPObject* callback_;
-  NPObject* localFunc_;
-};
-
-static void
-FinishGCRace(void* closure)
-{
-  GCRaceData* rd = static_cast<GCRaceData*>(closure);
-
-#ifdef XP_WIN
-  Sleep(5000);
-#else
-  sleep(5);
-#endif
-
-  NPVariant arg;
-  OBJECT_TO_NPVARIANT(rd->localFunc_, arg);
-
-  NPVariant result;
-  bool ok = NPN_InvokeDefault(rd->npp_, rd->callback_, &arg, 1, &result);
-  if (!ok)
-    return;
-
-  NPN_ReleaseVariantValue(&result);
-  delete rd;
-}
-
-bool
-checkGCRace(NPObject* npobj, const NPVariant* args, uint32_t argCount,
-	    NPVariant* result)
-{
-  if (1 != argCount || !NPVARIANT_IS_OBJECT(args[0]))
-    return false;
-
-  NPP npp = static_cast<TestNPObject*>(npobj)->npp;
-  
-  NPObject* localFunc =
-    NPN_CreateObject(npp, const_cast<NPClass*>(&kGCRaceClass));
-
-  GCRaceData* rd =
-    new GCRaceData(npp, NPVARIANT_TO_OBJECT(args[0]), localFunc);
-  NPN_PluginThreadAsyncCall(npp, FinishGCRace, rd);
-
-  OBJECT_TO_NPVARIANT(localFunc, *result);
-  return true;
-}
-
-bool
-hangPlugin(NPObject* npobj, const NPVariant* args, uint32_t argCount,
-           NPVariant* result)
-{
-  NoteIntentionalCrash();
-
-#ifdef XP_WIN
-  Sleep(100000000);
-#else
-  pause();
-#endif
-  // NB: returning true here means that we weren't terminated, and
-  // thus the hang detection/handling didn't work correctly.  The
-  // test harness will succeed in calling this function, and the
-  // test will fail.
   return true;
 }

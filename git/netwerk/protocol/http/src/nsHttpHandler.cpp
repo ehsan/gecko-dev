@@ -270,14 +270,6 @@ nsHttpHandler::Init()
     rv = InitConnectionMgr();
     if (NS_FAILED(rv)) return rv;
 
-    rv = NS_NewThread(getter_AddRefs(mCacheWriteThread));
-    if (NS_FAILED(rv)) {
-        mCacheWriteThread = nsnull;
-        LOG(("Failed creating cache-write thread - writes will be synchronous"));
-    } else {
-        LOG(("Created cache-write thread = %p", mCacheWriteThread.get()));
-    }
-
     nsCOMPtr<nsIXULAppInfo> appInfo =
         do_GetService("@mozilla.org/xre/app-info;1");
     if (appInfo)
@@ -297,7 +289,6 @@ nsHttpHandler::Init()
         mObserverService->AddObserver(this, "profile-change-net-restore", PR_TRUE);
         mObserverService->AddObserver(this, NS_XPCOM_SHUTDOWN_OBSERVER_ID, PR_TRUE);
         mObserverService->AddObserver(this, "net:clear-active-logins", PR_TRUE);
-        mObserverService->AddObserver(this, "xpcom-shutdown-threads", PR_TRUE);
     }
  
     StartPruneDeadConnectionsTimer();
@@ -524,32 +515,6 @@ nsHttpHandler::OnChannelRedirect(nsIChannel* oldChan, nsIChannel* newChan,
         rv = sink->OnChannelRedirect(oldChan, newChan, flags);
 
     return rv;
-}
-
-/* static */ nsresult
-nsHttpHandler::GenerateHostPort(const nsCString& host, PRInt32 port,
-                                nsCString& hostLine)
-{
-    if (strchr(host.get(), ':')) {
-        // host is an IPv6 address literal and must be encapsulated in []'s
-        hostLine.Assign('[');
-        // scope id is not needed for Host header.
-        int scopeIdPos = host.FindChar('%');
-        if (scopeIdPos == kNotFound)
-            hostLine.Append(host);
-        else if (scopeIdPos > 0)
-            hostLine.Append(Substring(host, 0, scopeIdPos));
-        else
-          return NS_ERROR_MALFORMED_URI;
-        hostLine.Append(']');
-    }
-    else
-        hostLine.Assign(host);
-    if (port != -1) {
-        hostLine.Append(':');
-        hostLine.AppendInt(port);
-    }
-    return NS_OK;
 }
 
 //-----------------------------------------------------------------------------
@@ -1769,18 +1734,6 @@ nsHttpHandler::Observe(nsISupports *subject,
     }
     else if (strcmp(topic, "net:clear-active-logins") == 0) {
         mAuthCache.ClearAll();
-    }
-    else if (strcmp(topic, "xpcom-shutdown-threads") == 0) {
-        // Shutdown the cache write thread. This must be done after shutting down
-        // the cache service, because the (memory) cache entries' storage streams
-        // get released on the thread on which they were first written to, which
-        // is this thread.
-        if (mCacheWriteThread) {
-            LOG(("  shutting down cache-write thread...\n"));
-            mCacheWriteThread->Shutdown();
-            LOG(("  cache-write thread shutdown complete\n"));
-            mCacheWriteThread = nsnull;
-        }
     }
 
     return NS_OK;

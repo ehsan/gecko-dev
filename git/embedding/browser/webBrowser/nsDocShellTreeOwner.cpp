@@ -68,14 +68,6 @@
 #include "nsIDOMDocument.h"
 #include "nsIDOMDocumentType.h"
 #include "nsIDOMElement.h"
-#include "nsIDOMHTMLAnchorElement.h"
-#include "nsIDOMHTMLAreaElement.h"
-#include "nsIDOMHTMLLinkElement.h"
-#ifdef MOZ_SVG
-#include "nsIDOMSVGAElement.h"
-#include "nsIDOMSVGElement.h"
-#include "nsIDOMSVGTitleElement.h"
-#endif
 #include "nsIDOMEvent.h"
 #include "nsIDOMMouseEvent.h"
 #include "nsIDOMNSUIEvent.h"
@@ -93,8 +85,8 @@
 #include "nsIDOMHTMLElement.h"
 #include "nsIPresShell.h"
 #include "nsPIDOMWindow.h"
-#include "nsPIWindowRoot.h"
 #include "nsIDOMWindowCollection.h"
+#include "nsIFocusController.h"
 #include "nsIWindowWatcher.h"
 #include "nsPIWindowWatcher.h"
 #include "nsIPrompt.h"
@@ -1015,49 +1007,9 @@ DefaultTooltipTextProvider::GetNodeText(nsIDOMNode *aNode, PRUnichar **aText,
             found = PR_TRUE;
           else {
             // ...ok, that didn't work, try it in the XLink namespace
-            NS_NAMED_LITERAL_STRING(xlinkNS, "http://www.w3.org/1999/xlink");
-            nsCOMPtr<nsIDOMHTMLAnchorElement> anchorContent(do_QueryInterface(currElement));
-            nsCOMPtr<nsIDOMHTMLAreaElement> areaContent(do_QueryInterface(currElement));
-            nsCOMPtr<nsIDOMHTMLLinkElement> linkContent(do_QueryInterface(currElement));
-            PRBool hasHref;
-            currElement->HasAttribute(NS_LITERAL_STRING("href"), &hasHref);
-#ifdef MOZ_SVG
-            nsCOMPtr<nsIDOMSVGAElement> svgAnchorContent(do_QueryInterface(currElement));
-            PRBool hasXlinkHref;
-            currElement->HasAttributeNS(xlinkNS, NS_LITERAL_STRING("href"), &hasXlinkHref);
-
-            if (((anchorContent || areaContent || linkContent) && hasHref) ||
-                (svgAnchorContent && hasXlinkHref)) {
-#else
-            if ((anchorContent || areaContent || linkContent) && hasHref) {
-#endif
-              currElement->GetAttributeNS(xlinkNS, NS_LITERAL_STRING("title"), outText);
-              if ( outText.Length() )
-                found = PR_TRUE;
-            }
-#ifdef MOZ_SVG
-            else {
-              nsCOMPtr<nsIDOMSVGElement> svgContent(do_QueryInterface(currElement));
-              if (svgContent) {
-                nsCOMPtr<nsIDOMNodeList>childNodes;
-                aNode->GetChildNodes(getter_AddRefs(childNodes));
-                PRUint32 childNodeCount;
-                childNodes->GetLength(&childNodeCount);
-                for (PRUint32 i = 0; i < childNodeCount; i++) {
-                  nsCOMPtr<nsIDOMNode>childNode;
-                  childNodes->Item(i, getter_AddRefs(childNode));
-                  nsCOMPtr<nsIDOMSVGTitleElement> titleElement(do_QueryInterface(childNode));
-                  if (titleElement) {
-                    nsCOMPtr<nsIDOM3Node> titleContent(do_QueryInterface(titleElement));
-                    titleContent->GetTextContent(outText);
-                    if ( outText.Length() )
-                      found = PR_TRUE;
-                    break;
-                  }
-                }
-              }
-            }
-#endif
+            currElement->GetAttributeNS(NS_LITERAL_STRING("http://www.w3.org/1999/xlink"), NS_LITERAL_STRING("title"), outText);
+            if ( outText.Length() )
+              found = PR_TRUE;
           }
         }
       }
@@ -1823,15 +1775,16 @@ ChromeContextMenuListener::ContextMenu(nsIDOMEvent* aMouseEvent)
   res = mWebBrowser->GetContentDOMWindow(getter_AddRefs(win));
   NS_ENSURE_SUCCESS(res, res);
   NS_ENSURE_TRUE(win, NS_ERROR_FAILURE);
-
-  nsCOMPtr<nsPIDOMWindow> window(do_QueryInterface(win));
-  NS_ENSURE_TRUE(window, NS_ERROR_FAILURE);
-  nsCOMPtr<nsPIWindowRoot> root = window->GetTopWindowRoot();
-  NS_ENSURE_TRUE(root, NS_ERROR_FAILURE);
-  if (root) {
-    // set the window root's popup node to the event target
-    root->SetPopupNode(targetDOMnode);
-  }
+  // get the private dom window
+  nsCOMPtr<nsPIDOMWindow> privateWin(do_QueryInterface(win, &res));
+  NS_ENSURE_SUCCESS(res, res);
+  NS_ENSURE_TRUE(privateWin, NS_ERROR_FAILURE);
+  // get the focus controller
+  nsIFocusController *focusController = privateWin->GetRootFocusController();
+  NS_ENSURE_TRUE(focusController, NS_ERROR_FAILURE);
+  // set the focus controller's popup node to the event target
+  res = focusController->SetPopupNode(targetDOMnode);
+  NS_ENSURE_SUCCESS(res, res);
 
   // Tell the listener all about the event
   if ( menuListener2 ) {

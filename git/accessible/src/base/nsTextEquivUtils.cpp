@@ -152,14 +152,14 @@ nsTextEquivUtils::AppendTextEquivFromContent(nsIAccessible *aInitiatorAcc,
   nsIFrame *frame = aContent->GetPrimaryFrame();
   PRBool isVisible = frame && frame->GetStyleVisibility()->IsVisible();
 
-  nsresult rv = NS_ERROR_FAILURE;
+  nsresult rv;
   PRBool goThroughDOMSubtree = PR_TRUE;
 
   if (isVisible) {
     nsCOMPtr<nsIAccessible> accessible;
-    GetAccService()->GetAccessibleInShell(DOMNode, shell,
-                                               getter_AddRefs(accessible));
-    if (accessible) {
+    rv = nsAccessNode::GetAccService()->
+      GetAccessibleInShell(DOMNode, shell, getter_AddRefs(accessible));
+    if (NS_SUCCEEDED(rv) && accessible) {
       rv = AppendFromAccessible(accessible, aString);
       goThroughDOMSubtree = PR_FALSE;
     }

@@ -42,7 +42,7 @@ srcdir		= @srcdir@
 VPATH		= @srcdir@
 relativesrcdir  = accessible
 
-DIRS	= actions attributes events selectable states tree
+DIRS	= attributes events selectable tree
 
 include $(DEPTH)/config/autoconf.mk
 include $(topsrcdir)/config/rules.mk
@@ -55,7 +55,6 @@ _TEST_FILES =\
 		actions.js \
 		attributes.js \
 		common.js \
-		editabletext.js \
 		events.js \
 		events_scroll.html \
 		grid.js \
@@ -66,11 +65,19 @@ _TEST_FILES =\
 		name_nsRootAcc_wnd.xul \
 		namerules.xml \
  		nsIAccessible_selects.js \
+		nsIAccessibleEditableText.js \
 		relations.js \
 		role.js \
 		states.js \
 		table.js \
 		value.js \
+		test_actions.html \
+		test_actions.xul \
+		test_actions_anchors.html \
+		test_actions_aria.html \
+		test_actions_inputs.html \
+		test_actions_tree.xul \
+		test_actions_treegrid.xul \
 		test_aria_activedescendant.html \
 		test_aria_role_article.html \
 		test_aria_role_equation.html \
@@ -81,8 +88,6 @@ _TEST_FILES =\
 	$(warning   test_childAtPoint.html temporarily disabled) \
 	$(warning	test_childAtPoint.xul temporarily disabled) \
 		test_descr.html \
-		test_editabletext_1.html \
-		test_editabletext_2.html \
 		test_elm_listbox.xul \
 	$(warning   test_elm_media.html temporarily disabled) \
 		test_elm_plugin.html \
@@ -98,6 +103,7 @@ _TEST_FILES =\
  		test_nsIAccessible_selects.html \
 		test_nsIAccessible_focus.html \
 		test_nsIAccessibleDocument.html \
+		test_nsIAccessibleEditableText.html \
 		test_nsIAccessibleHyperLink.html \
 		test_nsIAccessibleHyperLink.xul \
 		test_nsIAccessibleHyperText.html \
@@ -108,6 +114,14 @@ _TEST_FILES =\
 		test_relations.xul \
 		test_relations_tree.xul \
 		test_role_nsHyperTextAcc.html \
+		test_role_table_cells.html \
+		test_states.html \
+		test_states_doc.html \
+		test_states_docarticle.html \
+		test_states_editablebody.html \
+		test_states_frames.html \
+		test_states_popup.xul \
+		test_states_tree.xul \
 		test_table_1.html \
 		test_table_4.html \
 		test_table_headers.html \
@@ -128,7 +142,6 @@ _TEST_FILES =\
 		test_table_struct_ariatreegrid.html \
 		test_table_struct_listbox.xul \
 		test_table_struct_tree.xul \
-		test_text_caret.html \
 		test_textboxes.html \
 		test_textboxes.xul \
 		test_value.html \
@@ -136,6 +149,10 @@ _TEST_FILES =\
 		testTextboxes.js \
 		treeview.css \
 		treeview.js \
+		z_states_frame.html \
+		z_states_framearticle.html \
+		z_states_framecheckbox.html \
+		z_states_frametextbox.html \
 		$(NULL)
 
 libs:: $(_TEST_FILES)

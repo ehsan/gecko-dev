@@ -1297,7 +1297,7 @@ AddItemsToRegion(nsDisplayListBuilder* aBuilder, nsDisplayList* aList,
           nsRegion clippedOutDestination;
           clippedOutDestination.Sub(aUpdateRect, clip);
  #ifdef DEBUG
-          PrintAddedRegion("Adding region for clipped out destination frame %p",
+          PrintAddedRegion("Adding region for clipped out source frame %p",
                            clipFrame, clippedOutDestination);
  #endif
           aRegion->Or(*aRegion, clippedOutDestination);
@@ -1650,7 +1650,7 @@ nsLayoutUtils::GetFontMetricsForStyleContext(nsStyleContext* aStyleContext,
   
   return aStyleContext->PresContext()->DeviceContext()->GetMetricsFor(
                   aStyleContext->GetStyleFont()->mFont,
-                  aStyleContext->GetStyleVisibility()->mLanguage,
+                  aStyleContext->GetStyleVisibility()->mLangGroup,
                   fs, *aFontMetrics);
 }
 
@@ -3129,7 +3129,7 @@ nsLayoutUtils::SetFontFromStyle(nsIRenderingContext* aRC, nsStyleContext* aSC)
   const nsStyleFont* font = aSC->GetStyleFont();
   const nsStyleVisibility* visibility = aSC->GetStyleVisibility();
 
-  aRC->SetFont(font->mFont, visibility->mLanguage,
+  aRC->SetFont(font->mFont, visibility->mLangGroup,
                aSC->PresContext()->GetUserFontSet());
 }
 

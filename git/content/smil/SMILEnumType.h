@@ -44,17 +44,9 @@ namespace mozilla {
 class SMILEnumType : public nsISMILType
 {
 public:
-  // Singleton for nsSMILValue objects to hold onto.
-  static SMILEnumType sSingleton;
-
-protected:
-  // nsISMILType Methods
-  // -------------------
   virtual nsresult Init(nsSMILValue& aValue) const;
   virtual void     Destroy(nsSMILValue&) const;
   virtual nsresult Assign(nsSMILValue& aDest, const nsSMILValue& aSrc) const;
-  virtual PRBool   IsEqual(const nsSMILValue& aLeft,
-                           const nsSMILValue& aRight) const;
   virtual nsresult Add(nsSMILValue& aDest, const nsSMILValue& aValueToAdd,
                        PRUint32 aCount) const;
   virtual nsresult ComputeDistance(const nsSMILValue& aFrom,
@@ -65,11 +57,10 @@ protected:
                                double aUnitDistance,
                                nsSMILValue& aResult) const;
 
+  static SMILEnumType sSingleton;
+
 private:
-  // Private constructor & destructor: prevent instances beyond my singleton,
-  // and prevent others from deleting my singleton.
-  SMILEnumType()  {}
-  ~SMILEnumType() {}
+  SMILEnumType() {}
 };
 
 } // namespace mozilla

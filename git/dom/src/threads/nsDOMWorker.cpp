@@ -413,46 +413,66 @@ WriteCallback(const jschar* aBuffer,
 }
 
 static nsresult
-GetStringForArgument(JSContext* aCx,
-                     jsval aVal,
+GetStringForArgument(nsAString& aString,
                      PRBool* aIsJSON,
-                     PRBool* aIsPrimitive,
-                     nsAutoJSValHolder& _retval)
+                     PRBool* aIsPrimitive)
 {
   NS_ASSERTION(aIsJSON && aIsPrimitive, "Null pointer!");
 
-  if (JSVAL_IS_STRING(aVal)) {
-    if (!JS_MakeStringImmutable(aCx, JSVAL_TO_STRING(aVal))) {
-      return NS_ERROR_FAILURE;
-    }
+  nsIXPConnect* xpc = nsContentUtils::XPConnect();
+  NS_ENSURE_TRUE(xpc, NS_ERROR_UNEXPECTED);
 
+  nsAXPCNativeCallContext* cc;
+  nsresult rv = xpc->GetCurrentNativeCallContext(&cc);
+  NS_ENSURE_SUCCESS(rv, rv);
+  NS_ENSURE_TRUE(cc, NS_ERROR_UNEXPECTED);
+
+  PRUint32 argc;
+  rv = cc->GetArgc(&argc);
+  NS_ENSURE_SUCCESS(rv, rv);
+
+  if (!argc) {
+    return NS_ERROR_XPC_NOT_ENOUGH_ARGS;
+  }
+
+  jsval* argv;
+  rv = cc->GetArgvPtr(&argv);
+  NS_ENSURE_SUCCESS(rv, rv);
+
+  JSContext* cx;
+  rv = cc->GetJSContext(&cx);
+  NS_ENSURE_SUCCESS(rv, rv);
+
+  JSAutoRequest ar(cx);
+
+  if (JSVAL_IS_STRING(argv[0])) {
+    aString.Assign(nsDependentJSString(JSVAL_TO_STRING(argv[0])));
     *aIsJSON = *aIsPrimitive = PR_FALSE;
-    _retval = aVal;
     return NS_OK;
   }
 
   nsAutoJSValHolder jsonVal;
 
-  JSBool ok = jsonVal.Hold(aCx);
+  JSBool ok = jsonVal.Hold(cx);
   NS_ENSURE_TRUE(ok, NS_ERROR_FAILURE);
 
-  if (JSVAL_IS_PRIMITIVE(aVal)) {
+  if (JSVAL_IS_PRIMITIVE(argv[0])) {
     // Only objects can be serialized through JSON, currently, so if we've been
     // given a primitive we set it as a property on a dummy object before
     // sending it to the serializer.
-    JSObject* obj = JS_NewObject(aCx, NULL, NULL, NULL);
+    JSObject* obj = JS_NewObject(cx, NULL, NULL, NULL);
     NS_ENSURE_TRUE(obj, NS_ERROR_OUT_OF_MEMORY);
 
     jsonVal = obj;
 
-    ok = JS_DefineProperty(aCx, obj, JSON_PRIMITIVE_PROPNAME, aVal, NULL,
+    ok = JS_DefineProperty(cx, obj, JSON_PRIMITIVE_PROPNAME, argv[0], NULL,
                            NULL, JSPROP_ENUMERATE);
     NS_ENSURE_TRUE(ok, NS_ERROR_UNEXPECTED);
 
     *aIsPrimitive = PR_TRUE;
   }
   else {
-    jsonVal = aVal;
+    jsonVal = argv[0];
 
     *aIsPrimitive = PR_FALSE;
   }
@@ -461,9 +481,9 @@ GetStringForArgument(JSContext* aCx,
   jsval* vp = jsonVal.ToJSValPtr();
 
   // This may change vp if there is a 'toJSON' function on the object.
-  ok = JS_TryJSON(aCx, vp);
+  ok = JS_TryJSON(cx, vp);
   if (!(ok && !JSVAL_IS_PRIMITIVE(*vp) &&
-        (type = JS_TypeOfValue(aCx, *vp)) != JSTYPE_FUNCTION &&
+        (type = JS_TypeOfValue(cx, *vp)) != JSTYPE_FUNCTION &&
         type != JSTYPE_XML)) {
     return NS_ERROR_INVALID_ARG;
   }
@@ -473,8 +493,7 @@ GetStringForArgument(JSContext* aCx,
 
   nsJSONWriter writer;
 
-  ok = JS_Stringify(aCx, jsonVal.ToJSValPtr(), NULL, JSVAL_NULL, WriteCallback,
-                    &writer);
+  ok = JS_Stringify(cx, jsonVal.ToJSValPtr(), NULL, JSVAL_NULL, WriteCallback, &writer);
   if (!ok) {
     return NS_ERROR_XPC_BAD_CONVERT_JS;
   }
@@ -483,20 +502,9 @@ GetStringForArgument(JSContext* aCx,
 
   writer.FlushBuffer();
 
-  _retval = nsDOMThreadService::ShareStringAsJSVal(aCx, writer.mOutputString);
-  if (!JSVAL_IS_STRING(_retval)) {
-    // Yuck, we can't share.
-    const jschar* buf =
-      reinterpret_cast<const jschar*>(writer.mOutputString.get());
-    JSString* str = JS_NewUCStringCopyN(aCx, buf, writer.mOutputString.Length());
-    if (!str) {
-      JS_ReportOutOfMemory(aCx);
-      return NS_ERROR_OUT_OF_MEMORY;
-    }
-    _retval = STRING_TO_JSVAL(str);
-  }
-
+  aString.Assign(writer.mOutputString);
   *aIsJSON = PR_TRUE;
+
   return NS_OK;
 }
 
@@ -747,7 +755,13 @@ nsDOMWorkerScope::PostMessage(/* JSObject aMessage */)
     return NS_ERROR_ABORT;
   }
 
-  return mWorker->PostMessageInternal(PR_FALSE);
+  nsString message;
+  PRBool isJSON, isPrimitive;
+
+  nsresult rv = GetStringForArgument(message, &isJSON, &isPrimitive);
+  NS_ENSURE_SUCCESS(rv, rv);
+
+  return mWorker->PostMessageInternal(message, isJSON, isPrimitive, PR_FALSE);
 }
 
 NS_IMETHODIMP
@@ -1441,55 +1455,20 @@ nsDOMWorker::IsSuspended()
 }
 
 nsresult
-nsDOMWorker::PostMessageInternal(PRBool aToInner)
+nsDOMWorker::PostMessageInternal(const nsAString& aMessage,
+                                 PRBool aIsJSON,
+                                 PRBool aIsPrimitive,
+                                 PRBool aToInner)
 {
-  nsIXPConnect* xpc = nsContentUtils::XPConnect();
-  NS_ENSURE_TRUE(xpc, NS_ERROR_UNEXPECTED);
-
-  nsAXPCNativeCallContext* cc;
-  nsresult rv = xpc->GetCurrentNativeCallContext(&cc);
-  NS_ENSURE_SUCCESS(rv, rv);
-  NS_ENSURE_TRUE(cc, NS_ERROR_UNEXPECTED);
-
-  PRUint32 argc;
-  rv = cc->GetArgc(&argc);
-  NS_ENSURE_SUCCESS(rv, rv);
-
-  if (!argc) {
-    return NS_ERROR_XPC_NOT_ENOUGH_ARGS;
-  }
-
-  jsval* argv;
-  rv = cc->GetArgvPtr(&argv);
-  NS_ENSURE_SUCCESS(rv, rv);
-
-  JSContext* cx;
-  rv = cc->GetJSContext(&cx);
-  NS_ENSURE_SUCCESS(rv, rv);
-
-  JSAutoRequest ar(cx);
-
-  nsAutoJSValHolder val;
-  if (!val.Hold(cx)) {
-    return NS_ERROR_FAILURE;
-  }
-
-  PRBool isJSON, isPrimitive;
-  rv = GetStringForArgument(cx, argv[0], &isJSON, &isPrimitive, val);
-  NS_ENSURE_SUCCESS(rv, rv);
-
-  NS_ASSERTION(JSVAL_IS_STRING(val), "Bad jsval!");
-
   nsRefPtr<nsDOMWorkerMessageEvent> message = new nsDOMWorkerMessageEvent();
   NS_ENSURE_TRUE(message, NS_ERROR_OUT_OF_MEMORY);
 
-  rv = message->InitMessageEvent(NS_LITERAL_STRING("message"), PR_FALSE,
-                                 PR_FALSE, EmptyString(), EmptyString(),
-                                 nsnull);
+  nsresult rv = message->InitMessageEvent(NS_LITERAL_STRING("message"),
+                                          PR_FALSE, PR_FALSE, aMessage,
+                                          EmptyString(), nsnull);
   NS_ENSURE_SUCCESS(rv, rv);
 
-  rv = message->SetJSONData(cx, val, isJSON, isPrimitive);
-  NS_ENSURE_SUCCESS(rv, rv);
+  message->SetJSONData(aIsJSON, aIsPrimitive);
 
   nsRefPtr<nsDOMFireEventRunnable> runnable =
     new nsDOMFireEventRunnable(this, message, aToInner);
@@ -1999,7 +1978,13 @@ nsDOMWorker::PostMessage(/* JSObject aMessage */)
     }
   }
 
-  return PostMessageInternal(PR_TRUE);
+  nsString message;
+  PRBool isJSON, isPrimitive;
+
+  nsresult rv = GetStringForArgument(message, &isJSON, &isPrimitive);
+  NS_ENSURE_SUCCESS(rv, rv);
+
+  return PostMessageInternal(message, isJSON, isPrimitive, PR_TRUE);
 }
 
 /**

@@ -66,11 +66,8 @@ IPDLTESTS = \
   TestLatency \
   TestRPCRaces \
   TestRacyRPCReplies  \
-  TestHangs \
-  TestBlockChild \
   TestManyChildAllocs  \
   TestDesc \
-  TestMultiMgrs  \
   TestShmem \
   TestShutdown \
   TestArrays \

@@ -73,11 +73,4 @@
 # hiddenWindow.xul.
 #include browser-menubar.inc
 
-<!-- Dock menu -->
-<popupset>
-  <menupopup id="menu_mac_dockmenu">
-    <menuitem label="&newNavigatorCmd.label;" command="cmd_newNavigator" />
-  </menupopup>
-</popupset>
-
 </overlay>

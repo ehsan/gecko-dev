@@ -42,10 +42,10 @@
 
 #include "base/basictypes.h"
 
-#include "mozilla/ipc/MozillaChildThread.h"
+#include "chrome/common/child_thread.h"
 #include "base/file_path.h"
-#include "base/process.h"
 
+#include "mozilla/ipc/GeckoThread.h"
 #include "mozilla/plugins/PluginModuleChild.h"
 
 namespace mozilla {
@@ -54,22 +54,20 @@ namespace plugins {
 
 // The PluginThreadChild class represents a background thread where plugin instances
 // live.
-class PluginThreadChild : public mozilla::ipc::MozillaChildThread {
+class PluginThreadChild : public mozilla::ipc::GeckoThread {
 public:
     PluginThreadChild(ProcessHandle aParentHandle);
     ~PluginThreadChild();
 
-    static PluginThreadChild* current() {
-        return gInstance;
-    }
-
 private:
-    static PluginThreadChild* gInstance;
-
     // Thread implementation:
     virtual void Init();
     virtual void CleanUp();
 
+    // FIXME/cjones: this is kinda broken; this thread is generic,
+    // not NPAPI-specific, but there's not really another good
+    // place to store this reference.  and there's no need to make
+    // a generic |Plugin| class yet
     PluginModuleChild mPlugin;
     IPC::Channel* mChannel;
 

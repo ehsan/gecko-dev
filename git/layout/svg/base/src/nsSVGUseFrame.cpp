@@ -89,7 +89,6 @@ public:
 
   // nsIAnonymousContentCreator
   virtual nsresult CreateAnonymousContent(nsTArray<nsIContent*>& aElements);
-  virtual void AppendAnonymousContentTo(nsBaseContentList& aElements);
 };
 
 //----------------------------------------------------------------------
@@ -180,12 +179,4 @@ nsSVGUseFrame::CreateAnonymousContent(nsTArray<nsIContent*>& aElements)
   if (!aElements.AppendElement(clone))
     return NS_ERROR_OUT_OF_MEMORY;
   return NS_OK;
-}
-
-void
-nsSVGUseFrame::AppendAnonymousContentTo(nsBaseContentList& aElements)
-{
-  nsSVGUseElement *use = static_cast<nsSVGUseElement*>(mContent);
-  nsIContent* clone = use->GetAnonymousContent();
-  aElements.MaybeAppendElement(clone);
 }

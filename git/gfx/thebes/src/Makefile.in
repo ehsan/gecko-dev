@@ -22,7 +22,6 @@ CPPSRCS	= \
 	gfxFontMissingGlyphs.cpp \
 	gfxFontTest.cpp \
 	gfxFontUtils.cpp \
-	gfxAtoms.cpp \
 	gfxMatrix.cpp \
 	gfxPath.cpp \
 	gfxPattern.cpp \
@@ -33,10 +32,6 @@ CPPSRCS	= \
 	gfxTextRunCache.cpp \
 	gfxTextRunWordCache.cpp \
 	gfxUserFontSet.cpp \
-	$(NULL)
-
-CPPSRCS += \
-	gfxSharedImageSurface.cpp \
 	$(NULL)
 
 EXTRA_DSO_LDOPTS += \
@@ -118,7 +113,7 @@ ifdef MOZ_DFB
 CSRCS = cairo-gdk-utils.c
 endif
 
-EXTRA_DSO_LDOPTS += $(MOZ_PANGO_LIBS) $(ZLIB_LIBS) $(XLDFLAGS) $(XLIBS) $(XEXT_LIBS)
+EXTRA_DSO_LDOPTS += $(MOZ_PANGO_LIBS) $(ZLIB_LIBS) $(XLDFLAGS) $(XLIBS)
 endif
 
 ifdef MOZ_DFB
@@ -134,7 +129,7 @@ CPPSRCS +=	gfxFT2Utils.cpp
 CPPSRCS +=	gfxFontconfigUtils.cpp
 CPPSRCS +=	nsUnicodeRange.cpp
 #CSRCS = cairo-xlib-utils.c
-EXTRA_DSO_LDOPTS += $(ZLIB_LIBS) $(XLDFLAGS) $(XLIBS) $(CAIRO_FT_LIBS) $(XEXT_LIBS)
+EXTRA_DSO_LDOPTS += $(ZLIB_LIBS) $(XLDFLAGS) $(XLIBS) $(CAIRO_FT_LIBS)
 endif
 
 ifeq ($(MOZ_WIDGET_TOOLKIT),beos)

@@ -77,6 +77,8 @@ NS_NewCanvasFrame(nsIPresShell* aPresShell, nsStyleContext* aContext)
 
 NS_IMPL_FRAMEARENA_HELPERS(nsCanvasFrame)
 
+NS_IMPL_QUERY_INTERFACE1(nsCanvasFrame, nsIScrollPositionListener)
+
 NS_QUERYFRAME_HEAD(nsCanvasFrame)
   NS_QUERYFRAME_ENTRY(nsCanvasFrame)
 NS_QUERYFRAME_TAIL_INHERITING(nsHTMLContainerFrame)
@@ -111,13 +113,20 @@ nsCanvasFrame::DestroyFrom(nsIFrame* aDestructRoot)
   nsHTMLContainerFrame::DestroyFrom(aDestructRoot);
 }
 
-void
+NS_IMETHODIMP
 nsCanvasFrame::ScrollPositionWillChange(nscoord aX, nscoord aY)
 {
   if (mDoPaintFocus) {
     mDoPaintFocus = PR_FALSE;
     PresContext()->FrameManager()->GetRootFrame()->InvalidateOverflowRect();
   }
+  return NS_OK;
+}
+
+NS_IMETHODIMP
+nsCanvasFrame::ScrollPositionDidChange(nscoord aX, nscoord aY)
+{
+  return NS_OK;
 }
 
 NS_IMETHODIMP

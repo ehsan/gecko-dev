@@ -58,7 +58,6 @@
 #include FT_TRUETYPE_TAGS_H
 #include FT_TRUETYPE_TABLES_H
 #include "gfxFontUtils.h"
-#include "gfxAtoms.h"
 #include "nsTArray.h"
 #include "nsUnicodeRange.h"
 #include "nsIPrefService.h"
@@ -73,11 +72,17 @@ static PRLogModuleInfo *gFontLog = PR_NewLogModule("ft2fonts");
 static const char *sCJKLangGroup[] = {
     "ja",
     "ko",
-    "zh-cn",
-    "zh-hk",
-    "zh-tw"
+    "zh-CN",
+    "zh-HK",
+    "zh-TW"
 };
+
 #define COUNT_OF_CJK_LANG_GROUP 5
+#define CJK_LANG_JA    sCJKLangGroup[0]
+#define CJK_LANG_KO    sCJKLangGroup[1]
+#define CJK_LANG_ZH_CN sCJKLangGroup[2]
+#define CJK_LANG_ZH_HK sCJKLangGroup[3]
+#define CJK_LANG_ZH_TW sCJKLangGroup[4]
 
 // rounding and truncation functions for a Freetype floating point number
 // (FT26Dot6) stored in a 32bit integer with high 26 bits for the integer
@@ -320,7 +325,7 @@ gfxFT2FontGroup::FontCallback(const nsAString& fontName,
 }
 
 gfxFT2FontGroup::gfxFT2FontGroup(const nsAString& families,
-                                 const gfxFontStyle *aStyle)
+                               const gfxFontStyle *aStyle)
     : gfxFontGroup(families, aStyle)
 {
 #ifdef DEBUG_pavlov
@@ -331,9 +336,9 @@ gfxFT2FontGroup::gfxFT2FontGroup(const nsAString& families,
 
     if (familyArray.Length() == 0) {
         nsAutoString prefFamilies;
-        gfxToolkitPlatform::GetPlatform()->GetPrefFonts(aStyle->language, prefFamilies, nsnull);
+        gfxToolkitPlatform::GetPlatform()->GetPrefFonts(aStyle->langGroup.get(), prefFamilies, nsnull);
         if (!prefFamilies.IsEmpty()) {
-            ForEachFont(prefFamilies, aStyle->language, FontCallback, &familyArray);
+            ForEachFont(prefFamilies, aStyle->langGroup, FontCallback, &familyArray);
         }
     }
     if (familyArray.Length() == 0) {
@@ -480,7 +485,7 @@ AddFontNameToArray(const nsAString& aName,
 
 void
 gfxFT2FontGroup::FamilyListToArrayList(const nsString& aFamilies,
-                                       nsIAtom *aLangGroup,
+                                       const nsCString& aLangGroup,
                                        nsTArray<nsRefPtr<gfxFontEntry> > *aFontEntryList)
 {
     nsAutoTArray<nsString, 15> fonts;
@@ -494,13 +499,12 @@ gfxFT2FontGroup::FamilyListToArrayList(const nsString& aFamilies,
     }
 }
 
-void gfxFT2FontGroup::GetPrefFonts(nsIAtom *aLangGroup, nsTArray<nsRefPtr<gfxFontEntry> >& aFontEntryList)
-{
+void gfxFT2FontGroup::GetPrefFonts(const char *aLangGroup, nsTArray<nsRefPtr<gfxFontEntry> >& aFontEntryList) {
     NS_ASSERTION(aLangGroup, "aLangGroup is null");
     gfxToolkitPlatform *platform = gfxToolkitPlatform::GetPlatform();
     nsAutoTArray<nsRefPtr<gfxFontEntry>, 5> fonts;
-    nsCAutoString key;
-    aLangGroup->ToUTF8String(key);
+    /* this lookup has to depend on weight and style */
+    nsCAutoString key(aLangGroup);
     key.Append("-");
     key.AppendInt(GetStyle()->style);
     key.Append("-");
@@ -511,7 +515,8 @@ void gfxFT2FontGroup::GetPrefFonts(nsIAtom *aLangGroup, nsTArray<nsRefPtr<gfxFon
         if (fontString.IsEmpty())
             return;
 
-        FamilyListToArrayList(fontString, aLangGroup, &fonts);
+        FamilyListToArrayList(fontString, nsDependentCString(aLangGroup),
+                                      &fonts);
 
         platform->SetPrefFontEntries(key, fonts);
     }
@@ -574,10 +579,8 @@ void gfxFT2FontGroup::GetCJKPrefFonts(nsTArray<nsRefPtr<gfxFontEntry> >& aFontEn
                 nsCAutoString lang(Substring(start, p));
                 lang.CompressWhitespace(PR_FALSE, PR_TRUE);
                 PRInt32 index = GetCJKLangGroupIndex(lang.get());
-                if (index >= 0) {
-                    nsCOMPtr<nsIAtom> atom = do_GetAtom(sCJKLangGroup[index]);
-                    GetPrefFonts(atom, aFontEntryList);
-                }
+                if (index >= 0)
+                    GetPrefFonts(sCJKLangGroup[index], aFontEntryList);
                 p++;
             }
         }
@@ -585,35 +588,35 @@ void gfxFT2FontGroup::GetCJKPrefFonts(nsTArray<nsRefPtr<gfxFontEntry> >& aFontEn
         // Add the system locale
 #ifdef XP_WIN
         switch (::GetACP()) {
-            case 932: GetPrefFonts(gfxAtoms::ja, aFontEntryList); break;
-            case 936: GetPrefFonts(gfxAtoms::zh_cn, aFontEntryList); break;
-            case 949: GetPrefFonts(gfxAtoms::ko, aFontEntryList); break;
-            // XXX Don't we need to append gfxAtoms::zh_hk if the codepage is 950?
-            case 950: GetPrefFonts(gfxAtoms::zh_tw, aFontEntryList); break;
+            case 932: GetPrefFonts(CJK_LANG_JA, aFontEntryList); break;
+            case 936: GetPrefFonts(CJK_LANG_ZH_CN, aFontEntryList); break;
+            case 949: GetPrefFonts(CJK_LANG_KO, aFontEntryList); break;
+            // XXX Don't we need to append CJK_LANG_ZH_HK if the codepage is 950?
+            case 950: GetPrefFonts(CJK_LANG_ZH_TW, aFontEntryList); break;
         }
 #else
         const char *ctype = setlocale(LC_CTYPE, NULL);
         if (ctype) {
             if (!PL_strncasecmp(ctype, "ja", 2)) {
-                GetPrefFonts(gfxAtoms::ja, aFontEntryList);
+                GetPrefFonts(CJK_LANG_JA, aFontEntryList);
             } else if (!PL_strncasecmp(ctype, "zh_cn", 5)) {
-                GetPrefFonts(gfxAtoms::zh_cn, aFontEntryList);
+                GetPrefFonts(CJK_LANG_ZH_CN, aFontEntryList);
             } else if (!PL_strncasecmp(ctype, "zh_hk", 5)) {
-                GetPrefFonts(gfxAtoms::zh_hk, aFontEntryList);
+                GetPrefFonts(CJK_LANG_ZH_HK, aFontEntryList);
             } else if (!PL_strncasecmp(ctype, "zh_tw", 5)) {
-                GetPrefFonts(gfxAtoms::zh_tw, aFontEntryList);
+                GetPrefFonts(CJK_LANG_ZH_TW, aFontEntryList);
             } else if (!PL_strncasecmp(ctype, "ko", 2)) {
-                GetPrefFonts(gfxAtoms::ko, aFontEntryList);
+                GetPrefFonts(CJK_LANG_KO, aFontEntryList);
             }
         }
 #endif
 
         // last resort...
-        GetPrefFonts(gfxAtoms::ja, aFontEntryList);
-        GetPrefFonts(gfxAtoms::ko, aFontEntryList);
-        GetPrefFonts(gfxAtoms::zh_cn, aFontEntryList);
-        GetPrefFonts(gfxAtoms::zh_hk, aFontEntryList);
-        GetPrefFonts(gfxAtoms::zh_tw, aFontEntryList);
+        GetPrefFonts(CJK_LANG_JA, aFontEntryList);
+        GetPrefFonts(CJK_LANG_KO, aFontEntryList);
+        GetPrefFonts(CJK_LANG_ZH_CN, aFontEntryList);
+        GetPrefFonts(CJK_LANG_ZH_HK, aFontEntryList);
+        GetPrefFonts(CJK_LANG_ZH_TW, aFontEntryList);
 
         platform->SetPrefFontEntries(key, aFontEntryList);
     }
@@ -641,9 +644,9 @@ gfxFT2FontGroup::WhichPrefFontSupportsChar(PRUint32 aCh)
 
     nsRefPtr<gfxFT2Font> selectedFont;
 
-    // check out the style's language
+    // check out the style's language group
     nsAutoTArray<nsRefPtr<gfxFontEntry>, 5> fonts;
-    GetPrefFonts(mStyle.language, fonts);
+    GetPrefFonts(mStyle.langGroup.get(), fonts);
     selectedFont = WhichFontSupportsChar(fonts, aCh);
 
     // otherwise search prefs
@@ -660,13 +663,10 @@ gfxFT2FontGroup::WhichPrefFontSupportsChar(PRUint32 aCh)
             GetCJKPrefFonts(fonts);
             selectedFont = WhichFontSupportsChar(fonts, aCh);
         } else {
-            nsIAtom *langGroup = LangGroupFromUnicodeRange(unicodeRange);
+            const char *langGroup = LangGroupFromUnicodeRange(unicodeRange);
             if (langGroup) {
-#ifdef PR_LOGGING
-                const char *langGroupStr;
-                langGroup->GetUTF8String(&langGroupStr);
-                PR_LOG(gFontLog, PR_LOG_DEBUG, (" - Trying to find fonts for: %s", langGroupStr));
-#endif
+                PR_LOG(gFontLog, PR_LOG_DEBUG, (" - Trying to find fonts for: %s", langGroup));
+
                 nsAutoTArray<nsRefPtr<gfxFontEntry>, 5> fonts;
                 GetPrefFonts(langGroup, fonts);
                 selectedFont = WhichFontSupportsChar(fonts, aCh);
