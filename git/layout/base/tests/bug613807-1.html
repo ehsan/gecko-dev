@@ -46,12 +46,15 @@
 
     var domWindowUtils = SpecialPowers.getDOMWindowUtils(window);
 
+    // start composition
+    synthesizeComposition({ type: "compositionstart" });
+
     // input raw characters
     synthesizeCompositionChange(
       { composition:
         { string: "\u306D",
           clauses: [
-            { length: 1, attr: COMPOSITION_ATTR_RAW_CLAUSE }
+            { length: 1, attr: domWindowUtils.COMPOSITION_ATTR_RAWINPUT }
           ]
         },
         caret: { start: 1, length: 0 }
@@ -60,7 +63,7 @@
       { composition:
         { string: "\u306D\u3053",
           clauses: [
-            { length: 2, attr: COMPOSITION_ATTR_RAW_CLAUSE }
+            { length: 2, attr: domWindowUtils.COMPOSITION_ATTR_RAWINPUT }
           ]
         },
         caret: { start: 2, length: 0 }
@@ -71,7 +74,7 @@
       { composition:
         { string: "\u732B",
           clauses: [
-            { length: 1, attr: COMPOSITION_ATTR_SELECTED_CLAUSE }
+            { length: 1, attr: domWindowUtils.COMPOSITION_ATTR_SELECTEDCONVERTEDTEXT }
           ]
         },
         caret: { start: 1, length: 0 }

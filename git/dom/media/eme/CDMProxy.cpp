@@ -415,7 +415,6 @@ ToMediaKeyMessageType(GMPSessionMessageType aMessageType) {
     case kGMPLicenseRequest: return dom::MediaKeyMessageType::License_request;
     case kGMPLicenseRenewal: return dom::MediaKeyMessageType::License_renewal;
     case kGMPLicenseRelease: return dom::MediaKeyMessageType::License_release;
-    case kGMPIndividualizationRequest: return dom::MediaKeyMessageType::Individualization_request;
     default: return dom::MediaKeyMessageType::License_request;
   };
 };

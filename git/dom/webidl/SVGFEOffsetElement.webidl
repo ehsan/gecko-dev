@@ -11,11 +11,8 @@
  */
 
 interface SVGFEOffsetElement : SVGElement {
-  [Constant]
   readonly attribute SVGAnimatedString in1;
-  [Constant]
   readonly attribute SVGAnimatedNumber dx;
-  [Constant]
   readonly attribute SVGAnimatedNumber dy;
 };
 

@@ -223,6 +223,9 @@ NS_GetContentList(nsINode* aRootNode,
   ContentListHashEntry *entry = nullptr;
   // First we look in our hashtable.  Then we create a content list if needed
   if (gContentListHashTable.IsInitialized()) {
+
+    // A PL_DHashTableAdd is equivalent to a PL_DHashTableLookup for cases
+    // when the entry is already in the hashtable.
     entry = static_cast<ContentListHashEntry *>
                        (PL_DHashTableAdd(&gContentListHashTable, &hashKey));
     if (entry)
@@ -241,7 +244,8 @@ NS_GetContentList(nsINode* aRootNode,
     } else {
       htmlAtom = xmlAtom;
     }
-    list = new nsContentList(aRootNode, aMatchNameSpaceId, htmlAtom, xmlAtom);
+    list = new nsContentList(aRootNode, aMatchNameSpaceId,
+                             htmlAtom, xmlAtom);
     if (entry) {
       entry->mContentList = list;
     }
@@ -331,6 +335,8 @@ GetFuncStringContentList(nsINode* aRootNode,
   if (gFuncStringContentListHashTable.IsInitialized()) {
     nsFuncStringCacheKey hashKey(aRootNode, aFunc, aString);
 
+    // A PL_DHashTableAdd is equivalent to a PL_DHashTableLookup for cases
+    // when the entry is already in the hashtable.
     entry = static_cast<FuncStringContentListHashEntry *>
                        (PL_DHashTableAdd(&gFuncStringContentListHashTable,
                                          &hashKey));

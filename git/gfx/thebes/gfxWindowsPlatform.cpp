@@ -386,7 +386,6 @@ gfxWindowsPlatform::UpdateRenderMode()
 /* Pick the default render mode for
  * desktop.
  */
-    bool didReset = false;
     if (DidRenderingDeviceReset()) {
       mD3D11DeviceInitialized = false;
       mD3D11Device = nullptr;
@@ -396,8 +395,6 @@ gfxWindowsPlatform::UpdateRenderMode()
       imgLoader::Singleton()->ClearCache(true);
       imgLoader::Singleton()->ClearCache(false);
       Factory::SetDirect3D11Device(nullptr);
-
-      didReset = true;
     }
 
     mRenderMode = RENDER_GDI;
@@ -515,10 +512,6 @@ gfxWindowsPlatform::UpdateRenderMode()
     contentMask |= BackendTypeBit(BackendType::SKIA);
     InitBackendPrefs(canvasMask, defaultBackend,
                      contentMask, defaultBackend);
-
-    if (didReset) {
-      mScreenReferenceDrawTarget = CreateOffscreenContentDrawTarget(IntSize(1, 1), SurfaceFormat::B8G8R8A8);
-    }
 }
 
 #ifdef CAIRO_HAS_D2D_SURFACE

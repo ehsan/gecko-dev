@@ -1002,30 +1002,21 @@ IonBuilder::inlineMathHypot(CallInfo &callInfo)
     if (callInfo.constructing())
         return InliningStatus_NotInlined;
 
-    uint32_t argc = callInfo.argc();
-    if (argc < 2 || argc > 4)
+    if (callInfo.argc() != 2)
         return InliningStatus_NotInlined;
 
     if (getInlineReturnType() != MIRType_Double)
         return InliningStatus_NotInlined;
 
-    MDefinitionVector vector(alloc());
-    if (!vector.reserve(argc))
-        return InliningStatus_NotInlined;
+    MIRType argType0 = callInfo.getArg(0)->type();
+    MIRType argType1 = callInfo.getArg(1)->type();
 
-    for (uint32_t i = 0; i < argc; ++i) {
-        MDefinition * arg = callInfo.getArg(i);
-        if (!IsNumberType(arg->type()))
-            return InliningStatus_NotInlined;
-        vector.infallibleAppend(arg);
-    }
+    if (!IsNumberType(argType0) || !IsNumberType(argType1))
+        return InliningStatus_NotInlined;
 
     callInfo.setImplicitlyUsedUnchecked();
-    MHypot *hypot = MHypot::New(alloc(), vector);
 
-    if (!hypot)
-        return InliningStatus_NotInlined;
-
+    MHypot *hypot = MHypot::New(alloc(), callInfo.getArg(0), callInfo.getArg(1));
     current->add(hypot);
     current->push(hypot);
     return InliningStatus_Inlined;

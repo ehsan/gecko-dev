@@ -8,7 +8,7 @@ function f() {
 
 var s = '';
 var args = f('a', 'b', 'c');
-Object.prototype[Symbol.iterator] = Array.prototype[Symbol.iterator];
+Object.prototype[std_iterator] = Array.prototype[std_iterator];
 for (var v of args)
     s += v;
 assertEq(s, 'abc');

@@ -2047,8 +2047,8 @@ nsWindow::UserActivity()
   }
 }
 
-nsresult
-nsWindow::NotifyIMEInternal(const IMENotification& aIMENotification)
+NS_IMETHODIMP
+nsWindow::NotifyIME(const IMENotification& aIMENotification)
 {
     switch (aIMENotification.mMessage) {
         case REQUEST_TO_COMMIT_COMPOSITION:

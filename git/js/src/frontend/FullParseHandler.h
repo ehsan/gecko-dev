@@ -7,7 +7,6 @@
 #ifndef frontend_FullParseHandler_h
 #define frontend_FullParseHandler_h
 
-#include "mozilla/Attributes.h"
 #include "mozilla/PodOperations.h"
 
 #include "frontend/ParseNode.h"
@@ -543,30 +542,8 @@ class FullParseHandler
         block->pn_expr = body;
     }
 
-    ParseNode *newAssignment(ParseNodeKind kind, ParseNode *lhs, ParseNode *rhs,
-                             ParseContext<FullParseHandler> *pc, JSOp op)
-    {
-        return newBinaryOrAppend(kind, lhs, rhs, pc, op);
-    }
-
-    bool isUnparenthesizedYieldExpression(ParseNode *node) {
-        return node->isKind(PNK_YIELD) && !node->isInParens();
-    }
-
-    bool isUnparenthesizedCommaExpression(ParseNode *node) {
-        return node->isKind(PNK_COMMA) && !node->isInParens();
-    }
-
-    bool isUnparenthesizedAssignment(Node node) {
-        if (node->isKind(PNK_ASSIGN) && !node->isInParens()) {
-            // PNK_ASSIGN is also (mis)used for things like |var name = expr;|.
-            // But this method is only called on actual expressions, so we can
-            // just assert the node's op is the one used for plain assignment.
-            MOZ_ASSERT(node->isOp(JSOP_NOP));
-            return true;
-        }
-
-        return false;
+    bool isOperationWithoutParens(ParseNode *pn, ParseNodeKind kind) {
+        return pn->isKind(kind) && !pn->isInParens();
     }
 
     inline bool finishInitializerAssignment(ParseNode *pn, ParseNode *init, JSOp op);
@@ -603,13 +580,12 @@ class FullParseHandler
         return new_<ListNode>(kind, op, kid);
     }
 
-
-    ParseNode *newCommaExpressionList(ParseNode *kid) {
-        return newList(PNK_COMMA, kid, JSOP_NOP);
+    void addList(ParseNode *pn, ParseNode *kid) {
+        pn->append(kid);
     }
 
-    void addList(ParseNode *list, ParseNode *kid) {
-        list->append(kid);
+    bool isUnparenthesizedYield(ParseNode *pn) {
+        return pn->isKind(PNK_YIELD) && !pn->isInParens();
     }
 
     void setOp(ParseNode *pn, JSOp op) {
@@ -625,12 +601,12 @@ class FullParseHandler
         MOZ_ASSERT(pn->isArity(PN_LIST));
         pn->pn_xflags |= flag;
     }
-    MOZ_WARN_UNUSED_RESULT ParseNode *parenthesize(ParseNode *pn) {
+    ParseNode *setInParens(ParseNode *pn) {
         pn->setInParens(true);
         return pn;
     }
-    MOZ_WARN_UNUSED_RESULT ParseNode *setLikelyIIFE(ParseNode *pn) {
-        return parenthesize(pn);
+    ParseNode *setLikelyIIFE(ParseNode *pn) {
+        return setInParens(pn);
     }
     void setPrologue(ParseNode *pn) {
         pn->pn_prologue = true;

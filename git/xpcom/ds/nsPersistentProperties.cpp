@@ -557,9 +557,9 @@ nsPersistentProperties::GetStringProperty(const nsACString& aKey,
   const nsAFlatCString&  flatKey = PromiseFlatCString(aKey);
 
   PropertyTableEntry* entry = static_cast<PropertyTableEntry*>(
-    PL_DHashTableSearch(&mTable, flatKey.get()));
+    PL_DHashTableLookup(&mTable, flatKey.get()));
 
-  if (!entry) {
+  if (PL_DHASH_ENTRY_IS_FREE(entry)) {
     return NS_ERROR_FAILURE;
   }
 
@@ -628,7 +628,9 @@ nsPersistentProperties::Undefine(const char* aProp)
 NS_IMETHODIMP
 nsPersistentProperties::Has(const char* aProp, bool* aResult)
 {
-  *aResult = !!PL_DHashTableSearch(&mTable, aProp);
+  PropertyTableEntry* entry = static_cast<PropertyTableEntry*>(
+    PL_DHashTableLookup(&mTable, aProp));
+  *aResult = (entry && PL_DHASH_ENTRY_IS_BUSY(entry));
   return NS_OK;
 }
 

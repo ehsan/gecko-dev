@@ -2884,9 +2884,10 @@ Parser<ParseHandler>::condition()
     MUST_MATCH_TOKEN(TOK_RP, JSMSG_PAREN_AFTER_COND);
 
     /* Check for (a = b) and warn about possible (a == b) mistype. */
-    if (handler.isUnparenthesizedAssignment(pn)) {
-        if (!report(ParseExtraWarning, false, null(), JSMSG_EQUAL_AS_ASSIGN))
-            return null();
+    if (handler.isOperationWithoutParens(pn, PNK_ASSIGN) &&
+        !report(ParseExtraWarning, false, null(), JSMSG_EQUAL_AS_ASSIGN))
+    {
+        return null();
     }
     return pn;
 }
@@ -5916,11 +5917,11 @@ Parser<ParseHandler>::expr(InvokedPrediction invoked)
     if (!tokenStream.matchToken(&matched, TOK_COMMA))
         return null();
     if (matched) {
-        Node seq = handler.newCommaExpressionList(pn);
+        Node seq = handler.newList(PNK_COMMA, pn);
         if (!seq)
             return null();
         while (true) {
-            if (handler.isUnparenthesizedYieldExpression(pn)) {
+            if (handler.isUnparenthesizedYield(pn)) {
                 report(ParseError, false, pn, JSMSG_BAD_GENERATOR_SYNTAX, js_yield_str);
                 return null();
             }
@@ -6295,7 +6296,7 @@ Parser<ParseHandler>::assignExpr(InvokedPrediction invoked)
     if (!rhs)
         return null();
 
-    return handler.newAssignment(kind, lhs, rhs, pc, op);
+    return handler.newBinaryOrAppend(kind, lhs, rhs, pc, op);
 }
 
 static const char incop_name_str[][10] = {"increment", "decrement"};
@@ -7279,9 +7280,10 @@ Parser<ParseHandler>::comprehensionIf(GeneratorKind comprehensionKind)
     MUST_MATCH_TOKEN(TOK_RP, JSMSG_PAREN_AFTER_COND);
 
     /* Check for (a = b) and warn about possible (a == b) mistype. */
-    if (handler.isUnparenthesizedAssignment(cond)) {
-        if (!report(ParseExtraWarning, false, null(), JSMSG_EQUAL_AS_ASSIGN))
-            return null();
+    if (handler.isOperationWithoutParens(cond, PNK_ASSIGN) &&
+        !report(ParseExtraWarning, false, null(), JSMSG_EQUAL_AS_ASSIGN))
+    {
+        return null();
     }
 
     Node then = comprehensionTail(comprehensionKind);
@@ -7321,7 +7323,7 @@ Parser<ParseHandler>::comprehensionTail(GeneratorKind comprehensionKind)
     Node yieldExpr = newYieldExpression(begin, bodyExpr);
     if (!yieldExpr)
         return null();
-    yieldExpr = handler.parenthesize(yieldExpr);
+    handler.setInParens(yieldExpr);
 
     return handler.newExprStatement(yieldExpr, pos().end);
 }
@@ -7444,7 +7446,7 @@ Parser<ParseHandler>::argumentList(Node listNode, bool *isSpread)
                 return false;
         }
 
-        if (handler.isUnparenthesizedYieldExpression(argNode)) {
+        if (handler.isOperationWithoutParens(argNode, PNK_YIELD)) {
             TokenKind tt;
             if (!tokenStream.peekToken(&tt))
                 return false;
@@ -8277,7 +8279,7 @@ Parser<ParseHandler>::parenExprOrGeneratorComprehension()
                              JSMSG_BAD_GENEXP_BODY, js_yield_str);
             return null();
         }
-        if (handler.isUnparenthesizedCommaExpression(pn)) {
+        if (handler.isOperationWithoutParens(pn, PNK_COMMA)) {
             report(ParseError, false, null(),
                    JSMSG_BAD_GENERATOR_SYNTAX, js_generator_str);
             return null();
@@ -8295,11 +8297,12 @@ Parser<ParseHandler>::parenExprOrGeneratorComprehension()
             return null();
         }
         handler.setEndPosition(pn, pos().end);
-        return handler.parenthesize(pn);
+        handler.setInParens(pn);
+        return pn;
     }
 #endif /* JS_HAS_GENERATOR_EXPRS */
 
-    pn = handler.parenthesize(pn);
+    pn = handler.setInParens(pn);
 
     MUST_MATCH_TOKEN(TOK_RP, JSMSG_PAREN_IN_PAREN);
 
@@ -8355,7 +8358,7 @@ Parser<ParseHandler>::exprInParens()
                              JSMSG_BAD_GENEXP_BODY, js_yield_str);
             return null();
         }
-        if (handler.isUnparenthesizedCommaExpression(pn)) {
+        if (handler.isOperationWithoutParens(pn, PNK_COMMA)) {
             report(ParseError, false, null(),
                    JSMSG_BAD_GENERATOR_SYNTAX, js_generator_str);
             return null();

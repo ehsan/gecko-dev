@@ -425,6 +425,7 @@ public:
   NS_IMETHOD        ActivateNativeMenuItemAt(const nsAString& indexString) MOZ_OVERRIDE;
   NS_IMETHOD        ForceUpdateNativeMenuAt(const nsAString& indexString) MOZ_OVERRIDE;
 
+  NS_IMETHOD        NotifyIME(const IMENotification& aIMENotification) MOZ_OVERRIDE;
   NS_IMETHOD_(void) SetInputContext(const InputContext& aContext,
                                     const InputContextAction& aAction) MOZ_OVERRIDE;
   NS_IMETHOD_(InputContext) GetInputContext() MOZ_OVERRIDE;
@@ -566,9 +567,6 @@ protected:
   mozilla::VibrancyManager& EnsureVibrancyManager();
 
   nsIWidget* GetWidgetForListenerEvents();
-
-  virtual nsresult NotifyIMEInternal(
-                     const IMENotification& aIMENotification) MOZ_OVERRIDE;
 
 protected:
 

@@ -5,6 +5,6 @@ load(libdir + "iteration.js");
 
 var key = {};
 var set = Set([key]);
-var iter = set[Symbol.iterator]();
+var iter = set[std_iterator]();
 referencesVia(iter, "**UNKNOWN SLOT 0**", set);
 referencesVia(set, "key", key);

@@ -11,16 +11,16 @@ assertThrowsInstanceOf(() => Math.sin(...1), TypeError);
 assertThrowsInstanceOf(() => Math.sin(...{}), TypeError);
 var foo = {}
 
-foo[Symbol.iterator] = 10;
+foo[std_iterator] = 10;
 assertThrowsInstanceOf(() => Math.sin(...foo), TypeError);
 
-foo[Symbol.iterator] = function() undefined;
+foo[std_iterator] = function() undefined;
 assertThrowsInstanceOf(() => Math.sin(...foo), TypeError);
 
-foo[Symbol.iterator] = function() this;
+foo[std_iterator] = function() this;
 assertThrowsInstanceOf(() => Math.sin(...foo), TypeError);
 
-foo[Symbol.iterator] = function() this;
+foo[std_iterator] = function() this;
 foo.next = function() { throw 10; };
 assertThrowsValue(() => Math.sin(...foo), 10);
 

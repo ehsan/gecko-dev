@@ -106,6 +106,26 @@ ServiceWorkerRegistrationInfo::~ServiceWorkerRegistrationInfo()
   }
 }
 
+class QueueFireUpdateFoundRunnable MOZ_FINAL : public nsRunnable
+{
+  nsRefPtr<ServiceWorkerRegistrationInfo> mRegistration;
+public:
+  explicit QueueFireUpdateFoundRunnable(ServiceWorkerRegistrationInfo* aReg)
+    : mRegistration(aReg)
+  {
+    MOZ_ASSERT(aReg);
+  }
+
+  NS_IMETHOD
+  Run()
+  {
+    nsRefPtr<ServiceWorkerManager> swm = ServiceWorkerManager::GetInstance();
+    swm->FireEventOnServiceWorkerRegistrations(mRegistration,
+                                               NS_LITERAL_STRING("updatefound"));
+    return NS_OK;
+  }
+};
+
 //////////////////////////
 // ServiceWorkerManager //
 //////////////////////////
@@ -143,60 +163,17 @@ ServiceWorkerManager::CleanupServiceWorkerInformation(const nsACString& aDomain,
 
 class ServiceWorkerRegisterJob;
 
-class ContinueLifecycleTask : public nsISupports
+class FinishInstallRunnable MOZ_FINAL : public nsRunnable
 {
-  NS_DECL_ISUPPORTS
-
-protected:
-  virtual ~ContinueLifecycleTask()
-  { }
-
-public:
-  virtual void ContinueAfterWorkerEvent(bool aSuccess,
-                                        bool aActivateImmediately) = 0;
-};
-
-NS_IMPL_ISUPPORTS0(ContinueLifecycleTask);
-
-class ContinueInstallTask MOZ_FINAL : public ContinueLifecycleTask
-{
-  nsRefPtr<ServiceWorkerRegisterJob> mJob;
-
-public:
-  explicit ContinueInstallTask(ServiceWorkerRegisterJob* aJob)
-    : mJob(aJob)
-  { }
-
-  void ContinueAfterWorkerEvent(bool aSuccess, bool aActivateImmediately) MOZ_OVERRIDE;
-};
-
-class ContinueActivateTask MOZ_FINAL : public ContinueLifecycleTask
-{
-  nsRefPtr<ServiceWorkerRegistrationInfo> mRegistration;
-
-public:
-  explicit ContinueActivateTask(ServiceWorkerRegistrationInfo* aReg)
-    : mRegistration(aReg)
-  { }
-
-  void
-  ContinueAfterWorkerEvent(bool aSuccess, bool aActivateImmediately /* unused */) MOZ_OVERRIDE
-  {
-    mRegistration->FinishActivate(aSuccess);
-  }
-};
-
-class ContinueLifecycleRunnable MOZ_FINAL : public nsRunnable
-{
-  nsMainThreadPtrHandle<ContinueLifecycleTask> mTask;
+  nsMainThreadPtrHandle<nsISupports> mJob;
   bool mSuccess;
   bool mActivateImmediately;
 
 public:
-  ContinueLifecycleRunnable(const nsMainThreadPtrHandle<ContinueLifecycleTask>& aTask,
-                            bool aSuccess,
-                            bool aActivateImmediately)
-    : mTask(aTask)
+  explicit FinishInstallRunnable(const nsMainThreadPtrHandle<nsISupports>& aJob,
+                                 bool aSuccess,
+                                 bool aActivateImmediately)
+    : mJob(aJob)
     , mSuccess(aSuccess)
     , mActivateImmediately(aActivateImmediately)
   {
@@ -204,12 +181,7 @@ public:
   }
 
   NS_IMETHOD
-  Run() MOZ_OVERRIDE
-  {
-    AssertIsOnMainThread();
-    mTask->ContinueAfterWorkerEvent(mSuccess, mActivateImmediately);
-    return NS_OK;
-  }
+  Run() MOZ_OVERRIDE;
 };
 
 /*
@@ -218,33 +190,33 @@ public:
  * ServiceWorkers, so the parent thread -> worker thread requirement for
  * runnables is satisfied.
  */
-class LifecycleEventWorkerRunnable MOZ_FINAL : public WorkerRunnable
+class InstallEventRunnable MOZ_FINAL : public WorkerRunnable
 {
-  nsString mEventName;
-  nsMainThreadPtrHandle<ContinueLifecycleTask> mTask;
+  nsMainThreadPtrHandle<nsISupports> mJob;
+  nsCString mScope;
 
 public:
-  LifecycleEventWorkerRunnable(WorkerPrivate* aWorkerPrivate,
-                               const nsString& aEventName,
-                               const nsMainThreadPtrHandle<ContinueLifecycleTask>& aTask)
-      : WorkerRunnable(aWorkerPrivate, WorkerThreadModifyBusyCount)
-      , mEventName(aEventName)
-      , mTask(aTask)
+  InstallEventRunnable(WorkerPrivate* aWorkerPrivate,
+                       const nsMainThreadPtrHandle<nsISupports>& aJob,
+                       const nsCString& aScope)
+      : WorkerRunnable(aWorkerPrivate, WorkerThreadModifyBusyCount),
+        mJob(aJob),
+        mScope(aScope)
   {
     AssertIsOnMainThread();
     MOZ_ASSERT(aWorkerPrivate);
   }
 
   bool
-  WorkerRun(JSContext* aCx, WorkerPrivate* aWorkerPrivate) MOZ_OVERRIDE
+  WorkerRun(JSContext* aCx, WorkerPrivate* aWorkerPrivate)
   {
     MOZ_ASSERT(aWorkerPrivate);
-    return DispatchLifecycleEvent(aCx, aWorkerPrivate);
+    return DispatchInstallEvent(aCx, aWorkerPrivate);
   }
 
 private:
   bool
-  DispatchLifecycleEvent(JSContext* aCx, WorkerPrivate* aWorkerPrivate);
+  DispatchInstallEvent(JSContext* aCx, WorkerPrivate* aWorkerPrivate);
 
 };
 
@@ -384,7 +356,7 @@ public:
 class ServiceWorkerRegisterJob MOZ_FINAL : public ServiceWorkerJob,
                                            public nsIStreamLoaderObserver
 {
-  friend class ContinueInstallTask;
+  friend class FinishInstallRunnable;
 
   nsCString mScope;
   nsCString mScriptSpec;
@@ -532,7 +504,8 @@ public:
   {
     MOZ_ASSERT(mCallback);
     mCallback->UpdateFailed(aError);
-    FailCommon(NS_ERROR_DOM_JS_EXCEPTION);
+    mCallback = nullptr;
+    Done(NS_ERROR_DOM_JS_EXCEPTION);
   }
 
   // Public so our error handling code can continue with a successful worker.
@@ -558,14 +531,15 @@ public:
 
     Succeed();
 
-    nsCOMPtr<nsIRunnable> upr =
-      NS_NewRunnableMethodWithArg<ServiceWorkerRegistrationInfo*>(swm,
-                                                                  &ServiceWorkerManager::FireUpdateFound,
-                                                                  mRegistration);
+    nsRefPtr<QueueFireUpdateFoundRunnable> upr =
+      new QueueFireUpdateFoundRunnable(mRegistration);
     NS_DispatchToMainThread(upr);
 
-    nsMainThreadPtrHandle<ContinueLifecycleTask> handle(
-        new nsMainThreadPtrHolder<ContinueLifecycleTask>(new ContinueInstallTask(this)));
+    // XXXnsm this leads to double fetches right now, ideally we'll be able to
+    // use the persistent cache later.
+    nsRefPtr<ServiceWorkerJob> upcasted = this;
+    nsMainThreadPtrHandle<nsISupports> handle(
+        new nsMainThreadPtrHolder<nsISupports>(upcasted));
 
     nsRefPtr<ServiceWorker> serviceWorker;
     nsresult rv =
@@ -578,8 +552,8 @@ public:
       return;
     }
 
-    nsRefPtr<LifecycleEventWorkerRunnable> r =
-      new LifecycleEventWorkerRunnable(serviceWorker->GetWorkerPrivate(), NS_LITERAL_STRING("install"), handle);
+    nsRefPtr<InstallEventRunnable> r =
+      new InstallEventRunnable(serviceWorker->GetWorkerPrivate(), handle, mRegistration->mScope);
 
     AutoJSAPI jsapi;
     jsapi.Init();
@@ -660,39 +634,16 @@ private:
     mCallback = nullptr;
   }
 
-  void
-  FailCommon(nsresult aRv)
-  {
-    mCallback = nullptr;
-    MaybeRemoveRegistration();
-    // Ensures that the job can't do anything useful from this point on.
-    mRegistration = nullptr;
-    Done(aRv);
-  }
-
   // This MUST only be called when the job is still performing actions related
   // to registration or update. After the spec resolves the update promise, use
   // Done() with the failure code instead.
   void
-  Fail(nsresult aRv)
+  Fail(nsresult rv)
   {
     MOZ_ASSERT(mCallback);
-    mCallback->UpdateFailed(aRv);
-    FailCommon(aRv);
-  }
-
-  void
-  MaybeRemoveRegistration()
-  {
-    MOZ_ASSERT(mRegistration);
-    nsRefPtr<ServiceWorkerInfo> newest = mRegistration->Newest();
-    if (!newest) {
-      nsRefPtr<ServiceWorkerManager> swm = ServiceWorkerManager::GetInstance();
-      nsRefPtr<ServiceWorkerManager::ServiceWorkerDomainInfo> domainInfo =
-        swm->GetDomainInfo(mRegistration->mScope);
-      MOZ_ASSERT(domainInfo);
-      domainInfo->RemoveRegistration(mRegistration);
-    }
+    mCallback->UpdateFailed(rv);
+    mCallback = nullptr;
+    Done(rv);
   }
 
   void
@@ -715,7 +666,6 @@ private:
       mRegistration->mInstallingWorker = nullptr;
       swm->InvalidateServiceWorkerRegistrationWorker(mRegistration,
                                                      WhichServiceWorker::INSTALLING_WORKER);
-      MaybeRemoveRegistration();
       return Done(NS_ERROR_DOM_ABORT_ERR);
     }
 
@@ -753,12 +703,6 @@ ContinueUpdateRunnable::Run()
   nsRefPtr<ServiceWorkerRegisterJob> upjob = static_cast<ServiceWorkerRegisterJob*>(job.get());
   upjob->ContinueInstall();
   return NS_OK;
-}
-
-void
-ContinueInstallTask::ContinueAfterWorkerEvent(bool aSuccess, bool aActivateImmediately)
-{
-  mJob->ContinueAfterInstallEvent(aSuccess, aActivateImmediately);
 }
 
 // If we return an error code here, the ServiceWorkerContainer will
@@ -909,23 +853,33 @@ ServiceWorkerManager::Register(nsIDOMWindow* aWindow,
   return NS_OK;
 }
 
-/*
- * Used to handle ExtendableEvent::waitUntil() and proceed with
- * installation/activation.
- */
-class LifecycleEventPromiseHandler MOZ_FINAL : public PromiseNativeHandler
+NS_IMETHODIMP
+FinishInstallRunnable::Run()
 {
-  nsMainThreadPtrHandle<ContinueLifecycleTask> mTask;
+  AssertIsOnMainThread();
+  nsRefPtr<ServiceWorkerJob> job = static_cast<ServiceWorkerJob*>(mJob.get());
+  nsRefPtr<ServiceWorkerRegisterJob> upjob = static_cast<ServiceWorkerRegisterJob*>(job.get());
+  MOZ_ASSERT(upjob);
+  upjob->ContinueAfterInstallEvent(mSuccess, mActivateImmediately);
+  return NS_OK;
+}
+
+/*
+ * Used to handle InstallEvent::waitUntil() and proceed with installation.
+ */
+class FinishInstallHandler MOZ_FINAL : public PromiseNativeHandler
+{
+  nsMainThreadPtrHandle<nsISupports> mJob;
   bool mActivateImmediately;
 
   virtual
-  ~LifecycleEventPromiseHandler()
+  ~FinishInstallHandler()
   { }
 
 public:
-  LifecycleEventPromiseHandler(const nsMainThreadPtrHandle<ContinueLifecycleTask>& aTask,
-                               bool aActivateImmediately)
-    : mTask(aTask)
+  FinishInstallHandler(const nsMainThreadPtrHandle<nsISupports>& aJob,
+                       bool aActivateImmediately)
+    : mJob(aJob)
     , mActivateImmediately(aActivateImmediately)
   {
     MOZ_ASSERT(!NS_IsMainThread());
@@ -938,47 +892,33 @@ public:
     MOZ_ASSERT(workerPrivate);
     workerPrivate->AssertIsOnWorkerThread();
 
-    nsRefPtr<ContinueLifecycleRunnable> r =
-      new ContinueLifecycleRunnable(mTask, true /* success */, mActivateImmediately);
+    nsRefPtr<FinishInstallRunnable> r = new FinishInstallRunnable(mJob, true, mActivateImmediately);
     NS_DispatchToMainThread(r);
   }
 
   void
   RejectedCallback(JSContext* aCx, JS::Handle<JS::Value> aValue) MOZ_OVERRIDE
   {
-    WorkerPrivate* workerPrivate = GetCurrentThreadWorkerPrivate();
-    MOZ_ASSERT(workerPrivate);
-    workerPrivate->AssertIsOnWorkerThread();
-
-    nsRefPtr<ContinueLifecycleRunnable> r =
-      new ContinueLifecycleRunnable(mTask, false /* success */, mActivateImmediately);
+    nsRefPtr<FinishInstallRunnable> r = new FinishInstallRunnable(mJob, false, mActivateImmediately);
     NS_DispatchToMainThread(r);
   }
 };
 
 bool
-LifecycleEventWorkerRunnable::DispatchLifecycleEvent(JSContext* aCx, WorkerPrivate* aWorkerPrivate)
+InstallEventRunnable::DispatchInstallEvent(JSContext* aCx, WorkerPrivate* aWorkerPrivate)
 {
   aWorkerPrivate->AssertIsOnWorkerThread();
   MOZ_ASSERT(aWorkerPrivate->IsServiceWorker());
+  InstallEventInit init;
+  init.mBubbles = false;
+  init.mCancelable = true;
 
-  nsRefPtr<ExtendableEvent> event;
+  // FIXME(nsm): Bug 982787 pass previous active worker.
+
+  // FIXME(nsm): Set error handler so we can grab handler errors.
   nsRefPtr<EventTarget> target = aWorkerPrivate->GlobalScope();
-
-  if (mEventName.EqualsASCII("install")) {
-    // FIXME(nsm): Bug 982787 pass previous active worker.
-    InstallEventInit init;
-    init.mBubbles = false;
-    init.mCancelable = true;
-    event = InstallEvent::Constructor(target, mEventName, init);
-  } else if (mEventName.EqualsASCII("activate")) {
-    ExtendableEventInit init;
-    init.mBubbles = false;
-    init.mCancelable = true;
-    event = ExtendableEvent::Constructor(target, mEventName, init);
-  } else {
-    MOZ_CRASH("Unexpected lifecycle event");
-  }
+  nsRefPtr<InstallEvent> event =
+    InstallEvent::Constructor(target, NS_LITERAL_STRING("install"), init);
 
   event->SetTrusted(true);
 
@@ -1012,20 +952,134 @@ LifecycleEventWorkerRunnable::DispatchLifecycleEvent(JSContext* aCx, WorkerPriva
     return false;
   }
 
-  // activateimmediately is only relevant to "install" event.
-  bool activateImmediately = false;
-  InstallEvent* installEvent = event->AsInstallEvent();
-  if (installEvent) {
-    activateImmediately = installEvent->ActivateImmediately();
-    // FIXME(nsm): Set activeWorker to the correct thing.
-    // FIXME(nsm): Install error handler for any listener errors.
-  }
-
-  nsRefPtr<LifecycleEventPromiseHandler> handler =
-    new LifecycleEventPromiseHandler(mTask, activateImmediately);
+  nsRefPtr<FinishInstallHandler> handler =
+    new FinishInstallHandler(mJob, event->ActivateImmediately());
   waitUntilPromise->AppendNativeHandler(handler);
   return true;
 }
+
+class FinishActivationRunnable MOZ_FINAL : public nsRunnable
+{
+  bool mSuccess;
+  nsMainThreadPtrHandle<ServiceWorkerRegistrationInfo> mRegistration;
+
+public:
+  FinishActivationRunnable(bool aSuccess,
+                           const nsMainThreadPtrHandle<ServiceWorkerRegistrationInfo>& aRegistration)
+    : mSuccess(aSuccess)
+    , mRegistration(aRegistration)
+  {
+    MOZ_ASSERT(!NS_IsMainThread());
+  }
+
+  NS_IMETHODIMP
+  Run()
+  {
+    AssertIsOnMainThread();
+
+    mRegistration->FinishActivate(mSuccess);
+    return NS_OK;
+  }
+};
+
+class FinishActivateHandler MOZ_FINAL : public PromiseNativeHandler
+{
+  nsMainThreadPtrHandle<ServiceWorkerRegistrationInfo> mRegistration;
+
+public:
+  explicit FinishActivateHandler(const nsMainThreadPtrHandle<ServiceWorkerRegistrationInfo>& aRegistration)
+    : mRegistration(aRegistration)
+  {
+    MOZ_ASSERT(!NS_IsMainThread());
+  }
+
+  virtual
+  ~FinishActivateHandler()
+  { }
+
+  void
+  ResolvedCallback(JSContext* aCx, JS::Handle<JS::Value> aValue) MOZ_OVERRIDE
+  {
+    nsRefPtr<FinishActivationRunnable> r = new FinishActivationRunnable(true /* success */, mRegistration);
+    NS_DispatchToMainThread(r);
+  }
+
+  void
+  RejectedCallback(JSContext* aCx, JS::Handle<JS::Value> aValue) MOZ_OVERRIDE
+  {
+    nsRefPtr<FinishActivationRunnable> r = new FinishActivationRunnable(false /* success */, mRegistration);
+    NS_DispatchToMainThread(r);
+  }
+};
+
+class ActivateEventRunnable : public WorkerRunnable
+{
+  nsMainThreadPtrHandle<ServiceWorkerRegistrationInfo> mRegistration;
+
+public:
+  ActivateEventRunnable(WorkerPrivate* aWorkerPrivate,
+                        const nsMainThreadPtrHandle<ServiceWorkerRegistrationInfo>& aRegistration)
+      : WorkerRunnable(aWorkerPrivate, WorkerThreadModifyBusyCount),
+        mRegistration(aRegistration)
+  {
+    MOZ_ASSERT(aWorkerPrivate);
+  }
+
+  bool
+  WorkerRun(JSContext* aCx, WorkerPrivate* aWorkerPrivate)
+  {
+    MOZ_ASSERT(aWorkerPrivate);
+    return DispatchActivateEvent(aCx, aWorkerPrivate);
+  }
+
+private:
+  bool
+  DispatchActivateEvent(JSContext* aCx, WorkerPrivate* aWorkerPrivate)
+  {
+    MOZ_ASSERT(aWorkerPrivate->IsServiceWorker());
+    nsRefPtr<EventTarget> target = do_QueryObject(aWorkerPrivate->GlobalScope());
+
+    // FIXME(nsm): Set activeWorker to the correct thing.
+    EventInit init;
+    init.mBubbles = false;
+    init.mCancelable = true;
+    nsRefPtr<ExtendableEvent> event =
+      ExtendableEvent::Constructor(target, NS_LITERAL_STRING("activate"), init);
+
+    event->SetTrusted(true);
+
+    nsRefPtr<Promise> waitUntilPromise;
+
+    // FIXME(nsm): Install error handler for any listener errors.
+    ErrorResult result;
+    result = target->DispatchDOMEvent(nullptr, event, nullptr, nullptr);
+    WidgetEvent* internalEvent = event->GetInternalNSEvent();
+    if (!result.Failed() && !internalEvent->mFlags.mExceptionHasBeenRisen) {
+      waitUntilPromise = event->GetPromise();
+      if (!waitUntilPromise) {
+        nsCOMPtr<nsIGlobalObject> global =
+          do_QueryObject(aWorkerPrivate->GlobalScope());
+        waitUntilPromise =
+          Promise::Resolve(global,
+                           aCx, JS::UndefinedHandleValue, result);
+      }
+    } else {
+      nsCOMPtr<nsIGlobalObject> global =
+        do_QueryObject(aWorkerPrivate->GlobalScope());
+      // Continue with a canceled install.
+      waitUntilPromise = Promise::Reject(global, aCx,
+                                         JS::UndefinedHandleValue, result);
+    }
+
+    if (result.Failed()) {
+      return false;
+    }
+
+    nsRefPtr<FinishActivateHandler> handler = new FinishActivateHandler(mRegistration);
+    waitUntilPromise->AppendNativeHandler(handler);
+    return true;
+  }
+};
 
 void
 ServiceWorkerRegistrationInfo::TryToActivate()
@@ -1084,11 +1138,11 @@ ServiceWorkerRegistrationInfo::Activate()
     return;
   }
 
-  nsMainThreadPtrHandle<ContinueLifecycleTask> handle(
-    new nsMainThreadPtrHolder<ContinueLifecycleTask>(new ContinueActivateTask(this)));
+  nsMainThreadPtrHandle<ServiceWorkerRegistrationInfo> handle(
+    new nsMainThreadPtrHolder<ServiceWorkerRegistrationInfo>(this));
 
-  nsRefPtr<LifecycleEventWorkerRunnable> r =
-    new LifecycleEventWorkerRunnable(serviceWorker->GetWorkerPrivate(), NS_LITERAL_STRING("activate"), handle);
+  nsRefPtr<ActivateEventRunnable> r =
+    new ActivateEventRunnable(serviceWorker->GetWorkerPrivate(), handle);
 
   AutoJSAPI jsapi;
   jsapi.Init();
@@ -1421,90 +1475,6 @@ ServiceWorkerManager::CheckReadyPromise(nsPIDOMWindow* aWindow,
   return false;
 }
 
-class ServiceWorkerUnregisterJob MOZ_FINAL : public ServiceWorkerJob
-{
-  nsRefPtr<ServiceWorkerRegistrationInfo> mRegistration;
-  const nsCString mScope;
-  nsCOMPtr<nsIServiceWorkerUnregisterCallback> mCallback;
-
-  ~ServiceWorkerUnregisterJob()
-  { }
-
-public:
-  ServiceWorkerUnregisterJob(ServiceWorkerJobQueue* aQueue,
-                             const nsACString& aScope,
-                             nsIServiceWorkerUnregisterCallback* aCallback)
-    : ServiceWorkerJob(aQueue)
-    , mScope(aScope)
-    , mCallback(aCallback)
-  {
-    AssertIsOnMainThread();
-  }
-
-  void
-  Start() MOZ_OVERRIDE
-  {
-    AssertIsOnMainThread();
-    nsCOMPtr<nsIRunnable> r =
-      NS_NewRunnableMethod(this, &ServiceWorkerUnregisterJob::UnregisterAndDone);
-    MOZ_ALWAYS_TRUE(NS_SUCCEEDED(NS_DispatchToMainThread(r)));
-  }
-
-private:
-  // You probably want UnregisterAndDone().
-  nsresult
-  Unregister()
-  {
-    AssertIsOnMainThread();
-
-    nsRefPtr<ServiceWorkerManager> swm = ServiceWorkerManager::GetInstance();
-
-    nsRefPtr<ServiceWorkerManager::ServiceWorkerDomainInfo> domainInfo =
-      swm->GetDomainInfo(mScope);
-    MOZ_ASSERT(domainInfo);
-
-    // "Let registration be the result of running [[Get Registration]]
-    // algorithm passing scope as the argument."
-    nsRefPtr<ServiceWorkerRegistrationInfo> registration;
-    if (!domainInfo->mServiceWorkerRegistrationInfos.Get(mScope,
-                                                         getter_AddRefs(registration))) {
-      // "If registration is null, then, resolve promise with false."
-      return mCallback->UnregisterSucceeded(false);
-    }
-
-    MOZ_ASSERT(registration);
-
-    // "Set registration's uninstalling flag."
-    registration->mPendingUninstall = true;
-    // "Resolve promise with true"
-    nsresult rv = mCallback->UnregisterSucceeded(true);
-    if (NS_WARN_IF(NS_FAILED(rv))) {
-      return rv;
-    }
-
-    // "If no service worker client is using registration..."
-    if (!registration->IsControllingDocuments()) {
-      // "If registration's uninstalling flag is set.."
-      if (!registration->mPendingUninstall) {
-        return NS_OK;
-      }
-
-      // "Invoke [[Clear Registration]]..."
-      registration->Clear();
-      domainInfo->RemoveRegistration(registration);
-    }
-
-    return NS_OK;
-  }
-
-  // The unregister job is done irrespective of success or failure of any sort.
-  void
-  UnregisterAndDone()
-  {
-    Done(Unregister());
-  }
-};
-
 NS_IMETHODIMP
 ServiceWorkerManager::Unregister(nsIServiceWorkerUnregisterCallback* aCallback,
                                  const nsAString& aScope)
@@ -1512,26 +1482,78 @@ ServiceWorkerManager::Unregister(nsIServiceWorkerUnregisterCallback* aCallback,
   AssertIsOnMainThread();
   MOZ_ASSERT(aCallback);
 
-// This is not accessible by content, and callers should always ensure scope is
-// a correct URI, so this is wrapped in DEBUG
-#ifdef DEBUG
   nsCOMPtr<nsIURI> scopeURI;
   nsresult rv = NS_NewURI(getter_AddRefs(scopeURI), aScope, nullptr, nullptr);
   if (NS_WARN_IF(NS_FAILED(rv))) {
     return NS_ERROR_DOM_SECURITY_ERR;
   }
-#endif
 
-  NS_ConvertUTF16toUTF8 scope(aScope);
-  nsRefPtr<ServiceWorkerManager::ServiceWorkerDomainInfo> domainInfo =
-    GetDomainInfo(scope);
-  ServiceWorkerJobQueue* queue = domainInfo->GetOrCreateJobQueue(scope);
-  MOZ_ASSERT(queue);
+  /*
+   * Implements the async aspects of the unregister algorithm.
+   */
+  class UnregisterRunnable : public nsRunnable
+  {
+    nsCOMPtr<nsIServiceWorkerUnregisterCallback> mCallback;
+    nsCOMPtr<nsIURI> mScopeURI;
 
-  nsRefPtr<ServiceWorkerUnregisterJob> job =
-    new ServiceWorkerUnregisterJob(queue, scope, aCallback);
-  queue->Append(job);
-  return NS_OK;
+  public:
+    UnregisterRunnable(nsIServiceWorkerUnregisterCallback* aCallback,
+                       nsIURI* aScopeURI)
+      : mCallback(aCallback), mScopeURI(aScopeURI)
+    {
+      AssertIsOnMainThread();
+    }
+
+    NS_IMETHODIMP
+    Run()
+    {
+      AssertIsOnMainThread();
+
+      nsRefPtr<ServiceWorkerManager> swm = ServiceWorkerManager::GetInstance();
+
+      nsRefPtr<ServiceWorkerManager::ServiceWorkerDomainInfo> domainInfo =
+        swm->GetDomainInfo(mScopeURI);
+      MOZ_ASSERT(domainInfo);
+
+      nsCString spec;
+      nsresult rv = mScopeURI->GetSpecIgnoringRef(spec);
+      if (NS_WARN_IF(NS_FAILED(rv))) {
+        return mCallback->UnregisterFailed();
+      }
+
+      nsRefPtr<ServiceWorkerRegistrationInfo> registration;
+      if (!domainInfo->mServiceWorkerRegistrationInfos.Get(spec,
+                                                           getter_AddRefs(registration))) {
+        return mCallback->UnregisterSucceeded(false);
+      }
+
+      MOZ_ASSERT(registration);
+
+      registration->mPendingUninstall = true;
+      rv = mCallback->UnregisterSucceeded(true);
+      if (NS_WARN_IF(NS_FAILED(rv))) {
+        return rv;
+      }
+
+      // The "Wait until no document is using registration" can actually be
+      // handled by [[HandleDocumentUnload]] in Bug 1041340, so we simply check
+      // if the document is currently in use here.
+      if (!registration->IsControllingDocuments()) {
+        if (!registration->mPendingUninstall) {
+          return NS_OK;
+        }
+
+        registration->Clear();
+        domainInfo->RemoveRegistration(registration);
+      }
+
+      return NS_OK;
+    }
+  };
+
+  nsRefPtr<nsIRunnable> unregisterRunnable =
+    new UnregisterRunnable(aCallback, scopeURI);
+  return NS_DispatchToCurrentThread(unregisterRunnable);
 }
 
 /* static */
@@ -2225,8 +2247,8 @@ ServiceWorkerManager::Update(const nsAString& aScope)
   nsRefPtr<ServiceWorkerUpdateFinishCallback> cb =
     new ServiceWorkerUpdateFinishCallback();
 
-  nsRefPtr<ServiceWorkerRegisterJob> job =
-    new ServiceWorkerRegisterJob(queue, registration, cb);
+  nsRefPtr<ServiceWorkerRegisterJob> job
+    = new ServiceWorkerRegisterJob(queue, registration, cb);
   queue->Append(job);
   return NS_OK;
 }

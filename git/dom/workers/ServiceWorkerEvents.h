@@ -69,11 +69,6 @@ public:
     nsRefPtr<Promise> p = mPromise;
     return p.forget();
   }
-
-  virtual ExtendableEvent* AsExtendableEvent() MOZ_OVERRIDE
-  {
-    return this;
-  }
 };
 
 class InstallEvent MOZ_FINAL : public ExtendableEvent
@@ -136,11 +131,6 @@ public:
   ActivateImmediately() const
   {
     return mActivateImmediately;
-  }
-
-  InstallEvent* AsInstallEvent() MOZ_OVERRIDE
-  {
-    return this;
   }
 };
 

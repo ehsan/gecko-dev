@@ -191,9 +191,12 @@ nsStaticCaseInsensitiveNameTable::Lookup(const nsACString& aName)
 
   NameTableKey key(&str);
   NameTableEntry* entry =
-    static_cast<NameTableEntry*>(PL_DHashTableSearch(&mNameTable, &key));
+    static_cast<NameTableEntry*>(PL_DHashTableLookup(&mNameTable, &key));
+  if (PL_DHASH_ENTRY_IS_FREE(entry)) {
+    return nsStaticCaseInsensitiveNameTable::NOT_FOUND;
+  }
 
-  return entry ? entry->mIndex : nsStaticCaseInsensitiveNameTable::NOT_FOUND;
+  return entry->mIndex;
 }
 
 int32_t
@@ -206,9 +209,12 @@ nsStaticCaseInsensitiveNameTable::Lookup(const nsAString& aName)
 
   NameTableKey key(&str);
   NameTableEntry* entry =
-    static_cast<NameTableEntry*>(PL_DHashTableSearch(&mNameTable, &key));
+    static_cast<NameTableEntry*>(PL_DHashTableLookup(&mNameTable, &key));
+  if (PL_DHASH_ENTRY_IS_FREE(entry)) {
+    return nsStaticCaseInsensitiveNameTable::NOT_FOUND;
+  }
 
-  return entry ? entry->mIndex : nsStaticCaseInsensitiveNameTable::NOT_FOUND;
+  return entry->mIndex;
 }
 
 const nsAFlatCString&

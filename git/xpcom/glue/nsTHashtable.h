@@ -129,9 +129,10 @@ public:
     NS_ASSERTION(mTable.IsInitialized(),
                  "nsTHashtable was not initialized properly.");
 
-    return static_cast<EntryType*>(
-      PL_DHashTableSearch(const_cast<PLDHashTable*>(&mTable),
+    EntryType* entry = reinterpret_cast<EntryType*>(
+      PL_DHashTableLookup(const_cast<PLDHashTable*>(&mTable),
                           EntryType::KeyToPointer(aKey)));
+    return PL_DHASH_ENTRY_IS_BUSY(entry) ? entry : nullptr;
   }
 
   /**
@@ -482,7 +483,7 @@ void
 nsTHashtable<EntryType>::s_ClearEntry(PLDHashTable* aTable,
                                       PLDHashEntryHdr* aEntry)
 {
-  static_cast<EntryType*>(aEntry)->~EntryType();
+  reinterpret_cast<EntryType*>(aEntry)->~EntryType();
 }
 
 template<class EntryType>
@@ -504,7 +505,7 @@ nsTHashtable<EntryType>::s_EnumStub(PLDHashTable* aTable,
 {
   // dereferences the function-pointer to the user's enumeration function
   return (*reinterpret_cast<s_EnumArgs*>(aArg)->userFunc)(
-    static_cast<EntryType*>(aEntry),
+    reinterpret_cast<EntryType*>(aEntry),
     reinterpret_cast<s_EnumArgs*>(aArg)->userArg);
 }
 
@@ -516,7 +517,7 @@ nsTHashtable<EntryType>::s_SizeOfStub(PLDHashEntryHdr* aEntry,
 {
   // dereferences the function-pointer to the user's enumeration function
   return (*reinterpret_cast<s_SizeOfArgs*>(aArg)->userFunc)(
-    static_cast<EntryType*>(aEntry),
+    reinterpret_cast<EntryType*>(aEntry),
     aMallocSizeOf,
     reinterpret_cast<s_SizeOfArgs*>(aArg)->userArg);
 }

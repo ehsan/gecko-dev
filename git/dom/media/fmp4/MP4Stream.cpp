@@ -28,15 +28,12 @@ MP4Stream::BlockingReadIntoCache(int64_t aOffset, size_t aCount, Monitor* aToUnl
 {
   MOZ_ASSERT(mPinCount > 0);
   CacheBlock block(aOffset, aCount);
-  if (!block.Init()) {
-    return false;
-  }
 
   uint32_t sum = 0;
   uint32_t bytesRead = 0;
   do {
     uint64_t offset = aOffset + sum;
-    char* buffer = block.Buffer() + sum;
+    char* buffer = reinterpret_cast<char*>(block.mBuffer.get()) + sum;
     uint32_t toRead = aCount - sum;
     MonitorAutoUnlock unlock(*aToUnlock);
     nsresult rv = mResource->ReadAt(offset, buffer, toRead, &bytesRead);
@@ -79,7 +76,7 @@ MP4Stream::CachedReadAt(int64_t aOffset, void* aBuffer, size_t aCount,
   // First, check our local cache.
   for (size_t i = 0; i < mCache.Length(); ++i) {
     if (mCache[i].mOffset == aOffset && mCache[i].mCount >= aCount) {
-      memcpy(aBuffer, mCache[i].Buffer(), aCount);
+      memcpy(aBuffer, mCache[i].mBuffer, aCount);
       *aBytesRead = aCount;
       return true;
     }
