@@ -412,8 +412,6 @@ Download.prototype = {
           this.speed = 0;
           this._notifyChange();
           if (this.succeeded) {
-            yield DownloadIntegration.downloadDone(this);
-
             this._deferSucceeded.resolve();
 
             if (this.launchWhenSucceeded) {

@@ -195,9 +195,7 @@ webidl_files = \
   MediaStreamAudioSourceNode.webidl \
   MediaStreamEvent.webidl \
   MediaStreamTrack.webidl \
-  MessageChannel.webidl \
   MessageEvent.webidl \
-  MessagePort.webidl \
   MimeType.webidl \
   MimeTypeArray.webidl \
   MobileMessageManager.webidl \

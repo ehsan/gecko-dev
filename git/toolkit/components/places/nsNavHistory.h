@@ -217,7 +217,6 @@ public:
   static const int32_t kGetInfoIndex_ItemTags;
   static const int32_t kGetInfoIndex_Frecency;
   static const int32_t kGetInfoIndex_Hidden;
-  static const int32_t kGetInfoIndex_Guid;
 
   int64_t GetTagsFolder();
 

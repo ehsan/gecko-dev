@@ -745,7 +745,6 @@ PSM_SSL_BlacklistDigiNotar(CERTCertificate * serverCert,
 
     if (strstr(node->cert->issuerName, "CN=DigiNotar")) {
       isDigiNotarIssuedCert = true;
-      break;
     }
   }
 

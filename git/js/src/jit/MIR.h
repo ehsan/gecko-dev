@@ -3845,7 +3845,7 @@ class MPhi MOZ_FINAL : public MDefinition, public InlineForwardListNode<MPhi>
     uint32_t capacity_;
 #endif
 
-    MPhi(uint32_t slot, MIRType resultType)
+    MPhi(uint32_t slot)
       : slot_(slot),
         hasBackedgeType_(false),
         triedToSpecialize_(false),
@@ -3855,7 +3855,7 @@ class MPhi MOZ_FINAL : public MDefinition, public InlineForwardListNode<MPhi>
         , capacity_(0)
 #endif
     {
-        setResultType(resultType);
+        setResultType(MIRType_Value);
     }
 
   protected:
@@ -3865,9 +3865,7 @@ class MPhi MOZ_FINAL : public MDefinition, public InlineForwardListNode<MPhi>
 
   public:
     INSTRUCTION_HEADER(Phi)
-    static MPhi *New(uint32_t slot, MIRType resultType = MIRType_Value) {
-        return new MPhi(slot, resultType);
-    }
+    static MPhi *New(uint32_t slot);
 
     void setOperand(size_t index, MDefinition *operand) {
         // Note: after the initial IonBuilder pass, it is OK to change phi

@@ -17,7 +17,7 @@
 /* globals PDFJS, PDFBug, FirefoxCom, Stats, Cache, PDFFindBar, CustomStyle,
            PDFFindController, ProgressBar, TextLayerBuilder, DownloadManager,
            getFileName, getOutputScale, scrollIntoView, getPDFFileNameFromURL,
-           PDFHistory, ThumbnailView, noContextMenuHandler */
+           PDFHistory, noContextMenuHandler */
 
 'use strict';
 
@@ -48,7 +48,7 @@ var FindStates = {
 };
 
 PDFJS.imageResourcesPath = './images/';
-  PDFJS.workerSrc = '../build/pdf.worker.js';
+  PDFJS.workerSrc = '../build/pdf.js';
 
 var mozL10n = document.mozL10n || document.webL10n;
 
@@ -662,12 +662,6 @@ var PDFFindController = {
     }
   },
 
-  reset: function pdfFindControllerReset() {
-    this.startedTextExtraction = false;
-    this.extractTextPromises = [];
-    this.active = false;
-  },
-
   calcFindMatch: function(pageIndex) {
     var pageContent = this.pageContents[pageIndex];
     var query = this.state.query;
@@ -975,7 +969,7 @@ var PDFHistory = {
         // is opened in the web viewer.
         this.reInitialized = true;
       }
-      window.history.replaceState({ fingerprint: this.fingerprint }, '');
+      window.history.replaceState({ fingerprint: this.fingerprint }, '', '');
     }
 
     var self = this;
@@ -1180,9 +1174,9 @@ var PDFHistory = {
       }
     }
     if (overwrite || this.uid === 0) {
-      window.history.replaceState(this._stateObj(params), '');
+      window.history.replaceState(this._stateObj(params), '', '');
     } else {
-      window.history.pushState(this._stateObj(params), '');
+      window.history.pushState(this._stateObj(params), '', '');
     }
     this.currentUid = this.uid++;
     this.current = params;
@@ -1254,6 +1248,8 @@ var PDFView = {
   currentScale: UNKNOWN_SCALE,
   currentScaleValue: null,
   initialBookmark: document.location.hash.substring(1),
+  startedTextExtraction: false,
+  pageText: [],
   container: null,
   thumbnailContainer: null,
   initialized: false,
@@ -1843,8 +1839,6 @@ var PDFView = {
       };
     }
 
-    PDFFindController.reset();
-
     this.pdfDocument = pdfDocument;
 
     var errorWrapper = document.getElementById('errorWrapper');
@@ -1882,6 +1876,8 @@ var PDFView = {
     this.pageRotation = 0;
 
     var pages = this.pages = [];
+    this.pageText = [];
+    this.startedTextExtraction = false;
     var pagesRefMap = this.pagesRefMap = {};
     var thumbnails = this.thumbnails = [];
 
@@ -2034,32 +2030,6 @@ var PDFView = {
         console.warn('Warning: AcroForm/XFA is not supported');
         PDFView.fallback();
       }
-
-      var versionId = String(info.PDFFormatVersion).slice(-1) | 0;
-      var generatorId = 0;
-      var KNOWN_GENERATORS = ["acrobat distiller", "acrobat pdfwritter",
-       "adobe livecycle", "adobe pdf library", "adobe photoshop", "ghostscript",
-       "tcpdf", "cairo", "dvipdfm", "dvips", "pdftex", "pdfkit", "itext",
-       "prince", "quarkxpress", "mac os x", "microsoft", "openoffice", "oracle",
-       "luradocument", "pdf-xchange", "antenna house", "aspose.cells", "fpdf"];
-      var generatorId = 0;
-      if (info.Producer) {
-        KNOWN_GENERATORS.some(function (generator, s, i) {
-          if (generator.indexOf(s) < 0) {
-            return false;
-          }
-          generatorId = i + 1;
-          return true;
-        }.bind(null, info.Producer.toLowerCase()));
-      }
-      var formType = !info.IsAcroFormPresent ? null : info.IsXFAPresent ?
-                     'xfa' : 'acroform';
-      FirefoxCom.request('reportTelemetry', JSON.stringify({
-        type: 'documentInfo',
-        version: versionId,
-        generator: generatorId,
-        formType: formType
-      }));
     });
   },
 
@@ -2654,52 +2624,6 @@ var PageView = function pageView(container, id, scale,
       link.className = 'internalLink';
     }
 
-    function bindNamedAction(link, action) {
-      link.onclick = function pageViewSetupNamedActionOnClick() {
-        // See PDF reference, table 8.45 - Named action
-        switch (action) {
-          case 'GoToPage':
-            document.getElementById('pageNumber').focus();
-            break;
-
-          case 'GoBack':
-            PDFHistory.back();
-            break;
-
-          case 'GoForward':
-            PDFHistory.forward();
-            break;
-
-          case 'Find':
-            if (!PDFView.supportsIntegratedFind) {
-              PDFFindBar.toggle();
-            }
-            break;
-
-          case 'NextPage':
-            PDFView.page++;
-            break;
-
-          case 'PrevPage':
-            PDFView.page--;
-            break;
-
-          case 'LastPage':
-            PDFView.page = PDFView.pages.length;
-            break;
-
-          case 'FirstPage':
-            PDFView.page = 1;
-            break;
-
-          default:
-            break; // No action according to spec
-        }
-        return false;
-      };
-      link.className = 'internalLink';
-    }
-
     pdfPage.getAnnotations().then(function(annotationsData) {
       viewport = viewport.clone({ dontFlip: true });
       for (var i = 0; i < annotationsData.length; i++) {
@@ -2732,11 +2656,7 @@ var PageView = function pageView(container, id, scale,
         CustomStyle.setProp('transformOrigin', element, transformOriginStr);
 
         if (data.subtype === 'Link' && !data.url) {
-          if (data.action) {
-            bindNamedAction(element, data.action);
-          } else {
-            bindLink(element, ('dest' in data) ? data.dest : null);
-          }
+          bindLink(element, ('dest' in data) ? data.dest : null);
         }
 
         annotationsDiv.appendChild(element);
@@ -2964,10 +2884,6 @@ var PageView = function pageView(container, id, scale,
       });
       div.dispatchEvent(event);
 
-      FirefoxCom.request('reportTelemetry', JSON.stringify({
-        type: 'pageInfo'
-      }));
-      // TODO add stream types report here
       callback();
     }
 
@@ -3074,7 +2990,6 @@ var PageView = function pageView(container, id, scale,
   };
 };
 
-
 var ThumbnailView = function thumbnailView(container, id, defaultViewport) {
   var anchor = document.createElement('a');
   anchor.href = PDFView.getAnchorUrl('#page=' + id);
@@ -3083,6 +2998,7 @@ var ThumbnailView = function thumbnailView(container, id, defaultViewport) {
     PDFView.page = id;
     return false;
   };
+
 
   this.pdfPage = undefined;
   this.viewport = defaultViewport;
@@ -3658,7 +3574,6 @@ document.addEventListener('DOMContentLoaded', function webViewerLoad(evt) {
 
   var file = window.location.href.split('#')[0];
 
-
   document.getElementById('openFile').setAttribute('hidden', 'true');
 
   // Special debugging flags in the hash section of the URL.
@@ -4119,12 +4034,8 @@ window.addEventListener('keydown', function keydown(evt) {
         break;
       case 48: // '0'
       case 96: // '0' on Numpad of Swedish keyboard
-        // keeping it unhandled (to restore page zoom to 100%)
-        setTimeout(function () {
-          // ... and resetting the scale after browser adjusts its scale
-          PDFView.parseScale(DEFAULT_SCALE, true);
-        });
-        handled = false;
+        PDFView.parseScale(DEFAULT_SCALE, true);
+        handled = false; // keeping it unhandled (to restore page zoom to 100%)
         break;
     }
   }

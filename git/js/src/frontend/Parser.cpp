@@ -2796,9 +2796,6 @@ template <>
 Parser<SyntaxParseHandler>::bindLet(BindData<SyntaxParseHandler> *data,
                                     HandlePropertyName name, Parser<SyntaxParseHandler> *parser)
 {
-    if (!parser->checkStrictBinding(name, data->pn))
-        return false;
-
     return true;
 }
 

@@ -135,7 +135,6 @@ class XPCShellTestThread(Thread):
 
         # event from main thread to signal work done
         self.event = event
-        self.done = False # explicitly set flag so we don't rely on thread.isAlive
 
     def run(self):
         try:
@@ -149,7 +148,6 @@ class XPCShellTestThread(Thread):
         if self.retry:
             self.log.info("TEST-INFO | %s | Test failed or timed out, will retry."
                           % self.test_object['name'])
-        self.done = True
         self.event.set()
 
     def kill(self, proc):
@@ -220,7 +218,6 @@ class XPCShellTestThread(Thread):
     def testTimeout(self, test_file, processPID):
         if not self.retry:
             self.log.error("TEST-UNEXPECTED-FAIL | %s | Test timed out" % test_file)
-        self.done = True
         Automation().killAndGetStackNoScreenshot(processPID, self.appPath, self.debuggerInfo)
 
     def buildCmdTestFile(self, name):
@@ -379,8 +376,29 @@ class XPCShellTestThread(Thread):
                 # removed fine
                 return
 
-        # we try cleaning up again later at the end of the run
-        self.cleanup_dir_list.append(directory)
+        # we try again later at the end of the run for plugin dirs (because windows!)
+        if directory == self.pluginsDir:
+            self.cleanup_dir_list.append(directory)
+            return
+
+        # we couldn't clean up the directory, and it's not the plugins dir,
+        # which means that something wrong has probably happened
+        if self.retry:
+            return
+
+        with LOG_MUTEX:
+            message = "TEST-UNEXPECTED-FAIL | %s | Failed to clean up directory: %s" % (name, sys.exc_info()[1])
+            self.log.error(message)
+            self.log_output(self.output_lines)
+            self.log_output(traceback.format_exc())
+
+        self.failCount += 1
+        xunit_result["passed"] = False
+        xunit_result["failure"] = {
+            "type": "TEST-UNEXPECTED-FAIL",
+            "message": message,
+            "text": "%s\n%s" % ("\n".join(self.output_lines), traceback.format_exc())
+        }
 
     def clean_temp_dirs(self, name, stdout):
         # We don't want to delete the profile when running check-interactive
@@ -1329,7 +1347,7 @@ class XPCShellTests(object):
             # find what tests are done (might be more than 1)
             done_tests = set()
             for test in running_tests:
-                if test.done:
+                if not test.is_alive():
                     done_tests.add(test)
                     test.join()
                     # if the test had trouble, we will try running it again
@@ -1393,7 +1411,7 @@ class XPCShellTests(object):
         signal.signal(signal.SIGINT, signal.SIG_DFL)
 
         self.shutdownNode()
-        # Clean up any slacker directories that might be lying around
+        # Clean up any slacker directories that might be lying around (Windows).
         # Some might fail because of windows taking too long to unlock them.
         # We don't do anything if this fails because the test slaves will have
         # their $TEMP dirs cleaned up on reboot anyway.

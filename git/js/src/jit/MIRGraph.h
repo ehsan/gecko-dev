@@ -80,8 +80,6 @@ class MBasicBlock : public TempObject, public InlineListNode<MBasicBlock>
     static MBasicBlock *NewAbortPar(MIRGraph &graph, CompileInfo &info,
                                     MBasicBlock *pred, jsbytecode *entryPc,
                                     MResumePoint *resumePoint);
-    static MBasicBlock *NewAsmJS(MIRGraph &graph, CompileInfo &info,
-                                 MBasicBlock *pred, Kind kind);
 
     bool dominates(MBasicBlock *other);
 
@@ -198,7 +196,6 @@ class MBasicBlock : public TempObject, public InlineListNode<MBasicBlock>
     // the current loop as necessary. If the backedge introduces new types for
     // phis at the loop header, returns a disabling abort.
     AbortReason setBackedge(MBasicBlock *block);
-    bool setBackedgeAsmJS(MBasicBlock *block);
 
     // Resets a LOOP_HEADER block to a NORMAL block.  This is needed when
     // optimizations remove the backedge.

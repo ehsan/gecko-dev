@@ -2229,8 +2229,7 @@ class FunctionCompiler
             *loopEntry = NULL;
             return true;
         }
-        *loopEntry = MBasicBlock::NewAsmJS(mirGraph(), info(), curBlock_,
-                                           MBasicBlock::PENDING_LOOP_HEADER);
+        *loopEntry = MBasicBlock::NewPendingLoopHeader(mirGraph(), info(), curBlock_, NULL);
         if (!*loopEntry)
             return false;
         mirGraph().addBlock(*loopEntry);
@@ -2288,8 +2287,7 @@ class FunctionCompiler
         if (curBlock_) {
             JS_ASSERT(curBlock_->loopDepth() == loopStack_.length() + 1);
             curBlock_->end(MGoto::New(loopEntry));
-            if (!loopEntry->setBackedgeAsmJS(curBlock_))
-                return false;
+            loopEntry->setBackedge(curBlock_);
         }
         curBlock_ = afterLoop;
         if (curBlock_)
@@ -2311,8 +2309,7 @@ class FunctionCompiler
             if (cond->isConstant()) {
                 if (ToBoolean(cond->toConstant()->value())) {
                     curBlock_->end(MGoto::New(loopEntry));
-                    if (!loopEntry->setBackedgeAsmJS(curBlock_))
-                        return false;
+                    loopEntry->setBackedge(curBlock_);
                     curBlock_ = NULL;
                 } else {
                     MBasicBlock *afterLoop;
@@ -2326,8 +2323,7 @@ class FunctionCompiler
                 if (!newBlock(curBlock_, &afterLoop, afterLoopStmt))
                     return false;
                 curBlock_->end(MTest::New(cond, loopEntry, afterLoop));
-                if (!loopEntry->setBackedgeAsmJS(curBlock_))
-                    return false;
+                loopEntry->setBackedge(curBlock_);
                 curBlock_ = afterLoop;
             }
         }
@@ -2453,7 +2449,7 @@ class FunctionCompiler
 
     bool newBlockWithDepth(MBasicBlock *pred, unsigned loopDepth, MBasicBlock **block, ParseNode *pn)
     {
-        *block = MBasicBlock::NewAsmJS(mirGraph(), info(), pred, MBasicBlock::NORMAL);
+        *block = MBasicBlock::New(mirGraph(), info(), pred, /* pc = */ NULL, MBasicBlock::NORMAL);
         if (!*block)
             return false;
         noteBasicBlockPosition(*block, pn);
@@ -3786,6 +3782,12 @@ CheckConditional(FunctionCompiler &f, ParseNode *ternary, MDefinition **def, Typ
 
     f.pushPhiInput(elseDef);
 
+    // next statement is actually not the else expr, but this is the closest stmt to the next
+    // one that is directly reachable
+    if (!f.joinIfElse(thenBlocks, elseExpr))
+        return false;
+    *def = f.popPhiOutput();
+
     if (thenType.isInt() && elseType.isInt()) {
         *type = Type::Int;
     } else if (thenType.isDouble() && elseType.isDouble()) {
@@ -3795,10 +3797,6 @@ CheckConditional(FunctionCompiler &f, ParseNode *ternary, MDefinition **def, Typ
                        "current types are %s and %s", thenType.toChars(), elseType.toChars());
     }
 
-    if (!f.joinIfElse(thenBlocks, elseExpr))
-        return false;
-
-    *def = f.popPhiOutput();
     return true;
 }
 
@@ -4313,9 +4311,12 @@ CheckIf(FunctionCompiler &f, ParseNode *ifStmt)
 
     MBasicBlock *thenBlock, *elseBlock;
 
+    ParseNode *elseBlockStmt = NULL;
     // The second block given to branchAndStartThen contains either the else statement if
     // there is one, or the join block; so we need to give the next statement accordingly.
-    ParseNode *elseBlockStmt = elseStmt ? elseStmt : nextStmt;
+    elseBlockStmt = elseStmt;
+    if (elseBlockStmt == NULL)
+        elseBlockStmt = nextStmt;
 
     if (!f.branchAndStartThen(condDef, &thenBlock, &elseBlock, thenStmt, elseBlockStmt))
         return false;

@@ -1228,15 +1228,14 @@ OptimizeMIR(MIRGenerator *mir)
     if (mir->shouldCancel("Phi reverse mapping"))
         return false;
 
-    if (!mir->compilingAsmJS()) {
-        if (!ApplyTypeInformation(mir, graph))
-            return false;
-        IonSpewPass("Apply types");
-        AssertExtendedGraphCoherency(graph);
+    // This pass also removes copies.
+    if (!ApplyTypeInformation(mir, graph))
+        return false;
+    IonSpewPass("Apply types");
+    AssertExtendedGraphCoherency(graph);
 
-        if (mir->shouldCancel("Apply types"))
-            return false;
-    }
+    if (mir->shouldCancel("Apply types"))
+        return false;
 
     if (graph.entryBlock()->info().executionMode() == ParallelExecution) {
         ParallelSafetyAnalysis analysis(mir, graph);
@@ -1362,7 +1361,7 @@ OptimizeMIR(MIRGenerator *mir)
     // Passes after this point must not move instructions; these analyses
     // depend on knowing the final order in which instructions will execute.
 
-    if (js_IonOptions.edgeCaseAnalysis && !mir->compilingAsmJS()) {
+    if (js_IonOptions.edgeCaseAnalysis) {
         EdgeCaseAnalysis edgeCaseAnalysis(mir, graph);
         if (!edgeCaseAnalysis.analyzeLate())
             return false;
@@ -1373,16 +1372,14 @@ OptimizeMIR(MIRGenerator *mir)
             return false;
     }
 
-    if (!mir->compilingAsmJS()) {
-        // Note: check elimination has to run after all other passes that move
-        // instructions. Since check uses are replaced with the actual index,
-        // code motion after this pass could incorrectly move a load or store
-        // before its bounds check.
-        if (!EliminateRedundantChecks(graph))
-            return false;
-        IonSpewPass("Bounds Check Elimination");
-        AssertGraphCoherency(graph);
-    }
+    // Note: check elimination has to run after all other passes that move
+    // instructions. Since check uses are replaced with the actual index, code
+    // motion after this pass could incorrectly move a load or store before its
+    // bounds check.
+    if (!EliminateRedundantChecks(graph))
+        return false;
+    IonSpewPass("Bounds Check Elimination");
+    AssertGraphCoherency(graph);
 
     return true;
 }
