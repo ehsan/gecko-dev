@@ -64,7 +64,6 @@
 #include "jsobjinlines.h"
 
 using namespace js;
-using namespace js::gc;
 
 /*
  * ArrayBuffer
@@ -307,7 +306,7 @@ TypedArray::obj_trace(JSTracer *trc, JSObject *obj)
 {
     TypedArray *tarray = fromJSObject(obj);
     JS_ASSERT(tarray);
-    MarkObject(trc, *tarray->bufferJS, "typedarray.buffer");
+    JS_CALL_OBJECT_TRACER(trc, tarray->bufferJS, "typedarray.buffer");
 }
 
 JSBool

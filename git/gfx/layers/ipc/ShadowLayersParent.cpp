@@ -195,8 +195,12 @@ ShadowLayersParent::RecvUpdate(const nsTArray<Edit>& cset,
       ShadowThebesLayer* thebes = static_cast<ShadowThebesLayer*>(
         AsShadowLayer(otb)->AsLayer());
 
-      thebes->SetFrontBuffer(otb.initialFront(), otb.frontValidRegion(),
-                             otb.xResolution(), otb.yResolution());
+      ThebesBuffer unusedBuffer;
+      nsIntRegion unusedRegion; float unusedXRes, unusedYRes;
+      thebes->Swap(
+        ThebesBuffer(otb.initialFront(), otb.bufferRect(), nsIntPoint(0, 0)),
+        unusedRegion,
+        &unusedBuffer, &unusedRegion, &unusedXRes, &unusedYRes);
 
       break;
     }

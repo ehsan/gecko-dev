@@ -178,6 +178,8 @@ struct JITScript {
 #endif
     void            *invoke;         /* invoke address */
     void            *arityCheck;     /* arity check address */
+    uint32          *escaping;       /* list of escaping slots */
+    uint32          nescaping;       /* number of escaping slots */
 };
 
 /* Execute a method that has been JIT compiled. */
@@ -201,6 +203,9 @@ TryCompile(JSContext *cx, JSScript *script, JSFunction *fun, JSObject *scopeChai
 
 void
 ReleaseScriptCode(JSContext *cx, JSScript *script);
+
+void
+SweepCallICs(JSContext *cx);
 
 static inline CompileStatus
 CanMethodJIT(JSContext *cx, JSScript *script, JSFunction *fun, JSObject *scopeChain)

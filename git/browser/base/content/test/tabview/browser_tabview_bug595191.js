@@ -100,6 +100,10 @@ function toggleTabViewTest(contentWindow) {
   // race condition by delaying ourselves on the timeout queue
   setTimeout( function() {
     // Use keyboard shortcut to toggle back to browser view
-    EventUtils.synthesizeKey("e", { accelKey: true });
+    if(navigator.platform.indexOf("Mac") >= 0) {
+      EventUtils.synthesizeKey("VK_SPACE", {altKey : true}, contentWindow);
+    } else {
+      EventUtils.synthesizeKey("VK_SPACE", {ctrlKey : true}, contentWindow);
+    }
   }, 0);
 }

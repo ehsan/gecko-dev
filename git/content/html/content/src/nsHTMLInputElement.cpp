@@ -100,6 +100,8 @@
 #include "nsILocalFile.h"
 #include "nsNetUtil.h"
 #include "nsDOMFile.h"
+#include "nsFileControlFrame.h"
+#include "nsTextControlFrame.h"
 #include "nsIFilePicker.h"
 #include "nsDirectoryServiceDefs.h"
 #include "nsIPrivateBrowsingService.h"
@@ -303,29 +305,31 @@ AsyncClickHandler::Run()
   if (!filePicker)
     return NS_ERROR_FAILURE;
 
-  PRBool multi = mInput->HasAttr(kNameSpaceID_None, nsGkAtoms::multiple);
+  nsFileControlFrame* frame =
+    static_cast<nsFileControlFrame*>(mInput->GetPrimaryFrame());
+
+  PRBool multi;
+  rv = mInput->GetMultiple(&multi);
+  NS_ENSURE_SUCCESS(rv, rv);
 
   rv = filePicker->Init(win, title, multi ?
                         (PRInt16)nsIFilePicker::modeOpenMultiple :
                         (PRInt16)nsIFilePicker::modeOpen);
   NS_ENSURE_SUCCESS(rv, rv);
 
-  if (mInput->HasAttr(kNameSpaceID_None, nsGkAtoms::accept)) {
-    PRInt32 filters = mInput->GetFilterFromAccept();
+  // We want to get the file filter from the accept attribute and we add the
+  // |filterAll| filter to be sure the user has a valid fallback.
+  PRUint32 filter = 0;
+  if (frame)
+    filter = frame->GetFileFilterFromAccept();
+  filePicker->AppendFilters(filter | nsIFilePicker::filterAll);
 
-    if (filters) {
-      // We add |filterAll| to be sure the user always has a sane fallback.
-      filePicker->AppendFilters(filters | nsIFilePicker::filterAll);
-
-      // If the accept attribute asked for a filter, we need to make it default.
-      // |filterAll| will always use index=0 so we need to set index=1 as the
-      // current filter.
-      filePicker->SetFilterIndex(1);
-    } else {
-      filePicker->AppendFilters(nsIFilePicker::filterAll);
-    }
-  } else {
-    filePicker->AppendFilters(nsIFilePicker::filterAll);
+  // If the accept attribute asks for a filter, it has to be the default one.
+  if (filter) {
+    // We have two filters: |filterAll| and another one. |filterAll| is
+    // always the first one (index=0) so we can assume the one we want to be
+    // the default is at index 1.
+    filePicker->SetFilterIndex(1);
   }
 
   // Set default directry and filename
@@ -914,7 +918,7 @@ nsHTMLInputElement::AfterSetAttr(PRInt32 aNameSpaceID, nsIAtom* aName,
 
       states |= NS_EVENT_STATE_REQUIRED | NS_EVENT_STATE_OPTIONAL |
                 NS_EVENT_STATE_VALID | NS_EVENT_STATE_INVALID;
-    } else if (MaxLengthApplies() && aName == nsGkAtoms::maxlength) {
+    } else if (aName == nsGkAtoms::maxlength) {
       UpdateTooLongValidityState();
       states |= NS_EVENT_STATE_VALID | NS_EVENT_STATE_INVALID;
     } else if (aName == nsGkAtoms::pattern) {
@@ -3707,24 +3711,17 @@ nsHTMLInputElement::SetCustomValidity(const nsAString& aError)
 PRBool
 nsHTMLInputElement::IsTooLong()
 {
-  if (!MaxLengthApplies() ||
-      !HasAttr(kNameSpaceID_None, nsGkAtoms::maxlength) ||
-      !GET_BOOLBIT(mBitField, BF_VALUE_CHANGED)) {
+  if (!GET_BOOLBIT(mBitField, BF_VALUE_CHANGED)) {
     return PR_FALSE;
   }
 
   PRInt32 maxLength = -1;
-  GetMaxLength(&maxLength);
-
-  // Maxlength of -1 means parsing error.
-  if (maxLength == -1) {
-    return PR_FALSE;
-  }
-
   PRInt32 textLength = -1;
+
+  GetMaxLength(&maxLength);
   GetTextLength(&textLength);
 
-  return textLength > maxLength;
+  return maxLength >= 0 && textLength > maxLength;
 }
 
 PRBool
@@ -4400,51 +4397,12 @@ nsHTMLInputElement::OnValueChanged(PRBool aNotify)
 }
 
 void
-nsHTMLInputElement::FieldSetDisabledChanged(PRInt32 aStates, PRBool aNotify)
+nsHTMLInputElement::FieldSetDisabledChanged(PRInt32 aStates)
 {
   UpdateValueMissingValidityState();
   UpdateBarredFromConstraintValidation();
 
   aStates |= NS_EVENT_STATE_VALID | NS_EVENT_STATE_INVALID;
-  nsGenericHTMLFormElement::FieldSetDisabledChanged(aStates, aNotify);
-}
-
-PRInt32
-nsHTMLInputElement::GetFilterFromAccept()
-{
-  NS_ASSERTION(HasAttr(kNameSpaceID_None, nsGkAtoms::accept),
-               "You should not call GetFileFiltersFromAccept if the element"
-               " has no accept attribute!");
-
-  PRInt32 filter = 0;
-  nsAutoString accept;
-  GetAttr(kNameSpaceID_None, nsGkAtoms::accept, accept);
-
-  nsCharSeparatedTokenizerTemplate<nsContentUtils::IsHTMLWhitespace>
-    tokenizer(accept, ',');
-
-  while (tokenizer.hasMoreTokens()) {
-    const nsDependentSubstring token = tokenizer.nextToken();
-
-    PRInt32 tokenFilter = 0;
-    if (token.EqualsLiteral("image/*")) {
-      tokenFilter = nsIFilePicker::filterImages;
-    } else if (token.EqualsLiteral("audio/*")) {
-      tokenFilter = nsIFilePicker::filterAudio;
-    } else if (token.EqualsLiteral("video/*")) {
-      tokenFilter = nsIFilePicker::filterVideo;
-    }
-
-    if (tokenFilter) {
-      // We do not want to set more than one filter so if we found two different
-      // kwown tokens, we will return 0 (no filter).
-      if (filter && filter != tokenFilter) {
-        return 0;
-      }
-      filter = tokenFilter;
-    }
-  }
-
-  return filter;
+  nsGenericHTMLFormElement::FieldSetDisabledChanged(aStates);
 }
 

@@ -1681,7 +1681,7 @@ WeaveSvc.prototype = {
 
       // Fully wipe each engine if it's able to decrypt data
       for each (let engine in engines)
-        if (engine.canDecrypt())
+        if (engine._testDecrypt())
           engine.wipeClient();
 
       // Save the password/passphrase just in-case they aren't restored by sync

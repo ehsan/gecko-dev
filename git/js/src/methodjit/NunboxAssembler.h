@@ -74,8 +74,11 @@ class Assembler : public BaseAssembler
   public:
     static const JSC::MacroAssembler::Scale JSVAL_SCALE = JSC::MacroAssembler::TimesEight;
 
-    template <typename T>
-    T payloadOf(T address) {
+    Address payloadOf(Address address) {
+        return address;
+    }
+
+    BaseIndex payloadOf(BaseIndex address) {
         return address;
     }
 
@@ -105,59 +108,72 @@ class Assembler : public BaseAssembler
         }
     }
 
-    template <typename T>
-    void loadTypeTag(T address, RegisterID reg) {
+    void loadTypeTag(Address address, RegisterID reg) {
         load32(tagOf(address), reg);
     }
 
-    template <typename T>
-    void storeTypeTag(ImmType imm, T address) {
+    void loadTypeTag(BaseIndex address, RegisterID reg) {
+        load32(tagOf(address), reg);
+    }
+
+    void storeTypeTag(ImmType imm, Address address) {
         store32(imm, tagOf(address));
     }
 
-    template <typename T>
-    void storeTypeTag(RegisterID reg, T address) {
+    void storeTypeTag(ImmType imm, BaseIndex address) {
+        store32(imm, tagOf(address));
+    }
+
+    void storeTypeTag(RegisterID reg, Address address) {
         store32(reg, tagOf(address));
     }
 
-    template <typename T>
-    void loadPayload(T address, RegisterID reg) {
+    void storeTypeTag(RegisterID reg, BaseIndex address) {
+        store32(reg, tagOf(address));
+    }
+
+    void loadPayload(Address address, RegisterID reg) {
         load32(payloadOf(address), reg);
     }
 
-    template <typename T>
-    void storePayload(RegisterID reg, T address) {
+    void loadPayload(BaseIndex address, RegisterID reg) {
+        load32(payloadOf(address), reg);
+    }
+
+    void storePayload(RegisterID reg, Address address) {
         store32(reg, payloadOf(address));
     }
 
-    template <typename T>
-    void storePayload(Imm32 imm, T address) {
+    void storePayload(RegisterID reg, BaseIndex address) {
+        store32(reg, payloadOf(address));
+    }
+
+    void storePayload(Imm32 imm, Address address) {
         store32(imm, payloadOf(address));
     }
 
     /* Loads type first, then payload, returning label after type load. */
-    template <typename T>
-    Label loadValueAsComponents(T address, RegisterID type, RegisterID payload) {
-        JS_ASSERT(!addressUsesRegister(address, type));
+    Label loadValueAsComponents(Address address, RegisterID type, RegisterID payload) {
+        JS_ASSERT(address.base != type);
         loadTypeTag(address, type);
         Label l = label();
         loadPayload(address, payload);
         return l;
     }
 
-    void loadValueAsComponents(const Value &val, RegisterID type, RegisterID payload) {
-        jsval_layout jv;
-        jv.asBits = JSVAL_BITS(Jsvalify(val));
-
-        move(ImmTag(jv.s.tag), type);
-        move(Imm32(jv.s.payload.u32), payload);
+    Label loadValueAsComponents(BaseIndex address, RegisterID type, RegisterID payload) {
+        JS_ASSERT(address.base != type);
+        JS_ASSERT(address.index != type);
+        loadTypeTag(address, type);
+        Label l = label();
+        loadPayload(address, payload);
+        return l;
     }
 
     /*
      * Stores type first, then payload.
      */
-    template <typename T>
-    Label storeValue(const Value &v, T address) {
+    Label storeValue(const Value &v, Address address) {
         jsval_layout jv;
         jv.asBits = JSVAL_BITS(Jsvalify(v));
 
@@ -167,20 +183,37 @@ class Assembler : public BaseAssembler
         return l;
     }
 
-    template <typename T>
-    void storeValueFromComponents(RegisterID type, RegisterID payload, T address) {
+    Label storeValue(const Value &v, BaseIndex address) {
+        jsval_layout jv;
+        jv.asBits = JSVAL_BITS(Jsvalify(v));
+
+        store32(ImmTag(jv.s.tag), tagOf(address));
+        Label l = label();
+        store32(Imm32(jv.s.payload.u32), payloadOf(address));
+        return l;
+    }
+
+    void storeValueFromComponents(RegisterID type, RegisterID payload, Address address) {
         storeTypeTag(type, address);
         storePayload(payload, address);
     }
 
-    template <typename T>
-    void storeValueFromComponents(ImmType type, RegisterID payload, T address) {
+    void storeValueFromComponents(RegisterID type, RegisterID payload, BaseIndex address) {
         storeTypeTag(type, address);
         storePayload(payload, address);
     }
 
-    template <typename T>
-    Label storeValue(const ValueRemat &vr, T address) {
+    void storeValueFromComponents(ImmType type, RegisterID payload, Address address) {
+        storeTypeTag(type, address);
+        storePayload(payload, address);
+    }
+
+    void storeValueFromComponents(ImmType type, RegisterID payload, BaseIndex address) {
+        storeTypeTag(type, address);
+        storePayload(payload, address);
+    }
+
+    Label storeValue(const ValueRemat &vr, Address address) {
         if (vr.isConstant) {
             return storeValue(Valueify(vr.u.v), address);
         } else {

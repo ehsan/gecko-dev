@@ -3270,7 +3270,7 @@ xpc_CreateSandboxObject(JSContext * cx, jsval * vp, nsISupports *prinOrSop)
     js::AutoObjectRooter tvr(cx, sandbox);
 
     {
-        JSAutoEnterCompartment ac;
+        JSAutoCrossCompartmentCall ac;
         if (!ac.enter(cx, sandbox))
             return NS_ERROR_XPC_UNEXPECTED;
 

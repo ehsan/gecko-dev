@@ -1063,9 +1063,6 @@ private:
   nsTextEvent()
   {
   }
-
-public:
-  PRUint32 seqno;
 #endif // MOZ_IPC
 
 public:
@@ -1094,9 +1091,6 @@ private:
   nsCompositionEvent()
   {
   }
-
-public:
-  PRUint32 seqno;
 #endif // MOZ_IPC
 
 public:
@@ -1315,9 +1309,6 @@ private:
   nsSelectionEvent()
   {
   }
-
-public:
-  PRUint32 seqno;
 #endif // MOZ_IPC
 
 public:

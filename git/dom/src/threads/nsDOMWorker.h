@@ -201,7 +201,7 @@ public:
   PRBool IsClosing();
   PRBool IsSuspended();
 
-  PRBool SetGlobalForContext(JSContext* aCx, nsLazyAutoRequest *aRequest, JSAutoEnterCompartment *aComp);
+  PRBool SetGlobalForContext(JSContext* aCx, nsLazyAutoRequest *aRequest, JSAutoCrossCompartmentCall *aCall);
 
   void SetPool(nsDOMWorkerPool* aPool);
 
@@ -285,7 +285,7 @@ private:
 
   nsresult PostMessageInternal(PRBool aToInner);
 
-  PRBool CompileGlobalObject(JSContext* aCx, nsLazyAutoRequest *aRequest, JSAutoEnterCompartment *aComp);
+  PRBool CompileGlobalObject(JSContext* aCx, nsLazyAutoRequest *aRequest, JSAutoCrossCompartmentCall *aCall);
 
   PRUint32 NextTimeoutId() {
     return ++mNextTimeoutId;

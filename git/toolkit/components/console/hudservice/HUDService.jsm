@@ -614,7 +614,7 @@ function NetworkPanel(aParent, aHttpActivity)
 
   // Create the browser that displays the NetworkPanel XHTML.
   this.browser = createAndAppendElement(this.panel, "browser", {
-    src: "chrome://browser/content/NetworkPanel.xhtml",
+    src: "chrome://global/content/NetworkPanel.xhtml",
     disablehistory: "true",
     flex: "1"
   });
@@ -3254,9 +3254,7 @@ HeadsUpDisplay.prototype = {
     menuPopup.appendChild(this.makeXULNode("menuseparator"));
 
     let clearItem = this.makeXULNode("menuitem");
-    clearItem.setAttribute("label", this.getStr("clearConsoleCmd.label"));
-    clearItem.setAttribute("accesskey",
-                           this.getStr("clearConsoleCmd.accesskey"));
+    clearItem.setAttribute("label", this.getStr("itemClear"));
     clearItem.setAttribute("hudId", this.hudId);
     clearItem.setAttribute("buttonType", "clear");
     clearItem.setAttribute("oncommand", "HUDConsoleUI.command(this);");

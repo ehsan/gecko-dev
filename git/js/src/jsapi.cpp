@@ -57,7 +57,6 @@
 #include "jsatom.h"
 #include "jsbool.h"
 #include "jsbuiltins.h"
-#include "jsclone.h"
 #include "jscntxt.h"
 #include "jsversion.h"
 #include "jsdate.h"
@@ -107,7 +106,6 @@
 #endif
 
 using namespace js;
-using namespace js::gc;
 
 class AutoVersionAPI
 {
@@ -709,6 +707,10 @@ JSRuntime::~JSRuntime()
         JS_DESTROY_LOCK(debuggerLock);
 #endif
     propertyTree.finish();
+    /* Delete all remaining Compartments. Ideally only the defaultCompartment should be left. */
+    for (JSCompartment **c = compartments.begin(); c != compartments.end(); ++c)
+        delete *c;
+    compartments.clear();
 }
 
 JS_PUBLIC_API(JSRuntime *)
@@ -756,6 +758,12 @@ JS_NewRuntime(uint32 maxbytes)
     }
 
     return rt;
+}
+
+JS_PUBLIC_API(void)
+JS_CommenceRuntimeShutDown(JSRuntime *rt)
+{
+    rt->gcFlushCodeCaches = true;
 }
 
 JS_PUBLIC_API(void)
@@ -1182,7 +1190,7 @@ JS_LeaveCrossCompartmentCall(JSCrossCompartmentCall *call)
 }
 
 bool
-JSAutoEnterCompartment::enter(JSContext *cx, JSObject *target)
+JSAutoCrossCompartmentCall::enter(JSContext *cx, JSObject *target)
 {
     JS_ASSERT(!call);
     if (cx->compartment == target->getCompartment(cx))
@@ -1191,10 +1199,20 @@ JSAutoEnterCompartment::enter(JSContext *cx, JSObject *target)
     return call != NULL;
 }
 
-void
-JSAutoEnterCompartment::enterAndIgnoreErrors(JSContext *cx, JSObject *target)
+JS_FRIEND_API(JSCompartment *)
+js_SwitchToCompartment(JSContext *cx, JSCompartment *compartment)
 {
-    (void) enter(cx, target);
+    JSCompartment *c = cx->compartment;
+    cx->compartment = compartment;
+    return c;
+}
+
+JS_FRIEND_API(JSCompartment *)
+js_SwitchToObjectCompartment(JSContext *cx, JSObject *obj)
+{
+    JSCompartment *c = cx->compartment;
+    cx->compartment = obj->getCompartment(cx);
+    return c;
 }
 
 JS_PUBLIC_API(void *)
@@ -2065,7 +2083,7 @@ JS_PUBLIC_API(void)
 JS_CallTracer(JSTracer *trc, void *thing, uint32 kind)
 {
     JS_ASSERT(thing);
-    MarkKind(trc, thing, kind);
+    Mark(trc, thing, kind);
 }
 
 #ifdef DEBUG
@@ -2561,7 +2579,7 @@ JS_IsAboutToBeFinalized(JSContext *cx, void *thing)
 {
     JS_ASSERT(thing);
     JS_ASSERT(!cx->runtime->gcMarkingTracer);
-    return IsAboutToBeFinalized(thing);
+    return js_IsAboutToBeFinalized(thing);
 }
 
 JS_PUBLIC_API(void)
@@ -5244,55 +5262,6 @@ JS_FinishJSONParse(JSContext *cx, JSONParser *jp, jsval reviver)
     CHECK_REQUEST(cx);
     assertSameCompartment(cx, reviver);
     return js_FinishJSONParse(cx, jp, Valueify(reviver));
-}
-
-JS_PUBLIC_API(JSBool)
-JS_ReadStructuredClone(JSContext *cx, const uint64 *buf, size_t nbytes, jsval *vp)
-{
-    return ReadStructuredClone(cx, buf, nbytes, Valueify(vp));
-}
-
-JS_PUBLIC_API(JSBool)
-JS_WriteStructuredClone(JSContext *cx, jsval v, uint64 **bufp, size_t *nbytesp)
-{
-    return WriteStructuredClone(cx, Valueify(v), (uint64_t **) bufp, nbytesp);
-}
-
-JS_PUBLIC_API(JSBool)
-JS_StructuredClone(JSContext *cx, jsval v, jsval *vp)
-{
-    JSAutoStructuredCloneBuffer buf(cx);
-    return buf.write(v) && buf.read(vp);
-}
-
-JS_PUBLIC_API(void)
-JS_SetStructuredCloneCallbacks(JSRuntime *rt, const JSStructuredCloneCallbacks *callbacks)
-{
-    rt->structuredCloneCallbacks = callbacks;
-}
-
-JS_PUBLIC_API(JSBool)
-JS_ReadPair(JSStructuredCloneReader *r, uint32 *p1, uint32 *p2)
-{
-    return r->input().readPair((uint32_t *) p1, (uint32_t *) p2);
-}
-
-JS_PUBLIC_API(JSBool)
-JS_ReadBytes(JSStructuredCloneReader *r, void *p, size_t len)
-{
-    return r->input().readBytes(p, len);
-}
-
-JS_PUBLIC_API(JSBool)
-JS_WritePair(JSStructuredCloneWriter *w, uint32 tag, uint32 data)
-{
-    return w->output().writePair(tag, data);
-}
-
-JS_PUBLIC_API(JSBool)
-JS_WriteBytes(JSStructuredCloneWriter *w, const void *p, size_t len)
-{
-    return w->output().writeBytes(p, len);
 }
 
 /*

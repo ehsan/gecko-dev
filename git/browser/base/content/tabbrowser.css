@@ -23,15 +23,11 @@
 }
 
 .tab-label[pinned] {
-  width: 0;
-  margin-left: 0 !important;
-  margin-right: 0 !important;
-  padding-left: 0 !important;
-  padding-right: 0 !important;
+  display: none;
 }
 
 .tab-stack {
-  vertical-align: top; /* for pinned tabs */
+  vertical-align: middle; /* for pinned tabs */
 }
 
 tabpanels {

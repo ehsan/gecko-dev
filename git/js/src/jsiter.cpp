@@ -81,7 +81,6 @@
 #include "jsstrinlines.h"
 
 using namespace js;
-using namespace js::gc;
 
 static void iterator_finalize(JSContext *cx, JSObject *obj);
 static void iterator_trace(JSTracer *trc, JSObject *obj);
@@ -1271,7 +1270,7 @@ SendToGenerator(JSContext *cx, JSGeneratorOp op, JSObject *obj,
 
         /* Copy frame onto the stack. */
         stackfp->stealFrameAndSlots(stackvp, genfp, genvp, gen->regs.sp);
-        stackfp->setPrev(cx->regs);
+        stackfp->repointGeneratorFrameDown(cx->maybefp());
         stackfp->unsetFloatingGenerator();
         RebaseRegsFromTo(&gen->regs, genfp, stackfp);
         MUST_FLOW_THROUGH("restore");

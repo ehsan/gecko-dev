@@ -74,7 +74,6 @@
 #include "methodjit/Retcon.h"
 
 using namespace js;
-using namespace js::gc;
 
 typedef struct JSTrap {
     JSCList         links;
@@ -602,8 +601,8 @@ js_TraceWatchPoints(JSTracer *trc, JSObject *obj)
         if (wp->object == obj) {
             wp->shape->trace(trc);
             if (wp->shape->hasSetterValue() && wp->setter)
-                MarkObject(trc, *CastAsObject(wp->setter), "wp->setter");
-            MarkObject(trc, *wp->closure, "wp->closure");
+                JS_CALL_OBJECT_TRACER(trc, CastAsObject(wp->setter), "wp->setter");
+            JS_CALL_OBJECT_TRACER(trc, wp->closure, "wp->closure");
         }
     }
 }
@@ -621,7 +620,7 @@ js_SweepWatchPoints(JSContext *cx)
          &wp->links != &rt->watchPointList;
          wp = next) {
         next = (JSWatchPoint *)wp->links.next;
-        if (IsAboutToBeFinalized(wp->object)) {
+        if (js_IsAboutToBeFinalized(wp->object)) {
             sample = rt->debuggerMutations;
 
             /* Ignore failures. */

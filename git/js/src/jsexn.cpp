@@ -67,7 +67,6 @@
 #include "jsobjinlines.h"
 
 using namespace js;
-using namespace js::gc;
 
 /* Forward declarations for js_ErrorClass's initializer. */
 static JSBool
@@ -408,14 +407,16 @@ exn_trace(JSTracer *trc, JSObject *obj)
     priv = GetExnPrivate(trc->context, obj);
     if (priv) {
         if (priv->message)
-            MarkString(trc, priv->message, "exception message");
+            JS_CALL_STRING_TRACER(trc, priv->message, "exception message");
         if (priv->filename)
-            MarkString(trc, priv->filename, "exception filename");
+            JS_CALL_STRING_TRACER(trc, priv->filename, "exception filename");
 
         elem = priv->stackElems;
         for (vcount = i = 0; i != priv->stackDepth; ++i, ++elem) {
-            if (elem->funName)
-                MarkString(trc, elem->funName, "stack trace function name");
+            if (elem->funName) {
+                JS_CALL_STRING_TRACER(trc, elem->funName,
+                                      "stack trace function name");
+            }
             if (IS_GC_MARKING_TRACER(trc) && elem->filename)
                 js_MarkScriptFilename(elem->filename);
             vcount += elem->argc;

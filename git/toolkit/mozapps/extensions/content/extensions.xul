@@ -49,7 +49,6 @@
 <page xmlns="http://www.mozilla.org/keymaster/gatekeeper/there.is.only.xul"
       xmlns:xhtml="http://www.w3.org/1999/xhtml"
       id="addons-page" title="&addons.windowTitle;" disablechrome="true"
-      role="application"
       ondragenter="gDragDrop.onDragOver(event)"
       ondragover="gDragDrop.onDragOver(event)"
       ondrop="gDragDrop.onDrop(event)">
@@ -86,7 +85,7 @@
       <menuitem id="menuitem_uninstallItem" command="cmd_uninstallItem"
                 label="&cmd.uninstallAddon.label;"
                 accesskey="&cmd.uninstallAddon.accesskey;"/>
-      <menuseparator id="addonitem-menuseparator" />
+      <menuseparator/>
       <menuitem id="menuitem_preferences" command="cmd_showItemPreferences"
 #ifdef XP_WIN
                 label="&cmd.preferencesWin.label;"
@@ -202,41 +201,39 @@
 
   <hbox flex="1">
 
-    <!-- category list -->
-    <richlistbox id="categories" persist="last-selected">
-      <richlistitem id="category-search" value="addons://search/"
-                    class="category"
-                    name="&view.search.label;" disabled="true"/>
-      <richlistitem id="category-discover" value="addons://discover/"
-                    class="category"
-                    name="&view.discover.label;"/>
-      <richlistitem id="category-languages" value="addons://list/locale"
-                    class="category"
-                    name="&view.locales.label;"
-                    hidden="true" persist="hidden"/>
-      <richlistitem id="category-searchengines"
-                    value="addons://list/searchengine"
-                    class="category"
-                    name="&view.searchengines.label;"
-                    hidden="true" persist="hidden"/>
-      <richlistitem id="category-extensions" value="addons://list/extension"
-                    class="category"
-                    name="&view.features.label;"/>
-      <richlistitem id="category-themes" value="addons://list/theme"
-                    class="category"
-                    name="&view.appearance2.label;"/>
-      <richlistitem id="category-plugins" value="addons://list/plugin"
-                    class="category"
-                    name="&view.plugins.label;"/>
-      <richlistitem id="category-availableUpdates" value="addons://updates/available"
-                    class="category"
-                    name="&view.availableUpdates.label;" disabled="true"/>
-      <richlistitem id="category-recentUpdates" value="addons://updates/recent"
-                    class="category"
-                    name="&view.recentUpdates.label;" disabled="true"/>
-    </richlistbox>
-
-    <box id="view-port-container" flex="1">
+      <!-- category list -->
+      <richlistbox id="categories" persist="last-selected">
+        <richlistitem id="category-search" value="addons://search/"
+                      class="category"
+                      name="&view.search.label;" disabled="true"/>
+        <richlistitem id="category-discover" value="addons://discover/"
+                      class="category"
+                      name="&view.discover.label;"/>
+        <richlistitem id="category-languages" value="addons://list/locale"
+                      class="category"
+                      name="&view.locales.label;"
+                      hidden="true" persist="hidden"/>
+        <richlistitem id="category-searchengines"
+                      value="addons://list/searchengine"
+                      class="category"
+                      name="&view.searchengines.label;"
+                      hidden="true" persist="hidden"/>
+        <richlistitem id="category-extensions" value="addons://list/extension"
+                      class="category"
+                      name="&view.features.label;"/>
+        <richlistitem id="category-themes" value="addons://list/theme"
+                      class="category"
+                      name="&view.appearance2.label;"/>
+        <richlistitem id="category-plugins" value="addons://list/plugin"
+                      class="category"
+                      name="&view.plugins.label;"/>
+        <richlistitem id="category-availableUpdates" value="addons://updates/available"
+                      class="category"
+                      name="&view.availableUpdates.label;" disabled="true"/>
+        <richlistitem id="category-recentUpdates" value="addons://updates/recent"
+                      class="category"
+                      name="&view.recentUpdates.label;" disabled="true"/>
+      </richlistbox>
 
       <!-- view port -->
       <deck id="view-port" flex="1">
@@ -390,7 +387,7 @@
         </vbox>
 
         <!-- detail view -->
-        <scrollbox id="detail-view" flex="1" class="view-pane addon-view" orient="vertical">
+        <vbox id="detail-view" flex="1" class="view-pane">
           <!-- global warnings -->
           <hbox class="global-warning-container global-warning">
             <image class="warning-icon"/>
@@ -413,7 +410,7 @@
                     command="cmd_enableUpdateSecurity"/>
             <spacer flex="5000"/> <!-- Necessary to allow the message to wrap -->
           </hbox>
-          <hbox flex="1">
+          <scrollbox  flex="1" class="addon-view" orient="horizontal" pack="stretch" align="start">
             <spacer flex="1"/>
             <!-- "loading" splash screen -->
             <hbox class="loading" flex="1">
@@ -452,12 +449,11 @@
                 <image id="detail-icon" class="icon"/>
                 <vbox flex="1">
                   <vbox id="detail-summary">
-                    <hbox id="detail-name-container" align="start">
-                      <label id="detail-name" flex="1"/>
+                    <hbox id="detail-name-container">
+                      <label id="detail-name"/>
                       <label id="detail-version"/>
                       <label class="disabled-postfix" value="&addon.disabled.postfix;"/>
                       <label class="update-postfix" value="&addon.update.postfix;"/>
-                      <spacer flex="5000"/> <!-- Necessary to allow the name to wrap -->
                     </hbox>
                     <label id="detail-creator" class="creator"/>
                   </vbox>
@@ -563,12 +559,11 @@
               </hbox>
             </vbox>
             <spacer flex="1"/>
-          </hbox>
-        </scrollbox>
+          </scrollbox>
+        </vbox>
 
       </deck>
 
-    </box>
   </hbox>
 
 </page>

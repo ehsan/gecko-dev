@@ -933,8 +933,8 @@ XPC_SJOW_Create(JSContext *cx, uintN argc, jsval *vp)
       return JS_FALSE;
     }
 
-    JSAutoEnterCompartment ac;
-    if (!ac.enter(cx, unsafeObj)) {
+    JSAutoCrossCompartmentCall accc;
+    if (!accc.enter(cx, unsafeObj)) {
       return JS_FALSE;
     }
 

@@ -67,7 +67,6 @@
 #include "jsscopeinlines.h"
 
 using namespace js;
-using namespace js::gc;
 
 uint32
 js_GenerateShape(JSContext *cx, bool gcLocked)
@@ -169,13 +168,7 @@ PropertyTable::init(JSContext *cx, Shape *lastProp)
         METER(searches);
         METER(initSearches);
         Shape **spp = search(shape.id, true);
-
-        /*
-         * Beware duplicate args and arg vs. var conflicts: the youngest shape
-         * (nearest to lastProp) must win. See bug 600067.
-         */
-        if (!SHAPE_FETCH(spp))
-            SHAPE_STORE_PRESERVING_COLLISION(spp, &shape);
+        SHAPE_STORE_PRESERVING_COLLISION(spp, &shape);
     }
     return true;
 }
@@ -1368,16 +1361,16 @@ Shape::trace(JSTracer *trc) const
     if (attrs & (JSPROP_GETTER | JSPROP_SETTER)) {
         if ((attrs & JSPROP_GETTER) && rawGetter) {
             JS_SET_TRACING_DETAILS(trc, PrintPropertyGetterOrSetter, this, 0);
-            Mark(trc, getterObject());
+            Mark(trc, getterObject(), JSTRACE_OBJECT);
         }
         if ((attrs & JSPROP_SETTER) && rawSetter) {
             JS_SET_TRACING_DETAILS(trc, PrintPropertyGetterOrSetter, this, 1);
-            Mark(trc, setterObject());
+            Mark(trc, setterObject(), JSTRACE_OBJECT);
         }
     }
 
     if (isMethod()) {
         JS_SET_TRACING_DETAILS(trc, PrintPropertyMethod, this, 0);
-        Mark(trc, &methodObject());
+        Mark(trc, &methodObject(), JSTRACE_OBJECT);
     }
 }

@@ -225,7 +225,7 @@ public:
     }
 
     nsRefPtr<imgRequest> req = entry->GetRequest();
-    Image *image = static_cast<Image*>(req->mImage.get());
+    RasterImage *image = static_cast<RasterImage*>(req->mImage.get());
     if (!image)
       return PL_DHASH_NEXT;
 

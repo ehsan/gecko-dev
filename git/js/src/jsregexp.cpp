@@ -65,7 +65,6 @@ using namespace nanojit;
 #endif
 
 using namespace js;
-using namespace js::gc;
 
 /*
  * RegExpStatics allocates memory -- in order to keep the statics stored
@@ -523,7 +522,7 @@ regexp_trace(JSTracer *trc, JSObject *obj)
 {
     RegExp *re = RegExp::extractFrom(obj);
     if (re && re->getSource())
-        MarkString(trc, re->getSource(), "source");
+        JS_CALL_STRING_TRACER(trc, re->getSource(), "source");
 }
 
 static JSBool

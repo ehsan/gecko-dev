@@ -247,13 +247,14 @@ protected:
   virtual PRIntn GetSkipSides() const;
 
   /**
-   * GetBorderOverflow says how far the cell's own borders extend
-   * outside its own bounds.  In the separated borders model this should
-   * just be zero (as it is for most frames), but in the collapsed
+   * GetSelfOverflow says what effect the cell should have on its own
+   * overflow area.  In the separated borders model this should just be
+   * the frame's size (as it is for most frames), but in the collapsed
    * borders model (for which nsBCTableCellFrame overrides this virtual
-   * method), it considers the extents of the collapsed border.
+   * method), it considers the extents of the collapsed border so we
+   * handle invalidation correctly for dynamic border changes.
    */
-  virtual nsMargin GetBorderOverflow();
+  virtual void GetSelfOverflow(nsRect& aOverflowArea);
 
   friend class nsTableRowFrame;
 
@@ -332,7 +333,7 @@ public:
   // Set the full (both halves) width of the border
   void SetBorderWidth(mozilla::css::Side aSide, BCPixelSize aPixelValue);
 
-  virtual nsMargin GetBorderOverflow();
+  virtual void GetSelfOverflow(nsRect& aOverflowArea);
 
 #ifdef DEBUG
   NS_IMETHOD GetFrameName(nsAString& aResult) const;

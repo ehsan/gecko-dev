@@ -96,9 +96,6 @@
 #else
 # include <sys/wait.h>
 # include <unistd.h>
-#ifdef XP_MACOSX
-# include <sys/time.h>
-#endif
 
 # define NS_T(str) str
 # define NS_tsnprintf snprintf
@@ -1433,30 +1430,10 @@ UpdateThreadFunc(void *param)
     gArchiveReader.Close();
   }
 
-  if (rv) {
+  if (rv)
     LOG(("failed: %d\n", rv));
-  }
-  else {
-#ifdef XP_MACOSX
-    // If the update was successful we need to update the timestamp
-    // on the top-level Mac OS X bundle directory so that Mac OS X's
-    // Launch Services picks up any major changes. Here we assume that
-    // the current working directory is the top-level bundle directory.
-    char* cwd = getcwd(NULL, 0);
-    if (cwd) {
-      if (utimes(cwd, NULL) != 0) {
-        LOG(("Couldn't set access/modification time on application bundle.\n"));
-      }
-      free(cwd);
-    }
-    else {
-      LOG(("Couldn't get current working directory for setting "
-           "access/modification time on application bundle.\n"));
-    }
-#endif
-
+  else
     LOG(("succeeded\n"));
-  }
   WriteStatusFile(rv);
 
   LOG(("calling QuitProgressUI\n"));
@@ -1466,39 +1443,32 @@ UpdateThreadFunc(void *param)
 int NS_main(int argc, NS_tchar **argv)
 {
   InitProgressUI(&argc, &argv);
+  // The updater command line consists of the directory path containing the
+  // updater.mar file to process followed by the PID of the calling process.
+  // The updater will wait on the parent process to exit if the PID is non-
+  // zero.  This is leveraged on platforms such as Windows where it is
+  // necessary for the parent process to exit before its executable image may
+  // be altered.
 
-  // To process an update the updater command line must at a minimum have the
-  // directory path containing the updater.mar file to process as the first argument
-  // and the directory to apply the update to as the second argument. When the
-  // updater is launched by another process the PID of the parent process should be
-  // provided in the optional third argument and the updater will wait on the parent
-  // process to exit if the value is non-zero and the process is present. This is
-  // necessary due to not being able to update files that are in use on Windows. The
-  // optional fourth argument is the callback's working directory and the optional
-  // fifth argument is the callback path. The callback is the application to launch
-  // after  updating and it will be launched when these arguments are provided
-  // whether the update was successful or not. All remaining arguments are optional
-  // and are passed to the callback when it is launched.
-  if (argc < 3) {
-    fprintf(stderr, "Usage: updater update-dir apply-to-dir [wait-pid [callback-working-dir callback-path args...]]\n");
-    return 1;
-  }
-
-  // Change current directory to the directory where we need to apply the update.
 #ifndef WINCE
-  if (NS_tchdir(argv[2]) != 0) {
+  if (argc < 2) {
+    fprintf(stderr, "Usage: updater <dir-path> [parent-pid [working-dir callback args...]]\n");
+    return 1;
+  }
+#else
+  if (argc < 4) {
+    fprintf(stderr, "Usage: updater <dir-path> parent-pid <working-dir> [callback args...]]\n");
     return 1;
   }
 #endif
 
-  // If there is a PID specified and it is not '0' then wait for the process to exit.
-  if (argc > 3) {
+  if (argc > 2 ) {
 #ifdef XP_WIN
-    __int64 pid = _wtoi64(argv[3]);
+    __int64 pid = _wtoi64(argv[2]);
 #else
-    int pid = atoi(argv[3]);
+    int pid = atoi(argv[2]);
 #endif
-    if (pid != 0) {
+    if (pid) {
 #ifdef XP_WIN
       HANDLE parent = OpenProcess(SYNCHRONIZE, FALSE, (DWORD) pid);
       // May return NULL if the parent process has already gone away.
@@ -1515,29 +1485,29 @@ int NS_main(int argc, NS_tchar **argv)
       // This is a terrible hack, but it'll have to do for now :-(
       Sleep(50);
 #else
-      waitpid(pid, NULL, 0);
+      int status;
+      waitpid(pid, &status, 0);
 #endif
     }
   }
 
-  // The directory containing the update information.
-  gSourcePath = argv[1];
+  // The callback is the last N command line arguments starting from argOffset.
+  // The argument specified by argOffset is the callback executable and the
+  // argument prior to argOffset is the working directory.
+  const int argOffset = 4;
 
-  // The callback is the remaining arguments starting at callbackIndex.
-  // The argument specified by callbackIndex is the callback executable and the
-  // argument prior to callbackIndex is the working directory.
-  const int callbackIndex = 5;
+  gSourcePath = argv[1];
 
 #if defined(XP_WIN) && !defined(WINCE)
   // Launch a second instance of the updater with the runas verb on Windows
   // when write access is denied to the installation directory.
   HANDLE updateLockFileHandle;
   NS_tchar elevatedLockFilePath[MAXPATHLEN];
-  if (argc > callbackIndex) {
+  if (argc > argOffset) {
     NS_tchar updateLockFilePath[MAXPATHLEN];
     NS_tsnprintf(updateLockFilePath,
                  sizeof(updateLockFilePath)/sizeof(updateLockFilePath[0]),
-                 NS_T("%s.update_in_progress.lock"), argv[callbackIndex]);
+                 NS_T("%s.update_in_progress.lock"), argv[argOffset]);
 
     // The update_in_progress.lock file should only exist during an update. In
     // case it exists attempt to remove it and exit if that fails to prevent
@@ -1609,8 +1579,8 @@ int NS_main(int argc, NS_tchar **argv)
         WriteStatusFile(ELEVATION_CANCELED);
       }
 
-      if (argc > callbackIndex) {
-        LaunchCallbackApp(argv[4], argc - callbackIndex, argv + callbackIndex);
+      if (argc > argOffset) {
+        LaunchCallbackApp(argv[3], argc - argOffset, argv + argOffset);
       }
 
       CloseHandle(elevatedFileHandle);
@@ -1620,30 +1590,35 @@ int NS_main(int argc, NS_tchar **argv)
 #endif
 
   LogInit();
-  LOG(("SOURCE DIRECTORY " LOG_S "\n", argv[1]));
-  LOG(("DESTINATION DIRECTORY " LOG_S "\n", argv[2]));
+  LOG(("SOURCE DIRECTORY " LOG_S "\n", gSourcePath));
+
+  // The destination directory (the same as the working-dir argument) does not
+  // have to be specified when updating manually.
+  if (argc > argOffset - 1) {
+    LOG(("DESTINATION DIRECTORY " LOG_S "\n", argv[3]));
+  }
 
 #ifdef WINCE
   // This is the working directory to apply the update and is required on WinCE
   // since it doesn't have the concept of a working directory.
-  gDestPath = argv[2];
+  gDestPath = argv[3];
 #endif
 
 #ifdef XP_WIN
   HANDLE callbackFile = INVALID_HANDLE_VALUE;
   NS_tchar callbackBackupPath[MAXPATHLEN];
-  if (argc > callbackIndex) {
+  if (argc > argOffset) {
     // FindFirstFileW is used to get the callback's filename for comparison
     // with the callback's patch since it will return the correct case and the
     // long name instead of the 8.3 format name.
     HANDLE hFindFile;
-    hFindFile = FindFirstFileW(argv[callbackIndex], &gFFData);
+    hFindFile = FindFirstFileW(argv[argOffset], &gFFData);
     if (hFindFile == INVALID_HANDLE_VALUE) {
-      LOG(("NS_main: unable to find callback file: " LOG_S "\n", argv[callbackIndex]));
+      LOG(("NS_main: unable to find callback file: " LOG_S "\n", argv[argOffset]));
       LogFinish();
       WriteStatusFile(WRITE_ERROR);
       EXIT_WHEN_ELEVATED(elevatedLockFilePath, updateLockFileHandle, 1);
-      LaunchCallbackApp(argv[4], argc - callbackIndex, argv + callbackIndex);
+      LaunchCallbackApp(argv[3], argc - argOffset, argv + argOffset);
       return 1;
     }
     FindClose(hFindFile);
@@ -1651,13 +1626,13 @@ int NS_main(int argc, NS_tchar **argv)
     // Make a copy of the callback executable.
     NS_tsnprintf(callbackBackupPath,
                  sizeof(callbackBackupPath)/sizeof(callbackBackupPath[0]),
-                 NS_T("%s" CALLBACK_BACKUP_EXT), argv[callbackIndex]);
+                 NS_T("%s" CALLBACK_BACKUP_EXT), argv[argOffset]);
     NS_tremove(callbackBackupPath);
-    CopyFileW(argv[callbackIndex], callbackBackupPath, FALSE);
+    CopyFileW(argv[argOffset], callbackBackupPath, FALSE);
 
     // By opening a file handle to the callback executable, the OS will prevent
     // launching the process while it is being updated. 
-    callbackFile = CreateFileW(argv[callbackIndex],
+    callbackFile = CreateFileW(argv[argOffset],
 #ifdef WINCE
                                GENERIC_WRITE,
                                FILE_SHARE_READ | FILE_SHARE_WRITE,
@@ -1670,12 +1645,12 @@ int NS_main(int argc, NS_tchar **argv)
     // it isn't possible to update write the status file and return.
     if (callbackFile == INVALID_HANDLE_VALUE) {
       LOG(("NS_main: file in use - failed to exclusively open executable " \
-           "file: " LOG_S "\n", argv[callbackIndex]));
+           "file: " LOG_S "\n", argv[argOffset]));
       LogFinish();
       WriteStatusFile(WRITE_ERROR);
       NS_tremove(callbackBackupPath);
       EXIT_WHEN_ELEVATED(elevatedLockFilePath, updateLockFileHandle, 1);
-      LaunchCallbackApp(argv[4], argc - callbackIndex, argv + callbackIndex);
+      LaunchCallbackApp(argv[3], argc - argOffset, argv + argOffset);
       return 1;
     }
   }
@@ -1698,8 +1673,7 @@ int NS_main(int argc, NS_tchar **argv)
       NS_tremove(callbackBackupPath);
       EXIT_WHEN_ELEVATED(elevatedLockFilePath, updateLockFileHandle, 1);
 #endif
-      if (argc > callbackIndex)
-        LaunchCallbackApp(argv[4], argc - callbackIndex, argv + callbackIndex);
+      LaunchCallbackApp(argv[3], argc - argOffset, argv + argOffset);
       return 1;
     }
   }
@@ -1714,11 +1688,11 @@ int NS_main(int argc, NS_tchar **argv)
   t.Join();
 
 #ifdef XP_WIN
-  if (argc > callbackIndex) {
+  if (argc > argOffset) {
     CloseHandle(callbackFile);
     // CopyFile will preserve the case of the destination file if it already
     // exists.
-    if (CopyFileW(callbackBackupPath, argv[callbackIndex], FALSE) != 0) {
+    if (CopyFileW(callbackBackupPath, argv[argOffset], FALSE) != 0) {
       NS_tremove(callbackBackupPath);
     }
   }
@@ -1728,19 +1702,19 @@ int NS_main(int argc, NS_tchar **argv)
   free(BigBuffer);
   BigBuffer = NULL;
 
-  if (argc > callbackIndex) {
+  if (argc > argOffset) {
 #if defined(XP_WIN) && !defined(WINCE)
     if (gSucceeded) {
-      LaunchWinPostProcess(argv[callbackIndex]);
+      LaunchWinPostProcess(argv[argOffset]);
     }
     EXIT_WHEN_ELEVATED(elevatedLockFilePath, updateLockFileHandle, 0);
 #endif
 #ifdef XP_MACOSX
     if (gSucceeded) {
-      LaunchMacPostProcess(argv[callbackIndex]);
+      LaunchMacPostProcess(argv[argOffset]);
     }
 #endif /* XP_MACOSX */
-    LaunchCallbackApp(argv[3], argc - callbackIndex, argv + callbackIndex);
+    LaunchCallbackApp(argv[3], argc - argOffset, argv + argOffset);
   }
 
   return 0;

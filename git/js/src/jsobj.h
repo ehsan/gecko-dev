@@ -55,7 +55,6 @@
 #include "jslock.h"
 #include "jsvalue.h"
 #include "jsvector.h"
-#include "jscell.h"
 
 namespace js {
 
@@ -152,6 +151,9 @@ struct PropDesc {
     js::PropertyOp setter() const {
         return js::CastAsPropertyOp(setterObject());
     }
+
+    static void traceDescriptorArray(JSTracer* trc, JSObject* obj);
+    static void finalizeDescriptorArray(JSContext* cx, JSObject* obj);
 
     js::Value pd;
     jsid id;
@@ -276,7 +278,7 @@ struct JSFunction;
  * of Values for reserved and dynamic slots. If dslots is not null, dslots[-1]
  * records the number of available slots.
  */
-struct JSObject : js::gc::Cell {
+struct JSObject {
     /*
      * TraceRecorder must be a friend because it generates code that
      * manipulates JSObjects, which requires peeking under any encapsulation.
@@ -977,7 +979,6 @@ struct JSObject : js::gc::Cell {
                      const js::Value &privateSlotValue, JSContext *cx);
 
     inline void finish(JSContext *cx);
-    JS_ALWAYS_INLINE void finalize(JSContext *cx, unsigned thindKind);
 
     /*
      * Like init, but also initializes map. The catch: proto must be the result
@@ -1056,7 +1057,7 @@ struct JSObject : js::gc::Cell {
     void clear(JSContext *cx);
 
     JSBool lookupProperty(JSContext *cx, jsid id, JSObject **objp, JSProperty **propp) {
-        js::LookupPropOp op = getOps()->lookupProperty;
+        JSLookupPropOp op = getOps()->lookupProperty;
         return (op ? op : js_LookupProperty)(cx, this, id, objp, propp);
     }
 
@@ -1079,12 +1080,12 @@ struct JSObject : js::gc::Cell {
     }
 
     JSBool getAttributes(JSContext *cx, jsid id, uintN *attrsp) {
-        js::AttributesOp op = getOps()->getAttributes;
+        JSAttributesOp op = getOps()->getAttributes;
         return (op ? op : js_GetAttributes)(cx, this, id, attrsp);
     }
 
     JSBool setAttributes(JSContext *cx, jsid id, uintN *attrsp) {
-        js::AttributesOp op = getOps()->setAttributes;
+        JSAttributesOp op = getOps()->setAttributes;
         return (op ? op : js_SetAttributes)(cx, this, id, attrsp);
     }
 
@@ -1099,7 +1100,7 @@ struct JSObject : js::gc::Cell {
     }
 
     JSType typeOf(JSContext *cx) {
-        js::TypeOfOp op = getOps()->typeOf;
+        JSTypeOfOp op = getOps()->typeOf;
         return (op ? op : js_TypeOf)(cx, this);
     }
 
@@ -1160,6 +1161,7 @@ struct JSObject : js::gc::Cell {
 };
 
 JS_STATIC_ASSERT(offsetof(JSObject, fslots) % sizeof(js::Value) == 0);
+JS_STATIC_ASSERT(sizeof(JSObject) % JS_GCTHING_ALIGN == 0);
 
 #define JSSLOT_START(clasp) (((clasp)->flags & JSCLASS_HAS_PRIVATE)           \
                              ? JSSLOT_PRIVATE + 1                             \
@@ -1247,7 +1249,6 @@ inline bool JSObject::isBlock() const  { return getClass() == &js_BlockClass; }
  * outlives the frame).
  */
 static const uint32 JSSLOT_BLOCK_DEPTH = JSSLOT_PRIVATE + 1;
-static const uint32 JSSLOT_BLOCK_FIRST_FREE_SLOT = JSSLOT_BLOCK_DEPTH + 1;
 
 inline bool
 JSObject::isStaticBlock() const
@@ -1336,11 +1337,11 @@ extern void
 js_TraceSharpMap(JSTracer *trc, JSSharpObjectMap *map);
 
 extern JSBool
-js_HasOwnPropertyHelper(JSContext *cx, js::LookupPropOp lookup, uintN argc,
+js_HasOwnPropertyHelper(JSContext *cx, JSLookupPropOp lookup, uintN argc,
                         js::Value *vp);
 
 extern JSBool
-js_HasOwnProperty(JSContext *cx, js::LookupPropOp lookup, JSObject *obj, jsid id,
+js_HasOwnProperty(JSContext *cx, JSLookupPropOp lookup, JSObject *obj, jsid id,
                   JSObject **objp, JSProperty **propp);
 
 extern JSBool

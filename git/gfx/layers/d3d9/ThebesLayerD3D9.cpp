@@ -201,12 +201,6 @@ ThebesLayerD3D9::RenderLayer()
 
   if (!mTexture) {
     CreateNewTexture(gfxIntSize(visibleRect.width, visibleRect.height));
-    
-    if (!mTexture) {
-	NS_WARNING("Failed to create texture for thebes layer - not drawing.");
-	return;
-    }
-
     mValidRegion.SetEmpty();
   }
 
@@ -225,7 +219,16 @@ ThebesLayerD3D9::RenderLayer()
     mValidRegion = mVisibleRegion;
   }
 
-  device()->SetVertexShaderConstantF(CBmLayerTransform, &mTransform._11, 4);
+  float quadTransform[4][4];
+  /*
+   * Matrix to transform the <0.0,0.0>, <1.0,1.0> quad to the correct position
+   * and size.
+   */
+  memset(&quadTransform, 0, sizeof(quadTransform));
+  quadTransform[2][2] = 1.0f;
+  quadTransform[3][3] = 1.0f;
+
+  device()->SetVertexShaderConstantF(4, &mTransform._11, 4);
 
   float opacity[4];
   /*
@@ -248,27 +251,22 @@ ThebesLayerD3D9::RenderLayer()
 
   const nsIntRect *iterRect;
   while ((iterRect = iter.Next())) {
-    device()->SetVertexShaderConstantF(CBvLayerQuad,
-                                       ShaderConstantRect(iterRect->x,
-                                                          iterRect->y,
-                                                          iterRect->width,
-                                                          iterRect->height),
-                                       1);
-
-    device()->SetVertexShaderConstantF(CBvTextureCoords,
-      ShaderConstantRect(
+    quadTransform[0][0] = (float)iterRect->width;
+    quadTransform[1][1] = (float)iterRect->height;
+    quadTransform[3][0] = (float)iterRect->x;
+    quadTransform[3][1] = (float)iterRect->y;
+    
+    device()->SetVertexShaderConstantF(0, &quadTransform[0][0], 4);
+    device()->SetVertexShaderConstantF(13, ShaderConstantRect(
         (float)(iterRect->x - visibleRect.x) / (float)visibleRect.width,
         (float)(iterRect->y - visibleRect.y) / (float)visibleRect.height,
         (float)iterRect->width / (float)visibleRect.width,
         (float)iterRect->height / (float)visibleRect.height), 1);
-
     device()->DrawPrimitive(D3DPT_TRIANGLESTRIP, 0, 2);
   }
 
   // Set back to default.
-  device()->SetVertexShaderConstantF(CBvTextureCoords,
-                                     ShaderConstantRect(0, 0, 1.0f, 1.0f),
-                                     1);
+  device()->SetVertexShaderConstantF(13, ShaderConstantRect(0, 0, 1.0f, 1.0f), 1);
 }
 
 void
@@ -361,14 +359,9 @@ ThebesLayerD3D9::DrawRegion(const nsIntRegion &aRegion)
   nsRefPtr<gfxASurface> destinationSurface;
 
   nsRefPtr<IDirect3DTexture9> tmpTexture;
-  hr = device()->CreateTexture(bounds.width, bounds.height, 1,
-                               0, fmt,
-                               D3DPOOL_SYSTEMMEM, getter_AddRefs(tmpTexture), NULL);
-
-  if (FAILED(hr)) {
-    ReportFailure(NS_LITERAL_CSTRING("Failed to create temporary texture in system memory."), hr);
-    return;
-  }
+  device()->CreateTexture(bounds.width, bounds.height, 1,
+                          0, fmt,
+                          D3DPOOL_SYSTEMMEM, getter_AddRefs(tmpTexture), NULL);
 
   nsRefPtr<IDirect3DSurface9> surf;
   HDC dc;

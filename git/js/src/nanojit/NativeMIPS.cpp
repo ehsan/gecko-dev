@@ -1712,28 +1712,27 @@ namespace nanojit
     void
     Assembler::asm_call(LIns* ins)
     {
-        if (!ins->isop(LIR_callv)) {
-            Register rr;
-            LOpcode op = ins->opcode();
+        Register rr;
+        LOpcode op = ins->opcode();
 
-            switch (op) {
-            case LIR_calli:
-                rr = retRegs[0];
-                break;
-            case LIR_calld:
-                NanoAssert(cpu_has_fpu);
-                rr = FV0;
-                break;
-            default:
-                BADOPCODE(op);
-                return;
-            }
-
-            deprecated_prepResultReg(ins, rmask(rr));
+        switch (op) {
+        case LIR_calld:
+            NanoAssert(cpu_has_fpu);
+            rr = FV0;
+            break;
+        case LIR_calli:
+            rr = retRegs[0];
+            break;
+        default:
+            BADOPCODE(op);
+            return;
         }
+
+        deprecated_prepResultReg(ins, rmask(rr));
 
         // Do this after we've handled the call result, so we don't
         // force the call result to be spilled unnecessarily.
+
         evictScratchRegsExcept(0);
 
         const CallInfo* ci = ins->callInfo();

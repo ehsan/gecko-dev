@@ -74,7 +74,6 @@
 #include "nsNetUtil.h"
 #endif
 #include "jsxdrapi.h"
-#include "jscompartment.h"
 #include "jsprf.h"
 // For reporting errors with the console service
 #include "nsIScriptError.h"
@@ -101,7 +100,6 @@
 static const char kJSRuntimeServiceContractID[] = "@mozilla.org/js/xpc/RuntimeService;1";
 static const char kXPConnectServiceContractID[] = "@mozilla.org/js/xpc/XPConnect;1";
 static const char kObserverServiceContractID[] = "@mozilla.org/observer-service;1";
-static const char kCacheKeyPrefix[] = "jsloader:";
 
 /* Some platforms don't have an implementation of PR_MemMap(). */
 #if !defined(XP_BEOS) && !defined(XP_OS2)
@@ -745,7 +743,7 @@ mozJSComponentLoader::LoadModuleImpl(nsILocalFile* aSourceFile,
         return NULL;
 
     JSCLContextHelper cx(this);
-    JSAutoEnterCompartment ac;
+    JSAutoCrossCompartmentCall ac;
     if (!ac.enter(cx, entry->global))
         return NULL;
 
@@ -883,8 +881,6 @@ mozJSComponentLoader::ReadScript(StartupCache* cache, nsIURI *uri,
     nsCAutoString spec;
     rv = uri->GetSpec(spec);
     NS_ENSURE_SUCCESS(rv, rv);
-    spec.Insert(kCacheKeyPrefix, 0);
-    
     nsAutoArrayPtr<char> buf;   
     PRUint32 len;
     rv = cache->GetBuffer(spec.get(), getter_Transfers(buf), 
@@ -911,8 +907,6 @@ mozJSComponentLoader::WriteScript(StartupCache* cache, JSScript *script,
     nsCAutoString spec;
     rv = uri->GetSpec(spec);
     NS_ENSURE_SUCCESS(rv, rv);
-
-    spec.Insert(kCacheKeyPrefix, 0);
 
     LOG(("Writing %s to startupcache\n", spec.get()));
     nsCOMPtr<nsIObjectOutputStream> oos;
@@ -947,9 +941,8 @@ mozJSComponentLoader::GlobalForLocation(nsILocalFile *aComponentFile,
 
     JSPrincipals* jsPrincipals = nsnull;
     JSCLContextHelper cx(this);
-
     // preserve caller's compartment
-    js::PreserveCompartment pc(cx);
+    JSAutoEnterCompartment ac1(cx, (JSCompartment *)NULL);
     
 #ifndef XPCONNECT_STANDALONE
     rv = mSystemPrincipal->GetJSPrincipals(cx, &jsPrincipals);
@@ -986,7 +979,7 @@ mozJSComponentLoader::GlobalForLocation(nsILocalFile *aComponentFile,
     rv = holder->GetJSObject(&global);
     NS_ENSURE_SUCCESS(rv, rv);
 
-    JSAutoEnterCompartment ac;
+    JSAutoCrossCompartmentCall ac;
     if (!ac.enter(cx, global))
         return NS_ERROR_FAILURE;
 
@@ -1481,8 +1474,7 @@ mozJSComponentLoader::ImportInto(const nsACString & aLocation,
     jsval symbols;
     if (targetObj) {
         JSCLContextHelper cxhelper(this);
-
-        JSAutoEnterCompartment ac;
+        JSAutoCrossCompartmentCall ac;
         if (!ac.enter(mContext, mod->global))
             return NULL;
 

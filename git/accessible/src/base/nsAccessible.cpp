@@ -2732,7 +2732,7 @@ nsAccessible::AppendChild(nsAccessible* aChild)
   if (!mChildren.AppendElement(aChild))
     return PR_FALSE;
 
-  if (!nsAccUtils::IsEmbeddedObject(aChild))
+  if (nsAccUtils::IsText(aChild))
     mChildrenFlags = eMixedChildren;
 
   aChild->BindToParent(this, mChildren.Length() - 1);

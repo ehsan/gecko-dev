@@ -600,7 +600,7 @@ class Value
     }
 
     JS_ALWAYS_INLINE
-    void *toGCThing() const {
+    void *asGCThing() const {
         JS_ASSERT(isGCThing());
         return JSVAL_TO_GCTHING_IMPL(data);
     }
@@ -881,19 +881,6 @@ typedef JSBool
 (* StrictPropertyIdOp)(JSContext *cx, JSObject *obj, jsid id, Value *vp, JSBool strict);
 typedef JSBool
 (* CallOp)(JSContext *cx, uintN argc, Value *vp);
-typedef JSBool
-(* LookupPropOp)(JSContext *cx, JSObject *obj, jsid id, JSObject **objp,
-                 JSProperty **propp);
-typedef JSBool
-(* AttributesOp)(JSContext *cx, JSObject *obj, jsid id, uintN *attrsp);
-typedef JSType
-(* TypeOfOp)(JSContext *cx, JSObject *obj);
-typedef void
-(* TraceOp)(JSTracer *trc, JSObject *obj);
-typedef JSObject *
-(* ObjectOp)(JSContext *cx, JSObject *obj);
-typedef void
-(* FinalizeOp)(JSContext *cx, JSObject *obj);
 
 class AutoIdVector;
 
@@ -972,19 +959,19 @@ struct ClassExtension {
 #define JS_NULL_CLASS_EXT   {NULL,NULL,NULL,NULL,NULL}
 
 struct ObjectOps {
-    js::LookupPropOp        lookupProperty;
+    JSLookupPropOp          lookupProperty;
     js::DefinePropOp        defineProperty;
     js::PropertyIdOp        getProperty;
     js::StrictPropertyIdOp  setProperty;
-    js::AttributesOp        getAttributes;
-    js::AttributesOp        setAttributes;
+    JSAttributesOp          getAttributes;
+    JSAttributesOp          setAttributes;
     js::StrictPropertyIdOp  deleteProperty;
     js::NewEnumerateOp      enumerate;
-    js::TypeOfOp            typeOf;
-    js::TraceOp             trace;
+    JSTypeOfOp              typeOf;
+    JSTraceOp               trace;
     js::FixOp               fix;
-    js::ObjectOp            thisObject;
-    js::FinalizeOp          clear;
+    JSObjectOp              thisObject;
+    JSFinalizeOp            clear;
 };
 
 #define JS_NULL_OBJECT_OPS  {NULL,NULL,NULL,NULL,NULL,NULL, NULL,NULL,NULL,NULL,NULL,NULL}

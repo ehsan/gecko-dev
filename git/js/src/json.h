@@ -37,7 +37,9 @@
 
 #ifndef json_h___
 #define json_h___
-
+/*
+ * JS JSON functions.
+ */
 #include "jsprvtd.h"
 #include "jspubtd.h"
 #include "jsvalue.h"
@@ -103,6 +105,13 @@ enum JSONParserState {
 
     /* Handling keywords (only null/true/false pass validity post-check). */
     JSON_PARSE_STATE_KEYWORD
+};
+
+enum JSONDataType {
+    JSON_DATA_STRING,
+    JSON_DATA_KEYSTRING,
+    JSON_DATA_NUMBER,
+    JSON_DATA_KEYWORD
 };
 
 struct JSONParser;

@@ -103,7 +103,6 @@
 #include "jsautooplen.h"
 
 using namespace js;
-using namespace js::gc;
 
 JS_FRIEND_DATA(const JSObjectMap) JSObjectMap::sharedNonNative(JSObjectMap::SHAPELESS);
 
@@ -435,7 +434,8 @@ js_LeaveSharpObject(JSContext *cx, JSIdArray **idap)
 static intN
 gc_sharp_table_entry_marker(JSHashEntry *he, intN i, void *arg)
 {
-    MarkObject((JSTracer *)arg, *(JSObject *)he->key, "sharp table entry");
+    JS_CALL_OBJECT_TRACER((JSTracer *)arg, (JSObject *)he->key,
+                          "sharp table entry");
     return JS_DHASH_NEXT;
 }
 
@@ -1080,14 +1080,7 @@ obj_eval(JSContext *cx, uintN argc, Value *vp)
      * Bring fp->scopeChain up to date. We're either going to use
      * it (direct call) or save it and restore it (indirect call).
      */
-    JSObject *callerScopeChain;
-
-    if (callerPC && *callerPC == JSOP_EVAL)
-        callerScopeChain = js_GetScopeChainFast(cx, caller, JSOP_EVAL,
-                                                JSOP_EVAL_LENGTH + JSOP_LINENO_LENGTH);
-    else
-        callerScopeChain = js_GetScopeChain(cx, caller);
-
+    JSObject *callerScopeChain = js_GetScopeChain(cx, caller);
     if (!callerScopeChain)
         return JS_FALSE;
 
@@ -1396,7 +1389,7 @@ obj_hasOwnProperty(JSContext *cx, uintN argc, Value *vp)
 }
 
 JSBool
-js_HasOwnPropertyHelper(JSContext *cx, LookupPropOp lookup, uintN argc,
+js_HasOwnPropertyHelper(JSContext *cx, JSLookupPropOp lookup, uintN argc,
                         Value *vp)
 {
     jsid id;
@@ -1427,7 +1420,7 @@ js_HasOwnPropertyHelper(JSContext *cx, LookupPropOp lookup, uintN argc,
 }
 
 JSBool
-js_HasOwnProperty(JSContext *cx, LookupPropOp lookup, JSObject *obj, jsid id,
+js_HasOwnProperty(JSContext *cx, JSLookupPropOp lookup, JSObject *obj, jsid id,
                   JSObject **objp, JSProperty **propp)
 {
     JSAutoResolveFlags rf(cx, JSRESOLVE_QUALIFIED | JSRESOLVE_DETECTING);
@@ -1750,9 +1743,8 @@ js_GetOwnPropertyDescriptor(JSContext *cx, JSObject *obj, jsid id, Value *vp)
                 roots[1] = shape->setterValue();
         }
         JS_UNLOCK_OBJ(cx, pobj);
-    } else {
-        if (!pobj->getAttributes(cx, id, &attrs))
-            return false;
+    } else if (!pobj->getAttributes(cx, id, &attrs)) {
+        return false;
     }
 
     if (doGet && !obj->getProperty(cx, id, &roots[2]))
@@ -1837,23 +1829,16 @@ obj_keys(JSContext *cx, uintN argc, Value *vp)
     return JS_TRUE;
 }
 
-static bool
-HasProperty(JSContext* cx, JSObject* obj, jsid id, Value* vp, bool *foundp)
+static JSBool
+HasProperty(JSContext* cx, JSObject* obj, jsid id, Value* vp, JSBool* answerp)
 {
-    if (!obj->hasProperty(cx, id, foundp, JSRESOLVE_QUALIFIED | JSRESOLVE_DETECTING))
-        return false;
-    if (!*foundp) {
+    if (!JS_HasPropertyById(cx, obj, id, answerp))
+        return JS_FALSE;
+    if (!*answerp) {
         vp->setUndefined();
-        return true;
+        return JS_TRUE;
     }
-
-    /*
-     * We must go through the method read barrier in case id is 'get' or 'set'.
-     * There is no obvious way to defer cloning a joined function object whose
-     * identity will be used by DefinePropertyOnObject, e.g., or reflected via
-     * js_GetOwnPropertyDescriptor, as the getter or setter callable object.
-     */
-    return !!obj->getProperty(cx, id, vp);
+    return JS_GetPropertyById(cx, obj, id, Jsvalify(vp));
 }
 
 PropDesc::PropDesc()
@@ -1891,47 +1876,51 @@ PropDesc::initialize(JSContext* cx, jsid id, const Value &origval)
     /* Start with the proper defaults. */
     attrs = JSPROP_PERMANENT | JSPROP_READONLY;
 
-    bool found;
+    JSBool hasProperty;
 
     /* 8.10.5 step 3 */
-    if (!HasProperty(cx, desc, ATOM_TO_JSID(cx->runtime->atomState.enumerableAtom), &v, &found))
+    if (!HasProperty(cx, desc, ATOM_TO_JSID(cx->runtime->atomState.enumerableAtom), &v,
+                     &hasProperty)) {
         return false;
-    if (found) {
+    }
+    if (hasProperty) {
         hasEnumerable = JS_TRUE;
         if (js_ValueToBoolean(v))
             attrs |= JSPROP_ENUMERATE;
     }
 
     /* 8.10.5 step 4 */
-    if (!HasProperty(cx, desc, ATOM_TO_JSID(cx->runtime->atomState.configurableAtom), &v, &found))
+    if (!HasProperty(cx, desc, ATOM_TO_JSID(cx->runtime->atomState.configurableAtom), &v,
+                     &hasProperty)) {
         return false;
-    if (found) {
+    }
+    if (hasProperty) {
         hasConfigurable = JS_TRUE;
         if (js_ValueToBoolean(v))
             attrs &= ~JSPROP_PERMANENT;
     }
 
     /* 8.10.5 step 5 */
-    if (!HasProperty(cx, desc, ATOM_TO_JSID(cx->runtime->atomState.valueAtom), &v, &found))
+    if (!HasProperty(cx, desc, ATOM_TO_JSID(cx->runtime->atomState.valueAtom), &v, &hasProperty))
         return false;
-    if (found) {
+    if (hasProperty) {
         hasValue = true;
         value = v;
     }
 
     /* 8.10.6 step 6 */
-    if (!HasProperty(cx, desc, ATOM_TO_JSID(cx->runtime->atomState.writableAtom), &v, &found))
+    if (!HasProperty(cx, desc, ATOM_TO_JSID(cx->runtime->atomState.writableAtom), &v, &hasProperty))
         return false;
-    if (found) {
+    if (hasProperty) {
         hasWritable = JS_TRUE;
         if (js_ValueToBoolean(v))
             attrs &= ~JSPROP_READONLY;
     }
 
     /* 8.10.7 step 7 */
-    if (!HasProperty(cx, desc, ATOM_TO_JSID(cx->runtime->atomState.getAtom), &v, &found))
+    if (!HasProperty(cx, desc, ATOM_TO_JSID(cx->runtime->atomState.getAtom), &v, &hasProperty))
         return false;
-    if (found) {
+    if (hasProperty) {
         if ((v.isPrimitive() || !js_IsCallable(v)) && !v.isUndefined()) {
             JS_ReportErrorNumber(cx, js_GetErrorMessage, NULL, JSMSG_BAD_GET_SET_FIELD,
                                  js_getter_str);
@@ -1943,9 +1932,9 @@ PropDesc::initialize(JSContext* cx, jsid id, const Value &origval)
     }
 
     /* 8.10.7 step 8 */
-    if (!HasProperty(cx, desc, ATOM_TO_JSID(cx->runtime->atomState.setAtom), &v, &found))
+    if (!HasProperty(cx, desc, ATOM_TO_JSID(cx->runtime->atomState.setAtom), &v, &hasProperty))
         return false;
-    if (found) {
+    if (hasProperty) {
         if ((v.isPrimitive() || !js_IsCallable(v)) && !v.isUndefined()) {
             JS_ReportErrorNumber(cx, js_GetErrorMessage, NULL, JSMSG_BAD_GET_SET_FIELD,
                                  js_setter_str);
@@ -3190,7 +3179,7 @@ js_PutBlockObject(JSContext *cx, JSBool normalUnwind)
     JS_ASSERT(count >= 1);
 
     if (normalUnwind) {
-        uintN slot = JSSLOT_BLOCK_FIRST_FREE_SLOT;
+        uintN slot = JSSLOT_BLOCK_DEPTH + 1;
         uintN flen = JS_MIN(count, JS_INITIAL_NSLOTS - slot);
         uintN stop = slot + flen;
 
@@ -6684,6 +6673,8 @@ js_DumpStackFrame(JSContext *cx, JSStackFrame *start)
         fputc('\n', stderr);
 
         fprintf(stderr, "  scopeChain: (JSObject *) %p\n", (void *) &fp->scopeChain());
+        if (fp->hasBlockChain())
+            fprintf(stderr, "  blockChain: (JSObject *) %p\n", (void *) fp->blockChain());
 
         fputc('\n', stderr);
     }

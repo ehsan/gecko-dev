@@ -314,18 +314,12 @@ public:
   }
 
 #ifdef MOZ_LAYERS_HAVE_LOG
-  virtual const char* Name() const { return "OGL"; }
+   virtual const char* Name() const { return "OGL"; }
 #endif // MOZ_LAYERS_HAVE_LOG
 
-  const nsIntSize& GetWigetSize() {
-    return mWidgetSize;
-  }
-  
-  /**
-   * Setup the viewport and projection matrix for rendering
-   * to a window of the given dimensions.
-   */
-  void SetupPipeline(int aWidth, int aHeight);
+   const nsIntSize& GetWigetSize() {
+     return mWidgetSize;
+   }
 
 private:
   /** Widget associated with this layer manager */
@@ -388,12 +382,15 @@ private:
    * Render the current layer tree to the active target.
    */
   void Render();
-
+  /**
+   * Setup the viewport and projection matrix for rendering
+   * to a window of the given dimensions.
+   */
+  void SetupPipeline(int aWidth, int aHeight);
   /**
    * Setup a backbuffer of the given dimensions.
    */
   void SetupBackBuffer(int aWidth, int aHeight);
-
   /**
    * Copies the content of our backbuffer to the set transaction target.
    */

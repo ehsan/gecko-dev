@@ -206,12 +206,10 @@ mjit::Compiler::jsop_rsh_unknown_any(FrameEntry *lhs, FrameEntry *rhs)
         frame.pinReg(rhsType.reg());
     }
 
+    RegisterID lhsType = frame.tempRegForType(lhs);
+    frame.pinReg(lhsType);
     RegisterID lhsData = frame.copyDataIntoReg(lhs);
-    MaybeRegisterID lhsType;
-    if (rhsType.isSet() && frame.haveSameBacking(lhs, rhs))
-        lhsType = rhsType;
-    else
-        lhsType = frame.tempRegForType(lhs);
+    frame.unpinReg(lhsType);
 
     /* Non-integer rhs jumps to stub. */
     MaybeJump rhsIntGuard;
@@ -221,11 +219,11 @@ mjit::Compiler::jsop_rsh_unknown_any(FrameEntry *lhs, FrameEntry *rhs)
     }
 
     /* Non-integer lhs jumps to double guard. */
-    Jump lhsIntGuard = masm.testInt32(Assembler::NotEqual, lhsType.reg());
+    Jump lhsIntGuard = masm.testInt32(Assembler::NotEqual, lhsType);
     stubcc.linkExitDirect(lhsIntGuard, stubcc.masm.label());
 
     /* Attempt to convert lhs double to int32. */
-    Jump lhsDoubleGuard = stubcc.masm.testDouble(Assembler::NotEqual, lhsType.reg());
+    Jump lhsDoubleGuard = stubcc.masm.testDouble(Assembler::NotEqual, lhsType);
     frame.loadDouble(lhs, FPRegisters::First, stubcc.masm);
     Jump lhsTruncateGuard = stubcc.masm.branchTruncateDoubleToInt32(FPRegisters::First, lhsData);
     stubcc.crossJump(stubcc.masm.jump(), masm.label());
@@ -666,7 +664,7 @@ mjit::Compiler::jsop_equality(JSOp op, BoolStub stub, jsbytecode *target, JSOp f
          */
 
         if (target) {
-            frame.syncAndForgetEverything();
+            frame.forgetEverything();
 
             if ((op == JSOP_EQ && fused == JSOP_IFNE) ||
                 (op == JSOP_NE && fused == JSOP_IFEQ)) {
@@ -723,8 +721,6 @@ mjit::Compiler::jsop_relational(JSOp op, BoolStub stub, jsbytecode *target, JSOp
             (rhs->isNotType(JSVAL_TYPE_INT32) && rhs->isNotType(JSVAL_TYPE_STRING))) {
             emitStubCmpOp(stub, target, fused);
         } else if (!target && (lhs->isType(JSVAL_TYPE_STRING) || rhs->isType(JSVAL_TYPE_STRING))) {
-            emitStubCmpOp(stub, target, fused);
-        } else if (frame.haveSameBacking(lhs, rhs)) {
             emitStubCmpOp(stub, target, fused);
         } else {
             jsop_equality_int_string(op, stub, target, fused);
@@ -915,7 +911,8 @@ mjit::Compiler::booleanJumpScript(JSOp op, jsbytecode *target)
         type.setReg(frame.copyTypeIntoReg(fe));
     data.setReg(frame.copyDataIntoReg(fe));
 
-    frame.syncAndForgetEverything();
+    /* :FIXME: Can something more lightweight be used? */
+    frame.forgetEverything();
 
     Assembler::Condition cond = (op == JSOP_IFNE || op == JSOP_OR)
                                 ? Assembler::NonZero
@@ -1002,7 +999,7 @@ mjit::Compiler::jsop_ifneq(JSOp op, jsbytecode *target)
         if (op == JSOP_IFEQ)
             b = !b;
         if (b) {
-            frame.syncAndForgetEverything();
+            frame.forgetEverything();
             jumpAndTrace(masm.jump(), target);
         }
         return;
@@ -1022,7 +1019,7 @@ mjit::Compiler::jsop_andor(JSOp op, jsbytecode *target)
         /* Short-circuit. */
         if ((op == JSOP_OR && b == JS_TRUE) ||
             (op == JSOP_AND && b == JS_FALSE)) {
-            frame.syncAndForgetEverything();
+            frame.forgetEverything();
             jumpAndTrace(masm.jump(), target);
         }
 

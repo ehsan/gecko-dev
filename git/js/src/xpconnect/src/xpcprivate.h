@@ -58,7 +58,6 @@
 #include "jscntxt.h"
 #include "jsdbgapi.h"
 #include "jsgc.h"
-#include "jscompartment.h"
 #include "nscore.h"
 #include "nsXPCOM.h"
 #include "nsAutoPtr.h"
@@ -496,6 +495,7 @@ public:
                                           bool explainExpectedLiveGarbage);
     virtual nsresult FinishCycleCollection();
     virtual nsCycleCollectionParticipant *ToParticipant(void *p);
+    virtual void CommenceShutdown();
     virtual void Collect();
 #ifdef DEBUG_CC
     virtual void PrintAllReferencesTo(void *p);

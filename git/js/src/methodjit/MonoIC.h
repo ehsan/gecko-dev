@@ -145,7 +145,7 @@ struct CallICInfo {
     JSC::CodeLocationJump funJump;
 
     /* Offset to inline scripted call, from funGuard. */
-    uint32 hotJumpOffset   : 16;
+    uint32 hotCallOffset   : 16;
     uint32 joinPointOffset : 16;
 
     /* Out of line slow call. */
@@ -193,7 +193,7 @@ void JS_FASTCALL NativeNew(VMFrame &f, uint32 index);
 void JS_FASTCALL NativeCall(VMFrame &f, uint32 index);
 
 void PurgeMICs(JSContext *cx, JSScript *script);
-void SweepCallICs(JSScript *script);
+void SweepCallICs(JSContext *cx, JSScript *script);
 
 } /* namespace ic */
 } /* namespace mjit */

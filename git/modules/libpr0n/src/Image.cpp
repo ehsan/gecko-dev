@@ -44,8 +44,7 @@ namespace imagelib {
 Image::Image(imgStatusTracker* aStatusTracker) :
   mAnimationConsumers(0),
   mInitialized(PR_FALSE),
-  mAnimating(PR_FALSE),
-  mError(PR_FALSE)
+  mAnimating(PR_FALSE)
 {
   if (aStatusTracker) {
     mStatusTracker = aStatusTracker;
@@ -53,15 +52,6 @@ Image::Image(imgStatusTracker* aStatusTracker) :
   } else {
     mStatusTracker = new imgStatusTracker(this);
   }
-}
-
-PRUint32
-Image::GetDataSize()
-{
-  if (mError)
-    return 0;
-  
-  return GetSourceDataSize() + GetDecodedDataSize();
 }
 
 // Translates a mimetype into a concrete decoder

@@ -91,22 +91,10 @@ enum JSFrameFlags
 
     /* Lazy frame initialization */
     JSFRAME_HAS_IMACRO_PC      =  0x8000, /* frame has imacpc value available */
-    JSFRAME_HAS_CALL_OBJ       = 0x10000, /* frame has a callobj reachable from scopeChain_ */
+    JSFRAME_HAS_CALL_OBJ       = 0x10000, /* frame has a callobj in JSStackFrame::exec */
     JSFRAME_HAS_ARGS_OBJ       = 0x20000, /* frame has an argsobj in JSStackFrame::args */
     JSFRAME_HAS_HOOK_DATA      = 0x40000, /* frame has hookData_ set */
-    JSFRAME_HAS_ANNOTATION     = 0x80000, /* frame has annotation_ set */
-
-    /*
-     * Whether the prevpc_ value is valid.  If not set, the ncode_ value is
-     * valid and prevpc_ can be recovered using it.
-     */
-    JSFRAME_HAS_PREVPC         = 0x100000,
-
-    /*
-     * For use by compiled functions, at function exit indicates whether rval_
-     * has been assigned to.  Otherwise the return value is carried in registers.
-     */
-    JSFRAME_RVAL_ASSIGNED      = 0x200000
+    JSFRAME_HAS_ANNOTATION     = 0x80000  /* frame has annotation_ set */
 };
 
 /*
@@ -128,14 +116,17 @@ struct JSStackFrame
     } args;
     JSObject            *scopeChain_;   /* current scope chain */
     JSStackFrame        *prev_;         /* previous cx->regs->fp */
-    void                *ncode_;        /* return address for method JIT */
+    jsbytecode          *savedpc_;      /* only valid if cx->fp != this */
 
     /* Lazily initialized */
-    js::Value           rval_;          /* return value of the frame */
-    jsbytecode          *prevpc_;       /* pc of previous frame*/
+    js::Value           rval_;          /* (TODO bug 595073) return value of the frame */
     jsbytecode          *imacropc_;     /* pc of macro caller */
     void                *hookData_;     /* closure returned by call hook */
     void                *annotation_;   /* perhaps remove with bug 546848 */
+
+    /* TODO: remove */
+    void                *ncode_;        /* bug 535912 */
+    JSObject            *blockChain_;   /* bug 540675 */
 
 #if JS_BITS_PER_WORD == 32
     void                *padding;
@@ -204,8 +195,7 @@ struct JSStackFrame
     inline void initCallFrameLatePrologue();
 
     /* Used for eval. */
-    inline void initEvalFrame(JSScript *script, JSStackFrame *prev,
-                              jsbytecode *prevpc, uint32 flags);
+    inline void initEvalFrame(JSScript *script, JSStackFrame *prev, uint32 flags);
     inline void initGlobalFrame(JSScript *script, JSObject &chain, uint32 flags);
 
     /* Used when activating generators. */
@@ -232,26 +222,8 @@ struct JSStackFrame
         return prev_;
     }
 
-    void setPrev(JSStackFrame *prev, jsbytecode *prevpc) {
-        JS_ASSERT(flags_ & JSFRAME_HAS_PREVPC);
+    void repointGeneratorFrameDown(JSStackFrame *prev) {
         prev_ = prev;
-        if (prev) {
-            prevpc_ = prevpc;
-            JS_ASSERT_IF(!prev->isDummyFrame() && !prev->hasImacropc(),
-                         uint32(prevpc - prev->script()->code) < prev->script()->length);
-        }
-    }
-
-    void setPrev(JSFrameRegs *regs) {
-        JS_ASSERT(flags_ & JSFRAME_HAS_PREVPC);
-        if (regs) {
-            prev_ = regs->fp;
-            prevpc_ = regs->pc;
-            JS_ASSERT_IF(!prev_->isDummyFrame() && !prev_->hasImacropc(),
-                         uint32(prevpc_ - prev_->script()->code) < prev_->script()->length);
-        } else {
-            prev_ = NULL;
-        }
     }
 
     /*
@@ -277,16 +249,7 @@ struct JSStackFrame
      * the bytecode being executed for the frame.
      */
 
-    /*
-     * Get the frame's current bytecode, assuming |this| is in |cx|.
-     * next is frame whose prev == this, NULL if not known or if this == cx->fp().
-     */
-    jsbytecode *pc(JSContext *cx, JSStackFrame *next = NULL);
-
-    jsbytecode *prevpc() {
-        JS_ASSERT((prev_ != NULL) && (flags_ & JSFRAME_HAS_PREVPC));
-        return prevpc_;
-    }
+    jsbytecode *pc(JSContext *cx) const;
 
     JSScript *script() const {
         JS_ASSERT(isScriptFrame());
@@ -404,8 +367,7 @@ struct JSStackFrame
         return hasArgsObj() ? &argsObj() : NULL;
     }
 
-    inline void setArgsObj(JSObject &obj);
-    inline void clearArgsObj();
+    void setArgsObj(JSObject &obj);
 
     /*
      * This value
@@ -507,7 +469,25 @@ struct JSStackFrame
     inline JSObject *maybeCallObj() const;
     inline void setScopeChainNoCallObj(JSObject &obj);
     inline void setScopeChainAndCallObj(JSObject &obj);
-    inline void clearCallObj();
+
+    /* Block chain */
+
+    bool hasBlockChain() const {
+        return blockChain_ != NULL;
+    }
+
+    JSObject* blockChain() const {
+        JS_ASSERT(hasBlockChain());
+        return blockChain_;
+    }
+
+    JSObject* maybeBlockChain() const {
+        return blockChain_;
+    }
+
+    void setBlockChain(JSObject *obj) {
+        blockChain_ = obj;
+    }
 
     /*
      * Imacropc
@@ -590,19 +570,10 @@ struct JSStackFrame
         return &rval_;
     }
 
-    void setAssignedReturnValue(const js::Value &v) {
-        flags_ |= JSFRAME_RVAL_ASSIGNED;
-        setReturnValue(v);
-    }
-
     /* Native-code return address */
 
     void *nativeReturnAddress() const {
         return ncode_;
-    }
-
-    void setNativeReturnAddress(void *addr) {
-        ncode_ = addr;
     }
 
     void **addressOfNativeReturnAddress() {
@@ -746,12 +717,20 @@ struct JSStackFrame
         return offsetof(JSStackFrame, prev_);
     }
 
+    static size_t offsetOfSavedpc() {
+        return offsetof(JSStackFrame, savedpc_);
+    }
+
     static size_t offsetOfReturnValue() {
         return offsetof(JSStackFrame, rval_);
     }
 
     static ptrdiff_t offsetOfncode() {
         return offsetof(JSStackFrame, ncode_);
+    }
+
+    static size_t offsetOfBlockChain() {
+        return offsetof(JSStackFrame, blockChain_);
     }
 
     static ptrdiff_t offsetOfCallee(JSFunction *fun) {
@@ -784,6 +763,9 @@ struct JSStackFrame
     void methodjitStaticAsserts();
 
 #ifdef DEBUG
+    /* Magic value to represent invalid JSStackFrame::savedpc entry. */
+    static jsbytecode *const sInvalidpc;
+
     /* Poison scopeChain value set before a frame is flushed. */
     static JSObject *const sInvalidScopeChain;
 #endif
@@ -796,12 +778,6 @@ static const size_t VALUES_PER_STACK_FRAME = sizeof(JSStackFrame) / sizeof(Value
 } /* namespace js */
 
 
-extern JSObject *
-js_GetBlockChain(JSContext *cx, JSStackFrame *fp);
-
-extern JSObject *
-js_GetBlockChainFast(JSContext *cx, JSStackFrame *fp, JSOp op, size_t oplen);
-
 /*
  * Refresh and return fp->scopeChain.  It may be stale if block scopes are
  * active but not yet reflected by objects in the scope chain.  If a block
@@ -811,9 +787,6 @@ js_GetBlockChainFast(JSContext *cx, JSStackFrame *fp, JSOp op, size_t oplen);
  */
 extern JSObject *
 js_GetScopeChain(JSContext *cx, JSStackFrame *fp);
-
-extern JSObject *
-js_GetScopeChainFast(JSContext *cx, JSStackFrame *fp, JSOp op, size_t oplen);
 
 /*
  * Given a context and a vector of [callee, this, args...] for a function that

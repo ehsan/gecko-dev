@@ -99,17 +99,14 @@ parent:
   // partial cleanup on parent. 
   DocumentChannelCleanup();
 
-  __delete__();
-
 child:
-  OnStartRequest(nsHttpResponseHead  responseHead,
-                 PRBool              useResponseHead,
-                 RequestHeaderTuples requestHeaders,
-                 PRBool              isFromCache,
-                 PRBool              cacheEntryAvailable,
-                 PRUint32            cacheExpirationTime,
-                 nsCString           cachedCharset,
-                 nsCString           securityInfoSerialization);
+  OnStartRequest(nsHttpResponseHead responseHead,
+                 PRBool             useResponseHead,
+                 PRBool             isFromCache,
+                 PRBool             cacheEntryAvailable,
+                 PRUint32           cacheExpirationTime,
+                 nsCString          cachedCharset,
+                 nsCString          securityInfoSerialization);
 
   OnDataAvailable(nsCString data, 
                   PRUint32  offset, 
@@ -134,7 +131,8 @@ child:
   // Called if redirect successful so that child can complete setup.
   Redirect3Complete();
 
-  DeleteSelf();
+both:
+  __delete__();
 };
 
 

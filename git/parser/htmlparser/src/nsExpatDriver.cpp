@@ -1414,10 +1414,7 @@ nsExpatDriver::MaybeStopParser(nsresult aState)
         mInternalState == NS_ERROR_HTMLPARSER_INTERRUPTED ||
         (mInternalState == NS_ERROR_HTMLPARSER_BLOCK &&
          aState != NS_ERROR_HTMLPARSER_INTERRUPTED)) {
-      mInternalState = (aState == NS_ERROR_HTMLPARSER_INTERRUPTED ||
-                        aState == NS_ERROR_HTMLPARSER_BLOCK) ?
-                       aState :
-                       NS_ERROR_HTMLPARSER_STOPPARSING;
+      mInternalState = aState;
     }
 
     // If we get an error then we need to stop Expat (by calling XML_StopParser

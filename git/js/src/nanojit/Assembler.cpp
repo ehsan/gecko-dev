@@ -1956,7 +1956,6 @@ namespace nanojit
                     }
                     break;
 
-                case LIR_callv:
                 case LIR_calli:
                 CASE64(LIR_callq:)
                 case LIR_calld:

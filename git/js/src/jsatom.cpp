@@ -65,7 +65,8 @@
 #include "jsobjinlines.h"
 
 using namespace js;
-using namespace js::gc;
+
+using namespace js;
 
 /*
  * ATOM_HASH assumes that JSHashNumber is 32-bit even on 64-bit systems.
@@ -443,8 +444,8 @@ js_SweepAtomState(JSContext *cx)
         AtomEntryType entry = e.front();
         if (AtomEntryFlags(entry) & (ATOM_PINNED | ATOM_INTERNED)) {
             /* Pinned or interned key cannot be finalized. */
-            JS_ASSERT(!IsAboutToBeFinalized(AtomEntryToKey(entry)));
-        } else if (IsAboutToBeFinalized(AtomEntryToKey(entry))) {
+            JS_ASSERT(!js_IsAboutToBeFinalized(AtomEntryToKey(entry)));
+        } else if (js_IsAboutToBeFinalized(AtomEntryToKey(entry))) {
             e.removeFront();
         }
     }
@@ -499,7 +500,7 @@ js_AtomizeString(JSContext *cx, JSString *str, uintN flags)
     JSAtomState *state = &cx->runtime->atomState;
     AtomSet &atoms = state->atoms;
 
-    AutoLockDefaultCompartment lock(cx);
+    JS_LOCK(cx, &state->lock);
     AtomSet::AddPtr p = atoms.lookupForAdd(str);
 
     /* Hashing the string should have flattened it if it was a rope. */
@@ -510,36 +511,28 @@ js_AtomizeString(JSContext *cx, JSString *str, uintN flags)
         key = AtomEntryToKey(*p);
     } else {
         /*
-         * Ensure that any atomized string lives only in the default
-         * compartment.
+         * Unless str is already allocated from the GC heap and flat, we have
+         * to release state->lock as string construction is a complex
+         * operation. For example, it can trigger GC which may rehash the table
+         * and make the entry invalid.
          */
-        bool needNewString = !!(flags & ATOM_TMPSTR) ||
-                             str->asCell()->compartment() != cx->runtime->defaultCompartment;
-
-        /*
-         * Unless str is already comes from the default compartment and flat,
-         * we have to relookup the key as the last ditch GC invoked from the
-         * string allocation or OOM handling may unlock the default
-         * compartment lock.
-         */
-        if (!needNewString && str->isFlat()) {
+        if (!(flags & ATOM_TMPSTR) && str->isFlat()) {
             str->flatClearMutable();
             key = str;
             atoms.add(p, StringToInitialAtomEntry(key));
         } else {
-            if (needNewString) {
-                SwitchToCompartment sc(cx, cx->runtime->defaultCompartment);
-                jschar *chars = str->chars();
+            JS_UNLOCK(cx, &state->lock);
+
+            if (flags & ATOM_TMPSTR) {
                 if (flags & ATOM_NOCOPY) {
-                    key = js_NewString(cx, chars, length);
+                    key = js_NewString(cx, str->flatChars(), str->flatLength());
                     if (!key)
                         return NULL;
 
                     /* Finish handing off chars to the GC'ed key string. */
-                    JS_ASSERT(flags & ATOM_TMPSTR);
                     str->mChars = NULL;
                 } else {
-                    key = js_NewStringCopyN(cx, chars, length);
+                    key = js_NewStringCopyN(cx, str->flatChars(), str->flatLength());
                     if (!key)
                         return NULL;
                 }
@@ -550,7 +543,9 @@ js_AtomizeString(JSContext *cx, JSString *str, uintN flags)
                 key = str;
             }
 
+            JS_LOCK(cx, &state->lock);
             if (!atoms.relookupOrAdd(p, key, StringToInitialAtomEntry(key))) {
+                JS_UNLOCK(cx, &state->lock);
                 JS_ReportOutOfMemory(cx); /* SystemAllocPolicy does not report */
                 return NULL;
             }
@@ -562,6 +557,7 @@ js_AtomizeString(JSContext *cx, JSString *str, uintN flags)
 
     JS_ASSERT(key->isAtomized());
     JSAtom *atom = STRING_TO_ATOM(key);
+    JS_UNLOCK(cx, &state->lock);
     return atom;
 }
 
@@ -909,7 +905,7 @@ JSAutoAtomList::~JSAutoAtomList()
     if (table) {
         JS_HashTableDestroy(table);
     } else {
-        JSHashEntry *hep = list;
+        JSHashEntry *hep = list; 
         while (hep) {
             JSHashEntry *next = hep->next;
             js_free_temp_entry(parser, hep, HT_FREE_ENTRY);

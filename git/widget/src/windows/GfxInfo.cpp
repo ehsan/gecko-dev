@@ -40,7 +40,6 @@
 #include "gfxWindowsPlatform.h"
 #include "GfxInfo.h"
 #include "nsUnicharUtils.h"
-#include "nsPrintfCString.h"
 #include "mozilla/FunctionTimer.h"
 
 #if defined(MOZ_CRASHREPORTER) && defined(MOZ_ENABLE_LIBXUL)
@@ -73,7 +72,7 @@ GfxInfo::GetDWriteEnabled(PRBool *aEnabled)
 
 /* XXX: GfxInfo doesn't handle multiple GPUs. We should try to do that. Bug #591057 */
 
-static nsresult GetKeyValue(const WCHAR* keyLocation, const WCHAR* keyName, nsAString& destString, int type)
+static const nsresult GetKeyValue(const WCHAR* keyLocation, const WCHAR* keyName, nsAString& destString, int type)
 {
   HKEY key;
   DWORD dwcbData;
@@ -143,7 +142,7 @@ static nsresult GetKeyValue(const WCHAR* keyLocation, const WCHAR* keyName, nsAS
 // The driver ID is a string like PCI\VEN_15AD&DEV_0405&SUBSYS_040515AD, possibly
 // followed by &REV_XXXX.  We uppercase the string, and strip the &REV_ part
 // from it, if found.
-static void normalizeDriverId(nsString& driverid) {
+static const void normalizeDriverId(nsString& driverid) {
   ToUpperCase(driverid);
   PRInt32 rev = driverid.Find(NS_LITERAL_CSTRING("&REV_"));
   if (rev != -1) {
@@ -177,8 +176,7 @@ GfxInfo::Init()
 
   /* DeviceKey is "reserved" according to MSDN so we'll be careful with it */
   /* check that DeviceKey begins with DEVICE_KEY_PREFIX */
-  /* some systems have a DeviceKey starting with \REGISTRY\Machine\ so we need to compare case insenstively */
-  if (_wcsnicmp(displayDevice.DeviceKey, DEVICE_KEY_PREFIX, NS_ARRAY_LENGTH(DEVICE_KEY_PREFIX)-1) != 0)
+  if (wcsncmp(displayDevice.DeviceKey, DEVICE_KEY_PREFIX, NS_ARRAY_LENGTH(DEVICE_KEY_PREFIX)-1) != 0)
     return;
 
   // make sure the string is NULL terminated
@@ -315,7 +313,6 @@ GfxInfo::GetAdapterDeviceID(PRUint32 *aAdapterDeviceID)
   }
   nsresult err;
   *aAdapterDeviceID = device.ToInteger(&err, 16);
-
   return NS_OK;
 }
 
@@ -446,17 +443,6 @@ static const PRUint32 deviceFamilyIntelGMAX3000[] = {
     0
 };
 
-// see bug 595364 comment 10
-static const PRUint32 deviceFamilyIntelBlockDirect2D[] = {
-    0x2982, /* IntelG35_1 */
-    0x2983, /* IntelG35_2 */
-    0x2A02, /* IntelGL960_1 */
-    0x2A03, /* IntelGL960_2 */
-    0x2A12, /* IntelGM965_1 */
-    0x2A13, /* IntelGM965_2 */
-    0
-};
-
 static const PRUint32 deviceFamilyIntelGMAX4500HD[] = {
     0x2A42, /* IntelGMA4500MHD_1 */
     0x2A43, /* IntelGMA4500MHD_2 */
@@ -485,29 +471,17 @@ static const PRUint32 deviceFamilyIntelGMAX4500HD[] = {
 
 static const GfxDriverInfo driverInfo[] = {
   /*
-   * Notice that the first match defines the result. So always implement special cases firsts and general case last.
-   */
-
-  /*
    * Intel entries
    */
 
-  /*
-   * Implement special Direct2D blocklist from bug 595364
-   */
-  { allWindowsVersions,
-    vendorIntel, deviceFamilyIntelBlockDirect2D,
-    nsIGfxInfo::FEATURE_DIRECT2D, nsIGfxInfo::FEATURE_BLOCKED_DEVICE,
-    DRIVER_LESS_THAN, allDriverVersions },
-
   /* implement the blocklist from bug 594877
-   * Block all features on any drivers before this, as there's a crash when a MS Hotfix is installed.
-   * The crash itself is Direct2D-related, but for safety we block all features.
+   * Don't allow D2D on any drivers before this, as there's a crash when a MS Hotfix is installed.
+   * For safety, don't allow any other features on the buggy drivers.
    */
 #define IMPLEMENT_INTEL_DRIVER_BLOCKLIST(winVer, devFamily, driverVer) \
   { winVer,                                                            \
     vendorIntel, devFamily,                                            \
-    allFeatures, nsIGfxInfo::FEATURE_BLOCKED_DRIVER_VERSION,           \
+    allFeatures, nsIGfxInfo::FEATURE_BLOCKED,                          \
     DRIVER_LESS_THAN, driverVer },
 
   IMPLEMENT_INTEL_DRIVER_BLOCKLIST(gfxWindowsPlatform::kWindowsXP, deviceFamilyIntelGMA500,   V(6,14,11,1018))
@@ -522,23 +496,23 @@ static const GfxDriverInfo driverInfo[] = {
   IMPLEMENT_INTEL_DRIVER_BLOCKLIST(gfxWindowsPlatform::kWindowsVista, deviceFamilyIntelGMA950,   V(7,14,10,1504))
   IMPLEMENT_INTEL_DRIVER_BLOCKLIST(gfxWindowsPlatform::kWindowsVista, deviceFamilyIntelGMA3150,  V(7,14,10,2124))
   IMPLEMENT_INTEL_DRIVER_BLOCKLIST(gfxWindowsPlatform::kWindowsVista, deviceFamilyIntelGMAX3000, V(7,15,10,1666))
-  IMPLEMENT_INTEL_DRIVER_BLOCKLIST(gfxWindowsPlatform::kWindowsVista, deviceFamilyIntelGMAX4500HD, V(8,15,10,2202))
+  IMPLEMENT_INTEL_DRIVER_BLOCKLIST(gfxWindowsPlatform::kWindowsVista, deviceFamilyIntelGMAX4500HD, V(8,15,10,2182))
 
   IMPLEMENT_INTEL_DRIVER_BLOCKLIST(gfxWindowsPlatform::kWindows7, deviceFamilyIntelGMA500,   V(5,0,0,2026))
   IMPLEMENT_INTEL_DRIVER_BLOCKLIST(gfxWindowsPlatform::kWindows7, deviceFamilyIntelGMA900,   allDriverVersions)
   IMPLEMENT_INTEL_DRIVER_BLOCKLIST(gfxWindowsPlatform::kWindows7, deviceFamilyIntelGMA950,   V(8,15,10,1930))
   IMPLEMENT_INTEL_DRIVER_BLOCKLIST(gfxWindowsPlatform::kWindows7, deviceFamilyIntelGMA3150,  V(8,14,10,2117))
   IMPLEMENT_INTEL_DRIVER_BLOCKLIST(gfxWindowsPlatform::kWindows7, deviceFamilyIntelGMAX3000, V(8,15,10,1930))
-  IMPLEMENT_INTEL_DRIVER_BLOCKLIST(gfxWindowsPlatform::kWindows7, deviceFamilyIntelGMAX4500HD, V(8,15,10,2202))
+  IMPLEMENT_INTEL_DRIVER_BLOCKLIST(gfxWindowsPlatform::kWindows7, deviceFamilyIntelGMAX4500HD, V(8,15,10,2182))
 
-  /* OpenGL on any Intel hardware is discouraged */
+  /* OpenGL on any Intel hardware is not suggested */
   { allWindowsVersions,
     vendorIntel, allDevices,
-    nsIGfxInfo::FEATURE_OPENGL_LAYERS, nsIGfxInfo::FEATURE_DISCOURAGED,
+    nsIGfxInfo::FEATURE_OPENGL_LAYERS, nsIGfxInfo::FEATURE_NOT_SUGGESTED,
     DRIVER_LESS_THAN, allDriverVersions },
   { allWindowsVersions,
     vendorIntel, allDevices,
-    nsIGfxInfo::FEATURE_WEBGL_OPENGL, nsIGfxInfo::FEATURE_DISCOURAGED,
+    nsIGfxInfo::FEATURE_WEBGL_OPENGL, nsIGfxInfo::FEATURE_NOT_SUGGESTED,
     DRIVER_LESS_THAN, allDriverVersions },
 
   /*
@@ -569,13 +543,10 @@ ParseDriverVersion(nsAString& aVersion, PRUint64 *aNumericVersion)
   return true;
 }
 
-nsresult
-GfxInfo::GetFeatureStatusImpl(PRInt32 aFeature, PRInt32 *aStatus, nsAString & aSuggestedDriverVersion)
+NS_IMETHODIMP
+GfxInfo::GetFeatureStatus(PRInt32 aFeature, PRInt32 *aStatus)
 {
-  *aStatus = nsIGfxInfo::FEATURE_NO_INFO;
-  aSuggestedDriverVersion.SetIsVoid(PR_TRUE);
-
-  PRInt32 status = nsIGfxInfo::FEATURE_NO_INFO;
+  PRInt32 status = nsIGfxInfo::FEATURE_STATUS_UNKNOWN;
 
   PRUint32 adapterVendor = 0;
   PRUint32 adapterDeviceID = 0;
@@ -591,8 +562,6 @@ GfxInfo::GetFeatureStatusImpl(PRInt32 aFeature, PRInt32 *aStatus, nsAString & aS
   if (!ParseDriverVersion(adapterDriverVersionString, &driverVersion)) {
     return NS_ERROR_FAILURE;
   }
-
-  PRUint64 suggestedDriverVersion = 0;
 
   const GfxDriverInfo *info = &driverInfo[0];
   while (info->windowsVersion) {
@@ -629,7 +598,6 @@ GfxInfo::GetFeatureStatusImpl(PRInt32 aFeature, PRInt32 *aStatus, nsAString & aS
     switch (info->op) {
     case DRIVER_LESS_THAN:
       match = driverVersion < info->version;
-      suggestedDriverVersion = info->version;
       break;
     case DRIVER_LESS_THAN_OR_EQUAL:
       match = driverVersion <= info->version;
@@ -673,28 +641,6 @@ GfxInfo::GetFeatureStatusImpl(PRInt32 aFeature, PRInt32 *aStatus, nsAString & aS
   }
 
   *aStatus = status;
-
-  if (status == FEATURE_BLOCKED_DRIVER_VERSION && suggestedDriverVersion) {
-      aSuggestedDriverVersion.AppendPrintf("%lld.%lld.%lld.%lld",
-                                           (suggestedDriverVersion & 0xffff000000000000) >> 48,
-                                           (suggestedDriverVersion & 0x0000ffff00000000) >> 32,
-                                           (suggestedDriverVersion & 0x00000000ffff0000) >> 16,
-                                           (suggestedDriverVersion & 0x000000000000ffff));
-  }
-  
   return NS_OK;
 }
 
-NS_IMETHODIMP
-GfxInfo::GetFeatureStatus(PRInt32 aFeature, PRInt32 *aStatus)
-{
-  nsString s;
-  return GetFeatureStatusImpl(aFeature, aStatus, s);
-}
-
-NS_IMETHODIMP
-GfxInfo::GetFeatureSuggestedDriverVersion(PRInt32 aFeature, nsAString& aSuggestedDriverVersion)
-{
-  PRInt32 i;
-  return GetFeatureStatusImpl(aFeature, &i, aSuggestedDriverVersion);
-}

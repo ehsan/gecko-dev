@@ -196,14 +196,13 @@ struct PICInfo {
     : uint8_t
 #endif
     {
-        GET,        // JSOP_GETPROP
-        CALL,       // JSOP_CALLPROP
-        SET,        // JSOP_SETPROP, JSOP_SETNAME
-        SETMETHOD,  // JSOP_SETMETHOD
-        NAME,       // JSOP_NAME
-        BIND,       // JSOP_BINDNAME
-        GETELEM,    // JSOP_GETELEM
-        XNAME       // JSOP_GETXPROP
+        GET,
+        CALL,
+        SET,
+        SETMETHOD,
+        NAME,
+        BIND,
+        GETELEM
     };
 
     union {
@@ -221,14 +220,14 @@ struct PICInfo {
             RegisterID idReg    : 5;  // only used in GETELEM PICs.
             uint32 idRemat      : 20;
             bool idNeedsRemat   : 1;
+
+            // Offset from start of stub to jump target of second shape guard as Nitro
+            // asm data location. This is 0 if there is only one shape guard in the
+            // last stub.
+            int secondShapeGuard;
         } get;
         ValueRemat vr;
     } u;
-
-    // Offset from start of stub to jump target of second shape guard as Nitro
-    // asm data location. This is 0 if there is only one shape guard in the
-    // last stub.
-    int secondShapeGuard : 11;
 
     Kind kind : 3;
 
@@ -341,9 +340,9 @@ struct PICInfo {
         hit = false;
         inlinePathPatched = false;
         if (kind == GET || kind == CALL || kind == GETELEM) {
+            u.get.secondShapeGuard = 0;
             u.get.objNeedsRemat = false;
         }
-        secondShapeGuard = 0;
         shapeRegHasBaseShape = true;
         stubsGenerated = 0;
         releasePools();
@@ -357,7 +356,6 @@ void JS_FASTCALL GetElem(VMFrame &f, uint32 index);
 void JS_FASTCALL SetProp(VMFrame &f, uint32 index);
 void JS_FASTCALL CallProp(VMFrame &f, uint32 index);
 void JS_FASTCALL Name(VMFrame &f, uint32 index);
-void JS_FASTCALL XName(VMFrame &f, uint32 index);
 void JS_FASTCALL BindName(VMFrame &f, uint32 index);
 void JS_FASTCALL SetPropDumb(VMFrame &f, uint32 index);
 

@@ -107,7 +107,6 @@
 #include "jscntxtinlines.h"
 
 using namespace js;
-using namespace js::gc;
 
 /* 2^32 - 1 as a number and a string */
 #define MAXINDEX 4294967295u
@@ -2683,7 +2682,7 @@ array_indexOfHelper(JSContext *cx, JSBool isLast, uintN argc, Value *vp)
             return JS_FALSE;
         }
         if (!hole && StrictlyEqual(cx, *vp, tosearch)) {
-            vp->setNumber(i);
+			vp->setNumber(i);
             return JS_TRUE;
         }
         if (i == stop)
