@@ -886,6 +886,9 @@ Http2Stream::Close(nsresult reason)
 bool
 Http2Stream::AllowFlowControlledWrite()
 {
+  if (!mSession->ServerUsesFlowControl())
+    return true;
+
   return (mSession->ServerSessionWindow() > 0) && (mServerReceiveWindow > 0);
 }
 
@@ -1016,11 +1019,13 @@ Http2Stream::OnReadSegment(const char *buf,
     if (dataLength > Http2Session::kMaxFrameData)
       dataLength = Http2Session::kMaxFrameData;
 
-    if (dataLength > mSession->ServerSessionWindow())
-      dataLength = static_cast<uint32_t>(mSession->ServerSessionWindow());
+    if (mSession->ServerUsesFlowControl()) {
+      if (dataLength > mSession->ServerSessionWindow())
+        dataLength = static_cast<uint32_t>(mSession->ServerSessionWindow());
 
-    if (dataLength > mServerReceiveWindow)
-      dataLength = static_cast<uint32_t>(mServerReceiveWindow);
+      if (dataLength > mServerReceiveWindow)
+        dataLength = static_cast<uint32_t>(mServerReceiveWindow);
+    }
 
     LOG3(("Http2Stream this=%p id 0x%X send calculation "
           "avail=%d chunksize=%d stream window=%d session window=%d "
@@ -1028,8 +1033,10 @@ Http2Stream::OnReadSegment(const char *buf,
           count, mChunkSize, mServerReceiveWindow, mSession->ServerSessionWindow(),
           Http2Session::kMaxFrameData, dataLength));
 
-    mSession->DecrementServerSessionWindow(dataLength);
-    mServerReceiveWindow -= dataLength;
+    if (mSession->ServerUsesFlowControl()) {
+      mSession->DecrementServerSessionWindow(dataLength);
+      mServerReceiveWindow -= dataLength;
+    }
 
     LOG3(("Http2Stream %p id %x request len remaining %d, "
           "count avail %d, chunk used %d",

@@ -65,7 +65,6 @@ public:
     bool Init(MessageLoop* aIOLoop,
               base::ProcessHandle aParentHandle,
               IPC::Channel* aChannel);
-    void InitProcessAttributes();
     void InitXPCOM();
 
     static ContentChild* GetSingleton() {

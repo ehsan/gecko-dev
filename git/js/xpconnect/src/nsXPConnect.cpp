@@ -389,12 +389,7 @@ CreateGlobalObject(JSContext *cx, const JSClass *clasp, nsIPrincipal *principal,
 #endif
 
     if (clasp->flags & JSCLASS_DOM_GLOBAL) {
-        const char* className = clasp->name;
-        AllocateProtoAndIfaceCache(global,
-                                   (strcmp(className, "Window") == 0 ||
-                                    strcmp(className, "ChromeWindow") == 0)
-                                   ? ProtoAndIfaceCache::WindowLike
-                                   : ProtoAndIfaceCache::NonWindowLike);
+        AllocateProtoAndIfaceCache(global);
     }
 
     return global;

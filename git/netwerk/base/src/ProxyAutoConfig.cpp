@@ -413,10 +413,6 @@ bool PACDnsResolve(JSContext *cx, unsigned int argc, JS::Value *vp)
     return false;
   if (PACResolveToString(NS_ConvertUTF16toUTF8(hostName), dottedDecimal, 0)) {
     JSString *dottedDecimalString = JS_NewStringCopyZ(cx, dottedDecimal.get());
-    if (!dottedDecimalString) {
-      return false;
-    }
-
     args.rval().setString(dottedDecimalString);
   }
   else {
@@ -777,16 +773,13 @@ ProxyAutoConfig::SrcAddress(const NetAddr *remoteAddress, nsCString &localAddres
 
 // hostName is run through a dns lookup and then a udp socket is connected
 // to the result. If that all works, the local IP address of the socket is
-// returned to the javascript caller and |*aResult| is set to true. Otherwise
-// |*aResult| is set to false.
+// returned to the javascript caller and true is returned from this function.
+// otherwise false is returned.
 bool
 ProxyAutoConfig::MyIPAddressTryHost(const nsCString &hostName,
                                     unsigned int timeout,
-                                    const JS::CallArgs &aArgs,
-                                    bool* aResult)
+                                    const JS::CallArgs &aArgs)
 {
-  *aResult = false;
-
   NetAddr remoteAddress;
   nsAutoCString localDottedDecimal;
   JSContext *cx = mJSRuntime->Context();
@@ -795,14 +788,10 @@ ProxyAutoConfig::MyIPAddressTryHost(const nsCString &hostName,
       SrcAddress(&remoteAddress, localDottedDecimal)) {
     JSString *dottedDecimalString =
       JS_NewStringCopyZ(cx, localDottedDecimal.get());
-    if (!dottedDecimalString) {
-      return false;
-    }
-
-    *aResult = true;
     aArgs.rval().setString(dottedDecimalString);
+    return true;
   }
-  return true;
+  return false;
 }
 
 bool
@@ -815,21 +804,16 @@ ProxyAutoConfig::MyIPAddress(const JS::CallArgs &aArgs)
   // first, lookup the local address of a socket connected
   // to the host of uri being resolved by the pac file. This is
   // v6 safe.. but is the last step like that
-  bool rvalAssigned = false;
-  if (!MyIPAddressTryHost(mRunningHost, kTimeout, aArgs, &rvalAssigned) ||
-      rvalAssigned) {
-    return rvalAssigned;
-  }
+  if (MyIPAddressTryHost(mRunningHost, kTimeout, aArgs))
+    return true;
 
   // next, look for a route to a public internet address that doesn't need DNS.
   // This is the google anycast dns address, but it doesn't matter if it
   // remains operable (as we don't contact it) as long as the address stays
   // in commonly routed IP address space.
   remoteDottedDecimal.AssignLiteral("8.8.8.8");
-  if (!MyIPAddressTryHost(remoteDottedDecimal, 0, aArgs, &rvalAssigned) ||
-      rvalAssigned) {
-    return rvalAssigned;
-  }
+  if (MyIPAddressTryHost(remoteDottedDecimal, 0, aArgs))
+    return true;
   
   // next, use the old algorithm based on the local hostname
   nsAutoCString hostName;
@@ -838,10 +822,6 @@ ProxyAutoConfig::MyIPAddress(const JS::CallArgs &aArgs)
       PACResolveToString(hostName, localDottedDecimal, kTimeout)) {
     JSString *dottedDecimalString =
       JS_NewStringCopyZ(cx, localDottedDecimal.get());
-    if (!dottedDecimalString) {
-      return false;
-    }
-
     aArgs.rval().setString(dottedDecimalString);
     return true;
   }
@@ -849,26 +829,18 @@ ProxyAutoConfig::MyIPAddress(const JS::CallArgs &aArgs)
   // next try a couple RFC 1918 variants.. maybe there is a
   // local route
   remoteDottedDecimal.AssignLiteral("192.168.0.1");
-  if (!MyIPAddressTryHost(remoteDottedDecimal, 0, aArgs, &rvalAssigned) ||
-      rvalAssigned) {
-    return rvalAssigned;
-  }
+  if (MyIPAddressTryHost(remoteDottedDecimal, 0, aArgs))
+    return true;
 
   // more RFC 1918
   remoteDottedDecimal.AssignLiteral("10.0.0.1");
-  if (!MyIPAddressTryHost(remoteDottedDecimal, 0, aArgs, &rvalAssigned) ||
-      rvalAssigned) {
-    return rvalAssigned;
-  }
+  if (MyIPAddressTryHost(remoteDottedDecimal, 0, aArgs))
+    return true;
 
   // who knows? let's fallback to localhost
   localDottedDecimal.AssignLiteral("127.0.0.1");
   JSString *dottedDecimalString =
     JS_NewStringCopyZ(cx, localDottedDecimal.get());
-  if (!dottedDecimalString) {
-    return false;
-  }
-
   aArgs.rval().setString(dottedDecimalString);
   return true;
 }

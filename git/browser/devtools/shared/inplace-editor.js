@@ -720,8 +720,7 @@ InplaceEditor.prototype = {
   _cycleCSSSuggestion:
   function InplaceEditor_cycleCSSSuggestion(aReverse, aNoSelect)
   {
-    // selectedItem can be null when nothing is selected in an empty editor.
-    let {label, preLabel} = this.popup.selectedItem || {label: "", preLabel: ""};
+    let {label, preLabel} = this.popup.selectedItem;
     if (aReverse) {
       this.popup.selectPreviousItem();
     } else {
@@ -873,7 +872,7 @@ InplaceEditor.prototype = {
       if (this.popup && this.popup.isOpen) {
         this.popup.hidePopup();
       }
-    } else if (!cycling && !aEvent.metaKey && !aEvent.altKey && !aEvent.ctrlKey) {
+    } else if (!cycling) {
       this._maybeSuggestCompletion();
     }
 

@@ -90,7 +90,6 @@ namespace jit {
     _(NewObject)                                                            \
     _(NewDeclEnvObject)                                                     \
     _(NewCallObject)                                                        \
-    _(NewRunOnceCallObject)                                                 \
     _(NewStringObject)                                                      \
     _(InitElem)                                                             \
     _(InitElemGetterSetter)                                                 \

@@ -63,12 +63,8 @@ function runTest()
   expectProcessCreated().then(function(childID) {
     return expectPriorityChange(childID, 'PREALLOC');
   }).then(function() {
-    // We need to set the pref asynchoronously or the preallocated process won't
-    // be shut down.
-    SimpleTest.executeSoon(function(){
-      cleanUp();
-      SimpleTest.finish();
-    });
+    cleanUp();
+    SimpleTest.finish();
   });
 
   // Setting this pref to true should cause us to prelaunch a process.

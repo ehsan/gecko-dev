@@ -38,16 +38,10 @@ function PeerConnectionIdp(window, timeout, warningFunc) {
 })();
 
 PeerConnectionIdp.prototype = {
-  setIdentityProvider: function(provider, protocol, username) {
+  setIdentityProvider: function(
+      provider, protocol, username) {
     this.provider = provider;
-    this.username = username;
-    if (this._idpchannel) {
-      if (this._idpchannel.isSame(provider, protocol)) {
-        return;
-      }
-      this._idpchannel.close();
-    }
-    this._idpchannel = new IdpProxy(provider, protocol);
+    this._idpchannel = new IdpProxy(provider, protocol, username);
   },
 
   close: function() {
@@ -134,7 +128,9 @@ PeerConnectionIdp.prototype = {
       callback(null);
       return;
     }
-    this.setIdentityProvider(identity.idp.domain, identity.idp.protocol);
+    if (!this._idpchannel) {
+      this.setIdentityProvider(identity.idp.domain, identity.idp.protocol);
+    }
 
     this._verifyIdentity(identity.assertion, fingerprint, callback);
   },
@@ -220,11 +216,7 @@ PeerConnectionIdp.prototype = {
       }
     }
 
-    let request = {
-      type: "VERIFY",
-      message: assertion
-    };
-    this._sendToIdp(request, onVerification.bind(this));
+    this._sendToIdp("VERIFY", assertion, onVerification.bind(this));
   },
 
   /**
@@ -233,7 +225,8 @@ PeerConnectionIdp.prototype = {
    * parameter. If no IdP is configured the original SDP (without a=identity
    * line) is passed to the callback.
    */
-  appendIdentityToSDP: function(sdp, fingerprint, callback) {
+  appendIdentityToSDP: function(
+      sdp, fingerprint, callback) {
     if (!this._idpchannel) {
       callback(sdp);
       return;
@@ -245,7 +238,14 @@ PeerConnectionIdp.prototype = {
     }
 
     function onAssertion(assertion) {
-      callback(this.wrapSdp(sdp), assertion);
+      if (!assertion) {
+        this._warning("RTC identity: assertion generation failure", null, 0);
+        callback(sdp);
+        return;
+      }
+
+      this.assertion = btoa(JSON.stringify(assertion));
+      callback(this.wrapSdp(sdp), this.assertion);
     }
 
     this._getIdentityAssertion(fingerprint, onAssertion.bind(this));
@@ -266,7 +266,8 @@ PeerConnectionIdp.prototype = {
       sdp.substring(match.index);
   },
 
-  getIdentityAssertion: function(fingerprint, callback) {
+  getIdentityAssertion: function(
+      fingerprint, callback) {
     if (!this._idpchannel) {
       throw new Error("IdP not set");
     }
@@ -274,7 +275,8 @@ PeerConnectionIdp.prototype = {
     this._getIdentityAssertion(fingerprint, callback);
   },
 
-  _getIdentityAssertion: function(fingerprint, callback) {
+  _getIdentityAssertion: function(
+      fingerprint, callback) {
     let [algorithm, digest] = fingerprint.split(" ");
     let message = {
       fingerprint: {
@@ -282,36 +284,23 @@ PeerConnectionIdp.prototype = {
         digest: digest
       }
     };
-    let request = {
-      type: "SIGN",
-      message: JSON.stringify(message),
-      username: this.username
-    };
-
-    // catch the assertion, clean it up, warn if absent
-    function trapAssertion(assertion) {
-      if (!assertion) {
-        this._warning("RTC identity: assertion generation failure", null, 0);
-        this.assertion = null;
-      } else {
-        this.assertion = btoa(JSON.stringify(assertion));
-      }
-      callback(this.assertion);
-    }
-
-    this._sendToIdp(request, trapAssertion.bind(this));
+    this._sendToIdp("SIGN", JSON.stringify(message), callback);
   },
 
   /**
    * Packages a message and sends it to the IdP.
    */
-  _sendToIdp: function(request, callback) {
+  _sendToIdp: function(type, message, callback) {
     // this is not secure
     // but there are no good alternatives until bug 968335 lands
     // when that happens, change this to use the new mechanism
-    request.origin = this._win.document.nodePrincipal.origin;
+    let origin = this._win.document.nodePrincipal.origin;
 
-    this._idpchannel.send(request, this._wrapCallback(callback));
+    this._idpchannel.send({
+      type: type,
+      message: message,
+      origin: origin
+    }, this._wrapCallback(callback));
   },
 
   /**

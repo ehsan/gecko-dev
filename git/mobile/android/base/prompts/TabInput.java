@@ -13,21 +13,18 @@ import org.json.JSONObject;
 import org.json.JSONException;
 
 import android.content.Context;
-import android.os.Build;
-import android.util.Log;
 import android.view.View;
 import android.view.LayoutInflater;
-import android.widget.AdapterView;
 import android.widget.Button;
-import android.widget.FrameLayout;
 import android.widget.LinearLayout;
-import android.widget.LinearLayout.LayoutParams;
-import android.widget.ListView;
 import android.widget.TabHost;
 import android.widget.TabWidget;
-import android.widget.TextView;
-
+import android.widget.FrameLayout;
+import android.widget.ListView;
+import android.widget.LinearLayout.LayoutParams;
 import java.util.LinkedHashMap;
+import android.util.Log;
+import android.widget.AdapterView;
 
 public class TabInput extends PromptInput implements AdapterView.OnItemClickListener {
     public static final String INPUT_TYPE = "tabs";
@@ -57,7 +54,7 @@ public class TabInput extends PromptInput implements AdapterView.OnItemClickList
 
     @Override
     public View getView(final Context context) throws UnsupportedOperationException {
-        final LayoutInflater inflater = LayoutInflater.from(context);
+        LayoutInflater inflater = LayoutInflater.from(context);
         mHost = (TabHost) inflater.inflate(R.layout.tab_prompt_input, null);
         mHost.setup();
 
@@ -68,21 +65,14 @@ public class TabInput extends PromptInput implements AdapterView.OnItemClickList
                 public View createTabContent(final String tag) {
                     PromptListAdapter adapter = new PromptListAdapter(context, android.R.layout.simple_list_item_1, mTabs.get(tag));
                     ListView listView = new ListView(context);
-                    listView.setCacheColorHint(0);
                     listView.setOnItemClickListener(TabInput.this);
+                    listView.setChoiceMode(ListView.CHOICE_MODE_MULTIPLE);
                     listView.setAdapter(adapter);
                     return listView;
                 }
             });
 
-            // On older android versions, we use a custom style for the tabs.
-            if (Build.VERSION.SDK_INT < 11) {
-                TextView textview = (TextView) inflater.inflate(R.layout.tab_prompt_tab, null);
-                textview.setText(title);
-                spec.setIndicator(textview);
-            } else {
-                spec.setIndicator(title);
-            }
+            spec.setIndicator(title);
             mHost.addTab(spec);
         }
         mView = mHost;

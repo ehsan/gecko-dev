@@ -42,13 +42,13 @@ https://bugzilla.mozilla.org/show_bug.cgi?id=822109
             audioStream.stop();
             videoStream.stop();
             SimpleTest.finish();
-          }, generateErrorCallback());
+          }, unexpectedCallbackAndFinish());
 
-        }, generateErrorCallback());
+        }, unexpectedCallbackAndFinish());
 
-      }, generateErrorCallback());
+      }, unexpectedCallbackAndFinish());
 
-    }, generateErrorCallback());
+    }, unexpectedCallbackAndFinish());
   });
 
 </script>

@@ -982,7 +982,6 @@ Experiments.ExperimentEntry.prototype = {
     "_name",
     "_description",
     "_homepageURL",
-    "_addonId",
     "_startDate",
     "_endDate",
   ]),
@@ -1051,8 +1050,7 @@ Experiments.ExperimentEntry.prototype = {
    */
   initFromCacheData: function (data) {
     for (let key of this.SERIALIZE_KEYS) {
-      if (!(key in data) && !this.DATE_KEYS.has(key)) {
-        gLogger.error("ExperimentEntry::initFromCacheData() - missing required key " + key);
+      if (!(key in data)) {
         return false;
       }
     };
@@ -1061,24 +1059,18 @@ Experiments.ExperimentEntry.prototype = {
       return false;
     }
 
-    // Dates are restored separately from epoch ms, everything else is just
-    // copied in.
-
+    this._lastChangedDate = this._policy.now();
     this.SERIALIZE_KEYS.forEach(key => {
-      if (!this.DATE_KEYS.has(key)) {
-        this[key] = data[key];
-      }
+      this[key] = data[key];
     });
 
     this.DATE_KEYS.forEach(key => {
-      if (key in data) {
+      if (key in this) {
         let date = new Date();
-        date.setTime(data[key]);
+        date.setTime(this[key]);
         this[key] = date;
       }
     });
-
-    this._lastChangedDate = this._policy.now();
 
     return true;
   },
@@ -1089,8 +1081,6 @@ Experiments.ExperimentEntry.prototype = {
   toJSON: function () {
     let obj = {};
 
-    // Dates are serialized separately as epoch ms.
-
     this.SERIALIZE_KEYS.forEach(key => {
       if (!this.DATE_KEYS.has(key)) {
         obj[key] = this[key];
@@ -1098,9 +1088,7 @@ Experiments.ExperimentEntry.prototype = {
     });
 
     this.DATE_KEYS.forEach(key => {
-      if (this[key]) {
-        obj[key] = this[key].getTime();
-      }
+      obj[key] = this[key] ? this[key].getTime() : null;
     });
 
     return obj;

@@ -45,8 +45,6 @@
 #include "nsIStreamConverterService.h"
 #include "nsITimer.h"
 #include "nsCRT.h"
-#include "SpdyZlibReporter.h"
-#include "nsIMemoryReporter.h"
 
 #include "mozilla/net/NeckoChild.h"
 #include "mozilla/Telemetry.h"
@@ -210,8 +208,6 @@ nsHttpHandler::nsHttpHandler()
 #endif
 
     LOG(("Creating nsHttpHandler [this=%p].\n", this));
-
-    RegisterStrongMemoryReporter(new SpdyZlibReporter());
 
     MOZ_ASSERT(!gHttpHandler, "HTTP handler already created!");
     gHttpHandler = this;

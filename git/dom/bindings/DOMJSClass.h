@@ -235,21 +235,21 @@ struct DOMIfaceAndProtoJSClass
   const JSClass* ToJSClass() const { return &mBase; }
 };
 
-class ProtoAndIfaceCache;
+class ProtoAndIfaceArray;
 
 inline bool
-HasProtoAndIfaceCache(JSObject* global)
+HasProtoAndIfaceArray(JSObject* global)
 {
   MOZ_ASSERT(js::GetObjectClass(global)->flags & JSCLASS_DOM_GLOBAL);
   // This can be undefined if we GC while creating the global
   return !js::GetReservedSlot(global, DOM_PROTOTYPE_SLOT).isUndefined();
 }
 
-inline ProtoAndIfaceCache*
-GetProtoAndIfaceCache(JSObject* global)
+inline ProtoAndIfaceArray*
+GetProtoAndIfaceArray(JSObject* global)
 {
   MOZ_ASSERT(js::GetObjectClass(global)->flags & JSCLASS_DOM_GLOBAL);
-  return static_cast<ProtoAndIfaceCache*>(
+  return static_cast<ProtoAndIfaceArray*>(
     js::GetReservedSlot(global, DOM_PROTOTYPE_SLOT).toPrivate());
 }
 

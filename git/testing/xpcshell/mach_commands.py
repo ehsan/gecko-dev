@@ -62,7 +62,7 @@ class XPCShellRunner(MozbuildObject):
 
         return self._run_xpcshell_harness(manifest=manifest, **kwargs)
 
-    def run_test(self, test_paths, interactive=False,
+    def run_test(self, test_file, interactive=False,
                  keep_going=False, sequential=False, shuffle=False,
                  debugger=None, debuggerArgs=None, debuggerInteractive=None,
                  rerun_failures=False,
@@ -77,7 +77,7 @@ class XPCShellRunner(MozbuildObject):
         if build_path not in sys.path:
             sys.path.append(build_path)
 
-        if test_paths == ['all']:
+        if test_file == 'all':
             self.run_suite(interactive=interactive,
                            keep_going=keep_going, shuffle=shuffle, sequential=sequential,
                            debugger=debugger, debuggerArgs=debuggerArgs,
@@ -86,7 +86,7 @@ class XPCShellRunner(MozbuildObject):
             return
 
         resolver = self._spawn(TestResolver)
-        tests = list(resolver.resolve_tests(paths=test_paths, flavor='xpcshell',
+        tests = list(resolver.resolve_tests(path=test_file, flavor='xpcshell',
             cwd=self.cwd))
 
         if not tests:
@@ -218,7 +218,7 @@ class AndroidXPCShellRunner(MozbuildObject):
 
     """Run Android xpcshell tests."""
     def run_test(self,
-                 test_paths, keep_going,
+                 test_file, keep_going,
                  devicemanager, ip, port, remote_test_root, no_setup, local_apk,
                  # ignore parameters from other platforms' options
                  **kwargs):
@@ -258,15 +258,13 @@ class AndroidXPCShellRunner(MozbuildObject):
             else:
                 raise Exception("You must specify an APK")
 
-        if test_paths == ['all']:
+        if test_file == 'all':
             testdirs = []
             options.testPath = None
             options.verbose = False
         else:
-            if len(test_paths) > 1:
-                print('Warning: only the first test path argument will be used.')
-            testdirs = test_paths[0]
-            options.testPath = test_paths[0]
+            testdirs = test_file
+            options.testPath = test_file
             options.verbose = True
         dummy_log = StringIO()
         xpcshell = remotexpcshelltests.XPCShellRemote(dm, options, args=testdirs, log=dummy_log)
@@ -324,7 +322,7 @@ class B2GXPCShellRunner(MozbuildObject):
             f.write(data.read())
         return busybox_path
 
-    def run_test(self, test_paths, b2g_home=None, busybox=None,
+    def run_test(self, test_file, b2g_home=None, busybox=None,
                  # ignore parameters from other platforms' options
                  **kwargs):
         try:
@@ -336,11 +334,8 @@ class B2GXPCShellRunner(MozbuildObject):
             sys.exit(1)
 
         test_path = None
-        if test_paths:
-            if len(test_paths) > 1:
-                print('Warning: Only the first test path will be used.')
-
-            test_path = self._wrap_path_argument(test_paths[0]).relpath()
+        if test_file:
+            test_path = self._wrap_path_argument(test_file).relpath()
 
         import runtestsb2g
         parser = runtestsb2g.B2GOptions()
@@ -383,7 +378,7 @@ class MachCommands(MachCommandBase):
     @Command('xpcshell-test', category='testing',
         conditions=[is_platform_supported],
         description='Run XPCOM Shell tests.')
-    @CommandArgument('test_paths', default='all', nargs='*', metavar='TEST',
+    @CommandArgument('test_file', default='all', nargs='?', metavar='TEST',
         help='Test to run. Can be specified as a single JS file, a directory, '
              'or omitted. If omitted, the entire test suite is executed.')
     @CommandArgument("--debugger", default=None, metavar='DEBUGGER',

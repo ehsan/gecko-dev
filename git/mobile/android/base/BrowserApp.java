@@ -43,7 +43,6 @@ import org.mozilla.gecko.home.HomePager;
 import org.mozilla.gecko.home.HomePager.OnUrlOpenListener;
 import org.mozilla.gecko.home.SearchEngine;
 import org.mozilla.gecko.menu.GeckoMenu;
-import org.mozilla.gecko.menu.GeckoMenuItem;
 import org.mozilla.gecko.preferences.GeckoPreferences;
 import org.mozilla.gecko.prompts.Prompt;
 import org.mozilla.gecko.prompts.PromptListItem;
@@ -2077,7 +2076,7 @@ abstract public class BrowserApp extends GeckoApp
 
         // Action providers are available only ICS+.
         if (Build.VERSION.SDK_INT >= 14) {
-            GeckoMenuItem share = (GeckoMenuItem) mMenu.findItem(R.id.share);
+            MenuItem share = mMenu.findItem(R.id.share);
             GeckoActionProvider provider = new GeckoActionProvider(this);
             share.setActionProvider(provider);
         }
@@ -2211,7 +2210,7 @@ abstract public class BrowserApp extends GeckoApp
 
         // Action providers are available only ICS+.
         if (Build.VERSION.SDK_INT >= 14) {
-            final GeckoActionProvider provider = ((GeckoMenuItem) share).getGeckoActionProvider();
+            GeckoActionProvider provider = (GeckoActionProvider) share.getActionProvider();
             if (provider != null) {
                 Intent shareIntent = provider.getIntent();
 

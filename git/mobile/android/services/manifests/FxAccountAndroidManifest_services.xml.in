@@ -20,7 +20,3 @@
                 android:name="android.content.SyncAdapter"
                 android:resource="@xml/fxaccount_syncadapter" />
         </service>
-        <service
-            android:exported="false"
-            android:name="org.mozilla.gecko.fxa.receivers.FxAccountDeletedService" >
-        </service>

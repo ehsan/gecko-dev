@@ -3211,7 +3211,7 @@ nsGenericHTMLElement::GetProperties(nsISupports** aProperties)
 }
 
 nsSize
-nsGenericHTMLElement::GetWidthHeightForImage(nsRefPtr<imgRequestProxy>& aImageRequest)
+nsGenericHTMLElement::GetWidthHeightForImage(imgIRequest *aImageRequest)
 {
   nsSize size(0,0);
 
