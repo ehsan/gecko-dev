@@ -2065,6 +2065,7 @@
                     newifp->frame.sharpArray = NULL;
                     newifp->frame.flags = flags;
                     newifp->frame.dormantNext = NULL;
+                    newifp->frame.xmlNamespace = NULL;
                     newifp->frame.blockChain = NULL;
                     if (script->staticLevel < JS_DISPLAY_SIZE) {
                         JSStackFrame **disp = &cx->display[script->staticLevel];

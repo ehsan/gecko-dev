@@ -1306,6 +1306,7 @@ have_fun:
     frame.sharpArray = NULL;
     frame.flags = flags | rootedArgsFlag;
     frame.dormantNext = NULL;
+    frame.xmlNamespace = NULL;
     frame.displaySave = NULL;
 
     MUST_FLOW_THROUGH("out");
@@ -1560,6 +1561,7 @@ js_Execute(JSContext *cx, JSObject *chain, JSScript *script,
     frame.sharpDepth = 0;
     frame.flags = flags;
     frame.dormantNext = NULL;
+    frame.xmlNamespace = NULL;
     frame.blockChain = NULL;
 
     /*

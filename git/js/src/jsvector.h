@@ -571,7 +571,8 @@ JSTempVector<T,N>::calculateNewCapacity(size_t curLength, size_t lengthInc,
     }
 
     /* Round up to next power of 2. */
-    size_t newCapLog2 = JS_CEILING_LOG2W(newMinCap);
+    size_t newCapLog2;
+    JS_CEILING_LOG2(newCapLog2, newMinCap);
     JS_ASSERT(newCapLog2 < JSUtils::BitSize<size_t>::result);
     newCap = size_t(1) << newCapLog2;
 

@@ -1,5 +1,3 @@
-// |trace-test| slow;
-
 // XXXbz I would dearly like to wrap it up into a function to avoid polluting
 // the global scope, but the function ends up heavyweight, and then we lose on
 // the jit.
