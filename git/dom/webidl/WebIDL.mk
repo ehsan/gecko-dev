@@ -30,7 +30,6 @@ webidl_files = \
   CDATASection.webidl \
   CFStateChangeEvent.webidl \
   CharacterData.webidl \
-  ChildNode.webidl \
   ClientRect.webidl \
   ClientRectList.webidl \
   ClipboardEvent.webidl \
@@ -68,7 +67,6 @@ webidl_files = \
   File.webidl \
   FileHandle.webidl \
   FileList.webidl \
-  FileReader.webidl \
   FileReaderSync.webidl \
   FileRequest.webidl \
   FormData.webidl \
@@ -83,7 +81,6 @@ webidl_files = \
   HTMLBodyElement.webidl \
   HTMLBRElement.webidl \
   HTMLButtonElement.webidl \
-  HTMLCanvasElement.webidl \
   HTMLCollection.webidl \
   HTMLDataElement.webidl \
   HTMLDataListElement.webidl \
@@ -128,7 +125,6 @@ webidl_files = \
   HTMLPropertiesCollection.webidl \
   HTMLQuoteElement.webidl \
   HTMLScriptElement.webidl \
-  HTMLSelectElement.webidl \
   HTMLSourceElement.webidl \
   HTMLSpanElement.webidl \
   HTMLStyleElement.webidl \

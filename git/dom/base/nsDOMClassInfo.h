@@ -23,6 +23,8 @@
 
 class nsContentList;
 class nsGlobalWindow;
+class nsICanvasRenderingContextInternal;
+class nsIDOMHTMLOptionsCollection;
 class nsIDOMWindow;
 class nsIForm;
 class nsIHTMLDocument;
@@ -730,6 +732,38 @@ public:
   }
 };
 
+
+// HTMLSelectElement helper
+
+class nsHTMLSelectElementSH : public nsElementSH
+{
+protected:
+  nsHTMLSelectElementSH(nsDOMClassInfoData* aData) : nsElementSH(aData)
+  {
+  }
+
+  virtual ~nsHTMLSelectElementSH()
+  {
+  }
+
+public:
+  NS_IMETHOD NewResolve(nsIXPConnectWrappedNative *wrapper, JSContext *cx,
+                        JSObject *obj, jsid id, uint32_t flags,
+                        JSObject **objp, bool *_retval);
+  NS_IMETHOD GetProperty(nsIXPConnectWrappedNative *wrapper, JSContext *cx,
+                         JSObject *obj, jsid id, jsval *vp,
+                         bool *_retval);
+  NS_IMETHOD SetProperty(nsIXPConnectWrappedNative *wrapper, JSContext *cx,
+                         JSObject *obj, jsid id, jsval *vp, bool *_retval);
+
+  static nsresult SetOption(JSContext *cx, jsval *vp, uint32_t aIndex,
+                            nsIDOMHTMLOptionsCollection *aOptCollection);
+
+  static nsIClassInfo *doCreate(nsDOMClassInfoData* aData)
+  {
+    return new nsHTMLSelectElementSH(aData);
+  }
+};
 
 // Plugin helper
 
