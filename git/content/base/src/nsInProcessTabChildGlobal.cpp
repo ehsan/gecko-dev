@@ -103,7 +103,6 @@ nsInProcessTabChildGlobal::nsInProcessTabChildGlobal(nsIDocShell* aShell,
 : mDocShell(aShell), mInitialized(false), mLoadingScript(false),
   mOwner(aOwner), mChromeMessageManager(aChrome)
 {
-  mozilla::HoldJSObjects(this);
 
   // If owner corresponds to an <iframe mozbrowser> or <iframe mozapp>, we'll
   // have to tweak our PreHandleEvent implementation.
@@ -118,8 +117,6 @@ nsInProcessTabChildGlobal::nsInProcessTabChildGlobal(nsIDocShell* aShell,
 
 nsInProcessTabChildGlobal::~nsInProcessTabChildGlobal()
 {
-  mAnonymousGlobalScopes.Clear();
-  mozilla::DropJSObjects(this);
 }
 
 /* [notxpcom] boolean markForCC (); */
@@ -146,28 +143,10 @@ nsInProcessTabChildGlobal::Init()
   return NS_OK;
 }
 
-NS_IMPL_CYCLE_COLLECTION_CLASS(nsInProcessTabChildGlobal)
-
-
-NS_IMPL_CYCLE_COLLECTION_TRAVERSE_BEGIN_INHERITED(nsInProcessTabChildGlobal,
-                                                  DOMEventTargetHelper)
-   NS_IMPL_CYCLE_COLLECTION_TRAVERSE(mMessageManager)
-   NS_IMPL_CYCLE_COLLECTION_TRAVERSE(mGlobal)
-NS_IMPL_CYCLE_COLLECTION_TRAVERSE_END
-
-NS_IMPL_CYCLE_COLLECTION_TRACE_BEGIN_INHERITED(nsInProcessTabChildGlobal,
-                                               DOMEventTargetHelper)
-  for (uint32_t i = 0; i < tmp->mAnonymousGlobalScopes.Length(); ++i) {
-    NS_IMPL_CYCLE_COLLECTION_TRACE_JS_MEMBER_CALLBACK(mAnonymousGlobalScopes[i])
-  }
-NS_IMPL_CYCLE_COLLECTION_TRACE_END
-
-NS_IMPL_CYCLE_COLLECTION_UNLINK_BEGIN_INHERITED(nsInProcessTabChildGlobal,
-                                                DOMEventTargetHelper)
-  NS_IMPL_CYCLE_COLLECTION_UNLINK(mMessageManager)
-  NS_IMPL_CYCLE_COLLECTION_UNLINK(mGlobal)
-  NS_IMPL_CYCLE_COLLECTION_UNLINK(mAnonymousGlobalScopes)
-NS_IMPL_CYCLE_COLLECTION_UNLINK_END
+NS_IMPL_CYCLE_COLLECTION_INHERITED(nsInProcessTabChildGlobal,
+                                   DOMEventTargetHelper,
+                                   mMessageManager,
+                                   mGlobal)
 
 NS_INTERFACE_MAP_BEGIN_CYCLE_COLLECTION_INHERITED(nsInProcessTabChildGlobal)
   NS_INTERFACE_MAP_ENTRY(nsIMessageListenerManager)

@@ -58,7 +58,7 @@ inline JSObject &
 InterpreterFrame::varObj()
 {
     JSObject *obj = scopeChain();
-    while (!obj->isQualifiedVarObj())
+    while (!obj->isVarObj())
         obj = obj->enclosingScope();
     return *obj;
 }

@@ -194,17 +194,18 @@ describe("loop.shared.views", function() {
         unpublish: sandbox.spy(),
         subscribe: sandbox.spy()
       }, Backbone.Events);
-      fakePublisher = _.extend({
+      fakePublisher = {
+        on: sandbox.spy(),
+        off: sandbox.spy(),
         publishAudio: sandbox.spy(),
         publishVideo: sandbox.spy()
-      }, Backbone.Events);
+      };
       fakeSDK = {
         initPublisher: sandbox.stub().returns(fakePublisher),
         initSession: sandbox.stub().returns(fakeSession)
       };
       model = new sharedModels.ConversationModel(fakeSessionData, {
-        sdk: fakeSDK,
-        pendingCallTimeout: 1000
+        sdk: fakeSDK
       });
     });
 
@@ -246,10 +247,6 @@ describe("loop.shared.views", function() {
       });
 
       describe("#startPublishing", function() {
-        beforeEach(function() {
-          sandbox.stub(fakePublisher, "on");
-        });
-
         it("should publish local stream", function() {
           comp.startPublishing();
 
@@ -263,14 +260,13 @@ describe("loop.shared.views", function() {
             comp.startPublishing();
 
             sinon.assert.called(fakePublisher.on);
-            sinon.assert.calledWith(fakePublisher.on,
-                                    "accessDialogOpened accessDenied");
+            sinon.assert.calledWith(fakePublisher.on, "accessDialogOpened");
+            sinon.assert.calledWith(fakePublisher.on, "accessDenied");
           });
       });
 
       describe("#stopPublishing", function() {
         beforeEach(function() {
-          sandbox.stub(fakePublisher, "off");
           comp.startPublishing();
         });
 
@@ -280,12 +276,13 @@ describe("loop.shared.views", function() {
           sinon.assert.calledOnce(fakeSession.unpublish);
         });
 
-        it("should unsubscribe from publisher events",
+        it("should unsubscribe from accessDialogOpened and accessDenied events",
           function() {
             comp.stopPublishing();
 
-            // Note: Backbone.Events#stopListening calls off() on passed object.
-            sinon.assert.calledOnce(fakePublisher.off);
+            sinon.assert.calledTwice(fakePublisher.off);
+            sinon.assert.calledWith(fakePublisher.off, "accessDialogOpened");
+            sinon.assert.calledWith(fakePublisher.off, "accessDenied");
           });
       });
 
@@ -368,35 +365,6 @@ describe("loop.shared.views", function() {
 
             sinon.assert.calledOnce(fakeSession.unpublish);
           });
-      });
-
-      describe("Publisher events", function() {
-        beforeEach(function() {
-          comp.startPublishing();
-        });
-
-        it("should set audio state on streamCreated", function() {
-          fakePublisher.trigger("streamCreated", {stream: {hasAudio: true}});
-          expect(comp.state.audio.enabled).eql(true);
-
-          fakePublisher.trigger("streamCreated", {stream: {hasAudio: false}});
-          expect(comp.state.audio.enabled).eql(false);
-        });
-
-        it("should set video state on streamCreated", function() {
-          fakePublisher.trigger("streamCreated", {stream: {hasVideo: true}});
-          expect(comp.state.video.enabled).eql(true);
-
-          fakePublisher.trigger("streamCreated", {stream: {hasVideo: false}});
-          expect(comp.state.video.enabled).eql(false);
-        });
-
-        it("should set media state on streamDestroyed", function() {
-          fakePublisher.trigger("streamDestroyed");
-
-          expect(comp.state.audio.enabled).eql(false);
-          expect(comp.state.video.enabled).eql(false);
-        });
       });
     });
   });

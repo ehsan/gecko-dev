@@ -729,14 +729,12 @@ MarkValueInternal(JSTracer *trc, Value *v)
         void *thing = v->toGCThing();
         trc->setTracingLocation((void *)v);
         MarkKind(trc, &thing, v->gcKind());
-        if (v->isString()) {
+        if (v->isString())
             v->setString((JSString *)thing);
-        } else if (v->isObject()) {
-            v->setObjectOrNull((JSObject *)thing);
-        } else {
-            JS_ASSERT(v->isSymbol());
+        else if (v->isSymbol())
             v->setSymbol((JS::Symbol *)thing);
-        }
+        else
+            v->setObjectOrNull((JSObject *)thing);
     } else {
         /* Unset realLocation manually if we do not call MarkInternal. */
         trc->unsetTracingLocation();
@@ -802,15 +800,10 @@ gc::IsValueMarked(Value *v)
         JSString *str = (JSString *)v->toGCThing();
         rv = IsMarked<JSString>(&str);
         v->setString(str);
-    } else if (v->isObject()) {
+    } else {
         JSObject *obj = (JSObject *)v->toGCThing();
         rv = IsMarked<JSObject>(&obj);
         v->setObject(*obj);
-    } else {
-        JS_ASSERT(v->isSymbol());
-        JS::Symbol *sym = v->toSymbol();
-        rv = IsMarked<JS::Symbol>(&sym);
-        v->setSymbol(sym);
     }
     return rv;
 }
@@ -824,15 +817,10 @@ gc::IsValueAboutToBeFinalized(Value *v)
         JSString *str = (JSString *)v->toGCThing();
         rv = IsAboutToBeFinalized<JSString>(&str);
         v->setString(str);
-    } else if (v->isObject()) {
+    } else {
         JSObject *obj = (JSObject *)v->toGCThing();
         rv = IsAboutToBeFinalized<JSObject>(&obj);
         v->setObject(*obj);
-    } else {
-        JS_ASSERT(v->isSymbol());
-        JS::Symbol *sym = v->toSymbol();
-        rv = IsAboutToBeFinalized<JS::Symbol>(&sym);
-        v->setSymbol(sym);
     }
     return rv;
 }

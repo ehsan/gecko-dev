@@ -127,13 +127,7 @@ enum nsChangeHint {
    * SVG textPath needs to be recomputed because the path has changed.
    * This means that the glyph positions of the text need to be recomputed.
    */
-  nsChangeHint_UpdateTextPath = 0x40000,
-
-  /**
-   * This will schedule an invalidating paint. This is useful if something
-   * has changed which will be invalidated by DLBI.
-   */
-  nsChangeHint_SchedulePaint = 0x80000
+  nsChangeHint_UpdateTextPath = 0x40000
 
   // IMPORTANT NOTE: When adding new hints, consider whether you need to
   // add them to NS_HintsNotHandledForDescendantsIn() below.
@@ -234,8 +228,7 @@ inline nsChangeHint NS_HintsNotHandledForDescendantsIn(nsChangeHint aChangeHint)
 #define NS_STYLE_HINT_NONE \
   nsChangeHint(0)
 #define NS_STYLE_HINT_VISUAL \
-  nsChangeHint(nsChangeHint_RepaintFrame | nsChangeHint_SyncFrameView | \
-               nsChangeHint_SchedulePaint)
+  nsChangeHint(nsChangeHint_RepaintFrame | nsChangeHint_SyncFrameView)
 #define nsChangeHint_AllReflowHints                     \
   nsChangeHint(nsChangeHint_NeedReflow |                \
                nsChangeHint_ClearAncestorIntrinsics |   \

@@ -1499,7 +1499,9 @@ FunctionEnd
   Push "nspr4.dll"
   Push "nssdbm3.dll"
   Push "mozsqlite3.dll"
+!ifdef MOZ_CONTENT_SANDBOX
   Push "sandboxbroker.dll"
+!endif
   Push "xpcom.dll"
   Push "crashreporter.exe"
   Push "updater.exe"

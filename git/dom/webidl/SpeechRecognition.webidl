@@ -29,7 +29,7 @@ interface SpeechRecognition : EventTarget {
 
     // methods to drive the speech interaction
     [Throws]
-    void start(optional MediaStream stream);
+    void start();
     void stop();
     void abort();
 

@@ -214,7 +214,7 @@ class ReftestRunner(MozbuildObject):
         return reftest.run_remote_reftests(parser, options, args)
 
     def run_desktop_test(self, test_file=None, filter=None, suite=None,
-            debugger=None, debugger_args=None, parallel=False, shuffle=False,
+            debugger=None, parallel=False, shuffle=False,
             e10s=False, extraPrefs=None, this_chunk=None, total_chunks=None):
         """Runs a reftest.
 
@@ -230,8 +230,6 @@ class ReftestRunner(MozbuildObject):
 
         debugger is the program name (in $PATH) or the full path of the
         debugger to run.
-
-        debugger_args are the arguments passed to the debugger.
 
         parallel indicates whether tests should be run in parallel or not.
 
@@ -257,14 +255,6 @@ class ReftestRunner(MozbuildObject):
         if debugger:
             extra_args.append('--debugger=%s' % debugger)
             pass_thru = True
-            if debugger_args:
-                # Use _make_shell_string (which quotes) so that we
-                # handle multiple args being passed to the debugger.
-                extra_args.extend(['--debugger-args', self._make_shell_string(debugger_args)])
-        else:
-            if debugger_args:
-                print("--debugger-args passed, but no debugger specified.")
-                return 1
 
         if parallel:
             extra_args.append('--run-tests-in-parallel')
@@ -301,10 +291,6 @@ def ReftestCommand(func):
     debugger = CommandArgument('--debugger', metavar='DEBUGGER',
         help=DEBUGGER_HELP)
     func = debugger(func)
-
-    debugger_args = CommandArgument('--debugger-args', metavar='DEBUGGER_ARGS',
-        help='Arguments to pass to the debugger.')
-    func = debugger_args(func)
 
     flter = CommandArgument('--filter', metavar='REGEX',
         help='A JS regular expression to match test URLs against, to select '

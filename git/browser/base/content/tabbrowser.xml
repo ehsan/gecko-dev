@@ -1024,7 +1024,7 @@
             this._appendStatusPanel();
 
             if (updateBlockedPopups)
-              this.mCurrentBrowser.updateBlockedPopups();
+              this.mCurrentBrowser.updateBlockedPopups(false);
 
             // Update the URL bar.
             var loc = this.mCurrentBrowser.currentURI;

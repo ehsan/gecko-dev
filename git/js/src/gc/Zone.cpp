@@ -42,7 +42,7 @@ JS::Zone::Zone(JSRuntime *rt)
     gcState_(NoGC),
     gcScheduled_(false),
     gcPreserveCode_(false),
-    jitUsingBarriers_(false)
+    ionUsingBarriers_(false)
 {
     /* Ensure that there are no vtables to mess us up here. */
     JS_ASSERT(reinterpret_cast<JS::shadow::Zone *>(this) ==
@@ -68,12 +68,12 @@ bool Zone::init()
 }
 
 void
-Zone::setNeedsBarrier(bool needs, ShouldUpdateJit updateJit)
+Zone::setNeedsBarrier(bool needs, ShouldUpdateIon updateIon)
 {
 #ifdef JS_ION
-    if (updateJit == UpdateJit && needs != jitUsingBarriers_) {
+    if (updateIon == UpdateIon && needs != ionUsingBarriers_) {
         jit::ToggleBarriers(this, needs);
-        jitUsingBarriers_ = needs;
+        ionUsingBarriers_ = needs;
     }
 #endif
 

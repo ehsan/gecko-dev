@@ -60,6 +60,7 @@ private:
   nsresult                 mStatus;
   bool                     mWaitingForUpdate;
   int64_t                  mListeningForChunk;
+  bool                     mInReadSegments;
 
   nsCOMPtr<nsIInputStreamCallback> mCallback;
   uint32_t                         mCallbackFlags;

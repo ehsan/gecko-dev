@@ -206,7 +206,9 @@ let CustomizableUIInternal = {
         "bookmarks-menu-button",
         "downloads-button",
         "home-button",
+#ifdef MOZ_LOOP
         "loop-call-button",
+#endif
         "social-share-button",
       ],
       defaultCollapsed: false,

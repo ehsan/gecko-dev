@@ -117,6 +117,7 @@ private:
 
   nsCOMPtr<nsIDocument> mDocument;
   nsCOMPtr<nsIURI> mURI;
+  nsCOMPtr<nsIChannel> mChannel;
   nsCOMPtr<nsIStreamListener> mParserStreamListener;
   nsCOMPtr<nsIDocument> mImportParent;
   // List of the LinkElements that are referring to this import

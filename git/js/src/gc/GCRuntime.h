@@ -480,8 +480,6 @@ class GCRuntime
     bool                  dynamicHeapGrowth;
     bool                  dynamicMarkSlice;
     uint64_t              decommitThreshold;
-    unsigned              minEmptyChunkCount;
-    unsigned              maxEmptyChunkCount;
 
     /* During shutdown, the GC needs to clean up every possible object. */
     bool                  cleanUpEverything;
@@ -697,12 +695,6 @@ class GCRuntime
     mozilla::DebugOnly<PRThread *>   lockOwner;
 
     GCHelperState helperState;
-
-    /*
-     * During incremental sweeping, this field temporarily holds the arenas of
-     * the current AllocKind being swept in order of increasing free space.
-     */
-    SortedArenaList incrementalSweepList;
 
     ConservativeGCData conservativeGC;
 

@@ -118,41 +118,15 @@ TabChildBase::TabChildBase()
   , mTabChildGlobal(nullptr)
   , mInnerSize(0, 0)
 {
-  mozilla::HoldJSObjects(this);
 }
 
-TabChildBase::~TabChildBase()
-{
-  mAnonymousGlobalScopes.Clear();
-  mozilla::DropJSObjects(this);
-}
-
-NS_IMPL_CYCLE_COLLECTION_CLASS(TabChildBase)
-
-NS_IMPL_CYCLE_COLLECTION_UNLINK_BEGIN(TabChildBase)
-  NS_IMPL_CYCLE_COLLECTION_UNLINK(mTabChildGlobal)
-  NS_IMPL_CYCLE_COLLECTION_UNLINK(mGlobal)
-  NS_IMPL_CYCLE_COLLECTION_UNLINK(mAnonymousGlobalScopes)
-NS_IMPL_CYCLE_COLLECTION_UNLINK_END
-
-NS_IMPL_CYCLE_COLLECTION_TRAVERSE_BEGIN(TabChildBase)
-  NS_IMPL_CYCLE_COLLECTION_TRAVERSE(mTabChildGlobal)
-  NS_IMPL_CYCLE_COLLECTION_TRAVERSE(mGlobal)
-  NS_IMPL_CYCLE_COLLECTION_TRAVERSE_SCRIPT_OBJECTS
-NS_IMPL_CYCLE_COLLECTION_TRAVERSE_END
-
-NS_IMPL_CYCLE_COLLECTION_TRACE_BEGIN(TabChildBase)
-  for (uint32_t i = 0; i < tmp->mAnonymousGlobalScopes.Length(); ++i) {
-    NS_IMPL_CYCLE_COLLECTION_TRACE_JS_MEMBER_CALLBACK(mAnonymousGlobalScopes[i])
-  }
-NS_IMPL_CYCLE_COLLECTION_TRACE_END
-
+NS_IMPL_CYCLE_COLLECTING_ADDREF(TabChildBase)
+NS_IMPL_CYCLE_COLLECTING_RELEASE(TabChildBase)
 NS_INTERFACE_MAP_BEGIN_CYCLE_COLLECTION(TabChildBase)
   NS_INTERFACE_MAP_ENTRY(nsISupports)
 NS_INTERFACE_MAP_END
 
-NS_IMPL_CYCLE_COLLECTING_ADDREF(TabChildBase)
-NS_IMPL_CYCLE_COLLECTING_RELEASE(TabChildBase)
+NS_IMPL_CYCLE_COLLECTION(TabChildBase, mTabChildGlobal, mGlobal)
 
 void
 TabChildBase::InitializeRootMetrics()
@@ -728,7 +702,9 @@ TabChild::TabChild(nsIContentChild* aManager, const TabContext& aContext, uint32
   , mTriedBrowserInit(false)
   , mOrientation(eScreenOrientation_PortraitPrimary)
   , mUpdateHitRegion(false)
-  , mPendingTouchPreventedResponse(false)
+  , mContextMenuHandled(false)
+  , mLongTapEventHandled(false)
+  , mWaitingTouchListeners(false)
   , mIgnoreKeyPressEvent(false)
   , mActiveElementManager(new ActiveElementManager())
   , mHasValidInnerSize(false)
@@ -1829,23 +1805,23 @@ TabChild::RecvHandleLongTap(const CSSPoint& aPoint, const ScrollableLayerGuid& a
     return true;
   }
 
-  bool eventHandled =
+  mContextMenuHandled =
       DispatchMouseEvent(NS_LITERAL_STRING("contextmenu"),
                          APZCCallbackHelper::ApplyCallbackTransform(aPoint, aGuid),
                          2, 1, 0, false,
                          nsIDOMMouseEvent::MOZ_SOURCE_TOUCH);
 
   // If no one handle context menu, fire MOZLONGTAP event
-  if (!eventHandled) {
+  if (!mContextMenuHandled) {
     LayoutDevicePoint currentPoint =
       APZCCallbackHelper::ApplyCallbackTransform(aPoint, aGuid) * mWidget->GetDefaultScale();
     int time = 0;
     nsEventStatus status =
       DispatchSynthesizedMouseEvent(NS_MOUSE_MOZLONGTAP, time, currentPoint, mWidget);
-    eventHandled = (status == nsEventStatus_eConsumeNoDefault);
+    mLongTapEventHandled = (status == nsEventStatus_eConsumeNoDefault);
   }
 
-  SendContentReceivedTouch(aGuid, eventHandled);
+  SendContentReceivedTouch(aGuid, mContextMenuHandled || mLongTapEventHandled);
 
   return true;
 }
@@ -1853,6 +1829,16 @@ TabChild::RecvHandleLongTap(const CSSPoint& aPoint, const ScrollableLayerGuid& a
 bool
 TabChild::RecvHandleLongTapUp(const CSSPoint& aPoint, const ScrollableLayerGuid& aGuid)
 {
+  if (mContextMenuHandled) {
+    mContextMenuHandled = false;
+    return true;
+  }
+
+  if (mLongTapEventHandled) {
+    mLongTapEventHandled = false;
+    return true;
+  }
+
   RecvHandleSingleTap(aPoint, aGuid);
   return true;
 }
@@ -2109,21 +2095,23 @@ TabChild::RecvRealTouchEvent(const WidgetTouchEvent& aEvent,
     mActiveElementManager->SetTargetElement(localEvent.touches[0]->GetTarget());
   }
 
+  nsCOMPtr<nsPIDOMWindow> outerWindow = do_GetInterface(WebNavigation());
+  nsCOMPtr<nsPIDOMWindow> innerWindow = outerWindow ? outerWindow->GetCurrentInnerWindow() : nullptr;
+
+  if (!innerWindow || (!innerWindow->HasTouchEventListeners() &&
+                       !innerWindow->MayHaveTouchCaret())) {
+    SendContentReceivedTouch(aGuid, false);
+    return true;
+  }
+
   bool isTouchPrevented = nsIPresShell::gPreventMouseEvents ||
                           localEvent.mFlags.mMultipleActionsPrevented;
   switch (aEvent.message) {
   case NS_TOUCH_START: {
-    if (mPendingTouchPreventedResponse) {
-      // We can enter here if we get two TOUCH_STARTs in a row and didn't
-      // respond to the first one. Respond to it now.
-      SendContentReceivedTouch(mPendingTouchPreventedGuid, false);
-      mPendingTouchPreventedResponse = false;
-    }
     if (isTouchPrevented) {
       SendContentReceivedTouch(aGuid, isTouchPrevented);
     } else {
-      mPendingTouchPreventedResponse = true;
-      mPendingTouchPreventedGuid = aGuid;
+      mWaitingTouchListeners = true;
     }
     break;
   }
@@ -2131,10 +2119,9 @@ TabChild::RecvRealTouchEvent(const WidgetTouchEvent& aEvent,
   case NS_TOUCH_MOVE:
   case NS_TOUCH_END:
   case NS_TOUCH_CANCEL: {
-    if (mPendingTouchPreventedResponse) {
-      MOZ_ASSERT(aGuid == mPendingTouchPreventedGuid);
-      SendContentReceivedTouch(mPendingTouchPreventedGuid, isTouchPrevented);
-      mPendingTouchPreventedResponse = false;
+    if (mWaitingTouchListeners) {
+      SendContentReceivedTouch(aGuid, isTouchPrevented);
+      mWaitingTouchListeners = false;
     }
     break;
   }

@@ -10,7 +10,6 @@ GENERATED_WEBIDL_FILES = [
 
 PREPROCESSED_WEBIDL_FILES = [
     'Crypto.webidl',
-    'HTMLMediaElement.webidl',
     'Navigator.webidl',
     'Window.webidl',
 ]
@@ -170,6 +169,7 @@ WEBIDL_FILES = [
     'HTMLLIElement.webidl',
     'HTMLLinkElement.webidl',
     'HTMLMapElement.webidl',
+    'HTMLMediaElement.webidl',
     'HTMLMenuElement.webidl',
     'HTMLMenuItemElement.webidl',
     'HTMLMetaElement.webidl',
@@ -237,6 +237,11 @@ WEBIDL_FILES = [
     'Location.webidl',
     'MediaElementAudioSourceNode.webidl',
     'MediaError.webidl',
+    'MediaKeyError.webidl',
+    'MediaKeyMessageEvent.webidl',
+    'MediaKeyNeededEvent.webidl',
+    'MediaKeys.webidl',
+    'MediaKeySession.webidl',
     'MediaList.webidl',
     'MediaQueryList.webidl',
     'MediaRecorder.webidl',
@@ -299,7 +304,6 @@ WEBIDL_FILES = [
     'Promise.webidl',
     'PromiseDebugging.webidl',
     'PushManager.webidl',
-    'RadioNodeList.webidl',
     'Range.webidl',
     'Rect.webidl',
     'ResourceStats.webidl',
@@ -726,13 +730,4 @@ if CONFIG['MOZ_BUILD_APP'] in ['browser', 'xulrunner']:
 if CONFIG['MOZ_BUILD_APP'] in ['browser', 'mobile/android', 'xulrunner']:
     WEBIDL_FILES += [
         'External.webidl',
-    ]
-
-if CONFIG['MOZ_EME']:
-    WEBIDL_FILES += [
-        'MediaKeyError.webidl',
-        'MediaKeyMessageEvent.webidl',
-        'MediaKeyNeededEvent.webidl',
-        'MediaKeys.webidl',
-        'MediaKeySession.webidl',
     ]

@@ -843,7 +843,6 @@ typedef ReadBarriered<UnownedBaseShape*> ReadBarrieredUnownedBaseShape;
 typedef ReadBarriered<jit::JitCode*> ReadBarrieredJitCode;
 typedef ReadBarriered<types::TypeObject*> ReadBarrieredTypeObject;
 typedef ReadBarriered<JSAtom*> ReadBarrieredAtom;
-typedef ReadBarriered<JS::Symbol*> ReadBarrieredSymbol;
 
 typedef ReadBarriered<Value> ReadBarrieredValue;
 

@@ -77,11 +77,6 @@ private:
   {
     return ::mozilla::pkix::DigestBuf(item, digestBuf, digestBufLen);
   }
-
-  virtual SECStatus CheckPublicKey(const SECItem& subjectPublicKeyInfo)
-  {
-    return ::mozilla::pkix::CheckPublicKey(subjectPublicKeyInfo);
-  }
 };
 
 class pkixocsp_CreateEncodedOCSPRequest : public NSSTest

@@ -112,7 +112,7 @@ OfflineCacheUpdateParent::Schedule(const URIParams& aManifestURI,
     if (!NS_SecurityCompareURIs(manifestURI, documentURI, false))
         return NS_ERROR_DOM_SECURITY_ERR;
 
-    service->FindUpdate(manifestURI, mAppId, mIsInBrowserElement, nullptr,
+    service->FindUpdate(manifestURI, mAppId, mIsInBrowserElement,
                         getter_AddRefs(update));
     if (!update) {
         update = new nsOfflineCacheUpdate();

@@ -100,6 +100,7 @@ static RedirEntry kRedirMap[] = {
     nsIAboutModule::ALLOW_SCRIPT },
   { "customizing", "chrome://browser/content/customizableui/aboutCustomizing.xul",
     nsIAboutModule::ALLOW_SCRIPT },
+#ifdef MOZ_LOOP
   { "loopconversation", "chrome://browser/content/loop/conversation.html",
     nsIAboutModule::URI_SAFE_FOR_UNTRUSTED_CONTENT |
     nsIAboutModule::ALLOW_SCRIPT |
@@ -112,6 +113,7 @@ static RedirEntry kRedirMap[] = {
     nsIAboutModule::ENABLE_INDEXED_DB,
     // Shares an IndexedDB origin with about:loopconversation.
     "loopconversation" },
+#endif
 };
 static const int kRedirTotal = ArrayLength(kRedirMap);
 

@@ -85,8 +85,8 @@
 #include "nsSynthVoiceRegistry.h"
 #endif
 
-#ifdef MOZ_ANDROID_OMX
-#include "AndroidMediaPluginHost.h"
+#ifdef MOZ_MEDIA_PLUGINS
+#include "MediaPluginHost.h"
 #endif
 
 #ifdef MOZ_WMF
@@ -366,8 +366,8 @@ nsLayoutStatics::Shutdown()
   nsAutoCopyListener::Shutdown();
   FrameLayerBuilder::Shutdown();
 
-#ifdef MOZ_ANDROID_OMX
-  AndroidMediaPluginHost::Shutdown();
+#ifdef MOZ_MEDIA_PLUGINS
+  MediaPluginHost::Shutdown();
 #endif
 
 #ifdef MOZ_GSTREAMER

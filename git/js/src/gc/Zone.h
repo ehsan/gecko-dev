@@ -187,8 +187,8 @@ struct Zone : public JS::shadow::Zone,
         return needsBarrier || runtimeFromMainThread()->gcZeal() == js::gc::ZealVerifierPreValue;
     }
 
-    enum ShouldUpdateJit { DontUpdateJit, UpdateJit };
-    void setNeedsBarrier(bool needs, ShouldUpdateJit updateJit);
+    enum ShouldUpdateIon { DontUpdateIon, UpdateIon };
+    void setNeedsBarrier(bool needs, ShouldUpdateIon updateIon);
     const bool *addressOfNeedsBarrier() const { return &needsBarrier_; }
 
     js::jit::JitZone *getJitZone(JSContext *cx) { return jitZone_ ? jitZone_ : createJitZone(cx); }
@@ -274,7 +274,7 @@ struct Zone : public JS::shadow::Zone,
     GCState gcState_;
     bool gcScheduled_;
     bool gcPreserveCode_;
-    bool jitUsingBarriers_;
+    bool ionUsingBarriers_;
 
     friend bool js::CurrentThreadCanAccessZone(Zone *zone);
     friend class js::gc::GCRuntime;

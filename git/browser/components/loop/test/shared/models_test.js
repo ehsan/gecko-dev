@@ -14,7 +14,6 @@ describe("loop.shared.models", function() {
 
   beforeEach(function() {
     sandbox = sinon.sandbox.create();
-    sandbox.useFakeTimers();
     fakeXHR = sandbox.useFakeXMLHttpRequest();
     requests = [];
     // https://github.com/cjohansen/Sinon.JS/issues/393
@@ -47,15 +46,8 @@ describe("loop.shared.models", function() {
     describe("#initialize", function() {
       it("should require a sdk option", function() {
         expect(function() {
-          new sharedModels.ConversationModel({}, {});
+          new sharedModels.ConversationModel();
         }).to.Throw(Error, /missing required sdk/);
-      });
-
-      it("should accept a pendingCallTimeout option", function() {
-        expect(new sharedModels.ConversationModel({}, {
-          sdk: {},
-          pendingCallTimeout: 1000
-        }).pendingCallTimeout).eql(1000);
       });
     });
 
@@ -64,10 +56,7 @@ describe("loop.shared.models", function() {
           requestCallInfoStub, requestCallsInfoStub;
 
       beforeEach(function() {
-        conversation = new sharedModels.ConversationModel({}, {
-          sdk: fakeSDK,
-          pendingCallTimeout: 1000
-        });
+        conversation = new sharedModels.ConversationModel({}, {sdk: fakeSDK});
         conversation.set("loopToken", "fakeToken");
         fakeBaseServerUrl = "http://fakeBaseServerUrl";
         fakeClient = {
@@ -79,10 +68,6 @@ describe("loop.shared.models", function() {
       });
 
       describe("#initiate", function() {
-        beforeEach(function() {
-          sandbox.stub(conversation, "endSession");
-        });
-
         it("call requestCallInfo on the client for outgoing calls",
           function() {
             conversation.initiate({
@@ -154,35 +139,6 @@ describe("loop.shared.models", function() {
             outgoing: true
           });
         });
-
-        it("should end the session on outgoing call timeout", function() {
-          requestCallInfoStub.callsArgWith(2, null, fakeSessionData);
-
-          conversation.initiate({
-            client: fakeClient,
-            outgoing: true
-          });
-
-          sandbox.clock.tick(1001);
-
-          sinon.assert.calledOnce(conversation.endSession);
-        });
-
-        it("should trigger a `timeout` event on outgoing call timeout",
-          function(done) {
-            requestCallInfoStub.callsArgWith(2, null, fakeSessionData);
-
-            conversation.once("timeout", function() {
-              done();
-            });
-
-            conversation.initiate({
-              client: fakeClient,
-              outgoing: true
-            });
-
-            sandbox.clock.tick(1001);
-          });
       });
 
       describe("#setReady", function() {
@@ -205,11 +161,8 @@ describe("loop.shared.models", function() {
         var model;
 
         beforeEach(function() {
-          sandbox.stub(sharedModels.ConversationModel.prototype,
-                       "_clearPendingCallTimer");
           model = new sharedModels.ConversationModel(fakeSessionData, {
-            sdk: fakeSDK,
-            pendingCallTimeout: 1000
+            sdk: fakeSDK
           });
           model.startSession();
         });
@@ -229,16 +182,16 @@ describe("loop.shared.models", function() {
                         sinon.match.func);
         });
 
-        it("should set connected to true when no error is called back",
+        it("should set ongoing to true when no error is called back",
             function() {
               fakeSession.connect = function(key, token, cb) {
                 cb(null);
               };
-              sandbox.stub(model, "set");
+              sinon.stub(model, "set");
 
               model.startSession();
 
-              sinon.assert.calledWith(model.set, "connected", true);
+              sinon.assert.calledWith(model.set, "ongoing", true);
             });
 
         it("should trigger session:connected when no error is called back",
@@ -262,7 +215,7 @@ describe("loop.shared.models", function() {
                   error: true
                 });
               };
-              sandbox.stub(model, "endSession");
+              sinon.stub(model, "endSession");
 
               model.startSession();
 
@@ -286,17 +239,6 @@ describe("loop.shared.models", function() {
                           "session:connection-error", sinon.match.object);
             });
 
-          it("should set the connected attr to true on connection completed",
-            function() {
-              fakeSession.connect = function(key, token, cb) {
-                cb();
-              };
-
-              model.startSession();
-
-              expect(model.get("connected")).eql(true);
-            });
-
           it("should trigger a session:ended event on sessionDisconnected",
             function(done) {
               model.once("session:ended", function(){ done(); });
@@ -304,31 +246,15 @@ describe("loop.shared.models", function() {
               fakeSession.trigger("sessionDisconnected", {reason: "ko"});
             });
 
-          it("should set the connected attribute to false on sessionDisconnected",
-            function() {
-              fakeSession.trigger("sessionDisconnected", {reason: "ko"});
-
-              expect(model.get("connected")).eql(false);
-            });
-
           it("should set the ongoing attribute to false on sessionDisconnected",
-            function() {
+            function(done) {
+              model.once("session:ended", function() {
+                expect(model.get("ongoing")).eql(false);
+                done();
+              });
+
               fakeSession.trigger("sessionDisconnected", {reason: "ko"});
-
-              expect(model.get("ongoing")).eql(false);
             });
-
-          it("should clear a pending timer on session:ended", function() {
-            model.trigger("session:ended");
-
-            sinon.assert.calledOnce(model._clearPendingCallTimer);
-          });
-
-          it("should clear a pending timer on session:error", function() {
-            model.trigger("session:error");
-
-            sinon.assert.calledOnce(model._clearPendingCallTimer);
-          });
 
           describe("connectionDestroyed event received", function() {
             var fakeEvent = {reason: "ko", connection: {connectionId: 42}};
@@ -378,8 +304,7 @@ describe("loop.shared.models", function() {
 
         beforeEach(function() {
           model = new sharedModels.ConversationModel(fakeSessionData, {
-            sdk: fakeSDK,
-            pendingCallTimeout: 1000
+            sdk: fakeSDK
           });
           model.startSession();
         });
@@ -388,12 +313,6 @@ describe("loop.shared.models", function() {
           model.endSession();
 
           sinon.assert.calledOnce(fakeSession.disconnect);
-        });
-
-        it("should set the connected attribute to false", function() {
-          model.endSession();
-
-          expect(model.get("connected")).eql(false);
         });
 
         it("should set the ongoing attribute to false", function() {

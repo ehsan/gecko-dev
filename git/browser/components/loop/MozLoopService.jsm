@@ -449,11 +449,6 @@ this.MozLoopService = {
    * push and loop servers.
    */
   initialize: function() {
-    // Don't do anything if loop is not enabled.
-    if (!Services.prefs.getBoolPref("loop.enabled")) {
-      return;
-    }
-
     // If expiresTime is in the future then kick-off registration.
     if (MozLoopServiceInternal.urlExpiryTimeIsInFuture()) {
       this._startInitializeTimer();
@@ -486,11 +481,6 @@ this.MozLoopService = {
    *          rejected with an error code or string.
    */
   register: function(mockPushHandler) {
-    // Don't do anything if loop is not enabled.
-    if (!Services.prefs.getBoolPref("loop.enabled")) {
-      throw new Error("Loop is not enabled");
-    }
-
     return MozLoopServiceInternal.promiseRegisteredWithServers(mockPushHandler);
   },
 

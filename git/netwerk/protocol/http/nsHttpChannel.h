@@ -328,8 +328,7 @@ private:
                      bool ignoreMissingPartialLen = false) const;
     nsresult MaybeSetupByteRangeRequest(int64_t partialLen, int64_t contentLength);
     nsresult SetupByteRangeRequest(int64_t partialLen);
-    nsresult OpenCacheInputStream(nsICacheEntry* cacheEntry, bool startBuffering,
-                                  bool checkingAppCacheEntry);
+    nsresult OpenCacheInputStream(nsICacheEntry* cacheEntry, bool startBuffering);
 
 private:
     nsCOMPtr<nsISupports>             mSecurityInfo;

@@ -118,11 +118,6 @@ ActiveElementManager::HandleTouchEnd(bool aWasClick)
   CancelTask();
   if (aWasClick) {
     SetActive(mTarget);
-  } else {
-    // We might reach here if mCanBePan was false on touch-start and
-    // so we set the element active right away. Now it turns out the
-    // action was not a click so we need to reset the active element.
-    ResetActive();
   }
 
   ResetTouchBlockState();

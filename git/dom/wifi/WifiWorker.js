@@ -1146,7 +1146,6 @@ var WifiManager = (function() {
         createWaitForDriverReadyTimer(doStartWifiTethering);
       });
     } else {
-      cancelWifiHotspotStatusTimer();
       gNetworkManager.setWifiTethering(enabled, WifiNetworkInterface,
                                        configuration, function(result) {
         // Should we fire a dom event if we fail to set wifi tethering  ?

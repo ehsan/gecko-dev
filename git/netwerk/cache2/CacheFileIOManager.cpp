@@ -881,7 +881,7 @@ public:
       if (!mIOMan) {
         mRV = NS_ERROR_NOT_INITIALIZED;
       } else {
-        mRV = mIOMan->DoomFileByKeyInternal(&mHash, false);
+        mRV = mIOMan->DoomFileByKeyInternal(&mHash);
         mIOMan = nullptr;
       }
 
@@ -2161,11 +2161,10 @@ CacheFileIOManager::DoomFileByKey(const nsACString &aKey,
 }
 
 nsresult
-CacheFileIOManager::DoomFileByKeyInternal(const SHA1Sum::Hash *aHash,
-                                          bool aFailIfAlreadyDoomed)
+CacheFileIOManager::DoomFileByKeyInternal(const SHA1Sum::Hash *aHash)
 {
-  LOG(("CacheFileIOManager::DoomFileByKeyInternal() [hash=%08x%08x%08x%08x%08x,"
-        " failIfAlreadyDoomed=%d]", LOGSHA1(aHash), aFailIfAlreadyDoomed));
+  LOG(("CacheFileIOManager::DoomFileByKeyInternal() [hash=%08x%08x%08x%08x%08x]"
+       , LOGSHA1(aHash)));
 
   MOZ_ASSERT(CacheFileIOManager::IsOnIOThreadOrCeased());
 
@@ -2187,7 +2186,7 @@ CacheFileIOManager::DoomFileByKeyInternal(const SHA1Sum::Hash *aHash,
     handle->Log();
 
     if (handle->IsDoomed()) {
-      return aFailIfAlreadyDoomed ? NS_ERROR_NOT_AVAILABLE : NS_OK;
+      return NS_OK;
     }
 
     return DoomFileInternal(handle);
@@ -2702,23 +2701,13 @@ CacheFileIOManager::OverLimitEvictionInternal()
     rv = CacheIndex::GetEntryForEviction(&hash, &cnt);
     NS_ENSURE_SUCCESS(rv, rv);
 
-    rv = DoomFileByKeyInternal(&hash, true);
+    rv = DoomFileByKeyInternal(&hash);
     if (NS_SUCCEEDED(rv)) {
       consecutiveFailures = 0;
     } else if (rv == NS_ERROR_NOT_AVAILABLE) {
       LOG(("CacheFileIOManager::OverLimitEvictionInternal() - "
            "DoomFileByKeyInternal() failed. [rv=0x%08x]", rv));
       // TODO index is outdated, start update
-
-#ifdef DEBUG
-      // Dooming should never fail due to already doomed handle, but bug 1028415
-      // shows that this unexpected state can happen. Assert in debug build so
-      // we can find the cause if we ever find a way to reproduce it with NSPR
-      // logging enabled.
-      nsRefPtr<CacheFileHandle> handle;
-      mHandles.GetHandle(&hash, true, getter_AddRefs(handle));
-      MOZ_ASSERT(!handle || !handle->IsDoomed());
-#endif
 
       // Make sure index won't return the same entry again
       CacheIndex::RemoveEntry(&hash);

@@ -511,6 +511,9 @@ LIRGenerator::visitAssertFloat32(MAssertFloat32 *assertion)
     MIRType type = assertion->input()->type();
     DebugOnly<bool> checkIsFloat32 = assertion->mustBeFloat32();
 
+    if (!allowFloat32Optimizations())
+        return true;
+
     if (type != MIRType_Value && !js_JitOptions.eagerCompilation) {
         JS_ASSERT_IF(checkIsFloat32, type == MIRType_Float32);
         JS_ASSERT_IF(!checkIsFloat32, type != MIRType_Float32);
@@ -2848,8 +2851,11 @@ LIRGenerator::visitStoreTypedArrayElement(MStoreTypedArrayElement *ins)
     JS_ASSERT(ins->index()->type() == MIRType_Int32);
 
     if (ins->isFloatArray()) {
-        JS_ASSERT_IF(ins->arrayType() == Scalar::Float32, ins->value()->type() == MIRType_Float32);
-        JS_ASSERT_IF(ins->arrayType() == Scalar::Float64, ins->value()->type() == MIRType_Double);
+        DebugOnly<bool> optimizeFloat32 = allowFloat32Optimizations();
+        JS_ASSERT_IF(optimizeFloat32 && ins->arrayType() == Scalar::Float32,
+                     ins->value()->type() == MIRType_Float32);
+        JS_ASSERT_IF(!optimizeFloat32 || ins->arrayType() == Scalar::Float64,
+                     ins->value()->type() == MIRType_Double);
     } else {
         JS_ASSERT(ins->value()->type() == MIRType_Int32);
     }
@@ -2874,8 +2880,11 @@ LIRGenerator::visitStoreTypedArrayElementHole(MStoreTypedArrayElementHole *ins)
     JS_ASSERT(ins->length()->type() == MIRType_Int32);
 
     if (ins->isFloatArray()) {
-        JS_ASSERT_IF(ins->arrayType() == Scalar::Float32, ins->value()->type() == MIRType_Float32);
-        JS_ASSERT_IF(ins->arrayType() == Scalar::Float64, ins->value()->type() == MIRType_Double);
+        DebugOnly<bool> optimizeFloat32 = allowFloat32Optimizations();
+        JS_ASSERT_IF(optimizeFloat32 && ins->arrayType() == Scalar::Float32,
+                     ins->value()->type() == MIRType_Float32);
+        JS_ASSERT_IF(!optimizeFloat32 || ins->arrayType() == Scalar::Float64,
+                     ins->value()->type() == MIRType_Double);
     } else {
         JS_ASSERT(ins->value()->type() == MIRType_Int32);
     }

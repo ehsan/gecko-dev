@@ -40,13 +40,6 @@
           'webrtc/video_engine/video_engine.gyp:video_engine_core',
           'webrtc/voice_engine/voice_engine.gyp:voice_engine',
         ],
-        'conditions': [
-          ['OS!="android"', {
-            'dependencies': [
-              'webrtc/modules/modules.gyp:desktop_capture',
-            ],
-          },
-         ]],
       }, ],
     ],
   }, ],
