@@ -223,8 +223,7 @@ FileUtils::BodyDeleteFiles(nsIFile* aBaseDir, const nsTArray<nsID>& aIdList)
 
     rv = tmpFile->Remove(false /* recursive */);
     if (rv == NS_ERROR_FILE_NOT_FOUND ||
-        rv == NS_ERROR_FILE_TARGET_DOES_NOT_EXIST ||
-        rv == NS_ERROR_FILE_IS_LOCKED) {
+        rv == NS_ERROR_FILE_TARGET_DOES_NOT_EXIST) {
       rv = NS_OK;
     }
 
@@ -240,8 +239,7 @@ FileUtils::BodyDeleteFiles(nsIFile* aBaseDir, const nsTArray<nsID>& aIdList)
 
     rv = finalFile->Remove(false /* recursive */);
     if (rv == NS_ERROR_FILE_NOT_FOUND ||
-        rv == NS_ERROR_FILE_TARGET_DOES_NOT_EXIST ||
-        rv == NS_ERROR_FILE_IS_LOCKED) {
+        rv == NS_ERROR_FILE_TARGET_DOES_NOT_EXIST) {
       rv = NS_OK;
     }
 
