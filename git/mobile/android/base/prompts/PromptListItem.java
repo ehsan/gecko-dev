@@ -8,7 +8,6 @@ import org.json.JSONArray;
 import org.json.JSONObject;
 import org.json.JSONException;
 
-import android.content.Context;
 import android.content.Intent;
 import android.graphics.drawable.Drawable;
 import android.util.Log;
@@ -32,7 +31,6 @@ public class PromptListItem {
     public Drawable mIcon;
 
     PromptListItem(JSONObject aObject) {
-        Context context = GeckoAppShell.getContext();
         label = aObject.isNull("label") ? "" : aObject.optString("label");
         isGroup = aObject.optBoolean("isGroup");
         inGroup = aObject.optBoolean("inGroup");
@@ -46,8 +44,7 @@ public class PromptListItem {
             String uri = obj.isNull("uri") ? "" : obj.optString("uri");
             String type = obj.isNull("type") ? GeckoActionProvider.DEFAULT_MIME_TYPE :
                                                obj.optString("type", GeckoActionProvider.DEFAULT_MIME_TYPE);
-
-            mIntent = GeckoAppShell.getShareIntent(context, uri, type, "");
+            mIntent = GeckoAppShell.getShareIntent(GeckoAppShell.getContext(), uri, type, "");
             isParent = true;
         } else {
             mIntent = null;
@@ -58,7 +55,7 @@ public class PromptListItem {
 
         final String iconStr = aObject.optString("icon");
         if (iconStr != null) {
-            BitmapUtils.getDrawable(context, iconStr, new BitmapUtils.BitmapLoader() {
+            BitmapUtils.getDrawable(GeckoAppShell.getContext(), iconStr, new BitmapUtils.BitmapLoader() {
                     @Override
                     public void onBitmapFound(Drawable d) {
                         mIcon = d;

@@ -32,7 +32,6 @@ class Shmem;
 namespace layers {
 
 class ClientTiledLayerBuffer;
-class AsyncTransactionTracker;
 class ImageClient;
 class ImageContainer;
 class ImageBridgeParent;
@@ -208,6 +207,11 @@ public:
    */
   static void FlushAllImages(ImageClient* aClient, ImageContainer* aContainer, bool aExceptFront);
 
+  /**
+   * Must be called on the ImageBridgeChild's thread.
+   */
+  static void FlushAllImagesNow(ImageClient* aClient, ImageContainer* aContainer, bool aExceptFront);
+
   // CompositableForwarder
 
   virtual void Connect(CompositableClient* aCompositable) MOZ_OVERRIDE;
@@ -218,8 +222,6 @@ public:
   virtual void UpdatedTexture(CompositableClient* aCompositable,
                               TextureClient* aTexture,
                               nsIntRegion* aRegion) MOZ_OVERRIDE;
-
-  virtual bool IsImageBridgeChild() const MOZ_OVERRIDE { return true; }
 
   /**
    * See CompositableForwarder::UseTexture
@@ -232,10 +234,6 @@ public:
 
   virtual void RemoveTextureFromCompositable(CompositableClient* aCompositable,
                                              TextureClient* aTexture) MOZ_OVERRIDE;
-
-  virtual void RemoveTextureFromCompositableAsync(AsyncTransactionTracker* aAsyncTransactionTracker,
-                                                  CompositableClient* aCompositable,
-                                                  TextureClient* aTexture) MOZ_OVERRIDE;
 
   virtual void RemoveTexture(TextureClient* aTexture) MOZ_OVERRIDE;
 

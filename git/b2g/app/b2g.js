@@ -82,10 +82,6 @@ pref("network.http.max-connections", 20);
 pref("network.http.max-persistent-connections-per-server", 6);
 pref("network.http.max-persistent-connections-per-proxy", 20);
 
-// Keep the old default of accepting all cookies,
-// no matter if you already visited the website or not
-pref("network.cookie.cookieBehavior", 0);
-
 // spdy
 pref("network.http.spdy.push-allowance", 32768);
 
