@@ -209,7 +209,7 @@ WeaveSvc.prototype = {
     this._scheduleTimer = Cc["@mozilla.org/timer;1"].
       createInstance(Ci.nsITimer);
     let listener = new Utils.EventListener(Utils.bind2(this, this._onSchedule));
-    this._scheduleTimer.initWithCallback(listener, 120000, // 2 min
+    this._scheduleTimer.initWithCallback(listener, 1800000, // 30 min
                                          this._scheduleTimer.TYPE_REPEATING_SLACK);
     this._log.info("Weave scheduler enabled");
   },
@@ -479,6 +479,8 @@ WeaveSvc.prototype = {
     let names = yield;
 
     for (let i = 0; i < names.length; i++) {
+      if (names[i].match(/\.htaccess$/))
+        continue;
       DAV.DELETE(names[i], self.cb);
       let resp = yield;
       this._log.debug(resp.status);
@@ -504,7 +506,7 @@ WeaveSvc.prototype = {
 
     let engines = Engines.getAll();
     for (let i = 0; i < engines.length; i++) {
-      if (engines[i].enabled && engines[i]._tracker.score >= 30) {
+      if (engines[i].enabled) {
         this._notify(engines[i].name + "-engine:sync",
                      this._syncEngine, engines[i]).async(this, self.cb);
         yield;
@@ -519,8 +521,6 @@ WeaveSvc.prototype = {
     let self = yield;
     try {
       engine.sync(self.cb);
-      yield;
-      engine._tracker.resetScore();
       yield;
     } catch(e) {
       this._log.error(Utils.exceptionStr(e));
@@ -575,7 +575,7 @@ WeaveSvc.prototype = {
        to indicate whether sharing succeeded or failed.
        Implementation, as well as the interpretation of what 'guid' means,
        is left up to the engine for the specific dataType. */
-    
+
     // TODO who is listening for the share-bookmarks message?
     let messageName = "share-" + dataType;
     // so for instance, if dataType is "bookmarks" then a message
@@ -587,7 +587,7 @@ WeaveSvc.prototype = {
                             guid,
                             username)).async(this, onComplete);
   },
-  _shareBookmarks: function WeaveSync__shareBookmarks(dataType, 
+  _shareBookmarks: function WeaveSync__shareBookmarks(dataType,
                                                       guid,
                                                       username) {
     let self = yield;
