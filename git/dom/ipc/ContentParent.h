@@ -22,7 +22,6 @@
 #include "nsIObserver.h"
 #include "nsIThreadInternal.h"
 #include "nsIDOMGeoPositionCallback.h"
-#include "nsIDOMGeoPositionErrorCallback.h"
 #include "PermissionMessageUtils.h"
 
 #define CHILD_PROCESS_SHUTDOWN_MESSAGE NS_LITERAL_STRING("child-process-shutdown")
@@ -69,7 +68,6 @@ class ContentParent MOZ_FINAL : public PContentParent
                               , public nsIContentParent
                               , public nsIObserver
                               , public nsIDOMGeoPositionCallback
-                              , public nsIDOMGeoPositionErrorCallback
                               , public mozilla::LinkedListElement<ContentParent>
 {
     typedef mozilla::ipc::GeckoChildProcessHost GeckoChildProcessHost;
@@ -162,7 +160,6 @@ public:
     NS_DECL_CYCLE_COLLECTING_ISUPPORTS
     NS_DECL_NSIOBSERVER
     NS_DECL_NSIDOMGEOPOSITIONCALLBACK
-    NS_DECL_NSIDOMGEOPOSITIONERRORCALLBACK
 
     /**
      * MessageManagerCallback methods that we override.
