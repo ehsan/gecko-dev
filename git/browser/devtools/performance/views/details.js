@@ -24,11 +24,10 @@ let DetailsView = {
    */
   initialize: Task.async(function *() {
     this.el = $("#details-pane");
-    this.toolbar = $("#performance-toolbar-controls-detail-views");
 
     this._onViewToggle = this._onViewToggle.bind(this);
 
-    for (let button of $$("toolbarbutton[data-view]", this.toolbar)) {
+    for (let button of $$("toolbarbutton[data-view]", $("#details-toolbar"))) {
       button.addEventListener("command", this._onViewToggle);
     }
 
@@ -43,7 +42,7 @@ let DetailsView = {
    * Unbinds events, destroys subviews.
    */
   destroy: Task.async(function *() {
-    for (let button of $$("toolbarbutton[data-view]", this.toolbar)) {
+    for (let button of $$("toolbarbutton[data-view]", $("#details-toolbar"))) {
       button.removeEventListener("command", this._onViewToggle);
     }
 
@@ -62,7 +61,7 @@ let DetailsView = {
   selectView: function (selectedView) {
     this.el.selectedIndex = this.viewIndexes[selectedView];
 
-    for (let button of $$("toolbarbutton[data-view]", this.toolbar)) {
+    for (let button of $$("toolbarbutton[data-view]", $("#details-toolbar"))) {
       if (button.getAttribute("data-view") === selectedView) {
         button.setAttribute("checked", true);
       } else {
