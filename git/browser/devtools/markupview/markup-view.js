@@ -857,33 +857,29 @@ MarkupView.prototype = {
   },
 
   /**
-   * Replace the outerHTML of any node displayed in the inspector with
-   * some other HTML code
-   * @param aNode node which outerHTML will be replaced.
+   * Retrieve the index of a child within its parent's children collection.
+   * @param aNode The NodeFront to find the index of.
    * @param newValue The new outerHTML to set on the node.
-   * @param oldValue The old outerHTML that will be used if the user undos the update.
-   * @returns A promise that will resolve when the outer HTML has been updated.
+   * @param oldValue The old outerHTML that will be reverted to find the index of.
+   * @returns A promise that will be resolved with the integer index.
+   *          If the child cannot be found, returns -1
    */
   updateNodeOuterHTML: function(aNode, newValue, oldValue) {
-    let container = this._containers.get(aNode);
+    let container = this.getContainer(aNode);
     if (!container) {
-      return promise.reject();
+      return;
     }
-
-    let def = promise.defer();
 
     this.getNodeChildIndex(aNode).then((i) => {
       this._outerHTMLChildIndex = i;
       this._outerHTMLNode = aNode;
 
       container.undo.do(() => {
-        this.walker.setOuterHTML(aNode, newValue).then(def.resolve, def.reject);
+        this.walker.setOuterHTML(aNode, newValue);
       }, () => {
-        this.walker.setOuterHTML(aNode, oldValue).then(def.resolve, def.reject);
+        this.walker.setOuterHTML(aNode, oldValue);
       });
     });
-
-    return def.promise;
   },
 
   /**

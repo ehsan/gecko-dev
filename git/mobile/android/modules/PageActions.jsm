@@ -48,11 +48,12 @@ var PageActions = {
   _maybeUninit: function() {
     if (this._inited && Object.keys(this._items).length == 0) {
       this._inited = false;
-      Services.obs.removeObserver(this, "PageActions:Clicked");
-      Services.obs.removeObserver(this, "PageActions:LongClicked");
+      Services.obs.removeObserver(this, "PageActions:Clicked", false);
+      Services.obs.removeObserver(this, "PageActions:LongClicked", false);
     }
   },
 
+  // These observes are registered to lazily initialize this in browser.js
   observe: function(aSubject, aTopic, aData) {
     if (aTopic == "PageActions:Clicked") {
       if (this._items[aData].clickCallback) {

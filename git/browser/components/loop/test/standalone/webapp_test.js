@@ -491,6 +491,14 @@ describe("loop.webapp", function() {
   });
 
   describe("StartConversationView", function() {
+    var conversation;
+
+    beforeEach(function() {
+      conversation = new sharedModels.ConversationModel({}, {
+        sdk: {},
+        pendingCallTimeout: 1000});
+    });
+
     describe("#initialize", function() {
       it("should require a conversation option", function() {
         expect(function() {
@@ -640,60 +648,6 @@ describe("loop.webapp", function() {
                                        "unable_retrieve_call_info");
       });
     });
-
-    describe("#render", function() {
-      var conversation, view, requestCallUrlInfo, oldLocalStorageValue;
-
-      beforeEach(function() {
-        oldLocalStorageValue = localStorage.getItem("has-seen-tos");
-        localStorage.removeItem("has-seen-tos");
-
-        conversation = new sharedModels.ConversationModel({
-          loopToken: "fake"
-        }, {
-          sdk: {},
-          pendingCallTimeout: 1000
-        });
-
-        requestCallUrlInfo = sandbox.stub();
-      });
-
-      afterEach(function() {
-        if (oldLocalStorageValue !== null)
-          localStorage.setItem("has-seen-tos", oldLocalStorageValue);
-      });
-
-      it("should show the TOS", function() {
-        var tos;
-
-        view = React.addons.TestUtils.renderIntoDocument(
-          loop.webapp.StartConversationView({
-            model: conversation,
-            notifier: notifier,
-            client: {requestCallUrlInfo: requestCallUrlInfo}
-          })
-        );
-        tos = view.getDOMNode().querySelector(".terms-service");
-
-        expect(tos.classList.contains("hide")).to.equal(false);
-      });
-
-      it("should not show the TOS if it has already been seen", function() {
-        var tos;
-
-        localStorage.setItem("has-seen-tos", "true");
-        view = React.addons.TestUtils.renderIntoDocument(
-          loop.webapp.StartConversationView({
-            model: conversation,
-            notifier: notifier,
-            client: {requestCallUrlInfo: requestCallUrlInfo}
-          })
-        );
-        tos = view.getDOMNode().querySelector(".terms-service");
-
-        expect(tos.classList.contains("hide")).to.equal(true);
-      });
-    });
   });
 
   describe("PromoteFirefoxView", function() {
@@ -749,5 +703,4 @@ describe("loop.webapp", function() {
       });
     });
   });
-
 });

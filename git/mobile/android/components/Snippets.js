@@ -410,12 +410,9 @@ Snippets.prototype = {
   observe: function(subject, topic, data) {
     switch(topic) {
       case "browser-delayed-startup-finished":
-        // Add snippets to be cycled through.
         if (Services.prefs.getBoolPref("browser.snippets.firstrunHomepage.enabled")) {
           loadHomePanelsBanner();
-        }
-
-        if (Services.prefs.getBoolPref("browser.snippets.syncPromo.enabled")) {
+        } else if (Services.prefs.getBoolPref("browser.snippets.syncPromo.enabled")) {
           loadSyncPromoBanner();
         }
 
