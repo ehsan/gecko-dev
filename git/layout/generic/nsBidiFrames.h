@@ -1,5 +1,5 @@
 /* -*- Mode: C++; tab-width: 2; indent-tabs-mode: nil; c-basic-offset: 2 -*-
- * vim: sw=2 ts=2 sts=2 expandtab
+ *
  * ***** BEGIN LICENSE BLOCK *****
  * Version: MPL 1.1/GPL 2.0/LGPL 2.1
  *
@@ -13,19 +13,18 @@
  * for the specific language governing rights and limitations under the
  * License.
  *
- * The Original Code is Places code
+ * The Original Code is mozilla.org code.
  *
  * The Initial Developer of the Original Code is
- * Mozilla Corporation.
- * Portions created by the Initial Developer are Copyright (C) 2009
+ * IBM Corporation.
+ * Portions created by the Initial Developer are Copyright (C) 2000
  * the Initial Developer. All Rights Reserved.
  *
  * Contributor(s):
- *   Shawn Wilsher <me@shawnwilsher.com> (Original Author)
  *
  * Alternatively, the contents of this file may be used under the terms of
- * either the GNU General Public License Version 2 or later (the "GPL"), or
- * the GNU Lesser General Public License Version 2.1 or later (the "LGPL"),
+ * either of the GNU General Public License Version 2 or later (the "GPL"),
+ * or the GNU Lesser General Public License Version 2.1 or later (the "LGPL"),
  * in which case the provisions of the GPL or the LGPL are applicable instead
  * of those above. If you wish to allow use of your version of this file only
  * under the terms of either the GPL or the LGPL, and not to allow others to
@@ -37,31 +36,41 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
-#include "nsISupports.idl"
+#ifdef IBMBIDI
 
-interface nsIURI;
+#ifndef nsBidiFrames_h___
+#define nsBidiFrames_h___
 
-/**
- * This is a private interface used by Places components to notify history
- * listeners about important notifications.  These should not be used by any
- * code that is not part of core.
- *
- * @note See also: nsINavHistoryObserver
- */
-[scriptable, uuid(b96adaff-e02c-48da-a379-8af5d10e09af)]
-interface nsPIPlacesHistoryListenersNotifier : nsISupports
+#include "nsFrame.h"
+
+
+class nsDirectionalFrame : public nsFrame
 {
+protected:
+  virtual ~nsDirectionalFrame();
+
+public:
+  NS_DECL_FRAMEARENA_HELPERS
+
+  nsDirectionalFrame(nsStyleContext* aContext, PRUnichar aChar);
+
   /**
-   * Calls onDeleteVisits and onDeleteURI notifications on registered listeners
-   * with the history service.
+   * Get the "type" of the frame
    *
-   * @param aURI
-   *        The nsIURI object representing the URI of the page being expired.
-   * @param aVisitTime
-   *        The time, in microseconds, that the page being expired was visited.
-   * @param aWholeEntry
-   *        Indicates if this is the last visit for this URI.
+   * @see nsGkAtoms::directionalFrame
    */
-  void notifyOnPageExpired(in nsIURI aURI, in PRTime aVisitTime,
-                           in boolean aWholeEntry);
+  virtual nsIAtom* GetType() const;
+
+  PRUnichar GetChar() const { return mChar; }
+
+#ifdef NS_DEBUG
+  NS_IMETHOD GetFrameName(nsAString& aResult) const;
+#endif
+
+private:
+  PRUnichar mChar;
 };
+
+
+#endif /* nsBidiFrames_h___ */
+#endif /* IBMBIDI */

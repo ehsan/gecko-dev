@@ -28,7 +28,6 @@
  *   Michael Ventnor <m.ventnor@gmail.com>
  *   Ehsan Akhgari <ehsan.akhgari@gmail.com>
  *   Drew Willcoxon <adw@mozilla.com>
- *   Philipp von Weitershausen <philipp@weitershausen.de>
  *
  * Alternatively, the contents of this file may be used under the terms of
  * either the GNU General Public License Version 2 or later (the "GPL"), or
@@ -1194,10 +1193,8 @@ nsNavHistory::GetStatement(const nsCOMPtr<mozIStorageStatement>& aStmt)
   if (!mCanNotify)
     return nsnull;
 
-  // Note that this query violates the kGetInfoIndex_* convention in
-  // the last column.
   RETURN_IF_STMT(mDBGetURLPageInfo, NS_LITERAL_CSTRING(
-    "SELECT id, url, title, rev_host, visit_count, guid "
+    "SELECT id, url, title, rev_host, visit_count "
     "FROM moz_places "
     "WHERE url = :page_url "
   ));
@@ -1229,7 +1226,7 @@ nsNavHistory::GetStatement(const nsCOMPtr<mozIStorageStatement>& aStmt)
   ));
 
   RETURN_IF_STMT(mDBGetPageVisitStats, NS_LITERAL_CSTRING(
-    "SELECT id, visit_count, typed, hidden, guid "
+    "SELECT id, visit_count, typed, hidden "
     "FROM moz_places "
     "WHERE url = :page_url "
   ));
@@ -1725,8 +1722,7 @@ nsNavHistory::GetUrlIdFor(nsIURI* aURI, PRInt64* aEntryID,
     // create a new hidden, untyped, unvisited entry
     nsAutoString voidString;
     voidString.SetIsVoid(PR_TRUE);
-    nsCAutoString guid;
-    return InternalAddNewPage(aURI, voidString, PR_TRUE, PR_FALSE, 0, PR_TRUE, aEntryID, guid);
+    return InternalAddNewPage(aURI, voidString, PR_TRUE, PR_FALSE, 0, PR_TRUE, aEntryID);
   }
 
   // Doesn't exist: don't do anything, entry ID was already set to 0 above
@@ -1752,8 +1748,7 @@ nsNavHistory::InternalAddNewPage(nsIURI* aURI,
                                  PRBool aTyped,
                                  PRInt32 aVisitCount,
                                  PRBool aCalculateFrecency,
-                                 PRInt64* aPageID,
-                                 nsACString& guid)
+                                 PRInt64* aPageID)
 {
   DECLARE_AND_ASSIGN_SCOPED_LAZY_STMT(stmt, mDBAddNewPage);
   nsresult rv = URIBinder::Bind(stmt, NS_LITERAL_CSTRING("page_url"), aURI);
@@ -1805,8 +1800,6 @@ nsNavHistory::InternalAddNewPage(nsIURI* aURI,
     NS_ENSURE_SUCCESS(rv, rv);
     NS_ASSERTION(hasResult, "hasResult is false but the call succeeded?");
     pageId = getIdStmt->AsInt64(0);
-    rv = getIdStmt->GetUTF8String(5, guid);
-    NS_ENSURE_SUCCESS(rv, rv);
   }
 
   if (aCalculateFrecency) {
@@ -2031,15 +2024,13 @@ nsNavHistory::NotifyOnVisit(nsIURI* aURI,
                           PRTime aTime,
                           PRInt64 aSessionID,
                           PRInt64 referringVisitID,
-                          PRInt32 aTransitionType,
-                          const nsACString& aGUID)
+                          PRInt32 aTransitionType)
 {
   PRUint32 added = 0;
-  MOZ_ASSERT(!aGUID.IsEmpty());
   NOTIFY_OBSERVERS(mCanNotify, mCacheObservers, mObservers,
                    nsINavHistoryObserver,
                    OnVisit(aURI, aVisitID, aTime, aSessionID,
-                           referringVisitID, aTransitionType, aGUID, &added));
+                           referringVisitID, aTransitionType, &added));
 }
 
 void
@@ -2615,7 +2606,6 @@ nsNavHistory::AddVisit(nsIURI* aURI, PRTime aTime, nsIURI* aReferringURI,
   rv = stmt->ExecuteStep(&alreadyVisited);
   NS_ENSURE_SUCCESS(rv, rv);
 
-  nsCAutoString guid;
   PRInt64 pageID = 0;
   PRInt32 hidden;
   PRInt32 typed;
@@ -2635,9 +2625,6 @@ nsNavHistory::AddVisit(nsIURI* aURI, PRTime aTime, nsIURI* aReferringURI,
 
     PRBool oldHiddenState = 0;
     rv = stmt->GetInt32(3, &oldHiddenState);
-    NS_ENSURE_SUCCESS(rv, rv);
-
-    rv = stmt->GetUTF8String(4, guid);
     NS_ENSURE_SUCCESS(rv, rv);
 
     // free the previous statement before we make a new one
@@ -2694,7 +2681,7 @@ nsNavHistory::AddVisit(nsIURI* aURI, PRTime aTime, nsIURI* aReferringURI,
     nsString voidString;
     voidString.SetIsVoid(PR_TRUE);
     rv = InternalAddNewPage(aURI, voidString, hidden == 1, typed == 1, 1,
-                            PR_TRUE, &pageID, guid);
+                            PR_TRUE, &pageID);
     NS_ENSURE_SUCCESS(rv, rv);
   }
 
@@ -2729,7 +2716,7 @@ nsNavHistory::AddVisit(nsIURI* aURI, PRTime aTime, nsIURI* aReferringURI,
   // FIXME bug 325241: make a way to observe hidden URLs
   if (!hidden) {
     NotifyOnVisit(aURI, *aVisitID, aTime, aSessionID, referringVisitID,
-                  aTransitionType, guid);
+                  aTransitionType);
   }
 
   // Normally docshell sends the link visited observer notification for us (this
@@ -4182,17 +4169,16 @@ nsNavHistory::CleanupPlacesOnVisitsDelete(const nsCString& aPlaceIdsQueryString)
   // Collect about-to-be-deleted URIs to notify onDeleteURI.
   nsCOMPtr<mozIStorageStatement> stmt;
   mDBConn->CreateStatement(NS_LITERAL_CSTRING(
-    "SELECT h.id, h.url, h.guid, "
-           "(SUBSTR(h.url, 1, 6) <> 'place:' "
-           " AND NOT EXISTS (SELECT b.id FROM moz_bookmarks b "
-                            "WHERE b.fk = h.id LIMIT 1)) as whole_entry "
+    "SELECT h.id, h.url, (SUBSTR(h.url, 1, 6) <> 'place:' "
+                         "AND NOT EXISTS (SELECT b.id FROM moz_bookmarks b "
+                                         "WHERE b.fk = h.id LIMIT 1)"
+                         ") as whole_entry "
     "FROM moz_places h "
     "WHERE h.id IN ( ") + aPlaceIdsQueryString + NS_LITERAL_CSTRING(") "
   ), getter_AddRefs(stmt));
   NS_ENSURE_STATE(stmt);
   nsCString filteredPlaceIds;
   nsCOMArray<nsIURI> URIs;
-  nsTArray<nsCString> GUIDs;
   PRBool hasMore;
   while (NS_SUCCEEDED(stmt->ExecuteStep(&hasMore)) && hasMore) {
     PRInt64 placeId;
@@ -4200,10 +4186,8 @@ nsNavHistory::CleanupPlacesOnVisitsDelete(const nsCString& aPlaceIdsQueryString)
     NS_ENSURE_SUCCESS(rv, rv);
     nsCAutoString URLString;
     rv = stmt->GetUTF8String(1, URLString);
-    nsCString guid;
-    rv = stmt->GetUTF8String(2, guid);
     PRInt32 wholeEntry;
-    rv = stmt->GetInt32(3, &wholeEntry);
+    rv = stmt->GetInt32(2, &wholeEntry);
     nsCOMPtr<nsIURI> uri;
     rv = NS_NewURI(getter_AddRefs(uri), URLString);
     NS_ENSURE_SUCCESS(rv, rv);
@@ -4213,16 +4197,15 @@ nsNavHistory::CleanupPlacesOnVisitsDelete(const nsCString& aPlaceIdsQueryString)
       }
       filteredPlaceIds.AppendInt(placeId);
       URIs.AppendObject(uri);
-      GUIDs.AppendElement(guid);
       // Notify we are about to remove this uri.
       NOTIFY_OBSERVERS(mCanNotify, mCacheObservers, mObservers,
-                       nsINavHistoryObserver, OnBeforeDeleteURI(uri, guid));
+                       nsINavHistoryObserver, OnBeforeDeleteURI(uri));
     }
     else {
       // Notify that we will delete all visits for this page, but not the page
       // itself, since it's bookmarked or a place: query.
       NOTIFY_OBSERVERS(mCanNotify, mCacheObservers, mObservers,
-                       nsINavHistoryObserver, OnDeleteVisits(uri, 0, guid));
+                       nsINavHistoryObserver, OnDeleteVisits(uri, 0));
     }
   }
 
@@ -4245,7 +4228,7 @@ nsNavHistory::CleanupPlacesOnVisitsDelete(const nsCString& aPlaceIdsQueryString)
   // Finally notify about the removed URIs.
   for (PRInt32 i = 0; i < URIs.Count(); ++i) {
     NOTIFY_OBSERVERS(mCanNotify, mCacheObservers, mObservers,
-                     nsINavHistoryObserver, OnDeleteURI(URIs[i], GUIDs[i]));
+                     nsINavHistoryObserver, OnDeleteURI(URIs[i]));
   }
 
   return NS_OK;
@@ -5368,21 +5351,20 @@ nsNavHistory::AsyncExecuteLegacyQueries(nsINavHistoryQuery** aQueries,
 
 NS_IMETHODIMP
 nsNavHistory::NotifyOnPageExpired(nsIURI *aURI, PRTime aVisitTime,
-                                  PRBool aWholeEntry, const nsACString& aGUID)
+                                  PRBool aWholeEntry)
 {
   // Invalidate the cached value for whether there's history or not.
   mHasHistoryEntries = -1;
 
-  MOZ_ASSERT(!aGUID.IsEmpty());
   if (aWholeEntry) {
     // Notify our observers that the page has been removed.
     NOTIFY_OBSERVERS(mCanNotify, mCacheObservers, mObservers,
-                     nsINavHistoryObserver, OnDeleteURI(aURI, aGUID));
+                     nsINavHistoryObserver, OnDeleteURI(aURI));
   }
   else {
     // Notify our observers that some visits for the page have been removed.
     NOTIFY_OBSERVERS(mCanNotify, mCacheObservers, mObservers,
-                     nsINavHistoryObserver, OnDeleteVisits(aURI, aVisitTime, aGUID));
+                     nsINavHistoryObserver, OnDeleteVisits(aURI, aVisitTime));
   }
 
   return NS_OK;
@@ -6858,7 +6840,6 @@ nsNavHistory::AddPageWithVisits(nsIURI *aURI,
   PRInt32 typed = 0;
   PRInt32 hidden = 0;
 
-  nsCAutoString guid;
   if (alreadyVisited) {
     // Update the existing entry
     rv = stmt->GetInt64(0, &placeId);
@@ -6867,8 +6848,6 @@ nsNavHistory::AddPageWithVisits(nsIURI *aURI,
     rv = stmt->GetInt32(2, &typed);
     NS_ENSURE_SUCCESS(rv, rv);
     rv = stmt->GetInt32(3, &hidden);
-    NS_ENSURE_SUCCESS(rv, rv);
-    rv = stmt->GetUTF8String(4, guid);
     NS_ENSURE_SUCCESS(rv, rv);
 
     if (typed == 0 && aTransitionType == TRANSITION_TYPED) {
@@ -6889,7 +6868,7 @@ nsNavHistory::AddPageWithVisits(nsIURI *aURI,
     // Insert the new place entry
     rv = InternalAddNewPage(aURI, aTitle, hidden == 1,
                             aTransitionType == TRANSITION_TYPED, 0,
-                            PR_FALSE, &placeId, guid);
+                            PR_FALSE, &placeId);
     NS_ENSURE_SUCCESS(rv, rv);
   }
 
