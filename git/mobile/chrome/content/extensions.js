@@ -949,6 +949,7 @@ function AddonInstallListener() {
 }
 
 AddonInstallListener.prototype = {
+
   onInstallEnded: function(aInstall, aAddon) {
     let needsRestart = false;
     let mode = "";
@@ -959,8 +960,6 @@ AddonInstallListener.prototype = {
       needsRestart = true;
       mode = "normal";
     }
-
-    this._clearRecommendedCache();
 
     // if we already have a mode, then we need to show a restart notification
     // otherwise, we are likely a bootstrapped addon
@@ -1102,12 +1101,4 @@ AddonInstallListener.prototype = {
 
     ExtensionsView.showAlert(strings.GetStringFromName(stringName), !aNeedsRestart);
   },
-
-  _clearRecommendedCache: function xpidm_clearRecommendedCache() {
-    let dirService = Cc["@mozilla.org/file/directory_service;1"].getService(Ci.nsIProperties);
-    let file = dirService.get("ProfD", Ci.nsILocalFile);
-    file.append("recommended-addons.json");
-    if (file.exists())
-      file.remove(false);
-  }
 };

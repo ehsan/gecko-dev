@@ -130,6 +130,7 @@
     let Ci = Components.interfaces, Cc = Components.classes, Cu = Components.utils;
     let gChromeWin = null;
 
+    Cu.import("resource://gre/modules/AddonManager.jsm");
     Cu.import("resource://gre/modules/NetUtil.jsm");
 
     function openLink(aElement) {
@@ -320,7 +321,7 @@
         return file;
       },
 
-      _loadAddons: function(aAddons) {
+      _loadAddons: function(aAddons, aAddonCount, aTotalResults) {
         let list = document.getElementById("newAddons");
         let loading = document.getElementById("loadingAddons");
 
@@ -375,11 +376,23 @@
           _readFile(file, function(aContent) {
             let json = JSON.parse(aContent);
             if (!json || json.addons.length == 0) {
-              self._loadAddons([]);
+              self._loadAddons([], 0, 0);
               return;
             }
   
-            self._loadAddons(json.addons);
+            // Ignore addons already installed
+            let addonsCache = json.addons;
+            AddonManager.getAllAddons(function(aAddons) {
+              let addons = addonsCache.filter(function(addon) {
+                for (let i =0; i < aAddons.length; i++)
+                  if (addon.id == aAddons[i].id)
+                    return false;
+  
+                return true;
+              });
+  
+              self._loadAddons(addons, addons.length, json.totalResults);
+            });
           });
         } else {
           setTimeout(function() {

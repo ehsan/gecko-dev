@@ -103,7 +103,6 @@ CPPSRCS = 				\
   nsRandomGenerator.cpp \
   NSSErrorsService.cpp \
   nsNSSCertificateFakeTransport.cpp \
-  PSMRunnable.cpp \
   $(NULL)
 
 ifdef MOZ_XUL
