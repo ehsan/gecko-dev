@@ -257,7 +257,8 @@ Toolbox.prototype = {
 
         let splitConsolePromise = promise.resolve();
         if (Services.prefs.getBoolPref(SPLITCONSOLE_ENABLED_PREF)) {
-          splitConsolePromise = this.openSplitConsole();
+          // Force the split console on if pref is true.
+          splitConsolePromise = this.toggleSplitConsole(true);
         }
         let buttonsPromise = this._buildButtons();
 
@@ -371,7 +372,7 @@ Toolbox.prototype = {
       webconsolePanel.removeAttribute("collapsed");
     } else {
       deck.removeAttribute("collapsed");
-      if (this.splitConsole) {
+      if (this._splitConsole) {
         webconsolePanel.removeAttribute("collapsed");
         splitter.removeAttribute("hidden");
       } else {
@@ -970,50 +971,36 @@ Toolbox.prototype = {
   },
 
   /**
-   * Opens the split console.
+   * Toggles the split state of the webconsole.  If the webconsole panel
+   * is already selected and no forceToggle is not set, then this command
+   * is ignored.
+   *
+   * @param {bool} forceToggle
+   *        Should the console be toggled regardless of the selected panel.
    *
    * @returns {Promise} a promise that resolves once the tool has been
    *          loaded and focused.
    */
-  openSplitConsole: function() {
-    this._splitConsole = true;
-    Services.prefs.setBoolPref(SPLITCONSOLE_ENABLED_PREF, true);
-    this._refreshConsoleDisplay();
-    this.emit("split-console");
-    return this.loadTool("webconsole").then(() => {
-      this.focusConsoleInput();
-    });
-  },
+  toggleSplitConsole: function(forceToggle = false) {
+    let openedConsolePanel = this.currentToolId === "webconsole";
+    let ret = promise.resolve();
 
-  /**
-   * Closes the split console.
-   *
-   * @returns {Promise} a promise that resolves once the tool has been
-   *          closed.
-   */
-  closeSplitConsole: function() {
-    this._splitConsole = false;
-    Services.prefs.setBoolPref(SPLITCONSOLE_ENABLED_PREF, false);
-    this._refreshConsoleDisplay();
-    this.emit("split-console");
-    return promise.resolve();
-  },
+    // Don't allow changes when console is open, since it could be confusing
+    if (!openedConsolePanel || forceToggle) {
+      this._splitConsole = !this._splitConsole;
+      Services.prefs.setBoolPref(SPLITCONSOLE_ENABLED_PREF, this._splitConsole);
 
-  /**
-   * Toggles the split state of the webconsole.  If the webconsole panel
-   * is already selected then this command is ignored.
-   *
-   * @returns {Promise} a promise that resolves once the tool has been
-   *          opened or closed.
-   */
-  toggleSplitConsole: function() {
-    if (this.currentToolId !== "webconsole") {
-      return this.splitConsole ?
-             this.closeSplitConsole() :
-             this.openSplitConsole();
+      this._refreshConsoleDisplay();
+      this.emit("split-console");
+
+      if (this._splitConsole) {
+        ret = this.loadTool("webconsole").then(() => {
+          this.focusConsoleInput();
+        });
+      }
     }
 
-    return promise.resolve();
+    return ret;
   },
 
   /**

@@ -99,7 +99,7 @@ exports.flatten = function flatten(array){
 function fromIterator(iterator) {
   let array = [];
   if (iterator.__iterator__) {
-    for (let item of iterator)
+    for each (let item in iterator)
       array.push(item);
   }
   else {

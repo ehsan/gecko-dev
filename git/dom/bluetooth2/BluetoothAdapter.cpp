@@ -407,9 +407,10 @@ BluetoothAdapter::StartDiscovery(ErrorResult& aRv)
     aRv.Throw(NS_ERROR_FAILURE);
     return nullptr;
   }
-
   nsRefPtr<Promise> promise = Promise::Create(global, aRv);
-  NS_ENSURE_TRUE(!aRv.Failed(), nullptr);
+  if (aRv.Failed()) {
+    return nullptr;
+  }
 
   /**
    * Ensure
@@ -450,9 +451,10 @@ BluetoothAdapter::StopDiscovery(ErrorResult& aRv)
     aRv.Throw(NS_ERROR_FAILURE);
     return nullptr;
   }
-
   nsRefPtr<Promise> promise = Promise::Create(global, aRv);
-  NS_ENSURE_TRUE(!aRv.Failed(), nullptr);
+  if (aRv.Failed()) {
+    return nullptr;
+  }
 
   /**
    * Ensure
@@ -482,13 +484,14 @@ already_AddRefed<Promise>
 BluetoothAdapter::SetName(const nsAString& aName, ErrorResult& aRv)
 {
   nsCOMPtr<nsIGlobalObject> global = do_QueryInterface(GetOwner());
-  if (!global) {
+  if(!global) {
     aRv.Throw(NS_ERROR_FAILURE);
     return nullptr;
   }
-
   nsRefPtr<Promise> promise = Promise::Create(global, aRv);
-  NS_ENSURE_TRUE(!aRv.Failed(), nullptr);
+  if (aRv.Failed()) {
+    return nullptr;
+  }
 
   /**
    * Ensure
@@ -522,13 +525,14 @@ already_AddRefed<Promise>
 BluetoothAdapter::SetDiscoverable(bool aDiscoverable, ErrorResult& aRv)
 {
   nsCOMPtr<nsIGlobalObject> global = do_QueryInterface(GetOwner());
-  if (!global) {
+  if(!global) {
     aRv.Throw(NS_ERROR_FAILURE);
     return nullptr;
   }
-
   nsRefPtr<Promise> promise = Promise::Create(global, aRv);
-  NS_ENSURE_TRUE(!aRv.Failed(), nullptr);
+  if (aRv.Failed()) {
+    return nullptr;
+  }
 
   /**
    * Ensure
@@ -642,17 +646,104 @@ BluetoothAdapter::Unpair(const nsAString& aDeviceAddress, ErrorResult& aRv)
   return PairUnpair(false, aDeviceAddress, aRv);
 }
 
-already_AddRefed<Promise>
-BluetoothAdapter::EnableDisable(bool aEnable, ErrorResult& aRv)
+already_AddRefed<DOMRequest>
+BluetoothAdapter::SetPinCode(const nsAString& aDeviceAddress,
+                             const nsAString& aPinCode, ErrorResult& aRv)
 {
-  nsCOMPtr<nsIGlobalObject> global = do_QueryInterface(GetOwner());
-  if (!global) {
+  nsCOMPtr<nsPIDOMWindow> win = GetOwner();
+  if (!win) {
     aRv.Throw(NS_ERROR_FAILURE);
     return nullptr;
   }
 
+  nsRefPtr<DOMRequest> request = new DOMRequest(win);
+  nsRefPtr<BluetoothVoidReplyRunnable> results =
+    new BluetoothVoidReplyRunnable(request);
+
+  BluetoothService* bs = BluetoothService::Get();
+  if (!bs) {
+    aRv.Throw(NS_ERROR_FAILURE);
+    return nullptr;
+  }
+  if (!bs->SetPinCodeInternal(aDeviceAddress, aPinCode, results)) {
+    BT_WARNING("SetPinCode failed!");
+    aRv.Throw(NS_ERROR_FAILURE);
+    return nullptr;
+  }
+
+  return request.forget();
+}
+
+already_AddRefed<DOMRequest>
+BluetoothAdapter::SetPasskey(const nsAString& aDeviceAddress, uint32_t aPasskey,
+                             ErrorResult& aRv)
+{
+  nsCOMPtr<nsPIDOMWindow> win = GetOwner();
+  if (!win) {
+    aRv.Throw(NS_ERROR_FAILURE);
+    return nullptr;
+  }
+
+  nsRefPtr<DOMRequest> request = new DOMRequest(win);
+  nsRefPtr<BluetoothVoidReplyRunnable> results =
+    new BluetoothVoidReplyRunnable(request);
+
+  BluetoothService* bs = BluetoothService::Get();
+  if (!bs) {
+    aRv.Throw(NS_ERROR_FAILURE);
+    return nullptr;
+  }
+  if (bs->SetPasskeyInternal(aDeviceAddress, aPasskey, results)) {
+    BT_WARNING("SetPasskeyInternal failed!");
+    aRv.Throw(NS_ERROR_FAILURE);
+    return nullptr;
+  }
+
+  return request.forget();
+}
+
+already_AddRefed<DOMRequest>
+BluetoothAdapter::SetPairingConfirmation(const nsAString& aDeviceAddress,
+                                         bool aConfirmation, ErrorResult& aRv)
+{
+  nsCOMPtr<nsPIDOMWindow> win = GetOwner();
+  if (!win) {
+    aRv.Throw(NS_ERROR_FAILURE);
+    return nullptr;
+  }
+
+  nsRefPtr<DOMRequest> request = new DOMRequest(win);
+  nsRefPtr<BluetoothVoidReplyRunnable> results =
+    new BluetoothVoidReplyRunnable(request);
+
+  BluetoothService* bs = BluetoothService::Get();
+  if (!bs) {
+    aRv.Throw(NS_ERROR_FAILURE);
+    return nullptr;
+  }
+  if (!bs->SetPairingConfirmationInternal(aDeviceAddress,
+                                          aConfirmation,
+                                          results)) {
+    BT_WARNING("SetPairingConfirmation failed!");
+    aRv.Throw(NS_ERROR_FAILURE);
+    return nullptr;
+  }
+
+  return request.forget();
+}
+
+already_AddRefed<Promise>
+BluetoothAdapter::EnableDisable(bool aEnable, ErrorResult& aRv)
+{
+  nsCOMPtr<nsIGlobalObject> global = do_QueryInterface(GetOwner());
+  if(!global) {
+    aRv.Throw(NS_ERROR_FAILURE);
+    return nullptr;
+  }
   nsRefPtr<Promise> promise = Promise::Create(global, aRv);
-  NS_ENSURE_TRUE(!aRv.Failed(), nullptr);
+  if (aRv.Failed()) {
+    return nullptr;
+  }
 
   // Ensure BluetoothService is available before modifying adapter state
   BluetoothService* bs = BluetoothService::Get();

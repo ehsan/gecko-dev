@@ -6,7 +6,6 @@ const { RootActor } = require("devtools/server/actors/root");
 const { ThreadActor } = require("devtools/server/actors/script");
 const { DebuggerServer } = require("devtools/server/main");
 const promise = require("promise");
-const makeDebugger = require("devtools/server/actors/utils/make-debugger");
 
 var gTestGlobals = [];
 DebuggerServer.addTestGlobal = function(aGlobal) {
@@ -67,13 +66,6 @@ function TestTabActor(aConnection, aGlobal)
   this.conn.addActor(this._threadActor);
   this._attached = false;
   this._extraActors = {};
-  this.makeDebugger = makeDebugger.bind(null, {
-    findDebuggees: () => [this._global],
-    shouldAddNewGlobalAsDebuggee: g => g.hostAnnotations &&
-                                       g.hostAnnotations.type == "document" &&
-                                       g.hostAnnotations.element === this._global
-
-  });
 }
 
 TestTabActor.prototype = {

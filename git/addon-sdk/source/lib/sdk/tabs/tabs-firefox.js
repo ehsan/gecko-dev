@@ -51,7 +51,7 @@ Object.defineProperties(tabs, {
 });
 
 function getWindow(privateState) {
-  for (let window of windows) {
+  for each (let window in windows) {
     if (privateState === isPrivate(window)) {
       return window;
     }

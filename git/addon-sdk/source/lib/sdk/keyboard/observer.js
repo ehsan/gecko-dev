@@ -51,7 +51,7 @@ windowObserver.on("close", function onClose(window) {
 });
 
 // Making observer aware of already opened windows.
-for (let window of browserWindowIterator())
+for each (let window in browserWindowIterator())
   observer.observe(window);
 
 exports.observer = observer;

@@ -93,15 +93,15 @@ public:
   RemoveDeviceInternal(const nsAString& aDeviceObjectPath,
                        BluetoothReplyRunnable* aRunnable) MOZ_OVERRIDE;
 
-  virtual nsresult
+  virtual bool
   SetPinCodeInternal(const nsAString& aDeviceAddress, const nsAString& aPinCode,
                      BluetoothReplyRunnable* aRunnable) MOZ_OVERRIDE;
 
-  virtual nsresult
+  virtual bool
   SetPasskeyInternal(const nsAString& aDeviceAddress, uint32_t aPasskey,
                      BluetoothReplyRunnable* aRunnable) MOZ_OVERRIDE;
 
-  virtual nsresult
+  virtual bool
   SetPairingConfirmationInternal(const nsAString& aDeviceAddress, bool aConfirm,
                                  BluetoothReplyRunnable* aRunnable) MOZ_OVERRIDE;
 

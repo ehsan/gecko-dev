@@ -9,7 +9,6 @@ import android.graphics.Bitmap;
 import android.net.Uri;
 import android.os.Bundle;
 import android.support.v4.app.Fragment;
-import android.text.TextUtils;
 import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
@@ -73,12 +72,8 @@ public class PostSearchFragment extends Fragment {
         setUrl(Constants.YAHOO_WEB_SEARCH_BASE_URL + Uri.encode(query));
     }
 
-    private void setUrl(String url) {
-        // Only load URLs if they're different than what's already
-        // loaded in the webview.
-        if (!TextUtils.equals(webview.getUrl(), url)) {
-            webview.loadUrl(url);
-        }
+    public void setUrl(String url) {
+        webview.loadUrl(url);
     }
 
     /**
@@ -103,7 +98,7 @@ public class PostSearchFragment extends Fragment {
 
     /**
      * A custom WebChromeClient that allows us to inject CSS into
-     * the head of the HTML and to monitor pageload progress.
+     * the head of the HTML.
      *
      * We use the WebChromeClient because it provides a hook to the titleReceived
      * event. Once the title is available, the page will have started parsing the

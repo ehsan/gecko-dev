@@ -289,7 +289,7 @@ exports.testAddIterator = function testAddIterator (assert) {
   apiUtils.addIterator(
     obj,
     function keysValsGen() {
-      for (let keyVal of keysVals)
+      for each (let keyVal in keysVals)
         yield keyVal;
     }
   );

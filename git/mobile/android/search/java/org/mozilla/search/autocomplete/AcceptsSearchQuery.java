@@ -2,8 +2,12 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-"use strict";
+package org.mozilla.search.autocomplete;
 
-addMessageListener("devtools:test:history", function ({ data }) {
-  content.history[data.direction]();
-});
+
+/**
+ * Allows rows to pass a search event to the parent fragment.
+ */
+public interface AcceptsSearchQuery {
+    void onSearch(String s);
+}

@@ -54,13 +54,10 @@ this.MobileIdentityClient.prototype = {
     return this._request(REGISTER, "POST", null, {});
   },
 
-  smsMtVerify: function(aSessionToken, aMsisdn, aMcc, aMnc,
-                        aWantShortCode = false) {
+  smsMtVerify: function(aSessionToken, aMsisdn, aWantShortCode = false) {
     let credentials = this._deriveHawkCredentials(aSessionToken);
     return this._request(SMS_MT_VERIFY, "POST", credentials, {
       msisdn: aMsisdn,
-      mcc: aMcc,
-      mnc: aMnc,
       shortVerificationCode: aWantShortCode
     });
   },

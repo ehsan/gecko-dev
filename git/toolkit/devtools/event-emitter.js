@@ -112,7 +112,7 @@ EventEmitter.prototype = {
 
   /**
    * Emit an event.  All arguments to this method will
-   * be sent to listener functions.
+   * be sent to listner functions.
    */
   emit: function EventEmitter_emit(aEvent) {
     this.logEvent(aEvent, arguments);
