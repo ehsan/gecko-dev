@@ -30,10 +30,6 @@ BasicCanvasLayer::Paint(DrawTarget* aDT, Layer* aMaskLayer)
   UpdateTarget();
   FireDidTransactionCallback();
 
-  if (!mSurface) {
-    return;
-  }
-
   Matrix m;
   if (mNeedsYFlip) {
     m = aDT->GetTransform();

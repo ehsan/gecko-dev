@@ -56,35 +56,7 @@ IsAsmJSModuleNative(JSNative native)
 }
 
 inline bool
-IsAsmJSFunction(JSContext *cx, unsigned argc, Value *vp)
-{
-    CallArgs args = CallArgsFromVp(argc, vp);
-    args.rval().set(BooleanValue(false));
-    return true;
-}
-
-inline bool
-IsAsmJSFunction(HandleFunction fun)
-{
-    return false;
-}
-
-inline JSString *
-AsmJSFunctionToString(JSContext *cx, HandleFunction fun)
-{
-    return nullptr;
-}
-
-inline bool
-IsAsmJSModule(JSContext *cx, unsigned argc, Value *vp)
-{
-    CallArgs args = CallArgsFromVp(argc, vp);
-    args.rval().set(BooleanValue(false));
-    return true;
-}
-
-inline bool
-IsAsmJSModule(HandleFunction fun)
+IsAsmJSModuleNative(HandleFunction fun)
 {
     return false;
 }
@@ -93,6 +65,22 @@ inline JSString*
 AsmJSModuleToString(JSContext *cx, HandleFunction fun, bool addParenToLambda)
 {
     return nullptr;
+}
+
+inline bool
+IsAsmJSFunction(JSContext *cx, unsigned argc, Value *vp)
+{
+    CallArgs args = CallArgsFromVp(argc, vp);
+    args.rval().set(BooleanValue(false));
+    return true;
+}
+
+inline bool
+IsAsmJSModule(JSContext *cx, unsigned argc, Value *vp)
+{
+    CallArgs args = CallArgsFromVp(argc, vp);
+    args.rval().set(BooleanValue(false));
+    return true;
 }
 
 inline bool

@@ -15,14 +15,6 @@
 #include "nsComponentManagerUtils.h"
 #include "nsProxyRelease.h"
 
-// When CACHE_CHUNKS is defined we always cache unused chunks in mCacheChunks.
-// When it is not defined, we always release the chunks ASAP, i.e. we cache
-// unused chunks only when:
-//  - CacheFile is memory-only
-//  - CacheFile is still waiting for the handle
-
-//#define CACHE_CHUNKS
-
 namespace mozilla {
 namespace net {
 
@@ -177,7 +169,6 @@ CacheFile::CacheFile()
   , mOpeningFile(false)
   , mReady(false)
   , mMemoryOnly(false)
-  , mOpenAsMemoryOnly(false)
   , mDataAccessed(false)
   , mDataIsDirty(false)
   , mWritingMetadata(false)
@@ -212,7 +203,7 @@ CacheFile::Init(const nsACString &aKey,
   nsresult rv;
 
   mKey = aKey;
-  mOpenAsMemoryOnly = mMemoryOnly = aMemoryOnly;
+  mMemoryOnly = aMemoryOnly;
 
   LOG(("CacheFile::Init() [this=%p, key=%s, createNew=%d, memoryOnly=%d, "
        "listener=%p]", this, mKey.get(), aCreateNew, aMemoryOnly, aCallback));
@@ -220,7 +211,7 @@ CacheFile::Init(const nsACString &aKey,
   if (mMemoryOnly) {
     MOZ_ASSERT(!aCallback);
 
-    mMetadata = new CacheFileMetadata(mOpenAsMemoryOnly, mKey);
+    mMetadata = new CacheFileMetadata(mKey);
     mReady = true;
     mDataSize = mMetadata->Offset();
     return NS_OK;
@@ -232,7 +223,7 @@ CacheFile::Init(const nsACString &aKey,
       flags = CacheFileIOManager::CREATE_NEW;
 
       // make sure we can use this entry immediately
-      mMetadata = new CacheFileMetadata(mOpenAsMemoryOnly, mKey);
+      mMetadata = new CacheFileMetadata(mKey);
       mReady = true;
       mDataSize = mMetadata->Offset();
     }
@@ -249,7 +240,7 @@ CacheFile::Init(const nsACString &aKey,
         flags = CacheFileIOManager::CREATE_NEW;
 
         // make sure we can use this entry immediately
-        mMetadata = new CacheFileMetadata(mOpenAsMemoryOnly, mKey);
+        mMetadata = new CacheFileMetadata(mKey);
         mReady = true;
         mDataSize = mMetadata->Offset();
 
@@ -289,7 +280,7 @@ CacheFile::Init(const nsACString &aKey,
              "initializing entry as memory-only. [this=%p]", this));
 
         mMemoryOnly = true;
-        mMetadata = new CacheFileMetadata(mOpenAsMemoryOnly, mKey);
+        mMetadata = new CacheFileMetadata(mKey);
         mReady = true;
         mDataSize = mMetadata->Offset();
 
@@ -340,7 +331,6 @@ CacheFile::OnChunkWritten(nsresult aResult, CacheFileChunk *aChunk)
        this, aResult, aChunk, aChunk->Index()));
 
   MOZ_ASSERT(!mMemoryOnly);
-  MOZ_ASSERT(!mOpeningFile);
 
   // TODO handle ERROR state
 
@@ -373,22 +363,13 @@ CacheFile::OnChunkWritten(nsresult aResult, CacheFileChunk *aChunk)
     return NS_OK;
   }
 
-#ifdef CACHE_CHUNKS
   LOG(("CacheFile::OnChunkWritten() - Caching unused chunk [this=%p, chunk=%p]",
        this, aChunk));
-#else
-  LOG(("CacheFile::OnChunkWritten() - Releasing unused chunk [this=%p, "
-       "chunk=%p]", this, aChunk));
-#endif
 
   aChunk->mRemovingChunk = true;
   ReleaseOutsideLock(static_cast<CacheFileChunkListener *>(
                        aChunk->mFile.forget().take()));
-
-#ifdef CACHE_CHUNKS
   mCachedChunks.Put(aChunk->Index(), aChunk);
-#endif
-
   mChunks.Remove(aChunk->Index());
   WriteMetadataIfNeededLocked();
 
@@ -496,7 +477,7 @@ CacheFile::OnFileOpened(CacheFileHandle *aHandle, nsresult aResult)
              this));
 
         mMemoryOnly = true;
-        mMetadata = new CacheFileMetadata(mOpenAsMemoryOnly, mKey);
+        mMetadata = new CacheFileMetadata(mKey);
         mReady = true;
         mDataSize = mMetadata->Offset();
 
@@ -799,13 +780,7 @@ CacheFile::ThrowMemoryCachedData()
     return NS_ERROR_ABORT;
   }
 
-#ifdef CACHE_CHUNKS
   mCachedChunks.Clear();
-#else
-  // If we don't cache all chunks, mCachedChunks must be empty.
-  MOZ_ASSERT(mCachedChunks.Count() == 0);
-#endif
-
   return NS_OK;
 }
 
@@ -1012,11 +987,6 @@ CacheFile::GetChunkLocked(uint32_t aIndex, bool aWriter,
   }
 
   if (mCachedChunks.Get(aIndex, getter_AddRefs(chunk))) {
-#ifndef CACHE_CHUNKS
-    // We don't cache all chunks, so we must not have handle and we must be
-    // either waiting for the handle, or this is memory-only entry.
-    MOZ_ASSERT(!mHandle && (mMemoryOnly || mOpeningFile));
-#endif
     LOG(("CacheFile::GetChunkLocked() - Reusing cached chunk %p [this=%p]",
          chunk.get(), this));
 
@@ -1178,9 +1148,7 @@ CacheFile::RemoveChunk(CacheFileChunk *aChunk)
          this, aChunk, aChunk->Index()));
 
     MOZ_ASSERT(mReady);
-    MOZ_ASSERT((mHandle && !mMemoryOnly && !mOpeningFile) ||
-               (!mHandle && mMemoryOnly && !mOpeningFile) ||
-               (!mHandle && !mMemoryOnly && mOpeningFile));
+    MOZ_ASSERT(mHandle || mMemoryOnly || mOpeningFile);
 
     if (aChunk->mRefCnt != 2) {
       LOG(("CacheFile::RemoveChunk() - Chunk is still used [this=%p, chunk=%p, "
@@ -1227,31 +1195,13 @@ CacheFile::RemoveChunk(CacheFileChunk *aChunk)
       }
     }
 
-#ifdef CACHE_CHUNKS
     LOG(("CacheFile::RemoveChunk() - Caching unused chunk [this=%p, chunk=%p]",
          this, chunk.get()));
-#else
-    if (mMemoryOnly || mOpeningFile) {
-      LOG(("CacheFile::RemoveChunk() - Caching unused chunk [this=%p, chunk=%p,"
-           " reason=%s]", this, chunk.get(),
-           mMemoryOnly ? "memory-only" : "opening-file"));
-    } else {
-      LOG(("CacheFile::RemoveChunk() - Releasing unused chunk [this=%p, "
-           "chunk=%p]", this, chunk.get()));
-    }
-#endif
 
     chunk->mRemovingChunk = true;
     ReleaseOutsideLock(static_cast<CacheFileChunkListener *>(
                          chunk->mFile.forget().take()));
-#ifndef CACHE_CHUNKS
-    // Cache the chunk only when we have a reason to do so
-    if (mMemoryOnly || mOpeningFile)
-#endif
-    {
-      mCachedChunks.Put(chunk->Index(), chunk);
-    }
-
+    mCachedChunks.Put(chunk->Index(), chunk);
     mChunks.Remove(chunk->Index());
     if (!mMemoryOnly)
       WriteMetadataIfNeededLocked();
@@ -1428,21 +1378,6 @@ CacheFile::IsDoomed()
     return false;
 
   return mHandle->IsDoomed();
-}
-
-bool
-CacheFile::IsWriteInProgress()
-{
-  // Returns true when there is a potentially unfinished write operation.
-  // Not using lock for performance reasons.  mMetadata is never released
-  // during life time of CacheFile.
-  return
-    mDataIsDirty ||
-    (mMetadata && mMetadata->IsDirty()) ||
-    mWritingMetadata ||
-    mOpeningFile ||
-    mOutput ||
-    mChunks.Count();
 }
 
 bool

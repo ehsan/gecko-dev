@@ -23,17 +23,16 @@ interface DataStore : EventTarget {
   Promise get(DataStoreKey... id);
 
   // Promise<void>
-  Promise put(any obj, DataStoreKey id, optional DOMString revisionId = "");
+  Promise put(any obj, DataStoreKey id);
 
   // Promise<DataStoreKey>
-  Promise add(any obj, optional DataStoreKey id,
-              optional DOMString revisionId = "");
+  Promise add(any obj, optional DataStoreKey id);
 
   // Promise<boolean>
-  Promise remove(DataStoreKey id, optional DOMString revisionId = "");
+  Promise remove(DataStoreKey id);
 
   // Promise<void>
-  Promise clear(optional DOMString revisionId = "");
+  Promise clear();
 
   readonly attribute DOMString revisionId;
 

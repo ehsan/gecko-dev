@@ -17,6 +17,7 @@
 #include "mozilla/dom/FileModeBinding.h"
 
 class nsIDOMFile;
+class nsIDOMLockedFile;
 class nsIFileStorage;
 class nsPIDOMWindow;
 

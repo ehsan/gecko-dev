@@ -2240,7 +2240,6 @@ nsDocument::Reset(nsIChannel* aChannel, nsILoadGroup* aLoadGroup)
                                 NS_GET_IID(nsIURI), getter_AddRefs(baseURI));
     if (baseURI) {
       mDocumentBaseURI = baseURI;
-      mChromeXHRDocBaseURI = baseURI;
     }
   }
 
@@ -2322,11 +2321,9 @@ nsDocument::ResetToURI(nsIURI *aURI, nsILoadGroup *aLoadGroup,
   mOriginalURI = nullptr;
 
   SetDocumentURI(aURI);
-  mChromeXHRDocURI = aURI;
   // If mDocumentBaseURI is null, nsIDocument::GetBaseURI() returns
   // mDocumentURI.
   mDocumentBaseURI = nullptr;
-  mChromeXHRDocBaseURI = nullptr;
 
   if (aLoadGroup) {
     mDocumentLoadGroup = do_GetWeakReference(aLoadGroup);
@@ -2949,18 +2946,6 @@ nsDocument::SetDocumentURI(nsIURI* aURI)
   }
 }
 
-void
-nsDocument::SetChromeXHRDocURI(nsIURI* aURI)
-{
-  mChromeXHRDocURI = aURI;
-}
-
-void
-nsDocument::SetChromeXHRDocBaseURI(nsIURI* aURI)
-{
-  mChromeXHRDocBaseURI = aURI;
-}
-
 NS_IMETHODIMP
 nsDocument::GetLastModified(nsAString& aLastModified)
 {
@@ -3436,15 +3421,9 @@ nsIDocument::ReleaseCapture() const
 }
 
 already_AddRefed<nsIURI>
-nsIDocument::GetBaseURI(bool aTryUseXHRDocBaseURI) const
+nsIDocument::GetBaseURI() const
 {
-  nsCOMPtr<nsIURI> uri;
-  if (aTryUseXHRDocBaseURI && mChromeXHRDocBaseURI) {
-    uri = mChromeXHRDocBaseURI;
-  } else {
-    uri = GetDocBaseURI();
-  }
-
+  nsCOMPtr<nsIURI> uri = GetDocBaseURI();
   return uri.forget();
 }
 
@@ -7176,29 +7155,6 @@ nsIDocument::GetURL(nsString& aURL) const
   return GetDocumentURI(aURL);
 }
 
-void
-nsIDocument::GetDocumentURIFromJS(nsString& aDocumentURI) const
-{
-  if (!mChromeXHRDocURI || !nsContentUtils::IsCallerChrome()) {
-    return GetDocumentURI(aDocumentURI);
-  }
-
-  nsAutoCString uri;
-  mChromeXHRDocURI->GetSpec(uri);
-  CopyUTF8toUTF16(uri, aDocumentURI);
-}
-
-nsIURI*
-nsIDocument::GetDocumentURIObject() const
-{
-  if (!mChromeXHRDocURI) {
-    return GetDocumentURI();
-  }
-
-  return mChromeXHRDocURI;
-}
-
-
 // readonly attribute DOMString compatMode;
 // Returns "BackCompat" if we are in quirks mode, "CSS1Compat" if we are
 // in almost standards or full standards mode. See bug 105640.  This was
@@ -9069,11 +9025,9 @@ nsDocument::CloneDocHelper(nsDocument* clone) const
 
   // Set URI/principal
   clone->nsDocument::SetDocumentURI(nsIDocument::GetDocumentURI());
-  clone->SetChromeXHRDocURI(mChromeXHRDocURI);
   // Must set the principal first, since SetBaseURI checks it.
   clone->SetPrincipal(NodePrincipal());
   clone->mDocumentBaseURI = mDocumentBaseURI;
-  clone->SetChromeXHRDocBaseURI(mChromeXHRDocBaseURI);
 
   if (mCreatingStaticClone) {
     nsCOMPtr<nsILoadGroup> loadGroup;
