@@ -209,8 +209,7 @@ already_AddRefed<gfxASurface>
 BasicTextureImage::GetSurfaceForUpdate(const gfxIntSize& aSize, ImageFormat aFmt)
 {
     return gfxPlatform::GetPlatform()->
-        CreateOffscreenSurface(aSize.ToIntSize(),
-                               gfxASurface::ContentFromFormat(aFmt));
+        CreateOffscreenSurface(aSize, gfxASurface::ContentFromFormat(aFmt));
 }
 
 bool
@@ -513,8 +512,7 @@ TiledTextureImage::BeginUpdate(nsIntRegion& aRegion)
         (GetContentType() == gfxContentType::COLOR) ?
         gfxImageFormat::RGB24 : gfxImageFormat::ARGB32;
     mUpdateSurface = gfxPlatform::GetPlatform()->
-        CreateOffscreenSurface(bounds.Size().ToIntSize(),
-                               gfxASurface::ContentFromFormat(format));
+        CreateOffscreenSurface(gfxIntSize(bounds.width, bounds.height), gfxASurface::ContentFromFormat(format));
     mUpdateSurface->SetDeviceOffset(gfxPoint(-bounds.x, -bounds.y));
 
     return mUpdateSurface;

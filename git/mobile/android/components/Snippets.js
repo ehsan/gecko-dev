@@ -136,8 +136,9 @@ function cacheSnippets(response) {
 function loadSnippetsFromCache() {
   let promise = OS.File.read(gSnippetsPath);
   promise.then(array => updateBanner(gDecoder.decode(array)), e => {
+    // If snippets.json doesn't exist, update data from the server.
     if (e instanceof OS.File.Error && e.becauseNoSuchFile) {
-      Cu.reportError("Couldn't show snippets because cache does not exist yet.");
+      update();
     } else {
       Cu.reportError("Error loading snippets from cache: " + e);
     }

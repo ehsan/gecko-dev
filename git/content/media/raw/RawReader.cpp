@@ -9,7 +9,6 @@
 #include "RawDecoder.h"
 #include "VideoUtils.h"
 #include "nsISeekableStream.h"
-#include "gfx2DGlue.h"
 
 using namespace mozilla;
 
@@ -216,7 +215,7 @@ bool RawReader::DecodeVideoFrame(bool &aKeyframeSkip,
                                    b,
                                    1, // In raw video every frame is a keyframe
                                    -1,
-                                   ToIntRect(mPicture));
+                                   mPicture);
   if (!v)
     return false;
 

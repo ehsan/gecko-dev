@@ -48,7 +48,7 @@ function BannerMessage(options) {
     this.onclick = options.onclick;
 }
 
-let HomeBanner = Object.freeze({
+let HomeBanner = {
   // Holds the messages that will rotate through the banner.
   _messages: {},
 
@@ -135,7 +135,7 @@ let HomeBanner = Object.freeze({
       Services.obs.removeObserver(this, "HomeBanner:Click");
     }
   }
-});
+};
 
 function Panel(options) {
   if ("id" in options)
@@ -151,17 +151,17 @@ function Panel(options) {
     this.views = options.views;
 }
 
-let HomePanels = Object.freeze({
+let HomePanels = {
   // Valid layouts for a panel.
-  Layout: Object.freeze({
+  Layout: {
     FRAME: "frame"
-  }),
+  },
 
   // Valid types of views for a dataset.
-  View: Object.freeze({
+  View: {
     LIST: "list",
     GRID: "grid"
-  }),
+  },
 
   // Holds the currrent set of registered panels.
   _panels: {},
@@ -254,10 +254,10 @@ let HomePanels = Object.freeze({
     }
     return false;
   }
-});
+};
 
 // Public API
-this.Home = Object.freeze({
+this.Home = {
   banner: HomeBanner,
   panels: HomePanels,
 
@@ -269,4 +269,4 @@ this.Home = Object.freeze({
         break;
     }
   }
-});
+}

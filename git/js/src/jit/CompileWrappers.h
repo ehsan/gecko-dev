@@ -52,10 +52,6 @@ class CompileRuntime
 
     const void *addressOfInterrupt();
 
-#ifdef JS_THREADSAFE
-    const void *addressOfInterruptPar();
-#endif
-
     const JitRuntime *jitRuntime();
 
     // Compilation does not occur off thread when the SPS profiler is enabled.

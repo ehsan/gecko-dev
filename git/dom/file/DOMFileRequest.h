@@ -16,17 +16,13 @@ BEGIN_FILE_NAMESPACE
 class DOMFileRequest : public FileRequest
 {
 public:
-  static already_AddRefed<DOMFileRequest>
-  Create(nsPIDOMWindow* aOwner, LockedFile* aLockedFile);
+  DOMFileRequest(nsPIDOMWindow* aWindow);
 
   virtual JSObject* WrapObject(JSContext* aCx,
                                JS::Handle<JSObject*> aScope) MOZ_OVERRIDE;
 
   nsIDOMLockedFile* GetLockedFile() const;
   IMPL_EVENT_HANDLER(progress)
-
-protected:
-  DOMFileRequest(nsPIDOMWindow* aWindow);
 };
 
 END_FILE_NAMESPACE

@@ -2521,10 +2521,6 @@ let SessionStoreInternal = {
       else
         tabbrowser.showTab(tab);
 
-      if (tabData.lastAccessed) {
-        tab.lastAccessed = tabData.lastAccessed;
-      }
-
       if ("attributes" in tabData) {
         // Ensure that we persist tab attributes restored from previous sessions.
         Object.keys(tabData.attributes).forEach(a => TabAttributes.persist(a));

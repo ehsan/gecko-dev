@@ -1471,9 +1471,13 @@ nsXULPopupManager::MayShowPopup(nsMenuPopupFrame* aPopup)
   if (!baseWin)
     return false;
 
+  int32_t type = -1;
+  if (NS_FAILED(dsti->GetItemType(&type)))
+    return false;
+
   // chrome shells can always open popups, but other types of shells can only
   // open popups when they are focused and visible
-  if (dsti->ItemType() != nsIDocShellTreeItem::typeChrome) {
+  if (type != nsIDocShellTreeItem::typeChrome) {
     // only allow popups in active windows
     nsCOMPtr<nsIDocShellTreeItem> root;
     dsti->GetRootTreeItem(getter_AddRefs(root));

@@ -166,7 +166,7 @@ gfxQtPlatform::GetXScreen(QWidget* aWindow)
 #endif
 
 already_AddRefed<gfxASurface>
-gfxQtPlatform::CreateOffscreenSurface(const IntSize& size,
+gfxQtPlatform::CreateOffscreenSurface(const gfxIntSize& size,
                                       gfxContentType contentType)
 {
     nsRefPtr<gfxASurface> newSurface = nullptr;
@@ -175,14 +175,14 @@ gfxQtPlatform::CreateOffscreenSurface(const IntSize& size,
 
 #ifdef CAIRO_HAS_QT_SURFACE
     if (mRenderMode == RENDER_QPAINTER) {
-      newSurface = new gfxQPainterSurface(ThebesIntSize(size), imageFormat);
+      newSurface = new gfxQPainterSurface(size, imageFormat);
       return newSurface.forget();
     }
 #endif
 
     if ((mRenderMode == RENDER_BUFFERED || mRenderMode == RENDER_DIRECT) &&
         sDefaultQtPaintEngineType != QPaintEngine::X11) {
-      newSurface = new gfxImageSurface(ThebesIntSize(size), imageFormat);
+      newSurface = new gfxImageSurface(size, imageFormat);
       return newSurface.forget();
     }
 
@@ -191,8 +191,7 @@ gfxQtPlatform::CreateOffscreenSurface(const IntSize& size,
         gfxXlibSurface::FindRenderFormat(GetXDisplay(), imageFormat);
 
     Screen* screen = GetXScreen();
-    newSurface = gfxXlibSurface::Create(screen, xrenderFormat,
-                                        ThebesIntSize(size));
+    newSurface = gfxXlibSurface::Create(screen, xrenderFormat, size);
 #endif
 
     if (newSurface) {
