@@ -798,9 +798,7 @@ BluetoothService::Notify(const BluetoothSignal& aData)
     do_GetService("@mozilla.org/system-message-internal;1");
   NS_ENSURE_TRUE_VOID(systemMessenger);
 
-  systemMessenger->BroadcastMessage(type,
-                                    OBJECT_TO_JSVAL(obj),
-                                    JS::UndefinedValue());
+  systemMessenger->BroadcastMessage(type, OBJECT_TO_JSVAL(obj));
 }
 
 void

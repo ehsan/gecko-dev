@@ -124,9 +124,7 @@ BroadcastSystemMessage(const nsAString& aType,
     do_GetService("@mozilla.org/system-message-internal;1");
   NS_ENSURE_TRUE(systemMessenger, false);
 
-  systemMessenger->BroadcastMessage(aType,
-                                    OBJECT_TO_JSVAL(obj),
-                                    JS::UndefinedValue());
+  systemMessenger->BroadcastMessage(aType, OBJECT_TO_JSVAL(obj));
 
   return true;
 }

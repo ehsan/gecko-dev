@@ -52,7 +52,7 @@ const MOBILECONNECTIONINFO_CID =
 const MOBILENETWORKINFO_CID =
   Components.ID("{a6c8416c-09b4-46d1-bf29-6520d677d085}");
 const MOBILECELLINFO_CID =
-  Components.ID("{ae724dd4-ccaf-4006-98f1-6ce66a092464}");
+  Components.ID("{5e809018-68c0-4c54-af0b-2a9b8f748c45}");
 const VOICEMAILSTATUS_CID=
   Components.ID("{5467f2eb-e214-43ea-9b89-67711241ec8e}");
 const MOBILECFINFO_CID=
@@ -226,13 +226,8 @@ MobileCellInfo.prototype = {
 
   // nsIDOMMozMobileCellInfo
 
-  gsmLocationAreaCode: -1,
-  gsmCellId: -1,
-  cdmaBaseStationId: -1,
-  cdmaBaseStationLatitude: -2147483648,
-  cdmaBaseStationLongitude: -2147483648,
-  cdmaSystemId: -1,
-  cdmaNetworkId: -1
+  gsmLocationAreaCode: null,
+  gsmCellId: null
 };
 
 function VoicemailStatus() {}
@@ -448,7 +443,8 @@ RILContentHelper.prototype = {
         cell = destInfo.cell = new MobileCellInfo();
       }
 
-      this.updateInfo(srcCell, cell);
+      cell.gsmLocationAreaCode = srcCell.gsmLocationAreaCode;
+      cell.gsmCellId = srcCell.gsmCellId;
     }
 
     let srcNetwork = srcInfo.network;

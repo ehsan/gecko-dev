@@ -204,9 +204,9 @@ add_test(function test_cdma_spn_display_condition() {
       systemId: homeSystemIds,
       networkId: homeNetworkIds
     };
-    RIL.voiceRegistrationState.cell = {
-      cdmaSystemId: currentSystemId,
-      cdmaNetworkId: currentNetworkId
+    RIL.cdmaSubscription = {
+      systemId: currentSystemId,
+      networkId: currentNetworkId
     };
 
     do_check_eq(ICCUtilsHelper.updateDisplayCondition(), expectUpdateDisplayCondition);

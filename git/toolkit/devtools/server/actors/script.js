@@ -7,235 +7,6 @@
 "use strict";
 
 /**
- * BreakpointStore objects keep track of all breakpoints that get set so that we
- * can reset them when the same script is introduced to the thread again (such
- * as after a refresh).
- */
-function BreakpointStore() {
-  // If we have a whole-line breakpoint set at LINE in URL, then
-  //
-  //   this._wholeLineBreakpoints[URL][LINE]
-  //
-  // is an object
-  //
-  //   { url, line[, actor] }
-  //
-  // where the `actor` property is optional.
-  this._wholeLineBreakpoints = Object.create(null);
-
-  // If we have a breakpoint set at LINE, COLUMN in URL, then
-  //
-  //   this._breakpoints[URL][LINE][COLUMN]
-  //
-  // is an object
-  //
-  //   { url, line[, actor] }
-  //
-  // where the `actor` property is optional.
-  this._breakpoints = Object.create(null);
-}
-
-BreakpointStore.prototype = {
-
-  /**
-   * Add a breakpoint to the breakpoint store.
-   *
-   * @param Object aBreakpoint
-   *        The breakpoint to be added (not copied). It is an object with the
-   *        following properties:
-   *          - url
-   *          - line
-   *          - column (optional; omission implies that the breakpoint is for
-   *            the whole line)
-   *          - actor (optional)
-   */
-  addBreakpoint: function BS_addBreakpoint(aBreakpoint) {
-    let { url, line, column } = aBreakpoint;
-
-    if (column != null) {
-      if (!this._breakpoints[url]) {
-        this._breakpoints[url] = [];
-      }
-      if (!this._breakpoints[url][line]) {
-        this._breakpoints[url][line] = [];
-      }
-      this._breakpoints[url][line][column] = aBreakpoint;
-    } else {
-      // Add a breakpoint that breaks on the whole line.
-      if (!this._wholeLineBreakpoints[url]) {
-        this._wholeLineBreakpoints[url] = [];
-      }
-      this._wholeLineBreakpoints[url][line] = aBreakpoint;
-    }
-  },
-
-  /**
-   * Remove a breakpoint from the breakpoint store.
-   *
-   * @param Object aBreakpoint
-   *        The breakpoint to be removed. It is an object with the following
-   *        properties:
-   *          - url
-   *          - line
-   *          - column (optional)
-   */
-  removeBreakpoint: function BS_removeBreakpoint({ url, line, column }) {
-    if (column != null) {
-      if (this._breakpoints[url]) {
-        if (this._breakpoints[url][line]) {
-          delete this._breakpoints[url][line][column];
-
-          // If this was the last breakpoint on this line, delete the line from
-          // `this._breakpoints[url]` as well. Otherwise `_iterLines` will yield
-          // this line even though we no longer have breakpoints on
-          // it. Furthermore, we use Object.keys() instead of just checking
-          // `this._breakpoints[url].length` directly, because deleting
-          // properties from sparse arrays doesn't update the `length` property
-          // like adding them does.
-          if (Object.keys(this._breakpoints[url][line]).length === 0) {
-            delete this._breakpoints[url][line];
-          }
-        }
-      }
-    } else {
-      if (this._wholeLineBreakpoints[url]) {
-        delete this._wholeLineBreakpoints[url][line];
-      }
-    }
-  },
-
-  /**
-   * Get a breakpoint from the breakpoint store. Will throw an error if the
-   * breakpoint is not found unless you explicitly silence it.
-   *
-   * @param Object aLocation
-   *        The location of the breakpoint you are retrieving. It is an object
-   *        with the following properties:
-   *          - url
-   *          - line
-   *          - column (optional)
-   * @param bool aShouldThrow
-   *        Optional; defaults to true. Whether an error should be thrown when
-   *        there is no breakpoint at the specified locaiton.
-   */
-  getBreakpoint: function BS_getBreakpoint(aLocation, aShouldThrow=true) {
-    let { url, line, column } = aLocation;
-    dbg_assert(url != null);
-    dbg_assert(line != null);
-    for (let bp of this.findBreakpoints(aLocation)) {
-      // We will get whole line breakpoints before individual columns, so just
-      // return the first one and if they didn't specify a column then they will
-      // get the whole line breakpoint, and otherwise we will find the correct
-      // one.
-      return bp;
-    }
-    if (aShouldThrow) {
-      throw new Error("No breakpoint at url = " + url
-                      + ", line = " + line
-                      + ", column = " + column);
-    }
-    return null;
-  },
-
-  /**
-   * Iterate over the breakpoints in this breakpoint store. You can optionally
-   * provide search parameters to filter the set of breakpoints down to those
-   * that match your parameters.
-   *
-   * @param Object aSearchParams
-   *        Optional. An object with the following properties:
-   *          - url
-   *          - line (optional; requires the url property)
-   *          - column (optional; requires the line property)
-   */
-  findBreakpoints: function BS_findBreakpoints(aSearchParams={}) {
-    if (aSearchParams.column != null) {
-      dbg_assert(aSearchParams.line != null);
-    }
-    if (aSearchParams.line != null) {
-      dbg_assert(aSearchParams.url != null);
-    }
-
-    for (let url of this._iterUrls(aSearchParams.url)) {
-      for (let line of this._iterLines(url, aSearchParams.line)) {
-        // Always yield whole line breakpoints first. See comment in
-        // |BreakpointStore.prototype.getBreakpoint|.
-        if (aSearchParams.column == null
-            && this._wholeLineBreakpoints[url]
-            && this._wholeLineBreakpoints[url][line]) {
-          yield this._wholeLineBreakpoints[url][line];
-        }
-        for (let column of this._iterColumns(url, line, aSearchParams.column)) {
-          yield this._breakpoints[url][line][column];
-        }
-      }
-    }
-  },
-
-  _iterUrls: function BS__iterUrls(aUrl) {
-    if (aUrl) {
-      if (this._breakpoints[aUrl] || this._wholeLineBreakpoints[aUrl]) {
-        yield aUrl;
-      }
-    } else {
-      for (let url of Object.keys(this._wholeLineBreakpoints)) {
-        yield url;
-      }
-      for (let url of Object.keys(this._breakpoints)) {
-        if (url in this._wholeLineBreakpoints) {
-          continue;
-        }
-        yield url;
-      }
-    }
-  },
-
-  _iterLines: function BS__iterLines(aUrl, aLine) {
-    if (aLine != null) {
-      if ((this._wholeLineBreakpoints[aUrl]
-           && this._wholeLineBreakpoints[aUrl][aLine])
-          || (this._breakpoints[aUrl] && this._breakpoints[aUrl][aLine])) {
-        yield aLine;
-      }
-    } else {
-      const wholeLines = this._wholeLineBreakpoints[aUrl]
-        ? Object.keys(this._wholeLineBreakpoints[aUrl])
-        : [];
-      const columnLines = this._breakpoints[aUrl]
-        ? Object.keys(this._breakpoints[aUrl])
-        : [];
-
-      const lines = wholeLines.concat(columnLines).sort();
-
-      let lastLine;
-      for (let line of lines) {
-        if (line === lastLine) {
-          continue;
-        }
-        yield line;
-        lastLine = line;
-      }
-    }
-  },
-
-  _iterColumns: function BS__iterColumns(aUrl, aLine, aColumn) {
-    if (!this._breakpoints[aUrl] || !this._breakpoints[aUrl][aLine]) {
-      return;
-    }
-
-    if (aColumn != null) {
-      if (this._breakpoints[aUrl][aLine][aColumn]) {
-        yield aColumn;
-      }
-    } else {
-      for (let column in this._breakpoints[aUrl][aLine]) {
-        yield column;
-      }
-    }
-  },
-};
-
-/**
  * JSD2 actors.
  */
 /**
@@ -277,7 +48,7 @@ function ThreadActor(aHooks, aGlobal)
  * The breakpoint store must be shared across instances of ThreadActor so that
  * page reloads don't blow away all of our breakpoints.
  */
-ThreadActor.breakpointStore = new BreakpointStore();
+ThreadActor._breakpointStore = {};
 
 ThreadActor.prototype = {
   actorPrefix: "context",
@@ -287,7 +58,7 @@ ThreadActor.prototype = {
                  this.state == "running" ||
                  this.state == "paused",
 
-  get breakpointStore() { return ThreadActor.breakpointStore; },
+  get _breakpointStore() { return ThreadActor._breakpointStore; },
 
   get threadLifetimePool() {
     if (!this._threadLifetimePool) {
@@ -516,21 +287,7 @@ ThreadActor.prototype = {
         return undefined;
       }
       packet.why = aReason;
-
-      let { url, line, column } = packet.frame.where;
-      this.sources.getOriginalLocation(url, line, column).then(aOrigPosition => {
-        packet.frame.where = aOrigPosition;
-        resolve(onPacket(packet))
-          .then(null, error => {
-            reportError(error);
-            return {
-              error: "unknownError",
-              message: error.message + "\n" + error.stack
-            };
-          })
-          .then(packet => this.conn.send(packet));
-      });
-
+      resolve(onPacket(packet)).then(this.conn.send.bind(this.conn));
       return this._nest();
     } catch(e) {
       reportError(e, "Got an exception during TA__pauseAndRespond: ");
@@ -612,7 +369,7 @@ ThreadActor.prototype = {
         // subsequent step events on its caller.
         this.reportedPop = true;
 
-        return pauseAndRespond(this, aPacket => {
+        return pauseAndRespond(this, (aPacket) => {
           aPacket.why.frameFinished = {};
           if (!aCompletion) {
             aPacket.why.frameFinished.terminated = true;
@@ -777,9 +534,7 @@ ThreadActor.prototype = {
           reportError(new Error("Unable to set breakpoint on event listener"));
           return;
         }
-        let bp = this.breakpointStore.getBreakpoint(location);
-        let bpActor = bp.actor;
-        dbg_assert(bp, "Breakpoint must exist");
+        let bpActor = this._breakpointStore[location.url][location.line].actor;
         dbg_assert(bpActor, "Breakpoint actor must be created");
         this._hiddenBreakpoints.set(bpActor.actorID, bpActor);
         break;
@@ -864,8 +619,8 @@ ThreadActor.prototype = {
       form.depth = i;
       frames.push(form);
 
-      let { url, line, column } = form.where;
-      let promise = this.sources.getOriginalLocation(url, line, column)
+      let promise = this.sources.getOriginalLocation(form.where.url,
+                                                     form.where.line)
         .then(function (aOrigLocation) {
           form.where = aOrigLocation;
         });
@@ -907,46 +662,36 @@ ThreadActor.prototype = {
                message: "Breakpoints can only be set while the debuggee is paused."};
     }
 
+    // XXX: `originalColumn` is never used. See bug 827639.
     let { url: originalSource,
           line: originalLine,
           column: originalColumn } = aRequest.location;
 
     let locationPromise = this.sources.getGeneratedLocation(originalSource,
-                                                            originalLine,
-                                                            originalColumn);
-    return locationPromise.then(({url, line, column}) => {
-      if (line == null ||
+                                                            originalLine)
+    return locationPromise.then((aLocation) => {
+      let line = aLocation.line;
+      if (this.dbg.findScripts({ url: aLocation.url }).length == 0 ||
           line < 0 ||
-          this.dbg.findScripts({ url: url }).length == 0) {
+          line == null) {
         return { error: "noScript" };
       }
 
-      let response = this._createAndStoreBreakpoint({
-        url: url,
-        line: line,
-        column: column
-      });
+      let response = this._createAndStoreBreakpoint(aLocation);
       // If the original location of our generated location is different from
       // the original location we attempted to set the breakpoint on, we will
       // need to know so that we can set actualLocation on the response.
-      let originalLocation = this.sources.getOriginalLocation(url, line, column);
+      let originalLocation = this.sources.getOriginalLocation(aLocation.url,
+                                                              aLocation.line);
 
       return all([response, originalLocation])
         .then(([aResponse, {url, line}]) => {
           if (aResponse.actualLocation) {
             let actualOrigLocation = this.sources.getOriginalLocation(
-              aResponse.actualLocation.url,
-              aResponse.actualLocation.line,
-              aResponse.actualLocation.column);
-            return actualOrigLocation.then(function ({ url, line, column }) {
-              if (url !== originalSource
-                  || line !== originalLine
-                  || column !== originalColumn) {
-                aResponse.actualLocation = {
-                  url: url,
-                  line: line,
-                  column: column
-                };
+              aResponse.actualLocation.url, aResponse.actualLocation.line);
+            return actualOrigLocation.then(function ({ url, line }) {
+              if (url !== originalSource || line !== originalLine) {
+                aResponse.actualLocation = { url: url, line: line };
               }
               return aResponse;
             });
@@ -962,17 +707,22 @@ ThreadActor.prototype = {
   },
 
   /**
-   * Create a breakpoint at the specified location and store it in the
-   * cache. Takes ownership of `aLocation`.
-   *
-   * @param Object aLocation
-   *        An object of the form { url, line[, column] }
+   * Create a breakpoint at the specified location and store it in the cache.
    */
   _createAndStoreBreakpoint: function (aLocation) {
-    // Add the breakpoint to the store for later reuse, in case it belongs to a
-    // script that hasn't appeared yet.
-    this.breakpointStore.addBreakpoint(aLocation);
-    return this._setBreakpoint(aLocation);
+      // Add the breakpoint to the store for later reuse, in case it belongs to
+      // a script that hasn't appeared yet.
+      if (!this._breakpointStore[aLocation.url]) {
+        this._breakpointStore[aLocation.url] = [];
+      }
+      let scriptBreakpoints = this._breakpointStore[aLocation.url];
+      scriptBreakpoints[aLocation.line] = {
+        url: aLocation.url,
+        line: aLocation.line,
+        column: aLocation.column
+      };
+
+      return this._setBreakpoint(aLocation);
   },
 
   /**
@@ -983,19 +733,19 @@ ThreadActor.prototype = {
    * take that into account.
    *
    * @param object aLocation
-   *        The location of the breakpoint (in the generated source, if source
-   *        mapping).
+   *        The location of the breakpoint as specified in the protocol.
    */
   _setBreakpoint: function TA__setBreakpoint(aLocation) {
+    let breakpoints = this._breakpointStore[aLocation.url];
+
+    // Get or create the breakpoint actor for the given location
     let actor;
-    let storedBp = this.breakpointStore.getBreakpoint(aLocation);
-    if (storedBp.actor) {
-      actor = storedBp.actor;
+    if (breakpoints[aLocation.line].actor) {
+      actor = breakpoints[aLocation.line].actor;
     } else {
-      storedBp.actor = actor = new BreakpointActor(this, {
+      actor = breakpoints[aLocation.line].actor = new BreakpointActor(this, {
         url: aLocation.url,
-        line: aLocation.line,
-        column: aLocation.column
+        line: aLocation.line
       });
       this._hooks.addToParentPool(actor);
     }
@@ -1010,38 +760,32 @@ ThreadActor.prototype = {
     }
 
    /**
-    * For each script, if the given line has at least one entry point, set a
-    * breakpoint on the bytecode offets for each of them.
-    */
-
-    // Debugger.Script -> array of offset mappings
-    let scriptsAndOffsetMappings = new Map();
-
+     * For each script, if the given line has at least one entry point, set
+     * breakpoint on the bytecode offet for each of them.
+     */
+    let found = false;
     for (let script of scripts) {
-      this._findClosestOffsetMappings(aLocation,
-                                      script,
-                                      scriptsAndOffsetMappings);
-    }
-
-    if (scriptsAndOffsetMappings.size > 0) {
-      for (let [script, mappings] of scriptsAndOffsetMappings) {
-        for (let offsetMapping of mappings) {
-          script.setBreakpoint(offsetMapping.offset, actor);
+      let offsets = script.getLineOffsets(aLocation.line);
+      if (offsets.length > 0) {
+        for (let offset of offsets) {
+          script.setBreakpoint(offset, actor);
         }
         actor.addScript(script, this);
+        found = true;
       }
-
+    }
+    if (found) {
       return {
         actor: actor.actorID
       };
     }
 
    /**
-    * If we get here, no breakpoint was set. This is because the given line
-    * has no entry points, for example because it is empty. As a fallback
-    * strategy, we try to set the breakpoint on the smallest line greater
-    * than or equal to the given line that as at least one entry point.
-    */
+     * If we get here, no breakpoint was set. This is because the given line
+     * has no entry points, for example because it is empty. As a fallback
+     * strategy, we try to set the breakpoint on the smallest line greater
+     * than or equal to the given line that as at least one entry point.
+     */
 
     // Find all innermost scripts matching the given location
     let scripts = this.dbg.findScripts({
@@ -1078,17 +822,17 @@ ThreadActor.prototype = {
       }
     }
     if (found) {
-      let existingBp = this.breakpointStore.getBreakpoint(actualLocation, false);
-      if (existingBp && existingBp.actor) {
+      if (breakpoints[actualLocation.line] &&
+          breakpoints[actualLocation.line].actor) {
         /**
          * We already have a breakpoint actor for the actual location, so
          * actor we created earlier is now redundant. Delete it, update the
          * breakpoint store, and return the actor for the actual location.
          */
         actor.onDelete();
-        this.breakpointStore.removeBreakpoint(aLocation);
+        delete breakpoints[aLocation.line];
         return {
-          actor: existingBp.actor.actorID,
+          actor: breakpoints[actualLocation.line].actor.actorID,
           actualLocation: actualLocation
         };
       } else {
@@ -1098,13 +842,10 @@ ThreadActor.prototype = {
          * and update the breakpoint store.
          */
         actor.location = actualLocation;
-        this.breakpointStore.addBreakpoint({
-          actor: actor,
-          url: actualLocation.url,
-          line: actualLocation.line,
-          column: actualLocation.column
-        });
-        this.breakpointStore.removeBreakpoint(aLocation);
+        breakpoints[actualLocation.line] = breakpoints[aLocation.line];
+        delete breakpoints[aLocation.line];
+        // WARNING: This overwrites aLocation.line
+        breakpoints[actualLocation.line].line = actualLocation.line;
         return {
           actor: actor.actorID,
           actualLocation: actualLocation
@@ -1114,74 +855,12 @@ ThreadActor.prototype = {
 
     /**
      * If we get here, no line matching the given line was found, so just
-     * fail epically.
+     * epically.
      */
     return {
       error: "noCodeAtLineColumn",
       actor: actor.actorID
     };
-  },
-
-  /**
-   * Find all of the offset mappings associated with `aScript` that are closest
-   * to `aTargetLocation`. If new offset mappings are found that are closer to
-   * `aTargetOffset` than the existing offset mappings inside
-   * `aScriptsAndOffsetMappings`, we empty that map and only consider the
-   * closest offset mappings. If there is no column in `aTargetLocation`, we add
-   * all offset mappings that are on the given line.
-   *
-   * @param Object aTargetLocation
-   *        An object of the form { url, line[, column] }.
-   * @param Debugger.Script aScript
-   *        The script in which we are searching for offsets.
-   * @param Map aScriptsAndOffsetMappings
-   *        A Map object which maps Debugger.Script instances to arrays of
-   *        offset mappings. This is an out param.
-   */
-  _findClosestOffsetMappings: function TA__findClosestOffsetMappings(aTargetLocation,
-                                                                     aScript,
-                                                                     aScriptsAndOffsetMappings) {
-    let offsetMappings = aScript.getAllColumnOffsets()
-      .filter(({ lineNumber }) => lineNumber === aTargetLocation.line);
-
-    // If we are given a column, we will try and break only at that location,
-    // otherwise we will break anytime we get on that line.
-
-    if (aTargetLocation.column == null) {
-      if (offsetMappings.length) {
-        aScriptsAndOffsetMappings.set(aScript, offsetMappings);
-      }
-      return;
-    }
-
-    // Attempt to find the current closest offset distance from the target
-    // location by grabbing any offset mapping in the map by doing one iteration
-    // and then breaking (they all have the same distance from the target
-    // location).
-    let closestDistance = Infinity;
-    if (aScriptsAndOffsetMappings.size) {
-      for (let mappings of aScriptsAndOffsetMappings.values()) {
-        closestDistance = Math.abs(aTargetLocation.column - mappings[0].columnNumber);
-        break;
-      }
-    }
-
-    for (let mapping of offsetMappings) {
-      let currentDistance = Math.abs(aTargetLocation.column - mapping.columnNumber);
-
-      if (currentDistance > closestDistance) {
-        continue;
-      } else if (currentDistance < closestDistance) {
-        closestDistance = currentDistance;
-        aScriptsAndOffsetMappings.clear();
-        aScriptsAndOffsetMappings.set(aScript, [mapping]);
-      } else {
-        if (!aScriptsAndOffsetMappings.has(aScript)) {
-          aScriptsAndOffsetMappings.set(aScript, []);
-        }
-        aScriptsAndOffsetMappings.get(aScript).push(mapping);
-      }
-    }
   },
 
   /**
@@ -1217,8 +896,9 @@ ThreadActor.prototype = {
    * caches won't hold on to the Debugger.Script objects leaking memory.
    */
   disableAllBreakpoints: function () {
-    for (let bp of this.breakpointStore.findBreakpoints()) {
-      if (bp.actor) {
+    for (let url in this._breakpointStore) {
+      for (let line in this._breakpointStore[url]) {
+        let bp = this._breakpointStore[url][line];
         bp.actor.removeScripts();
       }
     }
@@ -1332,7 +1012,7 @@ ThreadActor.prototype = {
     return undefined;
   },
 
-  _paused: function TA__paused(aFrame) {
+  _paused: function TA_paused(aFrame) {
     // We don't handle nested pauses correctly.  Don't try - if we're
     // paused, just continue running whatever code triggered the pause.
     // We don't want to actually have nested pauses (although we
@@ -1823,19 +1503,21 @@ ThreadActor.prototype = {
     }
 
     // Set any stored breakpoints.
-
-    let endLine = aScript.startLine + aScript.lineCount - 1;
-    for (let bp of this.breakpointStore.findBreakpoints({ url: aScript.url })) {
-      // Only consider breakpoints that are not already associated with
-      // scripts, and limit search to the line numbers contained in the new
-      // script.
-      if (!bp.actor.scripts.length
-          && bp.line >= aScript.startLine
-          && bp.line <= endLine) {
-        this._setBreakpoint(bp);
+    let existing = this._breakpointStore[aScript.url];
+    if (existing) {
+      let endLine = aScript.startLine + aScript.lineCount - 1;
+      // Iterate over the lines backwards, so that sliding breakpoints don't
+      // affect the loop.
+      for (let line = existing.length - 1; line >= aScript.startLine; line--) {
+        let bp = existing[line];
+        // Only consider breakpoints that are not already associated with
+        // scripts, and limit search to the line numbers contained in the new
+        // script.
+        if (bp && !bp.actor.scripts.length && line <= endLine) {
+          this._setBreakpoint(bp);
+        }
       }
     }
-
     return true;
   },
 
@@ -2643,11 +2325,8 @@ FrameActor.prototype = {
     form.this = this.threadActor.createValueGrip(this.frame.this);
     form.arguments = this._args();
     if (this.frame.script) {
-      form.where = {
-        url: this.frame.script.url,
-        line: this.frame.script.getOffsetLine(this.frame.offset),
-        column: getOffsetColumn(this.frame.offset, this.frame.script)
-      };
+      form.where = { url: this.frame.script.url,
+                     line: this.frame.script.getOffsetLine(this.frame.offset) };
       form.isBlackBoxed = this.threadActor.sources.isBlackBoxed(this.frame.script.url)
     }
 
@@ -2762,7 +2441,14 @@ BreakpointActor.prototype = {
       // TODO: add the rest of the breakpoints on that line (bug 676602).
       reason.actors = [ this.actorID ];
     }
-    return this.threadActor._pauseAndRespond(aFrame, reason);
+    return this.threadActor._pauseAndRespond(aFrame, reason, (aPacket) => {
+      let { url, line } = aPacket.frame.where;
+      return this.threadActor.sources.getOriginalLocation(url, line)
+        .then(function (aOrigPosition) {
+          aPacket.frame.where = aOrigPosition;
+          return aPacket;
+        });
+    });
   },
 
   /**
@@ -2773,10 +2459,12 @@ BreakpointActor.prototype = {
    */
   onDelete: function BA_onDelete(aRequest) {
     // Remove from the breakpoint store.
-    this.threadActor.breakpointStore.removeBreakpoint(this.location);
+    let scriptBreakpoints = this.threadActor._breakpointStore[this.location.url];
+    delete scriptBreakpoints[this.location.line];
     this.threadActor._hooks.removeFromParentPool(this);
     // Remove the actual breakpoint from the associated scripts.
     this.removeScripts();
+
     return { from: this.actorID };
   }
 };
@@ -3210,7 +2898,7 @@ ThreadSources.prototype = {
     if (aAbsSourceMapURL in this._sourceMaps) {
       return this._sourceMaps[aAbsSourceMapURL];
     } else {
-      let promise = fetch(aAbsSourceMapURL).then(rawSourceMap => {
+      let promise = fetch(aAbsSourceMapURL).then((rawSourceMap) => {
         let map = new SourceMapConsumer(rawSourceMap);
         let base = aAbsSourceMapURL.replace(/\/[^\/]+$/, '/');
         if (base.indexOf("data:") !== 0) {
@@ -3228,20 +2916,21 @@ ThreadSources.prototype = {
   /**
    * Returns a promise of the location in the original source if the source is
    * source mapped, otherwise a promise of the same location.
+   *
+   * TODO bug 637572: take/return a column
    */
-  getOriginalLocation:
-  function TS_getOriginalLocation(aSourceUrl, aLine, aColumn) {
+  getOriginalLocation: function TS_getOriginalLocation(aSourceUrl, aLine) {
     if (aSourceUrl in this._sourceMapsByGeneratedSource) {
       return this._sourceMapsByGeneratedSource[aSourceUrl]
         .then(function (aSourceMap) {
-          let { source, line, column } = aSourceMap.originalPositionFor({
+          let { source, line } = aSourceMap.originalPositionFor({
+            source: aSourceUrl,
             line: aLine,
-            column: aColumn
+            column: Infinity
           });
           return {
             url: source,
-            line: line,
-            column: column
+            line: line
           };
         });
     }
@@ -3249,8 +2938,7 @@ ThreadSources.prototype = {
     // No source map
     return resolve({
       url: aSourceUrl,
-      line: aLine,
-      column: aColumn
+      line: aLine
     });
   },
 
@@ -3262,21 +2950,21 @@ ThreadSources.prototype = {
    * above, that returns a promise P. The process of resolving P populates
    * the tables this function uses; thus, it won't know that S's original
    * source URLs map to S until P is resolved.
+   *
+   * TODO bug 637572: take/return a column
    */
-  getGeneratedLocation:
-  function TS_getGeneratedLocation(aSourceUrl, aLine, aColumn) {
+  getGeneratedLocation: function TS_getGeneratedLocation(aSourceUrl, aLine) {
     if (aSourceUrl in this._sourceMapsByOriginalSource) {
       return this._sourceMapsByOriginalSource[aSourceUrl]
         .then((aSourceMap) => {
-          let { line, column } = aSourceMap.generatedPositionFor({
+          let { line } = aSourceMap.generatedPositionFor({
             source: aSourceUrl,
             line: aLine,
-            column: aColumn == null ? Infinity : aColumn
+            column: Infinity
           });
           return {
             url: this._generatedUrlsByOriginalUrl[aSourceUrl],
-            line: line,
-            column: column
+            line: line
           };
         });
     }
@@ -3284,8 +2972,7 @@ ThreadSources.prototype = {
     // No source map
     return resolve({
       url: aSourceUrl,
-      line: aLine,
-      column: aColumn
+      line: aLine
     });
   },
 
@@ -3343,31 +3030,6 @@ ThreadSources.prototype = {
 };
 
 // Utility functions.
-
-// TODO bug 863089: use Debugger.Script.prototype.getOffsetColumn when it is
-// implemented.
-function getOffsetColumn(aOffset, aScript) {
-  let bestOffsetMapping = null;
-  for (let offsetMapping of aScript.getAllColumnOffsets()) {
-    if (!bestOffsetMapping ||
-        (offsetMapping.offset <= aOffset &&
-         offsetMapping.offset > bestOffsetMapping.offset)) {
-      bestOffsetMapping = offsetMapping;
-    }
-  }
-
-  if (!bestOffsetMapping) {
-    // XXX: Try not to completely break the experience of using the debugger for
-    // the user by assuming column 0. Simultaneously, report the error so that
-    // there is a paper trail if the assumption is bad and the debugging
-    // experience becomes wonky.
-    reportError(new Error("Could not find a column for offset " + aOffset
-                          + " in the script " + aScript));
-    return 0;
-  }
-
-  return bestOffsetMapping.columnNumber;
-}
 
 /**
  * Utility function for updating an object with the properties of another
