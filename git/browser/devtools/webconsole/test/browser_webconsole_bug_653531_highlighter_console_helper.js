@@ -50,7 +50,7 @@ function setupHighlighterTests()
 
 function runSelectionTests(aInspector)
 {
-  aInspector.highlighter.unlockAndFocus();
+  aInspector.highlighter.unlock();
   aInspector.highlighter.outline.setAttribute("disable-transitions", "true");
 
   executeSoon(function() {

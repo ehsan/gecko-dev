@@ -70,12 +70,6 @@ function testVariablesView()
   testThirdLevelContents();
   testIntegrity(arr, obj);
 
-  gVariablesView.clearHierarchy();
-  is (gVariablesView._prevHierarchy.size, 0,
-    "The previous hierarchy should have been cleared.");
-  is (gVariablesView._currHierarchy.size, 0,
-    "The current hierarchy should have been cleared.");
-
   closeDebuggerAndFinish();
 }
 
@@ -84,7 +78,7 @@ function testHierarchy() {
     "There should be 1 scope, 1 var, 1 proto, 8 props, 1 getter and 1 setter.");
 
   gScope = gVariablesView._currHierarchy.get("");
-  gVariable = gVariablesView._currHierarchy.get("[\"\"]");
+  gVariable = gVariablesView._currHierarchy.get(".");
 
   is(gVariablesView._store.size, 1,
     "There should be only one scope in the view");
