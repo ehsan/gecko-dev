@@ -153,9 +153,9 @@ class TestRecursiveMakeBackend(BackendTester):
         """Ensure the RecursiveMakeBackend works without error."""
         env = self._consume('stub0', RecursiveMakeBackend)
         self.assertTrue(os.path.exists(os.path.join(env.topobjdir,
-            'backend.RecursiveMakeBackend')))
+            'backend.RecursiveMakeBackend.built')))
         self.assertTrue(os.path.exists(os.path.join(env.topobjdir,
-            'backend.RecursiveMakeBackend.pp')))
+            'backend.RecursiveMakeBackend.built.pp')))
 
     def test_output_files(self):
         """Ensure proper files are generated."""
@@ -211,6 +211,8 @@ class TestRecursiveMakeBackend(BackendTester):
         lines = [l.strip() for l in open(p, 'rt').readlines()[2:]]
         self.assertEqual(lines, [
             'MOZBUILD_DERIVED := 1',
+            'NO_MAKEFILE_RULE := 1',
+            'NO_SUBMAKEFILES_RULE := 1',
             'DIRS := dir1',
             'PARALLEL_DIRS := dir2',
             'TEST_DIRS := dir3',
@@ -242,6 +244,8 @@ class TestRecursiveMakeBackend(BackendTester):
         lines = [l.strip() for l in open(backend_path, 'rt').readlines()[2:]]
         self.assertEqual(lines, [
             'MOZBUILD_DERIVED := 1',
+            'NO_MAKEFILE_RULE := 1',
+            'NO_SUBMAKEFILES_RULE := 1',
             'DIRS := dir',
             'PARALLEL_DIRS := p_dir',
             'DIRS += external',
@@ -353,9 +357,6 @@ class TestRecursiveMakeBackend(BackendTester):
             'SSRCS': [
                 'SSRCS += baz.S',
                 'SSRCS += foo.S',
-            ],
-            'VISIBILITY_FLAGS': [
-                'VISIBILITY_FLAGS :=',
             ],
         }
 

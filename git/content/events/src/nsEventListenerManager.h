@@ -400,11 +400,6 @@ public:
 
   size_t SizeOfIncludingThis(mozilla::MallocSizeOf aMallocSizeOf) const;
 
-  uint32_t ListenerCount() const
-  {
-    return mListeners.Length();
-  }
-
   void MarkForCC();
 
   mozilla::dom::EventTarget* GetTarget() { return mTarget; }

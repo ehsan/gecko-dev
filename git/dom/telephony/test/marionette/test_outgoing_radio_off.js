@@ -4,8 +4,32 @@
 MARIONETTE_TIMEOUT = 60000;
 MARIONETTE_HEAD_JS = 'head.js';
 
-let icc;
-let connection;
+permissions = [
+  "mobileconnection",
+  "settings-write",
+  "telephony"
+];
+
+for (let per of permissions) {
+  SpecialPowers.addPermission(per, true, document);
+}
+
+let gSettingsEnabled = SpecialPowers.getBoolPref("dom.mozSettings.enabled");
+if (!gSettingsEnabled) {
+  SpecialPowers.setBoolPref("dom.mozSettings.enabled", true);
+}
+
+let icc = navigator.mozIccManager;
+ok(icc instanceof MozIccManager, "icc is instanceof " + icc.constructor);
+
+let connection = navigator.mozMobileConnection;
+ok(connection instanceof MozMobileConnection,
+   "connection is instanceof " + connection.constructor);
+
+let telephony = navigator.mozTelephony;
+ok(telephony instanceof Telephony,
+   "telephony is instanceof " + telephony.constructor);
+
 let outgoing;
 
 function changeSetting(key, value, callback) {
@@ -72,23 +96,23 @@ function dial(number) {
 }
 
 function cleanUp() {
+  for (let per of permissions) {
+    SpecialPowers.removePermission(per, document);
+  }
+  SpecialPowers.clearUserPref("dom.mozSettings.enabled");
   finish();
 }
 
-let permissions = [
-  "mobileconnection",
-  "settings-write"
-];
-
-startTestWithPermissions(permissions, function() {
-  connection = navigator.mozMobileConnection;
-  ok(connection instanceof MozMobileConnection,
-     "connection is instanceof " + connection.constructor);
-
-  icc = navigator.mozIccManager;
-  ok(icc instanceof MozIccManager, "icc is instanceof " + icc.constructor);
-
+startTest(function() {
   setRadioEnabled(false, function() {
-    dial("0912345678");
+    emulator.run("gsm clear", function(result) {
+      is(result[0], "OK");
+
+      waitFor(function() {
+        dial("0912345678");
+      }, function() {
+        return telephony.calls.length === 0;
+      });
+    });
   });
 });

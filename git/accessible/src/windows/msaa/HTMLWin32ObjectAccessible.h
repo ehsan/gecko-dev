@@ -26,8 +26,10 @@ public:
                                    DocAccessible* aDoc, void* aHwnd);
   virtual ~HTMLWin32ObjectOwnerAccessible() {}
 
-  // Accessible
+  // nsAccessNode
   virtual void Shutdown();
+
+  // Accessible
   virtual mozilla::a11y::role NativeRole();
   virtual bool NativelyUnavailable() const;
 

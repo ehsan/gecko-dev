@@ -170,7 +170,7 @@ protected:
     // we should re-throw them.
     ErrorResult& mErrorResult;
     const ExceptionHandling mExceptionHandling;
-    JS::ContextOptions mSavedJSContextOptions;
+    uint32_t mSavedJSContextOptions;
     const bool mIsMainThread;
   };
 };

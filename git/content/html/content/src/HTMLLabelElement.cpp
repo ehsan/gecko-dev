@@ -114,9 +114,8 @@ DestroyMouseDownPoint(void *    /*aObject*/,
 nsresult
 HTMLLabelElement::PostHandleEvent(nsEventChainPostVisitor& aVisitor)
 {
-  WidgetMouseEvent* mouseEvent = aVisitor.mEvent->AsMouseEvent();
   if (mHandlingEvent ||
-      (!(mouseEvent && mouseEvent->IsLeftClickEvent()) &&
+      (!aVisitor.mEvent->IsLeftClickEvent() &&
        aVisitor.mEvent->message != NS_MOUSE_BUTTON_DOWN) ||
       aVisitor.mEventStatus == nsEventStatus_eConsumeNoDefault ||
       !aVisitor.mPresContext ||
@@ -132,11 +131,12 @@ HTMLLabelElement::PostHandleEvent(nsEventChainPostVisitor& aVisitor)
     mHandlingEvent = true;
     switch (aVisitor.mEvent->message) {
       case NS_MOUSE_BUTTON_DOWN:
-        if (mouseEvent->button == WidgetMouseEvent::eLeftButton) {
+        if (aVisitor.mEvent->AsMouseEvent()->button ==
+              WidgetMouseEvent::eLeftButton) {
           // We reset the mouse-down point on every event because there is
           // no guarantee we will reach the NS_MOUSE_CLICK code below.
           LayoutDeviceIntPoint* curPoint =
-            new LayoutDeviceIntPoint(mouseEvent->refPoint);
+            new LayoutDeviceIntPoint(aVisitor.mEvent->refPoint);
           SetProperty(nsGkAtoms::labelMouseDownPtProperty,
                       static_cast<void*>(curPoint),
                       DestroyMouseDownPoint);
@@ -144,7 +144,8 @@ HTMLLabelElement::PostHandleEvent(nsEventChainPostVisitor& aVisitor)
         break;
 
       case NS_MOUSE_CLICK:
-        if (mouseEvent->IsLeftClickEvent()) {
+        if (aVisitor.mEvent->IsLeftClickEvent()) {
+          WidgetMouseEvent* mouseEvent = aVisitor.mEvent->AsMouseEvent();
           LayoutDeviceIntPoint* mouseDownPoint =
             static_cast<LayoutDeviceIntPoint*>(
               GetProperty(nsGkAtoms::labelMouseDownPtProperty));

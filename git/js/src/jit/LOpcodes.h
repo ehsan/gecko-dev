@@ -246,7 +246,6 @@
     _(TypeOfV)                      \
     _(ToIdV)                        \
     _(Floor)                        \
-    _(FloorF)                       \
     _(Round)                        \
     _(In)                           \
     _(InArray)                      \

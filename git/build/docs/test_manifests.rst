@@ -53,11 +53,7 @@ In summary, manifests are ini files with section names describing test files::
 Keys under sections can hold metadata about each test::
 
     [test_foo.js]
-    skip-if = os == "win"
-    [test_foo.js]
-    skip-if = os == "linux" && debug
-    [test_baz.js]
-    fail-if = os == "mac" || os == "android"
+    skip-if = os == win
 
 There is a special **DEFAULT** section whose keys/metadata apply to all
 sections/tests::

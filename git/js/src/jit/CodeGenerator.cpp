@@ -1858,7 +1858,7 @@ CodeGenerator::visitCallGeneric(LCallGeneric *call)
     JS_ASSERT(!call->hasSingleTarget());
 
     // Generate an ArgumentsRectifier.
-    IonCode *argumentsRectifier = gen->jitRuntime()->getArgumentsRectifier(executionMode);
+    IonCode *argumentsRectifier = gen->ionRuntime()->getArgumentsRectifier(executionMode);
 
     masm.checkStackAlignment();
 
@@ -2238,7 +2238,7 @@ CodeGenerator::visitApplyArgsGeneric(LApplyArgsGeneric *apply)
             masm.bind(&underflow);
 
             // Hardcode the address of the argumentsRectifier code.
-            IonCode *argumentsRectifier = gen->jitRuntime()->getArgumentsRectifier(executionMode);
+            IonCode *argumentsRectifier = gen->ionRuntime()->getArgumentsRectifier(executionMode);
 
             JS_ASSERT(ArgumentsRectifierReg != objreg);
             masm.movePtr(ImmGCPtr(argumentsRectifier), objreg); // Necessary for GC marking.
@@ -3899,20 +3899,19 @@ CodeGenerator::visitMathFunctionF(LMathFunctionF *ins)
 
     void *funptr = nullptr;
     switch (ins->mir()->function()) {
-      case MMathFunction::Log:   funptr = JS_FUNC_TO_DATA_PTR(void *, logf);   break;
-      case MMathFunction::Sin:   funptr = JS_FUNC_TO_DATA_PTR(void *, sinf);   break;
-      case MMathFunction::Cos:   funptr = JS_FUNC_TO_DATA_PTR(void *, cosf);   break;
-      case MMathFunction::Exp:   funptr = JS_FUNC_TO_DATA_PTR(void *, expf);   break;
-      case MMathFunction::Tan:   funptr = JS_FUNC_TO_DATA_PTR(void *, tanf);   break;
-      case MMathFunction::ATan:  funptr = JS_FUNC_TO_DATA_PTR(void *, atanf);  break;
-      case MMathFunction::ASin:  funptr = JS_FUNC_TO_DATA_PTR(void *, sinf);   break;
-      case MMathFunction::ACos:  funptr = JS_FUNC_TO_DATA_PTR(void *, acosf);  break;
-      case MMathFunction::Floor: funptr = JS_FUNC_TO_DATA_PTR(void *, floorf); break;
+      case MMathFunction::Log:  funptr = JS_FUNC_TO_DATA_PTR(void *, logf);  break;
+      case MMathFunction::Sin:  funptr = JS_FUNC_TO_DATA_PTR(void *, sinf);  break;
+      case MMathFunction::Cos:  funptr = JS_FUNC_TO_DATA_PTR(void *, cosf);  break;
+      case MMathFunction::Exp:  funptr = JS_FUNC_TO_DATA_PTR(void *, expf);  break;
+      case MMathFunction::Tan:  funptr = JS_FUNC_TO_DATA_PTR(void *, tanf);  break;
+      case MMathFunction::ATan: funptr = JS_FUNC_TO_DATA_PTR(void *, atanf); break;
+      case MMathFunction::ASin: funptr = JS_FUNC_TO_DATA_PTR(void *, sinf);  break;
+      case MMathFunction::ACos: funptr = JS_FUNC_TO_DATA_PTR(void *, acosf); break;
       default:
         MOZ_ASSUME_UNREACHABLE("Unknown or unsupported float32 math function");
     }
 
-    masm.callWithABI(funptr, MacroAssembler::FLOAT);
+    masm.callWithABI(funptr, MacroAssembler::DOUBLE);
     return true;
 }
 
@@ -4348,7 +4347,7 @@ CodeGenerator::emitConcat(LInstruction *lir, Register lhs, Register rhs, Registe
         return false;
 
     ExecutionMode mode = gen->info().executionMode();
-    IonCode *stringConcatStub = gen->jitCompartment()->stringConcatStub(mode);
+    IonCode *stringConcatStub = gen->ionCompartment()->stringConcatStub(mode);
     masm.call(stringConcatStub);
     masm.branchTestPtr(Assembler::Zero, output, output, ool->entry());
 
@@ -4422,7 +4421,7 @@ CopyStringChars(MacroAssembler &masm, Register to, Register from, Register len, 
 }
 
 IonCode *
-JitCompartment::generateStringConcatStub(JSContext *cx, ExecutionMode mode)
+IonCompartment::generateStringConcatStub(JSContext *cx, ExecutionMode mode)
 {
     MacroAssembler masm(cx);
 
@@ -5675,7 +5674,7 @@ CodeGenerator::generate()
         return false;
 
     if (frameClass_ != FrameSizeClass::None()) {
-        deoptTable_ = gen->jitRuntime()->getBailoutTable(frameClass_);
+        deoptTable_ = gen->ionRuntime()->getBailoutTable(frameClass_);
         if (!deoptTable_)
             return false;
     }
@@ -5764,7 +5763,7 @@ CodeGenerator::link(JSContext *cx, types::CompilerConstraintList *constraints)
 
     // Make sure we don't segv while filling in the code, to avoid deadlocking
     // inside the signal handler.
-    cx->runtime()->jitRuntime()->ensureIonCodeAccessible(cx->runtime());
+    cx->runtime()->ionRuntime()->ensureIonCodeAccessible(cx->runtime());
 
     // Implicit interrupts are used only for sequential code. In parallel mode
     // use the normal executable allocator so that we cannot segv during

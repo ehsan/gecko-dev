@@ -11,7 +11,7 @@
 #ifdef JS_ION
 #include "jit/BaselineJIT.h"
 #include "jit/Ion.h"
-#include "jit/JitCompartment.h"
+#include "jit/IonCompartment.h"
 #endif
 #include "vm/Debugger.h"
 #include "vm/Runtime.h"
@@ -224,8 +224,8 @@ Zone::discardJitCode(FreeOp *fop)
 
         for (CompartmentsInZoneIter comp(this); !comp.done(); comp.next()) {
             /* Free optimized baseline stubs. */
-            if (comp->jitCompartment())
-                comp->jitCompartment()->optimizedStubSpace()->free();
+            if (comp->ionCompartment())
+                comp->ionCompartment()->optimizedStubSpace()->free();
 
             comp->types.clearCompilerOutputs(fop);
         }

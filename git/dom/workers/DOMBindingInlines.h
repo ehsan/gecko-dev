@@ -65,20 +65,20 @@ Wrap(JSContext* aCx, JSObject* aGlobal, nsRefPtr<T>& aConcreteObject)
   if (!aGlobal) {
     aGlobal = JS::CurrentGlobalOrNull(aCx);
     if (!aGlobal) {
-      return nullptr;
+      return NULL;
     }
   }
 
   JS::Rooted<JSObject*> global(aCx, aGlobal);
   JSObject* proto = WrapPrototypeTraits<T>::GetProtoObject(aCx, global);
   if (!proto) {
-    return nullptr;
+    return NULL;
   }
 
   JSObject* wrapper =
     JS_NewObject(aCx, WrapPrototypeTraits<T>::GetJSClass(), proto, global);
   if (!wrapper) {
-    return nullptr;
+    return NULL;
   }
 
   js::SetReservedSlot(wrapper, DOM_OBJECT_SLOT,

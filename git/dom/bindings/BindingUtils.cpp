@@ -263,7 +263,7 @@ DefineConstants(JSContext* cx, JS::Handle<JSObject*> obj,
 {
   for (; cs->name; ++cs) {
     bool ok =
-      JS_DefineProperty(cx, obj, cs->name, cs->value, nullptr, nullptr,
+      JS_DefineProperty(cx, obj, cs->name, cs->value, NULL, NULL,
                         JSPROP_ENUMERATE | JSPROP_READONLY | JSPROP_PERMANENT);
     if (!ok) {
       return false;
@@ -329,8 +329,8 @@ InterfaceObjectToString(JSContext* cx, unsigned argc, JS::Value *vp)
   JS::Rooted<JSObject*> callee(cx, &args.callee());
 
   if (!args.thisv().isObject()) {
-    JS_ReportErrorNumber(cx, js_GetErrorMessage, nullptr,
-                         JSMSG_CANT_CONVERT_TO, "null", "object");
+    JS_ReportErrorNumber(cx, js_GetErrorMessage, NULL, JSMSG_CANT_CONVERT_TO,
+                         "null", "object");
     return false;
   }
 
@@ -344,8 +344,7 @@ InterfaceObjectToString(JSContext* cx, unsigned argc, JS::Value *vp)
   const jschar* name = JS_GetInternedStringCharsAndLength(jsname, &length);
 
   if (js::GetObjectJSClass(&args.thisv().toObject()) != clasp) {
-    JS_ReportErrorNumber(cx, js_GetErrorMessage, nullptr,
-                         JSMSG_INCOMPATIBLE_PROTO,
+    JS_ReportErrorNumber(cx, js_GetErrorMessage, NULL, JSMSG_INCOMPATIBLE_PROTO,
                          NS_ConvertUTF16toUTF8(name).get(), "toString",
                          "object");
     return false;
@@ -430,7 +429,7 @@ CreateInterfaceObject(JSContext* cx, JS::Handle<JSObject*> global,
                                     ctorNargs);
   }
   if (!constructor) {
-    return nullptr;
+    return NULL;
   }
 
   if (constructorClass) {
@@ -442,12 +441,12 @@ CreateInterfaceObject(JSContext* cx, JS::Handle<JSObject*> global,
                                      InterfaceObjectToString,
                                      0, 0));
     if (!toString) {
-      return nullptr;
+      return NULL;
     }
 
     JSString *str = ::JS_InternString(cx, name);
     if (!str) {
-      return nullptr;
+      return NULL;
     }
     JSObject* toStringObj = JS_GetFunctionObject(toString);
     js::SetFunctionNativeReserved(toStringObj, TOSTRING_CLASS_RESERVED_SLOT,
@@ -458,7 +457,7 @@ CreateInterfaceObject(JSContext* cx, JS::Handle<JSObject*> global,
 
     if (!JS_DefineProperty(cx, constructor, "length", JS::Int32Value(ctorNargs),
                            nullptr, nullptr, JSPROP_READONLY | JSPROP_PERMANENT)) {
-      return nullptr;
+      return NULL;
     }
   }
 
@@ -498,7 +497,7 @@ CreateInterfaceObject(JSContext* cx, JS::Handle<JSObject*> global,
   }
 
   if (proto && !JS_LinkConstructorAndPrototype(cx, constructor, proto)) {
-    return nullptr;
+    return NULL;
   }
 
   if (defineOnGlobal && !DefineConstructor(cx, global, name, constructor)) {
@@ -559,7 +558,7 @@ CreateInterfacePrototypeObject(JSContext* cx, JS::Handle<JSObject*> global,
   JS::Rooted<JSObject*> ourProto(cx,
     JS_NewObjectWithUniqueType(cx, protoClass, parentProto, global));
   if (!ourProto) {
-    return nullptr;
+    return NULL;
   }
 
   if (properties) {
@@ -704,8 +703,8 @@ NativeInterface2JSObjectAndThrowIfFailed(JSContext* aCx,
 
   MOZ_ASSERT(NS_IsMainThread());
 
-  if (!XPCConvert::NativeInterface2JSObject(aRetval, nullptr, aHelper, aIID,
-                                            nullptr, aAllowNativeWrapper, &rv)) {
+  if (!XPCConvert::NativeInterface2JSObject(aRetval, NULL, aHelper, aIID,
+                                            NULL, aAllowNativeWrapper, &rv)) {
     // I can't tell if NativeInterface2JSObject throws JS exceptions
     // or not.  This is a sloppy stab at the right semantics; the
     // method really ought to be fixed to behave consistently.

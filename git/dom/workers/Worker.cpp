@@ -67,9 +67,9 @@ public:
     JS::Rooted<JSObject*> proto(aCx,
       js::InitClassWithReserved(aCx, aObj, aParentProto, ProtoClass(),
                                 Construct, 0, sProperties, sFunctions,
-                                nullptr, nullptr));
+                                NULL, NULL));
     if (!proto) {
-      return nullptr;
+      return NULL;
     }
 
     js::SetReservedSlot(proto, DOM_PROTO_INSTANCE_CLASS_SLOT,
@@ -81,7 +81,7 @@ public:
 
       JSObject* constructor = JS_GetConstructor(aCx, proto);
       if (!constructor)
-        return nullptr;
+        return NULL;
       js::SetFunctionNativeReserved(constructor, CONSTRUCTOR_SLOT_PARENT,
                                     PRIVATE_TO_JSVAL(parent));
     }
@@ -121,7 +121,7 @@ protected:
 
     WorkerPrivate* parent;
     if (priv.isUndefined()) {
-      parent = nullptr;
+      parent = NULL;
     } else {
       parent = static_cast<WorkerPrivate*>(priv.get().toPrivate());
       parent->AssertIsOnWorkerThread();
@@ -346,7 +346,7 @@ const DOMJSClass Worker::sClass = {
     JSCLASS_IMPLEMENTS_BARRIERS,
     JS_PropertyStub, JS_DeletePropertyStub, JS_PropertyStub, JS_StrictPropertyStub,
     JS_EnumerateStub, JS_ResolveStub, JS_ConvertStub, Finalize,
-    nullptr, nullptr, nullptr, nullptr, Trace
+    NULL, NULL, NULL, NULL, Trace
   },
   {
     INTERFACE_CHAIN_1(prototypes::id::EventTarget_workers),
@@ -427,10 +427,9 @@ public:
   {
     JS::Rooted<JSObject*> proto(aCx,
       js::InitClassWithReserved(aCx, aObj, aParentProto, ProtoClass(),
-                                Construct, 0, nullptr, nullptr, nullptr,
-                                nullptr));
+                                Construct, 0, NULL, NULL, NULL, NULL));
     if (!proto) {
-      return nullptr;
+      return NULL;
     }
 
     js::SetReservedSlot(proto, DOM_PROTO_INSTANCE_CLASS_SLOT,
@@ -442,7 +441,7 @@ public:
 
       JSObject* constructor = JS_GetConstructor(aCx, proto);
       if (!constructor)
-        return nullptr;
+        return NULL;
       js::SetFunctionNativeReserved(constructor, CONSTRUCTOR_SLOT_PARENT,
                                     PRIVATE_TO_JSVAL(parent));
     }
@@ -504,7 +503,7 @@ const DOMJSClass ChromeWorker::sClass = {
     JSCLASS_IMPLEMENTS_BARRIERS,
     JS_PropertyStub, JS_DeletePropertyStub, JS_PropertyStub, JS_StrictPropertyStub,
     JS_EnumerateStub, JS_ResolveStub, JS_ConvertStub, Finalize,
-    nullptr, nullptr, nullptr, nullptr, Trace,
+    NULL, NULL, NULL, NULL, Trace,
   },
   {
     INTERFACE_CHAIN_1(prototypes::id::EventTarget_workers),
@@ -552,10 +551,9 @@ Worker::GetInstancePrivate(JSContext* aCx, JSObject* aObj,
     return UnwrapDOMObject<WorkerPrivate>(aObj);
   }
 
-  JS_ReportErrorNumber(aCx, js_GetErrorMessage, nullptr,
-                       JSMSG_INCOMPATIBLE_PROTO, Class()->name,
-                       aFunctionName, classPtr->name);
-  return nullptr;
+  JS_ReportErrorNumber(aCx, js_GetErrorMessage, NULL, JSMSG_INCOMPATIBLE_PROTO,
+                       Class()->name, aFunctionName, classPtr->name);
+  return NULL;
 }
 
 JSObject*
@@ -634,14 +632,14 @@ WorkerCrossThreadDispatcher*
 GetWorkerCrossThreadDispatcher(JSContext* aCx, jsval aWorker)
 {
   if (JSVAL_IS_PRIMITIVE(aWorker)) {
-    return nullptr;
+    return NULL;
   }
 
   WorkerPrivate* w =
       Worker::GetInstancePrivate(aCx, JSVAL_TO_OBJECT(aWorker),
                                  "GetWorkerCrossThreadDispatcher");
   if (!w) {
-    return nullptr;
+    return NULL;
   }
   return w->GetCrossThreadDispatcher();
 }

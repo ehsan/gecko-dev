@@ -585,7 +585,7 @@ AddSizeOfTab(JSRuntime *rt, JSObject *obj, MallocSizeOf mallocSizeOf, ObjectPriv
     }
 
     for (CompartmentsInZoneIter comp(zone); !comp.done(); comp.next())
-        comp->compartmentStats = nullptr;
+        comp->compartmentStats = NULL;
 
     rtStats.zTotals.addToTabSizes(sizes);
     rtStats.cTotals.addToTabSizes(sizes);

@@ -28,7 +28,7 @@
 #include "mozilla/layers/PCompositorChild.h"
 #include "mozilla/net/NeckoChild.h"
 #include "mozilla/Preferences.h"
-#if defined(MOZ_CONTENT_SANDBOX) && defined(XP_UNIX)
+#ifdef MOZ_CONTENT_SANDBOX
 #include "mozilla/Sandbox.h"
 #endif
 #include "mozilla/unused.h"
@@ -315,7 +315,7 @@ ContentChild::Init(MessageLoop* aIOLoop,
 {
 #ifdef MOZ_WIDGET_GTK
     // sigh
-    gtk_init(nullptr, nullptr);
+    gtk_init(NULL, NULL);
 #endif
 
 #ifdef MOZ_WIDGET_QT
@@ -553,7 +553,7 @@ ContentChild::RecvSetProcessPrivileges(const ChildPrivileges& aPrivs)
                           aPrivs;
   // If this fails, we die.
   SetCurrentProcessPrivileges(privs);
-#if defined(MOZ_CONTENT_SANDBOX) && defined(XP_UNIX)
+#ifdef MOZ_CONTENT_SANDBOX
   // SetCurrentProcessSandbox should be moved close to process initialization
   // time if/when possible. SetCurrentProcessPrivileges should probably be
   // moved as well. Right now this is set ONLY if we receive the
@@ -576,16 +576,16 @@ mozilla::jsipc::PJavaScriptChild *
 ContentChild::AllocPJavaScriptChild()
 {
     nsCOMPtr<nsIJSRuntimeService> svc = do_GetService("@mozilla.org/js/xpc/RuntimeService;1");
-    NS_ENSURE_TRUE(svc, nullptr);
+    NS_ENSURE_TRUE(svc, NULL);
 
     JSRuntime *rt;
     svc->GetRuntime(&rt);
-    NS_ENSURE_TRUE(svc, nullptr);
+    NS_ENSURE_TRUE(svc, NULL);
 
     mozilla::jsipc::JavaScriptChild *child = new mozilla::jsipc::JavaScriptChild(rt);
     if (!child->init()) {
         delete child;
-        return nullptr;
+        return NULL;
     }
     return child;
 }
@@ -819,7 +819,7 @@ PIndexedDBChild*
 ContentChild::AllocPIndexedDBChild()
 {
   NS_NOTREACHED("Should never get here!");
-  return nullptr;
+  return NULL;
 }
 
 bool

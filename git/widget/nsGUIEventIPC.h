@@ -289,7 +289,7 @@ struct ParamTraits<mozilla::WidgetKeyboardEvent>
         ReadParam(aMsg, aIter, &aResult->mUniqueId))
     {
       aResult->mKeyNameIndex = static_cast<mozilla::KeyNameIndex>(keyNameIndex);
-      aResult->mNativeKeyEvent = nullptr;
+      aResult->mNativeKeyEvent = NULL;
       return true;
     }
     return false;

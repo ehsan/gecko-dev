@@ -1440,7 +1440,7 @@ GeneratorState::~GeneratorState()
 }
 
 StackFrame *
-GeneratorState::pushInterpreterFrame(JSContext *cx)
+GeneratorState::pushInterpreterFrame(JSContext *cx, FrameGuard *)
 {
     /*
      * Write barrier is needed since the generator stack can be updated,
