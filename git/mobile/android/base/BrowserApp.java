@@ -16,7 +16,6 @@ import org.mozilla.gecko.gfx.LayerController;
 import org.mozilla.gecko.gfx.LayerView;
 import org.mozilla.gecko.gfx.PluginLayer;
 import org.mozilla.gecko.gfx.RectUtils;
-import org.mozilla.gecko.gfx.SurfaceTextureLayer;
 import org.mozilla.gecko.gfx.ViewportMetrics;
 import org.mozilla.gecko.gfx.ImmutableViewportMetrics;
 
@@ -82,11 +81,10 @@ abstract public class BrowserApp extends GeckoApp
                     maybeCancelFaviconLoad(tab);
                 }
                 break;
+            case LOAD_ERROR:
             case START:
-                if (Tabs.getInstance().isSelectedTab(tab)) {
-                    invalidateOptionsMenu();
-                }
             case STOP:
+            case MENU_UPDATED:
                 if (Tabs.getInstance().isSelectedTab(tab)) {
                     invalidateOptionsMenu();
                 }
@@ -311,7 +309,7 @@ abstract public class BrowserApp extends GeckoApp
     public View getBrowserToolbar() {
         int actionBarRes;
 
-        if (GeckoApp.mAppContext.hasPermanentMenuKey())
+        if (!GeckoApp.mAppContext.hasPermanentMenuKey() || GeckoApp.mAppContext.isTablet())
            actionBarRes = R.layout.browser_toolbar_menu;
         else
            actionBarRes = R.layout.browser_toolbar;
@@ -320,6 +318,11 @@ abstract public class BrowserApp extends GeckoApp
         actionBar.setLayoutParams(new LinearLayout.LayoutParams(LinearLayout.LayoutParams.FILL_PARENT,
                                                                 (int) mAppContext.getResources().getDimension(R.dimen.browser_toolbar_height)));
         return actionBar;
+    }
+
+    @Override
+    public boolean hasTabsSideBar() {
+        return (mTabsPanel != null && mTabsPanel.isSideBar());
     }
 
     void addTab() {
@@ -348,7 +351,7 @@ abstract public class BrowserApp extends GeckoApp
     }
 
     public boolean autoHideTabs() {
-        if (!isTablet() && areTabsShown()) {
+        if (!hasTabsSideBar() && areTabsShown()) {
             hideTabs();
             return true;
         }
@@ -370,7 +373,7 @@ abstract public class BrowserApp extends GeckoApp
         mMainLayoutAnimator = new PropertyAnimator(150);
         mMainLayoutAnimator.setPropertyAnimationListener(this);
 
-        if (isTablet()) {
+        if (hasTabsSideBar()) {
             mMainLayoutAnimator.attach(mBrowserToolbar.getLayout(),
                                        PropertyAnimator.Property.SHRINK_LEFT,
                                        width);
@@ -408,7 +411,7 @@ abstract public class BrowserApp extends GeckoApp
     public void onPropertyAnimationEnd() {
         mMainHandler.post(new Runnable() {
             public void run() {
-                if (isTablet() && mTabsPanel.isShown()) {
+                if (hasTabsSideBar() && mTabsPanel.isShown()) {
                     // Fake the gecko layout to have been shrunk, instead of sliding.
                     ((LinearLayout.LayoutParams) mGeckoLayout.getLayoutParams()).setMargins(mTabsPanel.getWidth(), 0, 0, 0);
                     mGeckoLayout.scrollTo(0, 0);
@@ -525,6 +528,7 @@ abstract public class BrowserApp extends GeckoApp
                             loadUrl(url, AwesomeBar.Target.CURRENT_TAB);
                         }
                     });
+                    mAboutHomeContent.setOnInterceptTouchListener(new ContentTouchListener());
                 } else {
                     mAboutHomeContent.update(GeckoApp.mAppContext,
                                              EnumSet.of(AboutHomeContent.UpdateFlags.TOP_SITES,
@@ -554,6 +558,9 @@ abstract public class BrowserApp extends GeckoApp
 
     @Override
     public void openOptionsMenu() {
+        if (!hasTabsSideBar() && areTabsShown())
+            return;
+
         // Scroll custom menu to the top
         if (mMenuPanel != null)
             mMenuPanel.scrollTo(0, 0);
@@ -571,9 +578,13 @@ abstract public class BrowserApp extends GeckoApp
     @Override
     public void setFullScreen(final boolean fullscreen) {
       super.setFullScreen(fullscreen);
-      if (fullscreen)
-          mBrowserToolbar.hide();
-      else
-          mBrowserToolbar.show();
+      mMainHandler.post(new Runnable() {
+          public void run() {
+              if (fullscreen)
+                  mBrowserToolbar.hide();
+              else
+                  mBrowserToolbar.show();
+          }
+      });
     }
 }

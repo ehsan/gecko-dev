@@ -168,7 +168,8 @@ public final class Tab {
                             saveThumbnailToDB(new BitmapDrawable(bitmap));
 
                         mThumbnail = new BitmapDrawable(bitmap);
-                        b.recycle();
+                        if (bitmap != b)
+                            b.recycle();
                     } catch (OutOfMemoryError oom) {
                         Log.e(LOGTAG, "Unable to create/scale bitmap", oom);
                         mThumbnail = null;
@@ -349,6 +350,11 @@ public final class Tab {
 
     public void setReaderEnabled(boolean readerEnabled) {
         mReaderEnabled = readerEnabled;
+        GeckoAppShell.getMainHandler().post(new Runnable() {
+            public void run() {
+                Tabs.getInstance().notifyListeners(Tab.this, Tabs.TabEvents.MENU_UPDATED);
+            }
+        });
     }
 
     private void updateBookmark() {
@@ -356,14 +362,20 @@ public final class Tab {
         if (url == null)
             return;
 
-        GeckoBackgroundThread.getHandler().post(new Runnable() {
-            public void run() {
-                boolean bookmark = BrowserDB.isBookmark(mContentResolver, url);
+        (new GeckoAsyncTask<Void, Void, Void>() {
+            @Override
+            public Void doInBackground(Void... params) {
                 if (url.equals(getURL())) {
-                    mBookmark = bookmark;
+                    mBookmark = BrowserDB.isBookmark(mContentResolver, url);
                 }
+                return null;
             }
-        });
+
+            @Override
+            public void onPostExecute(Void result) {
+                Tabs.getInstance().notifyListeners(Tab.this, Tabs.TabEvents.MENU_UPDATED);
+            }
+        }).execute();
     }
 
     public void addBookmark() {

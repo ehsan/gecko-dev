@@ -41,7 +41,7 @@ const ContextFormat ContextFormat::BasicRGBA32Format(ContextFormat::BasicRGBA32)
 #define MAX_SYMBOL_LENGTH 128
 #define MAX_SYMBOL_NAMES 5
 
-// should match the order of GLExtensions
+// should match the order of GLExtensions, and be null-terminated.
 static const char *sExtensionNames[] = {
     "GL_EXT_framebuffer_object",
     "GL_ARB_framebuffer_object",
@@ -77,7 +77,8 @@ static const char *sExtensionNames[] = {
     "GL_ARB_robustness",
     "GL_EXT_robustness",
     "GL_ARB_sync",
-    NULL
+    "GL_OES_EGL_image",
+    nsnull
 };
 
 /*
@@ -450,6 +451,20 @@ GLContext::InitWithPrefix(const char *prefix, bool trygl)
                 mSymbols.fGetSynciv = nsnull;
             }
         }
+
+        if (IsExtensionSupported(OES_EGL_image)) {
+            SymLoadStruct imageSymbols[] = {
+                { (PRFuncPtr*) &mSymbols.fImageTargetTexture2D, { "EGLImageTargetTexture2DOES", nsnull } },
+                { nsnull, { nsnull } },
+            };
+
+            if (!LoadSymbols(&imageSymbols[0], trygl, prefix)) {
+                NS_ERROR("GL supports ARB_sync without supplying its functions.");
+
+                MarkExtensionUnsupported(OES_EGL_image);
+                mSymbols.fImageTargetTexture2D = nsnull;
+            }
+        }
        
         // Load developer symbols, don't fail if we can't find them.
         SymLoadStruct auxSymbols[] = {
@@ -518,50 +533,25 @@ void
 GLContext::InitExtensions()
 {
     MakeCurrent();
-    const GLubyte *extensions = fGetString(LOCAL_GL_EXTENSIONS);
+    const char* extensions = (const char*)fGetString(LOCAL_GL_EXTENSIONS);
     if (!extensions)
         return;
 
-    char *exts = strdup((char *)extensions);
-
 #ifdef DEBUG
-    static bool once = false;
+    // If DEBUG, then be verbose the first time we're run.
+    static bool firstVerboseRun = true;
 #else
-    const bool once = true;
+    // Non-DEBUG, so never spew.
+    const bool firstVerboseRun = false;
 #endif
 
-    if (!once) {
-        printf_stderr("GL extensions: %s\n", exts);
-    }
-
-    char *s = exts;
-    bool done = false;
-    while (!done) {
-        char *space = strchr(s, ' ');
-        if (space) {
-            *space = '\0';
-        } else {
-            done = true;
-        }
-
-        for (int i = 0; sExtensionNames[i]; ++i) {
-            if (strcmp(s, sExtensionNames[i]) == 0) {
-                if (!once) {
-                    printf_stderr("Found extension %s\n", s);
-                }
-                mAvailableExtensions[i] = 1;
-            }
-        }
-
-        s = space+1;
-    }
-
-    free(exts);
+    mAvailableExtensions.Load(extensions, sExtensionNames, firstVerboseRun);
 
 #ifdef DEBUG
-    once = true;
+    firstVerboseRun = false;
 #endif
 }
+
 
 // Take texture data in a given buffer and copy it into a larger buffer,
 // padding out the edge pixels for filtering if necessary
@@ -1282,13 +1272,13 @@ PRUint32 TiledTextureImage::GetTileCount()
 }
 
 GLContext::GLFormats
-GLContext::ChooseGLFormats(ContextFormat& aCF)
+GLContext::ChooseGLFormats(ContextFormat& aCF, ColorByteOrder aByteOrder)
 {
     GLFormats formats;
 
     if (aCF.alpha) {
         formats.texColor = LOCAL_GL_RGBA;
-        if (mIsGLES2 && !IsExtensionSupported(OES_rgb8_rgba8)) {
+        if (mIsGLES2 && IsExtensionSupported(EXT_texture_format_BGRA8888) && aByteOrder != ForceRGBA) {
             formats.rbColor = LOCAL_GL_RGBA4;
             aCF.red = aCF.green = aCF.blue = aCF.alpha = 4;
         } else {
@@ -1771,7 +1761,7 @@ already_AddRefed<gfxImageSurface>
 GLContext::GetTexImage(GLuint aTexture, bool aYInvert, ShaderProgramType aShader)
 {
     MakeCurrent();
-    fFinish();
+    GuaranteeResolve();
     fActiveTexture(LOCAL_GL_TEXTURE0);
     fBindTexture(LOCAL_GL_TEXTURE_2D, aTexture);
 
