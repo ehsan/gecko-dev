@@ -2222,14 +2222,21 @@ RadioInterface.prototype = {
     let oldIccInfo = this.rilContext.iccInfo;
     this.rilContext.iccInfo = message;
 
-    if (!this.isInfoChanged(message, oldIccInfo)) {
+    let iccInfoChanged = !oldIccInfo ||
+                          oldIccInfo.iccid != message.iccid ||
+                          oldIccInfo.mcc != message.mcc ||
+                          oldIccInfo.mnc != message.mnc ||
+                          oldIccInfo.spn != message.spn ||
+                          oldIccInfo.isDisplayNetworkNameRequired != message.isDisplayNetworkNameRequired ||
+                          oldIccInfo.isDisplaySpnRequired != message.isDisplaySpnRequired ||
+                          oldIccInfo.msisdn != message.msisdn;
+    if (!iccInfoChanged) {
       return;
     }
     // RIL:IccInfoChanged corresponds to a DOM event that gets fired only
-    // when iccInfo has changed.
+    // when the MCC or MNC codes have changed.
     gMessageManager.sendIccMessage("RIL:IccInfoChanged",
-                                   this.clientId,
-                                   message.iccType ? message : null);
+                                   this.clientId, message);
 
     // Update lastKnownSimMcc.
     if (message.mcc) {
@@ -2987,7 +2994,7 @@ RadioInterface.prototype = {
     return options;
   },
 
-  getSegmentInfoForText: function getSegmentInfoForText(text, request) {
+  getSegmentInfoForText: function getSegmentInfoForText(text) {
     let strict7BitEncoding;
     try {
       strict7BitEncoding = Services.prefs.getBoolPref("dom.sms.strict7BitEncoding");
@@ -3008,11 +3015,10 @@ RadioInterface.prototype = {
       charsInLastSegment = 0;
     }
 
-    let result = gMobileMessageService
-                 .createSmsSegmentInfo(options.segmentMaxSeq,
-                                       options.segmentChars,
-                                       options.segmentChars - charsInLastSegment);
-    request.notifySegmentInfoForTextGot(result);
+    let result = gMobileMessageService.createSmsSegmentInfo(options.segmentMaxSeq,
+                                                            options.segmentChars,
+                                                            options.segmentChars - charsInLastSegment);
+    return result;
   },
 
   sendSMS: function sendSMS(number, message, silent, request) {

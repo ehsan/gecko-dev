@@ -45,10 +45,8 @@ if (DEBUG) {
 
 const RILCONTENTHELPER_CID =
   Components.ID("{472816e1-1fd6-4405-996c-806f9ea68174}");
-const GSMICCINFO_CID =
-  Components.ID("{e0fa785b-ad3f-46ed-bc56-fcb0d6fe4fa8}");
-const CDMAICCINFO_CID =
-  Components.ID("{3d1f844f-9ec5-48fb-8907-aed2e5421709}");
+const ICCINFO_CID =
+  Components.ID("{fab2c0f0-d73a-11e2-8b8b-0800200c9a66}");
 const MOBILECONNECTIONINFO_CID =
   Components.ID("{a35cfd39-2d93-4489-ac7d-396475dacb27}");
 const MOBILENETWORKINFO_CID =
@@ -150,48 +148,22 @@ MobileIccCardLockRetryCount.prototype = {
 
 function IccInfo() {}
 IccInfo.prototype = {
-  iccType: null,
+  QueryInterface: XPCOMUtils.generateQI([Ci.nsIDOMMozIccInfo]),
+  classID:        ICCINFO_CID,
+  classInfo:      XPCOMUtils.generateCI({
+    classID:          ICCINFO_CID,
+    classDescription: "IccInfo",
+    flags:            Ci.nsIClassInfo.DOM_OBJECT,
+    interfaces:       [Ci.nsIDOMMozIccInfo]
+  }),
+
+  // nsIDOMMozIccInfo
+
   iccid: null,
   mcc: null,
   mnc: null,
   spn: null,
-  isDisplayNetworkNameRequired: null,
-  isDisplaySpnRequired: null
-};
-
-function GsmIccInfo() {}
-GsmIccInfo.prototype = {
-  __proto__: IccInfo.prototype,
-  QueryInterface: XPCOMUtils.generateQI([Ci.nsIDOMMozGsmIccInfo]),
-  classID: GSMICCINFO_CID,
-  classInfo: XPCOMUtils.generateCI({
-    classID:          GSMICCINFO_CID,
-    classDescription: "MozGsmIccInfo",
-    flags:            Ci.nsIClassInfo.DOM_OBJECT,
-    interfaces:       [Ci.nsIDOMMozGsmIccInfo]
-  }),
-
-  // nsIDOMMozGsmIccInfo
-
   msisdn: null
-};
-
-function CdmaIccInfo() {}
-CdmaIccInfo.prototype = {
-  __proto__: IccInfo.prototype,
-  QueryInterface: XPCOMUtils.generateQI([Ci.nsIDOMMozCdmaIccInfo]),
-  classID: CDMAICCINFO_CID,
-  classInfo: XPCOMUtils.generateCI({
-    classID:          CDMAICCINFO_CID,
-    classDescription: "MozCdmaIccInfo",
-    flags:            Ci.nsIClassInfo.DOM_OBJECT,
-    interfaces:       [Ci.nsIDOMMozCdmaIccInfo]
-  }),
-
-  // nsIDOMMozCdmaIccInfo
-
-  mdn: null,
-  min: null
 };
 
 function VoicemailInfo() {}
@@ -432,7 +404,7 @@ function RILContentHelper() {
   this.rilContext = {
     cardState:            RIL.GECKO_CARDSTATE_UNKNOWN,
     networkSelectionMode: RIL.GECKO_NETWORK_SELECTION_UNKNOWN,
-    iccInfo:              null,
+    iccInfo:              new IccInfo(),
     voiceConnectionInfo:  new MobileConnectionInfo(),
     dataConnectionInfo:   new MobileConnectionInfo()
   };
@@ -500,31 +472,7 @@ RILContentHelper.prototype = {
     }
 
     this.updateInfo(srcNetwork, network);
-  },
-
-  /**
-   * We need to consider below cases when update iccInfo:
-   * 1. Should clear iccInfo to null if there is no card detected.
-   * 2. Need to create corresponding object based on iccType.
-   */
-  updateIccInfo: function updateIccInfo(newInfo) {
-    // Card is not detected, clear iccInfo to null.
-    if (!newInfo || !newInfo.iccType) {
-      this.rilContext.iccInfo = null;
-      return;
-    }
-
-    // If iccInfo is null, new corresponding object based on iccType.
-    if (!this.rilContext.iccInfo) {
-      if (newInfo.iccType === "ruim" || newInfo.iccType === "csim") {
-        this.rilContext.iccInfo = new CdmaIccInfo();
-      } else {
-        this.rilContext.iccInfo = new GsmIccInfo();
-      }
-    }
-
-    this.updateInfo(newInfo, this.rilContext.iccInfo);
-  },
+ },
 
   _windowsMap: null,
 
@@ -546,7 +494,7 @@ RILContentHelper.prototype = {
     }
     this.rilContext.cardState = rilContext.cardState;
     this.rilContext.networkSelectionMode = rilContext.networkSelectionMode;
-    this.updateIccInfo(rilContext.iccInfo);
+    this.updateInfo(rilContext.iccInfo, this.rilContext.iccInfo);
     this.updateConnectionInfo(rilContext.voice, this.rilContext.voiceConnectionInfo);
     this.updateConnectionInfo(rilContext.data, this.rilContext.dataConnectionInfo);
 
@@ -695,8 +643,7 @@ RILContentHelper.prototype = {
     let requestId = this.getRequestId(request);
 
     if (!mode) {
-      this.dispatchFireRequestError(requestId,
-                                    RIL.GECKO_ERROR_INVALID_PARAMETER);
+      this.dispatchFireRequestError(requestId, "InvalidParameter");
       return request;
     }
 
@@ -1059,8 +1006,7 @@ RILContentHelper.prototype = {
     let requestId = this.getRequestId(request);
 
     if (!this._isValidCFReason(reason)){
-      this.dispatchFireRequestError(requestId,
-                                    RIL.GECKO_ERROR_INVALID_PARAMETER);
+      this.dispatchFireRequestError(requestId, "Invalid call forwarding reason.");
       return request;
     }
 
@@ -1086,8 +1032,7 @@ RILContentHelper.prototype = {
     if (!cfInfo ||
         !this._isValidCFReason(cfInfo.reason) ||
         !this._isValidCFAction(cfInfo.action)){
-      this.dispatchFireRequestError(requestId,
-                                    RIL.GECKO_ERROR_INVALID_PARAMETER);
+      this.dispatchFireRequestError(requestId, "Invalid call forwarding rule definition.");
       return request;
     }
 
@@ -1116,8 +1061,7 @@ RILContentHelper.prototype = {
 
     if (DEBUG) debug("getCallBarringOption: " + JSON.stringify(option));
     if (!this._isValidCallBarringOption(option)) {
-      this.dispatchFireRequestError(requestId,
-                                    RIL.GECKO_ERROR_INVALID_PARAMETER);
+      this.dispatchFireRequestError(requestId, "InvalidCallBarringOption");
       return request;
     }
 
@@ -1143,8 +1087,7 @@ RILContentHelper.prototype = {
 
     if (DEBUG) debug("setCallBarringOption: " + JSON.stringify(option));
     if (!this._isValidCallBarringOption(option, true)) {
-      this.dispatchFireRequestError(requestId,
-                                    RIL.GECKO_ERROR_INVALID_PARAMETER);
+      this.dispatchFireRequestError(requestId, "InvalidCallBarringOption");
       return request;
     }
 
@@ -1598,7 +1541,7 @@ RILContentHelper.prototype = {
         break;
       }
       case "RIL:IccInfoChanged":
-        this.updateIccInfo(msg.json.data);
+        this.updateInfo(msg.json.data, this.rilContext.iccInfo);
         this._deliverEvent("_iccListeners", "notifyIccInfoChanged", null);
         break;
       case "RIL:VoiceInfoChanged":

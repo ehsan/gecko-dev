@@ -48,7 +48,7 @@ this.PhoneNumberUtils = {
 
     // Get SIM mcc
     let iccInfo = mobileConnection.iccInfo;
-    if (!mcc && iccInfo && iccInfo.mcc) {
+    if (!mcc && iccInfo.mcc) {
       mcc = iccInfo.mcc;
     }
 

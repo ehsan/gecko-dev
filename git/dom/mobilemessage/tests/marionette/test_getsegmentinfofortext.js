@@ -49,31 +49,13 @@ let tasks = {
 function addTest(text, segments, charsPerSegment, charsAvailableInLastSegment) {
   tasks.push(function () {
     log("Testing '" + text + "' ...");
-    let domRequest = manager.getSegmentInfoForText(text);
-    ok(domRequest, "DOMRequest object returned.");
+    let info = manager.getSegmentInfoForText(text);
+    is(info.segments, segments, "info.segments");
+    is(info.charsPerSegment, charsPerSegment, "info.charsPerSegment");
+    is(info.charsAvailableInLastSegment, charsAvailableInLastSegment,
+       "info.charsAvailableInLastSegment");
 
-    domRequest.onsuccess = function(e) {
-      log("Received 'onsuccess' DOMRequest event.");
-
-      let result = e.target.result;
-      if (!result) {
-        ok(false, "getSegmentInfoForText() result is not valid.");
-        tasks.finish();
-        return;
-      }
-
-      is(result.segments, segments, "info.segments");
-      is(result.charsPerSegment, charsPerSegment, "info.charsPerSegment");
-      is(result.charsAvailableInLastSegment, charsAvailableInLastSegment,
-         "info.charsAvailableInLastSegment");
-
-      tasks.next();
-    };
-
-    domRequest.onerror = function(e) {
-      ok(false, "Failed to call getSegmentInfoForText().");
-      tasks.finish();
-    };
+    tasks.next();
   });
 }
 
@@ -81,9 +63,9 @@ function addTestThrows(text) {
   tasks.push(function () {
     log("Testing '" + text + "' ...");
     try {
-      let domRequest = manager.getSegmentInfoForText(text);
+      let info = manager.getSegmentInfoForText(text);
 
-      ok(false, "Not thrown.");
+      ok(false, "Not thrown");
       tasks.finish();
     } catch (e) {
       tasks.next();

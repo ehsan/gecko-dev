@@ -101,19 +101,12 @@ MobileMessageManager::Shutdown()
 
 NS_IMETHODIMP
 MobileMessageManager::GetSegmentInfoForText(const nsAString& aText,
-                                            nsIDOMDOMRequest** aRequest)
+                                            nsIDOMMozSmsSegmentInfo** aResult)
 {
   nsCOMPtr<nsISmsService> smsService = do_GetService(SMS_SERVICE_CONTRACTID);
   NS_ENSURE_TRUE(smsService, NS_ERROR_FAILURE);
 
-  nsRefPtr<DOMRequest> request = new DOMRequest(GetOwner());
-  nsCOMPtr<nsIMobileMessageCallback> msgCallback =
-    new MobileMessageCallback(request);
-  nsresult rv = smsService->GetSegmentInfoForText(aText, msgCallback);
-  NS_ENSURE_SUCCESS(rv, rv);
-
-  request.forget(aRequest);
-  return NS_OK;
+  return smsService->GetSegmentInfoForText(aText, aResult);
 }
 
 nsresult

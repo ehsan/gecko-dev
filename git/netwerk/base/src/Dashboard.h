@@ -125,8 +125,9 @@ private:
     struct DnsLookup
     {
         nsCOMPtr<nsIDNSService> serv;
-        nsCOMPtr<nsICancelable> cancel;
+        nsCOMPtr<nsICancelable> mCancel;
         nsCOMPtr<NetDashboardCallback> cb;
+        nsIThread* thread;
     };
 
     struct ConnectionData

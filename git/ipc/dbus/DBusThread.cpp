@@ -479,13 +479,11 @@ public:
       }
     }
 
-    mConnection->CleanUp();
-
     return NS_OK;
   }
 
 private:
-  nsRefPtr<DBusThread> mConnection;
+  DBusThread* mConnection;
 };
 
 static StaticRefPtr<DBusThread> gDBusThread;
@@ -534,23 +532,30 @@ StopDBus()
   MOZ_ASSERT(!NS_IsMainThread());
   NS_ENSURE_TRUE(gDBusServiceThread, true);
 
-  nsRefPtr<DBusThread> dbusThread(gDBusThread);
-  gDBusThread = nullptr;
-
-  if (dbusThread) {
+  if (gDBusThread) {
     static const char data = DBUS_EVENT_LOOP_EXIT;
-    ssize_t wret = TEMP_FAILURE_RETRY(write(dbusThread->mControlFdW.get(),
+    ssize_t wret = TEMP_FAILURE_RETRY(write(gDBusThread->mControlFdW.get(),
                                             &data, sizeof(data)));
     NS_ENSURE_TRUE(wret == 1, false);
   }
 
-  nsRefPtr<nsIThread> dbusServiceThread(gDBusServiceThread);
+#ifdef DEBUG
+  LOG("DBus Thread Joining\n");
+#endif
+
+  if (NS_FAILED(gDBusServiceThread->Shutdown())) {
+    NS_WARNING("DBus thread shutdown failed!");
+  }
   gDBusServiceThread = nullptr;
 
-  nsRefPtr<nsIRunnable> runnable =
-    NS_NewRunnableMethod(dbusServiceThread, &nsIThread::Shutdown);
-  nsresult rv = NS_DispatchToMainThread(runnable);
-  NS_ENSURE_SUCCESS(rv, false);
+#ifdef DEBUG
+  LOG("DBus Thread Joined\n");
+#endif
+
+  if (gDBusThread) {
+    gDBusThread->CleanUp();
+    gDBusThread = nullptr;
+  }
 
   return true;
 }
@@ -558,16 +563,13 @@ StopDBus()
 nsresult
 DispatchToDBusThread(nsIRunnable* event)
 {
-  nsRefPtr<nsIThread> dbusServiceThread(gDBusServiceThread);
-  nsRefPtr<DBusThread> dbusThread(gDBusThread);
+  MOZ_ASSERT(gDBusServiceThread);
+  MOZ_ASSERT(gDBusThread);
 
-  NS_ENSURE_TRUE(dbusServiceThread.get() && dbusThread.get(),
-                 NS_ERROR_NOT_INITIALIZED);
-
-  nsresult rv = dbusServiceThread->Dispatch(event, NS_DISPATCH_NORMAL);
+  nsresult rv = gDBusServiceThread->Dispatch(event, NS_DISPATCH_NORMAL);
   NS_ENSURE_SUCCESS(rv, rv);
 
-  dbusThread->WakeUp();
+  gDBusThread->WakeUp();
 
   return NS_OK;
 }

@@ -209,7 +209,7 @@ interface nsIDOMMozMobileConnection : nsIDOMEventTarget
    *
    * Otherwise, the request's onerror will be called, and the request's error
    * will be either 'RadioNotAvailable', 'RequestNotSupported',
-   * 'IllegalSIMorME', 'InvalidParameter', or 'GenericFailure'
+   * 'IllegalSIMorME', or 'GenericFailure'
    */
   nsIDOMDOMRequest setCallForwardingOption(in nsIDOMMozMobileCFInfo CFInfo);
 
@@ -226,7 +226,7 @@ interface nsIDOMMozMobileConnection : nsIDOMEventTarget
    *
    * Otherwise, the request's onerror will be called, and the request's error
    * will be either 'RadioNotAvailable', 'RequestNotSupported',
-   * 'InvalidParameter', or 'GenericFailure'.
+   * or 'GenericFailure'.
    */
   nsIDOMDOMRequest getCallForwardingOption(in unsigned short reason);
 
@@ -241,7 +241,7 @@ interface nsIDOMMozMobileConnection : nsIDOMEventTarget
    *
    * Otherwise, the request's onerror will be called, and the request's error
    * will be either 'RadioNotAvailable', 'RequestNotSupported',
-   * 'IllegalSIMorME', 'InvalidParameter', or 'GenericFailure'
+   * 'IllegalSIMorME', 'InvalidCallBarringOption' or 'GenericFailure'
    */
   nsIDOMDOMRequest setCallBarringOption(in jsval option);
 
@@ -259,7 +259,7 @@ interface nsIDOMMozMobileConnection : nsIDOMEventTarget
    *
    * Otherwise, the request's onerror will be called, and the request's error
    * will be either 'RadioNotAvailable', 'RequestNotSupported',
-   * 'InvalidParameter', or 'GenericFailure'.
+   * 'InvalidCallBarringOption' or 'GenericFailure'.
    */
   nsIDOMDOMRequest getCallBarringOption(in jsval option);
 

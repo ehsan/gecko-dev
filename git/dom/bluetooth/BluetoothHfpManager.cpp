@@ -646,10 +646,7 @@ BluetoothHfpManager::HandleIccInfoChanged()
   nsCOMPtr<nsIDOMMozIccInfo> iccInfo;
   icc->GetIccInfo(getter_AddRefs(iccInfo));
   NS_ENSURE_TRUE_VOID(iccInfo);
-
-  nsCOMPtr<nsIDOMMozGsmIccInfo> gsmIccInfo = do_QueryInterface(iccInfo);
-  NS_ENSURE_TRUE_VOID(gsmIccInfo);
-  gsmIccInfo->GetMsisdn(mMsisdn);
+  iccInfo->GetMsisdn(mMsisdn);
 }
 
 void
