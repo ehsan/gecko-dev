@@ -65,33 +65,33 @@ Function.prototype.async = Async.sugar;
  * Well not yet, but it will :)
  */
 function Tracker() {
-  this._init();
+ this._init();
 }
 Tracker.prototype = {
-  _logName: "Tracker",
-  _score: 0,
+ _logName: "Tracker",
+ _score: 0,
 
-  _init: function T__init() {
-    this._log = Log4Moz.Service.getLogger("Service." + this._logName);
-    this._score = 0;
-  },
+ _init: function T__init() {
+   this._log = Log4Moz.Service.getLogger("Service." + this._logName);
+   this._score = 0;
+ },
 
-  /* Should be called by service periodically
-   * before deciding which engines to sync
-   */
-  get score() {
-    if (this._score >= 100)
-      return 100;
-    else
-      return this._score;
-  },
+ /* Should be called by service periodically
+  * before deciding which engines to sync
+  */
+ get score() {
+   if (this._score >= 100)
+    return 100;
+   else
+    return this._score;
+ },
 
-  /* Should be called by service everytime a sync
-   * has been done for an engine
-   */
-  resetScore: function T_resetScore() {
-    this._score = 0;
-  }
+ /* Should be called by service everytime a sync
+  * has been done for an engine
+  */
+ resetScore: function T_resetScore() {
+   this._score = 0;
+ }
 };
  
 /*
@@ -138,9 +138,7 @@ BookmarksTracker.prototype = {
   },
 
   _init: function BMT__init() {
-    this._log = Log4Moz.Service.getLogger("Service." + this._logName);
-    this._score = 0;
-     
+    super._init();
     Cc["@mozilla.org/browser/nav-bookmarks-service;1"].
     getService(Ci.nsINavBookmarksService).
     addObserver(this, false);
@@ -187,9 +185,7 @@ HistoryTracker.prototype = {
   },
 
   _init: function HT__init() {
-    this._log = Log4Moz.Service.getLogger("Service." + this._logName);
-    this._score = 0;
-     
+    super._init();
     Cc["@mozilla.org/browser/nav-history-service;1"].
     getService(Ci.nsINavHistoryService).
     addObserver(this, false);
@@ -238,7 +234,7 @@ FormsTracker.prototype = {
     var count = stmnt.getInt32(0);
     stmnt.reset();
 
-    this._score = Math.abs(this._rowCount - count) * 2;
+    this._score = abs(this._rowCount - count) * 2;
 
     if (this._score >= 100)
       return 100;
@@ -251,12 +247,12 @@ FormsTracker.prototype = {
     stmnt.executeStep();
     this._rowCount = stmnt.getInt32(0);
     stmnt.reset();
-    this._score = 0;
+
+    super.resetScore();
   },
 
   _init: function FormsTracker__init() {
-    this._log = Log4Moz.Service.getLogger("Service." + this._logName);
-    this._score = 0;
+    super._init();
 
     var stmnt = this._formDB.createStatement("SELECT COUNT(fieldname) FROM moz_formhistory");
     stmnt.executeStep();
