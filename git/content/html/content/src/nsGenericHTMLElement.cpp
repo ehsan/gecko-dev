@@ -3051,8 +3051,7 @@ nsGenericHTMLElement::GetItemValue(JSContext* aCx, JSObject* aScope,
 
   if (ItemScope()) {
     JS::Rooted<JS::Value> v(aCx);
-    JSAutoCompartment ac(aCx, scope);
-    if (!mozilla::dom::WrapObject(aCx, this, &v)) {
+    if (!mozilla::dom::WrapObject(aCx, scope, this, &v)) {
       aError.Throw(NS_ERROR_FAILURE);
       return JS::UndefinedValue();
     }

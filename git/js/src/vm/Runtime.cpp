@@ -72,9 +72,6 @@ PerThreadData::PerThreadData(JSRuntime *runtime)
     ionTop(nullptr),
     jitJSContext(nullptr),
     jitStackLimit(0),
-#ifdef JS_TRACE_LOGGING
-    traceLogger(nullptr),
-#endif
     activation_(nullptr),
     asmJSActivationStack_(nullptr),
 #ifdef JS_ARM_SIMULATOR

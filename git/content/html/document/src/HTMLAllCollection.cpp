@@ -221,6 +221,35 @@ GetDocument(JSObject *obj)
     static_cast<nsINode*>(JS_GetPrivate(obj)));
 }
 
+static inline nsresult
+WrapNative(JSContext *cx, JSObject *scope, nsISupports *native,
+           nsWrapperCache *cache, const nsIID* aIID, JS::MutableHandle<JS::Value> vp,
+           bool aAllowWrapping)
+{
+  if (!native) {
+    vp.setNull();
+
+    return NS_OK;
+  }
+
+  JSObject *wrapper = xpc_FastGetCachedWrapper(cache, scope, vp);
+  if (wrapper) {
+    return NS_OK;
+  }
+
+  return nsDOMClassInfo::XPConnect()->WrapNativeToJSVal(cx, scope, native,
+                                                        cache, aIID,
+                                                        aAllowWrapping, vp);
+}
+
+static inline nsresult
+WrapNative(JSContext *cx, JSObject *scope, nsISupports *native,
+           nsWrapperCache *cache, bool aAllowWrapping,
+           JS::MutableHandle<JS::Value> vp)
+{
+  return WrapNative(cx, scope, native, cache, nullptr, vp, aAllowWrapping);
+}
+
 bool
 nsHTMLDocumentSH::DocumentAllGetProperty(JSContext *cx, JS::Handle<JSObject*> obj_,
                                          JS::Handle<jsid> id, JS::MutableHandle<JS::Value> vp)
@@ -276,7 +305,8 @@ nsHTMLDocumentSH::DocumentAllGetProperty(JSContext *cx, JS::Handle<JSObject*> ob
   }
 
   if (result) {
-    nsresult rv = nsContentUtils::WrapNative(cx, result, cache, vp);
+    nsresult rv = WrapNative(cx, JS::CurrentGlobalOrNull(cx), result, cache,
+                             true, vp);
     if (NS_FAILED(rv)) {
       xpc::Throw(cx, rv);
 

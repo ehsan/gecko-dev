@@ -23,7 +23,8 @@
 using namespace JS;
 using namespace mozilla;
 
-template <class ArrayT>
+typedef nsTArray<Heap<JSObject*> > ArrayT;
+
 static void
 TraceArray(JSTracer* trc, void* data)
 {
@@ -32,21 +33,19 @@ TraceArray(JSTracer* trc, void* data)
     JS_CallHeapObjectTracer(trc, &array->ElementAt(i), "array-element");
 }
 
-/*
- * Use arrays with initial size much smaller than the final number of elements
- * to test that moving Heap<T> elements works correctly.
- */
-const size_t ElementCount = 100;
-const size_t InitialElements = ElementCount / 10;
-
-template <class ArrayT>
 static void
-RunTest(JSRuntime* rt, JSContext* cx, ArrayT* array)
+RunTest(JSRuntime* rt, JSContext* cx)
 {
   JS_GC(rt);
 
+  /*
+   * Create an array with space for half the final number of elements to test
+   * that moving Heap<T> elements works correctly.
+   */
+  const int elements = 100;
+  ArrayT* array = new ArrayT(elements / 2);
   ASSERT_TRUE(array != nullptr);
-  JS_AddExtraGCRootsTracer(rt, TraceArray<ArrayT>, array);
+  JS_AddExtraGCRootsTracer(rt, TraceArray, array);
 
   /*
    * Create the array and fill it with new JS objects. With GGC these will be
@@ -55,7 +54,7 @@ RunTest(JSRuntime* rt, JSContext* cx, ArrayT* array)
   RootedValue value(cx);
   const char* property = "foo";
   JS::shadow::Runtime* srt = reinterpret_cast<JS::shadow::Runtime*>(rt);
-  for (int i = 0; i < ElementCount; ++i) {
+  for (int i = 0; i < elements; ++i) {
     RootedObject obj(cx, JS_NewObject(cx, nullptr, JS::NullPtr(), JS::NullPtr()));
 #ifdef JSGC_GENERATIONAL
     ASSERT_TRUE(js::gc::IsInsideNursery(srt, obj));
@@ -76,7 +75,7 @@ RunTest(JSRuntime* rt, JSContext* cx, ArrayT* array)
   /*
    * Sanity check that our array contains what we expect.
    */
-  for (int i = 0; i < ElementCount; ++i) {
+  for (int i = 0; i < elements; ++i) {
     RootedObject obj(cx, array->ElementAt(i));
     ASSERT_FALSE(js::gc::IsInsideNursery(srt, obj));
     ASSERT_TRUE(JS_GetProperty(cx, obj, property, &value));
@@ -84,7 +83,7 @@ RunTest(JSRuntime* rt, JSContext* cx, ArrayT* array)
     ASSERT_EQ(i, value.toInt32());
   }
 
-  JS_RemoveExtraGCRootsTracer(rt, TraceArray<ArrayT>, array);
+  JS_RemoveExtraGCRootsTracer(rt, TraceArray, array);
 }
 
 static void
@@ -100,37 +99,17 @@ CreateGlobalAndRunTest(JSRuntime* rt, JSContext* cx)
 
   JS::CompartmentOptions options;
   options.setVersion(JSVERSION_LATEST);
-  JS::PersistentRootedObject global(cx);
+  JS::RootedObject global(cx);
   global = JS_NewGlobalObject(cx, &GlobalClass, nullptr, JS::FireOnNewGlobalHook, options);
   ASSERT_TRUE(global != nullptr);
 
+  JS_AddNamedObjectRoot(cx, global.address(), "test-global");
   JSCompartment *oldCompartment = JS_EnterCompartment(cx, global);
 
-  typedef Heap<JSObject*> ElementT;
-
-  {
-    nsTArray<ElementT>* array = new nsTArray<ElementT>(InitialElements);
-    RunTest(rt, cx, array);
-    delete array;
-  }
-
-  {
-    FallibleTArray<ElementT>* array = new FallibleTArray<ElementT>(InitialElements);
-    RunTest(rt, cx, array);
-    delete array;
-  }
-
-  {
-    nsAutoTArray<ElementT, InitialElements> array;
-    RunTest(rt, cx, &array);
-  }
-
-  {
-    AutoFallibleTArray<ElementT, InitialElements> array;
-    RunTest(rt, cx, &array);
-  }
+  RunTest(rt, cx);
 
   JS_LeaveCompartment(cx, oldCompartment);
+  JS_RemoveObjectRoot(cx, global.address());
 }
 
 TEST(GCPostBarriers, nsTArray) {

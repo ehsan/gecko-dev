@@ -160,7 +160,6 @@
     _(RegExpReplace)                \
     _(StringReplace)                \
     _(Lambda)                       \
-    _(LambdaArrow)                  \
     _(LambdaForSingleton)           \
     _(LambdaPar)                    \
     _(ImplicitThis)                 \

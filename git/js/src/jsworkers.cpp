@@ -16,7 +16,6 @@
 #include "frontend/BytecodeCompiler.h"
 #include "jit/IonBuilder.h"
 #include "vm/Debugger.h"
-#include "vm/TraceLogging.h"
 
 #include "jscntxtinlines.h"
 #include "jscompartmentinlines.h"
@@ -780,9 +779,12 @@ WorkerThread::handleIonWorkload()
 
     ionBuilder = WorkerThreadState().ionWorklist().popCopy();
 
-    TraceLogger *logger = TraceLoggerForThread(thread);
-    AutoTraceLog logScript(logger, TraceLogCreateTextId(logger, ionBuilder->script()));
-    AutoTraceLog logCompile(logger, TraceLogger::IonCompilation);
+#if JS_TRACE_LOGGING
+    AutoTraceLog logger(TraceLogging::getLogger(TraceLogging::ION_BACKGROUND_COMPILER),
+                        TraceLogging::ION_COMPILE_START,
+                        TraceLogging::ION_COMPILE_STOP,
+                        ionBuilder->script());
+#endif
 
     JSRuntime *rt = ionBuilder->script()->compartment()->runtimeFromAnyThread();
 

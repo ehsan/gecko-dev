@@ -2578,8 +2578,7 @@ nsPresContext::ReflowStarted(bool aInterruptible)
 #endif
   // We don't support interrupting in paginated contexts, since page
   // sequences only handle initial reflow
-  mInterruptsEnabled = aInterruptible && !IsPaginated() &&
-                       nsLayoutUtils::InterruptibleReflowEnabled();
+  mInterruptsEnabled = aInterruptible && !IsPaginated();
 
   // Don't set mHasPendingInterrupt based on HavePendingInputEvent() here.  If
   // we ever change that, then we need to update the code in

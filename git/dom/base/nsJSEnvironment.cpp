@@ -1087,8 +1087,7 @@ nsJSContext::ConvertSupportsTojsvals(nsISupports* aArgs,
           NS_ASSERTION(prim == nullptr,
                        "Don't pass nsISupportsPrimitives - use nsIVariant!");
 #endif
-          JSAutoCompartment ac(cx, aScope);
-          rv = nsContentUtils::WrapNative(cx, arg, thisVal);
+          rv = nsContentUtils::WrapNative(cx, aScope, arg, thisVal);
         }
       }
     }
@@ -1276,10 +1275,10 @@ nsJSContext::AddSupportsPrimitiveTojsvals(nsISupports *aArg, JS::Value *aArgv)
 
       AutoFree iidGuard(iid); // Free iid upon destruction.
 
-      JS::Rooted<JSObject*> scope(cx, GetWindowProxy());
+      JS::Rooted<JSObject*> global(cx, GetWindowProxy());
       JS::Rooted<JS::Value> v(cx);
-      JSAutoCompartment ac(cx, scope);
-      nsresult rv = nsContentUtils::WrapNative(cx, data, iid, &v);
+      nsresult rv = nsContentUtils::WrapNative(cx, global,
+                                               data, iid, &v);
       NS_ENSURE_SUCCESS(rv, rv);
 
       *aArgv = v;

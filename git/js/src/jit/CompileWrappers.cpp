@@ -27,13 +27,6 @@ CompileRuntime::onMainThread()
     return js::CurrentThreadCanAccessRuntime(runtime());
 }
 
-js::PerThreadData *
-CompileRuntime::mainThread()
-{
-    JS_ASSERT(onMainThread());
-    return &runtime()->mainThread;
-}
-
 const void *
 CompileRuntime::addressOfIonTop()
 {

@@ -14,7 +14,6 @@
 #include "jit/IonSpewer.h"
 #include "jit/JitCommon.h"
 #include "vm/Interpreter.h"
-#include "vm/TraceLogging.h"
 
 #include "jsgcinlines.h"
 #include "jsobjinlines.h"
@@ -201,9 +200,9 @@ jit::EnterBaselineAtBranch(JSContext *cx, InterpreterFrame *fp, jsbytecode *pc)
             data.calleeToken = CalleeToToken(fp->script());
     }
 
-    TraceLogger *logger = TraceLoggerForMainThread(cx->runtime());
-    TraceLogStopEvent(logger, TraceLogger::Interpreter);
-    TraceLogStartEvent(logger, TraceLogger::Baseline);
+#if JS_TRACE_LOGGING
+    TraceLogging::defaultLogger()->log(TraceLogging::INFO_ENGINE_BASELINE);
+#endif
 
     IonExecStatus status = EnterBaseline(cx, data);
     if (status != IonExec_Ok)

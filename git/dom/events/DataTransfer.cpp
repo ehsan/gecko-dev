@@ -657,7 +657,8 @@ DataTransfer::MozGetDataAt(JSContext* aCx, const nsAString& aFormat,
   }
 
   JS::Rooted<JS::Value> result(aCx);
-  if (!VariantToJsval(aCx, data, &result)) {
+  JS::Rooted<JSObject*> scope(aCx, GetWrapper());
+  if (!VariantToJsval(aCx, scope, data, &result)) {
     aRv = NS_ERROR_FAILURE;
     return JS::UndefinedValue();
   }

@@ -1388,8 +1388,9 @@ nsXULTemplateBuilder::InitHTMLTemplateRoot()
     AutoEntryScript entryScript(innerWin, true);
     JSContext* jscontext = entryScript.cx();
 
+    JS::Rooted<JSObject*> scope(jscontext, global->GetGlobalJSObject());
     JS::Rooted<JS::Value> v(jscontext);
-    rv = nsContentUtils::WrapNative(jscontext, mRoot, mRoot, &v);
+    rv = nsContentUtils::WrapNative(jscontext, scope, mRoot, mRoot, &v);
     NS_ENSURE_SUCCESS(rv, rv);
 
     JS::Rooted<JSObject*> jselement(jscontext, JSVAL_TO_OBJECT(v));
@@ -1397,7 +1398,7 @@ nsXULTemplateBuilder::InitHTMLTemplateRoot()
     if (mDB) {
         // database
         JS::Rooted<JS::Value> jsdatabase(jscontext);
-        rv = nsContentUtils::WrapNative(jscontext, mDB,
+        rv = nsContentUtils::WrapNative(jscontext, scope, mDB,
                                         &NS_GET_IID(nsIRDFCompositeDataSource),
                                         &jsdatabase);
         NS_ENSURE_SUCCESS(rv, rv);
@@ -1411,7 +1412,7 @@ nsXULTemplateBuilder::InitHTMLTemplateRoot()
     {
         // builder
         JS::Rooted<JS::Value> jsbuilder(jscontext);
-        rv = nsContentUtils::WrapNative(jscontext,
+        rv = nsContentUtils::WrapNative(jscontext, jselement,
                                         static_cast<nsIXULTemplateBuilder*>(this),
                                         &NS_GET_IID(nsIXULTemplateBuilder),
                                         &jsbuilder);

@@ -3837,8 +3837,14 @@ nsGlobalWindow::GetContent(JSContext* aCx, ErrorResult& aError)
   }
 
   if (content) {
+    JS::Rooted<JSObject*> global(aCx, JS::CurrentGlobalOrNull(aCx));
+    if (!global) {
+      aError.Throw(NS_ERROR_FAILURE);
+      return nullptr;
+    }
+
     JS::Rooted<JS::Value> val(aCx);
-    aError = nsContentUtils::WrapNative(aCx, content, &val);
+    aError = nsContentUtils::WrapNative(aCx, global, content, &val);
     if (aError.Failed()) {
       return nullptr;
     }
@@ -7658,9 +7664,13 @@ PostMessageReadStructuredClone(JSContext* cx,
 
     nsISupports* supports;
     if (JS_ReadBytes(reader, &supports, sizeof(supports))) {
-      JS::Rooted<JS::Value> val(cx);
-      if (NS_SUCCEEDED(nsContentUtils::WrapNative(cx, supports, &val))) {
-        return val.toObjectOrNull();
+      JS::Rooted<JSObject*> global(cx, JS::CurrentGlobalOrNull(cx));
+      if (global) {
+        JS::Rooted<JS::Value> val(cx);
+        if (NS_SUCCEEDED(nsContentUtils::WrapNative(cx, global, supports,
+                                                    &val))) {
+          return val.toObjectOrNull();
+        }
       }
     }
   }

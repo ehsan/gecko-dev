@@ -107,9 +107,13 @@ PostMessageReadStructuredClone(JSContext* cx,
 
     nsISupports* supports;
     if (JS_ReadBytes(reader, &supports, sizeof(supports))) {
-      JS::Rooted<JS::Value> val(cx);
-      if (NS_SUCCEEDED(nsContentUtils::WrapNative(cx, supports, &val))) {
-        return JSVAL_TO_OBJECT(val);
+      JS::Rooted<JSObject*> global(cx, JS::CurrentGlobalOrNull(cx));
+      if (global) {
+        JS::Rooted<JS::Value> val(cx);
+        if (NS_SUCCEEDED(nsContentUtils::WrapNative(cx, global, supports,
+                                                    &val))) {
+          return JSVAL_TO_OBJECT(val);
+        }
       }
     }
   }
