@@ -6148,7 +6148,6 @@ AddonInstall.prototype = {
         if (aRepoAddon) {
           aAddon._repositoryAddon = aRepoAddon;
           aAddon.compatibilityOverrides = aRepoAddon.compatibilityOverrides;
-          aAddon.appDisabled = !isUsableAddon(aAddon);
           aCallback();
           return;
         }
@@ -6160,7 +6159,6 @@ AddonInstall.prototype = {
             aAddon.compatibilityOverrides = aRepoAddon ?
                                               aRepoAddon.compatibilityOverrides :
                                               null;
-            aAddon.appDisabled = !isUsableAddon(aAddon);
             aCallback();
           });
         });

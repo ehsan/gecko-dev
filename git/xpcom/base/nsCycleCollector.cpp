@@ -1373,7 +1373,7 @@ GraphWalker<Visitor>::DoWalk(nsDeque &aQueue)
 class nsCycleCollectorLogger : public nsICycleCollectorListener
 {
 public:
-    nsCycleCollectorLogger() : mStream(nsnull), mWantAllTraces(false)
+    nsCycleCollectorLogger() : mStream(nsnull)
     {
     }
     ~nsCycleCollectorLogger()
@@ -1383,19 +1383,6 @@ public:
         }
     }
     NS_DECL_ISUPPORTS
-
-    NS_IMETHOD AllTraces(nsICycleCollectorListener** aListener)
-    {
-      mWantAllTraces = true;
-      NS_ADDREF(*aListener = this);
-      return NS_OK;
-    }
-
-    NS_IMETHOD GetWantAllTraces(bool* aAllTraces)
-    {
-      *aAllTraces = mWantAllTraces;
-      return NS_OK;
-    }
 
     NS_IMETHOD Begin()
     {
@@ -1455,7 +1442,6 @@ public:
 
 private:
     FILE *mStream;
-    bool mWantAllTraces;
 
     static PRUint32 gLogCounter;
 };
@@ -1584,22 +1570,15 @@ GCGraphBuilder::GCGraphBuilder(GCGraph &aGraph,
     if (!PL_DHashTableInit(&mPtrToNodeMap, &PtrNodeOps, nsnull,
                            sizeof(PtrToNodeEntry), 32768))
         mPtrToNodeMap.ops = nsnull;
-
-    PRUint32 flags = 0;
-#ifdef DEBUG_CC
-    flags = nsCycleCollectionTraversalCallback::WANT_DEBUG_INFO |
-            nsCycleCollectionTraversalCallback::WANT_ALL_TRACES;
+    // We want all edges and all info if DEBUG_CC is set or if we have a
+    // listener. Do we want them all the time?
+#ifndef DEBUG_CC
+    if (mListener)
 #endif
-    if (!flags && mListener) {
-        flags = nsCycleCollectionTraversalCallback::WANT_DEBUG_INFO;
-        bool all = false;
-        mListener->GetWantAllTraces(&all);
-        if (all) {
-            flags |= nsCycleCollectionTraversalCallback::WANT_ALL_TRACES;
-        }
+    {
+        mFlags |= nsCycleCollectionTraversalCallback::WANT_DEBUG_INFO |
+                  nsCycleCollectionTraversalCallback::WANT_ALL_TRACES;
     }
-
-    mFlags |= flags;
 }
 
 GCGraphBuilder::~GCGraphBuilder()
