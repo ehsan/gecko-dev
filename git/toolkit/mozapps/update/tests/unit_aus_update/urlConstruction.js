@@ -12,10 +12,7 @@ const URL_PREFIX = URL_HOST + "/";
 var gAppInfo;
 
 function run_test() {
-  // This test needs access to omni.ja to read the update.locale file so don't
-  // use a custom directory for the application directory.
-  gUseTestAppDir = false;
-  setupTestCommon();
+  setupTestCommon(true);
 
   // The mock XMLHttpRequest is MUCH faster
   overrideXHR(callHandleEvent);
@@ -24,6 +21,10 @@ function run_test() {
              getService(AUS_Ci.nsIXULAppInfo).
              QueryInterface(AUS_Ci.nsIXULRuntime);
   do_execute_soon(run_test_pt1);
+}
+
+function end_test() {
+  cleanupTestCommon();
 }
 
 // Callback function used by the custom XMLHttpRequest implementation to
@@ -94,7 +95,8 @@ function check_test_pt4() {
   var abi;
   try {
     abi = gAppInfo.XPCOMABI;
-  } catch (e) {
+  }
+  catch (e) {
     do_throw("nsIXULAppInfo:XPCOMABI not defined\n");
   }
 
@@ -127,7 +129,8 @@ function run_test_pt5() {
   setUpdateURLOverride(url);
   try {
     gUpdateChecker.checkForUpdates(updateCheckListener, true);
-  } catch (e) {
+  }
+  catch (e) {
     logTestInfo("The following error is most likely due to a missing " +
                 "update.locale file");
     do_throw(e);
@@ -322,7 +325,8 @@ function check_test_pt9() {
   if (osVersion) {
     try {
       osVersion += " (" + sysInfo.getProperty("secondaryLibrary") + ")";
-    } catch (e) {
+    }
+    catch (e) {
       // Not all platforms have a secondary widget library, so an error is
       // nothing to worry about.
     }
@@ -404,5 +408,5 @@ function run_test_pt14() {
 
 function check_test_pt14() {
   do_check_eq(getResult(gRequestURL), "?custom=custom&force=1");
-  doTestFinish();
+  do_test_finished();
 }

@@ -98,8 +98,6 @@ public:
     bool           IsSpdyEnabled() { return mEnableSpdy; }
     bool           IsSpdyV3Enabled() { return mSpdyV3; }
     bool           IsSpdyV31Enabled() { return mSpdyV31; }
-    bool           IsHttp2DraftEnabled() { return mHttp2DraftEnabled; }
-    bool           EnforceHttp2TlsProfile() { return mEnforceHttp2TlsProfile; }
     bool           CoalesceSpdy() { return mCoalesceSpdy; }
     bool           UseSpdyPersistentSettings() { return mSpdyPersistentSettings; }
     uint32_t       SpdySendingChunkSize() { return mSpdySendingChunkSize; }
@@ -107,7 +105,7 @@ public:
     uint32_t       SpdyPushAllowance()       { return mSpdyPushAllowance; }
     PRIntervalTime SpdyPingThreshold() { return mSpdyPingThreshold; }
     PRIntervalTime SpdyPingTimeout() { return mSpdyPingTimeout; }
-    bool           AllowPush()   { return mAllowPush; }
+    bool           AllowSpdyPush()   { return mAllowSpdyPush; }
     uint32_t       ConnectTimeout()  { return mConnectTimeout; }
     uint32_t       ParallelSpeculativeConnectLimit() { return mParallelSpeculativeConnectLimit; }
     bool           CriticalRequestPrioritization() { return mCriticalRequestPrioritization; }
@@ -411,26 +409,22 @@ private:
     uint8_t        mDoNotTrackValue;
 
     // Whether telemetry is reported or not
-    uint32_t           mTelemetryEnabled : 1;
+    bool           mTelemetryEnabled;
 
     // The value of network.allow-experiments
-    uint32_t           mAllowExperiments : 1;
+    bool           mAllowExperiments;
 
     // true in between init and shutdown states
-    uint32_t           mHandlerActive : 1;
-
-    uint32_t           mEnableSpdy : 1;
-    uint32_t           mSpdyV3 : 1;
-    uint32_t           mSpdyV31 : 1;
-    uint32_t           mHttp2DraftEnabled : 1;
-    uint32_t           mEnforceHttp2TlsProfile : 1;
-    uint32_t           mCoalesceSpdy : 1;
-    uint32_t           mSpdyPersistentSettings : 1;
-    uint32_t           mAllowPush : 1;
+    bool           mHandlerActive;
 
     // Try to use SPDY features instead of HTTP/1.1 over SSL
-    SpdyInformation    mSpdyInfo;
-
+    SpdyInformation mSpdyInfo;
+    bool           mEnableSpdy;
+    bool           mSpdyV3;
+    bool           mSpdyV31;
+    bool           mCoalesceSpdy;
+    bool           mSpdyPersistentSettings;
+    bool           mAllowSpdyPush;
     uint32_t       mSpdySendingChunkSize;
     uint32_t       mSpdySendBufferSize;
     uint32_t       mSpdyPushAllowance;

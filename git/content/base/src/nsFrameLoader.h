@@ -32,6 +32,7 @@ class AutoResetInShow;
 class nsITabParent;
 class nsIDocShellTreeItem;
 class nsIDocShellTreeOwner;
+class nsIDocShellTreeNode;
 class mozIApplication;
 
 namespace mozilla {
@@ -387,7 +388,7 @@ private:
   bool AddTreeItemToTreeOwner(nsIDocShellTreeItem* aItem,
                               nsIDocShellTreeOwner* aOwner,
                               int32_t aParentType,
-                              nsIDocShell* aParentNode);
+                              nsIDocShellTreeNode* aParentNode);
 
   nsIAtom* TypeAttrName() const {
     return mOwnerContent->IsXUL() ? nsGkAtoms::type : nsGkAtoms::mozframetype;

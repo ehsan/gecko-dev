@@ -195,7 +195,7 @@ WebGLRenderbuffer::GetRenderbufferParameter(GLenum target, GLenum pname) const {
         case LOCAL_GL_RENDERBUFFER_STENCIL_SIZE: {
             if (NeedsDepthStencilEmu(mContext->gl, InternalFormatForGL())) {
                 if (gl->WorkAroundDriverBugs() &&
-                    gl->Renderer() == GLRenderer::Tegra)
+                    gl->Renderer() == GLContext::RendererTegra)
                 {
                     return 8;
                 }

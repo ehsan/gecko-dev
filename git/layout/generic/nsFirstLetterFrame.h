@@ -11,7 +11,7 @@
 #include "mozilla/Attributes.h"
 #include "nsContainerFrame.h"
 
-class nsFirstLetterFrame MOZ_FINAL : public nsContainerFrame {
+class nsFirstLetterFrame : public nsContainerFrame {
 public:
   NS_DECL_QUERYFRAME_TARGET(nsFirstLetterFrame)
   NS_DECL_QUERYFRAME
@@ -60,7 +60,6 @@ public:
 
   virtual bool CanContinueTextRun() const MOZ_OVERRIDE;
   virtual nscoord GetBaseline() const MOZ_OVERRIDE;
-  virtual int GetSkipSides(const nsHTMLReflowState* aReflowState = nullptr) const MOZ_OVERRIDE;
 
 //override of nsFrame method
   NS_IMETHOD GetChildFrameContainingOffset(int32_t inContentOffset,

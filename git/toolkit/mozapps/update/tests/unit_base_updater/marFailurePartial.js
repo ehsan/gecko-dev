@@ -224,8 +224,12 @@ ADDITIONAL_TEST_DIRS = [
 }];
 
 function run_test() {
-  setupTestCommon();
+  setupTestCommon(true);
+
   setupUpdaterTest(FILE_PARTIAL_MAR);
+
+  let updatesDir = do_get_file(gTestID + UPDATES_DIR_SUFFIX);
+  let applyToDir = getApplyDirFile();
 
   // For Mac OS X set the last modified time for the root directory to a date in
   // the past to test that the last modified time is updated on all updates since
@@ -233,20 +237,27 @@ function run_test() {
   if (IS_MACOSX) {
     let now = Date.now();
     let yesterday = now - (1000 * 60 * 60 * 24);
-    let applyToDir = getApplyDirFile();
     applyToDir.lastModifiedTime = yesterday;
   }
 
+  // apply the partial mar
+  let exitValue = runUpdate();
+  logTestInfo("testing updater binary process exitValue for failure when " +
+              "applying a partial mar");
   // Note that on platforms where we use execv, we cannot trust the return code.
-  runUpdate((USE_EXECV ? 0 : 1), STATE_FAILED_UNEXPECTED_FILE_OPERATION_ERROR);
-}
+  do_check_eq(exitValue, USE_EXECV ? 0 : 1);
 
-function checkUpdateApplied() {
+  logTestInfo("testing update.status should be " + STATE_FAILED);
+  // The update status format for a failure is failed: # where # is the error
+  // code for the failure.
+  do_check_eq(readStatusFile(updatesDir).split(": ")[0], STATE_FAILED);
+
+  // For Mac OS X check that the last modified time for a directory has been
+  // updated after a successful update (bug 600098).
   if (IS_MACOSX) {
     logTestInfo("testing last modified time on the apply to directory has " +
                 "changed after a successful update (bug 600098)");
     let now = Date.now();
-    let applyToDir = getApplyDirFile();
     let timeDiff = Math.abs(applyToDir.lastModifiedTime - now);
     do_check_true(timeDiff < MAC_MAX_TIME_DIFFERENCE);
   }
@@ -262,4 +273,8 @@ function checkUpdateApplied() {
   do_check_false(toBeDeletedDir.exists());
 
   checkCallbackAppLog();
+}
+
+function end_test() {
+  cleanupUpdaterTest();
 }

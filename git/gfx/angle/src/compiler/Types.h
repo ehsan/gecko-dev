@@ -13,8 +13,6 @@
 #include "compiler/Common.h"
 #include "compiler/compiler_debug.h"
 
-#include <algorithm>
-
 struct TPublicType;
 class TType;
 

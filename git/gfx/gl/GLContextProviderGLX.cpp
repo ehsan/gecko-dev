@@ -43,7 +43,18 @@ using namespace mozilla::gfx;
 namespace mozilla {
 namespace gl {
 
-GLXLibrary sGLXLibrary;
+GLXLibrary sGLXLibrary[GLXLibrary::LIBS_MAX];
+GLXLibrary& sDefGLXLib = sGLXLibrary[GLXLibrary::OPENGL_LIB];
+
+static LibType gCurrLib = GLXLibrary::OPENGL_LIB;
+
+LibType
+GLXLibrary::SelectLibrary(const ContextFlags& aFlags)
+{
+  return (aFlags & ContextFlagsMesaLLVMPipe)
+          ? GLXLibrary::MESA_LLVMPIPE_LIB
+          : GLXLibrary::OPENGL_LIB;
+}
 
 // Check that we have at least version aMajor.aMinor .
 bool
@@ -61,7 +72,7 @@ HasExtension(const char* aExtensions, const char* aRequiredExtension)
 }
 
 bool
-GLXLibrary::EnsureInitialized()
+GLXLibrary::EnsureInitialized(LibType libType)
 {
     if (mInitialized) {
         return true;
@@ -79,15 +90,24 @@ GLXLibrary::EnsureInitialized()
     if (!mOGLLibrary) {
         const char* libGLfilename = nullptr;
         bool forceFeatureReport = false;
-
-        // see e.g. bug 608526: it is intrinsically interesting to know whether we have dynamically linked to libGL.so.1
-        // because at least the NVIDIA implementation requires an executable stack, which causes mprotect calls,
-        // which trigger glibc bug http://sourceware.org/bugzilla/show_bug.cgi?id=12225
+        switch (libType) {
+        case MESA_LLVMPIPE_LIB:
+            libGLfilename = "mesallvmpipe.so";
+            forceFeatureReport = true;
+            break;
+        case OPENGL_LIB:
+            // see e.g. bug 608526: it is intrinsically interesting to know whether we have dynamically linked to libGL.so.1
+            // because at least the NVIDIA implementation requires an executable stack, which causes mprotect calls,
+            // which trigger glibc bug http://sourceware.org/bugzilla/show_bug.cgi?id=12225
 #ifdef __OpenBSD__
-        libGLfilename = "libGL.so";
+            libGLfilename = "libGL.so";
 #else
-        libGLfilename = "libGL.so.1";
+            libGLfilename = "libGL.so.1";
 #endif
+            break;
+        default:
+            MOZ_CRASH("Invalid GLX library type.");
+        }
 
         ScopedGfxFeatureReporter reporter(libGLfilename, forceFeatureReport);
         mOGLLibrary = PR_LoadLibrary(libGLfilename);
@@ -246,6 +266,7 @@ GLXLibrary::EnsureInitialized()
     mClientIsMesa = clientVendor && DoesStringMatch(clientVendor, "Mesa");
 
     mInitialized = true;
+    mLibType = libType;
 
     return true;
 }
@@ -253,7 +274,7 @@ GLXLibrary::EnsureInitialized()
 bool
 GLXLibrary::SupportsTextureFromPixmap(gfxASurface* aSurface)
 {
-    if (!EnsureInitialized()) {
+    if (!EnsureInitialized(mLibType)) {
         return false;
     }
 
@@ -312,7 +333,7 @@ GLXLibrary::CreatePixmap(gfxASurface* aSurface)
 
     for (int i = 0; i < numConfigs; i++) {
         int id = None;
-        sGLXLibrary.xGetFBConfigAttrib(display, cfgs[i], LOCAL_GLX_VISUAL_ID, &id);
+        sGLXLibrary[mLibType].xGetFBConfigAttrib(display, cfgs[i], LOCAL_GLX_VISUAL_ID, &id);
         Visual *visual;
         int depth;
         FindVisualAndDepth(display, id, &visual, &depth);
@@ -369,8 +390,8 @@ GLXLibrary::CreatePixmap(gfxASurface* aSurface)
             // alpha or be unused, so just check that the number of alpha bits
             // matches.
             int size = 0;
-            sGLXLibrary.xGetFBConfigAttrib(display, cfgs[i],
-                                           LOCAL_GLX_ALPHA_SIZE, &size);
+            sGLXLibrary[mLibType].xGetFBConfigAttrib(display, cfgs[i],
+                                                     LOCAL_GLX_ALPHA_SIZE, &size);
             if (size != alphaSize) {
                 continue;
             }
@@ -483,12 +504,12 @@ GLXLibrary::AfterGLXCall()
     }
 }
 
-#define BEFORE_GLX_CALL do {           \
-    sGLXLibrary.BeforeGLXCall();       \
+#define BEFORE_GLX_CALL do {                     \
+    sGLXLibrary[gCurrLib].BeforeGLXCall();       \
 } while (0)
 
-#define AFTER_GLX_CALL do {            \
-    sGLXLibrary.AfterGLXCall();        \
+#define AFTER_GLX_CALL do {                      \
+    sGLXLibrary[gCurrLib].AfterGLXCall();        \
 } while (0)
 
 #else
@@ -530,7 +551,7 @@ GLXLibrary::xGetCurrentContext()
 GLXLibrary::xGetProcAddress(const char *procName)
 {
     BEFORE_GLX_CALL;
-    void* result = sGLXLibrary.xGetProcAddressInternal(procName);
+    void* result = sGLXLibrary[gCurrLib].xGetProcAddressInternal(procName);
     AFTER_GLX_CALL;
     return result;
 }
@@ -730,9 +751,10 @@ GLContextGLX::CreateGLContext(
                   GLXDrawable drawable,
                   GLXFBConfig cfg,
                   bool deleteDrawable,
+                  LibType libType,
                   gfxXlibSurface* pixmap)
 {
-    GLXLibrary& glx = sGLXLibrary;
+    GLXLibrary& glx = sGLXLibrary[libType];
 
     int db = 0;
     int err = glx.xGetFBConfigAttrib(display, cfg,
@@ -787,7 +809,8 @@ TRY_AGAIN_NO_SHARING:
                                       context,
                                       deleteDrawable,
                                       db,
-                                      pixmap);
+                                      pixmap,
+                                      libType);
         if (!glContext->Init())
             error = true;
     } else {
@@ -905,14 +928,15 @@ GLContextGLX::GLContextGLX(
                   GLXContext aContext,
                   bool aDeleteDrawable,
                   bool aDoubleBuffered,
-                  gfxXlibSurface *aPixmap)
+                  gfxXlibSurface *aPixmap,
+                  LibType libType)
     : GLContext(caps, shareContext, isOffscreen),//aDeleteDrawable ? true : false, aShareContext, ),
       mContext(aContext),
       mDisplay(aDisplay),
       mDrawable(aDrawable),
       mDeleteDrawable(aDeleteDrawable),
       mDoubleBuffered(aDoubleBuffered),
-      mGLX(&sGLXLibrary),
+      mGLX(&sGLXLibrary[libType]),
       mPixmap(aPixmap)
 {
     MOZ_ASSERT(mGLX);
@@ -922,9 +946,9 @@ GLContextGLX::GLContextGLX(
 
 
 static GLContextGLX *
-GetGlobalContextGLX()
+GetGlobalContextGLX(const ContextFlags aFlags = ContextFlagsNone)
 {
-    return static_cast<GLContextGLX*>(GLContextProviderGLX::GetGlobalContext());
+    return static_cast<GLContextGLX*>(GLContextProviderGLX::GetGlobalContext(aFlags));
 }
 
 static bool
@@ -950,7 +974,8 @@ AreCompatibleVisuals(Visual *one, Visual *two)
 already_AddRefed<GLContext>
 GLContextProviderGLX::CreateForWindow(nsIWidget *aWidget)
 {
-    if (!sGLXLibrary.EnsureInitialized()) {
+    const LibType libType = GLXLibrary::OPENGL_LIB;
+    if (!sDefGLXLib.EnsureInitialized(libType)) {
         return nullptr;
     }
 
@@ -967,20 +992,20 @@ GLContextProviderGLX::CreateForWindow(nsIWidget *aWidget)
 
     int numConfigs;
     ScopedXFree<GLXFBConfig> cfgs;
-    if (sGLXLibrary.IsATI() ||
-        !sGLXLibrary.GLXVersionCheck(1, 3)) {
+    if (sDefGLXLib.IsATI() ||
+        !sDefGLXLib.GLXVersionCheck(1, 3)) {
         const int attribs[] = {
             LOCAL_GLX_DOUBLEBUFFER, False,
             0
         };
-        cfgs = sGLXLibrary.xChooseFBConfig(display,
-                                           xscreen,
-                                           attribs,
-                                           &numConfigs);
+        cfgs = sDefGLXLib.xChooseFBConfig(display,
+                                       xscreen,
+                                       attribs,
+                                       &numConfigs);
     } else {
-        cfgs = sGLXLibrary.xGetFBConfigs(display,
-                                         xscreen,
-                                         &numConfigs);
+        cfgs = sDefGLXLib.xGetFBConfigs(display,
+                                     xscreen,
+                                     &numConfigs);
     }
 
     if (!cfgs) {
@@ -1006,11 +1031,11 @@ GLContextProviderGLX::CreateForWindow(nsIWidget *aWidget)
 
     for (int i = 0; i < numConfigs; i++) {
         int visid = None;
-        sGLXLibrary.xGetFBConfigAttrib(display, cfgs[i], LOCAL_GLX_VISUAL_ID, &visid);
+        sDefGLXLib.xGetFBConfigAttrib(display, cfgs[i], LOCAL_GLX_VISUAL_ID, &visid);
         if (!visid) {
             continue;
         }
-        if (sGLXLibrary.IsATI()) {
+        if (sDefGLXLib.IsATI()) {
             int depth;
             Visual *visual;
             FindVisualAndDepth(display, visid, &visual, &depth);
@@ -1041,16 +1066,17 @@ GLContextProviderGLX::CreateForWindow(nsIWidget *aWidget)
                                                                      display,
                                                                      window,
                                                                      cfgs[matchIndex],
-                                                                     false);
+                                                                     false,
+                                                                     libType);
 
     return glContext.forget();
 }
 
 static already_AddRefed<GLContextGLX>
-CreateOffscreenPixmapContext(const gfxIntSize& size)
+CreateOffscreenPixmapContext(const gfxIntSize& size, LibType libToUse)
 {
-    GLXLibrary& glx = sGLXLibrary;
-    if (!glx.EnsureInitialized()) {
+    GLXLibrary& glx = sGLXLibrary[libToUse];
+    if (!glx.EnsureInitialized(libToUse)) {
         return nullptr;
     }
 
@@ -1144,9 +1170,12 @@ DONE_CREATING_PIXMAP:
     if (!error && // earlier recorded error
         !serverError)
     {
+        ContextFlags flag = libToUse == GLXLibrary::MESA_LLVMPIPE_LIB
+                                         ? ContextFlagsMesaLLVMPipe
+                                         : ContextFlagsNone;
         // We might have an alpha channel, but it doesn't matter.
         SurfaceCaps dummyCaps = SurfaceCaps::Any();
-        GLContextGLX* shareContext = GetGlobalContextGLX();
+        GLContextGLX* shareContext = GetGlobalContextGLX(flag);
 
         glContext = GLContextGLX::CreateGLContext(dummyCaps,
                                                   shareContext,
@@ -1155,6 +1184,7 @@ DONE_CREATING_PIXMAP:
                                                   glxpixmap,
                                                   cfgs[chosenIndex],
                                                   true,
+                                                  libToUse,
                                                   xsurface);
     }
 
@@ -1163,11 +1193,15 @@ DONE_CREATING_PIXMAP:
 
 already_AddRefed<GLContext>
 GLContextProviderGLX::CreateOffscreen(const gfxIntSize& size,
-                                      const SurfaceCaps& caps)
+                                      const SurfaceCaps& caps,
+                                      ContextFlags flags)
 {
+    LibType libType = GLXLibrary::SelectLibrary(flags);
+    gCurrLib = libType;
+
     gfxIntSize dummySize = gfxIntSize(16, 16);
     nsRefPtr<GLContextGLX> glContext =
-        CreateOffscreenPixmapContext(dummySize);
+        CreateOffscreenPixmapContext(dummySize, libType);
 
     if (!glContext)
         return nullptr;
@@ -1178,33 +1212,35 @@ GLContextProviderGLX::CreateOffscreen(const gfxIntSize& size,
     return glContext.forget();
 }
 
-static nsRefPtr<GLContext> gGlobalContext;
+static nsRefPtr<GLContext> gGlobalContext[GLXLibrary::LIBS_MAX];
 // TODO move that out of static initializaion
 static bool gUseContextSharing = getenv("MOZ_DISABLE_CONTEXT_SHARING_GLX") == 0;
 
 GLContext*
-GLContextProviderGLX::GetGlobalContext()
+GLContextProviderGLX::GetGlobalContext(const ContextFlags aFlag)
 {
     // TODO: get GLX context sharing to work well with multiple threads
     if (!gUseContextSharing) {
         return nullptr;
     }
 
-    static bool triedToCreateContext = false;
-    if (!triedToCreateContext && !gGlobalContext) {
-        triedToCreateContext = true;
+    LibType libType = GLXLibrary::SelectLibrary(aFlag);
+    static bool triedToCreateContext[GLXLibrary::LIBS_MAX] = {false, false};
+    if (!triedToCreateContext[libType] && !gGlobalContext[libType]) {
+        triedToCreateContext[libType] = true;
 
         gfxIntSize dummySize = gfxIntSize(16, 16);
-        gGlobalContext = CreateOffscreenPixmapContext(dummySize);
+        gGlobalContext[libType] = CreateOffscreenPixmapContext(dummySize, libType);
     }
 
-    return gGlobalContext;
+    return gGlobalContext[libType];
 }
 
 void
 GLContextProviderGLX::Shutdown()
 {
-    gGlobalContext = nullptr;
+    for (int i = 0; i < GLXLibrary::LIBS_MAX; ++i)
+      gGlobalContext[i] = nullptr;
 }
 
 } /* namespace gl */

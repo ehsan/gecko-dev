@@ -80,18 +80,18 @@ inline Filter ToFilter(GraphicsFilter aFilter)
 {
   switch (aFilter) {
   case GraphicsFilter::FILTER_NEAREST:
-    return Filter::POINT;
+    return FILTER_POINT;
   case GraphicsFilter::FILTER_GOOD:
-    return Filter::GOOD;
+    return FILTER_GOOD;
   default:
-    return Filter::LINEAR;
+    return FILTER_LINEAR;
   }
 }
 
 inline GraphicsFilter ThebesFilter(Filter aFilter)
 {
   switch (aFilter) {
-  case Filter::POINT:
+  case FILTER_POINT:
     return GraphicsFilter::FILTER_NEAREST;
   default:
     return GraphicsFilter::FILTER_BEST;
@@ -102,20 +102,20 @@ inline ExtendMode ToExtendMode(gfxPattern::GraphicsExtend aExtend)
 {
   switch (aExtend) {
   case gfxPattern::EXTEND_REPEAT:
-    return ExtendMode::REPEAT;
+    return EXTEND_REPEAT;
   case gfxPattern::EXTEND_REFLECT:
-    return ExtendMode::REFLECT;
+    return EXTEND_REFLECT;
   default:
-    return ExtendMode::CLAMP;
+    return EXTEND_CLAMP;
   }
 }
 
 inline gfxPattern::GraphicsExtend ThebesExtend(ExtendMode aExtend)
 {
   switch (aExtend) {
-  case ExtendMode::REPEAT:
+  case EXTEND_REPEAT:
     return gfxPattern::EXTEND_REPEAT;
-  case ExtendMode::REFLECT:
+  case EXTEND_REFLECT:
     return gfxPattern::EXTEND_REFLECT;
   default:
     return gfxPattern::EXTEND_PAD;
@@ -155,11 +155,11 @@ inline gfxRGBA ThebesRGBA(const Color &aColor)
 inline gfxContext::GraphicsLineCap ThebesLineCap(CapStyle aStyle)
 {
   switch (aStyle) {
-  case CapStyle::BUTT:
+  case CAP_BUTT:
     return gfxContext::LINE_CAP_BUTT;
-  case CapStyle::ROUND:
+  case CAP_ROUND:
     return gfxContext::LINE_CAP_ROUND;
-  case CapStyle::SQUARE:
+  case CAP_SQUARE:
     return gfxContext::LINE_CAP_SQUARE;
   }
   MOZ_CRASH("Incomplete switch");
@@ -169,11 +169,11 @@ inline CapStyle ToCapStyle(gfxContext::GraphicsLineCap aStyle)
 {
   switch (aStyle) {
   case gfxContext::LINE_CAP_BUTT:
-    return CapStyle::BUTT;
+    return CAP_BUTT;
   case gfxContext::LINE_CAP_ROUND:
-    return CapStyle::ROUND;
+    return CAP_ROUND;
   case gfxContext::LINE_CAP_SQUARE:
-    return CapStyle::SQUARE;
+    return CAP_SQUARE;
   }
   MOZ_CRASH("Incomplete switch");
 }
@@ -181,11 +181,11 @@ inline CapStyle ToCapStyle(gfxContext::GraphicsLineCap aStyle)
 inline gfxContext::GraphicsLineJoin ThebesLineJoin(JoinStyle aStyle)
 {
   switch (aStyle) {
-  case JoinStyle::MITER:
+  case JOIN_MITER:
     return gfxContext::LINE_JOIN_MITER;
-  case JoinStyle::BEVEL:
+  case JOIN_BEVEL:
     return gfxContext::LINE_JOIN_BEVEL;
-  case JoinStyle::ROUND:
+  case JOIN_ROUND:
     return gfxContext::LINE_JOIN_ROUND;
   default:
     return gfxContext::LINE_JOIN_MITER;
@@ -196,11 +196,11 @@ inline JoinStyle ToJoinStyle(gfxContext::GraphicsLineJoin aStyle)
 {
   switch (aStyle) {
   case gfxContext::LINE_JOIN_MITER:
-    return JoinStyle::MITER;
+    return JOIN_MITER;
   case gfxContext::LINE_JOIN_BEVEL:
-    return JoinStyle::BEVEL;
+    return JOIN_BEVEL;
   case gfxContext::LINE_JOIN_ROUND:
-    return JoinStyle::ROUND;
+    return JOIN_ROUND;
   }
   MOZ_CRASH("Incomplete switch");
 }
@@ -208,13 +208,13 @@ inline JoinStyle ToJoinStyle(gfxContext::GraphicsLineJoin aStyle)
 inline gfxImageFormat SurfaceFormatToImageFormat(SurfaceFormat aFormat)
 {
   switch (aFormat) {
-  case SurfaceFormat::B8G8R8A8:
+  case FORMAT_B8G8R8A8:
     return gfxImageFormatARGB32;
-  case SurfaceFormat::B8G8R8X8:
+  case FORMAT_B8G8R8X8:
     return gfxImageFormatRGB24;
-  case SurfaceFormat::R5G6B5:
+  case FORMAT_R5G6B5:
     return gfxImageFormatRGB16_565;
-  case SurfaceFormat::A8:
+  case FORMAT_A8:
     return gfxImageFormatA8;
   default:
     return gfxImageFormatUnknown;
@@ -225,30 +225,30 @@ inline SurfaceFormat ImageFormatToSurfaceFormat(gfxImageFormat aFormat)
 {
   switch (aFormat) {
   case gfxImageFormatARGB32:
-    return SurfaceFormat::B8G8R8A8;
+    return FORMAT_B8G8R8A8;
   case gfxImageFormatRGB24:
-    return SurfaceFormat::B8G8R8X8;
+    return FORMAT_B8G8R8X8;
   case gfxImageFormatRGB16_565:
-    return SurfaceFormat::R5G6B5;
+    return FORMAT_R5G6B5;
   case gfxImageFormatA8:
-    return SurfaceFormat::A8;
+    return FORMAT_A8;
   default:
   case gfxImageFormatUnknown:
-    return SurfaceFormat::B8G8R8A8;
+    return FORMAT_B8G8R8A8;
   }
 }
 
 inline gfxContentType ContentForFormat(const SurfaceFormat &aFormat)
 {
   switch (aFormat) {
-  case SurfaceFormat::R5G6B5:
-  case SurfaceFormat::B8G8R8X8:
-  case SurfaceFormat::R8G8B8X8:
+  case FORMAT_R5G6B5:
+  case FORMAT_B8G8R8X8:
+  case FORMAT_R8G8B8X8:
     return GFX_CONTENT_COLOR;
-  case SurfaceFormat::A8:
+  case FORMAT_A8:
     return GFX_CONTENT_ALPHA;
-  case SurfaceFormat::B8G8R8A8:
-  case SurfaceFormat::R8G8B8A8:
+  case FORMAT_B8G8R8A8:
+  case FORMAT_R8G8B8A8:
   default:
     return GFX_CONTENT_COLOR_ALPHA;
   }
@@ -258,108 +258,108 @@ inline CompositionOp CompositionOpForOp(gfxContext::GraphicsOperator aOp)
 {
   switch (aOp) {
   case gfxContext::OPERATOR_ADD:
-    return CompositionOp::OP_ADD;
+    return OP_ADD;
   case gfxContext::OPERATOR_ATOP:
-    return CompositionOp::OP_ATOP;
+    return OP_ATOP;
   case gfxContext::OPERATOR_IN:
-    return CompositionOp::OP_IN;
+    return OP_IN;
   case gfxContext::OPERATOR_OUT:
-    return CompositionOp::OP_OUT;
+    return OP_OUT;
   case gfxContext::OPERATOR_SOURCE:
-    return CompositionOp::OP_SOURCE;
+    return OP_SOURCE;
   case gfxContext::OPERATOR_DEST_IN:
-    return CompositionOp::OP_DEST_IN;
+    return OP_DEST_IN;
   case gfxContext::OPERATOR_DEST_OUT:
-    return CompositionOp::OP_DEST_OUT;
+    return OP_DEST_OUT;
   case gfxContext::OPERATOR_DEST_ATOP:
-    return CompositionOp::OP_DEST_ATOP;
+    return OP_DEST_ATOP;
   case gfxContext::OPERATOR_XOR:
-    return CompositionOp::OP_XOR;
+    return OP_XOR;
   case gfxContext::OPERATOR_MULTIPLY:
-    return CompositionOp::OP_MULTIPLY;
+    return OP_MULTIPLY;
   case gfxContext::OPERATOR_SCREEN:
-    return CompositionOp::OP_SCREEN;
+    return OP_SCREEN;
   case gfxContext::OPERATOR_OVERLAY:
-    return CompositionOp::OP_OVERLAY;
+    return OP_OVERLAY;
   case gfxContext::OPERATOR_DARKEN:
-    return CompositionOp::OP_DARKEN;
+    return OP_DARKEN;
   case gfxContext::OPERATOR_LIGHTEN:
-    return CompositionOp::OP_LIGHTEN;
+    return OP_LIGHTEN;
   case gfxContext::OPERATOR_COLOR_DODGE:
-    return CompositionOp::OP_COLOR_DODGE;
+    return OP_COLOR_DODGE;
   case gfxContext::OPERATOR_COLOR_BURN:
-    return CompositionOp::OP_COLOR_BURN;
+    return OP_COLOR_BURN;
   case gfxContext::OPERATOR_HARD_LIGHT:
-    return CompositionOp::OP_HARD_LIGHT;
+    return OP_HARD_LIGHT;
   case gfxContext::OPERATOR_SOFT_LIGHT:
-    return CompositionOp::OP_SOFT_LIGHT;
+    return OP_SOFT_LIGHT;
   case gfxContext::OPERATOR_DIFFERENCE:
-    return CompositionOp::OP_DIFFERENCE;
+    return OP_DIFFERENCE;
   case gfxContext::OPERATOR_EXCLUSION:
-    return CompositionOp::OP_EXCLUSION;
+    return OP_EXCLUSION;
   case gfxContext::OPERATOR_HUE:
-    return CompositionOp::OP_HUE;
+    return OP_HUE;
   case gfxContext::OPERATOR_SATURATION:
-    return CompositionOp::OP_SATURATION;
+    return OP_SATURATION;
   case gfxContext::OPERATOR_COLOR:
-    return CompositionOp::OP_COLOR;
+    return OP_COLOR;
   case gfxContext::OPERATOR_LUMINOSITY:
-    return CompositionOp::OP_LUMINOSITY;
+    return OP_LUMINOSITY;
   default:
-    return CompositionOp::OP_OVER;
+    return OP_OVER;
   }
 }
 
 inline gfxContext::GraphicsOperator ThebesOp(CompositionOp aOp)
 {
   switch (aOp) {
-  case CompositionOp::OP_ADD:
+  case OP_ADD:
     return gfxContext::OPERATOR_ADD;
-  case CompositionOp::OP_ATOP:
+  case OP_ATOP:
     return gfxContext::OPERATOR_ATOP;
-  case CompositionOp::OP_IN:
+  case OP_IN:
     return gfxContext::OPERATOR_IN;
-  case CompositionOp::OP_OUT:
+  case OP_OUT:
     return gfxContext::OPERATOR_OUT;
-  case CompositionOp::OP_SOURCE:
+  case OP_SOURCE:
     return gfxContext::OPERATOR_SOURCE;
-  case CompositionOp::OP_DEST_IN:
+  case OP_DEST_IN:
     return gfxContext::OPERATOR_DEST_IN;
-  case CompositionOp::OP_DEST_OUT:
+  case OP_DEST_OUT:
     return gfxContext::OPERATOR_DEST_OUT;
-  case CompositionOp::OP_DEST_ATOP:
+  case OP_DEST_ATOP:
     return gfxContext::OPERATOR_DEST_ATOP;
-  case CompositionOp::OP_XOR:
+  case OP_XOR:
     return gfxContext::OPERATOR_XOR;
-  case CompositionOp::OP_MULTIPLY:
+  case OP_MULTIPLY:
     return gfxContext::OPERATOR_MULTIPLY;
-  case CompositionOp::OP_SCREEN:
+  case OP_SCREEN:
     return gfxContext::OPERATOR_SCREEN;
-  case CompositionOp::OP_OVERLAY:
+  case OP_OVERLAY:
     return gfxContext::OPERATOR_OVERLAY;
-  case CompositionOp::OP_DARKEN:
+  case OP_DARKEN:
     return gfxContext::OPERATOR_DARKEN;
-  case CompositionOp::OP_LIGHTEN:
+  case OP_LIGHTEN:
     return gfxContext::OPERATOR_LIGHTEN;
-  case CompositionOp::OP_COLOR_DODGE:
+  case OP_COLOR_DODGE:
     return gfxContext::OPERATOR_COLOR_DODGE;
-  case CompositionOp::OP_COLOR_BURN:
+  case OP_COLOR_BURN:
     return gfxContext::OPERATOR_COLOR_BURN;
-  case CompositionOp::OP_HARD_LIGHT:
+  case OP_HARD_LIGHT:
     return gfxContext::OPERATOR_HARD_LIGHT;
-  case CompositionOp::OP_SOFT_LIGHT:
+  case OP_SOFT_LIGHT:
     return gfxContext::OPERATOR_SOFT_LIGHT;
-  case CompositionOp::OP_DIFFERENCE:
+  case OP_DIFFERENCE:
     return gfxContext::OPERATOR_DIFFERENCE;
-  case CompositionOp::OP_EXCLUSION:
+  case OP_EXCLUSION:
     return gfxContext::OPERATOR_EXCLUSION;
-  case CompositionOp::OP_HUE:
+  case OP_HUE:
     return gfxContext::OPERATOR_HUE;
-  case CompositionOp::OP_SATURATION:
+  case OP_SATURATION:
     return gfxContext::OPERATOR_SATURATION;
-  case CompositionOp::OP_COLOR:
+  case OP_COLOR:
     return gfxContext::OPERATOR_COLOR;
-  case CompositionOp::OP_LUMINOSITY:
+  case OP_LUMINOSITY:
     return gfxContext::OPERATOR_LUMINOSITY;
   default:
     return gfxContext::OPERATOR_OVER;

@@ -1150,16 +1150,14 @@ window.addEventListener('ContentStart', function ss_onContentStart() {
                                             'canvas');
       var width = window.innerWidth;
       var height = window.innerHeight;
-      var scale = window.devicePixelRatio;
-      canvas.setAttribute('width', width * scale);
-      canvas.setAttribute('height', height * scale);
+      canvas.setAttribute('width', width);
+      canvas.setAttribute('height', height);
 
       var context = canvas.getContext('2d');
       var flags =
         context.DRAWWINDOW_DRAW_CARET |
         context.DRAWWINDOW_DRAW_VIEW |
         context.DRAWWINDOW_USE_WIDGET_LAYERS;
-      context.scale(scale, scale);
       context.drawWindow(window, 0, 0, width, height,
                          'rgb(255,255,255)', flags);
 

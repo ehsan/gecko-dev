@@ -34,7 +34,6 @@ class nsIEventTarget;
 class nsIPrincipal;
 class nsIScriptContext;
 class nsIThread;
-class nsIThreadInternal;
 class nsITimer;
 class nsIURI;
 
@@ -1099,9 +1098,6 @@ private:
   bool
   RunCurrentSyncLoop();
 
-  bool
-  DestroySyncLoop(uint32_t aLoopIndex, nsIThreadInternal* aThread = nullptr);
-
   void
   InitializeGCTimers();
 
@@ -1161,13 +1157,10 @@ class AutoSyncLoopHolder
 {
   WorkerPrivate* mWorkerPrivate;
   nsCOMPtr<nsIEventTarget> mTarget;
-  uint32_t mIndex;
 
 public:
   AutoSyncLoopHolder(WorkerPrivate* aWorkerPrivate)
-  : mWorkerPrivate(aWorkerPrivate)
-  , mTarget(aWorkerPrivate->CreateNewSyncLoop())
-  , mIndex(aWorkerPrivate->mSyncLoopStack.Length() - 1)
+  : mWorkerPrivate(aWorkerPrivate), mTarget(aWorkerPrivate->CreateNewSyncLoop())
   {
     aWorkerPrivate->AssertIsOnWorkerThread();
   }
@@ -1177,7 +1170,6 @@ public:
     if (mWorkerPrivate) {
       mWorkerPrivate->AssertIsOnWorkerThread();
       mWorkerPrivate->StopSyncLoop(mTarget, false);
-      mWorkerPrivate->DestroySyncLoop(mIndex);
     }
   }
 

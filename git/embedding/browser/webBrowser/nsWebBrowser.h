@@ -18,6 +18,7 @@
 #include "nsIBaseWindow.h"
 #include "nsIDocShell.h"
 #include "nsIDocShellTreeItem.h"
+#include "nsIDocShellTreeNode.h"
 #include "nsIInterfaceRequestor.h"
 #include "nsIInterfaceRequestorUtils.h"
 #include "nsIScrollable.h"
@@ -95,6 +96,7 @@ public:
 
     NS_DECL_NSIBASEWINDOW
     NS_DECL_NSIDOCSHELLTREEITEM
+    NS_DECL_NSIDOCSHELLTREENODE
     NS_DECL_NSIINTERFACEREQUESTOR
     NS_DECL_NSISCROLLABLE   
     NS_DECL_NSITEXTSCROLL

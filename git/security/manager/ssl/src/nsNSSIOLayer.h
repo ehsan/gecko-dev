@@ -107,11 +107,6 @@ public:
     return result;
   }
 
-  void SetSSLVersionUsed(int16_t version)
-  {
-    mSSLVersionUsed = version;
-  }
-
 private:
   PRFileDesc* mFd;
 
@@ -141,7 +136,6 @@ private:
   // Values are from nsISSLSocketControl
   int16_t mKEAUsed;
   int16_t mKEAExpected;
-  int16_t mSSLVersionUsed;
 
   uint32_t mProviderFlags;
   mozilla::TimeStamp mSocketCreationTimestamp;

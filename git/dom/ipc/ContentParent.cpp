@@ -68,7 +68,6 @@
 #include "nsIDOMWindow.h"
 #include "nsIExternalProtocolService.h"
 #include "nsIFilePicker.h"
-#include "nsIGfxInfo.h"
 #include "nsIIdleService.h"
 #include "nsIMemoryReporter.h"
 #include "nsIMozBrowserFrame.h"
@@ -517,6 +516,8 @@ ContentParent::CreateBrowserOrApp(const TabContext& aContext,
 
     if (aContext.IsBrowserElement() || !aContext.HasOwnApp()) {
         if (nsRefPtr<ContentParent> cp = GetNewOrUsed(aContext.IsBrowserElement())) {
+            nsRefPtr<TabParent> tp(new TabParent(cp, aContext));
+            tp->SetOwnerElement(aFrameElement);
             uint32_t chromeFlags = 0;
 
             // Propagate the private-browsing status of the element's parent
@@ -535,9 +536,6 @@ ContentParent::CreateBrowserOrApp(const TabContext& aContext,
             if (affectLifetime) {
                 chromeFlags |= nsIWebBrowserChrome::CHROME_PRIVATE_LIFETIME;
             }
-
-            nsRefPtr<TabParent> tp(new TabParent(cp, aContext, chromeFlags));
-            tp->SetOwnerElement(aFrameElement);
 
             PBrowserParent* browser = cp->SendPBrowserConstructor(
                 tp.forget().get(), // DeallocPBrowserParent() releases this ref.
@@ -601,14 +599,12 @@ ContentParent::CreateBrowserOrApp(const TabContext& aContext,
         sAppContentParents->Put(manifestURL, p);
     }
 
-    uint32_t chromeFlags = 0;
-
-    nsRefPtr<TabParent> tp = new TabParent(p, aContext, chromeFlags);
+    nsRefPtr<TabParent> tp = new TabParent(p, aContext);
     tp->SetOwnerElement(aFrameElement);
     PBrowserParent* browser = p->SendPBrowserConstructor(
         nsRefPtr<TabParent>(tp).forget().get(), // DeallocPBrowserParent() releases this ref.
         aContext.AsIPCTabContext(),
-        chromeFlags);
+        /* chromeFlags */ 0);
 
     p->MaybeTakeCPUWakeLock(aFrameElement);
 
@@ -2040,7 +2036,7 @@ ContentParent::AllocPBrowserParent(const IPCTabContext& aContext,
         return nullptr;
     }
 
-    TabParent* parent = new TabParent(this, tc.GetTabContext(), aChromeFlags);
+    TabParent* parent = new TabParent(this, tc.GetTabContext());
 
     // We release this ref in DeallocPBrowserParent()
     NS_ADDREF(parent);
@@ -3187,21 +3183,6 @@ ContentParent::RecvRecordingDeviceEvents(const nsString& aRecordingStatus,
     } else {
         NS_WARNING("Could not get the Observer service for ContentParent::RecvRecordingDeviceEvents.");
     }
-    return true;
-}
-
-bool
-ContentParent::RecvGetGraphicsFeatureStatus(const int32_t& aFeature,
-                                            int32_t* aStatus,
-                                            bool* aSuccess)
-{
-    nsCOMPtr<nsIGfxInfo> gfxInfo = do_GetService("@mozilla.org/gfx/info;1");
-    if (!gfxInfo) {
-        *aSuccess = false;
-        return true;
-    }
-
-    *aSuccess = NS_SUCCEEDED(gfxInfo->GetFeatureStatus(aFeature, aStatus));
     return true;
 }
 

@@ -33,6 +33,11 @@ class Monitor
     PRLock *lock_;
     PRCondVar *condVar_;
 
+
+    void assertIsHoldingLock() const {
+        PR_ASSERT_CURRENT_THREAD_OWNS_LOCK(lock_);
+    }
+
   public:
     Monitor()
       : lock_(nullptr),
@@ -75,47 +80,23 @@ class AutoLockMonitor
 #endif
     }
 
-    bool isFor(Monitor &other) const {
-        return monitor.lock_ == other.lock_;
-    }
-
-    void wait(PRCondVar *condVar) {
-#ifdef JS_THREADSAFE
-        mozilla::DebugOnly<PRStatus> status =
-          PR_WaitCondVar(condVar, PR_INTERVAL_NO_TIMEOUT);
-        MOZ_ASSERT(status == PR_SUCCESS);
-#endif
-    }
-
     void wait() {
 #ifdef JS_THREADSAFE
-        wait(monitor.condVar_);
-#endif
-    }
-
-    void notify(PRCondVar *condVar) {
-#ifdef JS_THREADSAFE
-        mozilla::DebugOnly<PRStatus> status = PR_NotifyCondVar(condVar);
-        MOZ_ASSERT(status == PR_SUCCESS);
+        mozilla::DebugOnly<PRStatus> status =
+          PR_WaitCondVar(monitor.condVar_, PR_INTERVAL_NO_TIMEOUT);
+        JS_ASSERT(status == PR_SUCCESS);
 #endif
     }
 
     void notify() {
 #ifdef JS_THREADSAFE
-        notify(monitor.condVar_);
-#endif
-    }
-
-    void notifyAll(PRCondVar *condVar) {
-#ifdef JS_THREADSAFE
-        mozilla::DebugOnly<PRStatus> status = PR_NotifyAllCondVar(monitor.condVar_);
-        MOZ_ASSERT(status == PR_SUCCESS);
+        PR_NotifyCondVar(monitor.condVar_);
 #endif
     }
 
     void notifyAll() {
 #ifdef JS_THREADSAFE
-        notifyAll(monitor.condVar_);
+        PR_NotifyAllCondVar(monitor.condVar_);
 #endif
     }
 };
@@ -142,10 +123,6 @@ class AutoUnlockMonitor
 #ifdef JS_THREADSAFE
         PR_Lock(monitor.lock_);
 #endif
-    }
-
-    bool isFor(Monitor &other) const {
-        return monitor.lock_ == other.lock_;
     }
 };
 

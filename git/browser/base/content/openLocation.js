@@ -82,8 +82,7 @@ function open()
       switch (dialog.openWhereList.value) {
         case "0":
           var webNav = Components.interfaces.nsIWebNavigation;
-          var flags = webNav.LOAD_FLAGS_ALLOW_THIRD_PARTY_FIXUP |
-                      webNav.LOAD_FLAGS_FIXUP_SCHEME_TYPOS;
+          var flags = webNav.LOAD_FLAGS_ALLOW_THIRD_PARTY_FIXUP;
           if (!mayInheritPrincipal)
             flags |= webNav.LOAD_FLAGS_DISALLOW_INHERIT_OWNER;
           browser.gBrowser.loadURIWithFlags(url, flags, null, null, postData);

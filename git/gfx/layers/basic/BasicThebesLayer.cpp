@@ -169,6 +169,11 @@ BasicThebesLayer::Validate(LayerManager::DrawThebesLayerCallback aCallback,
     return;
   }
 
+  bool canUseOpaqueSurface = CanUseOpaqueSurface();
+  ContentType contentType =
+    canUseOpaqueSurface ? GFX_CONTENT_COLOR :
+                          GFX_CONTENT_COLOR_ALPHA;
+
   uint32_t flags = 0;
 #ifndef MOZ_WIDGET_ANDROID
   if (BasicManager()->CompositorMightResample()) {
@@ -184,30 +189,31 @@ BasicThebesLayer::Validate(LayerManager::DrawThebesLayerCallback aCallback,
     flags |= RotatedContentBuffer::PAINT_NO_ROTATION;
   }
   PaintState state =
-    mContentClient->BeginPaintBuffer(this, flags);
+    mContentClient->BeginPaintBuffer(this, contentType, flags);
   mValidRegion.Sub(mValidRegion, state.mRegionToInvalidate);
 
-  if (DrawTarget* target = mContentClient->BorrowDrawTargetForPainting(this, state)) {
+  if (state.mTarget) {
     // The area that became invalid and is visible needs to be repainted
     // (this could be the whole visible area if our buffer switched
     // from RGB to RGBA, because we might need to repaint with
     // subpixel AA)
     state.mRegionToInvalidate.And(state.mRegionToInvalidate,
                                   GetEffectiveVisibleRegion());
-    SetAntialiasingFlags(this, target);
+    nsIntRegion extendedDrawRegion = state.mRegionToDraw;
+    SetAntialiasingFlags(this, state.mTarget);
 
     RenderTraceInvalidateStart(this, "FFFF00", state.mRegionToDraw.GetBounds());
 
-    nsRefPtr<gfxContext> ctx = gfxContext::ContextForDrawTarget(target);
+    nsRefPtr<gfxContext> ctx = gfxContext::ContextForDrawTarget(state.mTarget);
     PaintBuffer(ctx,
-                state.mRegionToDraw, state.mRegionToDraw, state.mRegionToInvalidate,
+                state.mRegionToDraw, extendedDrawRegion, state.mRegionToInvalidate,
                 state.mDidSelfCopy,
                 state.mClip,
                 aCallback, aCallbackData);
     MOZ_LAYERS_LOG_IF_SHADOWABLE(this, ("Layer::Mutated(%p) PaintThebes", this));
     Mutated();
     ctx = nullptr;
-    mContentClient->ReturnDrawTarget(target);
+    mContentClient->ReturnDrawTarget(state.mTarget);
 
     RenderTraceInvalidateEnd(this, "FFFF00");
   } else {

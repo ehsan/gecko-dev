@@ -268,7 +268,7 @@ DeprecatedTextureHost::DeprecatedTextureHost()
   : mFlags(0)
   , mBuffer(nullptr)
   , mDeAllocator(nullptr)
-  , mFormat(gfx::SurfaceFormat::UNKNOWN)
+  , mFormat(gfx::FORMAT_UNKNOWN)
 {
   MOZ_COUNT_CTOR(DeprecatedTextureHost);
 }
@@ -430,10 +430,10 @@ BufferTextureHost::GetFormat() const
   // Compositor (it is used to choose the effect type).
   // if the compositor does not support YCbCr effects, we give it a RGBX texture
   // instead (see BufferTextureHost::Upload)
-  if (mFormat == gfx::SurfaceFormat::YUV &&
+  if (mFormat == gfx::FORMAT_YUV &&
     mCompositor &&
     !mCompositor->SupportsEffect(EFFECT_YCBCR)) {
-    return gfx::SurfaceFormat::R8G8B8X8;
+    return gfx::FORMAT_R8G8B8X8;
   }
   return mFormat;
 }
@@ -467,10 +467,10 @@ BufferTextureHost::Upload(nsIntRegion *aRegion)
     // we may end up here for the first frame, but this should not happen repeatedly.
     return false;
   }
-  if (mFormat == gfx::SurfaceFormat::UNKNOWN) {
+  if (mFormat == gfx::FORMAT_UNKNOWN) {
     NS_WARNING("BufferTextureHost: unsupported format!");
     return false;
-  } else if (mFormat == gfx::SurfaceFormat::YUV) {
+  } else if (mFormat == gfx::FORMAT_YUV) {
     YCbCrImageDataDeserializer yuvDeserializer(GetBuffer());
     MOZ_ASSERT(yuvDeserializer.IsValid());
 
@@ -511,17 +511,17 @@ BufferTextureHost::Upload(nsIntRegion *aRegion)
       gfx::Factory::CreateWrappingDataSourceSurface(yuvDeserializer.GetYData(),
                                                     yuvDeserializer.GetYStride(),
                                                     yuvDeserializer.GetYSize(),
-                                                    gfx::SurfaceFormat::A8);
+                                                    gfx::FORMAT_A8);
     RefPtr<gfx::DataSourceSurface> tempCb =
       gfx::Factory::CreateWrappingDataSourceSurface(yuvDeserializer.GetCbData(),
                                                     yuvDeserializer.GetCbCrStride(),
                                                     yuvDeserializer.GetCbCrSize(),
-                                                    gfx::SurfaceFormat::A8);
+                                                    gfx::FORMAT_A8);
     RefPtr<gfx::DataSourceSurface> tempCr =
       gfx::Factory::CreateWrappingDataSourceSurface(yuvDeserializer.GetCrData(),
                                                     yuvDeserializer.GetCbCrStride(),
                                                     yuvDeserializer.GetCbCrSize(),
-                                                    gfx::SurfaceFormat::A8);
+                                                    gfx::FORMAT_A8);
     // We don't support partial updates for Y U V textures
     NS_ASSERTION(!aRegion, "Unsupported partial updates for YCbCr textures");
     if (!srcY->Update(tempY) ||
@@ -558,10 +558,10 @@ TemporaryRef<gfx::DataSourceSurface>
 BufferTextureHost::GetAsSurface()
 {
   RefPtr<gfx::DataSourceSurface> result;
-  if (mFormat == gfx::SurfaceFormat::UNKNOWN) {
+  if (mFormat == gfx::FORMAT_UNKNOWN) {
     NS_WARNING("BufferTextureHost: unsupported format!");
     return nullptr;
-  } else if (mFormat == gfx::SurfaceFormat::YUV) {
+  } else if (mFormat == gfx::FORMAT_YUV) {
     YCbCrImageDataDeserializer yuvDeserializer(GetBuffer());
     if (!yuvDeserializer.IsValid()) {
       return nullptr;
