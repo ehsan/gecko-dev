@@ -4,8 +4,6 @@
 
 "use strict";
 
-let chromeGlobal = this;
-
 // Encapsulate in its own scope to allows loading this frame script
 // more than once.
 (function () {
@@ -28,14 +26,18 @@ let chromeGlobal = this;
 
     let mm = msg.target;
 
-    let conn = DebuggerServer.connectToParent(msg.data.prefix, mm);
+    let prefix = msg.data.prefix + docShell.appId;
 
-    let actor = new DebuggerServer.ContentActor(conn, chromeGlobal);
+    let conn = DebuggerServer.connectToParent(prefix, mm);
+
+    let actor = new DebuggerServer.ContentAppActor(conn, content);
     let actorPool = new ActorPool(conn);
     actorPool.addActor(actor);
     conn.addActorPool(actorPool);
 
-    sendAsyncMessage("debug:actor", {actor: actor.grip()});
+    sendAsyncMessage("debug:actor", {actor: actor.grip(),
+                                     appId: docShell.appId,
+                                     prefix: prefix});
   });
 
   addMessageListener("debug:connect", onConnect);

@@ -19,7 +19,6 @@ import android.view.ViewGroup;
 import android.widget.BaseAdapter;
 import android.widget.ListView;
 import android.widget.TextView;
-import android.widget.Toast;
 
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -136,18 +135,9 @@ public class HomePanelPicker extends FragmentActivity {
     private void installNewPanelAndQuit(PanelInfo panelInfo) {
         final PanelConfig newPanelConfig = panelInfo.toPanelConfig();
         HomeConfigInvalidator.getInstance().installPanel(newPanelConfig);
-        showToastForNewPanel(newPanelConfig);
 
         setResult(Activity.RESULT_OK);
         finish();
-    }
-
-    private void showToastForNewPanel(PanelConfig panelConfig) {
-        String panelName = panelConfig.getTitle();
-
-        // Display toast.
-        final String successMsg = getResources().getString(R.string.home_add_panel_installed, panelName);
-        Toast.makeText(this, successMsg, Toast.LENGTH_SHORT).show();
     }
 
     // ViewHolder for rows of the panel picker.

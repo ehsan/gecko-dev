@@ -140,10 +140,7 @@ let join = function(...path) {
   let paths = [];
   let root;
   let absolute = false;
-  for (let subpath of path) {
-    if (subpath == null) {
-      throw new TypeError("invalid path component");
-    }
+  for each(let subpath in path) {
     let drive = this.winGetDrive(subpath);
     if (drive) {
       root = drive;
@@ -182,10 +179,6 @@ exports.join = join;
  * includes "\\\\").
  */
 let winGetDrive = function(path) {
-  if (path == null) {
-    throw new TypeError("path is invalid");
-  }
-
   if (path.startsWith("\\\\")) {
     // UNC path
     if (path.length == 2) {

@@ -342,7 +342,6 @@ add_task(function test_multiple_401_retry_once() {
   // Request will have bad timestamp; client will retry once
   try {
     yield client.request("/maybe", method, credentials);
-    do_throw("Expected an error");
   } catch (err) {
     do_check_eq(err.code, 401);
   }

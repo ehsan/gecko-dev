@@ -217,8 +217,6 @@ BrowserTabList.prototype.getList = function() {
   // the actors. Thus, the sequence yielded is always a snapshot of the
   // actors that were live when we began the iteration.
 
-  let actorPromises = [];
-
   // Iterate over all navigator:browser XUL windows.
   for (let win of allAppShellDOMWindows(DebuggerServer.chromeWindowType)) {
     let selectedBrowser = this._getSelectedBrowser(win);
@@ -234,20 +232,10 @@ BrowserTabList.prototype.getList = function() {
       // Do we have an existing actor for this browser? If not, create one.
       let actor = this._actorByBrowser.get(browser);
       if (actor) {
-        actorPromises.push(promise.resolve(actor));
         foundCount++;
-      } else if (browser.isRemoteBrowser) {
-        actor = new RemoteBrowserTabActor(this._connection, browser);
-        this._actorByBrowser.set(browser, actor);
-        let promise = actor.connect().then((form) => {
-          actor._form = form;
-          return actor;
-        });
-        actorPromises.push(promise);
       } else {
         actor = new BrowserTabActor(this._connection, browser, win.gBrowser);
         this._actorByBrowser.set(browser, actor);
-        actorPromises.push(promise.resolve(actor));
       }
 
       // Set the 'selected' properties on all actors correctly.
@@ -261,7 +249,7 @@ BrowserTabList.prototype.getList = function() {
   this._mustNotify = true;
   this._checkListening();
 
-  return promise.all(actorPromises);
+  return promise.resolve([actor for ([_, actor] of this._actorByBrowser)]);
 };
 
 Object.defineProperty(BrowserTabList.prototype, 'onListChanged', {
@@ -473,22 +461,21 @@ BrowserTabList.prototype.onCloseWindow = DevToolsUtils.makeInfallible(function(a
 
 /**
  * Creates a tab actor for handling requests to a browser tab, like
- * attaching and detaching. TabActor respects the actor factories
+ * attaching and detaching. BrowserTabActor respects the actor factories
  * registered with DebuggerServer.addTabActor.
- *
- * This class is subclassed by BrowserTabActor and
- * ContentActor. Subclasses are expected to implement a getter
- * the docShell properties.
  *
  * @param aConnection DebuggerServerConnection
  *        The conection to the client.
- * @param aChromeEventHandler
- *        An object on which listen for DOMWindowCreated and pageshow events.
+ * @param aBrowser browser
+ *        The browser instance that contains this tab.
+ * @param aTabBrowser tabbrowser
+ *        The tabbrowser that can receive nsIWebProgressListener events.
  */
-function TabActor(aConnection, aChromeEventHandler)
+function BrowserTabActor(aConnection, aBrowser, aTabBrowser)
 {
   this.conn = aConnection;
-  this._chromeEventHandler = aChromeEventHandler;
+  this._browser = aBrowser;
+  this._tabbrowser = aTabBrowser;
   this._tabActorPool = null;
   // A map of actor names to actor instances provided by extensions.
   this._extraActors = {};
@@ -496,11 +483,13 @@ function TabActor(aConnection, aChromeEventHandler)
   this._onWindowCreated = this.onWindowCreated.bind(this);
 }
 
-// XXX (bug 710213): TabActor attach/detach/exit/disconnect is a
+// XXX (bug 710213): BrowserTabActor attach/detach/exit/disconnect is a
 // *complete* mess, needs to be rethought asap.
 
-TabActor.prototype = {
-  get exited() { return !this._chromeEventHandler; },
+BrowserTabActor.prototype = {
+  get browser() { return this._browser; },
+
+  get exited() { return !this.browser; },
   get attached() { return !!this._attached; },
 
   _tabPool: null,
@@ -515,60 +504,20 @@ TabActor.prototype = {
   actorPrefix: "tab",
 
   /**
-   * An object on which listen for DOMWindowCreated and pageshow events.
-   */
-  get chromeEventHandler() {
-    return this._chromeEventHandler;
-  },
-
-  /**
-   * Getter for the tab's doc shell.
-   */
-  get docShell() {
-    throw "The docShell getter should be implemented by a subclass of TabActor";
-  },
-
-  /**
-   * Getter for the tab content's DOM window.
-   */
-  get window() {
-    return this.docShell
-      .QueryInterface(Ci.nsIInterfaceRequestor)
-      .getInterface(Ci.nsIDOMWindow);
-  },
-
-  /**
-   * Getter for the nsIWebProgress for watching this window.
-   */
-  get webProgress() {
-    return this.docShell
-      .QueryInterface(Ci.nsIInterfaceRequestor)
-      .getInterface(Ci.nsIWebProgress);
-  },
-
-  /**
-   * Getter for the nsIWebNavigation for the tab.
-   */
-  get webNavigation() {
-    return this.docShell
-      .QueryInterface(Ci.nsIInterfaceRequestor)
-      .getInterface(Ci.nsIWebNavigation);
-  },
-
-  /**
-   * Getter for the tab's document.
-   */
-  get contentDocument() {
-    return this.webNavigation.document;
-  },
-
-  /**
    * Getter for the tab title.
    * @return string
    *         Tab title.
    */
   get title() {
-    return this.contentDocument.contentTitle;
+    let title = this.browser.contentTitle;
+    // If contentTitle is empty (e.g. on a not-yet-restored tab), but there is a
+    // tabbrowser (i.e. desktop Firefox, but not Fennec), we can use the label
+    // as the title.
+    if (!title && this._tabbrowser) {
+      title = this._tabbrowser
+                  ._getTabForContentWindow(this.window).label;
+    }
+    return title;
   },
 
   /**
@@ -577,12 +526,39 @@ TabActor.prototype = {
    *         Tab URL.
    */
   get url() {
-    if (this.webNavigation.currentURI) {
-      return this.webNavigation.currentURI.spec;
+    if (this.browser.currentURI) {
+      return this.browser.currentURI.spec;
     }
     // Abrupt closing of the browser window may leave callbacks without a
     // currentURI.
     return null;
+  },
+
+  /**
+   * Getter for the tab content window, will be used by child actors to target
+   * the right window.
+   * @return nsIDOMWindow
+   *         Tab content window.
+   */
+  get window() {
+    if (this.browser instanceof Ci.nsIDOMWindow) {
+      return this.browser;
+    } else if (this.browser instanceof Ci.nsIDOMElement) {
+      return this.browser.contentWindow;
+    } else {
+      return null;
+    }
+  },
+
+  /**
+   * Getter for the best nsIWebProgress for to watching this window.
+   */
+  get webProgress() {
+    return this.window
+      .QueryInterface(Ci.nsIInterfaceRequestor)
+      .getInterface(Ci.nsIDocShell)
+      .QueryInterface(Ci.nsIInterfaceRequestor)
+      .getInterface(Ci.nsIWebProgress);
   },
 
   form: function BTA_form() {
@@ -635,7 +611,8 @@ TabActor.prototype = {
                        type: "tabDetached" });
     }
 
-    this._chromeEventHandler = null;
+    this._browser = null;
+    this._tabbrowser = null;
   },
 
   /* Support for DebuggerServer.addTabActor. */
@@ -659,9 +636,11 @@ TabActor.prototype = {
     this._pushContext();
 
     // Watch for globals being created in this tab.
-    this.chromeEventHandler.addEventListener("DOMWindowCreated", this._onWindowCreated, true);
-    this.chromeEventHandler.addEventListener("pageshow", this._onWindowCreated, true);
-    this._progressListener = new DebuggerProgressListener(this);
+    this.browser.addEventListener("DOMWindowCreated", this._onWindowCreated, true);
+    this.browser.addEventListener("pageshow", this._onWindowCreated, true);
+    if (this._tabbrowser) {
+      this._progressListener = new DebuggerProgressListener(this);
+    }
 
     this._attached = true;
   },
@@ -703,10 +682,12 @@ TabActor.prototype = {
       return false;
     }
 
-    this._progressListener.destroy();
+    if (this._progressListener) {
+      this._progressListener.destroy();
+    }
 
-    this.chromeEventHandler.removeEventListener("DOMWindowCreated", this._onWindowCreated, true);
-    this.chromeEventHandler.removeEventListener("pageshow", this._onWindowCreated, true);
+    this.browser.removeEventListener("DOMWindowCreated", this._onWindowCreated, true);
+    this.browser.removeEventListener("pageshow", this._onWindowCreated, true);
 
     this._popContext();
 
@@ -755,7 +736,7 @@ TabActor.prototype = {
     // subsequent navigation event packet.
     Services.tm.currentThread.dispatch(DevToolsUtils.makeInfallible(() => {
       this.window.location.reload();
-    }, "TabActor.prototype.onReload's delayed body"), 0);
+    }, "BrowserTabActor.prototype.onReload's delayed body"), 0);
     return {};
   },
 
@@ -767,7 +748,7 @@ TabActor.prototype = {
     // subsequent navigation event packet.
     Services.tm.currentThread.dispatch(DevToolsUtils.makeInfallible(() => {
       this.window.location = aRequest.url;
-    }, "TabActor.prototype.onNavigateTo's delayed body"), 0);
+    }, "BrowserTabActor.prototype.onNavigateTo's delayed body"), 0);
     return {};
   },
 
@@ -817,8 +798,12 @@ TabActor.prototype = {
     let enable =  Ci.nsIRequest.LOAD_NORMAL;
     let disable = Ci.nsIRequest.LOAD_BYPASS_CACHE |
                   Ci.nsIRequest.INHIBIT_CACHING;
-    if (this.docShell) {
-      this.docShell.defaultLoadFlags = allow ? enable : disable;
+    if (this.window) {
+      let docShell = this.window
+                         .QueryInterface(Ci.nsIInterfaceRequestor)
+                         .getInterface(Ci.nsIDocShell);
+
+      docShell.defaultLoadFlags = allow ? enable : disable;
     }
   },
 
@@ -826,8 +811,12 @@ TabActor.prototype = {
    * Disable or enable JS via docShell.
    */
   _setJavascriptEnabled: function(allow) {
-    if (this.docShell) {
-      this.docShell.allowJavascript = allow;
+    if (this.window) {
+      let docShell = this.window
+                         .QueryInterface(Ci.nsIInterfaceRequestor)
+                         .getInterface(Ci.nsIDocShell);
+
+      docShell.allowJavascript = allow;
     }
   },
 
@@ -835,26 +824,34 @@ TabActor.prototype = {
    * Return cache allowed status.
    */
   _getCacheEnabled: function() {
-    if (!this.docShell) {
+    if (!this.window) {
       // The tab is already closed.
       return null;
     }
 
     let disable = Ci.nsIRequest.LOAD_BYPASS_CACHE |
                   Ci.nsIRequest.INHIBIT_CACHING;
-    return this.docShell.defaultLoadFlags !== disable;
+    let docShell = this.window
+                       .QueryInterface(Ci.nsIInterfaceRequestor)
+                       .getInterface(Ci.nsIDocShell);
+
+    return docShell.defaultLoadFlags !== disable;
   },
 
   /**
    * Return JS allowed status.
    */
   _getJavascriptEnabled: function() {
-    if (!this.docShell) {
+    if (!this.window) {
       // The tab is already closed.
       return null;
     }
 
-    return this.docShell.allowJavascript;
+    let docShell = this.window
+                       .QueryInterface(Ci.nsIInterfaceRequestor)
+                       .getInterface(Ci.nsIDocShell);
+
+    return docShell.allowJavascript;
   },
 
   /**
@@ -903,7 +900,7 @@ TabActor.prototype = {
     if (!this._attached || (evt.type == "pageshow" && !evt.persisted)) {
       return;
     }
-    if (evt.target === this.contentDocument) {
+    if (evt.target === this.browser.contentDocument ) {
       this.threadActor.clearDebuggees();
       if (this.threadActor.dbg) {
         this.threadActor.dbg.enabled = true;
@@ -917,7 +914,7 @@ TabActor.prototype = {
     if (this.threadActor.attached) {
       this.threadActor.findGlobals();
     }
-  }, "TabActor.prototype.onWindowCreated"),
+  }, "BrowserTabActor.prototype.onWindowCreated"),
 
   /**
    * Tells if the window.console object is native or overwritten by script in
@@ -938,100 +935,12 @@ TabActor.prototype = {
 /**
  * The request types this actor can handle.
  */
-TabActor.prototype.requestTypes = {
-  "attach": TabActor.prototype.onAttach,
-  "detach": TabActor.prototype.onDetach,
-  "reload": TabActor.prototype.onReload,
-  "navigateTo": TabActor.prototype.onNavigateTo,
-  "reconfigure": TabActor.prototype.onReconfigure
-};
-
-/**
- * Creates a tab actor for handling requests to a single in-process
- * <browser> tab. Most of the implementation comes from TabActor.
- *
- * @param aConnection DebuggerServerConnection
- *        The conection to the client.
- * @param aBrowser browser
- *        The browser instance that contains this tab.
- * @param aTabBrowser tabbrowser
- *        The tabbrowser that can receive nsIWebProgressListener events.
- */
-function BrowserTabActor(aConnection, aBrowser, aTabBrowser)
-{
-  TabActor.call(this, aConnection, aBrowser);
-  this._browser = aBrowser;
-  this._tabbrowser = aTabBrowser;
-}
-
-BrowserTabActor.prototype = Object.create(TabActor.prototype);
-
-BrowserTabActor.prototype.constructor = BrowserTabActor;
-
-Object.defineProperty(BrowserTabActor.prototype, "docShell", {
-  get: function() {
-    return this._browser.docShell;
-  },
-  enumerable: true,
-  configurable: false
-});
-
-Object.defineProperty(BrowserTabActor.prototype, "title", {
-  get: function() {
-    let title = this.contentDocument.contentTitle;
-    // If contentTitle is empty (e.g. on a not-yet-restored tab), but there is a
-    // tabbrowser (i.e. desktop Firefox, but not Fennec), we can use the label
-    // as the title.
-    if (!title && this._tabbrowser) {
-      title = this._tabbrowser._getTabForContentWindow(this.window).label;
-    }
-    return title;
-  },
-  enumerable: true,
-  configurable: false
-});
-
-Object.defineProperty(BrowserTabActor.prototype, "browser", {
-  get: function() {
-    return this._browser;
-  },
-  enumerable: true,
-  configurable: false
-});
-
-BrowserTabActor.prototype.exit = function() {
-  TabActor.prototype.exit.call(this);
-  this._browser = null;
-  this._tabbrowser = null;
-};
-
-/**
- * This actor is a shim that connects to a ContentActor in a remote
- * browser process. All RDP packets get forwarded using the message
- * manager.
- *
- * @param aConnection The main RDP connection.
- * @param aBrowser XUL <browser> element to connect to.
- */
-function RemoteBrowserTabActor(aConnection, aBrowser)
-{
-  this._conn = aConnection;
-  this._browser = aBrowser;
-  this._form = null;
-}
-
-RemoteBrowserTabActor.prototype = {
-  connect: function() {
-    return DebuggerServer.connectToChild(this._conn, this._browser.messageManager);
-  },
-
-  form: function() {
-    return this._form;
-  },
-
-  exit: function() {
-    this._browser = null;
-  },
+BrowserTabActor.prototype.requestTypes = {
+  "attach": BrowserTabActor.prototype.onAttach,
+  "detach": BrowserTabActor.prototype.onDetach,
+  "reload": BrowserTabActor.prototype.onReload,
+  "navigateTo": BrowserTabActor.prototype.onNavigateTo,
+  "reconfigure": BrowserTabActor.prototype.onReconfigure
 };
 
 function BrowserAddonList(aConnection)
@@ -1084,17 +993,11 @@ BrowserAddonList.prototype.onUninstalled = function (aAddon) {
 function BrowserAddonActor(aConnection, aAddon) {
   this.conn = aConnection;
   this._addon = aAddon;
-  this._contextPool = null;
-  this._threadActor = null;
   AddonManager.addAddonListener(this);
 }
 
 BrowserAddonActor.prototype = {
   actorPrefix: "addon",
-
-  get exited() {
-    return !this._addon;
-  },
 
   get id() {
     return this._addon.id;
@@ -1102,10 +1005,6 @@ BrowserAddonActor.prototype = {
 
   get url() {
     return this._addon.sourceURI ? this._addon.sourceURI.spec : undefined;
-  },
-
-  get attached() {
-    return this._threadActor;
   },
 
   form: function BAA_form() {
@@ -1125,72 +1024,9 @@ BrowserAddonActor.prototype = {
   onUninstalled: function BAA_onUninstalled(aAddon) {
     if (aAddon != this._addon)
       return;
-
-    if (this.attached) {
-      this.onDetach();
-      this.conn.send({ from: this.actorID, type: "tabDetached" });
-    }
-
     this._addon = null;
     AddonManager.removeAddonListener(this);
   },
-
-  onAttach: function BAA_onAttach() {
-    if (this.exited) {
-      return { type: "exited" };
-    }
-
-    if (!this.attached) {
-      this._contextPool = new ActorPool(this.conn);
-      this.conn.addActorPool(this._contextPool);
-
-      this._threadActor = new AddonThreadActor(this.conn, this,
-                                               this._addon.id);
-      this._contextPool.addActor(this._threadActor);
-    }
-
-    return { type: "tabAttached", threadActor: this._threadActor.actorID };
-  },
-
-  onDetach: function BAA_onDetach() {
-    if (!this.attached) {
-      return { error: "wrongState" };
-    }
-
-    this.conn.removeActorPool(this._contextPool);
-    this._contextPool = null;
-
-    this._threadActor = null;
-
-    return { type: "detached" };
-  },
-
-  preNest: function() {
-    let e = Services.wm.getEnumerator(null);
-    while (e.hasMoreElements()) {
-      let win = e.getNext();
-      let windowUtils = win.QueryInterface(Ci.nsIInterfaceRequestor)
-                           .getInterface(Ci.nsIDOMWindowUtils);
-      windowUtils.suppressEventHandling(true);
-      windowUtils.suspendTimeouts();
-    }
-  },
-
-  postNest: function() {
-    let e = Services.wm.getEnumerator(null);
-    while (e.hasMoreElements()) {
-      let win = e.getNext();
-      let windowUtils = win.QueryInterface(Ci.nsIInterfaceRequestor)
-                           .getInterface(Ci.nsIDOMWindowUtils);
-      windowUtils.resumeTimeouts();
-      windowUtils.suppressEventHandling(false);
-    }
-  }
-};
-
-BrowserAddonActor.prototype.requestTypes = {
-  "attach": BrowserAddonActor.prototype.onAttach,
-  "detach": BrowserAddonActor.prototype.onDetach
 };
 
 /**
@@ -1199,23 +1035,17 @@ BrowserAddonActor.prototype.requestTypes = {
  * navigate away from a paused page, the listener makes sure that the debuggee
  * is resumed before the navigation begins.
  *
- * @param TabActor aTabActor
+ * @param BrowserTabActor aBrowserTabActor
  *        The tab actor associated with this listener.
  */
-function DebuggerProgressListener(aTabActor) {
-  this._tabActor = aTabActor;
-  this._tabActor.webProgress.addProgressListener(this, Ci.nsIWebProgress.NOTIFY_STATE_ALL);
+function DebuggerProgressListener(aBrowserTabActor) {
+  this._tabActor = aBrowserTabActor;
+  this._tabActor._tabbrowser.addProgressListener(this);
   let EventEmitter = devtools.require("devtools/toolkit/event-emitter");
   EventEmitter.decorate(this);
 }
 
 DebuggerProgressListener.prototype = {
-  QueryInterface: XPCOMUtils.generateQI([
-    Ci.nsIWebProgressListener,
-    Ci.nsISupportsWeakReference,
-    Ci.nsISupports,
-  ]),
-
   onStateChange:
   DevToolsUtils.makeInfallible(function DPL_onStateChange(aProgress, aRequest, aFlag, aStatus) {
     let isStart = aFlag & Ci.nsIWebProgressListener.STATE_START;
@@ -1273,12 +1103,13 @@ DebuggerProgressListener.prototype = {
    * Destroy the progress listener instance.
    */
   destroy: function DPL_destroy() {
-    try {
-      this._tabActor.webProgress.removeProgressListener(this);
-    } catch (ex) {
-      // This can throw during browser shutdown.
+    if (this._tabActor._tabbrowser.removeProgressListener) {
+      try {
+        this._tabActor._tabbrowser.removeProgressListener(this);
+      } catch (ex) {
+        // This can throw during browser shutdown.
+      }
     }
-
     this._tabActor._progressListener = null;
     this._tabActor = null;
   }

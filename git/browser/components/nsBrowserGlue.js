@@ -1633,7 +1633,7 @@ BrowserGlue.prototype = {
     // be set to the version it has been added in, we will compare its value
     // to users' smartBookmarksVersion and add new smart bookmarks without
     // recreating old deleted ones.
-    const SMART_BOOKMARKS_VERSION = 7;
+    const SMART_BOOKMARKS_VERSION = 6;
     const SMART_BOOKMARKS_ANNO = "Places/SmartBookmark";
     const SMART_BOOKMARKS_PREF = "browser.places.smartBookmarksVersion";
 
@@ -1665,7 +1665,7 @@ BrowserGlue.prototype = {
                                 Ci.nsINavHistoryQueryOptions.SORT_BY_VISITCOUNT_DESCENDING +
                                 "&maxResults=" + MAX_RESULTS),
             parent: PlacesUtils.toolbarFolderId,
-            get position() { return toolbarIndex++; },
+            position: toolbarIndex++,
             newInVersion: 1
           },
           RecentlyBookmarked: {
@@ -1680,7 +1680,7 @@ BrowserGlue.prototype = {
                                 "&maxResults=" + MAX_RESULTS +
                                 "&excludeQueries=1"),
             parent: PlacesUtils.bookmarksMenuFolderId,
-            get position() { return menuIndex++; },
+            position: menuIndex++,
             newInVersion: 1
           },
           RecentTags: {
@@ -1692,31 +1692,25 @@ BrowserGlue.prototype = {
                                 Ci.nsINavHistoryQueryOptions.SORT_BY_LASTMODIFIED_DESCENDING +
                                 "&maxResults=" + MAX_RESULTS),
             parent: PlacesUtils.bookmarksMenuFolderId,
-            get position() { return menuIndex++; },
+            position: menuIndex++,
             newInVersion: 1
           },
         };
 
         if (Services.metro && Services.metro.supported) {
           smartBookmarks.Windows8Touch = {
-            title: PlacesUtils.getString("windows8TouchTitle"),
-            get uri() {
-              let metroBookmarksRoot = PlacesUtils.annotations.getItemsWithAnnotation('metro/bookmarksRoot', {});
-              if (metroBookmarksRoot.length > 0) {
-                return NetUtil.newURI("place:folder=" +
-                                      metroBookmarksRoot[0] +
-                                      "&queryType=" +
-                                      Ci.nsINavHistoryQueryOptions.QUERY_TYPE_BOOKMARKS +
-                                      "&sort=" +
-                                      Ci.nsINavHistoryQueryOptions.SORT_BY_DATEADDED_DESCENDING +
-                                      "&maxResults=" + MAX_RESULTS +
-                                      "&excludeQueries=1")
-              }
-              return null;
-            },
+            title: bundle.GetStringFromName("windows8TouchTitle"),
+            uri: NetUtil.newURI("place:folder=" +
+                                PlacesUtils.annotations.getItemsWithAnnotation('metro/bookmarksRoot', {})[0] +
+                                "&queryType=" +
+                                Ci.nsINavHistoryQueryOptions.QUERY_TYPE_BOOKMARKS +
+                                "&sort=" +
+                                Ci.nsINavHistoryQueryOptions.SORT_BY_DATEADDED_DESCENDING +
+                                "&maxResults=" + MAX_RESULTS +
+                                "&excludeQueries=1"),
             parent: PlacesUtils.bookmarksMenuFolderId,
-            get position() { return menuIndex++; },
-            newInVersion: 7
+            position: menuIndex++,
+            newInVersion: 6
           };
         }
 
@@ -1728,13 +1722,9 @@ BrowserGlue.prototype = {
           let queryId = PlacesUtils.annotations.getItemAnnotation(itemId, SMART_BOOKMARKS_ANNO);
           if (queryId in smartBookmarks) {
             let smartBookmark = smartBookmarks[queryId];
-            if (!smartBookmark.uri) {
-              PlacesUtils.bookmarks.removeItem(itemId);
-              return;
-            }
             smartBookmark.itemId = itemId;
             smartBookmark.parent = PlacesUtils.bookmarks.getFolderIdForItem(itemId);
-            smartBookmark.updatedPosition = PlacesUtils.bookmarks.getItemIndex(itemId);
+            smartBookmark.position = PlacesUtils.bookmarks.getItemIndex(itemId);
           }
           else {
             // We don't remove old Smart Bookmarks because user could still
@@ -1752,7 +1742,7 @@ BrowserGlue.prototype = {
           // bookmark if it has been removed.
           if (smartBookmarksCurrentVersion > 0 &&
               smartBookmark.newInVersion <= smartBookmarksCurrentVersion &&
-              !smartBookmark.itemId || !smartBookmark.uri)
+              !smartBookmark.itemId)
             continue;
 
           // Remove old version of the smart bookmark if it exists, since it
@@ -1765,7 +1755,7 @@ BrowserGlue.prototype = {
           smartBookmark.itemId =
             PlacesUtils.bookmarks.insertBookmark(smartBookmark.parent,
                                                  smartBookmark.uri,
-                                                 smartBookmark.updatedPosition || smartBookmark.position,
+                                                 smartBookmark.position,
                                                  smartBookmark.title);
           PlacesUtils.annotations.setItemAnnotation(smartBookmark.itemId,
                                                     SMART_BOOKMARKS_ANNO,

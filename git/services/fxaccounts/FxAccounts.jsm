@@ -67,22 +67,22 @@ AccountState.prototype = {
   cert: null,
   keyPair: null,
   signedInUser: null,
-  whenVerifiedDeferred: null,
-  whenKeysReadyDeferred: null,
+  whenVerifiedPromise: null,
+  whenKeysReadyPromise: null,
 
   get isCurrent() this.fxaInternal && this.fxaInternal.currentAccountState === this,
 
   abort: function() {
-    if (this.whenVerifiedDeferred) {
-      this.whenVerifiedDeferred.reject(
+    if (this.whenVerifiedPromise) {
+      this.whenVerifiedPromise.reject(
         new Error("Verification aborted; Another user signing in"));
-      this.whenVerifiedDeferred = null;
+      this.whenVerifiedPromise = null;
     }
 
-    if (this.whenKeysReadyDeferred) {
-      this.whenKeysReadyDeferred.reject(
+    if (this.whenKeysReadyPromise) {
+      this.whenKeysReadyPromise.reject(
         new Error("Verification aborted; Another user signing in"));
-      this.whenKeysReadyDeferred = null;
+      this.whenKeysReadyPromise = null;
     }
     this.cert = null;
     this.keyPair = null;
@@ -484,13 +484,13 @@ FxAccountsInternal.prototype = {
       if (data.kA && data.kB) {
         return data;
       }
-      if (!currentState.whenKeysReadyDeferred) {
-        currentState.whenKeysReadyDeferred = Promise.defer();
+      if (!currentState.whenKeysReadyPromise) {
+        currentState.whenKeysReadyPromise = Promise.defer();
         this.fetchAndUnwrapKeys(data.keyFetchToken).then(data => {
-          currentState.whenKeysReadyDeferred.resolve(data);
+          currentState.whenKeysReadyPromise.resolve(data);
         });
       }
-      return currentState.whenKeysReadyDeferred.promise;
+      return currentState.whenKeysReadyPromise.promise;
     }).then(result => currentState.resolve(result));
    },
 
@@ -607,11 +607,11 @@ FxAccountsInternal.prototype = {
       log.debug("already verified");
       return currentState.resolve(data);
     }
-    if (!currentState.whenVerifiedDeferred) {
+    if (!currentState.whenVerifiedPromise) {
       log.debug("whenVerified promise starts polling for verified email");
       this.pollEmailStatus(currentState, data.sessionToken, "start");
     }
-    return currentState.whenVerifiedDeferred.promise.then(
+    return currentState.whenVerifiedPromise.promise.then(
       result => currentState.resolve(result)
     );
   },
@@ -629,8 +629,8 @@ FxAccountsInternal.prototype = {
       // if the user requested the verification email to be resent while we
       // were already polling for receipt of an earlier email.
       this.pollTimeRemaining = this.POLL_SESSION;
-      if (!currentState.whenVerifiedDeferred) {
-        currentState.whenVerifiedDeferred = Promise.defer();
+      if (!currentState.whenVerifiedPromise) {
+        currentState.whenVerifiedPromise = Promise.defer();
       }
     }
 
@@ -647,9 +647,9 @@ FxAccountsInternal.prototype = {
             })
             .then((data) => {
               // Now that the user is verified, we can proceed to fetch keys
-              if (currentState.whenVerifiedDeferred) {
-                currentState.whenVerifiedDeferred.resolve(data);
-                delete currentState.whenVerifiedDeferred;
+              if (currentState.whenVerifiedPromise) {
+                currentState.whenVerifiedPromise.resolve(data);
+                delete currentState.whenVerifiedPromise;
               }
             });
         } else {
@@ -661,11 +661,11 @@ FxAccountsInternal.prototype = {
               this.pollEmailStatus(currentState, sessionToken, "timer")}, this.POLL_STEP);
             log.debug("started timer " + this.currentTimer);
           } else {
-            if (currentState.whenVerifiedDeferred) {
-              currentState.whenVerifiedDeferred.reject(
+            if (currentState.whenVerifiedPromise) {
+              currentState.whenVerifiedPromise.reject(
                 new Error("User email verification timed out.")
               );
-              delete currentState.whenVerifiedDeferred;
+              delete currentState.whenVerifiedPromise;
             }
           }
         }
