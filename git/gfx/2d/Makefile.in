@@ -41,10 +41,6 @@ CPPSRCS	= \
         DrawTargetCairo.cpp \
         SourceSurfaceCairo.cpp \
         PathCairo.cpp \
-        DrawTargetRecording.cpp \
-        PathRecording.cpp \
-        RecordedEvent.cpp \
-        DrawEventRecorder.cpp \
         Blur.cpp \
         ScaledFontBase.cpp \
         DrawTargetDual.cpp \

@@ -175,9 +175,9 @@ function fileUriToSrc(path, mustExist) {
   if (navigator.appVersion.indexOf("Android") != -1)
     return path;
 
-  const Ci = SpecialPowers.Ci;
-  const Cc = SpecialPowers.Cc;
-  const Cr = SpecialPowers.Cr;
+  const Ci = Components.interfaces;
+  const Cc = SpecialPowers.wrap(Components).classes;
+  const Cr = SpecialPowers.wrap(Components).results;
   var dirSvc = Cc["@mozilla.org/file/directory_service;1"].
                getService(Ci.nsIProperties);
   var f = dirSvc.get("CurWorkD", Ci.nsILocalFile);
@@ -352,10 +352,6 @@ var gMetadataTests = [
     }
   },
   { name:"sound.ogg", tags: { } },
-  { name:"small-shot.ogg", tags: {
-      title:"Pew SFX"
-    }
-  },
   { name:"badtags.ogg", tags: {
       // We list only the valid tags here, and verify
       // the invalid ones are filtered out.
@@ -540,9 +536,9 @@ function mediaTestCleanup() {
 
 (function() {
   // Ensure that preload preferences are comsistent
-  var prefService = SpecialPowers.wrap(SpecialPowers.Components)
+  var prefService = SpecialPowers.wrap(Components)
                                  .classes["@mozilla.org/preferences-service;1"]
-                                 .getService(SpecialPowers.Ci.nsIPrefService);
+                                 .getService(Components.interfaces.nsIPrefService);
   var branch = prefService.getBranch("media.");
   var oldDefault = 2;
   var oldAuto = 3;

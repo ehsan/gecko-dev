@@ -53,7 +53,6 @@ let SocialUI = {
       case "social:profile-changed":
         SocialToolbar.updateProfile();
         SocialShareButton.updateProfileInfo();
-        SocialChatBar.update();
         break;
       case "nsPref:changed":
         SocialSidebar.updateSidebar();
@@ -159,10 +158,6 @@ let SocialUI = {
   undoActivation: function SocialUI_undoActivation() {
     Social.active = false;
     this.notificationPanel.hidePopup();
-  },
-
-  haveLoggedInUser: function SocialUI_haveLoggedInUser() {
-    return !!(Social.provider && Social.provider.profile && Social.provider.profile.userName);
   }
 }
 
@@ -172,8 +167,6 @@ let SocialChatBar = {
   },
   // Whether the chats can be shown for this window.
   get canShow() {
-    if (!SocialUI.haveLoggedInUser())
-      return false;
     let docElem = document.documentElement;
     let chromeless = docElem.getAttribute("disablechrome") ||
                      docElem.getAttribute("chromehidden").indexOf("extrachrome") >= 0;
@@ -410,7 +403,7 @@ let SocialShareButton = {
     let shareButton = this.shareButton;
     if (shareButton)
       shareButton.hidden = !Social.uiVisible || this.promptImages == null ||
-                           !SocialUI.haveLoggedInUser();
+                           !Social.provider.profile || !Social.provider.profile.userName;
   },
 
   onClick: function SSB_onClick(aEvent) {
@@ -506,7 +499,7 @@ var SocialToolbar = {
 
   updateButtonHiddenState: function SocialToolbar_updateButtonHiddenState() {
     this.button.hidden = !Social.uiVisible;
-    if (!SocialUI.haveLoggedInUser()) {
+    if (!Social.provider || !Social.provider.profile || !Social.provider.profile.userName) {
       ["social-notification-box",
        "social-status-iconbox"].forEach(function removeChildren(parentId) {
         let parent = document.getElementById(parentId);

@@ -2367,11 +2367,17 @@ nsWindow::OnSizeAllocate(GtkWidget *aWidget, GtkAllocation *aAllocation)
     nsIntRect rect(aAllocation->x, aAllocation->y,
                    aAllocation->width, aAllocation->height);
 
+    ResizeTransparencyBitmap(rect.width, rect.height);
+
     mBounds.width = rect.width;
     mBounds.height = rect.height;
 
     if (!mGdkWindow)
         return;
+
+    if (mTransparencyBitmap) {
+      ApplyTransparencyBitmap();
+    }
 
     if (mWidgetListener)
         mWidgetListener->WindowResized(this, rect.width, rect.height);
@@ -3803,6 +3809,8 @@ nsWindow::NativeResize(int32_t aWidth, int32_t aHeight, bool    aRepaint)
     LOG(("nsWindow::NativeResize [%p] %d %d\n", (void *)this,
          aWidth, aHeight));
 
+    ResizeTransparencyBitmap(aWidth, aHeight);
+
     // clear our resize flag
     mNeedsResize = false;
 
@@ -3834,6 +3842,8 @@ nsWindow::NativeResize(int32_t aX, int32_t aY,
 
     LOG(("nsWindow::NativeResize [%p] %d %d %d %d\n", (void *)this,
          aX, aY, aWidth, aHeight));
+
+    ResizeTransparencyBitmap(aWidth, aHeight);
 
     if (mIsTopLevel) {
         // aX and aY give the position of the window manager frame top-left.
@@ -3969,24 +3979,6 @@ nsWindow::EnsureGrabs(void)
 }
 
 void
-nsWindow::CleanLayerManagerRecursive(void) {
-    if (mLayerManager) {
-        mLayerManager->Destroy();
-        mLayerManager = nullptr;
-    }
-
-    DestroyCompositor();
-
-    GList* children = gdk_window_peek_children(mGdkWindow);
-    for (GList* list = children; list; list = list->next) {
-        nsWindow* window = get_window_for_gdk_window(GDK_WINDOW(list->data));
-        if (window) {
-            window->CleanLayerManagerRecursive();
-        }
-    }
-}
-
-void
 nsWindow::SetTransparencyMode(nsTransparencyMode aMode)
 {
     if (!mShell) {
@@ -4024,10 +4016,6 @@ nsWindow::SetTransparencyMode(nsTransparencyMode aMode)
     // need to change anything yet
 
     mIsTransparent = isTransparent;
-
-    // Need to clean our LayerManager up while still alive because
-    // we don't want to use layers acceleration on shaped windows
-    CleanLayerManagerRecursive();
 }
 
 nsTransparencyMode
@@ -4187,25 +4175,32 @@ nsWindow::SetWindowClipRegion(const nsTArray<nsIntRect>& aRects,
 }
 
 void
-nsWindow::ResizeTransparencyBitmap()
+nsWindow::ResizeTransparencyBitmap(int32_t aNewWidth, int32_t aNewHeight)
 {
     if (!mTransparencyBitmap)
         return;
 
-    if (mBounds.width == mTransparencyBitmapWidth &&
-        mBounds.height == mTransparencyBitmapHeight)
+    if (aNewWidth == mTransparencyBitmapWidth &&
+        aNewHeight == mTransparencyBitmapHeight)
         return;
 
-    int32_t newRowBytes = GetBitmapStride(mBounds.width);
-    int32_t newSize = newRowBytes * mBounds.height;
+    int32_t newSize = GetBitmapStride(aNewWidth)*aNewHeight;
     gchar* newBits = new gchar[newSize];
-    // fill new mask with "transparent", first
-    memset(newBits, 0, newSize);
+    if (!newBits) {
+        delete[] mTransparencyBitmap;
+        mTransparencyBitmap = nullptr;
+        mTransparencyBitmapWidth = 0;
+        mTransparencyBitmapHeight = 0;
+        return;
+    }
+    // fill new mask with "opaque", first
+    memset(newBits, 255, newSize);
 
     // Now copy the intersection of the old and new areas into the new mask
-    int32_t copyWidth = NS_MIN(mBounds.width, mTransparencyBitmapWidth);
-    int32_t copyHeight = NS_MIN(mBounds.height, mTransparencyBitmapHeight);
+    int32_t copyWidth = NS_MIN(aNewWidth, mTransparencyBitmapWidth);
+    int32_t copyHeight = NS_MIN(aNewHeight, mTransparencyBitmapHeight);
     int32_t oldRowBytes = GetBitmapStride(mTransparencyBitmapWidth);
+    int32_t newRowBytes = GetBitmapStride(aNewWidth);
     int32_t copyBytes = GetBitmapStride(copyWidth);
 
     int32_t i;
@@ -4219,8 +4214,8 @@ nsWindow::ResizeTransparencyBitmap()
 
     delete[] mTransparencyBitmap;
     mTransparencyBitmap = newBits;
-    mTransparencyBitmapWidth = mBounds.width;
-    mTransparencyBitmapHeight = mBounds.height;
+    mTransparencyBitmapWidth = aNewWidth;
+    mTransparencyBitmapHeight = aNewHeight;
 }
 
 static bool
@@ -4342,24 +4337,25 @@ nsWindow::UpdateTranslucentWindowAlphaInternal(const nsIntRect& aRect,
     if (mTransparencyBitmap == nullptr) {
         int32_t size = GetBitmapStride(mBounds.width)*mBounds.height;
         mTransparencyBitmap = new gchar[size];
+        if (mTransparencyBitmap == nullptr)
+            return NS_ERROR_FAILURE;
         memset(mTransparencyBitmap, 255, size);
         mTransparencyBitmapWidth = mBounds.width;
         mTransparencyBitmapHeight = mBounds.height;
-    } else {
-        ResizeTransparencyBitmap();
     }
 
-    nsIntRect rect;
-    rect.IntersectRect(aRect, nsIntRect(0, 0, mBounds.width, mBounds.height));
+    NS_ASSERTION(aRect.x >= 0 && aRect.y >= 0
+            && aRect.XMost() <= mBounds.width && aRect.YMost() <= mBounds.height,
+            "Rect is out of window bounds");
 
     if (!ChangedMaskBits(mTransparencyBitmap, mBounds.width, mBounds.height,
-                         rect, aAlphas, aStride))
+                         aRect, aAlphas, aStride))
         // skip the expensive stuff if the mask bits haven't changed; hopefully
         // this is the common case
         return NS_OK;
 
     UpdateMaskBits(mTransparencyBitmap, mBounds.width, mBounds.height,
-                   rect, aAlphas, aStride);
+                   aRect, aAlphas, aStride);
 
     if (!mNeedsShow) {
         ApplyTransparencyBitmap();
@@ -6140,20 +6136,6 @@ nsWindow::BeginResizeDrag(nsGUIEvent* aEvent, int32_t aHorizontal, int32_t aVert
                                  screenX, screenY, aEvent->time);
 
     return NS_OK;
-}
-
-nsIWidget::LayerManager*
-nsWindow::GetLayerManager(PLayersChild* aShadowManager,
-                          LayersBackend aBackendHint,
-                          LayerManagerPersistence aPersistence,
-                          bool* aAllowRetaining)
-{
-    if (!mLayerManager && eTransparencyTransparent == GetTransparencyMode()) {
-        mLayerManager = CreateBasicLayerManager();
-    }
-
-    return nsBaseWidget::GetLayerManager(aShadowManager, aBackendHint,
-                                         aPersistence, aAllowRetaining);
 }
 
 void

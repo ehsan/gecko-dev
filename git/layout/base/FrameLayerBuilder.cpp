@@ -1373,7 +1373,6 @@ ContainerState::PopThebesLayerData()
                                mParameters.mYScale);
       if (data->mItemClip.mHaveClipRect) {
         nsIntRect clip = ScaleToNearestPixels(data->mItemClip.mClipRect);
-        clip.MoveBy(mParameters.mOffset);
         imageLayer->IntersectClipRect(clip);
       }
       layer = imageLayer;

@@ -835,7 +835,7 @@ InitErrorClass(JSContext *cx, Handle<GlobalObject*> global, int type, HandleObje
 }
 
 JSObject *
-js_InitExceptionClasses(JSContext *cx, HandleObject obj)
+js_InitExceptionClasses(JSContext *cx, JSObject *obj)
 {
     JS_ASSERT(obj->isGlobal());
     JS_ASSERT(obj->isNative());

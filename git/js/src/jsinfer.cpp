@@ -1881,7 +1881,7 @@ StackTypeSet::getTypedArrayType()
     return arrayType;
 }
 
-JSObject *
+RawObject
 StackTypeSet::getSingleton()
 {
     if (baseFlags() != 0 || baseObjectCount() != 1)
@@ -1890,7 +1890,7 @@ StackTypeSet::getSingleton()
     return getSingleObject(0);
 }
 
-JSObject *
+RawObject
 HeapTypeSet::getSingleton(JSContext *cx)
 {
     if (baseFlags() != 0 || baseObjectCount() != 1)

@@ -15,14 +15,6 @@
  *  When adding methods to this file, please add a performance test for it.
  */
 
-// This file is used both in privileged and unprivileged contexts, so we have to
-// be careful about our access to Components.interfaces. We also want to avoid
-// naming collisions with anything that might be defined in the scope that imports
-// this script.
-window.__defineGetter__('_EU_Ci', function() {
-  return 'Components' in window ? Components.interfaces : SpecialPowers.Ci;
-});
-
 /**
  * Send a mouse event to the node aTarget (aTarget can be an id, or an
  * actual node) . The "event" passed in to aEvent is just a JavaScript
@@ -124,7 +116,7 @@ function sendKey(aKey, aWindow) {
  */
 function _parseModifiers(aEvent)
 {
-  const nsIDOMWindowUtils = _EU_Ci.nsIDOMWindowUtils;
+  const nsIDOMWindowUtils = Components.interfaces.nsIDOMWindowUtils;
   var mval = 0;
   if (aEvent.shiftKey) {
     mval |= nsIDOMWindowUtils.MODIFIER_SHIFT;
@@ -346,7 +338,7 @@ function _computeKeyCodeFromChar(aChar)
   if (aChar.length != 1) {
     return 0;
   }
-  const nsIDOMKeyEvent = _EU_Ci.nsIDOMKeyEvent;
+  const nsIDOMKeyEvent = Components.interfaces.nsIDOMKeyEvent;
   if (aChar >= 'a' && aChar <= 'z') {
     return nsIDOMKeyEvent.DOM_VK_A + aChar.charCodeAt(0) - 'a'.charCodeAt(0);
   }
@@ -643,8 +635,8 @@ function _getDOMWindowUtils(aWindow)
   }
 
   //TODO: this is assuming we are in chrome space
-  return aWindow.QueryInterface(_EU_Ci.nsIInterfaceRequestor).
-                               getInterface(_EU_Ci.nsIDOMWindowUtils);
+  return aWindow.QueryInterface(Components.interfaces.nsIInterfaceRequestor).
+                               getInterface(Components.interfaces.nsIDOMWindowUtils);
 }
 
 // Must be synchronized with nsIDOMWindowUtils.

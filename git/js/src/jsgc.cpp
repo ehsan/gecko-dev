@@ -4304,8 +4304,7 @@ IncrementalCollectSlice(JSRuntime *rt,
 
       case MARK_ROOTS:
         BeginMarkPhase(rt);
-        if (rt->hasContexts())
-            PushZealSelectedObjects(rt);
+        PushZealSelectedObjects(rt);
 
         rt->gcIncrementalState = MARK;
 

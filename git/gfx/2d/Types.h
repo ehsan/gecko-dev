@@ -26,8 +26,7 @@ enum SurfaceType
   SURFACE_COREGRAPHICS_IMAGE, /* Surface wrapping a CoreGraphics Image */
   SURFACE_COREGRAPHICS_CGCONTEXT, /* Surface wrapping a CG context */
   SURFACE_SKIA, /* Surface wrapping a Skia bitmap */
-  SURFACE_DUAL_DT, /* Snapshot of a dual drawtarget */
-  SURFACE_RECORDING /* Surface used for recording */
+  SURFACE_DUAL_DT /* Snapshot of a dual drawtarget */
 };
 
 enum SurfaceFormat
@@ -45,8 +44,7 @@ enum BackendType
   BACKEND_COREGRAPHICS,
   BACKEND_COREGRAPHICS_ACCELERATED,
   BACKEND_CAIRO,
-  BACKEND_SKIA,
-  BACKEND_RECORDING
+  BACKEND_SKIA
 };
 
 enum FontType

@@ -362,7 +362,7 @@ static JSFunctionSpec weak_map_methods[] = {
 };
 
 JSObject *
-js_InitWeakMapClass(JSContext *cx, HandleObject obj)
+js_InitWeakMapClass(JSContext *cx, JSObject *obj)
 {
     JS_ASSERT(obj->isNative());
 

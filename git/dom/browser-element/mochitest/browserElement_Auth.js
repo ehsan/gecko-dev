@@ -81,12 +81,14 @@ function testHttpAuth(e) {
 
 function testFinish() {
   // Clear login information stored in password manager.
-  var authMgr = SpecialPowers.Cc['@mozilla.org/network/http-auth-manager;1']
-    .getService(SpecialPowers.Ci.nsIHttpAuthManager);
+  var authMgr = SpecialPowers.wrap(Components)
+    .classes['@mozilla.org/network/http-auth-manager;1']
+    .getService(Components.interfaces.nsIHttpAuthManager);
   authMgr.clearAll();
 
-  var pwmgr = SpecialPowers.Cc["@mozilla.org/login-manager;1"]
-    .getService(SpecialPowers.Ci.nsILoginManager);
+  var pwmgr = SpecialPowers.wrap(Components)
+    .classes["@mozilla.org/login-manager;1"]
+    .getService(Components.interfaces.nsILoginManager);
   pwmgr.removeAllLogins();
 
   SimpleTest.finish();

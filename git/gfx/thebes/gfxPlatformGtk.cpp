@@ -732,7 +732,7 @@ gfxPlatformGtk::GetGdkDrawable(gfxASurface *target)
 }
 #endif
 
-TemporaryRef<ScaledFont>
+RefPtr<ScaledFont>
 gfxPlatformGtk::GetScaledFontForFont(DrawTarget* aTarget, gfxFont *aFont)
 {
     NativeFont nativeFont;

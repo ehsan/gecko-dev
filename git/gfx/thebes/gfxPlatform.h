@@ -126,8 +126,6 @@ GetBackendName(mozilla::gfx::BackendType aBackend)
         return "cairo";
       case mozilla::gfx::BACKEND_SKIA:
         return "skia";
-      case mozilla::gfx::BACKEND_RECORDING:
-        return "recording";
       case mozilla::gfx::BACKEND_NONE:
         return "none";
   }
@@ -186,7 +184,7 @@ public:
     virtual mozilla::RefPtr<mozilla::gfx::SourceSurface>
       GetSourceSurfaceForSurface(mozilla::gfx::DrawTarget *aTarget, gfxASurface *aSurface);
 
-    virtual mozilla::TemporaryRef<mozilla::gfx::ScaledFont>
+    virtual mozilla::RefPtr<mozilla::gfx::ScaledFont>
       GetScaledFontForFont(mozilla::gfx::DrawTarget* aTarget, gfxFont *aFont);
 
     virtual already_AddRefed<gfxASurface>
@@ -551,8 +549,6 @@ private:
 
     mozilla::widget::GfxInfoCollector<gfxPlatform> mAzureCanvasBackendCollector;
     bool mWorkAroundDriverBugs;
-
-    mozilla::RefPtr<mozilla::gfx::DrawEventRecorder> mRecorder;
 };
 
 #endif /* GFX_PLATFORM_H */

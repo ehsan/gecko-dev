@@ -6,9 +6,9 @@
 
 "use strict";
 
-const Cc = SpecialPowers.Cc;
-const Ci = SpecialPowers.Ci;
-const Cu = SpecialPowers.Cu;
+const Cc = SpecialPowers.wrap(Components).classes;
+const Ci = Components.interfaces;
+const Cu = SpecialPowers.wrap(Components).utils;
 
 const TEST_URL = "http://mochi.test:8888";
 const TEST_URL2 = "https://myfavoritebaconinacan.com";

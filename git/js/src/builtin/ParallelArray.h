@@ -412,6 +412,6 @@ class ParallelArrayObject : public JSObject {
 } // namespace js
 
 extern JSObject *
-js_InitParallelArrayClass(JSContext *cx, js::HandleObject obj);
+js_InitParallelArrayClass(JSContext *cx, JSObject *obj);
 
 #endif // ParallelArray_h__

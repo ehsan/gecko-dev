@@ -123,7 +123,9 @@ public:
   Loader(nsIDocument*);
   ~Loader();
 
-  NS_INLINE_DECL_REFCOUNTING(Loader)
+  // This isn't a COM class but it's reference-counted like one.
+  NS_IMETHOD_(nsrefcnt) AddRef();
+  NS_IMETHOD_(nsrefcnt) Release();
 
   void DropDocumentReference(); // notification that doc is going away
 
@@ -465,6 +467,9 @@ private:
   // the load data needs access to the document...
   nsIDocument*      mDocument;  // the document we live for
 
+  // Refcounting
+  nsAutoRefCnt      mRefCnt;
+  NS_DECL_OWNINGTHREAD
 
   // Number of datas still waiting to be notified on if we're notifying on a
   // whole bunch at once (e.g. in one of the stop methods).  This is used to

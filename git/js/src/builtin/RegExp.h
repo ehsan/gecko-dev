@@ -11,7 +11,7 @@
 #include "jsprvtd.h"
 
 JSObject *
-js_InitRegExpClass(JSContext *cx, js::HandleObject obj);
+js_InitRegExpClass(JSContext *cx, JSObject *obj);
 
 /*
  * The following builtin natives are extern'd for pointer comparison in

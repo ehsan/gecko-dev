@@ -153,30 +153,16 @@ XPCWrappedNativeScope::IsDyingScope(XPCWrappedNativeScope *scope)
     return false;
 }
 
-JSObject*
-XPCWrappedNativeScope::GetComponentsJSObject(XPCCallContext& ccx)
+void
+XPCWrappedNativeScope::SetComponents(nsXPCComponents* aComponents)
 {
-    if (!mComponents)
-        mComponents = new nsXPCComponents(this);
+    mComponents = aComponents;
+}
 
-    AutoMarkingNativeInterfacePtr iface(ccx);
-    iface = XPCNativeInterface::GetNewOrUsed(ccx, &NS_GET_IID(nsIXPCComponents));
-    if (!iface)
-        return nullptr;
-
-    nsCOMPtr<nsIXPCComponents> cholder(mComponents);
-    xpcObjectHelper helper(cholder);
-    nsCOMPtr<XPCWrappedNative> wrapper;
-    XPCWrappedNative::GetNewOrUsed(ccx, helper, this, iface, getter_AddRefs(wrapper));
-    if (!wrapper)
-        return nullptr;
-
-    // The call to wrap() here is necessary even though the object is same-
-    // compartment, because it applies our security wrapper.
-    JSObject *obj = wrapper->GetFlatJSObject();
-    if (!JS_WrapObject(ccx, &obj))
-        return nullptr;
-    return obj;
+nsXPCComponents*
+XPCWrappedNativeScope::GetComponents()
+{
+    return mComponents;
 }
 
 // Dummy JS class to let wrappers w/o an xpc prototype share

@@ -69,8 +69,6 @@ public:
 
     virtual FontType GetType() const { return FONT_TYPE_DWRITE; }
 
-    virtual mozilla::TemporaryRef<mozilla::gfx::ScaledFont> GetScaledFont(mozilla::gfx::DrawTarget *aTarget);
-
 protected:
     friend class gfxDWriteShaper;
 
@@ -105,7 +103,6 @@ protected:
     bool mNeedsBold;
     bool mUseSubpixelPositions;
     bool mAllowManualShowGlyphs;
-    bool mAzureScaledFontIsCairo;
 };
 
 #endif

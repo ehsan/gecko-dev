@@ -1900,7 +1900,8 @@ gfxFont::Draw(gfxTextRun *aTextRun, uint32_t aStart, uint32_t aEnd,
       glyphs.Flush(cr, aDrawMode, isRTL, aObjectPaint, globalMatrix, true);
 
     } else {
-      RefPtr<ScaledFont> scaledFont = GetScaledFont(dt);
+      RefPtr<ScaledFont> scaledFont =
+        gfxPlatform::GetPlatform()->GetScaledFontForFont(dt, this);
 
       if (!scaledFont) {
         return;

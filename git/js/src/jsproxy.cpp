@@ -2385,14 +2385,11 @@ Proxy::getElementIfPresent(JSContext *cx, HandleObject proxy_, HandleObject rece
     RootedObject proxy(cx, proxy_);
     BaseProxyHandler *handler = GetProxyHandler(proxy);
     bool hasOwn, status = true;
-    RootedId id(cx);
-    if (!handler->hasPrototype()) {
-        return GetProxyHandler(proxy)->getElementIfPresent(cx, proxy, receiver, index, vp.address(), present);
-    } else if (status = IndexToId(cx, index, id.address()) &&
-               (status = handler->hasOwn(cx, proxy, id, &hasOwn)) && hasOwn)
+    if (!handler->hasPrototype() ||
+        ((status = handler->hasOwn(cx, proxy, INT_TO_JSID(index), &hasOwn)) && hasOwn))
     {
-        *present = true;
-        return GetProxyHandler(proxy)->get(cx, proxy, receiver, id, vp.address());
+        return GetProxyHandler(proxy)->getElementIfPresent(cx, proxy, receiver,
+                                                           index, vp.address(), present);
     } else if (!status) {
         return false;
     }
@@ -3218,8 +3215,9 @@ static JSFunctionSpec static_methods[] = {
 };
 
 JS_FRIEND_API(JSObject *)
-js_InitProxyClass(JSContext *cx, HandleObject obj)
+js_InitProxyClass(JSContext *cx, JSObject *obj_)
 {
+    RootedObject obj(cx, obj_);
     RootedObject module(cx, NewObjectWithClassProto(cx, &ProxyClass, NULL, obj));
     if (!module || !JSObject::setSingletonType(cx, module))
         return NULL;

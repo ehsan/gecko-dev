@@ -1987,7 +1987,7 @@ ParallelArrayObject::enumerate(JSContext *cx, HandleObject obj, unsigned flags,
 }
 
 JSObject *
-js_InitParallelArrayClass(JSContext *cx, HandleObject obj)
+js_InitParallelArrayClass(JSContext *cx, JSObject *obj)
 {
     return ParallelArrayObject::initClass(cx, obj);
 }
