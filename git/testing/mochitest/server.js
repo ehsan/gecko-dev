@@ -615,8 +615,7 @@ function testListing(metadata, response)
         LINK({rel: "stylesheet",
               type: "text/css", href: "/static/harness.css"}
         ),
-        SCRIPT({type: "text/javascript",
-                 src: "/tests/SimpleTest/LogController.js"}),
+        SCRIPT({type: "text/javascript", src: "/MochiKit/packed.js"}),
         SCRIPT({type: "text/javascript",
                  src: "/tests/SimpleTest/TestRunner.js"}),
         SCRIPT({type: "text/javascript",
@@ -626,7 +625,7 @@ function testListing(metadata, response)
         SCRIPT({type: "text/javascript",
                  src: "/tests/SimpleTest/setup.js"}),
         SCRIPT({type: "text/javascript"},
-               "window.onload =  hookup; gTestList=" + tests + ";"
+               "connect(window, 'onload', hookup); gTestList=" + tests + ";"
         )
       ),
       BODY(
