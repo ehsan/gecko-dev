@@ -103,8 +103,7 @@ final class GeckoEditable
     private int mIcUpdateSeqno;
     private int mLastIcUpdateSeqno;
     private boolean mUpdateGecko;
-    private boolean mFocused; // Used by IC thread
-    private boolean mGeckoFocused; // Used by Gecko thread
+    private boolean mFocused;
     private volatile boolean mSuppressCompositions;
     private volatile boolean mSuppressKeyUp;
 
@@ -760,16 +759,11 @@ final class GeckoEditable
         });
 
         // Register/unregister Gecko-side text selection listeners
-        // and update the mGeckoFocused flag.
-        if (type == NOTIFY_IME_OF_BLUR && mGeckoFocused) {
-            // Check for focus here because Gecko may send us a blur before a focus in some
-            // cases, and we don't want to unregister an event that was not registered.
-            mGeckoFocused = false;
+        if (type == NOTIFY_IME_OF_BLUR) {
             mSuppressCompositions = false;
             GeckoAppShell.getEventDispatcher().
                 unregisterEventListener("TextSelection:IMECompositions", this);
         } else if (type == NOTIFY_IME_OF_FOCUS) {
-            mGeckoFocused = true;
             mSuppressCompositions = false;
             GeckoAppShell.getEventDispatcher().
                 registerEventListener("TextSelection:IMECompositions", this);

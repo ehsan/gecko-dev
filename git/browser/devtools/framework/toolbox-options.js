@@ -5,9 +5,11 @@
 "use strict";
 
 const {Cu, Cc, Ci} = require("chrome");
-const Services = require("Services");
+const EventEmitter = require("devtools/toolkit/event-emitter");
+const {Promise: promise} = require("resource://gre/modules/Promise.jsm");
 Cu.import("resource://gre/modules/XPCOMUtils.jsm");
-XPCOMUtils.defineLazyModuleGetter(this, "gDevTools", "resource:///modules/devtools/gDevTools.jsm");
+Cu.import("resource://gre/modules/Services.jsm");
+Cu.import("resource:///modules/devtools/gDevTools.jsm");
 
 exports.OptionsPanel = OptionsPanel;
 
@@ -36,7 +38,6 @@ function OptionsPanel(iframeWindow, toolbox) {
   this.toolbox = toolbox;
   this.isReady = false;
 
-  const EventEmitter = require("devtools/toolkit/event-emitter");
   EventEmitter.decorate(this);
 }
 
@@ -157,9 +158,8 @@ OptionsPanel.prototype = {
 
     // Populating the default tools lists
     let toggleableTools = gDevTools.getDefaultTools().filter(tool => {
-      return tool.visibilityswitch;
+      return tool.visibilityswitch
     });
-
     for (let tool of toggleableTools) {
       defaultToolsBox.appendChild(createToolCheckbox(tool));
     }

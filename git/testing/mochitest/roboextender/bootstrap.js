@@ -1,15 +1,13 @@
 
 var Cc = Components.classes;
 var Ci = Components.interfaces;
-var Cu = Components.utils;
-
-Cu.import("resource://gre/modules/Services.jsm");
 
 function loadIntoWindow(window) {}
 function unloadFromWindow(window) {}
 
 function _sendMessageToJava (aMsg) {
-  return Services.androidBridge.handleGeckoMessage(aMsg);
+  let bridge = Cc["@mozilla.org/android/bridge;1"].getService(Ci.nsIAndroidBridge);
+  return bridge.handleGeckoMessage(JSON.stringify(aMsg));
 };
 
 /*

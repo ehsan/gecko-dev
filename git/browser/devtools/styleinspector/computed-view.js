@@ -543,8 +543,7 @@ CssHtmlTree.prototype = {
 
       // Test for font family
       if (propName.textContent === "font-family") {
-        this.tooltip.setFontFamilyContent(propValue.textContent);
-        return true;
+        return this.tooltip.setFontFamilyContent(propValue.textContent);
       }
     }
 

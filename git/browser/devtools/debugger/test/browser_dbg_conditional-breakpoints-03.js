@@ -19,11 +19,6 @@ function test() {
     gSources = gDebugger.DebuggerView.Sources;
     gBreakpoints = gDebugger.DebuggerController.Breakpoints;
 
-    // This test forces conditional breakpoints to be evaluated on the
-    // client-side
-    var client = gPanel.target.client;
-    client.mainRoot.traits.conditionalBreakpoints = false;
-
     gLocation = { url: gSources.selectedValue, line: 18 };
 
     waitForSourceAndCaretAndScopes(gPanel, ".html", 17)
