@@ -297,8 +297,7 @@ nsContainerFrame::Destroy()
         nsIContent* content = generatedContent->ObjectAt(i);
         // Tell the ESM that this content is going away now, so it'll update
         // its hover content, etc.
-        PresContext()->EventStateManager()->
-          ContentRemoved(content->GetCurrentDoc(), content);
+        PresContext()->EventStateManager()->ContentRemoved(content);
         content->UnbindFromTree();
       }
       delete generatedContent;

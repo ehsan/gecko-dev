@@ -48,6 +48,7 @@
 #include "nsIContentViewer.h"
 #include "nsIDocumentViewer.h"
 #include "nsPIDOMWindow.h"
+#include "nsIFocusController.h"
 #include "nsStyleSet.h"
 #include "nsImageLoader.h"
 #include "nsIContent.h"
@@ -1556,7 +1557,7 @@ nsPresContext::SetPrintSettings(nsIPrintSettings *aPrintSettings)
 }
 
 PRBool
-nsPresContext::EnsureVisible()
+nsPresContext::EnsureVisible(PRBool aUnsuppressFocus)
 {
   nsCOMPtr<nsIDocShell> docShell(do_QueryReferent(mContainer));
   if (docShell) {
@@ -1568,8 +1569,22 @@ nsPresContext::EnsureVisible()
       nsCOMPtr<nsPresContext> currentPresContext;
       docV->GetPresContext(getter_AddRefs(currentPresContext));
       if (currentPresContext == this) {
-        // OK, this is us.  We want to call Show() on the content viewer.
+        // OK, this is us.  We want to call Show() on the content viewer.  But
+        // first, we need to suppress focus changes; otherwise the focus will
+        // get sent to the wrong place (toplevel window).
+        nsCOMPtr<nsPIDOMWindow> privWindow = do_GetInterface(docShell);
+        // XXXbz privWindow should never really be null!
+        nsIFocusController* fc =
+          privWindow ? privWindow->GetRootFocusController() : nsnull;
+        if (fc) {
+          fc->SetSuppressFocus(PR_TRUE,
+                               "nsPresContext::EnsureVisible Suppression");
+        }
         cv->Show();
+        if (fc && aUnsuppressFocus) {
+          fc->SetSuppressFocus(PR_FALSE,
+                               "nsPresContext::EnsureVisible Suppression");
+        }
         return PR_TRUE;
       }
     }

@@ -369,9 +369,7 @@ protected:
 
   PRBool                  DispatchPluginEvent(const MSG &aMsg);
 
-  PRBool DispatchFocusToTopLevelWindow(PRUint32 aEventType);
-  PRBool DispatchFocus(PRUint32 aEventType);
-
+  virtual PRBool          DispatchFocus(PRUint32 aEventType, PRBool isMozWindowTakingFocus);
   virtual PRBool          OnScroll(UINT scrollCode, int cPos);
   virtual HBRUSH          OnControlColor();
 
