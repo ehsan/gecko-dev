@@ -135,10 +135,11 @@ class MozbuildObject(ProcessExecutionMixin):
                 topsrcdir = dir_path
                 break
 
-        # See if we're running from a Python virtualenv that's inside an objdir.
-        mozinfo_path = os.path.join(os.path.dirname(sys.prefix), "mozinfo.json")
-        if os.path.isfile(mozinfo_path):
-            topsrcdir, topobjdir, mozconfig = load_mozinfo(mozinfo_path)
+        if not topsrcdir:
+            # See if we're running from a Python virtualenv that's inside an objdir.
+            mozinfo_path = os.path.join(os.path.dirname(sys.prefix), "mozinfo.json")
+            if os.path.isfile(mozinfo_path):
+                topsrcdir, topobjdir, mozconfig = load_mozinfo(mozinfo_path)
 
         # If we were successful, we're only guaranteed to find a topsrcdir. If
         # we couldn't find that, there's nothing we can do.

@@ -1230,7 +1230,7 @@ ContainerState::CreateOrRecycleMaskImageLayerFor(Layer* aLayer)
     if (!result)
       return nullptr;
     result->SetUserData(&gMaskLayerUserData, new MaskLayerUserData());
-    result->SetDisallowBigImage(true);
+    result->SetForceSingleTile(true);
   }
   
   return result.forget();

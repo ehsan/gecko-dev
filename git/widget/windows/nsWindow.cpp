@@ -334,6 +334,8 @@ nsWindow::nsWindow() : nsWindowBase()
   mBorderStyle          = eBorderStyle_default;
   mOldSizeMode          = nsSizeMode_Normal;
   mLastSizeMode         = nsSizeMode_Normal;
+  mLastPoint.x          = 0;
+  mLastPoint.y          = 0;
   mLastSize.width       = 0;
   mLastSize.height      = 0;
   mOldStyle             = 0;
@@ -3568,6 +3570,7 @@ void nsWindow::InitEvent(nsGUIEvent& event, nsIntPoint* aPoint)
   }
 
   event.time = ::GetMessageTime();
+  mLastPoint = event.refPoint;
 }
 
 /**************************************************************
@@ -3963,7 +3966,7 @@ bool nsWindow::DispatchMouseEvent(uint32_t aEventType, WPARAM wParam,
       rect.x = 0;
       rect.y = 0;
 
-      if (rect.Contains(LayoutDeviceIntPoint::ToUntyped(event.refPoint))) {
+      if (rect.Contains(event.refPoint)) {
         if (sCurrentWindow == NULL || sCurrentWindow != this) {
           if ((nullptr != sCurrentWindow) && (!sCurrentWindow->mInDtor)) {
             LPARAM pos = sCurrentWindow->lParamToClient(lParamToScreen(lParam));
@@ -4886,7 +4889,7 @@ nsWindow::ProcessMessage(UINT msg, WPARAM& wParam, LPARAM& lParam,
       if (lParam != -1 && !result && mCustomNonClient) {
         nsMouseEvent event(true, NS_MOUSE_MOZHITTEST, this, nsMouseEvent::eReal,
                            nsMouseEvent::eNormal);
-        event.refPoint = LayoutDeviceIntPoint(GET_X_LPARAM(lParam), GET_Y_LPARAM(lParam));
+        event.refPoint = nsIntPoint(GET_X_LPARAM(lParam), GET_Y_LPARAM(lParam));
         event.inputSource = MOUSE_INPUT_SOURCE();
         event.mFlags.mOnlyChromeDispatch = true;
         if (DispatchWindowEvent(&event)) {
@@ -5289,7 +5292,7 @@ nsWindow::ProcessMessage(UINT msg, WPARAM& wParam, LPARAM& lParam,
         touchPoint = gestureinfo->ptsLocation;
         touchPoint.ScreenToClient(mWnd);
         nsGestureNotifyEvent gestureNotifyEvent(true, NS_GESTURENOTIFY_EVENT_START, this);
-        gestureNotifyEvent.refPoint = LayoutDeviceIntPoint::FromUntyped(touchPoint);
+        gestureNotifyEvent.refPoint = touchPoint;
         nsEventStatus status;
         DispatchEvent(&gestureNotifyEvent, status);
         mDisplayPanFeedback = gestureNotifyEvent.displayPanFeedback;
@@ -5571,7 +5574,7 @@ nsWindow::ClientMarginHitTestPoint(int32_t mx, int32_t my)
     } else {
       nsMouseEvent event(true, NS_MOUSE_MOZHITTEST, this, nsMouseEvent::eReal,
                          nsMouseEvent::eNormal);
-      event.refPoint = LayoutDeviceIntPoint(pt.x, pt.y);
+      event.refPoint = nsIntPoint(pt.x, pt.y);
       event.inputSource = MOUSE_INPUT_SOURCE();
       event.mFlags.mOnlyChromeDispatch = true;
       bool result = DispatchWindowEvent(&event);

@@ -260,7 +260,7 @@ nsInProcessTabChildGlobal::DelayedDisconnect()
   }
 
   if (!mLoadingScript) {
-    ReleaseWrapper(static_cast<EventTarget*>(this));
+    nsContentUtils::ReleaseWrapper(static_cast<EventTarget*>(this), this);
     mGlobal = nullptr;
   } else {
     mDelayedDisconnect = true;

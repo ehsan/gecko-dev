@@ -8,7 +8,6 @@
 
 #include "SVGGraphicsElement.h"
 
-class gfxFlattenedPath;
 struct gfxMatrix;
 template <class E> class nsTArray;
 

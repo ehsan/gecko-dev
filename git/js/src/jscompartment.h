@@ -130,10 +130,6 @@ struct JSCompartment
     bool                         isSystem;
     bool                         marked;
 
-#ifdef DEBUG
-    bool                         firedOnNewGlobalObject;
-#endif
-
     void mark() { marked = true; }
 
   private:

@@ -77,7 +77,7 @@ public:
   };
 };
 
-class HTMLInputElement MOZ_FINAL : public nsGenericHTMLFormElementWithState,
+class HTMLInputElement MOZ_FINAL : public nsGenericHTMLFormElement,
                                    public nsImageLoadingContent,
                                    public nsIDOMHTMLInputElement,
                                    public nsITextControlElement,
@@ -90,7 +90,7 @@ public:
   using nsIConstraintValidation::CheckValidity;
   using nsIConstraintValidation::WillValidate;
   using nsIConstraintValidation::Validity;
-  using nsGenericHTMLFormElementWithState::GetForm;
+  using nsGenericHTMLFormElement::GetForm;
 
   HTMLInputElement(already_AddRefed<nsINodeInfo> aNodeInfo,
                    mozilla::dom::FromParser aFromParser);
@@ -226,7 +226,7 @@ public:
   NS_IMETHOD FireAsyncClickHandler();
 
   NS_DECL_CYCLE_COLLECTION_CLASS_INHERITED(HTMLInputElement,
-                                           nsGenericHTMLFormElementWithState)
+                                           nsGenericHTMLFormElement)
 
   static UploadLastDir* gUploadLastDir;
   // create and destroy the static UploadLastDir object for remembering
@@ -665,7 +665,7 @@ protected:
 
   // Pull IsSingleLineTextControl into our scope, otherwise it'd be hidden
   // by the nsITextControlElement version.
-  using nsGenericHTMLFormElementWithState::IsSingleLineTextControl;
+  using nsGenericHTMLFormElement::IsSingleLineTextControl;
 
   /**
    * The ValueModeType specifies how the value IDL attribute should behave.

@@ -212,7 +212,7 @@ AppendToString(nsACString& s, TextureFlags flags,
     bool previous = false;
     AppendFlag(UseNearestFilter);
     AppendFlag(NeedsYFlip);
-    AppendFlag(TEXTURE_DISALLOW_BIGIMAGE);
+    AppendFlag(ForceSingleTile);
     AppendFlag(AllowRepeat);
     AppendFlag(NewTile);
     AppendFlag(TEXTURE_DEALLOCATE_HOST);

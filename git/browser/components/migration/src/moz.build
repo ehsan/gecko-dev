@@ -38,7 +38,3 @@ if CONFIG['MOZ_WIDGET_TOOLKIT'] == 'cocoa':
 
 LIBRARY_NAME = 'migration_s'
 
-EXTRA_PP_JS_MODULES += [
-    'MigrationUtils.jsm',
-]
-

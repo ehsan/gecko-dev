@@ -280,14 +280,13 @@ TokenStream::TokenStream(ExclusiveContext *cx, const CompileOptions &options,
     sourceMap(NULL),
     tokenbuf(cx),
     cx(cx),
-    originPrincipals(options.originPrincipals()),
+    originPrincipals(JSScript::normalizeOriginPrincipals(options.principals,
+                                                         options.originPrincipals)),
     strictModeGetter(smg),
     tokenSkip(cx, &tokens),
     linebaseSkip(cx, &linebase),
     prevLinebaseSkip(cx, &prevLinebase)
 {
-    JS_ASSERT_IF(options.principals(), options.originPrincipals());
-
     // The caller must ensure that a reference is held on the supplied principals
     // throughout compilation.
     JS_ASSERT_IF(originPrincipals, originPrincipals->refcount);

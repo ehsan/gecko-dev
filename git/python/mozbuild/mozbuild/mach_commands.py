@@ -647,9 +647,7 @@ class DebugProgram(MachCommandBase):
         help='Do not pass the -no-remote argument by default')
     @CommandArgument('+background', '+b', action='store_true',
         help='Do not pass the -foreground argument by default on Mac')
-    @CommandArgument('+gdbparams', default=None, metavar='params', type=str,
-        help='Command-line arguments to pass to GDB itself; split as the Bourne shell would.')
-    def debug(self, params, remote, background, gdbparams):
+    def debug(self, params, remote, background):
         import which
         try:
             debugger = which.which('gdb')
@@ -657,17 +655,8 @@ class DebugProgram(MachCommandBase):
             print("You don't have gdb in your PATH")
             print(e)
             return 1
-        args = [debugger]
-        if gdbparams:
-            import pymake.process
-            (argv, badchar) = pymake.process.clinetoargv(gdbparams, os.getcwd())
-            if badchar:
-                print("The +gdbparams you passed require a real shell to parse them.")
-                print("(We can't handle the %r character.)" % (badchar,))
-                return 1
-            args.extend(argv)
         try:
-            args.extend(['--args', self.get_binary_path('app')])
+            args = [debugger, '--args', self.get_binary_path('app')]
         except Exception as e:
             print("It looks like your program isn't built.",
                 "You can run |mach build| to build it.")

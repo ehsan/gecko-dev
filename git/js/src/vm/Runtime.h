@@ -465,7 +465,7 @@ class PerThreadData : public PerThreadDataFriendFields,
      * thread is associated.  This is private because accessing the
      * fields of this runtime can provoke race conditions, so the
      * intention is that access will be mediated through safe
-     * functions like |runtimeFromMainThread| and |associatedWith()| below.
+     * functions like |associatedWith()| below.
      */
     JSRuntime *runtime_;
 
@@ -571,7 +571,6 @@ class PerThreadData : public PerThreadDataFriendFields,
     void removeFromThreadList();
 
     bool associatedWith(const JSRuntime *rt) { return runtime_ == rt; }
-    inline JSRuntime *runtimeFromMainThread();
 };
 
 template<class Client>
@@ -762,14 +761,6 @@ struct JSRuntime : public JS::shadow::Runtime,
             exclusiveAccessOwner == PR_GetCurrentThread();
 #else
         return true;
-#endif
-    }
-
-    bool exclusiveThreadsPresent() const {
-#ifdef JS_THREADSAFE
-        return numExclusiveThreads > 0;
-#else
-        return false;
 #endif
     }
 
@@ -1690,13 +1681,6 @@ PerThreadData::setIonStackLimit(uintptr_t limit)
 {
     JS_ASSERT(runtime_->currentThreadOwnsOperationCallbackLock());
     ionStackLimit = limit;
-}
-
-inline JSRuntime *
-PerThreadData::runtimeFromMainThread()
-{
-    runtime_->assertValidThread();
-    return runtime_;
 }
 
 /************************************************************************/

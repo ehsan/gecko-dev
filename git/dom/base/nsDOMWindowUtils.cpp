@@ -620,13 +620,14 @@ nsDOMWindowUtils::SendMouseEventToWindow(const nsAString& aType,
                               aInputSourceArg, true, nullptr);
 }
 
-static LayoutDeviceIntPoint
-ToWidgetPoint(const CSSPoint& aPoint, const nsPoint& aOffset,
+static nsIntPoint
+ToWidgetPoint(float aX, float aY, const nsPoint& aOffset,
               nsPresContext* aPresContext)
 {
-  return LayoutDeviceIntPoint::FromAppUnits(
-    CSSPoint::ToAppUnits(aPoint) + aOffset,
-    aPresContext->AppUnitsPerDevPixel());
+  double appPerDev = aPresContext->AppUnitsPerDevPixel();
+  nscoord appPerCSS = nsPresContext::AppUnitsPerCSSPixel();
+  return nsIntPoint(NSToIntRound((aX*appPerCSS + aOffset.x)/appPerDev),
+                    NSToIntRound((aY*appPerCSS + aOffset.y)/appPerDev));
 }
 
 static inline int16_t
@@ -713,7 +714,7 @@ nsDOMWindowUtils::SendMouseEventCommon(const nsAString& aType,
   if (!presContext)
     return NS_ERROR_FAILURE;
 
-  event.refPoint = ToWidgetPoint(CSSPoint(aX, aY), offset, presContext);
+  event.refPoint = ToWidgetPoint(aX, aY, offset, presContext);
   event.ignoreRootScrollFrame = aIgnoreRootScrollFrame;
 
   nsEventStatus status;
@@ -785,7 +786,7 @@ nsDOMWindowUtils::SendWheelEvent(float aX,
   nsPresContext* presContext = GetPresContext();
   NS_ENSURE_TRUE(presContext, NS_ERROR_FAILURE);
 
-  wheelEvent.refPoint = ToWidgetPoint(CSSPoint(aX, aY), offset, presContext);
+  wheelEvent.refPoint = ToWidgetPoint(aX, aY, offset, presContext);
 
   nsEventStatus status;
   nsresult rv = widget->DispatchEvent(&wheelEvent, status);
@@ -881,10 +882,9 @@ nsDOMWindowUtils::SendTouchEvent(const nsAString& aType,
   }
   event.touches.SetCapacity(aCount);
   for (uint32_t i = 0; i < aCount; ++i) {
-    LayoutDeviceIntPoint pt =
-      ToWidgetPoint(CSSPoint(aXs[i], aYs[i]), offset, presContext);
+    nsIntPoint pt = ToWidgetPoint(aXs[i], aYs[i], offset, presContext);
     nsRefPtr<Touch> t = new Touch(aIdentifiers[i],
-                                  LayoutDeviceIntPoint::ToUntyped(pt),
+                                  pt,
                                   nsIntPoint(aRxs[i], aRys[i]),
                                   aRotationAngles[i],
                                   aForces[i]);
@@ -1266,7 +1266,7 @@ nsDOMWindowUtils::SendSimpleGestureEvent(const nsAString& aType,
   if (!presContext)
     return NS_ERROR_FAILURE;
 
-  event.refPoint = ToWidgetPoint(CSSPoint(aX, aY), offset, presContext);
+  event.refPoint = ToWidgetPoint(aX, aY, offset, presContext);
 
   nsEventStatus status;
   return widget->DispatchEvent(&event, status);
@@ -1756,7 +1756,7 @@ nsDOMWindowUtils::DispatchDOMEventViaPresShell(nsIDOMNode* aTarget,
 }
 
 static void
-InitEvent(nsGUIEvent& aEvent, LayoutDeviceIntPoint* aPt = nullptr)
+InitEvent(nsGUIEvent &aEvent, nsIntPoint *aPt = nullptr)
 {
   if (aPt) {
     aEvent.refPoint = *aPt;
@@ -1924,7 +1924,7 @@ nsDOMWindowUtils::SendQueryContentEvent(uint32_t aType,
   }
 
   nsCOMPtr<nsIWidget> targetWidget = widget;
-  LayoutDeviceIntPoint pt(aX, aY);
+  nsIntPoint pt(aX, aY);
 
   if (aType == QUERY_CHARACTER_AT_POINT) {
     // Looking for the widget at the point.
@@ -1940,8 +1940,7 @@ nsDOMWindowUtils::SendQueryContentEvent(uint32_t aType,
 
     // There is no popup frame at the point and the point isn't in our widget,
     // we cannot process this request.
-    NS_ENSURE_TRUE(popupFrame ||
-                   widgetBounds.Contains(LayoutDeviceIntPoint::ToUntyped(pt)),
+    NS_ENSURE_TRUE(popupFrame || widgetBounds.Contains(pt),
                    NS_ERROR_FAILURE);
 
     // Fire the event on the widget at the point
@@ -1950,8 +1949,7 @@ nsDOMWindowUtils::SendQueryContentEvent(uint32_t aType,
     }
   }
 
-  pt += LayoutDeviceIntPoint::FromUntyped(
-    widget->WidgetToScreenOffset() - targetWidget->WidgetToScreenOffset());
+  pt += widget->WidgetToScreenOffset() - targetWidget->WidgetToScreenOffset();
 
   nsQueryContentEvent queryEvent(true, aType, targetWidget);
   InitEvent(queryEvent, &pt);
@@ -3161,8 +3159,7 @@ nsDOMWindowUtils::SelectAtPoint(float aX, float aY, uint32_t aSelectBehavior,
   // Get the target frame at the client coordinates passed to us
   nsPoint offset;
   nsCOMPtr<nsIWidget> widget = GetWidget(&offset);
-  nsIntPoint pt = LayoutDeviceIntPoint::ToUntyped(
-    ToWidgetPoint(CSSPoint(aX, aY), offset, GetPresContext()));
+  nsIntPoint pt = ToWidgetPoint(aX, aY, offset, GetPresContext());
   nsPoint ptInRoot =
     nsLayoutUtils::GetEventCoordinatesRelativeTo(widget, pt, rootFrame);
   nsIFrame* targetFrame = nsLayoutUtils::GetFrameForPoint(rootFrame, ptInRoot);

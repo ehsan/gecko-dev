@@ -94,9 +94,7 @@ public:
         : GLContext(caps, shareContext, isOffscreen),
           mContext(context),
           mTempTextureName(0)
-    {
-        SetProfileVersion(ContextProfile::OpenGLCompatibility, 210);
-    }
+    {}
 
     ~GLContextCGL()
     {

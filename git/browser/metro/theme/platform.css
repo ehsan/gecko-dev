@@ -679,7 +679,6 @@ arrowbox {
 }
 
 /* App bars ----------------------------------------------------------------- */
-
 appbar {
   display: block;
   position: fixed;
@@ -688,12 +687,15 @@ appbar {
   transform: translateY(100%);
   transition: transform @metro_animation_duration@ @metro_animation_easing@;
   font-size: 0;
-  visibility: hidden;
 }
 
-appbar[hiding],
-appbar[visible] {
-  visibility: visible;
+appbar toolbar {
+  -moz-appearance: none;
+  -moz-box-align: center;
+  border: 0;
+  width: 100%;
+  min-height: @toolbar_height@;
+  font-size: 1rem;
 }
 
 appbar[visible] {
@@ -707,17 +709,7 @@ appbar[visible] {
               bottom @appbar_keyboard_slideup_duration@ @metro_animation_easing@;
 }
 
-
-appbar toolbar {
-  -moz-appearance: none;
-  -moz-box-align: center;
-  border: 0;
-  width: 100%;
-  min-height: @toolbar_height@;
-  font-size: 1rem;
-}
-
-appbar toolbar toolbarbutton {
+appbar toolbar > toolbarbutton {
   border: 0;
   margin: 0 @toolbar_horizontal_spacing@;
   padding: 0;
@@ -725,7 +717,7 @@ appbar toolbar toolbarbutton {
   background-color: transparent;
 }
 
-appbar toolbar toolbarbutton[disabled] {
+appbar toolbar > toolbarbutton[disabled] {
   visibility: collapse;
 }
 
@@ -733,11 +725,11 @@ appbar toolbar[labelled] {
   min-height: @labelled_toolbar_height@;
 }
 
-appbar toolbar[labelled] toolbarbutton {
+appbar toolbar[labelled] > toolbarbutton {
   -moz-box-orient: vertical;
 }
 
-appbar toolbar[labelled] toolbarbutton > .toolbarbutton-text {
+appbar toolbar[labelled] > toolbarbutton > .toolbarbutton-text {
   display: block;
   padding-top: @metro_spacing_small@;
   font-size: 0.75rem;

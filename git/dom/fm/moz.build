@@ -26,8 +26,3 @@ EXTRA_JS_MODULES += [
     'DOMFMRadioParent.jsm',
 ]
 
-EXTRA_COMPONENTS += [
-    'DOMFMRadio.manifest',
-    'DOMFMRadioChild.js',
-]
-

@@ -98,20 +98,16 @@ class XDRState {
     XDRBuffer buf;
 
   protected:
-    JSPrincipals *principals_;
-    JSPrincipals *originPrincipals_;
+    JSPrincipals *principals;
+    JSPrincipals *originPrincipals;
 
     XDRState(JSContext *cx)
-      : buf(cx), principals_(NULL), originPrincipals_(NULL) {
+      : buf(cx), principals(NULL), originPrincipals(NULL) {
     }
 
   public:
     JSContext *cx() const {
         return buf.cx();
-    }
-
-    JSPrincipals *originPrincipals() const {
-        return originPrincipals_;
     }
 
     bool codeUint8(uint8_t *n) {
@@ -214,6 +210,8 @@ class XDRState {
 
     bool codeFunction(JS::MutableHandleObject objp);
     bool codeScript(MutableHandleScript scriptp);
+
+    void initScriptPrincipals(JSScript *script);
 };
 
 class XDREncoder : public XDRState<XDR_ENCODE> {

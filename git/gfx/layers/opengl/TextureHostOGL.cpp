@@ -114,8 +114,8 @@ FlagsToGLFlags(TextureFlags aFlags)
     result |= TextureImage::UseNearestFilter;
   if (aFlags & NeedsYFlip)
     result |= TextureImage::NeedsYFlip;
-  if (aFlags & TEXTURE_DISALLOW_BIGIMAGE)
-    result |= TextureImage::DisallowBigImage;
+  if (aFlags & ForceSingleTile)
+    result |= TextureImage::ForceSingleTile;
 
   return static_cast<gl::TextureImage::Flags>(result);
 }
@@ -148,7 +148,7 @@ TextureImageTextureSourceOGL::Update(gfx::DataSourceSurface* aSurface,
   if (!mTexImage ||
       mTexImage->GetSize() != size ||
       mTexImage->GetContentType() != gfx::ContentForFormat(aSurface->GetFormat())) {
-    if (mAllowBigImage) {
+    if (mAllowTiling) {
       // XXX - clarify the which size we want to use. Some use cases may
       // require the size of the destnation surface to be different from
       // the size of aSurface.
