@@ -65,8 +65,6 @@
 #include "nsNetUtil.h"
 #include "nsTArray.h"
 
-#include "mozilla/Util.h"
-
 #include <Carbon/Carbon.h>
 
 #define SAFARI_PREFERENCES_FILE_NAME      NS_LITERAL_STRING("com.apple.Safari.plist")
@@ -77,8 +75,6 @@
 #define SAFARI_DATE_OFFSET                978307200
 #define SAFARI_HOME_PAGE_PREF             "HomePage"
 #define MIGRATION_BUNDLE                  "chrome://browser/locale/migration/migration.properties"
-
-using namespace mozilla;
 
 ///////////////////////////////////////////////////////////////////////////////
 // nsSafariProfileMigrator
@@ -981,11 +977,10 @@ nsSafariProfileMigrator::CopyBookmarksBatched(bool aReplace)
     NS_ENSURE_SUCCESS(rv, rv);
   }
   else {
-    // If importing defaults fails for whatever reason, let the import process
-    // continue.
-    DebugOnly<nsresult> rv = ImportDefaultBookmarks();
-    MOZ_ASSERT(NS_SUCCEEDED(rv), "Should be able to import default bookmarks");
-
+    nsCOMPtr<nsIFile> profile;
+    GetProfilePath(nsnull, profile);
+    rv = InitializeBookmarks(profile);
+    NS_ENSURE_SUCCESS(rv, rv);
     // In replace mode we are merging at the top level.
     folder = bookmarksMenuFolderId;
   }

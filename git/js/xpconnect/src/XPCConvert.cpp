@@ -919,8 +919,7 @@ XPCConvert::NativeInterface2JSObject(XPCLazyCallContext& lccx,
 
             if (!flat) {
                 bool triedToWrap;
-                flat = cache->WrapObject(lccx.GetJSContext(),
-                                         xpcscope->GetGlobalJSObject(),
+                flat = cache->WrapObject(lccx.GetJSContext(), xpcscope,
                                          &triedToWrap);
                 if (!flat && triedToWrap)
                     return false;

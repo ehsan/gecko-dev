@@ -534,24 +534,24 @@ ListBase<LC>::getPrototype(JSContext *cx, XPCWrappedNativeScope *scope)
 
 template<class LC>
 JSObject *
-ListBase<LC>::create(JSContext *cx, JSObject *scope, ListType *aList,
+ListBase<LC>::create(JSContext *cx, XPCWrappedNativeScope *scope, ListType *aList,
                      nsWrapperCache* aWrapperCache, bool *triedToWrap)
 {
     *triedToWrap = true;
 
-    JSObject *parent = WrapNativeParent(cx, scope, aList->GetParentObject());
+    JSObject *parent = WrapNativeParent(cx, scope->GetGlobalJSObject(), aList->GetParentObject());
     if (!parent)
         return NULL;
 
     JSAutoEnterCompartment ac;
-    if (js::GetGlobalForObjectCrossCompartment(parent) != scope) {
+    if (js::GetGlobalForObjectCrossCompartment(parent) != scope->GetGlobalJSObject()) {
         if (!ac.enter(cx, parent))
             return NULL;
+
+        scope = XPCWrappedNativeScope::FindInJSObjectScope(cx, parent);
     }
 
-    XPCWrappedNativeScope *xpcscope =
-        XPCWrappedNativeScope::FindInJSObjectScope(cx, parent);
-    JSObject *proto = getPrototype(cx, xpcscope, triedToWrap);
+    JSObject *proto = getPrototype(cx, scope, triedToWrap);
     if (!proto && !*triedToWrap)
         aWrapperCache->ClearIsProxy();
     if (!proto)

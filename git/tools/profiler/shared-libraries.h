@@ -36,13 +36,6 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
-#ifndef SHARED_LIBRARIES_H_
-#define SHARED_LIBRARIES_H_
-
-#ifndef MOZ_ENABLE_PROFILER_SPS
-#error This header does not have a useful implementation on your platform!
-#endif
-
 #include <algorithm>
 #include <vector>
 #include <string.h>
@@ -194,5 +187,3 @@ public:
 private:
   std::vector<SharedLibrary> mEntries;
 };
-
-#endif

@@ -97,7 +97,7 @@ public:
     }
   }
 
-  virtual JSObject* WrapObject(JSContext *cx, JSObject *scope,
+  virtual JSObject* WrapObject(JSContext *cx, XPCWrappedNativeScope *scope,
                                bool *triedToWrap);
 
   nsISupports* GetParentObject()

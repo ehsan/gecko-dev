@@ -88,7 +88,7 @@ public:
   NS_DECL_CYCLE_COLLECTION_SCRIPT_HOLDER_CLASS(DOMSVGPointList)
   NS_DECL_NSIDOMSVGPOINTLIST
 
-  virtual JSObject* WrapObject(JSContext *cx, JSObject *scope,
+  virtual JSObject* WrapObject(JSContext *cx, XPCWrappedNativeScope *scope,
                                bool *triedToWrap);
 
   nsISupports* GetParentObject()

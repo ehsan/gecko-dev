@@ -95,10 +95,12 @@ public class GeckoInputConnection
     private static int mIMEState;
     private static String mIMETypeHint;
     private static String mIMEActionHint;
+    private static boolean mIMELandscapeFS;
 
     // Is a composition active?
     private boolean mComposing;
     private int mCompositionStart = -1;
+    private KeyListener mKeyListener;
     private Editable mEditable;
     private Editable.Factory mEditableFactory;
     private boolean mBatchMode;
@@ -709,6 +711,7 @@ public class GeckoInputConnection
         outAttrs.inputType = InputType.TYPE_CLASS_TEXT;
         outAttrs.imeOptions = EditorInfo.IME_ACTION_NONE;
         outAttrs.actionLabel = null;
+        mKeyListener = TextKeyListener.getInstance();
 
         if (mIMEState == IME_STATE_PASSWORD)
             outAttrs.inputType |= InputType.TYPE_TEXT_VARIATION_PASSWORD;
@@ -747,8 +750,8 @@ public class GeckoInputConnection
         else if (mIMEActionHint != null && mIMEActionHint.length() != 0)
             outAttrs.actionLabel = mIMEActionHint;
 
-        outAttrs.imeOptions |= EditorInfo.IME_FLAG_NO_EXTRACT_UI
-                               | EditorInfo.IME_FLAG_NO_FULLSCREEN;
+        if (mIMELandscapeFS == false)
+            outAttrs.imeOptions |= EditorInfo.IME_FLAG_NO_EXTRACT_UI;
 
         reset();
         return this;
@@ -803,8 +806,7 @@ public class GeckoInputConnection
             // Let active IME process pre-IME key events
             return false;
 
-        View view = GeckoApp.mAppContext.getLayerController().getView();
-        KeyListener keyListener = TextKeyListener.getInstance();
+        View v = GeckoApp.mAppContext.getLayerController().getView();
 
         // KeyListener returns true if it handled the event for us.
         if (mIMEState == IME_STATE_DISABLED ||
@@ -812,7 +814,7 @@ public class GeckoInputConnection
                 keyCode == KeyEvent.KEYCODE_DEL ||
                 keyCode == KeyEvent.KEYCODE_TAB ||
                 (event.getFlags() & KeyEvent.FLAG_SOFT_KEYBOARD) != 0 ||
-                !keyListener.onKeyDown(view, mEditable, keyCode, event)) {
+                !mKeyListener.onKeyDown(v, mEditable, keyCode, event)) {
             // Make sure selection in Gecko is up-to-date
             final Editable content = getEditable();
             clampSelection();
@@ -850,17 +852,14 @@ public class GeckoInputConnection
             // Let active IME process pre-IME key events
             return false;
 
-        View view = GeckoApp.mAppContext.getLayerController().getView();
-        KeyListener keyListener = TextKeyListener.getInstance();
+        View v = GeckoApp.mAppContext.getLayerController().getView();
 
         if (mIMEState == IME_STATE_DISABLED ||
             keyCode == KeyEvent.KEYCODE_ENTER ||
             keyCode == KeyEvent.KEYCODE_DEL ||
             (event.getFlags() & KeyEvent.FLAG_SOFT_KEYBOARD) != 0 ||
-            !keyListener.onKeyUp(view, mEditable, keyCode, event)) {
+            !mKeyListener.onKeyUp(v, mEditable, keyCode, event))
             GeckoAppShell.sendEventToGecko(GeckoEvent.createKeyEvent(event));
-        }
-
         return true;
     }
 
@@ -930,7 +929,8 @@ public class GeckoInputConnection
         }
     }
 
-    public void notifyIMEEnabled(int state, String typeHint, String actionHint) {
+    public void notifyIMEEnabled(int state, String typeHint,
+                                 String actionHint, boolean landscapeFS) {
         View v = GeckoApp.mAppContext.getLayerController().getView();
 
         if (v == null)
@@ -941,6 +941,7 @@ public class GeckoInputConnection
         mIMEState = state;
         mIMETypeHint = typeHint;
         mIMEActionHint = actionHint;
+        mIMELandscapeFS = landscapeFS;
         IMEStateUpdater.enableIME();
     }
 

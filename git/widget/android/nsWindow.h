@@ -47,21 +47,12 @@
 #include "nsAccessible.h"
 #endif
 
-#ifdef MOZ_JAVA_COMPOSITOR
-#include "AndroidJavaWrappers.h"
-#include "Layers.h"
-#endif
-
 class gfxASurface;
 class nsIdleService;
 
 namespace mozilla {
     class AndroidGeckoEvent;
     class AndroidKeyEvent;
-
-    namespace layers {
-        class CompositorParent;
-    }
 }
 
 class nsWindow :
@@ -177,6 +168,7 @@ public:
                                    LayersBackend aBackendHint = LayerManager::LAYERS_NONE, 
                                    LayerManagerPersistence aPersistence = LAYER_MANAGER_CURRENT, 
                                    bool* aAllowRetaining = nsnull);
+    gfxASurface* GetThebesSurface();
 
     NS_IMETHOD ReparentNativeWidget(nsIWidget* aNewParent);
 
@@ -185,14 +177,8 @@ public:
 #endif
 
 #ifdef MOZ_JAVA_COMPOSITOR
-    virtual void DrawWindowUnderlay(LayerManager* aManager, nsIntRect aRect);
-    virtual void DrawWindowOverlay(LayerManager* aManager, nsIntRect aRect);
-
-    static void SetCompositorParent(mozilla::layers::CompositorParent* aCompositorParent,
-                                    ::base::Thread* aCompositorThread);
-    static void ScheduleComposite();
-    static void SchedulePauseComposition();
-    static void ScheduleResumeComposition();
+    static void BindToTexture();
+    static bool HasDirectTexture();
 #endif
 
 protected:
@@ -260,13 +246,6 @@ private:
      */
     nsAccessible *DispatchAccessibleEvent();
 #endif // ACCESSIBILITY
-
-#ifdef MOZ_JAVA_COMPOSITOR
-    mozilla::AndroidLayerRendererFrame mLayerRendererFrame;
-
-    static nsRefPtr<mozilla::layers::CompositorParent> sCompositorParent;
-    static base::Thread *sCompositorThread;
-#endif
 };
 
 #endif /* NSWINDOW_H_ */

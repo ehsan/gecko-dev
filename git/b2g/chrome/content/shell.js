@@ -65,8 +65,7 @@ function startupHttpd(baseDir, port) {
 // XXX never grant 'content-camera' to non-gaia apps
 function addPermissions(urls) {
   let permissions = [
-    'indexedDB', 'indexedDB-unlimited', 'webapps-manage', 'offline-app',
-    'content-camera', 'webcontacts-manage', 'wifi-manage'
+    'indexedDB', 'indexedDB-unlimited', 'webapps-manage', 'offline-app', 'content-camera', 'webcontacts-manage'
   ];
   urls.forEach(function(url) {
     let uri = Services.io.newURI(url, null, null);

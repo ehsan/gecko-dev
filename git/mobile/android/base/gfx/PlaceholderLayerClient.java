@@ -37,15 +37,24 @@
 
 package org.mozilla.gecko.gfx;
 
+import org.mozilla.gecko.gfx.BufferedCairoImage;
+import org.mozilla.gecko.gfx.CairoUtils;
+import org.mozilla.gecko.gfx.FloatSize;
+import org.mozilla.gecko.gfx.LayerClient;
+import org.mozilla.gecko.gfx.PointUtils;
+import org.mozilla.gecko.gfx.SingleTileLayer;
 import org.mozilla.gecko.GeckoApp;
 import org.mozilla.gecko.GeckoAppShell;
+import android.content.Context;
 import android.graphics.Bitmap;
 import android.graphics.BitmapFactory;
-import android.graphics.Point;
-import android.graphics.Rect;
+import android.graphics.PointF;
+import android.graphics.RectF;
+import android.os.Environment;
 import android.util.Log;
 import org.json.JSONException;
 import org.json.JSONObject;
+import java.io.File;
 import java.io.ByteArrayInputStream;
 import java.nio.ByteBuffer;
 
@@ -53,23 +62,22 @@ import java.nio.ByteBuffer;
  * A stand-in for Gecko that renders cached content of the previous page. We use this until Gecko
  * is up, then we hand off control to it.
  */
-public class PlaceholderLayerClient {
+public class PlaceholderLayerClient extends LayerClient {
     private static final String LOGTAG = "PlaceholderLayerClient";
 
-    private final LayerController mLayerController;
-
+    private Context mContext;
     private ViewportMetrics mViewport;
     private boolean mViewportUnknown;
     private int mWidth, mHeight, mFormat;
     private ByteBuffer mBuffer;
 
-    public PlaceholderLayerClient(LayerController controller, String lastViewport) {
-        mLayerController = controller;
-
+    private PlaceholderLayerClient(Context context) {
+        mContext = context;
+        String viewport = GeckoApp.mAppContext.getLastViewport();
         mViewportUnknown = true;
-        if (lastViewport != null) {
+        if (viewport != null) {
             try {
-                JSONObject viewportObject = new JSONObject(lastViewport);
+                JSONObject viewportObject = new JSONObject(viewport);
                 mViewport = new ViewportMetrics(viewportObject);
                 mViewportUnknown = false;
             } catch (JSONException e) {
@@ -80,24 +88,10 @@ public class PlaceholderLayerClient {
             mViewport = new ViewportMetrics();
         }
         loadScreenshot();
+    }
 
-
-        if (mViewportUnknown)
-            mViewport.setViewport(mLayerController.getViewport());
-        mLayerController.setViewportMetrics(mViewport);
-
-        BufferedCairoImage image = new BufferedCairoImage(mBuffer, mWidth, mHeight, mFormat);
-        SingleTileLayer tileLayer = new SingleTileLayer(image);
-
-        tileLayer.beginTransaction();   // calling thread irrelevant; nobody else has a ref to tileLayer yet
-        try {
-            Point origin = PointUtils.round(mViewport.getOrigin());
-            tileLayer.setPosition(new Rect(origin.x, origin.y, origin.x + mWidth, origin.y + mHeight));
-        } finally {
-            tileLayer.endTransaction();
-        }
-
-        mLayerController.setRoot(tileLayer);
+    public static PlaceholderLayerClient createInstance(Context context) {
+        return new PlaceholderLayerClient(context);
     }
 
     public void destroy() {
@@ -110,7 +104,6 @@ public class PlaceholderLayerClient {
     boolean loadScreenshot() {
         if (GeckoApp.mAppContext.mLastScreen == null)
             return false;
-
         Bitmap bitmap = BitmapFactory.decodeStream(new ByteArrayInputStream(GeckoApp.mAppContext.mLastScreen));
         if (bitmap == null)
             return false;
@@ -128,9 +121,35 @@ public class PlaceholderLayerClient {
 
         if (mViewportUnknown) {
             mViewport.setPageSize(new FloatSize(mWidth, mHeight));
-            mLayerController.setPageSize(mViewport.getPageSize());
+            if (getLayerController() != null)
+                getLayerController().setPageSize(mViewport.getPageSize());
         }
 
         return true;
+    }
+
+    @Override
+    public void geometryChanged() { /* no-op */ }
+    @Override
+    public void viewportSizeChanged() { /* no-op */ }
+    @Override
+    public void render() { /* no-op */ }
+
+    @Override
+    public void setLayerController(LayerController layerController) {
+        super.setLayerController(layerController);
+
+        if (mViewportUnknown)
+            mViewport.setViewport(layerController.getViewport());
+        layerController.setViewportMetrics(mViewport);
+
+        BufferedCairoImage image = new BufferedCairoImage(mBuffer, mWidth, mHeight, mFormat);
+        SingleTileLayer tileLayer = new SingleTileLayer(image);
+
+        beginTransaction(tileLayer);
+        tileLayer.setOrigin(PointUtils.round(mViewport.getDisplayportOrigin()));
+        endTransaction(tileLayer);
+
+        layerController.setRoot(tileLayer);
     }
 }

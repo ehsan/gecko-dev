@@ -129,7 +129,7 @@ using mozilla::dom::DOMRequestService;
 
 #ifdef MOZ_B2G_RIL
 #include "SystemWorkerManager.h"
-using mozilla::dom::gonk::SystemWorkerManager;
+using mozilla::dom::telephony::SystemWorkerManager;
 #define SYSTEMWORKERMANAGER_CID \
   {0xd53b6524, 0x6ac3, 0x42b0, {0xae, 0xca, 0x62, 0xb3, 0xc4, 0xe5, 0x2b, 0x04}}
 #define SYSTEMWORKERMANAGER_CONTRACTID \
@@ -138,7 +138,7 @@ using mozilla::dom::gonk::SystemWorkerManager;
 
 #ifdef MOZ_WIDGET_GONK
 #include "AudioManager.h"
-using mozilla::dom::gonk::AudioManager;
+using mozilla::dom::telephony::AudioManager;
 #endif
 
 // Editor stuff

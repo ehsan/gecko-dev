@@ -101,7 +101,8 @@ NS_INTERFACE_MAP_END
 
 
 JSObject*
-DOMSVGNumberList::WrapObject(JSContext *cx, JSObject *scope, bool *triedToWrap)
+DOMSVGNumberList::WrapObject(JSContext *cx, XPCWrappedNativeScope *scope,
+                             bool *triedToWrap)
 {
   return mozilla::dom::binding::SVGNumberList::create(cx, scope, this,
                                                       triedToWrap);

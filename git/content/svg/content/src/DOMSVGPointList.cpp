@@ -132,7 +132,8 @@ DOMSVGPointList::~DOMSVGPointList()
 }
 
 JSObject*
-DOMSVGPointList::WrapObject(JSContext *cx, JSObject *scope, bool *triedToWrap)
+DOMSVGPointList::WrapObject(JSContext *cx, XPCWrappedNativeScope *scope,
+                            bool *triedToWrap)
 {
   return mozilla::dom::binding::SVGPointList::create(cx, scope, this,
                                                      triedToWrap);

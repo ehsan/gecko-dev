@@ -309,7 +309,8 @@ nsDOMTokenList::ToString(nsAString& aResult)
 }
 
 JSObject*
-nsDOMTokenList::WrapObject(JSContext *cx, JSObject *scope, bool *triedToWrap)
+nsDOMTokenList::WrapObject(JSContext *cx, XPCWrappedNativeScope *scope,
+                           bool *triedToWrap)
 {
   return mozilla::dom::binding::DOMTokenList::create(cx, scope, this,
                                                      triedToWrap);

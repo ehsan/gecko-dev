@@ -149,7 +149,7 @@ public:
     SetIsProxy();
   }
 
-  virtual JSObject* WrapObject(JSContext *cx, JSObject *scope,
+  virtual JSObject* WrapObject(JSContext *cx, XPCWrappedNativeScope *scope,
                                bool *triedToWrap)
   {
     return mozilla::dom::binding::TouchList::create(cx, scope, this,

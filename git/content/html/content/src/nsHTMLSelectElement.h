@@ -76,7 +76,7 @@ public:
 
   NS_DECL_CYCLE_COLLECTING_ISUPPORTS
 
-  virtual JSObject* WrapObject(JSContext *cx, JSObject *scope,
+  virtual JSObject* WrapObject(JSContext *cx, XPCWrappedNativeScope *scope,
                                bool *triedToWrap);
 
   // nsIDOMHTMLOptionsCollection interface

@@ -1617,7 +1617,11 @@ nsAccessible::State()
       state |= states::HORIZONTAL;
     }
   }
-
+  
+  // If we are editable, force readonly bit off
+  if (state & states::EDITABLE)
+    state &= ~states::READONLY;
+ 
   return state;
 }
 
@@ -1664,6 +1668,7 @@ nsAccessible::ApplyARIAState(PRUint64* aState)
   if (!mRoleMapEntry)
     return;
 
+  // Note: the readonly bitflag will be overridden later if content is editable
   *aState |= mRoleMapEntry->state;
   if (nsStateMapEntry::MapToStates(mContent, aState,
                                    mRoleMapEntry->attributeMap1) &&
@@ -1672,6 +1677,7 @@ nsAccessible::ApplyARIAState(PRUint64* aState)
     nsStateMapEntry::MapToStates(mContent, aState,
                                  mRoleMapEntry->attributeMap3);
   }
+
 }
 
 // Not implemented by this class

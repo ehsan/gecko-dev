@@ -290,11 +290,9 @@ nsFontVariantTextRunFactory::RebuildTextRun(nsTransformedTextRun* aTextRun,
         isLowercase = runIsLowercase;
       } else {
         if (styles[i]->GetStyleFont()->mFont.variant == NS_STYLE_FONT_VARIANT_SMALL_CAPS) {
-          PRUint32 ch = str[i];
-          if (NS_IS_HIGH_SURROGATE(ch) && i < length - 1 && NS_IS_LOW_SURROGATE(str[i + 1])) {
-            ch = SURROGATE_TO_UCS4(ch, str[i + 1]);
-          }
-          PRUint32 ch2 = ToUpperCase(ch);
+          PRUnichar ch = str[i];
+          PRUnichar ch2;
+          ch2 = ToUpperCase(ch);
           isLowercase = ch != ch2 || ch == SZLIG;
         } else {
           // Don't transform the character! I.e., pretend that it's not lowercase
@@ -359,7 +357,7 @@ nsCaseTransformTextRunFactory::RebuildTextRun(nsTransformedTextRun* aTextRun,
 
   PRUint32 i;
   for (i = 0; i < length; ++i) {
-    PRUint32 ch = str[i];
+    PRUnichar ch = str[i];
 
     charsToMergeArray.AppendElement(false);
     styleArray.AppendElement(styles[i]);
@@ -368,10 +366,6 @@ nsCaseTransformTextRunFactory::RebuildTextRun(nsTransformedTextRun* aTextRun,
     PRUint8 style = mAllUppercase ? NS_STYLE_TEXT_TRANSFORM_UPPERCASE
       : styles[i]->GetStyleText()->mTextTransform;
     bool extraChar = false;
-
-    if (NS_IS_HIGH_SURROGATE(ch) && i < length - 1 && NS_IS_LOW_SURROGATE(str[i + 1])) {
-      ch = SURROGATE_TO_UCS4(ch, str[i + 1]);
-    }
 
     switch (style) {
     case NS_STYLE_TEXT_TRANSFORM_LOWERCASE:
@@ -401,17 +395,7 @@ nsCaseTransformTextRunFactory::RebuildTextRun(nsTransformedTextRun* aTextRun,
       break;
     }
 
-    if (IS_IN_BMP(ch)) {
-      convertedString.Append(ch);
-    } else {
-      convertedString.Append(H_SURROGATE(ch));
-      convertedString.Append(L_SURROGATE(ch));
-      i++;
-      charsToMergeArray.AppendElement(true);
-      styleArray.AppendElement(styles[i]);
-      canBreakBeforeArray.AppendElement(false);
-    }
-
+    convertedString.Append(ch);
     if (extraChar) {
       ++extraCharsCount;
       charsToMergeArray.AppendElement(true);
