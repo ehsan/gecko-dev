@@ -338,40 +338,70 @@ NS_InitXPCOM(nsIServiceManager* *result,
     return NS_InitXPCOM2(result, binDirectory, nullptr);
 }
 
-class ICUReporter MOZ_FINAL : public nsIMemoryReporter,
-                              public CountingAllocatorBase<ICUReporter>
+class ICUReporter MOZ_FINAL : public nsIMemoryReporter
 {
 public:
     NS_DECL_ISUPPORTS
 
+    ICUReporter()
+    {
+#ifdef DEBUG
+        // There must be only one instance of this class, due to |sAmount|
+        // being static.
+        static bool hasRun = false;
+        MOZ_ASSERT(!hasRun);
+        hasRun = true;
+#endif
+        sAmount = 0;
+    }
+
     static void* Alloc(const void*, size_t size)
     {
-        return CountingMalloc(size);
+        void* p = malloc(size);
+        sAmount += MallocSizeOfOnAlloc(p);
+        return p;
     }
 
     static void* Realloc(const void*, void* p, size_t size)
     {
-        return CountingRealloc(p, size);
+        sAmount -= MallocSizeOfOnFree(p);
+        void *pnew = realloc(p, size);
+        if (pnew) {
+            sAmount += MallocSizeOfOnAlloc(pnew);
+        } else {
+            // realloc failed;  undo the decrement from above
+            sAmount += MallocSizeOfOnAlloc(p);
+        }
+        return pnew;
     }
 
     static void Free(const void*, void* p)
     {
-        return CountingFree(p);
+        sAmount -= MallocSizeOfOnFree(p);
+        free(p);
     }
 
 private:
+    // |sAmount| can be (implicitly) accessed by multiple JSRuntimes, so it
+    // must be thread-safe.
+    static Atomic<size_t> sAmount;
+
+    MOZ_DEFINE_MALLOC_SIZE_OF(MallocSizeOf)
+    MOZ_DEFINE_MALLOC_SIZE_OF_ON_ALLOC(MallocSizeOfOnAlloc)
+    MOZ_DEFINE_MALLOC_SIZE_OF_ON_FREE(MallocSizeOfOnFree)
+
     NS_IMETHODIMP
     CollectReports(nsIHandleReportCallback* aHandleReport, nsISupports* aData)
     {
         return MOZ_COLLECT_REPORT(
-            "explicit/icu", KIND_HEAP, UNITS_BYTES, MemoryAllocated(),
+            "explicit/icu", KIND_HEAP, UNITS_BYTES, sAmount,
             "Memory used by ICU, a Unicode and globalization support library.");
     }
 };
 
 NS_IMPL_ISUPPORTS1(ICUReporter, nsIMemoryReporter)
 
-/* static */ template<> Atomic<size_t> CountingAllocatorBase<ICUReporter>::sAmount(0);
+/* static */ Atomic<size_t> ICUReporter::sAmount;
 
 EXPORT_XPCOM_API(nsresult)
 NS_InitXPCOM2(nsIServiceManager* *result,
