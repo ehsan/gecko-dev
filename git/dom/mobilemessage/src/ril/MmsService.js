@@ -1626,6 +1626,7 @@ MmsService.prototype = {
               "media": content.type,
               "params": params
             },
+            "content-length": content.size,
             "content-location": location,
             "content-id": attachment.id
           },
