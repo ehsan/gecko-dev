@@ -183,8 +183,10 @@ JS_BEGIN_EXTERN_C
  * TOK_RB       list        pn_head: list of pn_count array element exprs
  *                          [,,] holes are represented by TOK_COMMA nodes
  *                          pn_xflags: PN_ENDCOMMA if extra comma at end
- * TOK_RC       list        pn_head: list of pn_count TOK_COLON nodes where
- *                          each has pn_left: property id, pn_right: value
+ * TOK_RC       list        pn_head: list of pn_count binary TOK_COLON nodes
+ * TOK_COLON    binary      key-value pair in object initializer or
+ *                          destructuring lhs
+ *                          pn_left: property id, pn_right: value
  *                          var {x} = object destructuring shorthand shares
  *                          PN_NAME node for x on left and right of TOK_COLON
  *                          node in TOK_RC's list, has PNX_DESTRUCT flag
@@ -410,12 +412,11 @@ struct JSParseNode {
 #define PND_ASSIGNED    0x08            /* set if ever LHS of assignment */
 #define PND_TOPLEVEL    0x10            /* function at top of body or prog */
 #define PND_BLOCKCHILD  0x20            /* use or def is direct block child */
-#define PND_FORWARD     0x40            /* forward referenced definition */
+#define PND_GVAR        0x40            /* gvar binding, can't close over
+                                           because it could be deleted */
 #define PND_PLACEHOLDER 0x80            /* placeholder definition for lexdep */
 #define PND_FUNARG     0x100            /* downward or upward funarg usage */
 #define PND_BOUND      0x200            /* bound to a stack or global slot */
-#define PND_GVAR       0x400            /* gvar binding, can't close over
-                                           because it could be deleted */
 
 /* PN_LIST pn_xflags bits. */
 #define PNX_STRCAT      0x01            /* TOK_PLUS list has string term */
@@ -435,6 +436,7 @@ struct JSParseNode {
                                            2. the first child of function body
                                               is code evaluating destructuring
                                               arguments */
+#define PNX_HOLEY      0x400            /* array initialiser has holes */
 
     uintN frameLevel() const {
         JS_ASSERT(pn_arity == PN_FUNC || pn_arity == PN_NAME);
@@ -456,7 +458,6 @@ struct JSParseNode {
     bool isInitialized() const  { return test(PND_INITIALIZED); }
     bool isTopLevel() const     { return test(PND_TOPLEVEL); }
     bool isBlockChild() const   { return test(PND_BLOCKCHILD); }
-    bool isForward() const      { return test(PND_FORWARD); }
     bool isPlaceholder() const  { return test(PND_PLACEHOLDER); }
 
     /* Defined below, see after struct JSDefinition. */

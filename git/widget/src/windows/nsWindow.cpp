@@ -208,6 +208,25 @@ static gfxIntSize gSharedSurfaceSize;
 static PRBool gSoftKeyMenuBar = PR_FALSE;
 static PRBool gSoftKeyboardState = PR_FALSE;
 
+static void NotifySoftKbObservers() {
+  nsCOMPtr<nsIObserverService> observerService = do_GetService("@mozilla.org/observer-service;1");
+  if (observerService) {
+    SIPINFO sipInfo;
+    wchar_t rectBuf[256];
+    memset(&sipInfo, 0, sizeof(SIPINFO));
+    sipInfo.cbSize = sizeof(SIPINFO);
+    if (SipGetInfo(&sipInfo)) {
+      _snwprintf(rectBuf, 256, L"{\"left\": %d, \"top\": %d,"
+                 L" \"right\": %d, \"bottom\": %d}", 
+                 sipInfo.rcVisibleDesktop.left, 
+                 sipInfo.rcVisibleDesktop.top, 
+                 sipInfo.rcVisibleDesktop.right, 
+                 sipInfo.rcVisibleDesktop.bottom);
+      observerService->NotifyObservers(nsnull, "softkb-change", rectBuf);
+    }
+  }
+}
+
 static void ToggleSoftKB(PRBool show)
 {
   HWND hWndSIP = FindWindowW(L"SipWndClass", NULL );
@@ -218,7 +237,8 @@ static void ToggleSoftKB(PRBool show)
   if (hWndSIP)
     ShowWindow(hWndSIP, show ? SW_SHOW: SW_HIDE);
 
-  SHSipPreference(NULL, show ? SIP_UP: SIP_DOWN);
+  SipShowIM(show ? SIPF_ON : SIPF_OFF);
+  NotifySoftKbObservers();
 }
 
 static void CreateSoftKeyMenuBar(HWND wnd)
@@ -4829,6 +4849,10 @@ PRBool nsWindow::ProcessMessage(UINT msg, WPARAM &wParam, LPARAM &lParam,
 
     case WM_SETTINGCHANGE:
         getWheelInfo = PR_TRUE;
+#ifdef WINCE_WINDOWS_MOBILE
+        if (wParam == SPI_SETSIPINFO)
+          NotifySoftKbObservers();
+#endif
       break;
 
     case WM_PALETTECHANGED:
@@ -5197,13 +5221,18 @@ PRBool nsWindow::ProcessGestureMessage(WPARAM wParam, LPARAM lParam)
     event.button    = 0;
     event.time      = ::GetMessageTime();
 
+    PRBool endFeedback = PR_TRUE;
+    
     if (mGesture.PanDeltaToPixelScrollX(event)) {
       DispatchEvent(&event, status);
     }
+    mGesture.UpdatePanFeedbackX(mWnd, event, endFeedback);
+    
     if (mGesture.PanDeltaToPixelScrollY(event)) {
       DispatchEvent(&event, status);
     }
-
+    mGesture.UpdatePanFeedbackY(mWnd, event, endFeedback);
+    mGesture.PanFeedbackFinalize(mWnd, endFeedback);
     mGesture.CloseGestureInfoHandle((HGESTUREINFO)lParam);
 
     return PR_TRUE;
@@ -5356,6 +5385,7 @@ nsWindow::ProcessMessageForPlugin(const MSG &aMsg,
   aCallDefWndProc = PR_FALSE;
   PRBool fallBackToNonPluginProcess = PR_FALSE;
   PRBool eventDispatched = PR_FALSE;
+  PRBool dispatchPendingEvents = PR_TRUE;
   switch (aMsg.message) {
     case WM_INPUTLANGCHANGEREQUEST:
     case WM_INPUTLANGCHANGE:
@@ -5398,7 +5428,12 @@ nsWindow::ProcessMessageForPlugin(const MSG &aMsg,
     case WM_IME_NOTIFY:
     case WM_IME_REQUEST:
     case WM_IME_SELECT:
+      break;
+
     case WM_IME_SETCONTEXT:
+      // Don't synchronously dispatch when we receive WM_IME_SETCONTEXT
+      // because we get it during plugin destruction. (bug 491848)
+      dispatchPendingEvents = PR_FALSE;
       break;
 
     default:
@@ -5407,7 +5442,8 @@ nsWindow::ProcessMessageForPlugin(const MSG &aMsg,
 
   if (!eventDispatched)
     aCallDefWndProc = !DispatchPluginEvent(aMsg);
-  DispatchPendingEvents();
+  if (dispatchPendingEvents)
+    DispatchPendingEvents();
   return PR_TRUE;
 }
 
@@ -6917,7 +6953,10 @@ nsWindow::GetToggledKeyState(PRUint32 aKeyCode, PRBool* aLEDState)
 NS_IMETHODIMP
 nsWindow::OnIMEFocusChange(PRBool aFocus)
 {
-  return nsTextStore::OnFocusChange(aFocus, this, mIMEEnabled);
+  nsresult rv = nsTextStore::OnFocusChange(aFocus, this, mIMEEnabled);
+  if (rv == NS_ERROR_NOT_AVAILABLE)
+    rv = NS_OK; // TSF is not enabled, maybe.
+  return rv;
 }
 
 NS_IMETHODIMP
@@ -6984,24 +7023,17 @@ void nsWindow::StopFlashing()
 #endif
 }
 
-NS_IMETHODIMP
-nsWindow::GetLastInputEventTime(PRUint32& aTime)
+PRBool
+nsWindow::HasPendingInputEvent()
 {
-  WORD qstatus = HIWORD(GetQueueStatus(QS_INPUT));
-
   // If there is pending input or the user is currently
-  // moving the window then return the current time.
+  // moving the window then return true.
   // Note: When the user is moving the window WIN32 spins
   // a separate event loop and input events are not
   // reported to the application.
+  WORD qstatus = HIWORD(GetQueueStatus(QS_INPUT));
   nsToolkit* toolkit = (nsToolkit *)mToolkit;
-  if (qstatus || (toolkit && toolkit->UserIsMovingWindow())) {
-    gLastInputEventTime = PR_IntervalToMicroseconds(PR_IntervalNow());
-  }
-
-  aTime = gLastInputEventTime;
-
-  return NS_OK;
+  return qstatus || (toolkit && toolkit->UserIsMovingWindow());
 }
 
 //-------------------------------------------------------------------------

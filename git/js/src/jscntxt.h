@@ -142,22 +142,25 @@ struct JSTraceMonitor {
     jsval                   *reservedDoublePool;
     jsval                   *reservedDoublePoolPtr;
 
-    struct GlobalState globalStates[MONITOR_N_GLOBAL_STATES];
-    struct VMFragment* vmfragments[FRAGMENT_TABLE_SIZE];
-
-    /*
-     * If nonzero, do not flush the JIT cache after a deep bail.  That would
-     * free JITted code pages that we will later return to.  Instead, set
-     * the needFlush flag so that it can be flushed later.
-     */
-    uintN                   prohibitFlush;
-    JSPackedBool            needFlush;
+    struct GlobalState      globalStates[MONITOR_N_GLOBAL_STATES];
+    struct VMFragment*      vmfragments[FRAGMENT_TABLE_SIZE];
+    JSDHashTable            recordAttempts;
 
     /*
      * Maximum size of the code cache before we start flushing. 1/16 of this
      * size is used as threshold for the regular expression code cache.
      */
     uint32                  maxCodeCacheBytes;
+
+    /*
+     * If nonzero, do not flush the JIT cache after a deep bail. That would
+     * free JITted code pages that we will later return to. Instead, set the
+     * needFlush flag so that it can be flushed later.
+     *
+     * NB: needFlush and useReservedObjects are packed together.
+     */
+    uintN                   prohibitFlush;
+    JSPackedBool            needFlush;
 
     /*
      * reservedObjects is a linked list (via fslots[0]) of preallocated JSObjects.
@@ -235,11 +238,6 @@ struct JSThreadData {
     /* Property cache for faster call/get/set invocation. */
     JSPropertyCache     propertyCache;
 
-/*
- * N.B. JS_ON_TRACE(cx) is true if JIT code is on the stack in the current
- * thread, regardless of whether cx is the context in which that trace is
- * executing.  cx must be a context on the current thread.
- */
 #ifdef JS_TRACER
     /* Trace-tree JIT recorder/interpreter state. */
     JSTraceMonitor      traceMonitor;
@@ -260,7 +258,7 @@ struct JSThreadData {
  * that can be accessed without a global lock.
  */
 struct JSThread {
-    /* Linked list of all contexts active on this thread. */
+    /* Linked list of all contexts in use on this thread. */
     JSCList             contextList;
 
     /* Opaque thread-id, from NSPR's PR_GetCurrentThread(). */
@@ -275,6 +273,7 @@ struct JSThread {
     /* Indicates that the thread is waiting in ClaimTitle from jslock.cpp. */
     JSTitle             *titleToShare;
 
+    /* Factored out of JSThread for !JS_THREADSAFE embedding in JSRuntime. */
     JSThreadData        data;
 };
 
@@ -336,7 +335,7 @@ struct JSSetSlotRequest {
     JSObject            *obj;           /* object containing slot to set */
     JSObject            *pobj;          /* new proto or parent reference */
     uint16              slot;           /* which to set, proto or parent */
-    uint16              errnum;         /* JSMSG_NO_ERROR or error result */
+    JSPackedBool        cycle;          /* true if a cycle was detected */
     JSSetSlotRequest    *next;          /* next request in GC worklist */
 };
 
@@ -346,6 +345,20 @@ struct JSRuntime {
 
     /* Context create/destroy callback. */
     JSContextCallback   cxCallback;
+
+    /*
+     * Shape regenerated whenever a prototype implicated by an "add property"
+     * property cache fill and induced trace guard has a readonly property or a
+     * setter defined on it. This number proxies for the shapes of all objects
+     * along the prototype chain of all objects in the runtime on which such an
+     * add-property result has been cached/traced.
+     *
+     * See bug 492355 for more details.
+     *
+     * This comes early in JSRuntime to minimize the immediate format used by
+     * trace-JITted code that reads it.
+     */
+    uint32              protoHazardShape;
 
     /* Garbage collector state, used by jsgc.c. */
     JSGCChunkInfo       *gcChunkList;
@@ -1016,6 +1029,10 @@ struct JSContext {
      */
     InterpState         *interpState;
     VMSideExit          *bailExit;
+
+    /* Used when calling natives from trace to root the vp vector. */
+    uintN               nativeVpLen;
+    jsval               *nativeVp;
 #endif
 };
 

@@ -90,6 +90,15 @@ oggplay_callback_theora (OGGZ * oggz, ogg_packet * op, long serialno,
   int                     musec;
 #endif
 
+  if ( (granulepos > 0) && (common->last_granulepos > granulepos)) {
+    /* 
+     * the granule position is not monotonically increasing,
+     * something wrong with the page!
+     * skipping this page..... 
+     */
+    return 0;
+  }
+
   /*
    * always decode headers
    */
@@ -107,6 +116,11 @@ oggplay_callback_theora (OGGZ * oggz, ogg_packet * op, long serialno,
     decoder->uv_width = decoder->uv_stride = decoder->video_info.frame_width / 2;
     decoder->uv_height = decoder->video_info.frame_height / 2;
     if (--(decoder->remaining_header_packets) == 0) {
+      /* Ensure the offsets do not push the viewable area outside of the decoded frame. */
+      if (((decoder->video_info.height - decoder->video_info.offset_y)<decoder->video_info.frame_height)||
+          ((decoder->video_info.width - decoder->video_info.offset_x)<decoder->video_info.frame_width))
+          return -1;
+          
       theora_decode_init(&(decoder->video_handle), &(decoder->video_info));
     }
     return 0;
@@ -155,10 +169,19 @@ oggplay_callback_theora (OGGZ * oggz, ogg_packet * op, long serialno,
 #endif
 
   if (granulepos != -1) {
+    /* 
+     * save last granule position in order to be able to validate
+     * that it's monotonically increasing
+     */
+    common->last_granulepos = granulepos;
+
+    /* calculate the frame number */
     granuleshift = oggz_get_granuleshift(oggz, serialno);
     frame = (granulepos >> granuleshift);
     frame += (granulepos & ((1 << granuleshift) - 1));
-    common->current_loc = frame * common->granuleperiod;
+    
+    /* calculate the current location in the stream */
+    common->current_loc = frame * common->granuleperiod;    
   } else {
     common->current_loc = -1;
   }
@@ -508,6 +531,7 @@ OggPlayCallbackFunctions callbacks[] = {
   {NULL, NULL, NULL, sizeof(OggPlayDecode)}, /* CELT */
   {oggplay_init_kate, oggplay_callback_kate, oggplay_shutdown_kate,
         sizeof(OggPlayKateDecode)},          /* KATE */
+  {NULL, NULL, NULL, sizeof(OggPlayDecode)}, /* DIRAC */
   {NULL, NULL, NULL, sizeof(OggPlayDecode)}  /* UNKNOWN */
 };
 
@@ -530,7 +554,7 @@ oggplay_initialise_decoder(OggPlay *me, int content_type, int serialno) {
   decoder->content_type = content_type;
   decoder->content_type_name =
           oggz_stream_get_content_type (me->oggz, serialno);
-  decoder->active = 1;
+  decoder->active = 0;
   decoder->final_granulepos = -1;
   decoder->player = me;
   decoder->decoded_type = OGGPLAY_TYPE_UNKNOWN;

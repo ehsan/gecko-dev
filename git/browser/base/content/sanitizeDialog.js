@@ -76,7 +76,6 @@ var gSanitizePromptDialog = {
     // This is used by selectByTimespan() to determine if the window has loaded.
     this._inited = true;
 
-    this.checkPrefs();
     var s = new Sanitizer();
     s.prefDomain = "privacy.cpd.";
     for (let i = 0; i < this.sanitizePreferences.childNodes.length; ++i) {
@@ -156,41 +155,13 @@ var gSanitizePromptDialog = {
 
     this._warningIsInited = true;
 
-    // Get the number of items in history and the oldest item.
-    var histServ = Cc["@mozilla.org/browser/nav-history-service;1"].
-                   getService(Ci.nsINavHistoryService);
-    var query = histServ.getNewQuery();
-    var opts = histServ.getNewQueryOptions();
-    opts.sortingMode = opts.SORT_BY_DATE_ASCENDING;
-    opts.queryType = opts.QUERY_TYPE_HISTORY;
-    var result = histServ.executeQuery(query, opts);
-    result.root.containerOpen = true;
-    var numItems = result.root.childCount;
-    var oldestTime = numItems > 0 ? result.root.getChild(0).time : null;
-    result.root.containerOpen = false;
+    // If the date and time-aware locale warning string is ever used again,
+    // initialize it here.  Currently we use the no-visits warning string,
+    // which does not include date and time.  See bug 480169 comment 48.
 
     var warningDesc = document.getElementById("sanitizeEverythingWarning");
     warningDesc.textContent =
       this.bundleBrowser.getString("sanitizeEverythingNoVisitsWarning");
-  },
-
-  checkPrefs : function ()
-  {
-    var prefService = Cc["@mozilla.org/preferences-service;1"].
-                      getService(Ci.nsIPrefService);
-    var cpdBranch = prefService.getBranch("privacy.cpd.");
-
-    // If we don't have defaults for the privacy.cpd branch,
-    // clone the privacy.item (clear at shutdown) defaults
-    if (cpdBranch.prefHasUserValue("history"))
-      return;
-
-    var itemBranch = prefService.getBranch("privacy.item.");
-    var itemCount = { value: 0 };
-    var itemArray = itemBranch.getChildList("", itemCount);
-    itemArray.forEach(function (name) {
-      cpdBranch.setBoolPref(name, itemBranch.getBoolPref(name));
-    });
   },
 
   /**
@@ -199,22 +170,15 @@ var gSanitizePromptDialog = {
    */
   onReadGeneric: function ()
   {
-    // We don't update the separate history and downloads prefs until
-    // dialogaccept.  So we need to handle the checked state of the combined
-    // history-downloads checkbox specially.
-    var combinedCb = document.getElementById("history-downloads-checkbox");
-    var found = combinedCb.checked;
+    var found = false;
 
     // Find any other pref that's checked and enabled.
     var i = 0;
     while (!found && i < this.sanitizePreferences.childNodes.length) {
       var preference = this.sanitizePreferences.childNodes[i];
 
-      // We took into account history and downloads above; don't do it again.
       found = !!preference.value &&
-              !preference.disabled &&
-              preference.id !== "privacy.cpd.history" &&
-              preference.id !== "privacy.cpd.downloads";
+              !preference.disabled;
       i++;
     }
 
@@ -223,23 +187,6 @@ var gSanitizePromptDialog = {
     }
     catch (e) { }
     return undefined;
-  },
-
-  /**
-   * Called when the values of the history and downloads preference elements are
-   * synced from the actual prefs.  Sets the state of the combined history-
-   * downloads checkbox appropriately.
-   */
-  onReadHistoryOrDownloads: function ()
-  {
-    // Call the common function that will update the accept button
-    this.onReadGeneric();
-
-    var historyPref = document.getElementById("privacy.cpd.history");
-    var downloadsPref = document.getElementById("privacy.cpd.downloads");
-    var combinedCb = document.getElementById("history-downloads-checkbox");
-    combinedCb.disabled = historyPref.disabled && downloadsPref.disabled;
-    combinedCb.checked = historyPref.value || downloadsPref.value;
   },
 
   /**
@@ -255,14 +202,9 @@ var gSanitizePromptDialog = {
     var tsPref = document.getElementById("privacy.sanitize.timeSpan");
     Sanitizer.prefs.setIntPref("timeSpan", this.selectedTimespan);
 
-    // First set the values of the separate history and downloads pref
-    // elements based on the combined history-downloads checkbox.
-    var combinedCbChecked =
-      document.getElementById("history-downloads-checkbox").checked;
-    var historyPref = document.getElementById("privacy.cpd.history");
-    historyPref.value = !historyPref.disabled && combinedCbChecked;
-    var downloadsPref = document.getElementById("privacy.cpd.downloads");
-    downloadsPref.value = !downloadsPref.disabled && combinedCbChecked;
+    // Keep the pref for the download history in sync with the history pref.
+    document.getElementById("privacy.cpd.downloads").value =
+      document.getElementById("privacy.cpd.history").value;
 
     // Now manually set the prefs from their corresponding preference
     // elements.
@@ -284,14 +226,14 @@ var gSanitizePromptDialog = {
     // Showing item list
     if (itemList.collapsed) {
       expanderButton.className = "expander-up";
-      itemList.collapsed = false;
+      itemList.setAttribute("collapsed", "false");
       window.resizeBy(0, itemList.boxObject.height);
     }
     // Hiding item list
     else {
       expanderButton.className = "expander-down";
       window.resizeBy(0, -itemList.boxObject.height);
-      itemList.collapsed = true;
+      itemList.setAttribute("collapsed", "true");
     }
   }
 
@@ -316,7 +258,6 @@ var gSanitizePromptDialog = {
     // This is used by selectByTimespan() to determine if the window has loaded.
     this._inited = true;
 
-    this.checkPrefs();
     var s = new Sanitizer();
     s.prefDomain = "privacy.cpd.";
     for (let i = 0; i < this.sanitizePreferences.childNodes.length; ++i) {

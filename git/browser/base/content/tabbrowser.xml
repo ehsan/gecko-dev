@@ -31,6 +31,7 @@
    -   Michael Ventnor <ventnor.bugzilla@yahoo.com.au>
    -   Mark Pilgrim <pilgrim@gmail.com>
    -   Dão Gottwald <dao@mozilla.com>
+   -   Paul O’Shannessy <paul@oshannessy.com>
    -
    - Alternatively, the contents of this file may be used under the terms of
    - either the GNU General Public License Version 2 or later (the "GPL"), or
@@ -1487,7 +1488,7 @@
         <parameter name="aTab"/>
         <body>
           <![CDATA[
-            this._endRemoveTab(this._beginRemoveTab(aTab, true, null, true));
+            this._endRemoveTab(this._beginRemoveTab(aTab, false, null, true));
           ]]>
         </body>
       </method>
@@ -1501,7 +1502,7 @@
       <!-- Returns everything that _endRemoveTab needs in an array. -->
       <method name="_beginRemoveTab">
         <parameter name="aTab"/>
-        <parameter name="aFireBeforeUnload"/>
+        <parameter name="aTabWillBeMoved"/>
         <parameter name="aCloseWindowWithLastTab"/>
         <parameter name="aCloseWindowFastpath"/>
         <body>
@@ -1511,7 +1512,7 @@
 
             var browser = this.getBrowserForTab(aTab);
 
-            if (aFireBeforeUnload) {
+            if (!aTabWillBeMoved) {
               let ds = browser.docShell;
               if (ds.contentViewer && !ds.contentViewer.permitUnload())
                 return null;
@@ -1550,8 +1551,8 @@
             // Dispatch a notification.
             // We dispatch it before any teardown so that event listeners can
             // inspect the tab that's about to close.
-            var evt = document.createEvent("Events");
-            evt.initEvent("TabClose", true, false);
+            var evt = document.createEvent("UIEvent");
+            evt.initUIEvent("TabClose", true, false, window, aTabWillBeMoved ? 1 : 0);
             aTab.dispatchEvent(evt);
 
             // Remove the tab's filter and progress listener.
@@ -1716,7 +1717,7 @@
             // First, start teardown of the other browser.  Make sure to not
             // fire the beforeunload event in the process.  Close the other
             // window if this was its last tab.
-            var endRemoveArgs = remoteBrowser._beginRemoveTab(aOtherTab, false, true);
+            var endRemoveArgs = remoteBrowser._beginRemoveTab(aOtherTab, true, true);
 
             // Unhook our progress listener
             var ourIndex = aOurTab._tPos;
@@ -2259,15 +2260,22 @@
             if (dt.mozUserCancelled || dt.dropEffect != "none")
               return;
 
-            // Deatch happens only if the tab was dropped below the tabbar.
-            // That is applied even if it was dropped outside the browser
-            // window.
-            var bo = this.mTabContainer.mTabstrip.boxObject;
-            var tabbarEndScreenY = bo.screenY + bo.height;
-            if (aEvent.screenY > tabbarEndScreenY) {
-              var draggedTab = dt.mozGetDataAt(TAB_DROP_TYPE, 0);
-              this.replaceTabWithWindow(draggedTab);
+            // Disable detach within the browser toolbox
+            var eX = aEvent.screenX;
+            var wX = window.screenX;
+            // check if the drop point is horizontally within the window
+            if (eX > wX && eX < (wX + window.outerWidth)) {
+              var bo = this.mTabContainer.mTabstrip.boxObject;
+              // also avoid detaching if the the tab was dropped too close to
+              // the tabbar (half a tab)
+              var endScreenY = bo.screenY + 1.5 * bo.height;
+              var eY = aEvent.screenY;
+              if (eY < endScreenY && eY > window.screenY)
+                return;
             }
+
+            var draggedTab = dt.mozGetDataAt(TAB_DROP_TYPE, 0);
+            this.replaceTabWithWindow(draggedTab);
             aEvent.stopPropagation();
           ]]>
         </body>
@@ -2280,7 +2288,7 @@
         <body>
           <![CDATA[
             if (this.mTabs.length == 1)
-              return;
+              return null;
 
             // tell a new window to take the "dropped" tab
             var ww = Cc["@mozilla.org/embedcomp/window-watcher;1"].
@@ -3399,6 +3407,10 @@
           this.clientTop; // just using this to flush style updates
         }
       ]]>
+      </handler>
+      <handler event="mousedown" button="1">
+        this.style.MozUserFocus = 'ignore';
+        this.clientTop;
       </handler>
       <handler event="mousedown" button="2">
         this.style.MozUserFocus = 'ignore';

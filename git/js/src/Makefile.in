@@ -54,7 +54,9 @@ DIRS += editline
 endif
 
 # editline needs to get built before the shell
+ifndef JS_DISABLE_SHELL
 DIRS += shell
+endif
 
 MODULE		    = js
 LIBRARY_NAME	    = mozjs
@@ -149,8 +151,8 @@ CPPSRCS		= \
 		$(NULL)
 
 ifdef HAVE_DTRACE
-CSRCS 		+= \
-		jsdtracef.c
+CPPSRCS 	+= \
+		jsdtracef.cpp
 endif
 
 INSTALLED_HEADERS = \
@@ -210,7 +212,6 @@ ifdef ENABLE_JIT
 VPATH		+= $(srcdir)/nanojit
 
 INSTALLED_HEADERS += \
-		builtins.tbl    \
 		jsbuiltins.h    \
 		Assembler.h     \
 		LIR.h		\
@@ -325,7 +326,7 @@ endif
 default::
 
 ifneq (,$(CROSS_COMPILE)$(filter-out WINNT OS2,$(OS_ARCH)))
-ifneq ($(OS_ARCH), WINCE)
+ifneq (,$(filter-out SYMBIAN WINCE,$(OS_ARCH)))
 # nsinstall doesn't get built until we enter config/ in the exports phase,
 # so we'll have to manually ensure it gets built here if we want to use
 # $(EXPORTS)

@@ -2,7 +2,7 @@
 <html>
 <head>
   <title>Media test: ended and replaying</title>
-  <script type="text/javascript" src="/MochiKit/MochiKit.js"></script>
+  <script type="text/javascript" src="/MochiKit/packed.js"></script>
   <script type="text/javascript" src="/tests/SimpleTest/SimpleTest.js"></script>
   <link rel="stylesheet" type="text/css" href="/tests/SimpleTest/test.css" />
 </head>
@@ -39,8 +39,9 @@ function playbackEnded() {
   ok(v.currentTime >= 3.9 && v.currentTime <= 4.0,
      "Checking currentTime at end: " + v.currentTime);
   ok(v.ended, "Checking playback has ended");
+  ok(playingCount > 0, "Expect at least one playing event");
+  playingCount = 0;
   if (endCount < 2) {
-    ok(playingCount > 0, "Expect at least one playing event");
     v.play();
   } else {
     ok(endCount == 2, "Check playback after ended event");

@@ -84,6 +84,7 @@
 #include "nsDOMThreadService.h"
 #include "nsHTMLDNSPrefetch.h"
 #include "nsHtml5Module.h"
+#include "nsCrossSiteListenerProxy.h"
 
 #ifdef MOZ_XUL
 #include "nsXULPopupManager.h"
@@ -270,6 +271,8 @@ nsLayoutStatics::Initialize()
 
   nsHtml5Module::InitializeStatics();
   
+  nsCrossSiteListenerProxy::Startup();
+
   return NS_OK;
 }
 

@@ -72,6 +72,12 @@ static UINT sWM_MSIME_MOUSE = 0; // mouse message for MSIME 98/2000
 #endif
 
 PRPackedBool nsIMM32Handler::sIsComposingOnPlugin = PR_FALSE;
+PRPackedBool nsIMM32Handler::sIsStatusChanged = PR_FALSE;
+
+#ifndef WINCE
+UINT nsIMM32Handler::sCodePage = 0;
+DWORD nsIMM32Handler::sIMEProperty = 0;
+#endif
 
 /* static */ void
 nsIMM32Handler::EnsureHandlerInstance()
@@ -84,11 +90,18 @@ nsIMM32Handler::EnsureHandlerInstance()
 /* static */ void
 nsIMM32Handler::Initialize()
 {
+#ifdef PR_LOGGING
+  if (!gIMM32Log)
+    gIMM32Log = PR_NewLogModule("nsIMM32HandlerWidgets");
+#endif
+
 #ifdef ENABLE_IME_MOUSE_HANDLING
   if (!sWM_MSIME_MOUSE) {
     sWM_MSIME_MOUSE = ::RegisterWindowMessage(RWM_MOUSE);
   }
 #endif
+
+  InitKeyboardLayout(::GetKeyboardLayout(0));
 }
 
 /* static */ void
@@ -105,12 +118,6 @@ nsIMM32Handler::IsComposing(nsWindow* aWindow)
 {
   return aWindow->PluginHasFocus() ? !!sIsComposingOnPlugin :
            gIMM32Handler && gIMM32Handler->mIsComposing;
-}
-
-/* static */ PRBool
-nsIMM32Handler::IsStatusChanged()
-{
-  return gIMM32Handler && gIMM32Handler->mIsStatusChanged;
 }
 
 /* static */ PRBool
@@ -148,12 +155,46 @@ nsIMM32Handler::IsDoingKakuteiUndo(HWND aWnd)
          imeCompositionMsg.time <= charMsg.time;
 }
 
-/* static */ void
-nsIMM32Handler::NotifyEndStatusChange()
+/* static */ PRBool
+nsIMM32Handler::ShouldDrawCompositionStringOurselves()
 {
-  if (gIMM32Handler)
-    gIMM32Handler->mIsStatusChanged = PR_FALSE;
+#ifdef WINCE
+  // We are not sure we should use native IME behavior...
+  return PR_TRUE;
+#else
+  // If current IME has special UI or its composition window should not
+  // positioned to caret position, we should now draw composition string
+  // ourselves.
+  return !(sIMEProperty & IME_PROP_SPECIAL_UI) &&
+          (sIMEProperty & IME_PROP_AT_CARET);
+#endif
 }
+
+/* static */ void
+nsIMM32Handler::InitKeyboardLayout(HKL aKeyboardLayout)
+{
+#ifndef WINCE
+  WORD langID = LOWORD(aKeyboardLayout);
+  ::GetLocaleInfoW(MAKELCID(langID, SORT_DEFAULT),
+                   LOCALE_IDEFAULTANSICODEPAGE | LOCALE_RETURN_NUMBER,
+                   (PWSTR)&sCodePage, sizeof(sCodePage) / sizeof(WCHAR));
+  sIMEProperty = ::ImmGetProperty(aKeyboardLayout, IGP_PROPERTY);
+  PR_LOG(gIMM32Log, PR_LOG_ALWAYS,
+    ("IMM32: InitKeyboardLayout, aKeyboardLayout=%08x, sCodePage=%lu, sIMEProperty=%08x\n",
+     aKeyboardLayout, sCodePage, sIMEProperty));
+#endif
+}
+
+/* static */ UINT
+nsIMM32Handler::GetKeyboardCodePage()
+{
+#ifdef WINCE
+  return ::GetACP();
+#else
+  return sCodePage;
+#endif
+}
+
 
 // used for checking the lParam of WM_IME_COMPOSITION
 #define IS_COMPOSING_LPARAM(lParam) \
@@ -164,14 +205,10 @@ nsIMM32Handler::NotifyEndStatusChange()
 #define NO_IME_CARET -1
 
 nsIMM32Handler::nsIMM32Handler() :
-  mCursorPosition(NO_IME_CARET), mIsComposing(PR_FALSE),
-  mIsStatusChanged(PR_FALSE), mNativeCaretIsCreated(PR_FALSE)
+  mCursorPosition(NO_IME_CARET), mCompositionStart(0), mIsComposing(PR_FALSE),
+  mNativeCaretIsCreated(PR_FALSE)
 {
-#ifdef PR_LOGGING
-  if (!gIMM32Log)
-    gIMM32Log = PR_NewLogModule("nsIMM32HandlerWidgets");
-#endif
-  InitKeyboardLayout(::GetKeyboardLayout(0));
+  PR_LOG(gIMM32Log, PR_LOG_ALWAYS, ("IMM32: nsIMM32Handler is created\n"));
 }
 
 nsIMM32Handler::~nsIMM32Handler()
@@ -180,6 +217,7 @@ nsIMM32Handler::~nsIMM32Handler()
     PR_LOG(gIMM32Log, PR_LOG_ALWAYS,
       ("IMM32: ~nsIMM32Handler, ERROR, the instance is still composing\n"));
   }
+  PR_LOG(gIMM32Log, PR_LOG_ALWAYS, ("IMM32: nsIMM32Handler is destroyed\n"));
 }
 
 nsresult
@@ -244,9 +282,10 @@ nsIMM32Handler::ProcessMessage(nsWindow* aWindow, UINT msg,
 #endif // ENABLE_IME_MOUSE_HANDLING
     case WM_INPUTLANGCHANGE:
       // We don't need to create the instance of the handler here.
-      if (!gIMM32Handler)
-        return PR_FALSE;
-      aEatMessage = gIMM32Handler->OnInputLangChange(aWindow, wParam, lParam);
+      if (gIMM32Handler) {
+        aEatMessage = gIMM32Handler->OnInputLangChange(aWindow, wParam, lParam);
+      }
+      InitKeyboardLayout(reinterpret_cast<HKL>(lParam));
       // We can release the instance here, because the instance may be nerver
       // used. E.g., the new keyboard layout may not use IME, or it may use TSF.
       delete gIMM32Handler;
@@ -265,12 +304,10 @@ nsIMM32Handler::ProcessMessage(nsWindow* aWindow, UINT msg,
       aEatMessage = gIMM32Handler->OnIMEEndComposition(aWindow);
       return PR_TRUE;
     case WM_IME_CHAR:
-      EnsureHandlerInstance();
-      aEatMessage = gIMM32Handler->OnIMEChar(aWindow, wParam, lParam);
+      aEatMessage = OnIMEChar(aWindow, wParam, lParam);
       return PR_TRUE;
     case WM_IME_NOTIFY:
-      EnsureHandlerInstance();
-      aEatMessage = gIMM32Handler->OnIMENotify(aWindow, wParam, lParam);
+      aEatMessage = OnIMENotify(aWindow, wParam, lParam);
       return PR_TRUE;
     case WM_IME_REQUEST:
       EnsureHandlerInstance();
@@ -278,12 +315,10 @@ nsIMM32Handler::ProcessMessage(nsWindow* aWindow, UINT msg,
         gIMM32Handler->OnIMERequest(aWindow, wParam, lParam, aRetValue);
       return PR_TRUE;
     case WM_IME_SELECT:
-      EnsureHandlerInstance();
-      aEatMessage = gIMM32Handler->OnIMESelect(aWindow, wParam, lParam);
+      aEatMessage = OnIMESelect(aWindow, wParam, lParam);
       return PR_TRUE;
     case WM_IME_SETCONTEXT:
-      EnsureHandlerInstance();
-      aEatMessage = gIMM32Handler->OnIMESetContext(aWindow, wParam, lParam);
+      aEatMessage = OnIMESetContext(aWindow, wParam, lParam);
       return PR_TRUE;
     default:
       return PR_FALSE;
@@ -332,8 +367,6 @@ nsIMM32Handler::OnInputLangChange(nsWindow* aWindow,
   if (mIsComposing) {
     HandleEndComposition(aWindow);
   }
-
-  InitKeyboardLayout(reinterpret_cast<HKL>(lParam));
 
   return PR_FALSE;
 }
@@ -406,7 +439,7 @@ nsIMM32Handler::OnIMEEndComposition(nsWindow* aWindow)
   return ShouldDrawCompositionStringOurselves();
 }
 
-PRBool
+/* static */ PRBool
 nsIMM32Handler::OnIMEChar(nsWindow* aWindow,
                           WPARAM wParam,
                           LPARAM lParam)
@@ -424,7 +457,7 @@ nsIMM32Handler::OnIMEChar(nsWindow* aWindow,
   return PR_TRUE;
 }
 
-PRBool
+/* static */ PRBool
 nsIMM32Handler::OnIMECompositionFull(nsWindow* aWindow)
 {
   PR_LOG(gIMM32Log, PR_LOG_ALWAYS,
@@ -435,7 +468,7 @@ nsIMM32Handler::OnIMECompositionFull(nsWindow* aWindow)
   return PR_FALSE;
 }
 
-PRBool
+/* static */ PRBool
 nsIMM32Handler::OnIMENotify(nsWindow* aWindow,
                             WPARAM wParam,
                             LPARAM lParam)
@@ -515,7 +548,7 @@ nsIMM32Handler::OnIMENotify(nsWindow* aWindow,
   }
 #endif // PR_LOGGING
 
-  if (GetKeyState(NS_VK_ALT) >= 0) {
+  if (::GetKeyState(NS_VK_ALT) >= 0) {
     return PR_FALSE;
   }
 
@@ -529,10 +562,10 @@ nsIMM32Handler::OnIMENotify(nsWindow* aWindow,
   // add hacky code here
   nsModifierKeyState modKeyState(PR_FALSE, PR_FALSE, PR_TRUE);
   aWindow->DispatchKeyEvent(NS_KEY_PRESS, 0, nsnull, 192, nsnull, modKeyState);
-  mIsStatusChanged = mIsStatusChanged || (wParam == IMN_SETOPENSTATUS);
+  sIsStatusChanged = sIsStatusChanged || (wParam == IMN_SETOPENSTATUS);
   PR_LOG(gIMM32Log, PR_LOG_ALWAYS,
-    ("IMM32: OnIMENotify, mIsStatusChanged=%s\n",
-     mIsStatusChanged ? "TRUE" : "FALSE"));
+    ("IMM32: OnIMENotify, sIsStatusChanged=%s\n",
+     sIsStatusChanged ? "TRUE" : "FALSE"));
 
   // not implement yet
   return PR_FALSE;
@@ -563,7 +596,7 @@ nsIMM32Handler::OnIMERequest(nsWindow* aWindow,
   }
 }
 
-PRBool
+/* static */ PRBool
 nsIMM32Handler::OnIMESelect(nsWindow* aWindow,
                             WPARAM wParam,
                             LPARAM lParam)
@@ -576,7 +609,7 @@ nsIMM32Handler::OnIMESelect(nsWindow* aWindow,
   return PR_FALSE;
 }
 
-PRBool
+/* static */ PRBool
 nsIMM32Handler::OnIMESetContext(nsWindow* aWindow,
                                 WPARAM wParam,
                                 LPARAM &lParam)
@@ -589,7 +622,8 @@ nsIMM32Handler::OnIMESetContext(nsWindow* aWindow,
     aWindow->ResetInputState();
   }
 
-  if (ShouldDrawCompositionStringOurselves()) {
+  if (wParam && (lParam & ISC_SHOWUICOMPOSITIONWINDOW) &&
+      ShouldDrawCompositionStringOurselves()) {
     PR_LOG(gIMM32Log, PR_LOG_ALWAYS,
       ("IMM32: OnIMESetContext, ISC_SHOWUICOMPOSITIONWINDOW is removed\n"));
     lParam &= ~ISC_SHOWUICOMPOSITIONWINDOW;
@@ -611,42 +645,29 @@ nsIMM32Handler::HandleStartComposition(nsWindow* aWindow,
   NS_PRECONDITION(!aWindow->PluginHasFocus(),
     "HandleStartComposition should not be called when a plug-in has focus");
 
+  nsQueryContentEvent selection(PR_TRUE, NS_QUERY_SELECTED_TEXT, aWindow);
+  aWindow->InitEvent(selection, &nsIntPoint(0, 0));
+  aWindow->DispatchWindowEvent(&selection);
+  if (!selection.mSucceeded) {
+    PR_LOG(gIMM32Log, PR_LOG_ALWAYS,
+      ("IMM32: HandleStartComposition, FAILED (NS_QUERY_SELECTED_TEXT)\n"));
+    return;
+  }
+
+  mCompositionStart = selection.mReply.mOffset;
+
   nsCompositionEvent event(PR_TRUE, NS_COMPOSITION_START, aWindow);
   nsIntPoint point(0, 0);
   aWindow->InitEvent(event, &point);
   aWindow->DispatchWindowEvent(&event);
-
-  //
-  // Post process event
-  //
 
   SetIMERelatedWindowsPos(aWindow, aIMEContext);
 
   mIsComposing = PR_TRUE;
 
   PR_LOG(gIMM32Log, PR_LOG_ALWAYS,
-    ("IMM32: HandleStartComposition, START composition\n"));
-
-  if (event.theReply.mCursorPosition.width <= 0 &&
-      event.theReply.mCursorPosition.height <= 0) {
-    PR_LOG(gIMM32Log, PR_LOG_ALWAYS,
-      ("IMM32: HandleStartComposition, mCursorPosition is empty\n"));
-    // for some reason we don't know yet, theReply may contain invalid result
-    // need more debugging in nsCaret to find out the reason
-    // the best we can do now is to ignore the invalid result
-    return;
-  }
-
-  nsIntRect cursorPosition;
-  ResolveIMECaretPos(event.theReply.mReferenceWidget,
-                     event.theReply.mCursorPosition, aWindow, cursorPosition);
-
-#ifdef ENABLE_IME_MOUSE_HANDLING
-  memset(mCompCharPos, -1, sizeof(RECT) * IME_MAX_CHAR_POS);
-  mCompCharPos[0].left = cursorPosition.x;
-  mCompCharPos[0].top = cursorPosition.y;
-  mCompCharPos[0].bottom = cursorPosition.YMost();
-#endif // ENABLE_IME_MOUSE_HANDLING
+    ("IMM32: HandleStartComposition, START composition, mCompositionStart=%ld\n",
+     mCompositionStart));
 }
 
 PRBool
@@ -750,7 +771,7 @@ nsIMM32Handler::HandleComposition(nsWindow* aWindow,
     // will crash in ImmGetCompositionStringW for GCS_COMPCLAUSE (bug 424663).
     // See comment 35 of the bug for the detail. Therefore, we should use A
     // API for it, however, we should not kill Unicode support on all IMEs.
-    PRBool useA_API = !(mIMEProperty & IME_PROP_UNICODE);
+    PRBool useA_API = !(sIMEProperty & IME_PROP_UNICODE);
 
     PR_LOG(gIMM32Log, PR_LOG_ALWAYS,
       ("IMM32: HandleComposition, GCS_COMPCLAUSE, useA_API=%s\n",
@@ -1092,45 +1113,7 @@ nsIMM32Handler::DispatchTextEvent(nsWindow* aWindow,
 
   aWindow->DispatchWindowEvent(&event);
 
-  //
-  // Post process event
-  //
-
   SetIMERelatedWindowsPos(aWindow, aIMEContext);
-
-  if (event.theReply.mCursorPosition.width <= 0 &&
-      event.theReply.mCursorPosition.height <= 0) {
-    PR_LOG(gIMM32Log, PR_LOG_ALWAYS,
-      ("IMM32: DispatchTextEvent, mCursorPosition is empty\n"));
-    // for some reason we don't know yet, theReply may contain invalid result
-    // need more debugging in nsCaret to find out the reason
-    // the best we can do now is to ignore the invalid result
-    return;
-  }
-
-  nsIntRect cursorPosition;
-  ResolveIMECaretPos(event.theReply.mReferenceWidget,
-                     event.theReply.mCursorPosition, aWindow, cursorPosition);
-
-#ifdef ENABLE_IME_MOUSE_HANDLING
-  if (mCursorPosition <= 0 || mCursorPosition >= IME_MAX_CHAR_POS) {
-    return;
-  }
-
-  // Record previous composing char position
-  // The cursor is always on the right char before it, but not necessarily on
-  // the left of next char, as what happens in wrapping.
-  mCompCharPos[mCursorPosition-1].right = cursorPosition.x;
-  mCompCharPos[mCursorPosition-1].top = cursorPosition.y;
-  mCompCharPos[mCursorPosition-1].bottom = cursorPosition.YMost();
-  if (mCompCharPos[mCursorPosition-1].top != cursorPosition.y) {
-    // wrapping, invalidate left position
-    mCompCharPos[mCursorPosition-1].left = -1;
-  }
-  mCompCharPos[mCursorPosition].left = cursorPosition.x;
-  mCompCharPos[mCursorPosition].top = cursorPosition.y;
-  mCompCharPos[mCursorPosition].bottom = cursorPosition.YMost();
-#endif // ENABLE_IME_MOUSE_HANDLING
 }
 
 void
@@ -1438,49 +1421,8 @@ nsIMM32Handler::ResolveIMECaretPos(nsIWidget* aReferenceWidget,
     aOutRect.MoveBy(-aNewOriginWidget->WidgetToScreenOffset());
 }
 
-void
-nsIMM32Handler::InitKeyboardLayout(HKL aKeyboardLayout)
-{
-#ifndef WINCE
-  WORD langID = LOWORD(aKeyboardLayout);
-  ::GetLocaleInfoA(MAKELCID(langID, SORT_DEFAULT),
-                   LOCALE_IDEFAULTANSICODEPAGE | LOCALE_RETURN_NUMBER,
-                   (PSTR)&mCodePage, sizeof(mCodePage));
-  mIMEProperty = ::ImmGetProperty(aKeyboardLayout, IGP_PROPERTY);
-#endif
-}
-
-PRBool
-nsIMM32Handler::ShouldDrawCompositionStringOurselves() const
-{
-#ifdef WINCE
-  // We are not sure we should use native IME behavior...
-  return PR_TRUE;
-#else
-  // If current IME has special UI or its composition window should not
-  // positioned to caret position, we should now draw composition string
-  // ourselves.
-  return !(mIMEProperty & IME_PROP_SPECIAL_UI) &&
-          (mIMEProperty & IME_PROP_AT_CARET);
-#endif
-}
-
-UINT
-nsIMM32Handler::GetKeyboardCodePage() const
-{
-#ifdef WINCE
-  return ::GetACP();
-#else
-  return mCodePage;
-#endif
-}
-
 
 #ifdef ENABLE_IME_MOUSE_HANDLING
-
-#define PT_IN_RECT(pt, rc) \
-          ((pt).x>(rc).left && (pt).x <(rc).right && \
-           (pt).y>(rc).top && (pt).y<(rc).bottom)
 
 PRBool
 nsIMM32Handler::OnMouseEvent(nsWindow* aWindow, LPARAM lParam, int aAction)
@@ -1489,38 +1431,37 @@ nsIMM32Handler::OnMouseEvent(nsWindow* aWindow, LPARAM lParam, int aAction)
     return PR_FALSE;
   }
 
-  POINT ptPos;
-  ptPos.x = (short)LOWORD(lParam);
-  ptPos.y = (short)HIWORD(lParam);
-
-  if (!IMECompositionHitTest(ptPos)) {
+  nsIntPoint cursor(LOWORD(lParam), HIWORD(lParam));
+  nsQueryContentEvent charAtPt(PR_TRUE, NS_QUERY_CHARACTER_AT_POINT, aWindow);
+  aWindow->InitEvent(charAtPt, &cursor);
+  aWindow->DispatchWindowEvent(&charAtPt);
+  if (!charAtPt.mSucceeded ||
+      charAtPt.mReply.mOffset == nsQueryContentEvent::NOT_FOUND ||
+      charAtPt.mReply.mOffset < mCompositionStart ||
+      charAtPt.mReply.mOffset >
+        mCompositionStart + mCompositionString.Length()) {
     return PR_FALSE;
   }
-
-  int positioning = 0;
-  int offset = 0;
 
   // calcurate positioning and offset
   // char :            JCH1|JCH2|JCH3
   // offset:           0011 1122 2233
   // positioning:      2301 2301 2301
+  nsIntRect cursorInTopLevel;
+  ResolveIMECaretPos(aWindow, nsIntRect(cursor, nsIntSize(0, 0)),
+                     aWindow->GetTopLevelWindow(PR_FALSE), cursorInTopLevel);
+  PRInt32 cursorXInChar = cursorInTopLevel.x - charAtPt.mReply.mRect.x;
+  int positioning = cursorXInChar * 4 / charAtPt.mReply.mRect.width;
+  positioning = (positioning + 2) % 4;
 
-  // Note: hitText has been done, so no check of mCompCharPos
-  // and composing char maximum limit is necessary.
-  PRUint32 len = mCompositionString.Length();
-  PRUint32 i = 0;
-  for (i = 0; i < len; ++i) {
-    if (PT_IN_RECT(ptPos, mCompCharPos[i]))
-      break;
-  }
-  offset = i;
-  if (ptPos.x - mCompCharPos[i].left > mCompCharPos[i].right - ptPos.x) {
+  int offset = charAtPt.mReply.mOffset - mCompositionStart;
+  if (positioning < 2) {
     offset++;
   }
 
-  positioning = (ptPos.x - mCompCharPos[i].left) * 4 /
-                  (mCompCharPos[i].right - mCompCharPos[i].left);
-  positioning = (positioning + 2) % 4;
+  PR_LOG(gIMM32Log, PR_LOG_ALWAYS,
+    ("IMM32: OnMouseEvent, x,y=%ld,%ld, offset=%ld, positioning=%ld\n",
+     cursor.x, cursor.y, offset, positioning));
 
   // send MS_MSIME_MOUSE message to default IME window.
   HWND imeWnd = ::ImmGetDefaultIMEWnd(aWindow->GetWindowHandle());
@@ -1530,45 +1471,4 @@ nsIMM32Handler::OnMouseEvent(nsWindow* aWindow, LPARAM lParam, int aAction)
                         (LPARAM) IMEContext.get()) == 1;
 }
 
-//The coordinate is relative to the upper-left corner of the client area.
-PRBool
-nsIMM32Handler::IMECompositionHitTest(const POINT& aPos)
-{
-  // figure out how many char in composing string,
-  // but keep it below the limit we can handle
-  PRInt32 len = mCompositionString.Length();
-  if (len > IME_MAX_CHAR_POS)
-    len = IME_MAX_CHAR_POS;
-
-  PRInt32 i;
-  PRInt32 aveWidth = 0;
-  // found per char width
-  for (i = 0; i < len; i++) {
-    if (mCompCharPos[i].left >= 0 && mCompCharPos[i].right > 0) {
-      aveWidth = mCompCharPos[i].right - mCompCharPos[i].left;
-      break;
-    }
-  }
-
-  // validate each rect and test
-  for (i = 0; i < len; i++) {
-    if (mCompCharPos[i].left < 0) {
-      if (i != 0 && mCompCharPos[i-1].top == mCompCharPos[i].top)
-        mCompCharPos[i].left = mCompCharPos[i-1].right;
-      else
-        mCompCharPos[i].left = mCompCharPos[i].right - aveWidth;
-    }
-    if (mCompCharPos[i].right < 0)
-      mCompCharPos[i].right = mCompCharPos[i].left + aveWidth;
-    if (mCompCharPos[i].top < 0) {
-      mCompCharPos[i].top = mCompCharPos[i-1].top;
-      mCompCharPos[i].bottom = mCompCharPos[i-1].bottom;
-    }
-
-    if (PT_IN_RECT(aPos, mCompCharPos[i])) {
-      return PR_TRUE;
-    }
-  }
-  return PR_FALSE;
-}
 #endif // ENABLE_IME_MOUSE_HANDLING

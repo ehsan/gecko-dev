@@ -51,9 +51,12 @@
 #include "nsIAtom.h"
 #include "nsCompatibility.h"
 #include "nsTObserverArray.h"
+#include "nsTHashtable.h"
+#include "nsHashKeys.h"
 #include "nsNodeInfoManager.h"
 #include "nsIStreamListener.h"
 #include "nsIObserver.h"
+#include "nsAutoPtr.h"
 #ifdef MOZ_SMIL
 class nsSMILAnimationController;
 #endif // MOZ_SMIL
@@ -102,8 +105,8 @@ class nsIBoxObject;
 
 // IID for the nsIDocument interface
 #define NS_IDOCUMENT_IID      \
-{ 0x62579239, 0xb619, 0x4bf2, \
-  { 0x8d, 0x39, 0x0b, 0x73, 0xe8, 0x66, 0x3a, 0x85 } }
+  { 0x9abf0b96, 0xc9e2, 0x4d49, \
+    { 0x9c, 0x0a, 0x37, 0xc1, 0x22, 0x39, 0x83, 0x50 } }
 
 // Flag for AddStyleSheet().
 #define NS_STYLESHEET_FROM_CATALOG                (1 << 0)
@@ -126,6 +129,11 @@ public:
       mCompatMode(eCompatibility_FullStandards),
       mIsInitialDocumentInWindow(PR_FALSE),
       mMayStartLayout(PR_TRUE),
+      // mAllowDNSPrefetch starts true, so that we can always reliably && it
+      // with various values that might disable it.  Since we never prefetch
+      // unless we get a window, and in that case the docshell value will get
+      // &&-ed in, this is safe.
+      mAllowDNSPrefetch(PR_TRUE),
       mPartID(0)
   {
     mParentPtrBits |= PARENT_BIT_INDOCUMENT;
@@ -1119,6 +1127,12 @@ public:
    */
   PRBool IsShowing() { return mIsShowing; }
 
+  void RegisterFreezableElement(nsIContent* aContent);
+  PRBool UnregisterFreezableElement(nsIContent* aContent);
+  typedef void (* FreezableElementEnumerator)(nsIContent*, void*);
+  void EnumerateFreezableElements(FreezableElementEnumerator aEnumerator,
+                                  void* aData);
+
 #ifdef MOZ_SMIL
   // Getter for this document's SMIL Animation Controller
   virtual nsSMILAnimationController* GetAnimationController() = 0;
@@ -1137,7 +1151,9 @@ public:
    */
   virtual void UnsuppressEventHandlingAndFireEvents(PRBool aFireEvents) = 0;
 
-  PRUint32 EventHandlingSuppressed() { return mEventsSuppressed; }
+  PRUint32 EventHandlingSuppressed() const { return mEventsSuppressed; }
+
+  PRBool IsDNSPrefetchAllowed() const { return mAllowDNSPrefetch; }
 protected:
   ~nsIDocument()
   {
@@ -1181,6 +1197,12 @@ protected:
   nsNodeInfoManager* mNodeInfoManager; // [STRONG]
   nsICSSLoader* mCSSLoader; // [STRONG]
 
+  // The set of all object, embed, applet, video and audio elements for
+  // which this is the owner document. (They might not be in the document.)
+  // These are non-owning pointers, the elements are responsible for removing
+  // themselves when they go away.
+  nsAutoPtr<nsTHashtable<nsPtrHashKey<nsIContent> > > mFreezableElements;
+
   // Table of element properties for this document.
   nsPropertyTable mPropertyTable;
 
@@ -1213,6 +1235,10 @@ protected:
 
   // True iff IsShowing() should be returning true
   PRPackedBool mIsShowing;
+
+  // True iff DNS prefetch is allowed for this document.  Note that if the
+  // document has no window, DNS prefetch won't be performed no matter what.
+  PRPackedBool mAllowDNSPrefetch;
   
   // The bidi options for this document.  What this bitfield means is
   // defined in nsBidiUtils.h

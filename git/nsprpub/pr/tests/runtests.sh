@@ -147,6 +147,7 @@ libfilename
 lltest
 lock
 lockfile
+logfile
 logger
 many_cv
 multiwait
@@ -176,6 +177,7 @@ provider
 prpollml
 ranfile
 randseed
+reinit
 rwlocktest
 sel_spd
 selct_er

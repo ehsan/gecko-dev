@@ -57,7 +57,8 @@ public:
   virtual ~nsJSContext();
 
   NS_DECL_CYCLE_COLLECTING_ISUPPORTS
-  NS_DECL_CYCLE_COLLECTION_CLASS_AMBIGUOUS(nsJSContext, nsIScriptContext)
+  NS_DECL_CYCLE_COLLECTION_SCRIPT_HOLDER_CLASS_AMBIGUOUS(nsJSContext,
+                                                         nsIScriptContext)
 
   virtual PRUint32 GetScriptTypeID()
     { return nsIProgrammingLanguage::JAVASCRIPT; }
@@ -212,13 +213,14 @@ protected:
   nsresult JSObjectFromInterface(nsISupports *aSup, void *aScript, 
                                  JSObject **aRet);
 
-  // Report the pending exception on our mContext, if any
-  // If aSetAsideFrameChain is true, set aside the frame chain on mContext
-  // before reporting.  True should be passed if the frame chain isn't really
-  // related to our exception.
-  void ReportPendingException(PRBool aSetAsideFrameChain);
+  // Report the pending exception on our mContext, if any.  This
+  // function will set aside the frame chain on mContext before
+  // reporting.
+  void ReportPendingException();
 private:
-  void Unlink();
+  void DestroyJSContext();
+
+  nsrefcnt GetCCRefcnt();
 
   JSContext *mContext;
   PRUint32 mNumEvaluations;

@@ -202,28 +202,6 @@ PRBool nsIFrameDebug::GetShowEventTargetFrameBorder()
  */
 static PRLogModuleInfo* gLogModule;
 
-static PRLogModuleInfo* gFrameVerifyTreeLogModuleInfo;
-
-static PRBool gFrameVerifyTreeEnable = PRBool(0x55);
-
-PRBool
-nsIFrameDebug::GetVerifyTreeEnable()
-{
-  if (gFrameVerifyTreeEnable == PRBool(0x55)) {
-    if (nsnull == gFrameVerifyTreeLogModuleInfo) {
-      gFrameVerifyTreeLogModuleInfo = PR_NewLogModule("frameverifytree");
-      gFrameVerifyTreeEnable = 0 != gFrameVerifyTreeLogModuleInfo->level;
-    }
-  }
-  return gFrameVerifyTreeEnable;
-}
-
-void
-nsIFrameDebug::SetVerifyTreeEnable(PRBool aEnabled)
-{
-  gFrameVerifyTreeEnable = aEnabled;
-}
-
 static PRLogModuleInfo* gStyleVerifyTreeLogModuleInfo;
 
 static PRBool gStyleVerifyTreeEnable = PRBool(0x55);
@@ -464,6 +442,9 @@ nsFrame::RemoveFrame(nsIAtom*        aListName,
 void
 nsFrame::Destroy()
 {
+  NS_ASSERTION(!nsContentUtils::IsSafeToRunScript(),
+    "destroy called on frame while scripts not blocked");
+
 #ifdef MOZ_SVG
   nsSVGEffects::InvalidateDirectRenderingObservers(this);
 #endif
@@ -474,10 +455,14 @@ nsFrame::Destroy()
   nsPresContext* presContext = PresContext();
 
   nsIPresShell *shell = presContext->GetPresShell();
-  NS_ASSERTION(!(mState & NS_FRAME_OUT_OF_FLOW) ||
-               !shell->FrameManager()->GetPlaceholderFrameFor(this),
-               "Deleting out of flow without tearing down placeholder "
-               "relationship; see comments in nsFrame.h");
+  if (mState & NS_FRAME_OUT_OF_FLOW) {
+    nsPlaceholderFrame* placeholder =
+      shell->FrameManager()->GetPlaceholderFrameFor(this);
+    if (placeholder) {
+      shell->FrameManager()->UnregisterPlaceholderFrame(placeholder);
+      placeholder->SetOutOfFlowFrame(nsnull);
+    }
+  }
 
   shell->NotifyDestroyingFrame(this);
 
@@ -870,7 +855,7 @@ void nsDisplaySelectionOverlay::Paint(nsDisplayListBuilder* aBuilder,
 
   nsRect rect(aBuilder->ToReferenceFrame(mFrame), mFrame->GetSize());
   rect.IntersectRect(rect, aDirtyRect);
-  nsIntRect pxRect = nsRect::ToOutsidePixels(rect, mFrame->PresContext()->AppUnitsPerDevPixel());
+  nsIntRect pxRect = rect.ToOutsidePixels(mFrame->PresContext()->AppUnitsPerDevPixel());
   ctx->NewPath();
   ctx->Rectangle(gfxRect(pxRect.x, pxRect.y, pxRect.width, pxRect.height), PR_TRUE);
   ctx->Fill();
@@ -3608,7 +3593,7 @@ nsIntRect nsIFrame::GetScreenRectExternal() const
 
 nsIntRect nsIFrame::GetScreenRect() const
 {
-  return nsRect::ToNearestPixels(GetScreenRectInAppUnits(), PresContext()->AppUnitsPerDevPixel());
+  return GetScreenRectInAppUnits().ToNearestPixels(PresContext()->AppUnitsPerDevPixel());
 }
 
 // virtual
@@ -4051,11 +4036,22 @@ nsIFrame::CheckInvalidateSizeChange(const nsRect& aOldRect,
     return;
   }
 
-  // Invalidate the old frame borders if the frame has borders. Those borders
-  // may be moving.
+  // Invalidate the old frame border box if the frame has borders. Those
+  // borders may be moving.
   const nsStyleBorder* border = GetStyleBorder();
   NS_FOR_CSS_SIDES(side) {
     if (border->GetActualBorderWidth(side) != 0) {
+      if ((side == NS_SIDE_LEFT || side == NS_SIDE_TOP) &&
+          !nsLayoutUtils::HasNonZeroCornerOnSide(border->mBorderRadius, side) &&
+          !border->GetBorderImage() &&
+          border->GetBorderStyle(side) == NS_STYLE_BORDER_STYLE_SOLID) {
+        // We also need to be sure that the bottom-left or top-right
+        // corner is simple. For example, if the bottom or right border
+        // has a different color, we would need to invalidate the corner
+        // area. But that's OK because if there is a right or bottom border,
+        // we'll invalidate the entire border-box here anyway.
+        continue;
+      }
       Invalidate(nsRect(0, 0, aOldRect.width, aOldRect.height));
       return;
     }
@@ -4467,13 +4463,6 @@ nsFrame::DumpBaseRegressionData(nsPresContext* aPresContext, FILE* out, PRInt32 
     }
     list = GetAdditionalChildListName(listIndex++);
   } while (nsnull != list);
-}
-
-NS_IMETHODIMP
-nsFrame::VerifyTree() const
-{
-  NS_ASSERTION(0 == (mState & NS_FRAME_IN_REFLOW), "frame is in reflow");
-  return NS_OK;
 }
 #endif
 

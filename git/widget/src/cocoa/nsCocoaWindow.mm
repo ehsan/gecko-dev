@@ -62,6 +62,7 @@
 #include "nsMenuUtilsX.h"
 #include "nsStyleConsts.h"
 #include "nsNativeThemeColors.h"
+#include "nsChildView.h"
 
 #include "gfxPlatform.h"
 #include "qcms.h"
@@ -79,6 +80,8 @@ PRInt32 gXULModalLevel = 0;
 nsCocoaWindowList *gGeckoAppModalWindowList = NULL;
 
 PRBool gCocoaWindowMethodsSwizzled = PR_FALSE;
+
+PRBool gConsumeRollupEvent;
 
 // defined in nsMenuBarX.mm
 extern NSMenu* sApplicationMenu; // Application menu shared by all menubars
@@ -1285,6 +1288,9 @@ NS_IMETHODIMP nsCocoaWindow::CaptureRollupEvents(nsIRollupListener * aListener,
     NS_ADDREF(aListener);
     gRollupWidget = this;
     NS_ADDREF(this);
+
+    gConsumeRollupEvent = aConsumeRollupEvent;
+
     // Sometimes more than one popup window can be visible at the same time
     // (e.g. nested non-native context menus, or the test case (attachment
     // 276885) for bmo bug 392389, which displays a non-native combo-box in
@@ -1321,6 +1327,11 @@ NS_IMETHODIMP nsCocoaWindow::GetAttention(PRInt32 aCycleCount)
   NS_OBJC_END_TRY_ABORT_BLOCK_NSRESULT;
 }
 
+PRBool
+nsCocoaWindow::HasPendingInputEvent()
+{
+  return nsChildView::DoHasPendingInputEvent();
+}
 
 NS_IMETHODIMP nsCocoaWindow::SetWindowShadowStyle(PRInt32 aStyle)
 {

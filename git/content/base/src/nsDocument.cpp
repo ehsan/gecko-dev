@@ -1584,6 +1584,8 @@ nsDocument::~nsDocument()
     mBoxObjectTable->EnumerateRead(ClearAllBoxObjects, nsnull);
     delete mBoxObjectTable;
   }
+
+  mPendingTitleChangeEvent.Revoke();
 }
 
 NS_IMPL_CYCLE_COLLECTION_CLASS(nsDocument)
@@ -1984,8 +1986,11 @@ nsDocument::ResetToURI(nsIURI *aURI, nsILoadGroup *aLoadGroup,
   if (aLoadGroup) {
     mDocumentLoadGroup = do_GetWeakReference(aLoadGroup);
     // there was an assertion here that aLoadGroup was not null.  This
-    // is no longer valid nsWebShell::SetDocument does not create a
-    // load group, and it works just fine.
+    // is no longer valid: nsDocShell::SetDocument does not create a
+    // load group, and it works just fine
+
+    // XXXbz what does "just fine" mean exactly?  And given that there
+    // is no nsDocShell::SetDocument, what is this talking about?
   }
 
   mLastModified.Truncate();
@@ -2430,9 +2435,20 @@ nsDocument::GetPrincipal()
   return NodePrincipal();
 }
 
+extern PRBool sDisablePrefetchHTTPSPref;
+
 void
 nsDocument::SetPrincipal(nsIPrincipal *aNewPrincipal)
 {
+  if (aNewPrincipal && mAllowDNSPrefetch && sDisablePrefetchHTTPSPref) {
+    nsCOMPtr<nsIURI> uri;
+    aNewPrincipal->GetURI(getter_AddRefs(uri));
+    PRBool isHTTPS;
+    if (!uri || NS_FAILED(uri->SchemeIs("https", &isHTTPS)) ||
+        isHTTPS) {
+      mAllowDNSPrefetch = PR_FALSE;
+    }
+  }
   mNodeInfoManager->SetDocumentPrincipal(aNewPrincipal);
 }
 
@@ -2933,6 +2949,12 @@ nsDocument::SetHeaderData(nsIAtom* aHeaderField, const nsAString& aData)
       refresher->SetupRefreshURIFromHeader(mDocumentURI,
                                            NS_ConvertUTF16toUTF8(aData));
     }
+  }
+
+  if (aHeaderField == nsGkAtoms::headerDNSPrefetchControl &&
+      mAllowDNSPrefetch) {
+    // Chromium treats any value other than 'on' (case insensitive) as 'off'.
+    mAllowDNSPrefetch = aData.IsEmpty() || aData.LowerCaseEqualsLiteral("on");
   }
 }
 
@@ -3549,6 +3571,21 @@ nsDocument::SetScriptGlobalObject(nsIScriptGlobalObject *aScriptGlobalObject)
     // Go back to using the docshell for the layout history state
     mLayoutHistoryState = nsnull;
     mScopeObject = do_GetWeakReference(aScriptGlobalObject);
+
+    if (mAllowDNSPrefetch) {
+      nsCOMPtr<nsIDocShell> docShell = do_QueryReferent(mDocumentContainer);
+      if (docShell) {
+#ifdef DEBUG
+        nsCOMPtr<nsIWebNavigation> webNav =
+          do_GetInterface(aScriptGlobalObject);
+        NS_ASSERTION(SameCOMIdentity(webNav, docShell),
+                     "Unexpected container or script global?");
+#endif
+        PRBool allowDNSPrefetch;
+        docShell->GetAllowDNSPrefetch(&allowDNSPrefetch);
+        mAllowDNSPrefetch = allowDNSPrefetch;
+      }
+    }
   }
 
   // Remember the pointer to our window (or lack there of), to avoid
@@ -4932,8 +4969,8 @@ nsDocument::NotifyPossibleTitleChange(PRBool aBoundTitleElement)
   if (mPendingTitleChangeEvent.IsPending())
     return;
 
-  nsRefPtr<nsRunnableMethod<nsDocument> > event =
-      new nsRunnableMethod<nsDocument>(this,
+  nsRefPtr<nsNonOwningRunnableMethod<nsDocument> > event =
+      new nsNonOwningRunnableMethod<nsDocument>(this,
             &nsDocument::DoNotifyPossibleTitleChange);
   nsresult rv = NS_DispatchToCurrentThread(event);
   if (NS_SUCCEEDED(rv)) {
@@ -6257,8 +6294,8 @@ nsDocument::FlushPendingNotifications(mozFlushType aType)
   // correct size to determine the correct style.
   if (mParentDocument && IsSafeToFlush()) {
     mozFlushType parentType = aType;
-    if (aType == Flush_Style)
-      parentType = Flush_Layout;
+    if (aType >= Flush_Style)
+      parentType = PR_MAX(Flush_Layout, aType);
     mParentDocument->FlushPendingNotifications(parentType);
   }
 
@@ -7525,3 +7562,48 @@ nsDocument::UnsuppressEventHandlingAndFireEvents(PRBool aFireEvents)
   }
 }
 
+void
+nsIDocument::RegisterFreezableElement(nsIContent* aContent)
+{
+  if (!mFreezableElements) {
+    mFreezableElements = new nsTHashtable<nsPtrHashKey<nsIContent> >();
+    if (!mFreezableElements)
+      return;
+    mFreezableElements->Init();
+  }
+  mFreezableElements->PutEntry(aContent);
+}
+
+PRBool
+nsIDocument::UnregisterFreezableElement(nsIContent* aContent)
+{
+  if (!mFreezableElements)
+    return PR_FALSE;
+  if (!mFreezableElements->GetEntry(aContent))
+    return PR_FALSE;
+  mFreezableElements->RemoveEntry(aContent);
+  return PR_TRUE;
+}
+
+struct EnumerateFreezablesData {
+  nsIDocument::FreezableElementEnumerator mEnumerator;
+  void* mData;
+};
+
+static PLDHashOperator
+EnumerateFreezables(nsPtrHashKey<nsIContent>* aEntry, void* aData)
+{
+  EnumerateFreezablesData* data = static_cast<EnumerateFreezablesData*>(aData);
+  data->mEnumerator(aEntry->GetKey(), data->mData);
+  return PL_DHASH_NEXT;
+}
+
+void
+nsIDocument::EnumerateFreezableElements(FreezableElementEnumerator aEnumerator,
+                                        void* aData)
+{
+  if (!mFreezableElements)
+    return;
+  EnumerateFreezablesData data = { aEnumerator, aData };
+  mFreezableElements->EnumerateEntries(EnumerateFreezables, &data);
+}

@@ -447,6 +447,9 @@ JS_TypeOfValue(JSContext *cx, jsval v);
 extern JS_PUBLIC_API(const char *)
 JS_GetTypeName(JSContext *cx, JSType type);
 
+extern JS_PUBLIC_API(JSBool)
+JS_StrictlyEqual(JSContext *cx, jsval v1, jsval v2);
+
 /************************************************************************/
 
 /*
@@ -2461,7 +2464,7 @@ typedef JSBool (* JSONWriteCallback)(const jschar *buf, uint32 len, void *data);
  * JSON.stringify as specified by ES3.1 (draft)
  */
 JS_PUBLIC_API(JSBool)
-JS_Stringify(JSContext *cx, jsval *vp, JSObject *replacer,
+JS_Stringify(JSContext *cx, jsval *vp, JSObject *replacer, jsval space,
              JSONWriteCallback callback, void *data);
 
 /*

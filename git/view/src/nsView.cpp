@@ -164,7 +164,8 @@ nsEventStatus HandleEvent(nsGUIEvent *aEvent)
 
   if (view)
   {
-    view->GetViewManager()->DispatchEvent(aEvent, &result);
+    nsCOMPtr<nsIViewManager> vm = view->GetViewManager();
+    vm->DispatchEvent(aEvent, &result);
   }
 
   return result;
@@ -379,7 +380,7 @@ nsIntRect nsView::CalcWidgetBounds(nsWindowType aType)
     }
   }
 
-  nsIntRect newBounds = nsRect::ToNearestPixels(viewBounds, p2a);
+  nsIntRect newBounds = viewBounds.ToNearestPixels(p2a);
 
   nsPoint roundedOffset(NSIntPixelsToAppUnits(newBounds.x, p2a),
                         NSIntPixelsToAppUnits(newBounds.y, p2a));
@@ -759,9 +760,9 @@ void nsIView::List(FILE* out, PRInt32 aIndent) const
     NS_RELEASE(dx);
     nsIntRect rect;
     mWindow->GetClientBounds(rect);
-    nsRect windowBounds = nsIntRect::ToAppUnits(rect, p2a);
+    nsRect windowBounds = rect.ToAppUnits(p2a);
     mWindow->GetBounds(rect);
-    nsRect nonclientBounds = nsIntRect::ToAppUnits(rect, p2a);
+    nsRect nonclientBounds = rect.ToAppUnits(p2a);
     nsrefcnt widgetRefCnt = mWindow->AddRef() - 1;
     mWindow->Release();
     PRInt32 Z;

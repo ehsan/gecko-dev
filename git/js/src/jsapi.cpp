@@ -707,6 +707,12 @@ JS_GetTypeName(JSContext *cx, JSType type)
     return JS_TYPE_STR(type);
 }
 
+JS_PUBLIC_API(JSBool)
+JS_StrictlyEqual(JSContext *cx, jsval v1, jsval v2)
+{
+    return js_StrictlyEqual(cx, v1, v2);
+}
+
 /************************************************************************/
 
 /*
@@ -1332,7 +1338,6 @@ JS_InitStandardClasses(JSContext *cx, JSObject *obj)
 
     /* Initialize the rest of the standard objects and functions. */
     return js_InitArrayClass(cx, obj) &&
-           js_InitBlockClass(cx, obj) &&
            js_InitBooleanClass(cx, obj) &&
            js_InitExceptionClasses(cx, obj) &&
            js_InitMathClass(cx, obj) &&
@@ -1398,7 +1403,6 @@ static JSStdName standard_class_atoms[] = {
     {js_InitFunctionAndObjectClasses,   EAGER_ATOM_AND_CLASP(Function)},
     {js_InitFunctionAndObjectClasses,   EAGER_ATOM_AND_CLASP(Object)},
     {js_InitArrayClass,                 EAGER_ATOM_AND_CLASP(Array)},
-    {js_InitBlockClass,                 EAGER_ATOM_AND_CLASP(Block)},
     {js_InitBooleanClass,               EAGER_ATOM_AND_CLASP(Boolean)},
     {js_InitDateClass,                  EAGER_ATOM_AND_CLASP(Date)},
     {js_InitMathClass,                  EAGER_ATOM_AND_CLASP(Math)},
@@ -2738,7 +2742,7 @@ JS_InitClass(JSContext *cx, JSObject *obj, JSObject *parent_proto,
 {
     CHECK_REQUEST(cx);
     return js_InitClass(cx, obj, parent_proto, clasp, constructor, nargs,
-                        ps, fs, static_ps, static_fs, NULL);
+                        ps, fs, static_ps, static_fs);
 }
 
 #ifdef JS_THREADSAFE
@@ -2828,19 +2832,7 @@ JS_PUBLIC_API(JSBool)
 JS_SetPrototype(JSContext *cx, JSObject *obj, JSObject *proto)
 {
     CHECK_REQUEST(cx);
-    JS_ASSERT(obj != proto);
-    if (OBJ_IS_NATIVE(obj)) {
-        JS_LOCK_OBJ(cx, obj);
-        if (!js_GetMutableScope(cx, obj)) {
-            JS_UNLOCK_OBJ(cx, obj);
-            return JS_FALSE;
-        }
-        LOCKED_OBJ_SET_PROTO(obj, proto);
-        JS_UNLOCK_OBJ(cx, obj);
-        return JS_TRUE;
-    }
-    OBJ_SET_PROTO(cx, obj, proto);
-    return JS_TRUE;
+    return js_SetProtoOrParent(cx, obj, JSSLOT_PROTO, proto, JS_FALSE);
 }
 
 JS_PUBLIC_API(JSObject *)
@@ -2858,9 +2850,7 @@ JS_PUBLIC_API(JSBool)
 JS_SetParent(JSContext *cx, JSObject *obj, JSObject *parent)
 {
     CHECK_REQUEST(cx);
-    JS_ASSERT(obj != parent);
-    OBJ_SET_PARENT(cx, obj, parent);
-    return JS_TRUE;
+    return js_SetProtoOrParent(cx, obj, JSSLOT_PARENT, parent, JS_FALSE);
 }
 
 JS_PUBLIC_API(JSObject *)
@@ -2969,7 +2959,7 @@ JS_SealObject(JSContext *cx, JSObject *obj, JSBool deep)
         return JS_TRUE;
 
     /* Walk slots in obj and if any value is a non-null object, seal it. */
-    nslots = scope->map.freeslot;
+    nslots = scope->freeslot;
     for (i = 0; i != nslots; ++i) {
         v = STOBJ_GET_SLOT(obj, i);
         if (JSVAL_IS_PRIMITIVE(v))
@@ -5256,9 +5246,14 @@ JS_IsRunning(JSContext *cx)
 JS_PUBLIC_API(JSBool)
 JS_IsConstructing(JSContext *cx)
 {
-    JSStackFrame *fp;
+#ifdef JS_TRACER
+    if (JS_ON_TRACE(cx)) {
+        JS_ASSERT(cx->bailExit);
+        return *cx->bailExit->pc == JSOP_NEW;
+    }
+#endif
 
-    fp = js_GetTopStackFrame(cx);
+    JSStackFrame *fp = js_GetTopStackFrame(cx);
     return fp && (fp->flags & JSFRAME_CONSTRUCTING);
 }
 
@@ -5563,11 +5558,11 @@ JS_EncodeString(JSContext *cx, JSString *str)
 }
 
 JS_PUBLIC_API(JSBool)
-JS_Stringify(JSContext *cx, jsval *vp, JSObject *replacer,
+JS_Stringify(JSContext *cx, jsval *vp, JSObject *replacer, jsval space,
              JSONWriteCallback callback, void *data)
 {
     CHECK_REQUEST(cx);
-    return js_Stringify(cx, vp, replacer, callback, data, 0);
+    return js_Stringify(cx, vp, replacer, space, callback, data);
 }
 
 JS_PUBLIC_API(JSBool)

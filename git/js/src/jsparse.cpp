@@ -1227,8 +1227,7 @@ MakePlaceholder(JSParseNode *pn, JSTreeContext *tc)
 
     ALE_SET_DEFN(ale, dn);
     dn->pn_defn = true;
-    dn->pn_dflags |= PND_FORWARD | PND_PLACEHOLDER;
-    pn->pn_dflags |= PND_FORWARD;
+    dn->pn_dflags |= PND_PLACEHOLDER;
     return ale;
 }
 
@@ -1957,20 +1956,41 @@ JSCompiler::setFunctionKinds(JSFunctionBox *funbox, uint16& tcflags)
                             afunbox = afunbox->parent;
 
                             /*
-                             * We can't form a flat closure that reaches up
-                             * across a funarg that encloses the closure, or
-                             * into the top level (to a 'let' variable in an
-                             * enclosing block in global code; this is the
-                             * !afunbox case).
+                             * afunbox cannot be null here. That is, we are
+                             * sure to find a function box whose level ==
+                             * lexdepLevel before walking off the top of the
+                             * funbox tree.
+                             *
+                             * Proof: lexdepLevel is at least the base
+                             * staticLevel for this compilation (often 0 but
+                             * nonzero when compiling for local eval) and at
+                             * most funbox->level. The path we are walking
+                             * includes one function box each of precisely that
+                             * range of levels.
+                             *
+                             * Assert but check anyway (bug 493260 comment 16).
                              */
-                            if (!afunbox || afunbox->node->isFunArg()) {
-                                JS_ASSERT_IF(!afunbox,
-                                             lexdep->isLet() ||
-                                             (!(tcflags & TCF_IN_FUNCTION) &&
-                                              callerFrame && callerFrame->fun));
+                            JS_ASSERT(afunbox);
+
+                            /*
+                             * If this function is reaching up across an
+                             * enclosing funarg, we cannot make a flat
+                             * closure. The display stops working once the
+                             * funarg escapes.
+                             */
+                            if (!afunbox || afunbox->node->isFunArg())
                                 goto break2;
-                            }
                         }
+
+                        /*
+                         * with and eval defeat lexical scoping; eval anywhere
+                         * in a variable's scope can assign to it. Both defeat
+                         * the flat closure optimization. The parser detects
+                         * these cases and flags the function heavyweight.
+                         */
+                        JSFunctionBox *parentbox = afunbox->parent ? afunbox->parent : afunbox;
+                        if (parentbox->tcflags & TCF_FUN_HEAVYWEIGHT)
+                            break;
 
                         /*
                          * If afunbox's function (which is at the same level as
@@ -2025,12 +2045,9 @@ JSCompiler::setFunctionKinds(JSFunctionBox *funbox, uint16& tcflags)
                          * so check forward-reference and blockid relations.
                          */
                         if (lexdepKind != JSDefinition::FUNCTION) {
-                            if (lexdep->isForward())
-                                break;
-
                             /*
                              * Watch out for code such as
-                             * 
+                             *
                              *   (function () {
                              *   ...
                              *   var jQuery = ... = function (...) {
@@ -2125,7 +2142,8 @@ JSCompiler::setFunctionKinds(JSFunctionBox *funbox, uint16& tcflags)
                              * lexdep's level to find the afunbox whose
                              * body contains the lexdep definition.
                              */
-                            if (afunbox->level + 1U == lexdepLevel) {
+                            if (afunbox->level + 1U == lexdepLevel ||
+                                (lexdepLevel == 0 && lexdep->isLet())) {
                                 afunbox->tcflags |= TCF_FUN_HEAVYWEIGHT;
                                 break;
                             }
@@ -2297,7 +2315,7 @@ LeaveFunction(JSParseNode *fn, JSTreeContext *funtc, JSTreeContext *tc,
                      */
                     *pnup = outer_dn->dn_uses;
                     outer_dn->dn_uses = dn;
-                    outer_dn->pn_dflags |= (dn->pn_dflags & ~PND_PLACEHOLDER);
+                    outer_dn->pn_dflags |= dn->pn_dflags & ~PND_PLACEHOLDER;
                     dn->pn_defn = false;
                     dn->pn_used = true;
                     dn->pn_lexdef = outer_dn;
@@ -2973,7 +2991,7 @@ BindLet(JSContext *cx, BindData *data, JSAtom *atom, JSTreeContext *tc)
         !js_ReallocSlots(cx, blockObj, slot + 1, JS_FALSE)) {
         return JS_FALSE;
     }
-    blockObj->map->freeslot = slot + 1;
+    OBJ_SCOPE(blockObj)->freeslot = slot + 1;
     STOBJ_SET_SLOT(blockObj, slot, PRIVATE_TO_JSVAL(pn));
     return JS_TRUE;
 }
@@ -3049,18 +3067,18 @@ BindVarOrConst(JSContext *cx, BindData *data, JSAtom *atom, JSTreeContext *tc)
                 return JS_FALSE;
             }
         } else {
+            bool error = (op == JSOP_DEFCONST ||
+                          dn_kind == JSDefinition::CONST ||
+                          (dn_kind == JSDefinition::LET &&
+                           (stmt->type != STMT_CATCH || OuterLet(tc, stmt, atom))));
+
             if (JS_HAS_STRICT_OPTION(cx)
                 ? op != JSOP_DEFVAR || dn_kind != JSDefinition::VAR
-                : op == JSOP_DEFCONST ||
-                  dn_kind == JSDefinition::CONST ||
-                  (dn_kind == JSDefinition::LET &&
-                   (stmt->type != STMT_CATCH || OuterLet(tc, stmt, atom)))) {
+                : error) {
                 name = js_AtomToPrintableString(cx, atom);
                 if (!name ||
                     !js_ReportCompileErrorNumber(cx, TS(tc->compiler), pn,
-                                                 (op != JSOP_DEFCONST &&
-                                                  dn_kind != JSDefinition::CONST &&
-                                                  dn_kind != JSDefinition::LET)
+                                                 !error
                                                  ? JSREPORT_WARNING | JSREPORT_STRICT
                                                  : JSREPORT_ERROR,
                                                  JSMSG_REDECLARED_VAR,
@@ -3256,10 +3274,11 @@ NoteLValue(JSContext *cx, JSParseNode *pn, JSTreeContext *tc, uintN dflag = PND_
          * Save the win of PND_INITIALIZED if we can prove 'var x;' and 'x = y'
          * occur as direct kids of the same block with no forward refs to x.
          */
-        if (dn->isBlockChild() &&
+        if (!(dn->pn_dflags & (PND_INITIALIZED | PND_PLACEHOLDER)) &&
+            dn->isBlockChild() &&
             pn->isBlockChild() &&
             dn->pn_blockid == pn->pn_blockid &&
-            !(~dn->pn_dflags & (PND_INITIALIZED | PND_FORWARD)) &&
+            dn->pn_pos.end <= pn->pn_pos.begin &&
             dn->dn_uses == pn) {
             dflag = PND_INITIALIZED;
         }
@@ -4071,7 +4090,6 @@ NewBindingNode(JSTokenStream *ts, JSAtom *atom, JSTreeContext *tc, bool let = fa
                      pn->pn_blockid != tc->bodyid);
 
         if (pn->isPlaceholder() && pn->pn_blockid >= (let ? tc->blockid() : tc->bodyid)) {
-            JS_ASSERT(pn->isForward());
             if (let)
                 pn->pn_blockid = tc->blockid();
 
@@ -5628,7 +5646,24 @@ AssignExpr(JSContext *cx, JSTokenStream *ts, JSTreeContext *tc)
         return NULL;
     }
 
-    return NewBinary(TOK_ASSIGN, op, pn2, AssignExpr(cx, ts, tc), tc);
+    JSParseNode *pn3 = AssignExpr(cx, ts, tc);
+    if (pn3 && PN_TYPE(pn2) == TOK_NAME && pn2->pn_used) {
+        JSDefinition *dn = pn2->pn_lexdef;
+
+        /*
+         * If the definition is not flagged as assigned, we must have imputed
+         * the initialized flag to it, to optimize for flat closures. But that
+         * optimization uses source coordinates to check dominance relations,
+         * so we must extend the end of the definition to cover the right-hand
+         * side of this assignment, i.e., the initializer.
+         */
+        if (!dn->isAssigned()) {
+            JS_ASSERT(dn->isInitialized());
+            dn->pn_pos.end = pn3->pn_pos.end;
+        }
+    }
+
+    return NewBinary(TOK_ASSIGN, op, pn2, pn3, tc);
 }
 
 static JSParseNode *
@@ -6060,6 +6095,15 @@ BumpStaticLevel(JSParseNode *pn, JSTreeContext *tc)
     }
 }
 
+static void
+AdjustBlockId(JSParseNode *pn, uintN adjust, JSTreeContext *tc)
+{
+    JS_ASSERT(pn->pn_arity == PN_LIST || pn->pn_arity == PN_FUNC || pn->pn_arity == PN_NAME);
+    pn->pn_blockid += adjust;
+    if (pn->pn_blockid >= tc->blockidGen)
+        tc->blockidGen = pn->pn_blockid + 1;
+}
+
 bool
 CompExprTransplanter::transplant(JSParseNode *pn)
 {
@@ -6071,7 +6115,7 @@ CompExprTransplanter::transplant(JSParseNode *pn)
         for (JSParseNode *pn2 = pn->pn_head; pn2; pn2 = pn2->pn_next)
             transplant(pn2);
         if (pn->pn_pos >= root->pn_pos)
-            pn->pn_blockid += adjust;
+            AdjustBlockId(pn, adjust, tc);
         break;
 
       case PN_TERNARY:
@@ -6082,7 +6126,10 @@ CompExprTransplanter::transplant(JSParseNode *pn)
 
       case PN_BINARY:
         transplant(pn->pn_left);
-        transplant(pn->pn_right);
+
+        /* Binary TOK_COLON nodes can have left == right. See bug 492714. */
+        if (pn->pn_right != pn->pn_left)
+            transplant(pn->pn_right);
         break;
 
       case PN_UNARY:
@@ -6147,7 +6194,7 @@ CompExprTransplanter::transplant(JSParseNode *pn)
             if (dn->isPlaceholder() && dn->pn_pos >= root->pn_pos && dn->dn_uses == pn) {
                 if (genexp)
                     BumpStaticLevel(dn, tc);
-                dn->pn_blockid += adjust;
+                AdjustBlockId(dn, adjust, tc);
             }
 
             JSAtom *atom = pn->pn_atom;
@@ -6174,7 +6221,7 @@ CompExprTransplanter::transplant(JSParseNode *pn)
                         dn2->pn_type = dn->pn_type;
                         dn2->pn_pos = root->pn_pos;
                         dn2->pn_defn = true;
-                        dn2->pn_dflags |= PND_FORWARD | PND_PLACEHOLDER;
+                        dn2->pn_dflags |= PND_PLACEHOLDER;
 
                         JSParseNode **pnup = &dn->dn_uses;
                         JSParseNode *pnu;
@@ -6196,7 +6243,7 @@ CompExprTransplanter::transplant(JSParseNode *pn)
         }
 
         if (pn->pn_pos >= root->pn_pos)
-            pn->pn_blockid += adjust;
+            AdjustBlockId(pn, adjust, tc);
         break;
 
       case PN_NAMESET:
@@ -7559,6 +7606,7 @@ PrimaryExpr(JSContext *cx, JSTokenStream *ts, JSTreeContext *tc,
                     /* So CURRENT_TOKEN gets TOK_COMMA and not TOK_LB. */
                     js_MatchToken(cx, ts, TOK_COMMA);
                     pn2 = NewParseNode(PN_NULLARY, tc);
+                    pn->pn_xflags |= PNX_HOLEY;
                 } else {
                     pn2 = AssignExpr(cx, ts, tc);
                 }

@@ -374,10 +374,6 @@ var BookmarkPropertiesPanel = {
         this._element("siteLocationField")
             .addEventListener("input", this, false);
       }
-
-      // Set on document to get the event before an autocomplete popup could
-      // be hidden on Enter.
-      document.addEventListener("keypress", this, true);
     }
 
     window.sizeToContent();
@@ -388,27 +384,6 @@ var BookmarkPropertiesPanel = {
   handleEvent: function BPP_handleEvent(aEvent) {
     var target = aEvent.target;
     switch (aEvent.type) {
-      case "keypress":
-        function canAcceptDialog(aElement) {
-          // on Enter we accept the dialog unless:
-          // - the folder tree is focused
-          // - an expander is focused
-          // - an autocomplete (eg. tags) popup is open
-          // - a menulist is open
-          // - a multiline textbox is focused
-          return aElement.localName != "tree" &&
-                 aElement.className != "expander-up" &&
-                 aElement.className != "expander-down" &&
-                 !aElement.popupOpen &&
-                 !aElement.open &&
-                 !(aElement.localName == "textbox" &&
-                   aElement.getAttribute("multiline") == "true");
-        }
-        if (aEvent.keyCode == KeyEvent.DOM_VK_RETURN &&
-            canAcceptDialog(target))
-          document.documentElement.acceptDialog();
-        break;
-
       case "input":
         if (target.id == "editBMPanel_locationField" ||
             target.id == "editBMPanel_feedLocationField" ||
@@ -447,17 +422,6 @@ var BookmarkPropertiesPanel = {
 
     PlacesUIUtils.ptm.beginBatch();
     this._batching = true;
-
-    // XXXmano hack: We push a no-op transaction on the stack so it's always
-    // safe for the Cancel button to call undoTransaction after endBatch.
-    // Otherwise, if no changes were done in the edit-item panel, the last
-    // transaction on the undo stack may be the initial createItem transaction,
-    // or worse, the batched editing of some other item.
-    PlacesUIUtils.ptm.doTransaction({ doTransaction: function() { },
-                                      undoTransaction: function() { },
-                                      redoTransaction: function() { },
-                                      isTransient: false,
-                                      merge: function() { return false; } });
   },
 
   _endBatch: function BPP__endBatch() {
@@ -506,7 +470,6 @@ var BookmarkPropertiesPanel = {
     // currently registered EventListener on the EventTarget has no effect.
     this._element("tagsSelectorRow")
         .removeEventListener("DOMAttrModified", this, false);
-    document.removeEventListener("keypress", this, true);
     this._element("folderTreeRow")
         .removeEventListener("DOMAttrModified", this, false);
     this._element("locationField")

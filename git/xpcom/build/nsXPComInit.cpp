@@ -37,18 +37,17 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
-#include "nsXPCOM.h"
+#include "mozilla/XPCOM.h"
+
 #include "nsXPCOMPrivate.h"
 #include "nsXPCOMCIDInternal.h"
-#include "nscore.h"
-#include "nsIClassInfoImpl.h"
+
 #include "nsStaticComponents.h"
 #include "prlink.h"
-#include "nsCOMPtr.h"
+
 #include "nsObserverList.h"
 #include "nsObserverService.h"
 #include "nsProperties.h"
-#include "nsIProperties.h"
 #include "nsPersistentProperties.h"
 #include "nsScriptableInputStream.h"
 #include "nsBinaryStream.h"
@@ -85,7 +84,6 @@
 
 #include "nsTimerImpl.h"
 #include "TimerThread.h"
-#include "nsTimeStamp.h"
 
 #include "nsThread.h"
 #include "nsProcess.h"
@@ -121,6 +119,8 @@ NS_DECL_CLASSINFO(nsStringInputStream)
 
 #include "nsUUIDGenerator.h"
 
+#include "nsIOUtil.h"
+
 #ifdef GC_LEAK_DETECTOR
 #include "nsLeakDetector.h"
 #endif
@@ -140,8 +140,6 @@ NS_DECL_CLASSINFO(nsStringInputStream)
 #include "nsMemoryReporterManager.h"
 
 #include <locale.h>
-
-#include "nsXPCOM.h"
 
 using mozilla::TimeStamp;
 
@@ -234,6 +232,8 @@ NS_GENERIC_FACTORY_CONSTRUCTOR(nsMacUtilsImpl)
 NS_GENERIC_FACTORY_CONSTRUCTOR_INIT(nsSystemInfo, Init)
 
 NS_GENERIC_FACTORY_CONSTRUCTOR(nsMemoryReporterManager)
+
+NS_GENERIC_FACTORY_CONSTRUCTOR(nsIOUtil)
 
 static NS_METHOD
 nsThreadManagerGetSingleton(nsISupports* outer,
@@ -485,6 +485,7 @@ static const nsModuleComponentInfo components[] = {
     COMPONENT(SYSTEMINFO, nsSystemInfoConstructor),
 #define NS_MEMORY_REPORTER_MANAGER_CLASSNAME "Memory Reporter Manager"
     COMPONENT(MEMORY_REPORTER_MANAGER, nsMemoryReporterManagerConstructor),
+    COMPONENT(IOUTIL, nsIOUtilConstructor),
 };
 
 #undef COMPONENT

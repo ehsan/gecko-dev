@@ -50,6 +50,7 @@
 #include "nsLineBox.h"
 #include "nsCSSPseudoElements.h"
 #include "nsStyleSet.h"
+#include "nsFloatManager.h"
 
 enum LineReflowStatus {
   // The line was completely reflowed and fit in available width, and we should
@@ -61,6 +62,10 @@ enum LineReflowStatus {
   // We need to reflow the line again at its current vertical position. The
   // new reflow should not try to pull up any frames from the next line.
   LINE_REFLOW_REDO_NO_PULL,
+  // We need to reflow the line again using the floats from its height
+  // this reflow, since its height made it hit floats that were not
+  // adjacent to its top.
+  LINE_REFLOW_REDO_MORE_FLOATS,
   // We need to reflow the line again at a lower vertical postion where there
   // may be more horizontal space due to different float configuration.
   LINE_REFLOW_REDO_NEXT_BAND,
@@ -196,7 +201,6 @@ public:
   NS_IMETHOD List(FILE* out, PRInt32 aIndent) const;
   NS_IMETHOD_(nsFrameState) GetDebugStateBits() const;
   NS_IMETHOD GetFrameName(nsAString& aResult) const;
-  NS_IMETHOD VerifyTree() const;
 #endif
 
 #ifdef ACCESSIBILITY
@@ -464,6 +468,9 @@ protected:
   /** reflow all lines that have been marked dirty */
   nsresult ReflowDirtyLines(nsBlockReflowState& aState);
 
+  /** Mark a given line dirty due to reflow being interrupted on or before it */
+  void MarkLineDirtyForInterrupt(nsLineBox* aLine);
+
   //----------------------------------------
   // Methods for line reflow
   /**
@@ -477,11 +484,15 @@ protected:
                       line_iterator aLine,
                       PRBool* aKeepReflowGoing);
 
-  // Return PR_TRUE if aLine gets pushed.
-  void PlaceLine(nsBlockReflowState& aState,
-                 nsLineLayout&       aLineLayout,
-                 line_iterator       aLine,
-                 PRBool*             aKeepReflowGoing);
+  // Return false if it needs another reflow because of reduced space
+  // between floats that are next to it (but not next to its top), and
+  // return true otherwise.
+  PRBool PlaceLine(nsBlockReflowState& aState,
+                   nsLineLayout&       aLineLayout,
+                   line_iterator       aLine,
+                   nsFloatManager::SavedState* aFloatStateBeforeLine,
+                   nsRect&             aFloatAvailableSpace, /* in-out */
+                   PRBool*             aKeepReflowGoing);
 
   /**
    * Mark |aLine| dirty, and, if necessary because of possible
@@ -520,6 +531,9 @@ protected:
   nsresult DoReflowInlineFrames(nsBlockReflowState& aState,
                                 nsLineLayout& aLineLayout,
                                 line_iterator aLine,
+                                nsFlowAreaRect& aFloatAvailableSpace,
+                                nsFloatManager::SavedState*
+                                  aFloatStateBeforeLine,
                                 PRBool* aKeepReflowGoing,
                                 LineReflowStatus* aLineReflowStatus,
                                 PRBool aAllowPullUp);

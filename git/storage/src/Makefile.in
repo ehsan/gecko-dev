@@ -61,6 +61,10 @@ REQUIRES = xpcom \
            necko \
            $(NULL)
 
+EXPORTS_NAMESPACES = mozilla/storage
+
+EXPORTS_mozilla/storage = Variant.h
+
 CPPSRCS = \
   mozStorageService.cpp \
   mozStorageConnection.cpp \
@@ -76,7 +80,7 @@ CPPSRCS = \
   mozStorageAsyncStatementExecution.cpp \
   mozStorageStatementJSHelper.cpp \
   mozStoragePrivateHelpers.cpp \
-  mozStorageVariant.cpp \
+  Variant.cpp \
   $(NULL)
 
 LOCAL_INCLUDES = \

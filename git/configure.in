@@ -914,9 +914,15 @@ case "$target" in
         AC_DEFINE_UNQUOTED(__ENVIRONMENT_MAC_OS_X_VERION_MIN_REQUIRED__,$_MACOSX_DEPLOYMENT_TARGET)
     elif test -z "$MACOSX_DEPLOYMENT_TARGET" ; then
         dnl No value specified on the command line or in the environment,
-        dnl use the lesser of the application's minimum or the architecture's
-        dnl minimum.
-        export MACOSX_DEPLOYMENT_TARGET=10.4
+        dnl use architecture minimum.
+        case "${target_cpu}" in
+          x86_64)
+            export MACOSX_DEPLOYMENT_TARGET=10.5
+            ;;
+          *)
+            export MACOSX_DEPLOYMENT_TARGET=10.4
+            ;;
+        esac
     fi
     ;;
 esac
@@ -1862,7 +1868,7 @@ case "$target" in
 *-darwin*) 
     MKSHLIB='$(CXX) $(CXXFLAGS) $(DSO_PIC_CFLAGS) $(DSO_LDOPTS) -o $@'
     MKCSHLIB='$(CC) $(CFLAGS) $(DSO_PIC_CFLAGS) $(DSO_LDOPTS) -o $@'
-    MOZ_OPTIMIZE_FLAGS="-O2"
+    MOZ_OPTIMIZE_FLAGS="-O3"
     _PEDANTIC=
     CFLAGS="$CFLAGS -fpascal-strings -fno-common"
     CXXFLAGS="$CXXFLAGS -fpascal-strings -fno-common"
@@ -3190,9 +3196,23 @@ case "$target" in
                   ac_cv_have_core_text="yes",
                   ac_cv_have_core_text="no")
   AC_MSG_RESULT([$ac_cv_have_core_text])
-  if test "$ac_cv_have_core_text" = "yes"; then
-    AC_DEFINE(MOZ_CORETEXT, 1)
+
+  case "${target_cpu}" in
+  x86_64)
     MOZ_CORETEXT=1
+    ;;
+  esac
+
+  MOZ_ARG_ENABLE_BOOL(coretext,
+[  --enable-coretext      Use CoreText instead of ATSUI for text rendering],
+    MOZ_CORETEXT=1,
+    MOZ_CORETEXT=)
+
+  if test -n "$MOZ_CORETEXT"; then
+    if test "$ac_cv_have_core_text" = "no"; then
+      AC_MSG_ERROR([--enable-coretext requires MacOS SDK 10.5 or newer])
+     fi
+     AC_DEFINE(MOZ_CORETEXT)
   fi
   ;;
 esac
@@ -4189,8 +4209,8 @@ if test "$LIBXUL_SDK_DIR" = "yes"; then
 elif test -n "$LIBXUL_SDK_DIR" -a "$LIBXUL_SDK_DIR" != "no"; then
     LIBXUL_SDK=`cd "$LIBXUL_SDK_DIR" && pwd`
 
-    if test ! -f "$LIBXUL_SDK/sdk/include/xpcom-config.h"; then
-        AC_MSG_ERROR([$LIBXUL_SDK/sdk/include/xpcom-config.h doesn't exist])
+    if test ! -f "$LIBXUL_SDK/include/xpcom-config.h"; then
+        AC_MSG_ERROR([$LIBXUL_SDK/include/xpcom-config.h doesn't exist])
     fi
 
     MOZ_ENABLE_LIBXUL=1
@@ -7062,7 +7082,7 @@ if test -n "$GNU_CC" && test -n "$GNU_CXX" && test -n "$GNU_AS"; then
     echo '#include <stdio.h>' > dummy-hello.c
     echo 'int main() { printf("Hello World\n"); exit(0); }' >> dummy-hello.c
     ${CC} -S dummy-hello.c -o dummy-hello.s 2>&5
-    cat dummy-hello.s | ${AS_BIN} -o dummy-hello.S - 2>&5
+    cat dummy-hello.s 2> /dev/null | ${AS_BIN} -o dummy-hello.S - 2>&5
     if test $? = 0; then
         _res_as_stdin="yes"
     else

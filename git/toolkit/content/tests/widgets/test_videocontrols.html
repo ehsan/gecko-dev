@@ -2,7 +2,7 @@
 <html>
 <head>
   <title>Video controls test</title>
-  <script type="text/javascript" src="/MochiKit/MochiKit.js"></script>
+  <script type="text/javascript" src="/MochiKit/packed.js"></script>
   <script type="text/javascript" src="/tests/SimpleTest/SimpleTest.js"></script>  
   <script type="text/javascript" src="/tests/SimpleTest/EventUtils.js"></script>
   <link rel="stylesheet" type="text/css" href="/tests/SimpleTest/test.css" />
@@ -11,28 +11,12 @@
 <p id="display"></p>
 
 <div id="content">
-  <video width="320" height="240" id="video" src="video.ogg" controls mozNoDynamicControls></video>
+  <video width="320" height="240" id="video" src="video.ogg" controls mozNoDynamicControls autobuffer></video>
 </div>
 
 <pre id="test">
+<script type="text/javascript" src="use_large_cache.js"></script>
 <script class="testbody" type="text/javascript">
-
-// Use a large cache for this test, to stop it hanging due to the cache
-// filling up
-(function() {
-  netscape.security.PrivilegeManager.enablePrivilege("UniversalXPConnect");
-  // Set cache size to something large
-  var prefService = Components.classes["@mozilla.org/preferences-service;1"]
-                               .getService(Components.interfaces.nsIPrefService);
-  var branch = prefService.getBranch("media.");
-  var oldSize = branch.getIntPref("cache_size");
-  branch.setIntPref("cache_size", 40000);
-
-  window.addEventListener("unload", function() {
-    netscape.security.PrivilegeManager.enablePrivilege("UniversalXPConnect");
-    branch.setIntPref("cache_size", oldSize);
-  }, false);
- })();
 
 /*
  * Positions of the  UI elements, relative to the upper-left corner of the

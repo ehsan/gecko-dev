@@ -180,8 +180,6 @@ public:
   NS_IMETHOD BeginSwapDocShells(nsIFrame* aOther);
   virtual void EndSwapDocShells(nsIFrame* aOther);
 
-  NS_IMETHOD  VerifyTree() const;
-
   // nsIReflowCallback
   virtual PRBool ReflowFinished();
   virtual void ReflowCallbackCanceled();
@@ -322,59 +320,67 @@ nsSubDocumentFrame::BuildDisplayList(nsDisplayListBuilder*   aBuilder,
   if (!subdocView)
     return NS_OK;
 
-  // Get the PresShell so we can check if painting is suppressed
-  // on the subdocument. We use this roundabout way in case we
-  // don't have a frame tree.
-  if (!mFrameLoader)
-    return NS_OK;
-  nsCOMPtr<nsIDocShell> docShell;
-  mFrameLoader->GetDocShell(getter_AddRefs(docShell));
-  if (!docShell)
-    return NS_OK;
   nsCOMPtr<nsIPresShell> presShell;
-  docShell->GetPresShell(getter_AddRefs(presShell));
-  if (!presShell)
-    return NS_OK;
+
+  nsIFrame* f = static_cast<nsIFrame*>(subdocView->GetClientData());
+
+  if (f) {
+    presShell = f->PresContext()->PresShell();
+  } else {
+    // If we don't have a frame we use this roundabout way to get the pres shell.
+    if (!mFrameLoader)
+      return NS_OK;
+    nsCOMPtr<nsIDocShell> docShell;
+    mFrameLoader->GetDocShell(getter_AddRefs(docShell));
+    if (!docShell)
+      return NS_OK;
+    docShell->GetPresShell(getter_AddRefs(presShell));
+    if (!presShell)
+      return NS_OK;
+  }
 
   PRBool suppressed = PR_TRUE;
   presShell->IsPaintingSuppressed(&suppressed);
 
-  nsIFrame* f = static_cast<nsIFrame*>(subdocView->GetClientData());
+  nsDisplayList childItems;
 
-  if ((!f || suppressed) && !aBuilder->IsForEventDelivery()) {
+  nsRect dirty;
+  if (f) {
+    dirty = aDirtyRect - f->GetOffsetTo(this);
+    aBuilder->EnterPresShell(f, dirty);
+
+    rv = f->BuildDisplayListForStackingContext(aBuilder, dirty, &childItems);
+  }
+
+  // Get the bounds of subdocView relative to the reference frame.
+  nsRect shellBounds = subdocView->GetBounds() +
+                       mInnerView->GetPosition() +
+                       GetOffsetTo(aBuilder->ReferenceFrame());
+
+  if (NS_SUCCEEDED(rv) && (!f || suppressed) &&
+      !aBuilder->IsForEventDelivery()) {
     // If we don't have a frame or painting of the PresShell is suppressed,
     // try to draw the default background color. (Bug 485275)
-
-    // Get the bounds of subdocView relative to the reference frame.
-    nsRect shellBounds = subdocView->GetBounds() +
-                         mInnerView->GetPosition() +
-                         GetOffsetTo(aBuilder->ReferenceFrame());
-    rv = aLists.Content()->AppendNewToBottom(
+    rv = childItems.AppendNewToBottom(
              new (aBuilder) nsDisplaySolidColor(
                   f ? f : this,
                   shellBounds,
                   presShell->GetCanvasBackground()));
   }
 
-  if (!f)
-    return NS_OK;
-  
-  nsRect dirty = aDirtyRect - f->GetOffsetTo(this);
-
-  aBuilder->EnterPresShell(f, dirty);
-
-  // Clip children to the child root frame's rectangle
-  nsDisplayList childItems;
-  rv = f->BuildDisplayListForStackingContext(aBuilder, dirty, &childItems);
   if (NS_SUCCEEDED(rv)) {
+    // Clip children to the child root frame's rectangle
     rv = aLists.Content()->AppendNewToTop(
-        new (aBuilder) nsDisplayClip(nsnull, this, &childItems,
-              nsRect(aBuilder->ToReferenceFrame(f), f->GetSize())));
-    // delete childItems in case of OOM
-    childItems.DeleteAll();
+        new (aBuilder) nsDisplayClip(this, this, &childItems,
+              shellBounds));
+  }
+  // delete childItems in case of OOM
+  childItems.DeleteAll();
+
+  if (f) {
+    aBuilder->LeavePresShell(f, dirty);
   }
 
-  aBuilder->LeavePresShell(f, dirty);
   return rv;
 }
 
@@ -644,14 +650,6 @@ void
 nsSubDocumentFrame::ReflowCallbackCanceled()
 {
   mPostedReflowCallback = PR_FALSE;
-}
-
-NS_IMETHODIMP
-nsSubDocumentFrame::VerifyTree() const
-{
-  // XXX Completely disabled for now; once pseud-frames are reworked
-  // then we can turn it back on.
-  return NS_OK;
 }
 
 NS_IMETHODIMP

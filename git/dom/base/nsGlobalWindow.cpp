@@ -73,6 +73,7 @@
 #include "nsPluginArray.h"
 #include "nsIPluginHost.h"
 #include "nsPIPluginHost.h"
+#include "nsIPluginInstancePeer2.h"
 #include "nsGeolocation.h"
 #include "nsContentCID.h"
 #include "nsLayoutStatics.h"
@@ -432,6 +433,15 @@ nsDummyJavaPluginOwner::Destroy()
   if (mInstance) {
     mInstance->Stop();
     mInstance->Destroy();
+
+    nsCOMPtr<nsIPluginInstancePeer> peer;
+    mInstance->GetPeer(getter_AddRefs(peer));
+
+    nsCOMPtr<nsIPluginInstancePeer2> peer2(do_QueryInterface(peer));
+
+    // This plugin owner is going away, tell the peer.
+    if (peer2)
+      peer2->InvalidateOwner();
 
     mInstance = nsnull;
   }
@@ -5794,6 +5804,14 @@ nsGlobalWindow::InitJavaProperties()
 
   host->InstantiateDummyJavaPlugin(mDummyJavaPluginOwner);
 
+  // It's possible for us (or the Java plugin, rather) to process
+  // events during the above call, which can lead to this window being
+  // torn down or what not, so re-check that the dummy plugin is still
+  // around.
+  if (!mDummyJavaPluginOwner) {
+    return;
+  }
+
   nsCOMPtr<nsIPluginInstance> dummyPlugin;
   mDummyJavaPluginOwner->GetInstance(*getter_AddRefs(dummyPlugin));
 
@@ -6761,8 +6779,7 @@ nsGlobalWindow::GetSessionStorage(nsIDOMStorage ** aSessionStorage)
   *aSessionStorage = nsnull;
 
   nsIPrincipal *principal = GetPrincipal();
-  nsCOMPtr<nsIDocShell_MOZILLA_1_9_1> docShell =
-    do_QueryInterface(GetDocShell());
+  nsIDocShell* docShell = GetDocShell();
 
   if (!principal || !docShell) {
     return NS_OK;
@@ -6801,31 +6818,24 @@ nsGlobalWindow::GetGlobalStorage(nsIDOMStorageList ** aGlobalStorage)
 }
 
 NS_IMETHODIMP
-nsGlobalWindow::GetLocalStorage(nsIDOMStorage2 ** aLocalStorage)
+nsGlobalWindow::GetLocalStorage(nsIDOMStorage ** aLocalStorage)
 {
   FORWARD_TO_INNER(GetLocalStorage, (aLocalStorage), NS_ERROR_UNEXPECTED);
 
   NS_ENSURE_ARG(aLocalStorage);
-
-  if (nsDOMStorageManager::gStorageManager &&
-      nsDOMStorageManager::gStorageManager->InPrivateBrowsingMode())
-    return NS_ERROR_DOM_SECURITY_ERR;
 
   if (!mLocalStorage) {
     *aLocalStorage = nsnull;
 
     nsresult rv;
 
+    PRPackedBool unused;
+    if (!nsDOMStorage::CanUseStorage(&unused))
+      return NS_ERROR_DOM_SECURITY_ERR;
+
     nsIPrincipal *principal = GetPrincipal();
     if (!principal)
       return NS_OK;
-
-    PRPackedBool sessionOnly;
-    if (!nsDOMStorage::CanUseStorage(&sessionOnly))
-      return NS_ERROR_DOM_SECURITY_ERR;
-
-    if (sessionOnly)
-      return NS_ERROR_DOM_SECURITY_ERR;
 
     nsCOMPtr<nsIDOMStorageManager> storageManager =
       do_GetService("@mozilla.org/dom/storagemanager;1", &rv);
@@ -6975,8 +6985,7 @@ nsGlobalWindow::Observe(nsISupports* aSubject, const char* aTopic,
 
     principal = GetPrincipal();
     if (!aData) {
-      nsCOMPtr<nsIDocShell_MOZILLA_1_9_1> docShell =
-        do_QueryInterface(GetDocShell());
+      nsIDocShell* docShell = GetDocShell();
       if (principal && docShell) {
         nsCOMPtr<nsIDOMStorage> storage;
         docShell->GetSessionStorageForPrincipal(principal,
@@ -9050,7 +9059,9 @@ nsNavigator::GetPlatform(nsAString& aPlatform)
     // sorry for the #if platform ugliness, but Communicator is
     // likewise hardcoded and we're seeking backward compatibility
     // here (bug 47080)
-#if defined(WIN32)
+#if defined(_WIN64)
+    aPlatform.AssignLiteral("Win64");
+#elif defined(WIN32)
     aPlatform.AssignLiteral("Win32");
 #elif defined(XP_MACOSX) && defined(__ppc__)
     aPlatform.AssignLiteral("MacPPC");
