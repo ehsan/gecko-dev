@@ -2767,7 +2767,6 @@ public:
     XPCJSContextStack(XPCJSRuntime *aRuntime)
       : mRuntime(aRuntime)
       , mSafeJSContext(nullptr)
-      , mSafeJSContextGlobal(nullptr)
     { }
 
     virtual ~XPCJSContextStack();
@@ -2784,7 +2783,6 @@ public:
 
     JSContext *InitSafeJSContext();
     JSContext *GetSafeJSContext();
-    JSObject *GetSafeJSContextGlobal();
     bool HasJSContext(JSContext *cx);
 
     const InfallibleTArray<XPCJSContextInfo>* GetStack()
@@ -2803,7 +2801,6 @@ private:
     AutoInfallibleTArray<XPCJSContextInfo, 16> mStack;
     XPCJSRuntime* mRuntime;
     JSContext*  mSafeJSContext;
-    JSObject* mSafeJSContextGlobal;
 };
 
 /***************************************************************************/

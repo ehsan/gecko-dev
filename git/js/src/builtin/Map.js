@@ -12,7 +12,7 @@ function MapForEach(callbackfn, thisArg = undefined) {
 
     /* Step 3-4. */
     try {
-        callFunction(std_Map_has, M);
+        std_Map_has.call(M);
     } catch (e) {
         ThrowError(JSMSG_BAD_TYPE, typeof M);
     }
@@ -22,9 +22,9 @@ function MapForEach(callbackfn, thisArg = undefined) {
         ThrowError(JSMSG_NOT_FUNCTION, DecompileArg(0, callbackfn));
 
     /* Step 6-8. */
-    var entries = callFunction(std_Map_iterator, M);
+    var entries = std_Map_iterator.call(M);
     while (true) {
-        var result = callFunction(std_Map_iterator_next, entries);
+        var result = std_Map_iterator_next.call(entries);
         if (result.done)
             break;
         var entry = result.value;

@@ -160,10 +160,6 @@ IdpProxy.prototype = {
     this.pending = [];
   },
 
-  isSame: function(domain, protocol) {
-    return this.domain === domain && ((protocol || "default") === this.protocol);
-  },
-
   /**
    * Get a sandboxed iframe for hosting the idp-proxy's js. Create a message
    * channel down to the frame.
@@ -264,7 +260,7 @@ IdpProxy.prototype = {
   },
 
   toString: function() {
-    return this.domain + '/.../' + this.protocol;
+    return this.domain + '/' + this.protocol;
   }
 };
 

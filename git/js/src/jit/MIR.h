@@ -9018,59 +9018,39 @@ class MNewDeclEnvObject : public MNullaryInstruction
     }
 };
 
-class MNewCallObjectBase : public MUnaryInstruction
+class MNewCallObject : public MUnaryInstruction
 {
     CompilerRootObject templateObj_;
+    bool needsSingletonType_;
 
-  protected:
-    MNewCallObjectBase(JSObject *templateObj, MDefinition *slots)
+    MNewCallObject(JSObject *templateObj, bool needsSingletonType, MDefinition *slots)
       : MUnaryInstruction(slots),
-        templateObj_(templateObj)
+        templateObj_(templateObj),
+        needsSingletonType_(needsSingletonType)
     {
         setResultType(MIRType_Object);
     }
 
   public:
+    INSTRUCTION_HEADER(NewCallObject)
+
+    static MNewCallObject *New(TempAllocator &alloc, JSObject *templateObj, bool needsSingletonType,
+                               MDefinition *slots)
+    {
+        return new(alloc) MNewCallObject(templateObj, needsSingletonType, slots);
+    }
+
     MDefinition *slots() {
         return getOperand(0);
     }
     JSObject *templateObject() {
         return templateObj_;
     }
+    bool needsSingletonType() const {
+        return needsSingletonType_;
+    }
     AliasSet getAliasSet() const {
         return AliasSet::None();
-    }
-};
-
-class MNewCallObject : public MNewCallObjectBase
-{
-  public:
-    INSTRUCTION_HEADER(NewCallObject)
-
-    MNewCallObject(JSObject *templateObj, MDefinition *slots)
-      : MNewCallObjectBase(templateObj, slots)
-    {}
-
-    static MNewCallObject *
-    New(TempAllocator &alloc, JSObject *templateObj, MDefinition *slots)
-    {
-        return new(alloc) MNewCallObject(templateObj, slots);
-    }
-};
-
-class MNewRunOnceCallObject : public MNewCallObjectBase
-{
-  public:
-    INSTRUCTION_HEADER(NewRunOnceCallObject)
-
-    MNewRunOnceCallObject(JSObject *templateObj, MDefinition *slots)
-      : MNewCallObjectBase(templateObj, slots)
-    {}
-
-    static MNewRunOnceCallObject *
-    New(TempAllocator &alloc, JSObject *templateObj, MDefinition *slots)
-    {
-        return new(alloc) MNewRunOnceCallObject(templateObj, slots);
     }
 };
 
@@ -9088,7 +9068,7 @@ class MNewCallObjectPar : public MBinaryInstruction
   public:
     INSTRUCTION_HEADER(NewCallObjectPar);
 
-    static MNewCallObjectPar *New(TempAllocator &alloc, MDefinition *cx, MNewCallObjectBase *callObj) {
+    static MNewCallObjectPar *New(TempAllocator &alloc, MDefinition *cx, MNewCallObject *callObj) {
         return new(alloc) MNewCallObjectPar(cx, callObj->templateObject(), callObj->slots());
     }
 

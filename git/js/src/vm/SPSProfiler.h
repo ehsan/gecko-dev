@@ -291,13 +291,6 @@ class SPSInstrumentation
     Vector<FrameState, 1, SystemAllocPolicy> frames;
     FrameState *frame;
 
-    static void clearFrame(FrameState *frame) {
-        frame->script = nullptr;
-        frame->pc = nullptr;
-        frame->skipNext = false;
-        frame->left = 0;
-    }
-
   public:
     /*
      * Creates instrumentation which writes information out the the specified
@@ -340,7 +333,10 @@ class SPSInstrumentation
         if (!frames.growBy(1))
             return false;
         frame = &frames[frames.length() - 1];
-        clearFrame(frame);
+        frame->script = nullptr;
+        frame->pc = nullptr;
+        frame->skipNext = false;
+        frame->left = 0;
         return true;
     }
 
@@ -364,7 +360,6 @@ class SPSInstrumentation
         }
         frames[0].pc = frames[0].script->code();
         frame = &frames[1];
-        clearFrame(frame);
         return true;
     }
     void finishOOL() {

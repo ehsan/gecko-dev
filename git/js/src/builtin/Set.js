@@ -12,7 +12,7 @@ function SetForEach(callbackfn, thisArg = undefined) {
 
     /* Step 3-4. */
     try {
-        callFunction(std_Set_has, S);
+        std_Set_has.call(S);
     } catch (e) {
         ThrowError(JSMSG_BAD_TYPE, typeof S);
     }
@@ -22,9 +22,9 @@ function SetForEach(callbackfn, thisArg = undefined) {
         ThrowError(JSMSG_NOT_FUNCTION, DecompileArg(0, callbackfn));
 
     /* Step 7-8. */
-    var values = callFunction(std_Set_iterator, S);
+    var values = std_Set_iterator.call(S);
     while (true) {
-        var result = callFunction(std_Set_iterator_next, values);
+        var result = std_Set_iterator_next.call(values);
         if (result.done)
             break;
         var value = result.value;

@@ -83,7 +83,7 @@ private:
 
   bool SrcAddress(const NetAddr *remoteAddress, nsCString &localAddress);
   bool MyIPAddressTryHost(const nsCString &hostName, unsigned int timeout,
-                          const JS::CallArgs &aArgs, bool* aResult);
+                          const JS::CallArgs &aArgs);
 
   JSRuntimeWrapper *mJSRuntime;
   bool              mJSNeedsSetup;

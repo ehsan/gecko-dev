@@ -53,7 +53,11 @@ var gOMTCEnabled = gUtils.layerManagerRemote;
 
 if (gOMTCEnabled && SpecialPowers.getBoolPref(gOMTAPrefKey)) {
   SimpleTest.waitForExplicitFinish();
-  window.addEventListener("load", testDelay);
+  window.addEventListener("load", function() {
+    // Using paint_listener.js functions inside an onload handler is not safe
+    // (bug 986367) so spin the event loop first
+    SimpleTest.executeSoon(testDelay);
+  });
 } else {
   ok(true, "OMTA not available");
 }

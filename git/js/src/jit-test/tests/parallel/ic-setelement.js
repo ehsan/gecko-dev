@@ -113,9 +113,10 @@ function set(a, n) {
   var foo = 0;
   var foo = 0;
 }
-set({}, 256);
+set({}, 1024);
+set({}, 1024);
 function Foo() { }
-set(new Foo, 256);
+set(new Foo, 1024);
 
 function testSetDense() {
   assertArraySeqParResultsEq(
@@ -124,7 +125,7 @@ function testSetDense() {
     function (i) {
       var a1 = [];
       // Defines .foo
-      set(a1, 32);
+      set(a1, i+1);
       return a1[i];
     });
 }
