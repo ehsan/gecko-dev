@@ -80,7 +80,7 @@ function test() {
     })
 
     function testStatus() {
-      let summary = $("#requests-menu-network-summary-label");
+      let summary = $("#request-menu-network-summary");
       let value = summary.getAttribute("value");
       info("Current summary: " + value);
 
@@ -89,7 +89,13 @@ function test() {
       let totalRequestsCount = RequestsMenu.itemCount;
       info("Current requests: " + visibleRequestsCount + " of " + totalRequestsCount + ".");
 
-      if (!totalRequestsCount || !visibleRequestsCount) {
+      if (!totalRequestsCount) {
+        is(value, "",
+          "The current summary text is incorrect, expected an empty string.");
+        return;
+      }
+
+      if (!visibleRequestsCount) {
         is(value, L10N.getStr("networkMenu.empty"),
           "The current summary text is incorrect, expected an 'empty' label.");
         return;

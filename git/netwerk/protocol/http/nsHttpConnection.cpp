@@ -22,7 +22,6 @@
 #include "mozilla/Telemetry.h"
 #include "nsISupportsPriority.h"
 #include "nsHttpPipeline.h"
-#include <algorithm>
 
 #ifdef DEBUG
 // defined by the socket transport service while active
@@ -942,21 +941,20 @@ nsHttpConnection::TakeTransport(nsISocketTransport  **aTransport,
     return NS_OK;
 }
 
-uint32_t
+void
 nsHttpConnection::ReadTimeoutTick(PRIntervalTime now)
 {
     MOZ_ASSERT(PR_GetCurrentThread() == gSocketThread);
 
     // make sure timer didn't tick before Activate()
     if (!mTransaction)
-        return UINT32_MAX;
+        return;
 
     // Spdy implements some timeout handling using the SPDY ping frame.
     if (mSpdySession) {
-        return mSpdySession->ReadTimeoutTick(now);
+        mSpdySession->ReadTimeoutTick(now);
+        return;
     }
-
-    uint32_t nextTickAfter = UINT32_MAX;
 
     // Timeout if the response is taking too long to arrive.
     if (mResponseTimeoutEnabled) {
@@ -970,15 +968,12 @@ nsHttpConnection::ReadTimeoutTick(PRIntervalTime now)
 
             // This will also close the connection
             CloseTransaction(mTransaction, NS_ERROR_NET_TIMEOUT);
-            return UINT32_MAX;
+            return;
         }
-        nextTickAfter = PR_IntervalToSeconds(gHttpHandler->ResponseTimeout()) -
-            PR_IntervalToSeconds(initialResponseDelta);
-        nextTickAfter = std::max(nextTickAfter, 1U);
     }
 
     if (!gHttpHandler->GetPipelineRescheduleOnTimeout())
-        return nextTickAfter;
+        return;
 
     PRIntervalTime delta = now - mLastReadTime;
 
@@ -992,11 +987,6 @@ nsHttpConnection::ReadTimeoutTick(PRIntervalTime now)
     // be the place to add general read timeout handling if it is desired.
 
     uint32_t pipelineDepth = mTransaction->PipelineDepth();
-    if (pipelineDepth > 1) {
-        // if we have pipelines outstanding (not just an idle connection)
-        // then get a fairly quick tick
-        nextTickAfter = 1;
-    }
 
     if (delta >= gHttpHandler->GetPipelineRescheduleTimeout() &&
         pipelineDepth > 1) {
@@ -1019,10 +1009,10 @@ nsHttpConnection::ReadTimeoutTick(PRIntervalTime now)
     }
 
     if (delta < gHttpHandler->GetPipelineTimeout())
-        return nextTickAfter;
+        return;
 
     if (pipelineDepth <= 1 && !mTransaction->PipelinePosition())
-        return nextTickAfter;
+        return;
 
     // nothing has transpired on this pipelined socket for many
     // seconds. Call that a total stall and close the transaction.
@@ -1037,7 +1027,6 @@ nsHttpConnection::ReadTimeoutTick(PRIntervalTime now)
 
     // This will also close the connection
     CloseTransaction(mTransaction, NS_ERROR_NET_TIMEOUT);
-    return UINT32_MAX;
 }
 
 void

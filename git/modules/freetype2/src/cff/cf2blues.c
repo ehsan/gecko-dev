@@ -86,13 +86,11 @@
     size_t     i;
     CF2_Fixed  emBoxBottom, emBoxTop;
 
-#if 0
     CF2_Int  unitsPerEm = font->unitsPerEm;
 
 
     if ( unitsPerEm == 0 )
       unitsPerEm = 1000;
-#endif
 
     FT_ZERO( blues );
     blues->scale = font->innerTransform.d;

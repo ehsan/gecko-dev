@@ -4206,8 +4206,9 @@ DebuggerFrame_getArguments(JSContext *cx, unsigned argc, Value *vp)
     RootedObject argsobj(cx);
     if (frame.hasArgs()) {
         /* Create an arguments object. */
-        Rooted<GlobalObject*> global(cx, &args.callee().global());
-        JSObject *proto = GlobalObject::getOrCreateArrayPrototype(cx, global);
+        Rooted<GlobalObject*> global(cx);
+        global = &args.callee().global();
+        JSObject *proto = global->getOrCreateArrayPrototype(cx);
         if (!proto)
             return false;
         argsobj = NewObjectWithGivenProto(cx, &DebuggerArguments_class, proto, global);
@@ -4386,7 +4387,7 @@ DebuggerFrame_setOnPop(JSContext *cx, unsigned argc, Value *vp)
  */
 bool
 js::EvaluateInEnv(JSContext *cx, Handle<Env*> env, HandleValue thisv, AbstractFramePtr frame,
-                  ConstTwoByteChars chars, unsigned length, const char *filename, unsigned lineno,
+                  StableCharPtr chars, unsigned length, const char *filename, unsigned lineno,
                   MutableHandleValue rval)
 {
     assertSameCompartment(cx, env, frame);
@@ -4437,8 +4438,8 @@ DebuggerGenericEval(JSContext *cx, const char *fullMethodName, const Value &code
                              fullMethodName, "string", InformalValueTypeName(code));
         return false;
     }
-    Rooted<JSFlatString *> flat(cx, code.toString()->ensureFlat(cx));
-    if (!flat)
+    Rooted<JSStableString *> stable(cx, code.toString()->ensureStable(cx));
+    if (!stable)
         return false;
 
     /*
@@ -4542,11 +4543,10 @@ DebuggerGenericEval(JSContext *cx, const char *fullMethodName, const Value &code
 
     /* Run the code and produce the completion value. */
     RootedValue rval(cx);
-    JS::Anchor<JSString *> anchor(flat);
+    JS::Anchor<JSString *> anchor(stable);
     AbstractFramePtr frame = iter ? iter->abstractFramePtr() : NullFramePtr();
-    bool ok = EvaluateInEnv(cx, env, thisv, frame,
-                            ConstTwoByteChars(flat->chars(), flat->length()),
-                            flat->length(), url ? url : "debugger eval code", lineNumber, &rval);
+    bool ok = EvaluateInEnv(cx, env, thisv, frame, stable->chars(), stable->length(),
+                            url ? url : "debugger eval code", lineNumber, &rval);
     if (url)
         JS_free(cx, url);
     return dbg->receiveCompletionValue(ac, ok, rval, vp);

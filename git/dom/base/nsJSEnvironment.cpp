@@ -238,16 +238,6 @@ KillTimers()
   nsJSContext::KillInterSliceGCTimer();
 }
 
-// If we collected a substantial amount of cycles, poke the GC since more objects
-// might be unreachable now.
-static bool
-NeedsGCAfterCC()
-{
-  return sCCollectedWaitingForGC > 250 ||
-    sLikelyShortLivingObjectsNeedingGC > 2500 ||
-    sNeedsGCAfterCC;
-}
-
 class nsJSEnvironmentObserver MOZ_FINAL : public nsIObserver
 {
 public:
@@ -273,12 +263,6 @@ nsJSEnvironmentObserver::Observe(nsISupports* aSubject, const char* aTopic,
                                    nsJSContext::NonCompartmentGC,
                                    nsJSContext::ShrinkingGC);
     nsJSContext::CycleCollectNow();
-    if (NeedsGCAfterCC()) {
-      nsJSContext::GarbageCollectNow(JS::gcreason::MEM_PRESSURE,
-                                     nsJSContext::NonIncrementalGC,
-                                     nsJSContext::NonCompartmentGC,
-                                     nsJSContext::ShrinkingGC);
-    }
   } else if (!nsCRT::strcmp(aTopic, "quit-application")) {
     sShuttingDown = true;
     KillTimers();
@@ -2231,7 +2215,11 @@ nsJSContext::EndCycleCollectionCallback(CycleCollectorResults &aResults)
 
   sCCollectedWaitingForGC += aResults.mFreedRefCounted + aResults.mFreedGCed;
 
-  if (NeedsGCAfterCC()) {
+  // If we collected a substantial amount of cycles, poke the GC since more objects
+  // might be unreachable now.
+  if (sCCollectedWaitingForGC > 250 ||
+      sLikelyShortLivingObjectsNeedingGC > 2500 ||
+      sNeedsGCAfterCC) {
     PokeGC(JS::gcreason::CC_WAITING);
   }
 

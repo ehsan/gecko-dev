@@ -100,36 +100,23 @@ public:
   std::vector<VelocityData> mData;
 };
 
-static gfx::Point GetScrollData(Layer* aLayer) {
-  gfx::Matrix matrix;
-  if (aLayer->GetLocalTransform().Is2D(&matrix)) {
-    return matrix.GetTranslation();
-  }
-
-  gfx::Point origin;
-  return origin;
-}
-
-static LayerVelocityUserData* GetVelocityData(Layer* aLayer) {
-  static char sLayerVelocityUserDataKey;
-  void* key = reinterpret_cast<void*>(&sLayerVelocityUserDataKey);
-  if (!aLayer->HasUserData(key)) {
-    LayerVelocityUserData* newData = new LayerVelocityUserData();
-    aLayer->SetUserData(key, newData);
-  }
-
-  return static_cast<LayerVelocityUserData*>(aLayer->GetUserData(key));
-}
-
 static void DrawVelGraph(const nsIntRect& aClipRect,
                          LayerManagerComposite* aManager,
                          Layer* aLayer) {
+  static char sLayerVelocityUserDataKey;
   Compositor* compositor = aManager->GetCompositor();
   gfx::Rect clipRect(aClipRect.x, aClipRect.y,
                      aClipRect.width, aClipRect.height);
 
   TimeStamp now = TimeStamp::Now();
-  LayerVelocityUserData* velocityData = GetVelocityData(aLayer);
+
+  void* key = reinterpret_cast<void*>(&sLayerVelocityUserDataKey);
+  if (!aLayer->HasUserData(key)) {
+    aLayer->SetUserData(key, new LayerVelocityUserData());
+  }
+
+  LayerVelocityUserData* velocityData =
+    static_cast<LayerVelocityUserData*>(aLayer->GetUserData(key));
 
   if (velocityData->mData.size() >= 1 &&
     now > velocityData->mData[velocityData->mData.size() - 1].mFrameTime +
@@ -138,17 +125,17 @@ static void DrawVelGraph(const nsIntRect& aClipRect,
     velocityData->mData.clear();
   }
 
-  const gfx::Point layerTransform = GetScrollData(aLayer);
+  nsIntPoint scrollOffset =
+    aLayer->GetEffectiveVisibleRegion().GetBounds().TopLeft();
   velocityData->mData.push_back(
-    LayerVelocityUserData::VelocityData(now,
-      static_cast<int>(layerTransform.x), static_cast<int>(layerTransform.y)));
+    LayerVelocityUserData::VelocityData(now, scrollOffset.x, scrollOffset.y));
 
-  // TODO: dump to file
+
   // XXX: Uncomment these lines to enable ScrollGraph logging. This is
   //      useful for HVGA phones or to output the data to accurate
   //      graphing software.
-  // printf_stderr("ScrollGraph (%p): %f, %f\n",
-  // aLayer, layerTransform.x, layerTransform.y);
+  //printf_stderr("ScrollGraph (%p): %i, %i\n",
+  //  aLayer, scrollOffset.x, scrollOffset.y);
 
   // Keep a circular buffer of 100.
   size_t circularBufferSize = 100;
@@ -208,6 +195,7 @@ static void DrawVelGraph(const nsIntRect& aClipRect,
 
   compositor->DrawLines(graph, clipRect, gfx::Color(0,1,0,1),
                         opacity, transform);
+
 }
 
 template<class ContainerT> void

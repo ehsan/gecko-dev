@@ -24,7 +24,7 @@ function startTests() {
   Task.spawn(function() {
     yield openToolbox();
     yield startPickerAndAssertSwitchToInspector();
-    yield toolbox.highlighterUtils.stopPicker();
+    yield toolbox.stopPicker();
 
     finishTests();
   }).then(null, Cu.reportError);

@@ -212,7 +212,7 @@ class CodeGenerator : public CodeGeneratorSpecific
     bool visitFromCharCode(LFromCharCode *lir);
     bool visitStringSplit(LStringSplit *lir);
     bool visitFunctionEnvironment(LFunctionEnvironment *lir);
-    bool visitForkJoinContext(LForkJoinContext *lir);
+    bool visitForkJoinSlice(LForkJoinSlice *lir);
     bool visitGuardThreadExclusive(LGuardThreadExclusive *lir);
     bool visitCallGetProperty(LCallGetProperty *lir);
     bool visitCallGetElement(LCallGetElement *lir);
@@ -365,7 +365,7 @@ class CodeGenerator : public CodeGeneratorSpecific
 
     bool generateBranchV(const ValueOperand &value, Label *ifTrue, Label *ifFalse, FloatRegister fr);
 
-    bool emitAllocateGCThingPar(LInstruction *lir, const Register &objReg, const Register &cxReg,
+    bool emitAllocateGCThingPar(LInstruction *lir, const Register &objReg, const Register &sliceReg,
                                 const Register &tempReg1, const Register &tempReg2,
                                 JSObject *templateObj);
 

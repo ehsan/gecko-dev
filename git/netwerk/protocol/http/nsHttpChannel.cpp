@@ -802,8 +802,6 @@ CallTypeSniffers(void *aClosure, const uint8_t *aData, uint32_t aCount)
 nsresult
 nsHttpChannel::CallOnStartRequest()
 {
-    nsresult rv;
-
     mTracingEnabled = false;
 
     // Allow consumers to override our content type
@@ -844,7 +842,7 @@ nsHttpChannel::CallOnStartRequest()
             // neither does applying the conversion from the URILoader
 
             nsCOMPtr<nsIStreamConverterService> serv;
-            rv = gHttpHandler->
+            nsresult rv = gHttpHandler->
                 GetStreamConverterService(getter_AddRefs(serv));
             // If we failed, we just fall through to the "normal" case
             if (NS_SUCCEEDED(rv)) {
@@ -867,19 +865,15 @@ nsHttpChannel::CallOnStartRequest()
     if (mResponseHead && mCacheEntry) {
         // If we have a cache entry, set its predicted size to ContentLength to
         // avoid caching an entry that will exceed the max size limit.
-        rv = mCacheEntry->SetPredictedDataSize(
+        nsresult rv = mCacheEntry->SetPredictedDataSize(
             mResponseHead->ContentLength());
-        if (NS_ERROR_FILE_TOO_BIG == rv) {
-          mCacheEntry = nullptr;
-          LOG(("  entry too big, throwing away"));
-        } else {
-          NS_ENSURE_SUCCESS(rv, rv);
-        }
+        NS_ENSURE_SUCCESS(rv, rv);
     }
 
     LOG(("  calling mListener->OnStartRequest\n"));
+    nsresult rv;
     if (mListener) {
-        rv = mListener->OnStartRequest(this, mListenerContext);
+        nsresult rv = mListener->OnStartRequest(this, mListenerContext);
         if (NS_FAILED(rv))
             return rv;
     } else {
@@ -3646,28 +3640,22 @@ nsHttpChannel::InitCacheEntry()
     LOG(("nsHttpChannel::InitCacheEntry [this=%p entry=%p]\n",
         this, mCacheEntry.get()));
 
-    bool recreate = !mCacheEntryIsWriteOnly;
-    bool dontPersist = mLoadFlags & INHIBIT_PERSISTENT_CACHING;
-
-    if (!recreate && dontPersist) {
-        // If the current entry is persistent but we inhibit peristence
-        // then force recreation of the entry as memory/only.
-        rv = mCacheEntry->GetPersistent(&recreate);
-        if (NS_FAILED(rv))
-            return rv;
-    }
-
-    if (recreate) {
+    if (!mCacheEntryIsWriteOnly) {
         LOG(("  we have a ready entry, but reading it again from the server -> recreating cache entry\n"));
         nsCOMPtr<nsICacheEntry> currentEntry;
         currentEntry.swap(mCacheEntry);
-        rv = currentEntry->Recreate(dontPersist, getter_AddRefs(mCacheEntry));
+        rv = currentEntry->Recreate(getter_AddRefs(mCacheEntry));
         if (NS_FAILED(rv)) {
           LOG(("  recreation failed, the response will not be cached"));
           return NS_OK;
         }
 
         mCacheEntryIsWriteOnly = true;
+    }
+
+    if (mLoadFlags & INHIBIT_PERSISTENT_CACHING) {
+        rv = mCacheEntry->SetPersistToDisk(false);
+        if (NS_FAILED(rv)) return rv;
     }
 
     // Set the expiration time for this cache entry

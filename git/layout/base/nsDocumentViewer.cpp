@@ -1498,7 +1498,8 @@ DetachContainerRecurse(nsIDocShell *aShell)
     nsRefPtr<nsPresContext> pc;
     viewer->GetPresContext(getter_AddRefs(pc));
     if (pc) {
-      pc->Detach();
+      pc->SetContainer(nullptr);
+      pc->SetLinkHandler(nullptr);
     }
     nsCOMPtr<nsIPresShell> presShell;
     viewer->GetPresShell(getter_AddRefs(presShell));
@@ -1621,7 +1622,8 @@ nsDocumentViewer::Destroy()
       mDocument->SetContainer(nullptr);
     }
     if (mPresContext) {
-      mPresContext->Detach();
+      mPresContext->SetLinkHandler(nullptr);
+      mPresContext->SetContainer(nullptr);
     }
     if (mPresShell) {
       mPresShell->SetForwardingContainer(mContainer);
@@ -3692,13 +3694,11 @@ nsDocumentViewer::PrintPreview(nsIPrintSettings* aPrintSettings,
   if (mPrintEngine->HasPrintCallbackCanvas()) {
     mBeforeAndAfterPrint = beforeAndAfterPrint;
   }
-  dom::Element* root = doc->GetRootElement();
+  dom::Element* root = mDocument->GetRootElement();
   if (root && root->HasAttr(kNameSpaceID_None, nsGkAtoms::mozdisallowselectionprint)) {
-    PR_PL(("PrintPreview: found mozdisallowselectionprint"));
     mPrintEngine->SetDisallowSelectionPrint(true);
   }
   if (root && root->HasAttr(kNameSpaceID_None, nsGkAtoms::moznomarginboxes)) {
-    PR_PL(("PrintPreview: found moznomarginboxes"));
     mPrintEngine->SetNoMarginBoxes(true);
   }
   rv = mPrintEngine->PrintPreview(aPrintSettings, aChildDOMWin, aWebProgressListener);
@@ -4337,7 +4337,8 @@ nsDocumentViewer::DestroyPresShell()
 void
 nsDocumentViewer::DestroyPresContext()
 {
-  mPresContext->Detach();
+  mPresContext->SetContainer(nullptr);
+  mPresContext->SetLinkHandler(nullptr);
   mPresContext = nullptr;
 }
 

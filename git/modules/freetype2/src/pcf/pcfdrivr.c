@@ -218,24 +218,25 @@ THE SOFTWARE.
     FT_FREE( face->metrics );
 
     /* free properties */
-    if ( face->properties )
     {
-      FT_Int  i;
+      PCF_Property  prop;
+      FT_Int        i;
 
 
-      for ( i = 0; i < face->nprops; i++ )
+      if ( face->properties )
       {
-        PCF_Property  prop = &face->properties[i];
-
-
-        if ( prop )
+        for ( i = 0; i < face->nprops; i++ )
         {
-          FT_FREE( prop->name );
-          if ( prop->isString )
-            FT_FREE( prop->value.atom );
+          prop = &face->properties[i];
+
+          if ( prop )
+          {
+            FT_FREE( prop->name );
+            if ( prop->isString )
+              FT_FREE( prop->value.atom );
+          }
         }
       }
-
       FT_FREE( face->properties );
     }
 
@@ -263,10 +264,11 @@ THE SOFTWARE.
                  FT_Parameter*  params )
   {
     PCF_Face  face  = (PCF_Face)pcfface;
-    FT_Error  error;
+    FT_Error  error = FT_Err_Ok;
 
     FT_UNUSED( num_params );
     FT_UNUSED( params );
+    FT_UNUSED( face_index );
 
 
     FT_TRACE2(( "PCF driver\n" ));
@@ -343,18 +345,6 @@ THE SOFTWARE.
       goto Fail;
 
 #endif
-    }
-
-    /* PCF could not have multiple face in single font file.
-     * XXX: non-zero face_index is already invalid argument, but
-     *      Type1, Type42 driver has a convention to return
-     *      an invalid argument error when the font could be
-     *      opened by the specified driver.
-     */
-    if ( face_index > 0 ) {
-      FT_ERROR(( "PCF_Face_Init: invalid face index\n" ));
-      PCF_Face_Done( pcfface );
-      return FT_THROW( Invalid_Argument );
     }
 
     /* set up charmap */
@@ -492,7 +482,7 @@ THE SOFTWARE.
     FT_UNUSED( load_flags );
 
 
-    FT_TRACE1(( "PCF_Glyph_Load: glyph index %d\n", glyph_index ));
+    FT_TRACE4(( "load_glyph %d ---", glyph_index ));
 
     if ( !face || glyph_index >= (FT_UInt)face->root.num_glyphs )
     {
@@ -585,6 +575,8 @@ THE SOFTWARE.
     ft_synthesize_vertical_metrics( &slot->metrics,
                                     ( face->accel.fontAscent +
                                       face->accel.fontDescent ) << 6 );
+
+    FT_TRACE4(( " --- ok\n" ));
 
   Exit:
     return error;

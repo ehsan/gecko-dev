@@ -66,7 +66,7 @@ NS_INTERFACE_MAP_END_INHERITING(nsDOMEventTargetHelper)
 
 static uint8_t gWebAudioOutputKey;
 
-static float GetSampleRateForAudioContext(bool aIsOffline, float aSampleRate)
+float GetSampleRateForAudioContext(bool aIsOffline, float aSampleRate)
 {
   if (aIsOffline) {
     return aSampleRate;

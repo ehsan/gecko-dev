@@ -14,7 +14,6 @@ const Cu = Components.utils;
 Cu.import("resource://gre/modules/Services.jsm");
 Cu.import("resource://gre/modules/PluralForm.jsm");
 Cu.import("resource://gre/modules/NetUtil.jsm");
-Cu.import("resource://gre/modules/osfile.jsm");
 let promise = Cu.import("resource://gre/modules/commonjs/sdk/core/promise.js").Promise;
 Cu.import("resource:///modules/devtools/shared/event-emitter.js");
 Cu.import("resource:///modules/devtools/gDevTools.jsm");
@@ -228,7 +227,6 @@ StyleEditorUI.prototype = {
         sources.forEach((source) => {
           // set so the first sheet will be selected, even if it's a source
           source.styleSheetIndex = styleSheet.styleSheetIndex;
-          source.relatedStyleSheet = styleSheet;
 
           this._addStyleSheetEditor(source);
         });
@@ -252,8 +250,6 @@ StyleEditorUI.prototype = {
 
     editor.on("property-change", this._summaryChange.bind(this, editor));
     editor.on("style-applied", this._summaryChange.bind(this, editor));
-    editor.on("linked-css-file", this._summaryChange.bind(this, editor));
-    editor.on("linked-css-file-error", this._summaryChange.bind(this, editor));
     editor.on("error", this._onError);
 
     this.editors.push(editor);
@@ -561,13 +557,9 @@ StyleEditorUI.prototype = {
     if (!summary) {
       return;
     }
-
-    let ruleCount = editor.styleSheet.ruleCount;
-    if (editor.styleSheet.relatedStyleSheet) {
-      ruleCount = editor.styleSheet.relatedStyleSheet.ruleCount;
-    }
-    if (ruleCount === undefined) {
-      ruleCount = "-";
+    let ruleCount = "-";
+    if (editor.styleSheet.ruleCount !== undefined) {
+      ruleCount = editor.styleSheet.ruleCount;
     }
 
     var flags = [];
@@ -577,22 +569,15 @@ StyleEditorUI.prototype = {
     if (editor.unsaved) {
       flags.push("unsaved");
     }
-    if (editor.linkedCSSFileError) {
-      flags.push("linked-file-error");
-    }
     this._view.setItemClassName(summary, flags.join(" "));
 
     let label = summary.querySelector(".stylesheet-name > label");
     label.setAttribute("value", editor.friendlyName);
 
-    let linkedCSSFile = "";
-    if (editor.linkedCSSFile) {
-      linkedCSSFile = OS.Path.basename(editor.linkedCSSFile);
-    }
-    text(summary, ".stylesheet-linked-file", linkedCSSFile);
     text(summary, ".stylesheet-title", editor.styleSheet.title || "");
     text(summary, ".stylesheet-rule-count",
       PluralForm.get(ruleCount, _("ruleCount.label")).replace("#1", ruleCount));
+    text(summary, ".stylesheet-error-message", editor.errorMessage);
   },
 
   destroy: function() {

@@ -18,7 +18,6 @@
 }
 
 .theme-dark .stylesheet-rule-count,
-.theme-dark .stylesheet-linked-file,
 .theme-dark .stylesheet-saveButton {
   color: #b6babf;
 }
@@ -29,7 +28,6 @@
 }
 
 .theme-light .stylesheet-rule-count,
-.theme-light .stylesheet-linked-file,
 .theme-light .stylesheet-saveButton {
   color: #18191a;
 }
@@ -42,7 +40,6 @@
 .splitview-active .stylesheet-title,
 .splitview-active .stylesheet-name,
 .theme-light .splitview-active .stylesheet-rule-count,
-.theme-light .splitview-active .stylesheet-linked-file,
 .theme-light .splitview-active .stylesheet-saveButton {
   color: #f5f7fa;
 }
@@ -88,16 +85,8 @@
   outline: 0;
 }
 
-.stylesheet-linked-file:not(:empty){
-  -moz-margin-end: 0.4em;
-}
-
-.stylesheet-linked-file:not(:empty):before {
-  -moz-margin-start: 0.4em;
-}
-
-li.linked-file-error .stylesheet-linked-file:after {
-  font-size: 110%;
+.stylesheet-error-message {
+  color: red;
 }
 
 .stylesheet-more > h3 {

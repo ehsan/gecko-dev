@@ -54,7 +54,6 @@
 #include "nsHashPropertyBag.h"
 #include "nsLayoutStylesheetCache.h"
 #include "nsIJSRuntimeService.h"
-#include "nsThreadManager.h"
 
 #include "IHistory.h"
 #include "nsNetUtil.h"
@@ -341,14 +340,6 @@ ContentChild::Init(MessageLoop* aIOLoop,
 
     NS_ASSERTION(!sSingleton, "only one ContentChild per child");
 
-    // Once we start sending IPC messages, we need the thread manager to be
-    // initialized so we can deal with the responses. Do that here before we
-    // try to construct the crash reporter.
-    nsresult rv = nsThreadManager::get()->Init();
-    if (NS_WARN_IF(NS_FAILED(rv))) {
-        return false;
-    }
-
     Open(aChannel, aParentHandle, aIOLoop);
     sSingleton = this;
 
@@ -554,9 +545,8 @@ ContentChild::RecvDumpGCAndCCLogsToFile(const nsString& aIdentifier,
 {
     nsCOMPtr<nsIMemoryInfoDumper> dumper = do_GetService("@mozilla.org/memory-info-dumper;1");
 
-    nsString gcLogPath, ccLogPath;
     dumper->DumpGCAndCCLogsToFile(aIdentifier, aDumpAllTraces,
-                                  aDumpChildProcesses, gcLogPath, ccLogPath);
+                                  aDumpChildProcesses);
     return true;
 }
 

@@ -1724,7 +1724,7 @@ TemporaryTypeSet::isDOMClass()
     unsigned count = getObjectCount();
     for (unsigned i = 0; i < count; i++) {
         const Class *clasp = getObjectClass(i);
-        if (clasp && (!(clasp->flags & JSCLASS_IS_DOMJSCLASS) || clasp->isProxy()))
+        if (clasp && !(clasp->flags & JSCLASS_IS_DOMJSCLASS))
             return false;
     }
 
@@ -1765,7 +1765,7 @@ TemporaryTypeSet::maybeEmulatesUndefined()
         // it's a WrapperObject, see EmulatesUndefined. Since all wrappers are
         // proxies, we can just check for that.
         const Class *clasp = getObjectClass(i);
-        if (clasp && (clasp->emulatesUndefined() || clasp->isProxy()))
+        if (clasp && (clasp->emulatesUndefined() || IsProxyClass(clasp)))
             return true;
     }
 
@@ -1861,7 +1861,8 @@ TypeCompartment::newTypeObject(ExclusiveContext *cx, const Class *clasp, Handle<
             initialFlags |= OBJECT_FLAG_NURSERY_PROTO;
     }
 
-    TypeObject *object = js::NewTypeObject(cx);
+    TypeObject *object = gc::NewGCThing<TypeObject, CanGC>(cx, gc::FINALIZE_TYPE_OBJECT,
+                                                           sizeof(TypeObject), gc::TenuredHeap);
     if (!object)
         return nullptr;
     new(object) TypeObject(clasp, proto, initialFlags);

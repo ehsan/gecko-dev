@@ -576,13 +576,11 @@
       {
         char*  p = outline->tags + first;
         char*  q = outline->tags + last;
+        char   swap;
 
 
         while ( p < q )
         {
-          char  swap;
-
-
           swap = *p;
           *p   = *q;
           *q   = swap;
@@ -723,8 +721,7 @@
 #if 0
 
 #define FT_OUTLINE_GET_CONTOUR( outline, c, first, last )  \
-  do                                                       \
-  {                                                        \
+  do {                                                     \
     (first) = ( c > 0 ) ? (outline)->points +              \
                             (outline)->contours[c - 1] + 1 \
                         : (outline)->points;               \

@@ -100,9 +100,9 @@ InvokeFunction(JSContext *cx, HandleObject obj0, uint32_t argc, Value *argv, Val
 }
 
 JSObject *
-NewGCObject(JSContext *cx, gc::AllocKind allocKind, gc::InitialHeap initialHeap)
+NewGCThing(JSContext *cx, gc::AllocKind allocKind, size_t thingSize, gc::InitialHeap initialHeap)
 {
-    return js::NewGCObject<CanGC>(cx, allocKind, 0, initialHeap);
+    return gc::NewGCThing<JSObject, CanGC>(cx, allocKind, thingSize, initialHeap);
 }
 
 bool
@@ -924,7 +924,7 @@ PopBlockScope(JSContext *cx, BaselineFrame *frame)
 bool
 DebugLeaveBlock(JSContext *cx, BaselineFrame *frame, jsbytecode *pc)
 {
-    JS_ASSERT(frame->script()->baselineScript()->debugMode());
+    JS_ASSERT(cx->compartment()->debugMode());
 
     DebugScopes::onPopBlock(cx, frame, pc);
 

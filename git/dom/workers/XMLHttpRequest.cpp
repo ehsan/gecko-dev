@@ -792,15 +792,14 @@ class SendRunnable MOZ_FINAL : public WorkerThreadProxySyncRunnable
 
 public:
   SendRunnable(WorkerPrivate* aWorkerPrivate, Proxy* aProxy,
-               const nsAString& aStringBody, JSAutoStructuredCloneBuffer&& aBody,
-               nsTArray<nsCOMPtr<nsISupports>>& aClonedObjects,
+               const nsAString& aStringBody, JSAutoStructuredCloneBuffer& aBody,
+               nsTArray<nsCOMPtr<nsISupports> >& aClonedObjects,
                nsIEventTarget* aSyncLoopTarget, bool aHasUploadListeners)
-  : WorkerThreadProxySyncRunnable(aWorkerPrivate, aProxy)
-  , mStringBody(aStringBody)
-  , mBody(Move(aBody))
-  , mSyncLoopTarget(aSyncLoopTarget)
-  , mHasUploadListeners(aHasUploadListeners)
+  : WorkerThreadProxySyncRunnable(aWorkerPrivate, aProxy),
+    mStringBody(aStringBody), mSyncLoopTarget(aSyncLoopTarget),
+    mHasUploadListeners(aHasUploadListeners)
   {
+    mBody.swap(aBody);
     mClonedObjects.SwapElements(aClonedObjects);
   }
 
@@ -1269,7 +1268,8 @@ EventRunnable::WorkerRun(JSContext* aCx, WorkerPrivate* aWorkerPrivate)
       if (mResponseBuffer.data()) {
         MOZ_ASSERT(JSVAL_IS_VOID(mResponse));
 
-        JSAutoStructuredCloneBuffer responseBuffer(Move(mResponseBuffer));
+        JSAutoStructuredCloneBuffer responseBuffer;
+        mResponseBuffer.swap(responseBuffer);
 
         JSStructuredCloneCallbacks* callbacks =
           aWorkerPrivate->IsChromeWorker() ?
@@ -1766,7 +1766,7 @@ XMLHttpRequest::Unpin()
 
 void
 XMLHttpRequest::SendInternal(const nsAString& aStringBody,
-                             JSAutoStructuredCloneBuffer&& aBody,
+                             JSAutoStructuredCloneBuffer& aBody,
                              nsTArray<nsCOMPtr<nsISupports> >& aClonedObjects,
                              ErrorResult& aRv)
 {
@@ -1794,7 +1794,7 @@ XMLHttpRequest::SendInternal(const nsAString& aStringBody,
   JSContext* cx = mWorkerPrivate->GetJSContext();
 
   nsRefPtr<SendRunnable> runnable =
-    new SendRunnable(mWorkerPrivate, mProxy, aStringBody, Move(aBody),
+    new SendRunnable(mWorkerPrivate, mProxy, aStringBody, aBody,
                      aClonedObjects, syncLoopTarget, hasUploadListeners);
   if (!runnable->Dispatch(cx)) {
     aRv.Throw(NS_ERROR_FAILURE);
@@ -2011,7 +2011,7 @@ XMLHttpRequest::Send(ErrorResult& aRv)
   JSAutoStructuredCloneBuffer buffer;
   nsTArray<nsCOMPtr<nsISupports> > clonedObjects;
 
-  SendInternal(NullString(), Move(buffer), clonedObjects, aRv);
+  SendInternal(NullString(), buffer, clonedObjects, aRv);
 }
 
 void
@@ -2033,7 +2033,7 @@ XMLHttpRequest::Send(const nsAString& aBody, ErrorResult& aRv)
   JSAutoStructuredCloneBuffer buffer;
   nsTArray<nsCOMPtr<nsISupports> > clonedObjects;
 
-  SendInternal(aBody, Move(buffer), clonedObjects, aRv);
+  SendInternal(aBody, buffer, clonedObjects, aRv);
 }
 
 void
@@ -2083,7 +2083,7 @@ XMLHttpRequest::Send(JS::Handle<JSObject*> aBody, ErrorResult& aRv)
     return;
   }
 
-  SendInternal(EmptyString(), Move(buffer), clonedObjects, aRv);
+  SendInternal(EmptyString(), buffer, clonedObjects, aRv);
 }
 
 void

@@ -148,7 +148,7 @@ enum EvalJSONResult {
 
 static EvalJSONResult
 TryEvalJSON(JSContext *cx, JSScript *callerScript,
-            ConstTwoByteChars chars, size_t length, MutableHandleValue rval)
+            StableCharPtr chars, size_t length, MutableHandleValue rval)
 {
     // If the eval string starts with '(' or '[' and ends with ')' or ']', it may be JSON.
     // Try the JSON parser first because it's much faster.  If the eval string
@@ -280,12 +280,12 @@ EvalKernel(JSContext *cx, const CallArgs &args, EvalType evalType, AbstractFrame
         thisv = ObjectValue(*thisobj);
     }
 
-    Rooted<JSFlatString*> flatStr(cx, str->ensureFlat(cx));
-    if (!flatStr)
+    Rooted<JSStableString*> stableStr(cx, str->ensureStable(cx));
+    if (!stableStr)
         return false;
 
-    size_t length = flatStr->length();
-    ConstTwoByteChars chars(flatStr->chars(), length);
+    StableCharPtr chars = stableStr->chars();
+    size_t length = stableStr->length();
 
     JSPrincipals *principals = PrincipalsForCompiledCode(args, cx);
 
@@ -297,7 +297,7 @@ EvalKernel(JSContext *cx, const CallArgs &args, EvalType evalType, AbstractFrame
     EvalScriptGuard esg(cx);
 
     if (evalType == DIRECT_EVAL && caller.isNonEvalFunctionFrame())
-        esg.lookupInEvalCache(flatStr, callerScript, pc);
+        esg.lookupInEvalCache(stableStr, callerScript, pc);
 
     if (!esg.foundScript()) {
         unsigned lineno;
@@ -316,7 +316,7 @@ EvalKernel(JSContext *cx, const CallArgs &args, EvalType evalType, AbstractFrame
                .setOriginPrincipals(originPrincipals);
         JSScript *compiled = frontend::CompileScript(cx, &cx->tempLifoAlloc(),
                                                      scopeobj, callerScript, options,
-                                                     chars.get(), length, flatStr, staticLevel);
+                                                     chars.get(), length, stableStr, staticLevel);
         if (!compiled)
             return false;
 
@@ -347,12 +347,12 @@ js::DirectEvalStringFromIon(JSContext *cx,
 
     unsigned staticLevel = callerScript->staticLevel() + 1;
 
-    Rooted<JSFlatString*> flatStr(cx, str->ensureFlat(cx));
-    if (!flatStr)
+    Rooted<JSStableString*> stableStr(cx, str->ensureStable(cx));
+    if (!stableStr)
         return false;
 
-    size_t length = flatStr->length();
-    ConstTwoByteChars chars(flatStr->chars(), length);
+    StableCharPtr chars = stableStr->chars();
+    size_t length = stableStr->length();
 
     EvalJSONResult ejr = TryEvalJSON(cx, callerScript, chars, length, vp);
     if (ejr != EvalJSON_NotJSON)
@@ -363,7 +363,7 @@ js::DirectEvalStringFromIon(JSContext *cx,
     // Ion will not perform cross compartment direct eval calls.
     JSPrincipals *principals = cx->compartment()->principals;
 
-    esg.lookupInEvalCache(flatStr, callerScript, pc);
+    esg.lookupInEvalCache(stableStr, callerScript, pc);
 
     if (!esg.foundScript()) {
         unsigned lineno;
@@ -381,7 +381,7 @@ js::DirectEvalStringFromIon(JSContext *cx,
                .setOriginPrincipals(originPrincipals);
         JSScript *compiled = frontend::CompileScript(cx, &cx->tempLifoAlloc(),
                                                      scopeobj, callerScript, options,
-                                                     chars.get(), length, flatStr, staticLevel);
+                                                     chars.get(), length, stableStr, staticLevel);
         if (!compiled)
             return false;
 

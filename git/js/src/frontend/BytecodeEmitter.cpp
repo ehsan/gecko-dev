@@ -96,7 +96,7 @@ BytecodeEmitter::BytecodeEmitter(BytecodeEmitter *parent,
     evalCaller(evalCaller),
     topStmt(nullptr),
     topScopeStmt(nullptr),
-    staticScope(sc->context),
+    blockChain(sc->context),
     atomIndices(sc->context),
     firstLine(lineNum),
     stackDepth(0), maxStackDepth(0),
@@ -493,7 +493,7 @@ class NonLocalExitScope {
         savedScopeIndex(bce->blockScopeList.length()),
         savedDepth(bce->stackDepth),
         openScopeIndex(UINT32_MAX) {
-        if (bce->staticScope) {
+        if (bce->blockChain) {
             StmtInfoBCE *stmt = bce->topStmt;
             while (1) {
                 JS_ASSERT(stmt);
@@ -578,7 +578,8 @@ NonLocalExitScope::prepareForNonLocalJump(StmtInfoBCE *toStmt)
         }
 
         if (stmt->isBlockScope) {
-            StaticBlockObject &blockObj = stmt->staticBlock();
+            JS_ASSERT(stmt->blockObj);
+            StaticBlockObject &blockObj = *stmt->blockObj;
             if (!popScopeForNonLocalExit(blockObj, stmt->blockScopeIndex))
                 return false;
             npops += blockObj.slotCount();
@@ -645,8 +646,8 @@ PushStatementBCE(BytecodeEmitter *bce, StmtInfoBCE *stmt, StmtType type, ptrdiff
 static JSObject *
 EnclosingStaticScope(BytecodeEmitter *bce)
 {
-    if (bce->staticScope)
-        return bce->staticScope;
+    if (bce->blockChain)
+        return bce->blockChain;
 
     if (!bce->sc->isFunctionBox()) {
         JS_ASSERT(!bce->parent);
@@ -743,7 +744,7 @@ EmitInternedObjectOp(ExclusiveContext *cx, uint32_t index, JSOp op, BytecodeEmit
 // An element in the "block scope array" specifies the PC range, and links to a
 // StaticBlockObject in the object list of the script.  That block is linked to
 // the previous block in the scope, if any.  The static block chain at any
-// pre-retire PC can be retrieved using JSScript::getStaticScope(jsbytecode *pc).
+// pre-retire PC can be retrieved using JSScript::getBlockScope(jsbytecode *pc).
 //
 // When PUSHBLOCKSCOPE is executed, it assumes that the block's locals are
 // already on the stack.  Initial values of "aliased" locals are copied from the
@@ -782,9 +783,9 @@ EnterBlockScope(ExclusiveContext *cx, BytecodeEmitter *bce, StmtInfoBCE *stmt, O
                 unsigned extraSlots)
 {
     uint32_t parent = BlockScopeNote::NoBlockScopeIndex;
-    if (bce->staticScope) {
+    if (bce->blockChain) {
         StmtInfoBCE *stmt = bce->topScopeStmt;
-        for (; stmt->staticScope != bce->staticScope; stmt = stmt->down) {}
+        for (; stmt->blockObj != bce->blockChain; stmt = stmt->down) {}
         parent = stmt->blockScopeIndex;
     }
 
@@ -809,7 +810,7 @@ EnterBlockScope(ExclusiveContext *cx, BytecodeEmitter *bce, StmtInfoBCE *stmt, O
         return false;
 
     PushStatementBCE(bce, stmt, STMT_BLOCK, bce->offset());
-    blockObj->initEnclosingNestedScope(EnclosingStaticScope(bce));
+    blockObj->initEnclosingStaticScope(EnclosingStaticScope(bce));
     FinishPushBlockScope(bce, stmt, *blockObj);
 
     JS_ASSERT(stmt->isBlockScope);
@@ -845,13 +846,12 @@ LeaveBlockScope(ExclusiveContext *cx, BytecodeEmitter *bce)
     JS_ASSERT(bce->blockScopeList.list[blockScopeIndex].length == 0);
     uint32_t blockObjIndex = bce->blockScopeList.list[blockScopeIndex].index;
     ObjectBox *blockObjBox = bce->objectList.find(blockObjIndex);
-    NestedScopeObject *staticScope = &blockObjBox->object->as<NestedScopeObject>();
-    JS_ASSERT(stmt->staticScope == staticScope);
-    JS_ASSERT(staticScope == bce->staticScope);
+    StaticBlockObject *blockObj = &blockObjBox->object->as<StaticBlockObject>();
+    JS_ASSERT(stmt->blockObj == blockObj);
+    JS_ASSERT(blockObj == bce->blockChain);
 #endif
 
-    JS_ASSERT(bce->staticScope->is<StaticBlockObject>());
-    bool blockOnChain = bce->staticScope->as<StaticBlockObject>().needsClone();
+    bool blockOnChain = bce->blockChain->needsClone();
 
     if (!PopStatementBCE(cx, bce))
         return false;
@@ -998,18 +998,16 @@ EmitAliasedVarOp(ExclusiveContext *cx, JSOp op, ScopeCoordinate sc, BytecodeEmit
     return true;
 }
 
-// Compute the number of nested scope objects that will actually be on the scope
-// chain at runtime, given the BCE's current staticScope.
 static unsigned
-DynamicNestedScopeDepth(BytecodeEmitter *bce)
+ClonedBlockDepth(BytecodeEmitter *bce)
 {
-    unsigned depth = 0;
-    for (NestedScopeObject *b = bce->staticScope; b; b = b->enclosingNestedScope()) {
-        if (!b->is<StaticBlockObject>() || b->as<StaticBlockObject>().needsClone())
-            ++depth;
+    unsigned clonedBlockDepth = 0;
+    for (StaticBlockObject *b = bce->blockChain; b; b = b->enclosingBlock()) {
+        if (b->needsClone())
+            ++clonedBlockDepth;
     }
 
-    return depth;
+    return clonedBlockDepth;
 }
 
 static bool
@@ -1080,7 +1078,7 @@ EmitAliasedVarOp(ExclusiveContext *cx, JSOp op, ParseNode *pn, BytecodeEmitter *
          * enclosing function scope of the definition being accessed.
          */
         for (unsigned i = pn->pn_cookie.level(); i; i--) {
-            skippedScopes += DynamicNestedScopeDepth(bceOfDef);
+            skippedScopes += ClonedBlockDepth(bceOfDef);
             FunctionBox *funbox = bceOfDef->sc->asFunctionBox();
             if (funbox->isHeavyweight()) {
                 skippedScopes++;
@@ -1095,33 +1093,30 @@ EmitAliasedVarOp(ExclusiveContext *cx, JSOp op, ParseNode *pn, BytecodeEmitter *
     }
 
     /*
-     * The final part of the skippedScopes computation depends on the type of
-     * variable. An arg or local variable is at the outer scope of a function
-     * and so includes the full DynamicNestedScopeDepth. A let/catch-binding
-     * requires a search of the block chain to see how many (dynamic) block
-     * objects to skip.
+     * The final part of the skippedScopes computation depends on the type of variable. An arg or
+     * local variable is at the outer scope of a function and so includes the full
+     * ClonedBlockDepth. A let/catch-binding requires a search of the block chain to see how many
+     * (dynamic) block objects to skip.
      */
     ScopeCoordinate sc;
     if (IsArgOp(pn->getOp())) {
-        if (!AssignHops(bce, pn, skippedScopes + DynamicNestedScopeDepth(bceOfDef), &sc))
+        if (!AssignHops(bce, pn, skippedScopes + ClonedBlockDepth(bceOfDef), &sc))
             return false;
         JS_ALWAYS_TRUE(LookupAliasedNameSlot(bceOfDef->script, pn->name(), &sc));
     } else {
         JS_ASSERT(IsLocalOp(pn->getOp()) || pn->isKind(PNK_FUNCTION));
         uint32_t local = pn->pn_cookie.slot();
         if (local < bceOfDef->script->bindings.numVars()) {
-            if (!AssignHops(bce, pn, skippedScopes + DynamicNestedScopeDepth(bceOfDef), &sc))
+            if (!AssignHops(bce, pn, skippedScopes + ClonedBlockDepth(bceOfDef), &sc))
                 return false;
             JS_ALWAYS_TRUE(LookupAliasedNameSlot(bceOfDef->script, pn->name(), &sc));
         } else {
             uint32_t depth = local - bceOfDef->script->bindings.numVars();
-            JS_ASSERT(bceOfDef->staticScope->is<StaticBlockObject>());
-            Rooted<StaticBlockObject*> b(cx, &bceOfDef->staticScope->as<StaticBlockObject>());
+            Rooted<StaticBlockObject*> b(cx, bceOfDef->blockChain);
             while (!b->containsVarAtDepth(depth)) {
                 if (b->needsClone())
                     skippedScopes++;
                 b = b->enclosingBlock();
-                JS_ASSERT(b);
             }
             if (!AssignHops(bce, pn, skippedScopes, &sc))
                 return false;
@@ -2896,6 +2891,8 @@ enum VarEmitOption
     InitializeVars    = 2
 };
 
+#if JS_HAS_DESTRUCTURING
+
 typedef bool
 (*DestructuringDeclEmitter)(ExclusiveContext *cx, BytecodeEmitter *bce, JSOp prologOp, ParseNode *pn);
 
@@ -3343,6 +3340,8 @@ MaybeEmitLetGroupDecl(ExclusiveContext *cx, BytecodeEmitter *bce, ParseNode *pn,
     return true;
 }
 
+#endif /* JS_HAS_DESTRUCTURING */
+
 static bool
 EmitVariables(ExclusiveContext *cx, BytecodeEmitter *bce, ParseNode *pn, VarEmitOption emitOption,
               bool isLet = false)
@@ -3356,6 +3355,7 @@ EmitVariables(ExclusiveContext *cx, BytecodeEmitter *bce, ParseNode *pn, VarEmit
 
         ParseNode *pn3;
         if (!pn2->isKind(PNK_NAME)) {
+#if JS_HAS_DESTRUCTURING
             if (pn2->isKind(PNK_ARRAY) || pn2->isKind(PNK_OBJECT)) {
                 /*
                  * Emit variable binding ops, but not destructuring ops.  The
@@ -3371,6 +3371,7 @@ EmitVariables(ExclusiveContext *cx, BytecodeEmitter *bce, ParseNode *pn, VarEmit
                     return false;
                 break;
             }
+#endif
 
             /*
              * A destructuring initialiser assignment preceded by var will
@@ -3387,12 +3388,18 @@ EmitVariables(ExclusiveContext *cx, BytecodeEmitter *bce, ParseNode *pn, VarEmit
              * function f(){} precedes the var, detect simple name assignment
              * here and initialize the name.
              */
-            if (pn2->pn_left->isKind(PNK_NAME)) {
+#if !JS_HAS_DESTRUCTURING
+            JS_ASSERT(pn2->pn_left->isKind(PNK_NAME));
+#else
+            if (pn2->pn_left->isKind(PNK_NAME))
+#endif
+            {
                 pn3 = pn2->pn_right;
                 pn2 = pn2->pn_left;
                 goto do_name;
             }
 
+#if JS_HAS_DESTRUCTURING
             ptrdiff_t stackDepthBefore = bce->stackDepth;
             JSOp op = JSOP_POP;
             if (pn->pn_count == 1) {
@@ -3440,6 +3447,7 @@ EmitVariables(ExclusiveContext *cx, BytecodeEmitter *bce, ParseNode *pn, VarEmit
                 break;
             }
             goto emit_note_pop;
+#endif
         }
 
         /*
@@ -3506,7 +3514,9 @@ EmitVariables(ExclusiveContext *cx, BytecodeEmitter *bce, ParseNode *pn, VarEmit
                 return false;
         }
 
+#if JS_HAS_DESTRUCTURING
     emit_note_pop:
+#endif
         if (!next)
             break;
         if (Emit1(cx, bce, JSOP_POP) < 0)
@@ -3568,9 +3578,11 @@ EmitAssignment(ExclusiveContext *cx, BytecodeEmitter *bce, ParseNode *lhs, JSOp 
             return false;
         offset += 2;
         break;
+#if JS_HAS_DESTRUCTURING
       case PNK_ARRAY:
       case PNK_OBJECT:
         break;
+#endif
       case PNK_CALL:
         JS_ASSERT(lhs->pn_xflags & PNX_SETCALL);
         if (!EmitTree(cx, bce, lhs))
@@ -3712,11 +3724,13 @@ EmitAssignment(ExclusiveContext *cx, BytecodeEmitter *bce, ParseNode *lhs, JSOp 
         if (Emit1(cx, bce, JSOP_SETELEM) < 0)
             return false;
         break;
+#if JS_HAS_DESTRUCTURING
       case PNK_ARRAY:
       case PNK_OBJECT:
         if (!EmitDestructuringOps(cx, bce, lhs))
             return false;
         break;
+#endif
       default:
         JS_ASSERT(0);
     }
@@ -3888,6 +3902,7 @@ EmitCatch(ExclusiveContext *cx, BytecodeEmitter *bce, ParseNode *pn)
 
     ParseNode *pn2 = pn->pn_kid1;
     switch (pn2->getKind()) {
+#if JS_HAS_DESTRUCTURING
       case PNK_ARRAY:
       case PNK_OBJECT:
         if (!EmitDestructuringOps(cx, bce, pn2))
@@ -3895,6 +3910,7 @@ EmitCatch(ExclusiveContext *cx, BytecodeEmitter *bce, ParseNode *pn)
         if (Emit1(cx, bce, JSOP_POP) < 0)
             return false;
         break;
+#endif
 
       case PNK_NAME:
         /* Inline and specialize BindNameToSlot for pn2. */
@@ -4663,11 +4679,13 @@ EmitNormalFor(ExclusiveContext *cx, BytecodeEmitter *bce, ParseNode *pn, ptrdiff
         op = JSOP_NOP;
     } else {
         bce->emittingForInit = true;
+#if JS_HAS_DESTRUCTURING
         if (pn3->isKind(PNK_ASSIGN)) {
             JS_ASSERT(pn3->isOp(JSOP_NOP));
             if (!MaybeEmitGroupAssignment(cx, bce, op, pn3, GroupIsNotDecl, &op))
                 return false;
         }
+#endif
         if (op == JSOP_POP) {
             if (!UpdateSourceCoordNotes(cx, bce, pn3->pn_pos.begin))
                 return false;
@@ -4737,11 +4755,13 @@ EmitNormalFor(ExclusiveContext *cx, BytecodeEmitter *bce, ParseNode *pn, ptrdiff
         if (!UpdateSourceCoordNotes(cx, bce, pn3->pn_pos.begin))
             return false;
         op = JSOP_POP;
+#if JS_HAS_DESTRUCTURING
         if (pn3->isKind(PNK_ASSIGN)) {
             JS_ASSERT(pn3->isOp(JSOP_NOP));
             if (!MaybeEmitGroupAssignment(cx, bce, op, pn3, GroupIsNotDecl, &op))
                 return false;
         }
+#endif
         if (op == JSOP_POP && !EmitTree(cx, bce, pn3))
             return false;
 
@@ -4845,7 +4865,7 @@ EmitFunc(ExclusiveContext *cx, BytecodeEmitter *bce, ParseNode *pn)
 
         if (fun->isInterpretedLazy()) {
             if (!fun->lazyScript()->sourceObject()) {
-                JSObject *scope = bce->staticScope;
+                JSObject *scope = bce->blockChain;
                 if (!scope && bce->sc->isFunctionBox())
                     scope = bce->sc->asFunctionBox()->function();
                 JSObject *source = bce->script->sourceObject();
@@ -5146,7 +5166,7 @@ EmitReturn(ExclusiveContext *cx, BytecodeEmitter *bce, ParseNode *pn)
     if (!nle.prepareForNonLocalJump(nullptr))
         return false;
 
-    if (top + static_cast<ptrdiff_t>(JSOP_RETURN_LENGTH) != bce->offset()) {
+    if (top + JSOP_RETURN_LENGTH != bce->offset()) {
         bce->code()[top] = JSOP_SETRVAL;
         if (Emit1(cx, bce, JSOP_RETRVAL) < 0)
             return false;
@@ -5381,12 +5401,14 @@ EmitStatement(ExclusiveContext *cx, BytecodeEmitter *bce, ParseNode *pn)
     if (useful) {
         JSOp op = wantval ? JSOP_SETRVAL : JSOP_POP;
         JS_ASSERT_IF(pn2->isKind(PNK_ASSIGN), pn2->isOp(JSOP_NOP));
+#if JS_HAS_DESTRUCTURING
         if (!wantval &&
             pn2->isKind(PNK_ASSIGN) &&
             !MaybeEmitGroupAssignment(cx, bce, op, pn2, GroupIsNotDecl, &op))
         {
             return false;
         }
+#endif
         if (op != JSOP_NOP) {
             if (!EmitTree(cx, bce, pn2))
                 return false;
@@ -5863,10 +5885,12 @@ EmitConditionalExpression(ExclusiveContext *cx, BytecodeEmitter *bce, Conditiona
 MOZ_NEVER_INLINE static bool
 EmitObject(ExclusiveContext *cx, BytecodeEmitter *bce, ParseNode *pn)
 {
+#if JS_HAS_DESTRUCTURING_SHORTHAND
     if (pn->pn_xflags & PNX_DESTRUCT) {
         bce->reportError(pn, JSMSG_BAD_OBJECT_INIT);
         return false;
     }
+#endif
 
     if (!(pn->pn_xflags & PNX_NONCONST) && pn->pn_head && bce->checkSingletonContext())
         return EmitSingletonInitialiser(cx, bce, pn);

@@ -152,7 +152,6 @@ class Simulator
     bool overRecursedWithExtra(uint32_t extra) const;
 
     // Executes ARM instructions until the PC reaches end_sim_pc.
-    template<bool EnableStopSimAt>
     void execute();
 
     // Sets up the simulator state and grabs the result on return.
@@ -268,8 +267,6 @@ class Simulator
   public:
     static bool ICacheCheckingEnabled;
     static void FlushICache(void *start, size_t size);
-
-    static int StopSimAt;
 
     // Runtime call support.
     static void *RedirectNativeFunction(void *nativeFunction, ABIFunctionType type);

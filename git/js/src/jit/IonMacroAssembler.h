@@ -776,16 +776,16 @@ class MacroAssembler : public MacroAssemblerSpecific
     void newGCString(const Register &result, Label *fail);
     void newGCShortString(const Register &result, Label *fail);
 
-    void newGCThingPar(const Register &result, const Register &cx,
+    void newGCThingPar(const Register &result, const Register &slice,
                        const Register &tempReg1, const Register &tempReg2,
                        gc::AllocKind allocKind, Label *fail);
-    void newGCThingPar(const Register &result, const Register &cx,
+    void newGCThingPar(const Register &result, const Register &slice,
                        const Register &tempReg1, const Register &tempReg2,
                        JSObject *templateObject, Label *fail);
-    void newGCStringPar(const Register &result, const Register &cx,
+    void newGCStringPar(const Register &result, const Register &slice,
                         const Register &tempReg1, const Register &tempReg2,
                         Label *fail);
-    void newGCShortStringPar(const Register &result, const Register &cx,
+    void newGCShortStringPar(const Register &result, const Register &slice,
                              const Register &tempReg1, const Register &tempReg2,
                              Label *fail);
     void initGCThing(const Register &obj, JSObject *templateObject);
@@ -819,16 +819,16 @@ class MacroAssembler : public MacroAssemblerSpecific
         Push(ImmPtr(nullptr));
     }
 
-    void loadForkJoinContext(Register cx, Register scratch);
+    void loadForkJoinSlice(Register slice, Register scratch);
     void loadContext(Register cxReg, Register scratch, ExecutionMode executionMode);
 
-    void enterParallelExitFrameAndLoadContext(const VMFunction *f, Register cx,
-                                              Register scratch);
+    void enterParallelExitFrameAndLoadSlice(const VMFunction *f, Register slice,
+                                            Register scratch);
 
     void enterExitFrameAndLoadContext(const VMFunction *f, Register cxReg, Register scratch,
                                       ExecutionMode executionMode);
 
-    void enterFakeParallelExitFrame(Register cx, Register scratch,
+    void enterFakeParallelExitFrame(Register slice, Register scratch,
                                     JitCode *codeVal = nullptr);
 
     void enterFakeExitFrame(Register cxReg, Register scratch,

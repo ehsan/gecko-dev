@@ -672,7 +672,10 @@ MCall::New(TempAllocator &alloc, JSFunction *target, size_t maxArgc, size_t numA
 AliasSet
 MCallDOMNative::getAliasSet() const
 {
-    const JSJitInfo *jitInfo = getJitInfo();
+    JS_ASSERT(getSingleTarget() && getSingleTarget()->isNative());
+
+    const JSJitInfo *jitInfo = getSingleTarget()->jitInfo();
+    JS_ASSERT(jitInfo);
 
     JS_ASSERT(jitInfo->aliasSet() != JSJitInfo::AliasNone);
     // If we don't know anything about the types of our arguments, we have to
@@ -720,7 +723,10 @@ MCallDOMNative::computeMovable()
     // We are movable if the jitinfo says we can be and if we're also not
     // effectful.  The jitinfo can't check for the latter, since it depends on
     // the types of our arguments.
-    const JSJitInfo *jitInfo = getJitInfo();
+    JS_ASSERT(getSingleTarget() && getSingleTarget()->isNative());
+
+    const JSJitInfo *jitInfo = getSingleTarget()->jitInfo();
+    JS_ASSERT(jitInfo);
 
     JS_ASSERT_IF(jitInfo->isMovable,
                  jitInfo->aliasSet() != JSJitInfo::AliasEverything);
@@ -762,17 +768,6 @@ MCallDOMNative::congruentTo(MDefinition *ins) const
     JS_ASSERT(call->isMovable());
 
     return true;
-}
-
-const JSJitInfo *
-MCallDOMNative::getJitInfo() const
-{
-    JS_ASSERT(getSingleTarget() && getSingleTarget()->isNative());
-
-    const JSJitInfo *jitInfo = getSingleTarget()->jitInfo();
-    JS_ASSERT(jitInfo);
-
-    return jitInfo;
 }
 
 MApplyArgs *

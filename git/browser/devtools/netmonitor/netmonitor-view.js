@@ -21,7 +21,6 @@ const REQUESTS_WATERFALL_BACKGROUND_TICKS_COLOR_RGB = [128, 136, 144];
 const REQUESTS_WATERFALL_BACKGROUND_TICKS_OPACITY_MIN = 32; // byte
 const REQUESTS_WATERFALL_BACKGROUND_TICKS_OPACITY_ADD = 32; // byte
 const DEFAULT_HTTP_VERSION = "HTTP/1.1";
-const REQUEST_TIME_DECIMALS = 2;
 const HEADERS_SIZE_DECIMALS = 3;
 const CONTENT_SIZE_DECIMALS = 2;
 const CONTENT_MIME_TYPE_ABBREVIATIONS = {
@@ -58,7 +57,6 @@ const GENERIC_VARIABLES_VIEW_SETTINGS = {
   eval: () => {},
   switch: () => {}
 };
-const NETWORK_ANALYSIS_PIE_CHART_DIAMETER = 200; // px
 
 /**
  * Object defining the network monitor view components.
@@ -104,14 +102,6 @@ let NetMonitorView = {
     this._detailsPane.setAttribute("width", Prefs.networkDetailsWidth);
     this._detailsPane.setAttribute("height", Prefs.networkDetailsHeight);
     this.toggleDetailsPane({ visible: false });
-
-    // Disable the performance statistics mode.
-    if (!Prefs.statistics) {
-      $("#request-menu-context-perf").hidden = true;
-      $("#notice-perf-message").hidden = true;
-      $("#requests-menu-network-summary-button").hidden = true;
-      $("#requests-menu-network-summary-label").hidden = true;
-    }
   },
 
   /**
@@ -131,9 +121,8 @@ let NetMonitorView = {
    * Gets the visibility state of the network details pane.
    * @return boolean
    */
-  get detailsPaneHidden() {
-    return this._detailsPane.hasAttribute("pane-collapsed");
-  },
+  get detailsPaneHidden()
+    this._detailsPane.hasAttribute("pane-collapsed"),
 
   /**
    * Sets the network details pane hidden or visible.
@@ -166,66 +155,6 @@ let NetMonitorView = {
     if (aTabIndex !== undefined) {
       $("#event-details-pane").selectedIndex = aTabIndex;
     }
-  },
-
-  /**
-   * Gets the current mode for this tool.
-   * @return string (e.g, "network-inspector-view" or "network-statistics-view")
-   */
-  get currentFrontendMode() {
-    return this._body.selectedPanel.id;
-  },
-
-  /**
-   * Toggles between the frontend view modes ("Inspector" vs. "Statistics").
-   */
-  toggleFrontendMode: function() {
-    if (this.currentFrontendMode != "network-inspector-view") {
-      this.showNetworkInspectorView();
-    } else {
-      this.showNetworkStatisticsView();
-    }
-  },
-
-  /**
-   * Switches to the "Inspector" frontend view mode.
-   */
-  showNetworkInspectorView: function() {
-    this._body.selectedPanel = $("#network-inspector-view");
-    this.RequestsMenu._flushWaterfallViews(true);
-  },
-
-  /**
-   * Switches to the "Statistics" frontend view mode.
-   */
-  showNetworkStatisticsView: function() {
-    this._body.selectedPanel = $("#network-statistics-view");
-
-    let controller = NetMonitorController;
-    let requestsView = this.RequestsMenu;
-    let statisticsView = this.PerformanceStatistics;
-
-    Task.spawn(function() {
-      statisticsView.displayPlaceholderCharts();
-      yield controller.triggerActivity(ACTIVITY_TYPE.RELOAD.WITH_CACHE_ENABLED);
-
-      try {
-        // • The response headers and status code are required for determining
-        // whether a response is "fresh" (cacheable).
-        // • The response content size and request total time are necessary for
-        // populating the statistics view.
-        // • The response mime type is used for categorization.
-        yield whenDataAvailable(requestsView.attachments, [
-          "responseHeaders", "status", "contentSize", "mimeType", "totalTime"
-        ]);
-      } catch (ex) {
-        // Timed out while waiting for data. Continue with what we have.
-        DevToolsUtils.reportException("showNetworkStatisticsView", ex);
-      }
-
-      statisticsView.createPrimedCacheChart(requestsView.items);
-      statisticsView.createEmptyCacheChart(requestsView.items);
-    });
   },
 
   /**
@@ -334,13 +263,11 @@ RequestsMenuView.prototype = Heritage.extend(WidgetMethods, {
     dumpn("Initializing the RequestsMenuView");
 
     this.widget = new SideMenuWidget($("#requests-menu-contents"));
-    this._splitter = $("#network-inspector-view-splitter");
-    this._summary = $("#requests-menu-network-summary-label");
-    this._summary.setAttribute("value", L10N.getStr("networkMenu.empty"));
+    this._splitter = $('#splitter');
+    this._summary = $("#request-menu-network-summary");
 
-    this.sortContents(this._byTiming);
     this.allowFocusOnRightClick = true;
-    this.maintainSelectionVisible = true;
+    this.widget.maintainSelectionVisible = false;
     this.widget.autoscrollWithAppendedItems = true;
 
     this.widget.addEventListener("select", this._onSelect, false);
@@ -349,13 +276,11 @@ RequestsMenuView.prototype = Heritage.extend(WidgetMethods, {
 
     this.requestsMenuSortEvent = getKeyWithEvent(this.sortBy.bind(this));
     this.requestsMenuFilterEvent = getKeyWithEvent(this.filterOn.bind(this));
-    this.reqeustsMenuClearEvent = this.clear.bind(this);
+    this.clearEvent = this.clear.bind(this);
     this._onContextShowing = this._onContextShowing.bind(this);
     this._onContextNewTabCommand = this.openRequestInTab.bind(this);
     this._onContextCopyUrlCommand = this.copyUrl.bind(this);
-    this._onContextCopyImageAsDataUriCommand = this.copyImageAsDataUri.bind(this);
     this._onContextResendCommand = this.cloneSelectedRequest.bind(this);
-    this._onContextPerfCommand = () => NetMonitorView.toggleFrontendMode();
 
     this.sendCustomRequestEvent = this.sendCustomRequest.bind(this);
     this.closeCustomRequestEvent = this.closeCustomRequest.bind(this);
@@ -363,17 +288,11 @@ RequestsMenuView.prototype = Heritage.extend(WidgetMethods, {
 
     $("#toolbar-labels").addEventListener("click", this.requestsMenuSortEvent, false);
     $("#requests-menu-footer").addEventListener("click", this.requestsMenuFilterEvent, false);
-    $("#requests-menu-clear-button").addEventListener("click", this.reqeustsMenuClearEvent, false);
+    $("#requests-menu-clear-button").addEventListener("click", this.clearEvent, false);
     $("#network-request-popup").addEventListener("popupshowing", this._onContextShowing, false);
     $("#request-menu-context-newtab").addEventListener("command", this._onContextNewTabCommand, false);
     $("#request-menu-context-copy-url").addEventListener("command", this._onContextCopyUrlCommand, false);
-    $("#request-menu-context-copy-image-as-data-uri").addEventListener("command", this._onContextCopyImageAsDataUriCommand, false);
     $("#request-menu-context-resend").addEventListener("command", this._onContextResendCommand, false);
-    $("#request-menu-context-perf").addEventListener("command", this._onContextPerfCommand, false);
-
-    $("#requests-menu-perf-notice-button").addEventListener("command", this._onContextPerfCommand, false);
-    $("#requests-menu-network-summary-button").addEventListener("command", this._onContextPerfCommand, false);
-    $("#requests-menu-network-summary-label").addEventListener("click", this._onContextPerfCommand, false);
 
     $("#custom-request-send-button").addEventListener("click", this.sendCustomRequestEvent, false);
     $("#custom-request-close-button").addEventListener("click", this.closeCustomRequestEvent, false);
@@ -392,17 +311,11 @@ RequestsMenuView.prototype = Heritage.extend(WidgetMethods, {
 
     $("#toolbar-labels").removeEventListener("click", this.requestsMenuSortEvent, false);
     $("#requests-menu-footer").removeEventListener("click", this.requestsMenuFilterEvent, false);
-    $("#requests-menu-clear-button").removeEventListener("click", this.reqeustsMenuClearEvent, false);
+    $("#requests-menu-clear-button").removeEventListener("click", this.clearEvent, false);
     $("#network-request-popup").removeEventListener("popupshowing", this._onContextShowing, false);
     $("#request-menu-context-newtab").removeEventListener("command", this._onContextNewTabCommand, false);
     $("#request-menu-context-copy-url").removeEventListener("command", this._onContextCopyUrlCommand, false);
-    $("#request-menu-context-copy-image-as-data-uri").removeEventListener("command", this._onContextCopyImageAsDataUriCommand, false);
     $("#request-menu-context-resend").removeEventListener("command", this._onContextResendCommand, false);
-    $("#request-menu-context-perf").removeEventListener("command", this._onContextPerfCommand, false);
-
-    $("#requests-menu-perf-notice-button").removeEventListener("command", this._onContextPerfCommand, false);
-    $("#requests-menu-network-summary-button").removeEventListener("command", this._onContextPerfCommand, false);
-    $("#requests-menu-network-summary-label").removeEventListener("click", this._onContextPerfCommand, false);
 
     $("#custom-request-send-button").removeEventListener("click", this.sendCustomRequestEvent, false);
     $("#custom-request-close-button").removeEventListener("click", this.closeCustomRequestEvent, false);
@@ -414,7 +327,6 @@ RequestsMenuView.prototype = Heritage.extend(WidgetMethods, {
    */
   reset: function() {
     this.empty();
-    this.filterOn("all");
     this._firstRequestStartedMillis = -1;
     this._lastRequestEndedMillis = -1;
   },
@@ -473,6 +385,26 @@ RequestsMenuView.prototype = Heritage.extend(WidgetMethods, {
   },
 
   /**
+   * Create a new custom request form populated with the data from
+   * the currently selected request.
+   */
+  cloneSelectedRequest: function() {
+    let selected = this.selectedItem.attachment;
+
+    // Create the element node for the network request item.
+    let menuView = this._createMenuView(selected.method, selected.url);
+
+    let newItem = this.push([menuView], {
+      attachment: Object.create(selected, {
+        isCustom: { value: true }
+      })
+    });
+
+    // Immediately switch to new request pane.
+    this.selectedItem = newItem;
+  },
+
+  /**
    * Opens selected item in a new tab.
    */
   openRequestInTab: function() {
@@ -490,48 +422,15 @@ RequestsMenuView.prototype = Heritage.extend(WidgetMethods, {
   },
 
   /**
-   * Copy image as data uri.
-   */
-  copyImageAsDataUri: function() {
-    let selected = this.selectedItem.attachment;
-    let { mimeType, text, encoding } = selected.responseContent.content;
-    gNetwork.getString(text).then(aString => {
-      let data = "data:" + mimeType + ";" + encoding + "," + aString;
-      clipboardHelper.copyString(data, document);
-    });
-  },
-
-  /**
-   * Create a new custom request form populated with the data from
-   * the currently selected request.
-   */
-  cloneSelectedRequest: function() {
-    let selected = this.selectedItem.attachment;
-
-    // Create the element node for the network request item.
-    let menuView = this._createMenuView(selected.method, selected.url);
-
-    // Append a network request item to this container.
-    let newItem = this.push([menuView], {
-      attachment: Object.create(selected, {
-        isCustom: { value: true }
-      })
-    });
-
-    // Immediately switch to new request pane.
-    this.selectedItem = newItem;
-  },
-
-  /**
    * Send a new HTTP request using the data in the custom request form.
    */
   sendCustomRequest: function() {
     let selected = this.selectedItem.attachment;
-    let data = Object.create(selected);
 
-    if (selected.requestHeaders) {
-      data.headers = selected.requestHeaders.headers;
-    }
+    let data = Object.create(selected, {
+      headers: { value: selected.requestHeaders.headers }
+    });
+
     if (selected.requestPostData) {
       data.body = selected.requestPostData.postData.text;
     }
@@ -549,15 +448,16 @@ RequestsMenuView.prototype = Heritage.extend(WidgetMethods, {
    */
   closeCustomRequest: function() {
     this.remove(this.selectedItem);
+
     NetMonitorView.Sidebar.toggle(false);
-  },
+   },
 
   /**
    * Filters all network requests in this container by a specified type.
    *
    * @param string aType
    *        Either "all", "html", "css", "js", "xhr", "fonts", "images", "media"
-   *        "flash" or "other".
+   *        or "flash".
    */
   filterOn: function(aType = "all") {
     let target = $("#requests-menu-filter-" + aType + "-button");
@@ -577,31 +477,28 @@ RequestsMenuView.prototype = Heritage.extend(WidgetMethods, {
         this.filterContents(() => true);
         break;
       case "html":
-        this.filterContents(e => this.isHtml(e));
+        this.filterContents(this._onHtml);
         break;
       case "css":
-        this.filterContents(e => this.isCss(e));
+        this.filterContents(this._onCss);
         break;
       case "js":
-        this.filterContents(e => this.isJs(e));
+        this.filterContents(this._onJs);
         break;
       case "xhr":
-        this.filterContents(e => this.isXHR(e));
+        this.filterContents(this._onXhr);
         break;
       case "fonts":
-        this.filterContents(e => this.isFont(e));
+        this.filterContents(this._onFonts);
         break;
       case "images":
-        this.filterContents(e => this.isImage(e));
+        this.filterContents(this._onImages);
         break;
       case "media":
-        this.filterContents(e => this.isMedia(e));
+        this.filterContents(this._onMedia);
         break;
       case "flash":
-        this.filterContents(e => this.isFlash(e));
-        break;
-      case "other":
-        this.filterContents(e => this.isOther(e));
+        this.filterContents(this._onFlash);
         break;
     }
 
@@ -714,22 +611,22 @@ RequestsMenuView.prototype = Heritage.extend(WidgetMethods, {
    * @return boolean
    *         True if the item should be visible, false otherwise.
    */
-  isHtml: function({ attachment: { mimeType } })
+  _onHtml: function({ attachment: { mimeType } })
     mimeType && mimeType.contains("/html"),
 
-  isCss: function({ attachment: { mimeType } })
+  _onCss: function({ attachment: { mimeType } })
     mimeType && mimeType.contains("/css"),
 
-  isJs: function({ attachment: { mimeType } })
+  _onJs: function({ attachment: { mimeType } })
     mimeType && (
       mimeType.contains("/ecmascript") ||
       mimeType.contains("/javascript") ||
       mimeType.contains("/x-javascript")),
 
-  isXHR: function({ attachment: { isXHR } })
+  _onXhr: function({ attachment: { isXHR } })
     isXHR,
 
-  isFont: function({ attachment: { url, mimeType } }) // Fonts are a mess.
+  _onFonts: function({ attachment: { url, mimeType } }) // Fonts are a mess.
     (mimeType && (
       mimeType.contains("font/") ||
       mimeType.contains("/font"))) ||
@@ -738,25 +635,21 @@ RequestsMenuView.prototype = Heritage.extend(WidgetMethods, {
     url.contains(".otf") ||
     url.contains(".woff"),
 
-  isImage: function({ attachment: { mimeType } })
+  _onImages: function({ attachment: { mimeType } })
     mimeType && mimeType.contains("image/"),
 
-  isMedia: function({ attachment: { mimeType } }) // Not including images.
+  _onMedia: function({ attachment: { mimeType } }) // Not including images.
     mimeType && (
       mimeType.contains("audio/") ||
       mimeType.contains("video/") ||
       mimeType.contains("model/")),
 
-  isFlash: function({ attachment: { url, mimeType } }) // Flash is a mess.
+  _onFlash: function({ attachment: { url, mimeType } }) // Flash is a mess.
     (mimeType && (
       mimeType.contains("/x-flv") ||
       mimeType.contains("/x-shockwave-flash"))) ||
     url.contains(".swf") ||
     url.contains(".flv"),
-
-  isOther: function(e)
-    !this.isHtml(e) && !this.isCss(e) && !this.isJs(e) && !this.isXHR(e) &&
-    !this.isFont(e) && !this.isImage(e) && !this.isMedia(e) && !this.isFlash(e),
 
   /**
    * Predicates used when sorting items.
@@ -831,8 +724,8 @@ RequestsMenuView.prototype = Heritage.extend(WidgetMethods, {
     let str = PluralForm.get(visibleRequestsCount, L10N.getStr("networkMenu.summary"));
     this._summary.setAttribute("value", str
       .replace("#1", visibleRequestsCount)
-      .replace("#2", L10N.numberWithDecimals((totalBytes || 0) / 1024, CONTENT_SIZE_DECIMALS))
-      .replace("#3", L10N.numberWithDecimals((totalMillis || 0) / 1000, REQUEST_TIME_DECIMALS))
+      .replace("#2", L10N.numberWithDecimals((totalBytes || 0) / 1024, 2))
+      .replace("#3", L10N.numberWithDecimals((totalMillis || 0) / 1000, 2))
     );
   },
 
@@ -945,12 +838,6 @@ RequestsMenuView.prototype = Heritage.extend(WidgetMethods, {
             break;
           case "responseContent":
             requestItem.attachment.responseContent = value;
-            // If there's no mime type available when the response content
-            // is received, assume text/plain as a fallback.
-            if (!requestItem.attachment.mimeType) {
-              requestItem.attachment.mimeType = "text/plain";
-              this.updateMenuView(requestItem, "mimeType", "text/plain");
-            }
             break;
           case "totalTime":
             requestItem.attachment.totalTime = value;
@@ -1134,11 +1021,6 @@ RequestsMenuView.prototype = Heritage.extend(WidgetMethods, {
     startCapNode.hidden = false;
     endCapNode.hidden = false;
 
-    // Don't paint things while the waterfall view isn't even visible.
-    if (NetMonitorView.currentFrontendMode != "network-inspector-view") {
-      return;
-    }
-
     // Rescale all the waterfalls so that everything is visible at once.
     this._flushWaterfallViews();
   },
@@ -1252,7 +1134,7 @@ RequestsMenuView.prototype = Heritage.extend(WidgetMethods, {
         if (divisionScale == "millisecond") {
           normalizedTime |= 0;
         } else {
-          normalizedTime = L10N.numberWithDecimals(normalizedTime, REQUEST_TIME_DECIMALS);
+          normalizedTime = L10N.numberWithDecimals(normalizedTime, 2);
         }
 
         let node = document.createElement("label");
@@ -1381,11 +1263,6 @@ RequestsMenuView.prototype = Heritage.extend(WidgetMethods, {
    * The resize listener for this container's window.
    */
   _onResize: function(e) {
-    // Don't paint things while the waterfall view isn't even visible.
-    if (NetMonitorView.currentFrontendMode != "network-inspector-view") {
-      return;
-    }
-
     // Allow requests to settle down first.
     setNamedTimeout(
       "resize-events", RESIZE_REFRESH_RATE, () => this._flushWaterfallViews(true));
@@ -1395,21 +1272,14 @@ RequestsMenuView.prototype = Heritage.extend(WidgetMethods, {
    * Handle the context menu opening. Hide items if no request is selected.
    */
   _onContextShowing: function() {
-    let selectedItem = this.selectedItem;
-
     let resendElement = $("#request-menu-context-resend");
-    resendElement.hidden = !selectedItem || selectedItem.attachment.isCustom;
+    resendElement.hidden = !this.selectedItem || this.selectedItem.attachment.isCustom;
 
     let copyUrlElement = $("#request-menu-context-copy-url");
-    copyUrlElement.hidden = !selectedItem;
-
-    let copyImageAsDataUriElement = $("#request-menu-context-copy-image-as-data-uri");
-    copyImageAsDataUriElement.hidden = !selectedItem ||
-      !selectedItem.attachment.responseContent ||
-      !selectedItem.attachment.responseContent.content.mimeType.contains("image/");
+    copyUrlElement.hidden = !this.selectedItem;
 
     let newTabElement = $("#request-menu-context-newtab");
-    newTabElement.hidden = !selectedItem;
+    newTabElement.hidden = !this.selectedItem;
   },
 
   /**
@@ -1583,7 +1453,7 @@ SidebarView.prototype = {
 
     return view.populate(aData).then(() => {
       $("#details-pane").selectedIndex = isCustom ? 0 : 1
-      window.emit(EVENTS.SIDEBAR_POPULATED);
+      window.emit(EVENTS.SIDEBAR_POPULATED)
     });
   },
 
@@ -1610,6 +1480,7 @@ CustomRequestView.prototype = {
     dumpn("Initializing the CustomRequestView");
 
     this.updateCustomRequestEvent = getKeyWithEvent(this.onUpdate.bind(this));
+
     $("#custom-pane").addEventListener("input", this.updateCustomRequestEvent, false);
   },
 
@@ -1684,12 +1555,18 @@ CustomRequestView.prototype = {
         break;
       case 'body':
         value = $("#custom-postdata-value").value;
-        selectedItem.attachment.requestPostData = { postData: { text: value } };
+        selectedItem.attachment.requestPostData = {
+          postData: {
+            text: value
+          }
+        };
         break;
       case 'headers':
         let headersText = $("#custom-headers-value").value;
         value = parseHeaderText(headersText);
-        selectedItem.attachment.requestHeaders = { headers: value };
+        selectedItem.attachment.requestHeaders = {
+          headers: value
+        };
         break;
     }
 
@@ -2126,41 +2003,26 @@ NetworkDetailsView.prototype = {
       // Handle json, which we tentatively identify by checking the MIME type
       // for "json" after any word boundary. This works for the standard
       // "application/json", and also for custom types like "x-bigcorp-json".
-      // Additionally, we also directly parse the response text content to
-      // verify whether it's json or not, to handle responses incorrectly
-      // labeled as text/plain instead.
-      let jsonMimeType, jsonObject, jsonObjectParseError;
-      try {
-        // Test the mime type *and* parse the string, because "JSONP" responses
-        // (json with callback) aren't actually valid json.
-        jsonMimeType = /\bjson/.test(mimeType);
-        jsonObject = JSON.parse(aString);
-      } catch (e) {
-        jsonObjectParseError = e;
-      }
-      if (jsonMimeType || jsonObject) {
-        // Extract the actual json substring in case this might be a "JSONP".
-        // This regex basically parses a function call and captures the
-        // function name and arguments in two separate groups.
-        let jsonpRegex = /^\s*([\w$]+)\s*\(\s*([^]*)\s*\)\s*;?\s*$/;
-        let [_, callbackPadding, jsonpString] = aString.match(jsonpRegex) || [];
+      // This should be marginally more reliable than just looking for "json".
+      if (/\bjson/.test(mimeType)) {
+        let jsonpRegex = /^[a-zA-Z0-9_$]+\(|\)$/g; // JSONP with callback.
+        let sanitizedJSON = aString.replace(jsonpRegex, "");
+        let callbackPadding = aString.match(jsonpRegex);
 
         // Make sure this is a valid JSON object first. If so, nicely display
         // the parsing results in a variables view. Otherwise, simply show
         // the contents as plain text.
-        if (callbackPadding && jsonpString) {
-          try {
-            jsonObject = JSON.parse(jsonpString);
-          } catch (e) {
-            jsonObjectParseError = e;
-          }
+        try {
+          var jsonObject = JSON.parse(sanitizedJSON);
+        } catch (e) {
+          var parsingError = e;
         }
 
-        // Valid JSON or JSONP.
+        // Valid JSON.
         if (jsonObject) {
           $("#response-content-json-box").hidden = false;
           let jsonScopeName = callbackPadding
-            ? L10N.getFormatStr("jsonpScopeName", callbackPadding)
+            ? L10N.getFormatStr("jsonpScopeName", callbackPadding[0].slice(0, -1))
             : L10N.getStr("jsonScopeName");
 
           return this._json.controller.setSingleVariable({
@@ -2172,8 +2034,8 @@ NetworkDetailsView.prototype = {
         else {
           $("#response-content-textarea-box").hidden = false;
           let infoHeader = $("#response-content-info-header");
-          infoHeader.setAttribute("value", jsonObjectParseError);
-          infoHeader.setAttribute("tooltiptext", jsonObjectParseError);
+          infoHeader.setAttribute("value", parsingError);
+          infoHeader.setAttribute("tooltiptext", parsingError);
           infoHeader.hidden = false;
           return NetMonitorView.editor("#response-content-textarea").then(aEditor => {
             aEditor.setMode(Editor.modes.js);
@@ -2311,188 +2173,6 @@ NetworkDetailsView.prototype = {
 };
 
 /**
- * Functions handling the performance statistics view.
- */
-function PerformanceStatisticsView() {
-}
-
-PerformanceStatisticsView.prototype = {
-  /**
-   * Initializes and displays empty charts in this container.
-   */
-  displayPlaceholderCharts: function() {
-    this._createChart({
-      id: "#primed-cache-chart",
-      title: "charts.cacheEnabled"
-    });
-    this._createChart({
-      id: "#empty-cache-chart",
-      title: "charts.cacheDisabled"
-    });
-    window.emit(EVENTS.PLACEHOLDER_CHARTS_DISPLAYED);
-  },
-
-  /**
-   * Populates and displays the primed cache chart in this container.
-   *
-   * @param array aItems
-   *        @see this._sanitizeChartDataSource
-   */
-  createPrimedCacheChart: function(aItems) {
-    this._createChart({
-      id: "#primed-cache-chart",
-      title: "charts.cacheEnabled",
-      data: this._sanitizeChartDataSource(aItems),
-      strings: this._commonChartStrings,
-      totals: this._commonChartTotals,
-      sorted: true
-    });
-    window.emit(EVENTS.PRIMED_CACHE_CHART_DISPLAYED);
-  },
-
-  /**
-   * Populates and displays the empty cache chart in this container.
-   *
-   * @param array aItems
-   *        @see this._sanitizeChartDataSource
-   */
-  createEmptyCacheChart: function(aItems) {
-    this._createChart({
-      id: "#empty-cache-chart",
-      title: "charts.cacheDisabled",
-      data: this._sanitizeChartDataSource(aItems, true),
-      strings: this._commonChartStrings,
-      totals: this._commonChartTotals,
-      sorted: true
-    });
-    window.emit(EVENTS.EMPTY_CACHE_CHART_DISPLAYED);
-  },
-
-  /**
-   * Common stringifier predicates used for items and totals in both the
-   * "primed" and "empty" cache charts.
-   */
-  _commonChartStrings: {
-    size: value => {
-      let string = L10N.numberWithDecimals(value / 1024, CONTENT_SIZE_DECIMALS);
-      return L10N.getFormatStr("charts.sizeKB", string);
-    },
-    time: value => {
-      let string = L10N.numberWithDecimals(value / 1000, REQUEST_TIME_DECIMALS);
-      return L10N.getFormatStr("charts.totalS", string);
-    }
-  },
-  _commonChartTotals: {
-    size: total => {
-      let string = L10N.numberWithDecimals(total / 1024, CONTENT_SIZE_DECIMALS);
-      return L10N.getFormatStr("charts.totalSize", string);
-    },
-    time: total => {
-      let seconds = total / 1000;
-      let string = L10N.numberWithDecimals(seconds, REQUEST_TIME_DECIMALS);
-      return PluralForm.get(seconds, L10N.getStr("charts.totalSeconds")).replace("#1", string);
-    },
-    cached: total => {
-      return L10N.getFormatStr("charts.totalCached", total);
-    },
-    count: total => {
-      return L10N.getFormatStr("charts.totalCount", total);
-    }
-  },
-
-  /**
-   * Adds a specific chart to this container.
-   *
-   * @param object
-   *        An object containing all or some the following properties:
-   *          - id: either "#primed-cache-chart" or "#empty-cache-chart"
-   *          - title/data/strings/totals/sorted: @see Chart.jsm for details
-   */
-  _createChart: function({ id, title, data, strings, totals, sorted }) {
-    let container = $(id);
-
-    // Nuke all existing charts of the specified type.
-    while (container.hasChildNodes()) {
-      container.firstChild.remove();
-    }
-
-    // Create a new chart.
-    let chart = Chart.PieTable(document, {
-      diameter: NETWORK_ANALYSIS_PIE_CHART_DIAMETER,
-      title: L10N.getStr(title),
-      data: data,
-      strings: strings,
-      totals: totals,
-      sorted: sorted
-    });
-
-    chart.on("click", (_, item) => {
-      NetMonitorView.RequestsMenu.filterOn(item.label);
-      NetMonitorView.showNetworkInspectorView();
-    });
-
-    container.appendChild(chart.node);
-  },
-
-  /**
-   * Sanitizes the data source used for creating charts, to follow the
-   * data format spec defined in Chart.jsm.
-   *
-   * @param array aItems
-   *        A collection of request items used as the data source for the chart.
-   * @param boolean aEmptyCache
-   *        True if the cache is considered enabled, false for disabled.
-   */
-  _sanitizeChartDataSource: function(aItems, aEmptyCache) {
-    let data = [
-      "html", "css", "js", "xhr", "fonts", "images", "media", "flash", "other"
-    ].map(e => ({
-      cached: 0,
-      count: 0,
-      label: e,
-      size: 0,
-      time: 0
-    }));
-
-    for (let requestItem of aItems) {
-      let details = requestItem.attachment;
-      let type;
-
-      if (RequestsMenuView.prototype.isHtml(requestItem)) {
-        type = 0; // "html"
-      } else if (RequestsMenuView.prototype.isCss(requestItem)) {
-        type = 1; // "css"
-      } else if (RequestsMenuView.prototype.isJs(requestItem)) {
-        type = 2; // "js"
-      } else if (RequestsMenuView.prototype.isFont(requestItem)) {
-        type = 4; // "fonts"
-      } else if (RequestsMenuView.prototype.isImage(requestItem)) {
-        type = 5; // "images"
-      } else if (RequestsMenuView.prototype.isMedia(requestItem)) {
-        type = 6; // "media"
-      } else if (RequestsMenuView.prototype.isFlash(requestItem)) {
-        type = 7; // "flash"
-      } else if (RequestsMenuView.prototype.isXHR(requestItem)) {
-        // Verify XHR last, to categorize other mime types in their own blobs.
-        type = 3; // "xhr"
-      } else {
-        type = 8; // "other"
-      }
-
-      if (aEmptyCache || !responseIsFresh(details)) {
-        data[type].time += details.totalTime || 0;
-        data[type].size += details.contentSize || 0;
-      } else {
-        data[type].cached++;
-      }
-      data[type].count++;
-    }
-
-    return data.filter(e => e.count > 0);
-  },
-};
-
-/**
  * DOM query helper.
  */
 function $(aSelector, aTarget = document) aTarget.querySelector(aSelector);
@@ -2514,8 +2194,8 @@ nsIURL.store = new Map();
 /**
  * Parse a url's query string into its components
  *
- * @param string aQueryString
- *        The query part of a url
+ * @param  string aQueryString
+ *         The query part of a url
  * @return array
  *         Array of query params {name, value}
  */
@@ -2536,8 +2216,8 @@ function parseQueryString(aQueryString) {
 /**
  * Parse text representation of HTTP headers.
  *
- * @param string aText
- *        Text of headers
+ * @param  string aText
+ *         Text of headers
  * @return array
  *         Array of headers info {name, value}
  */
@@ -2548,8 +2228,8 @@ function parseHeaderText(aText) {
 /**
  * Parse readable text list of a query string.
  *
- * @param string aText
- *        Text of query string represetation
+ * @param  string aText
+ *         Text of query string represetation
  * @return array
  *         Array of query params {name, value}
  */
@@ -2561,8 +2241,8 @@ function parseQueryText(aText) {
  * Parse a text representation of a name:value list with
  * the given name:value divider character.
  *
- * @param string aText
- *        Text of list
+ * @param  string aText
+ *         Text of list
  * @return array
  *         Array of headers info {name, value}
  */
@@ -2616,44 +2296,6 @@ function writeQueryString(aParams) {
 }
 
 /**
- * Checks if the "Expiration Calculations" defined in section 13.2.4 of the
- * "HTTP/1.1: Caching in HTTP" spec holds true for a collection of headers.
- *
- * @param object
- *        An object containing the { responseHeaders, status } properties.
- * @return boolean
- *         True if the response is fresh and loaded from cache.
- */
-function responseIsFresh({ responseHeaders, status }) {
-  // Check for a "304 Not Modified" status and response headers availability.
-  if (status != 304 || !responseHeaders) {
-    return false;
-  }
-
-  let list = responseHeaders.headers;
-  let cacheControl = list.filter(e => e.name.toLowerCase() == "cache-control")[0];
-  let expires = list.filter(e => e.name.toLowerCase() == "expires")[0];
-
-  // Check the "Cache-Control" header for a maximum age value.
-  if (cacheControl) {
-    let maxAgeMatch =
-      cacheControl.value.match(/s-maxage\s*=\s*(\d+)/) ||
-      cacheControl.value.match(/max-age\s*=\s*(\d+)/);
-
-    if (maxAgeMatch && maxAgeMatch.pop() > 0) {
-      return true;
-    }
-  }
-
-  // Check the "Expires" header for a valid date.
-  if (expires && Date.parse(expires.value)) {
-    return true;
-  }
-
-  return false;
-}
-
-/**
  * Helper method to get a wrapped function which can be bound to as an event listener directly and is executed only when data-key is present in event.target.
  *
  * @param function callback
@@ -2678,4 +2320,3 @@ NetMonitorView.RequestsMenu = new RequestsMenuView();
 NetMonitorView.Sidebar = new SidebarView();
 NetMonitorView.CustomRequest = new CustomRequestView();
 NetMonitorView.NetworkDetails = new NetworkDetailsView();
-NetMonitorView.PerformanceStatistics = new PerformanceStatisticsView();

@@ -127,7 +127,8 @@ gfxPlatformMac::OptimizeImage(gfxImageSurface *aSurface,
         }
     }
 
-    return nullptr;
+    nsRefPtr<gfxASurface> ret = new gfxQuartzImageSurface(isurf);
+    return ret.forget();
 }
 
 TemporaryRef<ScaledFont>

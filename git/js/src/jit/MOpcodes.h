@@ -211,7 +211,7 @@ namespace jit {
     _(AbortPar)                                                             \
     _(LambdaPar)                                                            \
     _(RestPar)                                                              \
-    _(ForkJoinContext)                                                      \
+    _(ForkJoinSlice)                                                        \
     _(GuardThreadExclusive)                                                 \
     _(CheckInterruptPar)                                                    \
     _(RecompileCheck)

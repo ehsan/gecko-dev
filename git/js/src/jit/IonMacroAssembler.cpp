@@ -708,23 +708,23 @@ MacroAssembler::newGCShortString(const Register &result, Label *fail)
 }
 
 void
-MacroAssembler::newGCThingPar(const Register &result, const Register &cx,
+MacroAssembler::newGCThingPar(const Register &result, const Register &slice,
                               const Register &tempReg1, const Register &tempReg2,
                               gc::AllocKind allocKind, Label *fail)
 {
     // Similar to ::newGCThing(), except that it allocates from a custom
-    // Allocator in the ForkJoinContext*, rather than being hardcoded to the
+    // Allocator in the ForkJoinSlice*, rather than being hardcoded to the
     // compartment allocator.  This requires two temporary registers.
     //
     // Subtle: I wanted to reuse `result` for one of the temporaries, but the
-    // register allocator was assigning it to the same register as `cx`.
+    // register allocator was assigning it to the same register as `slice`.
     // Then we overwrite that register which messed up the OOL code.
 
     uint32_t thingSize = (uint32_t)gc::Arena::thingSize(allocKind);
 
     // Load the allocator:
-    // tempReg1 = (Allocator*) forkJoinCx->allocator()
-    loadPtr(Address(cx, ThreadSafeContext::offsetOfAllocator()),
+    // tempReg1 = (Allocator*) forkJoinSlice->allocator()
+    loadPtr(Address(slice, ThreadSafeContext::offsetOfAllocator()),
             tempReg1);
 
     // Get a pointer to the relevant free list:
@@ -756,30 +756,30 @@ MacroAssembler::newGCThingPar(const Register &result, const Register &cx,
 }
 
 void
-MacroAssembler::newGCThingPar(const Register &result, const Register &cx,
+MacroAssembler::newGCThingPar(const Register &result, const Register &slice,
                               const Register &tempReg1, const Register &tempReg2,
                               JSObject *templateObject, Label *fail)
 {
     gc::AllocKind allocKind = templateObject->tenuredGetAllocKind();
     JS_ASSERT(allocKind >= gc::FINALIZE_OBJECT0 && allocKind <= gc::FINALIZE_OBJECT_LAST);
 
-    newGCThingPar(result, cx, tempReg1, tempReg2, allocKind, fail);
+    newGCThingPar(result, slice, tempReg1, tempReg2, allocKind, fail);
 }
 
 void
-MacroAssembler::newGCStringPar(const Register &result, const Register &cx,
+MacroAssembler::newGCStringPar(const Register &result, const Register &slice,
                                const Register &tempReg1, const Register &tempReg2,
                                Label *fail)
 {
-    newGCThingPar(result, cx, tempReg1, tempReg2, js::gc::FINALIZE_STRING, fail);
+    newGCThingPar(result, slice, tempReg1, tempReg2, js::gc::FINALIZE_STRING, fail);
 }
 
 void
-MacroAssembler::newGCShortStringPar(const Register &result, const Register &cx,
+MacroAssembler::newGCShortStringPar(const Register &result, const Register &slice,
                                     const Register &tempReg1, const Register &tempReg2,
                                     Label *fail)
 {
-    newGCThingPar(result, cx, tempReg1, tempReg2, js::gc::FINALIZE_SHORT_STRING, fail);
+    newGCThingPar(result, slice, tempReg1, tempReg2, js::gc::FINALIZE_SHORT_STRING, fail);
 }
 
 void
@@ -1094,15 +1094,15 @@ MacroAssembler::loadBaselineFramePtr(Register framePtr, Register dest)
 }
 
 void
-MacroAssembler::loadForkJoinContext(Register cx, Register scratch)
+MacroAssembler::loadForkJoinSlice(Register slice, Register scratch)
 {
-    // Load the current ForkJoinContext *. If we need a parallel exit frame,
+    // Load the current ForkJoinSlice *. If we need a parallel exit frame,
     // chances are we are about to do something very slow anyways, so just
-    // call ForkJoinContextPar again instead of using the cached version.
+    // call ForkJoinSlicePar again instead of using the cached version.
     setupUnalignedABICall(0, scratch);
-    callWithABI(JS_FUNC_TO_DATA_PTR(void *, ForkJoinContextPar));
-    if (ReturnReg != cx)
-        movePtr(ReturnReg, cx);
+    callWithABI(JS_FUNC_TO_DATA_PTR(void *, ForkJoinSlicePar));
+    if (ReturnReg != slice)
+        movePtr(ReturnReg, slice);
 }
 
 void
@@ -1114,7 +1114,7 @@ MacroAssembler::loadContext(Register cxReg, Register scratch, ExecutionMode exec
         loadJSContext(cxReg);
         break;
       case ParallelExecution:
-        loadForkJoinContext(cxReg, scratch);
+        loadForkJoinSlice(cxReg, scratch);
         break;
       default:
         MOZ_ASSUME_UNREACHABLE("No such execution mode");
@@ -1122,12 +1122,12 @@ MacroAssembler::loadContext(Register cxReg, Register scratch, ExecutionMode exec
 }
 
 void
-MacroAssembler::enterParallelExitFrameAndLoadContext(const VMFunction *f, Register cx,
-                                                     Register scratch)
+MacroAssembler::enterParallelExitFrameAndLoadSlice(const VMFunction *f, Register slice,
+                                                   Register scratch)
 {
-    loadForkJoinContext(cx, scratch);
-    // Load the PerThreadData from from the cx.
-    loadPtr(Address(cx, offsetof(ForkJoinContext, perThreadData)), scratch);
+    loadForkJoinSlice(slice, scratch);
+    // Load the PerThreadData from from the slice.
+    loadPtr(Address(slice, offsetof(ForkJoinSlice, perThreadData)), scratch);
     linkParallelExitFrame(scratch);
     // Push the ioncode.
     exitCodePatch_ = PushWithPatch(ImmWord(-1));
@@ -1136,11 +1136,11 @@ MacroAssembler::enterParallelExitFrameAndLoadContext(const VMFunction *f, Regist
 }
 
 void
-MacroAssembler::enterFakeParallelExitFrame(Register cx, Register scratch,
+MacroAssembler::enterFakeParallelExitFrame(Register slice, Register scratch,
                                            JitCode *codeVal)
 {
-    // Load the PerThreadData from from the cx.
-    loadPtr(Address(cx, offsetof(ForkJoinContext, perThreadData)), scratch);
+    // Load the PerThreadData from from the slice.
+    loadPtr(Address(slice, offsetof(ForkJoinSlice, perThreadData)), scratch);
     linkParallelExitFrame(scratch);
     Push(ImmPtr(codeVal));
     Push(ImmPtr(nullptr));
@@ -1157,7 +1157,7 @@ MacroAssembler::enterExitFrameAndLoadContext(const VMFunction *f, Register cxReg
         loadJSContext(cxReg);
         break;
       case ParallelExecution:
-        enterParallelExitFrameAndLoadContext(f, cxReg, scratch);
+        enterParallelExitFrameAndLoadSlice(f, cxReg, scratch);
         break;
       default:
         MOZ_ASSUME_UNREACHABLE("No such execution mode");

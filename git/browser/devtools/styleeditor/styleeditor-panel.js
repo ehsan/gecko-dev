@@ -136,6 +136,7 @@ StyleEditorPanel.prototype = {
       this._toolbox = null;
       this._panelDoc = null;
 
+      this._debuggee.destroy();
       this.UI.destroy();
     }
 

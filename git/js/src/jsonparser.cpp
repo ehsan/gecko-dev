@@ -60,7 +60,7 @@ JSONParser::trace(JSTracer *trc)
 void
 JSONParser::getTextPosition(uint32_t *column, uint32_t *line)
 {
-    ConstTwoByteChars ptr = begin;
+    StableCharPtr ptr = begin;
     uint32_t col = 1;
     uint32_t row = 1;
     for (; ptr < current; ptr++) {

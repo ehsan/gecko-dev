@@ -106,9 +106,10 @@ TraceCycleDetectionSet(JSTracer *trc, ObjectSet &set);
 
 struct AutoResolving;
 class DtoaCache;
-class ForkJoinContext;
+class ForkJoinSlice;
 class RegExpCompartment;
 class RegExpStatics;
+class ForkJoinSlice;
 
 namespace frontend { struct CompileError; }
 
@@ -138,7 +139,7 @@ namespace frontend { struct CompileError; }
  * to an ExclusiveContext or ThreadSafeContext.
  *
  * Contexts which are a ThreadSafeContext but not an ExclusiveContext are used
- * to represent a ForkJoinContext, the per-thread parallel context used in PJS.
+ * to represent a ForkJoinSlice, the per-thread parallel context used in PJS.
  */
 
 struct ThreadSafeContext : ContextFriendFields,
@@ -212,8 +213,8 @@ struct ThreadSafeContext : ContextFriendFields,
         return maybeExclusiveContext();
     }
 
-    bool isForkJoinContext() const;
-    ForkJoinContext *asForkJoinContext();
+    bool isForkJoinSlice() const;
+    ForkJoinSlice *asForkJoinSlice();
 
     // The generational GC nursery may only be used on the main thread.
 #ifdef JSGC_GENERATIONAL

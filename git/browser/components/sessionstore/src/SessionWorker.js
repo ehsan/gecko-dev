@@ -67,10 +67,27 @@ let Agent = {
   backupPath: OS.Path.join(OS.Constants.Path.profileDir, "sessionstore.bak"),
 
   /**
-   * NO-OP to start the worker.
+   * Read the session from disk.
+   * In case sessionstore.js does not exist, attempt to read sessionstore.bak.
    */
-  init: function () {
-    return {result: true};
+  read: function () {
+    for (let path of [this.path, this.backupPath]) {
+      try {
+        let durationMs = Date.now();
+        let bytes = File.read(path);
+        durationMs = Date.now() - durationMs;
+
+        return {
+          result: Decoder.decode(bytes),
+          telemetry: {FX_SESSION_RESTORE_READ_FILE_MS: durationMs,
+                      FX_SESSION_RESTORE_FILE_SIZE_BYTES: bytes.byteLength}
+        };
+      } catch (ex if isNoSuchFileEx(ex)) {
+        // Ignore exceptions about non-existent files.
+      }
+    }
+    // No sessionstore data files found. Return an empty string.
+    return {result: ""};
   },
 
   /**

@@ -102,7 +102,6 @@ typedef struct _nsCocoaWindowList {
 - (NSView*)trackingAreaView;
 
 - (void)setBeingShown:(BOOL)aValue;
-- (BOOL)isBeingShown;
 - (BOOL)isVisibleOrBeingShown;
 
 - (ChildView*)mainChildView;

@@ -1517,8 +1517,8 @@ class MNewPar : public MUnaryInstruction
 {
     CompilerRootObject templateObject_;
 
-    MNewPar(MDefinition *cx, JSObject *templateObject)
-      : MUnaryInstruction(cx),
+    MNewPar(MDefinition *slice, JSObject *templateObject)
+      : MUnaryInstruction(slice),
         templateObject_(templateObject)
     {
         setResultType(MIRType_Object);
@@ -1527,11 +1527,11 @@ class MNewPar : public MUnaryInstruction
   public:
     INSTRUCTION_HEADER(NewPar);
 
-    static MNewPar *New(TempAllocator &alloc, MDefinition *cx, JSObject *templateObject) {
-        return new(alloc) MNewPar(cx, templateObject);
+    static MNewPar *New(TempAllocator &alloc, MDefinition *slice, JSObject *templateObject) {
+        return new(alloc) MNewPar(slice, templateObject);
     }
 
-    MDefinition *forkJoinContext() const {
+    MDefinition *forkJoinSlice() const {
         return getOperand(0);
     }
 
@@ -1954,20 +1954,11 @@ class MCallDOMNative : public MCall
     MCallDOMNative(JSFunction *target, uint32_t numActualArgs)
         : MCall(target, numActualArgs, false)
     {
-        // If our jitinfo is not marked movable, that means that our C++
-        // implementation is fallible or that we have no hope of ever doing the
-        // sort of argument analysis that would allow us to detemine that we're
-        // side-effect-free.  In the latter case we wouldn't get DCEd no matter
-        // what, but for the former case we have to explicitly say that we can't
-        // be DCEd.
-        if (!getJitInfo()->isMovable)
-            setGuard();
     }
 
     friend MCall *MCall::New(TempAllocator &alloc, JSFunction *target, size_t maxArgc,
                              size_t numActualArgs, bool construct, bool isDOMCall);
 
-    const JSJitInfo *getJitInfo() const;
   public:
     virtual AliasSet getAliasSet() const MOZ_OVERRIDE;
 
@@ -4270,8 +4261,8 @@ class MConcat
 class MConcatPar
   : public MTernaryInstruction
 {
-    MConcatPar(MDefinition *cx, MDefinition *left, MDefinition *right)
-      : MTernaryInstruction(cx, left, right)
+    MConcatPar(MDefinition *slice, MDefinition *left, MDefinition *right)
+      : MTernaryInstruction(slice, left, right)
     {
         // Type analysis has already run, before replacing with the parallel
         // variant.
@@ -4284,11 +4275,11 @@ class MConcatPar
   public:
     INSTRUCTION_HEADER(ConcatPar)
 
-    static MConcatPar *New(TempAllocator &alloc, MDefinition *cx, MConcat *concat) {
-        return new(alloc) MConcatPar(cx, concat->lhs(), concat->rhs());
+    static MConcatPar *New(TempAllocator &alloc, MDefinition *slice, MConcat *concat) {
+        return new(alloc) MConcatPar(slice, concat->lhs(), concat->rhs());
     }
 
-    MDefinition *forkJoinContext() const {
+    MDefinition *forkJoinSlice() const {
         return getOperand(0);
     }
     MDefinition *lhs() const {
@@ -4726,8 +4717,8 @@ class MCheckOverRecursed : public MNullaryInstruction
 // Uses the per-thread recursion limit.
 class MCheckOverRecursedPar : public MUnaryInstruction
 {
-    MCheckOverRecursedPar(MDefinition *cx)
-      : MUnaryInstruction(cx)
+    MCheckOverRecursedPar(MDefinition *slice)
+      : MUnaryInstruction(slice)
     {
         setResultType(MIRType_None);
         setGuard();
@@ -4737,11 +4728,11 @@ class MCheckOverRecursedPar : public MUnaryInstruction
   public:
     INSTRUCTION_HEADER(CheckOverRecursedPar);
 
-    static MCheckOverRecursedPar *New(TempAllocator &alloc, MDefinition *cx) {
-        return new(alloc) MCheckOverRecursedPar(cx);
+    static MCheckOverRecursedPar *New(TempAllocator &alloc, MDefinition *slice) {
+        return new(alloc) MCheckOverRecursedPar(slice);
     }
 
-    MDefinition *forkJoinContext() const {
+    MDefinition *forkJoinSlice() const {
         return getOperand(0);
     }
 };
@@ -4749,8 +4740,8 @@ class MCheckOverRecursedPar : public MUnaryInstruction
 // Check for an interrupt (or rendezvous) in parallel mode.
 class MCheckInterruptPar : public MUnaryInstruction
 {
-    MCheckInterruptPar(MDefinition *cx)
-      : MUnaryInstruction(cx)
+    MCheckInterruptPar(MDefinition *slice)
+      : MUnaryInstruction(slice)
     {
         setResultType(MIRType_None);
         setGuard();
@@ -4760,11 +4751,11 @@ class MCheckInterruptPar : public MUnaryInstruction
   public:
     INSTRUCTION_HEADER(CheckInterruptPar);
 
-    static MCheckInterruptPar *New(TempAllocator &alloc, MDefinition *cx) {
-        return new(alloc) MCheckInterruptPar(cx);
+    static MCheckInterruptPar *New(TempAllocator &alloc, MDefinition *slice) {
+        return new(alloc) MCheckInterruptPar(slice);
     }
 
-    MDefinition *forkJoinContext() const {
+    MDefinition *forkJoinSlice() const {
         return getOperand(0);
     }
 };
@@ -5102,9 +5093,9 @@ class MLambdaPar
 {
     LambdaFunctionInfo info_;
 
-    MLambdaPar(MDefinition *cx, MDefinition *scopeChain, JSFunction *fun,
+    MLambdaPar(MDefinition *slice, MDefinition *scopeChain, JSFunction *fun,
                types::TemporaryTypeSet *resultTypes, const LambdaFunctionInfo &info)
-      : MBinaryInstruction(cx, scopeChain), info_(info)
+      : MBinaryInstruction(slice, scopeChain), info_(info)
     {
         JS_ASSERT(!info_.singletonType);
         JS_ASSERT(!info_.useNewTypeForClone);
@@ -5115,12 +5106,12 @@ class MLambdaPar
   public:
     INSTRUCTION_HEADER(LambdaPar);
 
-    static MLambdaPar *New(TempAllocator &alloc, MDefinition *cx, MLambda *lambda) {
-        return new(alloc) MLambdaPar(cx, lambda->scopeChain(), lambda->info().fun,
+    static MLambdaPar *New(TempAllocator &alloc, MDefinition *slice, MLambda *lambda) {
+        return new(alloc) MLambdaPar(slice, lambda->scopeChain(), lambda->info().fun,
                                      lambda->resultTypeSet(), lambda->info());
     }
 
-    MDefinition *forkJoinContext() const {
+    MDefinition *forkJoinSlice() const {
         return getOperand(0);
     }
 
@@ -7421,22 +7412,22 @@ class MFunctionEnvironment
     }
 };
 
-// Loads the current js::ForkJoinContext*.
+// Loads the current js::ForkJoinSlice*.
 // Only applicable in ParallelExecution.
-class MForkJoinContext
+class MForkJoinSlice
   : public MNullaryInstruction
 {
-    MForkJoinContext()
+    MForkJoinSlice()
         : MNullaryInstruction()
     {
-        setResultType(MIRType_ForkJoinContext);
+        setResultType(MIRType_ForkJoinSlice);
     }
 
   public:
-    INSTRUCTION_HEADER(ForkJoinContext);
+    INSTRUCTION_HEADER(ForkJoinSlice);
 
-    static MForkJoinContext *New(TempAllocator &alloc) {
-        return new(alloc) MForkJoinContext();
+    static MForkJoinSlice *New(TempAllocator &alloc) {
+        return new(alloc) MForkJoinSlice();
     }
 
     AliasSet getAliasSet() const {
@@ -8041,11 +8032,6 @@ class MGetDOMProperty
         if (isDomMovable()) {
             JS_ASSERT(jitinfo->aliasSet() != JSJitInfo::AliasEverything);
             setMovable();
-        } else {
-            // If we're not movable, that means we shouldn't be DCEd either,
-            // because we might throw an exception when called, and getting rid
-            // of that is observable.
-            setGuard();
         }
 
         setResultType(MIRType_Value);
@@ -8661,9 +8647,9 @@ class MRestPar
     public MRestCommon,
     public IntPolicy<1>
 {
-    MRestPar(MDefinition *cx, MDefinition *numActuals, unsigned numFormals,
+    MRestPar(MDefinition *slice, MDefinition *numActuals, unsigned numFormals,
              JSObject *templateObject, types::TemporaryTypeSet *resultTypes)
-      : MBinaryInstruction(cx, numActuals),
+      : MBinaryInstruction(slice, numActuals),
         MRestCommon(numFormals, templateObject)
     {
         setResultType(MIRType_Object);
@@ -8673,12 +8659,12 @@ class MRestPar
   public:
     INSTRUCTION_HEADER(RestPar);
 
-    static MRestPar *New(TempAllocator &alloc, MDefinition *cx, MRest *rest) {
-        return new(alloc) MRestPar(cx, rest->numActuals(), rest->numFormals(),
+    static MRestPar *New(TempAllocator &alloc, MDefinition *slice, MRest *rest) {
+        return new(alloc) MRestPar(slice, rest->numActuals(), rest->numFormals(),
                                    rest->templateObject(), rest->resultTypeSet());
     }
 
-    MDefinition *forkJoinContext() const {
+    MDefinition *forkJoinSlice() const {
         return getOperand(0);
     }
     MDefinition *numActuals() const {
@@ -8696,14 +8682,14 @@ class MRestPar
     }
 };
 
-// Guard on an object being safe for writes by current parallel cx.
+// Guard on an object being safe for writes by current parallel slice.
 // Must be either thread-local or else a handle into the destination array.
 class MGuardThreadExclusive
   : public MBinaryInstruction,
     public ObjectPolicy<1>
 {
-    MGuardThreadExclusive(MDefinition *cx, MDefinition *obj)
-      : MBinaryInstruction(cx, obj)
+    MGuardThreadExclusive(MDefinition *slice, MDefinition *obj)
+      : MBinaryInstruction(slice, obj)
     {
         setResultType(MIRType_None);
         setGuard();
@@ -8712,10 +8698,10 @@ class MGuardThreadExclusive
   public:
     INSTRUCTION_HEADER(GuardThreadExclusive);
 
-    static MGuardThreadExclusive *New(TempAllocator &alloc, MDefinition *cx, MDefinition *obj) {
-        return new(alloc) MGuardThreadExclusive(cx, obj);
+    static MGuardThreadExclusive *New(TempAllocator &alloc, MDefinition *slice, MDefinition *obj) {
+        return new(alloc) MGuardThreadExclusive(slice, obj);
     }
-    MDefinition *forkJoinContext() const {
+    MDefinition *forkJoinSlice() const {
         return getOperand(0);
     }
     MDefinition *object() const {
@@ -8957,8 +8943,8 @@ class MNewCallObjectPar : public MBinaryInstruction
 {
     CompilerRootObject templateObj_;
 
-    MNewCallObjectPar(MDefinition *cx, JSObject *templateObj, MDefinition *slots)
-        : MBinaryInstruction(cx, slots),
+    MNewCallObjectPar(MDefinition *slice, JSObject *templateObj, MDefinition *slots)
+        : MBinaryInstruction(slice, slots),
           templateObj_(templateObj)
     {
         setResultType(MIRType_Object);
@@ -8967,11 +8953,11 @@ class MNewCallObjectPar : public MBinaryInstruction
   public:
     INSTRUCTION_HEADER(NewCallObjectPar);
 
-    static MNewCallObjectPar *New(TempAllocator &alloc, MDefinition *cx, MNewCallObject *callObj) {
-        return new(alloc) MNewCallObjectPar(cx, callObj->templateObject(), callObj->slots());
+    static MNewCallObjectPar *New(TempAllocator &alloc, MDefinition *slice, MNewCallObject *callObj) {
+        return new(alloc) MNewCallObjectPar(slice, callObj->templateObject(), callObj->slots());
     }
 
-    MDefinition *forkJoinContext() const {
+    MDefinition *forkJoinSlice() const {
         return getOperand(0);
     }
 
@@ -9096,8 +9082,8 @@ class MNewDenseArrayPar : public MBinaryInstruction
 {
     CompilerRootObject templateObject_;
 
-    MNewDenseArrayPar(MDefinition *cx, MDefinition *length, JSObject *templateObject)
-      : MBinaryInstruction(cx, length),
+    MNewDenseArrayPar(MDefinition *slice, MDefinition *length, JSObject *templateObject)
+      : MBinaryInstruction(slice, length),
         templateObject_(templateObject)
     {
         setResultType(MIRType_Object);
@@ -9106,13 +9092,13 @@ class MNewDenseArrayPar : public MBinaryInstruction
   public:
     INSTRUCTION_HEADER(NewDenseArrayPar);
 
-    static MNewDenseArrayPar *New(TempAllocator &alloc, MDefinition *cx, MDefinition *length,
+    static MNewDenseArrayPar *New(TempAllocator &alloc, MDefinition *slice, MDefinition *length,
                                   JSObject *templateObject)
     {
-        return new(alloc) MNewDenseArrayPar(cx, length, templateObject);
+        return new(alloc) MNewDenseArrayPar(slice, length, templateObject);
     }
 
-    MDefinition *forkJoinContext() const {
+    MDefinition *forkJoinSlice() const {
         return getOperand(0);
     }
 

@@ -224,8 +224,7 @@ private:
   // Called only from DoomAlreadyRemoved()
   void DoomFile();
 
-  already_AddRefed<CacheEntryHandle> ReopenTruncated(bool aMemoryOnly,
-                                                     nsICacheEntryOpenCallback* aCallback);
+  already_AddRefed<CacheEntryHandle> ReopenTruncated(nsICacheEntryOpenCallback* aCallback);
   void TransferCallbacks(CacheEntry & aFromEntry);
 
   mozilla::Mutex mLock;
