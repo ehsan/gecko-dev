@@ -46,7 +46,7 @@ class nsSMILValue
 {
 public:
   nsSMILValue() : mU(), mType(&nsSMILNullType::sSingleton) { }
-  explicit nsSMILValue(const nsISMILType* aType);
+  nsSMILValue(const nsISMILType* aType);
   nsSMILValue(const nsSMILValue& aVal);
 
   ~nsSMILValue()

@@ -78,18 +78,12 @@ nsSVGEnum::SetBaseValueString(const nsAString& aValue,
   while (mapping && mapping->mKey) {
     if (valAtom == *(mapping->mKey)) {
       if (mBaseVal != mapping->mVal) {
-        mBaseVal = mapping->mVal;
-        if (!mIsAnimated) {
-          mAnimVal = mBaseVal;
-        }
+        mBaseVal = mAnimVal = mapping->mVal;
 #ifdef MOZ_SMIL
-        else {
+        if (mIsAnimated) {
           aSVGElement->AnimationNeedsResample();
         }
 #endif
-        // We don't need to call DidChange* here - we're only called by
-        // nsSVGElement::ParseAttribute under nsGenericElement::SetAttr,
-        // which takes care of notifying.
       }
       return NS_OK;
     }
@@ -126,16 +120,13 @@ nsSVGEnum::SetBaseValue(PRUint16 aValue,
   while (mapping && mapping->mKey) {
     if (mapping->mVal == aValue) {
       if (mBaseVal != PRUint8(aValue)) {
-        mBaseVal = PRUint8(aValue);
-        if (!mIsAnimated) {
-          mAnimVal = mBaseVal;
-        }
+        mBaseVal = mAnimVal = PRUint8(aValue);
+        aSVGElement->DidChangeEnum(mAttrEnum, aDoSetAttr);
 #ifdef MOZ_SMIL
-        else {
+        if (mIsAnimated) {
           aSVGElement->AnimationNeedsResample();
         }
 #endif
-        aSVGElement->DidChangeEnum(mAttrEnum, aDoSetAttr);
       }
       return NS_OK;
     }

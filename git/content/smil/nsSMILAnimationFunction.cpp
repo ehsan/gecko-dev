@@ -474,7 +474,7 @@ nsSMILAnimationFunction::AccumulateResult(const nsSMILValueArray& aValues,
 {
   if (!IsToAnimation() && GetAccumulate() && mRepeatIteration)
   {
-    const nsSMILValue& lastValue = aValues[aValues.Length() - 1];
+    nsSMILValue lastValue = aValues[aValues.Length() - 1];
 
     // If the target attribute type doesn't support addition, Add will
     // fail and we leave aResult untouched.
