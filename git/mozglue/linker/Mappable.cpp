@@ -35,8 +35,18 @@ MappableFile::mmap(const void *addr, size_t length, int prot, int flags,
   MOZ_ASSERT(!(flags & MAP_SHARED));
   flags |= MAP_PRIVATE;
 
-  return MemoryRange::mmap(const_cast<void *>(addr), length, prot, flags,
-                           fd, offset);
+  MemoryRange mapped = MemoryRange::mmap(const_cast<void *>(addr), length,
+                                         prot, flags, fd, offset);
+  if (mapped == MAP_FAILED)
+    return mapped;
+
+  /* Fill the remainder of the last page with zeroes when the requested
+   * protection has write bits. */
+  if ((mapped != MAP_FAILED) && (prot & PROT_WRITE) &&
+      (PageAlignedSize(length) > length)) {
+    memset(mapped + length, 0, PageAlignedSize(length) - length);
+  }
+  return mapped;
 }
 
 void
@@ -443,10 +453,9 @@ MappableSeekableZStream::ensure(const void *addr)
 
   /* In the typical case, we just need to decompress the chunk entirely. But
    * when the current mapping ends in the middle of the chunk, we want to
-   * stop at the end of the corresponding page.
-   * However, if another mapping needs the last part of the chunk, we still
-   * need to continue. As mappings are ordered by offset and length, we don't
-   * need to scan the entire list of mappings.
+   * stop there. However, if another mapping needs the last part of the
+   * chunk, we still need to continue. As mappings are ordered by offset
+   * and length, we don't need to scan the entire list of mappings.
    * It is safe to run through lazyMaps here because the linker is never
    * going to call mmap (which adds lazyMaps) while this function is
    * called. */
@@ -463,8 +472,6 @@ MappableSeekableZStream::ensure(const void *addr)
     --it;
     length = it->endOffset() - chunkStart;
   }
-
-  length = PageAlignedSize(length);
 
   AutoLock lock(&mutex);
 

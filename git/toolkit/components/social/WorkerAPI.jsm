@@ -81,10 +81,8 @@ WorkerAPI.prototype = {
       let results = [];
       cookies.forEach(function(aCookie) {
         let [name, value] = aCookie.split("=");
-        if (name || value) {
-          results.push({name: unescape(name.trim()),
-                        value: value ? unescape(value.trim()) : ""});
-        }
+        results.push({name: unescape(name.trim()),
+                      value: value ? unescape(value.trim()) : ""});
       });
       this._port.postMessage({topic: "social.cookies-get-response",
                               data: results});

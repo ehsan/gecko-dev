@@ -1102,7 +1102,7 @@ JSContext::wrapPendingException()
 {
     RootedValue value(this, getPendingException());
     clearPendingException();
-    if (!IsAtomsCompartment(compartment()) && compartment()->wrap(this, &value))
+    if (compartment()->wrap(this, &value))
         setPendingException(value);
 }
 

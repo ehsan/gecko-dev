@@ -103,6 +103,4 @@ class NativePanZoomController implements PanZoomController, GeckoEventListener {
             }
         }
     }
-
-    public native void updateScrollOffset(float cssX, float cssY);
 }

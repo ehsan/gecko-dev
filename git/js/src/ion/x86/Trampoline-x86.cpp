@@ -296,9 +296,7 @@ IonRuntime::generateInvalidator(JSContext *cx)
     // Pop the machine state and the dead frame.
     masm.lea(Operand(esp, ebx, TimesOne, sizeof(InvalidationBailoutStack)), esp);
 
-    // Jump to shared bailout tail. The BailoutInfo pointer has to be in ecx.
-    IonCode *bailoutTail = cx->compartment()->ionCompartment()->getBailoutTail();
-    masm.jmp(bailoutTail);
+    masm.generateBailoutTail(edx, ecx);
 
     Linker linker(masm);
     IonCode *code = linker.newCode(cx, JSC::OTHER_CODE);
@@ -432,7 +430,7 @@ GenerateBailoutThunk(JSContext *cx, MacroAssembler &masm, uint32_t frameClass)
     masm.passABIArg(ebx);
     masm.callWithABI(JS_FUNC_TO_DATA_PTR(void *, Bailout));
 
-    masm.pop(ecx); // Get bailoutInfo outparam.
+    masm.pop(ebx); // Get bailoutInfo outparam.
 
     // Common size of stuff we've pushed.
     const uint32_t BailoutDataSize = sizeof(void *) + // frameClass
@@ -447,9 +445,9 @@ GenerateBailoutThunk(JSContext *cx, MacroAssembler &masm, uint32_t frameClass)
         //    frameSize
         //    ... bailoutFrame ...
         masm.addl(Imm32(BailoutDataSize), esp);
-        masm.pop(ebx);
+        masm.pop(ecx);
         masm.addl(Imm32(sizeof(uint32_t)), esp);
-        masm.addl(ebx, esp);
+        masm.addl(ecx, esp);
     } else {
         // Stack is:
         //    ... frame ...
@@ -459,9 +457,7 @@ GenerateBailoutThunk(JSContext *cx, MacroAssembler &masm, uint32_t frameClass)
         masm.addl(Imm32(BailoutDataSize + sizeof(void *) + frameSize), esp);
     }
 
-    // Jump to shared bailout tail. The BailoutInfo pointer has to be in ecx.
-    IonCode *bailoutTail = cx->compartment()->ionCompartment()->getBailoutTail();
-    masm.jmp(bailoutTail);
+    masm.generateBailoutTail(edx, ebx);
 }
 
 IonCode *
@@ -752,17 +748,6 @@ IonRuntime::generateExceptionTailStub(JSContext *cx)
     MacroAssembler masm;
 
     masm.handleFailureWithHandlerTail();
-
-    Linker linker(masm);
-    return linker.newCode(cx, JSC::OTHER_CODE);
-}
-
-IonCode *
-IonRuntime::generateBailoutTailStub(JSContext *cx)
-{
-    MacroAssembler masm;
-
-    masm.generateBailoutTail(edx, ecx);
 
     Linker linker(masm);
     return linker.newCode(cx, JSC::OTHER_CODE);
