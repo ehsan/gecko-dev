@@ -710,7 +710,7 @@ nsresult
 nsImageMap::GetBoundsForAreaContent(nsIContent *aContent,
                                     nsRect& aBounds)
 {
-  NS_ENSURE_TRUE(aContent && mImageFrame, NS_ERROR_INVALID_ARG);
+  NS_ENSURE_TRUE(aContent, NS_ERROR_INVALID_ARG);
 
   // Find the Area struct associated with this content node, and return bounds
   PRUint32 i, n = mAreas.Length();
@@ -718,7 +718,10 @@ nsImageMap::GetBoundsForAreaContent(nsIContent *aContent,
     Area* area = mAreas.ElementAt(i);
     if (area->mArea == aContent) {
       aBounds = nsRect();
-      area->GetRect(mImageFrame, aBounds);
+      nsIFrame* frame = aContent->GetPrimaryFrame();
+      if (frame) {
+        area->GetRect(frame, aBounds);
+      }
       return NS_OK;
     }
   }
@@ -995,10 +998,11 @@ nsImageMap::HandleEvent(nsIDOMEvent* aEvent)
           //Set or Remove internal focus
           area->HasFocus(focus);
           //Now invalidate the rect
-          if (mImageFrame) {
+          nsIFrame* imgFrame = targetContent->GetPrimaryFrame();
+          if (imgFrame) {
             nsRect dmgRect;
-            area->GetRect(mImageFrame, dmgRect);
-            mImageFrame->Invalidate(dmgRect);
+            area->GetRect(imgFrame, dmgRect);
+            imgFrame->Invalidate(dmgRect);
           }
           break;
         }

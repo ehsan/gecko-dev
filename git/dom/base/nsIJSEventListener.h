@@ -46,16 +46,13 @@ class nsIScriptObjectOwner;
 class nsIAtom;
 
 #define NS_IJSEVENTLISTENER_IID \
-{ 0x92f9212b, 0xa6aa, 0x4867, \
-  { 0x93, 0x8a, 0x56, 0xbe, 0x17, 0x67, 0x4f, 0xd4 } }
+{ 0xafc5d047, 0xdb6b, 0x4076, \
+  { 0xb3, 0xfa, 0x57, 0x96, 0x1e, 0x21, 0x48, 0x42 } }
 
 // Implemented by script event listeners. Used to retrieve the
 // script object corresponding to the event target and the handler itself.
 // (Note this interface is now used to store script objects for all
 // script languages, so is no longer JS specific)
-//
-// Note, mTarget is a raw pointer and the owner of the nsIJSEventListener object
-// is expected to call Disconnect()!
 class nsIJSEventListener : public nsIDOMEventListener
 {
 public:
@@ -63,10 +60,9 @@ public:
 
   nsIJSEventListener(nsIScriptContext* aContext, JSObject* aScopeObject,
                      nsISupports *aTarget, JSObject *aHandler)
-    : mContext(aContext), mScopeObject(aScopeObject), mHandler(aHandler)
+    : mContext(aContext), mScopeObject(aScopeObject),
+      mTarget(do_QueryInterface(aTarget)), mHandler(aHandler)
   {
-    nsCOMPtr<nsISupports> base = do_QueryInterface(aTarget);
-    mTarget = base.get();
   }
 
   nsIScriptContext *GetEventContext() const
@@ -77,11 +73,6 @@ public:
   nsISupports *GetEventTarget() const
   {
     return mTarget;
-  }
-
-  void Disconnect()
-  {
-    mTarget = nsnull;
   }
 
   JSObject* GetEventScope() const
@@ -103,11 +94,10 @@ public:
 protected:
   virtual ~nsIJSEventListener()
   {
-    NS_ASSERTION(!mTarget, "Should have called Disconnect()!");
   }
   nsCOMPtr<nsIScriptContext> mContext;
   JSObject* mScopeObject;
-  nsISupports* mTarget;
+  nsCOMPtr<nsISupports> mTarget;
   JSObject *mHandler;
 };
 
@@ -117,6 +107,6 @@ NS_DEFINE_STATIC_IID_ACCESSOR(nsIJSEventListener, NS_IJSEVENTLISTENER_IID)
 nsresult NS_NewJSEventListener(nsIScriptContext *aContext,
                                JSObject* aScopeObject, nsISupports* aTarget,
                                nsIAtom* aType, JSObject* aHandler,
-                               nsIJSEventListener **aReturn);
+                               nsIDOMEventListener **aReturn);
 
 #endif // nsIJSEventListener_h__
