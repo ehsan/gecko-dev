@@ -5,7 +5,6 @@
 from __future__ import print_function, unicode_literals
 
 import os
-import re
 import subprocess
 
 from mach.decorators import (
@@ -43,6 +42,7 @@ class MachCommands(MachCommandBase):
             'files.')
     def valgrind_test(self, suppressions):
         import json
+        import re
         import sys
         import tempfile
 
@@ -53,7 +53,6 @@ class MachCommands(MachCommandBase):
         from mozprofile.permissions import ServerLocations
         from mozrunner import FirefoxRunner
         from mozrunner.utils import findInPath
-        from valgrind.output_handler import OutputHandler
 
         build_dir = os.path.join(self.topsrcdir, 'build')
 
@@ -92,6 +91,16 @@ class MachCommands(MachCommandBase):
             env['XPCOM_CC_RUN_DURING_SHUTDOWN'] = '1'
             env['MOZ_CRASHREPORTER_NO_REPORT'] = '1'
             env['XPCOM_DEBUG_BREAK'] = 'warn'
+
+            class OutputHandler(object):
+                def __init__(self):
+                    self.found_errors = False
+
+                def __call__(self, line):
+                    print(line)
+                    m = re.match(r'.*ERROR SUMMARY: [1-9]\d* errors from \d+ contexts', line)
+                    if m:
+                        self.found_errors = True
 
             outputHandler = OutputHandler()
             kp_kwargs = {'processOutputLine': [outputHandler]}
@@ -136,18 +145,12 @@ class MachCommands(MachCommandBase):
                 exitcode = runner.wait()
 
             finally:
-                errs = outputHandler.error_count
-                supps = outputHandler.suppression_count
-                if errs != supps:
-                    status = 1  # turns the TBPL job orange
-                    print('TEST-UNEXPECTED-FAILURE | valgrind-test | error parsing:', errs, "errors seen, but", supps, "generated suppressions seen")
-
-                elif errs == 0:
+                if not outputHandler.found_errors:
                     status = 0
                     print('TEST-PASS | valgrind-test | valgrind found no errors')
                 else:
                     status = 1  # turns the TBPL job orange
-                    # We've already printed details of the errors.
+                    print('TEST-UNEXPECTED-FAIL | valgrind-test | valgrind found errors')
 
                 if exitcode != 0:
                     status = 2  # turns the TBPL job red

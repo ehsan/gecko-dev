@@ -38,7 +38,8 @@ MobileConnectionArray::MobileConnectionArray(nsPIDOMWindow* aWindow)
   uint32_t numRil = mozilla::Preferences::GetUint("ril.numRadioInterfaces", 1);
   MOZ_ASSERT(numRil > 0);
 
-  mMobileConnections.SetLength(numRil);
+  bool ret = mMobileConnections.SetLength(numRil);
+  MOZ_ASSERT(ret);
 
   SetIsDOMBinding();
 }

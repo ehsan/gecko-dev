@@ -6272,7 +6272,8 @@ CreateHRGNFromArray(const nsTArray<nsIntRect>& aRects)
 {
   int32_t size = sizeof(RGNDATAHEADER) + sizeof(RECT)*aRects.Length();
   nsAutoTArray<uint8_t,100> buf;
-  buf.SetLength(size);
+  if (!buf.SetLength(size))
+    return nullptr;
   RGNDATA* data = reinterpret_cast<RGNDATA*>(buf.Elements());
   RECT* rects = reinterpret_cast<RECT*>(data->Buffer);
   data->rdh.dwSize = sizeof(data->rdh);
