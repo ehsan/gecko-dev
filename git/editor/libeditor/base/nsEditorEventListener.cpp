@@ -360,8 +360,7 @@ nsEditorEventListener::MouseClick(nsIDOMEvent* aMouseEvent)
 
   nsresult rv;
   nsCOMPtr<nsIDOMNSUIEvent> nsuiEvent = do_QueryInterface(aMouseEvent);
-  if (!nsuiEvent)
-    return NS_ERROR_NULL_POINTER;
+  NS_ENSURE_TRUE(nsuiEvent, NS_ERROR_NULL_POINTER);
 
   PRBool preventDefault;
   rv = nsuiEvent->GetPreventDefault(&preventDefault);
@@ -524,8 +523,7 @@ nsresult
 nsEditorEventListener::DragEnter(nsIDOMDragEvent* aDragEvent)
 {
   nsCOMPtr<nsIPresShell> presShell = GetPresShell();
-  if (!presShell)
-    return NS_OK;
+  NS_ENSURE_TRUE(presShell, NS_OK);
 
   if (!mCaret)
   {
@@ -556,8 +554,7 @@ nsEditorEventListener::DragOver(nsIDOMDragEvent* aDragEvent)
 
     nsuiEvent->GetRangeParent(getter_AddRefs(parent));
     nsCOMPtr<nsIContent> dropParent = do_QueryInterface(parent);
-    if (!dropParent)
-      return NS_ERROR_FAILURE;
+    NS_ENSURE_TRUE(dropParent, NS_ERROR_FAILURE);
 
     if (!dropParent->IsEditable())
       return NS_OK;
@@ -572,7 +569,7 @@ nsEditorEventListener::DragOver(nsIDOMDragEvent* aDragEvent)
     {
       PRInt32 offset = 0;
       nsresult rv = nsuiEvent->GetRangeOffset(&offset);
-      if (NS_FAILED(rv)) return rv;
+      NS_ENSURE_SUCCESS(rv, rv);
 
       // to avoid flicker, we could track the node and offset to see if we moved
       if (mCaretDrawn)
@@ -640,8 +637,7 @@ nsEditorEventListener::Drop(nsIDOMDragEvent* aMouseEvent)
     nsCOMPtr<nsIDOMNode> parent;
     nsuiEvent->GetRangeParent(getter_AddRefs(parent));
     nsCOMPtr<nsIContent> dropParent = do_QueryInterface(parent);
-    if (!dropParent)
-      return NS_ERROR_FAILURE;
+    NS_ENSURE_TRUE(dropParent, NS_ERROR_FAILURE);
 
     if (!dropParent->IsEditable())
       return NS_OK;
@@ -679,13 +675,11 @@ nsEditorEventListener::CanDrop(nsIDOMDragEvent* aEvent)
 
   nsCOMPtr<nsIDOMDataTransfer> dataTransfer;
   aEvent->GetDataTransfer(getter_AddRefs(dataTransfer));
-  if (!dataTransfer)
-    return PR_FALSE;
+  NS_ENSURE_TRUE(dataTransfer, PR_FALSE);
 
   nsCOMPtr<nsIDOMDOMStringList> types;
   dataTransfer->GetTypes(getter_AddRefs(types));
-  if (!types)
-    return PR_FALSE;
+  NS_ENSURE_TRUE(types, PR_FALSE);
 
   // Plaintext editors only support dropping text. Otherwise, HTML and files
   // can be dropped as well.
@@ -701,31 +695,28 @@ nsEditorEventListener::CanDrop(nsIDOMDragEvent* aEvent)
     }
   }
 
-  if (!typeSupported)
-    return PR_FALSE;
+  NS_ENSURE_TRUE(typeSupported, PR_FALSE);
 
   nsCOMPtr<nsIDOMNSDataTransfer> dataTransferNS(do_QueryInterface(dataTransfer));
-  if (!dataTransferNS)
-    return PR_FALSE;
+  NS_ENSURE_TRUE(dataTransferNS, PR_FALSE);
 
   // If there is no source node, this is probably an external drag and the
   // drop is allowed. The later checks rely on checking if the drag target
   // is the same as the drag source.
   nsCOMPtr<nsIDOMNode> sourceNode;
   dataTransferNS->GetMozSourceNode(getter_AddRefs(sourceNode));
-  if (!sourceNode)
-    return PR_TRUE;
+  NS_ENSURE_TRUE(sourceNode, PR_TRUE);
 
   // There is a source node, so compare the source documents and this document.
   // Disallow drops on the same document.
 
   nsCOMPtr<nsIDOMDocument> domdoc;
   nsresult rv = mEditor->GetDocument(getter_AddRefs(domdoc));
-  if (NS_FAILED(rv)) return PR_FALSE;
+  NS_ENSURE_SUCCESS(rv, PR_FALSE);
 
   nsCOMPtr<nsIDOMDocument> sourceDoc;
   rv = sourceNode->GetOwnerDocument(getter_AddRefs(sourceDoc));
-  if (NS_FAILED(rv)) return PR_FALSE;
+  NS_ENSURE_SUCCESS(rv, PR_FALSE);
   if (domdoc == sourceDoc)      // source and dest are the same document; disallow drops within the selection
   {
     nsCOMPtr<nsISelection> selection;
@@ -735,13 +726,13 @@ nsEditorEventListener::CanDrop(nsIDOMDragEvent* aEvent)
     
     PRBool isCollapsed;
     rv = selection->GetIsCollapsed(&isCollapsed);
-    if (NS_FAILED(rv)) return PR_FALSE;
+    NS_ENSURE_SUCCESS(rv, PR_FALSE);
   
     // Don't bother if collapsed - can always drop
     if (!isCollapsed)
     {
       nsCOMPtr<nsIDOMNSUIEvent> nsuiEvent (do_QueryInterface(aEvent));
-      if (!nsuiEvent) return PR_FALSE;
+      NS_ENSURE_TRUE(nsuiEvent, PR_FALSE);
 
       nsCOMPtr<nsIDOMNode> parent;
       rv = nsuiEvent->GetRangeParent(getter_AddRefs(parent));
@@ -749,11 +740,11 @@ nsEditorEventListener::CanDrop(nsIDOMDragEvent* aEvent)
 
       PRInt32 offset = 0;
       rv = nsuiEvent->GetRangeOffset(&offset);
-      if (NS_FAILED(rv)) return PR_FALSE;
+      NS_ENSURE_SUCCESS(rv, PR_FALSE);
 
       PRInt32 rangeCount;
       rv = selection->GetRangeCount(&rangeCount);
-      if (NS_FAILED(rv)) return PR_FALSE;
+      NS_ENSURE_SUCCESS(rv, PR_FALSE);
 
       for (PRInt32 i = 0; i < rangeCount; i++)
       {

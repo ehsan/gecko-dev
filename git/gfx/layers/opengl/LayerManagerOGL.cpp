@@ -297,7 +297,6 @@ LayerManagerOGL::SetClippingRegion(const nsIntRegion& aClippingRegion)
 void
 LayerManagerOGL::BeginTransaction()
 {
-  NS_ASSERTION(mRootLayer, "Root not set");
 }
 
 void
@@ -378,10 +377,6 @@ LayerManagerOGL::MakeCurrent()
 void
 LayerManagerOGL::Render()
 {
-  static int rcount = 0;
-
-  //DumpLayerAndChildren(mRootLayer);
-
   nsIntRect rect;
   mWidget->GetBounds(rect);
   GLint width = rect.width;
@@ -636,8 +631,8 @@ LayerManagerOGL::ProgramType LayerManagerOGL::sLayerProgramTypes[] = {
 };
 
 #define FOR_EACH_LAYER_PROGRAM(vname)                       \
-  for (int lpindex = 0;                                     \
-       lpindex < sizeof(sLayerProgramTypes)/sizeof(int);    \
+  for (size_t lpindex = 0;                                  \
+       lpindex < NS_ARRAY_LENGTH(sLayerProgramTypes);       \
        ++lpindex)                                           \
   {                                                         \
     LayerProgram *vname = static_cast<LayerProgram*>        \
