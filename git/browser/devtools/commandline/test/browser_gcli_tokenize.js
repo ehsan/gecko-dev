@@ -14,7 +14,8 @@
  * limitations under the License.
  */
 
-'use strict';
+// define(function(require, exports, module) {
+
 // <INJECTED SOURCE:START>
 
 // THIS FILE IS GENERATED FROM SOURCE IN THE GCLI PROJECT
@@ -22,25 +23,19 @@
 
 var exports = {};
 
-var TEST_URI = "data:text/html;charset=utf-8,<p id='gcli-input'>gcli-testTokenize.js</p>";
+const TEST_URI = "data:text/html;charset=utf-8,<p id='gcli-input'>gcli-testTokenize.js</p>";
 
 function test() {
-  return Task.spawn(function() {
-    let options = yield helpers.openTab(TEST_URI);
-    yield helpers.openToolbar(options);
-    gcli.addItems(mockCommands.items);
-
-    yield helpers.runTests(options, exports);
-
-    gcli.removeItems(mockCommands.items);
-    yield helpers.closeToolbar(options);
-    yield helpers.closeTab(options);
-  }).then(finish, helpers.handleError);
+  helpers.addTabWithToolbar(TEST_URI, function(options) {
+    return helpers.runTests(options, exports);
+  }).then(finish);
 }
 
 // <INJECTED SOURCE:END>
 
-// var assert = require('../testharness/assert');
+'use strict';
+
+// var assert = require('test/assert');
 var cli = require('gcli/cli');
 
 exports.testBlanks = function(options) {
@@ -303,3 +298,6 @@ exports.testPathological = function(options) {
   assert.is(args[3].suffix, '');
   assert.is(args[3].type, 'Argument');
 };
+
+
+// });

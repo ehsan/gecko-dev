@@ -8,7 +8,6 @@
 #include "nsCOMArray.h"
 #include "nsUnicharInputStream.h"
 #include "nsPrintfCString.h"
-#include "nsAutoPtr.h"
 
 #define PL_ARENA_CONST_ALIGN_MASK 3
 #include "nsPersistentProperties.h"
@@ -339,9 +338,9 @@ NS_METHOD nsPropertiesParser::SegmentWriter(nsIUnicharInputStream* aStream,
                                             uint32_t aCount,
                                             uint32_t *aWriteCount)
 {
-  nsPropertiesParser *parser =
+  nsPropertiesParser *parser = 
     static_cast<nsPropertiesParser *>(aClosure);
-
+  
   parser->ParseBuffer(aFromSegment, aCount);
 
   *aWriteCount = aCount;
@@ -447,10 +446,7 @@ nsPersistentProperties::nsPersistentProperties()
 : mIn(nullptr)
 {
   mSubclass = static_cast<nsIPersistentProperties*>(this);
-
-  PL_DHashTableInit(&mTable, &property_HashTableOps, nullptr,
-                    sizeof(PropertyTableEntry), 20);
-
+  mTable.ops = nullptr;
   PL_INIT_ARENA_POOL(&mArena, "PersistentPropertyArena", 2048);
 }
 
@@ -462,12 +458,32 @@ nsPersistentProperties::~nsPersistentProperties()
 }
 
 nsresult
+nsPersistentProperties::Init()
+{
+  if (!PL_DHashTableInit(&mTable, &property_HashTableOps, nullptr,
+                         sizeof(PropertyTableEntry), 20)) {
+    mTable.ops = nullptr;
+    return NS_ERROR_OUT_OF_MEMORY;
+  }
+  return NS_OK;
+}
+
+nsresult
 nsPersistentProperties::Create(nsISupports *aOuter, REFNSIID aIID, void **aResult)
 {
   if (aOuter)
     return NS_ERROR_NO_AGGREGATION;
-  nsRefPtr<nsPersistentProperties> props = new nsPersistentProperties();
-  return props->QueryInterface(aIID, aResult);
+  nsPersistentProperties* props = new nsPersistentProperties();
+  if (props == nullptr)
+    return NS_ERROR_OUT_OF_MEMORY;
+
+  NS_ADDREF(props);
+  nsresult rv = props->Init();
+  if (NS_SUCCEEDED(rv))
+    rv = props->QueryInterface(aIID, aResult);
+
+  NS_RELEASE(props);
+  return rv;
 }
 
 NS_IMPL_ISUPPORTS2(nsPersistentProperties, nsIPersistentProperties, nsIProperties)
@@ -497,7 +513,7 @@ nsPersistentProperties::Load(nsIInputStream *aIn)
   // We may have an unprocessed value at this point
   // if the last line did not have a proper line ending.
   if (parser.GetState() == eParserState_Value) {
-    nsAutoString oldValue;
+    nsAutoString oldValue;  
     parser.FinishValueState(oldValue);
   }
 
@@ -646,8 +662,13 @@ nsPropertyElement::Create(nsISupports *aOuter, REFNSIID aIID, void **aResult)
 {
   if (aOuter)
     return NS_ERROR_NO_AGGREGATION;
-  nsRefPtr<nsPropertyElement> propElem = new nsPropertyElement();
-  return propElem->QueryInterface(aIID, aResult);
+  nsPropertyElement* propElem = new nsPropertyElement();
+  if (propElem == nullptr)
+    return NS_ERROR_OUT_OF_MEMORY;
+  NS_ADDREF(propElem);
+  nsresult rv = propElem->QueryInterface(aIID, aResult);
+  NS_RELEASE(propElem);
+  return rv;
 }
 
 NS_IMPL_ISUPPORTS1(nsPropertyElement, nsIPropertyElement)
@@ -681,3 +702,4 @@ nsPropertyElement::SetValue(const nsAString& aValue)
 }
 
 ////////////////////////////////////////////////////////////////////////////////
+

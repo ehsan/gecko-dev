@@ -506,9 +506,11 @@ NS_SizeOfAtomTablesIncludingThis(MallocSizeOf aMallocSizeOf) {
 static inline void
 EnsureTableExists()
 {
-  if (!gAtomTable.ops) {
-    PL_DHashTableInit(&gAtomTable, &AtomTableOps, 0,
-                      sizeof(AtomTableEntry), ATOM_HASHTABLE_INITIAL_SIZE);
+  if (!gAtomTable.ops &&
+      !PL_DHashTableInit(&gAtomTable, &AtomTableOps, 0,
+                         sizeof(AtomTableEntry), ATOM_HASHTABLE_INITIAL_SIZE)) {
+    // Initialization failed.
+    NS_ABORT_OOM(ATOM_HASHTABLE_INITIAL_SIZE * sizeof(AtomTableEntry));
   }
 }
 

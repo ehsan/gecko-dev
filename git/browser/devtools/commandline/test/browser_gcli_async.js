@@ -14,7 +14,8 @@
  * limitations under the License.
  */
 
-'use strict';
+// define(function(require, exports, module) {
+
 // <INJECTED SOURCE:START>
 
 // THIS FILE IS GENERATED FROM SOURCE IN THE GCLI PROJECT
@@ -22,27 +23,55 @@
 
 var exports = {};
 
-var TEST_URI = "data:text/html;charset=utf-8,<p id='gcli-input'>gcli-testAsync.js</p>";
+const TEST_URI = "data:text/html;charset=utf-8,<p id='gcli-input'>gcli-testAsync.js</p>";
 
 function test() {
-  return Task.spawn(function() {
-    let options = yield helpers.openTab(TEST_URI);
-    yield helpers.openToolbar(options);
-    gcli.addItems(mockCommands.items);
-
-    yield helpers.runTests(options, exports);
-
-    gcli.removeItems(mockCommands.items);
-    yield helpers.closeToolbar(options);
-    yield helpers.closeTab(options);
-  }).then(finish, helpers.handleError);
+  helpers.addTabWithToolbar(TEST_URI, function(options) {
+    return helpers.runTests(options, exports);
+  }).then(finish);
 }
 
 // <INJECTED SOURCE:END>
 
-// var helpers = require('./helpers');
+'use strict';
+
+// var helpers = require('gclitest/helpers');
+var canon = require('gcli/canon');
+var promise = require('util/promise');
 
 exports.testBasic = function(options) {
+  var getData = function() {
+    var deferred = promise.defer();
+
+    var resolve = function() {
+      deferred.resolve([
+        'Shalom', 'Namasté', 'Hallo', 'Dydd-da',
+        'Chào', 'Hej', 'Saluton', 'Sawubona'
+      ]);
+    };
+
+    setTimeout(resolve, 10);
+    return deferred.promise;
+  };
+
+  var tsslow = {
+    name: 'tsslow',
+    params: [
+      {
+        name: 'hello',
+        type: {
+          name: 'selection',
+          data: getData
+        }
+      }
+    ],
+    exec: function(args, context) {
+      return 'Test completed';
+    }
+  };
+
+  canon.addCommand(tsslow);
+
   return helpers.audit(options, [
     {
       setup:    'tsslo',
@@ -76,7 +105,8 @@ exports.testBasic = function(options) {
           hello: {
             value: undefined,
             arg: '',
-            status: 'INCOMPLETE'
+            status: 'INCOMPLETE',
+            message: ''
           },
         }
       }
@@ -97,12 +127,14 @@ exports.testBasic = function(options) {
           hello: {
             value: undefined,
             arg: ' S',
-            status: 'INCOMPLETE'
+            status: 'INCOMPLETE',
+            message: ''
           },
         }
       }
     },
     {
+      skipIf: options.isJsdom,
       setup:    'tsslow S<TAB>',
       check: {
         input:  'tsslow Shalom ',
@@ -122,7 +154,23 @@ exports.testBasic = function(options) {
             message: ''
           },
         }
+      },
+      post: function() {
+        canon.removeCommand(tsslow);
+      }
+    },
+    {
+      skipIf: options.isJsdom,
+      setup:    'tsslow ',
+      check: {
+        input:  'tsslow ',
+        markup: 'EEEEEEV',
+        cursor: 7,
+        status: 'ERROR'
       }
     }
   ]);
 };
+
+
+// });

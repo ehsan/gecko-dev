@@ -14,7 +14,8 @@
  * limitations under the License.
  */
 
-'use strict';
+// define(function(require, exports, module) {
+
 // <INJECTED SOURCE:START>
 
 // THIS FILE IS GENERATED FROM SOURCE IN THE GCLI PROJECT
@@ -22,39 +23,31 @@
 
 var exports = {};
 
-var TEST_URI = "data:text/html;charset=utf-8,<p id='gcli-input'>gcli-testResource.js</p>";
+const TEST_URI = "data:text/html;charset=utf-8,<p id='gcli-input'>gcli-testResource.js</p>";
 
 function test() {
-  return Task.spawn(function() {
-    let options = yield helpers.openTab(TEST_URI);
-    yield helpers.openToolbar(options);
-    gcli.addItems(mockCommands.items);
-
-    yield helpers.runTests(options, exports);
-
-    gcli.removeItems(mockCommands.items);
-    yield helpers.closeToolbar(options);
-    yield helpers.closeTab(options);
-  }).then(finish, helpers.handleError);
+  helpers.addTabWithToolbar(TEST_URI, function(options) {
+    return helpers.runTests(options, exports);
+  }).then(finish);
 }
 
 // <INJECTED SOURCE:END>
 
-// var assert = require('../testharness/assert');
+'use strict';
 
-var promise = require('gcli/util/promise');
-var util = require('gcli/util/util');
+// var assert = require('test/assert');
+var util = require('util/util');
+
 var resource = require('gcli/types/resource');
-var Status = require('gcli/types/types').Status;
+var types = require('gcli/types');
+var Status = require('gcli/types').Status;
 
 
 var tempDocument;
 
 exports.setup = function(options) {
   tempDocument = resource.getDocument();
-  if (options.window) {
-    resource.setDocument(options.window.document);
-  }
+  resource.setDocument(options.window.document);
 };
 
 exports.shutdown = function(options) {
@@ -63,12 +56,12 @@ exports.shutdown = function(options) {
 };
 
 exports.testAllPredictions1 = function(options) {
-  if (options.isFirefox || options.isNoDom) {
-    assert.log('Skipping checks due to firefox document.stylsheets support.');
+  if (options.isFirefox || options.isJsdom) {
+    assert.log('Skipping checks due to jsdom/firefox document.stylsheets support.');
     return;
   }
 
-  var resource = options.requisition.types.createType('resource');
+  var resource = types.createType('resource');
   return resource.getLookup().then(function(opts) {
     assert.ok(opts.length > 1, 'have all resources');
 
@@ -79,12 +72,11 @@ exports.testAllPredictions1 = function(options) {
 };
 
 exports.testScriptPredictions = function(options) {
-  if (options.isFirefox || options.isNoDom) {
-    assert.log('Skipping checks due to firefox document.stylsheets support.');
+  if (options.isFirefox || options.isJsdom) {
+    assert.log('Skipping checks due to jsdom/firefox document.stylsheets support.');
     return;
   }
 
-  var types = options.requisition.types;
   var resource = types.createType({ name: 'resource', include: 'text/javascript' });
   return resource.getLookup().then(function(opts) {
     assert.ok(opts.length > 1, 'have js resources');
@@ -96,12 +88,11 @@ exports.testScriptPredictions = function(options) {
 };
 
 exports.testStylePredictions = function(options) {
-  if (options.isFirefox || options.isNoDom) {
-    assert.log('Skipping checks due to firefox document.stylsheets support.');
+  if (options.isFirefox || options.isJsdom) {
+    assert.log('Skipping checks due to jsdom/firefox document.stylsheets support.');
     return;
   }
 
-  var types = options.requisition.types;
   var resource = types.createType({ name: 'resource', include: 'text/css' });
   return resource.getLookup().then(function(opts) {
     assert.ok(opts.length >= 1, 'have css resources');
@@ -113,11 +104,10 @@ exports.testStylePredictions = function(options) {
 };
 
 exports.testAllPredictions2 = function(options) {
-  if (options.isNoDom) {
-    assert.log('Skipping checks due to nodom document.stylsheets support.');
+  if (options.isJsdom) {
+    assert.log('Skipping checks due to jsdom document.stylsheets support.');
     return;
   }
-  var types = options.requisition.types;
 
   var scriptRes = types.createType({ name: 'resource', include: 'text/javascript' });
   return scriptRes.getLookup().then(function(scriptOptions) {
@@ -134,12 +124,11 @@ exports.testAllPredictions2 = function(options) {
 };
 
 exports.testAllPredictions3 = function(options) {
-  if (options.isNoDom) {
-    assert.log('Skipping checks due to nodom document.stylsheets support.');
+  if (options.isJsdom) {
+    assert.log('Skipping checks due to jsdom document.stylsheets support.');
     return;
   }
 
-  var types = options.requisition.types;
   var res1 = types.createType({ name: 'resource' });
   return res1.getLookup().then(function(options1) {
     var res2 = types.createType('resource');
@@ -159,11 +148,13 @@ function checkPrediction(res, prediction) {
     assert.is(conversion.getStatus(), Status.VALID, 'status VALID for ' + name);
     assert.is(conversion.value, value, 'value for ' + name);
 
+    var strung = res.stringify(value, context);
+    assert.is(strung, name, 'stringify for ' + name);
+
     assert.is(typeof value.loadContents, 'function', 'resource for ' + name);
     assert.is(typeof value.element, 'object', 'resource for ' + name);
-
-    return promise.resolve(res.stringify(value, context)).then(function(strung) {
-      assert.is(strung, name, 'stringify for ' + name);
-    });
   });
 }
+
+
+// });

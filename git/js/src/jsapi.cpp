@@ -421,7 +421,7 @@ JS_ValueToSource(JSContext *cx, HandleValue value)
 JS_PUBLIC_API(bool)
 JS_DoubleIsInt32(double d, int32_t *ip)
 {
-    return mozilla::NumberIsInt32(d, ip);
+    return mozilla::DoubleIsInt32(d, ip);
 }
 
 JS_PUBLIC_API(int32_t)
@@ -6205,7 +6205,8 @@ HideScriptedCaller(JSContext *cx)
     MOZ_ASSERT(cx);
 
     // If there's no accessible activation on the stack, we'll return null from
-    // DescribeScriptedCaller anyway, so there's no need to annotate anything.
+    // JS_DescribeScriptedCaller anyway, so there's no need to annotate
+    // anything.
     Activation *act = cx->runtime()->mainThread.activation();
     if (!act)
         return;

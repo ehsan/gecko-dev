@@ -138,9 +138,9 @@ nsStaticCaseInsensitiveNameTable::Init(const char* const aNames[], int32_t Count
     if (!mNameArray)
         return false;
 
-    if (!PL_DHashTableInit(&mNameTable, &nametable_CaseInsensitiveHashTableOps,
-                           nullptr, sizeof(NameTableEntry), Count,
-                           fallible_t())) {
+    if (!PL_DHashTableInit(&mNameTable,
+                           &nametable_CaseInsensitiveHashTableOps,
+                           nullptr, sizeof(NameTableEntry), Count)) {
         mNameTable.ops = nullptr;
         return false;
     }

@@ -611,7 +611,7 @@ public:
   double ValueAsNumber() const
   {
     return DoesValueAsNumberApply() ? GetValueAsDecimal().toDouble()
-                                    : UnspecifiedNaN<double>();
+                                    : UnspecifiedNaN();
   }
 
   void SetValueAsNumber(double aValue, ErrorResult& aRv);

@@ -2264,6 +2264,11 @@ bool
 LIRGenerator::visitPostWriteBarrier(MPostWriteBarrier *ins)
 {
 #ifdef JSGC_GENERATIONAL
+    if (!ins->hasValue()) {
+        LPostWriteBarrierAllSlots *lir =
+            new(alloc()) LPostWriteBarrierAllSlots(useRegisterOrConstant(ins->object()));
+        return add(lir, ins) && assignSafepoint(lir, ins);
+    }
     switch (ins->value()->type()) {
       case MIRType_Object: {
         LPostWriteBarrierO *lir = new(alloc()) LPostWriteBarrierO(useRegisterOrConstant(ins->object()),

@@ -2401,7 +2401,7 @@ abstract public class BrowserApp extends GeckoApp
                             GeckoProfile.leaveGuestSession(BrowserApp.this);
                         }
                         doRestart(args);
-                        GeckoAppShell.systemExit();
+                        System.exit(0);
                     }
                 } catch(JSONException ex) {
                     Log.e(LOGTAG, "Exception reading guest mode prompt result", ex);

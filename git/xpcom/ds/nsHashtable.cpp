@@ -118,20 +118,21 @@ nsHashKey::Write(nsIObjectOutputStream* aStream) const
     return NS_ERROR_NOT_IMPLEMENTED;
 }
 
-nsHashtable::nsHashtable(uint32_t aInitSize, bool aThreadSafe)
+nsHashtable::nsHashtable(uint32_t aInitSize, bool threadSafe)
   : mLock(nullptr), mEnumerating(false)
 {
     MOZ_COUNT_CTOR(nsHashtable);
 
     bool result = PL_DHashTableInit(&mHashtable, &hashtableOps, nullptr,
-                                    sizeof(HTEntry), aInitSize, fallible_t());
+                                      sizeof(HTEntry), aInitSize);
+
     NS_ASSERTION(result, "Hashtable failed to initialize");
 
     // make sure we detect this later
     if (!result)
         mHashtable.ops = nullptr;
 
-    if (aThreadSafe) {
+    if (threadSafe) {
         mLock = PR_NewLock();
         if (mLock == nullptr) {
             // Cannot create a lock. If running on a multiprocessing system
@@ -140,6 +141,7 @@ nsHashtable::nsHashtable(uint32_t aInitSize, bool aThreadSafe)
         }
     }
 }
+
 
 nsHashtable::~nsHashtable() {
     MOZ_COUNT_DTOR(nsHashtable);
@@ -342,8 +344,7 @@ nsHashtable::nsHashtable(nsIObjectInputStream* aStream,
             if (NS_SUCCEEDED(rv)) {
                 bool status =
                     PL_DHashTableInit(&mHashtable, &hashtableOps,
-                                      nullptr, sizeof(HTEntry), count,
-                                      fallible_t());
+                                      nullptr, sizeof(HTEntry), count);
                 if (!status) {
                     mHashtable.ops = nullptr;
                     rv = NS_ERROR_OUT_OF_MEMORY;
