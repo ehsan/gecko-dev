@@ -39,8 +39,7 @@ WarnDeprecated(const PRUnichar* aDeprecatedAttribute,
   const PRUnichar *argv[] = 
     { aDeprecatedAttribute, aFavoredAttribute };
   return nsContentUtils::
-          ReportToConsole(nsIScriptError::warningFlag,
-                          NS_LITERAL_CSTRING("MathML"), aDocument,
+          ReportToConsole(nsIScriptError::warningFlag, "MathML", aDocument,
                           nsContentUtils::eMATHML_PROPERTIES,
                           "DeprecatedSupersededBy", argv, 2);
 }
@@ -50,8 +49,7 @@ ReportLengthParseError(const nsString& aValue, nsIDocument* aDocument)
 {
   const PRUnichar *arg = aValue.get();
   return nsContentUtils::
-         ReportToConsole(nsIScriptError::errorFlag,
-                         NS_LITERAL_CSTRING("MathML"), aDocument,
+         ReportToConsole(nsIScriptError::errorFlag, "MathML", aDocument,
                          nsContentUtils::eMATHML_PROPERTIES,
                          "LengthParsingError", &arg, 1);
 }
@@ -64,8 +62,7 @@ ReportParseErrorNoTag(const nsString& aValue,
   const PRUnichar *argv[] = 
     { aValue.get(), aAtom->GetUTF16String() };
   return nsContentUtils::
-         ReportToConsole(nsIScriptError::errorFlag,
-                         NS_LITERAL_CSTRING("MathML"), aDocument,
+         ReportToConsole(nsIScriptError::errorFlag, "MathML", aDocument,
                          nsContentUtils::eMATHML_PROPERTIES,
                          "AttributeParsingErrorNoTag", argv, 2);
 }
@@ -422,7 +419,7 @@ nsMathMLElement::ParseNumericValue(const nsString& aString,
       // no explicit unit, this is a number that will act as a multiplier
       if (!(aFlags & PARSE_SUPPRESS_WARNINGS)) {
         nsContentUtils::ReportToConsole(nsIScriptError::warningFlag,
-                                        NS_LITERAL_CSTRING("MathML"), aDocument,
+                                        "MathML", aDocument,
                                         nsContentUtils::eMATHML_PROPERTIES,
                                         "UnitlessValuesAreDeprecated");
       }

@@ -1596,19 +1596,17 @@ WebGLContext::GetSupportedExtensions(JSContext *cx, Nullable< nsTArray<nsString>
 NS_IMPL_CYCLE_COLLECTING_ADDREF(WebGLContext)
 NS_IMPL_CYCLE_COLLECTING_RELEASE(WebGLContext)
 
-NS_IMPL_CYCLE_COLLECTION_WRAPPERCACHE_12(WebGLContext,
+NS_IMPL_CYCLE_COLLECTION_WRAPPERCACHE_10(WebGLContext,
   mCanvasElement,
   mExtensions,
   mBound2DTextures,
   mBoundCubeMapTextures,
   mBoundArrayBuffer,
-  mBoundTransformFeedbackBuffer,
   mCurrentProgram,
   mBoundFramebuffer,
   mBoundRenderbuffer,
   mBoundVertexArray,
-  mActiveOcclusionQuery,
-  mActiveTransformFeedbackQuery)
+  mActiveOcclusionQuery)
 
 NS_INTERFACE_MAP_BEGIN_CYCLE_COLLECTION(WebGLContext)
   NS_WRAPPERCACHE_INTERFACE_MAP_ENTRY

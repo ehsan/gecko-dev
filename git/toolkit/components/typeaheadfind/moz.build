@@ -16,5 +16,3 @@ CPP_SOURCES += [
 
 LIBRARY_NAME = 'fastfind_s'
 
-LIBXUL_LIBRARY = True
-

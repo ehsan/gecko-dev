@@ -14,5 +14,3 @@ CPP_SOURCES += [
     'Sandbox.cpp',
 ]
 
-LIBXUL_LIBRARY = True
-

@@ -339,6 +339,3 @@ else:
     CPP_SOURCES += [
         'pm_stub.cpp'
     ]
-
-MSVC_ENABLE_PGO = True
-

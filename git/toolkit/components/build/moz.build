@@ -14,5 +14,3 @@ CPP_SOURCES += [
     'nsToolkitCompsModule.cpp',
 ]
 
-LIBXUL_LIBRARY = True
-

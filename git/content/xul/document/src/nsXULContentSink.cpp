@@ -56,7 +56,6 @@
 #include "nsXMLContentSink.h"
 #include "nsIConsoleService.h"
 #include "nsIScriptError.h"
-#include "nsContentTypeParser.h"
 
 #ifdef PR_LOGGING
 static PRLogModuleInfo* gLog;

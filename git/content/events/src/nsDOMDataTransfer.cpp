@@ -9,7 +9,6 @@
 
 #include "prlog.h"
 #include "nsString.h"
-#include "nsIDOMDocument.h"
 #include "nsIServiceManager.h"
 #include "nsIInterfaceRequestorUtils.h"
 #include "nsIVariant.h"

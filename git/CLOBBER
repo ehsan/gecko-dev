@@ -18,4 +18,6 @@
 # Modifying this file will now automatically clobber the buildbot machines \o/
 #
 
-Bug 904831 - MSVC_ENABLE_PGO in js/src/Makefile.in
+In Bug 863306 comment #42 sheriff KWierso states that we should CLOBBER every time
+that WebRTC code is changed, which will be awesome.
+

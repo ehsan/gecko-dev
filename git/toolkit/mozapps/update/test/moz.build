@@ -6,19 +6,9 @@
 
 if CONFIG['MOZ_WIDGET_TOOLKIT'] != 'android':
     DIRS += ['chrome']
-
-    sources = [
-        'TestAUSHelper',
-        'TestAUSReadStrings',
-    ]
-
     CPP_SOURCES += [
-        '%s.cpp' % s for s in sources
-    ]
-
-    bin_suffix = CONFIG['BIN_SUFFIX']
-    SIMPLE_PROGRAMS += [
-        '%s%s' % (s, bin_suffix) for s in sources
+        'TestAUSReadStrings.cpp',
+        'TestAUSHelper.cpp',
     ]
 
 XPCSHELL_TESTS_MANIFESTS += ['unit/xpcshell.ini']

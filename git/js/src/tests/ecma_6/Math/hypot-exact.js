@@ -1,6 +1,3 @@
-// |reftest| skip
-// Math.hypot is disabled pending the resolution of spec issues (bug 896264).
-
 // Properties of Math.hypot that are guaranteed by the spec.
 
 // If any argument is +∞, the result is +∞.

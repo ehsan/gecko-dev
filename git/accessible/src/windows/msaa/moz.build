@@ -41,6 +41,3 @@ if CONFIG['MOZ_XUL']:
         'XULMenuAccessibleWrap.cpp',
         'XULTreeGridAccessibleWrap.cpp',
     ]
-
-LIBXUL_LIBRARY = True
-

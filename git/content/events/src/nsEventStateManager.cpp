@@ -111,7 +111,10 @@ using namespace mozilla::dom;
 
 static const LayoutDeviceIntPoint kInvalidRefPoint = LayoutDeviceIntPoint(-1,-1);
 
+static bool sLeftClickOnly = true;
+static bool sKeyCausesActivation = true;
 static uint32_t sESMInstanceCount = 0;
+static int32_t sChromeAccessModifier = 0, sContentAccessModifier = 0;
 int32_t nsEventStateManager::sUserInputEventDepth = 0;
 bool nsEventStateManager::sNormalLMouseEventInProcess = false;
 nsEventStateManager* nsEventStateManager::sActiveESM = nullptr;
@@ -263,6 +266,30 @@ GetDocumentFromWindow(nsIDOMWindow *aWindow)
 {
   nsCOMPtr<nsPIDOMWindow> win = do_QueryInterface(aWindow);
   return win ? win->GetExtantDoc() : nullptr;
+}
+
+static int32_t
+GetAccessModifierMaskFromPref(int32_t aItemType)
+{
+  int32_t accessKey = Preferences::GetInt("ui.key.generalAccessKey", -1);
+  switch (accessKey) {
+    case -1:                             break; // use the individual prefs
+    case nsIDOMKeyEvent::DOM_VK_SHIFT:   return NS_MODIFIER_SHIFT;
+    case nsIDOMKeyEvent::DOM_VK_CONTROL: return NS_MODIFIER_CONTROL;
+    case nsIDOMKeyEvent::DOM_VK_ALT:     return NS_MODIFIER_ALT;
+    case nsIDOMKeyEvent::DOM_VK_META:    return NS_MODIFIER_META;
+    case nsIDOMKeyEvent::DOM_VK_WIN:     return NS_MODIFIER_OS;
+    default:                             return 0;
+  }
+
+  switch (aItemType) {
+  case nsIDocShellTreeItem::typeChrome:
+    return Preferences::GetInt("ui.key.chromeAccess", 0);
+  case nsIDocShellTreeItem::typeContent:
+    return Preferences::GetInt("ui.key.contentAccess", 0);
+  default:
+    return 0;
+  }
 }
 
 struct DeltaValues
@@ -654,7 +681,8 @@ nsEventStateManager::nsEventStateManager()
     mLClickCount(0),
     mMClickCount(0),
     mRClickCount(0),
-    m_haveShutdown(false)
+    m_haveShutdown(false),
+    mClickHoldContextMenu(false)
 {
   if (sESMInstanceCount == 0) {
     gUserInteractionTimerCallback = new nsUITimerCallback();
@@ -682,6 +710,17 @@ nsEventStateManager::UpdateUserActivityTimer(void)
   return NS_OK;
 }
 
+static const char* kObservedPrefs[] = {
+  "accessibility.accesskeycausesactivation",
+  "nglayout.events.dispatchLeftClickOnly",
+  "ui.key.generalAccessKey",
+  "ui.key.chromeAccess",
+  "ui.key.contentAccess",
+  "ui.click_hold_context_menus",
+  "dom.popup_allowed_events",
+  nullptr
+};
+
 nsresult
 nsEventStateManager::Init()
 {
@@ -693,8 +732,21 @@ nsEventStateManager::Init()
   observerService->AddObserver(this, NS_XPCOM_SHUTDOWN_OBSERVER_ID, true);
 
   if (sESMInstanceCount == 1) {
-    Prefs::Init();
+    sKeyCausesActivation =
+      Preferences::GetBool("accessibility.accesskeycausesactivation",
+                           sKeyCausesActivation);
+    sLeftClickOnly =
+      Preferences::GetBool("nglayout.events.dispatchLeftClickOnly",
+                           sLeftClickOnly);
+    sChromeAccessModifier =
+      GetAccessModifierMaskFromPref(nsIDocShellTreeItem::typeChrome);
+    sContentAccessModifier =
+      GetAccessModifierMaskFromPref(nsIDocShellTreeItem::typeContent);
   }
+  Preferences::AddWeakObservers(this, kObservedPrefs);
+
+  mClickHoldContextMenu =
+    Preferences::GetBool("ui.click_hold_context_menus", false);
 
   return NS_OK;
 }
@@ -704,7 +756,7 @@ nsEventStateManager::~nsEventStateManager()
   if (sActiveESM == this) {
     sActiveESM = nullptr;
   }
-  if (Prefs::ClickHoldContextMenu())
+  if (mClickHoldContextMenu)
     KillClickHoldTimer();
 
   if (mDocument == sMouseOverDocument)
@@ -721,7 +773,6 @@ nsEventStateManager::~nsEventStateManager()
       gUserInteractionTimer->Cancel();
       NS_RELEASE(gUserInteractionTimer);
     }
-    Prefs::Shutdown();
     WheelPrefs::Shutdown();
     DeltaAccumulator::Shutdown();
   }
@@ -749,6 +800,7 @@ nsEventStateManager::~nsEventStateManager()
 nsresult
 nsEventStateManager::Shutdown()
 {
+  Preferences::RemoveObservers(this, kObservedPrefs);
   m_haveShutdown = true;
   return NS_OK;
 }
@@ -758,8 +810,38 @@ nsEventStateManager::Observe(nsISupports *aSubject,
                              const char *aTopic,
                              const PRUnichar *someData)
 {
-  if (!nsCRT::strcmp(aTopic, NS_XPCOM_SHUTDOWN_OBSERVER_ID)) {
+  if (!nsCRT::strcmp(aTopic, NS_XPCOM_SHUTDOWN_OBSERVER_ID))
     Shutdown();
+  else if (!nsCRT::strcmp(aTopic, NS_PREFBRANCH_PREFCHANGE_TOPIC_ID)) {
+    if (!someData)
+      return NS_OK;
+
+    nsDependentString data(someData);
+    if (data.EqualsLiteral("accessibility.accesskeycausesactivation")) {
+      sKeyCausesActivation =
+        Preferences::GetBool("accessibility.accesskeycausesactivation",
+                             sKeyCausesActivation);
+    } else if (data.EqualsLiteral("nglayout.events.dispatchLeftClickOnly")) {
+      sLeftClickOnly =
+        Preferences::GetBool("nglayout.events.dispatchLeftClickOnly",
+                             sLeftClickOnly);
+    } else if (data.EqualsLiteral("ui.key.generalAccessKey")) {
+      sChromeAccessModifier =
+        GetAccessModifierMaskFromPref(nsIDocShellTreeItem::typeChrome);
+      sContentAccessModifier =
+        GetAccessModifierMaskFromPref(nsIDocShellTreeItem::typeContent);
+    } else if (data.EqualsLiteral("ui.key.chromeAccess")) {
+      sChromeAccessModifier =
+        GetAccessModifierMaskFromPref(nsIDocShellTreeItem::typeChrome);
+    } else if (data.EqualsLiteral("ui.key.contentAccess")) {
+      sContentAccessModifier =
+        GetAccessModifierMaskFromPref(nsIDocShellTreeItem::typeContent);
+    } else if (data.EqualsLiteral("ui.click_hold_context_menus")) {
+      mClickHoldContextMenu =
+        Preferences::GetBool("ui.click_hold_context_menus", false);
+    } else if (data.EqualsLiteral("dom.popup_allowed_events")) {
+      nsDOMEvent::PopupAllowedEventsChanged();
+    }
   }
 
   return NS_OK;
@@ -883,7 +965,7 @@ nsEventStateManager::PreHandleEvent(nsPresContext* aPresContext,
   case NS_MOUSE_BUTTON_UP:
     switch (static_cast<nsMouseEvent*>(aEvent)->button) {
       case nsMouseEvent::eLeftButton:
-        if (Prefs::ClickHoldContextMenu()) {
+        if (mClickHoldContextMenu) {
           KillClickHoldTimer();
         }
 #ifndef XP_OS2
@@ -936,7 +1018,7 @@ nsEventStateManager::PreHandleEvent(nsPresContext* aPresContext,
     FlushPendingEvents(aPresContext);
     break;
   case NS_DRAGDROP_GESTURE:
-    if (Prefs::ClickHoldContextMenu()) {
+    if (mClickHoldContextMenu) {
       // an external drag gesture event came in, not generated internally
       // by Gecko. Make sure we get rid of the click-hold timer.
       KillClickHoldTimer();
@@ -966,12 +1048,10 @@ nsEventStateManager::PreHandleEvent(nsPresContext* aPresContext,
         modifierMask |= NS_MODIFIER_OS;
 
       // Prevent keyboard scrolling while an accesskey modifier is in use.
-      if (modifierMask &&
-          (modifierMask == Prefs::ChromeAccessModifierMask() ||
-           modifierMask == Prefs::ContentAccessModifierMask())) {
+      if (modifierMask && (modifierMask == sChromeAccessModifier ||
+                           modifierMask == sContentAccessModifier))
         HandleAccessKey(aPresContext, keyEvent, aStatus, nullptr,
                         eAccessKeyProcessingNormal, modifierMask);
-      }
     }
     // then fall through...
   case NS_KEY_DOWN:
@@ -1140,9 +1220,8 @@ nsEventStateManager::PreHandleEvent(nsPresContext* aPresContext,
   return NS_OK;
 }
 
-// static
-int32_t
-nsEventStateManager::GetAccessModifierMaskFor(nsISupports* aDocShell)
+static int32_t
+GetAccessModifierMask(nsISupports* aDocShell)
 {
   nsCOMPtr<nsIDocShellTreeItem> treeItem(do_QueryInterface(aDocShell));
   if (!treeItem)
@@ -1153,10 +1232,10 @@ nsEventStateManager::GetAccessModifierMaskFor(nsISupports* aDocShell)
   switch (itemType) {
 
   case nsIDocShellTreeItem::typeChrome:
-    return Prefs::ChromeAccessModifierMask();
+    return sChromeAccessModifier;
 
   case nsIDocShellTreeItem::typeContent:
-    return Prefs::ContentAccessModifierMask();
+    return sContentAccessModifier;
 
   default:
     return -1; // invalid modifier
@@ -1235,7 +1314,7 @@ nsEventStateManager::ExecuteAccessKey(nsTArray<uint32_t>& aAccessCharCodes,
       content = mAccessKeys[(start + count) % length];
       frame = content->GetPrimaryFrame();
       if (IsAccessKeyTarget(content, frame, accessKey)) {
-        bool shouldActivate = Prefs::KeyCausesActivation();
+        bool shouldActivate = sKeyCausesActivation;
         while (shouldActivate && ++count <= length) {
           nsIContent *oc = mAccessKeys[(start + count) % length];
           nsIFrame *of = oc->GetPrimaryFrame();
@@ -1266,25 +1345,25 @@ nsEventStateManager::GetAccessKeyLabelPrefix(nsAString& aPrefix)
   nsContentUtils::GetModifierSeparatorText(separator);
 
   nsCOMPtr<nsISupports> container = mPresContext->GetContainer();
-  int32_t modifierMask = GetAccessModifierMaskFor(container);
+  int32_t modifier = GetAccessModifierMask(container);
 
-  if (modifierMask & NS_MODIFIER_CONTROL) {
+  if (modifier & NS_MODIFIER_CONTROL) {
     nsContentUtils::GetControlText(modifierText);
     aPrefix.Append(modifierText + separator);
   }
-  if (modifierMask & NS_MODIFIER_META) {
+  if (modifier & NS_MODIFIER_META) {
     nsContentUtils::GetMetaText(modifierText);
     aPrefix.Append(modifierText + separator);
   }
-  if (modifierMask & NS_MODIFIER_OS) {
+  if (modifier & NS_MODIFIER_OS) {
     nsContentUtils::GetOSText(modifierText);
     aPrefix.Append(modifierText + separator);
   }
-  if (modifierMask & NS_MODIFIER_ALT) {
+  if (modifier & NS_MODIFIER_ALT) {
     nsContentUtils::GetAltText(modifierText);
     aPrefix.Append(modifierText + separator);
   }
-  if (modifierMask & NS_MODIFIER_SHIFT) {
+  if (modifier & NS_MODIFIER_SHIFT) {
     nsContentUtils::GetShiftText(modifierText);
     aPrefix.Append(modifierText + separator);
   }
@@ -1303,7 +1382,7 @@ nsEventStateManager::HandleAccessKey(nsPresContext* aPresContext,
 
   // Alt or other accesskey modifier is down, we may need to do an accesskey
   if (mAccessKeys.Count() > 0 &&
-      aModifierMask == GetAccessModifierMaskFor(pcContainer)) {
+      aModifierMask == GetAccessModifierMask(pcContainer)) {
     // Someone registered an accesskey.  Find and activate it.
     nsAutoTArray<uint32_t, 10> accessCharCodes;
     nsContentUtils::GetAccessKeyCandidates(aEvent, accessCharCodes);
@@ -1821,7 +1900,7 @@ nsEventStateManager::BeginTrackingDragGesture(nsPresContext* aPresContext,
   mGestureModifiers = inDownEvent->modifiers;
   mGestureDownButtons = inDownEvent->buttons;
 
-  if (Prefs::ClickHoldContextMenu()) {
+  if (mClickHoldContextMenu) {
     // fire off a timer to track click-hold
     CreateClickHoldTimer(aPresContext, inDownFrame, inDownEvent);
   }
@@ -1911,7 +1990,7 @@ nsEventStateManager::GenerateDragGesture(nsPresContext* aPresContext,
       LayoutDeviceIntPoint::FromUntyped(aEvent->widget->WidgetToScreenOffset());
     if (DeprecatedAbs(pt.x - mGestureDownPoint.x) > pixelThresholdX ||
         DeprecatedAbs(pt.y - mGestureDownPoint.y) > pixelThresholdY) {
-      if (Prefs::ClickHoldContextMenu()) {
+      if (mClickHoldContextMenu) {
         // stop the click-hold before we fire off the drag gesture, in case
         // it takes a long time
         KillClickHoldTimer();
@@ -5506,107 +5585,3 @@ nsEventStateManager::WheelPrefs::IsOverOnePageScrollAllowedY(
   return Abs(mMultiplierY[index]) >=
            MIN_MULTIPLIER_VALUE_ALLOWING_OVER_ONE_PAGE_SCROLL;
 }
-
-/******************************************************************/
-/* nsEventStateManager::Prefs                                     */
-/******************************************************************/
-
-bool nsEventStateManager::Prefs::sKeyCausesActivation = true;
-bool nsEventStateManager::Prefs::sClickHoldContextMenu = false;
-int32_t nsEventStateManager::Prefs::sGenericAccessModifierKey = -1;
-int32_t nsEventStateManager::Prefs::sChromeAccessModifierMask = 0;
-int32_t nsEventStateManager::Prefs::sContentAccessModifierMask = 0;
-
-// static
-void
-nsEventStateManager::Prefs::Init()
-{
-  DebugOnly<nsresult> rv =
-    Preferences::AddBoolVarCache(&sKeyCausesActivation,
-                                 "accessibility.accesskeycausesactivation",
-                                 sKeyCausesActivation);
-  MOZ_ASSERT(NS_SUCCEEDED(rv),
-             "Failed to observe \"accessibility.accesskeycausesactivation\"");
-  rv = Preferences::AddBoolVarCache(&sClickHoldContextMenu,
-                                    "ui.click_hold_context_menus",
-                                    sClickHoldContextMenu);
-  MOZ_ASSERT(NS_SUCCEEDED(rv),
-             "Failed to observe \"ui.click_hold_context_menus\"");
-  rv = Preferences::AddIntVarCache(&sGenericAccessModifierKey,
-                                   "ui.key.generalAccessKey",
-                                   sGenericAccessModifierKey);
-  MOZ_ASSERT(NS_SUCCEEDED(rv),
-             "Failed to observe \"ui.key.generalAccessKey\"");
-  rv = Preferences::AddIntVarCache(&sChromeAccessModifierMask,
-                                   "ui.key.chromeAccess",
-                                   sChromeAccessModifierMask);
-  MOZ_ASSERT(NS_SUCCEEDED(rv),
-             "Failed to observe \"ui.key.chromeAccess\"");
-  rv = Preferences::AddIntVarCache(&sContentAccessModifierMask,
-                                   "ui.key.contentAccess",
-                                   sContentAccessModifierMask);
-  MOZ_ASSERT(NS_SUCCEEDED(rv),
-             "Failed to observe \"ui.key.contentAccess\"");
-
-  rv = Preferences::RegisterCallback(OnChange, "dom.popup_allowed_events");
-  MOZ_ASSERT(NS_SUCCEEDED(rv),
-             "Failed to observe \"dom.popup_allowed_events\"");
-}
-
-// static
-int
-nsEventStateManager::Prefs::OnChange(const char* aPrefName, void*)
-{
-  nsDependentCString prefName(aPrefName);
-  if (prefName.EqualsLiteral("dom.popup_allowed_events")) {
-    nsDOMEvent::PopupAllowedEventsChanged();
-  }
-  return 0;
-}
-
-// static
-void
-nsEventStateManager::Prefs::Shutdown()
-{
-  Preferences::UnregisterCallback(OnChange, "dom.popup_allowed_events");
-}
-
-// static
-int32_t
-nsEventStateManager::Prefs::ChromeAccessModifierMask()
-{
-  return GetAccessModifierMask(nsIDocShellTreeItem::typeChrome);
-}
-
-// static
-int32_t
-nsEventStateManager::Prefs::ContentAccessModifierMask()
-{
-  return GetAccessModifierMask(nsIDocShellTreeItem::typeContent);
-}
-
-// static
-int32_t
-nsEventStateManager::Prefs::GetAccessModifierMask(int32_t aItemType)
-{
-  switch (sGenericAccessModifierKey) {
-    case -1:                             break; // use the individual prefs
-    case nsIDOMKeyEvent::DOM_VK_SHIFT:   return NS_MODIFIER_SHIFT;
-    case nsIDOMKeyEvent::DOM_VK_CONTROL: return NS_MODIFIER_CONTROL;
-    case nsIDOMKeyEvent::DOM_VK_ALT:     return NS_MODIFIER_ALT;
-    case nsIDOMKeyEvent::DOM_VK_META:    return NS_MODIFIER_META;
-    case nsIDOMKeyEvent::DOM_VK_WIN:     return NS_MODIFIER_OS;
-    default:                             return 0;
-  }
-
-  switch (aItemType) {
-    case nsIDocShellTreeItem::typeChrome:
-      return sChromeAccessModifierMask;
-    case nsIDocShellTreeItem::typeContent:
-      return sContentAccessModifierMask;
-    default:
-      return 0;
-  }
-}
-
-

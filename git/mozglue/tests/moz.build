@@ -11,6 +11,3 @@ if CONFIG['MOZ_LINKER']:
         'TestZip.cpp',
         'ShowSSEConfig.cpp',
     ]
-    SIMPLE_PROGRAMS += [
-        'TestZip' + CONFIG['BIN_SUFFIX'],
-    ]

@@ -1263,7 +1263,7 @@ nsObjectLoadingContent::CheckJavaCodebase()
   // the exception of URIs that represent local files
   if (NS_URIIsLocalFile(mBaseURI) &&
       nsScriptSecurityManager::GetStrictFileOriginPolicy() &&
-      !NS_RelaxStrictFileOriginPolicy(mBaseURI, principalBaseURI, true)) {
+      !NS_RelaxStrictFileOriginPolicy(mBaseURI, principalBaseURI)) {
     LOG(("OBJLC [%p]: Java failed RelaxStrictFileOriginPolicy for file URI",
          this));
     return false;

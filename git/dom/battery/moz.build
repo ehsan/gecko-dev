@@ -15,7 +15,3 @@ CPP_SOURCES += [
     'BatteryManager.cpp',
 ]
 
-FAIL_ON_WARNINGS = True
-
-LIBXUL_LIBRARY = True
-

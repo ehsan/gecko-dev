@@ -17,6 +17,3 @@ LIBRARY_NAME = 'jsctypes'
 EXTRA_JS_MODULES += [
     'ctypes.jsm',
 ]
-
-LIBXUL_LIBRARY = True
-

@@ -244,7 +244,3 @@ CPP_SOURCES += [
     'nsSVGViewBox.cpp',
 ]
 
-FAIL_ON_WARNINGS = True
-
-LIBXUL_LIBRARY = True
-

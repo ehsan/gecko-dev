@@ -1976,26 +1976,19 @@ NS_RelaxStrictFileOriginPolicy(nsIURI *aTargetURI,
   // inherit its source principal and be scriptable by that source.
   //
   bool sourceIsDir;
-  bool allowed = false;
+  bool contained = false;
   nsresult rv = sourceFile->IsDirectory(&sourceIsDir);
   if (NS_SUCCEEDED(rv) && sourceIsDir) {
-    rv = sourceFile->Contains(targetFile, true, &allowed);
+    rv = sourceFile->Contains(targetFile, true, &contained);
   } else {
     nsCOMPtr<nsIFile> sourceParent;
     rv = sourceFile->GetParent(getter_AddRefs(sourceParent));
     if (NS_SUCCEEDED(rv) && sourceParent) {
-      rv = sourceParent->Equals(targetFile, &allowed);
-      if (NS_FAILED(rv) || !allowed) {
-        rv = sourceParent->Contains(targetFile, true, &allowed);
-      } else {
-        MOZ_ASSERT(aAllowDirectoryTarget,
-                   "sourceFile->Parent == targetFile, but targetFile "
-                   "should've been disallowed if it is a directory");
-      }
+      rv = sourceParent->Contains(targetFile, true, &contained);
     }
   }
 
-  if (NS_SUCCEEDED(rv) && allowed) {
+  if (NS_SUCCEEDED(rv) && contained) {
     return true;
   }
 

@@ -4,14 +4,13 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-#include "nsGlobalWindow.h"
-
 #include <algorithm>
 
 #include "mozilla/MemoryReporting.h"
 #include "mozilla/Util.h"
 
 // Local Includes
+#include "nsGlobalWindow.h"
 #include "Navigator.h"
 #include "nsScreen.h"
 #include "nsHistory.h"
@@ -1535,7 +1534,7 @@ NS_INTERFACE_MAP_BEGIN_CYCLE_COLLECTION(nsGlobalWindow)
     if (!sWarnedAboutWindowInternal) {
       sWarnedAboutWindowInternal = true;
       nsContentUtils::ReportToConsole(nsIScriptError::warningFlag,
-                                      NS_LITERAL_CSTRING("Extensions"), mDoc,
+                                      "Extensions", mDoc,
                                       nsContentUtils::eDOM_PROPERTIES,
                                       "nsIDOMWindowInternalWarning");
     }
@@ -1546,6 +1545,7 @@ NS_INTERFACE_MAP_BEGIN_CYCLE_COLLECTION(nsGlobalWindow)
   NS_INTERFACE_MAP_ENTRY(nsIDOMEventTarget)
   NS_INTERFACE_MAP_ENTRY(mozilla::dom::EventTarget)
   NS_INTERFACE_MAP_ENTRY(nsPIDOMWindow)
+  NS_INTERFACE_MAP_ENTRY(nsIDOMStorageIndexedDB)
   NS_INTERFACE_MAP_ENTRY(nsISupportsWeakReference)
   NS_INTERFACE_MAP_ENTRY(nsIInterfaceRequestor)
   NS_INTERFACE_MAP_ENTRY(nsIDOMWindowPerformance)
@@ -6204,7 +6204,7 @@ ReportUseOfDeprecatedMethod(nsGlobalWindow* aWindow, const char* aWarning)
 {
   nsCOMPtr<nsIDocument> doc = aWindow->GetExtantDoc();
   nsContentUtils::ReportToConsole(nsIScriptError::warningFlag,
-                                  NS_LITERAL_CSTRING("DOM Events"), doc,
+                                  "DOM Events", doc,
                                   nsContentUtils::eDOM_PROPERTIES,
                                   aWarning);
 }
@@ -7087,7 +7087,7 @@ nsGlobalWindow::Close()
       // report localized error msg in JS console
       nsContentUtils::ReportToConsole(
           nsIScriptError::warningFlag,
-          NS_LITERAL_CSTRING("DOM Window"), mDoc,  // Better name for the category?
+          "DOM Window", mDoc,  // Better name for the category?
           nsContentUtils::eDOM_PROPERTIES,
           "WindowCloseBlockedWarning");
 
@@ -8961,6 +8961,10 @@ nsGlobalWindow::GetLocalStorage(nsIDOMStorage ** aLocalStorage)
   NS_ADDREF(*aLocalStorage = mLocalStorage);
   return NS_OK;
 }
+
+//*****************************************************************************
+// nsGlobalWindow::nsIDOMStorageIndexedDB
+//*****************************************************************************
 
 NS_IMETHODIMP
 nsGlobalWindow::GetIndexedDB(nsISupports** _retval)
