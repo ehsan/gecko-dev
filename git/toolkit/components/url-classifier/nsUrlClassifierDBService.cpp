@@ -62,6 +62,7 @@
 #include "nsIProperties.h"
 #include "nsToolkitCompsCID.h"
 #include "nsIUrlClassifierUtils.h"
+#include "nsIRandomGenerator.h"
 #include "nsUrlClassifierDBService.h"
 #include "nsUrlClassifierUtils.h"
 #include "nsUrlClassifierProxies.h"
@@ -486,9 +487,6 @@ public:
                             PRUint32 numRequested,
                             PRBool before,
                             nsTArray<nsUrlClassifierEntry> &entries);
-  // Ask the db for a random number.  This is temporary, and should be
-  // replaced with nsIRandomGenerator when 419739 is fixed.
-  nsresult RandomNumber(PRInt64 *randomNum);
 
   // Return an array with all Prefixes known
   nsresult ReadPrefixes(nsTArray<PRUint32>& array, PRUint32 aKey);
@@ -511,7 +509,6 @@ protected:
   nsCOMPtr<mozIStorageStatement> mLastPartialEntriesStatement;
   nsCOMPtr<mozIStorageStatement> mPartialEntriesBeforeStatement;
 
-  nsCOMPtr<mozIStorageStatement> mRandomStatement;
   nsCOMPtr<mozIStorageStatement> mAllPrefixStatement;
 };
 
@@ -570,11 +567,7 @@ nsUrlClassifierStore::Init(nsUrlClassifierDBServiceWorker *worker,
   NS_ENSURE_SUCCESS(rv, rv);
 
   rv = mConnection->CreateStatement
-    (NS_LITERAL_CSTRING("SELECT abs(random())"),
-     getter_AddRefs(mRandomStatement));
-  NS_ENSURE_SUCCESS(rv, rv);
-
-  rv = mConnection->CreateStatement(NS_LITERAL_CSTRING("SELECT domain, partial_data, complete_data FROM ")
+    (NS_LITERAL_CSTRING("SELECT domain, partial_data, complete_data FROM ")
      + entriesName,
      getter_AddRefs(mAllPrefixStatement));
   NS_ENSURE_SUCCESS(rv, rv);
@@ -596,7 +589,6 @@ nsUrlClassifierStore::Close()
   mPartialEntriesAfterStatement = nsnull;
   mPartialEntriesBeforeStatement = nsnull;
   mLastPartialEntriesStatement = nsnull;
-  mRandomStatement = nsnull;
 
   mAllPrefixStatement = nsnull;
 
@@ -779,21 +771,6 @@ nsUrlClassifierStore::ReadNoiseEntries(PRInt64 rowID,
   NS_ENSURE_SUCCESS(rv, rv);
 
   return ReadEntries(wraparoundStatement, entries);
-}
-
-nsresult
-nsUrlClassifierStore::RandomNumber(PRInt64 *randomNum)
-{
-  mozStorageStatementScoper randScoper(mRandomStatement);
-  PRBool exists;
-  nsresult rv = mRandomStatement->ExecuteStep(&exists);
-  NS_ENSURE_SUCCESS(rv, rv);
-  if (!exists)
-    return NS_ERROR_NOT_AVAILABLE;
-
-  *randomNum = mRandomStatement->AsInt64(0);
-
-  return NS_OK;
 }
 
 // -------------------------------------------------------------------------
@@ -1790,9 +1767,16 @@ nsUrlClassifierDBServiceWorker::AddNoise(PRInt64 nearID,
     return NS_OK;
   }
 
-  PRInt64 randomNum;
-  nsresult rv = mMainStore.RandomNumber(&randomNum);
+  nsCOMPtr<nsIRandomGenerator> rg =
+    do_GetService("@mozilla.org/security/random-generator;1");
+  NS_ENSURE_STATE(rg);
+
+  PRInt32 randomNum;
+  PRUint8 *temp;
+  nsresult rv = rg->GenerateRandomBytes(sizeof(randomNum), &temp);
   NS_ENSURE_SUCCESS(rv, rv);
+  memcpy(&randomNum, temp, sizeof(randomNum));
+  NS_Free(temp);
 
   PRInt32 numBefore = randomNum % count;
 
