@@ -49,12 +49,15 @@ namespace analyze {
 
 /*
  * Type of try note associated with each catch or finally block, and also with
- * for-in loops.
+ * for-in and other kinds of loops. Non-for-in loops do not need these notes
+ * for exception unwinding, but storing their boundaries here is helpful for
+ * heuristics that need to know whether a given op is inside a loop.
  */
 typedef enum JSTryNoteKind {
     JSTRY_CATCH,
     JSTRY_FINALLY,
-    JSTRY_ITER
+    JSTRY_ITER,
+    JSTRY_LOOP
 } JSTryNoteKind;
 
 /*
@@ -64,9 +67,9 @@ struct JSTryNote {
     uint8_t         kind;       /* one of JSTryNoteKind */
     uint8_t         padding;    /* explicit padding on uint16_t boundary */
     uint16_t        stackDepth; /* stack depth upon exception handler entry */
-    uint32_t        start;      /* start of the try statement or for-in loop
+    uint32_t        start;      /* start of the try statement or loop
                                    relative to script->main */
-    uint32_t        length;     /* length of the try statement or for-in loop */
+    uint32_t        length;     /* length of the try statement or loop */
 };
 
 namespace js {
@@ -409,10 +412,7 @@ class JSScript : public js::gc::Cell
     uint32_t        useCount;   /* Number of times the script has been called
                                  * or has had backedges taken. Reset if the
                                  * script's JIT code is forcibly discarded. */
-
-    uint32_t        maxLoopCount; /* Maximum loop count that has been encountered. */
-    uint32_t        loopCount;    /* Number of times a LOOPHEAD has been encountered.
-                                     after a LOOPENTRY. Modified only by interpreter. */
+    uint32_t        PADDING32;
 
 #ifdef DEBUG
     // Unique identifier within the compartment for this script, used for
@@ -426,7 +426,6 @@ class JSScript : public js::gc::Cell
 
   private:
     uint16_t        PADDING16;
-
     uint16_t        version;    /* JS version under which script was compiled */
 
   public:
@@ -600,6 +599,7 @@ class JSScript : public js::gc::Cell
      * if there's no Baseline or Ion script.
      */
     uint8_t *baselineOrIonRaw;
+    uint8_t *baselineOrIonSkipArgCheck;
 
   public:
     bool hasIonScript() const {
@@ -680,6 +680,9 @@ class JSScript : public js::gc::Cell
     static size_t offsetOfBaselineOrIonRaw() {
         return offsetof(JSScript, baselineOrIonRaw);
     }
+    static size_t offsetOfBaselineOrIonSkipArgCheck() {
+        return offsetof(JSScript, baselineOrIonSkipArgCheck);
+    }
 
     /*
      * Original compiled function for the script, if it has a function.
@@ -716,6 +719,9 @@ class JSScript : public js::gc::Cell
 
     /* Ensure the script has a TypeScript. */
     inline bool ensureHasTypes(JSContext *cx);
+
+    /* Ensure the script has a TypeScript and map for computing BytecodeTypes. */
+    inline bool ensureHasBytecodeTypeMap(JSContext *cx);
 
     /*
      * Ensure the script has bytecode analysis information. Performed when the
@@ -758,6 +764,7 @@ class JSScript : public js::gc::Cell
 
   private:
     bool makeTypes(JSContext *cx);
+    bool makeBytecodeTypeMap(JSContext *cx);
     bool makeAnalysis(JSContext *cx);
 
 #ifdef JS_METHODJIT
@@ -801,22 +808,6 @@ class JSScript : public js::gc::Cell
     uint32_t *addressOfUseCount() { return &useCount; }
     static size_t offsetOfUseCount() { return offsetof(JSScript, useCount); }
     void resetUseCount() { useCount = 0; }
-
-    void resetLoopCount() {
-        if (loopCount > maxLoopCount)
-            maxLoopCount = loopCount;
-        loopCount = 0;
-    }
-
-    void incrLoopCount() {
-        ++loopCount;
-    }
-
-    uint32_t getMaxLoopCount() {
-        if (loopCount > maxLoopCount)
-            maxLoopCount = loopCount;
-        return maxLoopCount;
-    }
 
     /*
      * Size of the JITScript and all sections.  If |mallocSizeOf| is NULL, the

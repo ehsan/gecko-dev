@@ -53,10 +53,9 @@ void
 AudioNodeStream::SetStreamTimeParameterImpl(uint32_t aIndex, MediaStream* aRelativeToStream,
                                             double aStreamTime)
 {
-  StreamTime streamTime = std::max<MediaTime>(0, SecondsToMediaTime(aStreamTime));
-  GraphTime graphTime = aRelativeToStream->StreamTimeToGraphTime(streamTime);
-  StreamTime thisStreamTime = GraphTimeToStreamTimeOptimistic(graphTime);
-  TrackTicks ticks = TimeToTicksRoundUp(IdealAudioRate(), thisStreamTime);
+  TrackTicks ticks =
+      WebAudioUtils::ConvertDestinationStreamTimeToSourceStreamTime(
+          aStreamTime, this, aRelativeToStream);
   mEngine->SetStreamTimeParameter(aIndex, ticks);
 }
 
@@ -204,8 +203,8 @@ AudioNodeStream::SetChannelMixingParametersImpl(uint32_t aNumberOfChannels,
   MOZ_ASSERT(int(aChannelInterpretation) < INT16_MAX);
 
   mNumberOfInputChannels = aNumberOfChannels;
-  mMixingMode.mChannelCountMode = aChannelCountMode;
-  mMixingMode.mChannelInterpretation = aChannelInterpretation;
+  mChannelCountMode = aChannelCountMode;
+  mChannelInterpretation = aChannelInterpretation;
 }
 
 StreamBuffer::Track*
@@ -266,7 +265,7 @@ AudioNodeStream::ObtainInputBlock(AudioChunk& aTmpChunk, uint32_t aPortIndex)
       GetAudioChannelsSuperset(outputChannelCount, chunk->mChannelData.Length());
   }
 
-  switch (mMixingMode.mChannelCountMode) {
+  switch (mChannelCountMode) {
   case ChannelCountMode::Explicit:
     // Disregard the output channel count that we've calculated, and just use
     // mNumberOfInputChannels.
@@ -282,7 +281,8 @@ AudioNodeStream::ObtainInputBlock(AudioChunk& aTmpChunk, uint32_t aPortIndex)
   }
 
   uint32_t inputChunkCount = inputChunks.Length();
-  if (inputChunkCount == 0) {
+  if (inputChunkCount == 0 ||
+      (inputChunkCount == 1 && inputChunks[0]->mChannelData.Length() == 0)) {
     aTmpChunk.SetNull(WEBAUDIO_BLOCK_SIZE);
     return;
   }
@@ -303,7 +303,7 @@ AudioNodeStream::ObtainInputBlock(AudioChunk& aTmpChunk, uint32_t aPortIndex)
     nsAutoTArray<const void*,GUESS_AUDIO_CHANNELS> channels;
     channels.AppendElements(chunk->mChannelData);
     if (channels.Length() < outputChannelCount) {
-      if (mMixingMode.mChannelInterpretation == ChannelInterpretation::Speakers) {
+      if (mChannelInterpretation == ChannelInterpretation::Speakers) {
         AudioChannelsUpMix(&channels, outputChannelCount, nullptr);
         NS_ASSERTION(outputChannelCount == channels.Length(),
                      "We called GetAudioChannelsSuperset to avoid this");
@@ -314,7 +314,7 @@ AudioNodeStream::ObtainInputBlock(AudioChunk& aTmpChunk, uint32_t aPortIndex)
         }
       }
     } else if (channels.Length() > outputChannelCount) {
-      if (mMixingMode.mChannelInterpretation == ChannelInterpretation::Speakers) {
+      if (mChannelInterpretation == ChannelInterpretation::Speakers) {
         nsAutoTArray<float*,GUESS_AUDIO_CHANNELS> outputChannels;
         outputChannels.SetLength(outputChannelCount);
         downmixBuffer.SetLength(outputChannelCount * WEBAUDIO_BLOCK_SIZE);

@@ -565,7 +565,7 @@ js::ExecuteKernel(JSContext *cx, HandleScript script, JSObject &scopeChainArg, c
     if (!cx->stack.pushExecuteFrame(cx, script, thisv, scopeChain, type, evalInFrame, &efg))
         return false;
 
-    if (!script->ensureRanAnalysis(cx))
+    if (!script->ensureHasTypes(cx))
         return false;
     TypeScript::SetThis(cx, script, efg.fp()->thisValue());
 
@@ -1146,11 +1146,6 @@ js::Interpret(JSContext *cx, StackFrame *entryFrame, InterpMode interpMode, bool
     RootedScript script(cx);
     SET_SCRIPT(regs.fp()->script());
 
-#ifdef JS_METHODJIT
-    /* Reset the loop count on the script we're entering. */
-    script->resetLoopCount();
-#endif
-
 #if JS_TRACE_LOGGING
     AutoTraceLog logger(TraceLogging::defaultLogger(),
                         TraceLogging::INTERPRETER_START,
@@ -1383,10 +1378,6 @@ ADD_EMPTY_CASE(JSOP_TRY)
 END_EMPTY_CASES
 
 BEGIN_CASE(JSOP_LOOPHEAD)
-
-#ifdef JS_METHODJIT
-    script->incrLoopCount();
-#endif
 END_CASE(JSOP_LOOPHEAD)
 
 BEGIN_CASE(JSOP_LABEL)
@@ -2424,9 +2415,6 @@ BEGIN_CASE(JSOP_FUNCALL)
         regs.fp()->setUseNewType();
 
     SET_SCRIPT(regs.fp()->script());
-#ifdef JS_METHODJIT
-    script->resetLoopCount();
-#endif
 
 #ifdef JS_ION
     if (!newType && ion::IsEnabled(cx)) {
@@ -3366,7 +3354,11 @@ END_CASE(JSOP_ARRAYPUSH)
                 regs.sp -= 1;
                 if (!ok)
                     goto error;
+                break;
               }
+
+              case JSTRY_LOOP:
+                break;
            }
         }
 

@@ -39,6 +39,7 @@ class SetElemICInspector : public ICInspector
       : ICInspector(inspector, pc, icEntry)
     { }
 
+    bool sawOOBDenseWrite() const;
     bool sawOOBTypedArrayWrite() const;
 };
 
@@ -102,6 +103,9 @@ class BaselineInspector
     MIRType expectedResultType(jsbytecode *pc);
     MCompare::CompareType expectedCompareType(jsbytecode *pc);
     MIRType expectedBinaryArithSpecialization(jsbytecode *pc);
+
+    bool hasSeenNonNativeGetElement(jsbytecode *pc);
+    bool hasSeenAccessedGetter(jsbytecode *pc);
 };
 
 } // namespace ion

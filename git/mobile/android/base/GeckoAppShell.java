@@ -28,7 +28,6 @@ import android.content.pm.PackageManager;
 import android.content.pm.ResolveInfo;
 import android.content.res.TypedArray;
 import android.graphics.Bitmap;
-import android.graphics.BitmapFactory;
 import android.graphics.Canvas;
 import android.graphics.Color;
 import android.graphics.ImageFormat;
@@ -149,7 +148,7 @@ public class GeckoAppShell
     private static Sensor gProximitySensor = null;
     private static Sensor gLightSensor = null;
 
-    private static boolean mLocationHighAccuracy = false;
+    private static volatile boolean mLocationHighAccuracy;
 
     public static ActivityHandlerHelper sActivityHelper = new ActivityHandlerHelper();
     static NotificationClient sNotificationClient;
@@ -393,14 +392,50 @@ public class GeckoAppShell
         }
     }
 
+    private static float getLocationAccuracy(Location location) {
+        float radius = location.getAccuracy();
+        return (location.hasAccuracy() && radius > 0) ? radius : 1001;
+    }
+
+    private static Location getLastKnownLocation() {
+        Location lastKnownLocation = null;
+        LocationManager lm = getLocationManager();
+        List<String> providers = lm.getAllProviders();
+
+        for (String provider : providers) {
+            Location location = lm.getLastKnownLocation(provider);
+            if (location == null) {
+                continue;
+            }
+
+            if (lastKnownLocation == null) {
+                lastKnownLocation = location;
+                continue;
+            }
+
+            long timeDiff = location.getTime() - lastKnownLocation.getTime();
+            if (timeDiff > 0 ||
+                (timeDiff == 0 &&
+                 getLocationAccuracy(location) < getLocationAccuracy(lastKnownLocation))) {
+                lastKnownLocation = location;
+            }
+        }
+
+        return lastKnownLocation;
+    }
+
     public static void enableLocation(final boolean enable) {
         ThreadUtils.postToUiThread(new Runnable() {
                 @Override
                 public void run() {
-                    LocationManager lm = (LocationManager)
-                        GeckoApp.mAppContext.getSystemService(Context.LOCATION_SERVICE);
+                    LocationManager lm = getLocationManager();
 
                     if (enable) {
+                        Location lastKnownLocation = getLastKnownLocation();
+                        if (lastKnownLocation != null) {
+                            GeckoApp.mAppContext.onLocationChanged(lastKnownLocation);
+                        }
+
                         Criteria criteria = new Criteria();
                         criteria.setSpeedRequired(false);
                         criteria.setBearingRequired(false);
@@ -420,16 +455,16 @@ public class GeckoAppShell
                             return;
 
                         Looper l = Looper.getMainLooper();
-                        Location loc = lm.getLastKnownLocation(provider);
-                        if (loc != null) {
-                            GeckoApp.mAppContext.onLocationChanged(loc);
-                        }
                         lm.requestLocationUpdates(provider, 100, (float).5, GeckoApp.mAppContext, l);
                     } else {
                         lm.removeUpdates(GeckoApp.mAppContext);
                     }
                 }
             });
+    }
+
+    private static LocationManager getLocationManager() {
+        return (LocationManager) GeckoApp.mAppContext.getSystemService(Context.LOCATION_SERVICE);
     }
 
     public static void enableLocationHighAccuracy(final boolean enable) {
@@ -761,12 +796,12 @@ public class GeckoAppShell
         }
 
         // draw the overlay
-        Bitmap overlay = BitmapFactory.decodeResource(GeckoApp.mAppContext.getResources(), R.drawable.home_bg);
+        Bitmap overlay = BitmapUtils.decodeResource(GeckoApp.mAppContext, R.drawable.home_bg);
         canvas.drawBitmap(overlay, null, new Rect(0, 0, size, size), null);
 
         // draw the favicon
         if (aSource == null)
-            aSource = BitmapFactory.decodeResource(GeckoApp.mAppContext.getResources(), R.drawable.home_star);
+            aSource = BitmapUtils.decodeResource(GeckoApp.mAppContext, R.drawable.home_star);
 
         // by default, we scale the icon to this size
         int sWidth = insetSize / 2;
@@ -808,6 +843,12 @@ public class GeckoAppShell
         return getHandlersForIntent(intent);
     }
 
+    static boolean hasHandlersForIntent(Intent intent) {
+        PackageManager pm = GeckoApp.mAppContext.getPackageManager();
+        List<ResolveInfo> list = pm.queryIntentActivities(intent, 0);
+        return !list.isEmpty();
+    }
+
     static String[] getHandlersForIntent(Intent intent) {
         PackageManager pm = GeckoApp.mAppContext.getPackageManager();
         List<ResolveInfo> list = pm.queryIntentActivities(intent, 0);
@@ -828,10 +869,10 @@ public class GeckoAppShell
 
     static Intent getIntentForActionString(String aAction) {
         // Default to the view action if no other action as been specified.
-        if (aAction != null && aAction.length() > 0)
-            return new Intent(aAction);
-        else
+        if (TextUtils.isEmpty(aAction)) {
             return new Intent(Intent.ACTION_VIEW);
+        }
+        return new Intent(aAction);
     }
 
     static String getExtensionFromMimeType(String aMimeType) {
@@ -1069,20 +1110,26 @@ public class GeckoAppShell
         final String scheme = uri.getScheme();
 
         final Intent intent;
-        if ("vnd.youtube".equals(scheme) && getHandlersForURL(targetURI, action).length == 0) {
-            // Special case youtube to fallback to our own player
+
+        // Compute our most likely intent, then check to see if there are any
+        // custom handlers that would apply.
+        // Start with the original URI. If we end up modifying it, we'll
+        // overwrite it.
+        final Intent likelyIntent = getIntentForActionString(action);
+        likelyIntent.setData(uri);
+
+        if ("vnd.youtube".equals(scheme) && !hasHandlersForIntent(likelyIntent)) {
+            // Special-case YouTube to use our own player if no system handler
+            // exists.
             intent = new Intent(VideoPlayer.VIDEO_ACTION);
             intent.setClassName(AppConstants.ANDROID_PACKAGE_NAME,
                                 "org.mozilla.gecko.VideoPlayer");
+            intent.setData(uri);
         } else {
-            intent = getIntentForActionString(action);
+            intent = likelyIntent;
         }
 
-        // Start with the original URI. If we end up modifying it,
-        // we'll overwrite it.
-        intent.setData(uri);
-
-        // Have a special handling for the SMS, as the message body
+        // Have a special handling for SMS, as the message body
         // is not extracted from the URI automatically.
         if (!"sms".equals(scheme)) {
             return intent;

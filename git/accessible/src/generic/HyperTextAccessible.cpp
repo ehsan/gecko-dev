@@ -1070,9 +1070,6 @@ HyperTextAccessible::GetTextAtOffset(int32_t aOffset,
   if (offset < 0)
     return NS_ERROR_INVALID_ARG;
 
-  EWordMovementType wordMovementType = eDefaultBehavior;
-  bool moveForwardThenBack = true;
-
   switch (aBoundaryType) {
     case BOUNDARY_CHAR:
       return GetCharAt(aOffset, eGetAt, aText, aStartOffset, aEndOffset) ?
@@ -1084,8 +1081,11 @@ HyperTextAccessible::GetTextAtOffset(int32_t aOffset,
       return GetText(*aStartOffset, *aEndOffset, aText);
 
     case BOUNDARY_WORD_END:
-      *aStartOffset = FindWordBoundary(offset, eDirPrevious, eEndWord);
-      *aEndOffset = FindWordBoundary(*aStartOffset, eDirNext, eEndWord);
+      // Ignore the spec and follow what WebKitGtk does because Orca expects it,
+      // i.e. return a next word at word end offset of the current word
+      // (WebKitGtk behavior) instead the current word (AKT spec).
+      *aEndOffset = FindWordBoundary(offset, eDirNext, eEndWord);
+      *aStartOffset = FindWordBoundary(*aEndOffset, eDirPrevious, eEndWord);
       return GetText(*aStartOffset, *aEndOffset, aText);
 
     case BOUNDARY_LINE_START:
