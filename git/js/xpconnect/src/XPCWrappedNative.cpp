@@ -1543,8 +1543,10 @@ XPCWrappedNative::InitTearOff(XPCWrappedNativeTearOff* aTearOff,
         }
     }
 
-    if (NS_FAILED(nsXPConnect::SecurityManager()->CanCreateWrapper(cx, *iid, identity,
-                                                                   GetClassInfo()))) {
+    nsIXPCSecurityManager* sm = nsXPConnect::XPConnect()->GetDefaultSecurityManager();
+    if (sm && NS_FAILED(sm->
+                        CanCreateWrapper(cx, *iid, identity,
+                                         GetClassInfo()))) {
         // the security manager vetoed. It should have set an exception.
         NS_RELEASE(obj);
         aTearOff->SetInterface(nullptr);

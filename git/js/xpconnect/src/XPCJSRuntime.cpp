@@ -408,7 +408,7 @@ static bool
 PrincipalImmuneToScriptPolicy(nsIPrincipal* aPrincipal)
 {
     // System principal gets a free pass.
-    if (nsXPConnect::SecurityManager()->IsSystemPrincipal(aPrincipal))
+    if (XPCWrapper::GetSecurityManager()->IsSystemPrincipal(aPrincipal))
         return true;
 
     // nsExpandedPrincipal gets a free pass.
@@ -449,11 +449,12 @@ Scriptability::Scriptability(JSCompartment *c) : mScriptBlocks(0)
     // If we're not immune, we should have a real principal with a codebase URI.
     // Check the URI against the new-style domain policy.
     if (!mImmuneToScriptPolicy) {
+        nsIScriptSecurityManager* ssm = XPCWrapper::GetSecurityManager();
         nsCOMPtr<nsIURI> codebase;
         nsresult rv = prin->GetURI(getter_AddRefs(codebase));
         bool policyAllows;
         if (NS_SUCCEEDED(rv) && codebase &&
-            NS_SUCCEEDED(nsXPConnect::SecurityManager()->PolicyAllowsScript(codebase, &policyAllows)))
+            NS_SUCCEEDED(ssm->PolicyAllowsScript(codebase, &policyAllows)))
         {
             mScriptBlockedByPolicy = !policyAllows;
         } else {

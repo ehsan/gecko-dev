@@ -40,7 +40,6 @@
 #include "mozilla/XPTInterfaceInfoManager.h"
 #include "nsIObjectInputStream.h"
 #include "nsIObjectOutputStream.h"
-#include "nsScriptSecurityManager.h"
 
 using namespace mozilla;
 using namespace mozilla::dom;
@@ -109,6 +108,7 @@ nsXPConnect::~nsXPConnect()
     // maps that our finalize callback depends on.
     JS_GC(mRuntime->Runtime());
 
+    mDefaultSecurityManager = nullptr;
     gScriptSecurityManager = nullptr;
 
     // shutdown the logging system
@@ -138,13 +138,6 @@ nsXPConnect::InitStatics()
     if (NS_FAILED(nsThread::SetMainThreadObserver(gSelf))) {
         MOZ_CRASH();
     }
-
-    // Fire up the SSM.
-    nsScriptSecurityManager::InitStatics();
-    gScriptSecurityManager = nsScriptSecurityManager::GetScriptSecurityManager();
-
-    // Initialize the SafeJSContext.
-    gSelf->mRuntime->GetJSContextStack()->InitSafeJSContext();
 }
 
 nsXPConnect*
@@ -257,7 +250,7 @@ nsXPConnect::GetInfoForName(const char * name, nsIInterfaceInfo** info)
 NS_IMETHODIMP
 nsXPConnect::GarbageCollect(uint32_t reason)
 {
-    GetRuntime()->GarbageCollect(reason);
+    GetRuntime()->Collect(reason);
     return NS_OK;
 }
 
@@ -765,6 +758,22 @@ nsXPConnect::RescueOrphansInScope(JSContext *aJSContext, JSObject *aScopeArg)
     return NS_OK;
 }
 
+/* void setDefaultSecurityManager (in nsIXPCSecurityManager aManager); */
+NS_IMETHODIMP
+nsXPConnect::SetDefaultSecurityManager(nsIXPCSecurityManager *aManager)
+{
+    mDefaultSecurityManager = aManager;
+
+    nsCOMPtr<nsIScriptSecurityManager> ssm =
+        do_QueryInterface(mDefaultSecurityManager);
+
+    // Remember the result of the above QI for fast access to the
+    // script securityt manager.
+    gScriptSecurityManager = ssm;
+
+    return NS_OK;
+}
+
 /* nsIStackFrame createStackFrameLocation (in uint32_t aLanguage, in string aFilename, in string aFunctionName, in int32_t aLineNumber, in nsIStackFrame aCaller); */
 NS_IMETHODIMP
 nsXPConnect::CreateStackFrameLocation(uint32_t aLanguage,
@@ -901,6 +910,7 @@ nsXPConnect::DebugDump(int16_t depth)
     XPC_LOG_INDENT();
         XPC_LOG_ALWAYS(("gSelf @ %x", gSelf));
         XPC_LOG_ALWAYS(("gOnceAliveNowDead is %d", (int)gOnceAliveNowDead));
+        XPC_LOG_ALWAYS(("mDefaultSecurityManager @ %x", mDefaultSecurityManager.get()));
         if (mRuntime) {
             if (depth)
                 mRuntime->DebugDump(depth);
@@ -1206,6 +1216,13 @@ JSContext*
 nsXPConnect::GetCurrentJSContext()
 {
     return GetRuntime()->GetJSContextStack()->Peek();
+}
+
+/* virtual */
+JSContext*
+nsXPConnect::InitSafeJSContext()
+{
+    return GetRuntime()->GetJSContextStack()->InitSafeJSContext();
 }
 
 /* virtual */

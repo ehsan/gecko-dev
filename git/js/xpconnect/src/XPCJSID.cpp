@@ -634,6 +634,21 @@ GetIIDArg(uint32_t argc, const JS::Value& val, JSContext* cx)
     return iid;
 }
 
+static void
+GetWrapperObject(MutableHandleObject obj)
+{
+    obj.set(nullptr);
+    nsXPConnect* xpc = nsXPConnect::XPConnect();
+    nsAXPCNativeCallContext *ccxp = nullptr;
+    xpc->GetCurrentNativeCallContext(&ccxp);
+    if (!ccxp)
+        return;
+
+    nsCOMPtr<nsIXPConnectWrappedNative> wrapper;
+    ccxp->GetCalleeWrapper(getter_AddRefs(wrapper));
+    obj.set(wrapper->GetJSObject());
+}
+
 /* nsISupports createInstance (); */
 NS_IMETHODIMP
 nsJSCID::CreateInstance(HandleValue iidval, JSContext *cx,
@@ -642,7 +657,14 @@ nsJSCID::CreateInstance(HandleValue iidval, JSContext *cx,
     if (!mDetails.IsValid())
         return NS_ERROR_XPC_BAD_CID;
 
-    if (NS_FAILED(nsXPConnect::SecurityManager()->CanCreateInstance(cx, mDetails.ID()))) {
+    RootedObject obj(cx);
+    GetWrapperObject(&obj);
+    if (!obj) {
+        return NS_ERROR_UNEXPECTED;
+    }
+
+    nsIXPCSecurityManager* sm = nsXPConnect::XPConnect()->GetDefaultSecurityManager();
+    if (sm && NS_FAILED(sm->CanCreateInstance(cx, mDetails.ID()))) {
         NS_ERROR("how are we not being called from chrome here?");
         return NS_OK;
     }
@@ -664,7 +686,7 @@ nsJSCID::CreateInstance(HandleValue iidval, JSContext *cx,
     if (NS_FAILED(rv) || !inst)
         return NS_ERROR_XPC_CI_RETURNED_FAILURE;
 
-    rv = nsContentUtils::WrapNative(cx, inst, iid, retval);
+    rv = nsXPConnect::XPConnect()->WrapNativeToJSVal(cx, obj, inst, nullptr, iid, true, retval);
     if (NS_FAILED(rv) || retval.isPrimitive())
         return NS_ERROR_XPC_CANT_CREATE_WN;
     return NS_OK;
@@ -678,7 +700,15 @@ nsJSCID::GetService(HandleValue iidval, JSContext *cx, uint8_t optionalArgc,
     if (!mDetails.IsValid())
         return NS_ERROR_XPC_BAD_CID;
 
-    if (NS_FAILED(nsXPConnect::SecurityManager()->CanCreateInstance(cx, mDetails.ID()))) {
+    RootedObject obj(cx);
+    GetWrapperObject(&obj);
+    if (!obj) {
+        return NS_ERROR_UNEXPECTED;
+    }
+
+    nsIXPCSecurityManager *sm;
+    sm = nsXPConnect::XPConnect()->GetDefaultSecurityManager();
+    if (sm && NS_FAILED(sm->CanCreateInstance(cx, mDetails.ID()))) {
         MOZ_ASSERT(JS_IsExceptionPending(cx),
                    "security manager vetoed GetService without setting exception");
         return NS_OK;
@@ -700,12 +730,12 @@ nsJSCID::GetService(HandleValue iidval, JSContext *cx, uint8_t optionalArgc,
     if (NS_FAILED(rv) || !srvc)
         return NS_ERROR_XPC_GS_RETURNED_FAILURE;
 
-    RootedValue v(cx);
-    rv = nsContentUtils::WrapNative(cx, srvc, iid, &v);
-    if (NS_FAILED(rv) || !v.isObject())
+    nsCOMPtr<nsIXPConnectJSObjectHolder> holder;
+    rv = nsXPConnect::XPConnect()->WrapNative(cx, obj, srvc, *iid, getter_AddRefs(holder));
+    if (NS_FAILED(rv) || !holder || !holder->GetJSObject())
         return NS_ERROR_XPC_CANT_CREATE_WN;
 
-    retval.set(v);
+    retval.setObject(*holder->GetJSObject());
     return NS_OK;
 }
 

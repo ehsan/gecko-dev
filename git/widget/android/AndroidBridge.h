@@ -28,7 +28,6 @@
 #include "mozilla/StaticPtr.h"
 #include "mozilla/layers/GeckoContentController.h"
 #include "mozilla/TimeStamp.h"
-#include "mozilla/Types.h"
 
 // Some debug #defines
 // #define DEBUG_ANDROID_EVENTS
@@ -39,7 +38,7 @@ class nsIDOMMozSmsMessage;
 class nsIObserver;
 
 /* See the comment in AndroidBridge about this function before using it */
-extern "C" MOZ_EXPORT JNIEnv * GetJNIForThread();
+extern "C" JNIEnv * GetJNIForThread();
 
 extern bool mozilla_AndroidBridge_SetMainThread(pthread_t);
 
