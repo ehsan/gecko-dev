@@ -250,8 +250,6 @@ nsInProcessTabChildGlobal::DelayedDisconnect()
   }
   
   if (!mLoadingScript) {
-    nsContentUtils::ReleaseWrapper(static_cast<nsIDOMEventTarget*>(this),
-                                   this);
     if (mCx) {
       DestroyCx();
     }
