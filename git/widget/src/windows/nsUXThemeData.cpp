@@ -193,14 +193,12 @@ nsUXThemeData::GetThemeDLL() {
   return sThemeDLL;
 }
 
-#if MOZ_WINSDK_TARGETVER >= MOZ_NTDDI_LONGHORN
 HMODULE
 nsUXThemeData::GetDwmDLL() {
   if (!sDwmDLL && sIsVistaOrLater)
     sDwmDLL = ::LoadLibraryW(kDwmLibraryName);
   return sDwmDLL;
 }
-#endif
 
 const wchar_t *nsUXThemeData::GetClassName(nsUXThemeClass cls) {
   switch(cls) {

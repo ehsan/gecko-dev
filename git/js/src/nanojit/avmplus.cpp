@@ -41,6 +41,13 @@
     typedef void *maddr_ptr;
 #endif
 
+#if defined(AVMPLUS_ARM) && defined(UNDER_CE)
+extern "C" bool
+blx_lr_broken() {
+    return false;
+}
+#endif
+
 using namespace avmplus;
 
 nanojit::Config AvmCore::config;

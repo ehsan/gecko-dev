@@ -114,10 +114,6 @@
         if (moreInfoLink)
           moreInfoLink.setAttribute("href", moreInfoURL + "private-browsing");
       }, false);
-      
-      function togglePrivateBrowsing() {
-        mainWindow.gPrivateBrowsingUI.toggleMode();
-      }
     ]]></script>
   </head>
 
@@ -151,8 +147,7 @@
         <div id="startPrivateBrowsingDesc" class="showNormal">
           <button xmlns="http://www.mozilla.org/keymaster/gatekeeper/there.is.only.xul"
                   id="startPrivateBrowsing" label="&privatebrowsingpage.startPrivateBrowsing.label;"
-                  accesskey="&privatebrowsingpage.startPrivateBrowsing.accesskey;"
-                  oncommand="togglePrivateBrowsing();"/>
+                  accesskey="&privatebrowsingpage.startPrivateBrowsing.accesskey;"/>
         </div>
 
         <!-- Footer -->

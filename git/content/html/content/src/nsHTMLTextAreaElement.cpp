@@ -77,7 +77,6 @@
 #include "mozAutoDocUpdate.h"
 #include "nsISupportsPrimitives.h"
 #include "nsContentCreatorFunctions.h"
-#include "nsIConstraintValidation.h"
 
 #include "nsTextEditorState.h"
 
@@ -90,8 +89,7 @@ class nsHTMLTextAreaElement : public nsGenericHTMLFormElement,
                               public nsIDOMNSHTMLTextAreaElement,
                               public nsITextControlElement,
                               public nsIDOMNSEditableElement,
-                              public nsStubMutationObserver,
-                              public nsIConstraintValidation
+                              public nsStubMutationObserver
 {
 public:
   nsHTMLTextAreaElement(already_AddRefed<nsINodeInfo> aNodeInfo,
@@ -125,11 +123,10 @@ public:
   // nsIFormControl
   NS_IMETHOD_(PRUint32) GetType() const { return NS_FORM_TEXTAREA; }
   NS_IMETHOD Reset();
-  NS_IMETHOD SubmitNamesValues(nsFormSubmission* aFormSubmission);
+  NS_IMETHOD SubmitNamesValues(nsFormSubmission* aFormSubmission,
+                               nsIContent* aSubmitElement);
   NS_IMETHOD SaveState();
   virtual PRBool RestoreState(nsPresState* aState);
-
-  virtual PRInt32 IntrinsicState() const;
 
   // nsITextControlElemet
   NS_IMETHOD SetValueChanged(PRBool aValueChanged);
@@ -155,7 +152,6 @@ public:
   NS_IMETHOD_(void) UpdatePlaceholderText(PRBool aNotify);
   NS_IMETHOD_(void) SetPlaceholderClass(PRBool aVisible, PRBool aNotify);
   NS_IMETHOD_(void) InitializeKeyboardEventListeners();
-  NS_IMETHOD_(void) OnValueChanged(PRBool aNotify);
 
   // nsIContent
   virtual PRBool ParseAttribute(PRInt32 aNamespaceID,
@@ -200,16 +196,6 @@ public:
                                            nsGenericHTMLFormElement)
 
   virtual nsXPCClassInfo* GetClassInfo();
-
-  // nsIConstraintValidation
-  PRBool   IsTooLong();
-  PRBool   IsValueMissing() const;
-  void     UpdateTooLongValidityState();
-  void     UpdateValueMissingValidityState();
-  PRBool   IsBarredFromConstraintValidation() const;
-  nsresult GetValidationMessage(nsAString& aValidationMessage,
-                                ValidityStateType aType);
-
 protected:
   using nsGenericHTMLFormElement::IsSingleLineTextControl; // get rid of the compiler warning
 
@@ -236,7 +222,7 @@ protected:
    *        value.  If this is true, linebreaks will not be inserted even if
    *        wrap=hard.
    */
-  void GetValueInternal(nsAString& aValue, PRBool aIgnoreWrap) const;
+  void GetValueInternal(nsAString& aValue, PRBool aIgnoreWrap);
 
   nsresult SetValueInternal(const nsAString& aValue,
                             PRBool aUserInput);
@@ -256,11 +242,6 @@ protected:
 
   virtual nsresult AfterSetAttr(PRInt32 aNamespaceID, nsIAtom *aName,
                                 const nsAString* aValue, PRBool aNotify);
-
-  /**
-   * Get the mutable state of the element.
-   */
-  PRBool IsMutable() const;
 };
 
 
@@ -300,13 +281,12 @@ DOMCI_NODE_DATA(HTMLTextAreaElement, nsHTMLTextAreaElement)
 
 // QueryInterface implementation for nsHTMLTextAreaElement
 NS_INTERFACE_TABLE_HEAD_CYCLE_COLLECTION_INHERITED(nsHTMLTextAreaElement)
-  NS_HTML_CONTENT_INTERFACE_TABLE6(nsHTMLTextAreaElement,
+  NS_HTML_CONTENT_INTERFACE_TABLE5(nsHTMLTextAreaElement,
                                    nsIDOMHTMLTextAreaElement,
                                    nsIDOMNSHTMLTextAreaElement,
                                    nsITextControlElement,
                                    nsIDOMNSEditableElement,
-                                   nsIMutationObserver,
-                                   nsIConstraintValidation)
+                                   nsIMutationObserver)
   NS_HTML_CONTENT_INTERFACE_TABLE_TO_MAP_SEGUE(nsHTMLTextAreaElement,
                                                nsGenericHTMLFormElement)
 NS_HTML_CONTENT_INTERFACE_TABLE_TAIL_CLASSINFO(HTMLTextAreaElement)
@@ -316,9 +296,6 @@ NS_HTML_CONTENT_INTERFACE_TABLE_TAIL_CLASSINFO(HTMLTextAreaElement)
 
 
 NS_IMPL_ELEMENT_CLONE(nsHTMLTextAreaElement)
-
-// nsIConstraintValidation
-NS_IMPL_NSICONSTRAINTVALIDATION_EXCEPT_SETCUSTOMVALIDITY(nsHTMLTextAreaElement)
 
 
 NS_IMETHODIMP
@@ -420,7 +397,6 @@ NS_IMPL_BOOL_ATTR(nsHTMLTextAreaElement, Disabled, disabled)
 NS_IMPL_NON_NEGATIVE_INT_ATTR(nsHTMLTextAreaElement, MaxLength, maxlength)
 NS_IMPL_STRING_ATTR(nsHTMLTextAreaElement, Name, name)
 NS_IMPL_BOOL_ATTR(nsHTMLTextAreaElement, ReadOnly, readonly)
-NS_IMPL_BOOL_ATTR(nsHTMLTextAreaElement, Required, required)
 NS_IMPL_INT_ATTR(nsHTMLTextAreaElement, Rows, rows)
 NS_IMPL_INT_ATTR_DEFAULT_VALUE(nsHTMLTextAreaElement, TabIndex, tabindex, 0)
 NS_IMPL_STRING_ATTR(nsHTMLTextAreaElement, Wrap, wrap)
@@ -443,7 +419,7 @@ nsHTMLTextAreaElement::GetValue(nsAString& aValue)
 }
 
 void
-nsHTMLTextAreaElement::GetValueInternal(nsAString& aValue, PRBool aIgnoreWrap) const
+nsHTMLTextAreaElement::GetValueInternal(nsAString& aValue, PRBool aIgnoreWrap)
 {
   mState->GetValue(aValue, aIgnoreWrap);
 }
@@ -845,21 +821,24 @@ nsresult
 nsHTMLTextAreaElement::Reset()
 {
   nsresult rv;
-
-  // To get the initial spellchecking, reset value to
-  // empty string before setting the default value.
-  SetValue(EmptyString());
-  nsAutoString resetVal;
-  GetDefaultValue(resetVal);
-  rv = SetValue(resetVal);
-  NS_ENSURE_SUCCESS(rv, rv);
-
+  // If the frame is there, we have to set the value so that it will show up.
+  nsIFormControlFrame* formControlFrame = GetFormControlFrame(PR_FALSE);
+  if (formControlFrame) {
+    // To get the initial spellchecking, reset value to
+    // empty string before setting the default value.
+    SetValue(EmptyString());
+    nsAutoString resetVal;
+    GetDefaultValue(resetVal);
+    rv = SetValue(resetVal);
+    NS_ENSURE_SUCCESS(rv, rv);
+  }
   SetValueChanged(PR_FALSE);
   return NS_OK;
 }
 
 NS_IMETHODIMP
-nsHTMLTextAreaElement::SubmitNamesValues(nsFormSubmission* aFormSubmission)
+nsHTMLTextAreaElement::SubmitNamesValues(nsFormSubmission* aFormSubmission,
+                                         nsIContent* aSubmitElement)
 {
   nsresult rv = NS_OK;
 
@@ -956,23 +935,7 @@ nsHTMLTextAreaElement::RestoreState(nsPresState* aState)
   return PR_FALSE;
 }
 
-PRInt32
-nsHTMLTextAreaElement::IntrinsicState() const
-{
-  PRInt32 state = nsGenericHTMLFormElement::IntrinsicState();
 
-  if (HasAttr(kNameSpaceID_None, nsGkAtoms::required)) {
-    state |= NS_EVENT_STATE_REQUIRED;
-  } else {
-    state |= NS_EVENT_STATE_OPTIONAL;
-  }
-
-  if (IsCandidateForConstraintValidation()) {
-    state |= IsValid() ? NS_EVENT_STATE_VALID : NS_EVENT_STATE_INVALID;
-  }
-
-  return state;
-}
 
 nsresult
 nsHTMLTextAreaElement::BeforeSetAttr(PRInt32 aNameSpaceID, nsIAtom* aName,
@@ -1039,33 +1002,18 @@ nsresult
 nsHTMLTextAreaElement::AfterSetAttr(PRInt32 aNameSpaceID, nsIAtom* aName,
                                     const nsAString* aValue, PRBool aNotify)
 {
-  PRInt32 states = 0;
+  if (aNotify && aNameSpaceID == kNameSpaceID_None &&
+      aName == nsGkAtoms::readonly) {
+    UpdateEditableState();
 
-  if (aNameSpaceID == kNameSpaceID_None) {
-    if (aName == nsGkAtoms::required || aName == nsGkAtoms::disabled ||
-        aName == nsGkAtoms::readonly) {
-      UpdateValueMissingValidityState();
-      states |= NS_EVENT_STATE_VALID | NS_EVENT_STATE_INVALID;
-    } else if (aName == nsGkAtoms::maxlength) {
-      UpdateTooLongValidityState();
-      states |= NS_EVENT_STATE_VALID | NS_EVENT_STATE_INVALID;
-    }
-
-    if (aNotify) {
-      nsIDocument* doc = GetCurrentDoc();
-      MOZ_AUTO_DOC_UPDATE(doc, UPDATE_CONTENT_STATE, PR_TRUE);
-
-      if (aName == nsGkAtoms::readonly) {
-        UpdateEditableState();
-        states |= NS_EVENT_STATE_MOZ_READONLY | NS_EVENT_STATE_MOZ_READWRITE;
-      }
-
-      if (doc && states) {
-        doc->ContentStatesChanged(this, nsnull, states);
-      }
+    nsIDocument* document = GetCurrentDoc();
+    if (document) {
+      mozAutoDocUpdate upd(document, UPDATE_CONTENT_STATE, PR_TRUE);
+      document->ContentStatesChanged(this, nsnull,
+                                     NS_EVENT_STATE_MOZ_READONLY |
+                                     NS_EVENT_STATE_MOZ_READWRITE);
     }
   }
-
   return nsGenericHTMLFormElement::AfterSetAttr(aNameSpaceID, aName, aValue,
                                                 aNotify);
 }
@@ -1082,121 +1030,6 @@ nsHTMLTextAreaElement::CopyInnerTo(nsGenericElement* aDest) const
     static_cast<nsHTMLTextAreaElement*>(aDest)->SetValue(value);
   }
   return NS_OK;
-}
-
-PRBool
-nsHTMLTextAreaElement::IsMutable() const
-{
-  return (!HasAttr(kNameSpaceID_None, nsGkAtoms::readonly) &&
-          !HasAttr(kNameSpaceID_None, nsGkAtoms::disabled));
-}
-
-// nsIConstraintValidation
-
-NS_IMETHODIMP
-nsHTMLTextAreaElement::SetCustomValidity(const nsAString& aError)
-{
-  nsIConstraintValidation::SetCustomValidity(aError);
-
-  nsIDocument* doc = GetCurrentDoc();
-  if (doc) {
-    doc->ContentStatesChanged(this, nsnull, NS_EVENT_STATE_INVALID |
-                                            NS_EVENT_STATE_VALID);
-  }
-
-  return NS_OK;
-}
-
-PRBool
-nsHTMLTextAreaElement::IsTooLong()
-{
-  if (!mValueChanged) {
-    return PR_FALSE;
-  }
-
-  PRInt32 maxLength = -1;
-  PRInt32 textLength = -1;
-
-  GetMaxLength(&maxLength);
-  GetTextLength(&textLength);
-
-  return maxLength >= 0 && textLength > maxLength;
-}
-
-PRBool
-nsHTMLTextAreaElement::IsValueMissing() const
-{
-  if (!HasAttr(kNameSpaceID_None, nsGkAtoms::required) || !IsMutable()) {
-    return PR_FALSE;
-  }
-
-  nsAutoString value;
-  GetValueInternal(value, PR_TRUE);
-
-  return value.IsEmpty();
-}
-
-void
-nsHTMLTextAreaElement::UpdateTooLongValidityState()
-{
-  SetValidityState(VALIDITY_STATE_TOO_LONG, IsTooLong());
-}
-
-void
-nsHTMLTextAreaElement::UpdateValueMissingValidityState()
-{
-  SetValidityState(VALIDITY_STATE_VALUE_MISSING, IsValueMissing());
-}
-
-PRBool
-nsHTMLTextAreaElement::IsBarredFromConstraintValidation() const
-{
-  return HasAttr(kNameSpaceID_None, nsGkAtoms::readonly);
-}
-
-nsresult
-nsHTMLTextAreaElement::GetValidationMessage(nsAString& aValidationMessage,
-                                            ValidityStateType aType)
-{
-  nsresult rv = NS_OK;
-
-  switch (aType)
-  {
-    case VALIDITY_STATE_TOO_LONG:
-      {
-        nsXPIDLString message;
-        PRInt32 maxLength = -1;
-        PRInt32 textLength = -1;
-        nsAutoString strMaxLength;
-        nsAutoString strTextLength;
-
-        GetMaxLength(&maxLength);
-        GetTextLength(&textLength);
-
-        strMaxLength.AppendInt(maxLength);
-        strTextLength.AppendInt(textLength);
-
-        const PRUnichar* params[] = { strTextLength.get(), strMaxLength.get() };
-        rv = nsContentUtils::FormatLocalizedString(nsContentUtils::eDOM_PROPERTIES,
-                                                   "ElementSuffersFromBeingTooLong",
-                                                   params, 2, message);
-        aValidationMessage = message;
-      }
-      break;
-    case VALIDITY_STATE_VALUE_MISSING:
-      {
-        nsXPIDLString message;
-        rv = nsContentUtils::GetLocalizedString(nsContentUtils::eDOM_PROPERTIES,
-                                                "TextElementSuffersFromBeingMissing",
-                                                message);
-        aValidationMessage = message;
-      }
-      break;
-    default:
-      rv = nsIConstraintValidation::GetValidationMessage(aValidationMessage, aType);
-  }
-
-  return rv;
 }
 
 NS_IMETHODIMP_(PRBool)
@@ -1297,20 +1130,3 @@ nsHTMLTextAreaElement::InitializeKeyboardEventListeners()
 {
   mState->InitializeKeyboardEventListeners();
 }
-
-NS_IMETHODIMP_(void)
-nsHTMLTextAreaElement::OnValueChanged(PRBool aNotify)
-{
-  // Update the validity state
-  UpdateTooLongValidityState();
-  UpdateValueMissingValidityState();
-
-  if (aNotify) {
-    nsIDocument* doc = GetCurrentDoc();
-    if (doc) {
-      doc->ContentStatesChanged(this, nsnull, NS_EVENT_STATE_VALID |
-                                              NS_EVENT_STATE_INVALID);
-    }
-  }
-}
-

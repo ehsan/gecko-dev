@@ -86,8 +86,6 @@
 #include "nsSerializationHelper.h"
 #include "nsIFrame.h"
 #include "nsIView.h"
-#include "nsIEventListenerManager.h"
-#include "nsGeolocation.h"
 
 #ifdef MOZ_WIDGET_QT
 #include <QX11EmbedWidget>
@@ -510,11 +508,6 @@ TabChild::~TabChild()
     }
     if (mCx) {
       DestroyCx();
-    }
-    
-    nsIEventListenerManager* elm = mTabChildGlobal->GetListenerManager(PR_FALSE);
-    if (elm) {
-      elm->Disconnect();
     }
     mTabChildGlobal->mTabChild = nsnull;
 }
@@ -990,7 +983,6 @@ TabChild::AllocPGeolocationRequest(const IPC::URI&)
 bool
 TabChild::DeallocPGeolocationRequest(PGeolocationRequestChild* actor)
 {
-  static_cast<nsGeolocationRequest*>(actor)->Release();
   return true;
 }
 

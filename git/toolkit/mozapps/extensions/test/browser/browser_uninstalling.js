@@ -10,7 +10,6 @@ var gCategoryUtilities;
 var gProvider;
 
 function test() {
-  requestLongerTimeout(2);
   waitForExplicitFinish();
 
   gProvider = new MockProvider();
