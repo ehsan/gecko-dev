@@ -1028,7 +1028,8 @@ nsComputedDOMStyle::GetFontFamily(nsIDOMCSSValue** aValue)
   NS_ASSERTION(presContext, "pres context is required");
 
   const nsString& fontName = font->mFont.name;
-  if (font->mGenericID == kGenericFont_NONE && !font->mFont.systemFont) { 
+  PRUint8 generic = font->mFlags & NS_STYLE_FONT_FACE_MASK;
+  if (generic == kGenericFont_NONE && !font->mFont.systemFont) { 
     const nsFont* defaultFont =
       presContext->GetDefaultFont(kPresContext_DefaultVariableFont_ID);
 
@@ -2147,27 +2148,6 @@ nsComputedDOMStyle::GetWhiteSpace(nsIDOMCSSValue** aValue)
 
   return CallQueryInterface(val, aValue);
 }
-
-nsresult
-nsComputedDOMStyle::GetWindowShadow(nsIDOMCSSValue** aValue)
-{
-  nsROCSSPrimitiveValue *val = GetROCSSPrimitiveValue();
-  NS_ENSURE_TRUE(val, NS_ERROR_OUT_OF_MEMORY);
-
-  const nsStyleUIReset *uiData = GetStyleUIReset();
-
-  if (uiData->mWindowShadow != NS_STYLE_WINDOW_SHADOW_NONE) {
-    const nsAFlatCString& windowShadow =
-      nsCSSProps::ValueToKeyword(uiData->mWindowShadow,
-                                 nsCSSProps::kWindowShadowKTable);
-    val->SetIdent(windowShadow);
-  } else {
-    val->SetIdent(nsGkAtoms::none);
-  }
-
-  return CallQueryInterface(val, aValue);
-}
-
 
 nsresult
 nsComputedDOMStyle::GetWordWrap(nsIDOMCSSValue** aValue)
@@ -4221,7 +4201,6 @@ nsComputedDOMStyle::GetQueryablePropertyMap(PRUint32* aLength)
     COMPUTED_STYLE_MAP_ENTRY(user_input,                    UserInput),
     COMPUTED_STYLE_MAP_ENTRY(user_modify,                   UserModify),
     COMPUTED_STYLE_MAP_ENTRY(user_select,                   UserSelect),
-    COMPUTED_STYLE_MAP_ENTRY(_moz_window_shadow,            WindowShadow),
     COMPUTED_STYLE_MAP_ENTRY(word_wrap,                     WordWrap)
 
 #ifdef MOZ_SVG

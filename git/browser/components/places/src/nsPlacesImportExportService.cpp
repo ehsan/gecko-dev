@@ -241,67 +241,62 @@ public:
 char *
 nsEscapeHTML(const char * string)
 {
-    /* XXX Hardcoded max entity len. The +1 is for the trailing null. */
-    char *rv = nsnull;
-    PRUint32 len = strlen(string);
-    if (len >= (PR_UINT32_MAX / 6))
-      return nsnull;
+	/* XXX Hardcoded max entity len. The +1 is for the trailing null. */
+	char *rv = (char *) nsMemory::Alloc(strlen(string) * 6 + 1);
+	char *ptr = rv;
 
-    rv = (char *) NS_Alloc((len * 6) + 1);
-    char *ptr = rv;
+	if(rv)
+	  {
+		for(; *string != '\0'; string++)
+		  {
+			if(*string == '<')
+			  {
+				*ptr++ = '&';
+				*ptr++ = 'l';
+				*ptr++ = 't';
+				*ptr++ = ';';
+			  }
+			else if(*string == '>')
+			  {
+				*ptr++ = '&';
+				*ptr++ = 'g';
+				*ptr++ = 't';
+				*ptr++ = ';';
+			  }
+			else if(*string == '&')
+			  {
+				*ptr++ = '&';
+				*ptr++ = 'a';
+				*ptr++ = 'm';
+				*ptr++ = 'p';
+				*ptr++ = ';';
+			  }
+			else if (*string == '"')
+			  {
+				*ptr++ = '&';
+				*ptr++ = 'q';
+				*ptr++ = 'u';
+				*ptr++ = 'o';
+				*ptr++ = 't';
+				*ptr++ = ';';
+			  }			
+			else if (*string == '\'')
+			  {
+				*ptr++ = '&';
+				*ptr++ = '#';
+				*ptr++ = '3';
+				*ptr++ = '9';
+				*ptr++ = ';';
+			  }
+			else
+			  {
+				*ptr++ = *string;
+			  }
+		  }
+		*ptr = '\0';
+	  }
 
-    if(rv)
-      {
-        for(; *string != '\0'; string++)
-          {
-            if(*string == '<')
-              {
-                *ptr++ = '&';
-                *ptr++ = 'l';
-                *ptr++ = 't';
-                *ptr++ = ';';
-              }
-            else if(*string == '>')
-              {
-                *ptr++ = '&';
-                *ptr++ = 'g';
-                *ptr++ = 't';
-                *ptr++ = ';';
-              }
-            else if(*string == '&')
-              {
-                *ptr++ = '&';
-                *ptr++ = 'a';
-                *ptr++ = 'm';
-                *ptr++ = 'p';
-                *ptr++ = ';';
-              }
-            else if (*string == '"')
-              {
-                *ptr++ = '&';
-                *ptr++ = 'q';
-                *ptr++ = 'u';
-                *ptr++ = 'o';
-                *ptr++ = 't';
-                *ptr++ = ';';
-              }            
-            else if (*string == '\'')
-              {
-                *ptr++ = '&';
-                *ptr++ = '#';
-                *ptr++ = '3';
-                *ptr++ = '9';
-                *ptr++ = ';';
-              }
-            else
-              {
-                *ptr++ = *string;
-              }
-          }
-        *ptr = '\0';
-      }
-
-    return(rv);
+	return(rv);
 }
 
 NS_IMPL_ISUPPORTS2(nsPlacesImportExportService, nsIPlacesImportExportService,

@@ -39,8 +39,7 @@
 
 // NOTE: alphabetically ordered
 #include "nsAccessibilityAtoms.h"
-#include "nsCoreUtils.h"
-#include "nsAccUtils.h"
+#include "nsAccessibilityUtils.h"
 #include "nsBaseWidgetAccessible.h"
 #include "nsIDOMXULDescriptionElement.h"
 #include "nsINameSpaceManager.h"
@@ -56,15 +55,19 @@ nsHyperTextAccessibleWrap(aDomNode, aShell)
 { 
 }
 
-nsresult
-nsXULTextAccessible::GetNameInternal(nsAString& aName)
+/* wstring getName (); */
+NS_IMETHODIMP
+nsXULTextAccessible::GetName(nsAString& aName)
 { 
-  nsCOMPtr<nsIContent> content(do_QueryInterface(mDOMNode));
+  aName.Truncate();
 
+  nsCOMPtr<nsIContent> content(do_QueryInterface(mDOMNode));
+  if (!content) {
+    return NS_ERROR_FAILURE;  // Node shut down
+  }
   // if the value attr doesn't exist, the screen reader must get the accessible text
   // from the accessible text interface or from the children
-  content->GetAttr(kNameSpaceID_None, nsAccessibilityAtoms::value, aName);
-  return NS_OK;
+  return content->GetAttr(kNameSpaceID_None, nsAccessibilityAtoms::value, aName);
 }
 
 NS_IMETHODIMP
@@ -90,7 +93,7 @@ nsXULTextAccessible::GetAccessibleRelated(PRUint32 aRelationType,
     return NS_OK;
   }
 
-  nsIContent *content = nsCoreUtils::GetRoleContent(mDOMNode);
+  nsIContent *content = GetRoleContent(mDOMNode);
   if (!content)
     return NS_ERROR_FAILURE;
 
@@ -100,8 +103,9 @@ nsXULTextAccessible::GetAccessibleRelated(PRUint32 aRelationType,
     if (parent && parent->Tag() == nsAccessibilityAtoms::caption) {
       nsCOMPtr<nsIAccessible> parentAccessible;
       GetParent(getter_AddRefs(parentAccessible));
-      if (nsAccUtils::Role(parentAccessible) == nsIAccessibleRole::ROLE_GROUPING)
+      if (Role(parentAccessible) == nsIAccessibleRole::ROLE_GROUPING) {
         parentAccessible.swap(*aRelated);
+      }
     }
   }
 
@@ -116,9 +120,11 @@ nsLeafAccessible(aDomNode, aShell)
 { 
 }
 
-nsresult
-nsXULTooltipAccessible::GetNameInternal(nsAString& aName)
+NS_IMETHODIMP
+nsXULTooltipAccessible::GetName(nsAString& aName)
 {
+  aName.Truncate();
+
   return GetXULName(aName, PR_TRUE);
 }
 
@@ -168,9 +174,14 @@ nsXULLinkAccessible::GetValue(nsAString& aValue)
   return NS_OK;
 }
 
-nsresult
-nsXULLinkAccessible::GetNameInternal(nsAString& aName)
+NS_IMETHODIMP
+nsXULLinkAccessible::GetName(nsAString& aName)
 {
+  aName.Truncate();
+
+  if (IsDefunct())
+    return NS_ERROR_FAILURE;
+
   nsCOMPtr<nsIContent> content(do_QueryInterface(mDOMNode));
   content->GetAttr(kNameSpaceID_None, nsAccessibilityAtoms::value, aName);
   if (!aName.IsEmpty())

@@ -19,7 +19,6 @@
  *
  * Contributor(s):
  *  Justin Dolske <dolske@mozilla.com> (original author)
- *  Ehsan Akhgari <ehsan.akhgari@gmail.com>
  *
  * Alternatively, the contents of this file may be used under the terms of
  * either the GNU General Public License Version 2 or later (the "GPL"), or
@@ -121,31 +120,6 @@ LoginManager.prototype = {
         }
 
         return this.__storage;
-    },
-
-
-    // Private Browsing Service
-    // If the service is not available, null will be returned.
-    __privateBrowsingService : undefined,
-    get _privateBrowsingService() {
-        if (this.__privateBrowsingService == undefined) {
-            if ("@mozilla.org/privatebrowsing;1" in Cc)
-                this.__privateBrowsingService = Cc["@mozilla.org/privatebrowsing;1"].
-                                                getService(Ci.nsIPrivateBrowsingService);
-            else
-                this.__privateBrowsingService = null;
-        }
-        return this.__privateBrowsingService;
-    },
-
-
-    // Whether we are in private browsing mode
-    get _inPrivateBrowsing() {
-        var pbSvc = this._privateBrowsingService;
-        if (pbSvc)
-            return pbSvc.privateBrowsingEnabled;
-        else
-            return false;
     },
 
     _prefBranch  : null, // Preferences service
@@ -790,13 +764,6 @@ LoginManager.prototype = {
             return prompterSvc;
         }
 
-        if (this._inPrivateBrowsing) {
-            // We won't do anything in private browsing mode anyway,
-            // so there's no need to perform further checks.
-            this.log("(form submission ignored in private browsing mode)");
-            return;
-        }
-
         var doc = form.ownerDocument;
         var win = doc.defaultView;
 
@@ -904,11 +871,26 @@ LoginManager.prototype = {
         if (existingLogin) {
             this.log("Found an existing login matching this form submission");
 
-            // Change password if needed.
+            /*
+             * Change password if needed.
+             *
+             * If the login has a username, change the password w/o prompting
+             * (because we can be fairly sure there's only one password
+             * associated with the username). But for logins without a
+             * username, ask the user... Some sites use a password-only "login"
+             * in different contexts (enter your PIN, answer a security
+             * question, etc), and without a username we can't be sure if
+             * modifying an existing login is the right thing to do.
+             */
             if (existingLogin.password != formLogin.password) {
-                this.log("...passwords differ, prompting to change.");
-                prompter = getPrompter(win);
-                prompter.promptToChangePassword(existingLogin, formLogin);
+                if (formLogin.username) {
+                    this.log("...Updating password for existing login.");
+                    this.modifyLogin(existingLogin, formLogin);
+                } else {
+                    this.log("...passwords differ, prompting to change.");
+                    prompter = getPrompter(win);
+                    prompter.promptToChangePassword(existingLogin, formLogin);
+                }
             }
 
             return;
@@ -986,8 +968,7 @@ LoginManager.prototype = {
         this.log("fillDocument processing " + forms.length +
                  " forms on " + doc.documentURI);
 
-        var autofillForm = !this._inPrivateBrowsing &&
-                           this._prefBranch.getBoolPref("autofillForms");
+        var autofillForm = this._prefBranch.getBoolPref("autofillForms");
         var previousActionOrigin = null;
         var foundLogins = null;
 

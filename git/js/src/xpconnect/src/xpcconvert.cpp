@@ -47,7 +47,6 @@
 #include "XPCNativeWrapper.h"
 #include "nsIAtom.h"
 #include "XPCWrapper.h"
-#include "nsJSPrincipals.h"
 
 //#define STRICT_CHECK_OF_UNICODE
 #ifdef STRICT_CHECK_OF_UNICODE
@@ -1172,35 +1171,12 @@ XPCConvert::NativeInterface2JSObject(XPCCallContext& ccx,
                                 JS_smprintf_free(s);
                         }
 #endif
-                        nsIScriptSecurityManager *ssm =
-                            XPCWrapper::GetSecurityManager();
-                        nsCOMPtr<nsIPrincipal> objPrincipal;
-                        if(callee)
-                        {
-                            // Prefer getting the object princpal here.
-                            nsresult rv =
-                                ssm->GetObjectPrincipal(ccx, callee,
-                                                        getter_AddRefs(objPrincipal));
-                            if(NS_FAILED(rv))
-                                return JS_FALSE;
-                        }
-                        else
-                        {
-                            JSPrincipals *scriptPrincipal =
-                                JS_GetScriptPrincipals(ccx, script);
-                            if(scriptPrincipal)
-                            {
-                                nsJSPrincipals *nsjsp =
-                                    static_cast<nsJSPrincipals *>(scriptPrincipal);
-                                objPrincipal = nsjsp->nsIPrincipalPtr;
-                            }
-                        }
 
                         JSObject *nativeWrapper =
                             XPCNativeWrapper::GetNewOrUsed(ccx, wrapper,
-                                                           objPrincipal);
+                                                           callee);
 
-                        if(nativeWrapper)
+                        if (nativeWrapper)
                         {
                             XPCJSObjectHolder *objHolder =
                                 XPCJSObjectHolder::newHolder(ccx, nativeWrapper);
@@ -1421,25 +1397,6 @@ XPCConvert::ConstructException(nsresult rv, const char* message,
 
 /********************************/
 
-class AutoExceptionRestorer : public JSAutoTempValueRooter
-{
-public:
-    AutoExceptionRestorer(JSContext *cx, jsval v)
-        : JSAutoTempValueRooter(cx, v),
-          mVal(v)
-    {
-        JS_ClearPendingException(mContext);
-    }
-
-    ~AutoExceptionRestorer()
-    {
-        JS_SetPendingException(mContext, mVal);
-    }
-
-private:
-    jsval mVal;
-};
-
 // static
 nsresult
 XPCConvert::JSValToXPCException(XPCCallContext& ccx,
@@ -1449,7 +1406,6 @@ XPCConvert::JSValToXPCException(XPCCallContext& ccx,
                                 nsIException** exceptn)
 {
     JSContext* cx = ccx.GetJSContext();
-    AutoExceptionRestorer aer(cx, s);
 
     if(!JSVAL_IS_PRIMITIVE(s))
     {
@@ -1513,16 +1469,20 @@ XPCConvert::JSValToXPCException(XPCCallContext& ccx,
                found)
             {
                 // lets try to build a wrapper around the JSObject
-                nsXPCWrappedJS* jswrapper;
-                nsresult rv =
-                    nsXPCWrappedJS::GetNewOrUsed(ccx, obj,
-                                                 NS_GET_IID(nsIException),
-                                                 nsnull, &jswrapper);
-                if(NS_FAILED(rv))
-                    return rv;
-                *exceptn = reinterpret_cast<nsIException*>
-                           (jswrapper);
-                return NS_OK;
+                XPCContext* xpcc;
+                if(nsnull != (xpcc = nsXPConnect::GetContext(cx)))
+                {
+                    nsXPCWrappedJS* jswrapper;
+                    nsresult rv =
+                        nsXPCWrappedJS::GetNewOrUsed(ccx, obj,
+                                                NS_GET_IID(nsIException),
+                                                nsnull, &jswrapper);
+                    if(NS_FAILED(rv))
+                        return rv;
+                    *exceptn = reinterpret_cast<nsIException*>
+                                               (jswrapper);
+                    return NS_OK;
+                }
             }
 
 

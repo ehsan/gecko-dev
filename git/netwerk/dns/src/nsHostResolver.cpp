@@ -186,7 +186,6 @@ nsHostRecord::Create(const nsHostKey *key, nsHostRecord **result)
     rec->resolving = PR_FALSE;
     PR_INIT_CLIST(rec);
     PR_INIT_CLIST(&rec->callbacks);
-    rec->negative = PR_FALSE;
     memcpy((char *) rec->host, key->host, hostLen);
 
     *result = rec;
@@ -210,14 +209,14 @@ struct nsHostDBEnt : PLDHashEntryHdr
     nsHostRecord *rec;
 };
 
-static PLDHashNumber
+PR_STATIC_CALLBACK(PLDHashNumber)
 HostDB_HashKey(PLDHashTable *table, const void *key)
 {
     const nsHostKey *hk = static_cast<const nsHostKey *>(key);
     return PL_DHashStringKey(table, hk->host) ^ hk->flags ^ hk->af;
 }
 
-static PRBool
+PR_STATIC_CALLBACK(PRBool)
 HostDB_MatchEntry(PLDHashTable *table,
                   const PLDHashEntryHdr *entry,
                   const void *key)
@@ -230,7 +229,7 @@ HostDB_MatchEntry(PLDHashTable *table,
             he->rec->af == hk->af;
 }
 
-static void
+PR_STATIC_CALLBACK(void)
 HostDB_MoveEntry(PLDHashTable *table,
                  const PLDHashEntryHdr *from,
                  PLDHashEntryHdr *to)
@@ -239,7 +238,7 @@ HostDB_MoveEntry(PLDHashTable *table,
             static_cast<const nsHostDBEnt *>(from)->rec;
 }
 
-static void
+PR_STATIC_CALLBACK(void)
 HostDB_ClearEntry(PLDHashTable *table,
                   PLDHashEntryHdr *entry)
 {
@@ -269,7 +268,7 @@ HostDB_ClearEntry(PLDHashTable *table,
     NS_RELEASE(he->rec);
 }
 
-static PRBool
+PR_STATIC_CALLBACK(PRBool)
 HostDB_InitEntry(PLDHashTable *table,
                  PLDHashEntryHdr *entry,
                  const void *key)
@@ -291,7 +290,7 @@ static PLDHashTableOps gHostDB_ops =
     HostDB_InitEntry,
 };
 
-static PLDHashOperator
+PR_STATIC_CALLBACK(PLDHashOperator)
 HostDB_RemoveEntry(PLDHashTable *table,
                    PLDHashEntryHdr *hdr,
                    PRUint32 number,
@@ -457,13 +456,6 @@ nsHostResolver::ResolveHost(const char            *host,
                 LOG(("using cached record\n"));
                 // put reference to host record on stack...
                 result = he->rec;
-                if (he->rec->negative) {
-                    status = NS_ERROR_UNKNOWN_HOST;
-                    if (!he->rec->resolving) 
-                        // return the cached failure to the caller, but try and refresh
-                        // the record in the background
-                        IssueLookup(he->rec);
-                }
             }
             // if the host name is an IP address literal and has been parsed,
             // go ahead and use it.
@@ -646,14 +638,8 @@ nsHostResolver::OnLookupComplete(nsHostRecord *rec, nsresult status, PRAddrInfo 
         if (old_addr_info)
             PR_FreeAddrInfo(old_addr_info);
         rec->expiration = NowInMinutes();
-        if (result) {
+        if (result)
             rec->expiration += mMaxCacheLifetime;
-            rec->negative = PR_FALSE;
-        }
-        else {
-            rec->expiration += 1;                 /* one minute for negative cache */
-            rec->negative = PR_TRUE;
-        }
         rec->resolving = PR_FALSE;
         
         if (rec->addr_info && !mShutdown) {
@@ -690,7 +676,7 @@ nsHostResolver::OnLookupComplete(nsHostRecord *rec, nsresult status, PRAddrInfo 
 
 //----------------------------------------------------------------------------
 
-void
+void PR_CALLBACK
 nsHostResolver::ThreadFunc(void *arg)
 {
     LOG(("nsHostResolver::ThreadFunc entering\n"));

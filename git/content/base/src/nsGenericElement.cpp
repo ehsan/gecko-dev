@@ -456,15 +456,10 @@ nsIContent::FindFirstNonNativeAnonymous() const
 
 //----------------------------------------------------------------------
 
-NS_IMPL_ADDREF(nsChildContentList)
-NS_IMPL_RELEASE(nsChildContentList)
-
-NS_INTERFACE_MAP_BEGIN(nsChildContentList)
-  NS_INTERFACE_MAP_ENTRY(nsINodeList)
-  NS_INTERFACE_MAP_ENTRY(nsIDOMNodeList)
-  NS_INTERFACE_MAP_ENTRY_AMBIGUOUS(nsISupports, nsINodeList)
-  NS_INTERFACE_MAP_ENTRY_CONTENT_CLASSINFO(NodeList)
-NS_INTERFACE_MAP_END
+nsChildContentList::~nsChildContentList()
+{
+  MOZ_COUNT_DTOR(nsChildContentList);
+}
 
 NS_IMETHODIMP
 nsChildContentList::GetLength(PRUint32* aLength)
@@ -472,19 +467,6 @@ nsChildContentList::GetLength(PRUint32* aLength)
   *aLength = mNode ? mNode->GetChildCount() : 0;
 
   return NS_OK;
-}
-
-NS_IMETHODIMP
-nsChildContentList::Item(PRUint32 aIndex, nsIDOMNode** aReturn)
-{
-  nsINode* node = GetNodeAt(aIndex);
-  if (!node) {
-    *aReturn = nsnull;
-
-    return NS_OK;
-  }
-
-  return CallQueryInterface(node, aReturn);
 }
 
 nsINode*
@@ -804,6 +786,13 @@ nsNSElementTearoff::GetFirstElementChild(nsIDOMElement** aResult)
 {
   *aResult = nsnull;
 
+#ifdef MOZ_XUL
+  nsXULElement* xul = nsXULElement::FromContent(mContent);
+  if (xul) {
+    xul->EnsureContentsGenerated();
+  }
+#endif
+
   nsAttrAndChildArray& children = mContent->mAttrsAndChildren;
   PRUint32 i, count = children.ChildCount();
   for (i = 0; i < count; ++i) {
@@ -820,6 +809,13 @@ NS_IMETHODIMP
 nsNSElementTearoff::GetLastElementChild(nsIDOMElement** aResult)
 {
   *aResult = nsnull;
+
+#ifdef MOZ_XUL
+  nsXULElement* xul = nsXULElement::FromContent(mContent);
+  if (xul) {
+    xul->EnsureContentsGenerated();
+  }
+#endif
 
   nsAttrAndChildArray& children = mContent->mAttrsAndChildren;
   PRUint32 i = children.ChildCount();
@@ -842,6 +838,13 @@ nsNSElementTearoff::GetPreviousElementSibling(nsIDOMElement** aResult)
   if (!parent) {
     return NS_OK;
   }
+
+#ifdef MOZ_XUL
+  nsXULElement* xul = nsXULElement::FromContent(parent);
+  if (xul) {
+    xul->EnsureContentsGenerated();
+  }
+#endif
 
   NS_ASSERTION(parent->IsNodeOfType(nsINode::eELEMENT) ||
                parent->IsNodeOfType(nsINode::eDOCUMENT_FRAGMENT),
@@ -874,6 +877,13 @@ nsNSElementTearoff::GetNextElementSibling(nsIDOMElement** aResult)
   if (!parent) {
     return NS_OK;
   }
+
+#ifdef MOZ_XUL
+  nsXULElement* xul = nsXULElement::FromContent(parent);
+  if (xul) {
+    xul->EnsureContentsGenerated();
+  }
+#endif
 
   NS_ASSERTION(parent->IsNodeOfType(nsINode::eELEMENT) ||
                parent->IsNodeOfType(nsINode::eDOCUMENT_FRAGMENT),
@@ -2528,7 +2538,7 @@ nsGenericElement::BindToTree(nsIDocument* aDocument, nsIContent* aParent,
   NS_ASSERTION(!aBindingParent || IsRootOfNativeAnonymousSubtree() ||
                !HasFlag(NODE_IS_IN_ANONYMOUS_SUBTREE) ||
                aBindingParent->IsInNativeAnonymousSubtree(),
-               "Trying to re-bind content from native anonymous subtree to "
+               "Trying to re-bind content from native anonymous subtree to"
                "non-native anonymous parent!");
   if (IsRootOfNativeAnonymousSubtree() ||
       aParent && aParent->IsInNativeAnonymousSubtree()) {
@@ -5062,7 +5072,8 @@ ParseSelectorList(nsINode* aNode,
  * the callbacks returns false, the iteration should be stopped.
  */
 typedef PRBool
-(* ElementMatchedCallback)(nsIContent* aMatchingElement, void* aClosure);
+(* PR_CALLBACK ElementMatchedCallback)(nsIContent* aMatchingElement,
+                                       void* aClosure);
 
 // returning false means stop iteration
 static PRBool
@@ -5158,7 +5169,7 @@ TryMatchingElementsInSubtree(nsINode* aRoot,
   return continueIteration;
 }
 
-static PRBool
+PR_STATIC_CALLBACK(PRBool)
 FindFirstMatchingElement(nsIContent* aMatchingElement,
                          void* aClosure)
 {
@@ -5194,7 +5205,7 @@ nsGenericElement::doQuerySelector(nsINode* aRoot, const nsAString& aSelector,
   return NS_OK;
 }
 
-static PRBool
+PR_STATIC_CALLBACK(PRBool)
 AppendAllMatchingElements(nsIContent* aMatchingElement,
                           void* aClosure)
 {

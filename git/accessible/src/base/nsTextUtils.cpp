@@ -39,6 +39,7 @@
 #include "nsTextUtils.h"
 
 #include "nsAccessNode.h"
+#include "nsAccessibilityUtils.h"
 
 ////////////////////////////////////////////////////////////////////////////////
 // nsLangTextAttr
@@ -51,7 +52,7 @@ nsLangTextAttr::Equal(nsIDOMElement *aElm)
     return PR_FALSE;
 
   nsAutoString lang;
-  nsCoreUtils::GetLanguageFor(content, mRootContent, lang);
+  nsAccUtils::GetLanguageFor(content, mRootContent, lang);
 
   return lang == mLang;
 }
@@ -96,12 +97,12 @@ nsCSSTextAttr::nsCSSTextAttr(PRBool aIncludeDefAttrValue, nsIDOMElement *aElm,
                              nsIDOMElement *aRootElm) :
   mIndex(-1), mIncludeDefAttrValue(aIncludeDefAttrValue)
 {
-  nsCoreUtils::GetComputedStyleDeclaration(EmptyString(), aElm,
-                                           getter_AddRefs(mStyleDecl));
+  nsAccessNode::GetComputedStyleDeclaration(EmptyString(), aElm,
+                                            getter_AddRefs(mStyleDecl));
 
   if (!mIncludeDefAttrValue)
-    nsCoreUtils::GetComputedStyleDeclaration(EmptyString(), aRootElm,
-                                             getter_AddRefs(mDefStyleDecl));
+    nsAccessNode::GetComputedStyleDeclaration(EmptyString(), aRootElm,
+                                              getter_AddRefs(mDefStyleDecl));
 }
 
 PRBool
@@ -111,8 +112,8 @@ nsCSSTextAttr::Equal(nsIDOMElement *aElm)
     return PR_FALSE;
 
   nsCOMPtr<nsIDOMCSSStyleDeclaration> currStyleDecl;
-  nsCoreUtils::GetComputedStyleDeclaration(EmptyString(), aElm,
-                                           getter_AddRefs(currStyleDecl));
+  nsAccessNode::GetComputedStyleDeclaration(EmptyString(), aElm,
+                                            getter_AddRefs(currStyleDecl));
   if (!currStyleDecl)
     return PR_FALSE;
 
@@ -190,7 +191,7 @@ nsBackgroundTextAttr::nsBackgroundTextAttr(nsIFrame *aFrame,
 PRBool
 nsBackgroundTextAttr::Equal(nsIDOMElement *aElm)
 {
-  nsIFrame *frame = nsCoreUtils::GetFrameFor(aElm);
+  nsIFrame *frame = nsAccUtils::GetFrameFor(aElm);
   if (!frame)
     return PR_FALSE;
 

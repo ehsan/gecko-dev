@@ -100,7 +100,7 @@ public:
 
     NS_IMETHOD Create();
 
-    static nsEventStatus HandleEvent(nsGUIEvent *aEvent);
+    static nsEventStatus PR_CALLBACK HandleEvent(nsGUIEvent *aEvent);
 
     // NS_IMETHOD SetURL(const PRUnichar* aURL);
 

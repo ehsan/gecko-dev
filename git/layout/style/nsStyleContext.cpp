@@ -607,7 +607,7 @@ void nsStyleContext::DumpRegressionData(nsPresContext* aPresContext, FILE* out, 
           NS_ConvertUTF16toUTF8(font->mFont.name).get(),
           font->mFont.size,
           font->mSize,
-          font->mGenericID);
+          font->mFlags);
 
   // COLOR
   IndentBy(out,aIndent);
@@ -805,10 +805,9 @@ void nsStyleContext::DumpRegressionData(nsPresContext* aPresContext, FILE* out, 
   // UIReset
   IndentBy(out,aIndent);
   const nsStyleUIReset* uiReset = GetStyleUIReset();
-  fprintf(out, "<uireset data=\"%d %d %d\" />\n",
+  fprintf(out, "<uireset data=\"%d %d\" />\n",
     (int)uiReset->mUserSelect,
-    (int)uiReset->mIMEMode,
-    (int)uiReset->mWindowShadow);
+    (int)uiReset->mIMEMode);
 
   // Column
   IndentBy(out,aIndent);

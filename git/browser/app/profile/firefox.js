@@ -191,6 +191,7 @@ pref("browser.shell.checkDefaultBrowser", true);
 pref("browser.startup.page",                1);
 pref("browser.startup.homepage",            "resource:/browserconfig.properties");
 
+pref("browser.cache.disk.capacity",         50000);
 pref("browser.enable_automatic_image_resizing", true);
 pref("browser.chrome.site_icons", true);
 pref("browser.chrome.favicons", true);
@@ -265,9 +266,6 @@ pref("browser.search.defaultenginename",      "chrome://browser-region/locale/re
 // disable logging for the search service by default
 pref("browser.search.log", false);
 
-// serialize search plugin XML
-pref("browser.search.cache.enabled", true);
-
 // Ordering of Search Engines in the Engine list. 
 pref("browser.search.order.1",                "chrome://browser-region/locale/region.properties");
 pref("browser.search.order.2",                "chrome://browser-region/locale/region.properties");
@@ -298,8 +296,11 @@ pref("browser.history_expire_days", 180);
 pref("browser.history_expire_days_min", 90);
 pref("browser.history_expire_sites", 40000);
 
-// handle links targeting new windows
+// handle external links
 // 0=default window, 1=current window/tab, 2=new window, 3=new tab in most recent window
+pref("browser.link.open_external", 3);
+
+// handle links targeting new windows
 pref("browser.link.open_newwindow", 3);
 
 // 0: no restrictions - divert everything
@@ -624,8 +625,6 @@ pref("browser.safebrowsing.provider.0.privacy.fallbackurl", "chrome://browser/co
 pref("browser.safebrowsing.provider.0.reportGenericURL", "http://{moz:locale}.phish-generic.mozilla.com/?hl={moz:locale}");
 pref("browser.safebrowsing.provider.0.reportErrorURL", "http://{moz:locale}.phish-error.mozilla.com/?hl={moz:locale}");
 pref("browser.safebrowsing.provider.0.reportPhishURL", "http://{moz:locale}.phish-report.mozilla.com/?hl={moz:locale}");
-pref("browser.safebrowsing.provider.0.reportMalwareURL", "http://{moz:locale}.malware-report.mozilla.com/?hl={moz:locale}");
-pref("browser.safebrowsing.provider.0.reportMalwareErrorURL", "http://{moz:locale}.malware-error.mozilla.com/?hl={moz:locale}");
 
 // FAQ URL
 pref("browser.safebrowsing.warning.infoURL", "http://%LOCALE%.www.mozilla.com/%LOCALE%/firefox/phishing-protection/");
@@ -693,9 +692,6 @@ pref("browser.sessionstore.postdata", 0);
 pref("browser.sessionstore.privacy_level", 1);
 // how many tabs can be reopened (per window)
 pref("browser.sessionstore.max_tabs_undo", 10);
-// number of crashes that can occur before the about:sessionrestore page is displayed
-// (this pref has no effect if more than 6 hours have passed since the last crash)
-pref("browser.sessionstore.max_resumed_crashes", 1);
 
 // allow META refresh by default
 pref("accessibility.blockautorefresh", false);

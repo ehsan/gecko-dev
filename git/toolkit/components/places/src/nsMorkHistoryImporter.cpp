@@ -94,7 +94,7 @@ SwapBytes(PRUnichar *buffer)
 }
 
 // Enumerator callback to add a table row to history
-static PLDHashOperator
+static PLDHashOperator PR_CALLBACK
 AddToHistoryCB(const nsCSubstring &aRowID,
                const nsTArray<nsCString> *aValues,
                void *aData)

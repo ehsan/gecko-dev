@@ -2373,15 +2373,10 @@ nsEventStateManager::ChangeTextSize(PRInt32 change)
   NS_ENSURE_SUCCESS(rv, rv);
 
   float textzoom;
-  float zoomMin = ((float)nsContentUtils::GetIntPref("zoom.minPercent", 50)) / 100;
-  float zoomMax = ((float)nsContentUtils::GetIntPref("zoom.maxPercent", 300)) / 100;
   mv->GetTextZoom(&textzoom);
   textzoom += ((float)change) / 10;
-  if (textzoom < zoomMin)
-    textzoom = zoomMin;
-  else if (textzoom > zoomMax)
-    textzoom = zoomMax;
-  mv->SetTextZoom(textzoom);
+  if (textzoom > 0 && textzoom <= 20)
+    mv->SetTextZoom(textzoom);
 
   return NS_OK;
 }
@@ -2894,7 +2889,7 @@ nsEventStateManager::PostHandleEvent(nsPresContext* aPresContext,
         case MOUSE_SCROLL_N_LINES:
           {
             DoScrollText(presContext, aTargetFrame, msEvent, msEvent->delta,
-                         !!(msEvent->scrollFlags & nsMouseScrollEvent::kIsHorizontal),
+                         (msEvent->scrollFlags & nsMouseScrollEvent::kIsHorizontal),
                          eScrollByLine);
           }
           break;
@@ -2902,7 +2897,7 @@ nsEventStateManager::PostHandleEvent(nsPresContext* aPresContext,
         case MOUSE_SCROLL_PAGE:
           {
             DoScrollText(presContext, aTargetFrame, msEvent, msEvent->delta,
-                         !!(msEvent->scrollFlags & nsMouseScrollEvent::kIsHorizontal),
+                         (msEvent->scrollFlags & nsMouseScrollEvent::kIsHorizontal),
                          eScrollByPage);
           }
           break;
@@ -2910,7 +2905,7 @@ nsEventStateManager::PostHandleEvent(nsPresContext* aPresContext,
         case MOUSE_SCROLL_PIXELS:
           {
             DoScrollText(presContext, aTargetFrame, msEvent, msEvent->delta,
-                         !!(msEvent->scrollFlags & nsMouseScrollEvent::kIsHorizontal),
+                         (msEvent->scrollFlags & nsMouseScrollEvent::kIsHorizontal),
                          eScrollByPixel);
           }
           break;
@@ -5134,8 +5129,7 @@ nsEventStateManager::SendFocusBlur(nsPresContext* aPresContext,
         return NS_OK;
       }
 
-      nsCOMPtr<nsPIDOMEventTarget> target = do_QueryInterface(window);
-      if (pusher.Push(target)) {
+      if (pusher.Push(window)) {
         nsEventDispatcher::Dispatch(window, gLastFocusedPresContextWeak, &event,
                                     nsnull, &status);
 

@@ -43,8 +43,6 @@
 #   Johnathan Nightingale <johnath@mozilla.com>
 #   Ehsan Akhgari <ehsan.akhgari@gmail.com>
 #   Dão Gottwald <dao@mozilla.com>
-#   Thomas K. Dyas <tdyas@zecador.org>
-#   Edward Lee <edward.lee@engineering.uiuc.edu>
 #
 # Alternatively, the contents of this file may be used under the terms of
 # either the GNU General Public License Version 2 or later (the "GPL"), or
@@ -132,10 +130,14 @@ __defineGetter__("gPrefService", function() {
 * We can avoid adding multiple load event listeners and save some time by adding
 * one listener that calls all real handlers.
 */
-function pageShowEventHandlers(event) {
+
+function pageShowEventHandlers(event)
+{
   // Filter out events that are not about the document load we are interested in
   if (event.originalTarget == content.document) {
+    checkForDirectoryListing();
     charsetLoadListener(event);
+    
     XULBrowserWindow.asyncUpdateUI();
   }
 }
@@ -665,143 +667,6 @@ const gXPInstallObserver = {
   }
 };
 
-// Simple gestures support
-//
-// As per bug #412486, web content must not be allowed to receive any
-// simple gesture events.  Multi-touch gesture APIs are in their
-// infancy and we do NOT want to be forced into supporting an API that
-// will probably have to change in the future.  (The current Mac OS X
-// API is undocumented and was reverse-engineered.)  Until support is
-// implemented in the event dispatcher to keep these events as
-// chrome-only, we must listen for the simple gesture events during
-// the capturing phase and call stopPropagation on every event.
-
-let gGestureSupport = {
-  /**
-   * Add or remove mouse gesture event listeners
-   *
-   * @param aAddListener
-   *        True to add/init listeners and false to remove/uninit
-   */
-  init: function GS_init(aAddListener) {
-    const gestureEvents = ["SwipeGesture",
-      "MagnifyGestureStart", "MagnifyGestureUpdate", "MagnifyGesture",
-      "RotateGesture", "RotateGestureUpdate", "RotateGesture"];
-
-    let addRemove = aAddListener ? window.addEventListener :
-      window.removeEventListener;
-
-    for each (let event in gestureEvents)
-      addRemove("Moz" + event, this, true);
-  },
-
-  /**
-   * Dispatch events based on the type of mouse gesture event.
-   * For now, make sure to stop propagation of every gesture event
-   *
-   * @param aEvent
-   *        The gesture event to handle
-   */
-  handleEvent: function GS_handleEvent(aEvent) {
-    aEvent.stopPropagation();
-
-    switch (aEvent.type) {
-      case "MozSwipeGesture":
-        this.onSwipe(aEvent);
-        break;
-      case "MozMagnifyGestureStart":
-      case "MozRotateGestureStart":
-        this.onStart(aEvent);
-        break;
-      case "MozMagnifyGestureUpdate":
-        this.onMagnify(aEvent);
-        break;
-      case "MozRotateGestureUpdate":
-        this.onRotate(aEvent);
-        break;
-    }
-  },
-
-  /**
-   * Convert the swipe gesture into a browser action based on the direction
-   *
-   * @param aEvent
-   *        The swipe event to handle
-   */
-  onSwipe: function GS_onSwipe(aEvent) {
-    // Create a fake event that pretends the swipe is a button click
-    let fakeEvent = { shiftKey: aEvent.shiftKey, ctrlKey: aEvent.ctrlKey,
-      metaKey: aEvent.metaKey, altKey: aEvent.altKey, button: 0 };
-
-    if (aEvent.direction == SimpleGestureEvent.DIRECTION_LEFT)
-      BrowserBack(fakeEvent);
-    else if (aEvent.direction == SimpleGestureEvent.DIRECTION_RIGHT)
-      BrowserForward(fakeEvent);
-    else if (aEvent.direction == SimpleGestureEvent.DIRECTION_UP)
-      goDoCommand("cmd_scrollTop");
-    else if (aEvent.direction == SimpleGestureEvent.DIRECTION_DOWN)
-      goDoCommand("cmd_scrollBottom");
-  },
-
-  // Keep track of offsets for continual motion events, e.g., zoom and rotate
-  _lastOffset: 0,
-
-  /**
-   * Handle the beginning of a continual motion event
-   *
-   * @param aEvent
-   *        The continual motion event
-   */
-  onStart: function GS_onStart(aEvent) {
-    this._lastOffset = 0;
-  },
-
-  /**
-   * Helper function to determine if a continual motion event has passed some
-   * threshold and should trigger some action. If the action is triggered, the
-   * tracking of the motion is reset as if a new motion has started.
-   *
-   * @param aEvent
-   *        The continual motion event to handle
-   * @param aThreshold
-   *        Minimum positive/negative difference before the action is triggered
-   * @param aIncDec
-   *        Callback function that takes in the current offset
-   */
-  _handleUpdate: function GS__handleUpdate(aEvent, aThreshold, aIncDec) {
-    // Update the offset with new event data
-    this._lastOffset += aEvent.delta;
-
-    // Inform the callback that we passed the threshold and then reset motion
-    if (Math.abs(this._lastOffset) > aThreshold) {
-      aIncDec(this._lastOffset);
-      this.onStart(aEvent);
-    }
-  },
-
-  /**
-   * Convert zoom motions into a page zoom in/out
-   *
-   * @param aEvent
-   *        The zoom event to handle
-   */
-  onMagnify: function GS_onMagnify(aEvent) {
-    this._handleUpdate(aEvent, 100, function(aOffset) aOffset > 0 ?
-      FullZoom.enlarge() : FullZoom.reduce());
-  },
-
-  /**
-   * Convert rotate motions into a next/prev tab
-   *
-   * @param aEvent
-   *        The rotate event to handle
-   */
-  onRotate: function GS_onRotate(aEvent) {
-    this._handleUpdate(aEvent, 22.5, function(aOffset) gBrowser.mTabContainer.
-      advanceSelectedTab(aOffset > 0 ? 1 : -1, true));
-  },
-};
-
 function BrowserStartup() {
   var uriToLoad = null;
 
@@ -1043,9 +908,61 @@ function prepareForStartup() {
 
   // setup our common DOMLinkAdded listener
   gBrowser.addEventListener("DOMLinkAdded", DOMLinkHandler, false);
+}
 
-  // setup simple gestures support
-  gGestureSupport.init(true);
+function setupGeolocationPrompt()
+{
+  var geolocationService = Cc["@mozilla.org/geolocation/service;1"].getService(Ci.nsIGeolocationService);
+  
+  if (geolocationService.prompt)
+    return;
+
+  geolocationService.prompt = function(request) {
+
+    function getChromeWindow(aWindow) {
+      var chromeWin = aWindow 
+        .QueryInterface(Ci.nsIInterfaceRequestor)
+        .getInterface(Ci.nsIWebNavigation)
+        .QueryInterface(Ci.nsIDocShellTreeItem)
+        .rootTreeItem
+        .QueryInterface(Ci.nsIInterfaceRequestor)
+        .getInterface(Ci.nsIDOMWindow)
+        .QueryInterface(Ci.nsIDOMChromeWindow);
+      return chromeWin;
+    }
+
+    var requestingWindow = request.requestingWindow.top;
+    var tabbrowser = getChromeWindow(requestingWindow).wrappedJSObject.gBrowser;
+    var browser = tabbrowser.getBrowserForDocument(requestingWindow.document);
+    var notificationBox = tabbrowser.getNotificationBox(browser);
+
+    var notification = notificationBox.getNotificationWithValue("geolocation");
+    if (!notification) {
+
+      var buttons = [{
+        label: gNavigatorBundle.getString("geolocation.exactLocation"),
+        accessKey: gNavigatorBundle.getString("geolocation.exactLocationKey"),
+        callback: function() request.allow() ,
+        },
+        {
+        label: gNavigatorBundle.getString("geolocation.neighborhoodLocation"),
+        accessKey: gNavigatorBundle.getString("geolocation.neighborhoodLocationKey"),
+        callback: function() request.allowButFuzz() ,
+        },
+        {
+        label: gNavigatorBundle.getString("geolocation.nothingLocation"),
+        accessKey: gNavigatorBundle.getString("geolocation.nothingLocationKey"),
+        callback: function() request.cancel() ,
+        }];
+      
+      var message = gNavigatorBundle.getFormattedString("geolocation.requestMessage", [request.requestingURI.spec]);      
+      notificationBox.appendNotification(message,
+                                         "geolocation",
+                                         "chrome://browser/skin/Info.png",
+                                         notificationBox.PRIORITY_INFO_HIGH,
+                                         buttons);
+    }
+  };
 }
 
 function delayedStartup(isLoadingBlank, mustLoadSidebar) {
@@ -1079,9 +996,6 @@ function delayedStartup(isLoadingBlank, mustLoadSidebar) {
     focusElement(gURLBar);
   else
     focusElement(content);
-
-  if (gURLBar)
-    gURLBar.setAttribute("emptytext", gURLBar.getAttribute("delayedemptytext"));
 
   gNavToolbox.customizeDone = BrowserToolboxCustomizeDone;
   gNavToolbox.customizeChange = BrowserToolboxCustomizeChange;
@@ -1243,14 +1157,15 @@ function delayedStartup(isLoadingBlank, mustLoadSidebar) {
   placesContext.addEventListener("popuphiding", updateEditUIVisibility, false);
 #endif
 
+  // hook up the geolocation prompt to our notificationBox
+  setupGeolocationPrompt();
+
 }
 
 function BrowserShutdown()
 {
   tabPreviews.uninit();
   ctrlTab.uninit();
-
-  gGestureSupport.init(false);
 
   try {
     FullZoom.destroy();
@@ -1997,6 +1912,15 @@ function traceVerbose(verbose)
 }
 #endif
 
+function checkForDirectoryListing()
+{
+  if ( "HTTPIndex" in content &&
+       content.HTTPIndex instanceof Components.interfaces.nsIHTTPIndex ) {
+    content.wrappedJSObject.defaultCharacterset =
+      getMarkupDocumentViewer().defaultCharacterSet;
+  }
+}
+
 function URLBarSetURI(aURI, aValid) {
   var value = gBrowser.userTypedValue;
   var valid = false;
@@ -2212,9 +2136,6 @@ function BrowserOnCommand(event) {
     }
     else if (/^about:blocked/.test(errorDoc.documentURI)) {
       // The event came from a button on a malware/phishing block page
-      // First check whether it's malware or phishing, so that we can
-      // use the right strings/links
-      var isMalware = /e=malwareBlocked/.test(errorDoc.documentURI);
       
       if (ot == errorDoc.getElementById('getMeOutButton')) {
         getMeOutOfHere();
@@ -2226,7 +2147,7 @@ function BrowserOnCommand(event) {
         var formatter = Cc["@mozilla.org/toolkit/URLFormatterService;1"]
                        .getService(Components.interfaces.nsIURLFormatter);
         
-        if (isMalware) {
+        if (/e=malwareBlocked/.test(errorDoc.documentURI)) {
           // Get the stop badware "why is this blocked" report url,
           // append the current url, and go there.
           try {
@@ -2237,7 +2158,7 @@ function BrowserOnCommand(event) {
             Components.utils.reportError("Couldn't get malware report URL: " + e);
           }
         }
-        else { // It's a phishing site, not malware
+        else if (/e=phishingBlocked/.test(errorDoc.documentURI)) {
           try {
             content.location = formatter.formatURLPref("browser.safebrowsing.warning.infoURL");
           } catch (e) {
@@ -2252,39 +2173,13 @@ function BrowserOnCommand(event) {
         gBrowser.loadURIWithFlags(content.location.href,
                                   nsIWebNavigation.LOAD_FLAGS_BYPASS_CLASSIFIER,
                                   null, null, null);
-        var buttons = [{
-          label: gNavigatorBundle.getString("safebrowsing.getMeOutOfHereButton.label"),
-          accessKey: gNavigatorBundle.getString("safebrowsing.getMeOutOfHereButton.accessKey"),
-          callback: function() { getMeOutOfHere(); }
-        }];
-        
-        if (isMalware) {
-          var title = gNavigatorBundle.getString("safebrowsing.reportedAttackSite");
-          buttons[1] = {
-            label: gNavigatorBundle.getString("safebrowsing.notAnAttackButton.label"),
-            accessKey: gNavigatorBundle.getString("safebrowsing.notAnAttackButton.accessKey"),
-            callback: function() {
-              openUILinkIn(safebrowsing.getReportURL('MalwareError'), 'tab');
-            }
-          };
-        } else {
-          title = gNavigatorBundle.getString("safebrowsing.reportedWebForgery");
-          buttons[1] = {
-            label: gNavigatorBundle.getString("safebrowsing.notAForgeryButton.label"),
-            accessKey: gNavigatorBundle.getString("safebrowsing.notAForgeryButton.accessKey"),
-            callback: function() {
-              openUILinkIn(safebrowsing.getReportURL('Error'), 'tab');
-            }
-          };
-        }
-        
         var notificationBox = gBrowser.getNotificationBox();
         notificationBox.appendNotification(
-          title,
+          errorDoc.title, /* Re-use the error page's title, e.g. "Reported Web Forgery!" */
           "blocked-badware-page",
           "chrome://global/skin/icons/blacklist_favicon.png",
           notificationBox.PRIORITY_CRITICAL_HIGH,
-          buttons
+          null
         );
       }
     }
@@ -2802,10 +2697,8 @@ const BrowserSearch = {
     }
 
     // Append the URI and an appropriate title to the browser data.
-    // Use documentURIObject in the check for shouldLoadFavIcon so that we
-    // do the right thing with about:-style error pages.  Bug 453442
     var iconURL = null;
-    if (gBrowser.shouldLoadFavIcon(browser.contentDocument.documentURIObject))
+    if (gBrowser.shouldLoadFavIcon(browser.currentURI))
       iconURL = browser.currentURI.prePath + "/favicon.ico";
 
     var hidden = false;
@@ -3147,9 +3040,6 @@ function BrowserToolboxCustomizeDone(aToolboxChanged) {
   // Update global UI elements that may have been added or removed
   if (aToolboxChanged) {
     gURLBar = document.getElementById("urlbar");
-    if (gURLBar)
-      gURLBar.emptyText = gURLBar.getAttribute("delayedemptytext");
-
     gProxyFavIcon = document.getElementById("page-proxy-favicon");
     gHomeButton.updateTooltip();
     gIdentityHandler._cacheElements();
@@ -3614,7 +3504,6 @@ var XULBrowserWindow = {
   startTime: 0,
   statusText: "",
   lastURI: null,
-  isBusy: false,
 
   statusTimeoutInEffect: false,
 
@@ -3753,8 +3642,6 @@ var XULBrowserWindow = {
           aRequest && aWebProgress.DOMWindow == content)
         this.startDocumentLoad(aRequest);
 
-      this.isBusy = true;
-
       if (this.throbberElement) {
         // Turn the throbber on.
         this.throbberElement.setAttribute("busy", "true");
@@ -3825,8 +3712,6 @@ var XULBrowserWindow = {
         else
           this.isImage.setAttribute('disabled', 'true');
       }
-
-      this.isBusy = false;
 
       // Turn the progress meter and throbber off.
       gProgressCollapseTimer = window.setTimeout(function () {
@@ -4192,9 +4077,16 @@ nsBrowserAccess.prototype =
                        Ci.nsIWebNavigation.LOAD_FLAGS_FROM_EXTERNAL :
                        Ci.nsIWebNavigation.LOAD_FLAGS_NONE;
     var location;
-    if (aWhere == Ci.nsIBrowserDOMWindow.OPEN_DEFAULTWINDOW)
-      aWhere = gPrefService.getIntPref("browser.link.open_newwindow");
-    switch (aWhere) {
+    if (aWhere == Ci.nsIBrowserDOMWindow.OPEN_DEFAULTWINDOW) {
+      switch (aContext) {
+        case Ci.nsIBrowserDOMWindow.OPEN_EXTERNAL :
+          aWhere = gPrefService.getIntPref("browser.link.open_external");
+          break;
+        default : // OPEN_NEW or an illegal value
+          aWhere = gPrefService.getIntPref("browser.link.open_newwindow");
+      }
+    }
+    switch(aWhere) {
       case Ci.nsIBrowserDOMWindow.OPEN_NEWWINDOW :
         // FIXME: Bug 408379. So how come this doesn't send the
         // referrer like the other loads do?
@@ -4372,7 +4264,7 @@ function displaySecurityInfo()
  * @param commandID a string identifying the sidebar to toggle; see the
  *                  note below. (Optional if a sidebar is already open.)
  * @param forceOpen boolean indicating whether the sidebar should be
- *                  opened regardless of its current state (optional).
+ *                  opened regardless of it's current state (optional).
  * @note
  * We expect to find a xul:broadcaster element with the specified ID.
  * The following attributes on that element may be used and/or modified:

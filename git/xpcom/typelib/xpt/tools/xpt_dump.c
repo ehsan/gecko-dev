@@ -41,7 +41,7 @@
 
 #include "xpt_xdr.h"
 #include <stdio.h>
-#ifdef XP_OS2
+#ifdef XP_OS2_EMX
 #include <sys/types.h>
 #endif
 #include <sys/stat.h>

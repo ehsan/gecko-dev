@@ -357,11 +357,12 @@ nsHTMLSelectListAccessible::GetState(PRUint32 *aState, PRUint32 *aExtraState)
 
 NS_IMETHODIMP nsHTMLSelectListAccessible::GetRole(PRUint32 *aRole)
 {
-  if (nsAccUtils::Role(mParent) == nsIAccessibleRole::ROLE_COMBOBOX)
+  if (mParent && Role(mParent) == nsIAccessibleRole::ROLE_COMBOBOX) {
     *aRole = nsIAccessibleRole::ROLE_COMBOBOX_LIST;
-  else
+  }
+  else {
     *aRole = nsIAccessibleRole::ROLE_LIST;
-
+  }
   return NS_OK;
 }
 
@@ -500,41 +501,54 @@ nsHyperTextAccessibleWrap(aDOMNode, aShell)
 /** We are a ListItem */
 NS_IMETHODIMP nsHTMLSelectOptionAccessible::GetRole(PRUint32 *aRole)
 {
-  if (nsAccUtils::Role(mParent) == nsIAccessibleRole::ROLE_COMBOBOX_LIST)
+  if (mParent && Role(mParent) == nsIAccessibleRole::ROLE_COMBOBOX_LIST) {
     *aRole = nsIAccessibleRole::ROLE_COMBOBOX_OPTION;
-  else
+  }
+  else {
     *aRole = nsIAccessibleRole::ROLE_OPTION;
-
+  }
   return NS_OK;
 }
 
-nsresult
-nsHTMLSelectOptionAccessible::GetNameInternal(nsAString& aName)
+/**
+  * Get our Name from our Content's subtree
+  */
+NS_IMETHODIMP
+nsHTMLSelectOptionAccessible::GetName(nsAString& aName)
 {
+  aName.Truncate();
+
   // CASE #1 -- great majority of the cases
   // find the label attribute - this is what the W3C says we should use
-  nsCOMPtr<nsIContent> content(do_QueryInterface(mDOMNode));
-  content->GetAttr(kNameSpaceID_None, nsAccessibilityAtoms::label, aName);
-  if (!aName.IsEmpty())
+  nsCOMPtr<nsIDOMElement> domElement(do_QueryInterface(mDOMNode));
+  if (!domElement)
+    return NS_ERROR_FAILURE;
+
+  nsresult rv = domElement->GetAttribute(NS_LITERAL_STRING("label"), aName) ;
+  if (NS_SUCCEEDED(rv) && !aName.IsEmpty()) {
     return NS_OK;
+  }
   
   // CASE #2 -- no label parameter, get the first child, 
   // use it if it is a text node
-  nsCOMPtr<nsIContent> text = content->GetChildAt(0);
-  if (!text)
-    return NS_OK;
+  nsCOMPtr<nsIDOMNode> child;
+  mDOMNode->GetFirstChild(getter_AddRefs(child));
 
-  if (text->IsNodeOfType(nsINode::eTEXT)) {
-    nsAutoString txtValue;
-    nsresult rv = AppendFlatStringFromContentNode(text, &txtValue);
-    NS_ENSURE_SUCCESS(rv, rv);
+  if (child) {
+    nsCOMPtr<nsIContent> text = do_QueryInterface(child);
+    if (text && text->IsNodeOfType(nsINode::eTEXT)) {
+      nsAutoString txtValue;
+      rv = AppendFlatStringFromContentNode(text, &txtValue);
+      NS_ENSURE_SUCCESS(rv, rv);
 
-    // Temp var (txtValue) needed until CompressWhitespace built for nsAString
-    txtValue.CompressWhitespace();
-    aName.Assign(txtValue);
-    return NS_OK;
+      // Temp var (txtValue) needed until CompressWhitespace built for nsAString
+      txtValue.CompressWhitespace();
+      aName.Assign(txtValue);
+      return NS_OK;
+    }
   }
-
+  
+  aName.Truncate();
   return NS_OK;
 }
 
@@ -557,7 +571,7 @@ nsHTMLSelectOptionAccessible::GetAttributesInternal(nsIPersistentProperties *aAt
   parentNode->GetLocalName(parentTagName);
 
   PRInt32 level = parentTagName.LowerCaseEqualsLiteral("optgroup") ? 2 : 1;
-  if (level == 1 && nsAccUtils::Role(this) != nsIAccessibleRole::ROLE_HEADING) {
+  if (level == 1 && Role(this) != nsIAccessibleRole::ROLE_HEADING) {
     level = 0; // In a single level list, the level is irrelevant
   }
 
@@ -845,8 +859,7 @@ void nsHTMLSelectOptionAccessible::SelectionChangedIfOption(nsIContent *aPossibl
   nsCOMPtr<nsIDOMNode> optionNode(do_QueryInterface(aPossibleOption));
   NS_ASSERTION(optionNode, "No option node for nsIContent with option tag!");
 
-  nsCOMPtr<nsIAccessible> multiSelect =
-    nsAccUtils::GetMultiSelectFor(optionNode);
+  nsCOMPtr<nsIAccessible> multiSelect = GetMultiSelectFor(optionNode);
   nsCOMPtr<nsPIAccessible> privateMultiSelect = do_QueryInterface(multiSelect);
   if (!privateMultiSelect) {
     return;
@@ -863,7 +876,7 @@ void nsHTMLSelectOptionAccessible::SelectionChangedIfOption(nsIContent *aPossibl
   nsAccUtils::FireAccEvent(nsIAccessibleEvent::EVENT_SELECTION_WITHIN,
                            multiSelect);
 
-  PRUint32 state = nsAccUtils::State(optionAccessible);
+  PRUint32 state = State(optionAccessible);
   PRUint32 eventType;
   if (state & nsIAccessibleStates::STATE_SELECTED) {
     eventType = nsIAccessibleEvent::EVENT_SELECTION_ADD;
@@ -1370,11 +1383,14 @@ NS_IMETHODIMP nsHTMLComboboxButtonAccessible::GetParent(nsIAccessible **aParent)
   return NS_OK;
 }
 
+/** 
+  * Gets the name from GetActionName()
+  */
 NS_IMETHODIMP
 nsHTMLComboboxButtonAccessible::GetName(nsAString& aName)
 {
-  // Native anonymous content, no way to use ARIA here.
   aName.Truncate();
+
   return GetActionName(eAction_Click, aName);
 }
 
@@ -1493,7 +1509,7 @@ void nsHTMLComboboxListAccessible::GetBoundsRect(nsRect& aBounds, nsIFrame** aBo
   if (!comboAccessible) {
     return;
   }
-  if (0 == (nsAccUtils::State(comboAccessible) & nsIAccessibleStates::STATE_COLLAPSED)) {
+  if (0 == (State(comboAccessible) & nsIAccessibleStates::STATE_COLLAPSED)) {
     nsHTMLSelectListAccessible::GetBoundsRect(aBounds, aBoundingFrame);
     return;
   }

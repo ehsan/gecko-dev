@@ -194,26 +194,22 @@ nsSVGGeometryFrame::MaybeOptimizeOpacity(float aOpacity)
 PRBool
 nsSVGGeometryFrame::SetupCairoFill(gfxContext *aContext)
 {
-  const nsStyleSVG* style = GetStyleSVG();
-  if (style->mFill.mType == eStyleSVGPaintType_None)
-    return PR_FALSE;
-
-  if (style->mFillRule == NS_STYLE_FILL_RULE_EVENODD)
+  if (GetStyleSVG()->mFillRule == NS_STYLE_FILL_RULE_EVENODD)
     aContext->SetFillRule(gfxContext::FILL_RULE_EVEN_ODD);
   else
     aContext->SetFillRule(gfxContext::FILL_RULE_WINDING);
 
-  float opacity = MaybeOptimizeOpacity(style->mFillOpacity);
+  float opacity = MaybeOptimizeOpacity(GetStyleSVG()->mFillOpacity);
 
   nsSVGPaintServerFrame *ps =
-    GetPaintServer(&style->mFill, nsGkAtoms::fill);
+    GetPaintServer(&GetStyleSVG()->mFill, nsGkAtoms::fill);
   if (ps && ps->SetupPaintServer(aContext, this, opacity))
     return PR_TRUE;
 
   // On failure, use the fallback colour in case we have an
   // objectBoundingBox where the width or height of the object is zero.
   // See http://www.w3.org/TR/SVG11/coords.html#ObjectBoundingBox
-  if (style->mFill.mType == eStyleSVGPaintType_Server) {
+  if (GetStyleSVG()->mFill.mType == eStyleSVGPaintType_Server) {
     SetupCairoColor(aContext,
                     GetStyleSVG()->mFill.mFallbackColor,
                     opacity);
@@ -288,18 +284,17 @@ nsSVGGeometryFrame::SetupCairoStroke(gfxContext *aContext)
   if (!SetupCairoStrokeHitGeometry(aContext))
     return PR_FALSE;
 
-  const nsStyleSVG* style = GetStyleSVG();
-  float opacity = MaybeOptimizeOpacity(style->mStrokeOpacity);
+  float opacity = MaybeOptimizeOpacity(GetStyleSVG()->mStrokeOpacity);
 
   nsSVGPaintServerFrame *ps =
-    GetPaintServer(&style->mStroke, nsGkAtoms::stroke);
+    GetPaintServer(&GetStyleSVG()->mStroke, nsGkAtoms::stroke);
   if (ps && ps->SetupPaintServer(aContext, this, opacity))
     return PR_TRUE;
 
   // On failure, use the fallback colour in case we have an
   // objectBoundingBox where the width or height of the object is zero.
   // See http://www.w3.org/TR/SVG11/coords.html#ObjectBoundingBox
-  if (style->mStroke.mType == eStyleSVGPaintType_Server) {
+  if (GetStyleSVG()->mStroke.mType == eStyleSVGPaintType_Server) {
     SetupCairoColor(aContext,
                     GetStyleSVG()->mStroke.mFallbackColor,
                     opacity);

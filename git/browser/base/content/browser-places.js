@@ -749,25 +749,31 @@ var BookmarksEventHandler = {
   },
 
   fillInBTTooltip: function(aTipElement) {
-    if (!aTipElement.node)
+    // Fx2XP: Don't show tooltips for bookmarks under sub-folders
+    if (aTipElement.localName != "toolbarbutton")
       return false;
 
-    //Show tooltips only for URL items
+    // Fx2XP: Only show tooltips for URL items
     if (!PlacesUtils.nodeIsURI(aTipElement.node))
       return false;
 
-    var title = aTipElement.node.title;
     var url = aTipElement.node.uri;
-
-    var tooltipTitle = document.getElementById("btTitleText");
-    tooltipTitle.hidden = !title || (title == url);
-    if (!tooltipTitle.hidden)
-      tooltipTitle.textContent = title;
+    if (!url) 
+      return false;
 
     var tooltipUrl = document.getElementById("btUrlText");
     tooltipUrl.value = url;
 
-    //Show tooltip
+    var title = aTipElement.label;
+    var tooltipTitle = document.getElementById("btTitleText");
+    if (title && title != url) {
+      tooltipTitle.hidden = false;
+      tooltipTitle.textContent = title;
+    }
+    else
+      tooltipTitle.hidden = true;
+
+    // show tooltip
     return true;
   }
 };

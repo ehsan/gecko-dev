@@ -181,8 +181,7 @@ while ($file = shift @ARGV)
     {
         $test_type       = "shell";
     }
-    elsif ($test_product eq "firefox" || $test_product eq "thunderbird" ||
-        $test_product eq "fennec")
+    elsif ($test_product eq "firefox" || $test_product eq "thunderbird")
     {
         $test_buildtype  = "nightly" unless $test_buildtype;
         $test_type       = "browser";

@@ -124,6 +124,7 @@ class nsDummyJavaPluginOwner;
 class PostMessageEvent;
 
 class nsDOMOfflineResourceList;
+class nsDOMOfflineLoadStatusList;
 class nsGeolocation;
 
 // permissible values for CheckOpenAllow
@@ -570,6 +571,8 @@ protected:
   static void MakeScriptDialogTitle(nsAString &aOutTitle);
 
   static PRBool CanMoveResizeWindows();
+
+  nsresult ConvertCharset(const nsAString& aStr, char** aDest);
 
   PRBool   GetBlurSuppression();
 

@@ -95,7 +95,6 @@ unsigned char *_mbsstr( const unsigned char *str,
 }
 #endif
 
-#ifndef WINCE
 class nsDriveEnumerator : public nsISimpleEnumerator
 {
 public:
@@ -117,6 +116,7 @@ private:
 //----------------------------------------------------------------------------
 // short cut resolver
 //----------------------------------------------------------------------------
+#ifndef WINCE
 class ShortcutResolver
 {
 public:
@@ -227,7 +227,6 @@ static void NS_DestroyShortcutResolver()
     delete gResolver;
     gResolver = nsnull;
 }
-
 #endif
 
 
@@ -900,16 +899,12 @@ nsLocalFile::InitWithPath(const nsAString &filePath)
     PRUnichar *path = nsnull;
     PRInt32 pathLen = 0;
 
-    if (( 
-         !FindCharInReadable(L'/', begin, end) )   //normal path
-#ifndef WINCE
-        && (secondChar == L':') ||  // additional normal path condition
-        (secondChar == L'\\') &&    // addtional network path condition 
+    if ( ( (secondChar == L':') && !FindCharInReadable(L'/', begin, end) ) ||  // normal path
+#ifdef WINCE
+         ( (firstChar == L'\\') )   // wince absolute path or network path
 #else
-        ||
-#endif 
-        (firstChar == L'\\')    // wince absolute path or network path
-
+         ( (firstChar == L'\\') && (secondChar == L'\\') )   // network path
+#endif
          )
     {
         // This is a native path
@@ -2584,7 +2579,6 @@ nsLocalFile::GetDirectoryEntries(nsISimpleEnumerator * *entries)
     nsresult rv;
 
     *entries = nsnull;
-#ifndef WINCE
     if (mWorkingPath.EqualsLiteral("\\\\.")) {
         nsDriveEnumerator *drives = new nsDriveEnumerator;
         if (!drives)
@@ -2598,7 +2592,6 @@ nsLocalFile::GetDirectoryEntries(nsISimpleEnumerator * *entries)
         *entries = drives;
         return NS_OK;
     }
-#endif
 
     PRBool isDir;
     rv = IsDirectory(&isDir);
@@ -2619,7 +2612,6 @@ nsLocalFile::GetDirectoryEntries(nsISimpleEnumerator * *entries)
     }
 
     *entries = dirEnum;
-
     return NS_OK;
 }
 
@@ -2969,7 +2961,6 @@ nsLocalFile::GlobalShutdown()
 #endif
 }
 
-#ifndef WINCE
 NS_IMPL_ISUPPORTS1(nsDriveEnumerator, nsISimpleEnumerator)
 
 nsDriveEnumerator::nsDriveEnumerator()
@@ -2983,6 +2974,9 @@ nsDriveEnumerator::~nsDriveEnumerator()
 
 nsresult nsDriveEnumerator::Init()
 {
+#ifdef WINCE
+    return NS_OK;
+#else
     /* If the length passed to GetLogicalDriveStrings is smaller
      * than the length of the string it would return, it returns
      * the length required for the string. */
@@ -2994,16 +2988,26 @@ nsresult nsDriveEnumerator::Init()
         return NS_ERROR_FAILURE;
     mLetter = mDrives.get();
     return NS_OK;
+#endif
 }
 
 NS_IMETHODIMP nsDriveEnumerator::HasMoreElements(PRBool *aHasMore)
 {
+#ifdef WINCE
+    *aHasMore = FALSE;
+#else
     *aHasMore = *mLetter != '\0';
+#endif
     return NS_OK;
 }
 
 NS_IMETHODIMP nsDriveEnumerator::GetNext(nsISupports **aNext)
 {
+#ifdef WINCE
+    nsILocalFile *file;
+    nsresult rv = NS_NewLocalFile(NS_LITERAL_STRING("\\"), PR_FALSE, &file);
+    *aNext = file;
+#else
     /* GetLogicalDrives stored in mLetter is a concatenation
      * of null terminated strings, followed by a null terminator. */
     if (!*mLetter) {
@@ -3013,10 +3017,11 @@ NS_IMETHODIMP nsDriveEnumerator::GetNext(nsISupports **aNext)
     NS_ConvertASCIItoUTF16 drive(mLetter);
     mLetter += drive.Length() + 1;
     nsILocalFile *file;
-    nsresult rv = NS_NewLocalFile(drive, PR_FALSE, &file);
+    nsresult rv = 
+        NS_NewLocalFile(drive, PR_FALSE, &file);
 
     *aNext = file;
+#endif
     return rv;
 }
-#endif
 

@@ -107,9 +107,11 @@ nsXULColumnItemAccessible::GetState(PRUint32 *aState, PRUint32 *aExtraState)
   return NS_OK;
 }
 
-nsresult
-nsXULColumnItemAccessible::GetNameInternal(nsAString& aName)
+NS_IMETHODIMP
+nsXULColumnItemAccessible::GetName(nsAString& aName)
 {
+  aName.Truncate();
+
   return GetXULName(aName);
 }
 
@@ -857,9 +859,14 @@ nsXULListitemAccessible::GetListAccessible()
   * If there is a Listcell as a child ( not anonymous ) use it, otherwise
   *   default to getting the name from GetXULName
   */
-nsresult
-nsXULListitemAccessible::GetNameInternal(nsAString& aName)
+NS_IMETHODIMP
+nsXULListitemAccessible::GetName(nsAString& aName)
 {
+  aName.Truncate();
+
+  if (!mDOMNode)
+    return NS_ERROR_FAILURE;
+
   nsCOMPtr<nsIDOMNode> child;
   if (NS_SUCCEEDED(mDOMNode->GetFirstChild(getter_AddRefs(child)))) {
     nsCOMPtr<nsIDOMElement> childElement (do_QueryInterface(child));
@@ -883,14 +890,14 @@ NS_IMETHODIMP nsXULListitemAccessible::GetRole(PRUint32 *aRole)
   nsCOMPtr<nsIAccessible> listAcc = GetListAccessible();
   NS_ENSURE_STATE(listAcc);
 
-  if (nsAccUtils::Role(listAcc) == nsIAccessibleRole::ROLE_TABLE) {
+  if (Role(listAcc) == nsIAccessibleRole::ROLE_TABLE) {
     *aRole = nsIAccessibleRole::ROLE_ROW;
     return NS_OK;
   }
 
   if (mIsCheckbox)
     *aRole = nsIAccessibleRole::ROLE_CHECKBUTTON;
-  else if (nsAccUtils::Role(mParent) == nsIAccessibleRole::ROLE_COMBOBOX_LIST)
+  else if (mParent && Role(mParent) == nsIAccessibleRole::ROLE_COMBOBOX_LIST)
     *aRole = nsIAccessibleRole::ROLE_COMBOBOX_OPTION;
   else
     *aRole = nsIAccessibleRole::ROLE_RICH_OPTION;

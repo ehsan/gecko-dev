@@ -442,41 +442,33 @@ private:
 const PRBool OBJ_IS_GLOBAL = PR_TRUE;
 const PRBool OBJ_IS_NOT_GLOBAL = PR_FALSE;
 
-#define NS_JS_RUNTIME_SERVICE_CID \
-{0xb5e65b52, 0x1dd1, 0x11b2, \
-    { 0xae, 0x8f, 0xf0, 0x92, 0x8e, 0xd8, 0x84, 0x82 }}
-
-#define NS_XPC_THREAD_JSCONTEXT_STACK_CID  \
-{ 0xff8c4d10, 0x3194, 0x11d3, \
-    { 0x98, 0x85, 0x0, 0x60, 0x8, 0x96, 0x24, 0x22 } }
-
 class nsXPConnect : public nsIXPConnect,
                     public nsIThreadObserver,
                     public nsSupportsWeakReference,
                     public nsCycleCollectionJSRuntime,
-                    public nsCycleCollectionParticipant,
-                    public nsIJSRuntimeService,
-                    public nsIThreadJSContextStack
+                    public nsCycleCollectionParticipant
 {
 public:
     // all the interface method declarations...
     NS_DECL_ISUPPORTS
     NS_DECL_NSIXPCONNECT
     NS_DECL_NSITHREADOBSERVER
-    NS_DECL_NSIJSRUNTIMESERVICE
-    NS_DECL_NSIJSCONTEXTSTACK
-    NS_DECL_NSITHREADJSCONTEXTSTACK
 
     // non-interface implementation
 public:
     // These get non-addref'd pointers
     static nsXPConnect*  GetXPConnect();
-    static XPCJSRuntime* GetRuntimeInstance();
-    XPCJSRuntime* GetRuntime() {return mRuntime;}
+    static XPCJSRuntime* GetRuntime(nsXPConnect* xpc = nsnull);
+    static XPCContext*   GetContext(JSContext* cx, nsXPConnect* xpc = nsnull);
+    static nsIJSRuntimeService* GetJSRuntimeService(nsXPConnect* xpc = nsnull);
 
     // Gets addref'd pointer
     static nsresult GetInterfaceInfoManager(nsIInterfaceInfoSuperManager** iim,
                                             nsXPConnect* xpc = nsnull);
+
+    // Gets addref'd pointer
+    static nsresult GetContextStack(nsIThreadJSContextStack** stack,
+                                    nsXPConnect* xpc = nsnull);
 
     static JSBool IsISupportsDescendant(nsIInterfaceInfo* info);
 
@@ -553,6 +545,9 @@ protected:
     nsXPConnect();
 
 private:
+    JSBool EnsureRuntime() {return mRuntime ? JS_TRUE : CreateRuntime();}
+    JSBool CreateRuntime();
+
     static PRThread* FindMainThread();
 
 private:
@@ -562,6 +557,7 @@ private:
 
     XPCJSRuntime*            mRuntime;
     nsCOMPtr<nsIInterfaceInfoSuperManager> mInterfaceInfoManager;
+    nsIThreadJSContextStack* mContextStack;
     nsIXPCSecurityManager*   mDefaultSecurityManager;
     PRUint16                 mDefaultSecurityManagerFlags;
     JSBool                   mShuttingDown;
@@ -581,8 +577,6 @@ private:
     typedef nsBaseHashtable<nsVoidPtrHashKey, nsISupports*, nsISupports*> ScopeSet;
     ScopeSet mScopes;
 #endif
-    nsCOMPtr<nsIXPCScriptable> mBackstagePass;
-
     static PRUint32 gReportAllJSExceptions;
 };
 
@@ -623,10 +617,13 @@ private:
 class XPCJSRuntime
 {
 public:
-    static XPCJSRuntime* newXPCJSRuntime(nsXPConnect* aXPConnect);
+    static XPCJSRuntime* newXPCJSRuntime(nsXPConnect* aXPConnect,
+                                         nsIJSRuntimeService* aJSRuntimeService);
 
     JSRuntime*     GetJSRuntime() const {return mJSRuntime;}
     nsXPConnect*   GetXPConnect() const {return mXPConnect;}
+
+    nsIJSRuntimeService* GetJSRuntimeService() const {return mJSRuntimeService;}
 
     JSObject2WrappedJSMap*     GetWrappedJSMap()        const
         {return mWrappedJSMap;}
@@ -660,7 +657,8 @@ public:
 
     XPCLock* GetMapLock() const {return mMapLock;}
 
-    JSBool OnJSContextNew(JSContext* cx);
+    XPCContext* GetXPCContext(JSContext* cx);
+    XPCContext* SyncXPCContextList(JSContext* cx = nsnull);
 
     JSBool DeferredRelease(nsISupports* obj);
 
@@ -754,9 +752,16 @@ private:
 public:
 #endif
 
+    // For use by XPCWrappedNativeScope.
+    JSContext2XPCContextMap*  GetContextMap() const {return mContextMap;}
+
 private:
     XPCJSRuntime(); // no implementation
-    XPCJSRuntime(nsXPConnect* aXPConnect);
+    XPCJSRuntime(nsXPConnect* aXPConnect,
+                 nsIJSRuntimeService* aJSRuntimeService);
+
+    JSBool GenerateStringIDs(JSContext* cx);
+    void PurgeXPCContextList();
 
 private:
     static const char* mStrings[IDX_TOTAL_COUNT];
@@ -765,6 +770,8 @@ private:
 
     nsXPConnect* mXPConnect;
     JSRuntime*  mJSRuntime;
+    nsIJSRuntimeService* mJSRuntimeService; // hold this to hold the JSRuntime
+    JSContext2XPCContextMap* mContextMap;
     JSObject2WrappedJSMap*   mWrappedJSMap;
     IID2WrappedJSClassMap*   mWrappedJSClassMap;
     IID2NativeInterfaceMap*  mIID2NativeInterfaceMap;
@@ -795,19 +802,20 @@ private:
 // no virtuals
 class XPCContext
 {
-    friend class XPCJSRuntime;
 public:
-    static XPCContext* GetXPCContext(JSContext* aJSContext)
-        {
-            NS_ASSERTION(aJSContext->data2, "should already have XPCContext");
-            return static_cast<XPCContext *>(aJSContext->data2);
-        }
+    static XPCContext* newXPCContext(XPCJSRuntime* aRuntime,
+                                     JSContext* aJSContext);
 
     XPCJSRuntime* GetRuntime() const {return mRuntime;}
     JSContext* GetJSContext() const {return mJSContext;}
 
     enum LangType {LANG_UNKNOWN, LANG_JS, LANG_NATIVE};
     
+    // Mark functions used by SyncXPCContextList
+    void Mark()             {mMarked = (JSPackedBool) JS_TRUE;}
+    void Unmark()           {mMarked = (JSPackedBool) JS_FALSE;}
+    JSBool IsMarked() const {return (JSBool) mMarked;}
+
     LangType GetCallingLangType() const
         {
             return mCallingLangType;
@@ -891,8 +899,6 @@ private:
     XPCContext();    // no implementation
     XPCContext(XPCJSRuntime* aRuntime, JSContext* aJSContext);
 
-    static XPCContext* newXPCContext(XPCJSRuntime* aRuntime,
-                                     JSContext* aJSContext);
 private:
     XPCJSRuntime* mRuntime;
     JSContext*  mJSContext;
@@ -902,6 +908,7 @@ private:
     nsIException* mException;
     LangType mCallingLangType;
     PRUint16 mSecurityManagerFlags;
+    JSPackedBool mMarked;
 
     // A linked list of scopes to notify when we are destroyed.
     PRCList mScopes;
@@ -956,8 +963,6 @@ public:
     NS_IMETHOD SetReturnValueWasSet(PRBool aValue);
     NS_IMETHOD GetCalleeInterface(nsIInterfaceInfo **aResult);
     NS_IMETHOD GetCalleeClassInfo(nsIClassInfo **aResult);
-    NS_IMETHOD GetPreviousCallContext(nsAXPCNativeCallContext **aResult);
-    NS_IMETHOD GetLanguage(PRUint16 *aResult);
 
     enum {NO_ARGS = (uintN) -1};
 
@@ -3046,6 +3051,9 @@ public:
     { return &mStack; }
 
 private:
+    void SyncJSContexts();
+
+private:
     nsAutoTArray<XPCJSContextInfo, 16> mStack;
     JSContext*  mSafeJSContext;
 
@@ -3172,6 +3180,15 @@ public:
     // Must be called with the threads locked.
     static XPCPerThreadData* IterateThreads(XPCPerThreadData** iteratorp);
 
+    XPCContext* GetRecentXPCContext(JSContext* cx) const
+        {return cx == mMostRecentJSContext ? mMostRecentXPCContext : nsnull;}
+
+    void SetRecentContext(JSContext* cx, XPCContext* xpcc)
+        {mMostRecentJSContext = cx; mMostRecentXPCContext = xpcc;}
+
+    void ClearRecentContext()
+        {mMostRecentJSContext = nsnull; mMostRecentXPCContext = nsnull;}
+
     AutoMarkingPtr**  GetAutoRootsAdr() {return &mAutoRoots;}
 
     void TraceJS(JSTracer* trc);
@@ -3206,6 +3223,9 @@ private:
     jsval                mResolveName;
     XPCWrappedNative*    mResolvingWrapper;
 
+    JSContext*           mMostRecentJSContext;
+    XPCContext*          mMostRecentXPCContext;
+
     nsIExceptionManager* mExceptionManager;
     nsIException*        mException;
     JSBool               mExceptionManagerNotAvailable;
@@ -3230,7 +3250,45 @@ private:
     static XPCPerThreadData *sMainThreadData;
 };
 
+/**************************************************************/
+
+#define NS_XPC_THREAD_JSCONTEXT_STACK_CID  \
+{ 0xff8c4d10, 0x3194, 0x11d3, \
+    { 0x98, 0x85, 0x0, 0x60, 0x8, 0x96, 0x24, 0x22 } }
+
+class nsXPCThreadJSContextStackImpl : public nsIThreadJSContextStack,
+                                      public nsSupportsWeakReference
+{
+public:
+    NS_DECL_ISUPPORTS
+    NS_DECL_NSIJSCONTEXTSTACK
+    NS_DECL_NSITHREADJSCONTEXTSTACK
+
+    // This returns and AddRef'd pointer. It does not do this with an out param
+    // only because this form  is required by generic module macro:
+    // NS_GENERIC_FACTORY_SINGLETON_CONSTRUCTOR
+    static nsXPCThreadJSContextStackImpl* GetSingleton();
+
+    static void InitStatics() { gXPCThreadJSContextStack = nsnull; }
+    static void FreeSingleton();
+
+    nsXPCThreadJSContextStackImpl();
+    virtual ~nsXPCThreadJSContextStackImpl();
+
+private:
+    XPCJSContextStack* GetStackForCurrentThread(JSContext *cx = nsnull)
+        {XPCPerThreadData* data = XPCPerThreadData::GetData(cx);
+         return data ? data->GetJSContextStack() : nsnull;}
+
+    static nsXPCThreadJSContextStackImpl* gXPCThreadJSContextStack;
+    friend class nsXPCJSContextStackIterator;
+};
+
 /***************************************************************************/
+#define NS_JS_RUNTIME_SERVICE_CID \
+{0xb5e65b52, 0x1dd1, 0x11b2, \
+    { 0xae, 0x8f, 0xf0, 0x92, 0x8e, 0xd8, 0x84, 0x82 }}
+
 #ifndef XPCONNECT_STANDALONE
 #include "nsIScriptSecurityManager.h"
 
@@ -3295,6 +3353,7 @@ class nsJSRuntimeServiceImpl : public nsIJSRuntimeService,
 
     static void InitStatics() { gJSRuntimeService = nsnull; }
  protected:
+    JSRuntime *mRuntime;
     static nsJSRuntimeServiceImpl* gJSRuntimeService;
     nsCOMPtr<nsIXPCScriptable> mBackstagePass;
 };
@@ -3588,8 +3647,8 @@ public:
      * @param cx The JSContext, this can be null, we don't do anything then
      */
     AutoScriptEvaluate(JSContext * cx)
-         : mJSContext(cx), mState(0), mErrorReporterSet(PR_FALSE),
-           mEvaluated(PR_FALSE), mContextHasThread(0) {}
+         : mJSContext(cx), mState(0), mEvaluated(PR_FALSE), 
+           mContextHasThread(0) {}
 
     /**
      * Does the pre script evaluation and sets the error reporter if given
@@ -3606,7 +3665,7 @@ public:
 private:
     JSContext* mJSContext;
     JSExceptionState* mState;
-    PRBool mErrorReporterSet;
+    JSErrorReporter mOldErrorReporter;
     PRBool mEvaluated;
     jsword mContextHasThread;
 

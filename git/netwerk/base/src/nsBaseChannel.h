@@ -155,12 +155,10 @@ public:
   void SetURI(nsIURI *uri) {
     NS_ASSERTION(uri, "must specify a non-null URI");
     NS_ASSERTION(!mURI, "must not modify URI");
-    NS_ASSERTION(!mOriginalURI, "how did that get set so early?");
     mURI = uri;
-    mOriginalURI = uri;
   }
   nsIURI *OriginalURI() {
-    return mOriginalURI;
+    return mOriginalURI ? mOriginalURI : mURI;
   }
 
   // The security info is a property of the transport-layer, which should be
@@ -179,7 +177,7 @@ public:
 
   // This is a short-cut to calling nsIRequest::IsPending()
   PRBool IsPending() const {
-    return mPump || mWaitingOnAsyncRedirect;
+    return (mPump != nsnull);
   }
 
   // Set the content length that should be reported for this channel.  Pass -1
@@ -285,7 +283,6 @@ private:
   PRPackedBool                        mQueriedProgressSink;
   PRPackedBool                        mSynthProgressEvents;
   PRPackedBool                        mWasOpened;
-  PRPackedBool                        mWaitingOnAsyncRedirect;
 };
 
 #endif // !nsBaseChannel_h__

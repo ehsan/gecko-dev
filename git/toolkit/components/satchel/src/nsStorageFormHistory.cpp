@@ -22,8 +22,6 @@
  * Contributor(s):
  *   Joe Hewitt <hewitt@netscape.com> (Original Author)
  *   Brett Wilson <brettw@gmail.com>
- *   Michael Ventnor <m.ventnor@gmail.com>
- *   Ehsan Akhgari <ehsan.akhgari@gmail.com>
  *
  * Alternatively, the contents of this file may be used under the terms of
  * either the GNU General Public License Version 2 or later (the "GPL"), or
@@ -63,8 +61,6 @@
 #include "mozStorageCID.h"
 #include "nsIAutoCompleteSimpleResult.h"
 #include "nsTArray.h"
-#include "nsIPrivateBrowsingService.h"
-#include "nsNetCID.h"
 
 // The size of the database cache. This is the number of database PAGES that
 // can be cached in memory. Normally, pages are 1K unless the size has been
@@ -228,17 +224,10 @@ nsFormHistory::GetHasEntries(PRBool *aHasEntries)
 NS_IMETHODIMP
 nsFormHistory::AddEntry(const nsAString &aName, const nsAString &aValue)
 {
-  // If the user is in private browsing mode, don't add any entry.
-  PRBool inPrivateBrowsing = PR_FALSE;
-  nsCOMPtr<nsIPrivateBrowsingService> pbs =
-    do_GetService(NS_PRIVATE_BROWSING_SERVICE_CONTRACTID);
-  if (pbs)
-    pbs->GetPrivateBrowsingEnabled(&inPrivateBrowsing);
-  if (inPrivateBrowsing)
-    return NS_OK;
-
   if (!FormHistoryEnabled())
     return NS_OK;
+
+  mozStorageTransaction transaction(mDBConn, PR_FALSE);
 
   PRBool exists = PR_TRUE;
   EntryExists(aName, aValue, &exists);
@@ -253,7 +242,7 @@ nsFormHistory::AddEntry(const nsAString &aName, const nsAString &aValue)
     rv = mDBInsertNameValue->Execute();
     NS_ENSURE_SUCCESS(rv, rv);
   }
-  return NS_OK;
+  return transaction.Commit();
 }
 
 NS_IMETHODIMP
@@ -377,10 +366,6 @@ nsFormHistory::Notify(nsIDOMHTMLFormElement* formElt, nsIDOMWindowInternal* aWin
 
   PRUint32 length;
   elts->GetLength(&length);
-  if (length == 0)
-    return NS_OK;
-
-  mozStorageTransaction transaction(mDBConn, PR_FALSE);
   for (PRUint32 i = 0; i < length; ++i) {
     nsCOMPtr<nsIDOMNode> node;
     elts->Item(i, getter_AddRefs(node));
@@ -413,7 +398,7 @@ nsFormHistory::Notify(nsIDOMHTMLFormElement* formElt, nsIDOMWindowInternal* aWin
     }
   }
 
-  return transaction.Commit();
+  return NS_OK;
 }
 nsresult
 nsFormHistory::OpenDatabase()
@@ -715,7 +700,7 @@ static void SwapBytes(PRUnichar* aBuffer)
 }
 
 // Enumerator callback to add an entry to the FormHistory
-/* static */ PLDHashOperator
+/* static */ PLDHashOperator PR_CALLBACK
 nsFormHistoryImporter::AddToFormHistoryCB(const nsCSubstring &aRowID,
                                           const nsTArray<nsCString> *aValues,
                                           void *aData)

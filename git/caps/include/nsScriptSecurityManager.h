@@ -180,7 +180,7 @@ struct PropertyPolicy : public PLDHashEntryHdr
     SecurityLevel  mSet;
 };
 
-static PRBool
+PR_STATIC_CALLBACK(PRBool)
 InitPropertyPolicyEntry(PLDHashTable *table,
                      PLDHashEntryHdr *entry,
                      const void *key)
@@ -192,7 +192,7 @@ InitPropertyPolicyEntry(PLDHashTable *table,
     return PR_TRUE;
 }
 
-static void
+PR_STATIC_CALLBACK(void)
 ClearPropertyPolicyEntry(PLDHashTable *table, PLDHashEntryHdr *entry)
 {
     PropertyPolicy* pp = (PropertyPolicy*)entry;
@@ -212,7 +212,7 @@ struct ClassPolicy : public PLDHashEntryHdr
     DomainPolicy* mDomainWeAreWildcardFor;
 };
 
-static void
+PR_STATIC_CALLBACK(void)
 ClearClassPolicyEntry(PLDHashTable *table, PLDHashEntryHdr *entry)
 {
     ClassPolicy* cp = (ClassPolicy *)entry;
@@ -226,12 +226,12 @@ ClearClassPolicyEntry(PLDHashTable *table, PLDHashEntryHdr *entry)
 
 // Note: actual impl is going to be after the DomainPolicy class definition,
 // since we need to access members of DomainPolicy in the impl
-static void
+PR_STATIC_CALLBACK(void)
 MoveClassPolicyEntry(PLDHashTable *table,
                      const PLDHashEntryHdr *from,
                      PLDHashEntryHdr *to);
 
-static PRBool
+PR_STATIC_CALLBACK(PRBool)
 InitClassPolicyEntry(PLDHashTable *table,
                      PLDHashEntryHdr *entry,
                      const void *key)
@@ -344,7 +344,7 @@ private:
 
 };
 
-static void
+PR_STATIC_CALLBACK(void)
 MoveClassPolicyEntry(PLDHashTable *table,
                      const PLDHashEntryHdr *from,
                      PLDHashEntryHdr *to)
@@ -402,18 +402,14 @@ public:
      * false otherwise.
      */
     static PRBool SecurityCompareURIs(nsIURI* aSourceURI, nsIURI* aTargetURI);
-    static PRUint32 SecurityHashURI(nsIURI* aURI);
 
     static nsresult 
     ReportError(JSContext* cx, const nsAString& messageTag,
                 nsIURI* aSource, nsIURI* aTarget);
-
     static nsresult
     CheckSameOriginPrincipal(nsIPrincipal* aSubject,
                              nsIPrincipal* aObject,
                              PRBool aIsCheckConnect);
-    static PRUint32
-    HashPrincipalByOrigin(nsIPrincipal* aPrincipal);
 
     static PRBool
     GetStrictFileOriginPolicy()
@@ -587,6 +583,7 @@ private:
     nsCOMPtr<nsIPrincipal> mSystemPrincipal;
     nsCOMPtr<nsIPrincipal> mSystemCertificate;
     nsInterfaceHashtable<PrincipalKey, nsIPrincipal> mPrincipals;
+    nsCOMPtr<nsIThreadJSContextStack> mJSContextStack;
     PRPackedBool mIsJavaScriptEnabled;
     PRPackedBool mIsMailJavaScriptEnabled;
     PRPackedBool mIsWritingPrefs;
@@ -600,7 +597,6 @@ private:
 
     static nsIIOService    *sIOService;
     static nsIXPConnect    *sXPConnect;
-    static nsIThreadJSContextStack* sJSContextStack;
     static nsIStringBundle *sStrBundle;
     static JSRuntime       *sRuntime;
 };

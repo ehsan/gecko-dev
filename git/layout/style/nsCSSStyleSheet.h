@@ -67,16 +67,13 @@ public:
   nsCSSStyleSheetInner(nsICSSStyleSheet* aPrimarySheet);
   nsCSSStyleSheetInner(nsCSSStyleSheetInner& aCopy,
                        nsCSSStyleSheet* aPrimarySheet);
-  ~nsCSSStyleSheetInner();
+  virtual ~nsCSSStyleSheetInner();
 
-  nsCSSStyleSheetInner* CloneFor(nsCSSStyleSheet* aPrimarySheet);
-  void AddSheet(nsICSSStyleSheet* aSheet);
-  void RemoveSheet(nsICSSStyleSheet* aSheet);
+  virtual nsCSSStyleSheetInner* CloneFor(nsCSSStyleSheet* aPrimarySheet);
+  virtual void AddSheet(nsICSSStyleSheet* aSheet);
+  virtual void RemoveSheet(nsICSSStyleSheet* aSheet);
 
-  void RebuildNameSpaces();
-
-  // Create a new namespace map
-  nsresult CreateNamespaceMap();
+  virtual void RebuildNameSpaces();
 
   nsAutoVoidArray        mSheets;
   nsCOMPtr<nsIURI>       mSheetURI; // for error reports, etc.
@@ -104,6 +101,7 @@ public:
 //
 
 class CSSRuleListImpl;
+static PRBool CascadeSheetRulesInto(nsICSSStyleSheet* aSheet, void* aData);
 struct ChildSheetListBuilder;
 
 class nsCSSStyleSheet : public nsICSSStyleSheet, 
@@ -208,9 +206,6 @@ protected:
   // UniversalBrowserWrite.
   nsresult SubjectSubsumesInnerPrincipal() const;
 
-  // Add the namespace mapping from this @namespace rule to our namespace map
-  nsresult RegisterNamespaceRule(nsICSSRule* aRule);
-
 protected:
   nsString              mTitle;
   nsCOMPtr<nsMediaList> mMedia;
@@ -229,7 +224,7 @@ protected:
   nsAutoVoidArray*      mRuleProcessors;
 
   friend class nsMediaList;
-  friend class nsCSSRuleProcessor;
+  friend PRBool CascadeSheetRulesInto(nsICSSStyleSheet* aSheet, void* aData);
   friend nsresult NS_NewCSSStyleSheet(nsICSSStyleSheet** aInstancePtrResult);
   friend struct ChildSheetListBuilder;
 };

@@ -45,56 +45,6 @@
 #include "nsIServiceManager.h"
 #include <math.h>
 #include "prprf.h"
-#include "nsStaticNameTable.h"
-
-// define an array of all color names
-#define GFX_COLOR(_name, _value) #_name,
-static const char* const kColorNames[] = {
-#include "nsColorNameList.h"
-};
-#undef GFX_COLOR
-
-// define an array of all color name values
-#define GFX_COLOR(_name, _value) _value,
-static const nscolor kColors[] = {
-#include "nsColorNameList.h"
-};
-#undef GFX_COLOR
-
-#define eColorName_COUNT (NS_ARRAY_LENGTH(kColorNames))
-#define eColorName_UNKNOWN (-1)
-
-static nsStaticCaseInsensitiveNameTable* gColorTable = nsnull;
-
-void nsColorNames::AddRefTable(void) 
-{
-  NS_ASSERTION(!gColorTable, "pre existing array!");
-  if (!gColorTable) {
-    gColorTable = new nsStaticCaseInsensitiveNameTable();
-    if (gColorTable) {
-#ifdef DEBUG
-    {
-      // let's verify the table...
-      for (PRInt32 index = 0; index < eColorName_COUNT; ++index) {
-        nsCAutoString temp1(kColorNames[index]);
-        nsCAutoString temp2(kColorNames[index]);
-        ToLowerCase(temp1);
-        NS_ASSERTION(temp1.Equals(temp2), "upper case char in table");
-      }
-    }
-#endif      
-      gColorTable->Init(kColorNames, eColorName_COUNT); 
-    }
-  }
-}
-
-void nsColorNames::ReleaseTable(void)
-{
-  if (gColorTable) {
-    delete gColorTable;
-    gColorTable = nsnull;
-  }
-}
 
 static int ComponentValue(const PRUnichar* aColorSpec, int aLen, int color, int dpc)
 {
@@ -211,13 +161,11 @@ NS_GFX_(void) NS_RGBToHex(nscolor aColor, nsAString& aResult)
 
 NS_GFX_(PRBool) NS_ColorNameToRGB(const nsAString& aColorName, nscolor* aResult)
 {
-  if (!gColorTable) return PR_FALSE;
-
-  PRInt32 id = gColorTable->Lookup(aColorName);
+  nsColorName id = nsColorNames::LookupName(aColorName);
   if (eColorName_UNKNOWN < id) {
     NS_ASSERTION(id < eColorName_COUNT, "LookupName mess up");
-    if (aResult) {
-      *aResult = kColors[id];
+    if (nsnull != aResult) {
+      *aResult = nsColorNames::kColors[id];
     }
     return PR_TRUE;
   }

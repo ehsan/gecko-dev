@@ -81,7 +81,7 @@ public:
     nsCOMPtr<nsIRequest> mKey;
 };
 
-static PRBool
+PR_STATIC_CALLBACK(PRBool)
 RequestHashMatchEntry(PLDHashTable *table, const PLDHashEntryHdr *entry,
                       const void *key)
 {
@@ -92,7 +92,7 @@ RequestHashMatchEntry(PLDHashTable *table, const PLDHashEntryHdr *entry,
     return e->mKey == request;
 }
 
-static void
+PR_STATIC_CALLBACK(void)
 RequestHashClearEntry(PLDHashTable *table, PLDHashEntryHdr *entry)
 {
     RequestMapEntry *e = static_cast<RequestMapEntry *>(entry);
@@ -101,7 +101,7 @@ RequestHashClearEntry(PLDHashTable *table, PLDHashEntryHdr *entry)
     e->~RequestMapEntry();
 }
 
-static PRBool
+PR_STATIC_CALLBACK(PRBool)
 RequestHashInitEntry(PLDHashTable *table, PLDHashEntryHdr *entry,
                      const void *key)
 {
@@ -122,7 +122,7 @@ RescheduleRequest(nsIRequest *aRequest, PRInt32 delta)
         p->AdjustPriority(delta);
 }
 
-static PLDHashOperator
+PR_STATIC_CALLBACK(PLDHashOperator)
 RescheduleRequests(PLDHashTable *table, PLDHashEntryHdr *hdr,
                    PRUint32 number, void *arg)
 {
@@ -244,7 +244,7 @@ nsLoadGroup::GetStatus(nsresult *status)
 
 // PLDHashTable enumeration callback that appends strong references to
 // all nsIRequest to an nsVoidArray.
-static PLDHashOperator
+PR_STATIC_CALLBACK(PLDHashOperator)
 AppendRequestsToVoidArray(PLDHashTable *table, PLDHashEntryHdr *hdr,
                           PRUint32 number, void *arg)
 {
@@ -267,7 +267,7 @@ AppendRequestsToVoidArray(PLDHashTable *table, PLDHashEntryHdr *hdr,
 
 // nsVoidArray enumeration callback that releases all items in the
 // nsVoidArray
-static PRBool
+PR_STATIC_CALLBACK(PRBool)
 ReleaseVoidArrayItems(void *aElement, void *aData)
 {
     nsISupports *s = static_cast<nsISupports *>(aElement);
@@ -706,7 +706,7 @@ nsLoadGroup::RemoveRequest(nsIRequest *request, nsISupports* ctxt,
 
 // PLDHashTable enumeration callback that appends all items in the
 // hash to an nsISupportsArray.
-static PLDHashOperator
+PR_STATIC_CALLBACK(PLDHashOperator)
 AppendRequestsToISupportsArray(PLDHashTable *table, PLDHashEntryHdr *hdr,
                                PRUint32 number, void *arg)
 {

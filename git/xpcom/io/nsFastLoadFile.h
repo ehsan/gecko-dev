@@ -485,25 +485,25 @@ class nsFastLoadFileWriter
                                PRBool aIsStrongRef,
                                PRUint32 aQITag);
 
-    static PLDHashOperator
+    static PLDHashOperator PR_CALLBACK
     IDMapEnumerate(PLDHashTable *aTable,
                    PLDHashEntryHdr *aHdr,
                    PRUint32 aNumber,
                    void *aData);
 
-    static PLDHashOperator
+    static PLDHashOperator PR_CALLBACK
     ObjectMapEnumerate(PLDHashTable *aTable,
                        PLDHashEntryHdr *aHdr,
                        PRUint32 aNumber,
                        void *aData);
 
-    static PLDHashOperator
+    static PLDHashOperator PR_CALLBACK
     DocumentMapEnumerate(PLDHashTable *aTable,
                          PLDHashEntryHdr *aHdr,
                          PRUint32 aNumber,
                          void *aData);
 
-    static PLDHashOperator
+    static PLDHashOperator PR_CALLBACK
     DependencyMapEnumerate(PLDHashTable *aTable,
                            PLDHashEntryHdr *aHdr,
                            PRUint32 aNumber,
@@ -561,7 +561,7 @@ class nsFastLoadFileUpdater
     nsresult   Open(nsFastLoadFileReader* aReader);
     NS_IMETHOD Close();
 
-    static PLDHashOperator
+    static PLDHashOperator PR_CALLBACK
     CopyReadDocumentMapEntryToUpdater(PLDHashTable *aTable,
                                       PLDHashEntryHdr *aHdr,
                                       PRUint32 aNumber,

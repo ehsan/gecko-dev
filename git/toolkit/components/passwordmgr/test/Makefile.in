@@ -63,7 +63,6 @@ MOCHI_TESTS = \
 		test_basic_form_pwonly.html \
 		test_bug_227640.html \
 		test_bug_242956.html \
-		test_privbrowsing.html \
 		test_bug_360493_1.html \
 		test_bug_360493_2.html \
 		test_bug_391514.html \
@@ -78,22 +77,14 @@ MOCHI_TESTS = \
 MOCHI_CONTENT = \
 		pwmgr_common.js \
 		prompt_common.js \
-		notification_common.js \
 		authenticate.sjs \
 		formsubmit.sjs \
-		subtst_privbrowsing_1.html \
-		subtst_privbrowsing_2.html \
-		subtst_privbrowsing_3.html \
-		subtst_privbrowsing_4.html \
 		subtst_notifications_1.html \
 		subtst_notifications_2.html \
 		subtst_notifications_3.html \
 		subtst_notifications_4.html \
 		subtst_notifications_5.html \
 		subtst_notifications_6.html \
-		subtst_notifications_8.html \
-		subtst_notifications_9.html \
-		subtst_notifications_10.html \
 		$(NULL)
 
 XPCSHELL_TESTS  = unit

@@ -208,10 +208,9 @@ nsQueryContentEventHandler::GenerateFlatTextContent(nsIRange* aRange,
 
   nsAutoString tmpStr;
   for (; !iter->IsDone(); iter->Next()) {
-    nsINode* node = iter->GetCurrentNode();
-    if (!node || !node->IsNodeOfType(nsINode::eCONTENT))
+    nsIContent* content = iter->GetCurrentNode();
+    if (!content)
       continue;
-    nsIContent* content = static_cast<nsIContent*>(node);
 
     if (content->IsNodeOfType(nsINode::eTEXT)) {
       if (content == startNode)
@@ -290,12 +289,11 @@ nsQueryContentEventHandler::SetRangeFromFlatTextOffset(
 
   PRUint32 nativeOffset = 0;
   PRUint32 nativeEndOffset = aNativeOffset + aNativeLength;
-  nsCOMPtr<nsIContent> content;
+  nsIContent* content = nsnull;
   for (; !iter->IsDone(); iter->Next()) {
-    nsINode* node = iter->GetCurrentNode();
-    if (!node || !node->IsNodeOfType(nsINode::eCONTENT))
+    content = iter->GetCurrentNode();
+    if (!content)
       continue;
-    nsIContent* content = static_cast<nsIContent*>(node);
 
     PRUint32 nativeTextLength;
     nativeTextLength = GetNativeTextLength(content);

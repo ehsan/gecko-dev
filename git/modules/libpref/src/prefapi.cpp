@@ -47,7 +47,7 @@
 #if defined(XP_MAC)
   #include <stat.h>
 #else
-  #ifdef XP_OS2
+  #ifdef XP_OS2_EMX
     #include <sys/types.h>
   #endif
 #endif
@@ -85,7 +85,7 @@
 #define BOGUS_DEFAULT_INT_PREF_VALUE (-5632)
 #define BOGUS_DEFAULT_BOOL_PREF_VALUE (-2)
 
-static void
+PR_STATIC_CALLBACK(void)
 clearPrefEntry(PLDHashTable *table, PLDHashEntryHdr *entry)
 {
     PrefHashEntry *pref = static_cast<PrefHashEntry *>(entry);
@@ -100,7 +100,7 @@ clearPrefEntry(PLDHashTable *table, PLDHashEntryHdr *entry)
     memset(entry, 0, table->entrySize);
 }
 
-static PRBool
+PR_STATIC_CALLBACK(PRBool)
 matchPrefEntry(PLDHashTable*, const PLDHashEntryHdr* entry,
                const void* key)
 {
@@ -376,7 +376,7 @@ pref_savePref(PLDHashTable *table, PLDHashEntryHdr *heh, PRUint32 i, void *arg)
     return PL_DHASH_NEXT;
 }
 
-int
+int PR_CALLBACK
 pref_CompareStrings(const void *v1, const void *v2, void *unused)
 {
     char *s1 = *(char**) v1;
@@ -518,7 +518,7 @@ nsresult PREF_GetBoolPref(const char *pref_name, PRBool * return_value, PRBool g
 }
 
 /* Delete a branch. Used for deleting mime types */
-static PLDHashOperator
+PR_STATIC_CALLBACK(PLDHashOperator)
 pref_DeleteItem(PLDHashTable *table, PLDHashEntryHdr *heh, PRUint32 i, void *arg)
 {
     PrefHashEntry* he = static_cast<PrefHashEntry*>(heh);
@@ -587,7 +587,7 @@ PREF_ClearUserPref(const char *pref_name)
     return rv;
 }
 
-static PLDHashOperator
+PR_STATIC_CALLBACK(PLDHashOperator)
 pref_ClearUserPref(PLDHashTable *table, PLDHashEntryHdr *he, PRUint32,
                    void *arg)
 {

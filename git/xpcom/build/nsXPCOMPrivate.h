@@ -196,7 +196,7 @@ typedef struct XPCOMFunctions{
 
 } XPCOMFunctions;
 
-typedef nsresult (*GetFrozenFunctionsFunc)(XPCOMFunctions *entryPoints, const char* libraryPath);
+typedef nsresult (PR_CALLBACK *GetFrozenFunctionsFunc)(XPCOMFunctions *entryPoints, const char* libraryPath);
 XPCOM_API(nsresult)
 NS_GetFrozenFunctions(XPCOMFunctions *entryPoints, const char* libraryPath);
 
@@ -231,7 +231,6 @@ NS_GetFrozenFunctions(XPCOMFunctions *entryPoints, const char* libraryPath);
 #define XUL_DLL   "libxul"MOZ_DLL_SUFFIX
 
 #else // Unix
-#include <limits.h> // for PATH_MAX
 
 #define XPCOM_DLL "libxpcom"MOZ_DLL_SUFFIX
 

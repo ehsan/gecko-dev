@@ -97,7 +97,6 @@ bin/components/dom_range.xpt
 bin/components/dom_sidebar.xpt
 bin/components/dom_storage.xpt
 bin/components/dom_stylesheets.xpt
-bin/components/dom_threads.xpt
 bin/components/dom_traversal.xpt
 bin/components/dom_views.xpt
 bin/components/dom_xbl.xpt
@@ -227,7 +226,6 @@ bin/components/extensions.xpt
 bin/components/update.xpt
 bin/components/nsSessionStartup.js
 bin/components/nsSessionStore.js
-bin/components/aboutSessionRestore.js
 bin/components/sessionstore.xpt
 bin/components/nsURLFormatter.js
 bin/components/urlformatter.xpt
@@ -236,7 +234,6 @@ bin/components/libbrowsercomps.so
 bin/components/txEXSLTRegExFunctions.js
 bin/components/nsLivemarkService.js
 bin/components/nsTaggingService.js
-bin/components/nsPlacesDBFlush.js
 bin/components/nsDefaultCLH.js
 bin/components/nsContentPrefService.js
 bin/components/nsContentDispatchChooser.js

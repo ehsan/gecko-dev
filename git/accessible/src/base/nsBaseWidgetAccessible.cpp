@@ -42,7 +42,7 @@
 #include "nsIAccessibilityService.h"
 #include "nsIAccessibleDocument.h"
 #include "nsAccessibleWrap.h"
-#include "nsCoreUtils.h"
+#include "nsAccessibilityUtils.h"
 #include "nsIDOMNSHTMLElement.h"
 #include "nsGUIEvent.h"
 #include "nsHyperTextAccessibleWrap.h"
@@ -130,7 +130,7 @@ nsLinkableAccessible::GetState(PRUint32 *aState, PRUint32 *aExtraState)
   if (mIsLink) {
     *aState |= nsIAccessibleStates::STATE_LINKED;
     nsCOMPtr<nsIAccessible> actionAcc = GetActionAccessible();
-    if (nsAccUtils::State(actionAcc) & nsIAccessibleStates::STATE_TRAVERSED)
+    if (actionAcc && (State(actionAcc) & nsIAccessibleStates::STATE_TRAVERSED))
       *aState |= nsIAccessibleStates::STATE_TRAVERSED;
   }
 
@@ -256,8 +256,8 @@ void
 nsLinkableAccessible::CacheActionContent()
 {
   nsCOMPtr<nsIContent> walkUpContent(do_QueryInterface(mDOMNode));
-  PRBool isOnclick = nsCoreUtils::HasListener(walkUpContent,
-                                              NS_LITERAL_STRING("click"));
+  PRBool isOnclick = nsAccUtils::HasListener(walkUpContent,
+                                             NS_LITERAL_STRING("click"));
 
   if (isOnclick) {
     mActionContent = walkUpContent;
@@ -266,8 +266,8 @@ nsLinkableAccessible::CacheActionContent()
   }
 
   while ((walkUpContent = walkUpContent->GetParent())) {
-    isOnclick = nsCoreUtils::HasListener(walkUpContent,
-                                         NS_LITERAL_STRING("click"));
+    isOnclick = nsAccUtils::HasListener(walkUpContent,
+                                        NS_LITERAL_STRING("click"));
   
     nsCOMPtr<nsIDOMNode> walkUpNode(do_QueryInterface(walkUpContent));
 
@@ -275,8 +275,8 @@ nsLinkableAccessible::CacheActionContent()
     GetAccService()->GetAccessibleInWeakShell(walkUpNode, mWeakShell,
                                               getter_AddRefs(walkUpAcc));
 
-    if (nsAccUtils::Role(walkUpAcc) == nsIAccessibleRole::ROLE_LINK &&
-        nsAccUtils::State(walkUpAcc) & nsIAccessibleStates::STATE_LINKED) {
+    if (walkUpAcc && Role(walkUpAcc) == nsIAccessibleRole::ROLE_LINK &&
+        (State(walkUpAcc) & nsIAccessibleStates::STATE_LINKED)) {
       mIsLink = PR_TRUE;
       mActionContent = walkUpContent;
       return;

@@ -115,7 +115,7 @@ math_abs(JSContext *cx, uintN argc, jsval *vp)
     x = js_ValueToNumber(cx, &vp[2]);
     if (JSVAL_IS_NULL(vp[2]))
         return JS_FALSE;
-    z = fabs(x);
+    z = fd_fabs(x);
     return js_NewNumberInRootedValue(cx, z, vp);
 }
 
@@ -131,13 +131,13 @@ math_acos(JSContext *cx, uintN argc, jsval *vp)
     x = js_ValueToNumber(cx, &vp[2]);
     if (JSVAL_IS_NULL(vp[2]))
         return JS_FALSE;
-#if defined(SOLARIS) && defined(__GNUC__)
+#if !JS_USE_FDLIBM_MATH && defined(SOLARIS) && defined(__GNUC__)
     if (x < -1 || 1 < x) {
         *vp = DOUBLE_TO_JSVAL(cx->runtime->jsNaN);
         return JS_TRUE;
     }
 #endif
-    z = acos(x);
+    z = fd_acos(x);
     return js_NewNumberInRootedValue(cx, z, vp);
 }
 
@@ -153,13 +153,13 @@ math_asin(JSContext *cx, uintN argc, jsval *vp)
     x = js_ValueToNumber(cx, &vp[2]);
     if (JSVAL_IS_NULL(vp[2]))
         return JS_FALSE;
-#if defined(SOLARIS) && defined(__GNUC__)
+#if !JS_USE_FDLIBM_MATH && defined(SOLARIS) && defined(__GNUC__)
     if (x < -1 || 1 < x) {
         *vp = DOUBLE_TO_JSVAL(cx->runtime->jsNaN);
         return JS_TRUE;
     }
 #endif
-    z = asin(x);
+    z = fd_asin(x);
     return js_NewNumberInRootedValue(cx, z, vp);
 }
 
@@ -175,7 +175,7 @@ math_atan(JSContext *cx, uintN argc, jsval *vp)
     x = js_ValueToNumber(cx, &vp[2]);
     if (JSVAL_IS_NULL(vp[2]))
         return JS_FALSE;
-    z = atan(x);
+    z = fd_atan(x);
     return js_NewNumberInRootedValue(cx, z, vp);
 }
 
@@ -203,17 +203,17 @@ math_atan2(JSContext *cx, uintN argc, jsval *vp)
      * - The sign of y determines the multiplicator, 1 or 3.
      */
     if (JSDOUBLE_IS_INFINITE(x) && JSDOUBLE_IS_INFINITE(y)) {
-        z = js_copysign(M_PI / 4, x);
+        z = fd_copysign(M_PI / 4, x);
         if (y < 0)
             z *= 3;
         return js_NewDoubleInRootedValue(cx, z, vp);
     }
 #endif
 
-#if defined(SOLARIS) && defined(__GNUC__)
+#if !JS_USE_FDLIBM_MATH && defined(SOLARIS) && defined(__GNUC__)
     if (x == 0) {
         if (JSDOUBLE_IS_NEGZERO(y)) {
-            z = js_copysign(M_PI, x);
+            z = fd_copysign(M_PI, x);
             return js_NewDoubleInRootedValue(cx, z, vp);
         }
         if (y == 0) {
@@ -222,7 +222,7 @@ math_atan2(JSContext *cx, uintN argc, jsval *vp)
         }
     }
 #endif
-    z = atan2(x, y);
+    z = fd_atan2(x, y);
     return js_NewNumberInRootedValue(cx, z, vp);
 }
 
@@ -238,7 +238,7 @@ math_ceil(JSContext *cx, uintN argc, jsval *vp)
     x = js_ValueToNumber(cx, &vp[2]);
     if (JSVAL_IS_NULL(vp[2]))
         return JS_FALSE;
-    z = ceil(x);
+    z = fd_ceil(x);
     return js_NewNumberInRootedValue(cx, z, vp);
 }
 
@@ -254,7 +254,7 @@ math_cos(JSContext *cx, uintN argc, jsval *vp)
     x = js_ValueToNumber(cx, &vp[2]);
     if (JSVAL_IS_NULL(vp[2]))
         return JS_FALSE;
-    z = cos(x);
+    z = fd_cos(x);
     return js_NewNumberInRootedValue(cx, z, vp);
 }
 
@@ -282,7 +282,7 @@ math_exp(JSContext *cx, uintN argc, jsval *vp)
         }
     }
 #endif
-    z = exp(x);
+    z = fd_exp(x);
     return js_NewNumberInRootedValue(cx, z, vp);
 }
 
@@ -298,7 +298,7 @@ math_floor(JSContext *cx, uintN argc, jsval *vp)
     x = js_ValueToNumber(cx, &vp[2]);
     if (JSVAL_IS_NULL(vp[2]))
         return JS_FALSE;
-    z = floor(x);
+    z = fd_floor(x);
     return js_NewNumberInRootedValue(cx, z, vp);
 }
 
@@ -314,13 +314,13 @@ math_log(JSContext *cx, uintN argc, jsval *vp)
     x = js_ValueToNumber(cx, &vp[2]);
     if (JSVAL_IS_NULL(vp[2]))
         return JS_FALSE;
-#if defined(SOLARIS) && defined(__GNUC__)
+#if !JS_USE_FDLIBM_MATH && defined(SOLARIS) && defined(__GNUC__)
     if (x < 0) {
         *vp = DOUBLE_TO_JSVAL(cx->runtime->jsNaN);
         return JS_TRUE;
     }
 #endif
-    z = log(x);
+    z = fd_log(x);
     return js_NewNumberInRootedValue(cx, z, vp);
 }
 
@@ -344,7 +344,7 @@ math_max(JSContext *cx, uintN argc, jsval *vp)
             *vp = DOUBLE_TO_JSVAL(cx->runtime->jsNaN);
             return JS_TRUE;
         }
-        if (x == 0 && x == z && js_copysign(1.0, z) == -1)
+        if (x == 0 && x == z && fd_copysign(1.0, z) == -1)
             z = x;
         else
             /* 
@@ -378,7 +378,7 @@ math_min(JSContext *cx, uintN argc, jsval *vp)
             *vp = DOUBLE_TO_JSVAL(cx->runtime->jsNaN);
             return JS_TRUE;
         }
-        if (x == 0 && x == z && js_copysign(1.0,x) == -1)
+        if (x == 0 && x == z && fd_copysign(1.0,x) == -1)
             z = x;
         else
             z = (x < z) ? x : z;
@@ -414,7 +414,7 @@ math_pow(JSContext *cx, uintN argc, jsval *vp)
         *vp = JSVAL_ONE;
         return JS_TRUE;
     }
-    z = pow(x, y);
+    z = fd_pow(x, y);
     return js_NewNumberInRootedValue(cx, z, vp);
 }
 
@@ -532,7 +532,7 @@ math_round(JSContext *cx, uintN argc, jsval *vp)
     x = js_ValueToNumber(cx, &vp[2]);
     if (JSVAL_IS_NULL(vp[2]))
         return JS_FALSE;
-    z = js_copysign(floor(x + 0.5), x);
+    z = fd_copysign(fd_floor(x + 0.5), x);
     return js_NewNumberInRootedValue(cx, z, vp);
 }
 
@@ -548,7 +548,7 @@ math_sin(JSContext *cx, uintN argc, jsval *vp)
     x = js_ValueToNumber(cx, &vp[2]);
     if (JSVAL_IS_NULL(vp[2]))
         return JS_FALSE;
-    z = sin(x);
+    z = fd_sin(x);
     return js_NewNumberInRootedValue(cx, z, vp);
 }
 
@@ -564,7 +564,7 @@ math_sqrt(JSContext *cx, uintN argc, jsval *vp)
     x = js_ValueToNumber(cx, &vp[2]);
     if (JSVAL_IS_NULL(vp[2]))
         return JS_FALSE;
-    z = sqrt(x);
+    z = fd_sqrt(x);
     return js_NewNumberInRootedValue(cx, z, vp);
 }
 
@@ -580,7 +580,7 @@ math_tan(JSContext *cx, uintN argc, jsval *vp)
     x = js_ValueToNumber(cx, &vp[2]);
     if (JSVAL_IS_NULL(vp[2]))
         return JS_FALSE;
-    z = tan(x);
+    z = fd_tan(x);
     return js_NewNumberInRootedValue(cx, z, vp);
 }
 
@@ -610,7 +610,7 @@ MATH_BUILTIN_1(ceil)
 jsdouble FASTCALL
 js_Math_log(jsdouble d)
 {
-#if defined(SOLARIS) && defined(__GNUC__)
+#if !JS_USE_FDLIBM_MATH && defined(SOLARIS) && defined(__GNUC__)
     if (d < 0)
         return js_NaN;
 #endif
@@ -623,7 +623,7 @@ js_Math_max(jsdouble d, jsdouble p)
     if (JSDOUBLE_IS_NaN(d) || JSDOUBLE_IS_NaN(p))
         return js_NaN;
 
-    if (p == 0 && p == d && js_copysign(1.0, d) == -1)
+    if (p == 0 && p == d && fd_copysign(1.0, d) == -1)
         return p;
     return (d > p) ? d : p;
 }

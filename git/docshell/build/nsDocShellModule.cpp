@@ -76,7 +76,7 @@ static PRBool gInitialized = PR_FALSE;
 
 // The one time initialization for this module
 // static
-static nsresult
+PR_STATIC_CALLBACK(nsresult)
 Initialize(nsIModule* aSelf)
 {
   NS_PRECONDITION(!gInitialized, "docshell module already initialized");
@@ -92,7 +92,7 @@ Initialize(nsIModule* aSelf)
   return rv;
 }
 
-static void
+PR_STATIC_CALLBACK(void)
 Shutdown(nsIModule* aSelf)
 {
   nsSHEntry::Shutdown();
@@ -209,6 +209,11 @@ static const nsModuleComponentInfo gDocShellModuleInfo[] = {
     { "about:licence",
       NS_ABOUT_REDIRECTOR_MODULE_CID,
       NS_ABOUT_MODULE_CONTRACTID_PREFIX "licence",
+      nsAboutRedirector::Create
+    },
+    { "about:about",
+      NS_ABOUT_REDIRECTOR_MODULE_CID,
+      NS_ABOUT_MODULE_CONTRACTID_PREFIX "about",
       nsAboutRedirector::Create
     },
     { "about:neterror",

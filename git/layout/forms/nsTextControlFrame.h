@@ -48,6 +48,7 @@
 #include "nsIFontMetrics.h"
 #include "nsWeakReference.h" //for service and presshell pointers
 #include "nsIScrollableViewProvider.h"
+#include "nsIPhonetic.h"
 #include "nsContentUtils.h"
 #include "nsDisplayList.h"
 
@@ -65,7 +66,8 @@ class nsIAccessible;
 class nsTextControlFrame : public nsStackFrame,
                            public nsIAnonymousContentCreator,
                            public nsITextControlFrame,
-                           public nsIScrollableViewProvider
+                           public nsIScrollableViewProvider,
+                           public nsIPhonetic
 
 {
 public:
@@ -155,7 +157,8 @@ public:
   virtual nsFrameSelection* GetOwnedFrameSelection()
     { return mFrameSel; }
 
-  nsresult GetPhonetic(nsAString& aPhonetic);
+  // nsIPhonetic
+  NS_DECL_NSIPHONETIC
 
 //==== END NSIGFXTEXTCONTROLFRAME2
 //==== OVERLOAD of nsIFrame

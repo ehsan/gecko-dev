@@ -53,7 +53,6 @@ REQUIRES	= xpcom \
 		  nkcache \
 		  chardet \
 		  pref \
-		  caps \
 		  $(NULL)
 
 CPPSRCS = \

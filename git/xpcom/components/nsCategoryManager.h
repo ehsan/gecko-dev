@@ -73,7 +73,7 @@ public:
 
 
 /**
- * CategoryNode keeps a hashtable of its entries.
+ * CategoryNode keeps a hashtable of it's entries.
  * the CategoryNode itself is permanently allocated in
  * the arena.
  */

@@ -54,7 +54,6 @@
 #include "nsIView.h"
 #include "nsIViewManager.h"
 #include "nsIDOMKeyListener.h"
-#include "nsIDOMDragEvent.h"
 #ifdef MOZ_X11
 #ifdef MOZ_WIDGET_QT
 #include <QWidget>
@@ -97,6 +96,7 @@
 #include "nsIDOMMouseMotionListener.h"
 #include "nsIDOMFocusListener.h"
 #include "nsIDOMContextMenuListener.h"
+#include "nsIDOMDragListener.h"
 #include "nsIDOMEventTarget.h"
 #include "nsIDOMNSEvent.h"
 #include "nsIPrivateDOMEvent.h"
@@ -237,7 +237,8 @@ class nsPluginInstanceOwner : public nsIPluginInstanceOwner,
                               public nsIDOMMouseMotionListener,
                               public nsIDOMKeyListener,
                               public nsIDOMFocusListener,
-                              public nsIScrollPositionListener
+                              public nsIScrollPositionListener,
+                              public nsIDOMDragListener
 
 {
 public:
@@ -348,6 +349,16 @@ public:
   NS_IMETHOD Focus(nsIDOMEvent * aFocusEvent);
   NS_IMETHOD Blur(nsIDOMEvent * aFocusEvent);
 
+  // nsIDOMDragListener interfaces
+  NS_IMETHOD DragEnter(nsIDOMEvent* aMouseEvent);
+  NS_IMETHOD DragOver(nsIDOMEvent* aMouseEvent);
+  NS_IMETHOD DragExit(nsIDOMEvent* aMouseEvent);
+  NS_IMETHOD DragDrop(nsIDOMEvent* aMouseEvent);
+  NS_IMETHOD DragGesture(nsIDOMEvent* aMouseEvent);
+  NS_IMETHOD Drag(nsIDOMEvent* aMouseEvent);
+  NS_IMETHOD DragEnd(nsIDOMEvent* aMouseEvent);
+  
+
   nsresult Destroy();  
 
   void PrepareToStop(PRBool aDelayedStop);
@@ -392,7 +403,6 @@ public:
   NPDrawingModel GetDrawingModel();
   WindowRef FixUpPluginWindow(PRInt32 inPaintState);
   void GUItoMacEvent(const nsGUIEvent& anEvent, EventRecord* origEvent, EventRecord& aMacEvent);
-  void SetCGContextChanged(PRBool aState) { mCGContextChanged = aState; }
 #endif
 
   void SetOwner(nsObjectFrame *aOwner)
@@ -459,7 +469,6 @@ private:
   PRUint32                    mLastEventloopNestingLevel;
   PRPackedBool                mContentFocused;
   PRPackedBool                mWidgetVisible;    // used on Mac to store our widget's visible state
-  PRPackedBool                mCGContextChanged;
 
   // If true, destroy the widget on destruction. Used when plugin stop
   // is being delayed to a safer point in time.
@@ -600,9 +609,7 @@ nsObjectFrame::Init(nsIContent*      aContent,
                     nsIFrame*        aParent,
                     nsIFrame*        aPrevInFlow)
 {
-  NS_PRECONDITION(aContent, "How did that happen?");
-  mPreventInstantiation =
-    (aContent->GetCurrentDoc()->GetDisplayDocument() != nsnull);
+  mPreventInstantiation = PR_FALSE;
 
   PR_LOG(nsObjectFrameLM, PR_LOG_DEBUG,
          ("Initializing nsObjectFrame %p for content %p\n", this, aContent));
@@ -613,9 +620,7 @@ nsObjectFrame::Init(nsIContent*      aContent,
 void
 nsObjectFrame::Destroy()
 {
-  NS_ASSERTION(!mPreventInstantiation ||
-               mContent && mContent->GetCurrentDoc()->GetDisplayDocument(),
-               "about to crash due to bug 136927");
+  NS_ASSERTION(!mPreventInstantiation, "about to crash due to bug 136927");
 
   // we need to finish with the plugin before native window is destroyed
   // doing this in the destructor is too late.
@@ -624,8 +629,8 @@ nsObjectFrame::Destroy()
   nsObjectFrameSuper::Destroy();
 }
 
-/* virtual */ void
-nsObjectFrame::DidSetStyleContext(nsStyleContext* aOldStyleContext)
+NS_IMETHODIMP
+nsObjectFrame::DidSetStyleContext()
 {
   if (HasView()) {
     nsIView* view = GetView();
@@ -637,7 +642,7 @@ nsObjectFrame::DidSetStyleContext(nsStyleContext* aOldStyleContext)
     }
   }
 
-  nsObjectFrameSuper::DidSetStyleContext(aOldStyleContext);
+  return nsObjectFrameSuper::DidSetStyleContext();
 }
 
 nsIAtom*
@@ -869,13 +874,9 @@ nsObjectFrame::InstantiatePlugin(nsIPluginHost* aPluginHost,
 
   nsIDocument* doc = mContent->GetOwnerDoc();
   nsCOMPtr<nsIPluginDocument> pDoc (do_QueryInterface(doc));
-  PRBool fullPageMode = PR_FALSE;
-  if (pDoc) {
-    pDoc->GetWillHandleInstantiation(&fullPageMode);
-  }
 
   nsresult rv;
-  if (fullPageMode) {  /* full-page mode */
+  if (pDoc) {  /* full-page mode */
     nsCOMPtr<nsIStreamListener> stream;
     rv = aPluginHost->InstantiateFullPagePlugin(aMimeType, aURI,
           /* resulting stream listener */       *getter_AddRefs(stream),
@@ -1367,8 +1368,9 @@ nsObjectFrame::PaintPlugin(nsIRenderingContext& aRenderingContext,
 
       // If gfxQuartzNativeDrawing hands out a CGContext other than the last
       // one we passed to the plugin, we need to pass the new one to the
-      // plugin via SetWindow.  This will happen in nsPluginInstanceOwner::
-      // FixUpPluginWindow(), called from nsPluginInstanceOwner::Paint().
+      // plugin via SetWindow.
+      // XXXkinetik it's not necessary to call SetWindow for every paint so
+      // this should eventually be optimized to only do so when necessary
       nsPluginPort* pluginPort = mInstanceOwner->GetPluginPort();
       nsCOMPtr<nsIPluginInstance> inst;
       GetPluginInstance(*getter_AddRefs(inst));
@@ -1382,11 +1384,9 @@ nsObjectFrame::PaintPlugin(nsIRenderingContext& aRenderingContext,
         NS_WARNING("null plugin window during PaintPlugin");
         return;
       }
-      if (window->window->cgPort.context != cgContext) {
-        pluginPort->cgPort.context = cgContext;
-        window->window = pluginPort;
-        mInstanceOwner->SetCGContextChanged(PR_TRUE);
-      }
+      pluginPort->cgPort.context = cgContext;
+      window->window = pluginPort;
+      inst->SetWindow(window);
 
       mInstanceOwner->Paint(aDirtyRect);
 
@@ -1718,7 +1718,6 @@ nsObjectFrame::Instantiate(const char* aMimeType, nsIURI* aURI)
     return rv;
   mInstanceOwner->SetPluginHost(pluginHost);
 
-  NS_ASSERTION(!mPreventInstantiation, "Say what?");
   mPreventInstantiation = PR_TRUE;
 
   rv = InstantiatePlugin(pluginHost, aMimeType, aURI);
@@ -2145,7 +2144,6 @@ nsPluginInstanceOwner::nsPluginInstanceOwner()
   mTagText = nsnull;
   mContentFocused = PR_FALSE;
   mWidgetVisible = PR_TRUE;
-  mCGContextChanged = PR_FALSE;
   mNumCachedAttrs = 0;
   mNumCachedParams = 0;
   mCachedAttrParamNames = nsnull;
@@ -2227,6 +2225,7 @@ NS_INTERFACE_MAP_BEGIN(nsPluginInstanceOwner)
   NS_INTERFACE_MAP_ENTRY(nsIDOMKeyListener)
   NS_INTERFACE_MAP_ENTRY(nsIDOMFocusListener)
   NS_INTERFACE_MAP_ENTRY(nsIScrollPositionListener)
+  NS_INTERFACE_MAP_ENTRY(nsIDOMDragListener)
   NS_INTERFACE_MAP_ENTRY_AMBIGUOUS(nsIDOMEventListener, nsIDOMMouseListener)
   NS_INTERFACE_MAP_ENTRY_AMBIGUOUS(nsISupports, nsIPluginInstanceOwner)
 NS_INTERFACE_MAP_END
@@ -3277,7 +3276,8 @@ nsresult nsPluginInstanceOwner::DispatchFocusToPlugin(nsIDOMEvent* aFocusEvent)
 
   nsCOMPtr<nsIPrivateDOMEvent> privateEvent(do_QueryInterface(aFocusEvent));
   if (privateEvent) {
-    nsEvent * theEvent = privateEvent->GetInternalNSEvent();
+    nsEvent * theEvent;
+    privateEvent->GetInternalNSEvent(&theEvent);
     if (theEvent) {
       // we only care about the message in ProcessEvent
       nsGUIEvent focusEvent(NS_IS_TRUSTED_EVENT(theEvent), theEvent->message,
@@ -3294,6 +3294,85 @@ nsresult nsPluginInstanceOwner::DispatchFocusToPlugin(nsIDOMEvent* aFocusEvent)
   
   return NS_OK;
 }    
+
+/*=============== nsIDOMDragListener ======================*/
+nsresult nsPluginInstanceOwner::DragEnter(nsIDOMEvent* aMouseEvent)
+{
+  if (mInstance) {
+    // Let the plugin handle drag events.
+    aMouseEvent->PreventDefault();
+    aMouseEvent->StopPropagation();
+  }
+
+  return NS_OK;
+}
+
+nsresult nsPluginInstanceOwner::DragOver(nsIDOMEvent* aMouseEvent)
+{
+  if (mInstance) {
+    // Let the plugin handle drag events.
+    aMouseEvent->PreventDefault();
+    aMouseEvent->StopPropagation();
+  }
+
+  return NS_OK;
+}
+
+nsresult nsPluginInstanceOwner::DragExit(nsIDOMEvent* aMouseEvent)
+{
+  if (mInstance) {
+    // Let the plugin handle drag events.
+    aMouseEvent->PreventDefault();
+    aMouseEvent->StopPropagation();
+  }
+
+  return NS_OK;
+}
+
+nsresult nsPluginInstanceOwner::DragDrop(nsIDOMEvent* aMouseEvent)
+{
+  if (mInstance) {
+    // Let the plugin handle drag events.
+    aMouseEvent->PreventDefault();
+    aMouseEvent->StopPropagation();
+  }
+
+  return NS_OK;
+}
+
+nsresult nsPluginInstanceOwner::DragGesture(nsIDOMEvent* aMouseEvent)
+{
+  if (mInstance) {
+    // Let the plugin handle drag events.
+    aMouseEvent->PreventDefault();
+    aMouseEvent->StopPropagation();
+  }
+
+  return NS_OK;
+}
+
+nsresult nsPluginInstanceOwner::Drag(nsIDOMEvent* aMouseEvent)
+{
+  if (mInstance) {
+    // Let the plugin handle drag events.
+    aMouseEvent->PreventDefault();
+    aMouseEvent->StopPropagation();
+  }
+
+  return NS_OK;
+}
+
+nsresult nsPluginInstanceOwner::DragEnd(nsIDOMEvent* aMouseEvent)
+{
+  if (mInstance) {
+    // Let the plugin handle drag events.
+    aMouseEvent->PreventDefault();
+    aMouseEvent->StopPropagation();
+  }
+
+  return NS_OK;
+}
+
 
 
 /*=============== nsIKeyListener ======================*/
@@ -3316,7 +3395,8 @@ nsresult nsPluginInstanceOwner::KeyPress(nsIDOMEvent* aKeyEvent)
   // we won't send the plugin two keyDown events.
   nsCOMPtr<nsIPrivateDOMEvent> privateEvent(do_QueryInterface(aKeyEvent));
   if (privateEvent) {
-    nsEvent *theEvent = privateEvent->GetInternalNSEvent();
+    nsEvent *theEvent;
+    privateEvent->GetInternalNSEvent(&theEvent);
     const nsGUIEvent *guiEvent = (nsGUIEvent*)theEvent;
     const EventRecord *ev = (EventRecord*)(guiEvent->nativeMsg); 
     if (guiEvent &&
@@ -3361,7 +3441,8 @@ nsresult nsPluginInstanceOwner::DispatchKeyToPlugin(nsIDOMEvent* aKeyEvent)
   if (mInstance) {
     nsCOMPtr<nsIPrivateDOMEvent> privateEvent(do_QueryInterface(aKeyEvent));
     if (privateEvent) {
-      nsKeyEvent *keyEvent = (nsKeyEvent *) privateEvent->GetInternalNSEvent();
+      nsKeyEvent* keyEvent = nsnull;
+      privateEvent->GetInternalNSEvent((nsEvent**)&keyEvent);
       if (keyEvent) {
         nsEventStatus rv = ProcessEvent(*keyEvent);
         if (nsEventStatus_eConsumeNoDefault == rv) {
@@ -3394,7 +3475,8 @@ nsPluginInstanceOwner::MouseMove(nsIDOMEvent* aMouseEvent)
 
   nsCOMPtr<nsIPrivateDOMEvent> privateEvent(do_QueryInterface(aMouseEvent));
   if (privateEvent) {
-    nsMouseEvent* mouseEvent = (nsMouseEvent *) privateEvent->GetInternalNSEvent();
+    nsMouseEvent* mouseEvent = nsnull;
+    privateEvent->GetInternalNSEvent((nsEvent**)&mouseEvent);
     if (mouseEvent) {
       nsEventStatus rv = ProcessEvent(*mouseEvent);
       if (nsEventStatus_eConsumeNoDefault == rv) {
@@ -3428,7 +3510,8 @@ nsPluginInstanceOwner::MouseDown(nsIDOMEvent* aMouseEvent)
 
   nsCOMPtr<nsIPrivateDOMEvent> privateEvent(do_QueryInterface(aMouseEvent));
   if (privateEvent) {
-    nsMouseEvent* mouseEvent = (nsMouseEvent *) privateEvent->GetInternalNSEvent();
+    nsMouseEvent* mouseEvent = nsnull;
+    privateEvent->GetInternalNSEvent((nsEvent**)&mouseEvent);
     if (mouseEvent) {
       nsEventStatus rv = ProcessEvent(*mouseEvent);
       if (nsEventStatus_eConsumeNoDefault == rv) {
@@ -3486,7 +3569,8 @@ nsresult nsPluginInstanceOwner::DispatchMouseToPlugin(nsIDOMEvent* aMouseEvent)
 
   nsCOMPtr<nsIPrivateDOMEvent> privateEvent(do_QueryInterface(aMouseEvent));
   if (privateEvent) {
-    nsMouseEvent* mouseEvent = (nsMouseEvent *) privateEvent->GetInternalNSEvent();
+    nsMouseEvent* mouseEvent = nsnull;
+    privateEvent->GetInternalNSEvent((nsEvent**)&mouseEvent);
     if (mouseEvent) {
       nsEventStatus rv = ProcessEvent(*mouseEvent);
       if (nsEventStatus_eConsumeNoDefault == rv) {
@@ -3504,17 +3588,6 @@ nsresult nsPluginInstanceOwner::DispatchMouseToPlugin(nsIDOMEvent* aMouseEvent)
 nsresult
 nsPluginInstanceOwner::HandleEvent(nsIDOMEvent* aEvent)
 {
-  nsAutoString eventType;
-  aEvent->GetType(eventType);
-
-  if (mInstance) {
-    nsCOMPtr<nsIDOMDragEvent> dragEvent = do_QueryInterface(aEvent);
-    if (dragEvent) {
-      // Let the plugin handle drag events.
-      aEvent->PreventDefault();
-      aEvent->StopPropagation();
-    }
-  }
   return NS_OK;
 }
 
@@ -3838,16 +3911,11 @@ nsPluginInstanceOwner::Destroy()
     target->RemoveEventListener(NS_LITERAL_STRING("keyup"), listener, PR_TRUE);
 
     // Unregister drag event listener;
-    target->RemoveEventListener(NS_LITERAL_STRING("drop"), listener, PR_TRUE);
     target->RemoveEventListener(NS_LITERAL_STRING("dragdrop"), listener, PR_TRUE);
-    target->RemoveEventListener(NS_LITERAL_STRING("drag"), listener, PR_TRUE);
-    target->RemoveEventListener(NS_LITERAL_STRING("dragenter"), listener, PR_TRUE);
     target->RemoveEventListener(NS_LITERAL_STRING("dragover"), listener, PR_TRUE);
     target->RemoveEventListener(NS_LITERAL_STRING("dragexit"), listener, PR_TRUE);
-    target->RemoveEventListener(NS_LITERAL_STRING("dragleave"), listener, PR_TRUE);
-    target->RemoveEventListener(NS_LITERAL_STRING("dragstart"), listener, PR_TRUE);
+    target->RemoveEventListener(NS_LITERAL_STRING("dragenter"), listener, PR_TRUE);
     target->RemoveEventListener(NS_LITERAL_STRING("draggesture"), listener, PR_TRUE);
-    target->RemoveEventListener(NS_LITERAL_STRING("dragend"), listener, PR_TRUE);
   }
 
   if (mWidget) {
@@ -4337,16 +4405,11 @@ nsresult nsPluginInstanceOwner::Init(nsPresContext* aPresContext,
     target->AddEventListener(NS_LITERAL_STRING("keyup"), listener, PR_TRUE);
 
     // Register drag listener
-    target->AddEventListener(NS_LITERAL_STRING("drop"), listener, PR_TRUE);
     target->AddEventListener(NS_LITERAL_STRING("dragdrop"), listener, PR_TRUE);
-    target->AddEventListener(NS_LITERAL_STRING("drag"), listener, PR_TRUE);
-    target->AddEventListener(NS_LITERAL_STRING("dragenter"), listener, PR_TRUE);
     target->AddEventListener(NS_LITERAL_STRING("dragover"), listener, PR_TRUE);
-    target->AddEventListener(NS_LITERAL_STRING("dragleave"), listener, PR_TRUE);
     target->AddEventListener(NS_LITERAL_STRING("dragexit"), listener, PR_TRUE);
-    target->AddEventListener(NS_LITERAL_STRING("dragstart"), listener, PR_TRUE);
+    target->AddEventListener(NS_LITERAL_STRING("dragenter"), listener, PR_TRUE);
     target->AddEventListener(NS_LITERAL_STRING("draggesture"), listener, PR_TRUE);
-    target->AddEventListener(NS_LITERAL_STRING("dragend"), listener, PR_TRUE);
   }
   
   // Register scroll position listener
@@ -4616,7 +4679,6 @@ WindowRef nsPluginInstanceOwner::FixUpPluginWindow(PRInt32 inPaintState)
       mPluginWindow->clipRect.bottom  != oldClipRect.bottom)
   {
     mInstance->SetWindow(mPluginWindow);
-    mCGContextChanged = PR_FALSE;
     // if the clipRect is of size 0, make the null timer fire less often
     CancelTimer();
     if (mPluginWindow->clipRect.left == mPluginWindow->clipRect.right ||
@@ -4626,9 +4688,6 @@ WindowRef nsPluginInstanceOwner::FixUpPluginWindow(PRInt32 inPaintState)
     else {
       StartTimer(NORMAL_PLUGIN_DELAY);
     }
-  } else if (mCGContextChanged) {
-    mInstance->SetWindow(mPluginWindow);
-    mCGContextChanged = PR_FALSE;
   }
 
 #ifndef NP_NO_QUICKDRAW

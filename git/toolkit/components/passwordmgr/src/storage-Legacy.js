@@ -231,7 +231,7 @@ LoginManagerStorage_legacy.prototype = {
 
         var key = login.hostname;
 
-        // If first entry for key, create an Array to hold its logins.
+        // If first entry for key, create an Array to hold it's logins.
         var rollback;
         if (!this._logins[key]) {
             this._logins[key] = [];
@@ -784,9 +784,6 @@ LoginManagerStorage_legacy.prototype = {
         // encrypted username field (which contains an encrypted empty value)
         // (Don't do this if it's a form login, though.)
         if (username && !isFormLogin) {
-            if (isMailNews.test(aLogin.hostname))
-                username = decodeURIComponent(username);
-
             var [encUsername, userCanceled] = this._encrypt(username);
             if (!userCanceled)
                 aLogin.wrappedJSObject.encryptedUsername = encUsername;

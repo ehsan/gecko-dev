@@ -58,7 +58,7 @@ protected:
 
 public:
   // nsIFrame interface:
-  virtual void DidSetStyleContext(nsStyleContext* aOldStyleContext);
+  NS_IMETHOD DidSetStyleContext();
 
   NS_IMETHOD AttributeChanged(PRInt32         aNameSpaceID,
                               nsIAtom*        aAttribute,
@@ -91,11 +91,12 @@ public:
 //----------------------------------------------------------------------
 // nsIFrame methods:
 
-/* virtual */ void
-nsSVGStopFrame::DidSetStyleContext(nsStyleContext* aOldStyleContext)
+NS_IMETHODIMP
+nsSVGStopFrame::DidSetStyleContext()
 {
-  nsSVGStopFrameBase::DidSetStyleContext(aOldStyleContext);
+  nsSVGStopFrameBase::DidSetStyleContext();
   nsSVGEffects::InvalidateRenderingObservers(this);
+  return NS_OK;
 }
 
 nsIAtom *

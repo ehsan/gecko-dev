@@ -1105,7 +1105,7 @@ nsHTMLEditor::GetInlinePropertyBase(nsIAtom *aProperty,
     if (NS_FAILED(result)) return result;
     while (!iter->IsDone())
     {
-      nsCOMPtr<nsIContent> content = do_QueryInterface(iter->GetCurrentNode());
+      nsIContent *content = iter->GetCurrentNode();
 
       nsCOMPtr<nsIDOMNode> node = do_QueryInterface(content);
 

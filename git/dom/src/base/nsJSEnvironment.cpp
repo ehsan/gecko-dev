@@ -423,29 +423,6 @@ NS_ScriptErrorReporter(JSContext *cx,
                        const char *message,
                        JSErrorReport *report)
 {
-  JSStackFrame * fp = nsnull;
-  while ((fp = JS_FrameIterator(cx, &fp))) {
-    if (!JS_IsNativeFrame(cx, fp)) {
-      return;
-    }
-  }
-
-  nsIXPConnect* xpc = nsContentUtils::XPConnect();
-  if (xpc) {
-    nsAXPCNativeCallContext *cc = nsnull;
-    xpc->GetCurrentNativeCallContext(&cc);
-    if (cc) {
-      nsAXPCNativeCallContext *prev = cc;
-      while (NS_SUCCEEDED(prev->GetPreviousCallContext(&prev)) && prev) {
-        PRUint16 lang;
-        if (NS_SUCCEEDED(prev->GetLanguage(&lang)) &&
-          lang == nsAXPCNativeCallContext::LANG_JS) {
-          return;
-        }
-      }
-    }
-  }
-
   // XXX this means we are not going to get error reports on non DOM contexts
   nsIScriptContext *context = nsJSUtils::GetDynamicScriptContext(cx);
 
@@ -510,12 +487,18 @@ NS_ScriptErrorReporter(JSContext *cx,
               nsCOMPtr<nsIURI> errorURI;
               NS_NewURI(getter_AddRefs(errorURI), report->filename);
 
-              if (errorURI) {
+              nsCOMPtr<nsIURI> codebase;
+              p->GetURI(getter_AddRefs(codebase));
+
+              if (errorURI && codebase) {
                 // FIXME: Once error reports contain the origin of the
                 // error (principals) we should change this to do the
                 // security check based on the principals and not
                 // URIs. See bug 387476.
-                sameOrigin = NS_SUCCEEDED(p->CheckMayLoad(errorURI, PR_FALSE));
+                sameOrigin =
+                  NS_SUCCEEDED(sSecurityManager->
+                               CheckSameOriginURI(errorURI, codebase,
+                                                  PR_FALSE));
               }
             }
 
@@ -1152,7 +1135,7 @@ static const char js_zeal_option_str[]   = JS_OPTIONS_DOT_STR "gczeal";
 static const char js_jit_content_str[]   = JS_OPTIONS_DOT_STR "jit.content";
 static const char js_jit_chrome_str[]    = JS_OPTIONS_DOT_STR "jit.chrome";
 
-int
+int PR_CALLBACK
 nsJSContext::JSOptionChangedCallback(const char *pref, void *data)
 {
   nsJSContext *context = reinterpret_cast<nsJSContext *>(data);
@@ -1224,6 +1207,11 @@ nsJSContext::nsJSContext(JSRuntime *aRuntime) : mGCOnDestruction(PR_TRUE)
   ++sContextCount;
 
   mDefaultJSOptions = JSOPTION_PRIVATE_IS_NSISUPPORTS | JSOPTION_ANONFUNFIX;
+
+  // Let xpconnect resync its JSContext tracker. We do this before creating
+  // a new JSContext just in case the heap manager recycles the JSContext
+  // struct.
+  nsContentUtils::XPConnect()->SyncJSContexts();
 
   mContext = ::JS_NewContext(aRuntime, gStackSize);
   if (mContext) {
@@ -1950,6 +1938,39 @@ nsJSContext::CallEventHandler(nsISupports* aTarget, void *aScope, void *aHandler
 
   // check if the event handler can be run on the object in question
   rv = sSecurityManager->CheckFunctionAccess(mContext, aHandler, target);
+  if (NS_SUCCEEDED(rv)) {
+    // We're not done yet!  Some event listeners are confused about their
+    // script context, so check whether we might actually be the wrong script
+    // context.  To be safe, do CheckFunctionAccess checks for both.
+    nsCOMPtr<nsIContent> content = do_QueryInterface(aTarget);
+    if (content) {
+      // XXXbz XBL2/sXBL issue
+      nsIDocument* ownerDoc = content->GetOwnerDoc();
+      if (ownerDoc) {
+        nsIScriptGlobalObject* global = ownerDoc->GetScriptGlobalObject();
+        if (global) {
+          nsIScriptContext* context =
+            global->GetScriptContext(JAVASCRIPT);
+          if (context && context != this) {
+            JSContext* cx =
+              static_cast<JSContext*>(context->GetNativeContext());
+            rv = stack->Push(cx);
+            if (NS_SUCCEEDED(rv)) {
+              rv = sSecurityManager->CheckFunctionAccess(cx, aHandler,
+                                                         target);
+              // Here we lose no matter what; we don't want to leave the wrong
+              // cx on the stack.  I guess default to leaving mContext, to
+              // cover those cases when we really do have a different context
+              // for the handler and the node.  That's probably safer.
+              if (NS_FAILED(stack->Pop(nsnull))) {
+                return NS_ERROR_FAILURE;
+              }
+            }
+          }
+        }
+      }
+    }
+  }
 
   nsJSContext::TerminationFuncHolder holder(this);
 
@@ -2313,10 +2334,9 @@ nsJSContext::ConnectToInner(nsIScriptGlobalObject *aNewInner, void *aOuterGlobal
   JSObject *newInnerJSObject = (JSObject *)aNewInner->GetScriptGlobal(JAVASCRIPT);
   JSObject *myobject = (JSObject *)aOuterGlobal;
 
-  // Call ClearScope to nuke any properties (e.g. Function and Object) on the
-  // outer object. From now on, anybody asking the outer object for these
-  // properties will be forwarded to the inner window.
-  ::JS_ClearScope(mContext, myobject);
+  // *Don't* call JS_ClearScope here since it's unnecessary
+  // and it confuses the JS engine as to which Function is
+  // on which window. See bug 343966.
 
   // Make the inner and outer window both share the same
   // prototype. The prototype we share is the outer window's
@@ -3301,9 +3321,7 @@ nsJSContext::ScriptEvaluated(PRBool aTerminated)
     MaybeGC(mContext);
   }
 
-  if (aTerminated) {
-    mOperationCallbackTime = LL_ZERO;
-  }
+  mOperationCallbackTime = LL_ZERO;
 }
 
 nsresult
@@ -3393,9 +3411,8 @@ nsJSContext::CC()
   sCollectedObjectsCounts = nsCycleCollector_collect();
   sCCSuspectedCount = nsCycleCollector_suspectedCount();
 #ifdef DEBUG_smaug
-  printf("Collected %u objects, %u suspected objects, took %lldms\n",
-         sCollectedObjectsCounts, sCCSuspectedCount,
-         (PR_Now() - sPreviousCCTime) / PR_USEC_PER_MSEC);
+  printf("Collected %u objects, %u suspected objects\n",
+         sCollectedObjectsCounts, sCCSuspectedCount);
 #endif
 }
 
@@ -3681,7 +3698,7 @@ nsJSRuntime::Startup()
   gCollation = nsnull;
 }
 
-static int
+static int PR_CALLBACK
 MaxScriptRunTimePrefChangedCallback(const char *aPrefName, void *aClosure)
 {
   // Default limit on script run time to 10 seconds. 0 means let
@@ -3707,7 +3724,7 @@ MaxScriptRunTimePrefChangedCallback(const char *aPrefName, void *aClosure)
   return 0;
 }
 
-static int
+static int PR_CALLBACK
 ReportAllJSExceptionsPrefChangedCallback(const char* aPrefName, void* aClosure)
 {
   PRBool reportAll = nsContentUtils::GetBoolPref(aPrefName, PR_FALSE);

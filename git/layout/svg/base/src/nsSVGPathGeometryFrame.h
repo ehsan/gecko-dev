@@ -76,11 +76,12 @@ private:
 
 public:
   // nsIFrame interface:
+  virtual void Destroy();
   NS_IMETHOD  AttributeChanged(PRInt32         aNameSpaceID,
                                nsIAtom*        aAttribute,
                                PRInt32         aModType);
 
-  virtual void DidSetStyleContext(nsStyleContext* aOldStyleContext);
+  NS_IMETHOD DidSetStyleContext();
 
   /**
    * Get the "type" of the frame
@@ -101,8 +102,7 @@ public:
 
 protected:
   // nsISVGChildFrame interface:
-  NS_IMETHOD PaintSVG(nsSVGRenderState *aContext,
-                      const nsIntRect *aDirtyRect);
+  NS_IMETHOD PaintSVG(nsSVGRenderState *aContext, nsIntRect *aDirtyRect);
   NS_IMETHOD_(nsIFrame*) GetFrameForPoint(const nsPoint &aPoint);
   NS_IMETHOD_(nsRect) GetCoveredRegion();
   NS_IMETHOD UpdateCoveredRegion();
@@ -112,6 +112,8 @@ protected:
   NS_IMETHOD NotifyRedrawUnsuspended();
   NS_IMETHOD SetMatrixPropagation(PRBool aPropagate);
   virtual PRBool GetMatrixPropagation();
+  NS_IMETHOD SetOverrideCTM(nsIDOMSVGMatrix *aCTM);
+  virtual already_AddRefed<nsIDOMSVGMatrix> GetOverrideCTM();
   NS_IMETHOD GetBBox(nsIDOMSVGRect **_retval);
   NS_IMETHOD_(PRBool) IsDisplayContainer() { return PR_FALSE; }
   NS_IMETHOD_(PRBool) HasValidCoveredRect() { return PR_TRUE; }
@@ -135,24 +137,12 @@ private:
             rect.Width() == 0 && rect.Height() == 0);
   }
 
-  struct MarkerProperties {
-    nsSVGMarkerProperty* mMarkerStart;
-    nsSVGMarkerProperty* mMarkerMid;
-    nsSVGMarkerProperty* mMarkerEnd;
+  nsSVGMarkerProperty *GetMarkerProperty();
+  void UpdateMarkerProperty();
 
-    PRBool MarkersExist() const {
-      return mMarkerStart || mMarkerMid || mMarkerEnd;
-    }
+  void RemovePathProperties();
 
-    nsSVGMarkerFrame *GetMarkerStartFrame();
-    nsSVGMarkerFrame *GetMarkerMidFrame();
-    nsSVGMarkerFrame *GetMarkerEndFrame();
-  };
-
-  /**
-   * @param aFrame should be the first continuation
-   */
-  static MarkerProperties GetMarkerProperties(nsSVGPathGeometryFrame *aFrame);
+  nsCOMPtr<nsIDOMSVGMatrix> mOverrideCTM;
 };
 
 #endif // __NS_SVGPATHGEOMETRYFRAME_H__

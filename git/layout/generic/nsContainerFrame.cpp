@@ -508,10 +508,7 @@ SyncFrameViewGeometryDependentProperties(nsPresContext*  aPresContext,
       nsIFrame *rootFrame = aPresContext->PresShell()->FrameConstructor()->GetRootElementStyleFrame();
       if(rootFrame && NS_THEME_WIN_GLASS == rootFrame->GetStyleDisplay()->mAppearance)
         mode = eTransparencyGlass;
-      nsIWidget* widget = aView->GetWidget();
-      widget->SetTransparencyMode(mode);
-      if (rootFrame)
-        widget->SetWindowShadowStyle(rootFrame->GetStyleUIReset()->mWindowShadow);
+      aView->GetWidget()->SetTransparencyMode(mode);
     }
   }
 }
@@ -1600,6 +1597,9 @@ nsContainerFrame::List(FILE* out, PRInt32 aIndent) const
   PRInt32 listIndex = 0;
   PRBool outputOneList = PR_FALSE;
   do {
+    if (!outputOneList) {
+      fputs("\n", out);
+    }
     nsIFrame* kid = GetFirstChild(listName);
     if (nsnull != kid) {
       if (outputOneList) {

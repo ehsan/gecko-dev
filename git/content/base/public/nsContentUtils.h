@@ -105,7 +105,6 @@ class nsIUGenCategory;
 class nsIWidget;
 class nsIDragSession;
 class nsPIDOMWindow;
-class nsPIDOMEventTarget;
 #ifdef MOZ_XTF
 class nsIXTFService;
 #endif
@@ -1189,12 +1188,12 @@ public:
   static const nsDependentString GetLocalizedEllipsis();
 
   /**
-   * The routine GetNativeEvent is used to fill nsNativeKeyEvent.
-   * It's also used in DOMEventToNativeKeyEvent.
+   * The routine GetNativeEvent is used to fill nsNativeKeyEvent
+   * nsNativeKeyEvent. It's also used in DOMEventToNativeKeyEvent.
    * See bug 406407 for details.
    */
   static nsEvent* GetNativeEvent(nsIDOMEvent* aDOMEvent);
-  static PRBool DOMEventToNativeKeyEvent(nsIDOMKeyEvent* aKeyEvent,
+  static PRBool DOMEventToNativeKeyEvent(nsIDOMEvent* aDOMEvent,
                                          nsNativeKeyEvent* aNativeEvent,
                                          PRBool aGetCharCode);
 
@@ -1338,11 +1337,7 @@ public:
 
                                              
   static nsIInterfaceRequestor* GetSameOriginChecker();
-
-  static nsIThreadJSContextStack* ThreadJSContextStack()
-  {
-    return sThreadJSContextStack;
-  }
+                                           
 private:
 
   static PRBool InitializeEventTable();
@@ -1359,7 +1354,8 @@ private:
   static nsIDOMScriptObjectFactory *GetDOMScriptObjectFactory();
 
   static nsresult HoldScriptObject(PRUint32 aLangID, void* aObject);
-  static void DropScriptObject(PRUint32 aLangID, void *aObject, void *aClosure);
+  PR_STATIC_CALLBACK(void) DropScriptObject(PRUint32 aLangID, void *aObject,
+                                            void *aClosure);
 
   static PRBool CanCallerAccess(nsIPrincipal* aSubjectPrincipal,
                                 nsIPrincipal* aPrincipal);
@@ -1438,11 +1434,12 @@ public:
   ~nsCxPusher(); // Calls Pop();
 
   // Returns PR_FALSE if something erroneous happened.
-  PRBool Push(nsPIDOMEventTarget *aCurrentTarget);
+  PRBool Push(nsISupports *aCurrentTarget);
   PRBool Push(JSContext *cx);
   void Pop();
 
 private:
+  nsCOMPtr<nsIJSContextStack> mStack;
   nsCOMPtr<nsIScriptContext> mScx;
   PRBool mScriptIsRunning;
 };

@@ -72,7 +72,6 @@ public:
 public:
   nsresult ClearRuleCascades();
 
-  static void Startup();
   static void FreeSystemMetrics();
 
   /*
@@ -103,9 +102,7 @@ public:
   }
 #endif
 
-private:
-  static PRBool CascadeSheetRulesInto(nsICSSStyleSheet* aSheet, void* aData);
-
+protected:
   RuleCascadeData* GetRuleCascade(nsPresContext* aPresContext);
   void RefreshRuleCascade(nsPresContext* aPresContext);
 

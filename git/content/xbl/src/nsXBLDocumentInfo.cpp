@@ -127,7 +127,7 @@ nsXBLDocGlobalObject::doCheckAccess(JSContext *cx, JSObject *obj, jsval id, PRUi
   return NS_SUCCEEDED(rv);
 }
 
-static JSBool
+PR_STATIC_CALLBACK(JSBool)
 nsXBLDocGlobalObject_getProperty(JSContext *cx, JSObject *obj,
                                  jsval id, jsval *vp)
 {
@@ -135,7 +135,7 @@ nsXBLDocGlobalObject_getProperty(JSContext *cx, JSObject *obj,
     doCheckAccess(cx, obj, id, nsIXPCSecurityManager::ACCESS_GET_PROPERTY);
 }
 
-static JSBool
+PR_STATIC_CALLBACK(JSBool)
 nsXBLDocGlobalObject_setProperty(JSContext *cx, JSObject *obj,
                                  jsval id, jsval *vp)
 {
@@ -143,7 +143,7 @@ nsXBLDocGlobalObject_setProperty(JSContext *cx, JSObject *obj,
     doCheckAccess(cx, obj, id, nsIXPCSecurityManager::ACCESS_SET_PROPERTY);
 }
 
-static JSBool
+PR_STATIC_CALLBACK(JSBool)
 nsXBLDocGlobalObject_checkAccess(JSContext *cx, JSObject *obj, jsval id,
                                  JSAccessMode mode, jsval *vp)
 {
@@ -158,7 +158,7 @@ nsXBLDocGlobalObject_checkAccess(JSContext *cx, JSObject *obj, jsval id,
     doCheckAccess(cx, obj, id, translated);
 }
 
-static void
+PR_STATIC_CALLBACK(void)
 nsXBLDocGlobalObject_finalize(JSContext *cx, JSObject *obj)
 {
   nsISupports *nativeThis = (nsISupports*)JS_GetPrivate(cx, obj);
@@ -172,7 +172,7 @@ nsXBLDocGlobalObject_finalize(JSContext *cx, JSObject *obj)
   NS_RELEASE(nativeThis);
 }
 
-static JSBool
+PR_STATIC_CALLBACK(JSBool)
 nsXBLDocGlobalObject_resolve(JSContext *cx, JSObject *obj, jsval id)
 {
   JSBool did_resolve = JS_FALSE;
@@ -434,7 +434,7 @@ static PRBool IsChromeURI(nsIURI* aURI)
 
 /* Implementation file */
 
-static PRIntn
+static PRIntn PR_CALLBACK
 TraverseProtos(nsHashKey *aKey, void *aData, void* aClosure)
 {
   nsCycleCollectionTraversalCallback *cb = 
@@ -444,7 +444,7 @@ TraverseProtos(nsHashKey *aKey, void *aData, void* aClosure)
   return kHashEnumerateNext;
 }
 
-static PRIntn
+static PRIntn PR_CALLBACK
 UnlinkProtoJSObjects(nsHashKey *aKey, void *aData, void* aClosure)
 {
   nsXBLPrototypeBinding *proto = static_cast<nsXBLPrototypeBinding*>(aData);
@@ -458,7 +458,7 @@ struct ProtoTracer
   void *mClosure;
 };
 
-static PRIntn
+static PRIntn PR_CALLBACK
 TraceProtos(nsHashKey *aKey, void *aData, void* aClosure)
 {
   ProtoTracer* closure = static_cast<ProtoTracer*>(aClosure);
@@ -557,7 +557,7 @@ nsXBLDocumentInfo::GetPrototypeBinding(const nsACString& aRef, nsXBLPrototypeBin
   return NS_OK;
 }
 
-static PRBool
+static PRBool PR_CALLBACK
 DeletePrototypeBinding(nsHashKey* aKey, void* aData, void* aClosure)
 {
   nsXBLPrototypeBinding* binding = static_cast<nsXBLPrototypeBinding*>(aData);
@@ -592,7 +592,7 @@ nsXBLDocumentInfo::SetFirstPrototypeBinding(nsXBLPrototypeBinding* aBinding)
   return NS_OK;
 }
 
-PRBool FlushScopedSkinSheets(nsHashKey* aKey, void* aData, void* aClosure)
+PRBool PR_CALLBACK FlushScopedSkinSheets(nsHashKey* aKey, void* aData, void* aClosure)
 {
   nsXBLPrototypeBinding* proto = (nsXBLPrototypeBinding*)aData;
   proto->FlushSkinSheets();

@@ -42,7 +42,7 @@
 #include "nsAutoPtr.h"
 #include "nsAudioStream.h"
 extern "C" {
-#include "sydneyaudio/sydney_audio.h"
+#include "oggplay_audio/sydney_audio.h"
 }
 
 #ifdef PR_LOGGING
@@ -204,16 +204,6 @@ nsresult nsAudioStream::Write(float* aBuf, PRUint32 aCount)
   return NS_OK;
 }
 
-PRInt32 nsAudioStream::Available()
-{
-  if (!mAudioHandle)
-    return 0;
-
-  size_t s = 0; 
-  sa_stream_get_write_size(reinterpret_cast<sa_stream_t*>(mAudioHandle), &s);
-  return s / sizeof(short);
-}
-
 nsresult nsAudioStream::GetTime(double *aTime)
 {
   if (!aTime)
@@ -222,10 +212,11 @@ nsresult nsAudioStream::GetTime(double *aTime)
 #if defined(SYDNEY_AUDIO_NO_POSITION)
   *aTime = double(PR_IntervalToMilliseconds(PR_IntervalNow()))/1000.0 - mPauseTime;
 #else
+
   int64_t bytes = 0;
   if (mAudioHandle) {
     sa_stream_get_position(reinterpret_cast<sa_stream_t*>(mAudioHandle), SA_POSITION_WRITE_SOFTWARE, &bytes);
-    *aTime = float(bytes + mPauseBytes) / (sizeof(short) * mChannels * mRate);
+    *aTime = double(((bytes + mPauseBytes) * 1000 / mRate / (sizeof(short) * mChannels))) / 1000.0;
   }
   else {
     return NS_ERROR_NOT_IMPLEMENTED;

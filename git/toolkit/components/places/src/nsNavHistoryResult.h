@@ -589,43 +589,43 @@ public:
 
   static PRInt32 SortComparison_StringLess(const nsAString& a, const nsAString& b);
 
-  static int SortComparison_Bookmark(
+  PR_STATIC_CALLBACK(int) SortComparison_Bookmark(
       nsNavHistoryResultNode* a, nsNavHistoryResultNode* b, void* closure);
-  static int SortComparison_TitleLess(
+  PR_STATIC_CALLBACK(int) SortComparison_TitleLess(
       nsNavHistoryResultNode* a, nsNavHistoryResultNode* b, void* closure);
-  static int SortComparison_TitleGreater(
+  PR_STATIC_CALLBACK(int) SortComparison_TitleGreater(
       nsNavHistoryResultNode* a, nsNavHistoryResultNode* b, void* closure);
-  static int SortComparison_DateLess(
+  PR_STATIC_CALLBACK(int) SortComparison_DateLess(
       nsNavHistoryResultNode* a, nsNavHistoryResultNode* b, void* closure);
-  static int SortComparison_DateGreater(
+  PR_STATIC_CALLBACK(int) SortComparison_DateGreater(
       nsNavHistoryResultNode* a, nsNavHistoryResultNode* b, void* closure);
-  static int SortComparison_URILess(
+  PR_STATIC_CALLBACK(int) SortComparison_URILess(
       nsNavHistoryResultNode* a, nsNavHistoryResultNode* b, void* closure);
-  static int SortComparison_URIGreater(
+  PR_STATIC_CALLBACK(int) SortComparison_URIGreater(
       nsNavHistoryResultNode* a, nsNavHistoryResultNode* b, void* closure);
-  static int SortComparison_VisitCountLess(
+  PR_STATIC_CALLBACK(int) SortComparison_VisitCountLess(
       nsNavHistoryResultNode* a, nsNavHistoryResultNode* b, void* closure);
-  static int SortComparison_VisitCountGreater(
+  PR_STATIC_CALLBACK(int) SortComparison_VisitCountGreater(
       nsNavHistoryResultNode* a, nsNavHistoryResultNode* b, void* closure);
-  static int SortComparison_KeywordLess(
+  PR_STATIC_CALLBACK(int) SortComparison_KeywordLess(
       nsNavHistoryResultNode* a, nsNavHistoryResultNode* b, void* closure);
-  static int SortComparison_KeywordGreater(
+  PR_STATIC_CALLBACK(int) SortComparison_KeywordGreater(
       nsNavHistoryResultNode* a, nsNavHistoryResultNode* b, void* closure);
-  static int SortComparison_AnnotationLess(
+  PR_STATIC_CALLBACK(int) SortComparison_AnnotationLess(
       nsNavHistoryResultNode* a, nsNavHistoryResultNode* b, void* closure);
-  static int SortComparison_AnnotationGreater(
+  PR_STATIC_CALLBACK(int) SortComparison_AnnotationGreater(
       nsNavHistoryResultNode* a, nsNavHistoryResultNode* b, void* closure);
-  static int SortComparison_DateAddedLess(
+  PR_STATIC_CALLBACK(int) SortComparison_DateAddedLess(
       nsNavHistoryResultNode* a, nsNavHistoryResultNode* b, void* closure);
-  static int SortComparison_DateAddedGreater(
+  PR_STATIC_CALLBACK(int) SortComparison_DateAddedGreater(
       nsNavHistoryResultNode* a, nsNavHistoryResultNode* b, void* closure);
-  static int SortComparison_LastModifiedLess(
+  PR_STATIC_CALLBACK(int) SortComparison_LastModifiedLess(
       nsNavHistoryResultNode* a, nsNavHistoryResultNode* b, void* closure);
-  static int SortComparison_LastModifiedGreater(
+  PR_STATIC_CALLBACK(int) SortComparison_LastModifiedGreater(
       nsNavHistoryResultNode* a, nsNavHistoryResultNode* b, void* closure);
-  static int SortComparison_TagsLess(
+  PR_STATIC_CALLBACK(int) SortComparison_TagsLess(
       nsNavHistoryResultNode* a, nsNavHistoryResultNode* b, void* closure);
-  static int SortComparison_TagsGreater(
+  PR_STATIC_CALLBACK(int) SortComparison_TagsGreater(
       nsNavHistoryResultNode* a, nsNavHistoryResultNode* b, void* closure);
 
   // finding children: THESE DO NOT ADDREF

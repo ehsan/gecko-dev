@@ -258,7 +258,7 @@ NO_PKG_FILES += \
 	necko_unit_tests \
 	$(NULL)
 
-# browser/locales/Makefile uses this makefile for its variable defs, but
+# browser/locales/Makefile uses this makefile for it's variable defs, but
 # doesn't want the libs:: rule.
 ifndef PACKAGER_NO_LIBS
 libs:: make-package
@@ -271,8 +271,6 @@ MOZ_PKG_REMOVALS_GEN = removed-files
 
 $(MOZ_PKG_REMOVALS_GEN): $(MOZ_PKG_REMOVALS) Makefile Makefile.in
 	$(PYTHON) $(MOZILLA_DIR)/config/Preprocessor.py -Fsubstitution $(DEFINES) $(ACDEFINES) $(MOZ_PKG_REMOVALS) > $(MOZ_PKG_REMOVALS_GEN)
-
-GARBAGE += $(MOZ_PKG_REMOVALS_GEN)
 endif
 
 GARBAGE		+= $(DIST)/$(PACKAGE) $(PACKAGE)
@@ -287,7 +285,7 @@ endif
 ifeq ($(OS_ARCH),OS2)
 STRIP		= $(MOZILLA_DIR)/toolkit/mozapps/installer/os2/strip.cmd
 STRIP_FLAGS	=
-PLATFORM_EXCLUDE_LIST = ! -name "*.ico" ! -name "$(MOZ_PKG_APPNAME).exe"
+PLATFORM_EXCLUDE_LIST = ! -name "*.ico"
 endif
 
 ifneq (,$(filter WINNT OS2,$(OS_ARCH)))

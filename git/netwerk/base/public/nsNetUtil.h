@@ -48,7 +48,6 @@
 #include "nsCOMPtr.h"
 #include "prio.h" // for read/write flags, permissions, etc.
 
-#include "nsCRT.h"
 #include "nsIURI.h"
 #include "nsIInputStream.h"
 #include "nsIOutputStream.h"
@@ -1443,58 +1442,28 @@ NS_GetFinalChannelURI(nsIChannel* channel, nsIURI** uri)
     return channel->GetOriginalURI(uri);
 }
 
-static inline PRInt32
-GetEffectivePort(nsIURI* aURI)
+/**
+ * Checks whether a document at the given URI should have access
+ * to the offline cache.
+ * @param uri
+ *        The URI to check
+ * @param prefBranch
+ *        The pref branch to use to check the
+ *        offline-apps.allow_by_default pref.  If not specified,
+ *        the pref service will be used.
+ */
+inline PRBool
+NS_OfflineAppAllowed(nsIURI *aURI, nsIPrefBranch *aPrefBranch = nsnull)
 {
-    PRInt32 port;
+    nsresult rv;
+    nsCOMPtr<nsINetUtil_MOZILLA_1_9_1> util = do_GetIOService(&rv);
+    NS_ENSURE_SUCCESS(rv, PR_FALSE);
 
-    nsCOMPtr<nsIURI> baseURI = NS_GetInnermostURI(aURI);
-    if (NS_SUCCEEDED(baseURI->GetPort(&port)) && port != -1)
-        return port;
+    PRBool allowed;
+    rv = util->OfflineAppAllowed(aURI, aPrefBranch, &allowed);
+    NS_ENSURE_SUCCESS(rv, PR_FALSE);
 
-    nsCAutoString scheme;
-    if (NS_FAILED(baseURI->GetScheme(scheme)))
-        return -1;
-
-    return NS_GetDefaultPort(scheme.get());
-}
-
-// NS_SecurityHashURI must return the same hash value for any two URIs that
-// compare equal according to NS_SecurityCompareURIs.  Unfortunately, in the
-// case of files, it's not clear we can do anything better than returning
-// the schemeHash, so hashing files degenerates to storing them in a list.
-inline PRUint32
-NS_SecurityHashURI(nsIURI* aURI)
-{
-    nsCOMPtr<nsIURI> baseURI = NS_GetInnermostURI(aURI);
-
-    nsCAutoString scheme;
-    PRUint32 schemeHash = 0;
-    if (NS_SUCCEEDED(baseURI->GetScheme(scheme)))
-        schemeHash = nsCRT::HashCode(scheme.get());
-
-    // TODO figure out how to hash file:// URIs
-    if (scheme.EqualsLiteral("file"))
-        return schemeHash; // sad face
-
-    if (scheme.EqualsLiteral("imap") ||
-        scheme.EqualsLiteral("mailbox") ||
-        scheme.EqualsLiteral("news"))
-    {
-        nsCAutoString spec;
-        PRUint32 specHash = baseURI->GetSpec(spec);
-        if (NS_SUCCEEDED(specHash))
-            specHash = nsCRT::HashCode(spec.get());
-        return specHash;
-    }
-
-    nsCAutoString host;
-    PRUint32 hostHash = 0;
-    if (NS_SUCCEEDED(baseURI->GetHost(host)))
-        hostHash = nsCRT::HashCode(host.get());
-
-    // XOR to combine hash values
-    return schemeHash ^ hostHash ^ GetEffectivePort(aURI);
+    return allowed;
 }
 
 inline PRBool
@@ -1594,7 +1563,31 @@ NS_SecurityCompareURIs(nsIURI* aSourceURI,
         return PR_FALSE;
     }
 
-    return GetEffectivePort(targetBaseURI) == GetEffectivePort(sourceBaseURI);
+    // Compare ports
+    PRInt32 targetPort;
+    nsresult rv = targetBaseURI->GetPort(&targetPort);
+    PRInt32 sourcePort;
+    if (NS_SUCCEEDED(rv))
+        rv = sourceBaseURI->GetPort(&sourcePort);
+    PRBool result = NS_SUCCEEDED(rv) && targetPort == sourcePort;
+    // If the port comparison failed, see if either URL has a
+    // port of -1. If so, replace -1 with the default port
+    // for that scheme.
+    if (NS_SUCCEEDED(rv) && !result &&
+        (sourcePort == -1 || targetPort == -1))
+    {
+        PRInt32 defaultPort = NS_GetDefaultPort(targetScheme.get());
+        if (defaultPort == -1)
+            return PR_FALSE; // No default port for this scheme
+
+        if (sourcePort == -1)
+            sourcePort = defaultPort;
+        else if (targetPort == -1)
+            targetPort = defaultPort;
+        result = targetPort == sourcePort;
+    }
+
+    return result;
 }
 
 #endif // !nsNetUtil_h__

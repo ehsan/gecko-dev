@@ -104,17 +104,12 @@ public:
      * thread doesn't need to lock when reading |addr_info|.
      */
     PRLock      *addr_info_lock;
-    int          addr_info_gencnt; /* generation count of |addr_info| */
     PRAddrInfo  *addr_info;
+    int          addr_info_gencnt; /* generation count of |addr_info| */
     PRNetAddr   *addr;
-    PRBool       negative;   /* True if this record is a cache of a failed lookup.
-                                Negative cache entries are valid just like any other
-                                (though never for more than 60 seconds), but a use
-                                of that negative entry forces an asynchronous refresh. */
-
     PRUint32     expiration; /* measured in minutes since epoch */
 
-    PRBool HasResult() const { return addr_info || addr || negative; }
+    PRBool HasResult() const { return addr_info || addr; }
 
 private:
     friend class nsHostResolver;
@@ -226,7 +221,7 @@ private:
     PRBool   GetHostToLookup(nsHostRecord **);
     void     OnLookupComplete(nsHostRecord *, nsresult, PRAddrInfo *);
 
-    static void ThreadFunc(void *);
+    PR_STATIC_CALLBACK(void) ThreadFunc(void *);
 
     PRUint32      mMaxCacheEntries;
     PRUint32      mMaxCacheLifetime;

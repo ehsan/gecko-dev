@@ -112,7 +112,7 @@ nsJARManifestItem::~nsJARManifestItem()
 //----------------------------------------------
 // nsJAR constructor/destructor
 //----------------------------------------------
-static PRBool
+PR_STATIC_CALLBACK(PRBool)
 DeleteManifestEntry(nsHashKey* aKey, void* aData, void* closure)
 {
 //-- deletes an entry in  mManifestData.
@@ -1094,7 +1094,7 @@ nsZipReaderCache::Init(PRUint32 cacheSize)
   return mLock ? NS_OK : NS_ERROR_OUT_OF_MEMORY;
 }
 
-static PRBool
+static PRBool PR_CALLBACK
 DropZipReaderCache(nsHashKey *aKey, void *aData, void* closure)
 {
   nsJAR* zip = (nsJAR*)aData;
@@ -1168,7 +1168,7 @@ nsZipReaderCache::GetZip(nsIFile* zipFile, nsIZipReader* *result)
   return rv;
 }
 
-static PRBool
+static PRBool PR_CALLBACK
 FindOldestZip(nsHashKey *aKey, void *aData, void* closure)
 {
   nsJAR** oldestPtr = (nsJAR**)closure;
@@ -1186,7 +1186,7 @@ FindOldestZip(nsHashKey *aKey, void *aData, void* closure)
 
 struct ZipFindData {nsJAR* zip; PRBool found;}; 
 
-static PRBool
+static PRBool PR_CALLBACK
 FindZip(nsHashKey *aKey, void *aData, void* closure)
 {
   ZipFindData* find_data = (ZipFindData*)closure;
@@ -1262,7 +1262,7 @@ nsZipReaderCache::ReleaseZip(nsJAR* zip)
   return NS_OK;
 }
 
-static PRBool
+static PRBool PR_CALLBACK
 FindFlushableZip(nsHashKey *aKey, void *aData, void* closure)
 {
   nsHashKey** flushableKeyPtr = (nsHashKey**)closure;

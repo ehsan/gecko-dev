@@ -56,19 +56,17 @@ function InitWithToolbox(aToolbox)
 {
   gToolbox = aToolbox;
   gToolboxDocument = gToolbox.ownerDocument;
-  gToolbox.customizing = true;
-
-  gToolbox.addEventListener("dragstart", onToolbarDragStart, false);
+  
+  gToolbox.addEventListener("draggesture", onToolbarDragGesture, false);
   gToolbox.addEventListener("dragover", onToolbarDragOver, false);
-  gToolbox.addEventListener("dragleave", onToolbarDragLeave, false);
-  gToolbox.addEventListener("drop", onToolbarDrop, false);
+  gToolbox.addEventListener("dragexit", onToolbarDragExit, false);
+  gToolbox.addEventListener("dragdrop", onToolbarDragDrop, false);
 
   initDialog();
 }
 
 function finishToolbarCustomization()
 {
-  gToolbox.customizing = false;
   removeToolboxListeners();
   unwrapToolbarItems();
   persistCurrentSets();
@@ -111,10 +109,10 @@ function repositionDialog()
 
 function removeToolboxListeners()
 {
-  gToolbox.removeEventListener("dragstart", onToolbarDragStart, false);
+  gToolbox.removeEventListener("draggesture", onToolbarDragGesture, false);
   gToolbox.removeEventListener("dragover", onToolbarDragOver, false);
-  gToolbox.removeEventListener("dragleave", onToolbarDragLeave, false);
-  gToolbox.removeEventListener("drop", onToolbarDrop, false);
+  gToolbox.removeEventListener("dragexit", onToolbarDragExit, false);
+  gToolbox.removeEventListener("dragdrop", onToolbarDragDrop, false);
 }
 
 /**
@@ -434,7 +432,7 @@ function fillRowWithFlex(aRow)
 
 /**
  * Makes sure that an item that has been cloned from a template
- * is stripped of all properties that may adversely affect its
+ * is stripped of all properties that may adversely affect it's
  * appearance in the palette.
  */
 function cleanUpItemForPalette(aItem, aWrapper)
@@ -468,7 +466,7 @@ function cleanUpItemForPalette(aItem, aWrapper)
 
 /**
  * Makes sure that an item that has been cloned from a template
- * is stripped of all properties that may adversely affect its
+ * is stripped of all properties that may adversely affect it's
  * appearance in the toolbar.  Store critical properties on the 
  * wrapper so they can be put back on the item when we're done.
  */
@@ -743,7 +741,7 @@ function isToolbarItem(aElt)
 ///////////////////////////////////////////////////////////////////////////
 //// Drag and Drop observers
 
-function onToolbarDragStart(aEvent)
+function onToolbarDragGesture(aEvent)
 {
   nsDragAndDrop.startDrag(aEvent, dragStartObserver);
 }
@@ -753,12 +751,12 @@ function onToolbarDragOver(aEvent)
   nsDragAndDrop.dragOver(aEvent, toolbarDNDObserver);
 }
 
-function onToolbarDrop(aEvent)
+function onToolbarDragDrop(aEvent)
 {
   nsDragAndDrop.drop(aEvent, toolbarDNDObserver);
 }
 
-function onToolbarDragLeave(aEvent)
+function onToolbarDragExit(aEvent)
 {
   if (gCurrentDragOverItem)
     setDragActive(gCurrentDragOverItem, false);
@@ -862,7 +860,7 @@ var toolbarDNDObserver =
       if (wrapper.parentNode.lastPermanentChild && wrapper.parentNode.lastPermanentChild.id == wrapper.firstChild.id)
         return;
 
-      // Remove the item from its place in the toolbar.
+      // Remove the item from it's place in the toolbar.
       wrapper.parentNode.removeChild(wrapper);
 
       // Determine which toolbar we are dropping on.

@@ -660,7 +660,7 @@ XPC_NW_Finalize(JSContext *cx, JSObject *obj)
 {
   // We must not use obj's private data here since it's likely that it
   // has already been finalized.
-  XPCJSRuntime *rt = nsXPConnect::GetRuntimeInstance();
+  XPCJSRuntime *rt = nsXPConnect::GetRuntime();
 
   {
     // scoped lock
@@ -778,14 +778,9 @@ MirrorWrappedNativeParent(JSContext *cx, XPCWrappedNative *wrapper,
     XPCWrappedNative *parent_wrapper =
       XPCWrappedNative::GetWrappedNativeOfJSObject(cx, wn_parent);
 
-    // parent_wrapper can be null if we're in a Components.utils.evalInSandbox
-    // scope. In that case, the best we can do is just use the
-    // non-native-wrapped sandbox global object for our parent.
-    if (parent_wrapper) {
-      *result = XPCNativeWrapper::GetNewOrUsed(cx, parent_wrapper, nsnull);
-      if (!*result)
-        return JS_FALSE;
-    }
+    *result = XPCNativeWrapper::GetNewOrUsed(cx, parent_wrapper, nsnull);
+    if (!*result)
+      return JS_FALSE;
   }
   return JS_TRUE;
 }
@@ -1090,18 +1085,22 @@ XPCNativeWrapper::AttachNewConstructorObject(XPCCallContext &ccx,
 // static
 JSObject *
 XPCNativeWrapper::GetNewOrUsed(JSContext *cx, XPCWrappedNative *wrapper,
-                               nsIPrincipal *aObjectPrincipal)
+                               JSObject *callee)
 {
-  if (aObjectPrincipal) {
-    nsIScriptSecurityManager *ssm = XPCWrapper::GetSecurityManager();
+  if (callee) {
+    nsCOMPtr<nsIPrincipal> prin;
 
-    PRBool isSystem;
-    nsresult rv = ssm->IsSystemPrincipal(aObjectPrincipal, &isSystem);
-    if (NS_SUCCEEDED(rv) && !isSystem) {
-      jsval v = OBJECT_TO_JSVAL(wrapper->GetFlatJSObject());
-      if (!XPCNativeWrapperCtor(cx, JSVAL_TO_OBJECT(v), 1, &v, &v))
-        return nsnull;
-      return JSVAL_TO_OBJECT(v);
+    nsIScriptSecurityManager *ssm = XPCWrapper::GetSecurityManager();
+    nsresult rv = ssm->GetObjectPrincipal(cx, callee, getter_AddRefs(prin));
+    if (NS_SUCCEEDED(rv) && prin) {
+      PRBool isSystem;
+      rv = ssm->IsSystemPrincipal(prin, &isSystem);
+      if (NS_SUCCEEDED(rv) && !isSystem) {
+        jsval v = OBJECT_TO_JSVAL(wrapper->GetFlatJSObject());
+        if (!XPCNativeWrapperCtor(cx, JSVAL_TO_OBJECT(v), 1, &v, &v))
+          return nsnull;
+        return JSVAL_TO_OBJECT(v);
+      }
     }
   }
 

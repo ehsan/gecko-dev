@@ -48,6 +48,7 @@ GRE_MODULE     = 1
 
 XPIDLSRCS =                           \
         nsIDOMOfflineResourceList.idl \
+        nsIDOMLoadStatusList.idl      \
         nsIDOMLoadStatus.idl          \
         nsIDOMLoadStatusEvent.idl     \
         $(NULL)

@@ -124,7 +124,6 @@
 #include "nsIDocShellTreeOwner.h"
 #include "nsIXULWindow.h"
 #include "nsXULPopupManager.h"
-#include "nsCCUncollectableMarker.h"
 
 //----------------------------------------------------------------------
 //
@@ -306,7 +305,7 @@ NS_NewXULDocument(nsIXULDocument** result)
 
 NS_IMPL_CYCLE_COLLECTION_CLASS(nsXULDocument)
 
-static PLDHashOperator
+static PLDHashOperator PR_CALLBACK
 TraverseTemplateBuilders(nsISupports* aKey, nsIXULTemplateBuilder* aData,
                          void* aContext)
 {
@@ -321,7 +320,7 @@ TraverseTemplateBuilders(nsISupports* aKey, nsIXULTemplateBuilder* aData,
     return PL_DHASH_NEXT;
 }
 
-static PLDHashOperator
+static PLDHashOperator PR_CALLBACK
 TraverseObservers(nsIURI* aKey, nsIObserver* aData, void* aContext)
 {
     nsCycleCollectionTraversalCallback *cb =
@@ -334,9 +333,6 @@ TraverseObservers(nsIURI* aKey, nsIObserver* aData, void* aContext)
 }
 
 NS_IMPL_CYCLE_COLLECTION_TRAVERSE_BEGIN_INHERITED(nsXULDocument, nsXMLDocument)
-    if (nsCCUncollectableMarker::InGeneration(tmp->GetMarkedCCGeneration())) {
-        return NS_OK;
-    }
     // XXX tmp->mForwardReferences?
     // XXX tmp->mContextStack?
 
@@ -647,7 +643,7 @@ nsXULDocument::OnDocumentParserError()
   return PR_TRUE;
 }
 
-static void
+PR_STATIC_CALLBACK(void)
 ClearBroadcasterMapEntry(PLDHashTable* aTable, PLDHashEntryHdr* aEntry)
 {
     BroadcasterMapEntry* entry =
@@ -1315,33 +1311,14 @@ nsXULDocument::Persist(const nsAString& aID,
 }
 
 
-PRBool
-nsXULDocument::IsCapabilityEnabled(const char* aCapabilityLabel)
-{
-    nsresult rv;
-
-    // NodePrincipal is guarantied to be non-null
-    PRBool enabled = PR_FALSE;
-    rv = NodePrincipal()->IsCapabilityEnabled(aCapabilityLabel, nsnull, &enabled);
-    if (NS_FAILED(rv))
-        return PR_FALSE;
- 
-    return enabled;
-}
-
-
 nsresult
 nsXULDocument::Persist(nsIContent* aElement, PRInt32 aNameSpaceID,
                        nsIAtom* aAttribute)
 {
-    // For non-chrome documents, persistance is simply broken
-    if (!IsCapabilityEnabled("UniversalBrowserWrite"))
-        return NS_ERROR_NOT_AVAILABLE;
-
     // First make sure we _have_ a local store to stuff the persisted
     // information into. (We might not have one if profile information
     // hasn't been loaded yet...)
-    if (!mLocalStore)
+    if (! mLocalStore)
         return NS_OK;
 
     nsresult rv;
@@ -1729,7 +1706,10 @@ nsXULDocument::AddSubtreeToDocument(nsIContent* aElement)
     if (NS_FAILED(rv)) return rv;
 
     // Recurse to children
-    PRUint32 count = aElement->GetChildCount();
+    nsXULElement *xulcontent = nsXULElement::FromContent(aElement);
+
+    PRUint32 count =
+        xulcontent ? xulcontent->PeekChildCount() : aElement->GetChildCount();
 
     while (count-- > 0) {
         rv = AddSubtreeToDocument(aElement->GetChildAt(count));
@@ -2135,26 +2115,13 @@ nsXULDocument::PrepareToLoadPrototype(nsIURI* aURI, const char* aCommand,
 nsresult
 nsXULDocument::ApplyPersistentAttributes()
 {
-    // For non-chrome documents, persistance is simply broken
-    if (!IsCapabilityEnabled("UniversalBrowserRead"))
-        return NS_ERROR_NOT_AVAILABLE;
-
     // Add all of the 'persisted' attributes into the content
     // model.
-    if (!mLocalStore)
+    if (! mLocalStore)
         return NS_OK;
 
     mApplyingPersistedAttrs = PR_TRUE;
-    ApplyPersistentAttributesInternal();
-    mApplyingPersistedAttrs = PR_FALSE;
 
-    return NS_OK;
-}
-
-
-nsresult 
-nsXULDocument::ApplyPersistentAttributesInternal()
-{
     nsCOMArray<nsIContent> elements;
 
     nsCAutoString docurl;
@@ -2200,6 +2167,8 @@ nsXULDocument::ApplyPersistentAttributesInternal()
 
         ApplyPersistentAttributesToElements(resource, elements);
     }
+
+    mApplyingPersistedAttrs = PR_FALSE;
 
     return NS_OK;
 }
@@ -2420,7 +2389,7 @@ nsXULDocument::PrepareToWalk()
                      "No root content when preparing to walk overlay!");
     }
 
-    const nsTArray<nsRefPtr<nsXULPrototypePI> >& processingInstructions =
+    const nsTArray<nsXULPrototypePI*>& processingInstructions =
         mCurrentPrototype->GetProcessingInstructions();
 
     PRUint32 total = processingInstructions.Length();
@@ -2818,7 +2787,7 @@ nsXULDocument::LoadOverlayInternal(nsIURI* aURI, PRBool aIsDynamic,
     return NS_OK;
 }
 
-static PLDHashOperator
+PR_STATIC_CALLBACK(PLDHashOperator)
 FirePendingMergeNotification(nsIURI* aKey, nsCOMPtr<nsIObserver>& aObserver, void* aClosure)
 {
     aObserver->Observe(aKey, "xul-overlay-merged", EmptyString().get());
@@ -2860,7 +2829,7 @@ nsXULDocument::ResumeWalk()
             rv = mContextStack.Peek(&proto, getter_AddRefs(element), &indx);
             if (NS_FAILED(rv)) return rv;
 
-            if (indx >= (PRInt32)proto->mChildren.Length()) {
+            if (indx >= (PRInt32)proto->mNumChildren) {
                 if (element) {
                     // We've processed all of the prototype's children. If
                     // we're in the master prototype, do post-order
@@ -2951,7 +2920,7 @@ nsXULDocument::ResumeWalk()
 
                 // If it has children, push the element onto the context
                 // stack and begin to process them.
-                if (protoele->mChildren.Length() > 0) {
+                if (protoele->mNumChildren > 0) {
                     rv = mContextStack.Push(protoele, child);
                     if (NS_FAILED(rv)) return rv;
                 }
@@ -3108,7 +3077,8 @@ nsXULDocument::ResumeWalk()
     rv = ResolveForwardReferences();
     if (NS_FAILED(rv)) return rv;
 
-    ApplyPersistentAttributes();
+    rv = ApplyPersistentAttributes();
+    if (NS_FAILED(rv)) return rv;
 
     mStillWalking = PR_FALSE;
     if (mPendingSheets == 0) {
@@ -3783,7 +3753,17 @@ nsXULDocument::CreateTemplateBuilder(nsIContent* aElement)
             return NS_ERROR_FAILURE;
 
         builder->Init(aElement);
-        builder->CreateContents(aElement, PR_FALSE);
+
+        nsXULElement *xulContent = nsXULElement::FromContent(aElement);
+        if (xulContent) {
+            // Mark the XUL element as being lazy, so the template builder
+            // will run when layout first asks for these nodes.
+            xulContent->SetLazyState(nsXULElement::eChildrenMustBeRebuilt);
+        }
+        else {
+            // Force construction of immediate template sub-content _now_.
+            builder->CreateContents(aElement, PR_FALSE);
+        }
     }
 
     return NS_OK;

@@ -946,7 +946,6 @@ nsTextBoxFrame::DoLayout(nsBoxLayoutState& aBoxLayoutState)
       nsPoint origin(0,0);
       nsRect textRect = CalcTextRect(*aBoxLayoutState.GetRenderingContext(), origin);
       nsRect overflowRect(nsLayoutUtils::GetTextShadowRectsUnion(textRect, this));
-      overflowRect.UnionRect(overflowRect, nsRect(nsPoint(0, 0), GetSize()));
       FinishAndStoreOverflow(&overflowRect, GetSize());
     }
     return rv;
@@ -993,9 +992,7 @@ nsRect
 nsTextBoxFrame::CalcTextRect(nsIRenderingContext &aRenderingContext, const nsPoint &aTextOrigin)
 {
     nsRect textRect(aTextOrigin, GetSize());
-    nsMargin borderPadding;
-    GetBorderAndPadding(borderPadding);
-    textRect.Deflate(borderPadding);
+    textRect.Deflate(GetUsedBorderAndPadding());
     // determine (cropped) title and underline position
     nsPresContext* presContext = PresContext();
     LayoutTitle(presContext, aRenderingContext, textRect);

@@ -417,12 +417,6 @@ public:
   /*unsafe*/
   nsresult CharacterMove(PRBool aForward, PRBool aExtend);
 
-  /** CharacterExtendForDelete extends the selection forward (logically) to
-   * the next character cell, so that the selected cell can be deleted.
-   */
-  /*unsafe*/
-  nsresult CharacterExtendForDelete();
-
   /** WordMove will generally be called from the nsiselectioncontroller implementations.
    *  the effect being the selection will move one word left or right.
    * @param aForward move forward in document.
@@ -562,8 +556,7 @@ public:
 private:
   nsresult TakeFocus(nsIContent *aNewFocus,
                      PRUint32 aContentOffset,
-                     PRUint32 aContentEndOffset,
-                     HINT aHint,
+                     PRUint32 aContentEndOffset, 
                      PRBool aContinueSelection,
                      PRBool aMultipleSelection);
 
@@ -577,6 +570,27 @@ private:
                                              PRUint32 aContentOffset,
                                              HINT aHint,
                                              PRBool aJumpLines) const;
+#ifdef VISUALSELECTION
+  NS_IMETHOD VisualSelectFrames(nsIFrame* aCurrentFrame,
+                                nsPeekOffsetStruct aPos);
+  NS_IMETHOD VisualSequence(nsIFrame* aSelectFrame,
+                            nsIFrame* aCurrentFrame,
+                            nsPeekOffsetStruct* aPos,
+                            PRBool* aNeedVisualSelection);
+  NS_IMETHOD SelectToEdge(nsIFrame *aFrame,
+                          nsIContent *aContent,
+                          PRInt32 aOffset,
+                          PRInt32 aEdge,
+                          PRBool aMultipleSelection);
+  NS_IMETHOD SelectLines(nsDirection aSelectionDirection,
+                         nsIDOMNode *aAnchorNode,
+                         nsIFrame* aAnchorFrame,
+                         PRInt32 aAnchorOffset,
+                         nsIDOMNode *aCurrentNode,
+                         nsIFrame* aCurrentFrame,
+                         PRInt32 aCurrentOffset,
+                         nsPeekOffsetStruct aPos);
+#endif // VISUALSELECTION
 
   PRBool AdjustForMaintainedSelection(nsIContent *aContent, PRInt32 aOffset);
 

@@ -343,7 +343,7 @@ txBufferingHandler::startElement(nsIAtom* aPrefix,
     return mBuffer->addTransaction(transaction);
 }
 
-static PRBool
+PR_STATIC_CALLBACK(PRBool)
 deleteTransaction(void* aElement, void *aData)
 {
     delete static_cast<txOutputTransaction*>(aElement);
@@ -371,7 +371,7 @@ struct Holder
     nsAFlatString::const_char_iterator mIter;
 };
 
-static PRBool
+PR_STATIC_CALLBACK(PRBool)
 flushTransaction(void* aElement, void *aData)
 {
     Holder* holder = static_cast<Holder*>(aData);

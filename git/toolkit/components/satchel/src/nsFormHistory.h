@@ -99,7 +99,7 @@ protected:
   
   PRBool RowMatch(nsIMdbRow *aRow, const nsAString &aInputName, const nsAString &aInputValue, PRUnichar **aValue);
   
-  static int SortComparison(const void *v1, const void *v2, void *closureVoid);
+  PR_STATIC_CALLBACK(int) SortComparison(const void *v1, const void *v2, void *closureVoid);
 
   nsresult EntriesExistInternal(const nsAString *aName, const nsAString *aValue, PRBool *_retval);
 

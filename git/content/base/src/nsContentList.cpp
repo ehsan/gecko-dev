@@ -70,6 +70,10 @@ NS_NewPreContentIterator(nsIContentIterator** aInstancePtrResult);
 
 static nsContentList *gCachedContentList;
 
+nsBaseContentList::nsBaseContentList()
+{
+}
+
 nsBaseContentList::~nsBaseContentList()
 {
 }
@@ -86,7 +90,7 @@ NS_IMPL_CYCLE_COLLECTION_TRAVERSE_END
 NS_INTERFACE_MAP_BEGIN_CYCLE_COLLECTION(nsBaseContentList)
   NS_INTERFACE_MAP_ENTRY(nsINodeList)
   NS_INTERFACE_MAP_ENTRY(nsIDOMNodeList)
-  NS_INTERFACE_MAP_ENTRY_AMBIGUOUS(nsISupports, nsINodeList)
+  NS_INTERFACE_MAP_ENTRY_AMBIGUOUS(nsISupports, nsIDOMNodeList)
   NS_INTERFACE_MAP_ENTRY_CONTENT_CLASSINFO(NodeList)
 NS_INTERFACE_MAP_END
 
@@ -188,14 +192,14 @@ struct ContentListHashEntry : public PLDHashEntryHdr
   nsContentList* mContentList;
 };
 
-static PLDHashNumber
+PR_STATIC_CALLBACK(PLDHashNumber)
 ContentListHashtableHashKey(PLDHashTable *table, const void *key)
 {
   const nsContentListKey* list = static_cast<const nsContentListKey *>(key);
   return list->GetHash();
 }
 
-static PRBool
+PR_STATIC_CALLBACK(PRBool)
 ContentListHashtableMatchEntry(PLDHashTable *table,
                                const PLDHashEntryHdr *entry,
                                const void *key)

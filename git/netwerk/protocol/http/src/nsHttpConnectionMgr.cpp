@@ -293,7 +293,7 @@ nsHttpConnectionMgr::ProcessPendingQ(nsHttpConnectionInfo *ci)
 //-----------------------------------------------------------------------------
 // enumeration callbacks
 
-PRIntn
+PRIntn PR_CALLBACK
 nsHttpConnectionMgr::ProcessOneTransactionCB(nsHashKey *key, void *data, void *closure)
 {
     nsHttpConnectionMgr *self = (nsHttpConnectionMgr *) closure;
@@ -305,7 +305,7 @@ nsHttpConnectionMgr::ProcessOneTransactionCB(nsHashKey *key, void *data, void *c
     return kHashEnumerateNext;
 }
 
-PRIntn
+PRIntn PR_CALLBACK
 nsHttpConnectionMgr::PurgeOneIdleConnectionCB(nsHashKey *key, void *data, void *closure)
 {
     nsHttpConnectionMgr *self = (nsHttpConnectionMgr *) closure;
@@ -323,7 +323,7 @@ nsHttpConnectionMgr::PurgeOneIdleConnectionCB(nsHashKey *key, void *data, void *
     return kHashEnumerateNext;
 }
 
-PRIntn
+PRIntn PR_CALLBACK
 nsHttpConnectionMgr::PruneDeadConnectionsCB(nsHashKey *key, void *data, void *closure)
 {
     nsHttpConnectionMgr *self = (nsHttpConnectionMgr *) closure;
@@ -371,7 +371,7 @@ nsHttpConnectionMgr::PruneDeadConnectionsCB(nsHashKey *key, void *data, void *cl
     return kHashEnumerateNext;
 }
 
-PRIntn
+PRIntn PR_CALLBACK
 nsHttpConnectionMgr::ShutdownPassCB(nsHashKey *key, void *data, void *closure)
 {
     nsHttpConnectionMgr *self = (nsHttpConnectionMgr *) closure;

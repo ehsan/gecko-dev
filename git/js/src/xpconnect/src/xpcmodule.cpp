@@ -66,6 +66,8 @@ NS_GENERIC_FACTORY_CONSTRUCTOR(nsJSID)
 NS_GENERIC_FACTORY_CONSTRUCTOR(nsXPCException)
 NS_GENERIC_FACTORY_CONSTRUCTOR(nsXPCJSContextStackIterator)
 NS_GENERIC_FACTORY_SINGLETON_CONSTRUCTOR(nsIXPConnect, nsXPConnect::GetSingleton)
+NS_GENERIC_FACTORY_SINGLETON_CONSTRUCTOR(nsIJSContextStack, nsXPCThreadJSContextStackImpl::GetSingleton)
+NS_GENERIC_FACTORY_SINGLETON_CONSTRUCTOR(nsIJSRuntimeService, nsJSRuntimeServiceImpl::GetSingleton)
 NS_GENERIC_FACTORY_CONSTRUCTOR(nsScriptError)
 NS_GENERIC_FACTORY_CONSTRUCTOR(nsXPCComponents_Interfaces)
 
@@ -82,9 +84,9 @@ NS_DECL_CLASSINFO(nsXPCException)
 static const nsModuleComponentInfo components[] = {
   {nsnull, NS_JS_ID_CID,                         XPC_ID_CONTRACTID,            nsJSIDConstructor             },
   {nsnull, NS_XPCONNECT_CID,                     XPC_XPCONNECT_CONTRACTID,     nsIXPConnectConstructor       },
-  {nsnull, NS_XPC_THREAD_JSCONTEXT_STACK_CID,    XPC_CONTEXT_STACK_CONTRACTID, nsIXPConnectConstructor  },
+  {nsnull, NS_XPC_THREAD_JSCONTEXT_STACK_CID,    XPC_CONTEXT_STACK_CONTRACTID, nsIJSContextStackConstructor  },
   {nsnull, NS_XPCEXCEPTION_CID,                  XPC_EXCEPTION_CONTRACTID,     nsXPCExceptionConstructor, nsnull, nsnull, nsnull, NS_CI_INTERFACE_GETTER_NAME(nsXPCException), nsnull, &NS_CLASSINFO_NAME(nsXPCException), nsIClassInfo::DOM_OBJECT },
-  {nsnull, NS_JS_RUNTIME_SERVICE_CID,            XPC_RUNTIME_CONTRACTID,       nsIXPConnectConstructor},
+  {nsnull, NS_JS_RUNTIME_SERVICE_CID,            XPC_RUNTIME_CONTRACTID,       nsIJSRuntimeServiceConstructor},
   {NS_SCRIPTERROR_CLASSNAME, NS_SCRIPTERROR_CID, NS_SCRIPTERROR_CONTRACTID,    nsScriptErrorConstructor      },
   {nsnull, SCRIPTABLE_INTERFACES_CID,            NS_SCRIPTABLE_INTERFACES_CONTRACTID,        nsXPCComponents_InterfacesConstructor, 0, 0, 0, 0, 0, 0, nsIClassInfo::THREADSAFE },
   {nsnull, XPCVARIANT_CID,                       XPCVARIANT_CONTRACTID,        nsnull, nsnull, nsnull, nsnull, NS_CI_INTERFACE_GETTER_NAME(XPCVariant), nsnull, &NS_CLASSINFO_NAME(XPCVariant)},
@@ -106,13 +108,15 @@ static const nsModuleComponentInfo components[] = {
 #endif
 };
 
-static nsresult
+PR_STATIC_CALLBACK(nsresult)
 xpcModuleCtor(nsIModule* self)
 {
     nsXPConnect::InitStatics();
     nsXPCException::InitStatics();
     XPCWrappedNativeScope::InitStatics();
     XPCPerThreadData::InitStatics();
+    nsJSRuntimeServiceImpl::InitStatics();
+    nsXPCThreadJSContextStackImpl::InitStatics();
 
 #ifdef XPC_IDISPATCH_SUPPORT
     XPCIDispatchExtension::InitStatics();
@@ -121,11 +125,13 @@ xpcModuleCtor(nsIModule* self)
     return NS_OK;
 }
 
-static void
+PR_STATIC_CALLBACK(void)
 xpcModuleDtor(nsIModule* self)
 {
     // Release our singletons
     nsXPConnect::ReleaseXPConnectSingleton();
+    nsXPCThreadJSContextStackImpl::FreeSingleton();
+    nsJSRuntimeServiceImpl::FreeSingleton();
     xpc_DestroyJSxIDClassObjects();
 #ifdef XPC_IDISPATCH_SUPPORT
     nsDispatchSupport::FreeSingleton();

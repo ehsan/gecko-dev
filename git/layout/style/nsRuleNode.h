@@ -361,17 +361,17 @@ private:
     }
   };
 
-  static PLDHashNumber
+  static PR_CALLBACK PLDHashNumber
   ChildrenHashHashKey(PLDHashTable *aTable, const void *aKey);
 
-  static PRBool
+  static PR_CALLBACK PRBool
   ChildrenHashMatchEntry(PLDHashTable *aTable,
                          const PLDHashEntryHdr *aHdr,
                          const void *aKey);
 
   static PLDHashTableOps ChildrenHashOps;
 
-  static PLDHashOperator
+  static PR_CALLBACK PLDHashOperator
   EnqueueRuleNodeChildren(PLDHashTable *table, PLDHashEntryHdr *hdr,
                           PRUint32 number, void *arg);
 
@@ -384,11 +384,7 @@ private:
   // rules, we use this mapping to transition from node to node
   // (constructing new nodes as needed to flesh out the tree).
 
-  union {
-    void* asVoid;
-    nsRuleNode* asList;
-    PLDHashTable* asHash;
-  } mChildren; // Accessed only through the methods below.
+  void *mChildrenTaggedPtr; // Accessed only through the methods below.
 
   enum {
     kTypeMask = 0x1,
@@ -402,29 +398,29 @@ private:
   };
 
   PRBool HaveChildren() {
-    return mChildren.asVoid != nsnull;
+    return mChildrenTaggedPtr != nsnull;
   }
   PRBool ChildrenAreHashed() {
-    return (PRWord(mChildren.asVoid) & kTypeMask) == kHashType;
+    return (PRWord(mChildrenTaggedPtr) & kTypeMask) == kHashType;
   }
   nsRuleNode* ChildrenList() {
-    return mChildren.asList;
+    return reinterpret_cast<nsRuleNode*>(mChildrenTaggedPtr);
   }
   nsRuleNode** ChildrenListPtr() {
-    return &mChildren.asList;
+    return reinterpret_cast<nsRuleNode**>(&mChildrenTaggedPtr);
   }
   PLDHashTable* ChildrenHash() {
-    return (PLDHashTable*) (PRWord(mChildren.asHash) & ~PRWord(kTypeMask));
+    return (PLDHashTable*) (PRWord(mChildrenTaggedPtr) & ~PRWord(kTypeMask));
   }
   void SetChildrenList(nsRuleNode *aList) {
     NS_ASSERTION(!(PRWord(aList) & kTypeMask),
                  "pointer not 2-byte aligned");
-    mChildren.asList = aList;
+    mChildrenTaggedPtr = aList;
   }
   void SetChildrenHash(PLDHashTable *aHashtable) {
     NS_ASSERTION(!(PRWord(aHashtable) & kTypeMask),
                  "pointer not 2-byte aligned");
-    mChildren.asHash = (PLDHashTable*)(PRWord(aHashtable) | kHashType);
+    mChildrenTaggedPtr = (void*)(PRWord(aHashtable) | kHashType);
   }
   void ConvertChildrenToHash();
 

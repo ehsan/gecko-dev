@@ -118,9 +118,7 @@ void LaunchChild(int argc, char **argv);
 #endif
 
 #ifndef MAXPATHLEN
-# ifdef PATH_MAX
-#  define MAXPATHLEN PATH_MAX
-# elif defined(_MAX_PATH)
+# ifdef MAX_PATH
 #  define MAXPATHLEN MAX_PATH
 # elif defined(_MAX_PATH)
 #  define MAXPATHLEN _MAX_PATH
@@ -550,7 +548,7 @@ public:
 
   // Perform the operation.  Return OK to indicate success.  After all actions
   // have been executed, Finish will be called.  A requirement of Execute is
-  // that its operation be reversable from Finish.
+  // that it's operation be reversable from Finish.
   virtual int Execute() = 0;
   
   // Finish is called after execution of all actions.  If status is OK, then
@@ -1105,7 +1103,7 @@ LaunchWinPostProcess(const WCHAR *appExe)
     exearg,
     L"\0"
   };
- 
+
   WinLaunchChild(exefullpath, argc, argv, 0);
 }
 #endif

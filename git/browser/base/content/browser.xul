@@ -227,15 +227,10 @@
     </panel>
 
     <tooltip id="urlTooltip">
-      <label crop="center" flex="1" class="tooltip-label"/>
+      <label crop="center" flex="1"/>
     </tooltip>
 
-    <panel id="ctrlTab-panel" class="KUI-panel" hidden="true" noautofocus="true" level="top"
-#ifdef XP_WIN
-# XXX bug 457997
-      noautohide="true"
-#endif
-    >
+    <panel id="ctrlTab-panel" class="KUI-panel" hidden="true" noautofocus="true" noautohide="true" level="top">
       <label id="ctrlTab-label" flex="1"/>
       <svg:svg id="ctrlTab-svgRoot">
         <svg:defs>
@@ -272,7 +267,11 @@
            defaultmode="icons">
     <!-- Menu -->
     <toolbar type="menubar" id="toolbar-menubar" class="chromeclass-menubar" customizable="true"
+#ifdef XP_MACOSX
              defaultset="menubar-items"
+#else
+             defaultset="menubar-items,spring,throbber-box"
+#endif
              mode="icons" iconsize="small" defaulticonsize="small"
              context="toolbar-context-menu">
       <toolbaritem id="menubar-items" align="center">
@@ -338,7 +337,6 @@
       <toolbaritem id="urlbar-container" align="center" flex="400" persist="width"
                    title="&locationItem.title;" class="chromeclass-location">
         <textbox id="urlbar" flex="1"
-                 delayedemptytext="&urlbar.emptyText;"
                  chromedir="&locale.dir;"
                  type="autocomplete"
                  autocompletesearch="history"
@@ -413,9 +411,8 @@
                      label="&printButton.label;" command="cmd_print"
                      tooltiptext="&printButton.tooltip;"/>
 
-      <toolbaritem id="navigator-throbber" title="&throbberItem.title;" align="center" pack="center"
-                   mousethrough="always">
-        <image/>
+      <toolbaritem id="throbber-box" title="&throbberItem.title;" align="center" pack="center">
+        <button id="navigator-throbber" disabled="true"/>
       </toolbaritem>
 
       <toolbaritem flex="1" id="personal-bookmarks" title="&bookmarksItem.title;">
@@ -479,7 +476,7 @@
              fullscreentoolbar="true" mode="icons" iconsize="large"
              customizable="true"
 #ifdef XP_MACOSX
-             defaultset="unified-back-forward-button,reload-button,stop-button,home-button,urlbar-container,search-container"
+             defaultset="unified-back-forward-button,reload-button,stop-button,home-button,urlbar-container,search-container,throbber-box"
 #else
              defaultset="unified-back-forward-button,reload-button,stop-button,home-button,urlbar-container,search-container,fullscreenflex,window-controls"
 #endif
@@ -531,7 +528,7 @@
                   contentcontextmenu="contentAreaContextMenu"
                   onnewtab="BrowserOpenTab();"
                   autocompletepopup="PopupAutoComplete"
-                  ondrop="nsDragAndDrop.drop(event, contentAreaDNDObserver);"
+                  ondragdrop="nsDragAndDrop.drop(event, contentAreaDNDObserver);"
                   onclick="return contentAreaClick(event, false);"/>
     </vbox>
   </hbox>
@@ -547,7 +544,7 @@
     <findbar browserid="content" id="FindToolbar"/>
   
     <statusbar class="chromeclass-status" id="status-bar"
-               ondrop="nsDragAndDrop.drop(event, contentAreaDNDObserver);">
+               ondragdrop="nsDragAndDrop.drop(event, contentAreaDNDObserver);">
       <statusbarpanel id="statusbar-display" label="" flex="1"/>
       <statusbarpanel class="statusbarpanel-progress" collapsed="true" id="statusbar-progresspanel">
         <progressmeter class="progressmeter-statusbar" id="statusbar-icon" mode="normal" value="0"/>

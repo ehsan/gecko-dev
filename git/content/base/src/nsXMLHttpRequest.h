@@ -70,7 +70,6 @@
 #include "prtime.h"
 #include "nsIEventListenerManager.h"
 #include "nsIDOMNSEvent.h"
-#include "nsITimer.h"
 #include "nsIPrivateDOMEvent.h"
 #include "nsDOMProgressEvent.h"
 
@@ -130,7 +129,7 @@ public:
   void Clear();
 
 private:
-  static PLDHashOperator
+  PR_STATIC_CALLBACK(PLDHashOperator)
     RemoveExpiredEntries(const nsACString& aKey, nsAutoPtr<CacheEntry>& aValue,
                          void* aUserData);
 
@@ -230,7 +229,6 @@ public:
     mOwner = aOwner;
     mScriptContext = aScriptContext;
   }
-  virtual ~nsXMLHttpRequestUpload();
   NS_DECL_ISUPPORTS_INHERITED
   NS_FORWARD_NSIXMLHTTPREQUESTEVENTTARGET(nsXHREventTarget::)
   NS_FORWARD_NSIDOMEVENTTARGET(nsXHREventTarget::)
@@ -252,8 +250,7 @@ class nsXMLHttpRequest : public nsXHREventTarget,
                          public nsIProgressEventSink,
                          public nsIInterfaceRequestor,
                          public nsSupportsWeakReference,
-                         public nsIJSNativeInitializer,
-                         public nsITimerCallback
+                         public nsIJSNativeInitializer
 {
 public:
   nsXMLHttpRequest();
@@ -294,9 +291,6 @@ public:
 
   // nsIInterfaceRequestor
   NS_DECL_NSIINTERFACEREQUESTOR
-
-  // nsITimerCallback
-  NS_DECL_NSITIMERCALLBACK
 
   // nsIJSNativeInitializer
   NS_IMETHOD Initialize(nsISupports* aOwner, JSContext* cx, JSObject* obj,
@@ -399,14 +393,12 @@ protected:
    */
   nsresult CheckChannelForCrossSiteRequest(nsIChannel* aChannel);
 
-  void StartProgressEventTimer();
-
   nsCOMPtr<nsISupports> mContext;
   nsCOMPtr<nsIPrincipal> mPrincipal;
   nsCOMPtr<nsIChannel> mChannel;
   // mReadRequest is different from mChannel for multipart requests
   nsCOMPtr<nsIRequest> mReadRequest;
-  nsCOMPtr<nsIDOMDocument> mResponseXML;
+  nsCOMPtr<nsIDOMDocument> mDocument;
   nsCOMPtr<nsIChannel> mACGetChannel;
   nsTArray<nsCString> mACUnsafeHeaders;
 
@@ -449,19 +441,11 @@ protected:
   PRUint32 mState;
 
   nsRefPtr<nsXMLHttpRequestUpload> mUpload;
-  PRUint64 mUploadTransferred;
-  PRUint64 mUploadTotal;
+  PRUint32 mUploadTransferred;
+  PRUint32 mUploadTotal;
   PRPackedBool mUploadComplete;
-  PRUint64 mUploadProgress; // For legacy
-  PRUint64 mUploadProgressMax; // For legacy
 
   PRPackedBool mErrorLoad;
-
-  PRPackedBool mTimerIsActive;
-  PRPackedBool mProgressEventWasDelayed;
-  PRPackedBool mLoadLengthComputable;
-  PRUint64 mLoadTotal; // 0 if not known.
-  nsCOMPtr<nsITimer> mProgressNotifier;
 
   PRPackedBool mFirstStartRequestSeen;
 };
@@ -502,17 +486,17 @@ public:
   {
     return mInner->SetOriginalTarget(aTarget);
   }
-  NS_IMETHOD_(PRBool) IsDispatchStopped()
+  NS_IMETHOD IsDispatchStopped(PRBool* aIsDispatchPrevented)
   {
-    return mInner->IsDispatchStopped();
+    return mInner->IsDispatchStopped(aIsDispatchPrevented);
   }
-  NS_IMETHOD_(nsEvent*) GetInternalNSEvent()
+  NS_IMETHOD GetInternalNSEvent(nsEvent** aNSEvent)
   {
-    return mInner->GetInternalNSEvent();
+    return mInner->GetInternalNSEvent(aNSEvent);
   }
-  NS_IMETHOD_(PRBool) HasOriginalTarget()
+  NS_IMETHOD HasOriginalTarget(PRBool* aResult)
   {
-    return mInner->HasOriginalTarget();
+    return mInner->HasOriginalTarget(aResult);
   }
   NS_IMETHOD SetTrusted(PRBool aTrusted)
   {

@@ -273,7 +273,7 @@ static void DrawBorderImageSide(gfxContext *aThebesContext,
                                 nsIDeviceContext* aDeviceContext,
                                 imgIContainer* aImage,
                                 gfxRect& aDestRect,
-                                gfxSize aInterSize,
+                                gfxSize& aInterSize,
                                 gfxRect& aSourceRect,
                                 PRUint8 aHFillType,
                                 PRUint8 aVFillType);
@@ -364,6 +364,31 @@ MakeBevelColor(PRIntn whichSide, PRUint8 style,
     break;
   }
   return theColor;
+}
+
+nscolor
+nsCSSRendering::TransformColor(nscolor  aMapColor,PRBool aNoBackGround)
+{
+PRUint16  hue,sat,value;
+nscolor   newcolor;
+
+  newcolor = aMapColor;
+  if (PR_TRUE == aNoBackGround){
+    // convert the RBG to HSV so we can get the lightness (which is the v)
+    NS_RGB2HSV(newcolor,hue,sat,value);
+    // The goal here is to send white to black while letting colored
+    // stuff stay colored... So we adopt the following approach.
+    // Something with sat = 0 should end up with value = 0.  Something
+    // with a high sat can end up with a high value and it's ok.... At
+    // the same time, we don't want to make things lighter.  Do
+    // something simple, since it seems to work.
+    if (value > sat) {
+      value = sat;
+      // convert this color back into the RGB color space.
+      NS_HSV2RGB(newcolor,hue,sat,value);
+    }
+  }
+  return newcolor;
 }
 
 //----------------------------------------------------------------------
@@ -1452,7 +1477,8 @@ nsCSSRendering::PaintBackgroundWithSC(nsPresContext* aPresContext,
   // We have a background image
 
   // Lookup the image
-  imgIRequest *req = aColor.mBackgroundImage;
+  imgIRequest *req = aPresContext->LoadImage(aColor.mBackgroundImage,
+                                             aForFrame);
 
   PRUint32 status = imgIRequest::STATUS_ERROR;
   if (req)
@@ -1890,7 +1916,7 @@ DrawBorderImage(nsPresContext* aPresContext,
     borderImageSplit[NS_SIDE_BOTTOM] = aBorderStyle.mBorderImageSplit.GetBottom();
     borderImageSplit[NS_SIDE_LEFT] = aBorderStyle.mBorderImageSplit.GetLeft();
 
-    imgIRequest *req = aBorderStyle.GetBorderImage();
+    imgIRequest *req = aPresContext->LoadBorderImage(aBorderStyle.GetBorderImage(), aForFrame);
 
     nsCOMPtr<imgIContainer> image;
     req->GetImage(getter_AddRefs(image));
@@ -1950,8 +1976,7 @@ DrawBorderImage(nsPresContext* aPresContext,
     clipRect.pos.y = dc->AppUnitsToGfxUnits(outerRect.y);
     clipRect.size.width = dc->AppUnitsToGfxUnits(outerRect.width);
     clipRect.size.height = dc->AppUnitsToGfxUnits(outerRect.height);
-    if (thebesCtx->UserToDevicePixelSnapped(clipRect))
-      clipRect = thebesCtx->DeviceToUser(clipRect);
+    thebesCtx->UserToDevicePixelSnapped(clipRect);
 
     thebesCtx->Save();
     thebesCtx->PushGroup(gfxASurface::CONTENT_COLOR_ALPHA);
@@ -2133,7 +2158,7 @@ DrawBorderImageSide(gfxContext *aThebesContext,
                     nsIDeviceContext* aDeviceContext,
                     imgIContainer* aImage,
                     gfxRect& aDestRect,
-                    gfxSize aInterSize, // non-ref to allow aliasing
+                    gfxSize& aInterSize,
                     gfxRect& aSourceRect,
                     PRUint8 aHFillType,
                     PRUint8 aVFillType)
@@ -2147,10 +2172,8 @@ DrawBorderImageSide(gfxContext *aThebesContext,
                            (PRInt32)aSourceRect.size.height);
 
   // where the actual border ends up being rendered
-  if (aThebesContext->UserToDevicePixelSnapped(aDestRect))
-    aDestRect = aThebesContext->DeviceToUser(aDestRect);
-  if (aThebesContext->UserToDevicePixelSnapped(aSourceRect))
-    aSourceRect = aThebesContext->DeviceToUser(aSourceRect);
+  aThebesContext->UserToDevicePixelSnapped(aDestRect);
+  aThebesContext->UserToDevicePixelSnapped(aSourceRect);
 
   if (aDestRect.size.height < 1.0 ||
      aDestRect.size.width < 1.0)

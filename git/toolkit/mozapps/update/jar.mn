@@ -8,3 +8,4 @@ toolkit.jar:
 * content/mozapps/update/incompatible.js                        (content/incompatible.js)
 * content/mozapps/update/history.xul                            (content/history.xul)
 * content/mozapps/update/history.js                             (content/history.js)
+* content/mozapps/update/errors.xul                             (content/errors.xul)

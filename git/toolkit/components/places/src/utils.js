@@ -217,9 +217,10 @@ var PlacesUtils = {
    * @returns true if the node is a visit item, false otherwise
    */
   nodeIsVisit: function PU_nodeIsVisit(aNode) {
+    const NHRN = Ci.nsINavHistoryResultNode;
     var type = aNode.type;
-    return type == Ci.nsINavHistoryResultNode.RESULT_TYPE_VISIT ||
-           type == Ci.nsINavHistoryResultNode.RESULT_TYPE_FULL_VISIT;
+    return type == NHRN.RESULT_TYPE_VISIT ||
+           type == NHRN.RESULT_TYPE_FULL_VISIT;
   },
 
   /**
@@ -253,8 +254,8 @@ var PlacesUtils = {
    * @returns true if the node is readonly, false otherwise
    */
   nodeIsReadOnly: function PU_nodeIsReadOnly(aNode) {
-    if (this.nodeIsFolder(aNode) || this.nodeIsDynamicContainer(aNode))
-      return this.bookmarks.getFolderReadonly(this.getConcreteItemId(aNode));
+    if (this.nodeIsFolder(aNode))
+      return this.bookmarks.getFolderReadonly(asQuery(aNode).folderItemId);
     if (this.nodeIsQuery(aNode) &&
         asQuery(aNode).queryOptions.resultType !=
           Ci.nsINavHistoryQueryOptions.RESULTS_AS_TAG_CONTENTS)
@@ -343,7 +344,7 @@ var PlacesUtils = {
    * @returns true if the node is a dynamic container item, false otherwise
    */
   nodeIsDynamicContainer: function PU_nodeIsDynamicContainer(aNode) {
-    if (aNode.type == Ci.nsINavHistoryResultNode.RESULT_TYPE_DYNAMIC_CONTAINER)
+    if (aNode.type == NHRN.RESULT_TYPE_DYNAMIC_CONTAINER)
       return true;
     return false;
   },
@@ -1075,26 +1076,11 @@ var PlacesUtils = {
               // remove tags via the tagging service
               var tags = this._utils.tagging.allTags;
               var uris = [];
-              var bogusTagContainer = false;
               for (let i in tags) {
-                var tagURIs = [];
-                // skip empty tags since getURIsForTag would throw
-                if (tags[i])
-                  tagURIs = this._utils.tagging.getURIsForTag(tags[i]);
-
-                if (!tagURIs.length) {
-                  // This is a bogus tag container, empty tags should be removed
-                  // automatically, but this does not work if they contain some
-                  // not-uri node, so we remove them manually.
-                  // XXX this is a temporary workaround until we implement
-                  // preventive database maintainance in bug 431558.
-                  bogusTagContainer = true;
-                }
+                var tagURIs = this._utils.tagging.getURIsForTag(tags[i]);
                 for (let j in tagURIs)
                   this._utils.tagging.untagURI(tagURIs[j], [tags[i]]);
               }
-              if (bogusTagContainer)
-                this._utils.bookmarks.removeFolderChildren(rootItemId);
             }
             else if ([this._utils.toolbarFolderId,
                       this._utils.unfiledBookmarksFolderId,
@@ -1178,11 +1164,7 @@ var PlacesUtils = {
         if (aContainer == PlacesUtils.bookmarks.tagsFolder) {
           if (aData.children) {
             aData.children.forEach(function(aChild) {
-              try {
-                this.tagging.tagURI(this._uri(aChild.uri), [aData.title]);
-              } catch (ex) {
-                // invalid tag child, skip it
-              }
+              this.tagging.tagURI(this._uri(aChild.uri), [aData.title]);
             }, this);
             return [folderIdMap, searchIds];
           }
@@ -1289,7 +1271,7 @@ var PlacesUtils = {
   },
 
   /**
-   * Serializes the given node (and all its descendents) as JSON
+   * Serializes the given node (and all it's descendents) as JSON
    * and writes the serialization to the given output stream.
    * 
    * @param   aNode
@@ -1440,9 +1422,9 @@ var PlacesUtils = {
           var childNode = aSourceNode.getChild(i);
           if (aExcludeItems && aExcludeItems.indexOf(childNode.itemId) != -1)
             continue;
-          var written = serializeNodeToJSONStream(aSourceNode.getChild(i), i);
-          if (written && i < cc - 1)
+          if (i != 0)
             aStream.write(",", 1);
+          serializeNodeToJSONStream(aSourceNode.getChild(i), i);
         }
         if (!wasOpen)
           aSourceNode.containerOpen = false;
@@ -1463,44 +1445,26 @@ var PlacesUtils = {
 
       addGenericProperties(bNode, node);
 
-      var parent = bNode.parent;
-      var grandParent = parent ? parent.parent : null;
-
       if (self.nodeIsURI(bNode)) {
-        // Tag root accept only folder nodes
-        if (parent && parent.itemId == self.tagsFolderId)
-          return false;
         // Check for url validity, since we can't halt while writing a backup.
         // This will throw if we try to serialize an invalid url and it does
         // not make sense saving a wrong or corrupt uri node.
         try {
           self._uri(bNode.uri);
         } catch (ex) {
-          return false;
+          return;
         }
         addURIProperties(bNode, node);
       }
-      else if (self.nodeIsContainer(bNode)) {
-        // Tag containers accept only uri nodes
-        if (grandParent && grandParent.itemId == self.tagsFolderId)
-          return false;
+      else if (self.nodeIsContainer(bNode))
         addContainerProperties(bNode, node);
-      }
-      else if (self.nodeIsSeparator(bNode)) {
-        // Tag root accept only folder nodes
-        // Tag containers accept only uri nodes
-        if ((parent && parent.itemId == self.tagsFolderId) ||
-            (grandParent && grandParent.itemId == self.tagsFolderId))
-          return false;
-
+      else if (self.nodeIsSeparator(bNode))
         addSeparatorProperties(bNode, node);
-      }
 
       if (!node.feedURI && node.type == self.TYPE_X_MOZ_PLACE_CONTAINER)
         writeComplexNode(aStream, node, bNode);
       else
         writeScalarNode(aStream, node);
-      return true;
     }
 
     // serialize to stream

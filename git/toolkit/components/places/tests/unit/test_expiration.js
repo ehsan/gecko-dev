@@ -39,21 +39,40 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
-// execute this test while syncing, this will potentially show possible problems
-start_sync();
+// Get history services
+try {
+  var histsvc = Cc["@mozilla.org/browser/nav-history-service;1"].
+                getService(Ci.nsINavHistoryService);
+  var bhist = histsvc.QueryInterface(Ci.nsIBrowserHistory);
+  var ghist = Cc["@mozilla.org/browser/global-history;2"].
+              getService(Ci.nsIGlobalHistory2);
+} catch(ex) {
+  do_throw("Could not get history services\n");
+}
 
-// Get services
-var histsvc = Cc["@mozilla.org/browser/nav-history-service;1"].
-              getService(Ci.nsINavHistoryService);
-var bhist = histsvc.QueryInterface(Ci.nsIBrowserHistory);
-var ghist = Cc["@mozilla.org/browser/global-history;2"].
-            getService(Ci.nsIGlobalHistory2);
-var annosvc = Cc["@mozilla.org/browser/annotation-service;1"].
-              getService(Ci.nsIAnnotationService);
-var bmsvc = Cc["@mozilla.org/browser/nav-bookmarks-service;1"].
-            getService(Ci.nsINavBookmarksService);
-var prefs = Cc["@mozilla.org/preferences-service;1"].
-            getService(Ci.nsIPrefBranch);
+// Get annotation service
+try {
+  var annosvc = Cc["@mozilla.org/browser/annotation-service;1"].
+                getService(Ci.nsIAnnotationService);
+} catch(ex) {
+  do_throw("Could not get annotation service\n");
+}
+
+// Get bookmark service
+try {
+  var bmsvc = Cc["@mozilla.org/browser/nav-bookmarks-service;1"].
+              getService(Ci.nsINavBookmarksService);
+} catch(ex) {
+  do_throw("Could not get nav-bookmarks-service\n");
+}
+
+// Get prefs service
+try {
+  var prefs = Cc["@mozilla.org/preferences-service;1"].
+              getService(Ci.nsIPrefBranch);
+} catch(ex) {
+  do_throw("Could not get prefs service\n");
+}
 
 // create and add history observer
 var observer = {
@@ -429,7 +448,7 @@ function run_test() {
   var expirationDate = (Date.now() - (8 * 86400 * 1000)) * 1000;
   dbConnection.executeSimpleSQL("UPDATE moz_annos SET dateAdded = " + expirationDate);
   dbConnection.executeSimpleSQL("UPDATE moz_items_annos SET dateAdded = " + expirationDate);
-  // modify its value
+  // modify it's value
   annosvc.setPageAnnotation(testURI, testAnnoName, "mod", 0, annosvc.EXPIRE_DAYS);
   annosvc.setItemAnnotation(bookmark, testAnnoName, "mod", 0, annosvc.EXPIRE_DAYS);
   // add a uri and then remove it, to trigger expiration
@@ -627,9 +646,7 @@ function startExpireBoth() {
   histsvc.removeAllPages();
   observer.expiredURI = null;
   dump("starting expiration test 3: both criteria met\n");
-  // force a sync, this will ensure that later we will have the same place in
-  // both temp and disk table, and that the expire site cap count is correct.
-  bmsvc.changeBookmarkURI(bookmark, testURI);
+
   // add visits
   // 2 days old, in microseconds
   var age = (Date.now() - (86400 * 2 * 1000)) * 1000;
@@ -815,5 +832,5 @@ function checkExpireBadPrefs() {
     do_throw(ex);
   }
   dump("done incremental expiration test 6\n");
-  finish_test();
+  do_test_finished();
 }

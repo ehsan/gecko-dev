@@ -23,8 +23,6 @@
  *   Pierre Phaneuf <pp@ludusdesign.com>
  *   Sean Echevarria <sean@beatnik.com>
  *   David Gardiner <david.gardiner@unisa.edu.au>
- *   Kathleen Brade <brade@comcast.net>
- *   Mark Smith <mcs@pearlcrescent.com>
  *
  * Alternatively, the contents of this file may be used under the terms of
  * either the GNU General Public License Version 2 or later (the "GPL"), or
@@ -106,8 +104,7 @@ UINT nsClipboard::GetFormat(const char* aMimeStr)
   else if (strcmp(aMimeStr, kUnicodeMime) == 0)
     format = CF_UNICODETEXT;
 #ifndef WINCE
-  else if (strcmp(aMimeStr, kJPEGImageMime) == 0 ||
-           strcmp(aMimeStr, kPNGImageMime) == 0)
+  else if (strcmp(aMimeStr, kJPEGImageMime) == 0)
     format = CF_DIB;
   else if (strcmp(aMimeStr, kFileMime) == 0 || 
            strcmp(aMimeStr, kFilePromiseMime) == 0)
@@ -117,6 +114,8 @@ UINT nsClipboard::GetFormat(const char* aMimeStr)
     format = CF_HTML;
   else
     format = ::RegisterClipboardFormatW(NS_ConvertASCIItoUTF16(aMimeStr).get());
+
+
 
   return format;
 }
@@ -405,10 +404,7 @@ static HRESULT FillSTGMedium(IDataObject * aDataObject, UINT aFormat, LPFORMATET
 
 
 //-------------------------------------------------------------------------
-// If aFormat is CF_DIB, aMIMEImageFormat must be a type for which we have
-// an image encoder (e.g. image/png).
-// For other values of aFormat, it is OK to pass null for aMIMEImageFormat.
-nsresult nsClipboard::GetNativeDataOffClipboard(IDataObject * aDataObject, UINT aIndex, UINT aFormat, const char * aMIMEImageFormat, void ** aData, PRUint32 * aLen)
+nsresult nsClipboard::GetNativeDataOffClipboard(IDataObject * aDataObject, UINT aIndex, UINT aFormat, void ** aData, PRUint32 * aLen)
 {
   nsresult result = NS_ERROR_FAILURE;
   *aData = nsnull;
@@ -471,15 +467,15 @@ nsresult nsClipboard::GetNativeDataOffClipboard(IDataObject * aDataObject, UINT 
 
 #ifndef WINCE
             case CF_DIB :
-              if (aMIMEImageFormat)
               {
                 PRUint32 allocLen = 0;
                 unsigned char * clipboardData;
-                if (NS_SUCCEEDED(GetGlobalData(stm.hGlobal, (void **)&clipboardData, &allocLen)))
+                nsresult rv = GetGlobalData(stm.hGlobal, (void **) &clipboardData, &allocLen);
+                if (NS_SUCCEEDED(rv))
                 {
                   nsImageFromClipboard converter;
                   nsIInputStream * inputStream;
-                  converter.GetEncodedImageStream(clipboardData, aMIMEImageFormat, &inputStream);   // addrefs for us, don't release
+                  converter.GetEncodedImageStream (clipboardData,  &inputStream );   // addrefs for us, don't release
                   if ( inputStream ) {
                     *aData = inputStream;
                     *aLen = sizeof(nsIInputStream*);
@@ -608,7 +604,7 @@ nsresult nsClipboard::GetDataFromDataObject(IDataObject     * aDataObject,
       PRUint32 dataLen = 0;
       PRBool dataFound = PR_FALSE;
       if (nsnull != aDataObject) {
-        if ( NS_SUCCEEDED(GetNativeDataOffClipboard(aDataObject, anIndex, format, flavorStr, &data, &dataLen)) )
+        if ( NS_SUCCEEDED(GetNativeDataOffClipboard(aDataObject, anIndex, format, &data, &dataLen)) )
           dataFound = PR_TRUE;
       } 
       else if (nsnull != aWindow) {
@@ -655,8 +651,7 @@ nsresult nsClipboard::GetDataFromDataObject(IDataObject     * aDataObject,
           }
           nsMemory::Free(data);
         }
-        else if ( strcmp(flavorStr, kJPEGImageMime) == 0 ||
-                  strcmp(flavorStr, kPNGImageMime) == 0) {
+        else if ( strcmp(flavorStr, kJPEGImageMime) == 0) {
           nsIInputStream * imageStream = reinterpret_cast<nsIInputStream*>(data);
           genericDataWrapper = do_QueryInterface(imageStream);
           NS_IF_RELEASE(imageStream);
@@ -730,7 +725,7 @@ nsClipboard :: FindUnicodeFromPlainText ( IDataObject* inDataObject, UINT inInde
 
   // we are looking for text/unicode and we failed to find it on the clipboard first,
   // try again with text/plain. If that is present, convert it to unicode.
-  nsresult loadResult = GetNativeDataOffClipboard(inDataObject, inIndex, GetFormat(kTextMime), nsnull, outData, outDataLen);
+  nsresult loadResult = GetNativeDataOffClipboard(inDataObject, inIndex, GetFormat(kTextMime), outData, outDataLen);
   if ( NS_SUCCEEDED(loadResult) && *outData ) {
     const char* castedText = reinterpret_cast<char*>(*outData);          
     PRUnichar* convertedText = nsnull;
@@ -764,7 +759,7 @@ nsClipboard :: FindURLFromLocalFile ( IDataObject* inDataObject, UINT inIndex, v
 {
   PRBool dataFound = PR_FALSE;
 
-  nsresult loadResult = GetNativeDataOffClipboard(inDataObject, inIndex, GetFormat(kFileMime), nsnull, outData, outDataLen);
+  nsresult loadResult = GetNativeDataOffClipboard(inDataObject, inIndex, GetFormat(kFileMime), outData, outDataLen);
   if ( NS_SUCCEEDED(loadResult) && *outData ) {
     // we have a file path in |data|. Is it an internet shortcut or a normal file?
     const nsDependentString filepath(static_cast<PRUnichar*>(*outData));
@@ -815,8 +810,7 @@ nsClipboard :: FindURLFromNativeURL ( IDataObject* inDataObject, UINT inIndex, v
 
   void* tempOutData = nsnull;
   PRUint32 tempDataLen = 0;
-
-  nsresult loadResult = GetNativeDataOffClipboard(inDataObject, inIndex, ::RegisterClipboardFormat(CFSTR_INETURLW), nsnull, &tempOutData, &tempDataLen);
+  nsresult loadResult = GetNativeDataOffClipboard(inDataObject, inIndex, ::RegisterClipboardFormat(CFSTR_INETURLW), &tempOutData, &tempDataLen);
   if ( NS_SUCCEEDED(loadResult) && tempOutData ) {
     nsDependentString urlString(static_cast<PRUnichar*>(tempOutData));
     // the internal mozilla URL format, text/x-moz-url, contains
@@ -828,7 +822,7 @@ nsClipboard :: FindURLFromNativeURL ( IDataObject* inDataObject, UINT inIndex, v
     dataFound = PR_TRUE;
   }
   else {
-    loadResult = GetNativeDataOffClipboard(inDataObject, inIndex, ::RegisterClipboardFormat(CFSTR_INETURLA), nsnull, &tempOutData, &tempDataLen);
+    loadResult = GetNativeDataOffClipboard(inDataObject, inIndex, ::RegisterClipboardFormat(CFSTR_INETURLA), &tempOutData, &tempDataLen);
     if ( NS_SUCCEEDED(loadResult) && tempOutData ) {
       // CFSTR_INETURLA is (currently) equal to CFSTR_SHELLURL which is equal to CF_TEXT
       // which is by definition ANSI encoded.

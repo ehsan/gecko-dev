@@ -338,7 +338,7 @@ struct JSRuntime {
     JSCList             trapList;
     JSCList             watchPointList;
 
-    /* Client opaque pointers */
+    /* Client opaque pointer */
     void                *data;
 
 #ifdef JS_THREADSAFE
@@ -860,9 +860,8 @@ struct JSContext {
     /* Interpreter activation count. */
     uintN               interpLevel;
 
-    /* Client opaque pointers. */
+    /* Client opaque pointer */
     void                *data;
-    void                *data2;
 
     /* GC and thread-safe state. */
     JSStackFrame        *dormantFrameChain; /* dormant stack frame to scan */
@@ -931,15 +930,13 @@ class JSAutoTempValueRooter
         JS_POP_TEMP_ROOT(mContext, &mTvr);
     }
 
-  protected:
-    JSContext *mContext;
-
   private:
 #ifndef AIX
     static void *operator new(size_t);
     static void operator delete(void *, size_t);
 #endif
 
+    JSContext *mContext;
     JSTempValueRooter mTvr;
 };
 

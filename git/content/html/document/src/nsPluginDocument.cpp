@@ -71,21 +71,12 @@ public:
   const nsCString& GetType() const { return mMimeType; }
   nsIContent*      GetPluginContent() { return mPluginContent; }
 
-  void SkippedInstantiation() {
-    mWillHandleInstantiation = PR_FALSE;
-  }
-
 protected:
   nsresult CreateSyntheticPluginDocument();
 
   nsCOMPtr<nsIContent>                     mPluginContent;
   nsRefPtr<nsMediaDocumentStreamListener>  mStreamListener;
   nsCString                                mMimeType;
-
-  // Hack to handle the fact that plug-in loading lives in frames and that the
-  // frames may not be around when we need to instantiate.  Once plug-in
-  // loading moves to content, this can all go away.
-  PRBool                                   mWillHandleInstantiation;
 };
 
 class nsPluginStreamListener : public nsMediaDocumentStreamListener
@@ -113,7 +104,6 @@ nsPluginStreamListener::OnStartRequest(nsIRequest* request, nsISupports *ctxt)
   nsIPresShell* shell = mDocument->GetPrimaryShell();
   if (!shell) {
     // Can't instantiate w/o a shell
-    mPluginDoc->SkippedInstantiation();
     return NS_BINDING_ABORTED;
   }
 
@@ -124,14 +114,12 @@ nsPluginStreamListener::OnStartRequest(nsIRequest* request, nsISupports *ctxt)
 
   nsIFrame* frame = shell->GetPrimaryFrameFor(embed);
   if (!frame) {
-    mPluginDoc->SkippedInstantiation();
     return rv;
   }
 
   nsIObjectFrame* objFrame;
   CallQueryInterface(frame, &objFrame);
   if (!objFrame) {
-    mPluginDoc->SkippedInstantiation();
     return NS_ERROR_UNEXPECTED;
   }
 
@@ -150,7 +138,6 @@ nsPluginStreamListener::OnStartRequest(nsIRequest* request, nsISupports *ctxt)
   // bother initializing members to 0.
 
 nsPluginDocument::nsPluginDocument()
-  : mWillHandleInstantiation(PR_TRUE)
 {
 }
 
@@ -333,13 +320,6 @@ nsPluginDocument::Print()
     }
   }
 
-  return NS_OK;
-}
-
-NS_IMETHODIMP
-nsPluginDocument::GetWillHandleInstantiation(PRBool* aWillHandle)
-{
-  *aWillHandle = mWillHandleInstantiation;
   return NS_OK;
 }
 

@@ -39,7 +39,15 @@
 #include "nsRect.h"
 #include "nsIWidget.h"
 
-nsresult
+#ifdef XP_MAC
+#define WIDGET_SUPPORT_EXPORT(returnType) \
+        PR_PUBLIC_API(returnType)
+#else
+#define WIDGET_SUPPORT_EXPORT(returnType) \
+        returnType
+#endif
+
+WIDGET_SUPPORT_EXPORT(nsresult)
 NS_ShowWidget(nsISupports* aWidget, PRBool aShow)
 {
   nsCOMPtr<nsIWidget> widget = do_QueryInterface(aWidget);
@@ -50,7 +58,7 @@ NS_ShowWidget(nsISupports* aWidget, PRBool aShow)
   return NS_OK;
 }
 
-nsresult
+WIDGET_SUPPORT_EXPORT(nsresult)
 NS_MoveWidget(nsISupports* aWidget, PRUint32 aX, PRUint32 aY)
 {
   nsCOMPtr<nsIWidget> widget = do_QueryInterface(aWidget);
@@ -61,7 +69,7 @@ NS_MoveWidget(nsISupports* aWidget, PRUint32 aX, PRUint32 aY)
   return NS_OK;
 }
 
-nsresult
+WIDGET_SUPPORT_EXPORT(nsresult)
 NS_EnableWidget(nsISupports* aWidget, PRBool aEnable)
 {
   nsCOMPtr<nsIWidget> widget = do_QueryInterface(aWidget);
@@ -72,7 +80,7 @@ NS_EnableWidget(nsISupports* aWidget, PRBool aEnable)
   return NS_OK;
 }
 
-nsresult
+WIDGET_SUPPORT_EXPORT(nsresult)
 NS_SetFocusToWidget(nsISupports* aWidget)
 {
   nsCOMPtr<nsIWidget> widget = do_QueryInterface(aWidget);
@@ -83,7 +91,7 @@ NS_SetFocusToWidget(nsISupports* aWidget)
   return NS_OK;
 }
 
-nsresult
+WIDGET_SUPPORT_EXPORT(nsresult)
 NS_GetWidgetNativeData(nsISupports* aWidget, void** aNativeData)
 {
   void *result = nsnull;

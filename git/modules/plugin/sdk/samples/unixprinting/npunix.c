@@ -55,7 +55,7 @@
 
 #include <stdio.h>
 #include "npapi.h"
-#include "npfunctions.h"
+#include "npupp.h"
 
 /*
  * Define PLUGIN_TRACE to have the wrapper functions print
@@ -84,7 +84,8 @@ static NPNetscapeFuncs   gNetscapeFuncs;    /* Netscape Function table */
  * Wrapper functions : plugin calling Netscape Navigator
  *
  * These functions let the plugin developer just call the APIs
- * as documented and defined in npapi.h.
+ * as documented and defined in npapi.h, without needing to know
+ * about the function table and call macros in npupp.h.
  *
  ***********************************************************************/
 
@@ -104,125 +105,137 @@ NPN_Version(int* plugin_major, int* plugin_minor,
 NPError
 NPN_GetValue(NPP instance, NPNVariable variable, void *r_value)
 {
-    return (*gNetscapeFuncs.getvalue)(instance, variable, r_value);
+    return CallNPN_GetValueProc(gNetscapeFuncs.getvalue,
+                    instance, variable, r_value);
 }
 
 NPError
 NPN_SetValue(NPP instance, NPPVariable variable, void *value)
 {
-    return (*gNetscapeFuncs.setvalue)(instance, variable, value);
+    return CallNPN_SetValueProc(gNetscapeFuncs.setvalue,
+                    instance, variable, value);
 }
 
 NPError
 NPN_GetURL(NPP instance, const char* url, const char* window)
 {
-    return (*gNetscapeFuncs.geturl)(instance, url, window);
+    return CallNPN_GetURLProc(gNetscapeFuncs.geturl, instance, url, window);
 }
 
 NPError
 NPN_GetURLNotify(NPP instance, const char* url, const char* window, void* notifyData)
 {
-    return (*gNetscapeFuncs.geturlnotify)(instance, url, window, notifyData);
+    return CallNPN_GetURLNotifyProc(gNetscapeFuncs.geturlnotify, instance, url, window, notifyData);
 }
 
 NPError
 NPN_PostURL(NPP instance, const char* url, const char* window,
          uint32_t len, const char* buf, NPBool file)
 {
-    return (*gNetscapeFuncs.posturl)(instance, url, window, len, buf, file);
+    return CallNPN_PostURLProc(gNetscapeFuncs.posturl, instance,
+                    url, window, len, buf, file);
 }
 
 NPError
 NPN_PostURLNotify(NPP instance, const char* url, const char* window, uint32_t len,
                   const char* buf, NPBool file, void* notifyData)
 {
-    return (*gNetscapeFuncs.posturlnotify)(instance, url, window, len, buf, file, notifyData);
+    return CallNPN_PostURLNotifyProc(gNetscapeFuncs.posturlnotify,
+            instance, url, window, len, buf, file, notifyData);
 }
 
 NPError
 NPN_RequestRead(NPStream* stream, NPByteRange* rangeList)
 {
-    return (*gNetscapeFuncs.requestread)(stream, rangeList);
+    return CallNPN_RequestReadProc(gNetscapeFuncs.requestread,
+                    stream, rangeList);
 }
 
 NPError
 NPN_NewStream(NPP instance, NPMIMEType type, const char *window,
           NPStream** stream_ptr)
 {
-    return (*gNetscapeFuncs.newstream)(instance, type, window, stream_ptr);
+    return CallNPN_NewStreamProc(gNetscapeFuncs.newstream, instance,
+                    type, window, stream_ptr);
 }
 
 int32_t
 NPN_Write(NPP instance, NPStream* stream, int32_t len, void* buffer)
 {
-    return (*gNetscapeFuncs.write)(instance, stream, len, buffer);
+    return CallNPN_WriteProc(gNetscapeFuncs.write, instance,
+                    stream, len, buffer);
 }
 
 NPError
 NPN_DestroyStream(NPP instance, NPStream* stream, NPError reason)
 {
-    return (*gNetscapeFuncs.destroystream)(instance, stream, reason);
+    return CallNPN_DestroyStreamProc(gNetscapeFuncs.destroystream,
+                        instance, stream, reason);
 }
 
 void
 NPN_Status(NPP instance, const char* message)
 {
-    (*gNetscapeFuncs.status)(instance, message);
+    CallNPN_StatusProc(gNetscapeFuncs.status, instance, message);
 }
 
 const char*
 NPN_UserAgent(NPP instance)
 {
-    return (*gNetscapeFuncs.uagent)(instance);
+    return CallNPN_UserAgentProc(gNetscapeFuncs.uagent, instance);
 }
 
 void*
 NPN_MemAlloc(uint32_t size)
 {
-    return (*gNetscapeFuncs.memalloc)(size);
+    return CallNPN_MemAllocProc(gNetscapeFuncs.memalloc, size);
 }
 
 void NPN_MemFree(void* ptr)
 {
-    (*gNetscapeFuncs.memfree)(ptr);
+    CallNPN_MemFreeProc(gNetscapeFuncs.memfree, ptr);
 }
 
 uint32_t NPN_MemFlush(uint32_t size)
 {
-    return (*gNetscapeFuncs.memflush)(size);
+    return CallNPN_MemFlushProc(gNetscapeFuncs.memflush, size);
 }
 
 void NPN_ReloadPlugins(NPBool reloadPages)
 {
-    (*gNetscapeFuncs.reloadplugins)(reloadPages);
+    CallNPN_ReloadPluginsProc(gNetscapeFuncs.reloadplugins, reloadPages);
 }
 
 void
 NPN_InvalidateRect(NPP instance, NPRect *invalidRect)
 {
-    (*gNetscapeFuncs.invalidaterect)(instance, invalidRect);
+    CallNPN_InvalidateRectProc(gNetscapeFuncs.invalidaterect, instance,
+        invalidRect);
 }
 
 void
 NPN_InvalidateRegion(NPP instance, NPRegion invalidRegion)
 {
-    (*gNetscapeFuncs.invalidateregion)(instance, invalidRegion);
+    CallNPN_InvalidateRegionProc(gNetscapeFuncs.invalidateregion, instance,
+        invalidRegion);
 }
 
 void
 NPN_ForceRedraw(NPP instance)
 {
-    (*gNetscapeFuncs.forceredraw)(instance);
+    CallNPN_ForceRedrawProc(gNetscapeFuncs.forceredraw, instance);
 }
 
 void NPN_PushPopupsEnabledState(NPP instance, NPBool enabled)
 {
-    (*gNetscapeFuncs.pushpopupsenabledstate)(instance, enabled);
+    CallNPN_PushPopupsEnabledStateProc(gNetscapeFuncs.pushpopupsenabledstate,
+        instance, enabled);
 }
 
 void NPN_PopPopupsEnabledState(NPP instance)
 {
-    (*gNetscapeFuncs.poppopupsenabledstate)(instance);
+    CallNPN_PopPopupsEnabledStateProc(gNetscapeFuncs.poppopupsenabledstate,
+        instance);
 }
 
 
@@ -454,16 +467,16 @@ NP_Initialize(NPNetscapeFuncs* nsTable, NPPluginFuncs* pluginFuncs)
          */
         pluginFuncs->version    = (NP_VERSION_MAJOR << 8) + NP_VERSION_MINOR;
         pluginFuncs->size       = sizeof(NPPluginFuncs);
-        pluginFuncs->newp       = (NPP_NewProcPtr)(Private_New);
-        pluginFuncs->destroy    = (NPP_DestroyProcPtr)(Private_Destroy);
-        pluginFuncs->setwindow  = (NPP_SetWindowProcPtr)(Private_SetWindow);
-        pluginFuncs->newstream  = (NPP_NewStreamProcPtr)(Private_NewStream);
-        pluginFuncs->destroystream = (NPP_DestroyStreamProcPtr)(Private_DestroyStream);
-        pluginFuncs->asfile     = (NPP_StreamAsFileProcPtr)(Private_StreamAsFile);
-        pluginFuncs->writeready = (NPP_WriteReadyProcPtr)(Private_WriteReady);
-        pluginFuncs->write      = (NPP_WriteProcPtr)(Private_Write);
-        pluginFuncs->print      = (NPP_PrintProcPtr)(Private_Print);
-        pluginFuncs->urlnotify  = (NPP_URLNotifyProcPtr)(Private_URLNotify);
+        pluginFuncs->newp       = NewNPP_NewProc(Private_New);
+        pluginFuncs->destroy    = NewNPP_DestroyProc(Private_Destroy);
+        pluginFuncs->setwindow  = NewNPP_SetWindowProc(Private_SetWindow);
+        pluginFuncs->newstream  = NewNPP_NewStreamProc(Private_NewStream);
+        pluginFuncs->destroystream = NewNPP_DestroyStreamProc(Private_DestroyStream);
+        pluginFuncs->asfile     = NewNPP_StreamAsFileProc(Private_StreamAsFile);
+        pluginFuncs->writeready = NewNPP_WriteReadyProc(Private_WriteReady);
+        pluginFuncs->write      = NewNPP_WriteProc(Private_Write);
+        pluginFuncs->print      = NewNPP_PrintProc(Private_Print);
+        pluginFuncs->urlnotify  = NewNPP_URLNotifyProc(Private_URLNotify);
         pluginFuncs->event      = NULL;
         pluginFuncs->javaClass  = NULL;
 

@@ -165,7 +165,7 @@ static const PRUint8 gsRGBToLinearRGBMap[256] = {
 static PRBool gSVGEnabled;
 static const char SVG_PREF_STR[] = "svg.enabled";
 
-static int
+PR_STATIC_CALLBACK(int)
 SVGPrefChanged(const char *aPref, void *aClosure)
 {
   PRBool prefVal = nsContentUtils::GetBoolPref(SVG_PREF_STR);
@@ -399,6 +399,25 @@ nsSVGUtils::CoordToFloat(nsPresContext *aPresContext,
   return val;
 }
 
+nsresult nsSVGUtils::GetReferencedFrame(nsIFrame **aRefFrame, nsIURI* aURI, nsIContent *aContent, 
+                                        nsIPresShell *aPresShell)
+{
+  *aRefFrame = nsnull;
+
+  nsIContent* content = nsContentUtils::GetReferencedElement(aURI, aContent);
+  if (!content)
+    return NS_ERROR_FAILURE;
+
+  // Get the Primary Frame
+  NS_ASSERTION(aPresShell, "Get referenced SVG frame -- no pres shell provided");
+  if (!aPresShell)
+    return NS_ERROR_FAILURE;
+
+  *aRefFrame = aPresShell->GetPrimaryFrameFor(content);
+  if (!(*aRefFrame)) return NS_ERROR_FAILURE;
+  return NS_OK;
+}
+
 nsresult
 nsSVGUtils::GetNearestViewportElement(nsIContent *aContent,
                                       nsIDOMSVGElement * *aNearestViewportElement)
@@ -573,15 +592,28 @@ nsSVGUtils::FindFilterInvalidation(nsIFrame *aFrame, const nsRect& aRect)
     if (aFrame->GetStateBits() & NS_STATE_IS_OUTER_SVG)
       break;
 
-    nsSVGFilterFrame *filter = nsSVGEffects::GetFilterFrame(aFrame);
-    if (filter) {
-      rect = filter->GetInvalidationBBox(aFrame, rect);
+    nsSVGFilterProperty *property = nsSVGEffects::GetFilterProperty(aFrame);
+    if (property) {
+      nsSVGFilterFrame *filter = property->GetFilterFrame();
+      if (filter) {
+        rect = filter->GetInvalidationBBox(aFrame, rect);
+      }
     }
     aFrame = aFrame->GetParent();
   }
 
   rect.ScaleRoundOut(appUnitsPerDevPixel);
   return rect;
+}
+
+void
+nsSVGUtils::UpdateFilterRegion(nsIFrame *aFrame)
+{
+  nsSVGEffects::EffectProperties props =
+    nsSVGEffects::GetEffectProperties(aFrame);
+  if (props.mFilter) {
+    props.mFilter->UpdateRect();
+  }
 }
 
 void
@@ -917,43 +949,25 @@ class SVGPaintCallback : public nsSVGFilterPaintCallback
 {
 public:
   virtual void Paint(nsSVGRenderState *aContext, nsIFrame *aTarget,
-                     const nsIntRect* aDirtyRect)
+                     const nsIntRect* aDirtyRect, nsIDOMSVGMatrix *aTransform)
   {
     nsISVGChildFrame *svgChildFrame;
     CallQueryInterface(aTarget, &svgChildFrame);
     NS_ASSERTION(svgChildFrame, "Expected SVG frame here");
-    NS_ASSERTION(!svgChildFrame->GetMatrixPropagation(),
-                 "This should have been set to false already");
 
-    nsIntRect* dirtyRect = nsnull;
-    nsIntRect tmpDirtyRect;
-
-    // aDirtyRect is in user-space pixels, we need to convert to
-    // outer-SVG-frame-relative device pixels.
-    if (aDirtyRect) {
-      // Temporarily set SetMatrixPropagation so we can find out what
-      // the actual CTM is.
-      svgChildFrame->SetMatrixPropagation(PR_TRUE);
-      nsCOMPtr<nsIDOMSVGMatrix> ctm = nsSVGUtils::GetCanvasTM(aTarget);
-      NS_ASSERTION(ctm, "graphic source didn't specify a ctm");
-      svgChildFrame->SetMatrixPropagation(PR_FALSE);
-
-      gfxMatrix matrix = nsSVGUtils::ConvertSVGMatrixToThebes(ctm);
-      gfxRect dirtyBounds = matrix.TransformBounds(
-        gfxRect(aDirtyRect->x, aDirtyRect->y, aDirtyRect->width, aDirtyRect->height));
-      dirtyBounds.RoundOut();
-      if (NS_SUCCEEDED(nsSVGUtils::GfxRectToIntRect(dirtyBounds, &tmpDirtyRect))) {
-        dirtyRect = &tmpDirtyRect;
-      }
+    if (aTransform) {
+      svgChildFrame->SetOverrideCTM(aTransform);
+      svgChildFrame->NotifySVGChanged(nsISVGChildFrame::SUPPRESS_INVALIDATION |
+                                      nsISVGChildFrame::TRANSFORM_CHANGED);
     }
 
-    svgChildFrame->PaintSVG(aContext, dirtyRect);
+    svgChildFrame->PaintSVG(aContext, const_cast<nsIntRect*>(aDirtyRect));
   }
 };
 
 void
-nsSVGUtils::PaintFrameWithEffects(nsSVGRenderState *aContext,
-                                  const nsIntRect *aDirtyRect,
+nsSVGUtils::PaintChildWithEffects(nsSVGRenderState *aContext,
+                                  nsIntRect *aDirtyRect,
                                   nsIFrame *aFrame)
 {
   nsISVGChildFrame *svgChildFrame;

@@ -771,6 +771,7 @@ int main()
         JS_GC(jscontext);
         JS_GC(jscontext);
         JS_DestroyContext(jscontext);
+        xpc->SyncJSContexts();
         xpc->DebugDump(4);
 
         cxstack = nsnull;   // release service held by nsCOMPtr

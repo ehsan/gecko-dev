@@ -56,10 +56,3 @@ caption {
   margin-bottom: 2px;
   font-weight: bold;
 }
-
-.caption-text {
-  margin-top: 0;
-  margin-bottom: 0;
-  -moz-margin-start: 1px;
-  -moz-margin-end: 2px;
-}

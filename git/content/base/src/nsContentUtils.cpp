@@ -158,8 +158,6 @@ static NS_DEFINE_CID(kXTFServiceCID, NS_XTFSERVICE_CID);
 #include "nsIDragService.h"
 #include "nsIChannelEventSink.h"
 #include "nsIInterfaceRequestor.h"
-#include "nsIOfflineCacheUpdate.h"
-#include "nsCPrefetchService.h"
 
 #ifdef IBMBIDI
 #include "nsIBidiKeyboard.h"
@@ -244,7 +242,7 @@ public:
   nsCOMPtr<nsIEventListenerManager> mListenerManager;
 };
 
-static PRBool
+PR_STATIC_CALLBACK(PRBool)
 EventListenerManagerHashInitEntry(PLDHashTable *table, PLDHashEntryHdr *entry,
                                   const void *key)
 {
@@ -253,7 +251,7 @@ EventListenerManagerHashInitEntry(PLDHashTable *table, PLDHashEntryHdr *entry,
   return PR_TRUE;
 }
 
-static void
+PR_STATIC_CALLBACK(void)
 EventListenerManagerHashClearEntry(PLDHashTable *table, PLDHashEntryHdr *entry)
 {
   EventListenerManagerMapEntry *lm =
@@ -479,16 +477,7 @@ nsContentUtils::InitializeEventTable() {
     { &nsGkAtoms::ondurationchange,              { NS_DURATIONCHANGE, EventNameType_HTML }},
     { &nsGkAtoms::onvolumechange,                { NS_VOLUMECHANGE, EventNameType_HTML }},
 #endif //MOZ_MEDIA
-    { &nsGkAtoms::onMozAfterPaint,               { NS_AFTERPAINT, EventNameType_None }},
-
-    // Simple gesture events
-    { &nsGkAtoms::onMozSwipeGesture,             { NS_SIMPLE_GESTURE_SWIPE, EventNameType_None } },
-    { &nsGkAtoms::onMozMagnifyGestureStart,      { NS_SIMPLE_GESTURE_MAGNIFY_START, EventNameType_None } },
-    { &nsGkAtoms::onMozMagnifyGestureUpdate,     { NS_SIMPLE_GESTURE_MAGNIFY_UPDATE, EventNameType_None } },
-    { &nsGkAtoms::onMozMagnifyGesture,           { NS_SIMPLE_GESTURE_MAGNIFY, EventNameType_None } },
-    { &nsGkAtoms::onMozRotateGestureStart,       { NS_SIMPLE_GESTURE_ROTATE_START, EventNameType_None } },
-    { &nsGkAtoms::onMozRotateGestureUpdate,      { NS_SIMPLE_GESTURE_ROTATE_UPDATE, EventNameType_None } },
-    { &nsGkAtoms::onMozRotateGesture,            { NS_SIMPLE_GESTURE_ROTATE, EventNameType_None } }
+    { &nsGkAtoms::onMozAfterPaint,               { NS_AFTERPAINT, EventNameType_None }}
   };
 
   sEventTable = new nsDataHashtable<nsISupportsHashKey, EventNameMapping>;
@@ -835,34 +824,17 @@ nsContentUtils::GetOfflineAppManifest(nsIDOMWindow *aWindow, nsIURI **aURI)
 PRBool
 nsContentUtils::OfflineAppAllowed(nsIURI *aURI)
 {
-  nsCOMPtr<nsIOfflineCacheUpdateService> updateService =
-    do_GetService(NS_OFFLINECACHEUPDATESERVICE_CONTRACTID);
-  if (!updateService) {
-    return PR_FALSE;
-  }
-
-  PRBool allowed;
-  nsresult rv = updateService->OfflineAppAllowedForURI(aURI,
-                                                       sPrefBranch,
-                                                       &allowed);
-  return NS_SUCCEEDED(rv) && allowed;
+  return NS_OfflineAppAllowed(aURI, sPrefBranch);
 }
 
 /* static */
 PRBool
 nsContentUtils::OfflineAppAllowed(nsIPrincipal *aPrincipal)
 {
-  nsCOMPtr<nsIOfflineCacheUpdateService> updateService =
-    do_GetService(NS_OFFLINECACHEUPDATESERVICE_CONTRACTID);
-  if (!updateService) {
-    return PR_FALSE;
-  }
+  nsCOMPtr<nsIURI> codebaseURI;
+  aPrincipal->GetURI(getter_AddRefs(codebaseURI));
 
-  PRBool allowed;
-  nsresult rv = updateService->OfflineAppAllowed(aPrincipal,
-                                                 sPrefBranch,
-                                                 &allowed);
-  return NS_SUCCEEDED(rv) && allowed;
+  return OfflineAppAllowed(codebaseURI);
 }
 
 // static
@@ -1993,7 +1965,7 @@ nsContentUtils::GenerateStateKey(nsIContent* aContent,
 
           // Append the index of the control in the form
           nsCOMPtr<nsIForm> form(do_QueryInterface(formElement));
-          index = form->IndexOfControl(control);
+          form->IndexOfControl(control, &index);
 
           if (index > -1) {
             KeyAppendInt(index, aKey);
@@ -2628,7 +2600,7 @@ nsContentUtils::UnregisterPrefCallback(const char *aPref,
     sPref->UnregisterCallback(aPref, aCallback, aClosure);
 }
 
-static int
+static int PR_CALLBACK
 BoolVarChanged(const char *aPref, void *aClosure)
 {
   PRBool* cache = static_cast<PRBool*>(aClosure);
@@ -2719,7 +2691,7 @@ IsContextOnStack(nsIJSContextStack *aStack, JSContext *aContext)
 }
 
 PRBool
-nsCxPusher::Push(nsPIDOMEventTarget *aCurrentTarget)
+nsCxPusher::Push(nsISupports *aCurrentTarget)
 {
   if (mScx) {
     NS_ERROR("Whaaa! No double pushing with nsCxPusher::Push()!");
@@ -2727,9 +2699,10 @@ nsCxPusher::Push(nsPIDOMEventTarget *aCurrentTarget)
     return PR_FALSE;
   }
 
-  NS_ENSURE_TRUE(aCurrentTarget, PR_FALSE);
+  nsCOMPtr<nsPIDOMEventTarget> eventTarget = do_QueryInterface(aCurrentTarget);
+  NS_ENSURE_TRUE(eventTarget, PR_FALSE);
   nsCOMPtr<nsIScriptContext> scx;
-  nsresult rv = aCurrentTarget->GetContextForEventHandlers(getter_AddRefs(scx));
+  nsresult rv = eventTarget->GetContextForEventHandlers(getter_AddRefs(scx));
   NS_ENSURE_SUCCESS(rv, PR_FALSE);
   JSContext* cx = nsnull;
 
@@ -2762,15 +2735,18 @@ nsCxPusher::Push(JSContext *cx)
       return PR_TRUE;
     }
 
-    nsIThreadJSContextStack* stack = nsContentUtils::ThreadJSContextStack();
-    if (stack) {
-      if (IsContextOnStack(stack, cx)) {
+    if (!mStack) {
+      mStack = do_GetService(kJSStackContractID);
+    }
+
+    if (mStack) {
+      if (IsContextOnStack(mStack, cx)) {
         // If the context is on the stack, that means that a script
         // is running at the moment in the context.
         mScriptIsRunning = PR_TRUE;
       }
 
-      stack->Push(cx);
+      mStack->Push(cx);
     }
   }
   return PR_TRUE;
@@ -2779,8 +2755,7 @@ nsCxPusher::Push(JSContext *cx)
 void
 nsCxPusher::Pop()
 {
-  nsIThreadJSContextStack* stack = nsContentUtils::ThreadJSContextStack();
-  if (!mScx || !stack) {
+  if (!mScx || !mStack) {
     mScx = nsnull;
 
     NS_ASSERTION(!mScriptIsRunning, "Huh, this can't be happening, "
@@ -2790,7 +2765,7 @@ nsCxPusher::Pop()
   }
 
   JSContext *unused;
-  stack->Pop(&unused);
+  mStack->Pop(&unused);
 
   if (!mScriptIsRunning) {
     // No JS is running in the context, but executing the event handler might have
@@ -2934,10 +2909,6 @@ nsContentUtils::IsInChromeDocshell(nsIDocument *aDocument)
 {
   if (!aDocument) {
     return PR_FALSE;
-  }
-
-  if (aDocument->GetDisplayDocument()) {
-    return IsInChromeDocshell(aDocument->GetDisplayDocument());
   }
 
   nsCOMPtr<nsISupports> docContainer = aDocument->GetContainer();
@@ -3976,39 +3947,43 @@ nsContentUtils::GetNativeEvent(nsIDOMEvent* aDOMEvent)
   nsCOMPtr<nsIPrivateDOMEvent> privateEvent(do_QueryInterface(aDOMEvent));
   if (!privateEvent)
     return nsnull;
-  return privateEvent->GetInternalNSEvent();
+  nsEvent* nativeEvent;
+  privateEvent->GetInternalNSEvent(&nativeEvent);
+  return nativeEvent;
 }
 
 //static
 PRBool
-nsContentUtils::DOMEventToNativeKeyEvent(nsIDOMKeyEvent* aKeyEvent,
+nsContentUtils::DOMEventToNativeKeyEvent(nsIDOMEvent* aDOMEvent,
                                          nsNativeKeyEvent* aNativeEvent,
                                          PRBool aGetCharCode)
 {
-  nsCOMPtr<nsIDOMNSUIEvent> uievent = do_QueryInterface(aKeyEvent);
+  nsCOMPtr<nsIDOMNSUIEvent> uievent = do_QueryInterface(aDOMEvent);
   PRBool defaultPrevented;
   uievent->GetPreventDefault(&defaultPrevented);
   if (defaultPrevented)
     return PR_FALSE;
 
-  nsCOMPtr<nsIDOMNSEvent> nsevent = do_QueryInterface(aKeyEvent);
+  nsCOMPtr<nsIDOMNSEvent> nsevent = do_QueryInterface(aDOMEvent);
   PRBool trusted = PR_FALSE;
   nsevent->GetIsTrusted(&trusted);
   if (!trusted)
     return PR_FALSE;
 
+  nsCOMPtr<nsIDOMKeyEvent> keyEvent = do_QueryInterface(aDOMEvent);
+
   if (aGetCharCode) {
-    aKeyEvent->GetCharCode(&aNativeEvent->charCode);
+    keyEvent->GetCharCode(&aNativeEvent->charCode);
   } else {
     aNativeEvent->charCode = 0;
   }
-  aKeyEvent->GetKeyCode(&aNativeEvent->keyCode);
-  aKeyEvent->GetAltKey(&aNativeEvent->altKey);
-  aKeyEvent->GetCtrlKey(&aNativeEvent->ctrlKey);
-  aKeyEvent->GetShiftKey(&aNativeEvent->shiftKey);
-  aKeyEvent->GetMetaKey(&aNativeEvent->metaKey);
+  keyEvent->GetKeyCode(&aNativeEvent->keyCode);
+  keyEvent->GetAltKey(&aNativeEvent->altKey);
+  keyEvent->GetCtrlKey(&aNativeEvent->ctrlKey);
+  keyEvent->GetShiftKey(&aNativeEvent->shiftKey);
+  keyEvent->GetMetaKey(&aNativeEvent->metaKey);
 
-  aNativeEvent->nativeEvent = GetNativeEvent(aKeyEvent);
+  aNativeEvent->nativeEvent = GetNativeEvent(aDOMEvent);
 
   return PR_TRUE;
 }

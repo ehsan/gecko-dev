@@ -99,7 +99,6 @@
 #include "nsITextControlFrame.h"
 #include "nsINameSpaceManager.h"
 #include "nsIPercentHeightObserver.h"
-#include "nsStyleStructInlines.h"
 
 #ifdef IBMBIDI
 #include "nsBidiPresUtils.h"
@@ -120,7 +119,6 @@
 #include "nsBoxLayoutState.h"
 #include "nsBlockFrame.h"
 #include "nsDisplayList.h"
-#include "nsImageLoadNotifier.h"
 
 #ifdef MOZ_SVG
 #include "nsSVGIntegrationUtils.h"
@@ -449,7 +447,7 @@ nsFrame::Init(nsIContent*      aContent,
     mState |= NS_FRAME_MAY_BE_TRANSFORMED_OR_HAVE_RENDERING_OBSERVERS;
   }
   
-  DidSetStyleContext(nsnull);
+  DidSetStyleContext();
 
   if (IsBoxWrapped())
     InitBoxMetrics(PR_FALSE);
@@ -552,29 +550,9 @@ nsFrame::GetOffsets(PRInt32 &aStart, PRInt32 &aEnd) const
 }
 
 // Subclass hook for style post processing
-/* virtual */ void
-nsFrame::DidSetStyleContext(nsStyleContext* aOldStyleContext)
+NS_IMETHODIMP nsFrame::DidSetStyleContext()
 {
-  // Ensure that this frame gets invalidates (and, in the case of some
-  // 'border-image's, reflows) when images that affect it load.
-  nsRefPtr<nsImageLoadNotifier> notifierChain;
-
-  const nsStyleBackground *background = GetStyleBackground();
-  imgIRequest *newBackgroundImage = background->mBackgroundImage;
-  if (newBackgroundImage) {
-    notifierChain = nsImageLoadNotifier::Create(this, newBackgroundImage,
-                                                PR_FALSE, notifierChain);
-  }
-
-  const nsStyleBorder *border = GetStyleBorder();
-  imgIRequest *newBorderImage = border->GetBorderImage();
-  if (newBorderImage) {
-    notifierChain = nsImageLoadNotifier::Create(this, newBorderImage,
-                                                border->ImageBorderDiffers(),
-                                                notifierChain);
-  }
-
-  PresContext()->SetImageNotifiers(this, notifierChain);
+  return NS_OK;
 }
 
 /* virtual */ nsMargin
@@ -1930,6 +1908,15 @@ nsFrame::HandlePress(nsPresContext* aPresContext,
   // NS_STYLE_USER_SELECT_TOGGLE, need to change this logic
   PRBool useFrameSelection = (selectStyle == NS_STYLE_USER_SELECT_TEXT);
 
+  nsPoint pt = nsLayoutUtils::GetEventCoordinatesRelativeTo(aEvent, this);
+  ContentOffsets offsets = GetContentOffsetsFromPoint(pt);
+
+  if (!IsMouseCaptured(aPresContext) && offsets.content) {
+    nsIFrame* capturingFrame = shell->GetPrimaryFrameFor(offsets.content);
+    if (capturingFrame)
+      capturingFrame->CaptureMouse(aPresContext, PR_TRUE);
+  }
+
   // XXX This is screwy; it really should use the selection frame, not the
   // event frame
   const nsFrameSelection* frameselection = nsnull;
@@ -1938,19 +1925,6 @@ nsFrame::HandlePress(nsPresContext* aPresContext,
   else
     frameselection = shell->ConstFrameSelection();
 
-  nsPoint pt = nsLayoutUtils::GetEventCoordinatesRelativeTo(aEvent, this);
-  ContentOffsets offsets = GetContentOffsetsFromPoint(pt);
-  
-  if (!IsMouseCaptured(aPresContext) && offsets.content) {
-    PRInt32 offset;
-    nsIFrame* capturingFrame = frameselection->
-      GetFrameForNodeOffset(offsets.content, offsets.offset, 
-                            nsFrameSelection::HINT(offsets.associateWithNext),
-                            &offset);
-    if (capturingFrame)
-      capturingFrame->CaptureMouse(aPresContext, PR_TRUE);
-  }
-    
   if (frameselection->GetDisplaySelection() == nsISelectionController::SELECTION_OFF)
     return NS_OK;//nothing to do we cannot affect selection from here
 
@@ -1959,11 +1933,7 @@ nsFrame::HandlePress(nsPresContext* aPresContext,
 #ifdef XP_MACOSX
   if (me->isControl)
     return NS_OK;//short ciruit. hard coded for mac due to time restraints.
-  PRBool control = me->isMeta;
-#else
-  PRBool control = me->isControl;
 #endif
-
   nsCOMPtr<nsFrameSelection> fc = const_cast<nsFrameSelection*>(frameselection);
   if (me->clickCount >1 )
   {
@@ -1971,7 +1941,7 @@ nsFrame::HandlePress(nsPresContext* aPresContext,
     // so no need for nsWeakFrame.
     fc->SetMouseDownState(PR_TRUE);
     fc->SetMouseDoubleDown(PR_TRUE);
-    return HandleMultiplePress(aPresContext, aEvent, aEventStatus, control);
+    return HandleMultiplePress(aPresContext, aEvent, aEventStatus);
   }
 
   if (!offsets.content)
@@ -2000,7 +1970,6 @@ nsFrame::HandlePress(nsPresContext* aPresContext,
 
   if (isSelected)
   {
-    PRBool inSelection = PR_FALSE;
     details = frameselection->LookUpSelection(offsets.content, 0,
         offsets.EndOffset(), PR_FALSE);
 
@@ -2009,37 +1978,43 @@ nsFrame::HandlePress(nsPresContext* aPresContext,
     // within any selected region of the frame.
     //
 
-    SelectionDetails *curDetail = details;
-
-    while (curDetail)
+    if (details)
     {
-      //
-      // If the user clicked inside a selection, then just
-      // return without doing anything. We will handle placing
-      // the caret later on when the mouse is released. We ignore
-      // the spellcheck and find selections.
-      //
-      if (curDetail->mType != nsISelectionController::SELECTION_SPELLCHECK &&
-          curDetail->mType != nsISelectionController::SELECTION_FIND &&
-          curDetail->mStart <= offsets.StartOffset() &&
-          offsets.EndOffset() <= curDetail->mEnd)
+      SelectionDetails *curDetail = details;
+
+      while (curDetail)
       {
-        inSelection = PR_TRUE;
+        //
+        // If the user clicked inside a selection, then just
+        // return without doing anything. We will handle placing
+        // the caret later on when the mouse is released. We ignore
+        // the spellcheck and find selections.
+        //
+        if (curDetail->mType != nsISelectionController::SELECTION_SPELLCHECK &&
+            curDetail->mType != nsISelectionController::SELECTION_FIND &&
+            curDetail->mStart <= offsets.StartOffset() &&
+            offsets.EndOffset() <= curDetail->mEnd)
+        {
+          delete details;
+          fc->SetMouseDownState(PR_FALSE);
+          fc->SetDelayedCaretData(me);
+          return NS_OK;
+        }
+
+        curDetail = curDetail->mNext;
       }
 
-      SelectionDetails *nextDetail = curDetail->mNext;
-      delete curDetail;
-      curDetail = nextDetail;
-    }
-
-    if (inSelection) {
-      fc->SetMouseDownState(PR_FALSE);
-      fc->SetDelayedCaretData(me);
-      return NS_OK;
+      delete details;
     }
   }
 
   fc->SetMouseDownState(PR_TRUE);
+
+#ifdef XP_MACOSX
+  PRBool control = me->isMeta;
+#else
+  PRBool control = me->isControl;
+#endif
 
   // Do not touch any nsFrame members after this point without adding
   // weakFrame checks.
@@ -2073,9 +2048,8 @@ nsFrame::HandlePress(nsPresContext* aPresContext,
  */
 NS_IMETHODIMP
 nsFrame::HandleMultiplePress(nsPresContext* aPresContext, 
-                             nsGUIEvent*    aEvent,
-                             nsEventStatus* aEventStatus,
-                             PRBool         aControlHeld)
+                             nsGUIEvent*     aEvent,
+                             nsEventStatus*  aEventStatus)
 {
   NS_ENSURE_ARG_POINTER(aEventStatus);
   if (nsEventStatus_eConsumeNoDefault == *aEventStatus) {
@@ -2130,8 +2104,7 @@ nsFrame::HandleMultiplePress(nsPresContext* aPresContext,
 
   return frame->PeekBackwardAndForward(beginAmount, endAmount,
                                        offsets.offset, aPresContext,
-                                       beginAmount != eSelectWord,
-                                       aControlHeld);
+                                       beginAmount != eSelectWord);
 }
 
 NS_IMETHODIMP
@@ -2139,13 +2112,23 @@ nsFrame::PeekBackwardAndForward(nsSelectionAmount aAmountBack,
                                 nsSelectionAmount aAmountForward,
                                 PRInt32 aStartPos,
                                 nsPresContext* aPresContext,
-                                PRBool aJumpLines,
-                                PRBool aMultipleSelection)
+                                PRBool aJumpLines)
 {
+  nsCOMPtr<nsISelectionController> selcon;
+  nsresult rv = GetSelectionController(aPresContext, getter_AddRefs(selcon));
+  if (NS_FAILED(rv)) return rv;
+
+  if (!selcon)
+    return NS_ERROR_NOT_INITIALIZED;
+
+  // Use peek offset one way then the other:
+  nsCOMPtr<nsIContent> startContent;
+  nsCOMPtr<nsIDOMNode> startNode;
+  nsCOMPtr<nsIContent> endContent;
+  nsCOMPtr<nsIDOMNode> endNode;
+
   nsIFrame* baseFrame = this;
   PRInt32 baseOffset = aStartPos;
-  nsresult rv;
-
   if (aAmountBack == eSelectWord) {
     // To avoid selecting the previous word when at start of word,
     // first move one character forward.
@@ -2164,8 +2147,6 @@ nsFrame::PeekBackwardAndForward(nsSelectionAmount aAmountBack,
       baseOffset = pos.mContentOffset;
     }
   }
-
-  // Use peek offset one way then the other:  
   nsPeekOffsetStruct startpos;
   startpos.SetData(aAmountBack,
                    eDirPrevious,
@@ -2192,22 +2173,26 @@ nsFrame::PeekBackwardAndForward(nsSelectionAmount aAmountBack,
   if (NS_FAILED(rv))
     return rv;
 
+  endNode = do_QueryInterface(endpos.mResultContent, &rv);
+  if (NS_FAILED(rv))
+    return rv;
+  startNode = do_QueryInterface(startpos.mResultContent, &rv);
+  if (NS_FAILED(rv))
+    return rv;
+
   // Keep frameSelection alive.
   nsRefPtr<nsFrameSelection> frameSelection = GetFrameSelection();
-
-  rv = frameSelection->HandleClick(startpos.mResultContent,
-                                   startpos.mContentOffset, startpos.mContentOffset,
-                                   PR_FALSE, aMultipleSelection,
-                                   nsFrameSelection::HINTRIGHT);
-  if (NS_FAILED(rv))
-    return rv;
-
-  rv = frameSelection->HandleClick(endpos.mResultContent,
-                                   endpos.mContentOffset, endpos.mContentOffset,
-                                   PR_TRUE, PR_FALSE,
-                                   nsFrameSelection::HINTLEFT);
-  if (NS_FAILED(rv))
-    return rv;
+  nsCOMPtr<nsISelection> selection;
+  if (NS_SUCCEEDED(selcon->GetSelection(nsISelectionController::SELECTION_NORMAL,
+                                        getter_AddRefs(selection)))){
+    rv = selection->Collapse(startNode,startpos.mContentOffset);
+    if (NS_FAILED(rv))
+      return rv;
+    rv = selection->Extend(endNode,endpos.mContentOffset);
+    if (NS_FAILED(rv))
+      return rv;
+  }
+  //no release 
 
   // maintain selection
   return frameSelection->MaintainSelection(aAmountBack);
@@ -3852,11 +3837,6 @@ SetRectProperty(nsIFrame* aFrame, nsIAtom* aProp, const nsRect& aRect)
   aFrame->SetProperty(aProp, r, DestroyRectFunc);
 }
 
-/**
- * @param aAnyOutlineOrEffects set to true if this frame has any
- * outline, SVG effects or box shadows that mean we need to invalidate
- * the whole overflow area if the frame's size changes.
- */
 static nsRect
 ComputeOutlineAndEffectsRect(nsIFrame* aFrame, PRBool* aAnyOutlineOrEffects,
                              const nsRect& aOverflowRect,
@@ -3879,7 +3859,6 @@ ComputeOutlineAndEffectsRect(nsIFrame* aFrame, PRBool* aAnyOutlineOrEffects,
       shadows.UnionRect(shadows, tmpRect);
     }
     r.UnionRect(r, shadows);
-    *aAnyOutlineOrEffects = PR_TRUE;
   }
 
   const nsStyleOutline* outline = aFrame->GetStyleOutline();
@@ -3967,18 +3946,17 @@ nsIFrame::GetOverflowRectRelativeToSelf() const
   return *static_cast<nsRect*>
     (GetProperty(nsGkAtoms::preEffectsBBoxProperty));
 }
-
+  
 void
 nsFrame::CheckInvalidateSizeChange(nsHTMLReflowMetrics& aNewDesiredSize)
 {
-  nsIFrame::CheckInvalidateSizeChange(mRect, GetOverflowRect(),
-      nsSize(aNewDesiredSize.width, aNewDesiredSize.height));
+  nsIFrame::CheckInvalidateSizeChange(mRect, GetOverflowRect(), aNewDesiredSize);
 }
 
 void
 nsIFrame::CheckInvalidateSizeChange(const nsRect& aOldRect,
-                                    const nsRect& aOldOverflowRect,
-                                    const nsSize& aNewDesiredSize)
+                                   const nsRect& aOldOverflowRect,
+                                   nsHTMLReflowMetrics& aNewDesiredSize)
 {
   if (aNewDesiredSize.width == aOldRect.width &&
       aNewDesiredSize.height == aOldRect.height)
@@ -5099,7 +5077,7 @@ nsIFrame::PeekOffset(nsPeekOffsetStruct* aPos)
       nsIFrame *blockFrame = this;
 
       while (NS_FAILED(result)){
-        PRInt32 thisLine = nsFrame::GetLineNumber(blockFrame, aPos->mScrollViewStop, &blockFrame);
+        PRInt32 thisLine = nsFrame::GetLineNumber(blockFrame, &blockFrame);
         if (thisLine < 0) 
           return  NS_ERROR_FAILURE;
         result = blockFrame->QueryInterface(NS_GET_IID(nsILineIteratorNavigator),getter_AddRefs(iter));
@@ -5193,7 +5171,7 @@ nsIFrame::PeekOffset(nsPeekOffsetStruct* aPos)
       nsCOMPtr<nsILineIteratorNavigator> it;
       // Adjusted so that the caret can't get confused when content changes
       nsIFrame* blockFrame = AdjustFrameForSelectionStyles(this);
-      PRInt32 thisLine = nsFrame::GetLineNumber(blockFrame, aPos->mScrollViewStop, &blockFrame);
+      PRInt32 thisLine = nsFrame::GetLineNumber(blockFrame, &blockFrame);
       if (thisLine < 0)
         return NS_ERROR_FAILURE;
       result = blockFrame->QueryInterface(NS_GET_IID(nsILineIteratorNavigator),getter_AddRefs(it));
@@ -5358,7 +5336,7 @@ nsFrame::CheckVisibility(nsPresContext* , PRInt32 , PRInt32 , PRBool , PRBool *,
 
 
 PRInt32
-nsFrame::GetLineNumber(nsIFrame *aFrame, PRBool aLockScroll, nsIFrame** aContainingBlock)
+nsFrame::GetLineNumber(nsIFrame *aFrame, nsIFrame** aContainingBlock)
 {
   NS_ASSERTION(aFrame, "null aFrame");
   nsFrameManager* frameManager = aFrame->PresContext()->FrameManager();
@@ -5384,8 +5362,6 @@ nsFrame::GetLineNumber(nsIFrame *aFrame, PRBool aLockScroll, nsIFrame** aContain
     blockFrame = thisBlock->GetParent();
     result = NS_OK;
     if (blockFrame) {
-      if (aLockScroll && blockFrame->GetType() == nsGkAtoms::scrollFrame)
-        return -1;
       result = blockFrame->QueryInterface(NS_GET_IID(nsILineIteratorNavigator),getter_AddRefs(it));
     }
   }
@@ -5420,7 +5396,7 @@ nsIFrame::GetFrameFromDirection(nsDirection aDirection, PRBool aVisual,
     nsIFrame *blockFrame;
     nsCOMPtr<nsILineIteratorNavigator> it; 
     
-    PRInt32 thisLine = nsFrame::GetLineNumber(traversedFrame, aScrollViewStop, &blockFrame);
+    PRInt32 thisLine = nsFrame::GetLineNumber(traversedFrame, &blockFrame);
     if (thisLine < 0)
       return NS_ERROR_FAILURE;
     nsresult result = blockFrame->QueryInterface(NS_GET_IID(nsILineIteratorNavigator),getter_AddRefs(it));
@@ -5600,11 +5576,12 @@ IsInlineFrame(nsIFrame *aFrame)
 
 nsRect
 nsIFrame::GetAdditionalOverflow(const nsRect& aOverflowArea,
-                                const nsSize& aNewSize,
-                                PRBool* aHasOutlineOrEffects)
+                                const nsSize& aNewSize)
 {
+  // outline
+  PRBool hasOutlineOrEffects;
   nsRect overflowRect =
-    ComputeOutlineAndEffectsRect(this, aHasOutlineOrEffects,
+    ComputeOutlineAndEffectsRect(this, &hasOutlineOrEffects,
                                  aOverflowArea, PR_TRUE);
 
   // Absolute position clipping
@@ -5660,9 +5637,7 @@ nsIFrame::FinishAndStoreOverflow(nsRect* aOverflowArea, nsSize aNewSize)
     geometricOverflow = PR_FALSE;
   }
 
-  PRBool hasOutlineOrEffects;
-  *aOverflowArea = GetAdditionalOverflow(*aOverflowArea, aNewSize,
-      &hasOutlineOrEffects);
+  *aOverflowArea = GetAdditionalOverflow(*aOverflowArea, aNewSize);
 
   /* If we're transformed, transform the overflow rect by the current transformation. */
   if ((mState & NS_FRAME_MAY_BE_TRANSFORMED_OR_HAVE_RENDERING_OBSERVERS) && 
@@ -5677,39 +5652,19 @@ nsIFrame::FinishAndStoreOverflow(nsRect* aOverflowArea, nsSize aNewSize)
     nsRect newBounds(nsPoint(0, 0), aNewSize);
     *aOverflowArea = nsDisplayTransform::TransformRect(*aOverflowArea, this, nsPoint(0, 0), &newBounds);
   }
-
-  PRBool overflowChanged;
+  
   if (*aOverflowArea != nsRect(nsPoint(0, 0), aNewSize)) {
     mState |= NS_FRAME_OUTSIDE_CHILDREN;
     nsRect* overflowArea = GetOverflowAreaProperty(PR_TRUE); 
     NS_ASSERTION(overflowArea, "should have created rect");
-    overflowChanged = *overflowArea != *aOverflowArea;
     *overflowArea = *aOverflowArea;
   }
   else {
     if (mState & NS_FRAME_OUTSIDE_CHILDREN) {
       // remove the previously stored overflow area 
       DeleteProperty(nsGkAtoms::overflowAreaProperty);
-      overflowChanged = PR_TRUE;
-      mState &= ~NS_FRAME_OUTSIDE_CHILDREN;
-    } else {
-      overflowChanged = PR_FALSE;
     }
-  }
-
-  if (overflowChanged && hasOutlineOrEffects) {
-    // When there's an outline or box-shadow or SVG effects, changes to
-    // those styles might require repainting of the old and new overflow
-    // areas. Repainting of the old overflow area is handled in
-    // nsCSSFrameConstructor::DoApplyRenderingChangeToTree in response
-    // to nsChangeHint_RepaintFrame. Since the new overflow area is not
-    // known at that time, we have to handle it here.
-    // If the overflow area hasn't changed, then we don't have to do
-    // anything here since repainting the old overflow area was enough.
-    // If there is no outline or other effects now, then we don't have
-    // to do anything here since removing those styles can't require
-    // repainting of areas that weren't in the old overflow area.
-    Invalidate(*aOverflowArea);
+    mState &= ~NS_FRAME_OUTSIDE_CHILDREN;
   }
 }
 

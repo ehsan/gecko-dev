@@ -217,7 +217,5 @@ main (int argc, char **argv)
   }
   printf("Tests run: %d\n", tests_run);
  
-  NS_ShutdownXPCOM(nsnull);
-
   return result != 0;
 }
