@@ -595,25 +595,34 @@ class LDefinition
 
 class LSnapshot;
 class LSafepoint;
-class LInstruction;
-class LElementVisitor;
+class LInstructionVisitor;
 
-// The common base class for LPhi and LInstruction.
-class LNode
+class LInstruction
+  : public TempObject,
+    public InlineListNode<LInstruction>
 {
     uint32_t id_;
-    LBlock *block_;
+
+    // This snapshot could be set after a ResumePoint.  It is used to restart
+    // from the resume point pc.
+    LSnapshot *snapshot_;
+
+    // Structure capturing the set of stack slots and registers which are known
+    // to hold either gcthings or Values.
+    LSafepoint *safepoint_;
 
   protected:
     MDefinition *mir_;
 
-  public:
-    LNode()
+    LInstruction()
       : id_(0),
-        block_(nullptr),
+        snapshot_(nullptr),
+        safepoint_(nullptr),
         mir_(nullptr)
     { }
 
+  public:
+    class InputIterator;
     enum Opcode {
 #   define LIROP(name) LOp_##name,
         LIR_OPCODE_LIST(LIROP)
@@ -638,13 +647,8 @@ class LNode
         return nullptr;
     }
 
+  public:
     virtual Opcode op() const = 0;
-
-    bool isInstruction() const {
-        return op() != LOp_Phi;
-    }
-    inline LInstruction *toInstruction();
-    inline const LInstruction *toInstruction() const;
 
     // Returns the number of outputs of this instruction. If an output is
     // unallocated, it is an LDefinition, defining a virtual register.
@@ -680,6 +684,12 @@ class LNode
         MOZ_ASSERT(id);
         id_ = id;
     }
+    LSnapshot *snapshot() const {
+        return snapshot_;
+    }
+    LSafepoint *safepoint() const {
+        return safepoint_;
+    }
     void setMir(MDefinition *mir) {
         mir_ = mir;
     }
@@ -687,12 +697,8 @@ class LNode
         /* Untyped MIR for this op. Prefer mir() methods in subclasses. */
         return mir_;
     }
-    LBlock *block() const {
-        return block_;
-    }
-    void setBlock(LBlock *block) {
-        block_ = block;
-    }
+    void assignSnapshot(LSnapshot *snapshot);
+    void initSafepoint(TempAllocator &alloc);
 
     // For an instruction which has a MUST_REUSE_INPUT output, whether that
     // output register will be restored to its original value when bailing out.
@@ -705,6 +711,7 @@ class LNode
     static void printName(FILE *fp, Opcode op);
     virtual void printName(FILE *fp);
     virtual void printOperands(FILE *fp);
+    virtual void printInfo(FILE *fp) { }
 
   public:
     // Opcode testing and casts.
@@ -712,100 +719,27 @@ class LNode
     bool is##name() const {                                                 \
         return op() == LOp_##name;                                          \
     }                                                                       \
-    inline L##name *to##name();                                             \
-    inline const L##name *to##name() const;
+    inline L##name *to##name();
     LIR_OPCODE_LIST(LIROP)
 #   undef LIROP
 
-    virtual bool accept(LElementVisitor *visitor) = 0;
-
-#define LIR_HEADER(opcode)                                                  \
-    Opcode op() const {                                                     \
-        return LInstruction::LOp_##opcode;                                  \
-    }                                                                       \
-    bool accept(LElementVisitor *visitor) {                                 \
-        visitor->setElement(this);                                          \
-        return visitor->visit##opcode(this);                                \
-    }
+    virtual bool accept(LInstructionVisitor *visitor) = 0;
 };
 
-class LInstruction
-  : public LNode
-  , public TempObject
-  , public InlineListNode<LInstruction>
+class LInstructionVisitor
 {
-    // This snapshot could be set after a ResumePoint.  It is used to restart
-    // from the resume point pc.
-    LSnapshot *snapshot_;
-
-    // Structure capturing the set of stack slots and registers which are known
-    // to hold either gcthings or Values.
-    LSafepoint *safepoint_;
-
-    LMoveGroup *inputMoves_;
-    LMoveGroup *movesAfter_;
-
-  protected:
-    LInstruction()
-      : snapshot_(nullptr),
-        safepoint_(nullptr),
-        inputMoves_(nullptr),
-        movesAfter_(nullptr)
-    { }
-
-  public:
-    LSnapshot *snapshot() const {
-        return snapshot_;
-    }
-    LSafepoint *safepoint() const {
-        return safepoint_;
-    }
-    LMoveGroup *inputMoves() const {
-        return inputMoves_;
-    }
-    void setInputMoves(LMoveGroup *moves) {
-        inputMoves_ = moves;
-    }
-    LMoveGroup *movesAfter() const {
-        return movesAfter_;
-    }
-    void setMovesAfter(LMoveGroup *moves) {
-        movesAfter_ = moves;
-    }
-    void assignSnapshot(LSnapshot *snapshot);
-    void initSafepoint(TempAllocator &alloc);
-
-    class InputIterator;
-};
-
-LInstruction *
-LNode::toInstruction()
-{
-    MOZ_ASSERT(isInstruction());
-    return static_cast<LInstruction *>(this);
-}
-
-const LInstruction *
-LNode::toInstruction() const
-{
-    MOZ_ASSERT(isInstruction());
-    return static_cast<const LInstruction *>(this);
-}
-
-class LElementVisitor
-{
-    LNode *ins_;
+    LInstruction *ins_;
 
   protected:
     jsbytecode *lastPC_;
     jsbytecode *lastNotInlinedPC_;
 
-    LNode *instruction() {
+    LInstruction *instruction() {
         return ins_;
     }
 
   public:
-    void setElement(LNode *ins) {
+    void setInstruction(LInstruction *ins) {
         ins_ = ins;
         if (ins->mirRaw()) {
             lastPC_ = ins->mirRaw()->trackedPc();
@@ -814,7 +748,7 @@ class LElementVisitor
         }
     }
 
-    LElementVisitor()
+    LInstructionVisitor()
       : ins_(nullptr),
         lastPC_(nullptr),
         lastNotInlinedPC_(nullptr)
@@ -829,70 +763,9 @@ class LElementVisitor
 typedef InlineList<LInstruction>::iterator LInstructionIterator;
 typedef InlineList<LInstruction>::reverse_iterator LInstructionReverseIterator;
 
-class MPhi;
-
-// Phi is a pseudo-instruction that emits no code, and is an annotation for the
-// register allocator. Like its equivalent in MIR, phis are collected at the
-// top of blocks and are meant to be executed in parallel, choosing the input
-// corresponding to the predecessor taken in the control flow graph.
-class LPhi MOZ_FINAL : public LNode
-{
-    LAllocation *const inputs_;
-    LDefinition def_;
-
-  public:
-    LIR_HEADER(Phi)
-
-    LPhi(MPhi *ins, LAllocation *inputs)
-        : inputs_(inputs)
-    {
-        setMir(ins);
-    }
-
-    size_t numDefs() const {
-        return 1;
-    }
-    LDefinition *getDef(size_t index) {
-        MOZ_ASSERT(index == 0);
-        return &def_;
-    }
-    void setDef(size_t index, const LDefinition &def) {
-        MOZ_ASSERT(index == 0);
-        def_ = def;
-    }
-    size_t numOperands() const {
-        return mir_->toPhi()->numOperands();
-    }
-    LAllocation *getOperand(size_t index) {
-        MOZ_ASSERT(index < numOperands());
-        return &inputs_[index];
-    }
-    void setOperand(size_t index, const LAllocation &a) {
-        MOZ_ASSERT(index < numOperands());
-        inputs_[index] = a;
-    }
-    size_t numTemps() const {
-        return 0;
-    }
-    LDefinition *getTemp(size_t index) {
-        MOZ_CRASH("no temps");
-    }
-    void setTemp(size_t index, const LDefinition &temp) {
-        MOZ_CRASH("no temps");
-    }
-    size_t numSuccessors() const {
-        return 0;
-    }
-    MBasicBlock *getSuccessor(size_t i) const {
-        MOZ_CRASH("no successors");
-    }
-    void setSuccessor(size_t i, MBasicBlock *) {
-        MOZ_CRASH("no successors");
-    }
-};
-
+class LPhi;
 class LMoveGroup;
-class LBlock
+class LBlock : public TempObject
 {
     MBasicBlock *block_;
     FixedList<LPhi> phis_;
@@ -901,21 +774,22 @@ class LBlock
     LMoveGroup *exitMoveGroup_;
     Label label_;
 
-  public:
-    explicit LBlock(MBasicBlock *block);
-    bool init(TempAllocator &alloc);
+    explicit LBlock(MBasicBlock *block)
+      : block_(block),
+        phis_(),
+        entryMoveGroup_(nullptr),
+        exitMoveGroup_(nullptr)
+    { }
 
+  public:
+    static LBlock *New(TempAllocator &alloc, MBasicBlock *from);
     void add(LInstruction *ins) {
-        ins->setBlock(this);
         instructions_.pushBack(ins);
     }
     size_t numPhis() const {
         return phis_.length();
     }
     LPhi *getPhi(size_t index) {
-        return &phis_[index];
-    }
-    const LPhi *getPhi(size_t index) const {
         return &phis_[index];
     }
     MBasicBlock *mir() const {
@@ -949,26 +823,8 @@ class LBlock
         MOZ_ASSERT(!at->isLabel());
         instructions_.insertBefore(at, ins);
     }
-    const LNode *firstElementWithId() const {
-        return !phis_.empty()
-               ? static_cast<const LNode *>(getPhi(0))
-               : firstInstructionWithId();
-    }
-    uint32_t firstId() const {
-        return firstElementWithId()->id();
-    }
-    uint32_t lastId() const {
-        return lastInstructionWithId()->id();
-    }
-    const LInstruction *firstInstructionWithId() const;
-    const LInstruction *lastInstructionWithId() const {
-        const LInstruction *last = *instructions_.rbegin();
-        MOZ_ASSERT(last->id());
-        // The last instruction is a control flow instruction which does not have
-        // any output.
-        MOZ_ASSERT(last->numDefs() == 0);
-        return last;
-    }
+    uint32_t firstId() const;
+    uint32_t lastId() const;
 
     // Return the label to branch to when branching to this block.
     Label *label() {
@@ -1048,6 +904,10 @@ class LInstructionHelper : public LInstruction
     const LDefinition *output() {
         MOZ_ASSERT(numDefs() == 1);
         return getDef(0);
+    }
+
+    virtual void printInfo(FILE *fp) {
+        printOperands(fp);
     }
 };
 
@@ -1662,7 +1522,7 @@ class LIRGraph
         }
     };
 
-    FixedList<LBlock> blocks_;
+    FixedList<LBlock *> blocks_;
     Vector<Value, 0, IonAllocPolicy> constantPool_;
     typedef HashMap<Value, uint32_t, ValueHasher, IonAllocPolicy> ConstantPoolMap;
     ConstantPoolMap constantPoolMap_;
@@ -1693,15 +1553,14 @@ class LIRGraph
     size_t numBlocks() const {
         return blocks_.length();
     }
-    LBlock *getBlock(size_t i) {
-        return &blocks_[i];
+    LBlock *getBlock(size_t i) const {
+        return blocks_[i];
     }
     uint32_t numBlockIds() const {
         return mir_.numBlockIds();
     }
-    bool initBlock(MBasicBlock *mir) {
-        LBlock *lir = new (&blocks_[mir->id()]) LBlock(mir);
-        return lir->init(mir_.alloc());
+    void setBlock(size_t index, LBlock *block) {
+        blocks_[index] = block;
     }
     uint32_t getVirtualRegister() {
         numVirtualRegisters_ += VREG_INCREMENT;
@@ -1780,8 +1639,8 @@ class LIRGraph
         return safepoints_[i];
     }
 
-    void dump(FILE *fp);
-    void dump();
+    void dump(FILE *fp) const;
+    void dump() const;
 };
 
 LAllocation::LAllocation(AnyRegister reg)
@@ -1803,6 +1662,15 @@ LAllocation::toRegister() const
 
 } // namespace jit
 } // namespace js
+
+#define LIR_HEADER(opcode)                                                  \
+    Opcode op() const {                                                     \
+        return LInstruction::LOp_##opcode;                                  \
+    }                                                                       \
+    bool accept(LInstructionVisitor *visitor) {                             \
+        visitor->setInstruction(this);                                      \
+        return visitor->visit##opcode(this);                                \
+    }
 
 #include "jit/LIR-Common.h"
 #if defined(JS_CODEGEN_X86) || defined(JS_CODEGEN_X64)
@@ -1828,15 +1696,10 @@ namespace js {
 namespace jit {
 
 #define LIROP(name)                                                         \
-    L##name *LNode::to##name()                                              \
+    L##name *LInstruction::to##name()                                       \
     {                                                                       \
         MOZ_ASSERT(is##name());                                             \
         return static_cast<L##name *>(this);                                \
-    }                                                                       \
-    const L##name *LNode::to##name() const                                  \
-    {                                                                       \
-        MOZ_ASSERT(is##name());                                             \
-        return static_cast<const L##name *>(this);                          \
     }
     LIR_OPCODE_LIST(LIROP)
 #undef LIROP

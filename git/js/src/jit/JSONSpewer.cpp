@@ -335,7 +335,7 @@ JSONSpewer::spewMIR(MIRGraph *mir)
 }
 
 void
-JSONSpewer::spewLIns(LNode *ins)
+JSONSpewer::spewLIns(LInstruction *ins)
 {
     if (!fp_)
         return;

@@ -90,10 +90,12 @@ NS_SVGNewGetBBoxEnabled()
 // we only take the address of this:
 static mozilla::gfx::UserDataKey sSVGAutoRenderStateKey;
 
-SVGAutoRenderState::SVGAutoRenderState(DrawTarget* aDrawTarget
+SVGAutoRenderState::SVGAutoRenderState(DrawTarget* aDrawTarget,
+                                       RenderMode aMode
                                        MOZ_GUARD_OBJECT_NOTIFIER_PARAM_IN_IMPL)
   : mDrawTarget(aDrawTarget)
   , mOriginalRenderState(nullptr)
+  , mMode(aMode)
   , mPaintingToWindow(false)
 {
   MOZ_GUARD_OBJECT_NOTIFIER_INIT;
@@ -117,6 +119,16 @@ void
 SVGAutoRenderState::SetPaintingToWindow(bool aPaintingToWindow)
 {
   mPaintingToWindow = aPaintingToWindow;
+}
+
+/* static */ SVGAutoRenderState::RenderMode
+SVGAutoRenderState::GetRenderMode(DrawTarget* aDrawTarget)
+{
+  void *state = aDrawTarget->GetUserData(&sSVGAutoRenderStateKey);
+  if (state) {
+    return static_cast<SVGAutoRenderState*>(state)->mMode;
+  }
+  return NORMAL;
 }
 
 /* static */ bool

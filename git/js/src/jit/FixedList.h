@@ -43,10 +43,6 @@ class FixedList
         return list_ != nullptr;
     }
 
-    size_t empty() const {
-        return length_ == 0;
-    }
-
     size_t length() const {
         return length_;
     }

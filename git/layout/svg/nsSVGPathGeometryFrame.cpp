@@ -288,7 +288,8 @@ nsSVGPathGeometryFrame::GetFrameForPoint(const gfxPoint& aPoint)
   uint16_t hitTestFlags;
   if (GetStateBits() & NS_STATE_SVG_CLIPPATH_CHILD) {
     hitTestFlags = SVG_HIT_TEST_FILL;
-    fillRule = nsSVGUtils::ToFillRule(StyleSVG()->mClipRule);
+    fillRule = StyleSVG()->mClipRule == NS_STYLE_FILL_RULE_NONZERO
+                 ? FillRule::FILL_WINDING : FillRule::FILL_EVEN_ODD;
   } else {
     hitTestFlags = GetHitTestFlags();
     if (!hitTestFlags) {
@@ -301,7 +302,8 @@ nsSVGPathGeometryFrame::GetFrameForPoint(const gfxPoint& aPoint)
         return nullptr;
       }
     }
-    fillRule = nsSVGUtils::ToFillRule(StyleSVG()->mFillRule);
+    fillRule = StyleSVG()->mFillRule == NS_STYLE_FILL_RULE_NONZERO
+                 ? FillRule::FILL_WINDING : FillRule::FILL_EVEN_ODD;
   }
 
   bool isHit = false;
@@ -477,7 +479,8 @@ nsSVGPathGeometryFrame::GetBBoxContribution(const Matrix &aToBBoxUserspace,
   tmpDT = gfxPlatform::GetPlatform()->ScreenReferenceDrawTarget();
 #endif
 
-  FillRule fillRule = nsSVGUtils::ToFillRule(StyleSVG()->mFillRule);
+  FillRule fillRule = StyleSVG()->mFillRule == NS_STYLE_FILL_RULE_NONZERO
+                        ? FillRule::FILL_WINDING : FillRule::FILL_EVEN_ODD;
   RefPtr<Path> pathInUserSpace = element->GetOrBuildPath(*tmpDT, fillRule);
   if (!pathInUserSpace) {
     return bbox;
@@ -677,9 +680,14 @@ nsSVGPathGeometryFrame::Render(gfxContext* aContext,
 
   DrawTarget* drawTarget = aContext->GetDrawTarget();
 
+  uint16_t renderMode = SVGAutoRenderState::GetRenderMode(drawTarget);
+  MOZ_ASSERT(renderMode == SVGAutoRenderState::NORMAL ||
+             renderMode == SVGAutoRenderState::CLIP_MASK,
+             "Unknown render mode");
+
   FillRule fillRule =
-    nsSVGUtils::ToFillRule((GetStateBits() & NS_STATE_SVG_CLIPPATH_CHILD) ?
-                             StyleSVG()->mClipRule : StyleSVG()->mFillRule);
+    nsSVGUtils::ToFillRule(renderMode == SVGAutoRenderState::NORMAL ?
+                             StyleSVG()->mFillRule : StyleSVG()->mClipRule);
 
   nsSVGPathGeometryElement* element =
     static_cast<nsSVGPathGeometryElement*>(mContent);
@@ -700,7 +708,7 @@ nsSVGPathGeometryFrame::Render(gfxContext* aContext,
   gfxContextMatrixAutoSaveRestore autoRestoreTransform(aContext);
   aContext->SetMatrix(aNewTransform);
 
-  if (GetStateBits() & NS_STATE_SVG_CLIPPATH_CHILD) {
+  if (renderMode == SVGAutoRenderState::CLIP_MASK) {
     drawTarget->Fill(path, ColorPattern(Color(1.0f, 1.0f, 1.0f, 1.0f)),
                      DrawOptions(1.0f, CompositionOp::OP_OVER, aaMode));
     return;

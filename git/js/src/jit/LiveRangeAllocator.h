@@ -166,7 +166,7 @@ UseCompatibleWith(const LUse *use, LAllocation alloc)
 #ifdef DEBUG
 
 static inline bool
-DefinitionCompatibleWith(LNode *ins, const LDefinition *def, LAllocation alloc)
+DefinitionCompatibleWith(LInstruction *ins, const LDefinition *def, LAllocation alloc)
 {
     if (ins->isPhi()) {
         if (def->isFloatReg())
@@ -193,7 +193,7 @@ DefinitionCompatibleWith(LNode *ins, const LDefinition *def, LAllocation alloc)
 #endif // DEBUG
 
 static inline LDefinition *
-FindReusingDefinition(LNode *ins, LAllocation *alloc)
+FindReusingDefinition(LInstruction *ins, LAllocation *alloc)
 {
     for (size_t i = 0; i < ins->numDefs(); i++) {
         LDefinition *def = ins->getDef(i);
@@ -426,7 +426,8 @@ class LiveInterval
  */
 class VirtualRegister
 {
-    LNode *ins_;
+    LBlock *block_;
+    LInstruction *ins_;
     LDefinition *def_;
     Vector<LiveInterval *, 1, IonAllocPolicy> intervals_;
 
@@ -442,10 +443,11 @@ class VirtualRegister
     {}
 
   public:
-    bool init(TempAllocator &alloc, LNode *ins, LDefinition *def,
+    bool init(TempAllocator &alloc, LBlock *block, LInstruction *ins, LDefinition *def,
               bool isTemp)
     {
-        MOZ_ASSERT(ins && !ins_);
+        MOZ_ASSERT(block && !block_);
+        block_ = block;
         ins_ = ins;
         def_ = def;
         isTemp_ = isTemp;
@@ -455,9 +457,9 @@ class VirtualRegister
         return intervals_.append(initial);
     }
     LBlock *block() {
-        return ins_->block();
+        return block_;
     }
-    LNode *ins() {
+    LInstruction *ins() {
         return ins_;
     }
     LDefinition *def() const {
@@ -673,17 +675,17 @@ class LiveRangeAllocator : protected RegisterAllocator
         return moves->add(from->getAllocation(), to->getAllocation(), type);
     }
 
-    bool moveInput(LInstruction *ins, LiveInterval *from, LiveInterval *to, LDefinition::Type type) {
+    bool moveInput(CodePosition pos, LiveInterval *from, LiveInterval *to, LDefinition::Type type) {
         if (*from->getAllocation() == *to->getAllocation())
             return true;
-        LMoveGroup *moves = getInputMoveGroup(ins);
+        LMoveGroup *moves = getInputMoveGroup(pos);
         return addMove(moves, from, to, type);
     }
 
-    bool moveAfter(LInstruction *ins, LiveInterval *from, LiveInterval *to, LDefinition::Type type) {
+    bool moveAfter(CodePosition pos, LiveInterval *from, LiveInterval *to, LDefinition::Type type) {
         if (*from->getAllocation() == *to->getAllocation())
             return true;
-        LMoveGroup *moves = getMoveGroupAfter(ins);
+        LMoveGroup *moves = getMoveGroupAfter(pos);
         return addMove(moves, from, to, type);
     }
 
@@ -726,10 +728,8 @@ class LiveRangeAllocator : protected RegisterAllocator
             // We don't add the output register to the safepoint,
             // but it still might get added as one of the inputs.
             // So eagerly add this reg to the safepoint clobbered registers.
-            if (reg->ins()->isInstruction()) {
-                if (LSafepoint *safepoint = reg->ins()->toInstruction()->safepoint())
-                    safepoint->addClobberedRegister(a->toRegister());
-            }
+            if (LSafepoint *safepoint = reg->ins()->safepoint())
+                safepoint->addClobberedRegister(a->toRegister());
 #endif
             start = start.next();
         }

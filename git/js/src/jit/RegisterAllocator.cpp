@@ -474,10 +474,10 @@ RegisterAllocator::init()
     for (size_t i = 0; i < graph.numBlocks(); i++) {
         LBlock *block = graph.getBlock(i);
         for (LInstructionIterator ins = block->begin(); ins != block->end(); ins++)
-            insData[ins->id()] = *ins;
+            insData[*ins].init(*ins, block);
         for (size_t j = 0; j < block->numPhis(); j++) {
             LPhi *phi = block->getPhi(j);
-            insData[phi->id()] = phi;
+            insData[phi].init(phi, block);
         }
     }
 
@@ -485,33 +485,38 @@ RegisterAllocator::init()
 }
 
 LMoveGroup *
-RegisterAllocator::getInputMoveGroup(LInstruction *ins)
+RegisterAllocator::getInputMoveGroup(uint32_t ins)
 {
-    MOZ_ASSERT(!ins->isLabel());
+    InstructionData *data = &insData[ins];
+    MOZ_ASSERT(!data->ins()->isPhi());
+    MOZ_ASSERT(!data->ins()->isLabel());
 
-    if (ins->inputMoves())
-        return ins->inputMoves();
+    if (data->inputMoves())
+        return data->inputMoves();
 
     LMoveGroup *moves = LMoveGroup::New(alloc());
-    ins->setInputMoves(moves);
-    ins->block()->insertBefore(ins, moves);
+    data->setInputMoves(moves);
+    data->block()->insertBefore(data->ins(), moves);
 
     return moves;
 }
 
 LMoveGroup *
-RegisterAllocator::getMoveGroupAfter(LInstruction *ins)
+RegisterAllocator::getMoveGroupAfter(uint32_t ins)
 {
-    if (ins->movesAfter())
-        return ins->movesAfter();
+    InstructionData *data = &insData[ins];
+    MOZ_ASSERT(!data->ins()->isPhi());
+
+    if (data->movesAfter())
+        return data->movesAfter();
 
     LMoveGroup *moves = LMoveGroup::New(alloc());
-    ins->setMovesAfter(moves);
+    data->setMovesAfter(moves);
 
-    if (ins->isLabel())
-        ins->block()->insertAfter(ins->block()->getEntryMoveGroup(alloc()), moves);
+    if (data->ins()->isLabel())
+        data->block()->insertAfter(data->block()->getEntryMoveGroup(alloc()), moves);
     else
-        ins->block()->insertAfter(ins, moves);
+        data->block()->insertAfter(data->ins(), moves);
     return moves;
 }
 

@@ -1235,9 +1235,7 @@ nsSocketTransport::InitiateSocket()
                         netAddrCString.get()));
         }
 #endif
-        mCondition = NS_ERROR_CONNECTION_REFUSED;
-        OnSocketDetached(nullptr);
-        return mCondition;
+        return NS_ERROR_CONNECTION_REFUSED;
     }
 
     //

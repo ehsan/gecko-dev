@@ -2709,6 +2709,7 @@ public:
                            bool aShouldPaintSVGGlyphs)
     : DrawPathCallbacks(aShouldPaintSVGGlyphs),
       gfx(aContext->ThebesContext()),
+      mRenderMode(SVGAutoRenderState::GetRenderMode(aContext->GetDrawTarget())),
       mFrame(aFrame),
       mCanvasTM(aCanvasTM)
   {
@@ -2728,13 +2729,6 @@ public:
 
 private:
   void SetupContext();
-
-  bool IsClipPathChild() const {
-    // parent is the CSS text frame, grand parent must be
-    // an SVG frame of some kind
-    return mFrame->GetParent()->GetParent()->GetStateBits() &
-             NS_STATE_SVG_CLIPPATH_CHILD;
-  }
 
   /**
    * Paints a piece of text geometry.  This is called when glyphs
@@ -2765,6 +2759,7 @@ private:
   void StrokeGeometry();
 
   gfxContext* gfx;
+  uint16_t mRenderMode;
   nsTextFrame* mFrame;
   const gfxMatrix& mCanvasTM;
 
@@ -2814,7 +2809,7 @@ SVGTextDrawPathCallbacks::NotifyAfterText()
 void
 SVGTextDrawPathCallbacks::NotifyBeforeSelectionBackground(nscolor aColor)
 {
-  if (IsClipPathChild()) {
+  if (mRenderMode != SVGAutoRenderState::NORMAL) {
     // Don't paint selection backgrounds when in a clip path.
     return;
   }
@@ -2826,7 +2821,7 @@ SVGTextDrawPathCallbacks::NotifyBeforeSelectionBackground(nscolor aColor)
 void
 SVGTextDrawPathCallbacks::NotifySelectionBackgroundPathEmitted()
 {
-  if (IsClipPathChild()) {
+  if (mRenderMode != SVGAutoRenderState::NORMAL) {
     // Don't paint selection backgrounds when in a clip path.
     return;
   }
@@ -2859,7 +2854,7 @@ SVGTextDrawPathCallbacks::NotifyDecorationLinePathEmitted()
 void
 SVGTextDrawPathCallbacks::NotifyBeforeSelectionDecorationLine(nscolor aColor)
 {
-  if (IsClipPathChild()) {
+  if (mRenderMode != SVGAutoRenderState::NORMAL) {
     // Don't paint selection decorations when in a clip path.
     return;
   }
@@ -2871,7 +2866,7 @@ SVGTextDrawPathCallbacks::NotifyBeforeSelectionDecorationLine(nscolor aColor)
 void
 SVGTextDrawPathCallbacks::NotifySelectionDecorationLinePathEmitted()
 {
-  if (IsClipPathChild()) {
+  if (mRenderMode != SVGAutoRenderState::NORMAL) {
     // Don't paint selection decorations when in a clip path.
     return;
   }
@@ -2901,7 +2896,7 @@ SVGTextDrawPathCallbacks::SetupContext()
 void
 SVGTextDrawPathCallbacks::HandleTextGeometry()
 {
-  if (IsClipPathChild()) {
+  if (mRenderMode == SVGAutoRenderState::CLIP_MASK) {
     gfx->SetColor(gfxRGBA(1.0f, 1.0f, 1.0f, 1.0f));
     gfx->Fill();
   } else {
@@ -2970,10 +2965,7 @@ SVGTextDrawPathCallbacks::FillGeometry()
   GeneralPattern fillPattern;
   MakeFillPattern(&fillPattern);
   if (fillPattern.GetPattern()) {
-    gfx->SetFillRule(
-      nsSVGUtils::ToFillRule(
-        IsClipPathChild() ?
-          mFrame->StyleSVG()->mClipRule : mFrame->StyleSVG()->mFillRule));
+    gfx->SetFillRule(nsSVGUtils::ToFillRule(mFrame->StyleSVG()->mFillRule));
     gfx->Fill(fillPattern);
   }
 }
@@ -5125,7 +5117,8 @@ SVGTextFrame::ShouldRenderAsPath(nsRenderingContext* aContext,
                                  bool& aShouldPaintSVGGlyphs)
 {
   // Rendering to a clip path.
-  if (aFrame->GetParent()->GetParent()->GetStateBits() & NS_STATE_SVG_CLIPPATH_CHILD) {
+  if (SVGAutoRenderState::GetRenderMode(aContext->GetDrawTarget()) !=
+        SVGAutoRenderState::NORMAL) {
     aShouldPaintSVGGlyphs = false;
     return true;
   }

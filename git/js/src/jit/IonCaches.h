@@ -22,8 +22,6 @@ class LockedJSContext;
 
 namespace jit {
 
-class LInstruction;
-
 #define IONCACHE_KIND_LIST(_)                                   \
     _(GetProperty)                                              \
     _(SetProperty)                                              \
