@@ -86,10 +86,16 @@ nsFontFaceList::AddFontsFromTextRun(gfxTextRun* aTextRun,
     if (existingFace) {
       existingFace->AddMatchType(iter.GetGlyphRun()->mMatchType);
     } else {
-      // A new font entry we haven't seen before
+      // A new font entry we haven't seen before;
+      // check whether this font entry is associated with an @font-face rule
+      nsRefPtr<nsCSSFontFaceRule> rule;
+      nsUserFontSet* fontSet =
+        static_cast<nsUserFontSet*>(aFrame->PresContext()->GetUserFontSet());
+      if (fontSet) {
+        rule = fontSet->FindRuleForEntry(fe);
+      }
       nsCOMPtr<nsFontFace> ff =
-        new nsFontFace(fe, aTextRun->GetFontGroup(),
-                       iter.GetGlyphRun()->mMatchType);
+        new nsFontFace(fe, iter.GetGlyphRun()->mMatchType, rule);
       mFontFaces.Put(fe, ff);
     }
   }

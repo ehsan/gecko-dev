@@ -333,7 +333,8 @@ public:
     // initialize font lists
     virtual nsresult InitFontList();
 
-    virtual gfxFontFamily* GetDefaultFont(const gfxFontStyle* aStyle);
+    virtual gfxFontEntry* GetDefaultFont(const gfxFontStyle* aStyle,
+                                         bool& aNeedsBold);
 
     virtual gfxFontEntry* LookupLocalFont(const gfxProxyFontEntry *aProxyEntry,
                                           const nsAString& aFontName);
@@ -373,8 +374,7 @@ private:
     virtual gfxFontEntry* GlobalFontFallback(const uint32_t aCh,
                                              int32_t aRunScript,
                                              const gfxFontStyle* aMatchStyle,
-                                             uint32_t& aCmapCount,
-                                             gfxFontFamily** aMatchedFamily);
+                                             uint32_t& aCmapCount);
 
     virtual bool UsesSystemFallback() { return true; }
 

@@ -667,6 +667,10 @@ gfxMacPlatformFontList::gfxMacPlatformFontList() :
                                    kATSFontNotifyOptionDefault,
                                    (void*)this, nullptr);
 
+    // this should always be available (though we won't actually fail if it's missing,
+    // we'll just end up doing a search and then caching the new result instead)
+    mReplacementCharFallbackFamily = NS_LITERAL_STRING("Lucida Grande");
+
     // cache this in a static variable so that MacOSFontFamily objects
     // don't have to repeatedly look it up
     sFontManager = [NSFontManager sharedFontManager];
@@ -768,6 +772,7 @@ gfxMacPlatformFontList::InitSingleFaceList()
                 familyEntry->AddFontEntry(fontEntry);
                 familyEntry->SetHasStyles(true);
                 mFontFamilies.Put(key, familyEntry);
+                fontEntry->mFamily = familyEntry;
 #ifdef PR_LOGGING
                 LOG_FONTLIST(("(fontlist-singleface) added new family\n",
                               NS_ConvertUTF16toUTF8(familyName).get(),
@@ -837,8 +842,7 @@ gfxFontEntry*
 gfxMacPlatformFontList::GlobalFontFallback(const uint32_t aCh,
                                            int32_t aRunScript,
                                            const gfxFontStyle* aMatchStyle,
-                                           uint32_t& aCmapCount,
-                                           gfxFontFamily** aMatchedFamily)
+                                           uint32_t& aCmapCount)
 {
     bool useCmaps = gfxPlatform::GetPlatform()->UseCmapsDuringSystemFallback();
 
@@ -846,8 +850,7 @@ gfxMacPlatformFontList::GlobalFontFallback(const uint32_t aCh,
         return gfxPlatformFontList::GlobalFontFallback(aCh,
                                                        aRunScript,
                                                        aMatchStyle,
-                                                       aCmapCount,
-                                                       aMatchedFamily);
+                                                       aCmapCount);
     }
 
     CFStringRef str;
@@ -897,21 +900,14 @@ gfxMacPlatformFontList::GlobalFontFallback(const uint32_t aCh,
             ::CFStringGetCharacters(familyName, ::CFRangeMake(0, len),
                                     buffer.Elements());
             buffer[len] = 0;
-            nsDependentString familyName(buffer.Elements(), len);
+            nsDependentString family(buffer.Elements(), len);
 
             bool needsBold;  // ignored in the system fallback case
 
-            gfxFontFamily *family = FindFamily(familyName);
-            if (family) {
-                fontEntry = family->FindFontForStyle(*aMatchStyle, needsBold);
-                if (fontEntry) {
-                    if (fontEntry->TestCharacterMap(aCh)) {
-                        *aMatchedFamily = family;
-                    } else {
-                        fontEntry = nullptr;
-                        cantUseFallbackFont = true;
-                    }
-                }
+            fontEntry = FindFontForFamily(family, aMatchStyle, needsBold);
+            if (fontEntry && !fontEntry->TestCharacterMap(aCh)) {
+                fontEntry = nullptr;
+                cantUseFallbackFont = true;
             }
         }
 
@@ -929,8 +925,8 @@ gfxMacPlatformFontList::GlobalFontFallback(const uint32_t aCh,
     return fontEntry;
 }
 
-gfxFontFamily*
-gfxMacPlatformFontList::GetDefaultFont(const gfxFontStyle* aStyle)
+gfxFontEntry*
+gfxMacPlatformFontList::GetDefaultFont(const gfxFontStyle* aStyle, bool& aNeedsBold)
 {
     nsAutoreleasePool localPool;
 
@@ -938,7 +934,7 @@ gfxMacPlatformFontList::GetDefaultFont(const gfxFontStyle* aStyle)
     nsAutoString familyName;
 
     GetStringForNSString(defaultFamily, familyName);
-    return FindFamily(familyName);
+    return FindFontForFamily(familyName, aStyle, aNeedsBold);
 }
 
 int32_t
@@ -1035,9 +1031,11 @@ gfxMacPlatformFontList::MakePlatformFont(const gfxProxyFontEntry *aProxyEntry,
     }
 
     // if something is funky about this font, delete immediately
-
 #if DEBUG
-    NS_WARNING("downloaded font not loaded properly");
+    char warnBuf[1024];
+    sprintf(warnBuf, "downloaded font not loaded properly, removed face for (%s)",
+            NS_ConvertUTF16toUTF8(aProxyEntry->mFamily->Name()).get());
+    NS_WARNING(warnBuf);
 #endif
 
     return nullptr;

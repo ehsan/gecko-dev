@@ -84,7 +84,7 @@ this.Highlighter = function Highlighter(aTarget, aInspector, aToolbox)
   this.chromeWin = this.chromeDoc.defaultView;
   this.inspector = aInspector
 
-  EventEmitter.decorate(this);
+  new EventEmitter(this);
 
   this._init();
 }
@@ -139,13 +139,8 @@ Highlighter.prototype = {
 
     this.onToolSelected = function(event, id) {
       if (id != "inspector") {
-        this.chromeWin.clearTimeout(this.pageEventsMuter);
-        this.detachMouseListeners();
         this.hide();
       } else {
-        if (!this.locked) {
-          this.attachMouseListeners();
-        }
         this.show();
       }
     }.bind(this);

@@ -40,7 +40,7 @@ function ProfileUI(uid, panel) {
   let doc = panel.document;
   let win = panel.window;
 
-  EventEmitter.decorate(this);
+  new EventEmitter(this);
 
   this.isReady = false;
   this.panel = panel;
@@ -183,7 +183,7 @@ function ProfilerPanel(frame, toolbox) {
   this.profiles = new Map();
   this._uid = 0;
 
-  EventEmitter.decorate(this);
+  new EventEmitter(this);
 }
 
 ProfilerPanel.prototype = {

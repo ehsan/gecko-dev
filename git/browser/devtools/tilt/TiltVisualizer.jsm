@@ -177,13 +177,10 @@ TiltVisualizer.prototype = {
     let target = TargetFactory.forTab(aTab);
     let toolbox = gDevTools.getToolbox(target);
     if (toolbox) {
-      let panel = toolbox.getPanel("inspector");
-      if (panel) {
-        this.inspector = panel;
-        this.inspector.selection.on("new-node", this.onNewNodeFromInspector);
-        this.inspector.selection.on("detached", this.onNewNodeFromInspector);
-        this.onNewNodeFromInspector();
-      }
+      this.inspector = toolbox.getPanel("inspector");
+      this.inspector.selection.on("new-node", this.onNewNodeFromInspector);
+      this.inspector.selection.on("detached", this.onNewNodeFromInspector);
+      this.onNewNodeFromInspector();
     }
   },
 

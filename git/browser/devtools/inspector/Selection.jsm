@@ -58,7 +58,7 @@ this.EXPORTED_SYMBOLS = ["Selection"];
  *
  */
 this.Selection = function Selection(node=null, track={attributes:true,detached:true}) {
-  EventEmitter.decorate(this);
+  new EventEmitter(this);
   this._onMutations = this._onMutations.bind(this);
   this.track = track;
   this.setNode(node);

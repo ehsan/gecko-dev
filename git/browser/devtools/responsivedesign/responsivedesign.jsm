@@ -69,10 +69,15 @@ this.ResponsiveUIManager = {
           this.toggle(aWindow, aTab);
       default:
     }
-  }
-}
+  },
 
-EventEmitter.decorate(ResponsiveUIManager);
+  get events() {
+    if (!this._eventEmitter) {
+      this._eventEmitter = new EventEmitter();
+    }
+    return this._eventEmitter;
+  },
+}
 
 let presets = [
   // Phones
@@ -170,7 +175,7 @@ function ResponsiveUI(aWindow, aTab)
   if (this._floatingScrollbars)
     switchToFloatingScrollbars(this.tab);
 
-  ResponsiveUIManager.emit("on", this.tab, this);
+  ResponsiveUIManager.events.emit("on", this.tab, this);
 }
 
 ResponsiveUI.prototype = {
@@ -227,7 +232,7 @@ ResponsiveUI.prototype = {
     this.stack.removeAttribute("responsivemode");
 
     delete this.tab.__responsiveUI;
-    ResponsiveUIManager.emit("off", this.tab, this);
+    ResponsiveUIManager.events.emit("off", this.tab, this);
   },
 
   /**

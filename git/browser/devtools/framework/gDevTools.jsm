@@ -31,7 +31,7 @@ this.DevTools = function DevTools() {
   // destroy() is an observer's handler so we need to preserve context.
   this.destroy = this.destroy.bind(this);
 
-  EventEmitter.decorate(this);
+  new EventEmitter(this);
 
   Services.obs.addObserver(this.destroy, "quit-application", false);
 
