@@ -2769,9 +2769,7 @@ JSReporter::CollectReports(WindowPaths *windowPaths,
         return NS_ERROR_FAILURE;
     }
 
-    size_t xpcJSRuntimeSize = xpcrt->SizeOfIncludingThis(JSMallocSizeOf);
-
-    size_t wrappedJSSize = xpcrt->GetWrappedJSMap()->SizeOfWrappedJS(JSMallocSizeOf);
+    size_t xpconnect = xpcrt->SizeOfIncludingThis(JSMallocSizeOf);
 
     XPCWrappedNativeScope::ScopeSizeInfo sizeInfo(JSMallocSizeOf);
     XPCWrappedNativeScope::AddSizeOfAllScopesIncludingThis(&sizeInfo);
@@ -2851,12 +2849,8 @@ JSReporter::CollectReports(WindowPaths *windowPaths,
     // Report xpconnect.
 
     REPORT_BYTES(NS_LITERAL_CSTRING("explicit/xpconnect/runtime"),
-        KIND_HEAP, xpcJSRuntimeSize,
+        KIND_HEAP, xpconnect,
         "The XPConnect runtime.");
-
-    REPORT_BYTES(NS_LITERAL_CSTRING("explicit/xpconnect/wrappedjs"),
-        KIND_HEAP, wrappedJSSize,
-        "Wrappers used to implement XPIDL interfaces with JS.");
 
     REPORT_BYTES(NS_LITERAL_CSTRING("explicit/xpconnect/scopes"),
         KIND_HEAP, sizeInfo.mScopeAndMapSize,

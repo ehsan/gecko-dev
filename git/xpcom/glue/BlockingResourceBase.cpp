@@ -35,7 +35,8 @@ namespace mozilla {
 //
 
 // static members
-const char* const BlockingResourceBase::kResourceTypeName[] = {
+const char* const BlockingResourceBase::kResourceTypeName[] =
+{
   // needs to be kept in sync with BlockingResourceType
   "Mutex", "ReentrantMonitor", "CondVar"
 };
@@ -87,8 +88,7 @@ BlockingResourceBase::GetStackTrace(AcquisitionState& aState)
  * some info is written into |aOut|
  */
 bool
-PrintCycle(const BlockingResourceBase::DDT::ResourceAcquisitionArray* aCycle,
-           nsACString& aOut)
+PrintCycle(const BlockingResourceBase::DDT::ResourceAcquisitionArray* aCycle, nsACString& aOut)
 {
   NS_ASSERTION(aCycle->Length() > 1, "need > 1 element for cycle!");
 
@@ -97,15 +97,12 @@ PrintCycle(const BlockingResourceBase::DDT::ResourceAcquisitionArray* aCycle,
   fputs("=== Cyclical dependency starts at\n", stderr);
   aOut += "Cyclical dependency starts at\n";
 
-  const BlockingResourceBase::DDT::ResourceAcquisitionArray::elem_type res =
-    aCycle->ElementAt(0);
+  const BlockingResourceBase::DDT::ResourceAcquisitionArray::elem_type res = aCycle->ElementAt(0);
   maybeImminent &= res->Print(aOut);
 
   BlockingResourceBase::DDT::ResourceAcquisitionArray::index_type i;
-  BlockingResourceBase::DDT::ResourceAcquisitionArray::size_type len =
-    aCycle->Length();
-  const BlockingResourceBase::DDT::ResourceAcquisitionArray::elem_type* it =
-    1 + aCycle->Elements();
+  BlockingResourceBase::DDT::ResourceAcquisitionArray::size_type len = aCycle->Length();
+  const BlockingResourceBase::DDT::ResourceAcquisitionArray::elem_type* it = 1 + aCycle->Elements();
   for (i = 1; i < len - 1; ++i, ++it) {
     fputs("\n--- Next dependency:\n", stderr);
     aOut += "\nNext dependency:\n";

@@ -22,7 +22,6 @@
 #include "mozilla/layers/Effects.h"     // for Effect, EffectChain, etc
 #include "mozilla/layers/TextureHost.h"  // for CompositingRenderTarget
 #include "mozilla/layers/AsyncPanZoomController.h"  // for AsyncPanZoomController
-#include "mozilla/layers/AsyncCompositionManager.h" // for ViewTransform
 #include "mozilla/mozalloc.h"           // for operator delete, etc
 #include "nsAutoPtr.h"                  // for nsRefPtr
 #include "nsDebug.h"                    // for NS_ASSERTION
@@ -87,6 +86,16 @@ GetOpaqueRect(Layer* aLayer)
   return result;
 }
 
+static gfx::Point GetScrollData(Layer* aLayer) {
+  gfx::Matrix matrix;
+  if (aLayer->GetLocalTransform().Is2D(&matrix)) {
+    return matrix.GetTranslation();
+  }
+
+  gfx::Point origin;
+  return origin;
+}
+
 static void DrawLayerInfo(const RenderTargetIntRect& aClipRect,
                           LayerManagerComposite* aManager,
                           Layer* aLayer)
@@ -110,6 +119,7 @@ static void DrawLayerInfo(const RenderTargetIntRect& aClipRect,
   aManager->GetTextRenderer()->RenderText(ss.str().c_str(), gfx::IntPoint(topLeft.x, topLeft.y),
                                           aLayer->GetEffectiveTransform(), 16,
                                           maxWidth);
+
 }
 
 static void PrintUniformityInfo(Layer* aLayer)
@@ -125,16 +135,12 @@ static void PrintUniformityInfo(Layer* aLayer)
     return;
   }
 
-  AsyncPanZoomController* apzc = aLayer->GetAsyncPanZoomController();
-  if (apzc) {
-    ViewTransform asyncTransform, overscrollTransform;
-    ScreenPoint scrollOffset;
-    apzc->SampleContentTransformForFrame(&asyncTransform,
-                                         scrollOffset,
-                                         &overscrollTransform);
-    printf_stderr("UniformityInfo Layer_Move %llu %p %f, %f\n",
-          TimeStamp::Now(), aLayer, scrollOffset.x.value, scrollOffset.y.value);
-  }
+  const LayerPoint scrollOffset = frameMetrics.GetScrollOffsetInLayerPixels();
+  const gfx::Point layerTransform = GetScrollData(aLayer);
+  const gfx::Point layerScroll = scrollOffset.ToUnknownPoint() - layerTransform;
+
+  printf_stderr("UniformityInfo Layer_Move %llu %p %f, %f\n",
+    TimeStamp::Now(), aLayer, layerScroll.x, layerScroll.y);
 }
 
 /* all of the per-layer prepared data we need to maintain */

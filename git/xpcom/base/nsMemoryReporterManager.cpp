@@ -1173,8 +1173,7 @@ nsMemoryReporterManager::GetReportsExtended(
   }
 
   if (aMinimize) {
-    rv = MinimizeMemoryUsage(NS_NewRunnableMethod(
-      this, &nsMemoryReporterManager::StartGettingReports));
+    rv = MinimizeMemoryUsage(NS_NewRunnableMethod(this, &nsMemoryReporterManager::StartGettingReports));
   } else {
     rv = StartGettingReports();
   }
@@ -1187,7 +1186,7 @@ nsMemoryReporterManager::StartGettingReports()
   GetReportsState* s = mGetReportsState;
 
   // Get reports for this process.
-  FILE* parentDMDFile = nullptr;
+  FILE *parentDMDFile = nullptr;
 #ifdef MOZ_DMD
   nsresult rv = nsMemoryInfoDumper::OpenDMDFile(s->mDMDDumpIdent, getpid(),
                                                 &parentDMDFile);
@@ -1201,8 +1200,9 @@ nsMemoryReporterManager::StartGettingReports()
   s->mParentDone = true;
 
   // If there are no remaining child processes, we can finish up immediately.
-  return (s->mNumChildProcessesCompleted >= s->mNumChildProcesses) ?
-    FinishReporting() : NS_OK;
+  return (s->mNumChildProcessesCompleted >= s->mNumChildProcesses)
+    ? FinishReporting()
+    : NS_OK;
 }
 
 typedef nsCOMArray<nsIMemoryReporter> MemoryReporterArray;

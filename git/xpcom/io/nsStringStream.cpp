@@ -231,8 +231,7 @@ nsStringInputStream::ReadSegments(nsWriteSegmentFun aWriter, void* aClosure,
   if (aCount > maxCount) {
     aCount = maxCount;
   }
-  nsresult rv = aWriter(this, aClosure, mData.BeginReading() + mOffset, 0,
-                        aCount, aResult);
+  nsresult rv = aWriter(this, aClosure, mData.BeginReading() + mOffset, 0, aCount, aResult);
   if (NS_SUCCEEDED(rv)) {
     NS_ASSERTION(*aResult <= aCount,
                  "writer should not write more than we asked it to write");
@@ -345,7 +344,7 @@ NS_NewByteInputStream(nsIInputStream** aStreamResult,
   NS_PRECONDITION(aStreamResult, "null out ptr");
 
   nsStringInputStream* stream = new nsStringInputStream();
-  if (!stream) {
+  if (! stream) {
     return NS_ERROR_OUT_OF_MEMORY;
   }
 
@@ -391,7 +390,7 @@ NS_NewCStringInputStream(nsIInputStream** aStreamResult,
   NS_PRECONDITION(aStreamResult, "null out ptr");
 
   nsStringInputStream* stream = new nsStringInputStream();
-  if (!stream) {
+  if (! stream) {
     return NS_ERROR_OUT_OF_MEMORY;
   }
 
@@ -405,8 +404,7 @@ NS_NewCStringInputStream(nsIInputStream** aStreamResult,
 
 // factory method for constructing a nsStringInputStream object
 nsresult
-nsStringInputStreamConstructor(nsISupports* aOuter, REFNSIID aIID,
-                               void** aResult)
+nsStringInputStreamConstructor(nsISupports* aOuter, REFNSIID aIID, void** aResult)
 {
   *aResult = nullptr;
 

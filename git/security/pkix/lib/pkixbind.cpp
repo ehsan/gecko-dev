@@ -31,7 +31,6 @@ namespace mozilla { namespace pkix {
 Placeholder1 _1;
 Placeholder2 _2;
 Placeholder3 _3;
-Placeholder4 _4;
 
 } } // namespace mozilla::pkix
 

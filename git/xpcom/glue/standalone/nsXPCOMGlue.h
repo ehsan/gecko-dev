@@ -18,20 +18,22 @@
 /**
  * Enabled preloading of dynamically loaded libraries
  */
-extern "C" NS_HIDDEN_(void) XPCOMGlueEnablePreload();
+extern "C" NS_HIDDEN_(void)
+XPCOMGlueEnablePreload();
 
 /**
  * Initialize the XPCOM glue by dynamically linking against the XPCOM
  * shared library indicated by xpcomFile.
  */
-extern "C" NS_HIDDEN_(nsresult) XPCOMGlueStartup(const char* aXPCOMFile);
+extern "C" NS_HIDDEN_(nsresult)
+XPCOMGlueStartup(const char* xpcomFile);
 
 typedef void (*NSFuncPtr)();
 
 struct nsDynamicFunctionLoad
 {
-  const char* functionName;
-  NSFuncPtr* function;
+    const char *functionName;
+    NSFuncPtr  *function;
 };
 
 /**
@@ -43,7 +45,7 @@ struct nsDynamicFunctionLoad
  *         functions were found.
  */
 extern "C" NS_HIDDEN_(nsresult)
-XPCOMGlueLoadXULFunctions(const nsDynamicFunctionLoad* aSymbols);
+XPCOMGlueLoadXULFunctions(const nsDynamicFunctionLoad *symbols);
 
 #endif // XPCOM_GLUE
 #endif // nsXPCOMGlue_h__

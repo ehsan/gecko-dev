@@ -10,7 +10,6 @@
 
 #include "mozilla/AutoRestore.h"
 #include "nsIWidget.h"
-#include "nsString.h"
 #include "WidgetUtils.h"
 
 using namespace mozilla::widget;
@@ -91,13 +90,10 @@ BGRIntToRGBString(DWORD color, nsAString& aResult)
 }
 } // anonymous namespace
 
-static AsyncColorChooser* gColorChooser;
-
-AsyncColorChooser::AsyncColorChooser(COLORREF aInitialColor,
+AsyncColorChooser::AsyncColorChooser(const nsAString& aInitialColor,
                                      nsIWidget* aParentWidget,
                                      nsIColorPickerShownCallback* aCallback)
   : mInitialColor(aInitialColor)
-  , mColor(aInitialColor)
   , mParentWidget(aParentWidget)
   , mCallback(aCallback)
 {
@@ -111,10 +107,11 @@ AsyncColorChooser::Run()
   MOZ_ASSERT(NS_IsMainThread(),
       "Color pickers can only be opened from main thread currently");
 
+  static bool sColorPickerOpen = false;
   // Allow only one color picker to be opened at a time, to workaround bug 944737
-  if (!gColorChooser) {
-    mozilla::AutoRestore<AsyncColorChooser*> restoreColorChooser(gColorChooser);
-    gColorChooser = this;
+  if (!sColorPickerOpen) {
+    mozilla::AutoRestore<bool> autoRestoreColorPickerOpen(sColorPickerOpen);
+    sColorPickerOpen = true;
 
     AutoDestroyTmpWindow adtw((HWND) (mParentWidget.get() ?
       mParentWidget->GetNativeData(NS_NATIVE_TMP_WINDOW) : nullptr));
@@ -122,12 +119,13 @@ AsyncColorChooser::Run()
     CHOOSECOLOR options;
     options.lStructSize   = sizeof(options);
     options.hwndOwner     = adtw.get();
-    options.Flags         = CC_RGBINIT | CC_FULLOPEN | CC_ENABLEHOOK;
-    options.rgbResult     = mInitialColor;
+    options.Flags         = CC_RGBINIT | CC_FULLOPEN;
+    options.rgbResult     = ColorStringToRGB(mInitialColor);
     options.lpCustColors  = sCustomColors;
-    options.lpfnHook      = HookProc;
 
-    mColor = ChooseColor(&options) ? options.rgbResult : mInitialColor;
+    if (ChooseColor(&options)) {
+      BGRIntToRGBString(options.rgbResult, mColor);
+    }
   } else {
     NS_WARNING("Currently, it's not possible to open more than one color "
                "picker at a time");
@@ -135,45 +133,10 @@ AsyncColorChooser::Run()
   }
 
   if (mCallback) {
-    nsAutoString colorStr;
-    BGRIntToRGBString(mColor, colorStr);
-    mCallback->Done(colorStr);
+    mCallback->Done(mColor);
   }
 
   return NS_OK;
-}
-
-void
-AsyncColorChooser::Update(COLORREF aColor)
-{
-  if (mColor != aColor) {
-    mColor = aColor;
-
-    nsAutoString colorStr;
-    BGRIntToRGBString(mColor, colorStr);
-    mCallback->Update(colorStr);
-  }
-}
-
-/* static */ UINT_PTR CALLBACK
-AsyncColorChooser::HookProc(HWND aDialog, UINT aMsg,
-                            WPARAM aWParam, LPARAM aLParam)
-{
-  if (!gColorChooser) {
-    return 0;
-  }
-
-  if (aMsg == WM_CTLCOLORSTATIC) {
-    // The color picker does not expose a proper way to retrieve the current
-    // color, so we need to obtain it from the static control displaying the
-    // current color instead.
-    const int kCurrentColorBoxID = 709;
-    if ((HWND)aLParam == GetDlgItem(aDialog, kCurrentColorBoxID)) {
-      gColorChooser->Update(GetPixel((HDC)aWParam, 0, 0));
-    }
-  }
-
-  return 0;
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -197,7 +160,7 @@ nsColorPicker::Init(nsIDOMWindow* parent,
   NS_PRECONDITION(parent,
       "Null parent passed to colorpicker, no color picker for you!");
   mParentWidget =  WidgetUtils::DOMWindowToWidget(parent);
-  mInitialColor = ColorStringToRGB(aInitialColor);
+  mInitialColor = aInitialColor;
   return NS_OK;
 }
 
@@ -205,8 +168,6 @@ NS_IMETHODIMP
 nsColorPicker::Open(nsIColorPickerShownCallback* aCallback)
 {
   NS_ENSURE_ARG(aCallback);
-  nsCOMPtr<nsIRunnable> event = new AsyncColorChooser(mInitialColor,
-                                                      mParentWidget,
-                                                      aCallback);
+  nsCOMPtr<nsIRunnable> event = new AsyncColorChooser(mInitialColor, mParentWidget, aCallback);
   return NS_DispatchToMainThread(event);
 }

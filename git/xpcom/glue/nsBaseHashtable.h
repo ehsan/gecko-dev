@@ -129,8 +129,7 @@ public:
   }
 
   NS_WARN_UNUSED_RESULT bool Put(KeyType aKey, const UserDataType& aData,
-                                 const fallible_t&)
-  {
+                                 const fallible_t&) {
     EntryType* ent = this->PutEntry(aKey);
     if (!ent) {
       return false;
@@ -224,7 +223,7 @@ public:
    */
   typedef size_t
     (*SizeOfEntryExcludingThisFun)(KeyType aKey,
-                                   const DataType& aData,
+                                   const DataType &aData,
                                    mozilla::MallocSizeOf aMallocSizeOf,
                                    void* aUserArg);
 

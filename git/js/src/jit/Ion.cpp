@@ -145,9 +145,6 @@ jit::InitializeIon()
     if (!TlsIonContext.initialized() && !TlsIonContext.init())
         return false;
     CheckLogging();
-#if defined(JS_CODEGEN_ARM)
-    InitARMFlags();
-#endif
     CheckPerf();
     return true;
 }

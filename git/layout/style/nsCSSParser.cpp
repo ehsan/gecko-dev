@@ -13781,7 +13781,6 @@ CSSParserImpl::ParseSingleFilter(nsCSSValue* aValue)
 
   if (mToken.mType != eCSSToken_Function) {
     REPORT_UNEXPECTED_TOKEN(PEExpectedNoneOrURLOrFilterFunction);
-    UngetToken();
     return false;
   }
 

@@ -409,10 +409,10 @@ ShortcutResolver::SetShortcut(bool aUpdateExisting,
 
     // Since we reuse our IPersistFile, we have to clear out any values that
     // may be left over from previous calls to SetShortcut.
-    if (FAILED(mShellLink->SetWorkingDirectory(L"")) ||
-        FAILED(mShellLink->SetArguments(L"")) ||
-        FAILED(mShellLink->SetDescription(L"")) ||
-        FAILED(mShellLink->SetIconLocation(L"", 0))) {
+    if (FAILED(mShellLink->SetWorkingDirectory(L""))
+        || FAILED(mShellLink->SetArguments(L""))
+        || FAILED(mShellLink->SetDescription(L""))
+        || FAILED(mShellLink->SetIconLocation(L"", 0))) {
       return NS_ERROR_FAILURE;
     }
   }
@@ -569,8 +569,7 @@ IsShortcutPath(const nsAString& aPath)
 // workaround last beyond the switch, |PRFilePrivate| and |_MDFileDesc|
 // need to be changed to match the definitions for WinNT.
 //-----------------------------------------------------------------------------
-typedef enum
-{
+typedef enum {
   _PR_TRI_TRUE = 1,
   _PR_TRI_FALSE = 0,
   _PR_TRI_UNKNOWN = -1
@@ -1007,9 +1006,8 @@ nsLocalFile::nsLocalFileConstructor(nsISupports* aOuter, const nsIID& aIID,
   }
 
   nsLocalFile* inst = new nsLocalFile();
-  if (!inst) {
+  if (inst == nullptr)
     return NS_ERROR_OUT_OF_MEMORY;
-  }
 
   nsresult rv = inst->QueryInterface(aIID, aInstancePtr);
   if (NS_FAILED(rv)) {
@@ -1419,9 +1417,9 @@ nsLocalFile::AppendInternal(const nsAFlatString& aNode,
   }
 
   // check the relative path for validity
-  if (aNode.First() == L'\\' ||               // can't start with an '\'
-      aNode.FindChar(L'/') != kNotFound ||    // can't contain /
-      aNode.EqualsASCII("..")) {              // can't be ..
+  if (aNode.First() == L'\\'                  // can't start with an '\'
+      || aNode.FindChar(L'/') != kNotFound    // can't contain /
+      || aNode.EqualsASCII("..")) {           // can't be ..
     return NS_ERROR_FILE_UNRECOGNIZED_PATH;
   }
 
@@ -1698,8 +1696,8 @@ nsLocalFile::GetVersionInfoField(const char* aField, nsAString& aResult)
 
   rv = NS_ERROR_FAILURE;
 
-  const WCHAR* path =
-    mFollowSymlinks ? mResolvedPath.get() : mWorkingPath.get();
+  const WCHAR* path = mFollowSymlinks ? mResolvedPath.get()
+                                      : mWorkingPath.get();
 
   DWORD dummy;
   DWORD size = ::GetFileVersionInfoSizeW(path, &dummy);
@@ -1722,7 +1720,8 @@ nsLocalFile::GetVersionInfoField(const char* aField, nsAString& aResult)
         wchar_t subBlock[MAX_PATH];
         _snwprintf(subBlock, MAX_PATH,
                    L"\\StringFileInfo\\%04x%04x\\%s",
-                   (i == 0 ? translate[0].wLanguage : ::GetUserDefaultLangID()),
+                   (i == 0 ? translate[0].wLanguage
+                           : ::GetUserDefaultLangID()),
                    translate[0].wCodePage,
                    NS_ConvertASCIItoUTF16(
                      nsDependentCString(aField)).get());
@@ -1996,9 +1995,8 @@ nsLocalFile::CopyMove(nsIFile* aParentDir, const nsAString& aNewName,
           newParentDir->GetTarget(target);
 
           nsCOMPtr<nsIFile> realDest = new nsLocalFile();
-          if (!realDest) {
+          if (realDest == nullptr)
             return NS_ERROR_OUT_OF_MEMORY;
-          }
 
           rv = realDest->InitWithPath(target);
 
@@ -2270,7 +2268,7 @@ nsLocalFile::Load(PRLibrary** aResult)
     return rv;
   }
 
-  if (!isFile) {
+  if (! isFile) {
     return NS_ERROR_FILE_IS_DIRECTORY;
   }
 
@@ -2757,8 +2755,7 @@ nsLocalFile::GetParent(nsIFile** aParent)
   }
 
   nsCOMPtr<nsIFile> localFile;
-  nsresult rv = NS_NewLocalFile(parentPath, mFollowSymlinks,
-                                getter_AddRefs(localFile));
+  nsresult rv = NS_NewLocalFile(parentPath, mFollowSymlinks, getter_AddRefs(localFile));
 
   if (NS_FAILED(rv)) {
     return rv;
@@ -3343,9 +3340,8 @@ nsresult
 NS_NewLocalFile(const nsAString& aPath, bool aFollowLinks, nsIFile** aResult)
 {
   nsLocalFile* file = new nsLocalFile();
-  if (!file) {
+  if (file == nullptr)
     return NS_ERROR_OUT_OF_MEMORY;
-  }
   NS_ADDREF(file);
 
   file->SetFollowLinks(aFollowLinks);
