@@ -47,7 +47,9 @@ let currentInvoker = 0;
 
 function initTest() {
   // first, bookmark the page
-  Application.bookmarks.toolbar.addBookmark("Bug 432599 Test", makeURI(testURL));
+  let ios = Cc["@mozilla.org/network/io-service;1"].getService(Ci.nsIIOService);
+  Application.bookmarks.toolbar.addBookmark("Bug 432599 Test",
+                                            ios.newURI(testURL, null, null));
 
   checkBookmarksPanel(invokers[currentInvoker], 1);
 }
