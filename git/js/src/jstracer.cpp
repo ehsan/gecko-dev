@@ -359,7 +359,7 @@ public:
             jsval* vpstop;                                                    \
             if (f->down) {                                                    \
                 SET_VPNAME("rval");                                           \
-                vp = &f->rval; code;                                          \
+                /* do { func(&f->rval); } while(0); */                        \
                 SET_VPNAME("argv");                                           \
                 vp = &f->argv[0]; vpstop = &f->argv[f->argc];                 \
                 while (vp < vpstop) { code; ++vp; INC_VPNUM(); }              \
@@ -704,7 +704,6 @@ static bool
 unbox(JSStackFrame* entryFrame, JSStackFrame* currentFrame, uint8* m, double* native)
 {
     FORALL_SLOTS_IN_PENDING_FRAMES(entryFrame, currentFrame,
-            printf("unbox %s%d vp=%p *vp=%x\n", vpname, vpnum, vp, *vp);
         if (vp && !unbox_jsval(*vp, *m, native))
             return false;
         ++m; ++native
@@ -718,7 +717,6 @@ static bool
 box(JSContext* cx, JSStackFrame* entryFrame, JSStackFrame* currentFrame, uint8* m, double* native)
 {
     FORALL_SLOTS_IN_PENDING_FRAMES(entryFrame, currentFrame,
-            printf("box %s%d vp=%p *vp=%x native=%d type=%d\n", vpname, vpnum, vp, *vp, *(int*)native, (int)*m);
         if (vp && !box_jsval(cx, *vp, *m, native))
             return false;
         ++m; ++native
@@ -1487,9 +1485,7 @@ bool TraceRecorder::JSOP_PUSH()
 }
 bool TraceRecorder::JSOP_POPV()
 {
-    jsval& v = stackval(-1);
-    set(&cx->fp->rval, get(&v));
-    return true;
+    return false;
 }
 bool TraceRecorder::JSOP_ENTERWITH()
 {
