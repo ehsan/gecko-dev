@@ -174,19 +174,12 @@ struct nsCSSRendering {
    * Both aDirtyRect and aBorderArea are in the local coordinate space
    * of aForFrame
    */
-  enum {
-    /**
-     * When this flag is passed, the element's nsDisplayBorder will be
-     * painted immediately on top of this background.
-     */
-    PAINT_WILL_PAINT_BORDER = 0x01
-  };
   static void PaintBackground(nsPresContext* aPresContext,
                               nsIRenderingContext& aRenderingContext,
                               nsIFrame* aForFrame,
                               const nsRect& aDirtyRect,
                               const nsRect& aBorderArea,
-                              PRUint32 aFlags,
+                              PRBool aUsePrintSettings,
                               nsRect* aBGClipRect = nsnull);
 
   /**
@@ -201,7 +194,7 @@ struct nsCSSRendering {
                                     const nsRect& aBorderArea,
                                     const nsStyleBackground& aColor,
                                     const nsStyleBorder& aBorder,
-                                    PRUint32 aFlags,
+                                    PRBool aUsePrintSettings = PR_FALSE,
                                     nsRect* aBGClipRect = nsnull);
 
   /**

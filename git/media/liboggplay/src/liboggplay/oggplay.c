@@ -716,8 +716,6 @@ read_more_data:
       }
 
       return E_OGGPLAY_OK;
-    } else if (r == OGGZ_ERR_HOLE_IN_DATA) {
-      return E_OGGPLAY_BAD_INPUT;
     }
 
   }

@@ -319,19 +319,11 @@ treechildren::-moz-tree-column(insertafter) {
 }
 
 treecol:not([hideheader="true"]) > .treecol-sortdirection[sortDirection="ascending"] {
-  list-style-image: url("chrome://global/skin/tree/sort-asc.png");
-}
-
-treecol:not([hideheader="true"]) > .treecol-sortdirection[sortDirection="ascending"]:-moz-system-metric(windows-classic) {
-  list-style-image: url("chrome://global/skin/tree/sort-asc-classic.png");
+  list-style-image: url("chrome://global/skin/tree/sort-asc.gif");
 }
 
 treecol:not([hideheader="true"]) > .treecol-sortdirection[sortDirection="descending"] {
-  list-style-image: url("chrome://global/skin/tree/sort-dsc.png");
-}
-
-treecol:not([hideheader="true"]) > .treecol-sortdirection[sortDirection="descending"]:-moz-system-metric(windows-classic) {
-  list-style-image: url("chrome://global/skin/tree/sort-dsc-classic.png");
+  list-style-image: url("chrome://global/skin/tree/sort-dsc.gif");
 }
 
 /* ::::: column picker :::::  */
