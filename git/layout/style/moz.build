@@ -26,7 +26,6 @@ EXPORTS += [
     'nsCSSPseudoElementList.h',
     'nsCSSPseudoElements.h',
     'nsCSSRuleProcessor.h',
-    'nsCSSScanner.h',
     'nsCSSStyleSheet.h',
     'nsCSSValue.h',
     'nsDOMCSSAttrDeclaration.h',
@@ -58,12 +57,6 @@ EXPORTS += [
     'nsStyleUtil.h',
 ]
 
-EXPORTS.mozilla += [
-    'CSSVariableDeclarations.h',
-    'CSSVariableResolver.h',
-    'CSSVariableValues.h',
-]
-
 EXPORTS.mozilla.dom += [
     'CSS.h',
     'CSSValue.h',
@@ -84,9 +77,6 @@ EXPORTS.mozilla.css += [
 UNIFIED_SOURCES += [
     'AnimationCommon.cpp',
     'CSS.cpp',
-    'CSSVariableDeclarations.cpp',
-    'CSSVariableResolver.cpp',
-    'CSSVariableValues.cpp',
     'Declaration.cpp',
     'ErrorReporter.cpp',
     'ImageLoader.cpp',

@@ -192,13 +192,11 @@ gfxPlatformFontList::InitOtherFamilyNames()
     TimeStamp end = TimeStamp::Now();
     Telemetry::AccumulateTimeDelta(Telemetry::FONTLIST_INITOTHERFAMILYNAMES,
                                    start, end);
-#ifdef PR_LOGGING
     if (LOG_FONTINIT_ENABLED()) {
         TimeDuration elapsed = end - start;
         LOG_FONTINIT(("(fontinit) InitOtherFamilyNames took %8.2f ms",
                       elapsed.ToMilliseconds()));
     }
-#endif
 }
                                                          
 PLDHashOperator
@@ -224,13 +222,11 @@ gfxPlatformFontList::InitFaceNameLists()
     TimeStamp end = TimeStamp::Now();
     Telemetry::AccumulateTimeDelta(Telemetry::FONTLIST_INITFACENAMELISTS,
                                    start, end);
-#ifdef PR_LOGGING
     if (LOG_FONTINIT_ENABLED()) {
         TimeDuration elapsed = end - start;
         LOG_FONTINIT(("(fontinit) InitFaceNameLists took %8.2f ms",
                       elapsed.ToMilliseconds()));
     }
-#endif
 }
 
 PLDHashOperator

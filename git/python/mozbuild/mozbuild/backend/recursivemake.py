@@ -90,7 +90,7 @@ class BackendMakeFile(object):
         self.idls = []
         self.xpt_name = None
 
-        self.fh = FileAvoidWrite(self.name, capture_diff=True)
+        self.fh = FileAvoidWrite(self.name)
         self.fh.write('# THIS FILE WAS AUTOMATICALLY GENERATED. DO NOT EDIT.\n')
         self.fh.write('\n')
         self.fh.write('MOZBUILD_DERIVED := 1\n')
@@ -116,10 +116,6 @@ class BackendMakeFile(object):
                 'export\n')
 
         return self.fh.close()
-
-    @property
-    def diff(self):
-        return self.fh.diff
 
 
 class RecursiveMakeTraversal(object):
@@ -717,8 +713,6 @@ class RecursiveMakeBackend(CommonBackend):
                 obj = self.Substitution()
                 obj.output_path = makefile
                 obj.input_path = makefile_in
-                obj.topsrcdir = bf.environment.topsrcdir
-                obj.topobjdir = bf.environment.topobjdir
                 self._create_makefile(obj, stub=stub)
 
         # Write out a master list of all IPDL source files.
@@ -1019,8 +1013,6 @@ class RecursiveMakeBackend(CommonBackend):
             'makefiles', 'xpidl', 'Makefile')
         obj.input_path = mozpath.join(self.environment.topsrcdir, 'config',
             'makefiles', 'xpidl', 'Makefile.in')
-        obj.topsrcdir = self.environment.topsrcdir
-        obj.topobjdir = self.environment.topobjdir
         self._create_makefile(obj, extra=dict(
             xpidl_rules='\n'.join(rules),
             xpidl_modules=' '.join(xpt_modules),
@@ -1148,8 +1140,6 @@ class RecursiveMakeBackend(CommonBackend):
         __slots__ = (
             'input_path',
             'output_path',
-            'topsrcdir',
-            'topobjdir',
         )
 
     def _create_makefile(self, obj, stub=False, extra=None):

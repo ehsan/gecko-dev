@@ -49,23 +49,6 @@ Preferences.
 ===================
 '''.strip()
 
-EXCESSIVE_SWAP_MESSAGE = '''
-===================
-PERFORMANCE WARNING
-
-Your machine experienced a lot of swap activity during the build. This is
-possibly a sign that your machine doesn't have enough physical memory or
-not enough available memory to perform the build. It's also possible some
-other system activity during the build is to blame.
-
-If you feel this message is not appropriate for your machine configuration,
-please file a Core :: Build Config bug at
-https://bugzilla.mozilla.org/enter_bug.cgi?product=Core&component=Build%20Config
-and tell us about your machine and build configuration so we can adjust the
-warning heuristic.
-===================
-'''
-
 
 class TerminalLoggingHandler(logging.Handler):
     """Custom logging handler that works with terminal window dressing.
@@ -441,10 +424,6 @@ class Build(MachCommandBase):
             print('Your build was successful!')
 
         if monitor.have_resource_usage:
-            excessive, swap_in, swap_out = monitor.have_excessive_swapping()
-            if excessive:
-                print(EXCESSIVE_SWAP_MESSAGE)
-
             print('To view resource usage of the build, run |mach '
                 'resource-usage|.')
 
@@ -526,20 +505,13 @@ class Build(MachCommandBase):
 
     @Command('build-backend', category='build',
         description='Generate a backend used to build the tree.')
-    @CommandArgument('-d', '--diff', action='store_true',
-        help='Show a diff of changes.')
-    def build_backend(self, diff=False):
+    def build_backend(self):
         # When we support multiple build backends (Tup, Visual Studio, etc),
         # this command will be expanded to support choosing what to generate.
         python = self.virtualenv_manager.python_path
         config_status = os.path.join(self.topobjdir, 'config.status')
-
-        args = [python, config_status]
-        if diff:
-            args.append('--diff')
-
-        return self._run_command_in_objdir(args=args, pass_thru=True,
-            ensure_exit_code=False)
+        return self._run_command_in_objdir(args=[python, config_status],
+            pass_thru=True, ensure_exit_code=False)
 
 
 @CommandProvider
@@ -786,8 +758,8 @@ class DebugProgram(MachCommandBase):
         help='Do not pass the -no-remote argument by default')
     @CommandArgument('+background', '+b', action='store_true',
         help='Do not pass the -foreground argument by default on Mac')
-    @CommandArgument('+debugparams', default=None, metavar='params', type=str,
-        help='Command-line arguments to pass to GDB or LLDB itself; split as the Bourne shell would.')
+    @CommandArgument('+gdbparams', default=None, metavar='params', type=str,
+        help='Command-line arguments to pass to GDB itself; split as the Bourne shell would.')
     # Bug 933807 introduced JS_DISABLE_SLOW_SCRIPT_SIGNALS to avoid clever
     # segfaults induced by the slow-script-detecting logic for Ion/Odin JITted
     # code.  If we don't pass this, the user will need to periodically type
@@ -795,45 +767,31 @@ class DebugProgram(MachCommandBase):
     # automatic resuming; see the bug.
     @CommandArgument('+slowscript', action='store_true',
         help='Do not set the JS_DISABLE_SLOW_SCRIPT_SIGNALS env variable; when not set, recoverable but misleading SIGSEGV instances may occur in Ion/Odin JIT code')
-    def debug(self, params, remote, background, debugparams, slowscript):
+    def debug(self, params, remote, background, gdbparams, slowscript):
         import which
-        use_lldb = False
         try:
             debugger = which.which('gdb')
-        except Exception:
-            try:
-                debugger = which.which('lldb')
-                use_lldb = True
-            except Exception as e:
-                print("You don't have gdb or lldb in your PATH")
-                print(e)
-                return 1
+        except Exception as e:
+            print("You don't have gdb in your PATH")
+            print(e)
+            return 1
         args = [debugger]
         extra_env = {}
-        if debugparams:
+        if gdbparams:
             import pymake.process
-            argv, badchar = pymake.process.clinetoargv(debugparams, os.getcwd())
+            (argv, badchar) = pymake.process.clinetoargv(gdbparams, os.getcwd())
             if badchar:
-                print("The +debugparams you passed require a real shell to parse them.")
+                print("The +gdbparams you passed require a real shell to parse them.")
                 print("(We can't handle the %r character.)" % (badchar,))
                 return 1
             args.extend(argv)
-
-        binpath = None
-
         try:
-            binpath = self.get_binary_path('app')
+            args.extend(['--args', self.get_binary_path('app')])
         except Exception as e:
             print("It looks like your program isn't built.",
                 "You can run |mach build| to build it.")
             print(e)
             return 1
-
-        if not use_lldb:
-            args.extend(['--args', binpath])
-        else:
-            args.extend(['--', binpath])
-
         if not remote:
             args.append('-no-remote')
         if not background and sys.platform == 'darwin':
@@ -992,3 +950,62 @@ class MachDebug(MachCommandBase):
                 print('config defines:')
                 for k in sorted(config.defines):
                     print('\t%s' % k)
+
+
+@CommandProvider
+class Documentation(MachCommandBase):
+    """Helps manage in-tree documentation."""
+
+    @Command('build-docs', category='build-dev',
+        description='Generate documentation for the tree.')
+    @CommandArgument('--format', default='html',
+        help='Documentation format to write.')
+    @CommandArgument('--api-docs', action='store_true',
+        help='If specified, we will generate api docs templates for in-tree '
+            'Python. This will likely create and/or modify files in '
+            'build/docs. It is meant to be run by build maintainers when new '
+            'Python modules are added to the tree.')
+    @CommandArgument('outdir', default='<DEFAULT>', nargs='?',
+        help='Where to write output.')
+    def build_docs(self, format=None, api_docs=False, outdir=None):
+        self._activate_virtualenv()
+
+        self.virtualenv_manager.install_pip_package('mdn-sphinx-theme==0.3')
+
+        if api_docs:
+            import sphinx.apidoc
+            outdir = os.path.join(self.topsrcdir, 'build', 'docs', 'python')
+
+            base_args = [sys.argv[0], '--no-toc', '-o', outdir]
+
+            packages = [
+                ('python/codegen',),
+                ('python/mozbuild/mozbuild', 'test'),
+                ('python/mozbuild/mozpack', 'test'),
+                ('python/mozversioncontrol/mozversioncontrol',),
+            ]
+
+            for package in packages:
+                extra_args = [os.path.join(self.topsrcdir, package[0])]
+                extra_args.extend(package[1:])
+
+                sphinx.apidoc.main(base_args + extra_args)
+
+            return 0
+
+        import sphinx
+        if outdir == '<DEFAULT>':
+            outdir = os.path.join(self.topobjdir, 'docs', format)
+
+        args = [
+            sys.argv[0],
+            '-b', format,
+            os.path.join(self.topsrcdir, 'build', 'docs'),
+            outdir,
+        ]
+
+        result = sphinx.main(args)
+
+        print('Docs written to %s.' % outdir)
+
+        return result
