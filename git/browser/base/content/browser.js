@@ -805,7 +805,7 @@ var gBrowserInit = {
     // enable global history
     try {
       if (!gMultiProcessBrowser)
-        gBrowser.docShell.QueryInterface(Ci.nsIDocShellHistory).useGlobalHistory = true;
+      gBrowser.docShell.useGlobalHistory = true;
     } catch(ex) {
       Cu.reportError("Places database may be locked: " + ex);
     }
@@ -2296,10 +2296,23 @@ function BrowserOnAboutPageLoad(doc) {
       Services.prefs.setBoolPref("browser.rights." + currentVersion + ".shown", true);
     }
     docElt.setAttribute("snippetsVersion", AboutHomeUtils.snippetsVersion);
-    docElt.setAttribute("searchEngineName",
-                        AboutHomeUtils.defaultSearchEngine.name);
-    docElt.setAttribute("searchEngineURL",
-                        AboutHomeUtils.defaultSearchEngine.searchURL);
+
+    function updateSearchEngine() {
+      let engine = AboutHomeUtils.defaultSearchEngine;
+      docElt.setAttribute("searchEngineName", engine.name);
+      docElt.setAttribute("searchEngineURL", engine.searchURL);
+    }
+    updateSearchEngine();
+
+    // Listen for the event that's triggered when the user changes search engine.
+    // At this point we simply reload about:home to reflect the change.
+    Services.obs.addObserver(updateSearchEngine, "browser-search-engine-modified", false);
+
+    // Remove the observer when the page is reloaded or closed.
+    doc.defaultView.addEventListener("pagehide", function removeObserver() {
+      doc.defaultView.removeEventListener("pagehide", removeObserver);
+      Services.obs.removeObserver(updateSearchEngine, "browser-search-engine-modified");
+    }, false);
 
 #ifdef MOZ_SERVICES_HEALTHREPORT
     doc.addEventListener("AboutHomeSearchEvent", function onSearch(e) {
@@ -4299,6 +4312,7 @@ var TabsProgressListener = {
       aBrowser.addEventListener("pagehide", function onPageHide(event) {
         if (event.target.defaultView.frameElement)
           return;
+        event.target.documentElement.removeAttribute("hasBrowserHandlers");
         aBrowser.removeEventListener("click", BrowserOnClick, true);
         aBrowser.removeEventListener("pagehide", onPageHide, true);
       }, true);
@@ -5998,7 +6012,7 @@ function warnAboutClosingWindow() {
   // Popups aren't considered full browser windows.
   let isPBWindow = PrivateBrowsingUtils.isWindowPrivate(window);
   if (!isPBWindow && !toolbar.visible)
-    return gBrowser.warnAboutClosingTabs(true);
+    return gBrowser.warnAboutClosingTabs(gBrowser.closingTabsEnum.ALL);
 
   // Figure out if there's at least one other browser window around.
   let e = Services.wm.getEnumerator("navigator:browser");
@@ -6033,7 +6047,7 @@ function warnAboutClosingWindow() {
   }
 
   if (nonPopupPresent) {
-    return isPBWindow || gBrowser.warnAboutClosingTabs(true);
+    return isPBWindow || gBrowser.warnAboutClosingTabs(gBrowser.closingTabsEnum.ALL);
   }
 
   let os = Services.obs;
@@ -6051,7 +6065,7 @@ function warnAboutClosingWindow() {
   // OS X doesn't quit the application when the last window is closed, but keeps
   // the session alive. Hence don't prompt users to save tabs, but warn about
   // closing multiple tabs.
-  return isPBWindow || gBrowser.warnAboutClosingTabs(true);
+  return isPBWindow || gBrowser.warnAboutClosingTabs(gBrowser.closingTabsEnum.ALL);
 #else
   return true;
 #endif
@@ -6952,6 +6966,13 @@ var TabContextMenu = {
     // Only one of pin/unpin should be visible
     document.getElementById("context_pinTab").hidden = this.contextTab.pinned;
     document.getElementById("context_unpinTab").hidden = !this.contextTab.pinned;
+
+    // Disable "Close Tabs to the Right" if there are no tabs
+    // following it and hide it when the user rightclicked on a pinned
+    // tab.
+    document.getElementById("context_closeTabsToTheEnd").disabled =
+      gBrowser.getTabsToTheEndFrom(this.contextTab).length == 0;
+    document.getElementById("context_closeTabsToTheEnd").hidden = this.contextTab.pinned;
 
     // Disable "Close other Tabs" if there is only one unpinned tab and
     // hide it when the user rightclicked on a pinned tab.
