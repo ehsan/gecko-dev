@@ -109,16 +109,6 @@ public:
                              mIdleTimeout = 0; }
     void     DropTransport() { DontReuse(); mSocketTransport = 0; }
 
-    PRBool   LastTransactionExpectedNoContent()
-    {
-        return mLastTransactionExpectedNoContent;
-    }
-
-    void     SetLastTransactionExpectedNoContent(PRBool val)
-    {
-        mLastTransactionExpectedNoContent = val;
-    }
-
     nsAHttpTransaction   *Transaction()    { return mTransaction; }
     nsHttpConnectionInfo *ConnectionInfo() { return mConnInfo; }
 
@@ -175,7 +165,6 @@ private:
     PRPackedBool                    mSupportsPipelining;
     PRPackedBool                    mIsReused;
     PRPackedBool                    mCompletedSSLConnect;
-    PRPackedBool                    mLastTransactionExpectedNoContent;
 };
 
 #endif // nsHttpConnection_h__

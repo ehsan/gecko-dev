@@ -20,6 +20,9 @@
 <!ENTITY helpSafeMode.label       "Restart with Add-ons Disabled…">
 <!ENTITY helpSafeMode.accesskey   "R">
 
+<!ENTITY helpReleaseNotes.label         "Release Notes">
+<!ENTITY helpReleaseNotes.accesskey     "N">
+
 <!ENTITY helpTroubleshootingInfo.label      "Troubleshooting Information">
 <!ENTITY helpTroubleshootingInfo.accesskey  "T">
 

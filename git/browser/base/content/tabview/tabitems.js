@@ -302,7 +302,7 @@ TabItem.prototype = Utils.extend(new Item(), new Subscribable(), {
   getStorageData: function TabItem_getStorageData(getImageData) {
     let imageData = null;
 
-    if (getImageData) { 
+    if (getImageData && this.tab.linkedBrowser.currentURI.scheme != 'https') {
       if (this._cachedImageData)
         imageData = this._cachedImageData;
       else if (this.tabCanvas)
@@ -369,8 +369,7 @@ TabItem.prototype = Utils.extend(new Item(), new Subscribable(), {
         }
       }
 
-      let currentUrl = this.tab.linkedBrowser.currentURI.spec;
-      if (tabData.imageData && tabData.url == currentUrl)
+      if (tabData.imageData)
         this.showCachedData(tabData);
     } else {
       // create tab by double click is handled in UI_init().
@@ -974,9 +973,7 @@ let TabItems = {
       // ___ label
       let label = tab.label;
       let $name = tabItem.$tabTitle;
-      let isLabelUpdateAllowed = !tabItem.isShowingCachedData() ||
-                                 tabItem.shouldHideCachedData;
-      if (isLabelUpdateAllowed && $name.text() != label)
+      if (!tabItem.isShowingCachedData() && $name.text() != label)
         $name.text(label);
 
       // ___ thumbnail

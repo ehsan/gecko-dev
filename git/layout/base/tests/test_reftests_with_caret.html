@@ -7,12 +7,6 @@
   <script type="text/javascript" src="/tests/SimpleTest/EventUtils.js"></script>
   <script type="text/javascript" src="/tests/SimpleTest/WindowSnapshot.js"></script>
   <link rel="stylesheet" type="text/css" href="/tests/SimpleTest/test.css" />
-  <style>
-    iframe {
-      width: 600px;
-      height: 600px;
-    }
-  </style>
 <script type="text/javascript">
 
 var canvases = [];
@@ -81,18 +75,14 @@ function refTest(test,ref) {
   createIframe(test,ref);
 };
 
-var caretBlinkTime = null;
+var caretBlinkTime;
 function endTest() {
   SimpleTest.finish();
   netscape.security.PrivilegeManager.enablePrivilege(
    'UniversalPreferencesRead UniversalPreferencesWrite UniversalXPConnect');
   var prefs = Components.classes["@mozilla.org/preferences-service;1"]
                         .getService(Components.interfaces.nsIPrefBranch);
-  if (caretBlinkTime !== null) {
-    prefs.setIntPref("ui.caretBlinkTime", caretBlinkTime);
-  } else {
-    prefs.clearUserPref("ui.caretBlinkTime");
-  }
+  prefs.setIntPref("ui.caretBlinkTime", caretBlinkTime);
 }
 
 var tests = [
@@ -138,9 +128,7 @@ function runTests() {
       'UniversalPreferencesRead UniversalPreferencesWrite UniversalXPConnect');
     var prefs = Components.classes["@mozilla.org/preferences-service;1"]
                           .getService(Components.interfaces.nsIPrefBranch);
-    try {
-      caretBlinkTime = prefs.getIntPref("ui.caretBlinkTime");
-    } catch (e) {}
+    caretBlinkTime = prefs.getIntPref("ui.caretBlinkTime");
     prefs.setIntPref("ui.caretBlinkTime", -1);
 
     nextTest();

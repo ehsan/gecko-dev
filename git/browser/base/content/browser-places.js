@@ -386,21 +386,30 @@ var PlacesCommandHook = {
   },
 
   /**
-   * List of nsIURI objects characterizing the tabs currently open in the
-   * browser, modulo pinned tabs.  The URIs will be in the order in which their
-   * corresponding tabs appeared and duplicates are discarded.
+   * This function returns a list of nsIURI objects characterizing the
+   * tabs currently open in the browser.  The URIs will appear in the
+   * list in the order in which their corresponding tabs appeared.  However,
+   * only the first instance of each URI will be returned.
+   *
+   * @returns a list of nsIURI objects representing unique locations open
    */
-  get uniqueCurrentPages() {
-    let uniquePages = {};
-    let URIs = [];
-    gBrowser.visibleTabs.forEach(function (tab) {
-      let spec = tab.linkedBrowser.currentURI.spec;
-      if (!tab.pinned && !(spec in uniquePages)) {
-        uniquePages[spec] = null;
-        URIs.push(tab.linkedBrowser.currentURI);
-      }
-    });
-    return URIs;
+  _getUniqueTabInfo: function BATC__getUniqueTabInfo() {
+    var tabList = [];
+    var seenURIs = {};
+
+    let tabs = gBrowser.visibleTabs;
+    for (let i = 0; i < tabs.length; ++i) {
+      let uri = tabs[i].linkedBrowser.currentURI;
+
+      // skip redundant entries
+      if (uri.spec in seenURIs)
+        continue;
+
+      // add to the set of seen URIs
+      seenURIs[uri.spec] = null;
+      tabList.push(uri);
+    }
+    return tabList;
   },
 
   /**
@@ -408,23 +417,11 @@ var PlacesCommandHook = {
    * window.
    */
   bookmarkCurrentPages: function PCH_bookmarkCurrentPages() {
-    let pages = this.uniqueCurrentPages;
-    if (pages.length > 1) {
-      PlacesUIUtils.showMinimalAddMultiBookmarkUI(pages);
-    }
+    var tabURIs = this._getUniqueTabInfo();
+    PlacesUIUtils.showMinimalAddMultiBookmarkUI(tabURIs);
   },
 
-  /**
-   * Updates disabled state for the "Bookmark All Tabs" command.
-   */
-  updateBookmarkAllTabsCommand:
-  function PCH_updateBookmarkAllTabsCommand() {
-    // Disable "Bookmark All Tabs" if there are less than two
-    // "unique current pages".
-    goSetCommandEnabled("Browser:BookmarkAllTabs",
-                        this.uniqueCurrentPages.length >= 2);
-  },
-
+  
   /**
    * Adds a Live Bookmark to a feed associated with the current page. 
    * @param     url
@@ -713,10 +710,8 @@ var BookmarksEventHandler = {
    * If the click came through a menu, close the menu.
    * @param aEvent
    *        DOMEvent for the click
-   * @param aView
-   *        The places view which aEvent should be associated with.
    */
-  onClick: function BEH_onClick(aEvent, aView) {
+  onClick: function BEH_onClick(aEvent) {
     // Only handle middle-click or left-click with modifiers.
 #ifdef XP_MACOSX
     var modifKey = aEvent.metaKey || aEvent.shiftKey;
@@ -746,11 +741,11 @@ var BookmarksEventHandler = {
       // is middle-clicked or when a non-bookmark item except for Open in Tabs)
       // in a bookmarks menupopup is middle-clicked.
       if (target.localName == "menu" || target.localName == "toolbarbutton")
-        PlacesUIUtils.openContainerNodeInTabs(target._placesNode, aEvent, aView);
+        PlacesUIUtils.openContainerNodeInTabs(target._placesNode, aEvent);
     }
     else if (aEvent.button == 1) {
       // left-clicks with modifier are already served by onCommand
-      this.onCommand(aEvent, aView);
+      this.onCommand(aEvent);
     }
   },
 
@@ -760,13 +755,11 @@ var BookmarksEventHandler = {
    * Opens the item.
    * @param aEvent 
    *        DOMEvent for the command
-   * @param aView
-   *        The places view which aEvent should be associated with.
    */
-  onCommand: function BEH_onCommand(aEvent, aView) {
+  onCommand: function BEH_onCommand(aEvent) {
     var target = aEvent.originalTarget;
     if (target._placesNode)
-      PlacesUIUtils.openNodeWithEvent(target._placesNode, aEvent, aView);
+      PlacesUIUtils.openNodeWithEvent(target._placesNode, aEvent);
   },
 
   fillInBHTooltip: function BEH_fillInBHTooltip(aDocument, aEvent) {

@@ -1130,15 +1130,3 @@ nsHttpConnectionMgr::nsConnectionHandle::PushBack(const char *buf, PRUint32 bufL
     return mConn->PushBack(buf, bufLen);
 }
 
-PRBool
-nsHttpConnectionMgr::nsConnectionHandle::LastTransactionExpectedNoContent()
-{
-    return mConn->LastTransactionExpectedNoContent();
-}
-
-void
-nsHttpConnectionMgr::
-nsConnectionHandle::SetLastTransactionExpectedNoContent(PRBool val)
-{
-     mConn->SetLastTransactionExpectedNoContent(val);
-}

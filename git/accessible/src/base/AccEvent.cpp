@@ -321,7 +321,7 @@ AccHideEvent::
   AccHideEvent(nsAccessible* aTarget, nsINode* aTargetNode) :
   AccMutationEvent(::nsIAccessibleEvent::EVENT_HIDE, aTarget, aTargetNode)
 {
-  mParent = mAccessible->GetParent();
+  mParent = mAccessible->GetCachedParent();
   mNextSibling = mAccessible->GetCachedNextSibling();
   mPrevSibling = mAccessible->GetCachedPrevSibling();
 }

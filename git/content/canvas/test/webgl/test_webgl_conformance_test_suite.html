@@ -45,32 +45,32 @@ function start() {
     return svc;
   }
 
-  function setForceEnabled(value) {
+  function setEnabledForAllSites(value) {
     netscape.security.PrivilegeManager.enablePrivilege("UniversalXPConnect");
-    prefSvc().setBoolPref("webgl.force-enabled", value);
+    prefSvc().setBoolPref("webgl.enabled_for_all_sites", value);
   }
 
-  function getForceEnabled() {
+  function getEnabledForAllSites() {
     netscape.security.PrivilegeManager.enablePrivilege("UniversalXPConnect");
-    return prefSvc().getBoolPref("webgl.force-enabled");
+    return prefSvc().getBoolPref("webgl.enabled_for_all_sites");
   }
 
   function setPreferGL(value) {
     netscape.security.PrivilegeManager.enablePrivilege("UniversalXPConnect");
-    prefSvc().setBoolPref("webgl.prefer-native-gl", value);
+    prefSvc().setBoolPref("webgl.prefer_gl", value);
   }
 
   function getPreferGL() {
     netscape.security.PrivilegeManager.enablePrivilege("UniversalXPConnect");
     var retval = false;
     try {
-      retval = prefSvc().getBoolPref("webgl.prefer-native-gl");
+      retval = prefSvc().getBoolPref("webgl.prefer_gl");
     } catch (ex) { }
     return retval;
   }
 
   function restoreOldPrefs() {
-    setForceEnabled(saved_force_enabled);
+    setEnabledForAllSites(saved_enabled_for_all_sites);
     setPreferGL(saved_prefer_gl);
   }
 
@@ -296,7 +296,7 @@ function start() {
     var reporter = new Reporter();
 
     // set WebGL-related preferences needed to run WebGL tests
-    setForceEnabled(true);
+    setEnabledForAllSites(true);
 
     // XXX temporary hack. Until the DirectX runtime is deployed on test slaves, we just use OpenGL,
     // so that rel-eng can safely deploy DirectX runtime without getting sudden mochitest failures
@@ -383,7 +383,7 @@ function start() {
     }
   }
 
-  var saved_force_enabled = getForceEnabled();
+  var saved_enabled_for_all_sites = getEnabledForAllSites();
   var saved_prefer_gl = getPreferGL();
 
   var statusElem = document.getElementById("status");
