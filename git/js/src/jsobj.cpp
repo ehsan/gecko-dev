@@ -1697,8 +1697,10 @@ js_NewPropertyDescriptorObject(JSContext *cx, jsid id, uintN attrs,
 JSBool
 js_GetOwnPropertyDescriptor(JSContext *cx, JSObject *obj, jsid id, Value *vp)
 {
-    if (obj->isProxy())
-        return JSProxy::getOwnPropertyDescriptor(cx, obj, id, false, vp);
+    if (obj->isProxy()) {
+        if (!JSProxy::getOwnPropertyDescriptor(cx, obj, id, false, vp))
+            return false;
+    }
 
     JSObject *pobj;
     JSProperty *prop;
