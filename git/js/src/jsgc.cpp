@@ -457,8 +457,6 @@ ChunkPool::get(JSRuntime *rt)
         chunk = Chunk::allocate(rt);
         if (!chunk)
             return NULL;
-        JS_ASSERT(chunk->info.numArenasFreeCommitted == ArenasPerChunk);
-        rt->gcNumArenasFreeCommitted += ArenasPerChunk;
     }
     JS_ASSERT(chunk->unused());
     JS_ASSERT(!rt->gcChunkSet.has(chunk));
@@ -560,24 +558,21 @@ Chunk::allocate(JSRuntime *rt)
     Chunk *chunk = static_cast<Chunk *>(AllocChunk());
     if (!chunk)
         return NULL;
-    chunk->init();
+    chunk->init(rt);
     rt->gcStats.count(gcstats::STAT_NEW_CHUNK);
     return chunk;
 }
 
-/* Must be called with the GC lock taken. */
 /* static */ inline void
 Chunk::release(JSRuntime *rt, Chunk *chunk)
 {
     JS_ASSERT(chunk);
-    JS_ASSERT(rt->gcNumArenasFreeCommitted >= chunk->info.numArenasFreeCommitted);
-    rt->gcNumArenasFreeCommitted -= chunk->info.numArenasFreeCommitted;
     rt->gcStats.count(gcstats::STAT_DESTROY_CHUNK);
     FreeChunk(chunk);
 }
 
 void
-Chunk::init()
+Chunk::init(JSRuntime *rt)
 {
     JS_POISON(this, JS_FREE_PATTERN, ChunkSize);
 
@@ -587,7 +582,7 @@ Chunk::init()
      */
     bitmap.clear();
 
-    /* Initialize the arena tracking bitmap. */
+    /* Initialize the arena tracking bitmap. */ 
     decommittedArenas.clear(false);
 
     /* Initialize the chunk info. */
@@ -596,6 +591,7 @@ Chunk::init()
     info.numArenasFree = ArenasPerChunk;
     info.numArenasFreeCommitted = ArenasPerChunk;
     info.age = 0;
+    rt->gcNumFreeArenas += ArenasPerChunk;
 
     /* Initialize the arena header state. */
     for (jsuint i = 0; i < ArenasPerChunk; i++) {
@@ -647,7 +643,7 @@ Chunk::removeFromAvailableList()
 }
 
 /*
- * Search for and return the next decommitted Arena. Our goal is to keep
+ * Search for and return the next decommitted Arena. Our goal is to keep 
  * lastDecommittedArenaOffset "close" to a free arena. We do this by setting
  * it to the most recently freed arena when we free, and forcing it to
  * the last alloc + 1 when we allocate.
@@ -669,8 +665,7 @@ Chunk::findDecommittedArenaOffset()
 ArenaHeader *
 Chunk::fetchNextDecommittedArena()
 {
-    JS_ASSERT(info.numArenasFreeCommitted == 0);
-    JS_ASSERT(info.numArenasFree > 0);
+    JS_ASSERT(info.numArenasFreeCommitted < info.numArenasFree);
 
     jsuint offset = findDecommittedArenaOffset();
     info.lastDecommittedArenaOffset = offset + 1;
@@ -688,14 +683,12 @@ inline ArenaHeader *
 Chunk::fetchNextFreeArena(JSRuntime *rt)
 {
     JS_ASSERT(info.numArenasFreeCommitted > 0);
-    JS_ASSERT(info.numArenasFreeCommitted <= info.numArenasFree);
-    JS_ASSERT(info.numArenasFreeCommitted <= rt->gcNumArenasFreeCommitted);
 
     ArenaHeader *aheader = info.freeArenasHead;
     info.freeArenasHead = aheader->next;
     --info.numArenasFreeCommitted;
     --info.numArenasFree;
-    --rt->gcNumArenasFreeCommitted;
+    --rt->gcNumFreeArenas;
 
     return aheader;
 }
@@ -753,7 +746,7 @@ Chunk::releaseArena(ArenaHeader *aheader)
     info.freeArenasHead = aheader;
     ++info.numArenasFreeCommitted;
     ++info.numArenasFree;
-    ++rt->gcNumArenasFreeCommitted;
+    ++rt->gcNumFreeArenas;
 
     if (info.numArenasFree == 1) {
         JS_ASSERT(!info.prevp);
@@ -2179,19 +2172,15 @@ MaybeGC(JSContext *cx)
     }
 
     /*
-     * Access to the counters and, on 32 bit, setting gcNextFullGCTime below
-     * is not atomic and a race condition could trigger or suppress the GC. We
-     * tolerate this.
+     * On 32 bit setting gcNextFullGCTime below is not atomic and a race condition
+     * could trigger an GC. We tolerate this.
      */
     int64_t now = PRMJ_Now();
     if (rt->gcNextFullGCTime && rt->gcNextFullGCTime <= now) {
-        if (rt->gcChunkAllocationSinceLastGC ||
-            rt->gcNumArenasFreeCommitted > FreeCommittedArenasThreshold)
-        {
+        if (rt->gcChunkAllocationSinceLastGC || rt->gcNumFreeArenas > MaxFreeCommittedArenas)
             js_GC(cx, NULL, GC_SHRINK, gcstats::MAYBEGC);
-        } else {
+        else
             rt->gcNextFullGCTime = now + GC_IDLE_FULL_SPAN;
-        }
     }
 }
 
@@ -2284,8 +2273,6 @@ GCHelperThread::threadLoop()
                 /* OOM stops the background allocation. */
                 if (!chunk)
                     break;
-                JS_ASSERT(chunk->info.numArenasFreeCommitted == ArenasPerChunk);
-                rt->gcNumArenasFreeCommitted += ArenasPerChunk;
                 rt->gcChunkPool.put(rt, chunk);
             } while (state == ALLOCATING && rt->gcChunkPool.wantBackgroundAllocation(rt));
             if (state == ALLOCATING)
@@ -2456,7 +2443,7 @@ DecommitFreePages(JSContext *cx)
             size_t arenaIndex = Chunk::arenaIndex(aheader->arenaAddress());
             chunk->decommittedArenas.set(arenaIndex);
             --chunk->info.numArenasFreeCommitted;
-            --rt->gcNumArenasFreeCommitted;
+            --rt->gcNumFreeArenas;
 
             aheader = next;
         }

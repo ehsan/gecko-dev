@@ -98,11 +98,11 @@ public:
                             const nsRect&           aDirtyRect,
                             const nsDisplayListSet& aLists);
 
-  void AppendScrollPartsTo(nsDisplayListBuilder*   aBuilder,
-                           const nsRect&           aDirtyRect,
-                           const nsDisplayListSet& aLists,
-                           bool&                   aCreateLayer,
-                           bool                    aPositioned);
+  nsresult AppendScrollPartsTo(nsDisplayListBuilder*          aBuilder,
+                               const nsRect&                  aDirtyRect,
+                               const nsDisplayListSet&        aLists,
+                               const nsDisplayListCollection& aDest,
+                               bool&                        aCreateLayer);
 
   bool GetBorderRadii(nscoord aRadii[8]) const;
 
@@ -324,6 +324,9 @@ public:
   // If true, we should be prepared to scroll using this scrollframe
   // by placing descendant content into its own layer(s)
   bool mScrollingActive:1;
+  // If true, scrollbars are stacked on the top of the display list and can
+  // float above the content as a result
+  bool mScrollbarsCanOverlapContent:1;
   // If true, the resizer is collapsed and not displayed
   bool mCollapsedResizer:1;
 

@@ -37,6 +37,7 @@
 #ifndef dom_src_geolocation_IPC_serialiser
 #define dom_src_geolocation_IPC_serialiser
 
+
 #include "IPC/IPCMessageUtils.h"
 #include "nsGeoPosition.h"
 #include "nsIDOMGeoPosition.h"
@@ -83,6 +84,9 @@ struct ParamTraits<GeoPositionAddress>
     aParam->GetCountry(addressLine);
     WriteParam(aMsg, addressLine);
 
+    aParam->GetCountryCode(addressLine);
+    WriteParam(aMsg, addressLine);
+
     aParam->GetPostalCode(addressLine);
     WriteParam(aMsg, addressLine);
   }
@@ -107,6 +111,7 @@ struct ParamTraits<GeoPositionAddress>
     nsString county;
     nsString region;
     nsString country;
+    nsString countryCode;
     nsString postalCode;
 
     // It's not important to us where it fails, but rather if it fails
@@ -117,6 +122,7 @@ struct ParamTraits<GeoPositionAddress>
           ReadParam(aMsg, aIter, &county      ) &&
           ReadParam(aMsg, aIter, &region      ) &&
           ReadParam(aMsg, aIter, &country     ) &&
+          ReadParam(aMsg, aIter, &countryCode ) &&
           ReadParam(aMsg, aIter, &postalCode  ))) return false;
 
     // We now have all the data
@@ -127,6 +133,7 @@ struct ParamTraits<GeoPositionAddress>
                                         county,       /* aCounty       */
                                         region,       /* aRegion       */
                                         country,      /* aCountry      */
+                                        countryCode,  /* aCountryCode  */
                                         postalCode    /* aPostalCode   */
                                        );
     return true;
@@ -279,3 +286,4 @@ struct ParamTraits<GeoPosition>
 }
 
 #endif
+

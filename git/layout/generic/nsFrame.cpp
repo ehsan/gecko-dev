@@ -91,7 +91,6 @@
 #include "nsFrameTraversal.h"
 #include "nsStyleChangeList.h"
 #include "nsIDOMRange.h"
-#include "nsRange.h"
 #include "nsITableLayout.h"    //selection necessity
 #include "nsITableCellLayout.h"//  "
 #include "nsITextControlFrame.h"
@@ -445,7 +444,8 @@ nsFrame::Init(nsIContent*      aContent,
     nsFrameState state = aPrevInFlow->GetStateBits();
 
     // Make bits that are currently off (see constructor) the same:
-    mState |= state & (NS_FRAME_INDEPENDENT_SELECTION |
+    mState |= state & (NS_FRAME_SELECTED_CONTENT |
+                       NS_FRAME_INDEPENDENT_SELECTION |
                        NS_FRAME_IS_SPECIAL |
                        NS_FRAME_MAY_BE_TRANSFORMED);
   }
@@ -568,7 +568,8 @@ nsFrame::DestroyFrom(nsIFrame* aDestructRoot)
 
   shell->NotifyDestroyingFrame(this);
 
-  if (mState & NS_FRAME_EXTERNAL_REFERENCE) {
+  if ((mState & NS_FRAME_EXTERNAL_REFERENCE) ||
+      (mState & NS_FRAME_SELECTED_CONTENT)) {
     shell->ClearFrameRefs(this);
   }
 
@@ -1203,7 +1204,10 @@ nsFrame::DisplaySelectionOverlay(nsDisplayListBuilder*   aBuilder,
                                  nsDisplayList*          aList,
                                  PRUint16                aContentType)
 {
-  if (!IsSelected() || !IsVisibleForPainting(aBuilder))
+//check frame selection state
+  if ((GetStateBits() & NS_FRAME_SELECTED_CONTENT) != NS_FRAME_SELECTED_CONTENT)
+    return NS_OK;
+  if (!IsVisibleForPainting(aBuilder))
     return NS_OK;
     
   nsPresContext* presContext = PresContext();
@@ -1918,7 +1922,7 @@ nsIFrame::BuildDisplayListForChild(nsDisplayListBuilder*   aBuilder,
   if (childType != nsGkAtoms::placeholderFrame &&
       aBuilder->GetSelectedFramesOnly() &&
       child->IsLeaf() &&
-      !aChild->IsSelected()) {
+      !(child->GetStateBits() & NS_FRAME_SELECTED_CONTENT)) {
     return NS_OK;
   }
 
@@ -2489,7 +2493,9 @@ nsFrame::HandlePress(nsPresContext* aPresContext,
   // drag the selected region to some other app.
 
   SelectionDetails *details = 0;
-  if (GetContent()->IsSelectionDescendant())
+  bool isSelected = ((GetStateBits() & NS_FRAME_SELECTED_CONTENT) == NS_FRAME_SELECTED_CONTENT);
+
+  if (isSelected)
   {
     bool inSelection = false;
     details = frameselection->LookUpSelection(offsets.content, 0,
@@ -5193,9 +5199,8 @@ nsIFrame::IsVisibleOrCollapsedForPainting(nsDisplayListBuilder* aBuilder) {
 bool
 nsIFrame::IsVisibleInSelection(nsISelection* aSelection)
 {
-  if (!GetContent() || !GetContent()->IsSelectionDescendant()) {
-    return false;
-  }
+  if ((mState & NS_FRAME_SELECTED_CONTENT) == NS_FRAME_SELECTED_CONTENT)
+    return true;
   
   nsCOMPtr<nsIDOMNode> node(do_QueryInterface(mContent));
   bool vis;
@@ -5251,11 +5256,11 @@ nsIFrame::GetFrameSelection()
 }
 
 const nsFrameSelection*
-nsIFrame::GetConstFrameSelection() const
+nsIFrame::GetConstFrameSelection()
 {
-  nsIFrame* frame = const_cast<nsIFrame*>(this);
+  nsIFrame *frame = this;
   while (frame && (frame->GetStateBits() & NS_FRAME_INDEPENDENT_SELECTION)) {
-    nsITextControlFrame* tcf = do_QueryFrame(frame);
+    nsITextControlFrame *tcf = do_QueryFrame(frame);
     if (tcf) {
       return tcf->GetOwnedFrameSelection();
     }
@@ -5333,13 +5338,39 @@ nsFrame::DumpBaseRegressionData(nsPresContext* aPresContext, FILE* out, PRInt32 
 }
 #endif
 
-bool
-nsIFrame::IsFrameSelected() const
+void
+nsIFrame::SetSelected(bool aSelected, SelectionType aType)
 {
-  NS_ASSERTION(!GetContent() || GetContent()->IsSelectionDescendant(),
-               "use the public IsSelected() instead");
-  return nsRange::IsNodeSelected(GetContent(), 0,
-                                 GetContent()->GetChildCount());
+  NS_ASSERTION(!GetPrevContinuation(),
+               "Should only be called on first in flow");
+  if (aType != nsISelectionController::SELECTION_NORMAL)
+    return;
+
+  // check whether style allows selection
+  bool selectable;
+  IsSelectable(&selectable, nsnull);
+  if (!selectable)
+    return;
+
+  for (nsIFrame* f = this; f; f = f->GetNextContinuation()) {
+    if (aSelected) {
+      AddStateBits(NS_FRAME_SELECTED_CONTENT);
+    } else {
+      RemoveStateBits(NS_FRAME_SELECTED_CONTENT);
+    }
+
+    // Repaint this frame subtree's entire area
+    InvalidateFrameSubtree();
+  }
+}
+
+NS_IMETHODIMP
+nsFrame::GetSelected(bool *aSelected) const
+{
+  if (!aSelected )
+    return NS_ERROR_NULL_POINTER;
+  *aSelected = !!(mState & NS_FRAME_SELECTED_CONTENT);
+  return NS_OK;
 }
 
 NS_IMETHODIMP

@@ -390,6 +390,7 @@ public:
     static jclass jAddressClass;
     static jmethodID jGetAddressLineMethod;
     static jmethodID jGetAdminAreaMethod;
+    static jmethodID jGetCountryCodeMethod;
     static jmethodID jGetCountryNameMethod;
     static jmethodID jGetFeatureNameMethod;
     static jmethodID jGetLocalityMethod;

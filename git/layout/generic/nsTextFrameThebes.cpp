@@ -92,7 +92,6 @@
 #include "nsFrameSelection.h"
 #include "nsISelection.h"
 #include "nsIDOMRange.h"
-#include "nsRange.h"
 #include "nsCSSRendering.h"
 #include "nsContentUtils.h"
 #include "nsLineBreaker.h"
@@ -3690,7 +3689,6 @@ nsTextFrame::Init(nsIContent*      aContent,
 
   // Since our content has a frame now, this flag is no longer needed.
   aContent->UnsetFlags(NS_CREATE_FRAME_IF_NON_WHITESPACE);
-
   // We're not a continuing frame.
   // mContentOffset = 0; not necessary since we get zeroed out at init
   return nsFrame::Init(aContent, aParent, aPrevInFlow);
@@ -4316,9 +4314,6 @@ SelectionDetails*
 nsTextFrame::GetSelectionDetails()
 {
   const nsFrameSelection* frameSelection = GetConstFrameSelection();
-  if (frameSelection->GetTableCellSelection()) {
-    return nsnull;
-  }
   if (!(GetStateBits() & NS_FRAME_GENERATED_CONTENT)) {
     SelectionDetails* details =
       frameSelection->LookUpSelection(mContent, GetContentOffset(),
@@ -4580,7 +4575,7 @@ nsTextFrame::UnionAdditionalOverflow(nsPresContext* aPresContext,
   }
   // When this frame is not selected, the text-decoration area must be in
   // frame bounds.
-  if (!IsSelected() ||
+  if (!(GetStateBits() & NS_FRAME_SELECTED_CONTENT) ||
       !CombineSelectionUnderlineRect(aPresContext, *aVisualOverflowRect))
     return;
   AddStateBits(TEXT_SELECTION_UNDERLINE_OVERFLOWED);
@@ -5030,7 +5025,13 @@ nsTextFrame::PaintTextWithSelectionColors(gfxContext* aCtx,
   *aAllTypes = allTypes;
 
   if (!allTypes) {
-    // Nothing is selected in the given text range. XXX can this still occur?
+    // Nothing is selected in the given text range.
+    if (aContentLength == aProvider.GetOriginalLength()) {
+      // It's the full text range so we can remove the FRAME_SELECTED_CONTENT
+      // bit to avoid going through this slow path until something is selected
+      // in this frame again.
+      RemoveStateBits(NS_FRAME_SELECTED_CONTENT);
+    }
     return false;
   }
 
@@ -5178,10 +5179,14 @@ nsTextFrame::PaintTextWithSelection(gfxContext* aCtx,
     nsTextPaintStyle& aTextPaintStyle,
     const nsCharClipDisplayItem::ClipEdges& aClipEdges)
 {
-  NS_ASSERTION(GetContent()->IsSelectionDescendant(), "wrong paint path");
-
   SelectionDetails* details = GetSelectionDetails();
   if (!details) {
+    if (aContentLength == aProvider.GetOriginalLength()) {
+      // It's the full text range so we can remove the FRAME_SELECTED_CONTENT
+      // bit to avoid going through this slow path until something is selected
+      // in this frame again.
+      RemoveStateBits(NS_FRAME_SELECTED_CONTENT);
+    }
     return false;
   }
 
@@ -5189,7 +5194,8 @@ nsTextFrame::PaintTextWithSelection(gfxContext* aCtx,
   if (!PaintTextWithSelectionColors(aCtx, aFramePt, aTextBaselinePt, aDirtyRect,
                                     aProvider, aContentOffset, aContentLength,
                                     aTextPaintStyle, details, &allTypes,
-                                    aClipEdges)) {
+                                    aClipEdges))
+  {
     DestroySelectionDetails(details);
     return false;
   }
@@ -5406,16 +5412,15 @@ nsTextFrame::PaintText(nsRenderingContext* aRenderingContext, nsPoint aPt,
   gfxRect dirtyRect(aDirtyRect.x, aDirtyRect.y,
                     aDirtyRect.width, aDirtyRect.height);
   // Fork off to the (slower) paint-with-selection path if necessary.
-  if (IsSelected()) {
+  if (nsLayoutUtils::GetNonGeneratedAncestor(this)->GetStateBits() & NS_FRAME_SELECTED_CONTENT) {
     gfxSkipCharsIterator tmp(provider.GetStart());
     PRInt32 contentOffset = tmp.ConvertSkippedToOriginal(startOffset);
     PRInt32 contentLength =
       tmp.ConvertSkippedToOriginal(startOffset + maxLength) - contentOffset;
     if (PaintTextWithSelection(ctx, framePt, textBaselinePt, dirtyRect,
                                provider, contentOffset, contentLength,
-                               textPaintStyle, clipEdges)) {
+                               textPaintStyle, clipEdges))
       return;
-    }
   }
 
   nscolor foregroundColor = textPaintStyle.GetTextColor();
@@ -5605,7 +5610,8 @@ bool
 nsTextFrame::IsVisibleInSelection(nsISelection* aSelection)
 {
   // Check the quick way first
-  if (!GetContent()->IsSelectionDescendant())
+  bool isSelected = (mState & NS_FRAME_SELECTED_CONTENT) == NS_FRAME_SELECTED_CONTENT;
+  if (!isSelected)
     return false;
     
   SelectionDetails* details = GetSelectionDetails();
@@ -5795,17 +5801,17 @@ nsTextFrame::CombineSelectionUnderlineRect(nsPresContext* aPresContext,
   return !aRect.IsEmpty() && !givenRect.Contains(aRect);
 }
 
-bool
-nsTextFrame::IsFrameSelected() const
+void
+nsTextFrame::SetSelected(bool          aSelected,
+                         SelectionType aType)
 {
-  NS_ASSERTION(!GetContent() || GetContent()->IsSelectionDescendant(),
-               "use the public IsSelected() instead");
-  return nsRange::IsNodeSelected(GetContent(), GetContentOffset(),
-                                 GetContentEnd());
+  SetSelectedRange(0, mContent->GetText()->GetLength(), aSelected, aType);
 }
 
 void
-nsTextFrame::SetSelectedRange(PRUint32 aStart, PRUint32 aEnd, bool aSelected,
+nsTextFrame::SetSelectedRange(PRUint32 aStart,
+                              PRUint32 aEnd,
+                              bool aSelected,
                               SelectionType aType)
 {
   NS_ASSERTION(!GetPrevContinuation(), "Should only be called for primary frame");
@@ -5819,18 +5825,35 @@ nsTextFrame::SetSelectedRange(PRUint32 aStart, PRUint32 aEnd, bool aSelected,
     // check whether style allows selection
     bool selectable;
     IsSelectable(&selectable, nsnull);
-    if (!selectable) {
+    if (!selectable)
       return;
-    }
   }
+
+  bool anySelected = false;
 
   nsTextFrame* f = this;
   while (f && f->GetContentEnd() <= PRInt32(aStart)) {
+    if (f->GetStateBits() & NS_FRAME_SELECTED_CONTENT) {
+      anySelected = true;
+    }
     f = static_cast<nsTextFrame*>(f->GetNextContinuation());
   }
 
   nsPresContext* presContext = PresContext();
   while (f && f->GetContentOffset() < PRInt32(aEnd)) {
+    if (aSelected) {
+      f->AddStateBits(NS_FRAME_SELECTED_CONTENT);
+      anySelected = true;
+    } else { // we need to see if any other selection is available.
+      SelectionDetails *details = f->GetSelectionDetails();
+      if (details) {
+        anySelected = true;
+        DestroySelectionDetails(details);
+      } else {
+        f->RemoveStateBits(NS_FRAME_SELECTED_CONTENT);
+      }
+    }
+
     // We may need to reflow to recompute the overflow area for
     // spellchecking or IME underline if their underline is thicker than
     // the normal decoration line.
@@ -5850,6 +5873,22 @@ nsTextFrame::SetSelectedRange(PRUint32 aStart, PRUint32 aEnd, bool aSelected,
     f->InvalidateOverflowRect();
 
     f = static_cast<nsTextFrame*>(f->GetNextContinuation());
+  }
+
+  // Scan remaining continuations to see if any are selected
+  while (f && !anySelected) {
+    if (f->GetStateBits() & NS_FRAME_SELECTED_CONTENT) {
+      anySelected = true;
+    }
+    f = static_cast<nsTextFrame*>(f->GetNextContinuation());
+  }
+
+  if (anySelected) {
+    mContent->SetFlags(NS_TEXT_IN_SELECTION);
+  } else {
+    // This is only legal because there is only one presentation for the
+    // content with a selection
+    mContent->UnsetFlags(NS_TEXT_IN_SELECTION);
   }
 }
 
@@ -7584,6 +7623,16 @@ nsTextFrame::ReflowText(nsLineLayout& aLineLayout, nscoord aAvailableWidth,
 
   SetLength(contentLength, &aLineLayout, ALLOW_FRAME_CREATION_AND_DESTRUCTION);
 
+  if (mContent->HasFlag(NS_TEXT_IN_SELECTION)) {
+    SelectionDetails* details = GetSelectionDetails();
+    if (details) {
+      AddStateBits(NS_FRAME_SELECTED_CONTENT);
+      DestroySelectionDetails(details);
+    } else {
+      RemoveStateBits(NS_FRAME_SELECTED_CONTENT);
+    }
+  }
+
   Invalidate(aMetrics.VisualOverflow());
 
 #ifdef NOISY_REFLOW
@@ -7947,9 +7996,12 @@ nsTextFrame::List(FILE* out, PRInt32 aIndent) const
 
   // Output the rect and state
   fprintf(out, " {%d,%d,%d,%d}", mRect.x, mRect.y, mRect.width, mRect.height);
-  fprintf(out, " [state=%016llx]", mState);
-  if (IsSelected()) {
-    fprintf(out, " SELECTED");
+  if (0 != mState) {
+    if (mState & NS_FRAME_SELECTED_CONTENT) {
+      fprintf(out, " [state=%016llx] SELECTED", mState);
+    } else {
+      fprintf(out, " [state=%016llx]", mState);
+    }
   }
   fprintf(out, " [content=%p]", static_cast<void*>(mContent));
   if (HasOverflowAreas()) {

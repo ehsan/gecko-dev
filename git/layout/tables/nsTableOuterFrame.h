@@ -159,6 +159,11 @@ public:
   NS_IMETHOD GetFrameName(nsAString& aResult) const;
 #endif
 
+  /** SetSelected needs to be overridden to talk to inner tableframe
+   */
+  void SetSelected(bool aSelected,
+                   SelectionType aType);
+
   virtual nsIFrame* GetParentStyleContextFrame();
 
   /*---------------- nsITableLayout methods ------------------------*/

@@ -801,7 +801,9 @@ NoteJSChild(JSTracer *trc, void *thing, JSGCTraceKind kind)
 #endif
         tracer->cb.NoteScriptChild(nsIProgrammingLanguage::JAVASCRIPT, thing);
     } else if (kind == JSTRACE_SHAPE) {
-        JS_TraceShapeCycleCollectorChildren(trc, thing);
+        do {
+            thing = JS_TraceShapeChildrenAcyclic(trc, thing);
+        } while (thing);
     } else if (kind != JSTRACE_STRING) {
         JS_TraceChildren(trc, thing, kind);
     }

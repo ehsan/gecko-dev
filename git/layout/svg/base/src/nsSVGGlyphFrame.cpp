@@ -271,6 +271,42 @@ nsSVGGlyphFrame::DidSetStyleContext(nsStyleContext* aOldStyleContext)
   }
 }
 
+void
+nsSVGGlyphFrame::SetSelected(bool          aSelected,
+                             SelectionType aType)
+{
+#if defined(DEBUG) && defined(SVG_DEBUG_SELECTION)
+  printf("nsSVGGlyphFrame(%p)::SetSelected()\n", this);
+#endif
+
+  if (aType != nsISelectionController::SELECTION_NORMAL)
+    return;
+
+  // check whether style allows selection
+  bool selectable;
+  IsSelectable(&selectable, nsnull);
+  if (!selectable)
+    return;
+
+  if (aSelected) {
+    AddStateBits(NS_FRAME_SELECTED_CONTENT);
+  } else {
+    RemoveStateBits(NS_FRAME_SELECTED_CONTENT);
+  }
+
+  nsSVGUtils::UpdateGraphic(this);
+}
+
+NS_IMETHODIMP
+nsSVGGlyphFrame::GetSelected(bool *aSelected) const
+{
+  nsresult rv = nsSVGGlyphFrameBase::GetSelected(aSelected);
+#if defined(DEBUG) && defined(SVG_DEBUG_SELECTION)
+  printf("nsSVGGlyphFrame(%p)::GetSelected()=%d\n", this, *aSelected);
+#endif
+  return rv;
+}
+
 NS_IMETHODIMP
 nsSVGGlyphFrame::IsSelectable(bool* aIsSelectable,
                               PRUint8* aSelectStyle) const
@@ -948,7 +984,9 @@ nsSVGGlyphFrame::GetHighlight(PRUint32 *charnum, PRUint32 *nchars,
   *charnum=0;
   *nchars=0;
 
-  bool hasHighlight = IsSelected();
+  bool hasHighlight =
+    (mState & NS_FRAME_SELECTED_CONTENT) == NS_FRAME_SELECTED_CONTENT;
+
   if (!hasHighlight) {
     NS_ERROR("nsSVGGlyphFrame::GetHighlight() called by renderer when there is no highlight");
     return NS_ERROR_FAILURE;

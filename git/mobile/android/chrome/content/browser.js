@@ -119,12 +119,6 @@ XPCOMUtils.defineLazyServiceGetter(this, "CrashReporter",
   "@mozilla.org/xre/app-info;1", "nsICrashReporter");
 #endif
 
-XPCOMUtils.defineLazyGetter(this, "ContentAreaUtils", function() {
-  let ContentAreaUtils = {};
-  Services.scriptloader.loadSubScript("chrome://global/content/contentAreaUtils.js", ContentAreaUtils);
-  return ContentAreaUtils;
-});
-
 function resolveGeckoURI(aURI) {
   if (aURI.indexOf("chrome://") == 0) {
     let registry = Cc['@mozilla.org/chrome/chrome-registry;1'].getService(Ci["nsIChromeRegistry"]);
@@ -411,6 +405,8 @@ var BrowserApp = {
 
   saveAsPDF: function saveAsPDF(aBrowser) {
     // Create the final destination file location
+    let ContentAreaUtils = {};
+    Services.scriptloader.loadSubScript("chrome://global/content/contentAreaUtils.js", ContentAreaUtils);
     let fileName = ContentAreaUtils.getDefaultFileName(aBrowser.contentTitle, aBrowser.documentURI, null, null);
     fileName = fileName.trim() + ".pdf";
 
@@ -582,21 +578,22 @@ var BrowserApp = {
     });
   },
 
-  getSearchOrFixupURI: function(aParams) {
+  getSearchOrFixupURI: function(aData) {
+    let args = JSON.parse(aData);
     let uri;
-    if (aParams.engine) {
+    if (args.engine) {
       let engine;
-      if (aParams.engine == "__default__")
+      if (args.engine == "__default__")
         engine = Services.search.currentEngine || Services.search.defaultEngine;
       else
-        engine = Services.search.getEngineByName(aParams.engine);
+        engine = Services.search.getEngineByName(args.engine);
 
       if (engine)
-        uri = engine.getSubmission(aParams.url).uri;
+        uri = engine.getSubmission(args.url).uri;
     } else {
-      uri = URIFixup.createFixupURI(aParams.url, Ci.nsIURIFixup.FIXUP_FLAG_ALLOW_KEYWORD_LOOKUP);
+      uri = URIFixup.createFixupURI(args.url, Ci.nsIURIFixup.FIXUP_FLAG_ALLOW_KEYWORD_LOOKUP);
     }
-    return uri ? uri.spec : aParams.url;
+    return uri ? uri.spec : args.url;
   },
 
   scrollToFocusedInput: function(aBrowser) {
@@ -628,17 +625,14 @@ var BrowserApp = {
     } else if (aTopic == "Session:Stop") {
       browser.stop();
     } else if (aTopic == "Tab:Add" || aTopic == "Tab:Load") {
-      let data = JSON.parse(aData);
-
       // Pass LOAD_FLAGS_DISALLOW_INHERIT_OWNER to prevent any loads from
       // inheriting the currently loaded document's principal.
       let params = {
         selected: true,
-        parentId: ("parentId" in data) ? data.parentId : -1,
         flags: Ci.nsIWebNavigation.LOAD_FLAGS_DISALLOW_INHERIT_OWNER
       };
 
-      let url = this.getSearchOrFixupURI(data);
+      let url = this.getSearchOrFixupURI(aData);
       if (aTopic == "Tab:Add")
         this.addTab(url, params);
       else
@@ -800,8 +794,6 @@ var NativeWindow = {
     init: function() {
       this.textContext = this.SelectorContext("input[type='text'],input[type='password'],textarea");
       this.linkContext = this.SelectorContext("a:not([href='']),area:not([href='']),link");
-      this.imageContext = this.SelectorContext("img");
-
       Services.obs.addObserver(this, "Gesture:LongPress", false);
 
       // TODO: These should eventually move into more appropriate classes
@@ -809,28 +801,13 @@ var NativeWindow = {
                this.linkContext,
                function(aTarget) {
                  let url = NativeWindow.contextmenus._getLinkURL(aTarget);
-                 BrowserApp.addTab(url, { selected: false, parentId: BrowserApp.selectedTab.id });
+                 BrowserApp.addTab(url, { selected: false });
                });
 
       this.add(Strings.browser.GetStringFromName("contextmenu.fullScreen"),
                this.SelectorContext("video:not(:-moz-full-screen)"),
                function(aTarget) {
                  aTarget.mozRequestFullScreen();
-               });
-
-      this.add(Strings.browser.GetStringFromName("contextmenu.saveImage"),
-               this.imageContext,
-               function(aTarget) {
-                 let imageCache = Cc["@mozilla.org/image/cache;1"].getService(Ci.imgICache);
-                 let props = imageCache.findEntryProperties(aTarget.currentURI, aTarget.ownerDocument.characterSet);
-                 var contentDisposition = "";
-                 var type = "";
-                 try {
-                    String(props.get("content-disposition", Ci.nsISupportsCString));
-                    String(props.get("type", Ci.nsISupportsCString));
-                 } catch(ex) { }
-                 var browser = BrowserApp.getBrowserForDocument(aTarget.ownerDocument);
-                 ContentAreaUtils.internalSave(aTarget.currentURI.spec, null, null, contentDisposition, type, false, "SaveImageTitle", null, browser.documentURI, true, null);
                });
     },
 
@@ -1002,71 +979,33 @@ function nsBrowserAccess() {
 }
 
 nsBrowserAccess.prototype = {
-  QueryInterface: XPCOMUtils.generateQI([Ci.nsIBrowserDOMWindow]),
-
-  _getBrowser: function _getBrowser(aURI, aOpener, aWhere, aContext) {
-    let isExternal = (aContext == Ci.nsIBrowserDOMWindow.OPEN_EXTERNAL);
-    if (isExternal && aURI && aURI.schemeIs("chrome"))
-      return null;
-
-    let loadflags = isExternal ?
-                      Ci.nsIWebNavigation.LOAD_FLAGS_FROM_EXTERNAL :
-                      Ci.nsIWebNavigation.LOAD_FLAGS_NONE;
-    if (aWhere == Ci.nsIBrowserDOMWindow.OPEN_DEFAULTWINDOW) {
-      switch (aContext) {
-        case Ci.nsIBrowserDOMWindow.OPEN_EXTERNAL:
-          aWhere = Services.prefs.getIntPref("browser.link.open_external");
-          break;
-        default: // OPEN_NEW or an illegal value
-          aWhere = Services.prefs.getIntPref("browser.link.open_newwindow");
-      }
-    }
-
-    let newTab = (aWhere == Ci.nsIBrowserDOMWindow.OPEN_NEWWINDOW || aWhere == Ci.nsIBrowserDOMWindow.OPEN_NEWTAB);
-
-    let parentId = -1;
-    if (newTab && !isExternal) {
-      let parent = BrowserApp.getTabForBrowser(BrowserApp.getBrowserForWindow(aOpener));
-      if (parent)
-        parentId = parent.id;
-    }
-
-    let browser;
-    if (newTab) {
-      let tab = BrowserApp.addTab("about:blank", { external: isExternal, parentId: parentId, selected: true });
-      browser = tab.browser;
-    } else { // OPEN_CURRENTWINDOW and illegal values
-      browser = BrowserApp.selectedBrowser;
-    }
-
-    Services.io.offline = false;
-    try {
-      let referrer;
-      if (aURI && browser) {
-        if (aOpener) {
-          let location = aOpener.location;
-          referrer = Services.io.newURI(location, null, null);
-        }
-        browser.loadURIWithFlags(aURI.spec, loadflags, referrer, null, null);
-      }
-    } catch(e) { }
-
-    return browser;
-  },
-
   openURI: function browser_openURI(aURI, aOpener, aWhere, aContext) {
-    let browser = this._getBrowser(aURI, aOpener, aWhere, aContext);
-    return browser ? browser.QueryInterface(Ci.nsIFrameLoaderOwner) : null;
+    let isExternal = (aContext == Ci.nsIBrowserDOMWindow.OPEN_EXTERNAL);
+
+    dump("nsBrowserAccess::openURI");
+    let browser = BrowserApp.selectedBrowser;
+    if (!browser || isExternal) {
+      let tab = BrowserApp.addTab("about:blank");
+      BrowserApp.selectTab(tab);
+      browser = tab.browser;
+    }
+
+    // Why does returning the browser.contentWindow not work here?
+    Services.io.offline = false;
+    BrowserApp.loadURI(aURI.spec, browser);
+    return null;
   },
 
   openURIInFrame: function browser_openURIInFrame(aURI, aOpener, aWhere, aContext) {
-    let browser = this._getBrowser(aURI, aOpener, aWhere, aContext);
-    return browser ? browser.QueryInterface(Ci.nsIFrameLoaderOwner) : null;
+    dump("nsBrowserAccess::openURIInFrame");
+    return null;
   },
 
   isTabContentWindow: function(aWindow) {
     return BrowserApp.getBrowserForWindow(aWindow) != null;
-  }
+  },
+
+  QueryInterface: XPCOMUtils.generateQI([Ci.nsIBrowserDOMWindow])
 };
 
 
@@ -1088,7 +1027,7 @@ function Tab(aURL, aParams) {
   this.create(aURL, aParams);
   this._metadata = null;
   this._viewport = { x: 0, y: 0, width: gScreenWidth, height: gScreenHeight, offsetX: 0, offsetY: 0,
-                     pageWidth: gScreenWidth, pageHeight: gScreenHeight, zoom: 1.0 };
+                     pageWidth: 1, pageHeight: 1, zoom: 1.0 };
   this.viewportExcess = { x: 0, y: 0 };
   this.userScrollPos = { x: 0, y: 0 };
   this._pluginsToPlay = [];
@@ -1125,8 +1064,6 @@ Tab.prototype = {
         type: "Tab:Added",
         tabID: this.id,
         uri: aURL,
-        parentId: ("parentId" in aParams) ? aParams.parentId : -1,
-        external: ("external" in aParams) ? aParams.external : false,
         selected: ("selected" in aParams) ? aParams.selected : true
       }
     };
@@ -1330,7 +1267,7 @@ Tab.prototype = {
     this.viewport = { x: xpos, y: ypos,
                       offsetX: 0, offsetY: 0,
                       width: this._viewport.width, height: this._viewport.height,
-                      pageWidth: gScreenWidth, pageHeight: gScreenHeight,
+                      pageWidth: 1, pageHeight: 1,
                       zoom: zoom };
     this.sendViewportUpdate();
   },
@@ -3207,16 +3144,16 @@ var ClipboardHelper = {
 
 var PluginHelper = {
   showDoorHanger: function(aTab) {
-    let message = Strings.browser.GetStringFromName("clickToPlayPlugins.message");
+    let message = Strings.browser.GetStringFromName("clickToPlayFlash.message");
     let buttons = [
       {
-        label: Strings.browser.GetStringFromName("clickToPlayPlugins.yes"),
+        label: Strings.browser.GetStringFromName("clickToPlayFlash.yes"),
         callback: function() {
           PluginHelper.playAllPlugins(aTab);
         }
       },
       {
-        label: Strings.browser.GetStringFromName("clickToPlayPlugins.no"),
+        label: Strings.browser.GetStringFromName("clickToPlayFlash.no"),
         callback: function() {
           // Do nothing
         }

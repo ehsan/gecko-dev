@@ -100,7 +100,12 @@ function openUILink( url, e, ignoreButton, ignoreAlt, allowKeywordFixup, postDat
  * Ctrl+Shift  new tab, in background
  * Alt         save
  *
- * Middle-clicking is the same as Ctrl+clicking (it opens a new tab).
+ * You can swap Ctrl and Ctrl+shift by toggling the hidden pref
+ * browser.tabs.loadBookmarksInBackground (not browser.tabs.loadInBackground, which
+ * is for content area links).
+ *
+ * Middle-clicking is the same as Ctrl+clicking (it opens a new tab) and it is
+ * subject to the shift modifier and pref in the same way.
  *
  * Exceptions: 
  * - Alt is ignored for menu items selected using the keyboard so you don't accidentally save stuff.  
@@ -241,10 +246,10 @@ function openLinkIn(url, where, params) {
     return;
   }
 
-  let loadInBackground = where == "current" ? false : aInBackground;
+  let loadInBackground = aInBackground;
   if (loadInBackground == null) {
     loadInBackground = aFromChrome ?
-                         false :
+                         getBoolPref("browser.tabs.loadBookmarksInBackground") :
                          getBoolPref("browser.tabs.loadInBackground");
   }
 
@@ -298,9 +303,6 @@ function openLinkIn(url, where, params) {
     w.content.focus();
   else
     w.gBrowser.selectedBrowser.focus();
-
-  if (!loadInBackground && url == "about:blank")
-    w.focusAndSelectUrlBar();
 }
 
 // Used as an onclick handler for UI elements with link-like behavior.
