@@ -550,12 +550,12 @@ JSClass ThreadLocalJSRuntime::sGlobalClass = {
 
 inline
 already_AddRefed<IDBRequest>
-GenerateRequest(IDBObjectStore* aObjectStore, JSContext* aCx)
+GenerateRequest(IDBObjectStore* aObjectStore)
 {
   NS_ASSERTION(NS_IsMainThread(), "Wrong thread!");
   IDBDatabase* database = aObjectStore->Transaction()->Database();
   return IDBRequest::Create(aObjectStore, database,
-                            aObjectStore->Transaction(), aCx);
+                            aObjectStore->Transaction());
 }
 
 struct GetAddInfoClosure
@@ -1432,7 +1432,7 @@ IDBObjectStore::AddOrPut(const jsval& aValue,
     return rv;
   }
 
-  nsRefPtr<IDBRequest> request = GenerateRequest(this, aCx);
+  nsRefPtr<IDBRequest> request = GenerateRequest(this);
   NS_ENSURE_TRUE(request, NS_ERROR_DOM_INDEXEDDB_UNKNOWN_ERR);
 
   nsRefPtr<AddHelper> helper =
@@ -1465,7 +1465,7 @@ IDBObjectStore::AddOrPutInternal(
     return NS_ERROR_DOM_INDEXEDDB_READ_ONLY_ERR;
   }
 
-  nsRefPtr<IDBRequest> request = GenerateRequest(this, nsnull);
+  nsRefPtr<IDBRequest> request = GenerateRequest(this);
   NS_ENSURE_TRUE(request, NS_ERROR_DOM_INDEXEDDB_UNKNOWN_ERR);
 
   StructuredCloneWriteInfo cloneWriteInfo;
@@ -1491,7 +1491,6 @@ IDBObjectStore::AddOrPutInternal(
 
 nsresult
 IDBObjectStore::GetInternal(IDBKeyRange* aKeyRange,
-                            JSContext* aCx,
                             IDBRequest** _retval)
 {
   NS_ASSERTION(NS_IsMainThread(), "Wrong thread!");
@@ -1501,7 +1500,7 @@ IDBObjectStore::GetInternal(IDBKeyRange* aKeyRange,
     return NS_ERROR_DOM_INDEXEDDB_TRANSACTION_INACTIVE_ERR;
   }
 
-  nsRefPtr<IDBRequest> request = GenerateRequest(this, aCx);
+  nsRefPtr<IDBRequest> request = GenerateRequest(this);
   NS_ENSURE_TRUE(request, NS_ERROR_DOM_INDEXEDDB_UNKNOWN_ERR);
 
   nsRefPtr<GetHelper> helper =
@@ -1517,7 +1516,6 @@ IDBObjectStore::GetInternal(IDBKeyRange* aKeyRange,
 nsresult
 IDBObjectStore::GetAllInternal(IDBKeyRange* aKeyRange,
                                PRUint32 aLimit,
-                               JSContext* aCx,
                                IDBRequest** _retval)
 {
   NS_ASSERTION(NS_IsMainThread(), "Wrong thread!");
@@ -1526,7 +1524,7 @@ IDBObjectStore::GetAllInternal(IDBKeyRange* aKeyRange,
     return NS_ERROR_DOM_INDEXEDDB_TRANSACTION_INACTIVE_ERR;
   }
 
-  nsRefPtr<IDBRequest> request = GenerateRequest(this, aCx);
+  nsRefPtr<IDBRequest> request = GenerateRequest(this);
   NS_ENSURE_TRUE(request, NS_ERROR_DOM_INDEXEDDB_UNKNOWN_ERR);
 
   nsRefPtr<GetAllHelper> helper =
@@ -1541,7 +1539,6 @@ IDBObjectStore::GetAllInternal(IDBKeyRange* aKeyRange,
 
 nsresult
 IDBObjectStore::DeleteInternal(IDBKeyRange* aKeyRange,
-                               JSContext* aCx,
                                IDBRequest** _retval)
 {
   NS_ASSERTION(NS_IsMainThread(), "Wrong thread!");
@@ -1555,7 +1552,7 @@ IDBObjectStore::DeleteInternal(IDBKeyRange* aKeyRange,
     return NS_ERROR_DOM_INDEXEDDB_READ_ONLY_ERR;
   }
 
-  nsRefPtr<IDBRequest> request = GenerateRequest(this, aCx);
+  nsRefPtr<IDBRequest> request = GenerateRequest(this);
   NS_ENSURE_TRUE(request, NS_ERROR_DOM_INDEXEDDB_UNKNOWN_ERR);
 
   nsRefPtr<DeleteHelper> helper =
@@ -1569,8 +1566,7 @@ IDBObjectStore::DeleteInternal(IDBKeyRange* aKeyRange,
 }
 
 nsresult
-IDBObjectStore::ClearInternal(JSContext* aCx,
-                              IDBRequest** _retval)
+IDBObjectStore::ClearInternal(IDBRequest** _retval)
 {
   NS_ASSERTION(NS_IsMainThread(), "Wrong thread!");
 
@@ -1582,7 +1578,7 @@ IDBObjectStore::ClearInternal(JSContext* aCx,
     return NS_ERROR_DOM_INDEXEDDB_READ_ONLY_ERR;
   }
 
-  nsRefPtr<IDBRequest> request = GenerateRequest(this, aCx);
+  nsRefPtr<IDBRequest> request = GenerateRequest(this);
   NS_ENSURE_TRUE(request, NS_ERROR_DOM_INDEXEDDB_UNKNOWN_ERR);
 
   nsRefPtr<ClearHelper> helper(new ClearHelper(mTransaction, request, this));
@@ -1596,7 +1592,6 @@ IDBObjectStore::ClearInternal(JSContext* aCx,
 
 nsresult
 IDBObjectStore::CountInternal(IDBKeyRange* aKeyRange,
-                              JSContext* aCx,
                               IDBRequest** _retval)
 {
   NS_ASSERTION(NS_IsMainThread(), "Wrong thread!");
@@ -1605,7 +1600,7 @@ IDBObjectStore::CountInternal(IDBKeyRange* aKeyRange,
     return NS_ERROR_DOM_INDEXEDDB_TRANSACTION_INACTIVE_ERR;
   }
 
-  nsRefPtr<IDBRequest> request = GenerateRequest(this, aCx);
+  nsRefPtr<IDBRequest> request = GenerateRequest(this);
   NS_ENSURE_TRUE(request, NS_ERROR_DOM_INDEXEDDB_UNKNOWN_ERR);
 
   nsRefPtr<CountHelper> helper =
@@ -1620,7 +1615,6 @@ IDBObjectStore::CountInternal(IDBKeyRange* aKeyRange,
 nsresult
 IDBObjectStore::OpenCursorInternal(IDBKeyRange* aKeyRange,
                                    size_t aDirection,
-                                   JSContext* aCx,
                                    IDBRequest** _retval)
 {
   NS_ASSERTION(NS_IsMainThread(), "Wrong thread!");
@@ -1632,7 +1626,7 @@ IDBObjectStore::OpenCursorInternal(IDBKeyRange* aKeyRange,
   IDBCursor::Direction direction =
     static_cast<IDBCursor::Direction>(aDirection);
 
-  nsRefPtr<IDBRequest> request = GenerateRequest(this, aCx);
+  nsRefPtr<IDBRequest> request = GenerateRequest(this);
   NS_ENSURE_TRUE(request, NS_ERROR_DOM_INDEXEDDB_UNKNOWN_ERR);
 
   nsRefPtr<OpenCursorHelper> helper =
@@ -1677,15 +1671,6 @@ IDBObjectStore::OpenCursorFromChildProcess(
 
   cursor.forget(_retval);
   return NS_OK;
-}
-
-void
-IDBObjectStore::SetInfo(ObjectStoreInfo* aInfo)
-{
-  NS_ASSERTION(NS_IsMainThread(), "Wrong thread");
-  NS_ASSERTION(aInfo != mInfo, "This is nonsense");
-
-  mInfo = aInfo;
 }
 
 nsresult
@@ -1868,16 +1853,9 @@ IDBObjectStore::GetIndexNames(nsIDOMDOMStringList** aIndexNames)
 
   nsRefPtr<nsDOMStringList> list(new nsDOMStringList());
 
-  nsAutoTArray<nsString, 10> names;
   PRUint32 count = mInfo->indexes.Length();
-  names.SetCapacity(count);
-
   for (PRUint32 index = 0; index < count; index++) {
-    names.InsertElementSorted(mInfo->indexes[index].name);
-  }
-
-  for (PRUint32 index = 0; index < count; index++) {
-    NS_ENSURE_TRUE(list->Add(names[index]),
+    NS_ENSURE_TRUE(list->Add(mInfo->indexes[index].name),
                    NS_ERROR_DOM_INDEXEDDB_UNKNOWN_ERR);
   }
 
@@ -1906,7 +1884,7 @@ IDBObjectStore::Get(const jsval& aKey,
   }
 
   nsRefPtr<IDBRequest> request;
-  rv = GetInternal(keyRange, aCx, getter_AddRefs(request));
+  rv = GetInternal(keyRange, getter_AddRefs(request));
   if (NS_FAILED(rv)) {
     return rv;
   }
@@ -1941,7 +1919,7 @@ IDBObjectStore::GetAll(const jsval& aKey,
   }
 
   nsRefPtr<IDBRequest> request;
-  rv = GetAllInternal(keyRange, aLimit, aCx, getter_AddRefs(request));
+  rv = GetAllInternal(keyRange, aLimit, getter_AddRefs(request));
   if (NS_FAILED(rv)) {
     return rv;
   }
@@ -2017,7 +1995,7 @@ IDBObjectStore::Delete(const jsval& aKey,
   }
 
   nsRefPtr<IDBRequest> request;
-  rv = DeleteInternal(keyRange, aCx, getter_AddRefs(request));
+  rv = DeleteInternal(keyRange, getter_AddRefs(request));
   if (NS_FAILED(rv)) {
     return rv;
   }
@@ -2027,12 +2005,12 @@ IDBObjectStore::Delete(const jsval& aKey,
 }
 
 NS_IMETHODIMP
-IDBObjectStore::Clear(JSContext* aCx, nsIIDBRequest** _retval)
+IDBObjectStore::Clear(nsIIDBRequest** _retval)
 {
   NS_ASSERTION(NS_IsMainThread(), "Wrong thread!");
 
   nsRefPtr<IDBRequest> request;
-  nsresult rv = ClearInternal(aCx, getter_AddRefs(request));
+  nsresult rv = ClearInternal(getter_AddRefs(request));
   if (NS_FAILED(rv)) {
     return rv;
   }
@@ -2072,8 +2050,7 @@ IDBObjectStore::OpenCursor(const jsval& aKey,
   size_t argDirection = static_cast<size_t>(direction);
 
   nsRefPtr<IDBRequest> request;
-  rv = OpenCursorInternal(keyRange, argDirection, aCx,
-                          getter_AddRefs(request));
+  rv = OpenCursorInternal(keyRange, argDirection, getter_AddRefs(request));
   if (NS_FAILED(rv)) {
     return rv;
   }
@@ -2252,7 +2229,7 @@ IDBObjectStore::Count(const jsval& aKey,
   }
 
   nsRefPtr<IDBRequest> request;
-  rv = CountInternal(keyRange, aCx, getter_AddRefs(request));
+  rv = CountInternal(keyRange, getter_AddRefs(request));
   if (NS_FAILED(rv)) {
     return rv;
   }
@@ -2357,7 +2334,7 @@ void
 NoRequestObjectStoreHelper::OnError()
 {
   NS_ASSERTION(IndexedDatabaseManager::IsMainProcess(), "Wrong process!");
-  mTransaction->Abort(GetResultCode());
+  mTransaction->AbortWithCode(GetResultCode());
 }
 
 nsresult

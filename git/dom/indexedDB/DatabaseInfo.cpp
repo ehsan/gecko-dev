@@ -24,7 +24,7 @@ EnumerateObjectStoreNames(const nsAString& aKey,
                           void* aUserArg)
 {
   nsTArray<nsString>* array = static_cast<nsTArray<nsString>*>(aUserArg);
-  if (!array->InsertElementSorted(aData->name)) {
+  if (!array->AppendElement(aData->name)) {
     NS_ERROR("Out of memory?");
     return PL_DHASH_STOP;
   }
@@ -273,6 +273,8 @@ DatabaseInfo::RemoveObjectStore(const nsAString& aName)
 already_AddRefed<DatabaseInfo>
 DatabaseInfo::Clone()
 {
+  NS_ASSERTION(!cloned, "Should never clone a clone!");
+
   nsRefPtr<DatabaseInfo> dbInfo(new DatabaseInfo());
 
   dbInfo->cloned = true;

@@ -1636,11 +1636,7 @@ OpenDatabaseHelper::DoDatabaseWork()
   nsCOMPtr<mozIStorageConnection> connection;
   rv = CreateDatabaseConnection(mName, dbFile, fileManagerDirectory,
                                 getter_AddRefs(connection));
-  if (NS_FAILED(rv) &&
-      NS_ERROR_GET_MODULE(rv) != NS_ERROR_MODULE_DOM_INDEXEDDB) {
-    rv = NS_ERROR_DOM_INDEXEDDB_UNKNOWN_ERR;
-  }
-  NS_ENSURE_SUCCESS(rv, rv);
+  NS_ENSURE_SUCCESS(rv, NS_ERROR_DOM_INDEXEDDB_UNKNOWN_ERR);
 
   rv = IDBFactory::LoadDatabaseInformation(connection, mDatabaseId,
                                            &mCurrentVersion, mObjectStores);
@@ -1841,12 +1837,7 @@ OpenDatabaseHelper::CreateDatabaseConnection(
       NS_ASSERTION(schemaVersion == kSQLiteSchemaVersion, "Huh?!");
     }
 
-    rv = transaction.Commit();    
-    if (rv == NS_ERROR_FILE_NO_DEVICE_SPACE) {
-      // mozstorage translates SQLITE_FULL to NS_ERROR_FILE_NO_DEVICE_SPACE,
-      // which we know better as NS_ERROR_DOM_INDEXEDDB_QUOTA_ERR.
-      rv = NS_ERROR_DOM_INDEXEDDB_QUOTA_ERR;
-    }
+    rv = transaction.Commit();
     NS_ENSURE_SUCCESS(rv, rv);
   }
 

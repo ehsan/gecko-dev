@@ -55,7 +55,6 @@ DOMWifiManager.prototype = {
                       "WifiManager:getNetworks:Return:OK", "WifiManager:getNetworks:Return:NO",
                       "WifiManager:associate:Return:OK", "WifiManager:associate:Return:NO",
                       "WifiManager:forget:Return:OK", "WifiManager:forget:Return:NO",
-                      "WifiManager:wifiDown", "WifiManager:wifiUp",
                       "WifiManager:onconnecting", "WifiManager:onassociate",
                       "WifiManager:onconnect", "WifiManager:ondisconnect",
                       "WifiManager:connectionInfoUpdate"];
@@ -77,10 +76,11 @@ DOMWifiManager.prototype = {
   },
 
   uninit: function() {
-    this._onStatusChange = null;
+    this._onConnecting = null;
+    this._onAssociate = null;
+    this._onConnect = null;
+    this._onDisconnect = null;
     this._onConnectionInfoUpdate = null;
-    this._onEnabled = null;
-    this._onDisabled = null;
   },
 
   _sendMessageForRequest: function(name, data, request) {
@@ -138,17 +138,6 @@ DOMWifiManager.prototype = {
         Services.DOMRequest.fireError(request, msg.data);
         break;
 
-      case "WifiManager:wifiDown":
-        this._enabled = false;
-        this._currentNetwork = null;
-        this._fireEnabledOrDisabled(false);
-        break;
-
-      case "WifiManager:wifiUp":
-        this._enabled = true;
-        this._fireEnabledOrDisabled(true);
-        break;
-
       case "WifiManager:onconnecting":
         this._currentNetwork = msg.network;
         this._connectionStatus = "connecting";
@@ -202,14 +191,6 @@ DOMWifiManager.prototype = {
                                                               linkSpeed: info.linkSpeed
                                                             });
       this._onConnectionInfoUpdate.handleEvent(evt);
-    }
-  },
-
-  _fireEnabledOrDisabled: function enabledDisabled(enabled) {
-    var handler = enabled ? this._onEnabled : this._onDisabled;
-    if (handler) {
-      var evt = new this._window.Event("WifiEnabled");
-      handler.handleEvent(evt);
     }
   },
 
@@ -274,18 +255,6 @@ DOMWifiManager.prototype = {
     if (!this._hasPrivileges)
       throw new Components.Exception("Denied", Cr.NS_ERROR_FAILURE);
     this._onConnectionInfoUpdate = callback;
-  },
-
-  set onenabled(callback) {
-    if (!this._hasPrivileges)
-      throw new Components.Exception("Denied", Cr.NS_ERROR_FAILURE);
-    this._onEnabled = callback;
-  },
-
-  set ondisabled(callback) {
-    if (!this._hasPrivileges)
-      throw new Components.Exception("Denied", Cr.NS_ERROR_FAILURE);
-    this._onDisabled = callback;
   }
 };
 
