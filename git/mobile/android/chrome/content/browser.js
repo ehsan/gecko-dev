@@ -4012,8 +4012,7 @@ Tab.prototype = {
             type: "Link:Favicon",
             tabID: this.id,
             href: resolveGeckoURI(target.href),
-            size: maxSize,
-            mime: target.getAttribute("type") || ""
+            size: maxSize
           };
           Messaging.sendRequest(json);
         } else if (list.indexOf("[alternate]") != -1 && aEvent.type == "DOMLinkAdded") {
@@ -4226,7 +4225,7 @@ Tab.prototype = {
           return;
 
         // Once document is fully loaded, parse it
-        Reader.parseDocumentFromTab(this, function (article) {
+        Reader.parseDocumentFromTab(this.id, function (article) {
           // The loaded page may have changed while we were parsing the document. 
           // Make sure we've got the current one.
           let uri = this.browser.currentURI;
@@ -6037,7 +6036,8 @@ var XPInstallObserver = {
         break;
       case "addon-install-blocked":
         let installInfo = aSubject.QueryInterface(Ci.amIWebInstallInfo);
-        let tab = BrowserApp.getTabForBrowser(installInfo.browser);
+        let win = installInfo.originator;
+        let tab = BrowserApp.getTabForWindow(win.top);
         if (!tab)
           return;
 

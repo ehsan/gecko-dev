@@ -5,7 +5,9 @@
 
 this.EXPORTED_SYMBOLS = ["RemoteWebNavigation"];
 
-const { interfaces: Ci, classes: Cc, utils: Cu, results: Cr } = Components;
+const Ci = Components.interfaces;
+const Cc = Components.classes;
+const Cu = Components.utils;
 
 Cu.import("resource://gre/modules/XPCOMUtils.jsm");
 
@@ -58,15 +60,8 @@ RemoteWebNavigation.prototype = {
     this._sendMessage("WebNavigation:GotoIndex", {index: aIndex});
   },
   loadURI: function(aURI, aLoadFlags, aReferrer, aPostData, aHeaders) {
-    if (aPostData || aHeaders)
-      throw Components.Exception("RemoteWebNavigation doesn't accept postdata or headers.", Cr.NS_ERROR_INVALID_ARGS);
-
     this._browser._contentTitle = "";
-    this._sendMessage("WebNavigation:LoadURI", {
-      uri: aURI,
-      flags: aLoadFlags,
-      referrer: aReferrer ? aReferrer.spec : null
-    });
+    this._sendMessage("WebNavigation:LoadURI", {uri: aURI, flags: aLoadFlags});
   },
   reload: function(aReloadFlags) {
     this._sendMessage("WebNavigation:Reload", {flags: aReloadFlags});

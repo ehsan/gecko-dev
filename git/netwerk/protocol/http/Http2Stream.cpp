@@ -27,7 +27,6 @@
 #include "nsHttpHandler.h"
 #include "nsHttpRequestHead.h"
 #include "nsISocketTransport.h"
-#include "nsStandardURL.h"
 #include "prnetdb.h"
 
 #ifdef DEBUG
@@ -242,28 +241,6 @@ Http2Stream::WriteSegments(nsAHttpSegmentWriter *writer,
   return rv;
 }
 
-nsresult
-Http2Stream::MakeOriginURL(const nsACString &origin, nsRefPtr<nsStandardURL> &url)
-{
-  nsAutoCString scheme;
-  nsresult rv = net_ExtractURLScheme(origin, nullptr, nullptr, &scheme);
-  NS_ENSURE_SUCCESS(rv, rv);
-  return MakeOriginURL(scheme, origin, url);
-}
-
-nsresult
-Http2Stream::MakeOriginURL(const nsACString &scheme, const nsACString &origin,
-                           nsRefPtr<nsStandardURL> &url)
-{
-  url = new nsStandardURL();
-  nsresult rv = url->Init(nsIStandardURL::URLTYPE_AUTHORITY,
-                          scheme.EqualsLiteral("http") ?
-                              NS_HTTP_DEFAULT_PORT :
-                              NS_HTTPS_DEFAULT_PORT,
-                          origin, nullptr, nullptr);
-  return rv;
-}
-
 void
 Http2Stream::CreatePushHashKey(const nsCString &scheme,
                                const nsCString &hostHeader,
@@ -272,22 +249,9 @@ Http2Stream::CreatePushHashKey(const nsCString &scheme,
                                nsCString &outOrigin,
                                nsCString &outKey)
 {
-  nsCString fullOrigin = scheme;
-  fullOrigin.AppendLiteral("://");
-  fullOrigin.Append(hostHeader);
-
-  nsRefPtr<nsStandardURL> origin;
-  nsresult rv = Http2Stream::MakeOriginURL(scheme, fullOrigin, origin);
-
-  if (NS_SUCCEEDED(rv)) {
-    rv = origin->GetAsciiSpec(outOrigin);
-    outOrigin.Trim("/", false, true, false);
-  }
-
-  if (NS_FAILED(rv)) {
-    // Fallback to plain text copy - this may end up behaving poorly
-    outOrigin = fullOrigin;
-  }
+  outOrigin = scheme;
+  outOrigin.AppendLiteral("://");
+  outOrigin.Append(hostHeader);
 
   outKey = outOrigin;
   outKey.AppendLiteral("/[http2.");

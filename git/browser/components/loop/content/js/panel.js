@@ -489,9 +489,7 @@ loop.panel = (function(_, mozL10n) {
 
     handleCopyButtonClick: function(event) {
       event.preventDefault();
-      this.props.dispatcher.dispatch(new sharedActions.CopyRoomUrl({
-        roomUrl: this.props.room.roomUrl
-      }));
+      navigator.mozLoop.copyString(this.props.room.roomUrl);
       this.setState({urlCopied: true});
     },
 
@@ -508,6 +506,7 @@ loop.panel = (function(_, mozL10n) {
     },
 
     _isActive: function() {
+      // XXX bug 1074679 will implement this properly
       return this.props.room.participants.length > 0;
     },
 
@@ -549,7 +548,7 @@ loop.panel = (function(_, mozL10n) {
     mixins: [Backbone.Events],
 
     propTypes: {
-      store: React.PropTypes.instanceOf(loop.store.RoomStore).isRequired,
+      store: React.PropTypes.instanceOf(loop.store.RoomListStore).isRequired,
       dispatcher: React.PropTypes.instanceOf(loop.Dispatcher).isRequired,
       userDisplayName: React.PropTypes.string.isRequired  // for room creation
     },
@@ -637,8 +636,8 @@ loop.panel = (function(_, mozL10n) {
       showTabButtons: React.PropTypes.bool,
       selectedTab: React.PropTypes.string,
       dispatcher: React.PropTypes.instanceOf(loop.Dispatcher).isRequired,
-      roomStore:
-        React.PropTypes.instanceOf(loop.store.RoomStore).isRequired
+      roomListStore:
+        React.PropTypes.instanceOf(loop.store.RoomListStore).isRequired
     },
 
     getInitialState: function() {
@@ -697,7 +696,7 @@ loop.panel = (function(_, mozL10n) {
       return (
         Tab({name: "rooms"}, 
           RoomList({dispatcher: this.props.dispatcher, 
-                    store: this.props.roomStore, 
+                    store: this.props.roomListStore, 
                     userDisplayName: this._getUserDisplayName()})
         )
       );
@@ -790,7 +789,7 @@ loop.panel = (function(_, mozL10n) {
     var client = new loop.Client();
     var notifications = new sharedModels.NotificationCollection();
     var dispatcher = new loop.Dispatcher();
-    var roomStore = new loop.store.RoomStore({
+    var roomListStore = new loop.store.RoomListStore({
       mozLoop: navigator.mozLoop,
       dispatcher: dispatcher
     });
@@ -798,7 +797,7 @@ loop.panel = (function(_, mozL10n) {
     React.renderComponent(PanelView({
       client: client, 
       notifications: notifications, 
-      roomStore: roomStore, 
+      roomListStore: roomListStore, 
       dispatcher: dispatcher}
     ), document.querySelector("#main"));
 

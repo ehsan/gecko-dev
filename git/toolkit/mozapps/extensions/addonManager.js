@@ -74,7 +74,7 @@ amManager.prototype = {
    * @see amIWebInstaller.idl
    */
   installAddonsFromWebpage: function AMC_installAddonsFromWebpage(aMimetype,
-                                                                  aBrowser,
+                                                                  aOriginator,
                                                                   aReferer, aUris,
                                                                   aHashes, aNames,
                                                                   aIcons, aCallback) {
@@ -87,10 +87,21 @@ amManager.prototype = {
       retval = false;
     }
 
+    let loadGroup = null;
+
+    try {
+      loadGroup = aOriginator.QueryInterface(Ci.nsIDOMWindow)
+                             .QueryInterface(Ci.nsIInterfaceRequestor)
+                             .getInterface(Ci.nsIWebNavigation)
+                             .QueryInterface(Ci.nsIDocumentLoader).loadGroup;
+    }
+    catch (e) {
+    }
+
     let installs = [];
     function buildNextInstall() {
       if (aUris.length == 0) {
-        AddonManager.installAddonsFromWebpage(aMimetype, aBrowser, aReferer, installs);
+        AddonManager.installAddonsFromWebpage(aMimetype, aOriginator, aReferer, installs);
         return;
       }
       let uri = aUris.shift();
@@ -133,7 +144,7 @@ amManager.prototype = {
           aCallback.onInstallEnded(uri, UNSUPPORTED_TYPE);
         }
         buildNextInstall();
-      }, aMimetype, aHashes.shift(), aNames.shift(), aIcons.shift(), null, aBrowser);
+      }, aMimetype, aHashes.shift(), aNames.shift(), aIcons.shift(), null, loadGroup);
     }
     buildNextInstall();
 
@@ -152,8 +163,7 @@ amManager.prototype = {
    */
   receiveMessage: function AMC_receiveMessage(aMessage) {
     let payload = aMessage.data;
-    let referer = payload.referer ? Services.io.newURI(payload.referer, null, null)
-                                  : null;
+    let referer = Services.io.newURI(payload.referer, null, null);
 
     switch (aMessage.name) {
       case MSG_INSTALL_ENABLED:
@@ -173,8 +183,12 @@ amManager.prototype = {
           };
         }
 
+        // If aMessage.objects.window exists, then we're same-process and we
+        // can target any modal prompts more correctly. Otherwise, we use the
+        // browser element for the remote browser as the best bet.
+        let originator = aMessage.objects.window || aMessage.target;
         return this.installAddonsFromWebpage(payload.mimetype,
-          aMessage.target, referer, payload.uris, payload.hashes,
+          originator, referer, payload.uris, payload.hashes,
           payload.names, payload.icons, callback);
       }
     }

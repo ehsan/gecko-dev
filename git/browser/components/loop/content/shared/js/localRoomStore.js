@@ -6,7 +6,7 @@
 
 var loop = loop || {};
 loop.store = loop.store || {};
-loop.store.ActiveRoomStore = (function() {
+loop.store.LocalRoomStore = (function() {
   "use strict";
 
   var sharedActions = loop.shared.actions;
@@ -23,7 +23,7 @@ loop.store.ActiveRoomStore = (function() {
    *                            actions and registering to consume them.
    * @param {MozLoop}         options.mozLoop - MozLoop API provider object
    */
-  function ActiveRoomStore(options) {
+  function LocalRoomStore(options) {
     options = options || {};
 
     if (!options.dispatcher) {
@@ -41,7 +41,7 @@ loop.store.ActiveRoomStore = (function() {
     ]);
   }
 
-  ActiveRoomStore.prototype = _.extend({
+  LocalRoomStore.prototype = _.extend({
 
     /**
      * Stored data reflecting the local state of a given room, used to drive
@@ -54,6 +54,9 @@ loop.store.ActiveRoomStore = (function() {
      * @property {Error=} error - if the room is an error state, this will be
      *                            set to an Error object reflecting the problem;
      *                            otherwise it will be unset.
+     *
+     * @property {String} localRoomId - profile-local identifier used with
+     *                                  the MozLoop API.
      */
     _storeState: {
     },
@@ -97,6 +100,6 @@ loop.store.ActiveRoomStore = (function() {
 
   }, Backbone.Events);
 
-  return ActiveRoomStore;
+  return LocalRoomStore;
 
 })();

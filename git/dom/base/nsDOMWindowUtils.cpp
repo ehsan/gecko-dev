@@ -272,16 +272,6 @@ nsDOMWindowUtils::Redraw(uint32_t aCount, uint32_t *aDurationOut)
 }
 
 NS_IMETHODIMP
-nsDOMWindowUtils::UpdateLayerTree()
-{
-  if (nsIPresShell* presShell = GetPresShell()) {
-    nsRefPtr<nsViewManager> vm = presShell->GetViewManager();
-    vm->ProcessPendingUpdates();
-  }
-  return NS_OK;
-}
-
-NS_IMETHODIMP
 nsDOMWindowUtils::SetCSSViewport(float aWidthPx, float aHeightPx)
 {
   if (!nsContentUtils::IsCallerChrome()) {

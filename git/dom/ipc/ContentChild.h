@@ -10,7 +10,6 @@
 #include "mozilla/Attributes.h"
 #include "mozilla/dom/ContentBridgeParent.h"
 #include "mozilla/dom/nsIContentChild.h"
-#include "mozilla/dom/PBrowserOrId.h"
 #include "mozilla/dom/PContentChild.h"
 #include "nsHashKeys.h"
 #include "nsIObserver.h"
@@ -49,7 +48,6 @@ class PrefObserver;
 class ConsoleListener;
 class PStorageChild;
 class ClonedMessageData;
-class TabChild;
 
 class ContentChild : public PContentChild
                    , public nsIContentChild
@@ -404,9 +402,6 @@ public:
     virtual bool DeallocPDocAccessibleChild(PDocAccessibleChild*) MOZ_OVERRIDE;
 
     void GetAvailableDictionaries(InfallibleTArray<nsString>& aDictionaries);
-
-    PBrowserOrId
-    GetBrowserOrId(TabChild* aTabChild);
 
 private:
     virtual void ActorDestroy(ActorDestroyReason why) MOZ_OVERRIDE;

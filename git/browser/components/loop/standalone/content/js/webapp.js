@@ -14,7 +14,6 @@ loop.webapp = (function($, _, OT, mozL10n) {
   loop.config = loop.config || {};
   loop.config.serverUrl = loop.config.serverUrl || "http://localhost:5000";
 
-  var sharedActions = loop.shared.actions;
   var sharedMixins = loop.shared.mixins;
   var sharedModels = loop.shared.models;
   var sharedViews = loop.shared.views;
@@ -878,8 +877,7 @@ loop.webapp = (function($, _, OT, mozL10n) {
   var WebappRootView = React.createClass({displayName: 'WebappRootView',
 
     mixins: [sharedMixins.UrlHashChangeMixin,
-             sharedMixins.DocumentLocationMixin,
-             Backbone.Events],
+             sharedMixins.DocumentLocationMixin],
 
     propTypes: {
       client: React.PropTypes.instanceOf(loop.StandaloneClient).isRequired,
@@ -891,25 +889,14 @@ loop.webapp = (function($, _, OT, mozL10n) {
       notifications: React.PropTypes.instanceOf(sharedModels.NotificationCollection)
                           .isRequired,
       sdk: React.PropTypes.object.isRequired,
-      feedbackApiClient: React.PropTypes.object.isRequired,
-
-      // XXX New types for flux style
-      standaloneAppStore: React.PropTypes.instanceOf(
-        loop.store.StandaloneAppStore).isRequired
+      feedbackApiClient: React.PropTypes.object.isRequired
     },
 
     getInitialState: function() {
-      return this.props.standaloneAppStore.getStoreState();
-    },
-
-    componentWillMount: function() {
-      this.listenTo(this.props.standaloneAppStore, "change", function() {
-        this.setState(this.props.standaloneAppStore.getStoreState());
-      }, this);
-    },
-
-    componentWillUnmount: function() {
-      this.stopListening(this.props.standaloneAppStore);
+      return {
+        unsupportedDevice: this.props.helper.isIOS(navigator.platform),
+        unsupportedBrowser: !this.props.sdk.checkSystemRequirements(),
+      };
     },
 
     onUrlHashChange: function() {
@@ -917,36 +904,23 @@ loop.webapp = (function($, _, OT, mozL10n) {
     },
 
     render: function() {
-      switch (this.state.windowType) {
-        case "unsupportedDevice": {
-          return UnsupportedDeviceView(null);
-        }
-        case "unsupportedBrowser": {
-          return UnsupportedBrowserView(null);
-        }
-        case "outgoing": {
-          return (
-            OutgoingConversationView({
-               client: this.props.client, 
-               conversation: this.props.conversation, 
-               helper: this.props.helper, 
-               notifications: this.props.notifications, 
-               sdk: this.props.sdk, 
-               feedbackApiClient: this.props.feedbackApiClient}
-            )
-          );
-        }
-        case "room": {
-          return loop.standaloneRoomViews.StandaloneRoomView(null);
-        }
-        case "home": {
-          return HomeView(null);
-        }
-        default: {
-          // The state hasn't been initialised yet, so don't display
-          // anything to avoid flicker.
-          return null;
-        }
+      if (this.state.unsupportedDevice) {
+        return UnsupportedDeviceView(null);
+      } else if (this.state.unsupportedBrowser) {
+        return UnsupportedBrowserView(null);
+      } else if (this.props.conversation.get("loopToken")) {
+        return (
+          OutgoingConversationView({
+             client: this.props.client, 
+             conversation: this.props.conversation, 
+             helper: this.props.helper, 
+             notifications: this.props.notifications, 
+             sdk: this.props.sdk, 
+             feedbackApiClient: this.props.feedbackApiClient}
+          )
+        );
+      } else {
+        return HomeView(null);
       }
     }
   });
@@ -956,8 +930,9 @@ loop.webapp = (function($, _, OT, mozL10n) {
    */
   function init() {
     var helper = new sharedUtils.Helper();
-
-    // Older non-flux based items.
+    var client = new loop.StandaloneClient({
+      baseServerUrl: loop.config.serverUrl
+    });
     var notifications = new sharedModels.NotificationCollection();
     var conversation
     if (helper.isFirefoxOS(navigator.userAgent)) {
@@ -975,18 +950,24 @@ loop.webapp = (function($, _, OT, mozL10n) {
         url: document.location.origin
       });
 
-    // New flux items.
-    var dispatcher = new loop.Dispatcher();
-    var client = new loop.StandaloneClient({
-      baseServerUrl: loop.config.serverUrl
-    });
+    // Obtain the loopToken
 
-    var standaloneAppStore = new loop.store.StandaloneAppStore({
-      conversation: conversation,
-      dispatcher: dispatcher,
-      helper: helper,
-      sdk: OT
-    });
+    var match;
+
+    // locationHash supports the old format urls.
+    var locationData = helper.locationData();
+    if (locationData.hash) {
+      match = locationData.hash.match(/\#call\/(.*)/);
+    } else if (locationData.pathname) {
+      // Otherwise, we're expecting a url such as /c/<token> for calls.
+      match = locationData.pathname.match(/\/c\/([\w\-]+)/);
+    }
+    // XXX Supporting '/\/([\w\-]+)/' is for rooms which are to be implemented
+    // in bug 1074701.
+
+    if (match && match[1]) {
+      conversation.set({loopToken: match[1]});
+    }
 
     React.renderComponent(WebappRootView({
       client: client, 
@@ -994,20 +975,13 @@ loop.webapp = (function($, _, OT, mozL10n) {
       helper: helper, 
       notifications: notifications, 
       sdk: OT, 
-      feedbackApiClient: feedbackApiClient, 
-      standaloneAppStore: standaloneAppStore}
+      feedbackApiClient: feedbackApiClient}
     ), document.querySelector("#main"));
 
     // Set the 'lang' and 'dir' attributes to <html> when the page is translated
     document.documentElement.lang = mozL10n.language.code;
     document.documentElement.dir = mozL10n.language.direction;
     document.title = mozL10n.get("clientShortname2");
-
-    dispatcher.dispatch(new sharedActions.ExtractTokenInfo({
-      // We pass the hash or the pathname - the hash was used for the original
-      // urls, the pathname for later ones.
-      windowPath: helper.locationData().hash || helper.locationData().pathname
-    }));
   }
 
   return {

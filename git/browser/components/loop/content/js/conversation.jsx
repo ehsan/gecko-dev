@@ -287,7 +287,7 @@ loop.conversation = (function(mozL10n) {
           if (this.state.callFailed) {
             return <GenericFailureView
               cancelCall={this.closeWindow.bind(this)}
-            />;
+            />
           }
 
           document.title = mozL10n.get("conversation_has_ended");
@@ -499,14 +499,12 @@ loop.conversation = (function(mozL10n) {
     declineAndBlock: function() {
       navigator.mozLoop.stopAlerting();
       var token = this.props.conversation.get("callToken");
-      this.props.client.deleteCallUrl(token,
-        this.props.conversation.get("sessionType"),
-        function(error) {
-          // XXX The conversation window will be closed when this cb is triggered
-          // figure out if there is a better way to report the error to the user
-          // (bug 1048909).
-          console.log(error);
-        });
+      this.props.client.deleteCallUrl(token, function(error) {
+        // XXX The conversation window will be closed when this cb is triggered
+        // figure out if there is a better way to report the error to the user
+        // (bug 1048909).
+        console.log(error);
+      });
       this._declineCall();
     },
 
@@ -540,7 +538,7 @@ loop.conversation = (function(mozL10n) {
       conversationStore: React.PropTypes.instanceOf(loop.store.ConversationStore)
                               .isRequired,
       dispatcher: React.PropTypes.instanceOf(loop.Dispatcher).isRequired,
-      roomStore: React.PropTypes.instanceOf(loop.store.RoomStore)
+      localRoomStore: React.PropTypes.instanceOf(loop.store.LocalRoomStore)
     },
 
     getInitialState: function() {
@@ -580,7 +578,7 @@ loop.conversation = (function(mozL10n) {
         case "room": {
           return (<DesktopRoomView
             mozLoop={navigator.mozLoop}
-            roomStore={this.props.roomStore}
+            localRoomStore={this.props.localRoomStore}
           />);
         }
         case "failed": {
@@ -634,15 +632,10 @@ loop.conversation = (function(mozL10n) {
       dispatcher: dispatcher,
       sdkDriver: sdkDriver
     });
-    var activeRoomStore = new loop.store.ActiveRoomStore({
+    var localRoomStore = new loop.store.LocalRoomStore({
       dispatcher: dispatcher,
       mozLoop: navigator.mozLoop
-    });
-    var roomStore = new loop.store.RoomStore({
-      dispatcher: dispatcher,
-      mozLoop: navigator.mozLoop,
-      activeRoomStore: activeRoomStore
-    });
+    });;
 
     // XXX Old class creation for the incoming conversation view, whilst
     // we transition across (bug 1072323).
@@ -670,7 +663,7 @@ loop.conversation = (function(mozL10n) {
 
     React.renderComponent(<AppControllerView
       conversationAppStore={conversationAppStore}
-      roomStore={roomStore}
+      localRoomStore={localRoomStore}
       conversationStore={conversationStore}
       client={client}
       conversation={conversation}

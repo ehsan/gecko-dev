@@ -281,11 +281,6 @@ JitRuntime::initialize(JSContext *cx)
     if (!stringPreBarrier_)
         return false;
 
-    JitSpew(JitSpew_Codegen, "# Emitting Pre Barrier for Object");
-    objectPreBarrier_ = generatePreBarrier(cx, MIRType_Object);
-    if (!objectPreBarrier_)
-        return false;
-
     JitSpew(JitSpew_Codegen, "# Emitting Pre Barrier for Shape");
     shapePreBarrier_ = generatePreBarrier(cx, MIRType_Shape);
     if (!shapePreBarrier_)

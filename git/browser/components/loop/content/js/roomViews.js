@@ -14,31 +14,33 @@ loop.roomViews = (function(mozL10n) {
     mixins: [Backbone.Events, loop.shared.mixins.DocumentTitleMixin],
 
     propTypes: {
-      mozLoop:   React.PropTypes.object.isRequired,
-      roomStore: React.PropTypes.instanceOf(loop.store.RoomStore).isRequired,
+      mozLoop:
+        React.PropTypes.object.isRequired,
+      localRoomStore:
+        React.PropTypes.instanceOf(loop.store.LocalRoomStore).isRequired,
     },
 
     getInitialState: function() {
-      return this.props.roomStore.getStoreState();
+      return this.props.localRoomStore.getStoreState();
     },
 
     componentWillMount: function() {
-      this.listenTo(this.props.roomStore, "change:activeRoom",
-                    this._onActiveRoomStateChanged);
+      this.listenTo(this.props.localRoomStore, "change",
+        this._onLocalRoomStoreChanged);
     },
 
     /**
-     * Handles a "change" event on the roomStore, and updates this.state
+     * Handles a "change" event on the localRoomStore, and updates this.state
      * to match the store.
      *
      * @private
      */
-    _onActiveRoomStateChanged: function() {
-      this.setState(this.props.roomStore.getStoreState("activeRoom"));
+    _onLocalRoomStoreChanged: function() {
+      this.setState(this.props.localRoomStore.getStoreState());
     },
 
     componentWillUnmount: function() {
-      this.stopListening(this.props.roomStore);
+      this.stopListening(this.props.localRoomStore);
     },
 
     render: function() {
@@ -56,4 +58,4 @@ loop.roomViews = (function(mozL10n) {
     DesktopRoomView: DesktopRoomView
   };
 
-})(document.mozL10n || navigator.mozL10n);
+})(document.mozL10n || navigator.mozL10n);;
