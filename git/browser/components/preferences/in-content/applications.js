@@ -1089,20 +1089,29 @@ var gApplicationsPane = {
   _loadPluginHandlers: function() {
     "use strict";
 
-    let mimeTypes = navigator.mimeTypes;
+    let pluginHost = Cc["@mozilla.org/plugin/host;1"].getService(Ci.nsIPluginHost);
+    let pluginTags = pluginHost.getPluginTags();
 
-    for (let mimeType of mimeTypes) {
-      let handlerInfoWrapper;
-      if (mimeType.type in this._handledTypes) {
-        handlerInfoWrapper = this._handledTypes[mimeType.type];
-      } else {
-        let wrappedHandlerInfo =
-              this._mimeSvc.getFromTypeAndExtension(mimeType.type, null);
-        handlerInfoWrapper = new HandlerInfoWrapper(mimeType.type, wrappedHandlerInfo);
-        handlerInfoWrapper.handledOnlyByPlugin = true;
-        this._handledTypes[mimeType.type] = handlerInfoWrapper;
+    for (let i = 0; i < pluginTags.length; ++i) {
+      let pluginTag = pluginTags[i];
+
+      let mimeTypes = pluginTag.getMimeTypes();
+      for (let j = 0; j < mimeTypes.length; ++j) {
+        let type = mimeTypes[j];
+
+        let handlerInfoWrapper;
+        if (type in this._handledTypes)
+          handlerInfoWrapper = this._handledTypes[type];
+        else {
+          let wrappedHandlerInfo =
+            this._mimeSvc.getFromTypeAndExtension(type, null);
+          handlerInfoWrapper = new HandlerInfoWrapper(type, wrappedHandlerInfo);
+          handlerInfoWrapper.handledOnlyByPlugin = true;
+          this._handledTypes[type] = handlerInfoWrapper;
+        }
+
+        handlerInfoWrapper.pluginName = pluginTag.name;
       }
-      handlerInfoWrapper.pluginName = mimeType.enabledPlugin.name;
     }
   },
 
