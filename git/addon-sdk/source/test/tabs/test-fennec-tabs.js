@@ -8,8 +8,6 @@ const { Loader, LoaderWithHookedConsole } = require('sdk/test/loader');
 const timer = require('sdk/timers');
 const tabs = require('sdk/tabs');
 const windows = require('sdk/windows');
-const { set: setPref } = require("sdk/preferences/service");
-const DEPRECATE_PREF = "devtools.errorconsole.deprecation_warnings";
 
 const tabsLen = tabs.length;
 const URL = 'data:text/html;charset=utf-8,<html><head><title>#title#</title></head></html>';
@@ -98,7 +96,6 @@ exports.testAutomaticDestroy = function(assert, done) {
 
 // TEST: tab properties
 exports.testTabProperties = function(assert, done) {
-  setPref(DEPRECATE_PREF, true);
   let { loader, messages } = LoaderWithHookedConsole();
   let tabs = loader.require('sdk/tabs');
 

@@ -92,11 +92,13 @@ namespace JS {
  * zone.)
  */
 
-struct Zone : public JS::shadow::Zone,
+struct Zone : private JS::shadow::Zone,
               public js::gc::GraphNodeBase<JS::Zone>,
               public js::MallocProvider<JS::Zone>
 {
   private:
+    JSRuntime                    *runtime_;
+
     friend bool js::CurrentThreadCanAccessZone(Zone *zone);
 
   public:
@@ -111,6 +113,21 @@ struct Zone : public JS::shadow::Zone,
 
   public:
     bool                         active;  // GC flag, whether there are active frames
+
+    JSRuntime *runtimeFromMainThread() const {
+        JS_ASSERT(CurrentThreadCanAccessRuntime(runtime_));
+        return runtime_;
+    }
+
+    // Note: Unrestricted access to the zone's runtime from an arbitrary
+    // thread can easily lead to races. Use this method very carefully.
+    JSRuntime *runtimeFromAnyThread() const {
+        return runtime_;
+    }
+
+    bool needsBarrier() const {
+        return needsBarrier_;
+    }
 
     bool compileBarriers(bool needsBarrier) const {
         return needsBarrier || runtimeFromMainThread()->gcZeal() == js::gc::ZealVerifierPreValue;
@@ -129,6 +146,11 @@ struct Zone : public JS::shadow::Zone,
 
     static size_t OffsetOfNeedsBarrier() {
         return offsetof(Zone, needsBarrier_);
+    }
+
+    js::GCMarker *barrierTracer() {
+        JS_ASSERT(needsBarrier_);
+        return &runtimeFromMainThread()->gcMarker;
     }
 
   public:

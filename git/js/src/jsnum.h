@@ -42,10 +42,6 @@ extern const char js_isFinite_str[];
 extern const char js_parseFloat_str[];
 extern const char js_parseInt_str[];
 
-class JSAtom;
-
-namespace js {
-
 /*
  * When base == 10, this function implements ToString() as specified by
  * ECMA-262-5 section 9.8.1; but note that it handles integers specially for
@@ -53,19 +49,13 @@ namespace js {
  */
 template <js::AllowGC allowGC>
 extern JSString *
-NumberToString(js::ThreadSafeContext *cx, double d);
+js_NumberToString(js::ThreadSafeContext *cx, double d);
 
-template <js::AllowGC allowGC>
-extern JSAtom *
-NumberToAtom(js::ExclusiveContext *cx, double d);
+namespace js {
 
 template <AllowGC allowGC>
 extern JSFlatString *
 Int32ToString(ThreadSafeContext *cx, int32_t i);
-
-template <AllowGC allowGC>
-extern JSAtom *
-Int32ToAtom(ExclusiveContext *cx, int32_t si);
 
 /*
  * Convert an integer or double (contained in the given value) to a string and

@@ -56,7 +56,25 @@ protected:
                            const gfxIntSize& size,
                            bool hasAlpha,
                            const GLFormats& formats,
-                           GLuint prodTex);
+                           GLuint prodTex)
+        : SharedSurface_GL(SharedSurfaceType::EGLImageShare,
+                           AttachmentType::GLTexture,
+                           gl,
+                           size,
+                           hasAlpha)
+        , mMutex("SharedSurface_EGLImage mutex")
+        , mEGL(egl)
+        , mFormats(formats)
+        , mProdTex(prodTex)
+        , mProdTexForPipe(0)
+        , mImage(0)
+        , mCurConsGL(nullptr)
+        , mConsTex(0)
+        , mSync(0)
+        , mPipeFailed(false)
+        , mPipeComplete(false)
+        , mPipeActive(false)
+    {}
 
     EGLDisplay Display() const;
 

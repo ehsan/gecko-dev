@@ -847,7 +847,8 @@ Toolbox.prototype = {
 
     this._telemetry.destroy();
 
-    // Targets need to be notified that the toolbox is being torn down.
+    // Targets need to be notified that the toolbox is being torn down, so that
+    // remote protocol connections can be gracefully terminated.
     if (this._target) {
       this._target.off("close", this.destroy);
       outstanding.push(this._target.destroy());

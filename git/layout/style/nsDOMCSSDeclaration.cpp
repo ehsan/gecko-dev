@@ -15,7 +15,6 @@
 #include "nsCSSProps.h"
 #include "nsCOMPtr.h"
 #include "mozAutoDocUpdate.h"
-#include "nsIURI.h"
 
 using namespace mozilla;
 

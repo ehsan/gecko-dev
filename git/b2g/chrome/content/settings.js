@@ -314,15 +314,8 @@ let AdbController = {
       }
       return;
     }
-
-    // Check if we have a remote debugging session going on. If so, we won't
-    // disable adb even if the screen is locked.
-    let isDebugging = Object.keys(DebuggerServer._connections).length > 0;
-    debug("isDebugging=" + isDebugging);
-
     let enableAdb = this.remoteDebuggerEnabled &&
-      (!(this.lockEnabled && this.locked) || isDebugging);
-
+      !(this.lockEnabled && this.locked);
     let useDisableAdbTimer = true;
     try {
       if (Services.prefs.getBoolPref("marionette.defaultPrefs.enabled")) {
@@ -373,7 +366,7 @@ let AdbController = {
       }
     }
     if (useDisableAdbTimer) {
-      if (enableAdb && !isDebugging) {
+      if (enableAdb) {
         this.startDisableAdbTimer();
       } else {
         this.stopDisableAdbTimer();

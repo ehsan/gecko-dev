@@ -9,14 +9,12 @@
 #include "gfxMatrix.h"
 #include "gfxPattern.h"
 #include "gfxRect.h"
+#include "nsRect.h"
 
 class nsDisplayList;
 class nsDisplayListBuilder;
 class nsIFrame;
 class nsRenderingContext;
-
-struct nsRect;
-struct nsIntRect;
 
 namespace mozilla {
 namespace layers {

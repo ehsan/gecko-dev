@@ -34,6 +34,7 @@ CPP_SOURCES += [
     'EventListenerManager.cpp',
     'EventTarget.cpp',
     'Events.cpp',
+    'Exceptions.cpp',
     'File.cpp',
     'FileReaderSync.cpp',
     'Location.cpp',

@@ -137,6 +137,23 @@ xpc_IsGrayGCThing(void *thing)
 extern bool
 xpc_GCThingIsGrayCCThing(void *thing);
 
+// Unmark gray for known-nonnull cases
+MOZ_ALWAYS_INLINE void
+xpc_UnmarkNonNullGrayObject(JSObject *obj)
+{
+    JS::ExposeGCThingToActiveJS(obj, JSTRACE_OBJECT);
+}
+
+// Remove the gray color from the given JSObject and any other objects that can
+// be reached through it.
+MOZ_ALWAYS_INLINE JSObject *
+xpc_UnmarkGrayObject(JSObject *obj)
+{
+    if (obj)
+        xpc_UnmarkNonNullGrayObject(obj);
+    return obj;
+}
+
 inline JSScript *
 xpc_UnmarkGrayScript(JSScript *script)
 {
@@ -163,7 +180,7 @@ xpc_UnmarkSkippableJSHolders();
 NS_EXPORT_(void)
 xpc_ActivateDebugMode();
 
-class nsIMemoryReporterCallback;
+class nsIMemoryMultiReporterCallback;
 
 // readable string conversions, static methods and members only
 class XPCStringConvert
@@ -359,7 +376,7 @@ private:
 nsresult
 ReportJSRuntimeExplicitTreeStats(const JS::RuntimeStats &rtStats,
                                  const nsACString &rtPath,
-                                 nsIMemoryReporterCallback *cb,
+                                 nsIMemoryMultiReporterCallback *cb,
                                  nsISupports *closure, size_t *rtTotal = NULL);
 
 /**

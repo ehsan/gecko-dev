@@ -116,6 +116,9 @@ GetElement(JSContext *cx, HandleObject obj, uint32_t index, MutableHandleValue v
 }
 
 extern bool
+GetPropertyDefault(JSContext *cx, HandleObject obj, HandleId id, HandleValue def, MutableHandleValue vp);
+
+extern bool
 SetPropertyHelper(JSContext *cx, HandleObject obj, HandleObject receiver, HandleId id,
                   unsigned defineHow, MutableHandleValue vp, bool strict);
 
@@ -139,6 +142,12 @@ GetAttributes(JSContext *cx, HandleObject obj, HandleId id, unsigned *attrsp);
 
 extern bool
 SetAttributes(JSContext *cx, HandleObject obj, HandleId id, unsigned *attrsp);
+
+extern bool
+GetElementAttributes(JSContext *cx, HandleObject obj, uint32_t index, unsigned *attrsp);
+
+extern bool
+SetElementAttributes(JSContext *cx, HandleObject obj, uint32_t index, unsigned *attrsp);
 
 extern bool
 DeleteProperty(JSContext *cx, HandleObject obj, HandlePropertyName name, bool *succeeded);
@@ -351,25 +360,12 @@ class JSObject : public js::ObjectImpl
      * Trigger the write barrier on a range of slots that will no longer be
      * reachable.
      */
-    void prepareSlotRangeForOverwrite(size_t start, size_t end) {
-        for (size_t i = start; i < end; i++)
-            getSlotAddressUnchecked(i)->js::HeapSlot::~HeapSlot();
-    }
-
-    void prepareElementRangeForOverwrite(size_t start, size_t end) {
-        JS_ASSERT(end <= getDenseInitializedLength());
-        for (size_t i = start; i < end; i++)
-            elements[i].js::HeapSlot::~HeapSlot();
-    }
+    inline void prepareSlotRangeForOverwrite(size_t start, size_t end);
+    inline void prepareElementRangeForOverwrite(size_t start, size_t end);
 
     void rollbackProperties(js::ExclusiveContext *cx, uint32_t slotSpan);
 
-    void nativeSetSlot(uint32_t slot, const js::Value &value) {
-        JS_ASSERT(uninlinedIsNative());
-        JS_ASSERT(slot < uninlinedSlotSpan());
-        return setSlot(slot, value);
-    }
-
+    inline void nativeSetSlot(uint32_t slot, const js::Value &value);
     static inline void nativeSetSlotWithType(js::ExclusiveContext *cx,
                                              js::HandleObject, js::Shape *shape,
                                              const js::Value &value);
@@ -384,15 +380,8 @@ class JSObject : public js::ObjectImpl
         return getSlotRef(index);
     }
 
-    void initReservedSlot(uint32_t index, const js::Value &v) {
-        JS_ASSERT(index < JSSLOT_FREE(getClass()));
-        initSlot(index, v);
-    }
-
-    void setReservedSlot(uint32_t index, const js::Value &v) {
-        JS_ASSERT(index < JSSLOT_FREE(getClass()));
-        setSlot(index, v);
-    }
+    inline void initReservedSlot(uint32_t index, const js::Value &v);
+    inline void setReservedSlot(uint32_t index, const js::Value &v);
 
     /*
      * Marks this object as having a singleton type, and leave the type lazy.
@@ -548,12 +537,7 @@ class JSObject : public js::ObjectImpl
     static const char *className(JSContext *cx, js::HandleObject obj);
 
     /* Accessors for elements. */
-    bool ensureElements(js::ThreadSafeContext *cx, uint32_t capacity) {
-        if (capacity > getDenseCapacity())
-            return growElements(cx, capacity);
-        return true;
-    }
-
+    inline bool ensureElements(js::ThreadSafeContext *cx, uint32_t capacity);
     bool growElements(js::ThreadSafeContext *cx, uint32_t newcap);
     void shrinkElements(js::ThreadSafeContext *cx, uint32_t cap);
     void setDynamicElements(js::ObjectElements *header) {
@@ -568,32 +552,12 @@ class JSObject : public js::ObjectImpl
         return getElementsHeader()->capacity;
     }
 
-    void setDenseInitializedLength(uint32_t length) {
-        JS_ASSERT(uninlinedIsNative());
-        JS_ASSERT(length <= getDenseCapacity());
-        prepareElementRangeForOverwrite(length, getElementsHeader()->initializedLength);
-        getElementsHeader()->initializedLength = length;
-    }
-
+    inline void setDenseInitializedLength(uint32_t length);
     inline void ensureDenseInitializedLength(js::ExclusiveContext *cx,
                                              uint32_t index, uint32_t extra);
-    void setDenseElement(uint32_t index, const js::Value &val) {
-        JS_ASSERT(uninlinedIsNative() && index < getDenseInitializedLength());
-        elements[index].set(this, js::HeapSlot::Element, index, val);
-    }
-
-    void initDenseElement(uint32_t index, const js::Value &val) {
-        JS_ASSERT(uninlinedIsNative() && index < getDenseInitializedLength());
-        elements[index].init(this, js::HeapSlot::Element, index, val);
-    }
-
-    void setDenseElementMaybeConvertDouble(uint32_t index, const js::Value &val) {
-        if (val.isInt32() && shouldConvertDoubleElements())
-            setDenseElement(index, js::DoubleValue(val.toInt32()));
-        else
-            setDenseElement(index, val);
-    }
-
+    inline void setDenseElement(uint32_t index, const js::Value &val);
+    inline void initDenseElement(uint32_t index, const js::Value &val);
+    inline void setDenseElementMaybeConvertDouble(uint32_t index, const js::Value &val);
     static inline void setDenseElementWithType(js::ExclusiveContext *cx, js::HandleObject obj,
                                                uint32_t index, const js::Value &val);
     static inline void initDenseElementWithType(js::ExclusiveContext *cx, js::HandleObject obj,
@@ -603,14 +567,7 @@ class JSObject : public js::ObjectImpl
     static inline void removeDenseElementForSparseIndex(js::ExclusiveContext *cx,
                                                         js::HandleObject obj, uint32_t index);
     inline void copyDenseElements(uint32_t dstStart, const js::Value *src, uint32_t count);
-
-    void initDenseElements(uint32_t dstStart, const js::Value *src, uint32_t count) {
-        JS_ASSERT(dstStart + count <= getDenseCapacity());
-        JSRuntime *rt = runtimeFromMainThread();
-        for (uint32_t i = 0; i < count; ++i)
-            elements[dstStart + i].init(rt, this, js::HeapSlot::Element, dstStart + i, src[i]);
-    }
-
+    inline void initDenseElements(uint32_t dstStart, const js::Value *src, uint32_t count);
     inline void moveDenseElements(uint32_t dstStart, uint32_t srcStart, uint32_t count);
     inline void moveDenseElementsUnbarriered(uint32_t dstStart, uint32_t srcStart, uint32_t count);
 
@@ -924,8 +881,31 @@ class JSObject : public js::ObjectImpl
         return (op ? op : js::baseops::GetAttributes)(cx, obj, id, attrsp);
     }
 
+    static bool getPropertyAttributes(JSContext *cx, js::HandleObject obj,
+                                      js::PropertyName *name, unsigned *attrsp)
+    {
+        JS::RootedId id(cx, js::NameToId(name));
+        return getGenericAttributes(cx, obj, id, attrsp);
+    }
+
+    static inline bool getElementAttributes(JSContext *cx, js::HandleObject obj,
+                                            uint32_t index, unsigned *attrsp);
+
+    static bool getSpecialAttributes(JSContext *cx, js::HandleObject obj,
+                                     js::SpecialId sid, unsigned *attrsp)
+    {
+        JS::RootedId id(cx, SPECIALID_TO_JSID(sid));
+        return getGenericAttributes(cx, obj, id, attrsp);
+    }
+
     static inline bool setGenericAttributes(JSContext *cx, js::HandleObject obj,
                                             js::HandleId id, unsigned *attrsp);
+    static inline bool setPropertyAttributes(JSContext *cx, js::HandleObject obj,
+                                             js::PropertyName *name, unsigned *attrsp);
+    static inline bool setElementAttributes(JSContext *cx, js::HandleObject obj,
+                                            uint32_t index, unsigned *attrsp);
+    static inline bool setSpecialAttributes(JSContext *cx, js::HandleObject obj,
+                                            js::SpecialId sid, unsigned *attrsp);
 
     static inline bool deleteProperty(JSContext *cx, js::HandleObject obj,
                                       js::HandlePropertyName name,

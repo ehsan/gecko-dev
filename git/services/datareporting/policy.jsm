@@ -134,7 +134,7 @@ Object.freeze(NotifyPolicyRequest.prototype);
  * Receivers of instances of this type should not attempt to do anything with
  * the instance except call one of the on* methods.
  */
-this.DataSubmissionRequest = function (promise, expiresDate, isDelete) {
+function DataSubmissionRequest(promise, expiresDate, isDelete) {
   this.promise = promise;
   this.expiresDate = expiresDate;
   this.isDelete = isDelete;
@@ -143,7 +143,7 @@ this.DataSubmissionRequest = function (promise, expiresDate, isDelete) {
   this.reason = null;
 }
 
-this.DataSubmissionRequest.prototype = Object.freeze({
+DataSubmissionRequest.prototype = {
   NO_DATA_AVAILABLE: "no-data-available",
   SUBMISSION_SUCCESS: "success",
   SUBMISSION_FAILURE_SOFT: "failure-soft",
@@ -210,7 +210,9 @@ this.DataSubmissionRequest.prototype = Object.freeze({
     this.promise.resolve(this);
     return this.promise.promise;
   },
-});
+};
+
+Object.freeze(DataSubmissionRequest.prototype);
 
 /**
  * Manages scheduling of Firefox Health Report data submission.
@@ -315,7 +317,7 @@ this.DataReportingPolicy = function (prefs, healthReportPrefs, listener) {
   this._inProgressSubmissionRequest = null;
 };
 
-this.DataReportingPolicy.prototype = Object.freeze({
+DataReportingPolicy.prototype = Object.freeze({
   /**
    * How long after first run we should notify about data submission.
    */

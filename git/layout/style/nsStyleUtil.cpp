@@ -12,7 +12,6 @@
 #include "nsRuleNode.h"
 #include "nsROCSSPrimitiveValue.h"
 #include "nsIContentSecurityPolicy.h"
-#include "nsIURI.h"
 
 using namespace mozilla;
 

@@ -67,7 +67,6 @@
 #include "nsCharSeparatedTokenizer.h"
 #include "nsFormData.h"
 #include "nsStreamListenerWrapper.h"
-#include "xpcjsid.h"
 
 #include "nsWrapperCacheInlines.h"
 
@@ -446,8 +445,7 @@ NS_IMPL_CYCLE_COLLECTION_CAN_SKIP_BEGIN(nsXMLHttpRequest)
       tmp->mListenerManager->MarkForCC();
     }
     if (!isBlack && tmp->PreservingWrapper()) {
-      // This marks the wrapper black.
-      tmp->GetWrapper();
+      xpc_UnmarkGrayObject(tmp->GetWrapperPreserveColor());
     }
     return true;
   }

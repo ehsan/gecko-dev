@@ -23,7 +23,6 @@
 #include "nsISupportsPrimitives.h"
 #include "nsSupportsPrimitives.h"
 #include "mozilla/dom/Element.h"
-#include "nsComponentManagerUtils.h"
 
 using namespace mozilla::dom;
 

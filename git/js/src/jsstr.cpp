@@ -2162,9 +2162,16 @@ FindReplaceLength(JSContext *cx, RegExpStatics *res, ReplaceData &rdata, size_t 
         RootedValue match(cx);
         if (!res->createLastMatch(cx, &match))
             return false;
-        JSAtom *atom = ToAtom<CanGC>(cx, match);
-        if (!atom)
-            return false;
+        JSString *str = match.toString();
+
+        JSAtom *atom;
+        if (str->isAtom()) {
+            atom = &str->asAtom();
+        } else {
+            atom = AtomizeString<CanGC>(cx, str);
+            if (!atom)
+                return false;
+        }
 
         RootedValue v(cx);
         if (HasDataProperty(cx, rdata.elembase, AtomToId(atom), v.address()) && v.isString()) {
@@ -3862,7 +3869,7 @@ js::ToStringSlow(ExclusiveContext *cx, typename MaybeRooted<Value, allowGC>::Han
     } else if (v.isInt32()) {
         str = Int32ToString<allowGC>(cx, v.toInt32());
     } else if (v.isDouble()) {
-        str = NumberToString<allowGC>(cx, v.toDouble());
+        str = js_NumberToString<allowGC>(cx, v.toDouble());
     } else if (v.isBoolean()) {
         str = js_BooleanToString(cx, v.toBoolean());
     } else if (v.isNull()) {
@@ -3900,18 +3907,17 @@ js::ValueToSource(JSContext *cx, HandleValue v)
         return ToString<CanGC>(cx, v);
     }
 
+    RootedValue rval(cx, NullValue());
     RootedValue fval(cx);
     RootedObject obj(cx, &v.toObject());
     if (!JSObject::getProperty(cx, obj, obj, cx->names().toSource, &fval))
         return NULL;
     if (js_IsCallable(fval)) {
-        RootedValue rval(cx);
         if (!Invoke(cx, ObjectValue(*obj), fval, 0, NULL, &rval))
             return NULL;
-        return ToString<CanGC>(cx, rval);
     }
 
-    return ObjectToSource(cx, obj);
+    return ToString<CanGC>(cx, rval);
 }
 
 JSString *

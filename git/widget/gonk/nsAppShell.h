@@ -20,6 +20,7 @@
 
 #include "mozilla/Mutex.h"
 #include "nsBaseAppShell.h"
+#include "nsRect.h"
 #include "nsTArray.h"
 
 #include "utils/RefBase.h"

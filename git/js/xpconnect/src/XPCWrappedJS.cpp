@@ -246,8 +246,7 @@ nsXPCWrappedJS::GetWeakReference(nsIWeakReference** aInstancePtr)
 JSObject*
 nsXPCWrappedJS::GetJSObject()
 {
-    JS::ExposeObjectToActiveJS(mJSObj);
-    return mJSObj;
+    return xpc_UnmarkGrayObject(mJSObj);
 }
 
 static bool

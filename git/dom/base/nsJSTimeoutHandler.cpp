@@ -17,7 +17,6 @@
 #include "mozilla/Likely.h"
 #include <algorithm>
 #include "mozilla/dom/FunctionBinding.h"
-#include "nsAXPCNativeCallContext.h"
 
 static const char kSetIntervalStr[] = "setInterval";
 static const char kSetTimeoutStr[] = "setTimeout";

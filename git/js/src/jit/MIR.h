@@ -8510,17 +8510,17 @@ bool ElementAccessIsTypedArray(MDefinition *obj, MDefinition *id,
                                ScalarTypeRepresentation::Type *arrayType);
 bool ElementAccessIsPacked(JSContext *cx, MDefinition *obj);
 bool ElementAccessHasExtraIndexedProperty(JSContext *cx, MDefinition *obj);
-bool DenseNativeElementType(JSContext *cx, MDefinition *obj, MIRType *result);
+MIRType DenseNativeElementType(JSContext *cx, MDefinition *obj);
 bool PropertyReadNeedsTypeBarrier(JSContext *cx, types::TypeObject *object, PropertyName *name,
-                                  types::StackTypeSet *observed, bool updateObserved, bool *result);
+                                  types::StackTypeSet *observed, bool updateObserved = true);
 bool PropertyReadNeedsTypeBarrier(JSContext *cx, MDefinition *obj, PropertyName *name,
-                                  types::StackTypeSet *observed, bool *result);
-bool PropertyReadIsIdempotent(JSContext *cx, MDefinition *obj, PropertyName *name, bool *result);
-bool AddObjectsForPropertyRead(JSContext *cx, MDefinition *obj, PropertyName *name,
+                                  types::StackTypeSet *observed);
+bool PropertyReadIsIdempotent(JSContext *cx, MDefinition *obj, PropertyName *name);
+void AddObjectsForPropertyRead(JSContext *cx, MDefinition *obj, PropertyName *name,
                                types::StackTypeSet *observed);
 bool PropertyWriteNeedsTypeBarrier(JSContext *cx, MBasicBlock *current, MDefinition **pobj,
                                    PropertyName *name, MDefinition **pvalue,
-                                   bool canModify, bool *result);
+                                   bool canModify = true);
 
 } // namespace jit
 } // namespace js

@@ -41,9 +41,7 @@ exports["test multiple tabs"] = function(assert, done) {
   let { events } = loader.require("sdk/content/events");
   let { on, off } = loader.require("sdk/event/core");
   let actual = [];
-
-  on(events, "data", handler);
-  function handler ({type, target, timeStamp}) {
+  on(events, "data", function({type, target, timeStamp}) {
     // ignore about:blank pages and *-document-global-created
     // events that are not very consistent.
     // ignore http:// requests, as Fennec's `about:home` page
@@ -54,7 +52,7 @@ exports["test multiple tabs"] = function(assert, done) {
         type !== "chrome-document-global-created" &&
         type !== "content-document-global-created")
       actual.push(type + " -> " + target.URL)
-  }
+  });
 
   let window = getMostRecentBrowserWindow();
   let firstTab = open("data:text/html,first-tab", window);
@@ -80,7 +78,6 @@ exports["test multiple tabs"] = function(assert, done) {
       assert.fail(Error(reason));
     }).then(function() {
       loader.unload();
-      off(events, "data", handler);
       done();
     });
 };
@@ -90,15 +87,14 @@ exports["test nested frames"] = function(assert, done) {
   let { events } = loader.require("sdk/content/events");
   let { on, off } = loader.require("sdk/event/core");
   let actual = [];
-  on(events, "data", handler);
-  function handler ({type, target, timeStamp}) {
+  on(events, "data", function({type, target, timeStamp}) {
     // ignore about:blank pages and *-global-created
     // events that are not very consistent.
     if (target.URL !== "about:blank" &&
        type !== "chrome-document-global-created" &&
        type !== "content-document-global-created")
       actual.push(type + " -> " + target.URL)
-  }
+  });
 
   let window =  getMostRecentBrowserWindow();
   let uri = encodeURI("data:text/html,<iframe src='data:text/html,iframe'>");
@@ -121,7 +117,6 @@ exports["test nested frames"] = function(assert, done) {
       assert.fail(Error(reason))
     }).then(function() {
       loader.unload();
-      off(events, "data", handler);
       done();
     });
 };

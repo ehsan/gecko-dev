@@ -13,6 +13,7 @@
 #include "nsISVGChildFrame.h"
 #include "nsLiteralString.h"
 #include "nsQueryFrame.h"
+#include "nsRect.h"
 #include "nsSVGGeometryFrame.h"
 #include "nsSVGUtils.h"
 
@@ -27,8 +28,6 @@ class nsSVGMarkerFrame;
 class nsSVGMarkerProperty;
 
 struct nsPoint;
-struct nsRect;
-struct nsIntRect;
 
 typedef nsSVGGeometryFrame nsSVGPathGeometryFrameBase;
 

@@ -13,8 +13,13 @@
 #include "ImageFactory.h"
 #include "Image.h"
 
+#include "imgILoader.h"
+
+#include "netCore.h"
+
 #include "nsIChannel.h"
 #include "nsICachingChannel.h"
+#include "nsILoadGroup.h"
 #include "nsIInputStream.h"
 #include "nsIMultiPartChannel.h"
 #include "nsIHttpChannel.h"
@@ -22,16 +27,22 @@
 #include "nsIApplicationCacheChannel.h"
 #include "nsMimeTypes.h"
 
+#include "nsIComponentManager.h"
 #include "nsIInterfaceRequestorUtils.h"
+#include "nsIServiceManager.h"
 #include "nsISupportsPrimitives.h"
 #include "nsIScriptSecurityManager.h"
 
 #include "nsICacheVisitor.h"
 
+#include "nsString.h"
+#include "nsXPIDLString.h"
 #include "plstr.h" // PL_strcasestr(...)
 #include "nsNetUtil.h"
 #include "nsIProtocolHandler.h"
-#include "imgIRequest.h"
+
+#include "DiscardTracker.h"
+#include "nsAsyncRedirectVerifyHelper.h"
 
 using namespace mozilla;
 using namespace mozilla::image;

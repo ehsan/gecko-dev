@@ -6,7 +6,7 @@
 #define nsIPageSequenceFrame_h___
 
 #include "nsQueryFrame.h"
-#include "nsCoord.h"
+#include "nsRect.h"
 
 class nsPresContext;
 class nsIPrintSettings;

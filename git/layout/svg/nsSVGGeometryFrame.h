@@ -13,6 +13,7 @@
 #include "nsFrame.h"
 #include "nsIFrame.h"
 #include "nsQueryFrame.h"
+#include "nsRect.h"
 
 class gfxContext;
 class nsIContent;

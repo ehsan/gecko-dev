@@ -261,7 +261,6 @@ struct ParamTraits<nsKeyEvent>
     WriteParam(aMsg, aParam.charCode);
     WriteParam(aMsg, aParam.isChar);
     WriteParam(aMsg, aParam.location);
-    WriteParam(aMsg, aParam.mUniqueId);
     // An OS-specific native event might be attached in |mNativeKeyEvent|,  but
     // that cannot be copied across process boundaries.
   }
@@ -274,8 +273,7 @@ struct ParamTraits<nsKeyEvent>
         ReadParam(aMsg, aIter, &aResult->keyCode) &&
         ReadParam(aMsg, aIter, &aResult->charCode) &&
         ReadParam(aMsg, aIter, &aResult->isChar) &&
-        ReadParam(aMsg, aIter, &aResult->location) &&
-        ReadParam(aMsg, aIter, &aResult->mUniqueId))
+        ReadParam(aMsg, aIter, &aResult->location))
     {
       aResult->mKeyNameIndex = static_cast<mozilla::widget::KeyNameIndex>(keyNameIndex);
       aResult->mNativeKeyEvent = NULL;

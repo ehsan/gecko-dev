@@ -2255,7 +2255,8 @@ nsWindow::FlushIMEChanges()
         if (!event.mSucceeded)
             return;
 
-        AndroidBridge::NotifyIMEChange(event.mReply.mString,
+        AndroidBridge::NotifyIMEChange(event.mReply.mString.get(),
+                                       event.mReply.mString.Length(),
                                        change.mStart,
                                        change.mOldEnd,
                                        change.mNewEnd);
@@ -2270,9 +2271,9 @@ nsWindow::FlushIMEChanges()
         if (!event.mSucceeded)
             return;
 
-        AndroidBridge::NotifyIMEChange(EmptyString(),
-                             (int32_t) event.GetSelectionStart(),
-                             (int32_t) event.GetSelectionEnd(), -1);
+        AndroidBridge::NotifyIMEChange(nullptr, 0,
+                                       event.GetSelectionStart(),
+                                       event.GetSelectionEnd(), -1);
         mIMESelectionChanged = false;
     }
 }

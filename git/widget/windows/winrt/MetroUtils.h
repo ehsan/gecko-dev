@@ -9,6 +9,7 @@
 #include "nsThreadUtils.h"
 #include "nsString.h"
 #include "nsPoint.h"
+#include "nsRect.h"
 
 #include "mozwrlbase.h"
 
@@ -48,7 +49,6 @@ void LogW(const wchar_t *fmt, ...);
 
 class nsIBrowserDOMWindow;
 class nsIDOMWindow;
-struct nsIntRect;
 
 namespace mozilla {
 namespace widget {

@@ -24,12 +24,24 @@ const TEST_ID = "0202";
 // launching a post update executable.
 const FILE_UPDATER_INI_BAK = "updater.ini.bak";
 
+let gActiveUpdate;
 let gTimeoutRuns = 0;
 
 function run_test() {
   if (APP_BIN_NAME == "xulrunner") {
     logTestInfo("Unable to run this test on xulrunner");
     return;
+  }
+
+  if (IS_WIN) {
+    var version = AUS_Cc["@mozilla.org/system-info;1"]
+                  .getService(AUS_Ci.nsIPropertyBag2)
+                  .getProperty("version");
+    var isVistaOrHigher = (parseFloat(version) >= 6.0);
+    if (!isVistaOrHigher) {
+      logTestInfo("Disabled on Windows XP due to bug 909489");
+      return;
+    }
   }
 
   do_test_pending();
@@ -114,9 +126,8 @@ function run_test() {
   writeFile(updateSettingsIni, UPDATE_SETTINGS_CONTENTS);
 
   reloadUpdateManagerData();
-  do_check_true(!!gUpdateManager.activeUpdate);
-
-  Services.obs.addObserver(gUpdateStagedObserver, "update-staged", false);
+  gActiveUpdate = gUpdateManager.activeUpdate;
+  do_check_true(!!gActiveUpdate);
 
   setEnvironment();
 
@@ -124,11 +135,12 @@ function run_test() {
   logTestInfo("update preparation completed - calling processUpdate");
   AUS_Cc["@mozilla.org/updates/update-processor;1"].
     createInstance(AUS_Ci.nsIUpdateProcessor).
-    processUpdate(gUpdateManager.activeUpdate);
+    processUpdate(gActiveUpdate);
 
   resetEnvironment();
 
-  logTestInfo("processUpdate completed - waiting for update-staged notification");
+  logTestInfo("processUpdate completed - calling checkUpdateApplied");
+  checkUpdateApplied();
 }
 
 function end_test() {

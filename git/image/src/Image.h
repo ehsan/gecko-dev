@@ -10,9 +10,8 @@
 #include "imgIContainer.h"
 #include "imgStatusTracker.h"
 #include "nsIURI.h"
-
-class nsIRequest;
-class nsIInputStream;
+#include "nsIRequest.h"
+#include "nsIInputStream.h"
 
 namespace mozilla {
 namespace image {

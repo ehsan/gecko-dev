@@ -13,7 +13,6 @@
 #include "XPCInlines.h"
 #include "XPCQuickStubs.h"
 #include "mozilla/dom/BindingUtils.h"
-#include "mozilla/dom/Exceptions.h"
 
 using namespace mozilla;
 using namespace JS;
@@ -251,7 +250,7 @@ ThrowCallFailed(JSContext *cx, nsresult rv,
                          format, rv, ifaceName, memberName);
     }
 
-    dom::Throw(cx, rv, sz);
+    XPCThrower::BuildAndThrowException(cx, rv, sz);
 
     if (sz)
         JS_smprintf_free(sz);
@@ -337,7 +336,7 @@ ThrowBadArg(JSContext *cx, nsresult rv, const char *ifaceName,
     sz = JS_smprintf("%s arg %u [%s.%s]",
                      format, (unsigned int) paramnum, ifaceName, memberName);
 
-    dom::Throw(cx, rv, sz);
+    XPCThrower::BuildAndThrowException(cx, rv, sz);
 
     if (sz)
         JS_smprintf_free(sz);

@@ -9,7 +9,6 @@
 #include "nsIProtocolHandler.h"
 #include "nsIURI.h"
 #include "nsCOMPtr.h"
-#include "nsIInputStream.h"
 
 #define BLOBURI_SCHEME "blob"
 #define MEDIASTREAMURI_SCHEME "mediastream"
@@ -19,6 +18,7 @@
 class nsIDOMBlob;
 class nsIDOMMediaStream;
 class nsIPrincipal;
+class nsIInputStream;
 
 namespace mozilla {
 namespace dom {

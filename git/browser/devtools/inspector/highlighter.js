@@ -7,26 +7,13 @@
 const {Cu, Cc, Ci} = require("chrome");
 
 Cu.import("resource://gre/modules/Services.jsm");
-Cu.import("resource://gre/modules/devtools/LayoutHelpers.jsm");
+Cu.import("resource:///modules/devtools/LayoutHelpers.jsm");
 Cu.import("resource://gre/modules/XPCOMUtils.jsm");
 
 let EventEmitter = require("devtools/shared/event-emitter");
 
 const PSEUDO_CLASSES = [":hover", ":active", ":focus"];
   // add ":visited" and ":link" after bug 713106 is fixed
-
-exports._forceBasic = {value: false};
-
-exports.Highlighter = function Highlighter(aTarget, aInspector, aToolbox) {
-  if (aTarget.isLocalTab && !exports._forceBasic.value) {
-    return new LocalHighlighter(aTarget, aInspector, aToolbox);
-  } else {
-    return new BasicHighlighter(aTarget, aInspector, aToolbox);
-  }
-}
-
-exports.LocalHighlighter = LocalHighlighter;
-exports.BasicHighlighter = BasicHighlighter;
 
 /**
  * A highlighter mechanism.
@@ -84,7 +71,7 @@ exports.BasicHighlighter = BasicHighlighter;
  * @param aInspector Inspector panel.
  * @param aToolbox The toolbox holding the inspector.
  */
-function LocalHighlighter(aTarget, aInspector, aToolbox)
+function Highlighter(aTarget, aInspector, aToolbox)
 {
   this.target = aTarget;
   this.tab = aTarget.tab;
@@ -99,12 +86,14 @@ function LocalHighlighter(aTarget, aInspector, aToolbox)
   this._init();
 }
 
-LocalHighlighter.prototype = {
+exports.Highlighter = Highlighter;
+
+Highlighter.prototype = {
   get selection() {
     return this.inspector.selection;
   },
 
-  _init: function LocalHighlighter__init()
+  _init: function Highlighter__init()
   {
     this.toggleLockState = this.toggleLockState.bind(this);
     this.unlockAndFocus = this.unlockAndFocus.bind(this);
@@ -168,7 +157,7 @@ LocalHighlighter.prototype = {
   /**
    * Destroy the nodes. Remove listeners.
    */
-  destroy: function LocalHighlighter_destroy()
+  destroy: function Highlighter_destroy()
   {
     this.inspectButton.removeEventListener("command", this.unlockAndFocus);
     this.inspectButton = null;
@@ -206,7 +195,7 @@ LocalHighlighter.prototype = {
   /**
    * Show the outline, and select a node.
    */
-  highlight: function LocalHighlighter_highlight()
+  highlight: function Highlighter_highlight()
   {
     if (this.selection.reason != "highlighter") {
       this.lock();
@@ -236,7 +225,7 @@ LocalHighlighter.prototype = {
   /**
    * Update the highlighter size and position.
    */
-  invalidateSize: function LocalHighlighter_invalidateSize()
+  invalidateSize: function Highlighter_invalidateSize()
   {
     let canHiglightNode = this.selection.isNode() &&
                           this.selection.isConnected() &&
@@ -344,7 +333,7 @@ LocalHighlighter.prototype = {
   /**
    * Focus the browser before unlocking.
    */
-  unlockAndFocus: function LocalHighlighter_unlockAndFocus() {
+  unlockAndFocus: function Highlighter_unlockAndFocus() {
     if (this.locked === false) return;
     this.chromeWin.focus();
     this.unlock();
@@ -353,7 +342,7 @@ LocalHighlighter.prototype = {
   /**
    * Hide the infobar
    */
-   hideInfobar: function LocalHighlighter_hideInfobar() {
+   hideInfobar: function Highlighter_hideInfobar() {
      this.nodeInfo.container.setAttribute("force-transitions", "true");
      this.nodeInfo.container.setAttribute("hidden", "true");
    },
@@ -361,7 +350,7 @@ LocalHighlighter.prototype = {
   /**
    * Show the infobar
    */
-   showInfobar: function LocalHighlighter_showInfobar() {
+   showInfobar: function Highlighter_showInfobar() {
      this.nodeInfo.container.removeAttribute("hidden");
      this.moveInfobar();
      this.nodeInfo.container.removeAttribute("force-transitions");
@@ -370,14 +359,14 @@ LocalHighlighter.prototype = {
   /**
    * Hide the outline
    */
-   hideOutline: function LocalHighlighter_hideOutline() {
+   hideOutline: function Highlighter_hideOutline() {
      this.outline.setAttribute("hidden", "true");
    },
 
   /**
    * Show the outline
    */
-   showOutline: function LocalHighlighter_showOutline() {
+   showOutline: function Highlighter_showOutline() {
      if (this._highlighting)
        this.outline.removeAttribute("hidden");
    },
@@ -386,7 +375,7 @@ LocalHighlighter.prototype = {
    * Build the node Infobar.
    *
    * <box class="highlighter-nodeinfobar-container">
-   *   <box class="highlighter-nodeinfobar-arrow-top"/>
+   *   <box class="Highlighter-nodeinfobar-arrow-top"/>
    *   <hbox class="highlighter-nodeinfobar">
    *     <toolbarbutton class="highlighter-nodeinfobar-button highlighter-nodeinfobar-inspectbutton"/>
    *     <hbox class="highlighter-nodeinfobar-text">
@@ -397,13 +386,13 @@ LocalHighlighter.prototype = {
    *     </hbox>
    *     <toolbarbutton class="highlighter-nodeinfobar-button highlighter-nodeinfobar-menu"/>
    *   </hbox>
-   *   <box class="highlighter-nodeinfobar-arrow-bottom"/>
+   *   <box class="Highlighter-nodeinfobar-arrow-bottom"/>
    * </box>
    *
    * @param nsIDOMElement aParent
    *        The container of the infobar.
    */
-  buildInfobar: function LocalHighlighter_buildInfobar(aParent)
+  buildInfobar: function Highlighter_buildInfobar(aParent)
   {
     let container = this.chromeDoc.createElement("box");
     container.className = "highlighter-nodeinfobar-container";
@@ -500,7 +489,7 @@ LocalHighlighter.prototype = {
    * @returns boolean
    *          True if the rectangle was highlighted, false otherwise.
    */
-  highlightRectangle: function LocalHighlighter_highlightRectangle(aRect)
+  highlightRectangle: function Highlighter_highlightRectangle(aRect)
   {
     if (!aRect) {
       this.unhighlight();
@@ -543,7 +532,7 @@ LocalHighlighter.prototype = {
   /**
    * Clear the highlighter surface.
    */
-  unhighlight: function LocalHighlighter_unhighlight()
+  unhighlight: function Highlighter_unhighlight()
   {
     this._highlighting = false;
     this.hideOutline();
@@ -552,7 +541,7 @@ LocalHighlighter.prototype = {
   /**
    * Update node information (tagName#id.class)
    */
-  updateInfobar: function LocalHighlighter_updateInfobar()
+  updateInfobar: function Highlighter_updateInfobar()
   {
     if (!this.selection.isElementNode()) {
       this.nodeInfo.tagNameLabel.textContent = "";
@@ -588,7 +577,7 @@ LocalHighlighter.prototype = {
   /**
    * Move the Infobar to the right place in the highlighter.
    */
-  moveInfobar: function LocalHighlighter_moveInfobar()
+  moveInfobar: function Highlighter_moveInfobar()
   {
     if (this._highlightRect) {
       let winHeight = this.win.innerHeight * this.zoom;
@@ -655,7 +644,7 @@ LocalHighlighter.prototype = {
   /**
    * Store page zoom factor.
    */
-  computeZoomFactor: function LocalHighlighter_computeZoomFactor() {
+  computeZoomFactor: function Highlighter_computeZoomFactor() {
     this.zoom =
       this.win.QueryInterface(Ci.nsIInterfaceRequestor)
       .getInterface(Ci.nsIDOMWindowUtils)
@@ -665,7 +654,7 @@ LocalHighlighter.prototype = {
   /////////////////////////////////////////////////////////////////////////
   //// Event Handling
 
-  attachMouseListeners: function LocalHighlighter_attachMouseListeners()
+  attachMouseListeners: function Highlighter_attachMouseListeners()
   {
     this.browser.addEventListener("mousemove", this, true);
     this.browser.addEventListener("click", this, true);
@@ -674,7 +663,7 @@ LocalHighlighter.prototype = {
     this.browser.addEventListener("mouseup", this, true);
   },
 
-  detachMouseListeners: function LocalHighlighter_detachMouseListeners()
+  detachMouseListeners: function Highlighter_detachMouseListeners()
   {
     this.browser.removeEventListener("mousemove", this, true);
     this.browser.removeEventListener("click", this, true);
@@ -683,14 +672,14 @@ LocalHighlighter.prototype = {
     this.browser.removeEventListener("mouseup", this, true);
   },
 
-  attachPageListeners: function LocalHighlighter_attachPageListeners()
+  attachPageListeners: function Highlighter_attachPageListeners()
   {
     this.browser.addEventListener("resize", this, true);
     this.browser.addEventListener("scroll", this, true);
     this.browser.addEventListener("MozAfterPaint", this, true);
   },
 
-  detachPageListeners: function LocalHighlighter_detachPageListeners()
+  detachPageListeners: function Highlighter_detachPageListeners()
   {
     this.browser.removeEventListener("resize", this, true);
     this.browser.removeEventListener("scroll", this, true);
@@ -703,7 +692,7 @@ LocalHighlighter.prototype = {
    * @param nsIDOMEvent aEvent
    *        The DOM event object.
    */
-  handleEvent: function LocalHighlighter_handleEvent(aEvent)
+  handleEvent: function Highlighter_handleEvent(aEvent)
   {
     switch (aEvent.type) {
       case "click":
@@ -734,7 +723,7 @@ LocalHighlighter.prototype = {
    * Disable the CSS transitions for a short time to avoid laggy animations
    * during scrolling or resizing.
    */
-  brieflyDisableTransitions: function LocalHighlighter_brieflyDisableTransitions()
+  brieflyDisableTransitions: function Highlighter_brieflyDisableTransitions()
   {
     if (this.transitionDisabler) {
       this.chromeWin.clearTimeout(this.transitionDisabler);
@@ -753,7 +742,7 @@ LocalHighlighter.prototype = {
   /**
    * Don't listen to page events while inspecting with the mouse.
    */
-  brieflyIgnorePageEvents: function LocalHighlighter_brieflyIgnorePageEvents()
+  brieflyIgnorePageEvents: function Highlighter_brieflyIgnorePageEvents()
   {
     // The goal is to keep smooth animations while inspecting.
     // CSS Transitions might be interrupted because of a MozAfterPaint
@@ -784,7 +773,7 @@ LocalHighlighter.prototype = {
    * @param nsIDOMEvent aEvent
    *        The DOM event.
    */
-  handleClick: function LocalHighlighter_handleClick(aEvent)
+  handleClick: function Highlighter_handleClick(aEvent)
   {
     // Stop inspection when the user clicks on a node.
     if (aEvent.button == 0) {
@@ -802,7 +791,7 @@ LocalHighlighter.prototype = {
    * @param nsiDOMEvent aEvent
    *        The MouseEvent triggering the method.
    */
-  handleMouseMove: function LocalHighlighter_handleMouseMove(aEvent)
+  handleMouseMove: function Highlighter_handleMouseMove(aEvent)
   {
     let doc = aEvent.target.ownerDocument;
 
@@ -818,58 +807,13 @@ LocalHighlighter.prototype = {
   },
 };
 
-// BasicHighlighter. Doesn't implement any fancy features. Just change
-// the outline of the selected node. Works with remote target.
-
-function BasicHighlighter(aTarget, aInspector)
-{
-  this.walker = aInspector.walker;
-  this.selection = aInspector.selection;
-  this.highlight = this.highlight.bind(this);
-  this.selection.on("new-node-front", this.highlight);
-  EventEmitter.decorate(this);
-  this.locked = true;
-}
-
-BasicHighlighter.prototype = {
-  destroy: function() {
-    this.selection.off("new-node-front", this.highlight);
-    this.walker = null;
-    this.selection = null;
-  },
-  toggleLockState: function() {
-    this.locked = !this.locked;
-    if (this.locked) {
-      this.walker.cancelPick();
-    } else {
-      this.emit("unlocked");
-      this.walker.pick().then(
-        (node) => this._onPick(node),
-        () => this._onPick(null)
-      );
-    }
-  },
-  highlight: function() {
-    this.walker.highlight(this.selection.nodeFront);
-  },
-  _onPick: function(node) {
-    if (node) {
-      this.selection.setNodeFront(node);
-    }
-    this.locked = true;
-    this.emit("locked");
-  },
-  hide: function() {},
-  show: function() {},
-}
-
 ///////////////////////////////////////////////////////////////////////////
 
 XPCOMUtils.defineLazyGetter(this, "DOMUtils", function () {
   return Cc["@mozilla.org/inspector/dom-utils;1"].getService(Ci.inIDOMUtils)
 });
 
-XPCOMUtils.defineLazyGetter(LocalHighlighter.prototype, "strings", function () {
+XPCOMUtils.defineLazyGetter(Highlighter.prototype, "strings", function () {
     return Services.strings.createBundle(
             "chrome://browser/locale/devtools/inspector.properties");
 });
