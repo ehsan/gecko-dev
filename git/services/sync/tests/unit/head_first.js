@@ -68,11 +68,7 @@ function FakeTimerService() {
   Utils.makeTimerForCall = self.makeTimerForCall;
 };
 
-function getTestLogger(component) {
-  return Log4Moz.Service.getLogger("Testing");
-}
-
-function initTestLogging(level) {
+function initTestLogging() {
   Cu.import("resource://weave/log4moz.js");
 
   function LogStats() {
@@ -91,13 +87,8 @@ function initTestLogging(level) {
   var log = Log4Moz.Service.rootLogger;
   var logStats = new LogStats();
   var appender = new Log4Moz.DumpAppender(logStats);
-
-  if (typeof(level) == "undefined")
-    level = "Debug";
-  getTestLogger().level = Log4Moz.Level[level];
-
-  log.level = Log4Moz.Level.Trace;
-  appender.level = Log4Moz.Level.Trace;
+  log.level = Log4Moz.Level.Debug;
+  appender.level = Log4Moz.Level.Debug;
   log.addAppender(appender);
 
   return logStats;
@@ -132,7 +123,7 @@ function FakePrefService(contents) {
 
 FakePrefService.prototype = {
   _getPref: function fake__getPref(pref) {
-    getTestLogger().trace("Getting pref: " + pref);
+    Log4Moz.Service.rootLogger.trace("Getting pref: " + pref);
     return this.fakeContents[pref];
   },
   getCharPref: function fake_getCharPref(pref) {
@@ -173,13 +164,13 @@ function FakeDAVService(contents) {
 
 FakeDAVService.prototype = {
   PUT: function fake_PUT(path, data, onComplete) {
-    getTestLogger().info("Putting " + path);
+    Log4Moz.Service.rootLogger.info("Putting " + path);
     this.fakeContents[path] = data;
     makeFakeAsyncFunc({status: 200}).async(this, onComplete);
   },
 
   GET: function fake_GET(path, onComplete) {
-    getTestLogger().info("Retrieving " + path);
+    Log4Moz.Service.rootLogger.info("Retrieving " + path);
     var result = {status: 404};
     if (path in this.fakeContents)
       result = {status: 200, responseText: this.fakeContents[path]};
@@ -188,7 +179,7 @@ FakeDAVService.prototype = {
   },
 
   MKCOL: function fake_MKCOL(path, onComplete) {
-    getTestLogger().info("Creating dir " + path);
+    Log4Moz.Service.rootLogger.info("Creating dir " + path);
     makeFakeAsyncFunc(true).async(this, onComplete);
   }
 };
@@ -200,8 +191,8 @@ function FakePasswordService(contents) {
   let self = this;
 
   Utils.findPassword = function fake_findPassword(realm, username) {
-    getTestLogger().trace("Password requested for " +
-                          realm + ":" + username);
+    Log4Moz.Service.rootLogger.trace("Password requested for " +
+                                     realm + ":" + username);
     if (realm in self.fakeContents && username in self.fakeContents[realm])
       return self.fakeContents[realm][username];
     else

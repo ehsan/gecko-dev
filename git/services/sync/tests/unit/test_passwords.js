@@ -8,16 +8,9 @@ let __fakePasswords = {
   'Mozilla Services Encryption Passphrase': {foo: "passphrase"}
 };
 
-let __fakePrefs = {
-  "encryption" : "none",
-  "log.logger.service.crypto" : "Debug",
-  "log.logger.service.engine" : "Debug",
-  "log.logger.async" : "Trace"
-};
-
 function run_test() {
   var fpasses = new FakePasswordService(__fakePasswords);
-  var fprefs = new FakePrefService(__fakePrefs);
+  var fprefs = new FakePrefService({"encryption" : "none"});
   var fds = new FakeDAVService({});
   var fts = new FakeTimerService();
   var logStats = initTestLogging();
@@ -68,17 +61,9 @@ function run_test() {
 
   // Make sure the engine can sync.
   var engine = new passwords.PasswordEngine();
-  let calledBack = false;
-
-  function cb() {
-    calledBack = true;
-  }
-
-  engine.sync(cb);
+  engine.sync();
 
   while (fts.processCallback()) {}
-
-  do_check_true(calledBack);
   do_check_eq(logStats.errorsLogged, 0);
   do_check_eq(Async.outstandingGenerators, 0);
 }

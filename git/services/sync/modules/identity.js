@@ -42,6 +42,7 @@ const Cr = Components.results;
 const Cu = Components.utils;
 
 Cu.import("resource://gre/modules/XPCOMUtils.jsm");
+Cu.import("resource://weave/log4moz.js");
 Cu.import("resource://weave/constants.js");
 Cu.import("resource://weave/util.js");
 
@@ -54,11 +55,10 @@ function IDManager() {
 }
 IDManager.prototype = {
   get: function IDMgr_get(name) {
-    if (name in this._aliases)
+    if (this._aliases[name])
       return this._ids[this._aliases[name]];
-    if (name in this._ids)
+    else
       return this._ids[name];
-    return null;
   },
   set: function IDMgr_set(name, id) {
     this._ids[name] = id;
