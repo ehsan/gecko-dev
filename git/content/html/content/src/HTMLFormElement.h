@@ -28,8 +28,14 @@ class nsIURI;
 
 namespace mozilla {
 namespace dom {
-class HTMLFormControlsCollection;
 class HTMLImageElement;
+}
+}
+
+namespace mozilla {
+namespace dom {
+
+class nsFormControlList;
 
 class HTMLFormElement MOZ_FINAL : public nsGenericHTMLElement,
                                   public nsIDOMHTMLFormElement,
@@ -37,17 +43,13 @@ class HTMLFormElement MOZ_FINAL : public nsGenericHTMLElement,
                                   public nsIForm,
                                   public nsIRadioGroupContainer
 {
-  friend class HTMLFormControlsCollection;
+  friend class nsFormControlList;
 
 public:
   HTMLFormElement(already_AddRefed<nsINodeInfo> aNodeInfo);
   virtual ~HTMLFormElement();
 
   nsresult Init();
-
-  enum {
-    FORM_CONTROL_LIST_HASHTABLE_SIZE = 16
-  };
 
   // nsISupports
   NS_DECL_ISUPPORTS_INHERITED
@@ -392,15 +394,6 @@ public:
 
   void GetSupportedNames(nsTArray<nsString >& aRetval);
 
-  static int32_t
-  CompareFormControlPosition(Element* aElement1, Element* aElement2,
-                             const nsIContent* aForm);
-#ifdef DEBUG
-  static void
-  AssertDocumentOrder(const nsTArray<nsGenericHTMLFormElement*>& aControls,
-                      nsIContent* aForm);
-#endif
-
   js::ExpandoAndGeneration mExpandoAndGeneration;
 
 protected:
@@ -545,7 +538,7 @@ protected:
   // Data members
   //
   /** The list of controls (form.elements as well as stuff not in elements) */
-  nsRefPtr<HTMLFormControlsCollection> mControls;
+  nsRefPtr<nsFormControlList> mControls;
   /** The currently selected radio button of each group */
   nsRefPtrHashtable<nsStringCaseInsensitiveHashKey, HTMLInputElement> mSelectedRadioButtons;
   /** The number of required radio button of each group */

@@ -19,5 +19,3 @@ LIBRARY_NAME = 'unixproxy'
 
 LIBXUL_LIBRARY = True
 
-EXPORT_LIBRARY = True
-

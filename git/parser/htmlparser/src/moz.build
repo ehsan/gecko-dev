@@ -26,5 +26,3 @@ LIBRARY_NAME = 'htmlpars'
 
 LIBXUL_LIBRARY = True
 
-EXPORT_LIBRARY = True
-

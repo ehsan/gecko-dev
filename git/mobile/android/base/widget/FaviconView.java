@@ -64,7 +64,7 @@ public class FaviconView extends ImageView {
     private void formatImage() {
         // If we're called before bitmap is set, or before size is set, show blank.
         if (mIconBitmap == null || mActualWidth == 0 || mActualHeight == 0) {
-            showNoImage();
+            clearImage();
             return;
         }
 
@@ -157,16 +157,12 @@ public class FaviconView extends ImageView {
         hideBackground();
     }
 
-    private void showNoImage() {
-        setImageBitmap(null);
-        hideBackground();
-    }
-
     /**
      * Clear image and background shown by this view.
      */
     public void clearImage() {
-        showNoImage();
+        setImageResource(0);
+        hideBackground();
         mUnscaledBitmap = null;
         mIconBitmap = null;
         mIconKey = null;

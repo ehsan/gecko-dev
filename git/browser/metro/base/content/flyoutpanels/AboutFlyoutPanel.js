@@ -51,6 +51,7 @@ let AboutFlyoutPanel = {
     if (aEvent.button != 0) {
       return;
     }
+    FlyoutPanelsUI.hide();
     let url = Services.urlFormatter.formatURLPref("app.privacyURL");
     BrowserUI.addAndShowTab(url, Browser.selectedTab);
   },

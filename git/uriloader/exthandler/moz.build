@@ -73,33 +73,33 @@ if CONFIG['MOZ_WIDGET_TOOLKIT'] == 'cocoa':
     ]
 else:
     CPP_SOURCES += [
-        osdir + '/nsOSHelperAppService.cpp',
+        'nsOSHelperAppService.cpp',
     ]
 
 if CONFIG['MOZ_ENABLE_GTK']:
     CPP_SOURCES += [
-        'unix/nsGNOMERegistry.cpp',
-        'unix/nsMIMEInfoUnix.cpp',
+        'nsGNOMERegistry.cpp',
+        'nsMIMEInfoUnix.cpp',
     ]
 elif CONFIG['MOZ_WIDGET_TOOLKIT'] == 'android':
     CPP_SOURCES += [
-        'android/nsMIMEInfoAndroid.cpp',
-        'android/nsAndroidHandlerApp.cpp',
-        'android/nsExternalSharingAppService.cpp',
-        'android/nsExternalURLHandlerService.cpp',
+        'nsMIMEInfoAndroid.cpp',
+        'nsAndroidHandlerApp.cpp',
+        'nsExternalSharingAppService.cpp',
+        'nsExternalURLHandlerService.cpp',
     ]
 elif CONFIG['MOZ_WIDGET_TOOLKIT'] == 'qt':
     CPP_SOURCES += [
-        'unix/nsGNOMERegistry.cpp',
-        'unix/nsMIMEInfoUnix.cpp',
+        'nsGNOMERegistry.cpp',
+        'nsMIMEInfoUnix.cpp',
     ]
 elif CONFIG['MOZ_WIDGET_TOOLKIT'] == 'windows':
     CPP_SOURCES += [
-        'win/nsMIMEInfoWin.cpp',
+        'nsMIMEInfoWin.cpp',
     ]
 elif CONFIG['MOZ_WIDGET_TOOLKIT'] == 'os2':
     CPP_SOURCES += [
-        'os2/nsMIMEInfoOS2.cpp',
+        'nsMIMEInfoOS2.cpp',
     ]
 
 if CONFIG['MOZ_ENABLE_DBUS']:
@@ -109,7 +109,7 @@ if CONFIG['MOZ_ENABLE_DBUS']:
 
 if CONFIG['MOZ_ENABLE_MEEGOTOUCHSHARE']:
     CPP_SOURCES += [
-        'unix/nsMeegoExternalSharingAppService.cpp',
+        'nsMeegoExternalSharingAppService.cpp',
     ]
 
 if CONFIG['MOZ_ENABLE_CONTENTACTION']:

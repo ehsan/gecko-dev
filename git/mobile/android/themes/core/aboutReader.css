@@ -519,7 +519,7 @@ body {
   background-image: url('chrome://browser/skin/images/reader-style-icon-mdpi.png');
 }
 
-@media screen and (min-resolution: 1.25dppx) {
+@media screen and (min-resolution: 200dpi) {
   .dropdown-arrow {
     background-image: url('chrome://browser/skin/images/reader-dropdown-arrow-hdpi.png');
   }
@@ -557,7 +557,7 @@ body {
   }
 }
 
-@media screen and (min-resolution: 2dppx) {
+@media screen and (min-resolution: 300dpi) {
   .dropdown-arrow {
     background-image: url('chrome://browser/skin/images/reader-dropdown-arrow-xhdpi.png');
   }

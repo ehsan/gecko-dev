@@ -30,6 +30,7 @@
                        min="0" max="100"/>
       </vbox>
       <vbox id="downloads-indicator-icon"/>
+      <vbox id="downloads-indicator-notification"/>
     </stack>
   </toolbarbutton>
 </overlay>

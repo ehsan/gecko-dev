@@ -40,5 +40,3 @@ MSVC_ENABLE_PGO = True
 
 LIBRARY_NAME = 'dombindings_s'
 
-EXPORT_LIBRARY = True
-
