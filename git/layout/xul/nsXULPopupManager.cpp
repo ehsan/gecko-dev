@@ -1766,9 +1766,6 @@ nsXULPopupManager::UpdateMenuItems(nsIContent* aPopup)
        grandChild;
        grandChild = grandChild->GetNextSibling()) {
     if (grandChild->IsXUL(nsGkAtoms::menugroup)) {
-      if (grandChild->GetChildCount() == 0) {
-        continue;
-      }
       grandChild = grandChild->GetFirstChild();
     }
     if (grandChild->IsXUL(nsGkAtoms::menuitem)) {
@@ -2184,8 +2181,7 @@ nsXULPopupManager::GetNextMenuItem(nsContainerFrame* aParent,
     if (IsValidMenuItem(presContext, currFrameContent, aIsPopup)) {
       return do_QueryFrame(currFrame);
     }
-    if (currFrameContent->IsXUL(nsGkAtoms::menugroup) &&
-        currFrameContent->GetChildCount() > 0)
+    if (currFrameContent->IsXUL(nsGkAtoms::menugroup))
       currFrame = currFrame->GetFirstPrincipalChild();
     else if (!currFrame->GetNextSibling() &&
              currFrame->GetParent()->GetContent()->IsXUL(nsGkAtoms::menugroup))
@@ -2203,8 +2199,7 @@ nsXULPopupManager::GetNextMenuItem(nsContainerFrame* aParent,
     if (IsValidMenuItem(presContext, currFrameContent, aIsPopup)) {
       return do_QueryFrame(currFrame);
     }
-    if (currFrameContent->IsXUL(nsGkAtoms::menugroup) &&
-        currFrameContent->GetChildCount() > 0)
+    if (currFrameContent->IsXUL(nsGkAtoms::menugroup))
       currFrame = currFrame->GetFirstPrincipalChild();
     else if (!currFrame->GetNextSibling() &&
              currFrame->GetParent()->GetContent()->IsXUL(nsGkAtoms::menugroup))
@@ -2246,8 +2241,7 @@ nsXULPopupManager::GetPreviousMenuItem(nsContainerFrame* aParent,
     if (IsValidMenuItem(presContext, currFrameContent, aIsPopup)) {
       return do_QueryFrame(currFrame);
     }
-    if (currFrameContent->IsXUL(nsGkAtoms::menugroup) &&
-        currFrameContent->GetChildCount() > 0) {
+    if (currFrameContent->IsXUL(nsGkAtoms::menugroup)) {
       const nsFrameList& menugroupFrames(currFrame->PrincipalChildList());
       currFrame = menugroupFrames.LastChild();
     }
@@ -2267,8 +2261,7 @@ nsXULPopupManager::GetPreviousMenuItem(nsContainerFrame* aParent,
     if (IsValidMenuItem(presContext, currFrameContent, aIsPopup)) {
       return do_QueryFrame(currFrame);
     }
-    if (currFrameContent->IsXUL(nsGkAtoms::menugroup) &&
-        currFrameContent->GetChildCount() > 0) {
+    if (currFrameContent->IsXUL(nsGkAtoms::menugroup)) {
       const nsFrameList& menugroupFrames(currFrame->PrincipalChildList());
       currFrame = menugroupFrames.LastChild();
     }

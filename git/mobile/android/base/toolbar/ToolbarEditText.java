@@ -368,7 +368,8 @@ public class ToolbarEditText extends CustomEditText
                 return super.deleteSurroundingText(beforeLength, afterLength);
             }
 
-            private boolean removeAutocompleteOnComposing(final CharSequence text) {
+            @Override
+            public boolean setComposingText(final CharSequence text, final int newCursorPosition) {
                 final Editable editable = getText();
                 final int composingStart = BaseInputConnection.getComposingSpanStart(editable);
                 final int composingEnd = BaseInputConnection.getComposingSpanEnd(editable);
@@ -380,24 +381,7 @@ public class ToolbarEditText extends CustomEditText
                     removeAutocomplete(editable)) {
                     // Make the IME aware that we interrupted the setComposingText call,
                     // by having finishComposingText() send change notifications to the IME.
-                    finishComposingText();
-                    return true;
-                }
-                return false;
-            }
-
-            @Override
-            public boolean commitText(CharSequence text, int newCursorPosition) {
-                if (removeAutocompleteOnComposing(text)) {
-                    return false;
-                }
-                return super.commitText(text, newCursorPosition);
-            }
-
-            @Override
-            public boolean setComposingText(final CharSequence text, final int newCursorPosition) {
-                if (removeAutocompleteOnComposing(text)) {
-                    return false;
+                    return super.finishComposingText();
                 }
                 return super.setComposingText(text, newCursorPosition);
             }

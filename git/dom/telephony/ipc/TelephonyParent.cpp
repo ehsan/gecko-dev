@@ -283,6 +283,7 @@ TelephonyParent::CallStateChanged(uint32_t aClientId,
                                   uint32_t aCallIndex,
                                   uint16_t aCallState,
                                   const nsAString& aNumber,
+                                  bool aIsActive,
                                   bool aIsOutgoing,
                                   bool aIsEmergency,
                                   bool aIsConference,
@@ -292,7 +293,7 @@ TelephonyParent::CallStateChanged(uint32_t aClientId,
   NS_ENSURE_TRUE(!mActorDestroyed, NS_ERROR_FAILURE);
 
   IPCCallStateData data(aCallIndex, aCallState, nsString(aNumber),
-                        aIsOutgoing, aIsEmergency, aIsConference,
+                        aIsActive, aIsOutgoing, aIsEmergency, aIsConference,
                         aIsSwitchable, aIsMergeable);
   return SendNotifyCallStateChanged(aClientId, data) ? NS_OK : NS_ERROR_FAILURE;
 }
@@ -317,6 +318,7 @@ TelephonyParent::EnumerateCallState(uint32_t aClientId,
                                     uint32_t aCallIndex,
                                     uint16_t aCallState,
                                     const nsAString& aNumber,
+                                    bool aIsActive,
                                     bool aIsOutgoing,
                                     bool aIsEmergency,
                                     bool aIsConference,
@@ -430,6 +432,7 @@ TelephonyRequestParent::CallStateChanged(uint32_t aClientId,
                                          uint32_t aCallIndex,
                                          uint16_t aCallState,
                                          const nsAString& aNumber,
+                                         bool aIsActive,
                                          bool aIsOutgoing,
                                          bool aIsEmergency,
                                          bool aIsConference,
@@ -458,6 +461,7 @@ TelephonyRequestParent::EnumerateCallState(uint32_t aClientId,
                                            uint32_t aCallIndex,
                                            uint16_t aCallState,
                                            const nsAString& aNumber,
+                                           bool aIsActive,
                                            bool aIsOutgoing,
                                            bool aIsEmergency,
                                            bool aIsConference,
@@ -467,7 +471,7 @@ TelephonyRequestParent::EnumerateCallState(uint32_t aClientId,
   NS_ENSURE_TRUE(!mActorDestroyed, NS_ERROR_FAILURE);
 
   IPCCallStateData data(aCallIndex, aCallState, nsString(aNumber),
-                        aIsOutgoing, aIsEmergency, aIsConference,
+                        aIsActive, aIsOutgoing, aIsEmergency, aIsConference,
                         aIsSwitchable, aIsMergeable);
   return SendNotifyEnumerateCallState(aClientId, data) ? NS_OK
                                                        : NS_ERROR_FAILURE;

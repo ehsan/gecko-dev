@@ -590,6 +590,12 @@ nsGenericDOMDataNode::GetChildren(uint32_t aFilter)
   return nullptr;
 }
 
+nsIAtom *
+nsGenericDOMDataNode::GetIDAttributeName() const
+{
+  return nullptr;
+}
+
 nsresult
 nsGenericDOMDataNode::SetAttr(int32_t aNameSpaceID, nsIAtom* aAttr,
                               nsIAtom* aPrefix, const nsAString& aValue,
@@ -1064,6 +1070,19 @@ nsGenericDOMDataNode::GetCurrentValueAtom()
   return NS_NewAtom(val);
 }
 
+nsIAtom*
+nsGenericDOMDataNode::DoGetID() const
+{
+  return nullptr;
+}
+
+const nsAttrValue*
+nsGenericDOMDataNode::DoGetClasses() const
+{
+  NS_NOTREACHED("Shouldn't ever be called");
+  return nullptr;
+}
+
 NS_IMETHODIMP
 nsGenericDOMDataNode::WalkContentStyleRules(nsRuleWalker* aRuleWalker)
 {
@@ -1082,6 +1101,12 @@ nsGenericDOMDataNode::GetAttributeChangeHint(const nsIAtom* aAttribute,
 {
   NS_NOTREACHED("Shouldn't be calling this!");
   return nsChangeHint(0);
+}
+
+nsIAtom*
+nsGenericDOMDataNode::GetClassAttributeName() const
+{
+  return nullptr;
 }
 
 size_t

@@ -355,6 +355,7 @@ TelephonyIPCProvider::CallStateChanged(uint32_t aClientId,
                                        uint32_t aCallIndex,
                                        uint16_t aCallState,
                                        const nsAString& aNumber,
+                                       bool aIsActive,
                                        bool aIsOutgoing,
                                        bool aIsEmergency,
                                        bool aIsConference,
@@ -363,8 +364,8 @@ TelephonyIPCProvider::CallStateChanged(uint32_t aClientId,
 {
   for (uint32_t i = 0; i < mListeners.Length(); i++) {
     mListeners[i]->CallStateChanged(aClientId, aCallIndex, aCallState, aNumber,
-                                    aIsOutgoing, aIsEmergency, aIsConference,
-                                    aIsSwitchable, aIsMergeable);
+                                    aIsActive, aIsOutgoing, aIsEmergency,
+                                    aIsConference, aIsSwitchable, aIsMergeable);
   }
   return NS_OK;
 }
@@ -389,6 +390,7 @@ TelephonyIPCProvider::EnumerateCallState(uint32_t aClientId,
                                          uint32_t aCallIndex,
                                          uint16_t aCallState,
                                          const nsAString& aNumber,
+                                         bool aIsActive,
                                          bool aIsOutgoing,
                                          bool aIsEmergency,
                                          bool aIsConference,

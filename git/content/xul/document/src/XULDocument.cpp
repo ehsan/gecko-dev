@@ -966,7 +966,8 @@ XULDocument::AttributeWillChange(nsIDocument* aDocument,
 
     // XXXbz check aNameSpaceID, dammit!
     // See if we need to update our ref map.
-    if (aAttribute == nsGkAtoms::ref) {
+    if (aAttribute == nsGkAtoms::ref ||
+        (aAttribute == nsGkAtoms::id && !aElement->GetIDAttributeName())) {
         // Might not need this, but be safe for now.
         nsCOMPtr<nsIMutationObserver> kungFuDeathGrip(this);
         RemoveElementFromRefMap(aElement);
@@ -985,7 +986,8 @@ XULDocument::AttributeChanged(nsIDocument* aDocument,
 
     // XXXbz check aNameSpaceID, dammit!
     // See if we need to update our ref map.
-    if (aAttribute == nsGkAtoms::ref) {
+    if (aAttribute == nsGkAtoms::ref ||
+        (aAttribute == nsGkAtoms::id && !aElement->GetIDAttributeName())) {
         AddElementToRefMap(aElement);
     }
     
@@ -1925,6 +1927,9 @@ static void
 GetRefMapAttribute(Element* aElement, nsAutoString* aValue)
 {
     aElement->GetAttr(kNameSpaceID_None, nsGkAtoms::ref, *aValue);
+    if (aValue->IsEmpty() && !aElement->GetIDAttributeName()) {
+        aElement->GetAttr(kNameSpaceID_None, nsGkAtoms::id, *aValue);
+    }
 }
 
 nsresult

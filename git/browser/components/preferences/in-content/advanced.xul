@@ -135,12 +135,8 @@
          value="&paneAdvanced.title;"/>
 </hbox>
 
-<tabbox id="advancedPrefs"
-        handleCtrlTab="false"
-        handleCtrlPageUpDown="false"
-        flex="1"
-        data-category="paneAdvanced"
-        hidden="true"
+<tabbox id="advancedPrefs" flex="1"
+        data-category="paneAdvanced" hidden="true"
         onselect="gAdvancedPane.tabSelectionChanged();">
 
   <tabs id="tabsElement">
@@ -211,8 +207,7 @@
                     label="&setDefault.label;" accesskey="&setDefault.accesskey;"
                     oncommand="gAdvancedPane.setDefaultBrowser();"
                     preference="pref.general.disable_button.default_browser"/>
-            <label id="isDefaultLabel"
-                   value="&isDefault.label;"/>
+            <description>&isDefault.label;</description>
           </deck>
         </hbox>
       </groupbox>
