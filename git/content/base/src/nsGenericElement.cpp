@@ -462,7 +462,6 @@ NS_IMPL_ADDREF(nsChildContentList)
 NS_IMPL_RELEASE(nsChildContentList)
 
 NS_INTERFACE_TABLE_HEAD(nsChildContentList)
-  NS_WRAPPERCACHE_INTERFACE_MAP_ENTRY
   NS_NODELIST_OFFSET_AND_INTERFACE_TABLE_BEGIN(nsChildContentList)
     NS_INTERFACE_TABLE_ENTRY(nsChildContentList, nsINodeList)
     NS_INTERFACE_TABLE_ENTRY(nsChildContentList, nsIDOMNodeList)
@@ -1103,7 +1102,7 @@ nsNSElementTearoff::SetScrollTop(PRInt32 aScrollTop)
 
     if (NS_SUCCEEDED(rv)) {
       rv = view->ScrollTo(xPos, nsPresContext::CSSPixelsToAppUnits(aScrollTop),
-                          0);
+                          NS_VMREFRESH_IMMEDIATE);
     }
   }
 
@@ -1145,7 +1144,7 @@ nsNSElementTearoff::SetScrollLeft(PRInt32 aScrollLeft)
 
     if (NS_SUCCEEDED(rv)) {
       rv = view->ScrollTo(nsPresContext::CSSPixelsToAppUnits(aScrollLeft),
-                          yPos, 0);
+                          yPos, NS_VMREFRESH_IMMEDIATE);
     }
   }
 
@@ -4067,9 +4066,7 @@ NS_IMPL_CYCLE_COLLECTION_TRAVERSE_BEGIN(nsGenericElement)
 NS_IMPL_CYCLE_COLLECTION_TRAVERSE_END
 
 
-NS_INTERFACE_MAP_BEGIN(nsGenericElement)
-  NS_WRAPPERCACHE_INTERFACE_MAP_ENTRY
-  NS_INTERFACE_MAP_ENTRIES_CYCLE_COLLECTION(nsGenericElement)
+NS_INTERFACE_MAP_BEGIN_CYCLE_COLLECTION(nsGenericElement)
   NS_INTERFACE_MAP_ENTRY(nsIContent)
   NS_INTERFACE_MAP_ENTRY(nsINode)
   NS_INTERFACE_MAP_ENTRY(nsPIDOMEventTarget)

@@ -3734,7 +3734,7 @@ PresShell::GoToAnchor(const nsAString& aAnchorName, PRBool aScroll)
         mViewManager->GetRootScrollableView(&scrollingView);
         if (scrollingView) {
           // Scroll to the top of the page
-          scrollingView->ScrollTo(0, 0, 0);
+          scrollingView->ScrollTo(0, 0, NS_VMREFRESH_IMMEDIATE);
         }
       }
     }
@@ -3961,7 +3961,8 @@ static void ScrollViewToShowRect(nsIScrollableView* aScrollingView,
       NSToCoordRound(frameAlignX - visibleRect.width * (aHPercent / 100.0f));
   }
 
-  aScrollingView->ScrollTo(scrollOffsetX, scrollOffsetY, 0);
+  aScrollingView->ScrollTo(scrollOffsetX, scrollOffsetY,
+                           NS_VMREFRESH_IMMEDIATE);
 }
 
 NS_IMETHODIMP

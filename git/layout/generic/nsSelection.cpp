@@ -5089,7 +5089,8 @@ nsTypedSelection::ScrollPointIntoClipView(nsPresContext *aPresContext, nsIView *
 
     // Now scroll the view!
 
-    result = scrollableView->ScrollTo(bounds.x + dx, bounds.y + dy, 0);
+    result = scrollableView->ScrollTo(bounds.x + dx, bounds.y + dy,
+                                      NS_VMREFRESH_NO_SYNC);
 
     if (NS_FAILED(result))
       return result;
@@ -6399,7 +6400,7 @@ nsTypedSelection::ScrollRectIntoView(nsIScrollableView *aScrollableView,
     }
   }
 
-  aScrollableView->ScrollTo(scrollOffsetX, scrollOffsetY, 0);
+  aScrollableView->ScrollTo(scrollOffsetX, scrollOffsetY, NS_VMREFRESH_IMMEDIATE);
 
   if (aScrollParentViews)
   {
