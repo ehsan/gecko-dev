@@ -57,7 +57,7 @@ public:
     NS_DECL_THREADSAFE_ISUPPORTS
     NS_DECL_NSIDNSRECORD
 
-    explicit nsDNSRecord(nsHostRecord *hostRecord)
+    nsDNSRecord(nsHostRecord *hostRecord)
         : mHostRecord(hostRecord)
         , mIter(nullptr)
         , mIterGenCnt(-1)
@@ -342,7 +342,7 @@ nsDNSAsyncRequest::Cancel(nsresult reason)
 class nsDNSSyncRequest : public nsResolveHostCallback
 {
 public:
-    explicit nsDNSSyncRequest(PRMonitor *mon)
+    nsDNSSyncRequest(PRMonitor *mon)
         : mDone(false)
         , mStatus(NS_OK)
         , mMonitor(mon) {}

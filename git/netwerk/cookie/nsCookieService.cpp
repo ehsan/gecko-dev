@@ -357,7 +357,7 @@ LogSuccess(bool aSetCookie, nsIURI *aHostURI, const nsAFlatCString &aCookieStrin
 class DBListenerErrorHandler : public mozIStorageStatementCallback
 {
 protected:
-  explicit DBListenerErrorHandler(DBState* dbState) : mDBState(dbState) { }
+  DBListenerErrorHandler(DBState* dbState) : mDBState(dbState) { }
   nsRefPtr<DBState> mDBState;
   virtual const char *GetOpType() = 0;
 
@@ -397,7 +397,7 @@ private:
 public:
   NS_DECL_ISUPPORTS
 
-  explicit InsertCookieDBListener(DBState* dbState) : DBListenerErrorHandler(dbState) { }
+  InsertCookieDBListener(DBState* dbState) : DBListenerErrorHandler(dbState) { }
   NS_IMETHOD HandleResult(mozIStorageResultSet*)
   {
     NS_NOTREACHED("Unexpected call to InsertCookieDBListener::HandleResult");
@@ -433,7 +433,7 @@ private:
 public:
   NS_DECL_ISUPPORTS
 
-  explicit UpdateCookieDBListener(DBState* dbState) : DBListenerErrorHandler(dbState) { }
+  UpdateCookieDBListener(DBState* dbState) : DBListenerErrorHandler(dbState) { }
   NS_IMETHOD HandleResult(mozIStorageResultSet*)
   {
     NS_NOTREACHED("Unexpected call to UpdateCookieDBListener::HandleResult");
@@ -461,7 +461,7 @@ private:
 public:
   NS_DECL_ISUPPORTS
 
-  explicit RemoveCookieDBListener(DBState* dbState) : DBListenerErrorHandler(dbState) { }
+  RemoveCookieDBListener(DBState* dbState) : DBListenerErrorHandler(dbState) { }
   NS_IMETHOD HandleResult(mozIStorageResultSet*)
   {
     NS_NOTREACHED("Unexpected call to RemoveCookieDBListener::HandleResult");
@@ -490,7 +490,7 @@ private:
 public:
   NS_DECL_ISUPPORTS
 
-  explicit ReadCookieDBListener(DBState* dbState)
+  ReadCookieDBListener(DBState* dbState)
     : DBListenerErrorHandler(dbState)
     , mCanceled(false)
   {
@@ -566,7 +566,7 @@ class CloseCookieDBListener MOZ_FINAL :  public mozIStorageCompletionCallback
   ~CloseCookieDBListener() {}
 
 public:
-  explicit CloseCookieDBListener(DBState* dbState) : mDBState(dbState) { }
+  CloseCookieDBListener(DBState* dbState) : mDBState(dbState) { }
   nsRefPtr<DBState> mDBState;
   NS_DECL_ISUPPORTS
 
@@ -1484,7 +1484,7 @@ RebuildDBCallback(nsCookieEntry *aEntry,
     nsCookie* cookie = cookies[i];
 
     if (!cookie->IsSession()) {
-      bindCookieParameters(paramsArray, nsCookieKey(aEntry), cookie);
+      bindCookieParameters(paramsArray, aEntry, cookie);
     }
   }
 

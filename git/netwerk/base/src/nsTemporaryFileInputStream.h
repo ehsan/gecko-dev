@@ -20,7 +20,7 @@ public:
     friend class nsTemporaryFileInputStream;
   public:
     NS_INLINE_DECL_THREADSAFE_REFCOUNTING(FileDescOwner)
-    explicit FileDescOwner(PRFileDesc* aFD)
+    FileDescOwner(PRFileDesc* aFD)
       : mFD(aFD),
         mMutex("FileDescOwner::mMutex")
     {

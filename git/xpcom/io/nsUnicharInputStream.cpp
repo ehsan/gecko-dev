@@ -26,7 +26,7 @@
 class StringUnicharInputStream MOZ_FINAL : public nsIUnicharInputStream
 {
 public:
-  explicit StringUnicharInputStream(const nsAString& aString) :
+  StringUnicharInputStream(const nsAString& aString) :
     mString(aString), mPos(0), mLen(aString.Length()) { }
 
   NS_DECL_ISUPPORTS

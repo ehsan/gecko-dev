@@ -83,7 +83,7 @@ WebSocketChannelChild::ReleaseIPDLReference()
 class WrappedChannelEvent : public nsRunnable
 {
 public:
-  explicit WrappedChannelEvent(ChannelEvent *aChannelEvent)
+  WrappedChannelEvent(ChannelEvent *aChannelEvent)
     : mChannelEvent(aChannelEvent)
   {
     MOZ_RELEASE_ASSERT(aChannelEvent);

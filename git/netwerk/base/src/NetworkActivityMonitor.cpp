@@ -151,7 +151,7 @@ nsNetMon_AcceptRead(PRFileDesc *listenSock,
 
 class NotifyNetworkActivity : public nsRunnable {
 public:
-  explicit NotifyNetworkActivity(NetworkActivityMonitor::Direction aDirection)
+  NotifyNetworkActivity(NetworkActivityMonitor::Direction aDirection)
     : mDirection(aDirection)
   {}
   NS_IMETHOD Run()

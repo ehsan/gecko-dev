@@ -36,7 +36,7 @@ public:
   /**
    * Constructor for plain files
    */
-  explicit FileLocation(nsIFile *file);
+  FileLocation(nsIFile *file);
 
   /**
    * Constructors for path within an archive. The archive can be given either

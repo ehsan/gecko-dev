@@ -160,7 +160,7 @@ public: /* internal necko use only */
     class AutoCacheWaitFlags
     {
     public:
-      explicit AutoCacheWaitFlags(nsHttpChannel* channel)
+      AutoCacheWaitFlags(nsHttpChannel* channel)
         : mChannel(channel)
         , mKeep(0)
       {

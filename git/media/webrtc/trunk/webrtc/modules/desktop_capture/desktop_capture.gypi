@@ -104,8 +104,6 @@
         }],
         ['OS!="win" and OS!="mac" and use_x11==0', {
           'sources': [
-            "app_capturer_null.cc",
-            "desktop_device_info_null.cc",
             "mouse_cursor_monitor_null.cc",
             "screen_capturer_null.cc",
             "window_capturer_null.cc",

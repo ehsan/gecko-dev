@@ -393,7 +393,7 @@ private:
 // execution scope.
 class nsCacheServiceAutoLock {
 public:
-    explicit nsCacheServiceAutoLock(mozilla::Telemetry::ID mainThreadLockerID) {
+    nsCacheServiceAutoLock(mozilla::Telemetry::ID mainThreadLockerID) {
         nsCacheService::Lock(mainThreadLockerID);
     }
     ~nsCacheServiceAutoLock() {

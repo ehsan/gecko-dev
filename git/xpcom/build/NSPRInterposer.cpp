@@ -27,7 +27,7 @@ PRFileInfo64FN sFileInfo64Fn = nullptr;
 class NSPRIOAutoObservation : public IOInterposeObserver::Observation
 {
 public:
-  explicit NSPRIOAutoObservation(IOInterposeObserver::Operation aOp)
+  NSPRIOAutoObservation(IOInterposeObserver::Operation aOp)
     : IOInterposeObserver::Observation(aOp, "NSPRIOInterposer")
   {
   }

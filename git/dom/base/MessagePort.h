@@ -20,7 +20,7 @@ class PostMessageRunnable;
 class MessagePortBase : public DOMEventTargetHelper
 {
 protected:
-  explicit MessagePortBase(nsPIDOMWindow* aWindow);
+  MessagePortBase(nsPIDOMWindow* aWindow);
   MessagePortBase();
 
 public:
@@ -61,7 +61,7 @@ public:
   NS_DECL_CYCLE_COLLECTION_CLASS_INHERITED(MessagePort,
                                            DOMEventTargetHelper)
 
-  explicit MessagePort(nsPIDOMWindow* aWindow);
+  MessagePort(nsPIDOMWindow* aWindow);
 
   virtual JSObject*
   WrapObject(JSContext* aCx) MOZ_OVERRIDE;

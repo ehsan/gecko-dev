@@ -35,17 +35,17 @@ public:
   {
   }
 
-  explicit TypedEventHandler(dom::EventHandlerNonNull* aHandler)
+  TypedEventHandler(dom::EventHandlerNonNull* aHandler)
   {
     Assign(aHandler, eNormal);
   }
 
-  explicit TypedEventHandler(dom::OnErrorEventHandlerNonNull* aHandler)
+  TypedEventHandler(dom::OnErrorEventHandlerNonNull* aHandler)
   {
     Assign(aHandler, eOnError);
   }
 
-  explicit TypedEventHandler(dom::OnBeforeUnloadEventHandlerNonNull* aHandler)
+  TypedEventHandler(dom::OnBeforeUnloadEventHandlerNonNull* aHandler)
   {
     Assign(aHandler, eOnBeforeUnload);
   }

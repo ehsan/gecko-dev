@@ -168,33 +168,23 @@ nsDOMCameraControl::nsDOMCameraControl(uint32_t aCameraId,
 
   // Create and initialize the underlying camera.
   ICameraControl::Configuration config;
-  bool haveInitialConfig = false;
-  nsresult rv;
 
   switch (aInitialConfig.mMode) {
     case CameraMode::Picture:
       config.mMode = ICameraControl::kPictureMode;
-      haveInitialConfig = true;
       break;
 
     case CameraMode::Video:
       config.mMode = ICameraControl::kVideoMode;
-      haveInitialConfig = true;
-      break;
-
-    case CameraMode::Unspecified:
       break;
 
     default:
       MOZ_ASSERT_UNREACHABLE("Unanticipated camera mode!");
-      break;
   }
 
-  if (haveInitialConfig) {
-    config.mPreviewSize.width = aInitialConfig.mPreviewSize.mWidth;
-    config.mPreviewSize.height = aInitialConfig.mPreviewSize.mHeight;
-    config.mRecorderProfile = aInitialConfig.mRecorderProfile;
-  }
+  config.mPreviewSize.width = aInitialConfig.mPreviewSize.mWidth;
+  config.mPreviewSize.height = aInitialConfig.mPreviewSize.mHeight;
+  config.mRecorderProfile = aInitialConfig.mRecorderProfile;
 
   mCameraControl = ICameraControl::Create(aCameraId);
   mCurrentConfiguration = initialConfig.forget();
@@ -211,11 +201,7 @@ nsDOMCameraControl::nsDOMCameraControl(uint32_t aCameraId,
   mCameraControl->AddListener(mListener);
 
   // Start the camera...
-  if (haveInitialConfig) {
-    rv = mCameraControl->Start(&config);
-  } else {
-    rv = mCameraControl->Start();
-  }
+  nsresult rv = mCameraControl->Start(&config);
   if (NS_FAILED(rv)) {
     mListener->OnUserError(DOMCameraControlListener::kInStartCamera, rv);
   }

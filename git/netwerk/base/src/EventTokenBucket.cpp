@@ -34,7 +34,7 @@ public:
   NS_DECL_THREADSAFE_ISUPPORTS
   NS_DECL_NSICANCELABLE
 
-  explicit TokenBucketCancelable(class ATokenBucketEvent *event);
+  TokenBucketCancelable(class ATokenBucketEvent *event);
   void Fire();
 
 private:

@@ -58,7 +58,7 @@ class nsDOMWindowUtils MOZ_FINAL : public nsIDOMWindowUtils,
                                    public nsSupportsWeakReference
 {
 public:
-  explicit nsDOMWindowUtils(nsGlobalWindow *aWindow);
+  nsDOMWindowUtils(nsGlobalWindow *aWindow);
   NS_DECL_ISUPPORTS
   NS_DECL_NSIDOMWINDOWUTILS
 

@@ -380,7 +380,7 @@ nsINode::ChildNodes()
 }
 
 void
-nsINode::GetTextContentInternal(nsAString& aTextContent, ErrorResult& aError)
+nsINode::GetTextContentInternal(nsAString& aTextContent)
 {
   SetDOMStringToNull(aTextContent);
 }

@@ -685,7 +685,7 @@ class SocketListenerProxy MOZ_FINAL : public nsIUDPSocketListener
   ~SocketListenerProxy() {}
 
 public:
-  explicit SocketListenerProxy(nsIUDPSocketListener* aListener)
+  SocketListenerProxy(nsIUDPSocketListener* aListener)
     : mListener(new nsMainThreadPtrHolder<nsIUDPSocketListener>(aListener))
     , mTargetThread(do_GetCurrentThread())
   { }

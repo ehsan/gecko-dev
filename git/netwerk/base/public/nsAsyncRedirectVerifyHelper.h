@@ -92,7 +92,7 @@ private:
 class nsAsyncRedirectAutoCallback
 {
 public:
-    explicit nsAsyncRedirectAutoCallback(nsIAsyncVerifyRedirectCallback* aCallback)
+    nsAsyncRedirectAutoCallback(nsIAsyncVerifyRedirectCallback* aCallback)
         : mCallback(aCallback)
     {
         mResult = NS_OK;

@@ -110,7 +110,7 @@ class DoomFileHelper : public CacheFileIOListener
 public:
   NS_DECL_THREADSAFE_ISUPPORTS
 
-  explicit DoomFileHelper(CacheFileListener *aListener)
+  DoomFileHelper(CacheFileListener *aListener)
     : mListener(aListener)
   {
     MOZ_COUNT_CTOR(DoomFileHelper);
@@ -409,7 +409,7 @@ CacheFile::OnFileOpened(CacheFileHandle *aHandle, nsresult aResult)
   class AutoFailDoomListener
   {
   public:
-    explicit AutoFailDoomListener(CacheFileHandle *aHandle)
+    AutoFailDoomListener(CacheFileHandle *aHandle)
       : mHandle(aHandle)
       , mAlreadyDoomed(false)
     {}

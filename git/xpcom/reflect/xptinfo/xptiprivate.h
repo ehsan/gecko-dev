@@ -107,7 +107,7 @@ public:
     const char* GetEntryNameAt(uint16_t i);
 
 private:
-    explicit xptiTypelibGuts(XPTHeader* aHeader)
+    xptiTypelibGuts(XPTHeader* aHeader)
         : mHeader(aHeader)
     { }
     ~xptiTypelibGuts();
@@ -128,7 +128,7 @@ class xptiInfoFlags
 {
     enum {STATE_MASK = 3};
 public:
-    explicit xptiInfoFlags(uint8_t n) : mData(n) {}
+    xptiInfoFlags(uint8_t n) : mData(n) {}
     xptiInfoFlags(const xptiInfoFlags& r) : mData(r.mData) {}
 
     static uint8_t GetStateMask()
@@ -334,7 +334,7 @@ public:
     NS_IMETHOD GetIIDForParamNoAlloc(uint16_t methodIndex, const nsXPTParamInfo * param, nsIID *iid) { return !mEntry ? NS_ERROR_UNEXPECTED : mEntry->GetIIDForParamNoAlloc(methodIndex, param, iid); }
 
 public:
-    explicit xptiInterfaceInfo(xptiInterfaceEntry* entry);
+    xptiInterfaceInfo(xptiInterfaceEntry* entry);
 
     void Invalidate() 
         {NS_IF_RELEASE(mParent); mEntry = nullptr;}

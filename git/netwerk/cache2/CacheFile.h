@@ -219,7 +219,7 @@ private:
 
 class CacheFileAutoLock {
 public:
-  explicit CacheFileAutoLock(CacheFile *aFile)
+  CacheFileAutoLock(CacheFile *aFile)
     : mFile(aFile)
     , mLocked(true)
   {

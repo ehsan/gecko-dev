@@ -12,7 +12,7 @@ using namespace mozilla;
 
 class nsDestroyThreadEvent : public nsRunnable {
 public:
-  explicit nsDestroyThreadEvent(nsIThread *thread)
+  nsDestroyThreadEvent(nsIThread *thread)
     : mThread(thread)
   {}
   NS_IMETHOD Run()

@@ -707,7 +707,7 @@ void
 nsFrameSelection::Init(nsIPresShell *aShell, nsIContent *aLimiter)
 {
   mShell = aShell;
-  mDragState = false;
+  mMouseDownState = false;
   mDesiredXSet = false;
   mLimiter = aLimiter;
   mCaretMovementStyle =
@@ -1652,14 +1652,14 @@ nsFrameSelection::LookUpSelection(nsIContent *aContent,
 }
 
 void
-nsFrameSelection::SetDragState(bool aState)
+nsFrameSelection::SetMouseDownState(bool aState)
 {
-  if (mDragState == aState)
+  if (mMouseDownState == aState)
     return;
 
-  mDragState = aState;
+  mMouseDownState = aState;
     
-  if (!mDragState)
+  if (!mMouseDownState)
   {
     mDragSelectingCells = false;
     PostReason(nsISelectionListener::MOUSEUP_REASON);
@@ -2073,7 +2073,7 @@ nsFrameSelection::HandleTableSelection(nsINode* aParentContent,
   NS_ENSURE_TRUE(aParentContent, NS_ERROR_NULL_POINTER);
   NS_ENSURE_TRUE(aMouseEvent, NS_ERROR_NULL_POINTER);
 
-  if (mDragState && mDragSelectingCells && (aTarget & nsISelectionPrivate::TABLESELECTION_TABLE))
+  if (mMouseDownState && mDragSelectingCells && (aTarget & nsISelectionPrivate::TABLESELECTION_TABLE))
   {
     // We were selecting cells and user drags mouse in table border or inbetween cells,
     //  just do nothing
@@ -2098,7 +2098,7 @@ nsFrameSelection::HandleTableSelection(nsINode* aParentContent,
   nsSelectionBatcher selectionBatcher(mDomSelections[index]);
 
   int32_t startRowIndex, startColIndex, curRowIndex, curColIndex;
-  if (mDragState && mDragSelectingCells)
+  if (mMouseDownState && mDragSelectingCells)
   {
     // We are drag-selecting
     if (aTarget != nsISelectionPrivate::TABLESELECTION_TABLE)
@@ -2182,7 +2182,7 @@ printf("HandleTableSelection: Dragged into a new cell\n");
   else 
   {
     // Not dragging  -- mouse event is down or up
-    if (mDragState)
+    if (mMouseDownState)
     {
 #ifdef DEBUG_TABLE_SELECTION
 printf("HandleTableSelection: Mouse down event\n");

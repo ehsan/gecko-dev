@@ -47,7 +47,7 @@ public:
   NS_DECL_NSIMUTATIONOBSERVER_CONTENTINSERTED
   NS_DECL_NSIMUTATIONOBSERVER_CONTENTREMOVED
 
-  explicit nsBindingManager(nsIDocument* aDocument);
+  nsBindingManager(nsIDocument* aDocument);
 
   nsXBLBinding* GetBindingWithContent(nsIContent* aContent);
 

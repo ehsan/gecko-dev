@@ -29,7 +29,7 @@ class Foo MOZ_FINAL : public IFoo {
 
 public:
 
-  explicit Foo(int32_t aID);
+  Foo(int32_t aID);
 
   // nsISupports implementation
   NS_DECL_ISUPPORTS

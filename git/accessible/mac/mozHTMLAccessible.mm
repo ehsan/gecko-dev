@@ -17,10 +17,9 @@
 - (NSString*)title
 {
   nsAutoString title;
-  mozilla::ErrorResult rv;
   // XXX use the flattening API when there are available
   // see bug 768298
-  mGeckoAccessible->GetContent()->GetTextContent(title, rv);
+  mGeckoAccessible->GetContent()->GetTextContent(title);
 
   return nsCocoaUtils::ToNSString(title);
 }

@@ -61,7 +61,7 @@ public:
     virtual size_t SizeOfExcludingThis(mozilla::MallocSizeOf aMallocSizeOf) const;
     virtual size_t SizeOfIncludingThis(mozilla::MallocSizeOf aMallocSizeOf) const;
 
-    explicit nsStandardURL(bool aSupportsFileURL = false);
+    nsStandardURL(bool aSupportsFileURL = false);
 
     static void InitGlobalObjects();
     static void ShutdownGlobalObjects();
@@ -111,7 +111,7 @@ public: /* internal -- HPUX compiler can't handle this being private */
     class nsSegmentEncoder
     {
     public:
-        explicit nsSegmentEncoder(const char *charset);
+        nsSegmentEncoder(const char *charset);
 
         // Encode the given segment if necessary, and return the length of
         // the encoded segment.  The encoded segment is appended to |buf|

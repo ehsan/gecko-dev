@@ -141,7 +141,7 @@ public:
     void StartTimer(uint32_t aTimeout);
     void StopTimer();
 
-    explicit ConnectionData(Dashboard *target)
+    ConnectionData(Dashboard *target)
     {
         mThread = nullptr;
         mDashboard = target;

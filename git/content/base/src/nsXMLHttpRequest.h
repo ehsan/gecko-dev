@@ -113,7 +113,7 @@ class nsXHREventTarget : public mozilla::DOMEventTargetHelper,
                          public nsIXMLHttpRequestEventTarget
 {
 protected:
-  explicit nsXHREventTarget(mozilla::DOMEventTargetHelper* aOwner)
+  nsXHREventTarget(mozilla::DOMEventTargetHelper* aOwner)
     : mozilla::DOMEventTargetHelper(aOwner)
   {
   }
@@ -151,7 +151,7 @@ class nsXMLHttpRequestUpload MOZ_FINAL : public nsXHREventTarget,
                                          public nsIXMLHttpRequestUpload
 {
 public:
-  explicit nsXMLHttpRequestUpload(mozilla::DOMEventTargetHelper* aOwner)
+  nsXMLHttpRequestUpload(mozilla::DOMEventTargetHelper* aOwner)
     : nsXHREventTarget(aOwner)
   {
   }
@@ -343,31 +343,31 @@ private:
     RequestBody() : mType(Uninitialized)
     {
     }
-    explicit RequestBody(const mozilla::dom::ArrayBuffer* aArrayBuffer) : mType(ArrayBuffer)
+    RequestBody(const mozilla::dom::ArrayBuffer* aArrayBuffer) : mType(ArrayBuffer)
     {
       mValue.mArrayBuffer = aArrayBuffer;
     }
-    explicit RequestBody(const mozilla::dom::ArrayBufferView* aArrayBufferView) : mType(ArrayBufferView)
+    RequestBody(const mozilla::dom::ArrayBufferView* aArrayBufferView) : mType(ArrayBufferView)
     {
       mValue.mArrayBufferView = aArrayBufferView;
     }
-    explicit RequestBody(nsIDOMBlob* aBlob) : mType(Blob)
+    RequestBody(nsIDOMBlob* aBlob) : mType(Blob)
     {
       mValue.mBlob = aBlob;
     }
-    explicit RequestBody(nsIDocument* aDocument) : mType(Document)
+    RequestBody(nsIDocument* aDocument) : mType(Document)
     {
       mValue.mDocument = aDocument;
     }
-    explicit RequestBody(const nsAString& aString) : mType(DOMString)
+    RequestBody(const nsAString& aString) : mType(DOMString)
     {
       mValue.mString = &aString;
     }
-    explicit RequestBody(nsFormData& aFormData) : mType(FormData)
+    RequestBody(nsFormData& aFormData) : mType(FormData)
     {
       mValue.mFormData = &aFormData;
     }
-    explicit RequestBody(nsIInputStream* aStream) : mType(InputStream)
+    RequestBody(nsIInputStream* aStream) : mType(InputStream)
     {
       mValue.mStream = aStream;
     }
@@ -809,7 +809,7 @@ class nsXMLHttpRequestXPCOMifier MOZ_FINAL : public nsIStreamListener,
   NS_DECL_CYCLE_COLLECTION_CLASS_AMBIGUOUS(nsXMLHttpRequestXPCOMifier,
                                            nsIStreamListener)
 
-  explicit nsXMLHttpRequestXPCOMifier(nsXMLHttpRequest* aXHR) :
+  nsXMLHttpRequestXPCOMifier(nsXMLHttpRequest* aXHR) :
     mXHR(aXHR)
   {
   }
@@ -847,7 +847,7 @@ public:
     mXHR = nullptr;
     return NS_OK;
   }
-  explicit nsXHRParseEndListener(nsIXMLHttpRequest* aXHR)
+  nsXHRParseEndListener(nsIXMLHttpRequest* aXHR)
     : mXHR(do_GetWeakReference(aXHR)) {}
 private:
   virtual ~nsXHRParseEndListener() {}

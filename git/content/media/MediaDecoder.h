@@ -1011,7 +1011,6 @@ public:
 
 protected:
   virtual ~MediaDecoder();
-  void SetStateMachineParameters();
 
   /******
    * The following members should be accessed with the decoder lock held.

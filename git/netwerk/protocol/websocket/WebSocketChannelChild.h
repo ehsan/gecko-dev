@@ -21,7 +21,7 @@ class WebSocketChannelChild : public BaseWebSocketChannel,
                               public PWebSocketChild
 {
  public:
-  explicit WebSocketChannelChild(bool aSecure);
+  WebSocketChannelChild(bool aSecure);
 
   NS_DECL_THREADSAFE_ISUPPORTS
   NS_DECL_NSITHREADRETARGETABLEREQUEST

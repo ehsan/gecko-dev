@@ -40,7 +40,7 @@ class nsAnonymousContentList;
 class nsXBLBinding MOZ_FINAL
 {
 public:
-  explicit nsXBLBinding(nsXBLPrototypeBinding* aProtoBinding);
+  nsXBLBinding(nsXBLPrototypeBinding* aProtoBinding);
   nsXBLBinding(mozilla::dom::ShadowRoot* aShadowRoot, nsXBLPrototypeBinding* aProtoBinding);
 
   /**

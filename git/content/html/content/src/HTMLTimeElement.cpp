@@ -37,8 +37,7 @@ HTMLTimeElement::GetItemValueText(nsAString& text)
   if (HasAttr(kNameSpaceID_None, nsGkAtoms::datetime)) {
     GetDateTime(text);
   } else {
-    ErrorResult rv;
-    GetTextContentInternal(text, rv);
+    GetTextContentInternal(text);
   }
 }
 

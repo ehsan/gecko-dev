@@ -42,8 +42,7 @@ public:
 
   // nsIDOMNode interface
   NS_FORWARD_NSIDOMNODE_TO_NSINODE
-  virtual void GetTextContentInternal(nsAString& aTextContent,
-                                      ErrorResult& aError) MOZ_OVERRIDE;
+  virtual void GetTextContentInternal(nsAString& aTextContent) MOZ_OVERRIDE;
   virtual void SetTextContentInternal(const nsAString& aTextContent,
                                       ErrorResult& aError) MOZ_OVERRIDE;
   virtual void GetNodeValueInternal(nsAString& aNodeValue) MOZ_OVERRIDE;

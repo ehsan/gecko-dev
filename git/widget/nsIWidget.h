@@ -244,7 +244,7 @@ struct nsIMEUpdatePreference {
   {
   }
 
-  explicit nsIMEUpdatePreference(Notifications aWantUpdates)
+  nsIMEUpdatePreference(Notifications aWantUpdates)
     : mWantUpdates(aWantUpdates | DEFAULT_CONDITIONS_OF_NOTIFYING_CHANGES)
   {
   }
@@ -369,7 +369,7 @@ struct IMEState {
 
   IMEState() : mEnabled(ENABLED), mOpen(DONT_CHANGE_OPEN_STATE) { }
 
-  explicit IMEState(Enabled aEnabled, Open aOpen = DONT_CHANGE_OPEN_STATE) :
+  IMEState(Enabled aEnabled, Open aOpen = DONT_CHANGE_OPEN_STATE) :
     mEnabled(aEnabled), mOpen(aOpen)
   {
   }
@@ -452,8 +452,8 @@ struct InputContextAction {
   {
   }
 
-  explicit InputContextAction(Cause aCause,
-                              FocusChange aFocusChange = FOCUS_NOT_CHANGED) :
+  InputContextAction(Cause aCause,
+                     FocusChange aFocusChange = FOCUS_NOT_CHANGED) :
     mCause(aCause), mFocusChange(aFocusChange)
   {
   }
@@ -510,7 +510,7 @@ enum IMEMessage MOZ_ENUM_TYPE(int8_t)
 
 struct IMENotification
 {
-  MOZ_IMPLICIT IMENotification(IMEMessage aMessage)
+  IMENotification(IMEMessage aMessage)
     : mMessage(aMessage)
   {
     switch (aMessage) {

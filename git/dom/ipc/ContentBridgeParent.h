@@ -17,7 +17,7 @@ class ContentBridgeParent : public PContentBridgeParent
                           , public nsIContentParent
 {
 public:
-  explicit ContentBridgeParent(Transport* aTransport);
+  ContentBridgeParent(Transport* aTransport);
 
   NS_DECL_ISUPPORTS
 

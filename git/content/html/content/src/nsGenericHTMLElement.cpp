@@ -3126,8 +3126,7 @@ nsGenericHTMLElement::SetItemValue(nsIVariant* aValue)
 void
 nsGenericHTMLElement::GetItemValueText(nsAString& text)
 {
-  ErrorResult rv;
-  GetTextContentInternal(text, rv);
+  GetTextContentInternal(text);
 }
 
 void

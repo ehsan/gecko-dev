@@ -19,7 +19,7 @@ class FileInfo
   friend class FileManager;
 
 public:
-  explicit FileInfo(FileManager* aFileManager)
+  FileInfo(FileManager* aFileManager)
   : mFileManager(aFileManager)
   { }
 
