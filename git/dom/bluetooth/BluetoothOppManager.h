@@ -30,7 +30,6 @@ class BluetoothOppManager : public BluetoothSocketObserver
 {
 public:
   NS_DECL_ISUPPORTS
-  NS_DECL_NSIOBSERVER
 
   /*
    * Channel of reserved services are fixed values, please check
@@ -74,6 +73,7 @@ public:
 
   void ExtractPacketHeaders(const ObexHeaderSet& aHeader);
   bool ExtractBlobHeaders();
+  nsresult HandleShutdown();
 
   // Return true if there is an ongoing file-transfer session, please see
   // Bug 827267 for more information.
@@ -95,9 +95,6 @@ public:
 
 private:
   BluetoothOppManager();
-  bool Init();
-  void HandleShutdown();
-
   void StartFileTransfer();
   void StartSendingNextFile();
   void FileTransferComplete();

@@ -40,6 +40,3 @@ CPP_SOURCES += [
     'mozalloc_abort.cpp',
     'mozalloc_oom.cpp',
 ]
-
-LIBRARY_NAME = 'mozalloc'
-

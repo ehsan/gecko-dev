@@ -53,10 +53,7 @@ enum {
     // Draw a solid color rectangle
     // The color should be set on the transform member of the hwc_layer_t struct
     // The expected format is a 32 bit ABGR with 8 bits per component
-    HWC_COLOR_FILL = 0x8,
-    // Swap the RB pixels of gralloc buffer, like RGBA<->BGRA or RGBX<->BGRX
-    // The flag will be set inside LayerRenderState
-    HWC_FORMAT_RB_SWAP = 0x40
+    HWC_COLOR_FILL = 0x8
 };
 
 namespace mozilla {
@@ -305,7 +302,7 @@ HwcComposer2D::PrepareLayerList(Layer* aLayer,
 
     float opacity = aLayer->GetEffectiveOpacity();
     if (opacity < 1) {
-        LOGD("%s Layer has planar semitransparency which is unsupported", aLayer->Name());
+        LOGD("Layer has planar semitransparency which is unsupported");
         return false;
     }
 
@@ -315,7 +312,7 @@ HwcComposer2D::PrepareLayerList(Layer* aLayer,
                            aClip,
                            &clip))
     {
-        LOGD("%s Clip rect is empty. Skip layer", aLayer->Name());
+        LOGD("Clip rect is empty. Skip layer");
         return true;
     }
 
@@ -352,12 +349,12 @@ HwcComposer2D::PrepareLayerList(Layer* aLayer,
         if (aLayer->AsColorLayer() && mColorFill) {
             fillColor = true;
         } else {
-            LOGD("%s Layer doesn't have a gralloc buffer", aLayer->Name());
+            LOGD("Layer doesn't have a gralloc buffer");
             return false;
         }
     }
     if (state.BufferRotated()) {
-        LOGD("%s Layer has a rotated buffer", aLayer->Name());
+        LOGD("Layer has a rotated buffer");
         return false;
     }
 
@@ -408,10 +405,6 @@ HwcComposer2D::PrepareLayerList(Layer* aLayer,
     hwcLayer.compositionType = HWC_USE_COPYBIT;
 
     if (!fillColor) {
-        if (state.FormatRBSwapped()) {
-            hwcLayer.flags |= HWC_FORMAT_RB_SWAP;
-        }
-
         gfxMatrix rotation = transform * aGLWorldTransform;
         // Compute fuzzy equal like PreservesAxisAlignedRectangles()
         if (fabs(rotation.xx) < 1e-6) {

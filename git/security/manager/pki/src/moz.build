@@ -15,5 +15,3 @@ CPP_SOURCES += [
     'nsPKIParamBlock.cpp',
 ]
 
-LIBRARY_NAME = 'pippki'
-

@@ -17,5 +17,3 @@ CPP_SOURCES += [
     'mozSpellI18NManager.cpp',
 ]
 
-LIBRARY_NAME = 'spellchecker'
-

@@ -11,6 +11,7 @@ VPATH		= @srcdir@
 include $(DEPTH)/config/autoconf.mk
 
 XPI_NAME	= simple
+LIBRARY_NAME    = simpletest
 SHORT_LIBNAME = simpltst
 IS_COMPONENT	= 1
 

@@ -12,5 +12,3 @@ CPP_SOURCES += [
     'xptcall.cpp',
 ]
 
-LIBRARY_NAME = 'xptcall'
-

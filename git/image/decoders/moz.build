@@ -38,6 +38,3 @@ if CONFIG['MOZ_WBMP']:
     CPP_SOURCES += [
         'nsWBMPDecoder.cpp',
     ]
-
-LIBRARY_NAME = 'imgdecoders_s'
-

@@ -4,9 +4,7 @@
  * You can obtain one at http://mozilla.org/MPL/2.0/.
  */
 
-[Pref="dom.gamepad.enabled",
- Constructor(DOMString type, optional GamepadAxisMoveEventInit eventInitDict),
- HeaderFile="GeneratedEventClasses.h"]
+[Constructor(DOMString type, optional GamepadAxisMoveEventInit eventInitDict), HeaderFile="GeneratedEventClasses.h"]
 interface GamepadAxisMoveEvent : GamepadEvent
 {
   readonly attribute unsigned long axis;

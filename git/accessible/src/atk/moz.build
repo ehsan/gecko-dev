@@ -33,5 +33,3 @@ CPP_SOURCES += [
     'nsMaiInterfaceValue.cpp',
 ]
 
-LIBRARY_NAME = 'accessibility_toolkit_s'
-

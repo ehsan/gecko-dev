@@ -13,5 +13,3 @@ CPP_SOURCES += [
     'nsPrintingPromptService.cpp',
 ]
 
-LIBRARY_NAME = 'printingui_s'
-

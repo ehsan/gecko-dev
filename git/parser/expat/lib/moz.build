@@ -11,5 +11,3 @@ EXPORTS += [
     'expat_external.h',
 ]
 
-LIBRARY_NAME = 'mozexpat_s'
-

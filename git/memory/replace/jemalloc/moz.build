@@ -18,6 +18,3 @@ if CONFIG['MOZ_WIDGET_TOOLKIT'] == 'android':
     CSRCS += [
         'pthread_atfork.c',
     ]
-
-LIBRARY_NAME = 'replace_jemalloc'
-

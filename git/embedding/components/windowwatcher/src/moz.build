@@ -15,6 +15,3 @@ if CONFIG['MOZ_XUL']:
     CPP_SOURCES += [
         'nsDialogParamBlock.cpp',
     ]
-
-LIBRARY_NAME = 'windowwatcher_s'
-

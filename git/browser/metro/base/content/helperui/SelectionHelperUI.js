@@ -890,6 +890,10 @@ var SelectionHelperUI = {
     if (this.layerMode == kContentLayer) {
       return;
     }
+    if (aEvent.propertyName == "bottom" && !Elements.navbar.isShowing) {
+      this.closeEditSession(false);
+      return;
+    }
     if (aEvent.propertyName == "bottom" && Elements.navbar.isShowing) {
       this._sendAsyncMessage("Browser:SelectionUpdate", {});
     }

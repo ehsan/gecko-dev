@@ -10,5 +10,3 @@ CPP_SOURCES += [
     'nsEmbeddingModule.cpp',
 ]
 
-LIBRARY_NAME = 'embedcomponents'
-

@@ -324,10 +324,7 @@ SocialUI = {
   get _chromeless() {
     // Is this a popup window that doesn't want chrome shown?
     let docElem = document.documentElement;
-    // extrachrome is not restored during session restore, so we need
-    // to check for the toolbar as well.
-    let chromeless = docElem.getAttribute("chromehidden").contains("extrachrome") ||
-                     docElem.getAttribute('chromehidden').contains("toolbar");
+    let chromeless = docElem.getAttribute("chromehidden").indexOf("extrachrome") >= 0;
     // This property is "fixed" for a window, so avoid doing the check above
     // multiple times...
     delete this._chromeless;

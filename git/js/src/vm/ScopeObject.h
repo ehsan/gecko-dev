@@ -159,9 +159,7 @@ class ScopeObject : public JSObject
      * does not derive ScopeObject (it has a completely different layout), the
      * enclosing scope of a ScopeObject is necessarily non-null.
      */
-    inline JSObject &enclosingScope() const {
-        return getReservedSlot(SCOPE_CHAIN_SLOT).toObject();
-    }
+    inline JSObject &enclosingScope() const;
     inline void setEnclosingScope(HandleObject obj);
 
     /*
@@ -266,8 +264,6 @@ class WithObject : public NestedScopeObject
   public:
     static const unsigned RESERVED_SLOTS = 3;
     static const gc::AllocKind FINALIZE_KIND = gc::FINALIZE_OBJECT4_BACKGROUND;
-
-    static Class class_;
 
     static WithObject *
     create(JSContext *cx, HandleObject proto, HandleObject enclosing, uint32_t depth);
@@ -626,26 +622,16 @@ class DebugScopes
 
 }  /* namespace js */
 
-template<>
 inline bool
-JSObject::is<js::NestedScopeObject>() const
+JSObject::isNestedScope() const
 {
-    return is<js::BlockObject>() || is<js::WithObject>();
+    return is<js::BlockObject>() || isWith();
 }
 
-template<>
 inline bool
-JSObject::is<js::ScopeObject>() const
+JSObject::isScope() const
 {
-    return is<js::CallObject>() || is<js::DeclEnvObject>() || is<js::NestedScopeObject>();
-}
-
-template<>
-inline bool
-JSObject::is<js::DebugScopeObject>() const
-{
-    extern bool js_IsDebugScopeSlow(JSObject *obj);
-    return getClass() == &js::ObjectProxyClass && js_IsDebugScopeSlow(const_cast<JSObject*>(this));
+    return is<js::CallObject>() || is<js::DeclEnvObject>() || isNestedScope();
 }
 
 #endif /* ScopeObject_h___ */

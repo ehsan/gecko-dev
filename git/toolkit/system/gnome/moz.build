@@ -25,6 +25,3 @@ if CONFIG['MOZ_ENABLE_GIO']:
         'nsGIOService.cpp',
         'nsGSettingsService.cpp',
     ]
-
-LIBRARY_NAME = 'mozgnome'
-

@@ -4,9 +4,7 @@
  * You can obtain one at http://mozilla.org/MPL/2.0/.
  */
 
-[Pref="dom.gamepad.enabled",
- Constructor(DOMString type, optional GamepadEventInit eventInitDict),
- HeaderFile="GeneratedEventClasses.h"]
+[Constructor(DOMString type, optional GamepadEventInit eventInitDict), HeaderFile="GeneratedEventClasses.h"]
 interface GamepadEvent : Event
 {
   readonly attribute Gamepad? gamepad;

@@ -14,5 +14,3 @@ CPP_SOURCES += [
     'libmalloc.cpp',
 ]
 
-LIBRARY_NAME = 'jprof'
-

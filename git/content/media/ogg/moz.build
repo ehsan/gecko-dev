@@ -20,5 +20,3 @@ CPP_SOURCES += [
     'OggWriter.cpp',
 ]
 
-LIBRARY_NAME = 'gkconogg_s'
-

@@ -22,8 +22,8 @@ BooleanGetPrimitiveValueSlow(HandleObject, JSContext *);
 inline bool
 BooleanGetPrimitiveValue(HandleObject obj, JSContext *cx)
 {
-    if (obj->is<BooleanObject>())
-        return obj->as<BooleanObject>().unbox();
+    if (obj->isBoolean())
+        return obj->asBoolean().unbox();
 
     return BooleanGetPrimitiveValueSlow(obj, cx);
 }

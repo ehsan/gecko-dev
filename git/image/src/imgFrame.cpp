@@ -549,14 +549,6 @@ void imgFrame::GetImageData(uint8_t **aData, uint32_t *length) const
   *length = GetImageDataLength();
 }
 
-uint8_t* imgFrame::GetImageData() const
-{
-  uint8_t *data;
-  uint32_t length;
-  GetImageData(&data, &length);
-  return data;
-}
-
 bool imgFrame::GetIsPaletted() const
 {
   return mPalettedImageData != nullptr;
@@ -578,14 +570,6 @@ void imgFrame::GetPaletteData(uint32_t **aPalette, uint32_t *length) const
     *aPalette = (uint32_t *) mPalettedImageData;
     *length = PaletteDataLength();
   }
-}
-
-uint32_t* imgFrame::GetPaletteData() const
-{
-  uint32_t* data;
-  uint32_t length;
-  GetPaletteData(&data, &length);
-  return data;
 }
 
 nsresult imgFrame::LockImageData()

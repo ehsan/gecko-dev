@@ -33,5 +33,3 @@ CPP_SOURCES += [
     'nsStyleSheetTxns.cpp',
 ]
 
-LIBRARY_NAME = 'editorbase_s'
-

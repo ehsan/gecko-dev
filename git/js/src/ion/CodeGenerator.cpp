@@ -126,7 +126,7 @@ CodeGenerator::visitOutOfLineCache(OutOfLineUpdateCache *ool)
 
 StringObject *
 MNewStringObject::templateObj() const {
-    return &templateObj_->as<StringObject>();
+    return &templateObj_->asString();
 }
 
 CodeGenerator::CodeGenerator(MIRGenerator *gen, LIRGraph *graph, MacroAssembler *masm)
@@ -2741,10 +2741,6 @@ class OutOfLineNewObject : public OutOfLineCodeBase<CodeGenerator>
 typedef JSObject *(*NewInitObjectFn)(JSContext *, HandleObject);
 static const VMFunction NewInitObjectInfo = FunctionInfo<NewInitObjectFn>(NewInitObject);
 
-typedef JSObject *(*NewInitObjectWithClassPrototypeFn)(JSContext *, HandleObject);
-static const VMFunction NewInitObjectWithClassPrototypeInfo =
-    FunctionInfo<NewInitObjectWithClassPrototypeFn>(NewInitObjectWithClassPrototype);
-
 bool
 CodeGenerator::visitNewObjectVMCall(LNewObject *lir)
 {
@@ -2756,17 +2752,8 @@ CodeGenerator::visitNewObjectVMCall(LNewObject *lir)
     saveLive(lir);
 
     pushArg(ImmGCPtr(lir->mir()->templateObject()));
-
-    // If we're making a new object with a class prototype (that is, an object
-    // that derives its class from its prototype instead of being
-    // ObjectClass'd) from self-hosted code, we need a different init
-    // function.
-    if (lir->mir()->templateObjectIsClassPrototype()) {
-        if (!callVM(NewInitObjectWithClassPrototypeInfo, lir))
-            return false;
-    } else if (!callVM(NewInitObjectInfo, lir)) {
+    if (!callVM(NewInitObjectInfo, lir))
         return false;
-    }
 
     if (ReturnReg != objReg)
         masm.movePtr(ReturnReg, objReg);
@@ -6838,22 +6825,6 @@ CodeGenerator::visitOutOfLinePropagateParallelAbort(OutOfLinePropagateParallelAb
 
     masm.moveValue(MagicValue(JS_ION_ERROR), JSReturnOperand);
     masm.jump(returnLabel_);
-    return true;
-}
-
-bool
-CodeGenerator::visitHaveSameClass(LHaveSameClass *ins)
-{
-    Register lhs = ToRegister(ins->lhs());
-    Register rhs = ToRegister(ins->rhs());
-    Register temp = ToRegister(ins->getTemp(0));
-    Register output = ToRegister(ins->output());
-
-    masm.loadObjClass(lhs, temp);
-    masm.loadObjClass(rhs, output);
-    masm.cmpPtr(temp, output);
-    masm.emitSet(Assembler::Equal, output);
-
     return true;
 }
 

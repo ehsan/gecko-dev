@@ -17,5 +17,3 @@ CPP_SOURCES += [
     'xpcAccessibleTableCell.cpp',
 ]
 
-LIBRARY_NAME = 'accessibility_xpcom_s'
-

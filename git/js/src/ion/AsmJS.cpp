@@ -1486,11 +1486,9 @@ class MOZ_STACK_CLASS ModuleCompiler
     }
 
     void buildCompilationTimeReport(ScopedJSFreePtr<char> *out) {
-        int msTotal = 0;
-        ScopedJSFreePtr<char> slowFuns;
-#ifndef JS_MORE_DETERMINISTIC
         int64_t usecAfter = PRMJ_Now();
-        msTotal = (usecAfter - usecBefore_) / PRMJ_USEC_PER_MSEC;
+        int msTotal = (usecAfter - usecBefore_) / PRMJ_USEC_PER_MSEC;
+        ScopedJSFreePtr<char> slowFuns;
         if (!slowFunctions_.empty()) {
             slowFuns.reset(JS_smprintf("; %d functions compiled slowly: ", slowFunctions_.length()));
             if (!slowFuns)
@@ -1507,7 +1505,6 @@ class MOZ_STACK_CLASS ModuleCompiler
                     return;
             }
         }
-#endif
         out->reset(JS_smprintf("total compilation time %dms%s",
                                msTotal, slowFuns ? slowFuns.get() : ""));
     }

@@ -82,6 +82,3 @@ if CONFIG['MOZ_ENABLE_CAIRO_FT']:
     EXPORTS.cairo += [
         'cairo-ft.h',
     ]
-
-LIBRARY_NAME = 'mozcairo'
-

@@ -673,7 +673,7 @@ FixWaiverAfterTransplant(JSContext *cx, HandleObject oldWaiver, HandleObject new
 }
 
 JSObject *
-TransplantObject(JSContext *cx, JS::HandleObject origobj, JS::HandleObject target)
+TransplantObject(JSContext *cx, JSObject *origobj, JSObject *target)
 {
     RootedObject oldWaiver(cx, WrapperFactory::GetXrayWaiver(origobj));
     RootedObject newIdentity(cx, JS_TransplantObject(cx, origobj, target));
@@ -687,8 +687,8 @@ TransplantObject(JSContext *cx, JS::HandleObject origobj, JS::HandleObject targe
 
 JSObject *
 TransplantObjectWithWrapper(JSContext *cx,
-                            HandleObject origobj, HandleObject origwrapper,
-                            HandleObject targetobj, HandleObject targetwrapper)
+                            JSObject *origobj, JSObject *origwrapper,
+                            JSObject *targetobj, JSObject *targetwrapper)
 {
     RootedObject oldWaiver(cx, WrapperFactory::GetXrayWaiver(origobj));
     RootedObject newSameCompartmentWrapper(cx,

@@ -17,6 +17,7 @@
 
 #include "MobileConnection.h"
 #include "mozilla/dom/bluetooth/BluetoothTypes.h"
+#include "mozilla/Hal.h"
 #include "mozilla/Services.h"
 #include "mozilla/StaticPtr.h"
 #include "nsContentUtils.h"
@@ -25,6 +26,11 @@
 #include "nsISettingsService.h"
 #include "nsITelephonyProvider.h"
 #include "nsRadioInterfaceLayer.h"
+
+#define AUDIO_VOLUME_BT_SCO "audio.volume.bt_sco"
+#define MOZSETTINGS_CHANGED_ID "mozsettings-changed"
+#define MOBILE_CONNECTION_ICCINFO_CHANGED "mobile-connection-iccinfo-changed"
+#define MOBILE_CONNECTION_VOICE_CHANGED "mobile-connection-voice-changed"
 
 /**
  * BRSF bitmask of AG supported features. See 4.34.1 "Bluetooth Defined AT
@@ -51,17 +57,13 @@
 
 #define CR_LF "\xd\xa";
 
-#define MOZSETTINGS_CHANGED_ID               "mozsettings-changed"
-#define MOBILE_CONNECTION_ICCINFO_CHANGED_ID "mobile-connection-iccinfo-changed"
-#define MOBILE_CONNECTION_VOICE_CHANGED_ID   "mobile-connection-voice-changed"
-#define AUDIO_VOLUME_BT_SCO_ID               "audio.volume.bt_sco"
-
 using namespace mozilla;
 using namespace mozilla::ipc;
 USING_BLUETOOTH_NAMESPACE
 
 namespace {
   StaticRefPtr<BluetoothHfpManager> gBluetoothHfpManager;
+  StaticRefPtr<BluetoothHfpManagerObserver> sHfpObserver;
   bool gInShutdown = false;
   static const char kHfpCrlf[] = "\xd\xa";
 
@@ -151,6 +153,77 @@ class mozilla::dom::bluetooth::Call {
     int mType;
 };
 
+class mozilla::dom::bluetooth::BluetoothHfpManagerObserver : public nsIObserver
+                                                           , public BatteryObserver
+{
+public:
+  NS_DECL_ISUPPORTS
+  NS_DECL_NSIOBSERVER
+
+  BluetoothHfpManagerObserver()
+  {
+  }
+
+  bool Init()
+  {
+    nsCOMPtr<nsIObserverService> obs = services::GetObserverService();
+    MOZ_ASSERT(obs);
+    if (NS_FAILED(obs->AddObserver(this, MOZSETTINGS_CHANGED_ID, false))) {
+      NS_WARNING("Failed to add settings change observer!");
+      return false;
+    }
+
+    if (NS_FAILED(obs->AddObserver(this, NS_XPCOM_SHUTDOWN_OBSERVER_ID, false))) {
+      NS_WARNING("Failed to add shutdown observer!");
+      return false;
+    }
+
+    if (NS_FAILED(obs->AddObserver(this, MOBILE_CONNECTION_ICCINFO_CHANGED, false))) {
+      NS_WARNING("Failed to add mobile connection iccinfo change observer!");
+      return false;
+    }
+
+    if (NS_FAILED(obs->AddObserver(this, MOBILE_CONNECTION_VOICE_CHANGED, false))) {
+      NS_WARNING("Failed to add mobile connection voice change observer!");
+      return false;
+    }
+
+    hal::RegisterBatteryObserver(this);
+
+    return true;
+  }
+
+  bool Shutdown()
+  {
+    nsCOMPtr<nsIObserverService> obs = services::GetObserverService();
+    if (!obs ||
+        NS_FAILED(obs->RemoveObserver(this, NS_XPCOM_SHUTDOWN_OBSERVER_ID)) ||
+        NS_FAILED(obs->RemoveObserver(this, MOZSETTINGS_CHANGED_ID)) ||
+        NS_FAILED(obs->RemoveObserver(this, MOBILE_CONNECTION_ICCINFO_CHANGED)) ||
+        NS_FAILED(obs->RemoveObserver(this, MOBILE_CONNECTION_VOICE_CHANGED))) {
+      NS_WARNING("Can't unregister observers, or already unregistered!");
+      return false;
+    }
+
+    hal::UnregisterBatteryObserver(this);
+
+    return true;
+  }
+
+  ~BluetoothHfpManagerObserver()
+  {
+    Shutdown();
+  }
+
+  void Notify(const hal::BatteryInformation& aBatteryInfo)
+  {
+    // Range of battery level: [0, 1], double
+    // Range of CIND::BATTCHG: [0, 5], int
+    int level = ceil(aBatteryInfo.level() * 5.0);
+    gBluetoothHfpManager->UpdateCIND(CINDType::BATTCHG, level);
+  }
+};
+
 class BluetoothHfpManager::GetVolumeTask : public nsISettingsServiceCallback
 {
 public:
@@ -165,7 +238,7 @@ public:
     NS_ENSURE_TRUE(cx, NS_OK);
 
     if (!aResult.isNumber()) {
-      NS_WARNING("'" AUDIO_VOLUME_BT_SCO_ID "' is not a number!");
+      NS_WARNING("'" AUDIO_VOLUME_BT_SCO "' is not a number!");
       return NS_OK;
     }
 
@@ -178,7 +251,7 @@ public:
   NS_IMETHOD
   HandleError(const nsAString& aName)
   {
-    NS_WARNING("Unable to get value for '" AUDIO_VOLUME_BT_SCO_ID "'");
+    NS_WARNING("Unable to get value for '" AUDIO_VOLUME_BT_SCO "'");
     return NS_OK;
   }
 };
@@ -187,37 +260,27 @@ NS_IMPL_ISUPPORTS1(BluetoothHfpManager::GetVolumeTask,
                    nsISettingsServiceCallback);
 
 NS_IMETHODIMP
-BluetoothHfpManager::Observe(nsISupports* aSubject,
-                             const char* aTopic,
-                             const PRUnichar* aData)
+BluetoothHfpManagerObserver::Observe(nsISupports* aSubject,
+                                     const char* aTopic,
+                                     const PRUnichar* aData)
 {
+  MOZ_ASSERT(gBluetoothHfpManager);
+
   if (!strcmp(aTopic, MOZSETTINGS_CHANGED_ID)) {
-    HandleVolumeChanged(nsDependentString(aData));
+    return gBluetoothHfpManager->HandleVolumeChanged(nsDependentString(aData));
   } else if (!strcmp(aTopic, NS_XPCOM_SHUTDOWN_OBSERVER_ID)) {
-    HandleShutdown();
-  } else if (!strcmp(aTopic, MOBILE_CONNECTION_ICCINFO_CHANGED_ID)) {
-    HandleIccInfoChanged();
-  } else if (!strcmp(aTopic, MOBILE_CONNECTION_VOICE_CHANGED_ID)) {
-    HandleVoiceConnectionChanged();
-  } else {
-    MOZ_ASSERT(false, "BluetoothHfpManager got unexpected topic!");
-    return NS_ERROR_UNEXPECTED;
+    return gBluetoothHfpManager->HandleShutdown();
+  } else if (!strcmp(aTopic, MOBILE_CONNECTION_ICCINFO_CHANGED)) {
+    return gBluetoothHfpManager->HandleIccInfoChanged();
+  } else if (!strcmp(aTopic, MOBILE_CONNECTION_VOICE_CHANGED)) {
+    return gBluetoothHfpManager->HandleVoiceConnectionChanged();
   }
 
-  return NS_OK;
+  MOZ_ASSERT(false, "BluetoothHfpManager got unexpected topic!");
+  return NS_ERROR_UNEXPECTED;
 }
 
-void
-BluetoothHfpManager::Notify(const hal::BatteryInformation& aBatteryInfo)
-{
-  // Range of battery level: [0, 1], double
-  // Range of CIND::BATTCHG: [0, 5], int
-  int level = ceil(aBatteryInfo.level() * 5.0);
-  if (level != sCINDItems[CINDType::BATTCHG].value) {
-    sCINDItems[CINDType::BATTCHG].value = level;
-    SendCommand("+CIEV:", CINDType::BATTCHG);
-  }
-}
+NS_IMPL_ISUPPORTS1(BluetoothHfpManagerObserver, nsIObserver)
 
 class BluetoothHfpManager::RespondToBLDNTask : public Task
 {
@@ -347,18 +410,10 @@ BluetoothHfpManager::Init()
 {
   MOZ_ASSERT(NS_IsMainThread());
 
-  nsCOMPtr<nsIObserverService> obs = services::GetObserverService();
-  NS_ENSURE_TRUE(obs, false);
-
-  if (NS_FAILED(obs->AddObserver(this, MOZSETTINGS_CHANGED_ID, false)) ||
-      NS_FAILED(obs->AddObserver(this, NS_XPCOM_SHUTDOWN_OBSERVER_ID, false)) ||
-      NS_FAILED(obs->AddObserver(this, MOBILE_CONNECTION_ICCINFO_CHANGED_ID, false)) ||
-      NS_FAILED(obs->AddObserver(this, MOBILE_CONNECTION_VOICE_CHANGED_ID, false))) {
-    BT_WARNING("Failed to add observers!");
-    return false;
+  sHfpObserver = new BluetoothHfpManagerObserver();
+  if (!sHfpObserver->Init()) {
+    NS_WARNING("Cannot set up Hfp Observers!");
   }
-
-  hal::RegisterBatteryObserver(this);
 
   mListener = new BluetoothTelephonyListener();
   if (!mListener->StartListening()) {
@@ -375,7 +430,7 @@ BluetoothHfpManager::Init()
   NS_ENSURE_SUCCESS(rv, false);
 
   nsRefPtr<GetVolumeTask> callback = new GetVolumeTask();
-  rv = settingsLock->Get(AUDIO_VOLUME_BT_SCO_ID, callback);
+  rv = settingsLock->Get(AUDIO_VOLUME_BT_SCO, callback);
   NS_ENSURE_SUCCESS(rv, false);
 
   Listen();
@@ -391,22 +446,19 @@ BluetoothHfpManager::Init()
 
 BluetoothHfpManager::~BluetoothHfpManager()
 {
+  Cleanup();
+}
+
+void
+BluetoothHfpManager::Cleanup()
+{
   if (!mListener->StopListening()) {
     NS_WARNING("Failed to stop listening RIL");
   }
   mListener = nullptr;
 
-  nsCOMPtr<nsIObserverService> obs = services::GetObserverService();
-  NS_ENSURE_TRUE_VOID(obs);
-
-  if (NS_FAILED(obs->RemoveObserver(this, NS_XPCOM_SHUTDOWN_OBSERVER_ID)) ||
-      NS_FAILED(obs->RemoveObserver(this, MOZSETTINGS_CHANGED_ID)) ||
-      NS_FAILED(obs->RemoveObserver(this, MOBILE_CONNECTION_ICCINFO_CHANGED_ID)) ||
-      NS_FAILED(obs->RemoveObserver(this, MOBILE_CONNECTION_VOICE_CHANGED_ID))) {
-    BT_WARNING("Failed to remove observers!");
-  }
-
-  hal::UnregisterBatteryObserver(this);
+  sHfpObserver->Shutdown();
+  sHfpObserver = nullptr;
 }
 
 //static
@@ -494,13 +546,13 @@ BluetoothHfpManager::NotifyAudioManager(bool aStatus)
   data.AppendInt(aStatus);
 
   if (NS_FAILED(obs->NotifyObservers(this,
-                                     BLUETOOTH_SCO_STATUS_CHANGED_ID,
+                                     BLUETOOTH_SCO_STATUS_CHANGED,
                                      data.BeginReading()))) {
     NS_WARNING("Failed to notify bluetooth-sco-status-changed observsers!");
   }
 }
 
-void
+nsresult
 BluetoothHfpManager::HandleVolumeChanged(const nsAString& aData)
 {
   MOZ_ASSERT(NS_IsMainThread());
@@ -510,28 +562,50 @@ BluetoothHfpManager::HandleVolumeChanged(const nsAString& aData)
   //  {"key":"volumedown", "value":2}
 
   JSContext* cx = nsContentUtils::GetSafeJSContext();
-  NS_ENSURE_TRUE_VOID(cx);
+  if (!cx) {
+    NS_WARNING("Failed to get JSContext");
+    return NS_OK;
+  }
 
   JS::Rooted<JS::Value> val(cx);
-  NS_ENSURE_TRUE_VOID(JS_ParseJSON(cx, aData.BeginReading(), aData.Length(), &val));
-  NS_ENSURE_TRUE_VOID(val.isObject());
+  if (!JS_ParseJSON(cx, aData.BeginReading(), aData.Length(), &val)) {
+    return JS_ReportPendingException(cx) ? NS_OK : NS_ERROR_OUT_OF_MEMORY;
+  }
 
-  JS::Rooted<JSObject*> obj(cx, &val.toObject());
-  JS::Rooted<JS::Value> key(cx);
-  if (!JS_GetProperty(cx, obj, "key", key.address()) || !key.isString()) {
-    return;
+  if (!val.isObject()) {
+    return NS_OK;
+  }
+
+  JSObject& obj(val.toObject());
+
+  JS::Value key;
+  if (!JS_GetProperty(cx, &obj, "key", &key)) {
+    MOZ_ASSERT(!JS_IsExceptionPending(cx));
+    return NS_ERROR_OUT_OF_MEMORY;
+  }
+
+  if (!key.isString()) {
+    return NS_OK;
   }
 
   JSBool match;
-  if (!JS_StringEqualsAscii(cx, key.toString(), AUDIO_VOLUME_BT_SCO_ID, &match) ||
-      (match != JS_TRUE)) {
-    return;
+  if (!JS_StringEqualsAscii(cx, key.toString(), AUDIO_VOLUME_BT_SCO, &match)) {
+    MOZ_ASSERT(!JS_IsExceptionPending(cx));
+    return NS_ERROR_OUT_OF_MEMORY;
   }
 
-  JS::Rooted<JS::Value> value(cx);
-  if (!JS_GetProperty(cx, obj, "value", value.address())||
-      !value.isNumber()) {
-    return;
+  if (!match) {
+    return NS_OK;
+  }
+
+  JS::Value value;
+  if (!JS_GetProperty(cx, &obj, "value", &value)) {
+    MOZ_ASSERT(!JS_IsExceptionPending(cx));
+    return NS_ERROR_OUT_OF_MEMORY;
+  }
+
+  if (!value.isNumber()) {
+    return NS_ERROR_UNEXPECTED;
   }
 
   mCurrentVgs = value.toNumber();
@@ -539,25 +613,27 @@ BluetoothHfpManager::HandleVolumeChanged(const nsAString& aData)
   // Adjust volume by headset and we don't have to send volume back to headset
   if (mReceiveVgsFlag) {
     mReceiveVgsFlag = false;
-    return;
+    return NS_OK;
   }
 
   // Only send volume back when there's a connected headset
   if (IsConnected()) {
     SendCommand("+VGS: ", mCurrentVgs);
   }
+
+  return NS_OK;
 }
 
-void
+nsresult
 BluetoothHfpManager::HandleVoiceConnectionChanged()
 {
   nsCOMPtr<nsIMobileConnectionProvider> connection =
     do_GetService(NS_RILCONTENTHELPER_CONTRACTID);
-  NS_ENSURE_TRUE_VOID(connection);
+  NS_ENSURE_TRUE(connection, NS_ERROR_FAILURE);
 
   nsIDOMMozMobileConnectionInfo* voiceInfo;
   connection->GetVoiceConnectionInfo(&voiceInfo);
-  NS_ENSURE_TRUE_VOID(voiceInfo);
+  NS_ENSURE_TRUE(voiceInfo, NS_ERROR_FAILURE);
 
   bool roaming;
   voiceInfo->GetRoaming(&roaming);
@@ -576,7 +652,7 @@ BluetoothHfpManager::HandleVoiceConnectionChanged()
   voiceInfo->GetRelSignalStrength(&value);
   if (!value.isNumber()) {
     NS_WARNING("Failed to get relSignalStrength in BluetoothHfpManager");
-    return;
+    return NS_ERROR_FAILURE;
   }
   signal = ceil(value.toNumber() / 20.0);
   UpdateCIND(CINDType::SIGNAL, signal);
@@ -597,7 +673,7 @@ BluetoothHfpManager::HandleVoiceConnectionChanged()
 
   nsIDOMMozMobileNetworkInfo* network;
   voiceInfo->GetNetwork(&network);
-  NS_ENSURE_TRUE_VOID(network);
+  NS_ENSURE_TRUE(network, NS_ERROR_FAILURE);
   network->GetLongName(mOperatorName);
 
   // According to GSM 07.07, "<format> indicates if the format is alphanumeric
@@ -612,22 +688,26 @@ BluetoothHfpManager::HandleVoiceConnectionChanged()
     NS_WARNING("The operator name was longer than 16 characters. We cut it.");
     mOperatorName.Left(mOperatorName, 16);
   }
+
+  return NS_OK;
 }
 
-void
+nsresult
 BluetoothHfpManager::HandleIccInfoChanged()
 {
   nsCOMPtr<nsIMobileConnectionProvider> connection =
     do_GetService(NS_RILCONTENTHELPER_CONTRACTID);
-  NS_ENSURE_TRUE_VOID(connection);
+  NS_ENSURE_TRUE(connection, NS_ERROR_FAILURE);
 
   nsIDOMMozMobileICCInfo* iccInfo;
   connection->GetIccInfo(&iccInfo);
-  NS_ENSURE_TRUE_VOID(iccInfo);
+  NS_ENSURE_TRUE(iccInfo, NS_ERROR_FAILURE);
   iccInfo->GetMsisdn(mMsisdn);
+
+  return NS_OK;
 }
 
-void
+nsresult
 BluetoothHfpManager::HandleShutdown()
 {
   MOZ_ASSERT(NS_IsMainThread());
@@ -635,6 +715,7 @@ BluetoothHfpManager::HandleShutdown()
   Disconnect();
   DisconnectSco();
   gBluetoothHfpManager = nullptr;
+  return NS_OK;
 }
 
 // Virtual function of class SocketConsumer
@@ -1724,5 +1805,5 @@ BluetoothHfpManager::IsScoConnected()
   return false;
 }
 
-NS_IMPL_ISUPPORTS1(BluetoothHfpManager, nsIObserver)
+NS_IMPL_ISUPPORTS0(BluetoothHfpManager)
 

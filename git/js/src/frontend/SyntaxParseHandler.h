@@ -49,44 +49,37 @@ class SyntaxParseHandler
 
     void trace(JSTracer *trc) {}
 
-    Node newName(PropertyName *name, InBlockBool inBlock, uint32_t blockid, const TokenPos &pos) {
+    Node newName(PropertyName *name, ParseContext<SyntaxParseHandler> *pc,
+                 ParseNodeKind kind = PNK_NAME) {
         lastAtom = name;
         return NodeName;
     }
-
-    DefinitionNode newPlaceholder(JSAtom *atom, InBlockBool inBlock, uint32_t blockid,
-                                  const TokenPos &pos)
-    {
+    DefinitionNode newPlaceholder(JSAtom *atom, ParseContext<SyntaxParseHandler> *pc) {
         return Definition::PLACEHOLDER;
     }
-
-    Node newIdentifier(JSAtom *atom, const TokenPos &pos) { return NodeString; }
-    Node newNumber(double value, DecimalPoint decimalPoint, const TokenPos &pos) { return NodeGeneric; }
-    Node newBooleanLiteral(bool cond, const TokenPos &pos) { return NodeGeneric; }
-
-    Node newStringLiteral(JSAtom *atom, const TokenPos &pos) {
-        lastAtom = atom;
-        lastStringPos = pos;
+    Node newAtom(ParseNodeKind kind, JSAtom *atom, JSOp op = JSOP_NOP) {
+        if (kind == PNK_STRING) {
+            lastAtom = atom;
+            lastStringPos = tokenStream.currentToken().pos;
+        }
         return NodeString;
     }
-
+    Node newNumber(double value, DecimalPoint decimalPoint = NoDecimal) { return NodeGeneric; }
+    Node newNumber(Token tok) { return NodeGeneric; }
+    Node newBooleanLiteral(bool cond, const TokenPos &pos) { return NodeGeneric; }
     Node newThisLiteral(const TokenPos &pos) { return NodeGeneric; }
     Node newNullLiteral(const TokenPos &pos) { return NodeGeneric; }
-
-    template <class Boxer>
-    Node newRegExp(JSObject *reobj, const TokenPos &pos, Boxer &boxer) { return NodeGeneric; }
-
     Node newConditional(Node cond, Node thenExpr, Node elseExpr) { return NodeGeneric; }
 
     Node newElision() { return NodeGeneric; }
 
-    Node newDelete(uint32_t begin, Node expr) { return NodeGeneric; }
-
-    Node newUnary(ParseNodeKind kind, JSOp op, uint32_t begin, Node kid) {
+    Node newUnary(ParseNodeKind kind, Node kid, JSOp op = JSOP_NOP) {
         if (kind == PNK_SEMI && kid == NodeString)
             return NodeStringExprStatement;
         return NodeGeneric;
     }
+    Node newUnary(ParseNodeKind kind, JSOp op = JSOP_NOP) { return NodeGeneric; }
+    void setUnaryKid(Node pn, Node kid) {}
 
     Node newBinary(ParseNodeKind kind, JSOp op = JSOP_NOP) { return NodeGeneric; }
     Node newBinary(ParseNodeKind kind, Node left, JSOp op = JSOP_NOP) { return NodeGeneric; }

@@ -13,5 +13,3 @@ CPP_SOURCES += [
     'xptiWorkingSet.cpp',
 ]
 
-LIBRARY_NAME = 'xptinfo'
-

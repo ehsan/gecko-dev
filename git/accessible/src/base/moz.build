@@ -60,6 +60,3 @@ if a11y_log:
     CPP_SOURCES += [
         'Logging.cpp',
     ]
-
-LIBRARY_NAME = 'accessibility_base_s'
-
