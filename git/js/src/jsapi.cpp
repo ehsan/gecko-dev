@@ -6672,14 +6672,8 @@ JS_ExecuteRegExp(JSContext *cx, JSObject *objArg, JSObject *reobjArg, jschar *ch
     RegExpStatics *res = obj->asGlobal().getRegExpStatics();
     StableCharPtr charPtr(chars, length);
 
-    RootedValue val(cx);
-    if (!ExecuteRegExpLegacy(cx, res, reobj->asRegExp(), NullPtr(), charPtr, length, indexp, test,
-                             &val))
-    {
-        return false;
-    }
-    *rval = val;
-    return true;
+    return ExecuteRegExpLegacy(cx, res, reobj->asRegExp(), NullPtr(),
+                               charPtr, length, indexp, test, rval);
 }
 
 JS_PUBLIC_API(JSObject *)
@@ -6714,15 +6708,8 @@ JS_ExecuteRegExpNoStatics(JSContext *cx, JSObject *objArg, jschar *chars, size_t
     CHECK_REQUEST(cx);
 
     StableCharPtr charPtr(chars, length);
-
-    RootedValue val(cx);
-    if (!ExecuteRegExpLegacy(cx, NULL, obj->asRegExp(), NullPtr(), charPtr, length, indexp, test,
-                             &val))
-    {
-        return false;
-    }
-    *rval = val;
-    return true;
+    return ExecuteRegExpLegacy(cx, NULL, obj->asRegExp(), NullPtr(),
+                               charPtr, length, indexp, test, rval);
 }
 
 JS_PUBLIC_API(JSBool)
