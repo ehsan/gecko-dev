@@ -2824,7 +2824,7 @@ AndroidBridge::RequestContentRepaint(const mozilla::layers::FrameMetrics& aFrame
         return;
     }
 
-    CSSToScreenScale resolution = aFrameMetrics.mZoom;
+    CSSToScreenScale resolution = aFrameMetrics.CalculateResolution();
     ScreenRect dp = (aFrameMetrics.mDisplayPort + aFrameMetrics.mScrollOffset) * resolution;
 
     AutoLocalJNIFrame jniFrame(env, 0);

@@ -6,6 +6,13 @@
 #ifndef CTOKEN__
 #define CTOKEN__
 
+#include "prtypes.h"
+#include "nsString.h"
+#include "nsError.h"
+
+class nsScanner;
+class nsTokenAllocator;
+
 enum eHTMLTokenTypes {
   eToken_unknown=0,
   eToken_start=1,      eToken_end,          eToken_comment,         eToken_entity,

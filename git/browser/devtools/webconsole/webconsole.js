@@ -1446,36 +1446,21 @@ WebConsoleFrame.prototype = {
    */
   addMoreInfoLink: function WCF_addMoreInfoLink(aNode, aScriptError)
   {
-    let url;
+    // We have a single category for now, but more are to be
+    // expected soon
     if (aScriptError.category == "Insecure Password Field") {
-      url = INSECURE_PASSWORDS_LEARN_MORE;
+      this.addInsecurePasswordsWarningNode(aNode);
     }
-    else if (aScriptError.category == "Mixed Content Message" ||
-               aScriptError.category == "Mixed Content Blocker") {
-      url = MIXED_CONTENT_LEARN_MORE;
-    }
-    else {
-      // Unknown category. Return without adding more info node.
-      return;
-    }
-
-    this.addLearnMoreWarningNode(aNode, url);
   },
 
   /*
-   * Appends a clickable warning node to the node passed
+   * Appends a clickable insecure passwords warning node to the node passed
    * as a parameter to the function. When a user clicks on the appended
-   * warning node, the browser navigates to the provided url.
-   *
-   * @param aNode
-   *        The node to which we will be adding a clickable warning node.
-   * @param aURL
-   *        The url which points to the page where the user can learn more
-   *        about security issues associated with the specific message that's
-   *        being logged.
+   * warning node, the browser navigates to a page where the user can learn
+   * more about security issues associated with insecure passwords.
    */
-  addLearnMoreWarningNode:
-  function WCF_addLearnMoreWarningNode(aNode, aURL)
+  addInsecurePasswordsWarningNode:
+  function WCF_addInsecurePasswordsWarningNode(aNode)
   {
     let moreInfoLabel =
       "[" + l10n.getStr("webConsoleMoreInfoLabel") + "]";
@@ -1487,7 +1472,7 @@ WebConsoleFrame.prototype = {
     linkNode.classList.add("webconsole-msg-link");
     aNode.appendChild(linkNode);
 
-    // Create the actual warning node and make it clickable
+    // Create the actual insecure passwords warning node and make it clickable
     let warningNode = this.document.createElement("label");
     warningNode.setAttribute("value", moreInfoLabel);
     warningNode.setAttribute("title", moreInfoLabel);
@@ -1495,7 +1480,7 @@ WebConsoleFrame.prototype = {
     warningNode.classList.add("webconsole-learn-more-link");
 
     warningNode.addEventListener("click", function(aEvent) {
-      this.owner.openLink(aURL);
+      this.owner.openLink(INSECURE_PASSWORDS_LEARN_MORE);
       aEvent.preventDefault();
       aEvent.stopPropagation();
     }.bind(this));
@@ -4566,7 +4551,6 @@ var Utils = {
         return CATEGORY_CSS;
 
       case "Mixed Content Blocker":
-      case "Mixed Content Message":
       case "CSP":
       case "Invalid HSTS Headers":
       case "Insecure Password Field":

@@ -5515,7 +5515,7 @@ malloc_print_stats(void)
 
 #ifdef MALLOC_STATS
 		{
-			size_t allocated, mapped = 0;
+			size_t allocated, mapped;
 #ifdef MALLOC_BALANCE
 			uint64_t nbalance = 0;
 #endif

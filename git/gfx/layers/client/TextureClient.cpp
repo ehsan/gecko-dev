@@ -183,7 +183,7 @@ BufferTextureClient::UpdateSurface(gfxASurface* aSurface)
   tmpCtx->DrawSurface(aSurface, gfxSize(serializer.GetSize().width,
                                         serializer.GetSize().height));
 
-  if (TextureRequiresLocking(mFlags) && !ImplementsLocking()) {
+  if (TextureRequiresLocking(mFlags)) {
     // We don't have support for proper locking yet, so we'll
     // have to be immutable instead.
     MarkImmutable();

@@ -12,18 +12,6 @@ const gDashboard = Cc['@mozilla.org/network/dashboard;1'].
   getService(Ci.nsIDashboard);
 const gPrefs = Cc["@mozilla.org/preferences-service;1"].
   getService(Ci.nsIPrefService).getBranch("network.");
-const gRequestNetworkingData = {
-  "http": gDashboard.requestHttpConnections,
-  "sockets": gDashboard.requestSockets,
-  "dns": gDashboard.requestDNSInfo,
-  "websockets": gDashboard.requestWebsocketConnections
-};
-const gDashboardCallbacks = {
-  "http": displayHttp,
-  "sockets": displaySockets,
-  "dns": displayDns,
-  "websockets": displayWebsockets
-};
 
 const REFRESH_INTERVAL_MS = 3000;
 
@@ -119,13 +107,11 @@ function displayWebsockets(data) {
   parent.replaceChild(new_cont, cont);
 }
 
-function requestAllNetworkingData() {
-  for (let id in gRequestNetworkingData)
-    requestNetworkingDataForTab(id);
-}
-
-function requestNetworkingDataForTab(id) {
-  gRequestNetworkingData[id](gDashboardCallbacks[id]);
+function requestNetworkingData() {
+  gDashboard.requestSockets(displaySockets);
+  gDashboard.requestHttpConnections(displayHttp);
+  gDashboard.requestWebsocketConnections(displayWebsockets);
+  gDashboard.requestDNSInfo(displayDns);
 }
 
 function init() {
@@ -136,16 +122,12 @@ function init() {
     document.getElementById("confpref").addEventListener("click", confirm);
   }
 
-  requestAllNetworkingData();
+  requestNetworkingData();
 
-   let autoRefresh = document.getElementById("autorefcheck");
-   if (autoRefresh.checked)
-     setAutoRefreshInterval(autoRefresh);
-
-   autoRefresh.addEventListener("click", function() {
+  document.getElementById("autorefcheck").addEventListener("click", function() {
     let refrButton = document.getElementById("refreshButton");
     if (this.checked) {
-      setAutoRefreshInterval(this);
+      this.interval = setInterval(requestNetworkingData, REFRESH_INTERVAL_MS);
       refrButton.disabled = "disabled";
     } else {
       clearInterval(this.interval);
@@ -154,7 +136,7 @@ function init() {
   });
 
   let refr = document.getElementById("refreshButton");
-  refr.addEventListener("click", requestAllNetworkingData);
+  refr.addEventListener("click", requestNetworkingData);
   if (document.getElementById("autorefcheck").checked)
     refr.disabled = "disabled";
 
@@ -184,19 +166,6 @@ function show(button) {
   let current_button = document.querySelector(".selected");
   current_button.classList.remove("selected");
   button.classList.add("selected");
-
-  let autoRefresh = document.getElementById("autorefcheck");
-  if (autoRefresh.checked) {
-    clearInterval(autoRefresh.interval);
-    setAutoRefreshInterval(autoRefresh);
-  }
-}
-
-function setAutoRefreshInterval(checkBox) {
-  let active_tab = document.querySelector(".active");
-  checkBox.interval = setInterval(function() {
-    requestNetworkingDataForTab(active_tab.id);
-  }, REFRESH_INTERVAL_MS);
 }
 
 window.addEventListener("DOMContentLoaded", function load() {

@@ -149,6 +149,8 @@ public:
     virtual JSObject* WrapObject(JSContext *cx,
                                  JS::Handle<JSObject*> scope) = 0;
 
+    virtual bool IsWebGL2() const = 0;
+
     NS_DECL_NSIDOMWEBGLRENDERINGCONTEXT
 
     // nsICanvasRenderingContextInternal
@@ -959,8 +961,7 @@ protected:
         ContextLostAwaitingRestore
     };
 
-    // -------------------------------------------------------------------------
-    // WebGL extensions (implemented in WebGLContextExtensions.cpp)
+    // extensions
     enum WebGLExtensionID {
         EXT_texture_filter_anisotropic,
         OES_element_index_uint,
@@ -976,7 +977,6 @@ protected:
         WEBGL_lose_context,
         WEBGL_draw_buffers,
         ANGLE_instanced_arrays,
-        WebGLExtensionID_max,
         WebGLExtensionID_unknown_extension
     };
     nsTArray<nsRefPtr<WebGLExtensionBase> > mExtensions;
@@ -991,18 +991,7 @@ protected:
     bool IsExtensionSupported(JSContext *cx, WebGLExtensionID ext) const;
     bool IsExtensionSupported(WebGLExtensionID ext) const;
 
-    static const char* GetExtensionString(WebGLExtensionID ext);
-
     nsTArray<WebGLenum> mCompressedTextureFormats;
-
-
-    // -------------------------------------------------------------------------
-    // WebGL 2 specifics (implemented in WebGL2Context.cpp)
-
-    virtual bool IsWebGL2() const = 0;
-
-    bool InitWebGL2();
-
 
     // -------------------------------------------------------------------------
     // Validation functions (implemented in WebGLContextValidate.cpp)

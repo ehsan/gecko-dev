@@ -102,9 +102,7 @@ public:
 
   void ContentReceivedTouch(bool aPreventDefault);
 
-  void UpdateZoomConstraints(bool aAllowZoom,
-                             const CSSToScreenScale& aMinZoom,
-                             const CSSToScreenScale& aMaxZoom);
+  void UpdateZoomConstraints(bool aAllowZoom, float aMinZoom, float aMaxZoom);
 
   void UpdateScrollOffset(uint32_t aPresShellId,
                           ViewID aViewId,

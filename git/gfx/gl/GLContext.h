@@ -90,7 +90,6 @@ namespace gl {
 namespace GLFeature {
     enum Enum {
         bind_buffer_offset,
-        blend_minmax,
         depth_texture,
         draw_buffers,
         draw_instanced,
