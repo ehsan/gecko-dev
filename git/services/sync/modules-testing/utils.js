@@ -236,7 +236,8 @@ this.encryptPayload = function encryptPayload(cleartext) {
 this.add_identity_test = function(test, testFunction) {
   function note(what) {
     let msg = "running test " + testFunction.name + " with " + what + " identity manager";
-    test.do_print(msg);
+    test._log("test_info",
+              {_message: "TEST-INFO | | " + msg + "\n"});
   }
   let ns = {};
   Cu.import("resource://services-sync/service.js", ns);

@@ -613,9 +613,10 @@ nsTextBoxFrame::CalculateTitleForWidth(nsPresContext*      aPresContext,
     nsLayoutUtils::GetFontMetricsForFrame(this, getter_AddRefs(fm));
 
     // see if the text will completely fit in the width given
-    nscoord titleWidth =
-      nsLayoutUtils::AppUnitWidthOfStringBidi(mTitle, this, *fm,
-                                              aRenderingContext);
+    nscoord titleWidth = nsLayoutUtils::GetStringWidth(this, &aRenderingContext,
+                                                       *fm,
+                                                       mTitle.get(), mTitle.Length());
+
     if (titleWidth <= aWidth) {
         mCroppedTitle = mTitle;
         if (HasRTLChars(mTitle)) {
@@ -712,8 +713,8 @@ nsTextBoxFrame::CalculateTitleForWidth(nsPresContext*      aPresContext,
         case CropCenter:
         {
             nscoord stringWidth =
-                nsLayoutUtils::AppUnitWidthOfStringBidi(mTitle, this, *fm,
-                                                        aRenderingContext);
+                nsLayoutUtils::GetStringWidth(this, &aRenderingContext, *fm,
+                                              mTitle.get(), mTitle.Length());
             if (stringWidth <= aWidth) {
                 // the entire string will fit in the maximum width
                 mCroppedTitle.Insert(mTitle, 0);
@@ -770,8 +771,8 @@ nsTextBoxFrame::CalculateTitleForWidth(nsPresContext*      aPresContext,
         break;
     }
 
-    return nsLayoutUtils::AppUnitWidthOfStringBidi(mCroppedTitle, this, *fm,
-                                                   aRenderingContext);
+    return nsLayoutUtils::GetStringWidth(this, &aRenderingContext, *fm,
+                                         mCroppedTitle.get(), mCroppedTitle.Length());
 }
 
 #define OLD_ELLIPSIS NS_LITERAL_STRING("...")
@@ -999,8 +1000,8 @@ nsTextBoxFrame::GetTextSize(nsPresContext* aPresContext,
     nsLayoutUtils::GetFontMetricsForFrame(this, getter_AddRefs(fontMet));
     aSize.height = fontMet->MaxHeight();
     aSize.width =
-      nsLayoutUtils::AppUnitWidthOfStringBidi(aString, this, *fontMet,
-                                              aRenderingContext);
+      nsLayoutUtils::GetStringWidth(this, &aRenderingContext, *fontMet,
+                                    aString.get(), aString.Length());
     aAscent = fontMet->MaxAscent();
 }
 

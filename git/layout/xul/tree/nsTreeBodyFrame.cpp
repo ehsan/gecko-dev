@@ -1319,9 +1319,9 @@ nsTreeBodyFrame::AdjustForCellText(nsAutoString& aText,
 {
   NS_PRECONDITION(aColumn && aColumn->GetFrame(), "invalid column passed");
 
-  nscoord width = nsLayoutUtils::AppUnitWidthOfStringBidi(aText, this,
-                                                          aFontMetrics,
-                                                          aRenderingContext);
+  nscoord width =
+    nsLayoutUtils::GetStringWidth(this, &aRenderingContext, aFontMetrics,
+                                  aText.get(), aText.Length());
   nscoord maxWidth = aTextRect.width;
 
   if (aColumn->Overflow()) {
@@ -1459,8 +1459,9 @@ nsTreeBodyFrame::AdjustForCellText(nsAutoString& aText,
       }
     }
 
-    width = nsLayoutUtils::AppUnitWidthOfStringBidi(aText, this, aFontMetrics,
-                                                    aRenderingContext);
+    width = nsLayoutUtils::GetStringWidth(this, &aRenderingContext,
+                                          aFontMetrics, aText.get(),
+                                          aText.Length());
   }
 
   switch (aColumn->GetTextAlignment()) {
@@ -1747,8 +1748,9 @@ nsTreeBodyFrame::GetCellWidth(int32_t aRow, nsTreeColumn* aCol,
   nsLayoutUtils::GetFontMetricsForStyleContext(textContext,
                                                getter_AddRefs(fm));
   // Get the width of the text itself
-  nscoord width = nsLayoutUtils::AppUnitWidthOfStringBidi(cellText, this, *fm,
-                                                          *aRenderingContext);
+  nscoord width =
+    nsLayoutUtils::GetStringWidth(this, aRenderingContext, *fm,
+                                  cellText.get(), cellText.Length());
   nscoord totalTextWidth = width + bp.left + bp.right;
   aDesiredSize += totalTextWidth;
   return NS_OK;
