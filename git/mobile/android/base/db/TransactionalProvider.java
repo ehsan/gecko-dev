@@ -353,8 +353,7 @@ public abstract class TransactionalProvider<T extends SQLiteOpenHelper> extends 
         }
 
         if (deleted > 0) {
-            final boolean shouldSyncToNetwork = !isCallerSync(uri);
-            getContext().getContentResolver().notifyChange(uri, null, shouldSyncToNetwork);
+            getContext().getContentResolver().notifyChange(uri, null);
         }
 
         return deleted;
@@ -378,8 +377,7 @@ public abstract class TransactionalProvider<T extends SQLiteOpenHelper> extends 
         }
 
         if (result != null) {
-            final boolean shouldSyncToNetwork = !isCallerSync(uri);
-            getContext().getContentResolver().notifyChange(uri, null, shouldSyncToNetwork);
+            getContext().getContentResolver().notifyChange(uri, null);
         }
 
         return result;
@@ -403,8 +401,7 @@ public abstract class TransactionalProvider<T extends SQLiteOpenHelper> extends 
         }
 
         if (updated > 0) {
-            final boolean shouldSyncToNetwork = !isCallerSync(uri);
-            getContext().getContentResolver().notifyChange(uri, null, shouldSyncToNetwork);
+            getContext().getContentResolver().notifyChange(uri, null);
         }
 
         return updated;
@@ -437,8 +434,7 @@ public abstract class TransactionalProvider<T extends SQLiteOpenHelper> extends 
         }
 
         if (successes > 0) {
-            final boolean shouldSyncToNetwork = !isCallerSync(uri);
-            mContext.getContentResolver().notifyChange(uri, null, shouldSyncToNetwork);
+            mContext.getContentResolver().notifyChange(uri, null);
         }
 
         return successes;

@@ -8,7 +8,7 @@ let Ci = Components.interfaces;
 let Cu = Components.utils;
 
 Components.utils.import("resource://gre/modules/SharedPreferences.jsm");
-Components.utils.import("resource://gre/modules/Promise.jsm");
+Components.utils.import("resource://gre/modules/commonjs/sdk/core/promise.js");
 
 let ppmm = Cc["@mozilla.org/parentprocessmessagemanager;1"].getService(Ci.nsIMessageListenerManager);
 let deferred = 0;

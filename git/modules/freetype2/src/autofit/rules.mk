@@ -36,17 +36,13 @@ AUTOF_DRV_SRC := $(AUTOF_DIR)/afangles.c \
                  $(AUTOF_DIR)/afloader.c \
                  $(AUTOF_DIR)/afmodule.c \
                  $(AUTOF_DIR)/afpic.c    \
-                 $(AUTOF_DIR)/afranges.c \
-                 $(AUTOF_DIR)/afwarp.c   \
-                 $(AUTOF_DIR)/hbshim.c
+                 $(AUTOF_DIR)/afwarp.c
 
 # AUTOF driver headers
 #
 AUTOF_DRV_H := $(AUTOF_DRV_SRC:%c=%h)  \
-               $(AUTOF_DIR)/afcover.h  \
                $(AUTOF_DIR)/aferrors.h \
                $(AUTOF_DIR)/afscript.h \
-               $(AUTOF_DIR)/afstyles.h \
                $(AUTOF_DIR)/aftypes.h  \
                $(AUTOF_DIR)/afwrtsys.h
 

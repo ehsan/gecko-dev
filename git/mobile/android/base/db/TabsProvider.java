@@ -107,15 +107,6 @@ public class TabsProvider extends ContentProvider {
         }
     }
 
-    /**
-     * Return true of the query is from Firefox Sync.
-     * @param uri query URI
-     */
-    public static boolean isCallerSync(Uri uri) {
-        String isSync = uri.getQueryParameter(BrowserContract.PARAM_IS_SYNC);
-        return !TextUtils.isEmpty(isSync);
-    }
-
     final class TabsDatabaseHelper extends SQLiteOpenHelper {
         public TabsDatabaseHelper(Context context, String databasePath) {
             super(context, databasePath, null, DATABASE_VERSION);
@@ -306,10 +297,8 @@ public class TabsProvider extends ContentProvider {
             deleted = deleteInTransaction(uri, selection, selectionArgs);
         }
 
-        if (deleted > 0) {
-            final boolean shouldSyncToNetwork = !isCallerSync(uri);
-            getContext().getContentResolver().notifyChange(uri, null, shouldSyncToNetwork);
-        }
+        if (deleted > 0)
+            getContext().getContentResolver().notifyChange(uri, null);
 
         return deleted;
     }
@@ -376,10 +365,8 @@ public class TabsProvider extends ContentProvider {
             result = insertInTransaction(uri, values);
         }
 
-        if (result != null) {
-            final boolean shouldSyncToNetwork = !isCallerSync(uri);
-            getContext().getContentResolver().notifyChange(uri, null, shouldSyncToNetwork);
-        }
+        if (result != null)
+            getContext().getContentResolver().notifyChange(uri, null);
 
         return result;
     }
@@ -438,10 +425,8 @@ public class TabsProvider extends ContentProvider {
             updated = updateInTransaction(uri, values, selection, selectionArgs);
         }
 
-        if (updated > 0) {
-            final boolean shouldSyncToNetwork = !isCallerSync(uri);
-            getContext().getContentResolver().notifyChange(uri, null, shouldSyncToNetwork);
-        }
+        if (updated > 0)
+            getContext().getContentResolver().notifyChange(uri, null);
 
         return updated;
     }
@@ -592,10 +577,8 @@ public class TabsProvider extends ContentProvider {
             db.endTransaction();
         }
 
-        if (successes > 0) {
-            final boolean shouldSyncToNetwork = !isCallerSync(uri);
-            mContext.getContentResolver().notifyChange(uri, null, shouldSyncToNetwork);
-        }
+        if (successes > 0)
+            mContext.getContentResolver().notifyChange(uri, null);
 
         return successes;
     }

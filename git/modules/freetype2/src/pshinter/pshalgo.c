@@ -4,7 +4,7 @@
 /*                                                                         */
 /*    PostScript hinting algorithm (body).                                 */
 /*                                                                         */
-/*  Copyright 2001-2010, 2012-2014 by                                      */
+/*  Copyright 2001-2010, 2012, 2013 by                                     */
 /*  David Turner, Robert Wilhelm, and Werner Lemberg.                      */
 /*                                                                         */
 /*  This file is part of the FreeType project, and may only be used        */
@@ -1406,6 +1406,7 @@
 
       point  = first;
       before = point;
+      after  = point;
 
       do
       {
@@ -2078,6 +2079,8 @@
       start = first;
       do
       {
+        point = first;
+
         /* skip consecutive fitted points */
         for (;;)
         {
