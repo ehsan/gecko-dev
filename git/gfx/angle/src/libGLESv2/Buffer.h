@@ -18,15 +18,14 @@
 #include <GLES2/gl2.h>
 
 #include "common/angleutils.h"
-#include "libGLESv2/RefCountObject.h"
 
 namespace gl
 {
 
-class Buffer : public RefCountObject
+class Buffer
 {
   public:
-    explicit Buffer(GLuint id);
+    Buffer();
 
     virtual ~Buffer();
 

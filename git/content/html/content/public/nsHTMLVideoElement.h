@@ -80,8 +80,6 @@ public:
   // If there is no video frame, returns the given default size.
   nsIntSize GetVideoSize(nsIntSize defaultSize);
 
-  virtual nsresult SetAcceptHeader(nsIHttpChannel* aChannel);
-
   virtual nsXPCClassInfo* GetClassInfo();
 };
 

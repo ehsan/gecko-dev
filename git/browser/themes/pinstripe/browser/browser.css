@@ -1362,7 +1362,10 @@ toolbarbutton.chevron > .toolbarbutton-menu-dropmarker {
   width: 16px;
   height: 16px;
   list-style-image: url("chrome://global/skin/tree/item.png");
-  vertical-align: middle; /* for pinned tabs - those are display:block */
+}
+
+.tabbrowser-tab[pinned] > .tab-icon-image {
+  margin-top: 2px;
 }
 
 .tabbrowser-tab[busy] > .tab-icon-image {

@@ -20,7 +20,6 @@
 
 namespace gl
 {
-class ResourceManager;
 class FragmentShader;
 class VertexShader;
 
@@ -56,7 +55,7 @@ struct UniformLocation
 class Program
 {
   public:
-    Program(ResourceManager *manager, GLuint handle);
+    Program();
 
     ~Program();
 
@@ -98,7 +97,7 @@ class Program
     GLint getDepthRangeNearLocation() const;
     GLint getDepthRangeFarLocation() const;
     GLint getDxDepthLocation() const;
-    GLint getDxViewportLocation() const;
+    GLint getDxWindowLocation() const;
     GLint getDxHalfPixelSizeLocation() const;
     GLint getDxFrontCCWLocation() const;
     GLint getDxPointsOrLinesLocation() const;
@@ -120,9 +119,6 @@ class Program
     GLint getActiveUniformCount();
     GLint getActiveUniformMaxLength();
 
-    void addRef();
-    void release();
-    unsigned int getRefCount() const;
     void flagForDeletion();
     bool isFlaggedForDeletion() const;
 
@@ -208,7 +204,7 @@ class Program
     GLint mDepthRangeNearLocation;
     GLint mDepthRangeFarLocation;
     GLint mDxDepthLocation;
-    GLint mDxViewportLocation;
+    GLint mDxWindowLocation;
     GLint mDxHalfPixelSizeLocation;
     GLint mDxFrontCCWLocation;
     GLint mDxPointsOrLinesLocation;
@@ -218,14 +214,9 @@ class Program
     char *mInfoLog;
     bool mValidated;
 
-    unsigned int mRefCount;
-
     unsigned int mSerial;
 
     static unsigned int mCurrentSerial;
-
-    ResourceManager *mResourceManager;
-    const GLuint mHandle;
 };
 }
 

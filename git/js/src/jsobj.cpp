@@ -3399,9 +3399,12 @@ js_InitClass(JSContext *cx, JSObject *obj, JSObject *parent_proto,
         /*
          * Remember the class this function is a constructor for so that
          * we know to create an object of this class when we call the
-         * constructor.
+         * constructor. Arrays are a special case. We have a slow and a
+         * dense array. While the prototype is a slow array (it has
+         * named properties), we want to make dense arrays with the
+         * constructor, so we have to monkey patch that here.
          */
-        FUN_CLASP(fun) = clasp;
+        FUN_CLASP(fun) = (clasp == &js_SlowArrayClass) ? &js_ArrayClass : clasp;
 
         /*
          * Optionally construct the prototype object, before the class has
@@ -5926,6 +5929,8 @@ js_TraceObject(JSTracer *trc, JSObject *obj)
         compartment->marked = true;
     }
 
+    obj->traceProtoAndParent(trc);
+
     /*
      * An unmutated object that shares a prototype object's scope. We can't
      * tell how many slots are in use in obj by looking at its scope, so we
@@ -5950,23 +5955,26 @@ js_TraceObject(JSTracer *trc, JSObject *obj)
 void
 js_ClearNative(JSContext *cx, JSObject *obj)
 {
+    JSScope *scope;
+    uint32 i, n;
+
     /*
      * Clear our scope and the property cache of all obj's properties only if
      * obj owns the scope (i.e., not if obj is sharing another object's scope).
      * NB: we do not clear any reserved slots lying below JSSLOT_FREE(clasp).
      */
     JS_LOCK_OBJ(cx, obj);
-    JSScope *scope = obj->scope();
+    scope = obj->scope();
     if (!scope->isSharedEmpty()) {
         /* Now that we're done using scope->lastProp/table, clear scope. */
         scope->clear(cx);
 
         /* Clear slot values and reset freeslot so we're consistent. */
-        uint32 freeslot = JSSLOT_FREE(obj->getClass());
-        uint32 n = obj->numSlots();
-        for (uint32 i = freeslot; i < n; ++i)
+        i = obj->numSlots();
+        n = JSSLOT_FREE(obj->getClass());
+        while (--i >= n)
             obj->setSlot(i, UndefinedValue());
-        scope->freeslot = freeslot;
+        scope->freeslot = n;
     }
     JS_UNLOCK_OBJ(cx, obj);
 }

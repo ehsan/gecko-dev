@@ -110,7 +110,6 @@ nsBaseWidget::nsBaseWidget()
 , mClipRectCount(0)
 , mZIndex(0)
 , mSizeMode(nsSizeMode_Normal)
-, mPopupLevel(ePopupLevelTop)
 {
 #ifdef NOISY_WIDGET_LEAKS
   gNumWidgets++;
@@ -215,7 +214,6 @@ void nsBaseWidget::BaseCreate(nsIWidget *aParent,
   if (nsnull != aInitData) {
     mWindowType = aInitData->mWindowType;
     mBorderStyle = aInitData->mBorderStyle;
-    mPopupLevel = aInitData->mPopupLevel;
   }
 
   if (aParent) {
@@ -826,9 +824,10 @@ NS_METHOD nsBaseWidget::GetScreenBounds(nsIntRect &aRect)
   return GetBounds(aRect);
 }
 
-nsIntPoint nsBaseWidget::GetClientOffset()
+NS_METHOD nsBaseWidget::GetClientOffset(nsIntPoint &aPt)
 {
-  return nsIntPoint(0, 0);
+  aPt.x = aPt.y = 0;
+  return NS_OK;
 }
 
 NS_METHOD nsBaseWidget::SetBounds(const nsIntRect &aRect)

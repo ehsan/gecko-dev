@@ -61,9 +61,6 @@ protected:
   nsresult LaunchDefaultWithDBus(const char *aFilePath);
   NS_IMETHOD GetPossibleApplicationHandlers(nsIMutableArray * *aPossibleAppHandlers);
 #endif
-#if (MOZ_PLATFORM_MAEMO == 6)
-  NS_IMETHOD GetPossibleApplicationHandlers(nsIMutableArray * *aPossibleAppHandlers);
-#endif
 };
 
 #endif // nsMIMEInfoUnix_h_

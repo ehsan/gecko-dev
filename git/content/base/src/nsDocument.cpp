@@ -118,6 +118,7 @@
 
 #include "nsIScriptSecurityManager.h"
 #include "nsIPrincipal.h"
+#include "nsIPrivateDOMImplementation.h"
 
 #include "nsIDOMWindowInternal.h"
 #include "nsPIDOMWindow.h"
@@ -1223,7 +1224,8 @@ nsDOMStyleSheetSetList::GetSets(nsTArray<nsString>& aStyleSets)
 // =
 // ==================================================================
 
-class nsDOMImplementation : public nsIDOMDOMImplementation
+class nsDOMImplementation : public nsIDOMDOMImplementation,
+                            public nsIPrivateDOMImplementation
 {
 public:
   nsDOMImplementation(nsIScriptGlobalObject* aScriptObject,
@@ -1236,6 +1238,10 @@ public:
 
   // nsIDOMDOMImplementation
   NS_DECL_NSIDOMDOMIMPLEMENTATION
+
+  // nsIPrivateDOMImplementation
+  NS_IMETHOD Init(nsIURI* aDocumentURI, nsIURI* aBaseURI,
+                  nsIPrincipal* aPrincipal);
 
 protected:
   nsWeakPtr mScriptObject;
@@ -1278,6 +1284,7 @@ DOMCI_DATA(DOMImplementation, nsDOMImplementation)
 // QueryInterface implementation for nsDOMImplementation
 NS_INTERFACE_MAP_BEGIN(nsDOMImplementation)
   NS_INTERFACE_MAP_ENTRY(nsIDOMDOMImplementation)
+  NS_INTERFACE_MAP_ENTRY(nsIPrivateDOMImplementation)
   NS_INTERFACE_MAP_ENTRY_AMBIGUOUS(nsISupports, nsIDOMDOMImplementation)
   NS_DOM_INTERFACE_MAP_ENTRY_CLASSINFO(DOMImplementation)
 NS_INTERFACE_MAP_END
@@ -1362,6 +1369,18 @@ nsDOMImplementation::CreateDocument(const nsAString& aNamespaceURI,
   return nsContentUtils::CreateDocument(aNamespaceURI, aQualifiedName, aDoctype,
                                         mDocumentURI, mBaseURI, mPrincipal,
                                         scriptHandlingObject, aReturn);
+}
+
+NS_IMETHODIMP
+nsDOMImplementation::Init(nsIURI* aDocumentURI, nsIURI* aBaseURI,
+                          nsIPrincipal* aPrincipal)
+{
+  // Note: can't require that the args be non-null, since at least one
+  // caller (XMLHttpRequest) doesn't have decent args to pass in.
+  mDocumentURI = aDocumentURI;
+  mBaseURI = aBaseURI;
+  mPrincipal = aPrincipal;
+  return NS_OK;
 }
 
 // ==================================================================

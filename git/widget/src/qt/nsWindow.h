@@ -205,8 +205,6 @@ public:
 
     void DispatchActivateEvent(void);
     void DispatchDeactivateEvent(void);
-    void DispatchActivateEventOnTopLevelWindow(void);
-    void DispatchDeactivateEventOnTopLevelWindow(void);
     void DispatchResizeEvent(nsIntRect &aRect, nsEventStatus &aStatus);
 
     nsEventStatus DispatchEvent(nsGUIEvent *aEvent) {

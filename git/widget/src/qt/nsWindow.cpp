@@ -1311,11 +1311,10 @@ nsEventStatus
 nsWindow::OnFocusInEvent(QEvent *aEvent)
 {
     LOGFOCUS(("OnFocusInEvent [%p]\n", (void *)this));
-
     if (!mWidget)
         return nsEventStatus_eIgnore;
 
-    DispatchActivateEventOnTopLevelWindow();
+    DispatchActivateEvent();
 
     LOGFOCUS(("Events sent from focus in event [%p]\n", (void *)this));
     return nsEventStatus_eIgnore;
@@ -1326,10 +1325,8 @@ nsWindow::OnFocusOutEvent(QEvent *aEvent)
 {
     LOGFOCUS(("OnFocusOutEvent [%p]\n", (void *)this));
 
-    if (!mWidget)
-        return nsEventStatus_eIgnore;
-
-    DispatchDeactivateEventOnTopLevelWindow();
+    if (mWidget)
+        DispatchDeactivateEvent();
 
     LOGFOCUS(("Done with container focus out [%p]\n", (void *)this));
     return nsEventStatus_eIgnore;
@@ -2248,22 +2245,6 @@ nsWindow::DispatchDeactivateEvent(void)
     nsGUIEvent event(PR_TRUE, NS_DEACTIVATE, this);
     nsEventStatus status;
     DispatchEvent(&event, status);
-}
-
-void
-nsWindow::DispatchActivateEventOnTopLevelWindow(void)
-{
-    nsWindow * topLevelWindow = static_cast<nsWindow*>(GetTopLevelWidget());
-    if (topLevelWindow != nsnull)
-         topLevelWindow->DispatchActivateEvent();
-}
-
-void
-nsWindow::DispatchDeactivateEventOnTopLevelWindow(void)
-{
-    nsWindow * topLevelWindow = static_cast<nsWindow*>(GetTopLevelWidget());
-    if (topLevelWindow != nsnull)
-         topLevelWindow->DispatchDeactivateEvent();
 }
 
 void

@@ -332,13 +332,8 @@ public:
               PRBool aIsOffscreen = PR_FALSE,
               GLContext *aSharedContext = nsnull)
       : mInitialized(PR_FALSE),
-        mIsOffscreen(aIsOffscreen),
-#ifdef USE_GLES2
-        mIsGLES2(PR_TRUE),
-#else
-        mIsGLES2(PR_FALSE),
-#endif
         mCreationFormat(aFormat),
+        mIsOffscreen(aIsOffscreen),
         mSharedContext(aSharedContext),
         mOffscreenTexture(0),
         mOffscreenFBO(0),
@@ -402,15 +397,6 @@ public:
      * If this context is double-buffered, returns TRUE.
      */
     virtual PRBool IsDoubleBuffered() { return PR_FALSE; }
-
-    /**
-     * If this context is the GLES2 API, returns TRUE.
-     * This means that various GLES2 restrictions might be in effect (modulo
-     * extensions).
-     */
-    PRBool IsGLES2() {
-        return mIsGLES2;
-    }
  
     /**
      * If this context wraps a double-buffered target, swap the back
@@ -556,9 +542,8 @@ public:
 
 protected:
     PRPackedBool mInitialized;
-    PRPackedBool mIsOffscreen;
-    PRPackedBool mIsGLES2;
     ContextFormat mCreationFormat;
+    PRPackedBool mIsOffscreen;
     nsRefPtr<GLContext> mSharedContext;
 
     void UpdateActualFormat();
@@ -582,11 +567,6 @@ protected:
     void ClearSafely();
 
     nsDataHashtable<nsVoidPtrHashKey, void*> mUserData;
-
-    void SetIsGLES2(PRBool aIsGLES2) {
-        NS_ASSERTION(!mInitialized, "SetIsGLES2 can only be called before initialization!");
-        mIsGLES2 = aIsGLES2;
-    }
 
     PRBool InitWithPrefix(const char *prefix, PRBool trygl);
 
@@ -635,6 +615,13 @@ public:
     PFNGLCLEARPROC fClear;
     typedef void (GLAPIENTRY * PFNGLCLEARCOLORPROC) (GLclampf, GLclampf, GLclampf, GLclampf);
     PFNGLCLEARCOLORPROC fClearColor;
+#ifdef USE_GLES2
+    typedef void (GLAPIENTRY * PFNGLCLEARDEPTHFPROC) (GLclampf);
+    PFNGLCLEARDEPTHFPROC fClearDepthf;
+#else
+    typedef void (GLAPIENTRY * PFNGLCLEARDEPTHPROC) (GLclampd);
+    PFNGLCLEARDEPTHPROC fClearDepth;
+#endif
     typedef void (GLAPIENTRY * PFNGLCLEARSTENCILPROC) (GLint);
     PFNGLCLEARSTENCILPROC fClearStencil;
     typedef void (GLAPIENTRY * PFNGLCOLORMASKPROC) (realGLboolean red, realGLboolean green, realGLboolean blue, realGLboolean alpha);
@@ -647,8 +634,17 @@ public:
     PFNGLDEPTHFUNCPROC fDepthFunc;
     typedef void (GLAPIENTRY * PFNGLDEPTHMASKPROC) (realGLboolean);
     PFNGLDEPTHMASKPROC fDepthMask;
+#ifdef USE_GLES2
+    typedef void (GLAPIENTRY * PFNGLDEPTHRANGEFPROC) (GLclampf, GLclampf);
+    PFNGLDEPTHRANGEFPROC fDepthRangef;
+#else
+    typedef void (GLAPIENTRY * PFNGLDEPTHRANGEPROC) (GLclampd, GLclampd);
+    PFNGLDEPTHRANGEPROC fDepthRange;
+#endif
     typedef void (GLAPIENTRY * PFNGLDISABLEPROC) (GLenum);
     PFNGLDISABLEPROC fDisable;
+    typedef void (GLAPIENTRY * PFNGLDISABLECLIENTSTATEPROC) (GLenum);
+    PFNGLDISABLECLIENTSTATEPROC fDisableClientState;
     typedef void (GLAPIENTRY * PFNGLDISABLEVERTEXATTRIBARRAYPROC) (GLuint);
     PFNGLDISABLEVERTEXATTRIBARRAYPROC fDisableVertexAttribArray;
     typedef void (GLAPIENTRY * PFNGLDRAWARRAYSPROC) (GLenum mode, GLint first, GLsizei count);
@@ -657,6 +653,8 @@ public:
     PFNGLDRAWELEMENTSPROC fDrawElements;
     typedef void (GLAPIENTRY * PFNGLENABLEPROC) (GLenum);
     PFNGLENABLEPROC fEnable;
+    typedef void (GLAPIENTRY * PFNGLENABLECLIENTSTATEPROC) (GLenum);
+    PFNGLENABLECLIENTSTATEPROC fEnableClientState;
     typedef void (GLAPIENTRY * PFNGLENABLEVERTEXATTRIBARRAYPROC) (GLuint);
     PFNGLENABLEVERTEXATTRIBARRAYPROC fEnableVertexAttribArray;
     typedef void (GLAPIENTRY * PFNGLFINISHPROC) (void);
@@ -689,6 +687,8 @@ public:
     PFNGLGETPROGRAMIVPROC fGetProgramiv;
     typedef void (GLAPIENTRY * PFNGLGETPROGRAMINFOLOGPROC) (GLuint program, GLsizei bufSize, GLsizei* length, GLchar* infoLog);
     PFNGLGETPROGRAMINFOLOGPROC fGetProgramInfoLog;
+    typedef void (GLAPIENTRY * PFNGLTEXENVFPROC) (GLenum, GLenum, GLfloat);
+    PFNGLTEXENVFPROC fTexEnvf;
     typedef void (GLAPIENTRY * PFNGLTEXPARAMETERIPROC) (GLenum target, GLenum pname, GLint param);
     PFNGLTEXPARAMETERIPROC fTexParameteri;
     typedef void (GLAPIENTRY * PFNGLTEXPARAMETERFPROC) (GLenum target, GLenum pname, GLfloat param);
@@ -749,6 +749,11 @@ public:
     PFNGLSTENCILOPPROC fStencilOp;
     typedef void (GLAPIENTRY * PFNGLSTENCILOPSEPARATEPROC) (GLenum face, GLenum sfail, GLenum dpfail, GLenum dppass);
     PFNGLSTENCILOPSEPARATEPROC fStencilOpSeparate;
+    typedef void (GLAPIENTRY * PFNGLTEXCOORDPOINTERPROC) (GLint,
+                                                        GLenum,
+                                                        GLsizei,
+                                                        const GLvoid *);
+    PFNGLTEXCOORDPOINTERPROC fTexCoordPointer;
     typedef void (GLAPIENTRY * PFNGLTEXIMAGE2DPROC) (GLenum target, GLint level, GLint internalformat, GLsizei width, GLsizei height, GLint border, GLenum format, GLenum type, const GLvoid *pixels);
     PFNGLTEXIMAGE2DPROC fTexImage2D;
     typedef void (GLAPIENTRY * PFNGLTEXSUBIMAGE2DPROC) (GLenum target, GLint level, GLint xoffset, GLint yoffset, GLsizei width, GLsizei height, GLenum format, GLenum type, const void* pixels);
@@ -813,6 +818,11 @@ public:
     PFNGLVERTEXATTRIB3FVPROC fVertexAttrib3fv;
     typedef void (GLAPIENTRY * PFNGLVERTEXATTRIB4FVPROC) (GLuint index, const GLfloat* v);
     PFNGLVERTEXATTRIB4FVPROC fVertexAttrib4fv;
+    typedef void (GLAPIENTRY * PFNGLVERTEXPOINTERPROC) (GLint,
+                                                        GLenum,
+                                                        GLsizei,
+                                                        const GLvoid *);
+    PFNGLVERTEXPOINTERPROC fVertexPointer;
     typedef void (GLAPIENTRY * PFNGLVIEWPORTPROC) (GLint x, GLint y, GLsizei width, GLsizei height);
     PFNGLVIEWPORTPROC fViewport;
     typedef void (GLAPIENTRY * PFNGLCOMPILESHADERPROC) (GLuint shader);
@@ -851,36 +861,7 @@ public:
     typedef void (GLAPIENTRY * PFNGLRENDERBUFFERSTORAGE) (GLenum target, GLenum internalFormat, GLsizei width, GLsizei height);
     PFNGLRENDERBUFFERSTORAGE fRenderbufferStorage;
 
-    void fDepthRange(GLclampf a, GLclampf b) {
-        if (mIsGLES2) {
-            priv_fDepthRangef(a, b);
-        } else {
-            priv_fDepthRange(a, b);
-        }
-    }
-
-    void fClearDepth(GLclampf v) {
-        if (mIsGLES2) {
-            priv_fClearDepthf(v);
-        } else {
-            priv_fClearDepth(v);
-        }
-    }
-
 protected:
-    /* These are different between GLES2 and desktop GL; we hide those differences, use the GL
-     * names, but the most limited data type.
-     */
-    typedef void (GLAPIENTRY * PFNGLDEPTHRANGEFPROC) (GLclampf, GLclampf);
-    PFNGLDEPTHRANGEFPROC priv_fDepthRangef;
-    typedef void (GLAPIENTRY * PFNGLCLEARDEPTHFPROC) (GLclampf);
-    PFNGLCLEARDEPTHFPROC priv_fClearDepthf;
-
-    typedef void (GLAPIENTRY * PFNGLDEPTHRANGEPROC) (GLclampd, GLclampd);
-    PFNGLDEPTHRANGEPROC priv_fDepthRange;
-    typedef void (GLAPIENTRY * PFNGLCLEARDEPTHPROC) (GLclampd);
-    PFNGLCLEARDEPTHPROC priv_fClearDepth;
-
     /* These are special -- they create or delete GL resources that can live
      * in a shared namespace.  In DEBUG, we wrap these calls so that we can
      * check when we have something that failed to do cleanup at the time the

@@ -643,12 +643,9 @@ const gXPInstallObserver = {
     const anchorID = "addons-notification-icon";
     var messageString, action;
     var brandShortName = brandBundle.getString("brandShortName");
+    var host = installInfo.originatingURI ? installInfo.originatingURI.host : browser.currentURI.host;
 
     var notificationID = aTopic;
-    // Make notifications persist a minimum of 30 seconds
-    var options = {
-      timeout: Date.now() + 30000
-    };
 
     switch (aTopic) {
     case "addon-install-blocked":
@@ -669,7 +666,8 @@ const gXPInstallObserver = {
           buttons = [];
         }
         else {
-          messageString = gNavigatorBundle.getString("xpinstallDisabledMessage");
+          messageString = gNavigatorBundle.getFormattedString("xpinstallDisabledMessage",
+                                                              [brandShortName, host]);
 
           action = {
             label: gNavigatorBundle.getString("xpinstallDisabledButton"),
@@ -685,7 +683,7 @@ const gXPInstallObserver = {
           return;
 
         messageString = gNavigatorBundle.getFormattedString("xpinstallPromptWarning",
-                          [brandShortName, installInfo.originatingURI.host]);
+                                                            [brandShortName, host]);
 
         action = {
           label: gNavigatorBundle.getString("xpinstallPromptAllowButton"),
@@ -697,18 +695,12 @@ const gXPInstallObserver = {
       }
 
       PopupNotifications.show(browser, notificationID, messageString, anchorID,
-                              action, null, options);
+                              action);
       break;
     case "addon-install-failed":
       // TODO This isn't terribly ideal for the multiple failure case
       installInfo.installs.forEach(function(aInstall) {
-        var host = (installInfo.originatingURI instanceof Ci.nsIStandardURL) &&
-                   installInfo.originatingURI.host;
-        if (!host)
-          host = (aInstall.sourceURI instanceof Ci.nsIStandardURL) &&
-                 aInstall.sourceURI.host;
-
-        var error = (host || aInstall.error == 0) ? "addonError" : "addonLocalError";
+        var error = "addonError";
         if (aInstall.error != 0)
           error += aInstall.error;
         else if (aInstall.addon.blocklistState == Ci.nsIBlocklistService.STATE_BLOCKED)
@@ -718,13 +710,12 @@ const gXPInstallObserver = {
 
         messageString = gNavigatorBundle.getString(error);
         messageString = messageString.replace("#1", aInstall.name);
-        if (host)
-          messageString = messageString.replace("#2", host);
+        messageString = messageString.replace("#2", host);
         messageString = messageString.replace("#3", brandShortName);
         messageString = messageString.replace("#4", Services.appinfo.version);
 
         PopupNotifications.show(browser, notificationID, messageString, anchorID,
-                                action, null, options);
+                                action);
       });
       break;
     case "addon-install-complete":
@@ -776,7 +767,7 @@ const gXPInstallObserver = {
       messageString = messageString.replace("#3", brandShortName);
 
       PopupNotifications.show(browser, notificationID, messageString, anchorID,
-                              action, null, options);
+                              action);
       break;
     }
   }
@@ -3100,8 +3091,7 @@ const DOMLinkHandler = {
             type = type.replace(/^\s+|\s*(?:;.*)?$/g, "");
 
             if (type == "application/opensearchdescription+xml" && link.title &&
-                /^(?:https?|ftp):/i.test(link.href) &&
-                !gPrivateBrowsingUI.privateBrowsingEnabled) {
+                /^(?:https?|ftp):/i.test(link.href)) {
               var engine = { title: link.title, href: link.href };
               BrowserSearch.addEngine(engine, link.ownerDocument);
               searchAdded = true;
@@ -7040,7 +7030,7 @@ var gIdentityHandler = {
     this._identityIconLabel.crop = icon_country_label ? "end" : "center";
     this._identityIconLabel.parentNode.style.direction = icon_labels_dir;
     // Hide completely if the organization label is empty
-    this._identityIconLabel.parentNode.collapsed = icon_label ? false : true;
+    this._identityIconLabel.parentNode.hidden = icon_label ? false : true;
   },
 
   /**
@@ -7775,11 +7765,13 @@ var TabContextMenu = {
       menuItems[i].disabled = disabled;
 
     // Session store
-    document.getElementById("context_undoCloseTab").disabled =
+    // XXXzeniko should't we just disable this item as we disable
+    // the tabbrowser-multiple items above - for consistency?
+    document.getElementById("context_undoCloseTab").hidden =
       Cc["@mozilla.org/browser/sessionstore;1"].
       getService(Ci.nsISessionStore).
       getClosedTabCount(window) == 0;
-
+      
     // Only one of pin/unpin should be visible
     document.getElementById("context_pinTab").hidden = this.contextTab.pinned;
     document.getElementById("context_unpinTab").hidden = !this.contextTab.pinned;

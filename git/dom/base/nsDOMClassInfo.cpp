@@ -154,6 +154,7 @@
 
 // HTMLOptionsCollection includes
 #include "nsIDOMHTMLOptionElement.h"
+#include "nsIDOMNSHTMLOptionElement.h"
 #include "nsIDOMHTMLOptionsCollection.h"
 #include "nsIDOMNSHTMLOptionCollectn.h"
 
@@ -253,10 +254,12 @@
 #include "nsIDOMNSHTMLAnchorElement2.h"
 #include "nsIDOMHTMLAppletElement.h"
 #include "nsIDOMHTMLAreaElement.h"
+#include "nsIDOMNSHTMLAreaElement2.h"
 #include "nsIDOMHTMLBRElement.h"
 #include "nsIDOMHTMLBaseElement.h"
 #include "nsIDOMHTMLBodyElement.h"
 #include "nsIDOMHTMLButtonElement.h"
+#include "nsIDOMNSHTMLButtonElement.h"
 #include "nsIDOMHTMLCanvasElement.h"
 #include "nsIDOMHTMLDListElement.h"
 #include "nsIDOMHTMLDirectoryElement.h"
@@ -281,6 +284,7 @@
 #include "nsIDOMHTMLIsIndexElement.h"
 #include "nsIDOMHTMLLIElement.h"
 #include "nsIDOMHTMLLabelElement.h"
+#include "nsIDOMNSHTMLLabelElement.h"
 #include "nsIDOMHTMLLegendElement.h"
 #include "nsIDOMHTMLLinkElement.h"
 #include "nsIDOMHTMLMapElement.h"
@@ -296,6 +300,8 @@
 #include "nsIDOMHTMLPreElement.h"
 #include "nsIDOMHTMLQuoteElement.h"
 #include "nsIDOMHTMLScriptElement.h"
+#include "nsIDOMNSHTMLScriptElement.h"
+#include "nsIDOMNSHTMLSelectElement.h"
 #include "nsIDOMHTMLStyleElement.h"
 #include "nsIDOMHTMLTableCaptionElem.h"
 #include "nsIDOMHTMLTableCellElement.h"
@@ -2436,6 +2442,8 @@ nsDOMClassInfo::Init()
 
   DOM_CLASSINFO_MAP_BEGIN(HTMLAreaElement, nsIDOMHTMLAreaElement)
     DOM_CLASSINFO_MAP_ENTRY(nsIDOMHTMLAreaElement)
+    DOM_CLASSINFO_MAP_ENTRY(nsIDOMNSHTMLAreaElement)
+    DOM_CLASSINFO_MAP_ENTRY(nsIDOMNSHTMLAreaElement2)
     DOM_CLASSINFO_GENERIC_HTML_MAP_ENTRIES
   DOM_CLASSINFO_MAP_END
 
@@ -2456,6 +2464,7 @@ nsDOMClassInfo::Init()
 
   DOM_CLASSINFO_MAP_BEGIN(HTMLButtonElement, nsIDOMHTMLButtonElement)
     DOM_CLASSINFO_MAP_ENTRY(nsIDOMHTMLButtonElement)
+    DOM_CLASSINFO_MAP_ENTRY(nsIDOMNSHTMLButtonElement)
     DOM_CLASSINFO_GENERIC_HTML_MAP_ENTRIES
   DOM_CLASSINFO_MAP_END
 
@@ -2573,6 +2582,7 @@ nsDOMClassInfo::Init()
 
   DOM_CLASSINFO_MAP_BEGIN(HTMLLabelElement, nsIDOMHTMLLabelElement)
     DOM_CLASSINFO_MAP_ENTRY(nsIDOMHTMLLabelElement)
+    DOM_CLASSINFO_MAP_ENTRY(nsIDOMNSHTMLLabelElement)
     DOM_CLASSINFO_GENERIC_HTML_MAP_ENTRIES
   DOM_CLASSINFO_MAP_END
 
@@ -2621,6 +2631,9 @@ nsDOMClassInfo::Init()
   DOM_CLASSINFO_MAP_END
 
   DOM_CLASSINFO_MAP_BEGIN(HTMLOptionElement, nsIDOMHTMLOptionElement)
+    // Order is significant.  nsIDOMNSHTMLOptionElement.text shdaows
+    // nsIDOMHTMLOptionElement.text, which is readonly.
+    DOM_CLASSINFO_MAP_ENTRY(nsIDOMNSHTMLOptionElement)
     DOM_CLASSINFO_MAP_ENTRY(nsIDOMHTMLOptionElement)
     DOM_CLASSINFO_GENERIC_HTML_MAP_ENTRIES
   DOM_CLASSINFO_MAP_END
@@ -2652,11 +2665,13 @@ nsDOMClassInfo::Init()
 
   DOM_CLASSINFO_MAP_BEGIN(HTMLScriptElement, nsIDOMHTMLScriptElement)
     DOM_CLASSINFO_MAP_ENTRY(nsIDOMHTMLScriptElement)
+    DOM_CLASSINFO_MAP_ENTRY(nsIDOMNSHTMLScriptElement)
     DOM_CLASSINFO_GENERIC_HTML_MAP_ENTRIES
   DOM_CLASSINFO_MAP_END
 
   DOM_CLASSINFO_MAP_BEGIN(HTMLSelectElement, nsIDOMHTMLSelectElement)
     DOM_CLASSINFO_MAP_ENTRY(nsIDOMHTMLSelectElement)
+    DOM_CLASSINFO_MAP_ENTRY(nsIDOMNSHTMLSelectElement)
     DOM_CLASSINFO_GENERIC_HTML_MAP_ENTRIES
   DOM_CLASSINFO_MAP_END
 

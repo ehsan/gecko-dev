@@ -526,7 +526,11 @@ WebGLContext::Clear(PRUint32 mask)
 
 GL_SAME_METHOD_4(ClearColor, ClearColor, WebGLfloat, WebGLfloat, WebGLfloat, WebGLfloat)
 
+#ifdef USE_GLES2
+GL_SAME_METHOD_1(ClearDepthf, ClearDepth, WebGLfloat)
+#else
 GL_SAME_METHOD_1(ClearDepth, ClearDepth, WebGLfloat)
+#endif
 
 GL_SAME_METHOD_1(ClearStencil, ClearStencil, WebGLint)
 
@@ -830,7 +834,11 @@ WebGLContext::DepthFunc(WebGLenum func)
 
 GL_SAME_METHOD_1(DepthMask, DepthMask, WebGLboolean)
 
+#ifdef USE_GLES2
+GL_SAME_METHOD_2(DepthRangef, DepthRange, WebGLfloat, WebGLfloat)
+#else
 GL_SAME_METHOD_2(DepthRange, DepthRange, WebGLfloat, WebGLfloat)
+#endif
 
 NS_IMETHODIMP
 WebGLContext::DisableVertexAttribArray(WebGLuint index)
@@ -1334,18 +1342,18 @@ WebGLContext::GetParameter(PRUint32 pname, nsIVariant **retval)
 
         case LOCAL_GL_MAX_VARYING_VECTORS:
         {
-            if (gl->IsGLES2()) {
+            #ifdef USE_GLES2
                 GLint i = 0;
                 gl->fGetIntegerv(pname, &i);
                 wrval->SetAsInt32(i);
-            } else {
+            #else
                 // since this pname is absent from desktop OpenGL, we have to implement it by hand.
                 // The formula below comes from the public_webgl list, "problematic GetParameter pnames" thread
                 GLint i = 0, j = 0;
                 gl->fGetIntegerv(LOCAL_GL_MAX_VERTEX_OUTPUT_COMPONENTS, &i);
                 gl->fGetIntegerv(LOCAL_GL_MAX_FRAGMENT_INPUT_COMPONENTS, &j);
                 wrval->SetAsInt32(PR_MIN(i,j)/4);
-            }
+            #endif
         }
             break;
 
@@ -2911,12 +2919,12 @@ WebGLContext::CompileShader(nsIWebGLShader *sobj)
         resources.maxFragmentUniformVectors = mGLMaxFragmentUniformVectors;
         resources.maxDrawBuffers = 1;
 
-        compiler = ShConstructCompiler(lang, EShSpecWebGL, &resources);
+        compiler = ShConstructCompiler(lang, debugFlags);
 
         nsDependentCString src(shader->Source());
         const char *s = src.get();
 
-        if (!ShCompile(compiler, &s, 1, EShOptSimple, debugFlags)) {
+        if (!ShCompile(compiler, &s, 1, EShOptNone, &resources, debugFlags)) {
             shader->SetTranslationFailure(nsDependentCString(ShGetInfoLog(compiler)));
             ShDestruct(compiler);
             return NS_OK;

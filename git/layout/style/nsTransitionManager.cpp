@@ -69,7 +69,11 @@ namespace dom = mozilla::dom;
 struct ElementPropertyTransition
 {
   nsCSSProperty mProperty;
-  nsStyleAnimation::Value mStartValue, mEndValue;
+  // We need to have mCurrentValue as a member of this structure because
+  // the result of the calls to |Interpolate| might hold data that this
+  // object's owning style rule needs to keep alive (after calling
+  // UncomputeValue on it in MapRuleInfoInto).
+  nsStyleAnimation::Value mStartValue, mEndValue, mCurrentValue;
   TimeStamp mStartTime; // actual start plus transition delay
 
   // data from the relevant nsTransition
@@ -89,12 +93,17 @@ struct ElementPropertyTransition
 };
 
 /**
- * A style rule that maps property-nsStyleAnimation::Value pairs.
+ * An ElementTransitionsStyleRule overrides style data with the
+ * currently-transitioning value for an element that is executing a
+ * transition.  It only matches when styling with animation.  When we
+ * style without animation, we need to not use it so that we can detect
+ * any new changes; if necessary we restyle immediately afterwards with
+ * animation.
  */
-class AnimValuesStyleRule : public nsIStyleRule
+class ElementTransitionsStyleRule : public nsIStyleRule
 {
 public:
-  // nsISupports implementation
+  // nsISupportsImplementation
   NS_DECL_ISUPPORTS
 
   // nsIStyleRule implementation
@@ -103,30 +112,55 @@ public:
   virtual void List(FILE* out = stdout, PRInt32 aIndent = 0) const;
 #endif
 
-  void AddValue(nsCSSProperty aProperty, nsStyleAnimation::Value &aStartValue)
+  ElementTransitionsStyleRule(ElementTransitions *aOwner,
+                           TimeStamp aRefreshTime)
+    : mElementTransitions(aOwner)
+    , mRefreshTime(aRefreshTime)
+  {}
+
+  void Disconnect() { mElementTransitions = nsnull; }
+
+  ElementTransitions *ElementData() { return mElementTransitions; }
+  TimeStamp RefreshTime() { return mRefreshTime; }
+
+private:
+  ElementTransitions *mElementTransitions;
+  // The time stamp for which this style rule is valid.
+  TimeStamp mRefreshTime;
+};
+
+/**
+ * A CoverTransitionStyleRule sets any value for which we're starting a
+ * transition back to the pre-transition value for the period when we're
+ * resolving style on its descendants, so that we have the required
+ * behavior for initiating transitions on such descendants.  For more
+ * detail, see comment below, above "new CoverTransitionStartStyleRule".
+ */
+class CoverTransitionStartStyleRule : public nsIStyleRule
+{
+public:
+  // nsISupportsImplementation
+  NS_DECL_ISUPPORTS
+
+  // nsIStyleRule implementation
+  virtual void MapRuleInfoInto(nsRuleData* aRuleData);
+#ifdef DEBUG
+  virtual void List(FILE* out = stdout, PRInt32 aIndent = 0) const;
+#endif
+
+  void CoverValue(nsCSSProperty aProperty, nsStyleAnimation::Value &aStartValue)
   {
-    PropertyValuePair v = { aProperty, aStartValue };
-    mPropertyValuePairs.AppendElement(v);
+    CoveredValue v = { aProperty, aStartValue };
+    mCoveredValues.AppendElement(v);
   }
 
-  // Caller must fill in returned value, when non-null.
-  nsStyleAnimation::Value* AddEmptyValue(nsCSSProperty aProperty)
-  {
-    PropertyValuePair *p = mPropertyValuePairs.AppendElement();
-    if (!p) {
-      return nsnull;
-    }
-    p->mProperty = aProperty;
-    return &p->mValue;
-  }
-
-  struct PropertyValuePair {
+  struct CoveredValue {
     nsCSSProperty mProperty;
-    nsStyleAnimation::Value mValue;
+    nsStyleAnimation::Value mCoveredValue;
   };
 
 private:
-  nsTArray<PropertyValuePair> mPropertyValuePairs;
+  nsTArray<CoveredValue> mCoveredValues;
 };
 
 struct ElementTransitions : public PRCList
@@ -141,6 +175,7 @@ struct ElementTransitions : public PRCList
   }
   ~ElementTransitions()
   {
+    DropStyleRule();
     PR_REMOVE_LINK(this);
     mTransitionManager->TransitionsRemoved();
   }
@@ -151,21 +186,16 @@ struct ElementTransitions : public PRCList
     mElement->DeleteProperty(mElementProperty);
   }
 
+  void DropStyleRule();
   void EnsureStyleRuleFor(TimeStamp aRefreshTime);
 
 
   // Either zero or one for each CSS property:
   nsTArray<ElementPropertyTransition> mPropertyTransitions;
 
-  // This style rule overrides style data with the currently
-  // transitioning value for an element that is executing a transition.
-  // It only matches when styling with animation.  When we style without
-  // animation, we need to not use it so that we can detect any new
-  // changes; if necessary we restyle immediately afterwards with
-  // animation.
-  nsRefPtr<AnimValuesStyleRule> mStyleRule;
-  // The refresh time associated with mStyleRule.
-  TimeStamp mStyleRuleRefreshTime;
+  // The style rule for the transitions (which contains the time stamp
+  // for which it is valid).
+  nsRefPtr<ElementTransitionsStyleRule> mStyleRule;
 
   dom::Element *mElement;
 
@@ -186,27 +216,37 @@ ElementTransitionsPropertyDtor(void           *aObject,
   delete et;
 }
 
-void
-ElementTransitions::EnsureStyleRuleFor(TimeStamp aRefreshTime)
+NS_IMPL_ISUPPORTS1(ElementTransitionsStyleRule, nsIStyleRule)
+
+/* virtual */ void
+ElementTransitionsStyleRule::MapRuleInfoInto(nsRuleData* aRuleData)
 {
-  if (!mStyleRule || mStyleRuleRefreshTime != aRefreshTime) {
-    mStyleRule = new AnimValuesStyleRule();
-    mStyleRuleRefreshTime = aRefreshTime;
+  nsStyleContext *contextParent = aRuleData->mStyleContext->GetParent();
+  if (contextParent && contextParent->HasPseudoElementData()) {
+    // Don't apply transitions to things inside of pseudo-elements.
+    // FIXME (Bug 522599): Add tests for this.
+    return;
+  }
 
-    for (PRUint32 i = 0, i_end = mPropertyTransitions.Length(); i < i_end; ++i)
+  ElementTransitions *et = ElementData();
+  if (NS_UNLIKELY(!et)) { // FIXME (Bug 522597): Why can this be null? 
+     NS_WARNING("ElementData returned null");
+     return;
+  }
+
+  for (PRUint32 i = 0, i_end = et->mPropertyTransitions.Length();
+       i < i_end; ++i)
+  {
+    ElementPropertyTransition &pt = et->mPropertyTransitions[i];
+    if (pt.IsRemovedSentinel()) {
+      continue;
+    }
+
+    if (aRuleData->mSIDs & nsCachedStyleData::GetBitForSID(
+                             nsCSSProps::kSIDTable[pt.mProperty]))
     {
-      ElementPropertyTransition &pt = mPropertyTransitions[i];
-      if (pt.IsRemovedSentinel()) {
-        continue;
-      }
-
-      nsStyleAnimation::Value *val = mStyleRule->AddEmptyValue(pt.mProperty);
-      if (!val) {
-        continue;
-      }
-
       double timePortion =
-        (aRefreshTime - pt.mStartTime).ToSeconds() / pt.mDuration.ToSeconds();
+        (RefreshTime() - pt.mStartTime).ToSeconds() / pt.mDuration.ToSeconds();
       if (timePortion < 0.0)
         timePortion = 0.0; // use start value during transition-delay
       if (timePortion > 1.0)
@@ -219,26 +259,58 @@ ElementTransitions::EnsureStyleRuleFor(TimeStamp aRefreshTime)
 #endif
         nsStyleAnimation::Interpolate(pt.mProperty,
                                       pt.mStartValue, pt.mEndValue,
-                                      valuePortion, *val);
+                                      valuePortion, pt.mCurrentValue);
       NS_ABORT_IF_FALSE(ok, "could not interpolate values");
+
+      void *prop =
+        nsCSSExpandedDataBlock::RuleDataPropertyAt(aRuleData, pt.mProperty);
+#ifdef DEBUG
+      ok =
+#endif
+        nsStyleAnimation::UncomputeValue(pt.mProperty, aRuleData->mPresContext,
+                                         pt.mCurrentValue, prop);
+      NS_ABORT_IF_FALSE(ok, "could not store computed value");
     }
   }
 }
 
-NS_IMPL_ISUPPORTS1(AnimValuesStyleRule, nsIStyleRule)
+#ifdef DEBUG
+/* virtual */ void
+ElementTransitionsStyleRule::List(FILE* out, PRInt32 aIndent) const
+{
+  // WRITE ME?
+}
+#endif
+
+void
+ElementTransitions::DropStyleRule()
+{
+  if (mStyleRule) {
+    mStyleRule->Disconnect();
+    mStyleRule = nsnull;
+  }
+}
+
+void
+ElementTransitions::EnsureStyleRuleFor(TimeStamp aRefreshTime)
+{
+  if (!mStyleRule || mStyleRule->RefreshTime() != aRefreshTime) {
+    DropStyleRule();
+
+    ElementTransitionsStyleRule *newRule =
+      new ElementTransitionsStyleRule(this, aRefreshTime);
+
+    mStyleRule = newRule;
+  }
+}
+
+NS_IMPL_ISUPPORTS1(CoverTransitionStartStyleRule, nsIStyleRule)
 
 /* virtual */ void
-AnimValuesStyleRule::MapRuleInfoInto(nsRuleData* aRuleData)
+CoverTransitionStartStyleRule::MapRuleInfoInto(nsRuleData* aRuleData)
 {
-  nsStyleContext *contextParent = aRuleData->mStyleContext->GetParent();
-  if (contextParent && contextParent->HasPseudoElementData()) {
-    // Don't apply transitions to things inside of pseudo-elements.
-    // FIXME (Bug 522599): Add tests for this.
-    return;
-  }
-
-  for (PRUint32 i = 0, i_end = mPropertyValuePairs.Length(); i < i_end; ++i) {
-    PropertyValuePair &cv = mPropertyValuePairs[i];
+  for (PRUint32 i = 0, i_end = mCoveredValues.Length(); i < i_end; ++i) {
+    CoveredValue &cv = mCoveredValues[i];
     if (aRuleData->mSIDs & nsCachedStyleData::GetBitForSID(
                              nsCSSProps::kSIDTable[cv.mProperty]))
     {
@@ -248,7 +320,7 @@ AnimValuesStyleRule::MapRuleInfoInto(nsRuleData* aRuleData)
       PRBool ok =
 #endif
         nsStyleAnimation::UncomputeValue(cv.mProperty, aRuleData->mPresContext,
-                                         cv.mValue, prop);
+                                         cv.mCoveredValue, prop);
       NS_ABORT_IF_FALSE(ok, "could not store computed value");
     }
   }
@@ -256,7 +328,7 @@ AnimValuesStyleRule::MapRuleInfoInto(nsRuleData* aRuleData)
 
 #ifdef DEBUG
 /* virtual */ void
-AnimValuesStyleRule::List(FILE* out, PRInt32 aIndent) const
+CoverTransitionStartStyleRule::List(FILE* out, PRInt32 aIndent) const
 {
   // WRITE ME?
 }
@@ -494,7 +566,8 @@ nsTransitionManager::StyleContextChanged(dom::Element *aElement,
   // Our caller is responsible for restyling again using this covering
   // rule.
 
-  nsRefPtr<AnimValuesStyleRule> coverRule = new AnimValuesStyleRule;
+  nsRefPtr<CoverTransitionStartStyleRule> coverRule =
+    new CoverTransitionStartStyleRule;
   if (!coverRule) {
     NS_WARNING("out of memory");
     return nsnull;
@@ -504,11 +577,12 @@ nsTransitionManager::StyleContextChanged(dom::Element *aElement,
   for (PRUint32 i = 0, i_end = pts.Length(); i < i_end; ++i) {
     ElementPropertyTransition &pt = pts[i];
     if (whichStarted.HasProperty(pt.mProperty)) {
-      coverRule->AddValue(pt.mProperty, pt.mStartValue);
+      coverRule->CoverValue(pt.mProperty, pt.mStartValue);
     }
   }
 
-  return coverRule.forget();
+  return already_AddRefed<nsIStyleRule>(
+           static_cast<nsIStyleRule*>(coverRule.forget().get()));
 }
 
 void

@@ -38,6 +38,7 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
+#include "nsIDOMNSHTMLOptionElement.h"
 #include "nsHTMLOptionElement.h"
 #include "nsIDOMHTMLOptGroupElement.h"
 #include "nsIDOMHTMLFormElement.h"
@@ -116,8 +117,9 @@ DOMCI_NODE_DATA(HTMLOptionElement, nsHTMLOptionElement)
 
 // QueryInterface implementation for nsHTMLOptionElement
 NS_INTERFACE_TABLE_HEAD(nsHTMLOptionElement)
-  NS_HTML_CONTENT_INTERFACE_TABLE2(nsHTMLOptionElement,
+  NS_HTML_CONTENT_INTERFACE_TABLE3(nsHTMLOptionElement,
                                    nsIDOMHTMLOptionElement,
+                                   nsIDOMNSHTMLOptionElement,
                                    nsIJSNativeInitializer)
   NS_HTML_CONTENT_INTERFACE_TABLE_TO_MAP_SEGUE(nsHTMLOptionElement,
                                                nsGenericHTMLElement)

@@ -65,6 +65,7 @@ nsIRange.h \
 nsIRangeUtils.h \
 nsIScriptElement.h \
 nsIStyleSheetLinkingElement.h \
+nsIPrivateDOMImplementation.h \
 nsIContentSerializer.h \
 nsIHTMLToTextSink.h \
 nsIXPathEvaluatorInternal.h \

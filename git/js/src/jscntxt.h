@@ -2300,7 +2300,6 @@ class AutoGCRooter {
 # pragma GCC visibility push(default)
 #endif
     friend void ::js_TraceContext(JSTracer *trc, JSContext *acx);
-    friend void ::js_TraceRuntime(JSTracer *trc);
 #ifdef __GNUC__
 # pragma GCC visibility pop
 #endif
@@ -2428,7 +2427,6 @@ class AutoValueRooter : private AutoGCRooter
     }
 
     friend void AutoGCRooter::trace(JSTracer *trc);
-    friend void ::js_TraceRuntime(JSTracer *trc);
 
   private:
     Value val;
@@ -2457,7 +2455,6 @@ class AutoObjectRooter : private AutoGCRooter {
     }
 
     friend void AutoGCRooter::trace(JSTracer *trc);
-    friend void ::js_TraceRuntime(JSTracer *trc);
 
   private:
     JSObject *obj;
@@ -2538,7 +2535,6 @@ class AutoScopePropertyRooter : private AutoGCRooter {
     }
 
     friend void AutoGCRooter::trace(JSTracer *trc);
-    friend void ::js_TraceRuntime(JSTracer *trc);
 
   private:
     JSScopeProperty * const sprop;
@@ -2584,7 +2580,6 @@ class AutoIdRooter : private AutoGCRooter
     }
 
     friend void AutoGCRooter::trace(JSTracer *trc);
-    friend void ::js_TraceRuntime(JSTracer *trc);
 
   private:
     jsid id_;
@@ -2683,7 +2678,6 @@ class AutoXMLRooter : private AutoGCRooter {
     }
 
     friend void AutoGCRooter::trace(JSTracer *trc);
-    friend void ::js_TraceRuntime(JSTracer *trc);
 
   private:
     JSXML * const xml;
@@ -3079,7 +3073,7 @@ LeaveTrace(JSContext *cx)
 static JS_INLINE void
 LeaveTraceIfGlobalObject(JSContext *cx, JSObject *obj)
 {
-    if (!obj->parent)
+    if (obj->fslots[JSSLOT_PARENT].isNull())
         LeaveTrace(cx);
 }
 

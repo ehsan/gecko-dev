@@ -43,10 +43,12 @@
 
 #include "nsGenericHTMLElement.h"
 #include "nsIDOMHTMLOptionElement.h"
+#include "nsIDOMNSHTMLOptionElement.h"
 #include "nsIJSNativeInitializer.h"
 
 class nsHTMLOptionElement : public nsGenericHTMLElement,
                             public nsIDOMHTMLOptionElement,
+                            public nsIDOMNSHTMLOptionElement,
                             public nsIJSNativeInitializer
 {
 public:
@@ -75,6 +77,9 @@ public:
 
   // nsIDOMHTMLOptionElement
   NS_DECL_NSIDOMHTMLOPTIONELEMENT
+
+  // nsIDOMNSHTMLOptionElement
+  NS_IMETHOD SetText(const nsAString & aText); 
 
   // nsIJSNativeInitializer
   NS_IMETHOD Initialize(nsISupports* aOwner, JSContext* aContext,

@@ -819,8 +819,7 @@ nsLayoutUtils::GetEventCoordinatesRelativeTo(const nsEvent* aEvent, nsIFrame* aF
 }
 
 nsIFrame*
-nsLayoutUtils::GetPopupFrameForEventCoordinates(nsPresContext* aPresContext,
-                                                const nsEvent* aEvent)
+nsLayoutUtils::GetPopupFrameForEventCoordinates(const nsEvent* aEvent)
 {
 #ifdef MOZ_XUL
   nsXULPopupManager* pm = nsXULPopupManager::GetInstance();
@@ -832,8 +831,7 @@ nsLayoutUtils::GetPopupFrameForEventCoordinates(nsPresContext* aPresContext,
   // Search from top to bottom
   for (i = 0; i < popups.Length(); i++) {
     nsIFrame* popup = popups[i];
-    if (popup->PresContext()->GetRootPresContext() == aPresContext &&
-        popup->GetOverflowRect().Contains(
+    if (popup->GetOverflowRect().Contains(
           GetEventCoordinatesRelativeTo(aEvent, popup))) {
       return popup;
     }

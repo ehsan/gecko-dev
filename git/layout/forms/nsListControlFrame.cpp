@@ -50,7 +50,8 @@
 #include "nsIDOMHTMLCollection.h" 
 #include "nsIDOMHTMLOptionsCollection.h" 
 #include "nsIDOMNSHTMLOptionCollectn.h"
-#include "nsIDOMHTMLSelectElement.h"
+#include "nsIDOMHTMLSelectElement.h" 
+#include "nsIDOMNSHTMLSelectElement.h" 
 #include "nsIDOMHTMLOptionElement.h" 
 #include "nsComboboxControlFrame.h"
 #include "nsIViewManager.h"
@@ -284,8 +285,8 @@ void nsListControlFrame::PaintFocus(nsIRenderingContext& aRC, nsPoint aPt)
 
   nsCOMPtr<nsIContent> focusedContent;
 
-  nsCOMPtr<nsIDOMHTMLSelectElement> selectDOMElement(do_QueryInterface(mContent));
-  NS_ASSERTION(selectDOMElement, "Can't be null");
+  nsCOMPtr<nsIDOMNSHTMLSelectElement> selectNSElement(do_QueryInterface(mContent));
+  NS_ASSERTION(selectNSElement, "Can't be null");
 
   nsCOMPtr<nsISelectElement> selectElement(do_QueryInterface(mContent));
   NS_ASSERTION(selectElement, "Can't be null");
@@ -311,7 +312,7 @@ void nsListControlFrame::PaintFocus(nsIRenderingContext& aRC, nsPoint aPt)
       // find the first non-disabled item
       PRBool isDisabled = PR_TRUE;
       for (PRInt32 i=0;i<PRInt32(length) && isDisabled;i++) {
-        if (NS_FAILED(selectDOMElement->Item(i, getter_AddRefs(node))) || !node) {
+        if (NS_FAILED(selectNSElement->Item(i, getter_AddRefs(node))) || !node) {
           break;
         }
         if (NS_FAILED(selectElement->IsOptionDisabled(i, &isDisabled))) {

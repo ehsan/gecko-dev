@@ -184,6 +184,8 @@ protected:
 private:
     void InitKeyEvent(nsKeyEvent& event, mozilla::AndroidGeckoEvent& key);
     void HandleSpecialKey(mozilla::AndroidGeckoEvent *ae);
+
+    PRUint32 mSpecialKeyTracking;
 };
 
 #endif /* NSWINDOW_H_ */
