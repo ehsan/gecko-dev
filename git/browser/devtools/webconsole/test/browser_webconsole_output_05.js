@@ -62,21 +62,12 @@ let inputTests = [
 
   // 7
   {
-    input: "Date.prototype",
-    output: "Date",
-    printOutput: "Invalid Date",
-    inspectable: true,
-    variablesViewLabel: "Date",
-  },
-
-  // 8
-  {
     input: "new Number(43)",
     output: "43",
     inspectable: true,
   },
 
-  // 9
+  // 8
   {
     input: "new String('hello')",
     output: 'String [ "h", "e", "l", "l", "o" ]',

@@ -300,7 +300,7 @@ nsDisplayCanvasBackgroundImage::Paint(nsDisplayListBuilder* aBuilder,
       ctx->SetMatrix(
         ctx->CurrentMatrix().Translate(-destRect.x, -destRect.y));
       context = new nsRenderingContext();
-      context->Init(ctx);
+      context->Init(aCtx->DeviceContext(), ctx);
     }
   }
 #endif

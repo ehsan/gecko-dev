@@ -3071,7 +3071,7 @@ PresShell::CreateReferenceRenderingContext()
   nsRefPtr<nsRenderingContext> rc;
   if (mPresContext->IsScreen()) {
     rc = new nsRenderingContext();
-    rc->Init(gfxPlatform::GetPlatform()->ScreenReferenceDrawTarget());
+    rc->Init(devCtx, gfxPlatform::GetPlatform()->ScreenReferenceDrawTarget());
   } else {
     rc = devCtx->CreateRenderingContext();
   }
@@ -4807,7 +4807,7 @@ PresShell::RenderDocument(const nsRect& aRect, uint32_t aFlags,
   AutoSaveRestoreRenderingState _(this);
 
   nsRefPtr<nsRenderingContext> rc = new nsRenderingContext();
-  rc->Init(aThebesContext);
+  rc->Init(devCtx, aThebesContext);
 
   bool wouldFlushRetainedLayers = false;
   uint32_t flags = nsLayoutUtils::PAINT_IGNORE_SUPPRESSION;
@@ -5061,6 +5061,8 @@ PresShell::PaintRangePaintInfo(nsTArray<nsAutoPtr<RangePaintInfo> >* aItems,
   if (!pc || aArea.width == 0 || aArea.height == 0)
     return nullptr;
 
+  nsDeviceContext* deviceContext = pc->DeviceContext();
+
   // use the rectangle to create the surface
   nsIntRect pixelArea = aArea.ToOutsidePixels(pc->AppUnitsPerDevPixel());
 
@@ -5073,7 +5075,7 @@ PresShell::PaintRangePaintInfo(nsTArray<nsAutoPtr<RangePaintInfo> >* aItems,
   // if the image is larger in one or both directions than half the size of
   // the available screen area, scale the image down to that size.
   nsRect maxSize;
-  pc->DeviceContext()->GetClientRect(maxSize);
+  deviceContext->GetClientRect(maxSize);
   nscoord maxWidth = pc->AppUnitsToDevPixels(maxSize.width >> 1);
   nscoord maxHeight = pc->AppUnitsToDevPixels(maxSize.height >> 1);
   bool resize = (pixelArea.width > maxWidth || pixelArea.height > maxHeight);
@@ -5126,7 +5128,7 @@ PresShell::PaintRangePaintInfo(nsTArray<nsAutoPtr<RangePaintInfo> >* aItems,
   }
 
   nsRefPtr<nsRenderingContext> rc = new nsRenderingContext();
-  rc->Init(ctx);
+  rc->Init(deviceContext, ctx);
 
   gfxMatrix initialTM = ctx->CurrentMatrix();
 
@@ -10107,9 +10109,9 @@ void ReflowCountMgr::PaintCount(const char*     aName,
       ColorPattern black(ToDeviceColor(Color(0.f, 0.f, 0.f, 1.f)));
       drawTarget->FillRect(devPxRect, black);
 
-      aRenderingContext->ThebesContext()->SetColor(color2);
+      aRenderingContext->SetColor(color2);
       aRenderingContext->DrawString(buf, strlen(buf), x+15,y+15);
-      aRenderingContext->ThebesContext()->SetColor(color);
+      aRenderingContext->SetColor(color);
       aRenderingContext->DrawString(buf, strlen(buf), x,y);
 
       aRenderingContext->ThebesContext()->Restore();

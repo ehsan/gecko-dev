@@ -1076,7 +1076,7 @@ nsImageFrame::DisplayAltText(nsPresContext*      aPresContext,
                              const nsRect&        aRect)
 {
   // Set font and color
-  aRenderingContext.ThebesContext()->SetColor(StyleColor()->mColor);
+  aRenderingContext.SetColor(StyleColor()->mColor);
   nsRefPtr<nsFontMetrics> fm;
   nsLayoutUtils::GetFontMetricsForFrame(this, getter_AddRefs(fm),
     nsLayoutUtils::FontSizeInflationFor(this));
@@ -1220,13 +1220,9 @@ nsImageFrame::DisplayAltFeedback(nsRenderingContext& aRenderingContext,
     return;
   }
 
-  DrawTarget* drawTarget = aRenderingContext.GetDrawTarget();
-  gfxContext* gfx = aRenderingContext.ThebesContext();
-
   // Clip so we don't render outside the inner rect
-  gfx->Save();
-  gfx->Clip(NSRectToRect(inner, PresContext()->AppUnitsPerDevPixel(),
-                         *drawTarget));
+  aRenderingContext.ThebesContext()->Save();
+  aRenderingContext.IntersectClip(inner);
 
   // Check if we should display image placeholders
   if (gIconLoad->mPrefShowPlaceholders) {
@@ -1265,6 +1261,7 @@ nsImageFrame::DisplayAltFeedback(nsRenderingContext& aRenderingContext,
     // just draw some graffiti in the mean time
     if (!iconUsed) {
       ColorPattern color(ToDeviceColor(Color(1.f, 0.f, 0.f, 1.f)));
+      DrawTarget* drawTarget = aRenderingContext.GetDrawTarget();
 
       nscoord iconXPos = (vis->mDirection ==   NS_STYLE_DIRECTION_RTL) ?
                          inner.XMost() - size : inner.x;

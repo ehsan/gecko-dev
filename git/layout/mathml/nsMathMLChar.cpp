@@ -10,7 +10,6 @@
 #include "mozilla/MathAlgorithms.h"
 
 #include "nsCOMPtr.h"
-#include "nsDeviceContext.h"
 #include "nsIFrame.h"
 #include "nsLayoutUtils.h"
 #include "nsPresContext.h"
