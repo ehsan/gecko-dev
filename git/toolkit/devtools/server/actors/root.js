@@ -183,8 +183,7 @@ RootActor.prototype = {
         // Wether the inspector actor implements the getImageDataFromURL
         // method that returns data-uris for image URLs. This is used for image
         // tooltips for instance
-        urlToImageDataResolver: true,
-        networkMonitor: true,
+        urlToImageDataResolver: true
       }
     };
   },

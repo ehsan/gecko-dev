@@ -13,7 +13,6 @@ import android.util.Log;
 import org.mozilla.gecko.mozglue.RobocopTarget;
 
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.Map.Entry;
 
 /*
@@ -201,7 +200,9 @@ public class SQLiteBridge {
         if (!TextUtils.isEmpty(whereClause)) {
             sb.append(" WHERE ");
             sb.append(whereClause);
-            valueNames.addAll(Arrays.asList(whereArgs));
+            for (int i = 0; i < whereArgs.length; i++) {
+                valueNames.add(whereArgs[i]);
+            }
         }
 
         String[] binds = new String[valueNames.size()];

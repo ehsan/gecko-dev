@@ -54,16 +54,6 @@ public:
     DECL_WEBGL_EXTENSION_GOOP
 };
 
-class WebGLExtensionCompressedTextureETC1
-    : public WebGLExtensionBase
-{
-public:
-    WebGLExtensionCompressedTextureETC1(WebGLContext*);
-    virtual ~WebGLExtensionCompressedTextureETC1();
-
-    DECL_WEBGL_EXTENSION_GOOP
-};
-
 class WebGLExtensionCompressedTexturePVRTC
     : public WebGLExtensionBase
 {

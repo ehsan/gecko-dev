@@ -1017,9 +1017,8 @@ void OmxDecoder::onMessageReceived(const sp<AMessage> &msg)
 
     case kNotifyStatusChanged:
     {
-      // Our decode may have acquired the hardware resource that it needs
-      // to start. Notify the state machine to resume loading metadata.
-      mDecoder->NotifyWaitingForResourcesStatusChanged();
+      mozilla::ReentrantMonitorAutoEnter mon(mDecoder->GetReentrantMonitor());
+      mDecoder->GetReentrantMonitor().NotifyAll();
       break;
     }
 

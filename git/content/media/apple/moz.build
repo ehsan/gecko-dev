@@ -17,5 +17,3 @@ UNIFIED_SOURCES += [
 FAIL_ON_WARNINGS = True
 
 FINAL_LIBRARY = 'gklayout'
-
-LDFLAGS += ['-framework AudioToolbox']

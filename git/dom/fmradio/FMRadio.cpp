@@ -150,7 +150,6 @@ FMRadio::Init(nsPIDOMWindow *aWindow)
   NS_ENSURE_TRUE_VOID(audioChannelAgent);
 
   audioChannelAgent->InitWithWeakCallback(
-    GetOwner(),
     nsIAudioChannelAgent::AUDIO_AGENT_CHANNEL_CONTENT,
     this);
 
@@ -387,12 +386,6 @@ FMRadio::CanPlayChanged(int32_t aCanPlay)
 {
   SetCanPlay(aCanPlay == AudioChannelState::AUDIO_CHANNEL_STATE_NORMAL);
   return NS_OK;
-}
-
-NS_IMETHODIMP
-FMRadio::WindowVolumeChanged()
-{
-  return NS_ERROR_NOT_IMPLEMENTED;
 }
 
 void

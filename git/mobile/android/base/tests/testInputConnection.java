@@ -75,10 +75,10 @@ public class testInputConnection extends UITest {
             assertTextAndSelectionAt("Can finish composition", ic, "foobar", 6);
 
             // Test getTextBeforeCursor
-            fAssertEquals("Can retrieve text before cursor", "bar", ic.getTextBeforeCursor(3, 0));
+            assertEquals("Can retrieve text before cursor", "bar", ic.getTextBeforeCursor(3, 0));
 
             // Test getTextAfterCursor
-            fAssertEquals("Can retrieve text after cursor", "", ic.getTextAfterCursor(3, 0));
+            assertEquals("Can retrieve text after cursor", "", ic.getTextAfterCursor(3, 0));
         }
     }
 }

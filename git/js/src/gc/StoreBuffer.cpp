@@ -68,7 +68,8 @@ StoreBuffer::WholeCellEdges::mark(JSTracer *trc)
         JSObject *object = static_cast<JSObject *>(tenured);
         if (object->is<ArgumentsObject>())
             ArgumentsObject::trace(trc, object);
-        MarkChildren(trc, object);
+        else
+            MarkChildren(trc, object);
         return;
     }
 #ifdef JS_ION
@@ -325,7 +326,7 @@ void
 StoreBuffer::setAboutToOverflow()
 {
     aboutToOverflow_ = true;
-    runtime_->requestInterrupt(JSRuntime::RequestInterruptMainThread);
+    runtime_->triggerOperationCallback(JSRuntime::TriggerCallbackMainThread);
 }
 
 bool

@@ -6595,12 +6595,11 @@ public class Tokenizer implements Locator {
             attributeName = null;
         }
         tokenHandler.endTokenization();
+        // [NOCPP[
         if (attributes != null) {
-            // [NOCPP[
             attributes = null;
-            // ]NOCPP]
-            // CPPONLY: attributes.clear(mappingLangToXmlLang);
         }
+        // ]NOCPP]
     }
 
     public void requestSuspension() {

@@ -516,7 +516,6 @@ this.BrowserIDManager.prototype = {
         this._shouldHaveSyncKeyBundle = true;
         this._syncKeyBundle = null;
         Weave.Status.login = this._authFailureReason;
-        Services.obs.notifyObservers(null, "weave:service:login:error", null);
         throw err;
       });
   },

@@ -818,36 +818,29 @@ js_strdup(js::ExclusiveContext *cx, const char *s);
 # define JS_ASSERT_REQUEST_DEPTH(cx)  ((void) 0)
 #endif
 
-namespace js {
-
 /*
- * Invoke the interrupt callback and return false if the current execution
+ * Invoke the operation callback and return false if the current execution
  * is to be terminated.
  */
-bool
-InvokeInterruptCallback(JSContext *cx);
+extern bool
+js_InvokeOperationCallback(JSContext *cx);
 
-bool
-HandleExecutionInterrupt(JSContext *cx);
+extern bool
+js_HandleExecutionInterrupt(JSContext *cx);
 
 /*
- * Process any pending interrupt requests. Long-running inner loops in C++ must
- * call this periodically to make sure they are interruptible --- that is, to
- * make sure they do not prevent the slow script dialog from appearing.
- *
- * This can run a full GC or call the interrupt callback, which could do
- * anything. In the browser, it displays the slow script dialog.
- *
- * If this returns true, the caller can continue; if false, the caller must
- * break out of its loop. This happens if, for example, the user clicks "Stop
- * script" on the slow script dialog; treat it as an uncatchable error.
+ * If the operation callback flag was set, call the operation callback.
+ * This macro can run the full GC. Return true if it is OK to continue and
+ * false otherwise.
  */
-inline bool
-CheckForInterrupt(JSContext *cx)
+static MOZ_ALWAYS_INLINE bool
+JS_CHECK_OPERATION_LIMIT(JSContext *cx)
 {
     JS_ASSERT_REQUEST_DEPTH(cx);
-    return !cx->runtime()->interrupt || InvokeInterruptCallback(cx);
+    return !cx->runtime()->interrupt || js_InvokeOperationCallback(cx);
 }
+
+namespace js {
 
 /************************************************************************/
 

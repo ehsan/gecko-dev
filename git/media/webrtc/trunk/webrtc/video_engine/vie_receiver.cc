@@ -261,12 +261,11 @@ int ViEReceiver::InsertRTPPacket(const int8_t* rtp_packet,
                                             payload_length, header);
   header.payload_type_frequency = kVideoPayloadTypeFrequency;
 
-  bool in_order = IsPacketInOrder(header);
   rtp_receive_statistics_->IncomingPacket(header, received_packet_length,
-      IsPacketRetransmitted(header, in_order));
+                                          IsPacketRetransmitted(header));
   rtp_payload_registry_->SetIncomingPayloadType(header);
   return ReceivePacket(received_packet, received_packet_length, header,
-                       in_order) ? 0 : -1;
+                       IsPacketInOrder(header)) ? 0 : -1;
 }
 
 bool ViEReceiver::ReceivePacket(const uint8_t* packet,
@@ -469,8 +468,7 @@ bool ViEReceiver::IsPacketInOrder(const RTPHeader& header) const {
   return statistician->IsPacketInOrder(header.sequenceNumber);
 }
 
-bool ViEReceiver::IsPacketRetransmitted(const RTPHeader& header,
-                                        bool in_order) const {
+bool ViEReceiver::IsPacketRetransmitted(const RTPHeader& header) const {
   // Retransmissions are handled separately if RTX is enabled.
   if (rtp_payload_registry_->RtxEnabled())
     return false;
@@ -481,7 +479,7 @@ bool ViEReceiver::IsPacketRetransmitted(const RTPHeader& header,
   // Check if this is a retransmission.
   uint16_t min_rtt = 0;
   rtp_rtcp_->RTT(rtp_receiver_->SSRC(), NULL, NULL, &min_rtt, NULL);
-  return !in_order &&
+  return !IsPacketInOrder(header) &&
       statistician->IsRetransmitOfOldPacket(header, min_rtt);
 }
 }  // namespace webrtc

@@ -901,7 +901,7 @@ SocialSidebar = {
     let popup = event.target;
     let providerMenuSeps = popup.getElementsByClassName("social-provider-menu");
     if (providerMenuSeps[0].previousSibling.nodeName == "menuseparator")
-      SocialSidebar.populateProviderMenu(providerMenuSeps[0]);
+      SocialSidebar._populateProviderMenu(providerMenuSeps[0]);
   },
 
   clearProviderMenus: function() {
@@ -916,7 +916,7 @@ SocialSidebar = {
     }
   },
 
-  populateProviderMenu: function(providerMenuSep) {
+  _populateProviderMenu: function(providerMenuSep) {
     let menu = providerMenuSep.parentNode;
     // selectable providers are inserted before the provider-menu seperator,
     // remove any menuitems in that area
