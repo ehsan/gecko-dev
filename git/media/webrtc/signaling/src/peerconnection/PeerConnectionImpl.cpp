@@ -1083,7 +1083,7 @@ PeerConnectionImpl::CreateDataChannel(const nsAString& aLabel,
 
   if (!mHaveDataStream) {
     // XXX stream_id of 0 might confuse things...
-    mInternal->mCall->addStream(0, 2, DATA);
+    mInternal->mCall->addStream(0, 2, DATA, 0);
     mHaveDataStream = true;
   }
   nsIDOMDataChannel *retval;
@@ -1170,14 +1170,14 @@ PeerConnectionImpl::NotifyDataChannel(already_AddRefed<DataChannel> aChannel)
 }
 
 NS_IMETHODIMP
-PeerConnectionImpl::CreateOffer(const RTCOfferOptions& aOptions)
+PeerConnectionImpl::CreateOffer(const MediaConstraintsInternal& aConstraints)
 {
-  return CreateOffer(SipccOfferOptions(aOptions));
+  return CreateOffer(MediaConstraintsExternal (aConstraints));
 }
 
 // Used by unit tests and the IDL CreateOffer.
 NS_IMETHODIMP
-PeerConnectionImpl::CreateOffer(const SipccOfferOptions& aOptions)
+PeerConnectionImpl::CreateOffer(const MediaConstraintsExternal& aConstraints)
 {
   PC_AUTO_ENTER_API_CALL(true);
 
@@ -1185,14 +1185,20 @@ PeerConnectionImpl::CreateOffer(const SipccOfferOptions& aOptions)
   mTimeCard = nullptr;
   STAMP_TIMECARD(tc, "Create Offer");
 
-  cc_media_options_t* cc_options = aOptions.build();
-  NS_ENSURE_TRUE(cc_options, NS_ERROR_UNEXPECTED);
-  mInternal->mCall->createOffer(cc_options, tc);
+  cc_media_constraints_t* cc_constraints = aConstraints.build();
+  NS_ENSURE_TRUE(cc_constraints, NS_ERROR_UNEXPECTED);
+  mInternal->mCall->createOffer(cc_constraints, tc);
   return NS_OK;
 }
 
 NS_IMETHODIMP
-PeerConnectionImpl::CreateAnswer()
+PeerConnectionImpl::CreateAnswer(const MediaConstraintsInternal& aConstraints)
+{
+  return CreateAnswer(MediaConstraintsExternal (aConstraints));
+}
+
+NS_IMETHODIMP
+PeerConnectionImpl::CreateAnswer(const MediaConstraintsExternal& aConstraints)
 {
   PC_AUTO_ENTER_API_CALL(true);
 
@@ -1200,7 +1206,9 @@ PeerConnectionImpl::CreateAnswer()
   mTimeCard = nullptr;
   STAMP_TIMECARD(tc, "Create Answer");
 
-  mInternal->mCall->createAnswer(tc);
+  cc_media_constraints_t* cc_constraints = aConstraints.build();
+  NS_ENSURE_TRUE(cc_constraints, NS_ERROR_UNEXPECTED);
+  mInternal->mCall->createAnswer(cc_constraints, tc);
   return NS_OK;
 }
 
@@ -1418,7 +1426,15 @@ PeerConnectionImpl::PrincipalChanged(DOMMediaStream* aMediaStream) {
 #endif
 
 nsresult
-PeerConnectionImpl::AddStream(DOMMediaStream &aMediaStream)
+PeerConnectionImpl::AddStream(DOMMediaStream &aMediaStream,
+                              const MediaConstraintsInternal& aConstraints)
+{
+  return AddStream(aMediaStream, MediaConstraintsExternal(aConstraints));
+}
+
+nsresult
+PeerConnectionImpl::AddStream(DOMMediaStream &aMediaStream,
+                              const MediaConstraintsExternal& aConstraints)
 {
   PC_AUTO_ENTER_API_CALL(true);
 
@@ -1454,12 +1470,16 @@ PeerConnectionImpl::AddStream(DOMMediaStream &aMediaStream)
 
   // TODO(ekr@rtfm.com): these integers should be the track IDs
   if (hints & DOMMediaStream::HINT_CONTENTS_AUDIO) {
-    mInternal->mCall->addStream(stream_id, 0, AUDIO);
+    cc_media_constraints_t* cc_constraints = aConstraints.build();
+    NS_ENSURE_TRUE(cc_constraints, NS_ERROR_UNEXPECTED);
+    mInternal->mCall->addStream(stream_id, 0, AUDIO, cc_constraints);
     mNumAudioStreams++;
   }
 
   if (hints & DOMMediaStream::HINT_CONTENTS_VIDEO) {
-    mInternal->mCall->addStream(stream_id, 1, VIDEO);
+    cc_media_constraints_t* cc_constraints = aConstraints.build();
+    NS_ENSURE_TRUE(cc_constraints, NS_ERROR_UNEXPECTED);
+    mInternal->mCall->addStream(stream_id, 1, VIDEO, cc_constraints);
     mNumVideoStreams++;
   }
 
@@ -1636,16 +1656,6 @@ PeerConnectionImpl::Close()
   return res;
 }
 
-bool
-PeerConnectionImpl::PluginCrash(uint64_t aPluginID)
-{
-  // fire an event to the DOM window if this is "ours"
-  bool result = mMedia ? mMedia->AnyCodecHasPluginID(aPluginID) : false;
-  if (result) {
-    CSFLogError(logTag, "%s: Our plugin %llu crashed", __FUNCTION__, static_cast<unsigned long long>(aPluginID));
-  }
-  return result;
-}
 
 nsresult
 PeerConnectionImpl::CloseInt()

@@ -834,6 +834,7 @@ typedef struct cc_feature_data_track_t_ {
   cc_media_stream_id_t     stream_id;
   cc_media_track_id_t      track_id;
   cc_media_type_t          media_type;
+  cc_media_constraints_t  *constraints;
 } cc_feature_data_track_t;
 
 
@@ -844,7 +845,7 @@ typedef struct cc_feature_candidate_t_ {
 } cc_feature_candidate_t;
 
 typedef struct cc_feature_session_t_ {
-  cc_media_options_t *options;
+  cc_media_constraints_t    *constraints;
 } cc_feature_session_t;
 
 

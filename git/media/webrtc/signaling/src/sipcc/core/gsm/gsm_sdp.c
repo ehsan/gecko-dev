@@ -226,22 +226,22 @@ void gsmsdp_process_cap_constraint(cc_media_cap_t *cap,
 }
 
 /*
- * Process options only related to media capabilities., i.e
+ * Process constraints only related to media capabilities., i.e
  * OfferToReceiveAudio, OfferToReceiveVideo
  */
-void gsmsdp_process_cap_options(fsmdef_dcb_t *dcb,
-                                    cc_media_options_t* options) {
-  if (options->offer_to_receive_audio.was_passed) {
+void gsmsdp_process_cap_constraints(fsmdef_dcb_t *dcb,
+                                    cc_media_constraints_t* constraints) {
+  if (constraints->offer_to_receive_audio.was_passed) {
     gsmsdp_process_cap_constraint(&dcb->media_cap_tbl->cap[CC_AUDIO_1],
-                                  options->offer_to_receive_audio.value);
+                                  constraints->offer_to_receive_audio.value);
   }
-  if (options->offer_to_receive_video.was_passed) {
+  if (constraints->offer_to_receive_video.was_passed) {
     gsmsdp_process_cap_constraint(&dcb->media_cap_tbl->cap[CC_VIDEO_1],
-                                  options->offer_to_receive_video.value);
+                                  constraints->offer_to_receive_video.value);
   }
-  if (options->moz_dont_offer_datachannel.was_passed) {
+  if (constraints->moz_dont_offer_datachannel.was_passed) {
     /* Hack to suppress data channel */
-    if (options->moz_dont_offer_datachannel.value) {
+    if (constraints->moz_dont_offer_datachannel.value) {
       dcb->media_cap_tbl->cap[CC_DATACHANNEL_1].enabled = FALSE;
     }
   }

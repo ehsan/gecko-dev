@@ -344,35 +344,27 @@ static const AllocKind FinalizePhaseScripts[] = {
     FINALIZE_LAZY_SCRIPT
 };
 
-#ifdef JS_ION
 static const AllocKind FinalizePhaseJitCode[] = {
     FINALIZE_JITCODE
 };
-#endif
 
 static const AllocKind * const FinalizePhases[] = {
     FinalizePhaseStrings,
     FinalizePhaseScripts,
-#ifdef JS_ION
-    FinalizePhaseJitCode,
-#endif
+    FinalizePhaseJitCode
 };
 static const int FinalizePhaseCount = sizeof(FinalizePhases) / sizeof(AllocKind*);
 
 static const int FinalizePhaseLength[] = {
     sizeof(FinalizePhaseStrings) / sizeof(AllocKind),
     sizeof(FinalizePhaseScripts) / sizeof(AllocKind),
-#ifdef JS_ION
-    sizeof(FinalizePhaseJitCode) / sizeof(AllocKind),
-#endif
+    sizeof(FinalizePhaseJitCode) / sizeof(AllocKind)
 };
 
 static const gcstats::Phase FinalizePhaseStatsPhase[] = {
     gcstats::PHASE_SWEEP_STRING,
     gcstats::PHASE_SWEEP_SCRIPT,
-#ifdef JS_ION
-    gcstats::PHASE_SWEEP_JITCODE,
-#endif
+    gcstats::PHASE_SWEEP_JITCODE
 };
 
 /*
@@ -2150,14 +2142,12 @@ ArenaLists::queueScriptsForSweep(FreeOp *fop)
     queueForForegroundSweep(fop, FINALIZE_LAZY_SCRIPT);
 }
 
-#ifdef JS_ION
 void
 ArenaLists::queueJitCodeForSweep(FreeOp *fop)
 {
     gcstats::AutoPhase ap(fop->runtime()->gc.stats, gcstats::PHASE_SWEEP_JITCODE);
     queueForForegroundSweep(fop, FINALIZE_JITCODE);
 }
-#endif
 
 void
 ArenaLists::queueShapesForSweep(FreeOp *fop)

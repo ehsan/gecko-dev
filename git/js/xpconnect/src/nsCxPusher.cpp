@@ -161,7 +161,7 @@ AutoCxPusher::~AutoCxPusher()
 }
 
 bool
-AutoCxPusher::IsStackTop() const
+AutoCxPusher::IsStackTop()
 {
   uint32_t currentDepth = XPCJSRuntime::Get()->GetJSContextStack()->Count();
   MOZ_ASSERT(currentDepth >= mStackDepthAfterPush);

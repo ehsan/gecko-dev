@@ -27,7 +27,6 @@
 #include "nsWrapperCacheInlines.h"
 #include "js/HashTable.h"
 #include "mozilla/HashFunctions.h"
-#include "mozilla/dom/ScriptSettings.h"
 
 
 #define NPRUNTIME_JSCLASS_NAME "NPObject JS wrapper class"
@@ -292,8 +291,8 @@ namespace mozilla {
 namespace plugins {
 namespace parent {
 
-static nsIGlobalObject*
-GetGlobalObject(NPP npp)
+JSContext *
+GetJSContext(NPP npp)
 {
   NS_ENSURE_TRUE(npp, nullptr);
 
@@ -307,13 +306,8 @@ GetGlobalObject(NPP npp)
   owner->GetDocument(getter_AddRefs(doc));
   NS_ENSURE_TRUE(doc, nullptr);
 
-  return doc->GetScopeObject();
-}
-
-JSContext *
-GetJSContext(NPP npp)
-{
-  nsCOMPtr<nsIScriptGlobalObject> sgo = do_QueryInterface(GetGlobalObject(npp));
+  nsCOMPtr<nsISupports> documentContainer = doc->GetContainer();
+  nsCOMPtr<nsIScriptGlobalObject> sgo(do_GetInterface(documentContainer));
   NS_ENSURE_TRUE(sgo, nullptr);
 
   nsIScriptContext *scx = sgo->GetContext();
@@ -577,11 +571,11 @@ bool
 nsJSObjWrapper::NP_HasMethod(NPObject *npobj, NPIdentifier id)
 {
   NPP npp = NPPStack::Peek();
-  dom::AutoJSAPI jsapi;
-  if (NS_WARN_IF(!jsapi.InitWithLegacyErrorReporting(GetGlobalObject(npp)))) {
+  JSContext *cx = GetJSContext(npp);
+
+  if (!cx) {
     return false;
   }
-  JSContext *cx = jsapi.cx();
 
   if (!npobj) {
     ThrowJSException(cx,
@@ -592,6 +586,8 @@ nsJSObjWrapper::NP_HasMethod(NPObject *npobj, NPIdentifier id)
 
   nsJSObjWrapper *npjsobj = (nsJSObjWrapper *)npobj;
 
+  nsCxPusher pusher;
+  pusher.Push(cx);
   JSAutoCompartment ac(cx, npjsobj->mJSObj);
 
   AutoJSExceptionReporter reporter(cx);
@@ -700,11 +696,11 @@ bool
 nsJSObjWrapper::NP_HasProperty(NPObject *npobj, NPIdentifier npid)
 {
   NPP npp = NPPStack::Peek();
-  dom::AutoJSAPI jsapi;
-  if (NS_WARN_IF(!jsapi.InitWithLegacyErrorReporting(GetGlobalObject(npp)))) {
+  JSContext *cx = GetJSContext(npp);
+
+  if (!cx) {
     return false;
   }
-  JSContext *cx = jsapi.cx();
 
   if (!npobj) {
     ThrowJSException(cx,
@@ -716,6 +712,8 @@ nsJSObjWrapper::NP_HasProperty(NPObject *npobj, NPIdentifier npid)
   nsJSObjWrapper *npjsobj = (nsJSObjWrapper *)npobj;
   bool found, ok = false;
 
+  nsCxPusher pusher;
+  pusher.Push(cx);
   AutoJSExceptionReporter reporter(cx);
   JS::Rooted<JSObject*> jsobj(cx, npjsobj->mJSObj);
   JSAutoCompartment ac(cx, jsobj);
@@ -801,11 +799,11 @@ bool
 nsJSObjWrapper::NP_RemoveProperty(NPObject *npobj, NPIdentifier npid)
 {
   NPP npp = NPPStack::Peek();
-  dom::AutoJSAPI jsapi;
-  if (NS_WARN_IF(!jsapi.InitWithLegacyErrorReporting(GetGlobalObject(npp)))) {
+  JSContext *cx = GetJSContext(npp);
+
+  if (!cx) {
     return false;
   }
-  JSContext *cx = jsapi.cx();
 
   if (!npobj) {
     ThrowJSException(cx,
@@ -817,6 +815,8 @@ nsJSObjWrapper::NP_RemoveProperty(NPObject *npobj, NPIdentifier npid)
   nsJSObjWrapper *npjsobj = (nsJSObjWrapper *)npobj;
   bool ok = false;
 
+  nsCxPusher pusher;
+  pusher.Push(cx);
   AutoJSExceptionReporter reporter(cx);
   bool deleted = false;
   JS::Rooted<JSObject*> obj(cx, npjsobj->mJSObj);
@@ -850,14 +850,14 @@ nsJSObjWrapper::NP_Enumerate(NPObject *npobj, NPIdentifier **idarray,
                              uint32_t *count)
 {
   NPP npp = NPPStack::Peek();
-  dom::AutoJSAPI jsapi;
-  if (NS_WARN_IF(!jsapi.InitWithLegacyErrorReporting(GetGlobalObject(npp)))) {
-    return false;
-  }
-  JSContext *cx = jsapi.cx();
+  JSContext *cx = GetJSContext(npp);
 
   *idarray = 0;
   *count = 0;
+
+  if (!cx) {
+    return false;
+  }
 
   if (!npobj) {
     ThrowJSException(cx,
@@ -868,6 +868,8 @@ nsJSObjWrapper::NP_Enumerate(NPObject *npobj, NPIdentifier **idarray,
 
   nsJSObjWrapper *npjsobj = (nsJSObjWrapper *)npobj;
 
+  nsCxPusher pusher;
+  pusher.Push(cx);
   AutoJSExceptionReporter reporter(cx);
   JS::Rooted<JSObject*> jsobj(cx, npjsobj->mJSObj);
   JSAutoCompartment ac(cx, jsobj);
