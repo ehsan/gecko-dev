@@ -493,14 +493,18 @@ nsOutdentCommand::IsCommandEnabled(const char * aCommandName,
                                    nsISupports *refCon,
                                    bool *outCmdEnabled)
 {
-  *outCmdEnabled = false;
-
   nsCOMPtr<nsIEditor> editor = do_QueryInterface(refCon);
-  if (editor) {
-    nsresult rv = editor->GetIsSelectionEditable(outCmdEnabled);
+  nsCOMPtr<nsIHTMLEditor> htmlEditor = do_QueryInterface(refCon);
+  if (editor && htmlEditor)
+  {
+    bool canIndent, isEditable = false;
+    nsresult rv = editor->GetIsSelectionEditable(&isEditable);
     NS_ENSURE_SUCCESS(rv, rv);
+    if (isEditable)
+      return htmlEditor->GetIndentState(&canIndent, outCmdEnabled);
   }
 
+  *outCmdEnabled = false;
   return NS_OK;
 }
 

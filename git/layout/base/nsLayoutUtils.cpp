@@ -389,7 +389,7 @@ nsLayoutUtils::GetChildListNameFor(nsIFrame* aChildFrame)
     }
   }
 
-#ifdef DEBUG
+#ifdef NS_DEBUG
   // Verify that the frame is actually in that child list or in the
   // corresponding overflow list.
   nsIFrame* parent = aChildFrame->GetParent();

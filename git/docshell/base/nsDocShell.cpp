@@ -10575,7 +10575,7 @@ nsDocShell::SetHistoryEntry(nsCOMPtr<nsISHEntry> *aPtr, nsISHEntry *aEntry)
                 nsDocShell *rootDocShell = static_cast<nsDocShell*>
                                                       (rootIDocShell);
 
-#ifdef DEBUG
+#ifdef NS_DEBUG
                 nsresult rv =
 #endif
                 SetChildHistoryEntry(oldRootEntry, rootDocShell,

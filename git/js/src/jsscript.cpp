@@ -1291,7 +1291,8 @@ JSScript::fullyInitFromEmitter(JSContext *cx, BytecodeEmitter *bce)
     }
     script->lineno = bce->firstLine;
     if (script->nfixed + bce->maxStackDepth >= JS_BIT(16)) {
-        bce->reportError(NULL, JSMSG_NEED_DIET, "script");
+        ReportCompileErrorNumber(cx, bce->tokenStream(), NULL, JSREPORT_ERROR, JSMSG_NEED_DIET,
+                                 "script");
         return false;
     }
     script->nslots = script->nfixed + bce->maxStackDepth;

@@ -45,7 +45,7 @@
 
 #include "nsEnumeratorUtils.h"
 
-#ifdef DEBUG
+#ifdef NS_DEBUG
 #include "prlog.h"
 #include "prprf.h"
 #include <stdio.h>

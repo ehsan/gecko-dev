@@ -530,7 +530,7 @@ void nsView::InsertChild(nsView *aChild, nsView *aSibling)
   {
     if (nsnull != aSibling)
     {
-#ifdef DEBUG
+#ifdef NS_DEBUG
       NS_ASSERTION(aSibling->GetParent() == this, "tried to insert view with invalid sibling");
 #endif
       //insert after sibling

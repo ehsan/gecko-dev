@@ -100,7 +100,7 @@ public:
 
     mData = mem;
 
-#ifdef DEBUG
+#ifdef NS_DEBUG
     struct shmid_ds info;
     if (shmctl(mHandle, IPC_STAT, &info) < 0)
       return false;

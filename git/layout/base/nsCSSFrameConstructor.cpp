@@ -7580,8 +7580,7 @@ DoApplyRenderingChangeToTree(nsIFrame* aFrame,
 
     // if frame has view, will already be invalidated
     if (aChange & nsChangeHint_RepaintFrame) {
-      if (aFrame->IsFrameOfType(nsIFrame::eSVG) &&
-          !(aFrame->GetStateBits() & NS_STATE_IS_OUTER_SVG)) {
+      if (aFrame->IsFrameOfType(nsIFrame::eSVG)) {
         if (aChange & nsChangeHint_UpdateEffects) {
           // Invalidate and update our area:
           nsSVGUtils::InvalidateAndScheduleBoundsUpdate(aFrame);

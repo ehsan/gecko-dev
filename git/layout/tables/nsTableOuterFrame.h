@@ -31,7 +31,7 @@ public:
   virtual already_AddRefed<Accessible> CreateAccessible();
 #endif
 
-#ifdef DEBUG
+#ifdef NS_DEBUG
   NS_IMETHOD GetFrameName(nsAString& aResult) const;
 #endif
 

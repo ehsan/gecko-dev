@@ -22,7 +22,6 @@
 #include "nsStringGlue.h"
 #include "nsTArray.h"
 #include "mozilla/dom/DOMJSClass.h"
-#include "nsMathUtils.h"
 
 class nsIPrincipal;
 class nsIXPConnectWrappedJS;
@@ -268,7 +267,7 @@ nsresult
 ReportJSRuntimeExplicitTreeStats(const JS::RuntimeStats &rtStats,
                                  const nsACString &pathPrefix,
                                  nsIMemoryMultiReporterCallback *cb,
-                                 nsISupports *closure, size_t *rtTotal = NULL);
+                                 nsISupports *closure);
 
 /**
  * Convert a jsval to PRInt64. Return true on success.
@@ -285,12 +284,7 @@ ValueToInt64(JSContext *cx, JS::Value v, int64_t *result)
         double doubleval;
         if (!JS_ValueToNumber(cx, v, &doubleval))
             return false;
-        // Be careful with non-finite doubles
-        if (NS_finite(doubleval))
-            // XXXbz this isn't quite right either; need to do the mod thing
-            *result = static_cast<int64_t>(doubleval);
-        else
-            *result = 0;
+        *result = static_cast<int64_t>(doubleval);
     }
     return true;
 }
@@ -310,12 +304,7 @@ ValueToUint64(JSContext *cx, JS::Value v, uint64_t *result)
         double doubleval;
         if (!JS_ValueToNumber(cx, v, &doubleval))
             return false;
-        // Be careful with non-finite doubles
-        if (NS_finite(doubleval))
-            // XXXbz this isn't quite right either; need to do the mod thing
-            *result = static_cast<uint64_t>(doubleval);
-        else
-            *result = 0;
+        *result = static_cast<uint64_t>(doubleval);
     }
     return true;
 }

@@ -191,7 +191,7 @@ public class AndroidBrowserDB implements BrowserDB.BrowserDBIface {
         int count = cursor.getCount();
         cursor.close();
 
-        return (count > 0);
+        return (count == 1);
     }
 
     public boolean isReadingListItem(ContentResolver cr, String uri) {

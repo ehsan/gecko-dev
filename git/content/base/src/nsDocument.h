@@ -215,10 +215,6 @@ public:
     ChangeCallback mKey;
   };
 
-  static size_t SizeOfExcludingThis(nsIdentifierMapEntry* aEntry,
-                                    nsMallocSizeOfFun aMallocSizeOf,
-                                    void* aArg);
-
 private:
   void FireChangeCallbacks(Element* aOldElement, Element* aNewElement,
                            bool aImageOnly = false);

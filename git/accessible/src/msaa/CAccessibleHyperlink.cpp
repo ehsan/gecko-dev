@@ -5,6 +5,8 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
+#include "CAccessibleHyperlink.h"
+
 #include "Accessible2.h"
 #include "AccessibleHyperlink.h"
 #include "AccessibleHyperlink_i.c"
@@ -15,12 +17,13 @@
 // IUnknown
 
 STDMETHODIMP
-ia2AccessibleHyperlink::QueryInterface(REFIID iid, void** ppv)
+CAccessibleHyperlink::QueryInterface(REFIID iid, void** ppv)
 {
   *ppv = NULL;
 
   if (IID_IAccessibleHyperlink == iid) {
-    if (!static_cast<AccessibleWrap*>(this)->IsLink())
+    nsRefPtr<Accessible> thisObj = do_QueryObject(this);
+    if (!thisObj->IsLink())
       return E_NOINTERFACE;
 
     *ppv = static_cast<IAccessibleHyperlink*>(this);
@@ -34,12 +37,12 @@ ia2AccessibleHyperlink::QueryInterface(REFIID iid, void** ppv)
 // IAccessibleHyperlink
 
 STDMETHODIMP
-ia2AccessibleHyperlink::get_anchor(long aIndex, VARIANT* aAnchor)
+CAccessibleHyperlink::get_anchor(long aIndex, VARIANT *aAnchor)
 {
 __try {
   VariantInit(aAnchor);
 
-  Accessible* thisObj = static_cast<AccessibleWrap*>(this);
+  nsRefPtr<Accessible> thisObj = do_QueryObject(this);
   if (thisObj->IsDefunct())
     return CO_E_OBJNOTCONNECTED;
 
@@ -69,12 +72,12 @@ __try {
 }
 
 STDMETHODIMP
-ia2AccessibleHyperlink::get_anchorTarget(long aIndex, VARIANT* aAnchorTarget)
+CAccessibleHyperlink::get_anchorTarget(long aIndex, VARIANT *aAnchorTarget)
 {
 __try {
   VariantInit(aAnchorTarget);
 
-  Accessible* thisObj = static_cast<AccessibleWrap*>(this);
+  nsRefPtr<Accessible> thisObj = do_QueryObject(this);
   if (thisObj->IsDefunct())
     return CO_E_OBJNOTCONNECTED;
 
@@ -112,12 +115,12 @@ __try {
 }
 
 STDMETHODIMP
-ia2AccessibleHyperlink::get_startIndex(long* aIndex)
+CAccessibleHyperlink::get_startIndex(long *aIndex)
 {
 __try {
   *aIndex = 0;
 
-  Accessible* thisObj = static_cast<AccessibleWrap*>(this);
+  nsRefPtr<Accessible> thisObj = do_QueryObject(this);
   if (thisObj->IsDefunct())
     return CO_E_OBJNOTCONNECTED;
 
@@ -132,12 +135,12 @@ __try {
 }
 
 STDMETHODIMP
-ia2AccessibleHyperlink::get_endIndex(long* aIndex)
+CAccessibleHyperlink::get_endIndex(long *aIndex)
 {
 __try {
   *aIndex = 0;
 
-  Accessible* thisObj = static_cast<AccessibleWrap*>(this);
+  nsRefPtr<Accessible> thisObj = do_QueryObject(this);
   if (thisObj->IsDefunct())
     return CO_E_OBJNOTCONNECTED;
 
@@ -152,12 +155,12 @@ __try {
 }
 
 STDMETHODIMP
-ia2AccessibleHyperlink::get_valid(boolean* aValid)
+CAccessibleHyperlink::get_valid(boolean *aValid)
 {
 __try {
   *aValid = false;
 
-  Accessible* thisObj = static_cast<AccessibleWrap*>(this);
+  nsRefPtr<Accessible> thisObj = do_QueryObject(this);
   if (thisObj->IsDefunct())
     return CO_E_OBJNOTCONNECTED;
 

@@ -78,7 +78,6 @@ public:
                       const gfxRect& aFilterRegion,
                       const nsIntSize& aFilterSpaceSize,
                       const gfxMatrix &aFilterSpaceToDeviceSpaceTransform,
-                      const gfxMatrix &aFilterSpaceToFrameSpaceInCSSPxTransform,
                       const nsIntRect& aTargetBounds,
                       const nsIntRect& aPostFilterDirtyRect,
                       const nsIntRect& aPreFilterDirtyRect,
@@ -88,7 +87,6 @@ public:
     mFilterElement(aFilterElement),
     mTargetBBox(aTargetBBox),
     mFilterSpaceToDeviceSpaceTransform(aFilterSpaceToDeviceSpaceTransform),
-    mFilterSpaceToFrameSpaceInCSSPxTransform(aFilterSpaceToFrameSpaceInCSSPxTransform),
     mFilterRegion(aFilterRegion),
     mFilterSpaceSize(aFilterSpaceSize),
     mSurfaceRect(nsIntPoint(0, 0), aFilterSpaceSize),
@@ -193,21 +191,6 @@ public:
   }
 
   gfxPoint FilterSpaceToUserSpace(const gfxPoint& aPt) const;
-
-  /**
-   * Returns the transform from filter space to frame space, in CSS px. This
-   * transform does not transform to frame space in its normal app units, since
-   * app units are ints, requiring appropriate rounding which can't be done by
-   * a transform matrix. Callers have to do that themselves as appropriate for
-   * their needs.
-   */
-  gfxMatrix GetFilterSpaceToFrameSpaceInCSSPxTransform() const {
-    return mFilterSpaceToFrameSpaceInCSSPxTransform;
-  }
-
-  PRInt32 AppUnitsPerCSSPixel() const {
-    return mTargetFrame->PresContext()->AppUnitsPerCSSPixel();
-  }
 
 private:
   typedef nsSVGFE::Image Image;
@@ -381,7 +364,6 @@ private:
   gfxRect                 mTargetBBox;
 
   gfxMatrix               mFilterSpaceToDeviceSpaceTransform;
-  gfxMatrix               mFilterSpaceToFrameSpaceInCSSPxTransform;
   gfxRect                 mFilterRegion;
   nsIntSize               mFilterSpaceSize;
   nsIntRect               mSurfaceRect;

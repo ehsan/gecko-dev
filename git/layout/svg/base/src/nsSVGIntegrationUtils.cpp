@@ -260,7 +260,8 @@ nsRect
   overrideBBox.RoundOut();
 
   nsRect overflowRect =
-    filterFrame->GetPostFilterBounds(firstFrame, &overrideBBox);
+    filterFrame->GetPostFilterBounds(firstFrame, &overrideBBox).
+                   ToAppUnits(aFrame->PresContext()->AppUnitsPerDevPixel());
 
   // Return overflowRect relative to aFrame, rather than "user space":
   return overflowRect - (aFrame->GetOffsetTo(firstFrame) + firstFrameToUserSpace);
@@ -292,14 +293,18 @@ nsSVGIntegrationUtils::AdjustInvalidAreaForSVGEffects(nsIFrame* aFrame,
     return aFrame->GetVisualOverflowRect();
   }
 
-  // Convert aInvalidRect into "user space" in app units:
+  // Convert aInvalidRect into "user space" in dev pixels:
+  PRInt32 appUnitsPerDevPixel = aFrame->PresContext()->AppUnitsPerDevPixel();
   nsPoint toUserSpace =
     aFrame->GetOffsetTo(firstFrame) + GetOffsetToUserSpace(firstFrame);
-  nsRect preEffectsRect = aInvalidRect + toUserSpace;
+  nsIntRect preEffectsRect =
+    (aInvalidRect + toUserSpace).ToOutsidePixels(appUnitsPerDevPixel);
 
-  // Return ther result, relative to aFrame, not in user space:
-  return filterFrame->GetPostFilterDirtyArea(firstFrame, preEffectsRect) -
-           toUserSpace;
+  nsIntRect postEffectsRect =
+    filterFrame->GetPostFilterDirtyArea(firstFrame, preEffectsRect);
+
+  // Return result relative to aFrame, rather than "user space":
+  return postEffectsRect.ToAppUnits(appUnitsPerDevPixel) - toUserSpace;
 }
 
 nsRect
@@ -315,14 +320,18 @@ nsSVGIntegrationUtils::GetRequiredSourceForInvalidArea(nsIFrame* aFrame,
   if (!filterFrame)
     return aDirtyRect;
   
-  // Convert aDirtyRect into "user space" in app units:
+  // Convert aDirtyRect into "user space" in dev pixels:
+  PRInt32 appUnitsPerDevPixel = aFrame->PresContext()->AppUnitsPerDevPixel();
   nsPoint toUserSpace =
     aFrame->GetOffsetTo(firstFrame) + GetOffsetToUserSpace(firstFrame);
-  nsRect postEffectsRect = aDirtyRect + toUserSpace;
+  nsIntRect postEffectsRect =
+    (aDirtyRect + toUserSpace).ToOutsidePixels(appUnitsPerDevPixel);
 
-  // Return ther result, relative to aFrame, not in user space:
-  return filterFrame->GetPreFilterNeededArea(firstFrame, postEffectsRect) -
-           toUserSpace;
+  nsIntRect preEffectsRect =
+    filterFrame->GetPreFilterNeededArea(firstFrame, postEffectsRect);
+
+  // Return result relative to aFrame, rather than "user space":
+  return preEffectsRect.ToAppUnits(appUnitsPerDevPixel) - toUserSpace;
 }
 
 bool
@@ -444,7 +453,8 @@ nsSVGIntegrationUtils::PaintFramesWithEffects(nsRenderingContext* aCtx,
   if (filterFrame) {
     RegularFramePaintCallback callback(aBuilder, aInnerList, aEffectsFrame,
                                        offset);
-    nsRect dirtyRect = aDirtyRect - offset;
+    nsIntRect dirtyRect = (aDirtyRect - offset)
+                            .ToOutsidePixels(appUnitsPerDevPixel);
     filterFrame->PaintFilteredFrame(aCtx, aEffectsFrame, &callback, &dirtyRect);
   } else {
     gfx->SetMatrix(matrixAutoSaveRestore.Matrix());

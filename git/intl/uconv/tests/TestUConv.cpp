@@ -343,7 +343,7 @@ nsresult nsTestUConv::DisplayCharsets()
       printf("D");
       decCount++;
     }
-#ifdef DEBUG
+#ifdef NS_DEBUG
     // show the "basic" decoder classes
     if (dec) {
       nsCOMPtr<nsIBasicDecoder> isBasic = do_QueryInterface(dec);
@@ -364,7 +364,7 @@ nsresult nsTestUConv::DisplayCharsets()
       encCount++;
     }
 
-#ifdef DEBUG
+#ifdef NS_DEBUG
     if (enc) {
       nsCOMPtr<nsIBasicEncoder> isBasic = do_QueryInterface(enc);
       if (isBasic) {

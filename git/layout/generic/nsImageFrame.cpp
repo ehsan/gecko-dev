@@ -1171,7 +1171,7 @@ static void PaintAltFeedback(nsIFrame* aFrame, nsRenderingContext* aCtx,
                         aPt);
 }
 
-#ifdef DEBUG
+#ifdef NS_DEBUG
 static void PaintDebugImageMap(nsIFrame* aFrame, nsRenderingContext* aCtx,
      const nsRect& aDirtyRect, nsPoint aPt) {
   nsImageFrame* f = static_cast<nsImageFrame*>(aFrame);

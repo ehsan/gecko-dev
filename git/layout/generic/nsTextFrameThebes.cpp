@@ -75,7 +75,7 @@
 
 #include "sampler.h"
 
-#ifdef DEBUG
+#ifdef NS_DEBUG
 #undef NOISY_BLINK
 #undef NOISY_REFLOW
 #undef NOISY_TRIM

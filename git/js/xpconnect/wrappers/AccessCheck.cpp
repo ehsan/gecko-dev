@@ -449,7 +449,7 @@ PermitIfUniversalXPConnect(JSContext *cx, jsid id, Wrapper::Action act,
     // Double-check that the subject principal according to CAPS is a content
     // principal rather than the system principal. If it isn't, this check is
     // meaningless.
-    NS_ASSERTION(!AccessCheck::callerIsChrome(), "About to do a meaningless security check!");
+    MOZ_ASSERT(!AccessCheck::callerIsChrome());
 
     bool privileged;
     if (NS_SUCCEEDED(ssm->IsCapabilityEnabled("UniversalXPConnect", &privileged)) &&

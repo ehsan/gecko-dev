@@ -11,7 +11,6 @@
 #include "nsIAppShell.h"
 #include "nsIScriptContext.h"
 
-#include "DOMError.h"
 #include "mozilla/storage.h"
 #include "nsContentUtils.h"
 #include "nsDOMClassInfoID.h"
@@ -499,7 +498,10 @@ IDBTransaction::AbortWithCode(nsresult aAbortCode)
 {
   NS_ASSERTION(NS_IsMainThread(), "Wrong thread!");
 
-  if (IsFinished()) {
+  // We can't use IsOpen here since we need it to be possible to call Abort()
+  // even from outside of transaction callbacks.
+  if (mReadyState != IDBTransaction::INITIAL &&
+      mReadyState != IDBTransaction::LOADING) {
     return NS_ERROR_DOM_INDEXEDDB_NOT_ALLOWED_ERR;
   }
 
@@ -527,24 +529,12 @@ IDBTransaction::AbortWithCode(nsresult aAbortCode)
   return NS_OK;
 }
 
-nsresult
-IDBTransaction::Abort(IDBRequest* aRequest)
-{
-  NS_ASSERTION(NS_IsMainThread(), "Wrong thread!");
-  NS_ASSERTION(aRequest, "This is undesirable.");
-
-  aRequest->GetError(getter_AddRefs(mError));
-
-  return AbortWithCode(aRequest->GetErrorCode());
-}
-
 NS_IMPL_CYCLE_COLLECTION_CLASS(IDBTransaction)
 
 NS_IMPL_CYCLE_COLLECTION_TRAVERSE_BEGIN_INHERITED(IDBTransaction,
                                                   IDBWrapperCache)
   NS_IMPL_CYCLE_COLLECTION_TRAVERSE_NSCOMPTR_AMBIGUOUS(mDatabase,
                                                        nsIDOMEventTarget)
-  NS_IMPL_CYCLE_COLLECTION_TRAVERSE_NSCOMPTR(mError);
   NS_CYCLE_COLLECTION_TRAVERSE_EVENT_HANDLER(error)
   NS_CYCLE_COLLECTION_TRAVERSE_EVENT_HANDLER(complete)
   NS_CYCLE_COLLECTION_TRAVERSE_EVENT_HANDLER(abort)
@@ -558,7 +548,6 @@ NS_IMPL_CYCLE_COLLECTION_TRAVERSE_END
 
 NS_IMPL_CYCLE_COLLECTION_UNLINK_BEGIN_INHERITED(IDBTransaction, IDBWrapperCache)
   // Don't unlink mDatabase!
-  NS_IMPL_CYCLE_COLLECTION_UNLINK_NSCOMPTR(mError);
   NS_CYCLE_COLLECTION_UNLINK_EVENT_HANDLER(error)
   NS_CYCLE_COLLECTION_UNLINK_EVENT_HANDLER(complete)
   NS_CYCLE_COLLECTION_UNLINK_EVENT_HANDLER(abort)
@@ -617,19 +606,6 @@ IDBTransaction::GetMode(nsAString& aMode)
 }
 
 NS_IMETHODIMP
-IDBTransaction::GetError(nsIDOMDOMError** aError)
-{
-  NS_ASSERTION(NS_IsMainThread(), "Wrong thread!");
-
-  if (IsOpen()) {
-    return NS_ERROR_DOM_INVALID_STATE_ERR;
-  }
-
-  NS_IF_ADDREF(*aError = mError);
-  return NS_OK;
-}
-
-NS_IMETHODIMP
 IDBTransaction::GetObjectStoreNames(nsIDOMDOMStringList** aObjectStores)
 {
   NS_ASSERTION(NS_IsMainThread(), "Wrong thread!");
@@ -680,7 +656,7 @@ IDBTransaction::ObjectStoreInternal(const nsAString& aName,
 {
   NS_ASSERTION(NS_IsMainThread(), "Wrong thread!");
 
-  if (IsFinished()) {
+  if (!IsOpen()) {
     return NS_ERROR_DOM_INDEXEDDB_NOT_ALLOWED_ERR;
   }
 
@@ -801,24 +777,12 @@ CommitHelper::Run()
 
       event = CreateGenericEvent(NS_LITERAL_STRING(ABORT_EVT_STR),
                                  eDoesBubble, eNotCancelable);
-
-      // The transaction may already have an error object (e.g. if one of the
-      // requests failed).  If it doesn't, and it wasn't aborted
-      // programmatically, create one now.
-      if (!mTransaction->mError &&
-          mAbortCode != NS_ERROR_DOM_INDEXEDDB_ABORT_ERR) {
-        mTransaction->mError = DOMError::CreateForNSResult(mAbortCode);
-      }
     }
     else {
       event = CreateGenericEvent(NS_LITERAL_STRING(COMPLETE_EVT_STR),
                                  eDoesNotBubble, eNotCancelable);
     }
     NS_ENSURE_TRUE(event, NS_ERROR_DOM_INDEXEDDB_UNKNOWN_ERR);
-
-    if (mListener) {
-      mListener->NotifyTransactionPreComplete(mTransaction);
-    }
 
     bool dummy;
     if (NS_FAILED(mTransaction->DispatchEvent(event, &dummy))) {
@@ -829,8 +793,9 @@ CommitHelper::Run()
     mTransaction->mFiredCompleteOrAbort = true;
 #endif
 
+    // Tell the listener (if we have one) that we're done
     if (mListener) {
-      mListener->NotifyTransactionPostComplete(mTransaction);
+      mListener->NotifyTransactionComplete(mTransaction);
     }
 
     mTransaction = nsnull;
@@ -857,17 +822,11 @@ CommitHelper::Run()
 
     if (!mAbortCode) {
       NS_NAMED_LITERAL_CSTRING(release, "COMMIT TRANSACTION");
-      nsresult rv = mConnection->ExecuteSimpleSQL(release);
-      if (NS_SUCCEEDED(rv)) {
+      if (NS_SUCCEEDED(mConnection->ExecuteSimpleSQL(release))) {
         if (mUpdateFileRefcountFunction) {
           mUpdateFileRefcountFunction->UpdateFileInfos();
         }
         CommitAutoIncrementCounts();
-      }
-      else if (rv == NS_ERROR_FILE_NO_DEVICE_SPACE) {
-        // mozstorage translates SQLITE_FULL to NS_ERROR_FILE_NO_DEVICE_SPACE,
-        // which we know better as NS_ERROR_DOM_INDEXEDDB_QUOTA_ERR.
-        mAbortCode = NS_ERROR_DOM_INDEXEDDB_QUOTA_ERR;
       }
       else {
         mAbortCode = NS_ERROR_DOM_INDEXEDDB_UNKNOWN_ERR;

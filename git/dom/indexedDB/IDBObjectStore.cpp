@@ -1714,7 +1714,7 @@ IDBObjectStore::IndexInternal(const nsAString& aName,
 {
   NS_ASSERTION(NS_IsMainThread(), "Wrong thread!");
 
-  if (mTransaction->IsFinished()) {
+  if (!mTransaction->IsOpen()) {
     return NS_ERROR_DOM_INDEXEDDB_TRANSACTION_INACTIVE_ERR;
   }
 

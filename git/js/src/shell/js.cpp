@@ -795,7 +795,6 @@ Evaluate(JSContext *cx, unsigned argc, jsval *vp)
 
     bool newContext = false;
     bool compileAndGo = true;
-    bool noScriptRval = false;
     const char *fileName = "@evaluate";
     JSAutoByteString fileNameBytes;
     unsigned lineNumber = 1;
@@ -815,7 +814,7 @@ Evaluate(JSContext *cx, unsigned argc, jsval *vp)
             JSBool b;
             if (!JS_ValueToBoolean(cx, v, &b))
                 return false;
-            newContext = b;
+            newContext = !!b;
         }
 
         if (!JS_GetProperty(cx, options, "compileAndGo", &v))
@@ -824,16 +823,7 @@ Evaluate(JSContext *cx, unsigned argc, jsval *vp)
             JSBool b;
             if (!JS_ValueToBoolean(cx, v, &b))
                 return false;
-            compileAndGo = b;
-        }
-
-        if (!JS_GetProperty(cx, options, "noScriptRval", &v))
-            return false;
-        if (!JSVAL_IS_VOID(v)) {
-            JSBool b;
-            if (!JS_ValueToBoolean(cx, v, &b))
-                return false;
-            noScriptRval = b;
+            compileAndGo = !!b;
         }
 
         if (!JS_GetProperty(cx, options, "fileName", &v))
@@ -894,18 +884,20 @@ Evaluate(JSContext *cx, unsigned argc, jsval *vp)
         if (!aec.enter(cx, global))
             return false;
 
-        uint32_t saved = JS_GetOptions(cx);
-        uint32_t options = saved & ~(JSOPTION_COMPILE_N_GO | JSOPTION_NO_SCRIPT_RVAL);
-        if (compileAndGo)
-            options |= JSOPTION_COMPILE_N_GO;
-        if (noScriptRval)
-            options |= JSOPTION_NO_SCRIPT_RVAL;
-        JS_SetOptions(cx, options);
+        if (compileAndGo) {
+            // JS_EvaluateUCScript always enables the compile-and-go option.
+            if (!JS_EvaluateUCScript(cx, global, codeChars, codeLength, fileName, lineNumber, vp))
+                return false;
+        } else {
+            uint32_t saved = JS_GetOptions(cx);
 
-        JSScript *script = JS_CompileUCScript(cx, global, codeChars, codeLength, fileName, lineNumber);
-        JS_SetOptions(cx, saved);
-        if (!script || !JS_ExecuteScript(cx, global, script, vp))
-            return false;
+            JS_SetOptions(cx, saved & ~JSOPTION_COMPILE_N_GO);
+            JSScript *script = JS_CompileUCScript(cx, global, codeChars, codeLength, fileName, lineNumber);
+            JS_SetOptions(cx, saved);
+
+            if (!script || !JS_ExecuteScript(cx, global, script, vp))
+                return false;
+        }
     }
 
     return JS_WrapValue(cx, vp);
@@ -3495,7 +3487,6 @@ static JSFunctionSpecWithHelp shell_functions[] = {
 "  Evaluate code as though it were the contents of a file.\n"
 "  options is an optional object that may have these properties:\n"
 "      compileAndGo: use the compile-and-go compiler option (default: true)\n"
-"      noScriptRval: use the no-script-rval compiler option (default: false)\n"
 "      fileName: filename for error messages and debug info\n"
 "      lineNumber: starting line number for error messages and debug info\n"
 "      global: global in which to execute the code\n"

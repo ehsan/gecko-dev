@@ -1106,7 +1106,8 @@ Function(JSContext *cx, unsigned argc, Value *vp)
                  * TOK_ERROR, which was already reported.
                  */
                 if (hasRest) {
-                    ts.reportError(JSMSG_PARAMETER_AFTER_REST);
+                    ReportCompileErrorNumber(cx, &ts, NULL, JSREPORT_ERROR,
+                                             JSMSG_PARAMETER_AFTER_REST);
                     return false;
                 }
 
@@ -1116,10 +1117,13 @@ Function(JSContext *cx, unsigned argc, Value *vp)
                         tt = ts.getToken();
                         if (tt != TOK_NAME) {
                             if (tt != TOK_ERROR)
-                                ts.reportError(JSMSG_NO_REST_NAME);
+                                ReportCompileErrorNumber(cx, &ts, NULL,
+                                                         JSREPORT_ERROR,
+                                                         JSMSG_NO_REST_NAME);
                             return false;
                         }
-                    } else {
+                    }
+                    else {
                         return OnBadFormal(cx, tt);
                     }
                 }
@@ -1130,8 +1134,12 @@ Function(JSContext *cx, unsigned argc, Value *vp)
                     JSAutoByteString bytes;
                     if (!js_AtomToPrintableString(cx, name, &bytes))
                         return false;
-                    if (!ts.reportStrictWarning(JSMSG_DUPLICATE_FORMAL, bytes.ptr()))
+                    if (!ReportCompileErrorNumber(cx, &ts, NULL,
+                                                  JSREPORT_WARNING | JSREPORT_STRICT,
+                                                  JSMSG_DUPLICATE_FORMAL, bytes.ptr()))
+                    {
                         return false;
+                    }
                 }
 
                 uint16_t dummy;

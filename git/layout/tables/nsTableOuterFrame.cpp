@@ -129,7 +129,7 @@ nsTableCaptionFrame::CreateAccessible()
 }
 #endif
 
-#ifdef DEBUG
+#ifdef NS_DEBUG
 NS_IMETHODIMP
 nsTableCaptionFrame::GetFrameName(nsAString& aResult) const
 {

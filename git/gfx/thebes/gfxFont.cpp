@@ -3411,8 +3411,6 @@ gfxFontGroup::InitTextRun(gfxContext *aContext,
                           const T *aString,
                           PRUint32 aLength)
 {
-    NS_ASSERTION(aLength > 0, "don't call InitTextRun for a zero-length run");
-
     // we need to do numeral processing even on 8-bit text,
     // in case we're converting Western to Hindi/Arabic digits
     PRInt32 numOption = gfxPlatform::GetPlatform()->GetBidiNumeralOption();
@@ -3529,9 +3527,6 @@ gfxFontGroup::InitScriptRun(gfxContext *aContext,
                             PRUint32 aScriptRunEnd,
                             PRInt32 aRunScript)
 {
-    NS_ASSERTION(aScriptRunEnd > aScriptRunStart,
-                 "don't call InitScriptRun for a zero-length run");
-
     gfxFont *mainFont = GetFontAt(0);
 
     PRUint32 runStart = aScriptRunStart;
@@ -3768,12 +3763,14 @@ void gfxFontGroup::ComputeRanges(nsTArray<gfxTextRange>& aRanges,
                                  const T *aString, PRUint32 aLength,
                                  PRInt32 aRunScript)
 {
-    NS_ASSERTION(aRanges.Length() == 0, "aRanges must be initially empty");
-    NS_ASSERTION(aLength > 0, "don't call ComputeRanges for zero-length text");
+    aRanges.Clear();
+
+    if (aLength == 0) {
+        return;
+    }
 
     PRUint32 prevCh = 0;
     PRUint8 matchType = 0;
-    PRInt32 lastRangeIndex = -1;
 
     // initialize prevFont to the group's primary font, so that this will be
     // used for string-initial control chars, etc rather than risk hitting font
@@ -3806,20 +3803,18 @@ void gfxFontGroup::ComputeRanges(nsTArray<gfxTextRange>& aRanges,
 
         prevCh = ch;
 
-        if (lastRangeIndex == -1) {
+        if (aRanges.Length() == 0) {
             // first char ==> make a new range
             aRanges.AppendElement(gfxTextRange(0, 1, font, matchType));
-            lastRangeIndex++;
             prevFont = font;
         } else {
             // if font has changed, make a new range
-            gfxTextRange& prevRange = aRanges[lastRangeIndex];
+            gfxTextRange& prevRange = aRanges[aRanges.Length() - 1];
             if (prevRange.font != font || prevRange.matchType != matchType) {
                 // close out the previous range
                 prevRange.end = origI;
                 aRanges.AppendElement(gfxTextRange(origI, i + 1,
                                                    font, matchType));
-                lastRangeIndex++;
 
                 // update prevFont for the next match, *unless* we switched
                 // fonts on a ZWJ, in which case propagating the changed font
@@ -3832,8 +3827,7 @@ void gfxFontGroup::ComputeRanges(nsTArray<gfxTextRange>& aRanges,
             }
         }
     }
-
-    aRanges[lastRangeIndex].end = aLength;
+    aRanges[aRanges.Length() - 1].end = aLength;
 }
 
 gfxUserFontSet* 

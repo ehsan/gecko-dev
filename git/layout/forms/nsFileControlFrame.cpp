@@ -555,7 +555,7 @@ nsFileControlFrame::IsLeaf() const
   return true;
 }
 
-#ifdef DEBUG
+#ifdef NS_DEBUG
 NS_IMETHODIMP
 nsFileControlFrame::GetFrameName(nsAString& aResult) const
 {

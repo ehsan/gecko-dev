@@ -108,7 +108,7 @@ nsXULLabelFrame::GetType() const
 /////////////////////////////////////////////////////////////////////////////
 // Diagnostics
 
-#ifdef DEBUG
+#ifdef NS_DEBUG
 NS_IMETHODIMP
 nsXULLabelFrame::GetFrameName(nsAString& aResult) const
 {

@@ -101,7 +101,7 @@ public:
     return do_QueryFrame(mDropdownFrame);
   }
 
-#ifdef DEBUG
+#ifdef NS_DEBUG
   NS_IMETHOD GetFrameName(nsAString& aResult) const;
 #endif
   virtual void DestroyFrom(nsIFrame* aDestructRoot);

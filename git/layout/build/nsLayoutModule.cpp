@@ -371,7 +371,7 @@ Shutdown()
   nsLayoutStatics::Release();
 }
 
-#ifdef DEBUG
+#ifdef NS_DEBUG
 nsresult NS_NewFrameUtil(nsIFrameUtil** aResult);
 nsresult NS_NewLayoutDebugger(nsILayoutDebugger** aResult);
 #endif

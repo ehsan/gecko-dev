@@ -874,9 +874,9 @@ DrawTargetD2D::FillGlyphs(ScaledFont *aFont,
   IDWriteRenderingParams *params = NULL;
   if (aRenderOptions) {
     if (aRenderOptions->GetType() != FONT_DWRITE) {
-      gfxDebug() << *this << ": Ignoring incompatible GlyphRenderingOptions.";
-      // This should never happen.
-      MOZ_ASSERT(false);
+    gfxDebug() << *this << ": Ignoring incompatible GlyphRenderingOptions.";
+    // This should never happen.
+    MOZ_ASSERT(false);
     } else {
       params = static_cast<const GlyphRenderingOptionsDWrite*>(aRenderOptions)->mParams;
     }
@@ -895,12 +895,7 @@ DrawTargetD2D::FillGlyphs(ScaledFont *aFont,
 
   PrepareForDrawing(rt);
 
-  if (rt != mRT || params != mTextRenderingParams) {
-    rt->SetTextRenderingParams(params);
-    if (rt == mRT) {
-      mTextRenderingParams = params;
-    }
-  }
+  rt->SetTextRenderingParams(params);
 
   RefPtr<ID2D1Brush> brush = CreateBrushForPattern(aPattern, aOptions.mAlpha);
 

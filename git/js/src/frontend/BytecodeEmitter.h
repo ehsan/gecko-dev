@@ -188,10 +188,6 @@ struct BytecodeEmitter
     unsigned currentLine() const { return current->currentLine; }
 
     inline ptrdiff_t countFinalSourceNotes();
-
-    bool reportError(ParseNode *pn, unsigned errorNumber, ...);
-    bool reportStrictWarning(ParseNode *pn, unsigned errorNumber, ...);
-    bool reportStrictModeError(ParseNode *pn, unsigned errorNumber, ...);
 };
 
 namespace frontend {

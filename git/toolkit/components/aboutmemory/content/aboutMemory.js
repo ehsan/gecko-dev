@@ -511,6 +511,7 @@ function getTreesByProcess(aMgr, aTreesByProcess, aDegeneratesByProcess,
       assert(aDescription !== "", "empty smaps description");
 
     } else {
+      assert(aKind === KIND_OTHER, "bad other kind");
       assert(gSentenceRegExp.test(aDescription),
              "non-sentence other description");
     }

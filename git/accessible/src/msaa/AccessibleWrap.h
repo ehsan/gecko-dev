@@ -14,7 +14,7 @@
 #include "Accessible.h"
 #include "Accessible2.h"
 #include "ia2AccessibleComponent.h"
-#include "ia2AccessibleHyperlink.h"
+#include "CAccessibleHyperlink.h"
 #include "CAccessibleValue.h"
 
 #define DECL_IUNKNOWN_INHERITED                                               \
@@ -65,7 +65,7 @@ Class::QueryInterface(REFIID iid, void** ppv)                                 \
 
 class AccessibleWrap : public Accessible,
                        public ia2AccessibleComponent,
-                       public ia2AccessibleHyperlink,
+                       public CAccessibleHyperlink,
                        public CAccessibleValue,
                        public IAccessible2
 {
