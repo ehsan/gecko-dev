@@ -82,6 +82,7 @@ public:
       v.get_ArrayOfBluetoothNamedValue();
 
     nsTArray<nsRefPtr<BluetoothDevice> > devices;
+    JSObject* JsDevices;
     for (uint32_t i = 0; i < values.Length(); i++) {
       const BluetoothValue properties = values[i].value();
       if (properties.type() != BluetoothValue::TArrayOfBluetoothNamedValue) {
@@ -105,7 +106,6 @@ public:
     }
 
     AutoPushJSContext cx(sc->GetNativeContext());
-    JSObject* JsDevices = nullptr;
     rv = nsTArrayToJSArray(cx, devices, &JsDevices);
     if (!JsDevices) {
       BT_WARNING("Cannot create JS array!");

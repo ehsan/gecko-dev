@@ -1939,7 +1939,7 @@ AndroidBridge::HandleLongTap(const CSSIntPoint& aPoint)
 }
 
 void
-AndroidBridge::SendAsyncScrollDOMEvent(bool aIsRoot,
+AndroidBridge::SendAsyncScrollDOMEvent(mozilla::layers::FrameMetrics::ViewID aScrollId,
                                        const CSSRect& aContentRect,
                                        const CSSSize& aScrollableSize)
 {

@@ -46,9 +46,6 @@ LayoutView.prototype = {
     // 'property' is what we are measuring;
     // 'value' is the computed dimension, computed in update().
     this.map = {
-      position: {selector: "#element-position",
-                 property: "position",
-                 value: undefined},
       marginTop: {selector: ".margin.top > span",
                   property: "margin-top",
                   value: undefined},
@@ -204,19 +201,7 @@ LayoutView.prototype = {
 
       for (let i in this.map) {
         let property = this.map[i].property;
-        if (!(property in layout)) {
-          // Depending on the actor version, some properties
-          // might be missing.
-          continue;
-        }
-        let parsedValue = parseInt(layout[property]);
-        if (Number.isNaN(parsedValue)) {
-          // Not a number. We use the raw string.
-          // Useful for "position" for example.
-          this.map[i].value = layout[property];
-        } else {
-          this.map[i].value = parsedValue;
-        }
+        this.map[i].value = parseInt(layout[property]);
       }
 
       let margins = layout.autoMargins;

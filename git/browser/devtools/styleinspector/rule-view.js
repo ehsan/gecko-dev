@@ -2446,7 +2446,7 @@ XPCOMUtils.defineLazyGetter(this, "clipboardHelper", function() {
 
 XPCOMUtils.defineLazyGetter(this, "_strings", function() {
   return Services.strings.createBundle(
-    "chrome://global/locale/devtools/styleinspector.properties");
+    "chrome://browser/locale/devtools/styleinspector.properties");
 });
 
 XPCOMUtils.defineLazyGetter(this, "domUtils", function() {
