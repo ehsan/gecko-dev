@@ -7,5 +7,3 @@
 BROWSER_CHROME_MANIFESTS += [
     'test/browser.ini',
 ]
-
-JAR_MANIFESTS += ['jar.mn']

@@ -154,5 +154,3 @@ LOCAL_INCLUDES += [
     '../xul',
     '/dom/base',
 ]
-
-JAR_MANIFESTS += ['jar.mn']

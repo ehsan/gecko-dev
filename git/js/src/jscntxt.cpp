@@ -1073,7 +1073,7 @@ ThreadSafeContext::asForkJoinSlice()
 JSContext::JSContext(JSRuntime *rt)
   : ExclusiveContext(rt, &rt->mainThread, Context_JS),
     throwing(false),
-    unwrappedException_(UndefinedValue()),
+    exception(UndefinedValue()),
     options_(),
     reportGranularity(JS_DEFAULT_JITREPORT_GRANULARITY),
     resolvingList(nullptr),
@@ -1109,20 +1109,20 @@ JSContext::~JSContext()
     JS_ASSERT(!resolvingList);
 }
 
-bool
-JSContext::getPendingException(MutableHandleValue rval)
+/*
+ * Since this function is only called in the context of a pending exception,
+ * the caller must subsequently take an error path. If wrapping fails, it will
+ * set a new (uncatchable) exception to be used in place of the original.
+ */
+void
+JSContext::wrapPendingException()
 {
-    JS_ASSERT(throwing);
-    rval.set(unwrappedException_);
-    if (IsAtomsCompartment(compartment()))
-        return true;
+    RootedValue value(this, getPendingException());
     clearPendingException();
-    if (!compartment()->wrap(this, rval))
-        return false;
-    assertSameCompartment(this, rval);
-    setPendingException(rval);
-    return true;
+    if (!IsAtomsCompartment(compartment()) && compartment()->wrap(this, &value))
+        setPendingException(value);
 }
+
 
 void
 JSContext::enterGenerator(JSGenerator *gen)
@@ -1171,6 +1171,9 @@ JSContext::restoreFrameChain()
 
     if (Activation *act = mainThread().activation())
         act->restoreFrameChain();
+
+    if (isExceptionPending())
+        wrapPendingException();
 }
 
 bool
@@ -1284,7 +1287,7 @@ JSContext::mark(JSTracer *trc)
     if (defaultCompartmentObject_)
         MarkObjectRoot(trc, &defaultCompartmentObject_, "default compartment object");
     if (isExceptionPending())
-        MarkValueRoot(trc, &unwrappedException_, "unwrapped exception");
+        MarkValueRoot(trc, &exception, "exception");
 
     TraceCycleDetectionSet(trc, cycleDetectorSet);
 

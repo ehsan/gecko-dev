@@ -358,11 +358,10 @@ ExclusiveContext::typeLifoAlloc()
 }  /* namespace js */
 
 inline void
-JSContext::setPendingException(js::Value v)
-{
+JSContext::setPendingException(js::Value v) {
     JS_ASSERT(!IsPoisonedValue(v));
     this->throwing = true;
-    this->unwrappedException_ = v;
+    this->exception = v;
     js::assertSameCompartment(this, v);
 }
 
@@ -389,6 +388,11 @@ js::ExclusiveContext::enterCompartment(JSCompartment *c)
     enterCompartmentDepth_++;
     c->enter();
     setCompartment(c);
+
+    if (JSContext *cx = maybeJSContext()) {
+        if (cx->throwing)
+            cx->wrapPendingException();
+    }
 }
 
 inline void
@@ -402,6 +406,11 @@ js::ExclusiveContext::leaveCompartment(JSCompartment *oldCompartment)
     JSCompartment *startingCompartment = compartment_;
     setCompartment(oldCompartment);
     startingCompartment->leave();
+
+    if (JSContext *cx = maybeJSContext()) {
+        if (cx->throwing && oldCompartment)
+            cx->wrapPendingException();
+    }
 }
 
 inline void

@@ -46,5 +46,3 @@ if CONFIG['ENABLE_TESTS']:
     PARALLEL_DIRS += [
         'tests',
     ]
-
-JAR_MANIFESTS += ['jar.mn']

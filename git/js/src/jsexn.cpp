@@ -730,10 +730,7 @@ js_ReportUncaughtException(JSContext *cx)
     if (!cx->isExceptionPending())
         return true;
 
-    RootedValue exn(cx);
-    if (!cx->getPendingException(&exn))
-        return false;
-
+    RootedValue exn(cx, cx->getPendingException());
     AutoValueVector roots(cx);
     roots.resize(6);
 

@@ -17,5 +17,3 @@ MOCHITEST_CHROME_MANIFESTS += [
 BROWSER_CHROME_MANIFESTS += [
     'tests/browser/browser.ini',
 ]
-
-JAR_MANIFESTS += ['jar.mn']

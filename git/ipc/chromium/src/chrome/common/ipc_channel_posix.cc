@@ -210,13 +210,13 @@ bool ClientConnectToFifo(const std::string &pipe_name, int* client_socket) {
   // Create socket.
   int fd = socket(AF_UNIX, SOCK_STREAM, 0);
   if (fd < 0) {
-    CHROMIUM_LOG(ERROR) << "fd is invalid";
+    LOG(ERROR) << "fd is invalid";
     return false;
   }
 
   // Make socket non-blocking
   if (fcntl(fd, F_SETFL, O_NONBLOCK) == -1) {
-    CHROMIUM_LOG(ERROR) << "fcntl failed";
+    LOG(ERROR) << "fcntl failed";
     HANDLE_EINTR(close(fd));
     return false;
   }
@@ -263,9 +263,9 @@ Channel::ChannelImpl::ChannelImpl(const std::wstring& channel_id, Mode mode,
 
   if (!CreatePipe(channel_id, mode)) {
     // The pipe may have been closed already.
-    CHROMIUM_LOG(WARNING) << "Unable to create pipe named \"" << channel_id <<
-                             "\" in " << (mode == MODE_SERVER ? "server" : "client") <<
-                             " mode error(" << strerror(errno) << ").";
+    LOG(WARNING) << "Unable to create pipe named \"" << channel_id <<
+                    "\" in " << (mode == MODE_SERVER ? "server" : "client") <<
+                    " mode error(" << strerror(errno) << ").";
   }
 }
 
@@ -443,7 +443,7 @@ bool Channel::ChannelImpl::ProcessIncomingMessages() {
         if (errno == EAGAIN) {
           return true;
         } else {
-          CHROMIUM_LOG(ERROR) << "pipe error (" << pipe_ << "): " << strerror(errno);
+          LOG(ERROR) << "pipe error (" << pipe_ << "): " << strerror(errno);
           return false;
         }
       } else if (bytes_read == 0) {
@@ -491,9 +491,9 @@ bool Channel::ChannelImpl::ProcessIncomingMessages() {
           num_wire_fds = payload_len / 4;
 
           if (msg.msg_flags & MSG_CTRUNC) {
-            CHROMIUM_LOG(ERROR) << "SCM_RIGHTS message was truncated"
-                                << " cmsg_len:" << cmsg->cmsg_len
-                                << " fd:" << pipe_;
+            LOG(ERROR) << "SCM_RIGHTS message was truncated"
+                       << " cmsg_len:" << cmsg->cmsg_len
+                       << " fd:" << pipe_;
             for (unsigned i = 0; i < num_wire_fds; ++i)
               HANDLE_EINTR(close(wire_fds[i]));
             return false;
@@ -515,7 +515,7 @@ bool Channel::ChannelImpl::ProcessIncomingMessages() {
       if (input_overflow_buf_.size() >
          static_cast<size_t>(kMaximumMessageSize - bytes_read)) {
         ClearAndShrink(input_overflow_buf_, Channel::kReadBufferSize);
-        CHROMIUM_LOG(ERROR) << "IPC message is too big";
+        LOG(ERROR) << "IPC message is too big";
         return false;
       }
       input_overflow_buf_.append(input_buf_, bytes_read);
@@ -562,12 +562,12 @@ bool Channel::ChannelImpl::ProcessIncomingMessages() {
           }
 
           if (error) {
-            CHROMIUM_LOG(WARNING) << error
-                                  << " channel:" << this
-                                  << " message-type:" << m.type()
-                                  << " header()->num_fds:" << m.header()->num_fds
-                                  << " num_fds:" << num_fds
-                                  << " fds_i:" << fds_i;
+            LOG(WARNING) << error
+                         << " channel:" << this
+                         << " message-type:" << m.type()
+                         << " header()->num_fds:" << m.header()->num_fds
+                         << " num_fds:" << num_fds
+                         << " fds_i:" << fds_i;
             // close the existing file descriptors so that we don't leak them
             for (unsigned i = fds_i; i < num_fds; ++i)
               HANDLE_EINTR(close(fds[i]));
@@ -668,7 +668,7 @@ bool Channel::ChannelImpl::ProcessOutgoingMessages() {
       const unsigned num_fds = msg->file_descriptor_set()->size();
 
       if (num_fds > FileDescriptorSet::MAX_DESCRIPTORS_PER_MESSAGE) {
-        CHROMIUM_LOG(FATAL) << "Too many file descriptors!";
+        LOG(FATAL) << "Too many file descriptors!";
         // This should not be reached.
         return false;
       }
@@ -707,7 +707,7 @@ bool Channel::ChannelImpl::ProcessOutgoingMessages() {
 #endif
 
     if (bytes_written < 0 && errno != EAGAIN) {
-      CHROMIUM_LOG(ERROR) << "pipe error: " << strerror(errno);
+      LOG(ERROR) << "pipe error: " << strerror(errno);
       return false;
     }
 

@@ -783,13 +783,11 @@ Debugger::handleUncaughtExceptionHelper(Maybe<AutoCompartment> &ac,
     JSContext *cx = ac.ref().context()->asJSContext();
     if (cx->isExceptionPending()) {
         if (callHook && uncaughtExceptionHook) {
-            RootedValue exc(cx);
-            if (!cx->getPendingException(&exc))
-                return JSTRAP_ERROR;
-            cx->clearPendingException();
-            RootedValue fval(cx, ObjectValue(*uncaughtExceptionHook));
+            Value fval = ObjectValue(*uncaughtExceptionHook);
+            Value exc = cx->getPendingException();
             RootedValue rv(cx);
-            if (Invoke(cx, ObjectValue(*object), fval, 1, exc.address(), &rv))
+            cx->clearPendingException();
+            if (Invoke(cx, ObjectValue(*object), fval, 1, &exc, &rv))
                 return vp ? parseResumptionValue(ac, true, rv, *vp, false) : JSTRAP_CONTINUE;
         }
 
@@ -825,8 +823,7 @@ Debugger::resultToCompletion(JSContext *cx, bool ok, const Value &rv,
         value.set(rv);
     } else if (cx->isExceptionPending()) {
         *status = JSTRAP_THROW;
-        if (!cx->getPendingException(value))
-            *status = JSTRAP_ERROR;
+        value.set(cx->getPendingException());
         cx->clearPendingException();
     } else {
         *status = JSTRAP_ERROR;
@@ -987,9 +984,7 @@ Debugger::fireExceptionUnwind(JSContext *cx, MutableHandleValue vp)
     JS_ASSERT(hook);
     JS_ASSERT(hook->isCallable());
 
-    RootedValue exc(cx);
-    if (!cx->getPendingException(&exc))
-        return JSTRAP_ERROR;
+    RootedValue exc(cx, cx->getPendingException());
     cx->clearPendingException();
 
     Maybe<AutoCompartment> ac;
@@ -1236,8 +1231,7 @@ Debugger::onSingleStep(JSContext *cx, MutableHandleValue vp)
     RootedValue exception(cx, UndefinedValue());
     bool exceptionPending = cx->isExceptionPending();
     if (exceptionPending) {
-        if (!cx->getPendingException(&exception))
-            return JSTRAP_ERROR;
+        exception = cx->getPendingException();
         cx->clearPendingException();
     }
 

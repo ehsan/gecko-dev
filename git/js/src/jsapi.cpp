@@ -5865,7 +5865,9 @@ JS_GetPendingException(JSContext *cx, MutableHandleValue vp)
     CHECK_REQUEST(cx);
     if (!cx->isExceptionPending())
         return false;
-    return cx->getPendingException(vp);
+    vp.set(cx->getPendingException());
+    assertSameCompartment(cx, vp);
+    return true;
 }
 
 JS_PUBLIC_API(void)
