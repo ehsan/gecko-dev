@@ -21,7 +21,6 @@
  * Contributor(s):
  *  David Dahl <ddahl@mozilla.com>
  *  Patrick Walton <pcwalton@mozilla.com>
- *  Julian Viereck <jviereck@mozilla.com>
  *
  * Alternatively, the contents of this file may be used under the terms of
  * either the GNU General Public License Version 2 or later (the "GPL"), or
@@ -570,39 +569,6 @@ function testCompletion()
   is(input.selectionEnd, 23, "end selection is alright");
 }
 
-function testJSInputExpand()
-{
-  let HUD = HUDService.hudWeakReferences[hudId].get();
-  let jsterm = HUD.jsterm;
-  let input = jsterm.inputNode;
-  input.focus();
-
-  is(input.getAttribute("multiline"), "true", "multiline is enabled");
-
-  // Tests if the inputNode expands.
-  input.value = "hello\nworld\n";
-  let length = input.value.length;
-  input.selectionEnd = length;
-  input.selectionStart = length;
-  // Performs an "d". This will trigger/test for the input event that should
-  // change the "row" attribute of the inputNode.
-  EventUtils.synthesizeKey("d", {});
-  is(input.getAttribute("rows"), "3", "got 3 rows");
-
-  // Add some more rows. Tests for the 8 row limit.
-  input.value = "row1\nrow2\nrow3\nrow4\nrow5\nrow6\nrow7\nrow8\nrow9\nrow10\n";
-  length = input.value.length;
-  input.selectionEnd = length;
-  input.selectionStart = length;
-  EventUtils.synthesizeKey("d", {});
-  is(input.getAttribute("rows"), "8", "got 8 rows");
-
-  // Test if the inputNode shrinks again.
-  input.value = "";
-  EventUtils.synthesizeKey("d", {});
-  is(input.getAttribute("rows"), "1", "got 1 row");
-}
-
 function testExecutionScope()
 {
   content.location.href = TEST_URI;
@@ -719,40 +685,13 @@ function testErrorOnPageReload() {
       testLogEntry(outputNode, "fooBazBaz",
         { success: successMsg, err: errMsg });
 
-      testWebConsoleClose();
+      testEnd();
     }, false);
 
     button.dispatchEvent(clickEvent);
   }, false);
 
   content.location.href = TEST_ERROR_URI;
-}
-
-/**
- * Unit test for bug 580001:
- * 'Close console after completion causes error "inputValue is undefined"'
- */
-function testWebConsoleClose() {
-  let display = HUDService.getDisplayByURISpec(content.location.href);
-  let input = display.querySelector(".jsterm-input-node");
-
-  let errorWhileClosing = false;
-  function errorListener(evt) {
-    errorWhileClosing = true;
-  }
-  window.addEventListener("error", errorListener, false);
-
-  // Focus the inputNode and perform the keycombo to close the WebConsole.
-  input.focus();
-  EventUtils.synthesizeKey("k", { accelKey: true, shiftKey: true });
-
-  // We can't test for errors right away, because the error occures after a
-  // setTimeout(..., 0) in the WebConsole code.
-  executeSoon(function() {
-    window.removeEventListener("error", errorListener, false);
-    is (errorWhileClosing, false, "no error while closing the WebConsole");
-    testEnd();
-  });
 }
 
 function testEnd() {
@@ -816,7 +755,6 @@ function test() {
       testExecutionScope();
       testCompletion();
       testPropertyProvider();
-      testJSInputExpand();
       testNet();
     });
   }, false);
