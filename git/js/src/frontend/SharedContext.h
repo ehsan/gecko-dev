@@ -149,18 +149,16 @@ class GlobalSharedContext;
 class SharedContext
 {
   public:
-    ExclusiveContext *const context;
+    JSContext *const context;
     AnyContextFlags anyCxFlags;
     bool strict;
-    bool extraWarnings;
 
     // If it's function code, funbox must be non-NULL and scopeChain must be NULL.
     // If it's global code, funbox must be NULL.
-    SharedContext(ExclusiveContext *cx, bool strict, bool extraWarnings)
+    SharedContext(JSContext *cx, bool strict)
       : context(cx),
         anyCxFlags(),
-        strict(strict),
-        extraWarnings(extraWarnings)
+        strict(strict)
     {}
 
     virtual ObjectBox *toObjectBox() = 0;
@@ -189,9 +187,8 @@ class GlobalSharedContext : public SharedContext
     const RootedObject scopeChain_; /* scope chain object for the script */
 
   public:
-    GlobalSharedContext(ExclusiveContext *cx, JSObject *scopeChain,
-                        bool strict, bool extraWarnings)
-      : SharedContext(cx, strict, extraWarnings),
+    GlobalSharedContext(JSContext *cx, JSObject *scopeChain, bool strict)
+      : SharedContext(cx, strict),
         scopeChain_(cx, scopeChain)
     {}
 
@@ -211,8 +208,8 @@ class ModuleBox : public ObjectBox, public SharedContext
   public:
     Bindings bindings;
 
-    ModuleBox(ExclusiveContext *cx, ObjectBox *traceListHead, Module *module,
-              ParseContext<FullParseHandler> *pc, bool extraWarnings);
+    ModuleBox(JSContext *cx, ObjectBox *traceListHead, Module *module,
+              ParseContext<FullParseHandler> *pc);
     ObjectBox *toObjectBox() { return this; }
     Module *module() const { return &object->as<Module>(); }
 };
@@ -246,9 +243,8 @@ class FunctionBox : public ObjectBox, public SharedContext
     FunctionContextFlags funCxFlags;
 
     template <typename ParseHandler>
-    FunctionBox(ExclusiveContext *cx, ObjectBox* traceListHead, JSFunction *fun,
-                ParseContext<ParseHandler> *pc,
-                bool strict, bool extraWarnings);
+    FunctionBox(JSContext *cx, ObjectBox* traceListHead, JSFunction *fun, ParseContext<ParseHandler> *pc,
+                bool strict);
 
     ObjectBox *toObjectBox() { return this; }
     JSFunction *function() const { return &object->as<JSFunction>(); }
@@ -365,7 +361,7 @@ struct StmtInfoBase {
     RootedAtom      label;          /* name of LABEL */
     Rooted<StaticBlockObject *> blockObj; /* block scope object */
 
-    StmtInfoBase(ExclusiveContext *cx)
+    StmtInfoBase(JSContext *cx)
         : isBlockScope(false), isForLetBlock(false), label(cx), blockObj(cx)
     {}
 

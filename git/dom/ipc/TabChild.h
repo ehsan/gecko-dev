@@ -44,7 +44,6 @@
 #include "FrameMetrics.h"
 #include "ProcessUtils.h"
 #include "mozilla/dom/TabContext.h"
-#include "mozilla/dom/ContentChild.h"
 
 struct gfxMatrix;
 class nsICachedFileDescriptorListener;
@@ -164,8 +163,8 @@ public:
     static void PreloadSlowThings();
 
     /** Return a TabChild with the given attributes. */
-    static already_AddRefed<TabChild>
-    Create(ContentChild* aManager, const TabContext& aContext, uint32_t aChromeFlags);
+    static already_AddRefed<TabChild> 
+    Create(const TabContext& aContext, uint32_t aChromeFlags);
 
     virtual ~TabChild();
 
@@ -327,8 +326,6 @@ public:
                                     const nsAString& aPath,
                                     nsICachedFileDescriptorListener* aCallback);
 
-    ContentChild* Manager() { return mManager; }
-
 protected:
     virtual PRenderFrameChild* AllocPRenderFrameChild(ScrollingBehavior* aScrolling,
                                                       TextureFactoryIdentifier* aTextureFactoryIdentifier,
@@ -352,7 +349,7 @@ private:
      *
      * |aIsBrowserElement| indicates whether we're a browser (but not an app).
      */
-    TabChild(ContentChild* aManager, const TabContext& aContext, uint32_t aChromeFlags);
+    TabChild(const TabContext& aContext, uint32_t aChromeFlags);
 
     nsresult Init();
 
@@ -432,7 +429,6 @@ private:
     nsCOMPtr<nsIURI> mLastURI;
     FrameMetrics mLastMetrics;
     RenderFrameChild* mRemoteFrame;
-    nsRefPtr<ContentChild> mManager;
     nsRefPtr<TabChildGlobal> mTabChildGlobal;
     uint32_t mChromeFlags;
     nsIntRect mOuterRect;

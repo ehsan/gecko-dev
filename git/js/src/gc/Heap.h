@@ -99,7 +99,6 @@ struct Cell
 
     inline JSRuntime *runtime() const;
     inline Zone *tenuredZone() const;
-    inline bool tenuredIsInsideZone(Zone *zone) const;
 
 #ifdef DEBUG
     inline bool isAligned() const;
@@ -993,13 +992,6 @@ Cell::tenuredZone() const
     JS_ASSERT(InSequentialOrExclusiveParallelSection());
     JS_ASSERT(isTenured());
     return arenaHeader()->zone;
-}
-
-bool
-Cell::tenuredIsInsideZone(Zone *zone) const
-{
-    JS_ASSERT(isTenured());
-    return zone == arenaHeader()->zone;
 }
 
 #ifdef DEBUG

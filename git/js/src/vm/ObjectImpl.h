@@ -1242,7 +1242,7 @@ class ObjectImpl : public gc::Cell
     }
 
     static inline bool
-    isExtensible(ExclusiveContext *cx, Handle<ObjectImpl*> obj, bool *extensible);
+    isExtensible(JSContext *cx, Handle<ObjectImpl*> obj, bool *extensible);
 
     // Indicates whether a non-proxy is extensible.  Don't call on proxies!
     // This method really shouldn't exist -- but there are a few internal
@@ -1292,19 +1292,18 @@ class ObjectImpl : public gc::Cell
 #endif
 
     Shape *
-    replaceWithNewEquivalentShape(ExclusiveContext *cx,
-                                  Shape *existingShape, Shape *newShape = NULL);
+    replaceWithNewEquivalentShape(JSContext *cx, Shape *existingShape, Shape *newShape = NULL);
 
     enum GenerateShape {
         GENERATE_NONE,
         GENERATE_SHAPE
     };
 
-    bool setFlag(ExclusiveContext *cx, /*BaseShape::Flag*/ uint32_t flag,
+    bool setFlag(JSContext *cx, /*BaseShape::Flag*/ uint32_t flag,
                  GenerateShape generateShape = GENERATE_NONE);
-    bool clearFlag(ExclusiveContext *cx, /*BaseShape::Flag*/ uint32_t flag);
+    bool clearFlag(JSContext *cx, /*BaseShape::Flag*/ uint32_t flag);
 
-    bool toDictionaryMode(ExclusiveContext *cx);
+    bool toDictionaryMode(JSContext *cx);
 
   private:
     /*
@@ -1425,7 +1424,7 @@ class ObjectImpl : public gc::Cell
         return shape_;
     }
 
-    bool generateOwnShape(ExclusiveContext *cx, js::Shape *newShape = NULL) {
+    bool generateOwnShape(JSContext *cx, js::Shape *newShape = NULL) {
         return replaceWithNewEquivalentShape(cx, lastProperty(), newShape);
     }
 
@@ -1463,21 +1462,21 @@ class ObjectImpl : public gc::Cell
     /* Compute dynamicSlotsCount() for this object. */
     inline uint32_t numDynamicSlots() const;
 
-    Shape *nativeLookup(ExclusiveContext *cx, jsid id);
-    Shape *nativeLookup(ExclusiveContext *cx, PropertyId pid) {
+    Shape *nativeLookup(JSContext *cx, jsid id);
+    Shape *nativeLookup(JSContext *cx, PropertyId pid) {
         return nativeLookup(cx, pid.asId());
     }
-    Shape *nativeLookup(ExclusiveContext *cx, PropertyName *name) {
+    Shape *nativeLookup(JSContext *cx, PropertyName *name) {
         return nativeLookup(cx, NameToId(name));
     }
 
-    bool nativeContains(ExclusiveContext *cx, jsid id) {
+    bool nativeContains(JSContext *cx, jsid id) {
         return nativeLookup(cx, id) != NULL;
     }
-    bool nativeContains(ExclusiveContext *cx, PropertyName* name) {
+    bool nativeContains(JSContext *cx, PropertyName* name) {
         return nativeLookup(cx, name) != NULL;
     }
-    inline bool nativeContains(ExclusiveContext *cx, Shape* shape);
+    inline bool nativeContains(JSContext *cx, Shape* shape);
 
     /*
      * Contextless; can be called from parallel code. Returns false if the

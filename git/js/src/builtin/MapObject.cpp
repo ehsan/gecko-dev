@@ -6,8 +6,6 @@
 
 #include "builtin/MapObject.h"
 
-#include "mozilla/Move.h"
-
 #include "jscntxt.h"
 #include "jsiter.h"
 #include "jsobj.h"
@@ -25,8 +23,6 @@ using namespace js;
 
 using mozilla::DoubleIsInt32;
 using mozilla::IsNaN;
-using mozilla::Move;
-using mozilla::MoveRef;
 
 
 /*** OrderedHashTable ****************************************************************************/

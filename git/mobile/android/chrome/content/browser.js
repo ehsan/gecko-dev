@@ -1576,8 +1576,7 @@ var NativeWindow = {
 
   menu: {
     _callbacks: [],
-    _menuId: 1,
-    toolsMenuID: -1,
+    _menuId: 0,
     add: function() {
       let options;
       if (arguments.length == 1) {

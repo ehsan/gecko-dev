@@ -8,8 +8,6 @@
 #include "frontend/ParseNode.h"
 #include "frontend/Parser.h"
 
-#include "jscntxtinlines.h"
-
 using namespace js;
 using namespace js::frontend;
 
@@ -242,7 +240,7 @@ ParseNodeAllocator::allocNode()
         return pn;
     }
 
-    void *p = alloc.alloc(sizeof (ParseNode));
+    void *p = cx->tempLifoAlloc().alloc(sizeof (ParseNode));
     if (!p)
         js_ReportOutOfMemory(cx);
     return p;

@@ -35,7 +35,7 @@ Module::setScript(JSScript *script)
 }
 
 Module *
-Module::create(ExclusiveContext *cx, HandleAtom atom)
+Module::create(JSContext *cx, HandleAtom atom)
 {
     RootedObject object(cx, NewBuiltinClassInstance(cx, &class_));
     if (!object)

@@ -8,14 +8,11 @@
 
 #include "jsgc.h"
 
-#include "mozilla/DebugOnly.h"
-#include "mozilla/MemoryReporting.h"
-#include "mozilla/Move.h"
-#include "mozilla/Util.h"
-
 #include "prmjtime.h"
 
-using mozilla::Swap;
+#include "mozilla/DebugOnly.h"
+#include "mozilla/MemoryReporting.h"
+#include "mozilla/Util.h"
 
 /*
  * This code implements a mark-and-sweep garbage collector. The mark phase is
@@ -1491,21 +1488,21 @@ RunLastDitchGC(JSContext *cx, JS::Zone *zone, AllocKind thingKind)
 
 template <AllowGC allowGC>
 /* static */ void *
-ArenaLists::refillFreeList(ThreadSafeContext *cx, AllocKind thingKind)
+ArenaLists::refillFreeList(ThreadSafeContext *tcx, AllocKind thingKind)
 {
-    JS_ASSERT(cx->allocator()->arenas.freeLists[thingKind].isEmpty());
+    JS_ASSERT(tcx->allocator()->arenas.freeLists[thingKind].isEmpty());
 
-    Zone *zone = cx->allocator()->zone_;
+    Zone *zone = tcx->allocator()->zone_;
     JSRuntime *rt = zone->rt;
     JS_ASSERT(!rt->isHeapBusy());
 
     bool runGC = rt->gcIncrementalState != NO_INCREMENTAL &&
                  zone->gcBytes > zone->gcTriggerBytes &&
-                 cx->allowGC() && allowGC;
+                 tcx->allowGC() && allowGC;
 
     for (;;) {
         if (JS_UNLIKELY(runGC)) {
-            if (void *thing = RunLastDitchGC(cx->asJSContext(), zone, thingKind))
+            if (void *thing = RunLastDitchGC(tcx->asJSContext(), zone, thingKind))
                 return thing;
         }
 
@@ -1521,8 +1518,8 @@ ArenaLists::refillFreeList(ThreadSafeContext *cx, AllocKind thingKind)
          * value we get.
          */
         for (bool secondAttempt = false; ; secondAttempt = true) {
-            void *thing = cx->allocator()->arenas.allocateFromArenaInline(zone, thingKind);
-            if (JS_LIKELY(!!thing) || cx->isForkJoinSlice())
+            void *thing = tcx->allocator()->arenas.allocateFromArenaInline(zone, thingKind);
+            if (JS_LIKELY(!!thing) || tcx->isForkJoinSlice())
                 return thing;
             if (secondAttempt)
                 break;
@@ -1543,7 +1540,7 @@ ArenaLists::refillFreeList(ThreadSafeContext *cx, AllocKind thingKind)
     }
 
     JS_ASSERT(allowGC);
-    js_ReportOutOfMemory(cx);
+    js_ReportOutOfMemory(tcx->asJSContext());
     return NULL;
 }
 
@@ -3083,7 +3080,7 @@ js::gc::MarkingValidator::nonIncrementalMark()
         Chunk *chunk = r.front();
         ChunkBitmap *bitmap = &chunk->bitmap;
         ChunkBitmap *entry = map.lookup(chunk)->value;
-        Swap(*entry, *bitmap);
+        js::Swap(*entry, *bitmap);
     }
 
     /* Restore the weak map and array buffer lists. */
