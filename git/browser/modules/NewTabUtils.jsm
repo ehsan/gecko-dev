@@ -550,7 +550,7 @@ let Links = {
    * Resets the links cache.
    */
   resetCache: function Links_resetCache() {
-    this._links = null;
+    this._links = [];
   },
 
   /**
@@ -584,17 +584,13 @@ let Links = {
  */
 let NewTabUtils = {
   /**
-   * Restores all sites that have been removed from the grid.
+   * Resets the NewTabUtils module, its links and its storage.
    */
-  restore: function NewTabUtils_restore() {
+  reset: function NewTabUtils_reset() {
     Storage.clear();
     Links.resetCache();
     PinnedLinks.resetCache();
     BlockedLinks.resetCache();
-
-    Links.populateCache(function () {
-      AllPages.update();
-    }, true);
   },
 
   allPages: AllPages,

@@ -2,8 +2,6 @@
    http://creativecommons.org/publicdomain/zero/1.0/ */
 
 function test() {
-  waitForExplicitFinish();
-
   let assertNumberOfTabs = function (num, msg) {
     is(gBrowser.tabs.length, num, msg);
   }
@@ -27,13 +25,11 @@ function test() {
   assertNumberOfPinnedTabs(2, "both tabs are now pinned");
 
   // run the test
-  waitForBrowserState(
-    { windows: [{ tabs: [{ url: "about:blank" }] }] },
-    function () {
-      assertNumberOfTabs(1, "one tab left after setBrowserState()");
-      assertNumberOfPinnedTabs(0, "there are no pinned tabs");
-      is(gBrowser.tabs[0].linkedBrowser, linkedBrowser, "first tab's browser got re-used");
-      finish();
-    }
-  );
+  ss.setBrowserState(JSON.stringify({ windows: [{ tabs: [{ url: "about:blank" }] }] }));
+  assertNumberOfTabs(1, "one tab left after setBrowserState()");
+  assertNumberOfPinnedTabs(0, "there are no pinned tabs");
+  is(gBrowser.tabs[0].linkedBrowser, linkedBrowser, "first tab's browser got re-used");
+
+  waitForExplicitFinish();
+  waitForSaveState(finish);
 }

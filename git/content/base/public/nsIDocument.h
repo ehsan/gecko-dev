@@ -1994,10 +1994,4 @@ nsINode::GetOwnerDocument() const
   return ownerDoc != this ? ownerDoc : nsnull;
 }
 
-inline nsINode*
-nsINode::OwnerDocAsNode() const
-{
-  return OwnerDoc();
-}
-
 #endif /* nsIDocument_h___ */

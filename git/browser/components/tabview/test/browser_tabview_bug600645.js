@@ -10,14 +10,15 @@ function test() {
   waitForExplicitFinish();
 
   newTab = gBrowser.addTab();
+  gBrowser.pinTab(newTab);
 
-  showTabView(function() {
-    whenAppTabIconAdded(onTabPinned);
-    gBrowser.pinTab(newTab);
-  })
+  window.addEventListener("tabviewshown", onTabViewWindowLoaded, false);
+  TabView.toggle();
 }
 
-function onTabPinned() {
+function onTabViewWindowLoaded() {
+  window.removeEventListener("tabviewshown", onTabViewWindowLoaded, false);
+
   let contentWindow = document.getElementById("tab-view").contentWindow;
   is(contentWindow.GroupItems.groupItems.length, 1, 
      "There is one group item on startup");
