@@ -278,7 +278,7 @@ MobileConnection::SelectNetworkAutomatically(nsIDOMDOMRequest** request)
 
 NS_IMETHODIMP
 MobileConnection::SendMMI(const nsAString& aMMIString,
-                          nsIDOMDOMRequest** aRequest)
+                          nsIDOMDOMRequest** request)
 {
   if (!CheckPermission("mobileconnection")) {
     return NS_OK;
@@ -288,11 +288,11 @@ MobileConnection::SendMMI(const nsAString& aMMIString,
     return NS_ERROR_FAILURE;
   }
 
-  return mProvider->SendMMI(GetOwner(), aMMIString, aRequest);
+  return mProvider->SendMMI(GetOwner(), aMMIString, request);
 }
 
 NS_IMETHODIMP
-MobileConnection::CancelMMI(nsIDOMDOMRequest** aRequest)
+MobileConnection::CancelMMI(nsIDOMDOMRequest** request)
 {
   if (!CheckPermission("mobileconnection")) {
     return NS_OK;
@@ -302,7 +302,7 @@ MobileConnection::CancelMMI(nsIDOMDOMRequest** aRequest)
     return NS_ERROR_FAILURE;
   }
 
-  return mProvider->CancelMMI(GetOwner(), aRequest);
+  return mProvider->CancelMMI(GetOwner(), request);
 }
 
 NS_IMETHODIMP

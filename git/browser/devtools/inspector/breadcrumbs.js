@@ -151,8 +151,13 @@ HTMLBreadcrumbs.prototype = {
       }
     }
 
-    for (let pseudo of aNode.pseudoClassLocks) {
-      text += pseudo;
+    // XXX: needs updating when pseudoclass-lock is remotable
+    let rawNode = aNode.rawNode();
+    for (let i = 0; i < PSEUDO_CLASSES.length; i++) {
+      let pseudo = PSEUDO_CLASSES[i];
+      if (DOMUtils.hasPseudoClassLock(rawNode, pseudo)) {
+        text += pseudo;
+      }
     }
 
     return text;
@@ -197,11 +202,12 @@ HTMLBreadcrumbs.prototype = {
     }
 
     // XXX: Until we have pseudoclass lock in the node.
-    for (let pseudo of aNode.pseudoClassLocks) {
+    let rawNode = aNode.rawNode();
 
-    }
-
-    pseudosLabel.textContent = aNode.pseudoClassLocks.join("");
+    let pseudos = PSEUDO_CLASSES.filter(function(pseudo) {
+      return DOMUtils.hasPseudoClassLock(rawNode, pseudo);
+    }, this);
+    pseudosLabel.textContent = pseudos.join("");
 
     fragment.appendChild(tagLabel);
     fragment.appendChild(idLabel);
@@ -347,6 +353,18 @@ HTMLBreadcrumbs.prototype = {
    */
   destroy: function BC_destroy()
   {
+    this.nodeHierarchy.forEach(function(crumb) {
+      // This node might have already been destroyed during
+      // shutdown.  Will clean this up when pseudo-class lock
+      // is ported to the walker.
+      if (crumb.node.actorID) {
+        let rawNode = crumb.node.rawNode();
+        if (LayoutHelpers.isNodeConnected(rawNode)) {
+          DOMUtils.clearPseudoClassLocks(rawNode);
+        }
+      }
+    });
+
     this.selection.off("new-node-front", this.update);
     this.selection.off("pseudoclass", this.updateSelectors);
     this.selection.off("attribute-changed", this.updateSelectors);
