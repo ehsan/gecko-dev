@@ -362,22 +362,18 @@ TabChild::Observe(nsISupports *aSubject,
     nsCOMPtr<nsIDocShell> docShell(do_QueryInterface(aSubject));
     nsCOMPtr<nsITabChild> tabChild(TabChild::GetFrom(docShell));
     if (tabChild == this) {
-      nsCOMPtr<nsIDocument> doc(GetDocument());
-      uint32_t presShellId;
-      ViewID viewId;
-      if (APZCCallbackHelper::GetScrollIdentifiers(doc->GetDocumentElement(),
-                                                    &presShellId, &viewId)) {
-        CSSRect rect;
-        sscanf(NS_ConvertUTF16toUTF8(aData).get(),
-               "{\"x\":%f,\"y\":%f,\"w\":%f,\"h\":%f}",
-               &rect.x, &rect.y, &rect.width, &rect.height);
-        SendZoomToRect(presShellId, viewId, rect);
-      }
+      CSSRect rect;
+      sscanf(NS_ConvertUTF16toUTF8(aData).get(),
+             "{\"x\":%f,\"y\":%f,\"w\":%f,\"h\":%f}",
+             &rect.x, &rect.y, &rect.width, &rect.height);
+      SendZoomToRect(rect);
     }
   } else if (!strcmp(aTopic, BEFORE_FIRST_PAINT)) {
     if (IsAsyncPanZoomEnabled()) {
       nsCOMPtr<nsIDocument> subject(do_QueryInterface(aSubject));
-      nsCOMPtr<nsIDocument> doc(GetDocument());
+      nsCOMPtr<nsIDOMDocument> domDoc;
+      mWebNav->GetDocument(getter_AddRefs(domDoc));
+      nsCOMPtr<nsIDocument> doc(do_QueryInterface(domDoc));
 
       if (SameCOMIdentity(subject, doc)) {
         nsCOMPtr<nsIDOMWindowUtils> utils(GetDOMWindowUtils());
@@ -537,17 +533,8 @@ TabChild::HandlePossibleViewportChange()
 
   nsCOMPtr<nsIDOMWindowUtils> utils(GetDOMWindowUtils());
 
-  uint32_t presShellId;
-  ViewID viewId;
-  if (!APZCCallbackHelper::GetScrollIdentifiers(document->GetDocumentElement(),
-                                                &presShellId, &viewId)) {
-    return;
-  }
-
   nsViewportInfo viewportInfo = nsContentUtils::GetViewportInfo(document, mInnerSize);
-  SendUpdateZoomConstraints(presShellId,
-                            viewId,
-                            viewportInfo.IsZoomAllowed(),
+  SendUpdateZoomConstraints(viewportInfo.IsZoomAllowed(),
                             viewportInfo.GetMinZoom(),
                             viewportInfo.GetMaxZoom());
 
@@ -1079,15 +1066,6 @@ TabChild::GetDOMWindowUtils()
   nsCOMPtr<nsPIDOMWindow> window = do_GetInterface(mWebNav);
   nsCOMPtr<nsIDOMWindowUtils> utils = do_GetInterface(window);
   return utils.forget();
-}
-
-already_AddRefed<nsIDocument>
-TabChild::GetDocument()
-{
-  nsCOMPtr<nsIDOMDocument> domDoc;
-  mWebNav->GetDocument(getter_AddRefs(domDoc));
-  nsCOMPtr<nsIDocument> doc(do_QueryInterface(domDoc));
-  return doc.forget();
 }
 
 static nsInterfaceHashtable<nsPtrHashKey<PContentDialogChild>, nsIDialogParamBlock>* gActiveDialogs;
@@ -1876,8 +1854,7 @@ TabChild::CancelTapTracking()
 }
 
 bool
-TabChild::RecvRealTouchEvent(const WidgetTouchEvent& aEvent,
-                             const ScrollableLayerGuid& aGuid)
+TabChild::RecvRealTouchEvent(const WidgetTouchEvent& aEvent)
 {
   WidgetTouchEvent localEvent(aEvent);
   nsEventStatus status = DispatchWidgetEvent(localEvent);
@@ -1887,7 +1864,7 @@ TabChild::RecvRealTouchEvent(const WidgetTouchEvent& aEvent,
     nsCOMPtr<nsPIDOMWindow> innerWindow = outerWindow->GetCurrentInnerWindow();
 
     if (innerWindow && innerWindow->HasTouchEventListeners()) {
-      SendContentReceivedTouch(aGuid, nsIPresShell::gPreventMouseEvents);
+      SendContentReceivedTouch(nsIPresShell::gPreventMouseEvents);
     }
   } else {
     UpdateTapState(aEvent, status);
@@ -1897,10 +1874,9 @@ TabChild::RecvRealTouchEvent(const WidgetTouchEvent& aEvent,
 }
 
 bool
-TabChild::RecvRealTouchMoveEvent(const WidgetTouchEvent& aEvent,
-                                 const ScrollableLayerGuid& aGuid)
+TabChild::RecvRealTouchMoveEvent(const WidgetTouchEvent& aEvent)
 {
-  return RecvRealTouchEvent(aEvent, aGuid);
+  return RecvRealTouchEvent(aEvent);
 }
 
 bool

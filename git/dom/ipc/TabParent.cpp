@@ -649,7 +649,7 @@ bool TabParent::SendRealMouseEvent(WidgetMouseEvent& event)
     return false;
   }
   WidgetMouseEvent e(event);
-  MaybeForwardEventToRenderFrame(event, nullptr, &e);
+  MaybeForwardEventToRenderFrame(event, &e);
   if (!MapEventCoordinatesForChildProcess(&e)) {
     return false;
   }
@@ -662,7 +662,7 @@ bool TabParent::SendMouseWheelEvent(WidgetWheelEvent& event)
     return false;
   }
   WidgetWheelEvent e(event);
-  MaybeForwardEventToRenderFrame(event, nullptr, &e);
+  MaybeForwardEventToRenderFrame(event, &e);
   if (!MapEventCoordinatesForChildProcess(&e)) {
     return false;
   }
@@ -675,7 +675,7 @@ bool TabParent::SendRealKeyEvent(WidgetKeyboardEvent& event)
     return false;
   }
   WidgetKeyboardEvent e(event);
-  MaybeForwardEventToRenderFrame(event, nullptr, &e);
+  MaybeForwardEventToRenderFrame(event, &e);
   if (!MapEventCoordinatesForChildProcess(&e)) {
     return false;
   }
@@ -720,14 +720,13 @@ bool TabParent::SendRealTouchEvent(WidgetTouchEvent& event)
     }
   }
 
-  ScrollableLayerGuid guid;
-  MaybeForwardEventToRenderFrame(event, &guid, &e);
+  MaybeForwardEventToRenderFrame(event, &e);
 
   MapEventCoordinatesForChildProcess(mChildProcessOffsetAtTouchStart, &e);
 
   return (e.message == NS_TOUCH_MOVE) ?
-    PBrowserParent::SendRealTouchMoveEvent(e, guid) :
-    PBrowserParent::SendRealTouchEvent(e, guid);
+    PBrowserParent::SendRealTouchMoveEvent(e) :
+    PBrowserParent::SendRealTouchEvent(e);
 }
 
 /*static*/ TabParent*
@@ -1577,11 +1576,10 @@ TabParent::UseAsyncPanZoom()
 
 void
 TabParent::MaybeForwardEventToRenderFrame(const WidgetInputEvent& aEvent,
-                                          ScrollableLayerGuid* aOutTargetGuid,
                                           WidgetInputEvent* aOutEvent)
 {
   if (RenderFrameParent* rfp = GetRenderFrame()) {
-    rfp->NotifyInputEvent(aEvent, aOutTargetGuid, aOutEvent);
+    rfp->NotifyInputEvent(aEvent, aOutEvent);
   }
 }
 
@@ -1615,25 +1613,21 @@ TabParent::RecvPRenderFrameConstructor(PRenderFrameParent* actor,
 }
 
 bool
-TabParent::RecvZoomToRect(const uint32_t& aPresShellId,
-                          const ViewID& aViewId,
-                          const CSSRect& aRect)
+TabParent::RecvZoomToRect(const CSSRect& aRect)
 {
   if (RenderFrameParent* rfp = GetRenderFrame()) {
-    rfp->ZoomToRect(aPresShellId, aViewId, aRect);
+    rfp->ZoomToRect(aRect);
   }
   return true;
 }
 
 bool
-TabParent::RecvUpdateZoomConstraints(const uint32_t& aPresShellId,
-                                     const ViewID& aViewId,
-                                     const bool& aAllowZoom,
+TabParent::RecvUpdateZoomConstraints(const bool& aAllowZoom,
                                      const CSSToScreenScale& aMinZoom,
                                      const CSSToScreenScale& aMaxZoom)
 {
   if (RenderFrameParent* rfp = GetRenderFrame()) {
-    rfp->UpdateZoomConstraints(aPresShellId, aViewId, aAllowZoom, aMinZoom, aMaxZoom);
+    rfp->UpdateZoomConstraints(aAllowZoom, aMinZoom, aMaxZoom);
   }
   return true;
 }
@@ -1650,11 +1644,10 @@ TabParent::RecvUpdateScrollOffset(const uint32_t& aPresShellId,
 }
 
 bool
-TabParent::RecvContentReceivedTouch(const ScrollableLayerGuid& aGuid,
-                                    const bool& aPreventDefault)
+TabParent::RecvContentReceivedTouch(const bool& aPreventDefault)
 {
   if (RenderFrameParent* rfp = GetRenderFrame()) {
-    rfp->ContentReceivedTouch(aGuid, aPreventDefault);
+    rfp->ContentReceivedTouch(aPreventDefault);
   }
   return true;
 }

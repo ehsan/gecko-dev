@@ -84,15 +84,6 @@ MessageChannel::~MessageChannel()
     Clear();
 }
 
-static void
-PrintErrorMessage(Side side, const char* channelName, const char* msg)
-{
-    const char *from = (side == ChildSide)
-                       ? "Child"
-                       : ((side == ParentSide) ? "Parent" : "Unknown");
-    printf_stderr("\n###!!! [%s][%s] Error: %s\n\n", from, channelName, msg);
-}
-
 bool
 MessageChannel::Connected() const
 {
@@ -222,10 +213,7 @@ MessageChannel::Echo(Message* aMsg)
     nsAutoPtr<Message> msg(aMsg);
     AssertWorkerThread();
     mMonitor->AssertNotCurrentThreadOwns();
-    if (MSG_ROUTING_NONE == msg->routing_id()) {
-        ReportMessageRouteError("MessageChannel::Echo");
-        return false;
-    }
+    IPC_ASSERT(MSG_ROUTING_NONE != msg->routing_id(), "need a route");
 
     MonitorAutoLock lock(*mMonitor);
 
@@ -247,10 +235,7 @@ MessageChannel::Send(Message* aMsg)
     nsAutoPtr<Message> msg(aMsg);
     AssertWorkerThread();
     mMonitor->AssertNotCurrentThreadOwns();
-    if (MSG_ROUTING_NONE == msg->routing_id()) {
-        ReportMessageRouteError("MessageChannel::Send");
-        return false;
-    }
+    IPC_ASSERT(MSG_ROUTING_NONE != msg->routing_id(), "need a route");
 
     MonitorAutoLock lock(*mMonitor);
     if (!Connected()) {
@@ -1269,11 +1254,14 @@ MessageChannel::DispatchOnChannelConnected(int32_t peer_pid)
         mListener->OnChannelConnected(peer_pid);
 }
 
-void
-MessageChannel::ReportMessageRouteError(const char* channelName) const
+
+static void
+PrintErrorMessage(Side side, const char* channelName, const char* msg)
 {
-    PrintErrorMessage(mSide, channelName, "Need a route");
-    mListener->OnProcessingError(MsgRouteError);
+    const char *from = (side == ChildSide)
+                       ? "Child"
+                       : ((side == ParentSide) ? "Parent" : "Unknown");
+    printf_stderr("\n###!!! [%s][%s] Error: %s\n\n", from, channelName, msg);
 }
 
 void

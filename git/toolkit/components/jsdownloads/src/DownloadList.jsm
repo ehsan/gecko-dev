@@ -48,13 +48,12 @@ XPCOMUtils.defineLazyModuleGetter(this, "Task",
  * Represents a collection of Download objects that can be viewed and managed by
  * the user interface, and persisted across sessions.
  */
-this.DownloadList = function ()
-{
+function DownloadList() {
   this._downloads = [];
   this._views = new Set();
 }
 
-this.DownloadList.prototype = {
+DownloadList.prototype = {
   /**
    * Array of Download objects currently in the list.
    */
@@ -270,7 +269,7 @@ this.DownloadList.prototype = {
  * @param aPrivateList
  *        Underlying DownloadList containing private downloads.
  */
-this.DownloadCombinedList = function (aPublicList, aPrivateList)
+function DownloadCombinedList(aPublicList, aPrivateList)
 {
   DownloadList.call(this);
   this._publicList = aPublicList;
@@ -279,7 +278,7 @@ this.DownloadCombinedList = function (aPublicList, aPrivateList)
   aPrivateList.addView(this).then(null, Cu.reportError);
 }
 
-this.DownloadCombinedList.prototype = {
+DownloadCombinedList.prototype = {
   __proto__: DownloadList.prototype,
 
   /**
@@ -372,13 +371,12 @@ this.DownloadCombinedList.prototype = {
 /**
  * Provides an aggregated view on the contents of a DownloadList.
  */
-this.DownloadSummary = function ()
-{
+function DownloadSummary() {
   this._downloads = [];
   this._views = new Set();
 }
 
-this.DownloadSummary.prototype = {
+DownloadSummary.prototype = {
   /**
    * Array of Download objects that are currently part of the summary.
    */

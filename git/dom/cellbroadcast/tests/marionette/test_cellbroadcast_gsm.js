@@ -476,6 +476,6 @@ function cleanUp() {
 }
 
 waitFor(testGsmMessageAttributes, function () {
-  return navigator.mozMobileConnections[0].voice.connected;
+  return navigator.mozMobileConnection.voice.connected;
 });
 

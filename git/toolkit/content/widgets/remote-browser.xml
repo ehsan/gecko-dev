@@ -45,8 +45,8 @@
             if (!this._remoteWebProgress) {
               let jsm = "resource://gre/modules/RemoteWebProgress.jsm";
               let RemoteWebProgressManager = Cu.import(jsm, {}).RemoteWebProgressManager;
-              this._remoteWebProgressManager = new RemoteWebProgressManager(this);
-              this._remoteWebProgress = this._remoteWebProgressManager.topLevelWebProgress;
+              this._remoteWebProgress = new RemoteWebProgressManager(this)
+                                         .topLevelWebProgress;
             }
             return this._remoteWebProgress;
       	  ]]>
@@ -67,19 +67,6 @@
       </property>
 
       <field name="_documentURI">null</field>
-
-      <!--
-        Used by session restore to ensure that currentURI is set so
-        that switch-to-tab works before the tab is fully
-        restored. This function also invokes onLocationChanged
-        listeners in tabbrowser.xml.
-      -->
-      <method name="_setCurrentURI">
-        <parameter name="aURI"/>
-        <body><![CDATA[
-          this._remoteWebProgressManager.setCurrentURI(aURI);
-        ]]></body>
-      </method>
 
       <property name="documentURI"
                 onget="return this._documentURI;"

@@ -53,7 +53,9 @@ function do_check_throws(func, result, stack)
 function wsp_test_func(func, data, expect) {
   let result_str = JSON.stringify(func(data));
   let expect_str = JSON.stringify(expect);
-  do_check_eq(result_str, expect_str);
+  if (result_str !== expect_str) {
+    do_throw("expect value: '" + expect_str + "', got '" + result_str + "'");
+  }
 }
 
 /**

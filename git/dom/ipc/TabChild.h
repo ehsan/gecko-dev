@@ -229,10 +229,8 @@ public:
     virtual bool RecvRealMouseEvent(const mozilla::WidgetMouseEvent& event);
     virtual bool RecvRealKeyEvent(const mozilla::WidgetKeyboardEvent& event);
     virtual bool RecvMouseWheelEvent(const mozilla::WidgetWheelEvent& event);
-    virtual bool RecvRealTouchEvent(const WidgetTouchEvent& aEvent,
-                                    const ScrollableLayerGuid& aGuid);
-    virtual bool RecvRealTouchMoveEvent(const WidgetTouchEvent& aEvent,
-                                        const ScrollableLayerGuid& aGuid);
+    virtual bool RecvRealTouchEvent(const WidgetTouchEvent& event);
+    virtual bool RecvRealTouchMoveEvent(const WidgetTouchEvent& event);
     virtual bool RecvKeyEvent(const nsString& aType,
                               const int32_t&  aKeyCode,
                               const int32_t&  aCharCode,
@@ -453,8 +451,6 @@ private:
 
     // Get the DOMWindowUtils for the top-level window in this tab.
     already_AddRefed<nsIDOMWindowUtils> GetDOMWindowUtils();
-    // Get the Document for the top-level window in this tab.
-    already_AddRefed<nsIDocument> GetDocument();
 
     class CachedFileDescriptorInfo;
     class CachedFileDescriptorCallbackRunnable;

@@ -20,21 +20,15 @@ TCPSocketParentIntermediary.prototype = {
 
     // Create handlers for every possible callback that attempt to trigger
     // corresponding callbacks on the child object.
-    // ondrain event is not forwarded, since the decision of firing ondrain
-    // is made in child.
-    ["open", "data", "error", "close"].forEach(
+    ["open", "drain", "data", "error", "close"].forEach(
       function(p) {
         socket["on" + p] = function(data) {
-          aParentSide.sendEvent(p, data.data, socket.readyState,
-                                socket.bufferedAmount);
+          aParentSide.sendCallback(p, data.data, socket.readyState,
+                                   socket.bufferedAmount);
         };
       }
     );
-  },
-
-  _onUpdateBufferedAmountHandler: function(aParentSide, aBufferedAmount, aTrackingNumber) {
-    aParentSide.sendUpdateBufferedAmount(aBufferedAmount, aTrackingNumber);
-  },
+ },
 
   open: function(aParentSide, aHost, aPort, aUseSSL, aBinaryType, aAppId) {
     let baseSocket = Cc["@mozilla.org/tcp-socket;1"].createInstance(Ci.nsIDOMTCPSocket);
@@ -46,10 +40,6 @@ TCPSocketParentIntermediary.prototype = {
     if (socketInternal) {
       socketInternal.setAppId(aAppId);
     }
-
-    // Handle parent's request to update buffered amount.
-    socketInternal.setOnUpdateBufferedAmountHandler(
-      this._onUpdateBufferedAmountHandler.bind(this, aParentSide));
 
     // Handlers are set to the JS-implemented socket object on the parent side.
     this._setCallbacks(aParentSide, socket);
@@ -89,15 +79,12 @@ TCPSocketParentIntermediary.prototype = {
     return serverSocket;
   },
 
-  onRecvSendString: function(aData, aTrackingNumber) {
-    let socketInternal = this._socket.QueryInterface(Ci.nsITCPSocketInternal);
-    return socketInternal.onRecvSendFromChild(aData, 0, 0, aTrackingNumber);
+  sendString: function(aData) {
+    return this._socket.send(aData);
   },
 
-  onRecvSendArrayBuffer: function(aData, aTrackingNumber) {
-    let socketInternal = this._socket.QueryInterface(Ci.nsITCPSocketInternal);
-    return socketInternal.onRecvSendFromChild(aData, 0, aData.byteLength,
-                                              aTrackingNumber);
+  sendArrayBuffer: function(aData) {
+    return this._socket.send(aData, 0, aData.byteLength);
   },
 
   classID: Components.ID("{afa42841-a6cb-4a91-912f-93099f6a3d18}"),

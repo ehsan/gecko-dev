@@ -328,12 +328,12 @@ nsXBLProtoImplAnonymousMethod::Execute(nsIContent* aBoundElement)
 
   // Now call the method
 
-  // Check whether script is enabled.
-  bool scriptAllowed = nsContentUtils::GetSecurityManager()->
-                         ScriptAllowed(js::GetGlobalForObjectCrossCompartment(method));
+  // Check whether it's OK to call the method.
+  rv = nsContentUtils::GetSecurityManager()->CheckFunctionAccess(cx, method,
+                                                                 thisObject);
 
   bool ok = true;
-  if (scriptAllowed) {
+  if (NS_SUCCEEDED(rv)) {
     JS::Rooted<JS::Value> retval(cx);
     ok = ::JS_CallFunctionValue(cx, thisObject, OBJECT_TO_JSVAL(method),
                                 0 /* argc */, nullptr /* argv */, retval.address());

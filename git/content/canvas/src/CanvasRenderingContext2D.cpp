@@ -1084,9 +1084,9 @@ CanvasRenderingContext2D::GetInputStream(const char *aMimeType,
                                          const PRUnichar *aEncoderOptions,
                                          nsIInputStream **aStream)
 {
-  nsAutoArrayPtr<uint8_t> imageBuffer;
+  uint8_t* imageBuffer = nullptr;
   int32_t format = 0;
-  GetImageBuffer(getter_Transfers(imageBuffer), &format);
+  GetImageBuffer(&imageBuffer, &format);
   if (!imageBuffer) {
     return NS_ERROR_FAILURE;
   }

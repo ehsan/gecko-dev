@@ -136,6 +136,7 @@ ImageResource::EvaluateAnimation()
     mAnimating = NS_SUCCEEDED(rv);
   } else if (mAnimating && !ShouldAnimate()) {
     StopAnimation();
+    mAnimating = false;
   }
 }
 

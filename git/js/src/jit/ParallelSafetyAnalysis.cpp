@@ -209,7 +209,6 @@ class ParallelSafetyVisitor : public MInstructionVisitor
     UNSAFE_OP(BindNameCache)
     SAFE_OP(GuardShape)
     SAFE_OP(GuardObjectType)
-    SAFE_OP(GuardObjectIdentity)
     SAFE_OP(GuardClass)
     SAFE_OP(AssertRange)
     SAFE_OP(ArrayLength)

@@ -23,7 +23,6 @@ using struct gfxMatrix from "gfxMatrix.h";
 using struct gfxSize from "gfxPoint.h";
 using CSSRect from "Units.h";
 using struct mozilla::layers::FrameMetrics from "FrameMetrics.h";
-using struct mozilla::layers::ScrollableLayerGuid from "FrameMetrics.h";
 using FrameMetrics::ViewID from "FrameMetrics.h";
 using mozilla::layout::ScrollingBehavior from "mozilla/layout/RenderFrameUtils.h";
 using struct mozilla::void_t from "ipc/IPCMessageUtils.h";
@@ -277,7 +276,7 @@ parent:
      * Instructs the TabParent to forward a request to zoom to a rect given in
      * CSS pixels. This rect is relative to the document.
      */
-    ZoomToRect(uint32_t aPresShellId, ViewID aViewId, CSSRect aRect);
+    ZoomToRect(CSSRect aRect);
 
     /**
      * We know for sure that content has either preventDefaulted or not
@@ -286,15 +285,13 @@ parent:
      * batched and only processed for panning and zooming if content does not
      * preventDefault.
      */
-    ContentReceivedTouch(ScrollableLayerGuid aGuid, bool aPreventDefault);
+    ContentReceivedTouch(bool aPreventDefault);
 
     /**
-     * Updates the zoom constraints for a scrollable frame in this tab.
-     * The zoom controller code lives on the parent side and so this allows it to
-     * have up-to-date zoom constraints.
+     * Updates any zoom constraints on the parent and anything tied to it. This
+     * is useful for control logic that resides outside of the remote browser.
      */
-    UpdateZoomConstraints(uint32_t aPresShellId, ViewID aViewId,
-                          bool aAllowZoom, CSSToScreenScale aMinZoom, CSSToScreenScale aMaxZoom);
+    UpdateZoomConstraints(bool aAllowZoom, CSSToScreenScale aMinZoom, CSSToScreenScale aMaxZoom);
 
     /**
      * Notifies the parent about a scroll event. The pres shell ID and
@@ -375,10 +372,10 @@ child:
     RealMouseEvent(WidgetMouseEvent event);
     RealKeyEvent(WidgetKeyboardEvent event);
     MouseWheelEvent(WidgetWheelEvent event);
-    RealTouchEvent(WidgetTouchEvent aEvent, ScrollableLayerGuid aGuid);
+    RealTouchEvent(WidgetTouchEvent event);
     // We use a separate message for touchmove events only to apply
     // compression to them.
-    RealTouchMoveEvent(WidgetTouchEvent aEvent, ScrollableLayerGuid aGuid) compress;
+    RealTouchMoveEvent(WidgetTouchEvent event) compress;
 
     /**
      * @see nsIDOMWindowUtils sendKeyEvent.

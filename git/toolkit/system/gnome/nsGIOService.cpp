@@ -12,10 +12,8 @@
 
 #include <gio/gio.h>
 #include <gtk/gtk.h>
-#ifdef MOZ_ENABLE_DBUS
 #include <dbus/dbus-glib.h>
 #include <dbus/dbus-glib-lowlevel.h>
-#endif
 
 
 char *
@@ -384,9 +382,6 @@ nsGIOService::ShowURIForInput(const nsACString& aUri)
 NS_IMETHODIMP
 nsGIOService::OrgFreedesktopFileManager1ShowItems(const nsACString& aPath)
 {
-#ifndef MOZ_ENABLE_DBUS
-  return NS_ERROR_FAILURE;
-#else
   GError* error = nullptr;
   static bool org_freedesktop_FileManager1_exists = true;
 
@@ -432,7 +427,6 @@ nsGIOService::OrgFreedesktopFileManager1ShowItems(const nsACString& aPath)
   }
 
   return NS_OK;
-#endif
 }
 
 /**

@@ -35,7 +35,7 @@ FireInteralError(mozilla::net::PTCPSocketParent* aActor, uint32_t aLineNo)
   mozilla::unused <<
       aActor->SendCallback(NS_LITERAL_STRING("onerror"),
                            TCPError(NS_LITERAL_STRING("InvalidStateError")),
-                           NS_LITERAL_STRING("connecting"));
+                           NS_LITERAL_STRING("connecting"), 0);
 }
 
 NS_IMPL_CYCLE_COLLECTION_2(TCPSocketParentBase, mSocket, mIntermediary)
@@ -156,8 +156,7 @@ TCPSocketParent::RecvResume()
 }
 
 bool
-TCPSocketParent::RecvData(const SendableData& aData,
-                          const uint32_t& aTrackingNumber)
+TCPSocketParent::RecvData(const SendableData& aData)
 {
   NS_ENSURE_TRUE(mIntermediary, true);
 
@@ -169,13 +168,13 @@ TCPSocketParent::RecvData(const SendableData& aData,
       JS::Rooted<JS::Value> val(cx);
       JS::Rooted<JSObject*> obj(cx, mIntermediaryObj);
       IPC::DeserializeArrayBuffer(obj, aData.get_ArrayOfuint8_t(), &val);
-      rv = mIntermediary->OnRecvSendArrayBuffer(val, aTrackingNumber);
+      rv = mIntermediary->SendArrayBuffer(val);
       NS_ENSURE_SUCCESS(rv, true);
       break;
     }
 
     case SendableData::TnsString:
-      rv = mIntermediary->OnRecvSendString(aData.get_nsString(), aTrackingNumber);
+      rv = mIntermediary->SendString(aData.get_nsString());
       NS_ENSURE_SUCCESS(rv, true);
       break;
 
@@ -195,8 +194,9 @@ TCPSocketParent::RecvClose()
 }
 
 NS_IMETHODIMP
-TCPSocketParent::SendEvent(const nsAString& aType, const JS::Value& aDataVal,
-                           const nsAString& aReadyState, JSContext* aCx)
+TCPSocketParent::SendCallback(const nsAString& aType, const JS::Value& aDataVal,
+                              const nsAString& aReadyState, uint32_t aBuffered,
+                              JSContext* aCx)
 {
   if (!mIPCOpen) {
     NS_WARNING("Dropping callback due to no IPC connection");
@@ -255,7 +255,7 @@ TCPSocketParent::SendEvent(const nsAString& aType, const JS::Value& aDataVal,
   }
   mozilla::unused <<
       PTCPSocketParent::SendCallback(nsString(aType), data,
-                                     nsString(aReadyState));
+                                     nsString(aReadyState), aBuffered);
   return NS_OK;
 }
 
@@ -266,15 +266,6 @@ TCPSocketParent::SetSocketAndIntermediary(nsIDOMTCPSocket *socket,
 {
   mSocket = socket;
   mIntermediary = intermediary;
-  return NS_OK;
-}
-
-NS_IMETHODIMP
-TCPSocketParent::SendUpdateBufferedAmount(uint32_t aBufferedAmount,
-                                          uint32_t aTrackingNumber)
-{
-  mozilla::unused << PTCPSocketParent::SendUpdateBufferedAmount(aBufferedAmount,
-                                                                aTrackingNumber);
   return NS_OK;
 }
 

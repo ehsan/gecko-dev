@@ -1436,13 +1436,12 @@ RasterImage::StartAnimation()
   EnsureAnimExists();
 
   imgFrame* currentFrame = GetCurrentImgFrame();
-  // A timeout of -1 means we should display this frame forever.
-  if (currentFrame && currentFrame->GetTimeout() < 0) {
-    mAnimationFinished = true;
-    return NS_ERROR_ABORT;
-  }
+  if (currentFrame) {
+    if (currentFrame->GetTimeout() < 0) { // -1 means display this frame forever
+      mAnimationFinished = true;
+      return NS_ERROR_ABORT;
+    }
 
-  if (mAnim) {
     // We need to set the time that this initial frame was first displayed, as
     // this is used in AdvanceFrame().
     mAnim->InitAnimationFrameTimeIfNecessary();
@@ -1458,15 +1457,12 @@ RasterImage::StopAnimation()
 {
   NS_ABORT_IF_FALSE(mAnimating, "Should be animating!");
 
-  nsresult rv = NS_OK;
-  if (mError) {
-    rv = NS_ERROR_FAILURE;
-  } else {
-    mAnim->SetAnimationFrameTime(TimeStamp());
-  }
+  if (mError)
+    return NS_ERROR_FAILURE;
 
-  mAnimating = false;
-  return rv;
+  mAnim->SetAnimationFrameTime(TimeStamp());
+
+  return NS_OK;
 }
 
 //******************************************************************************
@@ -1487,7 +1483,9 @@ RasterImage::ResetAnimation()
     StopAnimation();
 
   mFrameBlender.ResetAnimation();
-  mAnim->ResetAnimation();
+  if (mAnim) {
+    mAnim->ResetAnimation();
+  }
 
   UpdateImageContainer();
 
@@ -1500,9 +1498,13 @@ RasterImage::ResetAnimation()
     mStatusTracker->FrameChanged(&rect);
   }
 
-  // Start the animation again. It may not have been running before, if
-  // mAnimationFinished was true before entering this function.
-  EvaluateAnimation();
+  if (ShouldAnimate()) {
+    StartAnimation();
+    // The animation may not have been running before, if mAnimationFinished
+    // was false (before we changed it to true in this function). So, mark the
+    // animation as running.
+    mAnimating = true;
+  }
 
   return NS_OK;
 }
@@ -1571,8 +1573,10 @@ RasterImage::AddSourceData(const char *aBuffer, uint32_t aCount)
   // so that there's no gap for anything to miss us.
   if (mMultipart && mBytesDecoded == 0) {
     // Our previous state may have been animated, so let's clean up
-    if (mAnimating)
+    if (mAnimating) {
       StopAnimation();
+      mAnimating = false;
+    }
     mAnimationFinished = false;
     if (mAnim) {
       delete mAnim;

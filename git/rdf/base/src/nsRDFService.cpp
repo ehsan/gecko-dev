@@ -55,6 +55,7 @@
 #include "rdf.h"
 #include "nsCRT.h"
 #include "nsCRTGlue.h"
+#include "prbit.h"
 #include "mozilla/HashFunctions.h"
 
 using namespace mozilla;
