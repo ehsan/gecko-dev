@@ -1402,11 +1402,8 @@ nsXULPopupManager::GetVisiblePopups()
 
   item = mNoHidePanels;
   while (item) {
-    // skip panels which are not open and visible as well as draggable popups,
-    // as those don't respond to events.
-    if (item->Frame()->PopupState() == ePopupOpenAndVisible && !item->Frame()->IsDragPopup()) {
+    if (item->Frame()->PopupState() == ePopupOpenAndVisible)
       popups.AppendElement(static_cast<nsIFrame*>(item->Frame()));
-    }
     item = item->GetParent();
   }
 

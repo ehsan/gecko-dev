@@ -146,7 +146,6 @@ struct nsWidgetInitData {
   PRPackedBool  mUnicode;
   PRPackedBool  mRTL;
   PRPackedBool  mNoAutoHide; // true for noautohide panels
-  PRPackedBool  mIsDragPopup;  // true for drag feedback panels
 };
 
 #endif // nsWidgetInitData_h__

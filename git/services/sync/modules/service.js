@@ -1577,7 +1577,7 @@ WeaveSvc.prototype = {
     }
 
     // Any remaining engines were either enabled locally or disabled remotely.
-    for each (let engineName in enabled) {
+    for each (engineName in enabled) {
       let engine = Engines.get(engineName);
       if (Svc.Prefs.get("engineStatusChanged." + engine.prefName, false)) {
         this._log.trace("The " + engineName + " engine was enabled locally.");

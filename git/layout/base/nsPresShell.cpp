@@ -4813,6 +4813,16 @@ PresShell::FlushPendingNotifications(mozFlushType aType)
       if (rootPresContext) {
         rootPresContext->UpdatePluginGeometry();
       }
+#ifdef DEBUG
+      if (!mIsDestroying) {
+        nsIView* rootView = mViewManager->GetRootView();
+        if (rootView) {
+          nsRect bounds = rootView->GetBounds();
+          NS_ASSERTION(bounds.Size() == mPresContext->GetVisibleArea().Size(),
+                       "root view / pres context visible size mismatch");
+        }
+      }
+#endif
     }
 
     PRUint32 updateFlags = NS_VMREFRESH_NO_SYNC;
@@ -6082,6 +6092,21 @@ PresShell::ProcessSynthMouseMoveEvent(PRBool aFromScroll)
   }
 }
 
+static void DrawThebesLayer(ThebesLayer* aLayer,
+                            gfxContext* aContext,
+                            const nsIntRegion& aRegionToDraw,
+                            const nsIntRegion& aRegionToInvalidate,
+                            void* aCallbackData)
+{
+  PaintParams* params = static_cast<PaintParams*>(aCallbackData);
+  aContext->NewPath();
+  aContext->SetColor(gfxRGBA(params->mBackgroundColor));
+  nsIntRect dirtyRect = aRegionToDraw.GetBounds();
+  aContext->Rectangle(
+    gfxRect(dirtyRect.x, dirtyRect.y, dirtyRect.width, dirtyRect.height));
+  aContext->Fill();
+}
+
 NS_IMETHODIMP
 PresShell::Paint(nsIView*           aViewToPaint,
                  nsIWidget*         aWidgetToPaint,
@@ -6128,9 +6153,11 @@ PresShell::Paint(nsIView*           aViewToPaint,
       if (layerManager->EndEmptyTransaction()) {
         frame->UpdatePaintCountForPaintedPresShells();
         presContext->NotifyDidPaintForSubtree();
+        
         return NS_OK;
       }
     }
+    
 
     frame->RemoveStateBits(NS_FRAME_UPDATE_LAYER_TREE);
   }
@@ -6160,17 +6187,14 @@ PresShell::Paint(nsIView*           aViewToPaint,
     return NS_OK;
   }
 
-  nsRefPtr<ColorLayer> root = layerManager->CreateColorLayer();
+  nsRefPtr<ThebesLayer> root = layerManager->CreateThebesLayer();
   if (root) {
-    nsPresContext* pc = GetPresContext();
-    nsIntRect bounds =
-      pc->GetVisibleArea().ToOutsidePixels(pc->AppUnitsPerDevPixel());
-    bgcolor = NS_ComposeColors(bgcolor, mCanvasBackgroundColor);
-    root->SetColor(bgcolor);
-    root->SetVisibleRegion(bounds);
+    root->SetVisibleRegion(aIntDirtyRegion);
     layerManager->SetRoot(root);
   }
-  layerManager->EndTransaction(NULL, NULL);
+  bgcolor = NS_ComposeColors(bgcolor, mCanvasBackgroundColor);
+  PaintParams params = { bgcolor };
+  layerManager->EndTransaction(DrawThebesLayer, &params);
 
   presContext->NotifyDidPaintForSubtree();
   return NS_OK;
