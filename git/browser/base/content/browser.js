@@ -2353,11 +2353,7 @@ let BrowserOnClick = {
           }
         }
         else { // It's a phishing site, not malware
-          try {
-            content.location = formatURL("browser.safebrowsing.warning.infoURL", true);
-          } catch (e) {
-            Components.utils.reportError("Couldn't get phishing info URL: " + e);
-          }
+          openHelpLink("phishing-malware", false, "current");
         }
         break;
 
