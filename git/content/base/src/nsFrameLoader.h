@@ -459,9 +459,6 @@ private:
   // See nsIFrameLoader.idl. EVENT_MODE_NORMAL_DISPATCH automatically
   // forwards some input events to out-of-process content.
   uint32_t mEventMode;
-
-  // Indicate if we have sent 'remote-browser-frame-pending'.
-  bool mPendingFrameSent;
 };
 
 #endif

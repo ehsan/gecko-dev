@@ -65,7 +65,7 @@ BrowserElementParentFactory.prototype = {
     // alive for as long as its frame element lives.
     this._bepMap = new WeakMap();
 
-    Services.obs.addObserver(this, 'remote-browser-frame-pending', /* ownsWeak = */ true);
+    Services.obs.addObserver(this, 'remote-browser-frame-shown', /* ownsWeak = */ true);
     Services.obs.addObserver(this, 'in-process-browser-or-app-frame-shown', /* ownsWeak = */ true);
   },
 
@@ -80,22 +80,17 @@ BrowserElementParentFactory.prototype = {
 
   _observeInProcessBrowserFrameShown: function(frameLoader) {
     debug("In-process browser frame shown " + frameLoader);
-    this._createBrowserElementParent(frameLoader,
-                                     /* hasRemoteFrame = */ false,
-                                     /* pending frame */ false);
+    this._createBrowserElementParent(frameLoader, /* hasRemoteFrame = */ false);
   },
 
-  _observeRemoteBrowserFramePending: function(frameLoader) {
+  _observeRemoteBrowserFrameShown: function(frameLoader) {
     debug("Remote browser frame shown " + frameLoader);
-    this._createBrowserElementParent(frameLoader,
-                                     /* hasRemoteFrame = */ true,
-                                     /* pending frame */ true);
+    this._createBrowserElementParent(frameLoader, /* hasRemoteFrame = */ true);
   },
 
-  _createBrowserElementParent: function(frameLoader, hasRemoteFrame, isPendingFrame) {
+  _createBrowserElementParent: function(frameLoader, hasRemoteFrame) {
     let frameElement = frameLoader.QueryInterface(Ci.nsIFrameLoader).ownerElement;
-    this._bepMap.set(frameElement, BrowserElementParentBuilder.create(
-      frameLoader, hasRemoteFrame, isPendingFrame));
+    this._bepMap.set(frameElement, BrowserElementParentBuilder.create(frameLoader, hasRemoteFrame));
   },
 
   observe: function(subject, topic, data) {
@@ -108,8 +103,8 @@ BrowserElementParentFactory.prototype = {
         this._init();
       }
       break;
-    case 'remote-browser-frame-pending':
-      this._observeRemoteBrowserFramePending(subject);
+    case 'remote-browser-frame-shown':
+      this._observeRemoteBrowserFrameShown(subject);
       break;
     case 'in-process-browser-or-app-frame-shown':
       this._observeInProcessBrowserFrameShown(subject);
