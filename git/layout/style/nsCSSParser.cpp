@@ -90,7 +90,7 @@
 #define VARIANT_KEYWORD         0x000001  // K
 #define VARIANT_LENGTH          0x000002  // L
 #define VARIANT_PERCENT         0x000004  // P
-#define VARIANT_COLOR           0x000008  // C eCSSUnit_Color, eCSSUnit_Ident (e.g.  "red")
+#define VARIANT_COLOR           0x000008  // C eCSSUnit_Color, eCSSUnit_String (e.g.  "red")
 #define VARIANT_URL             0x000010  // U
 #define VARIANT_NUMBER          0x000020  // N
 #define VARIANT_INTEGER         0x000040  // I
@@ -490,12 +490,9 @@ protected:
   PRBool ParseVariant(nsCSSValue& aValue,
                       PRInt32 aVariantMask,
                       const PRInt32 aKeywordTable[]);
-  PRBool ParseNonNegativeVariant(nsCSSValue& aValue,
-                                 PRInt32 aVariantMask,
-                                 const PRInt32 aKeywordTable[]);
-  PRBool ParsePositiveNonZeroVariant(nsCSSValue& aValue,
-                                     PRInt32 aVariantMask,
-                                     const PRInt32 aKeywordTable[]);
+  PRBool ParsePositiveVariant(nsCSSValue& aValue,
+                              PRInt32 aVariantMask,
+                              const PRInt32 aKeywordTable[]);
   PRBool ParseCounter(nsCSSValue& aValue);
   PRBool ParseAttr(nsCSSValue& aValue);
   PRBool ParseURL(nsCSSValue& aValue);
@@ -1173,7 +1170,7 @@ CSSParserImpl::ParseColorString(const nsSubstring& aBuffer,
     return NS_FAILED(rv) ? rv : NS_ERROR_FAILURE;
   }
 
-  if (value.GetUnit() == eCSSUnit_Ident) {
+  if (value.GetUnit() == eCSSUnit_String) {
     nscolor rgba;
     if (NS_ColorNameToRGB(nsDependentString(value.GetStringBufferValue()), &rgba)) {
       (*aColor) = rgba;
@@ -1718,11 +1715,11 @@ CSSParserImpl::ParseMediaQueryExpression(nsMediaQuery* aQuery)
   PRBool rv;
   switch (feature->mValueType) {
     case nsMediaFeature::eLength:
-      rv = ParseNonNegativeVariant(expr->mValue, VARIANT_LENGTH, nsnull);
+      rv = ParsePositiveVariant(expr->mValue, VARIANT_LENGTH, nsnull);
       break;
     case nsMediaFeature::eInteger:
     case nsMediaFeature::eBoolInteger:
-      rv = ParseNonNegativeVariant(expr->mValue, VARIANT_INTEGER, nsnull);
+      rv = ParsePositiveVariant(expr->mValue, VARIANT_INTEGER, nsnull);
       // Enforce extra restrictions for eBoolInteger
       if (rv &&
           feature->mValueType == nsMediaFeature::eBoolInteger &&
@@ -1740,7 +1737,7 @@ CSSParserImpl::ParseMediaQueryExpression(nsMediaQuery* aQuery)
           return PR_FALSE;
         }
         expr->mValue.SetArrayValue(a, eCSSUnit_Array);
-        // We don't bother with ParseNonNegativeVariant since we have to
+        // We don't bother with ParsePositiveVariant since we have to
         // check for != 0 as well; no need to worry about the UngetToken
         // since we're throwing out up to the next ')' anyway.
         rv = ParseVariant(a->Item(0), VARIANT_INTEGER, nsnull) &&
@@ -3544,7 +3541,7 @@ CSSParserImpl::ParseColor(nsCSSValue& aValue)
 
     case eCSSToken_Ident:
       if (NS_ColorNameToRGB(tk->mIdent, &rgba)) {
-        aValue.SetStringValue(tk->mIdent, eCSSUnit_Ident);
+        aValue.SetStringValue(tk->mIdent, eCSSUnit_String);
         return PR_TRUE;
       }
       else {
@@ -4298,34 +4295,11 @@ CSSParserImpl::TranslateDimension(nsCSSValue& aValue,
   return PR_FALSE;
 }
 
-#define VARIANT_ALL_NONNUMERIC \
-  VARIANT_KEYWORD | \
-  VARIANT_COLOR | \
-  VARIANT_URL | \
-  VARIANT_STRING | \
-  VARIANT_COUNTER | \
-  VARIANT_ATTR | \
-  VARIANT_IDENTIFIER | \
-  VARIANT_AUTO | \
-  VARIANT_INHERIT | \
-  VARIANT_NONE | \
-  VARIANT_NORMAL | \
-  VARIANT_SYSFONT
-
 PRBool
-CSSParserImpl::ParseNonNegativeVariant(nsCSSValue& aValue,
-                                       PRInt32 aVariantMask,
-                                       const PRInt32 aKeywordTable[])
+CSSParserImpl::ParsePositiveVariant(nsCSSValue& aValue,
+                                    PRInt32 aVariantMask,
+                                    const PRInt32 aKeywordTable[])
 {
-  // The variant mask must only contain non-numeric variants or the ones
-  // that we specifically handle.
-  NS_ABORT_IF_FALSE((aVariantMask & ~(VARIANT_ALL_NONNUMERIC |
-                                      VARIANT_NUMBER |
-                                      VARIANT_LENGTH |
-                                      VARIANT_PERCENT |
-                                      VARIANT_INTEGER)) == 0,
-                    "need to update code below to handle additional variants");
-
   if (ParseVariant(aValue, aVariantMask, aKeywordTable)) {
     if (eCSSUnit_Number == aValue.GetUnit() ||
         aValue.IsLengthUnit()){
@@ -4341,29 +4315,6 @@ CSSParserImpl::ParseNonNegativeVariant(nsCSSValue& aValue,
       }
     } else if (aValue.GetUnit() == eCSSUnit_Integer) {
       if (aValue.GetIntValue() < 0) {
-        UngetToken();
-        return PR_FALSE;
-      }
-    }
-    return PR_TRUE;
-  }
-  return PR_FALSE;
-}
-
-PRBool
-CSSParserImpl::ParsePositiveNonZeroVariant(nsCSSValue& aValue,
-                                           PRInt32 aVariantMask,
-                                           const PRInt32 aKeywordTable[])
-{
-  // The variant mask must only contain non-numeric variants or the ones
-  // that we specifically handle.
-  NS_ABORT_IF_FALSE((aVariantMask & ~(VARIANT_ALL_NONNUMERIC |
-                                      VARIANT_INTEGER)) == 0,
-                    "need to update code below to handle additional variants");
-
-  if (ParseVariant(aValue, aVariantMask, aKeywordTable)) {
-    if (aValue.GetUnit() == eCSSUnit_Integer) {
-      if (aValue.GetIntValue() <= 0) {
         UngetToken();
         return PR_FALSE;
       }
@@ -4514,13 +4465,15 @@ CSSParserImpl::ParseVariant(nsCSSValue& aValue,
   if (((aVariantMask & VARIANT_STRING) != 0) &&
       (eCSSToken_String == tk->mType)) {
     nsAutoString  buffer;
+    buffer.Append(tk->mSymbol);
     buffer.Append(tk->mIdent);
+    buffer.Append(tk->mSymbol);
     aValue.SetStringValue(buffer, eCSSUnit_String);
     return PR_TRUE;
   }
   if (((aVariantMask & VARIANT_IDENTIFIER) != 0) &&
       (eCSSToken_Ident == tk->mType)) {
-    aValue.SetStringValue(tk->mIdent, eCSSUnit_Ident);
+    aValue.SetStringValue(tk->mIdent, eCSSUnit_String);
     return PR_TRUE;
   }
   if (((aVariantMask & VARIANT_COUNTER) != 0) &&
@@ -4562,7 +4515,7 @@ CSSParserImpl::ParseCounter(nsCSSValue& aValue)
     return PR_FALSE;
   }
 
-  val->Item(0).SetStringValue(mToken.mIdent, eCSSUnit_Ident);
+  val->Item(0).SetStringValue(mToken.mIdent, eCSSUnit_String);
 
   if (eCSSUnit_Counters == unit) {
     // get mandatory separator string
@@ -4597,11 +4550,7 @@ CSSParserImpl::ParseCounter(nsCSSValue& aValue)
     }
   }
   PRInt32 typeItem = eCSSUnit_Counters == unit ? 2 : 1;
-  if (type == NS_STYLE_LIST_STYLE_NONE) {
-    val->Item(typeItem).SetNoneValue();
-  } else {
-    val->Item(typeItem).SetIntValue(type, eCSSUnit_Enumerated);
-  }
+  val->Item(typeItem).SetIntValue(type, eCSSUnit_Enumerated);
 
   if (!ExpectSymbol(')', PR_TRUE)) {
     SkipUntil(')');
@@ -4885,12 +4834,12 @@ CSSParserImpl::ParseBoxCornerRadius(nsCSSProperty aPropID)
 {
   nsCSSValue dimenX, dimenY;
   // required first value
-  if (! ParseNonNegativeVariant(dimenX, VARIANT_HLP, nsnull))
+  if (! ParsePositiveVariant(dimenX, VARIANT_HLP, nsnull))
     return PR_FALSE;
   // optional second value (forbidden if first value is inherit/initial)
   if (dimenX.GetUnit() == eCSSUnit_Inherit ||
       dimenX.GetUnit() == eCSSUnit_Initial ||
-      ! ParseNonNegativeVariant(dimenY, VARIANT_LP, nsnull))
+      ! ParsePositiveVariant(dimenY, VARIANT_LP, nsnull))
     dimenY = dimenX;
 
   NS_ASSERTION(nsCSSProps::kTypeTable[aPropID] == eCSSType_ValuePair,
@@ -4916,8 +4865,8 @@ CSSParserImpl::ParseBoxCornerRadii(nsCSSCornerSizes& aRadii,
   PRInt32 countX = 0, countY = 0;
 
   NS_FOR_CSS_SIDES (side) {
-    if (! ParseNonNegativeVariant(dimenX.*nsCSSRect::sides[side],
-                                  side > 0 ? VARIANT_LP : VARIANT_HLP, nsnull))
+    if (! ParsePositiveVariant(dimenX.*nsCSSRect::sides[side],
+                               side > 0 ? VARIANT_LP : VARIANT_HLP, nsnull))
       break;
     countX++;
   }
@@ -4926,8 +4875,8 @@ CSSParserImpl::ParseBoxCornerRadii(nsCSSCornerSizes& aRadii,
 
   if (ExpectSymbol('/', PR_TRUE)) {
     NS_FOR_CSS_SIDES (side) {
-      if (! ParseNonNegativeVariant(dimenY.*nsCSSRect::sides[side],
-                                    VARIANT_LP, nsnull))
+      if (! ParsePositiveVariant(dimenY.*nsCSSRect::sides[side],
+                                 VARIANT_LP, nsnull))
         break;
       countY++;
     }
@@ -5438,16 +5387,20 @@ CSSParserImpl::ParseSingleValueProperty(nsCSSValue& aValue,
   case eCSSProperty_border_start_width_value: // for internal use
   case eCSSProperty_border_top_width:
   case eCSSProperty__moz_column_rule_width:
-    return ParseNonNegativeVariant(aValue, VARIANT_HKL,
-                                   nsCSSProps::kBorderWidthKTable);
+    return ParsePositiveVariant(aValue, VARIANT_HKL,
+                                nsCSSProps::kBorderWidthKTable);
   case eCSSProperty__moz_column_count:
-    // Need to reject 0 in addition to negatives.  If we accept 0, we
-    // need to change NS_STYLE_COLUMN_COUNT_AUTO to something else.
-    return ParsePositiveNonZeroVariant(aValue, VARIANT_AHI, nsnull);
+    // Need to reject 0 in addition to negatives, so don't bother with
+    // ParsePositiveVariant.  If we accept 0, we need to change
+    // NS_STYLE_COLUMN_COUNT_AUTO to something else.
+    return ParseVariant(aValue, VARIANT_AHI, nsnull) &&
+           (aValue.GetUnit() != eCSSUnit_Integer ||
+            aValue.GetIntValue() > 0 ||
+            (UngetToken(), PR_FALSE));
   case eCSSProperty__moz_column_width:
-    return ParseNonNegativeVariant(aValue, VARIANT_AHL, nsnull);
+    return ParsePositiveVariant(aValue, VARIANT_AHL, nsnull);
   case eCSSProperty__moz_column_gap:
-    return ParseNonNegativeVariant(aValue, VARIANT_HL | VARIANT_NORMAL, nsnull);
+    return ParsePositiveVariant(aValue, VARIANT_HL | VARIANT_NORMAL, nsnull);
   case eCSSProperty_bottom:
   case eCSSProperty_top:
   case eCSSProperty_left:
@@ -5460,7 +5413,7 @@ CSSParserImpl::ParseSingleValueProperty(nsCSSValue& aValue,
     return ParseVariant(aValue, VARIANT_HK,
                         nsCSSProps::kBoxDirectionKTable);
   case eCSSProperty_box_flex:
-    return ParseNonNegativeVariant(aValue, VARIANT_HN, nsnull);
+    return ParsePositiveVariant(aValue, VARIANT_HN, nsnull);
   case eCSSProperty_box_orient:
     return ParseVariant(aValue, VARIANT_HK,
                         nsCSSProps::kBoxOrientKTable);
@@ -5468,7 +5421,7 @@ CSSParserImpl::ParseSingleValueProperty(nsCSSValue& aValue,
     return ParseVariant(aValue, VARIANT_HK,
                         nsCSSProps::kBoxPackKTable);
   case eCSSProperty_box_ordinal_group:
-    return ParseNonNegativeVariant(aValue, VARIANT_HI, nsnull);
+    return ParsePositiveVariant(aValue, VARIANT_HI, nsnull);
 #ifdef MOZ_SVG
   case eCSSProperty_clip_path:
     return ParseVariant(aValue, VARIANT_HUO, nsnull);
@@ -5532,7 +5485,8 @@ CSSParserImpl::ParseSingleValueProperty(nsCSSValue& aValue,
     return ParseVariant(aValue, VARIANT_HN,
                         nsnull);
   case eCSSProperty_stroke_width:
-    return ParseNonNegativeVariant(aValue, VARIANT_HLPN, nsnull);
+    return ParsePositiveVariant(aValue, VARIANT_HLPN,
+                        nsnull);
   case eCSSProperty_text_anchor:
     return ParseVariant(aValue, VARIANT_HK,
                         nsCSSProps::kTextAnchorKTable);
@@ -5544,12 +5498,12 @@ CSSParserImpl::ParseSingleValueProperty(nsCSSValue& aValue,
     return ParseVariant(aValue, VARIANT_HK,
                         nsCSSProps::kBoxSizingKTable);
   case eCSSProperty_height:
-    return ParseNonNegativeVariant(aValue, VARIANT_AHLP, nsnull);
+    return ParsePositiveVariant(aValue, VARIANT_AHLP, nsnull);
   case eCSSProperty_width:
-    return ParseNonNegativeVariant(aValue, VARIANT_AHKLP,
-                                   nsCSSProps::kWidthKTable);
+    return ParsePositiveVariant(aValue, VARIANT_AHKLP,
+                                nsCSSProps::kWidthKTable);
   case eCSSProperty_force_broken_image_icon:
-    return ParseNonNegativeVariant(aValue, VARIANT_HI, nsnull);
+    return ParsePositiveVariant(aValue, VARIANT_HI, nsnull);
   case eCSSProperty_caption_side:
     return ParseVariant(aValue, VARIANT_HK,
                         nsCSSProps::kCaptionSideKTable);
@@ -5592,9 +5546,9 @@ CSSParserImpl::ParseSingleValueProperty(nsCSSValue& aValue,
   case eCSSProperty_font_family:
     return ParseFamily(aValue);
   case eCSSProperty_font_size:
-    return ParseNonNegativeVariant(aValue,
-                                   VARIANT_HKLP | VARIANT_SYSFONT,
-                                   nsCSSProps::kFontSizeKTable);
+    return ParsePositiveVariant(aValue,
+                                VARIANT_HKLP | VARIANT_SYSFONT,
+                                nsCSSProps::kFontSizeKTable);
   case eCSSProperty_font_size_adjust:
     return ParseVariant(aValue, VARIANT_HON | VARIANT_SYSFONT,
                         nsnull);
@@ -5616,7 +5570,7 @@ CSSParserImpl::ParseSingleValueProperty(nsCSSValue& aValue,
   case eCSSProperty_word_spacing:
     return ParseVariant(aValue, VARIANT_HL | VARIANT_NORMAL, nsnull);
   case eCSSProperty_line_height:
-    return ParseNonNegativeVariant(aValue, VARIANT_HLPN | VARIANT_NORMAL | VARIANT_SYSFONT, nsnull);
+    return ParsePositiveVariant(aValue, VARIANT_HLPN | VARIANT_NORMAL | VARIANT_SYSFONT, nsnull);
   case eCSSProperty_list_style_image:
     return ParseVariant(aValue, VARIANT_HUO, nsnull);
   case eCSSProperty_list_style_position:
@@ -5635,20 +5589,20 @@ CSSParserImpl::ParseSingleValueProperty(nsCSSValue& aValue,
   case eCSSProperty_marks:
     return ParseMarks(aValue);
   case eCSSProperty_max_height:
-    return ParseNonNegativeVariant(aValue, VARIANT_HLPO, nsnull);
+    return ParsePositiveVariant(aValue, VARIANT_HLPO, nsnull);
   case eCSSProperty_max_width:
-    return ParseNonNegativeVariant(aValue, VARIANT_HKLPO,
-                                   nsCSSProps::kWidthKTable);
+    return ParsePositiveVariant(aValue, VARIANT_HKLPO,
+                                nsCSSProps::kWidthKTable);
   case eCSSProperty_min_height:
-    return ParseNonNegativeVariant(aValue, VARIANT_HLP, nsnull);
+    return ParsePositiveVariant(aValue, VARIANT_HLP, nsnull);
   case eCSSProperty_min_width:
-    return ParseNonNegativeVariant(aValue, VARIANT_HKLP,
-                                   nsCSSProps::kWidthKTable);
+    return ParsePositiveVariant(aValue, VARIANT_HKLP,
+                                nsCSSProps::kWidthKTable);
   case eCSSProperty_opacity:
     return ParseVariant(aValue, VARIANT_HN, nsnull);
   case eCSSProperty_orphans:
   case eCSSProperty_widows:
-    return ParsePositiveNonZeroVariant(aValue, VARIANT_HI, nsnull);
+    return ParseVariant(aValue, VARIANT_HI, nsnull);
   case eCSSProperty_outline_color:
     return ParseVariant(aValue, VARIANT_HCK,
                         nsCSSProps::kOutlineColorKTable);
@@ -5656,8 +5610,8 @@ CSSParserImpl::ParseSingleValueProperty(nsCSSValue& aValue,
     return ParseVariant(aValue, VARIANT_HOK | VARIANT_AUTO,
                         nsCSSProps::kOutlineStyleKTable);
   case eCSSProperty_outline_width:
-    return ParseNonNegativeVariant(aValue, VARIANT_HKL,
-                                   nsCSSProps::kBorderWidthKTable);
+    return ParsePositiveVariant(aValue, VARIANT_HKL,
+                                nsCSSProps::kBorderWidthKTable);
   case eCSSProperty_outline_offset:
     return ParseVariant(aValue, VARIANT_HL, nsnull);
   case eCSSProperty_overflow_x:
@@ -5670,7 +5624,7 @@ CSSParserImpl::ParseSingleValueProperty(nsCSSValue& aValue,
   case eCSSProperty_padding_right_value: // for internal use
   case eCSSProperty_padding_start_value: // for internal use
   case eCSSProperty_padding_top:
-    return ParseNonNegativeVariant(aValue, VARIANT_HLP, nsnull);
+    return ParsePositiveVariant(aValue, VARIANT_HLP, nsnull);
   case eCSSProperty_page:
     return ParseVariant(aValue, VARIANT_AUTO | VARIANT_IDENTIFIER, nsnull);
   case eCSSProperty_page_break_after:
@@ -5814,7 +5768,7 @@ CSSParserImpl::ParseFontDescriptorValue(nsCSSFontDesc aDescID,
     // possibly with more restrictions on the values they can take.
   case eCSSFontDesc_Family: {
     if (!ParseFamily(aValue) ||
-        aValue.GetUnit() != eCSSUnit_Families)
+        aValue.GetUnit() != eCSSUnit_String)
       return PR_FALSE;
 
     // the style parameters to the nsFont constructor are ignored,
@@ -6432,36 +6386,36 @@ CSSParserImpl::ParseBorderImage()
   }
 
   // [<number> | <percentage>]{1,4}
-  if (!ParseNonNegativeVariant(splitTop,
-                               VARIANT_NUMBER | VARIANT_PERCENT, nsnull)) {
+  if (!ParsePositiveVariant(splitTop,
+                            VARIANT_NUMBER | VARIANT_PERCENT, nsnull)) {
     return PR_FALSE;
   }
-  if (!ParseNonNegativeVariant(splitRight,
-                               VARIANT_NUMBER | VARIANT_PERCENT, nsnull)) {
+  if (!ParsePositiveVariant(splitRight,
+                            VARIANT_NUMBER | VARIANT_PERCENT, nsnull)) {
     splitRight = splitTop;
   }
-  if (!ParseNonNegativeVariant(splitBottom,
-                               VARIANT_NUMBER | VARIANT_PERCENT, nsnull)) {
+  if (!ParsePositiveVariant(splitBottom,
+                            VARIANT_NUMBER | VARIANT_PERCENT, nsnull)) {
     splitBottom = splitTop;
   }
-  if (!ParseNonNegativeVariant(splitLeft,
-                               VARIANT_NUMBER | VARIANT_PERCENT, nsnull)) {
+  if (!ParsePositiveVariant(splitLeft,
+                            VARIANT_NUMBER | VARIANT_PERCENT, nsnull)) {
     splitLeft = splitRight;
   }
 
   // [ / <border-width>{1,4} ]?
   if (ExpectSymbol('/', PR_TRUE)) {
     // if have '/', at least one value is required
-    if (!ParseNonNegativeVariant(borderWidthTop, VARIANT_LENGTH, nsnull)) {
+    if (!ParsePositiveVariant(borderWidthTop, VARIANT_LENGTH, nsnull)) {
       return PR_FALSE;
     }
-    if (!ParseNonNegativeVariant(borderWidthRight, VARIANT_LENGTH, nsnull)) {
+    if (!ParsePositiveVariant(borderWidthRight, VARIANT_LENGTH, nsnull)) {
       borderWidthRight = borderWidthTop;
     }
-    if (!ParseNonNegativeVariant(borderWidthBottom, VARIANT_LENGTH, nsnull)) {
+    if (!ParsePositiveVariant(borderWidthBottom, VARIANT_LENGTH, nsnull)) {
       borderWidthBottom = borderWidthTop;
     }
-    if (!ParseNonNegativeVariant(borderWidthLeft, VARIANT_LENGTH, nsnull)) {
+    if (!ParsePositiveVariant(borderWidthLeft, VARIANT_LENGTH, nsnull)) {
       borderWidthLeft = borderWidthRight;
     }
   }
@@ -6486,11 +6440,11 @@ PRBool
 CSSParserImpl::ParseBorderSpacing()
 {
   nsCSSValue  xValue;
-  if (ParseNonNegativeVariant(xValue, VARIANT_HL, nsnull)) {
+  if (ParsePositiveVariant(xValue, VARIANT_HL, nsnull)) {
     if (xValue.IsLengthUnit()) {
       // We have one length. Get the optional second length.
       nsCSSValue yValue;
-      if (ParseNonNegativeVariant(yValue, VARIANT_LENGTH, nsnull)) {
+      if (ParsePositiveVariant(yValue, VARIANT_LENGTH, nsnull)) {
         // We have two numbers
         if (ExpectEndProperty()) {
           mTempData.mTable.mBorderSpacing.mXValue = xValue;
@@ -6854,7 +6808,7 @@ CSSParserImpl::ParseCounterData(nsCSSValuePairList** aResult,
       break;
     }
     next = &data->mNext;
-    data->mXValue.SetStringValue(mToken.mIdent, eCSSUnit_Ident);
+    data->mXValue.SetStringValue(mToken.mIdent, eCSSUnit_String);
     if (GetToken(PR_TRUE)) {
       if (eCSSToken_Number == mToken.mType && mToken.mIntegerValid) {
         data->mYValue.SetIntValue(mToken.mInteger, eCSSUnit_Integer);
@@ -7021,9 +6975,9 @@ CSSParserImpl::ParseFont()
   // Get optional "/" line-height
   nsCSSValue  lineHeight;
   if (ExpectSymbol('/', PR_TRUE)) {
-    if (! ParseNonNegativeVariant(lineHeight,
-                                  VARIANT_NUMBER | VARIANT_LP | VARIANT_NORMAL,
-                                  nsnull)) {
+    if (! ParsePositiveVariant(lineHeight,
+                               VARIANT_NUMBER | VARIANT_LP | VARIANT_NORMAL,
+                               nsnull)) {
       return PR_FALSE;
     }
   }
@@ -7216,7 +7170,7 @@ CSSParserImpl::ParseFunction(const nsString &aFunction,
   }
   
   /* Copy things over. */
-  convertedArray->Item(0).SetStringValue(functionName, eCSSUnit_Ident);
+  convertedArray->Item(0).SetStringValue(functionName, eCSSUnit_String);
   for (PRUint16 index = 0; index + 1 < numElements; ++index)
     convertedArray->Item(index + 1) = foundValues[static_cast<arrlen_t>(index)];
   
@@ -7526,7 +7480,7 @@ CSSParserImpl::ParseFamily(nsCSSValue& aValue)
   if (family.IsEmpty()) {
     return PR_FALSE;
   }
-  aValue.SetStringValue(family, eCSSUnit_Families);
+  aValue.SetStringValue(family, eCSSUnit_String);
   return PR_TRUE;
 }
 
@@ -8005,7 +7959,7 @@ CSSParserImpl::ParseCSSShadowList(PRBool aIsBoxShadow)
         val->Item(IndexX) = cur->mValue;
       } else {
         // Must be a color (as string or color value)
-        NS_ASSERTION(unit == eCSSUnit_Ident || unit == eCSSUnit_Color ||
+        NS_ASSERTION(unit == eCSSUnit_String || unit == eCSSUnit_Color ||
                      unit == eCSSUnit_EnumColor,
                      "Must be a color value (named color, numeric color, "
                      "or system color)");
@@ -8026,7 +7980,7 @@ CSSParserImpl::ParseCSSShadowList(PRBool aIsBoxShadow)
       }
 
       // Optional radius. Ignore errors except if they pass a negative
-      // value which we must reject. If we use ParseNonNegativeVariant we can't
+      // value which we must reject. If we use ParsePositiveVariant we can't
       // tell the difference between an unspecified radius and a negative
       // radius, so that's why we don't use it.
       if (ParseVariant(val->Item(IndexRadius), VARIANT_LENGTH, nsnull) &&

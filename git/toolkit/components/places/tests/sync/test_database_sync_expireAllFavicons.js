@@ -82,14 +82,10 @@ var observer = {
       stmt.params["url"] = TEST_URI;
       do_check_true(stmt.executeStep());
 
-      stmt.finalize();
-
       stmt = dbConn.createStatement(
         "SELECT id FROM moz_places_temp WHERE url = :url AND favicon_id NOT NULL");
       stmt.params["url"] = TEST_NOSYNC_URI;
       do_check_true(stmt.executeStep());
-
-      stmt.finalize();
 
       // Expire all favicons.
       icons.expireAllFavicons();
@@ -101,13 +97,9 @@ var observer = {
         "SELECT id FROM moz_favicons");
       do_check_false(stmt.executeStep());
 
-      stmt.finalize();
-
       stmt = dbConn.createStatement(
         "SELECT id FROM moz_places_view WHERE favicon_id NOT NULL");
       do_check_false(stmt.executeStep());
-
-      stmt.finalize();
 
       finish_test();
     }

@@ -692,8 +692,6 @@ PRBool imgLoader::PutIntoCache(nsIURI *key, imgCacheEntry *entry)
     nsRefPtr<imgRequest> tmpRequest = getter_AddRefs(tmpCacheEntry->GetRequest());
     void *cacheId = NS_GetCurrentThread();
 
-    // If the existing request is currently loading, or loading on a different
-    // thread, we'll leave it be, and not put this new entry into the cache.
     if (!tmpRequest->IsReusable(cacheId))
       return PR_FALSE;
 
@@ -1269,8 +1267,7 @@ NS_IMETHODIMP imgLoader::LoadImage(nsIURI *aURI,
     }
 
     // Try to add the new request into the cache.
-    if (!PutIntoCache(aURI, entry))
-      request->SetCacheable(PR_FALSE);
+    PutIntoCache(aURI, entry);
 
   // If we did get a cache hit, use it.
   } else {
@@ -1406,8 +1403,7 @@ NS_IMETHODIMP imgLoader::LoadImageWithChannel(nsIChannel *channel, imgIDecoderOb
     NS_RELEASE(pl);
 
     // Try to add the new request into the cache.
-    if (!PutIntoCache(uri, entry))
-      request->SetCacheable(PR_FALSE);
+    PutIntoCache(uri, entry);
   }
 
   // XXX: It looks like the wrong load flags are being passed in...
@@ -1686,8 +1682,7 @@ NS_IMETHODIMP imgCacheValidator::OnStartRequest(nsIRequest *aRequest, nsISupport
   // Try to add the new request into the cache. Note that the entry must be in
   // the cache before the proxies' ownership changes, because adding a proxy
   // changes the caching behaviour for imgRequests.
-  if (!sImgLoader.PutIntoCache(uri, entry))
-    request->SetCacheable(PR_FALSE);
+  sImgLoader.PutIntoCache(uri, entry);
 
   PRUint32 count = mProxies.Count();
   for (PRInt32 i = count-1; i>=0; i--) {

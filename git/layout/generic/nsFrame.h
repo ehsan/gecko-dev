@@ -436,10 +436,6 @@ public:
   // object. Returns -1 on error or if the frame doesn't have a content object
   static PRInt32 ContentIndexInContainer(const nsIFrame* aFrame);
 
-  static void IndentBy(FILE* out, PRInt32 aIndent) {
-    while (--aIndent >= 0) fputs("  ", out);
-  }
-  
   void ListTag(FILE* out) const {
     ListTag(out, (nsIFrame*)this);
   }
@@ -454,6 +450,10 @@ public:
     fprintf(out, "@%p", static_cast<void*>(aFrame));
   }
 
+  static void IndentBy(FILE* out, PRInt32 aIndent) {
+    while (--aIndent >= 0) fputs("  ", out);
+  }
+  
   static void XMLQuote(nsString& aString);
 
   /**

@@ -270,7 +270,7 @@ nsDragService::StartInvokingDragSession(IDataObject * aDataObj,
 {
   // To do the drag we need to create an object that
   // implements the IDataObject interface (for OLE)
-  nsNativeDragSource* nativeDragSource = new nsNativeDragSource(mDataTransfer);
+  nsNativeDragSource* nativeDragSource = new nsNativeDragSource();
   if (!nativeDragSource)
     return NS_ERROR_OUT_OF_MEMORY;
 

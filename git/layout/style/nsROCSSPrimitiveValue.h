@@ -209,6 +209,8 @@ public:
   }
 
 private:
+  void GetEscapedURI(nsIURI *aURI, PRUnichar **aReturn);
+
   PRUint16 mType;
 
   union {

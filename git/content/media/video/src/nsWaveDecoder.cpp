@@ -562,7 +562,7 @@ nsWaveStateMachine::Run()
       if (!mAudioStream) {
         OpenAudioStream();
         if (!mAudioStream) {
-          ChangeState(STATE_ERROR);
+          mState = STATE_ERROR;
           break;
         }
       }
@@ -839,10 +839,6 @@ void
 nsWaveStateMachine::ChangeState(State aState)
 {
   nsAutoMonitor monitor(mMonitor);
-  if (mState == STATE_SHUTDOWN) {
-    LOG(PR_LOG_WARNING, ("In shutdown, state transition ignored"));
-    return;
-  }
 #if defined(DEBUG)
   NS_ABORT_IF_FALSE(IsValidStateTransition(mState, aState), "Invalid state transition");
 #endif
@@ -1357,8 +1353,6 @@ nsWaveDecoder::Load(nsIURI* aURI, nsIChannel* aChannel, nsIStreamListener** aStr
 
   // Reset progress member variables
   mResourceLoaded = PR_FALSE;
-  mResourceLoadedReported = PR_FALSE;
-  mMetadataLoadedReported = PR_FALSE;
 
   if (aStreamListener) {
     *aStreamListener = nsnull;

@@ -43,6 +43,7 @@
 #include "nsGkAtoms.h"
 #include "nsSVGMatrix.h"
 #include "nsIDOMEventTarget.h"
+#include "nsBindingManager.h"
 #include "nsIFrame.h"
 #include "nsISVGChildFrame.h"
 #include "nsIDOMSVGPoint.h"
@@ -145,7 +146,27 @@ NS_IMETHODIMP nsSVGGraphicElement::GetCTM(nsIDOMSVGMatrix **_retval)
     currentDoc->FlushPendingNotifications(Flush_Layout);
   }
 
-  nsIContent* parent = nsSVGUtils::GetParentElement(this);
+  nsBindingManager *bindingManager = nsnull;
+  // XXXbz I _think_ this is right.  We want to be using the binding manager
+  // that would have attached the binding that gives us our anonymous parent.
+  // That's the binding manager for the document we actually belong to, which
+  // is our owner doc.
+  nsIDocument* ownerDoc = GetOwnerDoc();
+  if (ownerDoc) {
+    bindingManager = ownerDoc->BindingManager();
+  }
+
+  nsIContent* parent = nsnull;
+  nsCOMPtr<nsIDOMSVGMatrix> parentCTM;
+
+  if (bindingManager) {
+    // check for an anonymous parent first
+    parent = bindingManager->GetInsertionParent(this);
+  }
+  if (!parent) {
+    // if we didn't find an anonymous parent, use the explicit one
+    parent = GetParent();
+  }
 
   nsCOMPtr<nsIDOMSVGLocatable> locatableElement = do_QueryInterface(parent);
   if (!locatableElement) {
@@ -155,7 +176,6 @@ NS_IMETHODIMP nsSVGGraphicElement::GetCTM(nsIDOMSVGMatrix **_retval)
   }
 
   // get our parent's CTM
-  nsCOMPtr<nsIDOMSVGMatrix> parentCTM;
   rv = locatableElement->GetCTM(getter_AddRefs(parentCTM));
   if (NS_FAILED(rv)) return rv;
 
@@ -174,7 +194,27 @@ NS_IMETHODIMP nsSVGGraphicElement::GetScreenCTM(nsIDOMSVGMatrix **_retval)
     currentDoc->FlushPendingNotifications(Flush_Layout);
   }
 
-  nsIContent* parent = nsSVGUtils::GetParentElement(this);
+  nsBindingManager *bindingManager = nsnull;
+  // XXXbz I _think_ this is right.  We want to be using the binding manager
+  // that would have attached the binding that gives us our anonymous parent.
+  // That's the binding manager for the document we actually belong to, which
+  // is our owner doc.
+  nsIDocument* ownerDoc = GetOwnerDoc();
+  if (ownerDoc) {
+    bindingManager = ownerDoc->BindingManager();
+  }
+
+  nsIContent* parent = nsnull;
+  nsCOMPtr<nsIDOMSVGMatrix> parentScreenCTM;
+
+  if (bindingManager) {
+    // check for an anonymous parent first
+    parent = bindingManager->GetInsertionParent(this);
+  }
+  if (!parent) {
+    // if we didn't find an anonymous parent, use the explicit one
+    parent = GetParent();
+  }
 
   nsCOMPtr<nsIDOMSVGLocatable> locatableElement = do_QueryInterface(parent);
   if (!locatableElement) {
@@ -184,7 +224,6 @@ NS_IMETHODIMP nsSVGGraphicElement::GetScreenCTM(nsIDOMSVGMatrix **_retval)
   }
 
   // get our parent's "screen" CTM
-  nsCOMPtr<nsIDOMSVGMatrix> parentScreenCTM;
   rv = locatableElement->GetScreenCTM(getter_AddRefs(parentScreenCTM));
   if (NS_FAILED(rv)) return rv;
 

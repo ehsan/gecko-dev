@@ -174,7 +174,6 @@ static NS_DEFINE_CID(kDOMEventGroupCID, NS_DOMEVENTGROUP_CID);
 #ifdef MOZ_SMIL
 #include "nsSMILAnimationController.h"
 #include "imgIContainer.h"
-#include "nsSVGUtils.h"
 #endif // MOZ_SMIL
 
 
@@ -5046,9 +5045,9 @@ nsDocument::DoNotifyPossibleTitleChange()
   }
 
   // Fire a DOM event for the title change.
-  nsContentUtils::DispatchChromeEvent(this, static_cast<nsIDocument*>(this),
-                                      NS_LITERAL_STRING("DOMTitleChanged"),
-                                      PR_TRUE, PR_TRUE);
+  nsContentUtils::DispatchTrustedEvent(this, static_cast<nsIDocument*>(this),
+                                       NS_LITERAL_STRING("DOMTitleChanged"),
+                                       PR_TRUE, PR_TRUE);
 }
 
 NS_IMETHODIMP
@@ -5302,9 +5301,6 @@ nsDocument::GetAnimationController()
   // one and only SVG documents and the like will call this
   if (mAnimationController)
     return mAnimationController;
-  // Refuse to create an Animation Controller if SMIL is disabled
-  if (!NS_SMILEnabled())
-    return nsnull;
 
   mAnimationController = NS_NewSMILAnimationController(this);
   

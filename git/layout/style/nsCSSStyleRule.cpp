@@ -673,7 +673,12 @@ nsCSSSelector::AppendToStringWithoutCombinatorsOrNegations
         aString.Append(PRUnichar('='));
       
         // Append the value
-        nsStyleUtil::AppendEscapedCSSString(list->mValue, aString);
+        nsAutoString escaped;
+        nsStyleUtil::EscapeCSSString(list->mValue, escaped);
+      
+        aString.Append(PRUnichar('\"'));
+        aString.Append(escaped);
+        aString.Append(PRUnichar('\"'));
       }
 
       aString.Append(PRUnichar(']'));

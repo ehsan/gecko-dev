@@ -87,7 +87,6 @@ class nsUTF16ToUnicode : public nsUTF16ToUnicodeBase
 {
 public:
 
-  nsUTF16ToUnicode() { Reset();}
   NS_IMETHOD Convert(const char * aSrc, PRInt32 * aSrcLength,
       PRUnichar * aDest, PRInt32 * aDestLength); 
 

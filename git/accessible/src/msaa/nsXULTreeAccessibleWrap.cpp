@@ -49,8 +49,7 @@ nsXULTreeAccessible(aDOMNode, aShell)
 {
 }
 
-nsresult
-nsXULTreeAccessibleWrap::GetRoleInternal(PRUint32 *aRole)
+NS_IMETHODIMP nsXULTreeAccessibleWrap::GetRole(PRUint32 *aRole)
 {
   NS_ENSURE_STATE(mTree);
 
@@ -81,8 +80,7 @@ nsXULTreeitemAccessible(aParent, aDOMNode, aShell, aRow, aColumn)
 {
 }
 
-nsresult
-nsXULTreeitemAccessibleWrap::GetRoleInternal(PRUint32 *aRole)
+NS_IMETHODIMP nsXULTreeitemAccessibleWrap::GetRole(PRUint32 *aRole)
 {
   // No primary column means we're in a list
   // In fact, history and mail turn off the primary flag when switching to a flat view

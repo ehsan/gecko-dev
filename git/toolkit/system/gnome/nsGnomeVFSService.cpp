@@ -49,6 +49,7 @@ extern "C" {
 #include <libgnomevfs/gnome-vfs-mime.h>
 #include <libgnomevfs/gnome-vfs-mime-handlers.h>
 #include <libgnomevfs/gnome-vfs-mime-info.h>
+#include <libgnome/gnome-url.h>
 }
 
 class nsGnomeVFSMimeApp : public nsIGnomeVFSMimeApp
@@ -263,7 +264,7 @@ nsGnomeVFSService::ShowURI(nsIURI *aURI)
   nsCAutoString spec;
   aURI->GetSpec(spec);
 
-  if (gnome_vfs_url_show_with_env(spec.get(), NULL) == GNOME_VFS_OK)
+  if (gnome_url_show(spec.get(), NULL))
     return NS_OK;
 
   return NS_ERROR_FAILURE;
@@ -275,7 +276,7 @@ nsGnomeVFSService::ShowURIForInput(const nsACString &aUri)
   char* spec = gnome_vfs_make_uri_from_input(PromiseFlatCString(aUri).get());
   nsresult rv = NS_ERROR_FAILURE;
 
-  if (gnome_vfs_url_show_with_env(spec, NULL) == GNOME_VFS_OK)
+  if (gnome_url_show(spec, NULL))
     rv = NS_OK;
 
   if (spec)

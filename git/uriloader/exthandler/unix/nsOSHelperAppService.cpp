@@ -1156,7 +1156,8 @@ nsOSHelperAppService::GetHandlerAndDescriptionFromMailcapFile(const nsAString& a
                     continue;
                   const char *args[] = { "-c", testCommand.get() };
                   LOG(("Running Test: %s\n", testCommand.get()));
-                  rv = process->Run(PR_TRUE, args, 2);
+                  PRUint32 pid;
+                  rv = process->Run(PR_TRUE, args, 2, &pid);
                   if (NS_FAILED(rv))
                     continue;
                   PRInt32 exitValue;

@@ -38,8 +38,6 @@
 #define _nsNativeDragSource_h_
 
 #include "nscore.h"
-#include "nsIDOMDataTransfer.h"
-#include "nsCOMPtr.h"
 #include <ole2.h>
 #include <oleidl.h>
 
@@ -55,7 +53,7 @@ public:
 
   // construct an nsNativeDragSource referencing adapter
   // nsNativeDragSource(nsIDragSource * adapter);
-  nsNativeDragSource(nsIDOMDataTransfer* aDataTransfer);
+  nsNativeDragSource();
   ~nsNativeDragSource();
 
   // IUnknown methods - see iunknown.h for documentation
@@ -80,14 +78,7 @@ public:
   PRPackedBool UserCancelled() { return mUserCancelled; }
 
 protected:
-  // Reference count
-  ULONG m_cRef;
-
-  // Data object, hold information about cursor state
-  nsCOMPtr<nsIDOMNSDataTransfer> mDataTransfer;
-
-  // Custom drag cursor
-  HCURSOR m_hCursor;
+  ULONG        m_cRef;     // reference count
 
   // true if the user cancelled the drag by pressing escape
   PRPackedBool mUserCancelled;

@@ -59,10 +59,9 @@ NS_IMPL_ISUPPORTS_INHERITED3(nsTextAccessible, nsAccessNode,
 /**
   * We are text
   */
-nsresult
-nsTextAccessible::GetRoleInternal(PRUint32 *aRole)
+NS_IMETHODIMP nsTextAccessible::GetRole(PRUint32 *_retval)
 {
-  *aRole = nsIAccessibleRole::ROLE_TEXT_LEAF;
+  *_retval = nsIAccessibleRole::ROLE_TEXT_LEAF;
   return NS_OK;
 }
 

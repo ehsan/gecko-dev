@@ -46,9 +46,11 @@ nsXFormsDropmarkerWidgetAccessible(nsIDOMNode* aNode, nsIWeakReference* aShell):
 {
 }
 
-nsresult
-nsXFormsDropmarkerWidgetAccessible::GetRoleInternal(PRUint32 *aRole)
+NS_IMETHODIMP
+nsXFormsDropmarkerWidgetAccessible::GetRole(PRUint32 *aRole)
 {
+  NS_ENSURE_ARG_POINTER(aRole);
+
   *aRole = nsIAccessibleRole::ROLE_PUSHBUTTON;
   return NS_OK;
 }
@@ -126,9 +128,11 @@ nsXFormsCalendarWidgetAccessible(nsIDOMNode* aNode, nsIWeakReference* aShell):
 {
 }
 
-nsresult
-nsXFormsCalendarWidgetAccessible::GetRoleInternal(PRUint32 *aRole)
+NS_IMETHODIMP
+nsXFormsCalendarWidgetAccessible::GetRole(PRUint32 *aRole)
 {
+  NS_ENSURE_ARG_POINTER(aRole);
+
   *aRole = nsIAccessibleRole::ROLE_CALENDAR;
   return NS_OK;
 }
@@ -142,9 +146,11 @@ nsXFormsComboboxPopupWidgetAccessible::
 {
 }
 
-nsresult
-nsXFormsComboboxPopupWidgetAccessible::GetRoleInternal(PRUint32 *aRole)
+NS_IMETHODIMP
+nsXFormsComboboxPopupWidgetAccessible::GetRole(PRUint32 *aRole)
 {
+  NS_ENSURE_ARG_POINTER(aRole);
+
   *aRole = nsIAccessibleRole::ROLE_LIST;
   return NS_OK;
 }

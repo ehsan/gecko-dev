@@ -416,8 +416,8 @@ nsWindow::Move(PRInt32 aX, PRInt32 aY)
     QPoint pos(aX, aY);
     if (mDrawingArea) {
         if (mParent && mDrawingArea->windowType() == Qt::Popup) {
-            nsIntPoint screenPos = mParent->WidgetToScreenOffset();
-            pos += QPoint(screenPos.x, screenPos.y);
+            if (mParent->mDrawingArea)
+                pos = mParent->mDrawingArea->mapToGlobal(pos);
 #ifdef DEBUG_WIDGETS
             qDebug("pos is [%d,%d]", pos.x(), pos.y());
 #endif
@@ -1871,13 +1871,14 @@ nsWindow::NativeResize(PRInt32 aX, PRInt32 aY,
     LOG(("nsWindow::NativeResize [%p] %d %d %d %d\n", (void *)this,
          aX, aY, aWidth, aHeight));
 
-    nsIntPoint pos(aX, aY);
+    QPoint pos(aX, aY);
     if (mDrawingArea)
     {
         if (mParent && mDrawingArea->windowType() == Qt::Popup) {
-            pos += mParent->WidgetToScreenOffset();
+            if (mParent->mDrawingArea)
+                pos = mParent->mDrawingArea->mapToGlobal(pos);
 #ifdef DEBUG_WIDGETS
-            qDebug("pos is [%d,%d]", pos.x, pos.y);
+            qDebug("pos is [%d,%d]", pos.x(), pos.y());
 #endif
         } else {
 #ifdef DEBUG_WIDGETS
@@ -1886,7 +1887,7 @@ nsWindow::NativeResize(PRInt32 aX, PRInt32 aY,
         }
     }
 
-    mDrawingArea->setGeometry(pos.x, pos.y, aWidth, aHeight);
+    mDrawingArea->setGeometry(pos.x(), pos.y(), aWidth, aHeight);
 
     if (aRepaint)
         mDrawingArea->update();

@@ -4518,8 +4518,11 @@ nsTreeBodyFrame::FireRowCountChangedEvent(PRInt32 aIndex, PRInt32 aCount)
   if (!content)
     return;
 
-  nsCOMPtr<nsIDOMDocumentEvent> domEventDoc =
-    do_QueryInterface(content->GetOwnerDoc());
+  nsCOMPtr<nsIDOMNode> node(do_QueryInterface(content));
+
+  nsCOMPtr<nsIDOMDocument> domDoc;
+  node->GetOwnerDocument(getter_AddRefs(domDoc));
+  nsCOMPtr<nsIDOMDocumentEvent> domEventDoc(do_QueryInterface(domDoc));
   if (!domEventDoc)
     return;
 
@@ -4558,7 +4561,7 @@ nsTreeBodyFrame::FireRowCountChangedEvent(PRInt32 aIndex, PRInt32 aCount)
 
   privateEvent->SetTrusted(PR_TRUE);
 
-  nsRefPtr<nsPLDOMEvent> plevent = new nsPLDOMEvent(content, event);
+  nsRefPtr<nsPLDOMEvent> plevent = new nsPLDOMEvent(node, event);
   if (!plevent)
     return;
 
@@ -4574,8 +4577,11 @@ nsTreeBodyFrame::FireInvalidateEvent(PRInt32 aStartRowIdx, PRInt32 aEndRowIdx,
   if (!content)
     return;
 
-  nsCOMPtr<nsIDOMDocumentEvent> domEventDoc =
-    do_QueryInterface(content->GetOwnerDoc());
+  nsCOMPtr<nsIDOMNode> node(do_QueryInterface(content));
+
+  nsCOMPtr<nsIDOMDocument> domDoc;
+  node->GetOwnerDocument(getter_AddRefs(domDoc));
+  nsCOMPtr<nsIDOMDocumentEvent> domEventDoc(do_QueryInterface(domDoc));
   if (!domEventDoc)
     return;
 
@@ -4646,7 +4652,7 @@ nsTreeBodyFrame::FireInvalidateEvent(PRInt32 aStartRowIdx, PRInt32 aEndRowIdx,
 
   privateEvent->SetTrusted(PR_TRUE);
 
-  nsRefPtr<nsPLDOMEvent> plevent = new nsPLDOMEvent(content, event);
+  nsRefPtr<nsPLDOMEvent> plevent = new nsPLDOMEvent(node, event);
   if (plevent)
     plevent->PostDOMEvent();
 }

@@ -256,8 +256,7 @@ private:
     nsresult NotifyDownloading();
     nsresult NotifyStarted(nsOfflineCacheUpdateItem *aItem);
     nsresult NotifyCompleted(nsOfflineCacheUpdateItem *aItem);
-    nsresult AssociateDocument(nsIDOMDocument *aDocument,
-                               nsIApplicationCache *aApplicationCache);
+    nsresult AssociateDocument(nsIDOMDocument *aDocument);
     nsresult ScheduleImplicit();
     nsresult Finish();
 
@@ -309,13 +308,15 @@ private:
 };
 
 class nsOfflineCacheUpdateService : public nsIOfflineCacheUpdateService
+                                  , public nsIWebProgressListener
                                   , public nsIObserver
-                                  , public nsOfflineCacheUpdateOwner
                                   , public nsSupportsWeakReference
+                                  , public nsOfflineCacheUpdateOwner
 {
 public:
     NS_DECL_ISUPPORTS
     NS_DECL_NSIOFFLINECACHEUPDATESERVICE
+    NS_DECL_NSIWEBPROGRESSLISTENER
     NS_DECL_NSIOBSERVER
 
     nsOfflineCacheUpdateService();
@@ -344,6 +345,12 @@ private:
     nsresult ProcessNextUpdate();
 
     nsTArray<nsRefPtr<nsOfflineCacheUpdate> > mUpdates;
+
+    struct PendingUpdate {
+        nsCOMPtr<nsIURI> mManifestURI;
+        nsCOMPtr<nsIURI> mDocumentURI;
+    };
+    nsClassHashtable<nsVoidPtrHashKey, PendingUpdate> mDocUpdates;
 
     PRBool mDisabled;
     PRBool mUpdateRunning;

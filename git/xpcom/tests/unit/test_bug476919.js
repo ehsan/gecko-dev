@@ -22,7 +22,8 @@ function run_test() {
     var process = Cc["@mozilla.org/process/util;1"].createInstance(Ci.nsIProcess);
     process.init(ln);
     var args = ["-s", targetFile.path, link.path];
-    process.run(true, args, args.length);
+    var result = process.run(true, args, args.length);
+    do_check_eq(result, 0);
     do_check_true(link.isSymlink());
   }
 }

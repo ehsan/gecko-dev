@@ -276,8 +276,8 @@ __try {
     return E_FAIL;
   }
 
-  nsCOMPtr<nsIFontMetrics> fm;
-  rc->GetFontMetrics(*getter_AddRefs(fm));
+  nsIFontMetrics *fm;
+  rc->GetFontMetrics(fm);
   if (!fm) {
     return E_FAIL;
   }

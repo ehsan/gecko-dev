@@ -1060,7 +1060,24 @@ nsGenericHTMLElement::GetHrefURIForAnchors(nsIURI** aURI) const
   // Get href= attribute (relative URI).
 
   // We use the nsAttrValue's copy of the URI string to avoid copying.
-  GetURIAttr(nsGkAtoms::href, nsnull, aURI);
+  const nsAttrValue* attr = mAttrsAndChildren.GetAttr(nsGkAtoms::href);
+  if (attr) {
+    // Get base URI.
+    nsCOMPtr<nsIURI> baseURI = GetBaseURI();
+
+    // Get absolute URI.
+    nsresult rv = nsContentUtils::NewURIWithDocumentCharset(aURI,
+                                                            attr->GetStringValue(),
+                                                            GetOwnerDoc(),
+                                                            baseURI);
+    if (NS_FAILED(rv)) {
+      *aURI = nsnull;
+    }
+  }
+  else {
+    // Absolute URI is null to say we have no HREF.
+    *aURI = nsnull;
+  }
 
   return NS_OK;
 }
@@ -1661,7 +1678,7 @@ nsGenericHTMLElement::MapCommonAttributesInto(const nsMappedAttributes* aAttribu
     const nsAttrValue* value = aAttributes->GetAttr(nsGkAtoms::lang);
     if (value && value->Type() == nsAttrValue::eString) {
       aData->mDisplayData->mLang.SetStringValue(value->GetStringValue(),
-                                                eCSSUnit_Ident);
+                                                eCSSUnit_String);
     }
   }
 }
@@ -2139,72 +2156,51 @@ nsGenericHTMLElement::SetFloatAttr(nsIAtom* aAttr, float aValue)
 nsresult
 nsGenericHTMLElement::GetURIAttr(nsIAtom* aAttr, nsIAtom* aBaseAttr, nsAString& aResult)
 {
-  nsCOMPtr<nsIURI> uri;
-  PRBool hadAttr = GetURIAttr(aAttr, aBaseAttr, getter_AddRefs(uri));
-  if (!hadAttr) {
+  nsAutoString attrValue;
+  if (!GetAttr(kNameSpaceID_None, aAttr, attrValue)) {
     aResult.Truncate();
+
     return NS_OK;
   }
 
-  if (!uri) {
-    // Just return the attr value
-    GetAttr(kNameSpaceID_None, aAttr, aResult);
-    return NS_OK;
-  }
-
-  nsCAutoString spec;
-  uri->GetSpec(spec);
-  CopyUTF8toUTF16(spec, aResult);
-  return NS_OK;
-}
-
-PRBool
-nsGenericHTMLElement::GetURIAttr(nsIAtom* aAttr, nsIAtom* aBaseAttr,
-                                 nsIURI** aURI) const
-{
-  *aURI = nsnull;
-
-  const nsAttrValue* attr = mAttrsAndChildren.GetAttr(aAttr);
-  if (!attr) {
-    return PR_FALSE;
-  }
-
-  PRBool isURIAttr = (attr->Type() == nsAttrValue::eLazyURIValue);
-
-  if (isURIAttr && (*aURI = attr->GetURIValue())) {
-    NS_ADDREF(*aURI);
-    return PR_TRUE;
-  }
-  
   nsCOMPtr<nsIURI> baseURI = GetBaseURI();
+  nsresult rv;
 
   if (aBaseAttr) {
     nsAutoString baseAttrValue;
     if (GetAttr(kNameSpaceID_None, aBaseAttr, baseAttrValue)) {
       nsCOMPtr<nsIURI> baseAttrURI;
-      nsresult rv =
-        nsContentUtils::NewURIWithDocumentCharset(getter_AddRefs(baseAttrURI),
-                                                  baseAttrValue, GetOwnerDoc(),
-                                                  baseURI);
+      rv = nsContentUtils::NewURIWithDocumentCharset(getter_AddRefs(baseAttrURI),
+                                                     baseAttrValue, GetOwnerDoc(),
+                                                     baseURI);
       if (NS_FAILED(rv)) {
-        return PR_TRUE;
+        // Just use the attr value as the result...
+        aResult = attrValue;
+
+        return NS_OK;
       }
       baseURI.swap(baseAttrURI);
     }
   }
 
-  // Don't care about return value.  If it fails, we still want to
-  // return PR_TRUE, and *aURI will be null.
-  nsContentUtils::NewURIWithDocumentCharset(aURI,
-                                            isURIAttr ?
-                                              attr->GetURIStringValue() :
-                                              attr->GetStringValue(),
-                                            GetOwnerDoc(), baseURI);
+  nsCOMPtr<nsIURI> attrURI;
+  rv = nsContentUtils::NewURIWithDocumentCharset(getter_AddRefs(attrURI),
+                                                 attrValue, GetOwnerDoc(),
+                                                 baseURI);
+  if (NS_FAILED(rv)) {
+    // Just use the attr value as the result...
+    aResult = attrValue;
 
-  if (isURIAttr) {
-    const_cast<nsAttrValue*>(attr)->CacheURIValue(*aURI);
+    return NS_OK;
   }
-  return PR_TRUE;
+
+  NS_ASSERTION(attrURI,
+               "nsContentUtils::NewURIWithDocumentCharset return value lied");
+
+  nsCAutoString spec;
+  attrURI->GetSpec(spec);
+  CopyUTF8toUTF16(spec, aResult);
+  return NS_OK;
 }
 
 nsresult
@@ -3102,23 +3098,17 @@ nsGenericHTMLElement::PerformAccesskey(PRBool aKeyCausesActivation,
   }
 }
 
-void
-nsGenericHTMLElement::SetHrefToURI(nsIURI* aURI)
-{
-  nsCAutoString newHref;
-  aURI->GetSpec(newHref);
-  SetAttrHelper(nsGkAtoms::href, NS_ConvertUTF8toUTF16(newHref));
-}
-
+// static
 nsresult
-nsGenericHTMLElement::SetProtocolInHrefURI(const nsAString &aProtocol)
+nsGenericHTMLElement::SetProtocolInHrefString(const nsAString &aHref,
+                                              const nsAString &aProtocol,
+                                              nsAString &aResult)
 {
+  aResult.Truncate();
   nsCOMPtr<nsIURI> uri;
-  GetHrefURIForAnchors(getter_AddRefs(uri));
-  if (!uri) {
-    // Ignore failures to be compatible with NS4
-    return NS_OK;
-  }
+  nsresult rv = NS_NewURI(getter_AddRefs(uri), aHref);
+  if (NS_FAILED(rv))
+    return rv;
 
   nsAString::const_iterator start, end;
   aProtocol.BeginReading(start);
@@ -3126,169 +3116,237 @@ nsGenericHTMLElement::SetProtocolInHrefURI(const nsAString &aProtocol)
   nsAString::const_iterator iter(start);
   FindCharInReadable(':', iter, end);
   uri->SetScheme(NS_ConvertUTF16toUTF8(Substring(start, iter)));
+   
+  nsCAutoString newHref;
+  uri->GetSpec(newHref);
 
-  SetHrefToURI(uri);
+  CopyUTF8toUTF16(newHref, aResult);
+
   return NS_OK;
 }
 
+// static
 nsresult
-nsGenericHTMLElement::SetHostnameInHrefURI(const nsAString &aHostname)
+nsGenericHTMLElement::SetHostnameInHrefString(const nsAString &aHref,
+                                              const nsAString &aHostname,
+                                              nsAString &aResult)
 {
+  aResult.Truncate();
   nsCOMPtr<nsIURI> uri;
-  GetHrefURIForAnchors(getter_AddRefs(uri));
-  if (!uri) {
-    // Ignore failures to be compatible with NS4
-    return NS_OK;
-  }
+  nsresult rv = NS_NewURI(getter_AddRefs(uri), aHref);
+  if (NS_FAILED(rv))
+    return rv;
 
   uri->SetHost(NS_ConvertUTF16toUTF8(aHostname));
 
-  SetHrefToURI(uri);
+  nsCAutoString newHref;
+  uri->GetSpec(newHref);
+
+  CopyUTF8toUTF16(newHref, aResult);
+
   return NS_OK;
 }
 
+// static
 nsresult
-nsGenericHTMLElement::SetPathnameInHrefURI(const nsAString &aPathname)
+nsGenericHTMLElement::SetPathnameInHrefString(const nsAString &aHref,
+                                              const nsAString &aPathname,
+                                              nsAString &aResult)
 {
+  aResult.Truncate();
   nsCOMPtr<nsIURI> uri;
-  GetHrefURIForAnchors(getter_AddRefs(uri));
-  nsCOMPtr<nsIURL> url = do_QueryInterface(uri);
-  if (!url) {
-    // Ignore failures to be compatible with NS4
-    return NS_OK;
-  }
+  nsresult rv = NS_NewURI(getter_AddRefs(uri), aHref);
+  if (NS_FAILED(rv))
+    return rv;
+
+  nsCOMPtr<nsIURL> url(do_QueryInterface(uri, &rv));
+  if (NS_FAILED(rv))
+    return rv;
 
   url->SetFilePath(NS_ConvertUTF16toUTF8(aPathname));
 
-  SetHrefToURI(uri);
+  nsCAutoString newHref;
+  uri->GetSpec(newHref);
+
+  CopyUTF8toUTF16(newHref, aResult);
 
   return NS_OK;
 }
 
+// static
 nsresult
-nsGenericHTMLElement::SetHostInHrefURI(const nsAString &aHost)
+nsGenericHTMLElement::SetHostInHrefString(const nsAString &aHref,
+                                          const nsAString &aHost,
+                                          nsAString &aResult)
 {
   // Can't simply call nsURI::SetHost, because that would treat the name as an
   // IPv6 address (like http://[server:443]/)
-  // And can't call SetHostPort, because that's not implemented.  Very sad.
-  
+
+  aResult.Truncate();
   nsCOMPtr<nsIURI> uri;
-  GetHrefURIForAnchors(getter_AddRefs(uri));
-  if (!uri) {
-    // Ignore failures to be compatible with NS4
-    return NS_OK;
-  }
+  nsresult rv = NS_NewURI(getter_AddRefs(uri), aHref);
+  if (NS_FAILED(rv))
+    return rv;
 
-  nsAString::const_iterator start, end;
-  aHost.BeginReading(start);
-  aHost.EndReading(end);
-  nsAString::const_iterator iter(start);
-  FindCharInReadable(':', iter, end);
-  uri->SetHost(NS_ConvertUTF16toUTF8(Substring(start, iter)));
-  if (iter != end) {
-    ++iter;
-    if (iter != end) {
-      nsAutoString portStr(Substring(iter, end));
-      nsresult rv;
-      PRInt32 port;
-      port = portStr.ToInteger((PRInt32*)&rv);
-      if (NS_SUCCEEDED(rv)) {
-        uri->SetPort(port);
-      }
-    }
-  }
+  nsCAutoString scheme, userpass, path;
+  uri->GetScheme(scheme);
+  uri->GetUserPass(userpass);
+  uri->GetPath(path);
 
-  SetHrefToURI(uri);
+  CopyASCIItoUTF16(scheme, aResult);
+  aResult.AppendLiteral("://");
+  if (!userpass.IsEmpty()) {
+    AppendUTF8toUTF16(userpass, aResult);
+    aResult.Append(PRUnichar('@'));
+  }
+  aResult.Append(aHost);
+  AppendUTF8toUTF16(path, aResult);
+
   return NS_OK;
 }
 
+// static
 nsresult
-nsGenericHTMLElement::SetSearchInHrefURI(const nsAString &aSearch)
+nsGenericHTMLElement::SetSearchInHrefString(const nsAString &aHref,
+                                            const nsAString &aSearch,
+                                            nsAString &aResult)
 {
+  aResult.Truncate();
   nsCOMPtr<nsIURI> uri;
-  GetHrefURIForAnchors(getter_AddRefs(uri));
-  nsCOMPtr<nsIURL> url = do_QueryInterface(uri);
-  if (!url) {
-    // Ignore failures to be compatible with NS4
-    return NS_OK;
-  }
+
+  nsresult rv = NS_NewURI(getter_AddRefs(uri), aHref);
+  if (NS_FAILED(rv))
+    return rv;
+
+  nsCOMPtr<nsIURL> url(do_QueryInterface(uri, &rv));
+  if (NS_FAILED(rv))
+    return rv;
 
   url->SetQuery(NS_ConvertUTF16toUTF8(aSearch));
 
-  SetHrefToURI(uri);
+  nsCAutoString newHref;
+  uri->GetSpec(newHref);
+
+  CopyUTF8toUTF16(newHref, aResult);
+
   return NS_OK;
 }
 
+// static
 nsresult
-nsGenericHTMLElement::SetHashInHrefURI(const nsAString &aHash)
+nsGenericHTMLElement::SetHashInHrefString(const nsAString &aHref,
+                                          const nsAString &aHash,
+                                          nsAString &aResult)
 {
+  aResult.Truncate();
   nsCOMPtr<nsIURI> uri;
-  GetHrefURIForAnchors(getter_AddRefs(uri));
-  nsCOMPtr<nsIURL> url = do_QueryInterface(uri);
-  if (!url) {
-    // Ignore failures to be compatible with NS4
-    return NS_OK;
-  }
 
-  url->SetRef(NS_ConvertUTF16toUTF8(aHash));
-
-  SetHrefToURI(uri);
-  return NS_OK;
-}
-
-nsresult
-nsGenericHTMLElement::SetPortInHrefURI(const nsAString &aPort)
-{
-  nsCOMPtr<nsIURI> uri;
-  GetHrefURIForAnchors(getter_AddRefs(uri));
-  if (!uri) {
-    // Ignore failures to be compatible with NS4
-    return NS_OK;
-  }
-
-  nsresult rv;
-  PRInt32 port = nsString(aPort).ToInteger((PRInt32*)&rv);
+  nsresult rv = NS_NewURI(getter_AddRefs(uri), aHref);
   if (NS_FAILED(rv))
-    return NS_OK;
+    return rv;
+
+  nsCOMPtr<nsIURL> url(do_QueryInterface(uri, &rv));
+  if (NS_FAILED(rv))
+    return rv;
+
+  rv = url->SetRef(NS_ConvertUTF16toUTF8(aHash));
+
+  nsCAutoString newHref;
+  uri->GetSpec(newHref);
+
+  CopyUTF8toUTF16(newHref, aResult);
+
+  return NS_OK;
+}
+
+// static
+nsresult
+nsGenericHTMLElement::SetPortInHrefString(const nsAString &aHref,
+                                          const nsAString &aPort,
+                                          nsAString &aResult)
+{
+  aResult.Truncate();
+  nsCOMPtr<nsIURI> uri;
+  nsresult rv = NS_NewURI(getter_AddRefs(uri), aHref);
+
+  if (NS_FAILED(rv))
+    return rv;
+
+  PRInt32 port;
+  port = nsString(aPort).ToInteger((PRInt32*)&rv);
+  if (NS_FAILED(rv))
+    return rv;
 
   uri->SetPort(port);
-  SetHrefToURI(uri);
+
+  nsCAutoString newHref;
+  uri->GetSpec(newHref);
+
+  CopyUTF8toUTF16(newHref, aResult);
 
   return NS_OK;
 }
 
+// static
 nsresult
-nsGenericHTMLElement::GetProtocolFromHrefURI(nsAString& aProtocol)
+nsGenericHTMLElement::GetProtocolFromHrefString(const nsAString& aHref,
+                                                nsAString& aProtocol,
+                                                nsIDocument *aDocument)
 {
-  nsCOMPtr<nsIURI> uri;
-  GetHrefURIForAnchors(getter_AddRefs(uri));
+  aProtocol.Truncate();
 
-  if (!uri) {
-    aProtocol.AssignLiteral("http");
+  nsIIOService* ioService = nsContentUtils::GetIOService();
+  NS_ENSURE_TRUE(ioService, NS_ERROR_FAILURE);
+
+  nsCAutoString protocol;
+
+  nsresult rv =
+    ioService->ExtractScheme(NS_ConvertUTF16toUTF8(aHref), protocol);
+
+  if (NS_SUCCEEDED(rv)) {
+    CopyASCIItoUTF16(protocol, aProtocol);
   } else {
-    nsCAutoString scheme;
-    uri->GetScheme(scheme);
-    CopyASCIItoUTF16(scheme, aProtocol);
+    // set the protocol to the protocol of the base URI.
+
+    if (aDocument) {
+      nsIURI *uri = aDocument->GetBaseURI();
+      if (uri) {
+        uri->GetScheme(protocol);
+      }
+    }
+
+    if (protocol.IsEmpty()) {
+      // set the protocol to http since it is the most likely protocol
+      // to be used.
+      aProtocol.AssignLiteral("http");
+    } else {
+      CopyASCIItoUTF16(protocol, aProtocol);
+    }
   }
   aProtocol.Append(PRUnichar(':'));
+
   return NS_OK;
 }
 
+// static
 nsresult
-nsGenericHTMLElement::GetHostFromHrefURI(nsAString& aHost)
+nsGenericHTMLElement::GetHostFromHrefString(const nsAString& aHref,
+                                            nsAString& aHost)
 {
   aHost.Truncate();
-
   nsCOMPtr<nsIURI> uri;
-  GetHrefURIForAnchors(getter_AddRefs(uri));
-  if (!uri) {
-    // Don't throw from these methods!  Not a valid URI means return
-    // empty string.
-    return NS_OK;
+  nsresult rv = NS_NewURI(getter_AddRefs(uri), aHref);
+  if (NS_FAILED(rv)) {
+    if (rv == NS_ERROR_MALFORMED_URI) {
+      // Don't throw from these methods!  Not a valid URI means return
+      // empty string.
+      rv = NS_OK;
+    }
+    return rv;
   }
 
   nsCAutoString hostport;
-  nsresult rv = uri->GetHostPort(hostport);
+  rv = uri->GetHostPort(hostport);
 
   // Failure to get the hostport from the URI isn't necessarily an
   // error. Some URI's just don't have a hostport.
@@ -3300,20 +3358,25 @@ nsGenericHTMLElement::GetHostFromHrefURI(nsAString& aHost)
   return NS_OK;
 }
 
+// static
 nsresult
-nsGenericHTMLElement::GetHostnameFromHrefURI(nsAString& aHostname)
+nsGenericHTMLElement::GetHostnameFromHrefString(const nsAString& aHref,
+                                                nsAString& aHostname)
 {
   aHostname.Truncate();
-  nsCOMPtr<nsIURI> uri;
-  GetHrefURIForAnchors(getter_AddRefs(uri));
-  if (!uri) {
-    // Don't throw from these methods!  Not a valid URI means return
-    // empty string.
-    return NS_OK;
+  nsCOMPtr<nsIURI> url;
+  nsresult rv = NS_NewURI(getter_AddRefs(url), aHref);
+  if (NS_FAILED(rv)) {
+    if (rv == NS_ERROR_MALFORMED_URI) {
+      // Don't throw from these methods!  Not a valid URI means return
+      // empty string.
+      rv = NS_OK;
+    }
+    return rv;
   }
 
   nsCAutoString host;
-  nsresult rv = uri->GetHost(host);
+  rv = url->GetHost(host);
 
   if (NS_SUCCEEDED(rv)) {
     // Failure to get the host from the URI isn't necessarily an
@@ -3325,17 +3388,20 @@ nsGenericHTMLElement::GetHostnameFromHrefURI(nsAString& aHostname)
   return NS_OK;
 }
 
+// static
 nsresult
-nsGenericHTMLElement::GetPathnameFromHrefURI(nsAString& aPathname)
+nsGenericHTMLElement::GetPathnameFromHrefString(const nsAString& aHref,
+                                                nsAString& aPathname)
 {
   aPathname.Truncate();
-
   nsCOMPtr<nsIURI> uri;
-  GetHrefURIForAnchors(getter_AddRefs(uri));
-  if (!uri) {
-    // Don't throw from these methods!  Not a valid URI means return
-    // empty string.
-    return NS_OK;
+
+  nsresult rv = NS_NewURI(getter_AddRefs(uri), aHref);
+  if (NS_FAILED(rv)) {
+    if (rv == NS_ERROR_MALFORMED_URI) {
+      rv = NS_OK;
+    }
+    return rv;
   }
 
   nsCOMPtr<nsIURL> url(do_QueryInterface(uri));
@@ -3347,7 +3413,7 @@ nsGenericHTMLElement::GetPathnameFromHrefURI(nsAString& aPathname)
   }
 
   nsCAutoString file;
-  nsresult rv = url->GetFilePath(file);
+  rv = url->GetFilePath(file);
   if (NS_FAILED(rv))
     return rv;
 
@@ -3356,23 +3422,34 @@ nsGenericHTMLElement::GetPathnameFromHrefURI(nsAString& aPathname)
   return NS_OK;
 }
 
+// static
 nsresult
-nsGenericHTMLElement::GetSearchFromHrefURI(nsAString& aSearch)
+nsGenericHTMLElement::GetSearchFromHrefString(const nsAString& aHref,
+                                              nsAString& aSearch)
 {
   aSearch.Truncate();
   nsCOMPtr<nsIURI> uri;
-  GetHrefURIForAnchors(getter_AddRefs(uri));
+
+  nsresult rv = NS_NewURI(getter_AddRefs(uri), aHref);
+  if (NS_FAILED(rv)) {
+    if (rv == NS_ERROR_MALFORMED_URI) {
+      rv = NS_OK;
+    }
+    return rv;
+  }
+
   nsCOMPtr<nsIURL> url(do_QueryInterface(uri));
+
   if (!url) {
-    // Don't throw from these methods!  Not a valid URI means return
-    // empty string.
+    // If this is not a URL, we can't get the query from the URI
+
     return NS_OK;
   }
 
   nsCAutoString search;
-  nsresult rv = url->GetQuery(search);
+  rv = url->GetQuery(search);
   if (NS_FAILED(rv))
-    return NS_OK;
+    return rv;
 
   if (!search.IsEmpty()) {
     CopyUTF8toUTF16(NS_LITERAL_CSTRING("?") + search, aSearch);
@@ -3381,20 +3458,23 @@ nsGenericHTMLElement::GetSearchFromHrefURI(nsAString& aSearch)
   return NS_OK;
 }
 
+// static
 nsresult
-nsGenericHTMLElement::GetPortFromHrefURI(nsAString& aPort)
+nsGenericHTMLElement::GetPortFromHrefString(const nsAString& aHref,
+                                            nsAString& aPort)
 {
   aPort.Truncate();
   nsCOMPtr<nsIURI> uri;
-  GetHrefURIForAnchors(getter_AddRefs(uri));
-  if (!uri) {
-    // Don't throw from these methods!  Not a valid URI means return
-    // empty string.
-    return NS_OK;
+  nsresult rv = NS_NewURI(getter_AddRefs(uri), aHref);
+  if (NS_FAILED(rv)) {
+    if (rv == NS_ERROR_MALFORMED_URI) {
+      rv = NS_OK;
+    }
+    return rv;
   }
 
   PRInt32 port;
-  nsresult rv = uri->GetPort(&port);
+  rv = uri->GetPort(&port);
 
   if (NS_SUCCEEDED(rv)) {
     // Failure to get the port from the URI isn't necessarily an
@@ -3412,28 +3492,39 @@ nsGenericHTMLElement::GetPortFromHrefURI(nsAString& aPort)
   return NS_OK;
 }
 
+// static
 nsresult
-nsGenericHTMLElement::GetHashFromHrefURI(nsAString& aHash)
+nsGenericHTMLElement::GetHashFromHrefString(const nsAString& aHref,
+                                            nsAString& aHash)
 {
   aHash.Truncate();
   nsCOMPtr<nsIURI> uri;
-  GetHrefURIForAnchors(getter_AddRefs(uri));
+
+  nsresult rv = NS_NewURI(getter_AddRefs(uri), aHref);
+  if (NS_FAILED(rv)) {
+    if (rv == NS_ERROR_MALFORMED_URI) {
+      rv = NS_OK;
+    }
+    return rv;
+  }
+
   nsCOMPtr<nsIURL> url(do_QueryInterface(uri));
+
   if (!url) {
-    // Don't throw from these methods!  Not a valid URI means return
-    // empty string.
+    // If this is not a URL, we can't get the hash part from the URI
+
     return NS_OK;
   }
 
   nsCAutoString ref;
-  nsresult rv = url->GetRef(ref);
+  rv = url->GetRef(ref);
   if (NS_FAILED(rv))
-    return NS_OK;
+    return rv;
   NS_UnescapeURL(ref); // XXX may result in random non-ASCII bytes!
 
   if (!ref.IsEmpty()) {
     aHash.Assign(PRUnichar('#'));
-    AppendUTF8toUTF16(ref, aHash);
+    AppendASCIItoUTF16(ref, aHash);
   }
   return NS_OK;
 }

@@ -135,11 +135,12 @@ function ensure_tag_results(results, searchTerm)
       current_test++;
       tests[current_test]();
     }
-    else {
-      // finish once all tests have run
-      do_test_finished();
-    }
+
+    do_test_finished();
   };
+
+  // Search is asynchronous, so don't let the test finish immediately
+  do_test_pending();
 
   controller.startSearch(searchTerm);
 }
@@ -160,9 +161,6 @@ var tests = [
  * Test tag autocomplete
  */
 function run_test() {
-  // Search is asynchronous, so don't let the test finish immediately
-  do_test_pending();
-
   tagssvc.tagURI(uri1, ["bar", "baz", "boo", "*nix"]);
 
   tests[0]();

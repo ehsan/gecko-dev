@@ -1371,7 +1371,8 @@ nsOfflineCacheUpdate::LoadCompleted()
             mSucceeded = PR_FALSE;
 
             for (PRInt32 i = 0; i < mDocuments.Count(); i++) {
-                AssociateDocument(mDocuments[i], mPreviousApplicationCache);
+                printf("(Bug 471227) Associating from noupdate\n");
+                AssociateDocument(mDocuments[i]);
             }
 
             ScheduleImplicit();
@@ -1458,6 +1459,7 @@ nsOfflineCacheUpdate::ManifestCheckCompleted(nsresult aStatus,
     Finish();
 
     if (NS_FAILED(aStatus) && mRescheduleCount < kRescheduleLimit) {
+        printf("(Bug 471227) Rescheduling for manifest failure\n");
         // Reschedule this update.
         nsRefPtr<nsOfflineCacheUpdate> newUpdate =
             new nsOfflineCacheUpdate();
@@ -1870,8 +1872,7 @@ nsOfflineCacheUpdate::ScheduleImplicit()
 }
 
 nsresult
-nsOfflineCacheUpdate::AssociateDocument(nsIDOMDocument *aDocument,
-                                        nsIApplicationCache *aApplicationCache)
+nsOfflineCacheUpdate::AssociateDocument(nsIDOMDocument *aDocument)
 {
     // Check that the document that requested this update was
     // previously associated with an application cache.  If not, it
@@ -1886,18 +1887,21 @@ nsOfflineCacheUpdate::AssociateDocument(nsIDOMDocument *aDocument,
     NS_ENSURE_SUCCESS(rv, rv);
 
     if (!existingCache) {
-#if defined(PR_LOGGING)
-        if (LOG_ENABLED()) {
-            nsCAutoString clientID;
-            if (aApplicationCache) {
-                aApplicationCache->GetClientID(clientID);
-            }
-            LOG(("Update %p: associating app cache %s to document %p",
-                 this, clientID.get(), aDocument));
-        }
-#endif
+        LOG(("Update %p: associating app cache %s to document %p", this, mClientID.get(), aDocument));
 
-        rv = container->SetApplicationCache(aApplicationCache);
+        {
+            nsCOMPtr<nsIDocument> doc = do_QueryInterface(aDocument);
+            nsCAutoString spec;
+            if (doc->GetDocumentURI()) {
+                doc->GetDocumentURI()->GetSpec(spec);
+            }
+
+            printf("(Bug 471227) Associating app cache %p (%s) to document >%p< (%s)\n",
+                   mApplicationCache.get(), mClientID.get(),
+                   container.get(), spec.get());
+        }
+
+        rv = container->SetApplicationCache(mApplicationCache);
         NS_ENSURE_SUCCESS(rv, rv);
     }
 
@@ -1934,7 +1938,8 @@ nsOfflineCacheUpdate::Finish()
             }
 
             for (PRInt32 i = 0; i < mDocuments.Count(); i++) {
-                AssociateDocument(mDocuments[i], mApplicationCache);
+                printf("(Bug 471227) Associating documents from Finish()\n");
+                AssociateDocument(mDocuments[i]);
             }
         }
 
@@ -2184,135 +2189,12 @@ nsOfflineCacheUpdate::Schedule()
 }
 
 //-----------------------------------------------------------------------------
-// nsOfflineCachePendingUpdate
-//-----------------------------------------------------------------------------
-
-class nsOfflineCachePendingUpdate : public nsIWebProgressListener
-                                  , public nsSupportsWeakReference
-{
-public:
-    NS_DECL_ISUPPORTS
-    NS_DECL_NSIWEBPROGRESSLISTENER
-
-    nsOfflineCachePendingUpdate(nsOfflineCacheUpdateService *aService,
-                                nsIURI *aManifestURI,
-                                nsIURI *aDocumentURI,
-                                nsIDOMDocument *aDocument)
-        : mService(aService)
-        , mManifestURI(aManifestURI)
-        , mDocumentURI(aDocumentURI)
-        {
-            mDocument = do_GetWeakReference(aDocument);
-        }
-
-private:
-    nsRefPtr<nsOfflineCacheUpdateService> mService;
-    nsCOMPtr<nsIURI> mManifestURI;
-    nsCOMPtr<nsIURI> mDocumentURI;
-    nsCOMPtr<nsIWeakReference> mDocument;
-};
-
-NS_IMPL_ISUPPORTS2(nsOfflineCachePendingUpdate,
-                   nsIWebProgressListener,
-                   nsISupportsWeakReference)
-
-//-----------------------------------------------------------------------------
-// nsOfflineCacheUpdateService::nsIWebProgressListener
-//-----------------------------------------------------------------------------
-
-NS_IMETHODIMP
-nsOfflineCachePendingUpdate::OnProgressChange(nsIWebProgress *aProgress,
-                                              nsIRequest *aRequest,
-                                              PRInt32 curSelfProgress,
-                                              PRInt32 maxSelfProgress,
-                                              PRInt32 curTotalProgress,
-                                              PRInt32 maxTotalProgress)
-{
-    NS_NOTREACHED("notification excluded in AddProgressListener(...)");
-    return NS_OK;
-}
-
-NS_IMETHODIMP
-nsOfflineCachePendingUpdate::OnStateChange(nsIWebProgress* aWebProgress,
-                                           nsIRequest *aRequest,
-                                           PRUint32 progressStateFlags,
-                                           nsresult aStatus)
-{
-    nsCOMPtr<nsIDOMDocument> updateDoc = do_QueryReferent(mDocument);
-    if (!updateDoc) {
-        // The document that scheduled this update has gone away,
-        // we don't need to listen anymore.
-        aWebProgress->RemoveProgressListener(this);
-        NS_RELEASE_THIS();
-        return NS_OK;
-    }
-
-    if (!(progressStateFlags & STATE_STOP)) {
-        return NS_OK;
-    }
-
-    nsCOMPtr<nsIDOMWindow> window;
-    aWebProgress->GetDOMWindow(getter_AddRefs(window));
-    if (!window) return NS_OK;
-
-    nsCOMPtr<nsIDOMDocument> progressDoc;
-    window->GetDocument(getter_AddRefs(progressDoc));
-    if (!progressDoc) return NS_OK;
-
-    if (!SameCOMIdentity(progressDoc, updateDoc)) {
-        return NS_OK;
-    }
-
-    LOG(("nsOfflineCachePendingUpdate::OnStateChange [%p, doc=%p]",
-         this, progressDoc.get()));
-
-    // Only schedule the update if the document loaded successfully
-    if (NS_SUCCEEDED(aStatus)) {
-        nsCOMPtr<nsIOfflineCacheUpdate> update;
-        mService->Schedule(mManifestURI, mDocumentURI,
-                           updateDoc, getter_AddRefs(update));
-    }
-
-    aWebProgress->RemoveProgressListener(this);
-    NS_RELEASE_THIS();
-
-    return NS_OK;
-}
-
-NS_IMETHODIMP
-nsOfflineCachePendingUpdate::OnLocationChange(nsIWebProgress* aWebProgress,
-                                              nsIRequest* aRequest,
-                                              nsIURI *location)
-{
-    NS_NOTREACHED("notification excluded in AddProgressListener(...)");
-    return NS_OK;
-}
-
-NS_IMETHODIMP
-nsOfflineCachePendingUpdate::OnStatusChange(nsIWebProgress* aWebProgress,
-                                            nsIRequest* aRequest,
-                                            nsresult aStatus,
-                                            const PRUnichar* aMessage)
-{
-    NS_NOTREACHED("notification excluded in AddProgressListener(...)");
-    return NS_OK;
-}
-
-NS_IMETHODIMP
-nsOfflineCachePendingUpdate::OnSecurityChange(nsIWebProgress *aWebProgress,
-                                              nsIRequest *aRequest,
-                                              PRUint32 state)
-{
-    NS_NOTREACHED("notification excluded in AddProgressListener(...)");
-    return NS_OK;
-}
-
-//-----------------------------------------------------------------------------
 // nsOfflineCacheUpdateService::nsISupports
 //-----------------------------------------------------------------------------
 
-NS_IMPL_ISUPPORTS3(nsOfflineCacheUpdateService,
+NS_IMPL_ISUPPORTS4(nsOfflineCacheUpdateService,
                    nsIOfflineCacheUpdateService,
+                   nsIWebProgressListener,
                    nsIObserver,
                    nsISupportsWeakReference)
 
@@ -2341,6 +2223,9 @@ nsOfflineCacheUpdateService::Init()
         gOfflineCacheUpdateLog = PR_NewLogModule("nsOfflineCacheUpdate");
 #endif
 
+    if (!mDocUpdates.Init())
+        return NS_ERROR_FAILURE;
+
     // Observe xpcom-shutdown event
     nsCOMPtr<nsIObserverService> observerService =
         do_GetService("@mozilla.org/observer-service;1", &rv);
@@ -2350,6 +2235,15 @@ nsOfflineCacheUpdateService::Init()
                                       NS_XPCOM_SHUTDOWN_OBSERVER_ID,
                                       PR_TRUE);
     NS_ENSURE_SUCCESS(rv, rv);
+
+    // Register as an observer for the document loader
+    nsCOMPtr<nsIWebProgress> progress =
+        do_GetService(NS_DOCUMENTLOADER_SERVICE_CONTRACTID);
+    if (progress) {
+        nsresult rv = progress->AddProgressListener
+                          (this, nsIWebProgress::NOTIFY_STATE_DOCUMENT);
+        NS_ENSURE_SUCCESS(rv, rv);
+    }
 
     gOfflineCacheUpdateService = this;
 
@@ -2423,23 +2317,12 @@ nsOfflineCacheUpdateService::ScheduleOnDocumentStop(nsIURI *aManifestURI,
     LOG(("nsOfflineCacheUpdateService::ScheduleOnDocumentStop [%p, manifestURI=%p, documentURI=%p doc=%p]",
          this, aManifestURI, aDocumentURI, aDocument));
 
-    nsCOMPtr<nsIDocument> doc = do_QueryInterface(aDocument);
-    nsCOMPtr<nsISupports> container = doc->GetContainer();
-    nsCOMPtr<nsIWebProgress> progress = do_QueryInterface(container);
-    NS_ENSURE_TRUE(progress, NS_ERROR_INVALID_ARG);
-
     // Proceed with cache update
-    nsRefPtr<nsOfflineCachePendingUpdate> update =
-        new nsOfflineCachePendingUpdate(this, aManifestURI,
-                                        aDocumentURI, aDocument);
-    NS_ENSURE_TRUE(update, NS_ERROR_OUT_OF_MEMORY);
-
-    nsresult rv = progress->AddProgressListener
-        (update, nsIWebProgress::NOTIFY_STATE_DOCUMENT);
-    NS_ENSURE_SUCCESS(rv, rv);
-
-    // The update will release when it has scheduled itself.
-    update.forget();
+    PendingUpdate *update = new PendingUpdate();
+    update->mManifestURI = aManifestURI;
+    update->mDocumentURI = aDocumentURI;
+    if (!mDocUpdates.Put(aDocument, update))
+        return NS_ERROR_FAILURE;
 
     return NS_OK;
 }
@@ -2609,8 +2492,88 @@ nsOfflineCacheUpdateService::Observe(nsISupports     *aSubject,
 }
 
 //-----------------------------------------------------------------------------
-// nsOfflineCacheUpdateService::nsIOfflineCacheUpdateService
+// nsOfflineCacheUpdateService::nsIWebProgressListener
 //-----------------------------------------------------------------------------
+
+NS_IMETHODIMP
+nsOfflineCacheUpdateService::OnProgressChange(nsIWebProgress *aProgress,
+                                              nsIRequest *aRequest,
+                                              PRInt32 curSelfProgress,
+                                              PRInt32 maxSelfProgress,
+                                              PRInt32 curTotalProgress,
+                                              PRInt32 maxTotalProgress)
+{
+    NS_NOTREACHED("notification excluded in AddProgressListener(...)");
+    return NS_OK;
+}
+
+NS_IMETHODIMP
+nsOfflineCacheUpdateService::OnStateChange(nsIWebProgress* aWebProgress,
+                                           nsIRequest *aRequest,
+                                           PRUint32 progressStateFlags,
+                                           nsresult aStatus)
+{
+    if ((progressStateFlags & STATE_IS_DOCUMENT) &&
+        (progressStateFlags & STATE_STOP)) {
+        if (mDocUpdates.Count() == 0)
+            return NS_OK;
+
+        nsCOMPtr<nsIDOMWindow> window;
+        aWebProgress->GetDOMWindow(getter_AddRefs(window));
+        if (!window) return NS_OK;
+
+        nsCOMPtr<nsIDOMDocument> doc;
+        window->GetDocument(getter_AddRefs(doc));
+        if (!doc) return NS_OK;
+
+        LOG(("nsOfflineCacheUpdateService::OnStateChange [%p, doc=%p]",
+             this, doc.get()));
+
+        PendingUpdate *pendingUpdate;
+        if (mDocUpdates.Get(doc, &pendingUpdate)) {
+            // Only schedule the update if the document loaded successfully
+            if (NS_SUCCEEDED(aStatus)) {
+                nsCOMPtr<nsIOfflineCacheUpdate> update;
+                Schedule(pendingUpdate->mManifestURI,
+                         pendingUpdate->mDocumentURI,
+                         doc, getter_AddRefs(update));
+            }
+            mDocUpdates.Remove(doc);
+        }
+
+        return NS_OK;
+    }
+
+    return NS_OK;
+}
+
+NS_IMETHODIMP
+nsOfflineCacheUpdateService::OnLocationChange(nsIWebProgress* aWebProgress,
+                                              nsIRequest* aRequest,
+                                              nsIURI *location)
+{
+    NS_NOTREACHED("notification excluded in AddProgressListener(...)");
+    return NS_OK;
+}
+
+NS_IMETHODIMP
+nsOfflineCacheUpdateService::OnStatusChange(nsIWebProgress* aWebProgress,
+                                            nsIRequest* aRequest,
+                                            nsresult aStatus,
+                                            const PRUnichar* aMessage)
+{
+    NS_NOTREACHED("notification excluded in AddProgressListener(...)");
+    return NS_OK;
+}
+
+NS_IMETHODIMP
+nsOfflineCacheUpdateService::OnSecurityChange(nsIWebProgress *aWebProgress,
+                                              nsIRequest *aRequest,
+                                              PRUint32 state)
+{
+    NS_NOTREACHED("notification excluded in AddProgressListener(...)");
+    return NS_OK;
+}
 
 NS_IMETHODIMP
 nsOfflineCacheUpdateService::OfflineAppAllowed(nsIPrincipal *aPrincipal,
@@ -2680,3 +2643,4 @@ nsOfflineCacheUpdateService::OfflineAppAllowedForURI(nsIURI *aURI,
 
     return NS_OK;
 }
+

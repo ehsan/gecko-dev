@@ -1193,9 +1193,7 @@ nsAccessible::GetChildAtPoint(PRInt32 aX, PRInt32 aY,
     return NS_OK;
 
   // Get direct child containing the deepest child at the given point.
-  nsCOMPtr<nsIAccessible> parent, accessible;
-  accessible.swap(*aAccessible);
-
+  nsCOMPtr<nsIAccessible> parent, accessible(*aAccessible);
   while (PR_TRUE) {
     accessible->GetParent(getter_AddRefs(parent));
     if (!parent) {
@@ -1588,8 +1586,7 @@ nsAccessible::FireAccessibleEvent(nsIAccessibleEvent *aEvent)
   return obsService->NotifyObservers(aEvent, NS_ACCESSIBLE_EVENT_TOPIC, nsnull);
 }
 
-NS_IMETHODIMP
-nsAccessible::GetRole(PRUint32 *aRole)
+NS_IMETHODIMP nsAccessible::GetFinalRole(PRUint32 *aRole)
 {
   NS_ENSURE_ARG_POINTER(aRole);
   *aRole = nsIAccessibleRole::ROLE_NOTHING;
@@ -1646,10 +1643,7 @@ nsAccessible::GetRole(PRUint32 *aRole)
       return NS_OK;
     }
   }
-
-  return mDOMNode ?
-    GetRoleInternal(aRole) :
-    NS_ERROR_FAILURE;  // Node already shut down
+  return mDOMNode ? GetRole(aRole) : NS_ERROR_FAILURE;  // Node already shut down
 }
 
 NS_IMETHODIMP
@@ -1723,8 +1717,8 @@ nsAccessible::GetAttributes(nsIPersistentProperties **aAttributes)
       if (PL_strncmp(attrStr, "aria-", 5)) 
         continue; // Not ARIA
       PRUint8 attrFlags = nsAccUtils::GetAttributeCharacteristics(attrAtom);
-      if (attrFlags & ATTR_BYPASSOBJ)
-        continue; // No need to handle exposing as obj attribute here
+      if (attrFlags & ATTR_EXPOSEOBJ)
+        continue; // No need to expose obj attribute -- will be exposed some other way
       if ((attrFlags & ATTR_VALTOKEN) &&
           !nsAccUtils::HasDefinedARIAToken(content, attrAtom))
         continue; // only expose token based attributes if they are defined
@@ -1900,8 +1894,7 @@ PRBool nsAccessible::MappedAttrState(nsIContent *aContent, PRUint32 *aStateInOut
   if (aContent->GetAttr(kNameSpaceID_None, *aStateMapEntry->attributeName, attribValue)) {
     if (aStateMapEntry->attributeValue == kBoolState) {
       // No attribute value map specified in state map entry indicates state cleared
-      if (attribValue.EqualsLiteral("false") ||
-          attribValue.EqualsLiteral("mixed")) {
+      if (attribValue.EqualsLiteral("false")) {
         *aStateInOut &= ~aStateMapEntry->state;
       }
       else {
@@ -1994,7 +1987,7 @@ nsAccessible::GetState(PRUint32 *aState, PRUint32 *aExtraState)
   }
 
   PRUint32 role;
-  rv = GetRole(&role);
+  rv = GetFinalRole(&role);
   NS_ENSURE_SUCCESS(rv, rv);
 
   if (role == nsIAccessibleRole::ROLE_ENTRY ||
@@ -2251,9 +2244,9 @@ nsAccessible::GetKeyBindings(PRUint8 aActionIndex,
 }
 
 /* unsigned long getRole (); */
-nsresult
-nsAccessible::GetRoleInternal(PRUint32 *aRole)
+NS_IMETHODIMP nsAccessible::GetRole(PRUint32 *aRole)
 {
+  NS_ENSURE_ARG_POINTER(aRole);
   *aRole = nsIAccessibleRole::ROLE_NOTHING;
 
   if (IsDefunct())
@@ -2311,8 +2304,6 @@ nsAccessible::GetActionName(PRUint8 aIndex, nsAString& aName)
    case eCheckUncheckAction:
      if (states & nsIAccessibleStates::STATE_CHECKED)
        aName.AssignLiteral("uncheck");
-     else if (states & nsIAccessibleStates::STATE_MIXED)
-       aName.AssignLiteral("cycle");
      else
        aName.AssignLiteral("check");
      return NS_OK;

@@ -68,13 +68,6 @@ nsXULTextAccessible::GetNameInternal(nsAString& aName)
 }
 
 nsresult
-nsXULTextAccessible::GetRoleInternal(PRUint32 *aRole)
-{
-  *aRole = nsIAccessibleRole::ROLE_LABEL;
-  return NS_OK;
-}
-
-nsresult
 nsXULTextAccessible::GetStateInternal(PRUint32 *aState, PRUint32 *aExtraState)
 {
   nsresult rv = nsHyperTextAccessibleWrap::GetStateInternal(aState,
@@ -134,10 +127,9 @@ nsXULTooltipAccessible::GetStateInternal(PRUint32 *aState,
   return NS_OK;
 }
 
-nsresult
-nsXULTooltipAccessible::GetRoleInternal(PRUint32 *aRole)
+NS_IMETHODIMP nsXULTooltipAccessible::GetRole(PRUint32 *_retval)
 {
-  *aRole = nsIAccessibleRole::ROLE_TOOLTIP;
+  *_retval = nsIAccessibleRole::ROLE_TOOLTIP;
   return NS_OK;
 }
 
@@ -184,9 +176,11 @@ nsXULLinkAccessible::GetNameInternal(nsAString& aName)
   return nsTextEquivUtils::GetNameFromSubtree(this, aName);
 }
 
-nsresult
-nsXULLinkAccessible::GetRoleInternal(PRUint32 *aRole)
+NS_IMETHODIMP
+nsXULLinkAccessible::GetRole(PRUint32 *aRole)
 {
+  NS_ENSURE_ARG_POINTER(aRole);
+
   *aRole = nsIAccessibleRole::ROLE_LINK;
   return NS_OK;
 }
