@@ -13,7 +13,7 @@
 #include "jstypes.h"
 
 #include "jit/IonCode.h"
-#include "jit/Snapshots.h"
+#include "jit/SnapshotReader.h"
 
 namespace js {
     class ActivationIterator;
@@ -237,17 +237,12 @@ class SnapshotIterator : public SnapshotReader
     IonScript *ionScript_;
 
   private:
-    // Read a spilled register from the machine state.
-    bool hasRegister(const Location &loc);
-    uintptr_t fromRegister(const Location &loc);
+    bool hasLocation(const SnapshotReader::Location &loc);
+    uintptr_t fromLocation(const SnapshotReader::Location &loc);
 
-    // Read an uintptr_t from the stack.
-    bool hasStack(const Location &loc);
-    uintptr_t fromStack(const Location &loc);
-
-    Value allocationValue(const RValueAllocation &a);
-    bool allocationReadable(const RValueAllocation &a);
-    void warnUnreadableAllocation();
+    Value slotValue(const Slot &slot);
+    bool slotReadable(const Slot &slot);
+    void warnUnreadableSlot();
 
   public:
     SnapshotIterator(IonScript *ionScript, SnapshotOffset snapshotOffset,
@@ -256,19 +251,15 @@ class SnapshotIterator : public SnapshotReader
     SnapshotIterator(const IonBailoutIterator &iter);
     SnapshotIterator();
 
-    Value skip() {
-        readAllocation();
-        return UndefinedValue();
-    }
     Value read() {
-        return allocationValue(readAllocation());
+        return slotValue(readSlot());
     }
     Value maybeRead(bool silentFailure = false) {
-        RValueAllocation a = readAllocation();
-        if (allocationReadable(a))
-            return allocationValue(a);
+        Slot s = readSlot();
+        if (slotReadable(s))
+            return slotValue(s);
         if (!silentFailure)
-            warnUnreadableAllocation();
+            warnUnreadableSlot();
         return UndefinedValue();
     }
 
@@ -312,15 +303,15 @@ class SnapshotIterator : public SnapshotReader
         }
     }
 
-    Value maybeReadAllocByIndex(size_t index) {
+    Value maybeReadSlotByIndex(size_t index) {
         while (index--) {
-            JS_ASSERT(moreAllocations());
+            JS_ASSERT(moreSlots());
             skip();
         }
 
         Value s = maybeRead(true);
 
-        while (moreAllocations())
+        while (moreSlots())
             skip();
 
         return s;
@@ -431,8 +422,8 @@ class InlineFrameIteratorMaybeGC
 
             // Skip over all slots untill we get to the last slots (= arguments slots of callee)
             // the +3 is for [this], [returnvalue], [scopechain], and maybe +1 for [argsObj]
-            JS_ASSERT(parent_s.allocations() >= nactual + 3 + argsObjAdj);
-            unsigned skip = parent_s.allocations() - nactual - 3 - argsObjAdj;
+            JS_ASSERT(parent_s.slots() >= nactual + 3 + argsObjAdj);
+            unsigned skip = parent_s.slots() - nactual - 3 - argsObjAdj;
             for (unsigned j = 0; j < skip; j++)
                 parent_s.skip();
 

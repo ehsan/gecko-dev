@@ -1364,7 +1364,7 @@ Quit(JSContext *cx, unsigned argc, jsval *vp)
 #endif
 
     CallArgs args = CallArgsFromVp(argc, vp);
-    JS_ConvertArguments(cx, args, "/ i", &gExitCode);
+    JS_ConvertArguments(cx, args.length(), args.array(), "/ i", &gExitCode);
 
     gQuitting = true;
     return false;
@@ -2227,7 +2227,7 @@ DumpObject(JSContext *cx, unsigned argc, jsval *vp)
 {
     CallArgs args = CallArgsFromVp(argc, vp);
     RootedObject arg0(cx);
-    if (!JS_ConvertArguments(cx, args, "o", arg0.address()))
+    if (!JS_ConvertArguments(cx, args.length(), args.array(), "o", arg0.address()))
         return false;
 
     js_DumpObject(arg0);
@@ -2480,11 +2480,9 @@ NewSandbox(JSContext *cx, bool lazy)
 static bool
 EvalInContext(JSContext *cx, unsigned argc, jsval *vp)
 {
-    CallArgs args = CallArgsFromVp(argc, vp);
-
     RootedString str(cx);
     RootedObject sobj(cx);
-    if (!JS_ConvertArguments(cx, args, "S / o", str.address(), sobj.address()))
+    if (!JS_ConvertArguments(cx, argc, JS_ARGV(cx, vp), "S / o", str.address(), sobj.address()))
         return false;
 
     size_t srclen;
@@ -2509,7 +2507,7 @@ EvalInContext(JSContext *cx, unsigned argc, jsval *vp)
     }
 
     if (srclen == 0) {
-        args.rval().setObject(*sobj);
+        JS_SET_RVAL(cx, vp, OBJECT_TO_JSVAL(sobj));
         return true;
     }
 
@@ -2517,6 +2515,7 @@ EvalInContext(JSContext *cx, unsigned argc, jsval *vp)
     unsigned lineno;
 
     JS_DescribeScriptedCaller(cx, &script, &lineno);
+    RootedValue rval(cx);
     {
         Maybe<JSAutoCompartment> ac;
         unsigned flags;
@@ -2536,14 +2535,15 @@ EvalInContext(JSContext *cx, unsigned argc, jsval *vp)
         if (!JS_EvaluateUCScript(cx, sobj, src, srclen,
                                  script->filename(),
                                  lineno,
-                                 args.rval())) {
+                                 &rval)) {
             return false;
         }
     }
 
-    if (!cx->compartment()->wrap(cx, args.rval()))
+    if (!cx->compartment()->wrap(cx, &rval))
         return false;
 
+    JS_SET_RVAL(cx, vp, rval);
     return true;
 }
 

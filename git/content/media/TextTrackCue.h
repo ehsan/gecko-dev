@@ -322,7 +322,6 @@ public:
   void SetDisplayState(HTMLDivElement* aDisplayState)
   {
     mDisplayState = aDisplayState;
-    mReset = false;
   }
 
   bool HasBeenReset()

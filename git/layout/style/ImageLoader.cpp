@@ -322,6 +322,7 @@ void InvalidateImagesCallback(nsIFrame* aFrame,
   }
 
   aItem->Invalidate();
+  aFrame->SchedulePaint();
 
   // Update ancestor rendering observers (-moz-element etc)
   nsIFrame *f = aFrame;
@@ -349,7 +350,6 @@ ImageLoader::DoRedraw(FrameSet* aFrameSet)
         frame->InvalidateFrame();
       } else {
         FrameLayerBuilder::IterateRetainedDataFor(frame, InvalidateImagesCallback);
-        frame->SchedulePaint();
       }
     }
   }
