@@ -10,6 +10,7 @@
 #define jsinfer_h
 
 #include "mozilla/MemoryReporting.h"
+#include "mozilla/TypedEnum.h"
 
 #include "jsalloc.h"
 #include "jsfriendapi.h"

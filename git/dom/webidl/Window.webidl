@@ -405,16 +405,16 @@ partial interface Window {
 
 [Func="IsChromeOrXBL"]
 interface ChromeWindow {
-  [Func="nsGlobalWindow::IsPrivilegedChromeWindow"]
+  [Func="nsGlobalWindow::IsChromeWindow"]
   const unsigned short STATE_MAXIMIZED = 1;
-  [Func="nsGlobalWindow::IsPrivilegedChromeWindow"]
+  [Func="nsGlobalWindow::IsChromeWindow"]
   const unsigned short STATE_MINIMIZED = 2;
-  [Func="nsGlobalWindow::IsPrivilegedChromeWindow"]
+  [Func="nsGlobalWindow::IsChromeWindow"]
   const unsigned short STATE_NORMAL = 3;
-  [Func="nsGlobalWindow::IsPrivilegedChromeWindow"]
+  [Func="nsGlobalWindow::IsChromeWindow"]
   const unsigned short STATE_FULLSCREEN = 4;
 
-  [Func="nsGlobalWindow::IsPrivilegedChromeWindow"]
+  [Func="nsGlobalWindow::IsChromeWindow"]
   readonly attribute unsigned short windowState;
 
   /**
@@ -422,40 +422,40 @@ interface ChromeWindow {
    * utility functions implemented by chrome script. It will be null
    * for DOMWindows not corresponding to browsers.
    */
-  [Throws, Func="nsGlobalWindow::IsPrivilegedChromeWindow"]
+  [Throws, Func="nsGlobalWindow::IsChromeWindow"]
            attribute nsIBrowserDOMWindow? browserDOMWindow;
 
-  [Throws, Func="nsGlobalWindow::IsPrivilegedChromeWindow"]
+  [Throws, Func="nsGlobalWindow::IsChromeWindow"]
   void                      getAttention();
 
-  [Throws, Func="nsGlobalWindow::IsPrivilegedChromeWindow"]
+  [Throws, Func="nsGlobalWindow::IsChromeWindow"]
   void                      getAttentionWithCycleCount(long aCycleCount);
 
-  [Throws, Func="nsGlobalWindow::IsPrivilegedChromeWindow"]
+  [Throws, Func="nsGlobalWindow::IsChromeWindow"]
   void                      setCursor(DOMString cursor);
 
-  [Throws, Func="nsGlobalWindow::IsPrivilegedChromeWindow", UnsafeInPrerendering]
+  [Throws, Func="nsGlobalWindow::IsChromeWindow", UnsafeInPrerendering]
   void                      maximize();
-  [Throws, Func="nsGlobalWindow::IsPrivilegedChromeWindow", UnsafeInPrerendering]
+  [Throws, Func="nsGlobalWindow::IsChromeWindow", UnsafeInPrerendering]
   void                      minimize();
-  [Throws, Func="nsGlobalWindow::IsPrivilegedChromeWindow", UnsafeInPrerendering]
+  [Throws, Func="nsGlobalWindow::IsChromeWindow", UnsafeInPrerendering]
   void                      restore();
 
   /**
    * Notify a default button is loaded on a dialog or a wizard.
    * defaultButton is the default button.
    */
-  [Throws, Func="nsGlobalWindow::IsPrivilegedChromeWindow"]
+  [Throws, Func="nsGlobalWindow::IsChromeWindow"]
   void notifyDefaultButtonLoaded(Element defaultButton);
 
-  [Throws, Func="nsGlobalWindow::IsPrivilegedChromeWindow"]
+  [Throws, Func="nsGlobalWindow::IsChromeWindow"]
   readonly attribute nsIMessageBroadcaster messageManager;
 
   /**
    * Returns the message manager identified by the given group name that
    * manages all frame loaders belonging to that group.
    */
-  [Throws, Func="nsGlobalWindow::IsPrivilegedChromeWindow"]
+  [Throws, Func="nsGlobalWindow::IsChromeWindow"]
   nsIMessageBroadcaster getGroupMessageManager(DOMString aGroup);
 
   /**
@@ -468,7 +468,7 @@ interface ChromeWindow {
    *
    * Throws NS_ERROR_NOT_IMPLEMENTED if the OS doesn't support this.
    */
-  [Throws, Func="nsGlobalWindow::IsPrivilegedChromeWindow"]
+  [Throws, Func="nsGlobalWindow::IsChromeWindow"]
   void beginWindowMove(Event mouseDownEvent, optional Element? panel = null);
 };
 

@@ -440,7 +440,7 @@ BaselineInspector::getTemplateObject(jsbytecode *pc)
     return nullptr;
 }
 
-JSObject *
+NativeObject *
 BaselineInspector::getTemplateObjectForNative(jsbytecode *pc, Native native)
 {
     if (!hasBaselineScript())

@@ -110,7 +110,7 @@ class BaselineInspector
     bool hasSeenNonStringIterMore(jsbytecode *pc);
 
     NativeObject *getTemplateObject(jsbytecode *pc);
-    JSObject *getTemplateObjectForNative(jsbytecode *pc, Native native);
+    NativeObject *getTemplateObjectForNative(jsbytecode *pc, Native native);
     JSObject *getTemplateObjectForClassHook(jsbytecode *pc, const Class *clasp);
 
     DeclEnvObject *templateDeclEnvObject();

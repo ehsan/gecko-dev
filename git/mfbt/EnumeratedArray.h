@@ -10,12 +10,14 @@
 #define mozilla_EnumeratedArray_h
 
 #include "mozilla/Array.h"
+#include "mozilla/TypedEnum.h"
 
 namespace mozilla {
 
 /**
  * EnumeratedArray is a fixed-size array container for use when an
- * array is indexed by a specific enum class.
+ * array is indexed by a specific enum class, as currently implemented
+ * by MOZ_BEGIN_ENUM_CLASS.
  *
  * This provides type safety by guarding at compile time against accidentally
  * indexing such arrays with unrelated values. This also removes the need
@@ -25,11 +27,11 @@ namespace mozilla {
  *
  * Example:
  *
- *   enum class AnimalSpecies {
+ *   MOZ_BEGIN_ENUM_CLASS(AnimalSpecies)
  *     Cow,
  *     Sheep,
  *     Count
- *   };
+ *   MOZ_END_ENUM_CLASS(AnimalSpecies)
  *
  *   EnumeratedArray<AnimalSpecies, AnimalSpecies::Count, int> headCount;
  *
@@ -38,7 +40,7 @@ namespace mozilla {
  *
  */
 template<typename IndexType,
-         IndexType SizeAsEnumValue,
+         MOZ_TEMPLATE_ENUM_CLASS_ENUM_TYPE(IndexType) SizeAsEnumValue,
          typename ValueType>
 class EnumeratedArray
 {

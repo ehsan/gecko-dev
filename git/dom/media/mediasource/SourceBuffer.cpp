@@ -19,7 +19,6 @@
 #include "nsIRunnable.h"
 #include "nsThreadUtils.h"
 #include "prlog.h"
-#include <time.h>
 
 struct JSContext;
 class JSObject;
@@ -37,36 +36,13 @@ extern PRLogModuleInfo* GetMediaSourceAPILog();
 #define MSE_API(...)
 #endif
 
+// RangeRemoval must be synchronous if appendBuffer is also synchronous.
+// While waiting for bug 1118589 to land, ensure RangeRemoval is synchronous
+#define APPENDBUFFER_IS_SYNCHRONOUS
+
 namespace mozilla {
 
 namespace dom {
-
-class AppendDataRunnable : public nsRunnable {
-public:
-  AppendDataRunnable(SourceBuffer* aSourceBuffer,
-                     const uint8_t* aData,
-                     uint32_t aLength,
-                     double aTimestampOffset)
-  : mSourceBuffer(aSourceBuffer)
-  , mTimestampOffset(aTimestampOffset)
-  {
-    mData.AppendElements(aData, aLength);
-  }
-
-  NS_IMETHOD Run() MOZ_OVERRIDE MOZ_FINAL {
-
-    mSourceBuffer->AppendData(mData.Elements(),
-                              mData.Length(),
-                              mTimestampOffset);
-
-    return NS_OK;
-  }
-
-private:
-  nsRefPtr<SourceBuffer> mSourceBuffer;
-  nsTArray<uint8_t> mData;
-  double mTimestampOffset;
-};
 
 class RangeRemovalRunnable : public nsRunnable {
 public:
@@ -264,8 +240,18 @@ SourceBuffer::RangeRemoval(double aStart, double aEnd)
 {
   StartUpdating();
 
+#if defined(APPENDBUFFER_IS_SYNCHRONOUS)
+  DoRangeRemoval(aStart, aEnd);
+
+  // Run the final step of the buffer append algorithm asynchronously to
+  // ensure the SourceBuffer's updating flag transition behaves as required
+  // by the spec.
+  nsCOMPtr<nsIRunnable> event = NS_NewRunnableMethod(this, &SourceBuffer::StopUpdating);
+  NS_DispatchToMainThread(event);
+#else
   nsRefPtr<nsIRunnable> task = new RangeRemovalRunnable(this, aStart, aEnd);
   NS_DispatchToMainThread(task);
+#endif
 }
 
 void
@@ -281,7 +267,9 @@ SourceBuffer::DoRangeRemoval(double aStart, double aEnd)
     mTrackBuffer->RangeRemoval(start, end);
   }
 
+#if !defined(APPENDBUFFER_IS_SYNCHRONOUS)
   StopUpdating();
+#endif
 }
 
 void
@@ -417,29 +405,10 @@ SourceBuffer::AppendData(const uint8_t* aData, uint32_t aLength, ErrorResult& aR
 
   MOZ_ASSERT(mAppendMode == SourceBufferAppendMode::Segments,
              "We don't handle timestampOffset for sequence mode yet");
-  nsRefPtr<nsIRunnable> task =
-    new AppendDataRunnable(this, aData, aLength, mTimestampOffset);
-  NS_DispatchToMainThread(task);
-}
-
-void
-SourceBuffer::AppendData(const uint8_t* aData, uint32_t aLength, double aTimestampOffset)
-{
-  if (!mUpdating) {
-    // The buffer append algorithm has been interrupted by abort().
-    //
-    // If the sequence appendBuffer(), abort(), appendBuffer() occurs before
-    // the first StopUpdating() runnable runs, then a second StopUpdating()
-    // runnable will be scheduled, but still only one (the first) will queue
-    // events.
-    return;
-  }
-
-  MOZ_ASSERT(mMediaSource);
-
   if (aLength) {
-    if (!mTrackBuffer->AppendData(aData, aLength, aTimestampOffset * USECS_PER_S)) {
-      AppendError(true);
+    if (!mTrackBuffer->AppendData(aData, aLength, mTimestampOffset * USECS_PER_S)) {
+      nsCOMPtr<nsIRunnable> event = NS_NewRunnableMethodWithArg<bool>(this, &SourceBuffer::AppendError, true);
+      NS_DispatchToMainThread(event);
       return;
     }
 
@@ -450,8 +419,12 @@ SourceBuffer::AppendData(const uint8_t* aData, uint32_t aLength, double aTimesta
     CheckEndTime();
   }
 
-  StopUpdating();
- }
+  // Run the final step of the buffer append algorithm asynchronously to
+  // ensure the SourceBuffer's updating flag transition behaves as required
+  // by the spec.
+  nsCOMPtr<nsIRunnable> event = NS_NewRunnableMethod(this, &SourceBuffer::StopUpdating);
+  NS_DispatchToMainThread(event);
+}
 
 void
 SourceBuffer::AppendError(bool aDecoderError)

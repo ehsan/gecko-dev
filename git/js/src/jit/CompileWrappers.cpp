@@ -37,37 +37,37 @@ CompileRuntime::mainThread()
 const void *
 CompileRuntime::addressOfJitTop()
 {
-    return &runtime()->jitTop;
+    return &runtime()->mainThread.jitTop;
 }
 
 const void *
 CompileRuntime::addressOfJitActivation()
 {
-    return &runtime()->jitActivation;
+    return &runtime()->mainThread.jitActivation;
 }
 
 const void *
 CompileRuntime::addressOfProfilingActivation()
 {
-    return (const void *) &runtime()->profilingActivation_;
+    return (const void *) &runtime()->mainThread.profilingActivation_;
 }
 
 const void *
 CompileRuntime::addressOfJitStackLimit()
 {
-    return runtime()->addressOfJitStackLimit();
+    return runtime()->mainThread.addressOfJitStackLimit();
 }
 
 const void *
 CompileRuntime::addressOfJSContext()
 {
-    return &runtime()->jitJSContext;
+    return &runtime()->mainThread.jitJSContext;
 }
 
 const void *
 CompileRuntime::addressOfActivation()
 {
-    return runtime()->addressOfActivation();
+    return runtime()->mainThread.addressOfActivation();
 }
 
 const void *

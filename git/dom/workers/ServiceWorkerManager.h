@@ -11,6 +11,7 @@
 #include "mozilla/Attributes.h"
 #include "mozilla/LinkedList.h"
 #include "mozilla/Preferences.h"
+#include "mozilla/TypedEnum.h"
 #include "mozilla/TypedEnumBits.h"
 #include "mozilla/WeakPtr.h"
 #include "mozilla/dom/BindingUtils.h"

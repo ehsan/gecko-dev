@@ -122,7 +122,6 @@ private:
   ~SourceBuffer();
 
   friend class AsyncEventRunner<SourceBuffer>;
-  friend class AppendDataRunnable;
   void DispatchSimpleEvent(const char* aName);
   void QueueAsyncSimpleEvent(const char* aName);
 
@@ -138,8 +137,6 @@ private:
 
   // Shared implementation of AppendBuffer overloads.
   void AppendData(const uint8_t* aData, uint32_t aLength, ErrorResult& aRv);
-  void AppendData(const uint8_t* aData, uint32_t aLength,
-                  double aTimestampOffset);
 
   // Implement the "Append Error Algorithm".
   // Will call endOfStream() with "decode" error if aDecodeError is true.

@@ -8,6 +8,7 @@
 #define jit_IonTypes_h
 
 #include "mozilla/HashFunctions.h"
+#include "mozilla/TypedEnum.h"
 
 #include "jstypes.h"
 
@@ -99,10 +100,6 @@ enum BailoutKind
     Bailout_NonObjectInput,
     Bailout_NonStringInput,
     Bailout_NonSymbolInput,
-
-    // SIMD Unbox expects a given type, bails out if it doesn't match.
-    Bailout_NonSimdInt32x4Input,
-    Bailout_NonSimdFloat32x4Input,
 
     // For the initial snapshot when entering a function.
     Bailout_InitialState,
@@ -197,10 +194,6 @@ BailoutKindString(BailoutKind kind)
         return "Bailout_NonStringInput";
       case Bailout_NonSymbolInput:
         return "Bailout_NonSymbolInput";
-      case Bailout_NonSimdInt32x4Input:
-        return "Bailout_NonSimdInt32x4Input";
-      case Bailout_NonSimdFloat32x4Input:
-        return "Bailout_NonSimdFloat32x4Input";
       case Bailout_InitialState:
         return "Bailout_InitialState";
       case Bailout_Debugger:
@@ -639,7 +632,7 @@ enum ABIFunctionType
         (ArgType_General << (ArgType_Shift * 2))
 };
 
-enum class BarrierKind : uint32_t {
+MOZ_BEGIN_ENUM_CLASS(BarrierKind, uint32_t)
     // No barrier is needed.
     NoBarrier,
 
@@ -650,7 +643,7 @@ enum class BarrierKind : uint32_t {
     // Check if the value is in the TypeSet, including the object type if it's
     // an object.
     TypeSet
-};
+MOZ_END_ENUM_CLASS(BarrierKind)
 
 } // namespace jit
 } // namespace js

@@ -7,6 +7,7 @@
 #define MOZILLA_IMAGELIB_EXIF_H
 
 #include <stdint.h>
+#include "mozilla/TypedEnum.h"
 #include "nsDebug.h"
 
 #include "Orientation.h"
@@ -14,11 +15,11 @@
 namespace mozilla {
 namespace image {
 
-enum class ByteOrder : uint8_t {
+MOZ_BEGIN_ENUM_CLASS(ByteOrder, uint8_t)
   Unknown,
   LittleEndian,
   BigEndian
-};
+MOZ_END_ENUM_CLASS(ByteOrder)
 
 struct EXIFData
 {

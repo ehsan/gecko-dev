@@ -38,7 +38,6 @@ class MacroAssemblerARM : public Assembler
     // address.
     Register secondScratchReg_;
 
-  public:
     // Higher level tag testing code.
     Operand ToPayload(Operand base) {
         return Operand(Register::FromCode(base.base()), base.disp());
@@ -46,8 +45,6 @@ class MacroAssemblerARM : public Assembler
     Address ToPayload(Address base) {
         return ToPayload(Operand(base)).toAddress();
     }
-
-  protected:
     Operand ToType(Operand base) {
         return Operand(Register::FromCode(base.base()), base.disp() + sizeof(void *));
     }

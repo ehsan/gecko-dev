@@ -98,12 +98,12 @@ JitFrameIterator::JitFrameIterator()
 }
 
 JitFrameIterator::JitFrameIterator(JSContext *cx)
-  : current_(cx->runtime()->jitTop),
+  : current_(cx->perThreadData->jitTop),
     type_(JitFrame_Exit),
     returnAddressToFp_(nullptr),
     frameSize_(0),
     cachedSafepointIndex_(nullptr),
-    activation_(cx->runtime()->activation()->asJit())
+    activation_(cx->perThreadData->activation()->asJit())
 {
     if (activation_->bailoutData()) {
         current_ = activation_->bailoutData()->fp();
@@ -390,7 +390,7 @@ HandleExceptionIon(JSContext *cx, const InlineFrameIterator &frame, ResumeFromEx
         // Debugger has observed this frame (e.g., for onPop).
         bool shouldBail = Debugger::hasLiveHook(cx->global(), Debugger::OnExceptionUnwind);
         if (!shouldBail) {
-            JitActivation *act = cx->runtime()->activation()->asJit();
+            JitActivation *act = cx->mainThread().activation()->asJit();
             RematerializedFrame *rematFrame =
                 act->lookupRematerializedFrame(frame.frame().fp(), frame.frameNo());
             shouldBail = rematFrame && rematFrame->isDebuggee();
@@ -693,10 +693,10 @@ struct AutoResetLastProfilerFrameOnReturnFromException
         if (!cx->runtime()->jitRuntime()->isProfilerInstrumentationEnabled(cx->runtime()))
             return;
 
-        MOZ_ASSERT(cx->runtime()->jitActivation == cx->runtime()->profilingActivation());
+        MOZ_ASSERT(cx->mainThread().jitActivation == cx->mainThread().profilingActivation());
 
         void *lastProfilingFrame = getLastProfilingFrame();
-        cx->runtime()->jitActivation->setLastProfilingFrame(lastProfilingFrame);
+        cx->mainThread().jitActivation->setLastProfilingFrame(lastProfilingFrame);
     }
 
     void *getLastProfilingFrame() {
@@ -740,7 +740,7 @@ HandleException(ResumeFromException *rfe)
     if (cx->runtime()->jitRuntime()->hasIonReturnOverride())
         cx->runtime()->jitRuntime()->takeIonReturnOverride();
 
-    JitActivation *activation = cx->runtime()->activation()->asJit();
+    JitActivation *activation = cx->mainThread().activation()->asJit();
 
     // The Debugger onExceptionUnwind hook (reachable via
     // HandleExceptionBaseline below) may cause on-stack recompilation of
@@ -863,7 +863,7 @@ HandleException(ResumeFromException *rfe)
             // not crash when accessing an IonScript that's destroyed by the
             // ionScript->decref call.
             EnsureExitFrame(current);
-            cx->runtime()->jitTop = (uint8_t *)current;
+            cx->mainThread().jitTop = (uint8_t *)current;
         }
 
         if (overrecursed) {
@@ -2737,16 +2737,16 @@ JitProfilingFrameIterator::JitProfilingFrameIterator(
 {
     // If no profilingActivation is live, initialize directly to
     // end-of-iteration state.
-    if (!rt->profilingActivation()) {
+    if (!rt->mainThread.profilingActivation()) {
         type_ = JitFrame_Entry;
         fp_ = nullptr;
         returnAddressToFp_ = nullptr;
         return;
     }
 
-    MOZ_ASSERT(rt->profilingActivation()->isJit());
+    MOZ_ASSERT(rt->mainThread.profilingActivation()->isJit());
 
-    JitActivation *act = rt->profilingActivation()->asJit();
+    JitActivation *act = rt->mainThread.profilingActivation()->asJit();
 
     // If the top JitActivation has a null lastProfilingFrame, assume that
     // it's a trivially empty activation, and initialize directly
@@ -3026,30 +3026,12 @@ InvalidationBailoutStack::checkInvariants() const
 }
 
 void
-AssertJitStackInvariants(JSContext *cx)
+AssertValidJitStack(JSContext *cx)
 {
     for (JitActivationIterator activations(cx->runtime()); !activations.done(); ++activations) {
         JitFrameIterator frames(activations);
-        for (; !frames.done(); ++frames) {
-
-            if (frames.prevType() == JitFrame_Rectifier) {
-                size_t calleeFp = reinterpret_cast<size_t>(frames.fp());
-                size_t callerFp = reinterpret_cast<size_t>(frames.prevFp());
-                MOZ_ASSERT(callerFp >= calleeFp);
-                size_t frameSize = callerFp - calleeFp;
-
-                MOZ_RELEASE_ASSERT(frameSize % JitStackAlignment == 0,
-                  "The rectifier frame should keep the alignment");
-
-                size_t expectedFrameSize = 0
-                    + sizeof(Value) * (frames.callee()->nargs() + 1 /* |this| argument */ )
-                    + sizeof(JitFrameLayout);
-                MOZ_RELEASE_ASSERT(frameSize >= expectedFrameSize,
-                  "The frame is large enough to hold all arguments");
-                MOZ_RELEASE_ASSERT(expectedFrameSize + JitStackAlignment > frameSize,
-                  "The frame size is optimal");
-            }
-        }
+        for (; !frames.done(); ++frames)
+            continue;
 
         MOZ_RELEASE_ASSERT(frames.type() == JitFrame_Entry,
           "The first frame of a Jit activation should be an entry frame");

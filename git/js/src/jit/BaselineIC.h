@@ -5921,7 +5921,7 @@ class ICCall_Native : public ICMonitoredStub
 
   protected:
     HeapPtrFunction callee_;
-    HeapPtrObject templateObject_;
+    HeapPtrNativeObject templateObject_;
     uint32_t pcOffset_;
 
 #if defined(JS_ARM_SIMULATOR) || defined(JS_MIPS_SIMULATOR)
@@ -5929,12 +5929,12 @@ class ICCall_Native : public ICMonitoredStub
 #endif
 
     ICCall_Native(JitCode *stubCode, ICStub *firstMonitorStub,
-                  HandleFunction callee, HandleObject templateObject,
+                  HandleFunction callee, HandleNativeObject templateObject,
                   uint32_t pcOffset);
 
   public:
     static inline ICCall_Native *New(ICStubSpace *space, JitCode *code, ICStub *firstMonitorStub,
-                                     HandleFunction callee, HandleObject templateObject,
+                                     HandleFunction callee, HandleNativeObject templateObject,
                                      uint32_t pcOffset)
     {
         if (!code)
@@ -5949,7 +5949,7 @@ class ICCall_Native : public ICMonitoredStub
     HeapPtrFunction &callee() {
         return callee_;
     }
-    HeapPtrObject &templateObject() {
+    HeapPtrNativeObject &templateObject() {
         return templateObject_;
     }
 
@@ -5973,7 +5973,7 @@ class ICCall_Native : public ICMonitoredStub
         bool isConstructing_;
         bool isSpread_;
         RootedFunction callee_;
-        RootedObject templateObject_;
+        RootedNativeObject templateObject_;
         uint32_t pcOffset_;
         bool generateStubCode(MacroAssembler &masm);
 
@@ -5984,7 +5984,7 @@ class ICCall_Native : public ICMonitoredStub
 
       public:
         Compiler(JSContext *cx, ICStub *firstMonitorStub,
-                 HandleFunction callee, HandleObject templateObject,
+                 HandleFunction callee, HandleNativeObject templateObject,
                  bool isConstructing, bool isSpread, uint32_t pcOffset)
           : ICCallStubCompiler(cx, ICStub::Call_Native),
             firstMonitorStub_(firstMonitorStub),

@@ -123,8 +123,6 @@ extern "C" {
 #include "NativeKeyBindings.h"
 #include "nsWindow.h"
 
-#include <dlfcn.h>
-
 #include "mozilla/layers/APZCTreeManager.h"
 
 using namespace mozilla;
@@ -475,9 +473,6 @@ nsWindow::DispatchEvent(WidgetGUIEvent* aEvent, nsEventStatus& aStatus)
     debug_DumpEvent(stdout, aEvent->widget, aEvent,
                     nsAutoCString("something"), 0);
 #endif
-    // Translate the mouse event into device pixels.
-    aEvent->refPoint.x = GdkCoordToDevicePixels(aEvent->refPoint.x);
-    aEvent->refPoint.y = GdkCoordToDevicePixels(aEvent->refPoint.y);
 
     aStatus = nsEventStatus_eIgnore;
     nsIWidgetListener* listener =
@@ -736,12 +731,6 @@ nsWindow::GetDPI()
     return float(DisplayHeight(dpy, defaultScreen)/heightInches);
 }
 
-double
-nsWindow::GetDefaultScaleInternal()
-{
-    return GdkScaleFactor();
-}
-
 NS_IMETHODIMP
 nsWindow::SetParent(nsIWidget *aNewParent)
 {
@@ -840,9 +829,8 @@ nsWindow::ReparentNativeWidgetInternal(nsIWidget* aNewParent,
         }
 
         if (!mIsTopLevel) {
-            gdk_window_reparent(mGdkWindow, aNewParentWindow,
-                                DevicePixelsToGdkCoordRoundDown(mBounds.x),
-                                DevicePixelsToGdkCoordRoundDown(mBounds.y));
+            gdk_window_reparent(mGdkWindow, aNewParentWindow, mBounds.x,
+                                mBounds.y);
         }
     }
 
@@ -877,26 +865,26 @@ NS_IMETHODIMP
 nsWindow::ConstrainPosition(bool aAllowSlop, int32_t *aX, int32_t *aY)
 {
     if (mIsTopLevel && mShell) {
-        int width = GdkCoordToDevicePixels(gdk_screen_width());
-        int height = GdkCoordToDevicePixels(gdk_screen_height());
+        int32_t screenWidth = gdk_screen_width();
+        int32_t screenHeight = gdk_screen_height();
         if (aAllowSlop) {
             if (*aX < (kWindowPositionSlop - mBounds.width))
                 *aX = kWindowPositionSlop - mBounds.width;
-            if (*aX > (width - kWindowPositionSlop))
-                *aX = width - kWindowPositionSlop;
+            if (*aX > (screenWidth - kWindowPositionSlop))
+                *aX = screenWidth - kWindowPositionSlop;
             if (*aY < (kWindowPositionSlop - mBounds.height))
                 *aY = kWindowPositionSlop - mBounds.height;
-            if (*aY > (height - kWindowPositionSlop))
-                *aY = height - kWindowPositionSlop;
+            if (*aY > (screenHeight - kWindowPositionSlop))
+                *aY = screenHeight - kWindowPositionSlop;
         } else {
             if (*aX < 0)
                 *aX = 0;
-            if (*aX > (width - mBounds.width))
-                *aX = width - mBounds.width;
+            if (*aX > (screenWidth - mBounds.width))
+                *aX = screenWidth - mBounds.width;
             if (*aY < 0)
                 *aY = 0;
-            if (*aY > (height - mBounds.height))
-                *aY = height - mBounds.height;
+            if (*aY > (screenHeight - mBounds.height))
+                *aY = screenHeight - mBounds.height;
         }
     }
     return NS_OK;
@@ -909,14 +897,10 @@ void nsWindow::SetSizeConstraints(const SizeConstraints& aConstraints)
 
     if (mShell) {
         GdkGeometry geometry;
-        geometry.min_width = DevicePixelsToGdkCoordRoundUp(
-                             mSizeConstraints.mMinSize.width);
-        geometry.min_height = DevicePixelsToGdkCoordRoundUp(
-                              mSizeConstraints.mMinSize.height);
-        geometry.max_width = DevicePixelsToGdkCoordRoundDown(
-                             mSizeConstraints.mMaxSize.width);
-        geometry.max_height = DevicePixelsToGdkCoordRoundDown(
-                              mSizeConstraints.mMaxSize.height);
+        geometry.min_width = mSizeConstraints.mMinSize.width;
+        geometry.min_height = mSizeConstraints.mMinSize.height;
+        geometry.max_width = mSizeConstraints.mMaxSize.width;
+        geometry.max_height = mSizeConstraints.mMaxSize.height;
 
         uint32_t hints = GDK_HINT_MIN_SIZE | GDK_HINT_MAX_SIZE;
         gtk_window_set_geometry_hints(GTK_WINDOW(mShell), nullptr,
@@ -1179,13 +1163,11 @@ nsWindow::Move(double aX, double aY)
 
     mNeedsMove = false;
 
-    GdkPoint point = DevicePixelsToGdkPointRoundDown(nsIntPoint(x, y));
-
     if (mIsTopLevel) {
-        gtk_window_move(GTK_WINDOW(mShell), point.x, point.y);
+        gtk_window_move(GTK_WINDOW(mShell), x, y);
     }
     else if (mGdkWindow) {
-        gdk_window_move(mGdkWindow, point.x, point.y);
+        gdk_window_move(mGdkWindow, x, y);
     }
 
     NotifyRollupGeometryChange();
@@ -1452,7 +1434,7 @@ nsWindow::GetScreenBounds(nsIntRect &aRect)
         // use the point including window decorations
         gint x, y;
         gdk_window_get_root_origin(gtk_widget_get_window(GTK_WIDGET(mContainer)), &x, &y);
-        aRect.MoveTo(GdkPointToDevicePixels({ x, y }));
+        aRect.MoveTo(x, y);
     }
     else {
         aRect.MoveTo(WidgetToScreenOffset());
@@ -1622,11 +1604,16 @@ nsWindow::Invalidate(const nsIntRect &aRect)
     if (!mGdkWindow)
         return NS_OK;
 
-    GdkRectangle rect = DevicePixelsToGdkRectRoundOut(aRect);
-    gdk_window_invalidate_rect(mGdkWindow, &rect, FALSE);
+    GdkRectangle rect;
+    rect.x = aRect.x;
+    rect.y = aRect.y;
+    rect.width = aRect.width;
+    rect.height = aRect.height;
 
     LOGDRAW(("Invalidate (rect) [%p]: %d %d %d %d\n", (void *)this,
              rect.x, rect.y, rect.width, rect.height));
+
+    gdk_window_invalidate_rect(mGdkWindow, &rect, FALSE);
 
     return NS_OK;
 }
@@ -1765,7 +1752,7 @@ nsWindow::WidgetToScreenOffset()
         gdk_window_get_origin(mGdkWindow, &x, &y);
     }
 
-    return GdkPointToDevicePixels({ x, y });
+    return nsIntPoint(x, y);
 }
 
 NS_IMETHODIMP
@@ -2057,9 +2044,7 @@ nsWindow::OnExposeEvent(cairo_t *cr)
         return FALSE;
     }
 
-    gint scale = GdkScaleFactor();
-    nsIntRegion& region = exposeRegion.mRegion;
-    region.ScaleRoundOut(scale, scale);
+    nsIntRegion &region = exposeRegion.mRegion;
 
     ClientLayerManager *clientLayers =
         (GetLayerManager()->GetBackendType() == LayersBackend::LAYERS_CLIENT)
@@ -2399,24 +2384,21 @@ nsWindow::OnSizeAllocate(GtkAllocation *aAllocation)
          (void *)this, aAllocation->x, aAllocation->y,
          aAllocation->width, aAllocation->height));
 
-    nsIntSize size = GdkRectToDevicePixels(*aAllocation).Size();
-
+    nsIntSize size(aAllocation->width, aAllocation->height);
     if (mBounds.Size() == size)
         return;
-
-    nsIntRect rect;
 
     // Invalidate the new part of the window now for the pending paint to
     // minimize background flashes (GDK does not do this for external resizes
     // of toplevels.)
     if (mBounds.width < size.width) {
-        GdkRectangle rect = DevicePixelsToGdkRectRoundOut(
-            { mBounds.width, 0, size.width - mBounds.width, size.height });
+        GdkRectangle rect =
+            { mBounds.width, 0, size.width - mBounds.width, size.height };
         gdk_window_invalidate_rect(mGdkWindow, &rect, FALSE);
     }
     if (mBounds.height < size.height) {
-        GdkRectangle rect = DevicePixelsToGdkRectRoundOut(
-            { 0, mBounds.height, size.width, size.height - mBounds.height });
+        GdkRectangle rect =
+            { 0, mBounds.height, size.width, size.height - mBounds.height };
         gdk_window_invalidate_rect(mGdkWindow, &rect, FALSE);
     }
 
@@ -3879,17 +3861,14 @@ nsWindow::SetWindowClass(const nsAString &xulWinType)
 void
 nsWindow::NativeResize(int32_t aWidth, int32_t aHeight, bool    aRepaint)
 {
-    gint width = DevicePixelsToGdkCoordRoundUp(aWidth);
-    gint height = DevicePixelsToGdkCoordRoundUp(aHeight);
-    
     LOG(("nsWindow::NativeResize [%p] %d %d\n", (void *)this,
-         width, height));
+         aWidth, aHeight));
 
     // clear our resize flag
     mNeedsResize = false;
 
     if (mIsTopLevel) {
-        gtk_window_resize(GTK_WINDOW(mShell), width, height);
+        gtk_window_resize(GTK_WINDOW(mShell), aWidth, aHeight);
     }
     else if (mContainer) {
         GtkWidget *widget = GTK_WIDGET(mContainer);
@@ -3897,12 +3876,12 @@ nsWindow::NativeResize(int32_t aWidth, int32_t aHeight, bool    aRepaint)
         gtk_widget_get_allocation(widget, &prev_allocation);
         allocation.x = prev_allocation.x;
         allocation.y = prev_allocation.y;
-        allocation.width = width;
-        allocation.height = height;
+        allocation.width = aWidth;
+        allocation.height = aHeight;
         gtk_widget_size_allocate(widget, &allocation);
     }
     else if (mGdkWindow) {
-        gdk_window_resize(mGdkWindow, width, height);
+        gdk_window_resize(mGdkWindow, aWidth, aHeight);
     }
 }
 
@@ -3911,33 +3890,28 @@ nsWindow::NativeResize(int32_t aX, int32_t aY,
                        int32_t aWidth, int32_t aHeight,
                        bool    aRepaint)
 {
-    gint width = DevicePixelsToGdkCoordRoundUp(aWidth);
-    gint height = DevicePixelsToGdkCoordRoundUp(aHeight);
-    gint x = DevicePixelsToGdkCoordRoundDown(aX);
-    gint y = DevicePixelsToGdkCoordRoundDown(aY);
-
     mNeedsResize = false;
     mNeedsMove = false;
 
     LOG(("nsWindow::NativeResize [%p] %d %d %d %d\n", (void *)this,
-         x, y, width, height));
+         aX, aY, aWidth, aHeight));
 
     if (mIsTopLevel) {
-        // x and y give the position of the window manager frame top-left.
-        gtk_window_move(GTK_WINDOW(mShell), x, y);
+        // aX and aY give the position of the window manager frame top-left.
+        gtk_window_move(GTK_WINDOW(mShell), aX, aY);
         // This sets the client window size.
-        gtk_window_resize(GTK_WINDOW(mShell), width, height);
+        gtk_window_resize(GTK_WINDOW(mShell), aWidth, aHeight);
     }
     else if (mContainer) {
         GtkAllocation allocation;
-        allocation.x = x;
-        allocation.y = y;
-        allocation.width = width;
-        allocation.height = height;
+        allocation.x = aX;
+        allocation.y = aY;
+        allocation.width = aWidth;
+        allocation.height = aHeight;
         gtk_widget_size_allocate(GTK_WIDGET(mContainer), &allocation);
     }
     else if (mGdkWindow) {
-        gdk_window_move_resize(mGdkWindow, x, y, width, height);
+        gdk_window_move_resize(mGdkWindow, aX, aY, aWidth, aHeight);
     }
 }
 
@@ -6217,8 +6191,8 @@ nsWindow::GetThebesSurface(cairo_t *cr)
 #if (MOZ_WIDGET_GTK == 2)
     gdk_drawable_get_size(GDK_DRAWABLE(mGdkWindow), &width, &height);
 #else
-    width = GdkCoordToDevicePixels(gdk_window_get_width(mGdkWindow));
-    height = GdkCoordToDevicePixels(gdk_window_get_height(mGdkWindow));
+    width = gdk_window_get_width(mGdkWindow);
+    height = gdk_window_get_height(mGdkWindow);
 #endif
 
     // Owen Taylor says this is the right thing to do!
@@ -6244,11 +6218,25 @@ nsWindow::GetThebesSurface(cairo_t *cr)
     if (!usingShm)
 #  endif  // MOZ_HAVE_SHMIMAGE
     {
-        mThebesSurface = new gfxXlibSurface
-            (GDK_WINDOW_XDISPLAY(mGdkWindow),
-             gdk_x11_window_get_xid(mGdkWindow),
-             visual,
-             size);
+#if (MOZ_WIDGET_GTK == 3)
+#if MOZ_TREE_CAIRO
+#error "cairo-gtk3 target must be built with --enable-system-cairo"
+#else    
+        if (cr) {
+            cairo_surface_t *surf = cairo_get_target(cr);
+            if (cairo_surface_status(surf) != CAIRO_STATUS_SUCCESS) {
+              NS_NOTREACHED("Missing cairo target?");
+              return nullptr;
+            }
+            mThebesSurface = gfxASurface::Wrap(surf);
+        } else
+#endif
+#endif // (MOZ_WIDGET_GTK == 3)
+            mThebesSurface = new gfxXlibSurface
+                (GDK_WINDOW_XDISPLAY(mGdkWindow),
+                 gdk_x11_window_get_xid(mGdkWindow),
+                 visual,
+                 size);
     }
 #endif // MOZ_X11
 
@@ -6316,8 +6304,6 @@ nsWindow::BeginMoveDrag(WidgetMouseEvent* aEvent)
     }
 
     // tell the window manager to start the move
-    screenX = DevicePixelsToGdkCoordRoundDown(screenX);
-    screenY = DevicePixelsToGdkCoordRoundDown(screenY);
     gdk_window_begin_move_drag(gdk_window, button, screenX, screenY,
                                aEvent->time);
 
@@ -6407,69 +6393,6 @@ nsWindow::ClearCachedResources()
             window->ClearCachedResources();
         }
     }
-}
-
-gint
-nsWindow::GdkScaleFactor()
-{
-#if (MOZ_WIDGET_GTK >= 3)
-    // Available as of GTK 3.10+
-    static auto sGdkWindowGetScaleFactorPtr = (gint (*)(GdkWindow*))
-        dlsym(RTLD_DEFAULT, "gdk_window_get_scale_factor");
-    if (sGdkWindowGetScaleFactorPtr)
-        return (*sGdkWindowGetScaleFactorPtr)(mGdkWindow);
-#endif
-    return 1;
-}
-
-
-gint
-nsWindow::DevicePixelsToGdkCoordRoundUp(int pixels) {
-    gint scale = GdkScaleFactor();
-    return (pixels + scale - 1) / scale;
-}
-
-gint
-nsWindow::DevicePixelsToGdkCoordRoundDown(int pixels) {
-    gint scale = GdkScaleFactor();
-    return pixels / scale;
-}
-
-GdkPoint
-nsWindow::DevicePixelsToGdkPointRoundDown(nsIntPoint point) {
-    gint scale = GdkScaleFactor();
-    return { point.x / scale, point.y / scale };
-}
-
-GdkRectangle
-nsWindow::DevicePixelsToGdkRectRoundOut(nsIntRect rect) {
-    gint scale = GdkScaleFactor();
-    int x = rect.x / scale;
-    int y = rect.y / scale;
-    int right = (rect.x + rect.width + scale - 1) / scale;
-    int bottom = (rect.y + rect.height + scale - 1) / scale;
-    return { x, y, right - x, bottom - y };
-}
-
-int
-nsWindow::GdkCoordToDevicePixels(gint coord) {
-    return coord * GdkScaleFactor();
-}
-
-nsIntPoint
-nsWindow::GdkPointToDevicePixels(GdkPoint point) {
-    gint scale = GdkScaleFactor();
-    return nsIntPoint(point.x * scale,
-                      point.y * scale);
-}
-
-nsIntRect
-nsWindow::GdkRectToDevicePixels(GdkRectangle rect) {
-    gint scale = GdkScaleFactor();
-    return nsIntRect(rect.x * scale,
-                     rect.y * scale,
-                     rect.width * scale,
-                     rect.height * scale);
 }
 
 nsresult
