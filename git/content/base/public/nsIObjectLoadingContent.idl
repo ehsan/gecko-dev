@@ -14,7 +14,7 @@ interface nsIDOMClientRect;
 interface nsIURI;
 
 %{C++
-class nsNPAPIPluginInstance;
+#include "nsNPAPIPluginInstance.h"
 %}
 [ptr] native nsNPAPIPluginInstancePtr(nsNPAPIPluginInstance);
 

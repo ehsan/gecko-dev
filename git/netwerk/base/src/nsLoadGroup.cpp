@@ -115,7 +115,6 @@ RescheduleRequests(PLDHashTable *table, PLDHashEntryHdr *hdr,
 nsLoadGroup::nsLoadGroup(nsISupports* outer)
     : mForegroundCount(0)
     , mLoadFlags(LOAD_NORMAL)
-    , mDefaultLoadFlags(0)
     , mStatus(NS_OK)
     , mPriority(PRIORITY_NORMAL)
     , mIsCanceling(false)
@@ -860,21 +859,6 @@ nsLoadGroup::AdjustPriority(int32_t aDelta)
     return NS_OK;
 }
 
-NS_IMETHODIMP
-nsLoadGroup::GetDefaultLoadFlags(uint32_t *aFlags)
-{
-    *aFlags = mDefaultLoadFlags;
-    return NS_OK;
-}
-
-NS_IMETHODIMP
-nsLoadGroup::SetDefaultLoadFlags(uint32_t aFlags)
-{
-    mDefaultLoadFlags = aFlags;
-    return NS_OK;
-}
-
-
 ////////////////////////////////////////////////////////////////////////////////
 
 void 
@@ -1054,9 +1038,6 @@ nsresult nsLoadGroup::MergeLoadFlags(nsIRequest *aRequest, nsLoadFlags& outFlags
                             VALIDATE_ALWAYS |
                             VALIDATE_ONCE_PER_SESSION |
                             VALIDATE_NEVER));
-
-    // ... and force the default flags.
-    flags |= mDefaultLoadFlags;
 
     if (flags != oldFlags)
         rv = aRequest->SetLoadFlags(flags);

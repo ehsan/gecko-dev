@@ -11,8 +11,7 @@
 #ifndef jsdebug_h___
 #define jsdebug_h___
 
-#include "jstypes.h"
-#include "js/TypeDecls.h"
+#include "jsapi.h"
 
 extern "C" {
 
@@ -715,9 +714,9 @@ JSD_AddFullSourceText(JSDContext* jsdc,
 typedef unsigned
 (* JSD_ExecutionHookProc)(JSDContext*     jsdc,
                           JSDThreadState* jsdthreadstate,
-                          unsigned        type,
+                          unsigned           type,
                           void*           callerdata,
-                          JS::Value*      rval);
+                          jsval*          rval);
 
 /* possible 'type' params for JSD_CallHookProc */
 #define JSD_HOOK_TOPLEVEL_START  0   /* about to evaluate top level script */
@@ -1006,14 +1005,14 @@ JSD_AttemptScriptInStackFrame(JSDContext* jsdc,
                               const char *filename, unsigned lineno, JS::MutableHandleValue rval);
 
 /*
-* Convert the given JS::Value to a string
+* Convert the given jsval to a string
 * NOTE: The ErrorReporter hook might be called if this fails.
 */
 extern JSD_PUBLIC_API(JSString*)
 JSD_ValToStringInStackFrame(JSDContext* jsdc,
                             JSDThreadState* jsdthreadstate,
                             JSDStackFrameInfo* jsdframe,
-                            JS::Value val);
+                            jsval val);
 
 /*
 * Get the JSDValue currently being thrown as an exception (may be NULL).
@@ -1122,18 +1121,18 @@ JSD_CurrentThread();
 
 /*
 * NOTE: JSDValue and JSDProperty objects are reference counted. This allows
-* for rooting these objects AND any underlying garbage collected JS::Values.
+* for rooting these objects AND any underlying garbage collected jsvals.
 * ALL JSDValue and JSDProperty objects returned by the functions below
 * MUST eventually be released using the appropriate JSD_Dropxxx function.
 */
 
 /*
-* Create a new JSDValue to wrap the given JS::Value
+* Create a new JSDValue to wrap the given jsval
 * NOTE: must eventually release by calling JSD_DropValue (if not NULL)
 * *** new for version 1.1 ****
 */
 extern JSD_PUBLIC_API(JSDValue*)
-JSD_NewValue(JSDContext* jsdc, JS::Value val);
+JSD_NewValue(JSDContext* jsdc, jsval val);
 
 /*
 * Release the JSDValue. After this call the object MUST not be referenced again!
@@ -1143,10 +1142,10 @@ extern JSD_PUBLIC_API(void)
 JSD_DropValue(JSDContext* jsdc, JSDValue* jsdval);
 
 /*
-* Get the JS::Value wrapped by this JSDValue
+* Get the jsval wrapped by this JSDValue
 * *** new for version 1.1 ****
 */
-extern JSD_PUBLIC_API(JS::Value)
+extern JSD_PUBLIC_API(jsval)
 JSD_GetValueWrappedJSVal(JSDContext* jsdc, JSDValue* jsdval);
 
 /*

@@ -6,24 +6,21 @@
 
 #pragma once
 
-#include "EnableWebSpeechRecognitionCheck.h"
-#include "mozilla/Attributes.h"
 #include "nsCOMPtr.h"
 #include "nsCycleCollectionParticipant.h"
 #include "nsWrapperCache.h"
+#include "js/TypeDecls.h"
 
-struct JSContext;
+#include "mozilla/Attributes.h"
+#include "mozilla/dom/BindingUtils.h"
+
+#include "EnableWebSpeechRecognitionCheck.h"
+#include "SpeechGrammar.h"
 
 namespace mozilla {
-
-class ErrorResult;
-
 namespace dom {
 
 class GlobalObject;
-class SpeechGrammar;
-template<typename> class Optional;
-
 class SpeechGrammarList MOZ_FINAL : public nsISupports,
                                     public nsWrapperCache,
                                     public EnableWebSpeechRecognitionCheck

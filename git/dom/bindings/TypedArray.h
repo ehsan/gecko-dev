@@ -7,12 +7,10 @@
 #ifndef mozilla_dom_TypedArray_h
 #define mozilla_dom_TypedArray_h
 
-#include "jsapi.h"
 #include "jsfriendapi.h"
-#include "js/RootingAPI.h"
+#include "jsapi.h"
 #include "mozilla/Attributes.h"
 #include "mozilla/dom/BindingDeclarations.h"
-#include "mozilla/Util.h" // for Maybe
 #include "nsWrapperCache.h"
 
 namespace mozilla {

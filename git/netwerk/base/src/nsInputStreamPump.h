@@ -57,10 +57,18 @@ public:
     NS_HIDDEN_(nsresult) PeekStream(PeekSegmentFun callback, void *closure);
 
     /**
-     * Dispatched (to the main thread) by OnStateStop if it's called off main
-     * thread. Updates mState based on return value of OnStateStop.
+     * Called on the main thread to clean up member variables. Called directly
+     * from OnStateStop if on the main thread, or dispatching to the main
+     * thread if not. Must be called on the main thread to serialize member
+     * variable deletion with calls to Cancel.
      */
-    nsresult CallOnStateStop();
+    void OnStateStopCleanup();
+
+    /**
+     * Called on the main thread if EnsureWaiting fails, so that we always call
+     * OnStopRequest on main thread.
+     */
+    nsresult OnStateStopForFailure();
 
 protected:
 

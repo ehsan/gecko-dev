@@ -9,9 +9,9 @@
 
 #ifdef DEBUG
 
-#include "js/TypeDecls.h"
+#include "jsapi.h"
 
-bool FindReferences(JSContext *cx, unsigned argc, JS::Value *vp);
+bool FindReferences(JSContext *cx, unsigned argc, jsval *vp);
 
 #endif /* DEBUG */
 

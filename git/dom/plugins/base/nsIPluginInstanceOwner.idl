@@ -11,7 +11,7 @@ interface nsIDocument;
 
 %{C++
 #include "npapi.h"
-class nsNPAPIPluginInstance;
+#include "nsNPAPIPluginInstance.h"
 class nsPluginEvent;
 %}
 

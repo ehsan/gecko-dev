@@ -7,6 +7,7 @@
 #define ctypes_CTypes_h
 
 #include "ffi.h"
+#include "jsapi.h"
 #include "jscntxt.h"
 #include "prlink.h"
 

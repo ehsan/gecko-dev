@@ -7,6 +7,7 @@
 #ifndef builtin_MapObject_h
 #define builtin_MapObject_h
 
+#include "jsapi.h"
 #include "jsobj.h"
 
 #include "vm/Runtime.h"
