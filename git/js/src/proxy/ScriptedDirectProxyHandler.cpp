@@ -172,8 +172,7 @@ ReportInvalidTrapResult(JSContext *cx, JSObject *proxy, JSAtom *atom)
                          js::NullPtr(), bytes.ptr());
 }
 
-// This function is shared between ownPropertyKeys, enumerate, and
-// getOwnEnumerablePropertyKeys.
+// This function is shared between ownPropertyKeys, enumerate, and keys
 static bool
 ArrayToIdVector(JSContext *cx, HandleObject proxy, HandleObject target, HandleValue v,
                 AutoIdVector &props, unsigned flags, JSAtom *trapName_)

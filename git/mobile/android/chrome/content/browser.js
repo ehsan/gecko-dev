@@ -112,9 +112,6 @@ XPCOMUtils.defineLazyModuleGetter(this, "SharedPreferences",
   ["Linkifier", "chrome://browser/content/Linkify.js"],
   ["ZoomHelper", "chrome://browser/content/ZoomHelper.js"],
   ["CastingApps", "chrome://browser/content/CastingApps.js"],
-#ifdef NIGHTLY_BUILD
-  ["WebcompatReporter", "chrome://browser/content/WebcompatReporter.js"],
-#endif
 ].forEach(function (aScript) {
   let [name, script] = aScript;
   XPCOMUtils.defineLazyGetter(window, name, function() {
@@ -130,7 +127,7 @@ XPCOMUtils.defineLazyModuleGetter(this, "SharedPreferences",
 #endif
   ["MemoryObserver", ["memory-pressure", "Memory:Dump"], "chrome://browser/content/MemoryObserver.js"],
   ["ConsoleAPI", ["console-api-log-event"], "chrome://browser/content/ConsoleAPI.js"],
-  ["FindHelper", ["FindInPage:Opened", "FindInPage:Closed", "Tab:Selected"], "chrome://browser/content/FindHelper.js"],
+  ["FindHelper", ["FindInPage:Find", "FindInPage:Prev", "FindInPage:Next", "FindInPage:Closed", "Tab:Selected"], "chrome://browser/content/FindHelper.js"],
   ["PermissionsHelper", ["Permissions:Get", "Permissions:Clear"], "chrome://browser/content/PermissionsHelper.js"],
   ["FeedHandler", ["Feeds:Subscribe"], "chrome://browser/content/FeedHandler.js"],
   ["Feedback", ["Feedback:Show"], "chrome://browser/content/Feedback.js"],
@@ -337,9 +334,6 @@ var BrowserApp = {
           // Bug 778855 - Perf regression if we do this here. To be addressed in bug 779008.
           SafeBrowsing.init();
         }, Ci.nsIThread.DISPATCH_NORMAL);
-#endif
-#ifdef NIGHTLY_BUILD
-        WebcompatReporter.init();
 #endif
       } catch(ex) { console.log(ex); }
     }, false);
@@ -864,9 +858,6 @@ var BrowserApp = {
     CastingApps.uninit();
     Distribution.uninit();
     Tabs.uninit();
-#ifdef NIGHTLY_BUILD
-    WebcompatReporter.uninit();
-#endif
   },
 
   // This function returns false during periods where the browser displayed document is

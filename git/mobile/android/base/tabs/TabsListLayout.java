@@ -65,8 +65,8 @@ class TabsListLayout extends TwoWayView
 
         setItemsCanFocus(true);
 
-        TypedArray a = context.obtainStyledAttributes(attrs, R.styleable.TabsLayout);
-        mIsPrivate = (a.getInt(R.styleable.TabsLayout_tabs, 0x0) == 1);
+        TypedArray a = context.obtainStyledAttributes(attrs, R.styleable.TabsTray);
+        mIsPrivate = (a.getInt(R.styleable.TabsTray_tabs, 0x0) == 1);
         a.recycle();
 
         mTabsAdapter = new TabsListLayoutAdapter(mContext);
@@ -89,7 +89,7 @@ class TabsListLayout extends TwoWayView
     private class TabsListLayoutAdapter extends TabsLayoutAdapter {
         private final Button.OnClickListener mCloseOnClickListener;
         public TabsListLayoutAdapter (Context context) {
-            super(context, R.layout.tabs_layout_item_view);
+            super(context);
 
             mCloseOnClickListener = new Button.OnClickListener() {
                 @Override

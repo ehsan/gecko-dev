@@ -206,13 +206,6 @@ public class SendTab extends ShareMethod {
             i++;
         }
 
-        if (validGUIDs.isEmpty()) {
-            // Guess we'd better override. We have no clients.
-            // This does the broadcast for us.
-            setOverrideIntent(FxAccountGetStartedActivity.class);
-            return;
-        }
-
         Intent uiStateIntent = getUIStateIntent();
         uiStateIntent.putExtra(EXTRA_CLIENT_RECORDS, records);
         broadcastUIState(uiStateIntent);
@@ -237,7 +230,6 @@ public class SendTab extends ShareMethod {
 
         Intent uiStateIntent = getUIStateIntent();
         uiStateIntent.putExtra(OVERRIDE_INTENT, intent);
-
         broadcastUIState(uiStateIntent);
     }
 

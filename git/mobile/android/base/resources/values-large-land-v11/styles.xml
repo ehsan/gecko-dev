@@ -5,7 +5,7 @@
 
 <resources>
 
-    <style name="TabsLayout" parent="TabsLayoutBase">
+    <style name="TabsList" parent="TabsListBase">
          <item name="android:orientation">vertical</item>
          <item name="android:scrollbars">vertical</item>
     </style>

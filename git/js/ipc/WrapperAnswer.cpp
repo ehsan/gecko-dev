@@ -580,7 +580,7 @@ WrapperAnswer::RecvRegExpToShared(const ObjectId &objId, ReturnStatus *rs,
 
 bool
 WrapperAnswer::RecvGetPropertyKeys(const ObjectId &objId, const uint32_t &flags,
-                                   ReturnStatus *rs, nsTArray<JSIDVariant> *ids)
+                                   ReturnStatus *rs, nsTArray<nsString> *names)
 {
     AutoSafeJSContext cx;
     JSAutoRequest request(cx);
@@ -598,11 +598,11 @@ WrapperAnswer::RecvGetPropertyKeys(const ObjectId &objId, const uint32_t &flags,
         return fail(cx, rs);
 
     for (size_t i = 0; i < props.length(); i++) {
-        JSIDVariant id;
-        if (!toJSIDVariant(cx, props[i], &id))
+        nsString name;
+        if (!convertIdToGeckoString(cx, props[i], &name))
             return fail(cx, rs);
 
-        ids->AppendElement(id);
+        names->AppendElement(name);
     }
 
     return ok(rs);
