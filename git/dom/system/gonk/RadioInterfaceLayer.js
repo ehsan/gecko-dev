@@ -1763,13 +1763,12 @@ RadioInterface.prototype = {
     });
   },
 
-  // The following attributes/functions are used for acquiring/releasing the
-  // CPU wake lock when the RIL handles the received SMS. Note that we need
-  // a timer to bound the lock's life cycle to avoid exhausting the battery.
+  // The following attributes/functions are used for acquiring the CPU wake
+  // lock when the RIL handles the received SMS. Note that we need a timer to
+  // bound the lock's life cycle to avoid exhausting the battery.
   _smsHandledWakeLock: null,
   _smsHandledWakeLockTimer: null,
-
-  _releaseSmsHandledWakeLock: function _releaseSmsHandledWakeLock() {
+  _cancelSmsHandledWakeLockTimer: function _cancelSmsHandledWakeLockTimer() {
     if (DEBUG) this.debug("Releasing the CPU wake lock for handling SMS.");
     if (this._smsHandledWakeLockTimer) {
       this._smsHandledWakeLockTimer.cancel();
@@ -1797,7 +1796,7 @@ RadioInterface.prototype = {
     }
     if (DEBUG) this.debug("Setting the timer for releasing the CPU wake lock.");
     this._smsHandledWakeLockTimer
-        .initWithCallback(this._releaseSmsHandledWakeLock.bind(this),
+        .initWithCallback(this._cancelSmsHandledWakeLockTimer.bind(this),
                           SMS_HANDLED_WAKELOCK_TIMEOUT,
                           Ci.nsITimer.TYPE_ONE_SHOT);
 
@@ -2175,8 +2174,8 @@ RadioInterface.prototype = {
         }
         break;
       case NS_XPCOM_SHUTDOWN_OBSERVER_ID:
-        // Release the CPU wake lock for handling the received SMS.
-        this._releaseSmsHandledWakeLock();
+        // Cancel the timer of the CPU wake lock for handling the received SMS.
+        this._cancelSmsHandledWakeLockTimer();
 
         // Shutdown all RIL network interfaces
         for each (let apnSetting in this.apnSettings.byAPN) {
