@@ -148,13 +148,13 @@ using namespace js::tjit;
 /* Implement embedder-specific nanojit members. */
 
 /* 
- * Nanojit requires infallible allocations most of the time. We satisfy this by
- * reserving some space in each allocator which is used as a fallback if
- * rt->calloc_() fails. Ideally this reserve space should be big enough to allow
- * for all infallible requests made to the allocator until the next OOM check
- * occurs, but it turns out that's impossible to guarantee (though it should be
- * unlikely). So we abort if the reserve runs out;  this is better than
- * allowing memory errors to occur.
+ * Nanojit requires infallible allocations most of the time.  We satisfy this
+ * by reserving some space in each allocator which is used as a fallback if
+ * js_calloc() fails.  Ideallly this reserve space should be big enough to
+ * allow for all infallible requests made to the allocator until the next OOM
+ * check occurs, but it turns out that's impossible to guarantee (though it
+ * should be unlikely).  So we abort if the reserve runs out;  this is better
+ * than allowing memory errors to occur.
  *
  * The space calculations are as follows... between OOM checks, each
  * VMAllocator can do (ie. has been seen to do) the following maximum
@@ -190,7 +190,7 @@ nanojit::Allocator::allocChunk(size_t nbytes, bool fallible)
      * OOM check will still fail, which is what we want, and the success of
      * request 2 makes it less likely that the reserve space will overflow.
      */
-    void *p = vma->mRt->calloc_(nbytes);
+    void *p = js_calloc(nbytes);
     if (p) {
         vma->mSize += nbytes;
     } else {
@@ -211,7 +211,7 @@ void
 nanojit::Allocator::freeChunk(void *p) {
     VMAllocator *vma = (VMAllocator*)this;
     if (p < vma->mReserve || uintptr_t(p) >= vma->mReserveLimit)
-        UnwantedForeground::free_(p);
+        js_free(p);
 }
 
 void
@@ -1084,8 +1084,7 @@ TraceRecorder::tprint(const char *format, LIns *ins1, LIns *ins2, LIns *ins3, LI
 }
 #endif
 
-Tracker::Tracker(JSContext *cx)
-    : cx(cx)
+Tracker::Tracker()
 {
     pagelist = NULL;
 }
@@ -1124,7 +1123,7 @@ struct Tracker::TrackerPage*
 Tracker::addTrackerPage(const void* v)
 {
     jsuword base = getTrackerPageBase(v);
-    struct TrackerPage* p = (struct TrackerPage*) cx->calloc_(sizeof(*p));
+    struct TrackerPage* p = (struct TrackerPage*) js_calloc(sizeof(*p));
     p->base = base;
     p->next = pagelist;
     pagelist = p;
@@ -1137,7 +1136,7 @@ Tracker::clear()
     while (pagelist) {
         TrackerPage* p = pagelist;
         pagelist = pagelist->next;
-        cx->free_(p);
+        js_free(p);
     }
 }
 
@@ -2245,8 +2244,8 @@ TraceRecorder::TraceRecorder(JSContext* cx, TraceMonitor *tm,
     lirbuf(new (tempAlloc()) LirBuffer(tempAlloc())),
     mark(*traceMonitor->traceAlloc),
     numSideExitsBefore(tree->sideExits.length()),
-    tracker(cx),
-    nativeFrameTracker(cx),
+    tracker(),
+    nativeFrameTracker(),
     global_slots(NULL),
     callDepth(anchor ? anchor->calldepth : 0),
     atoms(FrameAtomBase(cx, cx->fp())),
@@ -2481,7 +2480,9 @@ TraceRecorder::finishSuccessfully()
     TraceMonitor* localtm = traceMonitor;
 
     localtm->recorder = NULL;
-    cx->delete_(this);
+    /* We can't (easily) use js_delete() here because the destructor is private. */
+    this->~TraceRecorder();
+    js_free(this);
 
     /* Catch OOM that occurred during recording. */
     if (localtm->outOfMemory() || OverfullJITCache(localcx, localtm)) {
@@ -2533,7 +2534,9 @@ TraceRecorder::finishAbort(const char* reason)
     TraceMonitor* localtm = traceMonitor;
 
     localtm->recorder = NULL;
-    cx->delete_(this);
+    /* We can't (easily) use js_delete() here because the destructor is private. */
+    this->~TraceRecorder();
+    js_free(this);
 
     /* Catch OOM that occurred during recording. */
     if (localtm->outOfMemory() || OverfullJITCache(localcx, localtm)) {
@@ -4500,12 +4503,12 @@ TraceRecorder::compile()
 #if defined DEBUG && !defined WIN32
     /* Associate a filename and line number with the fragment. */
     const char* filename = cx->fp()->script()->filename;
-    char* label = (char*) cx->malloc_((filename ? strlen(filename) : 7) + 16);
+    char* label = (char*)js_malloc((filename ? strlen(filename) : 7) + 16);
     if (label) {
         sprintf(label, "%s:%u", filename ? filename : "<stdin>",
                 js_FramePCToLineNumber(cx, cx->fp()));
         lirbuf->printer->addrNameMap->addAddrRange(fragment, sizeof(Fragment), 0, label);
-        cx->free_(label);
+        js_free(label);
     }
 #endif
 
@@ -5568,9 +5571,13 @@ TraceRecorder::startRecorder(JSContext* cx, TraceMonitor *tm, VMSideExit* anchor
     JS_ASSERT(!tm->needFlush);
     JS_ASSERT_IF(cx->fp()->hasImacropc(), f->root != f);
 
-    tm->recorder = cx->new_<TraceRecorder>(cx, tm, anchor, f, stackSlots, ngslots, typeMap,
+    /* We can't (easily) use js_new() here because the constructor is private. */
+    void *memory = js_malloc(sizeof(TraceRecorder));
+    tm->recorder = memory
+                 ? new(memory) TraceRecorder(cx, tm, anchor, f, stackSlots, ngslots, typeMap,
                                              expectedInnerExit, outerScript, outerPC, outerArgc,
-                                             speculate);
+                                             speculate)
+                 : NULL;
 
     if (!tm->recorder || tm->outOfMemory() || OverfullJITCache(cx, tm)) {
         ResetJIT(cx, tm, FR_OOM);
@@ -7625,7 +7632,7 @@ SetMaxCodeCacheBytes(JSContext* cx, uint32 bytes)
 }
 
 bool
-InitJIT(TraceMonitor *tm, JSRuntime* rt)
+InitJIT(TraceMonitor *tm)
 {
 #if defined JS_JIT_SPEW
     tm->profAlloc = NULL;
@@ -7636,7 +7643,7 @@ InitJIT(TraceMonitor *tm, JSRuntime* rt)
     }
     /* Set up fragprofiling, if required. */
     if (LogController.lcbits & LC_FragProfile) {
-        tm->profAlloc = rt->new_<VMAllocator>(rt, (char*)NULL, 0); /* no reserve needed in debug builds */
+        tm->profAlloc = js_new<VMAllocator>((char*)NULL, 0); /* no reserve needed in debug builds */
         if (!tm->profAlloc)
             goto error;
         tm->profTab = new (*tm->profAlloc) FragStatsMap(*tm->profAlloc);
@@ -7671,36 +7678,34 @@ InitJIT(TraceMonitor *tm, JSRuntime* rt)
         did_we_check_processor_features = true;
     }
 
-    #define CHECK_NEW(lhs, type, args) \
-        do { lhs = rt->new_<type> args; if (!lhs) goto error; } while (0)
-    #define CHECK_MALLOC(lhs, conversion, size) \
-        do { lhs = (conversion)(rt->malloc_(size)); if (!lhs) goto error; } while (0)
+    #define CHECK_ALLOC(lhs, rhs) \
+        do { lhs = (rhs); if (!lhs) goto error; } while (0)
 
-    CHECK_NEW(tm->oracle, Oracle, ());
+    CHECK_ALLOC(tm->oracle, js_new<Oracle>());
 
     tm->profile = NULL;
     
-    CHECK_NEW(tm->recordAttempts, RecordAttemptMap, ());
+    CHECK_ALLOC(tm->recordAttempts, js_new<RecordAttemptMap>());
     if (!tm->recordAttempts->init(PC_HASH_COUNT))
         goto error;
 
-    CHECK_NEW(tm->loopProfiles, LoopProfileMap, ());
+    CHECK_ALLOC(tm->loopProfiles, js_new<LoopProfileMap>());
     if (!tm->loopProfiles->init(PC_HASH_COUNT))
         goto error;
 
     tm->flushEpoch = 0;
     
     char *dataReserve, *traceReserve, *tempReserve;
-    CHECK_MALLOC(dataReserve, char*, DataReserveSize);
-    CHECK_MALLOC(traceReserve, char*, TraceReserveSize);
-    CHECK_MALLOC(tempReserve, char*, TempReserveSize);
-    CHECK_NEW(tm->dataAlloc, VMAllocator, (rt, dataReserve, DataReserveSize));
-    CHECK_NEW(tm->traceAlloc, VMAllocator, (rt, traceReserve, TraceReserveSize));
-    CHECK_NEW(tm->tempAlloc, VMAllocator, (rt, tempReserve, TempReserveSize));
-    CHECK_NEW(tm->codeAlloc, CodeAlloc, ());
-    CHECK_NEW(tm->frameCache, FrameInfoCache, (tm->dataAlloc));
-    CHECK_NEW(tm->storage, TraceNativeStorage, ());
-    CHECK_NEW(tm->cachedTempTypeMap, TypeMap, ((Allocator*)NULL, tm->oracle));
+    CHECK_ALLOC(dataReserve, (char *)js_malloc(DataReserveSize));
+    CHECK_ALLOC(traceReserve, (char *)js_malloc(TraceReserveSize));
+    CHECK_ALLOC(tempReserve, (char *)js_malloc(TempReserveSize));
+    CHECK_ALLOC(tm->dataAlloc, js_new<VMAllocator>(dataReserve, DataReserveSize));
+    CHECK_ALLOC(tm->traceAlloc, js_new<VMAllocator>(traceReserve, TraceReserveSize));
+    CHECK_ALLOC(tm->tempAlloc, js_new<VMAllocator>(tempReserve, TempReserveSize));
+    CHECK_ALLOC(tm->codeAlloc, js_new<CodeAlloc>());
+    CHECK_ALLOC(tm->frameCache, js_new<FrameInfoCache>(tm->dataAlloc));
+    CHECK_ALLOC(tm->storage, js_new<TraceNativeStorage>());
+    CHECK_ALLOC(tm->cachedTempTypeMap, js_new<TypeMap>((Allocator*)NULL, tm->oracle));
     tm->flush();
     verbose_only( tm->branches = NULL; )
 
@@ -7783,9 +7788,9 @@ FinishJIT(TraceMonitor *tm)
     }
 #endif
 
-    Foreground::delete_(tm->recordAttempts);
-    Foreground::delete_(tm->loopProfiles);
-    Foreground::delete_(tm->oracle);
+    js_delete(tm->recordAttempts);
+    js_delete(tm->loopProfiles);
+    js_delete(tm->oracle);
 
 #ifdef DEBUG
     // Recover profiling data from expiring Fragments, and display
@@ -7805,7 +7810,7 @@ FinishJIT(TraceMonitor *tm)
 
         if (tm->profTab)
             FragProfiling_showResults(tm);
-        Foreground::delete_(tm->profAlloc);
+        js_delete(tm->profAlloc);
 
     } else {
         NanoAssert(!tm->profTab);
@@ -7815,25 +7820,25 @@ FinishJIT(TraceMonitor *tm)
 
     PodArrayZero(tm->vmfragments);
 
-    Foreground::delete_(tm->frameCache);
+    js_delete(tm->frameCache);
     tm->frameCache = NULL;
 
-    Foreground::delete_(tm->codeAlloc);
+    js_delete(tm->codeAlloc);
     tm->codeAlloc = NULL;
 
-    Foreground::delete_(tm->dataAlloc);
+    js_delete(tm->dataAlloc);
     tm->dataAlloc = NULL;
 
-    Foreground::delete_(tm->traceAlloc);
+    js_delete(tm->traceAlloc);
     tm->traceAlloc = NULL;
 
-    Foreground::delete_(tm->tempAlloc);
+    js_delete(tm->tempAlloc);
     tm->tempAlloc = NULL;
 
-    Foreground::delete_(tm->storage);
+    js_delete(tm->storage);
     tm->storage = NULL;
 
-    Foreground::delete_(tm->cachedTempTypeMap);
+    js_delete(tm->cachedTempTypeMap);
     tm->cachedTempTypeMap = NULL;
 }
 
@@ -11435,24 +11440,47 @@ TraceRecorder::callNative(uintN argc, JSOp mode)
             }
         } else if (vp[2].isString() && mode == JSOP_CALL) {
             if (native == js_regexp_exec) {
+                jsbytecode *pc = cx->regs->pc;
                 /*
-                 * If the result of the call will be unused or only tested against
-                 * nullness, we replace the call to RegExp.exec() on the
+                 * If we see any of these sequences, the result is unused:
+                 * - call / pop
+                 * - call / trace / pop
+                 *
+                 * If we see any of these sequences, the result is only tested for nullness:
+                 * - call / ifeq
+                 * - call / trace / ifeq
+                 * - call / not / ifeq
+                 * - call / trace / not / ifeq
+                 *
+                 * In either case, we replace the call to RegExp.exec() on the
                  * stack with a call to RegExp.test() because "r.exec(s) !=
                  * null" is equivalent to "r.test(s)".  This avoids building
                  * the result array, which can be expensive.  This requires
                  * that RegExp.prototype.test() hasn't been changed;  we check this.
                  */
-                if (!CallResultEscapes(cx->regs->pc)) {
-                    JSObject* proto;
-                    jsid id = ATOM_TO_JSID(cx->runtime->atomState.testAtom);
-                    /* Get RegExp.prototype.test() and check it hasn't been changed. */
-                    if (js_GetClassPrototype(cx, NULL, JSProto_RegExp, &proto)) {
-                        if (JSObject *tmp = HasNativeMethod(proto, id, js_regexp_test)) {
-                            vp[0] = ObjectValue(*tmp);
-                            funobj = tmp;
-                            fun = tmp->getFunctionPrivate();
-                            native = js_regexp_test;
+                if (pc[0] == JSOP_CALL) {
+                    if ((pc[JSOP_CALL_LENGTH] == JSOP_POP) ||
+                        (pc[JSOP_CALL_LENGTH] == JSOP_TRACE &&
+                         pc[JSOP_CALL_LENGTH + JSOP_TRACE_LENGTH] == JSOP_POP) ||
+                        (pc[JSOP_CALL_LENGTH] == JSOP_IFEQ) ||
+                        (pc[JSOP_CALL_LENGTH] == JSOP_TRACE &&
+                         pc[JSOP_CALL_LENGTH + JSOP_TRACE_LENGTH] == JSOP_IFEQ) ||
+                        (pc[JSOP_CALL_LENGTH] == JSOP_NOT &&
+                         pc[JSOP_CALL_LENGTH + JSOP_NOT_LENGTH] == JSOP_IFEQ) ||
+                        (pc[JSOP_CALL_LENGTH] == JSOP_TRACE &&
+                         pc[JSOP_CALL_LENGTH + JSOP_TRACE_LENGTH] == JSOP_NOT &&
+                         pc[JSOP_CALL_LENGTH + JSOP_TRACE_LENGTH + JSOP_NOT_LENGTH] == JSOP_IFEQ))
+                    {
+                        JSObject* proto;
+                        jsid id = ATOM_TO_JSID(cx->runtime->atomState.testAtom);
+                        /* Get RegExp.prototype.test() and check it hasn't been changed. */
+                        if (js_GetClassPrototype(cx, NULL, JSProto_RegExp, &proto)) {
+                            if (JSObject *tmp = HasNativeMethod(proto, id, js_regexp_test)) {
+                                vp[0] = ObjectValue(*tmp);
+                                funobj = tmp;
+                                fun = tmp->getFunctionPrivate();
+                                native = js_regexp_test;
+                            }
                         }
                     }
                 }
@@ -16635,7 +16663,7 @@ StartTraceVisNative(JSContext *cx, uintN argc, jsval *vp)
         if (!filename)
             goto error;
         ok = StartTraceVis(filename);
-        cx->free_(filename);
+        cx->free(filename);
     } else {
         ok = StartTraceVis();
     }

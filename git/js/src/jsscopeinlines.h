@@ -57,7 +57,7 @@ inline void
 js::Shape::freeTable(JSContext *cx)
 {
     if (hasTable()) {
-        cx->delete_(getTable());
+        cx->destroy(getTable());
         setTable(NULL);
     }
 }
@@ -71,7 +71,7 @@ JSObject::getEmptyShape(JSContext *cx, js::Class *aclasp,
 
     if (!emptyShapes) {
         emptyShapes = (js::EmptyShape**)
-            cx->calloc_(sizeof(js::EmptyShape*) * js::gc::JS_FINALIZE_OBJECT_LIMIT);
+            cx->calloc(sizeof(js::EmptyShape*) * js::gc::JS_FINALIZE_OBJECT_LIMIT);
         if (!emptyShapes)
             return NULL;
 
@@ -81,7 +81,7 @@ JSObject::getEmptyShape(JSContext *cx, js::Class *aclasp,
          */
         emptyShapes[0] = js::EmptyShape::create(cx, aclasp);
         if (!emptyShapes[0]) {
-            cx->free_(emptyShapes);
+            cx->free(emptyShapes);
             emptyShapes = NULL;
             return NULL;
         }

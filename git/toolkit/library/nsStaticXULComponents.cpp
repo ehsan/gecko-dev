@@ -134,8 +134,12 @@
 #define JETPACK_MODULES
 #endif
 
+#ifdef MOZ_PLUGINS
 #define PLUGINS_MODULES \
     MODULE(nsPluginModule)
+#else
+#define PLUGINS_MODULES
+#endif
 
 #ifdef MOZ_JSDEBUGGER
 #define JSDEBUGGER_MODULES \

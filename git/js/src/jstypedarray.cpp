@@ -123,7 +123,7 @@ ArrayBuffer::class_finalize(JSContext *cx, JSObject *obj)
     ArrayBuffer *abuf = ArrayBuffer::fromJSObject(obj);
     if (abuf) {
         abuf->freeStorage(cx);
-        cx->delete_(abuf);
+        cx->destroy<ArrayBuffer>(abuf);
     }
 }
 
@@ -161,12 +161,12 @@ ArrayBuffer::create(JSContext *cx, int32 nbytes)
         return NULL;
     }
 
-    ArrayBuffer *abuf = cx->new_<ArrayBuffer>();
+    ArrayBuffer *abuf = cx->create<ArrayBuffer>();
     if (!abuf)
         return NULL;
 
     if (!abuf->allocateStorage(cx, nbytes)) {
-        Foreground::delete_(abuf);
+        cx->destroy<ArrayBuffer>(abuf);
         return NULL;
     }
 
@@ -180,7 +180,7 @@ ArrayBuffer::allocateStorage(JSContext *cx, uint32 nbytes)
     JS_ASSERT(data == 0);
 
     if (nbytes) {
-        data = cx->calloc_(nbytes);
+        data = cx->calloc(nbytes);
         if (!data)
             return false;
     }
@@ -193,7 +193,7 @@ void
 ArrayBuffer::freeStorage(JSContext *cx)
 {
     if (data) {
-        cx->free_(data);
+        cx->free(data);
 #ifdef DEBUG
         // the destructor asserts that data is 0 in debug builds
         data = NULL;
@@ -727,7 +727,7 @@ class TypedArrayTemplate
         if (!obj)
             return NULL;
 
-        ThisTypeArray *tarray = cx->new_<ThisTypeArray>(bufobj, byteOffset, len);
+        ThisTypeArray *tarray = cx->create<ThisTypeArray>(bufobj, byteOffset, len);
         if (!tarray)
             return NULL;
 
@@ -832,7 +832,7 @@ class TypedArrayTemplate
     {
         ThisTypeArray *tarray = ThisTypeArray::fromJSObject(obj);
         if (tarray)
-            cx->delete_(tarray);
+            cx->destroy<ThisTypeArray>(tarray);
     }
 
     /* subarray(start[, end]) */
@@ -1264,7 +1264,7 @@ class TypedArrayTemplate
 
         // We have to make a copy of the source array here, since
         // there's overlap, and we have to convert types.
-        void *srcbuf = cx->malloc_(tarray->byteLength);
+        void *srcbuf = cx->malloc(tarray->byteLength);
         if (!srcbuf)
             return false;
         memcpy(srcbuf, tarray->data, tarray->byteLength);
@@ -1324,7 +1324,7 @@ class TypedArrayTemplate
             break;
         }
 
-        UnwantedForeground::free_(srcbuf);
+        js_free(srcbuf);
         return true;
     }
 

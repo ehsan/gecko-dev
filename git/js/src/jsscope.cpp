@@ -157,10 +157,10 @@ PropertyTable::init(JSRuntime *rt, Shape *lastProp)
         sizeLog2 = MIN_SIZE_LOG2;
 
     /*
-     * Use rt->calloc_ for memory accounting and overpressure handling
+     * Use rt->calloc for memory accounting and overpressure handling
      * without OOM reporting. See PropertyTable::change.
      */
-    entries = (Shape **) rt->calloc_(JS_BIT(sizeLog2) * sizeof(Shape *));
+    entries = (Shape **) rt->calloc(JS_BIT(sizeLog2) * sizeof(Shape *));
     if (!entries) {
         METER(tableAllocFails);
         return false;
@@ -187,10 +187,10 @@ bool
 Shape::hashify(JSRuntime *rt)
 {
     JS_ASSERT(!hasTable());
-    PropertyTable *table = rt->new_<PropertyTable>(entryCount());
-    if (!table)
+    void* mem = rt->malloc(sizeof(PropertyTable));
+    if (!mem)
         return false;
-    setTable(table);
+    setTable(new(mem) PropertyTable(entryCount()));
     return getTable()->init(rt, this);
 }
 
@@ -323,14 +323,17 @@ PropertyTable::change(int log2Delta, JSContext *cx)
     JS_ASSERT(entries);
 
     /*
-     * Grow, shrink, or compress by changing this->entries.
+     * Grow, shrink, or compress by changing this->entries. Here, we prefer
+     * cx->runtime->calloc to js_calloc, which on OOM waits for a background
+     * thread to finish sweeping and retry, if appropriate. Avoid cx->calloc
+     * so our caller can be in charge of whether to JS_ReportOutOfMemory.
      */
     oldlog2 = JS_DHASH_BITS - hashShift;
     newlog2 = oldlog2 + log2Delta;
     oldsize = JS_BIT(oldlog2);
     newsize = JS_BIT(newlog2);
     nbytes = PROPERTY_TABLE_NBYTES(newsize);
-    newTable = (Shape **) cx->calloc_(nbytes);
+    newTable = (Shape **) cx->runtime->calloc(nbytes);
     if (!newTable) {
         METER(tableAllocFails);
         return false;
@@ -355,8 +358,12 @@ PropertyTable::change(int log2Delta, JSContext *cx)
         oldsize--;
     }
 
-    /* Finally, free the old entries storage. */
-    cx->free_(oldTable);
+    /*
+     * Finally, free the old entries storage. Note that cx->runtime->free just
+     * calls js_free. Use js_free here to match PropertyTable::~PropertyTable,
+     * which cannot have a cx or rt parameter.
+     */
+    js_free(oldTable);
     return true;
 }
 

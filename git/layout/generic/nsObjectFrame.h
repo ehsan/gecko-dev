@@ -212,8 +212,6 @@ public:
    */
   static void EndSwapDocShells(nsIContent* aContent, void*);
 
-  nsIWidget* GetWidget() { return mWidget; }
-
 protected:
   nsObjectFrame(nsStyleContext* aContext);
   virtual ~nsObjectFrame();
@@ -278,6 +276,8 @@ protected:
   void ComputeWidgetGeometry(const nsRegion& aRegion,
                              const nsPoint& aPluginOrigin,
                              nsTArray<nsIWidget::Configuration>* aConfigurations);
+
+  nsIWidget* GetWidget() { return mWidget; }
 
   nsresult SetAbsoluteScreenPosition(nsIDOMElement* element,
                                      nsIDOMClientRect* position,
@@ -353,8 +353,8 @@ public:
   // with the root pres context for geometry updates.
   // The widget, its new position, size and clip region are appended as
   // a Configuration record to aConfigurations.
-  // If the plugin has no widget, no configuration is added, but
-  // the plugin visibility state may be adjusted.
+  // If there is no widget associated with the plugin, this
+  // simply does nothing.
   void GetWidgetConfiguration(nsDisplayListBuilder* aBuilder,
                               nsTArray<nsIWidget::Configuration>* aConfigurations);
 

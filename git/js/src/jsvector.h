@@ -50,6 +50,12 @@
 #pragma warning(disable:4345)
 #endif
 
+/* Gross special case for Gecko, which defines malloc/calloc/free. */
+#ifdef mozilla_mozalloc_macro_wrappers_h
+#  define JSVECTOR_UNDEFD_MOZALLOC_WRAPPERS
+#  include "mozilla/mozalloc_undef_macro_wrappers.h"
+#endif
+
 namespace js {
 
 /*
@@ -99,13 +105,13 @@ struct VectorImpl
      */
     static inline bool growTo(Vector<T,N,AP> &v, size_t newcap) {
         JS_ASSERT(!v.usingInlineStorage());
-        T *newbuf = reinterpret_cast<T *>(v.malloc_(newcap * sizeof(T)));
+        T *newbuf = reinterpret_cast<T *>(v.malloc(newcap * sizeof(T)));
         if (!newbuf)
             return false;
         for (T *dst = newbuf, *src = v.beginNoCheck(); src != v.endNoCheck(); ++dst, ++src)
             new(dst) T(*src);
         VectorImpl::destroy(v.beginNoCheck(), v.endNoCheck());
-        v.free_(v.mBegin);
+        v.free(v.mBegin);
         v.mBegin = newbuf;
         /* v.mLength is unchanged. */
         v.mCapacity = newcap;
@@ -157,7 +163,7 @@ struct VectorImpl<T, N, AP, true>
     static inline bool growTo(Vector<T,N,AP> &v, size_t newcap) {
         JS_ASSERT(!v.usingInlineStorage());
         size_t bytes = sizeof(T) * newcap;
-        T *newbuf = reinterpret_cast<T *>(v.realloc_(v.mBegin, bytes));
+        T *newbuf = reinterpret_cast<T *>(v.realloc(v.mBegin, bytes));
         if (!newbuf)
             return false;
         v.mBegin = newbuf;
@@ -445,7 +451,7 @@ Vector<T,N,AP>::~Vector()
     REENTRANCY_GUARD_ET_AL;
     Impl::destroy(beginNoCheck(), endNoCheck());
     if (!usingInlineStorage())
-        this->free_(beginNoCheck());
+        this->free(beginNoCheck());
 }
 
 /*
@@ -513,7 +519,7 @@ Vector<T,N,AP>::convertToHeapStorage(size_t lengthInc)
         return false;
 
     /* Allocate buffer. */
-    T *newBuf = reinterpret_cast<T *>(this->malloc_(newCap * sizeof(T)));
+    T *newBuf = reinterpret_cast<T *>(this->malloc(newCap * sizeof(T)));
     if (!newBuf)
         return false;
 
@@ -795,7 +801,7 @@ Vector<T,N,AP>::extractRawBuffer()
 {
     T *ret;
     if (usingInlineStorage()) {
-        ret = reinterpret_cast<T *>(this->malloc_(mLength * sizeof(T)));
+        ret = reinterpret_cast<T *>(this->malloc(mLength * sizeof(T)));
         if (!ret)
             return NULL;
         Impl::copyConstruct(ret, beginNoCheck(), endNoCheck());
@@ -823,7 +829,7 @@ Vector<T,N,AP>::replaceRawBuffer(T *p, size_t length)
     /* Destroy what we have. */
     Impl::destroy(beginNoCheck(), endNoCheck());
     if (!usingInlineStorage())
-        this->free_(beginNoCheck());
+        this->free(beginNoCheck());
 
     /* Take in the new buffer. */
     if (length <= sInlineCapacity) {
@@ -837,7 +843,7 @@ Vector<T,N,AP>::replaceRawBuffer(T *p, size_t length)
         mCapacity = sInlineCapacity;
         Impl::copyConstruct(mBegin, p, p + length);
         Impl::destroy(p, p + length);
-        this->free_(p);
+        this->free(p);
     } else {
         mBegin = p;
         mLength = length;
@@ -852,6 +858,10 @@ Vector<T,N,AP>::replaceRawBuffer(T *p, size_t length)
 
 #ifdef _MSC_VER
 #pragma warning(pop)
+#endif
+
+#ifdef JSVECTOR_UNDEFD_MOZALLOC_WRAPPERS
+#  include "mozilla/mozalloc_macro_wrappers.h"
 #endif
 
 #endif /* jsvector_h_ */

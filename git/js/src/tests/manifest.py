@@ -76,9 +76,7 @@ class XULInfoTester:
             elif out in ('false\n', 'false\r\n'):
                 ans = False
             else:
-                raise Exception(("Failed to test XUL condition %r;"
-                                 + " output was %r, stderr was %r")
-                                 % (cond, out, err))
+                raise Exception("Failed to test XUL condition '%s'"%cond)
             self.cache[cond] = ans
         return ans
 

@@ -79,7 +79,7 @@ static void
 resc_finalize(JSContext *cx, JSObject *obj)
 {
     RegExpStatics *res = static_cast<RegExpStatics *>(obj->getPrivate());
-    cx->delete_(res);
+    cx->destroy<RegExpStatics>(res);
 }
 
 static void
@@ -588,7 +588,7 @@ EscapeNakedForwardSlashes(JSContext *cx, JSString *unescaped)
     jschar *chars = newChars.extractRawBuffer();
     JSString *escaped = js_NewString(cx, chars, len);
     if (!escaped)
-        cx->free_(chars);
+        cx->free(chars);
     return escaped;
 }
 

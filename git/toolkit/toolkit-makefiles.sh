@@ -124,6 +124,7 @@ MAKEFILES_gfx="
   gfx/ycbcr/Makefile
   gfx/layers/Makefile
   gfx/src/Makefile
+  gfx/src/thebes/Makefile
   gfx/tests/Makefile
   gfx/thebes/Makefile
   gfx/qcms/Makefile

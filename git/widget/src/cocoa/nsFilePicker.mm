@@ -452,41 +452,60 @@ nsFilePicker::PutLocalFile(const nsString& inTitle, const nsString& inDefaultNam
   NS_OBJC_END_TRY_ABORT_BLOCK_RETURN(0);
 }
 
-// Returns the current filter list in a format accepted by NSOpenPanel.
-// Returns nil if no filter currently apply.
+// Take the list of file types (in a nice win32-specific format) and fills up
+// an NSArray of them for the Open Panel.  Note: Will return nil if we should allow
+// all file types.
 NSArray *
 nsFilePicker::GenerateFilterList()
 {
   NS_OBJC_BEGIN_TRY_ABORT_BLOCK_NIL;
 
-  if (mFilters.Length() <= (PRUint32)mSelectedTypeIndex) {
-    return nil;
-  }
+  NSArray *filterArray = nil;
+  if (mFilters.Length() > 0) {
+    // Set up our filter string
+    NSMutableString *giantFilterString = [[[NSMutableString alloc] initWithString:@""] autorelease];
 
-  const nsString& filterWide = mFilters[mSelectedTypeIndex];
-  if (!filterWide.Length()) {
-    return nil;
-  }
+    // Loop through each of the filter strings
+    for (PRUint32 loop = 0; loop < mFilters.Length(); loop++) {
+      const nsString& filterWide = mFilters[loop];
 
-  if (filterWide.Equals(NS_LITERAL_STRING("*"))) {
-    return nil;
-  }
+      // separate individual filters
+      if ([giantFilterString length] > 0)
+        [giantFilterString appendString:[NSString stringWithString:@";"]];
 
-  // The extensions in filterWide are in the format "*.ext" but are expected
-  // in the format "ext" by NSOpenPanel. So we need to filter some characters.
-  NSMutableString* filterString = [[[NSMutableString alloc] initWithString:
-                                    [NSString stringWithCharacters:filterWide.get()
-				              length:filterWide.Length()]] autorelease];
-  NSCharacterSet *set = [NSCharacterSet characterSetWithCharactersInString:
-                          [NSString stringWithString:@". *"]];
-  NSRange range = [filterString rangeOfCharacterFromSet:set];
-  while (range.length) {
-    [filterString replaceCharactersInRange:range withString:@""];
-    range = [filterString rangeOfCharacterFromSet:set];
+      // handle special case filters
+      if (filterWide.Equals(NS_LITERAL_STRING("*"))) {
+        // if we'll allow all files, we won't bother parsing all other
+        // file types. just return early.
+        return nil;
+      }
+      else if (filterWide.Equals(NS_LITERAL_STRING("..apps"))) {
+        // this magic filter means that we should enable app bundles.
+        // translate it into a usable filter, and continue looping through 
+        // other filters.
+        [giantFilterString appendString:@"*.app"];
+        continue;
+      }
+      
+      if (filterWide.Length() > 0)
+        [giantFilterString appendString:[NSString stringWithCharacters:filterWide.get() length:filterWide.Length()]];
+    }
+    
+    // Now we clean stuff up.  Get rid of white spaces, "*"'s, and the odd period or two.
+    NSCharacterSet *aSet = [NSCharacterSet characterSetWithCharactersInString:[NSString stringWithString:@". *"]];
+    NSRange aRange = [giantFilterString rangeOfCharacterFromSet:aSet];
+    while (aRange.length) {
+      [giantFilterString replaceCharactersInRange:aRange withString:@""];
+      aRange = [giantFilterString rangeOfCharacterFromSet:aSet];
+    }   
+    // OK, if string isn't empty we'll make a new filter list
+    if ([giantFilterString length] > 0) {
+      // every time we find a semicolon, we've found a new filter.
+      // components SeparatedByString should do that for us.
+      filterArray = [[[NSArray alloc] initWithArray:[giantFilterString componentsSeparatedByString:@";"]] autorelease];
+    }
   }
-
-  return [[[NSArray alloc] initWithArray:
-           [filterString componentsSeparatedByString:@";"]] autorelease];
+  return filterArray;
 
   NS_OBJC_END_TRY_ABORT_BLOCK_NIL;
 }
@@ -578,12 +597,7 @@ NS_IMETHODIMP nsFilePicker::SetDefaultExtension(const nsAString& aExtension)
 NS_IMETHODIMP
 nsFilePicker::AppendFilter(const nsAString& aTitle, const nsAString& aFilter)
 {
-  // "..apps" has to be translated with native executable extensions.
-  if (aFilter.EqualsLiteral("..apps")) {
-    mFilters.AppendElement(NS_LITERAL_STRING("*.app"));
-  } else {
-    mFilters.AppendElement(aFilter);
-  }
+  mFilters.AppendElement(aFilter);
   mTitles.AppendElement(aTitle);
   
   return NS_OK;

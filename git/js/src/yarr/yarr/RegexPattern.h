@@ -60,9 +60,6 @@ struct CharacterRange {
  * between character classes, so it's refcounted.
  */
 struct CharacterClassTable {
-
-    JS_DECLARE_ALLOCATION_FRIENDS_FOR_PRIVATE_CONSTRUCTOR;
-
     const char* m_table;
     bool m_inverted;
     jsrefcount m_refcount;
@@ -72,11 +69,13 @@ struct CharacterClassTable {
     {
         // FIXME: bug 574459 -- no NULL checks done by any of the callers, all
         // of which are in RegExpJitTables.h.
-        return js::OffTheBooks::new_<CharacterClassTable>(table, inverted);
+        /* We can't (easily) use js_new() here because the constructor is private. */
+        void *memory = js_malloc(sizeof(CharacterClassTable));
+        return memory ? new(memory) CharacterClassTable(table, inverted) : NULL;
     }
 
     void incref() { JS_ATOMIC_INCREMENT(&m_refcount); }
-    void decref() { if (JS_ATOMIC_DECREMENT(&m_refcount) == 0) js::Foreground::delete_(this); }
+    void decref() { if (JS_ATOMIC_DECREMENT(&m_refcount) == 0) js_delete(this); }
 
 private:
     CharacterClassTable(const char* table, bool inverted)
@@ -231,9 +230,6 @@ struct PatternTerm {
 };
 
 struct PatternAlternative {
-
-    JS_DECLARE_ALLOCATION_FRIENDS_FOR_PRIVATE_CONSTRUCTOR;
-
     PatternAlternative(PatternDisjunction* disjunction)
         : m_parent(disjunction)
         , m_onceThrough(false)
@@ -279,13 +275,10 @@ static inline void
 deleteAllValues(js::Vector<T*,N,AP> &vector)
 {
     for (T** t = vector.begin(); t < vector.end(); ++t)
-        js::Foreground::delete_(*t);
+        js_delete(*t);
 }
 
 struct PatternDisjunction {
-
-    JS_DECLARE_ALLOCATION_FRIENDS_FOR_PRIVATE_CONSTRUCTOR;
-
     PatternDisjunction(PatternAlternative* parent = 0)
         : m_parent(parent)
         , m_hasFixedSize(false)
@@ -300,7 +293,7 @@ struct PatternDisjunction {
     PatternAlternative* addNewAlternative()
     {
         // FIXME: bug 574459 -- no NULL check
-        PatternAlternative* alternative = js::OffTheBooks::new_<PatternAlternative>(this);
+        PatternAlternative* alternative = js_new<PatternAlternative>(this);
         m_alternatives.append(alternative);
         return alternative;
     }

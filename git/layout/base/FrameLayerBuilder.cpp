@@ -282,10 +282,6 @@ protected:
      * convert this to an ImageLayer.
      */
     nsDisplayImage* mImage;
-    /**
-     * Stores the clip that we need to apply to the image.
-     */
-    FrameLayerBuilder::Clip mImageClip;
   };
 
   /**
@@ -921,7 +917,7 @@ ContainerState::FindOpaqueBackgroundColorFor(PRInt32 aThebesLayerIndex)
 nsRefPtr<ImageContainer>
 ContainerState::ThebesLayerData::CanOptimizeImageLayer(LayerManager* aManager)
 {
-  if (!mImage || !mImageClip.mRoundedClipRects.IsEmpty()) {
+  if (!mImage) {
     return nsnull;
   }
 
@@ -946,15 +942,6 @@ ContainerState::PopThebesLayerData()
       nsRefPtr<ImageLayer> imageLayer = CreateOrRecycleImageLayer();
       imageLayer->SetContainer(imageContainer);
       data->mImage->ConfigureLayer(imageLayer);
-      NS_ASSERTION(data->mImageClip.mRoundedClipRects.IsEmpty(),
-                   "How did we get rounded clip rects here?");
-      if (data->mImageClip.mHaveClipRect) {
-        nsPresContext* presContext = mContainerFrame->PresContext();
-        nscoord appUnitsPerDevPixel = presContext->AppUnitsPerDevPixel();
-        nsIntRect clip = data->mImageClip.mClipRect.ToNearestPixels(appUnitsPerDevPixel);
-        imageLayer->IntersectClipRect(
-          data->mImageClip.mClipRect.ToNearestPixels(appUnitsPerDevPixel));
-      }
       layer = imageLayer;
     } else {
       nsRefPtr<ColorLayer> colorLayer = CreateOrRecycleColorLayer();
@@ -1131,7 +1118,6 @@ ContainerState::ThebesLayerData::Accumulate(nsDisplayListBuilder* aBuilder,
    */
   if (aItem->GetType() == nsDisplayItem::TYPE_IMAGE && mVisibleRegion.IsEmpty()) {
     mImage = static_cast<nsDisplayImage*>(aItem);
-    mImageClip = aClip;
   } else {
     mImage = nsnull;
   }
@@ -1758,12 +1744,12 @@ FrameLayerBuilder::InvalidateAllLayers(LayerManager* aManager)
 }
 
 /* static */
-Layer*
-FrameLayerBuilder::GetDedicatedLayer(nsIFrame* aFrame, PRUint32 aDisplayItemKey)
+PRBool
+FrameLayerBuilder::HasDedicatedLayer(nsIFrame* aFrame, PRUint32 aDisplayItemKey)
 {
   void* propValue = aFrame->Properties().Get(DisplayItemDataProperty());
   if (!propValue)
-    return nsnull;
+    return PR_FALSE;
 
   nsTArray<DisplayItemData>* array =
     (reinterpret_cast<nsTArray<DisplayItemData>*>(&propValue));
@@ -1773,10 +1759,10 @@ FrameLayerBuilder::GetDedicatedLayer(nsIFrame* aFrame, PRUint32 aDisplayItemKey)
       if (!layer->HasUserData(&gColorLayerUserData) &&
           !layer->HasUserData(&gImageLayerUserData) &&
           !layer->HasUserData(&gThebesDisplayItemLayerUserData))
-        return layer;
+        return PR_TRUE;
     }
   }
-  return nsnull;
+  return PR_FALSE;
 }
 
 /* static */ void

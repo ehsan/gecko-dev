@@ -9547,8 +9547,7 @@ nsDocShell::SetReferrerURI(nsIURI * aURI)
 //*****************************************************************************
 
 nsresult
-nsDocShell::StringifyJSValVariant(JSContext *aCx, nsIVariant *aData,
-                                  nsAString &aResult)
+nsDocShell::StringifyJSValVariant(nsIVariant *aData, nsAString &aResult)
 {
     nsresult rv;
     aResult.Truncate();
@@ -9559,32 +9558,28 @@ nsDocShell::StringifyJSValVariant(JSContext *aCx, nsIVariant *aData,
     rv = aData->GetAsJSVal(&jsData);
     NS_ENSURE_SUCCESS(rv, NS_ERROR_UNEXPECTED);
 
-    nsCOMPtr<nsIJSContextStack> contextStack;
-    JSContext *cx = aCx;
-    if (!cx) {
-        // Now get the JSContext associated with the current document.
-        // First get the current document.
-        nsCOMPtr<nsIDocument> document = do_GetInterface(GetAsSupports(this));
-        NS_ENSURE_TRUE(document, NS_ERROR_FAILURE);
+    // Now get the JSContext associated with the current document.
+    // First get the current document.
+    nsCOMPtr<nsIDocument> document = do_GetInterface(GetAsSupports(this));
+    NS_ENSURE_TRUE(document, NS_ERROR_FAILURE);
 
-        // Get the JSContext from the document, like we do in
-        // nsContentUtils::GetContextFromDocument().
-        nsIScriptGlobalObject *sgo = document->GetScopeObject();
-        NS_ENSURE_TRUE(sgo, NS_ERROR_FAILURE);
+    // Get the JSContext from the document, like we do in
+    // nsContentUtils::GetContextFromDocument().
+    nsIScriptGlobalObject *sgo = document->GetScopeObject();
+    NS_ENSURE_TRUE(sgo, NS_ERROR_FAILURE);
 
-        nsIScriptContext *scx = sgo->GetContext();
-        NS_ENSURE_TRUE(scx, NS_ERROR_FAILURE);
+    nsIScriptContext *scx = sgo->GetContext();
+    NS_ENSURE_TRUE(scx, NS_ERROR_FAILURE);
 
-        cx = (JSContext *)scx->GetNativeContext();
+    JSContext *cx = (JSContext *)scx->GetNativeContext();
 
-        // If our json call triggers a JS-to-C++ call, we want that call to use
-        // aCx as the context.  So we push aCx onto the context stack.
-        contextStack =
-            do_GetService("@mozilla.org/js/xpc/ContextStack;1", &rv);
-        NS_ENSURE_SUCCESS(rv, rv);
+    // If our json call triggers a JS-to-C++ call, we want that call to use cx
+    // as the context.  So we push cx onto the context stack.
+    nsCOMPtr<nsIJSContextStack> contextStack =
+        do_GetService("@mozilla.org/js/xpc/ContextStack;1", &rv);
+    NS_ENSURE_SUCCESS(rv, rv);
 
-        contextStack->Push(cx);
-    }
+    contextStack->Push(cx);
 
     nsCOMPtr<nsIJSON> json = do_GetService("@mozilla.org/dom/json;1");
     if(json) {
@@ -9595,20 +9590,15 @@ nsDocShell::StringifyJSValVariant(JSContext *aCx, nsIVariant *aData,
         rv = NS_ERROR_FAILURE;
     }
 
-    if (contextStack) {
-        if (NS_FAILED(rv)) {
-            JS_ClearPendingException(cx);
-        }
-
-        contextStack->Pop(&cx);
-    }
+    // Always pop the stack!
+    contextStack->Pop(&cx);
 
     return rv;
 }
 
 NS_IMETHODIMP
 nsDocShell::AddState(nsIVariant *aData, const nsAString& aTitle,
-                     const nsAString& aURL, PRBool aReplace, JSContext* aCx)
+                     const nsAString& aURL, PRBool aReplace)
 {
     // Implements History.pushState and History.replaceState
 
@@ -9661,7 +9651,7 @@ nsDocShell::AddState(nsIVariant *aData, const nsAString& aTitle,
             return NS_ERROR_DOM_SECURITY_ERR;
         nsCOMPtr<nsIPrincipal> origPrincipal = origDocument->NodePrincipal();
 
-        rv = StringifyJSValVariant(aCx, aData, dataStr);
+        rv = StringifyJSValVariant(aData, dataStr);
         NS_ENSURE_SUCCESS(rv, rv);
 
         nsCOMPtr<nsIDocument> newDocument =

@@ -800,7 +800,7 @@ JSObject::finish(JSContext *cx)
     if (hasSlotsArray())
         freeSlotsArray(cx);
     if (emptyShapes)
-        cx->free_(emptyShapes);
+        cx->free(emptyShapes);
 }
 
 inline bool
@@ -827,7 +827,7 @@ inline void
 JSObject::freeSlotsArray(JSContext *cx)
 {
     JS_ASSERT(hasSlotsArray());
-    cx->free_(slots);
+    cx->free(slots);
 }
 
 inline void
