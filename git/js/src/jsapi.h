@@ -761,6 +761,8 @@ JS_StringToVersion(const char *string);
                                                    leaving that up to the
                                                    embedding. */
 
+#define JSOPTION_METHODJIT      JS_BIT(14)      /* Whole-method JIT. */
+
 extern JS_PUBLIC_API(uint32)
 JS_GetOptions(JSContext *cx);
 
@@ -3314,6 +3316,7 @@ class Value
 
     JSObject &asObject() const {
         JS_ASSERT(isObject());
+        JS_ASSERT(JSVAL_TO_OBJECT_IMPL(data));
         return *JSVAL_TO_OBJECT_IMPL(data);
     }
 
