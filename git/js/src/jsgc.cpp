@@ -547,7 +547,7 @@ Chunk::allocate(JSRuntime *rt)
     Chunk *chunk = static_cast<Chunk *>(AllocChunk());
     if (!chunk)
         return NULL;
-    chunk->init(rt);
+    chunk->init();
     rt->gcStats.count(gcstats::STAT_NEW_CHUNK);
     return chunk;
 }
@@ -561,7 +561,7 @@ Chunk::release(JSRuntime *rt, Chunk *chunk)
 }
 
 void
-Chunk::init(JSRuntime *rt)
+Chunk::init()
 {
     JS_POISON(this, JS_FREE_PATTERN, ChunkSize);
 
@@ -580,7 +580,6 @@ Chunk::init(JSRuntime *rt)
     info.numArenasFree = ArenasPerChunk;
     info.numArenasFreeCommitted = ArenasPerChunk;
     info.age = 0;
-    rt->gcNumFreeArenas += ArenasPerChunk;
 
     /* Initialize the arena header state. */
     for (jsuint i = 0; i < ArenasPerChunk; i++) {
@@ -669,7 +668,7 @@ Chunk::fetchNextDecommittedArena()
 }
 
 inline ArenaHeader *
-Chunk::fetchNextFreeArena(JSRuntime *rt)
+Chunk::fetchNextFreeArena()
 {
     JS_ASSERT(info.numArenasFreeCommitted > 0);
 
@@ -677,7 +676,6 @@ Chunk::fetchNextFreeArena(JSRuntime *rt)
     info.freeArenasHead = aheader->next;
     --info.numArenasFreeCommitted;
     --info.numArenasFree;
-    --rt->gcNumFreeArenas;
 
     return aheader;
 }
@@ -687,15 +685,14 @@ Chunk::allocateArena(JSCompartment *comp, AllocKind thingKind)
 {
     JS_ASSERT(!noAvailableArenas());
 
-    JSRuntime *rt = comp->rt;
-
     ArenaHeader *aheader = JS_LIKELY(info.numArenasFreeCommitted > 0)
-                           ? fetchNextFreeArena(rt)
+                           ? fetchNextFreeArena()
                            : fetchNextDecommittedArena();
     aheader->init(comp, thingKind);
     if (JS_UNLIKELY(noAvailableArenas()))
         removeFromAvailableList();
 
+    JSRuntime *rt = comp->rt;
     Probes::resizeHeap(comp, rt->gcBytes, rt->gcBytes + ArenaSize);
     JS_ATOMIC_ADD(&rt->gcBytes, ArenaSize);
     JS_ATOMIC_ADD(&comp->gcBytes, ArenaSize);
@@ -735,7 +732,6 @@ Chunk::releaseArena(ArenaHeader *aheader)
     info.freeArenasHead = aheader;
     ++info.numArenasFreeCommitted;
     ++info.numArenasFree;
-    ++rt->gcNumFreeArenas;
 
     if (info.numArenasFree == 1) {
         JS_ASSERT(!info.prevp);
@@ -2141,7 +2137,7 @@ MaybeGC(JSContext *cx)
      */
     int64 now = PRMJ_Now();
     if (rt->gcNextFullGCTime && rt->gcNextFullGCTime <= now) {
-        if (rt->gcChunkAllocationSinceLastGC || rt->gcNumFreeArenas > MaxFreeCommittedArenas)
+        if (rt->gcChunkAllocationSinceLastGC)
             js_GC(cx, NULL, GC_SHRINK, gcstats::MAYBEGC);
         else
             rt->gcNextFullGCTime = now + GC_IDLE_FULL_SPAN;
@@ -2408,7 +2404,6 @@ DecommitFreePages(JSContext *cx)
                 size_t arenaOffset = Chunk::arenaIndex(reinterpret_cast<uintptr_t>(aheader));
                 chunk->decommittedArenas.set(arenaOffset);
                 --chunk->info.numArenasFreeCommitted;
-                --rt->gcNumFreeArenas;
 
                 aheader = next;
             }

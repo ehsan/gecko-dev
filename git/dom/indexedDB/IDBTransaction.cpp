@@ -492,6 +492,7 @@ IDBTransaction::GetOrCreateObjectStore(const nsAString& aName,
                                        ObjectStoreInfo* aObjectStoreInfo)
 {
   NS_ASSERTION(NS_IsMainThread(), "Wrong thread!");
+  NS_ASSERTION(!aName.IsEmpty(), "Empty name!");
   NS_ASSERTION(aObjectStoreInfo, "Null pointer!");
 
   nsRefPtr<IDBObjectStore> retval;
@@ -595,7 +596,10 @@ IDBTransaction::GetObjectStoreNames(nsIDOMDOMStringList** aObjectStores)
   nsTArray<nsString>* arrayOfNames;
 
   if (mMode == IDBTransaction::VERSION_CHANGE) {
-    DatabaseInfo* info = mDatabase->Info();
+    DatabaseInfo* info;
+    if (!DatabaseInfo::Get(mDatabase->Id(), &info)) {
+      NS_ERROR("This should never fail!");
+    }
 
     if (!info->GetObjectStoreNames(stackArray)) {
       NS_ERROR("Out of memory!");
@@ -632,7 +636,7 @@ IDBTransaction::ObjectStore(const nsAString& aName,
 
   if (mMode == nsIIDBTransaction::VERSION_CHANGE ||
       mObjectStoreNames.Contains(aName)) {
-    mDatabase->Info()->GetObjectStore(aName, &info);
+    ObjectStoreInfo::Get(mDatabase->Id(), aName, &info);
   }
 
   if (!info) {
@@ -831,7 +835,10 @@ CommitHelper::Run()
         NS_ASSERTION(mTransaction->Mode() == nsIIDBTransaction::VERSION_CHANGE,
                      "Bad transaction type!");
 
-        DatabaseInfo* dbInfo = mTransaction->Database()->Info();
+        DatabaseInfo* dbInfo;
+        if (!DatabaseInfo::Get(mTransaction->Database()->Id(), &dbInfo)) {
+          NS_ERROR("This should never fail!");
+        }
 
         if (NS_FAILED(IDBFactory::UpdateDatabaseMetadata(dbInfo, mOldVersion,
                                                          mOldObjectStores))) {

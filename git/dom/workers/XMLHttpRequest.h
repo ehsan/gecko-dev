@@ -56,12 +56,10 @@ struct StateData
   jsval mStatus;
   jsval mStatusText;
   jsval mReadyState;
-  jsval mResponse;
   bool mResponseTextException;
   bool mStatusException;
   bool mStatusTextException;
   bool mReadyStateException;
-  bool mResponseException;
 };
 
 bool

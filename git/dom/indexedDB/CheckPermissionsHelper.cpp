@@ -141,8 +141,7 @@ CheckPermissionsHelper::Run()
       NS_ENSURE_SUCCESS(rv, rv);
     }
   }
-  else if (permission == nsIPermissionManager::UNKNOWN_ACTION &&
-           mPromptAllowed) {
+  else if (permission == nsIPermissionManager::UNKNOWN_ACTION) {
     nsCOMPtr<nsIObserverService> obs = GetObserverService();
     rv = obs->NotifyObservers(static_cast<nsIRunnable*>(this),
                               TOPIC_PERMISSIONS_PROMPT, nsnull);
@@ -197,7 +196,6 @@ CheckPermissionsHelper::Observe(nsISupports* aSubject,
 {
   NS_ASSERTION(NS_IsMainThread(), "Wrong thread!");
   NS_ASSERTION(!strcmp(aTopic, TOPIC_PERMISSIONS_RESPONSE), "Bad topic!");
-  NS_ASSERTION(mPromptAllowed, "How did we get here?");
 
   mHasPrompted = true;
 
