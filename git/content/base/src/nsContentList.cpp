@@ -88,7 +88,6 @@ NS_IMPL_CYCLE_COLLECTION_TRAVERSE_END
 
 // QueryInterface implementation for nsBaseContentList
 NS_INTERFACE_MAP_BEGIN_CYCLE_COLLECTION(nsBaseContentList)
-  NS_INTERFACE_MAP_ENTRY(nsINodeList)
   NS_INTERFACE_MAP_ENTRY(nsIDOMNodeList)
   NS_INTERFACE_MAP_ENTRY_AMBIGUOUS(nsISupports, nsIDOMNodeList)
   NS_INTERFACE_MAP_ENTRY_CONTENT_CLASSINFO(NodeList)
@@ -110,7 +109,7 @@ nsBaseContentList::GetLength(PRUint32* aLength)
 NS_IMETHODIMP
 nsBaseContentList::Item(PRUint32 aIndex, nsIDOMNode** aReturn)
 {
-  nsISupports *tmp = GetNodeAt(aIndex);
+  nsISupports *tmp = mElements.SafeObjectAt(aIndex);
 
   if (!tmp) {
     *aReturn = nsnull;
@@ -119,12 +118,6 @@ nsBaseContentList::Item(PRUint32 aIndex, nsIDOMNode** aReturn)
   }
 
   return CallQueryInterface(tmp, aReturn);
-}
-
-nsINode*
-nsBaseContentList::GetNodeAt(PRUint32 aIndex)
-{
-  return mElements.SafeObjectAt(aIndex);
 }
 
 void
@@ -474,10 +467,10 @@ nsContentList::GetLength(PRUint32* aLength)
 NS_IMETHODIMP
 nsContentList::Item(PRUint32 aIndex, nsIDOMNode** aReturn)
 {
-  nsINode* node = GetNodeAt(aIndex);
+  nsIContent *content = Item(aIndex, PR_TRUE);
 
-  if (node) {
-    return CallQueryInterface(node, aReturn);
+  if (content) {
+    return CallQueryInterface(content, aReturn);
   }
 
   *aReturn = nsnull;
@@ -497,12 +490,6 @@ nsContentList::NamedItem(const nsAString& aName, nsIDOMNode** aReturn)
   *aReturn = nsnull;
 
   return NS_OK;
-}
-
-nsINode*
-nsContentList::GetNodeAt(PRUint32 aIndex)
-{
-  return Item(aIndex, PR_TRUE);
 }
 
 void
