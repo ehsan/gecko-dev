@@ -63,8 +63,6 @@ protected:
 private:
     int mBufW;
     int mBufH;
-    int64_t mWindowId;
-    bool mScrollWithPage;
     int mTimePerFrame;
     ScopedFreePtr<unsigned char> mData;
     nsCOMPtr<nsIDOMWindow> mWindow;
