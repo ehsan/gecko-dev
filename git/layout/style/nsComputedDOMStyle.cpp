@@ -161,11 +161,19 @@ nsComputedDOMStyle::Shutdown()
 
 NS_IMPL_CYCLE_COLLECTION_1(nsComputedDOMStyle, mContent)
 
+DOMCI_DATA(ComputedCSSStyleDeclaration, nsComputedDOMStyle)
+
 // QueryInterface implementation for nsComputedDOMStyle
-NS_INTERFACE_MAP_BEGIN(nsComputedDOMStyle)
+NS_INTERFACE_TABLE_HEAD(nsComputedDOMStyle)
+  NS_INTERFACE_TABLE3(nsComputedDOMStyle,
+                      nsICSSDeclaration,
+                      nsIDOMCSSStyleDeclaration,
+                      nsIDOMCSS2Properties)
+  NS_INTERFACE_TABLE_TO_MAP_SEGUE
   NS_WRAPPERCACHE_INTERFACE_MAP_ENTRY
   NS_INTERFACE_MAP_ENTRIES_CYCLE_COLLECTION(nsComputedDOMStyle)
-NS_INTERFACE_MAP_END_INHERITING(nsDOMCSSDeclaration)
+  NS_DOM_INTERFACE_MAP_ENTRY_CLASSINFO(ComputedCSSStyleDeclaration)
+NS_INTERFACE_MAP_END
 
 
 static void doDestroyComputedDOMStyle(nsComputedDOMStyle *aComputedStyle)
@@ -2436,16 +2444,6 @@ nsComputedDOMStyle::DoGetWordWrap()
 }
 
 nsIDOMCSSValue*
-nsComputedDOMStyle::DoGetHyphens()
-{
-  nsROCSSPrimitiveValue *val = GetROCSSPrimitiveValue();
-  val->SetIdent(
-    nsCSSProps::ValueToKeywordEnum(GetStyleText()->mHyphens,
-                                   nsCSSProps::kHyphensKTable));
-  return val;
-}
-
-nsIDOMCSSValue*
 nsComputedDOMStyle::DoGetPointerEvents()
 {
   nsROCSSPrimitiveValue *val = GetROCSSPrimitiveValue();
@@ -4365,7 +4363,6 @@ nsComputedDOMStyle::GetQueryablePropertyMap(PRUint32* aLength)
     COMPUTED_STYLE_MAP_ENTRY(transition_timing_function,    TransitionTimingFunction),
     COMPUTED_STYLE_MAP_ENTRY(_moz_window_shadow,            WindowShadow),
     COMPUTED_STYLE_MAP_ENTRY(word_wrap,                     WordWrap),
-    COMPUTED_STYLE_MAP_ENTRY(hyphens,                       Hyphens),
     COMPUTED_STYLE_MAP_ENTRY(clip_path,                     ClipPath),
     COMPUTED_STYLE_MAP_ENTRY(clip_rule,                     ClipRule),
     COMPUTED_STYLE_MAP_ENTRY(color_interpolation,           ColorInterpolation),

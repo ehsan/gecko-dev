@@ -347,7 +347,7 @@ var InspectorUI = {
   toggleInspectorUI: function IUI_toggleInspectorUI(aEvent)
   {
     if (this.isTreePanelOpen) {
-      this.closeInspectorUI();
+      this.closeInspectorUI(true);
     } else {
       this.openInspectorUI();
     }
@@ -738,12 +738,10 @@ var InspectorUI = {
    * Remove event listeners for document scrolling, resize,
    * tabContainer.TabSelect and others.
    *
-   * @param boolean aKeepStore
-   *        Tells if you want the store associated to the current tab/window to
-   *        be cleared or not. Set this to true to not clear the store, or false
-   *        otherwise.
+   * @param boolean aClearStore tells if you want the store associated to the
+   * current tab/window to be cleared or not.
    */
-  closeInspectorUI: function IUI_closeInspectorUI(aKeepStore)
+  closeInspectorUI: function IUI_closeInspectorUI(aClearStore)
   {
     if (this.closing || !this.win || !this.browser) {
       return;
@@ -751,7 +749,7 @@ var InspectorUI = {
 
     this.closing = true;
 
-    if (!aKeepStore) {
+    if (aClearStore) {
       InspectorStore.deleteStore(this.winID);
       this.win.removeEventListener("pagehide", this, true);
     } else {
@@ -1030,7 +1028,7 @@ var InspectorUI = {
       case "TabSelect":
         winID = this.getWindowID(gBrowser.selectedBrowser.contentWindow);
         if (this.isTreePanelOpen && winID != this.winID) {
-          this.closeInspectorUI(true);
+          this.closeInspectorUI(false);
           inspectorClosed = true;
         }
 

@@ -909,7 +909,7 @@ mjit::ReleaseScriptCode(JSContext *cx, JSScript *script)
     JITScript *jscr;
 
     if ((jscr = script->jitNormal)) {
-        cx->runtime->mjitDataSize -= jscr->scriptDataSize();
+        cx->runtime->mjitMemoryUsed -= jscr->scriptDataSize() + jscr->mainCodeSize();
 
         jscr->~JITScript();
         cx->free_(jscr);
@@ -918,7 +918,7 @@ mjit::ReleaseScriptCode(JSContext *cx, JSScript *script)
     }
 
     if ((jscr = script->jitCtor)) {
-        cx->runtime->mjitDataSize -= jscr->scriptDataSize();
+        cx->runtime->mjitMemoryUsed -= jscr->scriptDataSize() + jscr->mainCodeSize();
 
         jscr->~JITScript();
         cx->free_(jscr);

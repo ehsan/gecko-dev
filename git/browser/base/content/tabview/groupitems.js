@@ -708,7 +708,12 @@ GroupItem.prototype = Utils.extend(new Item(), new Subscribable(), {
     let closeCenter = this.getBounds().center();
     // Find closest tab to make active
     let closestTabItem = UI.getClosestTab(closeCenter);
-    UI.setActive(closestTabItem);
+    UI.setActiveTab(closestTabItem);
+
+    if (closestTabItem && closestTabItem.parent)
+      GroupItems.setActiveGroupItem(closestTabItem.parent);
+    else
+      GroupItems.setActiveGroupItem(null);
   },
 
   // ----------
@@ -739,7 +744,9 @@ GroupItem.prototype = Utils.extend(new Item(), new Subscribable(), {
     this.droppable(true);
     this.setTrenches(this.bounds);
 
-    UI.setActive(this);
+    GroupItems.setActiveGroupItem(this);
+    if (this._activeTab)
+      UI.setActiveTab(this._activeTab);
 
     iQ(this.container).show().animate({
       "-moz-transform": "scale(1)",
@@ -1005,8 +1012,10 @@ GroupItem.prototype = Utils.extend(new Item(), new Subscribable(), {
           if (dontArrange)
             self._freezeItemSize(count);
 
-          if (self._children.length > 0 && self._activeTab)
-            UI.setActive(self);
+          if (self._children.length > 0 && self._activeTab) {
+            GroupItems.setActiveGroupItem(self);
+            UI.setActiveTab(self._activeTab);
+          }
         });
 
         item.setParent(this);
@@ -1018,11 +1027,11 @@ GroupItem.prototype = Utils.extend(new Item(), new Subscribable(), {
         if (iQ(item.container).hasClass("focus"))
           this.setActiveTab(item);
 
-        // if it matches the selected tab or no active tab and the browser
+        // if it matches the selected tab or no active tab and the browser 
         // tab is hidden, the active group item would be set.
-        if (item.tab == gBrowser.selectedTab ||
+        if (item.tab == gBrowser.selectedTab || 
             (!GroupItems.getActiveGroupItem() && !item.tab.hidden))
-          UI.setActive(this);
+          GroupItems.setActiveGroupItem(this);
       }
 
       if (!options.dontArrange)
@@ -1131,6 +1140,19 @@ GroupItem.prototype = Utils.extend(new Item(), new Subscribable(), {
       self.remove(child, newOptions);
     });
   },
+  
+  // ----------
+  // Handles error event for loading app tab's fav icon.
+  _onAppTabError : function(event) {
+    iQ(".appTabIcon", this.$appTabTray).each(function(icon) {
+      let $icon = iQ(icon);
+      if ($icon.data("xulTab") == event.target) {
+        $icon.attr("src", Utils.defaultFaviconURL);
+        return false;
+      }
+      return true;
+    });
+  },
 
   // ----------
   // Adds the given xul:tab as an app tab in this group's apptab tray
@@ -1145,7 +1167,10 @@ GroupItem.prototype = Utils.extend(new Item(), new Subscribable(), {
   addAppTab: function GroupItem_addAppTab(xulTab, options) {
     let self = this;
 
-    let iconUrl = GroupItems.getAppTabFavIconUrl(xulTab);
+    xulTab.addEventListener("error", this._onAppTabError, false);
+
+    // add the icon
+    let iconUrl = xulTab.image || Utils.defaultFaviconURL;
     let $appTab = iQ("<img>")
       .addClass("appTabIcon")
       .attr("src", iconUrl)
@@ -1155,7 +1180,7 @@ GroupItem.prototype = Utils.extend(new Item(), new Subscribable(), {
         if (!Utils.isLeftClick(event))
           return;
 
-        UI.setActive(self, { dontSetActiveTabInGroup: true });
+        GroupItems.setActiveGroupItem(self);
         UI.goToTab(iQ(this).data("xulTab"));
       });
 
@@ -1179,6 +1204,8 @@ GroupItem.prototype = Utils.extend(new Item(), new Subscribable(), {
     
     // adjust the tray
     this.adjustAppTabTray(true);
+
+    xulTab.removeEventListener("error", this._onAppTabError, false);
   },
 
   // ----------
@@ -1200,7 +1227,7 @@ GroupItem.prototype = Utils.extend(new Item(), new Subscribable(), {
       if (targetIndex < (length - 1))
         self.$appTabTray[0].insertBefore(
           icon,
-          iQ(".appTabIcon:nth-child(" + (targetIndex + 1) + ")", self.$appTabTray)[0]);
+        iQ(".appTabIcon:nth-child(" + (targetIndex + 1) + ")", self.$appTabTray)[0]);
       else
         $icon.appendTo(self.$appTabTray);
       return false;
@@ -1512,7 +1539,8 @@ GroupItem.prototype = Utils.extend(new Item(), new Subscribable(), {
   expand: function GroupItem_expand() {
     var self = this;
     // ___ we're stacked, and command is held down so expand
-    UI.setActive(this.getTopChild());
+    GroupItems.setActiveGroupItem(self);
+    UI.setActiveTab(this.getTopChild());
     
     var startBounds = this.getChild(0).getBounds();
     var $tray = iQ("<div>").css({
@@ -1728,7 +1756,7 @@ GroupItem.prototype = Utils.extend(new Item(), new Subscribable(), {
       if (dropIndex !== false)
         options = {index: dropIndex};
       this.add(drag.info.$el, options);
-      UI.setActive(this);
+      GroupItems.setActiveGroupItem(this);
       dropIndex = false;
     };
     this.dropOptions.out = function GroupItem_dropOptions_out(event) {
@@ -1783,7 +1811,7 @@ GroupItem.prototype = Utils.extend(new Item(), new Subscribable(), {
   // Function: newTab
   // Creates a new tab within this groupItem.
   newTab: function GroupItem_newTab(url) {
-    UI.setActive(this, { dontSetActiveTabInGroup: true });
+    GroupItems.setActiveGroupItem(this);
     let newTab = gBrowser.loadOneTab(url || "about:blank", {inBackground: true});
 
     // TabItems will have handled the new tab and added the tabItem property.
@@ -2009,7 +2037,7 @@ let GroupItems = {
     if (xulTab.ownerDocument.defaultView != gWindow || !xulTab.pinned)
       return;
 
-    let iconUrl = this.getAppTabFavIconUrl(xulTab);
+    let iconUrl = xulTab.image || Utils.defaultFaviconURL;
     this.groupItems.forEach(function(groupItem) {
       iQ(".appTabIcon", groupItem.$appTabTray).each(function(icon) {
         let $icon = iQ(icon);
@@ -2021,21 +2049,7 @@ let GroupItems = {
         return false;
       });
     });
-  },
-
-  // ----------
-  // Function: getAppTabFavIconUrl
-  // Gets the fav icon url for app tab.
-  getAppTabFavIconUrl: function GroupItems__getAppTabFavIconUrl(xulTab) {
-    let iconUrl;
-
-    if (UI.shouldLoadFavIcon(xulTab.linkedBrowser))
-      iconUrl = UI.getFavIconUrlForTab(xulTab);
-    else
-      iconUrl = Utils.defaultFaviconURL;
-
-    return iconUrl;
-  },
+  },  
 
   // ----------
   // Function: addAppTab
@@ -2171,7 +2185,7 @@ let GroupItems = {
       if (activeGroupId) {
         let activeGroupItem = this.groupItem(activeGroupId);
         if (activeGroupItem)
-          UI.setActive(activeGroupItem);
+          this.setActiveGroupItem(activeGroupItem);
       }
 
       this._inited = true;
@@ -2308,7 +2322,7 @@ let GroupItems = {
         if (targetGroupItem) {
           // add the new tabItem to the first group item
           targetGroupItem.add(tabItem);
-          UI.setActive(targetGroupItem);
+          this.setActiveGroupItem(targetGroupItem);
           return;
         } else {
           // find the first visible group item
@@ -2317,7 +2331,7 @@ let GroupItems = {
           });
           if (visibleGroupItems.length > 0) {
             visibleGroupItems[0].add(tabItem);
-            UI.setActive(visibleGroupItems[0]);
+            this.setActiveGroupItem(visibleGroupItems[0]);
             return;
           }
         }
@@ -2346,7 +2360,7 @@ let GroupItems = {
     newGroupItemBounds.inset(-40,-40);
     let newGroupItem = new GroupItem(tabItems, { bounds: newGroupItemBounds });
     newGroupItem.snap();
-    UI.setActive(newGroupItem);
+    this.setActiveGroupItem(newGroupItem);
   },
 
   // ----------
@@ -2406,7 +2420,11 @@ let GroupItems = {
   updateActiveGroupItemAndTabBar: function GroupItems_updateActiveGroupItemAndTabBar(tabItem) {
     Utils.assertThrow(tabItem && tabItem.isATabItem, "tabItem must be a TabItem");
 
-    UI.setActive(tabItem);
+    let groupItem = tabItem.parent;
+    this.setActiveGroupItem(groupItem);
+    if (groupItem)
+      groupItem.setActiveTab(tabItem);
+
     this._updateTabBar();
   },
 

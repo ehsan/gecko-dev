@@ -49,7 +49,6 @@
 
 #include "nsIMutableArray.h"
 #include "nsIMIMEInfo.h"
-#include "nsColor.h"
 
 // Some debug #defines
 // #define ANDROID_DEBUG_EVENTS
@@ -58,22 +57,6 @@
 class nsWindow;
 
 namespace mozilla {
-
-// The order and number of the members in this structure must correspond
-// to the attrsAppearance array in GeckoAppShell.getSystemColors()
-typedef struct AndroidSystemColors {
-    nscolor textColorPrimary;
-    nscolor textColorPrimaryInverse;
-    nscolor textColorSecondary;
-    nscolor textColorSecondaryInverse;
-    nscolor textColorTertiary;
-    nscolor textColorTertiaryInverse;
-    nscolor textColorHighlight;
-    nscolor colorForeground;
-    nscolor colorBackground;
-    nscolor panelColorForeground;
-    nscolor panelColorBackground;
-} AndroidSystemColors;
 
 class AndroidBridge
 {
@@ -206,8 +189,6 @@ public:
 
     void SetSelectedLocale(const nsAString&);
 
-    void GetSystemColors(AndroidSystemColors *aColors);
-
     struct AutoLocalJNIFrame {
         AutoLocalJNIFrame(int nEntries = 128) : mEntries(nEntries) {
             // Make sure there is enough space to store a local ref to the
@@ -300,7 +281,6 @@ protected:
     jmethodID jIsNetworkLinkKnown;
     jmethodID jSetSelectedLocale;
     jmethodID jScanMedia;
-    jmethodID jGetSystemColors;
 
     // stuff we need for CallEglCreateWindowSurface
     jclass jEGLSurfaceImplClass;

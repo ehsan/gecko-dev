@@ -353,20 +353,20 @@ public:
   {
     nsCString path;
 
-    path.AppendLiteral("heap-used/storage/");
+    path.AppendLiteral("storage/");
     path.Append(mDBConn.getFilename());
 
     if (mType == LookAside_Used) {
-      path.AppendLiteral("/lookaside-used");
+      path.AppendLiteral("/LookAside_Used");
     }
     else if (mType == Cache_Used) {
-      path.AppendLiteral("/cache-used");
+      path.AppendLiteral("/Cache_Used");
     }
     else if (mType == Schema_Used) {
-      path.AppendLiteral("/schema-used");
+      path.AppendLiteral("/Schema_Used");
     }
     else if (mType == Stmt_Used) {
-      path.AppendLiteral("/stmt-used");
+      path.AppendLiteral("/Stmt_Used");
     }
 
     *memoryPath = ::ToNewCString(path);
@@ -376,16 +376,16 @@ public:
   NS_IMETHOD GetDescription(char **desc)
   {
     if (mType == LookAside_Used) {
-      *desc = ::strdup("Number of lookaside memory slots currently checked out.");
+      *desc = ::strdup("Number of lookaside memory slots currently checked out");
     }
     else if (mType == Cache_Used) {
-      *desc = ::strdup("Memory (approximate) used by all pager caches.");
+      *desc = ::strdup("Approximate number of bytes of heap memory used by all pager caches");
     }
     else if (mType == Schema_Used) {
-      *desc = ::strdup("Memory (approximate) used to store the schema for all databases associated with the connection");
+      *desc = ::strdup("Approximate number of bytes of heap memory used to store the schema for all databases associated with the connection");
     }
     else if (mType == Stmt_Used) {
-      *desc = ::strdup("Memory (approximate) used by all prepared statements");
+      *desc = ::strdup("Approximate number of bytes of heap and lookaside memory used by all prepared statements");
     }
     return NS_OK;
   }
@@ -576,16 +576,10 @@ Connection::initialize(nsIFile *aDatabaseFile,
   }
 
   nsRefPtr<nsIMemoryReporter> reporter;
-#if 0
-  // FIXME: Bug 649867 explains why this is disabled.
   reporter =
     new StorageMemoryReporter(*this, StorageMemoryReporter::LookAside_Used);
   mMemoryReporters.AppendElement(reporter);
-#endif
 
-  // FIXME: These reporters overlap with storage/sqlite/pagecache and
-  // storage/sqlite/other, and therefore double-count some memory.  See bug
-  // 653630 for details.
   reporter =
     new StorageMemoryReporter(*this, StorageMemoryReporter::Cache_Used);
   mMemoryReporters.AppendElement(reporter);
@@ -594,8 +588,7 @@ Connection::initialize(nsIFile *aDatabaseFile,
     new StorageMemoryReporter(*this, StorageMemoryReporter::Schema_Used);
   mMemoryReporters.AppendElement(reporter);
 
-  reporter =
-    new StorageMemoryReporter(*this, StorageMemoryReporter::Stmt_Used);
+  reporter = new StorageMemoryReporter(*this, StorageMemoryReporter::Stmt_Used);
   mMemoryReporters.AppendElement(reporter);
 
   for (PRUint32 i = 0; i < mMemoryReporters.Length(); i++) {

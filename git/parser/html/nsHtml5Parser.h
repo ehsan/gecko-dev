@@ -53,6 +53,7 @@
 #include "nsCOMArray.h"
 #include "nsContentSink.h"
 #include "nsIHTMLDocument.h"
+#include "nsIUnicharStreamListener.h"
 #include "nsCycleCollectionParticipant.h"
 #include "nsIInputStream.h"
 #include "nsDetectionConfident.h"

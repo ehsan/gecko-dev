@@ -47,7 +47,7 @@ size_t ExecutableAllocator::determinePageSize()
 #endif
 }
 
-ExecutablePool::Allocation ExecutableAllocator::systemAlloc(size_t n)
+ExecutablePool::Allocation ExecutablePool::systemAlloc(size_t n)
 {
     RChunk* codeChunk = new RChunk();
 
@@ -58,7 +58,7 @@ ExecutablePool::Allocation ExecutableAllocator::systemAlloc(size_t n)
     return alloc;
 }
 
-void ExecutableAllocator::systemRelease(const ExecutablePool::Allocation& alloc)
+void ExecutablePool::systemRelease(const ExecutablePool::Allocation& alloc)
 { 
     alloc.chunk->Close();
     delete alloc.chunk;

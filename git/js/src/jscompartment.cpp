@@ -165,14 +165,6 @@ JSCompartment::init()
 #endif
 }
 
-#ifdef JS_METHODJIT
-size_t
-JSCompartment::getMjitCodeSize() const
-{
-    return jaegerCompartment->execAlloc()->getCodeSize();
-}
-#endif
-
 bool
 JSCompartment::arenaListsAreEmpty()
 {

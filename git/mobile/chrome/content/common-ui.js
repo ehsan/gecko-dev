@@ -41,14 +41,8 @@ const kBrowserFormZoomLevelMax = 2.0;
 
 var BrowserSearch = {
   get _popup() {
-    let popup = document.getElementById("search-engines-popup");
-    popup.addEventListener("TapSingle", function(aEvent) {
-      popup.hidden = true;
-      BrowserUI.doOpenSearch(aEvent.target.getAttribute("label"));
-    }, false);
-
     delete this._popup;
-    return this._popup = popup;
+    return this._popup = document.getElementById("search-engines-popup");
   },
 
   get _list() {
@@ -80,7 +74,11 @@ var BrowserSearch = {
       button.setAttribute("label", aEngine.name);
       button.setAttribute("crop", "end");
       button.setAttribute("pack", "start");
-      button.setAttribute("image", aEngine.iconURI ? aEngine.iconURI.spec : "");
+      button.setAttribute("image", aEngine.iconURI ? aEngine.iconURI.spec : null);
+      button.onclick = function() {
+        popup.hidden = true;
+        BrowserUI.doOpenSearch(aEngine.name);
+      }
       list.appendChild(button);
     });
 
@@ -1022,12 +1020,6 @@ var FormHelperUI = {
     // The sidebars scroll needs to be taken into account, otherwise the arrows
     // can be misplaced if the sidebars are open
     let topOffset = (BrowserUI.toolbarH - Browser.getScrollboxPosition(Browser.pageScrollboxScroller).y);
-
-    // Notifications take height _before_ the browser if there any
-    let notification = Browser.getNotificationBox().currentNotification;
-    if (notification)
-      topOffset += notification.getBoundingClientRect().height;
-
     let virtualContentRect = {
       width: rect.width,
       height: rect.height,

@@ -102,9 +102,13 @@ public:
   // From nsGenericElement
   nsresult CopyInnerTo(nsGenericElement* aDest) const;
 
+  // Implementation for nsIDOMNode
+  NS_METHOD GetNodeName(nsAString& aNodeName);
+
   // Implementation for nsIDOMElement
   NS_METHOD SetAttribute(const nsAString& aName,
                          const nsAString& aValue);
+  NS_METHOD GetTagName(nsAString& aTagName);
 
   // nsIDOMHTMLElement methods. Note that these are non-virtual
   // methods, implementations are expected to forward calls to these
@@ -1578,7 +1582,6 @@ NS_DECLARE_NS_NEW_HTML_ELEMENT(Option)
 NS_DECLARE_NS_NEW_HTML_ELEMENT(Output)
 NS_DECLARE_NS_NEW_HTML_ELEMENT(Paragraph)
 NS_DECLARE_NS_NEW_HTML_ELEMENT(Pre)
-NS_DECLARE_NS_NEW_HTML_ELEMENT(Progress)
 NS_DECLARE_NS_NEW_HTML_ELEMENT(Script)
 NS_DECLARE_NS_NEW_HTML_ELEMENT(Select)
 #if defined(MOZ_MEDIA)

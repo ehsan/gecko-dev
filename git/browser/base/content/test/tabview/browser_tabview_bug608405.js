@@ -8,7 +8,7 @@ function test() {
     let bounds = new cw.Rect(20, 20, 200, 200);
     let groupItem = new cw.GroupItem([], {bounds: bounds, immediately: true});
 
-    cw.UI.setActive(groupItem);
+    cw.GroupItems.setActiveGroupItem(groupItem);
     gBrowser.loadOneTab('about:blank', {inBackground: true});
 
     return groupItem;
