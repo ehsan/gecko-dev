@@ -53,6 +53,10 @@
 #include <gtk/gtkprivate.h>
 #endif
 
+#if defined(MOZ_WIDGET_GTK2)
+#include "gtk2compat.h"
+#endif
+
 #include "nsGkAtoms.h"
 
 #ifdef MOZ_ENABLE_STARTUP_NOTIFICATION

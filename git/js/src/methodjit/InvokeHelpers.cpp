@@ -107,8 +107,7 @@ FindExceptionHandler(JSContext *cx)
                    * pending exception.
                    */
                   JS_ASSERT(JSOp(*pc) == JSOP_ENDITER);
-                  RootedObject obj(cx, &cx->regs().sp[-1].toObject());
-                  bool ok = UnwindIteratorForException(cx, obj);
+                  bool ok = UnwindIteratorForException(cx, &cx->regs().sp[-1].toObject());
                   cx->regs().sp -= 1;
                   if (!ok)
                       goto error;
@@ -1049,11 +1048,7 @@ js_InternalInterpret(void *returnData, void *returnType, void *returnReg, js::VM
                 js_ReportValueError(cx, JSMSG_BAD_PROTOTYPE, -1, val, NullPtr());
                 return js_InternalThrow(f);
             }
-            bool isDelegate;
-            RootedObject obj(cx, &f.regs.sp[0].toObject());
-            if (!IsDelegate(cx, obj, f.regs.sp[-2], &isDelegate))
-                return js_InternalThrow(f);
-            nextsp[-1].setBoolean(isDelegate);
+            nextsp[-1].setBoolean(js_IsDelegate(cx, &f.regs.sp[0].toObject(), f.regs.sp[-2]));
             f.regs.pc = nextpc;
             break;
           }

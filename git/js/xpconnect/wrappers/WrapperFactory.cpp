@@ -77,9 +77,7 @@ WrapperFactory::CreateXrayWaiver(JSContext *cx, JSObject *obj)
     CompartmentPrivate *priv = GetCompartmentPrivate(obj);
 
     // Get a waiver for the proto.
-    JSObject *proto;
-    if (!js::GetObjectProto(cx, obj, &proto))
-        return nullptr;
+    JSObject *proto = js::GetObjectProto(obj);
     if (proto && !(proto = WaiveXray(cx, proto)))
         return nullptr;
 
@@ -404,17 +402,11 @@ WrapperFactory::Rewrap(JSContext *cx, JSObject *obj, JSObject *wrappedProto, JSO
             //
             // COW(obj) => COW(foo) => COW(bar) => contentWin.StandardClass.prototype
             JSProtoKey key = JSProto_Null;
-            {
-                JSAutoCompartment ac(cx, obj);
-                JSObject *unwrappedProto;
-                if (!js::GetObjectProto(cx, obj, &unwrappedProto))
-                    return NULL;
-                if (unwrappedProto && IsCrossCompartmentWrapper(unwrappedProto))
-                    unwrappedProto = Wrapper::wrappedObject(unwrappedProto);
-                if (unwrappedProto) {
-                    JSAutoCompartment ac2(cx, unwrappedProto);
-                    key = JS_IdentifyClassPrototype(cx, unwrappedProto);
-                }
+            JSObject *unwrappedProto = NULL;
+            if (wrappedProto && IsCrossCompartmentWrapper(wrappedProto) &&
+                (unwrappedProto = Wrapper::wrappedObject(wrappedProto))) {
+                JSAutoCompartment ac(cx, unwrappedProto);
+                key = JS_IdentifyClassPrototype(cx, unwrappedProto);
             }
             if (key != JSProto_Null) {
                 JSObject *homeProto;
@@ -536,10 +528,7 @@ WrapperFactory::WrapLocationObject(JSContext *cx, JSObject *obj)
     JSObject *xrayHolder = XrayUtils::createHolder(cx, obj, js::GetObjectParent(obj));
     if (!xrayHolder)
         return nullptr;
-    JSObject *proto;
-    if (!js::GetObjectProto(cx, obj, &proto))
-        return nullptr;
-    JSObject *wrapperObj = Wrapper::New(cx, obj, proto, js::GetObjectParent(obj),
+    JSObject *wrapperObj = Wrapper::New(cx, obj, js::GetObjectProto(obj), js::GetObjectParent(obj),
                                         &LW::singleton);
     if (!wrapperObj)
         return nullptr;
@@ -575,11 +564,8 @@ WrapperFactory::WaiveXrayAndWrap(JSContext *cx, jsval *vp)
 JSObject *
 WrapperFactory::WrapSOWObject(JSContext *cx, JSObject *obj)
 {
-    JSObject *proto;
-    if (!JS_GetPrototype(cx, obj, &proto))
-        return NULL;
     JSObject *wrapperObj =
-        Wrapper::New(cx, obj, proto, JS_GetGlobalForObject(cx, obj),
+        Wrapper::New(cx, obj, JS_GetPrototype(obj), JS_GetGlobalForObject(cx, obj),
                      &FilteringWrapper<SameCompartmentSecurityWrapper,
                      OnlyIfSubjectIsSystem>::singleton);
     return wrapperObj;
@@ -595,11 +581,8 @@ WrapperFactory::IsComponentsObject(JSObject *obj)
 JSObject *
 WrapperFactory::WrapComponentsObject(JSContext *cx, JSObject *obj)
 {
-    JSObject *proto;
-    if (!JS_GetPrototype(cx, obj, &proto))
-        return NULL;
     JSObject *wrapperObj =
-        Wrapper::New(cx, obj, proto, JS_GetGlobalForObject(cx, obj),
+        Wrapper::New(cx, obj, JS_GetPrototype(obj), JS_GetGlobalForObject(cx, obj),
                      &FilteringWrapper<SameCompartmentSecurityWrapper, ComponentsObjectPolicy>::singleton);
 
     return wrapperObj;

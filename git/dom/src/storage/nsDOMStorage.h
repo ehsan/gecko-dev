@@ -109,8 +109,8 @@ public:
   DOMStorageBase();
   DOMStorageBase(DOMStorageBase&);
 
-  virtual void InitAsSessionStorage(nsIPrincipal* aPrincipal, bool aPrivate);
-  virtual void InitAsLocalStorage(nsIPrincipal* aPrincipal, bool aPrivate);
+  virtual void InitAsSessionStorage(nsIURI* aDomainURI, bool aPrivate);
+  virtual void InitAsLocalStorage(nsIURI* aDomainURI, bool aPrivate);
 
   virtual nsTArray<nsString>* GetKeys(bool aCallerSecure) = 0;
   virtual nsresult GetLength(bool aCallerSecure, uint32_t* aLength) = 0;
@@ -190,6 +190,9 @@ protected:
   // make sure this stays up to date.
   bool mSessionOnly;
 
+  // domain this store is associated with
+  nsCString mDomain;
+
   // keys are used for database queries.
   // see comments of the getters bellow.
   nsCString mScopeDBKey;
@@ -209,6 +212,9 @@ public:
   DOMStorageImpl(nsDOMStorage*);
   DOMStorageImpl(nsDOMStorage*, DOMStorageImpl&);
   ~DOMStorageImpl();
+
+  virtual void InitAsSessionStorage(nsIURI* aDomainURI, bool aPrivate);
+  virtual void InitAsLocalStorage(nsIURI* aDomainURI, bool aPrivate);
 
   bool SessionOnly() {
     return mSessionOnly;
@@ -275,7 +281,7 @@ private:
   // Cross-process storage implementations never have InitAs(Session|Local|Global)Storage
   // called, so the appropriate initialization needs to happen from the child.
   void InitFromChild(bool aUseDB, bool aSessionOnly,
-                     bool aPrivate,
+                     bool aPrivate, const nsACString& aDomain,
                      const nsACString& aScopeDBKey,
                      const nsACString& aQuotaDBKey,
                      uint32_t aStorageType);

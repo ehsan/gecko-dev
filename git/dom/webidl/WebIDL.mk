@@ -9,7 +9,6 @@ generated_webidl_files = \
   $(NULL)
 
 webidl_files = \
-  AudioBuffer.webidl \
   AudioBufferSourceNode.webidl \
   AudioContext.webidl \
   AudioDestinationNode.webidl \

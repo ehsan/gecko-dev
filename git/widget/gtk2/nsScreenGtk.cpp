@@ -11,6 +11,9 @@
 #include <X11/Xatom.h>
 #endif
 #include <gtk/gtk.h>
+#if (MOZ_WIDGET_GTK == 2)
+#include "gtk2compat.h"
+#endif
 
 nsScreenGtk :: nsScreenGtk (  )
   : mScreenNum(0),

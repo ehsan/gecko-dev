@@ -56,7 +56,7 @@ let DOMApplicationRegistry = {
 
   init: function() {
     this.messages = ["Webapps:Install", "Webapps:Uninstall",
-                     "Webapps:GetSelf", "Webapps:IsInstalled",
+                     "Webapps:GetSelf",
                      "Webapps:GetInstalled", "Webapps:GetNotInstalled",
                      "Webapps:Launch", "Webapps:GetAll",
                      "Webapps:InstallPackage", "Webapps:GetBasePath",
@@ -447,9 +447,6 @@ let DOMApplicationRegistry = {
       case "Webapps:Launch":
         Services.obs.notifyObservers(mm, "webapps-launch", JSON.stringify(msg));
         break;
-      case "Webapps:IsInstalled":
-        this.isInstalled(msg, mm);
-        break;
       case "Webapps:GetInstalled":
         this.getInstalled(msg, mm);
         break;
@@ -497,20 +494,10 @@ let DOMApplicationRegistry = {
     if (!(aMsgName in this.children)) {
       return;
     }
-    let i;
-    for (i = this.children[aMsgName].length - 1; i >= 0; i -= 1) {
-      let msgMgr = this.children[aMsgName][i];
-      try {
-        msgMgr.sendAsyncMessage(aMsgName, aContent);
-      } catch (e) {
-        // Remove once 777508 lands.
-        let index;
-        if ((index = this.children[aMsgName].indexOf(msgMgr)) != -1) {
-          this.children[aMsgName].splice(index, 1);
-          dump("Remove dead MessageManager!\n");
-        }
-      }
-    };
+
+    this.children[aMsgName].forEach(function _doBroadcast(aMsgMgr) {
+      aMsgMgr.sendAsyncMessage(aMsgName, aContent);
+    });
   },
 
   _getAppDir: function(aId) {
@@ -863,35 +850,19 @@ let DOMApplicationRegistry = {
     }
 
     if (!found) {
-      aData.mm.sendAsyncMessage("Webapps:Uninstall:Return:KO", aData);
+      aData.mm.broadcastMessage("Webapps:Uninstall:Return:KO", aData);
     }
   },
 
   getSelf: function(aData, aMm) {
     aData.apps = [];
-
-    if (aData.appId == Ci.nsIScriptSecurityManager.NO_APP_ID ||
-        aData.appId == Ci.nsIScriptSecurityManager.UNKNOWN_APP_ID) {
-      aMm.sendAsyncMessage("Webapps:GetSelf:Return:OK", aData);
-      return;
-    }
-
     let tmp = [];
+    let id = this._appId(aData.origin);
 
-    for (let id in this.webapps) {
-      if (this.webapps[id].origin == aData.origin &&
-          this.webapps[id].localId == aData.appId &&
-          this._isLaunchable(this.webapps[id].origin)) {
-        let app = AppsUtils.cloneAppObject(this.webapps[id]);
-        aData.apps.push(app);
-        tmp.push({ id: id });
-        break;
-      }
-    }
-
-    if (!aData.apps.length) {
-      aMm.sendAsyncMessage("Webapps:GetSelf:Return:OK", aData);
-      return;
+    if (id && this._isLaunchable(this.webapps[id].origin)) {
+      let app = AppsUtils.cloneAppObject(this.webapps[id]);
+      aData.apps.push(app);
+      tmp.push({ id: id });
     }
 
     this._readManifests(tmp, (function(aResult) {
@@ -899,19 +870,6 @@ let DOMApplicationRegistry = {
         aData.apps[i].manifest = aResult[i].manifest;
       aMm.sendAsyncMessage("Webapps:GetSelf:Return:OK", aData);
     }).bind(this));
-  },
-
-  isInstalled: function(aData, aMm) {
-    aData.installed = false;
-
-    for (let appId in this.webapps) {
-      if (this.webapps[appId].manifestURL == aData.manifestURL) {
-        aData.installed = true;
-        break;
-      }
-    }
-
-    aMm.sendAsyncMessage("Webapps:IsInstalled:Return:OK", aData);
   },
 
   getInstalled: function(aData, aMm) {

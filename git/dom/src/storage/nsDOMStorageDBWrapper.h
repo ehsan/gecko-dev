@@ -173,7 +173,7 @@ public:
     * i.e. reverses the host, appends a dot, appends the schema
     * and a port number.
     */
-  static nsresult CreateScopeDBKey(nsIPrincipal* aPrincipal, nsACString& aKey);
+  static nsresult CreateScopeDBKey(nsIURI* aUri, nsACString& aKey);
 
   /**
     * Turns "http://foo.bar.com" to "moc.rab.oof.",
@@ -187,19 +187,11 @@ public:
     * i.e. extracts eTLD+1 from the host, reverses the result
     * and appends a dot.
     */
-  static nsresult CreateQuotaDBKey(nsIPrincipal* aPrincipal,
+  static nsresult CreateQuotaDBKey(const nsACString& aAsciiDomain,
                                    nsACString& aKey);
 
-  /**
-    * Turns "foo.bar.com" to "moc.rab.",
-    * i.e. extracts eTLD+1 from the host, reverses the result
-    * and appends a dot.
-    */
-  static nsresult CreateQuotaDBKey(const nsACString& aDomain,
-                                   nsACString& aKey)
-  {
-    return CreateReversedDomain(aDomain, aKey);
-  }
+  static nsresult GetDomainFromScopeKey(const nsACString& aScope,
+                                        nsACString& aDomain);
 
   /**
    * Ensures the temp table flush timer is running. This is called when we add

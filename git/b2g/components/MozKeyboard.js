@@ -49,7 +49,9 @@ MozKeyboard.prototype = {
 
   uninit: function mozKeyboardUninit() {
     Services.obs.removeObserver(this, "inner-window-destroyed");
-    this._messageManager = null;
+    if (this._messageManager) {
+      this._messageManager.removeMessageListener("Forms:Input", this);
+    }
     this._window = null;
     this._utils = null;
     this._focusHandler = null;
@@ -88,7 +90,7 @@ MozKeyboard.prototype = {
     return this._focusHandler;
   },
 
-  handleMessage: function mozKeyboardHandleMessage(msg) {
+  receiveMessage: function mozKeyboardReceiveMessage(msg) {
     let handler = this._focusHandler;
     if (!handler || !(handler instanceof Ci.nsIDOMEventListener))
       return;
@@ -115,12 +117,8 @@ MozKeyboard.prototype = {
     case 'in-process-browser-frame-shown': {
       let frameLoader = subject.QueryInterface(Ci.nsIFrameLoader);
       let mm = frameLoader.messageManager;
-      mm.addMessageListener("Forms:Input", (function receiveMessage(msg) {
-        // Need to save mm here so later the message can be sent back to the
-        // correct app in the methods called by the value selector.
-        this._messageManager = mm;
-        this.handleMessage(msg);
-      }).bind(this));
+      this._messageManager = mm;
+      mm.addMessageListener("Forms:Input", this);
       try {
         mm.loadFrameScript(kFormsFrameScript, true);
       } catch (e) {

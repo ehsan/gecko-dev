@@ -49,10 +49,9 @@ public:
     NS_ADJUSTED_FORWARD_NSIOFFLINECACHEUPDATE(EnsureUpdate())
     NS_IMETHOD Schedule(void);
     NS_IMETHOD Init(nsIURI *aManifestURI, 
-                    nsIURI *aDocumentURI,
-                    nsIDOMDocument *aDocument,
-                    nsIFile *aCustomProfileDir,
-                    nsILoadContext *aLoadContext);
+                                  nsIURI *aDocumentURI, 
+                                  nsIDOMDocument *aDocument,
+                                  nsIFile *aCustomProfileDir);
 
     NS_DECL_NSIOFFLINECACHEUPDATEOBSERVER
 

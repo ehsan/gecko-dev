@@ -61,7 +61,7 @@ eval(const char *asciiChars, JSPrincipals *principals, JSPrincipals *originPrinc
         chars[i] = asciiChars[i];
     chars[len] = 0;
 
-    js::RootedObject global(cx, JS_NewGlobalObject(cx, getGlobalClass(), principals));
+    JS::RootedObject global(cx, JS_NewGlobalObject(cx, getGlobalClass(), principals));
     CHECK(global);
     JSAutoCompartment ac(cx, global);
     CHECK(JS_InitStandardClasses(cx, global));

@@ -1469,10 +1469,10 @@ nsSetKeyEnciphermentPOP(CRMFCertReqMsg *certReqMsg, bool isEscrowed)
   return (srv == SECSuccess) ? NS_OK : NS_ERROR_FAILURE;
 }
 
-static void
+static void PR_CALLBACK
 nsCRMFEncoderItemCount(void *arg, const char *buf, unsigned long len);
 
-static void
+static void PR_CALLBACK
 nsCRMFEncoderItemStore(void *arg, const char *buf, unsigned long len);
 
 static nsresult
@@ -1733,14 +1733,14 @@ nsSetProofOfPossession(CRMFCertReqMsg *certReqMsg,
   return nsSet_EC_DHMAC_ProofOfPossession(certReqMsg, keyInfo, certReq);
 }
 
-static void
+static void PR_CALLBACK
 nsCRMFEncoderItemCount(void *arg, const char *buf, unsigned long len)
 {
   unsigned long *count = (unsigned long *)arg;
   *count += len;
 }
 
-static void
+static void PR_CALLBACK
 nsCRMFEncoderItemStore(void *arg, const char *buf, unsigned long len)
 {
   SECItem *dest = (SECItem *)arg;

@@ -1687,7 +1687,6 @@ nsLayoutUtils::PaintFrame(nsRenderingContext* aRenderingContext, nsIFrame* aFram
   }
 
 #ifdef MOZ_DUMP_PAINTING
-  FILE* savedDumpFile = gfxUtils::sDumpPaintFile;
   if (gfxUtils::sDumpPaintList || gfxUtils::sDumpPainting) {
     if (gfxUtils::sDumpPaintingToFile) {
       nsCString string("dump-");
@@ -1777,7 +1776,7 @@ nsLayoutUtils::PaintFrame(nsRenderingContext* aRenderingContext, nsIFrame* aFram
       fprintf(gfxUtils::sDumpPaintFile, "</body></html>");
       fclose(gfxUtils::sDumpPaintFile);
     }
-    gfxUtils::sDumpPaintFile = savedDumpFile;
+    gfxUtils::sDumpPaintFile = NULL;
     gPaintCount++;
   }
 #endif

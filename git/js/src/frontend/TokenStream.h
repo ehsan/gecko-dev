@@ -845,17 +845,17 @@ class TokenStream
     void updateFlagsForEOL();
 
     Token               tokens[ntokens];/* circular token buffer */
-    js::SkipRoot        tokensRoot;     /* prevent overwriting of token buffer */
+    JS::SkipRoot        tokensRoot;     /* prevent overwriting of token buffer */
     unsigned            cursor;         /* index of last parsed token */
     unsigned            lookahead;      /* count of lookahead tokens */
     unsigned            lineno;         /* current line number */
     unsigned            flags;          /* flags -- see above */
     const jschar        *linebase;      /* start of current line;  points into userbuf */
     const jschar        *prevLinebase;  /* start of previous line;  NULL if on the first line */
-    js::SkipRoot        linebaseRoot;
-    js::SkipRoot        prevLinebaseRoot;
+    JS::SkipRoot        linebaseRoot;
+    JS::SkipRoot        prevLinebaseRoot;
     TokenBuf            userbuf;        /* user input buffer */
-    js::SkipRoot        userbufRoot;
+    JS::SkipRoot        userbufRoot;
     const char          *filename;      /* input filename or null */
     jschar              *sourceMap;     /* source map's filename or null */
     void                *listenerTSData;/* listener data for this TokenStream */

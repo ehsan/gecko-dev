@@ -190,7 +190,7 @@ cleanup:
   return rv;
 }
 
-SECStatus
+SECStatus PR_CALLBACK
 collect_certs(void *arg, SECItem **certs, int numcerts)
 {
   CERTDERCerts *collectArgs;
@@ -1209,7 +1209,7 @@ nsNSSCertificateDB::ExportPKCS12File(nsISupports     *aToken,
 }
 
 
-static SECStatus 
+static SECStatus PR_CALLBACK 
 GetOCSPResponders (CERTCertificate *aCert,
                    SECItem         *aDBKey,
                    void            *aArg)

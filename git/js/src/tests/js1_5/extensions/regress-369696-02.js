@@ -10,7 +10,7 @@ var actual = '';
 var expect = '';
 
 // Bug 762908 requires us to set sp=null;
-if (this.window) window.SpecialPowers = null;
+window.SpecialPowers = null;
 
 //-----------------------------------------------------------------------------
 test();

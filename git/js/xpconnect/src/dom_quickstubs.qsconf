@@ -476,8 +476,6 @@ irregularFilenames = {
     'nsIWebGLExtensionTextureFilterAnisotropic' : 'nsIDOMWebGLRenderingContext',
     'nsIWebGLExtensionLoseContext' : 'nsIDOMWebGLRenderingContext',
     'nsIWebGLExtensionCompressedTextureS3TC' : 'nsIDOMWebGLRenderingContext',
-    'nsIWebGLExtensionCompressedTextureATC' : 'nsIDOMWebGLRenderingContext',
-    'nsIWebGLExtensionCompressedTexturePVRTC' : 'nsIDOMWebGLRenderingContext',
     'nsIWebGLExtensionDepthTexture' : 'nsIDOMWebGLRenderingContext',
 
     'nsIIndexedDatabaseUsageCallback': 'nsIIndexedDatabaseManager',

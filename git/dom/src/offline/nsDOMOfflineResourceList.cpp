@@ -773,16 +773,8 @@ nsDOMOfflineResourceList::CacheKeys()
   if (mCachedKeys)
     return NS_OK;
 
-  nsCOMPtr<nsIDOMWindow> window = do_QueryInterface(GetOwner());
-  nsCOMPtr<nsIWebNavigation> webNav = do_GetInterface(window);
-  nsCOMPtr<nsILoadContext> loadContext = do_QueryInterface(webNav);
-
-  nsAutoCString groupID;
-  mApplicationCacheService->BuildGroupID(
-      mManifestURI, loadContext, groupID);
-
   nsCOMPtr<nsIApplicationCache> appCache;
-  mApplicationCacheService->GetActiveCache(groupID,
+  mApplicationCacheService->GetActiveCache(mManifestSpec,
                                            getter_AddRefs(appCache));
 
   if (!appCache) {

@@ -954,7 +954,7 @@ isApprovedForEV(SECOidTag policyOIDTag, CERTCertificate *rootCert)
   return false;
 }
 
-PRStatus
+PRStatus PR_CALLBACK
 nsNSSComponent::IdentityInfoInit()
 {
   for (size_t iEV=0; iEV < (sizeof(myTrustedEVInfos)/sizeof(nsMyTrustedEVInfo)); ++iEV) {

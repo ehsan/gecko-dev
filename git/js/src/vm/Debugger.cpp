@@ -3644,13 +3644,7 @@ static JSBool
 DebuggerObject_getProto(JSContext *cx, unsigned argc, Value *vp)
 {
     THIS_DEBUGOBJECT_OWNER_REFERENT(cx, argc, vp, "get proto", args, dbg, refobj);
-    RootedObject proto(cx);
-    {
-        AutoCompartment ac(cx, refobj);
-        if (!JSObject::getProto(cx, refobj, &proto))
-            return false;
-    }
-    Value protov = ObjectOrNullValue(proto);
+    Value protov = ObjectOrNullValue(refobj->getProto());
     if (!dbg->wrapDebuggeeValue(cx, &protov))
         return false;
     args.rval().set(protov);

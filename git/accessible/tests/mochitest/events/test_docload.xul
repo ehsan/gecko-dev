@@ -110,8 +110,7 @@
 
       function getNestedDoc()
       {
-        var iframeNodes = currentTabDocument().getElementsByTagName("iframe");
-        return iframeNodes ? iframeNodes[0].firstChild : null;
+        return currentTabDocument().getElementsByTagName("iframe")[0].firstChild;
       }
     }
 
@@ -188,7 +187,7 @@
     ////////////////////////////////////////////////////////////////////////////
     // Tests
 
-    //gA11yEventDumpToConsole = true; // debug
+    gA11yEventDumpToConsole = true; // debug
     //gA11yEventDumpFeature = "parentchain:reorder";
 
     var gQueue = null;

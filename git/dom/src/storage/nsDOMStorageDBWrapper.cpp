@@ -11,7 +11,6 @@
 #include "nsIURL.h"
 #include "nsIVariant.h"
 #include "nsIEffectiveTLDService.h"
-#include "nsIScriptSecurityManager.h"
 #include "nsAppDirectoryServiceDefs.h"
 #include "mozStorageCID.h"
 #include "mozStorageHelper.h"
@@ -20,7 +19,6 @@
 #include "mozIStorageFunction.h"
 #include "nsPrintfCString.h"
 #include "nsNetUtil.h"
-#include "nsIPrincipal.h"
 
 void ReverseString(const nsCSubstring& source, nsCSubstring& result)
 {
@@ -228,16 +226,37 @@ nsDOMStorageDBWrapper::GetUsage(const nsACString& aDomain,
 }
 
 nsresult
-nsDOMStorageDBWrapper::CreateScopeDBKey(nsIPrincipal* aPrincipal,
-                                        nsACString& aKey)
+nsDOMStorageDBWrapper::CreateScopeDBKey(nsIURI* aUri, nsACString& aKey)
 {
-  nsCOMPtr<nsIURI> uri;
-  nsresult rv = aPrincipal->GetURI(getter_AddRefs(uri));
+  nsresult rv;
+
+  rv = CreateReversedDomain(aUri, aKey);
+  if (NS_FAILED(rv))
+    return rv;
+
+  nsAutoCString scheme;
+  rv = aUri->GetScheme(scheme);
   NS_ENSURE_SUCCESS(rv, rv);
-  NS_ENSURE_TRUE(uri, NS_ERROR_UNEXPECTED);
+
+  aKey.AppendLiteral(":");
+  aKey.Append(scheme);
+
+  int32_t port = NS_GetRealPort(aUri);
+  if (port != -1) {
+    aKey.AppendLiteral(":");
+    aKey.Append(nsPrintfCString("%d", port));
+  }
+
+  return NS_OK;
+}
+
+nsresult
+nsDOMStorageDBWrapper::CreateReversedDomain(nsIURI* aUri, nsACString& aKey)
+{
+  nsresult rv;
 
   nsAutoCString domainScope;
-  rv = uri->GetAsciiHost(domainScope);
+  rv = aUri->GetAsciiHost(domainScope);
   NS_ENSURE_SUCCESS(rv, rv);
 
   if (domainScope.IsEmpty()) {
@@ -245,56 +264,24 @@ nsDOMStorageDBWrapper::CreateScopeDBKey(nsIPrincipal* aPrincipal,
     // internally by our own redirector, we can trust them and use path as key.
     // if file:/// protocol, let's make the exact directory the domain
     bool isScheme = false;
-    if ((NS_SUCCEEDED(uri->SchemeIs("about", &isScheme)) && isScheme) ||
-        (NS_SUCCEEDED(uri->SchemeIs("moz-safe-about", &isScheme)) && isScheme)) {
-      rv = uri->GetPath(domainScope);
+    if ((NS_SUCCEEDED(aUri->SchemeIs("about", &isScheme)) && isScheme) ||
+        (NS_SUCCEEDED(aUri->SchemeIs("moz-safe-about", &isScheme)) && isScheme)) {
+      rv = aUri->GetPath(domainScope);
       NS_ENSURE_SUCCESS(rv, rv);
       // While the host is always canonicalized to lowercase, the path is not,
       // thus need to force the casing.
       ToLowerCase(domainScope);
     }
-    else if (NS_SUCCEEDED(uri->SchemeIs("file", &isScheme)) && isScheme) {
-      nsCOMPtr<nsIURL> url = do_QueryInterface(uri, &rv);
+    else if (NS_SUCCEEDED(aUri->SchemeIs("file", &isScheme)) && isScheme) {
+      nsCOMPtr<nsIURL> url = do_QueryInterface(aUri, &rv);
       NS_ENSURE_SUCCESS(rv, rv);
       rv = url->GetDirectory(domainScope);
       NS_ENSURE_SUCCESS(rv, rv);
     }
   }
 
-  nsAutoCString key;
-
-  rv = CreateReversedDomain(domainScope, key);
+  rv = CreateReversedDomain(domainScope, aKey);
   NS_ENSURE_SUCCESS(rv, rv);
-
-  nsAutoCString scheme;
-  rv = uri->GetScheme(scheme);
-  NS_ENSURE_SUCCESS(rv, rv);
-
-  key.Append(NS_LITERAL_CSTRING(":") + scheme);
-
-  int32_t port = NS_GetRealPort(uri);
-  if (port != -1) {
-    key.Append(nsPrintfCString(":%d", port));
-  }
-
-  uint32_t appId;
-  rv = aPrincipal->GetAppId(&appId);
-  NS_ENSURE_SUCCESS(rv, rv);
-
-  bool isInBrowserElement;
-  rv = aPrincipal->GetIsInBrowserElement(&isInBrowserElement);
-  NS_ENSURE_SUCCESS(rv, rv);
-
-  if (appId == nsIScriptSecurityManager::NO_APP_ID && !isInBrowserElement) {
-    aKey.Assign(key);
-    return NS_OK;
-  }
-
-  aKey.Truncate();
-  aKey.AppendInt(appId);
-  aKey.Append(NS_LITERAL_CSTRING(":") + (isInBrowserElement ?
-              NS_LITERAL_CSTRING("t") : NS_LITERAL_CSTRING("f")) +
-              NS_LITERAL_CSTRING(":") + key);
 
   return NS_OK;
 }
@@ -313,7 +300,7 @@ nsDOMStorageDBWrapper::CreateReversedDomain(const nsACString& aAsciiDomain,
 }
 
 nsresult
-nsDOMStorageDBWrapper::CreateQuotaDBKey(nsIPrincipal* aPrincipal,
+nsDOMStorageDBWrapper::CreateQuotaDBKey(const nsACString& aAsciiDomain,
                                         nsACString& aKey)
 {
   nsresult rv;
@@ -324,39 +311,33 @@ nsDOMStorageDBWrapper::CreateQuotaDBKey(nsIPrincipal* aPrincipal,
   NS_ENSURE_SUCCESS(rv, rv);
 
   nsCOMPtr<nsIURI> uri;
-  rv = aPrincipal->GetURI(getter_AddRefs(uri));
+  rv = NS_NewURI(getter_AddRefs(uri), NS_LITERAL_CSTRING("http://") + aAsciiDomain);
   NS_ENSURE_SUCCESS(rv, rv);
-  NS_ENSURE_TRUE(uri, NS_ERROR_UNEXPECTED);
 
   nsAutoCString eTLDplusOne;
   rv = eTLDService->GetBaseDomain(uri, 0, eTLDplusOne);
   if (NS_ERROR_INSUFFICIENT_DOMAIN_LEVELS == rv) {
     // XXX bug 357323 - what to do for localhost/file exactly?
-    rv = uri->GetAsciiHost(eTLDplusOne);
+    eTLDplusOne = aAsciiDomain;
+    rv = NS_OK;
   }
   NS_ENSURE_SUCCESS(rv, rv);
 
   CreateReversedDomain(eTLDplusOne, subdomainsDBKey);
 
-  uint32_t appId;
-  rv = aPrincipal->GetAppId(&appId);
-  NS_ENSURE_SUCCESS(rv, rv);
+  aKey.Assign(subdomainsDBKey);
+  return NS_OK;
+}
 
-  bool isInBrowserElement;
-  rv = aPrincipal->GetIsInBrowserElement(&isInBrowserElement);
-  NS_ENSURE_SUCCESS(rv, rv);
+nsresult
+nsDOMStorageDBWrapper::GetDomainFromScopeKey(const nsACString& aScope,
+                                             nsACString& aDomain)
+{
+  nsAutoCString reverseDomain, scope;
+  scope = aScope;
+  scope.Left(reverseDomain, scope.FindChar(':')-1);
 
-  if (appId == nsIScriptSecurityManager::NO_APP_ID && !isInBrowserElement) {
-    aKey.Assign(subdomainsDBKey);
-    return NS_OK;
-  }
-
-  aKey.Truncate();
-  aKey.AppendInt(appId);
-  aKey.Append(NS_LITERAL_CSTRING(":") + (isInBrowserElement ?
-              NS_LITERAL_CSTRING("t") : NS_LITERAL_CSTRING("f")) +
-              NS_LITERAL_CSTRING(":") + subdomainsDBKey);
-
+  ReverseString(reverseDomain, aDomain);
   return NS_OK;
 }
 

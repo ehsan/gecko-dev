@@ -25,7 +25,7 @@ class nsAdoptingString;
 class nsAdoptingCString;
 
 #ifndef have_PrefChangedFunc_typedef
-typedef int (*PrefChangedFunc)(const char *, void *);
+typedef int (*PR_CALLBACK PrefChangedFunc)(const char *, void *);
 #define have_PrefChangedFunc_typedef
 #endif
 
@@ -150,8 +150,7 @@ public:
   static nsAdoptingString GetLocalizedString(const char* aPref);
 
   /**
-   * Gets int, float, or bool type pref value with raw return value of
-   * nsIPrefBranch.
+   * Gets int or bool type pref value with raw return value of nsIPrefBranch.
    *
    * @param aPref       A pref name.
    * @param aResult     Must not be NULL.  The value is never modified when
@@ -159,7 +158,6 @@ public:
    */
   static nsresult GetBool(const char* aPref, bool* aResult);
   static nsresult GetInt(const char* aPref, int32_t* aResult);
-  static nsresult GetFloat(const char* aPref, float* aResult);
   static nsresult GetUint(const char* aPref, uint32_t* aResult)
   {
     int32_t result;

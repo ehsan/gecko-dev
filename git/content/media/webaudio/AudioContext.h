@@ -24,7 +24,6 @@ namespace dom {
 
 class AudioDestinationNode;
 class AudioBufferSourceNode;
-class AudioBuffer;
 
 class AudioContext MOZ_FINAL : public nsISupports,
                                public nsWrapperCache,
@@ -55,11 +54,6 @@ public:
   }
 
   already_AddRefed<AudioBufferSourceNode> CreateBufferSource();
-
-  already_AddRefed<AudioBuffer>
-  CreateBuffer(JSContext* aJSContext, uint32_t aNumberOfChannels,
-               uint32_t aLength, float aSampleRate,
-               ErrorResult& aRv);
 
 private:
   nsCOMPtr<nsIDOMWindow> mWindow;

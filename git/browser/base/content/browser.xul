@@ -71,11 +71,11 @@
       <menuitem id="context_reloadTab" label="&reloadTab.label;" accesskey="&reloadTab.accesskey;"
                 oncommand="gBrowser.reloadTab(TabContextMenu.contextTab);"/>
       <menuseparator/>
-      <menuitem id="context_pinTab" label="&pinTab.label;"
-                accesskey="&pinTab.accesskey;"
+      <menuitem id="context_pinTab" label="&pinAppTab.label;"
+                accesskey="&pinAppTab.accesskey;"
                 oncommand="gBrowser.pinTab(TabContextMenu.contextTab);"/>
-      <menuitem id="context_unpinTab" label="&unpinTab.label;" hidden="true"
-                accesskey="&unpinTab.accesskey;"
+      <menuitem id="context_unpinTab" label="&unpinAppTab.label;" hidden="true"
+                accesskey="&unpinAppTab.accesskey;"
                 oncommand="gBrowser.unpinTab(TabContextMenu.contextTab);"/>
       <menu id="context_tabViewMenu" label="&moveToGroup.label;"
             accesskey="&moveToGroup.accesskey;">
@@ -216,7 +216,7 @@
       </hbox>
     </panel>
 
-    <panel id="unsharePopup"
+    <panel id="editSharePopup"
            type="arrow"
            orient="vertical"
            ignorekeys="true"
@@ -224,39 +224,45 @@
            onpopupshown="SocialShareButton.panelShown(event);"
            consumeoutsideclicks="true"
            level="top">
-      <!-- Note that 'label', 'accesskey', 'value' and 'aria-label' attributes
-           for many of these elements are supplied by the provider and filled
-           in at runtime
-      -->
-      <row id="unsharePopupHeader" align="center">
+      <row id="editSharePopupHeader" align="center">
         <vbox align="center">
-          <image id="socialUserPortrait" onclick="SocialUI.showProfile();"/>
+          <image id="socialUserPortrait" onclick="SocialUI.showProfile();"
+                 aria-label="&social.sharePopup.portrait.arialabel;"/>
         </vbox>
-        <vbox id="unsharePopupText">
+        <vbox id="editSharePopupText">
           <button id="socialUserDisplayName" pack="start"
                   oncommand="SocialUI.showProfile();"/>
           <spacer flex="1"/>
-          <label id="socialUserRecommendedText"/>
+          <label id="socialUserRecommendedText"
+                 value="&social.sharePopup.shared.label;"/>
         </vbox>
       </row>
-      <hbox id="unsharePopupBottomButtons" pack="end">
+      <hbox id="editSharePopupBottomButtons" pack="end">
 #ifdef XP_UNIX
-        <button id="unsharePopupStopSharingButton"
-                class="unsharePopupBottomButton"
+        <button id="editSharePopupUndoButton"
+                class="editSharePopupBottomButton"
+                label="&social.sharePopup.undo.label;"
+                accesskey="&social.sharePopup.undo.accesskey;"
                 command="Social:UnsharePage"/>
-        <button id="unsharePopupContinueSharingButton"
-                class="unsharePopupBottomButton"
+        <button id="editSharePopupOkButton"
+                class="editSharePopupBottomButton"
                 default="true"
                 autofocus="autofocus"
-                oncommand="SocialShareButton.dismissUnsharePopup();"/>
+                label="&social.ok.label;"
+                accesskey="&social.ok.accesskey;"
+                oncommand="SocialShareButton.dismissSharePopup();"/>
 #else
-        <button id="unsharePopupContinueSharingButton"
-                class="unsharePopupBottomButton"
+        <button id="editSharePopupOkButton"
+                class="editSharePopupBottomButton"
                 default="true"
                 autofocus="autofocus"
-                oncommand="SocialShareButton.dismissUnsharePopup();"/>
-        <button id="unsharePopupStopSharingButton"
-                class="unsharePopupBottomButton"
+                label="&social.ok.label;"
+                accesskey="&social.ok.accesskey;"
+                oncommand="SocialShareButton.dismissSharePopup();"/>
+        <button id="editSharePopupUndoButton"
+                class="editSharePopupBottomButton"
+                label="&social.sharePopup.undo.label;"
+                accesskey="&social.sharePopup.undo.accesskey;"
                 command="Social:UnsharePage"/>
 #endif
       </hbox>

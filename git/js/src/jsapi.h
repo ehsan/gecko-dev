@@ -817,24 +817,20 @@ SameType(const Value &lhs, const Value &rhs)
     return JSVAL_SAME_TYPE_IMPL(lhs.data, rhs.data);
 }
 
-} /* namespace JS */
-
 /************************************************************************/
 
-namespace js {
-
-template <> struct RootMethods<const JS::Value>
+template <> struct RootMethods<const Value>
 {
-    static JS::Value initial() { return UndefinedValue(); }
+    static Value initial() { return UndefinedValue(); }
     static ThingRootKind kind() { return THING_ROOT_VALUE; }
-    static bool poisoned(const JS::Value &v) { return IsPoisonedValue(v); }
+    static bool poisoned(const Value &v) { return IsPoisonedValue(v); }
 };
 
-template <> struct RootMethods<JS::Value>
+template <> struct RootMethods<Value>
 {
-    static JS::Value initial() { return UndefinedValue(); }
+    static Value initial() { return UndefinedValue(); }
     static ThingRootKind kind() { return THING_ROOT_VALUE; }
-    static bool poisoned(const JS::Value &v) { return IsPoisonedValue(v); }
+    static bool poisoned(const Value &v) { return IsPoisonedValue(v); }
 };
 
 template <class Outer> class MutableValueOperations;
@@ -849,7 +845,7 @@ template <class Outer>
 class ValueOperations
 {
     friend class MutableValueOperations<Outer>;
-    const JS::Value * value() const { return static_cast<const Outer*>(this)->extract(); }
+    const Value * value() const { return static_cast<const Outer*>(this)->extract(); }
 
   public:
     bool isUndefined() const { return value()->isUndefined(); }
@@ -894,7 +890,7 @@ class ValueOperations
 template <class Outer>
 class MutableValueOperations : public ValueOperations<Outer>
 {
-    JS::Value * value() { return static_cast<Outer*>(this)->extractMutable(); }
+    Value * value() { return static_cast<Outer*>(this)->extractMutable(); }
 
   public:
     void setNull() { value()->setNull(); }
@@ -916,11 +912,11 @@ class MutableValueOperations : public ValueOperations<Outer>
  * and value-extracting operations.
  */
 template <>
-class HandleBase<JS::Value> : public ValueOperations<Handle<JS::Value> >
+class HandleBase<Value> : public ValueOperations<Handle<Value> >
 {
-    friend class ValueOperations<Handle<JS::Value> >;
-    const JS::Value * extract() const {
-        return static_cast<const Handle<JS::Value>*>(this)->address();
+    friend class ValueOperations<Handle<Value> >;
+    const Value * extract() const {
+        return static_cast<const Handle<Value>*>(this)->address();
     }
 };
 
@@ -929,16 +925,16 @@ class HandleBase<JS::Value> : public ValueOperations<Handle<JS::Value> >
  * type-querying, value-extracting, and mutating operations.
  */
 template <>
-class MutableHandleBase<JS::Value> : public MutableValueOperations<MutableHandle<JS::Value> >
+class MutableHandleBase<Value> : public MutableValueOperations<MutableHandle<Value> >
 {
-    friend class ValueOperations<MutableHandle<JS::Value> >;
-    const JS::Value * extract() const {
-        return static_cast<const MutableHandle<JS::Value>*>(this)->address();
+    friend class ValueOperations<MutableHandle<Value> >;
+    const Value * extract() const {
+        return static_cast<const MutableHandle<Value>*>(this)->address();
     }
 
-    friend class MutableValueOperations<MutableHandle<JS::Value> >;
-    JS::Value * extractMutable() {
-        return static_cast<MutableHandle<JS::Value>*>(this)->address();
+    friend class MutableValueOperations<MutableHandle<Value> >;
+    Value * extractMutable() {
+        return static_cast<MutableHandle<Value>*>(this)->address();
     }
 };
 
@@ -947,24 +943,20 @@ class MutableHandleBase<JS::Value> : public MutableValueOperations<MutableHandle
  * value-extracting, and mutating operations.
  */
 template <>
-class RootedBase<JS::Value> : public MutableValueOperations<Rooted<JS::Value> >
+class RootedBase<Value> : public MutableValueOperations<Rooted<Value> >
 {
-    friend class ValueOperations<Rooted<JS::Value> >;
-    const JS::Value * extract() const {
-        return static_cast<const Rooted<JS::Value>*>(this)->address();
+    friend class ValueOperations<Rooted<Value> >;
+    const Value * extract() const {
+        return static_cast<const Rooted<Value>*>(this)->address();
     }
 
-    friend class MutableValueOperations<Rooted<JS::Value> >;
-    JS::Value * extractMutable() {
-        return static_cast<Rooted<JS::Value>*>(this)->address();
+    friend class MutableValueOperations<Rooted<Value> >;
+    Value * extractMutable() {
+        return static_cast<Rooted<Value>*>(this)->address();
     }
 };
 
-} /* namespace js */
-
 /************************************************************************/
-
-namespace JS {
 
 #ifndef __GNUC__
 
@@ -1223,7 +1215,7 @@ class AutoArrayRooter : private AutoGCRooter {
   private:
     JS_DECL_USE_GUARD_OBJECT_NOTIFIER
 
-    js::SkipRoot skip;
+    SkipRoot skip;
 };
 
 template<class T>
@@ -1306,7 +1298,7 @@ class AutoVectorRooter : protected AutoGCRooter
     VectorImpl vector;
 
     /* Prevent overwriting of inline elements in vector. */
-    js::SkipRoot vectorRoot;
+    SkipRoot vectorRoot;
 
     JS_DECL_USE_GUARD_OBJECT_NOTIFIER
 };
@@ -2650,8 +2642,8 @@ ToNumber(JSContext *cx, const Value &v, double *out)
 {
     AssertArgumentsAreSane(cx, v);
     {
-        js::SkipRoot root(cx, &v);
-        js::MaybeCheckStackRoots(cx);
+        JS::SkipRoot root(cx, &v);
+        MaybeCheckStackRoots(cx);
     }
 
     if (v.isNumber()) {
@@ -2744,8 +2736,8 @@ ToUint16(JSContext *cx, const js::Value &v, uint16_t *out)
 {
     AssertArgumentsAreSane(cx, v);
     {
-        js::SkipRoot skip(cx, &v);
-        js::MaybeCheckStackRoots(cx);
+        SkipRoot skip(cx, &v);
+        MaybeCheckStackRoots(cx);
     }
 
     if (v.isInt32()) {
@@ -2760,8 +2752,8 @@ ToInt32(JSContext *cx, const js::Value &v, int32_t *out)
 {
     AssertArgumentsAreSane(cx, v);
     {
-        js::SkipRoot root(cx, &v);
-        js::MaybeCheckStackRoots(cx);
+        JS::SkipRoot root(cx, &v);
+        MaybeCheckStackRoots(cx);
     }
 
     if (v.isInt32()) {
@@ -2776,8 +2768,8 @@ ToUint32(JSContext *cx, const js::Value &v, uint32_t *out)
 {
     AssertArgumentsAreSane(cx, v);
     {
-        js::SkipRoot root(cx, &v);
-        js::MaybeCheckStackRoots(cx);
+        JS::SkipRoot root(cx, &v);
+        MaybeCheckStackRoots(cx);
     }
 
     if (v.isInt32()) {
@@ -2792,8 +2784,8 @@ ToInt64(JSContext *cx, const js::Value &v, int64_t *out)
 {
     AssertArgumentsAreSane(cx, v);
     {
-        js::SkipRoot skip(cx, &v);
-        js::MaybeCheckStackRoots(cx);
+        JS::SkipRoot skip(cx, &v);
+        MaybeCheckStackRoots(cx);
     }
 
     if (v.isInt32()) {
@@ -2809,8 +2801,8 @@ ToUint64(JSContext *cx, const js::Value &v, uint64_t *out)
 {
     AssertArgumentsAreSane(cx, v);
     {
-        js::SkipRoot skip(cx, &v);
-        js::MaybeCheckStackRoots(cx);
+        SkipRoot skip(cx, &v);
+        MaybeCheckStackRoots(cx);
     }
 
     if (v.isInt32()) {
@@ -2934,9 +2926,12 @@ IsPoisonedId(jsid iden)
     return false;
 }
 
-} /* namespace JS */
-
-namespace js {
+template <> struct RootMethods<const jsid>
+{
+    static jsid initial() { return JSID_VOID; }
+    static ThingRootKind kind() { return THING_ROOT_ID; }
+    static bool poisoned(jsid id) { return IsPoisonedId(id); }
+};
 
 template <> struct RootMethods<jsid>
 {
@@ -2945,7 +2940,7 @@ template <> struct RootMethods<jsid>
     static bool poisoned(jsid id) { return IsPoisonedId(id); }
 };
 
-} /* namespace js */
+} /* namespace JS */
 
 class JSAutoRequest {
   public:
@@ -4339,8 +4334,8 @@ extern JS_PUBLIC_API(void *)
 JS_GetInstancePrivate(JSContext *cx, JSObject *obj, JSClass *clasp,
                       jsval *argv);
 
-extern JS_PUBLIC_API(JSBool)
-JS_GetPrototype(JSContext *cx, JSObject *obj, JSObject **protop);
+extern JS_PUBLIC_API(JSObject *)
+JS_GetPrototype(JSRawObject obj);
 
 extern JS_PUBLIC_API(JSBool)
 JS_SetPrototype(JSContext *cx, JSObject *obj, JSObject *proto);

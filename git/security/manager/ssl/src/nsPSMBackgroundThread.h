@@ -14,7 +14,7 @@
 class nsPSMBackgroundThread
 {
 protected:
-  static void nsThreadRunner(void *arg);
+  static void PR_CALLBACK nsThreadRunner(void *arg);
   virtual void Run(void) = 0;
 
   // used to join the thread

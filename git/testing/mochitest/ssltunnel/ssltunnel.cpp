@@ -265,7 +265,7 @@ bool shutdown_server = false;
 bool do_http_proxy = false;
 bool any_host_spec_config = false;
 
-int ClientAuthValueComparator(const void *v1, const void *v2)
+PR_CALLBACK int ClientAuthValueComparator(const void *v1, const void *v2)
 {
   int a = *static_cast<const client_auth_option*>(v1) -
           *static_cast<const client_auth_option*>(v2);

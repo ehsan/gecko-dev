@@ -191,6 +191,7 @@ let SocialChatBar = {
 
 function sizeSocialPanelToContent(iframe) {
   // FIXME: bug 764787: Maybe we can use nsIDOMWindowUtils.getRootBounds() here?
+  // Need to handle dynamic sizing
   let doc = iframe.contentDocument;
   if (!doc) {
     return;
@@ -198,36 +199,13 @@ function sizeSocialPanelToContent(iframe) {
   // "notif" is an implementation detail that we should get rid of
   // eventually
   let body = doc.getElementById("notif") || doc.body;
-  if (!body) {
+  if (!body || !body.firstChild) {
     return;
   }
-  // XXX - do we want a max for width and height here?
-  // The 300 and 330 defaults also seem arbitrary, so should be revisited.
-  // BUT - for at least one provider, the scrollWidth/offsetWidth/css width
-  // isn't set appropriately, so the 330 is "fixed" for now...
-  iframe.style.width = "330px";
-  // offsetHeight doesn't include margins, so account for that.
-  let cs = doc.defaultView.getComputedStyle(body);
-  let computedHeight = parseInt(cs.marginTop) + body.offsetHeight + parseInt(cs.marginBottom);
-  let height = computedHeight || 300;
-  iframe.style.height = height + "px";
-}
 
-function setupDynamicPanelResizer(iframe) {
-  let doc = iframe.contentDocument;
-  let mo = new iframe.contentWindow.MutationObserver(function(mutations) {
-    sizeSocialPanelToContent(iframe);
-  });
-  // Observe anything that causes the size to change.
-  let config = {attributes: true, characterData: true, childList: true, subtree: true};
-  mo.observe(doc, config);
-  doc.addEventListener("unload", function() {
-    if (mo) {
-      mo.disconnect();
-      mo = null;
-    }
-  }, false);
-  sizeSocialPanelToContent(iframe);
+  let [height, width] = [body.firstChild.offsetHeight || 300, 330];
+  iframe.style.width = width + "px";
+  iframe.style.height = height + "px";
 }
 
 let SocialFlyout = {
@@ -257,7 +235,6 @@ let SocialFlyout = {
 
   unload: function() {
     let panel = this.panel;
-    panel.hidePopup();
     if (!panel.firstChild)
       return
     panel.removeChild(panel.firstChild);
@@ -298,7 +275,7 @@ let SocialFlyout = {
     if (src != aURL) {
       iframe.addEventListener("load", function documentLoaded() {
         iframe.removeEventListener("load", documentLoaded, true);
-        setupDynamicPanelResizer(iframe);
+        sizeSocialPanelToContent(iframe);
         if (aCallback) {
           try {
             aCallback(iframe.contentWindow);
@@ -348,14 +325,14 @@ let SocialShareButton = {
   },
 
   updateProfileInfo: function SSB_updateProfileInfo() {
-    let profileRow = document.getElementById("unsharePopupHeader");
+    let profileRow = document.getElementById("editSharePopupHeader");
     let profile = Social.provider.profile;
     this.promptImages = null;
     this.promptMessages = null;
     if (profile && profile.displayName) {
       profileRow.hidden = false;
       let portrait = document.getElementById("socialUserPortrait");
-      portrait.setAttribute("src", profile.portrait || "chrome://global/skin/icons/information-32.png");
+      portrait.setAttribute("src", profile.portrait || "chrome://browser/skin/social/social.png");
       let displayName = document.getElementById("socialUserDisplayName");
       displayName.setAttribute("label", profile.displayName);
     } else {
@@ -407,11 +384,7 @@ let SocialShareButton = {
       }
       promptImages[sub] = url;
     }
-    for (let sub of ["shareTooltip", "unshareTooltip",
-                     "sharedLabel", "unsharedLabel", "unshareLabel",
-                     "portraitLabel", 
-                     "unshareConfirmLabel", "unshareConfirmAccessKey",
-                     "unshareCancelLabel", "unshareCancelAccessKey"]) {
+    for (let sub of ["shareTooltip", "unshareTooltip", "sharedLabel", "unsharedLabel"]) {
       if (typeof data.messages[sub] != "string" || data.messages[sub].length == 0) {
         return reportError('messages["' + sub + '"] is not a valid string');
       }
@@ -425,12 +398,12 @@ let SocialShareButton = {
   get shareButton() {
     return document.getElementById("share-button");
   },
-  get unsharePopup() {
-    return document.getElementById("unsharePopup");
+  get sharePopup() {
+    return document.getElementById("editSharePopup");
   },
 
-  dismissUnsharePopup: function SSB_dismissUnsharePopup() {
-    this.unsharePopup.hidePopup();
+  dismissSharePopup: function SSB_dismissSharePopup() {
+    this.sharePopup.hidePopup();
   },
 
   updateButtonHiddenState: function SSB_updateButtonHiddenState() {
@@ -451,42 +424,27 @@ let SocialShareButton = {
   },
 
   panelShown: function SSB_panelShown(aEvent) {
-    function updateElement(id, attrs) {
-      let el = document.getElementById(id);
-      Object.keys(attrs).forEach(function(attr) {
-        el.setAttribute(attr, attrs[attr]);
-      });
-    }
-    let continueSharingButton = document.getElementById("unsharePopupContinueSharingButton");
-    continueSharingButton.focus();
-    updateElement("unsharePopupContinueSharingButton",
-                  {label: this.promptMessages.unshareCancelLabel,
-                   accesskey: this.promptMessages.unshareCancelAccessKey});
-    updateElement("unsharePopupStopSharingButton",
-                  {label: this.promptMessages.unshareConfirmLabel,
-                  accesskey: this.promptMessages.unshareConfirmAccessKey});
-    updateElement("socialUserPortrait",
-                  {"aria-label": this.promptMessages.portraitLabel});
-    updateElement("socialUserRecommendedText",
-                  {value: this.promptMessages.unshareLabel});
+    let sharePopupOkButton = document.getElementById("editSharePopupOkButton");
+    if (sharePopupOkButton)
+      sharePopupOkButton.focus();
   },
 
   sharePage: function SSB_sharePage() {
-    this.unsharePopup.hidden = false;
+    this.sharePopup.hidden = false;
 
     let uri = gBrowser.currentURI;
     if (!Social.isPageShared(uri)) {
       Social.sharePage(uri);
       this.updateShareState();
     } else {
-      this.unsharePopup.openPopup(this.shareButton, "bottomcenter topright");
+      this.sharePopup.openPopup(this.shareButton, "bottomcenter topright");
     }
   },
 
   unsharePage: function SSB_unsharePage() {
     Social.unsharePage(gBrowser.currentURI);
     this.updateShareState();
-    this.dismissUnsharePopup();
+    this.dismissSharePopup();
   },
 
   updateShareState: function SSB_updateShareState() {
@@ -563,7 +521,7 @@ var SocialToolbar = {
     // response. In that case we'll be called again when it's available, via
     // social:profile-changed
     let profile = Social.provider.profile || {};
-    let userPortrait = profile.portrait || "chrome://global/skin/icons/information-32.png";
+    let userPortrait = profile.portrait || "chrome://browser/skin/social/social.png";
     document.getElementById("social-statusarea-user-portrait").setAttribute("src", userPortrait);
 
     let notLoggedInLabel = document.getElementById("social-statusarea-notloggedin");
@@ -673,13 +631,13 @@ var SocialToolbar = {
       notificationFrame.docShell.isActive = true;
       notificationFrame.docShell.isAppTab = true;
       if (notificationFrame.contentDocument.readyState == "complete") {
-        setupDynamicPanelResizer(notificationFrame);
+        sizeSocialPanelToContent(notificationFrame);
         dispatchPanelEvent("socialFrameShow");
       } else {
         // first time load, wait for load and dispatch after load
         notificationFrame.addEventListener("load", function panelBrowserOnload(e) {
           notificationFrame.removeEventListener("load", panelBrowserOnload, true);
-          setupDynamicPanelResizer(notificationFrame);
+          sizeSocialPanelToContent(notificationFrame);
           setTimeout(function() {
             dispatchPanelEvent("socialFrameShow");
           }, 0);

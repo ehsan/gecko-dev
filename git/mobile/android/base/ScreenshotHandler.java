@@ -17,7 +17,6 @@ import android.graphics.Rect;
 import android.graphics.RectF;
 import android.opengl.GLES20;
 import android.util.FloatMath;
-import android.util.Log;
 
 import java.nio.ByteBuffer;
 import java.util.Iterator;
@@ -40,7 +39,7 @@ public final class ScreenshotHandler implements Runnable {
     private final int mMaxPixels;
 
     private final Queue<PendingScreenshot> mPendingScreenshots;
-    private ByteBuffer mBuffer;
+    private final ByteBuffer mBuffer;
     private int mBufferWidth;
     private int mBufferHeight;
     private RectF mPageRect;
@@ -52,16 +51,11 @@ public final class ScreenshotHandler implements Runnable {
     private boolean mIsRepaintRunnablePosted;
 
     private static synchronized ScreenshotHandler getInstance() {
-        if (sDisableScreenshot) {
-            return null;
-        }
         if (sInstance == null) {
             try {
                 sInstance = new ScreenshotHandler();
             } catch (UnsupportedOperationException e) {
-                // initialization failed, fall through and return null.
-                // also set the disable flag so we don't try again.
-                sDisableScreenshot = true;
+                // initialization failed, fall through and return null
             }
         }
         return sInstance;
@@ -82,34 +76,13 @@ public final class ScreenshotHandler implements Runnable {
         clearDirtyRect();
     }
 
-    private void cleanup() {
-        discardPendingScreenshots();
-        mBuffer = DirectBufferAllocator.free(mBuffer);
-    }
-
     // Invoked via reflection from robocop test
-    public static synchronized void disableScreenshot() {
-        if (sDisableScreenshot) {
-            return;
-        }
+    public static void disableScreenshot() {
         sDisableScreenshot = true;
-        if (sInstance != null) {
-            sInstance.cleanup();
-            sInstance = null;
-        }
-        Log.i(LOGTAG, "Screenshotting disabled");
-    }
-
-    public static synchronized void enableScreenshot() {
-        if (!sDisableScreenshot) {
-            return;
-        }
-        sDisableScreenshot = false;
-        Log.i(LOGTAG, "Screenshotting enabled");
     }
 
     public static void screenshotWholePage(Tab tab) {
-        if (GeckoApp.mAppContext.isApplicationInBackground()) {
+        if (sDisableScreenshot || GeckoApp.mAppContext.isApplicationInBackground()) {
             return;
         }
         ScreenshotHandler handler = getInstance();
@@ -118,14 +91,6 @@ public final class ScreenshotHandler implements Runnable {
         }
 
         handler.screenshotWholePage(tab.getId());
-    }
-
-    private void discardPendingScreenshots() {
-        synchronized (mPendingScreenshots) {
-            for (Iterator<PendingScreenshot> i = mPendingScreenshots.iterator(); i.hasNext(); ) {
-                i.next().discard();
-            }
-        }
     }
 
     private void screenshotWholePage(int tabId) {
@@ -146,7 +111,11 @@ public final class ScreenshotHandler implements Runnable {
             mTabId = tabId;
             clearDirtyRect();
         }
-        discardPendingScreenshots();
+        synchronized (mPendingScreenshots) {
+            for (Iterator<PendingScreenshot> i = mPendingScreenshots.iterator(); i.hasNext(); ) {
+                i.next().discard();
+            }
+        }
 
         int dstx = 0;
         int dsty = 0;
@@ -171,6 +140,9 @@ public final class ScreenshotHandler implements Runnable {
 
     // Called from native code by JNI
     public static void notifyPaintedRect(float top, float left, float bottom, float right) {
+        if (sDisableScreenshot) {
+            return;
+        }
         ScreenshotHandler handler = getInstance();
         if (handler == null) {
             return;

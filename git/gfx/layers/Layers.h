@@ -294,13 +294,6 @@ public:
   Layer* GetRoot() { return mRoot; }
 
   /**
-   * Does a breadth-first search from the root layer to find the first
-   * scrollable layer.
-   * Can be called any time.
-   */
-  Layer* GetPrimaryScrollableLayer();
-
-  /**
    * CONSTRUCTION PHASE ONLY
    * Called when a managee has mutated.
    * Subclasses overriding this method must first call their

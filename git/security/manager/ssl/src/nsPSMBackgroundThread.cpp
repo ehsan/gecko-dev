@@ -7,7 +7,7 @@
 
 using namespace mozilla;
 
-void nsPSMBackgroundThread::nsThreadRunner(void *arg)
+void PR_CALLBACK nsPSMBackgroundThread::nsThreadRunner(void *arg)
 {
   nsPSMBackgroundThread *self = static_cast<nsPSMBackgroundThread *>(arg);
   PR_SetCurrentThreadName(self->mName.BeginReading());

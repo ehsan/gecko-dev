@@ -1177,8 +1177,7 @@ nsresult
 nsOfflineCacheUpdate::Init(nsIURI *aManifestURI,
                            nsIURI *aDocumentURI,
                            nsIDOMDocument *aDocument,
-                           nsIFile *aCustomProfileDir,
-                           nsILoadContext *aLoadContext)
+                           nsIFile *aCustomProfileDir)
 {
     nsresult rv;
 
@@ -1209,16 +1208,18 @@ nsOfflineCacheUpdate::Init(nsIURI *aManifestURI,
     rv = mManifestURI->GetAsciiHost(mUpdateDomain);
     NS_ENSURE_SUCCESS(rv, rv);
 
-    nsCOMPtr<nsIApplicationCacheService> cacheService =
-        do_GetService(NS_APPLICATIONCACHESERVICE_CONTRACTID, &rv);
+    nsAutoCString manifestSpec;
+
+    rv = GetCacheKey(mManifestURI, manifestSpec);
     NS_ENSURE_SUCCESS(rv, rv);
 
     mDocumentURI = aDocumentURI;
 
-    if (aCustomProfileDir) {
-        rv = GetCacheKey(aManifestURI, mGroupID);
-        NS_ENSURE_SUCCESS(rv, rv);
+    nsCOMPtr<nsIApplicationCacheService> cacheService =
+        do_GetService(NS_APPLICATIONCACHESERVICE_CONTRACTID, &rv);
+    NS_ENSURE_SUCCESS(rv, rv);
 
+    if (aCustomProfileDir) {
         // Create only a new offline application cache in the custom profile
         // This is a preload of a new cache.
 
@@ -1227,7 +1228,7 @@ nsOfflineCacheUpdate::Init(nsIURI *aManifestURI,
         // simply added as well when needed.
         mPreviousApplicationCache = nullptr;
 
-        rv = cacheService->CreateCustomApplicationCache(mGroupID,
+        rv = cacheService->CreateCustomApplicationCache(manifestSpec,
                                                         aCustomProfileDir,
                                                         kCustomProfileQuota,
                                                         getter_AddRefs(mApplicationCache));
@@ -1236,16 +1237,11 @@ nsOfflineCacheUpdate::Init(nsIURI *aManifestURI,
         mCustomProfileDir = aCustomProfileDir;
     }
     else {
-        rv = cacheService->BuildGroupID(aManifestURI,
-                                        aLoadContext,
-                                        mGroupID);
-        NS_ENSURE_SUCCESS(rv, rv);
-
-        rv = cacheService->GetActiveCache(mGroupID,
+        rv = cacheService->GetActiveCache(manifestSpec,
                                           getter_AddRefs(mPreviousApplicationCache));
         NS_ENSURE_SUCCESS(rv, rv);
 
-        rv = cacheService->CreateApplicationCache(mGroupID,
+        rv = cacheService->CreateApplicationCache(manifestSpec,
                                                   getter_AddRefs(mApplicationCache));
         NS_ENSURE_SUCCESS(rv, rv);
     }
@@ -1254,8 +1250,6 @@ nsOfflineCacheUpdate::Init(nsIURI *aManifestURI,
                                                              NULL,
                                                              &mPinned);
     NS_ENSURE_SUCCESS(rv, rv);
-
-    mLoadContext = aLoadContext;
 
     mState = STATE_INITIALIZED;
     return NS_OK;
@@ -1301,11 +1295,11 @@ nsOfflineCacheUpdate::InitPartial(nsIURI *aManifestURI,
         NS_ENSURE_SUCCESS(rv, rv);
     }
 
-    rv = mApplicationCache->GetManifestURI(getter_AddRefs(mManifestURI));
-    NS_ENSURE_SUCCESS(rv, rv);
-
     nsAutoCString groupID;
     rv = mApplicationCache->GetGroupID(groupID);
+    NS_ENSURE_SUCCESS(rv, rv);
+
+    rv = NS_NewURI(getter_AddRefs(mManifestURI), groupID);
     NS_ENSURE_SUCCESS(rv, rv);
 
     rv = nsOfflineCacheUpdateService::OfflineAppPinnedForURI(aDocumentURI,
@@ -1572,8 +1566,7 @@ nsOfflineCacheUpdate::ManifestCheckCompleted(nsresult aStatus,
             new nsOfflineCacheUpdate();
         // Leave aDocument argument null. Only glues and children keep
         // document instances.
-        newUpdate->Init(mManifestURI, mDocumentURI, nullptr,
-                        mCustomProfileDir, mLoadContext);
+        newUpdate->Init(mManifestURI, mDocumentURI, nullptr, mCustomProfileDir);
 
         // In a rare case the manifest will not be modified on the next refetch
         // transfer all master document URIs to the new update to ensure that
@@ -1835,12 +1828,6 @@ nsOfflineCacheUpdate::SetOwner(nsOfflineCacheUpdateOwner *aOwner)
 {
     NS_ASSERTION(!mOwner, "Tried to set cache update owner twice.");
     mOwner = aOwner;
-}
-
-bool
-nsOfflineCacheUpdate::IsForGroupID(const nsCSubstring &groupID)
-{
-    return mGroupID == groupID;
 }
 
 nsresult

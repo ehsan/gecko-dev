@@ -14,12 +14,6 @@
 #include "nsIThread.h"
 #include "nsTObserverArray.h"
 
-namespace mozilla {
-namespace ipc {
-class UnixSocketConsumer;
-}
-}
-
 BEGIN_BLUETOOTH_NAMESPACE
 
 class BluetoothManager;
@@ -232,11 +226,13 @@ public:
   virtual nsresult
   GetSocketViaService(const nsAString& aObjectPath,
                       const nsAString& aService,
-                      BluetoothSocketType aType,
+                      int aType,
                       bool aAuth,
                       bool aEncrypt,
-                      mozilla::ipc::UnixSocketConsumer* aSocketConsumer,
                       BluetoothReplyRunnable* aRunnable) = 0;
+
+  virtual bool
+  CloseSocket(int aFd, BluetoothReplyRunnable* aRunnable) = 0;
 
   virtual bool
   SetPinCodeInternal(const nsAString& aDeviceAddress, const nsAString& aPinCode,

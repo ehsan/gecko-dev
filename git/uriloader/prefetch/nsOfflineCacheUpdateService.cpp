@@ -27,7 +27,6 @@
 #include "nsIObserverService.h"
 #include "nsIURL.h"
 #include "nsIWebProgress.h"
-#include "nsIWebNavigation.h"
 #include "nsICryptoHash.h"
 #include "nsICacheEntryDescriptor.h"
 #include "nsIPermissionManager.h"
@@ -400,20 +399,10 @@ nsOfflineCacheUpdateService::GetUpdate(uint32_t aIndex,
 
 nsresult
 nsOfflineCacheUpdateService::FindUpdate(nsIURI *aManifestURI,
-                                        nsILoadContext *aLoadContext,
+                                        nsIURI *aDocumentURI,
                                         nsOfflineCacheUpdate **aUpdate)
 {
     nsresult rv;
-
-    nsCOMPtr<nsIApplicationCacheService> cacheService =
-        do_GetService(NS_APPLICATIONCACHESERVICE_CONTRACTID, &rv);
-    NS_ENSURE_SUCCESS(rv, rv);
-
-    nsAutoCString groupID;
-    rv = cacheService->BuildGroupID(aManifestURI,
-                                    aLoadContext,
-                                    groupID);
-    NS_ENSURE_SUCCESS(rv, rv);
 
     nsRefPtr<nsOfflineCacheUpdate> update;
     for (uint32_t i = 0; i < mUpdates.Length(); i++) {
@@ -428,9 +417,15 @@ nsOfflineCacheUpdateService::FindUpdate(nsIURI *aManifestURI,
             continue;
         }
 
-        if (update->IsForGroupID(groupID)) {
-            update.swap(*aUpdate);
-            return NS_OK;
+        nsCOMPtr<nsIURI> manifestURI;
+        update->GetManifestURI(getter_AddRefs(manifestURI));
+        if (manifestURI) {
+            bool equals;
+            rv = manifestURI->Equals(aManifestURI, &equals);
+            if (equals) {
+                update.swap(*aUpdate);
+                return NS_OK;
+            }
         }
     }
 
@@ -455,14 +450,7 @@ nsOfflineCacheUpdateService::Schedule(nsIURI *aManifestURI,
 
     nsresult rv;
 
-    nsCOMPtr<nsILoadContext> loadContext;
-    if (aWindow) {
-        nsCOMPtr<nsIWebNavigation> webNav = do_GetInterface(aWindow);
-        loadContext = do_QueryInterface(webNav);
-    }
-
-    rv = update->Init(aManifestURI, aDocumentURI, aDocument,
-                      aCustomProfileDir, loadContext);
+    rv = update->Init(aManifestURI, aDocumentURI, aDocument, aCustomProfileDir);
     NS_ENSURE_SUCCESS(rv, rv);
 
     rv = update->Schedule();

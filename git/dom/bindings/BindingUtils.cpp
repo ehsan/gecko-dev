@@ -591,10 +591,7 @@ bool
 GetPropertyOnPrototype(JSContext* cx, JSObject* proxy, jsid id, bool* found,
                        JS::Value* vp)
 {
-  JSObject* proto;
-  if (!js::GetObjectProto(cx, proxy, &proto)) {
-    return false;
-  }
+  JSObject* proto = js::GetObjectProto(proxy);
   if (!proto) {
     *found = false;
     return true;

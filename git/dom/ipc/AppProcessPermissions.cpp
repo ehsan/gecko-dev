@@ -19,7 +19,7 @@ using namespace mozilla::services;
 namespace mozilla {
 
 bool
-AssertAppProcessPermission(PBrowserParent* aActor, const char* aPermission)
+AppProcessHasPermission(PBrowserParent* aActor, const char* aPermission)
 {
   if (!aActor) {
     NS_WARNING("Testing permissions for null actor");
@@ -46,12 +46,12 @@ AssertAppProcessPermission(PBrowserParent* aActor, const char* aPermission)
 }
 
 bool
-AssertAppProcessPermission(PContentParent* aActor, const char* aPermission)
+AppProcessHasPermission(PContentParent* aActor, const char* aPermission)
 {
   const InfallibleTArray<PBrowserParent*>& browsers =
     aActor->ManagedPBrowserParent();
   for (uint32_t i = 0; i < browsers.Length(); ++i) {
-    if (AssertAppProcessPermission(browsers[i], aPermission)) {
+    if (AppProcessHasPermission(browsers[i], aPermission)) {
       return true;
     }
   }
@@ -59,9 +59,9 @@ AssertAppProcessPermission(PContentParent* aActor, const char* aPermission)
 }
 
 bool
-AssertAppProcessPermission(PHalParent* aActor, const char* aPermission)
+AppProcessHasPermission(PHalParent* aActor, const char* aPermission)
 {
-  return AssertAppProcessPermission(aActor->Manager(), aPermission);
+  return AppProcessHasPermission(aActor->Manager(), aPermission);
 }
 
 } // namespace mozilla

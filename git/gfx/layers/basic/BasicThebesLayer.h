@@ -121,7 +121,11 @@ public:
   {
     MOZ_COUNT_CTOR(BasicShadowableThebesLayer);
   }
-  virtual ~BasicShadowableThebesLayer();
+  virtual ~BasicShadowableThebesLayer()
+  {
+    DestroyBackBuffer();
+    MOZ_COUNT_DTOR(BasicShadowableThebesLayer);
+  }
 
   virtual void PaintThebes(gfxContext* aContext,
                            Layer* aMaskLayer,
@@ -162,6 +166,10 @@ private:
               bool aDidSelfCopy,
               LayerManager::DrawThebesLayerCallback aCallback,
               void* aCallbackData) MOZ_OVERRIDE;
+
+  // This function may *not* open the buffer it allocates.
+  void
+  AllocBackBuffer(Buffer::ContentType aType, const nsIntSize& aSize);
 
   virtual already_AddRefed<gfxASurface>
   CreateBuffer(Buffer::ContentType aType, const nsIntSize& aSize) MOZ_OVERRIDE;

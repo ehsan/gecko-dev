@@ -1028,15 +1028,14 @@ TabParent::DeallocPRenderFrame(PRenderFrameParent* aFrame)
 mozilla::docshell::POfflineCacheUpdateParent*
 TabParent::AllocPOfflineCacheUpdate(const URIParams& aManifestURI,
                                     const URIParams& aDocumentURI,
-                                    const bool& isInBrowserElement,
-                                    const uint32_t& appId,
+                                    const nsCString& aClientID,
                                     const bool& stickDocument)
 {
   nsRefPtr<mozilla::docshell::OfflineCacheUpdateParent> update =
     new mozilla::docshell::OfflineCacheUpdateParent();
 
-  nsresult rv = update->Schedule(aManifestURI, aDocumentURI,
-                                 isInBrowserElement, appId, stickDocument);
+  nsresult rv = update->Schedule(aManifestURI, aDocumentURI, aClientID,
+                                 stickDocument);
   if (NS_FAILED(rv))
     return nullptr;
 

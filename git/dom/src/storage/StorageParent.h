@@ -45,6 +45,7 @@ private:
   bool RecvInit(const bool& aUseDB,
                 const bool& aSessionOnly,
                 const bool& aPrivate,
+                const nsCString& aDomain,
                 const nsCString& aScopeDBKey,
                 const nsCString& aQuotaDBKey,
                 const uint32_t& aStorageType);

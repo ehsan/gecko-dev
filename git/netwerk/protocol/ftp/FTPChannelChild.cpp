@@ -550,7 +550,7 @@ FTPChannelChild::CompleteRedirectSetup(nsIStreamListener *listener,
 NS_IMETHODIMP
 FTPChannelChild::SetNotificationCallbacks(nsIInterfaceRequestor* aCallbacks)
 {
-  if (!CanSetCallbacks(aCallbacks)) {
+  if (!CanSetCallbacks()) {
     return NS_ERROR_FAILURE;
   }
 
@@ -560,7 +560,7 @@ FTPChannelChild::SetNotificationCallbacks(nsIInterfaceRequestor* aCallbacks)
 NS_IMETHODIMP
 FTPChannelChild::SetLoadGroup(nsILoadGroup * aLoadGroup)
 {
-  if (!CanSetLoadGroup(aLoadGroup)) {
+  if (!CanSetLoadGroup()) {
     return NS_ERROR_FAILURE;
   }
 

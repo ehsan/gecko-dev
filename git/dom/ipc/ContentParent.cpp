@@ -1450,7 +1450,7 @@ ContentParent::DeallocPExternalHelperApp(PExternalHelperAppParent* aService)
 PSmsParent*
 ContentParent::AllocPSms()
 {
-    if (!AssertAppProcessPermission(this, "sms")) {
+    if (!AppProcessHasPermission(this, "sms")) {
         return nullptr;
     }
     return new SmsParent();
@@ -1480,7 +1480,7 @@ PBluetoothParent*
 ContentParent::AllocPBluetooth()
 {
 #ifdef MOZ_B2G_BT
-    if (!AssertAppProcessPermission(this, "bluetooth")) {
+    if (!AppProcessHasPermission(this, "bluetooth")) {
         return nullptr;
     }
     return new mozilla::dom::bluetooth::BluetoothParent();

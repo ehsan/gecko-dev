@@ -6,7 +6,6 @@
 
 #include "Skeleton.h"
 #include "mozilla/dom/SkeletonBinding.h"
-#include "nsContentUtils.h"
 
 namespace mozilla {
 namespace dom {

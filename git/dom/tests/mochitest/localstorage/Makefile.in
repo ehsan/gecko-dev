@@ -12,7 +12,6 @@ relativesrcdir	= @relativesrcdir@
 include $(DEPTH)/config/autoconf.mk
 
 MOCHITEST_FILES	= \
-    frameAppIsolation.html \
     frameBug624047.html \
     frameChromeSlave.html \
     frameKeySync.html \
@@ -28,7 +27,6 @@ MOCHITEST_FILES	= \
     interOriginTest.js \
     interOriginTest2.js \
     pbSwitch.js \
-    test_appIsolation.html \
     test_brokenUTF-16.html \
     test_bug624047.html \
     test_bug746272-1.html \

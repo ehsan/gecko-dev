@@ -148,27 +148,17 @@ class MemoryMonitor extends BroadcastReceiver {
             if (GeckoApp.checkLaunchState(GeckoApp.LaunchState.GeckoRunning)) {
                 GeckoAppShell.onLowMemory();
             }
-            ScreenshotHandler.disableScreenshot();
             GeckoAppShell.geckoEventSync();
         }
     }
 
-    private boolean decreaseMemoryPressure() {
-        int newLevel;
-        synchronized (this) {
-            if (mMemoryPressure <= 0) {
-                return false;
-            }
-
-            newLevel = --mMemoryPressure;
+    private synchronized boolean decreaseMemoryPressure() {
+        if (mMemoryPressure > 0) {
+            mMemoryPressure--;
+            Log.d(LOGTAG, "Decreased memory pressure to " + mMemoryPressure);
+            return true;
         }
-        Log.d(LOGTAG, "Decreased memory pressure to " + newLevel);
-
-        if (newLevel == MEMORY_PRESSURE_NONE) {
-            ScreenshotHandler.enableScreenshot();
-        }
-
-        return true;
+        return false;
     }
 
     class PressureDecrementer implements Runnable {

@@ -2877,7 +2877,7 @@ nsContentUtils::IsDraggableLink(const nsIContent* aContent) {
 }
 
 static bool
-TestSitePerm(nsIPrincipal* aPrincipal, const char* aType, uint32_t aPerm, bool aExactHostMatch)
+TestSitePerm(nsIPrincipal* aPrincipal, const char* aType, uint32_t aPerm)
 {
   if (!aPrincipal) {
     // We always deny (i.e. don't allow) the permission if we don't have a
@@ -2890,12 +2890,7 @@ TestSitePerm(nsIPrincipal* aPrincipal, const char* aType, uint32_t aPerm, bool a
   NS_ENSURE_TRUE(permMgr, false);
 
   uint32_t perm;
-  nsresult rv;
-  if (aExactHostMatch) {
-    rv = permMgr->TestExactPermissionFromPrincipal(aPrincipal, aType, &perm);
-  } else {
-    rv = permMgr->TestPermissionFromPrincipal(aPrincipal, aType, &perm);
-  }
+  nsresult rv = permMgr->TestPermissionFromPrincipal(aPrincipal, aType, &perm);
   NS_ENSURE_SUCCESS(rv, false);
 
   return perm == aPerm;
@@ -2904,25 +2899,13 @@ TestSitePerm(nsIPrincipal* aPrincipal, const char* aType, uint32_t aPerm, bool a
 bool
 nsContentUtils::IsSitePermAllow(nsIPrincipal* aPrincipal, const char* aType)
 {
-  return TestSitePerm(aPrincipal, aType, nsIPermissionManager::ALLOW_ACTION, false);
+  return TestSitePerm(aPrincipal, aType, nsIPermissionManager::ALLOW_ACTION);
 }
 
 bool
 nsContentUtils::IsSitePermDeny(nsIPrincipal* aPrincipal, const char* aType)
 {
-  return TestSitePerm(aPrincipal, aType, nsIPermissionManager::DENY_ACTION, false);
-}
-
-bool
-nsContentUtils::IsExactSitePermAllow(nsIPrincipal* aPrincipal, const char* aType)
-{
-  return TestSitePerm(aPrincipal, aType, nsIPermissionManager::ALLOW_ACTION, true);
-}
-
-bool
-nsContentUtils::IsExactSitePermDeny(nsIPrincipal* aPrincipal, const char* aType)
-{
-  return TestSitePerm(aPrincipal, aType, nsIPermissionManager::DENY_ACTION, true);
+  return TestSitePerm(aPrincipal, aType, nsIPermissionManager::DENY_ACTION);
 }
 
 static const char *gEventNames[] = {"event"};

@@ -16,15 +16,11 @@ DIRS += ril
 endif #}
 
 ifdef MOZ_B2G_BT #{
-DIRS += dbus
+DIRS += dbus socket
 endif #}
 
 ifeq (gonk,$(MOZ_WIDGET_TOOLKIT))
-DIRS += netd unixsocket
-endif
-
-ifeq ($(OS_ARCH),Linux)
-DIRS += unixsocket
+DIRS += netd
 endif
 
 TOOL_DIRS = app

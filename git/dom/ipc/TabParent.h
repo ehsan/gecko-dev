@@ -181,8 +181,7 @@ public:
     virtual POfflineCacheUpdateParent* AllocPOfflineCacheUpdate(
             const URIParams& aManifestURI,
             const URIParams& aDocumentURI,
-            const bool& isInBrowserElement,
-            const uint32_t& appId,
+            const nsCString& aClientID,
             const bool& stickDocument);
     virtual bool DeallocPOfflineCacheUpdate(POfflineCacheUpdateParent* actor);
 

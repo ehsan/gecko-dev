@@ -235,33 +235,18 @@ waitForAdd: function(url, onFinished) {
   setTimeout(this.priv(waitFunc), 500);
 },
 
-manifestURL: function(overload)
+getManifestUrl: function()
 {
-  var manifestURLspec = overload || window.top.document.documentElement.getAttribute("manifest");
-
-  var ios = Cc["@mozilla.org/network/io-service;1"]
-            .getService(Ci.nsIIOService)
-
-  var baseURI = ios.newURI(window.location.href, null, null);
-  return ios.newURI(manifestURLspec, null, baseURI);
+  return window.top.document.documentElement.getAttribute("manifest");
 },
 
-loadContext: function()
-{
-  return SpecialPowers.wrap(window).QueryInterface(Components.interfaces.nsIInterfaceRequestor)
-                                   .getInterface(Components.interfaces.nsIWebNavigation)
-                                   .QueryInterface(Components.interfaces.nsIInterfaceRequestor)
-                                   .getInterface(Components.interfaces.nsILoadContext);
-},
-
-getActiveCache: function(overload)
+getActiveCache: function()
 {
   // Note that this is the current active cache in the cache stack, not the
   // one associated with this window.
   var serv = Cc["@mozilla.org/network/application-cache-service;1"]
              .getService(Ci.nsIApplicationCacheService);
-  var groupID = serv.buildGroupID(this.manifestURL(overload), this.loadContext());
-  return serv.getActiveCache(groupID);
+  return serv.getActiveCache(this.getManifestUrl());
 },
 
 getActiveSession: function()
@@ -284,6 +269,23 @@ priv: function(func)
     netscape.security.PrivilegeManager.enablePrivilege("UniversalXPConnect");
     func(arguments);
   }
+},
+
+checkCustomCache: function(group, url, expectEntry, callback)
+{
+  var serv = Cc["@mozilla.org/network/application-cache-service;1"]
+             .getService(Ci.nsIApplicationCacheService);
+  var cache = serv.getActiveCache(group);
+  var cacheSession = null;
+  if (cache) {
+    var cacheService = Cc["@mozilla.org/network/cache-service;1"]
+                       .getService(Ci.nsICacheService);
+    cacheSession = cacheService.createSession(cache.clientID,
+                                      Ci.nsICache.STORE_OFFLINE,
+                                      true);
+  }
+
+  this._checkCache(cacheSession, url, expectEntry, callback);
 },
 
 checkCacheEntries: function(entries, callback)

@@ -1029,7 +1029,7 @@ IteratorMore(JSContext *cx, JSObject *iterobj, bool *cond, MutableHandleValue rv
 }
 
 static inline bool
-IteratorNext(JSContext *cx, HandleObject iterobj, MutableHandleValue rval)
+IteratorNext(JSContext *cx, JSObject *iterobj, MutableHandleValue rval)
 {
     if (iterobj->isPropertyIterator()) {
         NativeIterator *ni = iterobj->asPropertyIterator().getNativeIterator();
@@ -1778,9 +1778,7 @@ BEGIN_CASE(JSOP_ITERNEXT)
     JS_ASSERT(regs.sp[-1].isObject());
     PUSH_NULL();
     MutableHandleValue res = MutableHandleValue::fromMarkedLocation(&regs.sp[-1]);
-    RootedObject &obj = rootObject0;
-    obj = &regs.sp[-2].toObject();
-    if (!IteratorNext(cx, obj, res))
+    if (!IteratorNext(cx, &regs.sp[-2].toObject(), res))
         goto error;
 }
 END_CASE(JSOP_ITERNEXT)
@@ -1788,9 +1786,7 @@ END_CASE(JSOP_ITERNEXT)
 BEGIN_CASE(JSOP_ENDITER)
 {
     JS_ASSERT(regs.stackDepth() >= 1);
-    RootedObject &obj = rootObject0;
-    obj = &regs.sp[-1].toObject();
-    bool ok = CloseIterator(cx, obj);
+    bool ok = CloseIterator(cx, &regs.sp[-1].toObject());
     regs.sp--;
     if (!ok)
         goto error;
@@ -3205,12 +3201,10 @@ BEGIN_CASE(JSOP_INITELEM)
         JS_ASSERT(obj->isArray());
         JS_ASSERT(JSID_IS_INT(id));
         JS_ASSERT(uint32_t(JSID_TO_INT(id)) < StackSpace::ARGS_LENGTH_MAX);
-        JSOp next = JSOp(*(regs.pc + GetBytecodeLength(regs.pc)));
-        if ((next == JSOP_ENDINIT && op == JSOP_INITELEM) ||
-            (next == JSOP_POP && op == JSOP_INITELEM_INC))
+        if (JSOp(regs.pc[JSOP_INITELEM_LENGTH]) == JSOP_ENDINIT &&
+            !SetLengthProperty(cx, obj, (uint32_t) (JSID_TO_INT(id) + 1)))
         {
-            if (!SetLengthProperty(cx, obj, (uint32_t) (JSID_TO_INT(id) + 1)))
-                goto error;
+            goto error;
         }
     } else {
         if (!JSObject::defineGeneric(cx, obj, id, rref, NULL, NULL, JSPROP_ENUMERATE))
@@ -3922,9 +3916,7 @@ END_CASE(JSOP_ARRAYPUSH)
               case JSTRY_ITER: {
                 /* This is similar to JSOP_ENDITER in the interpreter loop. */
                 JS_ASSERT(JSOp(*regs.pc) == JSOP_ENDITER);
-                RootedObject &obj = rootObject0;
-                obj = &regs.sp[-1].toObject();
-                bool ok = UnwindIteratorForException(cx, obj);
+                bool ok = UnwindIteratorForException(cx, &regs.sp[-1].toObject());
                 regs.sp -= 1;
                 if (!ok)
                     goto error;

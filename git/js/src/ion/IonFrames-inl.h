@@ -82,20 +82,11 @@ IonFrameIterator::frameSize() const
 
 // Returns the JSScript associated with the topmost Ion frame.
 inline JSScript *
-GetTopIonJSScript(JSContext *cx, const SafepointIndex **safepointIndexOut, void **returnAddrOut)
+GetTopIonJSScript(JSContext *cx)
 {
     IonFrameIterator iter(cx->runtime->ionTop);
     JS_ASSERT(iter.type() == IonFrame_Exit);
     ++iter;
-
-    // If needed, grab the safepoint index.
-    if (safepointIndexOut)
-        *safepointIndexOut = iter.safepoint();
-
-    JS_ASSERT(iter.returnAddressToFp() != NULL);
-    if (returnAddrOut)
-        *returnAddrOut = (void *) iter.returnAddressToFp();
-
     JS_ASSERT(iter.type() == IonFrame_JS);
     IonJSFrameLayout *frame = static_cast<IonJSFrameLayout*>(iter.current());
     switch (GetCalleeTokenTag(frame->calleeToken())) {

@@ -11,8 +11,6 @@
 #include "nsCOMPtr.h"
 #include "nsILoadGroup.h"
 #include "nsILoadContext.h"
-#include "nsIInterfaceRequestorUtils.h"
-#include "nsIInterfaceRequestor.h"
 
 namespace mozilla {
 namespace net {
@@ -58,35 +56,19 @@ public:
       return NS_OK;
   }
 
-  bool CanSetCallbacks(nsIInterfaceRequestor* aCallbacks) const
+  bool CanSetCallbacks() const
   {
       // Make sure that the private bit override flag is not set.
       // This is a fatal error in debug builds, and a runtime error in release
       // builds.
-      if (!aCallbacks) {
-          return true;
-      }
-      nsCOMPtr<nsILoadContext> loadContext = do_GetInterface(aCallbacks);
-      if (!loadContext) {
-          return true;
-      }
       MOZ_ASSERT(!mPrivateBrowsingOverriden);
       return !mPrivateBrowsingOverriden;
   }
 
-  bool CanSetLoadGroup(nsILoadGroup* aLoadGroup) const
+  bool CanSetLoadGroup() const
   {
-      // Make sure that the private bit override flag is not set.
-      // This is a fatal error in debug builds, and a runtime error in release
-      // builds.
-      if (!aLoadGroup) {
-          return true;
-      }
-      nsCOMPtr<nsIInterfaceRequestor> callbacks;
-      aLoadGroup->GetNotificationCallbacks(getter_AddRefs(callbacks));
-      // From this point on, we just hand off the work to CanSetCallbacks,
-      // because the logic is exactly the same.
-      return CanSetCallbacks(callbacks);
+      // We can set a load group whenever we can set a callback
+      return CanSetCallbacks();
   }
 
 protected:

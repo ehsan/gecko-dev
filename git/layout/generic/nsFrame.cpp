@@ -977,8 +977,7 @@ nsIFrame::IsTransformed() const
            IsSVGTransformed() ||
            (mContent &&
             nsLayoutUtils::HasAnimationsForCompositor(mContent,
-                                                      eCSSProperty_transform) &&
-            mContent->GetPrimaryFrame() == this)));
+                                                      eCSSProperty_transform))));
 }
 
 bool
@@ -986,8 +985,7 @@ nsIFrame::HasOpacity() const
 {
   return GetStyleDisplay()->mOpacity < 1.0f || (mContent &&
            nsLayoutUtils::HasAnimationsForCompositor(mContent,
-                                                     eCSSProperty_opacity) &&
-           mContent->GetPrimaryFrame() == this);
+                                                     eCSSProperty_opacity));
 }
 
 bool

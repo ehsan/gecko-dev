@@ -209,8 +209,6 @@ public:
 
     void SetOwner(nsOfflineCacheUpdateOwner *aOwner);
 
-    bool IsForGroupID(const nsCSubstring &groupID);
-
     virtual nsresult UpdateFinished(nsOfflineCacheUpdate *aUpdate);
 
 protected:
@@ -256,11 +254,9 @@ private:
     bool mObsolete;
 
     nsCString mUpdateDomain;
-    nsCString mGroupID;
     nsCOMPtr<nsIURI> mManifestURI;
     nsCOMPtr<nsIURI> mDocumentURI;
     nsCOMPtr<nsIFile> mCustomProfileDir;
-    nsCOMPtr<nsILoadContext> mLoadContext;
 
     nsCOMPtr<nsIApplicationCache> mApplicationCache;
     nsCOMPtr<nsIApplicationCache> mPreviousApplicationCache;
@@ -312,7 +308,7 @@ public:
 
     nsresult ScheduleUpdate(nsOfflineCacheUpdate *aUpdate);
     nsresult FindUpdate(nsIURI *aManifestURI,
-                        nsILoadContext *aLoadContext,
+                        nsIURI *aDocumentURI,
                         nsOfflineCacheUpdate **aUpdate);
 
     nsresult Schedule(nsIURI *aManifestURI,

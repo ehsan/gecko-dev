@@ -625,11 +625,7 @@ static JSObject*
 NewOuterWindowProxy(JSContext *cx, JSObject *parent)
 {
   JSAutoCompartment ac(cx, parent);
-  JSObject *proto;
-  if (!js::GetObjectProto(cx, parent, &proto))
-    return nullptr;
-
-  JSObject *obj = js::Wrapper::New(cx, parent, proto, parent,
+  JSObject *obj = js::Wrapper::New(cx, parent, js::GetObjectProto(parent), parent,
                                    &nsOuterWindowProxy::singleton);
   NS_ASSERTION(js::GetObjectClass(obj)->ext.innerObject, "bad class");
   return obj;
@@ -1687,11 +1683,7 @@ nsGlobalWindow::SetOuterObject(JSContext* aCx, JSObject* aOuterObject)
 
   // Set up the prototype for the outer object.
   JSObject* inner = JS_GetParent(aOuterObject);
-  JSObject* proto;
-  if (!JS_GetPrototype(aCx, inner, &proto)) {
-    return NS_ERROR_FAILURE;
-  }
-  JS_SetPrototype(aCx, aOuterObject, proto);
+  JS_SetPrototype(aCx, aOuterObject, JS_GetPrototype(inner));
 
   return NS_OK;
 }
@@ -1860,9 +1852,7 @@ nsGlobalWindow::SetNewDocument(nsIDocument* aDocument,
 
     if (aDocument != oldDoc) {
       xpc_UnmarkGrayObject(currentInner->mJSObject);
-      if (!nsWindowSH::InvalidateGlobalScopePolluter(cx, currentInner->mJSObject)) {
-        return NS_ERROR_FAILURE;
-      }
+      nsWindowSH::InvalidateGlobalScopePolluter(cx, currentInner->mJSObject);
     }
 
     // We're reusing the inner window, but this still counts as a navigation,
@@ -1998,8 +1988,7 @@ nsGlobalWindow::SetNewDocument(nsIDocument* aDocument,
 
         JS_SetParent(cx, mJSObject, newInnerWindow->mJSObject);
 
-        rv = SetOuterObject(cx, mJSObject);
-        NS_ENSURE_SUCCESS(rv, rv);
+        SetOuterObject(cx, mJSObject);
 
         JSCompartment *compartment = js::GetObjectCompartment(mJSObject);
         xpc::CompartmentPrivate *priv =
@@ -2056,13 +2045,9 @@ nsGlobalWindow::SetNewDocument(nsIDocument* aDocument,
     // the global object's compartment as its default compartment,
     // so update that now since it might have changed.
     JS_SetGlobalObject(cx, mJSObject);
-#ifdef DEBUG
-    JSObject *proto1, *proto2;
-    JS_GetPrototype(cx, mJSObject, &proto1);
-    JS_GetPrototype(cx, newInnerJSObject, &proto2);
-    NS_ASSERTION(proto1 == proto2,
+    NS_ASSERTION(JS_GetPrototype(mJSObject) ==
+                 JS_GetPrototype(newInnerJSObject),
                  "outer and inner globals should have the same prototype");
-#endif
 
     nsCOMPtr<nsIContent> frame = do_QueryInterface(GetFrameElementInternal());
     if (frame) {

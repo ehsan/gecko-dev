@@ -1142,9 +1142,7 @@ GetNPObjectWrapper(JSContext *cx, JSObject *obj, bool wrapResult = true)
       }
       return obj;
     }
-    if (!::JS_GetPrototype(cx, obj, &obj)) {
-      return NULL;
-    }
+    obj = ::JS_GetPrototype(obj);
   }
   return NULL;
 }
@@ -2056,20 +2054,12 @@ nsJSNPRuntime::OnPluginDestroy(NPP npp)
   // be only one, but remove all instances found in case the page put
   // more than one of the plugin's scriptable objects on the prototype
   // chain).
-  while (obj) {
-    if (!::JS_GetPrototype(cx, obj, &proto)) {
-      return;
-    }
-    if (!proto) {
-      break;
-    }
+  while (obj && (proto = ::JS_GetPrototype(obj))) {
     // Unwrap while checking the jsclass - if the prototype is a wrapper for
     // an NP object, that counts too.
     if (JS_GetClass(js::UnwrapObject(proto)) == &sNPObjectJSWrapperClass) {
       // We found an NPObject on the proto chain, get its prototype...
-      if (!::JS_GetPrototype(cx, proto, &proto)) {
-        return;
-      }
+      proto = ::JS_GetPrototype(proto);
 
       // ... and pull it out of the chain.
       ::JS_SetPrototype(cx, obj, proto);

@@ -759,16 +759,13 @@ class CGClassHasInstanceHook(CGAbstractStaticMethod):
   JSObject *objProto = &protov.toObject();
 
   JSObject* instance = &vp.toObject();
-  JSObject* proto;
-  if (!JS_GetPrototype(cx, instance, &proto))
-    return false;
+  JSObject* proto = JS_GetPrototype(instance);
   while (proto) {
     if (proto == objProto) {
       *bp = true;
       return true;
     }
-    if (!JS_GetPrototype(cx, proto, &proto))
-      return false;
+    proto = JS_GetPrototype(proto);
   }
 
   nsISupports* native =
@@ -3453,7 +3450,7 @@ class CGAbstractBindingMethod(CGAbstractStaticMethod):
 
     def getThis(self):
         return CGIndenter(
-            CGGeneric("js::RootedObject obj(cx, JS_THIS_OBJECT(cx, vp));\n"
+            CGGeneric("JS::RootedObject obj(cx, JS_THIS_OBJECT(cx, vp));\n"
                       "if (!obj) {\n"
                       "  return false;\n"
                       "}\n"
@@ -5020,10 +5017,7 @@ if (expando) {
 """ + get + """
 // No need to worry about name getters here, so just check the proto.
 
-JSObject *proto;
-if (!js::GetObjectProto(cx, proxy, &proto)) {
-  return false;
-}
+JSObject *proto = js::GetObjectProto(proxy);
 if (proto) {
   JSBool isPresent;
   if (!JS_GetElementIfPresent(cx, proto, index, proxy, vp, &isPresent)) {

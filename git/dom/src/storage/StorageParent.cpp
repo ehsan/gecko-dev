@@ -30,11 +30,12 @@ bool
 StorageParent::RecvInit(const bool& aUseDB,
                         const bool& aSessionOnly,
                         const bool& aPrivate,
+                        const nsCString& aDomain,
                         const nsCString& aScopeDBKey,
                         const nsCString& aQuotaDBKey,
                         const uint32_t& aStorageType)
 {
-  mStorage->InitFromChild(aUseDB, aSessionOnly, aPrivate,
+  mStorage->InitFromChild(aUseDB, aSessionOnly, aPrivate, aDomain,
                           aScopeDBKey, aQuotaDBKey,
                           aStorageType);
   return true;

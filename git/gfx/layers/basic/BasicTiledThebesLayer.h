@@ -161,7 +161,6 @@ class BasicTiledThebesLayer : public ThebesLayer,
 public:
   BasicTiledThebesLayer(BasicShadowLayerManager* const aManager)
     : ThebesLayer(aManager, static_cast<BasicImplData*>(this))
-    , mLastScrollOffset(0, 0)
   {
     MOZ_COUNT_CTOR(BasicTiledThebesLayer);
   }
@@ -212,7 +211,6 @@ private:
 
   // Members
   BasicTiledLayerBuffer mTiledBuffer;
-  gfx::Point mLastScrollOffset;
 };
 
 } // layers

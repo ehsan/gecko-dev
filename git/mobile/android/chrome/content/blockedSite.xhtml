@@ -119,6 +119,8 @@
         el = document.getElementById("errorLongDescText_malware");
         el.parentNode.removeChild(el);
 
+        // Set sitename
+        document.getElementById("phishing_sitename").textContent = getHostString();
         document.title = document.getElementById("errorTitleText_phishing")
                                  .innerHTML;
       }
@@ -132,6 +134,7 @@
         -moz-appearance: none;
         background: transparent;
         border: none;
+        color: white;  /* Hard coded because netError.css forces this page's background to dark red */
         text-decoration: underline;
         margin: 0;
         padding: 0;
@@ -177,9 +180,6 @@
           <button id="getMeOutButton">&safeb.palm.accept.label;</button>
           <button id="reportButton">&safeb.palm.reportPage.label;</button>
         </div>
-      </div>
-      <div id="ignoreWarning">
-        <button id="ignoreWarningButton">&safeb.palm.decline.label;</button>
       </div>
     </div>
     <!--

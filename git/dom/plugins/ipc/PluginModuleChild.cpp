@@ -23,6 +23,7 @@
 #if (MOZ_WIDGET_GTK == 3)
 #include <gtk/gtkx.h>
 #endif
+#include "gtk2compat.h"
 #endif
 
 #include "nsIFile.h"

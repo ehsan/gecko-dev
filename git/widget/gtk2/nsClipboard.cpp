@@ -31,6 +31,10 @@
 #include <sys/types.h>
 #include <unistd.h>
 
+#if (MOZ_WIDGET_GTK == 2)
+#include "gtk2compat.h"
+#endif
+
 using namespace mozilla;
 
 // Callback when someone asks us for the data

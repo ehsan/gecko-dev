@@ -10,9 +10,6 @@
 #include "BluetoothService.h"
 
 namespace mozilla {
-namespace ipc {
-class UnixSocketConsumer;
-}
 namespace dom {
 namespace bluetooth {
 
@@ -89,11 +86,13 @@ public:
   virtual nsresult
   GetSocketViaService(const nsAString& aObjectPath,
                       const nsAString& aService,
-                      BluetoothSocketType aType,
+                      int aType,
                       bool aAuth,
                       bool aEncrypt,
-                      mozilla::ipc::UnixSocketConsumer* aConsumer,
                       BluetoothReplyRunnable* aRunnable) MOZ_OVERRIDE;
+
+  virtual bool
+  CloseSocket(int aFd, BluetoothReplyRunnable* aRunnable) MOZ_OVERRIDE;
 
   virtual bool
   SetPinCodeInternal(const nsAString& aDeviceAddress,
@@ -109,7 +108,7 @@ public:
   SetPairingConfirmationInternal(const nsAString& aDeviceAddress,
                                  bool aConfirm,
                                  BluetoothReplyRunnable* aRunnable)
-                                 MOZ_OVERRIDE;
+    MOZ_OVERRIDE;
 
   virtual bool
   SetAuthorizationInternal(const nsAString& aDeviceAddress,

@@ -287,8 +287,7 @@ Shape::getChildBinding(JSContext *cx, const StackShape &child)
 }
 
 /* static */ Shape *
-Shape::replaceLastProperty(JSContext *cx, const StackBaseShape &base,
-                           TaggedProto proto, Shape *shape_)
+Shape::replaceLastProperty(JSContext *cx, const StackBaseShape &base, JSObject *proto, Shape *shape_)
 {
     RootedShape shape(cx, shape_);
 
@@ -1008,7 +1007,7 @@ JSObject::setParent(JSContext *cx, HandleObject obj, HandleObject parent)
         return true;
     }
 
-    Shape *newShape = Shape::setObjectParent(cx, parent, obj->getTaggedProto(), obj->shape_);
+    Shape *newShape = Shape::setObjectParent(cx, parent, obj->getProto(), obj->shape_);
     if (!newShape)
         return false;
 
@@ -1017,7 +1016,7 @@ JSObject::setParent(JSContext *cx, HandleObject obj, HandleObject parent)
 }
 
 /* static */ Shape *
-Shape::setObjectParent(JSContext *cx, JSObject *parent, TaggedProto proto, Shape *last)
+Shape::setObjectParent(JSContext *cx, JSObject *parent, JSObject *proto, Shape *last)
 {
     if (last->getObjectParent() == parent)
         return last;
@@ -1072,7 +1071,7 @@ JSObject::setFlag(JSContext *cx, /*BaseShape::Flag*/ uint32_t flag_, GenerateSha
         return true;
     }
 
-    Shape *newShape = Shape::setObjectFlag(cx, flag, getTaggedProto(), lastProperty());
+    Shape *newShape = Shape::setObjectFlag(cx, flag, getProto(), lastProperty());
     if (!newShape)
         return false;
 
@@ -1081,7 +1080,7 @@ JSObject::setFlag(JSContext *cx, /*BaseShape::Flag*/ uint32_t flag_, GenerateSha
 }
 
 /* static */ Shape *
-Shape::setObjectFlag(JSContext *cx, BaseShape::Flag flag, TaggedProto proto, Shape *last)
+Shape::setObjectFlag(JSContext *cx, BaseShape::Flag flag, JSObject *proto, Shape *last)
 {
     if (last->getObjectFlags() & flag)
         return last;
@@ -1168,7 +1167,7 @@ InitialShapeEntry::InitialShapeEntry() : shape(NULL), proto(NULL)
 }
 
 inline
-InitialShapeEntry::InitialShapeEntry(const ReadBarriered<Shape> &shape, TaggedProto proto)
+InitialShapeEntry::InitialShapeEntry(const ReadBarriered<Shape> &shape, JSObject *proto)
   : shape(shape), proto(proto)
 {
 }
@@ -1184,7 +1183,7 @@ InitialShapeEntry::getLookup()
 InitialShapeEntry::hash(const Lookup &lookup)
 {
     HashNumber hash = uintptr_t(lookup.clasp) >> 3;
-    hash = JS_ROTATE_LEFT32(hash, 4) ^ (uintptr_t(lookup.proto.toWord()) >> 3);
+    hash = JS_ROTATE_LEFT32(hash, 4) ^ (uintptr_t(lookup.proto) >> 3);
     hash = JS_ROTATE_LEFT32(hash, 4) ^ (uintptr_t(lookup.parent) >> 3);
     return hash + lookup.nfixed;
 }
@@ -1193,17 +1192,17 @@ InitialShapeEntry::hash(const Lookup &lookup)
 InitialShapeEntry::match(const InitialShapeEntry &key, const Lookup &lookup)
 {
     return lookup.clasp == key.shape->getObjectClass()
-        && lookup.proto.toWord() == key.proto.toWord()
+        && lookup.proto == key.proto
         && lookup.parent == key.shape->getObjectParent()
         && lookup.nfixed == key.shape->numFixedSlots()
         && lookup.baseFlags == key.shape->getObjectFlags();
 }
 
 /* static */ Shape *
-EmptyShape::getInitialShape(JSContext *cx, Class *clasp, TaggedProto proto, JSObject *parent,
+EmptyShape::getInitialShape(JSContext *cx, Class *clasp, JSObject *proto, JSObject *parent,
                             AllocKind kind, uint32_t objectFlags)
 {
-    JS_ASSERT_IF(proto.isObject(), cx->compartment == proto.toObject()->compartment());
+    JS_ASSERT_IF(proto, cx->compartment == proto->compartment());
     JS_ASSERT_IF(parent, cx->compartment == parent->compartment());
 
     InitialShapeSet &table = cx->compartment->initialShapes;
@@ -1219,7 +1218,7 @@ EmptyShape::getInitialShape(JSContext *cx, Class *clasp, TaggedProto proto, JSOb
     if (p)
         return p->shape;
 
-    Rooted<TaggedProto> protoRoot(cx, lookup.proto);
+    RootedObject protoRoot(cx, lookup.proto);
     RootedObject parentRoot(cx, lookup.parent);
 
     StackBaseShape base(clasp, parent, objectFlags);
@@ -1303,8 +1302,8 @@ JSCompartment::sweepInitialShapeTable()
         for (InitialShapeSet::Enum e(initialShapes); !e.empty(); e.popFront()) {
             const InitialShapeEntry &entry = e.front();
             Shape *shape = entry.shape;
-            JSObject *proto = entry.proto.raw();
-            if (!IsShapeMarked(&shape) || (entry.proto.isObject() && !IsObjectMarked(&proto))) {
+            JSObject *proto = entry.proto;
+            if (!IsShapeMarked(&shape) || (proto && !IsObjectMarked(&proto))) {
                 e.removeFront();
             } else {
 #ifdef DEBUG
@@ -1312,7 +1311,7 @@ JSCompartment::sweepInitialShapeTable()
                 JS_ASSERT(!parent || IsObjectMarked(&parent));
                 JS_ASSERT(parent == shape->getObjectParent());
 #endif
-                if (shape != entry.shape || proto != entry.proto.raw()) {
+                if (shape != entry.shape || proto != entry.proto) {
                     InitialShapeEntry newKey(shape, proto);
                     e.rekeyFront(newKey.getLookup(), newKey);
                 }

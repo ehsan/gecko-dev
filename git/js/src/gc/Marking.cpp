@@ -889,7 +889,7 @@ ScanTypeObject(GCMarker *gcmarker, types::TypeObject *type)
         }
     }
 
-    if (TaggedProto(type->proto).isObject())
+    if (type->proto)
         PushMarkStack(gcmarker, type->proto);
 
     if (type->singleton && !type->lazy())
@@ -914,7 +914,7 @@ MarkChildren(JSTracer *trc, types::TypeObject *type)
             MarkId(trc, &prop->id, "type_prop");
     }
 
-    if (TaggedProto(type->proto).isObject())
+    if (type->proto)
         MarkObject(trc, &type->proto, "type_proto");
 
     if (type->singleton && !type->lazy())

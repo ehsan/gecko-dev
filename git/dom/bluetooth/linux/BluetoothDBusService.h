@@ -70,11 +70,12 @@ public:
   virtual nsresult
   GetSocketViaService(const nsAString& aObjectPath,
                       const nsAString& aService,
-                      BluetoothSocketType aType,
+                      int aType,
                       bool aAuth,
                       bool aEncrypt,
-                      mozilla::ipc::UnixSocketConsumer* aConsumer,
                       BluetoothReplyRunnable* aRunnable);
+
+  virtual bool CloseSocket(int aFd, BluetoothReplyRunnable* aRunnable);
 
   virtual nsresult
   CreatePairedDeviceInternal(const nsAString& aAdapterPath,
