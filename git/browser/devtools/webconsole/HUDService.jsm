@@ -92,12 +92,6 @@ XPCOMUtils.defineLazyGetter(this, "NetUtil", function () {
   return obj.NetUtil;
 });
 
-XPCOMUtils.defineLazyGetter(this, "template", function () {
-  var obj = {};
-  Cu.import("resource:///modules/devtools/Templater.jsm", obj);
-  return obj.template;
-});
-
 XPCOMUtils.defineLazyGetter(this, "PropertyPanel", function () {
   var obj = {};
   try {
@@ -1843,13 +1837,10 @@ HUD_SERVICE.prototype =
 
     // Remove the HUDBox and the consolePanel if the Web Console is inside a
     // floating panel.
-    if (hud.consolePanel && hud.consolePanel.parentNode) {
-      hud.consolePanel.parentNode.removeChild(hud.consolePanel);
-      hud.consolePanel.removeAttribute("hudId");
-      hud.consolePanel = null;
-    }
-
     hud.HUDBox.parentNode.removeChild(hud.HUDBox);
+    if (hud.consolePanel) {
+      hud.consolePanel.parentNode.removeChild(hud.consolePanel);
+    }
 
     if (hud.splitter.parentNode) {
       hud.splitter.parentNode.removeChild(hud.splitter);
@@ -3328,6 +3319,9 @@ HeadsUpDisplay.prototype = {
       }
 
       panel.removeEventListener("popuphidden", onPopupHidden, false);
+      if (panel.parentNode) {
+        panel.parentNode.removeChild(panel);
+      }
 
       let width = 0;
       try {
@@ -3339,12 +3333,24 @@ HeadsUpDisplay.prototype = {
         Services.prefs.setIntPref("devtools.webconsole.width", panel.clientWidth);
       }
 
-      // Are we destroying the HUD or repositioning it?
+      /*
+       * Removed because of bug 674562
+       * Services.prefs.setIntPref("devtools.webconsole.top", panel.panelBox.y);
+       * Services.prefs.setIntPref("devtools.webconsole.left", panel.panelBox.x);
+       */
+
+      // Make sure we are not going to close again, drop the hudId reference of
+      // the panel.
+      panel.removeAttribute("hudId");
+
       if (this.consoleWindowUnregisterOnHide) {
         HUDService.deactivateHUDForContext(this.tab, false);
-      } else {
+      }
+      else {
         this.consoleWindowUnregisterOnHide = true;
       }
+
+      this.consolePanel = null;
     }).bind(this);
 
     panel.addEventListener("popuphidden", onPopupHidden, false);
@@ -3482,14 +3488,13 @@ HeadsUpDisplay.prototype = {
 
     this.uiInOwnWindow = false;
     if (this.consolePanel) {
-      // must destroy the consolePanel
-      this.consoleWindowUnregisterOnHide = false;
-      this.consolePanel.hidePopup();
-      this.consolePanel.parentNode.removeChild(this.consolePanel);
-      this.consolePanel = null;   // remove this as we're not in panel anymore
       this.HUDBox.removeAttribute("flex");
       this.HUDBox.removeAttribute("height");
       this.HUDBox.style.height = height + "px";
+
+      // must destroy the consolePanel
+      this.consoleWindowUnregisterOnHide = false;
+      this.consolePanel.hidePopup();
     }
 
     if (this.jsterm) {
@@ -6199,7 +6204,7 @@ HeadsUpDisplayUICommands = {
 
     if (hudRef && hud) {
       if (hudRef.consolePanel) {
-        hudRef.consolePanel.hidePopup();
+        HUDService.deactivateHUDForContext(gBrowser.selectedTab, false);
       }
       else {
         HUDService.storeHeight(hudId);
@@ -6860,38 +6865,14 @@ GcliTerm.prototype = {
 
     let output = aEvent.output.output;
     if (aEvent.output.command.returnType == "html" && typeof output == "string") {
-      output = this.document.createRange().createContextualFragment(
+      let frag = this.document.createRange().createContextualFragment(
           '<div xmlns="' + HTML_NS + '" xmlns:xul="' + XUL_NS + '">' +
-          output + '</div>').firstChild;
+          output + '</div>');
+
+      output = this.document.createElementNS(HTML_NS, "div");
+      output.appendChild(frag);
     }
-
-    // See https://github.com/mozilla/domtemplate/blob/master/README.md
-    // for docs on the template() function
-    let element = this.document.createRange().createContextualFragment(
-      '<richlistitem xmlns="' + XUL_NS + '" clipboardText="${clipboardText}"' +
-      '    timestamp="${timestamp}" id="${id}" class="hud-msg-node">' +
-      '  <label class="webconsole-timestamp" value="${timestampString}"/>' +
-      '  <vbox class="webconsole-msg-icon-container" style="${iconContainerStyle}">' +
-      '    <image class="webconsole-msg-icon"/>' +
-      '    <spacer flex="1"/>' +
-      '  </vbox>' +
-      '  <hbox flex="1" class="gcliterm-msg-body">${output}</hbox>' +
-      '  <hbox align="start"><label value="1" class="webconsole-msg-repeat"/></hbox>' +
-      '</richlistitem>').firstChild;
-
-    let hud = HUDService.getHudReferenceById(this.hudId);
-    let timestamp = ConsoleUtils.timestamp();
-    template(element, {
-      iconContainerStyle: "margin-left=" + (hud.groupDepth * GROUP_INDENT) + "px",
-      output: output,
-      timestamp: timestamp,
-      timestampString: ConsoleUtils.timestampString(timestamp),
-      clipboardText: output.innerText,
-      id: "console-msg-" + HUDService.sequenceId()
-    });
-
-    ConsoleUtils.setMessageType(element, CATEGORY_OUTPUT, SEVERITY_LOG);
-    ConsoleUtils.outputMessageNode(element, this.hudId);
+    this.writeOutput(output);
   },
 
   /**

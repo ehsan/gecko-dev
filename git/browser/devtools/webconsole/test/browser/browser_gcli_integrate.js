@@ -83,12 +83,12 @@ function testCallCommands() {
   is(gcliterm.completeNode.textContent, " ecd", "Completion for \"ecd\"");
 
   // Test a normal command's life cycle
-  gcliterm.opts.console.inputter.setInput("echo hello world");
+  gcliterm.opts.display.inputter.setInput("echo hello world");
   gcliterm.opts.requisition.exec();
 
-  let nodes = hud.outputNode.querySelectorAll(".gcliterm-msg-body");
+  let nodes = hud.outputNode.querySelectorAll("description");
 
-  is(nodes.length, 1, "Right number of output nodes");
+  is(nodes.length, 2, "Right number of output nodes");
   ok(/hello world/.test(nodes[0].textContent), "the command's output is correct.");
 
   gcliterm.clearOutput();

@@ -68,8 +68,7 @@ static const char *kTypeString[] = {"other",
                                     "objectsubrequest",
                                     "dtd",
                                     "font",
-                                    "media",
-                                    "websocket"};
+                                    "media"};
 
 #define NUMBER_OF_TYPES NS_ARRAY_LENGTH(kTypeString)
 PRUint8 nsContentBlocker::mBehaviorPref[NUMBER_OF_TYPES];

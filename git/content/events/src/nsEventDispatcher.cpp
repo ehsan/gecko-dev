@@ -222,8 +222,7 @@ public:
   /**
    * Copies mItemFlags and mItemData to aVisitor and calls PostHandleEvent.
    */
-  nsresult PostHandleEvent(nsEventChainPostVisitor& aVisitor,
-                           nsCxPusher* aPusher);
+  nsresult PostHandleEvent(nsEventChainPostVisitor& aVisitor);
 
   static PRUint32 MaxEtciCount() { return sMaxEtciCount; }
 
@@ -283,10 +282,8 @@ nsEventTargetChainItem::PreHandleEvent(nsEventChainPreVisitor& aVisitor)
 }
 
 nsresult
-nsEventTargetChainItem::PostHandleEvent(nsEventChainPostVisitor& aVisitor,
-                                        nsCxPusher* aPusher)
+nsEventTargetChainItem::PostHandleEvent(nsEventChainPostVisitor& aVisitor)
 {
-  aPusher->Pop();
   aVisitor.mItemFlags = mItemFlags;
   aVisitor.mItemData = mItemData;
   mTarget->PostHandleEvent(aVisitor);
@@ -347,7 +344,7 @@ nsEventTargetChainItem::HandleEventTargetChain(nsEventChainPostVisitor& aVisitor
                       aPusher);
   }
   if (aFlags & NS_EVENT_FLAG_SYSTEM_EVENT) {
-    item->PostHandleEvent(aVisitor, aPusher);
+    item->PostHandleEvent(aVisitor);
   }
 
   // Bubble
@@ -370,7 +367,7 @@ nsEventTargetChainItem::HandleEventTargetChain(nsEventChainPostVisitor& aVisitor
                           aPusher);
       }
       if (aFlags & NS_EVENT_FLAG_SYSTEM_EVENT) {
-        item->PostHandleEvent(aVisitor, aPusher);
+        item->PostHandleEvent(aVisitor);
       }
     }
     item = item->mParent;
@@ -389,7 +386,6 @@ nsEventTargetChainItem::HandleEventTargetChain(nsEventChainPostVisitor& aVisitor
     // Special handling if PresShell (or some other caller)
     // used a callback object.
     if (aCallback) {
-      aPusher->Pop();
       aCallback->HandleEvent(aVisitor);
     }
 
