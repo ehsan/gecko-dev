@@ -1410,6 +1410,7 @@ nsHttpHandler::NewURI(const nsACString &aSpec,
                       nsIURI *aBaseURI,
                       nsIURI **aURI)
 {
+    LOG(("nsHttpHandler::NewURI\n"));
     return ::NewURI(aSpec, aCharset, aBaseURI, NS_HTTP_DEFAULT_PORT, aURI);
 }
 
