@@ -76,6 +76,7 @@
 #include "nsCRT.h"
 #include "nsIDOMEvent.h"
 #include "nsIDOMEventTarget.h"
+#include "nsIPrivateDOMEvent.h"
 #ifdef MOZ_XTF
 #include "nsIXTFService.h"
 static NS_DEFINE_CID(kXTFServiceCID, NS_XTFSERVICE_CID);
@@ -3367,13 +3368,16 @@ nsresult GetEventAndTarget(nsIDocument* aDoc, nsISupports* aTarget,
     domDoc->CreateEvent(NS_LITERAL_STRING("Events"), getter_AddRefs(event));
   NS_ENSURE_SUCCESS(rv, rv);
 
+  nsCOMPtr<nsIPrivateDOMEvent> privateEvent(do_QueryInterface(event));
+  NS_ENSURE_TRUE(privateEvent, NS_ERROR_FAILURE);
+
   rv = event->InitEvent(aEventName, aCanBubble, aCancelable);
   NS_ENSURE_SUCCESS(rv, rv);
 
-  rv = event->SetTrusted(aTrusted);
+  rv = privateEvent->SetTrusted(aTrusted);
   NS_ENSURE_SUCCESS(rv, rv);
 
-  rv = event->SetTarget(target);
+  rv = privateEvent->SetTarget(target);
   NS_ENSURE_SUCCESS(rv, rv);
 
   event.forget(aEvent);
@@ -4640,7 +4644,10 @@ nsContentUtils::GetLocalizedEllipsis()
 nsEvent*
 nsContentUtils::GetNativeEvent(nsIDOMEvent* aDOMEvent)
 {
-  return aDOMEvent ? aDOMEvent->GetInternalNSEvent() : nsnull;
+  nsCOMPtr<nsIPrivateDOMEvent> privateEvent(do_QueryInterface(aDOMEvent));
+  if (!privateEvent)
+    return nsnull;
+  return privateEvent->GetInternalNSEvent();
 }
 
 //static
@@ -5920,6 +5927,8 @@ nsContentUtils::DispatchXULCommand(nsIContent* aTarget,
   domDoc->CreateEvent(NS_LITERAL_STRING("xulcommandevent"),
                       getter_AddRefs(event));
   nsCOMPtr<nsIDOMXULCommandEvent> xulCommand = do_QueryInterface(event);
+  nsCOMPtr<nsIPrivateDOMEvent> pEvent = do_QueryInterface(xulCommand);
+  NS_ENSURE_STATE(pEvent);
   nsresult rv = xulCommand->InitCommandEvent(NS_LITERAL_STRING("command"),
                                              true, true, doc->GetWindow(),
                                              0, aCtrl, aAlt, aShift, aMeta,

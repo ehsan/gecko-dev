@@ -39,6 +39,7 @@
 #include "nsCaret.h"
 #include "nsIWidget.h"
 #include "nsIPlaintextEditor.h"
+#include "nsIPrivateDOMEvent.h"
 #include "nsGUIEvent.h"
 
 #include "nsIFrame.h"  // Needed by IME code
@@ -5384,8 +5385,9 @@ nsEditor::IsModifiableNode(nsINode *aNode)
 nsKeyEvent*
 nsEditor::GetNativeKeyEvent(nsIDOMKeyEvent* aDOMKeyEvent)
 {
-  NS_ENSURE_TRUE(aDOMKeyEvent, nsnull);
-  nsEvent* nativeEvent = aDOMKeyEvent->GetInternalNSEvent();
+  nsCOMPtr<nsIPrivateDOMEvent> privDOMEvent = do_QueryInterface(aDOMKeyEvent);
+  NS_ENSURE_TRUE(privDOMEvent, nsnull);
+  nsEvent* nativeEvent = privDOMEvent->GetInternalNSEvent();
   NS_ENSURE_TRUE(nativeEvent, nsnull);
   NS_ENSURE_TRUE(nativeEvent->eventStructType == NS_KEY_EVENT, nsnull);
   return static_cast<nsKeyEvent*>(nativeEvent);

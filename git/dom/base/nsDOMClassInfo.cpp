@@ -503,6 +503,7 @@ using mozilla::dom::indexedDB::IDBWrapperCache;
 #include "nsIDOMSmsRequest.h"
 #include "nsIDOMSmsFilter.h"
 #include "nsIDOMSmsCursor.h"
+#include "nsIPrivateDOMEvent.h"
 #include "nsIDOMConnection.h"
 #include "nsIDOMMobileConnection.h"
 #include "USSDReceivedEvent.h"

@@ -46,6 +46,7 @@ using mozilla::DefaultXDisplay;
 #include "nsIDocShellTreeItem.h"
 #include "nsIWebBrowserChrome.h"
 #include "nsLayoutUtils.h"
+#include "nsIPrivateDOMEvent.h"
 #include "nsIPluginWidget.h"
 #include "nsIViewManager.h"
 #include "nsIDocShellTreeOwner.h"
@@ -1710,56 +1711,6 @@ void nsPluginInstanceOwner::ScrollPositionDidChange(nscoord aX, nscoord aY)
 
 #ifdef MOZ_WIDGET_ANDROID
 
-// Modified version of nsFrame::GetOffsetToCrossDoc that stops when it
-// hits an element with a displayport (or runs out of frames). This is
-// not really the right thing to do, but it's better than what was here before.
-static nsPoint
-GetOffsetRootContent(nsIFrame* aFrame)
-{
-  // offset will hold the final offset
-  // docOffset holds the currently accumulated offset at the current APD, it
-  // will be converted and added to offset when the current APD changes.
-  nsPoint offset(0, 0), docOffset(0, 0);
-  const nsIFrame* f = aFrame;
-  PRInt32 currAPD = aFrame->PresContext()->AppUnitsPerDevPixel();
-  PRInt32 apd = currAPD;
-  nsRect displayPort;
-  while (f) {
-    if (f->GetContent() && nsLayoutUtils::GetDisplayPort(f->GetContent(), &displayPort))
-      break;
-
-    docOffset += f->GetPosition();
-    nsIFrame* parent = f->GetParent();
-    if (parent) {
-      f = parent;
-    } else {
-      nsPoint newOffset(0, 0);
-      f = nsLayoutUtils::GetCrossDocParentFrame(f, &newOffset);
-      PRInt32 newAPD = f ? f->PresContext()->AppUnitsPerDevPixel() : 0;
-      if (!f || newAPD != currAPD) {
-        // Convert docOffset to the right APD and add it to offset.
-        offset += docOffset.ConvertAppUnits(currAPD, apd);
-        docOffset.x = docOffset.y = 0;
-      }
-      currAPD = newAPD;
-      docOffset += newOffset;
-    }
-  }
-
-  offset += docOffset.ConvertAppUnits(currAPD, apd);
-
-  return offset;
-}
-
-gfxRect nsPluginInstanceOwner::GetPluginRect()
-{
-  // Get the offset of the content relative to the page
-  nsRect bounds = mObjectFrame->GetContentRectRelativeToSelf() + GetOffsetRootContent(mObjectFrame);
-  nsIntRect intBounds = bounds.ToNearestPixels(mObjectFrame->PresContext()->AppUnitsPerDevPixel());
-
-  return gfxRect(intBounds);
-}
-
 void nsPluginInstanceOwner::SendSize(int width, int height)
 {
   if (!mInstance)
@@ -1847,16 +1798,12 @@ void nsPluginInstanceOwner::ExitFullScreen() {
   PRInt32 model = mInstance->GetANPDrawingModel();
 
   if (model == kSurface_ANPDrawingModel) {
-    // We need to do this immediately, otherwise Flash
-    // sometimes causes a deadlock (bug 762407)
-    AddPluginView(GetPluginRect());
+    // We need to invalidate the plugin rect so Paint() gets called above.
+    // This will cause the view to be re-added. Gross.
+    Invalidate();
   }
 
   mInstance->NotifyFullScreen(mFullScreen);
-
-  // This will cause Paint() to be called, which is where
-  // we normally add/update views and layers
-  Invalidate();
 }
 
 void nsPluginInstanceOwner::ExitFullScreen(jobject view) {
@@ -1900,17 +1847,22 @@ nsresult nsPluginInstanceOwner::DispatchFocusToPlugin(nsIDOMEvent* aFocusEvent)
   }
 #endif
 
-  nsEvent* theEvent = aFocusEvent->GetInternalNSEvent();
-  if (theEvent) {
-    // we only care about the message in ProcessEvent
-    nsGUIEvent focusEvent(NS_IS_TRUSTED_EVENT(theEvent), theEvent->message,
-                          nsnull);
-    nsEventStatus rv = ProcessEvent(focusEvent);
-    if (nsEventStatus_eConsumeNoDefault == rv) {
-      aFocusEvent->PreventDefault();
-      aFocusEvent->StopPropagation();
-    }   
+  nsCOMPtr<nsIPrivateDOMEvent> privateEvent(do_QueryInterface(aFocusEvent));
+  if (privateEvent) {
+    nsEvent * theEvent = privateEvent->GetInternalNSEvent();
+    if (theEvent) {
+      // we only care about the message in ProcessEvent
+      nsGUIEvent focusEvent(NS_IS_TRUSTED_EVENT(theEvent), theEvent->message,
+                            nsnull);
+      nsEventStatus rv = ProcessEvent(focusEvent);
+      if (nsEventStatus_eConsumeNoDefault == rv) {
+        aFocusEvent->PreventDefault();
+        aFocusEvent->StopPropagation();
+      }
+    }
+    else NS_ASSERTION(false, "nsPluginInstanceOwner::DispatchFocusToPlugin failed, focusEvent null");   
   }
+  else NS_ASSERTION(false, "nsPluginInstanceOwner::DispatchFocusToPlugin failed, privateEvent null");   
   
   return NS_OK;
 }    
@@ -1919,14 +1871,19 @@ nsresult nsPluginInstanceOwner::DispatchFocusToPlugin(nsIDOMEvent* aFocusEvent)
 nsresult nsPluginInstanceOwner::Text(nsIDOMEvent* aTextEvent)
 {
   if (mInstance) {
-    nsEvent *event = aTextEvent->GetInternalNSEvent();
-    if (event && event->eventStructType == NS_TEXT_EVENT) {
-      nsEventStatus rv = ProcessEvent(*static_cast<nsGUIEvent*>(event));
-      if (nsEventStatus_eConsumeNoDefault == rv) {
-        aTextEvent->PreventDefault();
-        aTextEvent->StopPropagation();
+    nsCOMPtr<nsIPrivateDOMEvent> privateEvent(do_QueryInterface(aTextEvent));
+    if (privateEvent) {
+      nsEvent *event = privateEvent->GetInternalNSEvent();
+      if (event && event->eventStructType == NS_TEXT_EVENT) {
+        nsEventStatus rv = ProcessEvent(*static_cast<nsGUIEvent*>(event));
+        if (nsEventStatus_eConsumeNoDefault == rv) {
+          aTextEvent->PreventDefault();
+          aTextEvent->StopPropagation();
+        }
       }
+      else NS_ASSERTION(false, "nsPluginInstanceOwner::DispatchTextToPlugin failed, textEvent null");
     }
+    else NS_ASSERTION(false, "nsPluginInstanceOwner::DispatchTextToPlugin failed, privateEvent null");
   }
 
   return NS_OK;
@@ -1941,13 +1898,16 @@ nsresult nsPluginInstanceOwner::KeyPress(nsIDOMEvent* aKeyEvent)
     // KeyPress events are really synthesized keyDown events.
     // Here we check the native message of the event so that
     // we won't send the plugin two keyDown events.
-    nsEvent *theEvent = aKeyEvent->GetInternalNSEvent();
-    const EventRecord *ev;
-    if (theEvent &&
-        theEvent->message == NS_KEY_PRESS &&
-        (ev = (EventRecord*)(((nsGUIEvent*)theEvent)->pluginEvent)) &&
-        ev->what == keyDown)
-      return aKeyEvent->PreventDefault(); // consume event
+    nsCOMPtr<nsIPrivateDOMEvent> privateEvent(do_QueryInterface(aKeyEvent));
+    if (privateEvent) {
+      nsEvent *theEvent = privateEvent->GetInternalNSEvent();
+      const EventRecord *ev;
+      if (theEvent &&
+          theEvent->message == NS_KEY_PRESS &&
+          (ev = (EventRecord*)(((nsGUIEvent*)theEvent)->pluginEvent)) &&
+          ev->what == keyDown)
+        return aKeyEvent->PreventDefault(); // consume event
+    }
 
     // Nasty hack to avoid recursive event dispatching with Java. Java can
     // dispatch key events to a TSM handler, which comes back and calls 
@@ -1989,14 +1949,19 @@ nsresult nsPluginInstanceOwner::DispatchKeyToPlugin(nsIDOMEvent* aKeyEvent)
 #endif
 
   if (mInstance) {
-    nsEvent *event = aKeyEvent->GetInternalNSEvent();
-    if (event && event->eventStructType == NS_KEY_EVENT) {
-      nsEventStatus rv = ProcessEvent(*static_cast<nsGUIEvent*>(event));
-      if (nsEventStatus_eConsumeNoDefault == rv) {
-        aKeyEvent->PreventDefault();
-        aKeyEvent->StopPropagation();
-      }   
+    nsCOMPtr<nsIPrivateDOMEvent> privateEvent(do_QueryInterface(aKeyEvent));
+    if (privateEvent) {
+      nsEvent *event = privateEvent->GetInternalNSEvent();
+      if (event && event->eventStructType == NS_KEY_EVENT) {
+        nsEventStatus rv = ProcessEvent(*static_cast<nsGUIEvent*>(event));
+        if (nsEventStatus_eConsumeNoDefault == rv) {
+          aKeyEvent->PreventDefault();
+          aKeyEvent->StopPropagation();
+        }
+      }
+      else NS_ASSERTION(false, "nsPluginInstanceOwner::DispatchKeyToPlugin failed, keyEvent null");   
     }
+    else NS_ASSERTION(false, "nsPluginInstanceOwner::DispatchKeyToPlugin failed, privateEvent null");   
   }
 
   return NS_OK;
@@ -2023,13 +1988,18 @@ nsPluginInstanceOwner::MouseDown(nsIDOMEvent* aMouseEvent)
     }
   }
 
-  nsEvent* event = aMouseEvent->GetInternalNSEvent();
-    if (event && event->eventStructType == NS_MOUSE_EVENT) {
-      nsEventStatus rv = ProcessEvent(*static_cast<nsGUIEvent*>(event));
-    if (nsEventStatus_eConsumeNoDefault == rv) {
-      return aMouseEvent->PreventDefault(); // consume event
+  nsCOMPtr<nsIPrivateDOMEvent> privateEvent(do_QueryInterface(aMouseEvent));
+  if (privateEvent) {
+    nsEvent* event = privateEvent->GetInternalNSEvent();
+      if (event && event->eventStructType == NS_MOUSE_EVENT) {
+        nsEventStatus rv = ProcessEvent(*static_cast<nsGUIEvent*>(event));
+      if (nsEventStatus_eConsumeNoDefault == rv) {
+        return aMouseEvent->PreventDefault(); // consume event
+      }
     }
+    else NS_ASSERTION(false, "nsPluginInstanceOwner::MouseDown failed, mouseEvent null");   
   }
+  else NS_ASSERTION(false, "nsPluginInstanceOwner::MouseDown failed, privateEvent null");   
   
   return NS_OK;
 }
@@ -2045,14 +2015,20 @@ nsresult nsPluginInstanceOwner::DispatchMouseToPlugin(nsIDOMEvent* aMouseEvent)
   if (!mWidgetVisible)
     return NS_OK;
 
-  nsEvent* event = aMouseEvent->GetInternalNSEvent();
-  if (event && event->eventStructType == NS_MOUSE_EVENT) {
-    nsEventStatus rv = ProcessEvent(*static_cast<nsGUIEvent*>(event));
-    if (nsEventStatus_eConsumeNoDefault == rv) {
-      aMouseEvent->PreventDefault();
-      aMouseEvent->StopPropagation();
+  nsCOMPtr<nsIPrivateDOMEvent> privateEvent(do_QueryInterface(aMouseEvent));
+  if (privateEvent) {
+    nsEvent* event = privateEvent->GetInternalNSEvent();
+    if (event && event->eventStructType == NS_MOUSE_EVENT) {
+      nsEventStatus rv = ProcessEvent(*static_cast<nsGUIEvent*>(event));
+      if (nsEventStatus_eConsumeNoDefault == rv) {
+        aMouseEvent->PreventDefault();
+        aMouseEvent->StopPropagation();
+      }
     }
+    else NS_ASSERTION(false, "nsPluginInstanceOwner::DispatchMouseToPlugin failed, mouseEvent null");   
   }
+  else NS_ASSERTION(false, "nsPluginInstanceOwner::DispatchMouseToPlugin failed, privateEvent null");   
+  
   return NS_OK;
 }
 
@@ -2105,14 +2081,17 @@ nsPluginInstanceOwner::HandleEvent(nsIDOMEvent* aEvent)
 
   nsCOMPtr<nsIDOMDragEvent> dragEvent(do_QueryInterface(aEvent));
   if (dragEvent && mInstance) {
-    nsEvent* ievent = aEvent->GetInternalNSEvent();
-    if ((ievent && NS_IS_TRUSTED_EVENT(ievent)) &&
-         ievent->message != NS_DRAGDROP_ENTER && ievent->message != NS_DRAGDROP_OVER) {
-      aEvent->PreventDefault();
-    }
+    nsCOMPtr<nsIPrivateDOMEvent> privateEvent(do_QueryInterface(aEvent));
+    if (privateEvent) {
+      nsEvent* ievent = privateEvent->GetInternalNSEvent();
+      if ((ievent && NS_IS_TRUSTED_EVENT(ievent)) &&
+           ievent->message != NS_DRAGDROP_ENTER && ievent->message != NS_DRAGDROP_OVER) {
+        aEvent->PreventDefault();
+      }
 
-    // Let the plugin handle drag events.
-    aEvent->StopPropagation();
+      // Let the plugin handle drag events.
+      aEvent->StopPropagation();
+    }
   }
   return NS_OK;
 }
@@ -2902,6 +2881,47 @@ void nsPluginInstanceOwner::Paint(const nsRect& aDirtyRect, HPS aHPS)
 
 #ifdef MOZ_WIDGET_ANDROID
 
+// Modified version of nsFrame::GetOffsetToCrossDoc that stops when it
+// hits an element with a displayport (or runs out of frames). This is
+// not really the right thing to do, but it's better than what was here before.
+static nsPoint
+GetOffsetRootContent(nsIFrame* aFrame)
+{
+  // offset will hold the final offset
+  // docOffset holds the currently accumulated offset at the current APD, it
+  // will be converted and added to offset when the current APD changes.
+  nsPoint offset(0, 0), docOffset(0, 0);
+  const nsIFrame* f = aFrame;
+  PRInt32 currAPD = aFrame->PresContext()->AppUnitsPerDevPixel();
+  PRInt32 apd = currAPD;
+  nsRect displayPort;
+  while (f) {
+    if (f->GetContent() && nsLayoutUtils::GetDisplayPort(f->GetContent(), &displayPort))
+      break;
+
+    docOffset += f->GetPosition();
+    nsIFrame* parent = f->GetParent();
+    if (parent) {
+      f = parent;
+    } else {
+      nsPoint newOffset(0, 0);
+      f = nsLayoutUtils::GetCrossDocParentFrame(f, &newOffset);
+      PRInt32 newAPD = f ? f->PresContext()->AppUnitsPerDevPixel() : 0;
+      if (!f || newAPD != currAPD) {
+        // Convert docOffset to the right APD and add it to offset.
+        offset += docOffset.ConvertAppUnits(currAPD, apd);
+        docOffset.x = docOffset.y = 0;
+      }
+      currAPD = newAPD;
+      docOffset += newOffset;
+    }
+  }
+
+  offset += docOffset.ConvertAppUnits(currAPD, apd);
+
+  return offset;
+}
+
 void nsPluginInstanceOwner::Paint(gfxContext* aContext,
                                   const gfxRect& aFrameRect,
                                   const gfxRect& aDirtyRect)
@@ -2911,7 +2931,10 @@ void nsPluginInstanceOwner::Paint(gfxContext* aContext,
 
   PRInt32 model = mInstance->GetANPDrawingModel();
 
-  gfxRect pluginRect = GetPluginRect();
+  // Get the offset of the content relative to the page
+  nsRect bounds = mObjectFrame->GetContentRectRelativeToSelf() + GetOffsetRootContent(mObjectFrame);
+  nsIntRect intBounds = bounds.ToNearestPixels(mObjectFrame->PresContext()->AppUnitsPerDevPixel());
+  gfxRect pluginRect(intBounds);
 
   if (model == kSurface_ANPDrawingModel) {
     if (!AddPluginView(pluginRect)) {

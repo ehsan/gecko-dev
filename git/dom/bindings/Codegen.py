@@ -3461,7 +3461,7 @@ class CGBindingRoot(CGThing):
                          ['mozilla/dom/BindingUtils.h',
                           'mozilla/dom/DOMJSClass.h'],
                          ['mozilla/dom/Nullable.h',
-                          'PrimitiveConversions.h',
+                          'mozilla/dom/PrimitiveConversions.h',
                           'XPCQuickStubs.h',
                           'nsDOMQS.h',
                           'AccessCheck.h',
