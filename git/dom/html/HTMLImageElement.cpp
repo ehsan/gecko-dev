@@ -619,8 +619,8 @@ HTMLImageElement::UnbindFromTree(bool aDeep, bool aNullParent)
     }
   }
 
-  if (aNullParent &&
-      nsINode::GetParentNode()->Tag() == nsGkAtoms::picture &&
+  if (aNullParent && GetParent() &&
+      GetParent()->IsHTML(nsGkAtoms::picture) &&
       HTMLPictureElement::IsPictureEnabled()) {
     // Being removed from picture re-triggers selection, even if we
     // weren't using a <source> peer
@@ -1103,7 +1103,10 @@ HTMLImageElement::TryCreateResponsiveSelector(nsIContent *aSourceNode,
 
     nsAutoString type;
     if (aSourceNode->GetAttr(kNameSpaceID_None, nsGkAtoms::type, type) &&
-        !imgLoader::SupportImageWithMimeType(NS_ConvertUTF16toUTF8(type).get())) {
+        !imgLoader::SupportImageWithMimeType(
+          NS_ConvertUTF16toUTF8(type).get(),
+          AcceptedMimeTypes::IMAGES_AND_DOCUMENTS)
+        ) {
       return false;
     }
   } else if (aSourceNode->Tag() == nsGkAtoms::img) {
