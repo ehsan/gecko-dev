@@ -6,8 +6,6 @@ XPCOMUtils.defineLazyModuleGetter(this, "Promise",
   "resource://gre/modules/Promise.jsm");
 XPCOMUtils.defineLazyModuleGetter(this, "Task",
   "resource://gre/modules/Task.jsm");
-XPCOMUtils.defineLazyModuleGetter(this, "fxAccounts",
-  "resource://gre/modules/FxAccounts.jsm");
 
 registerCleanupFunction(function() {
   // Ensure we don't pollute prefs for next tests.
@@ -49,7 +47,7 @@ let gTests = [
       ok(false, "Failed to get all commands");
       deferred.reject();
     }
-    return deferred.promise.then(() => fxAccounts.signOut());
+    return deferred.promise;
   }
 },
 
@@ -76,19 +74,18 @@ function test()
   });
 }
 
-function promiseNewTabLoadEvent(aUrl)
+function promiseNewTabLoadEvent(aUrl, aEventType="load")
 {
   let deferred = Promise.defer();
   let tab = gBrowser.selectedTab = gBrowser.addTab(aUrl);
-  let browser = tab.linkedBrowser;
-
-  browser.addEventListener("load", function onLoad(event) {
-    let iframe = browser.contentDocument.getElementById("remote");
-    if (iframe && event.target == iframe.contentDocument) {
-      browser.removeEventListener("load", onLoad, true);
-      deferred.resolve();
-    }
-  }, true);
-
+  tab.linkedBrowser.addEventListener(aEventType, function load(event) {
+    tab.linkedBrowser.removeEventListener(aEventType, load, true);
+    let iframe = tab.linkedBrowser.contentDocument.getElementById("remote");
+      iframe.addEventListener("load", function frameLoad(e) {
+        iframe.removeEventListener("load", frameLoad, false);
+        deferred.resolve();
+      }, false);
+    }, true);
   return deferred.promise;
 }
+
