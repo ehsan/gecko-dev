@@ -47,8 +47,7 @@ nsNSSCertCache::CacheAllCerts()
 
   nsCOMPtr<nsIInterfaceRequestor> cxt = new PipUIContext();
   
-  insanity::pkix::ScopedCERTCertList newList(
-    PK11_ListCerts(PK11CertListUnique, cxt));
+  CERTCertList *newList = PK11_ListCerts(PK11CertListUnique, cxt);
 
   if (newList) {
     MutexAutoLock lock(mutex);

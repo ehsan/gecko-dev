@@ -413,8 +413,7 @@ public:
 
     NS_IMETHOD Run()
     {
-        hal::NotifySwitchStateFromInputDevice(mEvent.device(),
-          mEvent.status());
+        hal::NotifySwitchChange(mEvent);
         return NS_OK;
     }
 private:

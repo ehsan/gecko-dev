@@ -2,10 +2,8 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-#include "nsCertTree.h"
-
-#include "insanity/pkixtypes.h"
 #include "nsNSSComponent.h" // for PIPNSS string bundle calls.
+#include "nsCertTree.h"
 #include "nsITreeColumns.h"
 #include "nsIX509Cert.h"
 #include "nsIX509CertValidity.h"
@@ -22,6 +20,7 @@
 #include "nsXPCOMCID.h"
 #include "nsTHashtable.h"
 #include "nsHashKeys.h"
+#include "ScopedNSSTypes.h"
  
 #include "prlog.h"
 
@@ -638,10 +637,9 @@ nsCertTree::GetCertsByType(uint32_t           aType,
 {
   nsNSSShutDownPreventionLock locker;
   nsCOMPtr<nsIInterfaceRequestor> cxt = new PipUIContext();
-  insanity::pkix::ScopedCERTCertList certList(
-    PK11_ListCerts(PK11CertListUnique, cxt));
-  return GetCertsByTypeFromCertList(certList.get(), aType, aCertCmpFn,
-                                    aCertCmpFnArg);
+  ScopedCERTCertList certList(PK11_ListCerts(PK11CertListUnique, cxt));
+  nsresult rv = GetCertsByTypeFromCertList(certList, aType, aCertCmpFn, aCertCmpFnArg);
+  return rv;
 }
 
 nsresult 
@@ -809,7 +807,7 @@ nsCertTree::DeleteEntryObject(uint32_t index)
             // although there are still overrides stored,
             // so, we keep the cert, but remove the trust
 
-            insanity::pkix::ScopedCERTCertificate nsscert;
+            ScopedCERTCertificate nsscert;
 
             nsCOMPtr<nsIX509Cert2> cert2 = do_QueryInterface(cert);
             if (cert2) {
@@ -822,8 +820,7 @@ nsCertTree::DeleteEntryObject(uint32_t index)
             
               SECStatus srv = CERT_DecodeTrustString(&trust, ""); // no override 
               if (srv == SECSuccess) {
-                CERT_ChangeCertTrust(CERT_GetDefaultCertDB(), nsscert.get(),
-                                     &trust);
+                CERT_ChangeCertTrust(CERT_GetDefaultCertDB(), nsscert, &trust);
               }
             }
           }

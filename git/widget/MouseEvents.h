@@ -62,12 +62,6 @@ protected:
 public:
   virtual WidgetMouseEventBase* AsMouseEventBase() MOZ_OVERRIDE { return this; }
 
-  virtual WidgetEvent* Duplicate() const MOZ_OVERRIDE
-  {
-    MOZ_CRASH("WidgetMouseEventBase must not be most-subclass");
-    return nullptr;
-  }
-
   /// The possible related target
   nsCOMPtr<nsISupports> relatedTarget;
 
@@ -214,18 +208,6 @@ public:
   }
 #endif
 
-  virtual WidgetEvent* Duplicate() const MOZ_OVERRIDE
-  {
-    MOZ_ASSERT(eventStructType == NS_MOUSE_EVENT,
-               "Duplicate() must be overridden by sub class");
-    // Not copying widget, it is a weak reference.
-    WidgetMouseEvent* result =
-      new WidgetMouseEvent(false, message, nullptr, reason, context);
-    result->AssignMouseEventData(*this, true);
-    result->mFlags = mFlags;
-    return result;
-  }
-
   // Special return code for MOUSE_ACTIVATE to signal.
   // If the target accepts activation (1), or denies it (0).
   bool acceptActivation;
@@ -276,17 +258,6 @@ public:
        aMessage != NS_DRAGDROP_END);
   }
 
-  virtual WidgetEvent* Duplicate() const MOZ_OVERRIDE
-  {
-    MOZ_ASSERT(eventStructType == NS_DRAG_EVENT,
-               "Duplicate() must be overridden by sub class");
-    // Not copying widget, it is a weak reference.
-    WidgetDragEvent* result = new WidgetDragEvent(false, message, nullptr);
-    result->AssignDragEventData(*this, true);
-    result->mFlags = mFlags;
-    return result;
-  }
-
   // The dragging data.
   nsCOMPtr<nsIDOMDataTransfer> dataTransfer;
 
@@ -333,18 +304,6 @@ public:
     WidgetMouseEventBase(aIsTrusted, aMessage, aWidget, NS_MOUSE_SCROLL_EVENT),
     delta(0), isHorizontal(false)
   {
-  }
-
-  virtual WidgetEvent* Duplicate() const MOZ_OVERRIDE
-  {
-    MOZ_ASSERT(eventStructType == NS_MOUSE_SCROLL_EVENT,
-               "Duplicate() must be overridden by sub class");
-    // Not copying widget, it is a weak reference.
-    WidgetMouseScrollEvent* result =
-      new WidgetMouseScrollEvent(false, message, nullptr);
-    result->AssignMouseScrollEventData(*this, true);
-    result->mFlags = mFlags;
-    return result;
   }
 
   // The delta value of mouse scroll event.
@@ -395,17 +354,6 @@ public:
     overflowDeltaX(0.0), overflowDeltaY(0.0),
     mViewPortIsOverscrolled(false)
   {
-  }
-
-  virtual WidgetEvent* Duplicate() const MOZ_OVERRIDE
-  {
-    MOZ_ASSERT(eventStructType == NS_WHEEL_EVENT,
-               "Duplicate() must be overridden by sub class");
-    // Not copying widget, it is a weak reference.
-    WidgetWheelEvent* result = new WidgetWheelEvent(false, message, nullptr);
-    result->AssignWheelEventData(*this, true);
-    result->mFlags = mFlags;
-    return result;
   }
 
   // NOTE: deltaX, deltaY and deltaZ may be customized by
@@ -564,38 +512,12 @@ public:
   {
   }
 
-  virtual WidgetEvent* Duplicate() const MOZ_OVERRIDE
-  {
-    MOZ_ASSERT(eventStructType == NS_POINTER_EVENT,
-               "Duplicate() must be overridden by sub class");
-    // Not copying widget, it is a weak reference.
-    WidgetPointerEvent* result =
-      new WidgetPointerEvent(false, message, nullptr);
-    result->AssignPointerEventData(*this, true);
-    result->mFlags = mFlags;
-    return result;
-  }
-
   uint32_t pointerId;
   uint32_t width;
   uint32_t height;
   uint32_t tiltX;
   uint32_t tiltY;
   bool isPrimary;
-
-  // XXX Not tested by test_assign_event_data.html
-  void AssignPointerEventData(const WidgetPointerEvent& aEvent,
-                              bool aCopyTargets)
-  {
-    AssignMouseEventData(aEvent, aCopyTargets);
-
-    pointerId = aEvent.pointerId;
-    width = aEvent.width;
-    height = aEvent.height;
-    tiltX = aEvent.tiltX;
-    tiltY = aEvent.tiltY;
-    isPrimary = aEvent.isPrimary;
-  }
 };
 
 } // namespace mozilla

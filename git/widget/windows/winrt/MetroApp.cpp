@@ -42,7 +42,6 @@ namespace winrt {
 ComPtr<FrameworkView> sFrameworkView;
 ComPtr<MetroApp> sMetroApp;
 ComPtr<ICoreApplication> sCoreApp;
-bool MetroApp::sGeckoShuttingDown = false;
 
 ////////////////////////////////////////////////////
 // IFrameworkViewSource impl.
@@ -97,7 +96,7 @@ MetroApp::Run()
 // Free all xpcom related resources before calling the xre shutdown call.
 // Must be called on the metro main thread. Currently called from appshell.
 void
-MetroApp::Shutdown()
+MetroApp::ShutdownXPCOM()
 {
   LogThread();
 
@@ -107,10 +106,8 @@ MetroApp::Shutdown()
   }
 
   if (sFrameworkView) {
-    sFrameworkView->Shutdown();
+    sFrameworkView->ShutdownXPCOM();
   }
-
-  MetroApp::sGeckoShuttingDown = true;
 
   // Shut down xpcom
   XRE_metroShutdown();
