@@ -451,20 +451,15 @@ nsTreeBodyFrame::ReflowFinished()
     if (mTopRowIndex > lastPageTopRow)
       ScrollToRowInternal(parts, lastPageTopRow);
 
-    nsIContent *treeContent = GetBaseElement();
-    if (treeContent->AttrValueIs(kNameSpaceID_None,
-                                 nsGkAtoms::keepcurrentinview,
-                                 nsGkAtoms::_true, eCaseMatters)) {
-      // make sure that the current selected item is still
-      // visible after the tree changes size.
-      nsCOMPtr<nsITreeSelection> sel;
-      mView->GetSelection(getter_AddRefs(sel));
-      if (sel) {
-        PRInt32 currentIndex;
-        sel->GetCurrentIndex(&currentIndex);
-        if (currentIndex != -1)
-          EnsureRowIsVisibleInternal(parts, currentIndex);
-      }
+    // make sure that the current selected item is still
+    // visible after the tree changes size.
+    nsCOMPtr<nsITreeSelection> sel;
+    mView->GetSelection(getter_AddRefs(sel));
+    if (sel) {
+      PRInt32 currentIndex;
+      sel->GetCurrentIndex(&currentIndex);
+      if (currentIndex != -1)
+        EnsureRowIsVisibleInternal(parts, currentIndex);
     }
 
     if (!FullScrollbarsUpdate(PR_FALSE)) {

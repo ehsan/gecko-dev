@@ -2675,10 +2675,6 @@ nsDocument::GetElementsByClassName(const nsAString& aClasses,
   return GetElementsByClassNameHelper(this, aClasses, aReturn);
 }
 
-struct ClassMatchingInfo {
-  nsCOMArray<nsIAtom> mClasses;
-  nsCaseTreatment mCaseTreatment;
-};
 
 // static GetElementsByClassName helpers
 nsresult
@@ -2691,31 +2687,26 @@ nsDocument::GetElementsByClassNameHelper(nsINode* aRootNode,
   nsAttrValue attrValue;
   attrValue.ParseAtomArray(aClasses);
   // nsAttrValue::Equals is sensitive to order, so we'll send an array
-  ClassMatchingInfo* info = new ClassMatchingInfo;
-  NS_ENSURE_TRUE(info, NS_ERROR_OUT_OF_MEMORY);
+  nsCOMArray<nsIAtom>* classes = new nsCOMArray<nsIAtom>;
+  NS_ENSURE_TRUE(classes, NS_ERROR_OUT_OF_MEMORY);
 
   if (attrValue.Type() == nsAttrValue::eAtomArray) {
-    info->mClasses.AppendObjects(*(attrValue.GetAtomArrayValue()));
+    classes->AppendObjects(*(attrValue.GetAtomArrayValue()));
   } else if (attrValue.Type() == nsAttrValue::eAtom) {
-    info->mClasses.AppendObject(attrValue.GetAtomValue());
+    classes->AppendObject(attrValue.GetAtomValue());
   }
-
-  nsBaseContentList* elements;
-  if (info->mClasses.Count() > 0) {
-    info->mCaseTreatment =
-      aRootNode->GetOwnerDoc()->GetCompatibilityMode() ==
-        eCompatibility_NavQuirks ?
-          eIgnoreCase : eCaseMatters;
   
+  nsBaseContentList* elements;
+  if (classes->Count() > 0) {
     elements = new nsContentList(aRootNode, MatchClassNames,
-                                 DestroyClassNameArray, info);
+                                 DestroyClassNameArray, classes);
   } else {
-    delete info;
-    info = nsnull;
+    delete classes;
+    classes = nsnull;
     elements = new nsBaseContentList();
   }
   if (!elements) {
-    delete info;
+    delete classes;
     return NS_ERROR_OUT_OF_MEMORY;
   }
 
@@ -2738,12 +2729,11 @@ nsDocument::MatchClassNames(nsIContent* aContent,
   }
   
   // need to match *all* of the classes
-  ClassMatchingInfo* info = static_cast<ClassMatchingInfo*>(aData);
-  PRInt32 length = info->mClasses.Count();
+  nsCOMArray<nsIAtom>* classes = static_cast<nsCOMArray<nsIAtom>*>(aData);
+  PRInt32 length = classes->Count();
   PRInt32 i;
   for (i = 0; i < length; ++i) {
-    if (!classAttr->Contains(info->mClasses.ObjectAt(i),
-                             info->mCaseTreatment)) {
+    if (!classAttr->Contains(classes->ObjectAt(i), eCaseMatters)) {
       return PR_FALSE;
     }
   }
@@ -2755,8 +2745,8 @@ nsDocument::MatchClassNames(nsIContent* aContent,
 void
 nsDocument::DestroyClassNameArray(void* aData)
 {
-  ClassMatchingInfo* info = static_cast<ClassMatchingInfo*>(aData);
-  delete info;
+  nsCOMArray<nsIAtom>* classes = static_cast<nsCOMArray<nsIAtom>*>(aData);
+  delete classes;
 }
 
 nsresult
