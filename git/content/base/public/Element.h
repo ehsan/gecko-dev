@@ -676,11 +676,6 @@ public:
                                         sf->GetScrollPositionCSSPixels().y));
     }
   }
-  /* Scrolls without flushing the layout.
-   * aDx is the x offset, aDy the y offset in CSS pixels.
-   * Returns true if we actually scrolled.
-   */
-  bool ScrollByNoFlush(int32_t aDx, int32_t aDy);
   int32_t ScrollWidth();
   int32_t ScrollHeight();
   int32_t ClientTop()
@@ -1147,8 +1142,7 @@ private:
    */
   nsRect GetClientAreaRect();
 
-  nsIScrollableFrame* GetScrollFrame(nsIFrame **aStyledFrame = nullptr,
-                                     bool aFlushLayout = true);
+  nsIScrollableFrame* GetScrollFrame(nsIFrame **aStyledFrame = nullptr);
 
   nsresult GetMarkup(bool aIncludeSelf, nsAString& aMarkup);
 

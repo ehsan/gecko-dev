@@ -850,14 +850,11 @@ SetAlarm(int32_t aSeconds, int32_t aNanoseconds)
 void
 SetProcessPriority(int aPid,
                    ProcessPriority aPriority,
-                   ProcessCPUPriority aCPUPriority,
-                   uint32_t aBackgroundLRU)
+                   ProcessCPUPriority aCPUPriority)
 {
   // n.b. The sandboxed implementation crashes; SetProcessPriority works only
   // from the main process.
-  MOZ_ASSERT(aBackgroundLRU == 0 || aPriority == PROCESS_PRIORITY_BACKGROUND);
-  PROXY_IF_SANDBOXED(SetProcessPriority(aPid, aPriority, aCPUPriority,
-                                        aBackgroundLRU));
+  PROXY_IF_SANDBOXED(SetProcessPriority(aPid, aPriority, aCPUPriority));
 }
 
 // From HalTypes.h.

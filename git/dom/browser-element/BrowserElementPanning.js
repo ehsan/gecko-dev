@@ -385,15 +385,30 @@ const ContentPanning = {
     return null;
   },
 
-  _generateCallback: function cp_generateCallback(root) {
+  _generateCallback: function cp_generateCallback(content) {
     let firstScroll = true;
     let target;
-    let current;
+    let isScrolling = false;
+    let oldX, oldY, newX, newY;
     let win, doc, htmlNode, bodyNode;
+    let xScrollable;
+    let yScrollable;
 
     function doScroll(node, delta) {
+      // recalculate scrolling direction
+      xScrollable = node.scrollWidth > node.clientWidth;
+      yScrollable = node.scrollHeight > node.clientHeight;
       if (node instanceof Ci.nsIDOMHTMLElement) {
-        return node.scrollByNoFlush(delta.x, delta.y);
+        newX = oldX = node.scrollLeft, newY = oldY = node.scrollTop;
+        if (xScrollable) {
+           node.scrollLeft += delta.x;
+           newX = node.scrollLeft;
+        }
+        if (yScrollable) {
+           node.scrollTop += delta.y;
+           newY = node.scrollTop;
+        }
+        return (newX != oldX || newY != oldY);
       } else if (node instanceof Ci.nsIDOMWindow) {
         win = node;
         doc = win.document;
@@ -412,39 +427,41 @@ const ContentPanning = {
             delta.y = 0;
           }
         }
-        let oldX = node.scrollX;
-        let oldY = node.scrollY;
+        oldX = node.scrollX, oldY = node.scrollY;
         node.scrollBy(delta.x, delta.y);
-        return (node.scrollX != oldX || node.scrollY != oldY);
+        newX = node.scrollX, newY = node.scrollY;
+        return (newX != oldX || newY != oldY);
       }
       // If we get here, |node| isn't an HTML element and it's not a window,
       // but findPannable apparently thought it was scrollable... What is it?
       return false;
-    }
+    };
 
     function targetParent(node) {
-      return node.parentNode || node.frameElement || null;
+      if (node.parentNode) {
+        return node.parentNode;
+      }
+      if (node.frameElement) {
+        return node.frameElement;
+      }
+      return null;
     }
 
     function scroll(delta) {
-      current = root;
-      while (current) {
-        if (doScroll(current, delta)) {
-          firstScroll = false;
-          return true;
+      for (target = content; target;
+           target = ContentPanning._findPannable(targetParent(target))) {
+        isScrolling = doScroll(target, delta);
+        if (isScrolling || !firstScroll) {
+          break;
         }
-
-        // TODO The current code looks for possible scrolling regions only if
-        // this is the first scroll action but this should be more dynamic.
-        if (!firstScroll) {
-          return false;
-        }
-
-        current = ContentPanning._findPannable(targetParent(current));
       }
-
-      // There is nothing scrollable here.
-      return false;
+      if (isScrolling) {
+        if (firstScroll) {
+          content = target; // set scrolling target to the first scrolling region
+        }
+        firstScroll = false; // lockdown the scrolling target after a success scrolling
+      }
+      return isScrolling;
     }
     return scroll;
   },

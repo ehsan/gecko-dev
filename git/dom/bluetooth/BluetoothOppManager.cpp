@@ -389,13 +389,7 @@ BluetoothOppManager::SendFile(const nsAString& aDeviceAddress,
 bool
 BluetoothOppManager::StopSendingFile()
 {
-  MOZ_ASSERT(NS_IsMainThread());
-
-  if (mIsServer) {
-    mAbortFlag = true;
-  } else {
-    Disconnect(nullptr);
-  }
+  mAbortFlag = true;
 
   return true;
 }
@@ -935,6 +929,11 @@ BluetoothOppManager::ClientDataHandler(UnixSocketRawData* aMessage)
       return;
     }
 
+    if (mAbortFlag) {
+      SendAbortRequest();
+      return;
+    }
+
     if (kUpdateProgressBase * mUpdateProgressCounter < mSentFileLength) {
       UpdateProgress();
       mUpdateProgressCounter = mSentFileLength / kUpdateProgressBase + 1;
@@ -1082,6 +1081,19 @@ BluetoothOppManager::SendDisconnectRequest()
   int index = 3;
 
   SendObexData(req, ObexRequestCode::Disconnect, index);
+}
+
+void
+BluetoothOppManager::SendAbortRequest()
+{
+  if (!mConnected) return;
+
+  // Section 3.3.5 "Abort", IrOBEX 1.2
+  // [opcode:1][length:2][Headers:var]
+  uint8_t req[255];
+  int index = 3;
+
+  SendObexData(req, ObexRequestCode::Abort, index);
 }
 
 void
