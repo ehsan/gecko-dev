@@ -511,7 +511,6 @@ MAKEFILES_xpcom_tests="
   xpcom/tests/dynamic/Makefile
   xpcom/tests/services/Makefile
   xpcom/tests/windows/Makefile
-  xpcom/tests/static-checker/Makefile
 "
 
 MAKEFILES_xpinstall="
