@@ -7625,11 +7625,11 @@ nsDocument::GetViewportInfo(const ScreenIntSize& aDisplaySize)
   }
   case Specified:
   default:
-    CSSSize size = mViewportSize;
+    CSSIntSize size = mViewportSize;
 
     if (!mValidWidth) {
       if (mValidHeight && !aDisplaySize.IsEmpty()) {
-        size.width = size.height * aDisplaySize.width / aDisplaySize.height;
+        size.width = int32_t(size.height * aDisplaySize.width / aDisplaySize.height);
       } else {
         size.width = Preferences::GetInt("browser.viewport.desktopWidth",
                                          kViewportDefaultScreenWidth);
@@ -7638,7 +7638,7 @@ nsDocument::GetViewportInfo(const ScreenIntSize& aDisplaySize)
 
     if (!mValidHeight) {
       if (!aDisplaySize.IsEmpty()) {
-        size.height = size.width * aDisplaySize.height / aDisplaySize.width;
+        size.height = int32_t(size.width * aDisplaySize.height / aDisplaySize.width);
       } else {
         size.height = size.width;
       }
@@ -7654,28 +7654,28 @@ nsDocument::GetViewportInfo(const ScreenIntSize& aDisplaySize)
     if (mAutoSize) {
       // aDisplaySize is in screen pixels; convert them to CSS pixels for the viewport size.
       CSSToScreenScale defaultPixelScale = pixelRatio * LayoutDeviceToScreenScale(1.0f);
-      size = ScreenSize(aDisplaySize) / defaultPixelScale;
+      size = mozilla::gfx::RoundedToInt(ScreenSize(aDisplaySize) / defaultPixelScale);
     }
 
-    size.width = clamped(size.width, float(kViewportMinSize.width), float(kViewportMaxSize.width));
+    size.width = clamped(size.width, kViewportMinSize.width, kViewportMaxSize.width);
 
     // Also recalculate the default zoom, if it wasn't specified in the metadata,
     // and the width is specified.
     if (mScaleStrEmpty && !mWidthStrEmpty) {
-      CSSToScreenScale defaultScale(float(aDisplaySize.width) / size.width);
+      CSSToScreenScale defaultScale(float(aDisplaySize.width) / float(size.width));
       scaleFloat = (scaleFloat > defaultScale) ? scaleFloat : defaultScale;
     }
 
-    size.height = clamped(size.height, float(kViewportMinSize.height), float(kViewportMaxSize.height));
+    size.height = clamped(size.height, kViewportMinSize.height, kViewportMaxSize.height);
 
     // We need to perform a conversion, but only if the initial or maximum
     // scale were set explicitly by the user.
     if (mValidScaleFloat) {
-      CSSSize displaySize = ScreenSize(aDisplaySize) / scaleFloat;
+      CSSIntSize displaySize = RoundedToInt(ScreenSize(aDisplaySize) / scaleFloat);
       size.width = std::max(size.width, displaySize.width);
       size.height = std::max(size.height, displaySize.height);
     } else if (mValidMaxScale) {
-      CSSSize displaySize = ScreenSize(aDisplaySize) / scaleMaxFloat;
+      CSSIntSize displaySize = RoundedToInt(ScreenSize(aDisplaySize) / scaleMaxFloat);
       size.width = std::max(size.width, displaySize.width);
       size.height = std::max(size.height, displaySize.height);
     }

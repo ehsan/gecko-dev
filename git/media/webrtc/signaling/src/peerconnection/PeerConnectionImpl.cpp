@@ -372,7 +372,6 @@ public:
         break;
 
       case ADDICECANDIDATEERROR:
-        mPC->OnAddIceCandidateError();
         mObserver->OnAddIceCandidateError(mCode, ObString(mReason.c_str()), rv);
         break;
 
@@ -494,7 +493,6 @@ PeerConnectionImpl::PeerConnectionImpl(const GlobalObject* aGlobal)
   , mNumAudioStreams(0)
   , mNumVideoStreams(0)
   , mHaveDataStream(false)
-  , mAddCandidateErrorCount(0)
   , mTrickle(true) // TODO(ekr@rtfm.com): Use pref
 {
 #ifdef MOZILLA_INTERNAL_API
@@ -1962,16 +1960,6 @@ PeerConnectionImpl::IceConnectionStateChange_m(PCImplIceConnectionState aState)
         Telemetry::Accumulate(Telemetry::WEBRTC_ICE_FAILURE_TIME,
                               timeDelta.ToMilliseconds());
       }
-    }
-
-    if (isSucceeded(aState)) {
-      Telemetry::Accumulate(
-          Telemetry::WEBRTC_ICE_ADD_CANDIDATE_ERRORS_GIVEN_SUCCESS,
-          mAddCandidateErrorCount);
-    } else if (isFailed(aState)) {
-      Telemetry::Accumulate(
-          Telemetry::WEBRTC_ICE_ADD_CANDIDATE_ERRORS_GIVEN_FAILURE,
-          mAddCandidateErrorCount);
     }
   }
 #endif

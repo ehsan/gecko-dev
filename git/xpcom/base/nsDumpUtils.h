@@ -26,7 +26,7 @@
 #define LOG(...)
 #endif
 
-#ifdef XP_UNIX // {
+#if defined(XP_LINUX) || defined(__FreeBSD__) || defined(XP_MACOSX) // {
 
 /**
  * Abstract base class for something which watches an fd and takes action when
@@ -178,7 +178,7 @@ private:
   SignalInfoArray mSignalInfo;
 };
 
-#endif // XP_UNIX }
+#endif // XP_LINUX }
 
 
 class nsDumpUtils

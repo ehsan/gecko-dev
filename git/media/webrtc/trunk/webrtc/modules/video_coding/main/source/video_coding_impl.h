@@ -27,12 +27,7 @@
 #include "webrtc/system_wrappers/interface/critical_section_wrapper.h"
 
 namespace webrtc {
-
-class EncodedFrameObserver;
-
 namespace vcm {
-
-class DebugRecorder;
 
 class VCMProcessTimer {
  public:
@@ -54,10 +49,7 @@ class VideoSender {
  public:
   typedef VideoCodingModule::SenderNackMode SenderNackMode;
 
-  VideoSender(const int32_t id,
-              Clock* clock,
-              EncodedImageCallback* post_encode_callback);
-
+  VideoSender(const int32_t id, Clock* clock);
   ~VideoSender();
 
   int32_t InitializeSender();
@@ -73,8 +65,7 @@ class VideoSender {
                                   uint8_t payloadType,
                                   bool internalSource);
 
-  int32_t CodecConfigParameters(uint8_t* buffer, int32_t size) const;
-  int32_t SentFrameCount(VCMFrameCount* frameCount);
+  int32_t CodecConfigParameters(uint8_t* buffer, int32_t size);
   int Bitrate(unsigned int* bitrate) const;
   int FrameRate(unsigned int* framerate) const;
 
@@ -94,6 +85,7 @@ class VideoSender {
 
   int32_t IntraFrameRequest(int stream_index);
   int32_t EnableFrameDropper(bool enable);
+  int32_t SentFrameCount(VCMFrameCount* frameCount) const;
 
   int SetSenderNackMode(SenderNackMode mode);
   int SetSenderReferenceSelection(bool enable);
@@ -103,10 +95,7 @@ class VideoSender {
   void SetCPULoadState(CPULoadState state);
 
   int StartDebugRecording(const char* file_name_utf8);
-  void StopDebugRecording();
-
-  void SuspendBelowMinBitrate();
-  bool VideoSuspended() const;
+  int StopDebugRecording();
 
   int32_t TimeUntilNextProcess();
   int32_t Process();
@@ -115,8 +104,6 @@ class VideoSender {
   int32_t _id;
   Clock* clock_;
 
-  scoped_ptr<DebugRecorder> recorder_;
-
   scoped_ptr<CriticalSectionWrapper> process_crit_sect_;
   CriticalSectionWrapper* _sendCritSect;
   VCMGenericEncoder* _encoder;
@@ -124,12 +111,10 @@ class VideoSender {
   std::vector<FrameType> _nextFrameTypes;
   media_optimization::MediaOptimization _mediaOpt;
   VCMSendStatisticsCallback* _sendStatsCallback;
+  FILE* _encoderInputFile;
   VCMCodecDataBase _codecDataBase;
   bool frame_dropper_enabled_;
   VCMProcessTimer _sendStatsTimer;
-
-  VCMQMSettingsCallback* qm_settings_callback_;
-  VCMProtectionCallback* protection_callback_;
 };
 
 class VideoReceiver {
@@ -150,8 +135,6 @@ class VideoReceiver {
   int32_t RegisterReceiveCallback(VCMReceiveCallback* receiveCallback);
   int32_t RegisterReceiveStatisticsCallback(
       VCMReceiveStatisticsCallback* receiveStats);
-  int32_t RegisterDecoderTimingCallback(
-      VCMDecoderTimingCallback* decoderTiming);
   int32_t RegisterFrameTypeCallback(VCMFrameTypeCallback* frameTypeCallback);
   int32_t RegisterPacketRequestCallback(VCMPacketRequestCallback* callback);
   int RegisterRenderBufferSizeCallback(VCMRenderBufferSizeCallback* callback);
@@ -187,8 +170,6 @@ class VideoReceiver {
   int32_t TimeUntilNextProcess();
   int32_t Process();
 
-  void RegisterPreDecodeImageCallback(EncodedImageCallback* observer);
-
  protected:
   int32_t Decode(const webrtc::VCMEncodedFrame& frame);
   int32_t RequestKeyFrame();
@@ -217,7 +198,6 @@ class VideoReceiver {
   VCMDecodedFrameCallback _dualDecodedFrameCallback;
   VCMFrameTypeCallback* _frameTypeCallback;
   VCMReceiveStatisticsCallback* _receiveStatsCallback;
-  VCMDecoderTimingCallback* _decoderTimingCallback;
   VCMPacketRequestCallback* _packetRequestCallback;
   VCMRenderBufferSizeCallback* render_buffer_callback_;
   VCMGenericDecoder* _decoder;
@@ -229,7 +209,6 @@ class VideoReceiver {
   VCMKeyRequestMode _keyRequestMode;
   bool _scheduleKeyRequest;
   size_t max_nack_list_size_;
-  EncodedImageCallback* pre_decode_image_callback_;
 
   VCMCodecDataBase _codecDataBase;
   VCMProcessTimer _receiveStatsTimer;

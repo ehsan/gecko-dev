@@ -28,8 +28,6 @@
 
 #include "mozilla/Hal.h"
 #include "mozilla/Services.h"
-#include "mozilla/StaticPtr.h"
-#include "mozilla/ClearOnShutdown.h"
 #include "base/message_loop.h"
 
 #include "BluetoothCommon.h"
@@ -40,7 +38,6 @@
 #include "nsThreadUtils.h"
 #include "nsServiceManagerUtils.h"
 #include "nsComponentManagerUtils.h"
-#include "nsXULAppAPI.h"
 
 using namespace mozilla::dom::gonk;
 using namespace android;
@@ -497,26 +494,6 @@ AudioManager::~AudioManager() {
   if (NS_FAILED(obs->RemoveObserver(this,  AUDIO_CHANNEL_PROCESS_CHANGED))) {
     NS_WARNING("Failed to remove audio-channel-process-changed!");
   }
-}
-
-static StaticRefPtr<AudioManager> sAudioManager;
-
-already_AddRefed<AudioManager>
-AudioManager::GetInstance()
-{
-  // Avoid createing AudioManager from content process.
-  if (XRE_GetProcessType() != GeckoProcessType_Default) {
-    MOZ_CRASH("Non-chrome processes should not get here.");
-  }
-
-  // Avoid createing multiple AudioManager instance inside main process.
-  if (!sAudioManager) {
-    sAudioManager = new AudioManager();
-    ClearOnShutdown(&sAudioManager);
-  }
-
-  nsRefPtr<AudioManager> audioMgr = sAudioManager.get();
-  return audioMgr.forget();
 }
 
 NS_IMETHODIMP
