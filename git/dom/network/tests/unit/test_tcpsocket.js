@@ -88,7 +88,7 @@ function TestServer() {
   this.binaryOutput = null;
   this.output = null;
 
-  this.onconnect = null;
+  this.onaccept = null;
   this.ondata = null;
   this.onclose = null;
 }
@@ -106,8 +106,8 @@ TestServer.prototype = {
 
     new InputStreamPump(this.input, -1, -1, 0, 0, false).asyncRead(this, null);
 
-    if (this.onconnect)
-      this.onconnect();
+    if (this.onaccept)
+      this.onaccept();
     else
       do_throw("Received unexpected connection!");
   },
@@ -274,7 +274,7 @@ function connectSock() {
   sock.onerror = makeFailureCase('error');
   sock.onclose = makeFailureCase('close');
 
-  server.onconnect = yayFuncs.serveropen;
+  server.onaccept = yayFuncs.serveropen;
   server.ondata = makeFailureCase('serverdata');
   server.onclose = makeFailureCase('serverclose');
 }

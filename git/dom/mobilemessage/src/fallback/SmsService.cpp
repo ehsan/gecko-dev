@@ -32,33 +32,10 @@ SmsService::GetSegmentInfoForText(const nsAString & aText,
 NS_IMETHODIMP
 SmsService::Send(const nsAString& aNumber,
                  const nsAString& aMessage,
-                 const bool       aSilent,
                  nsIMobileMessageCallback* aRequest)
 {
   NS_ERROR("We should not be here!");
-  return NS_ERROR_FAILURE;
-}
-
-NS_IMETHODIMP
-SmsService::IsSilentNumber(const nsAString& aNumber,
-                           bool*            aIsSilent)
-{
-  NS_ERROR("We should not be here!");
-  return NS_ERROR_FAILURE;
-}
-
-NS_IMETHODIMP
-SmsService::AddSilentNumber(const nsAString& aNumber)
-{
-  NS_ERROR("We should not be here!");
-  return NS_ERROR_FAILURE;
-}
-
-NS_IMETHODIMP
-SmsService::RemoveSilentNumber(const nsAString& aNumber)
-{
-  NS_ERROR("We should not be here!");
-  return NS_ERROR_FAILURE;
+  return NS_OK;
 }
 
 } // namespace mobilemessage

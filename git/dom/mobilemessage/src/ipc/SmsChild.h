@@ -55,9 +55,6 @@ protected:
   virtual bool
   RecvNotifyDeliveryErrorMessage(const MobileMessageData& aMessage) MOZ_OVERRIDE;
 
-  virtual bool
-  RecvNotifyReceivedSilentMessage(const MobileMessageData& aMessage) MOZ_OVERRIDE;
-
   virtual PSmsRequestChild*
   AllocPSmsRequestChild(const IPCSmsRequest& aRequest) MOZ_OVERRIDE;
 

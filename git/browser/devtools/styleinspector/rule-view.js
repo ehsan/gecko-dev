@@ -876,13 +876,6 @@ function CssRuleView(aDoc, aStore)
   this._boundCopy = this._onCopy.bind(this);
   this.element.addEventListener("copy", this._boundCopy);
 
-  let options = {
-    fixedWidth: true,
-    autoSelect: true,
-    theme: "auto"
-  };
-  this.popup = new AutocompletePopup(aDoc.defaultView.parent.document, options);
-
   this._showEmpty();
 }
 
@@ -909,8 +902,6 @@ CssRuleView.prototype = {
     if (this.element.parentNode) {
       this.element.parentNode.removeChild(this.element);
     }
-
-    this.popup.destroy();
   },
 
   /**
@@ -1279,9 +1270,7 @@ RuleEditor.prototype = {
       element: this.newPropSpan,
       done: this._onNewProperty,
       destroy: this._newPropertyDestroy,
-      advanceChars: ":",
-      contentType: InplaceEditor.CONTENT_TYPES.CSS_PROPERTY,
-      popup: this.ruleView.popup
+      advanceChars: ":"
     });
   },
 
@@ -1333,7 +1322,6 @@ RuleEditor.prototype = {
 function TextPropertyEditor(aRuleEditor, aProperty)
 {
   this.doc = aRuleEditor.doc;
-  this.popup = aRuleEditor.ruleView.popup;
   this.prop = aProperty;
   this.prop.editor = this;
   this.browserWindow = this.doc.defaultView.top;
@@ -1402,9 +1390,7 @@ TextPropertyEditor.prototype = {
       start: this._onStartEditing,
       element: this.nameSpan,
       done: this._onNameDone,
-      advanceChars: ':',
-      contentType: InplaceEditor.CONTENT_TYPES.CSS_PROPERTY,
-      popup: this.popup
+      advanceChars: ':'
     });
 
     appendText(this.nameContainer, ": ");
@@ -1457,10 +1443,7 @@ TextPropertyEditor.prototype = {
       done: this._onValueDone,
       validate: this._validate.bind(this),
       warning: this.warning,
-      advanceChars: ';',
-      contentType: InplaceEditor.CONTENT_TYPES.CSS_VALUE,
-      property: this.prop,
-      popup: this.popup
+      advanceChars: ';'
     });
   },
 
@@ -1889,8 +1872,4 @@ XPCOMUtils.defineLazyGetter(this, "_strings", function() {
 
 XPCOMUtils.defineLazyGetter(this, "domUtils", function() {
   return Cc["@mozilla.org/inspector/dom-utils;1"].getService(Ci.inIDOMUtils);
-});
-
-XPCOMUtils.defineLazyGetter(this, "AutocompletePopup", function() {
-  return Cu.import("resource:///modules/devtools/AutocompletePopup.jsm", {}).AutocompletePopup;
 });

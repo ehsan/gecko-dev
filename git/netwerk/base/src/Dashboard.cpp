@@ -42,11 +42,8 @@ Dashboard::RequestSockets(NetDashboardCallback* cb)
 void
 Dashboard::GetSocketsDispatch()
 {
-    if (gSocketTransportService) {
+    if (gSocketTransportService)
         gSocketTransportService->GetSocketConnections(&mSock.data);
-        mSock.totalSent = gSocketTransportService->GetSentBytes();
-        mSock.totalRecv = gSocketTransportService->GetReceivedBytes();
-    }
     nsCOMPtr<nsIRunnable> event = NS_NewRunnableMethod(this, &Dashboard::GetSockets);
     mSock.thread->Dispatch(event, NS_DISPATCH_NORMAL);
 }
@@ -93,9 +90,6 @@ Dashboard::GetSockets()
         dict.mSent += mSock.data[i].sent;
         dict.mReceived += mSock.data[i].received;
     }
-
-    dict.mSent += mSock.totalSent;
-    dict.mReceived += mSock.totalRecv;
 
     JS::RootedValue val(cx);
     if (!dict.ToObject(cx, JS::NullPtr(), &val)) {
