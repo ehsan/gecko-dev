@@ -165,6 +165,7 @@ nsPresContext::PrefChangedUpdateTimerCallback(nsITimer *aTimer, void *aClosure)
     presContext->UpdateAfterPreferencesChanged();
 }
 
+#ifdef IBMBIDI
 static bool
 IsVisualCharset(const nsCString& aCharset)
 {
@@ -176,6 +177,7 @@ IsVisualCharset(const nsCString& aCharset)
     return false; // logical text type
   }
 }
+#endif // IBMBIDI
 
   // NOTE! nsPresContext::operator new() zeroes out all members, so don't
   // bother initializing members to 0.
@@ -292,9 +294,11 @@ nsPresContext::~nsPresContext()
   Preferences::UnregisterCallback(nsPresContext::PrefChangedCallback,
                                   "image.animation_mode",
                                   this);
+#ifdef IBMBIDI
   Preferences::UnregisterCallback(nsPresContext::PrefChangedCallback,
                                   "bidi.",
                                   this);
+#endif // IBMBIDI
   Preferences::UnregisterCallback(nsPresContext::PrefChangedCallback,
                                   "dom.send_after_paint_to_content",
                                   this);
@@ -1024,9 +1028,11 @@ nsPresContext::Init(nsDeviceContext* aDeviceContext)
   Preferences::RegisterCallback(nsPresContext::PrefChangedCallback,
                                 "image.animation_mode",
                                 this);
+#ifdef IBMBIDI
   Preferences::RegisterCallback(nsPresContext::PrefChangedCallback,
                                 "bidi.",
                                 this);
+#endif
   Preferences::RegisterCallback(nsPresContext::PrefChangedCallback,
                                 "dom.send_after_paint_to_content",
                                 this);
@@ -1158,6 +1164,8 @@ nsPresContext::UpdateCharSet(const nsCString& aCharSet)
     }
     ResetCachedFontPrefs();
   }
+#ifdef IBMBIDI
+  //ahmed
 
   switch (GET_BIDI_OPTION_TEXTTYPE(GetBidi())) {
 
@@ -1173,6 +1181,7 @@ nsPresContext::UpdateCharSet(const nsCString& aCharSet)
     default:
       SetVisualMode(IsVisualCharset(aCharSet));
   }
+#endif // IBMBIDI
 }
 
 NS_IMETHODIMP
@@ -1564,6 +1573,7 @@ nsPresContext::TickLastStyleUpdateForAllAnimations()
   mLastStyleUpdateForAllAnimations = mRefreshDriver->MostRecentRefresh();
 }
 
+#ifdef IBMBIDI
 bool
 nsPresContext::BidiEnabledExternal() const
 {
@@ -1628,6 +1638,8 @@ nsPresContext::GetBidi() const
 {
   return Document()->GetBidiOptions();
 }
+
+#endif //IBMBIDI
 
 bool
 nsPresContext::IsTopLevelWindowInactive()

@@ -1711,6 +1711,7 @@ nsTableRowGroupFrame::FindLineContaining(nsIFrame* aFrame, int32_t aStartLine)
   return rowIndexInGroup >= aStartLine ? rowIndexInGroup : -1;
 }
 
+#ifdef IBMBIDI
 NS_IMETHODIMP
 nsTableRowGroupFrame::CheckLineOrder(int32_t                  aLine,
                                      bool                     *aIsReordered,
@@ -1722,7 +1723,8 @@ nsTableRowGroupFrame::CheckLineOrder(int32_t                  aLine,
   *aLastVisual = nullptr;
   return NS_OK;
 }
-
+#endif // IBMBIDI
+  
 NS_IMETHODIMP
 nsTableRowGroupFrame::FindFrameAt(int32_t    aLineNumber, 
                                   nscoord    aX, 

@@ -9,7 +9,6 @@
 
 #include "mozilla/Attributes.h"
 #include "nsCOMPtr.h"
-#include "nsCycleCollectionParticipant.h"
 #include "nsIDocShell.h" // XXX Why does only this need to be included here?
 #include "nsIReflowObserver.h"
 #include "nsISelectionListener.h"
@@ -25,8 +24,6 @@ class nsPresContext;
 
 namespace mozilla {
 
-class EventStateManager;
-
 // IMEContentObserver notifies widget of any text and selection changes
 // in the currently focused editor
 class IMEContentObserver MOZ_FINAL : public nsISelectionListener,
@@ -38,9 +35,7 @@ class IMEContentObserver MOZ_FINAL : public nsISelectionListener,
 public:
   IMEContentObserver();
 
-  NS_DECL_CYCLE_COLLECTING_ISUPPORTS
-  NS_DECL_CYCLE_COLLECTION_CLASS_AMBIGUOUS(IMEContentObserver,
-                                           nsISelectionListener)
+  NS_DECL_ISUPPORTS
   NS_DECL_NSISELECTIONLISTENER
   NS_DECL_NSIMUTATIONOBSERVER_CHARACTERDATACHANGED
   NS_DECL_NSIMUTATIONOBSERVER_CONTENTAPPENDED
@@ -56,12 +51,6 @@ public:
   void Init(nsIWidget* aWidget, nsPresContext* aPresContext,
             nsIContent* aContent);
   void Destroy();
-  /**
-   * IMEContentObserver is stored by EventStateManager during observing.
-   * DisconnectFromEventStateManager() is called when EventStateManager stops
-   * storing the instance.
-   */
-  void DisconnectFromEventStateManager();
   bool IsManaging(nsPresContext* aPresContext, nsIContent* aContent);
   bool IsEditorHandlingEventForComposition() const;
   bool KeepAliveDuringDeactive() const
@@ -81,9 +70,6 @@ private:
   nsCOMPtr<nsIContent> mRootContent;
   nsCOMPtr<nsINode> mEditableNode;
   nsCOMPtr<nsIDocShell> mDocShell;
-
-  EventStateManager* mESM;
-
   nsIMEUpdatePreference mUpdatePreference;
   uint32_t mPreAttrChangeLength;
 };

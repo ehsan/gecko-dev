@@ -13,7 +13,9 @@
 #include "nsLayoutUtils.h" // for function BinarySearchForPosition
 #include "nsSimplePageSequenceFrame.h" // for nsSharedPageData
 #include "nsTextFormatter.h" // for page number localization formatting
+#ifdef IBMBIDI
 #include "nsBidiUtils.h"
+#endif
 #include "nsIPrintSettings.h"
 
 #include "prlog.h"

@@ -34,7 +34,6 @@ namespace mozilla {
 
 class EnterLeaveDispatcher;
 class EventStates;
-class IMEContentObserver;
 class ScrollbarsForWheel;
 class WheelTransaction;
 
@@ -133,14 +132,6 @@ public:
   bool SetContentState(nsIContent* aContent, EventStates aState);
   void ContentRemoved(nsIDocument* aDocument, nsIContent* aContent);
   bool EventStatusOK(WidgetGUIEvent* aEvent);
-
-  /**
-   * EventStateManager stores IMEContentObserver while it's observing contents.
-   * Following mehtods are called by IMEContentObserver when it starts to
-   * observe or stops observing the content.
-   */
-  void OnStartToObserveContent(IMEContentObserver* aIMEContentObserver);
-  void OnStopObservingContent(IMEContentObserver* aIMEContentObserver);
 
   /**
    * Register accesskey on the given element. When accesskey is activated then
@@ -786,8 +777,6 @@ protected:
                                nsIFrame* aTargetFrame,
                                nsEventStatus* aStatus);
 
-  void ReleaseCurrentIMEContentObserver();
-
 private:
   static inline void DoStateChange(dom::Element* aElement,
                                    EventStates aState, bool aAddState);
@@ -849,8 +838,6 @@ private:
 
   nsPresContext* mPresContext;      // Not refcnted
   nsCOMPtr<nsIDocument> mDocument;   // Doesn't necessarily need to be owner
-
-  nsRefPtr<IMEContentObserver> mIMEContentObserver;
 
   uint32_t mLClickCount;
   uint32_t mMClickCount;

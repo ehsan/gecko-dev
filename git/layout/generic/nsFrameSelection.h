@@ -24,7 +24,9 @@ class nsTableOuterFrame;
 { 0x3c6ae2d0, 0x4cf1, 0x44a1, \
   { 0x9e, 0x9d, 0x24, 0x11, 0x86, 0x7f, 0x19, 0xc6 } }
 
+#ifdef IBMBIDI // Constant for Set/Get CaretBidiLevel
 #define BIDI_LEVEL_UNDEFINED 0x80
+#endif
 
 //----------------------------------------------------------------------
 
@@ -409,7 +411,8 @@ public:
 
   void SetHint(HINT aHintRight) { mHint = aHintRight; }
   HINT GetHint() const { return mHint; }
-
+  
+#ifdef IBMBIDI
   /** SetCaretBidiLevel sets the caret bidi level
    *  @param aLevel the caret bidi level
    *  This method is virtual since it gets called from outside of layout.
@@ -423,6 +426,7 @@ public:
    *  This method is virtual since it gets called from outside of layout.
    */
   virtual void UndefineCaretBidiLevel();
+#endif
 
   /** CharacterMove will generally be called from the nsiselectioncontroller implementations.
    *  the effect being the selection will move one character left or right.
@@ -701,7 +705,9 @@ private:
   int16_t mDisplaySelection; //for visual display purposes.
 
   HINT  mHint;   //hint to tell if the selection is at the end of this line or beginning of next
+#ifdef IBMBIDI
   uint8_t mCaretBidiLevel;
+#endif
 
   int32_t mDesiredX;
   uint32_t mDelayedMouseEventClickCount;

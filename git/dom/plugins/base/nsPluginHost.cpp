@@ -1629,11 +1629,32 @@ int64_t GetPluginLastModifiedTime(const nsCOMPtr<nsIFile>& localfile)
 
 bool
 GetPluginIsFromExtension(const nsCOMPtr<nsIFile>& pluginFile,
-                         const nsCOMArray<nsIFile>& extensionDirs)
+                         const nsCOMPtr<nsISimpleEnumerator>& extensionDirs)
 {
-  for (uint32_t i = 0; i < extensionDirs.Length(); ++i) {
+  if (!extensionDirs) {
+    return false;
+  }
+
+  bool hasMore;
+  while (NS_SUCCEEDED(extensionDirs->HasMoreElements(&hasMore)) && hasMore) {
+    nsCOMPtr<nsISupports> supports;
+    nsresult rv = extensionDirs->GetNext(getter_AddRefs(supports));
+    if (NS_FAILED(rv)) {
+      continue;
+    }
+
+    nsCOMPtr<nsIFile> extDir(do_QueryInterface(supports, &rv));
+    if (NS_FAILED(rv)) {
+      continue;
+    }
+
+    nsCOMPtr<nsIFile> dir;
+    if (NS_FAILED(extDir->Clone(getter_AddRefs(dir)))) {
+      continue;
+    }
+
     bool contains;
-    if (NS_FAILED(extensionDirs[i]->Contains(pluginFile, true, &contains)) || !contains) {
+    if (NS_FAILED(dir->Contains(pluginFile, true, &contains)) || !contains) {
       continue;
     }
 
@@ -1643,12 +1664,12 @@ GetPluginIsFromExtension(const nsCOMPtr<nsIFile>& pluginFile,
   return false;
 }
 
-void
-GetExtensionDirectories(nsCOMArray<nsIFile>& dirs)
+nsCOMPtr<nsISimpleEnumerator>
+GetExtensionDirectories()
 {
   nsCOMPtr<nsIProperties> dirService = do_GetService(NS_DIRECTORY_SERVICE_CONTRACTID);
   if (!dirService) {
-    return;
+    return nullptr;
   }
 
   nsCOMPtr<nsISimpleEnumerator> list;
@@ -1656,21 +1677,10 @@ GetExtensionDirectories(nsCOMArray<nsIFile>& dirs)
                                 NS_GET_IID(nsISimpleEnumerator),
                                 getter_AddRefs(list));
   if (NS_FAILED(rv)) {
-    return;
+    return nullptr;
   }
 
-  bool more;
-  while (NS_SUCCEEDED(list->HasMoreElements(&more)) && more) {
-    nsCOMPtr<nsISupports> next;
-    if (NS_FAILED(list->GetNext(getter_AddRefs(next)))) {
-      break;
-    }
-    nsCOMPtr<nsIFile> file = do_QueryInterface(next);
-    if (file) {
-      file->Normalize();
-      dirs.AppendElement(file);
-    }
-  }
+  return list;
 }
 
 struct CompareFilesByTime
@@ -1736,8 +1746,10 @@ nsresult nsPluginHost::ScanPluginsDirectory(nsIFile *pluginsDir,
 
   pluginFiles.Sort(CompareFilesByTime());
 
-  nsCOMArray<nsIFile> extensionDirs;
-  GetExtensionDirectories(extensionDirs);
+  nsCOMPtr<nsISimpleEnumerator> extensionDirs = GetExtensionDirectories();
+  if (!extensionDirs) {
+    PLUGIN_LOG(PLUGIN_LOG_ALWAYS, ("Could not get extension directories."));
+  }
 
   bool warnOutdated = false;
 

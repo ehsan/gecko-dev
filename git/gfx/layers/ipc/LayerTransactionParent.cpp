@@ -15,6 +15,7 @@
 #include "gfxPoint3D.h"                 // for gfxPoint3D
 #include "CompositableTransactionParent.h"  // for EditReplyVector
 #include "ShadowLayersManager.h"        // for ShadowLayersManager
+#include "mozilla/Assertions.h"         // for MOZ_ASSERT, etc
 #include "mozilla/gfx/BasePoint3D.h"    // for BasePoint3D
 #include "mozilla/layers/CanvasLayerComposite.h"
 #include "mozilla/layers/ColorLayerComposite.h"
@@ -518,10 +519,7 @@ LayerTransactionParent::RecvUpdate(const InfallibleTArray<Edit>& cset,
     case Edit::TOpAttachAsyncCompositable: {
       const OpAttachAsyncCompositable& op = edit.get_OpAttachAsyncCompositable();
       CompositableParent* compositableParent = CompositableMap::Get(op.containerID());
-      if (!compositableParent) {
-        NS_ERROR("CompositableParent not found in the map");
-        return false;
-      }
+      MOZ_ASSERT(compositableParent, "CompositableParent not found in the map");
       if (!Attach(cast(op.layerParent()), compositableParent, true)) {
         return false;
       }
@@ -676,17 +674,13 @@ LayerTransactionParent::RecvSetAsyncScrollOffset(PLayerParent* aLayer,
     return false;
   }
 
-  Layer* layer = cast(aLayer)->AsLayer();
+  ContainerLayer* layer = cast(aLayer)->AsLayer()->AsContainerLayer();
   if (!layer) {
-    return false;
+    return true;
   }
-  ContainerLayer* containerLayer = layer->AsContainerLayer();
-  if (!containerLayer) {
-    return false;
-  }
-  AsyncPanZoomController* controller = containerLayer->GetAsyncPanZoomController();
+  AsyncPanZoomController* controller = layer->GetAsyncPanZoomController();
   if (!controller) {
-    return false;
+    return true;
   }
   controller->SetTestAsyncScrollOffset(CSSPoint(aX, aY));
   return true;
@@ -710,9 +704,7 @@ LayerTransactionParent::Attach(ShadowLayerParent* aLayerParent,
     = static_cast<LayerManagerComposite*>(aLayerParent->AsLayer()->Manager())->GetCompositor();
 
   CompositableHost* compositable = aCompositable->GetCompositableHost();
-  if (!compositable) {
-    return false;
-  }
+  MOZ_ASSERT(compositable);
   if (!layer->SetCompositableHost(compositable)) {
     // not all layer types accept a compositable, see bug 967824
     return false;
