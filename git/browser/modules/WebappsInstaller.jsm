@@ -22,12 +22,6 @@ let WebappsInstaller = {
    */
   install: function(aData) {
 
-    try {
-      if (Services.prefs.getBoolPref("browser.mozApps.installer.dry_run")) {
-        return true;
-      }
-    } catch (ex) {}
-
 #ifdef XP_WIN
     let shell = new WinNativeApp(aData);
 #elifdef XP_MACOSX
@@ -126,10 +120,9 @@ function NativeApp(aData) {
  *   - ${AppName}.lnk
  *   / uninstall
  *     - webapp-uninstaller.exe
- *     - shortcuts_log.ini
- *     - uninstall.log
+ *     - shortcut_logs.ini
  *   / chrome/icons/default/
- *     - default.ico
+ *     - topwindow.ico
  *
  * After the app runs for the first time, a profiles/ folder will also be
  * created which will host the user profile for this app.
@@ -193,14 +186,14 @@ WinNativeApp.prototype = {
     this.uninstallDir = this.installDir.clone();
     this.uninstallDir.append("uninstall");
 
-    this.uninstallerFile = this.uninstallDir.clone();
+    this.uninstallerFile = this.installDir.clone();
     this.uninstallerFile.append("webapp-uninstaller.exe");
 
     this.iconFile = this.installDir.clone();
     this.iconFile.append("chrome");
     this.iconFile.append("icons");
     this.iconFile.append("default");
-    this.iconFile.append("default.ico");
+    this.iconFile.append("topwindow.ico");
 
     this.processFolder = Services.dirsvc.get("CurProcD", Ci.nsIFile);
 
@@ -306,19 +299,20 @@ WinNativeApp.prototype = {
     let writer = factory.createINIParser(webappINI).QueryInterface(Ci.nsIINIParserWriter);
     writer.setString("Webapp", "Name", this.appName);
     writer.setString("Webapp", "Profile", this.installDir.leafName);
-    writer.setString("Webapp", "Executable", this.appNameAsFilename);
+    writer.setString("Webapp", "Executable", this.appNameAsFilename + ".exe");
     writer.setString("WebappRT", "InstallDir", this.processFolder.path);
+    writer.setString("Branding", "BrandFullName", this.appName);
+    writer.setString("Branding", "BrandShortName", this.appName);
     writer.writeFile();
 
-    // ${UninstallDir}/shortcuts_log.ini
+    // ${UninstallDir}/shortcut_logs.ini
     let shortcutLogsINI = this.uninstallDir.clone().QueryInterface(Ci.nsILocalFile);
-    shortcutLogsINI.append("shortcuts_log.ini");
+    shortcutLogsINI.append("shortcut_logs.ini");
 
     writer = factory.createINIParser(shortcutLogsINI).QueryInterface(Ci.nsIINIParserWriter);
-    writer.setString("STARTMENU", "Shortcut0", this.appNameAsFilename + ".lnk");
-    writer.setString("DESKTOP", "Shortcut0", this.appNameAsFilename + ".lnk");
+    writer.setString("STARTMENU", "Shortcut", this.appNameAsFilename + ".lnk");
+    writer.setString("DESKTOP", "Shortcut", this.appNameAsFilename + ".lnk");
     writer.setString("TASKBAR", "Migrated", "true");
-    writer.writeFile();
 
     writer = null;
     factory = null;
@@ -328,7 +322,7 @@ WinNativeApp.prototype = {
       "File: \\webapp.ini\r\n" +
       "File: \\webapp.json\r\n" +
       "File: \\webapprt.old\r\n" +
-      "File: \\chrome\\icons\\default\\default.ico";
+      "File: \\chrome\\icons\\default\\topwindow.ico";
     let uninstallLog = this.uninstallDir.clone();
     uninstallLog.append("uninstall.log");
     writeToFile(uninstallLog, uninstallContent, function() {});
@@ -395,9 +389,6 @@ WinNativeApp.prototype = {
 
     shortcut.copyTo(desktop, this.appNameAsFilename + ".lnk");
     shortcut.copyTo(startMenu, this.appNameAsFilename + ".lnk");
-
-    shortcut.followLinks = false;
-    shortcut.remove(false);
   },
 
   /**
@@ -560,6 +551,8 @@ MacNativeApp.prototype = {
     let writer = factory.createINIParser(applicationINI).QueryInterface(Ci.nsIINIParserWriter);
     writer.setString("Webapp", "Name", this.appName);
     writer.setString("Webapp", "Profile", this.appProfileDir.leafName);
+    writer.setString("Branding", "BrandFullName", this.appName);
+    writer.setString("Branding", "BrandShortName", this.appName);
     writer.writeFile();
 
     let infoPListContent = '<?xml version="1.0" encoding="UTF-8"?>\n\

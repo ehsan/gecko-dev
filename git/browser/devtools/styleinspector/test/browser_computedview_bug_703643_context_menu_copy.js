@@ -35,14 +35,18 @@ function createDocument()
   let span = doc.querySelector("span");
   ok(span, "captain, we have the span");
 
-  stylePanel = new ComputedViewPanel(window);
+  stylePanel = new StyleInspector(window);
   Services.obs.addObserver(runStyleInspectorTests, "StyleInspector-populated", false);
-  stylePanel.createPanel(span);
+  stylePanel.createPanel(false, function() {
+    stylePanel.open(span);
+  });
 }
 
 function runStyleInspectorTests()
 {
   Services.obs.removeObserver(runStyleInspectorTests, "StyleInspector-populated", false);
+
+  ok(stylePanel.isOpen(), "style inspector is open");
 
   cssHtmlTree = stylePanel.cssHtmlTree;
 
@@ -162,12 +166,14 @@ function failedClipboard(aExpectedPattern, aCallback)
 
 function closeStyleInspector()
 {
-  stylePanel.destroy();
-  finishUp();
+  Services.obs.addObserver(finishUp, "StyleInspector-closed", false);
+  stylePanel.close();
 }
 
 function finishUp()
 {
+  Services.obs.removeObserver(finishUp, "StyleInspector-closed", false);
+  ok(!stylePanel.isOpen(), "style inspector is closed");
   doc = stylePanel = cssHtmlTree = null;
   gBrowser.removeCurrentTab();
   finish();
