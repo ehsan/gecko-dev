@@ -86,7 +86,7 @@ public:
   NS_IMETHOD DoAction(PRUint8 index);
 
   // nsAccessible
-  virtual nsresult GetNameInternal(nsAString& aName);
+  virtual nsresult GetNameInternal(nsAString& aName); 
   virtual nsresult GetStateInternal(PRUint32 *aState, PRUint32 *aExtraState);
 };
 
@@ -105,6 +105,7 @@ public:
   NS_IMETHOD DoAction(PRUint8 index);
 
   // nsAccessible
+  virtual nsresult GetNameInternal(nsAString& aName);
   virtual nsresult GetStateInternal(PRUint32 *aState, PRUint32 *aExtraState);
 };
 
@@ -140,8 +141,7 @@ public:
 
   // nsIAccessible
   NS_IMETHOD GetRole(PRUint32 *aRole); 
-  NS_IMETHOD GetRelationByType(PRUint32 aRelationType,
-                               nsIAccessibleRelation **aRelation);
+  NS_IMETHOD GetAccessibleRelated(PRUint32 aRelationType, nsIAccessible **aRelated);
 
   // nsAccessible
   virtual nsresult GetNameInternal(nsAString& aName);
@@ -154,12 +154,8 @@ class nsHTMLLegendAccessible : public nsHyperTextAccessibleWrap
 {
 public:
   nsHTMLLegendAccessible(nsIDOMNode* aNode, nsIWeakReference* aShell);
-
-  // nsIAccessible
+  NS_IMETHOD GetAccessibleRelated(PRUint32 aRelationType, nsIAccessible **aRelated);
   NS_IMETHOD GetRole(PRUint32 *aRole) { *aRole = nsIAccessibleRole::ROLE_LABEL; return NS_OK; }
-
-  NS_IMETHOD GetRelationByType(PRUint32 aRelationType,
-                               nsIAccessibleRelation **aRelation);
 };
 
 #endif  

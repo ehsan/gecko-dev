@@ -36,12 +36,6 @@
  * ***** END LICENSE BLOCK *****
  */
 
-// Use the internal webserver for regular update pings, will just return an error
-gPrefs.setCharPref("extensions.update.url", "http://localhost:4444/");
-
-do_import_script("netwerk/test/httpserver/httpd.js");
-var testserver;
-
 // This allows the EM to attempt to display errors to the user without failing
 var promptService = {
   alert: function(aParent, aDialogTitle, aText) {
@@ -238,7 +232,6 @@ var installListener = {
 
 function installNextAddon() {
   if (gIndex >= ADDONS.length) {
-    testserver.stop();
     do_test_finished();
     return;
   }
@@ -260,10 +253,6 @@ function run_test() {
   gEM.addInstallListener(installListener);
   gIndex = 0;
   do_test_pending();
-
-  // Create and configure the HTTP server.
-  testserver = new nsHttpServer();
-  testserver.start(4444);
 
   installNextAddon();
 }

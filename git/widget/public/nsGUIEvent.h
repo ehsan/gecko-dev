@@ -105,7 +105,6 @@ class nsHashKey;
 #define NS_DRAG_EVENT                     35
 #define NS_NOTIFYPAINT_EVENT              36
 #define NS_SIMPLE_GESTURE_EVENT           37
-#define NS_SELECTION_EVENT                38
 
 // These flags are sort of a mess. They're sort of shared between event
 // listener flags and event flags, but only some of them. You've been
@@ -124,11 +123,6 @@ class nsHashKey;
 // Event has been dispatched at least once
 #define NS_EVENT_DISPATCHED               0x0400
 #define NS_EVENT_FLAG_DISPATCHING         0x0800
-// When an event is synthesized for testing, this flag will be set.
-// Note that this is currently used only with mouse events.  Because this flag
-// is not needed on other events now.  Therfore, if you need this flag on other
-// events, you can do it.
-#define NS_EVENT_FLAG_SYNTETIC_TEST_EVENT 0x1000
 
 #define NS_PRIV_EVENT_UNTRUSTED_PERMITTED 0x8000
 
@@ -350,18 +344,14 @@ class nsHashKey;
 #define NS_QUERY_SELECTED_TEXT          (NS_QUERY_CONTENT_EVENT_START)
 // Query for the text content of specified range, it returns actual lengh (if
 // the specified range is too long) and the text of the specified range.
-// Returns the entire text if requested length > actual length.
 #define NS_QUERY_TEXT_CONTENT           (NS_QUERY_CONTENT_EVENT_START + 1)
+// Query for the character rect of nth character. If there is no character at
+// the offset, the query will be failed. The offset of the result is relative
+// position from the top level widget.
+#define NS_QUERY_CHARACTER_RECT         (NS_QUERY_CONTENT_EVENT_START + 2)
 // Query for the caret rect of nth insertion point. The offset of the result is
 // relative position from the top level widget.
 #define NS_QUERY_CARET_RECT             (NS_QUERY_CONTENT_EVENT_START + 3)
-// Query for the bounding rect of a range of characters. This works on any
-// valid character range given offset and length. Result is relative to top
-// level widget coordinates
-#define NS_QUERY_TEXT_RECT              (NS_QUERY_CONTENT_EVENT_START + 4)
-// Query for the bounding rect of the current focused frame. Result is relative
-// to top level widget coordinates
-#define NS_QUERY_EDITOR_RECT             (NS_QUERY_CONTENT_EVENT_START + 5)
 
 // Video events
 #ifdef MOZ_MEDIA
@@ -369,7 +359,7 @@ class nsHashKey;
 #define NS_LOADSTART           (NS_MEDIA_EVENT_START)
 #define NS_PROGRESS            (NS_MEDIA_EVENT_START+1)
 #define NS_LOADEDMETADATA      (NS_MEDIA_EVENT_START+2)
-#define NS_LOADEDDATA          (NS_MEDIA_EVENT_START+3)
+#define NS_LOADEDFIRSTFRAME    (NS_MEDIA_EVENT_START+3)
 #define NS_EMPTIED             (NS_MEDIA_EVENT_START+4)
 #define NS_STALLED             (NS_MEDIA_EVENT_START+5)
 #define NS_PLAY                (NS_MEDIA_EVENT_START+6)
@@ -379,13 +369,15 @@ class nsHashKey;
 #define NS_SEEKED              (NS_MEDIA_EVENT_START+10)
 #define NS_TIMEUPDATE          (NS_MEDIA_EVENT_START+11)
 #define NS_ENDED               (NS_MEDIA_EVENT_START+12)
-#define NS_CANPLAY             (NS_MEDIA_EVENT_START+13)
-#define NS_CANPLAYTHROUGH      (NS_MEDIA_EVENT_START+14)
-#define NS_RATECHANGE          (NS_MEDIA_EVENT_START+15)
-#define NS_DURATIONCHANGE      (NS_MEDIA_EVENT_START+16)
-#define NS_VOLUMECHANGE        (NS_MEDIA_EVENT_START+17)
-#define NS_MEDIA_ABORT         (NS_MEDIA_EVENT_START+18)
-#define NS_MEDIA_ERROR         (NS_MEDIA_EVENT_START+19)
+#define NS_DATAUNAVAILABLE     (NS_MEDIA_EVENT_START+13)
+#define NS_CANSHOWCURRENTFRAME (NS_MEDIA_EVENT_START+14)
+#define NS_CANPLAY             (NS_MEDIA_EVENT_START+15)
+#define NS_CANPLAYTHROUGH      (NS_MEDIA_EVENT_START+16)
+#define NS_RATECHANGE          (NS_MEDIA_EVENT_START+17)
+#define NS_DURATIONCHANGE      (NS_MEDIA_EVENT_START+18)
+#define NS_VOLUMECHANGE        (NS_MEDIA_EVENT_START+19)
+#define NS_MEDIA_ABORT         (NS_MEDIA_EVENT_START+20)
+#define NS_MEDIA_ERROR         (NS_MEDIA_EVENT_START+21)
 #endif // MOZ_MEDIA
 
 // paint notification events
@@ -401,16 +393,6 @@ class nsHashKey;
 #define NS_SIMPLE_GESTURE_ROTATE_START   (NS_SIMPLE_GESTURE_EVENT_START+4)
 #define NS_SIMPLE_GESTURE_ROTATE_UPDATE  (NS_SIMPLE_GESTURE_EVENT_START+5)
 #define NS_SIMPLE_GESTURE_ROTATE         (NS_SIMPLE_GESTURE_EVENT_START+6)
-
-// Plug-in event. This is used when a plug-in has focus and when the native
-// event needs to be passed to the focused plug-in directly.
-#define NS_PLUGIN_EVENT_START   3600
-#define NS_PLUGIN_EVENT         (NS_PLUGIN_EVENT_START)
-
-// Events to manipulate selection (nsSelectionEvent)
-#define NS_SELECTION_EVENT_START        3700
-// Clear any previous selection and set the given range as the selection
-#define NS_SELECTION_SET                (NS_SELECTION_EVENT_START)
 
 /**
  * Return status for event processors, nsEventStatus, is defined in
@@ -475,7 +457,7 @@ public:
   // See GUI MESSAGES,
   PRUint32    message;
   // In widget relative coordinates, not modified by layout code.
-  nsIntPoint  refPoint;
+  nsPoint     refPoint;
   // Elapsed time, in milliseconds, from a platform-specific zero time
   // to the time the message was created
   PRUint32    time;
@@ -562,7 +544,7 @@ public:
   }
 
   /// x,y width, height in pixels (client area)
-  nsIntRect       *windowSize;
+  nsRect          *windowSize;    
   /// width of entire window (in pixels)
   PRInt32         mWinWidth;    
   /// height of entire window (in pixels)
@@ -624,7 +606,7 @@ public:
   /// area to paint  (should be used instead of rect)
   nsIRegion           *region;
   /// x,y, width, height in pixels of area to paint
-  nsIntRect           *rect;
+  nsRect              *rect;      
 };
 
 /**
@@ -697,16 +679,12 @@ class nsMouseEvent_base : public nsInputEvent
 {
 public:
   nsMouseEvent_base(PRBool isTrusted, PRUint32 msg, nsIWidget *w, PRUint8 type)
-  : nsInputEvent(isTrusted, msg, w, type), button(0), pressure(0) {}
+  : nsInputEvent(isTrusted, msg, w, type), button(0) {}
 
   /// The possible related target
   nsCOMPtr<nsISupports> relatedTarget;
 
   PRInt16               button;
-
-  // Finger or touch pressure of event
-  // ranges between 0.0 and 1.0
-  float                 pressure;
 };
 
 class nsMouseEvent : public nsMouseEvent_base
@@ -721,7 +699,7 @@ protected:
   nsMouseEvent(PRBool isTrusted, PRUint32 msg, nsIWidget *w,
                PRUint8 structType, reasonType aReason)
     : nsMouseEvent_base(isTrusted, msg, w, structType),
-      acceptActivation(PR_FALSE), ignoreRootScrollFrame(PR_FALSE),
+      acceptActivation(PR_FALSE), ignoreScrollFrame(PR_FALSE),
       reason(aReason), context(eNormal), exit(eChild), clickCount(0)
   {
     if (msg == NS_MOUSE_MOVE) {
@@ -734,7 +712,7 @@ public:
   nsMouseEvent(PRBool isTrusted, PRUint32 msg, nsIWidget *w,
                reasonType aReason, contextType aContext = eNormal)
     : nsMouseEvent_base(isTrusted, msg, w, NS_MOUSE_EVENT),
-      acceptActivation(PR_FALSE), ignoreRootScrollFrame(PR_FALSE),
+      acceptActivation(PR_FALSE), ignoreScrollFrame(PR_FALSE),
       reason(aReason), context(aContext), exit(eChild), clickCount(0)
   {
     if (msg == NS_MOUSE_MOVE) {
@@ -757,7 +735,7 @@ public:
   PRPackedBool acceptActivation;
   // Whether the event should ignore scroll frame bounds
   // during dispatch.
-  PRPackedBool ignoreRootScrollFrame;
+  PRPackedBool ignoreScrollFrame;
 
   reasonType   reason : 4;
   contextType  context : 4;
@@ -775,8 +753,7 @@ class nsDragEvent : public nsMouseEvent
 {
 public:
   nsDragEvent(PRBool isTrusted, PRUint32 msg, nsIWidget *w)
-    : nsMouseEvent(isTrusted, msg, w, NS_DRAG_EVENT, eReal),
-      userCancelled(PR_FALSE)
+    : nsMouseEvent(isTrusted, msg, w, NS_DRAG_EVENT, eReal)
   {
     if (msg == NS_DRAGDROP_EXIT_SYNTH ||
         msg == NS_DRAGDROP_LEAVE_SYNTH ||
@@ -786,7 +763,6 @@ public:
   }
 
   nsCOMPtr<nsIDOMDataTransfer> dataTransfer;
-  PRPackedBool userCancelled;
 };
 
 /**
@@ -863,7 +839,7 @@ struct nsTextEventReply
   {
   }
 
-  nsIntRect mCursorPosition;
+  nsRect mCursorPosition;
   PRBool mCursorIsCollapsed;
   nsIWidget* mReferenceWidget;
 };
@@ -875,16 +851,13 @@ class nsTextEvent : public nsInputEvent
 public:
   nsTextEvent(PRBool isTrusted, PRUint32 msg, nsIWidget *w)
     : nsInputEvent(isTrusted, msg, w, NS_TEXT_EVENT),
-      rangeCount(0), rangeArray(nsnull), isChar(PR_FALSE)
+      theText(nsnull), rangeCount(0), rangeArray(nsnull), isChar(PR_FALSE)
   {
   }
 
-  nsString          theText;
+  const PRUnichar*  theText;
   nsTextEventReply  theReply;
   PRUint32          rangeCount;
-  // Note that the range array may not specify a caret position; in that
-  // case there will be no range of type NS_TEXTRANGE_CARETPOSITION in the
-  // array.
   nsTextRangeArray  rangeArray;
   PRBool            isChar;
 };
@@ -982,19 +955,18 @@ public:
     mInput.mLength = aLength;
   }
 
+  void InitForQueryCharacterRect(PRUint32 aOffset)
+  {
+    NS_ASSERTION(message == NS_QUERY_CHARACTER_RECT,
+                 "wrong initializer is called");
+    mInput.mOffset = aOffset;
+  }
+
   void InitForQueryCaretRect(PRUint32 aOffset)
   {
     NS_ASSERTION(message == NS_QUERY_CARET_RECT,
                  "wrong initializer is called");
     mInput.mOffset = aOffset;
-  }
-
-  void InitForQueryTextRect(PRUint32 aOffset, PRUint32 aLength)
-  {
-    NS_ASSERTION(message == NS_QUERY_TEXT_RECT,
-                 "wrong initializer is called");
-    mInput.mOffset = aOffset;
-    mInput.mLength = aLength;
   }
 
   PRBool mSucceeded;
@@ -1006,26 +978,10 @@ public:
     void* mContentsRoot;
     PRUint32 mOffset;
     nsString mString;
-    nsIntRect mRect; // Finally, the coordinates is system coordinates.
+    nsRect mRect; // Finally, the coordinates is system coordinates.
     // The return widget has the caret. This is set at all query events.
     nsIWidget* mFocusedWidget;
-    PRPackedBool mReversed; // true if selection is reversed (end < start)
   } mReply;
-};
-
-class nsSelectionEvent : public nsGUIEvent
-{
-public:
-  nsSelectionEvent(PRBool aIsTrusted, PRUint32 aMsg, nsIWidget *aWidget) :
-    nsGUIEvent(aIsTrusted, aMsg, aWidget, NS_SELECTION_EVENT),
-    mSucceeded(PR_FALSE)
-  {
-  }
-
-  PRUint32 mOffset; // start offset of selection
-  PRUint32 mLength; // length of selection
-  PRPackedBool mReversed; // selection "anchor" should be in front
-  PRPackedBool mSucceeded;
 };
 
 /**
@@ -1184,12 +1140,12 @@ public:
 /**
  * Simple gesture event
  */
-class nsSimpleGestureEvent : public nsMouseEvent_base
+class nsSimpleGestureEvent : public nsInputEvent
 {
 public:
   nsSimpleGestureEvent(PRBool isTrusted, PRUint32 msg, nsIWidget* w,
                          PRUint32 directionArg, PRFloat64 deltaArg)
-    : nsMouseEvent_base(isTrusted, msg, w, NS_SIMPLE_GESTURE_EVENT),
+    : nsInputEvent(isTrusted, msg, w, NS_SIMPLE_GESTURE_EVENT),
       direction(directionArg), delta(deltaArg)
   {
   }
@@ -1266,15 +1222,8 @@ enum nsDragDropEventStatus {
 #define NS_IS_QUERY_CONTENT_EVENT(evnt) \
        (((evnt)->message == NS_QUERY_SELECTED_TEXT) || \
         ((evnt)->message == NS_QUERY_TEXT_CONTENT) || \
-        ((evnt)->message == NS_QUERY_CARET_RECT) || \
-        ((evnt)->message == NS_QUERY_TEXT_RECT) || \
-        ((evnt)->message == NS_QUERY_EDITOR_RECT))
-
-#define NS_IS_SELECTION_EVENT(evnt) \
-       (((evnt)->message == NS_SELECTION_SET))
-
-#define NS_IS_PLUGIN_EVENT(evnt) \
-       (((evnt)->message == NS_PLUGIN_EVENT))
+        ((evnt)->message == NS_QUERY_CHARACTER_RECT) || \
+        ((evnt)->message == NS_QUERY_CARET_RECT))
 
 #define NS_IS_TRUSTED_EVENT(event) \
   (((event)->flags & NS_EVENT_FLAG_TRUSTED) != 0)
@@ -1426,12 +1375,12 @@ enum nsDragDropEventStatus {
 
 #define NS_VK_META           nsIDOMKeyEvent::DOM_VK_META
 
-// IME Constants  -- keep in synch with nsIPrivateTextRange.h
-#define NS_TEXTRANGE_CARETPOSITION         0x01
-#define NS_TEXTRANGE_RAWINPUT              0x02
-#define NS_TEXTRANGE_SELECTEDRAWTEXT       0x03
-#define NS_TEXTRANGE_CONVERTEDTEXT         0x04
-#define NS_TEXTRANGE_SELECTEDCONVERTEDTEXT 0x05
+// IME Constants  -- keep in synch with nsIDOMTextRange.h
+#define NS_TEXTRANGE_CARETPOSITION				0x01
+#define NS_TEXTRANGE_RAWINPUT					0X02
+#define NS_TEXTRANGE_SELECTEDRAWTEXT			0x03
+#define NS_TEXTRANGE_CONVERTEDTEXT				0x04
+#define NS_TEXTRANGE_SELECTEDCONVERTEDTEXT		0x05
 
 inline PRBool NS_TargetUnfocusedEventToLastFocusedContent(nsEvent* aEvent)
 {
@@ -1456,8 +1405,7 @@ inline PRBool NS_TargetUnfocusedEventToLastFocusedContent(nsEvent* aEvent)
   // doesn't have focus and event is key event or IME event, we should
   // send the events to pre-focused element.
 
-  return NS_IS_KEY_EVENT(aEvent) || NS_IS_IME_EVENT(aEvent) ||
-         NS_IS_PLUGIN_EVENT(aEvent);
+  return NS_IS_KEY_EVENT(aEvent) || NS_IS_IME_EVENT(aEvent);
 #else
   return PR_FALSE;
 #endif

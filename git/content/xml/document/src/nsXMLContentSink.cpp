@@ -383,12 +383,6 @@ nsXMLContentSink::DidBuildModel()
   return NS_OK;
 }
 
-PRBool
-nsXMLContentSink::ReadyToCallDidBuildModel(PRBool aTerminated)
-{
-  return ReadyToCallDidBuildModelImpl(aTerminated);
-}
-
 NS_IMETHODIMP
 nsXMLContentSink::OnDocumentCreated(nsIDocument* aResultDocument)
 {
@@ -1000,12 +994,6 @@ nsXMLContentSink::SetDocElement(PRInt32 aNameSpaceID,
     // find a parent content node to append to, which is fine.
     return PR_FALSE;
   }
-
-  if (aTagName == nsGkAtoms::html &&
-      aNameSpaceID == kNameSpaceID_XHTML) {
-    ProcessOfflineManifest(aContent);
-  }
-
   return PR_TRUE;
 }
 
@@ -1191,11 +1179,7 @@ nsXMLContentSink::HandleEndElement(const PRUnichar *aName,
 #ifdef MOZ_SVG
   if (mDocument &&
       content->GetNameSpaceID() == kNameSpaceID_SVG &&
-      (
-#ifdef MOZ_SMIL
-       content->Tag() == nsGkAtoms::svg ||
-#endif
-       content->HasAttr(kNameSpaceID_None, nsGkAtoms::onload))) {
+      content->HasAttr(kNameSpaceID_None, nsGkAtoms::onload)) {
     FlushTags();
 
     nsEvent event(PR_TRUE, NS_SVG_LOAD);
@@ -1390,9 +1374,10 @@ nsXMLContentSink::HandleProcessingInstruction(const PRUnichar *aTarget,
 
   nsAutoString href, title, media;
   PRBool isAlternate = PR_FALSE;
+  ParsePIData(data, href, title, media, isAlternate);
 
   // If there was no href, we can't do anything with this PI
-  if (!ParsePIData(data, href, title, media, isAlternate)) {
+  if (href.IsEmpty()) {
       return DidProcessATokenImpl();
   }
 
@@ -1401,14 +1386,16 @@ nsXMLContentSink::HandleProcessingInstruction(const PRUnichar *aTarget,
 }
 
 /* static */
-PRBool
+void
 nsXMLContentSink::ParsePIData(const nsString &aData, nsString &aHref,
                               nsString &aTitle, nsString &aMedia,
                               PRBool &aIsAlternate)
 {
+  nsParserUtils::GetQuotedAttributeValue(aData, nsGkAtoms::href, aHref);
+
   // If there was no href, we can't do anything with this PI
-  if (!nsParserUtils::GetQuotedAttributeValue(aData, nsGkAtoms::href, aHref)) {
-    return PR_FALSE;
+  if (aHref.IsEmpty()) {
+    return;
   }
 
   nsParserUtils::GetQuotedAttributeValue(aData, nsGkAtoms::title, aTitle);
@@ -1419,8 +1406,6 @@ nsXMLContentSink::ParsePIData(const nsString &aData, nsString &aHref,
   nsParserUtils::GetQuotedAttributeValue(aData, nsGkAtoms::alternate, alternate);
 
   aIsAlternate = alternate.EqualsLiteral("yes");
-
-  return PR_TRUE;
 }
 
 /*
@@ -1509,10 +1494,6 @@ nsXMLContentSink::ReportError(const PRUnichar* aErrorText,
   // release the nodes on stack
   mContentStack.Clear();
   mNotifyLevel = 0;
-
-  rv = HandleProcessingInstruction(NS_LITERAL_STRING("xml-stylesheet").get(),
-                                   NS_LITERAL_STRING("href=\"chrome://global/locale/intl.css\" type=\"text/css\"").get());
-  NS_ENSURE_SUCCESS(rv, rv);
 
   const PRUnichar* noAtts[] = { 0, 0 };
 

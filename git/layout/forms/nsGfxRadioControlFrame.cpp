@@ -45,7 +45,6 @@
 #include "nsIServiceManager.h"
 #include "nsITheme.h"
 #include "nsDisplayList.h"
-#include "nsCSSAnonBoxes.h"
 
 nsIFrame*
 NS_NewGfxRadioControlFrame(nsIPresShell* aPresShell, nsStyleContext* aContext)
@@ -62,24 +61,18 @@ nsGfxRadioControlFrame::~nsGfxRadioControlFrame()
 {
 }
 
-NS_QUERYFRAME_HEAD(nsGfxRadioControlFrame)
-  NS_QUERYFRAME_ENTRY(nsIRadioControlFrame)
-NS_QUERYFRAME_TAIL_INHERITING(nsFormControlFrame)
-
+// Frames are not refcounted, no need to AddRef
 NS_IMETHODIMP
-nsGfxRadioControlFrame::Init(nsIContent* aContent,
-                             nsIFrame* aParent,
-                             nsIFrame* aPrevInFlow)
+nsGfxRadioControlFrame::QueryInterface(const nsIID& aIID, void** aInstancePtr)
 {
-  nsresult rv = nsFormControlFrame::Init(aContent, aParent, aPrevInFlow);
-  if (NS_SUCCEEDED(rv)) {
-    mRadioButtonFaceStyle =
-      PresContext()->PresShell()->StyleSet()->
-        ResolvePseudoStyleFor(aContent, nsCSSAnonBoxes::radio,
-                              GetStyleContext());
+  NS_PRECONDITION(aInstancePtr, "null out param");
+
+  if (aIID.Equals(NS_GET_IID(nsIRadioControlFrame))) {
+    *aInstancePtr = static_cast<nsIRadioControlFrame*>(this);
+    return NS_OK;
   }
 
-  return rv;
+  return nsFormControlFrame::QueryInterface(aIID, aInstancePtr);
 }
 
 #ifdef ACCESSIBILITY
@@ -118,6 +111,14 @@ nsGfxRadioControlFrame::SetAdditionalStyleContext(PRInt32 aIndex,
     mRadioButtonFaceStyle = aStyleContext;
     break;
   }
+}
+
+//--------------------------------------------------------------
+NS_IMETHODIMP
+nsGfxRadioControlFrame::SetRadioButtonFaceStyleContext(nsStyleContext *aRadioButtonFaceStyleContext)
+{
+  mRadioButtonFaceStyle = aRadioButtonFaceStyleContext;
+  return NS_OK;
 }
 
 //--------------------------------------------------------------

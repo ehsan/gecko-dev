@@ -66,9 +66,7 @@
   <vbox flex="1" class="contentPane">
     <hbox align="center">
       <label accesskey="&filter.accesskey;" control="filter">&filter.label;</label>
-      <textbox type="search" id="filter" flex="1"
-               aria-controls="cookiesList"
-               oncommand="gCookiesWindow.filter();"/>
+      <textbox type="search" id="filter" flex="1" oncommand="gCookiesWindow.filter();"/>
     </hbox>
     <separator class="thin"/>
     <label control="cookiesList" id="cookiesIntro" value="&cookiesonsystem.label;"/>
@@ -136,6 +134,6 @@
               label="&button.close.label;" accesskey="&button.close.accesskey;"/>
 #endif
     </hbox>
-    <resizer dir="bottomend"/>
+    <resizer dir="bottomright"/>
   </hbox>
 </window>

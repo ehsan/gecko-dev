@@ -144,7 +144,7 @@ public:
   }
 
   PRBool Put(const nsACString &fragment) {
-    Entry *entry = nsnull;
+    Entry *entry;
     if (mEntries.Get(fragment, &entry)) {
       // Remove this entry from the list, we'll add it back
       // to the front.
@@ -164,21 +164,19 @@ public:
       mEntries.Put(fragment, entry);
     }
 
-    LinkEntry(entry);
+    // Add the entry to the front of the list
+    entry->mPrev = nsnull;
+    entry->mNext = mFirst;
+    mFirst = entry;
+    if (!mLast) {
+      mLast = entry;
+    }
 
     return PR_TRUE;
   }
 
-  PRBool Has(const nsACString &fragment, PRBool update = PR_TRUE) {
-    Entry *entry = nsnull;
-    PRBool exists = mEntries.Get(fragment, &entry);
-    // Move this entry to the front of the list (if it isn't already there)
-    if (update && exists && entry != mFirst) {
-      UnlinkEntry(entry);
-      LinkEntry(entry);
-    }
-
-    return exists;
+  PRBool Has(const nsACString &fragment) {
+    return mEntries.Get(fragment, nsnull);
   }
 
   void Clear() {
@@ -200,20 +198,6 @@ private:
     Entry *mPrev;
     nsCString mFragment;
   };
-
-  void LinkEntry(Entry *entry)
-  {
-    // Add the entry to the front of the list
-    entry->mPrev = nsnull;
-    entry->mNext = mFirst;
-    if (mFirst) {
-      mFirst->mPrev = entry;
-    }
-    mFirst = entry;
-    if (!mLast) {
-      mLast = entry;
-    }
-  }
 
   void UnlinkEntry(Entry *entry)
   {

@@ -131,8 +131,7 @@ private:
                         * one of the worker threads. */ 
     
     PRBool  onQueue;  /* true if pending and on the queue (not yet given to getaddrinfo())*/
-    PRBool  usingAnyThread; /* true if off queue and contributing to mActiveAnyThreadCount */
-    
+        
 
    ~nsHostRecord();
 };
@@ -164,6 +163,16 @@ public:
     virtual void OnLookupComplete(nsHostResolver *resolver,
                                   nsHostRecord   *record,
                                   nsresult        status) = 0;
+};
+
+/**
+ * nsHostResolverThreadInfo structures are passed to the resolver
+ * thread.
+ */
+struct nsHostResolverThreadInfo
+{
+    nsHostResolver *self;
+    PRBool   onlyHighPriority;
 };
 
 /**
@@ -232,9 +241,12 @@ private:
     nsHostResolver(PRUint32 maxCacheEntries=50, PRUint32 maxCacheLifetime=1);
    ~nsHostResolver();
 
+   // nsHostResolverThreadInfo * is passed to the ThreadFunc
+   struct nsHostResolverThreadInfo  mHighPriorityInfo, mAnyPriorityInfo;
+   
     nsresult Init();
     nsresult IssueLookup(nsHostRecord *);
-    PRBool   GetHostToLookup(nsHostRecord **m);
+    PRBool   GetHostToLookup(nsHostRecord **m, struct nsHostResolverThreadInfo *aID);
     void     OnLookupComplete(nsHostRecord *, nsresult, PRAddrInfo *);
     void     DeQueue(PRCList &aQ, nsHostRecord **aResult);
     void     ClearPendingQueue(PRCList *aPendingQueue);
@@ -250,7 +262,7 @@ private:
     PRCondVar    *mIdleThreadCV; // non-null if idle thread
     PRUint32      mNumIdleThreads;
     PRUint32      mThreadCount;
-    PRUint32      mActiveAnyThreadCount;
+    PRUint32      mAnyPriorityThreadCount;
     PLDHashTable  mDB;
     PRCList       mHighQ;
     PRCList       mMediumQ;

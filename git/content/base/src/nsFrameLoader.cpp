@@ -73,7 +73,6 @@
 #include "nsGUIEvent.h"
 #include "nsEventDispatcher.h"
 #include "nsISHistory.h"
-#include "nsISHistoryInternal.h"
 
 #include "nsIURI.h"
 #include "nsIURL.h"
@@ -216,11 +215,8 @@ nsFrameLoader::ReallyStartLoading()
   loadInfo->SetReferrer(referrer);
 
   // Kick off the load...
-  PRBool tmpState = mNeedsAsyncDestroy;
-  mNeedsAsyncDestroy = PR_TRUE;
   rv = mDocShell->LoadURI(mURIToLoad, loadInfo,
                           nsIWebNavigation::LOAD_FLAGS_NONE, PR_FALSE);
-  mNeedsAsyncDestroy = tmpState;
   mURIToLoad = nsnull;
 #ifdef DEBUG
   if (NS_FAILED(rv)) {
@@ -297,11 +293,11 @@ static void
 FirePageHideEvent(nsIDocShellTreeItem* aItem,
                   nsIDOMEventTarget* aChromeEventHandler)
 {
+  nsPageTransitionEvent event(PR_TRUE, NS_PAGE_HIDE, PR_TRUE);
   nsCOMPtr<nsIDOMDocument> doc = do_GetInterface(aItem);
-  nsCOMPtr<nsIDocument> internalDoc = do_QueryInterface(doc);
-  NS_ASSERTION(internalDoc, "What happened here?");
-  internalDoc->OnPageHide(PR_TRUE, aChromeEventHandler);
-
+  event.target = do_QueryInterface(doc);
+  nsEventDispatcher::Dispatch(aChromeEventHandler, nsnull, &event);
+  
   PRInt32 childCount = 0;
   aItem->GetChildCount(&childCount);
   nsAutoTArray<nsCOMPtr<nsIDocShellTreeItem>, 8> kids;
@@ -317,14 +313,9 @@ FirePageHideEvent(nsIDocShellTreeItem* aItem,
   }
 }
 
-// The pageshow event is fired for a given document only if IsShowing() returns
-// the same thing as aFireIfShowing.  This gives us a way to fire pageshow only
-// on documents that are still loading or only on documents that are already
-// loaded.
 static void
 FirePageShowEvent(nsIDocShellTreeItem* aItem,
-                  nsIDOMEventTarget* aChromeEventHandler,
-                  PRBool aFireIfShowing)
+                  nsIDOMEventTarget* aChromeEventHandler)
 {
   PRInt32 childCount = 0;
   aItem->GetChildCount(&childCount);
@@ -336,16 +327,14 @@ FirePageShowEvent(nsIDocShellTreeItem* aItem,
 
   for (PRUint32 i = 0; i < kids.Length(); ++i) {
     if (kids[i]) {
-      FirePageShowEvent(kids[i], aChromeEventHandler, aFireIfShowing);
+      FirePageShowEvent(kids[i], aChromeEventHandler);
     }
   }
 
+  nsPageTransitionEvent event(PR_TRUE, NS_PAGE_SHOW, PR_TRUE);
   nsCOMPtr<nsIDOMDocument> doc = do_GetInterface(aItem);
-  nsCOMPtr<nsIDocument> internalDoc = do_QueryInterface(doc);
-  NS_ASSERTION(internalDoc, "What happened here?");
-  if (internalDoc->IsShowing() == aFireIfShowing) {
-    internalDoc->OnPageShow(PR_TRUE, aChromeEventHandler);
-  }
+  event.target = do_QueryInterface(doc);
+  nsEventDispatcher::Dispatch(aChromeEventHandler, nsnull, &event);
 }
 
 static void
@@ -496,23 +485,24 @@ nsFrameLoader::SwapWithOtherLoader(nsFrameLoader* aOther,
   nsCOMPtr<nsIDocShellTreeItem> ourRootTreeItem, otherRootTreeItem;
   ourTreeItem->GetSameTypeRootTreeItem(getter_AddRefs(ourRootTreeItem));
   otherTreeItem->GetSameTypeRootTreeItem(getter_AddRefs(otherRootTreeItem));
-  nsCOMPtr<nsIWebNavigation> ourRootWebnav =
-    do_QueryInterface(ourRootTreeItem);
-  nsCOMPtr<nsIWebNavigation> otherRootWebnav =
-    do_QueryInterface(otherRootTreeItem);
+  if (ourRootTreeItem != ourTreeItem || otherRootTreeItem != otherTreeItem) {
+    nsCOMPtr<nsIWebNavigation> ourRootWebnav =
+      do_QueryInterface(ourRootTreeItem);
+    nsCOMPtr<nsIWebNavigation> otherRootWebnav =
+      do_QueryInterface(otherRootTreeItem);
 
-  if (!ourRootWebnav || !otherRootWebnav) {
-    return NS_ERROR_NOT_IMPLEMENTED;
-  }
+    if (!ourRootWebnav || !otherRootWebnav) {
+      return NS_ERROR_NOT_IMPLEMENTED;
+    }
 
-  nsCOMPtr<nsISHistory> ourHistory;
-  nsCOMPtr<nsISHistory> otherHistory;
-  ourRootWebnav->GetSessionHistory(getter_AddRefs(ourHistory));
-  otherRootWebnav->GetSessionHistory(getter_AddRefs(otherHistory));
+    nsCOMPtr<nsISHistory> ourHistory;
+    nsCOMPtr<nsISHistory> otherHistory;
+    ourRootWebnav->GetSessionHistory(getter_AddRefs(ourHistory));
+    otherRootWebnav->GetSessionHistory(getter_AddRefs(otherHistory));
 
-  if ((ourRootTreeItem != ourTreeItem || otherRootTreeItem != otherTreeItem) &&
-      (ourHistory || otherHistory)) {
-    return NS_ERROR_NOT_IMPLEMENTED;
+    if (ourHistory || otherHistory) {
+      return NS_ERROR_NOT_IMPLEMENTED;
+    }
   }
 
   // Also make sure that the two docshells are the same type. Otherwise
@@ -525,7 +515,7 @@ nsFrameLoader::SwapWithOtherLoader(nsFrameLoader* aOther,
     return NS_ERROR_NOT_IMPLEMENTED;
   }
 
-  // One more twist here.  Setting up the right treeowners in a heterogeneous
+  // One more twist here.  Setting up the right treeowners in a heterogenous
   // tree is a bit of a pain.  So make sure that if ourType is not
   // nsIDocShellTreeItem::typeContent then all of our descendants are the same
   // type as us.
@@ -619,11 +609,8 @@ nsFrameLoader::SwapWithOtherLoader(nsFrameLoader* aOther,
   }
   mInSwap = aOther->mInSwap = PR_TRUE;
 
-  // Fire pageshow events on still-loading pages, and then fire pagehide
-  // events.  Note that we do NOT fire these in the normal way, but just fire
-  // them on the chrome event handlers.
-  FirePageShowEvent(ourTreeItem, ourChromeEventHandler, PR_FALSE);
-  FirePageShowEvent(otherTreeItem, otherChromeEventHandler, PR_FALSE);
+  // Fire pagehide events.  Note that we do NOT fire these in the normal way,
+  // but just fire them on the chrome event handlers.
   FirePageHideEvent(ourTreeItem, ourChromeEventHandler);
   FirePageHideEvent(otherTreeItem, otherChromeEventHandler);
   
@@ -631,16 +618,17 @@ nsFrameLoader::SwapWithOtherLoader(nsFrameLoader* aOther,
   nsIFrame* otherFrame = otherShell->GetPrimaryFrameFor(otherContent);
   if (!ourFrame || !otherFrame) {
     mInSwap = aOther->mInSwap = PR_FALSE;
-    FirePageShowEvent(ourTreeItem, ourChromeEventHandler, PR_TRUE);
-    FirePageShowEvent(otherTreeItem, otherChromeEventHandler, PR_TRUE);
+    FirePageShowEvent(ourTreeItem, ourChromeEventHandler);
+    FirePageShowEvent(otherTreeItem, otherChromeEventHandler);
     return NS_ERROR_NOT_IMPLEMENTED;
   }
 
-  nsIFrameFrame* ourFrameFrame = do_QueryFrame(ourFrame);
+  nsIFrameFrame* ourFrameFrame = nsnull;
+  CallQueryInterface(ourFrame, &ourFrameFrame);
   if (!ourFrameFrame) {
     mInSwap = aOther->mInSwap = PR_FALSE;
-    FirePageShowEvent(ourTreeItem, ourChromeEventHandler, PR_TRUE);
-    FirePageShowEvent(otherTreeItem, otherChromeEventHandler, PR_TRUE);
+    FirePageShowEvent(ourTreeItem, ourChromeEventHandler);
+    FirePageShowEvent(otherTreeItem, otherChromeEventHandler);
     return NS_ERROR_NOT_IMPLEMENTED;
   }
 
@@ -648,8 +636,8 @@ nsFrameLoader::SwapWithOtherLoader(nsFrameLoader* aOther,
   rv = ourFrameFrame->BeginSwapDocShells(otherFrame);
   if (NS_FAILED(rv)) {
     mInSwap = aOther->mInSwap = PR_FALSE;
-    FirePageShowEvent(ourTreeItem, ourChromeEventHandler, PR_TRUE);
-    FirePageShowEvent(otherTreeItem, otherChromeEventHandler, PR_TRUE);
+    FirePageShowEvent(ourTreeItem, ourChromeEventHandler);
+    FirePageShowEvent(otherTreeItem, otherChromeEventHandler);
     return rv;
   }
 
@@ -693,18 +681,6 @@ nsFrameLoader::SwapWithOtherLoader(nsFrameLoader* aOther,
 
   aFirstToSwap.swap(aSecondToSwap);
 
-  // Drop any cached content viewers in the two session histories.
-  nsCOMPtr<nsISHistoryInternal> ourInternalHistory =
-    do_QueryInterface(ourHistory);
-  nsCOMPtr<nsISHistoryInternal> otherInternalHistory =
-    do_QueryInterface(otherHistory);
-  if (ourInternalHistory) {
-    ourInternalHistory->EvictAllContentViewers();
-  }
-  if (otherInternalHistory) {
-    otherInternalHistory->EvictAllContentViewers();
-  }
-
   // We shouldn't have changed frames, but be really careful about it
   if (ourFrame == ourShell->GetPrimaryFrameFor(ourContent) &&
       otherFrame == otherShell->GetPrimaryFrameFor(otherContent)) {
@@ -714,8 +690,8 @@ nsFrameLoader::SwapWithOtherLoader(nsFrameLoader* aOther,
   ourParentDocument->FlushPendingNotifications(Flush_Layout);
   otherParentDocument->FlushPendingNotifications(Flush_Layout);
   
-  FirePageShowEvent(ourTreeItem, otherChromeEventHandler, PR_TRUE);
-  FirePageShowEvent(otherTreeItem, ourChromeEventHandler, PR_TRUE);
+  FirePageShowEvent(ourTreeItem, otherChromeEventHandler);
+  FirePageShowEvent(otherTreeItem, ourChromeEventHandler);
 
   mInSwap = aOther->mInSwap = PR_FALSE;
   return NS_OK;
@@ -759,7 +735,7 @@ nsFrameLoader::Destroy()
     win_private->SetFrameElementInternal(nsnull);
   }
 
-  if ((mNeedsAsyncDestroy || !doc ||
+  if ((mInDestructor || !doc ||
        NS_FAILED(doc->FinalizeFrameLoader(this))) && mDocShell) {
     nsCOMPtr<nsIRunnable> event = new nsAsyncDocShellDestroyer(mDocShell);
     NS_ENSURE_TRUE(event, NS_ERROR_OUT_OF_MEMORY);
@@ -888,19 +864,18 @@ nsFrameLoader::EnsureDocShell()
   NS_ASSERTION(frame_element, "frame loader owner element not a DOM element!");
 
   nsCOMPtr<nsPIDOMWindow> win_private(do_GetInterface(mDocShell));
+  NS_ENSURE_TRUE(win_private, NS_ERROR_UNEXPECTED);
+
+  win_private->SetFrameElementInternal(frame_element);
+
   nsCOMPtr<nsIBaseWindow> base_win(do_QueryInterface(mDocShell));
-  if (win_private) {
-    win_private->SetFrameElementInternal(frame_element);
-  }
+  NS_ENSURE_TRUE(base_win, NS_ERROR_UNEXPECTED);
 
   // This is kinda whacky, this call doesn't really create anything,
   // but it must be called to make sure things are properly
-  // initialized.
-  if (NS_FAILED(base_win->Create()) || !win_private) {
-    // Do not call Destroy() here. See bug 472312.
-    NS_WARNING("Something wrong when creating the docshell for a frameloader!");
-    return NS_ERROR_FAILURE;
-  }
+  // initialized
+
+  base_win->Create();
 
   return NS_OK;
 }

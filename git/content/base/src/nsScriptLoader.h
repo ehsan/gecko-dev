@@ -194,9 +194,6 @@ public:
   void BeginDeferringScripts()
   {
     mDeferEnabled = PR_TRUE;
-    if (mDocument) {
-      mDocument->BlockOnload();
-    }
   }
 
   /**
@@ -205,19 +202,8 @@ public:
    *
    * WARNING: This function will syncronously execute content scripts, so be
    * prepared that the world might change around you.
-   *
-   * If aKillDeferred is PR_TRUE, deferred scripts won't be run, but instead
-   * removed.
    */
-  void EndDeferringScripts(PRBool aKillDeferred);
-
-  /**
-   * Returns the number of pending scripts, deferred or not.
-   */
-  PRUint32 HasPendingOrCurrentScripts()
-  {
-    return mCurrentScript || GetFirstPendingRequest();
-  }
+  void EndDeferringScripts();
 
   /**
    * Adds aURI to the preload list and starts loading it.
@@ -243,11 +229,9 @@ protected:
   nsresult StartLoad(nsScriptLoadRequest *aRequest, const nsAString &aType);
 
   /**
-   * Process any pending requests asynchronously (i.e. off an event) if there
+   * Process any pending requests asyncronously (i.e. off an event) if there
    * are any. Note that this is a no-op if there aren't any currently pending
    * requests.
-   *
-   * This function is virtual to allow cross-library calls to SetEnabled()
    */
   virtual void ProcessPendingRequestsAsync();
 
@@ -316,7 +300,6 @@ protected:
   PRUint32 mBlockerCount;
   PRPackedBool mEnabled;
   PRPackedBool mDeferEnabled;
-  PRPackedBool mUnblockOnloadWhenDoneProcessing;
 };
 
 #endif //__nsScriptLoader_h__

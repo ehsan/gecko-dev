@@ -55,16 +55,21 @@
 #include "nsDisplayList.h"
 
 nsIFrame*
-NS_NewStackFrame(nsIPresShell* aPresShell, nsStyleContext* aContext)
+NS_NewStackFrame (nsIPresShell* aPresShell, nsStyleContext* aContext, nsIBoxLayout* aLayoutManager)
 {
-  return new (aPresShell) nsStackFrame(aPresShell, aContext);
+  return new (aPresShell) nsStackFrame(aPresShell, aContext, aLayoutManager);
 } // NS_NewStackFrame
 
-nsStackFrame::nsStackFrame(nsIPresShell* aPresShell, nsStyleContext* aContext):
+nsStackFrame::nsStackFrame(nsIPresShell* aPresShell, nsStyleContext* aContext, nsIBoxLayout* aLayoutManager):
   nsBoxFrame(aPresShell, aContext)
 {
-  nsCOMPtr<nsIBoxLayout> layout;
-  NS_NewStackLayout(aPresShell, layout);
+    // if no layout manager specified us the stack layout
+  nsCOMPtr<nsIBoxLayout> layout = aLayoutManager;
+
+  if (layout == nsnull) {
+    NS_NewStackLayout(aPresShell, layout);
+  }
+
   SetLayoutManager(layout);
 }
 

@@ -134,9 +134,6 @@ class nsOnloadBlocker;
 class nsUnblockOnloadEvent;
 struct PLEvent;
 class nsChildContentList;
-#ifdef MOZ_SMIL
-class nsSMILAnimationController;
-#endif // MOZ_SMIL
 
 PR_BEGIN_EXTERN_C
 /* Note that these typedefs declare functions, not pointer to
@@ -665,7 +662,7 @@ public:
 
   /**
    * Create a new presentation shell that will use aContext for
-   * its presentation context (presentation context's <b>must not</b> be
+   * it's presentation context (presentation context's <b>must not</b> be
    * shared among multiple presentation shell's).
    */
   virtual nsresult CreateShell(nsPresContext* aContext,
@@ -775,9 +772,6 @@ public:
   virtual void EndUpdate(nsUpdateType aUpdateType);
   virtual void BeginLoad();
   virtual void EndLoad();
-
-  virtual void SetReadyStateInternal(ReadyState rs);
-
   virtual void ContentStatesChanged(nsIContent* aContent1,
                                     nsIContent* aContent2,
                                     PRInt32 aStateMask);
@@ -804,8 +798,8 @@ public:
                                  nsAString& Standalone);
   virtual PRBool IsScriptEnabled();
 
-  virtual void OnPageShow(PRBool aPersisted, nsIDOMEventTarget* aDispatchStartTarget);
-  virtual void OnPageHide(PRBool aPersisted, nsIDOMEventTarget* aDispatchStartTarget);
+  virtual void OnPageShow(PRBool aPersisted);
+  virtual void OnPageHide(PRBool aPersisted);
   
   virtual void WillDispatchMutationEvent(nsINode* aTarget);
   virtual void MutationEventDispatched(nsINode* aTarget);
@@ -813,7 +807,7 @@ public:
   // nsINode
   virtual PRBool IsNodeOfType(PRUint32 aFlags) const;
   virtual nsIContent *GetChildAt(PRUint32 aIndex) const;
-  virtual nsIContent * const * GetChildArray(PRUint32* aChildCount) const;
+  virtual nsIContent * const * GetChildArray() const;
   virtual PRInt32 IndexOf(nsINode* aPossibleChild) const;
   virtual PRUint32 GetChildCount() const;
   virtual nsresult InsertChildAt(nsIContent* aKid, PRUint32 aIndex,
@@ -982,16 +976,6 @@ public:
   virtual NS_HIDDEN_(void)
     EnumerateExternalResources(nsSubDocEnumFunc aCallback, void* aData);
 
-#ifdef MOZ_SMIL
-  nsSMILAnimationController* GetAnimationController();
-#endif // MOZ_SMIL
-
-  virtual void SuppressEventHandling(PRUint32 aIncrease);
-
-  virtual void UnsuppressEventHandlingAndFireEvents(PRBool aFireEvents);
-  
-  void DecreaseEventSuppression() { --mEventsSuppressed; }
-
   NS_DECL_CYCLE_COLLECTION_CLASS_AMBIGUOUS(nsDocument, nsIDocument)
 
   /**
@@ -1013,9 +997,6 @@ public:
 
   nsresult CloneDocHelper(nsDocument* clone) const;
 
-  void MaybeInitializeFinalizeFrameLoaders();
-
-  void MaybeEndOutermostXBLUpdate();
 protected:
 
   void RegisterNamedItems(nsIContent *aContent);
@@ -1034,6 +1015,8 @@ protected:
   nsIdentifierMapEntry* GetElementByIdInternal(nsIAtom* aID);
 
   void DispatchContentLoadedEvents();
+
+  void InitializeFinalizeFrameLoaders();
 
   void RetrieveRelevantHeaders(nsIChannel *aChannel);
 
@@ -1196,8 +1179,6 @@ protected:
   // document was created entirely in memory
   PRPackedBool mHaveInputEncoding:1;
 
-  PRPackedBool mInXBLUpdate:1;
-
   PRUint8 mXMLDeclarationBits;
 
   PRUint8 mDefaultElementType;
@@ -1270,7 +1251,6 @@ private:
 
   PRUint32 mOnloadBlockCount;
   nsCOMPtr<nsIRequest> mOnloadBlocker;
-  ReadyState mReadyState;
   
   // A map from unvisited URI hashes to content elements
   nsTHashtable<nsUint32ToContentHashEntry> mLinkMap;
@@ -1282,15 +1262,10 @@ private:
 
   nsTArray<nsRefPtr<nsFrameLoader> > mInitializableFrameLoaders;
   nsTArray<nsRefPtr<nsFrameLoader> > mFinalizableFrameLoaders;
-  nsRefPtr<nsRunnableMethod<nsDocument> > mFrameLoaderRunner;
 
   nsRevocableEventPtr<nsRunnableMethod<nsDocument> > mPendingTitleChangeEvent;
 
   nsExternalResourceMap mExternalResourceMap;
-
-#ifdef MOZ_SMIL
-  nsAutoPtr<nsSMILAnimationController> mAnimationController;
-#endif // MOZ_SMIL
 };
 
 #define NS_DOCUMENT_INTERFACE_TABLE_BEGIN(_class)                             \

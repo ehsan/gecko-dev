@@ -40,7 +40,6 @@
 #include <math.h>
 
 static nsCursorManager *gInstance;
-static NSArray* sSpinCursorFrames = nil;
 
 /*! @category nsCursorManager(PrivateMethods)
     Private methods for the cursor manager class.
@@ -64,6 +63,14 @@ static NSArray* sSpinCursorFrames = nil;
 */
 + (nsMacCursor *) createCursor: (enum nsCursor) aCursor;
 
+/*! @method     createNSCursor:
+    @abstract   Creates the appropriate cursor implementation from the arguments.
+    @discussion Creates a native Mac cursor, using NSCursor.
+    @param      aCursor selector indicating the NSCursor cursor to create
+    @result     the Mac native implementation of the cursor
+*/
++ (nsMacCursor *) createNSCursor: (SEL) aCursor;
+
 @end
 
 @implementation nsCursorManager
@@ -74,14 +81,6 @@ static NSArray* sSpinCursorFrames = nil;
 
   if (!gInstance) {
     gInstance = [[nsCursorManager alloc] init];
-  }
-
-  if (!sSpinCursorFrames) {
-    NSCursor* cursor1 = [nsMacCursor cocoaCursorWithImageNamed:@"spin1" hotSpot:NSMakePoint(1.0, 1.0)];
-    NSCursor* cursor2 = [nsMacCursor cocoaCursorWithImageNamed:@"spin2" hotSpot:NSMakePoint(1.0, 1.0)];
-    NSCursor* cursor3 = [nsMacCursor cocoaCursorWithImageNamed:@"spin3" hotSpot:NSMakePoint(1.0, 1.0)];
-    NSCursor* cursor4 = [nsMacCursor cocoaCursorWithImageNamed:@"spin4" hotSpot:NSMakePoint(1.0, 1.0)];
-    sSpinCursorFrames = [[NSArray alloc] initWithObjects:cursor1, cursor2, cursor3, cursor4, nil];
   }
   return gInstance;
 
@@ -95,9 +94,6 @@ static NSArray* sSpinCursorFrames = nil;
   [gInstance release];
   gInstance = nil;
 
-  [sSpinCursorFrames release];
-  sSpinCursorFrames = nil;
-
   NS_OBJC_END_TRY_ABORT_BLOCK;
 }
 
@@ -110,31 +106,32 @@ static NSArray* sSpinCursorFrames = nil;
     case eCursor_standard:
       return [nsMacCursor cursorWithCursor: [NSCursor arrowCursor]];
     case eCursor_wait:
-    case eCursor_spinning:
-      return [nsMacCursor cursorWithFrames: sSpinCursorFrames];
-    case eCursor_select:
+      return [nsMacCursor cursorWithThemeCursor: kThemeWatchCursor];
+    case eCursor_select:              
       return [nsMacCursor cursorWithCursor: [NSCursor IBeamCursor]];
     case eCursor_hyperlink:
-      return [nsMacCursor cursorWithCursor: [NSCursor pointingHandCursor]];
+      return [nsCursorManager createNSCursor: @selector(pointingHandCursor)];                  
     case eCursor_crosshair:
-      return [nsMacCursor cursorWithCursor: [NSCursor crosshairCursor]];
+      return [nsCursorManager createNSCursor: @selector(crosshairCursor)];                                        
     case eCursor_move:
-      return [nsMacCursor cursorWithCursor: [NSCursor openHandCursor]];
+      return [nsCursorManager createNSCursor: @selector(openHandCursor)];                   
     case eCursor_help:
-      return [nsMacCursor cursorWithImageNamed: @"help" hotSpot: NSMakePoint(1,1)];
+      return [nsMacCursor cursorWithImageNamed: @"help" hotSpot: NSMakePoint(1,1)];        
     case eCursor_copy:
-      return [nsMacCursor cursorWithCursor: [NSCursor arrowCursor]]; //XXX needs real implementation
+      return [nsMacCursor cursorWithThemeCursor: kThemeCopyArrowCursor];
     case eCursor_alias:
-      return [nsMacCursor cursorWithCursor: [NSCursor arrowCursor]]; //XXX needs real implementation
+      return [nsMacCursor cursorWithThemeCursor: kThemeAliasArrowCursor];
     case eCursor_context_menu:
-      return [nsMacCursor cursorWithCursor: [NSCursor arrowCursor]]; //XXX needs real implementation
+      return [nsMacCursor cursorWithThemeCursor: kThemeContextualMenuArrowCursor];
 
     case eCursor_cell:
-      return [nsMacCursor cursorWithCursor: [NSCursor crosshairCursor]];
+      return [nsMacCursor cursorWithThemeCursor: kThemePlusCursor];
     case eCursor_grab:
-      return [nsMacCursor cursorWithCursor: [NSCursor openHandCursor]];
+      return [nsCursorManager createNSCursor: @selector(openHandCursor)];
     case eCursor_grabbing:
-      return [nsMacCursor cursorWithCursor: [NSCursor closedHandCursor]];
+      return [nsCursorManager createNSCursor: @selector(closedHandCursor)];
+    case eCursor_spinning:
+      return [nsMacCursor cursorWithResources: 200 lastFrame: 203]; // better than kThemeSpinningCursor        
     case eCursor_zoom_in:
       return [nsMacCursor cursorWithImageNamed: @"zoomIn" hotSpot: NSMakePoint(6,6)];
     case eCursor_zoom_out:
@@ -142,42 +139,42 @@ static NSArray* sSpinCursorFrames = nil;
     case eCursor_vertical_text:
       return [nsMacCursor cursorWithImageNamed: @"vtIBeam" hotSpot: NSMakePoint(7,8)];
     case eCursor_all_scroll:
-      return [nsMacCursor cursorWithCursor: [NSCursor openHandCursor]];;
+      return [nsCursorManager createNSCursor: @selector(openHandCursor)];                   
     case eCursor_not_allowed:
     case eCursor_no_drop:
-      return [nsMacCursor cursorWithCursor: [NSCursor arrowCursor]]; //XXX needs real implementation
+      return [nsMacCursor cursorWithThemeCursor: kThemeNotAllowedCursor];
 
     // Resize Cursors:
     //North
     case eCursor_n_resize:
-        return [nsMacCursor cursorWithCursor: [NSCursor resizeUpCursor]];
+        return [nsCursorManager createNSCursor: @selector(resizeUpCursor)];
     //North East
     case eCursor_ne_resize:
         return [nsMacCursor cursorWithImageNamed: @"sizeNE" hotSpot: NSMakePoint(8,7)];
     //East
     case eCursor_e_resize:        
-        return [nsMacCursor cursorWithCursor: [NSCursor resizeRightCursor]];
+        return [nsCursorManager createNSCursor: @selector(resizeRightCursor)];
     //South East
     case eCursor_se_resize:
         return [nsMacCursor cursorWithImageNamed: @"sizeSE" hotSpot: NSMakePoint(8,8)];
     //South
     case eCursor_s_resize:
-        return [nsMacCursor cursorWithCursor: [NSCursor resizeDownCursor]];
+        return [nsCursorManager createNSCursor: @selector(resizeDownCursor)];
     //South West
     case eCursor_sw_resize:
         return [nsMacCursor cursorWithImageNamed: @"sizeSW" hotSpot: NSMakePoint(6,8)];
     //West
     case eCursor_w_resize:
-        return [nsMacCursor cursorWithCursor: [NSCursor resizeLeftCursor]];
+        return [nsCursorManager createNSCursor: @selector(resizeLeftCursor)];
     //North West
     case eCursor_nw_resize:
         return [nsMacCursor cursorWithImageNamed: @"sizeNW" hotSpot: NSMakePoint(7,7)];
     //North & South
     case eCursor_ns_resize:
-        return [nsMacCursor cursorWithCursor: [NSCursor resizeUpDownCursor]];                         
+        return [nsCursorManager createNSCursor: @selector(resizeUpDownCursor)];                         
     //East & West
     case eCursor_ew_resize:
-        return [nsMacCursor cursorWithCursor: [NSCursor resizeLeftRightCursor]];                  
+        return [nsCursorManager createNSCursor: @selector(resizeLeftRightCursor)];                  
     //North East & South West
     case eCursor_nesw_resize:
         return [nsMacCursor cursorWithImageNamed: @"sizeNESW" hotSpot: NSMakePoint(8,8)];
@@ -193,6 +190,15 @@ static NSArray* sSpinCursorFrames = nil;
     default:
       return [nsMacCursor cursorWithCursor: [NSCursor arrowCursor]];
   }
+
+  NS_OBJC_END_TRY_ABORT_BLOCK_NIL;
+}
+
++ (nsMacCursor *) createNSCursor: (SEL) aCursor
+{
+  NS_OBJC_BEGIN_TRY_ABORT_BLOCK_NIL;
+
+  return [nsMacCursor cursorWithCursor:[NSCursor performSelector:aCursor]];
 
   NS_OBJC_END_TRY_ABORT_BLOCK_NIL;
 }

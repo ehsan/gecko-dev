@@ -64,6 +64,7 @@ MyLocation.prototype = {
                            Ci.nsITimer.TYPE_REPEATING_SLACK);
                      },
 
+    currentLocation: new GeopositionObject(),
     shutdown:        function() { 
                        dump("shutdown"); 
                        if(this.timer)

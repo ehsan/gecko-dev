@@ -98,8 +98,7 @@ nsHashPropertyBag::HasKey(const nsAString& name, PRBool *aResult)
 NS_IMETHODIMP
 nsHashPropertyBag::Get(const nsAString& name, nsIVariant* *_retval)
 {
-    if (!mPropertyHash.Get(name, _retval))
-        *_retval = nsnull;
+    mPropertyHash.Get(name, _retval);
 
     return NS_OK;
 }

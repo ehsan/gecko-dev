@@ -75,10 +75,8 @@ function prefillAlertInfo()
       gAlertCookie = window.arguments[4];
     case 4:
       gAlertTextClickable = window.arguments[3];
-      if (gAlertTextClickable) {
-        document.getElementById('alertNotification').setAttribute('clickable', true);
+      if (gAlertTextClickable)
         document.getElementById('alertTextLabel').setAttribute('clickable', true);
-      }
     case 3:
       document.getElementById('alertTextLabel').setAttribute('value', window.arguments[2]);
     case 2:
@@ -224,5 +222,4 @@ function onAlertClick()
 {
   if (gAlertListener && gAlertTextClickable)
     gAlertListener.observe(null, "alertclickcallback", gAlertCookie);
-  closeAlert();
 }

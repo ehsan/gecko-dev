@@ -69,10 +69,6 @@
 #include <Carbon/Carbon.h>
 #endif
 
-#ifdef XP_UNIX
-#include <limits.h>
-#endif
-
 #ifdef STANDALONE_REGISTRY
 #include <stdlib.h>
 #include <assert.h>
@@ -95,11 +91,7 @@
 #define MAX_PATH PATH_MAX
 #elif defined(XP_UNIX)
 #ifndef MAX_PATH
-#ifdef PATH_MAX
-#define MAX_PATH PATH_MAX
-#else
 #define MAX_PATH 1024
-#endif
 #endif
 #elif defined(XP_OS2)
 #ifndef MAX_PATH
@@ -159,10 +151,15 @@ static int32    regStartCount = 0;
 char            *globalRegName = NULL;
 static char     *user_name = NULL;
 
+
+
+
 #ifdef XP_MACOSX
 
 void nr_MacAliasFromPath(const char * fileName, void ** alias, int32 * length);
 char * nr_PathFromMacAlias(const void * alias, uint32 aliasLength);
+
+#include "MoreFilesX.h"
 
 static void copyCStringToPascal(Str255 dest, const char *src)
 {
@@ -189,9 +186,9 @@ static OSErr isFileInTrash(FSRef *fsRef, PRBool *inTrash)
         err = FSFindFolder(catalogInfo.volume, kTrashFolderType, false, &trashFSRef);
         if (err == noErr)
         {
+            /* FSRefGetParentRef returns noErr and a zeroed FSRef when it reaches the top */
             for (currFSRef = *fsRef;
-                 (FSGetCatalogInfo(&currFSRef, kFSCatInfoNodeID, NULL, NULL, NULL, &parentFSRef) == noErr &&
-                  FSGetCatalogInfo(&parentFSRef, kFSCatInfoNone, NULL, NULL, NULL, NULL) == noErr);
+                 (FSGetParentRef(&currFSRef, &parentFSRef) == noErr && FSRefValid(&parentFSRef));
                  currFSRef = parentFSRef)
             {
                 if (FSCompareFSRefs(&parentFSRef, &trashFSRef) == noErr)

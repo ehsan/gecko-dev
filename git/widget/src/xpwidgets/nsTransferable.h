@@ -41,11 +41,13 @@
 #include "nsIFormatConverter.h"
 #include "nsITransferable.h"
 #include "nsCOMPtr.h"
-#include "nsTArray.h"
 
+
+class nsVoidArray;
 class nsString;
 class nsDataObj;
-class DataStruct;
+class nsVoidArray;
+
 
 /**
  * XP Transferable wrapper
@@ -67,7 +69,7 @@ protected:
     // get flavors w/out converter
   nsresult GetTransferDataFlavors(nsISupportsArray** aDataFlavorList);
  
-  nsTArray<DataStruct*> * mDataArray;
+  nsVoidArray * mDataArray;
   nsCOMPtr<nsIFormatConverter> mFormatConv;
 
 };

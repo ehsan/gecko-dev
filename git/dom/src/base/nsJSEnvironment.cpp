@@ -81,8 +81,6 @@
 #include "nsIContent.h"
 #include "nsCycleCollector.h"
 #include "nsNetUtil.h"
-#include "nsXPCOMCIDInternal.h"
-#include "nsIXULRuntime.h"
 
 // For locale aware string methods
 #include "plstr.h"
@@ -177,7 +175,7 @@ static PRUint32 sCCollectCount;
 static PRBool sUserIsActive;
 static PRTime sPreviousCCTime;
 static PRUint32 sCollectedObjectsCounts;
-static PRUint32 sSavedGCCount;
+static PRUint32 sGCCount;
 static PRUint32 sCCSuspectChanges;
 static PRUint32 sCCSuspectedCount;
 static nsITimer *sGCTimer;
@@ -376,7 +374,7 @@ class AutoFreeJSStack {
 public:
   AutoFreeJSStack(JSContext *ctx, void *aPtr) : mContext(ctx), mStack(aPtr) {
   }
-  JS_REQUIRES_STACK ~AutoFreeJSStack() {
+  ~AutoFreeJSStack() {
     if (mContext && mStack)
       js_FreeStack(mContext, mStack);
   }
@@ -425,28 +423,24 @@ NS_ScriptErrorReporter(JSContext *cx,
                        const char *message,
                        JSErrorReport *report)
 {
-  // We don't want to report exceptions too eagerly, but warnings in the
-  // absence of werror are swallowed whole, so report those now.
-  if (!JSREPORT_IS_WARNING(report->flags)) {
-    JSStackFrame * fp = nsnull;
-    while ((fp = JS_FrameIterator(cx, &fp))) {
-      if (!JS_IsNativeFrame(cx, fp)) {
-        return;
-      }
+  JSStackFrame * fp = nsnull;
+  while ((fp = JS_FrameIterator(cx, &fp))) {
+    if (!JS_IsNativeFrame(cx, fp)) {
+      return;
     }
+  }
 
-    nsIXPConnect* xpc = nsContentUtils::XPConnect();
-    if (xpc) {
-      nsAXPCNativeCallContext *cc = nsnull;
-      xpc->GetCurrentNativeCallContext(&cc);
-      if (cc) {
-        nsAXPCNativeCallContext *prev = cc;
-        while (NS_SUCCEEDED(prev->GetPreviousCallContext(&prev)) && prev) {
-          PRUint16 lang;
-          if (NS_SUCCEEDED(prev->GetLanguage(&lang)) &&
-            lang == nsAXPCNativeCallContext::LANG_JS) {
-            return;
-          }
+  nsIXPConnect* xpc = nsContentUtils::XPConnect();
+  if (xpc) {
+    nsAXPCNativeCallContext *cc = nsnull;
+    xpc->GetCurrentNativeCallContext(&cc);
+    if (cc) {
+      nsAXPCNativeCallContext *prev = cc;
+      while (NS_SUCCEEDED(prev->GetPreviousCallContext(&prev)) && prev) {
+        PRUint16 lang;
+        if (NS_SUCCEEDED(prev->GetLanguage(&lang)) &&
+          lang == nsAXPCNativeCallContext::LANG_JS) {
+          return;
         }
       }
     }
@@ -856,16 +850,21 @@ PrintWinCodebase(nsGlobalWindow *win)
 }
 #endif
 
+// The accumulated operation weight before we call MaybeGC
+const PRUint32 MAYBE_GC_OPERATION_WEIGHT = 5000 * JS_OPERATION_WEIGHT_BASE;
+
 static void
 MaybeGC(JSContext *cx)
 {
   size_t bytes = cx->runtime->gcBytes;
   size_t lastBytes = cx->runtime->gcLastBytes;
-  if ((bytes > 8192 && bytes > lastBytes * 16)
+
+  if ((bytes > 8192 && bytes / 16 > lastBytes)
 #ifdef DEBUG
       || cx->runtime->gcZeal > 0
 #endif
       ) {
+    ++sGCCount;
     JS_GC(cx);
   }
 }
@@ -925,7 +924,7 @@ nsJSContext::DOMOperationCallback(JSContext *cx)
     nsJSContext::CC();
 
     // never prevent system scripts from running
-    if (!::JS_IsSystemObject(cx, ::JS_GetGlobalObject(cx))) {
+    if (! ::JS_IsSystemObject(cx, ::JS_GetGlobalObject(cx))) {
 
       // lets see if CC() did anything, if not, cancel the script.
       mem->IsLowMemory(&lowMemory);
@@ -986,7 +985,7 @@ nsJSContext::DOMOperationCallback(JSContext *cx)
 
   // Check if we should offer the option to debug
   JSStackFrame* fp = ::JS_GetScriptedCaller(cx, NULL);
-  PRBool debugPossible = (fp != nsnull && cx->debugHooks &&
+  PRBool debugPossible = (fp != nsnull &&
                           cx->debugHooks->debuggerHandler != nsnull);
 #ifdef MOZ_JSDEBUGGER
   // Get the debugger service if necessary.
@@ -1095,15 +1094,10 @@ nsJSContext::DOMOperationCallback(JSContext *cx)
   if (debugPossible)
     buttonFlags += nsIPrompt::BUTTON_TITLE_IS_STRING * nsIPrompt::BUTTON_POS_2;
 
-  // Null out the operation callback while we're re-entering JS here.
-  ::JS_SetOperationCallback(cx, nsnull);
-
   // Open the dialog.
   rv = prompt->ConfirmEx(title, msg, buttonFlags, stopButton, waitButton,
                          debugButton, neverShowDlg, &neverShowDlgChk,
                          &buttonPressed);
-
-  ::JS_SetOperationCallback(cx, DOMOperationCallback);
 
   if (NS_FAILED(rv) || (buttonPressed == 1)) {
     // Allow the script to continue running
@@ -1175,18 +1169,9 @@ nsJSContext::JSOptionChangedCallback(const char *pref, void *data)
   // XXX should we check for sysprin instead of a chrome window, to make
   // XXX components be covered by the chrome pref instead of the content one?
   nsCOMPtr<nsIDOMChromeWindow> chromeWindow(do_QueryInterface(global));
-
   PRBool useJIT = nsContentUtils::GetBoolPref(chromeWindow ?
                                               js_jit_chrome_str :
                                               js_jit_content_str);
-  nsCOMPtr<nsIXULRuntime> xr = do_GetService(XULRUNTIME_SERVICE_CONTRACTID);
-  if (xr) {
-    PRBool safeMode = PR_FALSE;
-    xr->GetInSafeMode(&safeMode);
-    if (safeMode)
-      useJIT = PR_FALSE;
-  }    
-
   if (useJIT)
     newDefaultJSOptions |= JSOPTION_JIT;
   else
@@ -1252,7 +1237,8 @@ nsJSContext::nsJSContext(JSRuntime *aRuntime) : mGCOnDestruction(PR_TRUE)
                                          JSOptionChangedCallback,
                                          this);
 
-    ::JS_SetOperationCallback(mContext, DOMOperationCallback);
+    ::JS_SetOperationCallback(mContext, DOMOperationCallback,
+                              MAYBE_GC_OPERATION_WEIGHT);
 
     static JSLocaleCallbacks localeCallbacks =
       {
@@ -1304,6 +1290,9 @@ nsJSContext::Unlink()
   // Clear our entry in the JSContext, bugzilla bug 66413
   ::JS_SetContextPrivate(mContext, nsnull);
 
+  // Clear the operation callback, bugzilla bug 238218
+  ::JS_ClearOperationCallback(mContext);
+
   // Unregister our "javascript.options.*" pref-changed callback.
   nsContentUtils::UnregisterPrefCallback(js_options_dot_str,
                                          JSOptionChangedCallback,
@@ -1339,6 +1328,7 @@ NS_IMPL_CYCLE_COLLECTION_TRAVERSE_END
 NS_INTERFACE_MAP_BEGIN_CYCLE_COLLECTION(nsJSContext)
   NS_INTERFACE_MAP_ENTRY(nsIScriptContext)
   NS_INTERFACE_MAP_ENTRY(nsIXPCScriptNotify)
+  NS_INTERFACE_MAP_ENTRY(nsITimerCallback)
   NS_INTERFACE_MAP_ENTRY_AMBIGUOUS(nsISupports, nsIScriptContext)
 NS_INTERFACE_MAP_END
 
@@ -1600,7 +1590,7 @@ nsJSContext::EvaluateString(const nsAString& aScript,
       // to avoid dropping JS exceptions in case we got here through
       // nested calls through XPConnect.
 
-      ReportPendingException(PR_FALSE);
+      JS_ReportPendingException(mContext);
     }
   }
 
@@ -1829,9 +1819,6 @@ nsJSContext::CompileEventHandler(nsIAtom *aName,
 {
   NS_ENSURE_TRUE(mIsInitialized, NS_ERROR_NOT_INITIALIZED);
 
-  NS_PRECONDITION(!::JS_IsExceptionPending(mContext),
-                  "Why are we being called with a pending exception?");
-
   if (!sSecurityManager) {
     NS_ERROR("Huh, we need a script security manager to compile "
              "an event handler!");
@@ -1862,9 +1849,6 @@ nsJSContext::CompileEventHandler(nsIAtom *aName,
                                           aURL, aLineNo);
 
   if (!fun) {
-    // Set aside the frame chain on cx while reporting, since it has
-    // nothing to do with the error we just hit.
-    ReportPendingException(PR_TRUE);
     return NS_ERROR_ILLEGAL_VALUE;
   }
 
@@ -1989,7 +1973,7 @@ nsJSContext::CallEventHandler(nsISupports* aTarget, void *aScope, void *aHandler
 
     AutoFreeJSStack stackGuard(mContext, mark); // ensure always freed.
 
-    jsval funval = OBJECT_TO_JSVAL(static_cast<JSObject *>(aHandler));
+    jsval funval = OBJECT_TO_JSVAL(aHandler);
     JSAutoRequest ar(mContext);
     PRBool ok = ::JS_CallFunctionValue(mContext, target,
                                        funval, argc, argv, &rval);
@@ -1999,7 +1983,9 @@ nsJSContext::CallEventHandler(nsISupports* aTarget, void *aScope, void *aHandler
       // to avoid dropping JS exceptions in case we got here through
       // nested calls through XPConnect.
 
-      ReportPendingException(PR_FALSE);
+      if (JS_IsExceptionPending(mContext)) {
+        JS_ReportPendingException(mContext);
+      }
 
       // Don't pass back results from failed calls.
       rval = JSVAL_VOID;
@@ -2073,7 +2059,6 @@ nsJSContext::BindCompiledEventHandler(nsISupports* aTarget, void *aScope,
       !::JS_DefineProperty(mContext, target, charName,
                            OBJECT_TO_JSVAL(funobj), nsnull, nsnull,
                            JSPROP_ENUMERATE | JSPROP_PERMANENT)) {
-    ReportPendingException(PR_TRUE);
     rv = NS_ERROR_FAILURE;
   }
 
@@ -2268,6 +2253,7 @@ nsJSContext::GetGlobalObject()
 
   if (!c || ((~c->flags) & (JSCLASS_HAS_PRIVATE |
                             JSCLASS_PRIVATE_IS_NSISUPPORTS))) {
+    NS_WARNING("Global is not an nsISupports.");
     return nsnull;
   }
 
@@ -2524,8 +2510,6 @@ nsJSContext::ConvertSupportsTojsvals(nsISupports *aArgs,
                                      void **aMarkp)
 {
   nsresult rv = NS_OK;
-
-  js_LeaveTrace(mContext);
 
   // If the array implements nsIJSArgArray, just grab the values directly.
   nsCOMPtr<nsIJSArgArray> fastArray = do_QueryInterface(aArgs);
@@ -3331,7 +3315,7 @@ nsresult
 nsJSContext::SetTerminationFunction(nsScriptTerminationFunc aFunc,
                                     nsISupports* aRef)
 {
-  NS_PRECONDITION(JS_IsRunning(mContext), "should be executing script");
+  NS_PRECONDITION(mContext->fp, "should be executing script");
 
   nsJSContext::TerminationFuncClosure* newClosure =
     new nsJSContext::TerminationFuncClosure(aFunc, aRef, mTerminations);
@@ -3408,32 +3392,17 @@ nsJSContext::CC()
 #endif
   sPreviousCCTime = PR_Now();
   sDelayedCCollectCount = 0;
+  sGCCount = 0;
   sCCSuspectChanges = 0;
   // nsCycleCollector_collect() will run a ::JS_GC() indirectly, so
   // we do not explicitly call ::JS_GC() here.
   sCollectedObjectsCounts = nsCycleCollector_collect();
   sCCSuspectedCount = nsCycleCollector_suspectedCount();
-  sSavedGCCount = JS_GetGCParameter(nsJSRuntime::sRuntime, JSGC_NUMBER);
 #ifdef DEBUG_smaug
   printf("Collected %u objects, %u suspected objects, took %lldms\n",
          sCollectedObjectsCounts, sCCSuspectedCount,
          (PR_Now() - sPreviousCCTime) / PR_USEC_PER_MSEC);
 #endif
-}
-
-static inline uint32
-GetGCRunsSinceLastCC()
-{
-    // To avoid crash if nsJSRuntime is not properly initialized.
-    // See the bug 474586
-    if (!nsJSRuntime::sRuntime)
-        return 0;
-
-    // Since JS_GetGCParameter() and sSavedGCCount are unsigned, the following
-    // gives the correct result even when the GC counter wraps around
-    // UINT32_MAX since the last call to JS_GetGCParameter(). 
-    return JS_GetGCParameter(nsJSRuntime::sRuntime, JSGC_NUMBER) -
-           sSavedGCCount;
 }
 
 //static
@@ -3444,7 +3413,7 @@ nsJSContext::MaybeCC(PRBool aHigherProbability)
 
   // Don't check suspected count if CC will be called anyway.
   if (sCCSuspectChanges <= NS_MIN_SUSPECT_CHANGES ||
-      GetGCRunsSinceLastCC() <= NS_MAX_GC_COUNT) {
+      sGCCount <= NS_MAX_GC_COUNT) {
 #ifdef DEBUG_smaug
     PRTime now = PR_Now();
 #endif
@@ -3461,8 +3430,8 @@ nsJSContext::MaybeCC(PRBool aHigherProbability)
     }
   }
 #ifdef DEBUG_smaug
-  printf("sCCSuspectChanges %u, GC runs %u\n",
-         sCCSuspectChanges, GetGCRunsSinceLastCC());
+  printf("sCCSuspectChanges %u, sGCCount %u\n",
+         sCCSuspectChanges, sGCCount);
 #endif
 
   // Increase the probability also if the previous call to cycle collector
@@ -3475,7 +3444,7 @@ nsJSContext::MaybeCC(PRBool aHigherProbability)
   if (!sGCTimer &&
       (sDelayedCCollectCount > NS_MAX_DELAYED_CCOLLECT) &&
       ((sCCSuspectChanges > NS_MIN_SUSPECT_CHANGES &&
-        GetGCRunsSinceLastCC() > NS_MAX_GC_COUNT) ||
+        sGCCount > NS_MAX_GC_COUNT) ||
        (sCCSuspectChanges > NS_MAX_SUSPECT_CHANGES))) {
     if ((PR_Now() - sPreviousCCTime) >=
         PRTime(NS_MIN_CC_INTERVAL * PR_USEC_PER_MSEC)) {
@@ -3502,10 +3471,11 @@ nsJSContext::CCIfUserInactive()
   }
 }
 
-// static
-void
-GCTimerFired(nsITimer *aTimer, void *aClosure)
+NS_IMETHODIMP
+nsJSContext::Notify(nsITimer *timer)
 {
+  NS_ASSERTION(mContext, "No context in nsJSContext::Notify()!");
+
   NS_RELEASE(sGCTimer);
 
   if (sPendingLoadCount == 0 || sLoadInProgressGCTimer) {
@@ -3519,12 +3489,14 @@ GCTimerFired(nsITimer *aTimer, void *aClosure)
     // loading and move on as if they weren't.
     sPendingLoadCount = 0;
 
-    nsJSContext::CCIfUserInactive();
+    CCIfUserInactive();
   } else {
-    nsJSContext::FireGCTimer(PR_TRUE);
+    FireGCTimer(PR_TRUE);
   }
 
   sReadyForGC = PR_TRUE;
+
+  return NS_OK;
 }
 
 // static
@@ -3553,10 +3525,15 @@ nsJSContext::LoadEnd()
   }
 }
 
-// static
 void
 nsJSContext::FireGCTimer(PRBool aLoadInProgress)
 {
+  // Always clear the newborn roots.  If there's already a timer, this
+  // will let the GC from that timer clean up properly.  If we're going
+  // to create a timer, we still want to do this now so that XPCOM
+  // shutdown can clean up properly.
+  ::JS_ClearNewbornRoots(mContext);
+
   if (sGCTimer) {
     // There's already a timer for GC'ing, just return
     return;
@@ -3577,11 +3554,11 @@ nsJSContext::FireGCTimer(PRBool aLoadInProgress)
 
   static PRBool first = PR_TRUE;
 
-  sGCTimer->InitWithFuncCallback(GCTimerFired, nsnull,
-                                 first ? NS_FIRST_GC_DELAY :
-                                 aLoadInProgress ? NS_LOAD_IN_PROCESS_GC_DELAY :
-                                                   NS_GC_DELAY,
-                                 nsITimer::TYPE_ONE_SHOT);
+  sGCTimer->InitWithCallback(this,
+                             first ? NS_FIRST_GC_DELAY :
+                             aLoadInProgress ? NS_LOAD_IN_PROCESS_GC_DELAY :
+                                               NS_GC_DELAY,
+                             nsITimer::TYPE_ONE_SHOT);
 
   sLoadInProgressGCTimer = aLoadInProgress;
 
@@ -3628,15 +3605,10 @@ nsJSContext::DropScriptObject(void* aScriptObject)
 }
 
 void
-nsJSContext::ReportPendingException(PRBool aSetAsideFrameChain)
+nsJSContext::ReportPendingException()
 {
-  JSStackFrame* frame =
-    aSetAsideFrameChain ? JS_SaveFrameChain(mContext) : nsnull;
   if (mIsInitialized && ::JS_IsExceptionPending(mContext)) {
     ::JS_ReportPendingException(mContext);
-  }
-  if (aSetAsideFrameChain) {
-    JS_RestoreFrameChain(mContext, frame);
   }
 }
 
@@ -3697,7 +3669,7 @@ nsJSRuntime::Startup()
   sUserIsActive = PR_FALSE;
   sPreviousCCTime = 0;
   sCollectedObjectsCounts = 0;
-  sSavedGCCount = 0;
+  sGCCount = 0;
   sCCSuspectChanges = 0;
   sCCSuspectedCount = 0;
   sGCTimer = nsnull;
@@ -3803,8 +3775,6 @@ nsJSRuntime::Init()
 
   NS_ASSERTION(!gOldJSGCCallback,
                "nsJSRuntime initialized more than once");
-
-  sSavedGCCount = JS_GetGCParameter(nsJSRuntime::sRuntime, JSGC_NUMBER);
 
   // Save the old GC callback to chain to it, for GC-observing generality.
   gOldJSGCCallback = ::JS_SetGCCallbackRT(sRuntime, DOMGCCallback);

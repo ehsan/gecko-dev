@@ -46,7 +46,6 @@
 #include "nsIContent.h"
 #include "nsIDOMNode.h"
 #include "nsVoidArray.h"
-#include "nsTArray.h"
 #include "nsString.h"
 #include "nsIXULTemplateRuleFilter.h"
 #include "nsCycleCollectionParticipant.h"
@@ -114,7 +113,7 @@ protected:
     nsString            mSource;
     ConditionRelation   mRelation;
     nsCOMPtr<nsIAtom>   mTargetVariable;
-    nsTArray<nsString>  mTargetList;
+    nsStringArray       mTargetList;
     PRPackedBool        mIgnoreCase;
     PRPackedBool        mNegate;
 
@@ -150,8 +149,11 @@ public:
      * Return the <action> node that this rule was constructed from, or its
      * logical equivalent for shorthand syntaxes. That is, the parent node of
      * the content that should be generated for this rule.
+     * @param aAction an out parameter, which will contain the content node
+     *   that this rule uses to generated content
+     * @return NS_OK if no errors occur.
      */
-    nsIContent* GetAction() const { return mAction; }
+    nsresult GetAction(nsIContent** aAction) const;
 
     /**
      * Return the <rule> content node that this rule was constructed from.

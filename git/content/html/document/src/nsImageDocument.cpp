@@ -68,7 +68,7 @@
 #include "nsIDOMElement.h"
 #include "nsIDOMNSHTMLElement.h"
 #include "nsContentErrors.h"
-#include "nsURILoader.h"
+#include "ImageErrors.h"
 #include "nsIDocShell.h"
 #include "nsIContentViewer.h"
 #include "nsIMarkupDocumentViewer.h"
@@ -117,8 +117,6 @@ public:
 
   // nsIDOMEventListener
   NS_IMETHOD HandleEvent(nsIDOMEvent* aEvent);
-
-  NS_DECL_CYCLE_COLLECTION_CLASS_INHERITED(nsImageDocument, nsMediaDocument)
 
   friend class ImageListener;
 protected:
@@ -235,9 +233,9 @@ ImageListener::OnStopRequest(nsIRequest* request, nsISupports *ctxt,
     imageLoader->RemoveObserver(imgDoc);
   }
 
-  // |status| is NS_ERROR_PARSED_DATA_CACHED if the image was found in
-  // the cache (bug 177747 comment 51, bug 475344).
-  if (status == NS_ERROR_PARSED_DATA_CACHED) {
+  // |status| is NS_IMAGELIB_ERROR_LOAD_ABORTED if the image was found in
+  // the cache (bug 177747 comment 51).
+  if (status == NS_IMAGELIB_ERROR_LOAD_ABORTED) {
     status = NS_OK;
   }
 
@@ -274,16 +272,8 @@ nsImageDocument::~nsImageDocument()
 {
 }
 
-NS_IMPL_CYCLE_COLLECTION_CLASS(nsImageDocument)
-
-NS_IMPL_CYCLE_COLLECTION_TRAVERSE_BEGIN_INHERITED(nsImageDocument, nsMediaDocument)
-  NS_IMPL_CYCLE_COLLECTION_TRAVERSE_NSCOMPTR(mImageContent)
-NS_IMPL_CYCLE_COLLECTION_TRAVERSE_END
-
-NS_IMPL_CYCLE_COLLECTION_UNLINK_BEGIN_INHERITED(nsImageDocument, nsMediaDocument)
-  NS_IMPL_CYCLE_COLLECTION_UNLINK_NSCOMPTR(mImageContent)
-NS_IMPL_CYCLE_COLLECTION_UNLINK_END
-
+// XXXbz shouldn't this participate in cycle collection?  It's got
+// mImageContent!
 NS_IMPL_ADDREF_INHERITED(nsImageDocument, nsMediaDocument)
 NS_IMPL_RELEASE_INHERITED(nsImageDocument, nsMediaDocument)
 

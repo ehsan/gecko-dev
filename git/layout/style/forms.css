@@ -49,7 +49,7 @@
 
 /* miscellaneous form elements */
 
-fieldset > legend {
+legend {
   padding-left: 2px;
   padding-right: 2px;
   border: none;
@@ -62,10 +62,6 @@ fieldset > legend {
   min-height: 0 ! important;
   max-height: none ! important;
   white-space: nowrap;
-}
-
-legend {
-  display: block;
 }
 
 fieldset {
@@ -159,8 +155,8 @@ textarea:-moz-read-write {
 select {
   margin: 0;
   border-color: ThreeDFace;
-  background-color: -moz-Combobox;
-  color: -moz-ComboboxText;
+  background-color: -moz-Field;
+  color: -moz-FieldText;
   font: -moz-list;
   line-height: normal !important;
   white-space: nowrap !important;
@@ -184,8 +180,6 @@ select[size],
 select[multiple],
 select[size][multiple] {
   /* Different alignment and padding for listbox vs combobox */
-  background-color: -moz-Field;
-  color: -moz-FieldText;
   vertical-align: text-bottom;
   padding: 1px 0 1px 0;
   -moz-appearance: listbox;
@@ -194,8 +188,6 @@ select[size][multiple] {
 select[size="0"],
 select[size="1"] {
   /* Except this is not a listbox */
-  background-color: -moz-Combobox;
-  color: -moz-ComboboxText;
   vertical-align: baseline;
   padding: 0;
   -moz-appearance: menulist;
@@ -605,6 +597,12 @@ input[type="file"] > input[type="text"] {
   }
 
   input[type="file"] { height: 2em; }
+}
+
+video > xul|videocontrols {
+  display: -moz-box;
+  -moz-box-orient: vertical;
+  -moz-binding: url("chrome://global/content/bindings/videocontrols.xml#videoControls");
 }
 
 %if OSARCH==OS2

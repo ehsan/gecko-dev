@@ -143,7 +143,7 @@ public:
     eDOMEvents_loadstart,
     eDOMEvents_progress,
     eDOMEvents_loadedmetadata,
-    eDOMEvents_loadeddata,
+    eDOMEvents_loadedfirstframe,
     eDOMEvents_emptied,
     eDOMEvents_stalled,
     eDOMEvents_play,
@@ -153,6 +153,8 @@ public:
     eDOMEvents_seeked,
     eDOMEvents_timeupdate,
     eDOMEvents_ended,
+    eDOMEvents_dataunavailable,
+    eDOMEvents_canshowcurrentframe,
     eDOMEvents_canplay,
     eDOMEvents_canplaythrough,
     eDOMEvents_ratechange,
@@ -203,7 +205,6 @@ protected:
   nsresult SetEventType(const nsAString& aEventTypeArg);
   static const char* GetEventName(PRUint32 aEventType);
   already_AddRefed<nsIDOMEventTarget> GetTargetFromFrame();
-  nsresult ReportWrongPropertyAccessWarning(const char* aPropertyName);
 
   nsEvent*                    mEvent;
   nsCOMPtr<nsPresContext>     mPresContext;

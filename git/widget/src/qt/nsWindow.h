@@ -64,7 +64,6 @@
 #define FORCE_PR_LOG
 
 #include "prlog.h"
-#include "nsTArray.h"
 
 extern PRLogModuleInfo *gWidgetLog;
 extern PRLogModuleInfo *gWidgetFocusLog;
@@ -121,14 +120,14 @@ public:
     //
 
     NS_IMETHOD         Create(nsIWidget        *aParent,
-                              const nsIntRect     &aRect,
+                              const nsRect     &aRect,
                               EVENT_CALLBACK   aHandleEventFunction,
                               nsIDeviceContext *aContext,
                               nsIAppShell      *aAppShell,
                               nsIToolkit       *aToolkit,
                               nsWidgetInitData *aInitData);
     NS_IMETHOD         Create(nsNativeWidget aParent,
-                              const nsIntRect     &aRect,
+                              const nsRect     &aRect,
                               EVENT_CALLBACK   aHandleEventFunction,
                               nsIDeviceContext *aContext,
                               nsIAppShell      *aAppShell,
@@ -160,7 +159,7 @@ public:
     NS_IMETHOD         SetSizeMode(PRInt32 aMode);
     NS_IMETHOD         Enable(PRBool aState);
     NS_IMETHOD         SetFocus(PRBool aRaise = PR_FALSE);
-    NS_IMETHOD         GetScreenBounds(nsIntRect &aRect);
+    NS_IMETHOD         GetScreenBounds(nsRect &aRect);
     NS_IMETHOD         SetForegroundColor(const nscolor &aColor);
     NS_IMETHOD         SetBackgroundColor(const nscolor &aColor);
     NS_IMETHOD         SetCursor(nsCursor aCursor);
@@ -172,7 +171,7 @@ public:
     NS_IMETHOD         MakeFullScreen(PRBool aFullScreen);
     NS_IMETHOD         Validate();
     NS_IMETHOD         Invalidate(PRBool aIsSynchronous);
-    NS_IMETHOD         Invalidate(const nsIntRect &aRect,
+    NS_IMETHOD         Invalidate(const nsRect &aRect,
                                   PRBool        aIsSynchronous);
     NS_IMETHOD         InvalidateRegion(const nsIRegion *aRegion,
                                         PRBool           aIsSynchronous);
@@ -180,10 +179,10 @@ public:
     NS_IMETHOD         SetColorMap(nsColorMap *aColorMap);
     NS_IMETHOD         Scroll(PRInt32  aDx,
                               PRInt32  aDy,
-                              nsIntRect  *aClipRect);
+                              nsRect  *aClipRect);
     NS_IMETHOD         ScrollWidgets(PRInt32 aDx,
                                      PRInt32 aDy);
-    NS_IMETHOD         ScrollRect(nsIntRect  &aSrcRect,
+    NS_IMETHOD         ScrollRect(nsRect  &aSrcRect,
                                   PRInt32  aDx,
                                   PRInt32  aDy);
 
@@ -196,7 +195,10 @@ public:
     NS_IMETHOD         SetIcon(const nsAString& aIconSpec);
     NS_IMETHOD         SetMenuBar(void * aMenuBar) { return NS_ERROR_FAILURE; }
     NS_IMETHOD         ShowMenuBar(PRBool aShow);
-    virtual nsIntPoint WidgetToScreenOffset();
+    NS_IMETHOD         WidgetToScreen(const nsRect& aOldRect,
+                                      nsRect& aNewRect);
+    NS_IMETHOD         ScreenToWidget(const nsRect& aOldRect,
+                                      nsRect& aNewRect);
     NS_IMETHOD         BeginResizingChildren(void);
     NS_IMETHOD         EndResizingChildren(void);
     NS_IMETHOD         GetPreferredSize (PRInt32 &aWidth,
@@ -234,7 +236,7 @@ public:
     void DispatchLostFocusEvent(void);
     void DispatchActivateEvent(void);
     void DispatchDeactivateEvent(void);
-    void DispatchResizeEvent(nsIntRect &aRect, nsEventStatus &aStatus);
+    void DispatchResizeEvent(nsRect &aRect, nsEventStatus &aStatus);
 
     nsEventStatus DispatchEvent(nsGUIEvent *aEvent) {
         nsEventStatus status;
@@ -310,7 +312,7 @@ protected:
 
     nsresult           NativeCreate(nsIWidget        *aParent,
                                     nsNativeWidget    aNativeParent,
-                                    const nsIntRect     &aRect,
+                                    const nsRect     &aRect,
                                     EVENT_CALLBACK    aHandleEventFunction,
                                     nsIDeviceContext *aContext,
                                     nsIAppShell      *aAppShell,
@@ -347,7 +349,7 @@ private:
     void               GetToplevelWidget(QWidget **aWidget);
     void               SetUrgencyHint(QWidget *top_window, PRBool state);
     void              *SetupPluginPort(void);
-    nsresult           SetWindowIconList(const nsTArray<nsCString> &aIconList);
+    nsresult           SetWindowIconList(const nsCStringArray &aIconList);
     void               SetDefaultIcon(void);
     void               InitButtonEvent(nsMouseEvent &event, QMouseEvent *aEvent, int aClickCount = 1);
     PRBool             DispatchCommandEvent(nsIAtom* aCommand);

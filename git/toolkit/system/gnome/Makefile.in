@@ -51,11 +51,6 @@ REQUIRES = \
 	xpcom \
 	string \
 	necko \
-	alerts \
-	gfx \
-	imglib2 \
-	intl \
-	widget \
 	$(NULL)
 
 CPPSRCS = \
@@ -63,13 +58,6 @@ CPPSRCS = \
 	nsGnomeVFSService.cpp \
 	nsGnomeModule.cpp \
 	$(NULL)
-
-ifdef MOZ_ENABLE_LIBNOTIFY
-CPPSRCS += \
-	nsAlertsService.cpp \
-	nsAlertsIconListener.cpp \
-	$(NULL)
-endif
 
 EXTRA_DSO_LDOPTS += \
 		$(XPCOM_GLUE_LDOPTS) \
@@ -79,10 +67,7 @@ EXTRA_DSO_LDOPTS += \
 		$(MOZ_GNOMEVFS_LIBS) \
 		$(MOZ_LIBGNOME_LIBS) \
 		$(GLIB_LIBS) \
-		$(MOZ_LIBNOTIFY_LIBS) \
 		$(NULL)
-
-LOCAL_INCLUDES += -I$(topsrcdir)/toolkit/components/build/
 
 include $(topsrcdir)/config/rules.mk
 
@@ -91,5 +76,4 @@ CXXFLAGS += \
 	$(MOZ_GNOMEVFS_CFLAGS) \
 	$(MOZ_LIBGNOME_CFLAGS) \
 	$(GLIB_CFLAGS) \
-	$(MOZ_LIBNOTIFY_CFLAGS) \
 	$(NULL)

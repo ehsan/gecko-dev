@@ -58,18 +58,9 @@ namespace nanojit
 	 * This is the main control center for creating and managing fragments.
 	 */
 	Fragmento::Fragmento(AvmCore* core, uint32_t cacheSizeLog2) 
-		:
-#ifdef NJ_VERBOSE
-		  enterCounts(NULL),
-		  mergeCounts(NULL),
-		  labels(NULL),
-#endif
-		  _frags(core->GetGC()),
-		  _freePages(core->GetGC(), 1024),
-		  _allocList(core->GetGC()),
-		  _gcHeap(NULL),
-		  _max_pages(1 << (calcSaneCacheSize(cacheSizeLog2) - NJ_LOG2_PAGE_SIZE)),
-		  _pagesGrowth(1)
+		: _allocList(core->GetGC()),
+			_max_pages(1 << (calcSaneCacheSize(cacheSizeLog2) - NJ_LOG2_PAGE_SIZE)),
+			_pagesGrowth(1)
 	{
 #ifdef _DEBUG
 		{
@@ -79,8 +70,6 @@ namespace nanojit
 			NanoStaticAssert((LIR_le ^ 3) == LIR_gt);
 			NanoStaticAssert((LIR_ult ^ 3) == LIR_uge);
 			NanoStaticAssert((LIR_ule ^ 3) == LIR_ugt);
-			NanoStaticAssert((LIR_flt ^ 3) == LIR_fge);
-			NanoStaticAssert((LIR_fle ^ 3) == LIR_fgt);
 
 			/* Opcodes must be strictly increasing without holes. */
 			uint32_t count = 0;
@@ -99,11 +88,10 @@ namespace nanojit
 		NanoAssert(_max_pages > _pagesGrowth); // shrink growth if needed 
 		_core = core;
 		GC *gc = core->GetGC();
-		_assm = NJ_NEW(gc, nanojit::Assembler)(this);
-		verbose_only( enterCounts = NJ_NEW(gc, BlockHist)(gc); )
-		verbose_only( mergeCounts = NJ_NEW(gc, BlockHist)(gc); )
-
-		memset(&_stats, 0, sizeof(_stats));
+		_frags = new (gc) FragmentMap(gc, 128);
+		_assm = new (gc) nanojit::Assembler(this);
+		verbose_only( enterCounts = new (gc) BlockHist(gc); )
+		verbose_only( mergeCounts = new (gc) BlockHist(gc); )
 	}
 
 	Fragmento::~Fragmento()
@@ -111,8 +99,7 @@ namespace nanojit
         AllocEntry *entry;
 
 		clearFrags();
-        _frags.clear();		
-		_freePages.clear();
+        _frags->clear();		
 		while( _allocList.size() > 0 )
 		{
 			//fprintf(stderr,"dealloc %x\n", (intptr_t)_allocList.get(_allocList.size()-1));
@@ -121,18 +108,21 @@ namespace nanojit
 #endif
             entry = _allocList.removeLast();
 			_gcHeap->Free( entry->page, entry->allocSize );
-            NJ_DELETE(entry);
+            delete entry;
 		}
-        NJ_DELETE(_assm);
+        delete _frags;
+        delete _assm;
 #if defined(NJ_VERBOSE)
-        NJ_DELETE(enterCounts);
-        NJ_DELETE(mergeCounts);
+        delete enterCounts;
+        delete mergeCounts;
 #endif
+		NanoAssert(_stats.freePages == _stats.pages );
 	}
 
-	void Fragmento::trackPages()
+	void Fragmento::trackFree(int32_t delta)
 	{
-		const uint32_t pageUse = _stats.pages - _freePages.size();
+		_stats.freePages += delta;
+		const uint32_t pageUse = _stats.pages - _stats.freePages;
 		if (_stats.maxPageUse < pageUse)
 			_stats.maxPageUse = pageUse;
 	}
@@ -140,38 +130,38 @@ namespace nanojit
 	Page* Fragmento::pageAlloc()
 	{
         NanoAssert(sizeof(Page) == NJ_PAGE_SIZE);
-        if (!_freePages.size()) {
-            pagesGrow(_pagesGrowth);    // try to get more mem
-            if ((_pagesGrowth << 1) < _max_pages)
-                _pagesGrowth <<= 1;
-        }
-
-		trackPages();
-		Page* page = 0;
-		if (_freePages.size()) 
-			page = _freePages.removeLast();
-		return page;
+		if (!_pageList) {
+			pagesGrow(_pagesGrowth);	// try to get more mem
+			            if ((_pagesGrowth << 1) < _max_pages)
+							_pagesGrowth <<= 1;						
 		}
-	
-	void Fragmento::pagesRelease(PageList& l)
+		Page *page = _pageList;
+		if (page)
 		{
-		_freePages.add(l);
-		l.clear();
-		NanoAssert(_freePages.size() <= _stats.pages);
+			_pageList = page->next;
+			trackFree(-1);
+		}
+		//fprintf(stderr, "Fragmento::pageAlloc %X,  %d free pages of %d\n", (int)page, _stats.freePages, _stats.pages);
+		NanoAssert(pageCount()==_stats.freePages);
+		return page;
 	}
 	
 	void Fragmento::pageFree(Page* page)
 	{ 
-		_freePages.add(page);
-		NanoAssert(_freePages.size() <= _stats.pages);
+		//fprintf(stderr, "Fragmento::pageFree %X,  %d free pages of %d\n", (int)page, _stats.freePages+1, _stats.pages);
+
+		// link in the page
+		page->next = _pageList;
+		_pageList = page;
+		trackFree(+1);
+		NanoAssert(pageCount()==_stats.freePages);
 	}
 
 	void Fragmento::pagesGrow(int32_t count)
 	{
-		NanoAssert(!_freePages.size());
+		NanoAssert(!_pageList);
 		MMGC_MEM_TYPE("NanojitFragmentoMem"); 
 		Page* memory = 0;
-        GC *gc = _core->GetGC();
 		if (_stats.pages < _max_pages)
 		{
             AllocEntry *entry;
@@ -182,7 +172,7 @@ namespace nanojit
             if (count < 0)
                 count = 0;
 			// @todo nastiness that needs a fix'n
-			_gcHeap = gc->GetGCHeap();
+			_gcHeap = _core->GetGC()->GetGCHeap();
 			NanoAssert(int32_t(NJ_PAGE_SIZE)<=_gcHeap->kNativePageSize);
 			
 			// convert _max_pages to gc page count 
@@ -195,19 +185,26 @@ namespace nanojit
 			NanoAssert((int*)memory == pageTop(memory));
 			//fprintf(stderr,"head alloc of %d at %x of %d pages using nj page size of %d\n", gcpages, (intptr_t)memory, (intptr_t)_gcHeap->kNativePageSize, NJ_PAGE_SIZE);
 
-            entry = NJ_NEW(gc, AllocEntry);
+            entry = new (_core->gc) AllocEntry;
             entry->page = memory;
             entry->allocSize = gcpages;
             _allocList.add(entry);
 
-			_stats.pages += count;
 			Page* page = memory;
-			while(--count >= 0)
+			_pageList = page;
+			_stats.pages += count;
+			_stats.freePages += count;
+			trackFree(0);
+			while(--count > 0)
 			{
-				//fprintf(stderr,"Fragmento::pageGrow adding page %x ; %d\n", (unsigned)page, _freePages.size()+1);
-				_freePages.add(page++);
+				Page *next = page + 1;
+				//fprintf(stderr,"Fragmento::pageGrow adding page %x ; %d\n", (intptr_t)page, count);
+				page->next = next;
+				page = next; 
 			}
-			trackPages();
+			page->next = 0;
+			NanoAssert(pageCount()==_stats.freePages);
+			//fprintf(stderr,"Fragmento::pageGrow adding page %x ; %d\n", (intptr_t)page, count);
 		}
 	}
 	
@@ -219,17 +216,17 @@ namespace nanojit
 		while (peer) {
 			Fragment *next = peer->peer;
 			peer->releaseTreeMem(this);
-			NJ_DELETE(peer);
+			delete peer;
 			peer = next;
 		}
 		f->releaseTreeMem(this);
-		NJ_DELETE(f);
+		delete f;
 	}
 
 	void Fragmento::clearFrag(const void* ip)
 	{
-		if (_frags.containsKey(ip)) {
-			clearFragment(_frags.remove(ip));
+		if (_frags->containsKey(ip)) {
+			clearFragment(_frags->remove(ip));
 		}
 	}
 
@@ -238,8 +235,8 @@ namespace nanojit
 		// reclaim any dangling native pages
 		_assm->pageReset();
 
-        while (!_frags.isEmpty()) {
-            clearFragment(_frags.removeLast());
+        while (!_frags->isEmpty()) {
+            clearFragment(_frags->removeLast());
 		}
 
 		verbose_only( enterCounts->clear();)
@@ -262,7 +259,7 @@ namespace nanojit
     Fragment* Fragmento::getAnchor(const void* ip)
 	{
         Fragment *f = newFrag(ip);
-        Fragment *p = _frags.get(ip);
+        Fragment *p = _frags->get(ip);
         if (p) {
             f->first = p;
             /* append at the end of the peer list */
@@ -272,18 +269,19 @@ namespace nanojit
             p->peer = f;
         } else {
             f->first = f;
-            _frags.put(ip, f); /* this is the first fragment */
+            _frags->put(ip, f); /* this is the first fragment */
         }
         f->anchor = f;
         f->root = f;
         f->kind = LoopTrace;
-        verbose_only( addLabel(f, "T", _frags.size()); )
+        f->mergeCounts = new (_core->gc) BlockHist(_core->gc);
+        verbose_only( addLabel(f, "T", _frags->size()); )
         return f;
 	}
 	
     Fragment* Fragmento::getLoop(const void* ip)
 	{
-        return _frags.get(ip);
+        return _frags->get(ip);
 	}
 
 #ifdef NJ_VERBOSE
@@ -328,6 +326,14 @@ namespace nanojit
     }
 
 #ifdef NJ_VERBOSE
+	uint32_t Fragmento::pageCount()
+	{
+		uint32_t n = 0;
+		for(Page* page=_pageList; page; page = page->next)
+			n++;
+		return n;
+	}
+
 	struct fragstats {
 		int size;
 		uint64_t traceDur;
@@ -425,10 +431,10 @@ namespace nanojit
 			_stats.abcsize + _stats.ilsize,
 			double(_stats.abcsize+_stats.ilsize)/_stats.abcsize);
 
-		int32_t count = _frags.size();
+		int32_t count = _frags->size();
 		int32_t pages =  _stats.pages;
 		int32_t maxPageUse =  _stats.maxPageUse;
-		int32_t free = _freePages.size();
+		int32_t free = _stats.freePages;
 		int32_t flushes = _stats.flushes;
 		if (!count)
 		{
@@ -450,7 +456,7 @@ namespace nanojit
 		fragstats totalstat = { 0,0,0,0,0 };
         for (int32_t i=0; i<count; i++)
         {
-            Fragment *f = _frags.at(i);
+            Fragment *f = _frags->at(i);
             while (true) {
                 fragstats stat = { 0,0,0,0,0 };
                 dumpFragStats(f, 0, stat);
@@ -525,51 +531,14 @@ namespace nanojit
 	//
 	// Fragment
 	//
-	Fragment::Fragment(const void* _ip)
-		:
-#ifdef NJ_VERBOSE
-		  _called(0),
-		  _native(0),
-		  _exitNative(0),
-		  _lir(0),
-		  _lirbytes(0),
-		  _token(NULL),
-		  traceTicks(0),
-		  interpTicks(0),
-		  eot_target(NULL),
-		  sid(0),
-		  compileNbr(0),
-#endif
-		  treeBranches(NULL),
-		  branches(NULL),
-		  nextbranch(NULL),
-		  anchor(NULL),
-		  root(NULL),
-		  parent(NULL),
-		  first(NULL),
-		  peer(NULL),
-		  lirbuf(NULL),
-		  lastIns(NULL),
-		  spawnedFrom(NULL),
-		  kind(LoopTrace),
-		  ip(_ip),
-		  guardCount(0),
-		  xjumpCount(0),
-		  recordAttempts(0),
-		  blacklistLevel(0),
-		  fragEntry(NULL),
-		  loopEntry(NULL),
-		  vmprivate(NULL),
-		  _code(NULL),
-		  _links(NULL),
-		  _hits(0),
-		  _pages(NULL)
+	Fragment::Fragment(const void* _ip) : ip(_ip)
 	{
+        // Fragment is a gc object which is zero'd by the GC, no need to clear fields
     }
 
 	Fragment::~Fragment()
 	{
-		onDestroy();
+        onDestroy();
 		NanoAssert(_pages == 0);
     }
 
@@ -588,8 +557,9 @@ namespace nanojit
     Fragment *Fragmento::newFrag(const void* ip)
     {
 		GC *gc = _core->gc;
-        Fragment *f = NJ_NEW(gc, Fragment)(ip);
+        Fragment *f = new (gc) Fragment(ip);
 		f->blacklistLevel = 5;
+        f->recordAttempts = 0;
         return f;
     }
 
@@ -598,6 +568,7 @@ namespace nanojit
 		Fragment *f = newFrag(ip);
 		f->anchor = from->anchor;
 		f->root = from->root;
+		f->mergeCounts = from->anchor->mergeCounts;
         f->xjumpCount = from->xjumpCount;
 		/*// prepend
 		f->nextbranch = from->branches;
@@ -612,6 +583,24 @@ namespace nanojit
 			p->nextbranch = f;
 		}
 		return f;
+	}
+
+	void Fragmento::disconnectLoops()
+	{
+		for (int i = 0; i < _frags->size(); ++i) {
+			Fragment* frag = _frags->at(i);
+			if (frag->lastIns->isop(LIR_loop))
+				_assm->disconnectLoop(frag->lastIns->record());
+		}
+	}
+
+	void Fragmento::reconnectLoops()
+	{
+		for (int i = 0; i < _frags->size(); ++i) {
+			Fragment* frag = _frags->at(i);
+			if (frag->lastIns->isop(LIR_loop))
+				_assm->reconnectLoop(frag->lastIns->record());
+		}
 	}
 
 	void Fragment::releaseLirBuffer()
@@ -641,7 +630,7 @@ namespace nanojit
 		{
 			Fragment* next = branch->nextbranch;
 			branch->releaseTreeMem(frago);  // @todo safer here to recurse in case we support nested trees
-            NJ_DELETE(branch);
+            delete branch;
 			branch = next;
 		}
 	}

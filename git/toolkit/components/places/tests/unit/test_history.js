@@ -38,11 +38,14 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
-// Get history services
-var histsvc = Cc["@mozilla.org/browser/nav-history-service;1"].
-              getService(Ci.nsINavHistoryService);
-var gh = histsvc.QueryInterface(Ci.nsIGlobalHistory2);
-var bh = histsvc.QueryInterface(Ci.nsIBrowserHistory);
+// Get history service
+try {
+  var histsvc = Cc["@mozilla.org/browser/nav-history-service;1"].getService(Ci.nsINavHistoryService);
+  var gh = Cc["@mozilla.org/browser/global-history;2"].
+           getService(Ci.nsIGlobalHistory2);
+} catch(ex) {
+  do_throw("Could not get history service\n");
+} 
 
 /**
  * Adds a test URI visit to the database, and checks for a valid place ID.
@@ -228,6 +231,8 @@ function run_test() {
   histFile.append("history.dat");
   do_check_true(histFile.exists());
 
-  bh.removeAllPages();
+  var globalHistory = Components.classes["@mozilla.org/browser/global-history;2"]
+                                .getService(Components.interfaces.nsIBrowserHistory);
+  globalHistory.removeAllPages();
   do_check_false(histFile.exists());
 }

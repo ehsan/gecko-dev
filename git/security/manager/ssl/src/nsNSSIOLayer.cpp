@@ -777,10 +777,8 @@ void nsSSLIOLayerHelpers::Cleanup()
   if (mSharedPollableEvent)
     PR_DestroyPollableEvent(mSharedPollableEvent);
 
-  if (mutex) {
+  if (mutex)
     PR_DestroyLock(mutex);
-    mutex = nsnull;
-  }
 }
 
 static nsresult
@@ -1481,15 +1479,7 @@ nsSSLIOLayerHelpers::rememberPossibleTLSProblemSite(PRFileDesc* ssl_layer_fd, ns
   PRBool currentlyUsesTLS = PR_FALSE;
 
   SSL_OptionGet(ssl_layer_fd, SSL_ENABLE_TLS, &currentlyUsesTLS);
-  if (!currentlyUsesTLS)
-    return PR_FALSE;
-
-  PRBool enableSSL3 = PR_FALSE;
-  SSL_OptionGet(ssl_layer_fd, SSL_ENABLE_SSL3, &enableSSL3);
-  PRBool enableSSL2 = PR_FALSE;
-  SSL_OptionGet(ssl_layer_fd, SSL_ENABLE_SSL2, &enableSSL2);
-  if (enableSSL3 || enableSSL2)
-  {
+  if (currentlyUsesTLS) {
     // Add this site to the list of TLS intolerant sites.
     PRInt32 port;
     nsXPIDLCString host;
@@ -1773,7 +1763,6 @@ nsSSLIOLayerPoll(PRFileDesc *fd, PRInt16 in_flags, PRInt16 *out_flags)
   return nsSSLThread::requestPoll(socketInfo, in_flags, out_flags);
 }
 
-PRBool nsSSLIOLayerHelpers::nsSSLIOLayerInitialized = PR_FALSE;
 PRDescIdentity nsSSLIOLayerHelpers::nsSSLIOLayerIdentity;
 PRIOMethods nsSSLIOLayerHelpers::nsSSLIOLayerMethods;
 PRLock *nsSSLIOLayerHelpers::mutex = nsnull;
@@ -1935,43 +1924,40 @@ static PRStatus PR_CALLBACK PSMConnectcontinue(PRFileDesc *fd, PRInt16 out_flags
 
 nsresult nsSSLIOLayerHelpers::Init()
 {
-  if (!nsSSLIOLayerInitialized) {
-    nsSSLIOLayerInitialized = PR_TRUE;
-    nsSSLIOLayerIdentity = PR_GetUniqueIdentity("NSS layer");
-    nsSSLIOLayerMethods  = *PR_GetDefaultIOMethods();
+  nsSSLIOLayerIdentity = PR_GetUniqueIdentity("NSS layer");
+  nsSSLIOLayerMethods  = *PR_GetDefaultIOMethods();
 
-    nsSSLIOLayerMethods.available = (PRAvailableFN)_PSM_InvalidInt;
-    nsSSLIOLayerMethods.available64 = (PRAvailable64FN)_PSM_InvalidInt64;
-    nsSSLIOLayerMethods.fsync = (PRFsyncFN)_PSM_InvalidStatus;
-    nsSSLIOLayerMethods.seek = (PRSeekFN)_PSM_InvalidInt;
-    nsSSLIOLayerMethods.seek64 = (PRSeek64FN)_PSM_InvalidInt64;
-    nsSSLIOLayerMethods.fileInfo = (PRFileInfoFN)_PSM_InvalidStatus;
-    nsSSLIOLayerMethods.fileInfo64 = (PRFileInfo64FN)_PSM_InvalidStatus;
-    nsSSLIOLayerMethods.writev = (PRWritevFN)_PSM_InvalidInt;
-    nsSSLIOLayerMethods.accept = (PRAcceptFN)_PSM_InvalidDesc;
-    nsSSLIOLayerMethods.bind = (PRBindFN)_PSM_InvalidStatus;
-    nsSSLIOLayerMethods.listen = (PRListenFN)_PSM_InvalidStatus;
-    nsSSLIOLayerMethods.shutdown = (PRShutdownFN)_PSM_InvalidStatus;
-    nsSSLIOLayerMethods.recvfrom = (PRRecvfromFN)_PSM_InvalidInt;
-    nsSSLIOLayerMethods.sendto = (PRSendtoFN)_PSM_InvalidInt;
-    nsSSLIOLayerMethods.acceptread = (PRAcceptreadFN)_PSM_InvalidInt;
-    nsSSLIOLayerMethods.transmitfile = (PRTransmitfileFN)_PSM_InvalidInt;
-    nsSSLIOLayerMethods.sendfile = (PRSendfileFN)_PSM_InvalidInt;
+  nsSSLIOLayerMethods.available = (PRAvailableFN)_PSM_InvalidInt;
+  nsSSLIOLayerMethods.available64 = (PRAvailable64FN)_PSM_InvalidInt64;
+  nsSSLIOLayerMethods.fsync = (PRFsyncFN)_PSM_InvalidStatus;
+  nsSSLIOLayerMethods.seek = (PRSeekFN)_PSM_InvalidInt;
+  nsSSLIOLayerMethods.seek64 = (PRSeek64FN)_PSM_InvalidInt64;
+  nsSSLIOLayerMethods.fileInfo = (PRFileInfoFN)_PSM_InvalidStatus;
+  nsSSLIOLayerMethods.fileInfo64 = (PRFileInfo64FN)_PSM_InvalidStatus;
+  nsSSLIOLayerMethods.writev = (PRWritevFN)_PSM_InvalidInt;
+  nsSSLIOLayerMethods.accept = (PRAcceptFN)_PSM_InvalidDesc;
+  nsSSLIOLayerMethods.bind = (PRBindFN)_PSM_InvalidStatus;
+  nsSSLIOLayerMethods.listen = (PRListenFN)_PSM_InvalidStatus;
+  nsSSLIOLayerMethods.shutdown = (PRShutdownFN)_PSM_InvalidStatus;
+  nsSSLIOLayerMethods.recvfrom = (PRRecvfromFN)_PSM_InvalidInt;
+  nsSSLIOLayerMethods.sendto = (PRSendtoFN)_PSM_InvalidInt;
+  nsSSLIOLayerMethods.acceptread = (PRAcceptreadFN)_PSM_InvalidInt;
+  nsSSLIOLayerMethods.transmitfile = (PRTransmitfileFN)_PSM_InvalidInt;
+  nsSSLIOLayerMethods.sendfile = (PRSendfileFN)_PSM_InvalidInt;
 
-    nsSSLIOLayerMethods.getsockname = PSMGetsockname;
-    nsSSLIOLayerMethods.getpeername = PSMGetpeername;
-    nsSSLIOLayerMethods.getsocketoption = PSMGetsocketoption;
-    nsSSLIOLayerMethods.setsocketoption = PSMSetsocketoption;
-    nsSSLIOLayerMethods.recv = PSMRecv;
-    nsSSLIOLayerMethods.send = PSMSend;
-    nsSSLIOLayerMethods.connectcontinue = PSMConnectcontinue;
+  nsSSLIOLayerMethods.getsockname = PSMGetsockname;
+  nsSSLIOLayerMethods.getpeername = PSMGetpeername;
+  nsSSLIOLayerMethods.getsocketoption = PSMGetsocketoption;
+  nsSSLIOLayerMethods.setsocketoption = PSMSetsocketoption;
+  nsSSLIOLayerMethods.recv = PSMRecv;
+  nsSSLIOLayerMethods.send = PSMSend;
+  nsSSLIOLayerMethods.connectcontinue = PSMConnectcontinue;
 
-    nsSSLIOLayerMethods.connect = nsSSLIOLayerConnect;
-    nsSSLIOLayerMethods.close = nsSSLIOLayerClose;
-    nsSSLIOLayerMethods.write = nsSSLIOLayerWrite;
-    nsSSLIOLayerMethods.read = nsSSLIOLayerRead;
-    nsSSLIOLayerMethods.poll = nsSSLIOLayerPoll;
-  }
+  nsSSLIOLayerMethods.connect = nsSSLIOLayerConnect;
+  nsSSLIOLayerMethods.close = nsSSLIOLayerClose;
+  nsSSLIOLayerMethods.write = nsSSLIOLayerWrite;
+  nsSSLIOLayerMethods.read = nsSSLIOLayerRead;
+  nsSSLIOLayerMethods.poll = nsSSLIOLayerPoll;
 
   mutex = PR_NewLock();
   if (!mutex)
@@ -2010,15 +1996,14 @@ nsSSLIOLayerNewSocket(PRInt32 family,
                       PRInt32 proxyPort,
                       PRFileDesc **fd,
                       nsISupports** info,
-                      PRBool forSTARTTLS,
-                      PRBool anonymousLoad)
+                      PRBool forSTARTTLS)
 {
 
   PRFileDesc* sock = PR_OpenTCPSocket(family);
   if (!sock) return NS_ERROR_OUT_OF_MEMORY;
 
   nsresult rv = nsSSLIOLayerAddToSocket(family, host, port, proxyHost, proxyPort,
-                                        sock, info, forSTARTTLS, anonymousLoad);
+                                        sock, info, forSTARTTLS);
   if (NS_FAILED(rv)) {
     PR_Close(sock);
     return rv;
@@ -3071,12 +3056,12 @@ nsNSSBadCertHandler(void *arg, PRFileDesc *sslSocket)
 
     nsCOMPtr<nsIBadCertListener2> bcl = do_GetInterface(callbacks);
     if (bcl) {
-      nsCOMPtr<nsIBadCertListener2> proxy_bcl;
+      nsIBadCertListener2 *proxy_bcl = nsnull;
       NS_GetProxyForObject(NS_PROXY_TO_MAIN_THREAD,
                            NS_GET_IID(nsIBadCertListener2),
                            bcl,
                            NS_PROXY_SYNC,
-                           getter_AddRefs(proxy_bcl));
+                           (void**)&proxy_bcl);
       if (proxy_bcl) {
         nsIInterfaceRequestor *csi = static_cast<nsIInterfaceRequestor*>(infoObject);
         rv = proxy_bcl->NotifyCertProblem(csi, status, hostWithPortString, 
@@ -3125,8 +3110,7 @@ nsNSSBadCertHandler(void *arg, PRFileDesc *sslSocket)
 static PRFileDesc*
 nsSSLIOLayerImportFD(PRFileDesc *fd,
                      nsNSSSocketInfo *infoObject,
-                     const char *host,
-                     PRBool anonymousLoad)
+                     const char *host)
 {
   nsNSSShutDownPreventionLock locker;
   PRFileDesc* sslSock = SSL_ImportFD(nsnull, fd);
@@ -3136,15 +3120,9 @@ nsSSLIOLayerImportFD(PRFileDesc *fd,
   }
   SSL_SetPKCS11PinArg(sslSock, (nsIInterfaceRequestor*)infoObject);
   SSL_HandshakeCallback(sslSock, HandshakeCallback, infoObject);
-
-  // Disable this hook if we connect anonymously. See bug 466080.
-  if (anonymousLoad) {
-      SSL_GetClientAuthDataHook(sslSock, NULL, infoObject);
-  } else {
-      SSL_GetClientAuthDataHook(sslSock, 
+  SSL_GetClientAuthDataHook(sslSock, 
                             (SSLGetClientAuthData)nsNSS_SSLGetClientAuthData,
                             infoObject);
-  }
   SSL_AuthCertificateHook(sslSock, AuthCertificateCallback, 0);
 
   PRInt32 ret = SSL_SetURL(sslSock, host);
@@ -3163,7 +3141,7 @@ loser:
 static nsresult
 nsSSLIOLayerSetOptions(PRFileDesc *fd, PRBool forSTARTTLS, 
                        const char *proxyHost, const char *host, PRInt32 port,
-                       PRBool anonymousLoad, nsNSSSocketInfo *infoObject)
+                       nsNSSSocketInfo *infoObject)
 {
   nsNSSShutDownPreventionLock locker;
   if (forSTARTTLS || proxyHost) {
@@ -3214,13 +3192,7 @@ nsSSLIOLayerSetOptions(PRFileDesc *fd, PRBool forSTARTTLS,
   }
 
   // Set the Peer ID so that SSL proxy connections work properly.
-  char *peerId;
-  if (anonymousLoad) {  // See bug #466080. Separate the caches.
-      peerId = PR_smprintf("anon:%s:%d", host, port);
-  } else {
-      peerId = PR_smprintf("%s:%d", host, port);
-  }
-  
+  char *peerId = PR_smprintf("%s:%d", host, port);
   if (SECSuccess != SSL_SetSockPeerID(fd, peerId)) {
     PR_smprintf_free(peerId);
     return NS_ERROR_FAILURE;
@@ -3238,8 +3210,7 @@ nsSSLIOLayerAddToSocket(PRInt32 family,
                         PRInt32 proxyPort,
                         PRFileDesc* fd,
                         nsISupports** info,
-                        PRBool forSTARTTLS,
-                        PRBool anonymousLoad)
+                        PRBool forSTARTTLS)
 {
   nsNSSShutDownPreventionLock locker;
   PRFileDesc* layer = nsnull;
@@ -3253,7 +3224,7 @@ nsSSLIOLayerAddToSocket(PRInt32 family,
   infoObject->SetHostName(host);
   infoObject->SetPort(port);
 
-  PRFileDesc *sslSock = nsSSLIOLayerImportFD(fd, infoObject, host, anonymousLoad);
+  PRFileDesc *sslSock = nsSSLIOLayerImportFD(fd, infoObject, host);
   if (!sslSock) {
     NS_ASSERTION(PR_FALSE, "NSS: Error importing socket");
     goto loser;
@@ -3261,8 +3232,7 @@ nsSSLIOLayerAddToSocket(PRInt32 family,
 
   infoObject->SetFileDescPtr(sslSock);
 
-  rv = nsSSLIOLayerSetOptions(sslSock,
-                              forSTARTTLS, proxyHost, host, port, anonymousLoad,
+  rv = nsSSLIOLayerSetOptions(sslSock, forSTARTTLS, proxyHost, host, port,
                               infoObject);
 
   if (NS_FAILED(rv))

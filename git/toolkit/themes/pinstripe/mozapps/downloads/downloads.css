@@ -3,6 +3,7 @@
   margin: 0;
   padding: 0;
   border-width: 0;
+  border-bottom: 1px solid #404040;
 }
 
 /* Download View Items */
@@ -104,7 +105,15 @@ richlistitem[type="download"] button {
 #search {
   -moz-box-pack: end;
   -moz-padding-end: 4px;
-  -moz-appearance: statusbar;
+  background-image: url("chrome://global/skin/toolbar/toolbar-background.gif");
+  background-color: #9f9f9f;
+  background-repeat: repeat-x;
+  background-position: top left;
+}
+
+#downloadManager:not([active="true"]) #search {
+  background-image: url("chrome://global/skin/toolbar/toolbar-background-inactive.png");
+  background-color: #cfcfcf;
 }
 
 #downloadManager:not([active="true"]) #search > * {

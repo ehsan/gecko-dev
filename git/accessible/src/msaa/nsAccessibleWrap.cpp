@@ -216,7 +216,8 @@ __try {
       else {
         // If a frame is a scrollable frame, then it has one window for the client area,
         // not an extra parent window for just the scrollbars
-        nsIScrollableFrame *scrollFrame = do_QueryFrame(frame);
+        nsIScrollableFrame *scrollFrame = nsnull;
+        CallQueryInterface(frame, &scrollFrame);
         if (scrollFrame) {
           hwnd = (HWND)scrollFrame->GetScrolledFrame()->GetWindow()->GetNativeData(NS_NATIVE_WINDOW);
           NS_ASSERTION(hwnd, "No window handle for window");
@@ -987,8 +988,13 @@ __try {
 
   pvarEndUpAt->vt = VT_EMPTY;
 
-  if (xpRelation)
-    xpAccessibleResult = nsRelUtils::GetRelatedAccessible(this, xpRelation);
+  if (xpRelation) {
+    nsresult rv = GetAccessibleRelated(xpRelation,
+                                       getter_AddRefs(xpAccessibleResult));
+    if (rv == NS_ERROR_NOT_IMPLEMENTED) {
+      return E_NOTIMPL;
+    }
+  }
 
   if (xpAccessibleResult) {
     pvarEndUpAt->pdispVal = NativeAccessible(xpAccessibleResult);
@@ -1911,7 +1917,7 @@ void nsAccessibleWrap::UpdateSystemCaret()
   }
 
   nsIWidget *widget;
-  nsIntRect caretRect = caretAccessible->GetCaretRect(&widget);
+  nsRect caretRect = caretAccessible->GetCaretRect(&widget);        
   HWND caretWnd; 
   if (caretRect.IsEmpty() || !(caretWnd = (HWND)widget->GetNativeData(NS_NATIVE_WINDOW))) {
     return;

@@ -139,21 +139,8 @@ namespace nanojit
 		// fargs = args - iargs
 	};
 
-	/*
-	 * Record for extra data used to compile switches as jump tables.
-	 */
-	struct SwitchInfo
-	{
-		NIns**      table;       // Jump table; a jump address is NIns*
-		uint32_t    count;       // Number of table entries
-		// Index value at last execution of the switch. The index value
-		// is the offset into the jump table. Thus it is computed as 
-		// (switch expression) - (lowest case value).
-		uint32_t    index;
-	};
-
     inline bool isGuard(LOpcode op) {
-        return op == LIR_x || op == LIR_xf || op == LIR_xt || op == LIR_loop || op == LIR_xbarrier || op == LIR_xtbl;
+        return op==LIR_x || op==LIR_xf || op==LIR_xt || op==LIR_loop;
     }
 
     inline bool isCall(LOpcode op) {
@@ -176,13 +163,6 @@ namespace nanojit
         return op == LIR_ldq || op == LIR_ld || op == LIR_ldc || op == LIR_ldqc || op == LIR_ldcs;
     }
 
-	// Sun Studio requires explicitly declaring signed int bit-field
-	#if defined(__SUNPRO_C) || defined(__SUNPRO_CC)
-	#define _sign_int signed int
-	#else
-	#define _sign_int int32_t
-	#endif
-
 	// Low-level Instruction 4B
 	// had to lay it our as a union with duplicate code fields since msvc couldn't figure out how to compact it otherwise.
 	class LIns
@@ -200,7 +180,11 @@ namespace nanojit
         struct sti_type
         {
 			LOpcode			code:8;
-			_sign_int		disp:8;
+#if defined(__SUNPRO_C) || defined(__SUNPRO_CC)
+			signed int      disp:8;     // Sun Studio requires explicitly declaring signed int bit-field
+#else
+			int32_t	    	disp:8;
+#endif
 			uint32_t		oprnd_1:8;  // 256 ins window and since they only point backwards this is sufficient.
 			uint32_t		oprnd_2:8;  
         };
@@ -218,7 +202,11 @@ namespace nanojit
         struct t_type
         {
             LOpcode         code:8;
-            _sign_int       imm24:24;
+#if defined(__SUNPRO_C) || defined(__SUNPRO_CC)
+            signed int      imm24:24;
+#else
+            int32_t         imm24:24;
+#endif
         };
 
 		// imm16 form
@@ -226,7 +214,11 @@ namespace nanojit
 		{
 			LOpcode			code:8;
 			uint32_t		resv:8;  // cobberred during assembly
-			_sign_int		imm16:16;
+#if defined(__SUNPRO_C) || defined(__SUNPRO_CC)
+			signed int		imm16:16;
+#else
+			int32_t			imm16:16;
+#endif
 		};
 
 		// overlay used during code generation ( note that last byte is reserved for allocation )
@@ -237,8 +229,6 @@ namespace nanojit
 			uint32_t		unused:16;
 		};
 
-		#undef _sign_
-		
 		/**
 		 * Various forms of the instruction.
 		 * 
@@ -248,7 +238,7 @@ namespace nanojit
 		 *      
 		 *    For pointing to instructions further than this range LIR_tramp is used.
 		 */
-		union
+		union 
 		{
 			u_type u;
 			c_type c;
@@ -259,7 +249,12 @@ namespace nanojit
 		};
 
 		enum {
-			callInfoWords = sizeof(LIns*)/sizeof(u_type)
+			callInfoWords =
+#ifdef NANOJIT_64BIT
+			    2
+#else
+			    1
+#endif
 		};
 
 		uint32_t reference(LIns*) const;
@@ -275,8 +270,14 @@ namespace nanojit
 		inline uint8_t	imm8b()	 const	{ return c.imm8b; }
 		inline int16_t	imm16()	 const	{ return i.imm16; }
 		inline int32_t	imm24()	 const	{ return t.imm24; }
-		LIns*	ref()	 const;
-		int32_t	imm32()	 const;
+		inline LIns*	ref()	 const	{ 
+#if defined NANOJIT_64BIT
+            return (t.code & 1) ? (LIns*)this+t.imm24 : *(LIns**)(this-2);
+#else
+            return (t.code & 1) ? (LIns*)this+t.imm24 : *(LIns**)(this-1);
+#endif
+        }
+		inline int32_t	imm32()	 const	{ return *(int32_t*)(this-1); }
 		inline uint8_t	resv()	 const  { return g.resv; }
         void*	payload() const;
         inline Page*	page()			{ return (Page*) alignTo(this,NJ_PAGE_SIZE); }
@@ -289,7 +290,13 @@ namespace nanojit
             i.imm16 = bytes>>2;
         }
 
-		LIns* arg(uint32_t i);
+		// index args in r-l order.  arg(0) is rightmost arg
+		inline LIns* arg(uint32_t i) {
+			uint32_t c = argc();
+			NanoAssert(i < c);
+			uint8_t* offs = (uint8_t*) (this-callInfoWords-argwords(c));
+			return deref(offs[i]);
+		}
 
         inline int32_t  immdisp()const 
 		{
@@ -313,7 +320,19 @@ namespace nanojit
 			return isop(LIR_short) ? imm16() : imm32();
 		}
 
-		uint64_t constvalq() const;
+		inline uint64_t constvalq() const
+		{
+			NanoAssert(isconstq());
+		#ifdef AVMPLUS_UNALIGNED_ACCESS
+			return *(const uint64_t*)(this-2);
+		#else
+			union { uint64_t tmp; int32_t dst[2]; } u;
+			const int32_t* src = (const int32_t*)(this-2);
+			u.dst[0] = src[0];
+			u.dst[1] = src[1];
+			return u.tmp;
+		#endif
+		}
 		
 		inline void* constvalp() const
 		{
@@ -324,7 +343,20 @@ namespace nanojit
         #endif      
 		}
 		
-		double constvalf() const;
+		inline double constvalf() const
+		{
+			NanoAssert(isconstq());
+		#ifdef AVMPLUS_UNALIGNED_ACCESS
+			return *(const double*)(this-2);
+		#else
+			union { uint32_t dst[2]; double tmpf; } u;
+			const int32_t* src = (const int32_t*)(this-2);
+			u.dst[0] = src[0];
+			u.dst[1] = src[1];
+			return u.tmpf;
+		#endif
+		}
+
 		bool isCse(const CallInfo *functions) const;
 		bool isop(LOpcode o) const { return u.code == o; }
 		bool isQuad() const;
@@ -373,21 +405,15 @@ namespace nanojit
 			NanoAssert(isCall());
 			return c.imm8b;
 		}
-		size_t callInsWords() const;
-		const CallInfo *callInfo() const;
+		inline size_t callInsWords() const {
+			return argwords(argc()) + callInfoWords + 1;
+		}
+		inline const CallInfo *callInfo() const {
+			return *(const CallInfo **) (this - callInfoWords);
+		}
 	};
 	typedef LIns*		LInsp;
 
-	typedef struct { LIns* v; LIns i; } LirFarIns;
-	typedef struct { int32_t v; LIns i; } LirImm32Ins;
-	typedef struct { int32_t v[2]; LIns i; } LirImm64Ins;
-	typedef struct { const CallInfo* ci; LIns i; } LirCallIns;
-	
-	static const uint32_t LIR_FAR_SLOTS	  = sizeof(LirFarIns)/sizeof(LIns); 
-	static const uint32_t LIR_CALL_SLOTS = sizeof(LirCallIns)/sizeof(LIns); 
-	static const uint32_t LIR_IMM32_SLOTS = sizeof(LirImm32Ins)/sizeof(LIns); 
-	static const uint32_t LIR_IMM64_SLOTS = sizeof(LirImm64Ins)/sizeof(LIns); 
-	
 	bool FASTCALL isCse(LOpcode v);
 	bool FASTCALL isCmp(LOpcode v);
 	bool FASTCALL isCond(LOpcode v);
@@ -454,9 +480,6 @@ namespace nanojit
 		virtual LInsp insAlloc(int32_t size) {
 			return out->insAlloc(size);
 		}
-		virtual LInsp skip(size_t size) {
-			return out->skip(size);
-		}
 
 		// convenience
 	    LIns*		insLoadi(LIns *base, int disp);
@@ -506,13 +529,12 @@ namespace nanojit
 		const char *dup(const char *);
 		const char *format(const void *p);
 		void promoteAll(const void *newbase);
-		void clear();
     };
 
 	class LirNameMap MMGC_SUBCLASS_DECL
 	{
 		template <class Key>
-		class CountMap: public avmplus::SortedMap<Key, int, avmplus::LIST_NonGCObjects> {
+		class CountMap : public avmplus::SortedMap<Key, int, avmplus::LIST_NonGCObjects> {
 		public:
 			CountMap(avmplus::GC*gc) : avmplus::SortedMap<Key, int, avmplus::LIST_NonGCObjects>(gc) {}
 			int add(Key k) {
@@ -561,16 +583,16 @@ namespace nanojit
 
 	class VerboseWriter : public LirWriter
 	{
-		InsList code;
+		avmplus::List<LInsp, avmplus::LIST_NonGCObjects> code;
 		DWB(LirNameMap*) names;
     public:
 		VerboseWriter(avmplus::GC *gc, LirWriter *out, LirNameMap* names) 
-			: LirWriter(out), code(gc), names(names)
+			: LirWriter(out), code(gc), names(names) 
 		{}
 
 		LInsp add(LInsp i) {
-            if (i)
-                code.add(i);
+			if (i)
+				code.add(i);
 			return i;
 		}
 
@@ -600,6 +622,7 @@ namespace nanojit
 			return add_flush(out->insBranch(v, condition, to));
 		}
 
+
 		LIns* ins0(LOpcode v) {
             if (v == LIR_label || v == LIR_start) {
                 flush();
@@ -608,7 +631,7 @@ namespace nanojit
 		}
 
 		LIns* ins1(LOpcode v, LInsp a) {
-            return isRet(v) ? add_flush(out->ins1(v, a)) : add(out->ins1(v, a));
+			return isRet(v) ? add_flush(out->ins1(v, a)) : add(out->ins1(v, a));
 		}
 		LIns* ins2(LOpcode v, LInsp a, LInsp b) {
 			return v == LIR_2 ? out->ins2(v,a,b) : add(out->ins2(v, a, b));
@@ -710,9 +733,8 @@ namespace nanojit
 			LirBuffer(Fragmento* frago, const CallInfo* functions);
 			virtual ~LirBuffer();
 			void        clear();
-            void        rewind();
 			LInsp		next();
-			bool		outOMem() { return _noMem != 0; }
+			bool		outOmem() { return _noMem != 0; }
 			
 			debug_only (void validate() const;)
 			verbose_only(DWB(LirNameMap*) names;)
@@ -724,6 +746,7 @@ namespace nanojit
 			struct 
 			{
 				uint32_t lir;	// # instructions
+				uint32_t pages;	// pages consumed
 			}
 			_stats;
 
@@ -737,10 +760,10 @@ namespace nanojit
 			friend class LirBufWriter;
 
 			LInsp		commit(uint32_t count);
+			bool		addPage();
 			Page*		pageAlloc();
 
-			PageList	_pages;
-			Page*		_nextPage; // allocated in preperation of a needing to growing the buffer
+			Page*		_start;		// first page
 			LInsp		_unused;	// next unused instruction slot
 			int			_noMem;		// set if ran out of memory when writing to buffer
 	};	
@@ -750,7 +773,7 @@ namespace nanojit
 		DWB(LirBuffer*)	_buf;		// underlying buffer housing the instructions
         LInsp spref, rpref;
 
-        public:			
+        public:
 			LirBufWriter(LirBuffer* buf)
 				: LirWriter(0), _buf(buf) {
 				_functions = buf->_functions;
@@ -769,22 +792,21 @@ namespace nanojit
 		    LInsp	insCall(const CallInfo *call, LInsp args[]);
 			LInsp	insGuard(LOpcode op, LInsp cond, LIns *x);
 			LInsp	insBranch(LOpcode v, LInsp condition, LInsp to);
-            LInsp   insAlloc(int32_t size);
+			LInsp   insAlloc(int32_t size);
 
 			// buffer mgmt
 			LInsp	skip(size_t);
 
 		protected:
 			LInsp	insFar(LOpcode op, LInsp target);
-			void	ensureRoom(uint32_t count);
+			LInsp	insLink(LOpcode op, LInsp target);
+			LInsp	ensureReferenceable(LInsp i, int32_t addedDistance);
+			bool	ensureRoom(uint32_t count);
 			bool	can8bReach(LInsp from, LInsp to) { return isU8(from-to-1); }
 			bool	can24bReach(LInsp from, LInsp to){ return isS24(from-to); }
-			void	prepFor(LInsp& i1, LInsp& i2, LInsp& i3);
-			void	makeReachable(LInsp& o, LInsp from);
-			
-		private:
-			LInsp	insLinkTo(LOpcode op, LInsp to);     // does NOT call ensureRoom() 
-			LInsp	insLinkToFar(LOpcode op, LInsp to);  // does NOT call ensureRoom()
+			bool	canReference(LInsp from, LInsp to) {
+				return isU8(from-to-1);
+			}
 	};
 
 	class LirFilter
@@ -792,7 +814,7 @@ namespace nanojit
 	public:
 		LirFilter *in;
 		LirFilter(LirFilter *in) : in(in) {}
-        virtual ~LirFilter(){}
+		virtual ~LirFilter() {}
 
 		virtual LInsp read() {
 			return in->read();
@@ -866,6 +888,6 @@ namespace nanojit
         LInsp insStore(LInsp v, LInsp b, LInsp d);
         LInsp insStorei(LInsp v, LInsp b, int32_t d);
         LInsp insCall(const CallInfo *call, LInsp args[]);
-    };	
+    };
 }
 #endif // __nanojit_LIR__

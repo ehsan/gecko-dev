@@ -29,13 +29,13 @@ Tests of DOM Worker Threads (Bug 437152)
         SimpleTest.finish();
         break;
       default:
-        ok(false, "Unexpected message:" + event.data);
+        ok(false, "Unexpected message:" + message);
         SimpleTest.finish();
     }
   };
 
   worker.onerror = function(event) {
-    ok(false, "Worker had an error:" + event.message);
+    ok(false, "Worker had an error:" + event.data);
     SimpleTest.finish();
   }
 

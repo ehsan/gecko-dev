@@ -22,7 +22,6 @@
 # Contributor(s):
 #   Ben Goodger <ben@mozilla.org>
 #   Giorgio Maone <g.maone@informaction.com>
-#   Ehsan Akhgari <ehsan.akhgari@gmail.com>
 #
 # Alternatively, the contents of this file may be used under the terms of
 # either the GNU General Public License Version 2 or later (the "GPL"), or
@@ -256,6 +255,7 @@ Sanitizer.prototype = {
 
 // "Static" members
 Sanitizer.prefDomain          = "privacy.sanitize.";
+Sanitizer.prefPrompt          = "promptOnSanitize";
 Sanitizer.prefShutdown        = "sanitizeOnShutdown";
 Sanitizer.prefDidShutdown     = "didShutdownSanitize";
 
@@ -288,12 +288,17 @@ Sanitizer.showUI = function(aParentWindow)
  * Deletes privacy sensitive data in a batch, optionally showing the 
  * sanitize UI, according to user preferences
  *
- * @returns  null (displayed UI, which should handle errors)
+ * @returns  null if everything's fine (no error or displayed UI,  which
+ *           should handle errors);  
+ *           an object in the form { itemName: error, ... } on (partial) failure
  */
 Sanitizer.sanitize = function(aParentWindow) 
 {
-  Sanitizer.showUI(aParentWindow);
-  return null;
+  if (Sanitizer.prefs.getBoolPref(Sanitizer.prefPrompt)) {
+    Sanitizer.showUI(aParentWindow);
+    return null;
+  }
+  return new Sanitizer().sanitize();
 };
 
 Sanitizer.onStartup = function() 
@@ -315,7 +320,7 @@ Sanitizer._checkAndSanitize = function()
   if (prefs.getBoolPref(Sanitizer.prefShutdown) && 
       !prefs.prefHasUserValue(Sanitizer.prefDidShutdown)) {
     // this is a shutdown or a startup after an unclean exit
-    new Sanitizer().sanitize() || // sanitize() returns null on full success
+    Sanitizer.sanitize(null) || // sanitize() returns null on full success
       prefs.setBoolPref(Sanitizer.prefDidShutdown, true);
   }
 };

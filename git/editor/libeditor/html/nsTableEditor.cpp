@@ -101,18 +101,18 @@ class NS_STACK_CLASS nsSetSelectionAfterTableEdit
 };
 
 // Stack-class to turn on/off selection batching for table selection
-class NS_STACK_CLASS nsSelectionBatcherForTable
+class NS_STACK_CLASS nsSelectionBatcher
 {
 private:
   nsCOMPtr<nsISelectionPrivate> mSelection;
 public:
-  nsSelectionBatcherForTable(nsISelection *aSelection)
+  nsSelectionBatcher(nsISelection *aSelection)
   {
     nsCOMPtr<nsISelection> sel(aSelection);
     mSelection = do_QueryInterface(sel);
     if (mSelection)  mSelection->StartBatchChanges();
   }
-  virtual ~nsSelectionBatcherForTable() 
+  virtual ~nsSelectionBatcher() 
   { 
     if (mSelection) mSelection->EndBatchChanges();
   }
@@ -1556,7 +1556,7 @@ nsHTMLEditor::SelectBlockOfCells(nsIDOMElement *aStartCell, nsIDOMElement *aEndC
 
   // Suppress nsISelectionListener notification
   //  until all selection changes are finished
-  nsSelectionBatcherForTable selectionBatcher(selection);
+  nsSelectionBatcher selectionBatcher(selection);
 
   // Examine all cell nodes in current selection and 
   //  remove those outside the new block cell region
@@ -1639,7 +1639,7 @@ nsHTMLEditor::SelectAllTableCells()
 
   // Suppress nsISelectionListener notification
   //  until all selection changes are finished
-  nsSelectionBatcherForTable selectionBatcher(selection);
+  nsSelectionBatcher selectionBatcher(selection);
 
   // It is now safe to clear the selection
   // BE SURE TO RESET IT BEFORE LEAVING!
@@ -1709,7 +1709,7 @@ nsHTMLEditor::SelectTableRow()
 
   // Suppress nsISelectionListener notification
   //  until all selection changes are finished
-  nsSelectionBatcherForTable selectionBatcher(selection);
+  nsSelectionBatcher selectionBatcher(selection);
 
   // It is now safe to clear the selection
   // BE SURE TO RESET IT BEFORE LEAVING!
@@ -1772,7 +1772,7 @@ nsHTMLEditor::SelectTableColumn()
 
   // Suppress nsISelectionListener notification
   //  until all selection changes are finished
-  nsSelectionBatcherForTable selectionBatcher(selection);
+  nsSelectionBatcher selectionBatcher(selection);
 
   // It is now safe to clear the selection
   // BE SURE TO RESET IT BEFORE LEAVING!
@@ -2730,7 +2730,9 @@ nsHTMLEditor::GetCellIndexes(nsIDOMElement *aCell,
   nsIFrame *layoutObject = ps->GetPrimaryFrameFor(nodeAsContent);
   if (!layoutObject)  return NS_ERROR_FAILURE;
 
-  nsITableCellLayout *cellLayoutObject = do_QueryFrame(layoutObject);
+  nsITableCellLayout *cellLayoutObject=nsnull; // again, frames are not ref-counted
+  res = layoutObject->QueryInterface(NS_GET_IID(nsITableCellLayout), (void**)(&cellLayoutObject));
+  if (NS_FAILED(res)) return res;
   if (!cellLayoutObject)  return NS_ERROR_FAILURE;
   return cellLayoutObject->GetCellIndexes(*aRowIndex, *aColIndex);
 }
@@ -2750,8 +2752,8 @@ nsHTMLEditor::GetTableLayoutObject(nsIDOMElement* aTable, nsITableLayout **table
   nsIFrame *layoutObject = ps->GetPrimaryFrameFor(nodeAsContent);
   if (!layoutObject)  return NS_ERROR_FAILURE;
 
-  *tableLayoutObject = do_QueryFrame(layoutObject);
-  return *tableLayoutObject ? NS_OK : NS_NOINTERFACE;
+  return layoutObject->QueryInterface(NS_GET_IID(nsITableLayout), 
+                                      (void**)(tableLayoutObject)); 
 }
 
 //Return actual number of cells (a cell with colspan > 1 counts as just 1)

@@ -336,21 +336,14 @@ public:
 
   virtual void Paint(nsDisplayListBuilder* aBuilder, nsIRenderingContext* aCtx,
      const nsRect& aDirtyRect);
-  virtual nsRect GetBounds(nsDisplayListBuilder* aBuilder);
   NS_DISPLAY_DECL_NAME("XULTextBox")
 };
 
-void
-nsDisplayXULTextBox::Paint(nsDisplayListBuilder* aBuilder,
-                           nsIRenderingContext* aCtx, const nsRect& aDirtyRect)
+void nsDisplayXULTextBox::Paint(nsDisplayListBuilder* aBuilder,
+     nsIRenderingContext* aCtx, const nsRect& aDirtyRect)
 {
   static_cast<nsTextBoxFrame*>(mFrame)->
     PaintTitle(*aCtx, aDirtyRect, aBuilder->ToReferenceFrame(mFrame));
-}
-
-nsRect
-nsDisplayXULTextBox::GetBounds(nsDisplayListBuilder* aBuilder) {
-  return mFrame->GetOverflowRect() + aBuilder->ToReferenceFrame(mFrame);
 }
 
 NS_IMETHODIMP
@@ -387,8 +380,7 @@ nsTextBoxFrame::PaintTitle(nsIRenderingContext& aRenderingContext,
         PaintOneShadow(aRenderingContext.ThebesContext(),
                        textRect,
                        textStyle->mTextShadow->ShadowAt(i - 1),
-                       GetStyleColor()->mColor,
-                       aDirtyRect);
+                       GetStyleColor()->mColor);
       }
     }
 
@@ -564,8 +556,7 @@ nsTextBoxFrame::DrawText(nsIRenderingContext& aRenderingContext,
 void nsTextBoxFrame::PaintOneShadow(gfxContext*      aCtx,
                                     const nsRect&    aTextRect,
                                     nsCSSShadowItem* aShadowDetails,
-                                    const nscolor&   aForegroundColor,
-                                    const nsRect&    aDirtyRect) {
+                                    const nscolor&   aForegroundColor) {
   nsPoint shadowOffset(aShadowDetails->mXOffset,
                        aShadowDetails->mYOffset);
   nscoord blurRadius = PR_MAX(aShadowDetails->mRadius, 0);
@@ -574,12 +565,11 @@ void nsTextBoxFrame::PaintOneShadow(gfxContext*      aCtx,
   shadowRect.MoveBy(shadowOffset);
 
   gfxRect shadowRectGFX(shadowRect.x, shadowRect.y, shadowRect.width, shadowRect.height);
-  gfxRect dirtyRectGFX(aDirtyRect.x, aDirtyRect.y, aDirtyRect.width, aDirtyRect.height);
 
   nsContextBoxBlur contextBoxBlur;
   gfxContext* shadowContext = contextBoxBlur.Init(shadowRectGFX, blurRadius,
                                                   PresContext()->AppUnitsPerDevPixel(),
-                                                  aCtx, dirtyRectGFX);
+                                                  aCtx);
 
   if (!shadowContext)
     return;
@@ -679,20 +669,23 @@ nsTextBoxFrame::CalculateTitleForWidth(nsPresContext*      aPresContext,
 
     // see if the width is even smaller than the ellipsis
     // if so, clear the text (XXX set as many '.' as we can?).
+    nscoord ellipsisWidth;
     aRenderingContext.SetTextRunRTL(PR_FALSE);
-    aRenderingContext.GetWidth(kEllipsis, mTitleWidth);
+    aRenderingContext.GetWidth(kEllipsis, ellipsisWidth);
 
-    if (mTitleWidth > aWidth) {
+    if (ellipsisWidth > aWidth) {
         mCroppedTitle.SetLength(0);
-        mTitleWidth = 0;
+        mTitleWidth = aWidth;
         return;
     }
 
     // if the ellipsis fits perfectly, no use in trying to insert
-    if (mTitleWidth == aWidth)
+    if (ellipsisWidth == aWidth) {
+        mTitleWidth = aWidth;
         return;
+    }
 
-    aWidth -= mTitleWidth;
+    aWidth -= ellipsisWidth;
 
     // XXX: This whole block should probably take surrogates into account
     // XXX and clusters!
@@ -752,7 +745,7 @@ nsTextBoxFrame::CalculateTitleForWidth(nsPresContext*      aPresContext,
             }
 
             if (i == length-1)
-                return;
+                break;
 
             nsAutoString copy;
             mTitle.Right(copy, length-1-i);
@@ -959,12 +952,6 @@ nsTextBoxFrame::DoLayout(nsBoxLayoutState& aBoxLayoutState)
     return rv;
 }
 
-PRBool
-nsTextBoxFrame::ComputesOwnOverflowArea()
-{
-    return PR_TRUE;
-}
-
 /* virtual */ void
 nsTextBoxFrame::MarkIntrinsicWidthsDirty()
 {
@@ -1023,12 +1010,13 @@ nsTextBoxFrame::CalcTextRect(nsIRenderingContext &aRenderingContext, const nsPoi
 
     if (textStyle->mTextAlign == NS_STYLE_TEXT_ALIGN_CENTER)
       textRect.x += (outerWidth - textRect.width)/2;
-    else if (textStyle->mTextAlign == NS_STYLE_TEXT_ALIGN_RIGHT ||
-             (textStyle->mTextAlign == NS_STYLE_TEXT_ALIGN_DEFAULT &&
-              vis->mDirection == NS_STYLE_DIRECTION_RTL) ||
-             (textStyle->mTextAlign == NS_STYLE_TEXT_ALIGN_END &&
-              vis->mDirection == NS_STYLE_DIRECTION_LTR)) {
-      textRect.x += (outerWidth - textRect.width);
+    else if (textStyle->mTextAlign == NS_STYLE_TEXT_ALIGN_RIGHT) {
+      if (vis->mDirection == NS_STYLE_DIRECTION_LTR)
+        textRect.x += (outerWidth - textRect.width);
+    }
+    else {
+      if (vis->mDirection == NS_STYLE_DIRECTION_RTL)
+        textRect.x += (outerWidth - textRect.width);
     }
     return textRect;
 }
@@ -1096,7 +1084,7 @@ nsTextBoxFrame::GetFrameName(nsAString& aResult) const
 #endif
 
 // If you make changes to this function, check its counterparts 
-// in nsBoxFrame and nsXULLabelFrame
+// in nsBoxFrame and nsAreaFrame
 nsresult
 nsTextBoxFrame::RegUnregAccessKey(PRBool aDoReg)
 {

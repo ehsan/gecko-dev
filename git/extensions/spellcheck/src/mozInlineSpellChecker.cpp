@@ -571,7 +571,7 @@ mozInlineSpellChecker::Init(nsIEditor *aEditor)
 //    flushed, which can cause editors to go away which will bring us here.
 //    We can not do anything that will cause DoSpellCheck to freak out.
 
-nsresult mozInlineSpellChecker::Cleanup(PRBool aDestroyingFrames)
+nsresult mozInlineSpellChecker::Cleanup()
 {
   mNumWordsInSpellSelection = 0;
   nsCOMPtr<nsISelection> spellCheckSelection;
@@ -580,9 +580,7 @@ nsresult mozInlineSpellChecker::Cleanup(PRBool aDestroyingFrames)
     // Ensure we still unregister event listeners (but return a failure code)
     UnregisterEventListeners();
   } else {
-    if (!aDestroyingFrames) {
-      spellCheckSelection->RemoveAllRanges();
-    }
+    spellCheckSelection->RemoveAllRanges();
 
     rv = UnregisterEventListeners();
   }
@@ -712,7 +710,7 @@ mozInlineSpellChecker::SetEnableRealTimeSpell(PRBool aEnabled)
 {
   if (!aEnabled) {
     mSpellCheck = nsnull;
-    return Cleanup(PR_FALSE);
+    return Cleanup();
   }
 
   if (!mSpellCheck) {

@@ -46,12 +46,10 @@
 #include "nsIServiceManager.h"
 #include "nsComponentManagerUtils.h"
 #include "nsWidgetAtoms.h"
+#include "nsWindowAPI.h"
+#include "nsUXThemeData.h"
 #include <objbase.h>
 #include <initguid.h>
-
-#ifndef WINCE
-#include "nsUXThemeData.h"
-#endif
 
 // unknwn.h is needed to build with WIN32_LEAN_AND_MEAN
 #include <unknwn.h>
@@ -261,8 +259,7 @@ nsToolkit::Startup(HMODULE hModule)
     wc.hbrBackground    = NULL;
     wc.lpszMenuName     = NULL;
     wc.lpszClassName    = L"nsToolkitClass";
-    VERIFY(::RegisterClassW(&wc) || 
-           GetLastError() == ERROR_CLASS_ALREADY_EXISTS);
+    VERIFY(::RegisterClassW(&wc));
 
     // Vista API.  Mozilla is DPI Aware.
     typedef BOOL (*SetProcessDPIAwareFunc)(VOID);
@@ -273,9 +270,7 @@ nsToolkit::Startup(HMODULE hModule)
     if (setDPIAware)
       setDPIAware();
 
-#ifndef WINCE
     nsUXThemeData::Initialize();
-#endif
 }
 
 
@@ -401,7 +396,7 @@ LRESULT CALLBACK nsToolkit::WindowProc(HWND hWnd, UINT msg, WPARAM wParam,
             MethodInfo *info = (MethodInfo *)lParam;
             return info->Invoke();
         }
-#ifndef WINCE
+
         case WM_SYSCOLORCHANGE:
         {
           // WM_SYSCOLORCHANGE messages are only dispatched to top
@@ -415,7 +410,7 @@ LRESULT CALLBACK nsToolkit::WindowProc(HWND hWnd, UINT msg, WPARAM wParam,
           // the current system colors.
           nsWindow::GlobalMsgWindowProc(hWnd, msg, wParam, lParam);
         }
-#endif
+
     }
 
     return ::DefWindowProcW(hWnd, msg, wParam, lParam);

@@ -356,7 +356,7 @@ void nsView::ResetWidgetBounds(PRBool aRecurse, PRBool aMoveOnly,
   }
 }
 
-nsIntRect nsView::CalcWidgetBounds(nsWindowType aType)
+nsRect nsView::CalcWidgetBounds(nsWindowType aType)
 {
   nsCOMPtr<nsIDeviceContext> dx;
   mViewManager->GetDeviceContext(*getter_AddRefs(dx));
@@ -373,13 +373,15 @@ nsIntRect nsView::CalcWidgetBounds(nsWindowType aType)
 
     if (parentWidget && aType == eWindowType_popup &&
         mVis == nsViewVisibility_kShow) {
-      nsIntPoint screenPoint = parentWidget->WidgetToScreenOffset();
-      viewBounds += nsPoint(NSIntPixelsToAppUnits(screenPoint.x, p2a),
-                            NSIntPixelsToAppUnits(screenPoint.y, p2a));
+      nsRect screenRect(0,0,1,1);
+      parentWidget->WidgetToScreen(screenRect, screenRect);
+      viewBounds += nsPoint(NSIntPixelsToAppUnits(screenRect.x, p2a),
+                            NSIntPixelsToAppUnits(screenRect.y, p2a));
     }
   }
 
-  nsIntRect newBounds = nsRect::ToNearestPixels(viewBounds, p2a);
+  nsRect newBounds(viewBounds);
+  newBounds.ScaleRoundPreservingCentersInverse(p2a);
 
   nsPoint roundedOffset(NSIntPixelsToAppUnits(newBounds.x, p2a),
                         NSIntPixelsToAppUnits(newBounds.y, p2a));
@@ -396,7 +398,7 @@ void nsView::DoResetWidgetBounds(PRBool aMoveOnly,
     return;
   }
   
-  nsIntRect curBounds;
+  nsRect curBounds;
   mWindow->GetBounds(curBounds);
   nsWindowType type;
   mWindow->GetWindowType(type);
@@ -412,7 +414,7 @@ void nsView::DoResetWidgetBounds(PRBool aMoveOnly,
 
   NS_PRECONDITION(mWindow, "Why was this called??");
 
-  nsIntRect newBounds = CalcWidgetBounds(type);
+  nsRect newBounds = CalcWidgetBounds(type);
 
   PRBool changedPos = curBounds.TopLeft() != newBounds.TopLeft();
   PRBool changedSize = curBounds.Size() != newBounds.Size();
@@ -634,9 +636,9 @@ nsresult nsIView::CreateWidget(const nsIID &aWindowIID,
 
   nsView* v = static_cast<nsView*>(this);
 
-  nsIntRect trect = v->CalcWidgetBounds(aWidgetInitData
-                                        ? aWidgetInitData->mWindowType
-                                        : eWindowType_child);
+  nsRect trect = v->CalcWidgetBounds(aWidgetInitData
+                                     ? aWidgetInitData->mWindowType
+                                     : eWindowType_child);
 
   if (NS_OK == v->LoadWidget(aWindowIID))
   {
@@ -753,15 +755,17 @@ void nsIView::List(FILE* out, PRInt32 aIndent) const
   for (i = aIndent; --i >= 0; ) fputs("  ", out);
   fprintf(out, "%p ", (void*)this);
   if (nsnull != mWindow) {
+    nsRect windowBounds;
+    nsRect nonclientBounds;
+    float p2t;
     nsIDeviceContext *dx;
     mViewManager->GetDeviceContext(dx);
-    nscoord p2a = dx->AppUnitsPerDevPixel();
+    p2t = (float) dx->AppUnitsPerDevPixel();
     NS_RELEASE(dx);
-    nsIntRect rect;
-    mWindow->GetClientBounds(rect);
-    nsRect windowBounds = nsIntRect::ToAppUnits(rect, p2a);
-    mWindow->GetBounds(rect);
-    nsRect nonclientBounds = nsIntRect::ToAppUnits(rect, p2a);
+    mWindow->GetClientBounds(windowBounds);
+    windowBounds *= p2t;
+    mWindow->GetBounds(nonclientBounds);
+    nonclientBounds *= p2t;
     nsrefcnt widgetRefCnt = mWindow->AddRef() - 1;
     mWindow->Release();
     PRInt32 Z;
@@ -808,19 +812,21 @@ nsPoint nsIView::GetOffsetTo(const nsIView* aOther) const
 
 nsIntPoint nsIView::GetScreenPosition() const
 {
-  nsIntPoint screenPoint(0,0);  
+  nsIntRect screenRect(0,0,0,0);  
   nsPoint toWidgetOffset(0,0);
   nsIWidget* widget = GetNearestWidget(&toWidgetOffset);
   if (widget) {
     nsCOMPtr<nsIDeviceContext> dx;
     mViewManager->GetDeviceContext(*getter_AddRefs(dx));
     PRInt32 p2a = dx->AppUnitsPerDevPixel();
-    nsIntPoint ourPoint(NSAppUnitsToIntPixels(toWidgetOffset.x, p2a),
-                        NSAppUnitsToIntPixels(toWidgetOffset.y, p2a));
-    screenPoint = ourPoint + widget->WidgetToScreenOffset();
+    nsIntRect ourRect(NSAppUnitsToIntPixels(toWidgetOffset.x, p2a),
+                      NSAppUnitsToIntPixels(toWidgetOffset.y, p2a),
+                      0,
+                      0);
+    widget->WidgetToScreen(ourRect, screenRect);
   }
   
-  return screenPoint;
+  return nsIntPoint(screenRect.x, screenRect.y);
 }
 
 nsIWidget* nsIView::GetNearestWidget(nsPoint* aOffset) const

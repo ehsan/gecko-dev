@@ -22,7 +22,6 @@
 #   Annie Sullivan <annie.sullivan@gmail.com>
 #   Joe Hughes <joe@retrovirus.com>
 #   Asaf Romano <mano@mozilla.com>
-#   Ehsan Akhgari <ehsan.akhgari@gmail.com>
 #
 # Alternatively, the contents of this file may be used under the terms of
 # either the GNU General Public License Version 2 or later (the "GPL"), or
@@ -113,23 +112,21 @@ var StarUI = {
         break;
       case "keypress":
         if (aEvent.keyCode == KeyEvent.DOM_VK_ESCAPE) {
-          // If the panel is visible the ESC key is mapped to the cancel button
-          // unless we are editing a folder in the folderTree, or an
-          // autocomplete popup is open.
+          // In edit mode, if we're not editing a folder, the ESC key is mapped
+          // to the cancel button
           if (!this._element("editBookmarkPanelContent").hidden) {
             var elt = aEvent.target;
-            if ((elt.localName != "tree" || !elt.hasAttribute("editing")) &&
-                !elt.popupOpen)
+            if (elt.localName != "tree" ||
+                (elt.localName == "tree" && !elt.hasAttribute("editing")))
               this.cancelButtonOnCommand();
           }
         }
         else if (aEvent.keyCode == KeyEvent.DOM_VK_RETURN) {
-          // hide the panel unless the folder tree or an expander are focused
-          // or an autocomplete popup is open.
+          // hide the panel unless the folder tree is focused
+          // or the tag autocomplete popup is open
           if (aEvent.target.localName != "tree" &&
-              aEvent.target.className != "expander-up" &&
-              aEvent.target.className != "expander-down" &&
-              !aEvent.target.popupOpen)
+              (aEvent.target.id != "editBMPanel_tagsField" ||
+               !aEvent.target.popupOpen))
             this.panel.hidePopup();
         }
         break;
@@ -169,9 +166,6 @@ var StarUI = {
 
   _doShowEditBookmarkPanel:
   function SU__doShowEditBookmarkPanel(aItemId, aAnchorElement, aPosition) {
-    if (this.panel.state != "closed")
-      return;
-
     this._blockCommands(); // un-done in the popuphiding handler
 
     var bundle = this._element("bundle_browser");
@@ -197,14 +191,6 @@ var StarUI = {
     // if the cancel button/ESC does not remove the bookmark.
     this._element("editBookmarkPanelRemoveButton").hidden = this._batching;
 
-    // The label of the remove button differs if the URI is bookmarked
-    // multiple times.
-    var bookmarks = PlacesUtils.getBookmarksForURI(gBrowser.currentURI);
-    var forms = bundle.getString("editBookmark.removeBookmarks.label");
-    Cu.import("resource://gre/modules/PluralForm.jsm");
-    var label = PluralForm.get(bookmarks.length, forms).replace("#1", bookmarks.length);
-    this._element("editBookmarkPanelRemoveButton").label = label;
-
     // unset the unstarred state, if set
     this._element("editBookmarkPanelStarIcon").removeAttribute("unstarred");
 
@@ -222,10 +208,17 @@ var StarUI = {
                                       isTransient: false,
                                       merge: function() { return false; } });
 
-    // Consume dismiss clicks, see bug 400924
-    this.panel.popupBoxObject
-        .setConsumeRollupEvent(Ci.nsIPopupBoxObject.ROLLUP_CONSUME);
-    this.panel.openPopup(aAnchorElement, aPosition, -1, -1);
+    if (this.panel.state == "closed") {
+      // Consume dismiss clicks, see bug 400924
+      this.panel.popupBoxObject
+          .setConsumeRollupEvent(Ci.nsIPopupBoxObject.ROLLUP_CONSUME);
+      this.panel.openPopup(aAnchorElement, aPosition, -1, -1);
+    }
+    else {
+      var namePicker = this._element("editBMPanel_namePicker");
+      namePicker.focus();
+      namePicker.editor.selectAll();
+    }
 
     gEditItemOverlay.initPanel(this._itemId,
                                { hiddenRows: ["description", "location",
@@ -236,17 +229,12 @@ var StarUI = {
   function SU_panelShown(aEvent) {
     if (aEvent.target == this.panel) {
       if (!this._element("editBookmarkPanelContent").hidden) {
-        fieldToFocus = "editBMPanel_" +
-          gPrefService.getCharPref("browser.bookmarks.editDialog.firstEditField");
-        var elt = this._element(fieldToFocus);
-        elt.focus();
-        elt.select();
+        var namePicker = this._element("editBMPanel_namePicker");
+        namePicker.focus();
+        namePicker.editor.selectAll();
       }
-      else {
-        // Note this isn't actually used anymore, we should remove this
-        // once we decide not to bring back the page bookmarked notification
+      else
         this.panel.focus();
-      }
     }
   },
 
@@ -958,11 +946,7 @@ var PlacesMenuDNDController = {
 
 var PlacesStarButton = {
   init: function PSB_init() {
-    try {
-      PlacesUtils.bookmarks.addObserver(this, false);
-    } catch(ex) {
-      Components.utils.reportError("PlacesStarButton.init(): error adding bookmark observer: " + ex);
-    }
+    PlacesUtils.bookmarks.addObserver(this, false);
   },
 
   uninit: function PSB_uninit() {

@@ -77,10 +77,11 @@ static const char* const sEventNames[] = {
   "SVGZoom",
 #endif // MOZ_SVG
 #ifdef MOZ_MEDIA
-  "loadstart", "progress", "loadedmetadata", "loadeddata",
+  "loadstart", "progress", "loadedmetadata", "loadedfirstframe",
   "emptied", "stalled", "play", "pause",
-  "waiting", "seeking", "seeked", "timeupdate", "ended",
-  "canplay", "canplaythrough", "ratechange", "durationchange", "volumechange",
+  "waiting", "seeking", "seeked", "timeupdate", "ended", "dataunavailable",
+  "canshowcurrentframe", "canplay", "canplaythrough", "ratechange",
+  "durationchange", "volumechange",
 #endif // MOZ_MEDIA
   "MozAfterPaint",
   "MozSwipeGesture",
@@ -175,12 +176,10 @@ NS_IMPL_CYCLE_COLLECTION_UNLINK_BEGIN(nsDOMEvent)
     switch (tmp->mEvent->eventStructType) {
       case NS_MOUSE_EVENT:
       case NS_MOUSE_SCROLL_EVENT:
-      case NS_SIMPLE_GESTURE_EVENT:
         static_cast<nsMouseEvent_base*>(tmp->mEvent)->relatedTarget = nsnull;
         break;
       case NS_DRAG_EVENT:
         static_cast<nsDragEvent*>(tmp->mEvent)->dataTransfer = nsnull;
-        static_cast<nsMouseEvent_base*>(tmp->mEvent)->relatedTarget = nsnull;
         break;
       case NS_XUL_COMMAND_EVENT:
         static_cast<nsXULCommandEvent*>(tmp->mEvent)->sourceEvent = nsnull;
@@ -205,7 +204,6 @@ NS_IMPL_CYCLE_COLLECTION_TRAVERSE_BEGIN(nsDOMEvent)
     switch (tmp->mEvent->eventStructType) {
       case NS_MOUSE_EVENT:
       case NS_MOUSE_SCROLL_EVENT:
-      case NS_SIMPLE_GESTURE_EVENT:
         NS_CYCLE_COLLECTION_NOTE_EDGE_NAME(cb, "mEvent->relatedTarget");
         cb.NoteXPCOMChild(
           static_cast<nsMouseEvent_base*>(tmp->mEvent)->relatedTarget);
@@ -214,9 +212,6 @@ NS_IMPL_CYCLE_COLLECTION_TRAVERSE_BEGIN(nsDOMEvent)
         NS_CYCLE_COLLECTION_NOTE_EDGE_NAME(cb, "mEvent->dataTransfer");
         cb.NoteXPCOMChild(
           static_cast<nsDragEvent*>(tmp->mEvent)->dataTransfer);
-        NS_CYCLE_COLLECTION_NOTE_EDGE_NAME(cb, "mEvent->relatedTarget");
-        cb.NoteXPCOMChild(
-          static_cast<nsMouseEvent_base*>(tmp->mEvent)->relatedTarget);
         break;
       case NS_XUL_COMMAND_EVENT:
         NS_CYCLE_COLLECTION_NOTE_EDGE_NAME(cb, "mEvent->sourceEvent");
@@ -405,25 +400,20 @@ nsDOMEvent::StopPropagation()
   return NS_OK;
 }
 
-static nsIDocument* GetDocumentForReport(nsEvent* aEvent)
-{
-  nsCOMPtr<nsINode> node = do_QueryInterface(aEvent->currentTarget);
-  if (node)
-    return node->GetOwnerDoc();
-
-  nsCOMPtr<nsPIDOMWindow> window = do_QueryInterface(aEvent->currentTarget);
-  if (!window)
-    return nsnull;
-
-  nsCOMPtr<nsIDocument> doc(do_QueryInterface(window->GetExtantDocument()));
-  return doc;
-}
-
 static void
 ReportUseOfDeprecatedMethod(nsEvent* aEvent, nsIDOMEvent* aDOMEvent,
                             const char* aWarning)
 {
-  nsCOMPtr<nsIDocument> doc(GetDocumentForReport(aEvent));
+  nsCOMPtr<nsIDocument> doc;
+  nsCOMPtr<nsINode> node = do_QueryInterface(aEvent->currentTarget);
+  if (node) {
+    doc = node->GetOwnerDoc();
+  } else {
+    nsCOMPtr<nsPIDOMWindow> window = do_QueryInterface(aEvent->currentTarget);
+    if (window) {
+      doc = do_QueryInterface(window->GetExtantDocument());
+    }
+  }
 
   nsAutoString type;
   aDOMEvent->GetType(type);
@@ -621,8 +611,8 @@ nsDOMEvent::SetEventType(const nsAString& aEventTypeArg)
       mEvent->message = NS_PROGRESS;
     else if (atom == nsGkAtoms::onloadedmetadata)
       mEvent->message = NS_LOADEDMETADATA;
-    else if (atom == nsGkAtoms::onloadeddata)
-      mEvent->message = NS_LOADEDDATA;
+    else if (atom == nsGkAtoms::onloadedfirstframe)
+      mEvent->message = NS_LOADEDFIRSTFRAME;
     else if (atom == nsGkAtoms::onemptied)
       mEvent->message = NS_EMPTIED;
     else if (atom == nsGkAtoms::onstalled)
@@ -641,6 +631,10 @@ nsDOMEvent::SetEventType(const nsAString& aEventTypeArg)
       mEvent->message = NS_TIMEUPDATE;
     else if (atom == nsGkAtoms::onended)
       mEvent->message = NS_ENDED;
+    else if (atom == nsGkAtoms::ondataunavailable)
+      mEvent->message = NS_DATAUNAVAILABLE;
+    else if (atom == nsGkAtoms::oncanshowcurrentframe)
+      mEvent->message = NS_CANSHOWCURRENTFRAME;
     else if (atom == nsGkAtoms::oncanplay)
       mEvent->message = NS_CANPLAY;
     else if (atom == nsGkAtoms::oncanplaythrough)
@@ -823,7 +817,6 @@ NS_METHOD nsDOMEvent::DuplicatePrivateData()
       mouseEvent->context = oldMouseEvent->context;
       mouseEvent->relatedTarget = oldMouseEvent->relatedTarget;
       mouseEvent->button = oldMouseEvent->button;
-      mouseEvent->pressure = oldMouseEvent->pressure;
       newEvent = mouseEvent;
       break;
     }
@@ -1011,6 +1004,10 @@ NS_METHOD nsDOMEvent::DuplicatePrivateData()
       isInputEvent = PR_TRUE;
       simpleGestureEvent->direction = oldSimpleGestureEvent->direction;
       simpleGestureEvent->delta = oldSimpleGestureEvent->delta;
+      simpleGestureEvent->isAlt = oldSimpleGestureEvent->isAlt;
+      simpleGestureEvent->isControl = oldSimpleGestureEvent->isControl;
+      simpleGestureEvent->isShift = oldSimpleGestureEvent->isShift;
+      simpleGestureEvent->isMeta = oldSimpleGestureEvent->isMeta;
       newEvent = simpleGestureEvent;
       break;
     }
@@ -1476,8 +1473,8 @@ const char* nsDOMEvent::GetEventName(PRUint32 aEventType)
     return sEventNames[eDOMEvents_progress];
   case NS_LOADEDMETADATA:
     return sEventNames[eDOMEvents_loadedmetadata];
-  case NS_LOADEDDATA:
-    return sEventNames[eDOMEvents_loadeddata];
+  case NS_LOADEDFIRSTFRAME:
+    return sEventNames[eDOMEvents_loadedfirstframe];
   case NS_EMPTIED:
     return sEventNames[eDOMEvents_emptied];
   case NS_STALLED:
@@ -1496,6 +1493,10 @@ const char* nsDOMEvent::GetEventName(PRUint32 aEventType)
     return sEventNames[eDOMEvents_timeupdate];
   case NS_ENDED:
     return sEventNames[eDOMEvents_ended];
+  case NS_DATAUNAVAILABLE:
+    return sEventNames[eDOMEvents_dataunavailable];
+  case NS_CANSHOWCURRENTFRAME:
+    return sEventNames[eDOMEvents_canshowcurrentframe];
   case NS_CANPLAY:
     return sEventNames[eDOMEvents_canplay];
   case NS_CANPLAYTHROUGH:
@@ -1532,25 +1533,6 @@ const char* nsDOMEvent::GetEventName(PRUint32 aEventType)
   // arrays in nsEventListenerManager too, since the events for which
   // this is a problem generally *are* created by nsDOMEvent.)
   return nsnull;
-}
-
-nsresult
-nsDOMEvent::ReportWrongPropertyAccessWarning(const char* aPropertyName)
-{
-  nsCOMPtr<nsIDocument> doc(GetDocumentForReport(mEvent));
-
-  nsAutoString propertyName, type;
-  GetType(type);
-  propertyName.AssignASCII(aPropertyName);
-  const PRUnichar *strings[] = { propertyName.get(), type.get() };
-
-  return nsContentUtils::ReportToConsole(nsContentUtils::eDOM_PROPERTIES,
-                                         "WrongEventPropertyAccessWarning",
-                                         strings, NS_ARRAY_LENGTH(strings),
-                                         doc ? doc->GetDocumentURI() : nsnull,
-                                         EmptyString(), 0, 0,
-                                         nsIScriptError::warningFlag,
-                                         "DOM Events");
 }
 
 nsresult NS_NewDOMEvent(nsIDOMEvent** aInstancePtrResult,

@@ -41,7 +41,7 @@
 interface nsIDOMAbstractView;
 interface nsIDOMDataTransfer;
 
-[scriptable, uuid(D52CF140-FB90-44DF-8D69-4B2BAB4D461F)]
+[scriptable, uuid(18FEEFD7-A461-4865-BCF1-4DC8A2F30584)]
 interface nsIDOMDragEvent : nsIDOMMouseEvent
 {
   readonly attribute nsIDOMDataTransfer dataTransfer;
@@ -50,17 +50,7 @@ interface nsIDOMDragEvent : nsIDOMMouseEvent
                      in boolean canBubbleArg,
                      in boolean cancelableArg,
                      in nsIDOMAbstractView aView,
-                     in long aDetail,
-                     in long aScreenX,
-                     in long aScreenY,
-                     in long aClientX,
-                     in long aClientY,
-                     in boolean aCtrlKey,
-                     in boolean aAltKey,
-                     in boolean aShiftKey,
-                     in boolean aMetaKey,
-                     in unsigned short aButton,
-                     in nsIDOMEventTarget aRelatedTarget,
+                     in PRInt32 aDetail,
                      in nsIDOMDataTransfer aDataTransfer);
 
   void initDragEventNS(in DOMString namespaceURIArg,
@@ -68,16 +58,6 @@ interface nsIDOMDragEvent : nsIDOMMouseEvent
                        in boolean canBubbleArg,
                        in boolean cancelableArg,
                        in nsIDOMAbstractView aView,
-                       in long aDetail,
-                       in long aScreenX,
-                       in long aScreenY,
-                       in long aClientX,
-                       in long aClientY,
-                       in boolean aCtrlKey,
-                       in boolean aAltKey,
-                       in boolean aShiftKey,
-                       in boolean aMetaKey,
-                       in unsigned short aButton,
-                       in nsIDOMEventTarget aRelatedTarget,
+                       in PRInt32 aDetail,
                        in nsIDOMDataTransfer aDataTransfer);
 };

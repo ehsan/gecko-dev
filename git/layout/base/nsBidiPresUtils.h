@@ -42,7 +42,7 @@
 #ifndef nsBidiPresUtils_h___
 #define nsBidiPresUtils_h___
 
-#include "nsTArray.h"
+#include "nsVoidArray.h"
 #include "nsIFrame.h"
 #include "nsBidi.h"
 #include "nsBidiUtils.h"
@@ -488,8 +488,8 @@ private:
   void StripBidiControlCharacters(PRUnichar* aText,
                                   PRInt32&   aTextLength) const;
   nsAutoString    mBuffer;
-  nsTArray<nsIFrame*> mLogicalFrames;
-  nsTArray<nsIFrame*> mVisualFrames;
+  nsVoidArray     mLogicalFrames;
+  nsVoidArray     mVisualFrames;
   nsDataHashtable<nsISupportsHashKey, PRInt32> mContentToFrameIndex;
   PRInt32         mArraySize;
   PRInt32*        mIndexMap;

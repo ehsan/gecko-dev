@@ -951,21 +951,9 @@ BookmarkContentSink::HandleLinkBegin(const nsIParserNode& node)
   // save the favicon, ignore errors
   if (!icon.IsEmpty() || !iconUri.IsEmpty()) {
     nsCOMPtr<nsIURI> iconUriObject;
-    rv = NS_NewURI(getter_AddRefs(iconUriObject), iconUri);
-    if (!icon.IsEmpty() || NS_SUCCEEDED(rv)) {
+    NS_NewURI(getter_AddRefs(iconUriObject), iconUri);
+    if (!icon.IsEmpty() || iconUriObject) {
       rv = SetFaviconForURI(frame.mPreviousLink, iconUriObject, icon);
-      if (NS_FAILED(rv)) {
-        nsCAutoString warnMsg;
-        warnMsg.Append("Bookmarks Import: unable to set favicon '");
-        warnMsg.Append(NS_ConvertUTF16toUTF8(iconUri));
-        warnMsg.Append("' for page '");
-        nsCAutoString spec;
-        rv = frame.mPreviousLink->GetSpec(spec);
-        if (NS_SUCCEEDED(rv))
-          warnMsg.Append(spec);
-        warnMsg.Append("'");
-        NS_WARNING(warnMsg.get());
-      }
     }
   }
 
@@ -1325,19 +1313,7 @@ BookmarkContentSink::SetFaviconForURI(nsIURI* aPageURI, nsIURI* aIconURI,
     PR_snprintf(buf, sizeof(buf), "%lld", PR_Now());
     faviconSpec.Append(buf);
     rv = NS_NewURI(getter_AddRefs(faviconURI), faviconSpec);
-    if (NS_FAILED(rv)) {
-      nsCAutoString warnMsg;
-      warnMsg.Append("Bookmarks Import: Unable to make up new favicon '");
-      warnMsg.Append(faviconSpec);
-      warnMsg.Append("' for page '");
-      nsCAutoString spec;
-      rv = aPageURI->GetSpec(spec);
-      if (NS_SUCCEEDED(rv))
-        warnMsg.Append(spec);
-      warnMsg.Append("'");
-      NS_WARNING(warnMsg.get());
-      return NS_OK;
-    }
+    NS_ENSURE_SUCCESS(rv, rv);
     serialNumber++;
   }
 
@@ -1495,18 +1471,9 @@ WriteFaviconAttribute(const nsACString& aURI, nsIOutputStream* aOutput)
   nsresult rv;
   PRUint32 dummy;
 
-  // if favicon uri is invalid we skip the attribute silently, to avoid
-  // creating a corrupt file.
   nsCOMPtr<nsIURI> uri;
   rv = NS_NewURI(getter_AddRefs(uri), aURI);
-  if (NS_FAILED(rv)) {
-    nsCAutoString warnMsg;
-    warnMsg.Append("Bookmarks Export: Found invalid favicon '");
-    warnMsg.Append(aURI);
-    warnMsg.Append("'");
-    NS_WARNING(warnMsg.get());
-    return NS_OK;
-  }
+  NS_ENSURE_SUCCESS(rv, rv);
 
   // get favicon
   nsCOMPtr<nsIFaviconService> faviconService = do_GetService(NS_FAVICONSERVICE_CONTRACTID, &rv);
@@ -1772,23 +1739,6 @@ nsPlacesImportExportService::WriteItem(nsINavHistoryResultNode* aItem,
   PRUint32 dummy;
   nsresult rv;
 
-  // before doing any attempt to write the item check that uri is valid, if the
-  // item has a bad uri we skip it silently, otherwise we could stop while
-  // exporting, generating a corrupt file.
-  nsCAutoString uri;
-  rv = aItem->GetUri(uri);
-  NS_ENSURE_SUCCESS(rv, rv);
-  nsCOMPtr<nsIURI> pageURI;
-  rv = NS_NewURI(getter_AddRefs(pageURI), uri, nsnull);
-  if (NS_FAILED(rv)) {
-    nsCAutoString warnMsg;
-    warnMsg.Append("Bookmarks Export: Found invalid item uri '");
-    warnMsg.Append(uri);
-    warnMsg.Append("'");
-    NS_WARNING(warnMsg.get());
-    return NS_OK;
-  }
-
   // indent
   if (!aIndent.IsEmpty()) {
     rv = aOutput->Write(PromiseFlatCString(aIndent).get(), aIndent.Length(), &dummy);
@@ -1802,6 +1752,9 @@ nsPlacesImportExportService::WriteItem(nsINavHistoryResultNode* aItem,
   // ' HREF="http://..."' - note that we need to call GetURI on the result
   // node because some nodes (eg queries) generate this lazily.
   rv = aOutput->Write(kHrefAttribute, sizeof(kHrefAttribute)-1, &dummy);
+  NS_ENSURE_SUCCESS(rv, rv);
+  nsCAutoString uri;
+  rv = aItem->GetUri(uri);
   NS_ENSURE_SUCCESS(rv, rv);
   rv = WriteEscapedUrl(uri, aOutput);
   NS_ENSURE_SUCCESS(rv, rv);
@@ -1853,6 +1806,10 @@ nsPlacesImportExportService::WriteItem(nsINavHistoryResultNode* aItem,
   }
 
   // post data
+  nsCOMPtr<nsIURI> pageURI;
+  rv = NS_NewURI(getter_AddRefs(pageURI), uri, nsnull);
+  NS_ENSURE_SUCCESS(rv, rv);
+  
   PRBool hasPostData;
   rv = mAnnotationService->ItemHasAnnotation(itemId, POST_DATA_ANNO,
                                              &hasPostData);

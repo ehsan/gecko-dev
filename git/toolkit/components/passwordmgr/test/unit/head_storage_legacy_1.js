@@ -87,7 +87,7 @@ const LoginTest = {
    *
    * Reinitialize a storage module with the specified input.
    */
-  reloadStorage : function (aInputPathName, aInputFileName, aExpectedError) {
+  reloadStorage : function (aInputPathName, aInputFileName) {
     var err = null;
     var newStorage = this.newStorage();
 
@@ -113,10 +113,7 @@ const LoginTest = {
         err = e;
     }
 
-    if (aExpectedError)
-        this.checkExpectedError(aExpectedError, err);
-    else
-        do_check_true(err == null);
+    do_check_true(err == null);
 
     return newStorage;
   },
@@ -227,21 +224,9 @@ const LoginTest = {
     return storage;
   },
 
-  openDB : function (filename) {
-    // nsIFile for the specified filename, in the profile dir.
-    var dbfile = PROFDIR.clone();
-    dbfile.append(filename);
-
-    var ss = Cc["@mozilla.org/storage/service;1"].
-             getService(Ci.mozIStorageService);
-    var dbConnection = ss.openDatabase(dbfile);
-
-    return dbConnection;
-  },
-
   deleteFile : function (pathname, filename) {
     var file = Cc["@mozilla.org/file/local;1"].
-               createInstance(Ci.nsILocalFile);
+    createInstance(Ci.nsILocalFile);
     file.initWithPath(pathname);
     file.append(filename);
     // Suppress failures, this happens in the mozstorage tests on Windows
@@ -251,21 +236,8 @@ const LoginTest = {
       if (file.exists())
         file.remove(false);
     } catch (e) {}
-  },
-
-  // Copies a file from our test data directory to the unit test profile.
-  copyFile : function (filename) {
-    var file = DATADIR.clone();
-    file.append(filename);
-
-    var profileFile = PROFDIR.clone();
-    profileFile.append(filename);
-
-    if (profileFile.exists())
-        profileFile.remove(false);
-
-    file.copyTo(PROFDIR, filename);
   }
+
 };
 
 
@@ -282,14 +254,21 @@ if (!profileDir) {
 }
 
 
-// nsIFiles...
 var PROFDIR = profileDir;
-var DATADIR = do_get_file("toolkit/components/passwordmgr/test/unit/data/" +
-                         "signons-00.txt").parent;
-// string versions...
 var OUTDIR = PROFDIR.path;
-var INDIR = DATADIR.path;
+var INDIR = do_get_file("toolkit/components/passwordmgr/test/unit/data/" +
+                        "signons-00.txt").parent.path;
 
-// Copy key3.db into the profile used for the unit tests. Need this so we can
-// decrypt the encrypted logins stored in the various tests inputs.
-LoginTest.copyFile("key3.db");
+// Copy key3.db into the proper place, removing the file if it already exists.
+// key3.db will be automatically created if it doesn't exist, so always
+// replace it to ensure we have the key we need.
+var keydb = do_get_file("toolkit/components/passwordmgr/test/unit/key3.db");
+try {
+    var oldfile = profileDir.clone();
+    oldfile.append("key3.db");
+    if (oldfile.exists())
+        oldfile.remove(false);
+} catch(e) { }
+
+keydb.copyTo(profileDir, "key3.db");
+

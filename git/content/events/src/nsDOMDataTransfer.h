@@ -94,7 +94,6 @@ protected:
   nsDOMDataTransfer(PRUint32 aEventType,
                     const PRUint32 aEffectAllowed,
                     PRBool aIsExternal,
-                    PRBool aUserCancelled,
                     nsTArray<nsTArray<TransferItem> >& aItems,
                     nsIDOMElement* aDragImage,
                     PRUint32 aDragImageX,
@@ -174,9 +173,6 @@ protected:
   // true for drags started without a data transfer, for example, those from
   // another application.
   PRPackedBool mIsExternal;
-
-  // true if the user cancelled the drag. Used only for the dragend event.
-  PRPackedBool mUserCancelled;
 
   // array of items, each containing an array of format->data pairs
   nsTArray<nsTArray<TransferItem> > mItems;

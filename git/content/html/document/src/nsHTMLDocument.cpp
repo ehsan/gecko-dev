@@ -1815,26 +1815,35 @@ nsHTMLDocument::OpenCommon(const nsACString& aContentType, PRBool aReplace)
 
   // Note: We want to use GetDocumentFromContext here because this document
   // should inherit the security information of the document that's opening us,
-  // (since if it's secure, then it's presumably trusted).
+  // (since if it's secure, then it's presumeably trusted).
   nsCOMPtr<nsIDocument> callerDoc =
     do_QueryInterface(nsContentUtils::GetDocumentFromContext());
-  if (!callerDoc) {
-    // If we're called from C++ or in some other way without an originating
-    // document we can't do a document.open w/o changing the principal of the
-    // document to something like about:blank (as that's the only sane thing to
-    // do when we don't know the origin of this call), and since we can't
-    // change the principals of a document for security reasons we'll have to
+
+  // Grab a reference to the calling documents security info (if any)
+  // and URIs as they may be lost in the call to Reset().
+  nsCOMPtr<nsISupports> securityInfo;
+  nsCOMPtr<nsIURI> uri, baseURI;
+  if (callerDoc) {
+    securityInfo = callerDoc->GetSecurityInfo();
+    uri = callerDoc->GetDocumentURI();
+    baseURI = callerDoc->GetBaseURI();
+  }
+
+  nsCOMPtr<nsIPrincipal> callerPrincipal;
+  nsIScriptSecurityManager *secMan = nsContentUtils::GetSecurityManager();
+
+  secMan->GetSubjectPrincipal(getter_AddRefs(callerPrincipal));
+
+  if (!callerPrincipal) {
+    // If we're called from C++ we can't do a document.open w/o
+    // changing the principal of the document to something like
+    // about:blank (as that's the only sane thing to do when we don't
+    // know the origin of this call), and since we can't change the
+    // principals of a document for security reasons we'll have to
     // refuse to go ahead with this call.
 
     return NS_ERROR_DOM_SECURITY_ERR;
   }
-
-  // Grab a reference to the calling documents security info (if any)
-  // and URIs as they may be lost in the call to Reset().
-  nsCOMPtr<nsISupports> securityInfo = callerDoc->GetSecurityInfo();
-  nsCOMPtr<nsIURI> uri = callerDoc->GetDocumentURI();
-  nsCOMPtr<nsIURI> baseURI = callerDoc->GetBaseURI();
-  nsCOMPtr<nsIPrincipal> callerPrincipal = callerDoc->NodePrincipal();
 
   // We're called from script. Make sure the script is from the same
   // origin, not just that the caller can access the document. This is
@@ -3078,24 +3087,13 @@ nsHTMLDocument::GetDesignMode(nsAString & aDesignMode)
 }
 
 void
-nsHTMLDocument::MaybeEditingStateChanged()
-{
-  if (mUpdateNestLevel == 0 && mContentEditableCount > 0 != IsEditingOn()) {
-    if (nsContentUtils::IsSafeToRunScript()) {
-      EditingStateChanged();
-    } else if (!mInDestructor) {
-      nsContentUtils::AddScriptRunner(
-        NS_NEW_RUNNABLE_METHOD(nsHTMLDocument, this, MaybeEditingStateChanged));
-    }
-  }
-}
-
-void
 nsHTMLDocument::EndUpdate(nsUpdateType aUpdateType)
 {
   nsDocument::EndUpdate(aUpdateType);
 
-  MaybeEditingStateChanged();
+  if (mUpdateNestLevel == 0 && mContentEditableCount > 0 != IsEditingOn()) {
+    EditingStateChanged();
+  }
 }
 
 nsresult
@@ -3262,13 +3260,12 @@ void
 nsHTMLDocument::TearingDownEditor(nsIEditor *aEditor)
 {
   if (IsEditingOn()) {
-    EditingState oldState = mEditingState;
     mEditingState = eTearingDown;
 
     nsCOMPtr<nsIEditorStyleSheets> editorss = do_QueryInterface(aEditor);
     if (editorss) {
       editorss->RemoveOverrideStyleSheet(NS_LITERAL_STRING("resource://gre/res/contenteditable.css"));
-      if (oldState == eDesignMode)
+      if (mEditingState == eDesignMode)
         editorss->RemoveOverrideStyleSheet(NS_LITERAL_STRING("resource://gre/res/designmode.css"));
     }
   }
@@ -3367,7 +3364,6 @@ nsHTMLDocument::EditingStateChanged()
   nsCOMPtr<nsIEditor> editor;
 
   {
-    EditingState oldState = mEditingState;
     nsAutoEditingState push(this, eSettingUp);
 
     if (makeWindowEditable) {
@@ -3406,9 +3402,9 @@ nsHTMLDocument::EditingStateChanged()
       NS_ENSURE_SUCCESS(rv, rv);
 
       updateState = PR_TRUE;
-      spellRecheckAll = oldState == eContentEditable;
+      spellRecheckAll = mEditingState == eContentEditable;
     }
-    else if (oldState == eDesignMode) {
+    else if (mEditingState == eDesignMode) {
       // designMode is being turned off (contentEditable is still on).
       editorss->RemoveOverrideStyleSheet(NS_LITERAL_STRING("resource://gre/res/designmode.css"));
 
@@ -4153,11 +4149,4 @@ nsHTMLDocument::IsEditingOnAfterFlush()
   }
 
   return IsEditingOn();
-}
-
-void
-nsHTMLDocument::RemovedFromDocShell()
-{
-  mEditingState = eOff;
-  nsDocument::RemovedFromDocShell();
 }

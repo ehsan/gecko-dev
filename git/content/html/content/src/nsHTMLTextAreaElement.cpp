@@ -75,7 +75,6 @@
 #include "nsStubMutationObserver.h"
 #include "nsDOMError.h"
 #include "mozAutoDocUpdate.h"
-#include "nsISupportsPrimitives.h"
 
 static NS_DEFINE_CID(kXULControllersCID,  NS_XULCONTROLLERS_CID);
 
@@ -410,7 +409,7 @@ nsHTMLTextAreaElement::GetValueInternal(nsAString& aValue, PRBool aIgnoreWrap)
   nsIFrame* primaryFrame = GetPrimaryFrame();
   nsITextControlFrame* textControlFrame = nsnull;
   if (primaryFrame) {
-    textControlFrame = do_QueryFrame(primaryFrame);
+    CallQueryInterface(primaryFrame, &textControlFrame);
   }
 
   // If the frame exists and owns the value, get it from the frame.  Otherwise
@@ -453,7 +452,7 @@ nsHTMLTextAreaElement::SetValueInternal(const nsAString& aValue,
     formControlFrame = GetFormControlFrame(PR_FALSE);
 
     if (formControlFrame) {
-      textControlFrame = do_QueryFrame(formControlFrame);
+      CallQueryInterface(formControlFrame, &textControlFrame);
     }
   }
 
@@ -593,7 +592,8 @@ nsHTMLTextAreaElement::PreHandleEvent(nsEventChainPreVisitor& aVisitor)
   nsIFrame* formFrame = nsnull;
 
   if (formControlFrame &&
-      (formFrame = do_QueryFrame(formControlFrame))) {
+      NS_SUCCEEDED(CallQueryInterface(formControlFrame, &formFrame)) &&
+      formFrame) {
     const nsStyleUserInterface* uiStyle = formFrame->GetStyleUserInterface();
 
     if (uiStyle->mUserInput == NS_STYLE_USER_INPUT_NONE ||
@@ -627,7 +627,8 @@ nsHTMLTextAreaElement::PreHandleEvent(nsEventChainPreVisitor& aVisitor)
   if (aVisitor.mEvent->message == NS_BLUR_CONTENT) {
     nsIFrame* primaryFrame = GetPrimaryFrame();
     if (primaryFrame) {
-      nsITextControlFrame* textFrame = do_QueryFrame(primaryFrame);
+      nsITextControlFrame* textFrame = nsnull;
+      CallQueryInterface(primaryFrame, &textFrame);
       if (textFrame) {
         textFrame->CheckFireOnChange();
       }
@@ -728,7 +729,9 @@ nsHTMLTextAreaElement::SetSelectionStart(PRInt32 aSelectionStart)
   nsIFormControlFrame* formControlFrame = GetFormControlFrame(PR_TRUE);
 
   if (formControlFrame){
-    nsITextControlFrame* textControlFrame = do_QueryFrame(formControlFrame);
+    nsITextControlFrame* textControlFrame = nsnull;
+    CallQueryInterface(formControlFrame, &textControlFrame);
+
     if (textControlFrame)
       rv = textControlFrame->SetSelectionStart(aSelectionStart);
   }
@@ -752,7 +755,9 @@ nsHTMLTextAreaElement::SetSelectionEnd(PRInt32 aSelectionEnd)
   nsIFormControlFrame* formControlFrame = GetFormControlFrame(PR_TRUE);
 
   if (formControlFrame) {
-    nsITextControlFrame* textControlFrame = do_QueryFrame(formControlFrame);
+    nsITextControlFrame* textControlFrame = nsnull;
+    CallQueryInterface(formControlFrame, &textControlFrame);
+
     if (textControlFrame)
       rv = textControlFrame->SetSelectionEnd(aSelectionEnd);
   }
@@ -768,7 +773,9 @@ nsHTMLTextAreaElement::GetSelectionRange(PRInt32* aSelectionStart,
   nsIFormControlFrame* formControlFrame = GetFormControlFrame(PR_TRUE);
 
   if (formControlFrame) {
-    nsITextControlFrame* textControlFrame = do_QueryFrame(formControlFrame);
+    nsITextControlFrame* textControlFrame = nsnull;
+    CallQueryInterface(formControlFrame, &textControlFrame);
+
     if (textControlFrame)
       rv = textControlFrame->GetSelectionRange(aSelectionStart, aSelectionEnd);
   }
@@ -783,7 +790,9 @@ nsHTMLTextAreaElement::SetSelectionRange(PRInt32 aSelectionStart, PRInt32 aSelec
   nsIFormControlFrame* formControlFrame = GetFormControlFrame(PR_TRUE);
 
   if (formControlFrame) {
-    nsITextControlFrame* textControlFrame = do_QueryFrame(formControlFrame);
+    nsITextControlFrame* textControlFrame = nsnull;
+    CallQueryInterface(formControlFrame, &textControlFrame);
+
     if (textControlFrame)
       rv = textControlFrame->SetSelectionRange(aSelectionStart, aSelectionEnd);
   }
@@ -863,14 +872,8 @@ nsHTMLTextAreaElement::SaveState()
                nsLinebreakConverter::eLinebreakPlatform,
                nsLinebreakConverter::eLinebreakContent);
       NS_ASSERTION(NS_SUCCEEDED(rv), "Converting linebreaks failed!");
-
-      nsCOMPtr<nsISupportsString> pState
-        (do_CreateInstance(NS_SUPPORTS_STRING_CONTRACTID));
-      if (!pState) {
-        return NS_ERROR_OUT_OF_MEMORY;
-      }
-      pState->SetData(value);
-      state->SetStateProperty(pState);
+      rv = state->SetStateProperty(NS_LITERAL_STRING("value"), value);
+      NS_ASSERTION(NS_SUCCEEDED(rv), "value save failed!");
     }
   }
 
@@ -881,7 +884,14 @@ nsHTMLTextAreaElement::SaveState()
     if (state) {
       PRBool disabled;
       GetDisabled(&disabled);
-      state->SetDisabled(disabled);
+      if (disabled) {
+        rv |= state->SetStateProperty(NS_LITERAL_STRING("disabled"),
+                                      NS_LITERAL_STRING("t"));
+      } else {
+        rv |= state->SetStateProperty(NS_LITERAL_STRING("disabled"),
+                                      NS_LITERAL_STRING("f"));
+      }
+      NS_ASSERTION(NS_SUCCEEDED(rv), "disabled save failed!");
     }
   }
   return rv;
@@ -890,23 +900,22 @@ nsHTMLTextAreaElement::SaveState()
 PRBool
 nsHTMLTextAreaElement::RestoreState(nsPresState* aState)
 {
-  nsCOMPtr<nsISupportsString> state
-    (do_QueryInterface(aState->GetStateProperty()));
-  
-  if (state) {
-    nsAutoString data;
-    state->GetData(data);
-    SetValue(data);
+  nsAutoString value;
+  nsresult rv =
+    aState->GetStateProperty(NS_LITERAL_STRING("value"), value);
+  if (rv == NS_STATE_PROPERTY_EXISTS) {
+    SetValue(value);
   }
 
-  if (aState->IsDisabledSet()) {
-    SetDisabled(aState->GetDisabled());
+  nsAutoString disabled;
+  rv = aState->GetStateProperty(NS_LITERAL_STRING("disabled"), disabled);
+  NS_ASSERTION(NS_SUCCEEDED(rv), "disabled restore failed!");
+  if (rv == NS_STATE_PROPERTY_EXISTS) {
+    SetDisabled(disabled.EqualsLiteral("t"));
   }
 
   return PR_FALSE;
 }
-
-
 
 nsresult
 nsHTMLTextAreaElement::BeforeSetAttr(PRInt32 aNameSpaceID, nsIAtom* aName,

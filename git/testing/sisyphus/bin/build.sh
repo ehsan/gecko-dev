@@ -109,7 +109,25 @@ case $product in
         ;;
     js)
 
-        if [[ -e "$BUILDTREE/mozilla/js/src/configure.in" ]]; then
+        if [[ -e "$BUILDTREE/mozilla/js/src/Makefile.ref" ]]; then
+
+            # use the old-style Makefile.ref build environment for spidermonkey
+
+            if [[ $buildtype == "debug" ]]; then
+                export JSBUILDOPT=
+            else
+                export JSBUILDOPT=BUILD_OPT=1
+            fi
+
+            if ! $buildbash $bashlogin -c "cd $BUILDTREE/mozilla/js/src; make -f Makefile.ref ${JSBUILDOPT} clean" 2>&1; then
+                error "during js/src clean" $LINENO
+            fi 
+
+            if ! $buildbash $bashlogin -c "cd $BUILDTREE/mozilla/js/src; make -f Makefile.ref ${JSBUILDOPT}" 2>&1; then
+                error "during js/src build" $LINENO
+            fi
+
+        else
 
             # use the new fangled autoconf build environment for spidermonkey
 
@@ -119,20 +137,20 @@ case $product in
 
             mkdir -p "$BUILDTREE/mozilla/js/src/$JS_OBJDIR"
 
-            # run autoconf everytime instead of only when configure
-            # needs to be initially generated in order to pick up
-            # configure.in changes.
+            if [[ ! -e "$BUILDTREE/mozilla/js/src/configure" ]]; then
 
-            if findprogram autoconf-2.13; then
-                AUTOCONF=autoconf-2.13
-            elif findprogram autoconf213; then
-                AUTOCONF=autoconf213
-            else
-                error "autoconf 2.13 not detected"
+                if findprogram autoconf-2.13; then
+                    AUTOCONF=autoconf-2.13
+                elif findprogram autoconf213; then
+                    AUTOCONF=autoconf213
+                else
+                    error "autoconf 2.13 not detected"
+                fi
+
+                cd "$BUILDTREE/mozilla/js/src"
+                eval "$AUTOCONF" 
+
             fi
-
-            cd "$BUILDTREE/mozilla/js/src"
-            eval "$AUTOCONF" 
 
             cd "$BUILDTREE/mozilla/js/src/$JS_OBJDIR"
 
@@ -167,28 +185,6 @@ case $product in
             if ! $buildbash $bashlogin -c "cd $BUILDTREE/mozilla/js/src/$JS_OBJDIR; make install" 2>&1; then
                 error "during js/src install" $LINENO
             fi
-
-        elif [[ -e "$BUILDTREE/mozilla/js/src/Makefile.ref" ]]; then
-
-            # use the old-style Makefile.ref build environment for spidermonkey
-
-            if [[ $buildtype == "debug" ]]; then
-                export JSBUILDOPT=
-            else
-                export JSBUILDOPT=BUILD_OPT=1
-            fi
-
-            if ! $buildbash $bashlogin -c "cd $BUILDTREE/mozilla/js/src; make -f Makefile.ref ${JSBUILDOPT} clean" 2>&1; then
-                error "during js/src clean" $LINENO
-            fi 
-
-            if ! $buildbash $bashlogin -c "cd $BUILDTREE/mozilla/js/src; make -f Makefile.ref ${JSBUILDOPT}" 2>&1; then
-                error "during js/src build" $LINENO
-            fi
-
-        else
-
-            error "Neither Makefile.ref or autoconf builds available"
 
         fi
         ;;

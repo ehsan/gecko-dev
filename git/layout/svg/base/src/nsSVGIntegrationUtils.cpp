@@ -126,9 +126,9 @@ nsSVGIntegrationUtils::ComputeFrameEffectsRect(nsIFrame* aFrame,
   nsRect r = GetSVGBBox(firstFrame, aFrame, aOverflowRect, userSpaceRect);
   // r is relative to user space
   PRUint32 appUnitsPerDevPixel = aFrame->PresContext()->AppUnitsPerDevPixel();
-  nsIntRect p = nsRect::ToOutsidePixels(r, appUnitsPerDevPixel);
-  p = filterFrame->GetFilterBBox(firstFrame, &p);
-  r = nsIntRect::ToAppUnits(p, appUnitsPerDevPixel);
+  r.ScaleRoundOutInverse(appUnitsPerDevPixel);
+  r = filterFrame->GetFilterBBox(firstFrame, &r);
+  r.ScaleRoundOut(appUnitsPerDevPixel);
   // Make it relative to aFrame again
   return r + userSpaceRect.TopLeft() - aFrame->GetOffsetTo(firstFrame);
 }
@@ -141,25 +141,17 @@ nsSVGIntegrationUtils::GetInvalidAreaForChangedSource(nsIFrame* aFrame,
   // already have been set up during reflow/ComputeFrameEffectsRect
   nsIFrame* firstFrame =
     nsLayoutUtils::GetFirstContinuationOrSpecialSibling(aFrame);
-  nsSVGEffects::EffectProperties effectProperties =
-    nsSVGEffects::GetEffectProperties(firstFrame);
-  if (!effectProperties.mFilter)
-    return aInvalidRect;
   nsSVGFilterFrame* filterFrame = nsSVGEffects::GetFilterFrame(firstFrame);
-  if (!filterFrame) {
-    // The frame is either not there or not currently available,
-    // perhaps because we're in the middle of tearing stuff down.
-    // Be conservative.
-    return aFrame->GetOverflowRect();
-  }
+  if (!filterFrame)
+    return aInvalidRect;
 
   PRInt32 appUnitsPerDevPixel = aFrame->PresContext()->AppUnitsPerDevPixel();
   nsRect userSpaceRect = GetNonSVGUserSpace(firstFrame);
   nsPoint offset = aFrame->GetOffsetTo(firstFrame) - userSpaceRect.TopLeft();
   nsRect r = aInvalidRect + offset;
-  nsIntRect p = nsRect::ToOutsidePixels(r, appUnitsPerDevPixel);
-  p = filterFrame->GetInvalidationBBox(firstFrame, p);
-  r = nsIntRect::ToAppUnits(p, appUnitsPerDevPixel);
+  r.ScaleRoundOutInverse(appUnitsPerDevPixel);
+  r = filterFrame->GetInvalidationBBox(firstFrame, r);
+  r.ScaleRoundOut(appUnitsPerDevPixel);
   return r - offset;
 }
 
@@ -180,9 +172,9 @@ nsSVGIntegrationUtils::GetRequiredSourceForInvalidArea(nsIFrame* aFrame,
   nsRect userSpaceRect = GetNonSVGUserSpace(firstFrame);
   nsPoint offset = aFrame->GetOffsetTo(firstFrame) - userSpaceRect.TopLeft();
   nsRect r = aDamageRect + offset;
-  nsIntRect p = nsRect::ToOutsidePixels(r, appUnitsPerDevPixel);
-  p = filterFrame->GetSourceForInvalidArea(firstFrame, p);
-  r = nsIntRect::ToAppUnits(p, appUnitsPerDevPixel);
+  r.ScaleRoundOutInverse(appUnitsPerDevPixel);
+  r = filterFrame->GetSourceForInvalidArea(firstFrame, r);
+  r.ScaleRoundOut(appUnitsPerDevPixel);
   return r - offset;
 }
 
@@ -221,7 +213,8 @@ public:
     nsIRenderingContext::AutoPushTranslation push(ctx, -mOffset.x, -mOffset.y);
     nsRect dirty;
     if (aDirtyRect) {
-      dirty = nsIntRect::ToAppUnits(*aDirtyRect, nsIDeviceContext::AppUnitsPerCSSPixel());
+      dirty = *aDirtyRect;
+      dirty.ScaleRoundOut(nsIDeviceContext::AppUnitsPerCSSPixel());
       dirty += mOffset;
     } else {
       dirty = mInnerList->GetBounds(mBuilder);
@@ -243,9 +236,10 @@ nsSVGIntegrationUtils::PaintFramesWithEffects(nsIRenderingContext* aCtx,
                                               nsDisplayList* aInnerList)
 {
 #ifdef DEBUG
-  nsISVGChildFrame *svgChildFrame = do_QueryFrame(aEffectsFrame);
-  NS_ASSERTION(!svgChildFrame, "Should never be called on an SVG frame");
+  nsISVGChildFrame *svgChildFrame;
+  CallQueryInterface(aEffectsFrame, &svgChildFrame);
 #endif
+  NS_ASSERTION(!svgChildFrame, "Should never be called on an SVG frame");
 
   float opacity = aEffectsFrame->GetStyleDisplay()->mOpacity;
   if (opacity == 0.0f)
@@ -290,7 +284,8 @@ nsSVGIntegrationUtils::PaintFramesWithEffects(nsIRenderingContext* aCtx,
 
   nsRect userSpaceRect = GetNonSVGUserSpace(firstFrame) + aBuilder->ToReferenceFrame(firstFrame);
   PRInt32 appUnitsPerDevPixel = aEffectsFrame->PresContext()->AppUnitsPerDevPixel();
-  userSpaceRect = nsIntRect::ToAppUnits(nsRect::ToNearestPixels(userSpaceRect, appUnitsPerDevPixel), appUnitsPerDevPixel);
+  userSpaceRect.ScaleRoundPreservingCentersInverse(appUnitsPerDevPixel);
+  userSpaceRect.ScaleRoundOut(appUnitsPerDevPixel);
   aCtx->Translate(userSpaceRect.x, userSpaceRect.y);
 
   nsCOMPtr<nsIDOMSVGMatrix> matrix = GetInitialMatrix(aEffectsFrame);
@@ -315,7 +310,8 @@ nsSVGIntegrationUtils::PaintFramesWithEffects(nsIRenderingContext* aCtx,
   /* Paint the child */
   if (filterFrame) {
     RegularFramePaintCallback paint(aBuilder, aInnerList, userSpaceRect.TopLeft());
-    nsIntRect r = nsRect::ToOutsidePixels(aDirtyRect - userSpaceRect.TopLeft(), appUnitsPerDevPixel);
+    nsRect r = aDirtyRect - userSpaceRect.TopLeft();
+    r.ScaleRoundOutInverse(appUnitsPerDevPixel);
     filterFrame->FilterPaint(&svgContext, aEffectsFrame, &paint, &r);
   } else {
     gfx->SetMatrix(savedCTM);

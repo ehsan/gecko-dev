@@ -44,7 +44,7 @@
 #include "nsAHttpTransaction.h"
 #include "nsIInputStream.h"
 #include "nsIOutputStream.h"
-#include "nsTArray.h"
+#include "nsVoidArray.h"
 #include "nsCOMPtr.h"
 
 class nsHttpPipeline : public nsAHttpConnection
@@ -71,23 +71,23 @@ private:
     // convenience functions
     nsAHttpTransaction *Request(PRInt32 i)
     {
-        if (mRequestQ.Length() == 0)
+        if (mRequestQ.Count() == 0)
             return nsnull;
 
-        return mRequestQ[i];
+        return (nsAHttpTransaction *) mRequestQ[i];
     }
     nsAHttpTransaction *Response(PRInt32 i)
     {
-        if (mResponseQ.Length() == 0)
+        if (mResponseQ.Count() == 0)
             return nsnull;
 
-        return mResponseQ[i];
+        return (nsAHttpTransaction *) mResponseQ[i];
     }
 
-    nsAHttpConnection            *mConnection;
-    nsTArray<nsAHttpTransaction*> mRequestQ;  // array of transactions
-    nsTArray<nsAHttpTransaction*> mResponseQ; // array of transactions
-    nsresult                      mStatus;
+    nsAHttpConnection *mConnection;
+    nsVoidArray        mRequestQ;  // array of transactions
+    nsVoidArray        mResponseQ; // array of transactions
+    nsresult           mStatus;
 
     // these flags indicate whether or not the first request or response
     // is partial.  a partial request means that Request(0) has been 

@@ -88,11 +88,10 @@ NS_NewFileControlFrame(nsIPresShell* aPresShell, nsStyleContext* aContext)
 }
 
 nsFileControlFrame::nsFileControlFrame(nsStyleContext* aContext):
-  nsBlockFrame(aContext),
+  nsAreaFrame(aContext),
   mTextFrame(nsnull), 
   mCachedState(nsnull)
 {
-  AddStateBits(NS_BLOCK_FLOAT_MGR);
 }
 
 nsFileControlFrame::~nsFileControlFrame()
@@ -108,7 +107,7 @@ nsFileControlFrame::Init(nsIContent* aContent,
                          nsIFrame*   aParent,
                          nsIFrame*   aPrevInFlow)
 {
-  nsresult rv = nsBlockFrame::Init(aContent, aParent, aPrevInFlow);
+  nsresult rv = nsAreaFrame::Init(aContent, aParent, aPrevInFlow);
   NS_ENSURE_SUCCESS(rv, rv);
 
   mMouseListener = new MouseListener(this);
@@ -144,7 +143,7 @@ nsFileControlFrame::Destroy()
   }
 
   mMouseListener->ForgetFrame();
-  nsBlockFrame::Destroy();
+  nsAreaFrame::Destroy();
 }
 
 nsresult
@@ -161,9 +160,6 @@ nsFileControlFrame::CreateAnonymousContent(nsTArray<nsIContent*>& aElements)
   NS_NewHTMLElement(getter_AddRefs(mTextContent), nodeInfo, PR_FALSE);
   if (!mTextContent)
     return NS_ERROR_OUT_OF_MEMORY;
-
-  // Mark the element to be native anonymous before setting any attributes.
-  mTextContent->SetNativeAnonymous();
 
   mTextContent->SetAttr(kNameSpaceID_None, nsGkAtoms::type,
                         NS_LITERAL_STRING("text"), PR_FALSE);
@@ -202,9 +198,6 @@ nsFileControlFrame::CreateAnonymousContent(nsTArray<nsIContent*>& aElements)
   if (!mBrowse)
     return NS_ERROR_OUT_OF_MEMORY;
 
-  // Mark the element to be native anonymous before setting any attributes.
-  mBrowse->SetNativeAnonymous();
-
   mBrowse->SetAttr(kNameSpaceID_None, nsGkAtoms::type,
                    NS_LITERAL_STRING("button"), PR_FALSE);
   nsCOMPtr<nsIDOMHTMLInputElement> fileContent = do_QueryInterface(mContent);
@@ -235,10 +228,23 @@ nsFileControlFrame::CreateAnonymousContent(nsTArray<nsIContent*>& aElements)
   return NS_OK;
 }
 
-NS_QUERYFRAME_HEAD(nsFileControlFrame)
-  NS_QUERYFRAME_ENTRY(nsIAnonymousContentCreator)
-  NS_QUERYFRAME_ENTRY(nsIFormControlFrame)
-NS_QUERYFRAME_TAIL_INHERITING(nsBlockFrame)
+// Frames are not refcounted, no need to AddRef
+NS_IMETHODIMP
+nsFileControlFrame::QueryInterface(const nsIID& aIID, void** aInstancePtr)
+{
+  NS_PRECONDITION(aInstancePtr, "null out param");
+
+  if (aIID.Equals(NS_GET_IID(nsIAnonymousContentCreator))) {
+    *aInstancePtr = static_cast<nsIAnonymousContentCreator*>(this);
+    return NS_OK;
+  }
+  if (aIID.Equals(NS_GET_IID(nsIFormControlFrame))) {
+    *aInstancePtr = static_cast<nsIFormControlFrame*>(this);
+    return NS_OK;
+  }
+
+  return nsAreaFrame::QueryInterface(aIID, aInstancePtr);
+}
 
 void 
 nsFileControlFrame::SetFocus(PRBool aOn, PRBool aRepaint)
@@ -414,10 +420,23 @@ NS_IMETHODIMP nsFileControlFrame::Reflow(nsPresContext*          aPresContext,
     }
   }
 
-  // nsBlockFrame takes care of all our reflow
-  return nsBlockFrame::Reflow(aPresContext, aDesiredSize, aReflowState,
+  // The Areaframe takes care of all our reflow
+  return nsAreaFrame::Reflow(aPresContext, aDesiredSize, aReflowState,
                              aStatus);
 }
+
+/*
+NS_IMETHODIMP
+nsFileControlFrame::SetInitialChildList(nsIAtom*        aListName,
+                                        nsIFrame*       aChildList)
+{
+  nsAreaFrame::SetInitialChildList(aListName, aChildList);
+
+  // given that the CSS frame constructor created all our frames. We need to find the text field
+  // so we can get info from it.
+  mTextFrame = GetTextControlFrame(this);
+}
+*/
 
 nsNewFrame*
 nsFileControlFrame::GetTextControlFrame(nsPresContext* aPresContext, nsIFrame* aStart)
@@ -484,18 +503,16 @@ nsFileControlFrame::AttributeChanged(PRInt32         aNameSpaceID,
                                      PRInt32         aModType)
 {
   // propagate disabled to text / button inputs
-  if (aNameSpaceID == kNameSpaceID_None) {
-    if (aAttribute == nsGkAtoms::disabled) {
-      SyncAttr(aNameSpaceID, aAttribute, SYNC_BOTH);
-    // propagate size to text
-    } else if (aAttribute == nsGkAtoms::size) {
-      SyncAttr(aNameSpaceID, aAttribute, SYNC_TEXT);
-    } else if (aAttribute == nsGkAtoms::tabindex) {
-      SyncAttr(aNameSpaceID, aAttribute, SYNC_BUTTON);
-    }
+  if (aNameSpaceID == kNameSpaceID_None &&
+      aAttribute == nsGkAtoms::disabled) {
+    SyncAttr(aNameSpaceID, aAttribute, SYNC_BOTH);
+  // propagate size to text
+  } else if (aNameSpaceID == kNameSpaceID_None &&
+             aAttribute == nsGkAtoms::size) {
+    SyncAttr(aNameSpaceID, aAttribute, SYNC_TEXT);
   }
 
-  return nsBlockFrame::AttributeChanged(aNameSpaceID, aAttribute, aModType);
+  return nsAreaFrame::AttributeChanged(aNameSpaceID, aAttribute, aModType);
 }
 
 PRBool
@@ -554,19 +571,12 @@ nsFileControlFrame::BuildDisplayList(nsDisplayListBuilder*   aBuilder,
                                      const nsRect&           aDirtyRect,
                                      const nsDisplayListSet& aLists)
 {
-  // box-shadow
-  if (GetStyleBorder()->mBoxShadow) {
-    nsresult rv = aLists.BorderBackground()->AppendNewToTop(new (aBuilder)
-        nsDisplayBoxShadowOuter(this));
-    NS_ENSURE_SUCCESS(rv, rv);
-  }
-
   // Our background is inherited to the text input, and we don't really want to
   // paint it or out padding and borders (which we never have anyway, per
   // styles in forms.css) -- doing it just makes us look ugly in some cases and
   // has no effect in others.
   nsDisplayListCollection tempList;
-  nsresult rv = nsBlockFrame::BuildDisplayList(aBuilder, aDirtyRect, tempList);
+  nsresult rv = nsAreaFrame::BuildDisplayList(aBuilder, aDirtyRect, tempList);
   if (NS_FAILED(rv))
     return rv;
 

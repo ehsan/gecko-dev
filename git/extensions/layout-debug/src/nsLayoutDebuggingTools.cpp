@@ -427,8 +427,8 @@ DumpFramesRecur(nsIDocShell* aDocShell, FILE* out)
         if (shell) {
             nsIFrame* root = shell->GetRootFrame();
             if (root) {
-                nsIFrameDebug* fdbg = do_QueryFrame(root);
-                if (fdbg) {
+                nsIFrameDebug* fdbg;
+                if (NS_SUCCEEDED(CallQueryInterface(root, &fdbg))) {
                     fdbg->List(out, 0);
                 }
             }

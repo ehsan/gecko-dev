@@ -61,7 +61,6 @@ REQUIRES = \
   pref \
   string \
   thebes \
-  uconv \
   widget \
   xpcom \
   xpconnect \
@@ -72,7 +71,6 @@ CPPSRCS = \
   nsDOMWorker.cpp \
   nsDOMWorkerEvents.cpp \
   nsDOMWorkerMessageHandler.cpp \
-  nsDOMWorkerNavigator.cpp \
   nsDOMWorkerPool.cpp \
   nsDOMWorkerScriptLoader.cpp \
   nsDOMWorkerSecurityManager.cpp \
@@ -83,7 +81,6 @@ CPPSRCS = \
 
 LOCAL_INCLUDES = \
   -I$(topsrcdir)/dom/src/base \
-  -I$(topsrcdir)/dom/src/json \
   -I$(topsrcdir)/content/base/src \
   -I$(topsrcdir)/content/events/src \
   $(NULL)

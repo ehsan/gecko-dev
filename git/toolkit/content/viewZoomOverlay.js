@@ -42,8 +42,7 @@
 
 /** Document Zoom Management Code
  *
- * To use this, you'll need to have a getBrowser() function or use the methods
- * that accept a browser to be modified.
+ * To use this, you'll need to have a getBrowser() function.
  **/
 
 var ZoomManager = {
@@ -73,26 +72,17 @@ var ZoomManager = {
   },
 
   get zoom ZoomManager_get_zoom() {
-    return this.getZoomForBrowser(getBrowser());
-  },
-
-  getZoomForBrowser: function ZoomManager_getZoomForBrowser(aBrowser) {
-    var markupDocumentViewer = aBrowser.markupDocumentViewer;
+    var markupDocumentViewer = getBrowser().markupDocumentViewer;
 
     return this.useFullZoom ? markupDocumentViewer.fullZoom
                             : markupDocumentViewer.textZoom;
   },
 
   set zoom ZoomManager_set_zoom(aVal) {
-    this.setZoomForBrowser(getBrowser(), aVal);
-    return aVal;
-  },
-
-  setZoomForBrowser: function ZoomManager_setZoomForBrowser(aBrowser, aVal) {
     if (aVal < this.MIN || aVal > this.MAX)
       throw Components.results.NS_ERROR_INVALID_ARG;
 
-    var markupDocumentViewer = aBrowser.markupDocumentViewer;
+    var markupDocumentViewer = getBrowser().markupDocumentViewer;
 
     if (this.useFullZoom) {
       markupDocumentViewer.textZoom = 1;
@@ -101,12 +91,14 @@ var ZoomManager = {
       markupDocumentViewer.textZoom = aVal;
       markupDocumentViewer.fullZoom = 1;
     }
+
+    return aVal;
   },
 
   get zoomValues ZoomManager_get_zoomValues() {
     var zoomValues = this._prefBranch.getCharPref("toolkit.zoomManager.zoomValues")
                                      .split(",").map(parseFloat);
-    zoomValues.sort(function (a, b) a - b);
+    zoomValues.sort();
 
     while (zoomValues[0] < this.MIN)
       zoomValues.shift();

@@ -72,8 +72,7 @@ private:
 
   struct DOMAnimatedBoolean : public nsIDOMSVGAnimatedBoolean
   {
-    NS_DECL_CYCLE_COLLECTING_ISUPPORTS
-    NS_DECL_CYCLE_COLLECTION_CLASS(DOMAnimatedBoolean)
+    NS_DECL_ISUPPORTS
 
     DOMAnimatedBoolean(nsSVGBoolean* aVal, nsSVGElement *aSVGElement)
       : mVal(aVal), mSVGElement(aSVGElement) {}

@@ -53,7 +53,6 @@
 #include "nsTHashtable.h"
 #include "nsURIHashKey.h"
 #include "nsVoidArray.h"
-#include "nsTArray.h"
 #include "nsInterfaceHashtable.h"
 
 struct PRFileDesc;
@@ -165,7 +164,7 @@ public:
     nsIURI* GetBase(const nsACString& aPreferred, MatchType aType);
     const nsACString& GetSelected(const nsACString& aPreferred, MatchType aType);
     void    SetBase(const nsACString& aProvider, nsIURI* base);
-    void    EnumerateToArray(nsTArray<nsCString> *a);
+    void    EnumerateToArray(nsCStringArray *a);
     void    Clear();
 
   private:

@@ -22,7 +22,6 @@
  * Contributor(s):
  *   Dave Hyatt <hyatt@mozilla.org> (Original Author)
  *   Jan Varga <varga@ku.sk>
- *   Ehsan Akhgari <ehsan.akhgari@gmail.com>
  *
  * Alternatively, the contents of this file may be used under the terms of
  * either the GNU General Public License Version 2 or later (the "GPL"), or
@@ -78,7 +77,7 @@ nsTreeColumn::~nsTreeColumn()
 NS_INTERFACE_MAP_BEGIN(nsTreeColumn)
   NS_INTERFACE_MAP_ENTRY(nsITreeColumn)
   NS_INTERFACE_MAP_ENTRY(nsISupports)
-  NS_DOM_INTERFACE_MAP_ENTRY_CLASSINFO(TreeColumn)
+  NS_INTERFACE_MAP_ENTRY_DOM_CLASSINFO(TreeColumn)
   if (aIID.Equals(NS_GET_IID(nsTreeColumn))) {
     AddRef();
     *aInstancePtr = this;
@@ -147,13 +146,10 @@ nsTreeColumn::GetRect(nsTreeBodyFrame* aBodyFrame, nscoord aY, nscoord aHeight, 
     return NS_ERROR_FAILURE;
   }
 
-  PRBool isRTL = aBodyFrame->GetStyleVisibility()->mDirection == NS_STYLE_DIRECTION_RTL;
   *aResult = frame->GetRect();
   aResult->y = aY;
   aResult->height = aHeight;
-  if (isRTL)
-    aResult->x += aBodyFrame->mAdjustWidth;
-  else if (IsLastVisible(aBodyFrame))
+  if (IsLastVisible(aBodyFrame))
     aResult->width += aBodyFrame->mAdjustWidth;
   return NS_OK;
 }
@@ -318,15 +314,9 @@ nsTreeColumn::Invalidate()
   const nsStyleText* textStyle = frame->GetStyleText();
 
   mTextAlignment = textStyle->mTextAlign;
-  // DEFAULT or END alignment sometimes means RIGHT
-  if ((mTextAlignment == NS_STYLE_TEXT_ALIGN_DEFAULT &&
-       vis->mDirection == NS_STYLE_DIRECTION_RTL) ||
-      (mTextAlignment == NS_STYLE_TEXT_ALIGN_END &&
-       vis->mDirection == NS_STYLE_DIRECTION_LTR)) {
-    mTextAlignment = NS_STYLE_TEXT_ALIGN_RIGHT;
-  } else if (mTextAlignment == NS_STYLE_TEXT_ALIGN_DEFAULT ||
-             mTextAlignment == NS_STYLE_TEXT_ALIGN_END) {
-    mTextAlignment = NS_STYLE_TEXT_ALIGN_LEFT;
+  if (mTextAlignment == 0 || mTextAlignment == 2) { // Left or Right
+    if (vis->mDirection == NS_STYLE_DIRECTION_RTL)
+      mTextAlignment = 2 - mTextAlignment; // Right becomes left, left becomes right.
   }
 
   // Figure out if we're the primary column (that has to have indentation
@@ -395,7 +385,7 @@ nsTreeColumns::~nsTreeColumns()
 NS_INTERFACE_MAP_BEGIN(nsTreeColumns)
   NS_INTERFACE_MAP_ENTRY(nsITreeColumns)
   NS_INTERFACE_MAP_ENTRY(nsISupports)
-  NS_DOM_INTERFACE_MAP_ENTRY_CLASSINFO(TreeColumns)
+  NS_INTERFACE_MAP_ENTRY_DOM_CLASSINFO(TreeColumns)
 NS_INTERFACE_MAP_END
                                                                                 
 NS_IMPL_ADDREF(nsTreeColumns)
@@ -590,9 +580,8 @@ nsTreeColumns::RestoreNaturalOrder()
   boxObject->GetElement(getter_AddRefs(element));
   nsCOMPtr<nsIContent> content = do_QueryInterface(element);
 
-  // Strong ref, since we'll be setting attributes
-  nsCOMPtr<nsIContent> colsContent =
-    nsTreeUtils::GetImmediateChild(content, nsGkAtoms::treecols);
+  nsCOMPtr<nsIContent> colsContent;
+  nsTreeUtils::GetImmediateChild(content, nsGkAtoms::treecols, getter_AddRefs(colsContent));
   if (!colsContent)
     return NS_OK;
 
@@ -632,8 +621,8 @@ nsTreeColumns::EnsureColumns()
     boxObject->GetElement(getter_AddRefs(treeElement));
     nsCOMPtr<nsIContent> treeContent = do_QueryInterface(treeElement);
 
-    nsIContent* colsContent =
-      nsTreeUtils::GetDescendantChild(treeContent, nsGkAtoms::treecols);
+    nsCOMPtr<nsIContent> colsContent;
+    nsTreeUtils::GetDescendantChild(treeContent, nsGkAtoms::treecols, getter_AddRefs(colsContent));
     if (!colsContent)
       return;
 
@@ -642,8 +631,8 @@ nsTreeColumns::EnsureColumns()
     if (!shell)
       return;
 
-    nsIContent* colContent =
-      nsTreeUtils::GetDescendantChild(colsContent, nsGkAtoms::treecol);
+    nsCOMPtr<nsIContent> colContent;
+    nsTreeUtils::GetDescendantChild(colsContent, nsGkAtoms::treecol, getter_AddRefs(colContent));
     if (!colContent)
       return;
 

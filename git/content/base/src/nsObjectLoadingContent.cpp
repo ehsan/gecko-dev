@@ -99,12 +99,12 @@ public:
   // This stores both the content and the frame so that Instantiate calls can be
   // avoided if the frame changed in the meantime.
   nsObjectLoadingContent *mContent;
-  nsWeakFrame             mFrame;
+  nsIObjectFrame*         mFrame;
   nsCString               mContentType;
   nsCOMPtr<nsIURI>        mURI;
 
   nsAsyncInstantiateEvent(nsObjectLoadingContent* aContent,
-                          nsIFrame* aFrame,
+                          nsIObjectFrame* aFrame,
                           const nsCString& aType,
                           nsIURI* aURI)
     : mContent(aContent), mFrame(aFrame), mContentType(aType), mURI(aURI)
@@ -134,7 +134,7 @@ nsAsyncInstantiateEvent::Run()
   // Also make sure that we still refer to the same data.
   nsIObjectFrame* frame = mContent->
     GetExistingFrame(nsObjectLoadingContent::eFlushContent);
-  if (mFrame.IsAlive() &&
+  if (frame == mFrame &&
       mContent->mURI == mURI &&
       mContent->mContentType.Equals(mContentType)) {
     if (LOG_ENABLED()) {
@@ -561,7 +561,8 @@ nsObjectLoadingContent::OnStartRequest(nsIRequest *aRequest,
       }
 
       {
-        nsIFrame *nsiframe = do_QueryFrame(frame);
+        nsIFrame *nsiframe;
+        CallQueryInterface(frame, &nsiframe);
 
         nsWeakFrame weakFrame(nsiframe);
 
@@ -750,22 +751,8 @@ nsObjectLoadingContent::EnsureInstantiation(nsIPluginInstance** aInstance)
     }
   }
 
-  nsIFrame *nsiframe = do_QueryFrame(frame);
-
-  if (nsiframe->GetStateBits() & NS_FRAME_FIRST_REFLOW) {
-    // A frame for this plugin element already exists now, but it has
-    // not been reflown yet. Force a reflow now so that we don't end
-    // up initializing a plugin before knowing its size. Also re-fetch
-    // the frame, as flushing can cause the frame to be deleted.
-    frame = GetExistingFrame(eFlushLayout);
-
-    if (!frame) {
-      return NS_OK;
-    }
-
-    nsiframe = do_QueryFrame(frame);
-  }
-
+  nsIFrame *nsiframe;
+  CallQueryInterface(frame, &nsiframe);
   nsWeakFrame weakFrame(nsiframe);
 
   // We may have a plugin instance already; if so, do nothing
@@ -818,9 +805,8 @@ nsObjectLoadingContent::HasNewFrame(nsIObjectFrame* aFrame)
       }
     }
 
-    nsIFrame* frame = do_QueryFrame(aFrame);
     nsCOMPtr<nsIRunnable> event =
-      new nsAsyncInstantiateEvent(this, frame, mContentType, mURI);
+        new nsAsyncInstantiateEvent(this, aFrame, mContentType, mURI);
     if (!event) {
       return NS_ERROR_OUT_OF_MEMORY;
     }
@@ -1664,7 +1650,8 @@ nsObjectLoadingContent::GetExistingFrame(FlushType aFlushType)
     aFlushType = eDontFlush;
   } while (1);
 
-  nsIObjectFrame* objFrame = do_QueryFrame(frame);
+  nsIObjectFrame* objFrame;
+  CallQueryInterface(frame, &objFrame);
   return objFrame;
 }
 
@@ -1706,7 +1693,8 @@ nsObjectLoadingContent::TryInstantiate(const nsACString& aMIMEType,
     // frame does have a plugin instance already, be sure to
     // re-instantiate the plugin as its source or whatnot might have
     // chanced since it was instantiated.
-    nsIFrame* iframe = do_QueryFrame(frame);
+    nsIFrame* iframe;
+    CallQueryInterface(frame, &iframe);
     if (iframe->GetStateBits() & NS_FRAME_FIRST_REFLOW) {
       LOG(("OBJLC [%p]: Frame hasn't been reflown yet\n", this));
       return NS_OK; // Not a failure to have no frame
@@ -1768,7 +1756,11 @@ nsObjectLoadingContent::CheckClassifier(nsIChannel *aChannel)
     do_CreateInstance(NS_CHANNELCLASSIFIER_CONTRACTID, &rv);
   NS_ENSURE_SUCCESS(rv, rv);
 
-  rv = classifier->Start(aChannel, PR_FALSE);
+  rv = classifier->Start(aChannel);
+  if (rv == NS_ERROR_FACTORY_NOT_REGISTERED) {
+    // no URI classifier, ignore this
+    return NS_OK;
+  }
   NS_ENSURE_SUCCESS(rv, rv);
 
   mClassifier = classifier;

@@ -72,7 +72,10 @@ nsStyleLinkElement::nsStyleLinkElement()
 
 nsStyleLinkElement::~nsStyleLinkElement()
 {
-  nsStyleLinkElement::SetStyleSheet(nsnull);
+  nsCOMPtr<nsICSSStyleSheet> cssSheet = do_QueryInterface(mStyleSheet);
+  if (cssSheet) {
+    cssSheet->SetOwningNode(nsnull);
+  }
 }
 
 NS_IMETHODIMP 
@@ -158,7 +161,7 @@ nsStyleLinkElement::SetLineNumber(PRUint32 aLineNumber)
 }
 
 void nsStyleLinkElement::ParseLinkTypes(const nsAString& aTypes,
-                                        nsTArray<nsString>& aResult)
+                                        nsStringArray& aResult)
 {
   nsAString::const_iterator start, done;
   aTypes.BeginReading(start);
@@ -174,7 +177,7 @@ void nsStyleLinkElement::ParseLinkTypes(const nsAString& aTypes,
     if (nsCRT::IsAsciiSpace(*current)) {
       if (inString) {
         ToLowerCase(Substring(start, current), subString);
-        aResult.AppendElement(subString);
+        aResult.AppendString(subString);
         inString = PR_FALSE;
       }
     }
@@ -188,7 +191,7 @@ void nsStyleLinkElement::ParseLinkTypes(const nsAString& aTypes,
   }
   if (inString) {
     ToLowerCase(Substring(start, current), subString);
-    aResult.AppendElement(subString);
+    aResult.AppendString(subString);
   }
 }
 
@@ -227,7 +230,7 @@ nsStyleLinkElement::DoUpdateStyleSheet(nsIDocument *aOldDocument,
     aOldDocument->BeginUpdate(UPDATE_STYLE);
     aOldDocument->RemoveStyleSheet(mStyleSheet);
     aOldDocument->EndUpdate(UPDATE_STYLE);
-    nsStyleLinkElement::SetStyleSheet(nsnull);
+    mStyleSheet = nsnull;
   }
 
   if (mDontLoadStyle || !mUpdatesEnabled) {
@@ -272,7 +275,7 @@ nsStyleLinkElement::DoUpdateStyleSheet(nsIDocument *aOldDocument,
     doc->BeginUpdate(UPDATE_STYLE);
     doc->RemoveStyleSheet(mStyleSheet);
     doc->EndUpdate(UPDATE_STYLE);
-    nsStyleLinkElement::SetStyleSheet(nsnull);
+    mStyleSheet = nsnull;
   }
 
   if (!uri && !isInline) {

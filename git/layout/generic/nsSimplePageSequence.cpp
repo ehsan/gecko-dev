@@ -137,9 +137,17 @@ nsSimplePageSequenceFrame::~nsSimplePageSequenceFrame()
   if (mPageData) delete mPageData;
 }
 
-NS_QUERYFRAME_HEAD(nsSimplePageSequenceFrame)
-  NS_QUERYFRAME_ENTRY(nsIPageSequenceFrame)
-NS_QUERYFRAME_TAIL_INHERITING(nsContainerFrame)
+NS_IMETHODIMP
+nsSimplePageSequenceFrame::QueryInterface(const nsIID& aIID, void** aInstancePtr)
+{
+  NS_PRECONDITION(aInstancePtr, "null out param");
+
+  if (aIID.Equals(NS_GET_IID(nsIPageSequenceFrame))) {
+    *aInstancePtr = static_cast<nsIPageSequenceFrame*>(this);
+    return NS_OK;
+  }
+  return nsContainerFrame::QueryInterface(aIID, aInstancePtr);
+}
 
 //----------------------------------------------------------------------
 
@@ -191,13 +199,13 @@ nsSimplePageSequenceFrame::Reflow(nsPresContext*          aPresContext,
 
   // now get out margins & edges
   if (mPageData->mPrintSettings) {
-    nsIntMargin unwriteableTwips;
+    nsMargin unwriteableTwips;
     mPageData->mPrintSettings->GetUnwriteableMarginInTwips(unwriteableTwips);
     NS_ASSERTION(unwriteableTwips.left  >= 0 && unwriteableTwips.top >= 0 &&
                  unwriteableTwips.right >= 0 && unwriteableTwips.bottom >= 0,
                  "Unwriteable twips should be non-negative");
 
-    nsIntMargin marginTwips;
+    nsMargin marginTwips;
     mPageData->mPrintSettings->GetMarginInTwips(marginTwips);
     mMargin = aPresContext->TwipsToAppUnits(marginTwips + unwriteableTwips);
 
@@ -205,11 +213,11 @@ nsSimplePageSequenceFrame::Reflow(nsPresContext*          aPresContext,
     mPageData->mPrintSettings->GetPrintRange(&printType);
     mPrintRangeType = printType;
 
-    nsIntMargin edgeTwips;
+    nsMargin edgeTwips;
     mPageData->mPrintSettings->GetEdgeInTwips(edgeTwips);
 
     // sanity check the values. three inches are sometimes needed
-    PRInt32 inchInTwips = NS_INCHES_TO_TWIPS(3.0);
+    nscoord inchInTwips = NS_INCHES_TO_TWIPS(3.0);
     edgeTwips.top = PR_MIN(PR_MAX(edgeTwips.top, 0), inchInTwips);
     edgeTwips.bottom = PR_MIN(PR_MAX(edgeTwips.bottom, 0), inchInTwips);
     edgeTwips.left = PR_MIN(PR_MAX(edgeTwips.left, 0), inchInTwips);

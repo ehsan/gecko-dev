@@ -48,6 +48,7 @@
 #include "nsCRT.h"
 #include "prmem.h"
 #include "nsPrintfCString.h"
+#include "nsVoidArray.h"
 #include "nsIDateTimeFormat.h"
 #include "nsDateTimeFormatCID.h"
 #include "nsQuickSort.h"
@@ -57,7 +58,6 @@
 #include "nsISimpleEnumerator.h"
 #include "nsAutoPtr.h"
 #include "nsIMutableArray.h"
-#include "nsTArray.h"
 
 #include "nsWildCard.h"
 
@@ -75,7 +75,7 @@ public:
   NS_DECL_ISUPPORTS
   NS_DECL_NSIAUTOCOMPLETERESULT
 
-  nsTArray<nsString> mValues;
+  nsStringArray mValues;
   nsAutoString mSearchString;
   PRUint16 mSearchResult;
 };
@@ -115,7 +115,7 @@ nsFileResult::nsFileResult(const nsAString& aSearchString,
       nextFile->GetLeafName(fileName);
       if (StringBeginsWith(fileName, prefix)) {
         fileName.Insert(parent, 0);
-        mValues.AppendElement(fileName);
+        mValues.AppendString(fileName);
         if (mSearchResult == RESULT_NOMATCH && fileName.Equals(mSearchString))
           mSearchResult = RESULT_IGNORED;
         else
@@ -155,13 +155,13 @@ NS_IMETHODIMP nsFileResult::GetErrorDescription(nsAString & aErrorDescription)
 NS_IMETHODIMP nsFileResult::GetMatchCount(PRUint32 *aMatchCount)
 {
   NS_ENSURE_ARG_POINTER(aMatchCount);
-  *aMatchCount = mValues.Length();
+  *aMatchCount = mValues.Count();
   return NS_OK;
 }
 
 NS_IMETHODIMP nsFileResult::GetValueAt(PRInt32 index, nsAString & aValue)
 {
-  aValue = mValues[index];
+  mValues.StringAt(index, aValue);
   return NS_OK;
 }
 
@@ -251,7 +251,7 @@ protected:
   PRInt16 mSortType;
   PRInt32 mTotalRows;
 
-  nsTArray<PRUnichar*> mCurrentFilters;
+  nsVoidArray mCurrentFilters;
 
   PRPackedBool mShowHiddenFiles;
   PRPackedBool mDirectoryFilter;
@@ -284,8 +284,8 @@ nsFileView::nsFileView() :
 
 nsFileView::~nsFileView()
 {
-  PRUint32 count = mCurrentFilters.Length();
-  for (PRUint32 i = 0; i < count; ++i)
+  PRInt32 count = mCurrentFilters.Count();
+  for (PRInt32 i = 0; i < count; ++i)
     NS_Free(mCurrentFilters[i]);
 }
 
@@ -460,8 +460,8 @@ nsFileView::SetDirectory(nsIFile* aDirectory)
 NS_IMETHODIMP
 nsFileView::SetFilter(const nsAString& aFilterString)
 {
-  PRUint32 filterCount = mCurrentFilters.Length();
-  for (PRUint32 i = 0; i < filterCount; ++i)
+  PRInt32 filterCount = mCurrentFilters.Count();
+  for (PRInt32 i = 0; i < filterCount; ++i)
     NS_Free(mCurrentFilters[i]);
   mCurrentFilters.Clear();
 
@@ -844,7 +844,7 @@ nsFileView::FilterFiles()
   mTotalRows = count;
   mFileList->Count(&count);
   mFilteredFiles->Clear();
-  PRUint32 filterCount = mCurrentFilters.Length();
+  PRInt32 filterCount = mCurrentFilters.Count();
 
   nsCOMPtr<nsIFile> file;
   for (PRUint32 i = 0; i < count; ++i) {
@@ -860,15 +860,15 @@ nsFileView::FilterFiles()
     }
     
     if (!isHidden) {
-      for (PRUint32 j = 0; j < filterCount; ++j) {
+      for (PRInt32 j = 0; j < filterCount; ++j) {
         PRBool matched = PR_FALSE;
-        if (!nsCRT::strcmp(mCurrentFilters.ElementAt(j),
+        if (!nsCRT::strcmp((const PRUnichar*) mCurrentFilters.ElementAt(j),
                            NS_LITERAL_STRING("..apps").get()))
         {
           file->IsExecutable(&matched);
         } else
           matched = (NS_WildCardMatch(ucsLeafName.get(),
-                                      mCurrentFilters.ElementAt(j),
+                                      (const PRUnichar*) mCurrentFilters.ElementAt(j),
                                       PR_TRUE) == MATCH);
 
         if (matched) {

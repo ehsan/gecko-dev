@@ -216,6 +216,7 @@ function startupEM()
                   .getService(Components.interfaces.nsIExtensionManager);
   
   gEM.QueryInterface(Components.interfaces.nsIObserver);
+  gEM.observe(null, "app-startup", null);
   gEM.observe(null, "profile-after-change", "startup");
 
   // First run is a new profile which nsAppRunner would consider as an update
@@ -259,8 +260,11 @@ function restartEM()
 
 var gDirSvc = Components.classes["@mozilla.org/file/directory_service;1"]
                         .getService(Components.interfaces.nsIProperties);
-// Remove '/unit/*.js'.
-var gTestRoot = __LOCATION__.parent.parent;
+var gTestRoot = gDirSvc.get("CurProcD", Components.interfaces.nsILocalFile);
+gTestRoot = gTestRoot.parent.parent;
+gTestRoot.append("_tests");
+gTestRoot.append("xpcshell-simple");
+gTestRoot.append("test_extensionmanager");
 gTestRoot.normalize();
 
 // Need to create and register a profile folder.

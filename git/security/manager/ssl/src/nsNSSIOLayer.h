@@ -248,7 +248,6 @@ public:
   static nsresult Init();
   static void Cleanup();
 
-  static PRBool nsSSLIOLayerInitialized;
   static PRDescIdentity nsSSLIOLayerIdentity;
   static PRIOMethods nsSSLIOLayerMethods;
 
@@ -273,8 +272,7 @@ nsresult nsSSLIOLayerNewSocket(PRInt32 family,
                                PRInt32 proxyPort,
                                PRFileDesc **fd,
                                nsISupports **securityInfo,
-                               PRBool forSTARTTLS,
-                               PRBool anonymousLoad);
+                               PRBool forSTARTTLS);
 
 nsresult nsSSLIOLayerAddToSocket(PRInt32 family,
                                  const char *host,
@@ -283,8 +281,7 @@ nsresult nsSSLIOLayerAddToSocket(PRInt32 family,
                                  PRInt32 proxyPort,
                                  PRFileDesc *fd,
                                  nsISupports **securityInfo,
-                                 PRBool forSTARTTLS,
-                                 PRBool anonymousLoad);
+                                 PRBool forSTARTTLS);
 
 nsresult nsSSLIOLayerFreeTLSIntolerantSites();
 nsresult displayUnknownCertErrorAlert(nsNSSSocketInfo *infoObject, int error);

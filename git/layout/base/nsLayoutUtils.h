@@ -59,7 +59,6 @@ class nsIFontMetrics;
 #include "nsIView.h"
 #include "nsIFrame.h"
 #include "nsThreadUtils.h"
-#include "nsIPresShell.h"
 
 class nsBlockFrame;
 
@@ -329,10 +328,10 @@ public:
   static PRUint8 CombineBreakType(PRUint8 aOrigBreakType, PRUint8 aNewBreakType);
 
   /**
-   * @return PR_TRUE if aFrame is the root element frame for
+   * @return PR_TRUE if aFrame is the CSS initial containing block for
    * its pres-shell
    */
-  static PRBool IsRootElementFrame(nsIFrame* aFrame);
+  static PRBool IsInitialContainingBlock(nsIFrame* aFrame);
 
   /**
    * Get the coordinates of a given DOM mouse event, relative to a given
@@ -408,12 +407,10 @@ public:
    * @param aPt the point, relative to the frame origin
    * @param aShouldIgnoreSuppression a boolean to control if the display
    * list builder should ignore paint suppression or not
-   * @param aIgnoreRootScrollFrame whether or not the display list builder
-   * should ignore the root scroll frame.
    */
   static nsIFrame* GetFrameForPoint(nsIFrame* aFrame, nsPoint aPt,
                                     PRBool aShouldIgnoreSuppression = PR_FALSE,
-                                    PRBool aIgnoreRootScrollFrame = PR_FALSE);
+                                    PRBool aIgnoreScrollFrame = PR_FALSE);
 
   /**
    * Given a point in the global coordinate space, returns that point expressed
@@ -626,12 +623,6 @@ public:
   static nsBlockFrame* FindNearestBlockAncestor(nsIFrame* aFrame);
 
   /**
-   * Find the nearest ancestor that's not for generated content. Will return
-   * aFrame if aFrame is not for generated content.
-   */
-  static nsIFrame* GetNonGeneratedAncestor(nsIFrame* aFrame);
-
-  /**
    * Cast aFrame to an nsBlockFrame* or return null if it's not
    * an nsBlockFrame.
    */
@@ -755,8 +746,7 @@ public:
                          nsIRenderingContext* aContext,
                          const PRUnichar*     aString,
                          PRInt32              aLength,
-                         nsPoint              aPoint,
-                         PRUint8              aDirection = NS_STYLE_DIRECTION_INHERIT);
+                         nsPoint              aPoint);
 
   static nscoord GetStringWidth(const nsIFrame*      aFrame,
                                 nsIRenderingContext* aContext,
@@ -803,10 +793,6 @@ public:
    */
   static nsIFrame* GetClosestLayer(nsIFrame* aFrame);
 
-  /* N.B. The only difference between variants of the Draw*Image
-   * functions below is the type of the aImage argument.
-   */
-
   /**
    * Draw an image.
    * See https://wiki.mozilla.org/Gecko:Image_Snapping_and_Rendering
@@ -823,13 +809,6 @@ public:
    */
   static nsresult DrawImage(nsIRenderingContext* aRenderingContext,
                             imgIContainer*       aImage,
-                            const nsRect&        aDest,
-                            const nsRect&        aFill,
-                            const nsPoint&       aAnchor,
-                            const nsRect&        aDirty);
-
-  static nsresult DrawImage(nsIRenderingContext* aRenderingContext,
-                            nsIImage*            aImage,
                             const nsRect&        aDest,
                             const nsRect&        aFill,
                             const nsPoint&       aAnchor,
@@ -871,12 +850,6 @@ public:
    */
   static nsresult DrawSingleImage(nsIRenderingContext* aRenderingContext,
                                   imgIContainer*       aImage,
-                                  const nsRect&        aDest,
-                                  const nsRect&        aDirty,
-                                  const nsRect*        aSourceArea = nsnull);
-
-  static nsresult DrawSingleImage(nsIRenderingContext* aRenderingContext,
-                                  nsIImage*            aImage,
                                   const nsRect&        aDest,
                                   const nsRect&        aDirty,
                                   const nsRect*        aSourceArea = nsnull);
@@ -946,14 +919,6 @@ public:
   GetDeviceContextForScreenInfo(nsIDocShell* aDocShell);
 
   /**
-   * Some frames with 'position: fixed' (nsStylePosition::mDisplay ==
-   * NS_STYLE_POSITION_FIXED) are not really fixed positioned, since
-   * they're inside an element with -moz-transform.  This function says
-   * whether such an element is a real fixed-pos element.
-   */
-  static PRBool IsReallyFixedPos(nsIFrame* aFrame);
-
-  /**
    * Indicates if the nsIFrame::GetUsedXXX assertions in nsFrame.cpp should
    * disabled.
    */
@@ -999,20 +964,6 @@ public:
 
   nsCOMPtr<nsIContent> mContent;
   nsCOMPtr<nsIAtom> mAttrName;
-};
-
-class nsReflowFrameRunnable : public nsRunnable
-{
-public:
-  nsReflowFrameRunnable(nsIFrame* aFrame,
-                        nsIPresShell::IntrinsicDirty aIntrinsicDirty,
-                        nsFrameState aBitToAdd);
-
-  NS_DECL_NSIRUNNABLE
-
-  nsWeakFrame mWeakFrame;
-  nsIPresShell::IntrinsicDirty mIntrinsicDirty;
-  nsFrameState mBitToAdd;
 };
 
 #endif // nsLayoutUtils_h__

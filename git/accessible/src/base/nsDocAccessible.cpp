@@ -263,9 +263,7 @@ nsDocAccessible::GetDescription(nsAString& aDescription)
 
   if (aDescription.IsEmpty()) {
     nsAutoString description;
-    nsTextEquivUtils::
-      GetTextEquivFromIDRefs(this, nsAccessibilityAtoms::aria_describedby,
-                             description);
+    GetTextFromRelationID(nsAccessibilityAtoms::aria_describedby, description);
     aDescription = description;
   }
 
@@ -275,8 +273,10 @@ nsDocAccessible::GetDescription(nsAString& aDescription)
 nsresult
 nsDocAccessible::GetStateInternal(PRUint32 *aState, PRUint32 *aExtraState)
 {
-  nsresult rv = nsAccessible::GetStateInternal(aState, aExtraState);
-  NS_ENSURE_A11Y_SUCCESS(rv, rv);
+  // nsAccessible::GetStateInternal() always fail for document accessible.
+  nsAccessible::GetStateInternal(aState, aExtraState);
+  if (!mDOMNode)
+    return NS_OK;
 
 #ifdef MOZ_XUL
   nsCOMPtr<nsIXULDocument> xulDoc(do_QueryInterface(mDocument));
@@ -1062,13 +1062,7 @@ nsDocAccessible::AttributeChangedImpl(nsIContent* aContent, PRInt32 aNameSpaceID
   // For example, if an <img>'s usemap attribute is modified
   // Otherwise it may just be a state change, for example an object changing
   // its visibility
-  // 
-  // XXX todo: report aria state changes for "undefined" literal value changes
-  // filed as bug 472142
-  //
-  // XXX todo:  invalidate accessible when aria state changes affect exposed role
-  // filed as bug 472143
-  
+
   nsCOMPtr<nsISupports> container = mDocument->GetContainer();
   nsCOMPtr<nsIDocShell> docShell = do_QueryInterface(container);
   if (!docShell) {
@@ -1706,17 +1700,6 @@ NS_IMETHODIMP nsDocAccessible::FlushPendingEvents()
           }
         } 
       }
-      else if (eventType == nsIAccessibleEvent::EVENT_REORDER) {
-        // Fire reorder event if it's unconditional (see InvalidateCacheSubtree
-        // method) or if changed node (that is the reason of this reorder event)
-        // is accessible or has accessible children.
-        nsCOMPtr<nsAccReorderEvent> reorderEvent = do_QueryInterface(accessibleEvent);
-        if (reorderEvent->IsUnconditionalEvent() ||
-            reorderEvent->HasAccessibleInReasonSubtree()) {
-          nsAccEvent::PrepareForEvent(accessibleEvent);
-          FireAccessibleEvent(accessibleEvent);
-        }
-      }
       else {
         // The input state was previously stored with the nsIAccessibleEvent,
         // so use that state now when firing the event
@@ -2063,28 +2046,15 @@ NS_IMETHODIMP nsDocAccessible::InvalidateCacheSubtree(nsIContent *aChild,
 
   FireValueChangeForTextFields(containerAccessible);
 
-  // Fire an event so the MSAA clients know the children have changed. Also
-  // the event is used internally by MSAA part.
-
-  // We need to fire a delayed reorder event for the accessible parent of the
-  // changed node. We fire an unconditional reorder event if the changed node or
-  // one of its children is already accessible. In the case of show events, the
-  // accessible object might not be created yet for an otherwise accessible
-  // changed node (because its frame might not be constructed yet). In this case
-  // we fire a conditional reorder event, so that we will later check whether
-  // the changed node is accessible or has accessible children.
-  // Filtering/coalescing of these events happens during the queue flush.
-
-  PRBool isUnconditionalEvent = childAccessible ||
-    aChild && nsAccUtils::HasAccessibleChildren(childNode);
-
-  nsCOMPtr<nsIAccessibleEvent> reorderEvent =
-    new nsAccReorderEvent(containerAccessible, isAsynch,
-                          isUnconditionalEvent,
-                          aChild ? childNode.get() : nsnull);
-  NS_ENSURE_TRUE(reorderEvent, NS_ERROR_OUT_OF_MEMORY);
-
-  FireDelayedAccessibleEvent(reorderEvent);
+  if (childAccessible) {
+    // Fire an event so the MSAA clients know the children have changed. Also
+    // the event is used internally by MSAA part.
+    nsCOMPtr<nsIAccessibleEvent> reorderEvent =
+      new nsAccEvent(nsIAccessibleEvent::EVENT_REORDER, containerAccessible,
+                     isAsynch, nsAccEvent::eCoalesceFromSameSubtree);
+    NS_ENSURE_TRUE(reorderEvent, NS_ERROR_OUT_OF_MEMORY);
+    FireDelayedAccessibleEvent(reorderEvent);
+  }
 
   return NS_OK;
 }

@@ -1018,10 +1018,6 @@ nsScriptSecurityManager::LookupPolicy(nsIPrincipal* aPrincipal,
     //-- Initialize policies if necessary
     if (mPolicyPrefsChanged)
     {
-        if (!mSecurityPref) {
-            rv = InitPrefs();
-            NS_ENSURE_SUCCESS(rv, rv);
-        }
         rv = InitPolicies();
         if (NS_FAILED(rv))
             return rv;
@@ -1288,7 +1284,6 @@ nsScriptSecurityManager::CheckLoadURIWithPrincipal(nsIPrincipal* aPrincipal,
                                nsIScriptSecurityManager::DISALLOW_INHERIT_PRINCIPAL),
                     NS_ERROR_UNEXPECTED);
     NS_ENSURE_ARG_POINTER(aPrincipal);
-    NS_ENSURE_ARG_POINTER(aTargetURI);
 
     if (aPrincipal == mSystemPrincipal) {
         // Allow access
@@ -1752,7 +1747,26 @@ nsScriptSecurityManager::CanExecuteScripts(JSContext* cx,
         }
     }
 
+    //-- See if JS is disabled globally (via prefs)
     *result = mIsJavaScriptEnabled;
+    if (mIsJavaScriptEnabled != mIsMailJavaScriptEnabled && globalObjTreeItem) 
+    {
+        nsCOMPtr<nsIDocShellTreeItem> rootItem;
+        globalObjTreeItem->GetRootTreeItem(getter_AddRefs(rootItem));
+        docshell = do_QueryInterface(rootItem);
+        if (docshell) 
+        {
+            // Is this script running from mail?
+            PRUint32 appType;
+            rv = docshell->GetAppType(&appType);
+            if (NS_FAILED(rv)) return rv;
+            if (appType == nsIDocShell::APP_TYPE_MAIL) 
+            {
+                *result = mIsMailJavaScriptEnabled;
+            }
+        }
+    }
+
     if (!*result)
         return NS_OK; // Do not run scripts
 
@@ -3129,19 +3143,13 @@ nsScriptSecurityManager::OnChannelRedirect(nsIChannel* oldChannel,
 
     nsCOMPtr<nsIURI> newURI;
     newChannel->GetURI(getter_AddRefs(newURI));
-    nsCOMPtr<nsIURI> newOriginalURI;
-    newChannel->GetOriginalURI(getter_AddRefs(newOriginalURI));
 
-    NS_ENSURE_STATE(oldPrincipal && newURI && newOriginalURI);
+    NS_ENSURE_STATE(oldPrincipal && newURI);
 
     const PRUint32 flags =
         nsIScriptSecurityManager::LOAD_IS_AUTOMATIC_DOCUMENT_REPLACEMENT |
         nsIScriptSecurityManager::DISALLOW_SCRIPT;
-    nsresult rv = CheckLoadURIWithPrincipal(oldPrincipal, newURI, flags);
-    if (NS_SUCCEEDED(rv) && newOriginalURI != newURI) {
-        rv = CheckLoadURIWithPrincipal(oldPrincipal, newOriginalURI, flags);
-    }
-    return rv;
+    return CheckLoadURIWithPrincipal(oldPrincipal, newURI, flags);
 }
 
 
@@ -3195,15 +3203,14 @@ nsScriptSecurityManager::nsScriptSecurityManager(void)
       mDefaultPolicy(nsnull),
       mCapabilities(nsnull),
       mIsJavaScriptEnabled(PR_FALSE),
+      mIsMailJavaScriptEnabled(PR_FALSE),
       mIsWritingPrefs(PR_FALSE),
       mPolicyPrefsChanged(PR_TRUE)
 #ifdef XPC_IDISPATCH_SUPPORT
       , mXPCDefaultGrantAll(PR_FALSE)
 #endif
 {
-    NS_ASSERTION(sizeof(PRWord) == sizeof(void*),
-                 "PRWord and void* have different lengths on this platform. "
-                 "This may cause a security failure with the SecurityLevel union.");
+    NS_ASSERTION(sizeof(long) == sizeof(void*), "long and void* have different lengths on this platform. This may cause a security failure.");
     mPrincipals.Init(31);
 }
 
@@ -3224,7 +3231,8 @@ nsresult nsScriptSecurityManager::Init()
         sEnabledID = STRING_TO_JSVAL(::JS_InternString(cx, "enabled"));
     ::JS_EndRequest(cx);
 
-    InitPrefs();
+    rv = InitPrefs();
+    NS_ENSURE_SUCCESS(rv, rv);
 
     rv = CallGetService(NS_IOSERVICE_CONTRACTID, &sIOService);
     NS_ENSURE_SUCCESS(rv, rv);
@@ -3796,6 +3804,8 @@ nsScriptSecurityManager::InitPrincipals(PRUint32 aPrefCount, const char** aPrefN
 
 const char nsScriptSecurityManager::sJSEnabledPrefName[] =
     "javascript.enabled";
+const char nsScriptSecurityManager::sJSMailEnabledPrefName[] =
+    "javascript.allow.mailnews";
 const char nsScriptSecurityManager::sFileOriginPolicyPrefName[] =
     "security.fileuri.strict_origin_policy";
 #ifdef XPC_IDISPATCH_SUPPORT
@@ -3806,36 +3816,23 @@ const char nsScriptSecurityManager::sXPCDefaultGrantAllName[] =
 inline void
 nsScriptSecurityManager::ScriptSecurityPrefChanged()
 {
-    // JavaScript defaults to enabled in failure cases.
-    mIsJavaScriptEnabled = PR_TRUE;
-
-    sStrictFileOriginPolicy = PR_TRUE;
-
-#ifdef XPC_IDISPATCH_SUPPORT
-    // Granting XPC Priveleges defaults to disabled in failure cases.
-    mXPCDefaultGrantAll = PR_FALSE;
-#endif
-
-    nsresult rv;
-    if (!mSecurityPref) {
-        rv = InitPrefs();
-        if (NS_FAILED(rv))
-            return;
-    }
-
     PRBool temp;
-    rv = mSecurityPref->SecurityGetBoolPref(sJSEnabledPrefName, &temp);
-    if (NS_SUCCEEDED(rv))
-        mIsJavaScriptEnabled = temp;
+    nsresult rv = mSecurityPref->SecurityGetBoolPref(sJSEnabledPrefName, &temp);
+    // JavaScript defaults to enabled in failure cases.
+    mIsJavaScriptEnabled = NS_FAILED(rv) || temp;
+
+    rv = mSecurityPref->SecurityGetBoolPref(sJSMailEnabledPrefName, &temp);
+    // JavaScript in Mail defaults to disabled in failure cases.
+    // disable javascript in mailnews for TB 3.0 beta1
+    mIsMailJavaScriptEnabled = PR_FALSE; // NS_SUCCEEDED(rv) && temp;
 
     rv = mSecurityPref->SecurityGetBoolPref(sFileOriginPolicyPrefName, &temp);
-    if (NS_SUCCEEDED(rv))
-        sStrictFileOriginPolicy = NS_SUCCEEDED(rv) && temp;
+    sStrictFileOriginPolicy = NS_SUCCEEDED(rv) && temp;
 
 #ifdef XPC_IDISPATCH_SUPPORT
     rv = mSecurityPref->SecurityGetBoolPref(sXPCDefaultGrantAllName, &temp);
-    if (NS_SUCCEEDED(rv))
-        mXPCDefaultGrantAll = temp;
+    // Granting XPC Priveleges defaults to disabled in failure cases.
+    mXPCDefaultGrantAll = NS_SUCCEEDED(rv) && temp;
 #endif
 }
 
@@ -3856,6 +3853,7 @@ nsScriptSecurityManager::InitPrefs()
     ScriptSecurityPrefChanged();
     // set observer callbacks in case the value of the prefs change
     prefBranchInternal->AddObserver(sJSEnabledPrefName, this, PR_FALSE);
+    prefBranchInternal->AddObserver(sJSMailEnabledPrefName, this, PR_FALSE);
     prefBranchInternal->AddObserver(sFileOriginPolicyPrefName, this, PR_FALSE);
 #ifdef XPC_IDISPATCH_SUPPORT
     prefBranchInternal->AddObserver(sXPCDefaultGrantAllName, this, PR_FALSE);

@@ -41,6 +41,7 @@
 #include "mozIStorageValueArray.idl"
 
 interface mozIStorageConnection;
+interface mozIStorageDataSet;
 interface nsISimpleEnumerator;
 interface mozIStorageStatementCallback;
 interface mozIStoragePendingStatement;

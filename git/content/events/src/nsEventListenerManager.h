@@ -180,6 +180,15 @@ protected:
   nsresult RemoveAllListeners();
   const EventTypeData* GetTypeDataForIID(const nsIID& aIID);
   const EventTypeData* GetTypeDataForEventName(nsIAtom* aName);
+  nsresult FixContextMenuEvent(nsPresContext* aPresContext,
+                               nsISupports* aCurrentTarget,
+                               nsEvent* aEvent,
+                               nsIDOMEvent** aDOMEvent);
+  PRBool PrepareToUseCaretPosition(nsIWidget* aEventWidget,
+                                   nsIPresShell* aShell,
+                                   nsPoint& aTargetPt);
+  void GetCoordinatesFor(nsIDOMElement *aCurrentEl, nsPresContext *aPresContext,
+                         nsIPresShell *aPresShell, nsPoint& aTargetPt);
   nsresult GetDOM2EventGroup(nsIDOMEventGroup** aGroup);
   PRBool ListenerCanHandle(nsListenerStruct* aLs, nsEvent* aEvent);
   nsPIDOMWindow* GetInnerWindowForTarget();

@@ -81,7 +81,6 @@ CPPSRCS = \
   nsAccessibilityAtoms.cpp \
   nsCoreUtils.cpp \
   nsAccUtils.cpp \
-  nsRelUtils.cpp \
   nsAccessibilityService.cpp \
   nsAccessible.cpp \
   nsAccessibleRelation.cpp \
@@ -92,8 +91,7 @@ CPPSRCS = \
   nsApplicationAccessible.cpp \
   nsCaretAccessible.cpp \
   nsTextAccessible.cpp \
-  nsTextEquivUtils.cpp \
-  nsTextAttrs.cpp \
+  nsTextUtils.cpp \
   $(NULL)
 
 EXPORTS = \

@@ -82,7 +82,6 @@
 #include "nsContentUtils.h"
 #include "nsDisplayList.h"
 #include "nsIReflowCallback.h"
-#include "nsISound.h"
 
 #define NS_MENU_POPUP_LIST_INDEX 0
 
@@ -153,36 +152,40 @@ private:
 };
 
 //
-// NS_NewMenuFrame and NS_NewMenuItemFrame
+// NS_NewMenuFrame
 //
-// Wrappers for creating a new menu popup container
+// Wrapper for creating a new menu popup container
 //
 nsIFrame*
-NS_NewMenuFrame(nsIPresShell* aPresShell, nsStyleContext* aContext)
+NS_NewMenuFrame(nsIPresShell* aPresShell, nsStyleContext* aContext, PRUint32 aFlags)
 {
   nsMenuFrame* it = new (aPresShell) nsMenuFrame (aPresShell, aContext);
   
-  if (it)
+  if ((it != nsnull) && aFlags)
     it->SetIsMenu(PR_TRUE);
 
   return it;
 }
 
-nsIFrame*
-NS_NewMenuItemFrame(nsIPresShell* aPresShell, nsStyleContext* aContext)
+NS_IMETHODIMP_(nsrefcnt) 
+nsMenuFrame::AddRef(void)
 {
-  nsMenuFrame* it = new (aPresShell) nsMenuFrame (aPresShell, aContext);
-
-  if (it)
-    it->SetIsMenu(PR_FALSE);
-
-  return it;
+  return NS_OK;
 }
 
-NS_QUERYFRAME_HEAD(nsMenuFrame)
-  NS_QUERYFRAME_ENTRY(nsIMenuFrame)
-  NS_QUERYFRAME_ENTRY(nsIScrollableViewProvider)
-NS_QUERYFRAME_TAIL_INHERITING(nsBoxFrame)
+NS_IMETHODIMP_(nsrefcnt)
+nsMenuFrame::Release(void)
+{
+    return NS_OK;
+}
+
+//
+// QueryInterface
+//
+NS_INTERFACE_MAP_BEGIN(nsMenuFrame)
+  NS_INTERFACE_MAP_ENTRY(nsIMenuFrame)
+  NS_INTERFACE_MAP_ENTRY(nsIScrollableViewProvider)
+NS_INTERFACE_MAP_END_INHERITING(nsBoxFrame)
 
 //
 // nsMenuFrame cntr
@@ -426,10 +429,6 @@ nsMenuFrame::HandleEvent(nsPresContext* aPresContext,
                          nsEventStatus*  aEventStatus)
 {
   NS_ENSURE_ARG_POINTER(aEventStatus);
-  if (nsEventStatus_eConsumeNoDefault == *aEventStatus) {
-    return NS_OK;
-  }
-
   nsWeakFrame weakFrame(this);
   if (*aEventStatus == nsEventStatus_eIgnore)
     *aEventStatus = nsEventStatus_eConsumeDoDefault;
@@ -587,8 +586,7 @@ void
 nsMenuFrame::PopupClosed(PRBool aDeselectMenu)
 {
   nsWeakFrame weakFrame(this);
-  nsContentUtils::AddScriptRunner(
-    new nsUnsetAttrRunnable(mContent, nsGkAtoms::open));
+  mContent->UnsetAttr(kNameSpaceID_None, nsGkAtoms::open, PR_TRUE);
   if (!weakFrame.IsAlive())
     return;
 
@@ -770,7 +768,7 @@ nsMenuFrame::DoLayout(nsBoxLayoutState& aState)
 
     nsRect bounds(mPopupFrame->GetRect());
 
-    nsIScrollableFrame *scrollframe = do_QueryFrame(child);
+    nsCOMPtr<nsIScrollableFrame> scrollframe(do_QueryInterface(child));
     if (scrollframe &&
         scrollframe->GetScrollbarStyles().mVertical == NS_STYLE_OVERFLOW_AUTO) {
       if (bounds.height < prefSize.height) {
@@ -1172,10 +1170,6 @@ nsMenuFrame::Execute(nsGUIEvent *aEvent)
       }
     }
   }
-
-  nsCOMPtr<nsISound> sound(do_CreateInstance("@mozilla.org/sound;1"));
-  if (sound)
-    sound->PlaySystemSound(NS_SYSSOUND_MENU_EXECUTE);
 
   nsXULPopupManager* pm = nsXULPopupManager::GetInstance();
   if (pm && mMenuParent)

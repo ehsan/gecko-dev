@@ -40,46 +40,35 @@
 namespace google_breakpad {
 
 // Abstraction for server side implementation of out-of-process crash
-// generation protocol for Windows platform only. It generates Windows
-// minidump files for client processes that request dump generation. When
-// the server is requested to start listening for clients (by calling the
-// Start method), it creates a named pipe and waits for the clients to
-// register. In response, it hands them event handles that the client can
-// signal to request dump generation. When the clients request dump
-// generation in this way, the server generates Windows minidump files.
+// generation protocol. It generates minidumps (Windows platform) for
+// client processes that request dump generation.
 class CrashGenerationServer {
  public:
   typedef void (*OnClientConnectedCallback)(void* context,
                                             const ClientInfo* client_info);
 
   typedef void (*OnClientDumpRequestCallback)(void* context,
-                                              const ClientInfo* client_info,
-                                              const std::wstring* file_path);
+                                              const ClientInfo* client_info);
 
   typedef void (*OnClientExitedCallback)(void* context,
                                          const ClientInfo* client_info);
 
   // Creates an instance with the given parameters.
   //
-  // Parameter pipe_name: Name of the Windows named pipe
-  // Parameter pipe_sec_attrs Security attributes to set on the pipe. Pass
-  //     NULL to use default security on the pipe. By default, the pipe created
-  //     allows Local System, Administrators and the Creator full control and
-  //     the Everyone group read access on the pipe.
+  // Parameter pipe_name: Name of the pipe
   // Parameter connect_callback: Callback for a new client connection.
   // Parameter connect_context: Context for client connection callback.
   // Parameter crash_callback: Callback for a client crash dump request.
   // Parameter crash_context: Context for client crash dump request callback.
   // Parameter exit_callback: Callback for client process exit.
   // Parameter exit_context: Context for client exit callback.
-  // Parameter generate_dumps: Whether to automatically generate dumps.
+  // Parameter generate_dumps: Whether to automatically generate dumps or not.
   // Client code of this class might want to generate dumps explicitly in the
   // crash dump request callback. In that case, false can be passed for this
   // parameter.
   // Parameter dump_path: Path for generating dumps; required only if true is
   // passed for generateDumps parameter; NULL can be passed otherwise.
-  CrashGenerationServer(const std::wstring& pipe_name,
-                        SECURITY_ATTRIBUTES* pipe_sec_attrs,
+  CrashGenerationServer(const wchar_t* pipe_name,
                         OnClientConnectedCallback connect_callback,
                         void* connect_context,
                         OnClientDumpRequestCallback dump_callback,
@@ -190,7 +179,7 @@ class CrashGenerationServer {
   bool AddClient(ClientInfo* client_info);
 
   // Generates dump for the given client.
-  bool GenerateDump(const ClientInfo& client, std::wstring* dump_path);
+  bool GenerateDump(const ClientInfo& client);
 
   // Sync object for thread-safe access to the shared list of clients.
   CRITICAL_SECTION clients_sync_;
@@ -200,9 +189,6 @@ class CrashGenerationServer {
 
   // Pipe name.
   std::wstring pipe_name_;
-
-  // Pipe security attributes
-  SECURITY_ATTRIBUTES* pipe_sec_attrs_;
 
   // Handle to the pipe used for handshake with clients.
   HANDLE pipe_;
@@ -231,7 +217,7 @@ class CrashGenerationServer {
   // Context for client process exit callback.
   void* exit_context_;
 
-  // Whether to generate dumps.
+  // Whether to generate dumps or not.
   bool generate_dumps_;
 
   // Instance of a mini dump generator.

@@ -65,6 +65,7 @@
 #include "nsGkAtoms.h"
 #include "nsString.h"
 #include "nsUnicharUtils.h"
+#include "nsVoidArray.h"
 #include "nsDOMError.h"
 #include "nsRuleWalker.h"
 #include "nsCSSPseudoClasses.h"
@@ -81,9 +82,10 @@
 #include "nsTArray.h"
 #include "nsContentUtils.h"
 #include "nsIMediaList.h"
+#include "gfxPlatform.h"
+#include "gfxUserFontSet.h"
 #include "nsCSSRules.h"
-#include "nsIPrincipal.h"
-#include "nsStyleSet.h"
+#include "nsFontFaceLoader.h"
 
 #define VISITED_PSEUDO_PREF "layout.css.visited_links_enabled"
 
@@ -334,6 +336,11 @@ static const PLDHashTableOps RuleHash_NameSpaceTable_Ops = {
 
 #undef RULE_HASH_STATS
 #undef PRINT_UNIVERSAL_RULES
+
+#ifdef DEBUG_dbaron
+#define RULE_HASH_STATS
+#define PRINT_UNIVERSAL_RULES
+#endif
 
 #ifdef RULE_HASH_STATS
 #define RULE_HASH_STAT_INCREMENT(var_) PR_BEGIN_MACRO ++(var_); PR_END_MACRO
@@ -656,7 +663,7 @@ void RuleHash::EnumerateTagRules(nsIAtom* aTag, RuleEnumFunc aFunc, void* aData)
 // Attribute selectors hash table.
 struct AttributeSelectorEntry : public PLDHashEntryHdr {
   nsIAtom *mAttribute;
-  nsTArray<nsCSSSelector*> *mSelectors;
+  nsVoidArray *mSelectors;
 };
 
 static void
@@ -696,23 +703,21 @@ struct RuleCascadeData {
   {
     PL_DHashTableFinish(&mAttributeSelectors);
   }
-  RuleHash                 mRuleHash;
-  nsTArray<nsCSSSelector*> mStateSelectors;
-  nsTArray<nsCSSSelector*> mClassSelectors;
-  nsTArray<nsCSSSelector*> mIDSelectors;
-  PLDHashTable             mAttributeSelectors;
-
-  nsTArray<nsFontFaceRuleContainer> mFontFaceRules;
+  RuleHash          mRuleHash;
+  nsVoidArray       mStateSelectors;
+  nsVoidArray       mClassSelectors;
+  nsVoidArray       mIDSelectors;
+  PLDHashTable      mAttributeSelectors; // nsIAtom* -> nsVoidArray*
 
   // Looks up or creates the appropriate list in |mAttributeSelectors|.
   // Returns null only on allocation failure.
-  nsTArray<nsCSSSelector*>* AttributeListFor(nsIAtom* aAttribute);
+  nsVoidArray* AttributeListFor(nsIAtom* aAttribute);
 
   nsMediaQueryResultCacheKey mCacheKey;
   RuleCascadeData*  mNext; // for a different medium
 };
 
-nsTArray<nsCSSSelector*>*
+nsVoidArray*
 RuleCascadeData::AttributeListFor(nsIAtom* aAttribute)
 {
   AttributeSelectorEntry *entry = static_cast<AttributeSelectorEntry*>
@@ -720,7 +725,7 @@ RuleCascadeData::AttributeListFor(nsIAtom* aAttribute)
   if (!entry)
     return nsnull;
   if (!entry->mSelectors) {
-    if (!(entry->mSelectors = new nsTArray<nsCSSSelector*>)) {
+    if (!(entry->mSelectors = new nsVoidArray)) {
       PL_DHashTableRawRemove(&mAttributeSelectors, entry);
       return nsnull;
     }
@@ -733,12 +738,10 @@ RuleCascadeData::AttributeListFor(nsIAtom* aAttribute)
 // CSS Style rule processor implementation
 //
 
-nsCSSRuleProcessor::nsCSSRuleProcessor(const nsCOMArray<nsICSSStyleSheet>& aSheets,
-                                       PRUint8 aSheetType)
+nsCSSRuleProcessor::nsCSSRuleProcessor(const nsCOMArray<nsICSSStyleSheet>& aSheets)
   : mSheets(aSheets)
   , mRuleCascades(nsnull)
   , mLastPresContext(nsnull)
-  , mSheetType(aSheetType)
 {
   for (PRInt32 i = mSheets.Count() - 1; i >= 0; --i)
     mSheets[i]->AddRuleProcessor(this);
@@ -1033,8 +1036,8 @@ RuleProcessorData::GetNthIndex(PRBool aIsOfType, PRBool aIsFromEnd,
   PRInt32 result = 1;
   nsIContent* parent = mParentContent;
 
-  PRUint32 childCount;
-  nsIContent * const * curChildPtr = parent->GetChildArray(&childCount);
+  PRUint32 childCount = parent->GetChildCount();
+  nsIContent * const * curChildPtr = parent->GetChildArray();
 
 #ifdef DEBUG
   nsMutationGuard debugMutationGuard;
@@ -1568,9 +1571,6 @@ static PRBool SelectorMatches(RuleProcessorData &data,
     else if (nsCSSPseudoClasses::mozReadWrite == pseudoClass->mAtom) {
       stateToCheck = NS_EVENT_STATE_MOZ_READWRITE;
     }
-    else if (nsCSSPseudoClasses::indeterminate == pseudoClass->mAtom) {
-      stateToCheck = NS_EVENT_STATE_INDETERMINATE;
-    }
     else if (nsCSSPseudoClasses::mozIsHTML == pseudoClass->mAtom) {
       result = data.mIsHTMLContent &&
         data.mContent->GetNameSpaceID() == kNameSpaceID_None;
@@ -1987,6 +1987,35 @@ IsSiblingOperator(PRUnichar oper)
   return oper == PRUnichar('+') || oper == PRUnichar('~');
 }
 
+struct StateEnumData {
+  StateEnumData(StateRuleProcessorData *aData)
+    : data(aData), change(nsReStyleHint(0)) {}
+
+  StateRuleProcessorData *data;
+  nsReStyleHint change;
+};
+
+static PRBool StateEnumFunc(void* aSelector, void* aData)
+{
+  StateEnumData *enumData = static_cast<StateEnumData*>(aData);
+  StateRuleProcessorData *data = enumData->data;
+  nsCSSSelector* selector = static_cast<nsCSSSelector*>(aSelector);
+
+  nsReStyleHint possibleChange = IsSiblingOperator(selector->mOperator) ?
+    eReStyle_LaterSiblings : eReStyle_Self;
+
+  // If enumData->change already includes all the bits of possibleChange, don't
+  // bother calling SelectorMatches, since even if it returns false
+  // enumData->change won't change.
+  if ((possibleChange & ~(enumData->change)) &&
+      SelectorMatches(*data, selector, data->mStateMask, nsnull, PR_TRUE) &&
+      SelectorMatchesTree(*data, selector->mNext, PR_TRUE)) {
+    enumData->change = nsReStyleHint(enumData->change | possibleChange);
+  }
+
+  return PR_TRUE;
+}
+
 NS_IMETHODIMP
 nsCSSRuleProcessor::HasStateDependentStyle(StateRuleProcessorData* aData,
                                            nsReStyleHint* aResult)
@@ -2004,26 +2033,10 @@ nsCSSRuleProcessor::HasStateDependentStyle(StateRuleProcessorData* aData,
   // "body > p:hover" will be in |cascade->mStateSelectors|).  Note that
   // |IsStateSelector| below determines which selectors are in
   // |cascade->mStateSelectors|.
-  if (cascade) {
-    *aResult = nsReStyleHint(0);
-    nsCSSSelector **iter = cascade->mStateSelectors.Elements(),
-                  **end = iter + cascade->mStateSelectors.Length();
-    for(; iter != end; ++iter) {
-      nsCSSSelector* selector = *iter;
-
-      nsReStyleHint possibleChange = IsSiblingOperator(selector->mOperator) ?
-        eReStyle_LaterSiblings : eReStyle_Self;
-
-      // If *aResult already includes all the bits of possibleChange,
-      // don't bother calling SelectorMatches, since even if it returns false
-      // *aResult won't change.
-      if ((possibleChange & ~(*aResult)) &&
-          SelectorMatches(*aData, selector, aData->mStateMask, nsnull, PR_TRUE) &&
-          SelectorMatchesTree(*aData, selector->mNext, PR_TRUE)) {
-        *aResult = nsReStyleHint(*aResult | possibleChange);
-      }
-    }
-  }
+  StateEnumData data(aData);
+  if (cascade)
+    cascade->mStateSelectors.EnumerateForwards(StateEnumFunc, &data);
+  *aResult = data.change;
   return NS_OK;
 }
 
@@ -2036,23 +2049,26 @@ struct AttributeEnumData {
 };
 
 
-static void
-AttributeEnumFunc(nsCSSSelector* aSelector, AttributeEnumData* aData)
+static PRBool AttributeEnumFunc(void* aSelector, void* aData)
 {
-  AttributeRuleProcessorData *data = aData->data;
+  AttributeEnumData *enumData = static_cast<AttributeEnumData*>(aData);
+  AttributeRuleProcessorData *data = enumData->data;
+  nsCSSSelector* selector = static_cast<nsCSSSelector*>(aSelector);
 
-  nsReStyleHint possibleChange = IsSiblingOperator(aSelector->mOperator) ?
+  nsReStyleHint possibleChange = IsSiblingOperator(selector->mOperator) ?
     eReStyle_LaterSiblings : eReStyle_Self;
 
   // If enumData->change already includes all the bits of possibleChange, don't
   // bother calling SelectorMatches, since even if it returns false
   // enumData->change won't change.
-  if ((possibleChange & ~(aData->change)) &&
-      SelectorMatches(*data, aSelector, data->mStateMask, data->mAttribute,
+  if ((possibleChange & ~(enumData->change)) &&
+      SelectorMatches(*data, selector, data->mStateMask, data->mAttribute,
                       PR_TRUE) &&
-      SelectorMatchesTree(*data, aSelector->mNext, PR_TRUE)) {
-    aData->change = nsReStyleHint(aData->change | possibleChange);
+      SelectorMatchesTree(*data, selector->mNext, PR_TRUE)) {
+    enumData->change = nsReStyleHint(enumData->change | possibleChange);
   }
+
+  return PR_TRUE;
 }
 
 NS_IMETHODIMP
@@ -2094,30 +2110,18 @@ nsCSSRuleProcessor::HasAttributeDependentStyle(AttributeRuleProcessorData* aData
 
   if (cascade) {
     if (aData->mAttribute == aData->mContent->GetIDAttributeName()) {
-      nsCSSSelector **iter = cascade->mIDSelectors.Elements(),
-                    **end = iter + cascade->mIDSelectors.Length();
-      for(; iter != end; ++iter) {
-        AttributeEnumFunc(*iter, &data);
-      }
+      cascade->mIDSelectors.EnumerateForwards(AttributeEnumFunc, &data);
     }
     
     if (aData->mAttribute == aData->mContent->GetClassAttributeName()) {
-      nsCSSSelector **iter = cascade->mClassSelectors.Elements(),
-                    **end = iter + cascade->mClassSelectors.Length();
-      for(; iter != end; ++iter) {
-        AttributeEnumFunc(*iter, &data);
-      }
+      cascade->mClassSelectors.EnumerateForwards(AttributeEnumFunc, &data);
     }
 
     AttributeSelectorEntry *entry = static_cast<AttributeSelectorEntry*>
                                                (PL_DHashTableOperate(&cascade->mAttributeSelectors, aData->mAttribute,
                              PL_DHASH_LOOKUP));
     if (PL_DHASH_ENTRY_IS_BUSY(entry)) {
-      nsCSSSelector **iter = entry->mSelectors->Elements(),
-                    **end = iter + entry->mSelectors->Length();
-      for(; iter != end; ++iter) {
-        AttributeEnumFunc(*iter, &data);
-      }
+      entry->mSelectors->EnumerateForwards(AttributeEnumFunc, &data);
     }
   }
 
@@ -2143,30 +2147,9 @@ nsCSSRuleProcessor::MediumFeaturesChanged(nsPresContext* aPresContext,
   return NS_OK;
 }
 
-// Append all the currently-active font face rules to aArray.  Return
-// true for success and false for failure.
-PRBool
-nsCSSRuleProcessor::AppendFontFaceRules(
-                              nsPresContext *aPresContext,
-                              nsTArray<nsFontFaceRuleContainer>& aArray)
-{
-  RuleCascadeData* cascade = GetRuleCascade(aPresContext);
-
-  if (cascade) {
-    if (!aArray.AppendElements(cascade->mFontFaceRules))
-      return PR_FALSE;
-  }
-  
-  return PR_TRUE;
-}
-
 nsresult
 nsCSSRuleProcessor::ClearRuleCascades()
 {
-  // We rely on our caller (perhaps indirectly) to do something that
-  // will rebuild style data and the user font set (either
-  // nsIPresShell::ReconstructStyleData or
-  // nsPresContext::RebuildAllStyleData).
   RuleCascadeData *data = mRuleCascades;
   mRuleCascades = nsnull;
   while (data) {
@@ -2207,7 +2190,6 @@ PRBool IsStateSelector(nsCSSSelector& aSelector)
         (pseudoClass->mAtom == nsCSSPseudoClasses::outOfRange) ||
         (pseudoClass->mAtom == nsCSSPseudoClasses::mozReadOnly) ||
         (pseudoClass->mAtom == nsCSSPseudoClasses::mozReadWrite) ||
-        (pseudoClass->mAtom == nsCSSPseudoClasses::indeterminate) ||
 #ifdef MOZ_MATHML
         (pseudoClass->mAtom == nsCSSPseudoClasses::mozMathIncrementScriptLevel) ||
 #endif
@@ -2226,9 +2208,9 @@ AddRule(RuleValue* aRuleInfo, void* aCascade)
   // Build the rule hash.
   cascade->mRuleHash.PrependRule(aRuleInfo);
 
-  nsTArray<nsCSSSelector*>* stateArray = &cascade->mStateSelectors;
-  nsTArray<nsCSSSelector*>* classArray = &cascade->mClassSelectors;
-  nsTArray<nsCSSSelector*>* idArray = &cascade->mIDSelectors;
+  nsVoidArray* stateArray = &cascade->mStateSelectors;
+  nsVoidArray* classArray = &cascade->mClassSelectors;
+  nsVoidArray* idArray = &cascade->mIDSelectors;
   
   for (nsCSSSelector* selector = aRuleInfo->mSelector;
            selector; selector = selector->mNext) {
@@ -2259,7 +2241,7 @@ AddRule(RuleValue* aRuleInfo, void* aCascade)
       // Build mAttributeSelectors.
       for (nsAttrSelector *attr = negation->mAttrList; attr;
            attr = attr->mNext) {
-        nsTArray<nsCSSSelector*> *array = cascade->AttributeListFor(attr->mAttr);
+        nsVoidArray *array = cascade->AttributeListFor(attr->mAttr);
         if (!array)
           return PR_FALSE;
         array->AppendElement(selector);
@@ -2306,15 +2288,11 @@ static PLDHashTableOps gRulesByWeightOps = {
 
 struct CascadeEnumData {
   CascadeEnumData(nsPresContext* aPresContext,
-                  nsTArray<nsFontFaceRuleContainer>& aFontFaceRules,
                   nsMediaQueryResultCacheKey& aKey,
-                  PLArenaPool& aArena,
-                  PRUint8 aSheetType)
+                  PLArenaPool& aArena)
     : mPresContext(aPresContext),
-      mFontFaceRules(aFontFaceRules),
       mCacheKey(aKey),
-      mArena(aArena),
-      mSheetType(aSheetType)
+      mArena(aArena)
   {
     if (!PL_DHashTableInit(&mRulesByWeight, &gRulesByWeightOps, nsnull,
                           sizeof(RuleByWeightEntry), 64))
@@ -2328,25 +2306,140 @@ struct CascadeEnumData {
   }
 
   nsPresContext* mPresContext;
-  nsTArray<nsFontFaceRuleContainer>& mFontFaceRules;
   nsMediaQueryResultCacheKey& mCacheKey;
   // Hooray, a manual PLDHashTable since nsClassHashtable doesn't
   // provide a getter that gives me a *reference* to the value.
   PLDHashTable mRulesByWeight; // of RuleValue* linked lists (?)
   PLArenaPool& mArena;
-  PRUint8 mSheetType;
 };
 
-/*
- * This enumerates style rules in a sheet (and recursively into any
- * grouping rules) in order to:
- *  (1) add any style rules, in order, into data->mRulesByWeight (for
- *      the primary CSS cascade), where they are separated by weight
- *      but kept in order per-weight, and
- *  (2) add any @font-face rules, in order, into data->mFontFaceRules.
- */
+static void
+InsertFontFaceRule(nsICSSRule* aRule, gfxUserFontSet* fs)
+{
+  nsCSSFontFaceRule *fontFace = static_cast<nsCSSFontFaceRule*> (aRule);
+  PRInt32 type;
+  NS_ASSERTION(NS_SUCCEEDED(aRule->GetType(type)) 
+               && type == nsICSSRule::FONT_FACE_RULE, 
+               "InsertFontFaceRule passed a non-fontface CSS rule");
+  
+  // fontFace->List();
+  
+  nsAutoString fontfamily, valueString;
+  nsCSSValue val;
+  
+  PRUint32 unit;
+  PRUint32 weight = NS_STYLE_FONT_WEIGHT_NORMAL;
+  PRUint32 stretch = NS_STYLE_FONT_STRETCH_NORMAL;
+  PRUint32 italicStyle = FONT_STYLE_NORMAL;
+  
+  // set up family name
+  fontFace->GetDesc(eCSSFontDesc_Family, val);
+  unit = val.GetUnit();
+  if (unit == eCSSUnit_String) {
+    val.GetStringValue(fontfamily);
+    fontfamily.Trim("\"");
+  } else {
+    NS_ASSERTION(unit == eCSSUnit_String, 
+                 "@font-face family name has non-string unit type");
+    return;
+  }
+  
+  // set up weight
+  fontFace->GetDesc(eCSSFontDesc_Weight, val);
+  unit = val.GetUnit();
+  if (unit != eCSSUnit_Null) {
+    if (unit == eCSSUnit_Normal) {
+      weight = NS_STYLE_FONT_WEIGHT_NORMAL;
+    } else {
+      weight = val.GetIntValue();
+    }
+  }
+  
+  // set up stretch
+  fontFace->GetDesc(eCSSFontDesc_Stretch, val);
+  unit = val.GetUnit();
+  if (unit != eCSSUnit_Null) {
+    if (unit == eCSSUnit_Normal) {
+      stretch = NS_STYLE_FONT_STRETCH_NORMAL;
+    } else {
+      stretch = val.GetIntValue();
+    }
+  }
+  
+  // set up font style
+  fontFace->GetDesc(eCSSFontDesc_Style, val);
+  if (val.GetUnit() != eCSSUnit_Null) {
+    if (val.GetUnit() == eCSSUnit_Normal) {
+      italicStyle = FONT_STYLE_NORMAL;
+    } else {
+      italicStyle = val.GetIntValue();
+    }
+  }
+  
+  // set up src array
+  nsTArray<gfxFontFaceSrc> srcArray;
+
+  fontFace->GetDesc(eCSSFontDesc_Src, val);
+  unit = val.GetUnit();
+  if (unit == eCSSUnit_Array) {
+    nsCSSValue::Array *srcArr = val.GetArrayValue();
+    PRUint32 i, numSrc = srcArr->Count(), faceIndex = 0;
+    
+    for (i = 0; i < numSrc; i++) {
+      val = srcArr->Item(i);
+      unit = val.GetUnit();
+      gfxFontFaceSrc *face = srcArray.AppendElements(1);
+      if (!face)
+        return;
+            
+      switch (unit) {
+       
+      case eCSSUnit_Local_Font:
+        val.GetStringValue(face->mLocalName);
+        face->mIsLocal = PR_TRUE;
+        face->mURI = nsnull;
+        face->mFormatFlags = 0;
+        break;
+      case eCSSUnit_URL:
+        face->mIsLocal = PR_FALSE;
+        face->mURI = val.GetURLValue();
+        NS_ASSERTION(face->mURI, "null url in @font-face rule");
+        face->mReferrer = val.GetURLStructValue()->mReferrer;
+        face->mLocalName.Truncate();
+        face->mFormatFlags = 0;
+        while (i + 1 < numSrc && (val = srcArr->Item(i+1), 
+                 val.GetUnit() == eCSSUnit_Font_Format)) {
+          nsDependentString valueString(val.GetStringBufferValue());
+          if (valueString.LowerCaseEqualsASCII("opentype")) {
+            face->mFormatFlags |= gfxUserFontSet::FLAG_FORMAT_OPENTYPE; 
+          } else if (valueString.LowerCaseEqualsASCII("truetype")) {
+            face->mFormatFlags |= gfxUserFontSet::FLAG_FORMAT_TRUETYPE; 
+          } else if (valueString.LowerCaseEqualsASCII("truetype-aat")) {
+            face->mFormatFlags |= gfxUserFontSet::FLAG_FORMAT_TRUETYPE_AAT; 
+          } else if (valueString.LowerCaseEqualsASCII("embedded-opentype")) {
+            face->mFormatFlags |= gfxUserFontSet::FLAG_FORMAT_EOT;   
+          } else if (valueString.LowerCaseEqualsASCII("svg")) {
+            face->mFormatFlags |= gfxUserFontSet::FLAG_FORMAT_SVG;   
+          }
+          i++;
+        }
+        break;
+      default:
+        NS_ASSERTION(unit == eCSSUnit_Local_Font || unit == eCSSUnit_URL,
+                     "strange unit type in font-face src array");
+        break;
+      }
+     }
+  }
+  
+  if (!fontfamily.IsEmpty() && srcArray.Length() > 0) {
+    fs->AddFontFace(fontfamily, srcArray, weight, stretch, italicStyle);
+  }
+  
+}
+
 static PRBool
-CascadeRuleEnumFunc(nsICSSRule* aRule, void* aData)
+InsertRuleByWeight(nsICSSRule* aRule, void* aData)
 {
   CascadeEnumData* data = (CascadeEnumData*)aData;
   PRInt32 type = nsICSSRule::UNKNOWN_RULE;
@@ -2375,23 +2468,33 @@ CascadeRuleEnumFunc(nsICSSRule* aRule, void* aData)
            nsICSSRule::DOCUMENT_RULE == type) {
     nsICSSGroupRule* groupRule = (nsICSSGroupRule*)aRule;
     if (groupRule->UseForPresentation(data->mPresContext, data->mCacheKey))
-      if (!groupRule->EnumerateRulesForwards(CascadeRuleEnumFunc, aData))
+      if (!groupRule->EnumerateRulesForwards(InsertRuleByWeight, aData))
         return PR_FALSE;
   }
-  else if (nsICSSRule::FONT_FACE_RULE == type) {
-    nsCSSFontFaceRule *fontFaceRule = static_cast<nsCSSFontFaceRule*>(aRule);
-    nsFontFaceRuleContainer *ptr = data->mFontFaceRules.AppendElement();
-    if (!ptr)
-      return PR_FALSE;
-    ptr->mRule = fontFaceRule;
-    ptr->mSheetType = data->mSheetType;
+  else if (nsICSSRule::FONT_FACE_RULE == type 
+             && gfxPlatform::GetPlatform()->DownloadableFontsEnabled()) {
+    nsPresContext *presContext = data->mPresContext;
+    gfxUserFontSet *fs = presContext->GetUserFontSet();
+    if (!fs) {
+      nsFontFaceLoaderContext *loaderCtx = new nsFontFaceLoaderContext(presContext);
+      if (!loaderCtx)
+        return PR_FALSE;
+      fs = new gfxUserFontSet(loaderCtx); // user font set owns loader context
+      if (!fs) {
+        delete loaderCtx;
+        return PR_FALSE;
+      }
+      presContext->SetUserFontSet(fs);
+    }
+    
+    InsertFontFaceRule(aRule, fs);
   }
 
   return PR_TRUE;
 }
 
 /* static */ PRBool
-nsCSSRuleProcessor::CascadeSheetEnumFunc(nsICSSStyleSheet* aSheet, void* aData)
+nsCSSRuleProcessor::CascadeSheetRulesInto(nsICSSStyleSheet* aSheet, void* aData)
 {
   nsCSSStyleSheet*  sheet = static_cast<nsCSSStyleSheet*>(aSheet);
   CascadeEnumData* data = static_cast<CascadeEnumData*>(aData);
@@ -2403,12 +2506,11 @@ nsCSSRuleProcessor::CascadeSheetEnumFunc(nsICSSStyleSheet* aSheet, void* aData)
       sheet->mInner) {
     nsCSSStyleSheet* child = sheet->mInner->mFirstChild;
     while (child) {
-      CascadeSheetEnumFunc(child, data);
+      CascadeSheetRulesInto(child, data);
       child = child->mNext;
     }
 
-    if (!sheet->mInner->mOrderedRules.EnumerateForwards(CascadeRuleEnumFunc,
-                                                        data))
+    if (!sheet->mInner->mOrderedRules.EnumerateForwards(InsertRuleByWeight, data))
       return PR_FALSE;
   }
   return PR_TRUE;
@@ -2490,13 +2592,11 @@ nsCSSRuleProcessor::RefreshRuleCascade(nsPresContext* aPresContext)
       new RuleCascadeData(aPresContext->Medium(),
                           eCompatibility_NavQuirks == aPresContext->CompatibilityMode()));
     if (newCascade) {
-      CascadeEnumData data(aPresContext, newCascade->mFontFaceRules,
-                           newCascade->mCacheKey,
-                           newCascade->mRuleHash.Arena(),
-                           mSheetType);
+      CascadeEnumData data(aPresContext, newCascade->mCacheKey,
+                           newCascade->mRuleHash.Arena());
       if (!data.mRulesByWeight.ops)
         return; /* out of memory */
-      if (!mSheets.EnumerateForwards(CascadeSheetEnumFunc, &data))
+      if (!mSheets.EnumerateForwards(CascadeSheetRulesInto, &data))
         return; /* out of memory */
 
       // Sort the hash table of per-weight linked lists by weight.

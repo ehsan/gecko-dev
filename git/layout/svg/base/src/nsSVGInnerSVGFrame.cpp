@@ -48,26 +48,25 @@
 typedef nsSVGDisplayContainerFrame nsSVGInnerSVGFrameBase;
 
 class nsSVGInnerSVGFrame : public nsSVGInnerSVGFrameBase,
+                           public nsISVGValueObserver,
                            public nsISVGSVGFrame
 {
   friend nsIFrame*
-  NS_NewSVGInnerSVGFrame(nsIPresShell* aPresShell, nsStyleContext* aContext);
+  NS_NewSVGInnerSVGFrame(nsIPresShell* aPresShell, nsIContent* aContent, nsStyleContext* aContext);
 protected:
   nsSVGInnerSVGFrame(nsStyleContext* aContext) :
     nsSVGInnerSVGFrameBase(aContext) {}
   
-public:
-  NS_DECL_QUERYFRAME
+   // nsISupports interface:
+  NS_IMETHOD QueryInterface(const nsIID& aIID, void** aInstancePtr);
+private:
+  NS_IMETHOD_(nsrefcnt) AddRef() { return 1; }
+  NS_IMETHOD_(nsrefcnt) Release() { return 1; }
 
+public:
   // We don't define an AttributeChanged method since changes to the
   // 'x', 'y', 'width' and 'height' attributes of our content object
   // are handled in nsSVGSVGElement::DidModifySVGObservable
-
-#ifdef DEBUG
-  NS_IMETHOD Init(nsIContent*      aContent,
-                  nsIFrame*        aParent,
-                  nsIFrame*        aPrevInFlow);
-#endif
 
   /**
    * Get the "type" of the frame
@@ -91,6 +90,12 @@ public:
   // nsSVGContainerFrame methods:
   virtual already_AddRefed<nsIDOMSVGMatrix> GetCanvasTM();
 
+  // nsISVGValueObserver
+  NS_IMETHOD WillModifySVGObservable(nsISVGValue* observable,
+                                     nsISVGValue::modificationType aModType);
+  NS_IMETHOD DidModifySVGObservable (nsISVGValue* observable,
+                                     nsISVGValue::modificationType aModType);
+
   // nsISupportsWeakReference
   // implementation inherited from nsSupportsWeakReference
 
@@ -108,30 +113,29 @@ protected:
 // Implementation
 
 nsIFrame*
-NS_NewSVGInnerSVGFrame(nsIPresShell* aPresShell, nsStyleContext* aContext)
+NS_NewSVGInnerSVGFrame(nsIPresShell* aPresShell, nsIContent* aContent, nsStyleContext* aContext)
 {
+  nsCOMPtr<nsIDOMSVGSVGElement> svg = do_QueryInterface(aContent);
+  if (!svg) {
+    NS_ERROR("Can't create frame! Content is not an SVG 'svg' element!");
+    return nsnull;
+  }
+
   return new (aPresShell) nsSVGInnerSVGFrame(aContext);
 }
 
 //----------------------------------------------------------------------
+// nsISupports methods
+
+NS_INTERFACE_MAP_BEGIN(nsSVGInnerSVGFrame)
+  NS_INTERFACE_MAP_ENTRY(nsISVGValueObserver)
+  NS_INTERFACE_MAP_ENTRY(nsISupportsWeakReference)
+  NS_INTERFACE_MAP_ENTRY(nsISVGSVGFrame)
+NS_INTERFACE_MAP_END_INHERITING(nsSVGInnerSVGFrameBase)
+
+
+//----------------------------------------------------------------------
 // nsIFrame methods
-
-NS_QUERYFRAME_HEAD(nsSVGInnerSVGFrame)
-  NS_QUERYFRAME_ENTRY(nsISVGSVGFrame)
-NS_QUERYFRAME_TAIL_INHERITING(nsSVGInnerSVGFrameBase)
-
-#ifdef DEBUG
-NS_IMETHODIMP
-nsSVGInnerSVGFrame::Init(nsIContent* aContent,
-                         nsIFrame* aParent,
-                         nsIFrame* aPrevInFlow)
-{
-  nsCOMPtr<nsIDOMSVGSVGElement> svg = do_QueryInterface(aContent);
-  NS_ASSERTION(svg, "Content is not an SVG 'svg' element!");
-
-  return nsSVGInnerSVGFrameBase::Init(aContent, aParent, aPrevInFlow);
-}
-#endif /* DEBUG */
 
 nsIAtom *
 nsSVGInnerSVGFrame::GetType() const
@@ -348,3 +352,20 @@ nsSVGInnerSVGFrame::GetCanvasTM()
   return retval;
 }
 
+//----------------------------------------------------------------------
+// nsISVGValueObserver methods:
+
+NS_IMETHODIMP
+nsSVGInnerSVGFrame::WillModifySVGObservable(nsISVGValue* observable,
+                                            nsISVGValue::modificationType aModType)
+{
+  return NS_OK;
+}
+	
+NS_IMETHODIMP
+nsSVGInnerSVGFrame::DidModifySVGObservable (nsISVGValue* observable,
+                                            nsISVGValue::modificationType aModType)
+{
+  NotifyViewportChange();
+  return NS_OK;
+}

@@ -53,7 +53,6 @@
 
 // DOMWorker includes
 #include "nsDOMThreadService.h"
-#include "nsDOMWorkerSecurityManager.h"
 
 #define LOG(_args) PR_LOG(gDOMThreadsLog, PR_LOG_DEBUG, _args)
 
@@ -74,38 +73,63 @@ static const char* kSetTimeoutStr = "setTimeout";
 nsDOMWorkerTimeout::FunctionCallback::FunctionCallback(PRUint32 aArgc,
                                                        jsval* aArgv,
                                                        nsresult* aRv)
-: mCallbackArgsLength(0)
+: mCallback(nsnull),
+  mCallbackArgs(nsnull),
+  mCallbackArgsLength(0),
+  mRuntime(NULL)
 {
   MOZ_COUNT_CTOR(nsDOMWorkerTimeout::FunctionCallback);
 
-  JSRuntime* rt;
-  *aRv = nsDOMThreadService::JSRuntimeService()->GetRuntime(&rt);
+  *aRv = nsDOMThreadService::JSRuntimeService()->GetRuntime(&mRuntime);
   NS_ENSURE_SUCCESS(*aRv,);
 
-  JSBool ok = mCallback.Hold(rt);
-  CONSTRUCTOR_ENSURE_TRUE(ok, *aRv);
+  PRBool success = JS_AddNamedRootRT(mRuntime, &mCallback,
+                                     "nsDOMWorkerTimeout Callback Object");
+  CONSTRUCTOR_ENSURE_TRUE(success, *aRv);
 
   mCallback = aArgv[0];
 
   // We want enough space for an extra lateness arg.
   mCallbackArgsLength = aArgc > 2 ? aArgc - 1 : 1;
 
-  PRBool success = mCallbackArgs.SetLength(mCallbackArgsLength);
-  CONSTRUCTOR_ENSURE_TRUE(success, *aRv);
+  mCallbackArgs = new jsval[mCallbackArgsLength];
+  if (NS_UNLIKELY(!mCallbackArgs)) {
+    // Reset this!
+    mCallbackArgsLength = 0;
 
-  PRUint32 index = 0;
-  for (; index < mCallbackArgsLength - 1; index++) {
-    ok = mCallbackArgs[index].Hold(rt);
-    CONSTRUCTOR_ENSURE_TRUE(ok, *aRv);
+    NS_ERROR("Out of memory!");
+    *aRv = NS_ERROR_OUT_OF_MEMORY;
+    return;
+  }
 
-    mCallbackArgs[index] = aArgv[index + 2];
+  for (PRUint32 i = 0; i < mCallbackArgsLength - 1; i++) {
+    mCallbackArgs[i] = aArgv[i + 2];
+    success = JS_AddNamedRootRT(mRuntime, &mCallbackArgs[i],
+                                "nsDOMWorkerTimeout Callback Arg");
+    if (NS_UNLIKELY(!success)) {
+      // Set this to i so that the destructor only unroots the right number of
+      // values.
+      mCallbackArgsLength = i;
+
+      NS_WARNING("Failed to add root!");
+      *aRv = NS_ERROR_FAILURE;
+      return;
+    }
   }
 
   // Take care of the last arg.
-  index = mCallbackArgsLength - 1;
+  mCallbackArgs[mCallbackArgsLength - 1] = 0;
+  success = JS_AddNamedRootRT(mRuntime, &mCallbackArgs[mCallbackArgsLength - 1],
+                              "nsDOMWorkerTimeout Callback Final Arg");
+  if (NS_UNLIKELY(!success)) {
+    // Decrement this so that the destructor only unroots the right number of
+    // values.
+    mCallbackArgsLength -= 1;
 
-  ok = mCallbackArgs[index].Hold(rt);
-  CONSTRUCTOR_ENSURE_TRUE(ok, *aRv);
+    NS_WARNING("Failed to add root!");
+    *aRv = NS_ERROR_FAILURE;
+    return;
+  }
 
   *aRv = NS_OK;
 }
@@ -113,6 +137,15 @@ nsDOMWorkerTimeout::FunctionCallback::FunctionCallback(PRUint32 aArgc,
 nsDOMWorkerTimeout::FunctionCallback::~FunctionCallback()
 {
   MOZ_COUNT_DTOR(nsDOMWorkerTimeout::FunctionCallback);
+
+  if (mCallback) {
+    for (PRUint32 i = 0; i < mCallbackArgsLength; i++) {
+      JS_RemoveRootRT(mRuntime, &mCallbackArgs[i]);
+    }
+    JS_RemoveRootRT(mRuntime, &mCallback);
+  }
+
+  delete [] mCallbackArgs;
 }
 
 nsresult
@@ -126,19 +159,11 @@ nsDOMWorkerTimeout::FunctionCallback::Run(nsDOMWorkerTimeout* aTimeout,
   JSObject* global = JS_GetGlobalObject(aCx);
   NS_ENSURE_TRUE(global, NS_ERROR_FAILURE);
 
-  nsTArray<jsval> argv;
-  PRBool success = argv.SetCapacity(mCallbackArgsLength);
-  NS_ENSURE_TRUE(success, NS_ERROR_OUT_OF_MEMORY);
-
-  for (PRUint32 index = 0; index < mCallbackArgsLength; index++) {
-    argv.AppendElement(mCallbackArgs[index]);
-  }
-
   jsval rval;
-  JSBool ok =
+  PRBool success =
     JS_CallFunctionValue(aCx, global, mCallback, mCallbackArgsLength,
-                         argv.Elements(), &rval);
-  NS_ENSURE_TRUE(ok, NS_ERROR_FAILURE);
+                         mCallbackArgs, &rval);
+  NS_ENSURE_TRUE(success, NS_ERROR_FAILURE);
 
   return NS_OK;
 }
@@ -147,7 +172,9 @@ nsDOMWorkerTimeout::ExpressionCallback::ExpressionCallback(PRUint32 aArgc,
                                                            jsval* aArgv,
                                                            JSContext* aCx,
                                                            nsresult* aRv)
-: mLineNumber(0)
+: mExpression(nsnull),
+  mLineNumber(0),
+  mRuntime(NULL)
 {
   MOZ_COUNT_CTOR(nsDOMWorkerTimeout::ExpressionCallback);
 
@@ -155,20 +182,20 @@ nsDOMWorkerTimeout::ExpressionCallback::ExpressionCallback(PRUint32 aArgc,
   *aRv = expr ? NS_OK : NS_ERROR_FAILURE;
   NS_ENSURE_SUCCESS(*aRv,);
 
-  JSRuntime* rt;
-  *aRv = nsDOMThreadService::JSRuntimeService()->GetRuntime(&rt);
+  *aRv = nsDOMThreadService::JSRuntimeService()->GetRuntime(&mRuntime);
   NS_ENSURE_SUCCESS(*aRv,);
 
-  JSBool ok = mExpression.Hold(rt);
-  CONSTRUCTOR_ENSURE_TRUE(ok, *aRv);
+  PRBool success = JS_AddNamedRootRT(mRuntime, &mExpression,
+                                     "nsDOMWorkerTimeout Expression");
+  CONSTRUCTOR_ENSURE_TRUE(success, *aRv);
 
-  mExpression = aArgv[0];
+  mExpression = expr;
 
   // Get the calling location.
   const char* fileName;
   PRUint32 lineNumber;
   if (nsJSUtils::GetCallingLocation(aCx, &fileName, &lineNumber, nsnull)) {
-    mFileName.Assign(fileName);
+    CopyUTF8toUTF16(nsDependentCString(fileName), mFileName);
     mLineNumber = lineNumber;
   }
 
@@ -178,36 +205,18 @@ nsDOMWorkerTimeout::ExpressionCallback::ExpressionCallback(PRUint32 aArgc,
 nsDOMWorkerTimeout::ExpressionCallback::~ExpressionCallback()
 {
   MOZ_COUNT_DTOR(nsDOMWorkerTimeout::ExpressionCallback);
+
+  if (mExpression) {
+    JS_RemoveRootRT(mRuntime, &mExpression);
+  }
 }
 
 nsresult
 nsDOMWorkerTimeout::ExpressionCallback::Run(nsDOMWorkerTimeout* aTimeout,
                                             JSContext* aCx)
 {
-  JSObject* global = JS_GetGlobalObject(aCx);
-  NS_ENSURE_TRUE(global, NS_ERROR_FAILURE);
-
-  JSPrincipals* principal = nsDOMWorkerSecurityManager::WorkerPrincipal();
-  NS_ENSURE_TRUE(principal, NS_ERROR_FAILURE);
-
-  JSString* expression = JS_ValueToString(aCx, mExpression);
-  NS_ENSURE_TRUE(expression, NS_ERROR_FAILURE);
-
-  jschar* string = JS_GetStringChars(expression);
-  NS_ENSURE_TRUE(string, NS_ERROR_FAILURE);
-
-  size_t stringLength = JS_GetStringLength(expression);
-
-  jsval rval;
-  PRBool success = JS_EvaluateUCScriptForPrincipals(aCx, global, principal,
-                                                    string, stringLength,
-                                                    mFileName.get(),
-                                                    mLineNumber, &rval);
-  if (!success) {
-    return NS_ERROR_FAILURE;
-  }
-
-  return NS_OK;
+  NS_ERROR("Not yet implemented!");
+  return NS_ERROR_NOT_IMPLEMENTED;
 }
 
 nsDOMWorkerTimeout::nsDOMWorkerTimeout(nsDOMWorker* aWorker,

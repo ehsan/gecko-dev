@@ -85,9 +85,6 @@ class nsNativeTheme
     return CheckBooleanAttr(aFrame, nsWidgetAtoms::disabled);
   }
 
-  // RTL chrome direction
-  PRBool IsFrameRTL(nsIFrame* aFrame);
-
   // button:
   PRBool IsDefaultButton(nsIFrame* aFrame) {
     return CheckBooleanAttr(aFrame, nsWidgetAtoms::_default);
@@ -114,24 +111,6 @@ class nsNativeTheme
   PRBool IsSelectedTab(nsIFrame* aFrame) {
     return CheckBooleanAttr(aFrame, nsWidgetAtoms::selected);
   }
-  
-  PRBool IsNextToSelectedTab(nsIFrame* aFrame, PRInt32 aOffset);
-  
-  PRBool IsBeforeSelectedTab(nsIFrame* aFrame) {
-    return IsNextToSelectedTab(aFrame, -1);
-  }
-  
-  PRBool IsAfterSelectedTab(nsIFrame* aFrame) {
-    return IsNextToSelectedTab(aFrame, 1);
-  }
-
-  PRBool IsLeftToSelectedTab(nsIFrame* aFrame) {
-    return IsFrameRTL(aFrame) ? IsAfterSelectedTab(aFrame) : IsBeforeSelectedTab(aFrame);
-  }
-
-  PRBool IsRightToSelectedTab(nsIFrame* aFrame) {
-    return IsFrameRTL(aFrame) ? IsBeforeSelectedTab(aFrame) : IsAfterSelectedTab(aFrame);
-  }
 
   // toolbarbutton:
   PRBool IsCheckedButton(nsIFrame* aFrame) {
@@ -140,7 +119,6 @@ class nsNativeTheme
 
   // treeheadercell:
   TreeSortDirection GetTreeSortDirection(nsIFrame* aFrame);
-  PRBool IsLastTreeHeaderCell(nsIFrame* aFrame);
 
   // tab:
   PRBool IsBottomTab(nsIFrame* aFrame);
@@ -165,13 +143,9 @@ class nsNativeTheme
       return CheckBooleanAttr(aFrame, nsWidgetAtoms::readonly);
   }
 
-  // menupopup:
-  PRBool IsSubmenu(nsIFrame* aFrame, PRBool* aLeftOfParent);
-
   nsIPresShell *GetPresShell(nsIFrame* aFrame);
   PRInt32 CheckIntAttr(nsIFrame* aFrame, nsIAtom* aAtom, PRInt32 defaultValue);
   PRBool CheckBooleanAttr(nsIFrame* aFrame, nsIAtom* aAtom);
 
   PRBool GetCheckedOrSelected(nsIFrame* aFrame, PRBool aCheckSelected);
-  PRBool GetIndeterminate(nsIFrame* aFrame);
 };

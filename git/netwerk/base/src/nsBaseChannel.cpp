@@ -102,6 +102,7 @@ nsBaseChannel::Redirect(nsIChannel *newChannel, PRUint32 redirectFlags,
 
   // Transfer properties
 
+  newChannel->SetOriginalURI(OriginalURI());
   newChannel->SetLoadGroup(mLoadGroup);
   newChannel->SetNotificationCallbacks(mCallbacks);
   newChannel->SetLoadFlags(mLoadFlags | LOAD_REPLACE);
@@ -143,9 +144,6 @@ nsBaseChannel::Redirect(nsIChannel *newChannel, PRUint32 redirectFlags,
     if (NS_FAILED(rv))
       return rv;
   }
-
-  // Make sure to do this _after_ making all the  OnChannelRedirect calls
-  newChannel->SetOriginalURI(OriginalURI());
 
   // If we fail to open the new channel, then we want to leave this channel
   // unaffected, so we defer tearing down our channel until we have succeeded
@@ -257,8 +255,7 @@ nsBaseChannel::HandleAsyncRedirect(nsIChannel* newChannel)
   NS_ASSERTION(!mPump, "Shouldn't have gotten here");
   PRBool doNotify = PR_TRUE;
   if (NS_SUCCEEDED(mStatus)) {
-      nsresult rv = Redirect(newChannel,
-                             nsIChannelEventSink::REDIRECT_TEMPORARY,
+      nsresult rv = Redirect(newChannel, nsIChannelEventSink::REDIRECT_INTERNAL,
                              PR_TRUE);
       if (NS_FAILED(rv))
           Cancel(rv);

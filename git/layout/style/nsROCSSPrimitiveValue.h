@@ -110,14 +110,30 @@ public:
     SetAppUnits(NSToCoordRound(aValue));
   }
 
+  void SetIdent(nsIAtom* aAtom)
+  {
+    NS_PRECONDITION(aAtom, "Don't pass in a null atom");
+    Reset();
+    NS_ADDREF(mValue.mAtom = aAtom);
+    mType = CSS_IDENT;
+  }
+
+  // FIXME More callers should use this variant.
   void SetIdent(nsCSSKeyword aKeyword)
   {
-    NS_PRECONDITION(aKeyword != eCSSKeyword_UNKNOWN &&
-                    0 <= aKeyword && aKeyword < eCSSKeyword_COUNT,
-                    "bad keyword");
+    SetIdent(nsCSSKeywords::GetStringValue(aKeyword));
+  }
+
+  void SetIdent(const nsACString& aString)
+  {
     Reset();
-    mValue.mKeyword = aKeyword;
-    mType = CSS_IDENT;
+    mValue.mAtom = NS_NewAtom(aString);
+    if (mValue.mAtom) {
+      mType = CSS_IDENT;
+    } else {
+      // XXXcaa We should probably let the caller know we are out of memory
+      mType = CSS_UNKNOWN;
+    }
   }
 
   // FIXME: CSS_STRING should imply a string with "" and a need for escaping.
@@ -186,6 +202,8 @@ public:
   {
     switch (mType) {
       case CSS_IDENT:
+        NS_ASSERTION(mValue.mAtom, "Null atom should never happen");
+        NS_RELEASE(mValue.mAtom);
         break;
       case CSS_STRING:
       case CSS_ATTR:
@@ -220,7 +238,7 @@ private:
     nsIDOMRect*     mRect;
     PRUnichar*      mString;
     nsIURI*         mURI;
-    nsCSSKeyword    mKeyword;
+    nsIAtom*        mAtom; // FIXME use nsCSSKeyword instead
   } mValue;
   
   PRInt32 mAppUnitsPerInch;

@@ -85,6 +85,8 @@ extern BOOL                gSomeMenuBarPainted;
 
 #define NS_APPSHELLSERVICE_CONTRACTID "@mozilla.org/appshell/appShellService;1"
 
+#define POPUP_DEFAULT_TRANSPARENCY 0.95
+
 NS_IMPL_ISUPPORTS_INHERITED1(nsCocoaWindow, Inherited, nsPIWidgetCocoa)
 
 
@@ -174,7 +176,7 @@ static bool WindowSizeAllowed(PRInt32 aWidth, PRInt32 aHeight)
 // Utility method for implementing both Create(nsIWidget ...) and
 // Create(nsNativeWidget...)
 nsresult nsCocoaWindow::StandardCreate(nsIWidget *aParent,
-                        const nsIntRect &aRect,
+                        const nsRect &aRect,
                         EVENT_CALLBACK aHandleEventFunction,
                         nsIDeviceContext *aContext,
                         nsIAppShell *aAppShell,
@@ -357,6 +359,7 @@ nsresult nsCocoaWindow::StandardCreate(nsIWidget *aParent,
                                    backing:NSBackingStoreBuffered defer:YES];
     
     if (mWindowType == eWindowType_popup) {
+      [mWindow setAlphaValue:POPUP_DEFAULT_TRANSPARENCY];
       [mWindow setLevel:NSPopUpMenuWindowLevel];
       [mWindow setHasShadow:YES];
 
@@ -399,7 +402,7 @@ nsresult nsCocoaWindow::StandardCreate(nsIWidget *aParent,
 
 // Create a nsCocoaWindow using a native window provided by the application
 NS_IMETHODIMP nsCocoaWindow::Create(nsNativeWidget aNativeWindow,
-                      const nsIntRect &aRect,
+                      const nsRect &aRect,
                       EVENT_CALLBACK aHandleEventFunction,
                       nsIDeviceContext *aContext,
                       nsIAppShell *aAppShell,
@@ -412,7 +415,7 @@ NS_IMETHODIMP nsCocoaWindow::Create(nsNativeWidget aNativeWindow,
 
 
 NS_IMETHODIMP nsCocoaWindow::Create(nsIWidget* aParent,
-                      const nsIntRect &aRect,
+                      const nsRect &aRect,
                       EVENT_CALLBACK aHandleEventFunction,
                       nsIDeviceContext *aContext,
                       nsIAppShell *aAppShell,
@@ -630,14 +633,7 @@ NS_IMETHODIMP nsCocoaWindow::Show(PRBool bState)
       [mWindow _setWindowNumber:-1];
       [mWindow _setWindowNumber:windowNumber];
       [mWindow setAcceptsMouseMovedEvents:YES];
-      // For reasons that aren't yet clear, calls to [NSWindow orderFront:] or
-      // [NSWindow makeKeyAndOrderFront:] can sometimes trigger "Error (1000)
-      // creating CGSWindow", which in turn triggers an internal inconsistency
-      // NSException.  These errors shouldn't be fatal.  So we need to wrap
-      // calls to ...orderFront: in LOGONLY blocks.  See bmo bug 470864.
-      NS_OBJC_BEGIN_TRY_LOGONLY_BLOCK;
       [mWindow orderFront:nil];
-      NS_OBJC_END_TRY_LOGONLY_BLOCK;
       SendSetZLevelEvent();
       // If our popup window is a non-native context menu, tell the OS (and
       // other programs) that a menu has opened.  This is how the OS knows to
@@ -659,9 +655,7 @@ NS_IMETHODIMP nsCocoaWindow::Show(PRBool bState)
     }
     else {
       [mWindow setAcceptsMouseMovedEvents:YES];
-      NS_OBJC_BEGIN_TRY_LOGONLY_BLOCK;
       [mWindow makeKeyAndOrderFront:nil];
-      NS_OBJC_END_TRY_LOGONLY_BLOCK;
       SendSetZLevelEvent();
     }
   }
@@ -726,9 +720,7 @@ NS_IMETHODIMP nsCocoaWindow::Show(PRBool bState)
         else {
           // Sheet, that was hard.  No more siblings or parents, going back
           // to a real window.
-          NS_OBJC_BEGIN_TRY_LOGONLY_BLOCK;
           [sheetParent makeKeyAndOrderFront:nil];
-          NS_OBJC_END_TRY_LOGONLY_BLOCK;
           [sheetParent setAcceptsMouseMovedEvents:YES];
         }
         SendSetZLevelEvent();
@@ -798,6 +790,10 @@ void nsCocoaWindow::MakeBackgroundTransparent(PRBool aTransparent)
 
   BOOL currentTransparency = ![mWindow isOpaque];
   if (aTransparent != currentTransparency) {
+    // Popups have an alpha value we need to toggle.
+    if (mWindowType == eWindowType_popup) {
+      [mWindow setAlphaValue:(aTransparent ? 1.0 : POPUP_DEFAULT_TRANSPARENCY)];
+    }
     [mWindow setOpaque:!aTransparent];
     [mWindow setBackgroundColor:(aTransparent ? [NSColor clearColor] : [NSColor whiteColor])];
   }
@@ -937,14 +933,14 @@ NS_IMETHODIMP nsCocoaWindow::Resize(PRInt32 aX, PRInt32 aY, PRInt32 aWidth, PRIn
   if (!WindowSizeAllowed(aWidth, aHeight))
     return NS_ERROR_FAILURE;
 
-  nsIntRect windowBounds(nsCocoaUtils::CocoaRectToGeckoRect([mWindow frame]));
+  nsRect windowBounds(nsCocoaUtils::CocoaRectToGeckoRect([mWindow frame]));
   BOOL isMoving = (windowBounds.x != aX || windowBounds.y != aY);
   BOOL isResizing = (windowBounds.width != aWidth || windowBounds.height != aHeight);
 
   if (IsResizing() || !mWindow || (!isMoving && !isResizing))
     return NS_OK;
 
-  nsIntRect geckoRect(aX, aY, aWidth, aHeight);
+  nsRect geckoRect(aX, aY, aWidth, aHeight);
   NSRect newFrame = nsCocoaUtils::GeckoRectToCocoaRect(geckoRect);
 
   // We have to report the size event -first-, to make sure that content
@@ -984,18 +980,22 @@ NS_IMETHODIMP nsCocoaWindow::Resize(PRInt32 aWidth, PRInt32 aHeight, PRBool aRep
   if (!WindowSizeAllowed(aWidth, aHeight))
     return NS_ERROR_FAILURE;
 
-  nsIntRect windowBounds(nsCocoaUtils::CocoaRectToGeckoRect([mWindow frame]));
+  nsRect windowBounds(nsCocoaUtils::CocoaRectToGeckoRect([mWindow frame]));
   return Resize(windowBounds.x, windowBounds.y, aWidth, aHeight, aRepaint);
 
   NS_OBJC_END_TRY_ABORT_BLOCK_NSRESULT;
 }
 
 
-NS_IMETHODIMP nsCocoaWindow::GetScreenBounds(nsIntRect &aRect)
+NS_IMETHODIMP nsCocoaWindow::GetScreenBounds(nsRect &aRect)
 {
   NS_OBJC_BEGIN_TRY_ABORT_BLOCK_NSRESULT;
 
-  aRect = nsCocoaUtils::CocoaRectToGeckoRect([mWindow frame]);
+  nsRect windowFrame = nsCocoaUtils::CocoaRectToGeckoRect([mWindow frame]);
+  aRect.x = windowFrame.x;
+  aRect.y = windowFrame.y;
+  aRect.width = windowFrame.width;
+  aRect.height = windowFrame.height;
   // printf("GetScreenBounds: output: %d,%d,%d,%d\n", aRect.x, aRect.y, aRect.width, aRect.height);
   return NS_OK;
 
@@ -1023,7 +1023,7 @@ NS_IMETHODIMP nsCocoaWindow::SetTitle(const nsAString& aTitle)
 }
 
 
-NS_IMETHODIMP nsCocoaWindow::Invalidate(const nsIntRect & aRect, PRBool aIsSynchronous)
+NS_IMETHODIMP nsCocoaWindow::Invalidate(const nsRect & aRect, PRBool aIsSynchronous)
 {
   if (mPopupContentView)
     return mPopupContentView->Invalidate(aRect, aIsSynchronous);
@@ -1221,15 +1221,37 @@ NS_IMETHODIMP nsCocoaWindow::ShowMenuBar(PRBool aShow)
 }
 
 
-nsIntPoint nsCocoaWindow::WidgetToScreenOffset()
+NS_IMETHODIMP nsCocoaWindow::WidgetToScreen(const nsRect& aOldRect, nsRect& aNewRect)
 {
-  NS_OBJC_BEGIN_TRY_ABORT_BLOCK_RETURN;
+  NS_OBJC_BEGIN_TRY_ABORT_BLOCK_NSRESULT;
 
-  nsIntRect r = nsCocoaUtils::CocoaRectToGeckoRect([mWindow contentRectForFrameRect:[mWindow frame]]);
+  nsRect r = nsCocoaUtils::CocoaRectToGeckoRect([mWindow contentRectForFrameRect:[mWindow frame]]);
 
-  return r.TopLeft();
+  aNewRect.x = r.x + aOldRect.x;
+  aNewRect.y = r.y + aOldRect.y;
+  aNewRect.width = aOldRect.width;
+  aNewRect.height = aOldRect.height;
 
-  NS_OBJC_END_TRY_ABORT_BLOCK_RETURN(nsIntPoint(0,0));
+  return NS_OK;
+
+  NS_OBJC_END_TRY_ABORT_BLOCK_NSRESULT;
+}
+
+
+NS_IMETHODIMP nsCocoaWindow::ScreenToWidget(const nsRect& aOldRect, nsRect& aNewRect)
+{
+  NS_OBJC_BEGIN_TRY_ABORT_BLOCK_NSRESULT;
+
+  nsRect r = nsCocoaUtils::CocoaRectToGeckoRect([mWindow contentRectForFrameRect:[mWindow frame]]);
+
+  aNewRect.x = aOldRect.x - r.x;
+  aNewRect.y = aOldRect.y - r.y;
+  aNewRect.width = aOldRect.width;
+  aNewRect.height = aOldRect.height;
+
+  return NS_OK;
+
+  NS_OBJC_END_TRY_ABORT_BLOCK_NSRESULT;
 }
 
 
@@ -1552,7 +1574,7 @@ nsCocoaWindow::UnifiedShading(void* aInfo, const float* aIn, float* aOut)
 {
   // Dispatch the move event to Gecko
   nsGUIEvent guiEvent(PR_TRUE, NS_MOVE, mGeckoWindow);
-  nsIntRect rect;
+  nsRect rect;
   mGeckoWindow->GetScreenBounds(rect);
   guiEvent.refPoint.x = rect.x;
   guiEvent.refPoint.y = rect.y;

@@ -431,11 +431,7 @@ nsLocation::SetHash(const nsAString& aHash)
 
   nsCOMPtr<nsIURL> url(do_QueryInterface(uri));
   if (url) {
-    NS_ConvertUTF16toUTF8 hash(aHash);
-    if (hash.IsEmpty() || hash.First() != PRUnichar('#')) {
-      hash.Insert(PRUnichar('#'), 0);
-    }
-    rv = url->SetRef(hash);
+    rv = url->SetRef(NS_ConvertUTF16toUTF8(aHash));
     if (NS_SUCCEEDED(rv)) {
       SetURI(url);
     }

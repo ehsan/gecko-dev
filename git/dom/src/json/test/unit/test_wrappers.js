@@ -58,7 +58,6 @@ function getTestPairs() {
 
   // toJSON on prototype
   var Y = function() {
-    this.not = "there?";
     this.d = "e";
   }
   Y.prototype = {
@@ -85,7 +84,7 @@ function getTestPairs() {
   var X = function() { this.a = "b" }
   X.prototype = {c:"d"}
   var y = new X();
-  testPairs.push(['{"a":"b"}', y]);
+  testPairs.push(['{"a":"b","c":"d"}', y]);
 
   // custom iterator: JS 1.7+
   var x = {
@@ -107,7 +106,11 @@ function testStringEncode() {
     var nativeResult = JSON.stringify(pair[1]);
     var crockfordResult = crockfordJSON.stringify(pair[1]);
     do_check_eq(pair[0], nativeResult);
-    do_check_eq(crockfordResult, nativeResult);
+    
+    // Don't follow json2.js handling of non-objects
+    if (pair[1] && (typeof pair[1] == "object")) {
+      do_check_eq(crockfordResult, nativeResult);
+    }
   }
 }
 

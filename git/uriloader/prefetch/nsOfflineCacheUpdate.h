@@ -102,7 +102,6 @@ public:
 
     nsresult OpenChannel();
     nsresult Cancel();
-    nsresult GetRequestSucceeded(PRBool * succeeded);
 
 private:
     nsOfflineCacheUpdate*          mUpdate;
@@ -204,14 +203,7 @@ private:
     nsCString mOldManifestHashValue;
 };
 
-class nsOfflineCacheUpdateOwner
-{
-public:
-    virtual nsresult UpdateFinished(nsOfflineCacheUpdate *aUpdate) = 0;
-};
-
 class nsOfflineCacheUpdate : public nsIOfflineCacheUpdate
-                           , public nsOfflineCacheUpdateOwner
 {
 public:
     NS_DECL_ISUPPORTS
@@ -231,10 +223,6 @@ public:
     void ManifestCheckCompleted(nsresult aStatus,
                                 const nsCString &aManifestHash);
     void AddDocument(nsIDOMDocument *aDocument);
-
-    void SetOwner(nsOfflineCacheUpdateOwner *aOwner);
-
-    virtual nsresult UpdateFinished(nsOfflineCacheUpdate *aUpdate);
 
 private:
     nsresult HandleManifest(PRBool *aDoUpdate);
@@ -269,8 +257,6 @@ private:
         STATE_FINISHED
     } mState;
 
-    nsOfflineCacheUpdateOwner *mOwner;
-
     PRPackedBool mAddedItems;
     PRPackedBool mPartialUpdate;
     PRPackedBool mSucceeded;
@@ -303,15 +289,12 @@ private:
     /* Reschedule count.  When an update is rescheduled due to
      * mismatched manifests, the reschedule count will be increased. */
     PRUint32 mRescheduleCount;
-
-    nsRefPtr<nsOfflineCacheUpdate> mImplicitUpdate;
 };
 
 class nsOfflineCacheUpdateService : public nsIOfflineCacheUpdateService
                                   , public nsIWebProgressListener
                                   , public nsIObserver
                                   , public nsSupportsWeakReference
-                                  , public nsOfflineCacheUpdateOwner
 {
 public:
     NS_DECL_ISUPPORTS
@@ -330,7 +313,7 @@ public:
                       nsIDOMDocument *aDocument,
                       nsIOfflineCacheUpdate **aUpdate);
 
-    virtual nsresult UpdateFinished(nsOfflineCacheUpdate *aUpdate);
+    nsresult UpdateFinished(nsOfflineCacheUpdate *aUpdate);
 
     /**
      * Returns the singleton nsOfflineCacheUpdateService without an addref, or

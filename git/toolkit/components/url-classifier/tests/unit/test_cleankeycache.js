@@ -176,22 +176,6 @@ function testResetFullCache() {
   var t = new Timer(3000, runInitialLookup);
 }
 
-function testBug475436() {
-  var addUrls = [ "foo.com/a", "www.foo.com/" ];
-  var update = buildPhishingUpdate(
-        [
-          { "chunkNum" : 1,
-            "urls" : addUrls
-          }]);
-
-  var assertions = {
-    "tableData" : "test-phish-simple;a:1",
-    "urlsExist" : ["foo.com/a", "foo.com/a" ]
-  };
-
-  doUpdateTest([update], assertions, runNextTest, updateError);
-}
-
 function run_test()
 {
   runTests([
@@ -202,7 +186,6 @@ function run_test()
              testCleanHostKeys,
              testDirtyHostKeys,
              testResetFullCache,
-             testBug475436
   ]);
 }
 

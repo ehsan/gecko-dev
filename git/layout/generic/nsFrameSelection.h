@@ -214,8 +214,7 @@ public:
   enum HINT { HINTLEFT = 0, HINTRIGHT = 1};  //end of this line or beginning of next
   /*interfaces for addref and release and queryinterface*/
   
-  NS_DECL_CYCLE_COLLECTING_ISUPPORTS
-  NS_DECL_CYCLE_COLLECTION_CLASS(nsFrameSelection)
+  NS_DECL_ISUPPORTS
 
   /** Init will initialize the frame selector with the necessary pres shell to 
    *  be used by most of the methods
@@ -298,7 +297,6 @@ public:
    *  @param aPoint is relative to the view.
    *  @param aDelay is the timer's interval.
    */
-  /*unsafe*/
   nsresult StartAutoScrollTimer(nsIView *aView,
                                 nsPoint aPoint,
                                 PRUint32 aDelay);
@@ -354,7 +352,6 @@ public:
    * @param aIsSynchronous when PR_TRUE, scrolls the selection into view
    * at some point after the method returns.request which is processed
    */
-  /*unsafe*/
   nsresult ScrollSelectionIntoView(SelectionType aType,
                                    SelectionRegion aRegion,
                                    PRBool aIsSynchronous) const;
@@ -552,6 +549,7 @@ public:
 
 
   nsFrameSelection();
+  virtual ~nsFrameSelection();
 
   void StartBatchChanges();
   void EndBatchChanges();
@@ -560,7 +558,7 @@ public:
 
   nsIPresShell *GetShell()const  { return mShell; }
 
-  void DisconnectFromPresShell() { StopAutoScrollTimer(); mShell = nsnull; }
+  void DisconnectFromPresShell() { mShell = nsnull; }
 private:
   nsresult TakeFocus(nsIContent *aNewFocus,
                      PRUint32 aContentOffset,
@@ -615,7 +613,7 @@ private:
   // so remember to use nsCOMPtr when needed.
   nsresult     NotifySelectionListeners(SelectionType aType);     // add parameters to say collapsed etc?
 
-  nsRefPtr<nsTypedSelection> mDomSelections[nsISelectionController::NUM_SELECTIONTYPES];
+  nsTypedSelection *mDomSelections[nsISelectionController::NUM_SELECTIONTYPES];
 
   // Table selection support.
   // Interfaces that let us get info based on cellmap locations

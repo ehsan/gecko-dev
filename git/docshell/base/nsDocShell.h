@@ -148,8 +148,6 @@ protected:
 class nsClassifierCallback : public nsIChannelClassifier
                            , public nsIURIClassifierCallback
                            , public nsIRunnable
-                           , public nsIChannelEventSink
-                           , public nsIInterfaceRequestor
 {
 public:
     nsClassifierCallback() {}
@@ -159,16 +157,13 @@ public:
     NS_DECL_NSICHANNELCLASSIFIER
     NS_DECL_NSIURICLASSIFIERCALLBACK
     NS_DECL_NSIRUNNABLE
-    NS_DECL_NSICHANNELEVENTSINK
-    NS_DECL_NSIINTERFACEREQUESTOR
 
 private:
     nsCOMPtr<nsIChannel> mChannel;
     nsCOMPtr<nsIChannel> mSuspendedChannel;
-    nsCOMPtr<nsIInterfaceRequestor> mNotificationCallbacks;
 
     void MarkEntryClassified(nsresult status);
-    PRBool HasBeenClassified(nsIChannel *aChannel);
+    PRBool HasBeenClassified();
 };
 
 //*****************************************************************************
@@ -192,8 +187,7 @@ class nsDocShell : public nsDocLoader,
                    public nsIWebPageDescriptor,
                    public nsIAuthPromptProvider,
                    public nsIObserver,
-                   public nsILoadContext,
-                   public nsIDocShell_MOZILLA_1_9_1
+                   public nsILoadContext
 {
 friend class nsDSURIContentListener;
 
@@ -223,7 +217,6 @@ public:
     NS_DECL_NSIAUTHPROMPTPROVIDER
     NS_DECL_NSIOBSERVER
     NS_DECL_NSILOADCONTEXT
-    NS_DECL_NSIDOCSHELL_MOZILLA_1_9_1
 
     NS_IMETHOD Stop() {
         // Need this here because otherwise nsIWebNavigation::Stop
@@ -329,10 +322,7 @@ protected:
     // In this case it is the caller's responsibility to ensure
     // FireOnLocationChange is called.
     // In all other cases PR_FALSE is returned.
-    // Either aChannel or aOwner must be null.  If aChannel is
-    // present, the owner should be gotten from it.
-    PRBool OnNewURI(nsIURI * aURI, nsIChannel * aChannel, nsISupports* aOwner,
-                    PRUint32 aLoadType,
+    PRBool OnNewURI(nsIURI * aURI, nsIChannel * aChannel, PRUint32 aLoadType,
                     PRBool aFireOnLocationChange,
                     PRBool aAddToGlobalHistory = PR_TRUE);
 
@@ -340,11 +330,8 @@ protected:
 
     // Session History
     virtual PRBool ShouldAddToSessionHistory(nsIURI * aURI);
-    // Either aChannel or aOwner must be null.  If aChannel is
-    // present, the owner should be gotten from it.
     virtual nsresult AddToSessionHistory(nsIURI * aURI, nsIChannel * aChannel,
-                                         nsISupports* aOwner,
-                                         nsISHEntry ** aNewEntry);
+        nsISHEntry ** aNewEntry);
     nsresult DoAddChildSHEntry(nsISHEntry* aNewEntry, PRInt32 aChildOffset);
 
     NS_IMETHOD LoadHistoryEntry(nsISHEntry * aEntry, PRUint32 aLoadType);
@@ -554,10 +541,8 @@ protected:
     PRBool IsOKToLoadURI(nsIURI* aURI);
     
     void ReattachEditorToWindow(nsISHEntry *aSHEntry);
+    void DetachEditorFromWindow(nsISHEntry *aSHEntry);
 
-    nsresult GetSessionStorageForURI(nsIURI* aURI,
-                                     PRBool create,
-                                     nsIDOMStorage** aStorage);
 protected:
     // Override the parent setter from nsDocLoader
     virtual nsresult SetDocLoaderParent(nsDocLoader * aLoader);
@@ -642,7 +627,7 @@ protected:
     nsCOMPtr<nsISupportsArray> mRefreshURIList;
     nsCOMPtr<nsISupportsArray> mSavedRefreshURIList;
     nsRefPtr<nsDSURIContentListener> mContentListener;
-    nsIntRect                  mBounds; // Dimensions of the docshell
+    nsRect                     mBounds; // Dimensions of the docshell
     nsCOMPtr<nsIContentViewer> mContentViewer;
     nsCOMPtr<nsIDocumentCharsetInfo> mDocumentCharsetInfo;
     nsCOMPtr<nsIWidget>        mParentWidget;
@@ -655,7 +640,7 @@ protected:
     nsCOMPtr<nsISHistory>      mSessionHistory;
     nsCOMPtr<nsIGlobalHistory2> mGlobalHistory;
     nsCOMPtr<nsIWebBrowserFind> mFind;
-    nsIntPoint                 mDefaultScrollbarPref; // persistent across doc loads
+    nsPoint                    mDefaultScrollbarPref; // persistent across doc loads
     // Reference to the SHEntry for this docshell until the page is destroyed.
     // Somebody give me better name
     nsCOMPtr<nsISHEntry>       mOSHE; 

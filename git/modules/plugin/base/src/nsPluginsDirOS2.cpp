@@ -228,6 +228,8 @@ nsresult nsPluginFile::GetPluginInfo( nsPluginInfo &info)
 
    while( ret == NO_ERROR)
    {
+      info.fPluginInfoSize = sizeof( nsPluginInfo);
+
       info.fName = LoadRCDATAString( hPlug, NS_INFO_ProductName);
 
       info.fVersion = LoadRCDATAVersion( hPlug, NS_INFO_ProductVersion);

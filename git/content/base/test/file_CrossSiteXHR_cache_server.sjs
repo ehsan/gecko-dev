@@ -1,3 +1,5 @@
+function d(s) { dump(s + "\n"); }
+
 function handleRequest(request, response)
 {
   var query = {};
@@ -6,28 +8,26 @@ function handleRequest(request, response)
     query[name] = unescape(value);
   });
 
-  if ("setState" in query) {
-    setState("test/content/base/test_CrossSiteXHR_cache:secData",
-             query.setState);
-
-    response.setHeader("Cache-Control", "no-cache", false);
-    response.setHeader("Content-Type", "text/plain", false);
-    response.write("hi");
-
-    return;
-  }
-
   var isPreflight = request.method == "OPTIONS";
 
   // Send response
 
-  secData =
-    eval(getState("test/content/base/test_CrossSiteXHR_cache:secData"));
-
-  if (secData.allowOrigin)
-    response.setHeader("Access-Control-Allow-Origin", secData.allowOrigin);
+  response.setHeader("Access-Control-Allow-Origin", query.allowOrigin);
 
   if (isPreflight) {
+    var secData = {};
+
+    if (request.hasHeader("Access-Control-Request-Headers")) {
+      var magicHeader =
+        request.getHeader("Access-Control-Request-Headers").split(",").
+        filter(function(name) /^magic-/.test(name))[0];
+    }
+
+    if (magicHeader) {
+      secData = eval(unescape(magicHeader.substr(6)));
+      secData.allowHeaders = (secData.allowHeaders || "") + "," + magicHeader;
+    }
+
     if (secData.allowHeaders)
       response.setHeader("Access-Control-Allow-Headers", secData.allowHeaders);
 
@@ -40,7 +40,6 @@ function handleRequest(request, response)
     return;
   }
 
-  response.setHeader("Cache-Control", "no-cache", false);
   response.setHeader("Content-Type", "application/xml", false);
   response.write("<res>hello pass</res>\n");
 }

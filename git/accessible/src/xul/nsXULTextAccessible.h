@@ -54,8 +54,8 @@ public:
 
   // nsIAccessible
   NS_IMETHOD GetRole(PRUint32 *aRole) { *aRole = nsIAccessibleRole::ROLE_LABEL; return NS_OK; }
-  NS_IMETHOD GetRelationByType(PRUint32 aRelationType,
-                               nsIAccessibleRelation **aRelation);
+  NS_IMETHOD GetAccessibleRelated(PRUint32 aRelationType,
+                                  nsIAccessible **aRelated);
 
   // nsAccessible
   virtual nsresult GetNameInternal(nsAString& aName);
@@ -72,6 +72,7 @@ public:
   NS_IMETHOD GetRole(PRUint32 *_retval); 
 
   // nsAccessible
+  virtual nsresult GetNameInternal(nsAString& aName);
   virtual nsresult GetStateInternal(PRUint32 *aState, PRUint32 *aExtraState);
 };
 

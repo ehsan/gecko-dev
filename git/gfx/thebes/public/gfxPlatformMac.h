@@ -69,19 +69,15 @@ public:
                                   const gfxFontStyle *aStyle,
                                   gfxUserFontSet *aUserFontSet);
 
-    virtual gfxFontEntry* LookupLocalFont(const gfxProxyFontEntry *aProxyEntry,
-                                          const nsAString& aFontName);
+    gfxFontEntry* LookupLocalFont(const nsAString& aFontName);
 
-    virtual gfxFontEntry* MakePlatformFont(const gfxProxyFontEntry *aProxyEntry,
-                                           nsISupports *aLoader,
-                                           const PRUint8 *aFontData,
-                                           PRUint32 aLength);
+    gfxFontEntry* MakePlatformFont(const gfxFontEntry *aProxyEntry, const PRUint8 *aFontData, PRUint32 aLength);
 
     PRBool IsFontFormatSupported(nsIURI *aFontURI, PRUint32 aFormatFlags);
 
     nsresult GetFontList(const nsACString& aLangGroup,
                          const nsACString& aGenericFamily,
-                         nsTArray<nsString>& aListOfFonts);
+                         nsStringArray& aListOfFonts);
     nsresult UpdateFontList();
 
     // in some situations, need to make decisions about ambiguous characters, may need to look at multiple pref langs

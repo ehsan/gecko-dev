@@ -127,9 +127,9 @@ __try {
 
   accessible->GetBounds(&docX, &docY, &docWidth, &docHeight);
 
-  nsIntRect unclippedRect(x, y, width, height);
-  nsIntRect docRect(docX, docY, docWidth, docHeight);
-  nsIntRect clippedRect;
+  nsRect unclippedRect(x, y, width, height);
+  nsRect docRect(docX, docY, docWidth, docHeight);
+  nsRect clippedRect;
 
   clippedRect.IntersectRect(unclippedRect, docRect);
 
@@ -222,11 +222,11 @@ nsresult nsTextAccessibleWrap::GetCharacterExtents(PRInt32 aStartOffset, PRInt32
     return E_FAIL;
   }
   
-  nsIntRect sum(0, 0, 0, 0);
+  nsRect sum(0, 0, 0, 0);
   nsIFrame *iter = startFrame;
   nsIFrame *stopLoopFrame = endFrame->GetNextContinuation();
   for (; iter != stopLoopFrame; iter = iter->GetNextContinuation()) {
-    nsIntRect rect = iter->GetScreenRectExternal();
+    nsRect rect = iter->GetScreenRectExternal();
     nscoord start = (iter == startFrame) ? presContext->AppUnitsToDevPixels(startPoint.x) : 0;
     nscoord end = (iter == endFrame) ? presContext->AppUnitsToDevPixels(endPoint.x) :
                                        rect.width;
@@ -251,7 +251,7 @@ __try {
 
   nsIFrame *frame = GetFrame();
   nsCOMPtr<nsIPresShell> presShell = GetPresShell();
-  if (!frame || !presShell || !presShell->GetPresContext()) {
+  if (!frame || !presShell) {
     return E_FAIL;
   }
 
@@ -265,8 +265,7 @@ __try {
 
   const nsStyleVisibility *visibility = frame->GetStyleVisibility();
 
-  if (NS_FAILED(rc->SetFont(font->mFont, visibility->mLangGroup,
-                            presShell->GetPresContext()->GetUserFontSet()))) {
+  if (NS_FAILED(rc->SetFont(font->mFont, visibility->mLangGroup))) {
     return E_FAIL;
   }
 

@@ -145,7 +145,7 @@ txExprParser::createAVT(const nsSubstring& aAttrValue,
             }
         }
         
-        // Add expression, create a concat() call if necessary
+        // Add expression, create a concat() call if neccesary
         if (!expr) {
             expr = newExpr;
         }

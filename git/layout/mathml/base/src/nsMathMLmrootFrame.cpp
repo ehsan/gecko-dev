@@ -257,8 +257,7 @@ nsMathMLmrootFrame::Reflow(nsPresContext*          aPresContext,
   ////////////
   // Prepare the radical symbol and the overline bar
 
-  renderingContext.SetFont(GetStyleFont()->mFont, nsnull,
-                           aPresContext->GetUserFontSet());
+  renderingContext.SetFont(GetStyleFont()->mFont, nsnull);
   nsCOMPtr<nsIFontMetrics> fm;
   renderingContext.GetFontMetrics(*getter_AddRefs(fm));
 

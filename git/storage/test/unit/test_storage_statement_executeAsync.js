@@ -481,21 +481,6 @@ function test_double_execute()
   stmt.finalize();
 }
 
-function test_finalized_statement_does_not_crash()
-{
-  dump("test_finalized_statement_does_not_crash()\n");
-
-  var stmt = getOpenedDatabase().createStatement(
-    "SELECT * FROM TEST"
-  );
-  stmt.finalize();
-  // we are concerned about a crash here; an error is fine.
-  try {
-    stmt.executeAsync();
-  }
-  catch (ex) {}
-}
-
 var tests =
 [
   test_add_data,
@@ -508,7 +493,6 @@ var tests =
   test_immediate_cancellation,
   test_double_cancellation,
   test_double_execute,
-  test_finalized_statement_does_not_crash,
 ];
 
 function run_test()
