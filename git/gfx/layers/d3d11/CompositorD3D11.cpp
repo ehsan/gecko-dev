@@ -1050,7 +1050,6 @@ CompositorD3D11::BeginFrame(const nsIntRegion& aInvalidRegion,
     return;
   }
 
-  nsIntSize oldSize = mSize;
   UpdateRenderTarget();
 
   // Failed to create a render target or the view.
@@ -1070,13 +1069,7 @@ CompositorD3D11::BeginFrame(const nsIntRegion& aInvalidRegion,
   nsIntRect intRect = nsIntRect(nsIntPoint(0, 0), mSize);
   // Sometimes the invalid region is larger than we want to draw.
   nsIntRegion invalidRegionSafe;
-
-  if (mSize != oldSize) {
-    invalidRegionSafe = intRect;
-  } else {
-    invalidRegionSafe.And(aInvalidRegion, intRect);
-  }
-
+  invalidRegionSafe.And(aInvalidRegion, intRect);
   nsIntRect invalidRect = invalidRegionSafe.GetBounds();
   mInvalidRect = IntRect(invalidRect.x, invalidRect.y, invalidRect.width, invalidRect.height);
   mInvalidRegion = invalidRegionSafe;
