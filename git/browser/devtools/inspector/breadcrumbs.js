@@ -16,7 +16,7 @@ Cu.import("resource:///modules/devtools/ViewHelpers.jsm");
 const ELLIPSIS = Services.prefs.getComplexValue("intl.ellipsis", Ci.nsIPrefLocalizedString).data;
 const MAX_LABEL_LENGTH = 40;
 
-let promise = require("resource://gre/modules/Promise.jsm").Promise;
+let promise = require("devtools/toolkit/deprecated-sync-thenables");
 
 const LOW_PRIORITY_ELEMENTS = {
   "HEAD": true,
@@ -138,14 +138,13 @@ HTMLBreadcrumbs.prototype = {
   },
 
   /**
-   * Warn if rejection was caused by selection change, print an error otherwise.
+   * Print any errors (except selection guard errors).
    */
   selectionGuardEnd: function(err) {
-    if (err === "selection-changed") {
-      console.warn("Asynchronous operation was aborted as selection changed.");
-    } else {
+    if (err != "selection-changed") {
       console.error(err);
     }
+    promise.reject(err);
   },
 
   /**

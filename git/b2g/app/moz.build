@@ -74,5 +74,3 @@ if CONFIG['OS_ARCH'] == 'WINNT':
     OS_LIBS += [
         'version',
     ]
-
-FAIL_ON_WARNINGS = True

@@ -178,17 +178,13 @@ class TypeDescr : public NativeObject
     // typed objects, rather than the slower trace hook. This list is only
     // specified when (a) the descriptor is short enough that it can fit in an
     // InlineTypedObject, and (b) the descriptor contains at least one
-    // reference. Otherwise its value is undefined.
+    // reference. Otherwise it is null.
     //
     // The list is three consecutive arrays of int32_t offsets, with each array
     // terminated by -1. The arrays store offsets of string, object, and value
     // references in the descriptor, in that order.
-    bool hasTraceList() const {
-        return !getFixedSlot(JS_DESCR_SLOT_TRACE_LIST).isUndefined();
-    }
     const int32_t *traceList() const {
-        MOZ_ASSERT(hasTraceList());
-        return reinterpret_cast<int32_t *>(getFixedSlot(JS_DESCR_SLOT_TRACE_LIST).toPrivate());
+        return reinterpret_cast<int32_t *>(getReservedSlot(JS_DESCR_SLOT_TRACE_LIST).toPrivate());
     }
 
     void initInstances(const JSRuntime *rt, uint8_t *mem, size_t length);

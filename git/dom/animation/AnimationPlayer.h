@@ -13,7 +13,6 @@
 #include "mozilla/dom/Animation.h" // for Animation
 #include "mozilla/dom/AnimationPlayerBinding.h" // for AnimationPlayState
 #include "mozilla/dom/AnimationTimeline.h" // for AnimationTimeline
-#include "mozilla/dom/Promise.h" // for Promise
 #include "nsCSSProperty.h" // for nsCSSProperty
 
 // X11 has a #define for CurrentTime.
@@ -38,8 +37,7 @@ class CSSTransitionPlayer;
 
 namespace dom {
 
-class AnimationPlayer : public nsISupports,
-                        public nsWrapperCache
+class AnimationPlayer : public nsWrapperCache
 {
 protected:
   virtual ~AnimationPlayer() { }
@@ -47,14 +45,13 @@ protected:
 public:
   explicit AnimationPlayer(AnimationTimeline* aTimeline)
     : mTimeline(aTimeline)
-    , mIsPending(false)
     , mIsRunningOnCompositor(false)
     , mIsPreviousStateFinished(false)
   {
   }
 
-  NS_DECL_CYCLE_COLLECTING_ISUPPORTS
-  NS_DECL_CYCLE_COLLECTION_SCRIPT_HOLDER_CLASS(AnimationPlayer)
+  NS_INLINE_DECL_CYCLE_COLLECTING_NATIVE_REFCOUNTING(AnimationPlayer)
+  NS_DECL_CYCLE_COLLECTION_SCRIPT_HOLDER_NATIVE_CLASS(AnimationPlayer)
 
   AnimationTimeline* GetParentObject() const { return mTimeline; }
   virtual JSObject* WrapObject(JSContext* aCx) MOZ_OVERRIDE;
@@ -68,7 +65,6 @@ public:
   Nullable<TimeDuration> GetStartTime() const { return mStartTime; }
   Nullable<TimeDuration> GetCurrentTime() const;
   AnimationPlayState PlayState() const;
-  virtual Promise* GetReady(ErrorResult& aRv);
   virtual void Play();
   virtual void Pause();
   bool IsRunningOnCompositor() const { return mIsRunningOnCompositor; }
@@ -88,11 +84,10 @@ public:
 
   void SetSource(Animation* aSource);
   void Tick();
-
-  // Sets the start time of a player that is waiting to play to the current
-  // time of its timeline.
-  void StartNow();
-  void Cancel();
+  // Sets the start time of the player to the current time of its timeline.
+  // This should only be called on a player that is currently waiting to play
+  // (and therefore has a null start time but a fixed hold time).
+  void ResolveStartTime();
 
   const nsString& Name() const {
     return mSource ? mSource->Name() : EmptyString();
@@ -133,10 +128,6 @@ protected:
 
   void FlushStyle() const;
   void PostUpdate();
-  // Remove this player from the pending player tracker and resets mIsPending
-  // as necessary. The caller is responsible for resolving or aborting the
-  // mReady promise as necessary.
-  void CancelPendingPlay();
   StickyTimeDuration SourceContentEnd() const;
 
   nsIDocument* GetRenderedDocument() const;
@@ -149,18 +140,6 @@ protected:
   // The beginning of the delay period.
   Nullable<TimeDuration> mStartTime; // Timeline timescale
   Nullable<TimeDuration> mHoldTime;  // Player timescale
-
-  // A Promise that is replaced on each call to Play() (and in future Pause())
-  // and fulfilled when Play() is successfully completed.
-  // This object is lazily created by GetReady.
-  nsRefPtr<Promise> mReady;
-
-  // Indicates if the player is in the pending state. We use this rather
-  // than checking if this player is tracked by a PendingPlayerTracker.
-  // This is because the PendingPlayerTracker is associated with the source
-  // content's document but we need to know if we're pending even if the
-  // source content loses association with its document.
-  bool mIsPending;
   bool mIsRunningOnCompositor;
   // Indicates whether we were in the finished state during our
   // most recent unthrottled sample (our last ComposeStyle call).
