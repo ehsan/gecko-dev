@@ -3828,30 +3828,30 @@ monitor_loop:
 }
 
 JS_REQUIRES_STACK JSMonitorRecordingStatus
-TraceRecorder::monitorRecording(JSContext* cx, TraceRecorder* tr, JSOp op)
+TraceRecorder::monitorRecording(JSOp op)
 {
-    if (tr->lirbuf->outOMem()) {
+    if (lirbuf->outOMem()) {
         js_AbortRecording(cx, "no more LIR memory");
         js_FlushJITCache(cx);
         return JSMRS_STOP;
     }
 
     /* Process deepAbort() requests now. */
-    if (tr->wasDeepAborted()) {
+    if (wasDeepAborted()) {
         js_AbortRecording(cx, "deep abort requested");
         return JSMRS_STOP;
     }
 
-    if (tr->walkedOutOfLoop()) {
+    if (walkedOutOfLoop()) {
         if (!js_CloseLoop(cx))
             return JSMRS_STOP;
     } else {
         // Clear one-shot state used to communicate between record_JSOP_CALL and post-
         // opcode-case-guts record hook (record_FastNativeCallComplete).
-        tr->pendingTraceableNative = NULL;
+        pendingTraceableNative = NULL;
 
         // In the future, handle dslots realloc by computing an offset from dslots instead.
-        if (tr->global_dslots != tr->globalObj->dslots) {
+        if (global_dslots != globalObj->dslots) {
             js_AbortRecording(cx, "globalObj->dslots reallocated");
             return JSMRS_STOP;
         }
@@ -3864,16 +3864,16 @@ TraceRecorder::monitorRecording(JSContext* cx, TraceRecorder* tr, JSOp op)
             jssrcnote* sn = js_GetSrcNote(cx->fp->script, pc);
             if (sn && SN_TYPE(sn) == SRC_BREAK) {
                 AUDIT(breakLoopExits);
-                tr->endLoop(JS_TRACE_MONITOR(cx).fragmento);
+                endLoop(JS_TRACE_MONITOR(cx).fragmento);
                 js_DeleteRecorder(cx);
                 return JSMRS_STOP; /* done recording */
             }
         }
 
         /* An explicit return from callDepth 0 should end the loop, not abort it. */
-        if (*pc == JSOP_RETURN && tr->callDepth == 0) {
+        if (*pc == JSOP_RETURN && callDepth == 0) {
             AUDIT(returnLoopExits);
-            tr->endLoop(JS_TRACE_MONITOR(cx).fragmento);
+            endLoop(JS_TRACE_MONITOR(cx).fragmento);
             js_DeleteRecorder(cx);
             return JSMRS_STOP; /* done recording */
         }
@@ -3888,7 +3888,7 @@ TraceRecorder::monitorRecording(JSContext* cx, TraceRecorder* tr, JSOp op)
       default: goto abort_recording;
 # define OPDEF(x,val,name,token,length,nuses,ndefs,prec,format)               \
         case x:                                                               \
-          flag = tr->record_##x();                                            \
+          flag = record_##x();                                                \
           if (x == JSOP_ITER || x == JSOP_NEXTITER || x == JSOP_APPLY ||      \
               JSOP_IS_BINARY(x) || JSOP_IS_UNARY(x) ||                        \
               JSOP_IS_EQUALITY(x)) {                                          \

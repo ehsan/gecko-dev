@@ -440,7 +440,7 @@ public:
                   VMSideExit* expectedInnerExit, nanojit::Fragment* outerToBlacklist);
     ~TraceRecorder();
 
-    static JS_REQUIRES_STACK JSMonitorRecordingStatus monitorRecording(JSContext* cx, TraceRecorder* tr, JSOp op);
+    JS_REQUIRES_STACK JSMonitorRecordingStatus monitorRecording(JSOp op);
 
     JS_REQUIRES_STACK uint8 determineSlotType(jsval* vp) const;
     JS_REQUIRES_STACK nanojit::LIns* snapshot(ExitType exitType);
