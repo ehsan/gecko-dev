@@ -688,8 +688,7 @@ this.DOMApplicationRegistry = {
     for (let activity in root.activities) {
       let description = root.activities[activity];
       activitiesToUnregister.push({ "manifest": aApp.manifestURL,
-                                    "name": activity,
-                                    "description": description });
+                                    "name": activity });
     }
     return activitiesToUnregister;
   },

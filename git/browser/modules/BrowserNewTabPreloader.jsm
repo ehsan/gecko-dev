@@ -290,7 +290,14 @@ let HiddenBrowsers = {
 
 function HiddenBrowser(width, height) {
   this.resize(width, height);
-  this._createBrowser();
+
+  HostFrame.get().then(aFrame => {
+    let doc = aFrame.document;
+    this._browser = doc.createElementNS(XUL_NS, "browser");
+    this._browser.setAttribute("type", "content");
+    this._browser.setAttribute("src", NEWTAB_URL);
+    doc.getElementById("win").appendChild(this._browser);
+  });
 }
 
 HiddenBrowser.prototype = {
@@ -310,23 +317,13 @@ HiddenBrowser.prototype = {
       return false;
     }
 
-    let win = aTab.ownerDocument.defaultView;
-    let tabbrowser = win.gBrowser;
-
+    let tabbrowser = aTab.ownerDocument.defaultView.gBrowser;
     if (!tabbrowser) {
       return false;
     }
 
     // Swap docShells.
     tabbrowser.swapNewTabWithBrowser(aTab, this._browser);
-
-    // Load all default frame scripts attached to the target window.
-    let mm = aTab.linkedBrowser.messageManager;
-    let scripts = win.messageManager.getDelayedFrameScripts();
-    Array.forEach(scripts, script => mm.loadFrameScript(script, true));
-
-    // Remove the browser, it will be recreated by a timer.
-    this._removeBrowser();
 
     // Start a timer that will kick off preloading the next newtab page.
     this._timer = createTimer(this, PRELOADER_INTERVAL_MS);
@@ -339,7 +336,7 @@ HiddenBrowser.prototype = {
     this._timer = null;
 
     // Start pre-loading the new tab page.
-    this._createBrowser();
+    this._browser.loadURI(NEWTAB_URL);
   },
 
   resize: function (width, height) {
@@ -353,25 +350,12 @@ HiddenBrowser.prototype = {
   },
 
   destroy: function () {
-    this._removeBrowser();
-    this._timer = clearTimer(this._timer);
-  },
-
-  _createBrowser: function () {
-    HostFrame.get().then(aFrame => {
-      let doc = aFrame.document;
-      this._browser = doc.createElementNS(XUL_NS, "browser");
-      this._browser.setAttribute("type", "content");
-      this._browser.setAttribute("src", NEWTAB_URL);
-      doc.getElementById("win").appendChild(this._browser);
-    });
-  },
-
-  _removeBrowser: function () {
     if (this._browser) {
       this._browser.remove();
       this._browser = null;
     }
+
+    this._timer = clearTimer(this._timer);
   }
 };
 

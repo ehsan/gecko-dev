@@ -252,9 +252,11 @@ partial interface Navigator {
 };
 
 #ifdef MOZ_B2G_RIL
+interface MozTelephony;
+// nsIDOMNavigatorTelephony
 partial interface Navigator {
   [Throws, Func="Navigator::HasTelephonySupport"]
-  readonly attribute Telephony? mozTelephony;
+  readonly attribute MozTelephony? mozTelephony;
 };
 
 // nsIMozNavigatorMobileConnection

@@ -41,6 +41,7 @@ var ContextMenus = {
       document.getElementById("contextmenu-enable").setAttribute("hidden", "true");
       document.getElementById("contextmenu-disable").setAttribute("hidden", "true");
       document.getElementById("contextmenu-uninstall").setAttribute("hidden", "true");
+      document.getElementById("contextmenu-default").setAttribute("hidden", "true");
       return;
     }
 
@@ -59,6 +60,8 @@ var ContextMenus = {
       document.getElementById("contextmenu-enable").removeAttribute("hidden");
       document.getElementById("contextmenu-disable").setAttribute("hidden", "true");
     }
+
+    document.getElementById("contextmenu-default").setAttribute("hidden", "true");
   },
 
   enable: function(event) {
@@ -250,6 +253,37 @@ var Addons = {
         list.appendChild(item);
       }
 
+      // Load the search engines
+      let defaults = Services.search.getDefaultEngines({ }).map(function (e) e.name);
+      function isDefault(aEngine)
+        defaults.indexOf(aEngine.name) != -1
+
+      let defaultDescription = gStringBundle.GetStringFromName("addonsSearchEngine.description");
+
+      let engines = Services.search.getEngines({ });
+      for (let e = 0; e < engines.length; e++) {
+        let engine = engines[e];
+        let addon = {};
+        addon.id = engine.name;
+        addon.type = "search";
+        addon.name = engine.name;
+        addon.version = "";
+        addon.description = engine.description || defaultDescription;
+        addon.iconURL = engine.iconURI ? engine.iconURI.spec : "";
+        addon.optionsURL = "";
+        addon.appDisabled = false;
+        addon.scope = isDefault(engine) ? AddonManager.SCOPE_APPLICATION : AddonManager.SCOPE_PROFILE;
+        addon.engine = engine;
+
+        let item = self._createItem(addon);
+        item.setAttribute("isDisabled", engine.hidden);
+        item.setAttribute("updateable", "false");
+        item.setAttribute("opType", "");
+        item.setAttribute("optionsURL", "");
+        item.addon = addon;
+        list.appendChild(item);
+      }
+
       // Add a "Browse all Firefox Add-ons" item to the bottom of the list.
       let browseItem = self._createBrowseItem();
       list.appendChild(browseItem);
@@ -313,6 +347,9 @@ var Addons = {
       uninstallBtn.setAttribute("disabled", "true");
     else
       uninstallBtn.removeAttribute("disabled");
+
+    let defaultButton = document.getElementById("default-btn");
+    defaultButton.setAttribute("hidden", "true");
 
     let box = document.querySelector("#addons-details > .addon-item .options-box");
     box.innerHTML = "";

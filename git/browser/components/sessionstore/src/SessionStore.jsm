@@ -311,6 +311,9 @@ let SessionStoreInternal = {
   // states for all recently closed windows
   _closedWindows: [],
 
+  // not-"dirty" windows usually don't need to have their data updated
+  _dirtyWindows: {},
+
   // collection of session states yet to be restored
   _statesToRestore: {},
 
@@ -485,6 +488,8 @@ let SessionStoreInternal = {
         this._prefBranch.getBoolPref("sessionstore.resume_session_once"))
       this._prefBranch.setBoolPref("sessionstore.resume_session_once", false);
 
+    this._initEncoding();
+
     this._performUpgradeBackup();
 
     this._sessionInitialized = true;
@@ -517,6 +522,13 @@ let SessionStoreInternal = {
         debug(ex.stack);
       }
     }.bind(this));
+  },
+
+  _initEncoding : function ssi_initEncoding() {
+    // The (UTF-8) encoder used to write to files.
+    XPCOMUtils.defineLazyGetter(this, "_writeFileEncoder", function () {
+      return new TextEncoder();
+    });
   },
 
   _initPrefs : function() {
@@ -988,7 +1000,7 @@ let SessionStoreInternal = {
     var activeWindow = this._getMostRecentBrowserWindow();
     if (activeWindow)
       this.activeWindowSSiCache = activeWindow.__SSi || "";
-    DirtyWindows.clear();
+    this._dirtyWindows = [];
   },
 
   /**
@@ -2532,14 +2544,14 @@ let SessionStoreInternal = {
       this._forEachBrowserWindow(function(aWindow) {
         if (!this._isWindowLoaded(aWindow)) // window data is still in _statesToRestore
           return;
-        if (aUpdateAll || DirtyWindows.has(aWindow) || aWindow == activeWindow) {
+        if (aUpdateAll || this._dirtyWindows[aWindow.__SSi] || aWindow == activeWindow) {
           this._collectWindowData(aWindow);
         }
         else { // always update the window features (whose change alone never triggers a save operation)
           this._updateWindowFeatures(aWindow);
         }
       });
-      DirtyWindows.clear();
+      this._dirtyWindows = [];
     }
 
     // collect the data for all windows
@@ -2670,7 +2682,7 @@ let SessionStoreInternal = {
       this._windows[aWindow.__SSi].__lastSessionWindowID =
         aWindow.__SS_lastSessionWindowID;
 
-    DirtyWindows.remove(aWindow);
+    this._dirtyWindows[aWindow.__SSi] = false;
   },
 
   /* ........ Restoring Functionality .............. */
@@ -2998,7 +3010,7 @@ let SessionStoreInternal = {
 
       // It's important to set the window state to dirty so that
       // we collect their data for the first time when saving state.
-      DirtyWindows.add(aWindow);
+      this._dirtyWindows[aWindow.__SSi] = true;
     }
 
     if (aTabs.length == 0) {
@@ -3689,7 +3701,7 @@ let SessionStoreInternal = {
    */
   saveStateDelayed: function ssi_saveStateDelayed(aWindow = null, aDelay = 2000) {
     if (aWindow) {
-      DirtyWindows.add(aWindow);
+      this._dirtyWindows[aWindow.__SSi] = true;
     }
 
     if (!this._saveTimer) {
@@ -4674,28 +4686,6 @@ let DyingWindowCache = {
 
   remove: function (window) {
     this._data.delete(window);
-  }
-};
-
-// A weak set of dirty windows. We use it to determine which windows we need to
-// recollect data for when _getCurrentState() is called.
-let DirtyWindows = {
-  _data: new WeakMap(),
-
-  has: function (window) {
-    return this._data.has(window);
-  },
-
-  add: function (window) {
-    return this._data.set(window, true);
-  },
-
-  remove: function (window) {
-    this._data.delete(window);
-  },
-
-  clear: function (window) {
-    this._data.clear();
   }
 };
 
