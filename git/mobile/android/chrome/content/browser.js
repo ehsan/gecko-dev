@@ -1874,10 +1874,6 @@ var SelectionHandler = {
         break;
       }
       case "Tab:Selected":
-        if (this._activeType == this.TYPE_CURSOR) {
-          this.hideThumb();
-        }
-        // fall through
       case "Window:Resize": {
         if (this._activeType == this.TYPE_SELECTION) {
           // Knowing when the page is done drawing is hard, so let's just cancel

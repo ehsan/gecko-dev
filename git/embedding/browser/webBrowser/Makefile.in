@@ -24,7 +24,6 @@ EXPORTS         = \
 
 LOCAL_INCLUDES	= \
 		-I$(srcdir)/../../../content/base/src \
-		-I$(srcdir)/../../../content/svg/content/src \
 		$(NULL)
 		
 SDK_XPIDLSRCS   = \

@@ -5,12 +5,6 @@
 
 #include <algorithm>
 
-#ifdef XP_MACOS
-#include <fstream>
-#endif
-
-#include <prio.h>
-
 #include "mozilla/Attributes.h"
 #include "mozilla/DebugOnly.h"
 #include "mozilla/Likely.h"
@@ -19,9 +13,7 @@
 #include "base/pickle.h"
 #include "nsIComponentManager.h"
 #include "nsIServiceManager.h"
-#include "nsCOMArray.h"
 #include "nsCOMPtr.h"
-#include "nsXPCOMPrivate.h"
 #include "mozilla/ModuleUtils.h"
 #include "nsIXPConnect.h"
 #include "mozilla/Services.h"
@@ -311,7 +303,6 @@ private:
   static bool AddonReflector(AddonEntryType *entry, JSContext *cx, JSObject *obj);
   static bool CreateHistogramForAddon(const nsACString &name,
                                       AddonHistogramInfo &info);
-  void ReadLateWritesStacks();
   AddonMapType mAddonMap;
 
   // This is used for speedy string->Telemetry::ID conversions
@@ -330,10 +321,9 @@ private:
   Mutex mHangReportsMutex;
   nsIMemoryReporter *mMemoryReporter;
 
-  CombinedStacks mLateWritesStacks; // This is collected out of the main thread.
   bool mCachedTelemetryData;
   uint32_t mLastShutdownTime;
-  nsCOMArray<nsIFetchTelemetryDataCallback> mCallbacks;
+  std::vector<nsCOMPtr<nsIFetchTelemetryDataCallback> > mCallbacks;
   friend class nsFetchTelemetryData;
 };
 
@@ -739,15 +729,14 @@ private:
 public:
   void MainThread() {
     mTelemetry->mCachedTelemetryData = true;
-    for (unsigned int i = 0, n = mTelemetry->mCallbacks.Count(); i < n; ++i) {
+    for (unsigned int i = 0, n = mTelemetry->mCallbacks.size(); i < n; ++i) {
       mTelemetry->mCallbacks[i]->Complete();
     }
-    mTelemetry->mCallbacks.Clear();
+    mTelemetry->mCallbacks.clear();
   }
 
   NS_IMETHOD Run() {
     mTelemetry->mLastShutdownTime = ReadLastShutdownDuration(mFilename);
-    mTelemetry->ReadLateWritesStacks();
     nsCOMPtr<nsIRunnable> e =
       NS_NewRunnableMethod(this, &nsFetchTelemetryData::MainThread);
     NS_ENSURE_STATE(e);
@@ -810,8 +799,8 @@ TelemetryImpl::AsyncFetchTelemetryData(nsIFetchTelemetryDataCallback *aCallback)
   }
 
   // We already have a read request running, just remember the callback.
-  if (mCallbacks.Count() != 0) {
-    mCallbacks.AppendObject(aCallback);
+  if (!mCallbacks.empty()) {
+    mCallbacks.push_back(aCallback);
     return NS_OK;
   }
 
@@ -842,7 +831,7 @@ TelemetryImpl::AsyncFetchTelemetryData(nsIFetchTelemetryDataCallback *aCallback)
     return NS_OK;
   }
 
-  mCallbacks.AppendObject(aCallback);
+  mCallbacks.push_back(aCallback);
   nsCOMPtr<nsIRunnable> event = new nsFetchTelemetryData(filename);
 
   targetThread->Dispatch(event, NS_DISPATCH_NORMAL);
@@ -1541,150 +1530,6 @@ CreateJSStackObject(JSContext *cx, const CombinedStacks &stacks) {
   }
 
   return ret;
-}
-
-// Read a stack from the given file name. In case of any error, aStack is
-// unchanged.
-static void
-ReadStack(const char *aFileName, Telemetry::ProcessedStack &aStack)
-{
-#ifdef XP_MACOS
-  std::ifstream file(aFileName);
-
-  size_t numModules;
-  file >> numModules;
-  if (file.fail()) {
-    return;
-  }
-
-  char newline = file.get();
-  if (file.fail() || newline != '\n') {
-    return;
-  }
-
-  Telemetry::ProcessedStack stack;
-  for (size_t i = 0; i < numModules; ++i) {
-    std::string moduleName;
-    getline(file, moduleName);
-    if (file.fail()) {
-      return;
-    }
-
-    Telemetry::ProcessedStack::Module module = {
-      moduleName,
-      0,  // mPdbAge
-      "", // mPdbSignature
-      ""  // mPdbName
-    };
-    stack.AddModule(module);
-  }
-
-  size_t numFrames;
-  file >> numFrames;
-  if (file.fail()) {
-    return;
-  }
-
-  newline = file.get();
-  if (file.fail() || newline != '\n') {
-    return;
-  }
-
-  for (size_t i = 0; i < numFrames; ++i) {
-    uint16_t index;
-    file >> index;
-    uintptr_t offset;
-    file >> std::hex >> offset >> std::dec;
-    if (file.fail()) {
-      return;
-    }
-
-    Telemetry::ProcessedStack::Frame frame = {
-      offset,
-      index
-    };
-    stack.AddFrame(frame);
-  }
-
-  aStack = stack;
-#endif
-}
-
-void
-TelemetryImpl::ReadLateWritesStacks()
-{
-  nsCOMPtr<nsIFile> profileDir;
-  nsresult rv = NS_GetSpecialDirectory(NS_APP_USER_PROFILE_50_DIR,
-                                       getter_AddRefs(profileDir));
-  if (!profileDir || NS_FAILED(rv)) {
-    return;
-  }
-
-  nsAutoCString nativePath;
-  rv = profileDir->GetNativePath(nativePath);
-  if (NS_FAILED(rv)) {
-    return;
-  }
-
-  const char *name = nativePath.get();
-  PRDir *dir = PR_OpenDir(name);
-  if (!dir) {
-    return;
-  }
-
-  PRDirEntry *ent;
-  const char *prefix = "Telemetry.LateWriteFinal-";
-  unsigned int prefixLen = strlen(prefix);
-  while ((ent = PR_ReadDir(dir, PR_SKIP_NONE))) {
-    if (strncmp(prefix, ent->name, prefixLen) != 0) {
-      continue;
-    }
-
-    nsAutoCString stackNativePath = nativePath;
-    stackNativePath += XPCOM_FILE_PATH_SEPARATOR;
-    stackNativePath += nsDependentCString(ent->name);
-
-    Telemetry::ProcessedStack stack;
-    ReadStack(stackNativePath.get(), stack);
-    if (stack.GetStackSize() != 0) {
-      mLateWritesStacks.AddStack(stack);
-    }
-    // Delete the file so that we don't report it again on the next run.
-    PR_Delete(stackNativePath.get());
-  }
-  PR_CloseDir(dir);
-}
-
-NS_IMETHODIMP
-TelemetryImpl::GetLateWrites(JSContext *cx, jsval *ret)
-{
-  // The user must call AsyncReadTelemetryData first. We return an empty list
-  // instead of reporting a failure so that the rest of telemetry can uniformly
-  // handle the read not being available yet.
-
-  // FIXME: we allocate the js object again and again in the getter. We should
-  // figure out a way to cache it. In order to do that we have to call
-  // JS_AddNamedObjectRoot. A natural place to do so is in the TelemetryImpl
-  // constructor, but it is not clear how to get a JSContext in there.
-  // Another option would be to call it in here when we first call
-  // CreateJSStackObject, but we would still need to figure out where to call
-  // JS_RemoveObjectRoot. Would it be ok to never call JS_RemoveObjectRoot
-  // and just set the pointer to nullptr is the telemetry destructor?
-
-  JSObject *report;
-  if (!mCachedTelemetryData) {
-    CombinedStacks empty;
-    report = CreateJSStackObject(cx, empty);
-  } else {
-    report = CreateJSStackObject(cx, mLateWritesStacks);
-  }
-
-  if (report == nullptr) {
-    return NS_ERROR_FAILURE;
-  }
-
-  *ret = OBJECT_TO_JSVAL(report);
-  return NS_OK;
 }
 
 NS_IMETHODIMP

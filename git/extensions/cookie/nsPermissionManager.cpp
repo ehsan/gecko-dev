@@ -126,7 +126,7 @@ GetHostForPrincipal(nsIPrincipal* aPrincipal, nsACString& aHost)
   return NS_OK;
 }
 
-class AppClearDataObserver MOZ_FINAL : public nsIObserver {
+class AppUninstallObserver MOZ_FINAL : public nsIObserver {
 public:
   NS_DECL_ISUPPORTS
 
@@ -134,29 +134,24 @@ public:
   NS_IMETHODIMP
   Observe(nsISupports *aSubject, const char *aTopic, const PRUnichar *data)
   {
-    MOZ_ASSERT(!nsCRT::strcmp(aTopic, "webapps-clear-data"));
+    MOZ_ASSERT(!nsCRT::strcmp(aTopic, "webapps-uninstall"));
 
-    nsCOMPtr<mozIApplicationClearPrivateDataParams> params =
-      do_QueryInterface(aSubject);
-    if (!params) {
-      NS_ERROR("'webapps-clear-data' notification's subject should be a mozIApplicationClearPrivateDataParams");
-      return NS_ERROR_UNEXPECTED;
-    }
+    nsCOMPtr<nsIAppsService> appsService = do_GetService("@mozilla.org/AppsService;1");
+    nsCOMPtr<mozIApplication> app;
+
+    appsService->GetAppFromObserverMessage(nsAutoString(data), getter_AddRefs(app));
+    NS_ENSURE_TRUE(app, NS_ERROR_UNEXPECTED);
 
     uint32_t appId;
-    nsresult rv = params->GetAppId(&appId);
-    NS_ENSURE_SUCCESS(rv, rv);
-
-    bool browserOnly;
-    rv = params->GetBrowserOnly(&browserOnly);
-    NS_ENSURE_SUCCESS(rv, rv);
+    app->GetLocalId(&appId);
+    MOZ_ASSERT(appId != nsIScriptSecurityManager::NO_APP_ID);
 
     nsCOMPtr<nsIPermissionManager> permManager = do_GetService("@mozilla.org/permissionmanager;1");
-    return permManager->RemovePermissionsForApp(appId, browserOnly);
+    return permManager->RemovePermissionsForApp(appId);
   }
 };
 
-NS_IMPL_ISUPPORTS1(AppClearDataObserver, nsIObserver)
+NS_IMPL_ISUPPORTS1(AppUninstallObserver, nsIObserver)
 
 } // anonymous namespace
 
@@ -276,10 +271,10 @@ NS_IMETHODIMP DeleteFromMozHostListener::HandleCompletion(uint16_t aReason)
 }
 
 /* static */ void
-nsPermissionManager::AppClearDataObserverInit()
+nsPermissionManager::AppUninstallObserverInit()
 {
   nsCOMPtr<nsIObserverService> observerService = do_GetService("@mozilla.org/observer-service;1");
-  observerService->AddObserver(new AppClearDataObserver(), "webapps-clear-data", /* holdsWeak= */ false);
+  observerService->AddObserver(new AppUninstallObserver(), "webapps-uninstall", /* holdsWeak= */ false);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -760,20 +755,14 @@ nsPermissionManager::AddInternal(nsIPrincipal* aPrincipal,
       id = entry->GetPermissions()[index].mID;
 
       // If the new expireType is EXPIRE_SESSION, then we have to keep a
-      // copy of the previous permission/expireType values. This cached value will be
+      // copy of the previous permission value. This cached value will be
       // used when restoring the permissions of an app.
       if (entry->GetPermissions()[index].mExpireType != nsIPermissionManager::EXPIRE_SESSION &&
           aExpireType == nsIPermissionManager::EXPIRE_SESSION) {
         entry->GetPermissions()[index].mNonSessionPermission = entry->GetPermissions()[index].mPermission;
-        entry->GetPermissions()[index].mNonSessionExpireType = entry->GetPermissions()[index].mExpireType;
-      } else if (aExpireType != nsIPermissionManager::EXPIRE_SESSION) {
-        entry->GetPermissions()[index].mNonSessionPermission = aPermission;
-        entry->GetPermissions()[index].mNonSessionExpireType = aExpireType;
-        entry->GetPermissions()[index].mExpireTime = aExpireTime;
       }
 
       entry->GetPermissions()[index].mPermission = aPermission;
-      entry->GetPermissions()[index].mExpireType = aExpireType;
 
       if (aDBOperation == eWriteToDB && aExpireType != nsIPermissionManager::EXPIRE_SESSION)
         // We care only about the id, the permission and expireType/expireTime here.
@@ -1167,7 +1156,7 @@ nsPermissionManager::GetPermissionsForApp(nsPermissionManager::PermissionHashKey
 }
 
 NS_IMETHODIMP
-nsPermissionManager::RemovePermissionsForApp(uint32_t aAppId, bool aBrowserOnly)
+nsPermissionManager::RemovePermissionsForApp(uint32_t aAppId)
 {
   ENSURE_NOT_CHILD_PROCESS;
   NS_ENSURE_ARG(aAppId != nsIScriptSecurityManager::NO_APP_ID);
@@ -1183,10 +1172,6 @@ nsPermissionManager::RemovePermissionsForApp(uint32_t aAppId, bool aBrowserOnly)
   nsAutoCString sql;
   sql.AppendLiteral("DELETE FROM moz_hosts WHERE appId=");
   sql.AppendInt(aAppId);
-
-  if (aBrowserOnly) {
-    sql.AppendLiteral(" AND isInBrowserElement=1");
-  }
 
   nsCOMPtr<mozIStorageAsyncStatement> removeStmt;
   nsresult rv = mDBConn->CreateAsyncStatement(sql, getter_AddRefs(removeStmt));
@@ -1240,11 +1225,7 @@ nsPermissionManager::RemoveExpiredPermissionsForAppEnumerator(
     }
 
     nsPermissionManager::PermissionEntry& permEntry = entry->GetPermissions()[i];
-    if (permEntry.mExpireType != nsIPermissionManager::EXPIRE_SESSION) {
-      continue;
-    }
-
-    if (permEntry.mNonSessionExpireType == nsIPermissionManager::EXPIRE_SESSION) {
+    if (permEntry.mExpireType == nsIPermissionManager::EXPIRE_SESSION) {
       PermissionEntry oldPermissionEntry = entry->GetPermissions()[i];
 
       entry->GetPermissions().RemoveElementAt(i);
@@ -1261,17 +1242,18 @@ nsPermissionManager::RemoveExpiredPermissionsForAppEnumerator(
       continue;
     }
 
-    permEntry.mPermission = permEntry.mNonSessionPermission;
-    permEntry.mExpireType = permEntry.mNonSessionExpireType;
+    if (permEntry.mNonSessionPermission != permEntry.mPermission) {
+      permEntry.mPermission = permEntry.mNonSessionPermission;
 
-    gPermissionManager->NotifyObserversWithPermission(entry->GetKey()->mHost,
-                                                      entry->GetKey()->mAppId,
-                                                      entry->GetKey()->mIsInBrowserElement,
-                                                      gPermissionManager->mTypeArray.ElementAt(permEntry.mType),
-                                                      permEntry.mPermission,
-                                                      permEntry.mExpireType,
-                                                      permEntry.mExpireTime,
-                                                      NS_LITERAL_STRING("changed").get());
+      gPermissionManager->NotifyObserversWithPermission(entry->GetKey()->mHost,
+                                                        entry->GetKey()->mAppId,
+                                                        entry->GetKey()->mIsInBrowserElement,
+                                                        gPermissionManager->mTypeArray.ElementAt(permEntry.mType),
+                                                        permEntry.mPermission,
+                                                        permEntry.mExpireType,
+                                                        permEntry.mExpireTime,
+                                                        NS_LITERAL_STRING("changed").get());
+    }
   }
 
   return PL_DHASH_NEXT;

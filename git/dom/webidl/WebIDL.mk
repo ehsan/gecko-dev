@@ -21,7 +21,6 @@ webidl_files = \
   Blob.webidl \
   CanvasRenderingContext2D.webidl \
   CaretPosition.webidl \
-  CDATASection.webidl \
   CharacterData.webidl \
   ClientRectList.webidl \
   Comment.webidl \
@@ -94,7 +93,6 @@ webidl_files = \
   Performance.webidl \
   PerformanceNavigation.webidl \
   PerformanceTiming.webidl \
-  ProcessingInstruction.webidl \
   Rect.webidl \
   RGBColor.webidl \
   Screen.webidl \
@@ -116,7 +114,6 @@ webidl_files = \
   SVGDescElement.webidl \
   SVGElement.webidl \
   SVGEllipseElement.webidl \
-  SVGFitToViewBox.webidl \
   SVGForeignObjectElement.webidl \
   SVGGElement.webidl \
   SVGGraphicsElement.webidl \
@@ -152,8 +149,6 @@ webidl_files = \
   SVGTransformList.webidl \
   SVGTSpanElement.webidl \
   SVGURIReference.webidl \
-  SVGViewElement.webidl \
-  SVGZoomAndPan.webidl \
   Text.webidl \
   TextDecoder.webidl \
   TextEncoder.webidl \

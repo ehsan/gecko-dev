@@ -91,7 +91,8 @@ nsSVGAFrame::Init(nsIContent* aContent,
                   nsIFrame* aParent,
                   nsIFrame* aPrevInFlow)
 {
-  NS_ASSERTION(aContent->IsSVG(nsGkAtoms::a),
+  nsCOMPtr<nsIDOMSVGAElement> elem = do_QueryInterface(aContent);
+  NS_ASSERTION(elem,
                "Trying to construct an SVGAFrame for a "
                "content element that doesn't support the right interfaces");
 

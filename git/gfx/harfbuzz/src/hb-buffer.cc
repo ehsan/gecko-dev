@@ -493,8 +493,8 @@ hb_buffer_t::merge_out_clusters (unsigned int start,
 void
 hb_buffer_t::guess_segment_properties (void)
 {
-  assert (content_type == HB_BUFFER_CONTENT_TYPE_UNICODE ||
-	  (!len && content_type == HB_BUFFER_CONTENT_TYPE_INVALID));
+  if (unlikely (!len)) return;
+  assert (content_type == HB_BUFFER_CONTENT_TYPE_UNICODE);
 
   /* If script is set to INVALID, guess from buffer contents */
   if (props.script == HB_SCRIPT_INVALID) {
@@ -1071,8 +1071,8 @@ hb_buffer_normalize_glyphs (hb_buffer_t *buffer)
  */
 
 static const char *serialize_formats[] = {
-  "text",
-  "json",
+  "TEXT",
+  "JSON",
   NULL
 };
 

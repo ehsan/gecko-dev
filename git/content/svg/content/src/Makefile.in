@@ -68,6 +68,7 @@ CPPSRCS		= \
 		nsSVGUnknownElement.cpp \
 		nsSVGUseElement.cpp \
 		nsSVGViewBox.cpp \
+		nsSVGViewElement.cpp \
 		SVGAltGlyphElement.cpp \
 		SVGAngle.cpp \
 		SVGAnimatedAngle.cpp \
@@ -136,7 +137,6 @@ CPPSRCS		= \
 		SVGTransformListSMILType.cpp \
 		SVGTSpanElement.cpp \
 		SVGViewBoxSMILType.cpp \
-		SVGViewElement.cpp \
 		$(NULL)
 
 include $(topsrcdir)/config/config.mk
@@ -188,7 +188,6 @@ EXPORTS_mozilla/dom = \
 	SVGTitleElement.h \
 	SVGTransformableElement.h \
 	SVGTSpanElement.h \
-	SVGViewElement.h \
 	$(NULL)
 
 include $(topsrcdir)/config/rules.mk

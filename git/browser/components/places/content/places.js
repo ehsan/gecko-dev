@@ -274,8 +274,13 @@ var PlacesOrganizer = {
    * Handle focus changes on the places list and the current content view.
    */
   updateDetailsPane: function PO_updateDetailsPane() {
-    if (!ContentArea.currentViewOptions.showDetailsPane)
+    let detailsDeck = document.getElementById("detailsDeck");
+    let detailsPaneDisabled = detailsDeck.hidden =
+      !ContentArea.currentViewOptions.showDetailsPane;
+    if (detailsPaneDisabled) {
       return;
+    }
+
     let view = PlacesUIUtils.getViewForNode(document.activeElement);
     if (view) {
       let selectedNodes = view.selectedNode ?
@@ -1273,7 +1278,7 @@ let ContentArea = {
       }
     }
     catch(ex) {
-      Components.utils.reportError(ex);
+      Cu.reportError(ex);
     }
     return ContentTree.view;
   },
@@ -1309,38 +1314,23 @@ let ContentArea = {
 
   get currentPlace() this.currentView.place,
   set currentPlace(aQueryString) {
-    let oldView = this.currentView;
-    let newView = this.getContentViewForQueryString(aQueryString);
-    newView.place = aQueryString;
-    if (oldView != newView) {
-      oldView.active = false;
-      this.currentView = newView;
-      this._setupView();
-      newView.active = true;
-    }
+    this.currentView = this.getContentViewForQueryString(aQueryString);
+    this.currentView.place = aQueryString;
+    this._updateToolbarSet();
     return aQueryString;
   },
 
-  /**
-   * Applies view options.
-   */
-  _setupView: function CA__setupView() {
-    let options = this.currentViewOptions;
-
-    // showDetailsPane.
-    let detailsDeck = document.getElementById("detailsDeck");
-    detailsDeck.hidden = !options.showDetailsPane;
-
-    // toolbarSet.
+  _updateToolbarSet: function CA__updateToolbarSet() {
+    let toolbarSet = this.currentViewOptions.toolbarSet;
     for (let elt of this._toolbar.childNodes) {
       // On Windows and Linux the menu buttons are menus wrapped in a menubar.
       if (elt.id == "placesMenu") {
         for (let menuElt of elt.childNodes) {
-          menuElt.hidden = options.toolbarSet.indexOf(menuElt.id) == -1;
+          menuElt.hidden = toolbarSet.indexOf(menuElt.id) == -1;
         }
       }
       else {
-        elt.hidden = options.toolbarSet.indexOf(elt.id) == -1;
+        elt.hidden = toolbarSet.indexOf(elt.id) == -1;
       }
     }
   },

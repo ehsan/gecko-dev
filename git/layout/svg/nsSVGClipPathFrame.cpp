@@ -9,6 +9,7 @@
 // Keep others in (case-insensitive) order:
 #include "gfxContext.h"
 #include "nsGkAtoms.h"
+#include "nsIDOMSVGClipPathElement.h"
 #include "nsRenderingContext.h"
 #include "nsSVGClipPathElement.h"
 #include "nsSVGEffects.h"
@@ -297,8 +298,10 @@ nsSVGClipPathFrame::Init(nsIContent* aContent,
                          nsIFrame* aParent,
                          nsIFrame* aPrevInFlow)
 {
-  NS_ASSERTION(aContent->IsSVG(nsGkAtoms::clipPath),
-               "Content is not an SVG clipPath!");
+#ifdef DEBUG
+  nsCOMPtr<nsIDOMSVGClipPathElement> clipPath = do_QueryInterface(aContent);
+  NS_ASSERTION(clipPath, "Content is not an SVG clipPath!");
+#endif
 
   AddStateBits(NS_STATE_SVG_CLIPPATH_CHILD);
   return nsSVGClipPathFrameBase::Init(aContent, aParent, aPrevInFlow);

@@ -1,6 +1,5 @@
 /*
  * Copyright (C) 2009 The Android Open Source Project
- * Copyright (C) 2013 Mozilla Foundation
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -16,9 +15,8 @@
  */
 
 #ifndef GONK_RECORDER_H_
-#define GONK_RECORDER_H_
 
-#include "nsISupportsImpl.h"
+#define GONK_RECORDER_H_
 
 #include <media/mediarecorder.h>
 #include <camera/CameraParameters.h>
@@ -36,9 +34,8 @@ struct AudioSource;
 class MediaProfiles;
 
 struct GonkRecorder {
-    NS_INLINE_DECL_THREADSAFE_REFCOUNTING(GonkRecorder)
-
     GonkRecorder();
+    virtual ~GonkRecorder();
 
     virtual status_t init();
     virtual status_t setAudioSource(audio_source_t as);
@@ -62,9 +59,6 @@ struct GonkRecorder {
     virtual status_t getMaxAmplitude(int *max);
     virtual status_t dump(int fd, const Vector<String16>& args) const;
     // Querying a SurfaceMediaSourcer
-
-protected:
-    virtual ~GonkRecorder();
 
 private:
     sp<IMediaRecorderClient> mListener;

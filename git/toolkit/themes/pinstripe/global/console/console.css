@@ -50,6 +50,14 @@
   padding-left: 6px;
 }
 
+.text-link {
+  text-decoration: none;  
+}
+
+.text-link:hover {
+  text-decoration: underline;
+}
+
 /* ..... error rows ..... */
 
 .console-row-code {

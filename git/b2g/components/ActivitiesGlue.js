@@ -24,7 +24,7 @@ ActivitiesDialog.prototype = {
 
     let choices = [];
     activity.list.forEach(function(item) {
-      choices.push({ manifest: item.manifest, icon: item.icon });
+      choices.push({ title: item.title, icon: item.icon });
     });
 
 

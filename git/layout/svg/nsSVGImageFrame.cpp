@@ -8,6 +8,7 @@
 #include "gfxMatrix.h"
 #include "gfxPlatform.h"
 #include "imgIContainer.h"
+#include "nsIDOMSVGImageElement.h"
 #include "nsIImageLoadingContent.h"
 #include "nsLayoutUtils.h"
 #include "nsRenderingContext.h"
@@ -132,12 +133,14 @@ nsSVGImageFrame::Init(nsIContent* aContent,
                       nsIFrame* aParent,
                       nsIFrame* aPrevInFlow)
 {
-  NS_ASSERTION(aContent->IsSVG(nsGkAtoms::image),
-               "Content is not an SVG image!");
+#ifdef DEBUG
+  nsCOMPtr<nsIDOMSVGImageElement> image = do_QueryInterface(aContent);
+  NS_ASSERTION(image, "Content is not an SVG image!");
+#endif
 
   nsresult rv = nsSVGImageFrameBase::Init(aContent, aParent, aPrevInFlow);
   if (NS_FAILED(rv)) return rv;
-
+  
   mListener = new nsSVGImageListener(this);
   if (!mListener) return NS_ERROR_OUT_OF_MEMORY;
   nsCOMPtr<nsIImageLoadingContent> imageLoader = do_QueryInterface(mContent);

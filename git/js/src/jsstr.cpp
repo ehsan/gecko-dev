@@ -1132,110 +1132,107 @@ RopeMatch(JSContext *cx, JSString *textstr, const jschar *pat, uint32_t patlen, 
     return true;
 }
 
-/* ES6 20121026 draft 15.5.4.24. */
+/* ES6 20120708 draft 15.5.4.24. */
 static JSBool
 str_contains(JSContext *cx, unsigned argc, Value *vp)
 {
-    AssertCanGC();
     CallArgs args = CallArgsFromVp(argc, vp);
 
-    // Steps 1, 2, and 3
+    // Steps 1 and 2
     RootedString str(cx, ThisToStringForStringProto(cx, args));
     if (!str)
         return false;
 
-    // Steps 4 and 5
-    Rooted<JSLinearString*> searchStr(cx, ArgToRootedString(cx, args, 0));
-    if (!searchStr)
+    // Step 3
+    Rooted<JSLinearString *> patstr(cx, ArgToRootedString(cx, args, 0));
+    if (!patstr)
         return false;
 
-    // Steps 6 and 7
-    uint32_t pos = 0;
+    // Step 5
+    uint32_t textlen = str->length();
+    const jschar *text = str->getChars(cx);
+    if (!text)
+        return false;
+
+    // XXX fix for moving GC.
+    SkipRoot skip(cx, &text);
+
     if (args.hasDefined(1)) {
-        if (args[1].isInt32()) {
-            int i = args[1].toInt32();
-            pos = (i < 0) ? 0U : uint32_t(i);
-        } else {
-            double d;
-            if (!ToInteger(cx, args[1], &d))
-                return false;
-            pos = uint32_t(Min(Max(d, 0.0), double(UINT32_MAX)));
-        }
+        // Step 4
+        double posDouble;
+        if (!ToInteger(cx, args[1], &posDouble))
+            return false;
+
+        // Step 6
+        uint32_t delta = uint32_t(Min(double(textlen), Max(0.0, posDouble)));
+        text += delta;
+        textlen -= delta;
     }
 
-    AutoAssertNoGC nogc;
+    // Step 7
+    uint32_t patlen = patstr->length();
+    const jschar *pat = patstr->chars();
 
     // Step 8
-    uint32_t textLen = str->length();
-    const jschar *textChars = str->getChars(cx);
-    if (!textChars)
-        return false;
-
-    // Step 9
-    uint32_t start = Min(Max(pos, 0U), textLen);
-
-    // Step 10
-    uint32_t searchLen = searchStr->length();
-    const jschar *searchChars = searchStr->chars();
-
-    // Step 11
-    textChars += start;
-    textLen -= start;
-    int match = StringMatch(textChars, textLen, searchChars, searchLen);
-    args.rval().setBoolean(match != -1);
+    args.rval().setBoolean(StringMatch(text, textlen, pat, patlen) >= 0);
     return true;
 }
 
-/* ES6 20120927 draft 15.5.4.7. */
 static JSBool
 str_indexOf(JSContext *cx, unsigned argc, Value *vp)
 {
-    AssertCanGC();
     CallArgs args = CallArgsFromVp(argc, vp);
-
-    // Steps 1, 2, and 3
     RootedString str(cx, ThisToStringForStringProto(cx, args));
     if (!str)
         return false;
 
-    // Steps 4 and 5
-    Rooted<JSLinearString*> searchStr(cx, ArgToRootedString(cx, args, 0));
-    if (!searchStr)
+    JSLinearString *patstr = ArgToRootedString(cx, args, 0);
+    if (!patstr)
         return false;
 
-    // Steps 6 and 7
-    uint32_t pos = 0;
-    if (args.hasDefined(1)) {
+    uint32_t textlen = str->length();
+    const jschar *text = str->getChars(cx);
+    if (!text)
+        return false;
+
+    uint32_t patlen = patstr->length();
+    const jschar *pat = patstr->chars();
+    SkipRoot skipPat(cx, &pat);
+
+    uint32_t start;
+    if (args.length() > 1) {
         if (args[1].isInt32()) {
             int i = args[1].toInt32();
-            pos = (i < 0) ? 0U : uint32_t(i);
+            if (i <= 0) {
+                start = 0;
+            } else if (uint32_t(i) > textlen) {
+                start = textlen;
+                textlen = 0;
+            } else {
+                start = i;
+                text += start;
+                textlen -= start;
+            }
         } else {
             double d;
             if (!ToInteger(cx, args[1], &d))
                 return false;
-            pos = uint32_t(Min(Max(d, 0.0), double(UINT32_MAX)));
+            if (d <= 0) {
+                start = 0;
+            } else if (d > textlen) {
+                start = textlen;
+                textlen = 0;
+            } else {
+                start = (int)d;
+                text += start;
+                textlen -= start;
+            }
         }
+    } else {
+        start = 0;
     }
 
-    AutoAssertNoGC nogc;
-
-    // Step 8
-    uint32_t textLen = str->length();
-    const jschar *textChars = str->getChars(cx);
-    if (!textChars)
-        return false;
-
-    // Step 9
-    uint32_t start = Min(Max(pos, 0U), textLen);
-
-    // Step 10
-    uint32_t searchLen = searchStr->length();
-    const jschar *searchChars = searchStr->chars();
-
-    // Step 11
-    textChars += start;
-    textLen -= start;
-    int match = StringMatch(textChars, textLen, searchChars, searchLen);
+    int match = StringMatch(text, textlen, pat, patlen);
     args.rval().setInt32((match == -1) ? -1 : start + match);
     return true;
 }
@@ -1317,60 +1314,49 @@ str_lastIndexOf(JSContext *cx, unsigned argc, Value *vp)
     return true;
 }
 
-/* ES6 20120927 draft 15.5.4.22. */
+/* ES6 20120708 draft 15.5.4.22. */
 static JSBool
 str_startsWith(JSContext *cx, unsigned argc, Value *vp)
 {
-    AssertCanGC();
     CallArgs args = CallArgsFromVp(argc, vp);
 
-    // Steps 1, 2, and 3
+    // Steps 1 and 2
     RootedString str(cx, ThisToStringForStringProto(cx, args));
     if (!str)
         return false;
 
-    // Steps 4 and 5
-    Rooted<JSLinearString*> searchStr(cx, ArgToRootedString(cx, args, 0));
-    if (!searchStr)
+    // Step 3
+    Rooted<JSLinearString *> patstr(cx, ArgToRootedString(cx, args, 0));
+    if (!patstr)
         return false;
 
-    // Steps 6 and 7
-    uint32_t pos = 0;
+    // Step 5
+    uint32_t textlen = str->length();
+    const jschar *text = str->getChars(cx);
+    if (!text)
+        return false;
+
+    // XXX fix for moving GC.
+    SkipRoot skip(cx, &text);
+
     if (args.hasDefined(1)) {
-        if (args[1].isInt32()) {
-            int i = args[1].toInt32();
-            pos = (i < 0) ? 0U : uint32_t(i);
-        } else {
-            double d;
-            if (!ToInteger(cx, args[1], &d))
-                return false;
-            pos = uint32_t(Min(Max(d, 0.0), double(UINT32_MAX)));
-        }
+        // Step 4
+        double posDouble;
+        if (!ToInteger(cx, args[1], &posDouble))
+            return false;
+
+        // Step 6
+        uint32_t position = Min(double(textlen), Max(0.0, posDouble));
+        text += position;
+        textlen -= position;
     }
 
-    AutoAssertNoGC nogc;
+    // Step 7
+    uint32_t patlen = patstr->length();
+    const jschar *pat = patstr->chars();
 
-    // Step 8
-    uint32_t textLen = str->length();
-    const jschar *textChars = str->getChars(cx);
-    if (!textChars)
-        return false;
-
-    // Step 9
-    uint32_t start = Min(Max(pos, 0U), textLen);
-
-    // Step 10
-    uint32_t searchLen = searchStr->length();
-    const jschar *searchChars = searchStr->chars();
-
-    // Step 11
-    if (searchLen + start < searchLen || searchLen + start > textLen) {
-        args.rval().setBoolean(false);
-        return true;
-    }
-
-    // Steps 12 and 13
-    args.rval().setBoolean(PodEqual(textChars + start, searchChars, searchLen));
+    // Steps 8, 9, and 10.
+    args.rval().setBoolean(textlen >= patlen && PodEqual(text, pat, patlen));
     return true;
 }
 
@@ -1378,61 +1364,43 @@ str_startsWith(JSContext *cx, unsigned argc, Value *vp)
 static JSBool
 str_endsWith(JSContext *cx, unsigned argc, Value *vp)
 {
-    AssertCanGC();
     CallArgs args = CallArgsFromVp(argc, vp);
 
-    // Steps 1, 2, and 3
+    // Steps 1 and 2
     RootedString str(cx, ThisToStringForStringProto(cx, args));
     if (!str)
         return false;
 
-    // Steps 4 and 5
-    Rooted<JSLinearString *> searchStr(cx, ArgToRootedString(cx, args, 0));
-    if (!searchStr)
+    // Step 3
+    Rooted<JSLinearString *> patstr(cx, ArgToRootedString(cx, args, 0));
+    if (!patstr)
         return false;
 
-    // Step 6
-    uint32_t textLen = str->length();
+    // Step 4
+    uint32_t textlen = str->length();
+    const jschar *text = str->getChars(cx);
+    if (!text)
+        return false;
 
-    // Steps 7 and 8
-    uint32_t pos = textLen;
+    // XXX fix for moving GC.
+    SkipRoot skip(cx, &text);
+
     if (args.hasDefined(1)) {
-        if (args[1].isInt32()) {
-            int i = args[1].toInt32();
-            pos = (i < 0) ? 0U : uint32_t(i);
-        } else {
-            double d;
-            if (!ToInteger(cx, args[1], &d))
-                return false;
-            pos = uint32_t(Min(Max(d, 0.0), double(UINT32_MAX)));
-        }
+        // Step 5
+        double endPosDouble;
+        if (!ToInteger(cx, args[1], &endPosDouble))
+            return false;
+
+        // Step 6
+        textlen = Min(double(textlen), Max(0.0, endPosDouble));
     }
 
-    AutoAssertNoGC nogc;
+    // Step 7
+    uint32_t patlen = patstr->length();
+    const jschar *pat = patstr->chars();
 
-    // Step 6
-    const jschar *textChars = str->getChars(cx);
-    if (!textChars)
-        return false;
-
-    // Step 9
-    uint32_t end = Min(Max(pos, 0U), textLen);
-
-    // Step 10
-    uint32_t searchLen = searchStr->length();
-    const jschar *searchChars = searchStr->chars();
-
-    // Step 12
-    if (searchLen > end) {
-        args.rval().setBoolean(false);
-        return true;
-    }
-
-    // Step 11
-    uint32_t start = end - searchLen;
-
-    // Steps 13 and 14
-    args.rval().setBoolean(PodEqual(textChars + start, searchChars, searchLen));
+    // Steps 8-11
+    args.rval().setBoolean(textlen >= patlen && PodEqual(text + textlen - patlen, pat, patlen));
     return true;
 }
 
@@ -1580,9 +1548,7 @@ class StringRegExpGuard
     }
 
   public:
-    StringRegExpGuard(JSContext *cx)
-      : re_(cx), fm(cx)
-    { }
+    StringRegExpGuard(JSContext *cx) : fm(cx) {}
 
     /* init must succeed in order to call tryFlatMatch or normalizeRegExp. */
     bool init(JSContext *cx, CallArgs args, bool convertVoid = false)
@@ -1666,7 +1632,7 @@ class StringRegExpGuard
             opt = NULL;
         }
 
-        Rooted<JSAtom *> patstr(cx);
+        JSAtom *patstr;
         if (flat) {
             patstr = flattenPattern(cx, fm.patstr);
             if (!patstr)
@@ -2818,7 +2784,7 @@ js::str_split(JSContext *cx, unsigned argc, Value *vp)
     }
 
     /* Step 8. */
-    RegExpGuard re(cx);
+    RegExpGuard re;
     JSLinearString *sepstr = NULL;
     bool sepDefined = args.hasDefined(0);
     if (sepDefined) {
@@ -3345,6 +3311,12 @@ js_InitStringClass(JSContext *cx, HandleObject obj)
     {
         return NULL;
     }
+
+    /* Capture normal data properties pregenerated for String objects. */
+    TypeObject *type = proto->getNewType(cx);
+    if (!type)
+        return NULL;
+    AddTypeProperty(cx, type, "length", Type::Int32Type());
 
     if (!DefineConstructorAndPrototype(cx, global, JSProto_String, ctor, proto))
         return NULL;

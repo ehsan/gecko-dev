@@ -17,7 +17,7 @@
 
 #include "chrome/common/process_watcher.h"
 
-#include "AppProcessChecker.h"
+#include "AppProcessPermissions.h"
 #include "AudioChannelService.h"
 #include "CrashReporterParent.h"
 #include "IHistory.h"
@@ -359,7 +359,7 @@ PrivilegesForApp(mozIApplication* aApp)
     const SpecialPermission specialPermissions[] = {
         // FIXME/bug 785592: implement a CameraBridge so we don't have
         // to hack around with OS permissions
-        { "camera", base::PRIVILEGES_CAMERA },
+        { "camera", base::PRIVILEGES_INHERIT },
         // FIXME/bug 793034: change our video architecture so that we
         // can stream video from remote processes
         { "deprecated-hwvideo", base::PRIVILEGES_VIDEO }
@@ -507,9 +507,6 @@ ContentParent::Init()
         unused << SendActivateA11y();
     }
 #endif
-
-    DebugOnly<FileUpdateDispatcher*> observer = FileUpdateDispatcher::GetSingleton();
-    NS_ASSERTION(observer, "FileUpdateDispatcher is null");
 }
 
 void
@@ -715,17 +712,8 @@ ContentParent::ActorDestroy(ActorDestroyReason why)
                 CrashReporterParent* crashReporter =
                     static_cast<CrashReporterParent*>(ManagedPCrashReporterParent()[0]);
 
-                // If we're an app process, always stomp the latest URI
-                // loaded in the child process with our manifest URL.  We
-                // would rather associate the crashes with apps than
-                // random child windows loaded in them.
-                //
-                // XXX would be nice if we could get both ...
-                if (!mAppManifestURL.IsEmpty()) {
-                    crashReporter->AnnotateCrashReport(NS_LITERAL_CSTRING("URL"),
-                                                       NS_ConvertUTF16toUTF8(mAppManifestURL));
-                }
-
+                crashReporter->AnnotateCrashReport(NS_LITERAL_CSTRING("URL"),
+                                                   NS_ConvertUTF16toUTF8(mAppManifestURL));
                 crashReporter->GenerateCrashReport(this, NULL);
 
                 nsAutoString dumpID(crashReporter->ChildDumpID());
@@ -1102,16 +1090,14 @@ ContentParent::RecvFirstIdle()
 
 bool
 ContentParent::RecvAudioChannelGetMuted(const AudioChannelType& aType,
-                                        const bool& aElementHidden,
-                                        const bool& aElementWasHidden,
+                                        const bool& aMozHidden,
                                         bool* aValue)
 {
     nsRefPtr<AudioChannelService> service =
         AudioChannelService::GetAudioChannelService();
     *aValue = false;
     if (service) {
-        *aValue = service->GetMutedInternal(aType, mChildID,
-                                            aElementHidden, aElementWasHidden);
+        *aValue = service->GetMuted(aType, aMozHidden);
     }
     return true;
 }
@@ -1128,24 +1114,12 @@ ContentParent::RecvAudioChannelRegisterType(const AudioChannelType& aType)
 }
 
 bool
-ContentParent::RecvAudioChannelUnregisterType(const AudioChannelType& aType,
-                                              const bool& aElementHidden)
+ContentParent::RecvAudioChannelUnregisterType(const AudioChannelType& aType)
 {
     nsRefPtr<AudioChannelService> service =
         AudioChannelService::GetAudioChannelService();
     if (service) {
-        service->UnregisterType(aType, aElementHidden, mChildID);
-    }
-    return true;
-}
-
-bool
-ContentParent::RecvAudioChannelChangedNotification()
-{
-    nsRefPtr<AudioChannelService> service =
-        AudioChannelService::GetAudioChannelService();
-    if (service) {
-       service->SendAudioChannelChangedNotification();
+        service->UnregisterType(aType, mChildID);
     }
     return true;
 }
@@ -1973,25 +1947,6 @@ ContentParent::RecvAsyncMessage(const nsString& aMsg,
 }
 
 bool
-ContentParent::RecvFilePathUpdateNotify(const nsString& aType, const nsString& aFilePath, const nsCString& aReason)
-{
-    nsCOMPtr<nsIFile> file;
-    nsresult rv = NS_NewLocalFile(aFilePath, false, getter_AddRefs(file));
-    if (NS_FAILED(rv)) {
-        // ignore
-        return true;
-    }
-    nsRefPtr<DeviceStorageFile> dsf = new DeviceStorageFile(aType, file);
-
-    nsCOMPtr<nsIObserverService> obs = mozilla::services::GetObserverService();
-    if (!obs) {
-        return false;
-    }
-    obs->NotifyObservers(dsf, "file-watcher-update", NS_ConvertASCIItoUTF16(aReason).get());
-    return true;
-}
-
-bool
 ContentParent::RecvAddGeolocationListener(const IPC::Principal& aPrincipal)
 {
 #ifdef MOZ_PERMISSIONS
@@ -2192,11 +2147,6 @@ ContentParent::CheckPermission(const nsAString& aPermission)
   return AssertAppProcessPermission(this, NS_ConvertUTF16toUTF8(aPermission).get());
 }
 
-bool
-ContentParent::CheckManifestURL(const nsAString& aManifestURL)
-{
-  return AssertAppProcessManifestURL(this, NS_ConvertUTF16toUTF8(aManifestURL).get());
-}
 
 } // namespace dom
 } // namespace mozilla

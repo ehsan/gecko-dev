@@ -46,6 +46,7 @@ class nsIDocumentObserver;
 class nsIDOMDocument;
 class nsIDOMDocumentFragment;
 class nsIDOMDocumentType;
+class nsXMLProcessingInstruction;
 class nsIDOMElement;
 class nsIDOMEventTarget;
 class nsIDOMNodeList;
@@ -73,7 +74,6 @@ class nsStyleSet;
 class nsTextNode;
 class nsWindowSizes;
 class nsSmallVoidArray;
-class nsDOMCaretPosition;
 
 namespace mozilla {
 class ErrorResult;
@@ -84,14 +84,12 @@ class ImageLoader;
 } // namespace css
 
 namespace dom {
-class CDATASection;
 class Comment;
 class DocumentFragment;
 class DocumentType;
 class DOMImplementation;
 class Element;
 class Link;
-class ProcessingInstruction;
 class UndoManager;
 template<typename> class Sequence;
 } // namespace dom
@@ -1827,7 +1825,7 @@ public:
                                               mozilla::ErrorResult& rv) const;
   already_AddRefed<mozilla::dom::Comment>
     CreateComment(const nsAString& aData, mozilla::ErrorResult& rv) const;
-  already_AddRefed<mozilla::dom::ProcessingInstruction>
+  already_AddRefed<nsXMLProcessingInstruction>
     CreateProcessingInstruction(const nsAString& target, const nsAString& data,
                                 mozilla::ErrorResult& rv) const;
   already_AddRefed<nsINode>
@@ -1844,7 +1842,7 @@ public:
                      nsIDOMNodeFilter* aFilter, mozilla::ErrorResult& rv) const;
 
   // Deprecated WebIDL bits
-  already_AddRefed<mozilla::dom::CDATASection>
+  already_AddRefed<nsIDOMCDATASection>
     CreateCDATASection(const nsAString& aData, mozilla::ErrorResult& rv);
   already_AddRefed<nsIDOMAttr>
     CreateAttribute(const nsAString& aName, mozilla::ErrorResult& rv);
@@ -1918,19 +1916,6 @@ public:
   virtual nsIDOMDOMStringList* StyleSheetSets() = 0;
   virtual void EnableStyleSheetsForSet(const nsAString& aSheetSet) = 0;
   Element* ElementFromPoint(float aX, float aY);
-
-  /**
-   * Retrieve the location of the caret position (DOM node and character
-   * offset within that node), given a point.
-   *
-   * @param aX Horizontal point at which to determine the caret position, in
-   *           page coordinates.
-   * @param aY Vertical point at which to determine the caret position, in
-   *           page coordinates.
-   */
-  already_AddRefed<nsDOMCaretPosition>
-    CaretPositionFromPoint(float aX, float aY);
-
   // QuerySelector and QuerySelectorAll already defined on nsINode
   nsINodeList* GetAnonymousNodes(Element& aElement);
   Element* GetAnonymousElementByAttribute(Element& aElement,

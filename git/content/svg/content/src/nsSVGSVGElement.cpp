@@ -28,7 +28,7 @@
 #include "nsGUIEvent.h"
 #include "nsSVGSVGElement.h"
 #include "nsSVGUtils.h"
-#include "mozilla/dom/SVGViewElement.h"
+#include "nsSVGViewElement.h"
 #include "nsStyleUtil.h"
 #include "SVGContentUtils.h"
 
@@ -608,11 +608,11 @@ nsSVGSVGElement::GetPreserveAspectRatio(nsISupports
 NS_IMETHODIMP
 nsSVGSVGElement::GetZoomAndPan(uint16_t *aZoomAndPan)
 {
-  SVGViewElement* viewElement = GetCurrentViewElement();
+  nsSVGViewElement* viewElement = GetCurrentViewElement();
   if (viewElement && viewElement->mEnumAttributes[
-                       SVGViewElement::ZOOMANDPAN].IsExplicitlySet()) {
+                       nsSVGViewElement::ZOOMANDPAN].IsExplicitlySet()) {
     *aZoomAndPan = viewElement->mEnumAttributes[
-                     SVGViewElement::ZOOMANDPAN].GetAnimValue();
+                     nsSVGViewElement::ZOOMANDPAN].GetAnimValue();
   } else {
     *aZoomAndPan = mEnumAttributes[ZOOMANDPAN].GetAnimValue();
   }
@@ -974,7 +974,7 @@ nsSVGSVGElement::HasPreserveAspectRatio()
     mPreserveAspectRatio.IsAnimated();
 }
 
-SVGViewElement*
+nsSVGViewElement*
 nsSVGSVGElement::GetCurrentViewElement() const
 {
   if (mCurrentViewID) {
@@ -982,7 +982,7 @@ nsSVGSVGElement::GetCurrentViewElement() const
     if (doc) {
       Element *element = doc->GetElementById(*mCurrentViewID);
       if (element && element->IsSVG(nsGkAtoms::view)) {
-        return static_cast<SVGViewElement*>(element);
+        return static_cast<nsSVGViewElement*>(element);
       }
     }
   }
@@ -994,7 +994,7 @@ nsSVGSVGElement::GetViewBoxWithSynthesis(
   float aViewportWidth, float aViewportHeight) const
 {
   // The logic here should match HasViewBox().
-  SVGViewElement* viewElement = GetCurrentViewElement();
+  nsSVGViewElement* viewElement = GetCurrentViewElement();
   if (viewElement && viewElement->mViewBox.IsExplicitlySet()) {
     return viewElement->mViewBox.GetAnimValue();
   }
@@ -1029,7 +1029,7 @@ nsSVGSVGElement::GetPreserveAspectRatioWithOverride() const
     }
   }
 
-  SVGViewElement* viewElement = GetCurrentViewElement();
+  nsSVGViewElement* viewElement = GetCurrentViewElement();
 
   // This check is equivalent to "!HasViewBox() && ShouldSynthesizeViewBox()".
   // We're just holding onto the viewElement that HasViewBox() would look up,
@@ -1055,7 +1055,7 @@ nsSVGSVGElement::GetLength(uint8_t aCtxType)
 {
   float h, w;
 
-  SVGViewElement* viewElement = GetCurrentViewElement();
+  nsSVGViewElement* viewElement = GetCurrentViewElement();
   const nsSVGViewBoxRect* viewbox = nullptr;
 
   // The logic here should match HasViewBox().
@@ -1177,7 +1177,7 @@ nsSVGSVGElement::GetPreserveAspectRatio()
 bool
 nsSVGSVGElement::HasViewBox() const
 {
-  SVGViewElement* viewElement = GetCurrentViewElement();
+  nsSVGViewElement* viewElement = GetCurrentViewElement();
   if (viewElement && viewElement->mViewBox.IsExplicitlySet()) {
     return true;
   }

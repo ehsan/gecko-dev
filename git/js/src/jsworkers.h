@@ -120,6 +120,10 @@ StartOffThreadIonCompile(JSContext *cx, ion::IonBuilder *builder);
 void
 CancelOffThreadIonCompile(JSCompartment *compartment, JSScript *script);
 
+/* Return true iff off-thread compilation is possible. */
+bool
+OffThreadCompilationAvailable(JSContext *cx);
+
 class AutoLockWorkerThreadState
 {
     JSRuntime *rt;

@@ -17,11 +17,8 @@ XPIDLSRCS = \
   nsIBrowserHandler.idl \
   $(NULL)
 
-EXTRA_COMPONENTS = \
-  BrowserComponents.manifest \
-  $(NULL)
-
 EXTRA_PP_COMPONENTS = \
+  BrowserComponents.manifest \
   nsBrowserContentHandler.js \
   nsBrowserGlue.js \
   $(NULL)

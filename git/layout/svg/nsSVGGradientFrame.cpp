@@ -10,13 +10,12 @@
 #include "gfxPattern.h"
 #include "nsContentUtils.h"
 #include "nsIDOMSVGAnimatedNumber.h"
+#include "nsIDOMSVGStopElement.h"
 #include "nsSVGEffects.h"
 #include "nsSVGGradientElement.h"
 #include "SVGAnimatedTransformList.h"
-#include "mozilla/dom/SVGStopElement.h"
 
-using namespace mozilla;
-using namespace mozilla::dom;
+using mozilla::SVGAnimatedTransformList;
 
 //----------------------------------------------------------------------
 // Helper classes
@@ -104,14 +103,12 @@ nsSVGGradientFrame::GetStopInformation(int32_t aIndex,
 
   nsIFrame *stopFrame = nullptr;
   GetStopFrame(aIndex, &stopFrame);
+  nsCOMPtr<nsIDOMSVGStopElement> stopElement =
+    do_QueryInterface(stopFrame->GetContent());
 
-  nsIContent* stopContent = stopFrame->GetContent();
-
-  if (stopContent) {
-    MOZ_ASSERT(stopContent->IsSVG(nsGkAtoms::stop));
-    SVGStopElement* stopElement = nullptr;
-    stopElement = static_cast<SVGStopElement*>(stopContent);
-    nsCOMPtr<nsIDOMSVGAnimatedNumber> aNum = stopElement->Offset();
+  if (stopElement) {
+    nsCOMPtr<nsIDOMSVGAnimatedNumber> aNum;
+    stopElement->GetOffset(getter_AddRefs(aNum));
 
     aNum->GetAnimVal(aOffset);
     if (*aOffset < 0.0f)
@@ -422,8 +419,8 @@ nsSVGLinearGradientFrame::Init(nsIContent* aContent,
                                nsIFrame* aParent,
                                nsIFrame* aPrevInFlow)
 {
-  NS_ASSERTION(aContent->IsSVG(nsGkAtoms::linearGradient),
-               "Content is not an SVG linearGradient");
+  nsCOMPtr<nsIDOMSVGLinearGradientElement> grad = do_QueryInterface(aContent);
+  NS_ASSERTION(grad, "Content is not an SVG linearGradient");
 
   return nsSVGLinearGradientFrameBase::Init(aContent, aParent, aPrevInFlow);
 }
@@ -535,8 +532,8 @@ nsSVGRadialGradientFrame::Init(nsIContent* aContent,
                                nsIFrame* aParent,
                                nsIFrame* aPrevInFlow)
 {
-  NS_ASSERTION(aContent->IsSVG(nsGkAtoms::radialGradient),
-               "Content is not an SVG radialGradient");
+  nsCOMPtr<nsIDOMSVGRadialGradientElement> grad = do_QueryInterface(aContent);
+  NS_ASSERTION(grad, "Content is not an SVG radialGradient");
 
   return nsSVGRadialGradientFrameBase::Init(aContent, aParent, aPrevInFlow);
 }

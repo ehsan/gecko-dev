@@ -134,7 +134,6 @@ static const nsAttrValue::EnumTable kInputTypeTable[] = {
   { "submit", NS_FORM_INPUT_SUBMIT },
   { "tel", NS_FORM_INPUT_TEL },
   { "text", NS_FORM_INPUT_TEXT },
-  { "time", NS_FORM_INPUT_TIME },
   { "url", NS_FORM_INPUT_URL },
   { 0 }
 };
@@ -705,7 +704,6 @@ nsHTMLInputElement::Clone(nsINodeInfo *aNodeInfo, nsINode **aResult) const
     case NS_FORM_INPUT_URL:
     case NS_FORM_INPUT_NUMBER:
     case NS_FORM_INPUT_DATE:
-    case NS_FORM_INPUT_TIME:
       if (mValueChanged) {
         // We don't have our default value anymore.  Set our value on
         // the clone.
@@ -1078,7 +1076,7 @@ nsHTMLInputElement::ConvertStringToNumber(nsAString& aValue,
           return false;
         }
 
-        return true;
+        break;
       }
     case NS_FORM_INPUT_DATE:
       {
@@ -1093,40 +1091,32 @@ nsHTMLInputElement::ConvertStringToNumber(nsAString& aValue,
         }
 
         JSObject* date = JS_NewDateObjectMsec(ctx, 0);
-        if (!date) {
-          JS_ClearPendingException(ctx);
-          return false;
-        }
-
         jsval rval;
         jsval fullYear[3];
         fullYear[0].setInt32(year);
         fullYear[1].setInt32(month-1);
         fullYear[2].setInt32(day);
         if (!JS::Call(ctx, date, "setUTCFullYear", 3, fullYear, &rval)) {
-          JS_ClearPendingException(ctx);
           return false;
         }
 
         jsval timestamp;
         if (!JS::Call(ctx, date, "getTime", 0, nullptr, &timestamp)) {
-          JS_ClearPendingException(ctx);
           return false;
         }
 
-        if (!timestamp.isNumber() || MOZ_DOUBLE_IS_NaN(timestamp.toNumber())) {
+        if (!timestamp.isNumber()) {
           return false;
         }
 
         aResultValue = timestamp.toNumber();
-        return true;
       }
+      break;
     default:
       return false;
   }
 
-  MOZ_NOT_REACHED();
-  return false;
+  return true;
 }
 
 double
@@ -1252,7 +1242,6 @@ nsHTMLInputElement::ConvertNumberToString(double aValue,
 
         JSObject* date = JS_NewDateObjectMsec(ctx, aValue);
         if (!date) {
-          JS_ClearPendingException(ctx);
           return false;
         }
 
@@ -1260,14 +1249,6 @@ nsHTMLInputElement::ConvertNumberToString(double aValue,
         if (!JS::Call(ctx, date, "getUTCFullYear", 0, nullptr, &year) ||
             !JS::Call(ctx, date, "getUTCMonth", 0, nullptr, &month) ||
             !JS::Call(ctx, date, "getUTCDate", 0, nullptr, &day)) {
-          JS_ClearPendingException(ctx);
-          return false;
-        }
-
-        if (!year.isNumber() || !month.isNumber() || !day.isNumber() ||
-            MOZ_DOUBLE_IS_NaN(year.toNumber()) ||
-            MOZ_DOUBLE_IS_NaN(month.toNumber()) ||
-            MOZ_DOUBLE_IS_NaN(day.toNumber())) {
           return false;
         }
 
@@ -1299,19 +1280,12 @@ nsHTMLInputElement::GetValueAsDate(JSContext* aCtx, jsval* aDate)
   }
 
   JSObject* date = JS_NewDateObjectMsec(aCtx, 0);
-  if (!date) {
-    JS_ClearPendingException(aCtx);
-    aDate->setNull();
-    return NS_OK;
-  }
-
   jsval rval;
   jsval fullYear[3];
   fullYear[0].setInt32(year);
   fullYear[1].setInt32(month-1);
   fullYear[2].setInt32(day);
   if(!JS::Call(aCtx, date, "setUTCFullYear", 3, fullYear, &rval)) {
-    JS_ClearPendingException(aCtx);
     aDate->setNull();
     return NS_OK;
   }
@@ -1327,22 +1301,15 @@ nsHTMLInputElement::SetValueAsDate(JSContext* aCtx, const jsval& aDate)
     return NS_ERROR_DOM_INVALID_STATE_ERR;
   }
 
-  if (aDate.isNullOrUndefined()) {
-    return SetValue(EmptyString());
-  }
-
-  // TODO: return TypeError when HTMLInputElement is converted to WebIDL, see
-  // bug 826302.
   if (!aDate.isObject() || !JS_ObjectIsDate(aCtx, &aDate.toObject())) {
     SetValue(EmptyString());
-    return NS_ERROR_INVALID_ARG;
+    return NS_OK;
   }
 
   JSObject& date = aDate.toObject();
   jsval timestamp;
-  if (!JS::Call(aCtx, &date, "getTime", 0, nullptr, &timestamp) ||
-      !timestamp.isNumber() || MOZ_DOUBLE_IS_NaN(timestamp.toNumber())) {
-    JS_ClearPendingException(aCtx);
+  bool ret = JS::Call(aCtx, &date, "getTime", 0, nullptr, &timestamp);
+  if (!ret || !timestamp.isNumber() || MOZ_DOUBLE_IS_NaN(timestamp.toNumber())) {
     SetValue(EmptyString());
     return NS_OK;
   }
@@ -1599,8 +1566,7 @@ NS_IMETHODIMP
 nsHTMLInputElement::MozIsTextField(bool aExcludePassword, bool* aResult)
 {
   // TODO: temporary until bug 635240 and 773205 are fixed.
-  if (mType == NS_FORM_INPUT_NUMBER || mType == NS_FORM_INPUT_DATE ||
-      mType == NS_FORM_INPUT_TIME) {
+  if (mType == NS_FORM_INPUT_NUMBER || mType == NS_FORM_INPUT_DATE) {
     *aResult = false;
     return NS_OK;
   }
@@ -2693,7 +2659,6 @@ nsHTMLInputElement::PostHandleEvent(nsEventChainPostVisitor& aVisitor)
                keyEvent->keyCode == NS_VK_ENTER) &&
                (IsSingleLineTextControl(false, mType) ||
                 mType == NS_FORM_INPUT_NUMBER ||
-                mType == NS_FORM_INPUT_TIME ||
                 mType == NS_FORM_INPUT_DATE)) {
             FireChangeEventIfNeeded();   
             rv = MaybeSubmitForm(aVisitor.mPresContext);
@@ -3149,7 +3114,6 @@ nsHTMLInputElement::ParseAttribute(int32_t aNamespaceID,
       if (success) {
         newType = aResult.GetEnumValue();
         if ((newType == NS_FORM_INPUT_NUMBER ||
-             newType == NS_FORM_INPUT_TIME ||
              newType == NS_FORM_INPUT_DATE) && 
             !Preferences::GetBool("dom.experimental_forms", false)) {
           newType = kInputDefaultType->value;
@@ -3777,7 +3741,6 @@ nsHTMLInputElement::SaveState()
     case NS_FORM_INPUT_HIDDEN:
     case NS_FORM_INPUT_NUMBER:
     case NS_FORM_INPUT_DATE:
-    case NS_FORM_INPUT_TIME:
       {
         if (mValueChanged) {
           inputState = new nsHTMLInputElementState();
@@ -3963,7 +3926,6 @@ nsHTMLInputElement::RestoreState(nsPresState* aState)
       case NS_FORM_INPUT_HIDDEN:
       case NS_FORM_INPUT_NUMBER:
       case NS_FORM_INPUT_DATE:
-      case NS_FORM_INPUT_TIME:
         {
           SetValueInternal(inputState->GetValue(), false, true);
           break;
@@ -4189,7 +4151,6 @@ nsHTMLInputElement::GetValueMode() const
     case NS_FORM_INPUT_URL:
     case NS_FORM_INPUT_NUMBER:
     case NS_FORM_INPUT_DATE:
-    case NS_FORM_INPUT_TIME:
       return VALUE_MODE_VALUE;
     default:
       NS_NOTYETIMPLEMENTED("Unexpected input type in GetValueMode()");
@@ -4235,7 +4196,6 @@ nsHTMLInputElement::DoesReadOnlyApply() const
     case NS_FORM_INPUT_URL:
     case NS_FORM_INPUT_NUMBER:
     case NS_FORM_INPUT_DATE:
-    case NS_FORM_INPUT_TIME:
       return true;
     default:
       NS_NOTYETIMPLEMENTED("Unexpected input type in DoesReadOnlyApply()");
@@ -4273,7 +4233,6 @@ nsHTMLInputElement::DoesRequiredApply() const
     case NS_FORM_INPUT_URL:
     case NS_FORM_INPUT_NUMBER:
     case NS_FORM_INPUT_DATE:
-    case NS_FORM_INPUT_TIME:
       return true;
     default:
       NS_NOTYETIMPLEMENTED("Unexpected input type in DoesRequiredApply()");
@@ -4288,8 +4247,7 @@ nsHTMLInputElement::DoesRequiredApply() const
 bool
 nsHTMLInputElement::PlaceholderApplies() const
 {
-  if (mType == NS_FORM_INPUT_DATE ||
-      mType == NS_FORM_INPUT_TIME) {
+  if (mType == NS_FORM_INPUT_DATE) {
     return false;
   }
 
@@ -4299,9 +4257,8 @@ nsHTMLInputElement::PlaceholderApplies() const
 bool
 nsHTMLInputElement::DoesPatternApply() const
 {
-  // TODO: temporary until bug 635240 and bug 773205 are fixed.
-  if (mType == NS_FORM_INPUT_NUMBER || mType == NS_FORM_INPUT_DATE ||
-      mType == NS_FORM_INPUT_TIME) {
+  // TODO: temporary until bug 635240 is fixed.
+  if (mType == NS_FORM_INPUT_NUMBER || mType == NS_FORM_INPUT_DATE) {
     return false;
   }
 
@@ -4334,8 +4291,6 @@ nsHTMLInputElement::DoesMinMaxApply() const
     case NS_FORM_INPUT_TEL:
     case NS_FORM_INPUT_EMAIL:
     case NS_FORM_INPUT_URL:
-    // TODO: temp until bug 781572 is fixed.
-    case NS_FORM_INPUT_TIME:
       return false;
     default:
       NS_NOTYETIMPLEMENTED("Unexpected input type in DoesRequiredApply()");
@@ -4511,8 +4466,7 @@ nsHTMLInputElement::HasPatternMismatch() const
 bool
 nsHTMLInputElement::IsRangeOverflow() const
 {
-  // Ignore type=time until bug 781572 is fixed.
-  if (!DoesMinMaxApply() || mType == NS_FORM_INPUT_TIME) {
+  if (!DoesMinMaxApply()) {
     return false;
   }
 

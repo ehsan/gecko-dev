@@ -75,7 +75,7 @@
                 'filter_ar_fast_q12.c',
               ],
               'conditions': [
-                ['0==1 and arm_neon==1', {
+                ['arm_neon==1', {
                   'sources': [
                     'cross_correlation_neon.s',
                     'downsample_fast_neon.s',
@@ -87,9 +87,6 @@
                     'downsample_fast.c',
                   ],
                 }],
-              ],
-              'defines!': [
-                'WEBRTC_ARCH_ARM_NEON'
               ],
             }],
           ],

@@ -137,11 +137,12 @@ obj_toSource(JSContext *cx, unsigned argc, Value *vp)
     if (!buf.append('{'))
         return false;
 
-    RootedValue v0(cx), v1(cx);
-    MutableHandleValue val[2] = {&v0, &v1};
+    Value val[2];
+    PodArrayZero(val);
+    AutoArrayRooter tvr2(cx, ArrayLength(val), val);
 
-    RootedString str0(cx), str1(cx);
-    MutableHandleString gsop[2] = {&str0, &str1};
+    JSString *gsop[2];
+    SkipRoot skipGsop(cx, &gsop, 2);
 
     AutoIdVector idv(cx);
     if (!GetPropertyNames(cx, obj, JSITER_OWNONLY, &idv))
@@ -163,21 +164,22 @@ obj_toSource(JSContext *cx, unsigned argc, Value *vp)
                 unsigned attrs = shape->attributes();
                 if (attrs & JSPROP_GETTER) {
                     doGet = false;
-                    val[valcnt].set(shape->getterValue());
-                    gsop[valcnt].set(cx->names().get);
+                    val[valcnt] = shape->getterValue();
+                    gsop[valcnt] = cx->names().get;
                     valcnt++;
                 }
                 if (attrs & JSPROP_SETTER) {
                     doGet = false;
-                    val[valcnt].set(shape->setterValue());
-                    gsop[valcnt].set(cx->names().set);
+                    val[valcnt] = shape->setterValue();
+                    gsop[valcnt] = cx->names().set;
                     valcnt++;
                 }
             }
             if (doGet) {
                 valcnt = 1;
-                gsop[0].set(NULL);
-                if (!JSObject::getGeneric(cx, obj, obj, id, val[0]))
+                gsop[0] = NULL;
+                MutableHandleValue vp = MutableHandleValue::fromMarkedLocation(&val[0]);
+                if (!JSObject::getGeneric(cx, obj, obj, id, vp))
                     return false;
             }
         }
@@ -250,7 +252,7 @@ obj_toSource(JSContext *cx, unsigned argc, Value *vp)
                         vchars++;
                     vlength = end - vchars - parenChomp;
                 } else {
-                    gsop[j].set(NULL);
+                    gsop[j] = NULL;
                     vchars = start;
                 }
             }

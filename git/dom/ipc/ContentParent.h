@@ -102,7 +102,6 @@ public:
     virtual bool DoSendAsyncMessage(const nsAString& aMessage,
                                     const mozilla::dom::StructuredCloneData& aData);
     virtual bool CheckPermission(const nsAString& aPermission);
-    virtual bool CheckManifestURL(const nsAString& aManifestURL);
 
     /** Notify that a tab was destroyed during normal operation. */
     void NotifyTabDestroyed(PBrowserParent* aTab);
@@ -302,10 +301,6 @@ private:
     virtual bool RecvAsyncMessage(const nsString& aMsg,
                                   const ClonedMessageData& aData);
 
-    virtual bool RecvFilePathUpdateNotify(const nsString& aType,
-                                          const nsString& aFilePath,
-                                          const nsCString& aReason);
-
     virtual bool RecvAddGeolocationListener(const IPC::Principal& aPrincipal);
     virtual bool RecvRemoveGeolocationListener();
     virtual bool RecvSetGeolocationHigherAccuracy(const bool& aEnable);
@@ -324,15 +319,11 @@ private:
     virtual bool RecvFirstIdle();
 
     virtual bool RecvAudioChannelGetMuted(const AudioChannelType& aType,
-                                          const bool& aElementHidden,
-                                          const bool& aElementWasHidden,
+                                          const bool& aMozHidden,
                                           bool* aValue);
 
     virtual bool RecvAudioChannelRegisterType(const AudioChannelType& aType);
-    virtual bool RecvAudioChannelUnregisterType(const AudioChannelType& aType,
-                                                const bool& aElementHidden);
-
-    virtual bool RecvAudioChannelChangedNotification();
+    virtual bool RecvAudioChannelUnregisterType(const AudioChannelType& aType);
 
     virtual void ProcessingError(Result what) MOZ_OVERRIDE;
 

@@ -12,7 +12,6 @@
 
 #include "nsAutoPtr.h"
 #include "nsBaseWidget.h"
-#include "nsWindowBase.h"
 #include "nsdefs.h"
 #include "nsIdleService.h"
 #include "nsToolkit.h"
@@ -65,7 +64,7 @@ class ModifierKeyState;
  * Native WIN32 window wrapper.
  */
 
-class nsWindow : public nsWindowBase
+class nsWindow : public nsBaseWidget
 {
   typedef mozilla::TimeStamp TimeStamp;
   typedef mozilla::TimeDuration TimeDuration;
@@ -80,11 +79,9 @@ public:
 
   friend class nsWindowGfx;
 
-  // nsWindowBase
-  virtual void InitEvent(nsGUIEvent& aEvent, nsIntPoint* aPoint = nullptr) MOZ_OVERRIDE;
-  virtual bool DispatchWindowEvent(nsGUIEvent* aEvent) MOZ_OVERRIDE;
-
-  // nsIWidget interface
+  /**
+   * nsIWidget interface
+   */
   NS_IMETHOD              Create(nsIWidget *aParent,
                                  nsNativeWidget aNativeParent,
                                  const nsIntRect &aRect,
@@ -189,11 +186,13 @@ public:
   /**
    * Event helpers
    */
+  void                    InitEvent(nsGUIEvent& event, nsIntPoint* aPoint = nullptr);
   virtual bool            DispatchMouseEvent(uint32_t aEventType, WPARAM wParam,
                                              LPARAM lParam,
                                              bool aIsContextMenuKey = false,
                                              int16_t aButton = nsMouseEvent::eLeftButton,
                                              uint16_t aInputSource = nsIDOMMouseEvent::MOZ_SOURCE_MOUSE);
+  virtual bool            DispatchWindowEvent(nsGUIEvent* event);
   virtual bool            DispatchWindowEvent(nsGUIEvent*event, nsEventStatus &aStatus);
   void                    InitKeyEvent(nsKeyEvent& aKeyEvent,
                                        const NativeKey& aNativeKey,
@@ -216,6 +215,7 @@ public:
    * Window utilities
    */
   nsWindow*               GetTopLevelWindow(bool aStopOnDialogOrPopup);
+  HWND                    GetWindowHandle() { return mWnd; }
   WNDPROC                 GetPrevWindowProc() { return mPrevWndProc; }
   WindowHook&             GetWindowHook() { return mWindowHook; }
   nsWindow*               GetParentWindow(bool aIncludeOwner);

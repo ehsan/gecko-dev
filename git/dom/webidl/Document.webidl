@@ -16,8 +16,10 @@
  */
 
 interface Attr;
+interface CDATASection;
 interface Comment;
 interface NodeIterator;
+interface ProcessingInstruction;
 interface Range;
 interface StyleSheetList;
 interface Touch;
@@ -374,8 +376,7 @@ http://dev.w3.org/csswg/cssom-view/#extensions-to-the-document-interface
 partial interface Document {
 */
     Element? elementFromPoint (float x, float y);
-
-    CaretPosition? caretPositionFromPoint (float x, float y);
+    //(Not implemented)CaretPosition? caretPositionFromPoint (float x, float y);
 /*
 };
 

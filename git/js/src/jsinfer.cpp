@@ -1272,7 +1272,7 @@ TypeConstraintCall::newType(JSContext *cx, TypeSet *source, Type type)
         return;
     }
 
-    RootedFunction callee(cx);
+    JSFunction *callee = NULL;
 
     if (type.isSingleObject()) {
         RootedObject obj(cx, type.singleObject());
@@ -1348,7 +1348,7 @@ TypeConstraintCall::newType(JSContext *cx, TypeSet *source, Type type)
         return;
     }
 
-    RootedScript calleeScript(cx, JSFunction::getOrCreateScript(cx, callee));
+    RootedScript calleeScript(cx, callee->getOrCreateScript(cx));
     if (!calleeScript)
         return;
     if (!calleeScript->ensureHasTypes(cx))
@@ -1397,8 +1397,6 @@ TypeConstraintCall::newType(JSContext *cx, TypeSet *source, Type type)
 void
 TypeConstraintPropagateThis::newType(JSContext *cx, TypeSet *source, Type type)
 {
-    AssertCanGC();
-
     if (type.isUnknown() || type.isAnyObject()) {
         /*
          * The callee is unknown, make sure the call is monitored so we pick up
@@ -1412,7 +1410,7 @@ TypeConstraintPropagateThis::newType(JSContext *cx, TypeSet *source, Type type)
     }
 
     /* Ignore calls to natives, these will be handled by TypeConstraintCall. */
-    RootedFunction callee(cx);
+    JSFunction *callee = NULL;
 
     if (type.isSingleObject()) {
         RootedObject object(cx, type.singleObject());
@@ -1429,7 +1427,7 @@ TypeConstraintPropagateThis::newType(JSContext *cx, TypeSet *source, Type type)
         return;
     }
 
-    if (!(JSFunction::getOrCreateScript(cx, callee) && callee->nonLazyScript()->ensureHasTypes(cx)))
+    if (!(callee->getOrCreateScript(cx) && callee->nonLazyScript()->ensureHasTypes(cx)))
         return;
 
     TypeSet *thisTypes = TypeScript::ThisTypes(callee->nonLazyScript());
@@ -3603,11 +3601,9 @@ TypeObject::clearNewScript(JSContext *cx)
 void
 TypeObject::print()
 {
-    TaggedProto tagged(proto);
     printf("%s : %s",
            TypeObjectString(this),
-           tagged.isObject() ? TypeString(Type::ObjectType(proto))
-                            : (tagged.isLazy() ? "(lazy)" : "(null)"));
+           proto ? TypeString(Type::ObjectType(proto)) : "(null)");
 
     if (unknownProperties()) {
         printf(" unknown");
@@ -5755,8 +5751,7 @@ JSObject::makeLazyType(JSContext *cx)
     RootedObject self(cx, this);
     /* De-lazification of functions can GC, so we need to do it up here. */
     if (self->isFunction() && self->toFunction()->isInterpretedLazy()) {
-        RootedFunction fun(cx, self->toFunction());
-        if (!JSFunction::getOrCreateScript(cx, fun))
+        if (!self->toFunction()->getOrCreateScript(cx))
             return NULL;
     }
     JSProtoKey key = JSCLASS_CACHED_PROTO_KEY(getClass());
@@ -5943,18 +5938,6 @@ JSCompartment::getNewType(JSContext *cx, TaggedProto proto_, JSFunction *fun_, b
         if (obj->isXML() && !type->unknownProperties())
             type->flags |= OBJECT_FLAG_UNKNOWN_MASK;
 #endif
-
-        if (obj->isRegExp()) {
-            AddTypeProperty(cx, type, "source", types::Type::StringType());
-            AddTypeProperty(cx, type, "global", types::Type::BooleanType());
-            AddTypeProperty(cx, type, "ignoreCase", types::Type::BooleanType());
-            AddTypeProperty(cx, type, "multiline", types::Type::BooleanType());
-            AddTypeProperty(cx, type, "sticky", types::Type::BooleanType());
-            AddTypeProperty(cx, type, "lastIndex", types::Type::Int32Type());
-        }
-
-        if (obj->isString())
-            AddTypeProperty(cx, type, "length", Type::Int32Type());
     }
 
     /*

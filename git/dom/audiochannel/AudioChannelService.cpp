@@ -66,7 +66,7 @@ AudioChannelService::Shutdown()
 NS_IMPL_ISUPPORTS0(AudioChannelService)
 
 AudioChannelService::AudioChannelService()
-: mCurrentHigherChannel(AUDIO_CHANNEL_LAST)
+: mCurrentHigherChannel(AUDIO_CHANNEL_NORMAL)
 {
   // Creation of the hash table.
   mAgents.Init();
@@ -87,105 +87,153 @@ void
 AudioChannelService::RegisterAudioChannelAgent(AudioChannelAgent* aAgent,
                                                AudioChannelType aType)
 {
-  AudioChannelAgentData data = { aType,
-                                 true /* mElementHidden */,
-                                 true /* mMuted */ };
-  mAgents.Put(aAgent, data);
+  mAgents.Put(aAgent, aType);
   RegisterType(aType, CONTENT_PARENT_UNKNOWN_CHILD_ID);
 }
 
 void
 AudioChannelService::RegisterType(AudioChannelType aType, uint64_t aChildID)
 {
-  AudioChannelInternalType type = GetInternalType(aType, true);
-  mChannelCounters[type].AppendElement(aChildID);
+  mChannelCounters[aType].AppendElement(aChildID);
 
   // In order to avoid race conditions, it's safer to notify any existing
   // agent any time a new one is registered.
-  if (XRE_GetProcessType() == GeckoProcessType_Default) {
-    SendAudioChannelChangedNotification();
-    Notify();
-  }
+  Notify();
 }
 
 void
 AudioChannelService::UnregisterAudioChannelAgent(AudioChannelAgent* aAgent)
 {
-  AudioChannelAgentData data;
-  if (!mAgents.Get(aAgent, &data)) {
+  AudioChannelType type;
+  if (!mAgents.Get(aAgent, &type)) {
     return;
   }
 
   mAgents.Remove(aAgent);
-  UnregisterType(data.mType, data.mElementHidden, CONTENT_PARENT_UNKNOWN_CHILD_ID);
+  UnregisterType(type, CONTENT_PARENT_UNKNOWN_CHILD_ID);
 }
 
 void
-AudioChannelService::UnregisterType(AudioChannelType aType,
-                                    bool aElementHidden,
-                                    uint64_t aChildID)
+AudioChannelService::UnregisterType(AudioChannelType aType, uint64_t aChildID)
 {
   // The array may contain multiple occurrence of this appId but
   // this should remove only the first one.
-  AudioChannelInternalType type = GetInternalType(aType, aElementHidden);
-  mChannelCounters[type].RemoveElement(aChildID);
+  mChannelCounters[aType].RemoveElement(aChildID);
+
+  bool isNoChannelUsed = true;
+  for (int32_t type = AUDIO_CHANNEL_NORMAL;
+         type <= AUDIO_CHANNEL_PUBLICNOTIFICATION;
+         ++type) {
+    if (!mChannelCounters[type].IsEmpty()) {
+      isNoChannelUsed = false;
+      break;
+    }
+  }
+
+  if (isNoChannelUsed) {
+    nsCOMPtr<nsIObserverService> obs = mozilla::services::GetObserverService();
+    obs->NotifyObservers(nullptr, "audio-channel-changed", NS_LITERAL_STRING("default").get());
+    mCurrentHigherChannel = AUDIO_CHANNEL_NORMAL;
+    return;
+  }
 
   // In order to avoid race conditions, it's safer to notify any existing
   // agent any time a new one is registered.
-  if (XRE_GetProcessType() == GeckoProcessType_Default) {
-    SendAudioChannelChangedNotification();
-    Notify();
-  }
+  Notify();
 }
 
 bool
-AudioChannelService::GetMuted(AudioChannelAgent* aAgent, bool aElementHidden)
+AudioChannelService::GetMuted(AudioChannelType aType, bool aElementHidden)
 {
-  AudioChannelAgentData data;
-  if (!mAgents.Get(aAgent, &data)) {
-    return true;
-  }
+  // We are not visible, maybe we have to mute:
+  if (aElementHidden) {
+    switch (aType) {
+      case AUDIO_CHANNEL_NORMAL:
+        return true;
 
-  bool muted = GetMutedInternal(data.mType, CONTENT_PARENT_UNKNOWN_CHILD_ID,
-                                aElementHidden, data.mElementHidden);
+      case AUDIO_CHANNEL_CONTENT:
+      {
+        // If we have more than 1 using the content channel,
+        // this must be muted.
+        uint32_t childId = CONTENT_PARENT_UNKNOWN_CHILD_ID;
+        bool empty = true;
+        for (uint32_t i = 0;
+             i < mChannelCounters[AUDIO_CHANNEL_CONTENT].Length();
+             ++i) {
+          if (empty) {
+            childId = mChannelCounters[AUDIO_CHANNEL_CONTENT][i];
+            empty = false;
+          }
+          else if (childId != mChannelCounters[AUDIO_CHANNEL_CONTENT][i])
+            return true;
+        }
+        break;
+      }
 
-  // Update visibility.
-  if (data.mElementHidden != aElementHidden || data.mMuted != muted) {
-    data.mElementHidden = aElementHidden;
-    data.mMuted = muted;
-    mAgents.Put(aAgent, data);
-  }
+      case AUDIO_CHANNEL_NOTIFICATION:
+      case AUDIO_CHANNEL_ALARM:
+      case AUDIO_CHANNEL_TELEPHONY:
+      case AUDIO_CHANNEL_RINGER:
+      case AUDIO_CHANNEL_PUBLICNOTIFICATION:
+        // Nothing to do
+        break;
 
-  SendAudioChannelChangedNotification();
-  return muted;
-}
-
-bool
-AudioChannelService::GetMutedInternal(AudioChannelType aType, uint64_t aChildID,
-                                      bool aElementHidden, bool aElementWasHidden)
-{
-  // Calculating the new and old type and update the hashtable if needed.
-  AudioChannelInternalType newType = GetInternalType(aType, aElementHidden);
-  AudioChannelInternalType oldType = GetInternalType(aType, aElementWasHidden);
-
-  if (newType != oldType) {
-    mChannelCounters[newType].AppendElement(aChildID);
-    mChannelCounters[oldType].RemoveElement(aChildID);
+      case AUDIO_CHANNEL_LAST:
+        MOZ_NOT_REACHED();
+        return false;
+    }
   }
 
   bool muted = false;
 
-  // We are not visible, maybe we have to mute.
-  if (newType == AUDIO_CHANNEL_INT_NORMAL_HIDDEN ||
-      (newType == AUDIO_CHANNEL_INT_CONTENT_HIDDEN &&
-       (!mChannelCounters[AUDIO_CHANNEL_INT_CONTENT].IsEmpty() ||
-        HasMoreThanOneContentChannelHidden()))) {
-    muted = true;
+  // Priorities:
+  switch (aType) {
+    case AUDIO_CHANNEL_NORMAL:
+    case AUDIO_CHANNEL_CONTENT:
+      muted = !mChannelCounters[AUDIO_CHANNEL_NOTIFICATION].IsEmpty() ||
+              !mChannelCounters[AUDIO_CHANNEL_ALARM].IsEmpty() ||
+              !mChannelCounters[AUDIO_CHANNEL_TELEPHONY].IsEmpty() ||
+              !mChannelCounters[AUDIO_CHANNEL_RINGER].IsEmpty() ||
+              !mChannelCounters[AUDIO_CHANNEL_PUBLICNOTIFICATION].IsEmpty();
+      break;
+
+    case AUDIO_CHANNEL_NOTIFICATION:
+    case AUDIO_CHANNEL_ALARM:
+    case AUDIO_CHANNEL_TELEPHONY:
+    case AUDIO_CHANNEL_RINGER:
+      muted = ChannelsActiveWithHigherPriorityThan(aType);
+      break;
+
+    case AUDIO_CHANNEL_PUBLICNOTIFICATION:
+      break;
+
+    case AUDIO_CHANNEL_LAST:
+      MOZ_NOT_REACHED();
+      return false;
   }
 
+  // Notification if needed.
   if (!muted) {
-    MOZ_ASSERT(newType != AUDIO_CHANNEL_INT_NORMAL_HIDDEN);
-    muted = ChannelsActiveWithHigherPriorityThan(newType);
+
+    // Calculating the most important unmuted channel:
+    AudioChannelType higher = AUDIO_CHANNEL_NORMAL;
+    for (int32_t type = AUDIO_CHANNEL_NORMAL;
+         type <= AUDIO_CHANNEL_PUBLICNOTIFICATION;
+         ++type) {
+      if (!mChannelCounters[type].IsEmpty()) {
+        higher = (AudioChannelType)type;
+      }
+    }
+
+    if (higher != mCurrentHigherChannel) {
+      mCurrentHigherChannel = higher;
+
+      nsString channelName;
+      channelName.AssignASCII(ChannelName(mCurrentHigherChannel));
+
+      nsCOMPtr<nsIObserverService> obs = mozilla::services::GetObserverService();
+      obs->NotifyObservers(nullptr, "audio-channel-changed", channelName.get());
+    }
   }
 
   return muted;
@@ -194,93 +242,16 @@ AudioChannelService::GetMutedInternal(AudioChannelType aType, uint64_t aChildID,
 bool
 AudioChannelService::ContentChannelIsActive()
 {
-  return !mChannelCounters[AUDIO_CHANNEL_INT_CONTENT].IsEmpty() ||
-         !mChannelCounters[AUDIO_CHANNEL_INT_CONTENT_HIDDEN].IsEmpty();
+  return mChannelCounters[AUDIO_CHANNEL_CONTENT].Length() > 0;
 }
 
-bool
-AudioChannelService::HasMoreThanOneContentChannelHidden()
+static PLDHashOperator
+NotifyEnumerator(AudioChannelAgent* aAgent,
+                 AudioChannelType aType, void* aData)
 {
-  uint32_t childId = CONTENT_PARENT_UNKNOWN_CHILD_ID;
-  bool empty = true;
-  for (uint32_t i = 0;
-       i < mChannelCounters[AUDIO_CHANNEL_INT_CONTENT_HIDDEN].Length();
-       ++i) {
-    if (empty) {
-      childId = mChannelCounters[AUDIO_CHANNEL_INT_CONTENT_HIDDEN][i];
-      empty = false;
-    } else if (childId != mChannelCounters[AUDIO_CHANNEL_INT_CONTENT_HIDDEN][i]) {
-      return true;
-    }
+  if (aAgent) {
+    aAgent->NotifyAudioChannelStateChanged();
   }
-
-  return false;
-}
-
-void
-AudioChannelService::SendAudioChannelChangedNotification()
-{
-  if (XRE_GetProcessType() != GeckoProcessType_Default) {
-    return;
-  }
-
-  // Calculating the most important active channel.
-  AudioChannelType higher = AUDIO_CHANNEL_LAST;
-
-  // Top-Down in the hierarchy.
-  if (!mChannelCounters[AUDIO_CHANNEL_INT_PUBLICNOTIFICATION].IsEmpty()) {
-    higher = AUDIO_CHANNEL_PUBLICNOTIFICATION;
-  }
-
-  else if (!mChannelCounters[AUDIO_CHANNEL_INT_RINGER].IsEmpty()) {
-    higher = AUDIO_CHANNEL_RINGER;
-  }
-
-  else if (!mChannelCounters[AUDIO_CHANNEL_INT_TELEPHONY].IsEmpty()) {
-    higher = AUDIO_CHANNEL_TELEPHONY;
-  }
-
-  else if (!mChannelCounters[AUDIO_CHANNEL_INT_ALARM].IsEmpty()) {
-    higher = AUDIO_CHANNEL_ALARM;
-  }
-
-  else if (!mChannelCounters[AUDIO_CHANNEL_INT_NOTIFICATION].IsEmpty()) {
-    higher = AUDIO_CHANNEL_NOTIFICATION;
-  }
-
-  // Only 1 content channel hidden or a visible one.
-  else if ((!mChannelCounters[AUDIO_CHANNEL_INT_CONTENT_HIDDEN].IsEmpty() &&
-            !HasMoreThanOneContentChannelHidden()) ||
-           !mChannelCounters[AUDIO_CHANNEL_INT_CONTENT].IsEmpty()) {
-    higher = AUDIO_CHANNEL_CONTENT;
-  }
-
-  // At least 1 visible normal channel.
-  else if (!mChannelCounters[AUDIO_CHANNEL_INT_NORMAL].IsEmpty()) {
-    higher = AUDIO_CHANNEL_NORMAL;
-  }
-
-  if (higher != mCurrentHigherChannel) {
-    mCurrentHigherChannel = higher;
-
-    nsString channelName;
-    if (mCurrentHigherChannel != AUDIO_CHANNEL_LAST) {
-      channelName.AssignASCII(ChannelName(mCurrentHigherChannel));
-    } else {
-      channelName.AssignLiteral("none");
-    }
-
-    nsCOMPtr<nsIObserverService> obs = mozilla::services::GetObserverService();
-    obs->NotifyObservers(nullptr, "audio-channel-changed", channelName.get());
-  }
-}
-
-PLDHashOperator
-AudioChannelService::NotifyEnumerator(AudioChannelAgent* aAgent,
-                                      AudioChannelAgentData aData, void* aUnused)
-{
-  MOZ_ASSERT(aAgent);
-  aAgent->NotifyAudioChannelStateChanged();
   return PL_DHASH_NEXT;
 }
 
@@ -301,10 +272,10 @@ AudioChannelService::Notify()
 }
 
 bool
-AudioChannelService::ChannelsActiveWithHigherPriorityThan(AudioChannelInternalType aType)
+AudioChannelService::ChannelsActiveWithHigherPriorityThan(AudioChannelType aType)
 {
-  for (int i = AUDIO_CHANNEL_INT_PUBLICNOTIFICATION;
-       i != AUDIO_CHANNEL_INT_CONTENT_HIDDEN; --i) {
+  for (int i = AUDIO_CHANNEL_PUBLICNOTIFICATION;
+       i != AUDIO_CHANNEL_CONTENT; --i) {
     if (i == aType) {
       return false;
     }
@@ -360,8 +331,8 @@ AudioChannelService::Observe(nsISupports* aSubject, const char* aTopic, const PR
   nsresult rv = props->GetPropertyAsUint64(NS_LITERAL_STRING("childID"),
                                            &childID);
   if (NS_SUCCEEDED(rv)) {
-    for (int32_t type = AUDIO_CHANNEL_INT_NORMAL;
-         type < AUDIO_CHANNEL_INT_LAST;
+    for (int32_t type = AUDIO_CHANNEL_NORMAL;
+         type <= AUDIO_CHANNEL_PUBLICNOTIFICATION;
          ++type) {
       int32_t index;
       while ((index = mChannelCounters[type].IndexOf(childID)) != -1) {
@@ -372,48 +343,10 @@ AudioChannelService::Observe(nsISupports* aSubject, const char* aTopic, const PR
     // We don't have to remove the agents from the mAgents hashtable because if
     // that table contains only agents running on the same process.
 
-    SendAudioChannelChangedNotification();
     Notify();
   } else {
     NS_WARNING("ipc:content-shutdown message without childID property");
   }
 
   return NS_OK;
-}
-
-AudioChannelService::AudioChannelInternalType
-AudioChannelService::GetInternalType(AudioChannelType aType,
-                                     bool aElementHidden)
-{
-  switch (aType) {
-    case AUDIO_CHANNEL_NORMAL:
-      return aElementHidden
-               ? AUDIO_CHANNEL_INT_NORMAL_HIDDEN : AUDIO_CHANNEL_INT_NORMAL;
-
-    case AUDIO_CHANNEL_CONTENT:
-      return aElementHidden
-               ? AUDIO_CHANNEL_INT_CONTENT_HIDDEN : AUDIO_CHANNEL_INT_CONTENT;
-
-    case AUDIO_CHANNEL_NOTIFICATION:
-      return AUDIO_CHANNEL_INT_NOTIFICATION;
-
-    case AUDIO_CHANNEL_ALARM:
-      return AUDIO_CHANNEL_INT_ALARM;
-
-    case AUDIO_CHANNEL_TELEPHONY:
-      return AUDIO_CHANNEL_INT_TELEPHONY;
-
-    case AUDIO_CHANNEL_RINGER:
-      return AUDIO_CHANNEL_INT_RINGER;
-
-    case AUDIO_CHANNEL_PUBLICNOTIFICATION:
-      return AUDIO_CHANNEL_INT_PUBLICNOTIFICATION;
-
-    case AUDIO_CHANNEL_LAST:
-    default:
-      break;
-  }
-
-  MOZ_NOT_REACHED();
-  return AUDIO_CHANNEL_INT_LAST;
 }

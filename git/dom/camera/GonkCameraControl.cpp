@@ -282,7 +282,6 @@ nsGonkCameraControl::Init()
 nsGonkCameraControl::~nsGonkCameraControl()
 {
   DOM_CAMERA_LOGT("%s:%d : this=%p, mHwHandle = %d\n", __func__, __LINE__, this, mHwHandle);
-
   ReleaseHardwareImpl(nullptr);
   if (mRwLock) {
     PRRWLock* lock = mRwLock;
@@ -890,8 +889,6 @@ nsGonkCameraControl::StartRecordingImpl(StartRecordingTask* aStartRecording)
 
   if (mRecorder->start() != OK) {
     DOM_CAMERA_LOGE("mRecorder->start() failed\n");
-    // important: we MUST destroy the recorder if start() fails!
-    mRecorder = nullptr;
     return NS_ERROR_FAILURE;
   }
 
@@ -915,7 +912,7 @@ public:
     nsString data;
     CopyASCIItoUTF16(mType, data);
     nsCOMPtr<nsIObserverService> obs = mozilla::services::GetObserverService();
-    obs->NotifyObservers(mFile, "file-watcher-notify", data.get());
+    obs->NotifyObservers(mFile, "file-watcher-update", data.get());
     return NS_OK;
   }
 
@@ -931,6 +928,7 @@ nsGonkCameraControl::StopRecordingImpl(StopRecordingTask* aStopRecording)
   NS_ENSURE_TRUE(mRecorder, NS_OK);
 
   mRecorder->stop();
+  delete mRecorder;
   mRecorder = nullptr;
 
   // notify DeviceStorage that the new video file is closed and ready
@@ -1333,7 +1331,7 @@ nsGonkCameraControl::ReleaseHardwareImpl(ReleaseHardwareTask* aReleaseHardware)
   StopPreviewInternal(true /* forced */);
 
   // release the hardware handle
-  GonkCameraHardware::ReleaseHandle(mHwHandle, true /* unregister */);
+  GonkCameraHardware::ReleaseHandle(mHwHandle);
 
   if (aReleaseHardware && aReleaseHardware->mOnSuccessCb) {
     nsCOMPtr<nsIRunnable> releaseHardwareResult = new ReleaseHardwareResult(aReleaseHardware->mOnSuccessCb, mWindowId);

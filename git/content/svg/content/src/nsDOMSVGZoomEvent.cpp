@@ -7,6 +7,7 @@
 #include "nsSVGRect.h"
 #include "DOMSVGPoint.h"
 #include "nsSVGSVGElement.h"
+#include "nsIDOMSVGSVGElement.h"
 #include "nsIPresShell.h"
 #include "nsIDocument.h"
 #include "mozilla/dom/Element.h"
@@ -43,14 +44,15 @@ nsDOMSVGZoomEvent::nsDOMSVGZoomEvent(nsPresContext* aPresContext,
     if (doc) {
       Element *rootElement = doc->GetRootElement();
       if (rootElement) {
-        // If the root element isn't an SVG 'svg' element
+        // If the root element isn't an SVG 'svg' element this QI will fail
         // (e.g. if this event was created by calling createEvent on a
-        // non-SVGDocument), then the "New" and "Previous"
+        // non-SVGDocument). In these circumstances the "New" and "Previous"
         // properties will be left null which is probably what we want.
-        if (rootElement->IsSVG(nsGkAtoms::svg)) {
+        nsCOMPtr<nsIDOMSVGSVGElement> svgElement = do_QueryInterface(rootElement);
+        if (svgElement) {
           nsSVGSVGElement *SVGSVGElement =
             static_cast<nsSVGSVGElement*>(rootElement);
-
+  
           mNewScale = SVGSVGElement->GetCurrentScale();
           mPreviousScale = SVGSVGElement->GetPreviousScale();
 

@@ -269,7 +269,6 @@ var shell = {
     WebappsHelper.init();
     AccessFu.attach(window);
     UserAgentOverrides.init();
-    IndexedDBPromptHelper.init();
 
     // XXX could factor out into a settings->pref map.  Not worth it yet.
     SettingsListener.observe("debug.fps.enabled", false, function(value) {
@@ -307,7 +306,6 @@ var shell = {
     delete Services.audioManager;
 #endif
     UserAgentOverrides.uninit();
-    IndexedDBPromptHelper.uninit();
   },
 
   // If this key event actually represents a hardware button, filter it here
@@ -627,9 +625,6 @@ var CustomEventManager = {
       case 'system-message-listener-ready':
         Services.obs.notifyObservers(null, 'system-message-listener-ready', null);
         break;
-      case 'remote-debugger-prompt':
-        RemoteDebugger.handleEvent(detail);
-        break;
     }
   }
 }
@@ -838,87 +833,32 @@ var WebappsHelper = {
   }
 }
 
-let IndexedDBPromptHelper = {
-  _quotaPrompt: "indexedDB-quota-prompt",
-  _quotaResponse: "indexedDB-quota-response",
+// Start the debugger server.
+function startDebugger() {
+  if (!DebuggerServer.initialized) {
+    // Allow remote connections.
+    DebuggerServer.init(function () { return true; });
+    DebuggerServer.addBrowserActors();
+    DebuggerServer.addActors('chrome://browser/content/dbg-browser-actors.js');
+  }
 
-  init:
-  function IndexedDBPromptHelper_init() {
-    Services.obs.addObserver(this, this._quotaPrompt, false);
-  },
-
-  uninit:
-  function IndexedDBPromptHelper_uninit() {
-    Services.obs.removeObserver(this, this._quotaPrompt, false);
-  },
-
-  observe:
-  function IndexedDBPromptHelper_observe(subject, topic, data) {
-    if (topic != this._quotaPrompt) {
-      throw new Error("Unexpected topic!");
-    }
-
-    let observer = subject.QueryInterface(Ci.nsIInterfaceRequestor)
-                          .getInterface(Ci.nsIObserver);
-    let responseTopic = this._quotaResponse;
-
-    setTimeout(function() {
-      observer.observe(null, responseTopic,
-                       Ci.nsIPermissionManager.DENY_ACTION);
-    }, 0);
+  let port = Services.prefs.getIntPref('devtools.debugger.remote-port') || 6000;
+  try {
+    DebuggerServer.openListener(port);
+  } catch (e) {
+    dump('Unable to start debugger server: ' + e + '\n');
   }
 }
 
-let RemoteDebugger = {
-  _promptDone: false,
-  _promptAnswer: false,
+function stopDebugger() {
+  if (!DebuggerServer.initialized) {
+    return;
+  }
 
-  prompt: function debugger_prompt() {
-    this._promptDone = false;
-
-    shell.sendChromeEvent({
-      "type": "remote-debugger-prompt"
-    });
-
-    while(!this._promptDone) {
-      Services.tm.currentThread.processNextEvent(true);
-    }
-
-    return this._promptAnswer;
-  },
-
-  handleEvent: function debugger_handleEvent(detail) {
-    this._promptAnswer = detail.value;
-    this._promptDone = true;
-  },
-
-  // Start the debugger server.
-  start: function debugger_start() {
-    if (!DebuggerServer.initialized) {
-      // Ask for remote connections.
-      DebuggerServer.init(this.prompt.bind(this));
-      DebuggerServer.addBrowserActors();
-      DebuggerServer.addActors('chrome://browser/content/dbg-browser-actors.js');
-    }
-
-    let port = Services.prefs.getIntPref('devtools.debugger.remote-port') || 6000;
-    try {
-      DebuggerServer.openListener(port);
-    } catch (e) {
-      dump('Unable to start debugger server: ' + e + '\n');
-    }
-  },
-
-  stop: function debugger_stop() {
-    if (!DebuggerServer.initialized) {
-      return;
-    }
-
-    try {
-      DebuggerServer.closeListener();
-    } catch (e) {
-      dump('Unable to stop debugger server: ' + e + '\n');
-    }
+  try {
+    DebuggerServer.closeListener();
+  } catch (e) {
+    dump('Unable to stop debugger server: ' + e + '\n');
   }
 }
 
@@ -1023,6 +963,15 @@ window.addEventListener('ContentStart', function update_onContentStart() {
       state: aData
     });
 }, "headphones-status-changed", false);
+})();
+
+(function audioChannelChangedTracker() {
+  Services.obs.addObserver(function(aSubject, aTopic, aData) {
+    shell.sendChromeEvent({
+      type: 'audio-channel-changed',
+      channel: aData
+    });
+}, "audio-channel-changed", false);
 })();
 
 (function audioChannelChangedTracker() {

@@ -460,20 +460,11 @@ UpdatePrompt.prototype = {
 
   // nsIRequestObserver
 
-  _startedSent: false,
-
   onStartRequest: function UP_onStartRequest(aRequest, aContext) {
-    // Wait until onProgress to send the update-download-started event, in case
-    // this request turns out to fail for some reason
-    this._startedSent = false;
+    this.sendChromeEvent("update-downloading");
   },
 
   onStopRequest: function UP_onStopRequest(aRequest, aContext, aStatusCode) {
-    let paused = !Components.isSuccessCode(aStatusCode);
-    this.sendChromeEvent("update-download-stopped", {
-        paused: paused
-    });
-
     Services.aus.removeDownloadListener(this);
   },
 
@@ -481,14 +472,7 @@ UpdatePrompt.prototype = {
 
   onProgress: function UP_onProgress(aRequest, aContext, aProgress,
                                      aProgressMax) {
-    if (!this._startedSent) {
-      this.sendChromeEvent("update-download-started", {
-        total: aProgressMax
-      });
-      this._startedSent = true;
-    }
-
-    this.sendChromeEvent("update-download-progress", {
+    this.sendChromeEvent("update-progress", {
       progress: aProgress,
       total: aProgressMax
     });

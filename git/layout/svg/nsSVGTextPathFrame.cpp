@@ -8,6 +8,7 @@
 
 // Keep others in (case-insensitive) order:
 #include "nsContentUtils.h"
+#include "nsIDOMSVGTextPathElement.h"
 #include "nsSVGEffects.h"
 #include "nsSVGLength2.h"
 #include "nsSVGPathElement.h"
@@ -42,9 +43,9 @@ nsSVGTextPathFrame::Init(nsIContent* aContent,
   NS_ASSERTION(ancestorFrame->GetType() == nsGkAtoms::svgTextFrame,
                "trying to construct an SVGTextPathFrame for an invalid "
                "container");
-
-  NS_ASSERTION(aContent->IsSVG(nsGkAtoms::textPath),
-               "Content is not an SVG textPath");
+  
+  nsCOMPtr<nsIDOMSVGTextPathElement> textPath = do_QueryInterface(aContent);
+  NS_ASSERTION(textPath, "Content is not an SVG textPath");
 
   return nsSVGTextPathFrameBase::Init(aContent, aParent, aPrevInFlow);
 }

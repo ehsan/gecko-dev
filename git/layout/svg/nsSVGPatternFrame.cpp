@@ -105,7 +105,8 @@ nsSVGPatternFrame::Init(nsIContent* aContent,
                         nsIFrame* aParent,
                         nsIFrame* aPrevInFlow)
 {
-  NS_ASSERTION(aContent->IsSVG(nsGkAtoms::pattern), "Content is not an SVG pattern");
+  nsCOMPtr<nsIDOMSVGPatternElement> patternElement = do_QueryInterface(aContent);
+  NS_ASSERTION(patternElement, "Content is not an SVG pattern");
 
   return nsSVGPatternFrameBase::Init(aContent, aParent, aPrevInFlow);
 }

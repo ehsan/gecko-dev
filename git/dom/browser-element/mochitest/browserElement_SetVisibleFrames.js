@@ -44,27 +44,13 @@ function runTest() {
 }
 
 function test1() {
-  expectMessage('child1:hidden', getVisibleTest1);
+  expectMessage('child1:hidden', test2);
   iframe.setVisible(false);
 }
 
-function getVisibleTest1() {
-  iframe.getVisible().onsuccess = function(evt) {
-    ok(evt.target.result === false, 'getVisible shows a hidden frame');
-    test2();
-  };
-}
-
 function test2() {
-  expectMessage('child1:visible', getVisibleTest2);
+  expectMessage('child1:visible', finish);
   iframe.setVisible(true);
-}
-
-function getVisibleTest2() {
-  iframe.getVisible().onsuccess = function(evt) {
-    ok(evt.target.result === true, 'getVisible shows a displayed frame');
-    finish();
-  };
 }
 
 function finish() {

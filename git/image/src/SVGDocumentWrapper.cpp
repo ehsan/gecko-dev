@@ -266,7 +266,6 @@ SVGDocumentWrapper::OnStopRequest(nsIRequest* aRequest, nsISupports* ctxt,
       parser->CancelParsingEvents();
       parser->ContinueInterruptedParsing();
     }
-    // XXX flushing is wasteful if embedding frame hasn't had initial reflow
     FlushLayout();
     mListener = nullptr;
 
@@ -343,7 +342,7 @@ SVGDocumentWrapper::SetupViewer(nsIRequest* aRequest,
     do_GetService(NS_CATEGORYMANAGER_CONTRACTID);
   NS_ENSURE_TRUE(catMan, NS_ERROR_NOT_AVAILABLE);
   nsXPIDLCString contractId;
-  nsresult rv = catMan->GetCategoryEntry("Gecko-Content-Viewers", IMAGE_SVG_XML,
+  nsresult rv = catMan->GetCategoryEntry("Gecko-Content-Viewers", SVG_MIMETYPE,
                                          getter_Copies(contractId));
   NS_ENSURE_SUCCESS(rv, rv);
   nsCOMPtr<nsIDocumentLoaderFactory> docLoaderFactory =
@@ -354,7 +353,7 @@ SVGDocumentWrapper::SetupViewer(nsIRequest* aRequest,
   nsCOMPtr<nsIStreamListener> listener;
   rv = docLoaderFactory->CreateInstance("external-resource", chan,
                                         newLoadGroup,
-                                        IMAGE_SVG_XML, nullptr, nullptr,
+                                        SVG_MIMETYPE, nullptr, nullptr,
                                         getter_AddRefs(listener),
                                         getter_AddRefs(viewer));
   NS_ENSURE_SUCCESS(rv, rv);

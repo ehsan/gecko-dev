@@ -944,10 +944,9 @@ public class BrowserToolbar implements ViewSwitcher.ViewFactory,
         if (tab != null && tab.isEnteringReaderMode())
             return;
 
-        // Setting a null title will ensure we just see
+        // Setting a null title for about:home will ensure we just see
         // the "Enter Search or Address" placeholder text
-        if (tab != null && ("about:home".equals(tab.getURL()) ||
-                            "about:privatebrowsing".equals(tab.getURL())))
+        if (tab != null && "about:home".equals(tab.getURL()))
             title = null;
 
         mTitle.setText(title);

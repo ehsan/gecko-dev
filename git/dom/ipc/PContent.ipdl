@@ -433,19 +433,12 @@ parent:
     async FirstIdle();
 
     // Get Muted from the main AudioChannelService.
-    sync AudioChannelGetMuted(AudioChannelType aType, bool aElementHidden,
-                              bool aElementWasHidden)
+    sync AudioChannelGetMuted(AudioChannelType aType, bool aMozHidden)
         returns (bool value);
 
-    sync AudioChannelRegisterType(AudioChannelType aType);
-    sync AudioChannelUnregisterType(AudioChannelType aType,
-                                    bool aElementHidden);
+    async AudioChannelRegisterType(AudioChannelType aType);
+    async AudioChannelUnregisterType(AudioChannelType aType);
 
-    async AudioChannelChangedNotification();
-
-    async FilePathUpdateNotify(nsString aType,
-                               nsString aFilepath,
-                               nsCString aReason);
 both:
      AsyncMessage(nsString aMessage, ClonedMessageData aData);
 };

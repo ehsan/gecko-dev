@@ -23,7 +23,6 @@ import android.util.Log;
 
 import java.lang.reflect.Field;
 import java.lang.reflect.InvocationHandler;
-import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
 import java.lang.reflect.Proxy;
 import java.util.concurrent.ConcurrentLinkedQueue;
@@ -731,30 +730,7 @@ final class GeckoEditable
             mActionQueue.syncWithGecko();
             target = mText;
         }
-        Object ret;
-        try {
-            ret = method.invoke(target, args);
-        } catch (InvocationTargetException e) {
-            // Bug 817386
-            // Most likely Gecko has changed the text while GeckoInputConnection is
-            // trying to access the text. If we pass through the exception here, Fennec
-            // will crash due to a lack of exception handler. Log the exception and
-            // return an empty value instead.
-            if (!(e.getCause() instanceof IndexOutOfBoundsException)) {
-                // Only handle IndexOutOfBoundsException for now,
-                // as other exceptions might signal other bugs
-                throw e;
-            }
-            Log.w(LOGTAG, "Exception in GeckoEditable." + method.getName(), e.getCause());
-            Class<?> retClass = method.getReturnType();
-            if (retClass != Void.TYPE && retClass.isPrimitive()) {
-                ret = retClass.newInstance();
-            } else if (retClass == String.class) {
-                ret = "";
-            } else {
-                ret = null;
-            }
-        }
+        Object ret = method.invoke(target, args);
         if (DEBUG) {
             StringBuilder log = new StringBuilder(method.getName());
             log.append("(");

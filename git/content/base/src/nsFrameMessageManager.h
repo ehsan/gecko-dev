@@ -66,11 +66,6 @@ public:
   {
     return false;
   }
-
-  virtual bool CheckManifestURL(const nsAString& aManifestURL)
-  {
-    return false;
-  }
 };
 
 } // namespace ipc
@@ -91,7 +86,7 @@ struct nsMessageListenerInfo
 class nsFrameMessageManager MOZ_FINAL : public nsIContentFrameMessageManager,
                                         public nsIMessageBroadcaster,
                                         public nsIFrameScriptLoader,
-                                        public nsIProcessChecker
+                                        public nsIPermissionChecker
 {
   typedef mozilla::dom::StructuredCloneData StructuredCloneData;
 public:
@@ -157,7 +152,7 @@ public:
   NS_DECL_NSISYNCMESSAGESENDER
   NS_DECL_NSICONTENTFRAMEMESSAGEMANAGER
   NS_DECL_NSIFRAMESCRIPTLOADER
-  NS_DECL_NSIPROCESSCHECKER
+  NS_DECL_NSIPERMISSIONCHECKER
 
   static nsFrameMessageManager*
   NewProcessMessageManager(mozilla::dom::ContentParent* aProcess);
@@ -231,14 +226,6 @@ public:
   static nsFrameMessageManager* sChildProcessManager;
   static nsFrameMessageManager* sSameProcessParentManager;
   static nsTArray<nsCOMPtr<nsIRunnable> >* sPendingSameProcessAsyncMessages;
-private:
-  enum ProcessCheckerType {
-    PROCESS_CHECKER_PERMISSION,
-    PROCESS_CHECKER_MANIFEST_URL
-  };
-  nsresult AssertProcessInternal(ProcessCheckerType aType,
-                                 const nsAString& aCapability,
-                                 bool* aValid);
 };
 
 void

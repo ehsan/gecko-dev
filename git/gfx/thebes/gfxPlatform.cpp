@@ -174,7 +174,7 @@ FontPrefsObserver::Observe(nsISupports *aSubject,
     return NS_OK;
 }
 
-class OrientationSyncPrefsObserver MOZ_FINAL : public nsIObserver
+class OrientationSyncPrefsObserver : public nsIObserver
 {
 public:
     NS_DECL_ISUPPORTS

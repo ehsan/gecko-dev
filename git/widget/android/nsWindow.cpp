@@ -162,8 +162,7 @@ nsWindow::nsWindow() :
     mIMEComposing(false),
     mIMEMaskSelectionUpdate(false),
     mIMEMaskTextUpdate(false),
-    mIMEMaskEventsCount(1), // Mask IME events since there's no focus yet
-    mIMESelectionChanged(false)
+    mIMEMaskEventsCount(1) // Mask IME events since there's no focus yet
 {
 }
 
@@ -2065,12 +2064,9 @@ nsWindow::OnIMEFocusChange(bool aFocus)
 
     if (aFocus) {
         mIMETextChanges.Clear();
-        mIMESelectionChanged = false;
+        mIMESelectionChange = IMEChange();
         // OnIMETextChange also notifies selection
-        // Use 'INT32_MAX / 2' here because subsequent text changes might
-        // combine with this text change, and overflow might occur if
-        // we just use INT32_MAX
-        OnIMETextChange(0, INT32_MAX / 2, INT32_MAX / 2);
+        OnIMETextChange(0, INT32_MAX, INT32_MAX);
         FlushIMEChanges();
     } else {
         // Mask events because we lost focus. On the next focus event, Gecko will notify
@@ -2090,7 +2086,7 @@ nsWindow::OnIMEFocusChange(bool aFocus)
 void
 nsWindow::PostFlushIMEChanges()
 {
-    if (!mIMETextChanges.IsEmpty() || mIMESelectionChanged) {
+    if (!mIMETextChanges.IsEmpty() || !mIMESelectionChange.IsEmpty()) {
         // Already posted
         return;
     }
@@ -2105,6 +2101,7 @@ nsWindow::FlushIMEChanges()
     nsRefPtr<nsWindow> kungFuDeathGrip(this);
     for (uint32_t i = 0; i < mIMETextChanges.Length(); i++) {
         IMEChange &change = mIMETextChanges[i];
+        MOZ_ASSERT(change.IsTextChange());
 
         nsQueryContentEvent event(true, NS_QUERY_TEXT_CONTENT, this);
         InitEvent(event, nullptr);
@@ -2122,18 +2119,12 @@ nsWindow::FlushIMEChanges()
     }
     mIMETextChanges.Clear();
 
-    if (mIMESelectionChanged) {
-        nsQueryContentEvent event(true, NS_QUERY_SELECTED_TEXT, this);
-        InitEvent(event, nullptr);
-
-        DispatchEvent(&event);
-        if (!event.mSucceeded)
-            return;
-
+    if (!mIMESelectionChange.IsEmpty()) {
+        MOZ_ASSERT(!mIMESelectionChange.IsTextChange());
         AndroidBridge::NotifyIMEChange(nullptr, 0,
-                                       event.GetSelectionStart(),
-                                       event.GetSelectionEnd(), -1);
-        mIMESelectionChanged = false;
+                                       mIMESelectionChange.mStart,
+                                       mIMESelectionChange.mOldEnd, -1);
+        mIMESelectionChange = IMEChange();
     }
 }
 
@@ -2147,7 +2138,7 @@ nsWindow::OnIMETextChange(uint32_t aStart, uint32_t aOldEnd, uint32_t aNewEnd)
             aStart, aOldEnd, aNewEnd);
 
     /* Make sure Java's selection is up-to-date */
-    mIMESelectionChanged = false;
+    mIMESelectionChange = IMEChange();
     OnIMESelectionChange();
     PostFlushIMEChanges();
 
@@ -2218,8 +2209,17 @@ nsWindow::OnIMESelectionChange(void)
 
     ALOGIME("IME: OnIMESelectionChange");
 
+    nsRefPtr<nsWindow> kungFuDeathGrip(this);
+    nsQueryContentEvent event(true, NS_QUERY_SELECTED_TEXT, this);
+    InitEvent(event, nullptr);
+
+    DispatchEvent(&event);
+    if (!event.mSucceeded)
+        return NS_OK;
+
     PostFlushIMEChanges();
-    mIMESelectionChanged = true;
+    mIMESelectionChange = IMEChange((int32_t)event.GetSelectionStart(),
+                                    (int32_t)event.GetSelectionEnd());
     return NS_OK;
 }
 

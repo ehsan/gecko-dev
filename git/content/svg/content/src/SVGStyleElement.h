@@ -81,8 +81,6 @@ public:
   void SetType(const nsAString & aType, ErrorResult& rv);
   void SetMedia(const nsAString & aMedia, ErrorResult& rv);
   void SetTitle(const nsAString & aTitle, ErrorResult& rv);
-  bool Scoped() const;
-  void SetScoped(bool aScoped, ErrorResult& rv);
 
 protected:
   // Dummy init method to make the NS_IMPL_NS_NEW_SVG_ELEMENT and
@@ -99,7 +97,6 @@ protected:
   void GetStyleSheetInfo(nsAString& aTitle,
                          nsAString& aType,
                          nsAString& aMedia,
-                         bool* aIsScoped,
                          bool* aIsAlternate);
   virtual CORSMode GetCORSMode() const;
 

@@ -6,6 +6,7 @@
 // Keep in (case-insensitive) order:
 #include "nsFrame.h"
 #include "nsGkAtoms.h"
+#include "nsIDOMSVGStopElement.h"
 #include "nsStyleContext.h"
 #include "nsSVGEffects.h"
 
@@ -82,8 +83,8 @@ nsSVGStopFrame::Init(nsIContent* aContent,
                      nsIFrame* aParent,
                      nsIFrame* aPrevInFlow)
 {
-  NS_ASSERTION(aContent->IsSVG(nsGkAtoms::stop),
-               "Content doesn't support nsIDOMSVGStopElement");
+  nsCOMPtr<nsIDOMSVGStopElement> grad = do_QueryInterface(aContent);
+  NS_ASSERTION(grad, "Content doesn't support nsIDOMSVGStopElement");
 
   return nsSVGStopFrameBase::Init(aContent, aParent, aPrevInFlow);
 }

@@ -1010,12 +1010,6 @@ BluetoothOppManager::SendAbortRequest()
   SendSocketData(s);
 }
 
-bool
-BluetoothOppManager::IsTransferring()
-{
-  return (mConnected && !mSendTransferCompleteFlag);
-}
-
 void
 BluetoothOppManager::ReplyToConnect()
 {
@@ -1285,7 +1279,7 @@ BluetoothOppManager::OnDisconnect()
 
         nsCOMPtr<nsIObserverService> obs = mozilla::services::GetObserverService();
         if (obs) {
-          obs->NotifyObservers(mDsFile, "file-watcher-notify", data.get());
+          obs->NotifyObservers(mDsFile, "file-watcher-update", data.get());
         }
       }
     }

@@ -68,8 +68,7 @@ private:
   RemoteOpenFileChild(const RemoteOpenFileChild& other);
 
 protected:
-  virtual bool RecvFileOpened(const FileDescriptor&);
-  virtual bool RecvFileDidNotOpen();
+  virtual bool RecvFileOpened(const FileDescriptor&, const nsresult&);
 
   // regular nsIFile object, that we forward most calls to.
   nsCOMPtr<nsIFile> mFile;

@@ -1220,16 +1220,6 @@ struct JSRuntime : js::RuntimeFriendFields
         return 0;
 #endif
     }
-
-  private:
-    /*
-     * Used to ensure that compartments created at the same time get different
-     * random number sequences. See js::InitRandom.
-     */
-    uint64_t rngNonce;
-
-  public:
-    uint64_t nextRNGNonce() { return rngNonce++; }
 };
 
 /* Common macros to access thread-local caches in JSRuntime. */
@@ -1592,6 +1582,9 @@ struct JSContext : js::ContextFriendFields,
 
     /* Stored here to avoid passing it around as a parameter. */
     unsigned               resolveFlags;
+
+    /* Random number generator state, used by jsmath.cpp. */
+    int64_t             rngSeed;
 
     /* Location to stash the iteration value between JSOP_MOREITER and JSOP_ITERNEXT. */
     js::Value           iterValue;

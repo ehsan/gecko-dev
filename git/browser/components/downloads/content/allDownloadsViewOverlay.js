@@ -78,7 +78,7 @@ function DownloadElementShell(aDataItem, aPlacesNode, aAnnotations) {
   this._element.classList.add("download");
   this._element.classList.add("download-state");
 
-  if (aAnnotations)
+ if (aAnnotations)
     this._annotations = aAnnotations;
   if (aDataItem)
     this.dataItem = aDataItem;
@@ -90,50 +90,25 @@ DownloadElementShell.prototype = {
   // The richlistitem for the download
   get element() this._element,
 
-  /**
-   * Manages the "active" state of the shell.  By default all the shells
-   * without a dataItem are inactive, thus their UI is not updated.  They must
-   * be activated when entering the visible area.  Session downloads are
-   * always active since they always have a dataItem.
-   *
-   * @return whether the element was updated.
-   */
-  ensureActive: function DES_ensureActive() {
-    if (this._active)
-      return false;
-    this._active = true;
-    this._element.setAttribute("active", true);
-    this._updateStatusUI();
-    this._fetchTargetFileInfo();
-    return true;
-  },
-  get active() !!this._active,
-
   // The data item for the download
   _dataItem: null,
   get dataItem() this._dataItem,
 
   set dataItem(aValue) {
-    this._dataItem = aValue;
-    let shouldUpdate = false;
-    if (this._dataItem) {
+    if ((this._dataItem = aValue)) {
+      this._wasDone = this._dataItem.done;
+      this._wasInProgress = this._dataItem.inProgress;
       this._targetFileInfoFetched = false;
-      // The dataItem can be replaced, in such a case the shell is already
-      // active but must be updated regardless.
-      shouldUpdate = !this.ensureActive();
+      this._fetchTargetFileInfo();
     }
     else if (this._placesNode) {
+      this._wasInProgress = false;
+      this._wasDone = this.getDownloadState(true) == nsIDM.DOWNLOAD_FINISHED;
       this._targetFileInfoFetched = false;
-      shouldUpdate = this.active;
-    }
-    else {
-      throw new Error("Should always have either a dataItem or a placesNode");
+      this._fetchTargetFileInfo();
     }
 
-    if (shouldUpdate) {
-      this._fetchTargetFileInfo();
-      this._updateStatusUI();
-    }
+    this._updateStatusUI();
     return aValue;
   },
 
@@ -150,14 +125,12 @@ DownloadElementShell.prototype = {
 
       // We don't need to update the UI if we had a data item, because
       // the places information isn't used in this case.
-      if (!this._dataItem) {
-        if (!this._placesNode)
-          throw new Error("Should always have either a dataItem or a placesNode");
+      if (!this._dataItem && this._placesNode) {
+        this._wasInProgress = false;
+        this._wasDone = this.getDownloadState(true) == nsIDM.DOWNLOAD_FINISHED;
         this._targetFileInfoFetched = false;
-        if (this.active) {
-          this._updateStatusUI();
-          this._fetchTargetFileInfo();
-        }
+        this._updateStatusUI();
+        this._fetchTargetFileInfo();
       }
     }
     return aNode;
@@ -181,13 +154,8 @@ DownloadElementShell.prototype = {
   get _icon() {
     if (this._targetFileURI)
       return "moz-icon://" + this._targetFileURI + "?size=32";
-    if (this._placesNode) {
-      // Try to extract an extension from the uri.
-      let ext = this._downloadURIObj.QueryInterface(Ci.nsIURL).fileExtension;
-      if (ext)
-        return "moz-icon://." + ext + "?size=32";
-      return this._placesNode.icon || "moz-icon://.unknown?size=32";
-    }
+    if (this._placesNode)
+      return this.placesNode.icon;
     if (this._dataItem)
       throw new Error("Session-download items should always have a target file uri");
     throw new Error("Unexpected download element state");
@@ -255,8 +223,6 @@ DownloadElementShell.prototype = {
   _fetchTargetFileInfo: function DES__fetchTargetFileInfo() {
     if (this._targetFileInfoFetched)
       throw new Error("_fetchTargetFileInfo should not be called if the information was already fetched");
-    if (!this.active)
-      throw new Error("Trying to _fetchTargetFileInfo on an inactive download shell");
 
     let path = this._targetFilePath;
 
@@ -440,8 +406,6 @@ DownloadElementShell.prototype = {
   },
 
   _updateStatusUI: function DES__updateStatusUI() {
-    if (!this.active)
-      throw new Error("Trying to _updateStatusUI on an inactive download shell");
     this._element.setAttribute("displayName", this._displayName);
     this._element.setAttribute("image", this._icon);
     this._updateDownloadStatusUI();
@@ -476,16 +440,24 @@ DownloadElementShell.prototype = {
   },
 
   /* DownloadView */
-  onStateChange: function DES_onStateChange(aOldState) {
-    if (aOldState != nsIDM.DOWNLOAD_FINISHED &&
-        aOldState != this.dataItem.state) {
+  onStateChange: function DES_onStateChange() {
+    if (!this._wasDone && this._dataItem.done) {
       // See comment in DVI_onStateChange in downloads.js (the panel-view)
       this._element.setAttribute("image", this._icon + "&state=normal");
 
       this._targetFileInfoFetched = false;
-      if (this.active)
-        this._fetchTargetFileInfo();
+      this._fetchTargetFileInfo();
     }
+
+    this._wasDone = this._dataItem.done;
+
+    // Update the end time using the current time if required.
+    if (this._wasInProgress && !this._dataItem.inProgress) {
+      this._endTime = Date.now();
+    }
+
+    this._wasDone = this._dataItem.done;
+    this._wasInProgress = this._dataItem.inProgress;
 
     this._updateDownloadStatusUI();
     if (this._element.selected)
@@ -499,9 +471,6 @@ DownloadElementShell.prototype = {
 
   /* nsIController */
   isCommandEnabled: function DES_isCommandEnabled(aCommand) {
-    // The only valid command for inactive elements is cmd_delete.
-    if (!this.active && aCommand != "cmd_delete")
-      return false;
     switch (aCommand) {
       case "downloadsCmd_open": {
         // We cannot open a session dowload file unless it's done ("openable").
@@ -605,8 +574,7 @@ DownloadElementShell.prototype = {
   // show up in the search results for the given term.  Both the display
   // name for the download and the url are searched.
   matchesSearchTerm: function DES_matchesSearchTerm(aTerm) {
-    if (!aTerm)
-      return true;
+    // Stub implemention until we figure out something better
     aTerm = aTerm.toLowerCase();
     return this._displayName.toLowerCase().indexOf(aTerm) != -1 ||
            this.downloadURI.toLowerCase().indexOf(aTerm) != -1;
@@ -655,7 +623,7 @@ DownloadElementShell.prototype = {
  * as they exist they "collapses" their history "counterpart" (So we don't show two
  * items for every download).
  */
-function DownloadsPlacesView(aRichListBox, aActive = true) {
+function DownloadsPlacesView(aRichListBox) {
   this._richlistbox = aRichListBox;
   this._richlistbox._placesView = this;
   this._richlistbox.controllers.appendController(this);
@@ -672,8 +640,6 @@ function DownloadsPlacesView(aRichListBox, aActive = true) {
 
   this._searchTerm = "";
 
-  this._active = aActive;
-
   // Register as a downloads view. The places data will be initialized by
   // the places setter.
   let downloadsData = DownloadsCommon.getData(window.opener || window);
@@ -685,22 +651,10 @@ function DownloadsPlacesView(aRichListBox, aActive = true) {
     downloadsData.removeView(this);
     this.result = null;
   }.bind(this), true);
-  // Resizing the window may change items visibility.
-  window.addEventListener("resize", function() {
-    this._ensureVisibleElementsAreActive();
-  }.bind(this), true);
 }
 
 DownloadsPlacesView.prototype = {
   get associatedElement() this._richlistbox,
-
-  get active() this._active,
-  set active(val) {
-    this._active = val;
-    if (this._active)
-      this._ensureVisibleElementsAreActive();
-    return this._active;
-  },
 
   _forEachDownloadElementShellForURI:
   function DPV__forEachDownloadElementShellForURI(aURI, aCallback) {
@@ -857,11 +811,6 @@ DownloadsPlacesView.prototype = {
           !newOrUpdatedShell.element._shell.matchesSearchTerm(this.searchTerm);
       }
     }
-
-    // If aDocumentFragment is defined this is a batch change, so it's up to
-    // the caller to append the fragment and activate the visible shells.
-    if (!aDocumentFragment)
-      this._ensureVisibleElementsAreActive();
   },
 
   _removeElement: function DPV__removeElement(aElement) {
@@ -874,7 +823,6 @@ DownloadsPlacesView.prototype = {
       this._richlistbox.selectItem(aElement.nextSibling);
     }
     this._richlistbox.removeChild(aElement);
-    this._ensureVisibleElementsAreActive();
   },
 
   _removeHistoryDownloadFromView:
@@ -915,6 +863,7 @@ DownloadsPlacesView.prototype = {
       shells.delete(shell);
       if (shells.size == 0)
         this._downloadElementsShellsForURI.delete(aDataItem.uri);
+      return;
     }
     else {
       shell.dataItem = null;
@@ -928,38 +877,6 @@ DownloadsPlacesView.prototype = {
         this._richlistbox.insertBefore(shell.element, before);
       }
     }
-  },
-
-  _ensureVisibleElementsAreActive:
-  function DPV__ensureVisibleElementsAreActive() {
-    if (!this.active || this._ensureVisibleTimer || !this._richlistbox.firstChild)
-      return;
-
-    this._ensureVisibleTimer = setTimeout(function() {
-      delete this._ensureVisibleTimer;
-
-      let rlRect = this._richlistbox.getBoundingClientRect();
-      let fcRect = this._richlistbox.firstChild.getBoundingClientRect();
-      // For simplicity assume border and padding are the same across all sides.
-      // This works as far as there isn't an horizontal scrollbar since fcRect
-      // is relative to the scrolled area.
-      let offset = fcRect.left - rlRect.left + 1;
-
-      let firstVisible = document.elementFromPoint(fcRect.left, rlRect.top + offset);
-      if (!firstVisible || firstVisible.localName != "richlistitem")
-        throw new Error("_ensureVisibleElementsAreActive invoked on the wrong view");
-
-      let lastVisible = document.elementFromPoint(fcRect.left, rlRect.bottom - offset);
-      // If the last visible child found is not a richlistitem, then there are
-      // less items than the available space, thus just proceed to the last child.
-      if (!lastVisible || lastVisible.localName != "richlistitem")
-        lastVisible = this._richlistbox.lastChild;
-
-      for (let elt = firstVisible; elt != lastVisible.nextSibling; elt = elt.nextSibling) {
-        if (elt._shell)
-          elt._shell.ensureActive();
-      }
-    }.bind(this), 10);
   },
 
   _place: "",
@@ -1057,20 +974,7 @@ DownloadsPlacesView.prototype = {
       }
     }
 
-    this._appendDownloadsFragment(elementsToAppendFragment);
-    this._ensureVisibleElementsAreActive();
-  },
-
-  _appendDownloadsFragment: function DPV__appendDownloadsFragment(aDOMFragment) {
-    // Workaround multiple reflows hang by removing the richlistbox
-    // and adding it back when we're done.
-    let parentNode = this._richlistbox.parentNode;
-    let nextSibling = this._richlistbox.nextSibling;
-    this._richlistbox.controllers.removeController(this);
-    parentNode.removeChild(this._richlistbox);
-    this._richlistbox.appendChild(aDOMFragment);
-    parentNode.insertBefore(this._richlistbox, nextSibling);
-    this._richlistbox.controllers.appendController(this);
+    this._richlistbox.appendChild(elementsToAppendFragment);
   },
 
   nodeInserted: function DPV_nodeInserted(aParent, aPlacesNode) {
@@ -1118,7 +1022,6 @@ DownloadsPlacesView.prototype = {
       for (let element of this._richlistbox.childNodes) {
         element.hidden = !element._shell.matchesSearchTerm(aValue);
       }
-      this._ensureVisibleElementsAreActive();
     }
     return this._searchTerm = aValue;
   },
@@ -1295,10 +1198,6 @@ DownloadsPlacesView.prototype = {
     let element = selectedElements[0];
     if (element._shell)
       element._shell.doDefaultCommand();
-  },
-
-  onScroll: function DPV_onScroll() {
-    this._ensureVisibleElementsAreActive();
   }
 };
 

@@ -12,13 +12,20 @@
 <pre id="test">
 <script type="application/javascript">
 
-// Test for NetworkStats
+/** Test for NetworkStats **/
 function checkInterface(aInterface) {
   ok(!(aInterface in window), aInterface + " should be prefixed");
   ok(("Moz" + aInterface) in window, aInterface + " should be prefixed");
 }
 
 function test() {
+  var gNetworkStatsEnabled = SpecialPowers.getBoolPref("dom.mozNetworkStats.enabled");
+
+  if (!gNetworkStatsEnabled) {
+    is(navigator.mozNetworkStats, null, "mozNetworkStats is null when not enabled.");
+    SimpleTest.finish();
+  }
+
   // Test interfaces
   checkInterface("NetworkStatsManager");
   checkInterface("NetworkStats");
@@ -27,6 +34,7 @@ function test() {
   ok('mozNetworkStats' in navigator, "navigator.mozMozNetworkStats should exist");
   ok(navigator.mozNetworkStats, "navigator.mozNetworkStats returns an object");
 
+  SpecialPowers.addPermission("networkstats-manage", true, document);
   netStats = navigator.mozNetworkStats;
 
   // Test IDL attributes
@@ -271,7 +279,6 @@ var steps = [
   },
   function () {
     ok(true, "all done!\n");
-    SpecialPowers.removePermission("networkstats-manage", document);
     SimpleTest.finish();
     return;
   }
@@ -291,9 +298,7 @@ function next() {
 }
 
 SimpleTest.waitForExplicitFinish();
-
-SpecialPowers.addPermission("networkstats-manage", true, document);
-SpecialPowers.pushPrefEnv({'set': [["dom.mozNetworkStats.enabled", true]]}, test);
+addLoadEvent(test);
 
 </script>
 </pre>

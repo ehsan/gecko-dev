@@ -74,10 +74,6 @@ this.NetworkStatsService = {
   },
 
   receiveMessage: function(aMessage) {
-    if (!aMessage.target.assertPermission("networkstats-manage")) {
-      return;
-    }
-
     if (DEBUG) {
       debug("receiveMessage " + aMessage.name);
     }

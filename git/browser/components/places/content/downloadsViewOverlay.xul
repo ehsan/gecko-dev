@@ -19,7 +19,7 @@
       Components.interfaces.nsINavHistoryQueryOptions.SORT_BY_DATE_DESCENDING;
 
     ContentArea.setContentViewForQueryString(DOWNLOADS_QUERY,
-      function() new DownloadsPlacesView(document.getElementById("downloadsRichListBox"), false),
+      function() new DownloadsPlacesView(document.getElementById("downloadsRichListBox")),
       { showDetailsPane: false,
         toolbarSet: "back-button, forward-button, organizeButton, clearDownloadsButton, libraryToolbarSpacer, searchFilter" });
   ]]></script>

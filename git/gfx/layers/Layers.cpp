@@ -768,8 +768,7 @@ Layer::ComputeEffectiveTransformForMaskLayer(const gfx3DMatrix& aTransformToSurf
 void
 ContainerLayer::FillSpecificAttributes(SpecificLayerAttributes& aAttrs)
 {
-  aAttrs = ContainerLayerAttributes(GetFrameMetrics(), mPreXScale, mPreYScale,
-                                    mInheritedXScale, mInheritedYScale);
+  aAttrs = ContainerLayerAttributes(GetFrameMetrics(), mPreXScale, mPreYScale);
 }
 
 bool
