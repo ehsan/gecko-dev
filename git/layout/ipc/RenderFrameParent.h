@@ -78,8 +78,7 @@ public:
 
   virtual void ShadowLayersUpdated(LayerTransactionParent* aLayerTree,
                                    const TargetConfig& aTargetConfig,
-                                   bool aIsFirstPaint,
-                                   bool aScheduleComposite) MOZ_OVERRIDE;
+                                   bool isFirstPaint) MOZ_OVERRIDE;
 
   void BuildDisplayList(nsDisplayListBuilder* aBuilder,
                         nsSubDocumentFrame* aFrame,

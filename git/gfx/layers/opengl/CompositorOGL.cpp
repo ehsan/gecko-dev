@@ -1497,7 +1497,7 @@ CompositorOGL::CopyToTarget(DrawTarget *aTarget, const gfxMatrix& aTransform)
     mGLContext->ReadPixelsToSourceSurface(IntSize(width, height));
 
   // Map from GL space to Cairo space and reverse the world transform.
-  Matrix glToCairoTransform = ToMatrix(aTransform);
+  Matrix glToCairoTransform = MatrixForThebesMatrix(aTransform);
   glToCairoTransform.Invert();
   glToCairoTransform.Scale(1.0, -1.0);
   glToCairoTransform.Translate(0.0, -height);

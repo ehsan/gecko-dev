@@ -44,6 +44,8 @@ public class SyncAccounts {
   private static final String MOTO_BLUR_SETTINGS_ACTIVITY = "com.motorola.blur.settings.AccountsAndServicesPreferenceActivity";
   private static final String MOTO_BLUR_PACKAGE           = "com.motorola.blur.setup";
 
+  public final static String DEFAULT_SERVER = "https://auth.services.mozilla.com/";
+
   /**
    * Return Sync accounts.
    *
@@ -247,10 +249,10 @@ public class SyncAccounts {
     final String syncKey   = syncAccount.syncKey;
     final String password  = syncAccount.password;
     final String serverURL = (syncAccount.serverURL == null) ?
-        SyncConstants.DEFAULT_AUTH_SERVER : syncAccount.serverURL;
+        DEFAULT_SERVER : syncAccount.serverURL;
 
     Logger.debug(LOG_TAG, "Using account manager " + accountManager);
-    if (!RepoUtils.stringsEqual(syncAccount.serverURL, SyncConstants.DEFAULT_AUTH_SERVER)) {
+    if (!RepoUtils.stringsEqual(syncAccount.serverURL, DEFAULT_SERVER)) {
       Logger.info(LOG_TAG, "Setting explicit server URL: " + serverURL);
     }
 

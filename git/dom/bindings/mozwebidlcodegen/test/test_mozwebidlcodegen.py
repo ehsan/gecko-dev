@@ -65,8 +65,7 @@ class TestWebIDLCodegenManager(unittest.TestCase):
         inputs = (
             ip,
             {mozpath.splitext(mozpath.basename(p))[0] for p in ip},
-            set(),
-            set(),
+            set()
         )
 
         return dict(

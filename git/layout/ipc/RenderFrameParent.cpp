@@ -780,8 +780,7 @@ RenderFrameParent::ContentViewScaleChanged(nsContentView* aView)
 void
 RenderFrameParent::ShadowLayersUpdated(LayerTransactionParent* aLayerTree,
                                        const TargetConfig& aTargetConfig,
-                                       bool aIsFirstPaint,
-                                       bool aScheduleComposite)
+                                       bool isFirstPaint)
 {
   // View map must only contain views that are associated with the current
   // shadow layer tree. We must always update the map when shadow layers
