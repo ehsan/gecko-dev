@@ -3503,9 +3503,8 @@ MacroAssemblerARMCompat::storeTypeTag(ImmTag tag, Register base, Register index,
 }
 
 void
-MacroAssemblerARMCompat::linkExitFrame()
-{
-    uint8_t *dest = (uint8_t*)GetIonContext()->runtime->addressOfJitTop();
+MacroAssemblerARMCompat::linkExitFrame() {
+    uint8_t *dest = (uint8_t*)GetIonContext()->runtime->addressOfIonTop();
     movePtr(ImmPtr(dest), ScratchRegister);
     ma_str(StackPointer, Operand(ScratchRegister, 0));
 }
@@ -3513,7 +3512,7 @@ MacroAssemblerARMCompat::linkExitFrame()
 void
 MacroAssemblerARMCompat::linkParallelExitFrame(const Register &pt)
 {
-    ma_str(StackPointer, Operand(pt, offsetof(PerThreadData, jitTop)));
+    ma_str(StackPointer, Operand(pt, offsetof(PerThreadData, ionTop)));
 }
 
 // ARM says that all reads of pc will return 8 higher than the
@@ -4350,10 +4349,8 @@ MacroAssemblerARMCompat::jumpWithPatch(RepatchLabel *label, Condition cond)
 #ifdef JSGC_GENERATIONAL
 
 void
-MacroAssemblerARMCompat::branchPtrInNurseryRange(Condition cond, Register ptr, Register temp,
-                                                 Label *label)
+MacroAssemblerARMCompat::branchPtrInNurseryRange(Register ptr, Register temp, Label *label)
 {
-    JS_ASSERT(cond == Assembler::Equal || cond == Assembler::NotEqual);
     JS_ASSERT(ptr != temp);
     JS_ASSERT(ptr != secondScratchReg_);
 
@@ -4362,20 +4359,16 @@ MacroAssemblerARMCompat::branchPtrInNurseryRange(Condition cond, Register ptr, R
 
     ma_mov(Imm32(startChunk), secondScratchReg_);
     as_rsb(secondScratchReg_, secondScratchReg_, lsr(ptr, Nursery::ChunkShift));
-    branch32(cond == Assembler::Equal ? Assembler::Below : Assembler::AboveOrEqual,
-              secondScratchReg_, Imm32(Nursery::NumNurseryChunks), label);
+    branch32(Assembler::Below, secondScratchReg_, Imm32(Nursery::NumNurseryChunks), label);
 }
 
 void
-MacroAssemblerARMCompat::branchValueIsNurseryObject(Condition cond, ValueOperand value,
-                                                    Register temp, Label *label)
+MacroAssemblerARMCompat::branchValueIsNurseryObject(ValueOperand value, Register temp, Label *label)
 {
-    JS_ASSERT(cond == Assembler::Equal || cond == Assembler::NotEqual);
-
     Label done;
 
-    branchTestObject(Assembler::NotEqual, value, cond == Assembler::Equal ? &done : label);
-    branchPtrInNurseryRange(cond, value.payloadReg(), temp, label);
+    branchTestObject(Assembler::NotEqual, value, &done);
+    branchPtrInNurseryRange(value.payloadReg(), temp, label);
 
     bind(&done);
 }

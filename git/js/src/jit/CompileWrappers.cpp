@@ -35,9 +35,9 @@ CompileRuntime::mainThread()
 }
 
 const void *
-CompileRuntime::addressOfJitTop()
+CompileRuntime::addressOfIonTop()
 {
-    return &runtime()->mainThread.jitTop;
+    return &runtime()->mainThread.ionTop;
 }
 
 const void *
@@ -68,7 +68,7 @@ CompileRuntime::addressOfLastCachedNativeIterator()
 const void *
 CompileRuntime::addressOfGCZeal()
 {
-    return &runtime()->gc.zealMode;
+    return &runtime()->gcZeal_;
 }
 #endif
 
@@ -170,7 +170,7 @@ CompileRuntime::maybeGetMathCache()
 const Nursery &
 CompileRuntime::gcNursery()
 {
-    return runtime()->gc.nursery;
+    return runtime()->gcNursery;
 }
 #endif
 

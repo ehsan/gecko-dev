@@ -14,14 +14,7 @@ from application_cache import ApplicationCache
 from decorators import do_crash_check
 from emulator import Emulator
 from emulator_screen import EmulatorScreen
-from errors import (
-        ErrorCodes, MarionetteException, InstallGeckoError, TimeoutException, InvalidResponseException,
-        JavascriptException, NoSuchElementException, XPathLookupException, NoSuchWindowException,
-        StaleElementException, ScriptTimeoutException, ElementNotVisibleException,
-        NoSuchFrameException, InvalidElementStateException, NoAlertPresentException,
-        InvalidCookieDomainException, UnableToSetCookieException, InvalidSelectorException,
-        MoveTargetOutOfBoundsException, FrameSendNotInitializedError, FrameSendFailureError
-        )
+from errors import *
 from keys import Keys
 from marionette_transport import MarionetteTransport
 

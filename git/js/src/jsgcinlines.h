@@ -27,8 +27,8 @@ struct AutoMarkInDeadZone
         scheduled(zone->scheduledForDestruction)
     {
         JSRuntime *rt = zone->runtimeFromMainThread();
-        if (rt->gc.manipulatingDeadZones && zone->scheduledForDestruction) {
-            rt->gc.objectsMarkedInDeadZones++;
+        if (rt->gcManipulatingDeadZones && zone->scheduledForDestruction) {
+            rt->gcObjectsMarkedInDeadZones++;
             zone->scheduledForDestruction = false;
         }
     }
@@ -106,12 +106,12 @@ GetGCThingTraceKind(const void *thing)
 static inline void
 GCPoke(JSRuntime *rt)
 {
-    rt->gc.poke = true;
+    rt->gcPoke = true;
 
 #ifdef JS_GC_ZEAL
     /* Schedule a GC to happen "soon" after a GC poke. */
     if (rt->gcZeal() == js::gc::ZealPokeValue)
-        rt->gc.nextScheduled = 1;
+        rt->gcNextScheduled = 1;
 #endif
 }
 
@@ -122,12 +122,21 @@ class ArenaIter
 
   public:
     ArenaIter() {
-        aheader = nullptr;
-        remainingHeader = nullptr;
+        init();
     }
 
     ArenaIter(JS::Zone *zone, AllocKind kind) {
         init(zone, kind);
+    }
+
+    void init() {
+        aheader = nullptr;
+        remainingHeader = nullptr;
+    }
+
+    void init(ArenaHeader *aheaderArg) {
+        aheader = aheaderArg;
+        remainingHeader = nullptr;
     }
 
     void init(JS::Zone *zone, AllocKind kind) {
@@ -139,16 +148,15 @@ class ArenaIter
         }
     }
 
-    bool done() const {
+    bool done() {
         return !aheader;
     }
 
-    ArenaHeader *get() const {
+    ArenaHeader *get() {
         return aheader;
     }
 
     void next() {
-        JS_ASSERT(!done());
         aheader = aheader->next;
         if (!aheader) {
             aheader = remainingHeader;
@@ -157,160 +165,99 @@ class ArenaIter
     }
 };
 
-class ArenaCellIterImpl
+class CellIterImpl
 {
-    // These three are set in initUnsynchronized().
     size_t firstThingOffset;
     size_t thingSize;
-#ifdef DEBUG
-    bool isInited;
-#endif
-
-    // These three are set in reset() (which is called by init()).
-    FreeSpan span;
+    ArenaIter aiter;
+    FreeSpan firstSpan;
+    const FreeSpan *span;
     uintptr_t thing;
-    uintptr_t limit;
+    Cell *cell;
 
-    // Upon entry, |thing| points to any thing (free or used) and finds the
-    // first used thing, which may be |thing|.
-    void moveForwardIfFree() {
-        JS_ASSERT(!done());
-        if (thing == span.first) {
-            if (span.hasNext()) {
-                thing = span.last + thingSize;
-                span = *span.nextSpan();
-            } else {
-                thing = limit;
-            }
-        }
+  protected:
+    CellIterImpl() {
+    }
+
+    void initSpan(JS::Zone *zone, AllocKind kind) {
+        JS_ASSERT(zone->allocator.arenas.isSynchronizedFreeList(kind));
+        firstThingOffset = Arena::firstThingOffset(kind);
+        thingSize = Arena::thingSize(kind);
+        firstSpan.initAsEmpty();
+        span = &firstSpan;
+        thing = span->first;
+    }
+
+    void init(ArenaHeader *singleAheader) {
+        initSpan(singleAheader->zone, singleAheader->getAllocKind());
+        aiter.init(singleAheader);
+        next();
+        aiter.init();
+    }
+
+    void init(JS::Zone *zone, AllocKind kind) {
+        initSpan(zone, kind);
+        aiter.init(zone, kind);
+        next();
     }
 
   public:
-    ArenaCellIterImpl() {}
-
-    void initUnsynchronized(ArenaHeader *aheader) {
-        AllocKind kind = aheader->getAllocKind();
-#ifdef DEBUG
-        isInited = true;
-#endif
-        firstThingOffset = Arena::firstThingOffset(kind);
-        thingSize = Arena::thingSize(kind);
-        reset(aheader);
-    }
-
-    void init(ArenaHeader *aheader) {
-#ifdef DEBUG
-        AllocKind kind = aheader->getAllocKind();
-        JS_ASSERT(aheader->zone->allocator.arenas.isSynchronizedFreeList(kind));
-#endif
-        initUnsynchronized(aheader);
-    }
-
-    // Use this to move from an Arena of a particular kind to another Arena of
-    // the same kind.
-    void reset(ArenaHeader *aheader) {
-        JS_ASSERT(isInited);
-        span = aheader->getFirstFreeSpan();
-        uintptr_t arenaAddr = aheader->arenaAddress();
-        thing = arenaAddr + firstThingOffset;
-        limit = arenaAddr + ArenaSize;
-        moveForwardIfFree();
-    }
-
     bool done() const {
-        return thing == limit;
-    }
-
-    Cell *getCell() const {
-        JS_ASSERT(!done());
-        return reinterpret_cast<Cell *>(thing);
+        return !cell;
     }
 
     template<typename T> T *get() const {
         JS_ASSERT(!done());
-        return static_cast<T *>(getCell());
+        return static_cast<T *>(cell);
+    }
+
+    Cell *getCell() const {
+        JS_ASSERT(!done());
+        return cell;
     }
 
     void next() {
-        MOZ_ASSERT(!done());
+        for (;;) {
+            if (thing != span->first)
+                break;
+            if (MOZ_LIKELY(span->hasNext())) {
+                thing = span->last + thingSize;
+                span = span->nextSpan();
+                break;
+            }
+            if (aiter.done()) {
+                cell = nullptr;
+                return;
+            }
+            ArenaHeader *aheader = aiter.get();
+            firstSpan = aheader->getFirstFreeSpan();
+            span = &firstSpan;
+            thing = aheader->arenaAddress() | firstThingOffset;
+            aiter.next();
+        }
+        cell = reinterpret_cast<Cell *>(thing);
         thing += thingSize;
-        if (thing < limit)
-            moveForwardIfFree();
     }
 };
 
-class ArenaCellIterUnderGC : public ArenaCellIterImpl
+class CellIterUnderGC : public CellIterImpl
 {
   public:
-    ArenaCellIterUnderGC(ArenaHeader *aheader) {
+    CellIterUnderGC(JS::Zone *zone, AllocKind kind) {
+#ifdef JSGC_GENERATIONAL
+        JS_ASSERT(zone->runtimeFromAnyThread()->gcNursery.isEmpty());
+#endif
+        JS_ASSERT(zone->runtimeFromAnyThread()->isHeapBusy());
+        init(zone, kind);
+    }
+
+    CellIterUnderGC(ArenaHeader *aheader) {
         JS_ASSERT(aheader->zone->runtimeFromAnyThread()->isHeapBusy());
         init(aheader);
     }
 };
 
-class ArenaCellIterUnderFinalize : public ArenaCellIterImpl
-{
-  public:
-    ArenaCellIterUnderFinalize(ArenaHeader *aheader) {
-        initUnsynchronized(aheader);
-    }
-};
-
-class ZoneCellIterImpl
-{
-    ArenaIter arenaIter;
-    ArenaCellIterImpl cellIter;
-
-  protected:
-    ZoneCellIterImpl() {}
-
-    void init(JS::Zone *zone, AllocKind kind) {
-        JS_ASSERT(zone->allocator.arenas.isSynchronizedFreeList(kind));
-        arenaIter.init(zone, kind);
-        if (!arenaIter.done())
-            cellIter.init(arenaIter.get());
-    }
-
-  public:
-    bool done() const {
-        return arenaIter.done();
-    }
-
-    template<typename T> T *get() const {
-        JS_ASSERT(!done());
-        return cellIter.get<T>();
-    }
-
-    Cell *getCell() const {
-        JS_ASSERT(!done());
-        return cellIter.getCell();
-    }
-
-    void next() {
-        JS_ASSERT(!done());
-        cellIter.next();
-        if (cellIter.done()) {
-            JS_ASSERT(!arenaIter.done());
-            arenaIter.next();
-            if (!arenaIter.done())
-                cellIter.reset(arenaIter.get());
-        }
-    }
-};
-
-class ZoneCellIterUnderGC : public ZoneCellIterImpl
-{
-  public:
-    ZoneCellIterUnderGC(JS::Zone *zone, AllocKind kind) {
-#ifdef JSGC_GENERATIONAL
-        JS_ASSERT(zone->runtimeFromAnyThread()->gc.nursery.isEmpty());
-#endif
-        JS_ASSERT(zone->runtimeFromAnyThread()->isHeapBusy());
-        init(zone, kind);
-    }
-};
-
-class ZoneCellIter : public ZoneCellIterImpl
+class CellIter : public CellIterImpl
 {
     ArenaLists *lists;
     AllocKind kind;
@@ -318,7 +265,7 @@ class ZoneCellIter : public ZoneCellIterImpl
     size_t *counter;
 #endif
   public:
-    ZoneCellIter(JS::Zone *zone, AllocKind kind)
+    CellIter(JS::Zone *zone, AllocKind kind)
       : lists(&zone->allocator.arenas),
         kind(kind)
     {
@@ -337,7 +284,7 @@ class ZoneCellIter : public ZoneCellIterImpl
 #ifdef JSGC_GENERATIONAL
         /* Evict the nursery before iterating so we can see all things. */
         JSRuntime *rt = zone->runtimeFromMainThread();
-        if (!rt->gc.nursery.isEmpty())
+        if (!rt->gcNursery.isEmpty())
             MinorGC(rt, JS::gcreason::EVICT_NURSERY);
 #endif
 
@@ -349,15 +296,15 @@ class ZoneCellIter : public ZoneCellIterImpl
         }
 
 #ifdef DEBUG
-        /* Assert that no GCs can occur while a ZoneCellIter is live. */
-        counter = &zone->runtimeFromAnyThread()->gc.noGCOrAllocationCheck;
+        /* Assert that no GCs can occur while a CellIter is live. */
+        counter = &zone->runtimeFromAnyThread()->noGCOrAllocationCheck;
         ++*counter;
 #endif
 
         init(zone, kind);
     }
 
-    ~ZoneCellIter() {
+    ~CellIter() {
 #ifdef DEBUG
         JS_ASSERT(*counter > 0);
         --*counter;
@@ -406,7 +353,7 @@ class GCZoneGroupIter {
   public:
     GCZoneGroupIter(JSRuntime *rt) {
         JS_ASSERT(rt->isHeapBusy());
-        current = rt->gc.currentZoneGroup;
+        current = rt->gcCurrentZoneGroup;
     }
 
     bool done() const { return !current; }
@@ -440,7 +387,7 @@ TryNewNurseryObject(ThreadSafeContext *cxArg, size_t thingSize, size_t nDynamicS
 
     JS_ASSERT(!IsAtomsCompartment(cx->compartment()));
     JSRuntime *rt = cx->runtime();
-    Nursery &nursery = rt->gc.nursery;
+    Nursery &nursery = rt->gcNursery;
     JSObject *obj = nursery.allocateObject(cx, thingSize, nDynamicSlots);
     if (obj)
         return obj;
@@ -480,7 +427,7 @@ CheckAllocatorState(ThreadSafeContext *cx, AllocKind kind)
                  kind == FINALIZE_FAT_INLINE_STRING ||
                  kind == FINALIZE_JITCODE);
     JS_ASSERT(!rt->isHeapBusy());
-    JS_ASSERT(!rt->gc.noGCOrAllocationCheck);
+    JS_ASSERT(!rt->noGCOrAllocationCheck);
 #endif
 
     // For testing out of memory conditions

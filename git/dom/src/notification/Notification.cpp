@@ -23,7 +23,6 @@
 #include "nsDOMJSUtils.h"
 #include "nsIScriptSecurityManager.h"
 #include "mozilla/dom/PermissionMessageUtils.h"
-#include "mozilla/Services.h"
 #include "nsContentPermissionHelper.h"
 #ifdef MOZ_B2G
 #include "nsIDOMDesktopNotification.h"
@@ -77,8 +76,8 @@ public:
     JS::Rooted<JSObject*> element(aCx, notification->WrapObject(aCx));
     NS_ENSURE_TRUE(element, NS_ERROR_FAILURE);
 
-    JS::Rooted<JSObject*> notifications(aCx, mNotifications);
-    if (!JS_DefineElement(aCx, notifications, mCount++, element, 0)) {
+    if (!JS_DefineElement(aCx, mNotifications, mCount++,
+                          JS::ObjectValue(*element), nullptr, nullptr, 0)) {
       return NS_ERROR_FAILURE;
     }
     return NS_OK;
@@ -675,7 +674,7 @@ Notification::GetPermissionInternal(nsISupports* aGlobal, ErrorResult& aRv)
   uint32_t permission = nsIPermissionManager::UNKNOWN_ACTION;
 
   nsCOMPtr<nsIPermissionManager> permissionManager =
-    services::GetPermissionManager();
+    do_GetService(NS_PERMISSIONMANAGER_CONTRACTID);
 
   permissionManager->TestPermissionFromPrincipal(principal,
                                                  "desktop-notification",

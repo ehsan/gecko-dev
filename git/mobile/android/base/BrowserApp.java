@@ -14,7 +14,6 @@ import java.util.Vector;
 import org.json.JSONArray;
 import org.json.JSONException;
 import org.json.JSONObject;
-import org.mozilla.gecko.AndroidGamepadManager;
 import org.mozilla.gecko.DynamicToolbar.PinReason;
 import org.mozilla.gecko.DynamicToolbar.VisibilityTransition;
 import org.mozilla.gecko.GeckoProfileDirectories.NoMozillaDirectoryException;
@@ -269,10 +268,6 @@ abstract public class BrowserApp extends GeckoApp
 
     @Override
     public boolean onKey(View v, int keyCode, KeyEvent event) {
-        if (AndroidGamepadManager.handleKeyEvent(event)) {
-            return true;
-        }
-
         // Global onKey handler. This is called if the focused UI doesn't
         // handle the key event, and before Gecko swallows the events.
         if (event.getAction() != KeyEvent.ACTION_DOWN) {
@@ -360,14 +355,6 @@ abstract public class BrowserApp extends GeckoApp
         }
 
         return super.onKeyDown(keyCode, event);
-    }
-
-    @Override
-    public boolean onKeyUp(int keyCode, KeyEvent event) {
-        if (AndroidGamepadManager.handleKeyEvent(event)) {
-            return true;
-        }
-        return super.onKeyUp(keyCode, event);
     }
 
     void handleReaderListStatusRequest(final String url) {

@@ -515,16 +515,6 @@ CallAsmJS(JSContext *cx, unsigned argc, Value *vp)
             return false;
     }
 
-    if (callArgs.isConstructing()) {
-        // By spec, when a function is called as a constructor and this function
-        // returns a primary type, which is the case for all asm.js exported
-        // functions, the returned value is discarded and an empty object is
-        // returned instead.
-        JSObject *obj = NewBuiltinClassInstance(cx, &JSObject::class_);
-        callArgs.rval().set(ObjectValue(*obj));
-        return true;
-    }
-
     switch (func.returnType()) {
       case AsmJSModule::Return_Void:
         callArgs.rval().set(UndefinedValue());
@@ -546,7 +536,7 @@ NewExportedFunction(JSContext *cx, const AsmJSModule::ExportedFunction &func,
 {
     RootedPropertyName name(cx, func.name());
     JSFunction *fun = NewFunction(cx, NullPtr(), CallAsmJS, func.numArgs(),
-                                  JSFunction::ASMJS_CTOR, cx->global(), name,
+                                  JSFunction::NATIVE_FUN, cx->global(), name,
                                   JSFunction::ExtendedFinalizeKind);
     if (!fun)
         return nullptr;
@@ -808,8 +798,8 @@ js::NewAsmJSModuleFunction(ExclusiveContext *cx, JSFunction *origFun, HandleObje
 {
     RootedPropertyName name(cx, origFun->name());
 
-    JSFunction::Flags flags = origFun->isLambda() ? JSFunction::ASMJS_LAMBDA_CTOR
-                                                  : JSFunction::ASMJS_CTOR;
+    JSFunction::Flags flags = origFun->isLambda() ? JSFunction::NATIVE_LAMBDA_FUN
+                                                  : JSFunction::NATIVE_FUN;
     JSFunction *moduleFun = NewFunction(cx, NullPtr(), LinkAsmJS, origFun->nargs(),
                                         flags, NullPtr(), name,
                                         JSFunction::ExtendedFinalizeKind, TenuredObject);
