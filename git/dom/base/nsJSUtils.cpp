@@ -227,7 +227,7 @@ nsJSUtils::EvaluateString(JSContext* aCx,
   if (!aEvaluateOptions.reportUncaught) {
     // We need to prevent AutoLastFrameCheck from reporting and clearing
     // any pending exceptions.
-    dontReport.emplace(aCx);
+    dontReport.construct(aCx);
   }
 
   // Scope the JSAutoCompartment so that we can later wrap the return value

@@ -872,9 +872,9 @@ Console::Method(JSContext* aCx, MethodName aMethodName,
 
     if (language == nsIProgrammingLanguage::JAVASCRIPT ||
         language == nsIProgrammingLanguage::JAVASCRIPT2) {
-      callData->mTopStackFrame.emplace();
+      callData->mTopStackFrame.construct();
       nsresult rv = StackFrameToStackEntry(stack,
-                                           *callData->mTopStackFrame,
+                                           callData->mTopStackFrame.ref(),
                                            language);
       if (NS_FAILED(rv)) {
         return;
@@ -897,8 +897,8 @@ Console::Method(JSContext* aCx, MethodName aMethodName,
   } else {
     // nsIStackFrame is not threadsafe, so we need to snapshot it now,
     // before we post our runnable to the main thread.
-    callData->mReifiedStack.emplace();
-    nsresult rv = ReifyStack(stack, *callData->mReifiedStack);
+    callData->mReifiedStack.construct();
+    nsresult rv = ReifyStack(stack, callData->mReifiedStack.ref());
     if (NS_WARN_IF(NS_FAILED(rv))) {
       return;
     }
@@ -1038,8 +1038,8 @@ Console::ProcessCallData(ConsoleCallData* aData)
   MOZ_ASSERT(NS_IsMainThread());
 
   ConsoleStackEntry frame;
-  if (aData->mTopStackFrame) {
-    frame = *aData->mTopStackFrame;
+  if (!aData->mTopStackFrame.empty()) {
+    frame = aData->mTopStackFrame.ref();
   }
 
   AutoSafeJSContext cx;
@@ -1131,9 +1131,9 @@ Console::ProcessCallData(ConsoleCallData* aData)
     // Now define the "stacktrace" property on eventObj.  There are two cases
     // here.  Either we came from a worker and have a reified stack, or we want
     // to define a getter that will lazily reify the stack.
-    if (aData->mReifiedStack) {
+    if (!aData->mReifiedStack.empty()) {
       JS::Rooted<JS::Value> stacktrace(cx);
-      if (!ToJSValue(cx, *aData->mReifiedStack, &stacktrace) ||
+      if (!ToJSValue(cx, aData->mReifiedStack.ref(), &stacktrace) ||
           !JS_DefineProperty(cx, eventObj, "stacktrace", stacktrace,
                              JSPROP_ENUMERATE)) {
         return;

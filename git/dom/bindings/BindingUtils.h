@@ -923,7 +923,7 @@ WrapNewBindingNonWrapperCachedObject(JSContext* cx,
       scope = js::CheckedUnwrap(scope, /* stopAtOuter = */ false);
       if (!scope)
         return false;
-      ac.emplace(cx, scope);
+      ac.construct(cx, scope);
     }
 
     MOZ_ASSERT(js::IsObjectInContextCompartment(scope, cx));
@@ -970,7 +970,7 @@ WrapNewBindingNonWrapperCachedOwnedObject(JSContext* cx,
       scope = js::CheckedUnwrap(scope, /* stopAtOuter = */ false);
       if (!scope)
         return false;
-      ac.emplace(cx, scope);
+      ac.construct(cx, scope);
     }
 
     bool tookOwnership = false;

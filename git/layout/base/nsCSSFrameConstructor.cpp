@@ -1772,10 +1772,6 @@ nsCSSFrameConstructor::CreateGeneratedContentItem(nsFrameConstructorState& aStat
                                                   nsCSSPseudoElements::Type aPseudoElement,
                                                   FrameConstructionItemList& aItems)
 {
-  MOZ_ASSERT(aPseudoElement == nsCSSPseudoElements::ePseudo_before ||
-             aPseudoElement == nsCSSPseudoElements::ePseudo_after,
-             "unexpected aPseudoElement");
-
   // XXXbz is this ever true?
   if (!aParentContent->IsElement()) {
     NS_ERROR("Bogus generated content parent");
@@ -1793,13 +1789,10 @@ nsCSSFrameConstructor::CreateGeneratedContentItem(nsFrameConstructorState& aStat
                                       aState.mTreeMatchContext);
   if (!pseudoStyleContext)
     return;
-
-  bool isBefore = aPseudoElement == nsCSSPseudoElements::ePseudo_before;
-
   // |ProbePseudoStyleFor| checked the 'display' property and the
   // |ContentCount()| of the 'content' property for us.
   nsRefPtr<NodeInfo> nodeInfo;
-  nsIAtom* elemName = isBefore ?
+  nsIAtom* elemName = aPseudoElement == nsCSSPseudoElements::ePseudo_before ?
     nsGkAtoms::mozgeneratedcontentbefore : nsGkAtoms::mozgeneratedcontentafter;
   nodeInfo = mDocument->NodeInfoManager()->GetNodeInfo(elemName, nullptr,
                                                        kNameSpaceID_None,
@@ -1819,18 +1812,6 @@ nsCSSFrameConstructor::CreateGeneratedContentItem(nsFrameConstructorState& aStat
   if (NS_FAILED(rv)) {
     container->UnbindFromTree();
     return;
-  }
-
-  RestyleManager::ReframingStyleContexts* rsc =
-    RestyleManager()->GetReframingStyleContexts();
-  if (rsc) {
-    nsStyleContext* oldStyleContext = rsc->Get(container, aPseudoElement);
-    if (oldStyleContext) {
-      RestyleManager::TryStartingTransition(aState.mPresContext,
-                                            container,
-                                            oldStyleContext,
-                                            &pseudoStyleContext);
-    }
   }
 
   uint32_t contentCount = pseudoStyleContext->StyleContent()->ContentCount();
@@ -2427,9 +2408,6 @@ nsCSSFrameConstructor::ConstructDocElementFrame(Element*                 aDocEle
   aDocElement->UnsetFlags(ELEMENT_ALL_RESTYLE_FLAGS);
 
   // --------- CREATE AREA OR BOX FRAME -------
-  // FIXME: Should this use ResolveStyleContext?  (The calls in this
-  // function are the only case in nsCSSFrameConstructor where we don't
-  // do so for the construction of a style context for an element.)
   nsRefPtr<nsStyleContext> styleContext;
   styleContext = mPresShell->StyleSet()->ResolveStyleFor(aDocElement,
                                                          nullptr);
@@ -2462,10 +2440,6 @@ nsCSSFrameConstructor::ConstructDocElementFrame(Element*                 aDocEle
     }
 
     if (resolveStyle) {
-      // FIXME: Should this use ResolveStyleContext?  (The calls in this
-      // function are the only case in nsCSSFrameConstructor where we
-      // don't do so for the construction of a style context for an
-      // element.)
       styleContext = mPresShell->StyleSet()->ResolveStyleFor(aDocElement,
                                                              nullptr);
       display = styleContext->StyleDisplay();
@@ -4771,36 +4745,21 @@ nsCSSFrameConstructor::ResolveStyleContext(nsStyleContext* aParentStyleContext,
   nsStyleSet *styleSet = mPresShell->StyleSet();
   aContent->OwnerDoc()->FlushPendingLinkUpdates();
 
-  nsRefPtr<nsStyleContext> result;
   if (aContent->IsElement()) {
     if (aState) {
-      result = styleSet->ResolveStyleFor(aContent->AsElement(),
-                                         aParentStyleContext,
-                                         aState->mTreeMatchContext);
-    } else {
-      result = styleSet->ResolveStyleFor(aContent->AsElement(),
-                                         aParentStyleContext);
+      return styleSet->ResolveStyleFor(aContent->AsElement(),
+                                       aParentStyleContext,
+                                       aState->mTreeMatchContext);
     }
-  } else {
-    NS_ASSERTION(aContent->IsNodeOfType(nsINode::eTEXT),
-                 "shouldn't waste time creating style contexts for "
-                 "comments and processing instructions");
-    result = styleSet->ResolveStyleForNonElement(aParentStyleContext);
+    return styleSet->ResolveStyleFor(aContent->AsElement(), aParentStyleContext);
+
   }
 
-  RestyleManager::ReframingStyleContexts* rsc =
-    RestyleManager()->GetReframingStyleContexts();
-  if (rsc) {
-    nsStyleContext* oldStyleContext =
-      rsc->Get(aContent, nsCSSPseudoElements::ePseudo_NotPseudoElement);
-    if (oldStyleContext) {
-      RestyleManager::TryStartingTransition(mPresShell->GetPresContext(),
-                                            aContent,
-                                            oldStyleContext, &result);
-    }
-  }
+  NS_ASSERTION(aContent->IsNodeOfType(nsINode::eTEXT),
+               "shouldn't waste time creating style contexts for "
+               "comments and processing instructions");
 
-  return result.forget();
+  return styleSet->ResolveStyleForNonElement(aParentStyleContext);
 }
 
 // MathML Mod - RBS

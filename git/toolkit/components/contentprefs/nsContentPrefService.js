@@ -182,12 +182,11 @@ ContentPrefService.prototype = {
     // (although we haven't observed leakage in tests).  Also delete references
     // in _observers and _genericObservers to avoid cycles with those that
     // refer to us and don't remove themselves from those observer pools.
-    delete this._observers;
-    delete this._genericObservers;
-    delete this.__consoleSvc;
-    delete this.__grouper;
-    delete this.__observerSvc;
-    delete this.__prefSvc;
+    for (var i in this) {
+      try { this[i] = null }
+      // Ignore "setting a property that has only a getter" exceptions.
+      catch(ex) {}
+    }
   },
 
 

@@ -432,7 +432,7 @@ class ArenaList {
         return *this;
     }
 
-    explicit ArenaList(const SortedArenaListSegment &segment) {
+    ArenaList(const SortedArenaListSegment &segment) {
         head_ = segment.head;
         cursorp_ = segment.isEmpty() ? &head_ : segment.tailp;
         check();

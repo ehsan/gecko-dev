@@ -1187,7 +1187,7 @@ class WatchdogManager : public nsIObserver
         MOZ_ASSERT(NS_IsMainThread());
         Maybe<AutoLockWatchdog> lock;
         if (mWatchdog)
-            lock.emplace(mWatchdog);
+            lock.construct(mWatchdog);
 
         // Write state.
         mTimestamps[TimestampRuntimeStateChange] = PR_Now();
@@ -1211,7 +1211,7 @@ class WatchdogManager : public nsIObserver
         // The watchdog thread always holds the lock when it runs.
         Maybe<AutoLockWatchdog> maybeLock;
         if (NS_IsMainThread() && mWatchdog)
-            maybeLock.emplace(mWatchdog);
+            maybeLock.construct(mWatchdog);
         mTimestamps[aCategory] = PR_Now();
     }
     PRTime GetTimestamp(WatchdogTimestampCategory aCategory)
@@ -1219,7 +1219,7 @@ class WatchdogManager : public nsIObserver
         // The watchdog thread always holds the lock when it runs.
         Maybe<AutoLockWatchdog> maybeLock;
         if (NS_IsMainThread() && mWatchdog)
-            maybeLock.emplace(mWatchdog);
+            maybeLock.construct(mWatchdog);
         return mTimestamps[aCategory];
     }
 

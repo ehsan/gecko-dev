@@ -140,7 +140,7 @@ class AsmJSProfilingFrameIterator
 
   public:
     AsmJSProfilingFrameIterator() : codeRange_(nullptr) {}
-    explicit AsmJSProfilingFrameIterator(const AsmJSActivation &activation);
+    AsmJSProfilingFrameIterator(const AsmJSActivation &activation);
     AsmJSProfilingFrameIterator(const AsmJSActivation &activation,
                                 const JS::ProfilingFrameIterator::RegisterState &state);
     void operator++();

@@ -25,7 +25,7 @@ public:
     typedef gfxCharacterMap* KeyType;
     typedef const gfxCharacterMap* KeyTypePointer;
 
-    explicit CharMapHashKey(const gfxCharacterMap *aCharMap) :
+    CharMapHashKey(const gfxCharacterMap *aCharMap) :
         mCharMap(const_cast<gfxCharacterMap*>(aCharMap))
     {
         MOZ_COUNT_CTOR(CharMapHashKey);
@@ -197,7 +197,7 @@ protected:
         NS_DECL_NSIMEMORYREPORTER
     };
 
-    explicit gfxPlatformFontList(bool aNeedFullnamePostscriptNames = true);
+    gfxPlatformFontList(bool aNeedFullnamePostscriptNames = true);
 
     static gfxPlatformFontList *sPlatformFontList;
 

@@ -187,7 +187,7 @@ class SimpleEdgeRange : public EdgeRange {
     }
 
   public:
-    explicit SimpleEdgeRange(JSContext *cx) : edges(cx), i(0) { }
+    SimpleEdgeRange(JSContext *cx) : edges(cx), i(0) { }
 
     bool init(JSContext *cx, void *thing, JSGCTraceKind kind) {
         SimpleEdgeVectorTracer tracer(cx, &edges);
