@@ -22,11 +22,6 @@ struct SocketInfo
     bool      tcp;
 };
 
-struct HalfOpenSockets
-{
-    bool speculative;
-};
-
 struct DNSCacheEntries
 {
     nsCString hostname;
@@ -50,7 +45,6 @@ struct HttpRetParams
     nsCString host;
     nsTArray<HttpConnInfo>   active;
     nsTArray<HttpConnInfo>   idle;
-    nsTArray<HalfOpenSockets> halfOpens;
     uint32_t  counter;
     uint16_t  port;
     bool      spdy;

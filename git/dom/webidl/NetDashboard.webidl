@@ -20,16 +20,11 @@ dictionary HttpConnInfoDict {
   sequence<DOMString> protocolVersion;
 };
 
-dictionary HalfOpenInfoDict {
-  sequence<boolean> speculative;
-};
-
 dictionary HttpConnDict {
   sequence<DOMString> host;
   sequence<unsigned long> port;
   sequence<HttpConnInfoDict> active;
   sequence<HttpConnInfoDict> idle;
-  sequence<HalfOpenInfoDict> halfOpens;
   sequence<boolean> spdy;
   sequence<boolean> ssl;
 };

@@ -13,7 +13,6 @@
 #include "gfxTypes.h"
 #include "mozilla/RefPtr.h"
 #include "mozilla/gfx/MacIOSurface.h"
-#include "nsError.h"
 
 // Get the system color space.
 CGColorSpaceRef CreateSystemColorSpace();

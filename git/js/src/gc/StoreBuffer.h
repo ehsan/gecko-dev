@@ -356,18 +356,17 @@ class StoreBuffer
     class CallbackRef : public BufferableRef
     {
       public:
-        typedef void (*MarkCallback)(JSTracer *trc, void *key, void *data);
+        typedef void (*MarkCallback)(JSTracer *trc, void *key);
 
-        CallbackRef(MarkCallback cb, void *k, void *d) : callback(cb), key(k), data(d) {}
+        CallbackRef(MarkCallback cb, void *k) : callback(cb), key(k) {}
 
         virtual void mark(JSTracer *trc) {
-            callback(trc, key, data);
+            callback(trc, key);
         }
 
       private:
         MarkCallback callback;
         void *key;
-        void *data;
     };
 
     MonoTypeBuffer<ValueEdge> bufferVal;
@@ -452,9 +451,8 @@ class StoreBuffer
     }
 
     /* Insert or update a callback entry. */
-    void putCallback(CallbackRef::MarkCallback callback, Cell *key, void *data) {
-        if (!key->isTenured())
-            bufferGeneric.put(CallbackRef(callback, key, data));
+    void putCallback(CallbackRef::MarkCallback callback, void *key) {
+        bufferGeneric.put(CallbackRef(callback, key));
     }
 
     /* Mark the source of all edges in the store buffer. */

@@ -3325,12 +3325,11 @@ CType::Trace(JSTracer* trc, JSObject* obj)
 
     FieldInfoHash* fields =
       static_cast<FieldInfoHash*>(JSVAL_TO_PRIVATE(slot));
-    for (FieldInfoHash::Enum e(*fields); !e.empty(); e.popFront()) {
-      JSString *key = e.front().key;
+    for (FieldInfoHash::Range r = fields->all(); !r.empty(); r.popFront()) {
+      JSString *key = r.front().key;
       JS_CallStringTracer(trc, &key, "fieldName");
-      if (key != e.front().key)
-          e.rekeyFront(JS_ASSERT_STRING_IS_FLAT(key));
-      JS_CallHeapObjectTracer(trc, &e.front().value.mType, "fieldType");
+      JS_ASSERT(key == r.front().key);
+      JS_CallObjectTracer(trc, &r.front().value.mType, "fieldType");
     }
 
     break;
@@ -3345,10 +3344,10 @@ CType::Trace(JSTracer* trc, JSObject* obj)
     JS_ASSERT(fninfo);
 
     // Identify our objects to the tracer.
-    JS_CallHeapObjectTracer(trc, &fninfo->mABI, "abi");
-    JS_CallHeapObjectTracer(trc, &fninfo->mReturnType, "returnType");
+    JS_CallObjectTracer(trc, &fninfo->mABI, "abi");
+    JS_CallObjectTracer(trc, &fninfo->mReturnType, "returnType");
     for (size_t i = 0; i < fninfo->mArgTypes.length(); ++i)
-      JS_CallHeapObjectTracer(trc, &fninfo->mArgTypes[i], "argType");
+      JS_CallObjectTracer(trc, &fninfo->mArgTypes[i], "argType");
 
     break;
   }
@@ -4734,16 +4733,6 @@ StructType::Create(JSContext* cx, unsigned argc, jsval* vp)
   return JS_TRUE;
 }
 
-static void
-PostBarrierCallback(JSTracer *trc, void *k, void *d)
-{
-    JSString *prior = static_cast<JSString*>(k);
-    FieldInfoHash *table = static_cast<FieldInfoHash*>(d);
-    JSString *key = prior;
-    JS_CallStringTracer(trc, &key, "CType fieldName");
-    table->rekey(JS_ASSERT_STRING_IS_FLAT(prior), JS_ASSERT_STRING_IS_FLAT(key));
-}
-
 JSBool
 StructType::DefineInternal(JSContext* cx, JSObject* typeObj_, JSObject* fieldsObj_)
 {
@@ -4834,7 +4823,6 @@ StructType::DefineInternal(JSContext* cx, JSObject* typeObj_, JSObject* fieldsOb
       info.mIndex = i;
       info.mOffset = fieldOffset;
       ASSERT_OK(fields->add(entryPtr, name, info));
-      JS_StoreStringPostBarrierCallback(cx, PostBarrierCallback, name, fields.get());
 
       structSize = fieldOffset + fieldSize;
 
@@ -6094,10 +6082,10 @@ CClosure::Trace(JSTracer* trc, JSObject* obj)
 
   // Identify our objects to the tracer. (There's no need to identify
   // 'closureObj', since that's us.)
-  JS_CallHeapObjectTracer(trc, &cinfo->typeObj, "typeObj");
-  JS_CallHeapObjectTracer(trc, &cinfo->jsfnObj, "jsfnObj");
+  JS_CallObjectTracer(trc, &cinfo->typeObj, "typeObj");
+  JS_CallObjectTracer(trc, &cinfo->jsfnObj, "jsfnObj");
   if (cinfo->thisObj)
-    JS_CallHeapObjectTracer(trc, &cinfo->thisObj, "thisObj");
+    JS_CallObjectTracer(trc, &cinfo->thisObj, "thisObj");
 }
 
 void

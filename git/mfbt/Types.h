@@ -1,13 +1,12 @@
-/* -*- Mode: C++; tab-width: 8; indent-tabs-mode: nil; c-basic-offset: 2 -*- */
-/* vim: set ts=8 sts=2 et sw=2 tw=80: */
+/* -*- Mode: C++; tab-width: 2; indent-tabs-mode: nil; c-basic-offset: 2 -*- */
 /* This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
 /* mfbt foundational types and macros. */
 
-#ifndef mozilla_Types_h
-#define mozilla_Types_h
+#ifndef mozilla_Types_h_
+#define mozilla_Types_h_
 
 /*
  * This header must be valid C and C++, includable by code embedding either
@@ -142,4 +141,4 @@
 #  define decltype __typeof__
 #endif
 
-#endif /* mozilla_Types_h */
+#endif  /* mozilla_Types_h_ */

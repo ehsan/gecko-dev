@@ -489,8 +489,12 @@ nsFrameManager::CaptureFrameStateFor(nsIFrame* aFrame,
     return;
   }
 
-  // Store the state. aState owns frameState now.
-  aState->AddState(stateKey, frameState.forget());
+  // Store the state
+  rv = aState->AddState(stateKey, frameState);
+  if (NS_SUCCEEDED(rv)) {
+    // aState owns frameState now.
+    frameState.forget();
+  }
 }
 
 void
@@ -553,7 +557,8 @@ nsFrameManager::RestoreFrameStateFor(nsIFrame* aFrame,
   }
 
   // Get the state from the hash
-  nsPresState* frameState = aState->GetState(stateKey);
+  nsPresState *frameState;
+  rv = aState->GetState(stateKey, &frameState);
   if (!frameState) {
     return;
   }

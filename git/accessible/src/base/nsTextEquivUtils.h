@@ -55,16 +55,11 @@ public:
 
   /**
    * Calculates text equivalent from the subtree. Similar to GetNameFromSubtree.
-   * However it returns not empty result for things like HTML p.
+   * The difference it returns not empty result for things like HTML p, i.e.
+   * if the role has eNameFromSubtreeIfReq rule.
    */
   static void GetTextEquivFromSubtree(Accessible* aAccessible,
-                                      nsString& aTextEquiv)
-  {
-    aTextEquiv.Truncate();
-
-    AppendFromAccessibleChildren(aAccessible, &aTextEquiv);
-    aTextEquiv.CompressWhitespace();
-  }
+                                      nsString& aTextEquiv);
 
   /**
    * Calculates text equivalent for the given accessible from its IDRefs

@@ -88,7 +88,7 @@ private:
     nsresult
     ProcessQueue();
 
-    ThreadSafeAutoRefCnt mRefCnt;
+    nsAutoRefCnt mRefCnt;
     NS_DECL_OWNINGTHREAD
     nsRefPtr<LockedFile> mLockedFile;
     nsTArray<nsRefPtr<FileHelper> > mQueue;

@@ -45,6 +45,7 @@ EXPORTS += [
     'ErrorListCDefines.h',
     'ErrorListCxxDefines.h',
     'nsAgg.h',
+    'nsAtomicRefcnt.h',
     'nsAutoPtr.h',
     'nsAutoRef.h',
     'nsCom.h',

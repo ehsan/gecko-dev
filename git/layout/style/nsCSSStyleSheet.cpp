@@ -55,10 +55,11 @@ public:
 
   NS_DECL_ISUPPORTS
 
-  virtual nsIDOMCSSRule*
-  IndexedGetter(uint32_t aIndex, bool& aFound) MOZ_OVERRIDE;
-  virtual uint32_t
-  Length() MOZ_OVERRIDE;
+  // nsIDOMCSSRuleList interface
+  NS_IMETHOD    GetLength(uint32_t* aLength); 
+  NS_IMETHOD    Item(uint32_t aIndex, nsIDOMCSSRule** aReturn); 
+
+  virtual nsIDOMCSSRule* GetItemAt(uint32_t aIndex, nsresult* aResult);
 
   void DropReference() { mStyleSheet = nullptr; }
 
@@ -94,35 +95,53 @@ NS_IMPL_ADDREF(CSSRuleListImpl)
 NS_IMPL_RELEASE(CSSRuleListImpl)
 
 
-uint32_t
-CSSRuleListImpl::Length()
+NS_IMETHODIMP    
+CSSRuleListImpl::GetLength(uint32_t* aLength)
 {
-  if (!mStyleSheet) {
-    return 0;
+  if (nullptr != mStyleSheet) {
+    int32_t count = mStyleSheet->StyleRuleCount();
+    *aLength = (uint32_t)count;
+  }
+  else {
+    *aLength = 0;
   }
 
-  return SafeCast<uint32_t>(mStyleSheet->StyleRuleCount());
+  return NS_OK;
 }
 
 nsIDOMCSSRule*    
-CSSRuleListImpl::IndexedGetter(uint32_t aIndex, bool& aFound)
+CSSRuleListImpl::GetItemAt(uint32_t aIndex, nsresult* aResult)
 {
-  aFound = false;
-
   if (mStyleSheet) {
     // ensure rules have correct parent
     if (mStyleSheet->EnsureUniqueInner() !=
           nsCSSStyleSheet::eUniqueInner_CloneFailed) {
       css::Rule* rule = mStyleSheet->GetStyleRuleAt(aIndex);
       if (rule) {
-        aFound = true;
+        *aResult = NS_OK;
         return rule->GetDOMRule();
       }
     }
   }
 
   // Per spec: "Return Value ... null if ... not a valid index."
+  *aResult = NS_OK;
   return nullptr;
+}
+
+NS_IMETHODIMP    
+CSSRuleListImpl::Item(uint32_t aIndex, nsIDOMCSSRule** aReturn)
+{
+  nsresult rv;
+  nsIDOMCSSRule* rule = GetItemAt(aIndex, &rv);
+  if (!rule) {
+    *aReturn = nullptr;
+
+    return rv;
+  }
+
+  NS_ADDREF(*aReturn = rule);
+  return NS_OK;
 }
 
 template <class Numeric>

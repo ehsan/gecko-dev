@@ -724,6 +724,8 @@ nsRefreshDriver::nsRefreshDriver(nsPresContext* aPresContext)
   mMostRecentRefreshEpochTime = JS_Now();
   mMostRecentRefresh = TimeStamp::Now();
 
+  mPaintFlashing = Preferences::GetBool("nglayout.debug.paint_flashing");
+
   mRequests.Init();
   mStartTable.Init();
 }

@@ -771,7 +771,7 @@ js::gc::MarkRuntime(JSTracer *trc, bool useSavedRoots)
 
     /* During GC, we don't mark gray roots at this stage. */
     if (JSTraceDataOp op = rt->gcGrayRootTracer.op) {
-        if (!IS_GC_MARKING_TRACER(trc) && !trc->runtime->isHeapMinorCollecting())
+        if (!IS_GC_MARKING_TRACER(trc))
             (*op)(trc, rt->gcGrayRootTracer.data);
     }
 }

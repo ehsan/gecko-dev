@@ -7,6 +7,7 @@
 #define nsHostResolver_h__
 
 #include "nscore.h"
+#include "nsAtomicRefcnt.h"
 #include "prclist.h"
 #include "prnetdb.h"
 #include "pldhash.h"
@@ -79,7 +80,7 @@ public:
 
     mozilla::TimeStamp expiration;
 
-    bool HasUsableResult(uint16_t queryFlags) const;
+    bool HasResult() const { return addr_info || addr || negative; }
 
     // hold addr_info_lock when calling the blacklist functions
     bool   Blacklisted(mozilla::net::NetAddr *query);
@@ -97,7 +98,6 @@ private:
     
     bool    onQueue;  /* true if pending and on the queue (not yet given to getaddrinfo())*/
     bool    usingAnyThread; /* true if off queue and contributing to mActiveAnyThreadCount */
-    bool    mDoomed; /* explicitly expired */
 
     // a list of addresses associated with this record that have been reported
     // as unusable. the list is kept as a set of strings to make it independent

@@ -209,7 +209,6 @@ webidl_files = \
   PaintRequest.webidl \
   PaintRequestList.webidl \
   PannerNode.webidl \
-  ParentNode.webidl \
   Performance.webidl \
   PerformanceNavigation.webidl \
   PerformanceTiming.webidl \
@@ -361,7 +360,6 @@ webidl_files = \
   UndoManager.webidl \
   URL.webidl \
   URLUtils.webidl \
-  URLUtilsReadOnly.webidl \
   ValidityState.webidl \
   VideoPlaybackQuality.webidl \
   VideoStreamTrack.webidl \
@@ -370,8 +368,6 @@ webidl_files = \
   WebSocket.webidl \
   WheelEvent.webidl \
   Window.webidl \
-  WorkerLocation.webidl \
-  WorkerNavigator.webidl \
   XMLDocument.webidl \
   XMLHttpRequest.webidl \
   XMLHttpRequestEventTarget.webidl \
