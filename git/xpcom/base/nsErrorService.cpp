@@ -65,7 +65,7 @@ nsInt2StrHashtable::Put(PRUint32 key, const char* aData)
   nsPRUint32Key k(key);
   char* oldValue = (char*)mHashtable.Put(&k, value);
   if (oldValue)
-    NS_Free(oldValue);
+    nsCRT::free(oldValue);
   return NS_OK;
 }
 
@@ -85,7 +85,7 @@ nsInt2StrHashtable::Remove(PRUint32 key)
   nsPRUint32Key k(key);
   char* oldValue = (char*)mHashtable.Remove(&k);
   if (oldValue)
-    NS_Free(oldValue);
+    nsCRT::free(oldValue);
   return NS_OK;
 }
 

@@ -92,7 +92,7 @@ typedef DWORD (WINAPI* tRASGETAUTODIALPARAM)(DWORD,LPVOID,LPDWORD);
 // target OS's so the caller doesn't have to deal with OS version checking.
 //
 
-class nsAutodial
+class nsRASAutodial
 {
 private:
 
@@ -174,10 +174,10 @@ private:
 public:
   
     // ctor
-    nsAutodial();
+    nsRASAutodial();
 
     // dtor
-    virtual ~nsAutodial();
+    virtual ~nsRASAutodial();
 
     // Get the autodial info from the OS and init this obj with it. Call it any
     // time to refresh the object's settings from the OS.

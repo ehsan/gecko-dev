@@ -146,6 +146,8 @@ struct nsBoxLayoutMetrics
   nscoord mAscent;
 
   nsSize mLastSize;
+
+  PRPackedBool mWasCollapsed;
 };
 
 struct nsContentAndOffset
@@ -6763,6 +6765,18 @@ nsFrame::BoxReflow(nsBoxLayoutState&        aState,
   return NS_OK;
 }
 
+PRBool
+nsFrame::GetWasCollapsed(nsBoxLayoutState& aState)
+{
+  return BoxMetrics()->mWasCollapsed;
+}
+
+void
+nsFrame::SetWasCollapsed(nsBoxLayoutState& aState, PRBool aCollapsed)
+{
+  BoxMetrics()->mWasCollapsed = aCollapsed;
+}
+
 nsBoxLayoutMetrics*
 nsFrame::BoxMetrics() const
 {
@@ -6815,6 +6829,7 @@ nsFrame::InitBoxMetrics(PRBool aClear)
   nsFrame::MarkIntrinsicWidthsDirty();
   metrics->mBlockAscent = 0;
   metrics->mLastSize.SizeTo(0, 0);
+  metrics->mWasCollapsed = PR_FALSE;
 }
 
 // Box layout debugging

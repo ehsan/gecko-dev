@@ -1973,48 +1973,49 @@ public:
 
     xptiAdditionalManagersEnumerator();
 
-    PRBool SizeTo(PRUint32 likelyCount) {return mArray.SetCapacity(likelyCount);}
+    PRBool SizeTo(PRUint32 likelyCount) {return mArray.SizeTo(likelyCount);}
     PRBool AppendElement(nsIInterfaceInfoManager* element);
 
 private:
     ~xptiAdditionalManagersEnumerator() {}
 
-    nsCOMArray<nsISupports> mArray;
-    PRInt32                 mIndex;
+    nsSupportsArray mArray;
+    PRUint32        mIndex;
+    PRUint32        mCount;
 };
 
 NS_IMPL_ISUPPORTS1(xptiAdditionalManagersEnumerator, nsISimpleEnumerator)
 
 xptiAdditionalManagersEnumerator::xptiAdditionalManagersEnumerator()
-    : mIndex(0)
+    : mIndex(0), mCount(0)
 {
 }
 
 PRBool xptiAdditionalManagersEnumerator::AppendElement(nsIInterfaceInfoManager* element)
 {
-    if(!mArray.AppendObject(element))
+    if(!mArray.AppendElement(static_cast<nsISupports*>(element)))
         return PR_FALSE;
+    mCount++;
     return PR_TRUE;
 }
 
 /* boolean hasMoreElements (); */
 NS_IMETHODIMP xptiAdditionalManagersEnumerator::HasMoreElements(PRBool *_retval)
 {
-    *_retval = mIndex < mArray.Count();
+    *_retval = mIndex < mCount;
     return NS_OK;
 }
 
 /* nsISupports getNext (); */
 NS_IMETHODIMP xptiAdditionalManagersEnumerator::GetNext(nsISupports **_retval)
 {
-    if(!(mIndex < mArray.Count()))
+    if(!(mIndex < mCount))
     {
         NS_ERROR("Bad nsISimpleEnumerator caller!");
         return NS_ERROR_FAILURE;    
     }
 
-    *_retval = mArray.ObjectAt(mIndex++);
-    NS_IF_ADDREF(*_retval);
+    *_retval = mArray.ElementAt(mIndex++);
     return *_retval ? NS_OK : NS_ERROR_FAILURE;
 }
 
@@ -2029,9 +2030,11 @@ NS_IMETHODIMP xptiInterfaceInfoManager::AddAdditionalManager(nsIInterfaceInfoMan
                     static_cast<nsISupports*>(manager);
     { // scoped lock...
         nsAutoLock lock(mAdditionalManagersLock);
-        if(mAdditionalManagers.IndexOf(ptrToAdd) != -1)
+        PRInt32 index;
+        nsresult rv = mAdditionalManagers.GetIndexOf(ptrToAdd, &index);
+        if(NS_FAILED(rv) || -1 != index)
             return NS_ERROR_FAILURE;
-        if(!mAdditionalManagers.AppendObject(ptrToAdd))
+        if(!mAdditionalManagers.AppendElement(ptrToAdd))
             return NS_ERROR_OUT_OF_MEMORY;
     }
     return NS_OK;
@@ -2046,7 +2049,7 @@ NS_IMETHODIMP xptiInterfaceInfoManager::RemoveAdditionalManager(nsIInterfaceInfo
                     static_cast<nsISupports*>(manager);
     { // scoped lock...
         nsAutoLock lock(mAdditionalManagersLock);
-        if(!mAdditionalManagers.RemoveObject(ptrToRemove))
+        if(!mAdditionalManagers.RemoveElement(ptrToRemove))
             return NS_ERROR_FAILURE;
     }
     return NS_OK;
@@ -2055,8 +2058,10 @@ NS_IMETHODIMP xptiInterfaceInfoManager::RemoveAdditionalManager(nsIInterfaceInfo
 /* PRBool hasAdditionalManagers (); */
 NS_IMETHODIMP xptiInterfaceInfoManager::HasAdditionalManagers(PRBool *_retval)
 {
-    *_retval = mAdditionalManagers.Count() > 0;
-    return NS_OK;
+    PRUint32 count;
+    nsresult rv = mAdditionalManagers.Count(&count);
+    *_retval = count != 0;
+    return rv;
 }
 
 /* nsISimpleEnumerator enumerateAdditionalManagers (); */
@@ -2064,7 +2069,10 @@ NS_IMETHODIMP xptiInterfaceInfoManager::EnumerateAdditionalManagers(nsISimpleEnu
 {
     nsAutoLock lock(mAdditionalManagersLock);
 
-    PRInt32 count = mAdditionalManagers.Count();
+    PRUint32 count;
+    nsresult rv = mAdditionalManagers.Count(&count);
+    if(NS_FAILED(rv))
+        return rv;
 
     nsCOMPtr<xptiAdditionalManagersEnumerator> enumerator = 
         new xptiAdditionalManagersEnumerator();
@@ -2073,9 +2081,10 @@ NS_IMETHODIMP xptiInterfaceInfoManager::EnumerateAdditionalManagers(nsISimpleEnu
 
     enumerator->SizeTo(count);
 
-    for(PRInt32 i = 0; i < count; /* i incremented in the loop body */)
+    for(PRUint32 i = 0; i < count; /* i incremented in the loop body */)
     {
-        nsCOMPtr<nsISupports> raw = mAdditionalManagers.ObjectAt(i++);
+        nsCOMPtr<nsISupports> raw = 
+            dont_AddRef(mAdditionalManagers.ElementAt(i++));
         if(!raw)
             return NS_ERROR_FAILURE;
         nsCOMPtr<nsIWeakReference> weakRef = do_QueryInterface(raw);
@@ -2091,7 +2100,8 @@ NS_IMETHODIMP xptiInterfaceInfoManager::EnumerateAdditionalManagers(nsISimpleEnu
             else
             {
                 // The manager is no more. Remove the element.
-                mAdditionalManagers.RemoveObjectAt(--i);
+                if(!mAdditionalManagers.RemoveElementAt(--i))
+                    return NS_ERROR_FAILURE;
                 count--;
             }
         }

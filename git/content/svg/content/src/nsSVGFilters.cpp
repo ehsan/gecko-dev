@@ -51,7 +51,6 @@
 #include "nsSVGAnimatedNumberList.h"
 #include "nsISVGValueUtils.h"
 #include "nsSVGFilters.h"
-#include "nsLayoutUtils.h"
 #include "nsSVGUtils.h"
 #include "nsStyleContext.h"
 #include "nsIDocument.h"
@@ -5176,8 +5175,6 @@ public:
   NS_FORWARD_NSIDOMELEMENT(nsSVGFEImageElementBase::)
 
   // nsIContent
-  NS_IMETHOD_(PRBool) IsAttributeMapped(const nsIAtom* aAttribute) const;
-
   virtual nsresult Clone(nsINodeInfo *aNodeInfo, nsINode **aResult) const;
 
   virtual nsresult AfterSetAttr(PRInt32 aNamespaceID, nsIAtom* aName,
@@ -5274,17 +5271,6 @@ nsSVGFEImageElement::LoadSVGImage(PRBool aForce, PRBool aNotify)
 //----------------------------------------------------------------------
 // nsIContent methods:
 
-NS_IMETHODIMP_(PRBool)
-nsSVGFEImageElement::IsAttributeMapped(const nsIAtom* name) const
-{
-  static const MappedAttributeEntry* const map[] = {
-    sGraphicsMap
-  };
-  
-  return FindAttributeDependence(name, map, NS_ARRAY_LENGTH(map)) ||
-    nsSVGFEImageElementBase::IsAttributeMapped(name);
-}
-
 nsresult
 nsSVGFEImageElement::AfterSetAttr(PRInt32 aNamespaceID, nsIAtom* aName,
                                   const nsAString* aValue, PRBool aNotify)
@@ -5357,8 +5343,6 @@ nsSVGFEImageElement::Filter(nsSVGFilterInstance *instance,
   fprintf(stderr, "FILTER IMAGE rect: %d,%d  %dx%d\n",
           rect.x, rect.y, rect.width, rect.height);
 #endif
-  nsIFrame* frame = GetPrimaryFrame();
-  if (!frame) return NS_ERROR_FAILURE;
 
   nsCOMPtr<imgIRequest> currentRequest;
   GetRequest(nsIImageLoadingContent::CURRENT_REQUEST,
@@ -5380,8 +5364,6 @@ nsSVGFEImageElement::Filter(nsSVGFilterInstance *instance,
   }
 
   if (thebesPattern) {
-    thebesPattern->SetFilter(nsLayoutUtils::GetGraphicsFilterForFrame(frame));
-
     PRInt32 x, y, nativeWidth, nativeHeight;
     currentFrame->GetX(&x);
     currentFrame->GetY(&y);

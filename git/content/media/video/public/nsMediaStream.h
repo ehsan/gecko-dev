@@ -46,7 +46,6 @@
 #include "nsIStreamListener.h"
 #include "prlock.h"
 #include "nsMediaCache.h"
-#include "nsTimeStamp.h"
 
 // For HTTP seeking, if number of bytes needing to be
 // seeked forward is less than this value then a read is
@@ -65,28 +64,25 @@ class nsMediaDecoder;
  * kind of average of the data passing through over the time the
  * channel is active.
  * 
- * All methods take "now" as a parameter so the user of this class can
- * control the timeline used.
+ * Timestamps and time durations are measured in PRIntervalTimes, but
+ * all methods take "now" as a parameter so the user of this class can
+ * define what the timeline means.
  */
 class nsChannelStatistics {
 public:
-  typedef mozilla::TimeStamp TimeStamp;
-  typedef mozilla::TimeDuration TimeDuration;
-
   nsChannelStatistics() { Reset(); }
   void Reset() {
-    mLastStartTime = TimeStamp();
-    mAccumulatedTime = TimeDuration(0);
+    mLastStartTime = mAccumulatedTime = 0;
     mAccumulatedBytes = 0;
     mIsStarted = PR_FALSE;
   }
-  void Start(TimeStamp aNow) {
+  void Start(PRIntervalTime aNow) {
     if (mIsStarted)
       return;
     mLastStartTime = aNow;
     mIsStarted = PR_TRUE;
   }
-  void Stop(TimeStamp aNow) {
+  void Stop(PRIntervalTime aNow) {
     if (!mIsStarted)
       return;
     mAccumulatedTime += aNow - mLastStartTime;
@@ -101,28 +97,25 @@ public:
     mAccumulatedBytes += aBytes;
   }
   double GetRateAtLastStop(PRPackedBool* aReliable) {
-    double seconds = mAccumulatedTime.ToSeconds();
-    *aReliable = seconds >= 1.0;
-    if (seconds <= 0.0)
-      return 0.0;
-    return double(mAccumulatedBytes)/seconds;
+    *aReliable = mAccumulatedTime >= PR_TicksPerSecond();
+    return double(mAccumulatedBytes)*PR_TicksPerSecond()/mAccumulatedTime;
   }
-  double GetRate(TimeStamp aNow, PRPackedBool* aReliable) {
-    TimeDuration time = mAccumulatedTime;
+  double GetRate(PRIntervalTime aNow, PRPackedBool* aReliable) {
+    PRIntervalTime time = mAccumulatedTime;
     if (mIsStarted) {
       time += aNow - mLastStartTime;
     }
-    double seconds = time.ToSeconds();
-    *aReliable = seconds >= 1.0;
-    if (seconds <= 0.0)
+    *aReliable = time >= PR_TicksPerSecond();
+    NS_ASSERTION(time >= 0, "Time wraparound?");
+    if (time <= 0)
       return 0.0;
-    return double(mAccumulatedBytes)/seconds;
+    return double(mAccumulatedBytes)*PR_TicksPerSecond()/time;
   }
 private:
-  PRInt64      mAccumulatedBytes;
-  TimeDuration mAccumulatedTime;
-  TimeStamp    mLastStartTime;
-  PRPackedBool mIsStarted;
+  PRInt64        mAccumulatedBytes;
+  PRIntervalTime mAccumulatedTime;
+  PRIntervalTime mLastStartTime;
+  PRPackedBool   mIsStarted;
 };
 
 /*
@@ -205,10 +198,6 @@ public:
   virtual nsresult Seek(PRInt32 aWhence, PRInt64 aOffset) = 0;
   // Report the current offset in bytes from the start of the stream.
   virtual PRInt64 Tell() = 0;
-  // Moves any existing channel loads into the background, so that they don't
-  // block the load event. Any new loads initiated (for example to seek)
-  // will also be in the background.
-  void MoveLoadsToBackground();
 
   // These can be called on any thread.
   // Cached blocks associated with this stream will not be evicted
@@ -254,8 +243,7 @@ protected:
   nsMediaStream(nsMediaDecoder* aDecoder, nsIChannel* aChannel, nsIURI* aURI) :
     mDecoder(aDecoder),
     mChannel(aChannel),
-    mURI(aURI),
-    mLoadInBackground(PR_FALSE)
+    mURI(aURI)
   {
     MOZ_COUNT_CTOR(nsMediaStream);
   }
@@ -280,10 +268,6 @@ protected:
   // URI in case the stream needs to be re-opened. Access from
   // main thread only.
   nsCOMPtr<nsIURI> mURI;
-
-  // PR_TRUE if MoveLoadsToBackground() has been called, i.e. the load event
-  // has been fired, and all channel loads will be in the background.
-  PRPackedBool mLoadInBackground;
 };
 
 /**
