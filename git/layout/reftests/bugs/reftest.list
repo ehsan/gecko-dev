@@ -569,6 +569,7 @@ random-if(MOZ_WIDGET_TOOLKIT=="gtk2") == 368020-5.html 368020-5-ref.html # bug 3
 == 370692-1.xhtml 370692-1-ref.xhtml
 == 371041-1.html 371041-1-ref.html
 == 371043-1.html 371043-1-ref.html
+== 371354-1.html 371354-1-ref.html
 == 371483-1.html about:blank # assertion test
 == 371561-1.html 371561-1-ref.html
 != 371681-1.xhtml about:blank
@@ -1209,3 +1210,4 @@ fails == 472020-2.xul 472020-2-ref.xul
 == 486848-1.xul 486848-1-ref.xul
 == 487539-1.html about:blank
 == 488390-1.html 488390-1-ref.html
+== 488685-1.html 488685-1-ref.html

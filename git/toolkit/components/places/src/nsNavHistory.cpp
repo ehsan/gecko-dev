@@ -91,6 +91,7 @@
 #include "mozIStorageValueArray.h"
 #include "mozStorageCID.h"
 #include "mozStorageHelper.h"
+#include "mozIStorageError.h"
 #include "nsPlacesTriggers.h"
 #include "nsAppDirectoryServiceDefs.h"
 #include "nsIIdleService.h"
@@ -2902,7 +2903,9 @@ nsNavHistory::ExecuteQueries(nsINavHistoryQuery** aQueries, PRUint32 aQueryCount
 // place:redirectsMode=2&sort=8&maxResults=10
 // note, any maxResult > 0 will still be considered a Most Visited menu query
 static
-PRBool IsHistoryMenuQuery(const nsCOMArray<nsNavHistoryQuery>& aQueries, nsNavHistoryQueryOptions *aOptions, PRUint16 aSortMode)
+PRBool IsOptimizableHistoryQuery(const nsCOMArray<nsNavHistoryQuery>& aQueries,
+                                 nsNavHistoryQueryOptions *aOptions,
+                                 PRUint16 aSortMode)
 {
   if (aQueries.Count() != 1)
     return PR_FALSE;
@@ -3022,6 +3025,9 @@ private:
 
   void OrderByColumnIndexAsc(PRInt32 aIndex);
   void OrderByColumnIndexDesc(PRInt32 aIndex);
+  // Use these if you want a case insensitive sorting.
+  void OrderByTextColumnIndexAsc(PRInt32 aIndex);
+  void OrderByTextColumnIndexDesc(PRInt32 aIndex);
 
   const nsCString& mConditions;
   PRBool mUseLimit;
@@ -3712,11 +3718,11 @@ PlacesSQLQueryBuilder::SelectAsSite()
             "AND rev_host <> '.' "
             "AND visit_count > 0 "
         ") "
-      "ORDER BY 1 ASC)",
+      "ORDER BY 1 ASC) ",
       nsINavHistoryQueryOptions::RESULTS_AS_URI,
-      nsINavHistoryQueryOptions::SORT_BY_TITLE_ASCENDING,
+      mSortingMode,
       nsINavHistoryQueryOptions::RESULTS_AS_URI,
-      nsINavHistoryQueryOptions::SORT_BY_TITLE_ASCENDING);
+      mSortingMode);
   // Now we need to use the filters - we need them all
   } else {
 
@@ -3800,11 +3806,11 @@ PlacesSQLQueryBuilder::SelectAsSite()
           "{QUERY_OPTIONS} "
           "{ADDITIONAL_CONDITIONS} "        
         "ORDER BY 1 ASC "
-      ")",
+      ") ",
       nsINavHistoryQueryOptions::RESULTS_AS_URI,
-      nsINavHistoryQueryOptions::SORT_BY_TITLE_ASCENDING,
+      mSortingMode,
       nsINavHistoryQueryOptions::RESULTS_AS_URI,
-      nsINavHistoryQueryOptions::SORT_BY_TITLE_ASCENDING);
+      mSortingMode);
   }
 
   return NS_OK;
@@ -3903,14 +3909,18 @@ PlacesSQLQueryBuilder::OrderBy()
       break;
     case nsINavHistoryQueryOptions::SORT_BY_TITLE_ASCENDING:
     case nsINavHistoryQueryOptions::SORT_BY_TITLE_DESCENDING:
-      // the DB doesn't have indices on titles, and we need to do special
-      // sorting for locales. This type of sorting is done only at the end.
-      //
       // If the user wants few results, we limit them by date, necessitating
-      // a sort by date here (see the IDL definition for maxResults). We'll
-      // still do the official sort by title later.
+      // a sort by date here (see the IDL definition for maxResults).
+      // Otherwise we will do actual sorting by title, but since we could need
+      // to special sort for some locale we will repeat a second sorting at the
+      // end in nsNavHistoryResult, that should be faster since the list will be
+      // almost ordered.
       if (mMaxResults > 0)
         OrderByColumnIndexDesc(nsNavHistory::kGetInfoIndex_VisitDate);
+      else if (mSortingMode == nsINavHistoryQueryOptions::SORT_BY_TITLE_ASCENDING)
+        OrderByTextColumnIndexAsc(nsNavHistory::kGetInfoIndex_Title);
+      else
+        OrderByTextColumnIndexDesc(nsNavHistory::kGetInfoIndex_Title);
       break;
     case nsINavHistoryQueryOptions::SORT_BY_DATE_ASCENDING:
       OrderByColumnIndexAsc(nsNavHistory::kGetInfoIndex_VisitDate);
@@ -3967,6 +3977,18 @@ void PlacesSQLQueryBuilder::OrderByColumnIndexDesc(PRInt32 aIndex)
   mQueryString += nsPrintfCString(128, " ORDER BY %d DESC", aIndex+1);
 }
 
+void PlacesSQLQueryBuilder::OrderByTextColumnIndexAsc(PRInt32 aIndex)
+{
+  mQueryString += nsPrintfCString(128, " ORDER BY %d COLLATE NOCASE ASC",
+                                  aIndex+1);
+}
+
+void PlacesSQLQueryBuilder::OrderByTextColumnIndexDesc(PRInt32 aIndex)
+{
+  mQueryString += nsPrintfCString(128, " ORDER BY %d COLLATE NOCASE DESC",
+                                  aIndex+1);
+}
+
 nsresult
 PlacesSQLQueryBuilder::Limit()
 {
@@ -3986,171 +4008,104 @@ nsNavHistory::ConstructQueryString(
     PRBool& aParamsPresent,
     nsNavHistory::StringHash& aAddParams)
 {
-  nsresult rv;
-
-  // Information about visit_type:
-  // 4 == TRANSITION_EMBED
-  // 0 == undefined (see bug #375777 for details)
+  // For information about visit_type see nsINavHistoryService.idl.
+  // visitType == 0 is undefined (see bug #375777 for details).
   // Some sites, especially Javascript-heavy ones, load things in frames to 
   // display them, resulting in a lot of these entries. This is the reason 
   // why such visits are filtered out.
-
+  nsresult rv;
   aParamsPresent = PR_FALSE;
 
   PRInt32 sortingMode = aOptions->SortingMode();
-  if (sortingMode < 0 ||
-      sortingMode > nsINavHistoryQueryOptions::SORT_BY_ANNOTATION_DESCENDING) {
-    return NS_ERROR_INVALID_ARG;
-  }
+  NS_ASSERTION(sortingMode >= nsINavHistoryQueryOptions::SORT_BY_NONE &&
+               sortingMode <= nsINavHistoryQueryOptions::SORT_BY_ANNOTATION_DESCENDING,
+               "Invalid sortingMode found while building query!");
 
-  // for the very special query for the history menu 
-  // we generate a super-optimized SQL query
-  if (IsHistoryMenuQuery(aQueries, aOptions, 
-        nsINavHistoryQueryOptions::SORT_BY_DATE_DESCENDING)) {
-
-    nsCString sqlFragment = NS_LITERAL_CSTRING(
-      "SELECT * FROM ( "
-        "SELECT DISTINCT place_id "
-        "FROM moz_historyvisits v "
-        "WHERE visit_type NOT IN ") +
-          nsPrintfCString("(0,%d) ", nsINavHistoryService::TRANSITION_EMBED) +
-          NS_LITERAL_CSTRING("{QUERY_OPTIONS} "
-          "AND NOT EXISTS "
-            "(SELECT id FROM moz_places h WHERE h.id = place_id AND hidden = 1) "
-          "AND NOT EXISTS (SELECT id FROM moz_places_temp h WHERE h.id = place_id AND hidden = 1) "
-        "ORDER by visit_date DESC LIMIT ") +
-        nsPrintfCString("%d ", aOptions->MaxResults()) +
-      NS_LITERAL_CSTRING(") "
-      "UNION ALL "
-      "SELECT * FROM ( "
-        "SELECT DISTINCT place_id "
-        "FROM moz_historyvisits_temp v "
-        "WHERE visit_type NOT IN ") +
-          nsPrintfCString("(0,%d) ", nsINavHistoryService::TRANSITION_EMBED) +
-          NS_LITERAL_CSTRING("{QUERY_OPTIONS} "
-          "AND NOT EXISTS "
-            "(SELECT id FROM moz_places h WHERE h.id = place_id AND hidden = 1) "
-          "AND NOT EXISTS (SELECT id FROM moz_places_temp h WHERE h.id = place_id AND hidden = 1) "
-        "ORDER by visit_date DESC LIMIT ") +
-        nsPrintfCString("%d ", aOptions->MaxResults()) +
-      NS_LITERAL_CSTRING(")");
-
-    queryString = NS_LITERAL_CSTRING(
-      "SELECT h.id, h.url, h.title, h.rev_host, h.visit_count, "
-          SQL_STR_FRAGMENT_MAX_VISIT_DATE( "h.id" )
-          ", f.url, null, null "
-        "FROM moz_places_temp h "
-        "LEFT OUTER JOIN moz_favicons f ON h.favicon_id = f.id "
-        "WHERE h.id IN ( ") + sqlFragment + NS_LITERAL_CSTRING(") "
-      "UNION ALL "
-      "SELECT h.id, h.url, h.title, h.rev_host, h.visit_count, "
-          SQL_STR_FRAGMENT_MAX_VISIT_DATE( "h.id" )
-          ", f.url, null, null "
-        "FROM moz_places h "
-        "LEFT OUTER JOIN moz_favicons f ON h.favicon_id = f.id "
-        "WHERE h.id IN ( ") + sqlFragment + NS_LITERAL_CSTRING(") "
-        "AND h.id NOT IN (SELECT id FROM moz_places_temp) "
-        "ORDER BY 6 DESC " // last visit date
-        "LIMIT ");
-    
-    queryString.AppendInt(aOptions->MaxResults());
-
-    nsCAutoString additionalQueryOptions;
-    if (aOptions->RedirectsMode() ==
-          nsINavHistoryQueryOptions::REDIRECTS_MODE_SOURCE) {
-      additionalQueryOptions += NS_LITERAL_CSTRING(
-        "AND v.visit_type NOT IN (5,6) ");
-    }
-    else if (aOptions->RedirectsMode() ==
-              nsINavHistoryQueryOptions::REDIRECTS_MODE_TARGET) {
-      additionalQueryOptions += NS_LITERAL_CSTRING(
-        "AND NOT EXISTS ( "
-          "SELECT id FROM moz_historyvisits_temp WHERE from_visit = v.id "
-          "AND visit_type IN (5, 6) "
-        ") AND NOT EXISTS ( "
-          "SELECT id FROM moz_historyvisits WHERE from_visit = v.id "
-          "AND visit_type IN (5, 6) "
-        ") ");
-    }
-    queryString.ReplaceSubstring("{QUERY_OPTIONS}",
-                                  additionalQueryOptions.get());
-
-    return NS_OK;
-  }
-
-  // for the most visited menu query
-  // we generate a super-optimized SQL query
-  if (IsHistoryMenuQuery(aQueries, aOptions, 
+  if (IsOptimizableHistoryQuery(aQueries, aOptions,
+        nsINavHistoryQueryOptions::SORT_BY_DATE_DESCENDING) ||
+      IsOptimizableHistoryQuery(aQueries, aOptions,
         nsINavHistoryQueryOptions::SORT_BY_VISITCOUNT_DESCENDING)) {
+    // Generate an optimized query for the history menu and most visited
+    // smart bookmark.
     queryString = NS_LITERAL_CSTRING(
-      "SELECT * FROM ( "
-        "SELECT h.id, h.url, h.title, h.rev_host, h.visit_count, "
-          SQL_STR_FRAGMENT_MAX_VISIT_DATE( "h.id" )
-          ", f.url, null, null "
+      "SELECT h.id, h.url, h.title, h.rev_host, h.visit_count, "
+          SQL_STR_FRAGMENT_MAX_VISIT_DATE( "h.id" ) " AS last_visit_date, "
+          "f.url, null, null "
         "FROM moz_places_temp h "
-        "LEFT JOIN moz_favicons f ON h.favicon_id = f.id "
-        "WHERE h.hidden <> 1 AND h.visit_count > 0 "
+        "LEFT OUTER JOIN moz_favicons f ON h.favicon_id = f.id "
+        "WHERE h.hidden <> 1 "
           "{QUERY_OPTIONS} "
-        "ORDER BY h.visit_count DESC LIMIT ") +
-        nsPrintfCString("%d ", aOptions->MaxResults()) +
-      NS_LITERAL_CSTRING(") "
       "UNION ALL "
-      "SELECT * FROM ( "
-        "SELECT h.id, h.url, h.title, h.rev_host, h.visit_count, "
-          SQL_STR_FRAGMENT_MAX_VISIT_DATE( "h.id" )
-          ", f.url, null, null "
+      "SELECT h.id, h.url, h.title, h.rev_host, h.visit_count, "
+          SQL_STR_FRAGMENT_MAX_VISIT_DATE( "h.id" ) " AS last_visit_date, "
+          "f.url, null, null "
         "FROM moz_places h "
         "LEFT OUTER JOIN moz_favicons f ON h.favicon_id = f.id "
-        "WHERE h.hidden <> 1 AND h.visit_count > 0 "
-          "{QUERY_OPTIONS} "
+        "WHERE h.hidden <> 1 "
           "AND h.id NOT IN (SELECT id FROM moz_places_temp) "
-        "ORDER BY h.visit_count DESC LIMIT ") +
-        nsPrintfCString("%d ", aOptions->MaxResults()) +
-      NS_LITERAL_CSTRING(") "
-      "ORDER BY 5 DESC LIMIT "); // visit_count
+          "{QUERY_OPTIONS} "
+        );
+
+    queryString.Append(NS_LITERAL_CSTRING("ORDER BY "));
+    if (sortingMode == nsINavHistoryQueryOptions::SORT_BY_DATE_DESCENDING)
+      queryString.Append(NS_LITERAL_CSTRING("last_visit_date DESC "));
+    else
+      queryString.Append(NS_LITERAL_CSTRING("visit_count DESC "));
+
+    queryString.Append(NS_LITERAL_CSTRING("LIMIT "));
     queryString.AppendInt(aOptions->MaxResults());
 
     nsCAutoString additionalQueryOptions;
-
     if (aOptions->RedirectsMode() ==
           nsINavHistoryQueryOptions::REDIRECTS_MODE_SOURCE) {
-      additionalQueryOptions += NS_LITERAL_CSTRING(
-        "AND ( "
-          "EXISTS (SELECT id FROM moz_historyvisits WHERE place_id = h.id AND visit_type NOT IN (5,6) LIMIT 1) "
-          "OR EXISTS (SELECT id FROM moz_historyvisits_temp WHERE place_id = h.id AND visit_type NOT IN (5,6) LIMIT 1) "
-        ") ");
+      additionalQueryOptions +=  nsPrintfCString(256,
+        "AND NOT EXISTS ( "
+          "SELECT id FROM moz_historyvisits_temp WHERE place_id = h.id "
+                                             "AND visit_type IN (%d,%d)"
+        ") "
+        "AND NOT EXISTS ( "
+          "SELECT id FROM moz_historyvisits WHERE place_id = h.id "
+                                             "AND visit_type IN (%d,%d)"
+        ") ",
+        TRANSITION_REDIRECT_PERMANENT,
+        TRANSITION_REDIRECT_TEMPORARY,
+        TRANSITION_REDIRECT_PERMANENT,
+        TRANSITION_REDIRECT_TEMPORARY);
     }
     else if (aOptions->RedirectsMode() ==
               nsINavHistoryQueryOptions::REDIRECTS_MODE_TARGET) {
-      additionalQueryOptions += NS_LITERAL_CSTRING(
+      additionalQueryOptions += nsPrintfCString(1024,
         "AND NOT EXISTS ( "
-          "SELECT id FROM moz_historyvisits_temp WHERE from_visit IN ( "
-            "SELECT id FROM moz_historyvisits_temp WHERE place_id = h.id) "
-        ") "
-        "AND NOT EXISTS ( "
-          "SELECT id FROM moz_historyvisits_temp WHERE from_visit IN ( "
-            "SELECT id FROM moz_historyvisits WHERE place_id = h.id) "
-        ") "
-        "AND NOT EXISTS ( "
-          "SELECT id FROM moz_historyvisits WHERE from_visit IN ( "
-            "SELECT id FROM moz_historyvisits_temp WHERE place_id = h.id) "
-        ") "
-        "AND NOT EXISTS ( "
-          "SELECT id FROM moz_historyvisits WHERE from_visit IN ( "
-            "SELECT id FROM moz_historyvisits WHERE place_id = h.id) "
-        ") ");
+          "SELECT id "
+          "FROM moz_historyvisits_temp v "
+          "WHERE place_id = h.id "
+            "AND EXISTS(SELECT id FROM moz_historyvisits_temp "
+                           "WHERE from_visit = v.id AND visit_type IN (%d,%d) "
+                        "UNION ALL "
+                        "SELECT id FROM moz_historyvisits "
+                           "WHERE from_visit = v.id AND visit_type IN (%d,%d)) "
+          "UNION ALL "
+          "SELECT id "
+          "FROM moz_historyvisits v "
+          "WHERE place_id = h.id "
+            "AND EXISTS(SELECT id FROM moz_historyvisits_temp "
+                           "WHERE from_visit = v.id AND visit_type IN (%d,%d) "
+                        "UNION ALL "
+                        "SELECT id FROM moz_historyvisits "
+                           "WHERE from_visit = v.id AND visit_type IN (%d,%d)) "
+        ") ",
+        TRANSITION_REDIRECT_PERMANENT,
+        TRANSITION_REDIRECT_TEMPORARY,
+        TRANSITION_REDIRECT_PERMANENT,
+        TRANSITION_REDIRECT_TEMPORARY);
     }
-
     queryString.ReplaceSubstring("{QUERY_OPTIONS}",
                                   additionalQueryOptions.get());
-
     return NS_OK;
-  }  
+  }
 
   nsCAutoString conditions;
-
-  PRInt32 i;
-  for (i = 0; i < aQueries.Count(); i ++) {
+  for (PRInt32 i = 0; i < aQueries.Count(); i++) {
     nsCString queryClause;
     rv = QueryToSelectClause(aQueries[i], aOptions, i, &queryClause);
     NS_ENSURE_SUCCESS(rv, rv);
@@ -4163,12 +4118,12 @@ nsNavHistory::ConstructQueryString(
     }
   }
 
-  // Determine whether we can push maxResults constraints into the queries 
-  // as LIMIT, or if we need to do result count clamping later 
+  // Determine whether we can push maxResults constraints into the queries
+  // as LIMIT, or if we need to do result count clamping later
   // using FilterResultSet()
   PRBool useLimitClause = !NeedToFilterResultSet(aQueries, aOptions);
 
-  PlacesSQLQueryBuilder queryStringBuilder(conditions, aOptions, 
+  PlacesSQLQueryBuilder queryStringBuilder(conditions, aOptions,
                                            useLimitClause, aAddParams);
   rv = queryStringBuilder.GetQueryString(queryString);
   NS_ENSURE_SUCCESS(rv, rv);
@@ -4228,13 +4183,21 @@ nsNavHistory::GetQueryResults(nsNavHistoryQueryResultNode *aResultNode,
                                      paramsPresent, addParams);
   NS_ENSURE_SUCCESS(rv,rv);
 
-#ifdef DEBUG_FRECENCY
-  printf("Constructed the query: %s\n", PromiseFlatCString(queryString).get());
-#endif
-
   // create statement
   nsCOMPtr<mozIStorageStatement> statement;
   rv = mDBConn->CreateStatement(queryString, getter_AddRefs(statement));
+#ifdef DEBUG
+  if (NS_FAILED(rv)) {
+    nsCAutoString lastErrorString;
+    (void)mDBConn->GetLastErrorString(lastErrorString);
+    PRInt32 lastError = 0;
+    (void)mDBConn->GetLastError(&lastError);
+    printf("Places failed to create a statement from this query:\n%s\nStorage error (%ld): %s\n",
+           PromiseFlatCString(queryString).get(),
+           lastError,
+           PromiseFlatCString(lastErrorString).get());
+  }
+#endif
   NS_ENSURE_SUCCESS(rv, rv);
 
   if (paramsPresent) {

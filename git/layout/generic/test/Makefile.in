@@ -82,6 +82,7 @@ _TEST_FILES = \
 		$(NULL)
 # disabled temporarily
 # 		test_plugin_position.xhtml \
+#		test_bug488417.html \
 
 libs:: $(_TEST_FILES)
 	$(INSTALL) $(foreach f,$^,"$f") $(DEPTH)/_tests/testing/mochitest/tests/$(relativesrcdir)
