@@ -23,7 +23,7 @@ let {CssHtmlTree} = devtools.require("devtools/styleinspector/computed-view");
 let {CssRuleView, _ElementStyle} = devtools.require("devtools/styleinspector/rule-view");
 let {CssLogic, CssSelector} = devtools.require("devtools/styleinspector/css-logic");
 
-let {Promise: promise} = Cu.import("resource://gre/modules/Promise.jsm", {});
+let promise = devtools.require("sdk/core/promise");
 
 gDevTools.testing = true;
 SimpleTest.registerCleanupFunction(() => {

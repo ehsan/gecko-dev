@@ -57,6 +57,7 @@ BluetoothDevice::BluetoothDevice(nsPIDOMWindow* aWindow,
   MOZ_ASSERT(aWindow);
   MOZ_ASSERT(IsDOMBinding());
 
+  BindToOwner(aWindow);
   const InfallibleTArray<BluetoothNamedValue>& values =
     aValue.get_ArrayOfBluetoothNamedValue();
   for (uint32_t i = 0; i < values.Length(); ++i) {
@@ -75,16 +76,6 @@ BluetoothDevice::~BluetoothDevice()
   NS_ENSURE_TRUE_VOID(bs);
   bs->UnregisterBluetoothSignalHandler(mAddress, this);
   Unroot();
-}
-
-void
-BluetoothDevice::DisconnectFromOwner()
-{
-  DOMEventTargetHelper::DisconnectFromOwner();
-
-  BluetoothService* bs = BluetoothService::Get();
-  NS_ENSURE_TRUE_VOID(bs);
-  bs->UnregisterBluetoothSignalHandler(mAddress, this);
 }
 
 void

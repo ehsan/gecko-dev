@@ -590,8 +590,6 @@ public:
     mozilla::gl::SkiaGLGlue* GetSkiaGLGlue();
     void PurgeSkiaCache();
 
-    virtual bool IsInGonkEmulator() const { return false; }
-
 protected:
     gfxPlatform();
     virtual ~gfxPlatform();

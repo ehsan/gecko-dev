@@ -2258,16 +2258,12 @@ Navigator::HasInputMethodSupport(JSContext* /* unused */,
                                  JSObject* aGlobal)
 {
   nsCOMPtr<nsPIDOMWindow> win = GetWindowFromGlobal(aGlobal);
-  if (!win || !Preferences::GetBool("dom.mozInputMethod.enabled", false)) {
-    return false;
-  }
-
   if (Preferences::GetBool("dom.mozInputMethod.testing", false)) {
     return true;
   }
 
-  return CheckPermission(win, "input") ||
-         CheckPermission(win, "input-manage");
+  return Preferences::GetBool("dom.mozInputMethod.enabled", false) &&
+         win && CheckPermission(win, "input");
 }
 
 /* static */

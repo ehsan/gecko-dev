@@ -18,7 +18,7 @@ function test()
             ].join("\n"));
 
   waitForExplicitFinish();
-  addTabAndOpenStyleEditors(1, function (aPanel) {
+  addTabAndOpenStyleEditor(function (aPanel) {
     let UI = aPanel.UI;
 
     // Spam the _onNewDocument callback multiple times before the

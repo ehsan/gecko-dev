@@ -173,6 +173,7 @@ BluetoothAdapter::BluetoothAdapter(nsPIDOMWindow* aWindow,
   MOZ_ASSERT(aWindow);
   MOZ_ASSERT(IsDOMBinding());
 
+  BindToOwner(aWindow);
   const InfallibleTArray<BluetoothNamedValue>& values =
     aValue.get_ArrayOfBluetoothNamedValue();
   for (uint32_t i = 0; i < values.Length(); ++i) {
@@ -189,16 +190,6 @@ BluetoothAdapter::~BluetoothAdapter()
   Unroot();
   BluetoothService* bs = BluetoothService::Get();
   // We can be null on shutdown, where this might happen
-  NS_ENSURE_TRUE_VOID(bs);
-  bs->UnregisterBluetoothSignalHandler(NS_LITERAL_STRING(KEY_ADAPTER), this);
-}
-
-void
-BluetoothAdapter::DisconnectFromOwner()
-{
-  DOMEventTargetHelper::DisconnectFromOwner();
-
-  BluetoothService* bs = BluetoothService::Get();
   NS_ENSURE_TRUE_VOID(bs);
   bs->UnregisterBluetoothSignalHandler(NS_LITERAL_STRING(KEY_ADAPTER), this);
 }

@@ -20,10 +20,15 @@ function test()
 
   copy(TESTCASE_URI_HTML, "simple.html", function(htmlFile) {
     copy(TESTCASE_URI_CSS, "simple.css", function(cssFile) {
-      addTabAndOpenStyleEditors(1, function(panel) {
+      addTabAndOpenStyleEditor(function(panel) {
         let UI = panel.UI;
-        let editor = UI.editors[0];
-        editor.getSourceEditor().then(runTests.bind(this, editor));
+        UI.on("editor-added", function(event, editor) {
+          if (editor.styleSheet.styleSheetIndex != 0) {
+            return;  // we want to test against the first stylesheet
+          }
+          let editor = UI.editors[0];
+          editor.getSourceEditor().then(runTests.bind(this, editor));
+        })
       });
 
       let uri = Services.io.newFileURI(htmlFile);

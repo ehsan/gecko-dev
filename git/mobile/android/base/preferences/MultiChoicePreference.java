@@ -6,7 +6,6 @@
 package org.mozilla.gecko.preferences;
 
 import org.mozilla.gecko.R;
-import org.mozilla.gecko.GeckoSharedPrefs;
 import org.mozilla.gecko.util.ThreadUtils;
 
 import android.app.AlertDialog;
@@ -15,6 +14,7 @@ import android.content.Context;
 import android.content.DialogInterface;
 import android.content.res.TypedArray;
 import android.preference.DialogPreference;
+import android.preference.PreferenceManager;
 import android.util.AttributeSet;
 import android.widget.Button;
 
@@ -205,8 +205,8 @@ class MultiChoicePreference extends DialogPreference {
                 return true;
             }
             
-            GeckoSharedPrefs.forApp(getContext())
-                            .edit().putBoolean(key, value).commit();
+            PreferenceManager.getDefaultSharedPreferences(getContext())
+                             .edit().putBoolean(key, value).commit();
             return true;
         }
         return false;
@@ -216,8 +216,8 @@ class MultiChoicePreference extends DialogPreference {
         if (!isPersistent())
             return defaultReturnValue;
         
-        return GeckoSharedPrefs.forApp(getContext())
-                               .getBoolean(key, defaultReturnValue);
+        return PreferenceManager.getDefaultSharedPreferences(getContext())
+                                .getBoolean(key, defaultReturnValue);
     }
 
     /**
