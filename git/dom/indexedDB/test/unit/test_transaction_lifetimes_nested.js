@@ -23,10 +23,11 @@ function testSteps()
 
   let transaction2;
 
-  let comp = this.window ? SpecialPowers.wrap(Components) : Components;
-  let thread = comp.classes["@mozilla.org/thread-manager;1"]
-                   .getService(comp.interfaces.nsIThreadManager)
-                   .currentThread;
+  if (this.window)
+    netscape.security.PrivilegeManager.enablePrivilege("UniversalXPConnect");
+  let thread = Components.classes["@mozilla.org/thread-manager;1"]
+                         .getService()
+                         .currentThread;
 
   let eventHasRun;
 

@@ -767,7 +767,7 @@ function emulatorCmdResult(msg) {
 function importScript(msg) {
   let file;
   if (importedScripts.exists()) {
-    file = FileUtils.openFileOutputStream(importedScripts, FileUtils.MODE_APPEND | FileUtils.MODE_WRONLY);
+    file = FileUtils.openFileOutputStream(importedScripts, FielUtils.MODE_APPEND);
   }
   else {
     file = FileUtils.openFileOutputStream(importedScripts, FileUtils.MODE_WRONLY | FileUtils.MODE_CREATE);

@@ -1122,9 +1122,5 @@ SpecialPowersAPI.prototype = {
     };
 
     this._sendSyncMessage('SPPermissionManager', msg);
-  },
-
-  getMozFullPath: function(file) {
-    return file.mozFullPath;
   }
 };
