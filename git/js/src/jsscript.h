@@ -161,15 +161,10 @@ StackDepth(JSScript *script)
     (JS_ASSERT((script)->trynotesOffset != 0),                                \
      (JSTryNoteArray *)((uint8 *)(script) + (script)->trynotesOffset))
 
-/*
- * If pc_ does not point within script_'s bytecode, then it must point into an
- * imacro body, so we use cx->runtime common atoms instead of script_'s atoms.
- * This macro uses cx from its callers' environments in the pc-in-imacro case.
- */
-#define JS_GET_SCRIPT_ATOM(script_, pc_, index, atom)                         \
+#define JS_GET_SCRIPT_ATOM(script_, index, atom)                              \
     JS_BEGIN_MACRO                                                            \
-        if ((pc_) < (script_)->code ||                                        \
-            (script_)->code + (script_)->length <= (pc_)) {                   \
+        JSStackFrame *fp_ = js_GetTopStackFrame(cx);                          \
+        if (fp_ && fp_->imacpc && fp_->script == script_) {                   \
             JS_ASSERT((size_t)(index) < js_common_atom_count);                \
             (atom) = COMMON_ATOMS_START(&cx->runtime->atomState)[index];      \
         } else {                                                              \
