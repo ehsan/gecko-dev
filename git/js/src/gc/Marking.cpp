@@ -23,7 +23,9 @@
 #include "jsinferinlines.h"
 #include "jsobjinlines.h"
 
-#include "gc/Nursery-inl.h"
+#ifdef JSGC_GENERATIONAL
+# include "gc/Nursery-inl.h"
+#endif
 #include "vm/String-inl.h"
 #include "vm/Symbol-inl.h"
 
@@ -437,9 +439,10 @@ IsMarked(T **thingp)
 {
     MOZ_ASSERT(thingp);
     MOZ_ASSERT(*thingp);
+#ifdef JSGC_GENERATIONAL
     JSRuntime* rt = (*thingp)->runtimeFromAnyThread();
 #ifdef JSGC_FJGENERATIONAL
-    // Must precede the case for GGC because IsInsideNursery()
+    // Must precede the case for JSGC_GENERATIONAL because IsInsideNursery()
     // will also be true for the ForkJoinNursery.
     if (rt->isFJMinorCollecting()) {
         ForkJoinContext *ctx = ForkJoinContext::current();
@@ -455,7 +458,7 @@ IsMarked(T **thingp)
             return nursery.getForwardedPointer(thingp);
         }
     }
-
+#endif  // JSGC_GENERATIONAL
     Zone *zone = (*thingp)->asTenured().zone();
     if (!zone->isCollecting() || zone->isGCFinished())
         return true;
@@ -489,6 +492,7 @@ IsAboutToBeFinalizedFromAnyThread(T **thingp)
     if (ThingIsPermanentAtom(thing) && !TlsPerThreadData.get()->associatedWith(rt))
         return false;
 
+#ifdef JSGC_GENERATIONAL
 #ifdef JSGC_FJGENERATIONAL
     if (rt->isFJMinorCollecting()) {
         ForkJoinContext *ctx = ForkJoinContext::current();
@@ -507,6 +511,7 @@ IsAboutToBeFinalizedFromAnyThread(T **thingp)
             return false;
         }
     }
+#endif  // JSGC_GENERATIONAL
 
     Zone *zone = thing->asTenured().zoneFromAnyThread();
     if (zone->isGCSweeping()) {
@@ -532,6 +537,8 @@ UpdateIfRelocated(JSRuntime *rt, T **thingp)
     if (!*thingp)
         return nullptr;
 
+#ifdef JSGC_GENERATIONAL
+
 #ifdef JSGC_FJGENERATIONAL
     if (rt->isFJMinorCollecting()) {
         ForkJoinContext *ctx = ForkJoinContext::current();
@@ -546,6 +553,7 @@ UpdateIfRelocated(JSRuntime *rt, T **thingp)
         rt->gc.nursery.getForwardedPointer(thingp);
         return *thingp;
     }
+#endif  // JSGC_GENERATIONAL
 
 #ifdef JSGC_COMPACTING
     Zone *zone = (*thingp)->zone();
@@ -2110,12 +2118,10 @@ UnmarkGrayChildren(JSTracer *trc, void **thingp, JSGCTraceKind kind)
     tracer->unmarkedAny |= childTracer.unmarkedAny;
 }
 
-static bool
-UnmarkGrayCellRecursively(gc::Cell *cell, JSGCTraceKind kind)
+JS_FRIEND_API(bool)
+JS::UnmarkGrayGCThingRecursively(void *thing, JSGCTraceKind kind)
 {
-    MOZ_ASSERT(cell);
-
-    JSRuntime *rt = cell->runtimeFromMainThread();
+    JSRuntime *rt = static_cast<Cell *>(thing)->runtimeFromMainThread();
 
     // When the ReadBarriered type is used in a HashTable, it is difficult or
     // impossible to suppress the implicit cast operator while iterating for GC.
@@ -2123,28 +2129,16 @@ UnmarkGrayCellRecursively(gc::Cell *cell, JSGCTraceKind kind)
         return false;
 
     bool unmarkedArg = false;
-    if (cell->isTenured()) {
-        if (!cell->asTenured().isMarked(GRAY))
+    if (!IsInsideNursery(static_cast<Cell *>(thing))) {
+        if (!JS::GCThingIsMarkedGray(thing))
             return false;
 
-        cell->asTenured().unmark(GRAY);
+        TenuredCell::fromPointer(thing)->unmark(js::gc::GRAY);
         unmarkedArg = true;
     }
 
     UnmarkGrayTracer trc(rt);
-    JS_TraceChildren(&trc, cell, kind);
+    JS_TraceChildren(&trc, thing, kind);
 
     return unmarkedArg || trc.unmarkedAny;
-}
-
-bool
-js::UnmarkGrayShapeRecursively(Shape *shape)
-{
-    return UnmarkGrayCellRecursively(shape, JSTRACE_SHAPE);
-}
-
-JS_FRIEND_API(bool)
-JS::UnmarkGrayGCThingRecursively(JS::GCCellPtr thing)
-{
-    return UnmarkGrayCellRecursively(thing.asCell(), thing.kind());
 }

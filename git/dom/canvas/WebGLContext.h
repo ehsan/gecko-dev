@@ -864,32 +864,16 @@ public:
 
 // -----------------------------------------------------------------------------
 // Buffer Objects (WebGLContextBuffers.cpp)
-private:
-    void UpdateBoundBuffer(GLenum target, WebGLBuffer* buffer);
-    void UpdateBoundBufferIndexed(GLenum target, GLuint index, WebGLBuffer* buffer);
-
 public:
-    void BindBuffer(GLenum target, WebGLBuffer* buffer);
+    void BindBuffer(GLenum target, WebGLBuffer* buf);
     void BindBufferBase(GLenum target, GLuint index, WebGLBuffer* buf);
     void BindBufferRange(GLenum target, GLuint index, WebGLBuffer* buf,
                          WebGLintptr offset, WebGLsizeiptr size);
-
-private:
-    void BufferDataUnchecked(GLenum target, GLsizeiptr size, const GLvoid* data, GLenum usage);
-    void BufferData(GLenum target, WebGLsizeiptr size, void* data, GLenum usage);
-
-public:
     void BufferData(GLenum target, WebGLsizeiptr size, GLenum usage);
     void BufferData(GLenum target, const dom::ArrayBufferView& data,
                     GLenum usage);
     void BufferData(GLenum target, const Nullable<dom::ArrayBuffer>& maybeData,
                     GLenum usage);
-
-private:
-    void BufferSubDataUnchecked(GLenum target, GLintptr offset, GLsizeiptr size, const GLvoid* data);
-    void BufferSubData(GLenum target, GLintptr offset, GLsizeiptr size, const GLvoid* data);
-
-public:
     void BufferSubData(GLenum target, WebGLsizeiptr byteOffset,
                        const dom::ArrayBufferView& data);
     void BufferSubData(GLenum target, WebGLsizeiptr byteOffset,
@@ -901,18 +885,12 @@ public:
 protected:
     // bound buffer state
     WebGLRefPtr<WebGLBuffer> mBoundArrayBuffer;
-    WebGLRefPtr<WebGLBuffer> mBoundCopyReadBuffer;
-    WebGLRefPtr<WebGLBuffer> mBoundCopyWriteBuffer;
-    WebGLRefPtr<WebGLBuffer> mBoundPixelPackBuffer;
-    WebGLRefPtr<WebGLBuffer> mBoundPixelUnpackBuffer;
     WebGLRefPtr<WebGLBuffer> mBoundTransformFeedbackBuffer;
-    WebGLRefPtr<WebGLBuffer> mBoundUniformBuffer;
 
-    UniquePtr<WebGLRefPtr<WebGLBuffer>[]> mBoundUniformBuffers;
     UniquePtr<WebGLRefPtr<WebGLBuffer>[]> mBoundTransformFeedbackBuffers;
 
-    WebGLRefPtr<WebGLBuffer>& GetBufferSlotByTarget(GLenum target);
-    WebGLRefPtr<WebGLBuffer>& GetBufferSlotByTargetIndexed(GLenum target,
+    WebGLRefPtr<WebGLBuffer>* GetBufferSlotByTarget(GLenum target);
+    WebGLRefPtr<WebGLBuffer>* GetBufferSlotByTargetIndexed(GLenum target,
                                                            GLuint index);
     bool ValidateBufferUsageEnum(GLenum target, const char* info);
 
@@ -1027,6 +1005,14 @@ private:
     uint32_t mMaxFetchedVertices;
     uint32_t mMaxFetchedInstances;
 
+protected:
+    inline void InvalidateBufferFetching() {
+        mBufferFetchingIsVerified = false;
+        mBufferFetchingHasPerVertex = false;
+        mMaxFetchedVertices = 0;
+        mMaxFetchedInstances = 0;
+    }
+
     bool DrawArrays_check(GLint first, GLsizei count, GLsizei primcount,
                           const char* info);
     bool DrawElements_check(GLsizei count, GLenum type, WebGLintptr byteOffset,
@@ -1080,14 +1066,6 @@ protected:
         return ((x + y - 1) / y) * y;
     }
 
-    inline void InvalidateBufferFetching()
-    {
-        mBufferFetchingIsVerified = false;
-        mBufferFetchingHasPerVertex = false;
-        mMaxFetchedVertices = 0;
-        mMaxFetchedInstances = 0;
-    }
-
     CheckedUint32 mGeneration;
 
     WebGLContextOptions mOptions;
@@ -1135,7 +1113,6 @@ protected:
     int32_t mGLMaxColorAttachments;
     int32_t mGLMaxDrawBuffers;
     GLuint  mGLMaxTransformFeedbackSeparateAttribs;
-    GLuint  mGLMaxUniformBufferBindings;
 
 public:
     GLuint MaxVertexAttribs() const {
@@ -1208,8 +1185,6 @@ protected:
     bool ValidateBlendFuncSrcEnum(GLenum mode, const char* info);
     bool ValidateBlendFuncEnumsCompatibility(GLenum sfactor, GLenum dfactor,
                                              const char* info);
-    bool ValidateDataOffsetSize(WebGLintptr offset, WebGLsizeiptr size, WebGLsizeiptr bufferSize, const char* info);
-    bool ValidateDataRanges(WebGLintptr readOffset, WebGLintptr writeOffset, WebGLsizeiptr size, const char* info);
     bool ValidateTextureTargetEnum(GLenum target, const char* info);
     bool ValidateComparisonEnum(GLenum target, const char* info);
     bool ValidateStencilOpEnum(GLenum action, const char* info);
@@ -1364,7 +1339,6 @@ private:
     virtual bool ValidateAttribPointerType(bool integerMode, GLenum type, GLsizei* alignment, const char* info) = 0;
     virtual bool ValidateBufferTarget(GLenum target, const char* info) = 0;
     virtual bool ValidateBufferIndexedTarget(GLenum target, const char* info) = 0;
-    virtual bool ValidateBufferForTarget(GLenum target, WebGLBuffer* buffer, const char* info) = 0;
 
 protected:
     int32_t MaxTextureSizeForTarget(TexTarget target) const {
@@ -1422,8 +1396,8 @@ protected:
     LinkedList<WebGLSampler> mSamplers;
     LinkedList<WebGLTransformFeedback> mTransformFeedbacks;
 
-    WebGLRefPtr<WebGLTransformFeedback> mDefaultTransformFeedback;
     WebGLRefPtr<WebGLVertexArray> mDefaultVertexArray;
+    WebGLRefPtr<WebGLTransformFeedback> mDefaultTransformFeedback;
 
     // PixelStore parameters
     uint32_t mPixelStorePackAlignment;

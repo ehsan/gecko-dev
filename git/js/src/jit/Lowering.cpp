@@ -2493,6 +2493,7 @@ LIRGenerator::visitMonitorTypes(MMonitorTypes *ins)
 void
 LIRGenerator::visitPostWriteBarrier(MPostWriteBarrier *ins)
 {
+#ifdef JSGC_GENERATIONAL
     switch (ins->value()->type()) {
       case MIRType_Object:
       case MIRType_ObjectOrNull: {
@@ -2518,6 +2519,7 @@ LIRGenerator::visitPostWriteBarrier(MPostWriteBarrier *ins)
         // types cannot hold nursery pointers.
         break;
     }
+#endif // JSGC_GENERATIONAL
 }
 
 void

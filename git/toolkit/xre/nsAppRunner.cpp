@@ -4562,12 +4562,6 @@ XRE_GetProcessType()
   return mozilla::startup::sChildProcessType;
 }
 
-bool
-XRE_IsParentProcess()
-{
-  return XRE_GetProcessType() == GeckoProcessType_Default;
-}
-
 static void
 LogE10sBlockedReason(const char *reason) {
   gBrowserTabsRemoteDisabledReason.Assign(NS_ConvertASCIItoUTF16(reason));

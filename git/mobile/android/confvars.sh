@@ -90,5 +90,8 @@ if test ! "$RELEASE_BUILD"; then
   MOZ_ANDROID_DOWNLOADS_INTEGRATION=1
 fi
 
+# Enable generational GC on mobile.
+export JSGC_GENERATIONAL=1
+
 # Use the low-memory GC tuning.
 export JS_GC_SMALL_CHUNK_SIZE=1

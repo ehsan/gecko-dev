@@ -454,8 +454,10 @@ JSRope::flattenInternal(ExclusiveContext *maybecx)
 JSFlatString *
 JSRope::flatten(ExclusiveContext *maybecx)
 {
+#ifdef JSGC_INCREMENTAL
     if (zone()->needsIncrementalBarrier())
         return flattenInternal<WithIncrementalBarrier>(maybecx);
+#endif
     return flattenInternal<NoBarrier>(maybecx);
 }
 

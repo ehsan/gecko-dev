@@ -37,10 +37,13 @@ const Class js::TypedObjectModuleObject::class_ = {
     "TypedObject",
     JSCLASS_HAS_RESERVED_SLOTS(SlotCount) |
     JSCLASS_HAS_CACHED_PROTO(JSProto_TypedObject),
-    nullptr,                 /* addProperty */
-    nullptr,                 /* delProperty */
+    JS_PropertyStub,         /* addProperty */
+    JS_DeletePropertyStub,   /* delProperty */
     JS_PropertyStub,         /* getProperty */
-    JS_StrictPropertyStub    /* setProperty */
+    JS_StrictPropertyStub,   /* setProperty */
+    JS_EnumerateStub,
+    JS_ResolveStub,
+    JS_ConvertStub
 };
 
 static const JSFunctionSpec TypedObjectMethods[] = {
@@ -207,10 +210,18 @@ GetPrototype(JSContext *cx, HandleObject obj)
 const Class js::TypedProto::class_ = {
     "TypedProto",
     JSCLASS_HAS_RESERVED_SLOTS(JS_TYPROTO_SLOTS),
-    nullptr,               /* addProperty */
-    nullptr,               /* delProperty */
+    JS_PropertyStub,       /* addProperty */
+    JS_DeletePropertyStub, /* delProperty */
     JS_PropertyStub,       /* getProperty */
-    JS_StrictPropertyStub  /* setProperty */
+    JS_StrictPropertyStub, /* setProperty */
+    JS_EnumerateStub,
+    JS_ResolveStub,
+    JS_ConvertStub,
+    nullptr,
+    nullptr,
+    nullptr,
+    nullptr,
+    nullptr
 };
 
 /***************************************************************************
@@ -225,15 +236,18 @@ const Class js::TypedProto::class_ = {
 const Class js::ScalarTypeDescr::class_ = {
     "Scalar",
     JSCLASS_HAS_RESERVED_SLOTS(JS_DESCR_SLOTS) | JSCLASS_BACKGROUND_FINALIZE,
-    nullptr,               /* addProperty */
-    nullptr,               /* delProperty */
+    JS_PropertyStub,       /* addProperty */
+    JS_DeletePropertyStub, /* delProperty */
     JS_PropertyStub,       /* getProperty */
     JS_StrictPropertyStub, /* setProperty */
-    nullptr,               /* enumerate */
-    nullptr,               /* resolve */
-    nullptr,               /* convert */
+    JS_EnumerateStub,
+    JS_ResolveStub,
+    JS_ConvertStub,
     TypeDescr::finalize,
-    ScalarTypeDescr::call
+    ScalarTypeDescr::call,
+    nullptr,
+    nullptr,
+    nullptr
 };
 
 const JSFunctionSpec js::ScalarTypeDescr::typeObjectMethods[] = {
@@ -322,15 +336,18 @@ ScalarTypeDescr::call(JSContext *cx, unsigned argc, Value *vp)
 const Class js::ReferenceTypeDescr::class_ = {
     "Reference",
     JSCLASS_HAS_RESERVED_SLOTS(JS_DESCR_SLOTS) | JSCLASS_BACKGROUND_FINALIZE,
-    nullptr,               /* addProperty */
-    nullptr,               /* delProperty */
+    JS_PropertyStub,       /* addProperty */
+    JS_DeletePropertyStub, /* delProperty */
     JS_PropertyStub,       /* getProperty */
     JS_StrictPropertyStub, /* setProperty */
-    nullptr,               /* enumerate */
-    nullptr,               /* resolve */
-    nullptr,               /* convert */
+    JS_EnumerateStub,
+    JS_ResolveStub,
+    JS_ConvertStub,
     TypeDescr::finalize,
-    ReferenceTypeDescr::call
+    ReferenceTypeDescr::call,
+    nullptr,
+    nullptr,
+    nullptr
 };
 
 const JSFunctionSpec js::ReferenceTypeDescr::typeObjectMethods[] = {
@@ -501,13 +518,13 @@ CreatePrototypeObjectForComplexTypeInstance(JSContext *cx,
 const Class ArrayTypeDescr::class_ = {
     "ArrayType",
     JSCLASS_HAS_RESERVED_SLOTS(JS_DESCR_SLOTS) | JSCLASS_BACKGROUND_FINALIZE,
-    nullptr,               /* addProperty */
-    nullptr,               /* delProperty */
+    JS_PropertyStub,
+    JS_DeletePropertyStub,
     JS_PropertyStub,
     JS_StrictPropertyStub,
-    nullptr,               /* enumerate */
-    nullptr,               /* resolve */
-    nullptr,               /* convert */
+    JS_EnumerateStub,
+    JS_ResolveStub,
+    JS_ConvertStub,
     TypeDescr::finalize,
     nullptr,
     nullptr,
@@ -735,13 +752,13 @@ js::IsTypedObjectArray(JSObject &obj)
 const Class StructTypeDescr::class_ = {
     "StructType",
     JSCLASS_HAS_RESERVED_SLOTS(JS_DESCR_SLOTS) | JSCLASS_BACKGROUND_FINALIZE,
-    nullptr, /* addProperty */
-    nullptr, /* delProperty */
+    JS_PropertyStub,
+    JS_DeletePropertyStub,
     JS_PropertyStub,
     JS_StrictPropertyStub,
-    nullptr, /* enumerate */
-    nullptr, /* resolve */
-    nullptr, /* convert */
+    JS_EnumerateStub,
+    JS_ResolveStub,
+    JS_ConvertStub,
     TypeDescr::finalize,
     nullptr, /* call */
     nullptr, /* hasInstance */
@@ -2381,6 +2398,7 @@ LazyArrayBufferTable::addBuffer(JSContext *cx, InlineTransparentTypedObject *obj
         return false;
     }
 
+#ifdef JSGC_GENERATIONAL
     MOZ_ASSERT(!IsInsideNursery(buffer));
     if (IsInsideNursery(obj)) {
         // Strip the barriers from the type before inserting into the store
@@ -2397,6 +2415,7 @@ LazyArrayBufferTable::addBuffer(JSContext *cx, InlineTransparentTypedObject *obj
         // updated after the typed object moves.
         cx->runtime()->gc.storeBuffer.putWholeCellFromMainThread(buffer);
     }
+#endif
 
     return true;
 }
@@ -2421,13 +2440,13 @@ LazyArrayBufferTable::sizeOfIncludingThis(mozilla::MallocSizeOf mallocSizeOf)
     const Class Name::class_ = {                         \
         # Name,                                          \
         Class::NON_NATIVE | JSCLASS_IMPLEMENTS_BARRIERS, \
-        nullptr,        /* addProperty */                \
-        nullptr,        /* delProperty */                \
+        JS_PropertyStub,                                 \
+        JS_DeletePropertyStub,                           \
         JS_PropertyStub,                                 \
         JS_StrictPropertyStub,                           \
-        nullptr,        /* enumerate   */                \
-        nullptr,        /* resolve     */                \
-        nullptr,        /* convert     */                \
+        JS_EnumerateStub,                                \
+        JS_ResolveStub,                                  \
+        JS_ConvertStub,                                  \
         nullptr,        /* finalize    */                \
         nullptr,        /* call        */                \
         nullptr,        /* hasInstance */                \
