@@ -83,7 +83,7 @@ struct JSDyingJSObjectData
     nsVoidArray* array;
 };
 
-static JSDHashOperator
+JS_STATIC_DLL_CALLBACK(JSDHashOperator)
 WrappedJSDyingJSObjectFinder(JSDHashTable *table, JSDHashEntryHdr *hdr,
                 uint32 number, void *arg)
 {
@@ -110,7 +110,7 @@ struct CX_AND_XPCRT_Data
     XPCJSRuntime* rt;
 };
 
-static JSDHashOperator
+JS_STATIC_DLL_CALLBACK(JSDHashOperator)
 NativeInterfaceGC(JSDHashTable *table, JSDHashEntryHdr *hdr,
                   uint32 number, void *arg)
 {
@@ -120,7 +120,7 @@ NativeInterfaceGC(JSDHashTable *table, JSDHashEntryHdr *hdr,
     return JS_DHASH_NEXT;
 }
 
-static JSDHashOperator
+JS_STATIC_DLL_CALLBACK(JSDHashOperator)
 NativeInterfaceSweeper(JSDHashTable *table, JSDHashEntryHdr *hdr,
                        uint32 number, void *arg)
 {
@@ -146,7 +146,7 @@ NativeInterfaceSweeper(JSDHashTable *table, JSDHashEntryHdr *hdr,
 // So, in mClassInfo2NativeSetMap we just clear references to the unmarked.
 // In mNativeSetMap we clear the references to the unmarked *and* delete them.
 
-static JSDHashOperator
+JS_STATIC_DLL_CALLBACK(JSDHashOperator)
 NativeUnMarkedSetRemover(JSDHashTable *table, JSDHashEntryHdr *hdr,
                          uint32 number, void *arg)
 {
@@ -156,7 +156,7 @@ NativeUnMarkedSetRemover(JSDHashTable *table, JSDHashEntryHdr *hdr,
     return JS_DHASH_REMOVE;
 }
 
-static JSDHashOperator
+JS_STATIC_DLL_CALLBACK(JSDHashOperator)
 NativeSetSweeper(JSDHashTable *table, JSDHashEntryHdr *hdr,
                  uint32 number, void *arg)
 {
@@ -181,7 +181,7 @@ NativeSetSweeper(JSDHashTable *table, JSDHashEntryHdr *hdr,
     return JS_DHASH_REMOVE;
 }
 
-static JSDHashOperator
+JS_STATIC_DLL_CALLBACK(JSDHashOperator)
 JSClassSweeper(JSDHashTable *table, JSDHashEntryHdr *hdr,
                uint32 number, void *arg)
 {
@@ -208,7 +208,7 @@ JSClassSweeper(JSDHashTable *table, JSDHashEntryHdr *hdr,
     return JS_DHASH_REMOVE;
 }
 
-static JSDHashOperator
+JS_STATIC_DLL_CALLBACK(JSDHashOperator)
 DyingProtoKiller(JSDHashTable *table, JSDHashEntryHdr *hdr,
                  uint32 number, void *arg)
 {
@@ -218,7 +218,7 @@ DyingProtoKiller(JSDHashTable *table, JSDHashEntryHdr *hdr,
     return JS_DHASH_REMOVE;
 }
 
-static JSDHashOperator
+JS_STATIC_DLL_CALLBACK(JSDHashOperator)
 DetachedWrappedNativeProtoMarker(JSDHashTable *table, JSDHashEntryHdr *hdr,
                                  uint32 number, void *arg)
 {
@@ -230,7 +230,7 @@ DetachedWrappedNativeProtoMarker(JSDHashTable *table, JSDHashEntryHdr *hdr,
 }
 
 // GCCallback calls are chained
-static JSBool
+JS_STATIC_DLL_CALLBACK(JSBool)
 ContextCallback(JSContext *cx, uintN operation)
 {
     XPCJSRuntime* self = nsXPConnect::GetRuntime();
@@ -339,7 +339,7 @@ TraceJSObject(PRUint32 aLangID, void *aScriptThing, void *aClosure)
     }
 }
 
-static JSDHashOperator
+JS_STATIC_DLL_CALLBACK(JSDHashOperator)
 TraceJSHolder(JSDHashTable *table, JSDHashEntryHdr *hdr, uint32 number,
               void *arg)
 {
@@ -388,7 +388,7 @@ void XPCJSRuntime::TraceXPConnectRoots(JSTracer *trc)
         JS_DHashTableEnumerate(&mJSHolders, TraceJSHolder, trc);
 }
 
-static JSDHashOperator
+JS_STATIC_DLL_CALLBACK(JSDHashOperator)
 NoteJSHolder(JSDHashTable *table, JSDHashEntryHdr *hdr, uint32 number,
              void *arg)
 {
@@ -834,7 +834,7 @@ JSBool XPCJSRuntime::GCCallback(JSContext *cx, JSGCStatus status)
 /***************************************************************************/
 
 #ifdef XPC_CHECK_WRAPPERS_AT_SHUTDOWN
-static JSDHashOperator
+JS_STATIC_DLL_CALLBACK(JSDHashOperator)
 DEBUG_WrapperChecker(JSDHashTable *table, JSDHashEntryHdr *hdr,
                      uint32 number, void *arg)
 {
@@ -845,7 +845,7 @@ DEBUG_WrapperChecker(JSDHashTable *table, JSDHashEntryHdr *hdr,
 }
 #endif
 
-static JSDHashOperator
+JS_STATIC_DLL_CALLBACK(JSDHashOperator)
 WrappedJSShutdownMarker(JSDHashTable *table, JSDHashEntryHdr *hdr,
                         uint32 number, void *arg)
 {
@@ -857,7 +857,7 @@ WrappedJSShutdownMarker(JSDHashTable *table, JSDHashEntryHdr *hdr,
     return JS_DHASH_NEXT;
 }
 
-static JSDHashOperator
+JS_STATIC_DLL_CALLBACK(JSDHashOperator)
 DetachedWrappedNativeProtoShutdownMarker(JSDHashTable *table, JSDHashEntryHdr *hdr,
                                          uint32 number, void *arg)
 {
@@ -1149,7 +1149,7 @@ XPCJSRuntime::GetXPCContext(JSContext* cx)
 }
 
 
-static JSDHashOperator
+JS_STATIC_DLL_CALLBACK(JSDHashOperator)
 SweepContextsCB(JSDHashTable *table, JSDHashEntryHdr *hdr,
                 uint32 number, void *arg)
 {
@@ -1216,7 +1216,7 @@ XPCJSRuntime::SyncXPCContextList(JSContext* cx /* = nsnull */)
 }
 
 
-static JSDHashOperator
+JS_STATIC_DLL_CALLBACK(JSDHashOperator)
 PurgeContextsCB(JSDHashTable *table, JSDHashEntryHdr *hdr,
                 uint32 number, void *arg)
 {
@@ -1270,28 +1270,28 @@ XPCJSRuntime::DeferredRelease(nsISupports* obj)
 /***************************************************************************/
 
 #ifdef DEBUG
-static JSDHashOperator
+JS_STATIC_DLL_CALLBACK(JSDHashOperator)
 ContextMapDumpEnumerator(JSDHashTable *table, JSDHashEntryHdr *hdr,
                          uint32 number, void *arg)
 {
     ((JSContext2XPCContextMap::Entry*)hdr)->value->DebugDump(*(PRInt16*)arg);
     return JS_DHASH_NEXT;
 }
-static JSDHashOperator
+JS_STATIC_DLL_CALLBACK(JSDHashOperator)
 WrappedJSClassMapDumpEnumerator(JSDHashTable *table, JSDHashEntryHdr *hdr,
                                 uint32 number, void *arg)
 {
     ((IID2WrappedJSClassMap::Entry*)hdr)->value->DebugDump(*(PRInt16*)arg);
     return JS_DHASH_NEXT;
 }
-static JSDHashOperator
+JS_STATIC_DLL_CALLBACK(JSDHashOperator)
 WrappedJSMapDumpEnumerator(JSDHashTable *table, JSDHashEntryHdr *hdr,
                            uint32 number, void *arg)
 {
     ((JSObject2WrappedJSMap::Entry*)hdr)->value->DebugDump(*(PRInt16*)arg);
     return JS_DHASH_NEXT;
 }
-static JSDHashOperator
+JS_STATIC_DLL_CALLBACK(JSDHashOperator)
 NativeSetDumpEnumerator(JSDHashTable *table, JSDHashEntryHdr *hdr,
                         uint32 number, void *arg)
 {

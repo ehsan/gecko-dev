@@ -2359,20 +2359,21 @@ js_ExecuteTree(JSContext* cx, Fragment** treep, uintN& inlineCallCount,
     JS_ASSERT(fp->slots + fp->script->nfixed +
               js_ReconstructStackDepth(cx, fp->script, fp->regs->pc) == fp->regs->sp);
 
-    debug_only_v(printf("leaving trace at %s:%u@%u, op=%s, lr=%p, "
-                        "exitType=%d, sp=%d, ip=%p, ",
-                        fp->script->filename,
-                        js_PCToLineNumber(cx, fp->script, fp->regs->pc),
+#if defined(DEBUG) && defined(NANOJIT_IA32)
+    uint64 cycles = rdtsc() - start;
+#else
+    debug_only_v(uint64 cycles = 0;)
+#endif
+
+    debug_only_v(printf("leaving trace at %s:%u@%u, op=%s, lr=%p, exitType=%d, sp=%d, ip=%p, "
+                        "cycles=%llu\n",
+                        fp->script->filename, js_PCToLineNumber(cx, fp->script, fp->regs->pc),
                         fp->regs->pc - fp->script->code,
                         js_CodeName[*fp->regs->pc],
                         lr,
                         lr->exit->exitType,
-                        fp->regs->sp - StackBase(fp), lr->jmp));
-#if defined(DEBUG) && defined(NANOJIT_IA32)
-    debug_only_v(printf("cycles=%llu\n", rdtsc() - start));
-#else
-    debug_only_v(printf("cycles=0\n"));
-#endif
+                        fp->regs->sp - StackBase(fp), lr->jmp,
+                        cycles));
 
     /* If this trace is part of a tree, later branches might have added additional globals for
        with we don't have any type information available in the side exit. We merge in this
@@ -5044,6 +5045,12 @@ TraceRecorder::record_JSOP_STRICTNE()
 }
 
 bool
+TraceRecorder::record_JSOP_CLOSURE()
+{
+    return false;
+}
+
+bool
 TraceRecorder::record_JSOP_OBJECT()
 {
     JSStackFrame* fp = cx->fp;
@@ -6337,7 +6344,6 @@ TraceRecorder::record_JSOP_HOLE()
 
 #define UNUSED(op) bool TraceRecorder::record_##op() { return false; }
 
-UNUSED(JSOP_UNUSED74)
 UNUSED(JSOP_UNUSED76)
 UNUSED(JSOP_UNUSED77)
 UNUSED(JSOP_UNUSED78)

@@ -175,8 +175,7 @@ public:
   NS_IMETHOD SetSelected(nsPresContext* aPresContext,
                          nsIDOMRange *aRange,
                          PRBool aSelected,
-                         nsSpread aSpread,
-                         SelectionType aType);
+                         nsSpread aSpread);
 
   NS_IMETHOD GetParentStyleContextFrame(nsPresContext* aPresContext,
                                         nsIFrame**      aProviderFrame,

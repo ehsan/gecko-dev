@@ -113,7 +113,7 @@
 //
 // The JS class for XBLBinding
 //
-static void
+JS_STATIC_DLL_CALLBACK(void)
 XBLFinalize(JSContext *cx, JSObject *obj)
 {
   nsIXBLDocumentInfo* docInfo =
@@ -124,7 +124,7 @@ XBLFinalize(JSContext *cx, JSObject *obj)
   c->Drop();
 }
 
-static JSBool
+JS_STATIC_DLL_CALLBACK(JSBool)
 XBLResolve(JSContext *cx, JSObject *obj, jsval id, uintN flags,
            JSObject **objp)
 {

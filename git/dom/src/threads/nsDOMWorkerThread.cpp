@@ -100,7 +100,7 @@ private:
                             jsval* aArgv, jsval* aRval, PRBool aIsInterval);
 };
 
-JSBool
+JSBool JS_DLL_CALLBACK
 nsDOMWorkerFunctions::Dump(JSContext* aCx,
                            JSObject* /* aObj */,
                            uintN aArgc,
@@ -118,7 +118,7 @@ nsDOMWorkerFunctions::Dump(JSContext* aCx,
   return JS_TRUE;
 }
 
-JSBool
+JSBool JS_DLL_CALLBACK
 nsDOMWorkerFunctions::DebugDump(JSContext* aCx,
                                 JSObject* aObj,
                                 uintN aArgc,
@@ -132,7 +132,7 @@ nsDOMWorkerFunctions::DebugDump(JSContext* aCx,
 #endif
 }
 
-JSBool
+JSBool JS_DLL_CALLBACK
 nsDOMWorkerFunctions::PostMessage(JSContext* aCx,
                                   JSObject* /* aObj */,
                                   uintN aArgc,
@@ -164,7 +164,7 @@ nsDOMWorkerFunctions::PostMessage(JSContext* aCx,
   return JS_TRUE;
 }
 
-JSBool
+JSBool JS_DLL_CALLBACK
 nsDOMWorkerFunctions::MakeTimeout(JSContext* aCx,
                                   JSObject* /* aObj */,
                                   uintN aArgc,
@@ -195,7 +195,7 @@ nsDOMWorkerFunctions::MakeTimeout(JSContext* aCx,
   return JS_TRUE;
 }
 
-JSBool
+JSBool JS_DLL_CALLBACK
 nsDOMWorkerFunctions::KillTimeout(JSContext* aCx,
                                   JSObject* /* aObj */,
                                   uintN aArgc,

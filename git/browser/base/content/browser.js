@@ -862,7 +862,7 @@ function prepareForStartup() {
 
   // initialize observers and listeners
   // and give C++ access to gBrowser
-  XULBrowserWindow.init();
+  window.XULBrowserWindow = new nsBrowserStatusHandler();
   window.QueryInterface(Ci.nsIInterfaceRequestor)
         .getInterface(nsIWebNavigation)
         .QueryInterface(Ci.nsIDocShellTreeItem).treeOwner
@@ -1896,7 +1896,18 @@ function BrowserViewSourceOfDocument(aDocument)
     // If no page descriptor is available, just use the view-source URL...
   }
 
-  top.gViewSourceUtils.viewSource(webNav.currentURI.spec, pageCookie, aDocument);
+  ViewSourceOfURL(webNav.currentURI.spec, pageCookie, aDocument);
+}
+
+function ViewSourceOfURL(aURL, aPageDescriptor, aDocument)
+{
+  var utils = window.top.gViewSourceUtils;
+  if (getBoolPref("view_source.editor.external", false)) {
+    utils.openInExternalEditor(aURL, aPageDescriptor, aDocument);
+  }
+  else {
+    utils.openInInternalViewer(aURL, aPageDescriptor, aDocument);
+  }
 }
 
 // doc - document to use for source, or null for this window's document
@@ -2814,8 +2825,9 @@ const DOMLinkHandler = {
             if (!rels.feed && rels.alternate && rels.stylesheet)
               break;
 
-            if (isValidFeed(link, link.ownerDocument.nodePrincipal, rels.feed)) {
-              FeedHandler.addFeed(link, link.ownerDocument);
+            var feed = { title: link.title, href: link.href, type: link.type };
+            if (isValidFeed(feed, link.ownerDocument.nodePrincipal, rels.feed)) {
+              FeedHandler.addFeed(feed, link.ownerDocument);
               feedAdded = true;
             }
           }
@@ -3713,20 +3725,27 @@ function mimeTypeIsTextBased(aMimeType)
          aMimeType == "mozilla.application/cached-xul";
 }
 
-var XULBrowserWindow = {
+function nsBrowserStatusHandler()
+{
+  this.init();
+}
+
+nsBrowserStatusHandler.prototype =
+{
   // Stored Status, Link and Loading values
-  status: "",
-  defaultStatus: "",
-  jsStatus: "",
-  jsDefaultStatus: "",
-  overLink: "",
-  startTime: 0,
+  status : "",
+  defaultStatus : "",
+  jsStatus : "",
+  jsDefaultStatus : "",
+  overLink : "",
+  startTime : 0,
   statusText: "",
   lastURI: null,
 
-  statusTimeoutInEffect: false,
+  statusTimeoutInEffect : false,
 
-  QueryInterface: function (aIID) {
+  QueryInterface : function(aIID)
+  {
     if (aIID.equals(Ci.nsIWebProgressListener) ||
         aIID.equals(Ci.nsIWebProgressListener2) ||
         aIID.equals(Ci.nsISupportsWeakReference) ||
@@ -3736,33 +3755,16 @@ var XULBrowserWindow = {
     throw Cr.NS_NOINTERFACE;
   },
 
-  get statusMeter () {
-    delete this.statusMeter;
-    return this.statusMeter = document.getElementById("statusbar-icon");
-  },
-  get stopCommand () {
-    delete this.stopCommand;
-    return this.stopCommand = document.getElementById("Browser:Stop");
-  },
-  get reloadCommand () {
-    delete this.reloadCommand;
-    return this.reloadCommand = document.getElementById("Browser:Reload");
-  },
-  get statusTextField () {
-    delete this.statusTextField;
-    return this.statusTextField = document.getElementById("statusbar-display");
-  },
-  get securityButton () {
-    delete this.securityButton;
-    return this.securityButton = document.getElementById("security-button");
-  },
-  get isImage () {
-    delete this.isImage;
-    return this.isImage = document.getElementById("isImage");
-  },
-
-  init: function () {
+  init : function()
+  {
     this.throbberElement = document.getElementById("navigator-throbber");
+    this.statusMeter     = document.getElementById("statusbar-icon");
+    this.stopCommand     = document.getElementById("Browser:Stop");
+    this.reloadCommand   = document.getElementById("Browser:Reload");
+    this.statusTextField = document.getElementById("statusbar-display");
+    this.securityButton  = document.getElementById("security-button");
+    this.urlBar          = document.getElementById("urlbar");
+    this.isImage         = document.getElementById("isImage");
 
     // Initialize the security button's state and tooltip text.  Remember to reset
     // _hostChanged, otherwise onSecurityChange will short circuit.
@@ -3771,34 +3773,40 @@ var XULBrowserWindow = {
     this.onSecurityChange(null, null, securityUI.state);
   },
 
-  destroy: function () {
+  destroy : function()
+  {
     // XXXjag to avoid leaks :-/, see bug 60729
-    delete this.throbberElement;
-    delete this.statusMeter;
-    delete this.stopCommand;
-    delete this.reloadCommand;
-    delete this.statusTextField;
-    delete this.securityButton;
-    delete this.statusText;
-    delete this.lastURI;
+    this.throbberElement = null;
+    this.statusMeter     = null;
+    this.stopCommand     = null;
+    this.reloadCommand   = null;
+    this.statusTextField = null;
+    this.securityButton  = null;
+    this.urlBar          = null;
+    this.statusText      = null;
+    this.lastURI         = null;
   },
 
-  setJSStatus: function (status) {
+  setJSStatus : function(status)
+  {
     this.jsStatus = status;
     this.updateStatusField();
   },
 
-  setJSDefaultStatus: function (status) {
+  setJSDefaultStatus : function(status)
+  {
     this.jsDefaultStatus = status;
     this.updateStatusField();
   },
 
-  setDefaultStatus: function (status) {
+  setDefaultStatus : function(status)
+  {
     this.defaultStatus = status;
     this.updateStatusField();
   },
 
-  setOverLink: function (link, b) {
+  setOverLink : function(link, b)
+  {
     // Encode bidirectional formatting characters.
     // (RFC 3987 sections 3.2 and 4.1 paragraph 6)
     this.overLink = link.replace(/[\u200e\u200f\u202a\u202b\u202c\u202d\u202e]/g,
@@ -3806,7 +3814,8 @@ var XULBrowserWindow = {
     this.updateStatusField();
   },
 
-  updateStatusField: function () {
+  updateStatusField : function()
+  {
     var text = this.overLink || this.status || this.jsStatus || this.jsDefaultStatus || this.defaultStatus;
 
     // check the current value so we don't trigger an attribute change
@@ -3817,15 +3826,17 @@ var XULBrowserWindow = {
     }
   },
   
-  onLinkIconAvailable: function (aBrowser) {
+  onLinkIconAvailable : function(aBrowser)
+  {
     if (gProxyFavIcon && gBrowser.mCurrentBrowser == aBrowser &&
         gBrowser.userTypedValue === null)
       PageProxySetIcon(aBrowser.mIconURL); // update the favicon in the URL bar
   },
 
-  onProgressChange: function (aWebProgress, aRequest,
-                              aCurSelfProgress, aMaxSelfProgress,
-                              aCurTotalProgress, aMaxTotalProgress) {
+  onProgressChange : function (aWebProgress, aRequest,
+                               aCurSelfProgress, aMaxSelfProgress,
+                               aCurTotalProgress, aMaxTotalProgress)
+  {
     if (aMaxTotalProgress > 0) {
       // This is highly optimized.  Don't touch this code unless
       // you are intimately familiar with the cost of setting
@@ -3835,55 +3846,59 @@ var XULBrowserWindow = {
     }
   },
 
-  onProgressChange64: function (aWebProgress, aRequest,
-                                aCurSelfProgress, aMaxSelfProgress,
-                                aCurTotalProgress, aMaxTotalProgress) {
+  onProgressChange64 : function (aWebProgress, aRequest,
+                                 aCurSelfProgress, aMaxSelfProgress,
+                                 aCurTotalProgress, aMaxTotalProgress)
+  {
     return this.onProgressChange(aWebProgress, aRequest,
       aCurSelfProgress, aMaxSelfProgress, aCurTotalProgress,
       aMaxTotalProgress);
   },
 
-  onStateChange: function (aWebProgress, aRequest, aStateFlags, aStatus) {
+  onStateChange : function(aWebProgress, aRequest, aStateFlags, aStatus)
+  {
     const nsIWebProgressListener = Components.interfaces.nsIWebProgressListener;
     const nsIChannel = Components.interfaces.nsIChannel;
     if (aStateFlags & nsIWebProgressListener.STATE_START) {
-      // This (thanks to the filter) is a network start or the first
-      // stray request (the first request outside of the document load),
-      // initialize the throbber and his friends.
+        // This (thanks to the filter) is a network start or the first
+        // stray request (the first request outside of the document load),
+        // initialize the throbber and his friends.
 
-      // Call start document load listeners (only if this is a network load)
-      if (aStateFlags & nsIWebProgressListener.STATE_IS_NETWORK &&
-          aRequest && aWebProgress.DOMWindow == content)
-        this.startDocumentLoad(aRequest);
+        // Call start document load listeners (only if this is a network load)
+        if (aStateFlags & nsIWebProgressListener.STATE_IS_NETWORK &&
+            aRequest && aWebProgress.DOMWindow == content)
+          this.startDocumentLoad(aRequest);
 
-      if (this.throbberElement) {
-        // Turn the throbber on.
-        this.throbberElement.setAttribute("busy", "true");
-      }
+        if (this.throbberElement) {
+          // Turn the throbber on.
+          this.throbberElement.setAttribute("busy", "true");
+        }
 
-      // Turn the status meter on.
-      this.statusMeter.value = 0;  // be sure to clear the progress bar
-      if (gProgressCollapseTimer) {
-        window.clearTimeout(gProgressCollapseTimer);
-        gProgressCollapseTimer = null;
-      }
-      else
-        this.statusMeter.parentNode.collapsed = false;
+        // Turn the status meter on.
+        this.statusMeter.value = 0;  // be sure to clear the progress bar
+        if (gProgressCollapseTimer) {
+          window.clearTimeout(gProgressCollapseTimer);
+          gProgressCollapseTimer = null;
+        }
+        else
+          this.statusMeter.parentNode.collapsed = false;
 
-      // XXX: This needs to be based on window activity...
-      this.stopCommand.removeAttribute("disabled");
+        // XXX: This needs to be based on window activity...
+        this.stopCommand.removeAttribute("disabled");
     }
     else if (aStateFlags & nsIWebProgressListener.STATE_STOP) {
       if (aStateFlags & nsIWebProgressListener.STATE_IS_NETWORK) {
         if (aWebProgress.DOMWindow == content) {
           if (aRequest)
             this.endDocumentLoad(aRequest, aStatus);
-          if (!gBrowser.mTabbedMode && !gBrowser.mCurrentBrowser.mIconURL)
+          var browser = gBrowser.mCurrentBrowser;
+          if (!gBrowser.mTabbedMode && !browser.mIconURL)
             gBrowser.useDefaultIcon(gBrowser.mCurrentTab);
 
           if (Components.isSuccessCode(aStatus) &&
-              content.document.documentElement.getAttribute("manifest"))
+              content.document.documentElement.getAttribute("manifest")) {
             OfflineApps.offlineAppRequested(content);
+          }
         }
       }
 
@@ -3891,57 +3906,59 @@ var XULBrowserWindow = {
       // request stop outside of loading the document, stop throbbers
       // and progress bars and such
       if (aRequest) {
-        let msg = "";
-        // Get the URI either from a channel or a pseudo-object
-        if (aRequest instanceof nsIChannel || "URI" in aRequest) {
-          let location = aRequest.URI;
+        var msg = "";
+          // Get the URI either from a channel or a pseudo-object
+          if (aRequest instanceof nsIChannel || "URI" in aRequest) {
+            var location = aRequest.URI;
 
-          // For keyword URIs clear the user typed value since they will be changed into real URIs
-          if (location.scheme == "keyword" && aWebProgress.DOMWindow == content)
-            gBrowser.userTypedValue = null;
+            // For keyword URIs clear the user typed value since they will be changed into real URIs
+            if (location.scheme == "keyword" && aWebProgress.DOMWindow == content)
+              gBrowser.userTypedValue = null;
 
-          if (location.spec != "about:blank") {
-            const kErrorBindingAborted = 0x804B0002;
-            const kErrorNetTimeout = 0x804B000E;
-            switch (aStatus) {
-              case kErrorBindingAborted:
-                msg = gNavigatorBundle.getString("nv_stopped");
-                break;
-              case kErrorNetTimeout:
-                msg = gNavigatorBundle.getString("nv_timeout");
-                break;
+            if (location.spec != "about:blank") {
+              const kErrorBindingAborted = 0x804B0002;
+              const kErrorNetTimeout = 0x804B000E;
+              switch (aStatus) {
+                case kErrorBindingAborted:
+                  msg = gNavigatorBundle.getString("nv_stopped");
+                  break;
+                case kErrorNetTimeout:
+                  msg = gNavigatorBundle.getString("nv_timeout");
+                  break;
+              }
             }
           }
+          // If msg is false then we did not have an error (channel may have
+          // been null, in the case of a stray image load).
+          if (!msg && (!location || location.spec != "about:blank")) {
+            msg = gNavigatorBundle.getString("nv_done");
+          }
+          this.status = "";
+          this.setDefaultStatus(msg);
+
+          // Disable menu entries for images, enable otherwise
+          if (content.document && mimeTypeIsTextBased(content.document.contentType))
+            this.isImage.removeAttribute('disabled');
+          else
+            this.isImage.setAttribute('disabled', 'true');
         }
-        // If msg is false then we did not have an error (channel may have
-        // been null, in the case of a stray image load).
-        if (!msg && (!location || location.spec != "about:blank"))
-          msg = gNavigatorBundle.getString("nv_done");
 
-        this.status = "";
-        this.setDefaultStatus(msg);
+        // Turn the progress meter and throbber off.
+        gProgressCollapseTimer = window.setTimeout(
+          function() {
+            gProgressMeterPanel.collapsed = true;
+            gProgressCollapseTimer = null;
+          }, 100);
 
-        // Disable menu entries for images, enable otherwise
-        if (content.document && mimeTypeIsTextBased(content.document.contentType))
-          this.isImage.removeAttribute('disabled');
-        else
-          this.isImage.setAttribute('disabled', 'true');
-      }
+        if (this.throbberElement)
+          this.throbberElement.removeAttribute("busy");
 
-      // Turn the progress meter and throbber off.
-      gProgressCollapseTimer = window.setTimeout(function () {
-        gProgressMeterPanel.collapsed = true;
-        gProgressCollapseTimer = null;
-      }, 100);
-
-      if (this.throbberElement)
-        this.throbberElement.removeAttribute("busy");
-
-      this.stopCommand.setAttribute("disabled", "true");
+        this.stopCommand.setAttribute("disabled", "true");
     }
   },
 
-  onLocationChange: function (aWebProgress, aRequest, aLocationURI) {
+  onLocationChange : function(aWebProgress, aRequest, aLocationURI)
+  {
     var location = aLocationURI ? aLocationURI.spec : "";
     this._hostChanged = true;
 
@@ -3952,7 +3969,7 @@ var XULBrowserWindow = {
         document.tooltipNode = null;
       }
       else {
-        for (let tooltipWindow =
+        for (var tooltipWindow =
                document.tooltipNode.ownerDocument.defaultView;
              tooltipWindow != tooltipWindow.parent;
              tooltipWindow = tooltipWindow.parent) {
@@ -3975,18 +3992,18 @@ var XULBrowserWindow = {
     // - which fires a onLocationChange message to uri + '#'...
     var selectedBrowser = gBrowser.selectedBrowser;
     if (selectedBrowser.lastURI) {
-      let oldSpec = selectedBrowser.lastURI.spec;
-      let oldIndexOfHash = oldSpec.indexOf("#");
+      var oldSpec = selectedBrowser.lastURI.spec;
+      var oldIndexOfHash = oldSpec.indexOf("#");
       if (oldIndexOfHash != -1)
         oldSpec = oldSpec.substr(0, oldIndexOfHash);
-      let newSpec = location;
-      let newIndexOfHash = newSpec.indexOf("#");
+      var newSpec = location;
+      var newIndexOfHash = newSpec.indexOf("#");
       if (newIndexOfHash != -1)
         newSpec = newSpec.substr(0, newSpec.indexOf("#"));
       if (newSpec != oldSpec) {
         // Remove all the notifications, except for those which want to
         // persist across the first location change.
-        let nBox = gBrowser.getNotificationBox(selectedBrowser);
+        var nBox = gBrowser.getNotificationBox(selectedBrowser);
         nBox.removeTransientNotifications();
       }
     }
@@ -4007,9 +4024,10 @@ var XULBrowserWindow = {
 
     var browser = gBrowser.selectedBrowser;
     if (aWebProgress.DOMWindow == content) {
+
       if ((location == "about:blank" && !content.opener) ||
-          location == "") {  // Second condition is for new tabs, otherwise
-                             // reload function is enabled until tab is refreshed.
+           location == "") {  // Second condition is for new tabs, otherwise
+                              // reload function is enabled until tab is refreshed.
         this.reloadCommand.setAttribute("disabled", "true");
       } else {
         this.reloadCommand.removeAttribute("disabled");
@@ -4020,7 +4038,9 @@ var XULBrowserWindow = {
 
       if (gURLBar) {
         URLBarSetURI(aLocationURI);
-        PlacesStarButton.updateState(); // Update starring UI
+
+        // Update starring UI
+        PlacesStarButton.updateState();
       }
 
       FullZoom.onLocationChange(aLocationURI);
@@ -4040,62 +4060,73 @@ var XULBrowserWindow = {
 
     // See bug 358202, when tabs are switched during a drag operation,
     // timers don't fire on windows (bug 203573)
-    if (aRequest)
-      setTimeout(function () { XULBrowserWindow.asyncUpdateUI(); }, 0);
+    if (aRequest) {
+      var self = this;
+      setTimeout(function() { self.asyncUpdateUI(); }, 0);
+    } 
     else
       this.asyncUpdateUI();
   },
   
-  asyncUpdateUI: function () {
+  asyncUpdateUI : function () {
     FeedHandler.updateFeeds();
     BrowserSearch.updateSearchButton();
   },
 
-  onStatusChange: function (aWebProgress, aRequest, aStatus, aMessage) {
+  onStatusChange : function(aWebProgress, aRequest, aStatus, aMessage)
+  {
     this.status = aMessage;
     this.updateStatusField();
   },
 
-  onRefreshAttempted: function (aWebProgress, aURI, aDelay, aSameURI) {
+  onRefreshAttempted : function(aWebProgress, aURI, aDelay, aSameURI)
+  {
     if (gPrefService.getBoolPref("accessibility.blockautorefresh")) {
-      let brandBundle = document.getElementById("bundle_brand");
-      let brandShortName = brandBundle.getString("brandShortName");
-      let refreshButtonText =
+      var brandBundle = document.getElementById("bundle_brand");
+      var brandShortName = brandBundle.getString("brandShortName");
+      var refreshButtonText = 
         gNavigatorBundle.getString("refreshBlocked.goButton");
-      let refreshButtonAccesskey =
+      var refreshButtonAccesskey = 
         gNavigatorBundle.getString("refreshBlocked.goButton.accesskey");
-      let message =
-        gNavigatorBundle.getFormattedString(aSameURI ? "refreshBlocked.refreshLabel"
-                                                     : "refreshBlocked.redirectLabel",
-                                            [brandShortName]);
-      let topBrowser = getBrowserFromContentWindow(aWebProgress.DOMWindow.top);
-      let docShell = aWebProgress.DOMWindow
+      var message;
+      if (aSameURI)
+        message = gNavigatorBundle.getFormattedString(
+          "refreshBlocked.refreshLabel", [brandShortName]);
+      else
+        message = gNavigatorBundle.getFormattedString(
+          "refreshBlocked.redirectLabel", [brandShortName]);
+      var topBrowser = getBrowserFromContentWindow(aWebProgress.DOMWindow.top);
+      var docShell = aWebProgress.DOMWindow
                                  .QueryInterface(Ci.nsIInterfaceRequestor)
                                  .getInterface(Ci.nsIWebNavigation)
                                  .QueryInterface(Ci.nsIDocShell);
-      let notificationBox = gBrowser.getNotificationBox(topBrowser);
-      let notification = notificationBox.getNotificationWithValue("refresh-blocked");
+      var notificationBox = gBrowser.getNotificationBox(topBrowser);
+      var notification = notificationBox.getNotificationWithValue(
+        "refresh-blocked");
       if (notification) {
         notification.label = message;
         notification.refreshURI = aURI;
         notification.delay = aDelay;
         notification.docShell = docShell;
-      } else {
-        let buttons = [{
+      }
+      else {
+        var buttons = [{
           label: refreshButtonText,
           accessKey: refreshButtonAccesskey,
-          callback: function (aNotification, aButton) {
+          callback: function(aNotification, aButton) {
             var refreshURI = aNotification.docShell
                                           .QueryInterface(Ci.nsIRefreshURI);
             refreshURI.forceRefreshURI(aNotification.refreshURI,
                                        aNotification.delay, true);
           }
         }];
-        notification =
-          notificationBox.appendNotification(message, "refresh-blocked",
-                                             "chrome://browser/skin/Info.png",
-                                             notificationBox.PRIORITY_INFO_MEDIUM,
-                                             buttons);
+        const priority = notificationBox.PRIORITY_INFO_MEDIUM;
+        notification = notificationBox.appendNotification(
+          message,
+          "refresh-blocked",
+          "chrome://browser/skin/Info.png",
+          priority,
+          buttons);
         notification.refreshURI = aURI;
         notification.delay = aDelay;
         notification.docShell = docShell;
@@ -4111,7 +4142,9 @@ var XULBrowserWindow = {
   _tooltipText: null,
   _hostChanged: false, // onLocationChange will flip this bit
 
-  onSecurityChange: function (aWebProgress, aRequest, aState) {
+  onSecurityChange : function browser_onSecChange(aWebProgress,
+                                                  aRequest, aState)
+  {
     // Don't need to do anything if the data we use to update the UI hasn't
     // changed
     if (this._state == aState &&
@@ -4150,7 +4183,7 @@ var XULBrowserWindow = {
                               wpl.STATE_SECURE_HIGH |
                               wpl.STATE_SECURE_MED |
                               wpl.STATE_SECURE_LOW;
-    var level;
+    var level = null;
     var setHost = false;
 
     switch (this._state & wpl_security_bits) {
@@ -4170,10 +4203,12 @@ var XULBrowserWindow = {
 
     if (level) {
       this.securityButton.setAttribute("level", level);
-      this.securityButton.hidden = false;
+      if (this.urlBar)
+        this.urlBar.setAttribute("level", level);    
     } else {
-      this.securityButton.hidden = true;
       this.securityButton.removeAttribute("level");
+      if (this.urlBar)
+        this.urlBar.removeAttribute("level");
     }
 
     if (setHost && this._host)
@@ -4201,7 +4236,8 @@ var XULBrowserWindow = {
   },
 
   // simulate all change notifications after switching tabs
-  onUpdateCurrentBrowser: function (aStateFlags, aStatus, aMessage, aTotalProgress) {
+  onUpdateCurrentBrowser : function(aStateFlags, aStatus, aMessage, aTotalProgress)
+  {
     var nsIWebProgressListener = Components.interfaces.nsIWebProgressListener;
     var loadingDone = aStateFlags & nsIWebProgressListener.STATE_STOP;
     // use a pseudo-object instead of a (potentially non-existing) channel for getting
@@ -4220,7 +4256,8 @@ var XULBrowserWindow = {
     this.onProgressChange(gBrowser.webProgress, 0, 0, aTotalProgress, 1);
   },
 
-  startDocumentLoad: function (aRequest) {
+  startDocumentLoad : function(aRequest)
+  {
     // clear out feed data
     gBrowser.mCurrentBrowser.feeds = null;
 
@@ -4237,7 +4274,8 @@ var XULBrowserWindow = {
     }
   },
 
-  endDocumentLoad: function (aRequest, aStatus) {
+  endDocumentLoad : function(aRequest, aStatus)
+  {
     const nsIChannel = Components.interfaces.nsIChannel;
     var urlStr = aRequest.QueryInterface(nsIChannel).originalURI.spec;
 

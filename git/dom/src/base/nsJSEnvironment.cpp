@@ -418,7 +418,7 @@ NS_HandleScriptError(nsIScriptGlobalObject *aScriptGlobal,
 // it has not been done is that the code below only fills the error event
 // after it has a good nsPresContext - whereas using the above function
 // would involve always filling it.  Is that a concern?
-void
+void JS_DLL_CALLBACK
 NS_ScriptErrorReporter(JSContext *cx,
                        const char *message,
                        JSErrorReport *report)
@@ -606,7 +606,7 @@ NS_ScriptErrorReporter(JSContext *cx,
 #endif
 }
 
-static JSBool
+JS_STATIC_DLL_CALLBACK(JSBool)
 LocaleToUnicode(JSContext *cx, char *src, jsval *rval)
 {
   nsresult rv;
@@ -699,19 +699,19 @@ ChangeCase(JSContext *cx, JSString *src, jsval *rval,
   return JS_TRUE;
 }
 
-static JSBool
+static JSBool JS_DLL_CALLBACK
 LocaleToUpperCase(JSContext *cx, JSString *src, jsval *rval)
 {
   return ChangeCase(cx, src, rval, ToUpperCase);
 }
 
-static JSBool
+static JSBool JS_DLL_CALLBACK
 LocaleToLowerCase(JSContext *cx, JSString *src, jsval *rval)
 {
   return ChangeCase(cx, src, rval, ToLowerCase);
 }
 
-static JSBool
+static JSBool JS_DLL_CALLBACK
 LocaleCompare(JSContext *cx, JSString *src1, JSString *src2, jsval *rval)
 {
   nsresult rv;
@@ -870,7 +870,7 @@ GetPromptFromContext(nsJSContext* ctx)
   return prompt;
 }
 
-JSBool
+JSBool JS_DLL_CALLBACK
 nsJSContext::DOMOperationCallback(JSContext *cx)
 {
   nsresult rv;
@@ -2884,7 +2884,7 @@ static JSPropertySpec OptionsProperties[] = {
   {0}
 };
 
-static JSBool
+static JSBool JS_DLL_CALLBACK
 GetOptionsProperty(JSContext *cx, JSObject *obj, jsval id, jsval *vp)
 {
   if (JSVAL_IS_INT(id)) {
@@ -2895,7 +2895,7 @@ GetOptionsProperty(JSContext *cx, JSObject *obj, jsval id, jsval *vp)
   return JS_TRUE;
 }
 
-static JSBool
+static JSBool JS_DLL_CALLBACK
 SetOptionsProperty(JSContext *cx, JSObject *obj, jsval id, jsval *vp)
 {
   if (JSVAL_IS_INT(id)) {
@@ -3574,7 +3574,7 @@ nsJSContext::FireGCTimer(PRBool aLoadInProgress)
   first = PR_FALSE;
 }
 
-static JSBool
+static JSBool JS_DLL_CALLBACK
 DOMGCCallback(JSContext *cx, JSGCStatus status)
 {
   JSBool result = gOldJSGCCallback ? gOldJSGCCallback(cx, status) : JS_TRUE;
@@ -3730,7 +3730,7 @@ ReportAllJSExceptionsPrefChangedCallback(const char* aPrefName, void* aClosure)
   return 0;
 }
 
-static JSPrincipals *
+JS_STATIC_DLL_CALLBACK(JSPrincipals *)
 ObjectPrincipalFinder(JSContext *cx, JSObject *obj)
 {
   if (!sSecurityManager)

@@ -86,8 +86,7 @@ public:
   NS_IMETHOD  SetSelected(nsPresContext* aPresContext,
                           nsIDOMRange*    aRange,
                           PRBool          aSelected,
-                          nsSpread        aSpread,
-                          SelectionType   aType);
+                          nsSpread        aSpread);
   NS_IMETHOD  GetSelected(PRBool *aSelected) const;
   NS_IMETHOD  IsSelectable(PRBool* aIsSelectable, PRUint8* aSelectStyle) const;
 

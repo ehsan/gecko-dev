@@ -1099,11 +1099,7 @@ void
 nsContainerFrame::DeleteNextInFlowChild(nsPresContext* aPresContext,
                                         nsIFrame*      aNextInFlow)
 {
-#ifdef DEBUG
-  nsIFrame* prevInFlow = aNextInFlow->GetPrevInFlow();
-#endif
-
-  NS_PRECONDITION(prevInFlow, "bad prev-in-flow");
+  NS_PRECONDITION(aNextInFlow->GetPrevInFlow(), "bad prev-in-flow");
 
   // If the next-in-flow has a next-in-flow then delete it, too (and
   // delete it first).
@@ -1592,9 +1588,6 @@ nsContainerFrame::List(FILE* out, PRInt32 aIndent) const
   PRInt32 listIndex = 0;
   PRBool outputOneList = PR_FALSE;
   do {
-    if (!outputOneList) {
-      fputs("\n", out);
-    }
     nsIFrame* kid = GetFirstChild(listName);
     if (nsnull != kid) {
       if (outputOneList) {

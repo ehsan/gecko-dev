@@ -107,8 +107,6 @@
 
 #if defined(HAVE_VISIBILITY_ATTRIBUTE)
 #define NS_VISIBILITY_DEFAULT __attribute__ ((visibility ("default")))
-#elif defined(__SUNPRO_C) || defined(__SUNPRO_CC)
-#define NS_VISIBILITY_DEFAULT __global
 #else
 #define NS_VISIBILITY_DEFAULT
 #endif

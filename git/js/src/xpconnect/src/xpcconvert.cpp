@@ -165,7 +165,7 @@ XPCConvert::GetISupportsFromJSObject(JSObject* obj, nsISupports** iface)
 
 /***************************************************************************/
 
-static void
+JS_STATIC_DLL_CALLBACK(void)
 FinalizeXPCOMUCString(JSContext *cx, JSString *str)
 {
     NS_ASSERTION(sXPCOMUCStringFinalizerIndex != -1,
@@ -1645,7 +1645,7 @@ XPCConvert::JSErrorToXPCException(XPCCallContext& ccx,
 // We assert below that these formats all begin with "%i".
 const char* XPC_ARG_FORMATTER_FORMAT_STRINGS[] = {"%ip", "%iv", "%is", nsnull};
 
-JSBool
+JSBool JS_DLL_CALLBACK
 XPC_JSArgumentFormatter(JSContext *cx, const char *format,
                         JSBool fromJS, jsval **vpp, va_list *app)
 {

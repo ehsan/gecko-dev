@@ -315,8 +315,7 @@ public:
   NS_IMETHOD SetSelected(nsPresContext* aPresContext,
                          nsIDOMRange *aRange,
                          PRBool aSelected,
-                         nsSpread aSpread,
-                         SelectionType aType);
+                         nsSpread aSpread);
 
   virtual void MarkIntrinsicWidthsDirty();
   // For border-collapse tables, the caller must not add padding and

@@ -67,11 +67,8 @@ var gCookiesWindow = {
 
     if ("arguments" in window && window.arguments[0] &&
         window.arguments[0].filterString)
-    {
-      document.getElementById("filter").value = window.arguments[0].filterString;
-      this.filter();
-    }
-
+      this.setFilter(window.arguments[0].filterString);
+    
     this._saveState();
       
     document.getElementById("filter").focus();
@@ -793,7 +790,8 @@ var gCookiesWindow = {
     // Revert to single-select in the tree
     this._tree.setAttribute("seltype", "single");
     
-    // Clear the Tree Display
+    // Clear the Filter and the Tree Display
+    document.getElementById("filter").value = "";
     this._view._filtered = false;
     this._view._rowCount = 0;
     this._tree.treeBoxObject.rowCountChanged(0, -this._view._filterSet.length);
@@ -828,6 +826,8 @@ var gCookiesWindow = {
     this._lastSelectedRanges = [];
 
     document.getElementById("cookiesIntro").value = this._bundle.getString("cookiesAll");
+    document.getElementById("clearFilter").disabled = true;
+    document.getElementById("filter").focus();
   },
   
   _cookieMatchesFilter: function (aCookie)
@@ -875,44 +875,68 @@ var gCookiesWindow = {
         this._openIndices.push(i);
     }
   },
+  
+  _filterTimeout: -1,
+  onFilterInput: function ()
+  {
+    if (this._filterTimeout != -1)
+      clearTimeout(this._filterTimeout);
+   
+    function filterCookies()
+    {
+      var filter = document.getElementById("filter").value;
+      if (filter == "") {
+        gCookiesWindow.clearFilter();
+        return;
+      }        
+      var view = gCookiesWindow._view;
+      view._filterSet = gCookiesWindow._filterCookies(filter);
+      if (!view._filtered) {
+        // Save Display Info for the Non-Filtered mode when we first
+        // enter Filtered mode. 
+        gCookiesWindow._saveState();
+        view._filtered = true;
+      }
+      // Move to multi-select in the tree
+      gCookiesWindow._tree.setAttribute("seltype", "multiple");
+      
+      // Clear the display
+      var oldCount = view._rowCount;
+      view._rowCount = 0;
+      gCookiesWindow._tree.treeBoxObject.rowCountChanged(0, -oldCount);
+      // Set up the filtered display
+      view._rowCount = view._filterSet.length;
+      gCookiesWindow._tree.treeBoxObject.rowCountChanged(0, view.rowCount);
+      
+      // if the view is not empty then select the first item
+      if (view.rowCount > 0)
+        view.selection.select(0);
 
-  filter: function ()
+      document.getElementById("cookiesIntro").value = gCookiesWindow._bundle.getString("cookiesFiltered");
+      document.getElementById("clearFilter").disabled = false;
+    }
+    window.filterCookies = filterCookies;
+    this._filterTimeout = setTimeout("filterCookies();", 500);
+  },
+  
+  onFilterKeyPress: function (aEvent)
   {
     var filter = document.getElementById("filter").value;
-    if (filter == "") {
-      gCookiesWindow.clearFilter();
-      return;
-    }
-    var view = gCookiesWindow._view;
-    view._filterSet = gCookiesWindow._filterCookies(filter);
-    if (!view._filtered) {
-      // Save Display Info for the Non-Filtered mode when we first
-      // enter Filtered mode.
-      gCookiesWindow._saveState();
-      view._filtered = true;
-    }
-    // Move to multi-select in the tree
-    gCookiesWindow._tree.setAttribute("seltype", "multiple");
-
-    // Clear the display
-    var oldCount = view._rowCount;
-    view._rowCount = 0;
-    gCookiesWindow._tree.treeBoxObject.rowCountChanged(0, -oldCount);
-    // Set up the filtered display
-    view._rowCount = view._filterSet.length;
-    gCookiesWindow._tree.treeBoxObject.rowCountChanged(0, view.rowCount);
-
-    // if the view is not empty then select the first item
-    if (view.rowCount > 0)
-      view.selection.select(0);
-
-    document.getElementById("cookiesIntro").value = gCookiesWindow._bundle.getString("cookiesFiltered");
+    if (aEvent.keyCode == 27 && filter != "") // ESC key
+      this.clearFilter();
   },
-
+  
   focusFilterBox: function ()
-  {
+  { 
     var filter = document.getElementById("filter");
     filter.focus();
     filter.select();
+  },
+
+  setFilter: function (aFilterString)
+  {
+    document.getElementById("filter").value = aFilterString;
+    this.onFilterInput();
   }
 };
+

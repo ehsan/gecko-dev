@@ -891,7 +891,7 @@ JS_DumpNamedRoots(JSRuntime *rt,
 #define JS_MAP_GCROOT_REMOVE    2       /* remove and free the current entry */
 
 typedef intN
-(* JSGCRootMapFun)(void *rp, const char *name, void *data);
+(* JS_DLL_CALLBACK JSGCRootMapFun)(void *rp, const char *name, void *data);
 
 extern JS_PUBLIC_API(uint32)
 JS_MapGCRoots(JSRuntime *rt, JSGCRootMapFun map, void *data);
@@ -1809,14 +1809,14 @@ struct JSPrincipals {
     char *codebase;
 
     /* XXX unspecified and unused by Mozilla code -- can we remove these? */
-    void * (* getPrincipalArray)(JSContext *cx, JSPrincipals *);
-    JSBool (* globalPrivilegesEnabled)(JSContext *cx, JSPrincipals *);
+    void * (* JS_DLL_CALLBACK getPrincipalArray)(JSContext *cx, JSPrincipals *);
+    JSBool (* JS_DLL_CALLBACK globalPrivilegesEnabled)(JSContext *cx, JSPrincipals *);
 
     /* Don't call "destroy"; use reference counting macros below. */
     jsrefcount refcount;
 
-    void   (* destroy)(JSContext *cx, JSPrincipals *);
-    JSBool (* subsume)(JSPrincipals *, JSPrincipals *);
+    void   (* JS_DLL_CALLBACK destroy)(JSContext *cx, JSPrincipals *);
+    JSBool (* JS_DLL_CALLBACK subsume)(JSPrincipals *, JSPrincipals *);
 };
 
 #ifdef JS_THREADSAFE

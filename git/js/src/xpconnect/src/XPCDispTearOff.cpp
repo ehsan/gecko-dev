@@ -231,7 +231,7 @@ STDMETHODIMP XPCDispatchTearOff::GetIDsOfNames(REFIID riid,
     return S_OK;
 }
 
-void
+void JS_DLL_CALLBACK
 xpcWrappedJSErrorReporter(JSContext *cx, const char *message,
                           JSErrorReport *report);
 

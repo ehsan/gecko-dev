@@ -324,7 +324,7 @@ jsd_JSDContextForJSContext(JSContext* context)
     return jsdc;
 }    
 
-static JSBool
+JS_STATIC_DLL_CALLBACK(JSBool)
 jsd_DebugErrorHook(JSContext *cx, const char *message,
                    JSErrorReport *report, void *closure)
 {

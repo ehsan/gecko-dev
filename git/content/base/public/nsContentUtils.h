@@ -94,7 +94,6 @@ class nsIJSRuntimeService;
 class nsIEventListenerManager;
 class nsIScriptContext;
 class nsIRunnable;
-class nsIInterfaceRequestor;
 template<class E> class nsCOMArray;
 class nsIPref;
 class nsVoidArray;
@@ -1327,9 +1326,6 @@ public:
 
   static JSContext *GetCurrentJSContext();
 
-                                             
-  static nsIInterfaceRequestor* GetSameOriginChecker();
-                                           
 private:
 
   static PRBool InitializeEventTable();
@@ -1407,8 +1403,6 @@ private:
   static PRUint32 sRemovableScriptBlockerCount;
   static nsCOMArray<nsIRunnable>* sBlockedScriptRunners;
   static PRUint32 sRunnersCountAtFirstBlocker;
-
-  static nsIInterfaceRequestor* sSameOriginChecker;
 };
 
 #define NS_HOLD_JS_OBJECTS(obj, clazz)                                         \

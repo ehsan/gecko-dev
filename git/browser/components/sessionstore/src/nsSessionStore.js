@@ -150,6 +150,9 @@ SessionStoreService.prototype = {
   // not-"dirty" windows usually don't need to have their data updated
   _dirtyWindows: {},
 
+  // flag all windows as dirty
+  _dirty: false,
+
 /* ........ Global Event Handlers .............. */
 
   /**
@@ -193,7 +196,7 @@ SessionStoreService.prototype = {
     this._sessionFileBackup = this._sessionFile.clone();
     this._sessionFile.append("sessionstore.js");
     this._sessionFileBackup.append("sessionstore.bak");
-
+   
     // get string containing session state
     var iniString;
     try {
@@ -208,22 +211,23 @@ SessionStoreService.prototype = {
       try {
         // parse the session state into JS objects
         this._initialState = this._safeEval(iniString);
-        
-        // if last session crashed, backup the session
-        let lastSessionCrashed =
+        // set bool detecting crash
+        this._lastSessionCrashed =
           this._initialState.session && this._initialState.session.state &&
           this._initialState.session.state == STATE_RUNNING_STR;
-        if (lastSessionCrashed) {
-          try {
-            this._writeFile(this._sessionFileBackup, iniString);
-          }
-          catch (ex) { } // nothing else we can do here
-        }
         
         // make sure that at least the first window doesn't have anything hidden
         delete this._initialState.windows[0].hidden;
       }
       catch (ex) { debug("The session file is invalid: " + ex); }
+    }
+    
+    // if last session crashed, backup the session
+    if (this._lastSessionCrashed) {
+      try {
+        this._writeFile(this._sessionFileBackup, iniString);
+      }
+      catch (ex) { } // nothing else we can do here
     }
 
     // remove the session data files if crash recovery is disabled
@@ -281,6 +285,7 @@ SessionStoreService.prototype = {
         this._collectWindowData(aWindow);
       });
       this._dirtyWindows = [];
+      this._dirty = false;
       break;
     case "quit-application-granted":
       // freeze the data at what we've got (ignoring closing windows)
@@ -293,27 +298,22 @@ SessionStoreService.prototype = {
       this._uninit();
       break;
     case "browser:purge-session-history": // catch sanitization 
-      let openWindows = {};
       this._forEachBrowserWindow(function(aWindow) {
         Array.forEach(aWindow.getBrowser().browsers, function(aBrowser) {
           delete aBrowser.parentNode.__SS_data;
         });
-        openWindows[aWindow.__SSi] = true;
       });
-      // also clear all data about closed tabs and windows
-      for (ix in this._windows) {
-        if (ix in openWindows)
-          this._windows[ix]._closedTabs = [];
-        else
-          delete this._windows[ix];
-      }
       this._lastClosedWindows = null;
       this._clearDisk();
+      // also clear all data about closed tabs
+      for (ix in this._windows) {
+        this._windows[ix]._closedTabs = [];
+      }
       // give the tabbrowsers a chance to clear their histories first
       var win = this._getMostRecentBrowserWindow();
       if (win)
         win.setTimeout(function() { _this.saveState(true); }, 0);
-      else if (this._loadState == STATE_RUNNING)
+      else
         this.saveState(true);
       break;
     case "nsPref:changed": // catch pref changes
@@ -596,17 +596,9 @@ SessionStoreService.prototype = {
     
     // store closed-tab data for undo
     if (tabState.entries.length > 0) {
-      let tabTitle = aTab.label;
-      let tabbrowser = aWindow.gBrowser;
-      // replace "Loading..." with the document title (with minimal side-effects)
-      if (tabTitle == tabbrowser.mStringBundle.getString("tabs.loading")) {
-        tabbrowser.setTabTitle(aTab);
-        [tabTitle, aTab.label] = [aTab.label, tabTitle];
-      }
-      
       this._windows[aWindow.__SSi]._closedTabs.unshift({
         state: tabState,
-        title: tabTitle,
+        title: aTab.getAttribute("label"),
         image: aTab.getAttribute("image"),
         pos: aTab._tPos
       });
@@ -1300,17 +1292,15 @@ SessionStoreService.prototype = {
 
   /**
    * serialize session data as Ini-formatted string
-   * @param aUpdateAll
-   *        Bool update all windows 
    * @returns string
    */
-  _getCurrentState: function sss_getCurrentState(aUpdateAll) {
+  _getCurrentState: function sss_getCurrentState() {
     var activeWindow = this._getMostRecentBrowserWindow();
     
     if (this._loadState == STATE_RUNNING) {
       // update the data for all windows with activities since the last save operation
       this._forEachBrowserWindow(function(aWindow) {
-        if (aUpdateAll || this._dirtyWindows[aWindow.__SSi] || aWindow == activeWindow) {
+        if (this._dirty || this._dirtyWindows[aWindow.__SSi] || aWindow == activeWindow) {
           this._collectWindowData(aWindow);
         }
         else { // always update the window features (whose change alone never triggers a save operation)
@@ -1318,6 +1308,7 @@ SessionStoreService.prototype = {
         }
       }, this);
       this._dirtyWindows = [];
+      this._dirty = false;
     }
     
     // collect the data for all windows
@@ -1979,7 +1970,8 @@ SessionStoreService.prototype = {
     if (!this._resume_from_crash && this._loadState == STATE_RUNNING)
       return;
     
-    var oState = this._getCurrentState(aUpdateAll);
+    this._dirty = aUpdateAll;
+    var oState = this._getCurrentState();
     oState.session = { state: ((this._loadState == STATE_RUNNING) ? STATE_RUNNING_STR : STATE_STOPPED_STR) };
     
     var stateString = Cc["@mozilla.org/supports-string;1"].
