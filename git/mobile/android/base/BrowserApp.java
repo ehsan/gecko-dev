@@ -2420,7 +2420,7 @@ abstract public class BrowserApp extends GeckoApp
     @Override
     protected String getDefaultProfileName() {
         String profile = GeckoProfile.findDefaultProfile(this);
-        return (profile != null ? profile : GeckoProfile.DEFAULT_PROFILE);
+        return (profile != null ? profile : "default");
     }
 
     /**

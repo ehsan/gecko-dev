@@ -10,7 +10,6 @@ import org.mozilla.gecko.sync.repositories.android.ClientsDatabase;
 import org.mozilla.gecko.sync.repositories.android.ClientsDatabaseAccessor;
 import org.mozilla.gecko.sync.repositories.domain.ClientRecord;
 import org.mozilla.gecko.sync.repositories.domain.HistoryRecord;
-import org.mozilla.gecko.sync.setup.Constants;
 
 import android.database.Cursor;
 import android.test.AndroidTestCase;
@@ -34,7 +33,7 @@ public class TestCachedSQLiteOpenHelper extends AndroidTestCase {
     // clientsDB gracefully does its thing and closes.
     clientsDB.wipeClientsTable();
     ClientRecord record = new ClientRecord();
-    String profileConst = Constants.DEFAULT_PROFILE;
+    String profileConst = ClientsDatabaseAccessor.PROFILE_ID;
     clientsDB.store(profileConst, record);
     clientsDB.close();
 

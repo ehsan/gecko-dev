@@ -312,7 +312,9 @@ nsCertTree::GetDispInfoAtIndex(int32_t index,
       RefPtr<nsCertTreeDispInfo> certdi(mDispInfo.SafeElementAt(certIndex,
                                                                 nullptr));
       if (certdi) {
-        return certdi.forget();
+        nsCertTreeDispInfo *raw = certdi.get();
+        NS_IF_ADDREF(raw);
+        return raw;
       }
       break;
     }

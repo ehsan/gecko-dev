@@ -14,7 +14,6 @@
 #include "nsIContent.h"
 #include "nsIContentViewerContainer.h"
 #include "nsIContentViewer.h"
-#include "nsIContentViewerInternal.h"
 #include "nsIDocumentViewerPrint.h"
 #include "nsIDOMBeforeUnloadEvent.h"
 #include "nsIDocument.h"
@@ -214,7 +213,6 @@ private:
 
 //-------------------------------------------------------------
 class nsDocumentViewer : public nsIContentViewer,
-                           public nsIContentViewerInternal,
                            public nsIContentViewerEdit,
                            public nsIContentViewerFile,
                            public nsIMarkupDocumentViewer,
@@ -239,9 +237,6 @@ public:
 
   // nsIContentViewer interface...
   NS_DECL_NSICONTENTVIEWER
-
-  // nsIContentViewerInternal interface
-  NS_DECL_NSICONTENTVIEWERINTERNAL
 
   // nsIContentViewerEdit
   NS_DECL_NSICONTENTVIEWEREDIT
@@ -520,7 +515,6 @@ NS_IMPL_RELEASE(nsDocumentViewer)
 
 NS_INTERFACE_MAP_BEGIN(nsDocumentViewer)
     NS_INTERFACE_MAP_ENTRY(nsIContentViewer)
-    NS_INTERFACE_MAP_ENTRY(nsIContentViewerInternal)
     NS_INTERFACE_MAP_ENTRY(nsIMarkupDocumentViewer)
     NS_INTERFACE_MAP_ENTRY(nsIContentViewerFile)
     NS_INTERFACE_MAP_ENTRY(nsIContentViewerEdit)
@@ -1051,19 +1045,7 @@ nsDocumentViewer::LoadComplete(nsresult aStatus)
 }
 
 NS_IMETHODIMP
-nsDocumentViewer::PermitUnload(bool aCallerClosesWindow,
-                               bool *aPermitUnload)
-{
-  bool shouldPrompt = true;
-  return PermitUnloadInternal(aCallerClosesWindow, &shouldPrompt,
-                              aPermitUnload);
-}
-
-
-nsresult
-nsDocumentViewer::PermitUnloadInternal(bool aCallerClosesWindow,
-                                       bool *aShouldPrompt,
-                                       bool *aPermitUnload)
+nsDocumentViewer::PermitUnload(bool aCallerClosesWindow, bool *aPermitUnload)
 {
   *aPermitUnload = true;
 
@@ -1128,8 +1110,8 @@ nsDocumentViewer::PermitUnloadInternal(bool aCallerClosesWindow,
   nsCOMPtr<nsIDocShellTreeNode> docShellNode(do_QueryReferent(mContainer));
   nsAutoString text;
   beforeUnload->GetReturnValue(text);
-  if (*aShouldPrompt && (event->GetInternalNSEvent()->mFlags.mDefaultPrevented ||
-                         !text.IsEmpty())) {
+  if (event->GetInternalNSEvent()->mFlags.mDefaultPrevented ||
+      !text.IsEmpty()) {
     // Ask the user if it's ok to unload the current page
 
     nsCOMPtr<nsIPrompt> prompt = do_GetInterface(docShellNode);
@@ -1181,11 +1163,6 @@ nsDocumentViewer::PermitUnloadInternal(bool aCallerClosesWindow,
 
       // Button 0 == leave, button 1 == stay
       *aPermitUnload = (buttonPressed == 0);
-      // If the user decided to go ahead, make sure not to prompt the user again
-      // by toggling the internal prompting bool to false:
-      if (*aPermitUnload) {
-        *aShouldPrompt = false;
-      }
     }
   }
 
@@ -1204,11 +1181,7 @@ nsDocumentViewer::PermitUnloadInternal(bool aCallerClosesWindow,
         docShell->GetContentViewer(getter_AddRefs(cv));
 
         if (cv) {
-          nsCOMPtr<nsIContentViewerInternal> cvInternal(do_QueryInterface(cv));
-          if (cvInternal) {
-            cvInternal->PermitUnloadInternal(aCallerClosesWindow, aShouldPrompt,
-                                             aPermitUnload);
-          }
+          cv->PermitUnload(aCallerClosesWindow, aPermitUnload);
         }
       }
     }
