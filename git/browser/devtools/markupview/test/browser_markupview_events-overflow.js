@@ -67,19 +67,16 @@ let test = asyncTest(function*() {
 
     info("Event handler expanded.");
 
-    // Wait for any scrolling to finish.
-    yield promiseNextTick();
-
     if (data.alignTop) {
       let headerRect = header.getBoundingClientRect();
 
-      is(Math.round(headerRect.top), Math.round(containerRect.top),
+      is(headerRect.top, containerRect.top,
         "Clicked header is aligned with the container top.");
 
     } else if (data.alignBottom) {
       let editorRect = header.nextElementSibling.getBoundingClientRect();
 
-      is(Math.round(editorRect.bottom), Math.round(containerRect.bottom),
+      is(editorRect.bottom, containerRect.bottom,
         "Clicked event handler code is aligned with the container bottom.");
 
     } else {
