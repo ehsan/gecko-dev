@@ -3,7 +3,6 @@
 }
 
 .willGroup{
-  border: 1px inset rgba(255,0,0,1);
   -moz-box-shadow: 0px 0px 10px rgba(255,0,0,1);
 }
 
@@ -31,7 +30,7 @@ input.name{
 /* Resizable
 ----------------------------------*/
 .resizer{
-  background-image: url(../img/resizer.png);
+  background-image: url(chrome://tabcandy/content/img/shared/resizer.png);
 }
 
 .ui-resizable { position: relative;}

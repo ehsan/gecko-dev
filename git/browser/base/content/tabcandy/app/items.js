@@ -9,10 +9,7 @@
 //   addOnClose: function(referenceObject, callback)
 //   removeOnClose: function(referenceObject)
 // 
-// In addition, it must have these properties:
-//   isAnItem, set to true (set by Item)
-//   defaultSize, a Point
-//    
+// In addition, it must have a property, isAnItem, set to true. 
 // Its container must also have a jQuery data named 'item' that points to the item.
 
 window.Item = function() {
@@ -97,10 +94,14 @@ window.Items = {
   getTopLevelItems: function() {
     var items = [];
     
-    $('.tab, .group').each(function() {
+    $('.tab').each(function() {
       $this = $(this);
       if(!$this.data('group'))
-        items.push($this.data('item'));
+        items.push($this.data('tabItem'));
+    });
+    
+    $('.group').each(function() {
+      items.push($(this).data('group'));
     });
     
     return items;
