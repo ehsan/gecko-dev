@@ -1037,32 +1037,14 @@ PlacesToolbar.prototype = {
         this.updateChevron();
         break;
       case "overflow":
-        if (aEvent.target != aEvent.currentTarget)
+        if (!this._isOverflowStateEventRelevant(aEvent))
           return;
-
-        // Ignore purely vertical overflows.
-        if (aEvent.detail == 0)
-          return;
-
-        // Attach the popup binding to the chevron popup if it has not yet
-        // been initialized.
-        if (!this._chevronPopup.hasAttribute("type")) {
-          this._chevronPopup.setAttribute("place", this.place);
-          this._chevronPopup.setAttribute("type", "places");
-        }
-        this._chevron.collapsed = false;
-        this.updateChevron();
+        this._onOverflow();
         break;
       case "underflow":
-        if (aEvent.target != aEvent.currentTarget)
+        if (!this._isOverflowStateEventRelevant(aEvent))
           return;
-
-        // Ignore purely vertical underflows.
-        if (aEvent.detail == 0)
-          return;
-
-        this.updateChevron();
-        this._chevron.collapsed = true;
+        this._onUnderflow();
         break;
       case "TabOpen":
       case "TabClose":
@@ -1101,6 +1083,35 @@ PlacesToolbar.prototype = {
       default:
         throw "Trying to handle unexpected event.";
     }
+  },
+
+  updateOverflowStatus: function() {
+    if (this._rootElt.scrollLeftMax > 0) {
+      this._onOverflow();
+    } else {
+      this._onUnderflow();
+    }
+  },
+
+  _isOverflowStateEventRelevant: function PT_isOverflowStateEventRelevant(aEvent) {
+    // Ignore events not aimed at ourselves, as well as purely vertical ones:
+    return aEvent.target == aEvent.currentTarget && aEvent.detail > 0;
+  },
+
+  _onOverflow: function PT_onOverflow() {
+    // Attach the popup binding to the chevron popup if it has not yet
+    // been initialized.
+    if (!this._chevronPopup.hasAttribute("type")) {
+      this._chevronPopup.setAttribute("place", this.place);
+      this._chevronPopup.setAttribute("type", "places");
+    }
+    this._chevron.collapsed = false;
+    this.updateChevron();
+  },
+
+  _onUnderflow: function PT_onUnderflow() {
+    this.updateChevron();
+    this._chevron.collapsed = true;
   },
 
   updateChevron: function PT_updateChevron() {
@@ -1739,3 +1750,157 @@ PlacesMenu.prototype = {
   }
 };
 
+function PlacesPanelMenuView(aPlace, aViewId, aRootId) {
+  this._viewElt = document.getElementById(aViewId);
+  this._rootElt = document.getElementById(aRootId);
+  this._viewElt._placesView = this;
+
+  PlacesViewBase.call(this, aPlace);
+}
+
+PlacesPanelMenuView.prototype = {
+  __proto__: PlacesViewBase.prototype,
+
+  QueryInterface: function PAMV_QueryInterface(aIID) {
+    return PlacesViewBase.prototype.QueryInterface.apply(this, arguments);
+  },
+
+  uninit: function PAMV_uninit() {
+    PlacesViewBase.prototype.uninit.apply(this, arguments);
+  },
+
+  _insertNewItem:
+  function PAMV__insertNewItem(aChild, aBefore) {
+    this._domNodes.delete(aChild);
+
+    let type = aChild.type;
+    let button;
+    if (type == Ci.nsINavHistoryResultNode.RESULT_TYPE_SEPARATOR) {
+      button = document.createElement("toolbarseparator");
+    }
+    else {
+      button = document.createElement("toolbarbutton");
+      button.className = "bookmark-item";
+      button.setAttribute("label", aChild.title);
+      let icon = aChild.icon;
+      if (icon)
+        button.setAttribute("image", icon);
+
+      if (PlacesUtils.containerTypes.indexOf(type) != -1) {
+        button.setAttribute("container", "true");
+
+        if (PlacesUtils.nodeIsQuery(aChild)) {
+          button.setAttribute("query", "true");
+          if (PlacesUtils.nodeIsTagQuery(aChild))
+            button.setAttribute("tagContainer", "true");
+        }
+        else if (PlacesUtils.nodeIsFolder(aChild)) {
+          PlacesUtils.livemarks.getLivemark(
+            { id: aChild.itemId },
+            function (aStatus, aLivemark) {
+              if (Components.isSuccessCode(aStatus)) {
+                button.setAttribute("livemark", "true");
+                this.controller.cacheLivemarkInfo(aChild, aLivemark);
+              }
+            }.bind(this)
+          );
+        }
+      }
+      else if (PlacesUtils.nodeIsURI(aChild)) {
+        button.setAttribute("scheme",
+                            PlacesUIUtils.guessUrlSchemeForUI(aChild.uri));
+      }
+    }
+
+    button._placesNode = aChild;
+    if (!this._domNodes.has(aChild))
+      this._domNodes.set(aChild, button);
+
+    this._rootElt.insertBefore(button, aBefore);
+  },
+
+  nodeInserted:
+  function PAMV_nodeInserted(aParentPlacesNode, aPlacesNode, aIndex) {
+    let parentElt = this._getDOMNodeForPlacesNode(aParentPlacesNode);
+    if (parentElt != this._rootElt)
+      return;
+
+    let children = this._rootElt.childNodes;
+    this._insertNewItem(aPlacesNode,
+      aIndex < children.length ? children[aIndex] : null);
+  },
+
+  nodeRemoved:
+  function PAMV_nodeRemoved(aParentPlacesNode, aPlacesNode, aIndex) {
+    let parentElt = this._getDOMNodeForPlacesNode(aParentPlacesNode);
+    if (parentElt != this._rootElt)
+      return;
+
+    let elt = this._getDOMNodeForPlacesNode(aPlacesNode);
+    this._removeChild(elt);
+  },
+
+  nodeMoved:
+  function PAMV_nodeMoved(aPlacesNode,
+                          aOldParentPlacesNode, aOldIndex,
+                          aNewParentPlacesNode, aNewIndex) {
+    let parentElt = this._getDOMNodeForPlacesNode(aNewParentPlacesNode);
+    if (parentElt != this._rootElt)
+      return;
+
+    let elt = this._getDOMNodeForPlacesNode(aPlacesNode);
+    this._removeChild(elt);
+    this._rootElt.insertBefore(elt, this._rootElt.childNodes[aNewIndex]);
+  },
+
+  nodeAnnotationChanged:
+  function PAMV_nodeAnnotationChanged(aPlacesNode, aAnno) {
+    let elt = this._getDOMNodeForPlacesNode(aPlacesNode);
+    // There's no UI representation for the root node.
+    if (elt == this._rootElt)
+      return;
+
+    if (elt.parentNode != this._rootElt)
+      return;
+
+    // All livemarks have a feedURI, so use it as our indicator.
+    if (aAnno == PlacesUtils.LMANNO_FEEDURI) {
+      elt.setAttribute("livemark", true);
+
+      PlacesUtils.livemarks.getLivemark(
+        { id: aPlacesNode.itemId },
+        function (aStatus, aLivemark) {
+          if (Components.isSuccessCode(aStatus)) {
+            this.controller.cacheLivemarkInfo(aPlacesNode, aLivemark);
+            this.invalidateContainer(aPlacesNode);
+          }
+        }.bind(this)
+      );
+    }
+  },
+
+  nodeTitleChanged: function PAMV_nodeTitleChanged(aPlacesNode, aNewTitle) {
+    let elt = this._getDOMNodeForPlacesNode(aPlacesNode);
+
+    // There's no UI representation for the root node.
+    if (elt == this._rootElt)
+      return;
+
+    PlacesViewBase.prototype.nodeTitleChanged.apply(this, arguments);
+  },
+
+  invalidateContainer: function PAMV_invalidateContainer(aPlacesNode) {
+    let elt = this._getDOMNodeForPlacesNode(aPlacesNode);
+    if (elt != this._rootElt)
+      return;
+
+    // Container is the toolbar itself.
+    while (this._rootElt.hasChildNodes()) {
+      this._rootElt.removeChild(this._rootElt.firstChild);
+    }
+
+    for (let i = 0; i < this._resultNode.childCount; ++i) {
+      this._insertNewItem(this._resultNode.getChild(i), null);
+    }
+  }
+};
