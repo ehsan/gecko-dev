@@ -156,7 +156,7 @@ expectDescriptor(pd, expected);
 
 /******************************************************************************/
 
-o = { get y() { return 17; }, set y(z) { } };
+o = { get y() { return 17; }, set y() { } };
 
 pd = Object.getOwnPropertyDescriptor(o, "y");
 expected =

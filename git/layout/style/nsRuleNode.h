@@ -690,7 +690,7 @@ protected:
   const void* GetSVGResetData(nsStyleContext* aContext);
 
   already_AddRefed<nsCSSShadowArray>
-              GetShadowData(const nsCSSValueList* aList,
+              GetShadowData(nsCSSValueList* aList,
                             nsStyleContext* aContext,
                             PRBool aIsBoxShadow,
                             PRBool& inherited);

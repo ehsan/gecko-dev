@@ -59,9 +59,8 @@
 #include "stdlib.h"
 #include "nsWildCard.h"
 #include "nsZipArchive.h"
-#include "nsString.h"
+
 #include "mozilla/FunctionTimer.h"
-#include "prenv.h"
 
 /**
  * Global allocator used with zlib. Destroyed in module shutdown.
@@ -101,8 +100,6 @@ nsRecyclingAllocator *gZlibAllocator = NULL;
 #  endif
 #endif  /* XP_UNIX */
 
-
-using namespace mozilla;
 
 static const PRUint32 kMaxNameLength = PATH_MAX; /* Maximum name length */
 // For synthetic zip entries. Date/time corresponds to 1980-01-01 00:00.
@@ -222,6 +219,7 @@ nsZipHandle::~nsZipHandle()
 //      nsZipArchive  --  public methods
 //***********************************************************
 
+
 //---------------------------------------------
 //  nsZipArchive::OpenArchive
 //---------------------------------------------
@@ -244,28 +242,7 @@ nsresult nsZipArchive::OpenArchive(nsIFile *aZipFile)
   PL_INIT_ARENA_POOL(&mArena, "ZipArena", ZIP_ARENABLOCKSIZE);
 
   //-- get table of contents for archive
-  rv = BuildFileList();
-  char *env = PR_GetEnv("MOZ_JAR_LOG_DIR");
-  if (env && NS_SUCCEEDED(rv)) {
-    nsCOMPtr<nsILocalFile> logFile;
-    nsresult rv2 = NS_NewLocalFile(NS_ConvertUTF8toUTF16(env), PR_FALSE, getter_AddRefs(logFile));
-    
-    if (!NS_SUCCEEDED(rv2))
-      return rv;
-
-    // Create a directory for the log (in case it doesn't exist)
-    logFile->Create(nsIFile::DIRECTORY_TYPE, 0700);
-
-    nsAutoString name;
-    localFile->GetLeafName(name);
-    name.Append(NS_LITERAL_STRING(".log"));
-    logFile->Append(name);
-
-    rv2 = logFile->OpenNSPRFileDesc(PR_WRONLY|PR_CREATE_FILE|PR_APPEND, 0644, &fd);
-    if (NS_SUCCEEDED(rv2))
-      mLog = fd;
-  }
-  return rv;
+  return BuildFileList();
 }
 
 //---------------------------------------------
@@ -342,17 +319,8 @@ nsZipItem*  nsZipArchive::GetItem(const char * aEntryName)
     nsZipItem* item = mFiles[ HashName(aEntryName, len) ];
     while (item) {
       if ((len == item->nameLength) && 
-          (!memcmp(aEntryName, item->Name(), len))) {
-        
-        if (mLog) {
-          // Successful GetItem() is a good indicator that the file is about to be read
-          char *tmp = PL_strdup(aEntryName);
-          tmp[len]='\n';
-          PR_Write(mLog, tmp, len+1);
-          PL_strfree(tmp);
-        }
+         (!memcmp(aEntryName, item->Name(), len)))
         return item; //-- found it
-      }
       item = item->next;
     }
   }
@@ -565,18 +533,14 @@ nsresult nsZipArchive::BuildFileList()
   PRUint8* buf;
   PRUint8* startp = mFd->mFileData;
   PRUint8* endp = startp + mFd->mLen;
-  
-  PRUint32 centralOffset = 1;
-  if (mFd->mLen > ZIPCENTRAL_SIZE && *(PRUint32*)(startp + centralOffset) == CENTRALSIG) {
-    // Success means optimized jar layout from bug 559961 is in effect
-  } else {
-    for (buf = endp - ZIPEND_SIZE; buf > startp; buf--)
-      {
-        if (xtolong(buf) == ENDSIG) {
-          centralOffset = xtolong(((ZipEnd *)buf)->offset_central_dir);
-          break;
-        }
-      }
+
+  PRUint32 centralOffset = 0;
+  for (buf = endp - ZIPEND_SIZE; buf > startp; buf--)
+  {
+    if (xtolong(buf) == ENDSIG) {
+      centralOffset = xtolong(((ZipEnd *)buf)->offset_central_dir);
+      break;
+    }
   }
 
   if (!centralOffset)
@@ -709,6 +673,7 @@ nsZipHandle* nsZipArchive::GetFD()
 PRUint8* nsZipArchive::GetData(nsZipItem* aItem)
 {
   PR_ASSERT (aItem);
+
   //-- read local header to get variable length values and calculate
   //-- the real data offset
   PRUint32 len = mFd->mLen;

@@ -13,7 +13,7 @@ function test() {
   waitForExplicitFinish();
 
   Services.prefs.setBoolPref("browser.tabs.animate", true);
-  preperForNextText();
+  nextAsyncText();
 }
 
 function tabAdded() {
@@ -46,15 +46,10 @@ var asyncTests = [
   }
 ];
 
-function preperForNextText() {
+function nextAsyncText() {
   info("tests left: " + asyncTests.length + "; starting next");
   var tab = gBrowser.addTab("about:blank", { skipAnimation: true });
-  executeSoon(function () {
-    nextAsyncText(tab);
-  });
-}
 
-function nextAsyncText(tab) {
   var gotCloseEvent = false;
 
   tab.addEventListener("TabClose", function () {
@@ -73,7 +68,7 @@ function nextAsyncText(tab) {
       is(tab.parentNode, null, "tab removed after at most " + MAX_WAIT_TIME + " ms");
 
       if (asyncTests.length)
-        preperForNextText();
+        nextAsyncText();
       else
         cleanup();
     }, DEFAULT_ANIMATION_LENGTH);

@@ -117,26 +117,6 @@ public:
   void DropMouseGrabbing();
 
 public:
-  // See nsIView::CreateWidget.
-  nsresult CreateWidget(nsWidgetInitData *aWidgetInitData,
-                        PRBool aEnableDragDrop,
-                        PRBool aResetVisibility,
-                        nsContentType aContentType);
-
-  // See nsIView::CreateWidgetForParent.
-  nsresult CreateWidgetForParent(nsIWidget* aParentWidget,
-                                 nsWidgetInitData *aWidgetInitData,
-                                 PRBool aEnableDragDrop,
-                                 PRBool aResetVisibility,
-                                 nsContentType aContentType);
-
-  // See nsIView::CreateWidgetForPopup.
-  nsresult CreateWidgetForPopup(nsWidgetInitData *aWidgetInitData,
-                                nsIWidget* aParentWidget,
-                                PRBool aEnableDragDrop,
-                                PRBool aResetVisibility,
-                                nsContentType aContentType);
-
   // NOT in nsIView, so only available in view module
   // These are also present in nsIView, but these versions return nsView and nsViewManager
   // instead of nsIView and nsIViewManager.
@@ -182,7 +162,7 @@ public:
   nsPoint ConvertFromParentCoords(nsPoint aPt) const;
   void ResetWidgetBounds(PRBool aRecurse, PRBool aMoveOnly, PRBool aInvalidateChangedSize);
   void SetPositionIgnoringChildWidgets(nscoord aX, nscoord aY);
-  void AssertNoWindow();
+  nsresult LoadWidget(const nsCID &aClassIID);
 
   void NotifyEffectiveVisibilityChanged(PRBool aEffectivelyVisible);
 
@@ -205,9 +185,6 @@ protected:
   void DoResetWidgetBounds(PRBool aMoveOnly, PRBool aInvalidateChangedSize);
 
   nsRegion*    mDirtyRegion;
-
-private:
-  void InitializeWindow(PRBool aEnableDragDrop, PRBool aResetVisibility);
 };
 
 #endif

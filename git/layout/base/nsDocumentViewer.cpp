@@ -503,6 +503,7 @@ protected:
 //------------------------------------------------------------------
 // Class IDs
 static NS_DEFINE_CID(kViewManagerCID,       NS_VIEW_MANAGER_CID);
+static NS_DEFINE_CID(kWidgetCID,            NS_CHILD_CID);
 static NS_DEFINE_CID(kDeviceContextCID,     NS_DEVICE_CONTEXT_CID);
 
 //------------------------------------------------------------------
@@ -925,8 +926,8 @@ DocumentViewerImpl::InitInternal(nsIWidget* aParentWidget,
         mPresContext->GetPrintSettings()->GetEffectivePageSize(&pageWidth,
                                                                &pageHeight);
         mPresContext->SetPageSize(
-          nsSize(mPresContext->CSSTwipsToAppUnits(NSToIntFloor(pageWidth)),
-                 mPresContext->CSSTwipsToAppUnits(NSToIntFloor(pageHeight))));
+          nsSize(mPresContext->TwipsToAppUnits(NSToIntFloor(pageWidth)),
+                 mPresContext->TwipsToAppUnits(NSToIntFloor(pageHeight))));
         mPresContext->SetIsRootPaginatedDocument(PR_TRUE);
         mPresContext->SetPageScale(1.0f);
       }
@@ -2319,13 +2320,9 @@ DocumentViewerImpl::MakeWindow(const nsSize& aSize, nsIView* aContainerView)
   if (!view)
     return NS_ERROR_OUT_OF_MEMORY;
 
-  PRBool isExternalResource = !!mDocument->GetDisplayDocument();
-
-  // Create a widget if we were given a parent widget or don't have a
-  // container view that we can hook up to without a widget.  Don't
-  // create widgets for external resource documents, since they're not
-  // displayed.
-  if (!isExternalResource && (mParentWidget || !aContainerView)) {
+  // Don't create a widget if we weren't given a parent widget but we
+  // have a container view we can hook up to without a widget
+  if (mParentWidget || !aContainerView) {
     // pass in a native widget to be the parent widget ONLY if the view hierarchy will stand alone.
     // otherwise the view will find its own parent widget and "do the right thing" to
     // establish a parent/child widget relationship
@@ -2346,12 +2343,11 @@ DocumentViewerImpl::MakeWindow(const nsSize& aSize, nsIView* aContainerView)
       // Reuse the top level parent widget.
       rv = view->AttachToTopLevelWidget(mParentWidget);
     }
-    else if (!aContainerView && mParentWidget) {
-      rv = view->CreateWidgetForParent(mParentWidget, initDataPtr,
-                                       PR_TRUE, PR_FALSE);
-    }
     else {
-      rv = view->CreateWidget(initDataPtr, PR_TRUE, PR_FALSE);
+      nsNativeWidget nw = (aContainerView != nsnull || !mParentWidget) ?
+                 nsnull : mParentWidget->GetNativeData(NS_NATIVE_WIDGET);
+      rv = view->CreateWidget(kWidgetCID, initDataPtr,
+                              nw, PR_TRUE, PR_FALSE);
     }
     if (NS_FAILED(rv))
       return rv;
@@ -2406,12 +2402,6 @@ DocumentViewerImpl::FindContainerView()
         if (parentDocShellItem) {
           nsCOMPtr<nsIDocShell> parentDocShell = do_QueryInterface(parentDocShellItem);
           parentDocShell->GetPresShell(getter_AddRefs(parentPresShell));
-        }
-      }
-      if (!parentPresShell && containerElement) {
-        nsCOMPtr<nsIDocument> parentDoc = containerElement->GetCurrentDoc();
-        if (parentDoc) {
-          parentPresShell = parentDoc->GetShell();
         }
       }
       if (!containerElement) {
@@ -3274,8 +3264,8 @@ NS_IMETHODIMP DocumentViewerImpl::SizeToContent()
 
   nscoord prefWidth;
   {
-    nsCOMPtr<nsIRenderingContext> rcx =
-      presShell->GetReferenceRenderingContext();
+    nsCOMPtr<nsIRenderingContext> rcx;
+    presShell->CreateRenderingContext(root, getter_AddRefs(rcx));
     NS_ENSURE_TRUE(rcx, NS_ERROR_FAILURE);
     prefWidth = root->GetPrefWidth(rcx);
   }
@@ -3685,7 +3675,7 @@ DocumentViewerImpl::Print(nsIPrintSettings*       aPrintSettings,
     NS_ENSURE_TRUE(mPrintEngine, NS_ERROR_OUT_OF_MEMORY);
 
     rv = mPrintEngine->Initialize(this, docShell, mDocument, 
-                                  float(mDeviceContext->AppUnitsPerCSSInch()) /
+                                  float(mDeviceContext->AppUnitsPerInch()) /
                                   float(mDeviceContext->AppUnitsPerDevPixel()) /
                                   mPageZoom,
                                   mParentWidget,
@@ -3753,7 +3743,7 @@ DocumentViewerImpl::PrintPreview(nsIPrintSettings* aPrintSettings,
     NS_ENSURE_TRUE(mPrintEngine, NS_ERROR_OUT_OF_MEMORY);
 
     rv = mPrintEngine->Initialize(this, docShell, doc,
-                                  float(mDeviceContext->AppUnitsPerCSSInch()) /
+                                  float(mDeviceContext->AppUnitsPerInch()) /
                                   float(mDeviceContext->AppUnitsPerDevPixel()) /
                                   mPageZoom,
                                   mParentWidget,
@@ -3873,8 +3863,13 @@ DocumentViewerImpl::PrintPreviewNavigate(PRInt16 aType, PRInt32 aPageNum)
       sqf->GetDeadSpaceValue(&deadSpaceGapTwips);
     }
 
-    nscoord deadSpaceGap = nsPresContext::CSSTwipsToAppUnits(deadSpaceGapTwips);
-    nscoord newYPosn =
+    // To compute deadSpaceGap, use the same presContext as was used
+    // to layout the seqFrame. (That presContext may have different
+    // TwipsToAppUnits conversion from this->mPresContext)
+    nscoord deadSpaceGap = 
+      seqFrame->PresContext()->TwipsToAppUnits(deadSpaceGapTwips);
+
+    nscoord newYPosn = 
       nscoord(mPrintEngine->GetPrintPreviewScale() * 
               float(fndPageFrame->GetPosition().y - deadSpaceGap));
     sf->ScrollTo(nsPoint(pt.x, newYPosn), nsIScrollableFrame::INSTANT);

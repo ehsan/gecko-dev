@@ -1004,9 +1004,6 @@ nsLayoutUtils::TranslateWidgetToView(nsPresContext* aPresContext,
 {
   nsPoint viewOffset;
   nsIWidget* viewWidget = aView->GetNearestWidget(&viewOffset);
-  if (!viewWidget) {
-    return nsPoint(NS_UNCONSTRAINEDSIZE, NS_UNCONSTRAINEDSIZE);
-  }
 
   nsIWidget* fromRoot;
   nsIntPoint fromOffset = GetWidgetOffset(aWidget, fromRoot);
@@ -1219,13 +1216,13 @@ nsLayoutUtils::PaintFrame(nsIRenderingContext* aRenderingContext, nsIFrame* aFra
                           const nsRegion& aDirtyRegion, nscolor aBackstop,
                           PRUint32 aFlags)
 {
+#ifdef DEBUG
   if (aFlags & PAINT_WIDGET_LAYERS) {
     nsIView* view = aFrame->GetView();
-    if (!(view && view->GetWidget() && GetDisplayRootFrame(aFrame) == aFrame)) {
-      aFlags &= ~PAINT_WIDGET_LAYERS;
-      NS_ASSERTION(aRenderingContext, "need a rendering context");
-    }
+    NS_ASSERTION(view && view->GetWidget() && GetDisplayRootFrame(aFrame) == aFrame,
+      "PAINT_WIDGET_LAYERS should only be used on a display root that has a widget");
   }
+#endif
 
   nsPresContext* presContext = aFrame->PresContext();
   nsIPresShell* presShell = presContext->PresShell();
@@ -1240,12 +1237,6 @@ nsLayoutUtils::PaintFrame(nsIRenderingContext* aRenderingContext, nsIFrame* aFra
     visibleRegion = aDirtyRegion;
   }
 
-  // If we're going to display something different from what we'd normally
-  // paint in a window then we will flush out any retained layer trees before
-  // *and after* we draw.
-  PRBool willFlushLayers = aFlags & (PAINT_IGNORE_VIEWPORT_SCROLLING |
-                                     PAINT_HIDE_CARET);
-
   nsDisplayListBuilder builder(aFrame, PR_FALSE, !(aFlags & PAINT_HIDE_CARET));
   nsDisplayList list;
   if (aFlags & PAINT_IN_TRANSFORM) {
@@ -1257,9 +1248,8 @@ nsLayoutUtils::PaintFrame(nsIRenderingContext* aRenderingContext, nsIFrame* aFra
   if (aFlags & PAINT_WIDGET_LAYERS) {
     builder.SetPaintingToWindow(PR_TRUE);
   }
-  if ((aFlags & PAINT_IGNORE_SUPPRESSION) && builder.IsBackgroundOnly()) {
+  if (aFlags & PAINT_IGNORE_SUPPRESSION) {
     builder.SetBackgroundOnly(PR_FALSE);
-    willFlushLayers = PR_TRUE;
   }
   nsRect canvasArea(nsPoint(0, 0), aFrame->GetSize());
   if (aFlags & PAINT_IGNORE_VIEWPORT_SCROLLING) {
@@ -1328,6 +1318,13 @@ nsLayoutUtils::PaintFrame(nsIRenderingContext* aRenderingContext, nsIFrame* aFra
                                                             frameDirty, &list);
     }
   }
+
+  // If we're going to display something different from what we'd normally
+  // paint in a window then we will flush out any retained layer trees before
+  // *and after* we draw.
+  PRBool willFlushLayers = aFlags & (PAINT_IGNORE_SUPPRESSION |
+                                     PAINT_IGNORE_VIEWPORT_SCROLLING |
+                                     PAINT_HIDE_CARET);
 
   // For the viewport frame in print preview/page layout we want to paint
   // the grey background behind the page, not the canvas color.
@@ -1399,7 +1396,7 @@ nsLayoutUtils::PaintFrame(nsIRenderingContext* aRenderingContext, nsIFrame* aFra
       // paint in a window, so make sure we flush out any retained layer
       // trees before *and after* we draw
       flags |= nsDisplayList::PAINT_FLUSH_LAYERS;
-    } else if (widget) {
+    } else {
       // XXX we should simplify this API now that dirtyWindowRegion always
       // covers the entire window
       widget->UpdatePossiblyTransparentRegion(dirtyWindowRegion, visibleWindowRegion);
@@ -3289,9 +3286,6 @@ nsLayoutUtils::GetFrameTransparency(nsIFrame* aBackgroundFrame,
 
   if (aCSSRootFrame->GetStyleDisplay()->mAppearance == NS_THEME_WIN_GLASS)
     return eTransparencyGlass;
-
-  if (aCSSRootFrame->GetStyleDisplay()->mAppearance == NS_THEME_WIN_BORDERLESS_GLASS)
-    return eTransparencyBorderlessGlass;
 
   // We need an uninitialized window to be treated as opaque because
   // doing otherwise breaks window display effects on some platforms,

@@ -535,7 +535,6 @@ nsFrameScriptExecutor::DestroyCx()
     JS_DestroyContext(mCx);
   }
   mCx = nsnull;
-  mGlobal = nsnull;
 }
 
 static PLDHashOperator

@@ -51,9 +51,6 @@
 #include "nsGUIEvent.h"
 #include "nsEventDispatcher.h"
 #include "jsapi.h"
-#include "nsContentUtils.h"
-
-using mozilla::TimeStamp;
 
 /*
  * TODO:
@@ -62,30 +59,9 @@ using mozilla::TimeStamp;
  * that we flush when necessary.
  */
 
-#define DEFAULT_FRAME_RATE 60
+#define REFRESH_INTERVAL_MILLISECONDS 20
 
-// Compute the interval to use for the refresh driver timer, in
-// milliseconds
-static PRInt32
-GetRefreshTimerInterval()
-{
-  PRInt32 rate = nsContentUtils::GetIntPref("layout.frame_rate", -1);
-  if (rate <= 0) {
-    // TODO: get the rate from the platform
-    rate = DEFAULT_FRAME_RATE;
-  }
-  NS_ASSERTION(rate > 0, "Must have positive rate here");
-  return NSToIntRound(1000.0/rate);
-}
-
-static PRInt32
-GetRefreshTimerType()
-{
-  PRBool precise =
-    nsContentUtils::GetBoolPref("layout.frame_rate.precise", PR_FALSE);
-  return precise ? nsITimer::TYPE_REPEATING_PRECISE
-                 : nsITimer::TYPE_REPEATING_SLACK;
-}
+using mozilla::TimeStamp;
 
 nsRefreshDriver::nsRefreshDriver(nsPresContext *aPresContext)
   : mPresContext(aPresContext),
@@ -152,8 +128,8 @@ nsRefreshDriver::EnsureTimerStarted()
     return;
   }
 
-  nsresult rv = mTimer->InitWithCallback(this, GetRefreshTimerInterval(),
-                                         GetRefreshTimerType());
+  nsresult rv = mTimer->InitWithCallback(this, REFRESH_INTERVAL_MILLISECONDS,
+                                         nsITimer::TYPE_REPEATING_SLACK);
   if (NS_FAILED(rv)) {
     mTimer = nsnull;
   }
