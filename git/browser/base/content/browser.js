@@ -180,7 +180,7 @@ let gInitialPages = [
 ];
 
 #include browser-fullZoom.js
-#include ../../devtools/highlighter/inspector.js
+#include inspector.js
 #include browser-places.js
 #include browser-tabPreviews.js
 #include browser-tabview.js
@@ -1676,7 +1676,8 @@ function delayedStartup(isLoadingBlank, mustLoadSidebar) {
   TabView.init();
 
   // Enable Inspector?
-  if (InspectorUI.enabled) {
+  let enabled = gPrefService.getBoolPref(InspectorUI.prefEnabledName);
+  if (enabled) {
     document.getElementById("menu_pageinspect").hidden = false;
     document.getElementById("Tools:Inspect").removeAttribute("disabled");
 #ifdef MENUBAR_CAN_AUTOHIDE

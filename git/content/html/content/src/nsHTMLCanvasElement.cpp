@@ -487,17 +487,19 @@ nsHTMLCanvasElement::GetContext(const nsAString& aContextId,
       return NS_ERROR_FAILURE;
     }
 
-    nsCOMPtr<nsIWritablePropertyBag2> contextProps;
+    nsCOMPtr<nsIPropertyBag> contextProps;
     if (!JSVAL_IS_NULL(aContextOptions) &&
         !JSVAL_IS_VOID(aContextOptions))
     {
       JSContext *cx = nsContentUtils::GetCurrentJSContext();
 
+      nsCOMPtr<nsIWritablePropertyBag2> newProps;
+
       // note: if any contexts end up supporting something other
       // than objects, e.g. plain strings, then we'll need to expand
       // this to know how to create nsISupportsStrings etc.
       if (JSVAL_IS_OBJECT(aContextOptions)) {
-        contextProps = do_CreateInstance("@mozilla.org/hash-property-bag;1");
+        newProps = do_CreateInstance("@mozilla.org/hash-property-bag;1");
 
         JSObject *opts = JSVAL_TO_OBJECT(aContextOptions);
         JSIdArray *props = JS_Enumerate(cx, opts);
@@ -518,11 +520,11 @@ nsHTMLCanvasElement::GetContext(const nsAString& aContextId,
           }
 
           if (JSVAL_IS_BOOLEAN(propval)) {
-            contextProps->SetPropertyAsBool(pstr, propval == JSVAL_TRUE ? PR_TRUE : PR_FALSE);
+            newProps->SetPropertyAsBool(pstr, propval == JSVAL_TRUE ? PR_TRUE : PR_FALSE);
           } else if (JSVAL_IS_INT(propval)) {
-            contextProps->SetPropertyAsInt32(pstr, JSVAL_TO_INT(propval));
+            newProps->SetPropertyAsInt32(pstr, JSVAL_TO_INT(propval));
           } else if (JSVAL_IS_DOUBLE(propval)) {
-            contextProps->SetPropertyAsDouble(pstr, JSVAL_TO_DOUBLE(propval));
+            newProps->SetPropertyAsDouble(pstr, JSVAL_TO_DOUBLE(propval));
           } else if (JSVAL_IS_STRING(propval)) {
             JSString *propvalString = JS_ValueToString(cx, propval);
             nsDependentJSString vstr;
@@ -531,10 +533,12 @@ nsHTMLCanvasElement::GetContext(const nsAString& aContextId,
               return NS_ERROR_FAILURE;
             }
 
-            contextProps->SetPropertyAsAString(pstr, vstr);
+            newProps->SetPropertyAsAString(pstr, vstr);
           }
         }
       }
+
+      contextProps = newProps;
     }
 
     rv = UpdateContext(contextProps);
