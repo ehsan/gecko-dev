@@ -21,7 +21,7 @@
 #define OS_LINUX 1
 #elif defined(__DragonFly__)
 #define OS_DRAGONFLY 1
-#elif defined(__FreeBSD__) || defined(__FreeBSD_kernel__)
+#elif defined(__FreeBSD__)
 #define OS_FREEBSD 1
 #elif defined(__NetBSD__)
 #define OS_NETBSD 1
