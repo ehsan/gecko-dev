@@ -131,12 +131,9 @@ class MacroAssemblerX86 : public MacroAssemblerX86Shared
         movl(val.payloadReg(), ToPayload(dest));
         movl(val.typeReg(), ToType(dest));
     }
-    void storeValue(ValueOperand val, const Address &dest) {
-        storeValue(val, Operand(dest));
-    }
-    void loadValue(Operand src, ValueOperand val) {
-        Operand payload = ToPayload(src);
-        Operand type = ToType(src);
+    void loadValue(Address src, ValueOperand val) {
+        Operand payload = ToPayload(Operand(src));
+        Operand type = ToType(Operand(src));
 
         // Ensure that loading the payload does not erase the pointer to the
         // Value in memory.
@@ -147,9 +144,6 @@ class MacroAssemblerX86 : public MacroAssemblerX86Shared
             movl(type, val.typeReg());
             movl(payload, val.payloadReg());
         }
-    }
-    void loadValue(Address src, ValueOperand val) {
-        loadValue(Operand(src), val);
     }
     void pushValue(ValueOperand val) {
         push(val.typeReg());

@@ -104,10 +104,6 @@ class MacroAssemblerX86Shared : public Assembler
         }
     }
 
-    void move32(const Imm32 &imm, const Register &dest) {
-        movl(imm, dest);
-    }
-
     void branch32(Condition cond, const Register &lhs, Imm32 imm, Label *label) {
         cmpl(lhs, imm);
         j(cond, label);

@@ -53,7 +53,6 @@ class IonCommonFrameLayout
     void *returnAddress_;
     void *padding;
     uintptr_t descriptor_;
-
   public:
     static size_t offsetOfDescriptor() {
         return offsetof(IonCommonFrameLayout, descriptor_);
@@ -79,7 +78,6 @@ class IonCommonFrameLayout
         return NULL;
     }
 };
-
 // this is the layout of the frame that is used when we enter Ion code from EABI code
 class IonEntryFrameLayout : public IonCommonFrameLayout
 {
@@ -116,7 +114,6 @@ class IonExitFrameLayout : public IonCommonFrameLayout
 {
 };
 
-} // namespace ion
-} // namespace js
-
+} // ion
+} // js
 #endif // jsion_ionframes_arm_h

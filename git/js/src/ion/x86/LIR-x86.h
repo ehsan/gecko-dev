@@ -77,6 +77,8 @@ class LBoxDouble : public LInstructionHelper<2, 1, 0>
 
 class LUnbox : public LInstructionHelper<1, 2, 0>
 {
+    MIRType type_;
+
   public:
     LIR_HEADER(Unbox);
 

@@ -121,9 +121,6 @@ class LInteger : public LInstructionHelper<1, 0, 0>
     int32 getValue() const {
         return i32_;
     }
-    const LDefinition *output() {
-        return getDef(0);
-    }
 };
 
 // Constant 64-bit gc-pointer.
