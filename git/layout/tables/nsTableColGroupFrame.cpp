@@ -131,21 +131,30 @@ nsTableColGroupFrame::GetLastRealColGroup(nsTableFrame* aTableFrame)
 }
 
 // don't set mColCount here, it is done in AddColsToTable
-void
+nsresult
 nsTableColGroupFrame::SetInitialChildList(ChildListID     aListID,
                                           nsFrameList&    aChildList)
 {
-  MOZ_ASSERT(mFrames.IsEmpty(),
-             "unexpected second call to SetInitialChildList");
-  MOZ_ASSERT(aListID == kPrincipalList, "unexpected child list");
-  if (aChildList.IsEmpty()) { 
-    nsTableFrame* tableFrame = nsTableFrame::GetTableFrame(this);
+  if (!mFrames.IsEmpty()) {
+    // We already have child frames which means we've already been
+    // initialized
+    NS_NOTREACHED("unexpected second call to SetInitialChildList");
+    return NS_ERROR_UNEXPECTED;
+  }
+  if (aListID != kPrincipalList) {
+    // All we know about is the principal child list.
+    NS_NOTREACHED("unknown frame list");
+    return NS_ERROR_INVALID_ARG;
+  } 
+  nsTableFrame* tableFrame = nsTableFrame::GetTableFrame(this);
+  if (aChildList.IsEmpty()) {
     tableFrame->AppendAnonymousColFrames(this, GetSpan(), eColAnonymousColGroup, 
                                          false);
-    return; 
+    return NS_OK; 
   }
 
   mFrames.AppendFrames(this, aChildList);
+  return NS_OK;
 }
 
 /* virtual */ void
@@ -168,7 +177,7 @@ nsTableColGroupFrame::DidSetStyleContext(nsStyleContext* aOldStyleContext)
   }
 }
 
-void
+nsresult
 nsTableColGroupFrame::AppendFrames(ChildListID     aListID,
                                    nsFrameList&    aFrameList)
 {
@@ -189,9 +198,10 @@ nsTableColGroupFrame::AppendFrames(ChildListID     aListID,
   const nsFrameList::Slice& newFrames =
     mFrames.AppendFrames(this, aFrameList);
   InsertColsReflow(GetStartColumnIndex() + mColCount, newFrames);
+  return NS_OK;
 }
 
-void
+nsresult
 nsTableColGroupFrame::InsertFrames(ChildListID     aListID,
                                    nsIFrame*       aPrevFrame,
                                    nsFrameList&    aFrameList)
@@ -232,6 +242,8 @@ nsTableColGroupFrame::InsertFrames(ChildListID     aListID,
 
   int32_t colIndex = (prevFrame) ? ((nsTableColFrame*)prevFrame)->GetColIndex() + 1 : GetStartColumnIndex();
   InsertColsReflow(colIndex, newFrames);
+
+  return NS_OK;
 }
 
 void
@@ -273,15 +285,13 @@ nsTableColGroupFrame::RemoveChild(nsTableColFrame& aChild,
                                                NS_FRAME_HAS_DIRTY_CHILDREN);
 }
 
-void
+nsresult
 nsTableColGroupFrame::RemoveFrame(ChildListID     aListID,
                                   nsIFrame*       aOldFrame)
 {
   NS_ASSERTION(aListID == kPrincipalList, "unexpected child list");
 
-  if (!aOldFrame) {
-    return;
-  }
+  if (!aOldFrame) return NS_OK;
   bool contentRemoval = false;
   
   if (nsGkAtoms::tableColFrame == aOldFrame->GetType()) {
@@ -326,6 +336,8 @@ nsTableColGroupFrame::RemoveFrame(ChildListID     aListID,
   else {
     mFrames.DestroyFrame(aOldFrame);
   }
+
+  return NS_OK;
 }
 
 int

@@ -18,7 +18,7 @@ public:
   NS_IMETHOD
   TransmitAutomaticData() MOZ_OVERRIDE;
 
-  virtual void
+  virtual nsresult
   SetInitialChildList(ChildListID     aListID,
                       nsFrameList&    aChildList) MOZ_OVERRIDE;
 

@@ -127,6 +127,10 @@ CompositorOGL::CreateContext()
 void
 CompositorOGL::Destroy()
 {
+  if (gl() && gl()->MakeCurrent()) {
+    mVBOs.Flush(gl());
+  }
+
   if (mTexturePool) {
     mTexturePool->Clear();
     mTexturePool = nullptr;
@@ -678,6 +682,8 @@ CompositorOGL::BeginFrame(const nsIntRegion& aInvalidRegion,
   MOZ_ASSERT(!mFrameInProgress, "frame still in progress (should have called EndFrame or AbortFrame");
 
   LayerScope::BeginFrame(mGLContext, PR_Now());
+
+  mVBOs.Reset();
 
   mFrameInProgress = true;
   gfx::Rect rect;

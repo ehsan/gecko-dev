@@ -34,15 +34,15 @@ public:
 
   virtual eMathMLFrameType GetMathMLFrameType() MOZ_OVERRIDE;
 
-  virtual void
+  virtual nsresult
   SetInitialChildList(ChildListID     aListID,
                       nsFrameList&    aChildList) MOZ_OVERRIDE;
 
-  virtual void
+  virtual nsresult
   AppendFrames(ChildListID            aListID,
                nsFrameList&           aChildList) MOZ_OVERRIDE;
 
-  virtual void
+  virtual nsresult
   InsertFrames(ChildListID            aListID,
                nsIFrame*              aPrevFrame,
                nsFrameList&           aChildList) MOZ_OVERRIDE;

@@ -1184,11 +1184,11 @@ nsTextControlFrame::GetMaxLength(int32_t* aSize)
 
 // END IMPLEMENTING NS_IFORMCONTROLFRAME
 
-void
+nsresult
 nsTextControlFrame::SetInitialChildList(ChildListID     aListID,
                                         nsFrameList&    aChildList)
 {
-  nsContainerFrame::SetInitialChildList(aListID, aChildList);
+  nsresult rv = nsContainerFrame::SetInitialChildList(aListID, aChildList);
 
   nsIFrame* first = GetFirstPrincipalChild();
 
@@ -1216,6 +1216,7 @@ nsTextControlFrame::SetInitialChildList(ChildListID     aListID,
       delete contentScrollPos;
     }
   }
+  return rv;
 }
 
 void

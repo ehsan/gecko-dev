@@ -145,21 +145,8 @@ this.PermissionsInstaller = {
           expandPermissions(permName,
                             newManifest.permissions[permName].access);
         for (let idx in expandedPermNames) {
-          // We silently upgrade the permission to whatever the permission
-          // is for certified apps (ALLOW or PROMPT) only if the
-          // following holds true:
-          // * The app is preinstalled
-          // * The permission that would be granted is PROMPT
-          // * The app is privileged
-          let permission =
-            aApp.isPreinstalled &&
-            PermissionsTable[permName][appStatus] === PROMPT_ACTION &&
-            appStatus === "privileged"
-                ? PermissionsTable[permName]["certified"]
-                : PermissionsTable[permName][appStatus];
-
           this._setPermission(expandedPermNames[idx],
-                              PERM_TO_STRING[permission],
+                              PERM_TO_STRING[PermissionsTable[permName][appStatus]],
                               aApp);
         }
       }

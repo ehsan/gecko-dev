@@ -16,10 +16,6 @@ let ALLOW_LIST = 0;
 let BLOCK_LIST = 1;
 let NO_LIST = 2;
 
-let whitelistedURI = createURI("http://whitelisted.com");
-let exampleURI = createURI("http://example.com");
-let blocklistedURI = createURI("http://blocklisted.com");
-
 function readFileToString(aFilename) {
   let f = do_get_file(aFilename);
   let stream = Cc["@mozilla.org/network/file-input-stream;1"]
@@ -230,7 +226,7 @@ add_test(function test_unlisted() {
   let listCounts = counts.listCounts;
   listCounts[NO_LIST]++;
   gAppRep.queryReputation({
-    sourceURI: exampleURI,
+    sourceURI: createURI("http://example.com"),
     fileSize: 12,
   }, function onComplete(aShouldBlock, aStatus) {
     do_check_eq(Cr.NS_OK, aStatus);
@@ -247,7 +243,7 @@ add_test(function test_local_blacklist() {
   let listCounts = counts.listCounts;
   listCounts[BLOCK_LIST]++;
   gAppRep.queryReputation({
-    sourceURI: blocklistedURI,
+    sourceURI: createURI("http://blocklisted.com"),
     fileSize: 12,
   }, function onComplete(aShouldBlock, aStatus) {
     do_check_eq(Cr.NS_OK, aStatus);
@@ -264,8 +260,8 @@ add_test(function test_referer_blacklist() {
   let listCounts = counts.listCounts;
   listCounts[BLOCK_LIST]++;
   gAppRep.queryReputation({
-    sourceURI: exampleURI,
-    referrerURI: blocklistedURI,
+    sourceURI: createURI("http://example.com"),
+    referrerURI: createURI("http://blocklisted.com"),
     fileSize: 12,
   }, function onComplete(aShouldBlock, aStatus) {
     do_check_eq(Cr.NS_OK, aStatus);
@@ -282,36 +278,8 @@ add_test(function test_blocklist_trumps_allowlist() {
   let listCounts = counts.listCounts;
   listCounts[BLOCK_LIST]++;
   gAppRep.queryReputation({
-    sourceURI: whitelistedURI,
-    referrerURI: blocklistedURI,
-    fileSize: 12,
-  }, function onComplete(aShouldBlock, aStatus) {
-    do_check_eq(Cr.NS_OK, aStatus);
-    do_check_true(aShouldBlock);
-    check_telemetry(counts.total + 1, counts.shouldBlock + 1, listCounts);
-    run_next_test();
-  });
-});
-
-add_test(function test_redirect_on_blocklist() {
-  Services.prefs.setCharPref("browser.safebrowsing.appRepURL",
-                             "http://localhost:4444/download");
-  let counts = get_telemetry_counts();
-  let listCounts = counts.listCounts;
-  listCounts[BLOCK_LIST]++;
-  let secman = Services.scriptSecurityManager;
-  let badRedirects = Cc["@mozilla.org/array;1"]
-                       .createInstance(Ci.nsIMutableArray);
-  badRedirects.appendElement(secman.getNoAppCodebasePrincipal(whitelistedURI),
-                             false);
-  badRedirects.appendElement(secman.getNoAppCodebasePrincipal(exampleURI),
-                             false);
-  badRedirects.appendElement(secman.getNoAppCodebasePrincipal(blocklistedURI),
-                             false);
-  gAppRep.queryReputation({
-    sourceURI: whitelistedURI,
-    referrerURI: exampleURI,
-    redirects: badRedirects,
+    sourceURI: createURI("http://whitelisted.com"),
+    referrerURI: createURI("http://blocklisted.com"),
     fileSize: 12,
   }, function onComplete(aShouldBlock, aStatus) {
     do_check_eq(Cr.NS_OK, aStatus);

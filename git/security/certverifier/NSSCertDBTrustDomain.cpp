@@ -44,13 +44,11 @@ NSSCertDBTrustDomain::NSSCertDBTrustDomain(SECTrustType certDBTrustType,
                                            OCSPFetching ocspFetching,
                                            OCSPCache& ocspCache,
                                            void* pinArg,
-                                           CertVerifier::ocsp_get_config ocspGETConfig,
                                            CERTChainVerifyCallback* checkChainCallback)
   : mCertDBTrustType(certDBTrustType)
   , mOCSPFetching(ocspFetching)
   , mOCSPCache(ocspCache)
   , mPinArg(pinArg)
-  , mOCSPGetConfig(ocspGETConfig)
   , mCheckChainCallback(checkChainCallback)
 {
 }
@@ -340,8 +338,7 @@ NSSCertDBTrustDomain::CheckRevocation(
     }
 
     response = DoOCSPRequest(arena.get(), url.get(), request,
-                             OCSPFetchingTypeToTimeoutTime(mOCSPFetching),
-                             mOCSPGetConfig == CertVerifier::ocsp_get_enabled);
+                             OCSPFetchingTypeToTimeoutTime(mOCSPFetching));
   }
 
   if (!response) {

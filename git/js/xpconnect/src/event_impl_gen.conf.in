@@ -26,7 +26,6 @@ simple_events = [
     'MozWifiP2pStatusChangeEvent',
     'MozWifiStatusChangeEvent',
     'MozWifiConnectionInfoEvent',
-    'MozWifiStationInfoEvent',
 #endif
 #ifdef MOZ_B2G_RIL
     'MozCellBroadcastEvent',

@@ -373,26 +373,27 @@ nsHTMLButtonControlFrame::SetAdditionalStyleContext(int32_t aIndex,
   mRenderer.SetStyleContext(aIndex, aStyleContext);
 }
 
-#ifdef DEBUG
-void
+nsresult 
 nsHTMLButtonControlFrame::AppendFrames(ChildListID     aListID,
                                        nsFrameList&    aFrameList)
 {
-  MOZ_CRASH("unsupported operation");
+  NS_NOTREACHED("unsupported operation");
+  return NS_ERROR_UNEXPECTED;
 }
 
-void
+nsresult
 nsHTMLButtonControlFrame::InsertFrames(ChildListID     aListID,
                                        nsIFrame*       aPrevFrame,
                                        nsFrameList&    aFrameList)
 {
-  MOZ_CRASH("unsupported operation");
+  NS_NOTREACHED("unsupported operation");
+  return NS_ERROR_UNEXPECTED;
 }
 
-void
+nsresult
 nsHTMLButtonControlFrame::RemoveFrame(ChildListID     aListID,
                                       nsIFrame*       aOldFrame)
 {
-  MOZ_CRASH("unsupported operation");
+  NS_NOTREACHED("unsupported operation");
+  return NS_ERROR_UNEXPECTED;
 }
-#endif

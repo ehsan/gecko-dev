@@ -38,7 +38,7 @@ const BUCKET_TIMESTEPS    = [
 ];
 
 // Time after which seen Page IDs expire.
-const SEENPAGEID_EXPIRY  = 2 * 7 * 24 * 60 * 60 * 1000; // 2 weeks.
+const SEENPAGEID_EXPIRY  = 8 * 7 * 24 * 60 * 60 * 1000; // 8 weeks.
 
 
 this.UITour = {
@@ -635,9 +635,17 @@ this.UITour = {
   },
 
   sendPageCallback: function(aDocument, aCallbackID, aData = {}) {
+    let detail = Cu.createObjectIn(aDocument.defaultView);
+    detail.data = Cu.createObjectIn(detail);
 
-    let detail = {data: aData, callbackID: aCallbackID};
-    detail = Cu.cloneInto(detail, aDocument.defaultView);
+    for (let key of Object.keys(aData))
+      detail.data[key] = aData[key];
+
+    Cu.makeObjectPropsNormal(detail.data);
+    Cu.makeObjectPropsNormal(detail);
+
+    detail.callbackID = aCallbackID;
+
     let event = new aDocument.defaultView.CustomEvent("mozUITourResponse", {
       bubbles: true,
       detail: detail

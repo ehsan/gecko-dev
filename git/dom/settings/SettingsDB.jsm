@@ -192,11 +192,10 @@ SettingsDB.prototype = {
     }
 
     // Fall-through, we now have a dictionary object.
-    let res = {};
     for (let prop in aObject) {
-      res[prop] = this.prepareValue(aObject[prop]);
+      aObject[prop] = this.prepareValue(aObject[prop]);
     }
-    return res;
+    return aObject;
   },
 
   init: function init() {

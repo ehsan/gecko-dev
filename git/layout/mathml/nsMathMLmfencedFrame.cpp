@@ -40,12 +40,13 @@ nsMathMLmfencedFrame::InheritAutomaticData(nsIFrame* aParent)
   return NS_OK;
 }
 
-void
+nsresult
 nsMathMLmfencedFrame::SetInitialChildList(ChildListID     aListID,
                                           nsFrameList&    aChildList)
 {
   // First, let the base class do its work
-  nsMathMLContainerFrame::SetInitialChildList(aListID, aChildList);
+  nsresult rv = nsMathMLContainerFrame::SetInitialChildList(aListID, aChildList);
+  if (NS_FAILED(rv)) return rv;
 
   // InheritAutomaticData will not get called if our parent is not a mathml
   // frame, so initialize NS_MATHML_STRETCH_ALL_CHILDREN_VERTICALLY for
@@ -55,6 +56,7 @@ nsMathMLmfencedFrame::SetInitialChildList(ChildListID     aListID,
   // The Style System will use Get/SetAdditionalStyleContext() to keep them
   // up-to-date if dynamic changes arise.
   CreateFencesAndSeparators(PresContext());
+  return NS_OK;
 }
 
 nsresult

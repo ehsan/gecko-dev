@@ -314,7 +314,7 @@ nsMenuFrame::SetPopupFrame(nsFrameList& aFrameList)
   }
 }
 
-void
+nsresult
 nsMenuFrame::SetInitialChildList(ChildListID     aListID,
                                  nsFrameList&    aChildList)
 {
@@ -322,7 +322,7 @@ nsMenuFrame::SetInitialChildList(ChildListID     aListID,
   if (aListID == kPrincipalList || aListID == kPopupList) {
     SetPopupFrame(aChildList);
   }
-  nsBoxFrame::SetInitialChildList(aListID, aChildList);
+  return nsBoxFrame::SetInitialChildList(aListID, aChildList);
 }
 
 void
@@ -1272,7 +1272,7 @@ nsMenuFrame::PassMenuCommandEventToPopupManager()
   mDelayedMenuCommandEvent = nullptr;
 }
 
-void
+nsresult
 nsMenuFrame::RemoveFrame(ChildListID     aListID,
                          nsIFrame*       aOldFrame)
 {
@@ -1284,12 +1284,12 @@ nsMenuFrame::RemoveFrame(ChildListID     aListID,
     PresContext()->PresShell()->
       FrameNeedsReflow(this, nsIPresShell::eTreeChange,
                        NS_FRAME_HAS_DIRTY_CHILDREN);
-    return;
+    return NS_OK;
   }
-  nsBoxFrame::RemoveFrame(aListID, aOldFrame);
+  return nsBoxFrame::RemoveFrame(aListID, aOldFrame);
 }
 
-void
+nsresult
 nsMenuFrame::InsertFrames(ChildListID     aListID,
                           nsIFrame*       aPrevFrame,
                           nsFrameList&    aFrameList)
@@ -1309,16 +1309,16 @@ nsMenuFrame::InsertFrames(ChildListID     aListID,
   }
 
   if (aFrameList.IsEmpty())
-    return;
+    return NS_OK;
 
   if (MOZ_UNLIKELY(aPrevFrame && aPrevFrame == GetPopup())) {
     aPrevFrame = nullptr;
   }
 
-  nsBoxFrame::InsertFrames(aListID, aPrevFrame, aFrameList);
+  return nsBoxFrame::InsertFrames(aListID, aPrevFrame, aFrameList);
 }
 
-void
+nsresult
 nsMenuFrame::AppendFrames(ChildListID     aListID,
                           nsFrameList&    aFrameList)
 {
@@ -1337,9 +1337,9 @@ nsMenuFrame::AppendFrames(ChildListID     aListID,
   }
 
   if (aFrameList.IsEmpty())
-    return;
+    return NS_OK;
 
-  nsBoxFrame::AppendFrames(aListID, aFrameList); 
+  return nsBoxFrame::AppendFrames(aListID, aFrameList); 
 }
 
 bool
