@@ -1431,9 +1431,6 @@ nsNativeThemeCocoa::DrawMeter(CGContextRef cgContext, const HIRect& inBoxRect,
   double value = meterElement->Value();
   double min = meterElement->Min();
   double max = meterElement->Max();
-  double low = meterElement->Low();
-  double high = meterElement->High();
-  double optimum = meterElement->Optimum();
 
   NSLevelIndicatorCell* cell = mMeterBarCell;
 
