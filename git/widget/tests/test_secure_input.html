@@ -36,7 +36,8 @@
 
   function sendAKeyEvent()
   {
-    synthesizeNativeKey(KEYBOARD_LAYOUT_EN_US, MAC_VK_ANSI_A, {}, "a", "a");
+    SpecialPowers.getDOMWindowUtils(window)
+                 .sendNativeKeyEvent(0, MAC_VK_ANSI_A, 0, "a", "a");
   }
 
   function isFocused(aElement)

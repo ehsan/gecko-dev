@@ -535,6 +535,7 @@ abstract public class BrowserApp extends GeckoApp
         registerEventListener("Telemetry:Gather");
         registerEventListener("Settings:Show");
         registerEventListener("Updater:Launch");
+        registerEventListener("Reader:GoToReadingList");
 
         Distribution.init(this);
         JavaAddonManager.getInstance().init(getApplicationContext());
@@ -845,6 +846,7 @@ abstract public class BrowserApp extends GeckoApp
         unregisterEventListener("Telemetry:Gather");
         unregisterEventListener("Settings:Show");
         unregisterEventListener("Updater:Launch");
+        unregisterEventListener("Reader:GoToReadingList");
 
         if (AppConstants.MOZ_ANDROID_BEAM && Build.VERSION.SDK_INT >= 14) {
             NfcAdapter nfc = NfcAdapter.getDefaultAdapter(this);
@@ -1202,6 +1204,8 @@ abstract public class BrowserApp extends GeckoApp
                 startActivity(settingsIntent);
             } else if (event.equals("Updater:Launch")) {
                 handleUpdaterLaunch();
+            } else if (event.equals("Reader:GoToReadingList")) {
+                openReadingList();
             } else if (event.equals("Prompt:ShowTop")) {
                 // Bring this activity to front so the prompt is visible..
                 Intent bringToFrontIntent = new Intent();
@@ -1218,8 +1222,7 @@ abstract public class BrowserApp extends GeckoApp
 
     @Override
     public void addTab() {
-        // Always load about:home when opening a new tab.
-        Tabs.getInstance().loadUrl(AboutPages.HOME, Tabs.LOADURL_NEW_TAB);
+        super.loadHomePage(Tabs.LOADURL_NEW_TAB);
     }
 
     @Override
@@ -1388,6 +1391,10 @@ abstract public class BrowserApp extends GeckoApp
 
     private boolean isHomePagerVisible() {
         return (mHomePager != null && mHomePager.isVisible());
+    }
+
+    private void openReadingList() {
+        super.loadHomePage(Tabs.LOADURL_READING_LIST);
     }
 
     /* Favicon stuff. */
@@ -1600,8 +1607,7 @@ abstract public class BrowserApp extends GeckoApp
         }
 
         if (isAboutHome(tab)) {
-            final String pageId = AboutPages.getPageIdFromAboutHomeUrl(tab.getURL());
-            showHomePager(pageId);
+            showHomePager(tab.getAboutHomePageId());
 
             if (isDynamicToolbarEnabled()) {
                 // Show the toolbar.
