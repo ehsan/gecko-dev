@@ -23,8 +23,6 @@ public:
   NS_INLINE_DECL_REFCOUNTING(GMPTimerParent)
   GMPTimerParent(nsIThread* aGMPThread);
 
-  void Shutdown();
-
 protected:
   virtual bool RecvSetTimer(const uint32_t& aTimerId,
                             const uint32_t& aTimeoutMs) MOZ_OVERRIDE;
@@ -55,8 +53,6 @@ private:
   nsTHashtable<nsPtrHashKey<Context>> mTimers;
 
   nsCOMPtr<nsIThread> mGMPThread;
-
-  bool mIsOpen;
 };
 
 } // namespace gmp

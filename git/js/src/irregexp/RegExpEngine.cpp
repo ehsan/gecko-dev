@@ -513,21 +513,6 @@ class VisitMarker
     NodeInfo* info_;
 };
 
-bool
-SeqRegExpNode::FillInBMInfo(int offset,
-                            int budget,
-                            BoyerMooreLookahead* bm,
-                            bool not_at_start)
-{
-    if (!bm->CheckOverRecursed())
-        return false;
-    if (!on_success_->FillInBMInfo(offset, budget - 1, bm, not_at_start))
-        return false;
-    if (offset == 0)
-        set_bm_info(not_at_start, bm);
-    return true;
-}
-
 RegExpNode *
 SeqRegExpNode::FilterASCII(int depth, bool ignore_case)
 {
@@ -568,24 +553,17 @@ ActionNode::EatsAtLeast(int still_to_find, int budget, bool not_at_start)
                                      not_at_start);
 }
 
-bool
+void
 ActionNode::FillInBMInfo(int offset,
                          int budget,
                          BoyerMooreLookahead* bm,
                          bool not_at_start)
 {
-    if (!bm->CheckOverRecursed())
-        return false;
-
-    if (action_type_ == BEGIN_SUBMATCH) {
+    if (action_type_ == BEGIN_SUBMATCH)
         bm->SetRest(offset);
-    } else if (action_type_ != POSITIVE_SUBMATCH_SUCCESS) {
-        if (!on_success()->FillInBMInfo(offset, budget - 1, bm, not_at_start))
-            return false;
-    }
+    else if (action_type_ != POSITIVE_SUBMATCH_SUCCESS)
+        on_success()->FillInBMInfo(offset, budget - 1, bm, not_at_start);
     SaveBMInfo(bm, not_at_start, offset);
-
-    return true;
 }
 
 /* static */ ActionNode *
@@ -812,20 +790,15 @@ AssertionNode::EatsAtLeast(int still_to_find, int budget, bool not_at_start)
     return on_success()->EatsAtLeast(still_to_find, budget - 1, not_at_start);
 }
 
-bool
+void
 AssertionNode::FillInBMInfo(int offset, int budget, BoyerMooreLookahead* bm, bool not_at_start)
 {
-    if (!bm->CheckOverRecursed())
-        return false;
-
     // Match the behaviour of EatsAtLeast on this node.
     if (assertion_type() == AT_START && not_at_start)
-        return true;
+        return;
 
-    if (!on_success()->FillInBMInfo(offset, budget - 1, bm, not_at_start))
-        return false;
+    on_success()->FillInBMInfo(offset, budget - 1, bm, not_at_start);
     SaveBMInfo(bm, not_at_start, offset);
-    return true;
 }
 
 // -------------------------------------------------------------------
@@ -839,14 +812,13 @@ BackReferenceNode::EatsAtLeast(int still_to_find, int budget, bool not_at_start)
     return on_success()->EatsAtLeast(still_to_find, budget - 1, not_at_start);
 }
 
-bool
+void
 BackReferenceNode::FillInBMInfo(int offset, int budget, BoyerMooreLookahead* bm, bool not_at_start)
 {
     // Working out the set of characters that a backreference can match is too
     // hard, so we just say that any character can match.
     bm->SetRest(offset);
     SaveBMInfo(bm, not_at_start, offset);
-    return true;
 }
 
 // -------------------------------------------------------------------
@@ -910,15 +882,12 @@ ChoiceNode::GetQuickCheckDetails(QuickCheckDetails* details,
     }
 }
 
-bool
+void
 ChoiceNode::FillInBMInfo(int offset,
                          int budget,
                          BoyerMooreLookahead* bm,
                          bool not_at_start)
 {
-    if (!bm->CheckOverRecursed())
-        return false;
-
     const GuardedAlternativeVector &alts = alternatives();
     budget = (budget - 1) / alts.length();
     for (size_t i = 0; i < alts.length(); i++) {
@@ -926,13 +895,11 @@ ChoiceNode::FillInBMInfo(int offset,
         if (alt.guards() != nullptr && alt.guards()->length() != 0) {
             bm->SetRest(offset);  // Give up trying to fill in info.
             SaveBMInfo(bm, not_at_start, offset);
-            return true;
+            return;
         }
-        if (!alt.node()->FillInBMInfo(offset, budget, bm, not_at_start))
-            return false;
+        alt.node()->FillInBMInfo(offset, budget, bm, not_at_start);
     }
     SaveBMInfo(bm, not_at_start, offset);
-    return true;
 }
 
 RegExpNode*
@@ -994,22 +961,6 @@ ChoiceNode::FilterASCII(int depth, bool ignore_case)
 
 // -------------------------------------------------------------------
 // NegativeLookaheadChoiceNode
-
-bool
-NegativeLookaheadChoiceNode::FillInBMInfo(int offset,
-                                          int budget,
-                                          BoyerMooreLookahead* bm,
-                                          bool not_at_start)
-{
-    if (!bm->CheckOverRecursed())
-        return false;
-
-    if (!alternatives()[1].node()->FillInBMInfo(offset, budget - 1, bm, not_at_start))
-        return false;
-    if (offset == 0)
-        set_bm_info(not_at_start, bm);
-    return true;
-}
 
 int
 NegativeLookaheadChoiceNode::EatsAtLeast(int still_to_find, int budget, bool not_at_start)
@@ -1120,7 +1071,7 @@ LoopChoiceNode::GetQuickCheckDetails(QuickCheckDetails* details,
                                             not_at_start);
 }
 
-bool
+void
 LoopChoiceNode::FillInBMInfo(int offset,
                              int budget,
                              BoyerMooreLookahead* bm,
@@ -1129,12 +1080,10 @@ LoopChoiceNode::FillInBMInfo(int offset,
     if (body_can_be_zero_length_ || budget <= 0) {
         bm->SetRest(offset);
         SaveBMInfo(bm, not_at_start, offset);
-        return true;
+        return;
     }
-    if (!ChoiceNode::FillInBMInfo(offset, budget - 1, bm, not_at_start))
-        return false;
+    ChoiceNode::FillInBMInfo(offset, budget - 1, bm, not_at_start);
     SaveBMInfo(bm, not_at_start, offset);
-    return true;
 }
 
 RegExpNode *
@@ -1479,7 +1428,7 @@ class FrequencyCollator
 class irregexp::RegExpCompiler
 {
   public:
-    RegExpCompiler(JSContext *cx, LifoAlloc *alloc, int capture_count, bool ignore_case, bool is_ascii);
+    RegExpCompiler(LifoAlloc *alloc, int capture_count, bool ignore_case, bool is_ascii);
 
     int AllocateRegister() {
         if (next_register_ >= RegExpMacroAssembler::kMaxRegister) {
@@ -1522,7 +1471,6 @@ class irregexp::RegExpCompiler
         current_expansion_factor_ = value;
     }
 
-    JSContext *cx() const { return cx_; }
     LifoAlloc *alloc() const { return alloc_; }
 
     static const int kNoRegister = -1;
@@ -1538,7 +1486,6 @@ class irregexp::RegExpCompiler
     bool reg_exp_too_big_;
     int current_expansion_factor_;
     FrequencyCollator frequency_collator_;
-    JSContext *cx_;
     LifoAlloc *alloc_;
 };
 
@@ -1556,7 +1503,7 @@ class RecursionCheck
 
 // Attempts to compile the regexp using an Irregexp code generator.  Returns
 // a fixed array or a null handle depending on whether it succeeded.
-RegExpCompiler::RegExpCompiler(JSContext *cx, LifoAlloc *alloc, int capture_count, bool ignore_case, bool ascii)
+RegExpCompiler::RegExpCompiler(LifoAlloc *alloc, int capture_count, bool ignore_case, bool ascii)
   : next_register_(2 * (capture_count + 1)),
     recursion_depth_(0),
     ignore_case_(ignore_case),
@@ -1564,7 +1511,6 @@ RegExpCompiler::RegExpCompiler(JSContext *cx, LifoAlloc *alloc, int capture_coun
     reg_exp_too_big_(false),
     current_expansion_factor_(1),
     frequency_collator_(),
-    cx_(cx),
     alloc_(alloc)
 {
     accept_ = alloc->newInfallible<EndNode>(alloc, EndNode::ACCEPT);
@@ -1641,7 +1587,7 @@ irregexp::CompilePattern(JSContext *cx, RegExpShared *shared, RegExpCompileData 
     }
 
     LifoAlloc &alloc = cx->tempLifoAlloc();
-    RegExpCompiler compiler(cx, &alloc, data->capture_count, ignore_case, is_ascii);
+    RegExpCompiler compiler(&alloc, data->capture_count, ignore_case, is_ascii);
 
     // Sample some characters from the middle of the string.
     if (sample->hasLatin1Chars()) {
@@ -2392,13 +2338,6 @@ BoyerMooreLookahead::EmitSkipInstructions(RegExpMacroAssembler* masm)
     masm->JumpOrBacktrack(&again);
     masm->Bind(&cont);
 
-    return true;
-}
-
-bool
-BoyerMooreLookahead::CheckOverRecursed()
-{
-    JS_CHECK_RECURSION(compiler()->cx(), compiler()->SetRegExpTooBig(); return false);
     return true;
 }
 
@@ -4549,17 +4488,14 @@ RegExpNode::EmitQuickCheck(RegExpCompiler* compiler,
     return true;
 }
 
-bool
+void
 TextNode::FillInBMInfo(int initial_offset,
                        int budget,
                        BoyerMooreLookahead* bm,
                        bool not_at_start)
 {
-    if (!bm->CheckOverRecursed())
-        return false;
-
     if (initial_offset >= bm->length())
-        return true;
+        return;
 
     int offset = initial_offset;
     int max_char = bm->max_char();
@@ -4567,7 +4503,7 @@ TextNode::FillInBMInfo(int initial_offset,
         if (offset >= bm->length()) {
             if (initial_offset == 0)
                 set_bm_info(not_at_start, bm);
-            return true;
+            return;
         }
         TextElement text = elements()[i];
         if (text.text_type() == TextElement::ATOM) {
@@ -4576,7 +4512,7 @@ TextNode::FillInBMInfo(int initial_offset,
                 if (offset >= bm->length()) {
                     if (initial_offset == 0)
                         set_bm_info(not_at_start, bm);
-                    return true;
+                    return;
                 }
                 jschar character = atom->data()[j];
                 if (bm->compiler()->ignore_case()) {
@@ -4610,16 +4546,14 @@ TextNode::FillInBMInfo(int initial_offset,
     }
     if (offset >= bm->length()) {
         if (initial_offset == 0) set_bm_info(not_at_start, bm);
-        return true;
+        return;
     }
-    if (!on_success()->FillInBMInfo(offset,
-                                    budget - 1,
-                                    bm,
-                                    true))   // Not at start after a text node.
-        return false;
+    on_success()->FillInBMInfo(offset,
+                               budget - 1,
+                               bm,
+                               true);  // Not at start after a text node.
     if (initial_offset == 0)
         set_bm_info(not_at_start, bm);
-    return true;
 }
 
 // -------------------------------------------------------------------
