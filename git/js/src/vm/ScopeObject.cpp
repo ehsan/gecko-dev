@@ -231,7 +231,7 @@ CallObject::createForFunction(JSContext *cx, StackFrame *fp)
         if (!scopeChain)
             return NULL;
 
-        if (!DefineNativeProperty(cx, scopeChain, AtomToId(lambdaName),
+        if (!DefineNativeProperty(cx, scopeChain, ATOM_TO_JSID(lambdaName),
                                   ObjectValue(fp->callee()), NULL, NULL,
                                   JSPROP_PERMANENT | JSPROP_READONLY, 0, 0)) {
             return NULL;
@@ -350,7 +350,7 @@ CallObject::setVarOp(JSContext *cx, JSObject *obj, jsid id, JSBool strict, Value
 bool
 CallObject::containsVarOrArg(PropertyName *name, Value *vp, JSContext *cx)
 {
-    jsid id = NameToId(name);
+    jsid id = ATOM_TO_JSID(name);
     const Shape *shape = nativeLookup(cx, id);
     if (!shape)
         return false;
@@ -483,7 +483,7 @@ with_LookupGeneric(JSContext *cx, JSObject *obj, jsid id, JSObject **objp, JSPro
 static JSBool
 with_LookupProperty(JSContext *cx, JSObject *obj, PropertyName *name, JSObject **objp, JSProperty **propp)
 {
-    return with_LookupGeneric(cx, obj, NameToId(name), objp, propp);
+    return with_LookupGeneric(cx, obj, ATOM_TO_JSID(name), objp, propp);
 }
 
 static JSBool
@@ -511,7 +511,7 @@ with_GetGeneric(JSContext *cx, JSObject *obj, JSObject *receiver, jsid id, Value
 static JSBool
 with_GetProperty(JSContext *cx, JSObject *obj, JSObject *receiver, PropertyName *name, Value *vp)
 {
-    return with_GetGeneric(cx, obj, receiver, NameToId(name), vp);
+    return with_GetGeneric(cx, obj, receiver, ATOM_TO_JSID(name), vp);
 }
 
 static JSBool
@@ -806,7 +806,7 @@ block_setProperty(JSContext *cx, JSObject *obj, jsid id, JSBool strict, Value *v
 bool
 ClonedBlockObject::containsVar(PropertyName *name, Value *vp, JSContext *cx)
 {
-    jsid id = NameToId(name);
+    jsid id = ATOM_TO_JSID(name);
     const Shape *shape = nativeLookup(cx, id);
     if (!shape)
         return false;
@@ -885,7 +885,7 @@ Class js::BlockClass = {
 static uint32_t
 FindObjectIndex(JSScript *script, StaticBlockObject *maybeBlock)
 {
-    if (!maybeBlock || !script->hasObjects())
+    if (!maybeBlock || !JSScript::isValidOffset(script->objectsOffset))
         return NO_PARENT_INDEX;
 
     ObjectArray *objects = script->objects();
@@ -957,7 +957,7 @@ js::XDRStaticBlockObject(XDRState<mode> *xdr, JSScript *script, StaticBlockObjec
 
             /* The empty string indicates an int id. */
             jsid id = atom != cx->runtime->emptyString
-                      ? AtomToId(atom)
+                      ? ATOM_TO_JSID(atom)
                       : INT_TO_JSID(i);
 
             bool redeclared;

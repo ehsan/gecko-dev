@@ -396,22 +396,22 @@ ProxyHandler::trace(JSTracer *trc, JSObject *proxy)
 }
 
 static bool
-GetTrap(JSContext *cx, JSObject *handler, PropertyName *name, Value *fvalp)
+GetTrap(JSContext *cx, JSObject *handler, JSAtom *atom, Value *fvalp)
 {
     JS_CHECK_RECURSION(cx, return false);
 
-    return handler->getGeneric(cx, NameToId(name), fvalp);
+    return handler->getGeneric(cx, ATOM_TO_JSID(atom), fvalp);
 }
 
 static bool
-GetFundamentalTrap(JSContext *cx, JSObject *handler, PropertyName *name, Value *fvalp)
+GetFundamentalTrap(JSContext *cx, JSObject *handler, JSAtom *atom, Value *fvalp)
 {
-    if (!GetTrap(cx, handler, name, fvalp))
+    if (!GetTrap(cx, handler, atom, fvalp))
         return false;
 
     if (!js_IsCallable(*fvalp)) {
         JSAutoByteString bytes;
-        if (js_AtomToPrintableString(cx, name, &bytes))
+        if (js_AtomToPrintableString(cx, atom, &bytes))
             JS_ReportErrorNumber(cx, js_GetErrorMessage, NULL, JSMSG_NOT_FUNCTION, bytes.ptr());
         return false;
     }
@@ -420,16 +420,16 @@ GetFundamentalTrap(JSContext *cx, JSObject *handler, PropertyName *name, Value *
 }
 
 static bool
-GetDerivedTrap(JSContext *cx, JSObject *handler, PropertyName *name, Value *fvalp)
+GetDerivedTrap(JSContext *cx, JSObject *handler, JSAtom *atom, Value *fvalp)
 {
-    JS_ASSERT(name == ATOM(has) ||
-              name == ATOM(hasOwn) ||
-              name == ATOM(get) ||
-              name == ATOM(set) ||
-              name == ATOM(keys) ||
-              name == ATOM(iterate));
+    JS_ASSERT(atom == ATOM(has) ||
+              atom == ATOM(hasOwn) ||
+              atom == ATOM(get) ||
+              atom == ATOM(set) ||
+              atom == ATOM(keys) ||
+              atom == ATOM(iterate));
 
-    return GetTrap(cx, handler, name, fvalp);
+    return GetTrap(cx, handler, atom, fvalp);
 }
 
 static bool
@@ -513,7 +513,7 @@ ArrayToIdVector(JSContext *cx, const Value &array, AutoIdVector &props)
         jsid id;
         if (!ValueToId(cx, v, &id))
             return false;
-        if (!props.append(id))
+        if (!props.append(js_CheckForStringIndex(id)))
             return false;
     }
 
@@ -1003,6 +1003,8 @@ proxy_LookupGeneric(JSContext *cx, JSObject *obj_, jsid id, JSObject **objp,
 {
     RootedVarObject obj(cx, obj_);
 
+    id = js_CheckForStringIndex(id);
+
     bool found;
     if (!Proxy::has(cx, obj, id, &found))
         return false;
@@ -1021,7 +1023,7 @@ static JSBool
 proxy_LookupProperty(JSContext *cx, JSObject *obj, PropertyName *name, JSObject **objp,
                      JSProperty **propp)
 {
-    return proxy_LookupGeneric(cx, obj, NameToId(name), objp, propp);
+    return proxy_LookupGeneric(cx, obj, ATOM_TO_JSID(name), objp, propp);
 }
 
 static JSBool
@@ -1046,6 +1048,8 @@ static JSBool
 proxy_DefineGeneric(JSContext *cx, JSObject *obj, jsid id, const Value *value,
                     PropertyOp getter, StrictPropertyOp setter, unsigned attrs)
 {
+    id = js_CheckForStringIndex(id);
+
     AutoPropertyDescriptorRooter desc(cx);
     desc.obj = obj;
     desc.value = *value;
@@ -1060,7 +1064,7 @@ static JSBool
 proxy_DefineProperty(JSContext *cx, JSObject *obj, PropertyName *name, const Value *value,
                      PropertyOp getter, StrictPropertyOp setter, unsigned attrs)
 {
-    return proxy_DefineGeneric(cx, obj, NameToId(name), value, getter, setter, attrs);
+    return proxy_DefineGeneric(cx, obj, ATOM_TO_JSID(name), value, getter, setter, attrs);
 }
 
 static JSBool
@@ -1085,13 +1089,15 @@ proxy_DefineSpecial(JSContext *cx, JSObject *obj, SpecialId sid, const Value *va
 static JSBool
 proxy_GetGeneric(JSContext *cx, JSObject *obj, JSObject *receiver, jsid id, Value *vp)
 {
+    id = js_CheckForStringIndex(id);
+
     return Proxy::get(cx, obj, receiver, id, vp);
 }
 
 static JSBool
 proxy_GetProperty(JSContext *cx, JSObject *obj, JSObject *receiver, PropertyName *name, Value *vp)
 {
-    return proxy_GetGeneric(cx, obj, receiver, NameToId(name), vp);
+    return proxy_GetGeneric(cx, obj, receiver, ATOM_TO_JSID(name), vp);
 }
 
 static JSBool
@@ -1122,13 +1128,15 @@ proxy_GetSpecial(JSContext *cx, JSObject *obj, JSObject *receiver, SpecialId sid
 static JSBool
 proxy_SetGeneric(JSContext *cx, JSObject *obj, jsid id, Value *vp, JSBool strict)
 {
+    id = js_CheckForStringIndex(id);
+
     return Proxy::set(cx, obj, obj, id, strict, vp);
 }
 
 static JSBool
 proxy_SetProperty(JSContext *cx, JSObject *obj, PropertyName *name, Value *vp, JSBool strict)
 {
-    return proxy_SetGeneric(cx, obj, NameToId(name), vp, strict);
+    return proxy_SetGeneric(cx, obj, ATOM_TO_JSID(name), vp, strict);
 }
 
 static JSBool
@@ -1151,6 +1159,8 @@ proxy_SetSpecial(JSContext *cx, JSObject *obj, SpecialId sid, Value *vp, JSBool 
 static JSBool
 proxy_GetGenericAttributes(JSContext *cx, JSObject *obj, jsid id, unsigned *attrsp)
 {
+    id = js_CheckForStringIndex(id);
+
     AutoPropertyDescriptorRooter desc(cx);
     if (!Proxy::getOwnPropertyDescriptor(cx, obj, id, false, &desc))
         return false;
@@ -1161,7 +1171,7 @@ proxy_GetGenericAttributes(JSContext *cx, JSObject *obj, jsid id, unsigned *attr
 static JSBool
 proxy_GetPropertyAttributes(JSContext *cx, JSObject *obj, PropertyName *name, unsigned *attrsp)
 {
-    return proxy_GetGenericAttributes(cx, obj, NameToId(name), attrsp);
+    return proxy_GetGenericAttributes(cx, obj, ATOM_TO_JSID(name), attrsp);
 }
 
 static JSBool
@@ -1184,6 +1194,8 @@ proxy_GetSpecialAttributes(JSContext *cx, JSObject *obj, SpecialId sid, unsigned
 static JSBool
 proxy_SetGenericAttributes(JSContext *cx, JSObject *obj, jsid id, unsigned *attrsp)
 {
+    id = js_CheckForStringIndex(id);
+
     /* Lookup the current property descriptor so we have setter/getter/value. */
     AutoPropertyDescriptorRooter desc(cx);
     if (!Proxy::getOwnPropertyDescriptor(cx, obj, id, true, &desc))
@@ -1195,7 +1207,7 @@ proxy_SetGenericAttributes(JSContext *cx, JSObject *obj, jsid id, unsigned *attr
 static JSBool
 proxy_SetPropertyAttributes(JSContext *cx, JSObject *obj, PropertyName *name, unsigned *attrsp)
 {
-    return proxy_SetGenericAttributes(cx, obj, NameToId(name), attrsp);
+    return proxy_SetGenericAttributes(cx, obj, ATOM_TO_JSID(name), attrsp);
 }
 
 static JSBool
@@ -1218,6 +1230,8 @@ proxy_SetSpecialAttributes(JSContext *cx, JSObject *obj, SpecialId sid, unsigned
 static JSBool
 proxy_DeleteGeneric(JSContext *cx, JSObject *obj_, jsid id, Value *rval, JSBool strict)
 {
+    JS_ASSERT(id == js_CheckForStringIndex(id));
+
     RootedVarObject obj(cx, obj_);
 
     // TODO: throwing away strict
@@ -1231,7 +1245,7 @@ proxy_DeleteGeneric(JSContext *cx, JSObject *obj_, jsid id, Value *rval, JSBool 
 static JSBool
 proxy_DeleteProperty(JSContext *cx, JSObject *obj, PropertyName *name, Value *rval, JSBool strict)
 {
-    return proxy_DeleteGeneric(cx, obj, NameToId(name), rval, strict);
+    return proxy_DeleteGeneric(cx, obj, js_CheckForStringIndex(ATOM_TO_JSID(name)), rval, strict);
 }
 
 static JSBool

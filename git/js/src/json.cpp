@@ -313,7 +313,7 @@ PreprocessValue(JSContext *cx, JSObject *holder, KeyType key, Value *vp, Stringi
     /* Step 2. */
     if (vp->isObject()) {
         Value toJSON;
-        jsid id = NameToId(cx->runtime->atomState.toJSONAtom);
+        jsid id = ATOM_TO_JSID(cx->runtime->atomState.toJSONAtom);
         if (!js_GetMethod(cx, RootedVarObject(cx, &vp->toObject()), id, 0, &toJSON))
             return false;
 
@@ -680,8 +680,9 @@ js_Stringify(JSContext *cx, Value *vp, JSObject *replacer_, Value space, StringB
                     if (v.isNumber() && ValueFitsInInt32(v, &n) && INT_FITS_IN_JSID(n)) {
                         id = INT_TO_JSID(n);
                     } else {
-                        if (!ValueToId(cx, v, &id))
+                        if (!js_ValueToStringId(cx, v, &id))
                             return false;
+                        id = js_CheckForStringIndex(id);
                     }
                 } else if (v.isString() ||
                            (v.isObject() &&
@@ -689,8 +690,9 @@ js_Stringify(JSContext *cx, Value *vp, JSObject *replacer_, Value space, StringB
                              ObjectClassIs(v.toObject(), ESClass_Number, cx))))
                 {
                     /* Step 4b(iv)(3), 4b(iv)(5). */
-                    if (!ValueToId(cx, v, &id))
+                    if (!js_ValueToStringId(cx, v, &id))
                         return false;
+                    id = js_CheckForStringIndex(id);
                 } else {
                     continue;
                 }
@@ -753,7 +755,7 @@ js_Stringify(JSContext *cx, Value *vp, JSObject *replacer_, Value space, StringB
         return false;
 
     /* Step 10. */
-    jsid emptyId = NameToId(cx->runtime->atomState.emptyAtom);
+    jsid emptyId = ATOM_TO_JSID(cx->runtime->atomState.emptyAtom);
     if (!DefineNativeProperty(cx, wrapper, emptyId, *vp, JS_PropertyStub, JS_StrictPropertyStub,
                               JSPROP_ENUMERATE, 0, 0))
     {
@@ -887,7 +889,7 @@ Revive(JSContext *cx, const Value &reviver, Value *vp)
     if (!obj->defineProperty(cx, cx->runtime->atomState.emptyAtom, *vp))
         return false;
 
-    return Walk(cx, obj, NameToId(cx->runtime->atomState.emptyAtom), reviver, vp);
+    return Walk(cx, obj, ATOM_TO_JSID(cx->runtime->atomState.emptyAtom), reviver, vp);
 }
 
 namespace js {
@@ -914,7 +916,7 @@ ParseJSONWithReviver(JSContext *cx, const jschar *chars, size_t length, const Va
 static JSBool
 json_toSource(JSContext *cx, unsigned argc, Value *vp)
 {
-    vp->setString(CLASS_NAME(cx, JSON));
+    vp->setString(CLASS_ATOM(cx, JSON));
     return JS_TRUE;
 }
 #endif

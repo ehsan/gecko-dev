@@ -1197,7 +1197,7 @@ XPCJSRuntime::~XPCJSRuntime()
 }
 
 static void
-GetCompartmentName(JSCompartment *c, nsCString &name)
+GetCompartmentName(JSCompartment *c, bool getAddress, nsCString &name)
 {
     if (js::IsAtomsCompartment(c)) {
         name.AssignLiteral("atoms");
@@ -1205,12 +1205,21 @@ GetCompartmentName(JSCompartment *c, nsCString &name)
         nsJSPrincipals::get(principals)->GetScriptLocation(name);
 
         // For system compartments we append the location, if there is one.
+        // And we append the address if |getAddress| is true, so that
+        // multiple system compartments (and there can be many) can be
+        // distinguished.
         if (js::IsSystemCompartment(c)) {
             xpc::CompartmentPrivate *compartmentPrivate =
                 static_cast<xpc::CompartmentPrivate*>(JS_GetCompartmentPrivate(c));
             if (compartmentPrivate && !compartmentPrivate->location.IsEmpty()) {
                 name.AppendLiteral(", ");
                 name.Append(compartmentPrivate->location);
+            }
+            
+            if (getAddress) {
+                // ample; 64-bit address max is 18 chars
+                nsPrintfCString address(", 0x%llx", PRUint64(c));
+                name.Append(address);
             }
         }
         
@@ -1632,7 +1641,7 @@ class JSCompartmentsMultiReporter : public nsIMemoryMultiReporter
         // silently ignore OOM errors
         Paths *paths = static_cast<Paths *>(data);
         nsCString path;
-        GetCompartmentName(c, path);
+        GetCompartmentName(c, /* getAddress = */ false, path);
         path.Insert(js::IsSystemCompartment(c)
                     ? NS_LITERAL_CSTRING("compartments/system/")
                     : NS_LITERAL_CSTRING("compartments/user/"),
@@ -1689,7 +1698,7 @@ struct XPCJSRuntimeStats : public JS::RuntimeStats {
     virtual void initExtraCompartmentStats(JSCompartment *c,
                                            JS::CompartmentStats *cstats) MOZ_OVERRIDE {
         nsCAutoString name;
-        GetCompartmentName(c, name);
+        GetCompartmentName(c, /* getAddress = */ true, name);
         cstats->extra = strdup(name.get());
     }
 };

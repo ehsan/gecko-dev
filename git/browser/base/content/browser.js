@@ -1025,31 +1025,27 @@ let gGestureSupport = {
     switch (aEvent.type) {
       case "MozSwipeGesture":
         aEvent.preventDefault();
-        this.onSwipe(aEvent);
-        break;
+        return this.onSwipe(aEvent);
       case "MozMagnifyGestureStart":
         aEvent.preventDefault();
 #ifdef XP_WIN
-        this._setupGesture(aEvent, "pinch", def(25, 0), "out", "in");
+        return this._setupGesture(aEvent, "pinch", def(25, 0), "out", "in");
 #else
-        this._setupGesture(aEvent, "pinch", def(150, 1), "out", "in");
+        return this._setupGesture(aEvent, "pinch", def(150, 1), "out", "in");
 #endif
-        break;
       case "MozRotateGestureStart":
         aEvent.preventDefault();
-        this._setupGesture(aEvent, "twist", def(25, 0), "right", "left");
-        break;
+        return this._setupGesture(aEvent, "twist", def(25, 0), "right", "left");
       case "MozMagnifyGestureUpdate":
       case "MozRotateGestureUpdate":
         aEvent.preventDefault();
-        this._doUpdate(aEvent);
-        break;
+        return this._doUpdate(aEvent);
       case "MozTapGesture":
         aEvent.preventDefault();
-        this._doAction(aEvent, ["tap"]);
-        break;
-      /* case "MozPressTapGesture":
-        break; */
+        return this._doAction(aEvent, ["tap"]);
+      case "MozPressTapGesture":
+      // Fall through to default behavior
+      return;
     }
   },
 
@@ -1134,6 +1130,8 @@ let gGestureSupport = {
    *        The original gesture event to convert into a fake click event
    * @param aGesture
    *        Array of gesture name parts (to be joined by periods)
+   * @return Name of the command found for the event's keys and gesture. If no
+   *         command is found, no value is returned (undefined).
    */
   _doAction: function GS__doAction(aEvent, aGesture) {
     // Create an array of pressed keys in a fixed order so that a command for
@@ -1171,8 +1169,9 @@ let gGestureSupport = {
         goDoCommand(command);
       }
 
-      break;
+      return command;
     }
+    return null;
   },
 
   /**
@@ -1193,12 +1192,10 @@ let gGestureSupport = {
    */
   onSwipe: function GS_onSwipe(aEvent) {
     // Figure out which one (and only one) direction was triggered
-    for (let dir of ["UP", "RIGHT", "DOWN", "LEFT"]) {
-      if (aEvent.direction == aEvent["DIRECTION_" + dir]) {
-        this._doAction(aEvent, ["swipe", dir.toLowerCase()]);
-        break;
-      }
-    }
+    ["UP", "RIGHT", "DOWN", "LEFT"].forEach(function (dir) {
+      if (aEvent.direction == aEvent["DIRECTION_" + dir])
+        return this._doAction(aEvent, ["swipe", dir.toLowerCase()]);
+    }, this);
   },
 
   /**
@@ -5204,11 +5201,10 @@ var TabsProgressListener = {
                               aFlags) {
     // Filter out any sub-frame loads
     if (aBrowser.contentWindow == aWebProgress.DOMWindow) {
-      if (aRequest) {
-        // Initialize the click-to-play state.
-        aBrowser._clickToPlayDoorhangerShown = false;
-        aBrowser._clickToPlayPluginsActivated = false;
-      }
+      // initialize the click-to-play state
+      aBrowser._clickToPlayDoorhangerShown = false;
+      aBrowser._clickToPlayPluginsActivated = false;
+
       FullZoom.onLocationChange(aLocationURI, false, aBrowser);
     }
   },
@@ -8203,19 +8199,30 @@ var gIdentityHandler = {
    * @param newMode The newly set identity mode.  Should be one of the IDENTITY_MODE_* constants.
    */
   setIdentityMessages : function(newMode) {
-    let icon_label = "";
-    let tooltip = "";
-    let icon_country_label = "";
-    let icon_labels_dir = "ltr";
+    if (newMode == this.IDENTITY_MODE_DOMAIN_VERIFIED) {
+      var iData = this.getIdentityData();
 
-    switch (newMode) {
-    case this.IDENTITY_MODE_DOMAIN_VERIFIED: {
-      let iData = this.getIdentityData();
+      // It would be sort of nice to use the CN= field in the cert, since that's
+      // typically what we want here, but thanks to x509 certs being extensible,
+      // it's not the only place you have to check, there can be more than one domain,
+      // et cetera, ad nauseum.  We know the cert is valid for location.host, so
+      // let's just use that. Check the pref to determine how much of the verified
+      // hostname to show
+      var icon_label = "";
+      var icon_country_label = "";
+      var icon_labels_dir = "ltr";
+      switch (gPrefService.getIntPref("browser.identity.ssl_domain_display")) {
+        case 2 : // Show full domain
+          icon_label = this._lastLocation.hostname;
+          break;
+        case 1 : // Show eTLD.
+          icon_label = this.getEffectiveHost();
+      }
 
       // Verifier is either the CA Org, for a normal cert, or a special string
       // for certs that are trusted because of a security exception.
-      tooltip = gNavigatorBundle.getFormattedString("identity.identified.verifier",
-                                                    [iData.caOrg]);
+      var tooltip = gNavigatorBundle.getFormattedString("identity.identified.verifier",
+                                                        [iData.caOrg]);
 
       // Check whether this site is a security exception. XPConnect does the right
       // thing here in terms of converting _lastLocation.port from string to int, but
@@ -8230,16 +8237,15 @@ var gIdentityHandler = {
                                                     (this._lastLocation.port || 443),
                                                     iData.cert, {}, {}))
         tooltip = gNavigatorBundle.getString("identity.identified.verified_by_you");
-      break; }
-    case this.IDENTITY_MODE_IDENTIFIED: {
+    }
+    else if (newMode == this.IDENTITY_MODE_IDENTIFIED) {
       // If it's identified, then we can populate the dialog with credentials
-      let iData = this.getIdentityData();
+      iData = this.getIdentityData();
       tooltip = gNavigatorBundle.getFormattedString("identity.identified.verifier",
                                                     [iData.caOrg]);
       icon_label = iData.subjectOrg;
       if (iData.country)
         icon_country_label = "(" + iData.country + ")";
-
       // If the organization name starts with an RTL character, then
       // swap the positions of the organization and country code labels.
       // The Unicode ranges reflect the definition of the UCS2_CHAR_IS_BIDI
@@ -8248,11 +8254,18 @@ var gIdentityHandler = {
       // Unicode Bidirectional Algorithm proper (at the paragraph level).
       icon_labels_dir = /^[\u0590-\u08ff\ufb1d-\ufdff\ufe70-\ufefc]/.test(icon_label) ?
                         "rtl" : "ltr";
-      break; }
-    case this.IDENTITY_MODE_CHROMEUI:
-      break;
-    default:
+    }
+    else if (newMode == this.IDENTITY_MODE_CHROMEUI) {
+      icon_label = "";
+      tooltip = "";
+      icon_country_label = "";
+      icon_labels_dir = "ltr";
+    }
+    else {
       tooltip = gNavigatorBundle.getString("identity.unknown.tooltip");
+      icon_label = "";
+      icon_country_label = "";
+      icon_labels_dir = "ltr";
     }
 
     // Push the appropriate strings out to the UI
@@ -8282,20 +8295,19 @@ var gIdentityHandler = {
     this._identityPopupEncLabel.textContent = this._encryptionLabel[newMode];
 
     // Initialize the optional strings to empty values
-    let supplemental = "";
-    let verifier = "";
-    let host = "";
-    let owner = "";
+    var supplemental = "";
+    var verifier = "";
 
-    switch (newMode) {
-    case this.IDENTITY_MODE_DOMAIN_VERIFIED:
-      host = this.getEffectiveHost();
-      owner = gNavigatorBundle.getString("identity.ownerUnknown2");
+    if (newMode == this.IDENTITY_MODE_DOMAIN_VERIFIED) {
+      var iData = this.getIdentityData();
+      var host = this.getEffectiveHost();
+      var owner = gNavigatorBundle.getString("identity.ownerUnknown2");
       verifier = this._identityBox.tooltipText;
-      break;
-    case this.IDENTITY_MODE_IDENTIFIED: {
+      supplemental = "";
+    }
+    else if (newMode == this.IDENTITY_MODE_IDENTIFIED) {
       // If it's identified, then we can populate the dialog with credentials
-      let iData = this.getIdentityData();
+      iData = this.getIdentityData();
       host = this.getEffectiveHost();
       owner = iData.subjectOrg;
       verifier = this._identityBox.tooltipText;
@@ -8310,7 +8322,11 @@ var gIdentityHandler = {
         supplemental += iData.state;
       else if (iData.country) // Country only
         supplemental += iData.country;
-      break; }
+    }
+    else {
+      // These strings will be hidden in CSS anyhow
+      host = "";
+      owner = "";
     }
 
     // Push the appropriate strings out to the UI

@@ -60,7 +60,7 @@ class nsCSSValue;
 struct nsCSSRect;
 
 class nsStyleCoord;
-struct nsCSSValuePairList;
+class nsCSSValuePairList;
 
 template <nsStyleStructID MinIndex, nsStyleStructID Count>
 class FixedStyleStructArray

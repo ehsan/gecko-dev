@@ -323,6 +323,7 @@ NormalArgumentsObject::optimizedGetElem(JSContext *cx, StackFrame *fp, const Val
     jsid id;
     if (!ValueToId(cx, elem, &id))
         return false;
+    id = js_CheckForStringIndex(id);
 
     if (JSID_IS_INT(id)) {
         int32_t i = JSID_TO_INT(id);
@@ -332,12 +333,12 @@ NormalArgumentsObject::optimizedGetElem(JSContext *cx, StackFrame *fp, const Val
         }
     }
 
-    if (id == NameToId(cx->runtime->atomState.lengthAtom)) {
+    if (id == ATOM_TO_JSID(cx->runtime->atomState.lengthAtom)) {
         *vp = Int32Value(fp->numActualArgs());
         return true;
     }
 
-    if (id == NameToId(cx->runtime->atomState.calleeAtom)) {
+    if (id == ATOM_TO_JSID(cx->runtime->atomState.calleeAtom)) {
         *vp = ObjectValue(fp->callee());
         return true;
     }
@@ -361,9 +362,9 @@ args_enumerate(JSContext *cx, JSObject *obj)
     int argc = int(argsobj->initialLength());
     for (int i = -2; i != argc; i++) {
         jsid id = (i == -2)
-                  ? NameToId(cx->runtime->atomState.lengthAtom)
+                  ? ATOM_TO_JSID(cx->runtime->atomState.lengthAtom)
                   : (i == -1)
-                  ? NameToId(cx->runtime->atomState.calleeAtom)
+                  ? ATOM_TO_JSID(cx->runtime->atomState.calleeAtom)
                   : INT_TO_JSID(i);
 
         JSObject *pobj;
@@ -480,15 +481,15 @@ strictargs_enumerate(JSContext *cx, JSObject *obj)
     JSProperty *prop;
 
     // length
-    if (!js_LookupProperty(cx, argsobj, NameToId(cx->runtime->atomState.lengthAtom), &pobj, &prop))
+    if (!js_LookupProperty(cx, argsobj, ATOM_TO_JSID(cx->runtime->atomState.lengthAtom), &pobj, &prop))
         return false;
 
     // callee
-    if (!js_LookupProperty(cx, argsobj, NameToId(cx->runtime->atomState.calleeAtom), &pobj, &prop))
+    if (!js_LookupProperty(cx, argsobj, ATOM_TO_JSID(cx->runtime->atomState.calleeAtom), &pobj, &prop))
         return false;
 
     // caller
-    if (!js_LookupProperty(cx, argsobj, NameToId(cx->runtime->atomState.callerAtom), &pobj, &prop))
+    if (!js_LookupProperty(cx, argsobj, ATOM_TO_JSID(cx->runtime->atomState.callerAtom), &pobj, &prop))
         return false;
 
     for (uint32_t i = 0, argc = argsobj->initialLength(); i < argc; i++) {

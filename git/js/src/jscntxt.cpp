@@ -526,8 +526,8 @@ void
 ReportUsageError(JSContext *cx, JSObject *callee, const char *msg)
 {
     const char *usageStr = "usage";
-    PropertyName *usageAtom = js_Atomize(cx, usageStr, strlen(usageStr))->asPropertyName();
-    DebugOnly<const Shape *> shape = callee->nativeLookup(cx, NameToId(usageAtom));
+    JSAtom *usageAtom = js_Atomize(cx, usageStr, strlen(usageStr));
+    DebugOnly<const Shape *> shape = callee->nativeLookup(cx, ATOM_TO_JSID(usageAtom));
     JS_ASSERT(!shape->configurable());
     JS_ASSERT(!shape->writable());
     JS_ASSERT(shape->hasDefaultGetter());
@@ -1121,9 +1121,6 @@ JSRuntime::onTooMuchMalloc()
 JS_FRIEND_API(void *)
 JSRuntime::onOutOfMemory(void *p, size_t nbytes, JSContext *cx)
 {
-    if (gcRunning)
-        return NULL;
-
     /*
      * Retry when we are done with the background sweeping and have stopped
      * all the allocations and released the empty GC chunks.

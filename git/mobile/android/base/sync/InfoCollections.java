@@ -6,7 +6,6 @@ package org.mozilla.gecko.sync;
 
 import java.io.IOException;
 import java.util.HashMap;
-import java.util.Map;
 import java.util.Map.Entry;
 import java.util.Set;
 
@@ -23,27 +22,20 @@ public class InfoCollections implements SyncStorageRequestDelegate {
   protected String infoURL;
   protected String credentials;
 
-  /**
-   * Fields fetched from the server, or <code>null</code> if not yet fetched.
-   * <p>
-   * Rather than storing decimal/double timestamps, as provided by the server,
-   * we convert immediately to milliseconds since epoch.
-   */
-  private Map<String, Long> timestamps = null;
+  // Fields.
+  // Rather than storing decimal/double timestamps, as provided by the
+  // server, we convert immediately to milliseconds since epoch.
+  private HashMap<String, Long> timestamps;
 
-  /**
-   * Return the timestamp for the given collection, or null if the timestamps
-   * have not been fetched or the given collection does not have a timestamp.
-   *
-   * @param collection
-   *          The collection to inspect.
-   * @return the timestamp in milliseconds since epoch.
-   */
-  public Long getTimestamp(String collection) {
-    if (timestamps == null) {
-      return null;
+  public HashMap<String, Long> getTimestamps() {
+    if (this.timestamps == null) {
+      throw new IllegalStateException("No record fetched.");
     }
-    return timestamps.get(collection);
+    return this.timestamps;
+  }
+
+  public Long getTimestamp(String collection) {
+    return this.getTimestamps().get(collection);
   }
 
   /**
@@ -82,8 +74,12 @@ public class InfoCollections implements SyncStorageRequestDelegate {
   }
 
   public void fetch(InfoCollectionsDelegate callback) {
-    this.callback = callback;
-    this.doFetch();
+    if (this.timestamps == null) {
+      this.callback = callback;
+      this.doFetch();
+      return;
+    }
+    callback.handleSuccess(this);
   }
 
   private void doFetch() {

@@ -3863,7 +3863,7 @@ nsDocument::SetScriptGlobalObject(nsIScriptGlobalObject *aScriptGlobalObject)
         if (!cx) {
           nsContentUtils::ThreadJSContextStack()->Peek(&cx);
           if (!cx) {
-            cx = nsContentUtils::ThreadJSContextStack()->GetSafeJSContext();
+            nsContentUtils::ThreadJSContextStack()->GetSafeJSContext(&cx);
             NS_ASSERTION(cx, "Uhoh, no context, this is bad!");
           }
         }
@@ -6072,7 +6072,7 @@ GetContextAndScope(nsIDocument* aOldDocument, nsIDocument* aNewDocument,
       stack->Peek(&cx);
 
       if (!cx) {
-        cx = stack->GetSafeJSContext();
+        stack->GetSafeJSContext(&cx);
 
         if (!cx) {
           // No safe context reachable, bail.

@@ -255,7 +255,7 @@ GetPropertyOperation(JSContext *cx, jsbytecode *pc, const Value &lval, Value *vp
     }
 
     RootObject objRoot(cx, &obj);
-    RootedVarId id(cx, NameToId(name));
+    RootedVarId id(cx, ATOM_TO_JSID(name));
 
     if (obj->getOps()->getProperty) {
         if (!GetPropertyGenericMaybeCallXML(cx, op, objRoot, id, vp))
@@ -339,7 +339,7 @@ SetPropertyOperation(JSContext *cx, jsbytecode *pc, const Value &lval, const Val
 
     RootObject objRoot(cx, &obj);
 
-    jsid id = NameToId(name);
+    jsid id = ATOM_TO_JSID(name);
     if (JS_LIKELY(!obj->getOps()->setProperty)) {
         unsigned defineHow = (op == JSOP_SETNAME)
                              ? DNP_CACHE_RESULT | DNP_UNQUALIFIED
@@ -382,7 +382,7 @@ NameOperation(JSContext *cx, jsbytecode *pc, Value *vp)
         return true;
     }
 
-    jsid id = NameToId(name);
+    jsid id = ATOM_TO_JSID(name);
 
     RootPropertyName nameRoot(cx, &name);
     RootObject objRoot(cx, &obj);
@@ -675,7 +675,7 @@ FetchElementId(JSContext *cx, JSObject *obj, const Value &idval, jsid &id, Value
         id = INT_TO_JSID(i_);
         return true;
     }
-    return !!InternNonIntElementId(cx, obj, idval, &id, vp);
+    return !!js_InternNonIntElementId(cx, obj, idval, &id, vp);
 }
 
 static JS_ALWAYS_INLINE bool
@@ -691,7 +691,7 @@ ToIdOperation(JSContext *cx, const Value &objval, const Value &idval, Value *res
         return false;
 
     jsid dummy;
-    if (!InternNonIntElementId(cx, obj, idval, &dummy, res))
+    if (!js_InternNonIntElementId(cx, obj, idval, &dummy, res))
         return false;
 
     if (!res->isInt32())

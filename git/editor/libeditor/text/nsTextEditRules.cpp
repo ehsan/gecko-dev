@@ -91,7 +91,7 @@ nsTextEditRules::nsTextEditRules()
 , mActionNesting(0)
 , mLockRulesSniffing(false)
 , mDidExplicitlySetInterline(false)
-, mTheAction(nsEditor::kOpNone)
+, mTheAction(0)
 , mLastStart(0)
 , mLastLength(0)
 {
@@ -173,8 +173,7 @@ nsTextEditRules::DetachEditor()
 }
 
 NS_IMETHODIMP
-nsTextEditRules::BeforeEdit(nsEditor::OperationID action,
-                            nsIEditor::EDirection aDirection)
+nsTextEditRules::BeforeEdit(PRInt32 action, nsIEditor::EDirection aDirection)
 {
   if (mLockRulesSniffing) return NS_OK;
   
@@ -200,8 +199,7 @@ nsTextEditRules::BeforeEdit(nsEditor::OperationID action,
 
 
 NS_IMETHODIMP
-nsTextEditRules::AfterEdit(nsEditor::OperationID action,
-                           nsIEditor::EDirection aDirection)
+nsTextEditRules::AfterEdit(PRInt32 action, nsIEditor::EDirection aDirection)
 {
   if (mLockRulesSniffing) return NS_OK;
   
@@ -260,10 +258,10 @@ nsTextEditRules::WillDoAction(nsISelection *aSelection,
     
   switch (info->action)
   {
-    case nsEditor::kOpInsertBreak:
+    case kInsertBreak:
       return WillInsertBreak(aSelection, aCancel, aHandled, info->maxLength);
-    case nsEditor::kOpInsertText:
-    case nsEditor::kOpInsertIMEText:
+    case kInsertText:
+    case kInsertTextIME:
       return WillInsertText(info->action,
                             aSelection, 
                             aCancel,
@@ -271,29 +269,27 @@ nsTextEditRules::WillDoAction(nsISelection *aSelection,
                             info->inString,
                             info->outString,
                             info->maxLength);
-    case nsEditor::kOpDeleteSelection:
+    case kDeleteSelection:
       return WillDeleteSelection(aSelection, info->collapsedAction, aCancel, aHandled);
-    case nsEditor::kOpUndo:
+    case kUndo:
       return WillUndo(aSelection, aCancel, aHandled);
-    case nsEditor::kOpRedo:
+    case kRedo:
       return WillRedo(aSelection, aCancel, aHandled);
-    case nsEditor::kOpSetTextProperty:
+    case kSetTextProperty:
       return WillSetTextProperty(aSelection, aCancel, aHandled);
-    case nsEditor::kOpRemoveTextProperty:
+    case kRemoveTextProperty:
       return WillRemoveTextProperty(aSelection, aCancel, aHandled);
-    case nsEditor::kOpOutputText:
+    case kOutputText:
       return WillOutputText(aSelection, 
                             info->outputFormat,
                             info->outString,                            
                             aCancel,
                             aHandled);
-    case nsEditor::kOpInsertElement:
-      // i had thought this would be html rules only.  but we put pre elements
-      // into plaintext mail when doing quoting for reply!  doh!
+    case kInsertElement:  // i had thought this would be html rules only.  but we put pre elements
+                          // into plaintext mail when doing quoting for reply!  doh!
       return WillInsert(aSelection, aCancel);
-    default:
-      return NS_ERROR_FAILURE;
   }
+  return NS_ERROR_FAILURE;
 }
   
 NS_IMETHODIMP 
@@ -311,27 +307,26 @@ nsTextEditRules::DidDoAction(nsISelection *aSelection,
 
   switch (info->action)
   {
-    case nsEditor::kOpInsertBreak:
-      return DidInsertBreak(aSelection, aResult);
-    case nsEditor::kOpInsertText:
-    case nsEditor::kOpInsertIMEText:
+   case kInsertBreak:
+     return DidInsertBreak(aSelection, aResult);
+    case kInsertText:
+    case kInsertTextIME:
       return DidInsertText(aSelection, aResult);
-    case nsEditor::kOpDeleteSelection:
+    case kDeleteSelection:
       return DidDeleteSelection(aSelection, info->collapsedAction, aResult);
-    case nsEditor::kOpUndo:
+    case kUndo:
       return DidUndo(aSelection, aResult);
-    case nsEditor::kOpRedo:
+    case kRedo:
       return DidRedo(aSelection, aResult);
-    case nsEditor::kOpSetTextProperty:
+    case kSetTextProperty:
       return DidSetTextProperty(aSelection, aResult);
-    case nsEditor::kOpRemoveTextProperty:
+    case kRemoveTextProperty:
       return DidRemoveTextProperty(aSelection, aResult);
-    case nsEditor::kOpOutputText:
+    case kOutputText:
       return DidOutputText(aSelection, aResult);
-    default:
-      // Don't fail on transactions we don't handle here!
-      return NS_OK;
   }
+  // Don't fail on transactions we don't handle here!
+  return NS_OK;
 }
 
 
@@ -582,7 +577,7 @@ nsTextEditRules::HandleNewLines(nsString &aString,
 }
 
 nsresult
-nsTextEditRules::WillInsertText(nsEditor::OperationID aAction,
+nsTextEditRules::WillInsertText(PRInt32          aAction,
                                 nsISelection *aSelection, 
                                 bool            *aCancel,
                                 bool            *aHandled,
@@ -592,7 +587,8 @@ nsTextEditRules::WillInsertText(nsEditor::OperationID aAction,
 {  
   if (!aSelection || !aCancel || !aHandled) { return NS_ERROR_NULL_POINTER; }
 
-  if (inString->IsEmpty() && aAction != nsEditor::kOpInsertIMEText) {
+  if (inString->IsEmpty() && (aAction != kInsertTextIME))
+  {
     // HACK: this is a fix for bug 19395
     // I can't outlaw all empty insertions
     // because IME transaction depend on them
@@ -615,8 +611,7 @@ nsTextEditRules::WillInsertText(nsEditor::OperationID aAction,
   NS_ENSURE_SUCCESS(res, res);
   // If we're exceeding the maxlength when composing IME, we need to clean up
   // the composing text, so we shouldn't return early.
-  if (truncated && outString->IsEmpty() &&
-      aAction != nsEditor::kOpInsertIMEText) {
+  if (truncated && outString->IsEmpty() && aAction != kInsertTextIME) {
     *aCancel = true;
     return NS_OK;
   }
@@ -653,7 +648,7 @@ nsTextEditRules::WillInsertText(nsEditor::OperationID aAction,
   // to the replacement character
   if (IsPasswordEditor())
   {
-    if (aAction == nsEditor::kOpInsertIMEText) {
+    if (aAction == kInsertTextIME)  {
       res = RemoveIMETextFromPWBuf(start, outString);
       NS_ENSURE_SUCCESS(res, res);
     }
@@ -721,11 +716,14 @@ nsTextEditRules::WillInsertText(nsEditor::OperationID aAction,
   nsCOMPtr<nsIDOMDocument> doc = mEditor->GetDOMDocument();
   NS_ENSURE_TRUE(doc, NS_ERROR_NOT_INITIALIZED);
     
-  if (aAction == nsEditor::kOpInsertIMEText) {
+  if (aAction == kInsertTextIME) 
+  { 
     res = mEditor->InsertTextImpl(*outString, address_of(selNode), &selOffset, doc);
     NS_ENSURE_SUCCESS(res, res);
-  } else {
-    // aAction == nsEditor::kOpInsertText; find where we are
+  }
+  else // aAction == kInsertText
+  {
+    // find where we are
     nsCOMPtr<nsIDOMNode> curNode = selNode;
     PRInt32 curOffset = selOffset;
 
@@ -1091,34 +1089,37 @@ nsresult
 nsTextEditRules::CreateTrailingBRIfNeeded()
 {
   // but only if we aren't a single line edit field
-  if (IsSingleLineEditor()) {
+  if (IsSingleLineEditor())
     return NS_OK;
-  }
-
-  dom::Element* body = mEditor->GetRoot();
+  nsCOMPtr<nsIDOMNode> body = do_QueryInterface(mEditor->GetRoot());
   NS_ENSURE_TRUE(body, NS_ERROR_NULL_POINTER);
-
-  nsIContent* lastChild = body->GetLastChild();
+  nsCOMPtr<nsIDOMNode> lastChild;
+  nsresult res = body->GetLastChild(getter_AddRefs(lastChild));
   // assuming CreateBogusNodeIfNeeded() has been called first
+  NS_ENSURE_SUCCESS(res, res);  
   NS_ENSURE_TRUE(lastChild, NS_ERROR_NULL_POINTER);
 
-  if (!lastChild->IsHTML(nsGkAtoms::br)) {
+  if (!nsTextEditUtils::IsBreak(lastChild))
+  {
     nsAutoTxnsConserveSelection dontSpazMySelection(mEditor);
-    nsCOMPtr<nsIDOMNode> domBody = do_QueryInterface(body);
-    return CreateMozBR(domBody, body->Length());
-  }
+    PRUint32 rootLen;
+    res = mEditor->GetLengthOfDOMNode(body, rootLen);
+    NS_ENSURE_SUCCESS(res, res); 
+    nsCOMPtr<nsIDOMNode> unused;
+    res = CreateMozBR(body, rootLen, address_of(unused));
+  } else {
+    // Check to see if the trailing BR is a former bogus node - this will have stuck
+    // around if we previously morphed a trailing node into a bogus node
+    nsCOMPtr<nsIContent> lastBR = do_QueryInterface(lastChild);
+    if (!mEditor->IsMozEditorBogusNode(lastBR))
+      return NS_OK;
 
-  // Check to see if the trailing BR is a former bogus node - this will have
-  // stuck around if we previously morphed a trailing node into a bogus node.
-  if (!mEditor->IsMozEditorBogusNode(lastChild)) {
-    return NS_OK;
+    // Morph it back to a mozBR
+    dom::Element* elem = lastBR->AsElement();
+    elem->UnsetAttr(kNameSpaceID_None, kMOZEditorBogusNodeAttrAtom, false);
+    elem->SetAttr(kNameSpaceID_None, nsGkAtoms::type, NS_LITERAL_STRING("_moz"), true);
   }
-
-  // Morph it back to a mozBR
-  lastChild->UnsetAttr(kNameSpaceID_None, kMOZEditorBogusNodeAttrAtom, false);
-  lastChild->SetAttr(kNameSpaceID_None, nsGkAtoms::type,
-                     NS_LITERAL_STRING("_moz"), true);
-  return NS_OK;
+  return res;
 }
 
 nsresult
@@ -1335,26 +1336,21 @@ nsTextEditRules::FillBufWithPWChars(nsAString *aOutString, PRInt32 aLength)
 // CreateMozBR: put a BR node with moz attribute at {aNode, aOffset}
 //                       
 nsresult 
-nsTextEditRules::CreateMozBR(nsIDOMNode* inParent, PRInt32 inOffset,
-                             nsIDOMNode** outBRNode)
+nsTextEditRules::CreateMozBR(nsIDOMNode *inParent, PRInt32 inOffset, nsCOMPtr<nsIDOMNode> *outBRNode)
 {
-  NS_ENSURE_TRUE(inParent, NS_ERROR_NULL_POINTER);
+  NS_ENSURE_TRUE(inParent && outBRNode, NS_ERROR_NULL_POINTER);
 
-  nsCOMPtr<nsIDOMNode> brNode;
-  nsresult res = mEditor->CreateBR(inParent, inOffset, address_of(brNode));
+  nsresult res = mEditor->CreateBR(inParent, inOffset, outBRNode);
   NS_ENSURE_SUCCESS(res, res);
 
   // give it special moz attr
-  nsCOMPtr<nsIDOMElement> brElem = do_QueryInterface(brNode);
-  if (brElem) {
+  nsCOMPtr<nsIDOMElement> brElem = do_QueryInterface(*outBRNode);
+  if (brElem)
+  {
     res = mEditor->SetAttribute(brElem, NS_LITERAL_STRING("type"), NS_LITERAL_STRING("_moz"));
     NS_ENSURE_SUCCESS(res, res);
   }
-
-  if (outBRNode) {
-    brNode.forget(outBRNode);
-  }
-  return NS_OK;
+  return res;
 }
 
 NS_IMETHODIMP

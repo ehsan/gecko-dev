@@ -378,6 +378,7 @@ DOMCI_CLASS(StorageObsolete)
 DOMCI_CLASS(Storage)
 DOMCI_CLASS(StorageItem)
 DOMCI_CLASS(StorageEvent)
+DOMCI_CLASS(StorageEventObsolete)
 
 // DOMParser, XMLSerializer
 DOMCI_CLASS(DOMParser)

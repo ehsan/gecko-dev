@@ -307,6 +307,7 @@ WARNING: the following values are negative or unreasonably large.\n\
  other3\n\
  other4\n\
  other5\n\
+ other6\n\
 This indicates a defect in one or more memory reporters.  The invalid values are highlighted.\n\
 \n\
 Explicit Allocations\n\
@@ -326,7 +327,7 @@ Other Measurements\n\
       -333 ── other3 [?!]\n\
       -444 ── other4 [?!]\n\
     -5.55% ── other5 [?!]\n\
-   666.66% ── other6\n\
+   666.66% ── other6 [?!]\n\
 \n\
 5th Process\n\
 \n\
@@ -457,6 +458,7 @@ WARNING: the following values are negative or unreasonably large.\n\
  other3\n\
  other4\n\
  other5\n\
+ other6\n\
 This indicates a defect in one or more memory reporters.  The invalid values are highlighted.\n\
 \n\
 Explicit Allocations\n\
@@ -475,7 +477,7 @@ Other Measurements\n\
           -333 ── other3 [?!]\n\
           -444 ── other4 [?!]\n\
         -5.55% ── other5 [?!]\n\
-       666.66% ── other6\n\
+       666.66% ── other6 [?!]\n\
 \n\
 5th Process\n\
 \n\

@@ -534,7 +534,11 @@ JSONParser::parse(Value *vp)
         switch (state) {
           case FinishObjectMember: {
             Value v = valueStack.popCopy();
-            jsid propid = AtomToId(&valueStack.popCopy().toString()->asAtom());
+            /*
+             * NB: Relies on js_DefineNativeProperty performing
+             *     js_CheckForStringIndex.
+             */
+            jsid propid = ATOM_TO_JSID(&valueStack.popCopy().toString()->asAtom());
             RootedVarObject obj(cx, &valueStack.back().toObject());
             if (!DefineNativeProperty(cx, obj, propid, v,
                                       JS_PropertyStub, JS_StrictPropertyStub, JSPROP_ENUMERATE,

@@ -151,7 +151,7 @@ obj_getProto(JSContext *cx, JSObject *obj, jsid id, Value *vp)
 {
     /* Let CheckAccess get the slot's value, based on the access mode. */
     unsigned attrs;
-    id = NameToId(cx->runtime->atomState.protoAtom);
+    id = ATOM_TO_JSID(cx->runtime->atomState.protoAtom);
     return CheckAccess(cx, obj, id, JSACC_PROTO, vp, &attrs);
 }
 
@@ -176,7 +176,7 @@ obj_setProto(JSContext *cx, JSObject *obj_, jsid id, JSBool strict, Value *vp)
 
     RootedVarObject pobj(cx, vp->toObjectOrNull());
     unsigned attrs;
-    id = NameToId(cx->runtime->atomState.protoAtom);
+    id = ATOM_TO_JSID(cx->runtime->atomState.protoAtom);
     if (!CheckAccess(cx, obj, id, JSAccessMode(JSACC_PROTO|JSACC_WRITE), vp, &attrs))
         return false;
 
@@ -715,7 +715,7 @@ obj_toLocaleString(JSContext *cx, unsigned argc, Value *vp)
         return false;
 
     /* Steps 2-4. */
-    return obj->callMethod(cx, NameToId(cx->runtime->atomState.toStringAtom), 0, NULL, vp);
+    return obj->callMethod(cx, ATOM_TO_JSID(cx->runtime->atomState.toStringAtom), 0, NULL, vp);
 }
 
 static JSBool
@@ -1392,6 +1392,11 @@ js_PropertyIsEnumerable(JSContext *cx, JSObject *obj, jsid id, Value *vp)
 
 #if OLD_GETTER_SETTER_METHODS
 
+const char js_defineGetter_str[] = "__defineGetter__";
+const char js_defineSetter_str[] = "__defineSetter__";
+const char js_lookupGetter_str[] = "__lookupGetter__";
+const char js_lookupSetter_str[] = "__lookupSetter__";
+
 enum DefineType { Getter, Setter };
 
 template<DefineType Type>
@@ -1522,7 +1527,7 @@ obj_getPrototypeOf(JSContext *cx, unsigned argc, Value *vp)
 
     JSObject *obj = &vp[2].toObject();
     unsigned attrs;
-    return CheckAccess(cx, obj, NameToId(cx->runtime->atomState.protoAtom),
+    return CheckAccess(cx, obj, ATOM_TO_JSID(cx->runtime->atomState.protoAtom),
                        JSACC_PROTO, vp, &attrs);
 }
 
@@ -1781,7 +1786,7 @@ PropDesc::initialize(JSContext *cx, const Value &origval, bool checkAccessors)
 #ifdef __GNUC__ /* quell GCC overwarning */
     found = false;
 #endif
-    if (!HasProperty(cx, desc, NameToId(cx->runtime->atomState.enumerableAtom), &v, &found))
+    if (!HasProperty(cx, desc, ATOM_TO_JSID(cx->runtime->atomState.enumerableAtom), &v, &found))
         return false;
     if (found) {
         hasEnumerable_ = true;
@@ -1790,7 +1795,7 @@ PropDesc::initialize(JSContext *cx, const Value &origval, bool checkAccessors)
     }
 
     /* 8.10.5 step 4 */
-    if (!HasProperty(cx, desc, NameToId(cx->runtime->atomState.configurableAtom), &v, &found))
+    if (!HasProperty(cx, desc, ATOM_TO_JSID(cx->runtime->atomState.configurableAtom), &v, &found))
         return false;
     if (found) {
         hasConfigurable_ = true;
@@ -1799,7 +1804,7 @@ PropDesc::initialize(JSContext *cx, const Value &origval, bool checkAccessors)
     }
 
     /* 8.10.5 step 5 */
-    if (!HasProperty(cx, desc, NameToId(cx->runtime->atomState.valueAtom), &v, &found))
+    if (!HasProperty(cx, desc, ATOM_TO_JSID(cx->runtime->atomState.valueAtom), &v, &found))
         return false;
     if (found) {
         hasValue_ = true;
@@ -1807,7 +1812,7 @@ PropDesc::initialize(JSContext *cx, const Value &origval, bool checkAccessors)
     }
 
     /* 8.10.6 step 6 */
-    if (!HasProperty(cx, desc, NameToId(cx->runtime->atomState.writableAtom), &v, &found))
+    if (!HasProperty(cx, desc, ATOM_TO_JSID(cx->runtime->atomState.writableAtom), &v, &found))
         return false;
     if (found) {
         hasWritable_ = true;
@@ -1816,7 +1821,7 @@ PropDesc::initialize(JSContext *cx, const Value &origval, bool checkAccessors)
     }
 
     /* 8.10.7 step 7 */
-    if (!HasProperty(cx, desc, NameToId(cx->runtime->atomState.getAtom), &v, &found))
+    if (!HasProperty(cx, desc, ATOM_TO_JSID(cx->runtime->atomState.getAtom), &v, &found))
         return false;
     if (found) {
         hasGet_ = true;
@@ -1828,7 +1833,7 @@ PropDesc::initialize(JSContext *cx, const Value &origval, bool checkAccessors)
     }
 
     /* 8.10.7 step 8 */
-    if (!HasProperty(cx, desc, NameToId(cx->runtime->atomState.setAtom), &v, &found))
+    if (!HasProperty(cx, desc, ATOM_TO_JSID(cx->runtime->atomState.setAtom), &v, &found))
         return false;
     if (found) {
         hasSet_ = true;
@@ -2513,7 +2518,7 @@ JSObject::sealOrFreeze(JSContext *cx, ImmutabilityType it)
         return false;
 
     AutoIdVector props(cx);
-    if (!GetPropertyNames(cx, self, JSITER_HIDDEN | JSITER_OWNONLY, &props))
+    if (!GetPropertyNames(cx, this, JSITER_HIDDEN | JSITER_OWNONLY, &props))
         return false;
 
     /* preventExtensions must slowify dense arrays, so we can assign to holes without checks. */
@@ -2668,6 +2673,14 @@ obj_isSealed(JSContext *cx, unsigned argc, Value *vp)
     vp->setBoolean(sealed);
     return true;
 }
+
+#if JS_HAS_OBJ_WATCHPOINT
+const char js_watch_str[] = "watch";
+const char js_unwatch_str[] = "unwatch";
+#endif
+const char js_hasOwnProperty_str[] = "hasOwnProperty";
+const char js_isPrototypeOf_str[] = "isPrototypeOf";
+const char js_propertyIsEnumerable_str[] = "propertyIsEnumerable";
 
 JSFunctionSpec object_methods[] = {
 #if JS_HAS_TOSOURCE
@@ -3093,6 +3106,8 @@ JSObject::nonNativeSetProperty(JSContext *cx, jsid id, js::Value *vp, JSBool str
 {
     JSObject *self = this;
     if (JS_UNLIKELY(watched())) {
+        id = js_CheckForStringIndex(id);
+
         RootObject selfRoot(cx, &self);
         RootId idRoot(cx, &id);
 
@@ -3113,6 +3128,7 @@ JSObject::nonNativeSetElement(JSContext *cx, uint32_t index, js::Value *vp, JSBo
         jsid id;
         if (!IndexToId(cx, index, &id))
             return false;
+        JS_ASSERT(id == js_CheckForStringIndex(id));
 
         RootId idRoot(cx, &id);
 
@@ -3554,7 +3570,7 @@ static bool
 DefineStandardSlot(JSContext *cx, JSObject *obj, JSProtoKey key, JSAtom *atom,
                    const Value &v, uint32_t attrs, bool &named)
 {
-    jsid id = AtomToId(atom);
+    jsid id = ATOM_TO_JSID(atom);
 
     if (key != JSProto_Null) {
         /*
@@ -4228,7 +4244,7 @@ js_GetClassObject(JSContext *cx, JSObject *obj, JSProtoKey key,
         return true;
     }
 
-    AutoResolving resolving(cx, obj, NameToId(cx->runtime->atomState.classAtoms[key]));
+    AutoResolving resolving(cx, obj, ATOM_TO_JSID(cx->runtime->atomState.classAtoms[key]));
     if (resolving.alreadyStarted()) {
         /* Already caching id in obj -- suppress recursion. */
         *objp = NULL;
@@ -4277,12 +4293,12 @@ js_FindClassObject(JSContext *cx, JSObject *start, JSProtoKey protoKey,
             vp->setObject(*cobj);
             return JS_TRUE;
         }
-        id = NameToId(cx->runtime->atomState.classAtoms[protoKey]);
+        id = ATOM_TO_JSID(cx->runtime->atomState.classAtoms[protoKey]);
     } else {
         JSAtom *atom = js_Atomize(cx, clasp->name, strlen(clasp->name));
         if (!atom)
             return false;
-        id = AtomToId(atom);
+        id = ATOM_TO_JSID(atom);
     }
 
     JS_ASSERT(obj->isNative());
@@ -4427,6 +4443,9 @@ js_AddNativeProperty(JSContext *cx, HandleObject obj, jsid id_,
 {
     RootedVarId id(cx, id_);
 
+    /* Convert string indices to integers if appropriate. */
+    id = js_CheckForStringIndex(id);
+
     /*
      * Purge the property cache of now-shadowed id in obj's scope chain. Do
      * this optimistically (assuming no failure below) before locking obj, so
@@ -4505,6 +4524,9 @@ DefineNativeProperty(JSContext *cx, HandleObject obj, jsid id, const Value &valu
     /* Make a local copy of value so addProperty can mutate its inout parameter. */
     RootedVarValue value(cx);
     value = value_;
+
+    /* Convert string indices to integers if appropriate. */
+    id = js_CheckForStringIndex(id);
 
     /*
      * If defining a getter or setter, we must check for its counterpart and
@@ -4686,6 +4708,9 @@ LookupPropertyWithFlagsInline(JSContext *cx, JSObject *obj_, jsid id_, unsigned 
     RootedVarObject obj(cx, obj_);
     RootedVarId id(cx, id_);
 
+    /* We should not get string indices which aren't already integers here. */
+    JS_ASSERT(id.raw() == js_CheckForStringIndex(id));
+
     /* Search scopes starting with obj and following the prototype link. */
     RootedVarObject start(cx, obj);
     while (true) {
@@ -4748,6 +4773,9 @@ JS_FRIEND_API(JSBool)
 js_LookupProperty(JSContext *cx, JSObject *obj, jsid id, JSObject **objp,
                   JSProperty **propp)
 {
+    /* Convert string indices to integers if appropriate. */
+    id = js_CheckForStringIndex(id);
+
     return LookupPropertyWithFlagsInline(cx, obj, id, cx->resolveFlags, objp, propp);
 }
 
@@ -4765,6 +4793,9 @@ bool
 js::LookupPropertyWithFlags(JSContext *cx, JSObject *obj, jsid id, unsigned flags,
                             JSObject **objp, JSProperty **propp)
 {
+    /* Convert string indices to integers if appropriate. */
+    id = js_CheckForStringIndex(id);
+
     return LookupPropertyWithFlagsInline(cx, obj, id, flags, objp, propp);
 }
 
@@ -4773,7 +4804,7 @@ js::FindPropertyHelper(JSContext *cx,
                        HandlePropertyName name, bool cacheResult, HandleObject scopeChain,
                        JSObject **objp, JSObject **pobjp, JSProperty **propp)
 {
-    RootedVarId id(cx, NameToId(name));
+    RootedVarId id(cx, ATOM_TO_JSID(name));
 
     JSObject *pobj;
     int scopeIndex;
@@ -5033,6 +5064,9 @@ js_GetPropertyHelperInline(JSContext *cx, HandleObject obj, HandleObject receive
 
     RootedVarId id(cx, id_);
 
+    /* Convert string indices to integers if appropriate. */
+    id = js_CheckForStringIndex(id);
+
     /* This call site is hot -- use the always-inlined variant of LookupPropertyWithFlags(). */
     RootedVarObject obj2(cx);
     if (!LookupPropertyWithFlagsInline(cx, obj, id, cx->resolveFlags, obj2.address(), &prop))
@@ -5246,6 +5280,9 @@ js_SetPropertyHelper(JSContext *cx, HandleObject obj, jsid id, unsigned defineHo
 
     JS_ASSERT((defineHow & ~(DNP_CACHE_RESULT | DNP_UNQUALIFIED)) == 0);
     RootId idRoot(cx, &id);
+
+    /* Convert string indices to integers if appropriate. */
+    id = js_CheckForStringIndex(id);
 
     if (JS_UNLIKELY(obj->watched())) {
         /* Fire watchpoints, if any. */
@@ -5501,6 +5538,9 @@ js_DeleteGeneric(JSContext *cx, JSObject *obj_, jsid id_, Value *rval, JSBool st
     RootedVarObject obj(cx, obj_);
     RootedVarId id(cx, id_);
 
+    /* Convert string indices to integers if appropriate. */
+    id = js_CheckForStringIndex(id);
+
     if (!js_LookupProperty(cx, obj, id, &proto, &prop))
         return false;
     if (!prop || proto != obj) {
@@ -5524,11 +5564,7 @@ js_DeleteGeneric(JSContext *cx, JSObject *obj_, jsid id_, Value *rval, JSBool st
         GCPoke(cx->runtime, v);
     }
 
-    jsid userid;
-    if (!shape->getUserId(cx, &userid))
-        return false;
-
-    if (!CallJSPropertyOp(cx, obj->getClass()->delProperty, obj, userid, rval))
+    if (!CallJSPropertyOp(cx, obj->getClass()->delProperty, obj, shape->getUserId(), rval))
         return false;
     if (rval->isFalse())
         return true;
@@ -5539,7 +5575,7 @@ js_DeleteGeneric(JSContext *cx, JSObject *obj_, jsid id_, Value *rval, JSBool st
 JSBool
 js_DeleteProperty(JSContext *cx, JSObject *obj, PropertyName *name, Value *rval, JSBool strict)
 {
-    return js_DeleteGeneric(cx, obj, NameToId(name), rval, strict);
+    return js_DeleteGeneric(cx, obj, ATOM_TO_JSID(name), rval, strict);
 }
 
 JSBool
@@ -5564,6 +5600,7 @@ namespace js {
 bool
 HasDataProperty(JSContext *cx, HandleObject obj, jsid id, Value *vp)
 {
+    JS_ASSERT(id == js_CheckForStringIndex(id));
     if (const Shape *shape = obj->nativeLookup(cx, id)) {
         if (shape->hasDefaultGetter() && shape->hasSlot()) {
             *vp = obj->nativeGetSlot(shape->slot());
@@ -5606,18 +5643,18 @@ DefaultValue(JSContext *cx, HandleObject obj, JSType hint, Value *vp)
         if (clasp == &StringClass &&
             ClassMethodIsNative(cx, obj,
                                  &StringClass,
-                                 RootedVarId(cx, NameToId(cx->runtime->atomState.toStringAtom)),
+                                 RootedVarId(cx, ATOM_TO_JSID(cx->runtime->atomState.toStringAtom)),
                                  js_str_toString)) {
             *vp = StringValue(obj->asString().unbox());
             return true;
         }
 
-        if (!MaybeCallMethod(cx, obj, NameToId(cx->runtime->atomState.toStringAtom), vp))
+        if (!MaybeCallMethod(cx, obj, ATOM_TO_JSID(cx->runtime->atomState.toStringAtom), vp))
             return false;
         if (vp->isPrimitive())
             return true;
 
-        if (!MaybeCallMethod(cx, obj, NameToId(cx->runtime->atomState.valueOfAtom), vp))
+        if (!MaybeCallMethod(cx, obj, ATOM_TO_JSID(cx->runtime->atomState.valueOfAtom), vp))
             return false;
         if (vp->isPrimitive())
             return true;
@@ -5625,11 +5662,11 @@ DefaultValue(JSContext *cx, HandleObject obj, JSType hint, Value *vp)
         /* Optimize (new String(...)).valueOf(). */
         if ((clasp == &StringClass &&
              ClassMethodIsNative(cx, obj, &StringClass,
-                                 RootedVarId(cx, NameToId(cx->runtime->atomState.valueOfAtom)),
+                                 RootedVarId(cx, ATOM_TO_JSID(cx->runtime->atomState.valueOfAtom)),
                                  js_str_toString)) ||
             (clasp == &NumberClass &&
              ClassMethodIsNative(cx, obj, &NumberClass,
-                                 RootedVarId(cx, NameToId(cx->runtime->atomState.valueOfAtom)),
+                                 RootedVarId(cx, ATOM_TO_JSID(cx->runtime->atomState.valueOfAtom)),
                                  js_num_valueOf))) {
             *vp = obj->isString()
                   ? StringValue(obj->asString().unbox())
@@ -5637,12 +5674,12 @@ DefaultValue(JSContext *cx, HandleObject obj, JSType hint, Value *vp)
             return true;
         }
 
-        if (!MaybeCallMethod(cx, obj, NameToId(cx->runtime->atomState.valueOfAtom), vp))
+        if (!MaybeCallMethod(cx, obj, ATOM_TO_JSID(cx->runtime->atomState.valueOfAtom), vp))
             return false;
         if (vp->isPrimitive())
             return true;
 
-        if (!MaybeCallMethod(cx, obj, NameToId(cx->runtime->atomState.toStringAtom), vp))
+        if (!MaybeCallMethod(cx, obj, ATOM_TO_JSID(cx->runtime->atomState.toStringAtom), vp))
             return false;
         if (vp->isPrimitive())
             return true;

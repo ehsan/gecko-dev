@@ -65,7 +65,6 @@ CrossProcessMutex::CrossProcessMutex(CrossProcessMutexHandle aHandle)
     NS_RUNTIMEABORT("Attempt to construct a mutex from an invalid handle!");
   }
   mMutex = aHandle;
-  MOZ_COUNT_CTOR(CrossProcessMutex);
 }
 
 CrossProcessMutex::~CrossProcessMutex()

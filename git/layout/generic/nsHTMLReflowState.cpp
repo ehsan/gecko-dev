@@ -303,36 +303,7 @@ nsHTMLReflowState::Init(nsPresContext* aPresContext,
              (frame->GetContent() &&
             !(frame->GetContent()->IsHTML(nsGkAtoms::body) ||
               frame->GetContent()->IsHTML(nsGkAtoms::html)))) {
-
-    // If our height was specified as a percentage, then this could
-    // actually resolve to 'auto', based on:
-    // http://www.w3.org/TR/CSS21/visudet.html#the-height-property
-    nsIFrame* containingBlk = frame;
-    while (containingBlk) {
-      const nsStylePosition* stylePos = containingBlk->GetStylePosition();
-      if ((stylePos->mHeight.IsCoordPercentCalcUnit() &&
-           !stylePos->mHeight.HasPercent()) ||
-          (stylePos->mMaxHeight.IsCoordPercentCalcUnit() &&
-           !stylePos->mMaxHeight.HasPercent())) {
-        frame->AddStateBits(NS_FRAME_IN_CONSTRAINED_HEIGHT);
-        break;
-      } else if ((stylePos->mHeight.IsCoordPercentCalcUnit() &&
-                  stylePos->mHeight.HasPercent()) ||
-                 (stylePos->mMaxHeight.IsCoordPercentCalcUnit() &&
-                  stylePos->mMaxHeight.HasPercent())) {
-        if (!(containingBlk = containingBlk->GetContainingBlock())) {
-          // If we've reached the top of the tree, then we don't have
-          // a constrained height.
-          frame->RemoveStateBits(NS_FRAME_IN_CONSTRAINED_HEIGHT);
-          break;
-        }
-
-        continue;
-      } else {
-        frame->RemoveStateBits(NS_FRAME_IN_CONSTRAINED_HEIGHT);
-        break;
-      }
-    }
+    frame->AddStateBits(NS_FRAME_IN_CONSTRAINED_HEIGHT);
   } else {
     frame->RemoveStateBits(NS_FRAME_IN_CONSTRAINED_HEIGHT);
   }

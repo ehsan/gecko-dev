@@ -38,8 +38,6 @@
 #include "mozilla/Util.h"
 
 #include "KeyboardLayout.h"
-#include "nsWindow.h"
-#include "nsIMM32Handler.h"
 
 #include "nsMemory.h"
 #include "nsToolkit.h"
@@ -229,9 +227,9 @@ VirtualKey::GetNativeUniChars(PRUint8 aShiftState,
 }
 
 NativeKey::NativeKey(HKL aKeyboardLayout,
-                     nsWindow* aWindow,
+                     HWND aWnd,
                      const MSG& aKeyOrCharMessage) :
-  mDOMKeyCode(0), mVirtualKeyCode(0), mOriginalVirtualKeyCode(0)
+  mVirtualKeyCode(0), mOriginalVirtualKeyCode(0)
 {
   mScanCode = WinUtils::GetScanCode(aKeyOrCharMessage.lParam);
   mIsExtended = WinUtils::IsExtendedScanCode(aKeyOrCharMessage.lParam);
@@ -251,8 +249,7 @@ NativeKey::NativeKey(HKL aKeyboardLayout,
           break;
         case VK_PROCESSKEY:
           mVirtualKeyCode = mOriginalVirtualKeyCode =
-            static_cast<PRUint8>(
-              ::ImmGetVirtualKey(aWindow->GetWindowHandle()));
+            static_cast<PRUint8>(::ImmGetVirtualKey(aWnd));
           break;
         default:
           mVirtualKeyCode = mOriginalVirtualKeyCode;
@@ -271,7 +268,6 @@ NativeKey::NativeKey(HKL aKeyboardLayout,
       mVirtualKeyCode = mOriginalVirtualKeyCode = static_cast<PRUint8>(
         ::MapVirtualKeyEx(GetScanCodeWithExtendedFlag(),
                           MAPVK_VSC_TO_VK_EX, aKeyboardLayout));
-      break;
     default:
       MOZ_NOT_REACHED("Unsupported message");
       break;
@@ -279,26 +275,6 @@ NativeKey::NativeKey(HKL aKeyboardLayout,
 
   if (!mVirtualKeyCode) {
     mVirtualKeyCode = mOriginalVirtualKeyCode;
-  }
-
-  mDOMKeyCode = mOriginalVirtualKeyCode;
-  if (nsIMM32Handler::IsComposingOn(aWindow)) {
-    return;
-  }
-
-  switch (mOriginalVirtualKeyCode) {
-    // 0xBA, For the US standard keyboard, the ';:' key
-    case VK_OEM_1:
-      mDOMKeyCode =  NS_VK_SEMICOLON;
-      break;
-    // 0xBB, For any country/region, the '+' key
-    case VK_OEM_PLUS:
-      mDOMKeyCode = NS_VK_ADD;
-      break;
-    // 0xBD, For any country/region, the '-' key
-    case VK_OEM_MINUS:
-      mDOMKeyCode = NS_VK_SUBTRACT;
-      break;
   }
 }
 

@@ -1742,7 +1742,7 @@ nsHTMLEditor::InsertElementAtSelection(nsIDOMElement* aElement, bool aDeleteSele
 
   // hand off to the rules system, see if it has anything to say about this
   bool cancel, handled;
-  nsTextRulesInfo ruleInfo(kOpInsertElement);
+  nsTextRulesInfo ruleInfo(nsTextEditRules::kInsertElement);
   ruleInfo.insertElement = aElement;
   res = mRules->WillDoAction(selection, &ruleInfo, &cancel, &handled);
   if (cancel || (NS_FAILED(res))) return res;
@@ -2222,7 +2222,7 @@ nsHTMLEditor::MakeOrChangeList(const nsAString& aListType, bool entireList, cons
   NS_ENSURE_SUCCESS(res, res);
   NS_ENSURE_TRUE(selection, NS_ERROR_NULL_POINTER);
 
-  nsTextRulesInfo ruleInfo(kOpMakeList);
+  nsTextRulesInfo ruleInfo(nsTextEditRules::kMakeList);
   ruleInfo.blockType = &aListType;
   ruleInfo.entireList = entireList;
   ruleInfo.bulletType = &aBulletType;
@@ -2303,7 +2303,7 @@ nsHTMLEditor::RemoveList(const nsAString& aListType)
   NS_ENSURE_SUCCESS(res, res);
   NS_ENSURE_TRUE(selection, NS_ERROR_NULL_POINTER);
 
-  nsTextRulesInfo ruleInfo(kOpRemoveList);
+  nsTextRulesInfo ruleInfo(nsTextEditRules::kRemoveList);
   if (aListType.LowerCaseEqualsLiteral("ol"))
     ruleInfo.bOrdered = true;
   else  ruleInfo.bOrdered = false;
@@ -2335,7 +2335,7 @@ nsHTMLEditor::MakeDefinitionItem(const nsAString& aItemType)
   res = GetSelection(getter_AddRefs(selection));
   NS_ENSURE_SUCCESS(res, res);
   NS_ENSURE_TRUE(selection, NS_ERROR_NULL_POINTER);
-  nsTextRulesInfo ruleInfo(kOpMakeDefListItem);
+  nsTextRulesInfo ruleInfo(nsTextEditRules::kMakeDefListItem);
   ruleInfo.blockType = &aItemType;
   res = mRules->WillDoAction(selection, &ruleInfo, &cancel, &handled);
   if (cancel || (NS_FAILED(res))) return res;
@@ -2368,7 +2368,7 @@ nsHTMLEditor::InsertBasicBlock(const nsAString& aBlockType)
   res = GetSelection(getter_AddRefs(selection));
   NS_ENSURE_SUCCESS(res, res);
   NS_ENSURE_TRUE(selection, NS_ERROR_NULL_POINTER);
-  nsTextRulesInfo ruleInfo(kOpMakeBasicBlock);
+  nsTextRulesInfo ruleInfo(nsTextEditRules::kMakeBasicBlock);
   ruleInfo.blockType = &aBlockType;
   res = mRules->WillDoAction(selection, &ruleInfo, &cancel, &handled);
   if (cancel || (NS_FAILED(res))) return res;
@@ -2434,9 +2434,11 @@ nsHTMLEditor::Indent(const nsAString& aIndent)
   nsCOMPtr<nsIEditRules> kungFuDeathGrip(mRules);
 
   bool cancel, handled;
-  OperationID opID = kOpIndent;
+  PRInt32 theAction = nsTextEditRules::kIndent;
+  PRInt32 opID = kOpIndent;
   if (aIndent.LowerCaseEqualsLiteral("outdent"))
   {
+    theAction = nsTextEditRules::kOutdent;
     opID = kOpOutdent;
   }
   nsAutoEditBatch beginBatching(this);
@@ -2448,7 +2450,7 @@ nsHTMLEditor::Indent(const nsAString& aIndent)
   NS_ENSURE_SUCCESS(res, res);
   NS_ENSURE_TRUE(selection, NS_ERROR_NULL_POINTER);
 
-  nsTextRulesInfo ruleInfo(opID);
+  nsTextRulesInfo ruleInfo(theAction);
   res = mRules->WillDoAction(selection, &ruleInfo, &cancel, &handled);
   if (cancel || (NS_FAILED(res))) return res;
   
@@ -2528,7 +2530,7 @@ nsHTMLEditor::Align(const nsAString& aAlignType)
   nsresult res = GetSelection(getter_AddRefs(selection));
   NS_ENSURE_SUCCESS(res, res);
   NS_ENSURE_TRUE(selection, NS_ERROR_NULL_POINTER);
-  nsTextRulesInfo ruleInfo(kOpAlign);
+  nsTextRulesInfo ruleInfo(nsTextEditRules::kAlign);
   ruleInfo.alignType = &aAlignType;
   res = mRules->WillDoAction(selection, &ruleInfo, &cancel, &handled);
   if (cancel || NS_FAILED(res))
@@ -3748,8 +3750,7 @@ nsHTMLEditor::StyleSheetLoaded(nsCSSStyleSheet* aSheet, bool aWasAlternate,
 /** All editor operations which alter the doc should be prefaced
  *  with a call to StartOperation, naming the action and direction */
 NS_IMETHODIMP
-nsHTMLEditor::StartOperation(OperationID opID,
-                             nsIEditor::EDirection aDirection)
+nsHTMLEditor::StartOperation(PRInt32 opID, nsIEditor::EDirection aDirection)
 {
   // Protect the edit rules object from dying
   nsCOMPtr<nsIEditRules> kungFuDeathGrip(mRules);
@@ -4213,7 +4214,7 @@ nsHTMLEditor::RemoveBlockContainer(nsIDOMNode *inNode)
 // GetPriorHTMLSibling: returns the previous editable sibling, if there is
 //                   one within the parent
 //                       
-nsIContent*
+nsINode*
 nsHTMLEditor::GetPriorHTMLSibling(nsINode* aNode)
 {
   MOZ_ASSERT(aNode);
@@ -4246,7 +4247,7 @@ nsHTMLEditor::GetPriorHTMLSibling(nsIDOMNode *inNode, nsCOMPtr<nsIDOMNode> *outN
 //                   one within the parent.  just like above routine but
 //                   takes a parent/offset instead of a node.
 //                       
-nsIContent*
+nsINode*
 nsHTMLEditor::GetPriorHTMLSibling(nsINode* aParent, PRInt32 aOffset)
 {
   MOZ_ASSERT(aParent);
@@ -4278,7 +4279,7 @@ nsHTMLEditor::GetPriorHTMLSibling(nsIDOMNode *inParent, PRInt32 inOffset, nsCOMP
 // GetNextHTMLSibling: returns the next editable sibling, if there is
 //                   one within the parent
 //                       
-nsIContent*
+nsINode*
 nsHTMLEditor::GetNextHTMLSibling(nsINode* aNode)
 {
   MOZ_ASSERT(aNode);
@@ -4310,7 +4311,7 @@ nsHTMLEditor::GetNextHTMLSibling(nsIDOMNode *inNode, nsCOMPtr<nsIDOMNode> *outNo
 // GetNextHTMLSibling: returns the next editable sibling, if there is
 //                   one within the parent.  just like above routine but
 //                   takes a parent/offset instead of a node.
-nsIContent*
+nsINode*
 nsHTMLEditor::GetNextHTMLSibling(nsINode* aParent, PRInt32 aOffset)
 {
   MOZ_ASSERT(aParent);
@@ -4590,9 +4591,6 @@ nsHTMLEditor::GetLastEditableLeaf(nsIDOMNode *aNode, nsCOMPtr<nsIDOMNode> *aOutL
 bool
 nsHTMLEditor::IsTextInDirtyFrameVisible(nsIContent *aNode)
 {
-  MOZ_ASSERT(aNode);
-  MOZ_ASSERT(aNode->NodeType() == nsIDOMNode::TEXT_NODE);
-
   bool isEmptyTextNode;
   nsresult rv = IsVisTextNode(aNode, &isEmptyTextNode, false);
   if (NS_FAILED(rv)) {
@@ -4613,11 +4611,13 @@ nsHTMLEditor::IsVisTextNode(nsIContent* aNode,
                             bool* outIsEmptyNode,
                             bool aSafeToAskFrames)
 {
-  MOZ_ASSERT(aNode);
-  MOZ_ASSERT(aNode->NodeType() == nsIDOMNode::TEXT_NODE);
-  MOZ_ASSERT(outIsEmptyNode);
-
+  NS_ENSURE_TRUE(aNode && outIsEmptyNode, NS_ERROR_NULL_POINTER);
   *outIsEmptyNode = true;
+
+  // callers job to only call us with text nodes
+  if (!aNode->IsNodeOfType(nsINode::eTEXT)) {
+    return NS_ERROR_NULL_POINTER;
+  }
 
   PRUint32 length = aNode->TextLength();
   if (aSafeToAskFrames)
@@ -4938,7 +4938,7 @@ nsHTMLEditor::SetCSSBackgroundColor(const nsAString& aColor)
   nsAutoTxnsConserveSelection dontSpazMySelection(this);
   
   bool cancel, handled;
-  nsTextRulesInfo ruleInfo(kOpSetTextProperty);
+  nsTextRulesInfo ruleInfo(nsTextEditRules::kSetTextProperty);
   res = mRules->WillDoAction(selection, &ruleInfo, &cancel, &handled);
   NS_ENSURE_SUCCESS(res, res);
   if (!cancel && !handled)

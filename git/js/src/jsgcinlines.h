@@ -399,6 +399,7 @@ class GCCompartmentsIter {
         end = rt->compartments.end();
         if (!(*it)->isCollecting())
             next();
+        JS_ASSERT(it < end);
     }
 
     bool done() const { return it == end; }

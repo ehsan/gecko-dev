@@ -618,7 +618,6 @@ static const struct JSOption {
     {"typeinfer",       JSOPTION_TYPE_INFERENCE},
     {"werror",          JSOPTION_WERROR},
     {"xml",             JSOPTION_XML},
-    {"strict_mode",     JSOPTION_STRICT_MODE},
 };
 
 static uint32_t
@@ -823,7 +822,7 @@ EvaluateWithLocation(JSContext *cx, unsigned argc, jsval *vp)
 }
 
 static JSBool
-EvaluateCommon(JSContext *cx, unsigned argc, jsval *vp, bool compileAndGo)
+Evaluate(JSContext *cx, unsigned argc, jsval *vp)
 {
     if (argc != 1 || !JSVAL_IS_STRING(JS_ARGV(cx, vp)[0])) {
         JS_ReportErrorNumber(cx, my_GetErrorMessage, NULL,
@@ -849,30 +848,7 @@ EvaluateCommon(JSContext *cx, unsigned argc, jsval *vp, bool compileAndGo)
         return false;
     }
 
-    if (compileAndGo) {
-        // JS_EvaluateUCScript always enables the compile-and-go option.
-        return JS_EvaluateUCScript(cx, thisobj, codeChars, codeLength, "@evaluate", 1, vp);
-    } else {
-        uint32_t saved = JS_GetOptions(cx);
-
-        JS_SetOptions(cx, saved & ~JSOPTION_COMPILE_N_GO);
-        JSScript *script = JS_CompileUCScript(cx, thisobj, codeChars, codeLength, "@evaluate", 1);
-        JS_SetOptions(cx, saved);
-
-        return script && JS_ExecuteScript(cx, thisobj, script, vp);
-    }
-}
-
-static JSBool
-Evaluate(JSContext *cx, unsigned argc, jsval *vp)
-{
-    return EvaluateCommon(cx, argc, vp, true);
-}
-
-static JSBool
-EvaluateNonCompileAndGo(JSContext *cx, unsigned argc, jsval *vp)
-{
-    return EvaluateCommon(cx, argc, vp, false);
+    return JS_EvaluateUCScript(cx, thisobj, codeChars, codeLength, "@evaluate", 0, vp);
 }
 
 static JSString *
@@ -3509,10 +3485,6 @@ static JSFunctionSpecWithHelp shell_functions[] = {
 "evaluate(code)",
 "  Evaluate code as though it were the contents of a file."),
 
-    JS_FN_HELP("evaluateNonCompileAndGo", EvaluateNonCompileAndGo, 1, 0,
-"evaluateNonCompileAndGo(code)",
-"  Evaluate code like evaluate() but with compile-and-go turned off."),
-
     JS_FN_HELP("evalWithLocation", EvaluateWithLocation, 3, 0,
 "evalWithLocation(code, filename, lineno)",
 "  Eval code as if loaded from the given filename and line number."),
@@ -4344,11 +4316,11 @@ global_resolve(JSContext *cx, JSObject *obj_, jsid id, unsigned flags,
 }
 
 JSClass global_class = {
-    "global", JSCLASS_NEW_RESOLVE | JSCLASS_GLOBAL_FLAGS,
+    "global", JSCLASS_NEW_RESOLVE | JSCLASS_GLOBAL_FLAGS | JSCLASS_HAS_PRIVATE,
     JS_PropertyStub,  JS_PropertyStub,
     JS_PropertyStub,  JS_StrictPropertyStub,
     global_enumerate, (JSResolveOp) global_resolve,
-    JS_ConvertStub,   NULL
+    JS_ConvertStub,   its_finalize
 };
 
 static JSBool

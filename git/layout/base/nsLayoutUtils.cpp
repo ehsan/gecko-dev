@@ -132,8 +132,8 @@ bool nsLayoutUtils::gPreventAssertInCompareTreePosition = false;
 typedef gfxPattern::GraphicsFilter GraphicsFilter;
 typedef FrameMetrics::ViewID ViewID;
 
-/* static */ PRUint32 nsLayoutUtils::sFontSizeInflationEmPerLine;
-/* static */ PRUint32 nsLayoutUtils::sFontSizeInflationMinTwips;
+static PRUint32 sFontSizeInflationEmPerLine;
+static PRUint32 sFontSizeInflationMinTwips;
 /* static */ PRUint32 nsLayoutUtils::sFontSizeInflationLineThreshold;
 
 static ViewID sScrollIdCounter = FrameMetrics::START_SCROLL_ID;
@@ -4671,9 +4671,7 @@ nsReflowFrameRunnable::Run()
 static nscoord
 MinimumFontSizeFor(nsPresContext* aPresContext, nscoord aContainerWidth)
 {
-  PRUint32 emPerLine = nsLayoutUtils::FontSizeInflationEmPerLine();
-  PRUint32 minTwips = nsLayoutUtils::FontSizeInflationMinTwips();
-  if (emPerLine == 0 && minTwips == 0) {
+  if (sFontSizeInflationEmPerLine == 0 && sFontSizeInflationMinTwips == 0) {
     return 0;
   }
 
@@ -4682,17 +4680,20 @@ MinimumFontSizeFor(nsPresContext* aPresContext, nscoord aContainerWidth)
   nscoord effectiveContainerWidth = NS_MIN(iFrameWidth, aContainerWidth);
 
   nscoord byLine = 0, byInch = 0;
-  if (emPerLine != 0) {
-    byLine = effectiveContainerWidth / emPerLine;
+  if (sFontSizeInflationEmPerLine != 0) {
+    byLine = effectiveContainerWidth / sFontSizeInflationEmPerLine;
   }
-  if (minTwips != 0) {
+  if (sFontSizeInflationMinTwips != 0) {
     // REVIEW: Is this giving us app units and sizes *not* counting
     // viewport scaling?
+    nsDeviceContext *dx = aPresContext->DeviceContext();
+    nsRect clientRect;
+    dx->GetClientRect(clientRect); // FIXME: GetClientRect looks expensive
     float deviceWidthInches =
-      aPresContext->ScreenWidthInchesForFontInflation();
+      float(clientRect.width) / float(dx->AppUnitsPerPhysicalInch());
     byInch = NSToCoordRound(effectiveContainerWidth /
                             (deviceWidthInches * 1440 /
-                             minTwips ));
+                             sFontSizeInflationMinTwips ));
   }
   return NS_MAX(byLine, byInch);
 }
@@ -4724,7 +4725,8 @@ nsLayoutUtils::FontSizeInflationInner(const nsIFrame *aFrame,
     nsIContent* content = f->GetContent();
     // Also, if there is more than one frame corresponding to a single
     // content node, we want the outermost one.
-    if (!(f->GetParent() && f->GetParent()->GetContent() == content) &&
+    if (!(f->GetParent() &&
+          f->GetParent()->GetContent() == content) &&
         f->GetType() != nsGkAtoms::inlineFrame) {
       nsStyleCoord stylePosWidth = f->GetStylePosition()->mWidth;
       nsStyleCoord stylePosHeight = f->GetStylePosition()->mHeight;

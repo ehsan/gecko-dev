@@ -204,8 +204,8 @@ fun_getProperty(JSContext *cx, JSObject *obj, jsid id, Value *vp)
 /* NB: no sentinels at ends -- use ArrayLength to bound loops.
  * Properties censored into [[ThrowTypeError]] in strict mode. */
 static const uint16_t poisonPillProps[] = {
-    NAME_OFFSET(arguments),
-    NAME_OFFSET(caller),
+    ATOM_OFFSET(arguments),
+    ATOM_OFFSET(caller),
 };
 
 static JSBool
@@ -219,22 +219,22 @@ fun_enumerate(JSContext *cx, JSObject *obj)
     bool found;
 
     if (!obj->isBoundFunction()) {
-        id = NameToId(cx->runtime->atomState.classPrototypeAtom);
+        id = ATOM_TO_JSID(cx->runtime->atomState.classPrototypeAtom);
         if (!obj->hasProperty(cx, id, &found, JSRESOLVE_QUALIFIED))
             return false;
     }
 
-    id = NameToId(cx->runtime->atomState.lengthAtom);
+    id = ATOM_TO_JSID(cx->runtime->atomState.lengthAtom);
     if (!obj->hasProperty(cx, id, &found, JSRESOLVE_QUALIFIED))
         return false;
         
-    id = NameToId(cx->runtime->atomState.nameAtom);
+    id = ATOM_TO_JSID(cx->runtime->atomState.nameAtom);
     if (!obj->hasProperty(cx, id, &found, JSRESOLVE_QUALIFIED))
         return false;
 
     for (unsigned i = 0; i < ArrayLength(poisonPillProps); i++) {
         const uint16_t offset = poisonPillProps[i];
-        id = NameToId(OFFSET_TO_NAME(cx->runtime, offset));
+        id = ATOM_TO_JSID(OFFSET_TO_ATOM(cx->runtime, offset));
         if (!obj->hasProperty(cx, id, &found, JSRESOLVE_QUALIFIED))
             return false;
     }
@@ -341,7 +341,7 @@ fun_resolve(JSContext *cx, JSObject *obj, jsid id, unsigned flags,
     for (unsigned i = 0; i < ArrayLength(poisonPillProps); i++) {
         const uint16_t offset = poisonPillProps[i];
 
-        if (JSID_IS_ATOM(id, OFFSET_TO_NAME(cx->runtime, offset))) {
+        if (JSID_IS_ATOM(id, OFFSET_TO_ATOM(cx->runtime, offset))) {
             JS_ASSERT(!IsInternalFunctionObject(fun));
 
             PropertyOp getter;
@@ -1212,12 +1212,12 @@ LookupInterpretedFunctionPrototype(JSContext *cx, RootedVarObject funobj)
     JS_ASSERT(!funobj->isBoundFunction());
 #endif
 
-    jsid id = NameToId(cx->runtime->atomState.classPrototypeAtom);
+    jsid id = ATOM_TO_JSID(cx->runtime->atomState.classPrototypeAtom);
     RootedVar<const Shape*> shape(cx, funobj->nativeLookup(cx, id));
     if (!shape) {
         if (!ResolveInterpretedFunctionPrototype(cx, funobj))
             return NULL;
-        id = NameToId(cx->runtime->atomState.classPrototypeAtom);
+        id = ATOM_TO_JSID(cx->runtime->atomState.classPrototypeAtom);
         shape = funobj->nativeLookup(cx, id);
     }
     JS_ASSERT(!shape->configurable());

@@ -144,8 +144,6 @@ Parser::init(const jschar *base, size_t length, const char *filename, unsigned l
         cx->tempLifoAlloc().release(tempPoolMark);
         return false;
     }
-    if (context->hasRunOption(JSOPTION_STRICT_MODE))
-        tokenStream.setStrictMode();
     return true;
 }
 
@@ -2008,7 +2006,7 @@ BindLet(JSContext *cx, BindData *data, JSAtom *atom, TreeContext *tc)
      * slot indexed by blockCount off the class-reserved slot base.
      */
     bool redeclared;
-    jsid id = AtomToId(atom);
+    jsid id = ATOM_TO_JSID(atom);
     const Shape *shape = blockObj->addVar(cx, id, blockCount, &redeclared);
     if (!shape) {
         if (redeclared)

@@ -317,7 +317,7 @@ IdentityManager.prototype = {
 
     // If we have a Sync Key but no bundle, bundle creation failed, which
     // implies a bad Sync Key.
-    if (!this.syncKeyBundle) {
+    if (!this._syncKeyBundle) {
       return LOGIN_FAILED_INVALID_PASSPHRASE;
     }
 

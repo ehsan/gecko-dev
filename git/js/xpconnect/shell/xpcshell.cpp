@@ -717,7 +717,6 @@ static const struct JSOption {
     {"strict",          JSOPTION_STRICT},
     {"werror",          JSOPTION_WERROR},
     {"xml",             JSOPTION_XML},
-    {"strict_mode",     JSOPTION_STRICT_MODE},
 };
 
 static uint32_t

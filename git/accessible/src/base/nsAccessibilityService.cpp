@@ -1271,9 +1271,6 @@ nsAccessibilityService::Init()
 
   observerService->AddObserver(this, NS_XPCOM_SHUTDOWN_OBSERVER_ID, false);
 
-  static const PRUnichar kInitIndicator[] = { '1', 0 };
-  observerService->NotifyObservers(nsnull, "a11y-init-or-shutdown", kInitIndicator);
-
   // Initialize accessibility.
   nsAccessNodeWrap::InitAccessibility();
 
@@ -1287,12 +1284,8 @@ nsAccessibilityService::Shutdown()
   // Remove observers.
   nsCOMPtr<nsIObserverService> observerService =
       mozilla::services::GetObserverService();
-  if (observerService) {
+  if (observerService)
     observerService->RemoveObserver(this, NS_XPCOM_SHUTDOWN_OBSERVER_ID);
-
-    static const PRUnichar kShutdownIndicator[] = { '0', 0 };
-    observerService->NotifyObservers(nsnull, "a11y-init-or-shutdown", kShutdownIndicator);
-  }
 
   // Stop accessible document loader.
   nsAccDocManager::Shutdown();

@@ -190,9 +190,7 @@ public class BrowserToolbar {
         mStop = (ImageButton) mLayout.findViewById(R.id.stop);
         mStop.setOnClickListener(new Button.OnClickListener() {
             public void onClick(View v) {
-                Tab tab = Tabs.getInstance().getSelectedTab();
-                if (tab != null)
-                    tab.doStop();
+                doStop();
             }
         });
 
@@ -221,6 +219,10 @@ public class BrowserToolbar {
 
     private void showTabs() {
         GeckoApp.mAppContext.showTabs();
+    }
+
+    private void doStop() {
+        GeckoApp.mAppContext.doStop();
     }
 
     public int getHighlightColor() {

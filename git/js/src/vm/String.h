@@ -44,9 +44,7 @@
 #include "mozilla/Attributes.h"
 
 #include "jsapi.h"
-#include "jsatom.h"
 #include "jsfriendapi.h"
-#include "jsstr.h"
 
 #include "gc/Barrier.h"
 #include "gc/Heap.h"
@@ -512,8 +510,6 @@ class JSFlatString : public JSLinearString
     bool isFlat() const MOZ_DELETE;
     JSFlatString &asFlat() const MOZ_DELETE;
 
-    bool isIndexSlow(uint32_t *indexp) const;
-
   public:
     JS_ALWAYS_INLINE
     const jschar *charsZ() const {
@@ -527,10 +523,7 @@ class JSFlatString : public JSLinearString
      * calling isIndex returns true, js::IndexToString(cx, *indexp) will be a
      * string equal to this string.)
      */
-    inline bool isIndex(uint32_t *indexp) const {
-        const jschar *s = chars();
-        return JS7_ISDEC(*s) && isIndexSlow(indexp);
-    }
+    bool isIndex(uint32_t *indexp) const;
 
     /*
      * Returns a property name represented by this string, or null on failure.
@@ -782,12 +775,6 @@ class PropertyName : public JSAtom
 {};
 
 JS_STATIC_ASSERT(sizeof(PropertyName) == sizeof(JSString));
-
-static JS_ALWAYS_INLINE jsid
-NameToId(PropertyName *name)
-{
-    return NON_INTEGER_ATOM_TO_JSID(name);
-}
 
 } /* namespace js */
 

@@ -144,8 +144,9 @@ function ensure_results(aSearchString, aExpectedValue) {
 }
 
 function run_test() {
+  Services.prefs.setBoolPref("browser.urlbar.autoFill", true);
+  Services.prefs.setBoolPref("browser.urlbar.autoFill.typed", false);
   do_register_cleanup(function () {
-    Services.prefs.clearUserPref("browser.urlbar.autocomplete.enabled");
     Services.prefs.clearUserPref("browser.urlbar.autoFill");
     Services.prefs.clearUserPref("browser.urlbar.autoFill.typed");
   });
@@ -154,10 +155,6 @@ function run_test() {
     let [description, searchString, expectedValue, setupFunc] = testData;
     add_test(function () {
       do_log_info(description);
-      Services.prefs.setBoolPref("browser.urlbar.autocomplete.enabled", true);
-      Services.prefs.setBoolPref("browser.urlbar.autoFill", true);
-      Services.prefs.setBoolPref("browser.urlbar.autoFill.typed", false);
-
       if (setupFunc) {
         setupFunc();
       }

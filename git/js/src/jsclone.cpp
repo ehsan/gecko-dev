@@ -519,9 +519,7 @@ class AutoEnterCompartmentAndPushPrincipal : public JSAutoEnterCompartment
 
         // Push.
         const JSSecurityCallbacks *cb = cx->runtime->securityCallbacks;
-        if (cb->pushContextPrincipal)
-          return cb->pushContextPrincipal(cx, target->principals(cx));
-        return true;
+        return cb->pushContextPrincipal(cx, target->principals(cx));
     };
 
     ~AutoEnterCompartmentAndPushPrincipal() {
@@ -529,8 +527,7 @@ class AutoEnterCompartmentAndPushPrincipal : public JSAutoEnterCompartment
         if (state == STATE_OTHER_COMPARTMENT) {
             AutoCompartment *ac = getAutoCompartment();
             const JSSecurityCallbacks *cb = ac->context->runtime->securityCallbacks;
-            if (cb->popContextPrincipal)
-              cb->popContextPrincipal(ac->context);
+            cb->popContextPrincipal(ac->context);
         }
     };
 };
@@ -944,7 +941,7 @@ JSStructuredCloneReader::readId(jsid *idp)
         JSAtom *atom = js_AtomizeString(context(), str);
         if (!atom)
             return false;
-        *idp = NON_INTEGER_ATOM_TO_JSID(atom);
+        *idp = ATOM_TO_JSID(atom);
         return true;
     }
     if (tag == SCTAG_NULL) {

@@ -103,8 +103,7 @@ const kQueryTypeFiltered = 1;
 const kTitleTagsSeparator = " \u2013 ";
 
 const kBrowserUrlbarBranch = "browser.urlbar.";
-// Toggle autocomplete.
-const kBrowserUrlbarAutocompleteEnabledPref = "autocomplete.enabled";
+
 // Toggle autoFill.
 const kBrowserUrlbarAutofillPref = "autoFill";
 // Whether to search only typed entries.
@@ -846,9 +845,7 @@ nsPlacesAutoComplete.prototype = {
    */
   _loadPrefs: function PAC_loadPrefs(aRegisterObserver)
   {
-    this._enabled = safePrefGetter(this._prefs,
-                                   kBrowserUrlbarAutocompleteEnabledPref,
-                                   true);
+    this._enabled = safePrefGetter(this._prefs, "autocomplete.enabled", true);
     this._matchBehavior = safePrefGetter(this._prefs,
                                          "matchBehavior",
                                          MATCH_BOUNDARY_ANYWHERE);
@@ -1304,7 +1301,7 @@ urlInlineComplete.prototype = {
 
   get _db()
   {
-    if (!this.__db && this._autofillEnabled) {
+    if (!this.__db && this._autofill) {
       this.__db = PlacesUtils.history.QueryInterface(Ci.nsPIPlacesDatabase).
                   DBConnection.clone(true);
     }
@@ -1489,13 +1486,9 @@ urlInlineComplete.prototype = {
   _loadPrefs: function UIC_loadPrefs(aRegisterObserver)
   {
     let prefBranch = Services.prefs.getBranch(kBrowserUrlbarBranch);
-    let autocomplete = safePrefGetter(prefBranch,
-                                      kBrowserUrlbarAutocompleteEnabledPref,
-                                      true);
-    let autofill = safePrefGetter(prefBranch,
-                                  kBrowserUrlbarAutofillPref,
-                                  true);
-    this._autofillEnabled = autocomplete && autofill;
+    this._autofill = safePrefGetter(prefBranch,
+                                    kBrowserUrlbarAutofillPref,
+                                    true);
     this._autofillTyped = safePrefGetter(prefBranch,
                                          kBrowserUrlbarAutofillTypedPref,
                                          true);
@@ -1555,11 +1548,10 @@ urlInlineComplete.prototype = {
     }
     else if (aTopic == kPrefChanged &&
              (aData.substr(kBrowserUrlbarBranch.length) == kBrowserUrlbarAutofillPref ||
-              aData.substr(kBrowserUrlbarBranch.length) == kBrowserUrlbarAutocompleteEnabledPref ||
               aData.substr(kBrowserUrlbarBranch.length) == kBrowserUrlbarAutofillTypedPref)) {
       let previousAutofillTyped = this._autofillTyped;
       this._loadPrefs();
-      if (!this._autofillEnabled) {
+      if (!this._autofill) {
         this.stopSearch();
         this._closeDatabase();
       }

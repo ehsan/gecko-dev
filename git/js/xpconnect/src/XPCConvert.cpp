@@ -977,17 +977,19 @@ XPCConvert::NativeInterface2JSObject(XPCLazyCallContext& lccx,
         flat = cache->GetWrapper();
     }
 
-    XPCCallContext &ccx = lccx.GetXPCCallContext();
-    if (!ccx.IsValid())
-        return false;
-
     // We can't simply construct a slim wrapper. Go ahead and create an
     // XPCWrappedNative for this object. At this point, |flat| could be
     // non-null, meaning that either we already have a wrapped native from
     // the cache (which might need to be QI'd to the new interface) or that
     // we found a slim wrapper that we'll have to morph.
-    AutoMarkingNativeInterfacePtr iface(ccx);
+    AutoMarkingNativeInterfacePtr iface;
     if (iid) {
+        XPCCallContext &ccx = lccx.GetXPCCallContext();
+        if (!ccx.IsValid())
+            return false;
+
+        iface.Init(ccx);
+
         if (Interface)
             iface = *Interface;
 
@@ -1008,6 +1010,10 @@ XPCConvert::NativeInterface2JSObject(XPCLazyCallContext& lccx,
     XPCWrappedNative* wrapper;
     nsRefPtr<XPCWrappedNative> strongWrapper;
     if (!flat) {
+        XPCCallContext &ccx = lccx.GetXPCCallContext();
+        if (!ccx.IsValid())
+            return false;
+
         rv = XPCWrappedNative::GetNewOrUsed(ccx, aHelper, xpcscope, iface,
                                             getter_AddRefs(strongWrapper));
 
@@ -1024,12 +1030,17 @@ XPCConvert::NativeInterface2JSObject(XPCLazyCallContext& lccx,
         // a valid XPCCallContext because we checked when calling Init on
         // iface.
         if (iface)
-            wrapper->FindTearOff(ccx, iface, false, &rv);
+            wrapper->FindTearOff(lccx.GetXPCCallContext(), iface, false,
+                                 &rv);
         else
             rv = NS_OK;
     } else {
         NS_ASSERTION(IS_SLIM_WRAPPER(flat),
                      "What kind of wrapper is this?");
+
+        XPCCallContext &ccx = lccx.GetXPCCallContext();
+        if (!ccx.IsValid())
+            return false;
 
         SLIM_LOG(("***** morphing from XPCConvert::NativeInterface2JSObject"
                   "(%p)\n",
@@ -1060,6 +1071,10 @@ XPCConvert::NativeInterface2JSObject(XPCLazyCallContext& lccx,
             *pErr = NS_OK;
         return true;
     }
+
+    XPCCallContext &ccx = lccx.GetXPCCallContext();
+    if (!ccx.IsValid())
+        return false;
 
     JSObject *original = flat;
     if (!JS_WrapObject(ccx, &flat))

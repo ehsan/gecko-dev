@@ -139,6 +139,8 @@ js_LeaveLocalRootScopeWithResult(JSContext *cx, void *rval)
  * Random utilities and global functions.
  */
 const char js_AttributeName_str[] = "AttributeName";
+const char js_isXMLName_str[]     = "isXMLName";
+const char js_XMLList_str[]       = "XMLList";
 const char js_localName_str[]     = "localName";
 const char js_xml_parent_str[]    = "parent";
 const char js_prefix_str[]        = "prefix";
@@ -2892,7 +2894,7 @@ js_GetLocalNameFromFunctionQName(JSObject *obj, jsid *funidp, JSContext *cx)
         return false;
     JSAtom *name;
     if (GetLocalNameFromFunctionQName(obj, &name, cx)) {
-        *funidp = AtomToId(name);
+        *funidp = ATOM_TO_JSID(name);
         return true;
     }
     return false;
@@ -2945,7 +2947,7 @@ ToXMLName(JSContext *cx, jsval v, jsid *funidp)
      * If the idea is to reject uint32_t property names, then the check needs to
      * be stricter, to exclude hexadecimal and floating point literals.
      */
-    if (js_IdIsIndex(AtomToId(atomizedName), &index))
+    if (js_IdIsIndex(ATOM_TO_JSID(atomizedName), &index))
         goto bad;
 
     if (*atomizedName->chars() == '@') {
@@ -2965,7 +2967,7 @@ construct:
 out:
     JSAtom *localName;
     *funidp = GetLocalNameFromFunctionQName(obj, &localName, cx)
-              ? AtomToId(localName)
+              ? ATOM_TO_JSID(localName)
               : JSID_VOID;
     return obj;
 
@@ -4212,7 +4214,7 @@ PutProperty(JSContext *cx, JSObject *obj_, jsid id_, JSBool strict, jsval *vp)
             kidobj = js_GetXMLObject(cx, kid);
             if (!kidobj)
                 goto bad;
-            id = NameToId(cx->runtime->atomState.starAtom);
+            id = ATOM_TO_JSID(cx->runtime->atomState.starAtom);
             ok = PutProperty(cx, kidobj, id, strict, vp);
             if (!ok)
                 goto out;
@@ -4786,7 +4788,7 @@ static JSBool
 xml_lookupProperty(JSContext *cx, JSObject *obj, PropertyName *name, JSObject **objp,
                    JSProperty **propp)
 {
-    return xml_lookupGeneric(cx, obj, NameToId(name), objp, propp);
+    return xml_lookupGeneric(cx, obj, ATOM_TO_JSID(name), objp, propp);
 }
 
 static JSBool
@@ -4840,7 +4842,7 @@ static JSBool
 xml_defineProperty(JSContext *cx, JSObject *obj, PropertyName *name, const Value *v,
                    PropertyOp getter, StrictPropertyOp setter, unsigned attrs)
 {
-    return xml_defineGeneric(cx, obj, NameToId(name), v, getter, setter, attrs);
+    return xml_defineGeneric(cx, obj, ATOM_TO_JSID(name), v, getter, setter, attrs);
 }
 
 static JSBool
@@ -4874,7 +4876,7 @@ xml_getGeneric(JSContext *cx, JSObject *obj, JSObject *receiver, jsid id, Value 
 static JSBool
 xml_getProperty(JSContext *cx, JSObject *obj, JSObject *receiver, PropertyName *name, Value *vp)
 {
-    return xml_getGeneric(cx, obj, receiver, NameToId(name), vp);
+    return xml_getGeneric(cx, obj, receiver, ATOM_TO_JSID(name), vp);
 }
 
 static JSBool
@@ -4901,7 +4903,7 @@ xml_setGeneric(JSContext *cx, JSObject *obj, jsid id, Value *vp, JSBool strict)
 static JSBool
 xml_setProperty(JSContext *cx, JSObject *obj, PropertyName *name, Value *vp, JSBool strict)
 {
-    return xml_setGeneric(cx, obj, NameToId(name), vp, strict);
+    return xml_setGeneric(cx, obj, ATOM_TO_JSID(name), vp, strict);
 }
 
 static JSBool
@@ -4933,7 +4935,7 @@ xml_getGenericAttributes(JSContext *cx, JSObject *obj, jsid id, unsigned *attrsp
 static JSBool
 xml_getPropertyAttributes(JSContext *cx, JSObject *obj, PropertyName *name, unsigned *attrsp)
 {
-    return xml_getGenericAttributes(cx, obj, NameToId(name), attrsp);
+    return xml_getGenericAttributes(cx, obj, ATOM_TO_JSID(name), attrsp);
 }
 
 static JSBool
@@ -4969,7 +4971,7 @@ xml_setGenericAttributes(JSContext *cx, JSObject *obj, jsid id, unsigned *attrsp
 static JSBool
 xml_setPropertyAttributes(JSContext *cx, JSObject *obj, PropertyName *name, unsigned *attrsp)
 {
-    return xml_setGenericAttributes(cx, obj, NameToId(name), attrsp);
+    return xml_setGenericAttributes(cx, obj, ATOM_TO_JSID(name), attrsp);
 }
 
 static JSBool
@@ -5033,7 +5035,7 @@ xml_deleteGeneric(JSContext *cx, JSObject *obj, jsid id, Value *rval, JSBool str
 static JSBool
 xml_deleteProperty(JSContext *cx, JSObject *obj, PropertyName *name, Value *rval, JSBool strict)
 {
-    return xml_deleteGeneric(cx, obj, NameToId(name), rval, strict);
+    return xml_deleteGeneric(cx, obj, ATOM_TO_JSID(name), rval, strict);
 }
 
 static JSBool
@@ -5593,13 +5595,13 @@ ValueToId(JSContext *cx, jsval v, AutoIdRooter *idr)
         int32_t i = JSVAL_TO_INT(v);
         if (INT_FITS_IN_JSID(i))
             *idr->addr() = INT_TO_JSID(i);
-        else if (!ValueToId(cx, v, idr->addr()))
+        else if (!js_ValueToStringId(cx, v, idr->addr()))
             return JS_FALSE;
     } else if (JSVAL_IS_STRING(v)) {
         JSAtom *atom = js_AtomizeString(cx, JSVAL_TO_STRING(v));
         if (!atom)
             return JS_FALSE;
-        *idr->addr() = AtomToId(atom);
+        *idr->addr() = ATOM_TO_JSID(atom);
     } else if (!JSVAL_IS_PRIMITIVE(v)) {
         *idr->addr() = OBJECT_TO_JSID(JSVAL_TO_OBJECT(v));
     } else {
@@ -5725,7 +5727,7 @@ xml_children(JSContext *cx, unsigned argc, jsval *vp)
     JSObject *obj = ToObject(cx, &vp[1]);
     if (!obj)
         return false;
-    jsid name = NameToId(cx->runtime->atomState.starAtom);
+    jsid name = ATOM_TO_JSID(cx->runtime->atomState.starAtom);
     return GetProperty(cx, obj, name, vp);
 }
 
@@ -6680,7 +6682,7 @@ xml_setChildren(JSContext *cx, unsigned argc, jsval *vp)
         return JS_FALSE;
 
     *vp = argc != 0 ? vp[2] : JSVAL_VOID;     /* local root */
-    if (!PutProperty(cx, obj, NameToId(cx->runtime->atomState.starAtom), false, vp))
+    if (!PutProperty(cx, obj, ATOM_TO_JSID(cx->runtime->atomState.starAtom), false, vp))
         return JS_FALSE;
 
     *vp = OBJECT_TO_JSVAL(obj);
@@ -7404,7 +7406,7 @@ js_InitNamespaceClass(JSContext *cx, JSObject *obj)
     namespaceProto->setNameURI(empty);
 
     const unsigned NAMESPACE_CTOR_LENGTH = 2;
-    JSFunction *ctor = global->createConstructor(cx, Namespace, CLASS_NAME(cx, Namespace),
+    JSFunction *ctor = global->createConstructor(cx, Namespace, CLASS_ATOM(cx, Namespace),
                                                  NAMESPACE_CTOR_LENGTH);
     if (!ctor)
         return NULL;
@@ -7437,7 +7439,7 @@ js_InitQNameClass(JSContext *cx, JSObject *obj)
         return NULL;
 
     const unsigned QNAME_CTOR_LENGTH = 2;
-    JSFunction *ctor = global->createConstructor(cx, QName, CLASS_NAME(cx, QName),
+    JSFunction *ctor = global->createConstructor(cx, QName, CLASS_ATOM(cx, QName),
                                                  QNAME_CTOR_LENGTH);
     if (!ctor)
         return NULL;
@@ -7478,7 +7480,7 @@ js_InitXMLClass(JSContext *cx, JSObject *obj)
     }
 
     const unsigned XML_CTOR_LENGTH = 1;
-    JSFunction *ctor = global->createConstructor(cx, XML, CLASS_NAME(cx, XML), XML_CTOR_LENGTH);
+    JSFunction *ctor = global->createConstructor(cx, XML, CLASS_ATOM(cx, XML), XML_CTOR_LENGTH);
     if (!ctor)
         return NULL;
 
@@ -7745,7 +7747,7 @@ js_FindXMLProperty(JSContext *cx, const Value &nameval, JSObject **objp, jsid *i
 
     JSAtom *name;
     funid = GetLocalNameFromFunctionQName(qn, &name, cx)
-            ? AtomToId(name)
+            ? ATOM_TO_JSID(name)
             : JSID_VOID;
 
     obj = cx->stack.currentScriptedScopeChain();

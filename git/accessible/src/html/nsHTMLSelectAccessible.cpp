@@ -551,6 +551,8 @@ nsHTMLComboboxAccessible::Shutdown()
   }
 }
 
+/**
+  */
 PRUint64
 nsHTMLComboboxAccessible::NativeState()
 {
@@ -559,7 +561,8 @@ nsHTMLComboboxAccessible::NativeState()
   // Get focus status from base class
   PRUint64 state = nsAccessible::NativeState();
 
-  nsIComboboxControlFrame* comboFrame = do_QueryFrame(GetFrame());
+  nsIFrame *frame = GetBoundsFrame();
+  nsIComboboxControlFrame *comboFrame = do_QueryFrame(frame);
   if (comboFrame && comboFrame->IsDroppedDown())
     state |= states::EXPANDED;
   else
@@ -747,7 +750,8 @@ nsHTMLComboboxListAccessible::NativeState()
   // Get focus status from base class
   PRUint64 state = nsAccessible::NativeState();
 
-  nsIComboboxControlFrame* comboFrame = do_QueryFrame(mParent->GetFrame());
+  nsIFrame *boundsFrame = GetBoundsFrame();
+  nsIComboboxControlFrame* comboFrame = do_QueryFrame(boundsFrame);
   if (comboFrame && comboFrame->IsDroppedDown())
     state |= states::FLOATING;
   else

@@ -2504,17 +2504,21 @@ nsXPConnect::Push(JSContext * cx)
      return data->GetJSContextStack()->Push(cx) ? NS_OK : NS_ERROR_OUT_OF_MEMORY;
 }
 
-/* virtual */
-JSContext*
-nsXPConnect::GetSafeJSContext()
+/* attribute JSContext SafeJSContext; */
+NS_IMETHODIMP
+nsXPConnect::GetSafeJSContext(JSContext * *aSafeJSContext)
 {
-    XPCPerThreadData *data = XPCPerThreadData::GetData(NULL);
+    NS_ASSERTION(aSafeJSContext, "loser!");
+
+    XPCPerThreadData* data = XPCPerThreadData::GetData(nsnull);
 
     if (!data) {
-        return NULL;
+        *aSafeJSContext = nsnull;
+        return NS_ERROR_FAILURE;
     }
 
-    return data->GetJSContextStack()->GetSafeJSContext();
+    *aSafeJSContext = data->GetJSContextStack()->GetSafeJSContext();
+    return *aSafeJSContext ? NS_OK : NS_ERROR_FAILURE;
 }
 
 nsIPrincipal*

@@ -74,7 +74,6 @@ li:active .details {
   position: absolute;
   top: 27px;
   left: 27px;
-  pointer-events: none;
 }
 
 .details {

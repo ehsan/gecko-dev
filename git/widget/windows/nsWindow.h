@@ -477,6 +477,7 @@ protected:
   /**
    * Misc.
    */
+  UINT                    MapFromNativeToDOM(UINT aNativeKeyCode);
   void                    StopFlashing();
   static bool             IsTopLevelMouseExit(HWND aWnd);
   nsresult                SetWindowClipRegion(const nsTArray<nsIntRect>& aRects,
@@ -515,7 +516,6 @@ protected:
   HKL                   mLastKeyboardLayout;
   nsPopupType           mPopupType;
   nsSizeMode            mOldSizeMode;
-  nsSizeMode            mLastSizeMode;
   WindowHook            mWindowHook;
   DWORD                 mAssumeWheelIsZoomUntil;
   PRUint32              mPickerDisplayCount;

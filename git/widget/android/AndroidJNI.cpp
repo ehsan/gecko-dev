@@ -912,23 +912,6 @@ NextPowerOfTwo(int value) {
     return value + 1;
 }
 
-#define MAX_LOCK_ATTEMPTS 10
-
-static bool LockWindowWithRetry(void* window, unsigned char** bits, int* width, int* height, int* format, int* stride)
-{
-  int count = 0;
-
-  while (count < MAX_LOCK_ATTEMPTS) {
-      if (AndroidBridge::Bridge()->LockWindow(window, bits, width, height, format, stride))
-        return true;
-
-      count++;
-      usleep(500);
-  }
-
-  return false;
-}
-
 NS_EXPORT jobject JNICALL
 Java_org_mozilla_gecko_GeckoAppShell_getSurfaceBits(JNIEnv* jenv, jclass, jobject surface)
 {
@@ -948,14 +931,15 @@ Java_org_mozilla_gecko_GeckoAppShell_getSurfaceBits(JNIEnv* jenv, jclass, jobjec
     int srcWidth, srcHeight, format, srcStride;
 
     // So we lock/unlock once here in order to get whatever is currently the front buffer. It sucks.
-    if (!LockWindowWithRetry(window, &bits, &srcWidth, &srcHeight, &format, &srcStride))
-        return nsnull;
-
+    while (!AndroidBridge::Bridge()->LockWindow(window, &bits, &srcWidth, &srcHeight, &format, &srcStride)) {
+        usleep(1000);
+    }
     AndroidBridge::Bridge()->UnlockWindow(window);
 
     // This is lock will result in the front buffer, since the last unlock rotated it to the back. Probably.
-    if (!LockWindowWithRetry(window, &bits, &srcWidth, &srcHeight, &format, &srcStride))
-        return nsnull;
+    while (!AndroidBridge::Bridge()->LockWindow(window, &bits, &srcWidth, &srcHeight, &format, &srcStride)) {
+        usleep(1000);
+    }
 
     // These are from android.graphics.PixelFormat
     int bpp;

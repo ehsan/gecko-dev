@@ -98,8 +98,7 @@ void DoubleToStringConverter::CreateExponentialRepresentation(
   }
   ASSERT(exponent < 1e4);
   const int kMaxExponentLength = 5;
-  char buffer[kMaxExponentLength + 1];
-  buffer[kMaxExponentLength] = '\0';
+  char buffer[kMaxExponentLength];
   int first_char_pos = kMaxExponentLength;
   while (exponent > 0) {
     buffer[--first_char_pos] = '0' + (exponent % 10);

@@ -77,9 +77,9 @@ interface nsIJSContextStackIterator : nsISupports
     JSContext prev();
 };
 
-[uuid(59ad3ff1-a2d3-4c11-b825-098bff3c3e15)]
+[uuid(b7056a2a-a02d-43b1-abb9-47f81f8bf258)]
 interface nsIThreadJSContextStack : nsIJSContextStack
 {
     /* inherits methods of nsIJSContextStack */
-    [notxpcom,nostdcall] JSContext getSafeJSContext();
+    readonly attribute JSContext safeJSContext;
 };

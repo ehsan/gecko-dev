@@ -67,7 +67,7 @@ DefineGlobals(JSContext *cx, GlobalScope &globalScope, JSScript* script)
         if (!def.atom)
             continue;
 
-        jsid id = AtomToId(def.atom);
+        jsid id = ATOM_TO_JSID(def.atom);
         Value rval;
 
         if (def.funbox) {

@@ -2664,13 +2664,13 @@ mjit::Compiler::jsop_initprop()
 {
     FrameEntry *obj = frame.peek(-2);
     FrameEntry *fe = frame.peek(-1);
-    PropertyName *name = script->getName(GET_UINT32_INDEX(PC));
+    JSAtom *atom = script->getAtom(GET_UINT32_INDEX(PC));
 
     JSObject *baseobj = frame.extra(obj).initObject;
 
     if (!baseobj || monitored(PC)) {
         prepareStubCall(Uses(2));
-        masm.move(ImmPtr(name), Registers::ArgReg1);
+        masm.move(ImmPtr(atom), Registers::ArgReg1);
         INLINE_STUBCALL(stubs::InitProp, REJOIN_FALLTHROUGH);
         return;
     }
@@ -2680,7 +2680,7 @@ mjit::Compiler::jsop_initprop()
 #ifdef DEBUG
     bool res =
 #endif
-    LookupPropertyWithFlags(cx, baseobj, NameToId(name),
+    LookupPropertyWithFlags(cx, baseobj, ATOM_TO_JSID(atom),
                             JSRESOLVE_QUALIFIED, &holder, &prop);
     JS_ASSERT(res && prop && holder == baseobj);
 

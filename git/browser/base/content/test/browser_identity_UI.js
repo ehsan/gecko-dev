@@ -1,6 +1,9 @@
 /* Tests for correct behaviour of getEffectiveHost on identity handler */
 function test() {
   waitForExplicitFinish();
+  registerCleanupFunction(function() {
+    Services.prefs.clearUserPref("browser.identity.ssl_domain_display");
+  });
 
   ok(gIdentityHandler, "gIdentityHandler should exist");
 
@@ -99,6 +102,7 @@ function nextTest() {
       gTestDesc += " (second time)";
     if (gCurrentTest.isHTTPS) {
       gCheckETLD = true;
+      Services.prefs.setIntPref("browser.identity.ssl_domain_display", 1);
     }
     content.location = gCurrentTest.location;
   } else {
@@ -106,11 +110,18 @@ function nextTest() {
     gTestDesc = "#" + gCurrentTestIndex + " (" + gCurrentTest.name + " without eTLD in identity icon label)";
     if (!gForward)
       gTestDesc += " (second time)";
+    Services.prefs.clearUserPref("browser.identity.ssl_domain_display");
     content.location.reload(true);
   }
 }
 
 function checkResult() {
+  if (gCurrentTest.isHTTPS && Services.prefs.getIntPref("browser.identity.ssl_domain_display") == 1) {
+    // Check that the effective host is displayed in the UI
+    let label = document.getElementById("identity-icon-label");
+    is(label.value, gCurrentTest.effectiveHost, "effective host is displayed in identity icon label for test " + gTestDesc);
+  }
+
   // Sanity check other values, and the value of gIdentityHandler.getEffectiveHost()
   is(gIdentityHandler._lastLocation.host, gCurrentTest.host, "host matches for test " + gTestDesc);
   is(gIdentityHandler.getEffectiveHost(), gCurrentTest.effectiveHost, "effectiveHost matches for test " + gTestDesc);

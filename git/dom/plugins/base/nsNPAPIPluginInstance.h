@@ -51,7 +51,6 @@
 #include "nsHashKeys.h"
 #ifdef MOZ_WIDGET_ANDROID
 #include "nsIRunnable.h"
-class PluginEventRunnable;
 #endif
 
 #include "mozilla/TimeStamp.h"
@@ -69,14 +68,12 @@ class nsIOutputStream;
 const NPDrawingModel kDefaultDrawingModel = NPDrawingModelSyncWin;
 #elif defined(MOZ_X11)
 const NPDrawingModel kDefaultDrawingModel = NPDrawingModelSyncX;
-#elif defined(XP_MACOSX)
+#else
 #ifndef NP_NO_QUICKDRAW
 const NPDrawingModel kDefaultDrawingModel = NPDrawingModelQuickDraw;
 #else
 const NPDrawingModel kDefaultDrawingModel = NPDrawingModelCoreGraphics;
 #endif
-#else
-const NPDrawingModel kDefaultDrawingModel = static_cast<NPDrawingModel>(0);
 #endif
 
 class nsNPAPITimer
@@ -103,6 +100,9 @@ public:
   nsresult SetWindow(NPWindow* window);
   nsresult NewStreamFromPlugin(const char* type, const char* target, nsIOutputStream* *result);
   nsresult Print(NPPrint* platformPrint);
+#ifdef MOZ_WIDGET_ANDROID
+  nsresult PostEvent(void* event) { return 0; };
+#endif
   nsresult HandleEvent(void* event, PRInt16* result);
   nsresult GetValueFromPlugin(NPPVariable variable, void* value);
   nsresult GetDrawingModel(PRInt32* aModel);
@@ -170,8 +170,6 @@ public:
   void* GetJavaSurface();
   void SetJavaSurface(void* aSurface);
   void RequestJavaSurface();
-
-  void PostEvent(void* event);
 #endif
 
   nsresult NewStreamListener(const char* aURL, void* notifyData,
@@ -251,11 +249,6 @@ protected:
 #ifdef MOZ_WIDGET_ANDROID
   PRUint32 mANPDrawingModel;
   nsCOMPtr<nsIRunnable> mSurfaceGetter;
-
-  friend class PluginEventRunnable;
-
-  nsTArray<nsCOMPtr<PluginEventRunnable>> mPostedEvents;
-  void PopPostedEvent(PluginEventRunnable* r);
 #endif
 
   enum {

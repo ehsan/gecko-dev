@@ -84,8 +84,9 @@ nsHTMLEditor::AbsolutePositionSelection(bool aEnabled)
   NS_ENSURE_SUCCESS(res, res);
   NS_ENSURE_TRUE(selection, NS_ERROR_NULL_POINTER);
 
-  nsTextRulesInfo ruleInfo(aEnabled ? kOpSetAbsolutePosition :
-                                      kOpRemoveAbsolutePosition);
+  nsTextRulesInfo ruleInfo(aEnabled ?
+                           nsTextEditRules::kSetAbsolutePosition :
+                           nsTextEditRules::kRemoveAbsolutePosition);
   bool cancel, handled;
   res = mRules->WillDoAction(selection, &ruleInfo, &cancel, &handled);
   if (NS_FAILED(res) || cancel)
@@ -198,8 +199,8 @@ nsHTMLEditor::RelativeChangeZIndex(PRInt32 aChange)
   nsresult res = GetSelection(getter_AddRefs(selection));
   NS_ENSURE_SUCCESS(res, res);
   NS_ENSURE_TRUE(selection, NS_ERROR_NULL_POINTER);
-  nsTextRulesInfo ruleInfo(aChange < 0 ? kOpDecreaseZIndex :
-                                         kOpIncreaseZIndex);
+  nsTextRulesInfo ruleInfo((aChange < 0) ? nsTextEditRules::kDecreaseZIndex:
+                                           nsTextEditRules::kIncreaseZIndex);
   bool cancel, handled;
   res = mRules->WillDoAction(selection, &ruleInfo, &cancel, &handled);
   if (cancel || NS_FAILED(res))

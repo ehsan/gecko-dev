@@ -263,6 +263,7 @@ JS_SetWatchPoint(JSContext *cx, JSObject *obj_, jsid id,
                  JSWatchPointHandler handler, JSObject *closure_)
 {
     assertSameCompartment(cx, obj_);
+    id = js_CheckForStringIndex(id);
 
     RootedVarObject obj(cx, obj_), closure(cx, closure_);
 
@@ -283,8 +284,9 @@ JS_SetWatchPoint(JSContext *cx, JSObject *obj_, jsid id,
         JS_ReportErrorNumber(cx, js_GetErrorMessage, NULL, JSMSG_CANT_WATCH_PROP);
         return false;
     } else {
-        if (!ValueToId(cx, IdToValue(id), propid.address()))
+        if (!js_ValueToStringId(cx, IdToValue(id), propid.address()))
             return false;
+        propid = js_CheckForStringIndex(propid);
     }
 
     /*
@@ -320,6 +322,7 @@ JS_ClearWatchPoint(JSContext *cx, JSObject *obj, jsid id,
 {
     assertSameCompartment(cx, obj, id);
 
+    id = js_CheckForStringIndex(id);
     if (WatchpointMap *wpmap = cx->compartment->watchpointMap)
         wpmap->unwatch(obj, id, handlerp, closurep);
     return true;
@@ -1770,12 +1773,6 @@ JS_PUBLIC_API(JSObject *)
 JS_UnwrapObject(JSObject *obj)
 {
     return UnwrapObject(obj);
-}
-
-JS_PUBLIC_API(JSObject *)
-JS_UnwrapObjectAndInnerize(JSObject *obj)
-{
-    return UnwrapObject(obj, /* stopAtOuter = */ false);
 }
 
 JS_FRIEND_API(JSBool)

@@ -820,7 +820,7 @@ nsBaseWidget::GetShouldAccelerate()
 #endif
 
   // we should use AddBoolPrefVarCache
-  bool disableAcceleration = (mWindowType == eWindowType_popup) || 
+  bool disableAcceleration =
     Preferences::GetBool("layers.acceleration.disabled", false);
   mForceLayersAcceleration =
     Preferences::GetBool("layers.acceleration.force-enabled", false);

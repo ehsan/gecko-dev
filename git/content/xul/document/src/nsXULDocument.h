@@ -58,8 +58,6 @@
 #include "nsIStreamListener.h"
 #include "nsICSSLoaderObserver.h"
 
-#include "mozilla/Attributes.h"
-
 class nsIRDFResource;
 class nsIRDFService;
 class nsPIWindowRoot;
@@ -167,8 +165,7 @@ public:
     bool OnDocumentParserError();
 
     // nsIDOMNode interface overrides
-    NS_IMETHOD CloneNode(bool deep, PRUint8 aOptionalArgc, nsIDOMNode **_retval)
-        MOZ_OVERRIDE;
+    NS_IMETHOD CloneNode(bool deep, nsIDOMNode **_retval);
 
     // nsIDOMDocument
     NS_IMETHOD GetContentType(nsAString& aContentType);

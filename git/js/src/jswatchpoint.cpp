@@ -86,6 +86,7 @@ bool
 WatchpointMap::watch(JSContext *cx, HandleObject obj, HandleId id,
                      JSWatchPointHandler handler, HandleObject closure)
 {
+    JS_ASSERT(id.value() == js_CheckForStringIndex(id));
     JS_ASSERT(JSID_IS_STRING(id) || JSID_IS_INT(id));
 
     if (!obj->setWatched(cx))
@@ -106,6 +107,7 @@ void
 WatchpointMap::unwatch(JSObject *obj, jsid id,
                        JSWatchPointHandler *handlerp, JSObject **closurep)
 {
+    JS_ASSERT(id == js_CheckForStringIndex(id));
     if (Map::Ptr p = map.lookup(WatchKey(obj, id))) {
         if (handlerp)
             *handlerp = p->value.handler;
@@ -134,6 +136,7 @@ WatchpointMap::clear()
 bool
 WatchpointMap::triggerWatchpoint(JSContext *cx, HandleObject obj, HandleId id, Value *vp)
 {
+    JS_ASSERT(id.value() == js_CheckForStringIndex(id));
     Map::Ptr p = map.lookup(WatchKey(obj, id));
     if (!p || p->value.held)
         return true;
