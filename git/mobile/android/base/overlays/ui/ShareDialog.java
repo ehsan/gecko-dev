@@ -36,7 +36,6 @@ import org.mozilla.gecko.overlays.service.sharemethods.ShareMethod;
 import org.mozilla.gecko.LocaleAware;
 import org.mozilla.gecko.sync.setup.activities.WebURLFinder;
 import org.mozilla.gecko.util.HardwareUtils;
-import org.mozilla.gecko.util.StringUtils;
 import org.mozilla.gecko.util.ThreadUtils;
 import org.mozilla.gecko.util.UIAsyncTask;
 
@@ -116,7 +115,7 @@ public class ShareDialog extends LocaleAware.LocaleAwareActivity implements Send
         final Resources resources = getResources();
 
         // The URL is usually hiding somewhere in the extra text. Extract it.
-        final String extraText = StringUtils.getStringExtra(intent, Intent.EXTRA_TEXT);
+        final String extraText = intent.getStringExtra(Intent.EXTRA_TEXT);
         if (TextUtils.isEmpty(extraText)) {
             abortDueToNoURL();
             return;

@@ -75,8 +75,7 @@ abstract class UITest extends BaseRobocopTest
         initComponents();
         initHelpers();
 
-        // Ensure Robocop tests have access to network, and are run with Display powered on.
-        throwIfHttpGetFails();
+        // Ensure Robocop tests are run with Display powered on.
         throwIfScreenNotOn();
     }
 

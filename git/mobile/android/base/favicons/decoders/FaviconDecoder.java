@@ -126,7 +126,7 @@ public class FaviconDecoder {
         }
 
         if (!uri.startsWith("data:image/")) {
-            // Can't decode non-image data: URI.
+            Log.w(LOG_TAG, "Can't decode non-image data: URI.");
             return null;
         }
 
