@@ -12,12 +12,11 @@
 
 #include "nsString.h"
 #include "GLContext.h"
-#include "gfx3DMatrix.h"
+#include "Layers.h"
+
 
 namespace mozilla {
 namespace layers {
-
-class Layer;
 
 // The kinds of mask layer a shader can support
 // We rely on the items in this enum being sequential

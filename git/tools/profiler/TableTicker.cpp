@@ -599,6 +599,7 @@ JSObject* TableTicker::ToJSObject(JSContext *aCx)
   JSObject *profile = b.CreateObject();
 
   // Put shared library info
+  JSObject *libs = GetMetaJSObject(b);
   b.DefineProperty(profile, "libs", GetSharedLibraryInfoString().c_str());
 
   // Put meta data

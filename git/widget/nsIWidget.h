@@ -15,6 +15,7 @@
 #include "nsStringGlue.h"
 
 #include "prthread.h"
+#include "Layers.h"
 #include "nsEvent.h"
 #include "nsCOMPtr.h"
 #include "nsITheme.h"
@@ -22,7 +23,6 @@
 #include "nsWidgetInitData.h"
 #include "nsTArray.h"
 #include "nsXULAppAPI.h"
-#include "LayersBackend.h"
 
 // forward declarations
 class   nsFontMetrics;
@@ -41,7 +41,6 @@ namespace dom {
 class TabChild;
 }
 namespace layers {
-class LayerManager;
 class PLayersChild;
 }
 }
@@ -364,7 +363,7 @@ class nsIWidget : public nsISupports {
 
   public:
     typedef mozilla::layers::LayerManager LayerManager;
-    typedef mozilla::layers::LayersBackend LayersBackend;
+    typedef LayerManager::LayersBackend LayersBackend;
     typedef mozilla::layers::PLayersChild PLayersChild;
     typedef mozilla::widget::IMEState IMEState;
     typedef mozilla::widget::InputContext InputContext;
@@ -1041,14 +1040,14 @@ class nsIWidget : public nsISupports {
      */
     inline LayerManager* GetLayerManager(bool* aAllowRetaining = nsnull)
     {
-        return GetLayerManager(nsnull, mozilla::layers::LAYERS_NONE,
+        return GetLayerManager(nsnull, LayerManager::LAYERS_NONE,
                                LAYER_MANAGER_CURRENT, aAllowRetaining);
     }
 
     inline LayerManager* GetLayerManager(LayerManagerPersistence aPersistence,
                                          bool* aAllowRetaining = nsnull)
     {
-        return GetLayerManager(nsnull, mozilla::layers::LAYERS_NONE,
+        return GetLayerManager(nsnull, LayerManager::LAYERS_NONE,
                                aPersistence, aAllowRetaining);
     }
 

@@ -35,7 +35,6 @@ import android.widget.ArrayAdapter;
 import android.widget.ListView;
 import org.json.JSONArray;
 import org.json.JSONObject;
-import org.mozilla.gecko.gfx.LayerController;
 
 public class PromptService implements OnClickListener, OnCancelListener, OnItemClickListener, GeckoEventResponder {
     private static final String LOGTAG = "GeckoPromptService";
@@ -197,14 +196,6 @@ public class PromptService implements OnClickListener, OnCancelListener, OnItemC
     }
 
     public void show(String aTitle, String aText, PromptButton[] aButtons, PromptListItem[] aMenuList, boolean aMultipleSelection) {
-        final LayerController controller = GeckoApp.mAppContext.getLayerController();
-        controller.post(new Runnable() {
-            public void run() {
-                // treat actions that show a dialog as if preventDefault by content to prevent panning
-                controller.getPanZoomController().abortPanning();
-            }
-        });
-
         AlertDialog.Builder builder = new AlertDialog.Builder(GeckoApp.mAppContext);
         if (!aTitle.equals("")) {
             builder.setTitle(aTitle);

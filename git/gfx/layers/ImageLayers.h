@@ -16,7 +16,6 @@
 #include "mozilla/mozalloc.h"
 #include "mozilla/Mutex.h"
 #include "gfxPlatform.h"
-#include "LayersBackend.h"
 
 #ifdef XP_MACOSX
 #include "nsIOSurface.h"
@@ -134,9 +133,9 @@ public:
   virtual already_AddRefed<gfxASurface> GetAsSurface() = 0;
   virtual gfxIntSize GetSize() = 0;
 
-  ImageBackendData* GetBackendData(LayersBackend aBackend)
+  ImageBackendData* GetBackendData(LayerManager::LayersBackend aBackend)
   { return mBackendData[aBackend]; }
-  void SetBackendData(LayersBackend aBackend, ImageBackendData* aData)
+  void SetBackendData(LayerManager::LayersBackend aBackend, ImageBackendData* aData)
   { mBackendData[aBackend] = aData; }
 
 protected:
@@ -145,7 +144,7 @@ protected:
     mFormat(aFormat)
   {}
 
-  nsAutoPtr<ImageBackendData> mBackendData[mozilla::layers::LAYERS_LAST];
+  nsAutoPtr<ImageBackendData> mBackendData[LayerManager::LAYERS_LAST];
 
   void* mImplData;
   Format mFormat;

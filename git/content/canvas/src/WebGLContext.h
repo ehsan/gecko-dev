@@ -25,6 +25,7 @@
 #include "nsIObserver.h"
 
 #include "GLContextProvider.h"
+#include "Layers.h"
 
 #include "mozilla/LinkedList.h"
 #include "mozilla/CheckedInt.h"

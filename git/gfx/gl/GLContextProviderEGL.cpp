@@ -1571,9 +1571,7 @@ public:
         XSync(dpy, False);
         mConfig = nsnull;
 
-        if (sEGLLibrary.HasKHRImagePixmap() &&
-            mGLContext->IsExtensionSupported(GLContext::OES_EGL_image))
-        {
+        if (sEGLLibrary.HasKHRImagePixmap() && sEGLLibrary.HasKHRImageTexture2D()) {
             mEGLImage =
                 sEGLLibrary.fCreateImage(EGL_DISPLAY(),
                                          EGL_NO_CONTEXT,

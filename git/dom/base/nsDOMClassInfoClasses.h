@@ -523,8 +523,6 @@ DOMCI_CLASS(MozWifiConnectionInfoEvent)
 DOMCI_CLASS(Telephony)
 DOMCI_CLASS(TelephonyCall)
 DOMCI_CLASS(CallEvent)
-DOMCI_CLASS(MozVoicemail)
-DOMCI_CLASS(MozVoicemailEvent)
 #endif
 
 #ifdef MOZ_B2G_BT

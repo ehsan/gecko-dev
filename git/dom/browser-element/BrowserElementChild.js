@@ -122,7 +122,6 @@ BrowserElementChild.prototype = {
     addMsgListener("go-back", this._recvGoBack);
     addMsgListener("go-forward", this._recvGoForward);
     addMsgListener("reload", this._recvReload);
-    addMsgListener("stop", this._recvStop);
     addMsgListener("unblock-modal-prompt", this._recvStopWaiting);
     addMsgListener("fire-ctx-callback", this._recvFireCtxCallback);
 
@@ -480,11 +479,6 @@ BrowserElementChild.prototype = {
     } catch(e) {
       // Silently swallow errors; these can happen if a used cancels reload
     }
-  },
-
-  _recvStop: function(data) {
-    let webNav = docShell.QueryInterface(Ci.nsIWebNavigation);
-    webNav.stop(webNav.STOP_NETWORK);
   },
 
   _keyEventHandler: function(e) {

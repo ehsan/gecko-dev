@@ -711,9 +711,9 @@ function test_cancel_restart() {
 
     // Close the notification
     let anchor = document.getElementById("addons-notification-icon");
-    anchor.click();
+    EventUtils.synthesizeMouseAtCenter(anchor, {});
     // Reopen the notification
-    anchor.click();
+    EventUtils.synthesizeMouseAtCenter(anchor, {});
 
     ok(PopupNotifications.isPanelOpen, "Notification should still be open");
     is(PopupNotifications.panel.childNodes.length, 1, "Should be only one notification");

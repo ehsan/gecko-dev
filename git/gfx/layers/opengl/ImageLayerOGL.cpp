@@ -12,7 +12,6 @@
 #include "gfxUtils.h"
 #include "yuv_convert.h"
 #include "GLContextProvider.h"
-#include "LayersBackend.h"
 #if defined(MOZ_WIDGET_GTK2) && !defined(MOZ_PLATFORM_MAEMO)
 # include "GLXLibrary.h"
 # include "mozilla/X11Util.h"
@@ -173,7 +172,7 @@ AllocateTextureIOSurface(MacIOSurfaceImage *aIOImage, mozilla::gl::GLContext* aG
 
   aGL->fBindTexture(LOCAL_GL_TEXTURE_RECTANGLE_ARB, 0);
 
-  aIOImage->SetBackendData(LAYERS_OPENGL, backendData.forget());
+  aIOImage->SetBackendData(LayerManager::LAYERS_OPENGL, backendData.forget());
 }
 #endif
 
@@ -190,7 +189,7 @@ AllocateTextureIOSurface(GonkIOSurfaceImage *aIOImage, mozilla::gl::GLContext* a
     new GonkIOSurfaceImageOGLBackendData);
 
   backendData->mTexture.Allocate(aGL);
-  aIOImage->SetBackendData(LAYERS_OPENGL, backendData.forget());
+  aIOImage->SetBackendData(LayerManager::LAYERS_OPENGL, backendData.forget());
 }
 #endif
 
@@ -232,18 +231,18 @@ ImageLayerOGL::RenderLayer(int,
     }
 
     PlanarYCbCrOGLBackendData *data =
-      static_cast<PlanarYCbCrOGLBackendData*>(yuvImage->GetBackendData(LAYERS_OPENGL));
+      static_cast<PlanarYCbCrOGLBackendData*>(yuvImage->GetBackendData(LayerManager::LAYERS_OPENGL));
 
     if (data && data->mTextures->GetGLContext() != gl()) {
       // If these textures were allocated by another layer manager,
       // clear them out and re-allocate below.
       data = nsnull;
-      yuvImage->SetBackendData(LAYERS_OPENGL, nsnull);
+      yuvImage->SetBackendData(LayerManager::LAYERS_OPENGL, nsnull);
     }
 
     if (!data) {
       AllocateTexturesYCbCr(yuvImage);
-      data = static_cast<PlanarYCbCrOGLBackendData*>(yuvImage->GetBackendData(LAYERS_OPENGL));
+      data = static_cast<PlanarYCbCrOGLBackendData*>(yuvImage->GetBackendData(LayerManager::LAYERS_OPENGL));
     }
 
     if (!data || data->mTextures->GetGLContext() != gl()) {
@@ -295,18 +294,18 @@ ImageLayerOGL::RenderLayer(int,
                  "Image layer has alpha image");
 
     CairoOGLBackendData *data =
-      static_cast<CairoOGLBackendData*>(cairoImage->GetBackendData(LAYERS_OPENGL));
+      static_cast<CairoOGLBackendData*>(cairoImage->GetBackendData(LayerManager::LAYERS_OPENGL));
 
     if (data && data->mTexture.GetGLContext() != gl()) {
       // If this texture was allocated by another layer manager, clear
       // it out and re-allocate below.
       data = nsnull;
-      cairoImage->SetBackendData(LAYERS_OPENGL, nsnull);
+      cairoImage->SetBackendData(LayerManager::LAYERS_OPENGL, nsnull);
     }
 
     if (!data) {
       AllocateTexturesCairo(cairoImage);
-      data = static_cast<CairoOGLBackendData*>(cairoImage->GetBackendData(LAYERS_OPENGL));
+      data = static_cast<CairoOGLBackendData*>(cairoImage->GetBackendData(LayerManager::LAYERS_OPENGL));
     }
 
     if (!data || data->mTexture.GetGLContext() != gl()) {
@@ -381,19 +380,19 @@ ImageLayerOGL::RenderLayer(int,
 
      gl()->fActiveTexture(LOCAL_GL_TEXTURE0);
 
-     if (!ioImage->GetBackendData(LAYERS_OPENGL)) {
+     if (!ioImage->GetBackendData(LayerManager::LAYERS_OPENGL)) {
        AllocateTextureIOSurface(ioImage, gl());
      }
 
      MacIOSurfaceImageOGLBackendData *data =
-      static_cast<MacIOSurfaceImageOGLBackendData*>(ioImage->GetBackendData(LAYERS_OPENGL));
+      static_cast<MacIOSurfaceImageOGLBackendData*>(ioImage->GetBackendData(LayerManager::LAYERS_OPENGL));
 
      gl()->fActiveTexture(LOCAL_GL_TEXTURE0);
      gl()->fBindTexture(LOCAL_GL_TEXTURE_RECTANGLE_ARB, data->mTexture.GetTextureID());
 
      ShaderProgramOGL *program =
        mOGLManager->GetProgram(gl::RGBARectLayerProgramType, GetMaskLayer());
-
+     
      program->Activate();
      if (program->GetTexCoordMultiplierUniformLocation() != -1) {
        // 2DRect case, get the multiplier right for a sampler2DRect
@@ -401,16 +400,16 @@ ImageLayerOGL::RenderLayer(int,
      } else {
        NS_ASSERTION(0, "no rects?");
      }
-
-     program->SetLayerQuadRect(nsIntRect(0, 0,
-                                         ioImage->GetSize().width,
+     
+     program->SetLayerQuadRect(nsIntRect(0, 0, 
+                                         ioImage->GetSize().width, 
                                          ioImage->GetSize().height));
      program->SetLayerTransform(GetEffectiveTransform());
      program->SetLayerOpacity(GetEffectiveOpacity());
      program->SetRenderOffset(aOffset);
      program->SetTextureUnit(0);
      program->LoadMask(GetMaskLayer());
-
+    
      mOGLManager->BindAndDrawQuad(program);
      gl()->fBindTexture(LOCAL_GL_TEXTURE_RECTANGLE_ARB, 0);
 #endif
@@ -425,11 +424,11 @@ ImageLayerOGL::RenderLayer(int,
     gl()->MakeCurrent();
     gl()->fActiveTexture(LOCAL_GL_TEXTURE0);
 
-    if (!ioImage->GetBackendData(LAYERS_OPENGL)) {
+    if (!ioImage->GetBackendData(LayerManager::LAYERS_OPENGL)) {
       AllocateTextureIOSurface(ioImage, gl());
     }
     GonkIOSurfaceImageOGLBackendData *data =
-      static_cast<GonkIOSurfaceImageOGLBackendData*>(ioImage->GetBackendData(LAYERS_OPENGL));
+      static_cast<GonkIOSurfaceImageOGLBackendData*>(ioImage->GetBackendData(LayerManager::LAYERS_OPENGL));
 
     gl()->fActiveTexture(LOCAL_GL_TEXTURE0);
     gl()->BindExternalBuffer(data->mTexture.GetTextureID(), ioImage->GetNativeBuffer());
@@ -515,7 +514,7 @@ ImageLayerOGL::AllocateTexturesYCbCr(PlanarYCbCrImage *aImage)
   PlanarYCbCrImage::Data &data = aImage->mData;
 
   gl()->MakeCurrent();
-
+ 
   mTextureRecycleBin->GetTexture(TextureRecycleBin::TEXTURE_Y, data.mYSize, gl(), &backendData->mTextures[0]);
   SetClamping(gl(), backendData->mTextures[0].GetTextureID());
 
@@ -534,7 +533,7 @@ ImageLayerOGL::AllocateTexturesYCbCr(PlanarYCbCrImage *aImage)
   backendData->mCbCrSize = aImage->mData.mCbCrSize;
   backendData->mTextureRecycleBin = mTextureRecycleBin;
 
-  aImage->SetBackendData(LAYERS_OPENGL, backendData.forget());
+  aImage->SetBackendData(LayerManager::LAYERS_OPENGL, backendData.forget());
 }
 
 void
@@ -567,7 +566,7 @@ ImageLayerOGL::AllocateTexturesCairo(CairoImage *aImage)
       backendData->mLayerProgram = gl::RGBXLayerProgramType;
     }
 
-    aImage->SetBackendData(LAYERS_OPENGL, backendData.forget());
+    aImage->SetBackendData(LayerManager::LAYERS_OPENGL, backendData.forget());
     return;
   }
 #endif
@@ -576,7 +575,7 @@ ImageLayerOGL::AllocateTexturesCairo(CairoImage *aImage)
                                nsIntRect(0,0, aImage->mSize.width, aImage->mSize.height),
                                tex, true);
 
-  aImage->SetBackendData(LAYERS_OPENGL, backendData.forget());
+  aImage->SetBackendData(LayerManager::LAYERS_OPENGL, backendData.forget());
 }
 
 /*
@@ -621,7 +620,7 @@ ImageLayerOGL::LoadAsTexture(GLuint aTextureUnit, gfxIntSize* aSize)
   }
 
   CairoOGLBackendData *data = static_cast<CairoOGLBackendData*>(
-    cairoImage->GetBackendData(LAYERS_OPENGL));
+    cairoImage->GetBackendData(LayerManager::LAYERS_OPENGL));
 
   if (!data) {
     NS_ASSERTION(cairoImage->mSurface->GetContentType() == gfxASurface::CONTENT_ALPHA,
@@ -651,7 +650,7 @@ ImageLayerOGL::LoadAsTexture(GLuint aTextureUnit, gfxIntSize* aSize)
                                     texID, true, nsIntPoint(0,0), false,
                                     aTextureUnit);
 
-    cairoImage->SetBackendData(LAYERS_OPENGL, data);
+    cairoImage->SetBackendData(LayerManager::LAYERS_OPENGL, data);
 
     gl()->MakeCurrent();
     gl()->fActiveTexture(aTextureUnit);

@@ -1030,7 +1030,7 @@ TabChild::InitWidget(const nsIntSize& size)
         nsnull                  // nsDeviceContext
         );
 
-    LayersBackend be;
+    LayerManager::LayersBackend be;
     uint64_t id;
     int32_t maxTextureSize;
     RenderFrameChild* remoteFrame =

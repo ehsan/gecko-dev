@@ -22,7 +22,6 @@
 #include "RenderTrace.h"
 #include "sampler.h"
 #include "nsXULAppAPI.h"
-#include "LayersBackend.h"
 
 using namespace mozilla::ipc;
 
@@ -110,7 +109,7 @@ struct AutoTxnEnd {
 ShadowLayerForwarder::ShadowLayerForwarder()
  : mShadowManager(NULL)
  , mMaxTextureSize(0)
- , mParentBackend(mozilla::layers::LAYERS_NONE)
+ , mParentBackend(LayerManager::LAYERS_NONE)
  , mIsFirstPaint(false)
 {
   mTxn = new Transaction();

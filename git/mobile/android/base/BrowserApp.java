@@ -419,7 +419,7 @@ abstract public class BrowserApp extends GeckoApp
     private void loadFavicon(final Tab tab) {
         maybeCancelFaviconLoad(tab);
 
-        long id = getFavicons().loadFavicon(tab.getURL(), tab.getFaviconURL(),
+        long id = mFavicons.loadFavicon(tab.getURL(), tab.getFaviconURL(),
                         new Favicons.OnFaviconLoadedListener() {
 
             public void onFaviconLoaded(String pageUrl, Drawable favicon) {
@@ -457,7 +457,7 @@ abstract public class BrowserApp extends GeckoApp
             return;
 
         // Cancel pending favicon load task
-        getFavicons().cancelFaviconLoad(faviconLoadId);
+        mFavicons.cancelFaviconLoad(faviconLoadId);
 
         // Reset favicon load state
         tab.setFaviconLoadId(Favicons.NOT_LOADING);
@@ -552,14 +552,10 @@ abstract public class BrowserApp extends GeckoApp
     @Override
     public void setFullScreen(final boolean fullscreen) {
       super.setFullScreen(fullscreen);
-      mMainHandler.post(new Runnable() {
-          public void run() {
-              if (fullscreen)
-                  mBrowserToolbar.hide();
-              else
-                  mBrowserToolbar.show();
-          }
-      });
+      if (fullscreen)
+          mBrowserToolbar.hide();
+      else
+          mBrowserToolbar.show();
     }
 
     @Override

@@ -3681,7 +3681,7 @@ ScriptAnalysis::analyzeTypesBytecode(JSContext *cx, unsigned offset,
             res = &pushed[0];
 
         if (res) {
-            if (script->hasGlobal() && !UseNewTypeForClone(obj->toFunction()))
+            if (script->hasGlobal())
                 res->addType(cx, Type::ObjectType(obj));
             else
                 res->addType(cx, Type::UnknownType());
@@ -3978,14 +3978,12 @@ ScriptAnalysis::analyzeTypesBytecode(JSContext *cx, unsigned offset,
         pushed[0].addType(cx, Type::UnknownType());
         break;
 
-      case JSOP_CALLEE: {
-        JSFunction *fun = script->function();
-        if (script->hasGlobal() && !UseNewTypeForClone(fun))
-            pushed[0].addType(cx, Type::ObjectType(fun));
+      case JSOP_CALLEE:
+        if (script->hasGlobal())
+            pushed[0].addType(cx, Type::ObjectType(script->function()));
         else
             pushed[0].addType(cx, Type::UnknownType());
         break;
-      }
 
       default:
         /* Display fine-grained debug information first */
@@ -5094,11 +5092,6 @@ JSFunction::setTypeForScriptedFunction(JSContext *cx, bool singleton)
     if (singleton) {
         if (!setSingletonType(cx))
             return false;
-    } else if (UseNewTypeForClone(this)) {
-        /*
-         * Leave the default unknown-properties type for the function, it
-         * should not be used by scripts or appear in type sets.
-         */
     } else {
         RootedFunction self(cx, this);
 
