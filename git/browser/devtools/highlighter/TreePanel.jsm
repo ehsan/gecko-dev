@@ -230,14 +230,7 @@ TreePanel.prototype = {
     treeBox.minHeight = 10;
     treeBox.flex = 1;
     toolbarParent.insertBefore(treeBox, toolbar);
-
-    let resizerTop =
-      this.IUI.browser.ownerDocument.getElementById("inspector-top-resizer");
-    let resizerEnd =
-      this.IUI.browser.ownerDocument.getElementById("inspector-end-resizer");
-    resizerTop.removeAttribute("disabled");
-    resizerEnd.removeAttribute("disabled");
-
+    this.createResizer();
     treeBox.appendChild(this.treeIFrame);
 
     let boundLoadedInitializeTreePanel = function loadedInitializeTreePanel()
@@ -259,18 +252,27 @@ TreePanel.prototype = {
   },
 
   /**
+   * Lame resizer on the toolbar.
+   */
+  createResizer: function TP_createResizer()
+  {
+    let resizer = this.document.createElement("resizer");
+    resizer.id = "inspector-horizontal-splitter";
+    resizer.setAttribute("dir", "top");
+    resizer.flex = 1;
+    resizer.setAttribute("element", "inspector-tree-box");
+    resizer.height = 24;
+    this.IUI.toolbar.appendChild(resizer);
+    this.resizer = resizer;
+  },
+
+  /**
    * Close the TreePanel.
    */
   close: function TP_close()
   {
     if (this.openInDock) {
-      let resizerTop = 
-        this.IUI.browser.ownerDocument.getElementById("inspector-top-resizer");
-      let resizerEnd = 
-        this.IUI.browser.ownerDocument.getElementById("inspector-end-resizer");
-      resizerTop.setAttribute("disabled", "true");
-      resizerEnd.setAttribute("disabled", "true");
-
+      this.IUI.toolbar.removeChild(this.resizer);
       let treeBox = this.container;
       let treeBoxParent = treeBox.parentNode;
       treeBoxParent.removeChild(treeBox);
@@ -676,6 +678,8 @@ TreePanel.prototype = {
     }
 
     domplateUtils.setDOM(null);
+
+    delete this.resizer;
 
     if (this.DOMHelpers) {
       this.DOMHelpers.destroy();

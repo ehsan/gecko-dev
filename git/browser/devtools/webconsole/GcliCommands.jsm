@@ -38,8 +38,69 @@
 
 let EXPORTED_SYMBOLS = [ "GcliCommands" ];
 
+Components.utils.import("resource://gre/modules/XPCOMUtils.jsm");
+Components.utils.import("resource://gre/modules/Services.jsm");
 Components.utils.import("resource:///modules/gcli.jsm");
 Components.utils.import("resource:///modules/HUDService.jsm");
+
+let bundleName = "chrome://browser/locale/devtools/gclicommands.properties";
+let stringBundle = Services.strings.createBundle(bundleName);
+
+let gcli = gcli._internal.require("gcli/index");
+let canon = gcli._internal.require("gcli/canon");
+
+
+let document;
+
+/**
+ * The exported API
+ */
+let GcliCommands = {
+  /**
+   * Allow HUDService to inform us of the document against which we work
+   */
+  setDocument: function GcliCommands_setDocument(aDocument) {
+    document = aDocument;
+  },
+
+  /**
+   * Undo the effects of GcliCommands.setDocument()
+   */
+  unsetDocument: function GcliCommands_unsetDocument() {
+    document = undefined;
+  }
+};
+
+
+/**
+ * Lookup a string in the GCLI string bundle
+ * @param aName The name to lookup
+ * @return The looked up name
+ */
+function lookup(aName)
+{
+  try {
+    return stringBundle.GetStringFromName(aName);
+  } catch (ex) {
+    throw new Error("Failure in lookup('" + aName + "')");
+  }
+};
+
+/**
+ * Lookup a string in the GCLI string bundle
+ * @param aName The name to lookup
+ * @param aSwaps An array of swaps. See stringBundle.formatStringFromName
+ * @return The looked up name
+ */
+function lookupFormat(aName, aSwaps)
+{
+  try {
+    return stringBundle.formatStringFromName(aName, aSwaps, aSwaps.length);
+  } catch (ex) {
+    Services.console.logStringMessage("Failure in lookupFormat('" + aName + "')");
+    throw new Error("Failure in lookupFormat('" + aName + "')");
+  }
+}
 
 
 /**
@@ -47,12 +108,12 @@ Components.utils.import("resource:///modules/HUDService.jsm");
  */
 gcli.addCommand({
   name: "echo",
-  description: gcli.lookup("echoDesc"),
+  description: lookup("echoDesc"),
   params: [
     {
       name: "message",
       type: "string",
-      description: gcli.lookup("echoMessageDesc")
+      description: lookup("echoMessageDesc")
     }
   ],
   returnType: "string",
@@ -62,19 +123,17 @@ gcli.addCommand({
 });
 
 
-let canon = gcli._internal.require("gcli/canon");
-
 /**
  * 'help' command
  */
 gcli.addCommand({
   name: "help",
   returnType: "html",
-  description: gcli.lookup("helpDesc"),
+  description: lookup("helpDesc"),
   exec: function Command_help(args, context) {
     let output = [];
 
-    output.push("<strong>" + gcli.lookup("helpAvailable") + ":</strong><br/>");
+    output.push("<strong>" + lookup("helpAvailable") + ":</strong><br/>");
 
     let commandNames = canon.getCommandNames();
     commandNames.sort();
@@ -101,8 +160,8 @@ gcli.addCommand({
  */
 gcli.addCommand({
   name: "console",
-  description: gcli.lookup("consoleDesc"),
-  manual: gcli.lookup("consoleManual")
+  description: lookup("consoleDesc"),
+  manual: lookup("consoleManual")
 });
 
 /**
@@ -110,32 +169,10 @@ gcli.addCommand({
  */
 gcli.addCommand({
   name: "console clear",
-  description: gcli.lookup("consoleclearDesc"),
+  description: lookup("consoleclearDesc"),
   exec: function(args, context) {
     let hud = HUDService.getHudReferenceById(context.environment.hudId);
     hud.gcliterm.clearOutput();
   }
 });
 
-
-/**
- * 'inspect' command
- */
-gcli.addCommand({
-  name: "inspect",
-  description: gcli.lookup("inspectDesc"),
-  manual: gcli.lookup("inspectManual"),
-  params: [
-    {
-      name: "node",
-      type: "node",
-      description: gcli.lookup("inspectNodeDesc"),
-      manual: gcli.lookup("inspectNodeManual")
-    }
-  ],
-  exec: function Command_inspect(args, context) {
-    let hud = HUDService.getHudReferenceById(context.environment.hudId);
-    let InspectorUI = hud.gcliterm.document.defaultView.InspectorUI;
-    InspectorUI.openInspectorUI(args.node);
-  }
-});

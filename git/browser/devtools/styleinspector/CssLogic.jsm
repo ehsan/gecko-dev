@@ -606,12 +606,10 @@ CssLogic.prototype = {
 
   /**
    * Check if the highlighted element or it's parents have matched selectors.
+   * If aCallback is provided then the domRules for the element are passed to
+   * the callback function.
    *
-   * @param {function} [aCallback] Simple callback method. If aCallback is
-   * provided then the domRules for each element in the loop are passed to
-   * the callback function. When the element has .style properties, the callback
-   * receives {style: element.style}. If the callback returns true then the
-   * element has matched rules, otherwise not.
+   * @param {function} [aCallback] Simple callback method
    * @return {Boolean} true if the current element or it's parents have
    * matching CssSelector objects, false otherwise
    */
@@ -630,22 +628,11 @@ CssLogic.prototype = {
         continue;
       }
 
-      // Check if the are DOM rules that we can consider as matched rules
-      // (depending on the callback).
       if (domRules.Count() && (!aCallback || aCallback(domRules))) {
         matched = true;
-      }
-
-      // Check if the element has any element.style properties that we can
-      // consider as "matched" (depending on the callback).
-      if (element.style.length > 0 &&
-          (!aCallback || aCallback({style: element.style}))) {
-        matched = true;
-      }
-
-      if (matched) {
         break;
       }
+
     } while ((element = element.parentNode) &&
         element.nodeType === Ci.nsIDOMNode.ELEMENT_NODE);
 
@@ -759,7 +746,7 @@ CssLogic.getShortNamePath = function CssLogic_getShortNamePath(aElement)
 CssLogic.l10n = function(aName) CssLogic._strings.GetStringFromName(aName);
 
 XPCOMUtils.defineLazyGetter(CssLogic, "_strings", function() Services.strings
-        .createBundle("chrome://browser/locale/devtools/styleinspector.properties"));
+          .createBundle("chrome://browser/locale/styleinspector.properties"));
 
 /**
  * Is the given property sheet a system (user agent) stylesheet?
@@ -1512,11 +1499,6 @@ CssPropertyInfo.prototype = {
   {
     if (this._hasMatchedSelectors === null) {
       this._hasMatchedSelectors = this._cssLogic.hasMatchedSelectors(function(aDomRules) {
-        if (!aDomRules.Count) {
-          // For element.style.
-          return !!aDomRules.style.getPropertyValue(this.property);
-        }
-
         for (let i = 0; i < aDomRules.Count(); i++) {
           let domRule = aDomRules.GetElementAt(i);
 
