@@ -139,7 +139,6 @@ if [ "$ENABLE_TESTS" ]; then
     browser/components/shell/test/Makefile
     browser/components/feeds/test/Makefile
     browser/components/feeds/test/chrome/Makefile
-    browser/components/migration/tests/Makefile
     browser/components/places/tests/Makefile
     browser/components/places/tests/chrome/Makefile
     browser/components/places/tests/browser/Makefile

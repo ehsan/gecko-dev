@@ -837,14 +837,11 @@ private:
     XPCRootSetElem *mWrappedJSRoots;
     XPCRootSetElem *mObjectHolderRoots;
     JSDHashTable mJSHolders;
-    PRLock *mWatchdogLock;
     PRCondVar *mWatchdogWakeup;
     PRThread *mWatchdogThread;
     nsTArray<JSGCCallback> extraGCCallbacks;
     bool mWatchdogHibernating;
     PRTime mLastActiveTime; // -1 if active NOW
-
-    friend class AutoLockWatchdog;
 };
 
 /***************************************************************************/
@@ -2901,7 +2898,7 @@ public:
 
     static nsresult GetNamedPropertyAsVariant(XPCCallContext& ccx,
                                               JSObject* aJSObj,
-                                              const nsAString& aName,
+                                              jsval aName,
                                               nsIVariant** aResult);
 
     virtual ~nsXPCWrappedJSClass();
@@ -3952,6 +3949,30 @@ private:
     PRUint64 mOuterWindowID;
     PRUint64 mInnerWindowID;
     PRInt64 mTimeStamp;
+};
+
+/***************************************************************************/
+
+class NS_STACK_CLASS AutoJSErrorAndExceptionEater
+{
+public:
+    AutoJSErrorAndExceptionEater(JSContext* aCX
+                                 MOZ_GUARD_OBJECT_NOTIFIER_PARAM)
+        : mCX(aCX),
+          mOldErrorReporter(JS_SetErrorReporter(mCX, nsnull)),
+          mOldExceptionState(JS_SaveExceptionState(mCX)) {
+        MOZ_GUARD_OBJECT_NOTIFIER_INIT;
+    }
+    ~AutoJSErrorAndExceptionEater()
+    {
+        JS_SetErrorReporter(mCX, mOldErrorReporter);
+        JS_RestoreExceptionState(mCX, mOldExceptionState);
+    }
+private:
+    JSContext*        mCX;
+    JSErrorReporter   mOldErrorReporter;
+    JSExceptionState* mOldExceptionState;
+    MOZ_DECL_USE_GUARD_OBJECT_NOTIFIER
 };
 
 /******************************************************************************

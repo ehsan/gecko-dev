@@ -2269,7 +2269,7 @@ nsBlockFrame::ReflowDirtyLines(nsBlockReflowState& aState)
         // The line is empty. Try the next one.
         NS_ASSERTION(pulledLine->GetChildCount() == 0 &&
                      !pulledLine->mFirstChild, "bad empty line");
-        FreeLineBox(pulledLine);
+        aState.FreeLineBox(pulledLine);
         continue;
       }
 
@@ -2464,7 +2464,7 @@ nsBlockFrame::DeleteLine(nsBlockReflowState& aState,
                  "but perhaps OK now");
     nsLineBox *line = aLine;
     aLine = mLines.erase(aLine);
-    FreeLineBox(line);
+    aState.FreeLineBox(line);
     // Mark the previous margin of the next line dirty since we need to
     // recompute its top position.
     if (aLine != aLineEnd)
@@ -2671,14 +2671,16 @@ nsBlockFrame::PullFrameFrom(nsBlockReflowState&  aState,
   }
   // when aFromContainer is 'this', then aLine->LastChild()'s next sibling
   // is already set correctly.
-  aLine->NoteFrameAdded(frame);
-
-  if (fromLine->GetChildCount() > 1) {
+  aLine->SetChildCount(aLine->GetChildCount() + 1);
+    
+  PRInt32 fromLineChildCount = fromLine->GetChildCount();
+  if (0 != --fromLineChildCount) {
     // Mark line dirty now that we pulled a child
-    fromLine->NoteFrameRemoved(frame);
+    fromLine->SetChildCount(fromLineChildCount);
     fromLine->MarkDirty();
     fromLine->mFirstChild = newFirstChild;
-  } else {
+  }
+  else {
     // Free up the fromLine now that it's empty
     // Its bounds might need to be redrawn, though.
     // XXX WHY do we invalidate the bounds AND the combined area? doesn't
@@ -2694,7 +2696,7 @@ nsBlockFrame::PullFrameFrom(nsBlockReflowState&  aState,
     Invalidate(fromLine->GetVisualOverflowArea());
     fromLineList->erase(aFromLine);
     // aFromLine is now invalid
-    FreeLineBox(fromLine);
+    aState.FreeLineBox(fromLine);
 
     // Put any remaining overflow lines back.
     if (aFromOverflowLine) {
@@ -3303,7 +3305,7 @@ nsBlockFrame::ReflowBlockFrame(nsBlockReflowState& aState,
 
             // Push continuation to a new line, but only if we actually made one.
             if (madeContinuation) {
-              nsLineBox* line = NewLineBox(nextFrame, true);
+              nsLineBox* line = aState.NewLineBox(nextFrame, 1, true);
               NS_ENSURE_TRUE(line, NS_ERROR_OUT_OF_MEMORY);
               mLines.after_insert(aLine, line);
             }
@@ -3637,7 +3639,7 @@ nsBlockFrame::DoReflowInlineFrames(nsBlockReflowState& aState,
         nsLineBox *toremove = aLine;
         aLine = mLines.erase(aLine);
         NS_ASSERTION(nsnull == toremove->mFirstChild, "bad empty line");
-        FreeLineBox(toremove);
+        aState.FreeLineBox(toremove);
       }
       --aLine;
 
@@ -3974,7 +3976,7 @@ nsBlockFrame::CreateContinuationFor(nsBlockReflowState& aState,
     mFrames.InsertFrame(nsnull, aFrame, newFrame);
 
     if (aLine) { 
-      aLine->NoteFrameAdded(newFrame);
+      aLine->SetChildCount(aLine->GetChildCount() + 1);
     }
 
     aMadeNewFrame = true;
@@ -4097,11 +4099,12 @@ nsBlockFrame::SplitLine(nsBlockReflowState& aState,
 #endif
 
     // Put frames being split out into their own line
-    nsLineBox* newLine = NewLineBox(aLine, aFrame, pushCount);
+    nsLineBox* newLine = aState.NewLineBox(aFrame, pushCount, false);
     if (!newLine) {
       return NS_ERROR_OUT_OF_MEMORY;
     }
     mLines.after_insert(aLine, newLine);
+    aLine->SetChildCount(aLine->GetChildCount() - pushCount);
 #ifdef DEBUG
     if (gReallyNoisyReflow) {
       newLine->List(stdout, gNoiseIndent+1);
@@ -4871,6 +4874,8 @@ nsBlockFrame::AddFrames(nsFrameList& aFrameList, nsIFrame* aPrevSibling)
     aPrevSibling = GetInsideBullet();
   }
   
+  nsIPresShell *presShell = PresContext()->PresShell();
+
   // Attempt to find the line that contains the previous sibling
   FrameLines* overflowLines;
   nsLineList* lineList = &mLines;
@@ -4917,11 +4922,12 @@ nsBlockFrame::AddFrames(nsFrameList& aFrameList, nsIFrame* aPrevSibling)
     PRInt32 rem = prevSibLine->GetChildCount() - prevSiblingIndex - 1;
     if (rem) {
       // Split the line in two where the frame(s) are being inserted.
-      nsLineBox* line = NewLineBox(prevSibLine, aPrevSibling->GetNextSibling(), rem);
+      nsLineBox* line = NS_NewLineBox(presShell, aPrevSibling->GetNextSibling(), rem, false);
       if (!line) {
         return NS_ERROR_OUT_OF_MEMORY;
       }
       lineList->after_insert(prevSibLine, line);
+      prevSibLine->SetChildCount(prevSibLine->GetChildCount() - rem);
       // Mark prevSibLine dirty and as needing textrun invalidation, since
       // we may be breaking up text in the line. Its previous line may also
       // need to be invalidated because it may be able to pull some text up.
@@ -4962,7 +4968,7 @@ nsBlockFrame::AddFrames(nsFrameList& aFrameList, nsIFrame* aPrevSibling)
         (aPrevSibling && ShouldPutNextSiblingOnNewLine(aPrevSibling))) {
       // Create a new line for the frame and add its line to the line
       // list.
-      nsLineBox* line = NewLineBox(newFrame, isBlock);
+      nsLineBox* line = NS_NewLineBox(presShell, newFrame, 1, isBlock);
       if (!line) {
         return NS_ERROR_OUT_OF_MEMORY;
       }
@@ -4978,7 +4984,7 @@ nsBlockFrame::AddFrames(nsFrameList& aFrameList, nsIFrame* aPrevSibling)
       }
     }
     else {
-      prevSibLine->NoteFrameAdded(newFrame);
+      prevSibLine->SetChildCount(prevSibLine->GetChildCount() + 1);
       // We're adding inline content to prevSibLine, so we need to mark it
       // dirty, ensure its textruns are recomputed, and possibly do the same
       // to its previous line since that line may be able to pull content up.
@@ -5500,7 +5506,9 @@ nsBlockFrame::DoRemoveFrame(nsIFrame* aDeletedFrame, PRUint32 aFlags)
     }
 
     // Update the child count of the line to be accurate
-    line->NoteFrameRemoved(aDeletedFrame);
+    PRInt32 lineChildCount = line->GetChildCount();
+    lineChildCount--;
+    line->SetChildCount(lineChildCount);
 
     // Destroy frame; capture its next continuation first in case we need
     // to destroy that too.
@@ -5527,7 +5535,7 @@ nsBlockFrame::DoRemoveFrame(nsIFrame* aDeletedFrame, PRUint32 aFlags)
 
     bool haveAdvancedToNextLine = false;
     // If line is empty, remove it now.
-    if (0 == line->GetChildCount()) {
+    if (0 == lineChildCount) {
 #ifdef NOISY_REMOVE_FRAME
         printf("DoRemoveFrame: %s line=%p became empty so it will be removed\n",
                searchingOverflowList?"overflow":"normal", line.get());
@@ -5680,10 +5688,12 @@ nsBlockFrame::StealFrame(nsPresContext* aPresContext,
         }
 
         // Register removal with the line boxes
-        line->NoteFrameRemoved(frame);
-        if (line->GetChildCount() > 0) {
+        PRInt32 count = line->GetChildCount();
+        line->SetChildCount(--count);
+        if (count > 0) {
            line->MarkDirty();
-        } else {
+        }
+        else {
           // Remove the line box
           nsLineBox* lineBox = line;
           if (searchingOverflowList) {
@@ -5702,7 +5712,8 @@ nsBlockFrame::StealFrame(nsPresContext* aPresContext,
               line_end = mLines.end();
               line = line_end;
             }
-          } else {
+          }
+          else {
             line = mLines.erase(line);
           }
           lineBox->Destroy(aPresContext->PresShell());

@@ -425,8 +425,7 @@ class nsHtml5TreeOpExecutor : public nsContentSink,
 
     void PreloadScript(const nsAString& aURL,
                        const nsAString& aCharset,
-                       const nsAString& aType,
-                       const nsAString& aCrossOrigin);
+                       const nsAString& aType);
 
     void PreloadStyle(const nsAString& aURL, const nsAString& aCharset);
 

@@ -923,8 +923,7 @@ nsDocAccessible::OnPivotChanged(nsIAccessiblePivot* aPivot,
                                 nsIAccessible* aOldAccessible,
                                 PRInt32 aOldStart, PRInt32 aOldEnd)
 {
-  nsRefPtr<AccEvent> event = new AccVCChangeEvent(this, aOldAccessible,
-                                                  aOldStart, aOldEnd);
+  nsRefPtr<AccEvent> event = new AccEvent(nsIAccessibleEvent::EVENT_VIRTUALCURSOR_CHANGED, this);
   nsEventShell::FireEvent(event);
 
   return NS_OK;

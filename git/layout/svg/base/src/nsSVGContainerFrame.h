@@ -47,13 +47,6 @@ class nsRenderingContext;
 
 typedef nsContainerFrame nsSVGContainerFrameBase;
 
-/**
- * Base class for SVG container frames. Frame sub-classes that do not
- * display their contents directly (such as the frames for <marker> or
- * <pattern>) just inherit this class. Frame sub-classes that do or can
- * display their contents directly (such as the frames for inner-<svg> or
- * <g>) inherit our nsDisplayContainerFrame sub-class.
- */
 class nsSVGContainerFrame : public nsSVGContainerFrameBase
 {
   friend nsIFrame* NS_NewSVGContainerFrame(nsIPresShell* aPresShell,
@@ -78,6 +71,9 @@ public:
                           nsFrameList&    aFrameList);
   NS_IMETHOD RemoveFrame(ChildListID     aListID,
                          nsIFrame*       aOldFrame);
+  NS_IMETHOD Init(nsIContent*      aContent,
+                  nsIFrame*        aParent,
+                  nsIFrame*        aPrevInFlow);
 
   virtual bool IsFrameOfType(PRUint32 aFlags) const
   {
@@ -86,10 +82,6 @@ public:
   }
 };
 
-/**
- * Frame class or base-class for SVG containers that can or do display their
- * contents directly.
- */
 class nsSVGDisplayContainerFrame : public nsSVGContainerFrame,
                                    public nsISVGChildFrame
 {

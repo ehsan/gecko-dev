@@ -304,7 +304,8 @@ InitExnPrivate(JSContext *cx, JSObject *exnObject, JSString *message,
     JS_ASSERT(exnObject->isError());
     JS_ASSERT(!exnObject->getPrivate());
 
-    JSCheckAccessOp checkAccess = cx->runtime->securityCallbacks->checkObjectAccess;
+    JSSecurityCallbacks *callbacks = JS_GetSecurityCallbacks(cx);
+    JSCheckAccessOp checkAccess = callbacks ? callbacks->checkObjectAccess : NULL;
 
     Vector<JSStackTraceElem> frames(cx);
     Vector<Value> values(cx);
@@ -442,7 +443,7 @@ SetExnPrivate(JSContext *cx, JSObject *exnObject, JSExnPrivate *priv)
     JS_ASSERT(exnObject->isError());
     if (JSErrorReport *report = priv->errorReport) {
         if (JSPrincipals *prin = report->originPrincipals)
-            JS_HoldPrincipals(prin);
+            JSPRINCIPALS_HOLD(cx, prin);
     }
     exnObject->setPrivate(priv);
 }
@@ -454,7 +455,7 @@ exn_finalize(JSContext *cx, JSObject *obj)
         if (JSErrorReport *report = priv->errorReport) {
             /* HOLD called by SetExnPrivate. */
             if (JSPrincipals *prin = report->originPrincipals)
-                JS_DropPrincipals(cx->runtime, prin);
+                JSPRINCIPALS_DROP(cx, prin);
             cx->free_(report);
         }
         cx->free_(priv);

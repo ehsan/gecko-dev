@@ -51,12 +51,7 @@ nsIFrame*
 NS_NewSVGContainerFrame(nsIPresShell* aPresShell,
                         nsStyleContext* aContext)
 {
-  nsIFrame *frame = new (aPresShell) nsSVGContainerFrame(aContext);
-  // If we were called directly, then the frame is for a <defs> or
-  // an unknown element type. In both cases we prevent the content
-  // from displaying directly.
-  frame->AddStateBits(NS_STATE_SVG_NONDISPLAY_CHILD);
-  return frame;
+  return new (aPresShell) nsSVGContainerFrame(aContext);
 }
 
 NS_IMPL_FRAMEARENA_HELPERS(nsSVGContainerFrame)
@@ -94,6 +89,16 @@ nsSVGContainerFrame::RemoveFrame(ChildListID aListID,
 }
 
 NS_IMETHODIMP
+nsSVGContainerFrame::Init(nsIContent* aContent,
+                          nsIFrame* aParent,
+                          nsIFrame* aPrevInFlow)
+{
+  AddStateBits(NS_STATE_SVG_NONDISPLAY_CHILD);
+  nsresult rv = nsSVGContainerFrameBase::Init(aContent, aParent, aPrevInFlow);
+  return rv;
+}
+
+NS_IMETHODIMP
 nsSVGDisplayContainerFrame::Init(nsIContent* aContent,
                                  nsIFrame* aParent,
                                  nsIFrame* aPrevInFlow)
@@ -103,7 +108,7 @@ nsSVGDisplayContainerFrame::Init(nsIContent* aContent,
       (NS_STATE_SVG_NONDISPLAY_CHILD | NS_STATE_SVG_CLIPPATH_CHILD |
        NS_STATE_SVG_REDRAW_SUSPENDED));
   }
-  nsresult rv = nsSVGContainerFrame::Init(aContent, aParent, aPrevInFlow);
+  nsresult rv = nsSVGContainerFrameBase::Init(aContent, aParent, aPrevInFlow);
   return rv;
 }
 
@@ -227,12 +232,8 @@ nsSVGDisplayContainerFrame::InitialUpdate()
 void
 nsSVGDisplayContainerFrame::NotifySVGChanged(PRUint32 aFlags)
 {
-  NS_ABORT_IF_FALSE(!(aFlags & DO_NOT_NOTIFY_RENDERING_OBSERVERS) ||
-                    (GetStateBits() & NS_STATE_SVG_NONDISPLAY_CHILD),
-                    "Must be NS_STATE_SVG_NONDISPLAY_CHILD!");
-
-  NS_ABORT_IF_FALSE(aFlags & (TRANSFORM_CHANGED | COORD_CONTEXT_CHANGED),
-                    "Invalidation logic may need adjusting");
+  NS_ASSERTION(aFlags & (TRANSFORM_CHANGED | COORD_CONTEXT_CHANGED),
+               "Invalidation logic may need adjusting");
 
   nsSVGUtils::NotifyChildrenOfSVGChange(this, aFlags);
 }

@@ -788,7 +788,11 @@ nsXULPDGlobalObject::ClearGlobalObjectOwner()
   if (this != nsXULPrototypeDocument::gSystemGlobal)
     mCachedPrincipal = mGlobalObjectOwner->DocumentPrincipal();
 
-  mContext = NULL;
+  if (mContext) {
+    mContext->FinalizeContext();
+    mContext = NULL;
+  }
+
   mGlobalObjectOwner = NULL;
 }
 

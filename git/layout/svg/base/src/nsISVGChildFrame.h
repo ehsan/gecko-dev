@@ -57,13 +57,6 @@ class SVGLengthList;
 class SVGUserUnitList;
 }
 
-/**
- * This class is not particularly well named. It is inherited by some, but
- * not all SVG frame classes that can be descendants of an
- * nsSVGOuterSVGFrame in the frame tree. Note specifically that SVG container
- * frames that do not inherit nsSVGDisplayContainerFrame do not inherit this
- * class (so that's classes that only inherit nsSVGContainerFrame).
- */
 class nsISVGChildFrame : public nsQueryFrame
 {
 public:
@@ -98,16 +91,13 @@ public:
 
   // Flags to pass to NotifySVGChange:
   //
-  // DO_NOT_NOTIFY_RENDERING_OBSERVERS - this should only be used when
-  //                           updating the descendant frames of a clipPath,
-  //                           mask, pattern or marker frame (or other similar
-  //                           NS_STATE_SVG_NONDISPLAY_CHILD frame) immediately
-  //                           prior to painting that frame's descendants.
+  // SUPPRESS_INVALIDATION - do not invalidate rendered areas (only to be
+  //                           used in conjunction with TRANSFORM_CHANGED)
   // TRANSFORM_CHANGED     - the current transform matrix for this frame has changed
   // COORD_CONTEXT_CHANGED - the dimensions of this frame's coordinate context has
   //                           changed (percentage lengths must be reevaluated)
   enum SVGChangedFlags {
-    DO_NOT_NOTIFY_RENDERING_OBSERVERS = 0x01,
+    SUPPRESS_INVALIDATION = 0x01,
     TRANSFORM_CHANGED     = 0x02,
     COORD_CONTEXT_CHANGED = 0x04
   };

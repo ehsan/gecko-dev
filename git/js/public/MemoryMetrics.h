@@ -1,7 +1,4 @@
-/* -*- Mode: C++; tab-width: 4; indent-tabs-mode: nil; c-basic-offset: 4 -*-
- * vim: set ts=8 sw=4 et tw=99 ft=cpp:
- *
- * ***** BEGIN LICENSE BLOCK *****
+/* ***** BEGIN LICENSE BLOCK *****
  * Version: MPL 1.1/GPL 2.0/LGPL 2.1
  *
  * The contents of this file are subject to the Mozilla Public License Version
@@ -64,13 +61,31 @@ struct TypeInferenceSizes
     size_t temporary;
 };
 
+typedef void* (* GetNameCallback)(JSRuntime *rt, JSCompartment *c);
+typedef void (* DestroyNameCallback)(void *string);
+
 struct CompartmentStats
 {
-    CompartmentStats() {
+    CompartmentStats()
+    {
         memset(this, 0, sizeof(*this));
     }
 
-    void   *extra;
+    void init(void *name_, DestroyNameCallback destroyName)
+    {
+        name = name_;
+        destroyNameCb = destroyName;
+    }
+
+    ~CompartmentStats()
+    {
+        destroyNameCb(name);
+    }
+
+    // Pointer to an nsCString, which we can't use here.
+    void *name;
+    DestroyNameCallback destroyNameCb;
+
     size_t gcHeapArenaHeaders;
     size_t gcHeapArenaPadding;
     size_t gcHeapArenaUnused;
@@ -104,7 +119,8 @@ struct CompartmentStats
 
 struct RuntimeStats
 {
-    RuntimeStats(JSMallocSizeOfFun mallocSizeOf)
+    RuntimeStats(JSMallocSizeOfFun mallocSizeOf, GetNameCallback getNameCb,
+                 DestroyNameCallback destroyNameCb)
       : runtimeObject(0)
       , runtimeAtomsTable(0)
       , runtimeContexts(0)
@@ -133,6 +149,8 @@ struct RuntimeStats
       , compartmentStatsVector()
       , currCompartmentStats(NULL)
       , mallocSizeOf(mallocSizeOf)
+      , getNameCb(getNameCb)
+      , destroyNameCb(destroyNameCb)
     {}
 
     size_t runtimeObject;
@@ -165,8 +183,8 @@ struct RuntimeStats
     CompartmentStats *currCompartmentStats;
 
     JSMallocSizeOfFun mallocSizeOf;
-
-    virtual void initExtraCompartmentStats(JSCompartment *c, CompartmentStats *cstats) = 0;
+    GetNameCallback getNameCb;
+    DestroyNameCallback destroyNameCb;
 };
 
 #ifdef JS_THREADSAFE

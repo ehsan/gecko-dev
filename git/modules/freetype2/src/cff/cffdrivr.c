@@ -4,7 +4,8 @@
 /*                                                                         */
 /*    OpenType font driver implementation (body).                          */
 /*                                                                         */
-/*  Copyright 1996-2012 by                                                 */
+/*  Copyright 1996-2001, 2002, 2003, 2004, 2005, 2006, 2007, 2008, 2009,   */
+/*            2010 by                                                      */
 /*  David Turner, Robert Wilhelm, and Werner Lemberg.                      */
 /*                                                                         */
 /*  This file is part of the FreeType project, and may only be used,       */
@@ -125,7 +126,7 @@
   /*************************************************************************/
   /*                                                                       */
   /* <Function>                                                            */
-  /*    cff_glyph_load                                                     */
+  /*    Load_Glyph                                                         */
   /*                                                                       */
   /* <Description>                                                         */
   /*    A driver method used to load a glyph within a given glyph slot.    */
@@ -149,10 +150,10 @@
   /*    FreeType error code.  0 means success.                             */
   /*                                                                       */
   FT_CALLBACK_DEF( FT_Error )
-  cff_glyph_load( FT_GlyphSlot  cffslot,      /* CFF_GlyphSlot */
-                  FT_Size       cffsize,      /* CFF_Size      */
-                  FT_UInt       glyph_index,
-                  FT_Int32      load_flags )
+  Load_Glyph( FT_GlyphSlot  cffslot,        /* CFF_GlyphSlot */
+              FT_Size       cffsize,        /* CFF_Size      */
+              FT_UInt       glyph_index,
+              FT_Int32      load_flags )
   {
     FT_Error       error;
     CFF_GlyphSlot  slot = (CFF_GlyphSlot)cffslot;
@@ -203,7 +204,7 @@
 
     for ( nn = 0; nn < count; nn++ )
     {
-      error = cff_glyph_load( slot, face->size, start + nn, flags );
+      error = Load_Glyph( slot, face->size, start + nn, flags );
       if ( error )
         break;
 
@@ -239,7 +240,7 @@
                  " cannot get glyph name from CFF & CEF fonts\n"
                  "                   "
                  " without the `PSNames' module\n" ));
-      error = CFF_Err_Missing_Module;
+      error = CFF_Err_Unknown_File_Format;
       goto Exit;
     }
 
@@ -327,7 +328,7 @@
     if ( cff && cff->font_info == NULL )
     {
       CFF_FontRecDict  dict   = &cff->top_font.font_dict;
-      PS_FontInfoRec  *font_info = NULL;
+      PS_FontInfoRec  *font_info;
       FT_Memory        memory = face->root.memory;
 
 
@@ -364,8 +365,7 @@
     (PS_GetFontInfoFunc)   cff_ps_get_font_info,
     (PS_GetFontExtraFunc)  NULL,
     (PS_HasGlyphNamesFunc) cff_ps_has_glyph_names,
-    (PS_GetFontPrivateFunc)NULL,        /* unsupported with CFF fonts */
-    (PS_GetFontValueFunc)  NULL         /* not implemented            */
+    (PS_GetFontPrivateFunc)NULL         /* unsupported with CFF fonts */
   )
 
 
@@ -466,7 +466,7 @@
                                                     dict->cid_registry );
         *registry = cff->registry;
       }
-
+      
       if ( ordering )
       {
         if ( cff->ordering == NULL )
@@ -489,7 +489,7 @@
         *supplement = (FT_Int)dict->cid_supplement;
       }
     }
-
+      
   Fail:
     return error;
   }
@@ -599,35 +599,19 @@
   cff_get_interface( FT_Module    driver,       /* CFF_Driver */
                      const char*  module_interface )
   {
-    FT_Library           library;
     FT_Module            sfnt;
     FT_Module_Interface  result;
 
 
-    /* FT_CFF_SERVICES_GET derefers `library' in PIC mode */
-#ifdef FT_CONFIG_OPTION_PIC
-    if ( !driver )
-      return NULL;
-    library = driver->library;
-    if ( !library )
-      return NULL;
-#endif
-
     result = ft_service_list_lookup( FT_CFF_SERVICES_GET, module_interface );
     if ( result != NULL )
-      return result;
+      return  result;
 
-    /* `driver' is not yet evaluated in non-PIC mode */
-#ifndef FT_CONFIG_OPTION_PIC
     if ( !driver )
       return NULL;
-    library = driver->library;
-    if ( !library )
-      return NULL;
-#endif
 
     /* we pass our request to the `sfnt' module */
-    sfnt = FT_Get_Module( library, "sfnt" );
+    sfnt = FT_Get_Module( driver->library, "sfnt" );
 
     return sfnt ? sfnt->clazz->get_interface( sfnt, module_interface ) : 0;
   }
@@ -641,13 +625,12 @@
 #define CFF_SIZE_SELECT 0
 #endif
 
-  FT_DEFINE_DRIVER( cff_driver_class,
-
+  FT_DEFINE_DRIVER(cff_driver_class,
       FT_MODULE_FONT_DRIVER       |
       FT_MODULE_DRIVER_SCALABLE   |
       FT_MODULE_DRIVER_HAS_HINTER,
 
-      sizeof ( CFF_DriverRec ),
+      sizeof( CFF_DriverRec ),
       "cff",
       0x10000L,
       0x20000L,
@@ -659,9 +642,9 @@
       cff_get_interface,
 
     /* now the specific driver fields */
-    sizeof ( TT_FaceRec ),
-    sizeof ( CFF_SizeRec ),
-    sizeof ( CFF_GlyphSlotRec ),
+    sizeof( TT_FaceRec ),
+    sizeof( CFF_SizeRec ),
+    sizeof( CFF_GlyphSlotRec ),
 
     cff_face_init,
     cff_face_done,
@@ -670,14 +653,14 @@
     cff_slot_init,
     cff_slot_done,
 
-    ft_stub_set_char_sizes,  /* FT_CONFIG_OPTION_OLD_INTERNALS */
+    ft_stub_set_char_sizes, /* FT_CONFIG_OPTION_OLD_INTERNALS */
     ft_stub_set_pixel_sizes, /* FT_CONFIG_OPTION_OLD_INTERNALS */
 
-    cff_glyph_load,
+    Load_Glyph,
 
     cff_get_kerning,
-    0,                       /* FT_Face_AttachFunc */
-    cff_get_advances,
+    0,                      /* FT_Face_AttachFunc      */
+    cff_get_advances,       /* FT_Face_GetAdvancesFunc */
 
     cff_size_request,
 

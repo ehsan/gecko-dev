@@ -3437,16 +3437,12 @@ xpc_EvalInSandbox(JSContext *cx, JSObject *sandbox, const nsAString& source,
     NS_ASSERTION(sop, "Invalid sandbox passed");
     nsCOMPtr<nsIPrincipal> prin = sop->GetPrincipal();
 
-    if (!prin) {
-        return NS_ERROR_FAILURE;
-    }
+    JSPrincipals *jsPrincipals;
 
-    nsCAutoString filenameBuf;
-    if (!filename) {
-        // Default to the spec of the principal.
-        nsJSPrincipals::get(prin)->GetScriptLocation(filenameBuf);
-        filename = filenameBuf.get();
-        lineNo = 1;
+    if (!prin ||
+        NS_FAILED(prin->GetJSPrincipals(cx, &jsPrincipals)) ||
+        !jsPrincipals) {
+        return NS_ERROR_FAILURE;
     }
 
     JSObject *callingScope;
@@ -3462,6 +3458,7 @@ xpc_EvalInSandbox(JSContext *cx, JSObject *sandbox, const nsAString& source,
     nsRefPtr<ContextHolder> sandcx = new ContextHolder(cx, sandbox);
     if (!sandcx || !sandcx->GetJSContext()) {
         JS_ReportError(cx, "Can't prepare context for evalInSandbox");
+        JSPRINCIPALS_DROP(cx, jsPrincipals);
         return NS_ERROR_OUT_OF_MEMORY;
     }
 
@@ -3474,8 +3471,15 @@ xpc_EvalInSandbox(JSContext *cx, JSObject *sandbox, const nsAString& source,
         if (!stack->Push(sandcx->GetJSContext())) {
             JS_ReportError(cx,
                            "Unable to initialize XPConnect with the sandbox context");
+            JSPRINCIPALS_DROP(cx, jsPrincipals);
             return NS_ERROR_FAILURE;
         }
+    }
+
+    if (!filename) {
+        // Default the filename to the codebase.
+        filename = jsPrincipals->codebase;
+        lineNo = 1;
     }
 
     nsresult rv = NS_OK;
@@ -3483,6 +3487,8 @@ xpc_EvalInSandbox(JSContext *cx, JSObject *sandbox, const nsAString& source,
     {
         JSAutoRequest req(sandcx->GetJSContext());
         JSAutoEnterCompartment ac;
+        jsval v;
+        JSString *str = nsnull;
 
         if (!ac.enter(sandcx->GetJSContext(), sandbox)) {
             if (stack)
@@ -3490,11 +3496,9 @@ xpc_EvalInSandbox(JSContext *cx, JSObject *sandbox, const nsAString& source,
             return NS_ERROR_FAILURE;
         }
 
-        jsval v;
-        JSString *str = nsnull;
         JSBool ok =
             JS_EvaluateUCScriptForPrincipals(sandcx->GetJSContext(), sandbox,
-                                             nsJSPrincipals::get(prin),
+                                             jsPrincipals,
                                              reinterpret_cast<const jschar *>
                                                              (PromiseFlatString(source).get()),
                                              source.Length(), filename, lineNo,
@@ -3566,6 +3570,8 @@ xpc_EvalInSandbox(JSContext *cx, JSObject *sandbox, const nsAString& source,
 
     if (stack)
         unused << stack->Pop();
+
+    JSPRINCIPALS_DROP(cx, jsPrincipals);
 
     return rv;
 }

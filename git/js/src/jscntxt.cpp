@@ -118,7 +118,7 @@ JSRuntime::sizeOfExcludingThis(JSMallocSizeOfFun mallocSizeOf, size_t *normal, s
         *gcMarkerSize = gcMarker.sizeOfExcludingThis(mallocSizeOf);
 }
 
-void
+JS_FRIEND_API(void)
 JSRuntime::triggerOperationCallback()
 {
     /*
@@ -250,48 +250,49 @@ js_DestroyContext(JSContext *cx, JSDestroyContextMode mode)
         }
     }
 
+    JS_LOCK_GC(rt);
     JS_REMOVE_LINK(&cx->link);
     bool last = !rt->hasContexts();
-    if (last) {
+    if (last || mode == JSDCM_FORCE_GC || mode == JSDCM_MAYBE_GC) {
         JS_ASSERT(!rt->gcRunning);
 
 #ifdef JS_THREADSAFE
-        {
-            AutoLockGC lock(rt);
-            rt->gcHelperThread.waitBackgroundSweepEnd();
-        }
-#endif
-        
-        /*
-         * Dump remaining type inference results first. This printing
-         * depends on atoms still existing.
-         */
-        for (CompartmentsIter c(rt); !c.done(); c.next())
-            c->types.print(cx, false);
-
-        /* Unpin all common atoms before final GC. */
-        js_FinishCommonAtoms(cx);
-        
-        /* Clear debugging state to remove GC roots. */
-        for (CompartmentsIter c(rt); !c.done(); c.next())
-            c->clearTraps(cx);
-        JS_ClearAllWatchPoints(cx);
-        
-        GC(cx, NULL, GC_NORMAL, gcreason::LAST_CONTEXT);
-    } else if (mode == JSDCM_FORCE_GC) {
-        JS_ASSERT(!rt->gcRunning);
-        GC(cx, NULL, GC_NORMAL, gcreason::DESTROY_CONTEXT);
-    } else if (mode == JSDCM_MAYBE_GC) {
-        JS_ASSERT(!rt->gcRunning);
-        JS_MaybeGC(cx);
-    }
-
-#ifdef JS_THREADSAFE
-    {
-        AutoLockGC lock(rt);
         rt->gcHelperThread.waitBackgroundSweepEnd();
-    }
 #endif
+        JS_UNLOCK_GC(rt);
+
+        if (last) {
+            /*
+             * Dump remaining type inference results first. This printing
+             * depends on atoms still existing.
+             */
+            {
+                AutoLockGC lock(rt);
+                for (CompartmentsIter c(rt); !c.done(); c.next())
+                    c->types.print(cx, false);
+            }
+
+            /* Unpin all common atoms before final GC. */
+            js_FinishCommonAtoms(cx);
+
+            /* Clear debugging state to remove GC roots. */
+            for (CompartmentsIter c(rt); !c.done(); c.next())
+                c->clearTraps(cx);
+            JS_ClearAllWatchPoints(cx);
+
+            GC(cx, NULL, GC_NORMAL, gcreason::LAST_CONTEXT);
+
+        } else if (mode == JSDCM_FORCE_GC) {
+            GC(cx, NULL, GC_NORMAL, gcreason::DESTROY_CONTEXT);
+        } else if (mode == JSDCM_MAYBE_GC) {
+            JS_MaybeGC(cx);
+        }
+        JS_LOCK_GC(rt);
+    }
+#ifdef JS_THREADSAFE
+    rt->gcHelperThread.waitBackgroundSweepEnd();
+#endif
+    JS_UNLOCK_GC(rt);
     Foreground::delete_(cx);
 }
 
@@ -988,6 +989,7 @@ JSContext::JSContext(JSRuntime *rt)
 #ifdef JS_THREADSAFE
     outstandingRequests(0),
 #endif
+    securityCallbacks(NULL),
     resolveFlags(0),
     rngSeed(0),
     iterValue(MagicValue(JS_NO_ITER_VALUE)),

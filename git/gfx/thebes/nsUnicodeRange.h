@@ -108,10 +108,6 @@ const PRUint8   kRangeYi                   = 50;
 const PRUint8   kRangeCombiningDiacriticalMarks = 51;
 const PRUint8   kRangeSpecials             = 52;
 
-// aggregate ranges for non-BMP codepoints (u+2xxxx are all CJK)
-const PRUint8   kRangeSMP                  = 53;  // u+1xxxx
-const PRUint8   kRangeHigherPlanes         = 54;  // u+3xxxx and above
-
 const PRUint8   kRangeTableBase   = 128;    //values over 127 are reserved for internal use only
 const PRUint8   kRangeTertiaryTable  = 145; // leave room for 16 subtable 
                                             // indices (kRangeTableBase + 1 ..
@@ -119,5 +115,5 @@ const PRUint8   kRangeTertiaryTable  = 145; // leave room for 16 subtable
 
 
 
-PRUint32 FindCharUnicodeRange(PRUint32 ch);
+PRUint32 FindCharUnicodeRange(PRUnichar ch);
 nsIAtom* LangGroupFromUnicodeRange(PRUint8 unicodeRange);

@@ -334,9 +334,9 @@ GfxInfo::GetFeatureStatusImpl(PRInt32 aFeature,
       }
 
       if (mIsMesa) {
-        if (mIsNouveau && version(mMajorVersion, mMinorVersion) < version(8,0)) {
+        if (mIsNouveau) {
           *aStatus = nsIGfxInfo::FEATURE_BLOCKED_DRIVER_VERSION;
-          aSuggestedDriverVersion.AssignLiteral("Mesa 8.0");
+          aSuggestedDriverVersion.AssignLiteral("<Not the Nouveau driver>");
         } else if (version(mMajorVersion, mMinorVersion, mRevisionVersion) < version(7,10,3)) {
           *aStatus = nsIGfxInfo::FEATURE_BLOCKED_DRIVER_VERSION;
           aSuggestedDriverVersion.AssignLiteral("Mesa 7.10.3");

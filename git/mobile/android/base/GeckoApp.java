@@ -121,6 +121,7 @@ abstract public class GeckoApp
     public static SurfaceView cameraView;
     public static GeckoApp mAppContext;
     public static boolean mDOMFullScreen = false;
+    public static File sGREDir = null;
     public static Menu sMenu;
     private static GeckoThread sGeckoThread = null;
     public GeckoAppHandler mMainHandler;
@@ -173,6 +174,7 @@ abstract public class GeckoApp
     public enum LaunchState {Launching, WaitForDebugger,
                              Launched, GeckoRunning, GeckoExiting};
     private static LaunchState sLaunchState = LaunchState.Launching;
+    private static boolean sTryCatchAttached = false;
 
     private static final int FILE_PICKER_REQUEST = 1;
     private static final int AWESOMEBAR_REQUEST = 2;
@@ -850,6 +852,7 @@ abstract public class GeckoApp
 
     void showTabs() {
         Intent intent = new Intent(mAppContext, TabsTray.class);
+        intent.addFlags(Intent.FLAG_ACTIVITY_NO_HISTORY);
         startActivity(intent);
         overridePendingTransition(R.anim.grow_fade_in, 0);
     }
@@ -1606,8 +1609,6 @@ abstract public class GeckoApp
     @Override
     public void onCreate(Bundle savedInstanceState)
     {
-        GeckoAppShell.registerGlobalExceptionHandler();
-
         mAppContext = this;
 
         // StrictMode is set by defaults resource flag |enableStrictMode|.
@@ -1615,7 +1616,7 @@ abstract public class GeckoApp
             enableStrictMode();
         }
 
-        GeckoAppShell.loadMozGlue();
+        System.loadLibrary("mozglue");
         mMainHandler = new GeckoAppHandler();
         Log.w(LOGTAG, "zerdatime " + SystemClock.uptimeMillis() + " - onCreate");
         if (savedInstanceState != null) {
@@ -1686,6 +1687,9 @@ abstract public class GeckoApp
             mBrowserToolbar.updateTabCount(1);
         }
 
+        if (sGREDir == null)
+            sGREDir = new File(this.getApplicationInfo().dataDir);
+
         Uri data = intent.getData();
         if (data != null && "http".equals(data.getScheme()) &&
             isHostOnPrefetchWhitelist(data.getHost())) {
@@ -1754,6 +1758,21 @@ abstract public class GeckoApp
         mFormAssistPopup = (FormAssistPopup) findViewById(R.id.form_assist_popup);
 
         Log.w(LOGTAG, "zerdatime " + SystemClock.uptimeMillis() + " - UI almost up");
+
+        if (!sTryCatchAttached) {
+            sTryCatchAttached = true;
+            mMainHandler.post(new Runnable() {
+                public void run() {
+                    try {
+                        Looper.loop();
+                    } catch (Exception e) {
+                        GeckoAppShell.reportJavaCrash(e);
+                    }
+                    // resetting this is kinda pointless, but oh well
+                    sTryCatchAttached = false;
+                }
+            });
+        }
 
         //register for events
         GeckoAppShell.registerGeckoEventListener("DOMContentLoaded", GeckoApp.mAppContext);
@@ -2072,6 +2091,10 @@ abstract public class GeckoApp
             mMainHandler.sendMessage(message);
         }
 
+        // An Android framework bug can cause an IME crash when focus changes invalidate text
+        // selection offsets. A workaround is to reset selection when the activity resumes.
+        GeckoAppShell.resetIMESelection();
+
         int newOrientation = getResources().getConfiguration().orientation;
 
         if (mOrientation != newOrientation) {
@@ -2171,10 +2194,6 @@ abstract public class GeckoApp
         super.onDestroy();
 
         unregisterReceiver(mBatteryReceiver);
-
-        if (mAboutHomeContent != null) {
-            mAboutHomeContent.onDestroy();
-        }
     }
 
     @Override
@@ -2494,7 +2513,7 @@ abstract public class GeckoApp
                         fileExt = name.substring(period);
                         fileName = name.substring(0, period);
                     }
-                    File file = File.createTempFile(fileName, fileExt, GeckoAppShell.getGREDir(GeckoApp.mAppContext));
+                    File file = File.createTempFile(fileName, fileExt, sGREDir);
 
                     FileOutputStream fos = new FileOutputStream(file);
                     InputStream is = cr.openInputStream(uri);

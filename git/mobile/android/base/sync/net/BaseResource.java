@@ -1,6 +1,39 @@
-/* This Source Code Form is subject to the terms of the Mozilla Public
- * License, v. 2.0. If a copy of the MPL was not distributed with this file,
- * You can obtain one at http://mozilla.org/MPL/2.0/. */
+/* ***** BEGIN LICENSE BLOCK *****
+ * Version: MPL 1.1/GPL 2.0/LGPL 2.1
+ *
+ * The contents of this file are subject to the Mozilla Public License Version
+ * 1.1 (the "License"); you may not use this file except in compliance with
+ * the License. You may obtain a copy of the License at
+ * http://www.mozilla.org/MPL/
+ *
+ * Software distributed under the License is distributed on an "AS IS" basis,
+ * WITHOUT WARRANTY OF ANY KIND, either express or implied. See the License
+ * for the specific language governing rights and limitations under the
+ * License.
+ *
+ * The Original Code is Android Sync Client.
+ *
+ * The Initial Developer of the Original Code is
+ * the Mozilla Foundation.
+ * Portions created by the Initial Developer are Copyright (C) 2011
+ * the Initial Developer. All Rights Reserved.
+ *
+ * Contributor(s):
+ *   Richard Newman <rnewman@mozilla.com>
+ *
+ * Alternatively, the contents of this file may be used under the terms of
+ * either the GNU General Public License Version 2 or later (the "GPL"), or
+ * the GNU Lesser General Public License Version 2.1 or later (the "LGPL"),
+ * in which case the provisions of the GPL or the LGPL are applicable instead
+ * of those above. If you wish to allow use of your version of this file only
+ * under the terms of either the GPL or the LGPL, and not to allow others to
+ * use your version of this file under the terms of the MPL, indicate your
+ * decision by deleting the provisions above and replace them with the notice
+ * and other provisions required by the GPL or the LGPL. If you do not delete
+ * the provisions above, a recipient may use your version of this file under
+ * the terms of any one of the MPL, the GPL or the LGPL.
+ *
+ * ***** END LICENSE BLOCK ***** */
 
 package org.mozilla.gecko.sync.net;
 
@@ -13,6 +46,7 @@ import java.security.SecureRandom;
 
 import javax.net.ssl.SSLContext;
 
+import android.util.Log;
 import ch.boye.httpclientandroidlib.Header;
 import ch.boye.httpclientandroidlib.HttpEntity;
 import ch.boye.httpclientandroidlib.HttpResponse;
@@ -41,8 +75,6 @@ import ch.boye.httpclientandroidlib.params.HttpProtocolParams;
 import ch.boye.httpclientandroidlib.protocol.BasicHttpContext;
 import ch.boye.httpclientandroidlib.protocol.HttpContext;
 
-import org.mozilla.gecko.sync.Logger;
-
 /**
  * Provide simple HTTP access to a Sync server or similar.
  * Implements Basic Auth by asking its delegate for credentials.
@@ -50,8 +82,6 @@ import org.mozilla.gecko.sync.Logger;
  * Exposes simple get/post/put/delete methods.
  */
 public class BaseResource implements Resource {
-  private static final String ANDROID_LOOPBACK_IP = "10.0.2.2";
-
   public static boolean rewriteLocalhost = true;
 
   private static final String LOG_TAG = "BaseResource";
@@ -77,11 +107,11 @@ public class BaseResource implements Resource {
   public BaseResource(URI uri, boolean rewrite) {
     if (rewrite && uri.getHost().equals("localhost")) {
       // Rewrite localhost URIs to refer to the special Android emulator loopback passthrough interface.
-      Logger.debug(LOG_TAG, "Rewriting " + uri + " to point to " + ANDROID_LOOPBACK_IP + ".");
+      Log.d(LOG_TAG, "Rewriting " + uri + " to point to 10.0.2.2.");
       try {
-        this.uri = new URI(uri.getScheme(), uri.getUserInfo(), ANDROID_LOOPBACK_IP, uri.getPort(), uri.getPath(), uri.getQuery(), uri.getFragment());
+        this.uri = new URI(uri.getScheme(), uri.getUserInfo(), "10.0.2.2", uri.getPort(), uri.getPath(), uri.getQuery(), uri.getFragment());
       } catch (URISyntaxException e) {
-        Logger.error(LOG_TAG, "Got error rewriting URI for Android emulator.", e);
+        Log.e(LOG_TAG, "Got error rewriting URI for Android emulator.", e);
       }
     } else {
       this.uri = uri;
@@ -104,7 +134,7 @@ public class BaseResource implements Resource {
     Credentials creds = new UsernamePasswordCredentials(credentials);
     Header header = BasicScheme.authenticate(creds, "US-ASCII", false);
     request.addHeader(header);
-    Logger.trace(LOG_TAG, "Adding Basic Auth header.");
+    Log.d(LOG_TAG, "Adding auth header " + header);
   }
 
   /**
@@ -137,6 +167,7 @@ public class BaseResource implements Resource {
 
   /**
    * This method exists for test code.
+   * @return
    */
   public static ClientConnectionManager enablePlainHTTPConnectionManager() {
     synchronized (connManagerMonitor) {
@@ -172,7 +203,7 @@ public class BaseResource implements Resource {
   private void execute() {
     try {
       HttpResponse response = client.execute(request, context);
-      Logger.debug(LOG_TAG, "Response: " + response.getStatusLine().toString());
+      Log.i(LOG_TAG, "Response: " + response.getStatusLine().toString());
       delegate.handleHttpResponse(response);
     } catch (ClientProtocolException e) {
       delegate.handleHttpProtocolException(e);
@@ -189,10 +220,10 @@ public class BaseResource implements Resource {
     try {
       this.prepareClient();
     } catch (KeyManagementException e) {
-      Logger.error(LOG_TAG, "Couldn't prepare client.", e);
+      Log.e(LOG_TAG, "Couldn't prepare client.", e);
       delegate.handleTransportException(e);
     } catch (NoSuchAlgorithmException e) {
-      Logger.error(LOG_TAG, "Couldn't prepare client.", e);
+      Log.e(LOG_TAG, "Couldn't prepare client.", e);
       delegate.handleTransportException(e);
     }
     this.execute();
@@ -200,19 +231,19 @@ public class BaseResource implements Resource {
 
   @Override
   public void get() {
-    Logger.debug(LOG_TAG, "HTTP GET " + this.uri.toASCIIString());
+    Log.i(LOG_TAG, "HTTP GET " + this.uri.toASCIIString());
     this.go(new HttpGet(this.uri));
   }
 
   @Override
   public void delete() {
-    Logger.debug(LOG_TAG, "HTTP DELETE " + this.uri.toASCIIString());
+    Log.i(LOG_TAG, "HTTP DELETE " + this.uri.toASCIIString());
     this.go(new HttpDelete(this.uri));
   }
 
   @Override
   public void post(HttpEntity body) {
-    Logger.debug(LOG_TAG, "HTTP POST " + this.uri.toASCIIString());
+    Log.i(LOG_TAG, "HTTP POST " + this.uri.toASCIIString());
     HttpPost request = new HttpPost(this.uri);
     request.setEntity(body);
     this.go(request);
@@ -220,7 +251,7 @@ public class BaseResource implements Resource {
 
   @Override
   public void put(HttpEntity body) {
-    Logger.debug(LOG_TAG, "HTTP PUT " + this.uri.toASCIIString());
+    Log.i(LOG_TAG, "HTTP PUT " + this.uri.toASCIIString());
     HttpPut request = new HttpPut(this.uri);
     request.setEntity(body);
     this.go(request);

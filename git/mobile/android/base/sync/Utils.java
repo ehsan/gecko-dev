@@ -69,11 +69,10 @@ public class Utils {
     return new String(encodedBytes).replace("+", "-").replace("/", "_");
   }
 
-  /**
+  /*
    * Helper to generate secure random bytes.
    *
-   * @param length
-   *        Number of bytes to generate.
+   * @param length Number of bytes to generate.
    */
   public static byte[] generateRandomBytes(int length) {
     byte[] bytes = new byte[length];
@@ -81,11 +80,10 @@ public class Utils {
     return bytes;
   }
 
-  /**
+  /*
    * Helper to generate a random integer in a specified range.
    *
-   * @param r
-   *        Generate an integer between 0 and r-1 inclusive.
+   * @param r Generate an integer between 0 and r-1 inclusive.
    */
   public static BigInteger generateBigIntegerLessThan(BigInteger r) {
     int maxBytes = (int) Math.ceil(((double) r.bitLength()) / 8);
@@ -93,15 +91,17 @@ public class Utils {
     return randInt.mod(r);
   }
 
-  /**
+  /*
    * Helper to reseed the shared secure random number generator.
    */
   public static void reseedSharedRandom() {
     sharedSecureRandom.setSeed(sharedSecureRandom.generateSeed(8));
   }
 
-  /**
-   * Helper to convert a byte array to a hex-encoded string
+  /*
+   * Helper to convert Byte Array to a Hex String
+   * Input: byte[] array
+   * Output: Hex string
    */
   public static String byte2hex(byte[] b) {
     // StringBuffer should be used instead.
@@ -125,6 +125,11 @@ public class Utils {
     return hs;
   }
 
+  /*
+   * Helper for array concatenation.
+   * Input: At least two byte[]
+   * Output: A concatenated version of them
+   */
   public static byte[] concatAll(byte[] first, byte[]... rest) {
     int totalLength = first.length;
     for (byte[] array : rest) {
@@ -158,12 +163,20 @@ public class Utils {
     return Base64.decodeBase64(base64.getBytes("UTF-8"));
   }
 
+  /*
+   * Decode a friendly base32 string.
+   */
   public static byte[] decodeFriendlyBase32(String base32) {
     Base32 converter = new Base32();
     final String translated = base32.replace('8', 'l').replace('9', 'o');
     return converter.decode(translated.toUpperCase());
   }
 
+  /*
+   * Helper to convert Hex String to Byte Array
+   * Input: Hex string
+   * Output: byte[] version of hex string
+   */
   public static byte[] hex2Byte(String str) {
     if (str.length() % 2 == 1) {
       str = "0" + str;
@@ -234,6 +247,10 @@ public class Utils {
 
   /**
    * Yes, an equality method that's null-safe.
+   *
+   * @param a
+   * @param b
+   * @return
    */
   private static boolean same(Object a, Object b) {
     if (a == b) {
@@ -248,6 +265,10 @@ public class Utils {
   /**
    * Return true if the two arrays are both null, or are both arrays
    * containing the same elements in the same order.
+   *
+   * @param a
+   * @param b
+   * @return
    */
   public static boolean sameArrays(JSONArray a, JSONArray b) {
     if (a == b) {

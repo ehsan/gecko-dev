@@ -112,7 +112,6 @@ public class AboutHomeContent extends ScrollView {
     private LayoutInflater mInflater;
 
     private AccountManager mAccountManager;
-    private OnAccountsUpdateListener mAccountListener = null;
 
     protected SimpleCursorAdapter mTopSitesAdapter;
     protected GridView mTopSitesGrid;
@@ -140,7 +139,7 @@ public class AboutHomeContent extends ScrollView {
         mAccountManager = AccountManager.get(context);
 
         // The listener will run on the background thread (see 2nd argument)
-        mAccountManager.addOnAccountsUpdatedListener(mAccountListener = new OnAccountsUpdateListener() {
+        mAccountManager.addOnAccountsUpdatedListener(new OnAccountsUpdateListener() {
             public void onAccountsUpdated(Account[] accounts) {
                 final GeckoApp.StartupMode startupMode = GeckoApp.mAppContext.getStartupMode();
                 final boolean syncIsSetup = isSyncSetup();
@@ -209,13 +208,6 @@ public class AboutHomeContent extends ScrollView {
                 context.startActivity(intent);
             }
         });
-    }
-
-    public void onDestroy() {
-        if (mAccountListener != null) {
-            mAccountManager.removeOnAccountsUpdatedListener(mAccountListener);
-            mAccountListener = null;
-        }
     }
 
     void setLastTabsVisibility(boolean visible) {
@@ -715,6 +707,20 @@ public class AboutHomeContent extends ScrollView {
 
             // Other columns are handled automatically
             return false;
+        }
+    }
+
+    public static class LinkTextView extends TextView {
+        public LinkTextView(Context context, AttributeSet attrs) {
+            super(context, attrs);
+        }
+
+        @Override
+        public void setText(CharSequence text, BufferType type) {
+            SpannableString content = new SpannableString(text + " \u00BB");
+            content.setSpan(new UnderlineSpan(), 0, text.length(), 0);
+
+            super.setText(content, BufferType.SPANNABLE);
         }
     }
 }

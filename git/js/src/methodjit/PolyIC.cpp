@@ -2660,16 +2660,6 @@ ic::GetElement(VMFrame &f, ic::GetElementIC *ic)
     if (!obj)
         THROW();
 
-#if JS_HAS_XML_SUPPORT
-    // Some XML properties behave differently when accessed in a call vs. normal
-    // context, so we fall back to stubs::GetElem.
-    if (obj->isXML()) {
-        ic->disable(f, "XML object");
-        stubs::GetElem(f);
-        return;
-    }
-#endif
-
     jsid id;
     if (idval.isInt32() && INT_FITS_IN_JSID(idval.toInt32())) {
         id = INT_TO_JSID(idval.toInt32());
@@ -2695,13 +2685,6 @@ ic::GetElement(VMFrame &f, ic::GetElementIC *ic)
 
     if (!obj->getGeneric(cx, id, &f.regs.sp[-2]))
         THROW();
-
-#if JS_HAS_NO_SUCH_METHOD
-    if (*f.pc() == JSOP_CALLELEM && JS_UNLIKELY(f.regs.sp[-2].isPrimitive())) {
-        if (!OnUnknownMethod(cx, obj, idval, &f.regs.sp[-2]))
-            THROW();
-    }
-#endif
 }
 
 #define APPLY_STRICTNESS(f, s)                          \

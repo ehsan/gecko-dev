@@ -67,7 +67,6 @@
 #include "nsIXPCScriptable.h"
 
 #include "nsJSUtils.h"
-#include "nsJSPrincipals.h"
 #include "nsThreadUtils.h"
 #include "nsXULAppAPI.h"
 
@@ -1059,7 +1058,7 @@ XPCShellEnvironment::~XPCShellEnvironment()
         mCxStack = nsnull;
 
         if (mJSPrincipals) {
-            JS_DropPrincipals(JS_GetRuntime(mCx), mJSPrincipals);
+            JSPRINCIPALS_DROP(mCx, mJSPrincipals);
         }
 
         JSRuntime* rt = gOldContextCallback ? JS_GetRuntime(mCx) : NULL;
@@ -1141,8 +1140,10 @@ XPCShellEnvironment::Init()
             fprintf(stderr, "+++ Failed to obtain SystemPrincipal from ScriptSecurityManager service.\n");
         } else {
             // fetch the JS principals and stick in a global
-            mJSPrincipals = nsJSPrincipals::get(principal);
-            JS_HoldPrincipals(mJSPrincipals);
+            rv = principal->GetJSPrincipals(cx, &mJSPrincipals);
+            if (NS_FAILED(rv)) {
+                fprintf(stderr, "+++ Failed to obtain JS principals from SystemPrincipal.\n");
+            }
             secman->SetSystemPrincipal(principal);
         }
     } else {

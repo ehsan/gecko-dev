@@ -80,7 +80,6 @@
 #include "nsDOMFile.h"
 #include "jsxdrapi.h"
 #include "jsprf.h"
-#include "nsJSPrincipals.h"
 // For reporting errors with the console service
 #include "nsIScriptError.h"
 #include "nsIConsoleService.h"
@@ -646,6 +645,17 @@ class ANSIFileAutoCloser
 };
 #endif
 
+class JSPrincipalsHolder
+{
+ public:
+    JSPrincipalsHolder(JSContext *cx, JSPrincipals *principals)
+        : mCx(cx), mPrincipals(principals) {}
+    ~JSPrincipalsHolder() { JSPRINCIPALS_DROP(mCx, mPrincipals); }
+ private:
+    JSContext *mCx;
+    JSPrincipals *mPrincipals;
+};
+
 nsresult
 mozJSComponentLoader::GlobalForLocation(nsILocalFile *aComponentFile,
                                         nsIURI *aURI,
@@ -655,12 +665,18 @@ mozJSComponentLoader::GlobalForLocation(nsILocalFile *aComponentFile,
 {
     nsresult rv;
 
+    JSPrincipals* jsPrincipals = nsnull;
     JSCLContextHelper cx(this);
 
     JS_AbortIfWrongThread(JS_GetRuntime(cx));
 
     // preserve caller's compartment
     js::AutoPreserveCompartment pc(cx);
+
+    rv = mSystemPrincipal->GetJSPrincipals(cx, &jsPrincipals);
+    NS_ENSURE_SUCCESS(rv, rv);
+
+    JSPrincipalsHolder princHolder(mContext, jsPrincipals);
 
     nsCOMPtr<nsIXPCScriptable> backstagePass;
     rv = mRuntimeService->GetBackstagePass(getter_AddRefs(backstagePass));
@@ -821,9 +837,7 @@ mozJSComponentLoader::GlobalForLocation(nsILocalFile *aComponentFile,
                 return NS_ERROR_FAILURE;
             }
 
-            script = JS_CompileScriptForPrincipalsVersion(cx, global,
-                                                          nsJSPrincipals::get(mSystemPrincipal),
-                                                          buf, fileSize32, nativePath.get(), 1,
+            script = JS_CompileScriptForPrincipalsVersion(cx, global, jsPrincipals, buf, fileSize32, nativePath.get(), 1,
                                                           JSVERSION_LATEST);
 
             PR_MemUnmap(buf, fileSize32);
@@ -866,9 +880,7 @@ mozJSComponentLoader::GlobalForLocation(nsILocalFile *aComponentFile,
                 NS_WARNING("Failed to read file");
                 return NS_ERROR_FAILURE;
             }
-            script = JS_CompileScriptForPrincipalsVersion(cx, global,
-                                                          nsJSPrincipals::get(mSystemPrincipal),
-                                                          buf, rlen, nativePath.get(), 1,
+            script = JS_CompileScriptForPrincipalsVersion(cx, global, jsPrincipals, buf, rlen, nativePath.get(), 1,
                                                           JSVERSION_LATEST);
 
             free(buf);
@@ -905,9 +917,7 @@ mozJSComponentLoader::GlobalForLocation(nsILocalFile *aComponentFile,
 
             buf[len] = '\0';
 
-            script = JS_CompileScriptForPrincipalsVersion(cx, global,
-                                                          nsJSPrincipals::get(mSystemPrincipal),
-                                                          buf, bytesRead, nativePath.get(), 1,
+            script = JS_CompileScriptForPrincipalsVersion(cx, global, jsPrincipals, buf, bytesRead, nativePath.get(), 1,
                                                           JSVERSION_LATEST);
         }
         // Propagate the exception, if one exists. Also, don't leave the stale

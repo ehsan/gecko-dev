@@ -42,7 +42,6 @@ import java.net.URISyntaxException;
 
 import org.json.simple.parser.ParseException;
 import org.mozilla.gecko.sync.GlobalSession;
-import org.mozilla.gecko.sync.Logger;
 import org.mozilla.gecko.sync.MetaGlobalException;
 import org.mozilla.gecko.sync.NoCollectionKeysSetException;
 import org.mozilla.gecko.sync.NonObjectJSONException;
@@ -96,6 +95,10 @@ public abstract class ServerSyncStage implements
   /**
    * Return a Crypto5Middleware-wrapped Server11Repository.
    *
+   * @param clusterURI
+   * @param data.username
+   * @param collection
+   * @return
    * @throws NoCollectionKeysSetException
    * @throws URISyntaxException
    */
@@ -128,18 +131,17 @@ public abstract class ServerSyncStage implements
 
   @Override
   public void execute(GlobalSession session) throws NoSuchStageException {
-    final String name = getEngineName();
-    Logger.debug(LOG_TAG, "Starting execute for " + name);
+    Log.d(LOG_TAG, "Starting execute.");
 
     this.session = session;
     try {
       if (!this.isEnabled()) {
-        Logger.info(LOG_TAG, "Stage " + name + " disabled; skipping.");
+        Log.i(LOG_TAG, "Stage disabled; skipping.");
         session.advance();
         return;
       }
     } catch (MetaGlobalException e) {
-      session.abort(e, "Inappropriate meta/global; refusing to execute " + name + " stage.");
+      session.abort(e, "Inappropriate meta/global; refusing to execute " + this.getEngineName() + " stage.");
       return;
     }
 
@@ -163,9 +165,9 @@ public abstract class ServerSyncStage implements
       session.abort(e, "Invalid persisted JSON for config.");
       return;
     }
-    Logger.debug(LOG_TAG, "Invoking synchronizer.");
+    Log.d(LOG_TAG, "Invoking synchronizer.");
     synchronizer.synchronize(session.getContext(), this);
-    Logger.debug(LOG_TAG, "Reached end of execute.");
+    Log.d(LOG_TAG, "Reached end of execute.");
   }
 
   @Override

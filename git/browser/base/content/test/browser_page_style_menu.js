@@ -14,7 +14,7 @@ function test() {
 function checkPageStyleMenu() {
   var menupopup = document.getElementById("pageStyleMenu")
                           .getElementsByTagName("menupopup")[0];
-  gPageStyleMenu.fillPopup(menupopup);
+  stylesheetFillPopup(menupopup);
 
   var items = [];
   var current = menupopup.getElementsByTagName("menuseparator")[0];

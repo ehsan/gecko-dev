@@ -51,12 +51,9 @@ class nsSVGMaskFrame : public nsSVGMaskFrameBase
   friend nsIFrame*
   NS_NewSVGMaskFrame(nsIPresShell* aPresShell, nsStyleContext* aContext);
 protected:
-  nsSVGMaskFrame(nsStyleContext* aContext)
-    : nsSVGMaskFrameBase(aContext)
-    , mInUse(false)
-  {
-    AddStateBits(NS_STATE_SVG_NONDISPLAY_CHILD);
-  }
+  nsSVGMaskFrame(nsStyleContext* aContext) :
+    nsSVGMaskFrameBase(aContext),
+    mInUse(false) {}
 
 public:
   NS_DECL_FRAMEARENA_HELPERS

@@ -876,12 +876,14 @@ static JSBool
 CloseGenerator(JSContext *cx, JSObject *genobj);
 #endif
 
+namespace js {
+
 /*
  * Call ToObject(v).__iterator__(keyonly) if ToObject(v).__iterator__ exists.
  * Otherwise construct the default iterator.
  */
 JSBool
-js::ValueToIterator(JSContext *cx, unsigned flags, Value *vp)
+ValueToIterator(JSContext *cx, unsigned flags, Value *vp)
 {
     /* JSITER_KEYVALUE must always come with JSITER_FOREACH */
     JS_ASSERT_IF(flags & JSITER_KEYVALUE, flags & JSITER_FOREACH);
@@ -920,7 +922,7 @@ js::ValueToIterator(JSContext *cx, unsigned flags, Value *vp)
 }
 
 bool
-js::CloseIterator(JSContext *cx, JSObject *obj)
+CloseIterator(JSContext *cx, JSObject *obj)
 {
     cx->iterValue.setMagic(JS_NO_ITER_VALUE);
 
@@ -951,7 +953,7 @@ js::CloseIterator(JSContext *cx, JSObject *obj)
 }
 
 bool
-js::UnwindIteratorForException(JSContext *cx, JSObject *obj)
+UnwindIteratorForException(JSContext *cx, JSObject *obj)
 {
     Value v = cx->getPendingException();
     cx->clearPendingException();
@@ -961,17 +963,7 @@ js::UnwindIteratorForException(JSContext *cx, JSObject *obj)
     return true;
 }
 
-void
-js::UnwindIteratorForUncatchableException(JSContext *cx, JSObject *obj)
-{
-    if (obj->isIterator()) {
-        NativeIterator *ni = obj->getNativeIterator();
-        if (ni->flags & JSITER_ENUMERATE) {
-            JS_ASSERT(cx->enumerators == obj);
-            cx->enumerators = ni->next;
-        }
-    }
-}
+} // namespace js
 
 /*
  * Suppress enumeration of deleted properties. This function must be called

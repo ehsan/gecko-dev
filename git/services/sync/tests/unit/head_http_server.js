@@ -295,16 +295,6 @@ ServerCollection.prototype = {
     return this.insertWBO(new ServerWBO(id, payload, modified));
   },
 
-  /**
-   * Removes an object entirely from the collection.
-   *
-   * @param id
-   *        (string) ID to remove.
-   */
-  remove: function remove(id) {
-    delete this._wbos[id];
-  },
-
   _inResultSet: function(wbo, options) {
     return wbo.payload
            && (!options.ids || (options.ids.indexOf(wbo.id) != -1))
@@ -554,15 +544,7 @@ function track_collections_helper() {
  */
 let SyncServerCallback = {
   onCollectionDeleted: function onCollectionDeleted(user, collection) {},
-  onItemDeleted: function onItemDeleted(user, collection, wboID) {},
-
-  /**
-   * Called at the top of every request.
-   *
-   * Allows the test to inspect the request. Hooks should be careful not to
-   * modify or change state of the request or they may impact future processing.
-   */
-  onRequest: function onRequest(request) {},
+  onItemDeleted: function onItemDeleted(user, collection, wboID) {}
 };
 
 /**
@@ -840,11 +822,6 @@ SyncServer.prototype = {
 
   _handleDefault: function _handleDefault(handler, req, resp) {
     this._log.debug("SyncServer: Handling request: " + req.method + " " + req.path);
-
-    if (this.callback.onRequest) {
-      this.callback.onRequest(req);
-    }
-
     let parts = this.pathRE.exec(req.path);
     if (!parts) {
       this._log.debug("SyncServer: Unexpected request: bad URL " + req.path);

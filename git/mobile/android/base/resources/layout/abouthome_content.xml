@@ -60,15 +60,16 @@
                   android:isScrollContainer="false"
                   android:gravity="center"/>
 
-            <org.mozilla.gecko.LinkTextView android:id="@+id/all_top_sites_text"
-                                            android:layout_width="fill_parent"
-                                            android:layout_height="30dip"
-                                            android:layout_below="@id/top_sites_grid"
-                                            android:layout_marginTop="7dip"
-                                            android:textColor="#22629e"
-                                            android:textSize="12sp"
-                                            android:gravity="top|center_horizontal"
-                                            android:text="@string/abouthome_top_sites_browse"/>
+            <view class="org.mozilla.gecko.AboutHomeContent$LinkTextView"
+                  android:id="@+id/all_top_sites_text"
+                  android:layout_width="fill_parent"
+                  android:layout_height="30dip"
+                  android:layout_below="@id/top_sites_grid"
+                  android:layout_marginTop="7dip"
+                  android:textColor="#22629e"
+                  android:textSize="12sp"
+                  android:gravity="top|center_horizontal"
+                  android:text="@string/abouthome_top_sites_browse"/>
 
             <RelativeLayout android:id="@+id/sync_box_container"
                             android:layout_width="fill_parent"
@@ -138,15 +139,16 @@
                       android:layout_width="fill_parent"
                       android:layout_height="wrap_content"/>
 
-        <org.mozilla.gecko.LinkTextView android:id="@+id/last_tabs_open_all"
-                                        android:layout_width="fill_parent"
-                                        android:layout_height="47dip"
-                                        android:background="@drawable/abouthome_separator"
-                                        android:textColor="#22629e"
-                                        android:textSize="12sp"
-                                        android:gravity="center"
-                                        android:visibility="gone"
-                                        android:text="@string/abouthome_last_tabs_open"/>
+        <view class="org.mozilla.gecko.AboutHomeContent$LinkTextView"
+              android:id="@+id/last_tabs_open_all"
+              android:layout_width="fill_parent"
+              android:layout_height="47dip"
+              android:background="@drawable/abouthome_separator"
+              android:textColor="#22629e"
+              android:textSize="12sp"
+              android:gravity="center"
+              android:visibility="gone"
+              android:text="@string/abouthome_last_tabs_open"/>
 
         <TextView android:id="@+id/recommended_addons_title"
                   android:layout_width="fill_parent"
@@ -167,15 +169,16 @@
                       android:visibility="gone"
                       android:isScrollContainer="false"/>
 
-        <org.mozilla.gecko.LinkTextView android:id="@+id/all_addons_text"
-                                        android:layout_width="fill_parent"
-                                        android:layout_height="47dip"
-                                        android:background="@drawable/abouthome_separator"
-                                        android:textColor="#22629e"
-                                        android:textSize="12sp"
-                                        android:gravity="center"
-                                        android:visibility="gone"
-                                        android:text="@string/abouthome_addons_browse"/>
+        <view class="org.mozilla.gecko.AboutHomeContent$LinkTextView"
+              android:id="@+id/all_addons_text"
+              android:layout_width="fill_parent"
+              android:layout_height="47dip"
+              android:background="@drawable/abouthome_separator"
+              android:textColor="#22629e"
+              android:textSize="12sp"
+              android:gravity="center"
+              android:visibility="gone"
+              android:text="@string/abouthome_addons_browse"/>
 
     </LinearLayout>
 

@@ -66,7 +66,8 @@ static const nsStaticAtom CSSPseudoClasses_info[] = {
 
 void nsCSSPseudoClasses::AddRefAtoms()
 {
-  NS_RegisterStaticAtoms(CSSPseudoClasses_info);
+  NS_RegisterStaticAtoms(CSSPseudoClasses_info,
+                         ArrayLength(CSSPseudoClasses_info));
 }
 
 bool

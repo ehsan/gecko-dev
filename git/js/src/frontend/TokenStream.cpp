@@ -158,7 +158,7 @@ TokenStream::TokenStream(JSContext *cx, JSPrincipals *prin, JSPrincipals *origin
     cx(cx), originPrincipals(JSScript::normalizeOriginPrincipals(prin, originPrin))
 {
     if (originPrincipals)
-        JS_HoldPrincipals(originPrincipals);
+        JSPRINCIPALS_HOLD(cx, originPrincipals);
 }
 
 #ifdef _MSC_VER
@@ -248,7 +248,7 @@ TokenStream::~TokenStream()
     if (sourceMap)
         cx->free_(sourceMap);
     if (originPrincipals)
-        JS_DropPrincipals(cx->runtime, originPrincipals);
+        JSPRINCIPALS_DROP(cx, originPrincipals);
 }
 
 /* Use the fastest available getc. */
@@ -1322,18 +1322,12 @@ TokenStream::checkForKeyword(const jschar *s, size_t length, TokenKind *ttp, JSO
                                             JSMSG_RESERVED_ID, kw->chars);
         }
 
-        /* The let keyword is reserved on <1.7 */
-        if (kw->tokentype == TOK_LET) {
-            return ReportCompileErrorNumber(cx, this, NULL, JSREPORT_ERROR,
-                                            JSMSG_RESERVED_ID, kw->chars);
-        }
-
         /*
          * The keyword is not in this version. Treat it as an identifier,
-         * unless it is yield which we treat as TOK_STRICT_RESERVED by
-         * falling through to the code below (ES5 forbids it in strict mode).
+         * unless it is let or yield which we treat as TOK_STRICT_RESERVED by
+         * falling through to the code below (ES5 forbids them in strict mode).
          */
-        if (kw->tokentype != TOK_YIELD)
+        if (kw->tokentype != TOK_LET && kw->tokentype != TOK_YIELD)
             return true;
     }
 

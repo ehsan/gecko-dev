@@ -61,7 +61,8 @@ namespace xpc {
 nsIPrincipal *
 GetCompartmentPrincipal(JSCompartment *compartment)
 {
-    return nsJSPrincipals::get(JS_GetCompartmentPrincipals(compartment));
+    JSPrincipals *prin = JS_GetCompartmentPrincipals(compartment);
+    return prin ? static_cast<nsJSPrincipals *>(prin)->nsIPrincipalPtr : nsnull;
 }
 
 bool

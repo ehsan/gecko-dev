@@ -151,7 +151,6 @@ LivemarkService.prototype = {
     }
   },
 
-  _reloading: false,
   _startReloadTimer: function LS__startReloadTimer()
   {
     if (this._reloadTimer) {
@@ -161,7 +160,6 @@ LivemarkService.prototype = {
       this._reloadTimer = Cc["@mozilla.org/timer;1"]
                             .createInstance(Ci.nsITimer);
     }
-    this._reloading = true;
     this._reloadTimer.initWithCallback(this._reloadNextLivemark.bind(this),
                                        RELOAD_DELAY_MS,
                                        Ci.nsITimer.TYPE_ONE_SHOT);
@@ -181,7 +179,6 @@ LivemarkService.prototype = {
       }
 
       if (this._reloadTimer) {
-        this._reloading = false;
         this._reloadTimer.cancel();
         delete this._reloadTimer;
       }
@@ -366,7 +363,7 @@ LivemarkService.prototype = {
   {
     this._reportDeprecatedMethod();
 
-    this._reloadLivemarks(true);
+    this._reloadLivemarks();
   },
 
   //////////////////////////////////////////////////////////////////////////////
@@ -396,15 +393,7 @@ LivemarkService.prototype = {
         throw new Components.Exception("", Cr.NS_ERROR_INVALID_ARG);
       }
 
-      // Don't pass unexpected input data to the livemark constructor.
-      livemark = new Livemark({ title:        aLivemarkInfo.title
-                              , parentId:     aLivemarkInfo.parentId
-                              , index:        aLivemarkInfo.index
-                              , feedURI:      aLivemarkInfo.feedURI
-                              , siteURI:      aLivemarkInfo.siteURI
-                              , guid:         aLivemarkInfo.guid
-                              , lastModified: aLivemarkInfo.lastModified
-                              });
+      livemark = new Livemark(aLivemarkInfo);
       if (this._itemAdded && this._itemAdded.id == livemark.id) {
         livemark.index = this._itemAdded.index;
         if (!aLivemarkInfo.guid) {
@@ -480,31 +469,20 @@ LivemarkService.prototype = {
   _reloaded: [],
   _reloadNextLivemark: function LS__reloadNextLivemark()
   {
-    this._reloading = false;
     // Find first livemark to be reloaded.
     for (let id in this._livemarks) {
       if (this._reloaded.indexOf(id) == -1) {
         this._reloaded.push(id);
-        this._livemarks[id].reload(this._forceUpdate);
+        this._livemarks[id].reload();
         this._startReloadTimer();
         break;
       }
     }
   },
 
-  reloadLivemarks: function LS_reloadLivemarks(aForceUpdate)
+  reloadLivemarks: function LS_reloadLivemarks()
   {
-    // Check if there's a currently running reload, to save some useless work.
-    let notWorthRestarting =
-      this._forceUpdate || // We're already forceUpdating.
-      !aForceUpdate;       // The caller didn't request a forced update.
-    if (this._reloading && notWorthRestarting) {
-      // Ignore this call.
-      return;
-    } 
-
     this._onCacheReady((function LS_reloadAllLivemarks_ETAT() {
-      this._forceUpdate = !!aForceUpdate;
       this._reloaded = [];
       // Livemarks reloads happen on a timer, and are delayed for performance
       // reasons.
@@ -863,10 +841,6 @@ Livemark.prototype = {
 
     this.status = Ci.mozILivemark.STATUS_LOADING;
 
-    // Setting the status notifies observers that may remove the livemark.
-    if (this._terminated)
-      return;
-
     try {
       // Create a load group for the request.  This will allow us to
       // automatically keep track of redirects, so we can always
@@ -877,7 +851,7 @@ Livemark.prototype = {
                     QueryInterface(Ci.nsIHttpChannel);
       channel.loadGroup = loadgroup;
       channel.loadFlags |= Ci.nsIRequest.LOAD_BACKGROUND |
-                           Ci.nsIRequest.LOAD_BYPASS_CACHE;
+                           Ci.nsIRequest.VALIDATE_ALWAYS;
       channel.requestMethod = "GET";
       channel.setRequestHeader("X-Moz", "livebookmarks", false);
 
@@ -1029,8 +1003,6 @@ Livemark.prototype = {
    */
   terminate: function LM_terminate()
   {
-    // Avoid handling any updateChildren request from now on.
-    this._terminated = true;
     // Clear the list before aborting, since abort() would try to set the
     // status and notify about it, but that's not really useful at this point.
     this._resultObserversList = [];

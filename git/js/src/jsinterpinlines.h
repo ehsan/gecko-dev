@@ -702,17 +702,8 @@ ToIdOperation(JSContext *cx, const Value &objval, const Value &idval, Value *res
 }
 
 static JS_ALWAYS_INLINE bool
-GetObjectElementOperation(JSContext *cx, JSOp op, JSObject *obj, const Value &rref, Value *res)
+GetObjectElementOperation(JSContext *cx, JSObject *obj, const Value &rref, Value *res)
 {
-#if JS_HAS_XML_SUPPORT
-    if (op == JSOP_CALLELEM && JS_UNLIKELY(obj->isXML())) {
-        jsid id;
-        if (!FetchElementId(cx, obj, rref, id, res))
-            return false;
-        return js_GetXMLMethod(cx, obj, id, res);
-    }
-#endif
-
     uint32_t index;
     if (IsDefinitelyIndex(rref, &index)) {
         do {
@@ -762,10 +753,8 @@ GetObjectElementOperation(JSContext *cx, JSOp op, JSObject *obj, const Value &rr
 }
 
 static JS_ALWAYS_INLINE bool
-GetElementOperation(JSContext *cx, JSOp op, const Value &lref, const Value &rref, Value *res)
+GetElementOperation(JSContext *cx, const Value &lref, const Value &rref, Value *res)
 {
-    JS_ASSERT(op == JSOP_GETELEM || op == JSOP_CALLELEM);
-
     if (lref.isString() && rref.isInt32()) {
         JSString *str = lref.toString();
         int32_t i = rref.toInt32();
@@ -787,20 +776,10 @@ GetElementOperation(JSContext *cx, JSOp op, const Value &lref, const Value &rref
         JS_ASSERT(!lref.isMagic(JS_LAZY_ARGUMENTS));
     }
 
-    bool isObject = lref.isObject();
     JSObject *obj = ValueToObject(cx, lref);
     if (!obj)
         return false;
-    if (!GetObjectElementOperation(cx, op, obj, rref, res))
-        return false;
-
-#if JS_HAS_NO_SUCH_METHOD
-    if (op == JSOP_CALLELEM && JS_UNLIKELY(res->isPrimitive()) && isObject) {
-        if (!OnUnknownMethod(cx, obj, rref, res))
-            return false;
-    }
-#endif
-    return true;
+    return GetObjectElementOperation(cx, obj, rref, res);
 }
 
 static JS_ALWAYS_INLINE bool

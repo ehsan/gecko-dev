@@ -54,14 +54,11 @@ class nsSVGMarkerFrame : public nsSVGMarkerFrameBase
   friend nsIFrame*
   NS_NewSVGMarkerFrame(nsIPresShell* aPresShell, nsStyleContext* aContext);
 protected:
-  nsSVGMarkerFrame(nsStyleContext* aContext)
-    : nsSVGMarkerFrameBase(aContext)
-    , mMarkedFrame(nsnull)
-    , mInUse(false)
-    , mInUse2(false)
-  {
-    AddStateBits(NS_STATE_SVG_NONDISPLAY_CHILD);
-  }
+  nsSVGMarkerFrame(nsStyleContext* aContext) :
+    nsSVGMarkerFrameBase(aContext),
+    mMarkedFrame(nsnull),
+    mInUse(false),
+    mInUse2(false) {}
 
 public:
   NS_DECL_FRAMEARENA_HELPERS

@@ -1466,14 +1466,10 @@ nsSVGElement::MaybeSerializeAttrBeforeRemoval(nsIAtom* aName, bool aNotify)
     return;
   }
 
-  const nsAttrValue* attrValue = mAttrsAndChildren.GetAttr(aName);
-  if (!attrValue)
-    return;
-
   nsAutoString serializedValue;
-  attrValue->ToString(serializedValue);
-  nsAttrValue oldAttrValue(serializedValue);
-  mAttrsAndChildren.SetAndTakeAttr(aName, oldAttrValue);
+  mAttrsAndChildren.GetAttr(aName)->ToString(serializedValue);
+  nsAttrValue attrValue(serializedValue);
+  mAttrsAndChildren.SetAndTakeAttr(aName, attrValue);
 }
 
 /* static */

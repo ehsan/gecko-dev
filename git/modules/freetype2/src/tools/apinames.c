@@ -10,7 +10,7 @@
  * accepted if you are using GCC for compilation (and probably by
  * other compilers too).
  *
- * Author: David Turner, 2005, 2006, 2008-2012
+ * Author: David Turner, 2005, 2006, 2008, 2009, 2010
  *
  * This code is explicitly placed into the public domain.
  *
@@ -59,9 +59,8 @@ static void
 names_add( const char*  name,
            const char*  end )
 {
-  unsigned int  h;
-  int           nn, len;
-  Name          nm;
+  int   nn, len, h;
+  Name  nm;
 
   if ( end <= name )
     return;
@@ -87,8 +86,7 @@ names_add( const char*  name,
   if ( num_names >= max_names )
   {
     max_names += (max_names >> 1) + 4;
-    the_names  = (NameRec*)realloc( the_names,
-                                    sizeof ( the_names[0] ) * max_names );
+    the_names  = (NameRec*)realloc( the_names, sizeof(the_names[0])*max_names );
     if ( the_names == NULL )
       panic( "not enough memory" );
   }
@@ -117,8 +115,7 @@ name_compare( const void*  name1,
 static void
 names_sort( void )
 {
-  qsort( the_names, (size_t)num_names,
-         sizeof ( the_names[0] ), name_compare );
+  qsort( the_names, (size_t)num_names, sizeof(the_names[0]), name_compare );
 }
 
 
@@ -172,7 +169,7 @@ names_dump( FILE*         out,
           int  len = dot - dll_name;
 
 
-          if ( len > (int)( sizeof ( temp ) - 1 ) )
+          if ( len > (int)( sizeof( temp ) - 1 ) )
             len = sizeof ( temp ) - 1;
 
           memcpy( temp, dll_name, len );
@@ -208,7 +205,7 @@ typedef enum  State_
 static int
 read_header_file( FILE*  file, int  verbose )
 {
-  static char  buff[LINEBUFF_SIZE + 1];
+  static char  buff[ LINEBUFF_SIZE+1 ];
   State        state = STATE_START;
 
   while ( !feof( file ) )

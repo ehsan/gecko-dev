@@ -72,10 +72,22 @@ FreezeThaw(JSContext *cx, JSObject *funobj)
     return FreezeThawImpl(cx, funobj, JS_XDRFunctionObject);
 }
 
+static JSBool
+SubsumePrincipals(JSPrincipals *, JSPrincipals *)
+{
+    return true;
+}
+
 static JSPrincipals testPrincipals[] = {
-    { 1 },
-    { 1 },
+    { const_cast<char *>("foo.bar"), 1, NULL, SubsumePrincipals },
+    { const_cast<char *>("dot.com"), 1, NULL, SubsumePrincipals },
 };
+
+static JSBool
+CheckAccess(JSContext *cx, JSObject *obj, jsid id, JSAccessMode mode, jsval *vp)
+{
+    return true;
+}
 
 static JSBool
 TranscodePrincipals(JSXDRState *xdr, JSPrincipals **principalsp)
@@ -98,7 +110,7 @@ TranscodePrincipals(JSXDRState *xdr, JSPrincipals **principalsp)
         if (index >= mozilla::ArrayLength(testPrincipals))
             return false;
         *principalsp = &testPrincipals[index];
-        JS_HoldPrincipals(*principalsp);
+        JSPRINCIPALS_HOLD(xdr->cx, *principalsp);
     }
 
     return true;
@@ -106,15 +118,14 @@ TranscodePrincipals(JSXDRState *xdr, JSPrincipals **principalsp)
 
 BEGIN_TEST(testXDR_principals)
 {
-    static const JSSecurityCallbacks seccb = {
-        NULL,
-        NULL,
+    static JSSecurityCallbacks seccb = {
+        CheckAccess,
         TranscodePrincipals,
         NULL,
         NULL
     };
 
-    JS_SetSecurityCallbacks(rt, &seccb);
+    JS_SetRuntimeSecurityCallbacks(rt, &seccb);
 
     JSScript *script;
     for (int i = TEST_FIRST; i != TEST_END; ++i) {
