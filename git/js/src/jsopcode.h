@@ -12,7 +12,6 @@
  */
 
 #include "jsbytecode.h"
-#include "jstypes.h"
 #include "NamespaceImports.h"
 
 #include "frontend/SourceNotes.h"

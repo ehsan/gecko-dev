@@ -102,4 +102,9 @@ class WidgetPluginEvent;
 class InternalMutationEvent;
 } // namespace mozilla
 
+// TODO: Remove following typedefs
+namespace mozilla {
+typedef WidgetWheelEvent                   WheelEvent;
+}
+
 #endif // mozilla_EventForwards_h__

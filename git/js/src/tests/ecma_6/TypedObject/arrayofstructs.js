@@ -1,10 +1,7 @@
-// |reftest| skip-if(!this.hasOwnProperty("TypedObject"))
+// |reftest| skip-if(!this.hasOwnProperty("Type"))
 var BUGNUMBER = 578700;
 var summary = 'TypedObjects StructType prototype chains';
 
-var ArrayType = TypedObject.ArrayType;
-var StructType = TypedObject.StructType;
-var float32 = TypedObject.float32;
 
 function runTests() {
   var Point = new ArrayType(float32, 3);

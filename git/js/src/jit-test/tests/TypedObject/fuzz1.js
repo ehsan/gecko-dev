@@ -1,10 +1,8 @@
-// |jit-test| error:RangeError
-
-if (!this.hasOwnProperty("TypedObject"))
-  throw new RangeError();
+if (!this.hasOwnProperty("Type"))
+  quit();
 
 function eval() {
     yield(undefined)
 }
-new TypedObject.StructType();
-eval();
+new(StructType)
+(eval())

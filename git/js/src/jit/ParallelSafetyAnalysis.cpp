@@ -15,7 +15,6 @@
 #include "jit/UnreachableCodeElimination.h"
 
 #include "jsinferinlines.h"
-#include "jsobjinlines.h"
 
 using namespace js;
 using namespace jit;

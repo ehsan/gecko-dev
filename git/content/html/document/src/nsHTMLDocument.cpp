@@ -395,8 +395,22 @@ nsHTMLDocument::TryCacheCharset(nsICachingChannel* aCachingChannel,
   }
 }
 
+static bool
+CheckSameOrigin(nsINode* aNode1, nsINode* aNode2)
+{
+  NS_PRECONDITION(aNode1, "Null node?");
+  NS_PRECONDITION(aNode2, "Null node?");
+
+  bool equal;
+  return
+    NS_SUCCEEDED(aNode1->NodePrincipal()->
+                   Equals(aNode2->NodePrincipal(), &equal)) &&
+    equal;
+}
+
 void
 nsHTMLDocument::TryParentCharset(nsIDocShell*  aDocShell,
+                                 nsIDocument* aParentDocument,
                                  int32_t& aCharsetSource,
                                  nsACString& aCharset)
 {
@@ -409,13 +423,11 @@ nsHTMLDocument::TryParentCharset(nsIDocShell*  aDocShell,
 
   int32_t parentSource;
   nsAutoCString parentCharset;
-  nsCOMPtr<nsIPrincipal> parentPrincipal;
-  aDocShell->GetParentCharset(parentCharset,
-                              &parentSource,
-                              getter_AddRefs(parentPrincipal));
+  aDocShell->GetParentCharset(parentCharset);
   if (parentCharset.IsEmpty()) {
     return;
   }
+  aDocShell->GetParentCharsetSource(&parentSource);
   if (kCharsetFromParentForced == parentSource ||
       kCharsetFromUserForced == parentSource) {
     if (WillIgnoreCharsetOverride() ||
@@ -428,13 +440,33 @@ nsHTMLDocument::TryParentCharset(nsIDocShell*  aDocShell,
     return;
   }
 
+  if (aCharsetSource >= kCharsetFromHintPrevDoc) {
+    return;
+  }
+
+  if (kCharsetFromHintPrevDoc == parentSource) {
+    // Make sure that's OK
+    if (!aParentDocument ||
+        !CheckSameOrigin(this, aParentDocument) ||
+        !EncodingUtils::IsAsciiCompatible(parentCharset)) {
+      return;
+    }
+
+    // if parent is posted doc, set this prevent autodetections
+    // I'm not sure this makes much sense... but whatever.
+    aCharset.Assign(parentCharset);
+    aCharsetSource = kCharsetFromHintPrevDoc;
+    return;
+  }
+
   if (aCharsetSource >= kCharsetFromParentFrame) {
     return;
   }
 
   if (kCharsetFromCache <= parentSource) {
     // Make sure that's OK
-    if (!NodePrincipal()->Equals(parentPrincipal) ||
+    if (!aParentDocument ||
+        !CheckSameOrigin(this, aParentDocument) ||
         !EncodingUtils::IsAsciiCompatible(parentCharset)) {
       return;
     }
@@ -465,6 +497,25 @@ nsHTMLDocument::TryWeakDocTypeDefault(int32_t& aCharsetSource,
   }
   aCharsetSource = kCharsetFromWeakDocTypeDefault;
   return;
+}
+
+void
+nsHTMLDocument::TryDefaultCharset( nsIMarkupDocumentViewer* aMarkupDV,
+                                   int32_t& aCharsetSource,
+                                   nsACString& aCharset)
+{
+  if(kCharsetFromUserDefault <= aCharsetSource)
+    return;
+
+  nsAutoCString defaultCharsetFromDocShell;
+  if (aMarkupDV) {
+    nsresult rv =
+      aMarkupDV->GetDefaultCharacterSet(defaultCharsetFromDocShell);
+    if(NS_SUCCEEDED(rv) && EncodingUtils::IsAsciiCompatible(defaultCharsetFromDocShell)) {
+      aCharset = defaultCharsetFromDocShell;
+      aCharsetSource = kCharsetFromUserDefault;
+    }
+  }
 }
 
 void
@@ -601,13 +652,21 @@ nsHTMLDocument::StartDocumentLoad(const char* aCommand,
   }
 
   nsCOMPtr<nsIDocShell> parent(do_QueryInterface(parentAsItem));
+  nsCOMPtr<nsIDocument> parentDocument;
   nsCOMPtr<nsIContentViewer> parentContentViewer;
   if (parent) {
     rv = parent->GetContentViewer(getter_AddRefs(parentContentViewer));
     NS_ENSURE_SUCCESS(rv, rv);
+    if (parentContentViewer) {
+      parentDocument = parentContentViewer->GetDocument();
+    }
   }
 
+  //
+  // The following logic is mirrored in nsWebShell::Embed!
+  //
   nsCOMPtr<nsIMarkupDocumentViewer> muCV;
+  bool muCVIsParent = false;
   nsCOMPtr<nsIContentViewer> cv;
   if (docShell) {
     docShell->GetContentViewer(getter_AddRefs(cv));
@@ -616,6 +675,9 @@ nsHTMLDocument::StartDocumentLoad(const char* aCommand,
      muCV = do_QueryInterface(cv);
   } else {
     muCV = do_QueryInterface(parentContentViewer);
+    if (muCV) {
+      muCVIsParent = true;
+    }
   }
 
   nsAutoCString urlSpec;
@@ -677,13 +739,34 @@ nsHTMLDocument::StartDocumentLoad(const char* aCommand,
     TryUserForcedCharset(muCV, docShell, charsetSource, charset);
 
     TryHintCharset(muCV, charsetSource, charset); // XXX mailnews-only
-    TryParentCharset(docShell, charsetSource, charset);
+    TryParentCharset(docShell, parentDocument, charsetSource, charset);
 
     if (cachingChan && !urlSpec.IsEmpty()) {
       TryCacheCharset(cachingChan, charsetSource, charset);
     }
 
+    TryDefaultCharset(muCV, charsetSource, charset);
+
     TryWeakDocTypeDefault(charsetSource, charset);
+
+    bool isPostPage = false;
+    // check if current doc is from POST command
+    nsCOMPtr<nsIHttpChannel> httpChannel(do_QueryInterface(aChannel));
+    if (httpChannel) {
+      nsAutoCString methodStr;
+      rv = httpChannel->GetRequestMethod(methodStr);
+      isPostPage = (NS_SUCCEEDED(rv) &&
+                    methodStr.EqualsLiteral("POST"));
+    }
+
+    if (isPostPage && muCV && kCharsetFromHintPrevDoc > charsetSource) {
+      nsAutoCString requestCharset;
+      muCV->GetPrevDocCharacterSet(requestCharset);
+      if (!requestCharset.IsEmpty()) {
+        charsetSource = kCharsetFromHintPrevDoc;
+        charset = requestCharset;
+      }
+    }
 
     if (wyciwygChannel) {
       // We know for sure that the parser needs to be using UTF16.
@@ -712,6 +795,11 @@ nsHTMLDocument::StartDocumentLoad(const char* aCommand,
 
   SetDocumentCharacterSetSource(charsetSource);
   SetDocumentCharacterSet(charset);
+
+  // set doc charset to muCV for next document.
+  // Don't propagate this back up to the parent document if we have one.
+  if (muCV && !muCVIsParent)
+    muCV->SetPrevDocCharacterSet(charset);
 
   if (cachingChan) {
     NS_ASSERTION(charset == parserCharset,

@@ -1,9 +1,9 @@
 // |jit-test| error:Error;
 
-if (!this.hasOwnProperty("TypedObject"))
+if (!this.hasOwnProperty("Type"))
   throw new Error();
 
-var A = new TypedObject.ArrayType(TypedObject.uint8, 10);
+var A = new ArrayType(uint8, 10);
 var a = new A();
 a.forEach(function(val, i) {
   assertEq(arguments[5], a);
