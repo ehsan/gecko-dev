@@ -49,8 +49,12 @@ import android.graphics.drawable.Drawable;
 import android.os.AsyncTask;
 import android.util.Log;
 
+import java.io.BufferedInputStream;
+import java.io.ByteArrayInputStream;
 import java.io.InputStream;
 import java.io.IOException;
+import java.net.URLConnection;
+import java.net.HttpURLConnection;
 import java.net.MalformedURLException;
 import java.net.URL;
 import java.util.HashMap;
@@ -59,11 +63,6 @@ import java.util.Map;
 import java.util.Set;
 
 import org.mozilla.gecko.db.BrowserDB;
-
-import org.apache.http.HttpEntity;
-import org.apache.http.client.methods.HttpGet;
-import org.apache.http.entity.BufferedHttpEntity;
-import org.apache.http.impl.client.DefaultHttpClient;
 
 public class Favicons {
     private static final String LOGTAG = "GeckoFavicons";
@@ -279,24 +278,41 @@ public class Favicons {
                 return GeckoJarReader.getBitmapDrawable(mFaviconUrl);
             }
 
-            // skia decoder sometimes returns null; workaround is to use BufferedHttpEntity
-            // http://groups.google.com/group/android-developers/browse_thread/thread/171b8bf35dbbed96/c3ec5f45436ceec8?lnk=raot 
+            // due to android bug 6066, we must download the entire image before using it
+            // http://code.google.com/p/android/issues/detail?id=6066
+            URLConnection urlConnection = null;
+            BufferedInputStream contentStream = null;
+            ByteArrayInputStream byteStream = null;
             BitmapDrawable image = null;
-            InputStream contentStream = null;
+
             try {
-                HttpGet request = new HttpGet(faviconUrl.toURI());
-                HttpEntity entity = new DefaultHttpClient().execute(request).getEntity();
-                BufferedHttpEntity bufferedEntity = new BufferedHttpEntity(entity);
-                contentStream = bufferedEntity.getContent();
-                image = (BitmapDrawable) Drawable.createFromStream(contentStream, "src");
+                urlConnection = faviconUrl.openConnection();
+                int length = urlConnection.getContentLength();
+                contentStream = new BufferedInputStream(urlConnection.getInputStream(), length);
+                byte[] bytes = new byte[length];
+                int pos = 0;
+                int offset = 0;
+                while ((pos = contentStream.read(bytes, offset, length - offset)) > 0)
+                    offset += pos;
+                if (length == offset) {
+                    byteStream = new ByteArrayInputStream(bytes);
+                    image = (BitmapDrawable) Drawable.createFromStream(byteStream, "src");
+                }
             } catch (IOException e) {
                 // just close up and return null
             } catch (Exception e) {
                 Log.e(LOGTAG, "Error reading favicon", e);
             } finally {
+                if (urlConnection != null && urlConnection instanceof HttpURLConnection) {
+                    HttpURLConnection httpConnection = (HttpURLConnection) urlConnection;
+                    httpConnection.disconnect();
+                }
+
                 try {
                     if (contentStream != null)
                         contentStream.close();
+                    if (byteStream != null)
+                        byteStream.close();
                 } catch (IOException e) {
                     Log.d(LOGTAG, "error closing favicon stream");
                 }

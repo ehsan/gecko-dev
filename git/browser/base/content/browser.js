@@ -2306,7 +2306,7 @@ function BrowserOpenFileWindow()
           gLastOpenDirectory.path = fp.file.parent.QueryInterface(Ci.nsILocalFile);
       } catch(e) {
       }
-      openUILinkIn(fp.fileURL.spec, "current");
+      openTopWin(fp.fileURL.spec);
     }
   } catch (ex) {
   }

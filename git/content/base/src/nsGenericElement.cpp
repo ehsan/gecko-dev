@@ -535,8 +535,7 @@ nsINode::RemoveChild(nsINode *aOldChild)
     return NS_ERROR_DOM_NOT_FOUND_ERR;
   }
 
-  RemoveChildAt(index, true);
-  return NS_OK;
+  return RemoveChildAt(index, true);
 }
 
 nsresult
@@ -3849,18 +3848,20 @@ nsINode::doInsertChildAt(nsIContent* aKid, PRUint32 aIndex,
   return NS_OK;
 }
 
-void
+nsresult
 nsGenericElement::RemoveChildAt(PRUint32 aIndex, bool aNotify)
 {
   nsCOMPtr<nsIContent> oldKid = mAttrsAndChildren.GetSafeChildAt(aIndex);
   NS_ASSERTION(oldKid == GetChildAt(aIndex), "Unexpected child in RemoveChildAt");
 
   if (oldKid) {
-    doRemoveChildAt(aIndex, aNotify, oldKid, mAttrsAndChildren);
+    return doRemoveChildAt(aIndex, aNotify, oldKid, mAttrsAndChildren);
   }
+
+  return NS_OK;
 }
 
-void
+nsresult
 nsINode::doRemoveChildAt(PRUint32 aIndex, bool aNotify,
                          nsIContent* aKid, nsAttrAndChildArray& aChildArray)
 {
@@ -3887,6 +3888,8 @@ nsINode::doRemoveChildAt(PRUint32 aIndex, bool aNotify,
   }
 
   aKid->UnbindFromTree();
+
+  return NS_OK;
 }
 
 NS_IMETHODIMP
@@ -4270,9 +4273,12 @@ nsINode::ReplaceOrInsertBefore(bool aReplace, nsINode* aNewChild,
     return NS_ERROR_DOM_HIERARCHY_REQUEST_ERR;
   }
 
+  nsresult res;
+
   // If we're replacing
   if (aReplace) {
-    RemoveChildAt(insPos, true);
+    res = RemoveChildAt(insPos, true);
+    NS_ENSURE_SUCCESS(res, res);
   }
 
   if (newContent->IsRootOfAnonymousSubtree()) {
@@ -4292,7 +4298,8 @@ nsINode::ReplaceOrInsertBefore(bool aReplace, nsINode* aNewChild,
       return NS_ERROR_DOM_NOT_SUPPORTED_ERR;
     }
 
-    oldParent->RemoveChildAt(removeIndex, true);
+    res = oldParent->RemoveChildAt(removeIndex, true);
+    NS_ENSURE_SUCCESS(res, res);
 
     // Adjust insert index if the node we ripped out was a sibling
     // of the node we're inserting before
@@ -4301,7 +4308,6 @@ nsINode::ReplaceOrInsertBefore(bool aReplace, nsINode* aNewChild,
     }
   }
 
-  nsresult res = NS_OK;
   // Move new child over to our document if needed. Do this after removing
   // it from its parent so that AdoptNode doesn't fire DOMNodeRemoved
   // DocumentType nodes are the only nodes that can have a null
@@ -4576,7 +4582,9 @@ void
 nsGenericElement::MarkUserDataHandler(void* aObject, nsIAtom* aKey,
                                       void* aChild, void* aData)
 {
-  xpc_TryUnmarkWrappedGrayObject(static_cast<nsISupports*>(aChild));
+  nsCOMPtr<nsIXPConnectWrappedJS> wjs =
+    do_QueryInterface(static_cast<nsISupports*>(aChild));
+  xpc_UnmarkGrayObject(wjs);
 }
 
 void
@@ -5615,7 +5623,7 @@ nsGenericElement::GetText()
 }
 
 PRUint32
-nsGenericElement::TextLength() const
+nsGenericElement::TextLength()
 {
   // We can remove this assertion if it turns out to be useful to be able
   // to depend on this returning 0
@@ -6408,25 +6416,6 @@ nsINode::Contains(nsIDOMNode* aOther, bool* aReturn)
   nsCOMPtr<nsINode> node = do_QueryInterface(aOther);
   *aReturn = Contains(node);
   return NS_OK;
-}
-
-PRUint32
-nsINode::Length() const
-{
-  switch (NodeType()) {
-  case nsIDOMNode::DOCUMENT_TYPE_NODE:
-    return 0;
-
-  case nsIDOMNode::TEXT_NODE:
-  case nsIDOMNode::CDATA_SECTION_NODE:
-  case nsIDOMNode::PROCESSING_INSTRUCTION_NODE:
-  case nsIDOMNode::COMMENT_NODE:
-    MOZ_ASSERT(IsNodeOfType(eCONTENT));
-    return static_cast<const nsIContent*>(this)->TextLength();
-
-  default:
-    return GetChildCount();
-  }
 }
 
 nsresult nsGenericElement::MozRequestFullScreen()

@@ -1980,6 +1980,9 @@ DecompileDestructuringLHS(SprintStack *ss, jsbytecode *pc, jsbytecode *endpc, JS
       case JSOP_SETLOCAL:
         LOCAL_ASSERT(!letNames);
         LOCAL_ASSERT(pc[oplen] == JSOP_POP || pc[oplen] == JSOP_POPN);
+        /* FALL THROUGH */
+      case JSOP_SETLOCALPOP:
+        LOCAL_ASSERT(!letNames);
         if (op == JSOP_SETARG) {
             atom = GetArgOrVarAtom(jp, GET_SLOTNO(pc));
             LOCAL_ASSERT(atom);
@@ -1995,13 +1998,15 @@ DecompileDestructuringLHS(SprintStack *ss, jsbytecode *pc, jsbytecode *endpc, JS
             if (!lval || ss->sprinter.put(lval) < 0)
                 return NULL;
         }
-        pc += oplen;
-        if (pc == endpc)
-            return pc;
-        LOAD_OP_DATA(pc);
-        if (op == JSOP_POPN)
-            return pc;
-        LOCAL_ASSERT(op == JSOP_POP);
+        if (op != JSOP_SETLOCALPOP) {
+            pc += oplen;
+            if (pc == endpc)
+                return pc;
+            LOAD_OP_DATA(pc);
+            if (op == JSOP_POPN)
+                return pc;
+            LOCAL_ASSERT(op == JSOP_POP);
+        }
         break;
 
       default: {
@@ -3277,10 +3282,8 @@ Decompile(SprintStack *ss, jsbytecode *pc, int nb)
                         js_puts(jp, lval);
                     } else {
 #endif
-                        LOCAL_ASSERT(*pc == JSOP_SETLOCAL);
-                        pc += JSOP_SETLOCAL_LENGTH;
-                        LOCAL_ASSERT(*pc == JSOP_POP);
-                        pc += JSOP_POP_LENGTH;
+                        LOCAL_ASSERT(*pc == JSOP_SETLOCALPOP);
+                        pc += JSOP_SETLOCALPOP_LENGTH;
                         LOCAL_ASSERT(blockObj.slotCount() >= 1);
                         if (!QuoteString(&jp->sprinter, atoms[0], 0))
                             return NULL;
@@ -3547,6 +3550,7 @@ Decompile(SprintStack *ss, jsbytecode *pc, int nb)
                 break;
 
               case JSOP_SETLOCAL:
+              case JSOP_SETLOCALPOP:
                 if (IsVarSlot(jp, pc, &i)) {
                     atom = GetArgOrVarAtom(jp, i);
                     LOCAL_ASSERT(atom);
@@ -4091,13 +4095,8 @@ Decompile(SprintStack *ss, jsbytecode *pc, int nb)
                         if (!pc)
                             return NULL;
 
-                        /* Left-hand side never needs parens. */
-                        JS_ASSERT(js_CodeSpec[JSOP_POP].prec <= 3);
-                        lval = PopStr(ss, JSOP_POP);
-
-                        /* Make sure comma-expression on rhs gets parens. */
-                        JS_ASSERT(js_CodeSpec[JSOP_SETNAME].prec > js_CodeSpec[JSOP_POP].prec);
-                        rval = PopStr(ss, JSOP_SETNAME);
+                        lval = POP_STR();  /* Pop the decompiler result. */
+                        rval = POP_STR();  /* Pop the initializer expression. */
 
                         if (strcmp(rval, forelem_cookie) == 0) {
                             todo = Sprint(&ss->sprinter, ss_format,
@@ -4241,6 +4240,14 @@ Decompile(SprintStack *ss, jsbytecode *pc, int nb)
                     const char *prefix = VarPrefix(sn);
                     Sprint(&ss->sprinter, "%s%s = ", prefix, lval);
                     SprintOpcode(ss, rval, rvalpc, pc, todo);
+                }
+                if (op == JSOP_SETLOCALPOP) {
+                    if (!PushOff(ss, todo, saveop))
+                        return NULL;
+                    rval = POP_STR();
+                    LOCAL_ASSERT(*rval != '\0');
+                    js_printf(jp, "\t%s;\n", rval);
+                    todo = -2;
                 }
                 break;
 

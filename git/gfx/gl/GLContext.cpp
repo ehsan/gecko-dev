@@ -279,7 +279,7 @@ GLContext::InitWithPrefix(const char *prefix, bool trygl)
             };
 
             if (!LoadSymbols(&symbols_ES2[0], trygl, prefix)) {
-                NS_ERROR("OpenGL ES 2.0 supported, but symbols could not be loaded.");
+                NS_RUNTIMEABORT("OpenGL ES 2.0 supported, but symbols could not be loaded.");
                 mInitialized = false;
             }
         } else {
@@ -293,7 +293,7 @@ GLContext::InitWithPrefix(const char *prefix, bool trygl)
             };
 
             if (!LoadSymbols(&symbols_desktop[0], trygl, prefix)) {
-                NS_ERROR("Desktop symbols failed to load.");
+                NS_RUNTIMEABORT("Desktop symbols failed to load.");
                 mInitialized = false;
             }
         }
@@ -375,7 +375,7 @@ GLContext::InitWithPrefix(const char *prefix, bool trygl)
                 };
 
                 if (!LoadSymbols(&robustnessSymbols[0], trygl, prefix)) {
-                    NS_ERROR("GL supports ARB_robustness without supplying GetGraphicsResetStatusARB.");
+                    NS_RUNTIMEABORT("GL supports ARB_robustness without supplying GetGraphicsResetStatusARB.");
                     mInitialized = false;
                 } else {
                     mHasRobustness = true;
@@ -387,7 +387,7 @@ GLContext::InitWithPrefix(const char *prefix, bool trygl)
                 };
 
                 if (!LoadSymbols(&robustnessSymbols[0], trygl, prefix)) {
-                    NS_ERROR("GL supports EGL_robustness without supplying GetGraphicsResetStatusEXT.");
+                    NS_RUNTIMEABORT("GL supports EGL_robustness without supplying GetGraphicsResetStatusEXT.");
                     mInitialized = false;
                 } else {
                     mHasRobustness = true;
@@ -403,7 +403,7 @@ GLContext::InitWithPrefix(const char *prefix, bool trygl)
                     { NULL, { NULL } },
             };
             if (!LoadSymbols(&auxSymbols[0], trygl, prefix)) {
-                NS_ERROR("GL supports framebuffer_blit without supplying glBlitFramebuffer");
+                NS_RUNTIMEABORT("GL supports framebuffer_blit without supplying glBlitFramebuffer");
                 mInitialized = false;
             }
         }
@@ -415,7 +415,7 @@ GLContext::InitWithPrefix(const char *prefix, bool trygl)
                     { NULL, { NULL } },
             };
             if (!LoadSymbols(&auxSymbols[0], trygl, prefix)) {
-                NS_ERROR("GL supports framebuffer_multisample without supplying glRenderbufferStorageMultisample");
+                NS_RUNTIMEABORT("GL supports framebuffer_multisample without supplying glRenderbufferStorageMultisample");
                 mInitialized = false;
             }
         }
@@ -931,9 +931,8 @@ TiledTextureImage::DirectUpdate(gfxASurface* aSurf, const nsIntRegion& aRegion, 
         // Override a callback cancelling iteration if the texture wasn't valid.
         // We need to force the update in that situation, or we may end up
         // showing invalid/out-of-date texture data.
-        if (mCurrentImage == mImages.Length() - 1)
-            break;
-    } while (NextTile() || (mTextureState != Valid));
+    } while (NextTile() ||
+             (mTextureState != Valid && mCurrentImage < mImages.Length()));
     mCurrentImage = oldCurrentImage;
 
     mShaderType = mImages[0]->GetShaderProgramType();
@@ -1092,11 +1091,8 @@ bool TiledTextureImage::NextTile()
         continueIteration = mIterationCallback(this, mCurrentImage,
                                                mIterationCallbackData);
 
-    if (mCurrentImage + 1 < mImages.Length()) {
-        mCurrentImage++;
-        return continueIteration;
-    }
-    return false;
+    mCurrentImage++;
+    return continueIteration && (mCurrentImage < mImages.Length());
 }
 
 void TiledTextureImage::SetIterationCallback(TileIterationCallback aCallback,
@@ -1221,7 +1217,6 @@ void TiledTextureImage::Resize(const nsIntSize& aSize)
     mColumns = columns;
     mSize = aSize;
     mTextureState = Allocated;
-    mCurrentImage = 0;
 }
 
 PRUint32 TiledTextureImage::GetTileCount()

@@ -124,7 +124,7 @@ public:
                                   nsIPrincipal *aOriginPrincipal,
                                   const char *aURL,
                                   PRUint32 aLineNo,
-                                  JSVersion aVersion,
+                                  PRUint32 aVersion,
                                   nsAString *aRetValue,
                                   bool* aIsUndefined) = 0;
 

@@ -840,8 +840,6 @@ nsHttpTransaction::RestartInProgress()
 {
     NS_ASSERTION(PR_GetCurrentThread() == gSocketThread, "wrong thread");
     
-    return NS_ERROR_FAILURE;
-    
     // Lock RestartInProgress() and TakeResponseHead() against main thread
     MutexAutoLock lock(*nsHttp::GetLock());
 

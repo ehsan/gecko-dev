@@ -1804,11 +1804,14 @@ nsAccessible::GetKeyBindings(PRUint8 aActionIndex,
 }
 
 role
-nsAccessible::ARIATransformRole(role aRole)
+nsAccessible::ARIARoleInternal()
 {
+  NS_PRECONDITION(mRoleMapEntry && mRoleMapEntry->roleRule == kUseMapRole,
+                  "ARIARoleInternal should only be called when ARIA role overrides!");
+
   // XXX: these unfortunate exceptions don't fit into the ARIA table. This is
   // where the accessible role depends on both the role and ARIA state.
-  if (aRole == roles::PUSHBUTTON) {
+  if (mRoleMapEntry->role == roles::PUSHBUTTON) {
     if (nsAccUtils::HasDefinedARIAToken(mContent, nsGkAtoms::aria_pressed)) {
       // For simplicity, any existing pressed attribute except "" or "undefined"
       // indicates a toggle.
@@ -1823,7 +1826,7 @@ nsAccessible::ARIATransformRole(role aRole)
       return roles::BUTTONMENU;
     }
 
-  } else if (aRole == roles::LISTBOX) {
+  } else if (mRoleMapEntry->role == roles::LISTBOX) {
     // A listbox inside of a combobox needs a special role because of ATK
     // mapping to menu.
     if (mParent && mParent->Role() == roles::COMBOBOX) {
@@ -1836,12 +1839,12 @@ nsAccessible::ARIATransformRole(role aRole)
           return roles::COMBOBOX_LIST;
     }
 
-  } else if (aRole == roles::OPTION) {
+  } else if (mRoleMapEntry->role == roles::OPTION) {
     if (mParent && mParent->Role() == roles::COMBOBOX_LIST)
       return roles::COMBOBOX_OPTION;
   }
 
-  return aRole;
+  return mRoleMapEntry->role;
 }
 
 role
@@ -2516,10 +2519,8 @@ nsAccessible::AppendTextTo(nsAString& aText, PRUint32 aStartOffset,
 void
 nsAccessible::Shutdown()
 {
-  // Mark the accessible as defunct, invalidate the child count and pointers to 
-  // other accessibles, also make sure none of its children point to this parent
-  mFlags |= eIsDefunct;
-
+  // Invalidate the child count and pointers to other accessibles, also make
+  // sure none of its children point to this parent
   InvalidateChildren();
   if (mParent)
     mParent->RemoveChild(this);

@@ -46,7 +46,6 @@ LIBRARY_NAME = gkconmedia_s
 LIBXUL_LIBRARY = 1
 
 EXPORTS = \
-  FileBlockCache.h \
   nsAudioAvailableEventManager.h \
   nsMediaDecoder.h \
   nsMediaCache.h \
@@ -59,7 +58,6 @@ EXPORTS = \
   $(NULL)
 
 CPPSRCS = \
-  FileBlockCache.cpp \
   nsAudioAvailableEventManager.cpp \
   nsMediaDecoder.cpp \
   nsMediaCache.cpp \

@@ -482,7 +482,7 @@ public:
                                 nsIContent* aBindingParent,
                                 bool aCompileEventHandlers);
     virtual void UnbindFromTree(bool aDeep, bool aNullParent);
-    virtual void RemoveChildAt(PRUint32 aIndex, bool aNotify);
+    virtual nsresult RemoveChildAt(PRUint32 aIndex, bool aNotify);
     virtual bool GetAttr(PRInt32 aNameSpaceID, nsIAtom* aName,
                            nsAString& aResult) const;
     virtual bool HasAttr(PRInt32 aNameSpaceID, nsIAtom* aName) const;

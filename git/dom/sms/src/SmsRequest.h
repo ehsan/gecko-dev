@@ -49,8 +49,8 @@ namespace dom {
 namespace sms {
 class SmsManager;
 
-class SmsRequest : public nsDOMEventTargetHelper
-                 , public nsIDOMMozSmsRequest
+class SmsRequest : public nsIDOMMozSmsRequest
+                 , public nsDOMEventTargetHelper
 {
 public:
   friend class SmsRequestManager;

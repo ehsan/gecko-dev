@@ -257,6 +257,7 @@ ExtendedDef(jsbytecode *pc)
       case JSOP_ARGINC:
       case JSOP_ARGDEC:
       case JSOP_SETLOCAL:
+      case JSOP_SETLOCALPOP:
       case JSOP_INCLOCAL:
       case JSOP_DECLOCAL:
       case JSOP_LOCALINC:
@@ -384,6 +385,7 @@ static inline uint32_t GetBytecodeSlot(JSScript *script, jsbytecode *pc)
       case JSOP_GETLOCAL:
       case JSOP_CALLLOCAL:
       case JSOP_SETLOCAL:
+      case JSOP_SETLOCALPOP:
       case JSOP_INCLOCAL:
       case JSOP_DECLOCAL:
       case JSOP_LOCALINC:
@@ -406,6 +408,7 @@ BytecodeUpdatesSlot(JSOp op)
     switch (op) {
       case JSOP_SETARG:
       case JSOP_SETLOCAL:
+      case JSOP_SETLOCALPOP:
       case JSOP_INCARG:
       case JSOP_DECARG:
       case JSOP_ARGINC:

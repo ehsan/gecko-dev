@@ -16,8 +16,8 @@ class nsIEventTarget;
 
 BEGIN_BLUETOOTH_NAMESPACE
 
-class BluetoothAdapter : public nsDOMEventTargetHelper
-                       , public nsIDOMBluetoothAdapter
+class BluetoothAdapter : public nsIDOMBluetoothAdapter
+                       , public nsDOMEventTargetHelper
 {
 public:
   NS_DECL_ISUPPORTS

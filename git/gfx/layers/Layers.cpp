@@ -572,11 +572,9 @@ void WriteSnapshotToDumpFile_internal(T* aObj, gfxASurface* aSurf)
   nsCString string(aObj->Name());
   string.Append("-");
   string.AppendInt((PRUint64)aObj);
-  if (gfxUtils::sDumpPaintFile)
-    fprintf(gfxUtils::sDumpPaintFile, "array[\"%s\"]=\"", string.BeginReading());
+  fprintf(gfxUtils::sDumpPaintFile, "array[\"%s\"]=\"", string.BeginReading());
   aSurf->DumpAsDataURL(gfxUtils::sDumpPaintFile);
-  if (gfxUtils::sDumpPaintFile)
-    fprintf(gfxUtils::sDumpPaintFile, "\";");
+  fprintf(gfxUtils::sDumpPaintFile, "\";");
 }
 
 void WriteSnapshotToDumpFile(Layer* aLayer, gfxASurface* aSurf)

@@ -622,6 +622,16 @@ nsRange::ParentChainChanged(nsIContent *aContent)
   DoSetRange(mStartParent, mStartOffset, mEndParent, mEndOffset, newRoot);
 }
 
+// Private helper routine: get the length of aNode
+static PRUint32 GetNodeLength(nsINode *aNode)
+{
+  if(aNode->IsNodeOfType(nsINode::eDATA_NODE)) {
+    return static_cast<nsIContent*>(aNode)->TextLength();
+  }
+
+  return aNode->GetChildCount();
+}
+
 /******************************************************
  * Utilities for comparing points: API from nsIDOMRange
  ******************************************************/
@@ -664,7 +674,7 @@ nsRange::ComparePoint(nsIDOMNode* aParent, PRInt32 aOffset, PRInt16* aResult)
     return NS_ERROR_DOM_INVALID_NODE_TYPE_ERR;
   }
 
-  if (aOffset < 0 || aOffset > parent->Length()) {
+  if (aOffset < 0 || aOffset > GetNodeLength(parent)) {
     return NS_ERROR_DOM_INDEX_SIZE_ERR;
   }
   
@@ -928,9 +938,9 @@ nsRange::SetStart(nsINode* aParent, PRInt32 aOffset)
   nsINode* newRoot = IsValidBoundary(aParent);
   NS_ENSURE_TRUE(newRoot, NS_ERROR_DOM_INVALID_NODE_TYPE_ERR);
 
-  if (aOffset < 0 || aOffset > aParent->Length()) {
+  PRInt32 len = GetNodeLength(aParent);
+  if (aOffset < 0 || aOffset > len)
     return NS_ERROR_DOM_INDEX_SIZE_ERR;
-  }
 
   // Collapse if not positioned yet, if positioned in another doc or
   // if the new start is after end.
@@ -992,7 +1002,8 @@ nsRange::SetEnd(nsINode* aParent, PRInt32 aOffset)
   nsINode* newRoot = IsValidBoundary(aParent);
   NS_ENSURE_TRUE(newRoot, NS_ERROR_DOM_INVALID_NODE_TYPE_ERR);
 
-  if (aOffset < 0 || aOffset > aParent->Length()) {
+  PRInt32 len = GetNodeLength(aParent);
+  if (aOffset < 0 || aOffset > len) {
     return NS_ERROR_DOM_INDEX_SIZE_ERR;
   }
 
@@ -1089,7 +1100,7 @@ nsRange::SelectNodeContents(nsIDOMNode* aN)
   NS_ENSURE_TRUE(newRoot, NS_ERROR_DOM_INVALID_NODE_TYPE_ERR);
   
   AutoInvalidateSelection atEndOfBlock(this);
-  DoSetRange(node, 0, node, node->Length(), newRoot);
+  DoSetRange(node, 0, node, GetNodeLength(node), newRoot);
   
   return NS_OK;
 }

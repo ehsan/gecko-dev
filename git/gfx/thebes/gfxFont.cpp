@@ -51,7 +51,7 @@
 
 #include "gfxFont.h"
 #include "gfxPlatform.h"
-#include "nsGkAtoms.h"
+#include "gfxAtoms.h"
 
 #include "prtypes.h"
 #include "gfxTypes.h"
@@ -1474,9 +1474,9 @@ struct GlyphBufferAzure {
         return &mGlyphBuffer[mNumGlyphs++];
     }
 
-    void Flush(DrawTarget *aDT, gfxPattern *aStrokePattern, ScaledFont *aFont,
+    void Flush(DrawTarget *aDT, Pattern &aPattern, ScaledFont *aFont,
                gfxFont::DrawMode aDrawMode, bool aReverse, const GlyphRenderingOptions *aOptions,
-               gfxContext *aThebesContext, const Matrix *invFontMatrix, bool aFinish = false)
+               bool aFinish = false)
     {
         // Ensure there's enough room for a glyph to be added to the buffer
         if (!aFinish && mNumGlyphs < GLYPH_BUFFER_SIZE || !mNumGlyphs) {
@@ -1489,57 +1489,13 @@ struct GlyphBufferAzure {
             std::reverse(begin, end);
         }
         
+        NS_ASSERTION(aDrawMode != gfxFont::GLYPH_FILL, "Not supported yet.");
+        
         gfx::GlyphBuffer buf;
         buf.mGlyphs = mGlyphBuffer;
         buf.mNumGlyphs = mNumGlyphs;
 
-        gfxContext::AzureState state = aThebesContext->CurrentState();
-        if (aDrawMode & gfxFont::GLYPH_FILL) {
-            if (state.pattern) {
-                Pattern *pat = state.pattern->GetPattern(aDT, state.patternTransformChanged ? &state.patternTransform : nsnull);
-
-                if (invFontMatrix) {
-                    // The brush matrix needs to be multiplied with the inverted matrix
-	                // as well, to move the brush into the space of the glyphs. Before
-	                // the render target transformation
-
-                    // This relies on the returned Pattern not to be reused by
-                    // others, but regenerated on GetPattern calls. This is true!
-                    Matrix *mat;
-                    if (pat->GetType() == PATTERN_LINEAR_GRADIENT) {
-                        mat = &static_cast<LinearGradientPattern*>(pat)->mMatrix;
-                    } else if (pat->GetType() == PATTERN_RADIAL_GRADIENT) {
-                        mat = &static_cast<LinearGradientPattern*>(pat)->mMatrix;
-                    } else if (pat->GetType() == PATTERN_SURFACE) {
-                        mat = &static_cast<LinearGradientPattern*>(pat)->mMatrix;
-                    }
-
-                    *mat = (*mat) * (*invFontMatrix);
-                }
-
-
-                aDT->FillGlyphs(aFont, buf, *pat,
-                                DrawOptions(), aOptions);
-            } else if (state.sourceSurface) {
-                aDT->FillGlyphs(aFont, buf, SurfacePattern(state.sourceSurface,
-                                                           EXTEND_CLAMP,
-                                                           state.surfTransform),
-                                DrawOptions(), aOptions);
-            } else {
-                aDT->FillGlyphs(aFont, buf, ColorPattern(state.color),
-                                DrawOptions(), aOptions);
-            }
-        }
-        if (aDrawMode & gfxFont::GLYPH_PATH) {
-            aThebesContext->EnsurePathBuilder();
-            aFont->CopyGlyphsToBuilder(buf, aThebesContext->mPathBuilder);
-        }
-        if (aDrawMode & gfxFont::GLYPH_STROKE) {
-            RefPtr<Path> path = aFont->GetPathForGlyphs(buf, aDT);
-            if (aStrokePattern) {
-                aDT->Stroke(path, *aStrokePattern->GetPattern(aDT), state.strokeOptions);
-            }
-        }
+        aDT->FillGlyphs(aFont, buf, aPattern, DrawOptions(), aOptions);
 
         mNumGlyphs = 0;
     }
@@ -1615,13 +1571,17 @@ gfxFont::Draw(gfxTextRun *aTextRun, PRUint32 aStart, PRUint32 aEnd,
 
     cairo_t *cr = aContext->GetCairo();
     RefPtr<DrawTarget> dt = aContext->GetDrawTarget();
+    cairo_pattern_t *strokePattern = nsnull;
+    if (aStrokePattern) {
+        strokePattern = aStrokePattern->CairoPattern();
+    }
+
+    RefPtr<ScaledFont> scaledFont;
+
+    gfxRGBA color;
+    ColorPattern colPat(Color(0, 0, 0, 0));
 
     if (aContext->IsCairo()) {
-      cairo_pattern_t *strokePattern = nsnull;
-      if (aStrokePattern) {
-          strokePattern = aStrokePattern->CairoPattern();
-      }
-
       bool success = SetupCairoFont(aContext);
       if (NS_UNLIKELY(!success))
           return;
@@ -1753,22 +1713,26 @@ gfxFont::Draw(gfxTextRun *aTextRun, PRUint32 aStart, PRUint32 aEnd,
       glyphs.Flush(cr, strokePattern, aDrawMode, isRTL, true);
 
     } else {
-      RefPtr<ScaledFont> scaledFont =
-        gfxPlatform::GetPlatform()->GetScaledFontForFont(this);
-      
-      if (!scaledFont) {
+      if (aDrawMode == gfxFont::GLYPH_PATH) {
+        // This should never be reached with azure!
+        NS_ERROR("Attempt at drawing to a Path to an Azure gfxContext.");
         return;
       }
+
+      scaledFont =
+        gfxPlatform::GetPlatform()->GetScaledFontForFont(this);
+      
+      if (!scaledFont || !aContext->GetDeviceColor(color)) {
+        return;
+      }
+
+      colPat.mColor = ToColor(color);
 
       GlyphBufferAzure glyphs;
       Glyph *glyph;
 
       Matrix mat, matInv;
       Matrix oldMat = dt->GetTransform();
-
-      // This is NULL when we have inverse-transformed glyphs and we need to
-      // transform the Brush inside flush.
-      Matrix *passedInvMatrix = nsnull;
 
       RefPtr<GlyphRenderingOptions> renderingOptions =
         GetGlyphRenderingOptions();
@@ -1792,8 +1756,6 @@ gfxFont::Draw(gfxTextRun *aTextRun, PRUint32 aStart, PRUint32 aEnd,
 
           matInv = mat;
           matInv.Invert();
-
-          passedInvMatrix = &matInv;
         }
       }
 
@@ -1822,9 +1784,7 @@ gfxFont::Draw(gfxTextRun *aTextRun, PRUint32 aStart, PRUint32 aEnd,
               glyph->mPosition.x = ToDeviceUnits(glyphX, devUnitsPerAppUnit);
               glyph->mPosition.y = ToDeviceUnits(y, devUnitsPerAppUnit);
               glyph->mPosition = matInv * glyph->mPosition;
-              glyphs.Flush(dt, aStrokePattern, scaledFont,
-                           aDrawMode, isRTL, renderingOptions,
-                           aContext, passedInvMatrix);
+              glyphs.Flush(dt, colPat, scaledFont, aDrawMode, isRTL, renderingOptions);
             
               // synthetic bolding by multi-striking with 1-pixel offsets
               // at least once, more if there's room (large font sizes)
@@ -1841,9 +1801,7 @@ gfxFont::Draw(gfxTextRun *aTextRun, PRUint32 aStart, PRUint32 aEnd,
                       doubleglyph->mPosition.y = glyph->mPosition.y;
                       doubleglyph->mPosition = matInv * doubleglyph->mPosition;
                       strikeOffset += synBoldOnePixelOffset;
-                      glyphs.Flush(dt, aStrokePattern, scaledFont,
-                                   aDrawMode, isRTL, renderingOptions,
-                                   aContext, passedInvMatrix);
+                      glyphs.Flush(dt, colPat, scaledFont, aDrawMode, isRTL, renderingOptions);
                   } while (--strikeCount > 0);
               }
           } else {
@@ -1881,8 +1839,7 @@ gfxFont::Draw(gfxTextRun *aTextRun, PRUint32 aStart, PRUint32 aEnd,
                           glyph->mPosition.x = ToDeviceUnits(glyphX, devUnitsPerAppUnit);
                           glyph->mPosition.y = ToDeviceUnits(y + details->mYOffset, devUnitsPerAppUnit);
                           glyph->mPosition = matInv * glyph->mPosition;
-                          glyphs.Flush(dt, aStrokePattern, scaledFont, aDrawMode,
-                                       isRTL, renderingOptions, aContext, passedInvMatrix);
+                          glyphs.Flush(dt, colPat, scaledFont, aDrawMode, isRTL, renderingOptions);
 
                           if (IsSyntheticBold()) {
                               double strikeOffset = synBoldOnePixelOffset;
@@ -1898,9 +1855,7 @@ gfxFont::Draw(gfxTextRun *aTextRun, PRUint32 aStart, PRUint32 aEnd,
                                   doubleglyph->mPosition.y = glyph->mPosition.y;
                                   strikeOffset += synBoldOnePixelOffset;
                                   doubleglyph->mPosition = matInv * doubleglyph->mPosition;
-                                  glyphs.Flush(dt, aStrokePattern, scaledFont,
-                                               aDrawMode, isRTL, renderingOptions,
-                                               aContext, passedInvMatrix);
+                                  glyphs.Flush(dt, colPat, scaledFont, aDrawMode, isRTL, renderingOptions);
                               } while (--strikeCount > 0);
                           }
                       }
@@ -1918,8 +1873,7 @@ gfxFont::Draw(gfxTextRun *aTextRun, PRUint32 aStart, PRUint32 aEnd,
           }
       }
 
-      glyphs.Flush(dt, aStrokePattern, scaledFont, aDrawMode, isRTL,
-                   renderingOptions, aContext, passedInvMatrix, true);
+      glyphs.Flush(dt, colPat, scaledFont, aDrawMode, isRTL, renderingOptions, true);
 
       dt->SetTransform(oldMat);
     }
@@ -2160,7 +2114,7 @@ gfxFont::GetShapedWord(gfxContext *aContext,
         return nsnull;
     }
 
-    DebugOnly<bool> ok = false;
+    bool ok = false;
     if (sizeof(T) == sizeof(PRUnichar)) {
         ok = ShapeWord(aContext, sw, (const PRUnichar*)aText);
     } else {
@@ -3111,7 +3065,7 @@ gfxFontGroup::ForEachFontInternal(const nsAString& aFamilies,
         }
     }
     if (!groupAtom) {
-        groupAtom = nsGkAtoms::Unicode;
+        groupAtom = gfxAtoms::x_unicode;
     }
     groupAtom->ToUTF8String(groupString);
 
@@ -4002,7 +3956,7 @@ gfxFontStyle::ParseFontLanguageOverride(const nsString& aLangTag)
 }
 
 gfxFontStyle::gfxFontStyle() :
-    language(nsGkAtoms::x_western),
+    language(gfxAtoms::x_western),
     size(DEFAULT_PIXEL_FONT_SIZE), sizeAdjust(0.0f),
     languageOverride(NO_FONT_LANGUAGE_OVERRIDE),
     weight(NS_FONT_WEIGHT_NORMAL), stretch(NS_FONT_STRETCH_NORMAL),
@@ -4041,7 +3995,7 @@ gfxFontStyle::gfxFontStyle(PRUint8 aStyle, PRUint16 aWeight, PRInt16 aStretch,
 
     if (!language) {
         NS_WARNING("null language");
-        language = nsGkAtoms::x_western;
+        language = gfxAtoms::x_western;
     }
 }
 
@@ -4391,16 +4345,8 @@ gfxTextRun::ComputeLigatureData(PRUint32 aPartStart, PRUint32 aPartEnd,
         }
     }
     NS_ASSERTION(totalClusterCount > 0, "Ligature involving no clusters??");
-    result.mPartAdvance = partClusterIndex * (ligatureWidth / totalClusterCount);
-    result.mPartWidth = partClusterCount * (ligatureWidth / totalClusterCount);
-
-    // Any rounding errors are apportioned to the final part of the ligature,
-    // so that measuring all parts of a ligature and summing them is equal to
-    // the ligature width.
-    if (aPartEnd == result.mLigatureEnd) {
-        gfxFloat allParts = totalClusterCount * (ligatureWidth / totalClusterCount);
-        result.mPartWidth += ligatureWidth - allParts;
-    }
+    result.mPartAdvance = ligatureWidth*partClusterIndex/totalClusterCount;
+    result.mPartWidth = ligatureWidth*partClusterCount/totalClusterCount;
 
     if (partClusterCount == 0) {
         // nothing to draw

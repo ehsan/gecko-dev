@@ -324,7 +324,6 @@ protected:
         : mSize(aSize)
         , mWrapMode(aWrapMode)
         , mContentType(aContentType)
-        , mFilter(gfxPattern::FILTER_GOOD)
     {}
 
     nsIntSize mSize;

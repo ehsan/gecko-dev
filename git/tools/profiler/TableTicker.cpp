@@ -670,12 +670,7 @@ std::ostream& operator<<(std::ostream& stream, const ProfileEntry& entry)
   if (entry.mTagName == 'r') {
     stream << entry.mTagName << "-" << std::fixed << entry.mTagFloat << "\n";
   } else if (entry.mTagName == 'l') {
-    // Bug 739800 - Force l-tag addresses to have a "0x" prefix on all platforms
-    // Additionally, stringstream seemed to be ignoring formatter flags.
-    char tagBuff[1024];
-    Address pc = entry.mTagAddress;
-    snprintf(tagBuff, 1024, "l-%#x\n", pc);
-    stream << tagBuff;
+    stream << entry.mTagName << "-" << static_cast<const void*>(entry.mTagData) << "\n";
   } else {
     stream << entry.mTagName << "-" << entry.mTagData << "\n";
   }

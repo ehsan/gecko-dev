@@ -4887,8 +4887,9 @@ GetExternalClassInfo(nsScriptNameSpaceManager *aNameSpaceManager,
   rv = creator->RegisterDOMCI(NS_ConvertUTF16toUTF8(aName).get(), sof);
   NS_ENSURE_SUCCESS(rv, rv);
 
-  const nsGlobalNameStruct *name_struct = aNameSpaceManager->LookupName(aName);
-  if (name_struct &&
+  const nsGlobalNameStruct *name_struct;
+  rv = aNameSpaceManager->LookupName(aName, &name_struct);
+  if (NS_SUCCEEDED(rv) && name_struct &&
       name_struct->mType == nsGlobalNameStruct::eTypeExternalClassInfo) {
     *aResult = name_struct;
   }
@@ -5927,7 +5928,7 @@ private:
       return NS_ERROR_UNEXPECTED;
     }
 
-    *aNameStruct = nameSpaceManager->LookupName(aName);
+    nameSpaceManager->LookupName(aName, aNameStruct);
 
     // Return NS_OK here, aName just isn't a DOM class but nothing failed.
     return NS_OK;
@@ -6547,9 +6548,10 @@ nsWindowSH::GlobalResolve(nsGlobalWindow *aWin, JSContext *cx,
 
   nsDependentJSString name(id);
 
+  const nsGlobalNameStruct *name_struct = nsnull;
   const PRUnichar *class_name = nsnull;
-  const nsGlobalNameStruct *name_struct =
-    nameSpaceManager->LookupName(name, &class_name);
+
+  nameSpaceManager->LookupName(name, &name_struct, &class_name);
 
   if (!name_struct) {
     return NS_OK;

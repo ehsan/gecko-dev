@@ -55,6 +55,7 @@
 #include "nsTArray.h"
 
 class nsIPrincipal;
+class nsIXPConnectWrappedJS;
 struct nsDOMClassInfoData;
 
 #ifndef BAD_TLS_INDEX
@@ -195,9 +196,9 @@ xpc_UnmarkGrayObject(JSObject *obj)
 extern void
 xpc_MarkInCCGeneration(nsISupports* aVariant, PRUint32 aGeneration);
 
-// If aWrappedJS is a JS wrapper, unmark its JSObject.
+// Unmarks aWrappedJS's JSObject.
 extern void
-xpc_TryUnmarkWrappedGrayObject(nsISupports* aWrappedJS);
+xpc_UnmarkGrayObject(nsIXPConnectWrappedJS* aWrappedJS);
 
 extern void
 xpc_UnmarkSkippableJSHolders();

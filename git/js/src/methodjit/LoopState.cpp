@@ -1917,6 +1917,7 @@ LoopState::analyzeLoopBody(unsigned frame)
           case JSOP_THIS:
           case JSOP_GETLOCAL:
           case JSOP_SETLOCAL:
+          case JSOP_SETLOCALPOP:
           case JSOP_INCLOCAL:
           case JSOP_DECLOCAL:
           case JSOP_LOCALINC:

@@ -12,8 +12,8 @@
 
 BEGIN_BLUETOOTH_NAMESPACE
 
-class BluetoothDevice : public nsDOMEventTargetHelper
-                      , public nsIDOMBluetoothDevice
+class BluetoothDevice : public nsIDOMBluetoothDevice
+                      , public nsDOMEventTargetHelper
 {
 public:
   NS_DECL_ISUPPORTS

@@ -300,11 +300,12 @@ public class SyncAdapter extends AbstractThreadedSyncAdapter implements GlobalSe
         long next = System.currentTimeMillis() + MINIMUM_SYNC_INTERVAL_MILLISECONDS;
         Log.i(LOG_TAG, "Setting minimum next sync time to " + next);
         extendEarliestNextSync(next);
-      } catch (InterruptedException e) {
-        Log.i(LOG_TAG, "Waiting on sync monitor interrupted.", e);
-      } finally {
+
         // And we're done with HTTP stuff.
         stale.shutdown();
+
+      } catch (InterruptedException e) {
+        Log.i(LOG_TAG, "Waiting on sync monitor interrupted.", e);
       }
     }
  }

@@ -9237,7 +9237,7 @@ nsCSSFrameConstructor::sPseudoParentData[eParentTypeCount] = {
  * around everything else.  At the end of this method, aItems is guaranteed to
  * contain only items for frames that can be direct kids of aParentFrame.
  */
-void
+nsresult
 nsCSSFrameConstructor::CreateNeededTablePseudos(nsFrameConstructorState& aState,
                                                 FrameConstructionItemList& aItems,
                                                 nsIFrame* aParentFrame)
@@ -9245,14 +9245,14 @@ nsCSSFrameConstructor::CreateNeededTablePseudos(nsFrameConstructorState& aState,
   ParentType ourParentType = GetParentType(aParentFrame);
   if (aItems.AllWantParentType(ourParentType)) {
     // Nothing to do here
-    return;
+    return NS_OK;
   }
 
   FCItemIterator iter(aItems);
   do {
     if (iter.SkipItemsWantingParentType(ourParentType)) {
       // Nothing else to do here; we're finished
-      return;
+      return NS_OK;
     }
 
     // Now we're pointing to the first child that wants a different parent
@@ -9434,6 +9434,8 @@ nsCSSFrameConstructor::CreateNeededTablePseudos(nsFrameConstructorState& aState,
     // loop and see whether we need to skip it or wrap it in something
     // different.
   } while (!iter.IsDone());
+
+  return NS_OK;
 }
 
 inline nsresult
@@ -9444,7 +9446,8 @@ nsCSSFrameConstructor::ConstructFramesFromItemList(nsFrameConstructorState& aSta
 {
   aItems.SetTriedConstructingFrames();
 
-  CreateNeededTablePseudos(aState, aItems, aParentFrame);
+  nsresult rv = CreateNeededTablePseudos(aState, aItems, aParentFrame);
+  NS_ENSURE_SUCCESS(rv, rv);
 
 #ifdef DEBUG
   for (FCItemIterator iter(aItems); !iter.IsDone(); iter.Next()) {
@@ -9454,7 +9457,7 @@ nsCSSFrameConstructor::ConstructFramesFromItemList(nsFrameConstructorState& aSta
 #endif
 
   for (FCItemIterator iter(aItems); !iter.IsDone(); iter.Next()) {
-    nsresult rv = ConstructFramesFromItem(aState, iter, aParentFrame, aFrameItems);
+    rv = ConstructFramesFromItem(aState, iter, aParentFrame, aFrameItems);
     NS_ENSURE_SUCCESS(rv, rv);
   }
 

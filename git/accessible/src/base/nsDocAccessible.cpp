@@ -693,6 +693,12 @@ nsDocAccessible::GetFrame() const
   return root;
 }
 
+bool
+nsDocAccessible::IsDefunct() const
+{
+  return nsHyperTextAccessibleWrap::IsDefunct() || !mDocument;
+}
+
 // nsDocAccessible protected member
 void nsDocAccessible::GetBoundsRect(nsRect& aBounds, nsIFrame** aRelativeFrame)
 {

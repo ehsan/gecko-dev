@@ -589,8 +589,6 @@ public:
         SCREENSHOT = 25,
         UNUSED2_EVENT = 26,
         SCREENORIENTATION_CHANGED = 27,
-        COMPOSITOR_PAUSE = 28,
-        COMPOSITOR_RESUME = 29,
         dummy_java_enum_list_end
     };
 

@@ -738,8 +738,7 @@ gfxUtils::CopyAsDataURL(DrawTarget* aDT)
   }
 }
 
-bool gfxUtils::sDumpPaintList = getenv("MOZ_DUMP_PAINT_LIST") != 0;
-bool gfxUtils::sDumpPainting = getenv("MOZ_DUMP_PAINT") != 0;
+bool gfxUtils::sDumpPainting = getenv("MOZ_DUMP_PAINT_LIST") != 0;
 bool gfxUtils::sDumpPaintingToFile = getenv("MOZ_DUMP_PAINT_TO_FILE") != 0;
 FILE *gfxUtils::sDumpPaintFile = NULL;
 #endif

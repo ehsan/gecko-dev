@@ -199,9 +199,10 @@ nsSVGFilterInstance::BuildPrimitives()
 {
   // First build mFilterInfo. It's important that we don't change that
   // array after we start storing pointers to its elements!
-  for (nsIContent* child = mFilterElement->nsINode::GetFirstChild();
-       child;
-       child = child->GetNextSibling()) {
+  PRUint32 count = mFilterElement->GetChildCount();
+  PRUint32 i;
+  for (i = 0; i < count; ++i) {
+    nsIContent* child = mFilterElement->GetChildAt(i);
     nsRefPtr<nsSVGFE> primitive;
     CallQueryInterface(child, (nsSVGFE**)getter_AddRefs(primitive));
     if (!primitive)
@@ -215,7 +216,7 @@ nsSVGFilterInstance::BuildPrimitives()
   nsTHashtable<ImageAnalysisEntry> imageTable;
   imageTable.Init(10);
 
-  for (PRUint32 i = 0; i < mPrimitives.Length(); ++i) {
+  for (i = 0; i < mPrimitives.Length(); ++i) {
     PrimitiveInfo* info = &mPrimitives[i];
     nsSVGFE* filter = info->mFE;
     nsAutoTArray<nsSVGStringInfo,2> sources;

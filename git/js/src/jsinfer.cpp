@@ -3621,7 +3621,8 @@ ScriptAnalysis::analyzeTypesBytecode(JSContext *cx, unsigned offset,
       }
 
       case JSOP_SETARG:
-      case JSOP_SETLOCAL: {
+      case JSOP_SETLOCAL:
+      case JSOP_SETLOCALPOP: {
         uint32_t slot = GetBytecodeSlot(script, pc);
         if (!trackSlot(slot) && slot < TotalSlots(script)) {
             TypeSet *types = TypeScript::SlotTypes(script, slot);

@@ -59,9 +59,6 @@ public:
   virtual ~ScaledFontBase();
 
   virtual TemporaryRef<Path> GetPathForGlyphs(const GlyphBuffer &aBuffer, const DrawTarget *aTarget);
-
-  virtual void CopyGlyphsToBuilder(const GlyphBuffer &aBuffer, PathBuilder *aBuilder);
-
 #ifdef USE_SKIA
   virtual SkTypeface* GetSkTypeface() { return mTypeface; }
 #endif

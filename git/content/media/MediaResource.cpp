@@ -1208,6 +1208,7 @@ void MediaResource::MoveLoadsToBackground() {
     return;
   }
 
+  nsresult rv;
   nsHTMLMediaElement* element = mDecoder->GetMediaElement();
   if (!element) {
     NS_WARNING("Null element in MediaResource::MoveLoadsToBackground()");
@@ -1218,7 +1219,7 @@ void MediaResource::MoveLoadsToBackground() {
   if (NS_SUCCEEDED(mChannel->IsPending(&isPending)) &&
       isPending) {
     nsLoadFlags loadFlags;
-    DebugOnly<nsresult> rv = mChannel->GetLoadFlags(&loadFlags);
+    rv = mChannel->GetLoadFlags(&loadFlags);
     NS_ASSERTION(NS_SUCCEEDED(rv), "GetLoadFlags() failed!");
 
     loadFlags |= nsIRequest::LOAD_BACKGROUND;
@@ -1229,7 +1230,7 @@ void MediaResource::MoveLoadsToBackground() {
 void MediaResource::ModifyLoadFlags(nsLoadFlags aFlags)
 {
   nsCOMPtr<nsILoadGroup> loadGroup;
-  DebugOnly<nsresult> rv = mChannel->GetLoadGroup(getter_AddRefs(loadGroup));
+  nsresult rv = mChannel->GetLoadGroup(getter_AddRefs(loadGroup));
   NS_ASSERTION(NS_SUCCEEDED(rv), "GetLoadGroup() failed!");
 
   nsresult status;

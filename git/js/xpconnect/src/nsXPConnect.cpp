@@ -860,12 +860,11 @@ xpc_MarkInCCGeneration(nsISupports* aVariant, PRUint32 aGeneration)
 }
 
 void
-xpc_TryUnmarkWrappedGrayObject(nsISupports* aWrappedJS)
+xpc_UnmarkGrayObject(nsIXPConnectWrappedJS* aWrappedJS)
 {
-    nsCOMPtr<nsIXPConnectWrappedJS> wjs = do_QueryInterface(aWrappedJS);
-    if (wjs) {
+    if (aWrappedJS) {
         // Unmarks gray JSObject.
-        static_cast<nsXPCWrappedJS*>(wjs.get())->GetJSObject();
+        static_cast<nsXPCWrappedJS*>(aWrappedJS)->GetJSObject();
     }
 }
 

@@ -363,7 +363,7 @@ nsresult nsJSThunk::EvaluateScript(nsIChannel *aChannel,
                                            principal,
                                            mURL.get(),     // url
                                            1,              // line no
-                                           JSVERSION_DEFAULT,
+                                           nsnull,
                                            &result,
                                            &isUndefined);
 

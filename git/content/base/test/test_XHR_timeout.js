@@ -70,12 +70,10 @@ RequestTracker.prototype = {
     var req = new XMLHttpRequest();
     this.request = req;
     req.open("GET", "file_XHR_timeout.sjs", this.async);
-    var me = this;
-    function handleEvent(e) { return me.handleEvent(e); };
-    req.onerror = handleEvent;
-    req.onload = handleEvent;
-    req.onabort = handleEvent;
-    req.ontimeout = handleEvent;
+    req.onerror   = this;
+    req.onload    = this;
+    req.onabort   = this;
+    req.ontimeout = this;
 
     req.timeout = this.timeLimit;
     
@@ -153,12 +151,10 @@ AbortedRequest.prototype = {
     var req = new XMLHttpRequest();
     this.request = req;
     req.open("GET", "file_XHR_timeout.sjs");
-    var me = this;
-    function handleEvent(e) { return me.handleEvent(e); };
-    req.onerror = handleEvent;
-    req.onload = handleEvent;
-    req.onabort = handleEvent;
-    req.ontimeout = handleEvent;
+    req.onerror   = this;
+    req.onload    = this;
+    req.onabort   = this;
+    req.ontimeout = this;
 
     req.timeout = 2000;
     var _this = this;

@@ -161,6 +161,7 @@ public:
   NS_DECL_NSIACCESSIBLETABLECELL
 
   // nsAccessNode
+  virtual bool IsDefunct() const;
   virtual bool Init();
   virtual bool IsPrimaryForNode() const;
 

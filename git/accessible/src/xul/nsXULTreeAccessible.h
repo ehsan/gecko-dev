@@ -78,6 +78,7 @@ public:
   NS_IMETHOD GetValue(nsAString& aValue);
 
   // nsAccessNode
+  virtual bool IsDefunct() const;
   virtual void Shutdown();
 
   // nsAccessible
@@ -203,6 +204,7 @@ public:
   NS_IMETHOD DoAction(PRUint8 aIndex);
 
   // nsAccessNode
+  virtual bool IsDefunct() const;
   virtual void Shutdown();
   virtual bool IsPrimaryForNode() const;
 
@@ -285,6 +287,7 @@ public:
   NS_IMETHOD GetName(nsAString& aName);
 
   // nsAccessNode
+  virtual bool IsDefunct() const;
   virtual bool Init();
   virtual void Shutdown();
 
