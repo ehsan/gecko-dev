@@ -34,6 +34,14 @@ if (window.SpecialPowers == undefined && window.opener && window.opener.SpecialP
     window.SpecialPowers = window.opener.SpecialPowers;
 }
 
+// Running in e10s build and need to use IPC?
+var ipcMode = false;
+if (parentRunner) {
+    ipcMode = parentRunner.ipcMode;
+} else if (typeof SpecialPowers != 'undefined') {
+    ipcMode = SpecialPowers.hasContentProcesses();
+}
+
 /* Helper functions pulled out of various MochiKit modules */
 if (typeof(repr) == 'undefined') {
     function repr(o) {
@@ -592,11 +600,25 @@ SimpleTest.__defineGetter__("_waitForClipboardMonotonicCounter", function () {
 });
 SimpleTest.waitForClipboard = function(aExpectedStringOrValidatorFn, aSetupFn,
                                        aSuccessFn, aFailureFn, aFlavor) {
+    if (ipcMode) {
+      //TODO: support waitForClipboard via events to chrome
+      dump("E10S_TODO: bug 573735 addresses adding support for this");
+      return;
+    }
+
+    netscape.security.PrivilegeManager.enablePrivilege("UniversalXPConnect");
+
+    var cbSvc = Components.classes["@mozilla.org/widget/clipboard;1"].
+                getService(Components.interfaces.nsIClipboard);
+
     var requestedFlavor = aFlavor || "text/unicode";
+
+    function dataToString(aData)
+      aData.QueryInterface(Components.interfaces.nsISupportsString).data;
 
     // Build a default validator function for common string input.
     var inputValidatorFn = typeof(aExpectedStringOrValidatorFn) == "string"
-        ? function(aData) aData == aExpectedStringOrValidatorFn
+        ? function(aData) aData && dataToString(aData) == aExpectedStringOrValidatorFn
         : aExpectedStringOrValidatorFn;
 
     // reset for the next use
@@ -605,6 +627,8 @@ SimpleTest.waitForClipboard = function(aExpectedStringOrValidatorFn, aSetupFn,
     }
 
     function wait(validatorFn, successFn, failureFn, flavor) {
+        netscape.security.PrivilegeManager.enablePrivilege("UniversalXPConnect");
+
         if (++SimpleTest.waitForClipboard_polls > 50) {
             // Log the failure.
             SimpleTest.ok(false, "Timed out while polling clipboard for pasted data.");
@@ -613,7 +637,15 @@ SimpleTest.waitForClipboard = function(aExpectedStringOrValidatorFn, aSetupFn,
             return;
         }
 
-        data = SpecialPowers.getClipboardData(flavor);
+        var xferable = Components.classes["@mozilla.org/widget/transferable;1"].
+                       createInstance(Components.interfaces.nsITransferable);
+        xferable.addDataFlavor(flavor);
+        cbSvc.getData(xferable, cbSvc.kGlobalClipboard);
+        var data = {};
+        try {
+            xferable.getTransferData(flavor, data, {});
+        } catch (e) {}
+        data = data.value || null;
 
         if (validatorFn(data)) {
             // Don't show the success message when waiting for preExpectedVal
@@ -631,8 +663,10 @@ SimpleTest.waitForClipboard = function(aExpectedStringOrValidatorFn, aSetupFn,
     // First we wait for a known value different from the expected one.
     var preExpectedVal = SimpleTest._waitForClipboardMonotonicCounter +
                          "-waitForClipboard-known-value";
-    SpecialPowers.clipboardCopyString(preExpectedVal);
-    wait(function(aData) aData  == preExpectedVal,
+    var cbHelperSvc = Components.classes["@mozilla.org/widget/clipboardhelper;1"].
+                      getService(Components.interfaces.nsIClipboardHelper);
+    cbHelperSvc.copyString(preExpectedVal);
+    wait(function(aData) aData && dataToString(aData) == preExpectedVal,
          function() {
            // Call the original setup fn
            aSetupFn();

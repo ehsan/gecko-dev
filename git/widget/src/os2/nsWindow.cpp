@@ -80,7 +80,7 @@
 #include "nsOS2Uni.h"
 #include "nsTHashtable.h"
 #include "nsToolkit.h"
-#include "nsGkAtoms.h"
+#include "nsWidgetAtoms.h"
 #include "wdgtos2rc.h"
 
 #include "mozilla/Preferences.h"
@@ -336,6 +336,7 @@ NS_METHOD nsWindow::Create(nsIWidget* aParent,
                            const nsIntRect& aRect,
                            EVENT_CALLBACK aHandleEventFunction,
                            nsDeviceContext* aContext,
+                           nsIAppShell* aAppShell,
                            nsIToolkit* aToolkit,
                            nsWidgetInitData* aInitData)
 {
@@ -360,7 +361,7 @@ NS_METHOD nsWindow::Create(nsIWidget* aParent,
   }
 
   BaseCreate(aParent, aRect, aHandleEventFunction,
-             aContext, aToolkit, aInitData);
+             aContext, aAppShell, aToolkit, aInitData);
 
 
 #ifdef DEBUG_FOCUS
@@ -2801,22 +2802,22 @@ bool nsWindow::DispatchCommandEvent(PRUint32 aEventCommand)
 
   switch (aEventCommand) {
     case APPCOMMAND_BROWSER_BACKWARD:
-      command = nsGkAtoms::Back;
+      command = nsWidgetAtoms::Back;
       break;
     case APPCOMMAND_BROWSER_FORWARD:
-      command = nsGkAtoms::Forward;
+      command = nsWidgetAtoms::Forward;
       break;
     case APPCOMMAND_BROWSER_REFRESH:
-      command = nsGkAtoms::Reload;
+      command = nsWidgetAtoms::Reload;
       break;
     case APPCOMMAND_BROWSER_STOP:
-      command = nsGkAtoms::Stop;
+      command = nsWidgetAtoms::Stop;
       break;
     default:
       return PR_FALSE;
   }
 
-  nsCommandEvent event(PR_TRUE, nsGkAtoms::onAppCommand, command, this);
+  nsCommandEvent event(PR_TRUE, nsWidgetAtoms::onAppCommand, command, this);
   InitEvent(event);
   return DispatchWindowEvent(&event);
 }

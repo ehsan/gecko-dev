@@ -1219,13 +1219,7 @@ nsAutoCompleteController::RevertTextValue()
     NS_ENSURE_STATE(obsSvc);
     obsSvc->NotifyObservers(input, "autocomplete-will-revert-text", nsnull);
 
-    nsAutoString inputValue;
-    input->GetTextValue(inputValue);
-    // Don't change the value if it is the same to prevent sending useless events.
-    // NOTE: how can |RevertTextValue| be called with inputValue != oldValue?
-    if (!oldValue.Equals(inputValue)) {
-      input->SetTextValue(oldValue);
-    }
+    input->SetTextValue(oldValue);
 
     obsSvc->NotifyObservers(input, "autocomplete-did-revert-text", nsnull);
   }

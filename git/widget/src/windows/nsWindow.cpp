@@ -138,7 +138,7 @@
 #include "nsRect.h"
 #include "nsThreadUtils.h"
 #include "nsNativeCharsetUtils.h"
-#include "nsGkAtoms.h"
+#include "nsWidgetAtoms.h"
 #include "nsUnicharUtils.h"
 #include "nsCRT.h"
 #include "nsAppDirectoryServiceDefs.h"
@@ -503,6 +503,7 @@ nsWindow::Create(nsIWidget *aParent,
                  const nsIntRect &aRect,
                  EVENT_CALLBACK aHandleEventFunction,
                  nsDeviceContext *aContext,
+                 nsIAppShell *aAppShell,
                  nsIToolkit *aToolkit,
                  nsWidgetInitData *aInitData)
 {
@@ -520,7 +521,8 @@ nsWindow::Create(nsIWidget *aParent,
   mIsTopWidgetWindow = (nsnull == baseParent);
   mBounds = aRect;
 
-  BaseCreate(baseParent, aRect, aHandleEventFunction, aContext, aToolkit, aInitData);
+  BaseCreate(baseParent, aRect, aHandleEventFunction, aContext,
+             aAppShell, aToolkit, aInitData);
 
   HWND parent;
   if (aParent) { // has a nsIWidget parent
@@ -3701,30 +3703,30 @@ bool nsWindow::DispatchCommandEvent(PRUint32 aEventCommand)
   nsCOMPtr<nsIAtom> command;
   switch (aEventCommand) {
     case APPCOMMAND_BROWSER_BACKWARD:
-      command = nsGkAtoms::Back;
+      command = nsWidgetAtoms::Back;
       break;
     case APPCOMMAND_BROWSER_FORWARD:
-      command = nsGkAtoms::Forward;
+      command = nsWidgetAtoms::Forward;
       break;
     case APPCOMMAND_BROWSER_REFRESH:
-      command = nsGkAtoms::Reload;
+      command = nsWidgetAtoms::Reload;
       break;
     case APPCOMMAND_BROWSER_STOP:
-      command = nsGkAtoms::Stop;
+      command = nsWidgetAtoms::Stop;
       break;
     case APPCOMMAND_BROWSER_SEARCH:
-      command = nsGkAtoms::Search;
+      command = nsWidgetAtoms::Search;
       break;
     case APPCOMMAND_BROWSER_FAVORITES:
-      command = nsGkAtoms::Bookmarks;
+      command = nsWidgetAtoms::Bookmarks;
       break;
     case APPCOMMAND_BROWSER_HOME:
-      command = nsGkAtoms::Home;
+      command = nsWidgetAtoms::Home;
       break;
     default:
       return false;
   }
-  nsCommandEvent event(true, nsGkAtoms::onAppCommand, command, this);
+  nsCommandEvent event(true, nsWidgetAtoms::onAppCommand, command, this);
 
   InitEvent(event);
   DispatchWindowEvent(&event);

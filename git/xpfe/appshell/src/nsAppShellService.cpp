@@ -111,7 +111,7 @@ NS_IMPL_ISUPPORTS2(nsAppShellService,
                    nsIObserver)
 
 NS_IMETHODIMP
-nsAppShellService::CreateHiddenWindow()
+nsAppShellService::CreateHiddenWindow(nsIAppShell* aAppShell)
 {
   nsresult rv;
   PRInt32 initialHeight = 100, initialWidth = 100;
@@ -134,7 +134,7 @@ nsAppShellService::CreateHiddenWindow()
   nsRefPtr<nsWebShellWindow> newWindow;
   rv = JustCreateTopWindow(nsnull, url,
                            chromeMask, initialWidth, initialHeight,
-                           PR_TRUE, getter_AddRefs(newWindow));
+                           PR_TRUE, aAppShell, getter_AddRefs(newWindow));
   NS_ENSURE_SUCCESS(rv, rv);
 
   mHiddenWindow.swap(newWindow);
@@ -167,6 +167,7 @@ nsAppShellService::CreateTopLevelWindow(nsIXULWindow *aParent,
                                         PRUint32 aChromeMask,
                                         PRInt32 aInitialWidth,
                                         PRInt32 aInitialHeight,
+                                        nsIAppShell* aAppShell,
                                         nsIXULWindow **aResult)
 
 {
@@ -178,7 +179,7 @@ nsAppShellService::CreateTopLevelWindow(nsIXULWindow *aParent,
   nsWebShellWindow *newWindow = nsnull;
   rv = JustCreateTopWindow(aParent, aUrl,
                            aChromeMask, aInitialWidth, aInitialHeight,
-                           PR_FALSE, &newWindow);  // addrefs
+                           PR_FALSE, aAppShell, &newWindow);  // addrefs
 
   *aResult = newWindow; // transfer ref
 
@@ -279,6 +280,7 @@ nsAppShellService::JustCreateTopWindow(nsIXULWindow *aParent,
                                        PRInt32 aInitialWidth,
                                        PRInt32 aInitialHeight,
                                        bool aIsHiddenWindow,
+                                       nsIAppShell* aAppShell,
                                        nsWebShellWindow **aResult)
 {
   *aResult = nsnull;
@@ -379,7 +381,8 @@ nsAppShellService::JustCreateTopWindow(nsIXULWindow *aParent,
   }
 
   nsresult rv = window->Initialize(parent, center ? aParent : nsnull,
-                                   aUrl, aInitialWidth, aInitialHeight,
+                                   aAppShell, aUrl,
+                                   aInitialWidth, aInitialHeight,
                                    aIsHiddenWindow, widgetInitData);
       
   NS_ENSURE_SUCCESS(rv, rv);

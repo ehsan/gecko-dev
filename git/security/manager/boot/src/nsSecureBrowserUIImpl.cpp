@@ -58,6 +58,7 @@
 #include "nsIObserverService.h"
 #include "nsCURILoader.h"
 #include "nsIDocShell.h"
+#include "nsIDocumentViewer.h"
 #include "nsIDocument.h"
 #include "nsIPrincipal.h"
 #include "nsIDOMElement.h"

@@ -2303,8 +2303,6 @@ nsJSContext::CreateOuterObject(nsIScriptGlobalObject *aGlobalObject,
     return NS_ERROR_FAILURE;
   }
 
-  js::SetProxyExtra(outer, 0, js::PrivateValue(aGlobalObject));
-
   return SetOuterObject(outer);
 }
 

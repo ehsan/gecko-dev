@@ -37,14 +37,13 @@
  * ***** END LICENSE BLOCK ***** */
 
 #include "SVGDocumentWrapper.h"
-
 #include "mozilla/dom/Element.h"
 #include "nsIAtom.h"
 #include "nsICategoryManager.h"
 #include "nsIChannel.h"
-#include "nsIContentViewer.h"
 #include "nsIDocument.h"
 #include "nsIDocumentLoaderFactory.h"
+#include "nsIDocumentViewer.h"
 #include "nsIDOMSVGAnimatedLength.h"
 #include "nsIDOMSVGLength.h"
 #include "nsIHttpChannel.h"
@@ -303,7 +302,6 @@ SVGDocumentWrapper::OnStopRequest(nsIRequest* aRequest, nsISupports* ctxt,
     // up to this promise.
     nsCOMPtr<nsIParser> parser = do_QueryInterface(mListener);
     while (!parser->IsComplete()) {
-      parser->CancelParsingEvents();
       parser->ContinueInterruptedParsing();
     }
     FlushLayout();
@@ -353,7 +351,7 @@ SVGDocumentWrapper::Observe(nsISupports* aSubject,
 // nsExternalResourceMap::PendingLoad::SetupViewer.
 nsresult
 SVGDocumentWrapper::SetupViewer(nsIRequest* aRequest,
-                                nsIContentViewer** aViewer,
+                                nsIDocumentViewer** aViewer,
                                 nsILoadGroup** aLoadGroup)
 {
   nsCOMPtr<nsIChannel> chan(do_QueryInterface(aRequest));
@@ -398,7 +396,8 @@ SVGDocumentWrapper::SetupViewer(nsIRequest* aRequest,
                                         getter_AddRefs(viewer));
   NS_ENSURE_SUCCESS(rv, rv);
 
-  NS_ENSURE_TRUE(viewer, NS_ERROR_UNEXPECTED);
+  nsCOMPtr<nsIDocumentViewer> docViewer = do_QueryInterface(viewer);
+  NS_ENSURE_TRUE(docViewer, NS_ERROR_UNEXPECTED);
 
   nsCOMPtr<nsIParser> parser = do_QueryInterface(listener);
   NS_ENSURE_TRUE(parser, NS_ERROR_UNEXPECTED);
@@ -409,8 +408,8 @@ SVGDocumentWrapper::SetupViewer(nsIRequest* aRequest,
   NS_ENSURE_TRUE(sink, NS_ERROR_UNEXPECTED);
 
   listener.swap(mListener);
-  viewer.forget(aViewer);
-  newLoadGroup.forget(aLoadGroup);
+  docViewer.swap(*aViewer);
+  newLoadGroup.swap(*aLoadGroup);
 
   RegisterForXPCOMShutdown();
   return NS_OK;

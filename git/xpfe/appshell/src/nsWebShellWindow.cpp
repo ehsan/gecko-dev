@@ -42,7 +42,7 @@
 #include "nsLayoutCID.h"
 #include "nsContentCID.h"
 #include "nsIWeakReference.h"
-#include "nsIContentViewer.h"
+
 #include "nsIComponentManager.h"
 #include "nsIServiceManager.h"
 #include "nsIURL.h"
@@ -64,6 +64,9 @@
 #include "nsGUIEvent.h"
 #include "nsWidgetsCID.h"
 #include "nsIWidget.h"
+#include "nsIAppShell.h"
+
+#include "nsIAppShellService.h"
 
 #include "nsIDOMCharacterData.h"
 #include "nsIDOMNodeList.h"
@@ -80,6 +83,7 @@
 #include "nsIWebProgress.h"
 #include "nsIWebProgressListener.h"
 
+#include "nsIDocumentViewer.h"
 #include "nsIDocument.h"
 #include "nsIDOMDocument.h"
 #include "nsIDOMNode.h"
@@ -145,7 +149,7 @@ NS_INTERFACE_MAP_END_INHERITING(nsXULWindow)
 
 nsresult nsWebShellWindow::Initialize(nsIXULWindow* aParent,
                                       nsIXULWindow* aOpener,
-                                      nsIURI* aUrl,
+                                      nsIAppShell* aShell, nsIURI* aUrl,
                                       PRInt32 aInitialWidth,
                                       PRInt32 aInitialHeight,
                                       bool aIsHiddenWindow,
@@ -205,6 +209,7 @@ nsresult nsWebShellWindow::Initialize(nsIXULWindow* aParent,
                   r,                                  // Widget dimensions
                   nsWebShellWindow::HandleEvent,      // Event handler function
                   nsnull,                             // Device context
+                  aShell,                             // Application shell
                   nsnull,                             // nsIToolkit
                   &widgetInitData);                   // Widget initialization data
   mWindow->GetClientBounds(r);
@@ -580,13 +585,9 @@ nsWebShellWindow::OnStateChange(nsIWebProgress *aProgress,
   ///////////////////////////////
   // Find the Menubar DOM  and Load the menus, hooking them up to the loaded commands
   ///////////////////////////////
-  nsCOMPtr<nsIContentViewer> cv;
-  mDocShell->GetContentViewer(getter_AddRefs(cv));
-  if (cv) {
-    nsCOMPtr<nsIDOMDocument> menubarDOMDoc(do_QueryInterface(cv->GetDocument()));
-    if (menubarDOMDoc)
-      LoadNativeMenus(menubarDOMDoc, mWindow);
-  }
+  nsCOMPtr<nsIDOMDocument> menubarDOMDoc(GetNamedDOMDoc(NS_LITERAL_STRING("this"))); // XXX "this" is a small kludge for code reused
+  if (menubarDOMDoc)
+    LoadNativeMenus(menubarDOMDoc, mWindow);
 #endif // USE_NATIVE_MENUS
 
   OnChromeLoaded();
@@ -623,6 +624,37 @@ nsWebShellWindow::OnSecurityChange(nsIWebProgress *aWebProgress,
   return NS_OK;
 }
 
+
+//----------------------------------------
+nsCOMPtr<nsIDOMDocument> nsWebShellWindow::GetNamedDOMDoc(const nsAString & aDocShellName)
+{
+  nsCOMPtr<nsIDOMDocument> domDoc; // result == nsnull;
+
+  // first get the toolbar child docShell
+  nsCOMPtr<nsIDocShell> childDocShell;
+  if (aDocShellName.EqualsLiteral("this")) { // XXX small kludge for code reused
+    childDocShell = mDocShell;
+  } else {
+    nsCOMPtr<nsIDocShellTreeItem> docShellAsItem;
+    nsCOMPtr<nsIDocShellTreeNode> docShellAsNode(do_QueryInterface(mDocShell));
+    docShellAsNode->FindChildWithName(PromiseFlatString(aDocShellName).get(), 
+      PR_TRUE, PR_FALSE, nsnull, nsnull, getter_AddRefs(docShellAsItem));
+    childDocShell = do_QueryInterface(docShellAsItem);
+    if (!childDocShell)
+      return domDoc;
+  }
+  
+  nsCOMPtr<nsIContentViewer> cv;
+  childDocShell->GetContentViewer(getter_AddRefs(cv));
+  if (!cv)
+    return domDoc;
+ 
+  nsIDocument* doc = cv->GetDocument();
+  if (doc)
+    return nsCOMPtr<nsIDOMDocument>(do_QueryInterface(doc));
+
+  return domDoc;
+} // nsWebShellWindow::GetNamedDOMDoc
 
 //----------------------------------------
 
@@ -718,9 +750,11 @@ bool nsWebShellWindow::ExecuteCloseHandler()
   if (eventTarget) {
     nsCOMPtr<nsIContentViewer> contentViewer;
     mDocShell->GetContentViewer(getter_AddRefs(contentViewer));
-    if (contentViewer) {
+    nsCOMPtr<nsIDocumentViewer> docViewer(do_QueryInterface(contentViewer));
+
+    if (docViewer) {
       nsRefPtr<nsPresContext> presContext;
-      contentViewer->GetPresContext(getter_AddRefs(presContext));
+      docViewer->GetPresContext(getter_AddRefs(presContext));
 
       nsEventStatus status = nsEventStatus_eIgnore;
       nsMouseEvent event(PR_TRUE, NS_XUL_CLOSE, nsnull,

@@ -216,9 +216,6 @@ public:
 
 public: /* Necko internal use only... */
 
-  bool ShouldRewriteRedirectToGET(PRUint32 httpStatus, nsHttpAtom method);
-  bool IsSafeMethod(nsHttpAtom method);
-  
 protected:
 
   // Handle notifying listener, removing from loadgroup if request failed.

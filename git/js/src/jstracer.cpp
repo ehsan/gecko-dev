@@ -73,6 +73,7 @@
 #include "jsopcode.h"
 #include "jsscope.h"
 #include "jsscript.h"
+#include "jsstaticcheck.h"
 #include "jstracer.h"
 #include "jsxml.h"
 #include "jstypedarray.h"
@@ -12049,8 +12050,8 @@ static bool
 SafeLookup(JSContext *cx, JSObject* obj, jsid id, JSObject** pobjp, const Shape** shapep)
 {
     do {
-        // Avoid non-native lookupGeneric hooks.
-        if (obj->getOps()->lookupGeneric)
+        // Avoid non-native lookupProperty hooks.
+        if (obj->getOps()->lookupProperty)
             return false;
 
         if (const Shape *shape = obj->nativeLookup(cx, id)) {
@@ -12765,7 +12766,7 @@ GetPropertyWithNativeGetter(JSContext* cx, JSObject* obj, Shape* shape, Value* v
 #ifdef DEBUG
     JSProperty* prop;
     JSObject* pobj;
-    JS_ASSERT(obj->lookupGeneric(cx, shape->propid, &pobj, &prop));
+    JS_ASSERT(obj->lookupProperty(cx, shape->propid, &pobj, &prop));
     JS_ASSERT(prop == (JSProperty*) shape);
 #endif
 
@@ -15188,12 +15189,12 @@ TraceRecorder::record_JSOP_IN()
 
     JSObject* obj2;
     JSProperty* prop;
-    JSBool ok = obj->lookupGeneric(cx, id, &obj2, &prop);
+    JSBool ok = obj->lookupProperty(cx, id, &obj2, &prop);
 
     if (!ok)
-        RETURN_ERROR_A("obj->lookupGeneric failed in JSOP_IN");
+        RETURN_ERROR_A("obj->lookupProperty failed in JSOP_IN");
 
-    /* lookupGeneric can reenter the interpreter and kill |this|. */
+    /* lookupProperty can reenter the interpreter and kill |this|. */
     if (!localtm.recorder)
         return ARECORD_ABORTED;
 

@@ -48,7 +48,7 @@
 #include "nsIContent.h"
 #include "nsIDocument.h"
 #include "nsINameSpaceManager.h"
-#include "nsGkAtoms.h"
+#include "nsWidgetAtoms.h"
 #include "nsIDOMElement.h"
 #include "nsIDOMCSSStyleDeclaration.h"
 #include "nsIDOMCSSValue.h"
@@ -188,8 +188,8 @@ nsMenuItemIconX::GetIconURI(nsIURI** aIconURI)
   // First, look at the content node's "image" attribute.
   nsAutoString imageURIString;
   bool hasImageAttr = mContent->GetAttr(kNameSpaceID_None,
-                                        nsGkAtoms::image,
-                                        imageURIString);
+                                          nsWidgetAtoms::image,
+                                          imageURIString);
 
   nsresult rv;
   nsCOMPtr<nsIDOMCSSValue> cssValue;

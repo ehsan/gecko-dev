@@ -86,7 +86,7 @@
 #include "nsNodeInfoManager.h"
 #include "nsContentCreatorFunctions.h"
 #include "nsIContentPolicy.h"
-#include "nsIContentViewer.h"
+#include "nsIDocumentViewer.h"
 #include "nsContentPolicyUtils.h"
 #include "nsContentErrors.h"
 #include "nsIDOMProcessingInstruction.h"
@@ -375,8 +375,9 @@ nsXMLContentSink::OnDocumentCreated(nsIDocument* aResultDocument)
 
   nsCOMPtr<nsIContentViewer> contentViewer;
   mDocShell->GetContentViewer(getter_AddRefs(contentViewer));
-  if (contentViewer) {
-    return contentViewer->SetDocumentInternal(aResultDocument, PR_TRUE);
+  nsCOMPtr<nsIDocumentViewer> docViewer = do_QueryInterface(contentViewer);
+  if (docViewer) {
+    return docViewer->SetDocumentInternal(aResultDocument, PR_TRUE);
   }
   return NS_OK;
 }

@@ -324,10 +324,6 @@ class LifoAllocScope {
             lifoAlloc->release(mark);
     }
 
-    LifoAlloc &alloc() {
-        return *lifoAlloc;
-    }
-
     void releaseEarly() {
         JS_ASSERT(shouldRelease);
         lifoAlloc->release(mark);

@@ -55,6 +55,7 @@
 #include "nsIDocShellTreeOwner.h"
 #include "nsIBaseWindow.h"
 #include "nsIContentViewer.h"
+#include "nsIDocumentViewer.h"
 #include "nsPresContext.h"
 #include "nsIPresShell.h"
 #include "nsIComponentManager.h"
@@ -963,12 +964,15 @@ EndSwapDocShellsForDocument(nsIDocument* aDocument, void*)
     nsCOMPtr<nsIContentViewer> cv;
     ds->GetContentViewer(getter_AddRefs(cv));
     while (cv) {
-      nsCOMPtr<nsPresContext> pc;
-      cv->GetPresContext(getter_AddRefs(pc));
-      nsDeviceContext* dc = pc ? pc->DeviceContext() : nsnull;
-      if (dc) {
-        nsIView* v = cv->FindContainerView();
-        dc->Init(v ? v->GetNearestWidget(nsnull) : nsnull);
+      nsCOMPtr<nsIDocumentViewer> dv = do_QueryInterface(cv);
+      if (dv) {
+        nsCOMPtr<nsPresContext> pc;
+        dv->GetPresContext(getter_AddRefs(pc));
+        nsDeviceContext* dc = pc ? pc->DeviceContext() : nsnull;
+        if (dc) {
+          nsIView* v = dv->FindContainerView();
+          dc->Init(v ? v->GetNearestWidget(nsnull) : nsnull);
+        }
       }
       nsCOMPtr<nsIContentViewer> prev;
       cv->GetPreviousViewer(getter_AddRefs(prev));

@@ -323,8 +323,7 @@ class DeviceManagerADB(DeviceManager):
       ret.append(f)
       line =  p.stderr.readline()
     #the last line is a summary
-    if (len(ret) > 0):
-      ret.pop()
+    ret.pop(len(ret) - 1)
     return ret
 
 

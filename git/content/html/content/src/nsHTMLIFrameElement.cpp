@@ -140,12 +140,6 @@ nsHTMLIFrameElement::GetContentDocument(nsIDOMDocument** aContentDocument)
 }
 
 NS_IMETHODIMP
-nsHTMLIFrameElement::GetContentWindow(nsIDOMWindow** aContentWindow)
-{
-  return nsGenericHTMLFrameElement::GetContentWindow(aContentWindow);
-}
-
-NS_IMETHODIMP
 nsHTMLIFrameElement::GetSVGDocument(nsIDOMDocument **aResult)
 {
   return GetContentDocument(aResult);

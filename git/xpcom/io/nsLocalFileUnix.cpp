@@ -95,7 +95,7 @@
 #include "nsIGnomeVFSService.h"
 #endif
 
-#ifdef MOZ_WIDGET_COCOA
+#ifdef XP_MACOSX
 #include <Carbon/Carbon.h>
 #include "CocoaFileUtils.h"
 #include "prmem.h"
@@ -273,7 +273,7 @@ nsLocalFile::nsLocalFile(const nsLocalFile& other)
 {
 }
 
-#ifdef MOZ_WIDGET_COCOA
+#ifdef XP_MACOSX
 NS_IMPL_THREADSAFE_ISUPPORTS4(nsLocalFile,
                               nsILocalFileMac,
                               nsILocalFile,
@@ -1445,7 +1445,7 @@ nsLocalFile::IsExecutable(bool *_retval)
     }
 
     // On OS X, then query Launch Services.
-#ifdef MOZ_WIDGET_COCOA
+#ifdef XP_MACOSX
     // Certain Mac applications, such as Classic applications, which
     // run under Rosetta, might not have the +x mode bit but are still
     // considered to be executable by Launch Services (bug 646748).
@@ -1740,7 +1740,7 @@ nsLocalFile::GetPersistentDescriptor(nsACString &aPersistentDescriptor)
 NS_IMETHODIMP
 nsLocalFile::SetPersistentDescriptor(const nsACString &aPersistentDescriptor)
 {
-#ifdef MOZ_WIDGET_COCOA
+#ifdef XP_MACOSX
     if (aPersistentDescriptor.IsEmpty())
         return NS_ERROR_INVALID_ARG;
 
@@ -1824,7 +1824,7 @@ nsLocalFile::Reveal()
         else 
             return gnomevfs->ShowURIForInput(dirPath);        
     }
-#elif defined(MOZ_WIDGET_COCOA)
+#elif defined(XP_MACOSX)
     CFURLRef url;
     if (NS_SUCCEEDED(GetCFURL(&url))) {
       nsresult rv = CocoaFileUtils::RevealFileInFinder(url);
@@ -1893,7 +1893,7 @@ nsLocalFile::Launch()
     fileUri.Append(mPath);
     mozilla::AndroidBridge* bridge = mozilla::AndroidBridge::Bridge();
     return bridge->OpenUriExternal(fileUri, type) ? NS_OK : NS_ERROR_FAILURE;
-#elif defined(MOZ_WIDGET_COCOA)
+#elif defined(XP_MACOSX)
     CFURLRef url;
     if (NS_SUCCEEDED(GetCFURL(&url))) {
         nsresult rv = CocoaFileUtils::OpenURL(url);
@@ -2056,7 +2056,7 @@ nsLocalFile::GlobalShutdown()
 
 // nsILocalFileMac
 
-#ifdef MOZ_WIDGET_COCOA
+#ifdef XP_MACOSX
 
 static nsresult MacErrorMapper(OSErr inErr)
 {

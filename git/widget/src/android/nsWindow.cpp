@@ -57,7 +57,7 @@ using mozilla::unused;
 #include "nsRenderingContext.h"
 #include "nsIDOMSimpleGestureEvent.h"
 
-#include "nsGkAtoms.h"
+#include "nsWidgetAtoms.h"
 #include "nsWidgetsCID.h"
 #include "nsGfxCIID.h"
 
@@ -202,6 +202,7 @@ nsWindow::Create(nsIWidget *aParent,
                  const nsIntRect &aRect,
                  EVENT_CALLBACK aHandleEventFunction,
                  nsDeviceContext *aContext,
+                 nsIAppShell *aAppShell,
                  nsIToolkit *aToolkit,
                  nsWidgetInitData *aInitData)
 {
@@ -231,7 +232,7 @@ nsWindow::Create(nsIWidget *aParent,
     }
 
     BaseCreate(nsnull, mBounds, aHandleEventFunction, aContext,
-               aToolkit, aInitData);
+               aAppShell, aToolkit, aInitData);
 
     NS_ASSERTION(IsTopLevel() || parent, "non top level windowdoesn't have a parent!");
 
@@ -1530,16 +1531,16 @@ nsWindow::HandleSpecialKey(AndroidGeckoEvent *ae)
         switch (keyCode) {
             case AndroidKeyEvent::KEYCODE_BACK:
                 if (isLongPress) {
-                    command = nsGkAtoms::Clear;
+                    command = nsWidgetAtoms::Clear;
                     doCommand = PR_TRUE;
                 }
                 break;
             case AndroidKeyEvent::KEYCODE_VOLUME_UP:
-                command = nsGkAtoms::VolumeUp;
+                command = nsWidgetAtoms::VolumeUp;
                 doCommand = PR_TRUE;
                 break;
             case AndroidKeyEvent::KEYCODE_VOLUME_DOWN:
-                command = nsGkAtoms::VolumeDown;
+                command = nsWidgetAtoms::VolumeDown;
                 doCommand = PR_TRUE;
                 break;
             case AndroidKeyEvent::KEYCODE_MENU:
@@ -1558,12 +1559,12 @@ nsWindow::HandleSpecialKey(AndroidGeckoEvent *ae)
             case AndroidKeyEvent::KEYCODE_MENU:
                 gMenu = PR_FALSE;
                 if (!gMenuConsumed) {
-                    command = nsGkAtoms::Menu;
+                    command = nsWidgetAtoms::Menu;
                     doCommand = PR_TRUE;
                 }
                 break;
             case AndroidKeyEvent::KEYCODE_SEARCH:
-                command = nsGkAtoms::Search;
+                command = nsWidgetAtoms::Search;
                 doCommand = PR_TRUE;
                 break;
             default:
@@ -1572,7 +1573,7 @@ nsWindow::HandleSpecialKey(AndroidGeckoEvent *ae)
         }
     }
     if (doCommand) {
-        nsCommandEvent event(PR_TRUE, nsGkAtoms::onAppCommand, command, this);
+        nsCommandEvent event(PR_TRUE, nsWidgetAtoms::onAppCommand, command, this);
         InitEvent(event);
         DispatchEvent(&event);
     }

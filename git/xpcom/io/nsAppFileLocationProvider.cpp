@@ -593,7 +593,7 @@ nsAppFileLocationProvider::GetFiles(const char *prop, nsISimpleEnumerator **_ret
     return rv;
 }
 
-#if defined(MOZ_WIDGET_COCOA)
+#if defined(XP_MACOSX)
 bool
 nsAppFileLocationProvider::IsOSXLeopard()
 {

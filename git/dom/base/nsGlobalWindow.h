@@ -245,7 +245,6 @@ public:
     return true;
   }
   JSString *obj_toString(JSContext *cx, JSObject *wrapper);
-  void finalize(JSContext *cx, JSObject *proxy);
 
   static nsOuterWindowProxy singleton;
 };

@@ -65,6 +65,7 @@ CPPSRCS		= \
 		nsPrintOptionsImpl.cpp \
 		nsPrintSettingsImpl.cpp \
 		nsPrintSession.cpp \
+		nsWidgetAtoms.cpp \
 		nsIdleService.cpp \
 		nsClipboardPrivacyHandler.cpp \
 		GfxInfoWebGL.cpp \

@@ -41,6 +41,7 @@
 #include "nsIWidget.h"
 #include "nsWidgetsCID.h"
 #include "nsIToolkit.h"
+#include "nsIAppShell.h"
 #include "nsILocalFile.h"
 #include "nsString.h"
 #include "nsCOMPtr.h"
@@ -165,6 +166,7 @@ public:
   CreateChild(const nsIntRect  &aRect,
               EVENT_CALLBACK   aHandleEventFunction,
               nsDeviceContext *aContext,
+              nsIAppShell      *aAppShell = nsnull,
               nsIToolkit       *aToolkit = nsnull,
               nsWidgetInitData *aInitData = nsnull,
               bool             aForceUseIWidgetParent = false);
@@ -234,6 +236,7 @@ protected:
                                      const nsIntRect &aRect,
                                      EVENT_CALLBACK aHandleEventFunction,
                                      nsDeviceContext *aContext,
+                                     nsIAppShell *aAppShell,
                                      nsIToolkit *aToolkit,
                                      nsWidgetInitData *aInitData);
 

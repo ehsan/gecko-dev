@@ -1116,21 +1116,16 @@ bool
 DispatchEventToTarget(JSContext* aCx, JSObject* aTarget, JSObject* aEvent,
                       bool* aPreventDefaultCalled)
 {
-  static const char kFunctionName[] = "dispatchEvent";
-  JSBool hasProperty;
-  if (!JS_HasProperty(aCx, aTarget, kFunctionName, &hasProperty)) {
+  jsval argv[] = { OBJECT_TO_JSVAL(aEvent) };
+  jsval rval = JSVAL_VOID;
+  if (!JS_CallFunctionName(aCx, aTarget, "dispatchEvent", JS_ARRAY_LENGTH(argv),
+                           argv, &rval)) {
     return false;
   }
 
-  JSBool preventDefaultCalled = false;
-  if (hasProperty) {
-    jsval argv[] = { OBJECT_TO_JSVAL(aEvent) };
-    jsval rval = JSVAL_VOID;
-    if (!JS_CallFunctionName(aCx, aTarget, kFunctionName, JS_ARRAY_LENGTH(argv),
-                             argv, &rval) ||
-        !JS_ValueToBoolean(aCx, rval, &preventDefaultCalled)) {
-      return false;
-    }
+  JSBool preventDefaultCalled;
+  if (!JS_ValueToBoolean(aCx, rval, &preventDefaultCalled)) {
+    return false;
   }
 
   *aPreventDefaultCalled = !!preventDefaultCalled;

@@ -100,10 +100,6 @@ SpecialPowers.prototype._messageReceived = function(aMessage) {
   return true;
 };
 
-SpecialPowers.prototype.quit = function() {
-  sendAsyncMessage("SpecialPowers.Quit", {});
-};
-
 SpecialPowers.prototype.executeAfterFlushingMessageQueue = function(aCallback) {
   this._pongHandlers.push(aCallback);
   sendAsyncMessage("SPPingService", { op: "ping" });
