@@ -55,6 +55,7 @@
 #include "nsIMemoryReporter.h"
 #include "nsCOMArray.h"
 
+class nsFrameMessageManager;
 namespace mozilla {
 
 namespace ipc {
@@ -231,6 +232,8 @@ private:
     time_t mProcessStartTime;
 
     bool mSendPermissionUpdates;
+
+    nsRefPtr<nsFrameMessageManager> mMessageManager;
 };
 
 } // namespace dom

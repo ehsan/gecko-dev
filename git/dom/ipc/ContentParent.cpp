@@ -294,6 +294,8 @@ ContentParent::ActorDestroy(ActorDestroyReason why)
 #endif
     }
 
+    mMessageManager->Disconnect();
+
     // clear the child memory reporters
     InfallibleTArray<MemoryReport> empty;
     SetChildMemoryReporters(empty);
@@ -401,6 +403,7 @@ ContentParent::ContentParent()
     nsChromeRegistryChrome* chromeRegistry =
         static_cast<nsChromeRegistryChrome*>(registrySvc.get());
     chromeRegistry->SendRegisteredChrome(this);
+    mMessageManager = nsFrameMessageManager::NewProcessMessageManager(this);
 }
 
 ContentParent::~ContentParent()
@@ -1089,7 +1092,7 @@ bool
 ContentParent::RecvSyncMessage(const nsString& aMsg, const nsString& aJSON,
                                InfallibleTArray<nsString>* aRetvals)
 {
-  nsRefPtr<nsFrameMessageManager> ppm = nsFrameMessageManager::sParentProcessManager;
+  nsRefPtr<nsFrameMessageManager> ppm = mMessageManager;
   if (ppm) {
     ppm->ReceiveMessage(static_cast<nsIContentFrameMessageManager*>(ppm.get()),
                         aMsg,PR_TRUE, aJSON, nsnull, aRetvals);
@@ -1100,7 +1103,7 @@ ContentParent::RecvSyncMessage(const nsString& aMsg, const nsString& aJSON,
 bool
 ContentParent::RecvAsyncMessage(const nsString& aMsg, const nsString& aJSON)
 {
-  nsRefPtr<nsFrameMessageManager> ppm = nsFrameMessageManager::sParentProcessManager;
+  nsRefPtr<nsFrameMessageManager> ppm = mMessageManager;
   if (ppm) {
     ppm->ReceiveMessage(static_cast<nsIContentFrameMessageManager*>(ppm.get()),
                         aMsg, PR_FALSE, aJSON, nsnull, nsnull);
