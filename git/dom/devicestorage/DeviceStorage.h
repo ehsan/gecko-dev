@@ -31,9 +31,6 @@ public:
   nsString mRootDir;
   nsString mPath;
   bool mEditable;
-  nsString mMimeType;
-  uint64_t mLength;
-  uint64_t mLastModifiedDate;
 
   // Used when the path will be set later via SetPath.
   DeviceStorageFile(const nsAString& aStorageType,
@@ -86,10 +83,6 @@ public:
   static void GetRootDirectoryForType(const nsAString& aStorageType,
                                       const nsAString& aStorageName,
                                       nsIFile** aFile);
-
-  nsresult CalculateSizeAndModifiedDate();
-  nsresult CalculateMimeType();
-
 private:
   void Init();
   void NormalizeFilePath();

@@ -77,7 +77,6 @@
 
 #if defined(MOZ_WIDGET_GONK)
 #include "nsVolume.h"
-#include "nsVolumeService.h"
 #endif
 
 #ifdef XP_WIN
@@ -1187,10 +1186,9 @@ ContentChild::RecvFileSystemUpdate(const nsString& aFsName,
     nsRefPtr<nsVolume> volume = new nsVolume(aFsName, aVolumeName, aState,
                                              aMountGeneration);
 
-    nsRefPtr<nsVolumeService> vs = nsVolumeService::GetSingleton();
-    if (vs) {
-        vs->UpdateVolume(volume);
-    }
+    nsCOMPtr<nsIObserverService> obs = mozilla::services::GetObserverService();
+    NS_ConvertUTF8toUTF16 stateStr(volume->StateStr());
+    obs->NotifyObservers(volume, NS_VOLUME_STATE_CHANGED, stateStr.get());
 #else
     // Remove warnings about unused arguments
     unused << aFsName;
