@@ -289,11 +289,15 @@ MakeFrameDescriptor(uint32_t frameSize, FrameType type)
 
 // Returns the JSScript associated with the topmost JIT frame.
 inline JSScript *
-GetTopJitJSScript(JSContext *cx)
+GetTopJitJSScript(JSContext *cx, void **returnAddrOut = nullptr)
 {
     JitFrameIterator iter(cx);
     MOZ_ASSERT(iter.type() == JitFrame_Exit);
     ++iter;
+
+    MOZ_ASSERT(iter.returnAddressToFp() != nullptr);
+    if (returnAddrOut)
+        *returnAddrOut = (void *) iter.returnAddressToFp();
 
     if (iter.isBaselineStub()) {
         ++iter;

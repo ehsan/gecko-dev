@@ -598,16 +598,7 @@ nsFieldSetFrame::Reflow(nsPresContext*           aPresContext,
     LogicalRect actualLegendRect = mLegendRect;
     actualLegendRect.Deflate(wm, legendMargin);
     LogicalPoint actualLegendPos(actualLegendRect.Origin(wm));
-
-    // Note that legend's writing mode may be different from the fieldset's,
-    // so we need to convert offsets before applying them to it (bug 1134534).
-    LogicalMargin offsets =
-      legendReflowState->ComputedLogicalOffsets().
-        ConvertTo(wm, legendReflowState->GetWritingMode());
-    nsHTMLReflowState::ApplyRelativePositioning(legend, wm, offsets,
-                                                &actualLegendPos,
-                                                containerWidth);
-
+    legendReflowState->ApplyRelativePositioning(&actualLegendPos, containerWidth);
     legend->SetPosition(wm, actualLegendPos, containerWidth);
     nsContainerFrame::PositionFrameView(legend);
     nsContainerFrame::PositionChildViews(legend);

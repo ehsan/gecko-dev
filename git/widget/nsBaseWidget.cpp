@@ -181,24 +181,21 @@ nsBaseWidget::Shutdown()
   mShutdownObserver = nullptr;
 }
 
-static void DeferredDestroyCompositor(nsRefPtr<CompositorParent> aCompositorParent,
-                                      nsRefPtr<CompositorChild> aCompositorChild)
+static void DeferredDestroyCompositor(CompositorParent* aCompositorParent,
+                              CompositorChild* aCompositorChild)
 {
     // Bug 848949 needs to be fixed before
     // we can close the channel properly
     //aCompositorChild->Close();
+    aCompositorParent->Release();
+    aCompositorChild->Release();
 }
 
 void nsBaseWidget::DestroyCompositor()
 {
   if (mCompositorChild) {
-    nsRefPtr<CompositorChild> compositorChild = mCompositorChild.forget();
-    nsRefPtr<CompositorParent> compositorParent = mCompositorParent.forget();
-
-    compositorChild->SendWillStop();
-    // New LayerManager, CompositorParent and CompositorChild might be created
-    // as a result of internal GetLayerManager() call.
-    compositorChild->Destroy();
+    mCompositorChild->SendWillStop();
+    mCompositorChild->Destroy();
 
     // The call just made to SendWillStop can result in IPC from the
     // CompositorParent to the CompositorChild (e.g. caused by the destruction
@@ -207,12 +204,13 @@ void nsBaseWidget::DestroyCompositor()
     // events already in the MessageLoop get processed before the
     // CompositorChild is destroyed, so we add a task to the MessageLoop to
     // handle compositor desctruction.
-
-    // The DefferedDestroyCompositor task takes ownership of compositorParent and
-    // will release them when it runs.
     MessageLoop::current()->PostTask(FROM_HERE,
-               NewRunnableFunction(DeferredDestroyCompositor, compositorParent,
-                                   compositorChild));
+               NewRunnableFunction(DeferredDestroyCompositor, mCompositorParent,
+                                   mCompositorChild));
+    // The DestroyCompositor task we just added to the MessageLoop will handle
+    // releasing mCompositorParent and mCompositorChild.
+    unused << mCompositorParent.forget();
+    unused << mCompositorChild.forget();
   }
 }
 

@@ -1107,8 +1107,7 @@ WebrtcVideoConduit::SendVideoFrame(unsigned char* video_frame,
 MediaConduitErrorCode
 WebrtcVideoConduit::ReceivedRTPPacket(const void *data, int len)
 {
-  CSFLogDebug(logTag, "%s: seq# %u, Channel %d, Len %d ", __FUNCTION__,
-              (uint16_t) ntohs(((uint16_t*) data)[1]), mChannel, len);
+  CSFLogDebug(logTag, "%s: Channel %d, Len %d ", __FUNCTION__, mChannel, len);
 
   // Media Engine should be receiving already.
   if(mEngineReceiving)
