@@ -4347,8 +4347,7 @@ nsRuleNode::ComputeDisplayData(void* aStartStruct,
 
       nsDependentString
         propertyStr(property.list->mValue.GetStringBufferValue());
-      nsCSSProperty prop = nsCSSProps::LookupProperty(propertyStr,
-                                                      nsCSSProps::eEnabled);
+      nsCSSProperty prop = nsCSSProps::LookupProperty(propertyStr);
       if (prop == eCSSProperty_UNKNOWN) {
         transition->SetUnknownProperty(propertyStr);
       } else {

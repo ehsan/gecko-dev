@@ -41,7 +41,6 @@ class Preprocessor:
                 'LINE': 0,
                 'DIRECTORY': os.path.abspath('.')}.iteritems():
       self.context[k] = v
-    self.actionLevel = 0
     self.disableLevel = 0
     # ifStates can be
     #  0: hadTrue
@@ -75,13 +74,6 @@ class Preprocessor:
     self.LE = '\n'
     self.varsubst = re.compile('@(?P<VAR>\w+)@', re.U)
   
-  def warnUnused(self, file):
-    if self.actionLevel == 0:
-      sys.stderr.write('%s: WARNING: no preprocessor directives found\n' % file)
-    elif self.actionLevel == 1:
-      sys.stderr.write('%s: WARNING: no useful preprocessor directives found\n' % file)
-    pass
-
   def setLineEndings(self, aLE):
     """
     Set the line endings to be used for output.
@@ -143,10 +135,8 @@ class Preprocessor:
     if defaultToStdin and len(args) == 0:
       args = [sys.stdin]
     includes.extend(args)
-    if includes:
-      for f in includes:
-        self.do_include(f, False)
-      self.warnUnused(f)
+    for f in includes:
+      self.do_include(f, False)
     pass
 
   def getCommandLineParser(self, unescapeDefines = False):
@@ -196,8 +186,6 @@ class Preprocessor:
     """
     Handle a single line of input (internal).
     """
-    if self.actionLevel == 0 and self.comment.match(aLine):
-      self.actionLevel = 1
     m = self.instruction.match(aLine)
     if m:
       args = None
@@ -211,8 +199,6 @@ class Preprocessor:
       level, cmd = self.cmds[cmd]
       if (level >= self.disableLevel):
         cmd(args)
-      if cmd != 'literal':
-        self.actionLevel = 2
     elif self.disableLevel == 0 and not self.comment.match(aLine):
       self.write(aLine)
     pass

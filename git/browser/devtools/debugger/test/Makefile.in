@@ -9,8 +9,9 @@ VPATH           = @srcdir@
 relativesrcdir  = browser/devtools/debugger/test
 
 include $(DEPTH)/config/autoconf.mk
+include $(topsrcdir)/config/rules.mk
 
-MOCHITEST_BROWSER_TESTS = \
+_BROWSER_TEST_FILES = \
 	browser_dbg_createRemote.js \
 	browser_dbg_createChrome.js \
 	browser_dbg_debugger-tab-switch.js \
@@ -57,11 +58,10 @@ MOCHITEST_BROWSER_TESTS = \
 	browser_dbg_pause-exceptions.js \
 	browser_dbg_multiple-windows.js \
 	browser_dbg_menustatus.js \
-	browser_dbg_bfcache.js \
 	head.js \
 	$(NULL)
 
-MOCHITEST_BROWSER_PAGES = \
+_BROWSER_TEST_PAGES = \
 	browser_dbg_tab1.html \
 	browser_dbg_tab2.html \
 	browser_dbg_debuggerstatement.html \
@@ -78,6 +78,8 @@ MOCHITEST_BROWSER_PAGES = \
 	browser_dbg_pause-exceptions.html \
 	$(NULL)
 
-MOCHITEST_BROWSER_FILES_PARTS = MOCHITEST_BROWSER_TESTS MOCHITEST_BROWSER_PAGES
+libs:: $(_BROWSER_TEST_FILES)
+	$(INSTALL) $(foreach f,$^,"$f") $(DEPTH)/_tests/testing/mochitest/browser/$(relativesrcdir)
 
-include $(topsrcdir)/config/rules.mk
+libs:: $(_BROWSER_TEST_PAGES)
+	$(INSTALL) $(foreach f,$^,"$f") $(DEPTH)/_tests/testing/mochitest/browser/$(relativesrcdir)

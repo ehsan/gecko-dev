@@ -17,7 +17,6 @@ import org.mozilla.gecko.sync.syncadapter.SyncAdapter;
 
 import android.accounts.Account;
 import android.accounts.AccountManager;
-import android.content.ActivityNotFoundException;
 import android.content.ContentResolver;
 import android.content.Context;
 import android.content.Intent;
@@ -365,40 +364,25 @@ public class SyncAccounts {
     ContentResolver.setSyncAutomatically(account, authority, syncAutomatically);
   }
 
-  /**
-   * Start sync settings activity.
-   *
-   * @param context current Android context.
-   * @return the <code>Intent</code> started.
-   */
   public static Intent openSyncSettings(Context context) {
-    // Bug 721760 - opening Sync settings takes user to Battery & Data Manager
-    // on a variety of Motorola devices. This work around tries to load the
-    // correct Intent by hand. Oh, Android.
+    Intent intent = null;
+
     try {
       // Allow Motorola Blur package to be loaded.
       final int contextFlags = Context.CONTEXT_INCLUDE_CODE | Context.CONTEXT_IGNORE_SECURITY;
       Context foreignContext = context.createPackageContext(MOTO_BLUR_PACKAGE, contextFlags);
       Class<?> motorolaAccounts = foreignContext.getClassLoader().loadClass(MOTO_BLUR_SETTINGS_ACTIVITY);
       Logger.info(LOG_TAG, "Blur package found. Launching Moto activity.");
-
-      final Intent intent = new Intent(foreignContext, motorolaAccounts);
-      intent.setFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
-      context.startActivity(intent);
-      return intent;
+      intent = new Intent(foreignContext, motorolaAccounts);
     } catch (NameNotFoundException e) {
-      Logger.debug(LOG_TAG, "Blur package not found. Launching Sync Settings normally.");
+      Logger.debug(LOG_TAG, "No Blur package. Using default Sync Settings intent.");
+      intent = new Intent(Settings.ACTION_SYNC_SETTINGS);
     } catch (ClassNotFoundException e) {
-      Logger.warn(LOG_TAG, "Blur package found but class not found. Launching Sync Settings normally.", e);
-    } catch (ActivityNotFoundException e) {
-      // Bug 773562 - android.content.ActivityNotFoundException on Motorola devices.
-      Logger.warn(LOG_TAG, "Blur package and class found, but activity not found. Launching Sync Settings normally.", e);
+      Logger.warn(LOG_TAG, "Blur package found but no class. Launching Sync Settings normally.", e);
+      intent = new Intent(Settings.ACTION_SYNC_SETTINGS);
     }
-
-    // Open default Sync settings activity.
-    final Intent intent = new Intent(Settings.ACTION_SYNC_SETTINGS);
     intent.setFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
-    context.startActivity(intent); // We should always find this Activity.
+    context.startActivity(intent);
     return intent;
   }
 

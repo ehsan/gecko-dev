@@ -13,7 +13,6 @@ import android.text.Editable;
 import android.app.AlertDialog;
 import android.os.Build;
 import android.os.Bundle;
-import android.content.res.Configuration;
 import android.content.res.Resources;
 import android.content.Context;
 import android.preference.*;
@@ -62,11 +61,6 @@ public class GeckoPreferences
         mPreferenceScreen = getPreferenceScreen();
         initGroups(mPreferenceScreen);
         initValues();
-    }
-
-    @Override
-    public void onConfigurationChanged(Configuration newConfig) {
-        super.onConfigurationChanged(newConfig);
     }
 
     @Override

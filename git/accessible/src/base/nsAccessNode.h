@@ -64,6 +64,11 @@ public:
   mozilla::a11y::RootAccessible* RootAccessible() const;
 
   /**
+   * Initialize the access node object, add it to the cache.
+   */
+  virtual bool Init();
+
+  /**
    * Shutdown the access node object.
    */
   virtual void Shutdown();

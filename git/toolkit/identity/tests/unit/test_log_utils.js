@@ -17,6 +17,7 @@ function toggle_debug() {
     observe: function observe(aSubject, aTopic, aData) {
       if (aTopic === "nsPref:changed") {
         // race condition?
+dump("WOOT! it changed");
         do_check_eq(Logger._debug, true);
         do_test_finished();
         run_next_test();
@@ -34,7 +35,7 @@ function logAlias(...args) {
   Logger.log.call(["log alias"].concat(args));
 }
 function reportErrorAlias(...args) {
-  Logger.reportError.call(["report error alias"].concat(args));
+  Loggerl.reportError.call(["report error alias"].concat(args));
 }
 
 function test_log() {

@@ -10,8 +10,9 @@ VPATH		= @srcdir@
 relativesrcdir  = accessible/attributes
 
 include $(DEPTH)/config/autoconf.mk
+include $(topsrcdir)/config/rules.mk
 
-MOCHITEST_A11Y_FILES =\
+_TEST_FILES =\
 		test_obj.html \
 		test_obj_css.html \
 		test_obj_css.xul \
@@ -23,4 +24,5 @@ MOCHITEST_A11Y_FILES =\
 		test_xml-roles.html \
 		$(NULL)
 
-include $(topsrcdir)/config/rules.mk
+libs:: $(_TEST_FILES)
+	$(INSTALL) $(foreach f,$^,"$f") $(DEPTH)/_tests/testing/mochitest/a11y/$(relativesrcdir)

@@ -5,7 +5,6 @@
 #include "prthread.h"
 #include "nsIEventTarget.h"
 #include "nsIInterfaceRequestorUtils.h"
-#include "mozilla/Attributes.h"
 
 #include "sqlite3.h"
 
@@ -29,7 +28,7 @@ spin_events_loop_until_true(const bool* const aCondition)
 ////////////////////////////////////////////////////////////////////////////////
 //// mozIStorageStatementCallback implementation
 
-class UnownedCallback MOZ_FINAL : public mozIStorageStatementCallback
+class UnownedCallback : public mozIStorageStatementCallback
 {
 public:
   NS_DECL_ISUPPORTS

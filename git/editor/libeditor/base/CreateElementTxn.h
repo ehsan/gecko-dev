@@ -7,15 +7,9 @@
 #define CreateElementTxn_h__
 
 #include "EditTxn.h"
-#include "nsCOMPtr.h"
-#include "nsCycleCollectionParticipant.h"
+#include "nsEditor.h"
 #include "nsIDOMNode.h"
-#include "nsISupportsImpl.h"
-#include "nsString.h"
-#include "nscore.h"
-#include "prtypes.h"
-
-class nsEditor;
+#include "nsCOMPtr.h"
 
 /**
  * A transaction that creates a new node in the content tree.

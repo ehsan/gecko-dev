@@ -814,8 +814,6 @@ SameType(const Value &lhs, const Value &rhs)
     return JSVAL_SAME_TYPE_IMPL(lhs.data, rhs.data);
 }
 
-/************************************************************************/
-
 template <> struct RootMethods<const Value>
 {
     static Value initial() { return UndefinedValue(); }
@@ -828,125 +826,6 @@ template <> struct RootMethods<Value>
     static Value initial() { return UndefinedValue(); }
     static ThingRootKind kind() { return THING_ROOT_VALUE; }
     static bool poisoned(const Value &v) { return IsPoisonedValue(v); }
-};
-
-template <class Outer> class MutableValueOperations;
-
-/*
- * A class designed for CRTP use in implementing the non-mutating parts of the
- * Value interface in Value-like classes.  Outer must be a class inheriting
- * ValueOperations<Outer> with a visible extract() method returning the
- * const Value* abstracted by Outer.
- */
-template <class Outer>
-class ValueOperations
-{
-    friend class MutableValueOperations<Outer>;
-    const Value * value() const { return static_cast<const Outer*>(this)->extract(); }
-
-  public:
-    bool isUndefined() const { return value()->isUndefined(); }
-    bool isNull() const { return value()->isNull(); }
-    bool isBoolean() const { return value()->isBoolean(); }
-    bool isTrue() const { return value()->isTrue(); }
-    bool isFalse() const { return value()->isFalse(); }
-    bool isNumber() const { return value()->isNumber(); }
-    bool isInt32() const { return value()->isInt32(); }
-    bool isDouble() const { return value()->isDouble(); }
-    bool isString() const { return value()->isString(); }
-    bool isObject() const { return value()->isObject(); }
-    bool isMagic() const { return value()->isMagic(); }
-    bool isMagic(JSWhyMagic why) const { return value()->isMagic(why); }
-    bool isMarkable() const { return value()->isMarkable(); }
-    bool isPrimitive() const { return value()->isPrimitive(); }
-
-    bool toBoolean() const { return value()->toBoolean(); }
-    double toNumber() const { return value()->toNumber(); }
-    int32_t toInt32() const { return value()->toInt32(); }
-    double toDouble() const { return value()->toDouble(); }
-    JSString *toString() const { return value()->toString(); }
-    JSObject &toObject() const { return value()->toObject(); }
-    JSObject *toObjectOrNull() const { return value()->toObjectOrNull(); }
-    void *toGCThing() const { return value()->toGCThing(); }
-
-#ifdef DEBUG
-    JSWhyMagic whyMagic() const { return value()->whyMagic(); }
-#endif
-};
-
-/*
- * A class designed for CRTP use in implementing the mutating parts of the
- * Value interface in Value-like classes.  Outer must be a class inheriting
- * MutableValueOperations<Outer> with visible extractMutable() and extract()
- * methods returning the const Value* and Value* abstracted by Outer.
- */
-template <class Outer>
-class MutableValueOperations : public ValueOperations<Outer>
-{
-    Value * value() { return static_cast<Outer*>(this)->extractMutable(); }
-
-  public:
-    void setNull() { value()->setNull(); }
-    void setUndefined() { value()->setUndefined(); }
-    void setInt32(int32_t i) { value()->setInt32(i); }
-    void setDouble(double d) { value()->setDouble(d); }
-    void setString(JSString *str) { value()->setString(str); }
-    void setString(const JS::Anchor<JSString *> &str) { value()->setString(str); }
-    void setObject(JSObject &obj) { value()->setObject(obj); }
-    void setBoolean(bool b) { value()->setBoolean(b); }
-    void setMagic(JSWhyMagic why) { value()->setMagic(why); }
-    bool setNumber(uint32_t ui) { return value()->setNumber(ui); }
-    bool setNumber(double d) { return value()->setNumber(d); }
-    void setObjectOrNull(JSObject *arg) { value()->setObjectOrNull(); }
-};
-
-/*
- * Augment the generic Handle<T> interface when T = Value with type-querying
- * and value-extracting operations.
- */
-template <>
-class HandleBase<Value> : public ValueOperations<Handle<Value> >
-{
-    friend class ValueOperations<Handle<Value> >;
-    const Value * extract() const {
-        return static_cast<const Handle<Value>*>(this)->address();
-    }
-};
-
-/*
- * Augment the generic MutableHandle<T> interface when T = Value with
- * type-querying, value-extracting, and mutating operations.
- */
-template <>
-class MutableHandleBase<Value> : public MutableValueOperations<MutableHandle<Value> >
-{
-    friend class ValueOperations<MutableHandle<Value> >;
-    const Value * extract() const {
-        return static_cast<const MutableHandle<Value>*>(this)->address();
-    }
-
-    friend class MutableValueOperations<MutableHandle<Value> >;
-    Value * extractMutable() {
-        return static_cast<MutableHandle<Value>*>(this)->address();
-    }
-};
-
-/*
- * Augment the generic Rooted<T> interface when T = Value with type-querying,
- * value-extracting, and mutating operations.
- */
-template <>
-class RootedBase<Value> : public MutableValueOperations<Rooted<Value> >
-{
-    friend class ValueOperations<Rooted<Value> >;
-    const Value * extract() const {
-        return static_cast<const Rooted<Value>*>(this)->address();
-    }
-
-    friend class MutableValueOperations<Handle<Value> >;
-    Value * extractMutable() {
-        return static_cast<Rooted<Value>*>(this)->address();
-    }
 };
 
 /************************************************************************/
@@ -3769,37 +3648,7 @@ typedef enum JSGCParamKey {
     JSGC_SLICE_TIME_BUDGET = 9,
 
     /* Maximum size the GC mark stack can grow to. */
-    JSGC_MARK_STACK_LIMIT = 10,
-
-    /*
-     * GCs less than this far apart in time will be considered 'high-frequency GCs'.
-     * See setGCLastBytes in jsgc.cpp.
-     */
-    JSGC_HIGH_FREQUENCY_TIME_LIMIT = 11,
-
-    /* Start of dynamic heap growth. */
-    JSGC_HIGH_FREQUENCY_LOW_LIMIT = 12,
-
-    /* End of dynamic heap growth. */
-    JSGC_HIGH_FREQUENCY_HIGH_LIMIT = 13,
-
-    /* Upper bound of heap growth. */
-    JSGC_HIGH_FREQUENCY_HEAP_GROWTH_MAX = 14,
-
-    /* Lower bound of heap growth. */
-    JSGC_HIGH_FREQUENCY_HEAP_GROWTH_MIN = 15,
-
-    /* Heap growth for low frequency GCs. */
-    JSGC_LOW_FREQUENCY_HEAP_GROWTH = 16,
-
-    /*
-     * If false, the heap growth factor is fixed at 3. If true, it is determined
-     * based on whether GCs are high- or low- frequency.
-     */
-    JSGC_DYNAMIC_HEAP_GROWTH = 17,
-
-    /* If true, high-frequency GCs will use a longer mark slice. */
-    JSGC_DYNAMIC_MARK_SLICE = 18
+    JSGC_MARK_STACK_LIMIT = 10
 } JSGCParamKey;
 
 typedef enum JSGCMode {
@@ -3892,7 +3741,7 @@ struct JSClass {
 #define JSCLASS_NEW_ENUMERATE           (1<<1)  /* has JSNewEnumerateOp hook */
 #define JSCLASS_NEW_RESOLVE             (1<<2)  /* has JSNewResolveOp hook */
 #define JSCLASS_PRIVATE_IS_NSISUPPORTS  (1<<3)  /* private is (nsISupports *) */
-#define JSCLASS_IS_DOMJSCLASS           (1<<4)  /* objects are DOM */
+/* (1<<4) is unused */
 #define JSCLASS_IMPLEMENTS_BARRIERS     (1<<5)  /* Correctly implements GC read
                                                    and write barriers */
 #define JSCLASS_DOCUMENT_OBSERVER       (1<<6)  /* DOM document observer */
@@ -4697,10 +4546,6 @@ extern JS_PUBLIC_API(JSFunction *)
 JS_DefineFunctionById(JSContext *cx, JSObject *obj, jsid id, JSNative call,
                       unsigned nargs, unsigned attrs);
 
-/*
- * Clone a top-level function into a new scope. This function will dynamically
- * fail if funobj was lexically nested inside some other function.
- */
 extern JS_PUBLIC_API(JSObject *)
 JS_CloneFunctionObject(JSContext *cx, JSObject *funobj, JSObject *parent);
 
@@ -5727,13 +5572,6 @@ JS_NewDateObjectMsec(JSContext *cx, double msec);
  */
 extern JS_PUBLIC_API(JSBool)
 JS_ObjectIsDate(JSContext *cx, JSObject *obj);
-
-/*
- * Clears the cache of calculated local time from each Date object.
- * Call to propagate a system timezone change.
- */
-extern JS_PUBLIC_API(void)
-JS_ClearDateCaches(JSContext *cx);
 
 /************************************************************************/
 

@@ -9,13 +9,10 @@ const EXPORTED_SYMBOLS = ["Sandbox"];
 const {classes: Cc, interfaces: Ci, utils: Cu} = Components;
 
 const XHTML_NS = "http://www.w3.org/1999/xhtml";
+const PREF_DEBUG = "toolkit.identity.debug";
 
 Cu.import("resource://gre/modules/XPCOMUtils.jsm");
 Cu.import("resource://gre/modules/Services.jsm");
-
-XPCOMUtils.defineLazyModuleGetter(this,
-                                  "Logger",
-                                  "resource://gre/modules/identity/LogUtils.jsm");
 
 /**
  * An object that represents a sandbox in an iframe loaded with aURL. The
@@ -34,7 +31,8 @@ XPCOMUtils.defineLazyModuleGetter(this,
 function Sandbox(aURL, aCallback) {
   // Normalize the URL so the comparison in _makeSandboxContentLoaded works
   this._url = Services.io.newURI(aURL, null, null).spec;
-  this._log("Creating sandbox for:", this._url);
+  this._debug = Services.prefs.getBoolPref(PREF_DEBUG);
+  this._log("Creating sandbox for: " + this._url);
   this._createFrame();
   this._createSandbox(aCallback);
 }
@@ -54,9 +52,9 @@ Sandbox.prototype = {
    * id and URL).
    */
   reload: function Sandbox_reload(aCallback) {
-    this._log("reload:", this.id, ":", this._url);
+    this._log("reload: " + this.id + " : " + this._url);
     this._createSandbox(function createdSandbox(aSandbox) {
-      this._log("reloaded sandbox id:", aSandbox.id);
+      this._log("reloaded sandbox id: ", aSandbox.id);
       aCallback(aSandbox);
     }.bind(this));
   },
@@ -65,7 +63,7 @@ Sandbox.prototype = {
    * Frees the sandbox and releases the iframe created to host it.
    */
   free: function Sandbox_free() {
-    this._log("free:", this.id);
+    this._log("free: " + this.id);
     this._container.removeChild(this._frame);
     this._frame = null;
     this._container = null;
@@ -118,8 +116,8 @@ Sandbox.prototype = {
   _createSandbox: function Sandbox__createSandbox(aCallback) {
     let self = this;
     function _makeSandboxContentLoaded(event) {
-      self._log("_makeSandboxContentLoaded:", self.id,
-                event.target.location.toString());
+      self._log("_makeSandboxContentLoaded : " + self.id + " : "
+                + event.target.location.toString());
       if (event.target != self._frame.contentDocument) {
         return;
       }
@@ -150,7 +148,10 @@ Sandbox.prototype = {
   },
 
   _log: function Sandbox__log(...aMessageArgs) {
-    Logger.log.apply(Logger, ["sandbox"].concat(aMessageArgs));
+    if (!this._debug) {
+      return;
+    }
+    dump("Sandbox: " + aMessageArgs.join(" : ") + "\n");
   },
 
 };

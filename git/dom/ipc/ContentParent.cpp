@@ -76,12 +76,7 @@
 #include "nsWidgetsCID.h"
 #include "nsISupportsPrimitives.h"
 #include "mozilla/dom/sms/SmsParent.h"
-#include "mozilla/dom/devicestorage/DeviceStorageRequestParent.h"
 #include "nsDebugImpl.h"
-
-#include "nsAppDirectoryServiceDefs.h"
-#include "nsDirectoryServiceDefs.h"
-#include "mozilla/Preferences.h"
 
 static NS_DEFINE_CID(kCClipboardCID, NS_CLIPBOARD_CID);
 static const char* sClipboardTextFlavors[] = { kUnicodeMime };
@@ -93,7 +88,6 @@ using namespace mozilla::net;
 using namespace mozilla::places;
 using mozilla::unused; // heh
 using base::KillProcess;
-using namespace mozilla::dom::devicestorage;
 using namespace mozilla::dom::sms;
 
 namespace mozilla {
@@ -133,8 +127,7 @@ MemoryReportRequestParent::~MemoryReportRequestParent()
     MOZ_COUNT_DTOR(MemoryReportRequestParent);
 }
 
-nsDataHashtable<nsStringHashKey, ContentParent*>* ContentParent::gAppContentParents;
-nsTArray<ContentParent*>* ContentParent::gNonAppContentParents;
+nsTArray<ContentParent*>* ContentParent::gContentParents;
 nsTArray<ContentParent*>* ContentParent::gPrivateContent;
 
 // The first content child has ID 1, so the chrome process can have ID 0.
@@ -143,72 +136,34 @@ static PRUint64 gContentChildID = 1;
 ContentParent*
 ContentParent::GetNewOrUsed()
 {
-    if (!gNonAppContentParents)
-        gNonAppContentParents = new nsTArray<ContentParent*>();
+    if (!gContentParents)
+        gContentParents = new nsTArray<ContentParent*>();
 
     PRInt32 maxContentProcesses = Preferences::GetInt("dom.ipc.processCount", 1);
     if (maxContentProcesses < 1)
         maxContentProcesses = 1;
 
-    if (gNonAppContentParents->Length() >= PRUint32(maxContentProcesses)) {
-        PRUint32 idx = rand() % gNonAppContentParents->Length();
-        ContentParent* p = (*gNonAppContentParents)[idx];
-        NS_ASSERTION(p->IsAlive(), "Non-alive contentparent in gNonAppContentParents?");
+    if (gContentParents->Length() >= PRUint32(maxContentProcesses)) {
+        ContentParent* p = (*gContentParents)[rand() % gContentParents->Length()];
+        NS_ASSERTION(p->IsAlive(), "Non-alive contentparent in gContentParents?");
         return p;
     }
         
-    nsRefPtr<ContentParent> p =
-        new ContentParent(/* appManifestURL = */ EmptyString());
+    nsRefPtr<ContentParent> p = new ContentParent();
     p->Init();
-    gNonAppContentParents->AppendElement(p);
+    gContentParents->AppendElement(p);
     return p;
-}
-
-ContentParent*
-ContentParent::GetForApp(const nsAString& aAppManifestURL)
-{
-    if (aAppManifestURL.IsEmpty()) {
-        return GetNewOrUsed();
-    }
-
-    if (!gAppContentParents) {
-        gAppContentParents =
-            new nsDataHashtable<nsStringHashKey, ContentParent*>();
-        gAppContentParents->Init();
-    }
-
-    // Each app gets its own ContentParent instance.
-    ContentParent* p = gAppContentParents->Get(aAppManifestURL);
-    if (!p) {
-        p = new ContentParent(aAppManifestURL);
-        p->Init();
-        gAppContentParents->Put(aAppManifestURL, p);
-    }
-
-    return p;
-}
-
-static PLDHashOperator
-AppendToTArray(const nsAString& aKey, ContentParent* aValue, void* aArray)
-{
-    nsTArray<ContentParent*> *array =
-        static_cast<nsTArray<ContentParent*>*>(aArray);
-    array->AppendElement(aValue);
-    return PL_DHASH_NEXT;
 }
 
 void
 ContentParent::GetAll(nsTArray<ContentParent*>& aArray)
 {
-    aArray.Clear();
-
-    if (gNonAppContentParents) {
-        aArray.AppendElements(*gNonAppContentParents);
+    if (!gContentParents) {
+        aArray.Clear();
+        return;
     }
 
-    if (gAppContentParents) {
-        gAppContentParents->EnumerateRead(&AppendToTArray, &aArray);
-    }
+    aArray = *gContentParents;
 }
 
 void
@@ -344,17 +299,11 @@ ContentParent::ActorDestroy(ActorDestroyReason why)
     if (mRunToCompletionDepth)
         mRunToCompletionDepth = 0;
 
-    if (!mAppManifestURL.IsEmpty()) {
-        gAppContentParents->Remove(mAppManifestURL);
-        if (!gAppContentParents->Count()) {
-            delete gAppContentParents;
-            gAppContentParents = NULL;
-        }
-    } else {
-        gNonAppContentParents->RemoveElement(this);
-        if (!gNonAppContentParents->Length()) {
-            delete gNonAppContentParents;
-            gNonAppContentParents = NULL;
+    if (gContentParents) {
+        gContentParents->RemoveElement(this);
+        if (!gContentParents->Length()) {
+            delete gContentParents;
+            gContentParents = NULL;
         }
     }
 
@@ -431,13 +380,12 @@ ContentParent::GetTestShellSingleton()
     return static_cast<TestShellParent*>(ManagedPTestShellParent()[0]);
 }
 
-ContentParent::ContentParent(const nsAString& aAppManifestURL)
+ContentParent::ContentParent()
     : mGeolocationWatchID(-1)
     , mRunToCompletionDepth(0)
     , mShouldCallUnblockChild(false)
     , mIsAlive(true)
     , mSendPermissionUpdates(false)
-    , mAppManifestURL(aAppManifestURL)
 {
     // From this point on, NS_WARNING, NS_ASSERTION, etc. should print out the
     // PID along with the warning.
@@ -470,16 +418,8 @@ ContentParent::~ContentParent()
         base::CloseProcessHandle(OtherProcess());
 
     NS_ASSERTION(NS_IsMainThread(), "Wrong thread!");
-
-    // We should be removed from all these lists in ActorDestroy.
-    MOZ_ASSERT(!gPrivateContent || !gPrivateContent->Contains(this));
-    if (mAppManifestURL.IsEmpty()) {
-        MOZ_ASSERT(!gNonAppContentParents ||
-                   !gNonAppContentParents->Contains(this));
-    } else {
-        MOZ_ASSERT(!gAppContentParents ||
-                   !gAppContentParents->Get(mAppManifestURL));
-    }
+    NS_ASSERTION(!gContentParents || !gContentParents->Contains(this),
+                 "Should have been removed in ActorDestroy");
 }
 
 bool
@@ -773,19 +713,6 @@ ContentParent::DeallocPBrowser(PBrowserParent* frame)
 {
   TabParent* parent = static_cast<TabParent*>(frame);
   NS_RELEASE(parent);
-  return true;
-}
-
-PDeviceStorageRequestParent*
-ContentParent::AllocPDeviceStorageRequest(const DeviceStorageParams& aParams)
-{
-  return new DeviceStorageRequestParent(aParams);
-}
-
-bool
-ContentParent::DeallocPDeviceStorageRequest(PDeviceStorageRequestParent* doomed)
-{
-  delete doomed;
   return true;
 }
 
@@ -1274,7 +1201,7 @@ bool
 ContentParent::RecvPrivateDocShellsExist(const bool& aExist)
 {
   if (!gPrivateContent)
-    gPrivateContent = new nsTArray<ContentParent*>();
+    gPrivateContent = new nsTArray<ContentParent*>;
   if (aExist) {
     gPrivateContent->AppendElement(this);
   } else {

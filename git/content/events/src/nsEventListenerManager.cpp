@@ -40,7 +40,7 @@
 #include "nsMutationEvent.h"
 #include "nsIXPConnect.h"
 #include "nsDOMCID.h"
-#include "nsIScriptEventHandlerOwner.h"
+#include "nsIScriptObjectOwner.h" // for nsIScriptEventHandlerOwner
 #include "nsFocusManager.h"
 #include "nsIDOMElement.h"
 #include "nsContentUtils.h"
@@ -282,9 +282,7 @@ nsEventListenerManager::AddEventListener(nsIDOMEventListener *aListener,
               aTypeAtom == nsGkAtoms::ontouchcancel)) {
     mMayHaveTouchEventListener = true;
     nsPIDOMWindow* window = GetInnerWindowForTarget();
-    // we don't want touchevent listeners added by scrollbars to flip this flag
-    // so we ignore listeners created with system event flag
-    if (window && !(aFlags & NS_EVENT_FLAG_SYSTEM_EVENT))
+    if (window)
       window->SetHasTouchEventListeners();
   } else if (aTypeAtom == nsGkAtoms::onmouseenter ||
              aTypeAtom == nsGkAtoms::onmouseleave) {

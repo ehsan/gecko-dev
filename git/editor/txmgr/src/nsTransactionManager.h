@@ -6,15 +6,12 @@
 #ifndef nsTransactionManager_h__
 #define nsTransactionManager_h__
 
-#include "nsCOMArray.h"
-#include "nsCOMPtr.h"
-#include "nsCycleCollectionParticipant.h"
-#include "nsISupportsImpl.h"
-#include "nsITransactionManager.h"
-#include "nsTransactionStack.h"
 #include "nsWeakReference.h"
-#include "nscore.h"
-#include "prtypes.h"
+#include "nsITransactionManager.h"
+#include "nsCOMArray.h"
+#include "nsITransactionListener.h"
+#include "nsCycleCollectionParticipant.h"
+#include "nsTransactionStack.h"
 
 class nsITransaction;
 class nsITransactionListener;

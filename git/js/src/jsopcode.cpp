@@ -4850,8 +4850,7 @@ Decompile(SprintStack *ss, jsbytecode *pc, int nb)
                     len = GET_JUMP_OFFSET(pc);
                     if (jp->fun->hasRest()) {
                         // Jump over rest parameter things.
-                        if (pc[len] == JSOP_SETARG || pc[len] == JSOP_SETALIASEDVAR)
-                            len += GetBytecodeLength(pc + len);
+                        len += GetBytecodeLength(pc + len);
                         LOCAL_ASSERT(pc[len] == JSOP_POP);
                         len += GetBytecodeLength(pc + len);
                     }
@@ -5364,13 +5363,10 @@ Decompile(SprintStack *ss, jsbytecode *pc, int nb)
                 pc += GetBytecodeLength(pc);
                 if (*pc == JSOP_UNDEFINED)
                     pc += GetBytecodeLength(pc);
-                if (*pc == JSOP_SETALIASEDVAR || *pc == JSOP_SETARG) {
-                    pc += GetBytecodeLength(pc);
-                    LOCAL_ASSERT(*pc == JSOP_POP);
-                    len = GetBytecodeLength(pc);
-                } else {
-                    len = 0;
-                }
+                LOCAL_ASSERT(*pc == JSOP_SETALIASEDVAR || *pc == JSOP_SETARG);
+                pc += GetBytecodeLength(pc);
+                LOCAL_ASSERT(*pc == JSOP_POP);
+                len = GetBytecodeLength(pc);
                 todo = -2;
                 break;
 
@@ -6383,7 +6379,7 @@ GetPCCountScriptContents(JSContext *cx, size_t index)
 
     {
         JSAutoEnterCompartment ac;
-        if (!ac.enter(cx, &script->global()))
+        if (!ac.enter(cx, script->function() ? (JSObject *) script->function() : script->global()))
             return NULL;
 
         if (!GetPCCountJSON(cx, sac, buf))

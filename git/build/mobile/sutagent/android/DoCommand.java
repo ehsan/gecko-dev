@@ -83,7 +83,6 @@ import android.os.Debug;
 import android.os.Environment;
 import android.os.StatFs;
 import android.os.SystemClock;
-import android.text.TextUtils;
 import android.util.DisplayMetrics;
 import android.util.Log;
 import android.view.Surface;
@@ -3485,7 +3484,7 @@ private void CancelNotification()
 
         try
             {
-            pProc = Runtime.getRuntime().exec(this.getSuArgs(TextUtils.join(" ", progArray)));
+            pProc = Runtime.getRuntime().exec(progArray);
             RedirOutputThread outThrd = new RedirOutputThread(pProc, out);
             outThrd.start();
             while (lcv < 30) {

@@ -3474,12 +3474,9 @@ Selection::AddItem(nsRange* aItem, PRInt32* aOutIndex)
   }
 
   PRInt32 startIndex, endIndex;
-  nsresult rv = GetIndicesForInterval(aItem->GetStartParent(),
-                                      aItem->StartOffset(),
-                                      aItem->GetEndParent(),
-                                      aItem->EndOffset(), false,
-                                      &startIndex, &endIndex);
-  NS_ENSURE_SUCCESS(rv, rv);
+  GetIndicesForInterval(aItem->GetStartParent(), aItem->StartOffset(),
+                        aItem->GetEndParent(), aItem->EndOffset(),
+                        false, &startIndex, &endIndex);
 
   if (endIndex == -1) {
     // All ranges start after the given range. We can insert our range at
@@ -3543,9 +3540,10 @@ Selection::AddItem(nsRange* aItem, PRInt32* aOutIndex)
 
   // Insert the new element into our "leftovers" array
   PRInt32 insertionPoint;
-  rv = FindInsertionPoint(&temp, aItem->GetStartParent(),
-                          aItem->StartOffset(), CompareToRangeStart,
-                          &insertionPoint);
+  nsresult rv = FindInsertionPoint(&temp, aItem->GetStartParent(),
+                                   aItem->StartOffset(),
+                                   CompareToRangeStart,
+                                   &insertionPoint);
   NS_ENSURE_SUCCESS(rv, rv);
 
   if (!temp.InsertElementAt(insertionPoint, RangeData(aItem)))
@@ -3740,11 +3738,8 @@ Selection::GetRangesForIntervalArray(nsINode* aBeginNode, PRInt32 aBeginOffset,
 {
   aRanges->Clear();
   PRInt32 startIndex, endIndex;
-  nsresult res = GetIndicesForInterval(aBeginNode, aBeginOffset,
-                                       aEndNode, aEndOffset, aAllowAdjacent,
-                                       &startIndex, &endIndex);
-  NS_ENSURE_SUCCESS(res, res);
-
+  GetIndicesForInterval(aBeginNode, aBeginOffset, aEndNode, aEndOffset,
+                        aAllowAdjacent, &startIndex, &endIndex);
   if (startIndex == -1 || endIndex == -1)
     return NS_OK;
 
@@ -3762,7 +3757,7 @@ Selection::GetRangesForIntervalArray(nsINode* aBeginNode, PRInt32 aBeginOffset,
 //    instead this returns the indices into mRanges between which the
 //    overlapping ranges lie.
 
-nsresult
+void
 Selection::GetIndicesForInterval(nsINode* aBeginNode, PRInt32 aBeginOffset,
                                  nsINode* aEndNode, PRInt32 aEndOffset,
                                  bool aAllowAdjacent,
@@ -3780,7 +3775,7 @@ Selection::GetIndicesForInterval(nsINode* aBeginNode, PRInt32 aBeginOffset,
   *aEndIndex = -1;
 
   if (mRanges.Length() == 0)
-    return NS_OK;
+    return;
 
   bool intervalIsCollapsed = aBeginNode == aEndNode &&
     aBeginOffset == aEndOffset;
@@ -3791,7 +3786,7 @@ Selection::GetIndicesForInterval(nsINode* aBeginNode, PRInt32 aBeginOffset,
   if (NS_FAILED(FindInsertionPoint(&mRanges, aEndNode, aEndOffset,
                                    &CompareToRangeStart,
                                    &endsBeforeIndex))) {
-    return NS_OK;
+    return;
   }
 
   if (endsBeforeIndex == 0) {
@@ -3800,7 +3795,7 @@ Selection::GetIndicesForInterval(nsINode* aBeginNode, PRInt32 aBeginOffset,
     // If the interval is strictly before the range at index 0, we can optimize
     // by returning now - all ranges start after the given interval
     if (!RangeMatchesBeginPoint(endRange, aEndNode, aEndOffset))
-      return NS_OK;
+      return;
 
     // We now know that the start point of mRanges[0].mRange equals the end of
     // the interval. Thus, when aAllowadjacent is true, the caller is always
@@ -3808,7 +3803,7 @@ Selection::GetIndicesForInterval(nsINode* aBeginNode, PRInt32 aBeginOffset,
     // remember to include the range when both it and the given interval are
     // collapsed to the same point
     if (!aAllowAdjacent && !(endRange->Collapsed() && intervalIsCollapsed))
-      return NS_OK;
+      return;
   }
   *aEndIndex = endsBeforeIndex;
 
@@ -3816,10 +3811,10 @@ Selection::GetIndicesForInterval(nsINode* aBeginNode, PRInt32 aBeginOffset,
   if (NS_FAILED(FindInsertionPoint(&mRanges, aBeginNode, aBeginOffset,
                                    &CompareToRangeEnd,
                                    &beginsAfterIndex))) {
-    return NS_OK;
+    return;
   }
   if (beginsAfterIndex == (PRInt32) mRanges.Length())
-    return NS_OK; // optimization: all ranges are strictly before us
+    return; // optimization: all ranges are strictly before us
 
   if (aAllowAdjacent) {
     // At this point, one of the following holds:
@@ -3879,13 +3874,9 @@ Selection::GetIndicesForInterval(nsINode* aBeginNode, PRInt32 aBeginOffset,
      }
   }
 
-  NS_ASSERTION(beginsAfterIndex <= endsBeforeIndex,
-               "Is mRanges not ordered?");
-  NS_ENSURE_STATE(beginsAfterIndex <= endsBeforeIndex);
-
   *aStartIndex = beginsAfterIndex;
   *aEndIndex = endsBeforeIndex;
-  return NS_OK;
+  return;
 }
 
 NS_IMETHODIMP

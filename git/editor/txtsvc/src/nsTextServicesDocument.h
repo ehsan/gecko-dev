@@ -7,28 +7,20 @@
 #define nsTextServicesDocument_h__
 
 #include "nsCOMPtr.h"
-#include "nsCycleCollectionParticipant.h"
+#include "nsIDOMDocument.h"
+#include "nsIDOMRange.h"
+#include "nsIContent.h"
+#include "nsIContentIterator.h"
+#include "nsIEditor.h"
 #include "nsIEditActionListener.h"
-#include "nsISupportsImpl.h"
 #include "nsITextServicesDocument.h"
-#include "nsIWeakReferenceUtils.h"
 #include "nsTArray.h"
-#include "nscore.h"
-#include "prtypes.h"
+#include "nsISelectionController.h"
+#include "nsITextServicesFilter.h"
+#include "nsWeakReference.h"
+#include "nsCycleCollectionParticipant.h"
 
 class OffsetEntry;
-class nsIAtom;
-class nsIContent;
-class nsIContentIterator;
-class nsIDOMCharacterData;
-class nsIDOMDocument;
-class nsIDOMNode;
-class nsIDOMRange;
-class nsIEditor;
-class nsISelection;
-class nsISelectionController;
-class nsITextServicesFilter;
-class nsString;
 
 /** implementation of a text services object.
  *

@@ -6,15 +6,9 @@
 #ifndef nsStylesheetTxns_h__
 #define nsStylesheetTxns_h__
 
-#include "EditTxn.h"                    // for EditTxn, NS_DECL_EDITTXN
-#include "nsAutoPtr.h"                  // for nsRefPtr
-#include "nsCSSStyleSheet.h"            // for nsCSSStyleSheet
-#include "nsCycleCollectionParticipant.h"
-#include "nsID.h"                       // for REFNSIID
-#include "nsISupportsImpl.h"            // for nsCSSStyleSheet::Release
-#include "nscore.h"                     // for NS_IMETHOD
-
-class nsIEditor;
+#include "EditTxn.h"
+#include "nsCOMPtr.h"
+#include "nsIEditor.h"
 
 class AddStyleSheetTxn : public EditTxn
 {

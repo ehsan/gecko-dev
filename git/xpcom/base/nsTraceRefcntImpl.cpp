@@ -836,7 +836,7 @@ static void InitTraceLog(void)
 
 extern "C" {
 
-static void PrintStackFrame(void *aPC, void *aSP, void *aClosure)
+static void PrintStackFrame(void *aPC, void *aClosure)
 {
   FILE *stream = (FILE*)aClosure;
   nsCodeAddressDetails details;

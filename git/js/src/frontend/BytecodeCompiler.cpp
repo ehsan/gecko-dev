@@ -21,10 +21,54 @@
 using namespace js;
 using namespace js::frontend;
 
+bool
+MarkInnerAndOuterFunctions(JSContext *cx, JSScript* script)
+{
+    AssertRootingUnnecessary safe(cx);
+
+    Vector<JSScript *, 16> worklist(cx);
+    if (!worklist.append(script))
+        return false;
+
+    while (worklist.length()) {
+        JSScript *outer = worklist.back();
+        worklist.popBack();
+
+        if (outer->hasObjects()) {
+            ObjectArray *arr = outer->objects();
+
+            /*
+             * If this is an eval script, don't treat the saved caller function
+             * stored in the first object slot as an inner function.
+             */
+            size_t start = outer->savedCallerFun ? 1 : 0;
+
+            for (size_t i = start; i < arr->length; i++) {
+                JSObject *obj = arr->vector[i];
+                if (!obj->isFunction())
+                    continue;
+                JSFunction *fun = obj->toFunction();
+                JS_ASSERT(fun->isInterpreted());
+                JSScript *inner = fun->script();
+                if (outer->function() && outer->function()->isHeavyweight()) {
+                    outer->isOuterFunction = true;
+                    inner->isInnerFunction = true;
+                }
+                if (!inner->hasObjects())
+                    continue;
+                if (!worklist.append(inner))
+                    return false;
+            }
+        }
+    }
+
+    return true;
+}
+
 JSScript *
 frontend::CompileScript(JSContext *cx, HandleObject scopeChain, StackFrame *callerFrame,
                         JSPrincipals *principals, JSPrincipals *originPrincipals,
-                        bool compileAndGo, bool noScriptRval,
+                        bool compileAndGo, bool noScriptRval, bool needScriptGlobal,
                         const jschar *chars, size_t length,
                         const char *filename, unsigned lineno, JSVersion version,
                         JSString *source_ /* = NULL */,
@@ -57,22 +101,17 @@ frontend::CompileScript(JSContext *cx, HandleObject scopeChain, StackFrame *call
     if (!parser.init())
         return NULL;
 
-    SharedContext sc(cx, scopeChain, /* fun = */ NULL, /* funbox = */ NULL, StrictModeFromContext(cx));
+    SharedContext sc(cx, scopeChain, /* fun = */ NULL, /* funbox = */ NULL);
 
     TreeContext tc(&parser, &sc, staticLevel, /* bodyid = */ 0);
     if (!tc.init())
         return NULL;
 
     bool savedCallerFun = compileAndGo && callerFrame && callerFrame->isFunctionFrame();
-    Rooted<JSScript*> script(cx, JSScript::Create(cx,
-                                                  /* enclosingScope = */ NullPtr(),
-                                                  savedCallerFun,
-                                                  principals,
-                                                  originPrincipals,
-                                                  compileAndGo,
-                                                  noScriptRval,
-                                                  version,
-                                                  staticLevel));
+    GlobalObject *globalObject = needScriptGlobal ? GetCurrentGlobal(cx) : NULL;
+    Rooted<JSScript*> script(cx);
+    script = JSScript::Create(cx, savedCallerFun, principals, originPrincipals, compileAndGo,
+                              noScriptRval, globalObject, version, staticLevel);
     if (!script)
         return NULL;
 
@@ -88,7 +127,7 @@ frontend::CompileScript(JSContext *cx, HandleObject scopeChain, StackFrame *call
 
     /* If this is a direct call to eval, inherit the caller's strictness.  */
     if (callerFrame && callerFrame->isScriptFrame() && callerFrame->script()->strictModeCode)
-        sc.strictModeState = StrictMode::STRICT;
+        sc.setInStrictMode();
 
     if (compileAndGo) {
         if (source) {
@@ -124,18 +163,9 @@ frontend::CompileScript(JSContext *cx, HandleObject scopeChain, StackFrame *call
     onlyXML = true;
 #endif
 
+    bool inDirectivePrologue = true;
     TokenStream &tokenStream = parser.tokenStream;
-    {
-        ParseNode *stringsAtStart = ListNode::create(PNK_STATEMENTLIST, &parser);
-        if (!stringsAtStart)
-            return NULL;
-        stringsAtStart->makeEmpty();
-        bool ok = parser.processDirectives(stringsAtStart) && EmitTree(cx, &bce, stringsAtStart);
-        parser.freeTree(stringsAtStart);
-        if (!ok)
-            return NULL;
-    }
-    JS_ASSERT(sc.strictModeState != StrictMode::UNKNOWN);
+    tokenStream.setOctalCharacterEscape(false);
     for (;;) {
         TokenKind tt = tokenStream.peekToken(TSF_OPERAND);
         if (tt <= TOK_EOF) {
@@ -147,6 +177,9 @@ frontend::CompileScript(JSContext *cx, HandleObject scopeChain, StackFrame *call
 
         pn = parser.statement();
         if (!pn)
+            return NULL;
+
+        if (inDirectivePrologue && !parser.recognizeDirectivePrologue(pn, &inDirectivePrologue))
             return NULL;
 
         if (!FoldConstants(cx, pn, &parser))
@@ -199,10 +232,13 @@ frontend::CompileScript(JSContext *cx, HandleObject scopeChain, StackFrame *call
     if (Emit1(cx, &bce, JSOP_STOP) < 0)
         return NULL;
 
-    if (!JSScript::fullyInitFromEmitter(cx, script, &bce))
+    if (!script->fullyInitFromEmitter(cx, &bce))
         return NULL;
 
     bce.tellDebuggerAboutCompiledScript(cx);
+
+    if (!MarkInnerAndOuterFunctions(cx, script))
+        return NULL;
 
     return script;
 }
@@ -221,8 +257,7 @@ frontend::CompileFunctionBody(JSContext *cx, HandleFunction fun,
         return false;
 
     JS_ASSERT(fun);
-    SharedContext funsc(cx, /* scopeChain = */ NULL, fun, /* funbox = */ NULL,
-                        StrictModeFromContext(cx));
+    SharedContext funsc(cx, /* scopeChain = */ NULL, fun, /* funbox = */ NULL);
     funsc.bindings.transfer(bindings);
     fun->setArgCount(funsc.bindings.numArgs());
 
@@ -231,15 +266,11 @@ frontend::CompileFunctionBody(JSContext *cx, HandleFunction fun,
     if (!funtc.init())
         return false;
 
-    Rooted<JSScript*> script(cx, JSScript::Create(cx,
-                                                  /* enclosingScope = */ NullPtr(),
-                                                  /* savedCallerFun = */ false,
-                                                  principals,
-                                                  originPrincipals,
-                                                  /* compileAndGo = */ false,
-                                                  /* noScriptRval = */ false,
-                                                  version,
-                                                  staticLevel));
+    GlobalObject *globalObject = fun->getParent() ? &fun->getParent()->global() : NULL;
+    Rooted<JSScript*> script(cx);
+    script = JSScript::Create(cx, /* savedCallerFun = */ false, principals, originPrincipals,
+                              /* compileAndGo = */ false, /* noScriptRval = */ false,
+                              globalObject, version, staticLevel);
     if (!script)
         return false;
 

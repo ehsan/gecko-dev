@@ -10018,7 +10018,7 @@ nsDocShell::ShouldAddToSessionHistory(nsIURI * aURI)
     // should just do a spec compare, rather than two gets of the scheme and
     // then the path.  -Gagan
     nsresult rv;
-    nsCAutoString buf, pref;
+    nsCAutoString buf;
 
     rv = aURI->GetScheme(buf);
     if (NS_FAILED(rv))
@@ -10033,14 +10033,7 @@ nsDocShell::ShouldAddToSessionHistory(nsIURI * aURI)
             return false;
         }
     }
-
-    rv = aURI->GetSpec(buf);
-    NS_ENSURE_SUCCESS(rv, true);
-
-    rv = Preferences::GetDefaultCString("browser.newtab.url", &pref);
-    NS_ENSURE_SUCCESS(rv, true);
-
-    return !buf.Equals(pref);
+    return true;
 }
 
 nsresult

@@ -55,7 +55,6 @@ private:
 
     nsCOMPtr<nsIJARURI>             mJarURI;
     nsCOMPtr<nsIURI>                mOriginalURI;
-    nsCOMPtr<nsIURI>                mAppURI;
     nsCOMPtr<nsISupports>           mOwner;
     nsCOMPtr<nsIInterfaceRequestor> mCallbacks;
     nsCOMPtr<nsISupports>           mSecurityInfo;

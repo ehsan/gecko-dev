@@ -18,9 +18,7 @@ nsSVGPaintServerFrame::SetupPaintServer(gfxContext *aContext,
                                         nsStyleSVGPaint nsStyleSVG::*aFillOrStroke,
                                         float aOpacity)
 {
-  nsRefPtr<gfxPattern> pattern =
-    GetPaintServerPattern(aSource, aContext->CurrentMatrix(), aFillOrStroke,
-                          aOpacity);
+  nsRefPtr<gfxPattern> pattern = GetPaintServerPattern(aSource, aFillOrStroke, aOpacity);
   if (!pattern)
     return false;
 

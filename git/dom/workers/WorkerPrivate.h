@@ -31,6 +31,7 @@
 class JSAutoStructuredCloneBuffer;
 class nsIDocument;
 class nsIPrincipal;
+class nsIMemoryMultiReporter;
 class nsIScriptContext;
 class nsIURI;
 class nsPIDOMWindow;
@@ -39,7 +40,6 @@ class nsIXPCScriptNotify;
 
 BEGIN_WORKERS_NAMESPACE
 
-class WorkerMemoryReporter;
 class WorkerPrivate;
 
 class WorkerRunnable : public nsIRunnable
@@ -495,7 +495,6 @@ public:
 class WorkerPrivate : public WorkerPrivateParent<WorkerPrivate>
 {
   friend class WorkerPrivateParent<WorkerPrivate>;
-  friend class WorkerMemoryReporter;
   typedef WorkerPrivateParent<WorkerPrivate> ParentType;
 
   struct TimeoutInfo;
@@ -535,7 +534,7 @@ class WorkerPrivate : public WorkerPrivateParent<WorkerPrivate>
   nsTArray<nsAutoPtr<TimeoutInfo> > mTimeouts;
 
   nsCOMPtr<nsITimer> mTimer;
-  nsRefPtr<WorkerMemoryReporter> mMemoryReporter;
+  nsCOMPtr<nsIMemoryMultiReporter> mMemoryReporter;
 
   mozilla::TimeStamp mKillTime;
   PRUint32 mErrorHandlerRecursionCount;
@@ -547,6 +546,7 @@ class WorkerPrivate : public WorkerPrivateParent<WorkerPrivate>
   bool mCloseHandlerStarted;
   bool mCloseHandlerFinished;
   bool mMemoryReporterRunning;
+  bool mMemoryReporterDisabled;
 
 #ifdef DEBUG
   nsCOMPtr<nsIThread> mThread;
@@ -682,7 +682,7 @@ public:
   ScheduleDeletion(bool aWasPending);
 
   bool
-  BlockAndCollectRuntimeStats(bool isQuick, void* aData);
+  BlockAndCollectRuntimeStats(bool isQuick, void* aData, bool* aDisabled);
 
   bool
   DisableMemoryReporter();

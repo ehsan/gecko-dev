@@ -10,7 +10,6 @@
 #include "gfxSharedImageSurface.h"
 #include "gfxImageSurface.h"
 #include "gfxUtils.h"
-#include "nsXULAppAPI.h"
 #include "RenderTrace.h"
 #include "sampler.h"
 
@@ -840,6 +839,7 @@ BasicLayerManager::PaintLayer(gfxContext* aTarget,
         gfxUtils::ClipToRegion(aTarget, aLayer->GetEffectiveVisibleRegion());
       }
       AutoSetOperator setOperator(aTarget, container->GetOperator());
+      gfxMatrix temp = aTarget->CurrentMatrix();
       PaintWithMask(aTarget, aLayer->GetEffectiveOpacity(),
                     HasShadowManager() ? nsnull : aLayer->GetMaskLayer());
     }
@@ -951,8 +951,7 @@ BasicShadowLayerManager::BeginTransactionWithTarget(gfxContext* aTarget)
 
     // If we have a non-default target, we need to let our shadow manager draw
     // to it. This will happen at the end of the transaction.
-    if (aTarget && (aTarget != mDefaultTarget) &&
-        XRE_GetProcessType() == GeckoProcessType_Default) {
+    if (aTarget && (aTarget != mDefaultTarget)) {
       mShadowTarget = aTarget;
 
       // Create a temporary target for ourselves, so that mShadowTarget is only
@@ -1049,12 +1048,13 @@ BasicShadowLayerManager::ForwardTransaction()
           layer->SetBackBuffer(newBack.get_SurfaceDescriptor());
         } else if (newBack.type() == SharedImage::TYUVImage) {
           const YUVImage& yuv = newBack.get_YUVImage();
-          layer->SetBackBufferYUVImage(yuv.Ydata(), yuv.Udata(), yuv.Vdata());
+          nsRefPtr<gfxSharedImageSurface> YSurf = gfxSharedImageSurface::Open(yuv.Ydata());
+          nsRefPtr<gfxSharedImageSurface> USurf = gfxSharedImageSurface::Open(yuv.Udata());
+          nsRefPtr<gfxSharedImageSurface> VSurf = gfxSharedImageSurface::Open(yuv.Vdata());
+          layer->SetBackBufferYUVImage(YSurf, USurf, VSurf);
         } else {
           layer->SetBackBuffer(SurfaceDescriptor());
-          layer->SetBackBufferYUVImage(SurfaceDescriptor(),
-                                       SurfaceDescriptor(),
-                                       SurfaceDescriptor());
+          layer->SetBackBufferYUVImage(nsnull, nsnull, nsnull);
         }
 
         break;

@@ -9,8 +9,9 @@ VPATH			= @srcdir@
 relativesrcdir  = browser/devtools/webconsole/test
 
 include $(DEPTH)/config/autoconf.mk
+include $(topsrcdir)/config/rules.mk
 
-MOCHITEST_BROWSER_FILES = \
+_BROWSER_TEST_FILES = \
 	browser_webconsole_notifications.js \
 	browser_webconsole_message_node_id.js \
 	browser_webconsole_bug_580030_errors_after_page_reload.js \
@@ -109,12 +110,10 @@ MOCHITEST_BROWSER_FILES = \
 	browser_cached_messages.js \
 	browser_bug664688_sandbox_update_after_navigation.js \
 	browser_webconsole_menustatus.js \
-	browser_result_format_as_string.js \
-	browser_webconsole_bug_737873_mixedcontent.js \
 	head.js \
 	$(NULL)
 
-MOCHITEST_BROWSER_FILES += \
+_BROWSER_TEST_PAGES = \
 	test-console.html \
 	test-network.html \
 	test-network-request.html \
@@ -183,8 +182,10 @@ MOCHITEST_BROWSER_FILES += \
 	test-bug-658368-time-methods.html \
 	test-webconsole-error-observer.html \
 	test-for-of.html \
-	test-result-format-as-string.html \
-	test-bug-737873-mixedcontent.html \
 	$(NULL)
 
-include $(topsrcdir)/config/rules.mk
+libs:: $(_BROWSER_TEST_FILES)
+	$(INSTALL) $(foreach f,$^,"$f") $(DEPTH)/_tests/testing/mochitest/browser/$(relativesrcdir)
+
+libs:: $(_BROWSER_TEST_PAGES)
+	$(INSTALL) $(foreach f,$^,"$f") $(DEPTH)/_tests/testing/mochitest/browser/$(relativesrcdir)

@@ -759,13 +759,6 @@ MarionetteDriverActor.prototype = {
   },
 
   /**
-   * Gets the current title of the window
-   */
-  getTitle: function MDA_getTitle() {
-    this.sendAsync("getTitle", {});
-  },
-
-  /**
    * Go back in history
    */
   goBack: function MDA_goBack() {
@@ -1381,7 +1374,6 @@ MarionetteDriverActor.prototype.requestTypes = {
   "isElementSelected": MarionetteDriverActor.prototype.isElementSelected,
   "sendKeysToElement": MarionetteDriverActor.prototype.sendKeysToElement,
   "clearElement": MarionetteDriverActor.prototype.clearElement,
-  "getTitle": MarionetteDriverActor.prototype.getTitle,
   "goUrl": MarionetteDriverActor.prototype.goUrl,
   "getUrl": MarionetteDriverActor.prototype.getUrl,
   "goBack": MarionetteDriverActor.prototype.goBack,

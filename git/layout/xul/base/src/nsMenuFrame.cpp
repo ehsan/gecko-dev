@@ -41,7 +41,6 @@
 #include "mozilla/Services.h"
 #include "mozilla/Preferences.h"
 #include "mozilla/LookAndFeel.h"
-#include "mozilla/Attributes.h"
 
 using namespace mozilla;
 
@@ -212,7 +211,7 @@ nsMenuFrame::InitMenuParent(nsIFrame* aParent)
   }
 }
 
-class nsASyncMenuInitialization MOZ_FINAL : public nsIReflowCallback
+class nsASyncMenuInitialization : public nsIReflowCallback
 {
 public:
   nsASyncMenuInitialization(nsIFrame* aFrame)

@@ -54,7 +54,6 @@
 
 <!ENTITY close_tab "Close Tab">
 <!ENTITY new_tab "New Tab">
-<!ENTITY one_tab "1 tab">
 <!-- Localization note (num_tabs) : Number of tabs is always more than one. 
      We can't use android plural forms, sadly. See bug #753859. -->
 <!ENTITY num_tabs "&#037;d tabs">
@@ -106,7 +105,6 @@
 
 <!ENTITY share "Share">
 <!ENTITY share_title "Share via">
-<!ENTITY share_image_failed "Unable to share this image">
 <!ENTITY save_as_pdf "Save as PDF">
 <!ENTITY find_in_page "Find in Page">
 <!ENTITY desktop_mode "Request Desktop Site">
@@ -198,5 +196,3 @@ just addresses the organization to follow, e.g. "This site is run by " -->
 <!ENTITY bookmarkhistory_import_history "Importing history
                                          from Android">
 <!ENTITY bookmarkhistory_import_wait "Please wait...">
-
-<!ENTITY webapp_generic_name "App">

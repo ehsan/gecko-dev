@@ -8,14 +8,8 @@
 
 #include "EditTxn.h"
 #include "nsCOMPtr.h"
-#include "nsCycleCollectionParticipant.h"
-#include "nsID.h"
 #include "nsIDOMElement.h"
-#include "nsString.h"
-#include "nscore.h"
-
-class nsIAtom;
-class nsIEditor;
+#include "nsIEditor.h"
 
 /**
  * A transaction that changes the value of a CSS inline style of a content node. 

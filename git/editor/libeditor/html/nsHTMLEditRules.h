@@ -6,42 +6,21 @@
 #ifndef nsHTMLEditRules_h__
 #define nsHTMLEditRules_h__
 
-#include "TypeInState.h"
-#include "nsAutoPtr.h"
-#include "nsCOMPtr.h"
-#include "nsEditor.h"
-#include "nsIEditActionListener.h"
-#include "nsIEditor.h"
-#include "nsIHTMLEditor.h"
-#include "nsISupportsImpl.h"
-#include "nsSelectionState.h"
-#include "nsTArray.h"
 #include "nsTextEditRules.h"
-#include "nsTraceRefcnt.h"
-#include "nscore.h"
-#include "prtypes.h"
+#include "nsIHTMLEditor.h"
+#include "nsIEditActionListener.h"
+#include "nsCOMArray.h"
+#include "nsCOMPtr.h"
+#include "nsString.h"
+#include "nsEditorUtils.h"
+#include "TypeInState.h"
+#include "nsReadableUtils.h"
+#include "nsTArray.h"
+#include "nsRange.h"
 
-class nsHTMLEditor;
-class nsIAtom;
-class nsIDOMCharacterData;
-class nsIDOMDocument;
 class nsIDOMElement;
-class nsIDOMNode;
-class nsIDOMRange;
 class nsIEditor;
-class nsINode;
-class nsISelection;
-class nsPlaintextEditor;
-class nsRange;
-class nsRulesInfo;
-namespace mozilla {
-class Selection;
-namespace dom {
-class Element;
-}  // namespace dom
-}  // namespace mozilla
-struct DOMPoint;
-template <class E> class nsCOMArray;
+class nsHTMLEditor;
 
 struct StyleCache : public PropItem
 {
@@ -314,7 +293,7 @@ protected:
   nsRefPtr<nsRange>       mUtilRange;
   PRUint32                mJoinOffset;  // need to remember an int across willJoin/didJoin...
   nsCOMPtr<nsIDOMNode>    mNewBlock;
-  nsRefPtr<nsRangeStore>  mRangeItem;
+  nsRangeStore            mRangeItem;
   StyleCache              mCachedStyles[SIZE_STYLE_TABLE];
 };
 

@@ -23,49 +23,8 @@ using base::Thread;
 namespace mozilla {
 namespace layers {
 
-static Thread* sCompositorThread = nsnull;
-
-void CompositorParent::StartUp()
-{
-  CreateThread();
-}
-
-void CompositorParent::ShutDown()
-{
-  DestroyThread();
-}
-
-bool CompositorParent::CreateThread()
-{
-  NS_ASSERTION(NS_IsMainThread(), "Should be on the main Thread!");
-  if (sCompositorThread) {
-    return true;
-  }
-  sCompositorThread = new Thread("Compositor");
-  if (!sCompositorThread->Start()) {
-    delete sCompositorThread;
-    sCompositorThread = nsnull;
-    return false;
-  }
-  return true;
-}
-
-void CompositorParent::DestroyThread()
-{
-  NS_ASSERTION(NS_IsMainThread(), "Should be on the main Thread!");
-  if (sCompositorThread) {
-    delete sCompositorThread;
-    sCompositorThread = nsnull;
-  }
-}
-
-MessageLoop* CompositorParent::CompositorLoop()
-{
-  return sCompositorThread ? sCompositorThread->message_loop() : nsnull;
-}
-
-CompositorParent::CompositorParent(nsIWidget* aWidget,
-                                   bool aRenderToEGLSurface,
+CompositorParent::CompositorParent(nsIWidget* aWidget, MessageLoop* aMsgLoop,
+                                   PlatformThreadId aThreadID, bool aRenderToEGLSurface,
                                    int aSurfaceWidth, int aSurfaceHeight)
   : mWidget(aWidget)
   , mCurrentCompositeTask(NULL)
@@ -74,20 +33,26 @@ CompositorParent::CompositorParent(nsIWidget* aWidget,
   , mYScale(1.0)
   , mIsFirstPaint(false)
   , mLayersUpdated(false)
+  , mCompositorLoop(aMsgLoop)
+  , mThreadID(aThreadID)
   , mRenderToEGLSurface(aRenderToEGLSurface)
   , mEGLSurfaceSize(aSurfaceWidth, aSurfaceHeight)
   , mPauseCompositionMonitor("PauseCompositionMonitor")
   , mResumeCompositionMonitor("ResumeCompositionMonitor")
 {
-  NS_ABORT_IF_FALSE(sCompositorThread != nsnull, 
-                    "The compositor thread must be Initialized before instanciating a COmpositorParent.");
   MOZ_COUNT_CTOR(CompositorParent);
+}
+
+MessageLoop*
+CompositorParent::CompositorLoop()
+{
+  return mCompositorLoop;
 }
 
 PlatformThreadId
 CompositorParent::CompositorThreadID()
 {
-  return sCompositorThread->thread_id();
+  return mThreadID;
 }
 
 CompositorParent::~CompositorParent()

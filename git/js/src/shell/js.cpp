@@ -141,7 +141,7 @@ static PRLock *gWatchdogLock = NULL;
 static PRCondVar *gWatchdogWakeup = NULL;
 static PRThread *gWatchdogThread = NULL;
 static bool gWatchdogHasTimeout = false;
-static int64_t gWatchdogTimeout = 0;
+static PRIntervalTime gWatchdogTimeout = 0;
 
 static PRCondVar *gSleepWakeup = NULL;
 
@@ -302,7 +302,7 @@ GetLine(FILE *file, const char * prompt)
  * on timing.
  */
 struct JSShellContextData {
-    volatile int64_t startTime;
+    volatile JSIntervalTime startTime;
 };
 
 static JSShellContextData *
@@ -316,7 +316,7 @@ NewContextData()
                                calloc(sizeof(JSShellContextData), 1);
     if (!data)
         return NULL;
-    data->startTime = PRMJ_Now();
+    data->startTime = js_IntervalNow();
     return data;
 }
 
@@ -1472,7 +1472,7 @@ SetThrowHook(JSContext *cx, unsigned argc, jsval *vp)
 static JSBool
 LineToPC(JSContext *cx, unsigned argc, jsval *vp)
 {
-    RootedScript script(cx);
+    JSScript *script;
     int32_t lineArg = 0;
     uint32_t lineno;
     jsbytecode *pc;
@@ -2368,6 +2368,8 @@ GetPDA(JSContext *cx, unsigned argc, jsval *vp)
              JS_SetProperty(cx, pdobj, "value", &pd->value) &&
              (v = INT_TO_JSVAL(pd->flags),
               JS_SetProperty(cx, pdobj, "flags", &v)) &&
+             (v = INT_TO_JSVAL(pd->slot),
+              JS_SetProperty(cx, pdobj, "slot", &v)) &&
              JS_SetProperty(cx, pdobj, "alias", &pd->alias);
         if (!ok)
             break;
@@ -2788,11 +2790,12 @@ Resolver(JSContext *cx, unsigned argc, jsval *vp)
 
 /*
  * Check that t1 comes strictly before t2. The function correctly deals with
- * wrap-around between t2 and t1 assuming that t2 and t1 stays within INT32_MAX
- * from each other. We use MAX_TIMEOUT_INTERVAL to enforce this restriction.
+ * PRIntervalTime wrap-around between t2 and t1 assuming that t2 and t1 stays
+ * within INT32_MAX from each other. We use MAX_TIMEOUT_INTERVAL to enforce
+ * this restriction.
  */
 static bool
-IsBefore(int64_t t1, int64_t t2)
+IsBefore(PRIntervalTime t1, PRIntervalTime t2)
 {
     return int32_t(t1 - t2) < 0;
 }
@@ -2800,7 +2803,7 @@ IsBefore(int64_t t1, int64_t t2)
 static JSBool
 Sleep_fn(JSContext *cx, unsigned argc, jsval *vp)
 {
-    int64_t t_ticks;
+    PRIntervalTime t_ticks;
 
     if (argc == 0) {
         t_ticks = 0;
@@ -2817,19 +2820,19 @@ Sleep_fn(JSContext *cx, unsigned argc, jsval *vp)
         }
         t_ticks = (t_secs <= 0.0)
                   ? 0
-                  : int64_t(PRMJ_USEC_PER_SEC * t_secs);
+                  : PRIntervalTime(PR_TicksPerSecond() * t_secs);
     }
     if (t_ticks == 0) {
         JS_YieldRequest(cx);
     } else {
         JSAutoSuspendRequest suspended(cx);
         PR_Lock(gWatchdogLock);
-        int64_t to_wakeup = PRMJ_Now() + t_ticks;
+        PRIntervalTime to_wakeup = PR_IntervalNow() + t_ticks;
         for (;;) {
             PR_WaitCondVar(gSleepWakeup, t_ticks);
             if (gCanceled)
                 break;
-            int64_t now = PRMJ_Now();
+            PRIntervalTime now = PR_IntervalNow();
             if (!IsBefore(now, to_wakeup))
                 break;
             t_ticks = to_wakeup - now;
@@ -2889,7 +2892,7 @@ WatchdogMain(void *arg)
 
     PR_Lock(gWatchdogLock);
     while (gWatchdogThread) {
-         int64_t now = PRMJ_Now();
+        PRIntervalTime now = PR_IntervalNow();
          if (gWatchdogHasTimeout && !IsBefore(now, gWatchdogTimeout)) {
             /*
              * The timeout has just expired. Trigger the operation callback
@@ -2903,9 +2906,9 @@ WatchdogMain(void *arg)
             /* Wake up any threads doing sleep. */
             PR_NotifyAllCondVar(gSleepWakeup);
         } else {
-            int64_t sleepDuration = gWatchdogHasTimeout
-                                    ? gWatchdogTimeout - now
-                                    : PR_INTERVAL_NO_TIMEOUT;
+            PRIntervalTime sleepDuration = gWatchdogHasTimeout
+                                           ? gWatchdogTimeout - now
+                                           : PR_INTERVAL_NO_TIMEOUT;
             DebugOnly<PRStatus> status =
                 PR_WaitCondVar(gWatchdogWakeup, sleepDuration);
             JS_ASSERT(status == PR_SUCCESS);
@@ -2924,8 +2927,8 @@ ScheduleWatchdog(JSRuntime *rt, double t)
         return true;
     }
 
-    int64_t interval = int64_t(ceil(t * PRMJ_USEC_PER_SEC));
-    int64_t timeout = PRMJ_Now() + interval;
+    PRIntervalTime interval = PRIntervalTime(ceil(t * PR_TicksPerSecond()));
+    PRIntervalTime timeout = PR_IntervalNow() + interval;
     PR_Lock(gWatchdogLock);
     if (!gWatchdogThread) {
         JS_ASSERT(!gWatchdogHasTimeout);
@@ -3078,7 +3081,7 @@ Elapsed(JSContext *cx, unsigned argc, jsval *vp)
         double d = 0.0;
         JSShellContextData *data = GetContextData(cx);
         if (data)
-            d = PRMJ_Now() - data->startTime;
+            d = js_IntervalNow() - data->startTime;
         return JS_NewNumberValue(cx, d, vp);
     }
     JS_ReportError(cx, "Wrong number of arguments");
@@ -3431,22 +3434,6 @@ EnableSPSProfilingAssertions(JSContext *cx, unsigned argc, jsval *vp)
 }
 
 static JSBool
-RelaxRootChecks(JSContext *cx, unsigned argc, jsval *vp)
-{
-    if (argc > 0) {
-        JS_ReportErrorNumber(cx, my_GetErrorMessage, NULL, JSSMSG_INVALID_ARGS,
-                             "relaxRootChecks");
-        return false;
-    }
-
-#ifdef DEBUG
-    cx->runtime->relaxRootChecks = true;
-#endif
-
-    return true;
-}
-
-static JSBool
 GetMaxArgs(JSContext *cx, unsigned arg, jsval *vp)
 {
     JS_SET_RVAL(cx, vp, INT_TO_JSVAL(StackSpace::ARGS_LENGTH_MAX));
@@ -3750,12 +3737,6 @@ static JSFunctionSpecWithHelp shell_functions[] = {
 "enableProfilingAssertions(enabled)",
 "  Enables or disables the assertions related to SPS profiling. This is fairly\n"
 "  expensive, so it shouldn't be enabled normally."),
-
-    JS_FN_HELP("relaxRootChecks", RelaxRootChecks, 0, 0,
-"relaxRootChecks()",
-"  Tone down the frequency with which the dynamic rooting analysis checks for\n"
-"  rooting hazards. This is helpful to reduce the time taken when interpreting\n"
-"  heavily numeric code."),
 
     JS_FS_END
 };

@@ -34,11 +34,5 @@ CPPSRCS = \
   MediaManager.cpp \
   $(NULL)
 
-ifdef MOZ_WEBRTC
-LOCAL_INCLUDES += \
-  -I$(topsrcdir)/media/webrtc/trunk/src \
-  $(NULL)
-endif
-
 include $(topsrcdir)/config/config.mk
 include $(topsrcdir)/config/rules.mk

@@ -12,9 +12,8 @@
 
 #include "mozilla/TypeTraits.h"
 
-#include "jsapi.h"
+#include "jspubtd.h"
 
-#include "js/TemplateLib.h"
 #include "js/Utility.h"
 
 namespace JS {
@@ -68,30 +67,12 @@ template <typename T>
 struct RootMethods { };
 
 /*
- * Handle provides an implicit constructor for NullPtr so that, given:
- *   foo(Handle<JSObject*> h);
- * callers can simply write:
- *   foo(NullPtr());
- * which avoids creating a Rooted<JSObject*> just to pass NULL.
- */
-struct NullPtr
-{
-    static void * const constNullValue;
-};
-
-template <typename T>
-class HandleBase {};
-
-/*
  * Reference to a T that has been rooted elsewhere. This is most useful
  * as a parameter type, which guarantees that the T lvalue is properly
  * rooted. See "Move GC Stack Rooting" above.
- *
- * If you want to add additional methods to Handle for a specific
- * specialization, define a HandleBase<T> specialization containing them.
  */
 template <typename T>
-class Handle : public HandleBase<T>
+class Handle
 {
   public:
     /* Creates a handle from a handle of a type convertible to T. */
@@ -100,12 +81,6 @@ class Handle : public HandleBase<T>
            typename mozilla::EnableIf<mozilla::IsConvertible<S, T>::value, int>::Type dummy = 0)
     {
         ptr = reinterpret_cast<const T *>(handle.address());
-    }
-
-    /* Create a handle for a NULL pointer. */
-    Handle(NullPtr) {
-        typedef typename js::tl::StaticAssert<js::tl::IsPointerType<T>::result>::result _;
-        ptr = reinterpret_cast<const T *>(&NullPtr::constNullValue);
     }
 
     /*
@@ -140,9 +115,6 @@ class Handle : public HandleBase<T>
     Handle() {}
 
     const T *ptr;
-
-    template <typename S>
-    void operator =(S v) MOZ_DELETE;
 };
 
 typedef Handle<JSObject*>    HandleObject;
@@ -152,19 +124,12 @@ typedef Handle<JSString*>    HandleString;
 typedef Handle<jsid>         HandleId;
 typedef Handle<Value>        HandleValue;
 
-template <typename T>
-class MutableHandleBase {};
-
 /*
  * Similar to a handle, but the underlying storage can be changed. This is
  * useful for outparams.
- *
- * If you want to add additional methods to MutableHandle for a specific
- * specialization, define a MutableHandleBase<T> specialization containing
- * them.
  */
 template <typename T>
-class MutableHandle : public MutableHandleBase<T>
+class MutableHandle
 {
   public:
     template <typename S>
@@ -179,11 +144,7 @@ class MutableHandle : public MutableHandleBase<T>
     MutableHandle(Rooted<S> *root,
                   typename mozilla::EnableIf<mozilla::IsConvertible<S, T>::value, int>::Type dummy = 0);
 
-    void set(T v)
-    {
-        JS_ASSERT(!RootMethods<T>::poisoned(v));
-        *ptr = v;
-    }
+    void set(T v) { *ptr = v; }
 
     T *address() const { return ptr; }
     T get() const { return *ptr; }
@@ -208,19 +169,13 @@ struct RootMethods<T *>
     static bool poisoned(T *v) { return IsPoisonedPtr(v); }
 };
 
-template <typename T>
-class RootedBase {};
-
 /*
  * Local variable of type T whose value is always rooted. This is typically
  * used for local variables, or for non-rooted values being passed to a
  * function that requires a handle, e.g. Foo(Root<T>(cx, x)).
- *
- * If you want to add additional methods to Rooted for a specific
- * specialization, define a RootedBase<T> specialization containing them.
  */
 template <typename T>
-class Rooted : public RootedBase<T>
+class Rooted
 {
     void init(JSContext *cx_)
     {
@@ -384,7 +339,6 @@ class SkipRoot
 #ifdef DEBUG
 JS_FRIEND_API(bool) IsRootingUnnecessaryForContext(JSContext *cx);
 JS_FRIEND_API(void) SetRootingUnnecessaryForContext(JSContext *cx, bool value);
-JS_FRIEND_API(bool) RelaxRootChecksForContext(JSContext *cx);
 #endif
 
 class AssertRootingUnnecessary {
@@ -409,22 +363,16 @@ public:
     }
 };
 
-#if defined(DEBUG) && defined(JS_GC_ZEAL) && defined(JSGC_ROOT_ANALYSIS) && !defined(JS_THREADSAFE)
-extern void
-CheckStackRoots(JSContext *cx);
-#endif
-
 /*
  * Hook for dynamic root analysis. Checks the native stack and poisons
  * references to GC things which have not been rooted.
  */
-inline void MaybeCheckStackRoots(JSContext *cx, bool relax = true)
+inline void MaybeCheckStackRoots(JSContext *cx)
 {
 #ifdef DEBUG
     JS_ASSERT(!IsRootingUnnecessaryForContext(cx));
 # if defined(JS_GC_ZEAL) && defined(JSGC_ROOT_ANALYSIS) && !defined(JS_THREADSAFE)
-    if (relax && RelaxRootChecksForContext(cx))
-        return;
+    void CheckStackRoots(JSContext *cx);
     CheckStackRoots(cx);
 # endif
 #endif

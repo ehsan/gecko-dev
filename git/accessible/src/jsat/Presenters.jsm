@@ -91,12 +91,7 @@ Presenter.prototype = {
    * The viewport has changed, either a scroll, pan, zoom, or
    *    landscape/portrait toggle.
    */
-  viewportChanged: function viewportChanged() {},
-
-  /**
-   * We have entered or left text editing mode.
-   */
-  editingModeChanged: function editingModeChanged(aIsEditing) {}
+  viewportChanged: function viewportChanged() {}
 };
 
 /**
@@ -308,8 +303,22 @@ AndroidPresenter.prototype = {
 
   tabStateChanged: function AndroidPresenter_tabStateChanged(aDocObj,
                                                              aPageState) {
-    this._appAnnounce(
-      UtteranceGenerator.genForTabStateChange(aDocObj, aPageState));
+    let stateUtterance = UtteranceGenerator.
+      genForTabStateChange(aDocObj, aPageState);
+
+    if (!stateUtterance.length)
+      return;
+
+    this.sendMessageToJava({
+      gecko: {
+        type: 'Accessibility:Event',
+        eventType: this.ANDROID_VIEW_TEXT_CHANGED,
+        text: stateUtterance,
+        addedCount: stateUtterance.join(' ').length,
+        removedCount: 0,
+        fromIndex: 0
+      }
+    });
   },
 
   textChanged: function AndroidPresenter_textChanged(aIsInserted, aStart,
@@ -351,26 +360,6 @@ AndroidPresenter.prototype = {
         scrollY: win.scrollY,
         maxScrollX: win.scrollMaxX,
         maxScrollY: win.scrollMaxY
-      }
-    });
-  },
-
-  editingModeChanged: function AndroidPresenter_editingModeChanged(aIsEditing) {
-    this._appAnnounce(UtteranceGenerator.genForEditingMode(aIsEditing));
-  },
-
-  _appAnnounce: function _appAnnounce(aUtterance) {
-    if (!aUtterance.length)
-      return;
-
-    this.sendMessageToJava({
-      gecko: {
-        type: 'Accessibility:Event',
-        eventType: this.ANDROID_VIEW_TEXT_CHANGED,
-        text: aUtterance,
-        addedCount: aUtterance.join(' ').length,
-        removedCount: 0,
-        fromIndex: 0
       }
     });
   },

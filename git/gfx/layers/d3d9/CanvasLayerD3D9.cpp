@@ -4,7 +4,6 @@
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
 
-#include "ipc/AutoOpenSurface.h"
 #include "mozilla/layers/PLayers.h"
 #include "mozilla/layers/ShadowLayers.h"
 #include "ShadowBufferD3D9.h"
@@ -312,11 +311,12 @@ ShadowCanvasLayerD3D9::Swap(const CanvasSurface& aNewFront,
   NS_ASSERTION(aNewFront.type() == CanvasSurface::TSurfaceDescriptor, 
     "ShadowCanvasLayerD3D9::Swap expected CanvasSurface surface");
 
-  AutoOpenSurface surf(OPEN_READ_ONLY, aNewFront);
+  nsRefPtr<gfxASurface> surf = 
+    ShadowLayerForwarder::OpenDescriptor(aNewFront);
   if (!mBuffer) {
     Init(needYFlip);
   }
-  mBuffer->Upload(surf.Get(), GetVisibleRegion().GetBounds());
+  mBuffer->Upload(surf, GetVisibleRegion().GetBounds());
 
   *aNewBack = aNewFront;
 }

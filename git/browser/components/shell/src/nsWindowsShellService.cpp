@@ -228,11 +228,7 @@ GetHelperPath(nsAutoString& aPath)
   rv = appHelper->AppendNative(NS_LITERAL_CSTRING("helper.exe"));
   NS_ENSURE_SUCCESS(rv, rv);
 
-  rv = appHelper->GetPath(aPath);
-
-  aPath.Insert(L'"', 0);
-  aPath.Append(L'"');
-  return rv;
+  return appHelper->GetPath(aPath);
 }
 
 nsresult

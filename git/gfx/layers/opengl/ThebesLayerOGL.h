@@ -67,18 +67,19 @@ public:
     MOZ_COUNT_DTOR(ShadowThebesLayerBufferOGL);
   }
 
-  void Swap(const SurfaceDescriptor& aDescriptor,
+  void Swap(gfxASurface* aNewBuffer,
             const nsIntRect& aNewRect, const nsIntPoint& aNewRotation,
-            SurfaceDescriptor* aOldDescriptor,
+            gfxASurface** aOldBuffer,
             nsIntRect* aOldRect, nsIntPoint* aOldRotation)
   {
-    *aOldDescriptor = mBuffer;
     *aOldRect = mBufferRect;
     *aOldRotation = mBufferRotation;
+    nsRefPtr<gfxASurface> oldBuffer = mBuffer;
 
-    mBuffer = aDescriptor;
     mBufferRect = aNewRect;
     mBufferRotation = aNewRotation;
+    mBuffer = aNewBuffer;
+    oldBuffer.forget(aOldBuffer);
   }
 
   nsIntRect Rect() {
@@ -89,7 +90,7 @@ public:
     return mBufferRotation;
   }
 
-  SurfaceDescriptor Buffer() {
+  gfxASurface* Buffer() {
     return mBuffer;
   }
 
@@ -99,11 +100,12 @@ public:
    */
   void Clear()
   {
+    mBuffer = nsnull;
     mBufferRect.SetEmpty();
   }
 
 protected:
-  SurfaceDescriptor mBuffer;
+  nsRefPtr<gfxASurface> mBuffer;
   nsIntRect mBufferRect;
   nsIntPoint mBufferRotation;
 };

@@ -34,12 +34,6 @@ public class Synchronizer implements SynchronizerSessionDelegate {
 
   protected SynchronizerDelegate synchronizerDelegate;
 
-  protected SynchronizerSession session = null;
-
-  public SynchronizerSession getSynchronizerSession() {
-    return session;
-  }
-
   @Override
   public void onInitialized(SynchronizerSession session) {
     session.synchronize();
@@ -73,7 +67,7 @@ public class Synchronizer implements SynchronizerSessionDelegate {
   /**
    * Fetch a synchronizer session appropriate for this <code>Synchronizer</code>
    */
-  protected SynchronizerSession newSynchronizerSession() {
+  public SynchronizerSession getSynchronizerSession() {
     return new SynchronizerSession(this, this);
   }
 
@@ -82,8 +76,8 @@ public class Synchronizer implements SynchronizerSessionDelegate {
    */
   public void synchronize(Context context, SynchronizerDelegate delegate) {
     this.synchronizerDelegate = delegate;
-    this.session = newSynchronizerSession();
-    this.session.init(context, bundleA, bundleB);
+    SynchronizerSession session = getSynchronizerSession();
+    session.init(context, bundleA, bundleB);
   }
 
   public SynchronizerConfiguration save() {

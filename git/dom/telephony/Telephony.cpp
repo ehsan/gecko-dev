@@ -419,10 +419,6 @@ Telephony::CallStateChanged(PRUint32 aCallIndex, PRUint16 aCallState,
       } else {
         mActiveCall = modifiedCall;
       }
-    } else {
-      if (mActiveCall && mActiveCall->CallIndex() == aCallIndex) {
-        mActiveCall = nsnull;
-      }
     }
 
     // Change state.

@@ -8,13 +8,8 @@
 
 #include "EditTxn.h"
 #include "nsCOMPtr.h"
-#include "nsCycleCollectionParticipant.h"
 #include "nsIDOMElement.h"
-#include "nsISupportsImpl.h"
-#include "nsString.h"
-#include "nscore.h"
-
-class nsIEditor;
+#include "nsIEditor.h"
 
 /**
  * A transaction that changes an attribute of a content node. 

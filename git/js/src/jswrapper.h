@@ -94,6 +94,10 @@ class JS_FRIEND_API(Wrapper)
      * on the underlying object's |id| property. In the case when |act| is CALL,
      * |id| is generally JSID_VOID.
      *
+     * leave() allows the policy to undo various scoped state changes taken in
+     * enter(). If enter() succeeds, leave() must be called upon completion of
+     * the approved action.
+     *
      * The |act| parameter to enter() specifies the action being performed. GET,
      * SET, and CALL are self-explanatory, but PUNCTURE requires more
      * explanation:
@@ -115,6 +119,8 @@ class JS_FRIEND_API(Wrapper)
      */
     virtual bool enter(JSContext *cx, JSObject *wrapper, jsid id, Action act,
                        bool *bp);
+
+    virtual void leave(JSContext *cx, JSObject *wrapper);
 };
 
 /*
@@ -345,27 +351,27 @@ struct CompartmentFilter {
 };
 
 struct AllCompartments : public CompartmentFilter {
-    virtual bool match(JSCompartment *c) const { return true; }
+    virtual bool match(JSCompartment *c) const { return true; };
 };
 
 struct ContentCompartmentsOnly : public CompartmentFilter {
     virtual bool match(JSCompartment *c) const {
         return !IsSystemCompartment(c);
-    }
+    };
 };
 
 struct SingleCompartment : public CompartmentFilter {
     JSCompartment *ours;
-    SingleCompartment(JSCompartment *c) : ours(c) {}
-    virtual bool match(JSCompartment *c) const { return c == ours; }
+    SingleCompartment(JSCompartment *c) : ours(c) {};
+    virtual bool match(JSCompartment *c) const { return c == ours; };
 };
 
 struct CompartmentsWithPrincipals : public CompartmentFilter {
     JSPrincipals *principals;
-    CompartmentsWithPrincipals(JSPrincipals *p) : principals(p) {}
+    CompartmentsWithPrincipals(JSPrincipals *p) : principals(p) {};
     virtual bool match(JSCompartment *c) const {
         return JS_GetCompartmentPrincipals(c) == principals;
-    }
+    };
 };
 
 JS_FRIEND_API(bool)

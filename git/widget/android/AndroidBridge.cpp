@@ -1013,7 +1013,7 @@ AndroidBridge::GetSystemColors(AndroidSystemColors *aColors)
     if (!arr)
         return;
 
-    PRUint32 len = static_cast<PRUint32>(env->GetArrayLength(arr));
+    jsize len = env->GetArrayLength(arr);
     jint *elements = env->GetIntArrayElements(arr, 0);
 
     PRUint32 colorsCount = sizeof(AndroidSystemColors) / sizeof(nscolor);
@@ -1027,7 +1027,7 @@ AndroidBridge::GetSystemColors(AndroidSystemColors *aColors)
         PRUint32 androidColor = static_cast<PRUint32>(elements[i]);
         PRUint8 r = (androidColor & 0x00ff0000) >> 16;
         PRUint8 b = (androidColor & 0x000000ff);
-        colors[i] = (androidColor & 0xff00ff00) | (b << 16) | r;
+        colors[i] = androidColor & 0xff00ff00 | b << 16 | r;
     }
 
     env->ReleaseIntArrayElements(arr, elements, 0);
@@ -1060,7 +1060,7 @@ AndroidBridge::GetIconForExtension(const nsACString& aFileExt, PRUint32 aIconSiz
     if (!arr)
         return;
 
-    PRUint32 len = static_cast<PRUint32>(env->GetArrayLength(arr));
+    jsize len = env->GetArrayLength(arr);
     jbyte *elements = env->GetByteArrayElements(arr, 0);
 
     PRUint32 bufSize = aIconSize * aIconSize * 4;
@@ -1095,28 +1095,11 @@ AndroidBridge::SetSurfaceView(jobject obj)
 }
 
 void
-AndroidBridge::SetLayerClient(JNIEnv* env, jobject jobj)
+AndroidBridge::SetLayerClient(jobject obj)
 {
-    // if resetting is true, that means Android destroyed our GeckoApp activity
-    // and we had to recreate it, but all the Gecko-side things were not destroyed.
-    // We therefore need to link up the new java objects to Gecko, and that's what
-    // we do here.
-    bool resetting = (mLayerClient != NULL);
-
-    if (resetting) {
-        // clear out the old layer client
-        env->DeleteGlobalRef(mLayerClient->wrappedObject());
-        delete mLayerClient;
-        mLayerClient = NULL;
-    }
-
     AndroidGeckoLayerClient *client = new AndroidGeckoLayerClient();
-    client->Init(env->NewGlobalRef(jobj));
+    client->Init(obj);
     mLayerClient = client;
-
-    if (resetting) {
-        RegisterCompositor(env, true);
-    }
 }
 
 void
@@ -1187,11 +1170,10 @@ AndroidBridge::CallEglCreateWindowSurface(void *dpy, void *config, AndroidGeckoS
 static AndroidGLController sController;
 
 void
-AndroidBridge::RegisterCompositor(JNIEnv *env, bool resetting)
+AndroidBridge::RegisterCompositor()
 {
     ALOG_BRIDGE("AndroidBridge::RegisterCompositor");
-    if (!env)
-        env = GetJNIForThread();    // called on the compositor thread
+    JNIEnv *env = GetJNIForThread();    // called on the compositor thread
     if (!env)
         return;
 
@@ -1203,12 +1185,8 @@ AndroidBridge::RegisterCompositor(JNIEnv *env, bool resetting)
     if (jniFrame.CheckForException())
         return;
 
-    if (resetting) {
-        sController.Reacquire(env, glController);
-    } else {
-        sController.Acquire(env, glController);
-        sController.SetGLVersion(2);
-    }
+    sController.Acquire(env, glController);
+    sController.SetGLVersion(2);
 }
 
 EGLSurface
@@ -1540,7 +1518,7 @@ AndroidBridge::ValidateBitmap(jobject bitmap, int width, int height)
         return false;
     }
 
-    if ((int)info.width != width || (int)info.height != height)
+    if (info.width != width || info.height != height)
         return false;
 
     return true;
@@ -1990,7 +1968,7 @@ AndroidBridge::LockWindow(void *window, unsigned char **bits, int *width, int *h
 
     // Very similar to the above, but the 'usage' field is included. We use this
     // in the fallback case when NDK support is not available
-    struct SurfaceInfo {
+    typedef struct SurfaceInfo {
         uint32_t    w;
         uint32_t    h;
         uint32_t    s;

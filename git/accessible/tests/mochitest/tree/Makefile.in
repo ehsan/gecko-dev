@@ -10,8 +10,9 @@ VPATH		= @srcdir@
 relativesrcdir  = accessible/tree
 
 include $(DEPTH)/config/autoconf.mk
+include $(topsrcdir)/config/rules.mk
 
-MOCHITEST_A11Y_FILES =\
+_TEST_FILES =\
 		dockids.html \
 	$(warning test_applicationacc.xul temporarily disabled, see bug 561508) \
 		test_aria_globals.html \
@@ -45,4 +46,5 @@ MOCHITEST_A11Y_FILES =\
 		wnd.xul \
 		$(NULL)
 
-include $(topsrcdir)/config/rules.mk
+libs:: $(_TEST_FILES)
+	$(INSTALL) $(foreach f,$^,"$f") $(DEPTH)/_tests/testing/mochitest/a11y/$(relativesrcdir)

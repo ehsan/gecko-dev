@@ -6,15 +6,15 @@
 #ifndef nsTransactionList_h__
 #define nsTransactionList_h__
 
-#include "nsAutoPtr.h"
-#include "nsISupportsImpl.h"
+#include "nsWeakReference.h"
 #include "nsITransactionList.h"
-#include "nsIWeakReferenceUtils.h"
+#include "nsTransactionItem.h"
+#include "nsAutoPtr.h"
 
 class nsITransaction;
 class nsITransactionManager;
-class nsTransactionItem;
 class nsTransactionStack;
+class nsTransactionRedoStack;
 
 /** implementation of a transaction list object.
  *

@@ -13,8 +13,6 @@ pref("extensions.autoDisableScopes", 1);
 pref("xpinstall.enabled", false);
 // Disable installation of distribution add-ons
 pref("extensions.installDistroAddons", false);
-// Disable the add-on compatibility dialog
-pref("extensions.showMismatchUI", false);
 
 // Whether or not we've ever run.  We use this to set permissions on firstrun.
 pref("webapprt.firstrun", false);
@@ -34,5 +32,3 @@ pref("full-screen-api.enabled", true);
 
 // Enable smooth scrolling
 pref("general.smoothScroll", true);
-
-pref("plugin.allowed_types", "application/x-shockwave-flash,application/futuresplash");

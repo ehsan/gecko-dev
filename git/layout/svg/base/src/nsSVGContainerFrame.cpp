@@ -163,8 +163,7 @@ nsSVGDisplayContainerFrame::IsSVGTransformed(gfxMatrix *aOwnTransform,
 
   nsSVGElement *content = static_cast<nsSVGElement*>(mContent);
   const SVGAnimatedTransformList *list = content->GetAnimatedTransformList();
-  if ((list && !list->GetAnimValue().IsEmpty()) ||
-      content->GetAnimateMotionTransform()) {
+  if (list && !list->GetAnimValue().IsEmpty()) {
     if (aOwnTransform) {
       *aOwnTransform = content->PrependLocalTransformsTo(gfxMatrix(),
                                   nsSVGElement::eUserSpaceToParent);

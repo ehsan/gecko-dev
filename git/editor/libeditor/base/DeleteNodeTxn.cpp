@@ -4,11 +4,8 @@
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
 #include "DeleteNodeTxn.h"
-#include "nsDebug.h"
-#include "nsEditor.h"
-#include "nsError.h"
 #include "nsSelectionState.h" // nsRangeUpdater
-#include "nsAString.h"
+#include "nsEditor.h"
 
 
 DeleteNodeTxn::DeleteNodeTxn()

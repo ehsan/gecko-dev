@@ -42,8 +42,5 @@ function run_test() {
   } finally {
     _("Clean up.");
     Svc.Form.removeAllEntries();
-    if (tracker._lazySave) {
-      tracker._lazySave.clear();
-    }
   }
 }

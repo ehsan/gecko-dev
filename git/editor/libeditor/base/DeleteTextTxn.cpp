@@ -4,17 +4,9 @@
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
 #include "DeleteTextTxn.h"
-#include "mozilla/Assertions.h"
 #include "mozilla/Selection.h"
-#include "nsAutoPtr.h"
-#include "nsDebug.h"
-#include "nsEditor.h"
-#include "nsError.h"
-#include "nsIEditor.h"
-#include "nsISelection.h"
-#include "nsISupportsImpl.h"
 #include "nsSelectionState.h"
-#include "nsAString.h"
+#include "nsEditor.h"
 
 using namespace mozilla;
 

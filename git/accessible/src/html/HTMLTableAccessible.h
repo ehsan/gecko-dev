@@ -95,7 +95,7 @@ public:
   NS_DECL_ISUPPORTS_INHERITED
 
   // nsIAccessible Table
-  NS_FORWARD_NSIACCESSIBLETABLE(xpcAccessibleTable::)
+  NS_DECL_OR_FORWARD_NSIACCESSIBLETABLE_WITH_XPCACCESSIBLETABLE
 
   // TableAccessible
   virtual Accessible* Caption();

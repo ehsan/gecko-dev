@@ -3,16 +3,12 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-#include "mozilla/mozalloc.h"
-#include "nsAutoPtr.h"
-#include "nsCOMPtr.h"
-#include "nsDebug.h"
-#include "nsError.h"
 #include "nsITransaction.h"
-#include "nsTraceRefcnt.h"
-#include "nsTransactionItem.h"
-#include "nsTransactionManager.h"
 #include "nsTransactionStack.h"
+#include "nsTransactionManager.h"
+#include "nsTransactionItem.h"
+#include "nsCOMPtr.h"
+#include "nsAutoPtr.h"
 
 nsTransactionItem::nsTransactionItem(nsITransaction *aTransaction)
     : mTransaction(aTransaction), mUndoStack(0), mRedoStack(0)

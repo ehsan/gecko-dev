@@ -10,8 +10,9 @@ VPATH		= @srcdir@
 relativesrcdir  = image/test/mochitest
 
 include $(DEPTH)/config/autoconf.mk
+include $(topsrcdir)/config/rules.mk
 
-MOCHITEST_FILES =   imgutils.js \
+_TEST_FILES =   imgutils.js \
                 lime100x100.svg \
                 test_bug399925.html \
                 bug399925.gif \
@@ -66,7 +67,7 @@ MOCHITEST_FILES =   imgutils.js \
 # test_bug435296.html disabled - See bug 578591
 # test_bug478398.html disabled - See bug 579139
 
-MOCHITEST_CHROME_FILES = imgutils.js \
+_CHROME_FILES = imgutils.js \
                 animationPolling.js \
                 lime-anim-100x100.svg \
                 animation.svg \
@@ -94,4 +95,8 @@ MOCHITEST_CHROME_FILES = imgutils.js \
                 damon.jpg \
                 $(NULL)
 
-include $(topsrcdir)/config/rules.mk
+libs:: $(_TEST_FILES)
+	$(INSTALL) $(foreach f,$^,"$f") $(DEPTH)/_tests/testing/mochitest/tests/$(relativesrcdir)
+
+libs:: $(_CHROME_FILES)
+	$(INSTALL) $(foreach f,$^,"$f") $(DEPTH)/_tests/testing/mochitest/chrome/$(relativesrcdir)

@@ -526,7 +526,7 @@ toolbar[mode="icons"] #forward-button {
 }
 
 @conditionalForwardWithUrlbar@:not([switchingtabs]) > #forward-button {
-  transition: opacity @forwardTransitionLength@ ease-out;
+  -moz-transition: opacity @forwardTransitionLength@ ease-out;
 }
 
 @conditionalForwardWithUrlbar@ > #forward-button:hover:active:not(:-moz-lwtheme) {
@@ -895,7 +895,7 @@ toolbar[mode="icons"] #zoom-in-button {
 }
 
 @conditionalForwardWithUrlbar@:not([switchingtabs]) + #urlbar-container > #urlbar {
-  transition: margin-left @forwardTransitionLength@ ease-out;
+  -moz-transition: margin-left @forwardTransitionLength@ ease-out;
 }
 
 @conditionalForwardWithUrlbar@ + #urlbar-container > #urlbar:-moz-locale-dir(ltr) {
@@ -918,7 +918,7 @@ toolbar[mode="icons"] #zoom-in-button {
 
 @conditionalForwardWithUrlbar@[forwarddisabled]:hover:not([switchingtabs]) + #urlbar-container > #urlbar {
   /* delay the hiding of the forward button when hovered to avoid accidental clicks on the url bar */
-  transition-delay: 100s;
+  -moz-transition-delay: 100s;
 }
 
 @conditionalForwardWithUrlbar@[forwarddisabled]:not(:hover) + #urlbar-container > #urlbar {
@@ -961,18 +961,18 @@ toolbar[mode="icons"] #zoom-in-button {
 }
 
 @conditionalForwardWithUrlbar@[forwarddisabled] + #urlbar-container > #urlbar > #notification-popup-box[hidden] + #identity-box:-moz-locale-dir(ltr) {
-  transition: 0s padding-left;
+  -moz-transition: 0s padding-left;
   padding-left: 10px;
 }
 
 @conditionalForwardWithUrlbar@[forwarddisabled] + #urlbar-container > #urlbar > #notification-popup-box[hidden] + #identity-box:-moz-locale-dir(rtl) {
-  transition: 0s padding-right;
+  -moz-transition: 0s padding-right;
   padding-right: 10px;
 }
 
 @conditionalForwardWithUrlbar@[forwarddisabled]:hover:not([switchingtabs]) + #urlbar-container > #urlbar > #notification-popup-box[hidden] + #identity-box {
   /* delay the hiding of the forward button when hovered to avoid accidental clicks on the url bar */
-  transition-delay: 100s;
+  -moz-transition-delay: 100s;
 }
 
 @conditionalForwardWithUrlbar@[forwarddisabled]:not(:hover) + #urlbar-container > #urlbar > #notification-popup-box[hidden] + #identity-box:-moz-locale-dir(ltr) {
@@ -1240,20 +1240,6 @@ window[tabsontop="false"] richlistitem[type~="action"][actiontype="switchtab"][s
 #page-report-button:hover:active,
 #page-report-button[open="true"] {
   -moz-image-region: rect(0, 32px, 16px, 16px);
-}
-
-/* social recommending panel */
-
-#share-button {
-  list-style-image: url(chrome://browser/skin/share-button.png);
-}
-
-#share-button:not([shared]):not([disabled]):hover {
-  list-style-image: url(chrome://browser/skin/share-button-active.png);
-}
-
-#share-button[shared] {
-  list-style-image: url(chrome://browser/skin/share-button-shared.png);
 }
 
 /* STAR BUTTON */
@@ -1687,9 +1673,9 @@ toolbarbutton.chevron > .toolbarbutton-menu-dropmarker {
 }
 
 .tabbrowser-tab:not([pinned]):not([fadein]) {
-  transition: min-width 200ms ease-out /* copied from browser/base/content/browser.css */,
-              max-width 250ms ease-out /* copied from browser/base/content/browser.css */,
-              opacity 50ms ease-out 100ms /* hide the tab for the last 100ms of the max-width transition */;
+  -moz-transition: min-width 200ms ease-out /* copied from browser/base/content/browser.css */,
+                   max-width 250ms ease-out /* copied from browser/base/content/browser.css */,
+                   opacity 50ms ease-out 100ms /* hide the tab for the last 100ms of the max-width transition */;
 }
 
 .tab-stack {
@@ -2029,12 +2015,12 @@ toolbarbutton.chevron > .toolbarbutton-menu-dropmarker {
 
 .tabbrowser-arrowscrollbox > .scrollbutton-down {
   -moz-border-start: 2px solid transparent;
-  transition: 1s background-color ease-out;
+  -moz-transition: 1s background-color ease-out;
 }
 
 .tabbrowser-arrowscrollbox > .scrollbutton-down[notifybgtab] {
   background-color: Highlight;
-  transition: none;
+  -moz-transition: none;
 }
 
 .tabbrowser-arrowscrollbox > .scrollbutton-up:-moz-locale-dir(ltr),
@@ -2749,20 +2735,6 @@ panel[dimmed="true"] {
   background-color: transparent;
   -moz-margin-end: -3px;
   position: relative;
-}
-
-/* Lion Fullscreen window styling */
-@media (-moz-mac-lion-theme) {
-  #navigator-toolbox[inFullscreen][tabsontop="true"]:not(:-moz-lwtheme)::before {
-    height: 36px;
-  }
-  #main-window[inFullscreen]:-moz-lwtheme {
-    /* This additional padding matches the change in height in the pseudo-element
-     * above. The rules combined force the top 22px of the background image to
-     * be hidden, so there image doesn't jump around with the loss of the titlebar */
-    padding-top: 11px;
-    background-position: right -11px;
-  }
 }
 
 #devtools-sidebar-box {

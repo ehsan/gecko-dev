@@ -260,7 +260,8 @@ fun_resolve(JSContext *cx, HandleObject obj, HandleId id, unsigned flags,
     if (!JSID_IS_ATOM(id))
         return true;
 
-    RootedFunction fun(cx, obj->toFunction());
+    RootedFunction fun(cx);
+    fun = obj->toFunction();
 
     if (JSID_IS_ATOM(id, cx->runtime->atomState.classPrototypeAtom)) {
         /*
@@ -336,10 +337,10 @@ fun_resolve(JSContext *cx, HandleObject obj, HandleId id, unsigned flags,
 
 template<XDRMode mode>
 bool
-js::XDRInterpretedFunction(XDRState<mode> *xdr, HandleObject enclosingScope, HandleScript enclosingScript,
-                           JSObject **objp)
+js::XDRInterpretedFunction(XDRState<mode> *xdr, JSObject **objp, JSScript *parentScript)
 {
     /* NB: Keep this in sync with CloneInterpretedFunction. */
+    JSFunction *fun;
     JSAtom *atom;
     uint32_t firstword;           /* flag telling whether fun->atom is non-null,
                                    plus for fun->u.i.skipmin, fun->u.i.wrapper,
@@ -347,7 +348,6 @@ js::XDRInterpretedFunction(XDRState<mode> *xdr, HandleObject enclosingScope, Han
     uint32_t flagsword;           /* word for argument count and fun->flags */
 
     JSContext *cx = xdr->cx();
-    RootedFunction fun(cx);
     JSScript *script;
     if (mode == XDR_ENCODE) {
         fun = (*objp)->toFunction();
@@ -368,9 +368,9 @@ js::XDRInterpretedFunction(XDRState<mode> *xdr, HandleObject enclosingScope, Han
         fun = js_NewFunction(cx, NULL, NULL, 0, JSFUN_INTERPRETED, parent, NULL);
         if (!fun)
             return false;
-        if (!JSObject::clearParent(cx, fun))
+        if (!fun->clearParent(cx))
             return false;
-        if (!JSObject::clearType(cx, fun))
+        if (!fun->clearType(cx))
             return false;
         atom = NULL;
         script = NULL;
@@ -383,7 +383,7 @@ js::XDRInterpretedFunction(XDRState<mode> *xdr, HandleObject enclosingScope, Han
     if (!xdr->codeUint32(&flagsword))
         return false;
 
-    if (!XDRScript(xdr, enclosingScope, enclosingScript, fun, &script))
+    if (!XDRScript(xdr, &script, parentScript))
         return false;
 
     if (mode == XDR_DECODE) {
@@ -404,27 +404,27 @@ js::XDRInterpretedFunction(XDRState<mode> *xdr, HandleObject enclosingScope, Han
 }
 
 template bool
-js::XDRInterpretedFunction(XDRState<XDR_ENCODE> *, HandleObject, HandleScript, JSObject **);
+js::XDRInterpretedFunction(XDRState<XDR_ENCODE> *xdr, JSObject **objp, JSScript *parentScript);
 
 template bool
-js::XDRInterpretedFunction(XDRState<XDR_DECODE> *, HandleObject, HandleScript, JSObject **);
+js::XDRInterpretedFunction(XDRState<XDR_DECODE> *xdr, JSObject **objp, JSScript *parentScript);
 
 JSObject *
-js::CloneInterpretedFunction(JSContext *cx, HandleObject enclosingScope, HandleFunction srcFun)
+js::CloneInterpretedFunction(JSContext *cx, JSFunction *srcFun)
 {
     /* NB: Keep this in sync with XDRInterpretedFunction. */
 
     RootedObject parent(cx, NULL);
-    RootedFunction clone(cx, js_NewFunction(cx, NULL, NULL, 0, JSFUN_INTERPRETED, parent, NULL));
+    JSFunction *clone = js_NewFunction(cx, NULL, NULL, 0, JSFUN_INTERPRETED, parent, NULL);
     if (!clone)
         return NULL;
-    if (!JSObject::clearParent(cx, clone))
+    if (!clone->clearParent(cx))
         return NULL;
-    if (!JSObject::clearType(cx, clone))
+    if (!clone->clearType(cx))
         return NULL;
 
     Rooted<JSScript*> srcScript(cx, srcFun->script());
-    JSScript *clonedScript = CloneScript(cx, enclosingScope, clone, srcScript);
+    JSScript *clonedScript = CloneScript(cx, srcScript);
     if (!clonedScript)
         return NULL;
 
@@ -910,6 +910,9 @@ fun_bind(JSContext *cx, unsigned argc, Value *vp)
         return false;
     }
 
+    RootedObject target(cx);
+    target = &thisv.toObject();
+
     /* Step 3. */
     Value *boundArgs = NULL;
     unsigned argslen = 0;
@@ -920,7 +923,7 @@ fun_bind(JSContext *cx, unsigned argc, Value *vp)
 
     /* Steps 7-9. */
     RootedValue thisArg(cx, args.length() >= 1 ? args[0] : UndefinedValue());
-    RootedObject target(cx, &thisv.toObject());
+
     JSObject *boundFunction = js_fun_bind(cx, target, thisArg, boundArgs, argslen);
     if (!boundFunction)
         return false;
@@ -945,8 +948,9 @@ js_fun_bind(JSContext *cx, HandleObject target, HandleValue thisArg,
     /* Step 4-6, 10-11. */
     JSAtom *name = target->isFunction() ? target->toFunction()->atom.get() : NULL;
 
-    RootedObject funobj(cx, js_NewFunction(cx, NULL, CallOrConstructBoundFunction, length,
-                                           JSFUN_CONSTRUCTOR, target, name));
+    RootedObject funobj(cx);
+    funobj = js_NewFunction(cx, NULL, CallOrConstructBoundFunction, length,
+                            JSFUN_CONSTRUCTOR, target, name);
     if (!funobj)
         return NULL;
 
@@ -998,7 +1002,8 @@ Function(JSContext *cx, unsigned argc, Value *vp)
     CallArgs args = CallArgsFromVp(argc, vp);
 
     /* Block this call if security callbacks forbid it. */
-    Rooted<GlobalObject*> global(cx, &args.callee().global());
+    Rooted<GlobalObject*> global(cx);
+    global = &args.callee().global();
     if (!global->isRuntimeCodeGenEnabled(cx)) {
         JS_ReportErrorNumber(cx, js_GetErrorMessage, NULL, JSMSG_CSP_BLOCKED_FUNCTION);
         return false;
@@ -1207,6 +1212,7 @@ js_NewFunction(JSContext *cx, JSObject *funobj, Native native, unsigned nargs,
     JS_ASSERT(sizeof(FunctionExtended) <= gc::Arena::thingSize(JSFunction::ExtendedFinalizeKind));
 
     RootedAtom atom(cx, atom_);
+    RootedFunction fun(cx);
 
     if (funobj) {
         JS_ASSERT(funobj->isFunction());
@@ -1216,7 +1222,7 @@ js_NewFunction(JSContext *cx, JSObject *funobj, Native native, unsigned nargs,
         if (!funobj)
             return NULL;
     }
-    RootedFunction fun(cx, static_cast<JSFunction *>(funobj));
+    fun = static_cast<JSFunction *>(funobj);
 
     /* Initialize all function members. */
     fun->nargs = uint16_t(nargs);
@@ -1282,23 +1288,20 @@ js_CloneFunctionObject(JSContext *cx, HandleFunction fun, HandleObject parent,
     } else {
         /*
          * Across compartments we have to clone the script for interpreted
-         * functions. Cross-compartment cloning only happens via JSAPI
-         * (JS_CloneFunctionObject) which dynamically ensures that 'script' has
-         * no enclosing lexical scope (only the global scope).
+         * functions.
          */
         if (clone->isInterpreted()) {
             RootedScript script(cx, clone->script());
             JS_ASSERT(script);
             JS_ASSERT(script->compartment() == fun->compartment());
             JS_ASSERT(script->compartment() != cx->compartment);
-            JS_ASSERT(!script->enclosingStaticScope());
 
             clone->mutableScript().init(NULL);
-
-            JSScript *cscript = CloneScript(cx, NullPtr(), clone, script);
+            JSScript *cscript = CloneScript(cx, script);
             if (!cscript)
                 return NULL;
 
+            cscript->globalObject = &clone->global();
             clone->setScript(cscript);
             cscript->setFunction(clone);
             if (!clone->setTypeForScriptedFunction(cx))

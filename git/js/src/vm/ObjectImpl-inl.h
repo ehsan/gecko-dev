@@ -52,17 +52,19 @@ js::ObjectImpl::nativeLookup(JSContext *cx, PropertyName *name)
     return nativeLookup(cx, PropertyId(name));
 }
 
+#ifdef DEBUG
 inline js::Shape *
-js::ObjectImpl::nativeLookupNoAllocation(PropertyId pid)
+js::ObjectImpl::nativeLookupNoAllocation(JSContext *cx, PropertyId pid)
 {
-    return nativeLookupNoAllocation(pid.asId());
+    return nativeLookupNoAllocation(cx, pid.asId());
 }
 
 inline js::Shape *
-js::ObjectImpl::nativeLookupNoAllocation(PropertyName *name)
+js::ObjectImpl::nativeLookupNoAllocation(JSContext *cx, PropertyName *name)
 {
-    return nativeLookupNoAllocation(PropertyId(name));
+    return nativeLookupNoAllocation(cx, PropertyId(name));
 }
+#endif
 
 inline bool
 js::ObjectImpl::isExtensible() const
@@ -148,6 +150,17 @@ js::ObjectImpl::getSlotRange(uint32_t start, uint32_t length,
 {
     MOZ_ASSERT(slotInRange(start + length, SENTINEL_ALLOWED));
     getSlotRangeUnchecked(start, length, fixedStart, fixedEnd, slotsStart, slotsEnd);
+}
+
+inline bool
+js::ObjectImpl::hasContiguousSlots(uint32_t start, uint32_t count) const
+{
+    /*
+     * Check that the range [start, start+count) is either all inline or all
+     * out of line.
+     */
+    MOZ_ASSERT(slotInRange(start + count, SENTINEL_ALLOWED));
+    return start + count <= numFixedSlots() || start >= numFixedSlots();
 }
 
 inline void

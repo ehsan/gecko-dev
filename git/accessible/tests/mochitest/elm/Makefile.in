@@ -10,12 +10,14 @@ VPATH		= @srcdir@
 relativesrcdir  = accessible/elm
 
 include $(DEPTH)/config/autoconf.mk
+include $(topsrcdir)/config/rules.mk
 
-MOCHITEST_A11Y_FILES =\
+_TEST_FILES =\
 		test_figure.html \
 		test_listbox.xul \
 		test_nsApplicationAcc.html \
 		test_plugin.html \
 		$(NULL)
 
-include $(topsrcdir)/config/rules.mk
+libs:: $(_TEST_FILES)
+	$(INSTALL) $(foreach f,$^,"$f") $(DEPTH)/_tests/testing/mochitest/a11y/$(relativesrcdir)

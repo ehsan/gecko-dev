@@ -246,21 +246,18 @@ var WebConsoleUtils = {
         output = type;
         break;
       default:
-        try {
-          if (aResult.toSource) {
+        if (aResult.toSource) {
+          try {
             output = aResult.toSource();
-          }
-          if (!output || output == "({})") {
-            output = aResult + "";
-          }
+          } catch (ex) { }
         }
-        catch (ex) {
-          output = ex;
+        if (!output || output == "({})") {
+          output = aResult.toString();
         }
         break;
     }
 
-    return output + "";
+    return output;
   },
 
   /**

@@ -691,16 +691,16 @@ JSObject::getType(JSContext *cx)
     return self->type_;
 }
 
-/* static */ inline bool
-JSObject::clearType(JSContext *cx, js::HandleObject obj)
+inline bool
+JSObject::clearType(JSContext *cx)
 {
-    JS_ASSERT(!obj->hasSingletonType());
+    JS_ASSERT(!hasSingletonType());
 
     js::types::TypeObject *type = cx->compartment->getEmptyType(cx);
     if (!type)
         return false;
 
-    obj->type_ = type;
+    type_ = type;
     return true;
 }
 
@@ -965,27 +965,15 @@ JSObject::nativeSetSlotWithType(JSContext *cx, js::Shape *shape, const js::Value
 }
 
 inline bool
-JSObject::nativeContains(JSContext *cx, js::HandleId id)
+JSObject::nativeContains(JSContext *cx, jsid id)
 {
     return nativeLookup(cx, id) != NULL;
 }
 
 inline bool
-JSObject::nativeContains(JSContext *cx, js::HandleShape shape)
+JSObject::nativeContains(JSContext *cx, const js::Shape &shape)
 {
-    return nativeLookup(cx, shape->propid()) == shape;
-}
-
-inline bool
-JSObject::nativeContainsNoAllocation(jsid id)
-{
-    return nativeLookupNoAllocation(id) != NULL;
-}
-
-inline bool
-JSObject::nativeContainsNoAllocation(const js::Shape &shape)
-{
-    return nativeLookupNoAllocation(shape.propid()) == &shape;
+    return nativeLookup(cx, shape.propid()) == &shape;
 }
 
 inline bool
@@ -1552,7 +1540,7 @@ CopyInitializerObject(JSContext *cx, HandleObject baseobj)
 
 JSObject *
 NewReshapedObject(JSContext *cx, HandleTypeObject type, JSObject *parent,
-                  gc::AllocKind kind, HandleShape shape);
+                  gc::AllocKind kind, Shape *shape);
 
 /*
  * As for gc::GetGCObjectKind, where numSlots is a guess at the final size of
@@ -1616,7 +1604,7 @@ DefineConstructorAndPrototype(JSContext *cx, GlobalObject *global,
     JS_ASSERT(proto);
 
     jsid id = NameToId(cx->runtime->atomState.classAtoms[key]);
-    JS_ASSERT(!global->nativeLookupNoAllocation(id));
+    JS_ASSERT(!global->nativeLookupNoAllocation(cx, id));
 
     /* Set these first in case AddTypePropertyId looks for this class. */
     global->setSlot(key, ObjectValue(*ctor));

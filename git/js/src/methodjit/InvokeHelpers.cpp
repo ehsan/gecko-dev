@@ -259,8 +259,7 @@ UncachedInlineCall(VMFrame &f, InitialFrameFlags initial,
         return false;
 
     /* Try to compile if not already compiled. */
-    CompileStatus status = CanMethodJIT(cx, newscript, newscript->code, construct,
-                                        CompileRequest_Interpreter, f.fp());
+    CompileStatus status = CanMethodJIT(cx, newscript, newscript->code, construct, CompileRequest_Interpreter);
     if (status == Compile_Error) {
         /* A runtime exception was thrown, get out. */
         return false;
@@ -562,7 +561,7 @@ js_InternalThrow(VMFrame &f)
      */
     cx->jaegerRuntime().setLastUnfinished(Jaeger_Unfinished);
 
-    if (!script->ensureRanAnalysis(cx)) {
+    if (!script->ensureRanAnalysis(cx, NULL)) {
         js_ReportOutOfMemory(cx);
         return NULL;
     }
@@ -658,7 +657,7 @@ stubs::CrossChunkShim(VMFrame &f, void *edge_)
     JS_ASSERT(script->code + edge->target == f.pc());
 
     CompileStatus status = CanMethodJIT(f.cx, script, f.pc(), f.fp()->isConstructing(),
-                                        CompileRequest_Interpreter, f.fp());
+                                        CompileRequest_Interpreter);
     if (status == Compile_Error)
         THROW();
 
@@ -736,7 +735,7 @@ js_InternalInterpret(void *returnData, void *returnType, void *returnReg, js::VM
     JSOp op = JSOp(*pc);
     const JSCodeSpec *cs = &js_CodeSpec[op];
 
-    if (!script->ensureRanAnalysis(cx)) {
+    if (!script->ensureRanAnalysis(cx, NULL)) {
         js_ReportOutOfMemory(cx);
         return js_InternalThrow(f);
     }

@@ -549,9 +549,6 @@ JS_FRIEND_API(void)
 SetRuntimeProfilingStack(JSRuntime *rt, ProfileEntry *stack, uint32_t *size,
                          uint32_t max);
 
-JS_FRIEND_API(void)
-EnableRuntimeProfilingStack(JSRuntime *rt, bool enabled);
-
 #ifdef JS_THREADSAFE
 JS_FRIEND_API(void *)
 GetOwnerThread(const JSContext *cx);

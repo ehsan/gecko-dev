@@ -23,15 +23,15 @@ import android.widget.Toast;
 public class Tabs implements GeckoEventListener {
     private static final String LOGTAG = "GeckoTabs";
 
-    private Tab mSelectedTab;
-    private HashMap<Integer, Tab> mTabs;
-    private ArrayList<Tab> mOrder;
-    private ContentResolver mResolver;
-    private boolean mRestoringSession;
+    private Tab selectedTab;
+    private HashMap<Integer, Tab> tabs;
+    private ArrayList<Tab> order;
+    private ContentResolver resolver;
+    private boolean mRestoringSession = false;
 
     private Tabs() {
-        mTabs = new HashMap<Integer, Tab>();
-        mOrder = new ArrayList<Tab>();
+        tabs = new HashMap<Integer, Tab>();
+        order = new ArrayList<Tab>();
         GeckoAppShell.registerGeckoEventListener("SessionHistory:New", this);
         GeckoAppShell.registerGeckoEventListener("SessionHistory:Back", this);
         GeckoAppShell.registerGeckoEventListener("SessionHistory:Forward", this);
@@ -47,13 +47,13 @@ public class Tabs implements GeckoEventListener {
     }
 
     public int getCount() {
-        return mTabs.size();
+        return tabs.size();
     }
 
     public Tab addTab(JSONObject params) throws JSONException {
         int id = params.getInt("tabID");
-        if (mTabs.containsKey(id))
-           return mTabs.get(id);
+        if (tabs.containsKey(id))
+           return tabs.get(id);
 
         // null strings return "null" (http://code.google.com/p/android/issues/detail?id=13830)
         String url = params.isNull("uri") ? null : params.getString("uri");
@@ -62,8 +62,8 @@ public class Tabs implements GeckoEventListener {
         String title = params.getString("title");
 
         final Tab tab = new Tab(id, url, external, parentId, title);
-        mTabs.put(id, tab);
-        mOrder.add(tab);
+        tabs.put(id, tab);
+        order.add(tab);
 
         if (!mRestoringSession) {
             GeckoApp.mAppContext.mMainHandler.post(new Runnable() {
@@ -78,30 +78,30 @@ public class Tabs implements GeckoEventListener {
     }
 
     public void removeTab(int id) {
-        if (mTabs.containsKey(id)) {
+        if (tabs.containsKey(id)) {
             Tab tab = getTab(id);
-            mOrder.remove(tab);
-            mTabs.remove(id);
+            order.remove(tab);
+            tabs.remove(id);
             tab.freeBuffer();
             Log.i(LOGTAG, "Removed a tab with id: " + id);
         }
     }
 
     public Tab selectTab(int id) {
-        if (!mTabs.containsKey(id))
+        if (!tabs.containsKey(id))
             return null;
 
         final Tab oldTab = getSelectedTab();
-        final Tab tab = mTabs.get(id);
+        final Tab tab = tabs.get(id);
         // This avoids a NPE below, but callers need to be careful to
         // handle this case
         if (tab == null)
             return null;
 
-        mSelectedTab = tab;
+        selectedTab = tab;
         GeckoApp.mAppContext.mMainHandler.post(new Runnable() { 
             public void run() {
-                GeckoApp.mAppContext.mFormAssistPopup.hide();
+                GeckoApp.mFormAssistPopup.hide();
                 if (isSelectedTab(tab)) {
                     String url = tab.getURL();
                     notifyListeners(tab, TabEvents.SELECTED);
@@ -118,35 +118,35 @@ public class Tabs implements GeckoEventListener {
     }
 
     public int getIndexOf(Tab tab) {
-        return mOrder.lastIndexOf(tab);
+        return order.lastIndexOf(tab);
     }
 
     public Tab getTabAt(int index) {
-        if (index >= 0 && index < mOrder.size())
-            return mOrder.get(index);
+        if (index >= 0 && index < order.size())
+            return order.get(index);
         else
             return null;
     }
 
     public Tab getSelectedTab() {
-        return mSelectedTab;
+        return selectedTab;
     }
 
     public boolean isSelectedTab(Tab tab) {
-        if (mSelectedTab == null)
+        if (selectedTab == null)
             return false;
 
-        return tab == mSelectedTab;
+        return tab == selectedTab;
     }
 
     public Tab getTab(int id) {
         if (getCount() == 0)
             return null;
 
-        if (!mTabs.containsKey(id))
+        if (!tabs.containsKey(id))
            return null;
 
-        return mTabs.get(id);
+        return tabs.get(id);
     }
 
     /** Close tab and then select the default next tab */
@@ -201,22 +201,22 @@ public class Tabs implements GeckoEventListener {
         if (getCount() == 0)
             return null;
 
-        return mTabs;
+        return tabs;
     }
     
     public ArrayList<Tab> getTabsInOrder() {
         if (getCount() == 0)
             return null;
 
-        return mOrder;
+        return order;
     }
 
     public void setContentResolver(ContentResolver resolver) {
-        mResolver = resolver;
+        this.resolver = resolver;
     }
 
     public ContentResolver getContentResolver() {
-        return mResolver;
+        return resolver;
     }
 
     //Making Tabs a singleton class
@@ -305,7 +305,7 @@ public class Tabs implements GeckoEventListener {
     }
 
     public void refreshThumbnails() {
-        Iterator<Tab> iterator = mTabs.values().iterator();
+        Iterator<Tab> iterator = tabs.values().iterator();
         while (iterator.hasNext()) {
             final Tab tab = iterator.next();
             GeckoAppShell.getHandler().post(new Runnable() {

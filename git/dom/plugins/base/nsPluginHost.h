@@ -85,8 +85,6 @@ public:
                                nsIPluginInstanceOwner *aOwner);
   nsresult IsPluginEnabledForType(const char* aMimeType);
   nsresult IsPluginEnabledForExtension(const char* aExtension, const char* &aMimeType);
-  bool     IsPluginClickToPlayForType(const char *aMimeType);
-  nsresult GetBlocklistStateForType(const char *aMimeType, PRUint32 *state);
 
   nsresult GetPluginCount(PRUint32* aPluginCount);
   nsresult GetPlugins(PRUint32 aPluginCount, nsIDOMPlugin** aPluginArray);
@@ -235,11 +233,6 @@ private:
   nsresult
   FindPlugins(bool aCreatePluginList, bool * aPluginsChanged);
 
-  // Registers or unregisters the given mime type with the category manager
-  // (performs no checks - see UpdateCategoryManager)
-  enum nsRegisterType { ePluginRegister, ePluginUnregister };
-  void RegisterWithCategoryManager(nsCString &aMimeType, nsRegisterType aType);
-
   nsresult
   ScanPluginsDirectory(nsIFile *pluginsDir,
                        bool aCreatePluginList,
@@ -283,8 +276,6 @@ private:
 
   // set by pref plugin.disable
   bool mPluginsDisabled;
-  // set by pref plugins.click_to_play
-  bool mPluginsClickToPlay;
 
   // Any instances in this array will have valid plugin objects via GetPlugin().
   // When removing an instance it might not die - be sure to null out it's plugin.

@@ -308,14 +308,11 @@ class DataViewObject : public JSObject
     inline void *dataPointer();
     inline bool hasBuffer() const;
     static JSObject *initClass(JSContext *cx);
-    static bool getDataPointer(JSContext *cx, Handle<DataViewObject*> obj,
-                               CallArgs args, size_t typeSize, uint8_t **data);
+    bool getDataPointer(JSContext *cx, CallArgs args, size_t typeSize, uint8_t **data);
     template<typename NativeType>
-    static bool read(JSContext *cx, Handle<DataViewObject*> obj,
-                     CallArgs &args, NativeType *val, const char *method);
+    bool read(JSContext *cx, CallArgs &args, NativeType *val, const char *method);
     template<typename NativeType>
-    static bool write(JSContext *cx, Handle<DataViewObject*> obj,
-                      CallArgs &args, const char *method);
+    bool write(JSContext *cx, CallArgs &args, const char *method);
   private:
     static JSFunctionSpec jsfuncs[];
 };

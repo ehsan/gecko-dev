@@ -10,8 +10,9 @@ VPATH		= @srcdir@
 relativesrcdir	= dom/tests/mochitest/whatwg
 
 include $(DEPTH)/config/autoconf.mk
+include $(topsrcdir)/config/rules.mk
 
-MOCHITEST_FILES	= \
+_TEST_FILES	= \
 		browserFu.js \
 		test_MessageEvent.html \
 		test_postMessage.html \
@@ -52,8 +53,12 @@ MOCHITEST_FILES	= \
 		postMessage_structured_clone_helper.html \
 		$(NULL)
 
-MOCHITEST_CHROME_FILES	= \
+_CHROME_FILES	= \
 		test_postMessage_chrome.html \
 		$(NULL)		
 
-include $(topsrcdir)/config/rules.mk
+libs:: 	$(_TEST_FILES)
+	$(INSTALL) $(foreach f,$^,"$f") $(DEPTH)/_tests/testing/mochitest/tests/$(relativesrcdir)
+
+libs:: $(_CHROME_FILES)
+	$(INSTALL) $(foreach f,$^,"$f") $(DEPTH)/_tests/testing/mochitest/chrome/$(relativesrcdir)

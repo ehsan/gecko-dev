@@ -9,8 +9,9 @@ VPATH          = @srcdir@
 relativesrcdir = content/html/content/test/forms
 
 include $(DEPTH)/config/autoconf.mk
+include $(topsrcdir)/config/rules.mk
 
-MOCHITEST_FILES = \
+_TEST_FILES = \
 		save_restore_radio_groups.sjs \
 		test_save_restore_radio_groups.html \
 		test_change_event.html \
@@ -50,5 +51,6 @@ MOCHITEST_FILES = \
 		test_input_number_value.html \
 		$(NULL)
 
-include $(topsrcdir)/config/rules.mk
+libs:: $(_TEST_FILES)
+	$(INSTALL) $(foreach f,$^,"$f") $(DEPTH)/_tests/testing/mochitest/tests/$(relativesrcdir)
 

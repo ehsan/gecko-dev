@@ -199,10 +199,6 @@ public:
 
     void ReportFailedToProcess(nsIURI *uri);
 
-    // Causes a large amount of connection diagnostic information to be
-    // printed to the javascript console
-    void PrintDiagnostics();
-
     //-------------------------------------------------------------------------
     // NOTE: functions below may be called only on the socket thread.
     //-------------------------------------------------------------------------
@@ -396,7 +392,6 @@ private:
 
         bool HasConnected() { return mHasConnected; }
 
-        void PrintDiagnostics(nsCString &log);
     private:
         nsConnectionEntry              *mEnt;
         nsRefPtr<nsAHttpTransaction>   mTransaction;
@@ -606,13 +601,6 @@ private:
     static PLDHashOperator ReadTimeoutTickCB(const nsACString &key,
                                              nsAutoPtr<nsConnectionEntry> &ent,
                                              void *closure);
-
-    // For diagnostics
-    void OnMsgPrintDiagnostics(PRInt32, void *);
-    static PLDHashOperator PrintDiagnosticsCB(const nsACString &key,
-                                              nsAutoPtr<nsConnectionEntry> &ent,
-                                              void *closure);
-    nsCString mLogData;
 };
 
 #endif // !nsHttpConnectionMgr_h__

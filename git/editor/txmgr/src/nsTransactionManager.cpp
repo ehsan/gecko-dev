@@ -3,22 +3,17 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-#include "mozilla/Assertions.h"
-#include "mozilla/mozalloc.h"
+#include "nsITransaction.h"
+#include "nsITransactionListener.h"
+
+#include "nsTransactionItem.h"
+#include "nsTransactionStack.h"
+#include "nsVoidArray.h"
+#include "nsTransactionManager.h"
+#include "nsTransactionList.h"
 #include "nsAutoPtr.h"
 #include "nsCOMPtr.h"
-#include "nsDebug.h"
-#include "nsError.h"
-#include "nsISupportsBase.h"
-#include "nsISupportsUtils.h"
-#include "nsITransaction.h"
-#include "nsITransactionList.h"
-#include "nsITransactionListener.h"
-#include "nsIWeakReference.h"
-#include "nsTransactionItem.h"
-#include "nsTransactionList.h"
-#include "nsTransactionManager.h"
-#include "nsTransactionStack.h"
+#include "mozilla/Assertions.h"
 
 nsTransactionManager::nsTransactionManager(PRInt32 aMaxTransactionCount)
   : mMaxTransactionCount(aMaxTransactionCount)

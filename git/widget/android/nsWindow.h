@@ -152,7 +152,8 @@ public:
     virtual void DrawWindowOverlay(LayerManager* aManager, nsIntRect aRect);
 
     static void SetCompositor(mozilla::layers::CompositorParent* aCompositorParent,
-                              mozilla::layers::CompositorChild* aCompositorChild);
+                              mozilla::layers::CompositorChild* aCompositorChild,
+                              ::base::Thread* aCompositorThread);
     static void ScheduleComposite();
     static void SchedulePauseComposition();
     static void ScheduleResumeComposition(int width, int height);
@@ -218,6 +219,7 @@ private:
     static nsRefPtr<mozilla::layers::CompositorParent> sCompositorParent;
     static nsRefPtr<mozilla::layers::CompositorChild> sCompositorChild;
     static bool sCompositorPaused;
+    static base::Thread *sCompositorThread;
 #endif
 };
 

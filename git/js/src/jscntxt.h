@@ -173,30 +173,17 @@ class ToSourceCache
     void purge();
 };
 
-struct EvalCacheLookup
+class EvalCache
 {
-    JSLinearString *str;
-    JSFunction *caller;
-    unsigned staticLevel;
-    JSVersion version;
-    JSCompartment *compartment;
+    static const unsigned SHIFT = 6;
+    static const unsigned LENGTH = 1 << SHIFT;
+    JSScript *table_[LENGTH];
 
-    EvalCacheLookup(JSLinearString *str, JSFunction *caller,
-                    unsigned staticLevel, JSVersion version, JSCompartment *compartment)
-        : str(str), caller(caller),
-          staticLevel(staticLevel), version(version), compartment(compartment)
-    {}
+  public:
+    EvalCache() { PodArrayZero(table_); }
+    JSScript **bucket(JSLinearString *str);
+    void purge();
 };
-
-struct EvalCacheHashPolicy
-{
-    typedef EvalCacheLookup Lookup;
-
-    static HashNumber hash(const Lookup &l);
-    static bool match(JSScript *script, const EvalCacheLookup &l);
-};
-
-typedef HashSet<JSScript *, EvalCacheHashPolicy, SystemAllocPolicy> EvalCache;
 
 class NativeIterCache
 {
@@ -293,11 +280,7 @@ class NewObjectCache
     inline bool lookupGlobal(Class *clasp, js::GlobalObject *global, gc::AllocKind kind, EntryIndex *pentry);
     inline bool lookupType(Class *clasp, js::types::TypeObject *type, gc::AllocKind kind, EntryIndex *pentry);
 
-    /*
-     * Return a new object from a cache hit produced by a lookup method, or
-     * NULL if returning the object could possibly trigger GC (does not
-     * indicate failure).
-     */
+    /* Return a new object from a cache hit produced by a lookup method. */
     inline JSObject *newObjectFromHit(JSContext *cx, EntryIndex entry);
 
     /* Fill an entry after a cache miss. */
@@ -505,18 +488,8 @@ struct JSRuntime : js::RuntimeFriendFields
     void                *gcVerifyData;
     bool                gcChunkAllocationSinceLastGC;
     int64_t             gcNextFullGCTime;
-    int64_t             gcLastGCTime;
     int64_t             gcJitReleaseTime;
     JSGCMode            gcMode;
-    bool                gcHighFrequencyGC;
-    uint64_t            gcHighFrequencyTimeThreshold;
-    uint64_t            gcHighFrequencyLowLimitBytes;
-    uint64_t            gcHighFrequencyHighLimitBytes;
-    double              gcHighFrequencyHeapGrowthMax;
-    double              gcHighFrequencyHeapGrowthMin;
-    double              gcLowFrequencyHeapGrowth;
-    bool                gcDynamicHeapGrowth;
-    bool                gcDynamicMarkSlice;
 
     /* During shutdown, the GC needs to clean up every possible object. */
     bool                gcShouldCleanUpEverything;
@@ -606,10 +579,6 @@ struct JSRuntime : js::RuntimeFriendFields
 #endif
 
     bool                gcPoke;
-
-#ifdef DEBUG
-    bool                relaxRootChecks;
-#endif
 
     enum HeapState {
         Idle,       // doing nothing with the GC heap
@@ -1128,9 +1097,6 @@ struct JSContext : js::ContextFriendFields
     /* Current execution stack. */
     js::ContextStack    stack;
 
-    /* Current global. */
-    inline js::Handle<js::GlobalObject*> global() const;
-
     /* ContextStack convenience functions */
     inline bool hasfp() const               { return stack.hasfp(); }
     inline js::StackFrame* fp() const       { return stack.fp(); }
@@ -1408,7 +1374,7 @@ struct AutoResolving {
         WATCH
     };
 
-    AutoResolving(JSContext *cx, HandleObject obj, HandleId id, Kind kind = LOOKUP
+    AutoResolving(JSContext *cx, JSObject *obj, jsid id, Kind kind = LOOKUP
                   JS_GUARD_OBJECT_NOTIFIER_PARAM)
       : context(cx), object(obj), id(id), kind(kind), link(cx->resolvingList)
     {
@@ -1430,8 +1396,8 @@ struct AutoResolving {
     bool alreadyStartedSlow() const;
 
     JSContext           *const context;
-    HandleObject        object;
-    HandleId            id;
+    JSObject            *const object;
+    jsid                const id;
     Kind                const kind;
     AutoResolving       *const link;
     JS_DECL_USE_GUARD_OBJECT_NOTIFIER

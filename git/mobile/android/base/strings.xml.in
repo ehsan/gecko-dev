@@ -56,7 +56,6 @@
 
   <string name="share">&share;</string>
   <string name="share_title">&share_title;</string>
-  <string name="share_image_failed">&share_image_failed;</string>
   <string name="save_as_pdf">&save_as_pdf;</string>
   <string name="find_in_page">&find_in_page;</string>
   <string name="desktop_mode">&desktop_mode;</string>
@@ -111,7 +110,6 @@
   <string name="close_tab">&close_tab;</string>
   <string name="new_tab">&new_tab;</string>
   <string name="new_tab_opened">&new_tab_opened;</string>
-  <string name="one_tab">&one_tab;</string>
   <string name="num_tabs">&num_tabs;</string>
   <string name="addons">&addons;</string>
   <string name="downloads">&downloads;</string>
@@ -203,5 +201,4 @@
   <string name="bookmarkhistory_import_history">&bookmarkhistory_import_history;</string>
   <string name="bookmarkhistory_import_wait">&bookmarkhistory_import_wait;</string>
 
-  <string name="webapp_generic_name">&webapp_generic_name;</string>
 </resources>

@@ -290,11 +290,13 @@ nsOfflineCacheUpdateItem::nsOfflineCacheUpdateItem(nsIURI *aURI,
                                                    nsIURI *aReferrerURI,
                                                    nsIApplicationCache *aApplicationCache,
                                                    nsIApplicationCache *aPreviousApplicationCache,
+                                                   const nsACString &aClientID,
                                                    PRUint32 type)
     : mURI(aURI)
     , mReferrerURI(aReferrerURI)
     , mApplicationCache(aApplicationCache)
     , mPreviousApplicationCache(aPreviousApplicationCache)
+    , mClientID(aClientID)
     , mItemType(type)
     , mChannel(nsnull)
     , mState(nsIDOMLoadStatus::UNINITIALIZED)
@@ -338,10 +340,6 @@ nsOfflineCacheUpdateItem::OpenChannel(nsOfflineCacheUpdate *aUpdate)
     rv = appCacheChannel->SetApplicationCache(mPreviousApplicationCache);
     NS_ENSURE_SUCCESS(rv, rv);
 
-    // Set the new application cache as the targer for write.
-    rv = appCacheChannel->SetApplicationCacheForWrite(mApplicationCache);
-    NS_ENSURE_SUCCESS(rv, rv);
-
     // configure HTTP specific stuff
     nsCOMPtr<nsIHttpChannel> httpChannel =
         do_QueryInterface(mChannel);
@@ -350,6 +348,25 @@ nsOfflineCacheUpdateItem::OpenChannel(nsOfflineCacheUpdate *aUpdate)
         httpChannel->SetRequestHeader(NS_LITERAL_CSTRING("X-Moz"),
                                       NS_LITERAL_CSTRING("offline-resource"),
                                       false);
+    }
+
+    nsCOMPtr<nsICachingChannel> cachingChannel =
+        do_QueryInterface(mChannel);
+    if (cachingChannel) {
+        rv = cachingChannel->SetCacheForOfflineUse(true);
+        NS_ENSURE_SUCCESS(rv, rv);
+
+        nsCOMPtr<nsIFile> cacheDirectory;
+        rv = mApplicationCache->GetCacheDirectory(getter_AddRefs(cacheDirectory));
+        NS_ENSURE_SUCCESS(rv, rv);
+
+        rv = cachingChannel->SetProfileDirectory(cacheDirectory);
+        NS_ENSURE_SUCCESS(rv, rv);
+
+        if (!mClientID.IsEmpty()) {
+            rv = cachingChannel->SetOfflineCacheClientID(mClientID);
+            NS_ENSURE_SUCCESS(rv, rv);
+        }
     }
 
     rv = mChannel->AsyncOpen(this, nsnull);
@@ -488,10 +505,22 @@ nsOfflineCacheUpdateItem::AsyncOnChannelRedirect(nsIChannel *aOldChannel,
     if (NS_FAILED(rv))
         return rv;
 
-    nsCOMPtr<nsIApplicationCacheChannel> appCacheChannel =
+    nsCOMPtr<nsICachingChannel> newCachingChannel =
         do_QueryInterface(aNewChannel);
-    if (appCacheChannel) {
-        rv = appCacheChannel->SetApplicationCacheForWrite(mApplicationCache);
+    if (newCachingChannel) {
+        rv = newCachingChannel->SetCacheForOfflineUse(true);
+        NS_ENSURE_SUCCESS(rv, rv);
+
+        if (!mClientID.IsEmpty()) {
+            rv = newCachingChannel->SetOfflineCacheClientID(mClientID);
+            NS_ENSURE_SUCCESS(rv, rv);
+        }
+
+        nsCOMPtr<nsIFile> cacheDirectory;
+        rv = mApplicationCache->GetCacheDirectory(getter_AddRefs(cacheDirectory));
+        NS_ENSURE_SUCCESS(rv, rv);
+
+        rv = newCachingChannel->SetProfileDirectory(cacheDirectory);
         NS_ENSURE_SUCCESS(rv, rv);
     }
 
@@ -655,9 +684,10 @@ nsOfflineCacheUpdateItem::GetStatus(PRUint16 *aStatus)
 nsOfflineManifestItem::nsOfflineManifestItem(nsIURI *aURI,
                                              nsIURI *aReferrerURI,
                                              nsIApplicationCache *aApplicationCache,
-                                             nsIApplicationCache *aPreviousApplicationCache)
+                                             nsIApplicationCache *aPreviousApplicationCache,
+                                             const nsACString &aClientID)
     : nsOfflineCacheUpdateItem(aURI, aReferrerURI,
-                               aApplicationCache, aPreviousApplicationCache,
+                               aApplicationCache, aPreviousApplicationCache, aClientID,
                                nsIApplicationCache::ITEM_MANIFEST)
     , mParserState(PARSE_INIT)
     , mNeedsUpdate(true)
@@ -831,13 +861,6 @@ nsOfflineManifestItem::HandleManifestLine(const nsCString::const_iterator &aBegi
         return NS_OK;
     }
 
-    // Every other section type we don't know must be silently ignored.
-    nsCString::const_iterator lastChar = end;
-    if (*(--lastChar) == ':') {
-        mParserState = PARSE_UNKNOWN_SECTION;
-        return NS_OK;
-    }
-
     nsresult rv;
 
     switch(mParserState) {
@@ -845,11 +868,6 @@ nsOfflineManifestItem::HandleManifestLine(const nsCString::const_iterator &aBegi
     case PARSE_ERROR: {
         // this should have been dealt with earlier
         return NS_ERROR_FAILURE;
-    }
-
-    case PARSE_UNKNOWN_SECTION: {
-        // just jump over
-        return NS_OK;
     }
 
     case PARSE_CACHE_ENTRIES: {
@@ -1246,6 +1264,9 @@ nsOfflineCacheUpdate::Init(nsIURI *aManifestURI,
         NS_ENSURE_SUCCESS(rv, rv);
     }
 
+    rv = mApplicationCache->GetClientID(mClientID);
+    NS_ENSURE_SUCCESS(rv, rv);
+
     rv = nsOfflineCacheUpdateService::OfflineAppPinnedForURI(aDocumentURI,
                                                              NULL,
                                                              &mPinned);
@@ -1271,6 +1292,7 @@ nsOfflineCacheUpdate::InitPartial(nsIURI *aManifestURI,
     LOG(("nsOfflineCacheUpdate::InitPartial [%p]", this));
 
     mPartialUpdate = true;
+    mClientID = clientID;
     mDocumentURI = aDocumentURI;
 
     mManifestURI = aManifestURI;
@@ -1281,7 +1303,7 @@ nsOfflineCacheUpdate::InitPartial(nsIURI *aManifestURI,
         do_GetService(NS_APPLICATIONCACHESERVICE_CONTRACTID, &rv);
     NS_ENSURE_SUCCESS(rv, rv);
 
-    rv = cacheService->GetApplicationCache(clientID,
+    rv = cacheService->GetApplicationCache(mClientID,
                                            getter_AddRefs(mApplicationCache));
     NS_ENSURE_SUCCESS(rv, rv);
 
@@ -1608,7 +1630,8 @@ nsOfflineCacheUpdate::Begin()
     mManifestItem = new nsOfflineManifestItem(mManifestURI,
                                               mDocumentURI,
                                               mApplicationCache,
-                                              mPreviousApplicationCache);
+                                              mPreviousApplicationCache,
+                                              mClientID);
     if (!mManifestItem) {
         return NS_ERROR_OUT_OF_MEMORY;
     }
@@ -1876,12 +1899,8 @@ nsOfflineCacheUpdate::ScheduleImplicit()
         rv = mPreviousApplicationCache->GetClientID(clientID);
         NS_ENSURE_SUCCESS(rv, rv);
     }
-    else if (mApplicationCache) {
-        rv = mApplicationCache->GetClientID(clientID);
-        NS_ENSURE_SUCCESS(rv, rv);
-    }
     else {
-        NS_ERROR("Offline cache update not having set mApplicationCache?");
+        clientID = mClientID;
     }
 
     rv = update->InitPartial(mManifestURI, clientID, mDocumentURI);
@@ -2119,6 +2138,7 @@ nsOfflineCacheUpdate::AddURI(nsIURI *aURI, PRUint32 aType)
                                      mDocumentURI,
                                      mApplicationCache,
                                      mPreviousApplicationCache, 
+                                     mClientID,
                                      aType);
     if (!item) return NS_ERROR_OUT_OF_MEMORY;
 

@@ -11,7 +11,9 @@ VPATH            = \
 
 include $(DEPTH)/config/autoconf.mk
 
+ifeq ($(MOZ_BUILD_APP), $(filter $(MOZ_BUILD_APP),b2g mail))
 VPATH += $(srcdir)/fallback
+endif
 
 MODULE         = dom
 LIBRARY_NAME   = jsdomcontacts_s
@@ -25,10 +27,12 @@ EXTRA_COMPONENTS =        \
   ContactManager.manifest \
   $(NULL)
 
+ifeq ($(MOZ_BUILD_APP), $(filter $(MOZ_BUILD_APP),b2g mail))
 EXTRA_JS_MODULES =   \
   ContactService.jsm \
   ContactDB.jsm      \
   $(NULL)
+endif
 
 TEST_DIRS += tests
 

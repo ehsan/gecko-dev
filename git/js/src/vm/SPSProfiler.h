@@ -93,37 +93,23 @@ class SPSProfiler
 {
     friend class SPSEntryMarker;
 
-    JSRuntime            *rt;
     ProfileStringMap     strings;
     ProfileEntry         *stack_;
     uint32_t             *size_;
     uint32_t             max_;
     bool                 slowAssertions;
-    bool                 enabled_;
 
     static const char *allocProfileString(JSContext *cx, JSScript *script,
                                           JSFunction *function);
-    void push(const char *string, void *sp);
-    void pop();
-
   public:
-    SPSProfiler(JSRuntime *rt)
-        : rt(rt),
-          stack_(NULL),
-          size_(NULL),
-          max_(0),
-          slowAssertions(false),
-          enabled_(false)
-    {}
+    SPSProfiler() : stack_(NULL), size_(NULL), max_(0), slowAssertions(false) {}
     ~SPSProfiler();
 
     uint32_t *size() { return size_; }
     uint32_t maxSize() { return max_; }
     ProfileEntry *stack() { return stack_; }
 
-    bool enabled() { JS_ASSERT_IF(enabled_, installed()); return enabled_; }
-    bool installed() { return stack_ != NULL && size_ != NULL; }
-    void enable(bool enabled);
+    bool enabled() { return stack_ != NULL; }
     void enableSlowAssertions(bool enabled) { slowAssertions = enabled; }
     bool slowAssertionsEnabled() { return slowAssertions; }
     bool enter(JSContext *cx, JSScript *script, JSFunction *maybeFun);
@@ -145,9 +131,11 @@ class SPSProfiler
 class SPSEntryMarker
 {
     SPSProfiler *profiler;
-    JS_DECL_USE_GUARD_OBJECT_NOTIFIER
+    bool pushed;
+    DebugOnly<uint32_t> size_before;
+
   public:
-    SPSEntryMarker(JSRuntime *rt JS_GUARD_OBJECT_NOTIFIER_PARAM);
+    SPSEntryMarker(JSRuntime *rt);
     ~SPSEntryMarker();
 };
 

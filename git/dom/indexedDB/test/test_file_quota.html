@@ -16,13 +16,14 @@
     const DEFAULT_QUOTA_MB = 50;
 
     const name = window.location.pathname;
+    const description = "My Test Database";
 
     const objectStoreName = "Blobs";
 
     const testData = { key: 0, value: {} };
     const fileData = { key: 1, file: null };
 
-    let request = indexedDB.open(name, 1);
+    let request = indexedDB.open(name, 1, description);
     request.onerror = errorHandler;
     request.onupgradeneeded = grabEventAndContinueHandler;
     request.onsuccess = grabEventAndContinueHandler;

@@ -155,7 +155,7 @@ class NS_STACK_CLASS SamplerStackFrameRAII {
 public:
   // we only copy the strings at save time, so to take multiple parameters we'd need to copy them then.
   SamplerStackFrameRAII(const char *aInfo) {
-    mHandle = mozilla_sampler_call_enter(aInfo, this, false);
+    mHandle = mozilla_sampler_call_enter(aInfo);
   }
   ~SamplerStackFrameRAII() {
     mozilla_sampler_call_exit(mHandle);
@@ -234,7 +234,6 @@ public:
     : mStackPointer(0)
     , mMarkerPointer(0)
     , mQueueClearMarker(false)
-    , mStartJSSampling(false)
   { }
 
   void addMarker(const char *aMarker)
@@ -305,26 +304,16 @@ public:
 
   void sampleRuntime(JSRuntime *runtime) {
     mRuntime = runtime;
+  }
+  void installJSSampling() {
     JS_STATIC_ASSERT(sizeof(mStack[0]) == sizeof(js::ProfileEntry));
-    js::SetRuntimeProfilingStack(runtime,
+    js::SetRuntimeProfilingStack(mRuntime,
                                  (js::ProfileEntry*) mStack,
                                  (uint32_t*) &mStackPointer,
                                  mozilla::ArrayLength(mStack));
-    if (mStartJSSampling)
-      enableJSSampling();
   }
-  void enableJSSampling() {
-    if (mRuntime) {
-      js::EnableRuntimeProfilingStack(mRuntime, true);
-      mStartJSSampling = false;
-    } else {
-      mStartJSSampling = true;
-    }
-  }
-  void disableJSSampling() {
-    mStartJSSampling = false;
-    if (mRuntime)
-      js::EnableRuntimeProfilingStack(mRuntime, false);
+  void uninstallJSSampling() {
+    js::SetRuntimeProfilingStack(mRuntime, NULL, NULL, 0);
   }
 
   // Keep a list of active checkpoints
@@ -338,8 +327,6 @@ public:
   volatile mozilla::sig_safe_t mQueueClearMarker;
   // The runtime which is being sampled
   JSRuntime *mRuntime;
-  // Start JS Profiling when possible
-  bool mStartJSSampling;
 };
 
 inline ProfileStack* mozilla_profile_stack(void)

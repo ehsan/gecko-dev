@@ -57,6 +57,7 @@ public:
                              nsIURI *aReferrerURI,
                              nsIApplicationCache *aApplicationCache,
                              nsIApplicationCache *aPreviousApplicationCache,
+                             const nsACString &aClientID,
                              PRUint32 aType);
     virtual ~nsOfflineCacheUpdateItem();
 
@@ -64,6 +65,7 @@ public:
     nsCOMPtr<nsIURI>           mReferrerURI;
     nsCOMPtr<nsIApplicationCache> mApplicationCache;
     nsCOMPtr<nsIApplicationCache> mPreviousApplicationCache;
+    nsCString                  mClientID;
     nsCString                  mCacheKey;
     PRUint32                   mItemType;
 
@@ -94,7 +96,8 @@ public:
     nsOfflineManifestItem(nsIURI *aURI,
                           nsIURI *aReferrerURI,
                           nsIApplicationCache *aApplicationCache,
-                          nsIApplicationCache *aPreviousApplicationCache);
+                          nsIApplicationCache *aPreviousApplicationCache,
+                          const nsACString &aClientID);
     virtual ~nsOfflineManifestItem();
 
     nsCOMArray<nsIURI> &GetExplicitURIs() { return mExplicitURIs; }
@@ -148,7 +151,6 @@ private:
         PARSE_CACHE_ENTRIES,
         PARSE_FALLBACK_ENTRIES,
         PARSE_BYPASS_ENTRIES,
-        PARSE_UNKNOWN_SECTION,
         PARSE_ERROR
     } mParserState;
 
@@ -258,6 +260,7 @@ private:
     nsCOMPtr<nsIURI> mDocumentURI;
     nsCOMPtr<nsIFile> mCustomProfileDir;
 
+    nsCString mClientID;
     nsCOMPtr<nsIApplicationCache> mApplicationCache;
     nsCOMPtr<nsIApplicationCache> mPreviousApplicationCache;
 

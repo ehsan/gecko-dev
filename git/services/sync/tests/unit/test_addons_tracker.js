@@ -27,7 +27,6 @@ function cleanup_and_advance() {
 
   tracker.resetScore();
   tracker.clearChangedIDs();
-  tracker._lazySave.clear();
 
   reconciler._addons = {};
   reconciler._changes = [];

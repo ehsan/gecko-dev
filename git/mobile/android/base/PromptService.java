@@ -85,10 +85,6 @@ public class PromptService implements OnClickListener, OnCancelListener, OnItemC
         GeckoAppShell.registerGeckoEventListener("Prompt:Show", this);
     }
 
-    void destroy() {
-        GeckoAppShell.unregisterGeckoEventListener("Prompt:Show", this);
-    }
-
     private class PromptButton {
         public String label = "";
         PromptButton(JSONObject aJSONButton) {

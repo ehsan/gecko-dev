@@ -1043,6 +1043,8 @@ class ObjectImpl : public gc::Cell
     friend struct Shape;
     friend class NewObjectCache;
 
+    inline bool hasContiguousSlots(uint32_t start, uint32_t count) const;
+
     inline void invalidateSlotRange(uint32_t start, uint32_t count);
     inline void initializeSlotRange(uint32_t start, uint32_t count);
 
@@ -1140,9 +1142,11 @@ class ObjectImpl : public gc::Cell
     inline Shape * nativeLookup(JSContext *cx, PropertyId pid);
     inline Shape * nativeLookup(JSContext *cx, PropertyName *name);
 
-    Shape * nativeLookupNoAllocation(jsid id);
-    inline Shape * nativeLookupNoAllocation(PropertyId pid);
-    inline Shape * nativeLookupNoAllocation(PropertyName *name);
+#ifdef DEBUG
+    Shape * nativeLookupNoAllocation(JSContext *cx, jsid id);
+    inline Shape * nativeLookupNoAllocation(JSContext *cx, PropertyId pid);
+    inline Shape * nativeLookupNoAllocation(JSContext *cx, PropertyName *name);
+#endif
 
     inline Class *getClass() const;
     inline JSClass *getJSClass() const;

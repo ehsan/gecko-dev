@@ -221,7 +221,7 @@ class Debugger::FrameRange
 /*** Breakpoints *********************************************************************************/
 
 BreakpointSite::BreakpointSite(JSScript *script, jsbytecode *pc)
-  : script(script), pc(pc), enabledCount(0),
+  : script(script), pc(pc), scriptGlobal(NULL), enabledCount(0),
     trapHandler(NULL), trapClosure(UndefinedValue())
 {
     JS_ASSERT(!script->hasBreakpointsAt(pc));
@@ -1127,7 +1127,6 @@ Debugger::onTrap(JSContext *cx, Value *vp)
                 return JSTRAP_ERROR;
 
             Value argv[1];
-            AutoValueArray ava(cx, argv, 1);
             if (!dbg->getScriptFrame(cx, fp, &argv[0]))
                 return dbg->handleUncaughtException(ac, vp, false);
             Value rv;
@@ -1223,21 +1222,6 @@ Debugger::onSingleStep(JSContext *cx, Value *vp)
             JS_ASSERT(stepperCount <= trappingScript->stepModeCount());
     }
 #endif
-
-    /* Preserve the debuggee's iterValue while handlers run. */
-    class PreserveIterValue {
-        JSContext *cx;
-        RootedValue savedIterValue;
-
-      public:
-        PreserveIterValue(JSContext *cx) : cx(cx), savedIterValue(cx, cx->iterValue) {
-            cx->iterValue.setMagic(JS_NO_ITER_VALUE);
-        }
-        ~PreserveIterValue() {
-            cx->iterValue = savedIterValue;
-        }
-    };
-    PreserveIterValue piv(cx);
 
     /* Call all the onStep handlers we found. */
     for (JSObject **p = frames.begin(); p != frames.end(); p++) {
@@ -1986,7 +1970,7 @@ class Debugger::ScriptQuery {
   public:
     /* Construct a ScriptQuery to use matching scripts for |dbg|. */
     ScriptQuery(JSContext *cx, Debugger *dbg):
-        cx(cx), debugger(dbg), compartments(cx), urlRoot(cx), url(urlRoot.get()), innermostForGlobal(cx) {}
+        cx(cx), debugger(dbg), compartments(cx), innermostForGlobal(cx) {}
 
     /*
      * Initialize this ScriptQuery. Raise an error and return false if we
@@ -2008,7 +1992,7 @@ class Debugger::ScriptQuery {
      * Parse the query object |query|, and prepare to match only the scripts
      * it specifies.
      */
-    bool parseQuery(HandleObject query) {
+    bool parseQuery(JSObject *query) {
         /*
          * Check for a 'global' property, which limits the results to those
          * scripts scoped to a particular global object.
@@ -2105,10 +2089,9 @@ class Debugger::ScriptQuery {
         for (CompartmentSet::Range r = compartments.all(); !r.empty(); r.popFront()) {
             for (gc::CellIter i(r.front(), gc::FINALIZE_SCRIPT); !i.done(); i.next()) {
                 JSScript *script = i.get<JSScript>();
-                if (script->hasGlobal() && !script->isForEval()) {
-                    if (!consider(script, &script->global(), vector))
-                        return false;
-                }
+                GlobalObject *global = script->getGlobalObjectOrNull();
+                if (global && !consider(script, global, vector))
+                    return false;
             }
         }
 
@@ -2121,10 +2104,11 @@ class Debugger::ScriptQuery {
                 JSScript *script = fri.script();
 
                 /*
-                 * Eval scripts were not considered above so we don't need to
-                 * check the existing script vector for duplicates.
+                 * If eval scripts never have global objects set, then we don't need
+                 * to check the existing script vector for duplicates, since we only
+                 * include scripts with globals above.
                  */
-                JS_ASSERT(script->isForEval());
+                JS_ASSERT(!script->getGlobalObjectOrNull());
 
                 GlobalObject *global = &fri.fp()->global();
                 if (!consider(script, global, vector))
@@ -2167,8 +2151,7 @@ class Debugger::ScriptQuery {
     CompartmentSet compartments;
 
     /* If this is a string, matching scripts have urls equal to it. */
-    RootedValue urlRoot;
-    Value &url;
+    Value url;
 
     /* url as a C string. */
     JSAutoByteString urlCString;
@@ -2311,7 +2294,7 @@ Debugger::findScripts(JSContext *cx, unsigned argc, Value *vp)
         return false;
 
     if (argc >= 1) {
-        RootedObject queryObject(cx, NonNullObject(cx, args[0]));
+        JSObject *queryObject = NonNullObject(cx, args[0]);
         if (!queryObject || !query.parseQuery(queryObject))
             return false;
     } else {
@@ -2611,8 +2594,8 @@ class BytecodeRangeWithLineNumbers : private BytecodeRange
     using BytecodeRange::frontOpcode;
     using BytecodeRange::frontOffset;
 
-    BytecodeRangeWithLineNumbers(JSContext *cx, JSScript *script)
-      : BytecodeRange(script), lineno(script->lineno), sn(script->notes()), snpc(script->code), skip(cx, this)
+    BytecodeRangeWithLineNumbers(JSScript *script)
+      : BytecodeRange(script), lineno(script->lineno), sn(script->notes()), snpc(script->code)
     {
         if (!SN_IS_TERMINATOR(sn))
             snpc += SN_DELTA(sn);
@@ -2650,8 +2633,6 @@ class BytecodeRangeWithLineNumbers : private BytecodeRange
     size_t lineno;
     jssrcnote *sn;
     jsbytecode *snpc;
-
-    SkipRoot skip;
 };
 
 static const size_t NoEdges = -1;
@@ -2704,7 +2685,7 @@ class FlowGraphSummary : public Vector<size_t> {
 
         size_t prevLine = script->lineno;
         JSOp prevOp = JSOP_NOP;
-        for (BytecodeRangeWithLineNumbers r(cx, script); !r.empty(); r.popFront()) {
+        for (BytecodeRangeWithLineNumbers r(script); !r.empty(); r.popFront()) {
             size_t lineno = r.frontLineNumber();
             JSOp op = r.frontOpcode();
 
@@ -2764,10 +2745,10 @@ DebuggerScript_getAllOffsets(JSContext *cx, unsigned argc, Value *vp)
         return false;
 
     /* Second pass: build the result array. */
-    RootedObject result(cx, NewDenseEmptyArray(cx));
+    JSObject *result = NewDenseEmptyArray(cx);
     if (!result)
         return false;
-    for (BytecodeRangeWithLineNumbers r(cx, script); !r.empty(); r.popFront()) {
+    for (BytecodeRangeWithLineNumbers r(script); !r.empty(); r.popFront()) {
         size_t offset = r.frontOffset();
         size_t lineno = r.frontLineNumber();
 
@@ -2839,7 +2820,7 @@ DebuggerScript_getLineOffsets(JSContext *cx, unsigned argc, Value *vp)
     RootedObject result(cx, NewDenseEmptyArray(cx));
     if (!result)
         return false;
-    for (BytecodeRangeWithLineNumbers r(cx, script); !r.empty(); r.popFront()) {
+    for (BytecodeRangeWithLineNumbers r(script); !r.empty(); r.popFront()) {
         size_t offset = r.frontOffset();
 
         /* If the op at offset is an entry point, append offset to result. */
@@ -2861,7 +2842,19 @@ Debugger::observesScript(JSScript *script) const
 {
     if (!enabled)
         return false;
-    return observesGlobal(&script->global());
+
+    /* Does the script have a global stored in it? */
+    if (GlobalObject *global = script->getGlobalObjectOrNull())
+        return observesGlobal(global);
+
+    /* Is the script in a compartment this Debugger is debugging? */
+    JSCompartment *comp = script->compartment();
+    for (GlobalObjectSet::Range r = debuggees.all(); !r.empty(); r.popFront()) {
+        if (r.front()->compartment() == comp)
+            return true;
+    }
+
+    return false;
 }
 
 static JSBool
@@ -2885,7 +2878,8 @@ DebuggerScript_setBreakpoint(JSContext *cx, unsigned argc, Value *vp)
         return false;
 
     jsbytecode *pc = script->code + offset;
-    BreakpointSite *site = script->getOrCreateBreakpointSite(cx, pc);
+    Rooted<GlobalObject *> scriptGlobal(cx, script->getGlobalObjectOrNull());
+    BreakpointSite *site = script->getOrCreateBreakpointSite(cx, pc, scriptGlobal);
     if (!site)
         return false;
     site->inc(cx->runtime->defaultFreeOp());
@@ -3409,8 +3403,9 @@ js::EvaluateInEnv(JSContext *cx, Handle<Env*> env, StackFrame *fp, const jschar 
     JSPrincipals *prin = fp->scopeChain()->principals(cx);
     bool compileAndGo = true;
     bool noScriptRval = false;
+    bool needScriptGlobal = true;
     JSScript *script = frontend::CompileScript(cx, env, fp, prin, prin,
-                                               compileAndGo, noScriptRval,
+                                               compileAndGo, noScriptRval, needScriptGlobal,
                                                chars, length, filename, lineno,
                                                cx->findVersion(), NULL, /* staticLimit = */ 1);
     if (!script)
@@ -3899,7 +3894,7 @@ DebuggerObject_defineProperties(JSContext *cx, unsigned argc, Value *vp)
 {
     THIS_DEBUGOBJECT_OWNER_REFERENT(cx, argc, vp, "defineProperties", args, dbg, obj);
     REQUIRE_ARGC("Debugger.Object.defineProperties", 1);
-    RootedObject props(cx, ToObject(cx, &args[0]));
+    JSObject *props = ToObject(cx, &args[0]);
     if (!props)
         return false;
 
@@ -4026,10 +4021,10 @@ DebuggerObject_isSealedHelper(JSContext *cx, unsigned argc, Value *vp, SealHelpe
     ErrorCopier ec(ac, dbg->toJSObject());
     bool r;
     if (op == Seal) {
-        if (!JSObject::isSealed(cx, obj, &r))
+        if (!obj->isSealed(cx, &r))
             return false;
     } else if (op == Freeze) {
-        if (!JSObject::isFrozen(cx, obj, &r))
+        if (!obj->isFrozen(cx, &r))
             return false;
     } else {
         r = obj->isExtensible();

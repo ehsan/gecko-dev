@@ -22,7 +22,7 @@ MODULE = test_passwordmgr
 XPCSHELL_TESTS = unit
 
 # Mochitest tests
-MOCHITEST_FILES = \
+MOCHI_TESTS = \
     test_basic_form.html \
     test_basic_form_html5.html \
     test_basic_form_2.html \
@@ -56,6 +56,9 @@ MOCHITEST_FILES = \
     test_xhr.html \
     test_xml_load.html \
     test_zzz_finish.html \
+    $(NULL)
+
+MOCHI_CONTENT = \
     pwmgr_common.js \
     prompt_common.js \
     notification_common.js \
@@ -80,7 +83,7 @@ MOCHITEST_FILES = \
     $(NULL)
 
 ifneq ($(OS_TARGET),Linux)
-MOCHITEST_FILES += \
+MOCHI_TESTS += \
     test_prompt.html \
     $(NULL)
 endif
@@ -90,3 +93,6 @@ endif
 # test_bug_221634.html
 
 include $(topsrcdir)/config/rules.mk
+
+libs:: $(MOCHI_TESTS) $(MOCHI_CONTENT)
+	$(INSTALL) $(foreach f,$^,"$f") $(DEPTH)/_tests/testing/mochitest/tests/$(relativesrcdir)

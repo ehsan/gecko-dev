@@ -1,5 +1,5 @@
         <activity android:name=".WebApps$WebApp@APPNUM@"
-                  android:label="@string/webapp_generic_name"
+                  android:label="WebApp@APPNUM@"
                   android:configChanges="keyboard|keyboardHidden|mcc|mnc|orientation|screenSize"
                   android:windowSoftInputMode="stateUnspecified|adjustResize"
                   android:launchMode="singleInstance"

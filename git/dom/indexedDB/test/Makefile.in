@@ -13,7 +13,9 @@ include $(DEPTH)/config/autoconf.mk
 
 XPCSHELL_TESTS = unit
 
-MOCHITEST_FILES = \
+include $(topsrcdir)/config/rules.mk
+
+TEST_FILES = \
   bfcache_iframe1.html \
   bfcache_iframe2.html \
   error_events_abort_transactions_iframe.html \
@@ -104,7 +106,7 @@ MOCHITEST_FILES = \
 #   test_writer_starvation.html  disabled for infinite loops, bug 595368
 
 ifeq (browser,$(MOZ_BUILD_APP))
-MOCHITEST_BROWSER_FILES = \
+BROWSER_TEST_FILES = \
   browser_forgetThisSite.js \
   browser_forgetThisSiteAdd.html \
   browser_forgetThisSiteGet.html \
@@ -122,7 +124,11 @@ MOCHITEST_BROWSER_FILES = \
   browser_quotaPromptDelete.js \
   head.js \
   $(NULL)
+
+libs:: $(BROWSER_TEST_FILES)
+	$(INSTALL) $(foreach f,$^,"$f") $(DEPTH)/_tests/testing/mochitest/browser/$(relativesrcdir)
 endif
 
-include $(topsrcdir)/config/rules.mk
+libs:: $(TEST_FILES)
+	$(INSTALL) $(foreach f,$^,"$f") $(DEPTH)/_tests/testing/mochitest/tests/$(relativesrcdir)
 

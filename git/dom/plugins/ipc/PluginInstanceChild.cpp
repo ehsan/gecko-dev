@@ -233,7 +233,7 @@ PluginInstanceChild::InternalGetNPObjectForValue(NPNVariable aValue,
 #ifdef DEBUG
     {
         NPError currentResult;
-        PPluginScriptableObjectChild* currentActor = nsnull;
+        PPluginScriptableObjectChild* currentActor;
 
         switch (aValue) {
             case NPNVWindowNPObject:

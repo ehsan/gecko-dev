@@ -4,12 +4,7 @@
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
 #include "ChangeAttributeTxn.h"
-#include "nsAString.h"
-#include "nsDebug.h"                    // for NS_ASSERTION
-#include "nsError.h"                    // for NS_ERROR_NOT_INITIALIZED, etc
-#include "nsIDOMElement.h"              // for nsIDOMElement
-#include "nsIEditor.h"                  // for nsIEditor
-#include "nsString.h"                   // for nsString
+#include "nsIDOMElement.h"
 
 ChangeAttributeTxn::ChangeAttributeTxn()
   : EditTxn()

@@ -11,7 +11,6 @@
 #include "nsIObserver.h"
 #include "mozilla/storage.h"
 #include "mozilla/storage/StatementCache.h"
-#include "mozilla/Attributes.h"
 
 // This is the schema version. Update it at any schema change and add a
 // corresponding migrateVxx method below.
@@ -59,8 +58,8 @@ enum JournalMode {
 , JOURNAL_WAL
 };
 
-class Database MOZ_FINAL : public nsIObserver
-                         , public nsSupportsWeakReference
+class Database : public nsIObserver
+               , public nsSupportsWeakReference
 {
   typedef mozilla::storage::StatementCache<mozIStorageStatement> StatementCache;
   typedef mozilla::storage::StatementCache<mozIStorageAsyncStatement> AsyncStatementCache;

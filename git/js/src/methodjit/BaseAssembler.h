@@ -560,7 +560,7 @@ static const JSC::MacroAssembler::RegisterID JSParamReg_Argc  = JSC::MIPSRegiste
         // that make 12 insufficent.  In case 16 is also insufficent, I've bumped
         // it to 20.
         ensureSpace(20);
-        DebugOnly<int> initFlushCount = flushCount();
+        int initFlushCount = flushCount();
 #endif
         // [Bug 614953]: This can only be made conditional once the ARM back-end
         // is able to distinguish and patch both call sequences. Other
@@ -1375,7 +1375,7 @@ static const JSC::MacroAssembler::RegisterID JSParamReg_Argc  = JSC::MIPSRegiste
 };
 
 /* Return f<true> if the script is strict mode code, f<false> otherwise. */
-#define STRICT_VARIANT(script, f)                                             \
+#define STRICT_VARIANT(f)                                                     \
     (FunctionTemplateConditional(script->strictModeCode,                      \
                                  f<true>, f<false>))
 

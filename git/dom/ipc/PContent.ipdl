@@ -8,7 +8,6 @@ include protocol PAudio;
 include protocol PBrowser;
 include protocol PCrashReporter;
 include protocol PExternalHelperApp;
-include protocol PDeviceStorageRequest;
 include protocol PHal;
 include protocol PMemoryReportRequest;
 include protocol PNecko;
@@ -65,41 +64,11 @@ struct FontListEntry {
     PRUint8   index;
 };
 
-struct DeviceStorageAddParams
-{
-  nsString fullpath;
-  PRUint8[] bits;
-};
-
-struct DeviceStorageGetParams
-{
-  nsString fullpath;
-};
-
-struct DeviceStorageDeleteParams
-{
-  nsString fullpath;
-};
-
-struct DeviceStorageEnumerationParams
-{
-  nsString fullpath;
-  PRUint32 since;
-};
-
-union DeviceStorageParams
-{
-  DeviceStorageAddParams;
-  DeviceStorageGetParams;
-  DeviceStorageDeleteParams;
-  DeviceStorageEnumerationParams;
-};
 rpc protocol PContent
 {
     manages PAudio;
     manages PBrowser;
     manages PCrashReporter;
-    manages PDeviceStorageRequest;
     manages PExternalHelperApp;
     manages PHal;
     manages PMemoryReportRequest;
@@ -160,8 +129,6 @@ child:
 
 parent:
     PAudio(PRInt32 aNumChannels, PRInt32 aRate, PRInt32 aFormat);
-
-    PDeviceStorageRequest(DeviceStorageParams params);
 
     sync PCrashReporter(NativeThreadId tid, PRUint32 processType);
 

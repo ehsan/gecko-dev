@@ -20,7 +20,8 @@ class GeckoInstance(object):
     def start(self):
         profile = self.profile
         if not profile:
-            prefs = {"marionette.defaultPrefs.enabled": True,
+            prefs = {"dom.allow_XUL_XBL_for_file": True,
+                     "marionette.defaultPrefs.enabled": True,
                      "marionette.defaultPrefs.port": 2828}
             profile = {"preferences": prefs, "restore":False}
         print "starting runner"

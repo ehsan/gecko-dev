@@ -17,25 +17,16 @@ namespace js {
 
 inline
 SharedContext::SharedContext(JSContext *cx, JSObject *scopeChain, JSFunction *fun,
-                             FunctionBox *funbox, StrictMode::StrictModeState sms)
+                             FunctionBox *funbox)
   : context(cx),
     fun_(cx, fun),
     funbox_(funbox),
     scopeChain_(cx, scopeChain),
     bindings(),
     bindingsRoot(cx, &bindings),
-    cxFlags(cx),
-    strictModeState(sms)
+    cxFlags(cx)
 {
     JS_ASSERT((fun && !scopeChain_) || (!fun && !funbox));
-}
-
-inline bool
-SharedContext::inStrictMode()
-{
-    JS_ASSERT(strictModeState != StrictMode::UNKNOWN);
-    JS_ASSERT_IF(inFunction() && funbox(), funbox()->strictModeState == strictModeState);
-    return strictModeState == StrictMode::STRICT;
 }
 
 inline unsigned
@@ -51,9 +42,8 @@ TreeContext::atBodyLevel()
 }
 
 inline bool
-SharedContext::needStrictChecks()
-{
-    return context->hasStrictOption() || strictModeState != StrictMode::NOTSTRICT;
+SharedContext::needStrictChecks() {
+    return context->hasStrictOption() || inStrictMode();
 }
 
 inline
@@ -71,7 +61,6 @@ TreeContext::TreeContext(Parser *prs, SharedContext *sc, unsigned staticLevel, u
     decls(prs->context),
     yieldNode(NULL),
     functionList(NULL),
-    queuedStrictModeError(NULL),
     parserTC(&prs->tc),
     lexdeps(prs->context),
     parent(prs->tc),
@@ -94,13 +83,9 @@ TreeContext::init()
     return decls.init() && lexdeps.ensureMap(sc->context);
 }
 
-inline void
-TreeContext::setQueuedStrictModeError(CompileError *e)
-{
-    JS_ASSERT(!queuedStrictModeError);
-    queuedStrictModeError = e;
-}
-
+// For functions the tree context is constructed and destructed a second
+// time during code generation. To avoid a redundant stats update in such
+// cases, we store UINT16_MAX in maxScopeDepth.
 inline
 TreeContext::~TreeContext()
 {
@@ -109,15 +94,6 @@ TreeContext::~TreeContext()
     JS_ASSERT(*parserTC == this);
     *parserTC = this->parent;
     sc->context->delete_(funcStmts);
-    if (queuedStrictModeError) {
-        // If the parent context is looking for strict mode violations, pass
-        // ours up. Otherwise, free it.
-        if (parent && parent->sc->strictModeState == StrictMode::UNKNOWN &&
-            !parent->queuedStrictModeError)
-            parent->queuedStrictModeError = queuedStrictModeError;
-        else
-            sc->context->delete_(queuedStrictModeError);
-    }
 }
 
 template <class ContextT>
@@ -145,6 +121,7 @@ frontend::FinishPushBlockScope(ContextT *ct, typename ContextT::StmtInfo *stmt,
                                StaticBlockObject &blockObj)
 {
     stmt->isBlockScope = true;
+    blockObj.setEnclosingBlock(ct->blockChain);
     stmt->downScope = ct->topScopeStmt;
     ct->topScopeStmt = stmt;
     ct->blockChain = &blockObj;
@@ -166,7 +143,7 @@ frontend::FinishPopStatement(ContextT *ct)
 
 template <class ContextT>
 typename ContextT::StmtInfo *
-frontend::LexicalLookup(ContextT *ct, HandleAtom atom, int *slotp, typename ContextT::StmtInfo *stmt)
+frontend::LexicalLookup(ContextT *ct, JSAtom *atom, int *slotp, typename ContextT::StmtInfo *stmt)
 {
     if (!stmt)
         stmt = ct->topScopeStmt;
