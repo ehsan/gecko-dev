@@ -21,10 +21,8 @@ describe("loop.store.ActiveRoomStore", function () {
     sandbox.stub(dispatcher, "dispatch");
 
     fakeMozLoop = {
-      setLoopPref: sinon.stub(),
-      addConversationContext: sinon.stub(),
-      addBrowserSharingListener: sinon.stub(),
-      removeBrowserSharingListener: sinon.stub(),
+      setLoopPref: sandbox.stub(),
+      addConversationContext: sandbox.stub(),
       rooms: {
         get: sinon.stub(),
         join: sinon.stub(),
@@ -38,12 +36,11 @@ describe("loop.store.ActiveRoomStore", function () {
     };
 
     fakeSdkDriver = {
-      connectSession: sinon.stub(),
-      disconnectSession: sinon.stub(),
-      forceDisconnectAll: sinon.stub().callsArg(0),
-      startScreenShare: sinon.stub(),
-      switchAcquiredWindow: sinon.stub(),
-      endScreenShare: sinon.stub().returns(true)
+      connectSession: sandbox.stub(),
+      disconnectSession: sandbox.stub(),
+      forceDisconnectAll: sandbox.stub().callsArg(0),
+      startScreenShare: sandbox.stub(),
+      endScreenShare: sandbox.stub().returns(true)
     };
 
     fakeMultiplexGum = {
@@ -720,20 +717,12 @@ describe("loop.store.ActiveRoomStore", function () {
       });
     });
 
-    it("should add a browser sharing listener for tab sharing", function() {
-      store.startScreenShare(new sharedActions.StartScreenShare({
-        type: "browser"
-      }));
-
-      sinon.assert.calledOnce(fakeMozLoop.addBrowserSharingListener);
-    });
-
     it("should invoke the SDK driver with the correct options for tab sharing", function() {
-      fakeMozLoop.addBrowserSharingListener.callsArgWith(0, null, 42);
-
       store.startScreenShare(new sharedActions.StartScreenShare({
         type: "browser"
       }));
+
+      sinon.assert.calledOnce(fakeMozLoop.getActiveTabWindowId);
 
       sinon.assert.calledOnce(fakeSdkDriver.startScreenShare);
       sinon.assert.calledWith(fakeSdkDriver.startScreenShare, {
@@ -743,31 +732,7 @@ describe("loop.store.ActiveRoomStore", function () {
           scrollWithPage: true
         }
       });
-    });
-  });
-
-  describe("Screen share Events", function() {
-    var listener;
-
-    beforeEach(function() {
-      store.startScreenShare(new sharedActions.StartScreenShare({
-        type: "browser"
-      }));
-
-      // Listener is the first argument of the first call.
-      listener = fakeMozLoop.addBrowserSharingListener.args[0][0];
-
-      store.setStoreState({
-        screenSharingState: SCREEN_SHARE_STATES.ACTIVE
-      });
-    });
-
-    it("should update the SDK driver when a new window id is received", function() {
-      listener(null, 72);
-
-      sinon.assert.calledOnce(fakeSdkDriver.switchAcquiredWindow);
-      sinon.assert.calledWithExactly(fakeSdkDriver.switchAcquiredWindow, 72);
-    });
+    })
   });
 
   describe("#endScreenShare", function() {
@@ -779,18 +744,6 @@ describe("loop.store.ActiveRoomStore", function () {
         new sharedActions.ScreenSharingState({
           state: SCREEN_SHARE_STATES.INACTIVE
         }));
-    });
-
-    it("should remove the sharing listener", function() {
-      // Setup the listener.
-      store.startScreenShare(new sharedActions.StartScreenShare({
-        type: "browser"
-      }));
-
-      // Now stop the screen share.
-      store.endScreenShare();
-
-      sinon.assert.calledOnce(fakeMozLoop.removeBrowserSharingListener);
     });
   });
 
