@@ -941,16 +941,12 @@ CalleeGetter(JSContext *cx, JSObject *obj, jsid id, Value *vp)
     return CheckForEscapingClosure(cx, obj, vp);
 }
 
-namespace js {
-
-/*
- * Construct a call object for the given bindings.  The callee is the function
- * on behalf of which the call object is being created.
- */
-JSObject *
-NewCallObject(JSContext *cx, Bindings *bindings, JSObject &scopeChain, JSObject *callee)
+static JSObject *
+NewCallObject(JSContext *cx, JSFunction *fun, JSObject &scopeChain, JSObject &callee)
 {
-    size_t argsVars = bindings->countArgsAndVars();
+    Bindings &bindings = fun->script()->bindings;
+
+    size_t argsVars = bindings.countArgsAndVars();
     size_t slots = JSObject::CALL_RESERVED_SLOTS + argsVars;
     gc::FinalizeKind kind = gc::GetGCObjectKind(slots);
 
@@ -960,7 +956,7 @@ NewCallObject(JSContext *cx, Bindings *bindings, JSObject &scopeChain, JSObject 
 
     /* Init immediately to avoid GC seeing a half-init'ed object. */
     callobj->init(cx, &js_CallClass, NULL, &scopeChain, NULL, false);
-    callobj->setMap(bindings->lastShape());
+    callobj->setMap(bindings.lastShape());
 
     /* This must come after callobj->lastProp has been set. */
     if (!callobj->ensureInstanceReservedSlots(cx, argsVars))
@@ -979,8 +975,6 @@ NewCallObject(JSContext *cx, Bindings *bindings, JSObject &scopeChain, JSObject 
     callobj->setCallObjCallee(callee);
     return callobj;
 }
-
-} // namespace js
 
 static inline JSObject *
 NewDeclEnvObject(JSContext *cx, JSStackFrame *fp)
@@ -1035,8 +1029,7 @@ js_GetCallObject(JSContext *cx, JSStackFrame *fp)
         }
     }
 
-    JSObject *callobj =
-        NewCallObject(cx, &fp->fun()->script()->bindings, fp->scopeChain(), &fp->callee());
+    JSObject *callobj = NewCallObject(cx, fp->fun(), fp->scopeChain(), fp->callee());
     if (!callobj)
         return NULL;
 
@@ -1056,8 +1049,7 @@ js_CreateCallObjectOnTrace(JSContext *cx, JSFunction *fun, JSObject *callee, JSO
 {
     JS_ASSERT(!js_IsNamedLambda(fun));
     JS_ASSERT(scopeChain);
-    JS_ASSERT(callee);
-    return NewCallObject(cx, &fun->script()->bindings, *scopeChain, callee);
+    return NewCallObject(cx, fun, *scopeChain, *callee);
 }
 
 JS_DEFINE_CALLINFO_4(extern, OBJECT, js_CreateCallObjectOnTrace, CONTEXT, FUNCTION, OBJECT, OBJECT,
@@ -1216,10 +1208,7 @@ GetFlatUpvar(JSContext *cx, JSObject *obj, jsid id, Value *vp)
     JS_ASSERT((int16) JSID_TO_INT(id) == JSID_TO_INT(id));
     uintN i = (uint16) JSID_TO_INT(id);
 
-    JSObject *callee = obj->getCallObjCallee();
-    JS_ASSERT(callee);
-
-    *vp = callee->getFlatClosureUpvar(i);
+    *vp = obj->getCallObjCallee().getFlatClosureUpvar(i);
     return true;
 }
 
@@ -1229,10 +1218,7 @@ SetFlatUpvar(JSContext *cx, JSObject *obj, jsid id, Value *vp)
     JS_ASSERT((int16) JSID_TO_INT(id) == JSID_TO_INT(id));
     uintN i = (uint16) JSID_TO_INT(id);
 
-    JSObject *callee = obj->getCallObjCallee();
-    JS_ASSERT(callee);
-
-    Value *upvarp = &callee->getFlatClosureUpvar(i);
+    Value *upvarp = &obj->getCallObjCallee().getFlatClosureUpvar(i);
     GC_POKE(cx, *upvarp);
     *upvarp = *vp;
     return true;
@@ -1268,19 +1254,6 @@ SetCallVar(JSContext *cx, JSObject *obj, jsid id, Value *vp)
 
     JS_ASSERT((int16) JSID_TO_INT(id) == JSID_TO_INT(id));
     uintN i = (uint16) JSID_TO_INT(id);
-
-    /*
-     * As documented in TraceRecorder::attemptTreeCall(), when recording an
-     * inner tree call, the recorder assumes the inner tree does not mutate
-     * any tracked upvars. The abort here is a pessimistic precaution against
-     * bug 620662, where an inner tree setting a closed stack variable in an
-     * outer tree is illegal, and runtime would fall off trace.
-     */
-#ifdef JS_TRACER
-    TraceMonitor *tm = &JS_TRACE_MONITOR(cx);
-    if (tm->recorder && tm->tracecx)
-        AbortRecording(cx, "upvar write in nested tree");
-#endif
 
     Value *varp;
     if (JSStackFrame *fp = obj->maybeCallObjStackFrame())
@@ -1323,15 +1296,9 @@ call_resolve(JSContext *cx, JSObject *obj, jsid id, uintN flags,
     JS_ASSERT(!obj->getProto());
 
     if (!JSID_IS_ATOM(id))
-        return true;
+        return JS_TRUE;
 
-    JSObject *callee = obj->getCallObjCallee();
-#ifdef DEBUG
-    if (callee) {
-        JSScript *script = callee->getFunctionPrivate()->script();
-        JS_ASSERT(!script->bindings.hasBinding(cx, JSID_TO_ATOM(id)));
-    }
-#endif
+    JS_ASSERT(!obj->getCallObjCalleeFunction()->script()->bindings.hasBinding(cx, JSID_TO_ATOM(id)));
 
     /*
      * Resolve arguments so that we never store a particular Call object's
@@ -1341,19 +1308,19 @@ call_resolve(JSContext *cx, JSObject *obj, jsid id, uintN flags,
      * properties; see js::Bindings::add and js::Interpret's JSOP_DEFFUN
      * rebinding-Call-property logic.
      */
-    if (callee && id == ATOM_TO_JSID(cx->runtime->atomState.argumentsAtom)) {
+    if (JSID_IS_ATOM(id, cx->runtime->atomState.argumentsAtom)) {
         if (!js_DefineNativeProperty(cx, obj, id, UndefinedValue(),
                                      GetCallArguments, SetCallArguments,
                                      JSPROP_PERMANENT | JSPROP_SHARED | JSPROP_ENUMERATE,
                                      0, 0, NULL, JSDNP_DONT_PURGE)) {
-            return false;
+            return JS_FALSE;
         }
         *objp = obj;
-        return true;
+        return JS_TRUE;
     }
 
     /* Control flow reaches here only if id was not resolved. */
-    return true;
+    return JS_TRUE;
 }
 
 static void
@@ -1439,78 +1406,60 @@ JSStackFrame::getValidCalleeObject(JSContext *cx, Value *vp)
 
         if (&fun->compiledFunObj() == &funobj && fun->methodAtom()) {
             JSObject *thisp = &thisv.toObject();
-            JSObject *first_barriered_thisp = NULL;
+            JS_ASSERT(thisp->canHaveMethodBarrier());
 
-            do {
+            if (thisp->hasMethodBarrier()) {
+                const Shape *shape = thisp->nativeLookup(ATOM_TO_JSID(fun->methodAtom()));
+
                 /*
-                 * While a non-native object is responsible for handling its
-                 * entire prototype chain, notable non-natives including dense
-                 * and typed arrays have native prototypes, so keep going.
+                 * The method property might have been deleted while the method
+                 * barrier flag stuck, so we must lookup and test here.
+                 *
+                 * Two cases follow: the method barrier was not crossed yet, so
+                 * we cross it here; the method barrier *was* crossed, in which
+                 * case we must fetch and validate the cloned (unjoined) funobj
+                 * in the method property's slot.
+                 *
+                 * In either case we must allow for the method property to have
+                 * been replaced, or its value to have been overwritten.
                  */
-                if (!thisp->isNative())
-                    continue;
+                if (shape) {
+                    if (shape->isMethod() && &shape->methodObject() == &funobj) {
+                        if (!thisp->methodReadBarrier(cx, *shape, vp))
+                            return false;
+                        calleeValue().setObject(vp->toObject());
+                        return true;
+                    }
+                    if (shape->hasSlot()) {
+                        Value v = thisp->getSlot(shape->slot);
+                        JSObject *clone;
 
-                if (thisp->hasMethodBarrier()) {
-                    const Shape *shape = thisp->nativeLookup(ATOM_TO_JSID(fun->methodAtom()));
-                    if (shape) {
-                        /*
-                         * Two cases follow: the method barrier was not crossed
-                         * yet, so we cross it here; the method barrier *was*
-                         * crossed but after the call, in which case we fetch
-                         * and validate the cloned (unjoined) funobj from the
-                         * method property's slot.
-                         *
-                         * In either case we must allow for the method property
-                         * to have been replaced, or its value overwritten.
-                         */
-                        if (shape->isMethod() && &shape->methodObject() == &funobj) {
-                            if (!thisp->methodReadBarrier(cx, *shape, vp))
-                                return false;
-                            calleeValue().setObject(vp->toObject());
+                        if (IsFunctionObject(v, &clone) &&
+                            GET_FUNCTION_PRIVATE(cx, clone) == fun &&
+                            clone->hasMethodObj(*thisp)) {
+                            JS_ASSERT(clone != &funobj);
+                            *vp = v;
+                            calleeValue().setObject(*clone);
                             return true;
                         }
-
-                        if (shape->hasSlot()) {
-                            Value v = thisp->getSlot(shape->slot);
-                            JSObject *clone;
-
-                            if (IsFunctionObject(v, &clone) &&
-                                GET_FUNCTION_PRIVATE(cx, clone) == fun &&
-                                clone->hasMethodObj(*thisp)) {
-                                JS_ASSERT(clone != &funobj);
-                                *vp = v;
-                                calleeValue().setObject(*clone);
-                                return true;
-                            }
-                        }
                     }
-
-                    if (!first_barriered_thisp)
-                        first_barriered_thisp = thisp;
                 }
-            } while ((thisp = thisp->getProto()) != NULL);
 
-            if (!first_barriered_thisp)
+                /*
+                 * If control flows here, we can't find an already-existing
+                 * clone (or force to exist a fresh clone) created via thisp's
+                 * method read barrier, so we must clone fun and store it in
+                 * fp's callee to avoid re-cloning upon repeated foo.caller
+                 * access. It seems that there are no longer any properties
+                 * referring to fun.
+                 */
+                JSObject *newfunobj = CloneFunctionObject(cx, fun, fun->getParent());
+                if (!newfunobj)
+                    return false;
+                newfunobj->setMethodObj(*thisp);
+                calleeValue().setObject(*newfunobj);
                 return true;
-
-            /*
-             * At this point, we couldn't find an already-existing clone (or
-             * force to exist a fresh clone) created via thisp's method read
-             * barrier, so we must clone fun and store it in fp's callee to
-             * avoid re-cloning upon repeated foo.caller access.
-             *
-             * This must mean the code in js_DeleteProperty could not find this
-             * stack frame on the stack when the method was deleted. We've lost
-             * track of the method, so we associate it with the first barriered
-             * object found starting from thisp on the prototype chain.
-             */
-            JSObject *newfunobj = CloneFunctionObject(cx, fun, fun->getParent());
-            if (!newfunobj)
-                return false;
-            newfunobj->setMethodObj(*first_barriered_thisp);
-            calleeValue().setObject(*newfunobj);
-            vp->setObject(*newfunobj);
-            return true;
+            }
         }
     }
 

@@ -202,7 +202,6 @@ class Compiler : public BaseCompiler
         Jump        claspGuard;
         Jump        holeGuard;
         Int32Key    key;
-        uint32      volatileMask;
     };
 
     struct PICGenInfo : public BaseICInfo {
@@ -467,7 +466,7 @@ class Compiler : public BaseCompiler
     void jsop_initmethod();
     void jsop_initprop();
     void jsop_initelem();
-    bool jsop_setelem(bool popGuaranteed);
+    bool jsop_setelem();
     bool jsop_getelem(bool isCall);
     bool isCacheableBaseAndIndex(FrameEntry *obj, FrameEntry *id);
     void jsop_stricteq(JSOp op);

@@ -122,6 +122,10 @@ template<typename T> class Seq;
 
 }  /* namespace nanojit */
 
+namespace JSC {
+    class ExecutableAllocator;
+}
+
 namespace js {
 
 /* Tracer constants. */
@@ -888,7 +892,7 @@ private:
  * executing.  cx must be a context on the current thread.
  */
 #ifdef JS_TRACER
-# define JS_ON_TRACE(cx)            (cx->compartment && JS_TRACE_MONITOR(cx).ontrace())
+# define JS_ON_TRACE(cx)            (JS_TRACE_MONITOR(cx).ontrace())
 #else
 # define JS_ON_TRACE(cx)            false
 #endif
@@ -1435,10 +1439,7 @@ struct JSRuntime {
     JSWrapObjectCallback wrapObjectCallback;
     JSPreWrapCallback    preWrapObjectCallback;
 
-#ifdef JS_METHODJIT
-    uint32               mjitMemoryUsed;
-#endif
-    uint32               stringMemoryUsed;
+    JSC::ExecutableAllocator *regExpAllocator;
 
     JSRuntime();
     ~JSRuntime();
@@ -1705,10 +1706,6 @@ struct JSContext
     JSVersion           versionOverride;     /* supercedes defaultVersion when valid */
     bool                hasVersionOverride;
 
-    /* Exception state -- the exception member is a GC root by definition. */
-    JSBool              throwing;           /* is there a pending exception? */
-    js::Value           exception;          /* most-recently-thrown exception */
-
   public:
     /* Per-context options. */
     uint32              options;            /* see jsapi.h for JSOPTION_* */
@@ -1729,6 +1726,10 @@ struct JSContext
      * NB: generatingError packs with throwing below.
      */
     JSPackedBool        generatingError;
+
+    /* Exception state -- the exception member is a GC root by definition. */
+    JSBool              throwing;           /* is there a pending exception? */
+    js::Value           exception;          /* most-recently-thrown exception */
 
     /* Limit pointer for checking native stack consumption during recursion. */
     jsuword             stackLimit;
@@ -1932,7 +1933,7 @@ struct JSContext
      * - The newest scripted frame's version, if there is such a frame. 
      * - The default verion.
      *
-     * Note: if this ever shows up in a profile, just add caching!
+     * @note    If this ever shows up in a profile, just add caching!
      */
     JSVersion findVersion() const {
         if (hasVersionOverride)
@@ -2172,22 +2173,6 @@ struct JSContext
 #else
     void assertValidStackDepth(uintN /*depth*/) {}
 #endif
-
-    bool isExceptionPending() {
-        return throwing;
-    }
-
-    js::Value getPendingException() {
-        JS_ASSERT(throwing);
-        return exception;
-    }
-
-    void setPendingException(js::Value v);
-
-    void clearPendingException() {
-        this->throwing = false;
-        this->exception.setUndefined();
-    }
 
   private:
     /*
@@ -2665,10 +2650,10 @@ class AutoLockDefaultCompartment {
 #endif
     }
     ~AutoLockDefaultCompartment() {
+        JS_UNLOCK(cx, &cx->runtime->atomState.lock);
 #ifdef JS_THREADSAFE
         cx->runtime->defaultCompartmentIsLocked = false;
 #endif
-        JS_UNLOCK(cx, &cx->runtime->atomState.lock);
     }
 };
 
@@ -2683,10 +2668,10 @@ class AutoUnlockDefaultCompartment {
 #endif
     }
     ~AutoUnlockDefaultCompartment() {
+        JS_LOCK(cx, &cx->runtime->atomState.lock);
 #ifdef JS_THREADSAFE
         cx->runtime->defaultCompartmentIsLocked = true;
 #endif
-        JS_LOCK(cx, &cx->runtime->atomState.lock);
     }
 };
 
@@ -2767,38 +2752,6 @@ class AutoLocalNameArray {
     uint32      count;
 
     JS_DECL_USE_GUARD_OBJECT_NOTIFIER
-};
-
-template <class RefCountable>
-class AutoRefCount {
-    JSContext       * const cx;
-    RefCountable    *obj;
-
-  public:
-    explicit AutoRefCount(JSContext *cx) : cx(cx), obj(NULL) {}
-
-    AutoRefCount(JSContext *cx, RefCountable *obj) : cx(cx), obj(NULL) {
-        reset(obj);
-    }
-
-    ~AutoRefCount() {
-        if (obj)
-            obj->decref(cx);
-    }
-
-    void reset(RefCountable *aobj) {
-        if (obj)
-            obj->decref(cx);
-
-        obj = aobj;
-
-        if (obj)
-            obj->incref(cx);
-    }
-
-    RefCountable *get() {
-        return obj;
-    }
 };
 
 } /* namespace js */
@@ -3088,6 +3041,9 @@ extern bool
 js_CurrentPCIsInImacro(JSContext *cx);
 
 namespace js {
+
+extern void
+SetPendingException(JSContext *cx, const Value &v);
 
 class RegExpStatics;
 
