@@ -16,7 +16,7 @@
 
 class gfxFontconfigUtils;
 
-class gfxOS2Platform : public gfxPlatform {
+class THEBES_API gfxOS2Platform : public gfxPlatform {
 
 public:
     gfxOS2Platform();

@@ -1362,8 +1362,6 @@ ScriptAnalysis::analyzeSSA(JSContext *cx)
             break;
 
           case JSOP_INITPROP:
-          case JSOP_INITPROP_GETTER:
-          case JSOP_INITPROP_SETTER:
             stack[stackDepth - 1].v = code->poppedValues[1];
             break;
 
@@ -1377,8 +1375,6 @@ ScriptAnalysis::analyzeSSA(JSContext *cx)
             break;
 
           case JSOP_INITELEM:
-          case JSOP_INITELEM_GETTER:
-          case JSOP_INITELEM_SETTER:
             stack[stackDepth - 1].v = code->poppedValues[2];
             break;
 

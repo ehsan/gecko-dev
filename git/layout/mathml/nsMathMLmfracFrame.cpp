@@ -240,9 +240,11 @@ nsMathMLmfracFrame::PlaceInternal(nsRenderingContext& aRenderingContext,
     // container (we fetch values from the core since they may use units that
     // depend on style data, and style changes could have occurred in the
     // core since our last visit there)
-    nscoord leftSpace = std::max(onePixel, StyleVisibility()->mDirection ?
+    nscoord leftSpace = std::max(onePixel,
+                               NS_MATHML_IS_RTL(mPresentationData.flags) ?
                                coreData.trailingSpace : coreData.leadingSpace);
-    nscoord rightSpace = std::max(onePixel, StyleVisibility()->mDirection ?
+    nscoord rightSpace = std::max(onePixel,
+                                NS_MATHML_IS_RTL(mPresentationData.flags) ?
                                 coreData.leadingSpace : coreData.trailingSpace);
 
     //////////////////
@@ -454,7 +456,7 @@ nsMathMLmfracFrame::PlaceInternal(nsRenderingContext& aRenderingContext,
     }
 
     // Set horizontal bounding metrics
-    if (StyleVisibility()->mDirection) {
+    if (NS_MATHML_IS_RTL(mPresentationData.flags)) {
       mBoundingMetrics.leftBearing = trailingSpace + bmDen.leftBearing;
       mBoundingMetrics.rightBearing = trailingSpace + bmDen.width + mLineRect.width + bmNum.rightBearing;
     } else {
@@ -593,5 +595,5 @@ nsMathMLmfracFrame::DisplaySlash(nsDisplayListBuilder* aBuilder,
 
   aLists.Content()->AppendNewToTop(new (aBuilder)
     nsDisplayMathMLSlash(aBuilder, aFrame, aRect, aThickness,
-                         StyleVisibility()->mDirection));
+                         NS_MATHML_IS_RTL(mPresentationData.flags)));
 }

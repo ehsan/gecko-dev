@@ -420,9 +420,9 @@ EventListenerManager::DispatchEvent(JSContext* aCx, const EventTarget& aTarget,
     }
 
     jsval argv[] = { OBJECT_TO_JSVAL(aEvent) };
-    JS::Rooted<JS::Value> rval(aCx);
+    jsval rval = JSVAL_VOID;
     if (!JS_CallFunctionValue(aCx, thisObj, listenerVal, ArrayLength(argv),
-                              argv, rval.address())) {
+                              argv, &rval)) {
       if (!JS_ReportPendingException(aCx)) {
         aRv.Throw(NS_ERROR_FAILURE);
         return false;

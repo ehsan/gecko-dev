@@ -1880,13 +1880,7 @@ nsDisplayBackgroundImage::BuildLayer(nsDisplayListBuilder* aBuilder,
                                      LayerManager* aManager,
                                      const ContainerParameters& aParameters)
 {
-  nsRefPtr<ImageLayer> layer = static_cast<ImageLayer*>
-    (aManager->GetLayerBuilder()->GetLeafLayerFor(aBuilder, this));
-  if (!layer) {
-    layer = aManager->CreateImageLayer();
-    if (!layer)
-      return nullptr;
-  }
+  nsRefPtr<ImageLayer> layer = aManager->CreateImageLayer();
   layer->SetContainer(mImageContainer);
   ConfigureLayer(layer, aParameters.mOffset);
   return layer.forget();

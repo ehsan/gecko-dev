@@ -2631,11 +2631,11 @@ ASTSerializer::property(ParseNode *pn, MutableHandleValue dst)
         kind = PROP_INIT;
         break;
 
-      case JSOP_INITPROP_GETTER:
+      case JSOP_GETTER:
         kind = PROP_GETTER;
         break;
 
-      case JSOP_INITPROP_SETTER:
+      case JSOP_SETTER:
         kind = PROP_SETTER;
         break;
 
@@ -3069,9 +3069,7 @@ reflect_parse(JSContext *cx, uint32_t argc, jsval *vp)
     size_t length = stable->length();
     CompileOptions options(cx);
     options.setFileAndLine(filename, lineno);
-    options.setCanLazilyParse(false);
-    Parser<FullParseHandler> parser(cx, options, chars.get(), length,
-                                    /* foldConstants = */ false, NULL, NULL);
+    Parser<FullParseHandler> parser(cx, options, chars.get(), length, /* foldConstants = */ false);
     if (!parser.init())
         return JS_FALSE;
 

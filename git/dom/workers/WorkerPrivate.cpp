@@ -1525,7 +1525,7 @@ WorkerRunnable::Dispatch(JSContext* aCx)
 
   JSAutoRequest ar(aCx);
 
-  JS::Rooted<JSObject*> global(aCx, JS_GetGlobalForScopeChain(aCx));
+  JSObject* global = JS_GetGlobalForScopeChain(aCx);
 
   Maybe<JSAutoCompartment> ac;
   if (global) {

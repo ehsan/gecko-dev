@@ -649,10 +649,8 @@ function test_info() {
   let stop = new Date();
 
   // We round down/up by 1s as file system precision is lower than Date precision
-  // (no clear specifications about that, but it seems that this can be a little
-  // over 1 second under ext3 and 2 seconds under FAT)
-  let startMs = start.getTime() - 2500;
-  let stopMs  = stop.getTime() + 2500;
+  let startMs = start.getTime() - 1000;
+  let stopMs  = stop.getTime() + 1000;
 
   (function() {
     let birth;

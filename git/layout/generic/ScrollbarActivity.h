@@ -6,7 +6,6 @@
 #ifndef ScrollbarActivity_h___
 #define ScrollbarActivity_h___
 
-#include "mozilla/Attributes.h"
 #include "nsCOMPtr.h"
 #include "nsIDOMEventListener.h"
 #include "mozilla/TimeStamp.h"
@@ -79,7 +78,7 @@ public:
   void ActivityStarted();
   void ActivityStopped();
 
-  virtual void WillRefresh(TimeStamp aTime) MOZ_OVERRIDE;
+  virtual void WillRefresh(TimeStamp aTime);
 
   static void FadeBeginTimerFired(nsITimer* aTimer, void* aSelf) {
     reinterpret_cast<ScrollbarActivity*>(aSelf)->BeginFade();

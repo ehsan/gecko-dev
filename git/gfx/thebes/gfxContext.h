@@ -38,7 +38,7 @@ template <typename T> class FallibleTArray;
  * Note that the gfxContext takes coordinates in device pixels,
  * as opposed to app units.
  */
-class gfxContext {
+class THEBES_API gfxContext {
     NS_INLINE_DECL_REFCOUNTING(gfxContext)
 
 public:
@@ -800,7 +800,7 @@ private:
  * call Save() on a gfxContext and have Restore() called automatically on the
  * gfxContext before they return.
  */
-class gfxContextAutoSaveRestore
+class THEBES_API gfxContextAutoSaveRestore
 {
 public:
   gfxContextAutoSaveRestore() : mContext(nullptr) {}
@@ -842,7 +842,7 @@ private:
  * be the same when Save and Restore are called. The calling function must
  * ensure that this is the case or the path will be copied incorrectly.
  */
-class gfxContextPathAutoSaveRestore
+class THEBES_API gfxContextPathAutoSaveRestore
 {
 public:
     gfxContextPathAutoSaveRestore() : mContext(nullptr) {}
@@ -900,7 +900,7 @@ private:
  * back up the current matrix of a context and have it automatically restored
  * before they return.
  */
-class gfxContextMatrixAutoSaveRestore
+class THEBES_API gfxContextMatrixAutoSaveRestore
 {
 public:
     gfxContextMatrixAutoSaveRestore(gfxContext *aContext) :
@@ -924,7 +924,7 @@ private:
 };
 
 
-class gfxContextAutoDisableSubpixelAntialiasing {
+class THEBES_API gfxContextAutoDisableSubpixelAntialiasing {
 public:
     gfxContextAutoDisableSubpixelAntialiasing(gfxContext *aContext, bool aDisable)
     {

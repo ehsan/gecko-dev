@@ -1435,7 +1435,7 @@ protected:
   public:
     RunWillPaintObservers(nsRootPresContext* aPresContext) : mPresContext(aPresContext) {}
     void Revoke() { mPresContext = nullptr; }
-    NS_IMETHOD Run() MOZ_OVERRIDE
+    NS_IMETHOD Run()
     {
       if (mPresContext) {
         mPresContext->FlushWillPaintObservers();

@@ -898,7 +898,7 @@ IDBObjectStore::AppendIndexUpdateInfo(
                                     bool aUnique,
                                     bool aMultiEntry,
                                     JSContext* aCx,
-                                    JS::Handle<JS::Value> aVal,
+                                    jsval aVal,
                                     nsTArray<IndexUpdateInfo>& aUpdateInfoArray)
 {
   nsresult rv;

@@ -62,7 +62,6 @@ ParseContext<ParseHandler>::ParseContext(Parser<ParseHandler> *prs,
     oldpc(prs->pc),
     lexdeps(prs->context),
     funcStmts(NULL),
-    innerFunctions(prs->context),
     inDeclDestructuring(false),
     funBecameStrict(false)
 {

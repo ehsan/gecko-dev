@@ -17,7 +17,6 @@
 #include "AudioContext.h"
 #include "AudioParamTimeline.h"
 #include "MediaStreamGraph.h"
-#include "WebAudioUtils.h"
 
 struct JSContext;
 
@@ -162,8 +161,7 @@ public:
   uint32_t ChannelCount() const { return mChannelCount; }
   void SetChannelCount(uint32_t aChannelCount, ErrorResult& aRv)
   {
-    if (aChannelCount == 0 ||
-        aChannelCount > WebAudioUtils::MaxChannelCount) {
+    if (aChannelCount == 0) {
       aRv.Throw(NS_ERROR_DOM_NOT_SUPPORTED_ERR);
       return;
     }

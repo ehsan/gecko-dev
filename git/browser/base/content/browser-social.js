@@ -407,11 +407,7 @@ function sizeSocialPanelToContent(panel, iframe) {
   let height = Math.max(computedHeight, PANEL_MIN_HEIGHT);
   let computedWidth = parseInt(cs.marginLeft) + body.offsetWidth + parseInt(cs.marginRight);
   let width = Math.max(computedWidth, PANEL_MIN_WIDTH);
-  iframe.style.width = width + "px";
-  iframe.style.height = height + "px";
-  // since we do not use panel.sizeTo, we need to adjust the arrow ourselves
-  if (panel.state == "open")
-    panel.adjustArrowPosition();
+  panel.sizeTo(width, height);
 }
 
 function DynamicResizeWatcher() {

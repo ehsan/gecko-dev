@@ -3373,7 +3373,7 @@ const JSFunctionSpec ArrayBufferObject::jsfuncs[] = {
  * TypedArray boilerplate
  */
 
-#ifndef RELEASE_BUILD
+#ifdef ENABLE_TYPEDARRAY_MOVE
 # define IMPL_TYPED_ARRAY_STATICS(_typedArray)                                 \
 const JSFunctionSpec _typedArray::jsfuncs[] = {                                \
     JS_FN("iterator", JS_ArrayIterator, 0, 0),                                 \

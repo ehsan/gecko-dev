@@ -59,7 +59,7 @@ class nsILanguageAtomService;
 struct FontListSizes;
 struct gfxTextRunDrawCallbacks;
 
-struct gfxFontStyle {
+struct THEBES_API gfxFontStyle {
     gfxFontStyle();
     gfxFontStyle(uint8_t aStyle, uint16_t aWeight, int16_t aStretch,
                  gfxFloat aSize, nsIAtom *aLanguage,
@@ -896,7 +896,7 @@ struct FontCacheSizes {
     size_t mShapedWords; // memory used by the per-font shapedWord caches
 };
 
-class gfxFontCache MOZ_FINAL : public nsExpirationTracker<gfxFont,3> {
+class THEBES_API gfxFontCache MOZ_FINAL : public nsExpirationTracker<gfxFont,3> {
 public:
     enum {
         FONT_TIMEOUT_SECONDS = 10,
@@ -1007,7 +1007,7 @@ protected:
     nsCOMPtr<nsITimer>      mWordCacheExpirationTimer;
 };
 
-class gfxTextRunFactory {
+class THEBES_API gfxTextRunFactory {
     NS_INLINE_DECL_REFCOUNTING(gfxTextRunFactory)
 
 public:
@@ -1129,7 +1129,7 @@ public:
  * This array always has an entry for the font's space glyph --- the width is
  * assumed to be zero.
  */
-class gfxGlyphExtents {
+class THEBES_API gfxGlyphExtents {
 public:
     gfxGlyphExtents(int32_t aAppUnitsPerDevUnit) :
         mAppUnitsPerDevUnit(aAppUnitsPerDevUnit) {
@@ -1287,7 +1287,7 @@ protected:
 };
 
 /* a SPECIFIC single font family */
-class gfxFont {
+class THEBES_API gfxFont {
 public:
     nsrefcnt AddRef(void) {
         NS_PRECONDITION(int32_t(mRefCnt) >= 0, "illegal refcnt");
@@ -1494,7 +1494,7 @@ public:
     /**
      * Metrics for a particular string
      */
-    struct RunMetrics {
+    struct THEBES_API RunMetrics {
         RunMetrics() {
             mAdvanceWidth = mAscent = mDescent = 0.0;
         }
@@ -2646,7 +2646,7 @@ struct gfxTextRunDrawCallbacks {
  * It is important that zero-length substrings are handled correctly. This will
  * be on the test!
  */
-class gfxTextRun : public gfxShapedText {
+class THEBES_API gfxTextRun : public gfxShapedText {
 public:
 
     // Override operator delete to properly free the object that was
@@ -2968,7 +2968,7 @@ public:
         uint8_t           mMatchType;
     };
 
-    class GlyphRunIterator {
+    class THEBES_API GlyphRunIterator {
     public:
         GlyphRunIterator(gfxTextRun *aTextRun, uint32_t aStart, uint32_t aLength)
           : mTextRun(aTextRun), mStartOffset(aStart), mEndOffset(aStart + aLength) {
@@ -3254,7 +3254,7 @@ private:
                                           // mFontGroup, so don't do it again
 };
 
-class gfxFontGroup : public gfxTextRunFactory {
+class THEBES_API gfxFontGroup : public gfxTextRunFactory {
 public:
     class FamilyFace {
     public:

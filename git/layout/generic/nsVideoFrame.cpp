@@ -17,7 +17,6 @@
 #include "nsIDOMHTMLImageElement.h"
 #include "nsIDOMHTMLElement.h"
 #include "nsDisplayList.h"
-#include "nsGenericHTMLElement.h"
 #include "gfxContext.h"
 #include "gfxImageSurface.h"
 #include "nsPresContext.h"
@@ -112,8 +111,6 @@ nsVideoFrame::CreateAnonymousContent(nsTArray<ContentInfo>& aElements)
     NS_ENSURE_TRUE(nodeInfo, NS_ERROR_OUT_OF_MEMORY);
     mCaptionDiv = NS_NewHTMLDivElement(nodeInfo.forget());
     NS_ENSURE_TRUE(mCaptionDiv, NS_ERROR_OUT_OF_MEMORY);
-    nsGenericHTMLElement* div = static_cast<nsGenericHTMLElement*>(mCaptionDiv.get());
-    div->SetClassName(NS_LITERAL_STRING("caption-box"));
 
     if (!aElements.AppendElement(mCaptionDiv))
       return NS_ERROR_OUT_OF_MEMORY;

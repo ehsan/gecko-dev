@@ -2153,10 +2153,8 @@ HTMLMediaElement::WakeLockBoolWrapper::UpdateWakeLock()
     // grace period.
     int timeout = Preferences::GetInt("media.wakelock_timeout", 2000);
     mTimer = do_CreateInstance("@mozilla.org/timer;1");
-    if (mTimer) {
-      mTimer->InitWithFuncCallback(TimerCallback, this, timeout,
-                                   nsITimer::TYPE_ONE_SHOT);
-    }
+    mTimer->InitWithFuncCallback(TimerCallback, this, timeout,
+                                 nsITimer::TYPE_ONE_SHOT);
   }
 }
 

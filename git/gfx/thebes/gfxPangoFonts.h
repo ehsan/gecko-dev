@@ -22,7 +22,7 @@ typedef struct _FcPattern FcPattern;
 typedef struct FT_FaceRec_* FT_Face;
 typedef struct FT_LibraryRec_  *FT_Library;
 
-class gfxPangoFontGroup : public gfxFontGroup {
+class THEBES_API gfxPangoFontGroup : public gfxFontGroup {
 public:
     gfxPangoFontGroup (const nsAString& families,
                        const gfxFontStyle *aStyle,

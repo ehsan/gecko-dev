@@ -1395,8 +1395,8 @@ nsJSContext::ExecuteScript(JSScript* aScriptObject_,
     // The result of evaluation, used only if there were no errors. This need
     // not be a GC root currently, provided we run the GC only from the
     // operation callback or from ScriptEvaluated.
-    JS::Rooted<JS::Value> val(mContext);
-    if (!JS_ExecuteScript(mContext, aScopeObject, aScriptObject, val.address())) {
+    JS::Value val;
+    if (!JS_ExecuteScript(mContext, aScopeObject, aScriptObject, &val)) {
       ReportPendingException();
     }
     --mExecuteDepth;
@@ -1517,8 +1517,7 @@ nsJSContext::BindCompiledEventHandler(nsISupports* aTarget,
 
 // serialization
 nsresult
-nsJSContext::Serialize(nsIObjectOutputStream* aStream,
-                       JS::Handle<JSScript*> aScriptObject)
+nsJSContext::Serialize(nsIObjectOutputStream* aStream, JSScript* aScriptObject)
 {
   if (!aScriptObject)
     return NS_ERROR_FAILURE;

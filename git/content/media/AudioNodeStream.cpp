@@ -321,10 +321,7 @@ AudioNodeStream::ObtainInputBlock(AudioChunk& aTmpChunk, uint32_t aPortIndex)
     return;
   }
 
-  if (outputChannelCount == 0) {
-    aTmpChunk.SetNull(WEBAUDIO_BLOCK_SIZE);
-    return;
-  }
+  MOZ_ASSERT(outputChannelCount > 0, "How did this happen?");
 
   AllocateAudioBlock(outputChannelCount, &aTmpChunk);
   float silenceChannel[WEBAUDIO_BLOCK_SIZE] = {0.f};
@@ -431,12 +428,6 @@ AudioNodeStream::ProduceOutput(GraphTime aFrom, GraphTime aTo)
     }
     if (finished) {
       mMarkAsFinishedAfterThisBlock = true;
-    }
-  }
-
-  if (mDisabledTrackIDs.Contains(AUDIO_NODE_STREAM_TRACK_ID)) {
-    for (uint32_t i = 0; i < mLastChunks.Length(); ++i) {
-      mLastChunks[i].SetNull(WEBAUDIO_BLOCK_SIZE);
     }
   }
 

@@ -197,42 +197,54 @@ function closeConsole(aTab, aCallback = function() { })
 }
 
 /**
- * Wait for a context menu popup to open.
+ * Polls a given function waiting for opening context menu.
  *
- * @param nsIDOMElement aPopup
- *        The XUL popup you expect to open.
- * @param nsIDOMElement aButton
- *        The button/element that receives the contextmenu event. This is
- *        expected to open the popup.
- * @param function aOnShown
- *        Function to invoke on popupshown event.
- * @param function aOnHidden
- *        Function to invoke on popuphidden event.
+ * @Param {nsIDOMElement} aContextMenu
+ * @param object aOptions
+ *        Options object with the following properties:
+ *        - successFn
+ *        A function called if opening the given context menu - success to return.
+ *        - failureFn
+ *        A function called if not opening the given context menu - fails to return.
+ *        - target
+ *        The target element for showing a context menu.
+ *        - timeout
+ *        Timeout for popup shown, in milliseconds. Default is 5000.
  */
-function waitForContextMenu(aPopup, aButton, aOnShown, aOnHidden)
-{
+function waitForOpenContextMenu(aContextMenu, aOptions) {
+  let start = Date.now();
+  let timeout = aOptions.timeout || 5000;
+  let targetElement = aOptions.target;
+
+  if (!aContextMenu) {
+    ok(false, "Can't get a context menu.");
+    aOptions.failureFn();
+    return;
+  }
+  if (!targetElement) {
+    ok(false, "Can't get a target element.");
+    aOptions.failureFn();
+    return;
+  }
+
   function onPopupShown() {
-    info("onPopupShown");
-    aPopup.removeEventListener("popupshown", onPopupShown);
-
-    aOnShown();
-
-    // Use executeSoon() to get out of the popupshown event.
-    aPopup.addEventListener("popuphidden", onPopupHidden);
-    executeSoon(() => aPopup.hidePopup());
-  }
-  function onPopupHidden() {
-    info("onPopupHidden");
-    aPopup.removeEventListener("popuphidden", onPopupHidden);
-    aOnHidden();
+    aContextMenu.removeEventListener("popupshown", onPopupShown);
+    clearTimeout(onTimeout);
+    aOptions.successFn();
   }
 
-  aPopup.addEventListener("popupshown", onPopupShown);
 
-  info("wait for the context menu to open");
-  let eventDetails = { type: "contextmenu", button: 2};
-  EventUtils.synthesizeMouse(aButton, 2, 2, eventDetails,
-                             aButton.ownerDocument.defaultView);
+  aContextMenu.addEventListener("popupshown", onPopupShown);
+
+  let onTimeout = setTimeout(function(){
+    aContextMenu.removeEventListener("popupshown", onPopupShown);
+    aOptions.failureFn();
+  }, timeout);
+
+  // open a context menu.
+  let eventDetails = { type : "contextmenu", button : 2};
+  EventUtils.synthesizeMouse(targetElement, 2, 2,
+                             eventDetails, targetElement.ownerDocument.defaultView);
 }
 
 /**

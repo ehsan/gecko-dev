@@ -11,7 +11,7 @@
 #include "gfxContext.h"
 #include "gfxQuartzSurface.h"
 
-class gfxQuartzNativeDrawing {
+class THEBES_API gfxQuartzNativeDrawing {
 public:
 
     /* Create native Quartz drawing for a rectangle bounded by

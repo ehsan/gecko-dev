@@ -517,7 +517,6 @@ JSRuntime::initSelfHosting(JSContext *cx)
     CompileOptions options(cx);
     options.setFileAndLine("self-hosted", 1);
     options.setSelfHostingMode(true);
-    options.setCanLazilyParse(false);
     options.setSourcePolicy(CompileOptions::NO_SOURCE);
     options.setVersion(JSVERSION_LATEST);
 

@@ -472,7 +472,6 @@ class MOZ_STACK_CLASS TokenStream
     const CharBuffer &getTokenbuf() const { return tokenbuf; }
     const char *getFilename() const { return filename; }
     unsigned getLineno() const { return lineno; }
-    unsigned getColumn() const { return userbuf.addressOfNextRawChar() - linebase - 1; }
     JSVersion versionNumber() const { return VersionNumber(version); }
     JSVersion versionWithFlags() const { return version; }
     bool hadError() const { return !!(flags & TSF_HAD_ERROR); }
@@ -661,10 +660,8 @@ class MOZ_STACK_CLASS TokenStream
         Token lookaheadTokens[maxLookahead];
     };
 
-    void advance(size_t position);
     void tell(Position *);
     void seek(const Position &pos);
-    void seek(const Position &pos, const TokenStream &other);
     void positionAfterLastFunctionKeyword(Position &pos);
 
     size_t positionToOffset(const Position &pos) const {
@@ -755,7 +752,6 @@ class MOZ_STACK_CLASS TokenStream
         SourceCoords(JSContext *cx, uint32_t ln);
 
         void add(uint32_t lineNum, uint32_t lineStartOffset);
-        void fill(const SourceCoords &other);
 
         bool isOnThisLine(uint32_t offset, uint32_t lineNum) const {
             uint32_t lineIndex = lineNumToIndex(lineNum);
@@ -832,7 +828,7 @@ class MOZ_STACK_CLASS TokenStream
             ptr--;
         }
 
-        const jschar *addressOfNextRawChar() const {
+        const jschar *addressOfNextRawChar() {
             JS_ASSERT(ptr);     /* make sure haven't been poisoned */
             return ptr;
         }

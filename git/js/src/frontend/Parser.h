@@ -40,7 +40,6 @@ typedef HashSet<JSAtom *> FuncStmtSet;
 class SharedContext;
 
 typedef Vector<Definition *, 16> DeclVector;
-typedef Vector<JSFunction *, 4> FunctionVector;
 
 struct GenericParseContext
 {
@@ -204,9 +203,6 @@ struct ParseContext : public GenericParseContext
                                        that will alias any top-level bindings with
                                        the same name. */
 
-    // All inner functions in this context. Only filled in when parsing syntax.
-    FunctionVector innerFunctions;
-
     // Set when parsing a declaration-like destructuring pattern.  This flag
     // causes PrimaryExpr to create PN_NAME parse nodes for variable references
     // which are not hooked into any definition's use chain, added to any tree
@@ -258,7 +254,6 @@ class GenexpGuard;
 
 enum LetContext { LetExpresion, LetStatement };
 enum VarContext { HoistVars, DontHoistVars };
-enum FunctionType { Getter, Setter, Normal };
 
 template <typename ParseHandler>
 struct Parser : private AutoGCRooter, public StrictModeGetter
@@ -306,7 +301,7 @@ struct Parser : private AutoGCRooter, public StrictModeGetter
      * is not known whether the parse succeeds or fails, this bit is set and
      * the parse will return false.
      */
-    bool abortedSyntaxParse;
+    bool unknownResult;
 
     typedef typename ParseHandler::Node Node;
     typedef typename ParseHandler::DefinitionNode DefinitionNode;
@@ -324,9 +319,7 @@ struct Parser : private AutoGCRooter, public StrictModeGetter
                           ...);
 
     Parser(JSContext *cx, const CompileOptions &options,
-           const jschar *chars, size_t length, bool foldConstants,
-           Parser<SyntaxParseHandler> *syntaxParser,
-           LazyScript *lazyOuterFunction);
+           const jschar *chars, size_t length, bool foldConstants);
     ~Parser();
 
     friend void AutoGCRooter::trace(JSTracer *trc);
@@ -363,11 +356,8 @@ struct Parser : private AutoGCRooter, public StrictModeGetter
 
     void trace(JSTracer *trc);
 
-    bool hadAbortedSyntaxParse() {
-        return abortedSyntaxParse;
-    }
-    void clearAbortedSyntaxParse() {
-        abortedSyntaxParse = false;
+    bool hadUnknownResult() {
+        return unknownResult;
     }
 
   private:
@@ -375,11 +365,13 @@ struct Parser : private AutoGCRooter, public StrictModeGetter
 
     /*
      * Create a parse node with the given kind and op using the current token's
-     * atom. 
-    */
+     * atom.
+     */
     Node atomNode(ParseNodeKind kind, JSOp op);
 
-    inline bool abortIfSyntaxParser();
+    void setUnknownResult() {
+        unknownResult = true;
+    }
 
   public:
 
@@ -392,20 +384,12 @@ struct Parser : private AutoGCRooter, public StrictModeGetter
                                 Node fn, FunctionBox **funbox, bool strict,
                                 bool *becameStrict = NULL);
 
-    // Parse a function, given only its arguments and body. Used for lazily
-    // parsed functions.
-    Node standaloneLazyFunction(HandleFunction fun, unsigned staticLevel, bool strict);
-
     /*
      * Parse a function body.  Pass StatementListBody if the body is a list of
      * statements; pass ExpressionBody if the body is a single expression.
      */
     enum FunctionBodyType { StatementListBody, ExpressionBody };
     Node functionBody(FunctionSyntaxKind kind, FunctionBodyType type);
-
-    bool functionArgsAndBodyGeneric(Node pn, HandleFunction fun,
-                                    HandlePropertyName funName, FunctionType type,
-                                    FunctionSyntaxKind kind, bool strict, bool *becameStrict);
 
     virtual bool strictMode() { return pc->sc->strict; }
 
@@ -455,6 +439,7 @@ struct Parser : private AutoGCRooter, public StrictModeGetter
     /*
      * Additional JS parsers.
      */
+    enum FunctionType { Getter, Setter, Normal };
     bool functionArguments(FunctionSyntaxKind kind, Node *list, Node funcpn, bool &hasRest);
 
     Node functionDef(HandlePropertyName name, const TokenStream::Position &start,
@@ -493,10 +478,10 @@ struct Parser : private AutoGCRooter, public StrictModeGetter
     void addStatementToList(Node pn, Node kid, bool *hasFunctionStmt);
     bool checkFunctionArguments();
     bool makeDefIntoUse(Definition *dn, Node pn, JSAtom *atom);
-    bool checkFunctionDefinition(HandlePropertyName funName, Node *pn, FunctionSyntaxKind kind,
-                                 bool *pbodyProcessed);
-    bool finishFunctionDefinition(Node pn, FunctionBox *funbox, Node prelude, Node body);
-    bool addFreeVariablesFromLazyFunction(JSFunction *fun, ParseContext<ParseHandler> *pc);
+    bool checkFunctionDefinition(HandlePropertyName funName, Node *pn, FunctionSyntaxKind kind);
+    bool finishFunctionDefinition(Node pn, FunctionBox *funbox,
+                                  Node prelude, Node body,
+                                  ParseContext<ParseHandler> *outerpc);
 
     bool isValidForStatementLHS(Node pn1, JSVersion version,
                                 bool forDecl, bool forEach, bool forOf);
@@ -538,7 +523,6 @@ struct Parser : private AutoGCRooter, public StrictModeGetter
     bool reportRedeclaration(Node pn, bool isConst, JSAtom *atom);
     bool reportBadReturn(Node pn, ParseReportKind kind, unsigned errnum, unsigned anonerrnum);
     bool checkFinalReturn(Node pn);
-    DefinitionNode getOrCreateLexicalDependency(ParseContext<ParseHandler> *pc, JSAtom *atom);
 
     bool leaveFunction(Node fn, HandlePropertyName funName,
                        ParseContext<ParseHandler> *outerpc,

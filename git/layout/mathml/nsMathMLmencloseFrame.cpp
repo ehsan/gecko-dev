@@ -200,7 +200,8 @@ nsMathMLmencloseFrame::BuildDisplayList(nsDisplayListBuilder*   aBuilder,
 
     nsRect rect;
     mMathMLChar[mRadicalCharIndex].GetRect(rect);
-    rect.MoveBy(StyleVisibility()->mDirection ? -mContentWidth : rect.width, 0);
+    rect.MoveBy(NS_MATHML_IS_RTL(mPresentationData.flags) ?
+                -mContentWidth : rect.width, 0);
     rect.SizeTo(mContentWidth, mRuleThickness);
     DisplayBar(aBuilder, this, rect, aLists);
   }
@@ -463,7 +464,8 @@ nsMathMLmencloseFrame::PlaceInternal(nsRenderingContext& aRenderingContext,
   ///////////////
   // radical notation:
   if (IsToDraw(NOTATION_RADICAL)) {
-    nscoord *dx_leading = StyleVisibility()->mDirection ? &dx_right : &dx_left;
+    nscoord *dx_leading =
+      NS_MATHML_IS_RTL(mPresentationData.flags) ? &dx_right : &dx_left;
     
     if (aWidthOnly) {
       nscoord radical_width = mMathMLChar[mRadicalCharIndex].
@@ -483,7 +485,7 @@ nsMathMLmencloseFrame::PlaceInternal(nsRenderingContext& aRenderingContext,
                                              NS_STRETCH_DIRECTION_VERTICAL,
                                              contSize, bmRadicalChar,
                                              NS_STRETCH_LARGER,
-                                             StyleVisibility()->mDirection);
+                                             NS_MATHML_IS_RTL(mPresentationData.flags));
       mMathMLChar[mRadicalCharIndex].GetBoundingMetrics(bmRadicalChar);
 
       // Update horizontal parameters
@@ -602,8 +604,8 @@ nsMathMLmencloseFrame::PlaceInternal(nsRenderingContext& aRenderingContext,
                                                     bmLongdivChar.descent));
 
     if (IsToDraw(NOTATION_RADICAL)) {
-      nscoord dx = (StyleVisibility()->mDirection ?
-                    dx_left + bmBase.width : dx_left - bmRadicalChar.width);
+      nscoord dx = NS_MATHML_IS_RTL(mPresentationData.flags) ?
+        dx_left + bmBase.width : dx_left - bmRadicalChar.width;
 
       mMathMLChar[mRadicalCharIndex].SetRect(nsRect(dx,
                                                     aDesiredSize.ascent -

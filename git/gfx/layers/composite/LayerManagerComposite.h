@@ -41,7 +41,7 @@ class CompositableHost;
 class EffectChain;
 class TiledLayerComposer;
 
-class LayerManagerComposite : public LayerManager
+class THEBES_API LayerManagerComposite : public LayerManager
 {
 public:
   LayerManagerComposite(Compositor* aCompositor);

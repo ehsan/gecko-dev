@@ -136,6 +136,11 @@ public:
   FindAttrDisplaystyle(nsIContent*         aContent,
                        nsPresentationData& aPresentationData);
 
+  // helper used to see if an element has a dir attribute 
+  static void
+  FindAttrDirectionality(nsIContent*         aContent,
+                         nsPresentationData& aPresentationData);
+
   // helper to check if a content has an attribute. If content is nullptr or if
   // the attribute is not there, check if the attribute is on the mstyle hierarchy
   // @return true     --if attribute exists

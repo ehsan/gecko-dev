@@ -130,24 +130,10 @@ struct BytecodeEmitter
     const bool      hasGlobalScope:1;   /* frontend::CompileScript's scope chain is the
                                            global object */
 
-    enum EmitterMode {
-        Normal,
-
-        /*
-         * Emit JSOP_CALLINTRINSIC instead of JSOP_NAME and assert that
-         * JSOP_NAME and JSOP_*GNAME don't ever get emitted. See the comment
-         * for the field |selfHostingMode| in Parser.h for details.
-         */
-        SelfHosting,
-
-        /*
-         * Check the static scope chain of the root function for resolving free
-         * variable accesses in the script.
-         */
-        LazyFunction
-    };
-
-    const EmitterMode emitterMode;
+    const bool      selfHostingMode:1;  /* Emit JSOP_CALLINTRINSIC instead of JSOP_NAME
+                                           and assert that JSOP_NAME and JSOP_*GNAME
+                                           don't ever get emitted. See the comment for
+                                           the field |selfHostingMode| in Parser.h for details. */
 
     /*
      * Note that BytecodeEmitters are magic: they own the arena "top-of-stack"
@@ -157,7 +143,7 @@ struct BytecodeEmitter
      */
     BytecodeEmitter(BytecodeEmitter *parent, Parser<FullParseHandler> *parser, SharedContext *sc,
                     HandleScript script, bool insideEval, HandleScript evalCaller,
-                    bool hasGlobalScope, uint32_t lineNum, EmitterMode emitterMode = Normal);
+                    bool hasGlobalScope, uint32_t lineNum, bool selfHostingMode = false);
     bool init();
 
     bool isAliasedName(ParseNode *pn);

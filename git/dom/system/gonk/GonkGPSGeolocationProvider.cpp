@@ -48,7 +48,7 @@ NS_IMPL_THREADSAFE_ISUPPORTS3(GonkGPSGeolocationProvider,
                               nsIRILDataCallback,
                               nsISettingsServiceCallback)
 
-/* static */ GonkGPSGeolocationProvider* GonkGPSGeolocationProvider::sSingleton = nullptr;
+GonkGPSGeolocationProvider* GonkGPSGeolocationProvider::sSingleton;
 GpsCallbacks GonkGPSGeolocationProvider::mCallbacks = {
   sizeof(GpsCallbacks),
   LocationCallback,
@@ -294,8 +294,8 @@ GonkGPSGeolocationProvider::GetSingleton()
   if (!sSingleton)
     sSingleton = new GonkGPSGeolocationProvider();
 
-  nsRefPtr<GonkGPSGeolocationProvider> provider = sSingleton;
-  return provider.forget();
+  NS_ADDREF(sSingleton);
+  return sSingleton;
 }
 
 const GpsInterface*

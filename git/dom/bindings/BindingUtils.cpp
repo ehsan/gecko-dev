@@ -698,7 +698,7 @@ QueryInterface(JSContext* cx, unsigned argc, JS::Value* vp)
   }
 
   nsIJSID* iid;
-  SelfRef iidRef;
+  xpc_qsSelfRef iidRef;
   if (NS_FAILED(xpc_qsUnwrapArg<nsIJSID>(cx, argv[0], &iid, &iidRef.ptr,
                                           &argv[0]))) {
     return Throw<true>(cx, NS_ERROR_XPC_BAD_CONVERT_JS);
@@ -1033,21 +1033,6 @@ XrayResolveNativeProperty(JSContext* cx, JS::Handle<JSObject*> wrapper,
 }
 
 bool
-XrayDefineProperty(JSContext* cx, JS::Handle<JSObject*> wrapper,
-                   JS::Handle<JSObject*> obj, JS::Handle<jsid> id,
-                   JSPropertyDescriptor* desc, bool* defined)
-{
-  if (!js::IsProxy(obj))
-      return true;
-
-  MOZ_ASSERT(IsDOMProxy(obj), "What kind of proxy is this?");
-
-  DOMProxyHandler* handler =
-    static_cast<DOMProxyHandler*>(js::GetProxyHandler(obj));
-  return handler->defineProperty(cx, wrapper, id, desc, defined);
-}
-
-bool
 XrayEnumerateAttributes(JSContext* cx, JS::Handle<JSObject*> wrapper,
                         JS::Handle<JSObject*> obj,
                         const Prefable<const JSPropertySpec>* attributes,
@@ -1337,7 +1322,7 @@ MainThreadDictionaryBase::ParseJSON(JSContext *aCx,
   }
   return JS_ParseJSON(aCx,
                       static_cast<const jschar*>(PromiseFlatString(aJSON).get()),
-                      aJSON.Length(), aVal);
+                      aJSON.Length(), aVal.address());
 }
 
 static JSString*
@@ -1650,13 +1635,14 @@ GlobalObject::GlobalObject(JSContext* aCx, JSObject* aObject)
     return;
   }
 
-  JS::Rooted<JS::Value> val(aCx, JS::ObjectValue(*mGlobalJSObject));
+  JS::Value val;
+  val.setObject(*mGlobalJSObject);
 
   // Switch this to UnwrapDOMObjectToISupports once our global objects are
   // using new bindings.
   nsresult rv = xpc_qsUnwrapArg<nsISupports>(aCx, val, &mGlobalObject,
                                              static_cast<nsISupports**>(getter_AddRefs(mGlobalObjectRef)),
-                                             val.address());
+                                             &val);
   if (NS_FAILED(rv)) {
     mGlobalObject = nullptr;
     Throw<true>(aCx, NS_ERROR_XPC_BAD_CONVERT_JS);
@@ -1743,17 +1729,6 @@ ReportLenientThisUnwrappingFailure(JSContext* cx, JS::Handle<JSObject*> obj)
   if (window && window->GetDoc()) {
     window->GetDoc()->WarnOnceAbout(nsIDocument::eLenientThis);
   }
-  return true;
-}
-
-bool
-RegisterForDeferredFinalization(DeferredFinalizeStartFunction start,
-                                DeferredFinalizeFunction run)
-{
-  XPCJSRuntime *rt = nsXPConnect::GetRuntimeInstance();
-  NS_ENSURE_TRUE(rt, false);
-
-  rt->RegisterDeferredFinalize(start, run);
   return true;
 }
 

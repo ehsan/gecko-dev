@@ -32,6 +32,12 @@ nsMathMLTokenFrame::InheritAutomaticData(nsIFrame* aParent)
   // let the base class get the default from our parent
   nsMathMLContainerFrame::InheritAutomaticData(aParent);
 
+  if (mContent->Tag() != nsGkAtoms::mspace_ &&
+      mContent->Tag() != nsGkAtoms::annotation_) {
+    // see if the directionality attribute is there
+    nsMathMLFrame::FindAttrDirectionality(mContent, mPresentationData);
+  }
+
   ProcessTextData();
 
   return NS_OK;

@@ -1437,9 +1437,8 @@ Navigator::EnsureMessagesManager()
   NS_ENSURE_TRUE(gpi, NS_ERROR_FAILURE);
 
   // We don't do anything with the return value.
-  AutoJSContext cx;
-  JS::Rooted<JS::Value> prop_val(cx);
-  rv = gpi->Init(window, prop_val.address());
+  JS::Value prop_val = JSVAL_VOID;
+  rv = gpi->Init(window, &prop_val);
   NS_ENSURE_SUCCESS(rv, rv);
 
   mMessagesManager = messageManager.forget();
