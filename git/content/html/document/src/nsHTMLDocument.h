@@ -102,7 +102,14 @@ public:
   // nsIDOMHTMLDocument interface
   NS_DECL_NSIDOMHTMLDOCUMENT
 
-  mozilla::dom::HTMLAllCollection* All();
+  /**
+   * Returns the result of document.all[aID] which can either be a node
+   * or a nodelist depending on if there are multiple nodes with the same
+   * id.
+   */
+  nsISupports *GetDocumentAllResult(const nsAString& aID,
+                                    nsWrapperCache **aCache,
+                                    nsresult *aResult);
   JSObject* GetAll(JSContext* aCx, mozilla::ErrorResult& aRv);
 
   nsISupports* ResolveName(const nsAString& aName, nsWrapperCache **aCache);

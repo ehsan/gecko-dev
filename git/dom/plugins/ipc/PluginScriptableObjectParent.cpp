@@ -707,7 +707,7 @@ PluginScriptableObjectParent::AnswerInvoke(PPluginIdentifierParent* aId,
     return true;
   }
 
-  AutoFallibleTArray<NPVariant, 10> convertedArgs;
+  nsAutoTArray<NPVariant, 10> convertedArgs;
   uint32_t argCount = aArgs.Length();
 
   if (!convertedArgs.SetLength(argCount)) {
@@ -790,7 +790,7 @@ PluginScriptableObjectParent::AnswerInvokeDefault(const InfallibleTArray<Variant
     return true;
   }
 
-  AutoFallibleTArray<NPVariant, 10> convertedArgs;
+  nsAutoTArray<NPVariant, 10> convertedArgs;
   uint32_t argCount = aArgs.Length();
 
   if (!convertedArgs.SetLength(argCount)) {
@@ -1092,7 +1092,7 @@ PluginScriptableObjectParent::AnswerConstruct(const InfallibleTArray<Variant>& a
     return true;
   }
 
-  AutoFallibleTArray<NPVariant, 10> convertedArgs;
+  nsAutoTArray<NPVariant, 10> convertedArgs;
   uint32_t argCount = aArgs.Length();
 
   if (!convertedArgs.SetLength(argCount)) {

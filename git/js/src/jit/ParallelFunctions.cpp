@@ -208,11 +208,11 @@ jit::CheckOverRecursedPar(ForkJoinContext *cx)
         return false;
     }
 
-    return InterruptCheckPar(cx);
+    return CheckInterruptPar(cx);
 }
 
 bool
-jit::InterruptCheckPar(ForkJoinContext *cx)
+jit::CheckInterruptPar(ForkJoinContext *cx)
 {
     JS_ASSERT(ForkJoinContext::current() == cx);
     bool result = cx->check();

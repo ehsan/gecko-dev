@@ -15,13 +15,11 @@
 #include "AbstractMediaDecoder.h"
 #include "OmxDecoder.h"
 #include "MPAPI.h"
-#include "gfx2DGlue.h"
 
 #define MAX_DROPPED_FRAMES 25
 // Try not to spend more than this much time in a single call to DecodeVideoFrame.
 #define MAX_VIDEO_DECODE_SECONDS 3.0
 
-using namespace mozilla::gfx;
 using namespace android;
 
 namespace mozilla {
@@ -219,7 +217,7 @@ bool MediaOmxReader::DecodeVideoFrame(bool &aKeyframeSkip,
     mVideoSeekTimeUs = -1;
     aKeyframeSkip = false;
 
-    IntRect picture = ToIntRect(mPicture);
+    nsIntRect picture = mPicture;
     if (frame.Y.mWidth != mInitialFrame.width ||
         frame.Y.mHeight != mInitialFrame.height) {
 

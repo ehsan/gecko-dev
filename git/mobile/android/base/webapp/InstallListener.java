@@ -56,11 +56,8 @@ public class InstallListener extends BroadcastReceiver {
             Log.i(LOGTAG, "No manifest URL present in metadata");
             return;
         } else if (!isCorrectManifest(manifestUrl)) {
-            // This happens when the updater triggers installation of multiple
-            // APK updates simultaneously.  If we're the receiver for another
-            // update, then simply ignore this intent by returning early.
-            Log.i(LOGTAG, "Manifest URL is for a different install; ignoring");
-            return;
+            Log.i(LOGTAG, "Waiting to finish installing " + mManifestUrl + " but this is " +manifestUrl);
+            //return;
         }
 
         if (GeckoThread.checkLaunchState(GeckoThread.LaunchState.GeckoRunning)) {

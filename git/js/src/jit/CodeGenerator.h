@@ -30,7 +30,7 @@ class OutOfLineNewArray;
 class OutOfLineNewObject;
 class CheckOverRecursedFailure;
 class CheckOverRecursedFailurePar;
-class OutOfLineInterruptCheckPar;
+class OutOfLineCheckInterruptPar;
 class OutOfLineInterruptCheckImplicit;
 class OutOfLineUnboxFloatingPoint;
 class OutOfLineStoreElementHole;
@@ -291,8 +291,8 @@ class CodeGenerator : public CodeGeneratorSpecific
     bool visitCheckOverRecursedPar(LCheckOverRecursedPar *lir);
     bool visitCheckOverRecursedFailurePar(CheckOverRecursedFailurePar *ool);
 
-    bool visitInterruptCheckPar(LInterruptCheckPar *lir);
-    bool visitOutOfLineInterruptCheckPar(OutOfLineInterruptCheckPar *ool);
+    bool visitCheckInterruptPar(LCheckInterruptPar *lir);
+    bool visitOutOfLineCheckInterruptPar(OutOfLineCheckInterruptPar *ool);
 
     bool visitInterruptCheckImplicit(LInterruptCheckImplicit *ins);
     bool visitOutOfLineInterruptCheckImplicit(OutOfLineInterruptCheckImplicit *ins);

@@ -38,9 +38,8 @@ public:
         return (gfxQtPlatform*) gfxPlatform::GetPlatform();
     }
 
-    virtual already_AddRefed<gfxASurface>
-      CreateOffscreenSurface(const IntSize& size,
-                             gfxContentType contentType) MOZ_OVERRIDE;
+    already_AddRefed<gfxASurface> CreateOffscreenSurface(const gfxIntSize& size,
+                                                         gfxContentType contentType);
 
     mozilla::TemporaryRef<mozilla::gfx::ScaledFont>
       GetScaledFontForFont(mozilla::gfx::DrawTarget* aTarget, gfxFont *aFont);

@@ -31,15 +31,12 @@
 
 #include "prenv.h"
 #include "mozilla/Preferences.h"
-#include "gfx2DGlue.h"
-
 #include <algorithm>
 
 namespace mozilla {
 
 using namespace mozilla::layers;
 using namespace mozilla::dom;
-using namespace mozilla::gfx;
 
 #ifdef PR_LOGGING
 extern PRLogModuleInfo* gMediaDecoderLog;
@@ -615,8 +612,7 @@ void MediaDecoderStateMachine::SendStreamAudio(AudioData* aAudio,
 }
 
 static void WriteVideoToMediaStream(layers::Image* aImage,
-                                    int64_t aDuration,
-                                    const IntSize& aIntrinsicSize,
+                                    int64_t aDuration, const gfxIntSize& aIntrinsicSize,
                                     VideoSegment* aOutput)
 {
   nsRefPtr<layers::Image> image = aImage;
@@ -2426,8 +2422,7 @@ void MediaDecoderStateMachine::RenderVideoFrame(VideoData* aData,
 
   VideoFrameContainer* container = mDecoder->GetVideoFrameContainer();
   if (container) {
-    container->SetCurrentFrame(ThebesIntSize(aData->mDisplay), aData->mImage,
-                               aTarget);
+    container->SetCurrentFrame(aData->mDisplay, aData->mImage, aTarget);
   }
 }
 

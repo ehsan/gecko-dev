@@ -33,7 +33,7 @@ public:
     }
 
     virtual already_AddRefed<gfxASurface>
-    CreateOffscreenSurface(const IntSize& size,
+    CreateOffscreenSurface(const gfxIntSize& size,
                            gfxContentType contentType);
     virtual already_AddRefed<gfxASurface>
     OptimizeImage(gfxImageSurface *aSurface,

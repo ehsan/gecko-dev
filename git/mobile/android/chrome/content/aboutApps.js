@@ -12,8 +12,6 @@ Cu.import("resource://gre/modules/Services.jsm")
 Cu.import("resource://gre/modules/XPCOMUtils.jsm");
 Cu.import("resource://gre/modules/AppsUtils.jsm");
 
-XPCOMUtils.defineLazyModuleGetter(this, "WebappManager", "resource://gre/modules/WebappManager.jsm");
-
 const DEFAULT_ICON = "chrome://browser/skin/images/default-app-icon.png";
 
 let gStrings = Services.strings.createBundle("chrome://browser/locale/aboutApps.properties");
@@ -41,10 +39,6 @@ function openLink(aEvent) {
     let BrowserApp = gChromeWin.BrowserApp;
     BrowserApp.addTab(url, { selected: true, parentId: BrowserApp.selectedTab.id });
   } catch (ex) {}
-}
-
-function checkForUpdates(aEvent) {
-  WebappManager.checkForUpdates(true);
 }
 
 #ifndef MOZ_ANDROID_SYNTHAPKS
@@ -92,8 +86,6 @@ function onLoad(aEvent) {
   for (let i = 0; i < elmts.length; i++) {
     elmts[i].addEventListener("click",  openLink,  false);
   }
-
-  document.getElementById("update-item").addEventListener("click", checkForUpdates, false);
 
   navigator.mozApps.mgmt.oninstall = onInstall;
   navigator.mozApps.mgmt.onuninstall = onUninstall;

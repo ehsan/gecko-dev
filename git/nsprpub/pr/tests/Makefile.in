@@ -79,7 +79,6 @@ CSRCS =             \
 	multiacc.c		\
 	multiwait.c		\
 	many_cv.c		\
-	monref.c		\
 	nameshm1.c      \
 	nbconn.c		\
 	nblayer.c		\

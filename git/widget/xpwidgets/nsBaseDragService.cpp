@@ -618,7 +618,8 @@ nsBaseDragService::DrawDragForImage(nsPresContext* aPresContext,
 
   RefPtr<DrawTarget> dt =
     gfxPlatform::GetPlatform()->
-      CreateOffscreenContentDrawTarget(destSize.ToIntSize(),
+      CreateOffscreenContentDrawTarget(IntSize(destSize.width, destSize.height),
+
                                        SurfaceFormat::B8G8R8A8);
   if (!dt)
     return NS_ERROR_FAILURE;

@@ -4746,7 +4746,18 @@ nsRuleNode::ComputeDisplayData(void* aStartStruct,
                          display, parentDisplay, aRuleData,
                          canStoreInRuleTree);
 
-  display->mTransitions.SetLength(numTransitions);
+  if (!display->mTransitions.SetLength(numTransitions)) {
+    NS_WARNING("failed to allocate transitions array");
+    display->mTransitions.SetLength(1);
+    NS_ABORT_IF_FALSE(display->mTransitions.Length() == 1,
+                      "could not allocate using auto array buffer");
+    numTransitions = 1;
+    FOR_ALL_TRANSITION_PROPS(p) {
+      TransitionPropData& d = transitionPropData[p];
+
+      d.num = 1;
+    }
+  }
 
   FOR_ALL_TRANSITION_PROPS(p) {
     const TransitionPropInfo& i = transitionPropInfo[p];
@@ -4902,7 +4913,18 @@ nsRuleNode::ComputeDisplayData(void* aStartStruct,
                          display, parentDisplay, aRuleData,
                          canStoreInRuleTree);
 
-  display->mAnimations.SetLength(numAnimations);
+  if (!display->mAnimations.SetLength(numAnimations)) {
+    NS_WARNING("failed to allocate animations array");
+    display->mAnimations.SetLength(1);
+    NS_ABORT_IF_FALSE(display->mAnimations.Length() == 1,
+                      "could not allocate using auto array buffer");
+    numAnimations = 1;
+    FOR_ALL_ANIMATION_PROPS(p) {
+      TransitionPropData& d = animationPropData[p];
+
+      d.num = 1;
+    }
+  }
 
   FOR_ALL_ANIMATION_PROPS(p) {
     const TransitionPropInfo& i = animationPropInfo[p];

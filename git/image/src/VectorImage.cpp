@@ -5,7 +5,6 @@
 
 #include "VectorImage.h"
 
-#include "gfx2DGlue.h"
 #include "gfxContext.h"
 #include "gfxDrawable.h"
 #include "gfxPlatform.h"
@@ -33,7 +32,6 @@
 namespace mozilla {
 
 using namespace dom;
-using namespace gfx;
 using namespace layers;
 
 namespace image {
@@ -741,10 +739,10 @@ struct SVGDrawingParameters
     userSpaceToImageSpace = aUserSpaceToImageSpace * unscale;
 
     // Rescale drawing parameters.
-    IntSize drawableSize(aViewportSize.width / scale.width,
-                         aViewportSize.height / scale.height);
+    gfxIntSize drawableSize(aViewportSize.width / scale.width,
+                            aViewportSize.height / scale.height);
     sourceRect = userSpaceToImageSpace.Transform(aFill);
-    imageRect = IntRect(IntPoint(0, 0), drawableSize);
+    imageRect = nsIntRect(0, 0, drawableSize.width, drawableSize.height);
     subimage = gfxRect(aSubimage.x, aSubimage.y, aSubimage.width, aSubimage.height);
     subimage.ScaleRoundOut(1.0 / scale.width, 1.0 / scale.height);
   }
@@ -755,7 +753,7 @@ struct SVGDrawingParameters
   gfxRect fill;
   gfxRect subimage;
   gfxRect sourceRect;
-  IntRect imageRect;
+  nsIntRect imageRect;
   nsIntSize viewportSize;
   gfxSize scale;
   float animationTime;
@@ -840,8 +838,7 @@ VectorImage::CreateDrawableAndShow(const SVGDrawingParameters& aParams)
                            aParams.scale,
                            aParams.flags);
 
-  nsRefPtr<gfxDrawable> svgDrawable =
-    new gfxCallbackDrawable(cb, ThebesIntSize(aParams.imageRect.Size()));
+  nsRefPtr<gfxDrawable> svgDrawable = new gfxCallbackDrawable(cb, aParams.imageRect.Size());
 
   // Refuse to cache animated images.
   // XXX(seth): We may remove this restriction in bug 922893.
@@ -854,7 +851,7 @@ VectorImage::CreateDrawableAndShow(const SVGDrawingParameters& aParams)
 
   // Try to create an offscreen surface.
   mozilla::RefPtr<mozilla::gfx::DrawTarget> target =
-   gfxPlatform::GetPlatform()->CreateOffscreenContentDrawTarget(aParams.imageRect.Size(), gfx::SurfaceFormat::B8G8R8A8);
+   gfxPlatform::GetPlatform()->CreateOffscreenContentDrawTarget(aParams.imageRect.Size().ToIntSize(), gfx::SurfaceFormat::B8G8R8A8);
 
   // If we couldn't create the draw target, it was probably because it would end
   // up way too big. Generally it also wouldn't fit in the cache, but the prefs
@@ -866,10 +863,8 @@ VectorImage::CreateDrawableAndShow(const SVGDrawingParameters& aParams)
 
   // Actually draw. (We use FILTER_NEAREST since we never scale here.)
   gfxUtils::DrawPixelSnapped(ctx, svgDrawable, gfxMatrix(),
-                             ThebesIntRect(aParams.imageRect),
-                             ThebesIntRect(aParams.imageRect),
-                             ThebesIntRect(aParams.imageRect),
-                             ThebesIntRect(aParams.imageRect),
+                             aParams.imageRect, aParams.imageRect,
+                             aParams.imageRect, aParams.imageRect,
                              gfxImageFormat::ARGB32,
                              GraphicsFilter::FILTER_NEAREST, aParams.flags);
 
@@ -883,8 +878,7 @@ VectorImage::CreateDrawableAndShow(const SVGDrawingParameters& aParams)
   // Draw. Note that if SurfaceCache::Insert failed for whatever reason,
   // then |target| is all that is keeping the pixel data alive, so we have
   // to draw before returning from this function.
-  nsRefPtr<gfxDrawable> drawable =
-    new gfxSurfaceDrawable(target, ThebesIntSize(aParams.imageRect.Size()));
+  nsRefPtr<gfxDrawable> drawable = new gfxSurfaceDrawable(target, aParams.imageRect.Size());
   Show(drawable, aParams);
 }
 
@@ -896,7 +890,7 @@ VectorImage::Show(gfxDrawable* aDrawable, const SVGDrawingParameters& aParams)
   gfxUtils::DrawPixelSnapped(aParams.context, aDrawable,
                              aParams.userSpaceToImageSpace,
                              aParams.subimage, aParams.sourceRect,
-                             ThebesIntRect(aParams.imageRect), aParams.fill,
+                             aParams.imageRect, aParams.fill,
                              gfxImageFormat::ARGB32,
                              aParams.filter, aParams.flags);
 

@@ -24,7 +24,6 @@ EXTRA_COMPONENTS += [
     'PromptService.js',
     'SiteSpecificUserAgent.js',
     'Snippets.js',
-    'WebappsUpdateTimer.js',
     'XPIDialogService.js',
 ]
 

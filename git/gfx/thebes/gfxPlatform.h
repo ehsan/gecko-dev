@@ -158,8 +158,6 @@ GetBackendName(mozilla::gfx::BackendType aBackend)
 
 class gfxPlatform {
 public:
-    typedef mozilla::gfx::IntSize IntSize;
-
     /**
      * Return a pointer to the current active platform.
      * This is a singleton; it contains mostly convenience
@@ -178,9 +176,8 @@ public:
      * Create an offscreen surface of the given dimensions
      * and image format.
      */
-    virtual already_AddRefed<gfxASurface>
-      CreateOffscreenSurface(const IntSize& size,
-                             gfxContentType contentType) = 0;
+    virtual already_AddRefed<gfxASurface> CreateOffscreenSurface(const gfxIntSize& size,
+                                                                 gfxContentType contentType) = 0;
 
     /**
      * Create an offscreen surface of the given dimensions and image format which

@@ -5,7 +5,6 @@
 #include "nsISupports.idl"
 
 interface nsIDocShell;
-interface nsIDocument;
 interface nsIDOMDocument;
 interface nsISHEntry;
 interface nsIPrintSettings;
@@ -13,6 +12,7 @@ interface nsIPrintSettings;
 
 %{ C++
 class nsIWidget;
+class nsIDocument;
 struct nsIntRect;
 class nsIPresShell;
 class nsPresContext;
@@ -21,13 +21,14 @@ class nsDOMNavigationTiming;
 %}
 
 [ptr] native nsIWidgetPtr(nsIWidget);
+[ptr] native nsIDocumentPtr(nsIDocument);
 [ref] native nsIntRectRef(nsIntRect);
 [ptr] native nsIPresShellPtr(nsIPresShell);
 [ptr] native nsPresContextPtr(nsPresContext);
 [ptr] native nsViewPtr(nsView);
 [ptr] native nsDOMNavigationTimingPtr(nsDOMNavigationTiming);
 
-[scriptable, builtinclass, uuid(4fc2512b-87c7-4a37-9fac-cee0f116bfdf)]
+[scriptable, builtinclass, uuid(a73d693a-6260-468a-ae64-d64237f0858c)]
 interface nsIContentViewer : nsISupports
 {
 
@@ -36,7 +37,7 @@ interface nsIContentViewer : nsISupports
 
   attribute nsIDocShell container;
 
-  [noscript,notxpcom,nostdcall] void loadStart(in nsIDocument aDoc);
+  void loadStart(in nsISupports aDoc);
   void loadComplete(in nsresult aStatus);
 
   /**
@@ -106,7 +107,7 @@ interface nsIContentViewer : nsISupports
   /**
    * Returns DOMDocument as nsIDocument and without addrefing.
    */
-  [noscript,notxpcom] nsIDocument getDocument();
+  [noscript,notxpcom] nsIDocumentPtr getDocument();
 
   [noscript] void getBounds(in nsIntRectRef aBounds);
   [noscript] void setBounds([const] in nsIntRectRef aBounds);
@@ -177,7 +178,7 @@ interface nsIContentViewer : nsISupports
   [noscript] readonly attribute nsIPresShellPtr presShell;
   [noscript] readonly attribute nsPresContextPtr presContext;
   // aDocument must not be null.
-  [noscript] void setDocumentInternal(in nsIDocument aDocument,
+  [noscript] void setDocumentInternal(in nsIDocumentPtr aDocument,
                                       in boolean aForceReuseInnerWindow);
   /**
    * Find the view to use as the container view for MakeWindow. Returns

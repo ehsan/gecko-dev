@@ -1305,6 +1305,8 @@ nsGlobalWindow::~nsGlobalWindow()
     if (outer) {
       outer->MaybeClearInnerWindow(this);
     }
+
+    MOZ_ASSERT_IF(mDoc, !mDoc->EventHandlingSuppressed());
   }
 
   // Outer windows are always supposed to call CleanUp before letting themselves
@@ -7029,7 +7031,7 @@ nsGlobalWindow::SetResizable(bool aResizable)
 }
 
 NS_IMETHODIMP
-nsGlobalWindow::CaptureEvents()
+nsGlobalWindow::CaptureEvents(int32_t aEventFlags)
 {
   if (mDoc) {
     mDoc->WarnOnceAbout(nsIDocument::eUseOfCaptureEvents);
@@ -7039,7 +7041,7 @@ nsGlobalWindow::CaptureEvents()
 }
 
 NS_IMETHODIMP
-nsGlobalWindow::ReleaseEvents()
+nsGlobalWindow::ReleaseEvents(int32_t aEventFlags)
 {
   if (mDoc) {
     mDoc->WarnOnceAbout(nsIDocument::eUseOfReleaseEvents);
