@@ -10,18 +10,14 @@
   overflow: auto;
 }
 
-/* Instruments pane view (watch expressions, variables, events...) */
-
-#instruments-pane > tabpanels > tabpanel {
-  -moz-box-orient: vertical;
-}
+/* Watch expressions view */
 
 #expressions {
   overflow-x: hidden;
   overflow-y: auto;
 }
 
-/* Toolbar controls */
+/* Toolbar */
 
 .devtools-toolbarbutton:not([label]) > .toolbarbutton-text {
   display: none;

@@ -285,15 +285,9 @@ JS_ConvertArgumentsVA(JSContext *cx, unsigned argc, jsval *argv, const char *for
             }
             break;
           case 'o':
-            if (sp->isNullOrUndefined()) {
-                obj = nullptr;
-            } else {
-                RootedValue v(cx, *sp);
-                obj = ToObject(cx, v);
-                if (!obj)
-                    return false;
-            }
-            *sp = ObjectOrNullValue(obj);
+            if (!js_ValueToObjectOrNull(cx, *sp, &obj))
+                return false;
+            *sp = OBJECT_TO_JSVAL(obj);
             *va_arg(ap, JSObject **) = obj;
             break;
           case 'f':
@@ -334,14 +328,9 @@ JS_ConvertValue(JSContext *cx, HandleValue value, JSType type, MutableHandleValu
         ok = true;
         break;
       case JSTYPE_OBJECT:
-        if (value.isNullOrUndefined()) {
-            obj.set(nullptr);
-        } else {
-            obj = ToObject(cx, value);
-            if (!obj)
-                return false;
-        }
-        ok = true;
+        ok = js_ValueToObjectOrNull(cx, value, &obj);
+        if (ok)
+            vp.setObjectOrNull(obj);
         break;
       case JSTYPE_FUNCTION:
         vp.set(value);
@@ -379,15 +368,7 @@ JS_ValueToObject(JSContext *cx, HandleValue value, MutableHandleObject objp)
     AssertHeapIsIdle(cx);
     CHECK_REQUEST(cx);
     assertSameCompartment(cx, value);
-    if (value.isNullOrUndefined()) {
-        objp.set(nullptr);
-        return true;
-    }
-    JSObject *obj = ToObject(cx, value);
-    if (!obj)
-        return false;
-    objp.set(obj);
-    return true;
+    return js_ValueToObjectOrNull(cx, value, objp);
 }
 
 JS_PUBLIC_API(JSFunction *)
@@ -1282,11 +1263,7 @@ js_TransplantObjectWithWrapper(JSContext *cx,
         // a new unreachable dummy object and swap it with the reflector.
         // After the swap we have a possibly-live object that isn't dangerous,
         // and a possibly-dangerous object that isn't live.
-        ProxyOptions options;
-        if (!IsBackgroundFinalized(origobj->tenuredGetAllocKind()))
-            options.setForceForegroundFinalization(true);
-        RootedObject reflectorGuts(cx, NewDeadProxyObject(cx, JS_GetGlobalForObject(cx, origobj),
-                                                          options));
+        RootedObject reflectorGuts(cx, NewDeadProxyObject(cx, JS_GetGlobalForObject(cx, origobj)));
         if (!reflectorGuts || !JSObject::swap(cx, origobj, reflectorGuts))
             MOZ_CRASH();
 
@@ -1375,7 +1352,7 @@ static const JSStdName standard_class_atoms[] = {
 #ifdef ENABLE_PARALLEL_JS
     {js_InitParallelArrayClass,         EAGER_ATOM_AND_OCLASP(ParallelArray)},
 #endif
-    {js_InitProxyClass,                 EAGER_CLASS_ATOM(Proxy), &ProxyObject::uncallableClass_},
+    {js_InitProxyClass,                 EAGER_CLASS_ATOM(Proxy), OCLASP(ObjectProxy)},
 #if EXPOSE_INTL_API
     {js_InitIntlClass,                  EAGER_ATOM_AND_CLASP(Intl)},
 #endif
@@ -4225,15 +4202,7 @@ JS_DefineFunctions(JSContext *cx, JSObject *objArg, const JSFunctionSpec *fs)
     RootedObject ctor(cx);
 
     for (; fs->name; fs++) {
-        RootedAtom atom(cx);
-        // If the name starts with "@@", it must be a well-known symbol.
-        if (fs->name[0] != '@' || fs->name[1] != '@')
-            atom = Atomize(cx, fs->name, strlen(fs->name));
-        else if (strcmp(fs->name, "@@iterator") == 0)
-            // FIXME: This atom should be a symbol: bug 918828.
-            atom = cx->names().std_iterator;
-        else
-            JS_ReportErrorNumber(cx, js_GetErrorMessage, nullptr, JSMSG_BAD_SYMBOL, fs->name);
+        RootedAtom atom(cx, Atomize(cx, fs->name, strlen(fs->name)));
         if (!atom)
             return false;
 

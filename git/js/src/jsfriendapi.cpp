@@ -530,8 +530,13 @@ js::SetFunctionNativeReserved(JSObject *fun, size_t which, const Value &val)
 JS_FRIEND_API(bool)
 js::GetObjectProto(JSContext *cx, JS::Handle<JSObject*> obj, JS::MutableHandle<JSObject*> proto)
 {
-    if (IsProxy(obj))
+    const js::Class *clasp = GetObjectClass(obj);
+    if (clasp == js::ObjectProxyClassPtr ||
+        clasp == js::OuterWindowProxyClassPtr ||
+        clasp == js::FunctionProxyClassPtr)
+    {
         return JS_GetPrototype(cx, obj, proto);
+    }
 
     proto.set(reinterpret_cast<const shadow::Object*>(obj.get())->type->proto);
     return true;

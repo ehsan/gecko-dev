@@ -150,8 +150,7 @@ const WorkerSandbox = EventEmitter.compose({
       sandboxPrototype: proto,
       wantXrays: true,
       wantGlobalProperties: wantGlobalProperties,
-      sameZoneAs: window,
-      metadata: { SDKContentScript: true }
+      sameZoneAs: window
     });
     // We have to ensure that window.top and window.parent are the exact same
     // object than window object, i.e. the sandbox global object. But not
@@ -555,7 +554,6 @@ const Worker = EventEmitter.compose({
    */
   destroy: function destroy() {
     this._workerCleanup();
-    this._inited = true;
     this._removeAllListeners();
   },
 
@@ -582,7 +580,6 @@ const Worker = EventEmitter.compose({
       this._earlyEvents.length = 0;
       this._emit("detach");
     }
-    this._inited = false;
   },
 
   /**

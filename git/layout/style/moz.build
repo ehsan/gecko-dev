@@ -29,7 +29,6 @@ EXPORTS += [
     'nsCSSRuleProcessor.h',
     'nsCSSStyleSheet.h',
     'nsCSSValue.h',
-    'nsComputedDOMStylePropertyList.h',
     'nsDOMCSSAttrDeclaration.h',
     'nsDOMCSSDeclaration.h',
     'nsDOMCSSRGBColor.h',

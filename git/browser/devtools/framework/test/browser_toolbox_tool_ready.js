@@ -3,9 +3,7 @@
 
 function test() {
   addTab().then(function(data) {
-    let toolIds = gDevTools.getToolDefinitionArray()
-                    .filter(def => def.isTargetSupported(data.target))
-                    .map(def => def.id);
+    let toolIds = gDevTools.getToolDefinitionArray().map((def) => def.id);
 
     let open = function(index) {
       let toolId = toolIds[index];

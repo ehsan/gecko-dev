@@ -39,7 +39,6 @@ function test() {
       .then(() => gPanel.addBreakpoint({ url: gSources.values[1], line: 7 }))
       .then(() => gPanel.addBreakpoint({ url: gSources.values[1], line: 8 }))
       .then(() => gPanel.addBreakpoint({ url: gSources.values[1], line: 9 }))
-      .then(() => ensureThreadClientState(gPanel, "resumed"));
   }
 
   function performTestWhileNotPaused() {
@@ -96,9 +95,7 @@ function test() {
     ok(isCaretPos(gPanel, 9),
       "The editor location is correct before pausing.");
 
-    // Spin the event loop before causing the debuggee to pause, to allow
-    // this function to return first.
-    executeSoon(() => {
+    ensureThreadClientState(gPanel, "resumed").then(() => {
       EventUtils.sendMouseEvent({ type: "click" },
         gDebuggee.document.querySelector("button"),
         gDebuggee);

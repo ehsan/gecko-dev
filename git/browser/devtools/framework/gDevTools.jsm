@@ -310,15 +310,6 @@ DevTools.prototype = {
     //   for (let [target, toolbox] of this._toolboxes) toolbox.destroy();
     // Is taken care of by the gDevToolsBrowser.forgetBrowserWindow
   },
-
-  /**
-   * Iterator that yields each of the toolboxes.
-   */
-  '@@iterator': function*() {
-    for (let toolbox of this._toolboxes) {
-      yield toolbox;
-    }
-  }
 };
 
 /**

@@ -8,9 +8,6 @@ module.metadata = {
   'stability': 'unstable'
 };
 
-const { defer } = require('../core/promise');
-const { setInterval, clearInterval } = require('../timers');
-
 function getTestNames (exports)
   Object.keys(exports).filter(name => /^test/.test(name))
 
@@ -96,14 +93,3 @@ function after (exports, afterFn) {
   });
 }
 exports.after = after;
-
-function waitUntil (predicate, delay) {
-  let { promise, resolve } = defer();
-  let interval = setInterval(() => {
-    if (!predicate()) return;
-    clearInterval(interval);
-    resolve();
-  }, delay || 10);
-  return promise;
-}
-exports.waitUntil = waitUntil;

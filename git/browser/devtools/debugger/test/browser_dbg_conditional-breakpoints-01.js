@@ -39,6 +39,7 @@ function test() {
       .then(() => resumeAndTestBreakpoint(29))
       .then(() => resumeAndTestNoBreakpoint())
       .then(() => reloadActiveTab(gPanel, gDebugger.EVENTS.BREAKPOINT_SHOWN, 13))
+      .then(() => ensureThreadClientState(gPanel, "resumed"))
       .then(() => testAfterReload())
       .then(() => closeDebuggerAndFinish(gPanel))
       .then(null, aError => {

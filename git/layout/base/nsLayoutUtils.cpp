@@ -70,7 +70,6 @@
 #include "nsStyleTransformMatrix.h"
 #include "nsIFrameInlines.h"
 #include "ImageContainer.h"
-#include "nsComputedDOMStyle.h"
 
 #include "mozilla/Preferences.h"
 
@@ -429,22 +428,6 @@ nsLayoutUtils::CSSFiltersEnabled()
   }
 
   return sCSSFiltersEnabled;
-}
-
-bool
-nsLayoutUtils::UnsetValueEnabled()
-{
-  static bool sUnsetValueEnabled;
-  static bool sUnsetValuePrefCached = false;
-
-  if (!sUnsetValuePrefCached) {
-    sUnsetValuePrefCached = true;
-    Preferences::AddBoolVarCache(&sUnsetValueEnabled,
-                                 "layout.css.unset-value.enabled",
-                                 false);
-  }
-
-  return sUnsetValueEnabled;
 }
 
 void
@@ -5075,8 +5058,6 @@ nsLayoutUtils::Initialize()
   Preferences::RegisterCallback(StickyEnabledPrefChangeCallback,
                                 STICKY_ENABLED_PREF_NAME);
   StickyEnabledPrefChangeCallback(STICKY_ENABLED_PREF_NAME, nullptr);
-
-  nsComputedDOMStyle::RegisterPrefChangeCallbacks();
 }
 
 /* static */
@@ -5092,8 +5073,6 @@ nsLayoutUtils::Shutdown()
                                   FLEXBOX_ENABLED_PREF_NAME);
   Preferences::UnregisterCallback(StickyEnabledPrefChangeCallback,
                                   STICKY_ENABLED_PREF_NAME);
-
-  nsComputedDOMStyle::UnregisterPrefChangeCallbacks();
 }
 
 /* static */
