@@ -318,7 +318,7 @@
         stop                                # str
     .end
 
-.end call
+.end
 
 .igroup new JSOP_NEW
 
@@ -344,7 +344,7 @@
         stop                                # strobj
     .end
 
-.end new
+.end call
 
 .igroup apply JSOP_APPLY
 
@@ -712,7 +712,7 @@
         stop
     .end
 
-.end getelem
+.end
 
 .igroup callelem JSOP_CALLELEM
 
@@ -736,7 +736,7 @@
         stop
     .end
 
-.end callelem
+.end getelem
 
 .igroup setelem JSOP_SETELEM
 
