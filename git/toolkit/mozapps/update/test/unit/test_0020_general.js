@@ -58,7 +58,8 @@ function run_test() {
 }
 
 function end_test() {
-  stop_httpserver(do_test_finished);
+  stop_httpserver();
+  do_test_finished();
 }
 
 // Helper function for testing update counts returned from an update xml

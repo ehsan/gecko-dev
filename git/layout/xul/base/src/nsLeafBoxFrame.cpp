@@ -447,3 +447,15 @@ nsLeafBoxFrame::DoLayout(nsBoxLayoutState& aState)
 {
     return nsBox::DoLayout(aState);
 }
+
+PRBool
+nsLeafBoxFrame::GetWasCollapsed(nsBoxLayoutState& aState)
+{
+    return nsBox::GetWasCollapsed(aState);
+}
+
+void
+nsLeafBoxFrame::SetWasCollapsed(nsBoxLayoutState& aState, PRBool aWas)
+{
+    nsBox::SetWasCollapsed(aState, aWas);
+}

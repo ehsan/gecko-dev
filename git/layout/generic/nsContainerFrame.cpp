@@ -146,8 +146,7 @@ nsContainerFrame::AppendFrames(nsIAtom*  aListName,
 #endif
     {
       PresContext()->PresShell()->
-        FrameNeedsReflow(this, nsIPresShell::eTreeChange,
-                         NS_FRAME_HAS_DIRTY_CHILDREN);
+        FrameNeedsReflow(this, nsIPresShell::eTreeChange, NS_FRAME_IS_DIRTY);
     }
   }
   return NS_OK;
@@ -179,8 +178,7 @@ nsContainerFrame::InsertFrames(nsIAtom*  aListName,
 #endif
     {
       PresContext()->PresShell()->
-        FrameNeedsReflow(this, nsIPresShell::eTreeChange,
-                         NS_FRAME_HAS_DIRTY_CHILDREN);
+        FrameNeedsReflow(this, nsIPresShell::eTreeChange, NS_FRAME_IS_DIRTY);
     }
   }
   return NS_OK;
@@ -246,8 +244,7 @@ nsContainerFrame::RemoveFrame(nsIAtom*  aListName,
 
     if (generateReflowCommand) {
       PresContext()->PresShell()->
-        FrameNeedsReflow(this, nsIPresShell::eTreeChange,
-                         NS_FRAME_HAS_DIRTY_CHILDREN);
+        FrameNeedsReflow(this, nsIPresShell::eTreeChange, NS_FRAME_IS_DIRTY);
     }
   }
 

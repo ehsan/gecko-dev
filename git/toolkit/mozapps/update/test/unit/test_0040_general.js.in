@@ -62,7 +62,8 @@ function run_test() {
 }
 
 function end_test() {
-  stop_httpserver(do_test_finished);
+  do_test_finished();
+  stop_httpserver();
 }
 
 // Helper function for parsing the result from the contructed url

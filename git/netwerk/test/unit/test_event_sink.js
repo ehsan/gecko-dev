@@ -81,12 +81,10 @@ var listener = {
   },
 
   onStopRequest: function test_onStopR(request, ctx, status) {
-    if (this._iteration <= 2) {
+    if (this._iteration <= 2)
       run_test_continued();
-    } else {
-      do_test_pending();
-      httpserv.stop(do_test_finished);
-    }
+    else
+      httpserv.stop();
     do_test_finished();
   },
 

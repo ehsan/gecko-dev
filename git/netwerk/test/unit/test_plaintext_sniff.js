@@ -131,8 +131,7 @@ function makeListener(headerIdx, bodyIdx) {
       }
 
       if (bodyIdx == bodyList.length) {
-        do_test_pending();
-        httpserv.stop(do_test_finished);
+        httpserv.stop();
       } else {
         doTest(headerIdx, bodyIdx);
       }

@@ -55,8 +55,7 @@ function run_test()
 
   function done()
   {
-    do_test_pending();
-    srv.stop(function() { do_test_finished(); });
+    srv.stop();
     do_check_eq(gStartCount, TEST_RUNS);
     do_check_true(lastPassed);
   }

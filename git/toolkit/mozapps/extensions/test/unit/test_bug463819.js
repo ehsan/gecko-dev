@@ -257,5 +257,6 @@ function test_addon_9() {
 }
 
 function finish_test() {
-  testserver.stop(do_test_finished);
+  testserver.stop();
+  do_test_finished();
 }
