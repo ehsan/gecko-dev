@@ -490,7 +490,6 @@ namespace nanojit
 		const char *dup(const char *);
 		const char *format(const void *p);
 		void promoteAll(const void *newbase);
-		void clear();
     };
 
 	class LirNameMap MMGC_SUBCLASS_DECL
