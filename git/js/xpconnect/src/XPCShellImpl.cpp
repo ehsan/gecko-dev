@@ -488,7 +488,7 @@ Options(JSContext *cx, unsigned argc, jsval *vp)
         }
     }
 
-    char *names = nullptr;
+    char *names = NULL;
     if (oldOptions.extraWarnings()) {
         names = JS_sprintf_append(names, "%s", "strict");
         if (!names) {

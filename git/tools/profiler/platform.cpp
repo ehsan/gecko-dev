@@ -204,7 +204,7 @@ bool sps_version2()
 #     error "Unknown platform"
 #   endif
 
-    bool req2 = PR_GetEnv("MOZ_PROFILER_NEW") != nullptr; // Has v2 been requested?
+    bool req2 = PR_GetEnv("MOZ_PROFILER_NEW") != NULL; // Has v2 been requested?
 
     bool elfhackd = false;
 #   if defined(USE_ELF_HACK)
@@ -238,7 +238,7 @@ bool moz_profiler_verbose()
   static int status = 0; // Raced on, potentially
 
   if (status == 0) {
-    if (PR_GetEnv("MOZ_PROFILER_VERBOSE") != nullptr)
+    if (PR_GetEnv("MOZ_PROFILER_VERBOSE") != NULL)
       status = 2;
     else
       status = 1;
@@ -283,7 +283,7 @@ bool set_profiler_mode(const char* mode) {
 bool set_profiler_interval(const char* interval) {
   if (interval) {
     errno = 0;
-    long int n = strtol(interval, (char**)nullptr, 10);
+    long int n = strtol(interval, (char**)NULL, 10);
     if (errno == 0 && n >= 1 && n <= 1000) {
       sUnwindInterval = n;
       return true;
@@ -297,7 +297,7 @@ bool set_profiler_interval(const char* interval) {
 bool set_profiler_entries(const char* entries) {
   if (entries) {
     errno = 0;
-    long int n = strtol(entries, (char**)nullptr, 10);
+    long int n = strtol(entries, (char**)NULL, 10);
     if (errno == 0 && n > 0) {
       sProfileEntries = n;
       return true;
@@ -311,7 +311,7 @@ bool set_profiler_entries(const char* entries) {
 bool set_profiler_scan(const char* scanCount) {
   if (scanCount) {
     errno = 0;
-    long int n = strtol(scanCount, (char**)nullptr, 10);
+    long int n = strtol(scanCount, (char**)NULL, 10);
     if (errno == 0 && n >= 0 && n <= 100) {
       sUnwindStackScan = n;
       return true;
@@ -497,7 +497,7 @@ void mozilla_sampler_init(void* stackTop)
   profiler_start(PROFILE_DEFAULT_ENTRY, PROFILE_DEFAULT_INTERVAL,
                          features, sizeof(features)/sizeof(const char*),
                          // TODO Add env variable to select threads
-                         nullptr, 0);
+                         NULL, 0);
   LOG("END   mozilla_sampler_init");
 }
 
@@ -558,7 +558,7 @@ char* mozilla_sampler_get_profile()
 {
   TableTicker *t = tlsTicker.get();
   if (!t) {
-    return nullptr;
+    return NULL;
   }
 
   std::stringstream stream;
@@ -571,7 +571,7 @@ JSObject *mozilla_sampler_get_profile_data(JSContext *aCx)
 {
   TableTicker *t = tlsTicker.get();
   if (!t) {
-    return nullptr;
+    return NULL;
   }
 
   return t->ToJSObject(aCx);
@@ -610,7 +610,7 @@ const char** mozilla_sampler_get_features()
     // Add power collection
     "power",
 #endif
-    nullptr
+    NULL
   };
 
   return features;
@@ -623,7 +623,7 @@ void mozilla_sampler_start(int aProfileEntries, double aInterval,
 
 {
   if (!stack_key_initialized)
-    profiler_init(nullptr);
+    profiler_init(NULL);
 
   /* If the sampling interval was set using env vars, use that
      in preference to anything else. */
@@ -698,7 +698,7 @@ void mozilla_sampler_start(int aProfileEntries, double aInterval,
 void mozilla_sampler_stop()
 {
   if (!stack_key_initialized)
-    profiler_init(nullptr);
+    profiler_init(NULL);
 
   TableTicker *t = tlsTicker.get();
   if (!t) {
@@ -718,11 +718,11 @@ void mozilla_sampler_stop()
 
   t->Stop();
   delete t;
-  tlsTicker.set(nullptr);
+  tlsTicker.set(NULL);
 
   if (disableJS) {
     PseudoStack *stack = tlsPseudoStack.get();
-    ASSERT(stack != nullptr);
+    ASSERT(stack != NULL);
     stack->disableJSSampling();
   }
 

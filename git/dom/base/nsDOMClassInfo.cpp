@@ -2031,8 +2031,6 @@ NS_IMETHODIMP
 nsWindowSH::PostCreate(nsIXPConnectWrappedNative *wrapper,
                        JSContext *cx, JSObject *obj)
 {
-  JS::Rooted<JSObject*> window(cx, obj);
-
 #ifdef DEBUG
   nsCOMPtr<nsIScriptGlobalObject> sgo(do_QueryWrappedNative(wrapper));
 
@@ -2045,6 +2043,7 @@ nsWindowSH::PostCreate(nsIXPConnectWrappedNative *wrapper,
   const NativeProperties* eventTargetProperties =
     EventTargetBinding::sNativePropertyHooks->mNativeProperties.regular;
 
+  JS::Rooted<JSObject*> window(cx, obj);
   return DefineWebIDLBindingPropertiesOnXPCObject(cx, window, windowProperties, true) &&
          DefineWebIDLBindingPropertiesOnXPCObject(cx, window, eventTargetProperties, true) ?
          NS_OK : NS_ERROR_FAILURE;

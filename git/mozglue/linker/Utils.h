@@ -96,7 +96,7 @@ typedef mozilla::Scoped<AutoCloseFDTraits> AutoCloseFD;
 struct AutoCloseFILETraits
 {
   typedef FILE *type;
-  static FILE *empty() { return nullptr; }
+  static FILE *empty() { return NULL; }
   static void release(FILE *f) { if (f) fclose(f); }
 };
 typedef mozilla::Scoped<AutoCloseFILETraits> AutoCloseFILE;
@@ -317,7 +317,7 @@ private:
  *
  * This is roughly equivalent to
  *   const S *a = reinterpret_cast<const S *>(buf);
- *   const S *b = nullptr; b = reinterpret_cast<const S *>(buf);
+ *   const S *b = NULL; b = reinterpret_cast<const S *>(buf);
  *
  * An UnsizedArray has no known length, and it's up to the caller to make
  * sure the accessed memory is mapped and makes sense.
@@ -331,12 +331,12 @@ public:
   /**
    * Constructors and Initializers
    */
-  UnsizedArray(): contents(nullptr) { }
+  UnsizedArray(): contents(NULL) { }
   UnsizedArray(const void *buf): contents(reinterpret_cast<const T *>(buf)) { }
 
   void Init(const void *buf)
   {
-    MOZ_ASSERT(contents == nullptr);
+    MOZ_ASSERT(contents == NULL);
     contents = reinterpret_cast<const T *>(buf);
   }
 
@@ -358,7 +358,7 @@ public:
    */
   operator bool() const
   {
-    return contents != nullptr;
+    return contents != NULL;
   }
 private:
   const T *contents;
@@ -465,7 +465,7 @@ public:
   class iterator
   {
   public:
-    iterator(): item(nullptr) { }
+    iterator(): item(NULL) { }
 
     const T &operator *() const
     {
@@ -526,7 +526,7 @@ public:
   class reverse_iterator
   {
   public:
-    reverse_iterator(): item(nullptr) { }
+    reverse_iterator(): item(NULL) { }
 
     const T &operator *() const
     {

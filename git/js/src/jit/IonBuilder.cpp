@@ -8340,8 +8340,8 @@ IonBuilder::getPropTryCommonGetter(bool *emitted, PropertyName *name,
 {
     JS_ASSERT(*emitted == false);
 
-    Shape *lastProperty = nullptr;
-    JSFunction *commonGetter = nullptr;
+    Shape *lastProperty = NULL;
+    JSFunction *commonGetter = NULL;
     JSObject *foundProto = inspector->commonGetPropFunction(pc, &lastProperty, &commonGetter);
     if (!foundProto)
         return true;
@@ -8619,8 +8619,8 @@ IonBuilder::setPropTryCommonSetter(bool *emitted, MDefinition *obj,
 {
     JS_ASSERT(*emitted == false);
 
-    Shape *lastProperty = nullptr;
-    JSFunction *commonSetter = nullptr;
+    Shape *lastProperty = NULL;
+    JSFunction *commonSetter = NULL;
     JSObject *foundProto = inspector->commonSetPropFunction(pc, &lastProperty, &commonSetter);
     if (!foundProto)
         return true;
@@ -9056,18 +9056,9 @@ IonBuilder::jsop_setarg(uint32_t arg)
                 op->resultTypeSet() &&
                 op->resultTypeSet()->empty())
             {
-                bool otherUses = false;
-                for (MUseDefIterator iter(op); iter; iter++) {
-                    MDefinition *def = iter.def();
-                    if (def == val)
-                        continue;
-                    otherUses = true;
-                }
-                if (!otherUses) {
-                    JS_ASSERT(op->resultTypeSet() == &argTypes[arg]);
-                    if (!argTypes[arg].addType(types::Type::UnknownType(), temp_->lifoAlloc()))
-                        return false;
-                }
+                JS_ASSERT(op->resultTypeSet() == &argTypes[arg]);
+                if (!argTypes[arg].addType(types::Type::UnknownType(), temp_->lifoAlloc()))
+                    return false;
             }
         }
     }

@@ -818,9 +818,6 @@ pref("urlclassifier.gethashnoise", 4);
 // a gethash request will be forced to check that the result is still in
 // the database.
 pref("urlclassifier.max-complete-age", 2700);
-// Tables for application reputation.
-pref("urlclassifier.download_block_table", "goog-badbinurl-shavar");
-pref("urlclassifier.download_allow_table", "goog-downloadwhite-digest256");
 #endif
 
 pref("browser.geolocation.warning.infoURL", "https://www.mozilla.org/%LOCALE%/firefox/geolocation/");
@@ -1081,7 +1078,7 @@ pref("devtools.commands.dir", "");
 
 // Enable the app manager
 pref("devtools.appmanager.enabled", true);
-pref("devtools.appmanager.firstrun", true);
+pref("devtools.appmanager.lastTab", "help");
 pref("devtools.appmanager.manifestEditor.enabled", false);
 
 // Toolbox preferences
