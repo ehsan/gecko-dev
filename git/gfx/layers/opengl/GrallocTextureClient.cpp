@@ -187,24 +187,6 @@ GrallocTextureClientOGL::SetReleaseFenceHandle(FenceHandle aReleaseFenceHandle)
   }
 }
 
-void
-GrallocTextureClientOGL::WaitReleaseFence()
-{
-#if defined(MOZ_WIDGET_GONK) && ANDROID_VERSION >= 17
-   if (mReleaseFenceHandle.IsValid()) {
-     android::sp<Fence> fence = mReleaseFenceHandle.mFence;
-#if ANDROID_VERSION == 17
-     fence->waitForever(1000, "GrallocTextureClientOGL::Lock");
-     // 1000 is what Android uses. It is warning timeout ms.
-     // This timeous is removed since ANDROID_VERSION 18. 
-#else
-     fence->waitForever("GrallocTextureClientOGL::Lock");
-#endif
-     mReleaseFenceHandle = FenceHandle();
-   }
-#endif
-}
-
 bool
 GrallocTextureClientOGL::Lock(OpenMode aMode)
 {
@@ -217,7 +199,18 @@ GrallocTextureClientOGL::Lock(OpenMode aMode)
     return true;
   }
 
-  WaitReleaseFence();
+#if MOZ_WIDGET_GONK && ANDROID_VERSION >= 17
+  if (mReleaseFenceHandle.IsValid()) {
+    android::sp<Fence> fence = mReleaseFenceHandle.mFence;
+#if ANDROID_VERSION == 17
+    fence->waitForever(1000, "GrallocTextureClientOGL::Lock");
+    // 1000 is what Android uses. It is warning timeout ms.
+#else
+    fence->waitForever("GrallocTextureClientOGL::Lock");
+#endif
+    mReleaseFenceHandle = FenceHandle();
+  }
+#endif
 
   uint32_t usage = 0;
   if (aMode & OPEN_READ) {

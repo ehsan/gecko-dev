@@ -27,7 +27,6 @@
 #include "mozilla/Preferences.h"        // for Preferences
 #include "mozilla/gfx/BasePoint.h"      // for BasePoint
 #include "mozilla/gfx/Matrix.h"         // for Matrix4x4, Matrix
-#include "mozilla/layers/LayerManagerComposite.h"  // for LayerComposite, etc
 #include "mozilla/layers/CompositingRenderTargetOGL.h"
 #include "mozilla/layers/Effects.h"     // for EffectChain, TexturedEffect, etc
 #include "mozilla/layers/TextureHost.h"  // for TextureSource, etc
@@ -44,7 +43,6 @@
 #include "DecomposeIntoNoRepeatTriangles.h"
 #include "ScopedGLHelpers.h"
 #include "GLReadTexImageHelper.h"
-#include "TiledLayerBuffer.h"           // for TiledLayerComposer
 
 #if MOZ_ANDROID_OMTC
 #include "TexturePoolOGL.h"
@@ -1215,13 +1213,6 @@ CompositorOGL::EndFrame()
 void
 CompositorOGL::SetFBAcquireFence(Layer* aLayer)
 {
-  // OpenGL does not provide ReleaseFence for rendering.
-  // Instead use FBAcquireFence as layer buffer's ReleaseFence
-  // to prevent flickering and tearing.
-  // FBAcquireFence is FramebufferSurface's AcquireFence.
-  // AcquireFence will be signaled when a buffer's content is available.
-  // See Bug 974152.
-
   if (!aLayer) {
     return;
   }
@@ -1231,7 +1222,7 @@ CompositorOGL::SetFBAcquireFence(Layer* aLayer)
       return;
   }
 
-  // Set FBAcquireFence on ContainerLayer's childs
+  // Set FBAcquireFence to child
   ContainerLayer* container = aLayer->AsContainerLayer();
   if (container) {
     for (Layer* child = container->GetFirstChild(); child; child = child->GetNextSibling()) {
@@ -1240,18 +1231,7 @@ CompositorOGL::SetFBAcquireFence(Layer* aLayer)
     return;
   }
 
-  // Set FBAcquireFence as tiles' ReleaseFence on TiledLayerComposer.
-  TiledLayerComposer* composer = nullptr;
-  LayerComposite* shadow = aLayer->AsLayerComposite();
-  if (shadow) {
-    composer = shadow->GetTiledLayerComposer();
-    if (composer) {
-      composer->SetReleaseFence(new android::Fence(GetGonkDisplay()->GetPrevFBAcquireFd()));
-      return;
-    }
-  }
-
-  // Set FBAcquireFence as layer buffer's ReleaseFence
+  // Set FBAcquireFence to TexutreHost
   LayerRenderState state = aLayer->GetRenderState();
   if (!state.mTexture) {
     return;

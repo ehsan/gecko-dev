@@ -7,11 +7,8 @@ package org.mozilla.gecko;
 
 import org.mozilla.gecko.gfx.InputConnectionHandler;
 import org.mozilla.gecko.gfx.LayerView;
-import org.mozilla.gecko.util.GeckoEventListener;
 import org.mozilla.gecko.util.ThreadUtils;
 import org.mozilla.gecko.util.ThreadUtils.AssertBehavior;
-
-import org.json.JSONObject;
 
 import android.os.Build;
 import android.os.Handler;
@@ -78,7 +75,7 @@ interface GeckoEditableListener {
 */
 final class GeckoEditable
         implements InvocationHandler, Editable,
-                   GeckoEditableClient, GeckoEditableListener, GeckoEventListener {
+                   GeckoEditableClient, GeckoEditableListener {
 
     private static final boolean DEBUG = false;
     private static final String LOGTAG = "GeckoEditable";
@@ -104,7 +101,6 @@ final class GeckoEditable
     private int mLastIcUpdateSeqno;
     private boolean mUpdateGecko;
     private boolean mFocused;
-    private volatile boolean mSuppressCompositions;
     private volatile boolean mSuppressKeyUp;
 
     /* An action that alters the Editable
@@ -400,10 +396,7 @@ final class GeckoEditable
 
     private void icUpdateGecko(boolean force) {
 
-        // Skip if receiving a repeated request, or
-        // if suppressing compositions during text selection.
-        if ((!force && mIcUpdateSeqno == mLastIcUpdateSeqno) ||
-            mSuppressCompositions) {
+        if (!force && mIcUpdateSeqno == mLastIcUpdateSeqno) {
             if (DEBUG) {
                 Log.d(LOGTAG, "icUpdateGecko() skipped");
             }
@@ -757,17 +750,6 @@ final class GeckoEditable
                 mListener.notifyIME(type);
             }
         });
-
-        // Register/unregister Gecko-side text selection listeners
-        if (type == NOTIFY_IME_OF_BLUR) {
-            mSuppressCompositions = false;
-            GeckoAppShell.getEventDispatcher().
-                unregisterEventListener("TextSelection:IMECompositions", this);
-        } else if (type == NOTIFY_IME_OF_FOCUS) {
-            mSuppressCompositions = false;
-            GeckoAppShell.getEventDispatcher().
-                registerEventListener("TextSelection:IMECompositions", this);
-        }
     }
 
     @Override
@@ -1216,17 +1198,6 @@ final class GeckoEditable
     @Override
     public String toString() {
         throw new UnsupportedOperationException("method must be called through mProxy");
-    }
-
-    // GeckoEventListener implementation
-
-    @Override
-    public void handleMessage(String event, JSONObject message) {
-        if (!"TextSelection:IMECompositions".equals(event)) {
-            return;
-        }
-
-        mSuppressCompositions = message.optBoolean("suppress", false);
     }
 }
 

@@ -51,8 +51,6 @@ public class FxAccountStatusFragment extends PreferenceFragment implements OnPre
   protected Preference needsPasswordPreference;
   protected Preference needsUpgradePreference;
   protected Preference needsVerificationPreference;
-  protected Preference needsMasterSyncAutomaticallyEnabledPreference;
-  protected Preference needsAccountEnabledPreference;
 
   protected PreferenceCategory syncCategory;
 
@@ -89,8 +87,6 @@ public class FxAccountStatusFragment extends PreferenceFragment implements OnPre
     needsPasswordPreference = ensureFindPreference("needs_credentials");
     needsUpgradePreference = ensureFindPreference("needs_upgrade");
     needsVerificationPreference = ensureFindPreference("needs_verification");
-    needsMasterSyncAutomaticallyEnabledPreference = ensureFindPreference("needs_master_sync_automatically_enabled");
-    needsAccountEnabledPreference = ensureFindPreference("needs_account_enabled");
 
     syncCategory = (PreferenceCategory) ensureFindPreference("sync_category");
 
@@ -107,7 +103,6 @@ public class FxAccountStatusFragment extends PreferenceFragment implements OnPre
 
     needsPasswordPreference.setOnPreferenceClickListener(this);
     needsVerificationPreference.setOnPreferenceClickListener(this);
-    needsAccountEnabledPreference.setOnPreferenceClickListener(this);
 
     bookmarksPreference.setOnPreferenceClickListener(this);
     historyPreference.setOnPreferenceClickListener(this);
@@ -148,13 +143,6 @@ public class FxAccountStatusFragment extends PreferenceFragment implements OnPre
       return true;
     }
 
-    if (preference == needsAccountEnabledPreference) {
-      fxAccount.enableSyncing();
-      refresh();
-
-      return true;
-    }
-
     if (preference == bookmarksPreference ||
         preference == historyPreference ||
         preference == passwordsPreference ||
@@ -183,10 +171,7 @@ public class FxAccountStatusFragment extends PreferenceFragment implements OnPre
     final Preference[] errorPreferences = new Preference[] {
         this.needsPasswordPreference,
         this.needsUpgradePreference,
-        this.needsVerificationPreference,
-        this.needsMasterSyncAutomaticallyEnabledPreference,
-        this.needsAccountEnabledPreference,
-    };
+        this.needsVerificationPreference };
     for (Preference errorPreference : errorPreferences) {
       final boolean currentlyShown = null != findPreference(errorPreference.getKey());
       final boolean shouldBeShown = errorPreference == errorPreferenceToShow;
@@ -216,18 +201,6 @@ public class FxAccountStatusFragment extends PreferenceFragment implements OnPre
   protected void showNeedsVerification() {
     syncCategory.setTitle(R.string.fxaccount_status_sync);
     showOnlyOneErrorPreference(needsVerificationPreference);
-    setCheckboxesEnabled(false);
-  }
-
-  protected void showNeedsMasterSyncAutomaticallyEnabled() {
-    syncCategory.setTitle(R.string.fxaccount_status_sync);
-    showOnlyOneErrorPreference(needsMasterSyncAutomaticallyEnabledPreference);
-    setCheckboxesEnabled(false);
-  }
-
-  protected void showNeedsAccountEnabled() {
-    syncCategory.setTitle(R.string.fxaccount_status_sync);
-    showOnlyOneErrorPreference(needsAccountEnabledPreference);
     setCheckboxesEnabled(false);
   }
 
@@ -272,49 +245,23 @@ public class FxAccountStatusFragment extends PreferenceFragment implements OnPre
 
     emailPreference.setTitle(fxAccount.getEmail());
 
-    try {
-      // There are error states determined by Android, not the login state
-      // machine, and we have a chance to present these states here.  We handle
-      // them specially, since we can't surface these states as part of syncing,
-      // because they generally stop syncs from happening regularly.
-
-      // The action to enable syncing the Firefox Account doesn't require
-      // leaving this activity, so let's present it first.
-      final boolean isSyncing = fxAccount.isSyncing();
-      if (!isSyncing) {
-        showNeedsAccountEnabled();
-        return;
-      }
-
-      // Interrogate the Firefox Account's state.
-      State state = fxAccount.getState();
-      switch (state.getNeededAction()) {
-      case NeedsUpgrade:
-        showNeedsUpgrade();
-        break;
-      case NeedsPassword:
-        showNeedsPassword();
-        break;
-      case NeedsVerification:
-        showNeedsVerification();
-        break;
-      default:
-        showConnected();
-      }
-
-      // We check for the master setting last, since it is not strictly
-      // necessary for the user to address this error state: it's really a
-      // warning state. We surface it for the user's convenience, and to prevent
-      // confused folks wondering why Sync is not working at all.
-      final boolean masterSyncAutomatically = ContentResolver.getMasterSyncAutomatically();
-      if (!masterSyncAutomatically) {
-        showNeedsMasterSyncAutomaticallyEnabled();
-        return;
-      }
-    } finally {
-      // No matter our state, we should update the checkboxes.
-      updateSelectedEngines();
+    // Interrogate the Firefox Account's state.
+    State state = fxAccount.getState();
+    switch (state.getNeededAction()) {
+    case NeedsUpgrade:
+      showNeedsUpgrade();
+      break;
+    case NeedsPassword:
+      showNeedsPassword();
+      break;
+    case NeedsVerification:
+      showNeedsVerification();
+      break;
+    default:
+      showConnected();
     }
+
+    updateSelectedEngines();
   }
 
   /**
