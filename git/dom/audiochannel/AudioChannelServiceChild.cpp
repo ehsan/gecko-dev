@@ -32,16 +32,6 @@ AudioChannelServiceChild::GetAudioChannelService()
 {
   MOZ_ASSERT(NS_IsMainThread());
 
-  return gAudioChannelServiceChild;
-
-}
-
-// static
-AudioChannelService*
-AudioChannelServiceChild::GetOrCreateAudioChannelService()
-{
-  MOZ_ASSERT(NS_IsMainThread());
-
   // If we already exist, exit early
   if (gAudioChannelServiceChild) {
     return gAudioChannelServiceChild;
@@ -49,7 +39,7 @@ AudioChannelServiceChild::GetOrCreateAudioChannelService()
 
   // Create new instance, register, return
   nsRefPtr<AudioChannelServiceChild> service = new AudioChannelServiceChild();
-  MOZ_ASSERT(service);
+  NS_ENSURE_TRUE(service, nullptr);
 
   gAudioChannelServiceChild = service;
   return gAudioChannelServiceChild;

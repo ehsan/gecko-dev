@@ -10,8 +10,8 @@
 #include "nsCOMPtr.h"
 #include "nsComputedDOMStyle.h"
 #include "nsDebug.h"
+#include "nsEditProperty.h"
 #include "nsError.h"
-#include "nsGkAtoms.h"
 #include "nsHTMLCSSUtils.h"
 #include "nsHTMLEditor.h"
 #include "nsIAtom.h"
@@ -315,20 +315,20 @@ nsHTMLEditor::CheckSelectionStateForAnonymousButtons(nsISelection * aSelection)
     // a cell
 
     // get the enclosing table
-    if (nsGkAtoms::img != focusTagAtom) {
+    if (nsEditProperty::img != focusTagAtom) {
       // the element container of the selection is not an image, so we'll show
       // the resizers around the table
       nsCOMPtr<nsIDOMNode> tableNode = GetEnclosingTable(cellElement);
       focusElement = do_QueryInterface(tableNode);
-      focusTagAtom = nsGkAtoms::table;
+      focusTagAtom = nsEditProperty::table;
     }
   }
 
   // we allow resizers only around images, tables, and absolutely positioned
   // elements. If we don't have image/table, let's look at the latter case.
-  if (nsGkAtoms::img != focusTagAtom && nsGkAtoms::table != focusTagAtom) {
+  if (nsEditProperty::img != focusTagAtom &&
+      nsEditProperty::table != focusTagAtom)
     focusElement = absPosElement;
-  }
 
   // at this point, focusElement  contains the element for Resizing,
   //                cellElement   contains the element for InlineTableEditing
@@ -365,9 +365,8 @@ nsHTMLEditor::CheckSelectionStateForAnonymousButtons(nsISelection * aSelection)
 
   if (mIsObjectResizingEnabled && focusElement &&
       IsModifiableNode(focusElement) && focusElement != hostNode) {
-    if (nsGkAtoms::img == focusTagAtom) {
+    if (nsEditProperty::img == focusTagAtom)
       mResizedObjectIsAnImage = true;
-    }
     if (mResizedObject)
       res = RefreshResizers();
     else
@@ -415,7 +414,7 @@ nsHTMLEditor::GetPositionAndDimensions(nsIDOMElement * aElement,
   if (!isPositioned) {
     // hmmm... the expensive way now...
     nsAutoString positionStr;
-    mHTMLCSSUtils->GetComputedProperty(aElement, nsGkAtoms::position,
+    mHTMLCSSUtils->GetComputedProperty(aElement, nsEditProperty::cssPosition,
                                        positionStr);
     isPositioned = positionStr.EqualsLiteral("absolute");
   }

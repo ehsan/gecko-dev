@@ -236,7 +236,6 @@ refresh_product_info_block(const char *path,
     if (fread(&additionalBlockSize, 
               sizeof(additionalBlockSize), 
               1, fp) != 1) {
-      fclose(fp);
       return -1;
     }
     additionalBlockSize = ntohl(additionalBlockSize);
@@ -245,7 +244,6 @@ refresh_product_info_block(const char *path,
     if (fread(&additionalBlockID, 
               sizeof(additionalBlockID), 
               1, fp) != 1) {
-      fclose(fp);
       return -1;
     }
     additionalBlockID = ntohl(additionalBlockID);

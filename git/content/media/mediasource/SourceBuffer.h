@@ -89,7 +89,7 @@ public:
   NS_DECL_ISUPPORTS_INHERITED
   NS_DECL_CYCLE_COLLECTION_CLASS_INHERITED(SourceBuffer, DOMEventTargetHelper)
 
-  SourceBuffer(MediaSource* aMediaSource, const nsACString& aType);
+  static already_AddRefed<SourceBuffer> Create(MediaSource* aMediaSource, const nsACString& aType);
 
   MediaSource* GetParentObject() const;
 
@@ -113,6 +113,8 @@ public:
 
 private:
   ~SourceBuffer();
+
+  SourceBuffer(MediaSource* aMediaSource, const nsACString& aType);
 
   friend class AsyncEventRunner<SourceBuffer>;
   void DispatchSimpleEvent(const char* aName);
@@ -138,8 +140,6 @@ private:
   const nsCString mType;
 
   nsAutoPtr<ContainerParser> mParser;
-
-  double mLastParsedTimestamp;
 
   nsRefPtr<SourceBufferDecoder> mDecoder;
   nsTArray<nsRefPtr<SourceBufferDecoder>> mDecoders;

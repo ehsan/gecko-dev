@@ -31,22 +31,8 @@ __all__ = [
   'systemMemory',
   'environment',
   'dumpScreen',
-  "ShutdownLeaks",
-  "setAutomationLog",
+  "ShutdownLeaks"
   ]
-
-log = logging.getLogger()
-def resetGlobalLog():
-  while log.handlers:
-    log.removeHandler(log.handlers[0])
-  handler = logging.StreamHandler(sys.stdout)
-  log.setLevel(logging.INFO)
-  log.addHandler(handler)
-resetGlobalLog()
-
-def setAutomationLog(alt_logger):
-  global log
-  log = alt_logger
 
 # Map of debugging programs to information about them, like default arguments
 # and whether or not they are interactive.
@@ -157,6 +143,8 @@ class ZipFileReader(object):
 
     for name in self._zipfile.namelist():
       self._extractname(name, path)
+
+log = logging.getLogger()
 
 def isURL(thing):
   """Return True if |thing| looks like a URL."""
@@ -512,9 +500,9 @@ def environment(xrePath, env=None, crashreporter=True, debugger=False, dmdPath=N
       llvmsym = os.path.join(xrePath, "llvm-symbolizer")
       if os.path.isfile(llvmsym):
         env["ASAN_SYMBOLIZER_PATH"] = llvmsym
-        log.info("INFO | runtests.py | ASan using symbolizer at %s" % llvmsym)
+        log.info("INFO | runtests.py | ASan using symbolizer at %s", llvmsym)
       else:
-        log.info("TEST-UNEXPECTED-FAIL | runtests.py | Failed to find ASan symbolizer at %s" % llvmsym)
+        log.info("TEST-UNEXPECTED-FAIL | runtests.py | Failed to find ASan symbolizer at %s", llvmsym)
 
       totalMemory = systemMemory()
 
@@ -547,7 +535,7 @@ def environment(xrePath, env=None, crashreporter=True, debugger=False, dmdPath=N
         env['ASAN_OPTIONS'] = ':'.join(asanOptions)
 
     except OSError,err:
-      log.info("Failed determine available memory, disabling ASan low-memory configuration: %s" % err.strerror)
+      log.info("Failed determine available memory, disabling ASan low-memory configuration: %s", err.strerror)
     except:
       log.info("Failed determine available memory, disabling ASan low-memory configuration")
     else:
@@ -583,7 +571,7 @@ def dumpScreen(utilityPath):
     returncode = subprocess.call(utility + [imgfilename])
     printstatus(returncode, utilityname)
   except OSError, err:
-    log.info("Failed to start %s for screenshot: %s" %
+    log.info("Failed to start %s for screenshot: %s",
              utility[0], err.strerror)
     return
 

@@ -125,12 +125,9 @@ class JS_FRIEND_API(BaseProxyHandler)
     bool mHasSecurityPolicy;
 
   public:
-    explicit MOZ_CONSTEXPR BaseProxyHandler(const void *aFamily, bool aHasPrototype = false,
-                                            bool aHasSecurityPolicy = false)
-      : mFamily(aFamily),
-        mHasPrototype(aHasPrototype),
-        mHasSecurityPolicy(aHasSecurityPolicy)
-    { }
+    explicit BaseProxyHandler(const void *family, bool hasPrototype = false,
+                              bool hasSecurityPolicy = false);
+    virtual ~BaseProxyHandler();
 
     bool hasPrototype() const {
         return mHasPrototype;
@@ -250,10 +247,8 @@ class JS_FRIEND_API(BaseProxyHandler)
 class JS_PUBLIC_API(DirectProxyHandler) : public BaseProxyHandler
 {
   public:
-    explicit MOZ_CONSTEXPR DirectProxyHandler(const void *aFamily, bool aHasPrototype = false,
-                                              bool aHasSecurityPolicy = false)
-      : BaseProxyHandler(aFamily, aHasPrototype, aHasSecurityPolicy)
-    { }
+    explicit DirectProxyHandler(const void *family, bool hasPrototype = false,
+                                bool hasSecurityPolicy = false);
 
     /* ES5 Harmony fundamental proxy traps. */
     virtual bool preventExtensions(JSContext *cx, HandleObject proxy) const MOZ_OVERRIDE;

@@ -878,7 +878,7 @@ function GetNumberOption(options, property, minimum, maximum, fallback) {
     // Step 2.
     if (value !== undefined) {
         value = ToNumber(value);
-        if (Number_isNaN(value) || value < minimum || value > maximum)
+        if (std_isNaN(value) || value < minimum || value > maximum)
             ThrowError(JSMSG_INVALID_DIGITS_VALUE, value);
         return std_Math_floor(value);
     }

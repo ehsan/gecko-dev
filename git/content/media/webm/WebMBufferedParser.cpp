@@ -127,7 +127,6 @@ void WebMBufferedParser::Append(const unsigned char* aBuffer, uint32_t aLength,
       }
       break;
     case READ_TIMECODESCALE:
-      MOZ_ASSERT(mGotTimecodeScale);
       mTimecodeScale = mVInt.mValue;
       mState = READ_ELEMENT_ID;
       break;
@@ -185,12 +184,6 @@ void WebMBufferedParser::Append(const unsigned char* aBuffer, uint32_t aLength,
   mCurrentOffset += aLength;
 }
 
-// SyncOffsetComparator and TimeComparator are slightly confusing, in that
-// the nsTArray they're used with (mTimeMapping) is sorted by mEndOffset and
-// these comparators are used on the other fields of WebMTimeDataOffset.
-// This is only valid because timecodes are required to be monotonically
-// increasing within a file (thus establishing an ordering relationship with
-// mTimecode), and mEndOffset is derived from mSyncOffset.
 struct SyncOffsetComparator {
   bool Equals(const WebMTimeDataOffset& a, const int64_t& b) const {
     return a.mSyncOffset == b;
@@ -198,16 +191,6 @@ struct SyncOffsetComparator {
 
   bool LessThan(const WebMTimeDataOffset& a, const int64_t& b) const {
     return a.mSyncOffset < b;
-  }
-};
-
-struct TimeComparator {
-  bool Equals(const WebMTimeDataOffset& a, const uint64_t& b) const {
-    return a.mTimecode == b;
-  }
-
-  bool LessThan(const WebMTimeDataOffset& a, const uint64_t& b) const {
-    return a.mTimecode < b;
   }
 };
 
@@ -254,17 +237,16 @@ bool WebMBufferedState::CalculateBufferedForRange(int64_t aStartOffset, int64_t 
 bool WebMBufferedState::GetOffsetForTime(uint64_t aTime, int64_t* aOffset)
 {
   ReentrantMonitorAutoEnter mon(mReentrantMonitor);
+  WebMTimeDataOffset result(0, 0, 0);
 
-  uint64_t time = aTime;
-  if (time > 0) {
-    time = time - 1;
-  }
-  uint32_t idx = mTimeMapping.IndexOfFirstElementGt(time, TimeComparator());
-  if (idx == mTimeMapping.Length()) {
-    return false;
+  for (uint32_t i = 0; i < mTimeMapping.Length(); ++i) {
+    WebMTimeDataOffset o = mTimeMapping[i];
+    if (o.mTimecode < aTime && o.mTimecode > result.mTimecode) {
+      result = o;
+    }
   }
 
-  *aOffset = mTimeMapping[idx].mSyncOffset;
+  *aOffset = result.mSyncOffset;
   return true;
 }
 

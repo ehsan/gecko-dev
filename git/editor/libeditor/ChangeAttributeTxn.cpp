@@ -3,24 +3,16 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-#include "mozilla/dom/Element.h"        // for Element
-
 #include "ChangeAttributeTxn.h"
 #include "nsAString.h"
+#include "nsDebug.h"                    // for NS_ASSERTION
 #include "nsError.h"                    // for NS_ERROR_NOT_INITIALIZED, etc
+#include "nsIDOMElement.h"              // for nsIDOMElement
+#include "nsIEditor.h"                  // for nsIEditor
+#include "nsString.h"                   // for nsString
 
-using namespace mozilla;
-using namespace mozilla::dom;
-
-ChangeAttributeTxn::ChangeAttributeTxn(Element& aElement, nsIAtom& aAttribute,
-                                       const nsAString* aValue)
+ChangeAttributeTxn::ChangeAttributeTxn()
   : EditTxn()
-  , mElement(&aElement)
-  , mAttribute(&aAttribute)
-  , mValue(aValue ? *aValue : EmptyString())
-  , mRemoveAttribute(!aValue)
-  , mAttributeWasSet(false)
-  , mUndoValue()
 {
 }
 
@@ -36,57 +28,82 @@ NS_IMPL_RELEASE_INHERITED(ChangeAttributeTxn, EditTxn)
 NS_INTERFACE_MAP_BEGIN_CYCLE_COLLECTION(ChangeAttributeTxn)
 NS_INTERFACE_MAP_END_INHERITING(EditTxn)
 
-NS_IMETHODIMP
-ChangeAttributeTxn::DoTransaction()
+NS_IMETHODIMP ChangeAttributeTxn::Init(nsIEditor      *aEditor,
+                                       nsIDOMElement  *aElement,
+                                       const nsAString& aAttribute,
+                                       const nsAString& aValue,
+                                       bool aRemoveAttribute)
 {
-  // Need to get the current value of the attribute and save it, and set
-  // mAttributeWasSet
-  mAttributeWasSet = mElement->GetAttr(kNameSpaceID_None, mAttribute,
-                                       mUndoValue);
+  NS_ASSERTION(aEditor && aElement, "bad arg");
+  if (!aEditor || !aElement) { return NS_ERROR_NULL_POINTER; }
 
+  mEditor = aEditor;
+  mElement = do_QueryInterface(aElement);
+  mAttribute = aAttribute;
+  mValue = aValue;
+  mRemoveAttribute = aRemoveAttribute;
+  mAttributeWasSet=false;
+  mUndoValue.Truncate();
+  return NS_OK;
+}
+
+NS_IMETHODIMP ChangeAttributeTxn::DoTransaction(void)
+{
+  NS_ASSERTION(mEditor && mElement, "bad state");
+  if (!mEditor || !mElement) { return NS_ERROR_NOT_INITIALIZED; }
+
+  // need to get the current value of the attribute and save it, and set mAttributeWasSet
+  nsresult result = mEditor->GetAttributeValue(mElement, mAttribute, mUndoValue, &mAttributeWasSet);
   // XXX: hack until attribute-was-set code is implemented
-  if (!mUndoValue.IsEmpty()) {
+  if (!mUndoValue.IsEmpty())
     mAttributeWasSet = true;
-  }
   // XXX: end hack
+  
+  // now set the attribute to the new value
+  if (!mRemoveAttribute)
+    result = mElement->SetAttribute(mAttribute, mValue);
+  else
+    result = mElement->RemoveAttribute(mAttribute);
 
-  // Now set the attribute to the new value
-  if (mRemoveAttribute) {
-    return mElement->UnsetAttr(kNameSpaceID_None, mAttribute, true);
-  }
-
-  return mElement->SetAttr(kNameSpaceID_None, mAttribute, mValue, true);
+  return result;
 }
 
-NS_IMETHODIMP
-ChangeAttributeTxn::UndoTransaction()
+NS_IMETHODIMP ChangeAttributeTxn::UndoTransaction(void)
 {
-  if (mAttributeWasSet) {
-    return mElement->SetAttr(kNameSpaceID_None, mAttribute, mUndoValue, true);
-  }
-  return mElement->UnsetAttr(kNameSpaceID_None, mAttribute, true);
+  NS_ASSERTION(mEditor && mElement, "bad state");
+  if (!mEditor || !mElement) { return NS_ERROR_NOT_INITIALIZED; }
+
+  nsresult result;
+  if (mAttributeWasSet)
+    result = mElement->SetAttribute(mAttribute, mUndoValue);
+  else
+    result = mElement->RemoveAttribute(mAttribute);
+
+  return result;
 }
 
-NS_IMETHODIMP
-ChangeAttributeTxn::RedoTransaction()
+NS_IMETHODIMP ChangeAttributeTxn::RedoTransaction(void)
 {
-  if (mRemoveAttribute) {
-    return mElement->UnsetAttr(kNameSpaceID_None, mAttribute, true);
-  }
+  NS_ASSERTION(mEditor && mElement, "bad state");
+  if (!mEditor || !mElement) { return NS_ERROR_NOT_INITIALIZED; }
 
-  return mElement->SetAttr(kNameSpaceID_None, mAttribute, mValue, true);
+  nsresult result;
+  if (!mRemoveAttribute)
+    result = mElement->SetAttribute(mAttribute, mValue);
+  else
+    result = mElement->RemoveAttribute(mAttribute);
+
+  return result;
 }
 
-NS_IMETHODIMP
-ChangeAttributeTxn::GetTxnDescription(nsAString& aString)
+NS_IMETHODIMP ChangeAttributeTxn::GetTxnDescription(nsAString& aString)
 {
   aString.AssignLiteral("ChangeAttributeTxn: [mRemoveAttribute == ");
 
-  if (mRemoveAttribute) {
-    aString.AppendLiteral("true] ");
-  } else {
+  if (!mRemoveAttribute)
     aString.AppendLiteral("false] ");
-  }
-  aString += nsDependentAtomString(mAttribute);
+  else
+    aString.AppendLiteral("true] ");
+  aString += mAttribute;
   return NS_OK;
 }

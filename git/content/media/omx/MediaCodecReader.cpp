@@ -196,7 +196,6 @@ MediaCodecReader::CodecBufferInfo::CodecBufferInfo()
 MediaCodecReader::MediaCodecReader(AbstractMediaDecoder* aDecoder)
   : MediaOmxCommonReader(aDecoder)
   , mColorConverterBufferSize(0)
-  , mExtractor(nullptr)
 {
   mHandler = new MessageHandler(this);
   mVideoListener = new VideoResourceListener(this);

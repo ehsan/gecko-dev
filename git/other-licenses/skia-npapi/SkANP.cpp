@@ -60,9 +60,7 @@ SkBitmap* SkANP::SetBitmap(SkBitmap* dst, const ANPBitmap& src) {
 
     switch (src.format) {
         case kRGBA_8888_ANPBitmapFormat:
-            // Let Skia choose the correct colour type for us based on its
-            // endianness. This should be correct.
-            colorType = kN32_SkColorType;
+            colorType = kRGBA_8888_SkColorType;
             break;
         case kRGB_565_ANPBitmapFormat:
             colorType = kRGB_565_SkColorType;

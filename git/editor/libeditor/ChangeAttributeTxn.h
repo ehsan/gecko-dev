@@ -6,64 +6,68 @@
 #ifndef ChangeAttributeTxn_h__
 #define ChangeAttributeTxn_h__
 
-#include "EditTxn.h"                      // base class
-#include "mozilla/Attributes.h"           // MOZ_OVERRIDE
-#include "nsCOMPtr.h"                     // nsCOMPtr members
-#include "nsCycleCollectionParticipant.h" // NS_DECL_CYCLE_COLLECTION_CLASS_INHERITED
-#include "nsISupportsImpl.h"              // NS_DECL_ISUPPORTS_INHERITED
-#include "nsString.h"                     // nsString members
+#include "EditTxn.h"
+#include "nsCOMPtr.h"
+#include "nsCycleCollectionParticipant.h"
+#include "nsIDOMElement.h"
+#include "nsISupportsImpl.h"
+#include "nsString.h"
+#include "nscore.h"
 
-class nsIAtom;
-
-namespace mozilla {
-namespace dom {
-
-class Element;
+class nsIEditor;
 
 /**
- * A transaction that changes an attribute of a content node.  This transaction
- * covers add, remove, and change attribute.
+ * A transaction that changes an attribute of a content node. 
+ * This transaction covers add, remove, and change attribute.
  */
 class ChangeAttributeTxn : public EditTxn
 {
 public:
-  /** @param aElement the element whose attribute will be changed
+  /** Initialize the transaction.
+    * @param aEditor the object providing core editing operations
+    * @param aNode   the node whose attribute will be changed
     * @param aAttribute the name of the attribute to change
-    * @param aValue     the new value for aAttribute, or null to remove
+    * @param aValue     the new value for aAttribute, if aRemoveAttribute is false
+    * @param aRemoveAttribute if true, remove aAttribute from aNode
     */
-  ChangeAttributeTxn(Element& aElement, nsIAtom& aAttribute,
-                     const nsAString* aValue);
+  NS_IMETHOD Init(nsIEditor      *aEditor,
+                  nsIDOMElement  *aNode,
+                  const nsAString& aAttribute,
+                  const nsAString& aValue,
+                  bool aRemoveAttribute);
+
+  ChangeAttributeTxn();
 
   NS_DECL_ISUPPORTS_INHERITED
   NS_DECL_CYCLE_COLLECTION_CLASS_INHERITED(ChangeAttributeTxn, EditTxn)
 
   NS_DECL_EDITTXN
 
-  NS_IMETHOD RedoTransaction() MOZ_OVERRIDE;
+  NS_IMETHOD RedoTransaction();
 
-private:
+protected:
   virtual ~ChangeAttributeTxn();
 
-  /** The element to operate upon */
-  nsCOMPtr<Element> mElement;
+  /** the editor that created this transaction */
+  nsIEditor*  mEditor;
+  
+  /** the element to operate upon */
+  nsCOMPtr<nsIDOMElement> mElement;
+  
+  /** the attribute to change */
+  nsString mAttribute;
 
-  /** The attribute to change */
-  nsCOMPtr<nsIAtom> mAttribute;
-
-  /** The value to set the attribute to (ignored if mRemoveAttribute==true) */
+  /** the value to set the attribute to (ignored if mRemoveAttribute==true) */
   nsString mValue;
 
-  /** True if the operation is to remove mAttribute from mElement */
-  bool mRemoveAttribute;
-
-  /** True if the mAttribute was set on mElement at the time of execution */
-  bool mAttributeWasSet;
-
-  /** The value to set the attribute to for undo */
+  /** the value to set the attribute to for undo */
   nsString mUndoValue;
-};
 
-}
-}
+  /** true if the mAttribute was set on mElement at the time of execution */
+  bool     mAttributeWasSet;
+
+  /** true if the operation is to remove mAttribute from mElement */
+  bool     mRemoveAttribute;
+};
 
 #endif

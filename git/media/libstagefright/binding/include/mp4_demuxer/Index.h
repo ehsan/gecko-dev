@@ -6,6 +6,7 @@
 #define INDEX_H_
 
 #include "media/stagefright/MediaSource.h"
+#include "mozilla/Monitor.h"
 #include "mp4_demuxer/mp4_demuxer.h"
 
 namespace mp4_demuxer

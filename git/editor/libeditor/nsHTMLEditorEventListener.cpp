@@ -52,6 +52,8 @@ nsHTMLEditorEventListener::GetHTMLEditor()
 nsresult
 nsHTMLEditorEventListener::MouseUp(nsIDOMMouseEvent* aMouseEvent)
 {
+  NS_ENSURE_TRUE(aMouseEvent, NS_OK);
+
   nsHTMLEditor* htmlEditor = GetHTMLEditor();
 
   nsCOMPtr<nsIDOMEventTarget> target;
@@ -71,6 +73,8 @@ nsHTMLEditorEventListener::MouseUp(nsIDOMMouseEvent* aMouseEvent)
 nsresult
 nsHTMLEditorEventListener::MouseDown(nsIDOMMouseEvent* aMouseEvent)
 {
+  NS_ENSURE_TRUE(aMouseEvent, NS_OK);
+
   nsHTMLEditor* htmlEditor = GetHTMLEditor();
 
   // Detect only "context menu" click
@@ -200,6 +204,8 @@ nsHTMLEditorEventListener::MouseDown(nsIDOMMouseEvent* aMouseEvent)
 nsresult
 nsHTMLEditorEventListener::MouseClick(nsIDOMMouseEvent* aMouseEvent)
 {
+  NS_ENSURE_TRUE(aMouseEvent, NS_OK);
+
   nsCOMPtr<nsIDOMEventTarget> target;
   nsresult rv = aMouseEvent->GetTarget(getter_AddRefs(target));
   NS_ENSURE_SUCCESS(rv, rv);

@@ -606,7 +606,8 @@ def main():
     mochitest = MochiRemote(auto, dm, options)
 
     log = mochitest.log
-    message_logger.logger = log
+    structured_logger = mochitest.structured_logger
+    message_logger.logger = mochitest.structured_logger
     mochitest.message_logger = message_logger
 
     if (options == None):
@@ -705,7 +706,7 @@ def main():
 
             active_tests.append(test)
 
-        log.suite_start([t['name'] for t in active_tests])
+        structured_logger.suite_start([t['name'] for t in active_tests])
 
         for test in active_tests:
             # When running in a loop, we need to create a fresh profile for each cycle

@@ -81,8 +81,7 @@ public:
                                  const ImageRegion& aRegion,
                                  const mozilla::gfx::SurfaceFormat aFormat,
                                  GraphicsFilter     aFilter,
-                                 uint32_t           aImageFlags = imgIContainer::FLAG_NONE,
-                                 gfxFloat           aOpacity = 1.0);
+                                 uint32_t           aImageFlags = imgIContainer::FLAG_NONE);
 
     /**
      * Clip aContext to the region aRegion.
