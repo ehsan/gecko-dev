@@ -34,9 +34,22 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
+function browserWindowsCount() {
+  let count = 0;
+  let e = Cc["@mozilla.org/appshell/window-mediator;1"]
+            .getService(Ci.nsIWindowMediator)
+            .getEnumerator("navigator:browser");
+  while (e.hasMoreElements()) {
+    if (!e.getNext().closed)
+      ++count;
+  }
+  return count;
+}
+
 function test() {
   // test that cookies are stored and restored correctly by sessionstore,
   // bug 423132.
+  is(browserWindowsCount(), 1, "Only one browser window should be open initially");
 
   // test setup
   waitForExplicitFinish();
@@ -60,7 +73,7 @@ function test() {
   newWin.addEventListener("load", function (aEvent) {
     newWin.removeEventListener("load", arguments.callee, false);
 
-    newWin.gBrowser.selectedBrowser.loadURI(testURL, null, null);
+    newWin.gBrowser.loadURI(testURL, null, null);
 
     newWin.gBrowser.addEventListener("load", function (aEvent) {
       newWin.gBrowser.removeEventListener("load", arguments.callee, true);
@@ -97,9 +110,11 @@ function test() {
       is(cookie.path, cookie2.path, "cookie path successfully restored");
 
       // clean up
-      gPrefService.clearUserPref("browser.sessionstore.interval");
+      if (gPrefService.prefHasUserValue("browser.sessionstore.interval"))
+        gPrefService.clearUserPref("browser.sessionstore.interval");
       cs.removeAll();
       newWin.close();
+      is(browserWindowsCount(), 1, "Only one browser window should be open eventually");
       finish();
     }, true);
   }, false);

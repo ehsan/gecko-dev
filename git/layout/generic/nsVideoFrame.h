@@ -58,7 +58,8 @@ public:
   nsVideoFrame(nsStyleContext* aContext);
 
   NS_DECL_QUERYFRAME
-  
+  NS_DECL_FRAMEARENA_HELPERS
+
   NS_IMETHOD BuildDisplayList(nsDisplayListBuilder*   aBuilder,
                               const nsRect&           aDirtyRect,
                               const nsDisplayListSet& aLists);
@@ -71,7 +72,7 @@ public:
                    const nsRect& aDirtyRect, nsPoint aPt);
                               
   /* get the size of the video's display */
-  nsSize GetIntrinsicSize(nsIRenderingContext *aRenderingContext);
+  nsSize GetVideoIntrinsicSize(nsIRenderingContext *aRenderingContext);
   virtual nsSize GetIntrinsicRatio();
   virtual nsSize ComputeSize(nsIRenderingContext *aRenderingContext,
                              nsSize aCBSize, nscoord aAvailableWidth,
@@ -79,7 +80,7 @@ public:
                              PRBool aShrinkWrap);
   virtual nscoord GetMinWidth(nsIRenderingContext *aRenderingContext);
   virtual nscoord GetPrefWidth(nsIRenderingContext *aRenderingContext);
-  virtual void Destroy();
+  virtual void DestroyFrom(nsIFrame* aDestructRoot);
   virtual PRBool IsLeaf() const;
 
   NS_IMETHOD Reflow(nsPresContext*          aPresContext,
@@ -100,6 +101,12 @@ public:
   
   virtual nsresult CreateAnonymousContent(nsTArray<nsIContent*>& aElements);
 
+  nsIContent* GetPosterImage() { return mPosterImage; }
+
+  // Returns PR_TRUE if we should display the poster. Note that once we show
+  // a video frame, the poster will never be displayed again.
+  PRBool ShouldDisplayPoster();
+
 #ifdef DEBUG
   NS_IMETHOD GetFrameName(nsAString& aResult) const;
 #endif
@@ -114,10 +121,6 @@ protected:
   // when we're the frame for an audio element, or we've created a video
   // element for a media which is audio-only.
   PRBool HasVideoData();
-  
-  // Returns PR_TRUE if we should display the poster. Note that once we show
-  // a video frame, the poster will never be displayed again.
-  PRBool ShouldDisplayPoster();
 
   // Sets the mPosterImage's src attribute to be the video's poster attribute,
   // if we're the frame for a video element. Only call on frames for video

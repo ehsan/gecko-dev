@@ -53,6 +53,7 @@
 class nsIDocument;
 class nsPresContext;
 class nsIContent;
+class nsStyleContext;
 class nsStyleCoord;
 class nsFrameList;
 class nsIFrame;
@@ -94,9 +95,6 @@ class nsSVGDisplayContainerFrame;
 
 #define NS_STATE_SVG_PROPAGATE_TRANSFORM 0x00800000
 
-// nsSVGGlyphFrame uses this when the frame is within a non-dynamic PresContext.
-#define NS_STATE_SVG_PRINTING 0x01000000
-
 /**
  * Byte offsets of channels in a native packed gfxColor or cairo image surface.
  */
@@ -115,7 +113,8 @@ class nsSVGDisplayContainerFrame;
 // maximum dimension of an offscreen surface - choose so that
 // the surface size doesn't overflow a 32-bit signed int using
 // 4 bytes per pixel; in line with gfxASurface::CheckSurfaceSize
-#define NS_SVG_OFFSCREEN_MAX_DIMENSION 16384
+// In fact Macs can't even manage that
+#define NS_SVG_OFFSCREEN_MAX_DIMENSION 4096
 
 /*
  * Checks the svg enable preference and if a renderer could
@@ -203,11 +202,13 @@ public:
    */
   static float GetFontSize(nsIContent *aContent);
   static float GetFontSize(nsIFrame *aFrame);
+  static float GetFontSize(nsStyleContext *aStyleContext);
   /*
    * Get an x-height of of an nsIContent
    */
   static float GetFontXHeight(nsIContent *aContent);
   static float GetFontXHeight(nsIFrame *aFrame);
+  static float GetFontXHeight(nsStyleContext *aStyleContext);
 
   /*
    * Converts image data from premultipled to unpremultiplied alpha
@@ -537,7 +538,18 @@ public:
    * another non-foreignObject SVG element.
    */
   static PRBool IsInnerSVG(nsIContent* aContent);
-    
+
+  /**
+   * Parse a string that may contain either a CSS <number> or, if
+   * aAllowPercentages is set to true, a CSS <percentage>, and return the
+   * number as a float.
+   *
+   * This helper returns PR_TRUE if a number was successfully parsed from the
+   * string and no characters were left, else it returns PR_FALSE.
+   */
+  static PRBool NumberFromString(const nsAString& aString, float* aValue,
+                                 PRBool aAllowPercentages = PR_FALSE);
+
 private:
   /* Computational (nil) surfaces */
   static gfxASurface *mThebesComputationalSurface;

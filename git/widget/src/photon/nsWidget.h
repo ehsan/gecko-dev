@@ -70,29 +70,14 @@ public:
 
   // nsIWidget
 
-	// create with nsIWidget parent
   inline NS_IMETHOD            Create(nsIWidget *aParent,
+                               nsNativeWidget aNativeParent,
                                const nsRect &aRect,
                                EVENT_CALLBACK aHandleEventFunction,
                                nsIDeviceContext *aContext,
                                nsIAppShell *aAppShell = nsnull,
                                nsIToolkit *aToolkit = nsnull,
-                               nsWidgetInitData *aInitData = nsnull)
-		{
-		return(CreateWidget(aParent, aRect, aHandleEventFunction, aContext, aAppShell, aToolkit, aInitData, nsnull));
-		}
-
-	// create with a native parent
-  inline NS_IMETHOD            Create(nsNativeWidget aParent,
-                               const nsRect &aRect,
-                               EVENT_CALLBACK aHandleEventFunction,
-                               nsIDeviceContext *aContext,
-                               nsIAppShell *aAppShell = nsnull,
-                               nsIToolkit *aToolkit = nsnull,
-                               nsWidgetInitData *aInitData = nsnull)
-		{
-		return(CreateWidget(nsnull, aRect, aHandleEventFunction, aContext, aAppShell, aToolkit, aInitData,aParent));
-		}
+                               nsWidgetInitData *aInitData = nsnull);
 
   NS_IMETHOD Destroy(void);
   inline nsIWidget* GetParent(void)
@@ -107,7 +92,9 @@ public:
 
   NS_IMETHOD SetModal(PRBool aModal);
   NS_IMETHOD Show(PRBool state);
-  inline NS_IMETHOD CaptureRollupEvents(nsIRollupListener *aListener, PRBool aDoCapture, PRBool aConsumeRollupEvent) { return NS_OK; }
+  inline NS_IMETHOD CaptureRollupEvents(nsIRollupListener *aListener, nsIMenuRollup *aMenuRollup,
+                                        PRBool aDoCapture, PRBool aConsumeRollupEvent)
+  { return NS_OK; }
 
   inline NS_IMETHOD IsVisible(PRBool &aState) { aState = mShown; return NS_OK; }
 
@@ -172,7 +159,6 @@ public:
   NS_IMETHOD CaptureMouse(PRBool aCapture) { return NS_ERROR_FAILURE; }
 
 
-  NS_IMETHOD Invalidate(PRBool aIsSynchronous);
   NS_IMETHOD Invalidate(const nsRect &aRect, PRBool aIsSynchronous);
   NS_IMETHOD InvalidateRegion(const nsIRegion *aRegion, PRBool aIsSynchronous);
   inline NS_IMETHOD Update(void)
@@ -229,15 +215,6 @@ public:
 
 protected:
   NS_IMETHOD CreateNative(PtWidget_t *parentWindow) { return NS_OK; }
-
-  nsresult CreateWidget(nsIWidget *aParent,
-                        const nsRect &aRect,
-                        EVENT_CALLBACK aHandleEventFunction,
-                        nsIDeviceContext *aContext,
-                        nsIAppShell *aAppShell,
-                        nsIToolkit *aToolkit,
-                        nsWidgetInitData *aInitData,
-                        nsNativeWidget aNativeParent = nsnull);
 
   inline PRBool DispatchWindowEvent(nsGUIEvent* event)
 		{

@@ -15,7 +15,7 @@
  *
  * The Original Code is Places Test Code.
  *
- * The Initial Developer of the Original Code is Mozilla Corporation
+ * The Initial Developer of the Original Code is Mozilla Foundation
  * Portions created by the Initial Developer are Copyright (C) 2008
  * the Initial Developer. All Rights Reserved.
  *
@@ -150,7 +150,7 @@ var testData = [
  * testing for items that should be ignored while querying over history.
  * The Query:WHERE absoluteTime(matches) AND searchTerms AND URI
  *                 AND annotationIsNot(match) GROUP BY Domain, Day SORT BY uri,ascending
- *                 excludeITems(should be ignored) ShowSessions(should be ignored)
+ *                 excludeITems(should be ignored)
  */
 function run_test() {
 
@@ -176,7 +176,6 @@ function run_test() {
   // The next two options should be ignored
   // can't use this one, breaks test - bug 419779
   // options.excludeItems = true;
-  options.showSessions = true;
 
   // Results
   var result = histsvc.executeQuery(query, options);
@@ -240,7 +239,8 @@ function run_test() {
     runBatched: function (aUserData) {
       var batchChange = [{isDetails: true, uri: "http://foo.com/changeme2",
                           title: "moz", lastVisit: jan7_800},
-                         {isPageAnnotation: true, uri: "http://foo.com/begin.html",
+                         {isDetails: true, uri: "http://foo.com/begin.html",
+                          isPageAnnotation: true,
                           annoName: badAnnoName, annoVal: val}];
       populateDB(batchChange);
     }

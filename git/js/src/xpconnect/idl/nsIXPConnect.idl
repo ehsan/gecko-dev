@@ -59,10 +59,12 @@
 
 /***************************************************************************/
 
+// NB: JSVal is declared in nsIVariant.idl
+
 [ptr] native JSContextPtr(JSContext);
+[ptr] native JSClassPtr(JSClass);
 [ptr] native JSObjectPtr(JSObject);
 [ptr] native JSValPtr(jsval);
-      native JSVal(jsval);
       native JSEqualityOp(JSEqualityOp);
       native JSID(jsid);
 [ptr] native voidPtrPtr(void*);
@@ -394,17 +396,37 @@ interface nsIXPCFunctionThisTranslator : nsISupports
     { 0xbd, 0xd6, 0x0, 0x0, 0x64, 0x65, 0x73, 0x74 } }
 %}
 
-[uuid(b76828b8-3ac5-469e-946d-3401c6a2104d)]
+[uuid(96540596-c21e-4183-bb47-f6a5c1ad2dba)]
 interface nsIXPConnect : nsISupports
 {
 %{ C++
   NS_DEFINE_STATIC_CID_ACCESSOR(NS_XPCONNECT_CID)
 %}
 
+    /**
+     * Initializes classes on a global object that has already been created.
+     */
     void
     initClasses(in JSContextPtr aJSContext,
                 in JSObjectPtr  aGlobalJSObj);
 
+    /**
+     * Like initClasses, but only does some of the initialization on the
+     * existing global. In particular this function assumes that the outer
+     * window has already been connected to an inner window, so
+     * re-initializing things like XPCNativeWrapper is useless.
+     */
+    void
+    initClassesForOuterObject(in JSContextPtr aJSContext,
+                              in JSObjectPtr  aGlobalJSObj);
+
+    /**
+     * Creates a new global object using the given aCOMObj as the global
+     * object. The object will be set up according to the flags (defined
+     * below). If you do not pass INIT_JS_STANDARD_CLASSES, then aCOMObj
+     * must implement nsIXPCScriptable so it can resolve the standard
+     * classes when asked by the JS engine.
+     */
     nsIXPConnectJSObjectHolder
     initClassesWithNewWrappedGlobal(
                   in JSContextPtr aJSContext,
@@ -467,6 +489,9 @@ interface nsIXPConnect : nsISupports
      * asking for an nsISupports wrapper.
      * If aAllowWrapper, then the returned value will be wrapped in the proper
      * type of security wrapper on top of the XPCWrappedNative (if needed).
+     * This method doesn't push aJSContext on the context stack, so the caller
+     * is required to push it if the top of the context stack is not equal to
+     * aJSContext.
      */
     void
     wrapNativeToJSVal(in JSContextPtr aJSContext,
@@ -505,6 +530,12 @@ interface nsIXPConnect : nsISupports
            in JSObjectPtr  aJSObj,
            in nsIIDRef     aIID,
            [iid_is(aIID),retval] out nsQIResult result);
+
+    /**
+     * Wraps the given JSVal in a nsIVariant and returns the new variant.
+     */
+    nsIVariant
+    jSValToVariant(in JSContextPtr cx, in JSValPtr aJSVal);
 
     /**
     * This only succeeds if the JSObject is a nsIXPConnectWrappedNative.
@@ -759,8 +790,7 @@ interface nsIXPConnect : nsISupports
      * a pointer to a nsIXPConnectWrappedNative or to the native in their
      * private date. See IS_WRAPPER_CLASS in xpcprivate.h for details.
      */
-    void GetXPCWrappedNativeJSClassInfo(out JSEqualityOp equality1,
-                                        out JSEqualityOp equality2);
+    void GetXPCWrappedNativeJSClassInfo(out JSEqualityOp equality);
 
     /**
      * Whether or not XPConnect should report all JS exceptions when returning
@@ -837,4 +867,6 @@ interface nsIXPConnect : nsISupports
                                        PRBool allowShortCircuit) const = 0;
 #endif
 %}
+
+    [notxpcom] JSClassPtr getNativeWrapperClass();
 };

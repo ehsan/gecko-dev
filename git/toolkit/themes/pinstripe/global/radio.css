@@ -35,13 +35,7 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
-/* ===== radio.css ===================================================
-  == Styles used by the XUL radio element.
-  ======================================================================= */
-
 @namespace url("http://www.mozilla.org/keymaster/gatekeeper/there.is.only.xul");
-
-/* ::::: radio ::::: */
 
 radiogroup {
   margin: 1px 0px 1px 0px;
@@ -50,7 +44,7 @@ radiogroup {
 radio {
   -moz-appearance: radio-container;
   -moz-box-align: center;
-  margin: 2px 2px 4px;
+  margin: 4px 2px;
   -moz-user-focus: ignore;
 }
 
@@ -64,21 +58,16 @@ radio {
 }
 
 .radio-label {
-  margin: 0 !important;
-  padding-bottom: 1px;
+  margin: 1px 0 !important;
 }
-
-/* ..... disabled state ..... */
 
 radio[disabled="true"] {
   color: GrayText !important;
 }
 
-/* ::::: checkmark image ::::: */
-
 .radio-check, .radio-check-box1 {
   -moz-appearance: radio;
-  margin: -1px 1px 1px;
+  margin: 0 1px 1px;
   /* vertical-align tells native theming where to snap to. However, this doesn't
    * always work reliably because of bug 503833. */
   vertical-align: bottom;

@@ -70,6 +70,7 @@ private:
 class nsImageBoxFrame : public nsLeafBoxFrame
 {
 public:
+  NS_DECL_FRAMEARENA_HELPERS
 
   // nsIBox
   virtual nsSize GetPrefSize(nsBoxLayoutState& aBoxLayoutState);
@@ -91,7 +92,7 @@ public:
 
   virtual void DidSetStyleContext(nsStyleContext* aOldStyleContext);
 
-  virtual void Destroy();
+  virtual void DestroyFrom(nsIFrame* aDestructRoot);
 
   virtual nsIAtom* GetType() const;
 #ifdef DEBUG
@@ -126,7 +127,7 @@ public:
 
   void  PaintImage(nsIRenderingContext& aRenderingContext,
                    const nsRect& aDirtyRect,
-                   nsPoint aPt);
+                   nsPoint aPt, PRUint32 aFlags);
 
 protected:
   nsImageBoxFrame(nsIPresShell* aShell, nsStyleContext* aContext);

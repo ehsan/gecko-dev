@@ -1,12 +1,15 @@
 ////////////////////////////////////////////////////////////////////////////////
 // Constants
 
-const EVENT_DOCUMENT_LOAD_COMPLETE =
-  nsIAccessibleEvent.EVENT_DOCUMENT_LOAD_COMPLETE;
-const EVENT_DOM_DESTROY = nsIAccessibleEvent.EVENT_DOM_DESTROY;
+const EVENT_DOCUMENT_LOAD_COMPLETE = nsIAccessibleEvent.EVENT_DOCUMENT_LOAD_COMPLETE;
+const EVENT_HIDE = nsIAccessibleEvent.EVENT_HIDE;
 const EVENT_FOCUS = nsIAccessibleEvent.EVENT_FOCUS;
 const EVENT_NAME_CHANGE = nsIAccessibleEvent.EVENT_NAME_CHANGE;
 const EVENT_REORDER = nsIAccessibleEvent.EVENT_REORDER;
+const EVENT_SCROLLING_START = nsIAccessibleEvent.EVENT_SCROLLING_START;
+const EVENT_SHOW = nsIAccessibleEvent.EVENT_SHOW;
+const EVENT_STATE_CHANGE = nsIAccessibleEvent.EVENT_STATE_CHANGE;
+const EVENT_TEXT_CARET_MOVED = nsIAccessibleEvent.EVENT_TEXT_CARET_MOVED;
 
 ////////////////////////////////////////////////////////////////////////////////
 // General
@@ -31,17 +34,26 @@ function waitForEvent(aEventType, aTarget, aFunc, aContext, aArg1, aArg2)
 {
   var handler = {
     handleEvent: function handleEvent(aEvent) {
-      if (!aTarget || aTarget == aEvent.DOMNode) {
-        unregisterA11yEventListener(aEventType, this);
 
-        window.setTimeout(
-          function ()
-          {
-            aFunc.call(aContext, aArg1, aArg2);
-          },
-          0
-        );
+      if (aTarget) {
+        if (aTarget instanceof nsIAccessible &&
+            aTarget != aEvent.accessible)
+          return;
+
+        if (aTarget instanceof nsIDOMNode &&
+            aTarget != aEvent.DOMNode)
+          return;
       }
+
+      unregisterA11yEventListener(aEventType, this);
+
+      window.setTimeout(
+        function ()
+        {
+          aFunc.call(aContext, aArg1, aArg2);
+        },
+        0
+      );
     }
   };
 
@@ -79,6 +91,7 @@ function unregisterA11yEventListener(aEventType, aEventHandler)
   listenA11yEvents(false);
 }
 
+
 ////////////////////////////////////////////////////////////////////////////////
 // Event queue
 
@@ -89,13 +102,10 @@ function unregisterA11yEventListener(aEventType, aEventHandler)
 const INVOKER_ACTION_FAILED = 1;
 
 /**
- * Common invoker checker (see eventSeq of eventQueue).
+ * Return value of eventQueue.onFinish. Indicates eventQueue should not finish
+ * tests.
  */
-function invokerChecker(aEventType, aTarget)
-{
-  this.type = aEventType;
-  this.target = aTarget;
-}
+const DO_NOT_FINISH_TEST = 1;
 
 /**
  * Creates event queue for the given event type. The queue consists of invoker
@@ -121,33 +131,29 @@ function invokerChecker(aEventType, aTarget)
  *     // (used in the case when invoker expects single event).
  *     DOMNode getter: function() {},
  *
- *     // Array of items defining events expected (or not expected, see
- *     // 'doNotExpectEvents' property) on invoker's action.
+ *     // Array of checker objects defining expected events on invoker's action.
  *     //
- *     // Every array item should be either
- *     // 1) an array consisted from two elements, the first element is DOM or
- *     // a11y event type, second element is event target (DOM node or
- *     // accessible).
+ *     // Checker object interface:
  *     //
- *     // 2) object (invoker's checker object) like
  *     // var checker = {
  *     //   type getter: function() {}, // DOM or a11y event type
  *     //   target getter: function() {}, // DOM node or accessible
+ *     //   phase getter: function() {}, // DOM event phase (false - bubbling)
  *     //   check: function(aEvent) {},
  *     //   getID: function() {}
  *     // };
  *     eventSeq getter() {},
  *
- *     // [optional, used together with 'eventSeq'] Boolean indicates if events
- *     // specified by 'eventSeq' property shouldn't be triggerd by invoker.
- *     doNotExpectEvents getter() {},
+ *     // Array of checker objects defining unexpected events on invoker's
+ *     // action.
+ *     unexpectedEventSeq getter() {},
  *
  *     // The ID of invoker.
  *     getID: function(){} // returns invoker ID
  *   };
  *
- * @param  aEventType     [optional] the default event type (isn't used if
- *                        invoker defines eventSeq property).
+ * @param  aEventType  [in, optional] the default event type (isn't used if
+ *                      invoker defines eventSeq property).
  */
 function eventQueue(aEventType)
 {
@@ -171,8 +177,15 @@ function eventQueue(aEventType)
 
     // XXX: Intermittent test_events_caretmove.html fails withouth timeout,
     // see bug 474952.
-    window.setTimeout(function(aQueue) { aQueue.processNextInvoker(); }, 500,
-                      this);
+    this.processNextInvokerInTimeout(true);
+  }
+
+  /**
+   * This function is called when all events in the queue were handled.
+   * Override it if you need to be notified of this.
+   */
+  this.onFinish = function eventQueue_finish()
+  {
   }
 
   // private
@@ -187,15 +200,20 @@ function eventQueue(aEventType)
 
     var invoker = this.getInvoker();
     if (invoker) {
+      if ("finalCheck" in invoker)
+        invoker.finalCheck();
+
       if (invoker.wasCaught) {
         for (var idx = 0; idx < invoker.wasCaught.length; idx++) {
           var id = this.getEventID(idx);
           var type = this.getEventType(idx);
+          var unexpected = this.mEventSeq[idx].unexpected;
+
           var typeStr = (typeof type == "string") ?
             type : gAccRetrieval.getStringEventType(type);
 
           var msg = "test with ID = '" + id + "' failed. ";
-          if (invoker.doNotExpectEvents) {
+          if (unexpected) {
             var wasCaught = invoker.wasCaught[idx];
             if (!testFailed)
               testFailed = wasCaught;
@@ -229,7 +247,10 @@ function eventQueue(aEventType)
       gA11yEventApplicantsCount--;
       listenA11yEvents(false);
 
-      SimpleTest.finish();
+      var res = this.onFinish();
+      if (res != DO_NOT_FINISH_TEST)
+        SimpleTest.finish();
+
       return;
     }
 
@@ -244,11 +265,22 @@ function eventQueue(aEventType)
       return;
     }
 
-    if (invoker.doNotExpectEvents) {
-      // Check in timeout invoker didn't fire registered events.
-      window.setTimeout(function(aQueue) { aQueue.processNextInvoker(); }, 500,
-                        this);
+    if (this.areAllEventsUnexpected())
+      this.processNextInvokerInTimeout(true);
+  }
+
+  this.processNextInvokerInTimeout = function eventQueue_processNextInvokerInTimeout(aUncondProcess)
+  {
+    if (!aUncondProcess && this.areAllEventsExpected()) {
+      // We need delay to avoid events coalesce from different invokers.
+      var queue = this;
+      SimpleTest.executeSoon(function() { queue.processNextInvoker(); });
+      return;
     }
+
+    // Check in timeout invoker didn't fire registered events.
+    window.setTimeout(function(aQueue) { aQueue.processNextInvoker(); }, 500,
+                      this);
   }
 
   /**
@@ -270,49 +302,38 @@ function eventQueue(aEventType)
     if ("debugCheck" in invoker)
       invoker.debugCheck(aEvent);
 
-    if (invoker.doNotExpectEvents) {
-      // Search through event sequence to ensure it doesn't contain handled
-      // event.
-      for (var idx = 0; idx < this.mEventSeq.length; idx++) {
-        if (this.compareEvents(idx, aEvent))
-          invoker.wasCaught[idx] = true;
-      }
-    } else {
-      // We wait for events in order specified by eventSeq variable.
-      var idx = this.mEventSeqIdx + 1;
-
-      if (gA11yEventDumpID) { // debug stuff
-
-        if (aEvent instanceof nsIDOMEvent) {
-          var info = "Event type: " + aEvent.type;
-          info += ". Target: " + prettyName(aEvent.originalTarget);
-          dumpInfoToDOM(info);
-        }
-
-        var currType = this.getEventType(idx);
-        var currTarget = this.getEventTarget(idx);
-
-        var info = "Event queue processing. Expected event type: ";
-        info += (typeof currType == "string") ?
-          currType : eventTypeToString(currType);
-        info += ". Target: " + prettyName(currTarget);
-
-        dumpInfoToDOM(info);
-      }
-
-      if (this.compareEvents(idx, aEvent)) {
-        this.checkEvent(idx, aEvent);
+    // Search through unexpected events to ensure no one of them was handled.
+    for (var idx = 0; idx < this.mEventSeq.length; idx++) {
+      if (this.mEventSeq[idx].unexpected && this.compareEvents(idx, aEvent))
         invoker.wasCaught[idx] = true;
+    }
 
-        if (idx == this.mEventSeq.length - 1) {
-          // We need delay to avoid events coalesce from different invokers.
-          var queue = this;
-          SimpleTest.executeSoon(function() { queue.processNextInvoker(); });
-          return;
-        }
+    // Wait for next expected event in an order specified by event sequence.
 
-        this.mEventSeqIdx = idx;
+    // Compute next expected event index.
+    for (var idx = this.mEventSeqIdx + 1;
+         idx < this.mEventSeq.length && this.mEventSeq[idx].unexpected; idx++);
+
+    if (idx == this.mEventSeq.length) {
+      // There is no expected events in the sequence.
+      this.processNextInvokerInTimeout();
+      return;
+    }
+
+    var matched = this.compareEvents(idx, aEvent);
+    this.dumpEventToDOM(aEvent, idx, matched);
+
+    if (matched) {
+      this.checkEvent(idx, aEvent);
+      invoker.wasCaught[idx] = true;
+
+      // The last event is expected and was handled, proceed next invoker.
+      if (idx == this.mEventSeq.length - 1) {
+        this.processNextInvokerInTimeout();
+        return;
       }
+
+      this.mEventSeqIdx = idx;
     }
   }
 
@@ -329,21 +350,41 @@ function eventQueue(aEventType)
 
   this.setEventHandler = function eventQueue_setEventHandler(aInvoker)
   {
+    // Create unique event sequence concatenating expected and unexpected
+    // events.
     this.mEventSeq = ("eventSeq" in aInvoker) ?
       aInvoker.eventSeq :
       [ new invokerChecker(this.mDefEventType, aInvoker.DOMNode) ];
 
+    for (var idx = 0; idx < this.mEventSeq.length; idx++)
+      this.mEventSeq[idx].unexpected = false;
+
+    var unexpectedSeq = aInvoker.unexpectedEventSeq;
+    if (unexpectedSeq) {
+      for (var idx = 0; idx < unexpectedSeq.length; idx++)
+        unexpectedSeq[idx].unexpected = true;
+
+      this.mEventSeq = this.mEventSeq.concat(unexpectedSeq);
+    }
+
     this.mEventSeqIdx = -1;
 
+    // Register event listeners
     if (this.mEventSeq) {
       aInvoker.wasCaught = new Array(this.mEventSeq.length);
 
       for (var idx = 0; idx < this.mEventSeq.length; idx++) {
         var eventType = this.getEventType(idx);
-        if (typeof eventType == "string") // DOM event
-          document.addEventListener(eventType, this, true);
-        else // A11y event
+        if (typeof eventType == "string") {
+          // DOM event
+          var target = this.getEventTarget(idx);
+          var phase = this.getEventPhase(idx);
+          target.ownerDocument.addEventListener(eventType, this, phase);
+
+        } else {
+          // A11y event
           addA11yEventListener(eventType, this);
+        }
       }
     }
   }
@@ -353,10 +394,16 @@ function eventQueue(aEventType)
     if (this.mEventSeq) {
       for (var idx = 0; idx < this.mEventSeq.length; idx++) {
         var eventType = this.getEventType(idx);
-        if (typeof eventType == "string") // DOM event
-          document.removeEventListener(eventType, this, true);
-        else // A11y event
+        if (typeof eventType == "string") {
+          // DOM event
+          var target = this.getEventTarget(idx);
+          var phase = this.getEventPhase(idx);
+          target.ownerDocument.removeEventListener(eventType, this, phase);
+
+        } else {
+          // A11y event
           removeA11yEventListener(eventType, this);
+        }
       }
 
       this.mEventSeq = null;
@@ -371,6 +418,25 @@ function eventQueue(aEventType)
   this.getEventTarget = function eventQueue_getEventTarget(aIdx)
   {
     return this.mEventSeq[aIdx].target;
+  }
+
+  this.getEventPhase = function eventQueue_getEventPhase(aIdx)
+  {
+     var eventItem = this.mEventSeq[aIdx];
+    if ("phase" in eventItem)
+      return eventItem.phase;
+
+    return true;
+  }
+
+  this.getEventID = function eventQueue_getEventID(aIdx)
+  {
+    var eventItem = this.mEventSeq[aIdx];
+    if ("getID" in eventItem)
+      return eventItem.getID();
+    
+    var invoker = this.getInvoker();
+    return invoker.getID();
   }
 
   this.compareEvents = function eventQueue_compareEvents(aIdx, aEvent)
@@ -409,14 +475,50 @@ function eventQueue(aEventType)
       invoker.check(aEvent);
   }
 
-  this.getEventID = function eventQueue_getEventID(aIdx)
+  this.areAllEventsExpected = function eventQueue_areAllEventsExpected()
   {
-    var eventItem = this.mEventSeq[aIdx];
-    if ("getID" in eventItem)
-      return eventItem.getID();
+    for (var idx = 0; idx < this.mEventSeq.length; idx++) {
+      if (this.mEventSeq[idx].unexpected)
+        return false;
+    }
 
-    var invoker = this.getInvoker();
-    return invoker.getID();
+    return true;
+  }
+
+  this.areAllEventsUnexpected = function eventQueue_areAllEventsUnxpected()
+  {
+    for (var idx = 0; idx < this.mEventSeq.length; idx++) {
+      if (!this.mEventSeq[idx].unexpected)
+        return false;
+    }
+
+    return true;
+  }
+
+  this.dumpEventToDOM = function eventQueue_dumpEventToDOM(aOrigEvent,
+                                                           aExpectedEventIdx,
+                                                           aMatch)
+  {
+    if (!gA11yEventDumpID) // debug stuff
+      return;
+
+    // Dump DOM event information. Skip a11y event since it is dumped by
+    // gA11yEventObserver.
+    if (aOrigEvent instanceof nsIDOMEvent) {
+      var info = "Event type: " + aOrigEvent.type;
+      info += ". Target: " + prettyName(aOrigEvent.originalTarget);
+      dumpInfoToDOM(info);
+    }
+
+    var currType = this.getEventType(aExpectedEventIdx);
+    var currTarget = this.getEventTarget(aExpectedEventIdx);
+
+    var info = "EQ: " + (aMatch ? "matched" : "expected") + " event, type: ";
+    info += (typeof currType == "string") ?
+      currType : eventTypeToString(currType);
+    info += ". Target: " + prettyName(currTarget);
+
+    dumpInfoToDOM(info);
   }
 
   this.mDefEventType = aEventType;
@@ -428,6 +530,235 @@ function eventQueue(aEventType)
   this.mEventSeqIdx = -1;
 }
 
+
+////////////////////////////////////////////////////////////////////////////////
+// Action sequence
+
+/**
+ * Deal with action sequence. Used when you need to execute couple of actions
+ * each after other one.
+ */
+function sequence()
+{
+  /**
+   * Append new sequence item.
+   *
+   * @param  aProcessor  [in] object implementing interface
+   *                      {
+   *                        // execute item action
+   *                        process: function() {},
+   *                        // callback, is called when item was processed
+   *                        onProcessed: function() {}
+   *                      };
+   * @param  aEventType  [in] event type of expected event on item action
+   * @param  aTarget     [in] event target of expected event on item action
+   * @param  aItemID     [in] identifier of item
+   */
+  this.append = function sequence_append(aProcessor, aEventType, aTarget,
+                                         aItemID)
+  {
+    var item = new sequenceItem(aProcessor, aEventType, aTarget, aItemID);
+    this.items.push(item);
+  }
+
+  /**
+   * Process next sequence item.
+   */
+  this.processNext = function sequence_processNext()
+  {
+    this.idx++;
+    if (this.idx >= this.items.length) {
+      ok(false, "End of sequence: nothing to process!");
+      SimpleTest.finish();
+      return;
+    }
+
+    this.items[this.idx].startProcess();
+  }
+
+  this.items = new Array();
+  this.idx = -1;
+}
+
+
+////////////////////////////////////////////////////////////////////////////////
+// Event queue invokers
+
+/**
+ * Invokers defined below take a checker object implementing 'check' method
+ * which will be called when proper event is handled. Invokers listen default
+ * event type registered in event queue object until it is passed explicetly.
+ *
+ * Note, you don't need to initialize 'target' and 'type' members of checker
+ * object. The 'target' member will be initialized by invoker object and you are
+ * free to use it in 'check' method.
+ */
+
+/**
+ * Click invoker.
+ */
+function synthClick(aNodeOrID, aChecker, aEventType)
+{
+  this.__proto__ = new synthAction(aNodeOrID, aChecker, aEventType);
+
+  this.invoke = function synthClick_invoke()
+  {
+    // Scroll the node into view, otherwise synth click may fail.
+    this.DOMNode.scrollIntoView(true);
+
+    synthesizeMouse(this.DOMNode, 1, 1, {});
+  }
+
+  this.getID = function synthClick_getID()
+  {
+    return prettyName(aNodeOrID) + " click"; 
+  }
+}
+
+/**
+ * General key press invoker.
+ */
+function synthKey(aNodeOrID, aKey, aArgs, aChecker, aEventType)
+{
+  this.__proto__ = new synthAction(aNodeOrID, aChecker, aEventType);
+
+  this.invoke = function synthKey_invoke()
+  {
+    synthesizeKey(this.mKey, this.mArgs);
+  }
+
+  this.getID = function synthKey_getID()
+  {
+    return prettyName(aNodeOrID) + " '" + this.mKey + "' key"; 
+  }
+
+  this.mKey = aKey;
+  this.mArgs = aArgs ? aArgs : {};
+}
+
+/**
+ * Tab key invoker.
+ */
+function synthTab(aNodeOrID, aChecker, aEventType)
+{
+  this.__proto__ = new synthKey(aNodeOrID, "VK_TAB", { shiftKey: false },
+                                aChecker, aEventType);
+
+  this.getID = function synthTab_getID() 
+  { 
+    return prettyName(aNodeOrID) + " tab";
+  }
+}
+
+/**
+ * Shift tab key invoker.
+ */
+function synthShiftTab(aNodeOrID, aChecker, aEventType)
+{
+  this.__proto__ = new synthKey(aNodeOrID, "VK_TAB", { shiftKey: true },
+                                aChecker, aEventType);
+
+  this.getID = function synthTabTest_getID() 
+  { 
+    return prettyName(aNodeOrID) + " shift tab";
+  }
+}
+
+/**
+ * Down arrow key invoker.
+ */
+function synthDownKey(aNodeOrID, aChecker, aEventType)
+{
+  this.__proto__ = new synthKey(aNodeOrID, "VK_DOWN", null, aChecker,
+                                aEventType);
+
+  this.getID = function synthDownKey_getID()
+  {
+    return prettyName(aNodeOrID) + " key down";
+  }
+}
+
+/**
+ * Right arrow key invoker.
+ */
+function synthRightKey(aNodeOrID, aChecker, aEventType)
+{
+  this.__proto__ = new synthKey(aNodeOrID, "VK_RIGHT", null, aChecker,
+                                aEventType);
+
+  this.getID = function synthRightKey_getID()
+  {
+    return prettyName(aNodeOrID) + " key right";
+  }
+}
+
+/**
+ * Home key invoker.
+ */
+function synthHomeKey(aNodeOrID, aChecker, aEventType)
+{
+  this.__proto__ = new synthKey(aNodeOrID, "VK_HOME", null, aChecker,
+                                aEventType);
+  
+  this.getID = function synthHomeKey_getID()
+  {
+    return prettyName(aNodeOrID) + " key home";
+  }
+}
+
+/**
+ * Focus invoker.
+ */
+function synthFocus(aNodeOrID, aChecker, aEventType)
+{
+  this.__proto__ = new synthAction(aNodeOrID, aChecker, aEventType);
+
+  this.invoke = function synthFocus_invoke()
+  {
+    this.DOMNode.focus();
+  }
+
+  this.getID = function synthFocus_getID() 
+  { 
+    return prettyName(aNodeOrID) + " focus";
+  }
+}
+
+/**
+ * Select all invoker.
+ */
+function synthSelectAll(aNodeOrID, aChecker, aEventType)
+{
+  this.__proto__ = new synthAction(aNodeOrID, aChecker, aEventType);
+
+  this.invoke = function synthSelectAll_invoke()
+  {
+    if (this.DOMNode instanceof Components.interfaces.nsIDOMHTMLInputElement)
+      this.DOMNode.select();
+    else
+      window.getSelection().selectAllChildren(this.DOMNode);
+  }
+
+  this.getID = function synthSelectAll_getID()
+  {
+    return aNodeOrID + " selectall";
+  }
+}
+
+
+////////////////////////////////////////////////////////////////////////////////
+// Event queue checkers
+
+/**
+ * Common invoker checker (see eventSeq of eventQueue).
+ */
+function invokerChecker(aEventType, aTarget)
+{
+  this.type = aEventType;
+  this.target = aTarget;
+}
+
+
 ////////////////////////////////////////////////////////////////////////////////
 // Private implementation details.
 ////////////////////////////////////////////////////////////////////////////////
@@ -436,19 +767,30 @@ function eventQueue(aEventType)
 ////////////////////////////////////////////////////////////////////////////////
 // General
 
-var gObserverService = null;
-
 var gA11yEventListeners = {};
 var gA11yEventApplicantsCount = 0;
 
 var gA11yEventObserver =
 {
+  // The service reference needs to live in the observer, instead of as a global var,
+  //   to be available in observe() catch case too.
+  observerService : null,
+
   observe: function observe(aSubject, aTopic, aData)
   {
     if (aTopic != "accessible-event")
       return;
 
-    var event = aSubject.QueryInterface(nsIAccessibleEvent);
+    var event;
+    try {
+      event = aSubject.QueryInterface(nsIAccessibleEvent);
+    } catch (ex) {
+      // After a test is aborted (i.e. timed out by the harness), this exception is soon triggered.
+      // Remove the leftover observer, otherwise it "leaks" to all the following tests.
+      this.observerService.removeObserver(this, "accessible-event");
+      // Forward the exception, with added explanation.
+      throw "[accessible/events.js, gA11yEventObserver.observe] This is expected if a previous test has been aborted... Initial exception was: [ " + ex + " ]";
+    }
     var listenersArray = gA11yEventListeners[event.eventType];
 
     if (gA11yEventDumpID) { // debug stuff
@@ -481,16 +823,17 @@ var gA11yEventObserver =
 
 function listenA11yEvents(aStartToListen)
 {
-  if (aStartToListen && !gObserverService) {
-    gObserverService = Components.classes["@mozilla.org/observer-service;1"].
-      getService(nsIObserverService);
+  if (aStartToListen && !gA11yEventObserver.observerService) {
+    gA11yEventObserver.observerService =
+        Components.classes["@mozilla.org/observer-service;1"].getService(nsIObserverService);
     
-    gObserverService.addObserver(gA11yEventObserver, "accessible-event",
-                                 false);
+    gA11yEventObserver.observerService
+                      .addObserver(gA11yEventObserver, "accessible-event", false);
   } else if (!gA11yEventApplicantsCount) {
-    gObserverService.removeObserver(gA11yEventObserver,
-                                    "accessible-event");
-    gObserverService = null;
+    gA11yEventObserver.observerService
+                      .removeObserver(gA11yEventObserver, "accessible-event");
+    // Release service (variable), so listenA11yEvents(true) can be called again if need be and work.
+    gA11yEventObserver.observerService = null;
   }
 }
 
@@ -536,6 +879,10 @@ function dumpInfoToDOM(aInfo, aDumpNode)
     return;
 
   var dumpElm = document.getElementById(dumpID);
+  if (!dumpElm) {
+    ok(false, "No dump element '" + dumpID + "' within the document!");
+    return;
+  }
 
   var containerTagName = document instanceof nsIDOMHTMLDocument ?
     "div" : "description";
@@ -543,4 +890,65 @@ function dumpInfoToDOM(aInfo, aDumpNode)
 
   container.textContent = aInfo;
   dumpElm.appendChild(container);
+}
+
+
+////////////////////////////////////////////////////////////////////////////////
+// Sequence
+
+/**
+ * Base class of sequence item.
+ */
+function sequenceItem(aProcessor, aEventType, aTarget, aItemID)
+{
+  // private
+  
+  this.startProcess = function sequenceItem_startProcess()
+  {
+    this.queue.invoke();
+  }
+  
+  var item = this;
+  
+  this.queue = new eventQueue();
+  this.queue.onFinish = function()
+  {
+    aProcessor.onProcessed();
+    return DO_NOT_FINISH_TEST;
+  }
+  
+  var invoker = {
+    invoke: function invoker_invoke() {
+      return aProcessor.process();
+    },
+    getID: function invoker_getID()
+    {
+      return aItemID;
+    },
+    eventSeq: [ new invokerChecker(aEventType, aTarget) ]
+  };
+  
+  this.queue.push(invoker);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+// Event queue invokers
+
+/**
+ * Invoker base class for prepare an action.
+ */
+function synthAction(aNodeOrID, aChecker, aEventType)
+{
+  this.DOMNode = getNode(aNodeOrID);
+  aChecker.target = this.DOMNode;
+
+  if (aEventType)
+    this.eventSeq = [ new invokerChecker(aEventType, this.DOMNode) ];
+
+  this.check = function synthAction_check(aEvent)
+  {
+    aChecker.check(aEvent);
+  }
+
+  this.getID = function synthAction_getID() { return aNodeOrID + " action"; }
 }

@@ -71,9 +71,12 @@
 #include "nsDOMCID.h"
 #include "nsIServiceManager.h"
 #include "nsIDOMCSSStyleDeclaration.h"
+#include "nsCSSDeclaration.h"
 #include "nsDOMCSSDeclaration.h"
+#include "nsDOMCSSAttrDeclaration.h"
 #include "nsINameSpaceManager.h"
 #include "nsContentList.h"
+#include "nsDOMTokenList.h"
 #include "nsDOMError.h"
 #include "nsDOMString.h"
 #include "nsIScriptSecurityManager.h"
@@ -129,8 +132,6 @@
 #include "nsIView.h"
 #include "nsIViewManager.h"
 #include "nsIScrollableFrame.h"
-#include "nsIScrollableView.h"
-#include "nsIScrollableViewProvider.h"
 #include "nsXBLInsertionPoint.h"
 #include "nsICSSStyleRule.h" /* For nsCSSSelectorList */
 #include "nsCSSRuleProcessor.h"
@@ -337,7 +338,8 @@ nsINode::GetTextEditorRootContent(nsIEditor** aEditor)
   if (aEditor)
     *aEditor = nsnull;
   for (nsINode* node = this; node; node = node->GetNodeParent()) {
-    if (!node->IsNodeOfType(eHTML))
+    if (!node->IsNodeOfType(eELEMENT) ||
+        !static_cast<nsIContent*>(node)->IsHTML())
       continue;
 
     nsCOMPtr<nsIEditor> editor;
@@ -368,6 +370,20 @@ static nsIEditor* GetHTMLEditor(nsPresContext* aPresContext)
   return editor;
 }
 
+static nsIContent* GetRootForContentSubtree(nsIContent* aContent)
+{
+  NS_ENSURE_TRUE(aContent, nsnull);
+  nsIContent* stop = aContent->GetBindingParent();
+  while (aContent) {
+    nsIContent* parent = aContent->GetParent();
+    if (parent == stop) {
+      break;
+    }
+    aContent = parent;
+  }
+  return aContent;
+}
+
 nsIContent*
 nsINode::GetSelectionRootContent(nsIPresShell* aPresShell)
 {
@@ -378,14 +394,16 @@ nsINode::GetSelectionRootContent(nsIPresShell* aPresShell)
   if (!IsNodeOfType(eCONTENT))
     return nsnull;
 
-  nsIFrame* frame =
-    aPresShell->GetPrimaryFrameFor(static_cast<nsIContent*>(this));
+  if (GetCurrentDoc() != aPresShell->GetDocument()) {
+    return nsnull;
+  }
+
+  nsIFrame* frame = static_cast<nsIContent*>(this)->GetPrimaryFrame();
   if (frame && frame->GetStateBits() & NS_FRAME_INDEPENDENT_SELECTION) {
     // This node should be a descendant of input/textarea editor.
     nsIContent* content = GetTextEditorRootContent();
     if (content)
       return content;
-    NS_ERROR("Editor is not found!");
   }
 
   nsPresContext* presContext = aPresShell->GetPresContext();
@@ -394,8 +412,14 @@ nsINode::GetSelectionRootContent(nsIPresShell* aPresShell)
     if (editor) {
       // This node is in HTML editor.
       nsIDocument* doc = GetCurrentDoc();
-      if (!doc || doc->HasFlag(NODE_IS_EDITABLE) || !HasFlag(NODE_IS_EDITABLE))
-        return GetEditorRootContent(editor);
+      if (!doc || doc->HasFlag(NODE_IS_EDITABLE) ||
+          !HasFlag(NODE_IS_EDITABLE)) {
+        nsIContent* editorRoot = GetEditorRootContent(editor);
+        NS_ENSURE_TRUE(editorRoot, nsnull);
+        return nsContentUtils::IsInSameAnonymousTree(this, editorRoot) ?
+                 editorRoot :
+                 GetRootForContentSubtree(static_cast<nsIContent*>(this));
+      }
       // If the current document is not editable, but current content is
       // editable, we should assume that the child of the nearest non-editable
       // ancestor is selection root.
@@ -410,14 +434,22 @@ nsINode::GetSelectionRootContent(nsIPresShell* aPresShell)
 
   nsCOMPtr<nsFrameSelection> fs = aPresShell->FrameSelection();
   nsIContent* content = fs->GetLimiter();
-  if (content)
-    return content;
-  content = fs->GetAncestorLimiter();
-  if (content)
-    return content;
-  nsIDocument* doc = aPresShell->GetDocument();
-  NS_ENSURE_TRUE(doc, nsnull);
-  return doc->GetRootContent();
+  if (!content) {
+    content = fs->GetAncestorLimiter();
+    if (!content) {
+      nsIDocument* doc = aPresShell->GetDocument();
+      NS_ENSURE_TRUE(doc, nsnull);
+      content = doc->GetRootContent();
+      if (!content)
+        return nsnull;
+    }
+  }
+
+  // This node might be in another subtree, if so, we should find this subtree's
+  // root.  Otherwise, we can return the content simply.
+  NS_ENSURE_TRUE(content, nsnull);
+  return nsContentUtils::IsInSameAnonymousTree(this, content) ?
+           content : GetRootForContentSubtree(static_cast<nsIContent*>(this));
 }
 
 nsINodeList*
@@ -1064,6 +1096,48 @@ nsNSElementTearoff::GetChildren(nsIDOMNodeList** aResult)
   return NS_OK;
 }
 
+NS_IMETHODIMP
+nsNSElementTearoff::GetClassList(nsIDOMDOMTokenList** aResult)
+{
+  nsGenericElement::nsDOMSlots *slots = mContent->GetDOMSlots();
+  NS_ENSURE_TRUE(slots, nsnull);
+
+  if (!slots->mClassList) {
+    nsCOMPtr<nsIAtom> classAttr = mContent->GetClassAttributeName();
+    NS_ENSURE_TRUE(classAttr, NS_OK);
+    slots->mClassList = new nsDOMTokenList(mContent, classAttr);
+    NS_ENSURE_TRUE(slots->mClassList, NS_ERROR_OUT_OF_MEMORY);
+  }
+
+  NS_ADDREF(*aResult = slots->mClassList);
+
+  return NS_OK;
+}
+
+NS_IMETHODIMP
+nsNSElementTearoff::SetCapture(PRBool aRetargetToElement)
+{
+  // If there is already an active capture, ignore this request. This would
+  // occur if a splitter, frame resizer, etc had already captured and we don't
+  // want to override those.
+  nsCOMPtr<nsIDOMNode> node = do_QueryInterface(nsIPresShell::GetCapturingContent());
+  if (node)
+    return NS_OK;
+
+  nsIPresShell::SetCapturingContent(mContent, CAPTURE_PREVENTDRAG |
+    (aRetargetToElement ? CAPTURE_RETARGETTOELEMENT : 0));
+  return NS_OK;
+}
+
+NS_IMETHODIMP
+nsNSElementTearoff::ReleaseCapture()
+{
+  if (nsIPresShell::GetCapturingContent() == mContent) {
+    nsIPresShell::SetCapturingContent(nsnull, 0);
+  }
+  return NS_OK;
+}
+
 //----------------------------------------------------------------------
 
 
@@ -1088,9 +1162,7 @@ nsIFrame*
 nsGenericElement::GetStyledFrame()
 {
   nsIFrame *frame = GetPrimaryFrame(Flush_Layout);
-
-  return (frame && frame->GetType() == nsGkAtoms::tableOuterFrame) ?
-    frame->GetFirstChild(nsnull) : frame;
+  return frame ? nsLayoutUtils::GetStyleFrame(frame) : nsnull;
 }
 
 void
@@ -1118,72 +1190,48 @@ nsGenericElement::GetOffsetRect(nsRect& aRect, nsIContent** aOffsetParent)
   aRect.height = nsPresContext::AppUnitsToIntCSSPixels(rcFrame.height);
 }
 
-void
-nsNSElementTearoff::GetScrollInfo(nsIScrollableView **aScrollableView,
-                                  nsIFrame **aFrame)
+nsIScrollableFrame*
+nsNSElementTearoff::GetScrollFrame(nsIFrame **aStyledFrame)
 {
-  *aScrollableView = nsnull;
-
   // it isn't clear what to return for SVG nodes, so just return nothing
-  if (mContent->IsNodeOfType(nsINode::eSVG)) {
-    if (aFrame)
-      *aFrame = nsnull;
-    return;
+  if (mContent->IsSVG()) {
+    if (aStyledFrame) {
+      *aStyledFrame = nsnull;
+    }
+    return nsnull;
   }
 
   nsIFrame* frame =
     (static_cast<nsGenericElement*>(mContent))->GetStyledFrame();
 
-  if (aFrame) {
-    *aFrame = frame;
+  if (aStyledFrame) {
+    *aStyledFrame = frame;
   }
   if (!frame) {
-    return;
+    return nsnull;
   }
 
-  // Get the scrollable frame
-  nsIScrollableFrame *scrollFrame = do_QueryFrame(frame);
-  if (!scrollFrame) {
-    nsIScrollableViewProvider *scrollProvider = do_QueryFrame(frame);
-    // menu frames implement nsIScrollableViewProvider but we don't want
-    // to use it here.
-    if (scrollProvider && frame->GetType() != nsGkAtoms::menuFrame) {
-      *aScrollableView = scrollProvider->GetScrollableView();
-      if (*aScrollableView) {
-        return;
-      }
-    }
-
-    nsIDocument* doc = mContent->GetCurrentDoc();
-    PRBool quirksMode = doc &&
-                        doc->GetCompatibilityMode() == eCompatibility_NavQuirks;
-    if ((quirksMode && mContent->NodeInfo()->Equals(nsGkAtoms::body)) ||
-        (!quirksMode && mContent->NodeInfo()->Equals(nsGkAtoms::html))) {
-      // In quirks mode, the scroll info for the body element should map to the
-      // scroll info for the nearest scrollable frame above the body element
-      // (i.e. the root scrollable frame).  This is what IE6 does in quirks
-      // mode.  In strict mode the root scrollable frame corresponds to the
-      // html element in IE6, so we map the scroll info for the html element to
-      // the root scrollable frame.
-
-      do {
-        frame = frame->GetParent();
-
-        if (!frame) {
-          break;
-        }
-
-        scrollFrame = do_QueryFrame(frame);
-      } while (!scrollFrame);
-    }
-
-    if (!scrollFrame) {
-      return;
-    }
+  // menu frames implement GetScrollTargetFrame but we don't want
+  // to use it here.
+  if (frame->GetType() != nsGkAtoms::menuFrame) {
+    nsIScrollableFrame *scrollFrame = frame->GetScrollTargetFrame();
+    if (scrollFrame)
+      return scrollFrame;
   }
 
-  // Get the scrollable view
-  *aScrollableView = scrollFrame->GetScrollableView();
+  nsIDocument* doc = mContent->GetOwnerDoc();
+  PRBool quirksMode = doc->GetCompatibilityMode() == eCompatibility_NavQuirks;
+  nsIContent* elementWithRootScrollInfo =
+    quirksMode ? doc->GetBodyContent() : doc->GetRootContent();
+  if (mContent == elementWithRootScrollInfo) {
+    // In quirks mode, the scroll info for the body element should map to the
+    // root scrollable frame.
+    // In strict mode, the scroll info for the root element should map to the
+    // the root scrollable frame.
+    return frame->PresContext()->PresShell()->GetRootScrollFrameAsScrollable();
+  }
+
+  return nsnull;
 }
 
 nsresult
@@ -1192,41 +1240,26 @@ nsNSElementTearoff::GetScrollTop(PRInt32* aScrollTop)
   NS_ENSURE_ARG_POINTER(aScrollTop);
   *aScrollTop = 0;
 
-  nsIScrollableView *view;
-  nsresult rv = NS_OK;
-
-  GetScrollInfo(&view);
-
-  if (view) {
-    nscoord xPos, yPos;
-    rv = view->GetScrollPosition(xPos, yPos);
-
-    *aScrollTop = nsPresContext::AppUnitsToIntCSSPixels(yPos);
+  nsIScrollableFrame* sf = GetScrollFrame();
+  if (sf) {
+    nscoord y = sf->GetScrollPosition().y;
+    *aScrollTop = nsPresContext::AppUnitsToIntCSSPixels(y);
   }
 
-  return rv;
+  return NS_OK;
 }
 
 nsresult
 nsNSElementTearoff::SetScrollTop(PRInt32 aScrollTop)
 {
-  nsIScrollableView *view;
-  nsresult rv = NS_OK;
-
-  GetScrollInfo(&view);
-
-  if (view) {
-    nscoord xPos, yPos;
-
-    rv = view->GetScrollPosition(xPos, yPos);
-
-    if (NS_SUCCEEDED(rv)) {
-      rv = view->ScrollTo(xPos, nsPresContext::CSSPixelsToAppUnits(aScrollTop),
-                          0);
-    }
+  nsIScrollableFrame* sf = GetScrollFrame();
+  if (sf) {
+    nsPoint pt = sf->GetScrollPosition();
+    pt.y = nsPresContext::CSSPixelsToAppUnits(aScrollTop);
+    sf->ScrollTo(pt, nsIScrollableFrame::INSTANT);
   }
 
-  return rv;
+  return NS_OK;
 }
 
 nsresult
@@ -1235,40 +1268,26 @@ nsNSElementTearoff::GetScrollLeft(PRInt32* aScrollLeft)
   NS_ENSURE_ARG_POINTER(aScrollLeft);
   *aScrollLeft = 0;
 
-  nsIScrollableView *view;
-  nsresult rv = NS_OK;
-
-  GetScrollInfo(&view);
-
-  if (view) {
-    nscoord xPos, yPos;
-    rv = view->GetScrollPosition(xPos, yPos);
-
-    *aScrollLeft = nsPresContext::AppUnitsToIntCSSPixels(xPos);
+  nsIScrollableFrame* sf = GetScrollFrame();
+  if (sf) {
+    nscoord x = sf->GetScrollPosition().x;
+    *aScrollLeft = nsPresContext::AppUnitsToIntCSSPixels(x);
   }
 
-  return rv;
+  return NS_OK;
 }
 
 nsresult
 nsNSElementTearoff::SetScrollLeft(PRInt32 aScrollLeft)
 {
-  nsIScrollableView *view;
-  nsresult rv = NS_OK;
-
-  GetScrollInfo(&view);
-
-  if (view) {
-    nscoord xPos, yPos;
-    rv = view->GetScrollPosition(xPos, yPos);
-
-    if (NS_SUCCEEDED(rv)) {
-      rv = view->ScrollTo(nsPresContext::CSSPixelsToAppUnits(aScrollLeft),
-                          yPos, 0);
-    }
+  nsIScrollableFrame* sf = GetScrollFrame();
+  if (sf) {
+    nsPoint pt = sf->GetScrollPosition();
+    pt.x = nsPresContext::CSSPixelsToAppUnits(aScrollLeft);
+    sf->ScrollTo(pt, nsIScrollableFrame::INSTANT);
   }
 
-  return rv;
+  return NS_OK;
 }
 
 nsresult
@@ -1277,15 +1296,11 @@ nsNSElementTearoff::GetScrollHeight(PRInt32* aScrollHeight)
   NS_ENSURE_ARG_POINTER(aScrollHeight);
   *aScrollHeight = 0;
 
-  if (mContent->IsNodeOfType(nsINode::eSVG))
+  if (mContent->IsSVG())
     return NS_OK;
 
-  nsIScrollableView *scrollView;
-  nsresult rv = NS_OK;
-
-  GetScrollInfo(&scrollView);
-
-  if (!scrollView) {
+  nsIScrollableFrame* sf = GetScrollFrame();
+  if (!sf) {
     nsRect rcFrame;
     nsCOMPtr<nsIContent> parent;
     (static_cast<nsGenericElement *>(mContent))->GetOffsetRect(rcFrame, getter_AddRefs(parent));
@@ -1293,13 +1308,9 @@ nsNSElementTearoff::GetScrollHeight(PRInt32* aScrollHeight)
     return NS_OK;
   }
 
-  // xMax and yMax is the total length of our container
-  nscoord xMax, yMax;
-  rv = scrollView->GetContainerSize(&xMax, &yMax);
-
-  *aScrollHeight = nsPresContext::AppUnitsToIntCSSPixels(yMax);
-
-  return rv;
+  nscoord height = sf->GetScrollRange().height + sf->GetScrollPortRect().height;
+  *aScrollHeight = nsPresContext::AppUnitsToIntCSSPixels(height);
+  return NS_OK;
 }
 
 nsresult
@@ -1308,15 +1319,11 @@ nsNSElementTearoff::GetScrollWidth(PRInt32* aScrollWidth)
   NS_ENSURE_ARG_POINTER(aScrollWidth);
   *aScrollWidth = 0;
 
-  if (mContent->IsNodeOfType(nsINode::eSVG))
+  if (mContent->IsSVG())
     return NS_OK;
 
-  nsIScrollableView *scrollView;
-  nsresult rv = NS_OK;
-
-  GetScrollInfo(&scrollView);
-
-  if (!scrollView) {
+  nsIScrollableFrame* sf = GetScrollFrame();
+  if (!sf) {
     nsRect rcFrame;
     nsCOMPtr<nsIContent> parent;
     (static_cast<nsGenericElement *>(mContent))->GetOffsetRect(rcFrame, getter_AddRefs(parent));
@@ -1324,38 +1331,30 @@ nsNSElementTearoff::GetScrollWidth(PRInt32* aScrollWidth)
     return NS_OK;
   }
 
-  nscoord xMax, yMax;
-  rv = scrollView->GetContainerSize(&xMax, &yMax);
-
-  *aScrollWidth = nsPresContext::AppUnitsToIntCSSPixels(xMax);
-
-  return rv;
+  nscoord width = sf->GetScrollRange().width + sf->GetScrollPortRect().width;
+  *aScrollWidth = nsPresContext::AppUnitsToIntCSSPixels(width);
+  return NS_OK;
 }
 
 nsRect
 nsNSElementTearoff::GetClientAreaRect()
 {
-  nsIScrollableView *scrollView;
-  nsIFrame *frame;
+  nsIFrame* styledFrame;
+  nsIScrollableFrame* sf = GetScrollFrame(&styledFrame);
 
-  // it isn't clear what to return for SVG nodes, so just return 0
-  if (mContent->IsNodeOfType(nsINode::eSVG))
-    return nsRect(0, 0, 0, 0);
-
-  GetScrollInfo(&scrollView, &frame);
-
-  if (scrollView) {
-    return scrollView->View()->GetBounds();
+  if (sf) {
+    return sf->GetScrollPortRect();
   }
 
-  if (frame &&
-      (frame->GetStyleDisplay()->mDisplay != NS_STYLE_DISPLAY_INLINE ||
-       frame->IsFrameOfType(nsIFrame::eReplaced))) {
+  if (styledFrame &&
+      (styledFrame->GetStyleDisplay()->mDisplay != NS_STYLE_DISPLAY_INLINE ||
+       styledFrame->IsFrameOfType(nsIFrame::eReplaced))) {
     // Special case code to make client area work even when there isn't
     // a scroll view, see bug 180552, bug 227567.
-    return frame->GetPaddingRect() - frame->GetPositionIgnoringScrolling();
+    return styledFrame->GetPaddingRect() - styledFrame->GetPositionIgnoringScrolling();
   }
 
+  // SVG nodes reach here and just return 0
   return nsRect(0, 0, 0, 0);
 }
 
@@ -1391,18 +1390,6 @@ nsNSElementTearoff::GetClientWidth(PRInt32* aLength)
   return NS_OK;
 }
 
-static nsIFrame*
-GetContainingBlockForClientRect(nsIFrame* aFrame)
-{
-  // get the nearest enclosing SVG foreign object frame or the root frame
-  while (aFrame->GetParent() &&
-         !aFrame->IsFrameOfType(nsIFrame::eSVGForeignObject)) {
-    aFrame = aFrame->GetParent();
-  }
-
-  return aFrame;
-}
-
 NS_IMETHODIMP
 nsNSElementTearoff::GetBoundingClientRect(nsIDOMClientRect** aResult)
 {
@@ -1419,33 +1406,11 @@ nsNSElementTearoff::GetBoundingClientRect(nsIDOMClientRect** aResult)
     return NS_OK;
   }
 
-  nsPresContext* presContext = frame->PresContext();
   nsRect r = nsLayoutUtils::GetAllInFlowRectsUnion(frame,
-          GetContainingBlockForClientRect(frame));
-  rect->SetLayoutRect(r, presContext);
+          nsLayoutUtils::GetContainingBlockForClientRect(frame));
+  rect->SetLayoutRect(r);
   return NS_OK;
 }
-
-struct RectListBuilder : public nsLayoutUtils::RectCallback {
-  nsPresContext*    mPresContext;
-  nsClientRectList* mRectList;
-  nsresult          mRV;
-
-  RectListBuilder(nsPresContext* aPresContext, nsClientRectList* aList) 
-    : mPresContext(aPresContext), mRectList(aList),
-      mRV(NS_OK) {}
-
-  virtual void AddRect(const nsRect& aRect) {
-    nsRefPtr<nsClientRect> rect = new nsClientRect();
-    if (!rect) {
-      mRV = NS_ERROR_OUT_OF_MEMORY;
-      return;
-    }
-    
-    rect->SetLayoutRect(aRect, mPresContext);
-    mRectList->Append(rect);
-  }
-};
 
 NS_IMETHODIMP
 nsNSElementTearoff::GetClientRects(nsIDOMClientRectList** aResult)
@@ -1463,9 +1428,9 @@ nsNSElementTearoff::GetClientRects(nsIDOMClientRectList** aResult)
     return NS_OK;
   }
 
-  RectListBuilder builder(frame->PresContext(), rectList);
+  nsLayoutUtils::RectListBuilder builder(rectList);
   nsLayoutUtils::GetAllInFlowRects(frame,
-          GetContainingBlockForClientRect(frame), &builder);
+          nsLayoutUtils::GetContainingBlockForClientRect(frame), &builder);
   if (NS_FAILED(builder.mRV))
     return builder.mRV;
   *aResult = rectList.forget().get();
@@ -1636,9 +1601,7 @@ nsDOMEventRTTearoff::AddEventListener(const nsAString& aType,
                                       nsIDOMEventListener *aListener,
                                       PRBool useCapture)
 {
-  return
-    AddEventListener(aType, aListener, useCapture,
-                     !nsContentUtils::IsChromeDoc(mNode->GetOwnerDoc()));
+  return AddEventListener(aType, aListener, useCapture, PR_FALSE, 0);
 }
 
 NS_IMETHODIMP
@@ -1704,15 +1667,23 @@ NS_IMETHODIMP
 nsDOMEventRTTearoff::AddEventListener(const nsAString& aType,
                                       nsIDOMEventListener *aListener,
                                       PRBool aUseCapture,
-                                      PRBool aWantsUntrusted)
+                                      PRBool aWantsUntrusted,
+                                      PRUint8 optional_argc)
 {
+  NS_ASSERTION(!aWantsUntrusted || optional_argc > 0,
+               "Won't check if this is chrome, you want to set "
+               "aWantsUntrusted to PR_FALSE or make the aWantsUntrusted "
+               "explicit by making optional_argc non-zero.");
+
   nsIEventListenerManager* listener_manager =
     mNode->GetListenerManager(PR_TRUE);
   NS_ENSURE_STATE(listener_manager);
 
   PRInt32 flags = aUseCapture ? NS_EVENT_FLAG_CAPTURE : NS_EVENT_FLAG_BUBBLE;
 
-  if (aWantsUntrusted) {
+  if (aWantsUntrusted ||
+      (optional_argc == 0 &&
+       !nsContentUtils::IsChromeDoc(mNode->GetOwnerDoc()))) {
     flags |= NS_PRIV_EVENT_UNTRUSTED_PERMITTED;
   }
 
@@ -1756,6 +1727,10 @@ nsGenericElement::nsDOMSlots::~nsDOMSlots()
 {
   if (mAttributeMap) {
     mAttributeMap->DropReference();
+  }
+
+  if (mClassList) {
+    mClassList->DropReference();
   }
 }
 
@@ -2677,6 +2652,16 @@ nsGenericElement::UnbindFromTree(PRBool aDeep, PRBool aNullParent)
     document->ClearBoxObjectFor(this);
   }
 
+  // Ensure that CSS transitions don't continue on an element at a
+  // different place in the tree (even if reinserted before next
+  // animation refresh).
+  // FIXME (Bug 522599): Need a test for this.
+  if (HasFlag(NODE_HAS_PROPERTIES)) {
+    DeleteProperty(nsGkAtoms::transitionsOfBeforeProperty);
+    DeleteProperty(nsGkAtoms::transitionsOfAfterProperty);
+    DeleteProperty(nsGkAtoms::transitionsProperty);
+  }
+
   // Unset this since that's what the old code effectively did.
   UnsetFlags(NODE_FORCE_XBL_BINDINGS);
   
@@ -2736,6 +2721,8 @@ nsGenericElement::doPreHandleEvent(nsIContent* aContent,
 {
   //FIXME! Document how this event retargeting works, Bug 329124.
   aVisitor.mCanHandle = PR_TRUE;
+  aVisitor.mMayHaveListenerManager =
+    aContent->HasFlag(NODE_HAS_LISTENERMANAGER);
 
   // Don't propagate mouseover and mouseout events when mouse is moving
   // inside native anonymous content.
@@ -2914,6 +2901,57 @@ nsGenericElement::WalkContentStyleRules(nsRuleWalker* aRuleWalker)
 {
   return NS_OK;
 }
+
+#ifdef MOZ_SMIL
+nsresult
+nsGenericElement::GetSMILOverrideStyle(nsIDOMCSSStyleDeclaration** aStyle)
+{
+  nsGenericElement::nsDOMSlots *slots = GetDOMSlots();
+  NS_ENSURE_TRUE(slots, NS_ERROR_OUT_OF_MEMORY);
+
+  if (!slots->mSMILOverrideStyle) {
+    slots->mSMILOverrideStyle = new nsDOMCSSAttributeDeclaration(this, PR_TRUE);
+    NS_ENSURE_TRUE(slots->mSMILOverrideStyle, NS_ERROR_OUT_OF_MEMORY);
+  }
+
+  // Why bother with QI?
+  NS_ADDREF(*aStyle = slots->mSMILOverrideStyle);
+  return NS_OK;
+}
+
+nsICSSStyleRule*
+nsGenericElement::GetSMILOverrideStyleRule()
+{
+  nsGenericElement::nsDOMSlots *slots = GetExistingDOMSlots();
+  return slots ? slots->mSMILOverrideStyleRule.get() : nsnull;
+}
+
+nsresult
+nsGenericElement::SetSMILOverrideStyleRule(nsICSSStyleRule* aStyleRule,
+                                           PRBool aNotify)
+{
+  nsGenericElement::nsDOMSlots *slots = GetDOMSlots();
+  NS_ENSURE_TRUE(slots, NS_ERROR_OUT_OF_MEMORY);
+
+  slots->mSMILOverrideStyleRule = aStyleRule;
+
+  if (aNotify) {
+    nsIDocument* doc = GetCurrentDoc();
+    // Only need to notify PresContexts if we're in a document.  (We might not
+    // be in a document, if we're clearing animation effects on a target node
+    // that's been detached since the previous animation sample.)
+    if (doc) {
+      nsCOMPtr<nsIPresShell> shell = doc->GetPrimaryShell();
+      if (shell) {
+        nsPresContext* presContext = shell->GetPresContext();
+        presContext->SMILOverrideStyleChanged(this);
+      }
+    }
+  }
+
+  return NS_OK;
+}
+#endif // MOZ_SMIL
 
 nsICSSStyleRule*
 nsGenericElement::GetInlineStyleRule()
@@ -3099,24 +3137,6 @@ nsGenericElement::IsNodeOfType(PRUint32 aFlags) const
 
 //----------------------------------------------------------------------
 
-// virtual
-void
-nsGenericElement::SetMayHaveFrame(PRBool aMayHaveFrame)
-{
-  if (aMayHaveFrame) {
-    SetFlags(NODE_MAY_HAVE_FRAME);
-  } else {
-    UnsetFlags(NODE_MAY_HAVE_FRAME);
-  }
-}
-
-// virtual
-PRBool
-nsGenericElement::MayHaveFrame() const
-{
-  return HasFlag(NODE_MAY_HAVE_FRAME);
-}
-
 PRUint32
 nsGenericElement::GetScriptTypeID() const
 {
@@ -3224,7 +3244,7 @@ nsGenericElement::doInsertChildAt(nsIContent* aKid, PRUint32 aIndex,
 
     if (nsContentUtils::HasMutationListeners(aKid,
           NS_EVENT_BITS_MUTATION_NODEINSERTED, container)) {
-      mozAutoRemovableBlockerRemover blockerRemover;
+      mozAutoRemovableBlockerRemover blockerRemover(container->GetOwnerDoc());
       
       nsMutationEvent mutation(PR_TRUE, NS_MUTATION_NODEINSERTED);
       mutation.mRelatedNode = do_QueryInterface(container);
@@ -3273,7 +3293,7 @@ nsGenericElement::doRemoveChildAt(PRUint32 aIndex, PRBool aNotify,
         do_GetService("@mozilla.org/accessibilityService;1");
       if (accService) {
         accService->InvalidateSubtreeFor(presShell, aKid,
-                                         nsIAccessibleEvent::EVENT_DOM_DESTROY);
+                                         nsIAccessibilityService::NODE_REMOVE);
       }
     }
   }
@@ -3296,7 +3316,7 @@ nsGenericElement::doRemoveChildAt(PRUint32 aIndex, PRBool aNotify,
       aMutationEvent &&
       nsContentUtils::HasMutationListeners(aKid,
         NS_EVENT_BITS_MUTATION_NODEREMOVED, container)) {
-    mozAutoRemovableBlockerRemover blockerRemover;
+    mozAutoRemovableBlockerRemover blockerRemover(container->GetOwnerDoc());
 
     nsMutationEvent mutation(PR_TRUE, NS_MUTATION_NODEREMOVED);
     mutation.mRelatedNode = do_QueryInterface(container);
@@ -3385,17 +3405,6 @@ nsGenericElement::DispatchClickEvent(nsPresContext* aPresContext,
 }
 
 nsIFrame*
-nsGenericElement::GetPrimaryFrame()
-{
-  nsIDocument* doc = GetCurrentDoc();
-  if (!doc) {
-    return nsnull;
-  }
-
-  return GetPrimaryFrameFor(this, doc);
-}
-
-nsIFrame*
 nsGenericElement::GetPrimaryFrame(mozFlushType aType)
 {
   nsIDocument* doc = GetCurrentDoc();
@@ -3407,21 +3416,7 @@ nsGenericElement::GetPrimaryFrame(mozFlushType aType)
   // information
   doc->FlushPendingNotifications(aType);
 
-  return GetPrimaryFrameFor(this, doc);
-}
-
-/* static */
-nsIFrame*
-nsGenericElement::GetPrimaryFrameFor(nsIContent* aContent,
-                                     nsIDocument* aDocument)
-{
-  // Get presentation shell 0
-  nsIPresShell *presShell = aDocument->GetPrimaryShell();
-  if (!presShell) {
-    return nsnull;
-  }
-
-  return presShell->GetPrimaryFrameFor(aContent);
+  return GetPrimaryFrame();
 }
 
 void
@@ -3862,7 +3857,7 @@ nsGenericElement::doReplaceOrInsertBefore(PRBool aReplace,
 
         if (nsContentUtils::HasMutationListeners(childContent,
               NS_EVENT_BITS_MUTATION_NODEINSERTED, container)) {
-          mozAutoRemovableBlockerRemover blockerRemover;
+          mozAutoRemovableBlockerRemover blockerRemover(container->GetOwnerDoc());
 
           nsMutationEvent mutation(PR_TRUE, NS_MUTATION_NODEINSERTED);
           mutation.mRelatedNode = do_QueryInterface(container);
@@ -3926,7 +3921,7 @@ nsGenericElement::doReplaceOrInsertBefore(PRBool aReplace,
       }
     }
 
-    if (!newContent->IsNodeOfType(eXUL)) {
+    if (!newContent->IsXUL()) {
       nsContentUtils::ReparentContentWrapper(newContent, aParent,
                                              container->GetOwnerDoc(),
                                              container->GetOwnerDoc());
@@ -3985,7 +3980,7 @@ NS_IMPL_CYCLE_COLLECTION_UNLINK_BEGIN(nsGenericElement)
   NS_IMPL_CYCLE_COLLECTION_UNLINK_LISTENERMANAGER
   NS_IMPL_CYCLE_COLLECTION_UNLINK_USERDATA
 
-  if (tmp->HasProperties() && tmp->IsNodeOfType(nsINode::eXUL)) {
+  if (tmp->HasProperties() && tmp->IsXUL()) {
     tmp->DeleteProperty(nsGkAtoms::contextmenulistener);
     tmp->DeleteProperty(nsGkAtoms::popuplistener);
   }
@@ -4010,11 +4005,15 @@ NS_IMPL_CYCLE_COLLECTION_UNLINK_BEGIN(nsGenericElement)
   {
     nsDOMSlots *slots = tmp->GetExistingDOMSlots();
     if (slots) {
+      slots->mStyle = nsnull;
+#ifdef MOZ_SMIL
+      slots->mSMILOverrideStyle = nsnull;
+#endif // MOZ_SMIL
       if (slots->mAttributeMap) {
         slots->mAttributeMap->DropReference();
         slots->mAttributeMap = nsnull;
       }
-      if (tmp->IsNodeOfType(nsINode::eXUL))
+      if (tmp->IsXUL())
         NS_IF_RELEASE(slots->mControllers);
       slots->mChildrenList = nsnull;
     }
@@ -4052,7 +4051,7 @@ NS_IMPL_CYCLE_COLLECTION_TRAVERSE_BEGIN(nsGenericElement)
   NS_IMPL_CYCLE_COLLECTION_TRAVERSE_LISTENERMANAGER
   NS_IMPL_CYCLE_COLLECTION_TRAVERSE_USERDATA
 
-  if (tmp->HasProperties() && tmp->IsNodeOfType(nsINode::eXUL)) {
+  if (tmp->HasProperties() && tmp->IsXUL()) {
     nsISupports* property =
       static_cast<nsISupports*>
                  (tmp->GetProperty(nsGkAtoms::contextmenulistener));
@@ -4091,10 +4090,15 @@ NS_IMPL_CYCLE_COLLECTION_TRAVERSE_BEGIN(nsGenericElement)
       NS_CYCLE_COLLECTION_NOTE_EDGE_NAME(cb, "slots mStyle");
       cb.NoteXPCOMChild(slots->mStyle.get());
 
+#ifdef MOZ_SMIL
+      NS_CYCLE_COLLECTION_NOTE_EDGE_NAME(cb, "slots mSMILOverrideStyle");
+      cb.NoteXPCOMChild(slots->mSMILOverrideStyle.get());
+#endif // MOZ_SMIL
+
       NS_CYCLE_COLLECTION_NOTE_EDGE_NAME(cb, "slots mAttributeMap");
       cb.NoteXPCOMChild(slots->mAttributeMap.get());
 
-      if (tmp->IsNodeOfType(nsINode::eXUL))
+      if (tmp->IsXUL())
         cb.NoteXPCOMChild(slots->mControllers);
       cb.NoteXPCOMChild(
         static_cast<nsIDOMNodeList*>(slots->mChildrenList.get()));
@@ -4180,7 +4184,9 @@ nsGenericElement::AddScriptEventListener(nsIAtom* aEventName,
   GetEventListenerManagerForAttr(getter_AddRefs(manager),
                                  getter_AddRefs(target),
                                  &defer);
-  NS_ENSURE_STATE(manager);
+  if (!manager) {
+    return NS_OK;
+  }
 
   defer = defer && aDefer; // only defer if everyone agrees...
   PRUint32 lang = GetScriptTypeID();
@@ -4347,8 +4353,7 @@ nsGenericElement::SetAttrAndNotify(PRInt32 aNamespaceID,
       MOZ_AUTO_DOC_UPDATE(document, UPDATE_CONTENT_STATE, aNotify);
       document->ContentStatesChanged(this, nsnull, stateMask);
     }
-    nsNodeUtils::AttributeChanged(this, aNamespaceID, aName, modType,
-                                  stateMask);
+    nsNodeUtils::AttributeChanged(this, aNamespaceID, aName, modType);
   }
 
   if (aNamespaceID == kNameSpaceID_XMLEvents && 
@@ -4361,7 +4366,7 @@ nsGenericElement::SetAttrAndNotify(PRInt32 aNamespaceID,
   }
 
   if (aFireMutation) {
-    mozAutoRemovableBlockerRemover blockerRemover;
+    mozAutoRemovableBlockerRemover blockerRemover(GetOwnerDoc());
     
     nsMutationEvent mutation(PR_TRUE, NS_MUTATION_ATTRMODIFIED);
 
@@ -4609,15 +4614,14 @@ nsGenericElement::UnsetAttr(PRInt32 aNameSpaceID, nsIAtom* aName,
       document->ContentStatesChanged(this, nsnull, stateMask);
     }
     nsNodeUtils::AttributeChanged(this, aNameSpaceID, aName,
-                                  nsIDOMMutationEvent::REMOVAL,
-                                  stateMask);
+                                  nsIDOMMutationEvent::REMOVAL);
   }
 
   rv = AfterSetAttr(aNameSpaceID, aName, nsnull, aNotify);
   NS_ENSURE_SUCCESS(rv, rv);
 
   if (hasMutationListeners) {
-    mozAutoRemovableBlockerRemover blockerRemover;
+    mozAutoRemovableBlockerRemover blockerRemover(GetOwnerDoc());
 
     nsCOMPtr<nsIDOMEventTarget> node =
       do_QueryInterface(static_cast<nsIContent *>(this));
@@ -4984,7 +4988,8 @@ nsGenericElement::PostHandleEventForLinks(nsEventChainPostVisitor& aVisitor)
           nsIFocusManager* fm = nsFocusManager::GetFocusManager();
           if (fm) {
             nsCOMPtr<nsIDOMElement> elem = do_QueryInterface(this);
-            fm->SetFocus(elem, nsIFocusManager::FLAG_BYMOUSE);
+            fm->SetFocus(elem, nsIFocusManager::FLAG_BYMOUSE |
+                               nsIFocusManager::FLAG_NOSCROLL);
           }
 
           aVisitor.mPresContext->EventStateManager()->
@@ -5056,6 +5061,8 @@ nsGenericElement::GetLinkTarget(nsAString& aTarget)
 }
 
 // NOTE: The aPresContext pointer is NOT addrefed.
+// *aSelectorList might be null even if NS_OK is returned; this
+// happens when all the selectors were pseudo-element selectors.
 static nsresult
 ParseSelectorList(nsINode* aNode,
                   const nsAString& aSelectorString,
@@ -5071,12 +5078,27 @@ ParseSelectorList(nsINode* aNode,
   nsresult rv = doc->CSSLoader()->GetParserFor(nsnull, getter_AddRefs(parser));
   NS_ENSURE_SUCCESS(rv, rv);
 
+  nsCSSSelectorList* selectorList;
   rv = parser->ParseSelectorString(aSelectorString,
                                    doc->GetDocumentURI(),
                                    0, // XXXbz get the right line number!
-                                   aSelectorList);
+                                   &selectorList);
   doc->CSSLoader()->RecycleParser(parser);
   NS_ENSURE_SUCCESS(rv, rv);
+
+  // Filter out pseudo-element selectors from selectorList
+  nsCSSSelectorList** slot = &selectorList;
+  do {
+    nsCSSSelectorList* cur = *slot;
+    if (cur->mSelectors->IsPseudoElement()) {
+      *slot = cur->mNext;
+      cur->mNext = nsnull;
+      delete cur;
+    } else {
+      slot = &cur->mNext;
+    }
+  } while (*slot);
+  *aSelectorList = selectorList;
 
   // It's not strictly necessary to have a prescontext here, but it's
   // a bit of an optimization for various stuff.
@@ -5246,4 +5268,31 @@ nsGenericElement::doQuerySelectorAll(nsINode* aRoot,
   TryMatchingElementsInSubtree(aRoot, nsnull, presContext, selectorList,
                                AppendAllMatchingElements, contentList);
   return NS_OK;
+}
+
+NS_IMETHODIMP
+nsNSElementTearoff::MozMatchesSelector(const nsAString& aSelector, PRBool* aReturn)
+{
+  NS_PRECONDITION(aReturn, "Null out param?");
+  *aReturn = nsGenericElement::doMatchesSelector(mContent, aSelector);
+  return NS_OK;
+}
+
+/* static */
+PRBool
+nsGenericElement::doMatchesSelector(nsIContent* aNode, const nsAString& aSelector)
+{
+  nsAutoPtr<nsCSSSelectorList> selectorList;
+  nsPresContext* presContext;
+  PRBool matches = PR_FALSE;
+
+  if (NS_SUCCEEDED(ParseSelectorList(aNode, aSelector,
+                                     getter_Transfers(selectorList),
+                                     &presContext)))
+  {
+    RuleProcessorData data(presContext, aNode, nsnull);
+    matches = nsCSSRuleProcessor::SelectorListMatches(data, selectorList);
+  }
+
+  return matches;
 }

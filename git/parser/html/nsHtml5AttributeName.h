@@ -30,6 +30,7 @@
 
 #include "prtypes.h"
 #include "nsIAtom.h"
+#include "nsHtml5AtomTable.h"
 #include "nsString.h"
 #include "nsINameSpaceManager.h"
 #include "nsIContent.h"
@@ -41,8 +42,11 @@
 #include "nsHtml5NamedCharacters.h"
 #include "nsHtml5Atoms.h"
 #include "nsHtml5ByteReadable.h"
+#include "nsIUnicodeDecoder.h"
+#include "nsAHtml5TreeBuilderState.h"
 
-class nsHtml5Parser;
+class nsHtml5StreamParser;
+class nsHtml5SpeculativeLoader;
 
 class nsHtml5Tokenizer;
 class nsHtml5TreeBuilder;
@@ -56,21 +60,24 @@ class nsHtml5Portability;
 
 class nsHtml5AttributeName
 {
-  private:
+  public:
     static PRInt32* ALL_NO_NS;
+  private:
     static PRInt32* XMLNS_NS;
     static PRInt32* XML_NS;
     static PRInt32* XLINK_NS;
+  public:
     static nsIAtom** ALL_NO_PREFIX;
+  private:
     static nsIAtom** XMLNS_PREFIX;
     static nsIAtom** XLINK_PREFIX;
     static nsIAtom** XML_PREFIX;
     static nsIAtom** SVG_DIFFERENT(nsIAtom* name, nsIAtom* camel);
     static nsIAtom** MATH_DIFFERENT(nsIAtom* name, nsIAtom* camel);
     static nsIAtom** COLONIFIED_LOCAL(nsIAtom* name, nsIAtom* suffix);
-    static nsIAtom** SAME_LOCAL(nsIAtom* name);
   public:
-    static nsHtml5AttributeName* nameByBuffer(PRUnichar* buf, PRInt32 offset, PRInt32 length);
+    static nsIAtom** SAME_LOCAL(nsIAtom* name);
+    static nsHtml5AttributeName* nameByBuffer(PRUnichar* buf, PRInt32 offset, PRInt32 length, nsHtml5AtomTable* interner);
   private:
     static PRInt32 bufToHash(PRUnichar* buf, PRInt32 len);
     PRInt32* uri;
@@ -83,6 +90,7 @@ class nsHtml5AttributeName
   public:
     virtual void release();
     ~nsHtml5AttributeName();
+    virtual nsHtml5AttributeName* cloneAttributeName(nsHtml5AtomTable* interner);
     PRInt32 getUri(PRInt32 mode);
     nsIAtom* getLocal(PRInt32 mode);
     nsIAtom* getPrefix(PRInt32 mode);

@@ -55,6 +55,7 @@
 #include "nsHTMLReflowMetrics.h"
 #include "gfxMatrix.h"
 #include "nsFrameList.h"
+#include "nsAlgorithm.h"
 
 /**
  * New rules of reflow:
@@ -106,10 +107,6 @@ struct nsMargin;
 struct CharacterDataChangeInfo;
 
 typedef class nsIFrame nsIBox;
-
-#define NS_IFRAME_IID \
-  { 0x7e9018b5, 0x5405, 0x4e2b, \
-    { 0x87, 0x67, 0xe2, 0xb4, 0xb1, 0x3e, 0xc1, 0x69 } }
 
 /**
  * Indication of how the frame can be split. This is used when doing runaround
@@ -236,6 +233,8 @@ enum {
   // If this bit is set, the frame is "special" (lame term, I know),
   // which means that it is part of the mangled frame hierarchy that
   // results when an inline has been split because of a nested block.
+  // See the comments in nsCSSFrameConstructor::ConstructInline for
+  // more details.
   NS_FRAME_IS_SPECIAL =                         0x00008000,
 
   // If this bit is set, the frame may have a transform that it applies
@@ -490,7 +489,7 @@ typedef PRBool nsDidReflowStatus;
 class nsIFrame : public nsQueryFrame
 {
 public:
-  NS_DECLARE_FRAME_ACCESSOR(nsIFrame)
+  NS_DECL_QUERYFRAME_TARGET(nsIFrame)
 
   nsPresContext* PresContext() const {
     return GetStyleContext()->GetRuleNode()->GetPresContext();
@@ -518,14 +517,24 @@ public:
 
   /**
    * Destroys this frame and each of its child frames (recursively calls
-   * Destroy() for each child)
+   * Destroy() for each child). If this frame is a first-continuation, this
+   * also removes the frame from the primary frame man and clears undisplayed
+   * content for its content node.
+   * If the frame is a placeholder, it also ensures the out-of-flow frame's
+   * removal and destruction.
    */
-  virtual void Destroy() = 0;
+  void Destroy() { DestroyFrom(this); }
 
-  /*
-   * Notify the frame that it has been removed as the primary frame for its content
+protected:
+  /**
+   * Implements Destroy(). Do not call this directly except from within a
+   * DestroyFrom() implementation.
+   * @param  aDestructRoot is the root of the subtree being destroyed
    */
-  virtual void RemovedAsPrimaryFrame() {}
+  virtual void DestroyFrom(nsIFrame* aDestructRoot) = 0;
+  friend class nsFrameList; // needed to pass aDestructRoot through to children
+  friend class nsLineBox;   // needed to pass aDestructRoot through to children
+public:
 
   /**
    * Called to set the initial list of frames. This happens after the frame
@@ -619,6 +628,15 @@ public:
    * May return nsnull during reflow
    */
   virtual nsIFrame* GetContentInsertionFrame() { return this; }
+
+  /**
+   * Get the frame that should be scrolled if the content associated
+   * with this frame is targeted for scrolling. For frames implementing
+   * nsIScrollableFrame this will return the frame itself. For frames
+   * like nsTextControlFrame that contain a scrollframe, will return
+   * that scrollframe.
+   */
+  virtual nsIScrollableFrame* GetScrollTargetFrame() { return nsnull; }
 
   /**
    * Get the offsets of the frame. most will be 0,0
@@ -721,6 +739,11 @@ public:
   // returns GetStyleBorder()->mBoxShadow unless this frame is using
   // -moz-appearance and is not chrome
   nsCSSShadowArray* GetEffectiveBoxShadows();
+
+  /**
+   * @return PR_FALSE if this frame definitely has no borders at all
+   */                 
+  PRBool HasBorder() const;
 
   /**
    * Accessor functions for geometric parent
@@ -870,25 +893,27 @@ public:
   nsIFrame* GetFirstChild(nsIAtom* aListName) const {
     return GetChildList(aListName).FirstChild();
   }
+  // XXXmats this method should also go away then
+  nsIFrame* GetLastChild(nsIAtom* aListName) const {
+    return GetChildList(aListName).LastChild();
+  }
 
   /**
-   * Get the last child frame from the specified child list.
-   *
-   * @param   aListName the name of the child list. A NULL pointer for the atom
-   *            name means the unnamed principal child list
-   * @return  the child frame, or NULL if there is no such child
-   * @see     #GetAdditionalListName()
-   */
-  virtual nsIFrame* GetLastChild(nsIAtom* aListName) const;
-
-  /**
-   * Child frames are linked together in a singly-linked list
+   * Child frames are linked together in a doubly-linked list
    */
   nsIFrame* GetNextSibling() const { return mNextSibling; }
   void SetNextSibling(nsIFrame* aNextSibling) {
-    NS_ASSERTION(this != aNextSibling, "Creating a circular frame list, this is very bad."); 
+    NS_ASSERTION(this != aNextSibling, "Creating a circular frame list, this is very bad.");
+    if (mNextSibling && mNextSibling->GetPrevSibling() == this) {
+      mNextSibling->mPrevSibling = nsnull;
+    }
     mNextSibling = aNextSibling;
+    if (mNextSibling) {
+      mNextSibling->mPrevSibling = this;
+    }
   }
+
+  nsIFrame* GetPrevSibling() const { return mPrevSibling; }
 
   /**
    * Builds the display lists for the content represented by this frame
@@ -990,7 +1015,7 @@ public:
                                     PRUint32                aFlags = 0);
 
   /**
-   * Does this frame type always need a view?
+   * Does this frame need a view?
    */
   virtual PRBool NeedsView() { return PR_FALSE; }
 
@@ -999,14 +1024,6 @@ public:
    * if we have the -moz-transform property or if we're an SVGForeignObjectFrame.
    */
   virtual PRBool IsTransformed() const;
-
-  /**
-   * This frame needs a view with a widget (e.g. because it's fixed
-   * positioned), so we call this to create the widget. If widgets for
-   * this frame type need to be of a certain type or require special
-   * initialization, that can be done here.
-   */
-  virtual nsresult CreateWidgetForView(nsIView* aView);
 
   /**
    * Event handling of GUI events.
@@ -1049,8 +1066,8 @@ public:
     PRInt32 secondaryOffset;
     // Helpers for places that need the ends of the offsets and expect them in
     // numerical order, as opposed to wanting the primary and secondary offsets
-    PRInt32 StartOffset() { return PR_MIN(offset, secondaryOffset); }
-    PRInt32 EndOffset() { return PR_MAX(offset, secondaryOffset); }
+    PRInt32 StartOffset() { return NS_MIN(offset, secondaryOffset); }
+    PRInt32 EndOffset() { return NS_MAX(offset, secondaryOffset); }
     // This boolean indicates whether the associated content is before or after
     // the offset; the most visible use is to allow the caret to know which line
     // to display on.
@@ -1569,13 +1586,6 @@ public:
   nsresult SetView(nsIView* aView);
 
   /**
-   * This view will be used to parent the views of any children.
-   * This allows us to insert an anonymous inner view to parent
-   * some children.
-   */
-  virtual nsIView* GetParentViewForChildFrame(nsIFrame* aFrame) const;
-
-  /**
    * Find the closest view (on |this| or an ancestor).
    * If aOffset is non-null, it will be set to the offset of |this|
    * from the returned view.
@@ -1733,14 +1743,6 @@ public:
   virtual PRBool IsLeaf() const;
 
   /**
-   * Does this frame want to capture the mouse when the user clicks in
-   * it or its children? If so, return the view which should be
-   * targeted for mouse capture. The view need not be this frame's view,
-   * it could be the view on a child.
-   */
-  virtual nsIView* GetMouseCapturer() const { return nsnull; }
-
-  /**
    * @param aFlags see InvalidateInternal below
    */
   void InvalidateWithFlags(const nsRect& aDamageRect, PRUint32 aFlags);
@@ -1777,15 +1779,19 @@ public:
    *   could cause frames to be deleted (including |this|).
    * @param aFlags INVALIDATE_CROSS_DOC: true if the invalidation
    *   originated in a subdocument
-   * @param aFlags INVALIDATE_NOTIFY_ONLY: set when this invalidation should
-   * cause MozAfterPaint listeners to be notified, but should not actually
-   * invalidate anything. This is used to notify about scrolling, where the
-   * screen has already been updated.
+   * @param aFlags INVALIDATE_REASON_SCROLL_BLIT: set if the invalidation
+   * was really just the scroll machinery copying pixels from one
+   * part of the window to another
+   * @param aFlags INVALIDATE_REASON_SCROLL_REPAINT: set if the invalidation
+   * was triggered by scrolling
    */
   enum {
-  	INVALIDATE_IMMEDIATE = 0x1,
-  	INVALIDATE_CROSS_DOC = 0x2,
-  	INVALIDATE_NOTIFY_ONLY = 0x4
+  	INVALIDATE_IMMEDIATE = 0x01,
+  	INVALIDATE_CROSS_DOC = 0x02,
+  	INVALIDATE_REASON_SCROLL_BLIT = 0x04,
+  	INVALIDATE_REASON_SCROLL_REPAINT = 0x08,
+    INVALIDATE_REASON_MASK = INVALIDATE_REASON_SCROLL_BLIT |
+                             INVALIDATE_REASON_SCROLL_REPAINT
   };
   virtual void InvalidateInternal(const nsRect& aDamageRect,
                                   nscoord aOffsetX, nscoord aOffsetY,
@@ -1955,14 +1961,6 @@ public:
    */
 
   /**
-   *  Call to turn on/off mouseCapture at the view level. Needed by the ESM so
-   *  it must be in the public interface.
-   *  @param aPresContext presContext associated with the frame
-   *  @param aGrabMouseEvents PR_TRUE to enable capture, PR_FALSE to disable
-   */
-  NS_IMETHOD CaptureMouse(nsPresContext* aPresContext, PRBool aGrabMouseEvents) = 0;
-
-  /**
    *  called to find the previous/next character, word, or line  returns the actual 
    *  nsIFrame and the frame offset.  THIS DOES NOT CHANGE SELECTION STATE
    *  uses frame's begin selection state to start. if no selection on this frame will 
@@ -2073,7 +2071,7 @@ public:
    */
   PRBool IsPseudoStackingContextFromStyle() {
     const nsStyleDisplay* disp = GetStyleDisplay();
-    return disp->mOpacity != 1.0f || disp->IsPositioned();
+    return disp->mOpacity != 1.0f || disp->IsPositioned() || disp->IsFloating();
   }
   
   virtual PRBool HonorPrintBackgroundSettings() { return PR_TRUE; }
@@ -2343,7 +2341,10 @@ protected:
   nsIContent*      mContent;
   nsStyleContext*  mStyleContext;
   nsIFrame*        mParent;
-  nsIFrame*        mNextSibling;  // singly-linked list of frames
+private:
+  nsIFrame*        mNextSibling;  // doubly-linked list of frames
+  nsIFrame*        mPrevSibling;  // Do not touch outside SetNextSibling!
+protected:
   nsFrameState     mState;
 
   // When there is an overflow area only slightly larger than mRect,
@@ -2467,6 +2468,16 @@ protected:
 private:
   nsRect* GetOverflowAreaProperty(PRBool aCreateIfNecessary = PR_FALSE);
   void SetOverflowRect(const nsRect& aRect);
+
+#ifdef NS_DEBUG
+public:
+  // Formerly nsIFrameDebug
+  NS_IMETHOD  List(FILE* out, PRInt32 aIndent) const = 0;
+  NS_IMETHOD  GetFrameName(nsAString& aResult) const = 0;
+  NS_IMETHOD_(nsFrameState)  GetDebugStateBits() const = 0;
+  NS_IMETHOD  DumpRegressionData(nsPresContext* aPresContext,
+                                 FILE* out, PRInt32 aIndent) = 0;
+#endif
 };
 
 //----------------------------------------------------------------------
@@ -2534,44 +2545,47 @@ public:
     Clear(mFrame ? mFrame->PresContext()->GetPresShell() : nsnull);
   }
 private:
-  void Init(nsIFrame* aFrame);
+  void InitInternal(nsIFrame* aFrame);
+
+  void InitExternal(nsIFrame* aFrame) {
+    Clear(mFrame ? mFrame->PresContext()->GetPresShell() : nsnull);
+    mFrame = aFrame;
+    if (mFrame) {
+      nsIPresShell* shell = mFrame->PresContext()->GetPresShell();
+      NS_WARN_IF_FALSE(shell, "Null PresShell in nsWeakFrame!");
+      if (shell) {
+        shell->AddWeakFrame(this);
+      } else {
+        mFrame = nsnull;
+      }
+    }
+  }
+
+  void Init(nsIFrame* aFrame) {
+#ifdef _IMPL_NS_LAYOUT
+    InitInternal(aFrame);
+#else
+    InitExternal(aFrame);
+#endif
+  }
 
   nsWeakFrame*  mPrev;
   nsIFrame*     mFrame;
 };
 
 inline void
-nsFrameList::Enumerator::Next() {
+nsFrameList::Enumerator::Next()
+{
   NS_ASSERTION(!AtEnd(), "Should have checked AtEnd()!");
   mFrame = mFrame->GetNextSibling();
 }
 
-inline nsFrameList::Slice
-nsFrameList::InsertFrames(nsIFrame* aParent, nsIFrame* aPrevSibling,
-                          nsFrameList& aFrameList) {
-  NS_PRECONDITION(!aFrameList.IsEmpty(), "Unexpected empty list");
-  nsIFrame* firstNewFrame = aFrameList.FirstChild();
-  nsIFrame* nextSibling =
-    aPrevSibling ? aPrevSibling->GetNextSibling() : FirstChild();
-  InsertFrames(aParent, aPrevSibling, firstNewFrame);
-  aFrameList.Clear();
-  return Slice(*this, firstNewFrame, nextSibling);
-}
-
-inline void
-nsFrameList::AppendFrame(nsIFrame* aParent, nsIFrame* aFrame)
+inline
+nsFrameList::FrameLinkEnumerator::
+FrameLinkEnumerator(const nsFrameList& aList, nsIFrame* aPrevFrame)
+  : Enumerator(aList)
 {
-  NS_PRECONDITION(aFrame && !aFrame->GetNextSibling(),
-                  "Shouldn't be appending more than one frame");
-  AppendFrames(aParent, aFrame);
-}
-
-inline void
-nsFrameList::InsertFrame(nsIFrame* aParent,
-                         nsIFrame* aPrevSibling,
-                         nsIFrame* aNewFrame) {
-  NS_PRECONDITION(aNewFrame && !aNewFrame->GetNextSibling(),
-                  "Shouldn't be inserting more than one frame");
-  InsertFrames(aParent, aPrevSibling, aNewFrame);
+  mPrev = aPrevFrame;
+  mFrame = aPrevFrame ? aPrevFrame->GetNextSibling() : aList.FirstChild();
 }
 #endif /* nsIFrame_h___ */

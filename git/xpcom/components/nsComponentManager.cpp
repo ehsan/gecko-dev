@@ -86,6 +86,7 @@
 #include "prthread.h"
 #include "private/pprthred.h"
 #include "nsTArray.h"
+#include "prio.h"
 
 #include "nsInt64.h"
 #include "nsManifestLineReader.h"
@@ -2923,13 +2924,34 @@ nsComponentManagerImpl::AutoRegisterImpl(nsIFile   *inDirSpec,
     return rv;
 }
 
+static const char kNL[] = "\r\n";
+
 nsresult
 nsComponentManagerImpl::AutoRegisterDirectory(nsIFile *inDirSpec,
                           nsCOMArray<nsILocalFile>    &aLeftovers,
                           nsTArray<DeferredModule>    &aDeferred)
 {
+    nsresult rv;
+
+    nsCOMPtr<nsIFile> componentsList;
+    inDirSpec->Clone(getter_AddRefs(componentsList));
+    if (componentsList) {
+        nsCOMPtr<nsILocalFile> lfComponentsList =
+            do_QueryInterface(componentsList);
+        lfComponentsList->AppendNative(NS_LITERAL_CSTRING("components.list"));
+        PRFileDesc* fd;
+        if (NS_SUCCEEDED(lfComponentsList->OpenNSPRFileDesc(PR_RDONLY,
+                                                            0400, &fd)))
+        {
+            rv = AutoRegisterComponentsList(inDirSpec, fd,
+                                            aLeftovers, aDeferred);
+            PR_Close(fd);
+            return rv;
+        }
+    }
+
     nsCOMPtr<nsISimpleEnumerator> entries;
-    nsresult rv = inDirSpec->GetDirectoryEntries(getter_AddRefs(entries));
+    rv = inDirSpec->GetDirectoryEntries(getter_AddRefs(entries));
     if (NS_FAILED(rv))
         return rv;
 
@@ -2958,6 +2980,52 @@ nsComponentManagerImpl::AutoRegisterDirectory(nsIFile *inDirSpec,
         }
     }
 
+    return NS_OK;
+}
+
+nsresult
+nsComponentManagerImpl::AutoRegisterComponentsList(nsIFile* inDir,
+                                  PRFileDesc* fd,
+                                  nsCOMArray<nsILocalFile>& aLeftovers,
+                                  nsTArray<DeferredModule>& aDeferred)
+{
+    PRFileInfo info;
+    if (PR_SUCCESS != PR_GetOpenFileInfo(fd, &info))
+        return NS_ErrorAccordingToNSPR();
+
+    nsAutoArrayPtr<char> buf(new char[info.size + 1]);
+    if (!buf)
+        return NS_ERROR_OUT_OF_MEMORY;
+
+    PRInt32 read = 0;
+    while (read < info.size) {
+        PRInt32 n = PR_Read(fd, buf + read, info.size - read);
+        if (n < 0)
+            return NS_ErrorAccordingToNSPR();
+
+        read += n;
+        if (n == 0)
+            break;
+    }
+
+    buf[read] = '\0';
+    char* c = buf;
+    while (char *token = NS_strtok(kNL, &c)) {
+        if (token[0] == '#')
+            continue;
+
+        nsCOMPtr<nsIFile> component;
+        inDir->Clone(getter_AddRefs(component));
+        if (!component)
+            return NS_ERROR_OUT_OF_MEMORY;
+
+        nsCOMPtr<nsILocalFile> lfcomponent = do_QueryInterface(component);
+        lfcomponent->AppendNative(nsDependentCString(token));
+
+        nsresult rv = AutoRegisterComponent(lfcomponent, aDeferred);
+        if (NS_FAILED(rv))
+            aLeftovers.AppendObject(lfcomponent);
+    }
     return NS_OK;
 }
 
@@ -3006,11 +3074,19 @@ nsComponentManagerImpl::AutoRegisterComponent(nsILocalFile*  aComponentFile,
     }
 
     PRInt64 modTime = 0;
-    if (NS_SUCCEEDED(aComponentFile->GetLastModifiedTime(&modTime))) {
-        PRInt64 cachedModTime;
-        if (mAutoRegEntries.Get(lfhash, &cachedModTime) &&
-            cachedModTime == modTime)
+    PRInt64 cachedModTime;
+
+    // If it's in the cache, it should be valid.
+    // The cache file is removed if files are modified.
+    if (mAutoRegEntries.Get(lfhash, &cachedModTime)) {
+#ifdef DEBUG
+        if (NS_SUCCEEDED(aComponentFile->GetLastModifiedTime(&modTime))
+            && cachedModTime == modTime) {
             return NS_OK;
+        }
+#else
+        return NS_OK;
+#endif
     }
 
     const char *registryType = nsnull;
@@ -3189,7 +3265,7 @@ nsComponentManagerImpl::IsRegistered(const nsCID &aClass,
 {
     if (!aRegistered)
     {
-        NS_ASSERTION(0, "null ptr");
+        NS_ERROR("null ptr");
         return NS_ERROR_NULL_POINTER;
     }
     *aRegistered = (nsnull != GetFactoryEntry(aClass));

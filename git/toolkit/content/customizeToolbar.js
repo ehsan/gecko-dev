@@ -44,7 +44,6 @@ var gToolboxDocument = null;
 var gToolbox = null;
 var gCurrentDragOverItem = null;
 var gToolboxChanged = false;
-var gToolboxIconSize = false;
 var gToolboxSheet = false;
 
 function onLoad()
@@ -104,9 +103,8 @@ function initDialog()
 {
   var mode = gToolbox.getAttribute("mode");
   document.getElementById("modelist").value = mode;
-  gToolboxIconSize = gToolbox.getAttribute("iconsize");
   var smallIconsCheckbox = document.getElementById("smallicons");
-  smallIconsCheckbox.checked = gToolboxIconSize == "small";
+  smallIconsCheckbox.checked = gToolbox.getAttribute("iconsize") == "small";
   if (mode == "text")
     smallIconsCheckbox.disabled = true;
 
@@ -462,7 +460,7 @@ function fillRowWithFlex(aRow)
 
 /**
  * Makes sure that an item that has been cloned from a template
- * is stripped of all properties that may adversely affect its
+ * is stripped of any attributes that may adversely affect its
  * appearance in the palette.
  */
 function cleanUpItemForPalette(aItem, aWrapper)
@@ -482,17 +480,12 @@ function cleanUpItemForPalette(aItem, aWrapper)
   // Remove attributes that screw up our appearance.
   aItem.removeAttribute("command");
   aItem.removeAttribute("observes");
-  aItem.removeAttribute("disabled");
   aItem.removeAttribute("type");
   aItem.removeAttribute("width");
 
-  if (aItem.localName == "toolbaritem" && aItem.firstChild) {
-    aItem.firstChild.removeAttribute("observes");
-
-    // So the throbber doesn't throb in the dialog,
-    // cute as that may be...
-    aItem.firstChild.removeAttribute("busy");
-  }
+  Array.forEach(aWrapper.querySelectorAll("[disabled]"), function(aNode) {
+    aNode.removeAttribute("disabled");
+  });
 }
 
 /**
@@ -642,13 +635,8 @@ function restoreDefaultSet()
   }
 
   // Restore the default icon size and mode.
-  var defaultMode = gToolbox.getAttribute("defaultmode");
-  var defaultIconsSmall = gToolbox.getAttribute("defaulticonsize") == "small";
-
-  updateIconSize(defaultIconsSmall, true);
-  document.getElementById("smallicons").checked = defaultIconsSmall;
-  updateToolbarMode(defaultMode, true);
-  document.getElementById("modelist").value = defaultMode;
+  document.getElementById("smallicons").checked = (updateIconSize() == "small");
+  document.getElementById("modelist").value = updateToolbarMode();
 
   // Now rebuild the palette.
   buildPalette();
@@ -659,52 +647,41 @@ function restoreDefaultSet()
   toolboxChanged("reset");
 }
 
-function updateIconSize(aUseSmallIcons, localDefault)
-{
-  gToolboxIconSize = aUseSmallIcons ? "small" : "large";
-
-  setAttribute(gToolbox, "iconsize", gToolboxIconSize);
-  gToolboxDocument.persist(gToolbox.id, "iconsize");
-
-  for (var i = 0; i < gToolbox.childNodes.length; ++i) {
-    var toolbar = getToolbarAt(i);
-    if (isCustomizableToolbar(toolbar)) {
-      var toolbarIconSize = (localDefault && toolbar.hasAttribute("defaulticonsize")) ?
-                            toolbar.getAttribute("defaulticonsize") :
-                            gToolboxIconSize;
-      setAttribute(toolbar, "iconsize", toolbarIconSize);
-      gToolboxDocument.persist(toolbar.id, "iconsize");
-    }
-  }
+function updateIconSize(aSize) {
+  return updateToolboxProperty("iconsize", aSize, "large");
 }
 
-function updateToolbarMode(aModeValue, localDefault)
-{
-  setAttribute(gToolbox, "mode", aModeValue);
-  gToolboxDocument.persist(gToolbox.id, "mode");
-
-  for (var i = 0; i < gToolbox.childNodes.length; ++i) {
-    var toolbar = getToolbarAt(i);
-    if (isCustomizableToolbar(toolbar)) {
-      var toolbarMode = (localDefault && toolbar.hasAttribute("defaultmode")) ?
-                        toolbar.getAttribute("defaultmode") :
-                        aModeValue;
-      setAttribute(toolbar, "mode", toolbarMode);
-      gToolboxDocument.persist(toolbar.id, "mode");
-    }
-  }
+function updateToolbarMode(aModeValue) {
+  var mode = updateToolboxProperty("mode", aModeValue, "icons");
 
   var iconSizeCheckbox = document.getElementById("smallicons");
-  iconSizeCheckbox.disabled = aModeValue == "text";
+  iconSizeCheckbox.disabled = mode == "text";
+
+  return mode;
 }
 
+function updateToolboxProperty(aProp, aValue, aToolkitDefault) {
+  var toolboxDefault = gToolbox.getAttribute("default" + aProp) ||
+                       aToolkitDefault;
 
-function setAttribute(aElt, aAttr, aVal)
-{
- if (aVal)
-    aElt.setAttribute(aAttr, aVal);
-  else
-    aElt.removeAttribute(aAttr);
+  gToolbox.setAttribute(aProp, aValue || toolboxDefault);
+  gToolboxDocument.persist(gToolbox.id, aProp);
+
+  Array.forEach(gToolbox.childNodes, function (toolbar) {
+    if (!isCustomizableToolbar(toolbar))
+      return;
+
+    var toolbarDefault = toolbar.getAttribute("default" + aProp) ||
+                         toolboxDefault;
+    if (toolbar.getAttribute("lock" + aProp) == "true" &&
+        toolbar.getAttribute(aProp) == toolbarDefault)
+      return;
+
+    toolbar.setAttribute(aProp, aValue || toolbarDefault);
+    gToolboxDocument.persist(toolbar.id, aProp);
+  });
+
+  return aValue || toolboxDefault;
 }
 
 function isCustomizableToolbar(aElt)

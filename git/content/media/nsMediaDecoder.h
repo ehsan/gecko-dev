@@ -47,14 +47,9 @@
 #include "gfxRect.h"
 #include "nsITimer.h"
 
-#ifdef PR_LOGGING
-extern PRLogModuleInfo* gVideoDecoderLog;
-#define LOG(type, msg) PR_LOG(gVideoDecoderLog, type, msg)
-#else
-#define LOG(type, msg)
-#endif
-
 class nsHTMLMediaElement;
+class nsMediaStream;
+class nsIStreamListener;
 
 // All methods of nsMediaDecoder must be called from the main thread only
 // with the exception of SetRGBData and GetStatistics, which can be
@@ -68,16 +63,17 @@ public:
   nsMediaDecoder();
   virtual ~nsMediaDecoder();
 
-  // Initialize the logging object
-  static nsresult InitLogger();
+  // Create a new decoder of the same type as this one.
+  virtual nsMediaDecoder* Clone() = 0;
 
   // Perform any initialization required for the decoder.
   // Return PR_TRUE on successful initialisation, PR_FALSE
   // on failure.
   virtual PRBool Init(nsHTMLMediaElement* aElement);
 
-  // Return the current URI being played or downloaded.
-  virtual void GetCurrentURI(nsIURI** aURI) = 0;
+  // Get the current nsMediaStream being used. Its URI will be returned
+  // by currentSrc.
+  virtual nsMediaStream* GetCurrentStream() = 0;
 
   // Return the principal of the current URI being played or downloaded.
   virtual already_AddRefed<nsIPrincipal> GetCurrentPrincipal() = 0;
@@ -96,7 +92,7 @@ public:
 
   // Return the duration of the video in seconds.
   virtual float GetDuration() = 0;
-  
+
   // Pause video playback.
   virtual void Pause() = 0;
 
@@ -107,12 +103,12 @@ public:
   // called.
   virtual nsresult Play() = 0;
 
-  // Start downloading the video. Decode the downloaded data up to the
+  // Start downloading the media. Decode the downloaded data up to the
   // point of the first frame of data.
-  // Exactly one of aURI and aChannel must be null. aListener must be
-  // null if and only if aChannel is.
-  virtual nsresult Load(nsIURI* aURI,
-                        nsIChannel* aChannel,
+  // aStream is the media stream to use. Ownership of aStream passes to
+  // the decoder, even if Load returns an error.
+  // This is called at most once per decoder, after Init().
+  virtual nsresult Load(nsMediaStream* aStream,
                         nsIStreamListener **aListener) = 0;
 
   // Draw the latest video data. This is done
@@ -174,7 +170,7 @@ public:
   // This is called via a channel listener if it can pick up the duration
   // from a content header. Must be called from the main thread only.
   virtual void SetDuration(PRInt64 aDuration) = 0;
- 
+
   // Set a flag indicating whether seeking is supported
   virtual void SetSeekable(PRBool aSeekable) = 0;
 
@@ -195,7 +191,7 @@ public:
   // should stop buffering or otherwise waiting for download progress and
   // start consuming data, if possible, because the cache is full.
   virtual void NotifySuspendedStatusChanged() = 0;
-  
+
   // Called by nsMediaStream when some data has been received.
   // Call on the main thread only.
   virtual void NotifyBytesDownloaded() = 0;
@@ -206,7 +202,7 @@ public:
   virtual void NotifyDownloadEnded(nsresult aStatus) = 0;
 
   // Cleanup internal data structures. Must be called on the main
-  // thread by the owning object before that object disposes of this object.  
+  // thread by the owning object before that object disposes of this object.
   virtual void Shutdown();
 
   // Suspend any media downloads that are in progress. Called by the
@@ -252,12 +248,12 @@ protected:
                   unsigned char* aRGBBuffer);
 
 protected:
-  // Timer used for updating progress events 
+  // Timer used for updating progress events
   nsCOMPtr<nsITimer> mProgressTimer;
 
-  // The element is not reference counted. Instead the decoder is
-  // notified when it is able to be used. It should only ever be
-  // accessed from the main thread.
+  // This should only ever be accessed from the main thread.
+  // It is set in Init and cleared in Shutdown when the element goes away.
+  // The decoder does not add a reference the element.
   nsHTMLMediaElement* mElement;
 
   // RGB data for last decoded frame of video data.

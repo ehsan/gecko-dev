@@ -44,6 +44,7 @@
 
 #include "nsRuleNode.h"
 #include "nsIAtom.h"
+#include "nsCSSPseudoElements.h"
 
 class nsPresContext;
 
@@ -72,7 +73,8 @@ class nsPresContext;
 class nsStyleContext
 {
 public:
-  nsStyleContext(nsStyleContext* aParent, nsIAtom* aPseudoTag, 
+  nsStyleContext(nsStyleContext* aParent, nsIAtom* aPseudoTag,
+                 nsCSSPseudoElements::Type aPseudoType,
                  nsRuleNode* aRuleNode, nsPresContext* aPresContext) NS_HIDDEN;
   ~nsStyleContext() NS_HIDDEN;
 
@@ -107,12 +109,26 @@ public:
 
   nsStyleContext* GetParent() const { return mParent; }
 
-  nsIAtom* GetPseudoType() const { return mPseudoTag; }
+  nsIAtom* GetPseudo() const { return mPseudoTag; }
+  nsCSSPseudoElements::Type GetPseudoType() const {
+    return static_cast<nsCSSPseudoElements::Type>(mBits >>
+                                                  NS_STYLE_CONTEXT_TYPE_SHIFT);
+  }
 
   NS_HIDDEN_(already_AddRefed<nsStyleContext>)
   FindChildWithRules(const nsIAtom* aPseudoTag, nsRuleNode* aRules);
 
-  PRBool    HasTextDecorations() { return !!(mBits & NS_STYLE_HAS_TEXT_DECORATIONS); }
+  // Does this style context or any of its ancestors have text
+  // decorations?
+  PRBool HasTextDecorations() const
+    { return !!(mBits & NS_STYLE_HAS_TEXT_DECORATIONS); }
+
+  // Does this style context represent the style for a pseudo-element or
+  // inherit data from such a style context?  Whether this returns true
+  // is equivalent to whether it or any of its ancestors returns
+  // non-null for GetPseudo.
+  PRBool HasPseudoElementData() const
+    { return !!(mBits & NS_STYLE_HAS_PSEUDO_ELEMENT_DATA); }
 
   NS_HIDDEN_(void) SetStyle(nsStyleStructID aSID, void* aStruct);
 
@@ -185,8 +201,8 @@ protected:
   nsStyleContext* mPrevSibling;
   nsStyleContext* mNextSibling;
 
-  // If this style context is for a pseudo-element, the pseudo-element
-  // atom.  Otherwise, null.
+  // If this style context is for a pseudo-element or anonymous box,
+  // the relevant atom.
   nsCOMPtr<nsIAtom> mPseudoTag;
 
   // The rule node is the node in the lexicographic tree of rule nodes
@@ -212,6 +228,7 @@ protected:
 NS_HIDDEN_(already_AddRefed<nsStyleContext>)
 NS_NewStyleContext(nsStyleContext* aParentContext,
                    nsIAtom* aPseudoTag,
+                   nsCSSPseudoElements::Type aPseudoType,
                    nsRuleNode* aRuleNode,
                    nsPresContext* aPresContext);
 #endif

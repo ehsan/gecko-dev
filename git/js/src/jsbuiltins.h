@@ -43,7 +43,6 @@
 #ifdef JS_TRACER
 
 #include "nanojit/nanojit.h"
-#include "jstracer.h"
 
 #ifdef THIS
 #undef THIS
@@ -56,6 +55,8 @@ enum { JSTN_ERRTYPE_MASK = 0x07, JSTN_UNBOX_AFTER = 0x08, JSTN_MORE = 0x10,
 #define JSTN_ERRTYPE(jstn)  ((jstn)->flags & JSTN_ERRTYPE_MASK)
 
 /*
+ * Type describing a type specialization of a JSFastNative.
+ *
  * |prefix| and |argtypes| declare what arguments should be passed to the
  * native function.  |prefix| can contain the following characters:
  *
@@ -81,13 +82,23 @@ enum { JSTN_ERRTYPE_MASK = 0x07, JSTN_UNBOX_AFTER = 0x08, JSTN_MORE = 0x10,
  * 'f': a JSObject* argument that is of class js_FunctionClass
  * 'v': a jsval argument (boxing whatever value is actually being passed in)
  */
-struct JSTraceableNative {
-    JSFastNative            native;
+struct JSSpecializedNative {
     const nanojit::CallInfo *builtin;
     const char              *prefix;
     const char              *argtypes;
     uintN                   flags;  /* JSTNErrType | JSTN_UNBOX_AFTER | JSTN_MORE |
                                        JSTN_CONSTRUCTOR */
+};
+
+/*
+ * Type holding extra trace-specific information about a fast native.
+ *
+ * 'specializations' points to a static array of available specializations
+ * terminated by the lack of having the JSTN_MORE flag set.
+ */
+struct JSNativeTraceInfo {
+    JSFastNative            native;
+    JSSpecializedNative     *specializations;
 };
 
 /*
@@ -105,16 +116,14 @@ struct JSTraceableNative {
 #define _JS_CI_NAME(op)
 #endif
 
-#define  _JS_I32_ARGSIZE    nanojit::ARGSIZE_LO
-#define  _JS_I32_RETSIZE    nanojit::ARGSIZE_LO
-#define  _JS_F64_ARGSIZE    nanojit::ARGSIZE_F
-#define  _JS_F64_RETSIZE    nanojit::ARGSIZE_F
-#define  _JS_PTR_ARGSIZE    nanojit::ARGSIZE_LO
-#if defined AVMPLUS_64BIT
-# define _JS_PTR_RETSIZE    nanojit::ARGSIZE_Q
-#else
-# define _JS_PTR_RETSIZE    nanojit::ARGSIZE_LO
-#endif
+#define _JS_I32_ARGSIZE    nanojit::ARGSIZE_I
+#define _JS_I32_RETSIZE    nanojit::ARGSIZE_I
+#define _JS_F64_ARGSIZE    nanojit::ARGSIZE_F
+#define _JS_F64_RETSIZE    nanojit::ARGSIZE_F
+#define _JS_PTR_ARGSIZE    nanojit::ARGSIZE_P
+#define _JS_PTR_RETSIZE    nanojit::ARGSIZE_P
+
+struct ClosureVarInfo;
 
 /*
  * Supported types for builtin functions.
@@ -194,6 +203,7 @@ struct JSTraceableNative {
 #define _JS_CTYPE_INT32             _JS_CTYPE(int32,                  _JS_I32, "","i", INFALLIBLE)
 #define _JS_CTYPE_INT32_RETRY       _JS_CTYPE(int32,                  _JS_I32, --, --, FAIL_NEG)
 #define _JS_CTYPE_INT32_FAIL        _JS_CTYPE(int32,                  _JS_I32, --, --, FAIL_STATUS)
+#define _JS_CTYPE_INT32PTR          _JS_CTYPE(int32 *,                _JS_PTR, --, --, INFALLIBLE)
 #define _JS_CTYPE_UINT32            _JS_CTYPE(uint32,                 _JS_I32, "","i", INFALLIBLE)
 #define _JS_CTYPE_UINT32_RETRY      _JS_CTYPE(uint32,                 _JS_I32, --, --, FAIL_NEG)
 #define _JS_CTYPE_UINT32_FAIL       _JS_CTYPE(uint32,                 _JS_I32, --, --, FAIL_STATUS)
@@ -202,6 +212,7 @@ struct JSTraceableNative {
 #define _JS_CTYPE_STRING            _JS_CTYPE(JSString *,             _JS_PTR, "","s", INFALLIBLE)
 #define _JS_CTYPE_STRING_RETRY      _JS_CTYPE(JSString *,             _JS_PTR, --, --, FAIL_NULL)
 #define _JS_CTYPE_STRING_FAIL       _JS_CTYPE(JSString *,             _JS_PTR, --, --, FAIL_STATUS)
+#define _JS_CTYPE_STRINGPTR         _JS_CTYPE(JSString **,            _JS_PTR, --, --, INFALLIBLE)
 #define _JS_CTYPE_OBJECT            _JS_CTYPE(JSObject *,             _JS_PTR, "","o", INFALLIBLE)
 #define _JS_CTYPE_OBJECT_RETRY      _JS_CTYPE(JSObject *,             _JS_PTR, --, --, FAIL_NULL)
 #define _JS_CTYPE_OBJECT_FAIL       _JS_CTYPE(JSObject *,             _JS_PTR, --, --, FAIL_STATUS)
@@ -209,11 +220,14 @@ struct JSTraceableNative {
                                                                                   JSTN_CONSTRUCTOR)
 #define _JS_CTYPE_REGEXP            _JS_CTYPE(JSObject *,             _JS_PTR, "","r", INFALLIBLE)
 #define _JS_CTYPE_SCOPEPROP         _JS_CTYPE(JSScopeProperty *,      _JS_PTR, --, --, INFALLIBLE)
-#define _JS_CTYPE_SIDEEXIT          _JS_CTYPE(SideExit *,             _JS_PTR, --, --, INFALLIBLE)
 #define _JS_CTYPE_INTERPSTATE       _JS_CTYPE(InterpState *,          _JS_PTR, --, --, INFALLIBLE)
 #define _JS_CTYPE_FRAGMENT          _JS_CTYPE(nanojit::Fragment *,    _JS_PTR, --, --, INFALLIBLE)
 #define _JS_CTYPE_CLASS             _JS_CTYPE(JSClass *,              _JS_PTR, --, --, INFALLIBLE)
 #define _JS_CTYPE_DOUBLEPTR         _JS_CTYPE(double *,               _JS_PTR, --, --, INFALLIBLE)
+#define _JS_CTYPE_CHARPTR           _JS_CTYPE(char *,                 _JS_PTR, --, --, INFALLIBLE)
+#define _JS_CTYPE_APNPTR            _JS_CTYPE(ArgsPrivateNative *,    _JS_PTR, --, --, INFALLIBLE)
+#define _JS_CTYPE_CVIPTR            _JS_CTYPE(const ClosureVarInfo *, _JS_PTR, --, --, INFALLIBLE)
+#define _JS_CTYPE_FRAMEINFO         _JS_CTYPE(FrameInfo *,            _JS_PTR, --, --, INFALLIBLE)
 
 #define _JS_EXPAND(tokens)  tokens
 
@@ -381,39 +395,43 @@ struct JSTraceableNative {
 
 #define JS_DEFINE_TRCINFO_1(name, tn0)                                                            \
     _JS_DEFINE_CALLINFO_n tn0                                                                     \
-    JSTraceableNative name##_trcinfo[] = {                                                        \
-        { (JSFastNative)name, _JS_TN_INIT_HELPER_n tn0 }                                          \
-    };
+    JSSpecializedNative name##_sns[] = {                                                          \
+        { _JS_TN_INIT_HELPER_n tn0 }                                                              \
+    };                                                                                            \
+    JSNativeTraceInfo name##_trcinfo = { (JSFastNative)name, name##_sns };
 
 #define JS_DEFINE_TRCINFO_2(name, tn0, tn1)                                                       \
     _JS_DEFINE_CALLINFO_n tn0                                                                     \
     _JS_DEFINE_CALLINFO_n tn1                                                                     \
-    JSTraceableNative name##_trcinfo[] = {                                                        \
-        { (JSFastNative)name, _JS_TN_INIT_HELPER_n tn0 | JSTN_MORE },                             \
-        { (JSFastNative)name, _JS_TN_INIT_HELPER_n tn1 }                                          \
-    };
+    JSSpecializedNative name##_sns[] = {                                                          \
+        { _JS_TN_INIT_HELPER_n tn0 | JSTN_MORE },                                                 \
+        { _JS_TN_INIT_HELPER_n tn1 }                                                              \
+    };                                                                                            \
+    JSNativeTraceInfo name##_trcinfo = { (JSFastNative)name, name##_sns };
 
 #define JS_DEFINE_TRCINFO_3(name, tn0, tn1, tn2)                                                  \
     _JS_DEFINE_CALLINFO_n tn0                                                                     \
     _JS_DEFINE_CALLINFO_n tn1                                                                     \
     _JS_DEFINE_CALLINFO_n tn2                                                                     \
-    JSTraceableNative name##_trcinfo[] = {                                                        \
-        { (JSFastNative)name, _JS_TN_INIT_HELPER_n tn0 | JSTN_MORE },                             \
-        { (JSFastNative)name, _JS_TN_INIT_HELPER_n tn1 | JSTN_MORE },                             \
-        { (JSFastNative)name, _JS_TN_INIT_HELPER_n tn2 }                                          \
-    };
+    JSSpecializedNative name##_sns[] = {                                                          \
+        { _JS_TN_INIT_HELPER_n tn0 | JSTN_MORE },                                                 \
+        { _JS_TN_INIT_HELPER_n tn1 | JSTN_MORE },                                                 \
+        { _JS_TN_INIT_HELPER_n tn2 }                                                              \
+    };                                                                                            \
+    JSNativeTraceInfo name##_trcinfo = { (JSFastNative)name, name##_sns };
 
 #define JS_DEFINE_TRCINFO_4(name, tn0, tn1, tn2, tn3)                                             \
     _JS_DEFINE_CALLINFO_n tn0                                                                     \
     _JS_DEFINE_CALLINFO_n tn1                                                                     \
     _JS_DEFINE_CALLINFO_n tn2                                                                     \
     _JS_DEFINE_CALLINFO_n tn3                                                                     \
-    JSTraceableNative name##_trcinfo[] = {                                                        \
-        { (JSFastNative)name, _JS_TN_INIT_HELPER_n tn0 | JSTN_MORE },                             \
-        { (JSFastNative)name, _JS_TN_INIT_HELPER_n tn1 | JSTN_MORE },                             \
-        { (JSFastNative)name, _JS_TN_INIT_HELPER_n tn2 | JSTN_MORE },                             \
-        { (JSFastNative)name, _JS_TN_INIT_HELPER_n tn3 }                                          \
-    };
+    JSSpecializedNative name##_sns[] = {                                                          \
+        { _JS_TN_INIT_HELPER_n tn0 | JSTN_MORE },                                                 \
+        { _JS_TN_INIT_HELPER_n tn1 | JSTN_MORE },                                                 \
+        { _JS_TN_INIT_HELPER_n tn2 | JSTN_MORE },                                                 \
+        { _JS_TN_INIT_HELPER_n tn3 }                                                              \
+    };                                                                                            \
+    JSNativeTraceInfo name##_trcinfo = { (JSFastNative)name, name##_sns };
 
 #define _JS_DEFINE_CALLINFO_n(n, args)  JS_DEFINE_CALLINFO_##n args
 
@@ -423,7 +441,7 @@ js_StringToNumber(JSContext* cx, JSString* str);
 jsdouble FASTCALL
 js_BooleanOrUndefinedToNumber(JSContext* cx, int32 unboxed);
 
-/* Extern version of js_SetBuiltinError. */
+/* Extern version of SetBuiltinError. */
 extern JS_FRIEND_API(void)
 js_SetTraceableNativeFailed(JSContext *cx);
 
@@ -437,6 +455,7 @@ js_dmod(jsdouble a, jsdouble b);
 #define JS_DEFINE_CALLINFO_3(linkage, rt, op, at0, at1, at2, cse, fold)
 #define JS_DEFINE_CALLINFO_4(linkage, rt, op, at0, at1, at2, at3, cse, fold)
 #define JS_DEFINE_CALLINFO_5(linkage, rt, op, at0, at1, at2, at3, at4, cse, fold)
+#define JS_DEFINE_CALLINFO_6(linkage, rt, op, at0, at1, at2, at3, at4, at5, cse, fold)
 #define JS_DECLARE_CALLINFO(name)
 #define JS_DEFINE_TRCINFO_1(name, tn0)
 #define JS_DEFINE_TRCINFO_2(name, tn0, tn1)
@@ -445,27 +464,58 @@ js_dmod(jsdouble a, jsdouble b);
 
 #endif /* !JS_TRACER */
 
-/* Defined in jsobj.cpp. */
-JS_DECLARE_CALLINFO(js_Object_tn)
-JS_DECLARE_CALLINFO(js_NewInstance)
-
 /* Defined in jsarray.cpp. */
 JS_DECLARE_CALLINFO(js_Array_dense_setelem)
 JS_DECLARE_CALLINFO(js_Array_dense_setelem_int)
+JS_DECLARE_CALLINFO(js_Array_dense_setelem_double)
 JS_DECLARE_CALLINFO(js_NewEmptyArray)
-JS_DECLARE_CALLINFO(js_NewUninitializedArray)
+JS_DECLARE_CALLINFO(js_NewEmptyArrayWithLength)
+JS_DECLARE_CALLINFO(js_NewArrayWithSlots)
 JS_DECLARE_CALLINFO(js_ArrayCompPush)
+
+/* Defined in jsbuiltins.cpp. */
+JS_DECLARE_CALLINFO(js_BoxDouble)
+JS_DECLARE_CALLINFO(js_BoxInt32)
+JS_DECLARE_CALLINFO(js_UnboxDouble)
+JS_DECLARE_CALLINFO(js_UnboxInt32)
+JS_DECLARE_CALLINFO(js_TryUnboxInt32)
+JS_DECLARE_CALLINFO(js_dmod)
+JS_DECLARE_CALLINFO(js_imod)
+JS_DECLARE_CALLINFO(js_DoubleToInt32)
+JS_DECLARE_CALLINFO(js_DoubleToUint32)
+JS_DECLARE_CALLINFO(js_StringToNumber)
+JS_DECLARE_CALLINFO(js_StringToInt32)
+JS_DECLARE_CALLINFO(js_AddProperty)
+JS_DECLARE_CALLINFO(js_HasNamedProperty)
+JS_DECLARE_CALLINFO(js_HasNamedPropertyInt32)
+JS_DECLARE_CALLINFO(js_TypeOfObject)
+JS_DECLARE_CALLINFO(js_TypeOfBoolean)
+JS_DECLARE_CALLINFO(js_BooleanOrUndefinedToNumber)
+JS_DECLARE_CALLINFO(js_BooleanOrUndefinedToString)
+JS_DECLARE_CALLINFO(js_NewNullClosure)
+JS_DECLARE_CALLINFO(js_PopInterpFrame)
+JS_DECLARE_CALLINFO(js_ConcatN)
 
 /* Defined in jsfun.cpp. */
 JS_DECLARE_CALLINFO(js_AllocFlatClosure)
 JS_DECLARE_CALLINFO(js_PutArguments)
-
-/* Defined in jsfun.cpp. */
+JS_DECLARE_CALLINFO(js_PutCallObjectOnTrace)
 JS_DECLARE_CALLINFO(js_SetCallVar)
 JS_DECLARE_CALLINFO(js_SetCallArg)
+JS_DECLARE_CALLINFO(js_CloneFunctionObject)
+JS_DECLARE_CALLINFO(js_CreateCallObjectOnTrace)
+JS_DECLARE_CALLINFO(js_Arguments)
+
+/* Defined in jsiter.cpp. */
+JS_DECLARE_CALLINFO(js_CloseIterator)
 
 /* Defined in jsnum.cpp. */
 JS_DECLARE_CALLINFO(js_NumberToString)
+
+/* Defined in jsobj.cpp. */
+JS_DECLARE_CALLINFO(js_Object_tn)
+JS_DECLARE_CALLINFO(js_NewInstance)
+JS_DECLARE_CALLINFO(js_NonEmptyObject)
 
 /* Defined in jsstr.cpp. */
 JS_DECLARE_CALLINFO(js_String_tn)
@@ -476,31 +526,7 @@ JS_DECLARE_CALLINFO(js_String_getelem)
 JS_DECLARE_CALLINFO(js_String_p_charCodeAt)
 JS_DECLARE_CALLINFO(js_String_p_charCodeAt0)
 JS_DECLARE_CALLINFO(js_String_p_charCodeAt0_int)
-JS_DECLARE_CALLINFO(js_String_p_charCodeAt_int)
-
-/* Defined in jsbuiltins.cpp. */
-JS_DECLARE_CALLINFO(js_BoxDouble)
-JS_DECLARE_CALLINFO(js_BoxInt32)
-JS_DECLARE_CALLINFO(js_UnboxDouble)
-JS_DECLARE_CALLINFO(js_UnboxInt32)
-JS_DECLARE_CALLINFO(js_dmod)
-JS_DECLARE_CALLINFO(js_imod)
-JS_DECLARE_CALLINFO(js_DoubleToInt32)
-JS_DECLARE_CALLINFO(js_DoubleToUint32)
-
-JS_DECLARE_CALLINFO(js_StringToNumber)
-JS_DECLARE_CALLINFO(js_StringToInt32)
-JS_DECLARE_CALLINFO(js_CloseIterator)
-JS_DECLARE_CALLINFO(js_CallTree)
-JS_DECLARE_CALLINFO(js_AddProperty)
-JS_DECLARE_CALLINFO(js_HasNamedProperty)
-JS_DECLARE_CALLINFO(js_HasNamedPropertyInt32)
-JS_DECLARE_CALLINFO(js_CallGetter)
-JS_DECLARE_CALLINFO(js_TypeOfObject)
-JS_DECLARE_CALLINFO(js_TypeOfBoolean)
-JS_DECLARE_CALLINFO(js_BooleanOrUndefinedToNumber)
-JS_DECLARE_CALLINFO(js_BooleanOrUndefinedToString)
-JS_DECLARE_CALLINFO(js_Arguments)
-JS_DECLARE_CALLINFO(js_NewNullClosure)
+JS_DECLARE_CALLINFO(js_String_p_charCodeAt_double_int)
+JS_DECLARE_CALLINFO(js_String_p_charCodeAt_int_int)
 
 #endif /* jsbuiltins_h___ */

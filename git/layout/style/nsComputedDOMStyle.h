@@ -44,7 +44,6 @@
 #include "nsICSSDeclaration.h"
 
 #include "nsROCSSPrimitiveValue.h"
-#include "nsDOMCSSDeclaration.h"
 #include "nsDOMCSSRGBColor.h"
 #include "nsDOMCSSValueList.h"
 #include "nsCSSProps.h"
@@ -62,7 +61,7 @@ class nsComputedDOMStyle : public nsICSSDeclaration,
 {
 public:
   NS_DECL_CYCLE_COLLECTING_ISUPPORTS
-  NS_DECL_CYCLE_COLLECTION_SCRIPT_HOLDER_CLASS(nsComputedDOMStyle)
+  NS_DECL_CYCLE_COLLECTION_CLASS(nsComputedDOMStyle)
 
   NS_IMETHOD Init(nsIDOMElement *aElement,
                   const nsAString& aPseudoElt,
@@ -77,10 +76,21 @@ public:
 
   static void Shutdown();
 
-  virtual nsISupports *GetParentObject()
+  virtual nsINode *GetParentObject()
   {
     return mContent;
   }
+
+  static already_AddRefed<nsStyleContext>
+  GetStyleContextForContent(nsIContent* aContent, nsIAtom* aPseudo,
+                            nsIPresShell* aPresShell);
+
+  static already_AddRefed<nsStyleContext>
+  GetStyleContextForContentNoFlush(nsIContent* aContent, nsIAtom* aPseudo,
+                                   nsIPresShell* aPresShell);
+
+  static nsIPresShell*
+  GetPresShellForContent(nsIContent* aContent);
 
 private:
   void AssertFlushedPendingReflows() {
@@ -133,6 +143,9 @@ private:
 
   nsresult GetCSSGradientString(const nsStyleGradient* aGradient,
                                 nsAString& aString);
+  nsresult GetImageRectString(nsIURI* aURI,
+                              const nsStyleSides& aCropRect,
+                              nsString& aString);
 
   /* Properties Queryable as CSSValues */
 
@@ -274,9 +287,11 @@ private:
   nsresult GetWordSpacing(nsIDOMCSSValue** aValue);
   nsresult GetWhiteSpace(nsIDOMCSSValue** aValue);
   nsresult GetWordWrap(nsIDOMCSSValue** aValue);
+  nsresult GetMozTabSize(nsIDOMCSSValue** aValue);
 
   /* Visibility properties */
   nsresult GetOpacity(nsIDOMCSSValue** aValue);
+  nsresult GetPointerEvents(nsIDOMCSSValue** aValue);
   nsresult GetVisibility(nsIDOMCSSValue** aValue);
 
   /* Direction properties */
@@ -315,7 +330,12 @@ private:
   nsresult GetColumnRuleStyle(nsIDOMCSSValue** aValue);
   nsresult GetColumnRuleColor(nsIDOMCSSValue** aValue);
 
-#ifdef MOZ_SVG
+  /* CSS Transitions */
+  nsresult GetTransitionProperty(nsIDOMCSSValue** aValue);
+  nsresult GetTransitionDuration(nsIDOMCSSValue** aValue);
+  nsresult GetTransitionDelay(nsIDOMCSSValue** aValue);
+  nsresult GetTransitionTimingFunction(nsIDOMCSSValue** aValue);
+
   /* SVG properties */
   nsresult GetSVGPaintFor(PRBool aFill, nsIDOMCSSValue** aValue);
 
@@ -345,7 +365,6 @@ private:
   nsresult GetColorInterpolationFilters(nsIDOMCSSValue** aValue);
   nsresult GetDominantBaseline(nsIDOMCSSValue** aValue);
   nsresult GetImageRendering(nsIDOMCSSValue** aValue);
-  nsresult GetPointerEvents(nsIDOMCSSValue** aValue);
   nsresult GetShapeRendering(nsIDOMCSSValue** aValue);
   nsresult GetTextRendering(nsIDOMCSSValue** aValue);
 
@@ -356,11 +375,12 @@ private:
   nsresult GetClipPath(nsIDOMCSSValue** aValue);
   nsresult GetFilter(nsIDOMCSSValue** aValue);
   nsresult GetMask(nsIDOMCSSValue** aValue);
-#endif // MOZ_SVG
 
   nsROCSSPrimitiveValue* GetROCSSPrimitiveValue();
   nsDOMCSSValueList* GetROCSSValueList(PRBool aCommaDelimited);
   nsresult SetToRGBAColor(nsROCSSPrimitiveValue* aValue, nscolor aColor);
+  nsresult SetValueToStyleImage(const nsStyleImage& aStyleImage,
+                                nsROCSSPrimitiveValue* aValue);
   
   /**
    * A method to get a percentage base for a percentage value.  Returns PR_TRUE
@@ -376,7 +396,7 @@ private:
    * the percent value of aCoord is set as a percent value on aValue.  aTable,
    * if not null, is the keyword table to handle eStyleUnit_Enumerated.  When
    * calling SetAppUnits on aValue (for coord or percent values), the value
-   * passed in will be PR_MAX of the value in aMinAppUnits and the PR_MIN of
+   * passed in will be NS_MAX of the value in aMinAppUnits and the NS_MIN of
    * the actual value in aCoord and the value in aMaxAppUnits.
    *
    * XXXbz should caller pass in some sort of bitfield indicating which units
@@ -416,8 +436,6 @@ private:
   };
 
   static const ComputedStyleMapEntry* GetQueryablePropertyMap(PRUint32* aLength);
-
-  CSS2PropertiesTearoff mInner;
 
   // We don't really have a good immutable representation of "presentation".
   // Given the way GetComputedStyle is currently used, we should just grab the

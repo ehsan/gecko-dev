@@ -331,7 +331,7 @@ nsHTMLSelectElement::RemoveOptionsFromList(nsIContent* aOptions,
 static PRBool IsOptGroup(nsIContent *aContent)
 {
   return (aContent->NodeInfo()->Equals(nsGkAtoms::optgroup) &&
-          aContent->IsNodeOfType(nsINode::eHTML));
+          aContent->IsHTML());
 }
 
 // If the document is such that recursing over these options gets us
@@ -1649,14 +1649,6 @@ nsHTMLSelectElement::GetHasOptGroups(PRBool* aHasGroups)
   return NS_OK;
 }
 
-void
-nsHTMLSelectElement::DispatchDOMEvent(const nsAString& aName)
-{
-  nsContentUtils::DispatchTrustedEvent(GetOwnerDoc(),
-                                       static_cast<nsIContent*>(this),
-                                       aName, PR_TRUE, PR_TRUE);
-}
-
 void nsHTMLSelectElement::DispatchContentReset() {
   nsIFormControlFrame* formControlFrame = GetFormControlFrame(PR_FALSE);
   if (formControlFrame) {
@@ -1952,4 +1944,37 @@ nsHTMLOptionCollection::GetSelect(nsIDOMHTMLSelectElement **aReturn)
 {
   NS_IF_ADDREF(*aReturn = mSelect);
   return NS_OK;
+}
+
+NS_IMETHODIMP
+nsHTMLOptionCollection::Add(nsIDOMHTMLOptionElement *aOption,
+                            PRInt32 aIndex, PRUint8 optional_argc)
+{
+  if (!aOption) {
+    return NS_ERROR_INVALID_ARG;
+  }
+
+  if (aIndex < -1) {
+    return NS_ERROR_DOM_INDEX_SIZE_ERR;
+  }
+
+  if (!mSelect) {
+    return NS_ERROR_NOT_INITIALIZED;
+  }
+
+  PRUint32 length;
+  GetLength(&length);
+
+  if (optional_argc == 0 || aIndex == -1 || aIndex > (PRInt32)length) {
+    // IE appends in these cases
+    aIndex = length;
+  }
+
+  nsCOMPtr<nsIDOMNode> beforeNode;
+  Item(aIndex, getter_AddRefs(beforeNode));
+
+  nsCOMPtr<nsIDOMHTMLOptionElement> beforeElement =
+    do_QueryInterface(beforeNode);
+
+  return mSelect->Add(aOption, beforeElement);
 }

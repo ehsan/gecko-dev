@@ -42,6 +42,7 @@
 #define __nanojit_Nativei386__
 
 #ifdef PERFM
+#define DOPROF
 #include "../vprof/vprof.h"
 #define count_instr() _nvprof("x86",1)
 #define count_ret() _nvprof("x86-ret",1); count_instr();
@@ -90,21 +91,26 @@
 
 namespace nanojit
 {
-    const int NJ_LOG2_PAGE_SIZE = 12;       // 4K
     const int NJ_MAX_REGISTERS = 24; // gpregs, x87 regs, xmm regs
-    const int NJ_STACK_OFFSET = 0;
 
-    #define NJ_MAX_STACK_ENTRY 256
+    #define NJ_MAX_STACK_ENTRY 4096
     #define NJ_MAX_PARAMETERS 1
+    #define NJ_JTBL_SUPPORTED 1
+    #define NJ_EXPANDED_LOADSTORE_SUPPORTED 1
+    #define NJ_USES_QUAD_CONSTANTS 1
+    #define NJ_F2I_SUPPORTED                1
 
         // Preserve a 16-byte stack alignment, to support the use of
         // SSE instructions like MOVDQA (if not by Tamarin itself,
         // then by the C functions it calls).
     const int NJ_ALIGN_STACK = 16;
 
-    const int32_t LARGEST_UNDERRUN_PROT = 3200;  // largest value passed to underrunProtect
+    const int32_t LARGEST_UNDERRUN_PROT = 32;  // largest value passed to underrunProtect
 
     typedef uint8_t NIns;
+
+    // Bytes of icache to flush after Assembler::patch
+    const size_t LARGEST_BRANCH_PATCH = 16 * sizeof(NIns);
 
     // These are used as register numbers in various parts of the code
     typedef enum
@@ -134,17 +140,11 @@ namespace nanojit
 
         // X87 regs
         FST0 = 16,
-        FST1 = 17,
-        FST2 = 18,
-        FST3 = 19,
-        FST4 = 20,
-        FST5 = 21,
-        FST6 = 22,
-        FST7 = 23,
 
         FirstReg = 0,
-        LastReg = 23,
-        UnknownReg = 24
+        LastReg = 16,
+        deprecated_UnknownReg = 17,        // XXX: remove eventually, see bug 538924
+        UnspecifiedReg = 17
     }
     Register;
 
@@ -166,9 +166,6 @@ namespace nanojit
     #define _is_fp_reg_(r)  ((_rmask_(r)&FpRegs)!=0)
     #define _is_gp_reg_(r)  ((_rmask_(r)&GpRegs)!=0)
 
-    #define nextreg(r)      Register(r+1)
-    #define prevreg(r)      Register(r-1)
-
     verbose_only( extern const char* regNames[]; )
 
     #define DECLARE_PLATFORM_STATS()
@@ -177,21 +174,39 @@ namespace nanojit
 
     #define DECLARE_PLATFORM_ASSEMBLER()    \
         const static Register argRegs[2], retRegs[2]; \
-        bool x87Dirty;                      \
-        bool pad[3];\
+        int32_t max_stk_args;\
         void nativePageReset();\
         void nativePageSetup();\
         void underrunProtect(int);\
-        void asm_farg(LInsp);
+        void asm_int(Register r, int32_t val, bool canClobberCCs);\
+        void asm_stkarg(LInsp p, int32_t& stkd);\
+        void asm_farg(LInsp, int32_t& stkd);\
+        void asm_arg(ArgSize sz, LInsp p, Register r, int32_t& stkd);\
+        void asm_pusharg(LInsp);\
+        void asm_fcmp(LIns *cond);\
+        NIns* asm_fbranch(bool, LIns*, NIns*);\
+        void asm_cmp(LIns *cond); \
+        void asm_div_mod(LIns *cond); \
+        void asm_load(int d, Register r); \
+        void asm_quad(Register r, uint64_t q, double d, bool canClobberCCs);
 
-    #define swapptrs()  { NIns* _tins = _nIns; _nIns=_nExitIns; _nExitIns=_tins; }
+ #define IMM8(i)    \
+     _nIns -= 1;     \
+     *((int8_t*)_nIns) = (int8_t)(i)
+
+ #define IMM16(i)    \
+     _nIns -= 2;     \
+     *((int16_t*)_nIns) = (int16_t)(i)
 
 #define IMM32(i)    \
     _nIns -= 4;     \
     *((int32_t*)_nIns) = (int32_t)(i)
 
+// XXX rearrange NanoAssert() expression to workaround apparent gcc 4.3 bug:
+// XXX "error: logical && with non-zero constant will always evaluate as true"
+// underrunProtect(6) is necessary for worst-case
 #define MODRMs(r,d,b,l,i) \
-        NanoAssert(unsigned(r)<8 && unsigned(b)<8 && unsigned(i)<8); \
+        NanoAssert(unsigned(i)<8 && unsigned(b)<8 && unsigned(r)<8); \
         if ((d) == 0 && (b) != EBP) { \
             _nIns -= 2; \
             _nIns[0] = (uint8_t)     ( 0<<6 |   (r)<<3 | 4); \
@@ -207,9 +222,10 @@ namespace nanojit
             *(--_nIns) = (uint8_t)    ( 2<<6 |   (r)<<3 | 4 ); \
         }
 
+// underrunProtect(6) is necessary for worst-case
 #define MODRMm(r,d,b) \
-        NanoAssert(unsigned(r)<8 && ((b)==UnknownReg || unsigned(b)<8)); \
-        if ((b) == UnknownReg) {\
+        NanoAssert(unsigned(r)<8 && ((b)==UnspecifiedReg || unsigned(b)<8)); \
+        if ((b) == UnspecifiedReg) {\
             IMM32(d);\
             *(--_nIns) = (uint8_t) (0<<6 | (r)<<3 | 5);\
         } else if ((b) == ESP) { \
@@ -320,15 +336,15 @@ namespace nanojit
 #define ALUmi(c,d,b,i) \
         underrunProtect(10); \
         NanoAssert(((unsigned)b)<8); \
-         if (isS8(i)) { \
+        if (isS8(i)) { \
             *(--_nIns) = uint8_t(i); \
             MODRMm((c>>3),(d),(b)); \
             *(--_nIns) = uint8_t(0x83); \
-         } else { \
-             IMM32(i); \
+        } else { \
+            IMM32(i); \
             MODRMm((c>>3),(d),(b)); \
             *(--_nIns) = uint8_t(0x81); \
-         }
+        }
 
 #define ALU2(c,d,s) \
         underrunProtect(3); \
@@ -380,9 +396,14 @@ namespace nanojit
 #define LEA(r,d,b)  do { count_alu(); ALUm(0x8d, r,d,b);            asm_output("lea %s,%d(%s)",gpn(r),d,gpn(b)); } while(0)
 // lea %r, d(%i*4)
 // This addressing mode is not supported by the MODRMSIB macro.
-#define LEAmi4(r,d,i) do { count_alu(); IMM32(d); *(--_nIns) = (2<<6)|(i<<3)|5; *(--_nIns) = (0<<6)|(r<<3)|4; *(--_nIns) = 0x8d;                    asm_output("lea %s, %p(%s*4)", gpn(r), (void*)d, gpn(i)); } while(0)
+#define LEAmi4(r,d,i) do { count_alu(); IMM32(d); *(--_nIns) = (2<<6)|((uint8_t)i<<3)|5; *(--_nIns) = (0<<6)|((uint8_t)r<<3)|4; *(--_nIns) = 0x8d;                    asm_output("lea %s, %p(%s*4)", gpn(r), (void*)d, gpn(i)); } while(0)
 
 #define CDQ()       do { SARi(EDX, 31); MR(EDX, EAX); } while(0)
+
+#define INCLi(p)    do { count_alu(); \
+                         underrunProtect(6); \
+                         IMM32((uint32_t)(ptrdiff_t)p); *(--_nIns) = 0x05; *(--_nIns) = 0xFF; \
+                         asm_output("incl  (%p)", (void*)p); } while (0)
 
 #define SETE(r)     do { count_alu(); ALU2(0x0f94,(r),(r));         asm_output("sete %s",gpn(r)); } while(0)
 #define SETNP(r)    do { count_alu(); ALU2(0x0f9B,(r),(r));         asm_output("setnp %s",gpn(r)); } while(0)
@@ -394,7 +415,7 @@ namespace nanojit
 #define SETBE(r)    do { count_alu(); ALU2(0x0f96,(r),(r));         asm_output("setbe %s",gpn(r)); } while(0)
 #define SETA(r)     do { count_alu(); ALU2(0x0f97,(r),(r));         asm_output("seta %s",gpn(r)); } while(0)
 #define SETAE(r)    do { count_alu(); ALU2(0x0f93,(r),(r));         asm_output("setae %s",gpn(r)); } while(0)
-#define SETO(r)     do { count_alu(); ALU2(0x0f92,(r),(r));         asm_output("seto  %s",gpn(r)); } while(0)
+#define SETO(r)     do { count_alu(); ALU2(0x0f92,(r),(r));         asm_output("seto %s",gpn(r)); } while(0)
 
 #define MREQ(dr,sr) do { count_alu(); ALU2(0x0f44,dr,sr); asm_output("cmove %s,%s", gpn(dr),gpn(sr)); } while(0)
 #define MRNE(dr,sr) do { count_alu(); ALU2(0x0f45,dr,sr); asm_output("cmovne %s,%s", gpn(dr),gpn(sr)); } while(0)
@@ -432,39 +453,62 @@ namespace nanojit
     asm_output("mov   %s,%d(%s+%s*%c)",gpn(reg),disp,gpn(base),gpn(index),SIBIDX(scale)); \
     } while (0)
 
+// note: movzx/movsx are being output with an 8/16 suffix to indicate the size
+// being loaded. this doesn't really match standard intel format (though is arguably
+// terser and more obvious in this case) and would probably be nice to fix.
+// (likewise, the 8/16 bit stores being output as "mov8" and "mov16" respectively.)
+
 // load 16-bit, sign extend
-#define LD16S(r,d,b) do { count_ld(); ALU2m(0x0fbf,r,d,b); asm_output("movsx %s,%d(%s)", gpn(r),d,gpn(b)); } while(0)
+#define LD16S(r,d,b) do { count_ld(); ALU2m(0x0fbf,r,d,b); asm_output("movsx16 %s,%d(%s)", gpn(r),d,gpn(b)); } while(0)
+
+#define LD16Sdm(r,addr) do { count_ld(); ALU2dm(0x0fbf,r,addr); asm_output("movsx16 %s,0(%lx)", gpn(r),(unsigned long)addr); } while (0)
+
+#define LD16Ssib(r,disp,base,index,scale) do {    \
+    count_ld();                                 \
+    ALU2sib(0x0fbf,r,base,index,scale,disp);    \
+    asm_output("movsx16 %s,%d(%s+%s*%c)",gpn(r),disp,gpn(base),gpn(index),SIBIDX(scale)); \
+    } while (0)
 
 // load 16-bit, zero extend
-#define LD16Z(r,d,b) do { count_ld(); ALU2m(0x0fb7,r,d,b); asm_output("movsz %s,%d(%s)", gpn(r),d,gpn(b)); } while(0)
+#define LD16Z(r,d,b) do { count_ld(); ALU2m(0x0fb7,r,d,b); asm_output("movzx16 %s,%d(%s)", gpn(r),d,gpn(b)); } while(0)
 
-#define LD16Zdm(r,addr) do { count_ld(); ALU2dm(0x0fb7,r,addr); asm_output("movsz %s,0(%lx)", gpn(r),(unsigned long)addr); } while (0)
+#define LD16Zdm(r,addr) do { count_ld(); ALU2dm(0x0fb7,r,addr); asm_output("movzx16 %s,0(%lx)", gpn(r),(unsigned long)addr); } while (0)
 
 #define LD16Zsib(r,disp,base,index,scale) do {    \
     count_ld();                                 \
     ALU2sib(0x0fb7,r,base,index,scale,disp);    \
-    asm_output("movsz %s,%d(%s+%s*%c)",gpn(r),disp,gpn(base),gpn(index),SIBIDX(scale)); \
+    asm_output("movzx16 %s,%d(%s+%s*%c)",gpn(r),disp,gpn(base),gpn(index),SIBIDX(scale)); \
     } while (0)
 
 // load 8-bit, zero extend
-// note, only 5-bit offsets (!) are supported for this, but that's all we need at the moment
-// (movzx actually allows larger offsets mode but 5-bit gives us advantage in Thumb mode)
-#define LD8Z(r,d,b)    do { NanoAssert((d)>=0&&(d)<=31); ALU2m(0x0fb6,r,d,b); asm_output("movzx %s,%d(%s)", gpn(r),d,gpn(b)); } while(0)
+#define LD8Z(r,d,b)    do { count_ld(); ALU2m(0x0fb6,r,d,b); asm_output("movzx8 %s,%d(%s)", gpn(r),d,gpn(b)); } while(0)
 
 #define LD8Zdm(r,addr) do { \
     count_ld(); \
-    NanoAssert((d)>=0&&(d)<=31); \
     ALU2dm(0x0fb6,r,addr); \
-    asm_output("movzx %s,0(%lx)", gpn(r),(long unsigned)addr); \
+    asm_output("movzx8 %s,0(%lx)", gpn(r),(long unsigned)addr); \
     } while(0)
 
 #define LD8Zsib(r,disp,base,index,scale) do {    \
     count_ld();                                 \
-    NanoAssert((d)>=0&&(d)<=31);                \
     ALU2sib(0x0fb6,r,base,index,scale,disp);    \
-    asm_output("movzx %s,%d(%s+%s*%c)",gpn(r),disp,gpn(base),gpn(index),SIBIDX(scale)); \
+    asm_output("movzx8 %s,%d(%s+%s*%c)",gpn(r),disp,gpn(base),gpn(index),SIBIDX(scale)); \
     } while(0)
 
+// load 8-bit, sign extend
+#define LD8S(r,d,b)    do { count_ld(); ALU2m(0x0fbe,r,d,b); asm_output("movsx8 %s,%d(%s)", gpn(r),d,gpn(b)); } while(0)
+
+#define LD8Sdm(r,addr) do { \
+    count_ld(); \
+    ALU2dm(0x0fbe,r,addr); \
+    asm_output("movsx8 %s,0(%lx)", gpn(r),(long unsigned)addr); \
+    } while(0)
+
+#define LD8Ssib(r,disp,base,index,scale) do {    \
+    count_ld();                                 \
+    ALU2sib(0x0fbe,r,base,index,scale,disp);    \
+    asm_output("movsx8 %s,%d(%s+%s*%c)",gpn(r),disp,gpn(base),gpn(index),SIBIDX(scale)); \
+    } while(0)
 
 #define LDi(r,i) do { \
     count_ld();\
@@ -474,14 +518,43 @@ namespace nanojit
     *(--_nIns) = (uint8_t) (0xb8 | (r) );       \
     asm_output("mov %s,%d",gpn(r),i); } while(0)
 
+// quirk of x86-32: reg must be a/b/c/d for byte stores here
+#define ST8(base,disp,reg) do {  \
+    count_st();\
+    NanoAssert(((unsigned)reg)<4); \
+    ALUm(0x88,reg,disp,base);   \
+    asm_output("mov8 %d(%s),%s",disp,base==UnspecifiedReg?"0":gpn(base),gpn(reg)); } while(0)
+
+#define ST16(base,disp,reg) do {  \
+    count_st();\
+    ALUm16(0x89,reg,disp,base);   \
+    asm_output("mov16 %d(%s),%s",disp,base==UnspecifiedReg?"0":gpn(base),gpn(reg)); } while(0)
+
 #define ST(base,disp,reg) do {  \
     count_st();\
     ALUm(0x89,reg,disp,base);   \
-    asm_output("mov %d(%s),%s",disp,base==UnknownReg?"0":gpn(base),gpn(reg)); } while(0)
+    asm_output("mov %d(%s),%s",disp,base==UnspecifiedReg?"0":gpn(base),gpn(reg)); } while(0)
+
+#define ST8i(base,disp,imm)  do { \
+    count_st();\
+    underrunProtect(8);    \
+    IMM8(imm);             \
+    MODRMm(0, disp, base);  \
+    *(--_nIns) = 0xc6;      \
+    asm_output("mov8 %d(%s),%d",disp,gpn(base),imm); } while(0)
+
+#define ST16i(base,disp,imm)  do { \
+    count_st();\
+    underrunProtect(10);    \
+    IMM16(imm);             \
+    MODRMm(0, disp, base);  \
+    *(--_nIns) = 0xc7;      \
+    *(--_nIns) = 0x66;      \
+    asm_output("mov16 %d(%s),%d",disp,gpn(base),imm); } while(0)
 
 #define STi(base,disp,imm)  do { \
     count_st();\
-    underrunProtect(12);    \
+    underrunProtect(11);    \
     IMM32(imm);             \
     MODRMm(0, disp, base);  \
     *(--_nIns) = 0xc7;      \
@@ -584,6 +657,15 @@ namespace nanojit
         *(--_nIns) = 0xff;   \
         asm_output("jmp   *(%s)", gpn(r)); } while (0)
 
+#define JMP_indexed(x, ss, addr) do { \
+        underrunProtect(7);  \
+        IMM32(addr); \
+        _nIns -= 3;\
+        _nIns[0]   = (NIns) 0xff; /* jmp */ \
+        _nIns[1]   = (NIns) (0<<6 | 4<<3 | 4); /* modrm: base=sib + disp32 */ \
+        _nIns[2]   = (NIns) ((ss)<<6 | (x)<<3 | 5); /* sib: x<<ss + table */ \
+        asm_output("jmp   *(%s*%d+%p)", gpn(x), 1<<(ss), (void*)(addr)); } while (0)
+
 #define JE(t)   JCC(0x04, t, "je")
 #define JNE(t)  JCC(0x05, t, "jne")
 #define JP(t)   JCC(0x0A, t, "jp")
@@ -644,7 +726,7 @@ namespace nanojit
     *(--_nIns) = 0x10;\
     *(--_nIns) = 0x0f;\
     *(--_nIns) = 0xf2;\
-    asm_output("movsd %s,(#%p) // =%f",gpn(r),(void*)daddr,*daddr); \
+    asm_output("movsd %s,(%p) // =%f",gpn(r),(void*)daddr,*daddr); \
     } while(0)
 
 #define STSD(d,b,r)do {     \
@@ -665,10 +747,40 @@ namespace nanojit
     asm_output("movq %d(%s),%s",(d),gpn(b),gpn(r)); \
     } while(0)
 
+#define SSE_LDSS(r,d,b)do {  \
+    count_ld();\
+    SSEm(0xf30f10, (r)&7, (d), (b)); \
+    asm_output("movss %s,%d(%s)",gpn(r),d,gpn(b)); \
+    } while(0)
+
+#define SSE_STSS(d,b,r)do {  \
+    count_st();\
+    SSEm(0xf30f11, (r)&7, (d), (b)); \
+    asm_output("movss %d(%s),%s",(d),gpn(b),gpn(r)); \
+    } while(0)
+
 #define SSE_CVTSI2SD(xr,gr) do{ \
     count_fpu();\
     SSE(0xf20f2a, (xr)&7, (gr)&7); \
     asm_output("cvtsi2sd %s,%s",gpn(xr),gpn(gr)); \
+    } while(0)
+
+ #define SSE_CVTSD2SI(gr,xr) do{ \
+    count_fpu();\
+    SSE(0xf20f2d, (gr)&7, (xr)&7); \
+    asm_output("cvtsd2si %s,%s",gpn(gr),gpn(xr)); \
+    } while(0)
+
+#define SSE_CVTSD2SS(xr,gr) do{ \
+    count_fpu();\
+    SSE(0xf20f5a, (xr)&7, (gr)&7); \
+    asm_output("cvtsd2ss %s,%s",gpn(xr),gpn(gr)); \
+    } while(0)
+
+#define SSE_CVTSS2SD(xr,gr) do{ \
+    count_fpu();\
+    SSE(0xf30f5a, (xr)&7, (gr)&7); \
+    asm_output("cvtss2sd %s,%s",gpn(xr),gpn(gr)); \
     } while(0)
 
 #define CVTDQ2PD(dstr,srcr) do{ \
@@ -700,7 +812,7 @@ namespace nanojit
 
 #define SSE_MOVDm(d,b,xrs) do {\
     count_st();\
-    NanoAssert(_is_xmm_reg_(xrs) && _is_gp_reg_(b));\
+    NanoAssert(_is_xmm_reg_(xrs) && (_is_gp_reg_(b) || b==FP));\
     SSEm(0x660f7e, (xrs)&7, d, b);\
     asm_output("movd %d(%s),%s", d, gpn(b), gpn(xrs));\
     } while(0)
@@ -790,6 +902,11 @@ namespace nanojit
         MODRMm((uint8_t)(o), d, b);         \
         *(--_nIns) = (uint8_t)((o)>>8)
 
+#define FPUdm(o, m)                         \
+        underrunProtect(6);                 \
+        MODRMdm((uint8_t)(o), m);         \
+        *(--_nIns) = (uint8_t)((o)>>8)
+
 #define TEST_AH(i) do {                             \
         count_alu();\
         underrunProtect(3);                 \
@@ -812,24 +929,39 @@ namespace nanojit
 #define FCHS()      do { count_fpu(); FPUc(0xd9e0);             asm_output("fchs"); } while(0)
 #define FLD1()      do { count_fpu(); FPUc(0xd9e8);             asm_output("fld1"); fpu_push(); } while(0)
 #define FLDZ()      do { count_fpu(); FPUc(0xd9ee);             asm_output("fldz"); fpu_push(); } while(0)
-#define FFREE(r)    do { count_fpu(); FPU(0xddc0, r);           asm_output("ffree %s",fpn(r)); } while(0)
+#define FFREE(r)    do { count_fpu(); FPU(0xddc0, r);           asm_output("ffree %s",gpn(r)); } while(0)
+#define FST32(p,d,b) do { count_stq(); FPUm(0xd902|(p), d, b);   asm_output("fst%s32 %d(%s)",((p)?"p":""),d,gpn(b)); if (p) fpu_pop(); } while(0)
 #define FSTQ(p,d,b) do { count_stq(); FPUm(0xdd02|(p), d, b);   asm_output("fst%sq %d(%s)",((p)?"p":""),d,gpn(b)); if (p) fpu_pop(); } while(0)
 #define FSTPQ(d,b)  FSTQ(1,d,b)
 #define FCOM(p,d,b) do { count_fpuld(); FPUm(0xdc02|(p), d, b); asm_output("fcom%s %d(%s)",((p)?"p":""),d,gpn(b)); if (p) fpu_pop(); } while(0)
+#define FCOMdm(p,m) do { const double* const dm = m; \
+                         count_fpuld(); FPUdm(0xdc02|(p), dm);   asm_output("fcom%s (%p)",((p)?"p":""),(void*)dm); if (p) fpu_pop(); } while(0)
+#define FLD32(d,b)  do { count_ldq(); FPUm(0xd900, d, b);       asm_output("fld32 %d(%s)",d,gpn(b)); fpu_push();} while(0)
 #define FLDQ(d,b)   do { count_ldq(); FPUm(0xdd00, d, b);       asm_output("fldq %d(%s)",d,gpn(b)); fpu_push();} while(0)
+#define FLDQdm(m)   do { const double* const dm = m; \
+                         count_ldq(); FPUdm(0xdd00, dm);        asm_output("fldq (%p)",(void*)dm); fpu_push();} while(0)
 #define FILDQ(d,b)  do { count_fpuld(); FPUm(0xdf05, d, b);     asm_output("fildq %d(%s)",d,gpn(b)); fpu_push(); } while(0)
 #define FILD(d,b)   do { count_fpuld(); FPUm(0xdb00, d, b);     asm_output("fild %d(%s)",d,gpn(b)); fpu_push(); } while(0)
+#define FIST(p,d,b) do { count_fpu(); FPUm(0xdb02|(p), d, b);   asm_output("fist%s %d(%s)",((p)?"p":""),d,gpn(b)); if(p) fpu_pop(); } while(0)
 #define FADD(d,b)   do { count_fpu(); FPUm(0xdc00, d, b);       asm_output("fadd %d(%s)",d,gpn(b)); } while(0)
+#define FADDdm(m)   do { const double* const dm = m; \
+                         count_ldq(); FPUdm(0xdc00, dm);        asm_output("fadd (%p)",(void*)dm); } while(0)
 #define FSUB(d,b)   do { count_fpu(); FPUm(0xdc04, d, b);       asm_output("fsub %d(%s)",d,gpn(b)); } while(0)
 #define FSUBR(d,b)  do { count_fpu(); FPUm(0xdc05, d, b);       asm_output("fsubr %d(%s)",d,gpn(b)); } while(0)
+#define FSUBRdm(m)  do { const double* const dm = m; \
+                         count_ldq(); FPUdm(0xdc05, dm);        asm_output("fsubr (%p)",(void*)dm); } while(0)
 #define FMUL(d,b)   do { count_fpu(); FPUm(0xdc01, d, b);       asm_output("fmul %d(%s)",d,gpn(b)); } while(0)
+#define FMULdm(m)   do { const double* const dm = m; \
+                         count_ldq(); FPUdm(0xdc01, dm);        asm_output("fmul (%p)",(void*)dm); } while(0)
 #define FDIV(d,b)   do { count_fpu(); FPUm(0xdc06, d, b);       asm_output("fdiv %d(%s)",d,gpn(b)); } while(0)
 #define FDIVR(d,b)  do { count_fpu(); FPUm(0xdc07, d, b);       asm_output("fdivr %d(%s)",d,gpn(b)); } while(0)
+#define FDIVRdm(m)  do { const double* const dm = m; \
+                         count_ldq(); FPUdm(0xdc07, dm);        asm_output("fdivr (%p)",(void*)dm); } while(0)
 #define FINCSTP()   do { count_fpu(); FPUc(0xd9f7);             asm_output("fincstp"); } while(0)
-#define FSTP(r)     do { count_fpu(); FPU(0xddd8, r&7);         asm_output("fstp %s",fpn(r)); fpu_pop();} while(0)
+#define FSTP(r)     do { count_fpu(); FPU(0xddd8, r&7);         asm_output("fstp %s",gpn(r)); fpu_pop();} while(0)
 #define FCOMP()     do { count_fpu(); FPUc(0xD8D9);             asm_output("fcomp"); fpu_pop();} while(0)
 #define FCOMPP()    do { count_fpu(); FPUc(0xDED9);             asm_output("fcompp"); fpu_pop();fpu_pop();} while(0)
-#define FLDr(r)     do { count_ldq(); FPU(0xd9c0,r);            asm_output("fld %s",fpn(r)); fpu_push(); } while(0)
+#define FLDr(r)     do { count_ldq(); FPU(0xd9c0,r);            asm_output("fld %s",gpn(r)); fpu_push(); } while(0)
 #define EMMS()      do { count_fpu(); FPUc(0x0f77);             asm_output("emms"); } while (0)
 
 // standard direct call
@@ -851,7 +983,6 @@ namespace nanojit
   verbose_only(asm_output("call %s",gpn(r));) \
   debug_only(if ((c->_argtypes & ARGSIZE_MASK_ANY)==ARGSIZE_F) fpu_push();)\
 } while (0)
-
 
 }
 #endif // __nanojit_Nativei386__

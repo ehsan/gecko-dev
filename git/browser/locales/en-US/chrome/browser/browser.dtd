@@ -50,6 +50,7 @@
 <!ENTITY pageInfoCmd.commandkey "i">
 <!ENTITY fullScreenCmd.label "Full Screen">
 <!ENTITY fullScreenCmd.accesskey "F">
+<!ENTITY fullScreenCmd.macCommandKey "f">
 <!ENTITY showAllTabsCmd.label "Show All Tabs">
 <!ENTITY showAllTabsCmd.accesskey "A">
 
@@ -171,8 +172,8 @@
 <!ENTITY preferencesCmdUnix.label       "Preferences">
 <!ENTITY preferencesCmdUnix.accesskey     "n"> 
 
-<!ENTITY clearRecentHistoryCmd.label            "Clear Recent History">
-<!ENTITY clearRecentHistoryCmd.accesskey        "H">
+<!ENTITY clearRecentHistory.label               "Clear Recent History…">
+<!ENTITY clearRecentHistory.accesskey           "H">
 
 <!-- LOCALIZATION NOTE : These two strings can share an access key beause they never appear together on the menu -->
 <!ENTITY privateBrowsingCmd.start.label         "Start Private Browsing">
@@ -234,6 +235,8 @@
 
 <!ENTITY openLinkCmd.label            "Open Link in New Window">
 <!ENTITY openLinkCmd.accesskey        "W">
+<!ENTITY openLinkCmdInCurrent.label     "Open Link">
+<!ENTITY openLinkCmdInCurrent.accesskey "O">
 <!ENTITY openLinkCmdInTab.label       "Open Link in New Tab">
 <!ENTITY openLinkCmdInTab.accesskey   "T">
 <!ENTITY openFrameCmd.label           "Open Frame in New Window">
@@ -262,6 +265,8 @@
 <!ENTITY reloadImageCmd.accesskey     "R">
 <!ENTITY viewImageCmd.label           "View Image">
 <!ENTITY viewImageCmd.accesskey       "I">
+<!ENTITY viewImageInfoCmd.label       "View Image Info">
+<!ENTITY viewImageInfoCmd.accesskey   "f">
 <!ENTITY viewVideoCmd.label           "View Video">
 <!ENTITY viewVideoCmd.accesskey       "I">
 <!ENTITY viewBGImageCmd.label         "View Background Image">
@@ -303,8 +308,6 @@
 <!ENTITY sendAudioCmd.accesskey       "n">
 <!ENTITY copyLinkCmd.label            "Copy Link Location">
 <!ENTITY copyLinkCmd.accesskey        "a">
-<!ENTITY copyLinkTextCmd.label        "Copy Link Text">
-<!ENTITY copyLinkTextCmd.accesskey    "x">
 <!ENTITY copyImageCmd.label           "Copy Image Location">
 <!ENTITY copyImageCmd.accesskey       "o">
 <!ENTITY copyImageContentsCmd.label   "Copy Image">
@@ -314,8 +317,6 @@
 <!ENTITY copyAudioURLCmd.label        "Copy Audio Location">
 <!ENTITY copyAudioURLCmd.accesskey    "o">
 <!ENTITY blockImageCmd.accesskey      "B">
-<!ENTITY metadataCmd.label            "Properties">
-<!ENTITY metadataCmd.accesskey        "P">
 <!ENTITY copyEmailCmd.label           "Copy Email Address">
 <!ENTITY copyEmailCmd.accesskey       "E">
 <!ENTITY thisFrameMenu.label              "This Frame">
@@ -334,6 +335,8 @@
 <!ENTITY mediaShowControls.accesskey "C">
 <!ENTITY mediaHideControls.label     "Hide Controls">
 <!ENTITY mediaHideControls.accesskey "C">
+<!ENTITY videoFullScreen.label       "Full Screen">
+<!ENTITY videoFullScreen.accesskey   "F">
 
 
 <!-- LOCALIZATION NOTE :

@@ -138,6 +138,7 @@ nsHttpChannel::nsHttpChannel()
     , mLoadedFromApplicationCache(PR_FALSE)
     , mTracingEnabled(PR_TRUE)
     , mForceAllowThirdPartyCookie(PR_FALSE)
+    , mCustomConditionalRequest(PR_FALSE)
 {
     LOG(("Creating nsHttpChannel @%x\n", this));
 
@@ -271,17 +272,6 @@ nsHttpChannel::AsyncCall(nsAsyncCallback funcPtr,
     }
 
     return rv;
-}
-
-PRBool
-nsHttpChannel::RequestIsConditional()
-{
-    // Is our consumer issuing a conditional request?
-    return mRequestHead.PeekHeader(nsHttp::If_Modified_Since) ||
-           mRequestHead.PeekHeader(nsHttp::If_None_Match) ||
-           mRequestHead.PeekHeader(nsHttp::If_Unmodified_Since) ||
-           mRequestHead.PeekHeader(nsHttp::If_Match) ||
-           mRequestHead.PeekHeader(nsHttp::If_Range);
 }
 
 nsresult
@@ -677,10 +667,10 @@ nsHttpChannel::SetupTransaction()
     NS_ADDREF(mTransaction);
 
     // See bug #466080. Transfer LOAD_ANONYMOUS flag to socket-layer.
-    if (mLoadFlags & LOAD_ANONYMOUS) {
+    if (mLoadFlags & LOAD_ANONYMOUS)
         mCaps |= NS_HTTP_LOAD_ANONYMOUS;
-        mConnectionInfo->SetAnonymous();
-    }
+
+    mConnectionInfo->SetAnonymous((mLoadFlags & LOAD_ANONYMOUS) != 0);
 
     nsCOMPtr<nsIAsyncInputStream> responseStream;
     rv = mTransaction->Init(mCaps, mConnectionInfo, &mRequestHead,
@@ -1279,8 +1269,15 @@ nsHttpChannel::DoReplaceWithProxy(nsIProxyInfo* pi)
         return rv;
 
     mStatus = NS_BINDING_REDIRECTED;
+
+    // disconnect from the old listeners...
     mListener = nsnull;
     mListenerContext = nsnull;
+
+    // ...and the old callbacks
+    mCallbacks = nsnull;
+    mProgressSink = nsnull;
+
     return rv;
 }
 
@@ -1494,6 +1491,11 @@ nsHttpChannel::ProcessNotModified()
 
     LOG(("nsHttpChannel::ProcessNotModified [this=%x]\n", this)); 
 
+    if (mCustomConditionalRequest) {
+        LOG(("Bypassing ProcessNotModified due to custom conditional headers")); 
+        return NS_ERROR_FAILURE;
+    }
+
     NS_ENSURE_TRUE(mCachedResponseHead, NS_ERROR_NOT_INITIALIZED);
     NS_ENSURE_TRUE(mCacheEntry, NS_ERROR_NOT_INITIALIZED);
 
@@ -1674,12 +1676,6 @@ nsHttpChannel::OpenCacheEntry(PRBool offline, PRBool *delayed)
     // byte range requests.
     if (IsSubRangeRequest(mRequestHead))
         return NS_OK;
-
-    if (RequestIsConditional()) {
-        // don't use the cache if our consumer is making a conditional request
-        // (see bug 331825).
-        return NS_OK;
-    }
 
     GenerateCacheKey(mPostID, cacheKey);
 
@@ -1874,12 +1870,6 @@ nsHttpChannel::OpenOfflineCacheEntryForWriting()
     // byte range requests.
     if (IsSubRangeRequest(mRequestHead))
         return NS_OK;
-
-    if (RequestIsConditional()) {
-        // don't use the cache if our consumer is making a conditional request
-        // (see bug 331825).
-        return NS_OK;
-    }
 
     nsCAutoString cacheKey;
     GenerateCacheKey(mPostID, cacheKey);
@@ -2099,10 +2089,14 @@ nsHttpChannel::CheckCache()
     }
 
     PRBool doValidation = PR_FALSE;
+    PRBool canAddImsHeader = PR_TRUE;
 
-    // Be optimistic: assume that we won't need to do validation
-    mRequestHead.ClearHeader(nsHttp::If_Modified_Since);
-    mRequestHead.ClearHeader(nsHttp::If_None_Match);
+    mCustomConditionalRequest = 
+        mRequestHead.PeekHeader(nsHttp::If_Modified_Since) ||
+        mRequestHead.PeekHeader(nsHttp::If_None_Match) ||
+        mRequestHead.PeekHeader(nsHttp::If_Unmodified_Since) ||
+        mRequestHead.PeekHeader(nsHttp::If_Match) ||
+        mRequestHead.PeekHeader(nsHttp::If_Range);
 
     // If the LOAD_FROM_CACHE flag is set, any cached data can simply be used.
     if (mLoadFlags & LOAD_FROM_CACHE) {
@@ -2139,6 +2133,7 @@ nsHttpChannel::CheckCache()
 
     else if (ResponseWouldVary()) {
         LOG(("Validating based on Vary headers returning TRUE\n"));
+        canAddImsHeader = PR_FALSE;
         doValidation = PR_TRUE;
     }
     
@@ -2176,6 +2171,20 @@ nsHttpChannel::CheckCache()
             doValidation = PR_TRUE;
 
         LOG(("%salidating based on expiration time\n", doValidation ? "V" : "Not v"));
+    }
+
+    if (!doValidation && mRequestHead.PeekHeader(nsHttp::If_Match) &&
+        (method == nsHttp::Get || method == nsHttp::Head)) {
+        const char *requestedETag, *cachedETag;
+        cachedETag = mCachedResponseHead->PeekHeader(nsHttp::ETag);
+        requestedETag = mRequestHead.PeekHeader(nsHttp::If_Match);
+        if (cachedETag && (!strncmp(cachedETag, "W/", 2) ||
+            strcmp(requestedETag, cachedETag))) {
+            // User has defined If-Match header, if the cached entry is not 
+            // matching the provided header value or the cached ETag is weak,
+            // force validation.
+            doValidation = PR_TRUE;
+        }
     }
 
     if (!doValidation) {
@@ -2217,15 +2226,20 @@ nsHttpChannel::CheckCache()
         //
         // the request method MUST be either GET or HEAD (see bug 175641).
         //
+        // do not override conditional headers when consumer has defined its own
         if (!mCachedResponseHead->NoStore() &&
             (mRequestHead.Method() == nsHttp::Get ||
-             mRequestHead.Method() == nsHttp::Head)) {
+             mRequestHead.Method() == nsHttp::Head) &&
+             !mCustomConditionalRequest) {
             const char *val;
             // Add If-Modified-Since header if a Last-Modified was given
-            val = mCachedResponseHead->PeekHeader(nsHttp::Last_Modified);
-            if (val)
-                mRequestHead.SetHeader(nsHttp::If_Modified_Since,
-                                       nsDependentCString(val));
+            // and we are allowed to do this (see bugs 510359 and 269303)
+            if (canAddImsHeader) {
+                val = mCachedResponseHead->PeekHeader(nsHttp::Last_Modified);
+                if (val)
+                    mRequestHead.SetHeader(nsHttp::If_Modified_Since,
+                                           nsDependentCString(val));
+            }
             // Add If-None-Match header if an ETag was given in the response
             val = mCachedResponseHead->PeekHeader(nsHttp::ETag);
             if (val)
@@ -2661,7 +2675,7 @@ nsHttpChannel::InstallCacheListener(PRUint32 offset)
         do_CreateInstance(kStreamListenerTeeCID, &rv);
     if (NS_FAILED(rv)) return rv;
 
-    rv = tee->Init(mListener, out);
+    rv = tee->Init(mListener, out, nsnull);
     if (NS_FAILED(rv)) return rv;
 
     mListener = tee;
@@ -2687,7 +2701,7 @@ nsHttpChannel::InstallOfflineCacheListener()
         do_CreateInstance(kStreamListenerTeeCID, &rv);
     if (NS_FAILED(rv)) return rv;
 
-    rv = tee->Init(mListener, out);
+    rv = tee->Init(mListener, out, nsnull);
     if (NS_FAILED(rv)) return rv;
 
     mListener = tee;
@@ -2759,27 +2773,55 @@ nsHttpChannel::SetupReplacementChannel(nsIURI       *newURI,
         return NS_OK; // no other options to set
 
     if (preserveMethod) {
-        nsCOMPtr<nsIUploadChannel> uploadChannel = do_QueryInterface(httpChannel);
-        if (mUploadStream && uploadChannel) {
+        nsCOMPtr<nsIUploadChannel> uploadChannel =
+            do_QueryInterface(httpChannel);
+        nsCOMPtr<nsIUploadChannel2> uploadChannel2 =
+            do_QueryInterface(httpChannel);
+        if (mUploadStream && (uploadChannel2 || uploadChannel)) {
             // rewind upload stream
             nsCOMPtr<nsISeekableStream> seekable = do_QueryInterface(mUploadStream);
             if (seekable)
                 seekable->Seek(nsISeekableStream::NS_SEEK_SET, 0);
 
             // replicate original call to SetUploadStream...
-            if (mUploadStreamHasHeaders)
-                uploadChannel->SetUploadStream(mUploadStream, EmptyCString(), -1);
-            else {
+            if (uploadChannel2) {
                 const char *ctype = mRequestHead.PeekHeader(nsHttp::Content_Type);
+                if (!ctype)
+                    ctype = "";
                 const char *clen  = mRequestHead.PeekHeader(nsHttp::Content_Length);
-                if (ctype && clen)
-                    uploadChannel->SetUploadStream(mUploadStream,
-                                                   nsDependentCString(ctype),
-                                                   atoi(clen));
+                if (clen)
+                    uploadChannel2->ExplicitSetUploadStream(
+                        mUploadStream,
+                        nsDependentCString(ctype),
+                        nsCRT::atoll(clen),
+                        nsDependentCString(mRequestHead.Method()),
+                        mUploadStreamHasHeaders);
+            }
+            else {
+                if (mUploadStreamHasHeaders)
+                    uploadChannel->SetUploadStream(mUploadStream, EmptyCString(),
+                                                   -1);
+                else {
+                    const char *ctype =
+                        mRequestHead.PeekHeader(nsHttp::Content_Type);
+                    const char *clen =
+                        mRequestHead.PeekHeader(nsHttp::Content_Length);
+                    if (!ctype) {
+                        ctype = "application/octet-stream";
+                    }
+                    if (clen) {
+                        uploadChannel->SetUploadStream(mUploadStream,
+                                                       nsDependentCString(ctype),
+                                                       atoi(clen));
+                    }
+                }
             }
         }
-        // must happen after setting upload stream since SetUploadStream
-        // may change the request method.
+        // since preserveMethod is true, we need to ensure that the appropriate 
+        // request method gets set on the channel, regardless of whether or not 
+        // we set the upload stream above. This means SetRequestMethod() will
+        // be called twice if ExplicitSetUploadStream() gets called above.
+
         httpChannel->SetRequestMethod(nsDependentCString(mRequestHead.Method()));
     }
     // convey the referrer if one was used for this channel to the next one
@@ -2792,6 +2834,9 @@ nsHttpChannel::SetupReplacementChannel(nsIURI       *newURI,
 
     nsCOMPtr<nsIHttpChannelInternal> httpInternal = do_QueryInterface(newChannel);
     if (httpInternal) {
+        // convey the mForceAllowThirdPartyCookie flag
+        httpInternal->SetForceAllowThirdPartyCookie(mForceAllowThirdPartyCookie);
+
         // update the DocumentURI indicator since we are being redirected.
         // if this was a top-level document channel, then the new channel
         // should have its mDocumentURI point to newURI; otherwise, we
@@ -4066,6 +4111,7 @@ NS_INTERFACE_MAP_BEGIN(nsHttpChannel)
     NS_INTERFACE_MAP_ENTRY(nsIHttpChannel)
     NS_INTERFACE_MAP_ENTRY(nsICachingChannel)
     NS_INTERFACE_MAP_ENTRY(nsIUploadChannel)
+    NS_INTERFACE_MAP_ENTRY(nsIUploadChannel2)
     NS_INTERFACE_MAP_ENTRY(nsICacheListener)
     NS_INTERFACE_MAP_ENTRY(nsIEncodedChannel)
     NS_INTERFACE_MAP_ENTRY(nsIHttpChannelInternal)
@@ -4673,7 +4719,9 @@ nsHttpChannel::GetUploadStream(nsIInputStream **stream)
 }
 
 NS_IMETHODIMP
-nsHttpChannel::SetUploadStream(nsIInputStream *stream, const nsACString &contentType, PRInt32 contentLength)
+nsHttpChannel::SetUploadStream(nsIInputStream *stream,
+                               const nsACString &contentType,
+                               PRInt32 contentLength)
 {
     // NOTE: for backwards compatibility and for compatibility with old style
     // plugins, |stream| may include headers, specifically Content-Type and
@@ -4691,7 +4739,8 @@ nsHttpChannel::SetUploadStream(nsIInputStream *stream, const nsACString &content
                     return NS_ERROR_FAILURE;
                 }
             }
-            mRequestHead.SetHeader(nsHttp::Content_Length, nsPrintfCString("%d", contentLength));
+            mRequestHead.SetHeader(nsHttp::Content_Length,
+                                   nsPrintfCString("%d", contentLength));
             mRequestHead.SetHeader(nsHttp::Content_Type, contentType);
             mUploadStreamHasHeaders = PR_FALSE;
             mRequestHead.SetMethod(nsHttp::Put); // PUT request
@@ -4706,6 +4755,37 @@ nsHttpChannel::SetUploadStream(nsIInputStream *stream, const nsACString &content
         mRequestHead.SetMethod(nsHttp::Get); // revert to GET request
     }
     mUploadStream = stream;
+    return NS_OK;
+}
+
+NS_IMETHODIMP
+nsHttpChannel::ExplicitSetUploadStream(nsIInputStream *aStream,
+                                       const nsACString &aContentType,
+                                       PRInt64 aContentLength,
+                                       const nsACString &aMethod,
+                                       PRBool aStreamHasHeaders)
+{
+    // Ensure stream is set and method is valid 
+    NS_ENSURE_TRUE(aStream, NS_ERROR_FAILURE);
+
+    if (aContentLength < 0) {
+        PRUint32 streamLength;
+        aStream->Available(&streamLength);
+        aContentLength = streamLength;
+        if (aContentLength < 0) {
+            NS_ERROR("unable to determine content length");
+            return NS_ERROR_FAILURE;
+        }
+    }
+
+    nsresult rv = SetRequestMethod(aMethod);
+    NS_ENSURE_SUCCESS(rv, rv);
+
+    mRequestHead.SetHeader(nsHttp::Content_Length, nsPrintfCString("%lld", aContentLength));
+    mRequestHead.SetHeader(nsHttp::Content_Type, aContentType);
+
+    mUploadStreamHasHeaders = aStreamHasHeaders;
+    mUploadStream = aStream;
     return NS_OK;
 }
 
@@ -5264,8 +5344,8 @@ nsHttpChannel::OnDataAvailable(nsIRequest *request, nsISupports *ctxt,
         // of a byte range request, the content length stored in the cached
         // response headers is what we want to use here.
 
-        nsUint64 progressMax(PRUint64(mResponseHead->ContentLength()));
-        nsUint64 progress = mLogicalOffset + nsUint64(count);
+        PRUint64 progressMax(PRUint64(mResponseHead->ContentLength()));
+        PRUint64 progress = mLogicalOffset + PRUint64(count);
         NS_ASSERTION(progress <= progressMax, "unexpected progress values");
 
         OnTransportStatus(nsnull, transportStatus, progress, progressMax);

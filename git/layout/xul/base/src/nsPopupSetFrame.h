@@ -59,11 +59,14 @@ struct nsPopupFrameList {
 
 public:
   nsPopupFrameList(nsIContent* aPopupContent, nsPopupFrameList* aNext);
+  void Destroy(nsIFrame* aDestructRoot = nsnull);
 };
 
 class nsPopupSetFrame : public nsBoxFrame
 {
 public:
+  NS_DECL_FRAMEARENA_HELPERS
+
   nsPopupSetFrame(nsIPresShell* aShell, nsStyleContext* aContext):
     nsBoxFrame(aShell, aContext) {}
 
@@ -86,7 +89,7 @@ public:
   NS_IMETHOD DoLayout(nsBoxLayoutState& aBoxLayoutState);
 
   // Used to destroy our popup frames.
-  virtual void Destroy();
+  virtual void DestroyFrom(nsIFrame* aDestructRoot);
 
   virtual nsIAtom* GetType() const;
 

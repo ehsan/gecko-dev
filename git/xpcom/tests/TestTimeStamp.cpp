@@ -14,7 +14,7 @@
  *
  * The Original Code is XPCOM TimeStamp tests.
  *
- * The Initial Developer of the Original Code is Mozilla Corporation.
+ * The Initial Developer of the Original Code is Mozilla Foundation.
  * Portions created by the Initial Developer are Copyright (C) 2009
  * the Initial Developer. All Rights Reserved.
  *
@@ -117,6 +117,11 @@ int main(int argc, char** argv)
     td = ts - ts2;
     Assert(td.ToSeconds() < -1.0, "TimeStamp negative difference lower bound");
     Assert(td.ToSeconds() > -20.0, "TimeStamp negative difference upper bound");
+
+    double resolution = TimeDuration::Resolution().ToSecondsSigDigits();
+    printf(" (platform timer resolution is ~%g s)\n", resolution);
+    Assert(0.000000001 < resolution, "Time resolution is sane");
+    Assert(resolution <= 0.001, "Time resolution as good as NSPR's worst");
 
     return gFailCount > 0;
 }

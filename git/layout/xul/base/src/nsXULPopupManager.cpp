@@ -127,11 +127,10 @@ void nsMenuChainItem::Detach(nsMenuChainItem** aRoot)
   }
 }
 
-NS_IMPL_ISUPPORTS5(nsXULPopupManager,
+NS_IMPL_ISUPPORTS4(nsXULPopupManager,
                    nsIDOMKeyListener,
                    nsIDOMEventListener,
                    nsIMenuRollup,
-                   nsIRollupListener,
                    nsITimerCallback)
 
 nsXULPopupManager::nsXULPopupManager() :
@@ -287,7 +286,7 @@ nsXULPopupManager::GetFrameOfTypeForContent(nsIContent* aContent,
       if (aShouldFlush)
         presShell->FlushPendingNotifications(Flush_Frames);
 
-      nsIFrame* frame = presShell->GetPrimaryFrameFor(aContent);
+      nsIFrame* frame = aContent->GetPrimaryFrame();
       if (frame && frame->GetType() == aFrameType)
         return frame;
     }
@@ -351,7 +350,9 @@ nsXULPopupManager::SetTriggerEvent(nsIDOMEvent* aEvent, nsIContent* aPopup)
           nsIPresShell* presShell = doc->GetPrimaryShell();
           if (presShell && presShell->GetPresContext()) {
             nsPresContext* rootDocPresContext =
-                presShell->GetPresContext()->RootPresContext();
+              presShell->GetPresContext()->GetRootPresContext();
+            if (!rootDocPresContext)
+              return;
             nsIFrame* rootDocumentRootFrame = rootDocPresContext->
                 PresShell()->FrameManager()->GetRootFrame();
             if ((event->eventStructType == NS_MOUSE_EVENT || 
@@ -1018,7 +1019,18 @@ nsXULPopupManager::FirePopupShowingEvent(nsIContent* aPopup,
   //   all the globals people keep adding to nsIDOMXULDocument.
   nsEventStatus status = nsEventStatus_eIgnore;
   nsMouseEvent event(PR_TRUE, NS_XUL_POPUP_SHOWING, nsnull, nsMouseEvent::eReal);
-  presShell->GetViewManager()->GetRootWidget(getter_AddRefs(event.widget));
+
+  // coordinates are relative to the root widget
+  nsPresContext* rootPresContext =
+    presShell->GetPresContext()->GetRootPresContext();
+  if (rootPresContext) {
+    rootPresContext->PresShell()->GetViewManager()->
+      GetRootWidget(getter_AddRefs(event.widget));
+  }
+  else {
+    event.widget = nsnull;
+  }
+
   event.refPoint = mCachedMousePoint;
   nsEventDispatcher::Dispatch(aPopup, aPresContext, &event, nsnull, &status);
   mCachedMousePoint = nsIntPoint(0, 0);
@@ -1043,7 +1055,7 @@ nsXULPopupManager::FirePopupShowingEvent(nsIContent* aPopup,
       fm->GetFocusedElement(getter_AddRefs(currentFocusElement));
       nsCOMPtr<nsIContent> currentFocus = do_QueryInterface(currentFocusElement);
       if (doc && currentFocus &&
-          !nsContentUtils::ContentIsDescendantOf(currentFocus, aPopup)) {
+          !nsContentUtils::ContentIsCrossDocDescendantOf(currentFocus, aPopup)) {
         fm->ClearFocus(doc->GetWindow());
       }
     }
@@ -1059,7 +1071,7 @@ nsXULPopupManager::FirePopupShowingEvent(nsIContent* aPopup,
     document->FlushPendingNotifications(Flush_Layout);
 
   // get the frame again in case it went away
-  nsIFrame* frame = presShell->GetPrimaryFrameFor(aPopup);
+  nsIFrame* frame = aPopup->GetPrimaryFrame();
   if (frame && frame->GetType() == nsGkAtoms::menuPopupFrame) {
     nsMenuPopupFrame* popupFrame = static_cast<nsMenuPopupFrame *>(frame);
 
@@ -1101,14 +1113,14 @@ nsXULPopupManager::FirePopupHidingEvent(nsIContent* aPopup,
       fm->GetFocusedElement(getter_AddRefs(currentFocusElement));
       nsCOMPtr<nsIContent> currentFocus = do_QueryInterface(currentFocusElement);
       if (doc && currentFocus &&
-          nsContentUtils::ContentIsDescendantOf(currentFocus, aPopup)) {
+          nsContentUtils::ContentIsCrossDocDescendantOf(currentFocus, aPopup)) {
         fm->ClearFocus(doc->GetWindow());
       }
     }
   }
 
   // get frame again in case it went away
-  nsIFrame* frame = presShell->GetPrimaryFrameFor(aPopup);
+  nsIFrame* frame = aPopup->GetPrimaryFrame();
   if (frame && frame->GetType() == nsGkAtoms::menuPopupFrame) {
     nsMenuPopupFrame* popupFrame = static_cast<nsMenuPopupFrame *>(frame);
 
@@ -1229,6 +1241,12 @@ nsXULPopupManager::MayShowPopup(nsMenuPopupFrame* aPopup)
   // don't show popups unless they are closed or invisible
   if (state != ePopupClosed && state != ePopupInvisible)
     return PR_FALSE;
+
+  // Don't show popups that we already have in our popup chain
+  if (IsPopupOpen(aPopup->GetContent())) {
+    NS_WARNING("Refusing to show duplicate popup");
+    return PR_FALSE;
+  }
 
   // if the popup was just rolled up, don't reopen it
   nsCOMPtr<nsIWidget> widget;
@@ -1380,7 +1398,7 @@ nsXULPopupManager::SetCaptureState(nsIContent* aOldPopup)
     return;
 
   if (mWidget) {
-    mWidget->CaptureRollupEvents(this, PR_FALSE, PR_FALSE);
+    mWidget->CaptureRollupEvents(this, this, PR_FALSE, PR_FALSE);
     mWidget = nsnull;
   }
 
@@ -1389,7 +1407,8 @@ nsXULPopupManager::SetCaptureState(nsIContent* aOldPopup)
     nsCOMPtr<nsIWidget> widget;
     popup->GetWidget(getter_AddRefs(widget));
     if (widget) {
-      widget->CaptureRollupEvents(this, PR_TRUE, popup->ConsumeOutsideClicks());
+      widget->CaptureRollupEvents(this, this, PR_TRUE,
+                                  popup->ConsumeOutsideClicks());
       mWidget = widget;
       popup->AttachedDismissalListener();
     }
@@ -1800,11 +1819,11 @@ nsXULPopupManager::GetPreviousMenuItem(nsIFrame* aParent,
   if (!immediateParent)
     immediateParent = aParent;
 
-  nsFrameList frames(immediateParent->GetFirstChild(nsnull));
+  const nsFrameList& frames(immediateParent->GetChildList(nsnull));
 
   nsIFrame* currFrame = nsnull;
   if (aStart)
-    currFrame = frames.GetPrevSiblingFor(aStart);
+    currFrame = aStart->GetPrevSibling();
   else
     currFrame = frames.LastChild();
 
@@ -1814,7 +1833,7 @@ nsXULPopupManager::GetPreviousMenuItem(nsIFrame* aParent,
       return (currFrame->GetType() == nsGkAtoms::menuFrame) ?
              static_cast<nsMenuFrame *>(currFrame) : nsnull;
     }
-    currFrame = frames.GetPrevSiblingFor(currFrame);
+    currFrame = currFrame->GetPrevSibling();
   }
 
   currFrame = frames.LastChild();
@@ -1827,7 +1846,7 @@ nsXULPopupManager::GetPreviousMenuItem(nsIFrame* aParent,
              static_cast<nsMenuFrame *>(currFrame) : nsnull;
     }
 
-    currFrame = frames.GetPrevSiblingFor(currFrame);
+    currFrame = currFrame->GetPrevSibling();
   }
 
   // No luck. Just return our start value.
@@ -2096,7 +2115,7 @@ nsXULMenuCommandEvent::Run()
     if (mCloseMenuMode != CloseMenuMode_None)
       menuFrame->SelectMenu(PR_FALSE);
 
-    nsAutoHandlingUserInputStatePusher userInpStatePusher(mUserInput);
+    nsAutoHandlingUserInputStatePusher userInpStatePusher(mUserInput, PR_FALSE);
     nsContentUtils::DispatchXULCommand(mMenu, mIsTrusted, nsnull, shell,
                                        mControl, mAlt, mShift, mMeta);
   }

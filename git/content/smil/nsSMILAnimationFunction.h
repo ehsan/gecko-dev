@@ -85,7 +85,7 @@ public:
    *                   parsed result.
    * @param aParseResult  Outparam used for reporting parse errors. Will be set
    *                      to NS_OK if everything succeeds.
-   * @returns PR_TRUE if aAttribute is a recognized animation-related
+   * @return  PR_TRUE if aAttribute is a recognized animation-related
    *          attribute; PR_FALSE otherwise.
    */
   virtual PRBool SetAttr(nsIAtom* aAttribute, const nsAString& aValue,
@@ -139,8 +139,8 @@ public:
    * the animation function that it should no longer add its result to the
    * animation sandwich.
    *
-   * @param aIsFrozen True if this animation should continue to contribute to
-   *                  the animation sandwich using the most recent sample
+   * @param aIsFrozen PR_TRUE if this animation should continue to contribute
+   *                  to the animation sandwich using the most recent sample
    *                  parameters.
    */
   void Inactivate(PRBool aIsFrozen);
@@ -176,12 +176,12 @@ public:
    */
 
   /**
-   * Indicates if the animation is currently active. Inactive animations will
-   * not contribute to the composed result.
+   * Indicates if the animation is currently active or frozen. Inactive
+   * animations will not contribute to the composed result.
    *
-   * @return  True if the animation active, false otherwise.
+   * @return  PR_TRUE if the animation is active or frozen, PR_FALSE otherwise.
    */
-  PRBool IsActive() const
+  PRBool IsActiveOrFrozen() const
   {
     /*
      * - Frozen animations should be considered active for the purposes of
@@ -210,7 +210,8 @@ public:
    * Note that the caller is responsible for determining if the animation target
    * has changed.
    *
-   * @return  True if the animation parameters have changed, false otherwise.
+   * @return  PR_TRUE if the animation parameters have changed, PR_FALSE
+   *          otherwise.
    */
   PRBool HasChanged() const;
 
@@ -263,9 +264,9 @@ protected:
   void     UnsetKeySplines();
 
   // Helpers
-  nsresult InterpolateResult(const nsSMILValueArray& aValues,
-                             nsSMILValue& aResult,
-                             nsSMILValue& aBaseValue);
+  virtual nsresult InterpolateResult(const nsSMILValueArray& aValues,
+                                     nsSMILValue& aResult,
+                                     nsSMILValue& aBaseValue);
   nsresult AccumulateResult(const nsSMILValueArray& aValues,
                             nsSMILValue& aResult);
 
@@ -292,11 +293,29 @@ protected:
   nsresult GetValues(const nsISMILAttr& aSMILAttr,
                      nsSMILValueArray& aResult);
   void     UpdateValuesArray();
-  PRBool   IsToAnimation() const;
-  PRBool   IsAdditive() const;
   void     CheckKeyTimes(PRUint32 aNumValues);
   void     CheckKeySplines(PRUint32 aNumValues);
 
+  inline PRBool IsToAnimation() const {
+    return !HasAttr(nsGkAtoms::values) &&
+            HasAttr(nsGkAtoms::to) &&
+           !HasAttr(nsGkAtoms::from);
+  }
+
+  inline PRBool IsAdditive() const {
+    /*
+     * Animation is additive if:
+     *
+     * (1) additive = "sum" (GetAdditive() == true), or
+     * (2) it is 'by animation' (by is set, from and values are not)
+     *
+     * Although animation is not additive if it is 'to animation'
+     */
+    PRBool isByAnimation = (!HasAttr(nsGkAtoms::values) &&
+                             HasAttr(nsGkAtoms::by) &&
+                            !HasAttr(nsGkAtoms::from));
+    return !IsToAnimation() && (GetAdditive() || isByAnimation);
+  }
 
   // Members
   // -------

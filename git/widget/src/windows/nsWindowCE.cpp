@@ -62,9 +62,14 @@
  **************************************************************/
 
 #if defined(WINCE_HAVE_SOFTKB)
-PRBool          nsWindow::sSoftKeyMenuBar         = PR_FALSE;
 PRBool          nsWindow::sSoftKeyboardState      = PR_FALSE;
+PRBool          nsWindowCE::sSIPInTransition      = PR_FALSE;
 TriStateBool    nsWindowCE::sShowSIPButton        = TRI_UNKNOWN;
+TriStateBool    nsWindowCE::sHardKBPresence       = TRI_UNKNOWN;
+HWND            nsWindowCE::sSoftKeyMenuBarHandle = NULL;
+RECT            nsWindowCE::sDefaultSIPRect       = {0, 0, 0, 0};
+HWND            nsWindowCE::sMainWindowHandle     = NULL;
+PRBool          nsWindowCE::sMenuBarShown         = PR_FALSE;
 #endif
 
 /**************************************************************
@@ -78,39 +83,58 @@ TriStateBool    nsWindowCE::sShowSIPButton        = TRI_UNKNOWN;
  **************************************************************/
 
 #ifdef WINCE_HAVE_SOFTKB
-void nsWindowCE::NotifySoftKbObservers()
+void nsWindowCE::OnSoftKbSettingsChange(HWND wnd, LPRECT visRect)
 {
-  nsCOMPtr<nsIObserverService> observerService = do_GetService("@mozilla.org/observer-service;1");
-  if (observerService) {
+  if (!visRect) {
     SIPINFO sipInfo;
-    wchar_t rectBuf[256];
     memset(&sipInfo, 0, sizeof(SIPINFO));
     sipInfo.cbSize = sizeof(SIPINFO);
-    if (SipGetInfo(&sipInfo)) {
-      _snwprintf(rectBuf, 256, L"{\"left\": %d, \"top\": %d,"
-                 L" \"right\": %d, \"bottom\": %d}", 
-                 sipInfo.rcVisibleDesktop.left, 
-                 sipInfo.rcVisibleDesktop.top, 
-                 sipInfo.rcVisibleDesktop.right, 
-                 sipInfo.rcVisibleDesktop.bottom);
-      observerService->NotifyObservers(nsnull, "softkb-change", rectBuf);
+    if (SipGetInfo(&sipInfo)) 
+      visRect = &(sipInfo.rcVisibleDesktop);
+    else
+      return;
+  }
+
+  if (wnd) {
+    HWND wndMain = nsWindow::GetTopLevelHWND(wnd);
+    RECT winRect;
+    ::GetWindowRect(wndMain, &winRect);
+    if (sMenuBarShown && visRect->bottom == GetSystemMetrics(SM_CYSCREEN)) {
+      RECT menuBarRect;
+      if (GetWindowRect(sSoftKeyMenuBarHandle, &menuBarRect) && menuBarRect.top < visRect->bottom)
+        visRect->bottom = menuBarRect.top;
+    }
+    if (winRect.bottom != visRect->bottom) {
+      if (!sMenuBarShown && winRect.bottom < visRect->bottom) {
+        SHFullScreen(wndMain, SHFS_HIDESIPBUTTON);
+      }
+      winRect.bottom = visRect->bottom;
+      MoveWindow(wndMain, winRect.left, winRect.top, winRect.right - winRect.left, winRect.bottom - winRect.top, TRUE);
     }
   }
 }
 
-void nsWindowCE::ToggleSoftKB(PRBool show)
+void nsWindowCE::ToggleSoftKB(HWND wnd, PRBool show)
 {
-  HWND hWndSIP = FindWindowW(L"SipWndClass", NULL );
-  if (hWndSIP)
-    ShowWindow(hWndSIP, show ? SW_SHOW: SW_HIDE);
+  if (sHardKBPresence == TRI_UNKNOWN)
+    CheckKeyboardStatus();
 
-  HWND hWndSIPB = FindWindowW(L"MS_SIPBUTTON", NULL ); 
-  if (hWndSIPB)
-      ShowWindow(hWndSIPB, show ? SW_SHOW: SW_HIDE);
+  if (sHardKBPresence == TRI_TRUE) {
+    if (GetSliderStateOpen() != TRI_FALSE) {
+      show = PR_FALSE;
+      sShowSIPButton = TRI_FALSE;
+    }
+  }
 
-  SipShowIM(show ? SIPF_ON : SIPF_OFF);
+  sSIPInTransition = PR_TRUE;
+
+  SHSipPreference(wnd, show ? SIP_UP : SIP_DOWN);
 
   if (sShowSIPButton == TRI_UNKNOWN) {
+    // Set it to a known value to avoid checking preferences every time
+    // Note: ui.sip.showSIPButton preference change requires browser restart
+    sShowSIPButton = TRI_TRUE;
+
     PRBool tmpBool = PR_FALSE;
     nsCOMPtr<nsIPrefService> prefs = do_GetService(NS_PREFSERVICE_CONTRACTID);
     if (prefs) {
@@ -118,33 +142,66 @@ void nsWindowCE::ToggleSoftKB(PRBool show)
       prefs->GetBranch(0, getter_AddRefs(prefBranch));
       if (prefBranch) {
         nsresult rv = prefBranch->GetBoolPref("ui.sip.showSIPButton", &tmpBool);
-        if (NS_SUCCEEDED(rv))
+        if (NS_SUCCEEDED(rv)) {
           sShowSIPButton = tmpBool ? TRI_TRUE : TRI_FALSE;
+
+          if (sShowSIPButton == TRI_FALSE) {
+            // Move the SIP rect to the bottom of the screen
+            SIPINFO sipInfo;
+            memset(&sipInfo, 0, sizeof(SIPINFO));
+            sipInfo.cbSize = sizeof(SIPINFO);
+            if (SipGetInfo(&sipInfo)) {
+              // Store the original rect
+              sDefaultSIPRect = sipInfo.rcSipRect;
+
+              // Move the SIP to the bottom of the screen
+              RECT sipRect = sipInfo.rcSipRect;
+              int sipShift = GetSystemMetrics(SM_CYSCREEN) - sipRect.bottom;
+              sipRect.top += sipShift;
+              sipRect.bottom += sipShift;
+              SipSetDefaultRect(&sipRect);
+
+              // Re-select the IM to apply the change
+              CLSID clsid;
+              if (SipGetCurrentIM(&clsid))
+                SipSetCurrentIM(&clsid);
+            }
+          }
+        }
       }
     }
   }
-  if (sShowSIPButton != TRI_TRUE && hWndSIPB && hWndSIP) {
-    ShowWindow(hWndSIPB, SW_HIDE);
-    int sX = GetSystemMetrics(SM_CXSCREEN);
-    int sY = GetSystemMetrics(SM_CYSCREEN);
-    RECT sipRect;
-    GetWindowRect(hWndSIP, &sipRect);
-    int sipH = sipRect.bottom - sipRect.top;
-    int sipW = sipRect.right - sipRect.left;
-    MoveWindow(hWndSIP, (sX - sipW)/2, sY - sipH, sX, sY, TRUE);
-  } 
 
-  NotifySoftKbObservers();
+  PRBool showSIPButton = show;
+  if (sShowSIPButton == TRI_FALSE)
+    showSIPButton = PR_FALSE;
+
+  if (!showSIPButton) {
+    HWND hWndSIPB = FindWindowW(L"MS_SIPBUTTON", NULL);
+    if (hWndSIPB)
+      ShowWindow(hWndSIPB, SW_HIDE);
+  }
+
+  if (sSoftKeyMenuBarHandle) {
+    ShowWindow(sSoftKeyMenuBarHandle, showSIPButton ? SW_SHOW: SW_HIDE);
+    if (showSIPButton)
+      SetWindowPos(sSoftKeyMenuBarHandle, HWND_TOP, 0, 0, 0, 0, SWP_SHOWWINDOW | SWP_NOMOVE | SWP_NOSIZE);
+    SHFullScreen(wnd, showSIPButton ? SHFS_SHOWSIPBUTTON : SHFS_HIDESIPBUTTON);
+    sMenuBarShown = showSIPButton;
+    OnSoftKbSettingsChange(wnd, nsnull);
+  }
+
+  sSIPInTransition = PR_FALSE;
 }
 
 void nsWindowCE::CreateSoftKeyMenuBar(HWND wnd)
 {
   if (!wnd)
     return;
+
+  sMainWindowHandle = wnd;
   
-  static HWND sSoftKeyMenuBar = nsnull;
-  
-  if (sSoftKeyMenuBar != nsnull)
+  if (sSoftKeyMenuBarHandle != NULL)
     return;
   
   SHMENUBARINFO mbi;
@@ -156,14 +213,16 @@ void nsWindowCE::CreateSoftKeyMenuBar(HWND wnd)
   //  menubar is empty.  This doesn't work: 
   //  mbi.dwFlags = SHCMBF_EMPTYBAR;
   
-  mbi.nToolBarId = IDC_DUMMY_CE_MENUBAR;
-  mbi.hInstRes   = GetModuleHandle(NULL);
+  HMENU dummyMenu = CreateMenu();
+  AppendMenu(dummyMenu, MF_STRING, 0, L"");
+
+  mbi.nToolBarId = (UINT)dummyMenu;
+  mbi.dwFlags = SHCMBF_HMENU | SHCMBF_HIDDEN;
+  mbi.hInstRes = GetModuleHandle(NULL);
   
   if (!SHCreateMenuBar(&mbi))
     return;
-  
-  SetWindowPos(mbi.hwndMB, HWND_BOTTOM, 0, 0, 0, 0, SWP_NOACTIVATE);
-  
+
   SendMessage(mbi.hwndMB, SHCMBM_OVERRIDEKEY, VK_TBACK,
               MAKELPARAM(SHMBOF_NODEFAULT | SHMBOF_NOTIFY,
                          SHMBOF_NODEFAULT | SHMBOF_NOTIFY));
@@ -175,9 +234,104 @@ void nsWindowCE::CreateSoftKeyMenuBar(HWND wnd)
   SendMessage(mbi.hwndMB, SHCMBM_OVERRIDEKEY, VK_TSOFT2, 
               MAKELPARAM (SHMBOF_NODEFAULT | SHMBOF_NOTIFY, 
                           SHMBOF_NODEFAULT | SHMBOF_NOTIFY));
-  
-  sSoftKeyMenuBar = mbi.hwndMB;
+
+  sSoftKeyMenuBarHandle = mbi.hwndMB;
 }
+
+void nsWindowCE::CheckKeyboardStatus()
+{
+  HKEY  hKey = 0;
+  LONG  result = 0;
+  DWORD entryType = 0;
+  DWORD hwkbd = 0;
+  DWORD paramSize = sizeof(DWORD);
+ 
+  result = RegOpenKeyExW(HKEY_CURRENT_USER, 
+                           L"SOFTWARE\\Microsoft\\Shell", 
+                           0, 
+                           KEY_READ,
+                           &hKey); 
+
+  if (result != ERROR_SUCCESS)
+  {
+    sHardKBPresence = TRI_FALSE;
+    return;
+  }
+
+  result = RegQueryValueEx(hKey,
+                             L"HasKeyboard",
+                             NULL, 
+                             &entryType, 
+                             (LPBYTE)&hwkbd, 
+                             &paramSize);
+
+  if (result != ERROR_SUCCESS)
+  {
+    RegCloseKey(hKey);
+    sHardKBPresence = TRI_FALSE;
+    return;
+  }
+    
+  sHardKBPresence = hwkbd ? TRI_TRUE : TRI_FALSE;
+}
+
+TriStateBool nsWindowCE::GetSliderStateOpen()
+{
+
+  HKEY  hKey = 0;
+  LONG  result = 0;
+  DWORD entryType = 0;
+  DWORD sliderStateOpen = 0;
+  DWORD paramSize = sizeof(DWORD);
+
+  result = RegOpenKeyExW(HKEY_LOCAL_MACHINE, 
+                           L"System\\GDI\\Rotation", 
+                           0, 
+                           KEY_READ,
+                           &hKey); 
+
+  if (result != ERROR_SUCCESS)
+    return TRI_UNKNOWN;
+
+  result = RegQueryValueEx(hKey,
+                             L"Slidekey",
+                             NULL, 
+                             &entryType, 
+                             (LPBYTE)&sliderStateOpen, 
+                             &paramSize);
+
+  if (result != ERROR_SUCCESS)
+  {
+     RegCloseKey(hKey);
+     return TRI_UNKNOWN;
+  }
+    
+  return  sliderStateOpen ? TRI_TRUE : TRI_FALSE;
+}
+
+
+void nsWindowCE::ResetSoftKB(HWND wnd)
+{
+  if (!wnd || wnd != sMainWindowHandle)
+    return;
+
+  // Main window is being destroyed - reset all the soft-keyboard settings
+  sMainWindowHandle = NULL;
+  sSoftKeyMenuBarHandle = NULL;
+
+  if (sDefaultSIPRect.top > 0) {
+    SipSetDefaultRect(&sDefaultSIPRect);
+    // Re-select the IM to apply the change
+    CLSID clsid;
+    if (SipGetCurrentIM(&clsid))
+      SipSetCurrentIM(&clsid);
+    ZeroMemory(&sDefaultSIPRect, sizeof(sDefaultSIPRect));
+  }
+
+  // This will make it re-read the pref next time
+  sShowSIPButton = TRI_UNKNOWN;
+}
+
 #endif  //defined(WINCE_HAVE_SOFTKB)
 
 typedef struct ECWWindows
@@ -250,6 +404,7 @@ DWORD nsWindow::WindowStyle()
   /* on CE, WS_OVERLAPPED == WS_BORDER | WS_CAPTION, so don't use OVERLAPPED, just set the
    * separate bits directly for clarity */
   switch (mWindowType) {
+    case eWindowType_plugin:
     case eWindowType_child:
       style = WS_CHILD;
       break;
@@ -268,7 +423,7 @@ DWORD nsWindow::WindowStyle()
       break;
 
     default:
-      NS_ASSERTION(0, "unknown border style");
+      NS_ERROR("unknown border style");
       // fall through
 
     case eWindowType_toplevel:
@@ -330,7 +485,12 @@ DWORD nsWindow::WindowStyle()
 // Maximize, minimize or restore the window.
 NS_IMETHODIMP nsWindow::SetSizeMode(PRInt32 aMode)
 {
-
+#if defined(WINCE_HAVE_SOFTKB)
+  if (aMode == 0 && mSizeMode == 3  && nsWindowCE::sSIPInTransition) {
+      // ignore the size mode being set to normal by the SIP resizing us
+    return NS_OK;
+  }
+#endif
   nsresult rv;
 
   // Let's not try and do anything if we're already in that state.
@@ -467,4 +627,94 @@ PRBool nsWindow::OnHotKey(WPARAM wParam, LPARAM lParam)
       break;
   }
   return PR_FALSE;
+}
+
+void nsWindow::OnWindowPosChanged(WINDOWPOS *wp, PRBool& result)
+{
+  if (wp == nsnull)
+    return;
+
+  // We only care about a resize, so filter out things like z-order
+  // changes. Note: there's a WM_MOVE handler above which is why we're
+  // not handling them here...
+  if (0 == (wp->flags & SWP_NOSIZE)) {
+    RECT r;
+    PRInt32 newWidth, newHeight;
+
+    ::GetWindowRect(mWnd, &r);
+
+    newWidth  = r.right - r.left;
+    newHeight = r.bottom - r.top;
+    nsIntRect rect(wp->x, wp->y, newWidth, newHeight);
+
+    if (newWidth > mLastSize.width)
+    {
+      RECT drect;
+
+      // getting wider
+      drect.left   = wp->x + mLastSize.width;
+      drect.top    = wp->y;
+      drect.right  = drect.left + (newWidth - mLastSize.width);
+      drect.bottom = drect.top + newHeight;
+
+      ::RedrawWindow(mWnd, &drect, NULL,
+                     RDW_INVALIDATE |
+                     RDW_NOERASE |
+                     RDW_NOINTERNALPAINT |
+                     RDW_ERASENOW |
+                     RDW_ALLCHILDREN);
+    }
+    if (newHeight > mLastSize.height)
+    {
+      RECT drect;
+
+      // getting taller
+      drect.left   = wp->x;
+      drect.top    = wp->y + mLastSize.height;
+      drect.right  = drect.left + newWidth;
+      drect.bottom = drect.top + (newHeight - mLastSize.height);
+
+      ::RedrawWindow(mWnd, &drect, NULL,
+                     RDW_INVALIDATE |
+                     RDW_NOERASE |
+                     RDW_NOINTERNALPAINT |
+                     RDW_ERASENOW |
+                     RDW_ALLCHILDREN);
+    }
+
+    mBounds.width    = newWidth;
+    mBounds.height   = newHeight;
+    mLastSize.width  = newWidth;
+    mLastSize.height = newHeight;
+
+    // If we're being minimized, don't send the resize event to Gecko because
+    // it will cause the scrollbar in the content area to go away and we'll
+    // forget the scroll position of the page.  Note that we need to check the
+    // toplevel window, because child windows seem to go to 0x0 on minimize.
+    HWND toplevelWnd = GetTopLevelHWND(mWnd);
+    if (mWnd == toplevelWnd && IsIconic(toplevelWnd)) {
+      result = PR_FALSE;
+      return;
+    }
+
+    // recalculate the width and height
+    // this time based on the client area
+    if (::GetClientRect(mWnd, &r)) {
+      rect.width  = PRInt32(r.right - r.left);
+      rect.height = PRInt32(r.bottom - r.top);
+    }
+    result = OnResize(rect);
+  }
+
+  // handle size mode changes - (the framechanged message seems a handy
+  // place to hook in, because it happens early enough (WM_SIZE is too
+  // late) and because in testing it seems an accurate harbinger of an
+  // impending min/max/restore change (WM_NCCALCSIZE would also work,
+  // but it's also sent when merely resizing.))
+  if (wp->flags & SWP_FRAMECHANGED && ::IsWindowVisible(mWnd)) {
+    nsSizeModeEvent event(PR_TRUE, NS_SIZEMODE, this);
+    event.mSizeMode = mSizeMode;
+    InitEvent(event);
+    result = DispatchWindowEvent(&event);
+  }
 }

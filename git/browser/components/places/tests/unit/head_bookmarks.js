@@ -54,26 +54,14 @@ function LOG(aMsg) {
   print(aMsg);
 }
 
+var gProfD = do_get_profile();
 var dirSvc = Cc["@mozilla.org/file/directory_service;1"].
              getService(Ci.nsIProperties);
-// Remove '/unit/*.js'.
-var gTestRoot = __LOCATION__.parent.parent;
-gTestRoot.normalize();
-
-// Need to create and register a profile folder.
-var gProfD = gTestRoot.clone();
-gProfD.append("profile");
-if (gProfD.exists())
-  gProfD.remove(true);
-gProfD.create(Ci.nsIFile.DIRECTORY_TYPE, 0755);
 
 var dirProvider = {
   getFile: function(prop, persistent) {
     persistent.value = true;
-    if (prop == NS_APP_USER_PROFILE_50_DIR ||
-        prop == NS_APP_PROFILE_DIR_STARTUP)
-      return gProfD.clone();
-    else if (prop == NS_APP_BOOKMARKS_50_FILE) {
+    if (prop == NS_APP_BOOKMARKS_50_FILE) {
       var bmarks = gProfD.clone();
       bmarks.append("bookmarks.html");
       return bmarks;
@@ -125,9 +113,6 @@ registrar.registerFactory(Components.ID("{fbfae60b-64a4-44ef-a911-08ceb70b9f31}"
                           "XULAppInfo", "@mozilla.org/xre/app-info;1",
                           XULAppInfoFactory);
 
-var updateSvc = Cc["@mozilla.org/updates/update-service;1"].
-                getService(Ci.nsISupports);
-
 var iosvc = Cc["@mozilla.org/network/io-service;1"].getService(Ci.nsIIOService);
 
 function uri(spec) {
@@ -140,11 +125,14 @@ function uri(spec) {
 function remove_all_bookmarks() {
   var bs = Cc["@mozilla.org/browser/nav-bookmarks-service;1"].
            getService(Ci.nsINavBookmarksService);
-  // Clear all bookmarks
+  // Clear all bookmarks.
   bs.removeFolderChildren(bs.bookmarksMenuFolder);
   bs.removeFolderChildren(bs.toolbarFolder);
   bs.removeFolderChildren(bs.unfiledBookmarksFolder);
-  // Check for correct cleanup
+
+  // Check for correct cleanup.
+  dump_table("moz_bookmarks");
+  dump_table("moz_places");
   check_no_bookmarks()
 }
 
@@ -163,7 +151,13 @@ function check_no_bookmarks() {
   var result = hs.executeQuery(query, options);
   var root = result.root;
   root.containerOpen = true;
-  do_check_eq(root.childCount, 0);
+  var cc = root.childCount;
+  // Dump contents if found.
+  for (var i = 0; i < cc ; i++) {
+    var node = root.getChild(i);
+    print("Found unexpected child at " + i + ": " + node.title);
+  }
+  do_check_eq(cc, 0);
   root.containerOpen = false;
 }
 
@@ -172,10 +166,14 @@ const FILENAME_BOOKMARKS_HTML = "bookmarks.html";
 let backup_date = new Date().toLocaleFormat("%Y-%m-%d");
 const FILENAME_BOOKMARKS_JSON = "bookmarks-" + backup_date + ".json";
 
-// Smart bookmarks constants
+// Smart bookmarks constants.
 const SMART_BOOKMARKS_VERSION = 2;
 const SMART_BOOKMARKS_ON_TOOLBAR = 1;
-const SMART_BOOKMARKS_ON_MENU = 2;
+const SMART_BOOKMARKS_ON_MENU = 3; // Takes in count the additional separator.
+
+// Default bookmarks constants.
+const DEFAULT_BOOKMARKS_ON_TOOLBAR = 2;
+const DEFAULT_BOOKMARKS_ON_MENU = 3;
 
 /**
  * Creates a bookmarks.html file in the profile folder from a given source file.
@@ -339,4 +337,16 @@ function flush_main_thread_events()
   let tm = Cc["@mozilla.org/thread-manager;1"].getService(Ci.nsIThreadManager);
   while (tm.mainThread.hasPendingEvents())
     tm.mainThread.processNextEvent(false);
+}
+
+// These tests are known to randomly fail due to bug 507790 when database
+// flushes are active, so we turn off syncing for them.
+let randomFailingSyncTests = [
+  "test_browserGlue_smartBookmarks.js",
+];
+let currentTestFilename = do_get_file(_TEST_FILE[0], true).leafName;
+if (randomFailingSyncTests.indexOf(currentTestFilename) != -1) {
+  print("Test " + currentTestFilename + " is known random due to bug 507790, disabling PlacesDBFlush component.");
+  let sync = Cc["@mozilla.org/places/sync;1"].getService(Ci.nsIObserver);
+  sync.observe(null, "places-debug-stop-sync", null);
 }

@@ -14,7 +14,7 @@
  *
  * The Original Code is Places.
  *
- * The Initial Developer of the Original Code is Mozilla Corporation.
+ * The Initial Developer of the Original Code is Mozilla Foundation.
  * Portions created by the Initial Developer are Copyright (C) 2009
  * the Initial Developer. All Rights Reserved.
  *
@@ -39,7 +39,7 @@
 // Call a method on each observer in a category cache, then call the same
 // method on the observer array.
 
-#define ENUMERATE_OBSERVERS(canFire, cache, array, type, method)               \
+#define NOTIFY_OBSERVERS(canFire, cache, array, type, method)                  \
   PR_BEGIN_MACRO                                                               \
   if (canFire) {                                                               \
     const nsCOMArray<type> &entries = cache.GetEntries();                      \
@@ -48,3 +48,22 @@
     ENUMERATE_WEAKARRAY(array, type, method)                                   \
   }                                                                            \
   PR_END_MACRO;
+
+#define PLACES_FACTORY_SINGLETON_IMPLEMENTATION(_className, _sInstance)        \
+  _className * _className::_sInstance = nsnull;                                \
+                                                                               \
+  _className *                                                                 \
+  _className::GetSingleton()                                                   \
+  {                                                                            \
+    if (_sInstance) {                                                          \
+      NS_ADDREF(_sInstance);                                                   \
+      return _sInstance;                                                       \
+    }                                                                          \
+    _sInstance = new _className();                                             \
+    if (_sInstance) {                                                          \
+      NS_ADDREF(_sInstance);                                                   \
+      if (NS_FAILED(_sInstance->Init()))                                       \
+        NS_RELEASE(_sInstance);                                                \
+    }                                                                          \
+    return _sInstance;                                                         \
+  }                                                                            

@@ -43,8 +43,8 @@
 #ifndef nsLineBox_h___
 #define nsLineBox_h___
 
-#include "nsPlaceholderFrame.h"
 #include "nsILineIterator.h"
+#include "nsIFrame.h"
 
 class nsLineBox;
 class nsFloatCache;
@@ -64,7 +64,7 @@ public:
 
   nsFloatCache* Next() const { return mNext; }
 
-  nsPlaceholderFrame* mPlaceholder;     // nsPlaceholderFrame
+  nsIFrame* mFloat;                     // floating frame
 
 protected:
   nsFloatCache* mNext;
@@ -162,8 +162,8 @@ public:
   void Remove(nsFloatCache* aElement);
 
   // Remove an nsFloatCache object from this list and return it, or create
-  // a new one if this one is empty;
-  nsFloatCache* Alloc();
+  // a new one if this one is empty; Set its mFloat to aFloat.
+  nsFloatCache* Alloc(nsIFrame* aFloat);
   
 protected:
   nsFloatCache* mTail;
@@ -317,6 +317,20 @@ public:
   PRBool ResizeReflowOptimizationDisabled() const {
     return mFlags.mResizeReflowOptimizationDisabled;
   }
+
+  // mHasBullet bit
+  void SetHasBullet() {
+    mFlags.mHasBullet = PR_TRUE;
+    InvalidateCachedIsEmpty();
+  }
+  void ClearHasBullet() {
+    mFlags.mHasBullet = PR_FALSE;
+    InvalidateCachedIsEmpty();
+  }
+  PRBool HasBullet() const {
+    return mFlags.mHasBullet;
+  }
+  
   
   // mChildCount value
   PRInt32 GetChildCount() const {
@@ -417,7 +431,8 @@ public:
     return mBounds.height;
   }
 
-  static void DeleteLineList(nsPresContext* aPresContext, nsLineList& aLines);
+  static void DeleteLineList(nsPresContext* aPresContext, nsLineList& aLines,
+                             nsIFrame* aDestructRoot);
 
   // search from beginning to end
   // XXX Should switch to API below
@@ -427,9 +442,13 @@ public:
   // search from end to beginning of [aBegin, aEnd)
   // Returns PR_TRUE if it found the line and PR_FALSE if not.
   // Moves aEnd as it searches so that aEnd points to the resulting line.
+  // aLastFrameBeforeEnd is the last frame before aEnd (so if aEnd is
+  // the end of the line list, it's just the last frame in the frame
+  // list).
   static PRBool RFindLineContaining(nsIFrame* aFrame,
                                     const nsLineList_iterator& aBegin,
                                     nsLineList_iterator& aEnd,
+                                    nsIFrame* aLastFrameBeforeEnd,
                                     PRInt32* aFrameIndexInLine);
 
 #ifdef DEBUG
@@ -484,9 +503,12 @@ public:
     PRUint32 mResizeReflowOptimizationDisabled: 1;  // default 0 = means that the opt potentially applies to this line. 1 = never skip reflowing this line for a resize reflow
     PRUint32 mEmptyCacheValid: 1;
     PRUint32 mEmptyCacheState: 1;
+    // mHasBullet indicates that this is an inline line whose block's
+    // bullet is adjacent to this line and non-empty.
+    PRUint32 mHasBullet : 1;
     PRUint32 mBreakType : 4;
 
-    PRUint32 mChildCount : 18;
+    PRUint32 mChildCount : 17;
   };
 
   struct ExtraData {
@@ -1115,7 +1137,13 @@ class nsLineList {
 
     nsLineList()
     {
+      MOZ_COUNT_CTOR(nsLineList);
       clear();
+    }
+
+    ~nsLineList()
+    {
+      MOZ_COUNT_DTOR(nsLineList);
     }
 
     const_iterator begin() const

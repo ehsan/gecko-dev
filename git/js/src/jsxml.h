@@ -67,14 +67,6 @@ struct JSXMLArray {
 #define JSXML_CAPACITY_MASK     JS_BITMASK(31)
 #define JSXML_CAPACITY(array)   ((array)->capacity & JSXML_CAPACITY_MASK)
 
-struct JSXMLArrayCursor {
-    JSXMLArray          *array;
-    uint32              index;
-    JSXMLArrayCursor    *next;
-    JSXMLArrayCursor    **prevp;
-    void                *root;
-};
-
 /*
  * NB: don't reorder this enum without changing all array initializers that
  * depend on it in jsxml.c.
@@ -120,9 +112,8 @@ struct JSXML {
     void                *domnode;       /* DOM node if mapped info item */
     JSXML               *parent;
     JSObject            *name;
-    uint16              xml_class;      /* discriminates u, below */
-    uint16              xml_flags;      /* flags, see below */
-    uint32              align;
+    uint32              xml_class;      /* discriminates u, below */
+    uint32              xml_flags;      /* flags, see below */
     union {
         JSXMLListVar    list;
         JSXMLElemVar    elem;
@@ -130,7 +121,7 @@ struct JSXML {
     } u;
 };
 
-JS_STATIC_ASSERT(JS_ROUNDUP(sizeof(JSXML), sizeof(JSGCThing)) == sizeof(JSXML));
+JS_STATIC_ASSERT(sizeof(JSXML) % JSVAL_ALIGN == 0);
 
 /* union member shorthands */
 #define xml_kids        u.list.kids
@@ -161,9 +152,6 @@ extern void
 js_FinalizeXML(JSContext *cx, JSXML *xml);
 
 extern JSObject *
-js_ParseNodeToXMLObject(JSCompiler *jsc, JSParseNode *pn);
-
-extern JSObject *
 js_NewXMLObject(JSContext *cx, JSXMLClass xml_class);
 
 extern JSObject *
@@ -178,13 +166,21 @@ extern JS_FRIEND_DATA(JSClass)          js_AnyNameClass;
 extern JSClass                          js_XMLFilterClass;
 
 /*
- * Macros to test whether an object or a value is of type "xml" (per typeof).
+ * Methods to test whether an object or a value is of type "xml" (per typeof).
  * NB: jsobj.h must be included before any call to OBJECT_IS_XML, and jsapi.h
  * and jsobj.h must be included before any call to VALUE_IS_XML.
+ *
+ * FIXME: bogus cx parameters for OBJECT_IS_XML and VALUE_IS_XML.
  */
-#define OBJECT_IS_XML(cx,obj)   ((obj)->map->ops == &js_XMLObjectOps)
+inline bool
+JSObject::isXML() const
+{
+    return map->ops == &js_XMLObjectOps;
+}
+
+#define OBJECT_IS_XML(cx,obj)   (obj)->isXML()
 #define VALUE_IS_XML(cx,v)      (!JSVAL_IS_PRIMITIVE(v) &&                    \
-                                 OBJECT_IS_XML(cx, JSVAL_TO_OBJECT(v)))
+                                 JSVAL_TO_OBJECT(v)->isXML())
 
 extern JSObject *
 js_InitNamespaceClass(JSContext *cx, JSObject *obj);

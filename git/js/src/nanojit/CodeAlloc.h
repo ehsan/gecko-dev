@@ -42,9 +42,9 @@
 
 namespace nanojit
 {
-    /** return true if ptr is in the range [start, end) */
+    /** return true if ptr is in the range [start, end] */
     inline bool containsPtr(const NIns* start, const NIns* end, const NIns* ptr) {
-        return ptr >= start && ptr < end;
+        return ptr >= start && ptr <= end;
     }
 
     /**
@@ -64,8 +64,16 @@ namespace nanojit
             for splitting and coalescing blocks. */
         CodeList* lower;
 
+        /** pointer to the heapblock terminal that represents the code chunk containing this block */
+        CodeList* terminator;
+
         /** true if block is free, false otherwise */
         bool isFree;
+
+        /** (only valid for terminator blocks).  Set true just before calling
+         * markCodeChunkExec() and false just after markCodeChunkWrite() */
+        bool isExec;
+
         union {
             // this union is used in leu of pointer punning in code
             // the end of this block is always the address of the next higher block
@@ -99,13 +107,19 @@ namespace nanojit
      * traces), and also static functions for managing lists of allocated
      * code.
      */
-    class CodeAlloc : public GCFinalizedObject
+    class CodeAlloc
     {
         static const size_t sizeofMinBlock = offsetof(CodeList, code);
         static const size_t minAllocSize = LARGEST_UNDERRUN_PROT;
 
-        GCHeap* heap;
+        /** Terminator blocks.  All active and free allocations
+            are reachable by traversing this chain and each
+            element's lower chain. */
         CodeList* heapblocks;
+
+        /** Reusable blocks. */
+        CodeList* availblocks;
+        size_t totalAllocated;
 
         /** remove one block from a list */
         static CodeList* removeBlock(CodeList* &list);
@@ -125,9 +139,34 @@ namespace nanojit
         /** find the beginning of the heapblock terminated by term */
         static CodeList* firstBlock(CodeList* term);
 
+        //
+        // CodeAlloc's SPI.  Implementations must be defined by nanojit embedder.
+        // allocation failures should cause an exception or longjmp; nanojit
+        // intentionally does not check for null.
+        //
+
+        /** allocate nbytes of memory to hold code.  Never return null! */
+        void* allocCodeChunk(size_t nbytes);
+
+        /** free a block previously allocated by allocCodeMem.  nbytes will
+         * match the previous allocCodeMem, but is provided here as well
+         * to mirror the mmap()/munmap() api.  markCodeChunkWrite() will have
+         * been called if necessary, so it is not necessary for freeCodeChunk()
+         * to do it again. */
+        void freeCodeChunk(void* addr, size_t nbytes);
+
+        /** make this specific extent ready to execute (might remove write) */
+        void markCodeChunkExec(void* addr, size_t nbytes);
+
+        /** make this extent ready to modify (might remove exec) */
+        void markCodeChunkWrite(void* addr, size_t nbytes);
+
     public:
-        CodeAlloc(GCHeap*);
+        CodeAlloc();
         ~CodeAlloc();
+
+        /** return all the memory allocated through this allocator to the gcheap. */
+        void reset();
 
         /** allocate some memory for code, return pointers to the region. */
         void alloc(NIns* &start, NIns* &end);
@@ -139,7 +178,10 @@ namespace nanojit
         void freeAll(CodeList* &code);
 
         /** flush the icache for all code in the list, before executing */
-        void flushICache(CodeList* &blocks);
+        static void flushICache(CodeList* &blocks);
+
+        /** flush the icache for a specific extent */
+        static void flushICache(void *start, size_t len);
 
         /** add the ranges [start, holeStart) and [holeEnd, end) to code, and
             free [holeStart, holeEnd) if the hole is >= minsize */
@@ -157,6 +199,9 @@ namespace nanojit
         /** return the number of bytes in all the code blocks in "code", including block overhead */
         static size_t size(const CodeList* code);
 
+        /** return the total number of bytes held by this CodeAlloc. */
+        size_t size();
+
         /** print out stats about heap usage */
         void logStats();
 
@@ -169,6 +214,12 @@ namespace nanojit
 
         /** return any completely empty pages */
         void sweep();
+
+        /** protect all code in this code alloc */
+        void markAllExec();
+
+        /** unprotect the code chunk containing just this one block */
+        void markBlockWrite(CodeList* b);
     };
 }
 

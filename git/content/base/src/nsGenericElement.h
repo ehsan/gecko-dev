@@ -81,8 +81,9 @@ class nsINodeInfo;
 class nsIControllers;
 class nsIDOMNSFeatureFactory;
 class nsIEventListenerManager;
-class nsIScrollableView;
+class nsIScrollableFrame;
 class nsContentList;
+class nsDOMTokenList;
 struct nsRect;
 
 typedef PRUptrdiff PtrBits;
@@ -110,13 +111,13 @@ public:
   // nsINodeList interface
   virtual nsIContent* GetNodeAt(PRUint32 aIndex);
   virtual PRInt32 IndexOf(nsIContent* aContent);
-  
+
   void DropReference()
   {
     mNode = nsnull;
   }
 
-  nsISupports* GetParentObject()
+  nsINode* GetParentObject()
   {
     return mNode;
   }
@@ -421,8 +422,6 @@ public:
   virtual PRBool IsNodeOfType(PRUint32 aFlags) const;
   virtual already_AddRefed<nsIURI> GetBaseURI() const;
   virtual PRBool IsLink(nsIURI** aURI) const;
-  virtual void SetMayHaveFrame(PRBool aMayHaveFrame);
-  virtual PRBool MayHaveFrame() const;
 
   virtual PRUint32 GetScriptTypeID() const;
   NS_IMETHOD SetScriptTypeID(PRUint32 aLang);
@@ -435,6 +434,10 @@ public:
   {
     return nsnull;
   }
+  virtual nsresult GetSMILOverrideStyle(nsIDOMCSSStyleDeclaration** aStyle);
+  virtual nsICSSStyleRule* GetSMILOverrideStyleRule();
+  virtual nsresult SetSMILOverrideStyleRule(nsICSSStyleRule* aStyleRule,
+                                            PRBool aNotify);
 #endif // MOZ_SMIL
 
 #ifdef DEBUG
@@ -454,7 +457,7 @@ public:
   NS_IMETHOD SetInlineStyleRule(nsICSSStyleRule* aStyleRule, PRBool aNotify);
   NS_IMETHOD_(PRBool)
     IsAttributeMapped(const nsIAtom* aAttribute) const;
-  virtual nsChangeHint GetAttributeChangeHint(const nsIAtom* aAttribute, 
+  virtual nsChangeHint GetAttributeChangeHint(const nsIAtom* aAttribute,
                                               PRInt32 aModType) const;
   /*
    * Attribute Mapping Helpers
@@ -462,7 +465,7 @@ public:
   struct MappedAttributeEntry {
     nsIAtom** attribute;
   };
-  
+
   /**
    * A common method where you can just pass in a list of maps to check
    * for attribute dependence. Most implementations of
@@ -540,7 +543,7 @@ public:
 
   /**
    * Add a script event listener with the given event handler name
-   * (like onclick) and with the value as JS   
+   * (like onclick) and with the value as JS
    * @param aEventName the event listener name
    * @param aValue the JS to attach
    * @param aDefer indicates if deferred execution is allowed
@@ -579,7 +582,7 @@ public:
                                      const nsAString& aFeature,
                                      const nsAString& aVersion,
                                      nsISupports** aReturn);
-  
+
   static already_AddRefed<nsIDOMNSFeatureFactory>
     GetDOMFeatureFactory(const nsAString& aFeature, const nsAString& aVersion);
 
@@ -665,6 +668,7 @@ public:
   static nsresult doQuerySelectorAll(nsINode* aRoot,
                                      const nsAString& aSelector,
                                      nsIDOMNodeList **aReturn);
+  static PRBool doMatchesSelector(nsIContent* aNode, const nsAString& aSelector);
 
   /**
    * Default event prehandling for content objects. Handles event retargeting.
@@ -684,7 +688,7 @@ public:
                                      nsIContent* aTarget,
                                      PRBool aFullDispatch,
                                      nsEventStatus* aStatus);
-  
+
   /**
    * Method to dispatch aEvent to aTarget. If aFullDispatch is true, the event
    * will be dispatched through the full dispatching of the presshell of the
@@ -699,32 +703,15 @@ public:
                                 nsEventStatus* aStatus);
 
   /**
-   * Get the primary frame for this content without flushing (see
-   * GetPrimaryFrameFor)
-   *
-   * @return the primary frame 
-   */
-  nsIFrame* GetPrimaryFrame();
-
-  /**
-   * Get the primary frame for this content with flushing (see
-   * GetPrimaryFrameFor).
+   * Get the primary frame for this content with flushing
    *
    * @param aType the kind of flush to do, typically Flush_Frames or
    *              Flush_Layout
    * @return the primary frame
    */
   nsIFrame* GetPrimaryFrame(mozFlushType aType);
-
-  /**
-   * Get the primary frame for a piece of content without flushing.
-   *
-   * @param aContent the content to get the primary frame for
-   * @param aDocument the document for this content
-   * @return the primary frame
-   */
-  static nsIFrame* GetPrimaryFrameFor(nsIContent* aContent,
-                                      nsIDocument* aDocument);
+  // Work around silly C++ name hiding stuff
+  nsIFrame* GetPrimaryFrame() const { return nsIContent::GetPrimaryFrame(); }
 
   /**
    * Struct that stores info on an attribute.  The name and value must
@@ -735,10 +722,15 @@ public:
       mName(aName), mValue(aValue) {}
     nsAttrInfo(const nsAttrInfo& aOther) :
       mName(aOther.mName), mValue(aOther.mValue) {}
-      
+
     const nsAttrName* mName;
     const nsAttrValue* mValue;
   };
+
+  const nsAttrValue* GetParsedAttr(nsIAtom* aAttr) const
+  {
+    return mAttrsAndChildren.GetAttr(aAttr);
+  }
 
   /**
    * Returns the attribute map, if there is one.
@@ -924,6 +916,17 @@ public:
     nsRefPtr<nsDOMCSSDeclaration> mStyle;
 
     /**
+     * SMIL Overridde style rules (for SMIL animation of CSS properties)
+     * @see nsIContent::GetSMILOverrideStyle
+     */
+    nsRefPtr<nsDOMCSSDeclaration> mSMILOverrideStyle;
+
+    /**
+     * Holds any SMIL override style rules for this element.
+     */
+    nsCOMPtr<nsICSSStyleRule> mSMILOverrideStyleRule;
+
+    /**
      * An object implementing nsIDOMNamedNodeMap for this content (attributes)
      * @see nsGenericElement::GetAttributes
      */
@@ -941,16 +944,16 @@ public:
       */
       nsIControllers* mControllers; // [OWNER]
     };
-    
-    /**
-     * Weak reference to this node
-     */
-    nsNodeWeakReference* mWeakReference;
 
     /**
      * An object implementing the .children property for this element.
      */
     nsRefPtr<nsContentList> mChildrenList;
+
+    /**
+     * An object implementing the .classList property for this element.
+     */
+    nsRefPtr<nsDOMTokenList> mClassList;
   };
 
 protected:
@@ -1096,7 +1099,7 @@ public:
   nsNSElementTearoff(nsGenericElement *aContent) : mContent(aContent)
   {
   }
-  
+
 private:
   nsContentList* GetChildrenList();
 
@@ -1109,16 +1112,13 @@ private:
   nsRect GetClientAreaRect();
 
 private:
-
   /**
    * Get the element's styled frame (the primary frame or, for tables, the inner
-   * table frame) and closest scrollable view.
+   * table frame) and associated scrollable frame (if any).
    * @note This method flushes pending notifications (Flush_Layout).
-   * @param aScrollableView the scrollable view [OUT]
-   * @param aFrame (optional) the frame [OUT]
+   * @param aFrame (optional) the styled frame [OUT]
    */
-  void GetScrollInfo(nsIScrollableView **aScrollableView,
-                     nsIFrame **aFrame = nsnull);
+  nsIScrollableFrame* GetScrollFrame(nsIFrame** aStyledFrame = nsnull);
 };
 
 #define NS_ELEMENT_INTERFACE_TABLE_TO_MAP_SEGUE                               \

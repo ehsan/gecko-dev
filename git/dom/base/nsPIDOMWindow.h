@@ -75,10 +75,11 @@ class nsPresContext;
 struct nsTimeout;
 class nsScriptObjectHolder;
 class nsXBLPrototypeHandler;
+class nsIArray;
 
 #define NS_PIDOMWINDOW_IID \
-{ 0x50cada82, 0x2350, 0x4bb5, \
-  { 0xb4, 0x72, 0xc8, 0xca, 0x8d, 0x39, 0x31, 0x77 } }
+{ 0xeee92d9a, 0xae9f, 0x41e5, \
+  { 0x95, 0x5f, 0xaf, 0x1c, 0xe7, 0x66, 0x42, 0xe6 } }
 
 class nsPIDOMWindow : public nsIDOMWindowInternal
 {
@@ -373,6 +374,9 @@ public:
   virtual void EnterModalState() = 0;
   virtual void LeaveModalState() = 0;
 
+  virtual PRBool CanClose() = 0;
+  virtual nsresult ForceClose() = 0;
+
   void SetModalContentWindow(PRBool aIsModalContentWindow)
   {
     mIsModalContentWindow = aIsModalContentWindow;
@@ -453,10 +457,28 @@ public:
   virtual void PageHidden() = 0;
 
   /**
-   * Instructs this window to asynchronously dispatch a hashchange event.  This
-   * method must be called on an inner window.
+   * Instructs this window to synchronously dispatch a hashchange event.
    */
-  virtual nsresult DispatchAsyncHashchange() = 0;
+  virtual nsresult DispatchSyncHashchange() = 0;
+
+  /**
+   * Instructs this window to synchronously dispatch a popState event.
+   */
+  virtual nsresult DispatchSyncPopState() = 0;
+
+  /**
+   * Tell this window that there is an observer for orientation changes
+   */
+  virtual void SetHasOrientationEventListener() = 0;
+
+  /**
+   * Set a arguments for this window. This will be set on the window
+   * right away (if there's an existing document) and it will also be
+   * installed on the window when the next document is loaded. Each
+   * language impl is responsible for converting to an array of args
+   * as appropriate for that language.
+   */
+  virtual nsresult SetArguments(nsIArray *aArguments, nsIPrincipal *aOrigin) = 0;
 
 protected:
   // The nsPIDOMWindow constructor. The aOuterWindow argument should

@@ -14,7 +14,7 @@
  *
  * The Original Code is Geolocation.
  *
- * The Initial Developer of the Original Code is Mozilla Corporation
+ * The Initial Developer of the Original Code is Mozilla Foundation
  * Portions created by the Initial Developer are Copyright (C) 2009
  * the Initial Developer. All Rights Reserved.
  *
@@ -67,7 +67,8 @@ class WinMobileLocationProvider : public nsIGeolocationProvider,
   ~WinMobileLocationProvider();
   
   nsCOMPtr<nsIGeolocationUpdate> mCallback;
-  PRBool mHasSeenLocation;
+  PRPackedBool mHasSeenLocation;
+  PRPackedBool mHasGPS;
   
   nsCOMPtr<nsITimer> mUpdateTimer;
   

@@ -410,8 +410,7 @@ public:
 
     static nsresult
     CheckSameOriginPrincipal(nsIPrincipal* aSubject,
-                             nsIPrincipal* aObject,
-                             PRBool aIsCheckConnect);
+                             nsIPrincipal* aObject);
     static PRUint32
     HashPrincipalByOrigin(nsIPrincipal* aPrincipal);
 
@@ -458,8 +457,7 @@ private:
     nsresult
     CheckSameOriginDOMProp(nsIPrincipal* aSubject, 
                            nsIPrincipal* aObject,
-                           PRUint32 aAction,
-                           PRBool aIsCheckConnect);
+                           PRUint32 aAction);
 
     nsresult
     LookupPolicy(nsIPrincipal* principal,
@@ -486,15 +484,15 @@ private:
     // Returns null if a principal cannot be found.  Note that rv can be NS_OK
     // when this happens -- this means that there was no script for the
     // context.  Callers MUST pass in a non-null rv here.
-    static nsIPrincipal*
+    nsIPrincipal*
     GetSubjectPrincipal(JSContext* cx, nsresult* rv);
 
     // Returns null if a principal cannot be found.  Note that rv can be NS_OK
     // when this happens -- this means that there was no script for the frame.
     // Callers MUST pass in a non-null rv here.
-    static nsIPrincipal*
+    nsIPrincipal*
     GetFramePrincipal(JSContext* cx, JSStackFrame* fp, nsresult* rv);
-                                                     
+
     // Returns null if a principal cannot be found.  Note that rv can be NS_OK
     // when this happens -- this means that there was no script.  Callers MUST
     // pass in a non-null rv here.
@@ -514,7 +512,7 @@ private:
     // Returns null if a principal cannot be found.  Note that rv can be NS_OK
     // when this happens -- this means that there was no script
     // running.  Callers MUST pass in a non-null rv here.
-    static nsIPrincipal*
+    nsIPrincipal*
     GetPrincipalAndFrame(JSContext *cx,
                          JSStackFrame** frameResult,
                          nsresult* rv);
@@ -537,22 +535,32 @@ private:
      * has set the "security.xpconnect.plugin.unrestricted" pref to allow
      * anybody to script plugin objects from anywhere.
      *
+     * @param cx The context we're running on.
+     *           NB: If null, "sameOrigin" does not have any effect.
      * @param aObj The nsISupports representation of the object in question
      *             object, possibly null.
-     * @param aJSObject The JSObject representation of the object in question.
-     *                  Only used if |aObjectSecurityLevel| is "sameOrigin".
+     * @param aJSObject The JSObject representation of the object in question
+     *                  if |cx| is non-null and |aObjectSecurityLevel| is
+     *                  "sameOrigin". If null will be calculated from aObj (if
+     *                  non-null) if and only if aObj is an XPCWrappedJS. The
+     *                  rationale behind this is that if we're creating a JS
+     *                  wrapper for an XPCWrappedJS, this object definitely
+     *                  expects to be exposed to JS.
      * @param aSubjectPrincipal The nominal subject principal used when
-     *                          aObjectSecurityLevel is "sameOrigin".
+     *                          aObjectSecurityLevel is "sameOrigin". If null,
+     *                          this is calculated if it's needed.
      * @param aObjectSecurityLevel Can be one of three values:
      *                  - allAccess: Allow access no matter what.
      *                  - noAccess: Deny access no matter what.
-     *                  - sameOrigin: If both a subject principal and JS
-     *                                object have been passed in, returns
-     *                                true if the subject subsumes the object,
-     *                                otherwise, behaves like noAccess.
+     *                  - sameOrigin: If |cx| is null, behave like noAccess.
+     *                                Otherwise, possibly compute a subject
+     *                                and object principal and return true if
+     *                                and only if the subject has greater than
+     *                                or equal privileges to the object.
      */
     nsresult
-    CheckXPCPermissions(nsISupports* aObj, JSObject* aJSObject,
+    CheckXPCPermissions(JSContext* cx,
+                        nsISupports* aObj, JSObject* aJSObject,
                         nsIPrincipal* aSubjectPrincipal,
                         const char* aObjectSecurityLevel);
 
@@ -591,6 +599,17 @@ private:
     PrintPolicyDB();
 #endif
 
+    struct ContextPrincipal {
+        ContextPrincipal(ContextPrincipal *next, JSContext *cx,
+                         JSStackFrame *fp, nsIPrincipal *principal)
+            : mNext(next), mCx(cx), mFp(fp), mPrincipal(principal) {}
+
+        ContextPrincipal *mNext;
+        JSContext *mCx;
+        JSStackFrame *mFp;
+        nsCOMPtr<nsIPrincipal> mPrincipal;
+    };
+
     // JS strings we need to clean up on shutdown
     static jsval sEnabledID;
 
@@ -608,6 +627,7 @@ private:
     nsCOMPtr<nsISecurityPref> mSecurityPref;
     nsCOMPtr<nsIPrincipal> mSystemPrincipal;
     nsCOMPtr<nsIPrincipal> mSystemCertificate;
+    ContextPrincipal *mContextPrincipals;
     nsInterfaceHashtable<PrincipalKey, nsIPrincipal> mPrincipals;
     PRPackedBool mIsJavaScriptEnabled;
     PRPackedBool mIsWritingPrefs;

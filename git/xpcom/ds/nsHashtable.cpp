@@ -188,8 +188,10 @@ PRBool nsHashtable::Exists(nsHashKey *aKey)
 {
     if (mLock) PR_Lock(mLock);
 
-    if (!mHashtable.ops)
+    if (!mHashtable.ops) {
+        if (mLock) PR_Unlock(mLock);
         return PR_FALSE;
+    }
     
     PLDHashEntryHdr *entry =
         PL_DHashTableOperate(&mHashtable, aKey, PL_DHASH_LOOKUP);
@@ -387,15 +389,10 @@ nsHashtable::nsHashtable(nsIObjectInputStream* aStream,
 
                         rv = aReadEntryFunc(aStream, &key, &data);
                         if (NS_SUCCEEDED(rv)) {
-                            if (!Put(key, data)) {
-                                rv = NS_ERROR_OUT_OF_MEMORY;
-                                aFreeEntryFunc(aStream, key, data);
-                            } else {
-                                // XXXbe must we clone key? can't we hand off
-                                aFreeEntryFunc(aStream, key, nsnull);
-                            }
-                            if (NS_FAILED(rv))
-                                break;
+                            Put(key, data);
+
+                            // XXXbe must we clone key? can't we hand off
+                            aFreeEntryFunc(aStream, key, nsnull);
                         }
                     }
                 }

@@ -233,9 +233,9 @@ nsSVGElement::BindToTree(nsIDocument* aDocument, nsIContent* aParent,
 }
 
 nsresult
-nsSVGElement::BeforeSetAttr(PRInt32 aNamespaceID, nsIAtom* aName,
-                            const nsAString* aValue, PRBool aNotify)
-{
+nsSVGElement::AfterSetAttr(PRInt32 aNamespaceID, nsIAtom* aName,
+                           const nsAString* aValue, PRBool aNotify)
+{  
   // If this is an svg presentation attribute we need to map it into
   // the content stylerule.
   // XXX For some reason incremental mapping doesn't work, so for now
@@ -245,13 +245,6 @@ nsSVGElement::BeforeSetAttr(PRInt32 aNamespaceID, nsIAtom* aName,
     mContentStyleRule = nsnull;
   }
 
-  return nsSVGElementBase::BeforeSetAttr(aNamespaceID, aName, aValue, aNotify);
-}
-
-nsresult
-nsSVGElement::AfterSetAttr(PRInt32 aNamespaceID, nsIAtom* aName,
-                           const nsAString* aValue, PRBool aNotify)
-{  
   if (IsEventName(aName) && aValue) {
     nsresult rv = AddScriptEventListener(GetEventNameForAttr(aName), *aValue);
     NS_ENSURE_SUCCESS(rv, rv);
@@ -733,8 +726,10 @@ nsSVGElement::WalkContentStyleRules(nsRuleWalker* aRuleWalker)
   if (!mContentStyleRule)
     UpdateContentStyleRule();
 
-  if (mContentStyleRule)  
+  if (mContentStyleRule) {
+    mContentStyleRule->RuleMatched();
     aRuleWalker->Forward(mContentStyleRule);
+  }
 
   return NS_OK;
 }
@@ -867,8 +862,7 @@ nsSVGElement::sLightingEffectsMap[] = {
 NS_IMETHODIMP
 nsSVGElement::IsSupported(const nsAString& aFeature, const nsAString& aVersion, PRBool* aReturn)
 {
-  NS_NOTYETIMPLEMENTED("nsSVGElement::IsSupported");
-  return NS_ERROR_NOT_IMPLEMENTED;
+  return nsGenericElement::IsSupported(aFeature, aVersion, aReturn); 
 }
 
 //----------------------------------------------------------------------
@@ -1277,6 +1271,19 @@ nsSVGElement::DidChangeNumber(PRUint8 aAttrEnum, PRBool aDoSetAttr)
 }
 
 void
+nsSVGElement::DidAnimateNumber(PRUint8 aAttrEnum)
+{
+  nsIFrame* frame = GetPrimaryFrame();
+
+  if (frame) {
+    NumberAttributesInfo info = GetNumberInfo();
+    frame->AttributeChanged(kNameSpaceID_None,
+                            *info.mNumberInfo[aAttrEnum].mName,
+                            nsIDOMMutationEvent::MODIFICATION);
+  }
+}
+
+void
 nsSVGElement::GetAnimatedNumberValues(float *aFirst, ...)
 {
   NumberAttributesInfo info = GetNumberInfo();
@@ -1291,7 +1298,7 @@ nsSVGElement::GetAnimatedNumberValues(float *aFirst, ...)
   va_start(args, aFirst);
 
   while (f && i < info.mNumberCount) {
-    *f = info.mNumbers[i++].GetAnimValue();
+    *f = info.mNumbers[i++].GetAnimValue(this);
     f = va_arg(args, float*);
   }
   va_end(args);
@@ -1415,6 +1422,19 @@ nsSVGElement::DidChangeBoolean(PRUint8 aAttrEnum, PRBool aDoSetAttr)
           newStr, PR_TRUE);
 }
 
+void
+nsSVGElement::DidAnimateBoolean(PRUint8 aAttrEnum)
+{
+  nsIFrame* frame = GetPrimaryFrame();
+  
+  if (frame) {
+    BooleanAttributesInfo info = GetBooleanInfo();
+    frame->AttributeChanged(kNameSpaceID_None,
+                            *info.mBooleanInfo[aAttrEnum].mName,
+                            nsIDOMMutationEvent::MODIFICATION);
+  }
+}
+
 nsSVGElement::EnumAttributesInfo
 nsSVGElement::GetEnumInfo()
 {
@@ -1445,6 +1465,19 @@ nsSVGElement::DidChangeEnum(PRUint8 aAttrEnum, PRBool aDoSetAttr)
 
   SetAttr(kNameSpaceID_None, *info.mEnumInfo[aAttrEnum].mName,
           newStr, PR_TRUE);
+}
+
+void
+nsSVGElement::DidAnimateEnum(PRUint8 aAttrEnum)
+{
+  nsIFrame* frame = GetPrimaryFrame();
+
+  if (frame) {
+    EnumAttributesInfo info = GetEnumInfo();
+    frame->AttributeChanged(kNameSpaceID_None,
+                            *info.mEnumInfo[aAttrEnum].mName,
+                            nsIDOMMutationEvent::MODIFICATION);
+  }
 }
 
 nsSVGViewBox *
@@ -1675,6 +1708,44 @@ nsSVGElement::GetAnimatedAttr(const nsIAtom* aName)
   for (PRUint32 i = 0; i < info.mLengthCount; i++) {
     if (aName == *info.mLengthInfo[i].mName) {
       return info.mLengths[i].ToSMILAttr(this);
+    }
+  }
+
+  // Numbers:
+  {
+    NumberAttributesInfo info = GetNumberInfo();
+    for (PRUint32 i = 0; i < info.mNumberCount; i++) {
+      // XXX this isn't valid for either of the two properties corresponding to
+      // attributes of type <number-optional-number> - see filter,
+      // feConvolveMatrix, feDiffuseLighting, feGaussianBlur, feMorphology and
+      // feTurbulence.
+      // The way to fix this is probably to handle them as 2-item number lists
+      // once we implement number list animation, and put the number list loop
+      // *above* this one at that time to catch those properties before we get
+      // here. The separate properties should then point into the list.
+      if (aName == *info.mNumberInfo[i].mName) {
+        return info.mNumbers[i].ToSMILAttr(this);
+      }
+    }
+  }
+
+  // Enumerations:
+  {
+    EnumAttributesInfo info = GetEnumInfo();
+    for (PRUint32 i = 0; i < info.mEnumCount; i++) {
+      if (aName == *info.mEnumInfo[i].mName) {
+        return info.mEnums[i].ToSMILAttr(this);
+      }
+    }
+  }
+
+  // Booleans:
+  {
+    BooleanAttributesInfo info = GetBooleanInfo();
+    for (PRUint32 i = 0; i < info.mBooleanCount; i++) {
+      if (aName == *info.mBooleanInfo[i].mName) {
+        return info.mBooleans[i].ToSMILAttr(this);
+      }
     }
   }
 

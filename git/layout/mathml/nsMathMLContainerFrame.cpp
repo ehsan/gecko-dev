@@ -69,6 +69,8 @@
 // nsMathMLContainerFrame implementation
 //
 
+NS_IMPL_FRAMEARENA_HELPERS(nsMathMLContainerFrame)
+
 NS_QUERYFRAME_HEAD(nsMathMLContainerFrame)
   NS_QUERYFRAME_ENTRY(nsMathMLFrame)
 NS_QUERYFRAME_TAIL_INHERITING(nsHTMLContainerFrame)
@@ -130,13 +132,13 @@ public:
   }
 #endif
 
-  virtual void Paint(nsDisplayListBuilder* aBuilder, nsIRenderingContext* aCtx,
-     const nsRect& aDirtyRect);
+  virtual void Paint(nsDisplayListBuilder* aBuilder,
+                     nsIRenderingContext* aCtx);
   NS_DISPLAY_DECL_NAME("MathMLError")
 };
 
 void nsDisplayMathMLError::Paint(nsDisplayListBuilder* aBuilder,
-     nsIRenderingContext* aCtx, const nsRect& aDirtyRect)
+                                 nsIRenderingContext* aCtx)
 {
   // Set color and font ...
   nsLayoutUtils::SetFontFromStyle(aCtx, mFrame->GetStyleContext());
@@ -1063,7 +1065,7 @@ nsMathMLContainerFrame::GetIntrinsicWidth(nsIRenderingContext* aRenderingContext
 
   // Measure
   nsHTMLReflowMetrics desiredSize;
-  nsresult rv = MeasureChildFrames(*aRenderingContext, desiredSize);
+  nsresult rv = MeasureForWidth(*aRenderingContext, desiredSize);
   if (NS_FAILED(rv)) {
     ReflowError(*aRenderingContext, desiredSize);
   }
@@ -1074,8 +1076,8 @@ nsMathMLContainerFrame::GetIntrinsicWidth(nsIRenderingContext* aRenderingContext
 }
 
 /* virtual */ nsresult
-nsMathMLContainerFrame::MeasureChildFrames(nsIRenderingContext& aRenderingContext,
-                                           nsHTMLReflowMetrics& aDesiredSize)
+nsMathMLContainerFrame::MeasureForWidth(nsIRenderingContext& aRenderingContext,
+                                        nsHTMLReflowMetrics& aDesiredSize)
 {
   return Place(aRenderingContext, PR_FALSE, aDesiredSize);
 }
@@ -1340,11 +1342,11 @@ static ForceReflow gForceReflow;
 void
 nsMathMLContainerFrame::SetIncrementScriptLevel(PRInt32 aChildIndex, PRBool aIncrement)
 {
-  nsIFrame* child = nsFrameList(GetFirstChild(nsnull)).FrameAt(aChildIndex);
+  nsIFrame* child = GetChildList(nsnull).FrameAt(aChildIndex);
   if (!child)
     return;
   nsIContent* content = child->GetContent();
-  if (!content->IsNodeOfType(nsINode::eMATHML))
+  if (!content->IsMathML())
     return;
   nsMathMLElement* element = static_cast<nsMathMLElement*>(content);
 
@@ -1464,8 +1466,12 @@ NS_NewMathMLmathBlockFrame(nsIPresShell* aPresShell, nsStyleContext* aContext,
   return it;
 }
 
+NS_IMPL_FRAMEARENA_HELPERS(nsMathMLmathBlockFrame)
+
 nsIFrame*
 NS_NewMathMLmathInlineFrame(nsIPresShell* aPresShell, nsStyleContext* aContext)
 {
   return new (aPresShell) nsMathMLmathInlineFrame(aContext);
 }
+
+NS_IMPL_FRAMEARENA_HELPERS(nsMathMLmathInlineFrame)

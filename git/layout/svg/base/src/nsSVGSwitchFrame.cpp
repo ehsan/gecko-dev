@@ -52,6 +52,8 @@ protected:
     nsSVGSwitchFrameBase(aContext) {}
 
 public:
+  NS_DECL_FRAMEARENA_HELPERS
+
 #ifdef DEBUG
   NS_IMETHOD Init(nsIContent*      aContent,
                   nsIFrame*        aParent,
@@ -93,6 +95,8 @@ NS_NewSVGSwitchFrame(nsIPresShell* aPresShell, nsStyleContext* aContext)
 {  
   return new (aPresShell) nsSVGSwitchFrame(aContext);
 }
+
+NS_IMPL_FRAMEARENA_HELPERS(nsSVGSwitchFrame)
 
 #ifdef DEBUG
 NS_IMETHODIMP
@@ -163,7 +167,14 @@ nsSVGSwitchFrame::UpdateCoveredRegion()
 {
   static_cast<nsSVGSwitchElement*>(mContent)->UpdateActiveChild();
 
-  return nsSVGSwitchFrameBase::UpdateCoveredRegion();
+  nsIFrame *kid = GetActiveChildFrame();
+  if (kid) {
+    nsISVGChildFrame* child = do_QueryFrame(kid);
+    if (child) {
+      child->UpdateCoveredRegion();
+    }
+  }
+  return NS_OK;
 }
 
 NS_IMETHODIMP
@@ -191,7 +202,7 @@ nsSVGSwitchFrame::GetBBoxContribution(const gfxMatrix &aToBBoxUserspace)
   if (svgKid) {
     nsIContent *content = kid->GetContent();
     gfxMatrix transform = aToBBoxUserspace;
-    if (content->IsNodeOfType(nsINode::eSVG)) {
+    if (content->IsSVG()) {
       transform = static_cast<nsSVGElement*>(content)->
                     PrependLocalTransformTo(aToBBoxUserspace);
     }

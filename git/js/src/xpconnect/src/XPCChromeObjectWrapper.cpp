@@ -48,6 +48,167 @@
 // This file implements a wrapper around trusted objects that allows them to
 // be safely injected into untrusted code.
 
+namespace {
+
+const PRUint32 sPropIsReadable = 0x1;
+const PRUint32 sPropIsWritable = 0x2;
+
+const PRUint32 sExposedPropsSlot = XPCWrapper::sNumSlots;
+
+class AutoIdArray {
+public:
+  AutoIdArray(JSContext *cx, JSIdArray *ida) : cx(cx), ida(ida) {
+  }
+
+  ~AutoIdArray() {
+    if (ida) {
+      JS_DestroyIdArray(cx, ida);
+    }
+  }
+
+  JSIdArray *array() {
+    return ida;
+  }
+
+private:
+  JSContext *cx;
+  JSIdArray *ida;
+};
+
+JSBool
+GetExposedProperties(JSContext *cx, JSObject *obj, jsval *rval)
+{
+  jsid exposedPropsId = GetRTIdByIndex(cx, XPCJSRuntime::IDX_EXPOSEDPROPS);
+
+  JSBool found = JS_FALSE;
+  if (!JS_HasPropertyById(cx, obj, exposedPropsId, &found))
+    return JS_FALSE;
+  if (!found) {
+    *rval = JSVAL_VOID;
+    return JS_TRUE;
+  }
+
+  *rval = JSVAL_NULL;
+  jsval exposedProps;
+  if (!JS_LookupPropertyById(cx, obj, exposedPropsId, &exposedProps))
+    return JS_FALSE;
+
+  if (JSVAL_IS_VOID(exposedProps) || JSVAL_IS_NULL(exposedProps))
+    return JS_TRUE;
+
+  if (!JSVAL_IS_OBJECT(exposedProps)) {
+    JS_ReportError(cx,
+                   "__exposedProps__ must be undefined, null, or an Object");
+    return JS_FALSE;
+  }
+
+  obj = JSVAL_TO_OBJECT(exposedProps);
+
+  AutoIdArray guard(cx, JS_Enumerate(cx, obj));
+  JSIdArray *props = guard.array();
+  if (!props)
+    return JS_FALSE;
+
+  if (props->length == 0)
+    return JS_TRUE;
+
+  JSObject *info = JS_NewObjectWithGivenProto(cx, NULL, NULL, obj);
+  if (!info)
+    return JS_FALSE;
+  *rval = OBJECT_TO_JSVAL(info);
+
+  for (int i = 0; i < props->length; i++) {
+    jsid propId = props->vector[i];
+
+    jsval propVal;
+    if (!JS_LookupPropertyById(cx, obj, propId, &propVal))
+      return JS_FALSE;
+
+    if (!JSVAL_IS_STRING(propVal)) {
+      JS_ReportError(cx, "property must be a string");
+      return JS_FALSE;
+    }
+
+    JSString *str = JSVAL_TO_STRING(propVal);
+    const jschar *chars = JS_GetStringChars(str);
+    size_t length = JS_GetStringLength(str);
+    int32 propPerms = 0;
+    for (size_t i = 0; i < length; ++i) {
+      switch (chars[i]) {
+        case 'r':
+          if (propPerms & sPropIsReadable) {
+            JS_ReportError(cx, "duplicate 'readable' property flag");
+            return JS_FALSE;
+          }
+          propPerms |= sPropIsReadable;
+          break;
+
+        case 'w':
+          if (propPerms & sPropIsWritable) {
+            JS_ReportError(cx, "duplicate 'writable' property flag");
+            return JS_FALSE;
+          }
+          propPerms |= sPropIsWritable;
+          break;
+
+        default:
+          JS_ReportError(cx, "properties can only be readable or read and writable");
+          return JS_FALSE;
+      }
+    }
+
+    if (propPerms == 0) {
+      JS_ReportError(cx, "specified properties must have a permission bit set");
+      return JS_FALSE;
+    }
+
+    if (!JS_DefinePropertyById(cx, info, propId, INT_TO_JSVAL(propPerms),
+                               NULL, NULL,
+                               JSPROP_ENUMERATE | JSPROP_READONLY | JSPROP_PERMANENT)) {
+      return JS_FALSE;
+    }
+  }
+
+  return JS_TRUE;
+}
+
+JSBool
+CanTouchProperty(JSContext *cx, JSObject *wrapperObj, jsid id, JSBool isSet,
+                 JSBool *allowedp)
+{
+  jsval exposedProps;
+  if (!JS_GetReservedSlot(cx, wrapperObj, sExposedPropsSlot, &exposedProps)) {
+    return JS_FALSE;
+  }
+
+  if (JSVAL_IS_PRIMITIVE(exposedProps)) {
+    // TODO For now, if the object doesn't ask for security, provide full
+    // access. In the future, we want to default to false here.
+    // NB: We differentiate between void (no __exposedProps__ property at all)
+    // and null (__exposedProps__ exists but didn't specify any properties)
+    // here.
+    *allowedp = JSVAL_IS_VOID(exposedProps);
+    return JS_TRUE;
+  }
+
+  JSObject *hash = JSVAL_TO_OBJECT(exposedProps);
+
+  jsval allowedval;
+  if (!JS_LookupPropertyById(cx, hash, id, &allowedval)) {
+    return JS_FALSE;
+  }
+
+  const PRUint32 wanted = isSet ? sPropIsWritable : sPropIsReadable;
+
+  // We test JSVAL_IS_INT to protect against unknown ids.
+  *allowedp = JSVAL_IS_INT(allowedval) &&
+              (JSVAL_TO_INT(allowedval) & wanted) != 0;
+
+  return JS_TRUE;
+}
+
+}
+
 static JSBool
 XPC_COW_AddProperty(JSContext *cx, JSObject *obj, jsval id, jsval *vp);
 
@@ -83,11 +244,15 @@ XPC_COW_Iterator(JSContext *cx, JSObject *obj, JSBool keysonly);
 static JSObject *
 XPC_COW_WrappedObject(JSContext *cx, JSObject *obj);
 
-JSExtendedClass sXPC_COW_JSClass = {
+using namespace XPCWrapper;
+
+namespace ChromeObjectWrapper {
+
+JSExtendedClass COWClass = {
   // JSClass (JSExtendedClass.base) initialization
   { "ChromeObjectWrapper",
     JSCLASS_NEW_RESOLVE | JSCLASS_IS_EXTENDED |
-    JSCLASS_HAS_RESERVED_SLOTS(XPCWrapper::sNumSlots),
+    JSCLASS_HAS_RESERVED_SLOTS(XPCWrapper::sNumSlots + 1),
     XPC_COW_AddProperty, XPC_COW_DelProperty,
     XPC_COW_GetProperty, XPC_COW_SetProperty,
     XPC_COW_Enumerate,   (JSResolveOp)XPC_COW_NewResolve,
@@ -107,11 +272,43 @@ JSExtendedClass sXPC_COW_JSClass = {
   JSCLASS_NO_RESERVED_MEMBERS
 };
 
+JSBool
+WrapObject(JSContext *cx, JSObject *parent, jsval v, jsval *vp)
+{
+  JSObject *wrapperObj =
+    JS_NewObjectWithGivenProto(cx, &COWClass.base, NULL, parent);
+  if (!wrapperObj) {
+    return JS_FALSE;
+  }
+
+  *vp = OBJECT_TO_JSVAL(wrapperObj);
+
+  jsval exposedProps = JSVAL_VOID;
+  JSAutoTempValueRooter tvr(cx, 1, &exposedProps);
+
+  if (!GetExposedProperties(cx, JSVAL_TO_OBJECT(v), &exposedProps)) {
+    return JS_FALSE;
+  }
+
+  if (!JS_SetReservedSlot(cx, wrapperObj, XPCWrapper::sWrappedObjSlot, v) ||
+      !JS_SetReservedSlot(cx, wrapperObj, XPCWrapper::sFlagsSlot,
+                          JSVAL_ZERO) ||
+      !JS_SetReservedSlot(cx, wrapperObj, sExposedPropsSlot, exposedProps)) {
+    return JS_FALSE;
+  }
+
+  return JS_TRUE;
+}
+
+} // namespace ChromeObjectWrapper
+
+using namespace ChromeObjectWrapper;
+
 // Throws an exception on context |cx|.
 static inline JSBool
 ThrowException(nsresult rv, JSContext *cx)
 {
-  return XPCWrapper::ThrowException(rv, cx);
+  return XPCWrapper::DoThrowException(rv, cx);
 }
 
 // Like GetWrappedObject, but works on other types of wrappers, too.
@@ -144,7 +341,7 @@ static inline
 JSObject *
 GetWrapper(JSObject *obj)
 {
-  while (STOBJ_GET_CLASS(obj) != &sXPC_COW_JSClass.base) {
+  while (STOBJ_GET_CLASS(obj) != &COWClass.base) {
     obj = STOBJ_GET_PROTO(obj);
     if (!obj) {
       break;
@@ -159,7 +356,7 @@ static inline
 JSObject *
 GetWrappedObject(JSContext *cx, JSObject *wrapper)
 {
-  return XPCWrapper::UnwrapGeneric(cx, &sXPC_COW_JSClass, wrapper);
+  return XPCWrapper::UnwrapGeneric(cx, &COWClass, wrapper);
 }
 
 // Forward declaration for the function wrapper.
@@ -189,10 +386,9 @@ XPC_COW_FunctionWrapper(JSContext *cx, JSObject *obj, uintN argc, jsval *argv,
     wrappedObj = obj;
   }
 
-  JSObject *funObj = JSVAL_TO_OBJECT(argv[-2]);
   jsval funToCall;
-  if (!JS_GetReservedSlot(cx, funObj, XPCWrapper::eWrappedFunctionSlot,
-                          &funToCall)) {
+  if (!JS_GetReservedSlot(cx, JSVAL_TO_OBJECT(argv[-2]),
+                          XPCWrapper::eWrappedFunctionSlot, &funToCall)) {
     return JS_FALSE;
   }
 
@@ -255,15 +451,27 @@ XPC_COW_RewrapForChrome(JSContext *cx, JSObject *wrapperObj, jsval *vp)
   }
 
   XPCWrappedNative *wn;
-  if (IS_WRAPPER_CLASS(STOBJ_GET_CLASS(obj)) &&
-      (wn = XPCWrappedNative::GetWrappedNativeOfJSObject(cx, obj)) &&
+  JSBool ok;
+
+  // Set aside the frame chain so that we'll be able to wrap this object for
+  // chrome's use.
+  JSStackFrame *fp = JS_SaveFrameChain(cx);
+
+  if (IS_WN_WRAPPER(obj) &&
+      (wn = (XPCWrappedNative*)xpc_GetJSPrivate(obj)) &&
       !nsXPCWrappedJSClass::IsWrappedJS(wn->Native())) {
     // Return an explicit XPCNativeWrapper in case "chrome" code happens to be
     // XBL code cloned into an untrusted context.
-    return XPCNativeWrapperCtor(cx, obj, 1, vp, vp);
+    ok = XPCNativeWrapper::CreateExplicitWrapper(cx, wn, JS_TRUE, vp);
+  } else {
+    // Note: we're passing the wrapped chrome object as the scope for the SJOW.
+    ok = XPCSafeJSObjectWrapper::WrapObject(cx, GetWrappedObject(cx, wrapperObj),
+                                            *vp, vp);
   }
 
-  return XPC_SJOW_Construct(cx, obj, 1, vp, vp);
+  JS_RestoreFrameChain(cx, fp);
+
+  return ok;
 }
 
 JSBool
@@ -284,8 +492,7 @@ XPC_COW_RewrapForContent(JSContext *cx, JSObject *wrapperObj, jsval *vp)
     return XPC_COW_WrapFunction(cx, wrapperObj, obj, vp);
   }
 
-  return XPC_COW_WrapObject(cx, JS_GetScopeChain(cx), OBJECT_TO_JSVAL(obj),
-                            vp);
+  return WrapObject(cx, JS_GetScopeChain(cx), OBJECT_TO_JSVAL(obj), vp);
 }
 
 static JSBool
@@ -322,7 +529,7 @@ XPC_COW_AddProperty(JSContext *cx, JSObject *obj, jsval id, jsval *vp)
 
   if (desc.attrs & (JSPROP_GETTER | JSPROP_SETTER)) {
     // Only chrome is allowed to add getters or setters to our object.
-    if (!AllowedToAct(cx, id)) {
+    if (!SystemOnlyWrapper::AllowedToAct(cx, id)) {
       return JS_FALSE;
     }
   }
@@ -343,6 +550,17 @@ XPC_COW_DelProperty(JSContext *cx, JSObject *obj, jsval id, jsval *vp)
   XPCCallContext ccx(JS_CALLER, cx);
   if (!ccx.IsValid()) {
     return ThrowException(NS_ERROR_FAILURE, cx);
+  }
+
+  JSBool canTouch;
+  jsid interned_id;
+  if (!JS_ValueToId(cx, id, &interned_id) ||
+      !CanTouchProperty(cx, obj, interned_id, JS_TRUE, &canTouch)) {
+    return JS_FALSE;
+  }
+
+  if (!canTouch) {
+    return ThrowException(NS_ERROR_XPC_SECURITY_MANAGER_VETO, cx);
   }
 
   // Deleting a property is safe.
@@ -370,18 +588,28 @@ XPC_COW_GetOrSetProperty(JSContext *cx, JSObject *obj, jsval id, jsval *vp,
     return ThrowException(NS_ERROR_ILLEGAL_VALUE, cx);
   }
 
-  if (id == GetRTStringByIndex(cx, XPCJSRuntime::IDX_PROTO) ||
-      id == GetRTStringByIndex(cx, XPCJSRuntime::IDX_PARENT)) {
+  jsid interned_id;
+  if (!JS_ValueToId(cx, id, &interned_id)) {
+    return JS_FALSE;
+  }
+
+  if (interned_id == GetRTIdByIndex(cx, XPCJSRuntime::IDX_PROTO) ||
+      interned_id == GetRTIdByIndex(cx, XPCJSRuntime::IDX_PARENT) ||
+      interned_id == GetRTIdByIndex(cx, XPCJSRuntime::IDX_EXPOSEDPROPS)) {
     // No getting or setting __proto__ or __parent__ on my object.
     return ThrowException(NS_ERROR_INVALID_ARG, cx); // XXX better error message
   }
 
-  if (!XPC_COW_RewrapForChrome(cx, obj, vp)) {
+  JSBool canTouch;
+  if (!CanTouchProperty(cx, obj, interned_id, isSet, &canTouch)) {
     return JS_FALSE;
   }
 
-  jsid interned_id;
-  if (!JS_ValueToId(cx, id, &interned_id)) {
+  if (!canTouch) {
+    return ThrowException(NS_ERROR_XPC_SECURITY_MANAGER_VETO, cx);
+  }
+
+  if (!XPC_COW_RewrapForChrome(cx, obj, vp)) {
     return JS_FALSE;
   }
 
@@ -426,7 +654,7 @@ XPC_COW_Enumerate(JSContext *cx, JSObject *obj)
 }
 
 static JSBool
-XPC_COW_NewResolve(JSContext *cx, JSObject *obj, jsval id, uintN flags,
+XPC_COW_NewResolve(JSContext *cx, JSObject *obj, jsval idval, uintN flags,
                    JSObject **objp)
 {
   obj = GetWrapper(obj);
@@ -441,6 +669,18 @@ XPC_COW_NewResolve(JSContext *cx, JSObject *obj, jsval id, uintN flags,
   XPCCallContext ccx(JS_CALLER, cx);
   if (!ccx.IsValid()) {
     return ThrowException(NS_ERROR_FAILURE, cx);
+  }
+
+  jsid id;
+  JSBool canTouch;
+  if (!JS_ValueToId(cx, idval, &id) ||
+      !CanTouchProperty(cx, obj, id, (flags & JSRESOLVE_ASSIGNING) != 0,
+                        &canTouch)) {
+    return JS_FALSE;
+  }
+
+  if (!canTouch) {
+    return ThrowException(NS_ERROR_XPC_SECURITY_MANAGER_VETO, cx);
   }
 
   return XPCWrapper::NewResolve(cx, obj, JS_TRUE, wrappedObj, id, flags, objp);
@@ -532,7 +772,7 @@ XPC_COW_Iterator(JSContext *cx, JSObject *obj, JSBool keysonly)
     return nsnull;
   }
 
-  JSObject *wrapperIter = JS_NewObject(cx, &sXPC_COW_JSClass.base, nsnull,
+  JSObject *wrapperIter = JS_NewObject(cx, &COWClass.base, nsnull,
                                        JS_GetGlobalForObject(cx, obj));
   if (!wrapperIter) {
     return nsnull;
@@ -556,23 +796,4 @@ static JSObject *
 XPC_COW_WrappedObject(JSContext *cx, JSObject *obj)
 {
   return GetWrappedObject(cx, obj);
-}
-
-JSBool
-XPC_COW_WrapObject(JSContext *cx, JSObject *parent, jsval v, jsval *vp)
-{
-  JSObject *wrapperObj =
-    JS_NewObjectWithGivenProto(cx, &sXPC_COW_JSClass.base, NULL, parent);
-  if (!wrapperObj) {
-    return JS_FALSE;
-  }
-
-  *vp = OBJECT_TO_JSVAL(wrapperObj);
-  if (!JS_SetReservedSlot(cx, wrapperObj, XPCWrapper::sWrappedObjSlot, v) ||
-      !JS_SetReservedSlot(cx, wrapperObj, XPCWrapper::sFlagsSlot,
-                          JSVAL_ZERO)) {
-    return JS_FALSE;
-  }
-
-  return JS_TRUE;
 }

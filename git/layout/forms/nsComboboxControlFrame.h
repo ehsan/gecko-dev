@@ -63,15 +63,14 @@
 #include "nsIRollupListener.h"
 #include "nsPresState.h"
 #include "nsCSSFrameConstructor.h"
-#include "nsIScrollableViewProvider.h"
 #include "nsIStatefulFrame.h"
+#include "nsIScrollableFrame.h"
 #include "nsIDOMMouseListener.h"
 #include "nsThreadUtils.h"
 
 class nsIView;
 class nsStyleContext;
 class nsIListControlFrame;
-class nsIScrollableView;
 class nsComboboxDisplayFrame;
 
 /**
@@ -86,7 +85,6 @@ class nsComboboxControlFrame : public nsBlockFrame,
                                public nsIAnonymousContentCreator,
                                public nsISelectControlFrame,
                                public nsIRollupListener,
-                               public nsIScrollableViewProvider,
                                public nsIStatefulFrame
 {
 public:
@@ -97,7 +95,7 @@ public:
   ~nsComboboxControlFrame();
 
   NS_DECL_QUERYFRAME
-  NS_DECL_ISUPPORTS_INHERITED
+  NS_DECL_FRAMEARENA_HELPERS
 
   // nsIAnonymousContentCreator
   virtual nsresult CreateAnonymousContent(nsTArray<nsIContent*>& aElements);
@@ -137,10 +135,14 @@ public:
       ~(nsIFrame::eReplaced | nsIFrame::eReplacedContainsBlock));
   }
 
+  virtual nsIScrollableFrame* GetScrollTargetFrame() {
+    return do_QueryFrame(mDropdownFrame);
+  }
+
 #ifdef NS_DEBUG
   NS_IMETHOD GetFrameName(nsAString& aResult) const;
 #endif
-  virtual void Destroy();
+  virtual void DestroyFrom(nsIFrame* aDestructRoot);
   virtual nsFrameList GetChildList(nsIAtom* aListName) const;
   NS_IMETHOD SetInitialChildList(nsIAtom*        aListName,
                                  nsFrameList&    aChildList);
@@ -210,9 +212,6 @@ public:
   NS_IMETHOD ShouldRollupOnMouseActivate(PRBool *aShouldRollup)
     { *aShouldRollup = PR_FALSE; return NS_OK;}
 
-  // nsIScrollableViewProvider
-  virtual nsIScrollableView* GetScrollableView();
-
   //nsIStatefulFrame
   NS_IMETHOD SaveState(SpecialStateID aStateID, nsPresState** aState);
   NS_IMETHOD RestoreState(nsPresState* aState);
@@ -253,7 +252,7 @@ protected:
    * @note This method might destroy |this|.
    * @return PR_FALSE if this frame is destroyed, PR_TRUE if still alive.
    */
-  PRBool ShowList(nsPresContext* aPresContext, PRBool aShowList);
+  PRBool ShowList(PRBool aShowList);
   void CheckFireOnChange();
   void FireValueChangeEvent();
   nsresult RedisplayText(PRInt32 aIndex);

@@ -49,7 +49,14 @@
 #include "nsDOMError.h"
 #include "nsTreeBodyFrame.h"
 
-NS_IMPL_ISUPPORTS_INHERITED1(nsTreeBoxObject, nsBoxObject, nsITreeBoxObject)
+NS_IMPL_CYCLE_COLLECTION_1(nsTreeBoxObject, mView)
+
+NS_IMPL_ADDREF_INHERITED(nsTreeBoxObject, nsBoxObject)
+NS_IMPL_RELEASE_INHERITED(nsTreeBoxObject, nsBoxObject)
+
+NS_INTERFACE_MAP_BEGIN_CYCLE_COLLECTION_INHERITED(nsTreeBoxObject)
+  NS_INTERFACE_MAP_ENTRY(nsITreeBoxObject)
+NS_INTERFACE_MAP_END_INHERITING(nsBoxObject)
 
 void
 nsTreeBoxObject::Clear()
@@ -120,13 +127,10 @@ nsTreeBoxObject::GetTreeBody()
   // Iterate over our content model children looking for the body.
   nsCOMPtr<nsIContent> content;
   FindBodyElement(frame->GetContent(), getter_AddRefs(content));
-
-  nsIPresShell* shell = GetPresShell(PR_FALSE);
-  if (!shell) {
+  if (!content)
     return nsnull;
-  }
 
-  frame = shell->GetPrimaryFrameFor(content);
+  frame = content->GetPrimaryFrame();
   if (!frame)
      return nsnull;
 

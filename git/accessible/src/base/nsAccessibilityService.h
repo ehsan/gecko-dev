@@ -40,9 +40,11 @@
 #define __nsAccessibilityService_h__
 
 #include "nsIAccessibilityService.h"
+
+#include "nsCoreUtils.h"
+
 #include "nsCOMArray.h"
 #include "nsIObserver.h"
-#include "nsITimer.h"
 #include "nsIWebProgress.h"
 #include "nsIWebProgressListener.h"
 #include "nsWeakReference.h"
@@ -80,19 +82,33 @@ public:
                                    nsIWeakReference **weakShell);
 
   /**
-   * Return accessibility service (static instance of this class).
-   */
-  static nsresult GetAccessibilityService(nsIAccessibilityService** aResult);
-
-  /**
-   * Return cached accessibility service.
-   */
-  static nsIAccessibilityService* GetAccessibilityService();
-
-  /**
    * Indicates whether accessibility service was shutdown.
    */
   static PRBool gIsShutdown;
+
+  /**
+   * Return an accessible for the given DOM node.
+   *
+   * @param  aNode       [in] the given node
+   * @param  aPresShell  [in] the pres shell of the node
+   * @param  aWeakShell  [in] the weak shell for the pres shell
+   * @param  aFrameHint  [in] the frame of the given node
+   * @param  aIsHidden   [out] indicates whether the node's frame is hidden
+   */
+  nsresult GetAccessible(nsIDOMNode *aNode, nsIPresShell *aPresShell,
+                         nsIWeakReference *aWeakShell, nsIFrame *aFrameHint,
+                         PRBool *aIsHidden, nsIAccessible **aAccessible);
+
+  /**
+   * Return an accessible for a DOM node in the given pres shell.
+   * 
+   * @param aNode       [in] the given node.
+   * @param aPresShell  [in] the presentation shell of the given node.
+   * @param aAccessible [out] the nsIAccessible for the given node.
+   */
+  nsresult GetAccessibleInWeakShell(nsIDOMNode *aNode,
+                                    nsIWeakReference *aPresShell,
+                                    nsIAccessible **aAccessible);
 
 private:
   /**
@@ -136,6 +152,15 @@ private:
   nsresult GetAccessibleForDeckChildren(nsIDOMNode *aNode,
                                         nsIAccessible **aAccessible);
 
+#ifdef MOZ_XUL
+  /**
+   * Create accessible for XUL tree element.
+   */
+  nsresult GetAccessibleForXULTree(nsIDOMNode *aNode,
+                                   nsIWeakReference *aWeakShell,
+                                   nsIAccessible **aAccessible);
+#endif
+  
   static nsAccessibilityService *gAccessibilityService;
 
   /**
@@ -148,11 +173,34 @@ private:
    */
   PRBool HasUniversalAriaProperty(nsIContent *aContent, nsIWeakReference *aWeakShell);
 
-  static void StartLoadCallback(nsITimer *aTimer, void *aClosure);
-  static void EndLoadCallback(nsITimer *aTimer, void *aClosure);
-  static void FailedLoadCallback(nsITimer *aTimer, void *aClosure);
-  nsCOMArray<nsITimer> mLoadTimers;
+  /**
+   *  Process the internal doc load event.
+   *
+   *  @param  aWebProgress  [in] the nsIWebProgress object for the load event
+   *  @param  aEventType    [in] the type of load event, one of:
+   *                          nsIAccessibleEvent::EVENT_DOCUMENT_LOAD_START,
+   *                          nsIAccessibleEvent::EVENT_DOCUMENT_LOAD_COMPLETE,
+   *                          nsIAccessibleEvent::EVENT_DOCUMENT_LOAD_STOPPED
+   */
+  void ProcessDocLoadEvent(nsIWebProgress *aWebProgress, PRUint32 aEventType);
+
+  friend nsAccessibilityService* GetAccService();
+
+  friend nsresult  NS_GetAccessibilityService(nsIAccessibilityService** aResult);
+
+  
+  NS_DECL_RUNNABLEMETHOD_ARG2(nsAccessibilityService, ProcessDocLoadEvent,
+                              nsCOMPtr<nsIWebProgress>, PRUint32)
 };
+
+/**
+ * Return the accessibility service instance. (Handy global function)
+ */
+inline nsAccessibilityService*
+GetAccService()
+{
+  return nsAccessibilityService::gAccessibilityService;
+}
 
 /**
  * Map nsIAccessibleRole constants to strings. Used by
@@ -280,7 +328,8 @@ static const char kRoleNames[][20] = {
   "listbox rich option", //ROLE_RICH_OPTION
   "listbox",             //ROLE_LISTBOX
   "flat equation",       //ROLE_FLAT_EQUATION  
-  "gridcell"             //ROLE_GRID_CELL
+  "gridcell",            //ROLE_GRID_CELL
+  "embedded object"      //ROLE_EMBEDDED_OBJECT
 };
 
 /**
@@ -289,12 +338,9 @@ static const char kRoleNames[][20] = {
  */
 static const char kEventTypeNames[][40] = {
   "unknown",                                 //
-  "DOM node create",                         // EVENT_DOM_CREATE
-  "DOM node destroy",                        // EVENT_DOM_DESTROY
-  "DOM node significant change",             // EVENT_DOM_SIGNIFICANT_CHANGE
-  "async show",                              // EVENT_ASYNCH_SHOW
-  "async hide",                              // EVENT_ASYNCH_HIDE
-  "async significant change",                // EVENT_ASYNCH_SIGNIFICANT_CHANGE
+  "show",                                    // EVENT_SHOW
+  "hide",                                    // EVENT_HIDE
+  "reorder",                                 // EVENT_REORDER
   "active decendent change",                 // EVENT_ACTIVE_DECENDENT_CHANGED
   "focus",                                   // EVENT_FOCUS
   "state change",                            // EVENT_STATE_CHANGE
@@ -379,8 +425,7 @@ static const char kEventTypeNames[][40] = {
   "hypertext links count changed",           // EVENT_HYPERTEXT_NLINKS_CHANGED
   "object attribute changed",                // EVENT_OBJECT_ATTRIBUTE_CHANGED
   "page changed",                            // EVENT_PAGE_CHANGED
-  "internal load",                           // EVENT_INTERNAL_LOAD
-  "reorder"                                  // EVENT_REORDER
+  "internal load"                            // EVENT_INTERNAL_LOAD
 };
 
 /**

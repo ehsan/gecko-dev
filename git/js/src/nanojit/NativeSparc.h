@@ -67,22 +67,22 @@
 
 namespace nanojit
 {
-#ifdef MMGC_SPARC
-    const int NJ_LOG2_PAGE_SIZE = 12; // 4K
-#else
-    const int NJ_LOG2_PAGE_SIZE = 13; // 8K
-#endif
     const int NJ_MAX_REGISTERS = 30; // L0 - L7, I0 - I5, F2 - F14
-    const int NJ_STACK_OFFSET = 0;
 
     const int LARGEST_UNDERRUN_PROT = 32;  // largest value passed to underrunProtect
 
-#define NJ_MAX_STACK_ENTRY 256
-#define NJ_MAX_PARAMETERS 1
+#define NJ_MAX_STACK_ENTRY              256
+#define NJ_MAX_PARAMETERS               1
+#define NJ_JTBL_SUPPORTED               0
+#define NJ_EXPANDED_LOADSTORE_SUPPORTED 0
+#define NJ_F2I_SUPPORTED                0
 
     const int NJ_ALIGN_STACK = 16;
 
     typedef uint32_t NIns;
+
+    // Bytes of icache to flush after Assembler::patch
+    const size_t LARGEST_BRANCH_PATCH = 2 * sizeof(NIns);
 
     // These are used as register numbers in various parts of the code
     typedef enum
@@ -164,7 +164,7 @@ namespace nanojit
 
             FirstReg = 0,
             LastReg = 29,
-            UnknownReg = 30
+            deprecated_UnknownReg = 30
         }
     Register;
 
@@ -176,7 +176,12 @@ namespace nanojit
     typedef int RegisterMask;
 #define _rmask_(r)        (1<<(r))
 
-    static const int NumSavedRegs = 6;
+    // Assembler::savedRegs[] is not needed for sparc because the
+    // registers are already saved automatically by "save" instruction.
+    // But NumSavedRegs is used as the length of savedRegs in LIR.h and Assembler.h.
+    // NumSavedRegs to be zero will cause a zero length array.
+    // So dummy L1 is added and NumSavedRegs is set to 1.
+    static const int NumSavedRegs = 1;
     static const RegisterMask SavedRegs = 1<<L1 | 1<<L3 | 1<<L5 | 1<<L7 |
     1<<I0 | 1<<I1 | 1<<I2 | 1<<I3 |
     1<<I4 | 1<<I5;
@@ -186,9 +191,6 @@ namespace nanojit
     1<<F14 | 1<<F16 | 1<<F18 | 1<<F20 |
     1<<F22;
     static const RegisterMask AllowableFlagRegs = GpRegs;
-
-#define nextreg(r)        Register(r+1)
-#define prevreg(r)        Register(r-1)
 
     verbose_only( extern const char* regNames[]; )
 
@@ -202,9 +204,10 @@ namespace nanojit
     void nativePageReset(); \
     void nativePageSetup(); \
     void underrunProtect(int bytes); \
-    void asm_align_code();
-
-#define swapptrs()  { NIns* _tins = _nIns; _nIns=_nExitIns; _nExitIns=_tins; }
+    void asm_align_code(); \
+    void asm_cmp(LIns *cond); \
+    void asm_fcmp(LIns *cond); \
+    NIns* asm_fbranch(bool, LIns*, NIns*);
 
 #define IMM32(i)    \
     --_nIns;        \
@@ -446,10 +449,22 @@ namespace nanojit
     asm_output("fbl %p", _nIns + dsp22 - 1); \
     } while(0)
 
+#define FBUL(a, dsp22) \
+    do { \
+    Format_2_2(a, 0x3, 0x6, dsp22); \
+    asm_output("fbl %p", _nIns + dsp22 - 1); \
+    } while(0)
+
 #define FBLE(a, dsp22) \
     do { \
     Format_2_2(a, 0xD, 0x6, dsp22); \
     asm_output("fble %p", _nIns + dsp22 - 1); \
+    } while(0)
+
+#define FBULE(a, dsp22) \
+    do { \
+    Format_2_2(a, 0xE, 0x6, dsp22); \
+    asm_output("fbule %p", _nIns + dsp22 - 1); \
     } while(0)
 
 #define FCMPD(rs1, rs2) \

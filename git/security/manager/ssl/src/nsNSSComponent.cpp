@@ -120,6 +120,10 @@
 #include "secerr.h"
 #include "sslerr.h"
 
+#ifdef XP_WIN
+#include "nsILocalFileWin.h"
+#endif
+
 extern "C" {
 #include "pkcs12.h"
 #include "p12plcy.h"
@@ -672,9 +676,15 @@ nsNSSComponent::LaunchSmartCardThreads()
 {
   nsNSSShutDownPreventionLock locker;
   {
-    SECMODModuleList *list = SECMOD_GetDefaultModuleList();
+    SECMODModuleList *list;
     SECMODListLock *lock = SECMOD_GetDefaultModuleListLock();
+    if (!lock) {
+        PR_LOG(gPIPNSSLog, PR_LOG_ERROR,
+               ("Couldn't get the module list lock, can't launch smart card threads\n"));
+        return;
+    }
     SECMOD_GetReadLock(lock);
+    list = SECMOD_GetDefaultModuleList();
 
     while (list) {
       SECMODModule *module = list->module;
@@ -769,9 +779,15 @@ nsNSSComponent::InstallLoadableRoots()
   {
     // Find module containing root certs
 
-    SECMODModuleList *list = SECMOD_GetDefaultModuleList();
+    SECMODModuleList *list;
     SECMODListLock *lock = SECMOD_GetDefaultModuleListLock();
+    if (!lock) {
+        PR_LOG(gPIPNSSLog, PR_LOG_ERROR,
+               ("Couldn't get the module list lock, can't install loadable roots\n"));
+        return;
+    }
     SECMOD_GetReadLock(lock);
+    list = SECMOD_GetDefaultModuleList();
 
     while (!RootsModule && list) {
       SECMODModule *module = list->module;
@@ -1061,6 +1077,7 @@ static CipherPref CipherPrefs[] = {
  {"security.ssl3.dhe_dss_des_sha", SSL_DHE_DSS_WITH_DES_CBC_SHA}, // 56-bit DES encryption with DSA, DHE, and a SHA1 MAC
  {"security.ssl3.rsa_null_sha", SSL_RSA_WITH_NULL_SHA}, // No encryption with RSA authentication and a SHA1 MAC
  {"security.ssl3.rsa_null_md5", SSL_RSA_WITH_NULL_MD5}, // No encryption with RSA authentication and an MD5 MAC
+ {"security.ssl3.rsa_seed_sha", TLS_RSA_WITH_SEED_CBC_SHA}, // SEED encryption with RSA and a SHA1 MAC
  {NULL, 0} /* end marker */
 };
 
@@ -1572,7 +1589,15 @@ nsNSSComponent::InitializeNSS(PRBool showWarningBox)
       return rv;
   #endif
 
+  #if defined(XP_WIN)
+    // Native path will drop Unicode characters that cannot be mapped to system's
+    // codepage, using short (canonical) path as workaround.
+    nsCOMPtr<nsILocalFileWin> profilePathWin(do_QueryInterface(profilePath, &rv));
+    if (profilePathWin)
+      rv = profilePathWin->GetNativeCanonicalPath(profileStr);
+  #else
     rv = profilePath->GetNativePath(profileStr);
+  #endif
     if (NS_FAILED(rv)) 
       return rv;
 
@@ -1604,7 +1629,14 @@ nsNSSComponent::InitializeNSS(PRBool showWarningBox)
 
     ConfigureInternalPKCS11Token();
 
-    SECStatus init_rv = ::NSS_InitReadWrite(profileStr.get());
+    // The NSS_INIT_NOROOTINIT flag turns off the loading of the root certs
+    // module by NSS_Initialize because we will load it in InstallLoadableRoots
+    // later.  It also allows us to work around a bug in the system NSS in
+    // Ubuntu 8.04, which loads any nonexistent "<configdir>/libnssckbi.so" as
+    // "/usr/lib/nss/libnssckbi.so".
+    PRUint32 init_flags = NSS_INIT_NOROOTINIT | NSS_INIT_OPTIMIZESPACE;
+    SECStatus init_rv = ::NSS_Initialize(profileStr.get(), "", "",
+                                         SECMOD_DB, init_flags);
 
     if (init_rv != SECSuccess) {
       PR_LOG(gPIPNSSLog, PR_LOG_DEBUG, ("can not init NSS r/w in %s\n", profileStr.get()));
@@ -1617,7 +1649,9 @@ nsNSSComponent::InitializeNSS(PRBool showWarningBox)
       }
 
       // try to init r/o
-      init_rv = NSS_Init(profileStr.get());
+      init_flags |= NSS_INIT_READONLY;
+      init_rv = ::NSS_Initialize(profileStr.get(), "", "",
+                                 SECMOD_DB, init_flags);
 
       if (init_rv != SECSuccess) {
         PR_LOG(gPIPNSSLog, PR_LOG_DEBUG, ("can not init in r/o either\n"));
@@ -1668,7 +1702,9 @@ nsNSSComponent::InitializeNSS(PRBool showWarningBox)
 
       // Now only set SSL/TLS ciphers we knew about at compile time
       for (CipherPref* cp = CipherPrefs; cp->pref; ++cp) {
-        mPrefBranch->GetBoolPref(cp->pref, &enabled);
+        rv = mPrefBranch->GetBoolPref(cp->pref, &enabled);
+        if (NS_FAILED(rv))
+          enabled = PR_FALSE;
 
         SSL_CipherPrefSetDefault(cp->id, enabled);
       }

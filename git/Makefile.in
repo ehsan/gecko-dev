@@ -88,13 +88,27 @@ DIST_GARBAGE = config.cache config.log config.status config-defs.h \
    netwerk/necko-config.h xpcom/xpcom-config.h xpcom/xpcom-private.h \
    $(topsrcdir)/.mozconfig.mk $(topsrcdir)/.mozconfig.out
 
-default alldep all::
+default alldep all:: $(topsrcdir)/configure config.status
 	$(RM) -rf $(DIST)/sdk
 	$(RM) -rf $(DIST)/include
 	$(RM) -rf $(DIST)/private
 	$(RM) -rf $(DIST)/public
 	$(RM) -rf $(DIST)/bin/components
 	$(RM) -rf _tests
+
+$(topsrcdir)/configure: $(topsrcdir)/configure.in
+	@echo "STOP!  configure.in has changed, and your configure is out of date."
+	@echo "Please rerun autoconf and re-configure your build directory."
+	@echo "To ignore this message, touch 'configure' in the source directory,"
+	@echo "but your build might not succeed."
+	@exit 1
+
+config.status: $(topsrcdir)/configure
+	@echo "STOP!  configure has changed and needs to be run in this build directory."
+	@echo "Please rerun configure."
+	@echo "To ignore this message, touch 'config.status' in the build directory,"
+	@echo "but your build might not succeed."
+	@exit 1
 
 # Build pseudo-external modules first when export is explicitly called
 export::
@@ -105,6 +119,9 @@ export::
 ifdef ENABLE_TESTS
 # Additional makefile targets to call automated test suites
 include $(topsrcdir)/testing/testsuite-targets.mk
+else
+# OS X Universal builds will want to call this, so stub it out
+package-tests:
 endif
 
 include $(topsrcdir)/config/rules.mk
@@ -126,16 +143,6 @@ endif
 distclean::
 	cat unallmakefiles | $(XARGS) rm -f
 	rm -f unallmakefiles $(DIST_GARBAGE)
-
-ifeq ($(OS_ARCH),WINNT)
-rebase:
-ifdef MOZILLA_OFFICIAL
-	echo rebasing $(DIST)
-	/bin/find $(DIST) -name "*.dll" -a -not -name "msvc*" > rebase.lst
-	rebase -b 60000000 -R . -G rebase.lst
-	rm rebase.lst
-endif
-endif # WINNT
 
 ifeq ($(OS_ARCH),WINNT)
 # we want to copy PDB files on Windows
@@ -193,27 +200,30 @@ ifdef MOZ_CRASHREPORTER
 	  $(MAKE_SYM_STORE_PATH) >                                        \
 	  $(DIST)/crashreporter-symbols/$(SYMBOL_INDEX_NAME)
 	echo packing symbols
-	mkdir -p $(topsrcdir)/../$(BUILDID)
+	$(NSINSTALL) -D $(DIST)/$(PKG_PATH)
 	cd $(DIST)/crashreporter-symbols && \
-          zip -r9D ../"$(SYMBOL_ARCHIVE_BASENAME).zip" .
+          zip -r9D "../$(PKG_PATH)$(SYMBOL_ARCHIVE_BASENAME).zip" .
+else
+ifdef WINCE
+ifdef SYMBOLSTORE_PATH
+	echo building symbol store with symstore.exe
+	$(RM) -rf $(DIST)/symbols
+	$(RM) -f "$(DIST)/$(SYMBOL_ARCHIVE_BASENAME).zip"
+	$(NSINSTALL) -D $(DIST)/symbols
+	$(SYMBOLSTORE_PATH) add -r -f "$(subst /,\,$(shell pwd -W))\*.PDB" \
+	  -s $(DIST)/symbols/ -t "$(MOZ_PKG_APPNAME)" -v "$(MOZ_PKG_VERSION)"
+	echo packing symbols
+	$(NSINSTALL) -D $(DIST)/$(PKG_PATH)
+	cd $(DIST)/symbols && \
+	  zip -r9D "../$(PKG_PATH)$(SYMBOL_ARCHIVE_BASENAME).zip" .
+endif # SYMBOLSTORE_PATH
+endif # WINCE
 endif # MOZ_CRASHREPORTER
 
 uploadsymbols:
 ifdef MOZ_CRASHREPORTER
-	$(SHELL) $(topsrcdir)/toolkit/crashreporter/tools/upload_symbols.sh "$(DIST)/$(SYMBOL_ARCHIVE_BASENAME).zip"
+	$(SHELL) $(topsrcdir)/toolkit/crashreporter/tools/upload_symbols.sh "$(DIST)/$(PKG_PATH)$(SYMBOL_ARCHIVE_BASENAME).zip"
 endif
-
-ifeq ($(OS_ARCH),WINNT)
-signnss:
-ifdef MOZILLA_OFFICIAL
-	echo signing NSS libs
-	cd $(DIST)/bin; ./shlibsign.exe -v -i softokn3.dll
-	cd $(DIST)/bin; ./shlibsign.exe -v -i freebl3.dll
-endif # MOZILLA_OFFICIAL
-
-deliver: rebase signnss
-
-endif # WINNT
 
 ifneq (,$(wildcard $(DIST)/bin/application.ini))
 BUILDID = $(shell $(PYTHON) $(srcdir)/config/printconfigsetting.py $(DIST)/bin/application.ini App BuildID)
@@ -221,12 +231,15 @@ else
 BUILDID = $(shell $(PYTHON) $(srcdir)/config/printconfigsetting.py $(DIST)/bin/platform.ini Build BuildID)
 endif
 
+MOZ_SOURCE_STAMP = $(shell hg -R $(srcdir) parent --template="{node|short}\n" 2>/dev/null)
+export MOZ_SOURCE_STAMP
+
 #XXX: this is a hack, since we don't want to clobber for MSVC
 # PGO support, but we can't do this test in client.mk
 ifneq ($(OS_ARCH)_$(GNU_CC), WINNT_)
 # No point in clobbering if PGO has been explicitly disabled.
 ifndef NO_PROFILE_GUIDED_OPTIMIZE
-maybe_clobber_profiledbuild: clobber_all
+maybe_clobber_profiledbuild: clean
 else
 maybe_clobber_profiledbuild:
 endif

@@ -40,14 +40,14 @@
 #include "nsDOMClassInfo.h"
 #include "nsDOMError.h"
 #include "nsIDOMNSEvent.h"
-
+#include "nsIPrivateDOMEvent.h"
 #include "nsDOMWindowUtils.h"
 #include "nsGlobalWindow.h"
 #include "nsIDocument.h"
 #include "nsFocusManager.h"
 #include "nsIEventStateManager.h"
 
-#include "nsIScrollableView.h"
+#include "nsIScrollableFrame.h"
 
 #include "nsContentUtils.h"
 
@@ -251,7 +251,7 @@ nsDOMWindowUtils::SendMouseEvent(const nsAString& aType,
 
   event.clickCount = aClickCount;
   event.time = PR_IntervalNow();
-  event.flags |= NS_EVENT_FLAG_SYNTETIC_TEST_EVENT;
+  event.flags |= NS_EVENT_FLAG_SYNTHETIC_TEST_EVENT;
 
   float appPerDev = float(widget->GetDeviceContext()->AppUnitsPerDevPixel());
   event.refPoint.x =
@@ -392,6 +392,27 @@ nsDOMWindowUtils::SendNativeKeyEvent(PRInt32 aNativeKeyboardLayout,
 }
 
 NS_IMETHODIMP
+nsDOMWindowUtils::SendNativeMouseEvent(PRInt32 aScreenX,
+                                       PRInt32 aScreenY,
+                                       PRInt32 aNativeMessage,
+                                       PRInt32 aModifierFlags,
+                                       nsIDOMElement* aElement)
+{
+  PRBool hasCap = PR_FALSE;
+  if (NS_FAILED(nsContentUtils::GetSecurityManager()->IsCapabilityEnabled("UniversalXPConnect", &hasCap))
+      || !hasCap)
+    return NS_ERROR_DOM_SECURITY_ERR;
+
+  // get the widget to send the event to
+  nsCOMPtr<nsIWidget> widget = GetWidgetForElement(aElement);
+  if (!widget)
+    return NS_ERROR_FAILURE;
+
+  return widget->SynthesizeNativeMouseEvent(nsIntPoint(aScreenX, aScreenY),
+                                            aNativeMessage, aModifierFlags);
+}
+
+NS_IMETHODIMP
 nsDOMWindowUtils::ActivateNativeMenuItemAt(const nsAString& indexString)
 {
   PRBool hasCap = PR_FALSE;
@@ -437,6 +458,28 @@ nsDOMWindowUtils::GetWidget(nsPoint* aOffset)
           return frame->GetView()->GetNearestWidget(aOffset);
       }
     }
+  }
+
+  return nsnull;
+}
+
+nsIWidget*
+nsDOMWindowUtils::GetWidgetForElement(nsIDOMElement* aElement)
+{
+  if (!aElement)
+    return GetWidget();
+
+  nsCOMPtr<nsIContent> content = do_QueryInterface(aElement);
+  nsIDocument* doc = content->GetCurrentDoc();
+  nsIPresShell* presShell = doc ? doc->GetPrimaryShell() : nsnull;
+
+  if (presShell) {
+    nsIFrame* frame = content->GetPrimaryFrame();
+    if (!frame) {
+      frame = presShell->GetRootFrame();
+    }
+    if (frame)
+      return frame->GetWindow();
   }
 
   return nsnull;
@@ -746,23 +789,17 @@ nsDOMWindowUtils::GetScrollXY(PRBool aFlushLayout, PRInt32* aScrollX, PRInt32* a
     doc->FlushPendingNotifications(Flush_Layout);
   }
 
-  nscoord xPos = 0, yPos = 0;
-
+  nsPoint scrollPos(0,0);
   nsIPresShell *presShell = doc->GetPrimaryShell();
   if (presShell) {
-    nsIViewManager *viewManager = presShell->GetViewManager();
-    if (viewManager) {
-      nsIScrollableView *view = nsnull;
-      viewManager->GetRootScrollableView(&view);
-      if (view) {
-        nsresult rv = view->GetScrollPosition(xPos, yPos);
-        NS_ENSURE_SUCCESS(rv, rv);
-      }
+    nsIScrollableFrame* sf = presShell->GetRootScrollFrameAsScrollable();
+    if (sf) {
+      scrollPos = sf->GetScrollPosition();
     }
   }
 
-  *aScrollX = nsPresContext::AppUnitsToIntCSSPixels(xPos);
-  *aScrollY = nsPresContext::AppUnitsToIntCSSPixels(yPos);
+  *aScrollX = nsPresContext::AppUnitsToIntCSSPixels(scrollPos.x);
+  *aScrollY = nsPresContext::AppUnitsToIntCSSPixels(scrollPos.y);
 
   return NS_OK;
 }
@@ -812,4 +849,175 @@ nsDOMWindowUtils::GetScreenPixelsPerCSSPixel(float* aScreenPixels)
   *aScreenPixels = float(nsPresContext::AppUnitsPerCSSPixel())/
       presContext->AppUnitsPerDevPixel();
   return NS_OK;
+}
+
+NS_IMETHODIMP
+nsDOMWindowUtils::GetCOWForObject()
+{
+  PRBool hasCap = PR_FALSE;
+  if (NS_FAILED(nsContentUtils::GetSecurityManager()->
+                IsCapabilityEnabled("UniversalXPConnect", &hasCap))
+      || !hasCap)
+    return NS_ERROR_DOM_SECURITY_ERR;
+
+  nsCOMPtr<nsIXPConnect> xpc = nsContentUtils::XPConnect();
+
+  // get the xpconnect native call context
+  nsAXPCNativeCallContext *cc = nsnull;
+  xpc->GetCurrentNativeCallContext(&cc);
+  if(!cc)
+    return NS_ERROR_FAILURE;
+
+  // Get JSContext of current call
+  JSContext* cx;
+  nsresult rv = cc->GetJSContext(&cx);
+  if(NS_FAILED(rv) || !cx)
+    return NS_ERROR_FAILURE;
+
+  // get place for return value
+  jsval *rval = nsnull;
+  rv = cc->GetRetValPtr(&rval);
+  if(NS_FAILED(rv) || !rval)
+    return NS_ERROR_FAILURE;
+
+  // get argc and argv and verify arg count
+  PRUint32 argc;
+  rv = cc->GetArgc(&argc);
+  if(NS_FAILED(rv))
+    return NS_ERROR_FAILURE;
+
+  if(argc < 2)
+    return NS_ERROR_XPC_NOT_ENOUGH_ARGS;
+
+  jsval* argv;
+  rv = cc->GetArgvPtr(&argv);
+  if(NS_FAILED(rv) || !argv)
+    return NS_ERROR_FAILURE;
+
+  // first and second params must be JSObjects
+  if(JSVAL_IS_PRIMITIVE(argv[0]) ||
+     JSVAL_IS_PRIMITIVE(argv[1]))
+    return NS_ERROR_XPC_BAD_CONVERT_JS;
+
+  JSObject *scope = JSVAL_TO_OBJECT(argv[0]);
+  JSObject *object = JSVAL_TO_OBJECT(argv[1]);
+  rv = xpc->GetCOWForObject(cx, JS_GetGlobalForObject(cx, scope),
+                            object, rval);
+
+  if (NS_FAILED(rv))
+    return rv;
+
+  cc->SetReturnValueWasSet(PR_TRUE);
+  return NS_OK;
+}
+
+NS_IMETHODIMP
+nsDOMWindowUtils::DispatchDOMEventViaPresShell(nsIDOMNode* aTarget,
+                                               nsIDOMEvent* aEvent,
+                                               PRBool aTrusted,
+                                               PRBool* aRetVal)
+{
+  if (!nsContentUtils::IsCallerTrustedForRead()) {
+    return NS_ERROR_DOM_SECURITY_ERR;
+  }
+
+  nsPresContext* presContext = GetPresContext();
+  NS_ENSURE_STATE(presContext);
+  nsCOMPtr<nsIPresShell> shell = presContext->GetPresShell();
+  NS_ENSURE_STATE(shell);
+  nsCOMPtr<nsIPrivateDOMEvent> event = do_QueryInterface(aEvent);
+  NS_ENSURE_STATE(event);
+  event->SetTrusted(aTrusted);
+  nsEvent* internalEvent = event->GetInternalNSEvent();
+  NS_ENSURE_STATE(internalEvent);
+  nsCOMPtr<nsIContent> content = do_QueryInterface(aTarget);
+  NS_ENSURE_STATE(content);
+
+  nsEventStatus status = nsEventStatus_eIgnore;
+  shell->HandleEventWithTarget(internalEvent, nsnull, content,
+                               &status);
+  *aRetVal = (status != nsEventStatus_eConsumeNoDefault);
+  return NS_OK;
+}
+
+NS_IMETHODIMP
+nsDOMWindowUtils::SendContentCommandEvent(const nsAString& aType,
+                                          nsITransferable * aTransferable)
+{
+  PRBool hasCap = PR_FALSE;
+  if (NS_FAILED(nsContentUtils::GetSecurityManager()->IsCapabilityEnabled("UniversalXPConnect", &hasCap))
+      || !hasCap)
+    return NS_ERROR_DOM_SECURITY_ERR;
+
+  // get the widget to send the event to
+  nsCOMPtr<nsIWidget> widget = GetWidget();
+  if (!widget)
+    return NS_ERROR_FAILURE;
+
+  PRInt32 msg;
+  if (aType.EqualsLiteral("cut"))
+    msg = NS_CONTENT_COMMAND_CUT;
+  else if (aType.EqualsLiteral("copy"))
+    msg = NS_CONTENT_COMMAND_COPY;
+  else if (aType.EqualsLiteral("paste"))
+    msg = NS_CONTENT_COMMAND_PASTE;
+  else if (aType.EqualsLiteral("delete"))
+    msg = NS_CONTENT_COMMAND_DELETE;
+  else if (aType.EqualsLiteral("undo"))
+    msg = NS_CONTENT_COMMAND_UNDO;
+  else if (aType.EqualsLiteral("redo"))
+    msg = NS_CONTENT_COMMAND_REDO;
+  else if (aType.EqualsLiteral("pasteTransferable"))
+    msg = NS_CONTENT_COMMAND_PASTE_TRANSFERABLE;
+  else
+    return NS_ERROR_FAILURE;
+ 
+  nsContentCommandEvent event(PR_TRUE, msg, widget);
+  if (msg == NS_CONTENT_COMMAND_PASTE_TRANSFERABLE) {
+    event.mTransferable = aTransferable;
+  }
+
+  nsEventStatus status;
+  return widget->DispatchEvent(&event, status);
+}
+
+NS_IMETHODIMP
+nsDOMWindowUtils::GetClassName(char **aName)
+{
+  if (!nsContentUtils::IsCallerTrustedForRead()) {
+    return NS_ERROR_DOM_SECURITY_ERR;
+  }
+
+  // get the xpconnect native call context
+  nsAXPCNativeCallContext *cc = nsnull;
+  nsContentUtils::XPConnect()->GetCurrentNativeCallContext(&cc);
+  if(!cc)
+    return NS_ERROR_FAILURE;
+
+  // Get JSContext of current call
+  JSContext* cx;
+  nsresult rv = cc->GetJSContext(&cx);
+  if(NS_FAILED(rv) || !cx)
+    return NS_ERROR_FAILURE;
+
+  // get argc and argv and verify arg count
+  PRUint32 argc;
+  rv = cc->GetArgc(&argc);
+  if(NS_FAILED(rv))
+    return NS_ERROR_FAILURE;
+
+  if(argc < 1)
+    return NS_ERROR_XPC_NOT_ENOUGH_ARGS;
+
+  jsval* argv;
+  rv = cc->GetArgvPtr(&argv);
+  if(NS_FAILED(rv) || !argv)
+    return NS_ERROR_FAILURE;
+
+  // Our argument must be a non-null object.
+  if(JSVAL_IS_PRIMITIVE(argv[0]))
+    return NS_ERROR_XPC_BAD_CONVERT_JS;
+
+  *aName = NS_strdup(JS_GET_CLASS(cx, JSVAL_TO_OBJECT(argv[0]))->name);
+  return *aName ? NS_OK : NS_ERROR_OUT_OF_MEMORY;
 }

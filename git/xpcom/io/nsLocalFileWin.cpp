@@ -312,16 +312,6 @@ static nsresult ConvertWinError(DWORD winErr)
     return rv;
 }
 
-// definition of INVALID_SET_FILE_POINTER from VC.NET header files
-// it doesn't appear to be defined by VC6
-#ifndef INVALID_SET_FILE_POINTER
-# define INVALID_SET_FILE_POINTER ((DWORD)-1)
-#endif
-// same goes for INVALID_FILE_ATTRIBUTES
-#ifndef INVALID_FILE_ATTRIBUTES
-# define INVALID_FILE_ATTRIBUTES ((DWORD)-1)
-#endif
-
 // as suggested in the MSDN documentation on SetFilePointer
 static __int64 
 MyFileSeek64(HANDLE aHandle, __int64 aDistance, DWORD aMoveMethod)
@@ -2957,7 +2947,7 @@ nsLocalFile::GetNativePath(nsACString &_retval)
 NS_IMETHODIMP
 nsLocalFile::GetNativeCanonicalPath(nsACString &aResult)
 {
-    NS_WARNING("This method is lossy. Use GetCanoincailPath !");
+    NS_WARNING("This method is lossy. Use GetCanonicalPath !");
     EnsureShortPath();
     NS_CopyUnicodeToNative(mShortWorkingPath, aResult);
     return NS_OK;

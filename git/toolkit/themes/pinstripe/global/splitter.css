@@ -36,10 +36,6 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
-/* ===== splitter.css ===================================================
-  == Styles used by the XUL splitter element.
-  ======================================================================= */
-
 @namespace url("http://www.mozilla.org/keymaster/gatekeeper/there.is.only.xul");
 
 /* ::::: splitter (vertical) ::::: */
@@ -51,6 +47,10 @@ splitter {
   min-width: 9px;
   min-height: 9px;
   background: url("chrome://global/skin/splitter/dimple.png") transparent no-repeat center;  
+}
+
+splitter:-moz-lwtheme {
+  background: none;
 }
 
 /* ::::: splitter (horizontal) ::::: */
@@ -75,7 +75,7 @@ grippy {
 }
 
 grippy:hover {
-  background-color: #CCCCFF;
+  background-color: ThreeDHighlight;
 }
 
 splitter[orient="vertical"] > grippy {

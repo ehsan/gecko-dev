@@ -57,9 +57,6 @@ ifdef DEHYDRA_PATH
 DIRS += static-checker
 endif
 
-REQUIRES	= \
-		  string \
-		  $(NULL)
 
 CPPSRCS		= \
 		nsIFileEnumerator.cpp \
@@ -85,6 +82,7 @@ endif
 SIMPLE_PROGRAMS	:= $(CPPSRCS:.cpp=$(BIN_SUFFIX))
 
 CPP_UNIT_TESTS = \
+                 ShowSSEConfig.cpp \
                  TestAutoPtr.cpp \
                  TestCOMPtr.cpp \
                  TestCOMPtrEq.cpp \
@@ -107,6 +105,7 @@ CPP_UNIT_TESTS += \
                   TestEncoding.cpp \
                   TestExpirationTracker.cpp \
                   TestPipes.cpp \
+                  TestPriorityQueue.cpp \
                   TestProxies.cpp \
                   TestStorageStream.cpp \
                   TestStrings.cpp \
@@ -116,19 +115,18 @@ CPP_UNIT_TESTS += \
                   TestThreads.cpp \
                   TestTimeStamp.cpp \
                   TestXPIDLString.cpp \
+                  TestStaticAtoms.cpp \
                   $(NULL)
 endif
 
 ifdef MOZ_DEBUG
-# FIXME bug 456272: testing assertion failures is fragile,
-# and TestDeadlockDetector doesn't like Windows
-ifneq ($(OS_ARCH), WINNT)
-ifneq ($(OS_ARCH), WINCE)
+# FIXME bug 523392: TestDeadlockDetector doesn't like Windows
+# FIXME bug 523378: also fails on OS X
+ifneq (,$(filter-out WINNT WINCE Darwin,$(OS_ARCH)))
 CPP_UNIT_TESTS += \
                   TestDeadlockDetector.cpp \
                   TestDeadlockDetectorScalability.cpp \
                   $(NULL)
-endif
 endif
 endif
 
@@ -149,10 +147,6 @@ LIBS += $(XPCOM_LIBS)
 # Needed to resolve __yylex (?)
 ifeq ($(OS_ARCH)$(OS_RELEASE),FreeBSD2)
 LIBS		+= -lpcap
-endif
-
-ifdef SOLARIS_SUNPRO_CXX
-CXXFLAGS += -features=extensions -D__FUNCTION__=__func__
 endif
 
 ENABLE_CXX_EXCEPTIONS = 1

@@ -76,12 +76,13 @@ public:
   nsImageControlFrame(nsStyleContext* aContext);
   ~nsImageControlFrame();
 
-  virtual void Destroy();
+  virtual void DestroyFrom(nsIFrame* aDestructRoot);
   NS_IMETHOD Init(nsIContent*      aContent,
                   nsIFrame*        aParent,
                   nsIFrame*        aPrevInFlow);
 
   NS_DECL_QUERYFRAME
+  NS_DECL_FRAMEARENA_HELPERS
 
   NS_IMETHOD Reflow(nsPresContext*          aPresContext,
                     nsHTMLReflowMetrics&     aDesiredSize,
@@ -123,12 +124,12 @@ nsImageControlFrame::~nsImageControlFrame()
 }
 
 void
-nsImageControlFrame::Destroy()
+nsImageControlFrame::DestroyFrom(nsIFrame* aDestructRoot)
 {
   if (!GetPrevInFlow()) {
     nsFormControlFrame::RegUnRegAccessKey(this, PR_FALSE);
   }
-  nsImageControlFrameSuper::Destroy();
+  nsImageControlFrameSuper::DestroyFrom(aDestructRoot);
 }
 
 nsIFrame*
@@ -136,6 +137,8 @@ NS_NewImageControlFrame(nsIPresShell* aPresShell, nsStyleContext* aContext)
 {
   return new (aPresShell) nsImageControlFrame(aContext);
 }
+
+NS_IMPL_FRAMEARENA_HELPERS(nsImageControlFrame)
 
 NS_IMETHODIMP
 nsImageControlFrame::Init(nsIContent*      aContent,

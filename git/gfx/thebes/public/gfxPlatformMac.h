@@ -44,6 +44,9 @@
 
 #define MAC_OS_X_VERSION_10_4_HEX 0x00001040
 #define MAC_OS_X_VERSION_10_5_HEX 0x00001050
+#define MAC_OS_X_VERSION_10_6_HEX 0x00001060
+
+#define MAC_OS_X_MAJOR_VERSION_MASK 0xFFFFFFF0U
 
 class gfxTextRun;
 
@@ -75,8 +78,9 @@ public:
     virtual gfxFontEntry* LookupLocalFont(const gfxProxyFontEntry *aProxyEntry,
                                           const nsAString& aFontName);
 
+    virtual gfxPlatformFontList* CreatePlatformFontList();
+
     virtual gfxFontEntry* MakePlatformFont(const gfxProxyFontEntry *aProxyEntry,
-                                           nsISupports *aLoader,
                                            const PRUint8 *aFontData,
                                            PRUint32 aLength);
 
@@ -87,9 +91,6 @@ public:
                          nsTArray<nsString>& aListOfFonts);
     nsresult UpdateFontList();
 
-    // in some situations, need to make decisions about ambiguous characters, may need to look at multiple pref langs
-    void GetLangPrefs(eFontPrefLang aPrefLangs[], PRUint32 &aLen, eFontPrefLang aCharLang, eFontPrefLang aPageLang);
-    
     // Returns the OS X version as returned from Gestalt(gestaltSystemVersion, ...)
     // Ex: Mac OS X 10.4.x ==> 0x104x 
     PRInt32 OSXVersion();
@@ -97,22 +98,23 @@ public:
     // lower threshold on font anti-aliasing
     PRUint32 GetAntiAliasingThreshold() { return mFontAntiAliasingThreshold; }
 
-    // record Unicode cluster boundaries in the text run
-    static void SetupClusterBoundaries(gfxTextRun *aTextRun, const PRUnichar *aString);
+    // whether we are using CoreText rather than ATSUI for shaping
+    PRBool UsingCoreText()
+#ifdef __LP64__
+        { return PR_TRUE; }
+#else
+        { return mUseCoreText; }
+#endif
 
-    // map a Unicode range (based on char code) to a font language for Preferences
-    static eFontPrefLang GetFontPrefLangFor(PRUint8 aUnicodeRange);
+    // record Unicode cluster boundaries in the text run
+    virtual void SetupClusterBoundaries(gfxTextRun *aTextRun, const PRUnichar *aString);
 
 private:
-    void AppendCJKPrefLangs(eFontPrefLang aPrefLangs[], PRUint32 &aLen, 
-                            eFontPrefLang aCharLang, eFontPrefLang aPageLang);
-                                               
     virtual qcms_profile* GetPlatformCMSOutputProfile();
     
     // read in the pref value for the lower threshold on font anti-aliasing
     static PRUint32 ReadAntiAliasingThreshold();    
     
-    nsTArray<PRUint32> mCJKPrefLangs;
     PRInt32 mOSXVersion;
     PRUint32 mFontAntiAliasingThreshold;
 

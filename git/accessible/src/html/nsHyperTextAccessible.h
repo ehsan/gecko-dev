@@ -44,7 +44,7 @@
 #include "nsIAccessibleText.h"
 #include "nsIAccessibleHyperText.h"
 #include "nsIAccessibleEditableText.h"
-#include "nsAccessibleEventData.h"
+#include "nsAccEvent.h"
 #include "nsTextAttrs.h"
 
 #include "nsFrameSelection.h"
@@ -83,10 +83,10 @@ public:
   NS_DECLARE_STATIC_IID_ACCESSOR(NS_HYPERTEXTACCESSIBLE_IMPL_CID)
 
   // nsAccessible
+  virtual PRInt32 GetLevelInternal();
   virtual nsresult GetAttributesInternal(nsIPersistentProperties *aAttributes);
   virtual nsresult GetRoleInternal(PRUint32 *aRole);
   virtual nsresult GetStateInternal(PRUint32 *aState, PRUint32 *aExtraState);
-  void CacheChildren();
 
   // Convert content offset to rendered text offset  
   static nsresult ContentToRenderedOffset(nsIFrame *aFrame, PRInt32 aContentOffset,
@@ -155,6 +155,9 @@ public:
                                       PRInt32 *aEndOffset);
 
 protected:
+
+  // nsHyperTextAccessible
+
   /*
    * This does the work for nsIAccessibleText::GetText[At|Before|After]Offset
    * @param aType, eGetBefore, eGetAt, eGetAfter

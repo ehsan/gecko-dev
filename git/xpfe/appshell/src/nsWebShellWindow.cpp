@@ -118,7 +118,8 @@ static NS_DEFINE_CID(kWindowCID,           NS_WINDOW_CID);
 
 #define SIZE_PERSISTENCE_TIMEOUT 500 // msec
 
-nsWebShellWindow::nsWebShellWindow() : nsXULWindow()
+nsWebShellWindow::nsWebShellWindow(PRUint32 aChromeFlags)
+  : nsXULWindow(aChromeFlags)
 {
   mSPTimerLock = PR_NewLock();
 }
@@ -149,7 +150,8 @@ NS_INTERFACE_MAP_BEGIN(nsWebShellWindow)
 NS_INTERFACE_MAP_END_INHERITING(nsXULWindow)
 
 nsresult nsWebShellWindow::Initialize(nsIXULWindow* aParent,
-                                      nsIAppShell* aShell, nsIURI* aUrl, 
+                                      nsIXULWindow* aOpener,
+                                      nsIAppShell* aShell, nsIURI* aUrl,
                                       PRInt32 aInitialWidth,
                                       PRInt32 aInitialHeight,
                                       PRBool aIsHiddenWindow,
@@ -159,7 +161,18 @@ nsresult nsWebShellWindow::Initialize(nsIXULWindow* aParent,
   nsCOMPtr<nsIWidget> parentWidget;
 
   mIsHiddenWindow = aIsHiddenWindow;
-  
+
+  nsCOMPtr<nsIBaseWindow> base(do_QueryInterface(aOpener));
+  if (base) {
+    rv = base->GetPositionAndSize(&mOpenerScreenRect.x,
+                                  &mOpenerScreenRect.y,
+                                  &mOpenerScreenRect.width,
+                                  &mOpenerScreenRect.height);
+    if (NS_FAILED(rv)) {
+      mOpenerScreenRect.Empty();
+    }
+  }
+
   // XXX: need to get the default window size from prefs...
   // Doesn't come from prefs... will come from CSS/XUL/RDF
   nsIntRect r(0, 0, aInitialWidth, aInitialHeight);
@@ -189,6 +202,7 @@ nsresult nsWebShellWindow::Initialize(nsIXULWindow* aParent,
 
   mWindow->SetClientData(this);
   mWindow->Create((nsIWidget *)parentWidget,          // Parent nsIWidget
+                  nsnull,                             // Native parent widget
                   r,                                  // Widget dimensions
                   nsWebShellWindow::HandleEvent,      // Event handler function
                   nsnull,                             // Device context
@@ -224,7 +238,7 @@ nsresult nsWebShellWindow::Initialize(nsIXULWindow* aParent,
   }
 
   if (nsnull != aUrl)  {
-    nsCAutoString tmpStr;
+    nsCString tmpStr;
 
     rv = aUrl->GetSpec(tmpStr);
     if (NS_FAILED(rv)) return rv;
@@ -336,7 +350,7 @@ nsWebShellWindow::HandleEvent(nsGUIEvent *aEvent)
         // persist size, but not immediately, in case this OS is firing
         // repeated size events as the user drags the sizing handle
         if (!eventWindow->IsLocked())
-          eventWindow->SetPersistenceTimer(PAD_SIZE | PAD_MISC);
+          eventWindow->SetPersistenceTimer(PAD_POSITION | PAD_SIZE | PAD_MISC);
         result = nsEventStatus_eConsumeNoDefault;
         break;
       }
@@ -617,13 +631,8 @@ nsCOMPtr<nsIDOMDocument> nsWebShellWindow::GetNamedDOMDoc(const nsAString & aDoc
   childDocShell->GetContentViewer(getter_AddRefs(cv));
   if (!cv)
     return domDoc;
-   
-  nsCOMPtr<nsIDocumentViewer> docv(do_QueryInterface(cv));
-  if (!docv)
-    return domDoc;
-
-  nsCOMPtr<nsIDocument> doc;
-  docv->GetDocument(getter_AddRefs(doc));
+ 
+  nsIDocument* doc = cv->GetDocument();
   if (doc)
     return nsCOMPtr<nsIDOMDocument>(do_QueryInterface(doc));
 
@@ -644,11 +653,9 @@ void nsWebShellWindow::LoadContentAreas() {
   if (mDocShell)
     mDocShell->GetContentViewer(getter_AddRefs(contentViewer));
   if (contentViewer) {
-    nsCOMPtr<nsIDocumentViewer> docViewer = do_QueryInterface(contentViewer);
-    if (docViewer) {
-      nsCOMPtr<nsIDocument> doc;
-      docViewer->GetDocument(getter_AddRefs(doc));
-      nsIURI *mainURL = doc->GetDocumentURI();
+    nsIDocument* doc = contentViewer->GetDocument();
+    if (doc) {
+      nsIURI* mainURL = doc->GetDocumentURI();
 
       nsCOMPtr<nsIURL> url = do_QueryInterface(mainURL);
       if (url) {

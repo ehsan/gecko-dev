@@ -15,7 +15,7 @@
  *
  * The Original Code is Places Unit Test code.
  *
- * The Initial Developer of the Original Code is Mozilla Corp.
+ * The Initial Developer of the Original Code is Mozilla Foundation.
  * Portions created by the Initial Developer are Copyright (C) 2009
  * the Initial Developer. All Rights Reserved.
  *
@@ -44,8 +44,6 @@
 
 const PREF_SMART_BOOKMARKS_VERSION = "browser.places.smartBookmarksVersion";
 
-const TOPIC_PLACES_INIT_COMPLETE = "places-init-complete";
-
 function run_test() {
   // Create our bookmarks.html copying bookmarks.glue.html to the profile
   // folder.  It will be ignored.
@@ -73,24 +71,19 @@ function run_test() {
 
   // A migrator would run before nsBrowserGlue, so we mimic that behavior
   // adding a bookmark.
-  bs = Cc["@mozilla.org/browser/nav-bookmarks-service;1"].
+  let bs = Cc["@mozilla.org/browser/nav-bookmarks-service;1"].
            getService(Ci.nsINavBookmarksService);
   bs.insertBookmark(bs.bookmarksMenuFolder, uri("http://mozilla.org/"),
                     bs.DEFAULT_INDEX, "migrated");
 
   // Initialize nsBrowserGlue.
-  Cc["@mozilla.org/browser/browserglue;1"].getService(Ci.nsIBrowserGlue);
-
-  // Places initialization has already happened, so we need to simulate
-  // it. This will force browserGlue::_initPlaces().
-  let os = Cc["@mozilla.org/observer-service;1"].
-           getService(Ci.nsIObserverService);
-  os.notifyObservers(null, TOPIC_PLACES_INIT_COMPLETE, null);
+  let bg = Cc["@mozilla.org/browser/browserglue;1"].
+           getService(Ci.nsIBrowserGlue);
 
   // Import could take some time, usually less than 1s, but to be sure we will
   // check after 3s.
   do_test_pending();
-  do_timeout(3000, "continue_test();");
+  do_timeout(3000, continue_test);
 }
 
 function continue_test() {
@@ -104,6 +97,8 @@ function continue_test() {
   // Check that we have not imported any new bookmark.
   do_check_eq(bs.getIdForItemAt(bs.bookmarksMenuFolder, 1), -1);
   do_check_eq(bs.getIdForItemAt(bs.toolbarFolder, 0), -1);
+
+  remove_bookmarks_html();
 
   do_test_finished();
 }

@@ -72,14 +72,31 @@ endif
 
 tier_external_dirs	+= gfx/qcms
 
+ifeq ($(OS_ARCH),WINCE)
+tier_external_dirs += modules/lib7z
+endif
+
 #
 # tier "gecko" - core components
 #
 
+ifdef MOZ_IPC
+tier_gecko_dirs += ipc
+endif
+
 tier_gecko_dirs += \
 		js/src/xpconnect \
+		js/ctypes \
 		intl/chardet \
 		$(NULL)
+
+ifdef BUILD_CTYPES
+ifndef _MSC_VER
+tier_gecko_staticdirs += \
+		js/ctypes/libffi \
+		$(NULL)
+endif
+endif
 
 ifdef MOZ_ENABLE_GTK2
 ifdef MOZ_X11
@@ -88,7 +105,6 @@ endif
 endif
 
 tier_gecko_dirs	+= \
-		modules/libutil \
 		modules/libjar \
 		db \
 		$(NULL)
@@ -148,14 +164,6 @@ tier_gecko_dirs	+= \
 		embedding \
 		xpfe/appshell \
 		$(NULL)
-
-ifdef MOZ_XMLEXTRAS
-tier_gecko_dirs += extensions/xmlextras
-endif
-
-ifdef MOZ_WEBSERVICES
-tier_gecko_dirs += extensions/webservices
-endif
 
 ifdef MOZ_UNIVERSALCHARDET
 tier_gecko_dirs += extensions/universalchardet
@@ -236,8 +244,11 @@ ifdef MOZ_ENABLE_GNOME_COMPONENT
 tier_toolkit_dirs    += toolkit/system/gnome
 endif
 
+ifndef MOZ_ENABLE_LIBCONIC
+# if libconic is present, it will do its own network monitoring
 ifdef MOZ_ENABLE_DBUS
 tier_toolkit_dirs    += toolkit/system/dbus
+endif
 endif
 
 ifdef MOZ_LEAKY

@@ -45,6 +45,8 @@
 #include "nsPresContext.h"
 #include "nsStyleContext.h"
 
+NS_IMPL_FRAMEARENA_HELPERS(nsSplittableFrame)
+
 NS_IMETHODIMP
 nsSplittableFrame::Init(nsIContent*      aContent,
                         nsIFrame*        aParent,
@@ -62,7 +64,7 @@ nsSplittableFrame::Init(nsIContent*      aContent,
 }
 
 void
-nsSplittableFrame::Destroy()
+nsSplittableFrame::DestroyFrom(nsIFrame* aDestructRoot)
 {
   // Disconnect from the flow list
   if (mPrevContinuation || mNextContinuation) {
@@ -70,7 +72,7 @@ nsSplittableFrame::Destroy()
   }
 
   // Let the base class destroy the frame
-  nsFrame::Destroy();
+  nsFrame::DestroyFrom(aDestructRoot);
 }
 
 nsSplittableType

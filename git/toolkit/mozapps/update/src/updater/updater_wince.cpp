@@ -37,19 +37,24 @@
 
 #include <windows.h>
 #include "updater_wince.h"
+#include "environment.cpp"
 
 # define F_OK 00
 # define W_OK 02
 # define R_OK 04
 
+int errno = 0;
+
 int chmod(const char* path, unsigned int mode) 
 {
-  return 0;
+  WCHAR wpath[MAX_PATH];
+  MultiByteToWideChar(CP_ACP, 0, path, -1, wpath, MAX_PATH);
+  return _wchmod(wpath, mode);
 }
 
 int _wchmod(const WCHAR* path, unsigned int mode) 
 {
-  return 0;
+  return SetFileAttributesW(path, FILE_ATTRIBUTE_NORMAL) ? 0 : 1;
 }
 
 int fstat(FILE* handle, struct stat* buff)
@@ -120,7 +125,7 @@ int _access(const char* path, int amode)
 
 int _waccess(const WCHAR* path, int amode)
 {
-  if (amode == F_OK)
+  if (amode == F_OK || amode == R_OK)
     return (GetFileAttributesW(path) == INVALID_FILE_ATTRIBUTES) ? -1 : 0;
   return -1;
 }

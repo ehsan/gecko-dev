@@ -60,6 +60,7 @@
 #include "nsIDOMWindow.h"
 #include "nsIDOMChromeWindow.h"
 #include "nsIDOMWindowInternal.h"
+#include "nsIDOMModalContentWindow.h"
 #include "nsIScriptObjectPrincipal.h"
 #include "nsIScreen.h"
 #include "nsIScreenManager.h"
@@ -93,8 +94,6 @@
 
 #include "nsIPrefBranch.h"
 #include "nsIPrefService.h"
-
-#include "jsinterp.h" // for js_AllocStack() and js_FreeStack()
 
 #ifdef USEWEAKREFS
 #include "nsIWeakReference.h"
@@ -573,11 +572,21 @@ nsWindowWatcher::OpenWindowJSInternal(nsIDOMWindow *aParent,
   SizeSpec sizeSpec;
   CalcSizeSpec(features.get(), sizeSpec);
 
-  PRBool isCallerChrome = PR_FALSE;
   nsCOMPtr<nsIScriptSecurityManager>
     sm(do_GetService(NS_SCRIPTSECURITYMANAGER_CONTRACTID));
-  if (sm)
-    sm->SubjectPrincipalIsSystem(&isCallerChrome);
+
+  // Remember who's calling us. This code used to assume a null
+  // subject principal if it failed to get the principal, but that's
+  // just not safe, so bail on errors here.
+  nsCOMPtr<nsIPrincipal> callerPrincipal;
+  rv = sm->GetSubjectPrincipal(getter_AddRefs(callerPrincipal));
+  NS_ENSURE_SUCCESS(rv, rv);
+
+  PRBool isCallerChrome = PR_TRUE;
+  if (callerPrincipal) {
+    rv = sm->IsSystemPrincipal(callerPrincipal, &isCallerChrome);
+    NS_ENSURE_SUCCESS(rv, rv);
+  }
 
   JSContext *cx = GetJSContextFromWindow(aParent);
 
@@ -756,9 +765,10 @@ nsWindowWatcher::OpenWindowJSInternal(nsIDOMWindow *aParent,
 
   if ((aDialog || windowIsModalContentDialog) && argv) {
     // Set the args on the new window.
-    nsCOMPtr<nsIScriptGlobalObject> scriptGlobal(do_QueryInterface(*_retval));
-    NS_ENSURE_TRUE(scriptGlobal, NS_ERROR_UNEXPECTED);
-    rv = scriptGlobal->SetNewArguments(argv);
+    nsCOMPtr<nsPIDOMWindow> piwin(do_QueryInterface(*_retval));
+    NS_ENSURE_TRUE(piwin, NS_ERROR_UNEXPECTED);
+
+    rv = piwin->SetArguments(argv, callerPrincipal);
     NS_ENSURE_SUCCESS(rv, rv);
   }
 
@@ -938,7 +948,8 @@ nsWindowWatcher::OpenWindowJSInternal(nsIDOMWindow *aParent,
 
   if (subjectPrincipal && parentDocShell) {
     nsCOMPtr<nsIDOMStorage> storage;
-    parentDocShell->GetSessionStorageForPrincipal(subjectPrincipal, PR_FALSE,
+    parentDocShell->GetSessionStorageForPrincipal(subjectPrincipal,
+                                                  EmptyString(), PR_FALSE,
                                                   getter_AddRefs(storage));
     nsCOMPtr<nsPIDOMStorage> piStorage =
       do_QueryInterface(storage);
@@ -1909,7 +1920,14 @@ nsWindowWatcher::SizeOpenedDocShellItem(nsIDocShellTreeItem *aDocShellItem,
   }
   if (mainWidget) {
     nsCOMPtr<nsIDeviceContext> ctx = mainWidget->GetDeviceContext();
-    devPixelsPerCSSPixel = float(ctx->AppUnitsPerCSSPixel()) / ctx->AppUnitsPerDevPixel();
+    /* we might be called by an extension after mainWidget::OnDestroy() */
+    if (ctx) {
+      PRInt32 unitsPerDevPixel = ctx->AppUnitsPerDevPixel();
+      if (unitsPerDevPixel) {
+        devPixelsPerCSSPixel = float(ctx->AppUnitsPerCSSPixel()) /
+                                     unitsPerDevPixel;
+      }
+    }
   }
 
   /* The current position and size will be unchanged if not specified

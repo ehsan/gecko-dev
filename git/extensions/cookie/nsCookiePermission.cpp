@@ -52,8 +52,6 @@
 #include "nsIPrefService.h"
 #include "nsIPrefBranch.h"
 #include "nsIPrefBranch2.h"
-#include "nsIDocShell.h"
-#include "nsIWebNavigation.h"
 #include "nsIChannel.h"
 #include "nsIHttpChannelInternal.h"
 #include "nsIDOMWindow.h"
@@ -83,9 +81,6 @@ static const PRBool kDefaultPolicy = PR_TRUE;
 static const char kCookiesLifetimePolicy[] = "network.cookie.lifetimePolicy";
 static const char kCookiesLifetimeDays[] = "network.cookie.lifetime.days";
 static const char kCookiesAlwaysAcceptSession[] = "network.cookie.alwaysAcceptSessionCookies";
-#ifdef MOZ_MAIL_NEWS
-static const char kCookiesDisabledForMailNews[] = "network.cookie.disableCookieForMailNews";
-#endif
 
 static const char kCookiesPrefsMigrated[] = "network.cookie.prefsMigrated";
 // obsolete pref names for migration
@@ -130,9 +125,6 @@ nsCookiePermission::Init()
     prefBranch->AddObserver(kCookiesLifetimePolicy, this, PR_FALSE);
     prefBranch->AddObserver(kCookiesLifetimeDays, this, PR_FALSE);
     prefBranch->AddObserver(kCookiesAlwaysAcceptSession, this, PR_FALSE);
-#ifdef MOZ_MAIL_NEWS
-    prefBranch->AddObserver(kCookiesDisabledForMailNews, this, PR_FALSE);
-#endif
     PrefChanged(prefBranch, nsnull);
 
     // migration code for original cookie prefs
@@ -186,12 +178,6 @@ nsCookiePermission::PrefChanged(nsIPrefBranch *aPrefBranch,
   if (PREF_CHANGED(kCookiesAlwaysAcceptSession) &&
       NS_SUCCEEDED(aPrefBranch->GetBoolPref(kCookiesAlwaysAcceptSession, &val)))
     mCookiesAlwaysAcceptSession = val;
-
-#ifdef MOZ_MAIL_NEWS
-  if (PREF_CHANGED(kCookiesDisabledForMailNews) &&
-      NS_SUCCEEDED(aPrefBranch->GetBoolPref(kCookiesDisabledForMailNews, &val)))
-    mCookiesDisabledForMailNews = val;
-#endif
 }
 
 NS_IMETHODIMP
@@ -203,7 +189,8 @@ nsCookiePermission::SetAccess(nsIURI         *aURI,
   //       the permission codes used by nsIPermissionManager.
   //       this is nice because it avoids conversion code.
   //
-  return mPermMgr->Add(aURI, kPermissionType, aAccess);
+  return mPermMgr->Add(aURI, kPermissionType, aAccess,
+                       nsIPermissionManager::EXPIRE_NEVER, 0);
 }
 
 NS_IMETHODIMP
@@ -212,27 +199,11 @@ nsCookiePermission::CanAccess(nsIURI         *aURI,
                               nsCookieAccess *aResult)
 {
 #ifdef MOZ_MAIL_NEWS
-  // disable cookies in mailnews if user's prefs say so
-  if (mCookiesDisabledForMailNews) {
-    //
-    // try to examine the "app type" of the window owning this request.  if it
-    // or some ancestor is of type APP_TYPE_MAIL, then assume this URI is being
-    // loaded from within mailnews.
-    PRBool isMail = PR_FALSE;
-    if (aChannel) {
-      nsCOMPtr<nsILoadContext> ctx;
-      NS_QueryNotificationCallbacks(aChannel, ctx);
-      if (ctx) {
-        PRBool temp;
-        isMail =
-          NS_FAILED(ctx->IsAppOfType(nsIDocShell::APP_TYPE_MAIL, &temp)) ||
-          temp;
-      }
-    }
-    if (isMail || IsFromMailNews(aURI)) {
-      *aResult = ACCESS_DENY;
-      return NS_OK;
-    }
+  // If this URI is a mailnews one (e.g. imap etc), don't allow cookies for
+  // it.
+  if (IsFromMailNews(aURI)) {
+    *aResult = ACCESS_DENY;
+    return NS_OK;
   }
 #endif // MOZ_MAIL_NEWS
   
@@ -391,13 +362,16 @@ nsCookiePermission::CanSetCookie(nsIURI     *aURI,
       if (rememberDecision) {
         switch (*aResult) {
           case nsICookiePromptService::DENY_COOKIE:
-            mPermMgr->Add(aURI, kPermissionType, (PRUint32) nsIPermissionManager::DENY_ACTION);
+            mPermMgr->Add(aURI, kPermissionType, (PRUint32) nsIPermissionManager::DENY_ACTION,
+                          nsIPermissionManager::EXPIRE_NEVER, 0);
             break;
           case nsICookiePromptService::ACCEPT_COOKIE:
-            mPermMgr->Add(aURI, kPermissionType, (PRUint32) nsIPermissionManager::ALLOW_ACTION);
+            mPermMgr->Add(aURI, kPermissionType, (PRUint32) nsIPermissionManager::ALLOW_ACTION,
+                          nsIPermissionManager::EXPIRE_NEVER, 0);
             break;
           case nsICookiePromptService::ACCEPT_SESSION_COOKIE:
-            mPermMgr->Add(aURI, kPermissionType, nsICookiePermission::ACCESS_SESSION);
+            mPermMgr->Add(aURI, kPermissionType, nsICookiePermission::ACCESS_SESSION,
+                          nsIPermissionManager::EXPIRE_NEVER, 0);
             break;
           default:
             break;

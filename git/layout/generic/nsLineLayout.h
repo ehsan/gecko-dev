@@ -155,7 +155,9 @@ protected:
 #define LL_INFIRSTLINE                 0x00000800
 #define LL_GOTLINEBOX                  0x00001000
 #define LL_INFIRSTLETTER               0x00002000
-#define LL_LASTFLAG                    LL_INFIRSTLETTER
+#define LL_HASBULLET                   0x00004000
+#define LL_DIRTYNEXTLINE               0x00008000
+#define LL_LASTFLAG                    LL_DIRTYNEXTLINE
 
   void SetFlag(PRUint32 aFlag, PRBool aValue)
   {
@@ -208,10 +210,11 @@ public:
   //----------------------------------------
   // Inform the line-layout about the presence of a floating frame
   // XXX get rid of this: use get-frame-type?
-  PRBool AddFloat(nsPlaceholderFrame* aFrame,
-                  nscoord aAvailableWidth,
-                  nsReflowStatus& aReflowStatus) {
-    return mBlockRS->AddFloat(*this, aFrame, aAvailableWidth, aReflowStatus);
+  PRBool AddFloat(nsIFrame*       aFloat,
+                  nscoord         aAvailableWidth,
+                  nsReflowStatus& aReflowStatus)
+  {
+    return mBlockRS->AddFloat(this, aFloat, aAvailableWidth, aReflowStatus);
   }
 
   void SetTrimmableWidth(nscoord aTrimmableWidth) {
@@ -242,6 +245,15 @@ public:
 
   void SetInFirstLine(PRBool aSetting) {
     SetFlag(LL_INFIRSTLINE, aSetting);
+  }
+
+  // Calling this during block reflow ensures that the next line of inlines
+  // will be marked dirty, if there is one.
+  void SetDirtyNextLine() {
+    SetFlag(LL_DIRTYNEXTLINE, PR_TRUE);
+  }
+  PRBool GetDirtyNextLine() {
+    return GetFlag(LL_DIRTYNEXTLINE);
   }
 
   //----------------------------------------

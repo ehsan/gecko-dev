@@ -154,6 +154,11 @@ protected:
   void ClearBrokenState() { mBroken = PR_FALSE; }
 
   PRBool LoadingEnabled() { return mLoadingEnabled; }
+
+  // Sets blocking state only if the desired state is different from the
+  // current one. See the comment for mBlockingOnload for more information.
+  void SetBlockingOnload(PRBool aBlocking);
+
 private:
   /**
    * Struct used to manage the image observers.
@@ -242,9 +247,10 @@ private:
   nsresult FireEvent(const nsAString& aEventType);
   class Event;
   friend class Event;
+protected:
+  void CreateStaticImageClone(nsImageLoadingContent* aDest) const;
 
   /* MEMBERS */
-protected:
   nsCOMPtr<imgIRequest> mCurrentRequest;
   nsCOMPtr<imgIRequest> mPendingRequest;
   nsCOMPtr<nsIURI>      mCurrentURI;
@@ -283,6 +289,11 @@ private:
   PRPackedBool mBroken : 1;
   PRPackedBool mUserDisabled : 1;
   PRPackedBool mSuppressed : 1;
+
+  /**
+   * Whether we're currently blocking document load.
+   */
+  PRPackedBool mBlockingOnload : 1;
 };
 
 #endif // nsImageLoadingContent_h__

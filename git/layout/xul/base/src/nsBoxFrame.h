@@ -74,6 +74,7 @@ nsIFrame* NS_NewBoxFrame(nsIPresShell* aPresShell,
 class nsBoxFrame : public nsContainerFrame
 {
 public:
+  NS_DECL_FRAMEARENA_HELPERS
 
   friend nsIFrame* NS_NewBoxFrame(nsIPresShell* aPresShell, 
                                   nsStyleContext* aContext,
@@ -240,7 +241,7 @@ protected:
     virtual PRBool GetInitialVAlignment(Valignment& aValign); 
     virtual PRBool GetInitialAutoStretch(PRBool& aStretch); 
   
-    virtual void Destroy();
+    virtual void DestroyFrom(nsIFrame* aDestructRoot);
 
     nsSize mPrefSize;
     nsSize mMinSize;

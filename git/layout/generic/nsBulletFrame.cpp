@@ -84,13 +84,14 @@ private:
   nsBulletFrame *mFrame;
 };
 
+NS_IMPL_FRAMEARENA_HELPERS(nsBulletFrame)
 
 nsBulletFrame::~nsBulletFrame()
 {
 }
 
 void
-nsBulletFrame::Destroy()
+nsBulletFrame::DestroyFrom(nsIFrame* aDestructRoot)
 {
   // Stop image loading first
   if (mImageRequest) {
@@ -102,7 +103,7 @@ nsBulletFrame::Destroy()
     reinterpret_cast<nsBulletListener*>(mListener.get())->SetFrame(nsnull);
 
   // Let base class do the rest
-  nsFrame::Destroy();
+  nsFrame::DestroyFrom(aDestructRoot);
 }
 
 #ifdef NS_DEBUG
@@ -136,7 +137,7 @@ nsBulletFrame::DidSetStyleContext(nsStyleContext* aOldStyleContext)
 {
   nsFrame::DidSetStyleContext(aOldStyleContext);
 
-  imgIRequest *newRequest = GetStyleList()->mListStyleImage;
+  imgIRequest *newRequest = GetStyleList()->GetListStyleImage();
 
   if (newRequest) {
 
@@ -195,16 +196,16 @@ public:
 
   virtual nsIFrame* HitTest(nsDisplayListBuilder* aBuilder, nsPoint aPt,
                             HitTestState* aState) { return mFrame; }
-  virtual void Paint(nsDisplayListBuilder* aBuilder, nsIRenderingContext* aCtx,
-     const nsRect& aDirtyRect);
+  virtual void Paint(nsDisplayListBuilder* aBuilder,
+                     nsIRenderingContext* aCtx);
   NS_DISPLAY_DECL_NAME("Bullet")
 };
 
 void nsDisplayBullet::Paint(nsDisplayListBuilder* aBuilder,
-     nsIRenderingContext* aCtx, const nsRect& aDirtyRect)
+                            nsIRenderingContext* aCtx)
 {
   static_cast<nsBulletFrame*>(mFrame)->
-    PaintBullet(*aCtx, aBuilder->ToReferenceFrame(mFrame), aDirtyRect);
+    PaintBullet(*aCtx, aBuilder->ToReferenceFrame(mFrame), mVisibleRect);
 }
 
 NS_IMETHODIMP
@@ -227,7 +228,7 @@ nsBulletFrame::PaintBullet(nsIRenderingContext& aRenderingContext, nsPoint aPt,
   const nsStyleList* myList = GetStyleList();
   PRUint8 listStyleType = myList->mListStyleType;
 
-  if (myList->mListStyleImage && mImageRequest) {
+  if (myList->GetListStyleImage() && mImageRequest) {
     PRUint32 status;
     mImageRequest->GetImageStatus(&status);
     if (status & imgIRequest::STATUS_LOAD_COMPLETE &&
@@ -240,7 +241,7 @@ nsBulletFrame::PaintBullet(nsIRenderingContext& aRenderingContext, nsPoint aPt,
                     mRect.height - (mPadding.top + mPadding.bottom));
         nsLayoutUtils::DrawSingleImage(&aRenderingContext,
              imageCon, nsLayoutUtils::GetGraphicsFilterForFrame(this),
-             dest + aPt, aDirtyRect);
+             dest + aPt, aDirtyRect, imgIContainer::FLAG_NONE);
         return;
       }
     }
@@ -979,7 +980,7 @@ nsBulletFrame::AppendCounterText(PRInt32 aListStyleType,
                                  PRInt32 aOrdinal,
                                  nsString& result)
 {
-  PRBool success;
+  PRBool success = PR_TRUE;
   
   switch (aListStyleType) {
     case NS_STYLE_LIST_STYLE_NONE: // used by counters code only
@@ -1257,7 +1258,7 @@ nsBulletFrame::GetDesiredSize(nsPresContext*  aCX,
   const nsStyleList* myList = GetStyleList();
   nscoord ascent;
 
-  if (myList->mListStyleImage && mImageRequest) {
+  if (myList->GetListStyleImage() && mImageRequest) {
     PRUint32 status;
     mImageRequest->GetImageStatus(&status);
     if (status & imgIRequest::STATUS_SIZE_AVAILABLE &&
@@ -1296,7 +1297,7 @@ nsBulletFrame::GetDesiredSize(nsPresContext*  aCX,
     case NS_STYLE_LIST_STYLE_CIRCLE:
     case NS_STYLE_LIST_STYLE_SQUARE:
       fm->GetMaxAscent(ascent);
-      bulletSize = PR_MAX(nsPresContext::CSSPixelsToAppUnits(MIN_BULLET_SIZE),
+      bulletSize = NS_MAX(nsPresContext::CSSPixelsToAppUnits(MIN_BULLET_SIZE),
                           NSToCoordRound(0.8f * (float(ascent) / 2.0f)));
       mPadding.bottom = NSToCoordRound(float(ascent) / 8.0f);
       aMetrics.width = mPadding.right + bulletSize;

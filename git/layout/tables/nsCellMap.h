@@ -43,6 +43,7 @@
 #include "nsTPtrArray.h"
 #include "nsRect.h"
 #include "nsCOMPtr.h"
+#include "nsAlgorithm.h"
 
 #undef DEBUG_TABLE_CELLMAP
 
@@ -93,7 +94,7 @@ public:
   
   void RemoveGroupCellMap(nsTableRowGroupFrame* aRowGroup);
 
-  void InsertGroupCellMap(nsTableRowGroupFrame&  aNewRowGroup,
+  void InsertGroupCellMap(nsTableRowGroupFrame*  aNewRowGroup,
                           nsTableRowGroupFrame*& aPrevRowGroup);
 
   /**
@@ -139,7 +140,7 @@ public:
                   nsRect&           aDamageArea);
   /** Remove the previously gathered column information */
   void ClearCols();
-  void InsertRows(nsTableRowGroupFrame&       aRowGroup,
+  void InsertRows(nsTableRowGroupFrame*       aRowGroup,
                   nsTArray<nsTableRowFrame*>& aRows,
                   PRInt32                     aFirstRowIndex,
                   PRBool                      aConsiderSpans,
@@ -267,7 +268,7 @@ protected:
 
   friend class nsCellMap;
   friend class BCMapCellIterator;
-  friend class BCMapBorderIterator;
+  friend class BCPaintBorderIterator;
   friend class nsCellMapColumnIterator;
   
 /** Insert a row group cellmap after aPrevMap, if aPrefMap is null insert it
@@ -305,7 +306,7 @@ public:
     * @param aRowGroupFrame the row group frame this is a cellmap for
     * @param aIsBC whether the table is doing border-collapse
     */
-  nsCellMap(nsTableRowGroupFrame& aRowGroupFrame, PRBool aIsBC);
+  nsCellMap(nsTableRowGroupFrame* aRowGroupFrame, PRBool aIsBC);
 
   /** destructor
     * NOT VIRTUAL BECAUSE THIS CLASS SHOULD **NEVER** BE SUBCLASSED  
@@ -473,7 +474,7 @@ public:
 protected:
   friend class nsTableCellMap;
   friend class BCMapCellIterator;
-  friend class BCMapBorderIterator;
+  friend class BCPaintBorderIterator;
   friend class nsTableFrame;
   friend class nsCellMapColumnIterator;
 
@@ -629,7 +630,7 @@ public:
     if (mCurMap) {
       mCurMapContentRowCount = mCurMap->GetRowCount();
       PRUint32 rowArrayLength = mCurMap->mRows.Length();
-      mCurMapRelevantRowCount = PR_MIN(mCurMapContentRowCount, rowArrayLength);
+      mCurMapRelevantRowCount = NS_MIN(mCurMapContentRowCount, rowArrayLength);
       if (mCurMapRelevantRowCount == 0 && mOrigCells > 0) {
         // This row group is useless; advance!
         AdvanceRowGroup();

@@ -151,7 +151,6 @@
 #include "nsNodeInfoManager.h"
 #include "nsXBLBinding.h"
 #include "nsEventDispatcher.h"
-#include "nsPresShellIterator.h"
 #include "mozAutoDocUpdate.h"
 #include "nsIDOMXULCommandEvent.h"
 #include "nsIDOMNSEvent.h"
@@ -580,8 +579,10 @@ nsXULElement::IsFocusable(PRInt32 *aTabIndex)
       }
       else {
         // otherwise, if there is no tabindex attribute, just use the value of
-        // *aTabIndex to indicate focusability
+        // *aTabIndex to indicate focusability. Reset any supplied tabindex to 0.
         shouldFocus = *aTabIndex >= 0;
+        if (shouldFocus)
+          *aTabIndex = 0;
       }
 
       if (shouldFocus && sTabFocusModelAppliesToXUL &&
@@ -630,15 +631,7 @@ nsXULElement::PerformAccesskey(PRBool aKeyCausesActivation,
             return;
     }
 
-    nsIDocument* doc = GetCurrentDoc();
-    if (!doc)
-        return;
-
-    nsIPresShell *shell = doc->GetPrimaryShell();
-    if (!shell)
-        return;
-
-    nsIFrame* frame = shell->GetPrimaryFrameFor(content);
+    nsIFrame* frame = content->GetPrimaryFrame();
     if (!frame)
         return;
 
@@ -1077,7 +1070,7 @@ nsXULElement::AfterSetAttr(PRInt32 aNamespaceID, nsIAtom* aName,
                            const nsAString* aValue, PRBool aNotify)
 {
     if (aNamespaceID == kNameSpaceID_None) {
-        // XXX UnsetAttr handles more attributes then we do. See bug 233642.
+        // XXX UnsetAttr handles more attributes than we do. See bug 233642.
 
         // Add popup and event listeners. We can't call AddListenerFor since
         // the attribute isn't set yet.
@@ -1097,34 +1090,41 @@ nsXULElement::AfterSetAttr(PRInt32 aNamespaceID, nsIAtom* aName,
         if (aName == nsGkAtoms::hidechrome &&
             mNodeInfo->Equals(nsGkAtoms::window) &&
             aValue) {
-            HideWindowChrome(aValue && NS_LITERAL_STRING("true").Equals(*aValue));
+            HideWindowChrome(aValue->EqualsLiteral("true"));
         }
-        
+
+        // title, (in)activetitlebarcolor and drawintitlebar are settable on
+        // any root node (windows, dialogs, etc)
         nsIDocument *document = GetCurrentDoc();
-        if (aName == nsGkAtoms::title &&
-            document && document->GetRootContent() == this) {
-            document->NotifyPossibleTitleChange(PR_FALSE);
-        }
-
-        // (in)activetitlebarcolor is settable on any root node (windows, dialogs, etc)
-        if ((aName == nsGkAtoms::activetitlebarcolor ||
-             aName == nsGkAtoms::inactivetitlebarcolor) &&
-            document && document->GetRootContent() == this) {
-
-            nscolor color = NS_RGBA(0, 0, 0, 0);
-            nsAttrValue attrValue;
-            attrValue.ParseColor(*aValue, document);
-            attrValue.GetColorValue(color);
-
-            SetTitlebarColor(color, aName == nsGkAtoms::activetitlebarcolor);
-        }
-
-        // if the localedir changed on the root element, reset the document direction
-        if (aName == nsGkAtoms::localedir &&
-            document && document->GetRootContent() == this) {
-            nsCOMPtr<nsIXULDocument> xuldoc = do_QueryInterface(document);
-            if (xuldoc) {
-                xuldoc->ResetDocumentDirection();
+        if (document && document->GetRootContent() == this) {
+            if (aName == nsGkAtoms::title) {
+                document->NotifyPossibleTitleChange(PR_FALSE);
+            }
+            else if ((aName == nsGkAtoms::activetitlebarcolor ||
+                      aName == nsGkAtoms::inactivetitlebarcolor)) {
+                nscolor color = NS_RGBA(0, 0, 0, 0);
+                nsAttrValue attrValue;
+                attrValue.ParseColor(*aValue, document);
+                attrValue.GetColorValue(color);
+                SetTitlebarColor(color, aName == nsGkAtoms::activetitlebarcolor);
+            }
+            else if (aName == nsGkAtoms::drawintitlebar) {
+                SetDrawsInTitlebar(aValue && aValue->EqualsLiteral("true"));
+            }
+            else if (aName == nsGkAtoms::localedir) {
+                // if the localedir changed on the root element, reset the document direction
+                nsCOMPtr<nsIXULDocument> xuldoc = do_QueryInterface(document);
+                if (xuldoc) {
+                    xuldoc->ResetDocumentDirection();
+                }
+            }
+            else if (aName == nsGkAtoms::lwtheme ||
+                     aName == nsGkAtoms::lwthemetextcolor) {
+                // if the lwtheme changed, make sure to reset the document lwtheme cache
+                nsCOMPtr<nsIXULDocument> xuldoc = do_QueryInterface(document);
+                if (xuldoc) {
+                    xuldoc->ResetDocumentLWTheme();
+                }
             }
         }
 
@@ -1367,19 +1367,29 @@ nsXULElement::UnsetAttr(PRInt32 aNameSpaceID, nsIAtom* aName, PRBool aNotify)
             HideWindowChrome(PR_FALSE);
         }
 
-        if ((aName == nsGkAtoms::activetitlebarcolor ||
-             aName == nsGkAtoms::inactivetitlebarcolor) &&
-            doc && doc->GetRootContent() == this) {
-            // Use 0, 0, 0, 0 as the "none" color.
-            SetTitlebarColor(NS_RGBA(0, 0, 0, 0), aName == nsGkAtoms::activetitlebarcolor);
-        }
-
-        // if the localedir changed on the root element, reset the document direction
-        if (aName == nsGkAtoms::localedir &&
-            doc && doc->GetRootContent() == this) {
-            nsCOMPtr<nsIXULDocument> xuldoc = do_QueryInterface(doc);
-            if (xuldoc) {
-                xuldoc->ResetDocumentDirection();
+        if (doc && doc->GetRootContent() == this) {
+            if ((aName == nsGkAtoms::activetitlebarcolor ||
+                 aName == nsGkAtoms::inactivetitlebarcolor)) {
+                // Use 0, 0, 0, 0 as the "none" color.
+                SetTitlebarColor(NS_RGBA(0, 0, 0, 0), aName == nsGkAtoms::activetitlebarcolor);
+            }
+            else if (aName == nsGkAtoms::localedir) {
+                // if the localedir changed on the root element, reset the document direction
+                nsCOMPtr<nsIXULDocument> xuldoc = do_QueryInterface(doc);
+                if (xuldoc) {
+                    xuldoc->ResetDocumentDirection();
+                }
+            }
+            else if ((aName == nsGkAtoms::lwtheme ||
+                      aName == nsGkAtoms::lwthemetextcolor)) {
+                // if the lwtheme changed, make sure to restyle appropriately
+                nsCOMPtr<nsIXULDocument> xuldoc = do_QueryInterface(doc);
+                if (xuldoc) {
+                    xuldoc->ResetDocumentLWTheme();
+                }
+            }
+            else if (aName == nsGkAtoms::drawintitlebar) {
+                SetDrawsInTitlebar(PR_FALSE);
             }
         }
 
@@ -1412,12 +1422,11 @@ nsXULElement::UnsetAttr(PRInt32 aNameSpaceID, nsIAtom* aName, PRBool aNotify)
             doc->ContentStatesChanged(this, nsnull, stateMask);
         }
         nsNodeUtils::AttributeChanged(this, aNameSpaceID, aName,
-                                      nsIDOMMutationEvent::REMOVAL,
-                                      stateMask);
+                                      nsIDOMMutationEvent::REMOVAL);
     }
 
     if (hasMutationListeners) {
-        mozAutoRemovableBlockerRemover blockerRemover;
+        mozAutoRemovableBlockerRemover blockerRemover(GetOwnerDoc());
 
         nsMutationEvent mutation(PR_TRUE, NS_MUTATION_ATTRMODIFIED);
 
@@ -1566,7 +1575,7 @@ nsXULElement::DestroyContent()
 void
 nsXULElement::List(FILE* out, PRInt32 aIndent) const
 {
-    nsCString prefix("<XUL");
+    nsCString prefix("XUL");
     if (HasSlots()) {
       prefix.Append('*');
     }
@@ -1814,7 +1823,8 @@ nsXULElement::GetAttributeChangeHint(const nsIAtom* aAttribute,
     } else {
         // if left or top changes we reflow. This will happen in xul
         // containers that manage positioned children such as a stack.
-        if (nsGkAtoms::left == aAttribute || nsGkAtoms::top == aAttribute)
+        if (nsGkAtoms::left == aAttribute || nsGkAtoms::top == aAttribute ||
+            nsGkAtoms::right == aAttribute || nsGkAtoms::bottom == aAttribute)
             retval = NS_STYLE_HINT_REFLOW;
     }
 
@@ -1967,7 +1977,11 @@ nsXULElement::GetStyle(nsIDOMCSSStyleDeclaration** aStyle)
     NS_ENSURE_TRUE(slots, NS_ERROR_OUT_OF_MEMORY);
 
     if (!slots->mStyle) {
-        slots->mStyle = new nsDOMCSSAttributeDeclaration(this);
+        slots->mStyle = new nsDOMCSSAttributeDeclaration(this
+#ifdef MOZ_SMIL
+                                                         , PR_FALSE
+#endif // MOZ_SMIL
+                                                         );
         NS_ENSURE_TRUE(slots->mStyle, NS_ERROR_OUT_OF_MEMORY);
         SetFlags(NODE_MAY_HAVE_STYLE);
     }
@@ -1997,8 +2011,8 @@ nsXULElement::LoadSrc()
     nsXULSlots* slots = static_cast<nsXULSlots*>(GetSlots());
     NS_ENSURE_TRUE(slots, NS_ERROR_OUT_OF_MEMORY);
     if (!slots->mFrameLoader) {
-        slots->mFrameLoader = new nsFrameLoader(this);
-        NS_ENSURE_TRUE(slots->mFrameLoader, NS_ERROR_OUT_OF_MEMORY);
+        slots->mFrameLoader = nsFrameLoader::Create(this);
+        NS_ENSURE_TRUE(slots->mFrameLoader, NS_OK);
     }
 
     return slots->mFrameLoader->LoadFrame();
@@ -2007,12 +2021,20 @@ nsXULElement::LoadSrc()
 nsresult
 nsXULElement::GetFrameLoader(nsIFrameLoader **aFrameLoader)
 {
-    *aFrameLoader = nsnull;
-    nsXULSlots* slots = static_cast<nsXULSlots*>(GetExistingSlots());
-    if (slots) {
-        NS_IF_ADDREF(*aFrameLoader = slots->mFrameLoader);
-    }
+    *aFrameLoader = GetFrameLoader().get();
     return NS_OK;
+}
+
+already_AddRefed<nsFrameLoader>
+nsXULElement::GetFrameLoader()
+{
+    nsXULSlots* slots = static_cast<nsXULSlots*>(GetExistingSlots());
+    if (!slots)
+        return nsnull;
+
+    nsFrameLoader* loader = slots->mFrameLoader;
+    NS_IF_ADDREF(loader);
+    return loader;
 }
 
 nsresult
@@ -2096,9 +2118,8 @@ nsXULElement::Click()
 
     nsCOMPtr<nsIDocument> doc = GetCurrentDoc(); // Strong just in case
     if (doc) {
-        nsPresShellIterator iter(doc);
-        nsCOMPtr<nsIPresShell> shell;
-        while ((shell = iter.GetNextShell())) {
+        nsCOMPtr<nsIPresShell> shell = doc->GetPrimaryShell();
+        if (shell) {
             // strong ref to PresContext so events don't destroy it
             nsCOMPtr<nsPresContext> context = shell->GetPresContext();
 
@@ -2152,7 +2173,7 @@ nsXULElement::GetBindingParent() const
 PRBool
 nsXULElement::IsNodeOfType(PRUint32 aFlags) const
 {
-    return !(aFlags & ~(eCONTENT | eELEMENT | eXUL));
+    return !(aFlags & ~(eCONTENT | eELEMENT));
 }
 
 static void
@@ -2354,8 +2375,7 @@ nsXULElement::HideWindowChrome(PRBool aShouldHide)
     nsIPresShell *shell = doc->GetPrimaryShell();
 
     if (shell) {
-        nsIContent* content = static_cast<nsIContent*>(this);
-        nsIFrame* frame = shell->GetPrimaryFrameFor(content);
+        nsIFrame* frame = GetPrimaryFrame();
 
         nsPresContext *presContext = shell->GetPresContext();
 
@@ -2373,13 +2393,10 @@ nsXULElement::HideWindowChrome(PRBool aShouldHide)
     return NS_OK;
 }
 
-void
-nsXULElement::SetTitlebarColor(nscolor aColor, PRBool aActive)
+nsIWidget*
+nsXULElement::GetWindowWidget()
 {
     nsIDocument* doc = GetCurrentDoc();
-    if (!doc || doc->GetRootContent() != this) {
-        return;
-    }
 
     // only top level chrome documents can set the titlebar color
     if (doc->IsRootDisplayDocument()) {
@@ -2388,10 +2405,27 @@ nsXULElement::SetTitlebarColor(nscolor aColor, PRBool aActive)
         if (baseWindow) {
             nsCOMPtr<nsIWidget> mainWidget;
             baseWindow->GetMainWidget(getter_AddRefs(mainWidget));
-            if (mainWidget) {
-                mainWidget->SetWindowTitlebarColor(aColor, aActive);
-            }
+            return mainWidget;
         }
+    }
+    return nsnull;
+}
+
+void
+nsXULElement::SetTitlebarColor(nscolor aColor, PRBool aActive)
+{
+    nsIWidget* mainWidget = GetWindowWidget();
+    if (mainWidget) {
+        mainWidget->SetWindowTitlebarColor(aColor, aActive);
+    }
+}
+
+void
+nsXULElement::SetDrawsInTitlebar(PRBool aState)
+{
+    nsIWidget* mainWidget = GetWindowWidget();
+    if (mainWidget) {
+        mainWidget->SetDrawsInTitlebar(aState);
     }
 }
 

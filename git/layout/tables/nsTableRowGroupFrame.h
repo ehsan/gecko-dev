@@ -43,7 +43,6 @@
 #include "nsILineIterator.h"
 #include "nsTablePainter.h"
 #include "nsTArray.h"
-#include "nsCSSAnonBoxes.h"
 
 class nsTableFrame;
 class nsTableRowFrame;
@@ -97,8 +96,9 @@ class nsTableRowGroupFrame
   , public nsILineIterator
 {
 public:
-  NS_DECLARE_FRAME_ACCESSOR(nsTableRowGroupFrame)
+  NS_DECL_QUERYFRAME_TARGET(nsTableRowGroupFrame)
   NS_DECL_QUERYFRAME
+  NS_DECL_FRAMEARENA_HELPERS
 
   /** instantiate a new instance of nsTableRowFrame.
     * @param aPresShell the pres shell for this frame
@@ -358,13 +358,6 @@ public:
    * decided not to use a cursor or we already have one set up.
    */
   FrameCursorData* SetupRowCursor();
-  
-  PRBool IsScrolled() {
-    // Note that if mOverflowY is CLIP, so is mOverflowX, and we need to clip the background
-    // as if the rowgroup is scrollable.
-    return GetStyleContext()->GetPseudoType() == nsCSSAnonBoxes::scrolledContent ||
-           GetStyleDisplay()->mOverflowY == NS_STYLE_OVERFLOW_CLIP;
-  }
 
   virtual nsILineIterator* GetLineIterator() { return this; }
 
@@ -444,10 +437,6 @@ private:
   BCPixelSize mLeftContBorderWidth;
 
 public:
-  virtual nsIFrame* GetFirstFrame() { return mFrames.FirstChild(); }
-  virtual nsIFrame* GetLastFrame() { return mFrames.LastChild(); }
-  virtual void GetNextFrame(nsIFrame*  aFrame, 
-                            nsIFrame** aResult) { *aResult = aFrame->GetNextSibling(); }
   PRBool IsRepeatable() const;
   void   SetRepeatable(PRBool aRepeatable);
   PRBool HasStyleHeight() const;

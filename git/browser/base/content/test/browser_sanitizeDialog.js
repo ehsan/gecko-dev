@@ -21,6 +21,7 @@
  *
  * Contributor(s):
  *   Drew Willcoxon <adw@mozilla.com> (Original Author)
+ *   Ehsan Akhgari <ehsan.akhgari@gmail.com>
  *
  * Alternatively, the contents of this file may be used under the terms of
  * either the GNU General Public License Version 2 or later (the "GPL"), or
@@ -68,6 +69,22 @@ const formhist = Cc["@mozilla.org/satchel/form-history;1"].
 
 // Add tests here.  Each is a function that's called by doNextTest().
 var gAllTests = [
+
+  /**
+   * Initializes the dialog to its default state.
+   */
+  function () {
+    let wh = new WindowHelper();
+    wh.onload = function () {
+      // Select "Last Hour"
+      this.selectDuration(Sanitizer.TIMESPAN_HOUR);
+      // Hide details
+      if (!this.getItemList().collapsed)
+        this.toggleDetails();
+      this.acceptDialog();
+    };
+    wh.open();
+  },
 
   /**
    * Cancels the dialog, makes sure history not cleared.
@@ -230,15 +247,15 @@ var gAllTests = [
          "with a predefined timespan");
       this.selectDuration(Sanitizer.TIMESPAN_EVERYTHING);
       this.checkPrefCheckbox("history", true);
-      this.checkDetails(false);
-
-      // Show details
-      this.toggleDetails();
       this.checkDetails(true);
 
       // Hide details
       this.toggleDetails();
       this.checkDetails(false);
+
+      // Show details
+      this.toggleDetails();
+      this.checkDetails(true);
 
       this.acceptDialog();
 
@@ -280,15 +297,57 @@ var gAllTests = [
   },
 
   /**
-   * These next two tests together ensure that toggling details persists
+   * These next six tests together ensure that toggling details persists
    * across dialog openings.
    */
   function () {
     let wh = new WindowHelper();
     wh.onload = function () {
-      // Show details
+      // Check all items and select "Everything"
+      this.checkAllCheckboxes();
+      this.selectDuration(Sanitizer.TIMESPAN_EVERYTHING);
+
+      // Hide details
       this.toggleDetails();
+      this.checkDetails(false);
+      this.acceptDialog();
+    };
+    wh.open();
+  },
+  function () {
+    let wh = new WindowHelper();
+    wh.onload = function () {
+      // Details should remain closed because all items are checked.
+      this.checkDetails(false);
+
+      // Uncheck history.
+      this.checkPrefCheckbox("history", false);
+      this.acceptDialog();
+    };
+    wh.open();
+  },
+  function () {
+    let wh = new WindowHelper();
+    wh.onload = function () {
+      // Details should be open because not all items are checked.
       this.checkDetails(true);
+
+      // Modify the Site Preferences item state (bug 527820)
+      this.checkAllCheckboxes();
+      this.checkPrefCheckbox("siteSettings", false);
+      this.acceptDialog();
+    };
+    wh.open();
+  },
+  function () {
+    let wh = new WindowHelper();
+    wh.onload = function () {
+      // Details should be open because not all items are checked.
+      this.checkDetails(true);
+
+      // Hide details
+      this.toggleDetails();
+      this.checkDetails(false);
       this.cancelDialog();
     };
     wh.open();
@@ -296,12 +355,37 @@ var gAllTests = [
   function () {
     let wh = new WindowHelper();
     wh.onload = function () {
-      // Details should have remained open
+      // Details should be open because not all items are checked.
       this.checkDetails(true);
-      
+
+      // Select another duration
+      this.selectDuration(Sanitizer.TIMESPAN_HOUR);
       // Hide details
       this.toggleDetails();
       this.checkDetails(false);
+      this.acceptDialog();
+    };
+    wh.open();
+  },
+  function () {
+    let wh = new WindowHelper();
+    wh.onload = function () {
+      // Details should not be open because "Last Hour" is selected
+      this.checkDetails(false);
+
+      this.cancelDialog();
+    };
+    wh.open();
+  },
+  function () {
+    let wh = new WindowHelper();
+    wh.onload = function () {
+      // Details should have remained closed
+      this.checkDetails(false);
+
+      // Show details
+      this.toggleDetails();
+      this.checkDetails(true);
       this.cancelDialog();
     };
     wh.open();
@@ -392,6 +476,19 @@ WindowHelper.prototype = {
     is(cb.length, 1, "found checkbox for " + pref + " preference");
     if (cb[0].checked != aCheckState)
       cb[0].click();
+  },
+
+  /**
+   * Makes sure all the checkboxes are checked.
+   */
+  checkAllCheckboxes: function () {
+    var cb = this.win.document.querySelectorAll("#itemList > [preference]");
+    ok(cb.length > 1, "found checkboxes for preferences");
+    for (var i = 0; i < cb.length; ++i) {
+      var pref = this.win.document.getElementById(cb[i].getAttribute("preference"));
+      if (!pref.value)
+        cb[i].click();
+    }
   },
 
   /**
@@ -655,7 +752,7 @@ function downloadExists(aID)
     "WHERE id = :id"
   );
   stmt.params.id = aID;
-  let rows = stmt.step();
+  let rows = stmt.executeStep();
   stmt.finalize();
   return !!rows;
 }

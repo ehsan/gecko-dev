@@ -21,7 +21,7 @@
       <children/>
       <xul:hbox class="textbox-input-box" flex="1" xbl:inherits="context,spellcheck">
         <html:input class="textbox-input" flex="1" anonid="input"
-                    xbl:inherits="onfocus,onblur,value,type,maxlength,disabled,size,readonly,tabindex,accesskey"/>
+                    xbl:inherits="onfocus,onblur,value,type,maxlength,disabled,size,readonly,tabindex,accesskey,noinitialfocus"/>
       </xul:hbox>
     </content>
 
@@ -171,9 +171,9 @@
 
               // Hide the emptytext for a bit, in case the textbox will be focused subsequently
               this.inputField.setAttribute("emptytextdelay", "true");
-              setTimeout(function (textbox) {
-                textbox.inputField.removeAttribute("emptytextdelay");
-              }, 100, this);
+              setTimeout(function (input) {
+                input.removeAttribute("emptytextdelay");
+              }, 100, this.inputField);
 
               try {
                 this.editor.transactionManager.beginBatch();
@@ -629,11 +629,8 @@
               return null;
 
             try {
-              var loader = Components.classes["@mozilla.org/moz/jssubscript-loader;1"].
-                             getService(CI.mozIJSSubScriptLoader);
-              loader.loadSubScript("chrome://global/content/inlineSpellCheckUI.js", this);
-              if ("InlineSpellCheckerUI" in this)
-                this.InlineSpellCheckerUI.init(textbox.editor);
+              Components.utils.import("resource://gre/modules/InlineSpellChecker.jsm", this);
+              this.InlineSpellCheckerUI = new this.InlineSpellChecker(textbox.editor);
             } catch(ex) { }
           }
 

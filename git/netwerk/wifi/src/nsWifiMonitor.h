@@ -13,7 +13,7 @@
  *
  * The Original Code is Geolocation.
  *
- * The Initial Developer of the Original Code is Mozilla Corporation
+ * The Initial Developer of the Original Code is Mozilla Foundation
  * Portions created by the Initial Developer are Copyright (C) 2008
  * the Initial Developer. All Rights Reserved.
  *
@@ -87,6 +87,11 @@ class nsWifiMonitor : nsIRunnable, nsIWifiMonitor, nsIObserver
   ~nsWifiMonitor();
 
   nsresult DoScan();
+
+#if defined(XP_MACOSX)
+  nsresult DoScanWithCoreWLAN();
+  nsresult DoScanOld();
+#endif
 
   PRBool mKeepGoing;
   nsCOMPtr<nsIThread> mThread;

@@ -56,6 +56,17 @@ nsPopupFrameList::nsPopupFrameList(nsIContent* aPopupContent, nsPopupFrameList* 
 {
 }
 
+void nsPopupFrameList::Destroy(nsIFrame* aDestructRoot)
+{
+  if (mPopupFrame) {
+    nsIFrame* prevSib = mPopupFrame->GetPrevSibling();
+    if (prevSib)
+      prevSib->SetNextSibling(mPopupFrame->GetNextSibling());
+    mPopupFrame->SetNextSibling(nsnull);
+    mPopupFrame->DestroyFrom((aDestructRoot) ? aDestructRoot : mPopupFrame);
+  }
+}
+
 //
 // NS_NewPopupSetFrame
 //
@@ -66,6 +77,8 @@ NS_NewPopupSetFrame(nsIPresShell* aPresShell, nsStyleContext* aContext)
 {
   return new (aPresShell) nsPopupSetFrame (aPresShell, aContext);
 }
+
+NS_IMPL_FRAMEARENA_HELPERS(nsPopupSetFrame)
 
 NS_IMETHODIMP
 nsPopupSetFrame::Init(nsIContent*      aContent,
@@ -132,16 +145,13 @@ nsPopupSetFrame::SetInitialChildList(nsIAtom*        aListName,
 }
 
 void
-nsPopupSetFrame::Destroy()
+nsPopupSetFrame::DestroyFrom(nsIFrame* aDestructRoot)
 {
   // remove each popup from the list as we go.
   while (mPopupList) {
-    if (mPopupList->mPopupFrame) {
-      mPopupList->mPopupFrame->Destroy();
-    }
     nsPopupFrameList* temp = mPopupList;
     mPopupList = mPopupList->mNextPopup;
-    delete temp;
+    temp->Destroy(aDestructRoot); // destroys frame
   }
 
   // Normally the root box is our grandparent, but in case of wrapping
@@ -151,7 +161,7 @@ nsPopupSetFrame::Destroy()
     rootBox->SetPopupSetFrame(nsnull);
   }
 
-  nsBoxFrame::Destroy();
+  nsBoxFrame::DestroyFrom(aDestructRoot);
 }
 
 NS_IMETHODIMP
@@ -173,7 +183,7 @@ nsPopupSetFrame::DoLayout(nsBoxLayoutState& aState)
       prefSize = BoundsCheck(minSize, prefSize, maxSize);
 
       popupChild->SetPreferredBounds(aState, nsRect(0,0,prefSize.width, prefSize.height));
-      popupChild->SetPopupPosition(nsnull);
+      popupChild->SetPopupPosition(nsnull, PR_FALSE);
 
       // is the new size too small? Make sure we handle scrollbars correctly
       nsIBox* child = popupChild->GetChildBox();
@@ -208,7 +218,7 @@ nsPopupSetFrame::DoLayout(nsBoxLayoutState& aState)
         // the size after layout was larger than the preferred size,
         // so set the preferred size accordingly
         popupChild->SetPreferredSize(popupChild->GetSize());
-        popupChild->SetPopupPosition(nsnull);
+        popupChild->SetPopupPosition(nsnull, PR_FALSE);
       }
       popupChild->AdjustView();
     }
@@ -240,12 +250,9 @@ nsPopupSetFrame::RemovePopupFrame(nsIFrame* aPopup)
       NS_ASSERTION((aPopup->GetStateBits() & NS_FRAME_OUT_OF_FLOW) &&
                    aPopup->GetType() == nsGkAtoms::menuPopupFrame,
                    "found wrong type of frame in popupset's ::popupList");
-      // Destroy the frame.
-      currEntry->mPopupFrame->Destroy();
-
       // Delete the entry.
       currEntry->mNextPopup = nsnull;
-      delete currEntry;
+      currEntry->Destroy(); // destroys the frame
 #ifdef DEBUG
       found = PR_TRUE;
 #endif
@@ -265,11 +272,15 @@ nsPopupSetFrame::RemovePopupFrame(nsIFrame* aPopup)
 nsresult
 nsPopupSetFrame::AddPopupFrameList(nsFrameList& aPopupFrameList)
 {
-  for (nsFrameList::Enumerator e(aPopupFrameList); !e.AtEnd(); e.Next()) {
-    nsresult rv = AddPopupFrame(e.get());
+  while (!aPopupFrameList.IsEmpty()) {
+    nsIFrame* f = aPopupFrameList.FirstChild();
+    // Clears out prev/next sibling points appropriately. Every frame
+    // in our popup list has null next and prev pointers, they're logically
+    // each in their own list.
+    aPopupFrameList.RemoveFrame(f);
+    nsresult rv = AddPopupFrame(f);
     NS_ENSURE_SUCCESS(rv, rv);
   }
-  aPopupFrameList.Clear();
   return NS_OK;
 }
 
@@ -315,8 +326,8 @@ nsPopupSetFrame::List(FILE* out, PRInt32 aIndent) const
   if (HasView()) {
     fprintf(out, " [view=%p]", static_cast<void*>(GetView()));
   }
-  if (nsnull != mNextSibling) {
-    fprintf(out, " next=%p", static_cast<void*>(mNextSibling));
+  if (GetNextSibling()) {
+    fprintf(out, " next=%p", static_cast<void*>(GetNextSibling()));
   }
   if (nsnull != GetPrevContinuation()) {
     fprintf(out, " prev-continuation=%p", static_cast<void*>(GetPrevContinuation()));
@@ -336,7 +347,7 @@ nsPopupSetFrame::List(FILE* out, PRInt32 aIndent) const
             overflowArea.width, overflowArea.height);
   }
   fprintf(out, " [sc=%p]", static_cast<void*>(mStyleContext));
-  nsIAtom* pseudoTag = mStyleContext->GetPseudoType();
+  nsIAtom* pseudoTag = mStyleContext->GetPseudo();
   if (pseudoTag) {
     nsAutoString atomString;
     pseudoTag->ToString(atomString);
@@ -366,10 +377,7 @@ nsPopupSetFrame::List(FILE* out, PRInt32 aIndent) const
         NS_ASSERTION(kid->GetParent() == (nsIFrame*)this, "bad parent frame pointer");
 
         // Have the child frame list
-        nsIFrameDebug*  frameDebug = do_QueryFrame(kid);
-        if (frameDebug) {
-          frameDebug->List(out, aIndent + 1);
-        }
+        kid->List(out, aIndent + 1);
         kid = kid->GetNextSibling();
       }
       IndentBy(out, aIndent);
@@ -393,10 +401,7 @@ nsPopupSetFrame::List(FILE* out, PRInt32 aIndent) const
     fputs(" <\n", out);
     ++aIndent;
     for (nsPopupFrameList* l = mPopupList; l; l = l->mNextPopup) {
-      nsIFrameDebug* frameDebug = do_QueryFrame(l->mPopupFrame);
-      if (frameDebug) {
-        frameDebug->List(out, aIndent);
-      }
+      l->mPopupFrame->List(out, aIndent);
     }
     --aIndent;
     IndentBy(out, aIndent);

@@ -54,10 +54,11 @@
 
 namespace nanojit
 {
-    const int NJ_LOG2_PAGE_SIZE = 12;       // 4K
-
-#define NJ_MAX_STACK_ENTRY              256
+#define NJ_MAX_STACK_ENTRY              4096
 #define NJ_ALIGN_STACK                  16
+#define NJ_JTBL_SUPPORTED               1
+#define NJ_EXPANDED_LOADSTORE_SUPPORTED 0
+#define NJ_F2I_SUPPORTED                0
 
     enum ConditionRegister {
         CR0 = 0,
@@ -159,7 +160,7 @@ namespace nanojit
         Rlr  = 8,
         Rctr = 9,
 
-        UnknownReg = 127,
+        deprecated_UnknownReg = 127,
         FirstReg = R0,
         LastReg = F31
     };
@@ -192,10 +193,13 @@ namespace nanojit
         PPC_fneg    = 0xFC000050, // floating negate
         PPC_fsub    = 0xFC000028, // floating subtract (double precision)
         PPC_lbz     = 0x88000000, // load byte and zero
+        PPC_lbzx    = 0x7C0000AE, // load byte and zero indexed
         PPC_ld      = 0xE8000000, // load doubleword
         PPC_ldx     = 0x7C00002A, // load doubleword indexed
         PPC_lfd     = 0xC8000000, // load floating point double
         PPC_lfdx    = 0x7C0004AE, // load floating-point double indexed
+        PPC_lhz     = 0xA0000000, // load halfword and zero
+        PPC_lhzx    = 0x7C00022E, // load halfword and zero indexed
         PPC_lwz     = 0x80000000, // load word and zero
         PPC_lwzx    = 0x7C00002E, // load word and zero indexed
         PPC_mfcr    = 0x7C000026, // move from condition register
@@ -204,8 +208,8 @@ namespace nanojit
         PPC_mulli   = 0x1C000000, // multiply low immediate
         PPC_mullw   = 0x7C0001D6, // multiply low word
         PPC_neg     = 0x7C0000D0, // negate
-        PPC_nor        = 0x7C0000F8, // nor
-        PPC_or        = 0x7C000378, // or
+        PPC_nor     = 0x7C0000F8, // nor
+        PPC_or      = 0x7C000378, // or
         PPC_ori     = 0x60000000, // or immediate
         PPC_oris    = 0x64000000, // or immediate shifted
         PPC_rlwinm  = 0x54000000, // rotate left word then and with mask
@@ -226,7 +230,7 @@ namespace nanojit
         PPC_stdx    = 0x7C00012A, // store doubleword indexed
         PPC_stfd    = 0xD8000000, // store floating-point double
         PPC_stfdx   = 0x7C0005AE, // store floating-point double indexed
-        PPC_stw        = 0x90000000, // store word
+        PPC_stw     = 0x90000000, // store word
         PPC_stwu    = 0x94000000, // store word with update
         PPC_stwux   = 0x7C00016E, // store word with update indexed
         PPC_stwx    = 0x7C00012E, // store word indexed
@@ -245,7 +249,6 @@ namespace nanojit
 
     static const RegisterMask GpRegs = 0xffffffff;
     static const RegisterMask FpRegs = 0xffffffff00000000LL;
-    static const bool CalleeRegsNeedExplicitSaving = true;
     // R31 is a saved reg too, but we use it as our Frame ptr FP
 #ifdef NANOJIT_64BIT
     // R13 reserved for thread-specific storage on ppc64-darwin
@@ -256,6 +259,9 @@ namespace nanojit
     static const int NumSavedRegs = 18; // R13-R30
 #endif
 
+    static inline bool IsGpReg(Register r) {
+        return r <= R31;
+    }
     static inline bool IsFpReg(Register r) {
         return r >= F0;
     }
@@ -277,11 +283,11 @@ namespace nanojit
         void underrunProtect(int bytes);                                    \
         void nativePageReset();                                             \
         void nativePageSetup();                                             \
-        void br(NIns *addr, int link);                                        \
-        void br_far(NIns *addr, int link);                                    \
+        void br(NIns *addr, int link);                                      \
+        void br_far(NIns *addr, int link);                                  \
         void asm_regarg(ArgSize, LIns*, Register);                          \
-        void asm_li(Register r, int32_t imm);                                \
-        void asm_li32(Register r, int32_t imm);                                \
+        void asm_li(Register r, int32_t imm);                               \
+        void asm_li32(Register r, int32_t imm);                             \
         void asm_li64(Register r, uint64_t imm);                            \
         void asm_cmp(LOpcode op, LIns *a, LIns *b, ConditionRegister);      \
         NIns* asm_branch_far(bool onfalse, LIns *cond, NIns * const targ);  \
@@ -289,17 +295,12 @@ namespace nanojit
         int  max_param_size; /* bytes */                                    \
         DECL_PPC64()
 
-    #define swapptrs()  do {                                                \
-            NIns* _tins = _nIns; _nIns=_nExitIns; _nExitIns=_tins;          \
-        } while (0) /* no semi */
-
-    const int LARGEST_UNDERRUN_PROT = 32;  // largest value passed to underrunProtect
+    const int LARGEST_UNDERRUN_PROT = 9*4;  // largest value passed to underrunProtect
 
     typedef uint32_t NIns;
 
-    inline Register nextreg(Register r) {
-        return Register(r+1);
-    }
+    // Bytes of icache to flush after Assembler::patch
+    const size_t LARGEST_BRANCH_PATCH = 4 * sizeof(NIns);
 
     #define EMIT1(ins, fmt, ...) do {\
         underrunProtect(4);\
@@ -452,8 +453,11 @@ namespace nanojit
                 "%s %s,%s,%s", #op, gpn(rs), gpn(ra), gpn(rb))
 
     #define LBZ(r,  d, b) MEMd(lbz,  r, d, b)
+    #define LHZ(r,  d, b) MEMd(lhz,  r, d, b)
     #define LWZ(r,  d, b) MEMd(lwz,  r, d, b)
     #define LD(r,   d, b) MEMd(ld,   r, d, b)
+    #define LBZX(r, a, b) MEMx(lbzx, r, a, b)
+    #define LHZX(r, a, b) MEMx(lhzx, r, a, b)
     #define LWZX(r, a, b) MEMx(lwzx, r, a, b)
     #define LDX(r,  a, b) MEMx(ldx,  r, a, b)
 
@@ -470,15 +474,15 @@ namespace nanojit
 #ifdef NANOJIT_64BIT
     #define LP(r, d, b)       LD(r, d, b)
     #define STP(r, d, b)      STD(r, d, b)
-    #define STPU(r, d, b)      STDU(r, d, b)
-    #define STPX(s, a, b)      STDX(s, a, b)
-    #define STPUX(s, a, b)       STDUX(s, a, b)
+    #define STPU(r, d, b)     STDU(r, d, b)
+    #define STPX(s, a, b)     STDX(s, a, b)
+    #define STPUX(s, a, b)    STDUX(s, a, b)
 #else
     #define LP(r, d, b)       LWZ(r, d, b)
     #define STP(r, d, b)      STW(r, d, b)
-    #define STPU(r, d, b)      STWU(r, d, b)
-    #define STPX(s, a, b)      STWX(s, a, b)
-    #define STPUX(s, a, b)       STWUX(s, a, b)
+    #define STPU(r, d, b)     STWU(r, d, b)
+    #define STPX(s, a, b)     STWX(s, a, b)
+    #define STPUX(s, a, b)    STWUX(s, a, b)
 #endif
 
     #define LFD(r,  d, b) FMEMd(lfd,  r, d, b)

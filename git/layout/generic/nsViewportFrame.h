@@ -57,6 +57,8 @@
   */
 class ViewportFrame : public nsContainerFrame {
 public:
+  NS_DECL_FRAMEARENA_HELPERS
+
   typedef nsContainerFrame Super;
 
   ViewportFrame(nsStyleContext* aContext)
@@ -65,7 +67,7 @@ public:
   {}
   virtual ~ViewportFrame() { } // useful for debugging
 
-  virtual void Destroy();
+  virtual void DestroyFrom(nsIFrame* aDestructRoot);
 
   NS_IMETHOD Init(nsIContent*      aContent,
                   nsIFrame*        aParent,

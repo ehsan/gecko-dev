@@ -160,13 +160,11 @@ nsAccessibleWrap::Shutdown ()
 }
 
 nsresult
-nsAccessibleWrap::FireAccessibleEvent(nsIAccessibleEvent *aEvent)
+nsAccessibleWrap::HandleAccEvent(nsAccEvent *aEvent)
 {
   NS_OBJC_BEGIN_TRY_ABORT_BLOCK_NSRESULT;
 
-  NS_ENSURE_ARG_POINTER(aEvent);
-
-  nsresult rv = nsAccessible::FireAccessibleEvent(aEvent);
+  nsresult rv = nsAccessible::HandleAccEvent(aEvent);
   NS_ENSURE_SUCCESS(rv, rv);
 
   return FirePlatformEvent(aEvent);
@@ -175,13 +173,11 @@ nsAccessibleWrap::FireAccessibleEvent(nsIAccessibleEvent *aEvent)
 }
 
 nsresult
-nsAccessibleWrap::FirePlatformEvent(nsIAccessibleEvent *aEvent)
+nsAccessibleWrap::FirePlatformEvent(nsAccEvent *aEvent)
 {
   NS_OBJC_BEGIN_TRY_ABORT_BLOCK_NSRESULT;
 
-  PRUint32 eventType;
-  nsresult rv = aEvent->GetEventType(&eventType);
-  NS_ENSURE_SUCCESS(rv, rv);
+  PRUint32 eventType = aEvent->GetEventType();
 
   // ignore everything but focus-changed and value-changed events for now.
   if (eventType != nsIAccessibleEvent::EVENT_FOCUS &&
@@ -189,7 +185,7 @@ nsAccessibleWrap::FirePlatformEvent(nsIAccessibleEvent *aEvent)
     return NS_OK;
 
   nsCOMPtr<nsIAccessible> accessible;
-  rv = aEvent->GetAccessible(getter_AddRefs(accessible));
+  nsresult rv = aEvent->GetAccessible(getter_AddRefs(accessible));
   NS_ENSURE_STATE(accessible);
 
   mozAccessible *nativeAcc = nil;
@@ -238,7 +234,7 @@ nsAccessibleWrap::GetUnignoredChildCount(PRBool aDeepCount)
   nsCOMPtr<nsIAccessible> curAcc;
   
   while (NextChild(curAcc)) {
-    nsAccessibleWrap *childWrap = static_cast<nsAccessibleWrap*>((nsIAccessible*)curAcc.get());
+    nsAccessibleWrap *childWrap = static_cast<nsAccessibleWrap*>(curAcc.get());
     
     // if the current child is not ignored, count it.
     if (!childWrap->IsIgnored())
@@ -280,7 +276,7 @@ nsAccessibleWrap::GetUnignoredChildren(nsTArray<nsRefPtr<nsAccessibleWrap> > &aC
     return;
   
   while (NextChild(curAcc)) {
-    nsAccessibleWrap *childWrap = static_cast<nsAccessibleWrap*>((nsIAccessible*)curAcc.get());
+    nsAccessibleWrap *childWrap = static_cast<nsAccessibleWrap*>(curAcc.get());
     if (childWrap->IsIgnored()) {
       // element is ignored, so try adding its children as substitutes, if it has any.
       if (!nsAccUtils::MustPrune(childWrap)) {
@@ -300,8 +296,7 @@ nsAccessibleWrap::GetUnignoredChildren(nsTArray<nsRefPtr<nsAccessibleWrap> > &aC
 already_AddRefed<nsIAccessible>
 nsAccessibleWrap::GetUnignoredParent()
 {
-  nsCOMPtr<nsIAccessible> parent(GetParent());
-  nsAccessibleWrap *parentWrap = static_cast<nsAccessibleWrap*>((nsIAccessible*)parent.get());
+  nsAccessibleWrap *parentWrap = static_cast<nsAccessibleWrap*>(GetParent());
   if (!parentWrap)
     return nsnull;
     
@@ -310,7 +305,7 @@ nsAccessibleWrap::GetUnignoredParent()
     return parentWrap->GetUnignoredParent();
   
   nsIAccessible *outValue = nsnull;
-  NS_IF_ADDREF(outValue = parent.get());
+  NS_IF_ADDREF(outValue = parentWrap);
   
   return outValue;
 }

@@ -864,25 +864,86 @@ NS_IMETHODIMP nsLocalFile::GetNativeTarget(nsACString& aNativeTarget)
 {
   CHECK_INIT();
 
-  PRBool isSymLink = PR_FALSE;
-  nsresult rv = IsSymlink(&isSymLink);
-  if (NS_FAILED(rv))
-    return rv;
-
-  if (!isSymLink)
+  aNativeTarget.Truncate();
+  
+  struct STAT symStat;
+  if (LSTAT(mPath, &symStat) == -1)
+    return NSRESULT_FOR_ERRNO();
+  
+  if (!S_ISLNK(symStat.st_mode))
     return NS_ERROR_FILE_INVALID_PATH;
-
-  char resolvedPathBuf[PATH_MAX];
-  if (!realpath(mPath, resolvedPathBuf))
-    return NS_ERROR_FILE_INVALID_PATH;
-
-  unsigned int resolvedPathLength = strlen(resolvedPathBuf);
-  aNativeTarget.SetLength(resolvedPathLength);
-  if (aNativeTarget.Length() != (unsigned int)resolvedPathLength)
+  
+  PRInt32 size = (PRInt32)symStat.st_size;
+  char *target = (char *)nsMemory::Alloc(size + 1);
+  if (!target)
     return NS_ERROR_OUT_OF_MEMORY;
-  strncpy(aNativeTarget.BeginWriting(), resolvedPathBuf, resolvedPathLength);
-
-  return NS_OK;
+  
+  if (readlink(mPath, target, (size_t)size) < 0) {
+    nsMemory::Free(target);
+    return NSRESULT_FOR_ERRNO();
+  }
+  target[size] = '\0';
+  
+  nsresult rv = NS_OK;
+  nsCOMPtr<nsIFile> self(this);
+  PRInt32 maxLinks = 40;
+  while (PR_TRUE) {
+    if (maxLinks-- == 0) {
+      rv = NS_ERROR_FILE_UNRESOLVABLE_SYMLINK;
+      break;
+    }
+    
+    if (target[0] != '/') {
+      nsCOMPtr<nsIFile> parent;
+      if (NS_FAILED(rv = self->GetParent(getter_AddRefs(parent))))
+        break;
+      nsCOMPtr<nsILocalFile> localFile(do_QueryInterface(parent, &rv));
+      if (NS_FAILED(rv))
+        break;
+      if (NS_FAILED(rv = localFile->AppendRelativeNativePath(nsDependentCString(target))))
+        break;
+      if (NS_FAILED(rv = localFile->GetNativePath(aNativeTarget)))
+        break;
+      self = parent;
+    } else {
+      aNativeTarget = target;
+    }
+    
+    const nsPromiseFlatCString &flatRetval = PromiseFlatCString(aNativeTarget);
+    
+    // Any failure in testing the current target we'll just interpret
+    // as having reached our destiny.
+    if (LSTAT(flatRetval.get(), &symStat) == -1)
+      break;
+    
+    // And of course we're done if it isn't a symlink.
+    if (!S_ISLNK(symStat.st_mode))
+      break;
+    
+    PRInt32 newSize = (PRInt32)symStat.st_size;
+    if (newSize > size) {
+      char *newTarget = (char *)nsMemory::Realloc(target, newSize + 1);
+      if (!newTarget) {
+        rv = NS_ERROR_OUT_OF_MEMORY;
+        break;
+      }
+      target = newTarget;
+      size = newSize;
+    }
+    
+    PRInt32 linkLen = readlink(flatRetval.get(), target, size);
+    if (linkLen == -1) {
+      rv = NSRESULT_FOR_ERRNO();
+      break;
+    }
+    target[linkLen] = '\0';
+  }
+  
+  nsMemory::Free(target);
+  
+  if (NS_FAILED(rv))
+    aNativeTarget.Truncate();
+  return rv;  
 }
 
 NS_IMETHODIMP nsLocalFile::GetPath(nsAString& aPath)
@@ -977,30 +1038,23 @@ NS_IMETHODIMP nsLocalFile::IsHidden(PRBool *_retval)
 {
   NS_OBJC_BEGIN_TRY_ABORT_BLOCK_NSRESULT;
 
+  CHECK_INIT();
+
   NS_ENSURE_ARG_POINTER(_retval);
   *_retval = PR_FALSE;
-  
-  FSRef fsRef;
-  nsresult rv = GetFSRefInternal(fsRef);
+
+  // If the leaf name begins with a '.', consider it invisible
+  nsAutoString name;
+  nsresult rv = GetLeafName(name);
   if (NS_FAILED(rv))
     return rv;
-  
-  FSCatalogInfo catalogInfo;
-  HFSUniStr255 leafName;  
-  OSErr err = ::FSGetCatalogInfo(&fsRef, kFSCatInfoFinderInfo, &catalogInfo,
-                                &leafName, nsnull, nsnull);
-  if (err != noErr)
-    return MacErrorMapper(err);
-      
-  FileInfo *fInfoPtr = (FileInfo *)(catalogInfo.finderInfo); // Finder flags are in the same place whether we use FileInfo or FolderInfo
-  if ((fInfoPtr->finderFlags & kIsInvisible) != 0) {
+  if (name.Length() >= 1 && Substring(name, 0, 1).EqualsLiteral("."))
     *_retval = PR_TRUE;
-  }
-  else {
-    // If the leaf name begins with a '.', consider it invisible
-    if (leafName.length >= 1 && leafName.unicode[0] == UniChar('.'))
-      *_retval = PR_TRUE;
-  }
+
+  LSItemInfoRecord itemInfo;
+  LSCopyItemInfoForURL(mBaseURL, kLSRequestBasicFlagsOnly, &itemInfo);
+  *_retval = !!(itemInfo.flags & kLSItemInfoIsInvisible);
+
   return NS_OK;
 
   NS_OBJC_END_TRY_ABORT_BLOCK_NSRESULT;
@@ -1396,31 +1450,7 @@ NS_IMETHODIMP nsLocalFile::AppendRelativeNativePath(const nsACString& relativeFi
 
 NS_IMETHODIMP nsLocalFile::GetPersistentDescriptor(nsACString& aPersistentDescriptor)
 {
-  NS_OBJC_BEGIN_TRY_ABORT_BLOCK_NSRESULT;
-
-  FSRef fsRef;
-  nsresult rv = GetFSRefInternal(fsRef);
-  if (NS_FAILED(rv))
-    return rv;
-    
-  AliasHandle aliasH;
-  OSErr err = ::FSNewAlias(nsnull, &fsRef, &aliasH);
-  if (err != noErr)
-    return MacErrorMapper(err);
-    
-   PRUint32 bytes = ::GetHandleSize((Handle) aliasH);
-   ::HLock((Handle) aliasH);
-   // Passing nsnull for dest makes NULL-term string
-   char* buf = PL_Base64Encode((const char*)*aliasH, bytes, nsnull);
-   ::DisposeHandle((Handle) aliasH);
-   NS_ENSURE_TRUE(buf, NS_ERROR_OUT_OF_MEMORY);
-   
-   aPersistentDescriptor = buf;
-   PR_Free(buf);
-
-  return NS_OK;
-
-  NS_OBJC_END_TRY_ABORT_BLOCK_NSRESULT;
+  return GetNativePath(aPersistentDescriptor);
 }
 
 NS_IMETHODIMP nsLocalFile::SetPersistentDescriptor(const nsACString& aPersistentDescriptor)

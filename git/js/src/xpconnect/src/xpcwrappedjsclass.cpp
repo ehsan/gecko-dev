@@ -252,7 +252,8 @@ nsXPCWrappedJSClass::CallQueryInterfaceOnJSObject(XPCCallContext& ccx,
     // whether or not a content object is capable of implementing the
     // interface (i.e. whether the interface is scriptable) and most content
     // objects don't have QI implementations anyway. Also see bug 503926.
-    if(!STOBJ_IS_SYSTEM(JS_GetGlobalForObject(ccx, jsobj)))
+    if(XPCPerThreadData::IsMainThread(ccx) &&
+       !JS_GetGlobalForObject(ccx, jsobj)->isSystem())
     {
         nsCOMPtr<nsIPrincipal> objprin;
         nsIScriptSecurityManager *ssm = XPCWrapper::GetSecurityManager();
@@ -1274,6 +1275,8 @@ nsXPCWrappedJSClass::CallMethod(nsXPCWrappedJS* wrapper, uint16 methodIndex,
     XPCContext* xpcc;
     JSContext* cx;
     JSObject* thisObj;
+    JSBool popPrincipal = JS_FALSE;
+    nsIScriptSecurityManager* ssm = nsnull;
 
     // Make sure not to set the callee on ccx until after we've gone through
     // the whole nsIXPCFunctionThisTranslator bit.  That code uses ccx to
@@ -1326,7 +1329,7 @@ nsXPCWrappedJSClass::CallMethod(nsXPCWrappedJS* wrapper, uint16 methodIndex,
     // prepare to do the function call. This adds a fair amount of complexity,
     // but is a good optimization compared to calling JS_AddRoot for each item.
 
-    js_LeaveTrace(cx);
+    js::LeaveTrace(cx);
 
     // setup stack
 
@@ -1548,8 +1551,9 @@ nsXPCWrappedJSClass::CallMethod(nsXPCWrappedJS* wrapper, uint16 methodIndex,
 
             if(isArray)
             {
-
-                if(!XPCConvert::NativeArray2JS(ccx, &val, (const void**)&pv->val,
+                XPCLazyCallContext lccx(ccx);
+                if(!XPCConvert::NativeArray2JS(lccx, &val,
+                                               (const void**)&pv->val,
                                                datum_type, &param_iid,
                                                array_count, obj, nsnull))
                     goto pre_call_clean_up;
@@ -1570,7 +1574,7 @@ nsXPCWrappedJSClass::CallMethod(nsXPCWrappedJS* wrapper, uint16 methodIndex,
             }
         }
 
-        if(param.IsOut())
+        if(param.IsOut() || param.IsDipper())
         {
             // create an 'out' object
             JSObject* out_obj = NewOutObject(cx, obj);
@@ -1594,8 +1598,6 @@ nsXPCWrappedJSClass::CallMethod(nsXPCWrappedJS* wrapper, uint16 methodIndex,
         else
             *sp++ = val;
     }
-
-
 
     readyToDoTheCall = JS_TRUE;
 
@@ -1658,6 +1660,31 @@ pre_call_clean_up:
 
     JS_ClearPendingException(cx);
 
+    if(XPCPerThreadData::IsMainThread(ccx))
+    {
+        ssm = XPCWrapper::GetSecurityManager();
+        if(ssm)
+        {
+            nsCOMPtr<nsIPrincipal> objPrincipal;
+            ssm->GetObjectPrincipal(ccx, obj, getter_AddRefs(objPrincipal));
+            if(objPrincipal)
+            {
+                JSStackFrame* fp = nsnull;
+                nsresult rv =
+                    ssm->PushContextPrincipal(ccx, JS_FrameIterator(ccx, &fp),
+                                              objPrincipal);
+                if(NS_FAILED(rv))
+                {
+                    JS_ReportOutOfMemory(ccx);
+                    retval = NS_ERROR_OUT_OF_MEMORY;
+                    goto done;
+                }
+
+                popPrincipal = JS_TRUE;
+            }
+        }
+    }
+
     if(XPT_MD_IS_GETTER(info->flags))
         success = JS_GetProperty(cx, obj, name, &result);
     else if(XPT_MD_IS_SETTER(info->flags))
@@ -1694,7 +1721,10 @@ pre_call_clean_up:
         }
     }
 
-    if (!success)
+    if(popPrincipal)
+        ssm->PopContextPrincipal(ccx);
+
+    if(!success)
     {
         PRBool forceReport;
         if(NS_FAILED(mInfo->IsFunction(&forceReport)))

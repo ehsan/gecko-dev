@@ -49,10 +49,11 @@ const CoR = Components.results;
 const XMLNS_XUL               = "http://www.mozilla.org/keymaster/gatekeeper/there.is.only.xul";
 
 const PREF_UPDATE_MANUAL_URL        = "app.update.url.manual";
-const PREF_APP_UPDATE_LOG_BRANCH    = "app.update.log.";
+const PREF_APP_UPDATE_LOG           = "app.update.log";
 const PREF_UPDATE_TEST_LOOP         = "app.update.test.loop";
 const PREF_UPDATE_NEVER_BRANCH      = "app.update.never.";
 const PREF_AUTO_UPDATE_ENABLED      = "app.update.enabled";
+const PREF_PLUGINS_UPDATEURL        = "plugins.update.url";
 
 const UPDATE_TEST_LOOP_INTERVAL     = 2000;
 
@@ -70,7 +71,7 @@ const SRCEVT_BACKGROUND       = 2;
 
 var gConsole    = null;
 var gPref       = null;
-var gLogEnabled = { };
+var gLogEnabled = false;
 
 /**
  * Logs a string to the error console.
@@ -78,7 +79,7 @@ var gLogEnabled = { };
  *          The string to write to the error console..
  */
 function LOG(module, string) {
-  if (module in gLogEnabled || "all" in gLogEnabled) {
+  if (gLogEnabled) {
     dump("*** AUS:UI " + module + ":" + string + "\n");
     gConsole.logStringMessage("AUS:UI " + module + ":" + string);
   }
@@ -140,6 +141,12 @@ var gUpdates = {
    * The <wizard> element
    */
   wiz: null,
+
+  /**
+   * Whether to run the unload handler. This will be set to false when the user
+   * exits the wizard via onWizardCancel or onWizardFinish.
+   */
+  _runUnload: true,
 
   /**
    * Helper function for setButtons
@@ -222,7 +229,7 @@ var gUpdates = {
     //
     // Encode version since it could be a non-ascii string (bug 359093)
     var neverPrefName = PREF_UPDATE_NEVER_BRANCH +
-                       encodeURIComponent(gUpdates.update.version);
+                        encodeURIComponent(gUpdates.update.version);
     gPref.setBoolPref(neverPrefName, true);
     this.wiz.cancel();
   },
@@ -243,6 +250,7 @@ var gUpdates = {
    * the function call to the selected page.
    */
   onWizardFinish: function() {
+    this._runUnload = false;
     var pageid = document.documentElement.currentPage.pageid;
     if ("onWizardFinish" in this._pages[pageid])
       this._pages[pageid].onWizardFinish();
@@ -253,6 +261,7 @@ var gUpdates = {
    * the function call to the selected page.
    */
   onWizardCancel: function() {
+    this._runUnload = false;
     var pageid = document.documentElement.currentPage.pageid;
     if ("onWizardCancel" in this._pages[pageid])
       this._pages[pageid].onWizardCancel();
@@ -286,12 +295,6 @@ var gUpdates = {
   sourceEvent: SRCEVT_FOREGROUND,
 
   /**
-   * The global error message - the reason the update failed. This is human
-   * readable text, used to initialize the error page.
-   */
-  errorMessage: "",
-
-  /**
    * Helper function for onLoad
    * Saves default button label & accesskey for use by _setButton
    */
@@ -311,7 +314,7 @@ var gUpdates = {
             getService(CoI.nsIPrefBranch2);
     gConsole = CoC["@mozilla.org/consoleservice;1"].
                getService(CoI.nsIConsoleService);
-    this._initLoggingPrefs();
+    gLogEnabled = getPref("getBoolPref", PREF_APP_UPDATE_LOG, false)
 
     this.strings = document.getElementById("updateStrings");
     var brandStrings = document.getElementById("brandStrings");
@@ -339,22 +342,13 @@ var gUpdates = {
   },
 
   /**
-   * Initialize Logging preferences, formatted like so:
-   *  app.update.log.<moduleName> = <true|false>
+   * Called when the wizard UI is unloaded.
    */
-  _initLoggingPrefs: function() {
-    try {
-      var ps = CoC["@mozilla.org/preferences-service;1"].
-               getService(CoI.nsIPrefService);
-      var logBranch = ps.getBranch(PREF_APP_UPDATE_LOG_BRANCH);
-      var modules = logBranch.getChildList("", { value: 0 });
-
-      for (var i = 0; i < modules.length; ++i) {
-        if (logBranch.prefHasUserValue(modules[i]))
-          gLogEnabled[modules[i]] = logBranch.getBoolPref(modules[i]);
-      }
-    }
-    catch (e) {
+  onUnload: function() {
+    if (this._runUnload) {
+      var cp = gUpdates.wiz.currentPage;
+      if (cp.pageid != "finished" && cp.pageid != "finishedBackground")
+        this.onWizardCancel();
     }
   },
 
@@ -383,26 +377,24 @@ var gUpdates = {
         var p = this.update.selectedPatch;
         if (p) {
           var state = p.state;
-          if (state == STATE_DOWNLOADING) {
-            var patchFailed = false;
-            try {
-              patchFailed = this.update.getProperty("patchingFailed");
-            }
-            catch (e) {
-            }
-            if (patchFailed == "partial") {
-              // If the system failed to apply the partial patch, show the
-              // screen which best describes this condition, which is triggered
-              // by the |STATE_FAILED| state.
-              state = STATE_FAILED;
-            }
-            else if (patchFailed == "complete") {
-              // Otherwise, if the complete patch failed, which is far less
-              // likely, show the error text held by the update object in the
-              // generic errors page, triggered by the |STATE_DOWNLOAD_FAILED|
-              // state.
-              state = STATE_DOWNLOAD_FAILED;
-            }
+          var patchFailed;
+          try {
+            patchFailed = this.update.getProperty("patchingFailed");
+          }
+          catch (e) {
+          }
+          if (patchFailed == "partial") {
+            // If the system failed to apply the partial patch, show the
+            // screen which best describes this condition, which is triggered
+            // by the |STATE_FAILED| state.
+            state = STATE_FAILED;
+          }
+          else if (patchFailed == "complete") {
+            // Otherwise, if the complete patch failed, which is far less
+            // likely, show the error text held by the update object in the
+            // generic errors page, triggered by the |STATE_DOWNLOAD_FAILED|
+            // state.
+            state = STATE_DOWNLOAD_FAILED;
           }
 
           // Now select the best page to start with, given the current state of
@@ -539,6 +531,62 @@ var gCheckingPage = {
 };
 
 /**
+ * The "You have outdated plugins" page
+ */
+var gPluginsPage = {
+  /**
+   * URL of the plugin updates page
+   */
+  _url: null,
+  
+  /**
+   * Initialize
+   */
+  onPageShow: function() {
+    if (gPref.getPrefType(PREF_PLUGINS_UPDATEURL) == gPref.PREF_INVALID) {
+      gUpdates.wiz.goTo("noupdatesfound");
+      return;
+    }
+    
+    var formatter = CoC["@mozilla.org/toolkit/URLFormatterService;1"].
+                       getService(CoI.nsIURLFormatter);
+    this._url = formatter.formatURLPref(PREF_PLUGINS_UPDATEURL);
+    var link = document.getElementById("pluginupdateslink");
+    link.setAttribute("href", this._url);
+
+
+    var phs = CoC["@mozilla.org/plugin/host;1"].
+                 getService(CoI.nsIPluginHost);
+    var plugins = phs.getPluginTags();
+    var blocklist = CoC["@mozilla.org/extensions/blocklist;1"].
+                      getService(CoI.nsIBlocklistService);
+
+    var hasOutdated = false;
+    for (let i = 0; i < plugins.length; i++) {
+      let pluginState = blocklist.getPluginBlocklistState(plugins[i]);
+      if (pluginState == CoI.nsIBlocklistService.STATE_OUTDATED) {
+        hasOutdated = true;
+        break;
+      }
+    }
+    if (!hasOutdated) {
+      gUpdates.wiz.goTo("noupdatesfound");
+      return;
+    }
+
+    gUpdates.setButtons(null, null, "okButton", true);
+    gUpdates.wiz.getButton("finish").focus();
+  },
+  
+  /**
+   * Finish button clicked.
+   */
+  onWizardFinish: function() {
+    openURL(this._url);
+  }
+};
+
+/**
  * The "No Updates Are Available" page
  */
 var gNoUpdatesPage = {
@@ -588,6 +636,15 @@ var gIncompatibleCheckPage = {
    * Initialize
    */
   onPageShow: function() {
+    var aus = CoC["@mozilla.org/updates/update-service;1"].
+              getService(CoI.nsIApplicationUpdateService);
+    // Display the manual update page if the user is unable to apply the update
+    if (!aus.canApplyUpdates) {
+      gUpdates.wiz.currentPage.setAttribute("next", "manualUpdate");
+      gUpdates.wiz.advance();
+      return;
+    }
+
     var ai = CoC["@mozilla.org/xre/app-info;1"].getService(CoI.nsIXULAppInfo);
     var vc = CoC["@mozilla.org/xpcom/version-comparator;1"].
              getService(CoI.nsIVersionComparator);
@@ -602,14 +659,12 @@ var gIncompatibleCheckPage = {
              getService(CoI.nsIExtensionManager);
     this.addons = em.getIncompatibleItemList(gUpdates.update.extensionVersion,
                                              gUpdates.update.platformVersion,
-                                             CoI.nsIUpdateItem.TYPE_ANY, false,
-                                             { });
+                                             CoI.nsIUpdateItem.TYPE_ANY, false);
     if (this.addons.length > 0) {
       // Don't include add-ons that are already incompatible with the current
       // version of the application
       var addons = em.getIncompatibleItemList(null, null,
-                                              CoI.nsIUpdateItem.TYPE_ANY, false,
-                                              { });
+                                              CoI.nsIUpdateItem.TYPE_ANY, false);
       for (var i = 0; i < addons.length; ++i) {
         for (var j = 0; j < this.addons.length; ++j) {
           if (addons[i].id == this.addons[j].id) {
@@ -640,6 +695,7 @@ var gIncompatibleCheckPage = {
              getService(CoI.nsIExtensionManager);
     em.update(this.addons, this.addons.length,
               CoI.nsIExtensionManager.UPDATE_NOTIFY_NEWVERSION, this,
+              CoI.nsIExtensionManager.UPDATE_WHEN_NEW_APP_DETECTED,
               gUpdates.update.extensionVersion, gUpdates.update.platformVersion);
   },
 
@@ -701,6 +757,31 @@ var gIncompatibleCheckPage = {
         !iid.equals(CoI.nsISupports))
       throw CoR.NS_ERROR_NO_INTERFACE;
     return this;
+  }
+};
+
+/**
+ * The "Unable to Update" page. Provides the user information about why they
+ * were unable to update and a manual download url.
+ */
+var gManualUpdatePage = {
+  onPageShow: function() {
+    var formatter = CoC["@mozilla.org/toolkit/URLFormatterService;1"].
+                    getService(CoI.nsIURLFormatter);
+    var manualURL = formatter.formatURLPref(PREF_UPDATE_MANUAL_URL);
+    var manualUpdateLinkLabel = document.getElementById("manualUpdateLinkLabel");
+    manualUpdateLinkLabel.value = manualURL;
+    manualUpdateLinkLabel.setAttribute("url", manualURL);
+
+    // Prevent multiple notifications for the same update when the user is
+    // unable to apply updates.
+    // Encode version since it could be a non-ascii string (bug 359093)
+    var neverPrefName = PREF_UPDATE_NEVER_BRANCH +
+                        encodeURIComponent(gUpdates.update.version);
+    gPref.setBoolPref(neverPrefName, true);
+
+    gUpdates.setButtons(null, null, "okButton", true);
+    gUpdates.wiz.getButton("finish").focus();
   }
 };
 
@@ -1095,6 +1176,12 @@ var gDownloadingPage = {
     gUpdates.wiz.getButton("extra1").focus();
   },
 
+  showVerificationError: function() {
+    var verificationError = gUpdates.getAUSString("verificationError",
+                                                  [gUpdates.brandName]);
+    gUpdates.advanceToErrorPage(verificationError);                             
+  },
+
   /**
    * Updates the text status message
    */
@@ -1215,7 +1302,7 @@ var gDownloadingPage = {
       var ps = CoC["@mozilla.org/embedcomp/prompt-service;1"].
                getService(CoI.nsIPromptService);
       var flags = ps.STD_YES_NO_BUTTONS;
-      // Focus the software update wizard before prompting. Tthis will raise
+      // Focus the software update wizard before prompting. This will raise
       // the software update wizard if it is minimized making it more obvious
       // what the prompt is for and will solve the problem of windows
       // obscuring the prompt. See bug #350299 for more details.
@@ -1563,17 +1650,6 @@ var gInstalledPage = {
     gUpdates.wiz.getButton("finish").focus();
   }
 };
-
-/**
- * Called as the application shuts down due to being quit from the File->Quit
- * menu item.
- */
-function tryToClose() {
-  var cp = gUpdates.wiz.currentPage;
-  if (cp.pageid != "finished" && cp.pageid != "finishedBackground")
-    gUpdates.onWizardCancel();
-  return true;
-}
 
 /**
  * Callback for the Update Prompt to set the current page if an Update Wizard

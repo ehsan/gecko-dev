@@ -78,6 +78,7 @@ public:
   friend nsIFrame* NS_NewListControlFrame(nsIPresShell* aPresShell, nsStyleContext* aContext);
 
   NS_DECL_QUERYFRAME
+  NS_DECL_FRAMEARENA_HELPERS
 
     // nsIFrame
   NS_IMETHOD HandleEvent(nsPresContext* aPresContext,
@@ -102,7 +103,7 @@ public:
   NS_IMETHOD DidReflow(nsPresContext*           aPresContext, 
                        const nsHTMLReflowState*  aReflowState, 
                        nsDidReflowStatus         aStatus);
-  virtual void Destroy();
+  virtual void DestroyFrom(nsIFrame* aDestructRoot);
 
   NS_IMETHOD BuildDisplayList(nsDisplayListBuilder*   aBuilder,
                               const nsRect&           aDirtyRect,
@@ -130,7 +131,6 @@ public:
                                   PRUint32 aFlags);
 
 #ifdef DEBUG
-    // nsIFrameDebug
   NS_IMETHOD GetFrameName(nsAString& aResult) const;
 #endif
 
@@ -270,6 +270,16 @@ public:
    * Return whether the list is in dropdown mode.
    */
   PRBool IsInDropDownMode() const;
+
+  /**
+   * Dropdowns need views
+   */
+  virtual PRBool NeedsView() { return IsInDropDownMode(); }
+
+  /**
+   * Frees statics owned by this class.
+   */
+  static void Shutdown();
 
 #ifdef ACCESSIBILITY
   /**
@@ -434,15 +444,26 @@ protected:
   // pass.  This only happens for auto heights.
   PRPackedBool mMightNeedSecondPass:1;
 
+  /**
+   * Set to aPresContext->HasPendingInterrupt() at the start of Reflow.
+   * Set to PR_FALSE at the end of DidReflow.
+   */
+  PRPackedBool mHasPendingInterruptAtStartOfReflow:1;
+
   // The last computed height we reflowed at if we're a combobox dropdown.
   // XXXbz should we be using a subclass here?  Or just not worry
   // about the extra member on listboxes?
   nscoord mLastDropdownComputedHeight;
 
+  // At the time of our last dropdown, the backstop color to draw in case we
+  // are translucent.
+  nscolor mLastDropdownBackstopColor;
+  
   nsRefPtr<nsListEventListener> mEventListener;
 
   static nsListControlFrame * mFocused;
-  
+  static nsString * sIncrementalString;
+
 #ifdef DO_REFLOW_COUNTER
   PRInt32 mReflowId;
 #endif

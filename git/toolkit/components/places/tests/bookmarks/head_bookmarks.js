@@ -49,34 +49,9 @@ function LOG(aMsg) {
   print(aMsg);
 }
 
-// If there's no location registered for the profile direcotry, register one now.
-var dirSvc = Cc["@mozilla.org/file/directory_service;1"].getService(Ci.nsIProperties);
-var profileDir = null;
-try {
-  profileDir = dirSvc.get(NS_APP_USER_PROFILE_50_DIR, Ci.nsIFile);
-} catch (e) {}
-if (!profileDir) {
-  // Register our own provider for the profile directory.
-  // It will simply return the current directory.
-  var provider = {
-    getFile: function(prop, persistent) {
-      persistent.value = true;
-      if (prop == NS_APP_USER_PROFILE_50_DIR) {
-        return dirSvc.get("CurProcD", Ci.nsIFile);
-      }
-      throw Cr.NS_ERROR_FAILURE;
-    },
-    QueryInterface: function(iid) {
-      if (iid.equals(Ci.nsIDirectoryServiceProvider) ||
-          iid.equals(Ci.nsISupports)) {
-        return this;
-      }
-      throw Cr.NS_ERROR_NO_INTERFACE;
-    }
-  };
-  dirSvc.QueryInterface(Ci.nsIDirectoryService).registerProvider(provider);
-}
+do_get_profile();
 
+var dirSvc = Cc["@mozilla.org/file/directory_service;1"].getService(Ci.nsIProperties);
 var iosvc = Cc["@mozilla.org/network/io-service;1"].getService(Ci.nsIIOService);
 
 function uri(spec) {
@@ -188,4 +163,17 @@ function flush_main_thread_events()
   let tm = Cc["@mozilla.org/thread-manager;1"].getService(Ci.nsIThreadManager);
   while (tm.mainThread.hasPendingEvents())
     tm.mainThread.processNextEvent(false);
+}
+
+// These tests are known to randomly fail due to bug 507790 when database
+// flushes are active, so we turn off syncing for them.
+let randomFailingSyncTests = [
+  "test_384228.js",
+  "test_395593.js",
+];
+let currentTestFilename = do_get_file(_TEST_FILE[0], true).leafName;
+if (randomFailingSyncTests.indexOf(currentTestFilename) != -1) {
+  print("Test " + currentTestFilename + " is known random due to bug 507790, disabling PlacesDBFlush component.");
+  let sync = Cc["@mozilla.org/places/sync;1"].getService(Ci.nsIObserver);
+  sync.observe(null, "places-debug-stop-sync", null);
 }

@@ -44,7 +44,6 @@
 #include "nsDisplayList.h"
 #include "nsStubMutationObserver.h"
 #include "gfxContext.h"
-#include "nsPresShellIterator.h"
 #include "nsIContentViewer.h"
 #include "nsIDocShell.h"
 #include "nsIDOMDocument.h"
@@ -86,30 +85,25 @@ nsSVGMutationObserver::AttributeChanged(nsIDocument *aDocument,
                                         nsIContent *aContent,
                                         PRInt32 aNameSpaceID,
                                         nsIAtom *aAttribute,
-                                        PRInt32 aModType,
-                                        PRUint32 aStateMask)
+                                        PRInt32 aModType)
 {
   if (aNameSpaceID != kNameSpaceID_XML || aAttribute != nsGkAtoms::space) {
     return;
   }
 
-  nsPresShellIterator iter(aDocument);
-  nsCOMPtr<nsIPresShell> shell;
-  while ((shell = iter.GetNextShell())) {
-    nsIFrame *frame = shell->GetPrimaryFrameFor(aContent);
-    if (!frame) {
-      continue;
-    }
-
-    // is the content a child of a text element
-    nsSVGTextContainerFrame *containerFrame = do_QueryFrame(frame);
-    if (containerFrame) {
-      containerFrame->NotifyGlyphMetricsChange();
-      continue;
-    }
-    // if not, are there text elements amongst its descendents
-    UpdateTextFragmentTrees(frame);
+  nsIFrame* frame = aContent->GetPrimaryFrame();
+  if (!frame) {
+    return;
   }
+
+  // is the content a child of a text element
+  nsSVGTextContainerFrame* containerFrame = do_QueryFrame(frame);
+  if (containerFrame) {
+    containerFrame->NotifyGlyphMetricsChange();
+    return;
+  }
+  // if not, are there text elements amongst its descendents
+  UpdateTextFragmentTrees(frame);
 }
 
 //----------------------------------------------------------------------
@@ -138,6 +132,8 @@ NS_NewSVGOuterSVGFrame(nsIPresShell* aPresShell, nsStyleContext* aContext)
 {  
   return new (aPresShell) nsSVGOuterSVGFrame(aContext);
 }
+
+NS_IMPL_FRAMEARENA_HELPERS(nsSVGOuterSVGFrame)
 
 nsSVGOuterSVGFrame::nsSVGOuterSVGFrame(nsStyleContext* aContext)
     : nsSVGOuterSVGFrameBase(aContext)
@@ -438,8 +434,8 @@ public:
 
   virtual nsIFrame* HitTest(nsDisplayListBuilder* aBuilder, nsPoint aPt,
                             HitTestState* aState);
-  virtual void Paint(nsDisplayListBuilder* aBuilder, nsIRenderingContext* aCtx,
-                     const nsRect& aDirtyRect);
+  virtual void Paint(nsDisplayListBuilder* aBuilder,
+                     nsIRenderingContext* aCtx);
   NS_DISPLAY_DECL_NAME("SVGEventReceiver")
 };
 
@@ -452,11 +448,11 @@ nsDisplaySVG::HitTest(nsDisplayListBuilder* aBuilder, nsPoint aPt,
 }
 
 void
-nsDisplaySVG::Paint(nsDisplayListBuilder* aBuilder, nsIRenderingContext* aCtx,
-                    const nsRect& aDirtyRect)
+nsDisplaySVG::Paint(nsDisplayListBuilder* aBuilder,
+                    nsIRenderingContext* aCtx)
 {
   static_cast<nsSVGOuterSVGFrame*>(mFrame)->
-    Paint(*aCtx, aDirtyRect, aBuilder->ToReferenceFrame(mFrame));
+    Paint(*aCtx, mVisibleRect, aBuilder->ToReferenceFrame(mFrame));
 }
 
 // helper

@@ -133,13 +133,7 @@ public:
 
     // nsIWidget
     NS_IMETHOD         Create(nsIWidget        *aParent,
-                              const nsIntRect  &aRect,
-                              EVENT_CALLBACK   aHandleEventFunction,
-                              nsIDeviceContext *aContext,
-                              nsIAppShell      *aAppShell,
-                              nsIToolkit       *aToolkit,
-                              nsWidgetInitData *aInitData);
-    NS_IMETHOD         Create(nsNativeWidget aParent,
+                              nsNativeWidget   aNativeParent,
                               const nsIntRect  &aRect,
                               EVENT_CALLBACK   aHandleEventFunction,
                               nsIDeviceContext *aContext,
@@ -181,23 +175,21 @@ public:
     NS_IMETHOD         SetCursor(nsCursor aCursor);
     NS_IMETHOD         SetCursor(imgIContainer* aCursor,
                                  PRUint32 aHotspotX, PRUint32 aHotspotY);
-    NS_IMETHOD         Validate();
-    NS_IMETHOD         Invalidate(PRBool aIsSynchronous);
     NS_IMETHOD         Invalidate(const nsIntRect &aRect,
                                   PRBool           aIsSynchronous);
     NS_IMETHOD         Update();
-    virtual void       Scroll(const nsIntPoint& aDelta, const nsIntRect& aSource,
+    virtual void       Scroll(const nsIntPoint& aDelta,
+                              const nsTArray<nsIntRect>& aDestRects,
                               const nsTArray<Configuration>& aReconfigureChildren);
     virtual void*      GetNativeData(PRUint32 aDataType);
-    NS_IMETHOD         SetBorderStyle(nsBorderStyle aBorderStyle);
     NS_IMETHOD         SetTitle(const nsAString& aTitle);
     NS_IMETHOD         SetIcon(const nsAString& aIconSpec);
     NS_IMETHOD         SetWindowClass(const nsAString& xulWinType);
     virtual nsIntPoint WidgetToScreenOffset();
     NS_IMETHOD         EnableDragDrop(PRBool aEnable);
-    NS_IMETHOD         PreCreateWidget(nsWidgetInitData *aWidgetInitData);
     NS_IMETHOD         CaptureMouse(PRBool aCapture);
     NS_IMETHOD         CaptureRollupEvents(nsIRollupListener *aListener,
+                                           nsIMenuRollup *aMenuRollup,
                                            PRBool aDoCapture,
                                            PRBool aConsumeRollupEvent);
     NS_IMETHOD         GetAttention(PRInt32 aCycleCount);
@@ -271,16 +263,6 @@ public:
     void               OnDragLeave(void);
     void               OnDragEnter(nscoord aX, nscoord aY);
 
-
-    nsresult           NativeCreate(nsIWidget        *aParent,
-                                    nsNativeWidget    aNativeParent,
-                                    const nsIntRect   &aRect,
-                                    EVENT_CALLBACK    aHandleEventFunction,
-                                    nsIDeviceContext *aContext,
-                                    nsIAppShell      *aAppShell,
-                                    nsIToolkit       *aToolkit,
-                                    nsWidgetInitData *aInitData);
-
     virtual void       NativeResize(PRInt32 aWidth,
                                     PRInt32 aHeight,
                                     PRBool  aRepaint);
@@ -292,7 +274,8 @@ public:
                                     PRBool  aRepaint);
 
     virtual void       NativeShow  (PRBool  aAction);
-    virtual nsIntSize  GetSafeWindowSize(nsIntSize aSize);
+    void               SetHasMappedToplevel(PRBool aState);
+    nsIntSize          GetSafeWindowSize(nsIntSize aSize);
 
     void               EnsureGrabs  (void);
     void               GrabPointer  (void);
@@ -312,6 +295,11 @@ public:
 #endif /* MOZ_X11 */
 
     void               ThemeChanged(void);
+
+    void CheckNeedDragLeaveEnter(nsWindow* aInnerMostWidget,
+                                 nsIDragService* aDragService,
+                                 GdkDragContext *aDragContext,
+                                 nscoord aX, nscoord aY);
 
 #ifdef MOZ_X11
     Window             mOldFocusWindow;
@@ -450,7 +438,7 @@ protected:
     PRPackedBool        mPlaced;
 
 private:
-    PRBool             CanBeSeen();
+    void               DestroyChildWindows();
     void               GetToplevelWidget(GtkWidget **aWidget);
     GtkWidget         *GetMozContainerWidget();
     nsWindow          *GetContainerWindow();
@@ -460,7 +448,8 @@ private:
     void               SetDefaultIcon(void);
     void               InitButtonEvent(nsMouseEvent &aEvent, GdkEventButton *aGdkEvent);
     PRBool             DispatchCommandEvent(nsIAtom* aCommand);
-    nsresult           SetWindowClipRegion(const nsTArray<nsIntRect>& aRects);
+    void               SetWindowClipRegion(const nsTArray<nsIntRect>& aRects,
+                                           PRBool aIntersectWithExisting);
 
     GtkWidget          *mShell;
     MozContainer       *mContainer;
@@ -471,7 +460,8 @@ private:
     PRUint32            mContainerGotFocus : 1,
                         mContainerLostFocus : 1,
                         mContainerBlockFocus : 1,
-                        mIsVisible : 1,
+                        mHasMappedToplevel : 1,
+                        mIsFullyObscured : 1,
                         mRetryPointerGrab : 1,
                         mRetryKeyboardGrab : 1;
     GtkWindow          *mTransientParent;
@@ -514,8 +504,7 @@ private:
     // this is the last window that had a drag event happen on it.
     static nsWindow    *mLastDragMotionWindow;
     void   InitDragEvent         (nsDragEvent &aEvent);
-    void   UpdateDragStatus      (nsDragEvent &aEvent,
-                                  GdkDragContext *aDragContext,
+    void   UpdateDragStatus      (GdkDragContext *aDragContext,
                                   nsIDragService *aDragService);
 
     // this is everything we need to be able to fire motion events
@@ -528,6 +517,10 @@ private:
     guint              mDragMotionTimerID;
     nsCOMPtr<nsITimer> mDragLeaveTimer;
     float              mLastMotionPressure;
+
+    // Remember the last sizemode so that we can restore it when
+    // leaving fullscreen
+    nsSizeMode         mLastSizeMode;
 
     static PRBool      sIsDraggingOutOf;
     // drag in progress

@@ -64,10 +64,6 @@
 #include "nsIXBLDocumentInfo.h"
 #include "nsXBLInsertionPoint.h"
 
-#include "nsIStyleSheet.h"
-#include "nsHTMLStyleSheet.h"
-#include "nsIHTMLCSSStyleSheet.h"
-
 #include "nsIStyleRuleProcessor.h"
 #include "nsRuleProcessorData.h"
 #include "nsIWeakReference.h"
@@ -883,12 +879,7 @@ nsBindingManager::RemoveLayeredBinding(nsIContent* aContent, nsIURI* aURL)
   NS_ENSURE_FALSE(binding->GetBaseBinding(), NS_ERROR_FAILURE);
 
   // Make sure that the binding has the URI that is requested to be removed
-  nsIURI* bindingUri = binding->PrototypeBinding()->BindingURI();
-  
-  PRBool equalUri;
-  nsresult rv = aURL->Equals(bindingUri, &equalUri);
-  NS_ENSURE_SUCCESS(rv, rv);
-  if (!equalUri) {
+  if (!binding->PrototypeBinding()->CompareBindingURI(aURL)) {
     return NS_OK;
   }
 
@@ -1277,8 +1268,7 @@ nsBindingManager::WalkRules(nsIStyleRuleProcessor::EnumFunc aFunc,
 {
   *aCutOffInheritance = PR_FALSE;
   
-  if (!aData->mContent)
-    return NS_OK;
+  NS_ASSERTION(aData->mContent, "How did that happen?");
 
   // Walk the binding scope chain, starting with the binding attached to our
   // content, up till we run out of scopes or we get cut off.
@@ -1371,14 +1361,6 @@ nsBindingManager::MediumFeaturesChanged(nsPresContext* aPresContext,
   MediumFeaturesChangedData data = { aPresContext, aRulesChanged };
   set.EnumerateEntries(EnumMediumFeaturesChanged, &data);
   return NS_OK;
-}
-
-PRBool
-nsBindingManager::ShouldBuildChildFrames(nsIContent* aContent)
-{
-  nsXBLBinding *binding = GetBinding(aContent);
-
-  return !binding || binding->ShouldBuildChildFrames();
 }
 
 nsIContent*
@@ -1554,6 +1536,11 @@ RemoveChildFromInsertionPoint(nsAnonymousContentList* aInsertionPointList,
   // when we've hit it, but just trying to remove from all the pseudo or
   // non-pseudo insertion points, depending on the value of
   // aRemoveFromPseudoPoints, should work.
+
+  // XXXbz nsXBLInsertionPoint::RemoveChild could return whether it
+  // removed something.  Wouldn't that let us short-circuit the walk?
+  // Or can a child be in multiple insertion points?  I wouldn't think
+  // so...
   PRInt32 count = aInsertionPointList->GetInsertionPointCount();
   for (PRInt32 i = 0; i < count; i++) {
     nsXBLInsertionPoint* point =
@@ -1588,6 +1575,21 @@ nsBindingManager::ContentRemoved(nsIDocument* aDocument,
                                       aChild,
                                       PR_FALSE);
         SetInsertionParent(aChild, nsnull);
+      }
+
+      // Also remove from the list in mContentListTable, if any.
+      if (mContentListTable.ops) {
+        nsCOMPtr<nsIDOMNodeList> otherNodeList =
+          static_cast<nsAnonymousContentList*>
+                     (LookupObject(mContentListTable, point));
+        if (otherNodeList && otherNodeList != nodeList) {
+          // otherNodeList is always anonymous
+          RemoveChildFromInsertionPoint(static_cast<nsAnonymousContentList*>
+                                        (static_cast<nsIDOMNodeList*>
+                                                    (otherNodeList)),
+                                        aChild,
+                                        PR_FALSE);
+        }
       }
     }
 

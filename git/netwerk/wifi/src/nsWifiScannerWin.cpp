@@ -13,7 +13,7 @@
  *
  * The Original Code is Geolocation.
  *
- * The Initial Developer of the Original Code is Mozilla Corporation
+ * The Initial Developer of the Original Code is Mozilla Foundation
  * Portions created by the Initial Developer are Copyright (C) 2008
  * the Initial Developer. All Rights Reserved.
  *
@@ -102,6 +102,12 @@ int PerformQuery(HANDLE &ndis_handle,
                  DWORD buffer_size,
                  BYTE *&data,
                  DWORD *bytes_out) {
+
+  NS_ASSERTION(buffer, "Buffer is null.  OOM?");
+
+  if (!buffer)
+    return ERROR_INSUFFICIENT_BUFFER;
+
   // Form the query parameters.
   NDISUIO_QUERY_OID *query = (NDISUIO_QUERY_OID*)(buffer);
   query->ptcDeviceName = const_cast<PTCHAR>(device_name);
@@ -382,13 +388,20 @@ nsWifiMonitor::DoScan()
         // Get the data.
         
         BYTE *buffer = (BYTE*)malloc(oid_buffer_size_);
-        if (buffer == NULL)
+        if (buffer == NULL) {
+#ifdef WINCE
+          CloseHandle(ndis_handle);
+#endif
           return NS_ERROR_OUT_OF_MEMORY;
-          
+        }
+
         DWORD bytes_out;
         int result;
         
         while (true) {     
+
+          NS_ASSERTION(buffer && oid_buffer_size_ > 0, "buffer must not be null, and the size must be larger than 0");
+
           bytes_out = 0; 
 #ifdef WINCE
           result = PerformQuery(ndis_handle, service_name, buffer, oid_buffer_size_, data, &bytes_out);
@@ -397,6 +410,7 @@ nsWifiMonitor::DoScan()
 #endif
           
           if (result == ERROR_GEN_FAILURE ||  // Returned by some Intel cards.
+              result == ERROR_INVALID_USER_BUFFER || // Returned on the Samsung Omnia II.
               result == ERROR_INSUFFICIENT_BUFFER ||
               result == ERROR_MORE_DATA ||
               result == NDIS_STATUS_INVALID_LENGTH ||
@@ -491,9 +505,13 @@ nsWifiMonitor::DoScan()
 
       PRUint32 resultCount = lastAccessPoints.Count();
       nsIWifiAccessPoint** result = static_cast<nsIWifiAccessPoint**> (nsMemory::Alloc(sizeof(nsIWifiAccessPoint*) * resultCount));
-      if (!result)
+      if (!result) {
+#ifdef WINCE
+        CloseHandle(ndis_handle);
+#endif
         return NS_ERROR_OUT_OF_MEMORY;
-      
+      }
+
       for (PRUint32 i = 0; i < resultCount; i++)
         result[i] = lastAccessPoints[i];
       

@@ -72,7 +72,7 @@ const kBookTagSQLFragment =
   book_tag_sql_fragment("tags", "GROUP_CONCAT(t.title, ',')", true);
 
 // observer topics
-const kQuitApplication = "quit-application";
+const kXPComShutdown = "xpcom-shutdown";
 const kPrefChanged = "nsPref:changed";
 
 // Match type constants.  These indicate what type of search function we should
@@ -231,102 +231,87 @@ function nsPlacesAutoComplete()
                    "UNION ALL " +
                    sql_base_fragment("moz_places") +
                    "AND +h.id NOT IN (SELECT id FROM moz_places_temp) " +
-                   "ORDER BY h.frecency DESC " +
+                   "ORDER BY h.frecency DESC, h.id DESC " +
                    "LIMIT :maxResults";
 
   //////////////////////////////////////////////////////////////////////////////
   //// Smart Getters
 
-  this.__defineGetter__("_db", function() {
-    delete this._db;
-    return this._db = Cc["@mozilla.org/browser/nav-history-service;1"].
-                      getService(Ci.nsPIPlacesDatabase).
-                      DBConnection;
+  XPCOMUtils.defineLazyGetter(this, "_db", function() {
+    return Cc["@mozilla.org/browser/nav-history-service;1"].
+           getService(Ci.nsPIPlacesDatabase).
+           DBConnection;
   });
 
-  this.__defineGetter__("_bh", function() {
-    delete this._bh;
-    return this._bh = Cc["@mozilla.org/browser/global-history;2"].
-                      getService(Ci.nsIBrowserHistory);
-  });
+  XPCOMUtils.defineLazyServiceGetter(this, "_bh",
+                                     "@mozilla.org/browser/global-history;2",
+                                     "nsIBrowserHistory");
 
-  this.__defineGetter__("_textURIService", function() {
-    delete this._textURIService;
-    return this._textURIService = Cc["@mozilla.org/intl/texttosuburi;1"].
-                                  getService(Ci.nsITextToSubURI);
-  });
+  XPCOMUtils.defineLazyServiceGetter(this, "_textURIService",
+                                     "@mozilla.org/intl/texttosuburi;1",
+                                     "nsITextToSubURI");
 
-  this.__defineGetter__("_bs", function() {
-    delete this._bs;
-    return this._bs = Cc["@mozilla.org/browser/nav-bookmarks-service;1"].
-                      getService(Ci.nsINavBookmarksService);
-  });
+  XPCOMUtils.defineLazyServiceGetter(this, "_bs",
+                                     "@mozilla.org/browser/nav-bookmarks-service;1",
+                                     "nsINavBookmarksService");
 
-  this.__defineGetter__("_ioService", function() {
-    delete this._ioService;
-    return this._ioService = Cc["@mozilla.org/network/io-service;1"].
-                             getService(Ci.nsIIOService);
-  });
+  XPCOMUtils.defineLazyServiceGetter(this, "_ioService",
+                                     "@mozilla.org/network/io-service;1",
+                                     "nsIIOService");
 
-  this.__defineGetter__("_faviconService", function() {
-    delete this._faviconService;
-    return this._faviconService = Cc["@mozilla.org/browser/favicon-service;1"].
-                                  getService(Ci.nsIFaviconService);
-  });
+  XPCOMUtils.defineLazyServiceGetter(this, "_faviconService",
+                                     "@mozilla.org/browser/favicon-service;1",
+                                     "nsIFaviconService");
 
-  this.__defineGetter__("_defaultQuery", function() {
-    delete this._defaultQuery;
+  XPCOMUtils.defineLazyGetter(this, "_defaultQuery", function() {
     let replacementText = "";
-    return this._defaultQuery = this._db.createStatement(
+    return this._db.createStatement(
       SQL_BASE.replace("{ADDITIONAL_CONDITIONS}", replacementText, "g")
     );
   });
 
-  this.__defineGetter__("_historyQuery", function() {
-    delete this._historyQuery;
+  XPCOMUtils.defineLazyGetter(this, "_historyQuery", function() {
     let replacementText = "AND h.visit_count > 0";
-    return this._historyQuery = this._db.createStatement(
+    return this._db.createStatement(
       SQL_BASE.replace("{ADDITIONAL_CONDITIONS}", replacementText, "g")
     );
   });
 
-  this.__defineGetter__("_bookmarkQuery", function() {
-    delete this._bookmarkQuery;
+  XPCOMUtils.defineLazyGetter(this, "_bookmarkQuery", function() {
     let replacementText = "AND bookmark IS NOT NULL";
-    return this._bookmarkQuery = this._db.createStatement(
+    return this._db.createStatement(
       SQL_BASE.replace("{ADDITIONAL_CONDITIONS}", replacementText, "g")
     );
   });
 
-  this.__defineGetter__("_tagsQuery", function() {
-    delete this._tagsQuery;
+  XPCOMUtils.defineLazyGetter(this, "_tagsQuery", function() {
     let replacementText = "AND tags IS NOT NULL";
-    return this._tagsQuery = this._db.createStatement(
+    return this._db.createStatement(
       SQL_BASE.replace("{ADDITIONAL_CONDITIONS}", replacementText, "g")
     );
   });
 
-  this.__defineGetter__("_typedQuery", function() {
-    delete this._typedQuery;
+  XPCOMUtils.defineLazyGetter(this, "_typedQuery", function() {
     let replacementText = "AND h.typed = 1";
-    return this._typedQuery = this._db.createStatement(
+    return this._db.createStatement(
       SQL_BASE.replace("{ADDITIONAL_CONDITIONS}", replacementText, "g")
     );
   });
 
-  this.__defineGetter__("_adaptiveQuery", function() {
-    delete this._adaptiveQuery;
+  XPCOMUtils.defineLazyGetter(this, "_adaptiveQuery", function() {
     // In this query, we are taking kBookTagSQLFragment only for h.id because it
     // uses data from the moz_bookmarks table and we sync tables on bookmark
     // insert.  So, most likely, h.id will always be populated when we have any
     // bookmark.  We still need to join on moz_places_temp for other data (eg.
     // title).
-    return this._adaptiveQuery = this._db.createStatement(
+    return this._db.createStatement(
       "/* do not warn (bug 487789) */ " +
-      "SELECT IFNULL(h_t.url, h.url), IFNULL(h_t.title, h.title), f.url, " +
-              kBookTagSQLFragment + ", IFNULL(h_t.visit_count, h.visit_count), " +
-              "IFNULL(h_t.typed, h.typed), IFNULL(h_t.id, h.id), " +
-              ":query_type, rank " +
+      "SELECT IFNULL(h_t.url, h.url) AS c_url, " +
+             "IFNULL(h_t.title, h.title) AS c_title, f.url, " +
+              kBookTagSQLFragment + ", " +
+              "IFNULL(h_t.visit_count, h.visit_count) AS c_visit_count, " +
+              "IFNULL(h_t.typed, h.typed) AS c_typed, " +
+              "IFNULL(h_t.id, h.id), :query_type, rank " +
       "FROM ( " +
         "SELECT ROUND(MAX(((i.input = :search_string) + " +
                           "(SUBSTR(i.input, 1, LENGTH(:search_string)) = :search_string)) * " +
@@ -337,15 +322,18 @@ function nsPlacesAutoComplete()
       ") AS i " +
       "LEFT JOIN moz_places h ON h.id = i.place_id " +
       "LEFT JOIN moz_places_temp h_t ON h_t.id = i.place_id " +
-      "LEFT JOIN moz_favicons f ON f.id = IFNULL(h_t.favicon_id, h.favicon_id) "+
-      "WHERE IFNULL(h_t.url, h.url) NOTNULL " +
+      "LEFT JOIN moz_favicons f ON f.id = IFNULL(h_t.favicon_id, h.favicon_id) " + 
+      "WHERE c_url NOTNULL " +
+      "AND AUTOCOMPLETE_MATCH(:searchString, c_url, " +
+                             "IFNULL(bookmark, c_title), tags, " +
+                             "c_visit_count, c_typed, parent, " +
+                             ":matchBehavior, :searchBehavior) " +
       "ORDER BY rank DESC, IFNULL(h_t.frecency, h.frecency) DESC"
     );
   });
 
-  this.__defineGetter__("_keywordQuery", function() {
-    delete this._keywordQuery;
-    return this._keywordQuery = this._db.createStatement(
+  XPCOMUtils.defineLazyGetter(this, "_keywordQuery", function() {
+    return this._db.createStatement(
       "/* do not warn (bug 487787) */ " +
       "SELECT IFNULL( " +
           "(SELECT REPLACE(url, '%s', :query_string) FROM moz_places_temp WHERE id = b.fk), " +
@@ -370,12 +358,15 @@ function nsPlacesAutoComplete()
   //// Initialization
 
   // load preferences
+  this._prefs = Cc["@mozilla.org/preferences-service;1"].
+                getService(Ci.nsIPrefService).
+                getBranch(kBrowserUrlbarBranch);
   this._loadPrefs(true);
 
   // register observers
   this._os = Cc["@mozilla.org/observer-service;1"].
               getService(Ci.nsIObserverService);
-  this._os.addObserver(this, kQuitApplication, false);
+  this._os.addObserver(this, kXPComShutdown, false);
 
 }
 
@@ -410,14 +401,10 @@ nsPlacesAutoComplete.prototype = {
     }
 
     // Reset our search behavior to the default.
-    this._behavior = this._defaultBehavior;
-
-    // If we have no search terms, this is a special search that should only
-    // look for BEHAVIOR_HISTORY and BEHAVIOR_TYPED.
-    if (!this._currentSearchString) {
-      this._setBehavior("history");
-      this._setBehavior("typed");
-    }
+    if (this._currentSearchString)
+      this._behavior = this._defaultBehavior;
+    else
+      this._behavior = this._emptySearchDefaultBehavior;
 
     // For any given search, we run up to three queries:
     // 1) keywords (this._keywordQuery)
@@ -443,7 +430,10 @@ nsPlacesAutoComplete.prototype = {
   stopSearch: function PAC_stopSearch()
   {
     // We need to cancel our searches so we do not get any [more] results.
-    this._stopActiveQuery();
+    // However, it's possible we haven't actually started any searches, so this
+    // method may throw because this._pendingQuery may be undefined.
+    if (this._pendingQuery)
+      this._stopActiveQuery();
 
     this._finishSearch(false);
   },
@@ -500,8 +490,11 @@ nsPlacesAutoComplete.prototype = {
     if (this._matchBehavior == MATCH_BOUNDARY_ANYWHERE &&
         this._result.matchCount < this._maxRichResults && !this._secondPass) {
       this._secondPass = true;
-      let query = this._getBoundSearchQuery(MATCH_ANYWHERE, this._searchTokens);
-      this._executeQueries([query]);
+      let queries = [
+        this._getBoundAdaptiveQuery(MATCH_ANYWHERE),
+        this._getBoundSearchQuery(MATCH_ANYWHERE, this._searchTokens),
+      ];
+      this._executeQueries(queries);
       return;
     }
 
@@ -513,15 +506,12 @@ nsPlacesAutoComplete.prototype = {
 
   observe: function PAC_observe(aSubject, aTopic, aData)
   {
-    if (aTopic == kQuitApplication) {
-      this._os.removeObserver(this, kQuitApplication);
+    if (aTopic == kXPComShutdown) {
+      this._os.removeObserver(this, kXPComShutdown);
 
       // Remove our preference observer.
-      let prefs = Cc["@mozilla.org/preferences-service;1"].
-                  getService(Ci.nsIPrefService).
-                  getBranch(kBrowserUrlbarBranch).
-                  QueryInterface(Ci.nsIPrefBranch2);
-      prefs.removeObserver("", this);
+      this._prefs.QueryInterface(Ci.nsIPrefBranch2).removeObserver("", this);
+      delete this._prefs;
 
       // Finalize the statements that we have used.
       let stmts = [
@@ -662,9 +652,7 @@ nsPlacesAutoComplete.prototype = {
    */
   _loadPrefs: function PAC_loadPrefs(aRegisterObserver)
   {
-    let prefs = Cc["@mozilla.org/preferences-service;1"].
-                getService(Ci.nsIPrefService).
-                getBranch(kBrowserUrlbarBranch);
+    let self = this;
     function safeGetter(aName, aDefault) {
       let types = {
         boolean: "Bool",
@@ -677,7 +665,7 @@ nsPlacesAutoComplete.prototype = {
 
       // If the pref isn't set, we want to use the default.
       try {
-        return prefs["get" + type + "Pref"](aName);
+        return self._prefs["get" + type + "Pref"](aName);
       }
       catch (e) {
         return aDefault;
@@ -691,10 +679,14 @@ nsPlacesAutoComplete.prototype = {
     this._restrictHistoryToken = safeGetter("restrict.history", "^");
     this._restrictBookmarkToken = safeGetter("restrict.bookmark", "*");
     this._restrictTypedToken = safeGetter("restrict.typed", "~");
-    this._restrictTagToken = safeGetter("restrct.tag", "+");
+    this._restrictTagToken = safeGetter("restrict.tag", "+");
     this._matchTitleToken = safeGetter("match.title", "#");
     this._matchURLToken = safeGetter("match.url", "@");
     this._defaultBehavior = safeGetter("default.behavior", 0);
+    // Further restrictions to apply for "empty searches" (i.e. searches for "").
+    // By default we use (HISTORY | TYPED) = 33.
+    this._emptySearchDefaultBehavior = this._defaultBehavior |
+                                       safeGetter("default.behavior.emptyRestriction", 33);
 
     // Validate matchBehavior; default to MATCH_BOUNDARY_ANYWHERE.
     if (this._matchBehavior != MATCH_ANYWHERE &&
@@ -704,7 +696,7 @@ nsPlacesAutoComplete.prototype = {
 
     // register observer
     if (aRegisterObserver) {
-      let pb = prefs.QueryInterface(Ci.nsIPrefBranch2);
+      let pb = this._prefs.QueryInterface(Ci.nsIPrefBranch2);
       pb.addObserver("", this, false);
     }
   },
@@ -821,7 +813,10 @@ nsPlacesAutoComplete.prototype = {
     // The keyword is the first word in the search string, with the parameters
     // following it.
     let searchString = this._originalSearchString;
-    let queryString = searchString.substring(searchString.indexOf(" ") + 1);
+    let queryString = "";
+    let queryIndex = searchString.indexOf(" ");
+    if (queryIndex != -1)
+      queryString = searchString.substring(queryIndex + 1);
 
     // We need to escape the parameters as if they were the query in a URL
     queryString = encodeURIComponent(queryString).replace("%20", "+", "g");
@@ -844,13 +839,19 @@ nsPlacesAutoComplete.prototype = {
    *
    * @return the bound adaptive query.
    */
-  _getBoundAdaptiveQuery: function PAC_getBoundAdaptiveQuery()
+  _getBoundAdaptiveQuery: function PAC_getBoundAdaptiveQuery(aMatchBehavior)
   {
+    // If we were not given a match behavior, use the stored match behavior.
+    if (arguments.length == 0)
+      aMatchBehavior = this._matchBehavior;
+
     let query = this._adaptiveQuery;
     let (params = query.params) {
       params.parent = this._bs.tagsFolder;
       params.search_string = this._currentSearchString;
       params.query_type = kQueryTypeFiltered;
+      params.matchBehavior = aMatchBehavior;
+      params.searchBehavior = this._behavior;
     }
 
     return query;
@@ -915,7 +916,8 @@ nsPlacesAutoComplete.prototype = {
     // the result does not fall into any of those, it just gets the favicon.
     if (!style) {
       // It is possible that we already have a style set (from a keyword
-      // search), so only set it if we haven't already done so.
+      // search or because of the user's preferences), so only set it if we
+      // haven't already done so.
       if (showTags)
         style = "tag";
       else if (entryParentId)

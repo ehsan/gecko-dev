@@ -54,6 +54,9 @@ class nsNPAPIPluginStreamListener : public nsIPluginStreamListener,
                                  public nsITimerCallback,
                                  public nsIHTTPHeaderListener
 {
+private:
+  typedef mozilla::PluginLibrary PluginLibrary;
+
 public:
   NS_DECL_ISUPPORTS
   NS_DECL_NSIPLUGINSTREAMLISTENER
@@ -86,7 +89,7 @@ protected:
   NPStream mNPStream;
   PRUint32 mStreamBufferSize;
   PRInt32 mStreamBufferByteCount;
-  nsPluginStreamType mStreamType;
+  PRInt32 mStreamType;
   PRPackedBool mStreamStarted;
   PRPackedBool mStreamCleanedUp;
   PRPackedBool mCallNotify;

@@ -41,8 +41,6 @@
 #include "nsDocument.h"
 #include "nsIDOMXMLDocument.h"
 #include "nsIScriptContext.h"
-#include "nsHTMLStyleSheet.h"
-#include "nsIHTMLCSSStyleSheet.h"
 
 class nsIParser;
 class nsIDOMNode;
@@ -85,7 +83,6 @@ protected:
   // mChannel is also cancelled.  Note that if this member is true, mChannel
   // cannot be null.
   PRPackedBool mChannelIsPending;
-  PRPackedBool mLoadedAsInteractiveData;
   PRPackedBool mAsync;
   PRPackedBool mLoopingForSyncLoad;
 };

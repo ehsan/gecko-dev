@@ -53,6 +53,8 @@ NS_NewViewportFrame(nsIPresShell* aPresShell, nsStyleContext* aContext)
   return new (aPresShell) ViewportFrame(aContext);
 }
 
+NS_IMPL_FRAMEARENA_HELPERS(ViewportFrame)
+
 NS_IMETHODIMP
 ViewportFrame::Init(nsIContent*      aContent,
                     nsIFrame*        aParent,
@@ -62,10 +64,10 @@ ViewportFrame::Init(nsIContent*      aContent,
 }
 
 void
-ViewportFrame::Destroy()
+ViewportFrame::DestroyFrom(nsIFrame* aDestructRoot)
 {
-  mFixedContainer.DestroyFrames(this);
-  nsContainerFrame::Destroy();
+  mFixedContainer.DestroyFrames(this, aDestructRoot);
+  nsContainerFrame::DestroyFrom(aDestructRoot);
 }
 
 NS_IMETHODIMP
@@ -154,7 +156,8 @@ ViewportFrame::RemoveFrame(nsIAtom*        aListName,
   nsresult rv = NS_OK;
 
   if (nsGkAtoms::fixedList == aListName) {
-    rv = mFixedContainer.RemoveFrame(this, aListName, aOldFrame);
+    mFixedContainer.RemoveFrame(this, aListName, aOldFrame);
+    rv = NS_OK;
   }
   else {
     NS_ASSERTION(!aListName, "unexpected child list");
@@ -350,7 +353,7 @@ ViewportFrame::InvalidateInternal(const nsRect& aDamageRect,
                                   PRUint32 aFlags)
 {
   nsRect r = aDamageRect + nsPoint(aX, aY);
-  PresContext()->NotifyInvalidation(r, (aFlags & INVALIDATE_CROSS_DOC) != 0);
+  PresContext()->NotifyInvalidation(r, aFlags);
 
   nsIFrame* parent = nsLayoutUtils::GetCrossDocParentFrame(this);
   if (parent) {

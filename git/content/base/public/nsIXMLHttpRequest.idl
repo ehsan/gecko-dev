@@ -102,7 +102,7 @@ interface nsIXMLHttpRequestUpload : nsIXMLHttpRequestEventTarget {
  * you're aware of all the security implications.  And then think twice about
  * it.
  */
-[scriptable, uuid(ad78bf21-2227-447e-8ed5-824a017c265f)]
+[scriptable, uuid(6bb91106-85f0-4d93-8cb4-e57b3d0624f2)]
 interface nsIXMLHttpRequest : nsISupports
 {
   /**
@@ -228,7 +228,10 @@ interface nsIXMLHttpRequest : nsISupports
    * @param password (optional) A password for authentication if necessary.
    *                 The default value is the empty string
    */
-  void   open(in AUTF8String method, in AUTF8String url);
+  [optional_argc] void open(in AUTF8String method, in AUTF8String url,
+                            [optional] in boolean async,
+                            [optional] in DOMString user,
+                            [optional] in DOMString password);
 
   /**
    * Sends the request. If the request is asynchronous, returns

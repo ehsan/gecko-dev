@@ -55,6 +55,7 @@
 #define nsIPresShell_h___
 
 #include "nsISupports.h"
+#include "nsQueryFrame.h"
 #include "nsCoord.h"
 #include "nsRect.h"
 #include "nsColor.h"
@@ -104,9 +105,30 @@ class nsDisplayListBuilder;
 typedef short SelectionType;
 typedef PRUint32 nsFrameState;
 
-#define NS_IPRESSHELL_IID \
-{ 0xfea81c36, 0xed5b, 0x41f5, \
-  { 0x89, 0x5d, 0x4c, 0x50, 0x79, 0x49, 0xad, 0x3b } }
+// Flags to pass to SetCapturingContent
+//
+// when assigning capture, ignore whether capture is allowed or not
+#define CAPTURE_IGNOREALLOWED 1
+// true if events should be targeted at the capturing content or its children
+#define CAPTURE_RETARGETTOELEMENT 2
+// true if the current capture wants drags to be prevented
+#define CAPTURE_PREVENTDRAG 4
+
+typedef struct CapturingContentInfo {
+  // capture should only be allowed during a mousedown event
+  PRPackedBool mAllowed;
+  PRPackedBool mRetargetToElement;
+  PRPackedBool mPreventDrag;
+  nsIContent* mContent;
+
+  CapturingContentInfo() :
+    mAllowed(PR_FALSE), mRetargetToElement(PR_FALSE), mPreventDrag(PR_FALSE),
+    mContent(nsnull) { }
+} CapturingContentInfo;
+
+#define NS_IPRESSHELL_IID     \
+  { 0x20b82adf, 0x1f5c, 0x44f7, \
+    { 0x9b, 0x74, 0xc0, 0xa3, 0x14, 0xd8, 0xcf, 0x91 } }
 
 // Constants for ScrollContentIntoView() function
 #define NS_PRESSHELL_SCROLL_TOP      0
@@ -127,6 +149,14 @@ typedef PRUint32 nsFrameState;
 #define VERIFY_REFLOW_DURING_RESIZE_REFLOW  0x40
 
 #undef NOISY_INTERRUPTIBLE_REFLOW
+
+enum nsRectVisibility { 
+  nsRectVisibility_kVisible, 
+  nsRectVisibility_kAboveViewport, 
+  nsRectVisibility_kBelowViewport, 
+  nsRectVisibility_kLeftOfViewport, 
+  nsRectVisibility_kRightOfViewport
+}; 
 
 /**
  * Presentation shell interface. Presentation shells are the
@@ -169,11 +199,20 @@ public:
   
   PRBool IsDestroying() { return mIsDestroying; }
 
-  // All frames owned by the shell are allocated from an arena.  They are also recycled
-  // using free lists (separate free lists being maintained for each size_t).
-  // Methods for recycling frames.
-  virtual void* AllocateFrame(size_t aSize) = 0;
-  virtual void  FreeFrame(size_t aSize, void* aFreeChunk) = 0;
+  // All frames owned by the shell are allocated from an arena.  They
+  // are also recycled using free lists.  Separate free lists are
+  // maintained for each frame type (aCode), which must always
+  // correspond to the same aSize value. AllocateFrame clears the
+  // memory that it returns.
+  virtual void* AllocateFrame(nsQueryFrame::FrameIID aCode, size_t aSize) = 0;
+  virtual void  FreeFrame(nsQueryFrame::FrameIID aCode, void* aChunk) = 0;
+
+  // Objects closely related to the frame tree, but that are not
+  // actual frames (subclasses of nsFrame) are also allocated from the
+  // arena, and recycled via a separate set of per-size free lists.
+  // AllocateMisc does *not* clear the memory that it returns.
+  virtual void* AllocateMisc(size_t aSize) = 0;
+  virtual void  FreeMisc(size_t aSize, void* aChunk) = 0;
 
   /**
    * Stack memory allocation:
@@ -194,7 +233,7 @@ public:
   virtual void PopStackMemory() = 0;
   virtual void* AllocateStackMemory(size_t aSize) = 0;
   
-  nsIDocument* GetDocument() { return mDocument; }
+  nsIDocument* GetDocument() const { return mDocument; }
 
   nsPresContext* GetPresContext() { return mPresContext; }
 
@@ -317,26 +356,17 @@ public:
    */
   nsIScrollableFrame* GetRootScrollFrameAsScrollable() const;
 
+  /*
+   * The same as GetRootScrollFrame, but returns an nsIScrollableFrame.
+   * Can be called by code not linked into gklayout.
+   */
+  virtual nsIScrollableFrame* GetRootScrollFrameAsScrollableExternal() const;
+
   /**
    * Returns the page sequence frame associated with the frame hierarchy.
    * Returns NULL if not a paginated view.
    */
   NS_IMETHOD GetPageSequenceFrame(nsIPageSequenceFrame** aResult) const = 0;
-
-  /**
-   * Gets the primary frame associated with the content object. This is a
-   * helper function that just forwards the request to the frame manager.
-   *
-   * The primary frame is the frame that is most closely associated with the
-   * content. A frame is more closely associated with the content that another
-   * frame if the one frame contains directly or indirectly the other frame (e.g.,
-   * when a frame is scrolled there is a scroll frame that contains the frame
-   * being scrolled). The primary frame is always the first-in-flow.
-   *
-   * In the case of absolutely positioned elements and floated elements,
-   * the primary frame is the placeholder frame.
-   */
-  virtual NS_HIDDEN_(nsIFrame*) GetPrimaryFrameFor(nsIContent* aContent) const = 0;
 
   /**
    * Gets the real primary frame associated with the content object.
@@ -392,6 +422,7 @@ public:
   NS_IMETHOD RecreateFramesFor(nsIContent* aContent) = 0;
 
   void PostRecreateFramesFor(nsIContent* aContent);
+  void RestyleForAnimation(nsIContent* aContent);
   
   /**
    * Determine if it is safe to flush all pending notifications
@@ -449,7 +480,7 @@ public:
 
   /**
    * Scrolls the view of the document so that the primary frame of the content
-   * is displayed at the top of the window. Layout is flushed before scrolling.
+   * is displayed in the window. Layout is flushed before scrolling.
    *
    * @param aContent  The content object of which primary frame should be
    *                  scrolled into view.
@@ -479,6 +510,50 @@ public:
   NS_IMETHOD ScrollContentIntoView(nsIContent* aContent,
                                    PRIntn      aVPercent,
                                    PRIntn      aHPercent) = 0;
+
+  enum {
+    SCROLL_FIRST_ANCESTOR_ONLY = 0x01,
+    SCROLL_OVERFLOW_HIDDEN = 0x02
+  };
+  /**
+   * Scrolls the view of the document so that the given area of a frame
+   * is visible, if possible. Layout is not flushed before scrolling.
+   * 
+   * @param aRect relative to aFrame
+   * @param aVPercent see ScrollContentIntoView
+   * @param aHPercent see ScrollContentIntoView
+   * @param aFlags if SCROLL_FIRST_ANCESTOR_ONLY is set, only the
+   * nearest scrollable ancestor is scrolled, otherwise all
+   * scrollable ancestors may be scrolled if necessary
+   * if SCROLL_OVERFLOW_HIDDEN is set then we may scroll in a direction
+   * even if overflow:hidden is specified in that direction; otherwise
+   * we will not scroll in that direction when overflow:hidden is
+   * set for that direction
+   * @return true if any scrolling happened, false if no scrolling happened
+   */
+  virtual PRBool ScrollFrameRectIntoView(nsIFrame*     aFrame,
+                                         const nsRect& aRect,
+                                         PRIntn        aVPercent,
+                                         PRIntn        aHPercent,
+                                         PRUint32      aFlags) = 0;
+
+  /**
+   * Determine if a rectangle specified in the frame's coordinate system 
+   * intersects the viewport "enough" to be considered visible.
+   * @param aFrame frame that aRect coordinates are specified relative to
+   * @param aRect rectangle in twips to test for visibility 
+   * @param aMinTwips is the minimum distance in from the edge of the viewport
+   *                  that an object must be to be counted visible
+   * @return nsRectVisibility_kVisible if the rect is visible
+   *         nsRectVisibility_kAboveViewport
+   *         nsRectVisibility_kBelowViewport 
+   *         nsRectVisibility_kLeftOfViewport 
+   *         nsRectVisibility_kRightOfViewport rectangle is outside the viewport
+   *         in the specified direction 
+   */
+  virtual nsRectVisibility GetRectVisibility(nsIFrame *aFrame,
+                                             const nsRect &aRect, 
+                                             nscoord aMinTwips) = 0;
 
   /**
    * Suppress notification of the frame manager that frames are
@@ -793,8 +868,29 @@ public:
                                                         nsIntPoint& aPoint,
                                                         nsIntRect* aScreenRect) = 0;
 
-  void AddWeakFrame(nsWeakFrame* aWeakFrame);
-  void RemoveWeakFrame(nsWeakFrame* aWeakFrame);
+  void AddWeakFrameInternal(nsWeakFrame* aWeakFrame);
+  virtual void AddWeakFrameExternal(nsWeakFrame* aWeakFrame);
+
+  void AddWeakFrame(nsWeakFrame* aWeakFrame)
+  {
+#ifdef _IMPL_NS_LAYOUT
+    AddWeakFrameInternal(aWeakFrame);
+#else
+    AddWeakFrameExternal(aWeakFrame);
+#endif
+  }
+
+  void RemoveWeakFrameInternal(nsWeakFrame* aWeakFrame);
+  virtual void RemoveWeakFrameExternal(nsWeakFrame* aWeakFrame);
+
+  void RemoveWeakFrame(nsWeakFrame* aWeakFrame)
+  {
+#ifdef _IMPL_NS_LAYOUT
+    RemoveWeakFrameInternal(aWeakFrame);
+#else
+    RemoveWeakFrameExternal(aWeakFrame);
+#endif
+  }
 
 #ifdef NS_DEBUG
   nsIFrame* GetDrawEventTargetFrame() { return mDrawEventTargetFrame; }
@@ -828,15 +924,17 @@ public:
   /**
    * Add a solid color item to the bottom of aList with frame aFrame and
    * bounds aBounds. Checks first if this needs to be done by checking if
-   * aFrame is a canvas frame. If aBounds is null (the default) then the
-   * bounds will be derived from the frame. aBackstopColor is composed behind
-   * the background color of the canvas, it is transparent by default.
+   * aFrame is a canvas frame (if aForceDraw is true then this check is
+   * skipped). If aBounds is null (the default) then the bounds will be derived
+   * from the frame. aBackstopColor is composed behind the background color of
+   * the canvas, it is transparent by default.
    */
   virtual nsresult AddCanvasBackgroundColorItem(nsDisplayListBuilder& aBuilder,
                                                 nsDisplayList& aList,
                                                 nsIFrame* aFrame,
                                                 nsRect* aBounds = nsnull,
-                                                nscolor aBackstopColor = NS_RGBA(0,0,0,0)) = 0;
+                                                nscolor aBackstopColor = NS_RGBA(0,0,0,0),
+                                                PRBool aForceDraw = PR_FALSE) = 0;
 
   void ObserveNativeAnonMutationsForPrint(PRBool aObserve)
   {
@@ -845,6 +943,54 @@ public:
   PRBool ObservesNativeAnonMutationsForPrint()
   {
     return mObservesMutationsForPrint;
+  }
+
+  // mouse capturing
+
+  static CapturingContentInfo gCaptureInfo;
+
+  /**
+   * When capturing content is set, it traps all mouse events and retargets
+   * them at this content node. If capturing is not allowed
+   * (gCaptureInfo.mAllowed is false), then capturing is not set. However, if
+   * the CAPTURE_IGNOREALLOWED flag is set, the allowed state is ignored and
+   * capturing is set regardless. To disable capture, pass null for the value
+   * of aContent.
+   *
+   * If CAPTURE_RETARGETTOELEMENT is set, all mouse events are targeted at
+   * aContent only. Otherwise, mouse events are targeted at aContent or its
+   * descendants. That is, descendants of aContent receive mouse events as
+   * they normally would, but mouse events outside of aContent are retargeted
+   * to aContent.
+   *
+   * If CAPTURE_PREVENTDRAG is set then drags are prevented from starting while
+   * this capture is active.
+   */
+  static void SetCapturingContent(nsIContent* aContent, PRUint8 aFlags);
+
+  /**
+   * Return the active content currently capturing the mouse if any.
+   */
+  static nsIContent* GetCapturingContent()
+  {
+    return gCaptureInfo.mContent;
+  }
+
+  /**
+   * Allow or disallow mouse capturing.
+   */
+  static void AllowMouseCapture(PRBool aAllowed)
+  {
+    gCaptureInfo.mAllowed = aAllowed;
+  }
+
+  /**
+   * Returns true if there is an active mouse capture that wants to prevent
+   * drags.
+   */
+  static PRBool IsMouseCapturePreventingDrag()
+  {
+    return gCaptureInfo.mPreventDrag && gCaptureInfo.mContent;
   }
 
 protected:
@@ -857,7 +1003,7 @@ protected:
   nsIDocument*              mDocument;      // [STRONG]
   nsPresContext*            mPresContext;   // [STRONG]
   nsStyleSet*               mStyleSet;      // [OWNS]
-  nsCSSFrameConstructor*    mFrameConstructor; // [OWNS]
+  nsCSSFrameConstructor*    mFrameConstructor; // [STRONG]
   nsIViewManager*           mViewManager;   // [WEAK] docViewer owns it so I don't have to
   nsFrameSelection*         mSelection;
   nsFrameManagerBase        mFrameManager;  // [OWNS]

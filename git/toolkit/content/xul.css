@@ -19,7 +19,14 @@
 
 :root {
   text-rendering: optimizeLegibility;
+  -moz-binding: url("chrome://global/content/bindings/general.xml#root-element");
 }
+
+%ifdef XP_MACOSX
+:root[drawintitlebar="true"] {
+  padding-top: 22px;
+}
+%endif
 
 :root:-moz-locale-dir(rtl) {
   direction: rtl;
@@ -134,6 +141,14 @@ button[type="menu"], button[type="panel"] {
 button[type="menu-button"] {
   -moz-binding: url("chrome://global/content/bindings/button.xml#menu-button");
 }
+
+%ifdef MOZ_WIDGET_GTK2
+/********* detection of system setting to use icons in buttons ***********/
+button[label]:not([label=""]) > .button-box > .button-icon:not(:-moz-system-metric(images-in-buttons)),
+button[label]:not([label=""]) > .button-box > .box-inherit > .button-icon:not(:-moz-system-metric(images-in-buttons)) {
+  display: none;
+}
+%endif
 
 /********** toolbarbutton **********/
 
@@ -251,8 +266,7 @@ toolbar[type="menubar"][autohide="true"] {
   overflow: hidden;
 }
 
-toolbar[type="menubar"][autohide="true"]:not([customizable="true"])[inactive="true"],
-toolbox:not([customizing="true"]) > toolbar[type="menubar"][autohide="true"][customizable="true"][inactive="true"]:not([customized="true"]) {
+toolbar[type="menubar"][autohide="true"][inactive="true"] {
   min-height: 0 !important;
   height: 0 !important;
   -moz-appearance: none !important;
@@ -988,7 +1002,8 @@ stringbundle {
 
 /********** dialog **********/
 
-dialog {
+dialog,
+dialog:root /* override :root from above */ {
   -moz-binding: url("chrome://global/content/bindings/dialog.xml#dialog");
   -moz-box-orient: vertical;
 }
@@ -1005,7 +1020,8 @@ page {
 
 /********** wizard **********/
 
-wizard {
+wizard,
+wizard:root /* override :root from above */ {
   -moz-binding: url("chrome://global/content/bindings/wizard.xml#wizard");
   -moz-box-orient: vertical;
   width: 40em;
@@ -1028,7 +1044,8 @@ wizardpage {
 
 /********** preferences ********/
 
-prefwindow {
+prefwindow,
+prefwindow:root /* override :root from above */ {
   -moz-binding: url("chrome://global/content/bindings/preferences.xml#prefwindow");  
   -moz-box-orient: vertical;
 }

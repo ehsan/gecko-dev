@@ -82,6 +82,7 @@ PWD := $(CURDIR)
 # work in that case.
 ZIP_IN ?= $(_ABS_DIST)/$(PACKAGE)
 WIN32_INSTALLER_IN ?= $(_ABS_DIST)/$(PKG_INST_PATH)$(PKG_INST_BASENAME).exe
+RETRIEVE_WINDOWS_INSTALLER = 1
 
 MOZ_LANGPACK_EID=langpack-$(AB_CD)@firefox.mozilla.org
 
@@ -91,6 +92,20 @@ endif
 
 PREF_JS_EXPORTS = $(firstword $(wildcard $(LOCALE_SRCDIR)/firefox-l10n.js) \
                        $(srcdir)/en-US/firefox-l10n.js )
+
+ifneq (,$(filter cocoa,$(MOZ_WIDGET_TOOLKIT)))
+MOZ_PKG_MAC_DSSTORE=$(_ABS_DIST)/branding/dsstore
+MOZ_PKG_MAC_BACKGROUND=$(_ABS_DIST)/branding/background.png
+MOZ_PKG_MAC_ICON=$(_ABS_DIST)/branding/disk.icns
+MOZ_PKG_MAC_EXTRA=--symlink "/Applications:/ "
+endif
+
+ifeq (WINNT,$(OS_ARCH))
+UNINSTALLER_PACKAGE_HOOK = $(RM) -r $(STAGEDIST)/uninstall; \
+    $(NSINSTALL) -D $(STAGEDIST)/uninstall; \
+    cp ../installer/windows/l10ngen/helper.exe $(STAGEDIST)/uninstall; \
+    $(NULL)
+endif
 
 include $(topsrcdir)/config/rules.mk
 
@@ -185,13 +200,6 @@ libs-%:
 	@$(MAKE) -C $(DEPTH)/$(MOZ_BRANDING_DIRECTORY)/locales AB_CD=$* XPI_NAME=locale-$* BOTH_MANIFESTS=1
 	@$(MAKE) tests AB_CD=$*
 
-ifneq (,$(filter mac cocoa,$(MOZ_WIDGET_TOOLKIT)))
-MOZ_PKG_MAC_DSSTORE=$(_ABS_DIST)/branding/dsstore
-MOZ_PKG_MAC_BACKGROUND=$(_ABS_DIST)/branding/background.png
-MOZ_PKG_MAC_ICON=$(_ABS_DIST)/branding/disk.icns
-MOZ_PKG_MAC_EXTRA=--symlink "/Applications:/ "
-endif
-
 
 repackage-win32-installer: WIN32_INSTALLER_OUT="$(_ABS_DIST)/$(PKG_INST_PATH)$(PKG_INST_BASENAME).exe"
 repackage-win32-installer: $(WIN32_INSTALLER_IN) $(SUBMAKEFILES)
@@ -228,7 +236,7 @@ else
 repackage-win32-installer-%: ;
 endif
 
-ifneq (,$(filter mac cocoa,$(MOZ_WIDGET_TOOLKIT)))
+ifneq (,$(filter cocoa,$(MOZ_WIDGET_TOOLKIT)))
 STAGEDIST = $(_ABS_DIST)/l10n-stage/$(MOZ_PKG_APPNAME)/$(_APPNAME)/Contents/MacOS
 else
 STAGEDIST = $(_ABS_DIST)/l10n-stage/$(MOZ_PKG_DIR)
@@ -334,7 +342,7 @@ l10n-upload-%:
 ifdef MOZ_MAKE_COMPLETE_MAR
 	$(PYTHON) $(topsrcdir)/build/upload.py --base-path $(DIST) $(DIST)/$(COMPLETE_MAR)
 endif
-ifeq (WINNT, $(OS_ARCH))
+ifneq (,$(filter WINNT WINCE,$(OS_ARCH)))
 	$(PYTHON) $(topsrcdir)/build/upload.py --base-path $(DIST) "$(INSTALLER_PACKAGE)"
 endif
 

@@ -29,6 +29,7 @@
 
 #include "prtypes.h"
 #include "nsIAtom.h"
+#include "nsHtml5AtomTable.h"
 #include "nsString.h"
 #include "nsINameSpaceManager.h"
 #include "nsIContent.h"
@@ -40,6 +41,8 @@
 #include "nsHtml5NamedCharacters.h"
 #include "nsHtml5Atoms.h"
 #include "nsHtml5ByteReadable.h"
+#include "nsIUnicodeDecoder.h"
+#include "nsAHtml5TreeBuilderState.h"
 
 #include "nsHtml5Tokenizer.h"
 #include "nsHtml5TreeBuilder.h"
@@ -95,17 +98,17 @@ nsHtml5AttributeName::SAME_LOCAL(nsIAtom* name)
 }
 
 nsHtml5AttributeName* 
-nsHtml5AttributeName::nameByBuffer(PRUnichar* buf, PRInt32 offset, PRInt32 length)
+nsHtml5AttributeName::nameByBuffer(PRUnichar* buf, PRInt32 offset, PRInt32 length, nsHtml5AtomTable* interner)
 {
   PRInt32 hash = nsHtml5AttributeName::bufToHash(buf, length);
   PRInt32 index = nsHtml5AttributeName::ATTRIBUTE_HASHES.binarySearch(hash);
   if (index < 0) {
-    return nsHtml5AttributeName::createAttributeName(nsHtml5Portability::newLocalNameFromBuffer(buf, offset, length));
+    return nsHtml5AttributeName::createAttributeName(nsHtml5Portability::newLocalNameFromBuffer(buf, offset, length, interner));
   } else {
     nsHtml5AttributeName* attributeName = nsHtml5AttributeName::ATTRIBUTE_NAMES[index];
     nsIAtom* name = attributeName->getLocal(NS_HTML5ATTRIBUTE_NAME_HTML);
     if (!nsHtml5Portability::localEqualsBuffer(name, buf, offset, length)) {
-      return nsHtml5AttributeName::createAttributeName(nsHtml5Portability::newLocalNameFromBuffer(buf, offset, length));
+      return nsHtml5AttributeName::createAttributeName(nsHtml5Portability::newLocalNameFromBuffer(buf, offset, length, interner));
     }
     return attributeName;
   }
@@ -155,6 +158,12 @@ nsHtml5AttributeName::~nsHtml5AttributeName()
   MOZ_COUNT_DTOR(nsHtml5AttributeName);
   nsHtml5Portability::releaseLocal(local[0]);
   delete[] local;
+}
+
+nsHtml5AttributeName* 
+nsHtml5AttributeName::cloneAttributeName(nsHtml5AtomTable* interner)
+{
+  return this;
 }
 
 PRInt32 

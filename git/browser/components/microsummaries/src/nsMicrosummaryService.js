@@ -69,8 +69,18 @@ const MAX_SUMMARY_LENGTH = 4096;
 
 Cu.import("resource://gre/modules/XPCOMUtils.jsm");
 
+__defineGetter__("NetUtil", function() {
+  delete this.NetUtil;
+  Cu.import("resource://gre/modules/NetUtil.jsm");
+  return NetUtil;
+});
+
+XPCOMUtils.defineLazyServiceGetter(this, "gObsSvc",
+                                   "@mozilla.org/observer-service;1",
+                                   "nsIObserverService");
+
 function MicrosummaryService() {
-  this._obs.addObserver(this, "xpcom-shutdown", true);
+  gObsSvc.addObserver(this, "xpcom-shutdown", true);
   this._ans.addObserver(this, false);
 
   Cc["@mozilla.org/preferences-service;1"].
@@ -98,32 +108,6 @@ MicrosummaryService.prototype = {
               getService(Ci.nsIAnnotationService);
     this.__defineGetter__("_ans", function() svc);
     return this._ans;
-  },
- 
-  // IO Service
-  get _ios() {
-    var svc = Cc["@mozilla.org/network/io-service;1"].
-              getService(Ci.nsIIOService);
-    this.__defineGetter__("_ios", function() svc);
-    return this._ios;
-  },
-
-  // Observer Service
-  get _obs() {
-    var svc = Cc["@mozilla.org/observer-service;1"].
-              getService(Ci.nsIObserverService);
-    this.__defineGetter__("_obs", function() svc);
-    return this._obs;
-  },
-
-  /**
-   * Make a URI from a spec.
-   * @param   spec
-   *          The string spec of the URI.
-   * @returns An nsIURI object.
-   */
-  _uri: function MSS__uri(spec) {
-    return this._ios.newURI(spec, null, null);
   },
 
   // Directory Locator
@@ -154,7 +138,13 @@ MicrosummaryService.prototype = {
   classDescription: "Microsummary Service",
   contractID: "@mozilla.org/microsummary/service;1",
   classID: Components.ID("{460a9792-b154-4f26-a922-0f653e2c8f91}"),
+  _xpcom_categories: [{ category: "update-timer",
+                        value: "@mozilla.org/microsummary/service;1," +
+                               "getService,microsummary-generator-update-timer," +
+                               "browser.microsummary.generatorUpdateInterval," +
+                               GENERATOR_INTERVAL }],
   QueryInterface: XPCOMUtils.generateQI([Ci.nsIMicrosummaryService, 
+                                         Ci.nsITimerCallback,
                                          Ci.nsISupportsWeakReference,
                                          Ci.nsIAnnotationObserver,
                                          Ci.nsIObserver]),
@@ -170,6 +160,11 @@ MicrosummaryService.prototype = {
           this._initTimers();
         break;
     }
+  },
+
+  // cross-session timer used to periodically check for generator updates.
+  notify: function MSS_notify(timer) {
+    this._updateGenerators();
   },
 
   _initTimers: function MSS__initTimers() {
@@ -188,22 +183,10 @@ MicrosummaryService.prototype = {
     this._timer.initWithCallback(callback,
                                  CHECK_INTERVAL,
                                  this._timer.TYPE_REPEATING_SLACK);
-
-    // Setup a cross-session timer to periodically check for generator updates.
-    var updateManager = Cc["@mozilla.org/updates/timer-manager;1"].
-                        getService(Ci.nsIUpdateTimerManager);
-    var interval = getPref("browser.microsummary.generatorUpdateInterval",
-                           GENERATOR_INTERVAL);
-    var updateCallback = {
-      _svc: this,
-      notify: function(timer) { this._svc._updateGenerators() }
-    };
-    updateManager.registerTimer("microsummary-generator-update-timer",
-                                updateCallback, interval);
   },
   
   _destroy: function MSS__destroy() {
-    this._obs.removeObserver(this, "xpcom-shutdown", true);
+    gObsSvc.removeObserver(this, "xpcom-shutdown", true);
     this._ans.removeObserver(this);
     this._timer.cancel();
     this._timer = null;
@@ -264,7 +247,7 @@ MicrosummaryService.prototype = {
       LOG("updated live title for " + bookmarkIdentity +
           " from '" + (title == null ? "<no live title>" : title) +
           "' to '" + microsummary.content + "'");
-      this._obs.notifyObservers(subject, "microsummary-livetitle-updated", title);
+      gObsSvc.notifyObservers(subject, "microsummary-livetitle-updated", title);
     }
     else {
       LOG("didn't update live title for " + bookmarkIdentity + "; it hasn't changed");
@@ -283,15 +266,10 @@ MicrosummaryService.prototype = {
    * 
    */
   _cacheLocalGenerators: function MSS__cacheLocalGenerators() {
-    // Load generators from the application directory.
-    var appDir = this._dirs.get("MicsumGens", Ci.nsIFile);
-    if (appDir.exists())
-      this._cacheLocalGeneratorDir(appDir);
-
     // Load generators from the user's profile.
-    var profileDir = this._dirs.get("UsrMicsumGens", Ci.nsIFile);
-    if (profileDir.exists())
-      this._cacheLocalGeneratorDir(profileDir);
+    var msDir = this._dirs.get("UsrMicsumGens", Ci.nsIFile);
+    if (msDir.exists())
+      this._cacheLocalGeneratorDir(msDir);
   },
 
   /**
@@ -326,7 +304,7 @@ MicrosummaryService.prototype = {
    * 
    */
   _cacheLocalGeneratorFile: function MSS__cacheLocalGeneratorFile(file) {
-    var uri = this._ios.newFileURI(file);
+    var uri = NetUtil.ioService.newFileURI(file);
 
     var t = this;
     var callback =
@@ -434,7 +412,8 @@ MicrosummaryService.prototype = {
       var file = this._dirs.get("UsrMicsumGens", Ci.nsIFile);
       file.append(fileName);
       file.createUnique(Ci.nsIFile.NORMAL_FILE_TYPE, PERMS_FILE);
-      generator = new MicrosummaryGenerator(null, this._ios.newFileURI(file));
+      generator = new MicrosummaryGenerator(null,
+                                            NetUtil.ioService.newFileURI(file));
       this._localGenerators[generatorID] = generator;
     }
  
@@ -445,7 +424,7 @@ MicrosummaryService.prototype = {
 
     LOG("installed generator " + generatorID);
 
-    this._obs.notifyObservers(generator, topic, null);
+    gObsSvc.notifyObservers(generator, topic, null);
 
     return generator;
   },
@@ -568,7 +547,7 @@ MicrosummaryService.prototype = {
    *
    */
   get _bookmarks() {
-    var bookmarks = this._ans.getItemsWithAnnotation(ANNO_MICSUM_GEN_URI, {});
+    var bookmarks = this._ans.getItemsWithAnnotation(ANNO_MICSUM_GEN_URI);
     this.__defineGetter__("_bookmarks", function() bookmarks);
     return this._bookmarks;
   },
@@ -610,8 +589,8 @@ MicrosummaryService.prototype = {
       return null;
 
     var pageURI = this._bms.getBookmarkURI(bookmarkID);
-    var generatorURI = this._uri(this._ans.getItemAnnotation(bookmarkID,
-                                                             ANNO_MICSUM_GEN_URI));
+    var generatorURI = NetUtil.newURI(this._ans.getItemAnnotation(bookmarkID,
+                                                                  ANNO_MICSUM_GEN_URI));
     var generator = this.getGenerator(generatorURI);
 
     return new Microsummary(pageURI, generator);
@@ -742,8 +721,8 @@ MicrosummaryService.prototype = {
     var pageURI = this._bms.getBookmarkURI(bookmarkID);
     if (!pageURI)
       throw("can't get URL for bookmark with ID " + bookmarkID);
-    var generatorURI = this._uri(this._ans.getItemAnnotation(bookmarkID,
-                                                             ANNO_MICSUM_GEN_URI));
+    var generatorURI = NetUtil.newURI(this._ans.getItemAnnotation(bookmarkID,
+                                                                  ANNO_MICSUM_GEN_URI));
 
     var generator = this._localGenerators[generatorURI.spec] ||
                     new MicrosummaryGenerator(generatorURI);
@@ -839,25 +818,6 @@ Microsummary.prototype = {
       this.__mss = Cc["@mozilla.org/microsummary/service;1"].
                    getService(Ci.nsIMicrosummaryService);
     return this.__mss;
-  },
-
-  // IO Service
-  __ios: null,
-  get _ios() {
-    if (!this.__ios)
-      this.__ios = Cc["@mozilla.org/network/io-service;1"].
-                   getService(Ci.nsIIOService);
-    return this.__ios;
-  },
-
-  /**
-   * Make a URI from a spec.
-   * @param   spec
-   *          The string spec of the URI.
-   * @returns An nsIURI object.
-   */
-  _uri: function MSS__uri(spec) {
-    return this._ios.newURI(spec, null, null);
   },
 
   // nsISupports
@@ -1062,7 +1022,7 @@ Microsummary.prototype = {
     try {
       // Extract the URI from which the generator was originally installed.
       var sourceURL = this.generator.uri.path.replace(/^source:/, "");
-      var sourceURI = this._uri(sourceURL);
+      var sourceURI = NetUtil.newURI(sourceURL);
 
       var resource = new MicrosummaryResource(sourceURI);
       resource.load(loadCallback, errorCallback);
@@ -1154,16 +1114,6 @@ function MicrosummaryGenerator(aURI, aLocalURI, aName) {
 }
 
 MicrosummaryGenerator.prototype = {
-
-  // IO Service
-  __ios: null,
-  get _ios() {
-    if (!this.__ios)
-      this.__ios = Cc["@mozilla.org/network/io-service;1"].
-                   getService(Ci.nsIIOService);
-    return this.__ios;
-  },
-
   // nsISupports
   QueryInterface: XPCOMUtils.generateQI([Ci.nsIMicrosummaryGenerator]),
 
@@ -1268,7 +1218,7 @@ MicrosummaryGenerator.prototype = {
     // We have to retrieve the URI from local generators via the "uri" attribute
     // of its generator tag.
     if (this.localURI && generatorNode.hasAttribute("uri"))
-      this._uri = this._ios.newURI(generatorNode.getAttribute("uri"), null, null);
+      this._uri = NetUtil.newURI(generatorNode.getAttribute("uri"), null, null);
 
     function getFirstChildByTagName(tagName, parentNode, namespace) {
       var nodeList = parentNode.getElementsByTagNameNS(namespace, tagName);
@@ -1428,7 +1378,7 @@ MicrosummaryGenerator.prototype = {
     var genURI = this.uri;
     if (genURI && /^urn:source:/i.test(genURI.spec)) {
       let genURL = genURI.spec.replace(/^urn:source:/, "");
-      genURI = this._ios.newURI(genURL, null, null);
+      genURI = NetUtil.newURI(genURL, null, null);
     }
 
     // Only continue if we have a valid remote URI
@@ -1489,9 +1439,7 @@ MicrosummaryGenerator.prototype = {
     this.saveXMLToFile(resource.content);
 
     // Let observers know we've updated this generator
-    var obs = Cc["@mozilla.org/observer-service;1"].
-              getService(Ci.nsIObserverService);
-    obs.notifyObservers(this, "microsummary-generator-updated", null);
+    gObsSvc.notifyObservers(this, "microsummary-generator-updated", null);
   }
 };
 
@@ -1510,15 +1458,6 @@ function MicrosummarySet() {
 }
 
 MicrosummarySet.prototype = {
-  // IO Service
-  __ios: null,
-  get _ios() {
-    if (!this.__ios)
-      this.__ios = Cc["@mozilla.org/network/io-service;1"].
-                   getService(Ci.nsIIOService);
-    return this.__ios;
-  },
-
   QueryInterface: XPCOMUtils.generateQI([Ci.nsIMicrosummarySet,
                                          Ci.nsIMicrosummaryObserver]),
 
@@ -1592,9 +1531,8 @@ MicrosummarySet.prototype = {
 
       // Unlike the "href" attribute, the "href" property contains
       // an absolute URI spec, so we use it here to create the URI.
-      var generatorURI = this._ios.newURI(link.href,
-                                          resource.content.characterSet,
-                                          null);
+      var generatorURI = NetUtil.newURI(link.href, resource.content.characterSet,
+                                        null);
 
       if (!/^https?$/i.test(generatorURI.scheme)) {
         LOG("can't load generator " + generatorURI.spec + " from page " +
@@ -1739,15 +1677,6 @@ function MicrosummaryResource(uri) {
 }
 
 MicrosummaryResource.prototype = {
-  // IO Service
-  __ios: null,
-  get _ios() {
-    if (!this.__ios)
-      this.__ios = Cc["@mozilla.org/network/io-service;1"].
-                   getService(Ci.nsIIOService);
-    return this.__ios;
-  },
-
   get uri() {
     return this._uri;
   },

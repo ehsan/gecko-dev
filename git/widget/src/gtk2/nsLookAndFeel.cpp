@@ -43,6 +43,12 @@
 
 #include "gtkdrawing.h"
 
+#ifdef MOZ_PLATFORM_HILDON
+#include "nsIServiceManager.h"
+#include "nsIPropertyBag2.h"
+#include "nsLiteralString.h"
+#endif
+
 #define GDK_COLOR_TO_NS_RGB(c) \
     ((nscolor) NS_RGB(c.red>>8, c.green>>8, c.blue>>8))
 
@@ -575,6 +581,35 @@ NS_IMETHODIMP nsLookAndFeel::GetMetric(const nsMetricID aID, PRInt32 & aMetric)
         aMetric = 0;
         res = NS_ERROR_NOT_IMPLEMENTED;
         break;
+    case eMetric_TouchEnabled:
+#ifdef MOZ_PLATFORM_HILDON
+        // All Hildon devices are touch-enabled
+        aMetric = 1;
+#else
+        aMetric = 0;
+        res = NS_ERROR_NOT_IMPLEMENTED;
+#endif
+        break;
+    case eMetric_MaemoClassic:
+#ifdef MOZ_PLATFORM_HILDON
+        {
+            aMetric = 0;
+            nsCOMPtr<nsIPropertyBag2> infoService(do_GetService("@mozilla.org/system-info;1"));
+            if (infoService) {
+                nsCString deviceType;
+                nsresult rv = infoService->GetPropertyAsACString(NS_LITERAL_STRING("device"),
+                                                                 deviceType);
+                if (NS_SUCCEEDED(rv)) {
+                    if (deviceType.EqualsLiteral("Nokia N8xx"))
+                        aMetric = 1;
+                }
+            }
+        }
+#else
+        aMetric = 0;
+        res = NS_ERROR_NOT_IMPLEMENTED;
+#endif
+        break;
     case eMetric_MacGraphiteTheme:
         aMetric = 0;
         res = NS_ERROR_NOT_IMPLEMENTED;
@@ -592,6 +627,9 @@ NS_IMETHODIMP nsLookAndFeel::GetMetric(const nsMetricID aID, PRInt32 & aMetric)
         break;
     case eMetric_ImagesInMenus:
         aMetric = moz_gtk_images_in_menus();
+        break;
+    case eMetric_ImagesInButtons:
+        aMetric = moz_gtk_images_in_buttons();
         break;
     default:
         aMetric = 0;

@@ -51,13 +51,7 @@ MODULE		= xpcom
 LIBRARY_NAME	= xpcomglue_s
 DIST_INSTALL	= 1
 
-REQUIRES = \
-		string \
-		$(NULL)
 
-ifdef NS_TRACE_MALLOC
-REQUIRES += tracemalloc
-endif
 
 LOCAL_INCLUDES	= \
 		-I$(srcdir)/../build \
@@ -125,16 +119,19 @@ EXPORTS_NAMESPACES = mozilla
 
 EXPORTS = \
 		nsThreadUtils.h \
+		nsTPriorityQueue.h \
 		nsProxyRelease.h \
 		nsXPTCUtils.h \
 		$(NULL)
 
 EXPORTS_mozilla = \
+  AutoRestore.h \
   BlockingResourceBase.h \
   CondVar.h \
   DeadlockDetector.h \
   Monitor.h \
   Mutex.h \
+  SSE.h \
   $(NULL)
 
 SDK_LIBRARY     =                        \

@@ -46,28 +46,9 @@ MODULE		= content
 LIBRARY_NAME	= gkconcvs_s
 LIBXUL_LIBRARY  = 1
 
-REQUIRES	= \
-		xpcom \
-		string \
-		gfx \
-		layout \
-		widget \
-		dom \
-		js \
-		locale \
-		unicharutil \
-		webshell \
-		necko \
-		pref \
-		docshell \
-		xpconnect \
-		caps \
-		imglib2 \
-		thebes \
-		view \
-		qcms \
-		$(NULL)
-
+EXPORTS = \
+	CustomQS_WebGL.h \
+	$(NULL)
 
 CPPSRCS	= \
 	CanvasUtils.cpp \
@@ -76,31 +57,50 @@ CPPSRCS	= \
 
 # Canvas 3D Pieces
 
-ifdef MOZ_ENABLE_CANVAS3D
+ifdef MOZ_WEBGL
+
+ifeq (1_1,$(MOZ_X11)_$(NS_OSSO))
+WEBGL_PLATFORM = EGL
+DEFINES += -DUSE_GLES2
+endif
+
+ifeq (1_,$(MOZ_X11)_$(NS_OSSO))
+WEBGL_PLATFORM = GLX
+EXTRA_DSO_LIBS += X11
+endif
+
+
+ifeq (windows,$(MOZ_WIDGET_TOOLKIT))
+ifdef WINCE
+WEBGL_PLATFORM = EGL
+DEFINES += -DUSE_GLES2
+else
+WEBGL_PLATFORM = WGL
+endif
+endif
+
+ifeq (cocoa,$(MOZ_WIDGET_TOOLKIT))
+WEBGL_PLATFORM = CGL
+endif
 
 CPPSRCS += \
-	nsCanvasRenderingContextGL.cpp \
-	nsCanvasRenderingContextGLWeb20.cpp \
+	WebGLContext.cpp \
+	WebGLContextGL.cpp \
+	WebGLContextUtils.cpp \
+	WebGLContextValidate.cpp \
+	NativeJSContext.cpp \
 	glwrap.cpp \
 	nsGLPbuffer.cpp \
 	nsGLPbufferOSMesa.cpp \
+	SimpleBuffer.cpp \
 	$(NULL)
 
-ifdef MOZ_X11
-EXTRA_DSO_LIBS += X11
-CPPSRCS += nsGLPbufferGLX.cpp
-DEFINES += -DUSE_GLX
-endif
+CPPSRCS += nsGLPbuffer$(WEBGL_PLATFORM).cpp
+DEFINES += -DUSE_$(WEBGL_PLATFORM)
 
-ifeq ($(MOZ_WIDGET_TOOLKIT),windows)
-CPPSRCS += nsGLPbufferWGL.cpp
-DEFINES += -DUSE_WGL
-endif
+else
 
-ifneq (,$(filter $(MOZ_WIDGET_TOOLKIT),mac cocoa))
-CPPSRCS += nsGLPbufferCGL.cpp
-DEFINES += -DUSE_CGL
-endif
+CPPSRCS += WebGLContextNotSupported.cpp
 
 endif
 

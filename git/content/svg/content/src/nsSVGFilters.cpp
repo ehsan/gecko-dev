@@ -67,6 +67,7 @@
 #include "nsIInterfaceRequestorUtils.h"
 #include "nsSVGFilterElement.h"
 #include "nsSVGString.h"
+#include "nsSVGEffects.h"
 
 #if defined(XP_WIN) 
 // Prevent Windows redefining LoadImage
@@ -131,7 +132,8 @@ nsSVGFE::ScaleInfo
 nsSVGFE::SetupScalingFilter(nsSVGFilterInstance *aInstance,
                             const Image *aSource, const Image *aTarget,
                             const nsIntRect& aDataRect,
-                            nsSVGNumber2 *aUnitX, nsSVGNumber2 *aUnitY)
+                            nsSVGNumber2 *aUnitX, nsSVGNumber2 *aUnitY,
+                            nsSVGElement *aElement)
 {
   ScaleInfo result;
   result.mRescaling = HasAttr(kNameSpaceID_None, nsGkAtoms::kernelUnitLength);
@@ -145,11 +147,11 @@ nsSVGFE::SetupScalingFilter(nsSVGFilterInstance *aInstance,
   float kernelX, kernelY;
   nsSVGLength2 val;
   val.Init(nsSVGUtils::X, 0xff,
-           aUnitX->GetAnimValue(),
+           aUnitX->GetAnimValue(aElement),
            nsIDOMSVGLength::SVG_LENGTHTYPE_NUMBER);
   kernelX = aInstance->GetPrimitiveLength(&val);
   val.Init(nsSVGUtils::Y, 0xff,
-           aUnitY->GetAnimValue(),
+           aUnitY->GetAnimValue(aElement),
            nsIDOMSVGLength::SVG_LENGTHTYPE_NUMBER);
   kernelY = aInstance->GetPrimitiveLength(&val);
 #ifdef DEBUG_tor
@@ -298,6 +300,39 @@ nsSVGFE::GetLengthInfo()
 {
   return LengthAttributesInfo(mLengthAttributes, sLengthInfo,
                               NS_ARRAY_LENGTH(sLengthInfo));
+}
+
+inline static void DidAnimateAttr(nsSVGFE *aFilterPrimitive)
+{
+  // nsSVGLeafFrame doesn't implement AttributeChanged.
+  nsIFrame* frame = aFilterPrimitive->GetPrimaryFrame();
+  if (frame) {
+    nsSVGEffects::InvalidateRenderingObservers(frame);
+  }
+}
+
+void
+nsSVGFE::DidAnimateLength(PRUint8 aAttrEnum)
+{
+  DidAnimateAttr(this);
+}
+
+void
+nsSVGFE::DidAnimateNumber(PRUint8 aAttrEnum)
+{
+  DidAnimateAttr(this);
+}
+
+void
+nsSVGFE::DidAnimateEnum(PRUint8 aAttrEnum)
+{
+  DidAnimateAttr(this);
+}
+
+void
+nsSVGFE::DidAnimateBoolean(PRUint8 aAttrEnum)
+{
+  DidAnimateAttr(this);
 }
 
 //---------------------Gaussian Blur------------------------
@@ -479,8 +514,8 @@ BoxBlur(const PRUint8 *aInput, PRUint8 *aOutput,
 
   for (PRUint32 i=0; i < boxSize; i++) {
     PRInt32 pos = aStartMinor - aLeftLobe + i;
-    pos = PR_MAX(pos, aStartMinor);
-    pos = PR_MIN(pos, aEndMinor - 1);
+    pos = NS_MAX(pos, aStartMinor);
+    pos = NS_MIN(pos, aEndMinor - 1);
 #define SUM(j)     sums[j] += aInput[aStrideMinor*pos + j];
     SUM(0); SUM(1); SUM(2); SUM(3);
 #undef SUM
@@ -531,8 +566,8 @@ BoxBlur(const PRUint8 *aInput, PRUint8 *aOutput,
   } else {
     for (PRInt32 minor = aStartMinor; minor < aEndMinor; minor++) {
       PRInt32 tmp = minor - aLeftLobe;
-      PRInt32 last = PR_MAX(tmp, aStartMinor);
-      PRInt32 next = PR_MIN(tmp + boxSize, aEndMinor - 1);
+      PRInt32 last = NS_MAX(tmp, aStartMinor);
+      PRInt32 next = NS_MIN(tmp + PRInt32(boxSize), aEndMinor - 1);
 
       OUTPUT_PIXEL();
 #define SUM(j)     sums[j] += aInput[aStrideMinor*next + j] - \
@@ -905,15 +940,15 @@ nsSVGFEBlendElement::Filter(nsSVGFilterInstance* aInstance,
   PRUint8* targetData = aTarget->mImage->Data();
   PRUint32 stride = aTarget->mImage->Stride();
 
-  PRUint16 mode = mEnumAttributes[MODE].GetAnimValue();
+  PRUint16 mode = mEnumAttributes[MODE].GetAnimValue(this);
 
   for (PRInt32 x = rect.x; x < rect.XMost(); x++) {
     for (PRInt32 y = rect.y; y < rect.YMost(); y++) {
       PRUint32 targIndex = y * stride + 4 * x;
       PRUint32 qa = targetData[targIndex + GFX_ARGB32_OFFSET_A];
       PRUint32 qb = sourceData[targIndex + GFX_ARGB32_OFFSET_A];
-      for (PRInt32 i = PR_MIN(GFX_ARGB32_OFFSET_B, GFX_ARGB32_OFFSET_R);
-           i <= PR_MAX(GFX_ARGB32_OFFSET_B, GFX_ARGB32_OFFSET_R); i++) {
+      for (PRInt32 i = NS_MIN(GFX_ARGB32_OFFSET_B, GFX_ARGB32_OFFSET_R);
+           i <= NS_MAX(GFX_ARGB32_OFFSET_B, GFX_ARGB32_OFFSET_R); i++) {
         PRUint32 ca = targetData[targIndex + i];
         PRUint32 cb = sourceData[targIndex + i];
         PRUint32 val;
@@ -928,18 +963,18 @@ nsSVGFEBlendElement::Filter(nsSVGFilterInstance* aInstance,
             val = 255 * (cb + ca) - ca * cb;
             break;
           case nsSVGFEBlendElement::SVG_MODE_DARKEN:
-            val = PR_MIN((255 - qa) * cb + 255 * ca,
+            val = NS_MIN((255 - qa) * cb + 255 * ca,
                          (255 - qb) * ca + 255 * cb);
             break;
           case nsSVGFEBlendElement::SVG_MODE_LIGHTEN:
-            val = PR_MAX((255 - qa) * cb + 255 * ca,
+            val = NS_MAX((255 - qa) * cb + 255 * ca,
                          (255 - qb) * ca + 255 * cb);
             break;
           default:
             return NS_ERROR_FAILURE;
             break;
         }
-        val = PR_MIN(val / 255, 255);
+        val = NS_MIN(val / 255, 255U);
         targetData[targIndex + i] =  static_cast<PRUint8>(val);
       }
       PRUint32 alpha = 255 * 255 - (255 - qa) * (255 - qb);
@@ -1138,7 +1173,7 @@ nsSVGFEColorMatrixElement::Filter(nsSVGFilterInstance *instance,
   PRUint8* targetData = aTarget->mImage->Data();
   PRUint32 stride = aTarget->mImage->Stride();
 
-  PRUint16 type = mEnumAttributes[TYPE].GetAnimValue();
+  PRUint16 type = mEnumAttributes[TYPE].GetAnimValue(this);
 
   nsCOMPtr<nsIDOMSVGNumberList> list;
   mValues->GetAnimVal(getter_AddRefs(list));
@@ -1266,7 +1301,7 @@ nsSVGFEColorMatrixElement::Filter(nsSVGFilterInstance *instance,
           sourceData[targIndex + GFX_ARGB32_OFFSET_B] * colorMatrix[row + 2] +
           sourceData[targIndex + GFX_ARGB32_OFFSET_A] * colorMatrix[row + 3] +
           255 *                                         colorMatrix[row + 4];
-        col[i] = PR_MIN(PR_MAX(0, col[i]), 255);
+        col[i] = NS_MIN(NS_MAX(0.f, col[i]), 255.f);
       }
       targetData[targIndex + GFX_ARGB32_OFFSET_R] =
         static_cast<PRUint8>(col[0]);
@@ -1473,7 +1508,7 @@ nsSVGFECompositeElement::Filter(nsSVGFilterInstance *instance,
                                 const Image* aTarget,
                                 const nsIntRect& rect)
 {
-  PRUint16 op = mEnumAttributes[OPERATOR].GetAnimValue();
+  PRUint16 op = mEnumAttributes[OPERATOR].GetAnimValue(this);
 
   // Cairo does not support arithmetic operator
   if (op == nsSVGFECompositeElement::SVG_OPERATOR_ARITHMETIC) {
@@ -1499,11 +1534,11 @@ nsSVGFECompositeElement::Filter(nsSVGFilterInstance *instance,
       for (PRInt32 y = rect.y; y < rect.YMost(); y++) {
         PRUint32 targIndex = y * stride + 4 * x;
         for (PRInt32 i = 0; i < 4; i++) {
-          PRUint8 i2 = targetData[targIndex + i];
-          PRUint8 i1 = sourceData[targIndex + i];
+          PRUint8 i1 = targetData[targIndex + i];
+          PRUint8 i2 = sourceData[targIndex + i];
           float result = k1Scaled*i1*i2 + k2*i1 + k3*i2 + k4Scaled;
           targetData[targIndex + i] =
-                       static_cast<PRUint8>(PR_MIN(PR_MAX(0, result), 255));
+                       static_cast<PRUint8>(NS_MIN(NS_MAX(0.f, result), 255.f));
         }
       }
     }
@@ -1546,7 +1581,7 @@ nsIntRect
 nsSVGFECompositeElement::ComputeTargetBBox(const nsTArray<nsIntRect>& aSourceBBoxes,
         const nsSVGFilterInstance& aInstance)
 {
-  PRUint16 op = mEnumAttributes[OPERATOR].GetAnimValue();
+  PRUint16 op = mEnumAttributes[OPERATOR].GetAnimValue(this);
 
   if (op == nsSVGFECompositeElement::SVG_OPERATOR_ARITHMETIC) {
     // "arithmetic" operator can produce non-zero alpha values even where
@@ -1786,10 +1821,10 @@ nsSVGFEComponentTransferElement::GetSourceImageNames(nsTArray<nsSVGStringInfo>& 
 
 nsSVGElement::NumberInfo nsSVGComponentTransferFunctionElement::sNumberInfo[5] =
 {
-  { &nsGkAtoms::slope,     0 },
+  { &nsGkAtoms::slope,     1 },
   { &nsGkAtoms::intercept, 0 },
-  { &nsGkAtoms::amplitude, 0 },
-  { &nsGkAtoms::exponent,  0 },
+  { &nsGkAtoms::amplitude, 1 },
+  { &nsGkAtoms::exponent,  1 },
   { &nsGkAtoms::offset,    0 }
 };
 
@@ -1906,7 +1941,7 @@ NS_IMETHODIMP nsSVGComponentTransferFunctionElement::GetOffset(nsIDOMSVGAnimated
 void
 nsSVGComponentTransferFunctionElement::GenerateLookupTable(PRUint8 *aTable)
 {
-  PRUint16 type = mEnumAttributes[TYPE].GetAnimValue();
+  PRUint16 type = mEnumAttributes[TYPE].GetAnimValue(this);
 
   float slope, intercept, amplitude, exponent, offset;
   GetAnimatedNumberValues(&slope, &intercept, &amplitude, 
@@ -1931,12 +1966,12 @@ nsSVGComponentTransferFunctionElement::GenerateLookupTable(PRUint8 *aTable)
       float v1, v2;
       list->GetItem(k, getter_AddRefs(number));
       number->GetValue(&v1);
-      list->GetItem(PR_MIN(k + 1, num - 1), getter_AddRefs(number));
+      list->GetItem(NS_MIN(k + 1, num - 1), getter_AddRefs(number));
       number->GetValue(&v2);
       PRInt32 val =
         PRInt32(255 * (v1 + (i/255.0f - k/float(num-1))*(num - 1)*(v2 - v1)));
-      val = PR_MIN(255, val);
-      val = PR_MAX(0, val);
+      val = NS_MIN(255, val);
+      val = NS_MAX(0, val);
       aTable[i] = val;
     }
     break;
@@ -1955,13 +1990,13 @@ nsSVGComponentTransferFunctionElement::GenerateLookupTable(PRUint8 *aTable)
 
     for (i = 0; i < 256; i++) {
       PRUint32 k = (i * num) / 255;
-      k = PR_MIN(k, num - 1);
+      k = NS_MIN(k, num - 1);
       float v;
       list->GetItem(k, getter_AddRefs(number));
       number->GetValue(&v);
       PRInt32 val = PRInt32(255 * v);
-      val = PR_MIN(255, val);
-      val = PR_MAX(0, val);
+      val = NS_MIN(255, val);
+      val = NS_MAX(0, val);
       aTable[i] = val;
     }
     break;
@@ -1971,8 +2006,8 @@ nsSVGComponentTransferFunctionElement::GenerateLookupTable(PRUint8 *aTable)
   {
     for (i = 0; i < 256; i++) {
       PRInt32 val = PRInt32(slope * i + 255 * intercept);
-      val = PR_MIN(255, val);
-      val = PR_MAX(0, val);
+      val = NS_MIN(255, val);
+      val = NS_MAX(0, val);
       aTable[i] = val;
     }
     break;
@@ -1982,8 +2017,8 @@ nsSVGComponentTransferFunctionElement::GenerateLookupTable(PRUint8 *aTable)
   {
     for (i = 0; i < 256; i++) {
       PRInt32 val = PRInt32(255 * (amplitude * pow(i / 255.0f, exponent) + offset));
-      val = PR_MIN(255, val);
-      val = PR_MAX(0, val);
+      val = NS_MIN(255, val);
+      val = NS_MAX(0, val);
       aTable[i] = val;
     }
     break;
@@ -2867,10 +2902,15 @@ nsSVGFETileElement::Filter(nsSVGFilterInstance *instance,
   NS_ENSURE_SUCCESS(res, res); // asserts on failure (not 
   if (tile.IsEmpty())
     return NS_OK;
-  NS_ENSURE_TRUE(instance->GetSurfaceRect().Contains(tile), NS_ERROR_UNEXPECTED);
+
+  const nsIntRect &surfaceRect = instance->GetSurfaceRect();
+  if (!tile.Intersects(surfaceRect)) {
+    // nothing to draw
+    return NS_OK;
+  }
 
   // Get it into surface space
-  tile -= instance->GetSurfaceRect().TopLeft();
+  tile -= surfaceRect.TopLeft();
 
   PRUint8* sourceData = aSources[0]->mImage->Data();
   PRUint8* targetData = aTarget->mImage->Data();
@@ -2882,10 +2922,14 @@ nsSVGFETileElement::Filter(nsSVGFilterInstance *instance,
   nsIntPoint offset(-tile.x + tile.width, -tile.y + tile.height);
   for (PRInt32 y = rect.y; y < rect.YMost(); y++) {
     PRUint32 tileY = tile.y + WrapInterval(y + offset.y, tile.height);
-    for (PRInt32 x = rect.x; x < rect.XMost(); x++) {
-      PRUint32 tileX = tile.x + WrapInterval(x + offset.x, tile.width);
-      *(PRUint32*)(targetData + y * stride + 4 * x) =
-        *(PRUint32*)(sourceData + tileY * stride + 4 * tileX);
+    if (tileY < surfaceRect.height) {
+      for (PRInt32 x = rect.x; x < rect.XMost(); x++) {
+        PRUint32 tileX = tile.x + WrapInterval(x + offset.x, tile.width);
+        if (tileX < surfaceRect.width) {
+          *(PRUint32*)(targetData + y * stride + 4 * x) =
+            *(PRUint32*)(sourceData + tileY * stride + 4 * tileX);
+        }
+      }
     }
   }
 
@@ -3154,8 +3198,8 @@ nsSVGFETurbulenceElement::Filter(nsSVGFilterInstance *instance,
 
   float fX, fY, seed;
   PRInt32 octaves = mIntegerAttributes[OCTAVES].GetAnimValue();
-  PRUint16 type = mEnumAttributes[TYPE].GetAnimValue();
-  PRUint16 stitch = mEnumAttributes[STITCHTILES].GetAnimValue();
+  PRUint16 type = mEnumAttributes[TYPE].GetAnimValue(this);
+  PRUint16 stitch = mEnumAttributes[STITCHTILES].GetAnimValue(this);
 
   GetAnimatedNumberValues(&fX, &fY, &seed, nsnull);
 
@@ -3205,8 +3249,8 @@ nsSVGFETurbulenceElement::Filter(nsSVGFilterInstance *instance,
                                doStitch, filterX, filterY, filterWidth, filterHeight) * 255 + 255) / 2;
       }
       for (int i = 0; i < 4; i++) {
-        col[i] = PR_MIN(col[i], 255);
-        col[i] = PR_MAX(col[i], 0);
+        col[i] = NS_MIN(col[i], 255.f);
+        col[i] = NS_MAX(col[i], 0.f);
       }
 
       PRUint8 r, g, b, a;
@@ -3581,7 +3625,7 @@ nsSVGFEMorphologyElement::InflateRect(const nsIntRect& aRect,
   PRInt32 rx, ry;
   GetRXY(&rx, &ry, aInstance);
   nsIntRect result = aRect;
-  result.Inflate(PR_MAX(0, rx), PR_MAX(0, ry));
+  result.Inflate(NS_MAX(0, rx), NS_MAX(0, ry));
   return result;
 }
 
@@ -3652,7 +3696,7 @@ nsSVGFEMorphologyElement::Filter(nsSVGFilterInstance *instance,
   PRUint32 stride = aTarget->mImage->Stride();
   PRUint32 xExt[4], yExt[4];  // X, Y indices of RGBA extrema
   PRUint8 extrema[4];         // RGBA magnitude of extrema
-  PRUint16 op = mEnumAttributes[OPERATOR].GetAnimValue();
+  PRUint16 op = mEnumAttributes[OPERATOR].GetAnimValue(this);
 
   /* Scan the kernel for each pixel to determine max/min RGBA values.  Note that
    * as we advance in the x direction, each kernel overlaps the previous kernel.
@@ -3662,14 +3706,14 @@ nsSVGFEMorphologyElement::Filter(nsSVGFilterInstance *instance,
    * not fall within the current kernel or if we are starting a new row.
    */
   for (PRInt32 y = rect.y; y < rect.YMost(); y++) {
-    PRUint32 startY = PR_MAX(0, y - ry);
+    PRUint32 startY = NS_MAX(0, y - ry);
     // We need to read pixels not just in 'rect', which is limited to
     // the dirty part of our filter primitive subregion, but all pixels in
     // the given radii from the source surface, so use the surface size here.
-    PRUint32 endY = PR_MIN(y + ry, instance->GetSurfaceHeight() - 1);
+    PRUint32 endY = NS_MIN(y + ry, instance->GetSurfaceHeight() - 1);
     for (PRInt32 x = rect.x; x < rect.XMost(); x++) {
-      PRUint32 startX = PR_MAX(0, x - rx);
-      PRUint32 endX = PR_MIN(x + rx, instance->GetSurfaceWidth() - 1);
+      PRUint32 startX = NS_MAX(0, x - rx);
+      PRUint32 endX = NS_MIN(x + rx, instance->GetSurfaceWidth() - 1);
       PRUint32 targIndex = y * stride + 4 * x;
 
       // We need to scan the entire kernel
@@ -3788,7 +3832,7 @@ public:
 
 protected:
   virtual PRBool OperatesOnPremultipledAlpha() {
-    return !mBooleanAttributes[PRESERVEALPHA].GetAnimValue();
+    return !mBooleanAttributes[PRESERVEALPHA].GetAnimValue(this);
   }
 
   virtual NumberAttributesInfo GetNumberInfo();
@@ -4016,8 +4060,8 @@ nsSVGFEConvolveMatrixElement::ComputeChangeBBox(const nsTArray<nsIntRect>& aSour
 
 static PRInt32 BoundInterval(PRInt32 aVal, PRInt32 aMax)
 {
-  aVal = PR_MAX(aVal, 0);
-  return PR_MIN(aVal, aMax - 1);
+  aVal = NS_MAX(aVal, 0);
+  return NS_MIN(aVal, aMax - 1);
 }
 
 static void
@@ -4075,7 +4119,7 @@ ConvolvePixel(const PRUint8 *aSourceData,
   }
   for (PRInt32 i = 0; i < channels; i++) {
     aTargetData[aY * aStride + 4 * aX + offsets[i]] =
-      BoundInterval(static_cast<PRInt32>(sum[i] / aDivisor + aBias * 255), 256);
+      BoundInterval(static_cast<PRInt32>(sum[i] / aDivisor + aBias), 256);
   }
   if (aPreserveAlpha) {
     aTargetData[aY * aStride + 4 * aX + GFX_ARGB32_OFFSET_A] =
@@ -4133,7 +4177,7 @@ nsSVGFEConvolveMatrixElement::Filter(nsSVGFilterInstance *instance,
 
   float divisor;
   if (HasAttr(kNameSpaceID_None, nsGkAtoms::divisor)) {
-    divisor = mNumberAttributes[DIVISOR].GetAnimValue();
+    divisor = mNumberAttributes[DIVISOR].GetAnimValue(this);
     if (divisor == 0)
       return NS_ERROR_FAILURE;
   } else {
@@ -4146,16 +4190,17 @@ nsSVGFEConvolveMatrixElement::Filter(nsSVGFilterInstance *instance,
 
   ScaleInfo info = SetupScalingFilter(instance, aSources[0], aTarget, rect,
                                       &mNumberAttributes[KERNEL_UNIT_LENGTH_X],
-                                      &mNumberAttributes[KERNEL_UNIT_LENGTH_Y]);
+                                      &mNumberAttributes[KERNEL_UNIT_LENGTH_Y],
+                                      this);
   if (!info.mTarget)
     return NS_ERROR_FAILURE;
 
-  PRUint16 edgeMode = mEnumAttributes[EDGEMODE].GetAnimValue();
-  PRBool preserveAlpha = mBooleanAttributes[PRESERVEALPHA].GetAnimValue();
+  PRUint16 edgeMode = mEnumAttributes[EDGEMODE].GetAnimValue(this);
+  PRBool preserveAlpha = mBooleanAttributes[PRESERVEALPHA].GetAnimValue(this);
 
   float bias = 0;
   if (HasAttr(kNameSpaceID_None, nsGkAtoms::bias)) {
-    bias = mNumberAttributes[BIAS].GetAnimValue();
+    bias = mNumberAttributes[BIAS].GetAnimValue(this);
   }
 
   const nsIntRect& dataRect = info.mDataRect;
@@ -4436,7 +4481,7 @@ nsSVGElement::NumberInfo nsSVGFESpotLightElement::sNumberInfo[8] =
   { &nsGkAtoms::pointsAtX, 0 },
   { &nsGkAtoms::pointsAtY, 0 },
   { &nsGkAtoms::pointsAtZ, 0 },
-  { &nsGkAtoms::specularExponent, 0 },
+  { &nsGkAtoms::specularExponent, 1 },
   { &nsGkAtoms::limitingConeAngle, 0 }
 };
 
@@ -4731,7 +4776,8 @@ nsSVGFELightingElement::Filter(nsSVGFilterInstance *instance,
 {
   ScaleInfo info = SetupScalingFilter(instance, aSources[0], aTarget, rect,
                                       &mNumberAttributes[KERNEL_UNIT_LENGTH_X],
-                                      &mNumberAttributes[KERNEL_UNIT_LENGTH_Y]);
+                                      &mNumberAttributes[KERNEL_UNIT_LENGTH_Y],
+                                      this);
   if (!info.mTarget)
     return NS_ERROR_FAILURE;
 
@@ -4794,13 +4840,13 @@ nsSVGFELightingElement::Filter(nsSVGFilterInstance *instance,
                                                  nsnull);
     nsCOMPtr<nsIContent> spot = do_QueryInterface(spotLight);
     if (spot->HasAttr(kNameSpaceID_None, nsGkAtoms::limitingConeAngle)) {
-      cosConeAngle = PR_MAX(cos(limitingConeAngle * radPerDeg), 0);
+      cosConeAngle = NS_MAX<double>(cos(limitingConeAngle * radPerDeg), 0.0);
     } else {
       cosConeAngle = 0;
     }
   }
 
-  float surfaceScale = mNumberAttributes[SURFACE_SCALE].GetAnimValue();
+  float surfaceScale = mNumberAttributes[SURFACE_SCALE].GetAnimValue(this);
 
   const nsIntRect& dataRect = info.mDataRect;
   PRInt32 stride = info.mSource->Stride();
@@ -4973,15 +5019,15 @@ nsSVGFEDiffuseLightingElement::LightPixel(const float *N, const float *L,
                                           nscolor color, PRUint8 *targetData)
 {
   float diffuseNL =
-    mNumberAttributes[DIFFUSE_CONSTANT].GetAnimValue() * DOT(N, L);
+    mNumberAttributes[DIFFUSE_CONSTANT].GetAnimValue(this) * DOT(N, L);
 
   if (diffuseNL > 0) {
     targetData[GFX_ARGB32_OFFSET_B] =
-      PR_MIN(PRUint32(diffuseNL * NS_GET_B(color)), 255);
+      NS_MIN(PRUint32(diffuseNL * NS_GET_B(color)), 255U);
     targetData[GFX_ARGB32_OFFSET_G] =
-      PR_MIN(PRUint32(diffuseNL * NS_GET_G(color)), 255);
+      NS_MIN(PRUint32(diffuseNL * NS_GET_G(color)), 255U);
     targetData[GFX_ARGB32_OFFSET_R] =
-      PR_MIN(PRUint32(diffuseNL * NS_GET_R(color)), 255);
+      NS_MIN(PRUint32(diffuseNL * NS_GET_R(color)), 255U);
   } else {
     targetData[GFX_ARGB32_OFFSET_B] = 0;
     targetData[GFX_ARGB32_OFFSET_G] = 0;
@@ -5103,7 +5149,7 @@ nsSVGFESpecularLightingElement::Filter(nsSVGFilterInstance *instance,
                                        const Image* aTarget,
                                        const nsIntRect& rect)
 {
-  float specularExponent = mNumberAttributes[SPECULAR_EXPONENT].GetAnimValue();
+  float specularExponent = mNumberAttributes[SPECULAR_EXPONENT].GetAnimValue(this);
 
   // specification defined range (15.22)
   if (specularExponent < 1 || specularExponent > 128)
@@ -5123,23 +5169,23 @@ nsSVGFESpecularLightingElement::LightPixel(const float *N, const float *L,
   H[2] = L[2] + 1;
   NORMALIZE(H);
 
-  float kS = mNumberAttributes[SPECULAR_CONSTANT].GetAnimValue();
+  float kS = mNumberAttributes[SPECULAR_CONSTANT].GetAnimValue(this);
   float dotNH = DOT(N, H);
 
   if (dotNH > 0 && kS > 0) {
     float specularNH =
-      kS * pow(dotNH, mNumberAttributes[SPECULAR_EXPONENT].GetAnimValue());
+      kS * pow(dotNH, mNumberAttributes[SPECULAR_EXPONENT].GetAnimValue(this));
 
     targetData[GFX_ARGB32_OFFSET_B] =
-      PR_MIN(PRUint32(specularNH * NS_GET_B(color)), 255);
+      NS_MIN(PRUint32(specularNH * NS_GET_B(color)), 255U);
     targetData[GFX_ARGB32_OFFSET_G] =
-      PR_MIN(PRUint32(specularNH * NS_GET_G(color)), 255);
+      NS_MIN(PRUint32(specularNH * NS_GET_G(color)), 255U);
     targetData[GFX_ARGB32_OFFSET_R] =
-      PR_MIN(PRUint32(specularNH * NS_GET_R(color)), 255);
+      NS_MIN(PRUint32(specularNH * NS_GET_R(color)), 255U);
 
     targetData[GFX_ARGB32_OFFSET_A] =
-      PR_MAX(targetData[GFX_ARGB32_OFFSET_B],
-             PR_MAX(targetData[GFX_ARGB32_OFFSET_G],
+      NS_MAX(targetData[GFX_ARGB32_OFFSET_B],
+             NS_MAX(targetData[GFX_ARGB32_OFFSET_G],
                     targetData[GFX_ARGB32_OFFSET_R]));
   } else {
     targetData[GFX_ARGB32_OFFSET_B] = 0;
@@ -5393,7 +5439,9 @@ nsSVGFEImageElement::Filter(nsSVGFilterInstance *instance,
 
   nsRefPtr<gfxASurface> currentFrame;
   if (imageContainer)
-    imageContainer->GetCurrentFrame(getter_AddRefs(currentFrame));
+    imageContainer->GetFrame(imgIContainer::FRAME_CURRENT,
+                             imgIContainer::FLAG_SYNC_DECODE,
+                             getter_AddRefs(currentFrame));
 
   // We need to wrap the surface in a pattern to have somewhere to set the
   // graphics filter.
@@ -5482,6 +5530,12 @@ nsSVGFEImageElement::OnStartContainer(imgIRequest *aRequest,
 {
   nsresult rv =
     nsImageLoadingContent::OnStartContainer(aRequest, aContainer);
+
+  // Request a decode
+  NS_ABORT_IF_FALSE(aContainer, "who sent the notification then?");
+  aContainer->RequestDecode();
+
+  // We have a size - invalidate
   Invalidate();
   return rv;
 }
@@ -5666,7 +5720,7 @@ nsSVGFEDisplacementMapElement::Filter(nsSVGFilterInstance *instance,
           rect.x, rect.y, rect.width, rect.height);
 #endif
 
-  float scale = mNumberAttributes[SCALE].GetAnimValue();
+  float scale = mNumberAttributes[SCALE].GetAnimValue(this);
   if (scale == 0.0f) {
     CopyRect(aTarget, aSources[0], rect);
     return NS_OK;
@@ -5690,8 +5744,8 @@ nsSVGFEDisplacementMapElement::Filter(nsSVGFilterInstance *instance,
                              GFX_ARGB32_OFFSET_G,
                              GFX_ARGB32_OFFSET_B,
                              GFX_ARGB32_OFFSET_A };
-  PRUint16 xChannel = channelMap[mEnumAttributes[CHANNEL_X].GetAnimValue()];
-  PRUint16 yChannel = channelMap[mEnumAttributes[CHANNEL_Y].GetAnimValue()];
+  PRUint16 xChannel = channelMap[mEnumAttributes[CHANNEL_X].GetAnimValue(this)];
+  PRUint16 yChannel = channelMap[mEnumAttributes[CHANNEL_Y].GetAnimValue(this)];
 
   double scaleOver255 = scale / 255.0;
   double scaleAdjustment = 0.5 - 0.5 * scale;

@@ -38,69 +38,64 @@
  * ***** END LICENSE BLOCK ***** */
 
 #include "nanojit.h"
-#include <stdio.h>
-#include <ctype.h>
-
-#ifdef PERFM
-#include "../vprof/vprof.h"
-#endif /* PERFM */
-
 
 namespace nanojit
 {
     using namespace avmplus;
     #ifdef FEATURE_NANOJIT
 
-    const uint8_t operandCount[] = {
-#define OPDEF(op, number, operands, repkind) \
-        operands,
-#define OPDEF64(op, number, operands, repkind) \
-        operands,
-#include "LIRopcode.tbl"
-#undef OPDEF
-#undef OPDEF64
-        0
-    };
-
     const uint8_t repKinds[] = {
-#define OPDEF(op, number, operands, repkind) \
-        LRK_##repkind,
-#define OPDEF64(op, number, operands, repkind) \
-        OPDEF(op, number, operands, repkind)
+#define OPDEF(op, number, repKind, retType) \
+        LRK_##repKind,
 #include "LIRopcode.tbl"
 #undef OPDEF
-#undef OPDEF64
         0
     };
 
-        const uint8_t insSizes[] = {
-#define OPDEF(op, number, operands, repkind) \
-            sizeof(LIns##repkind),
-#define OPDEF64(op, number, operands, repkind) \
-            OPDEF(op, number, operands, repkind)
+    const LTy retTypes[] = {
+#define OPDEF(op, number, repKind, retType) \
+        LTy_##retType,
 #include "LIRopcode.tbl"
 #undef OPDEF
-#undef OPDEF64
-            0
-        };
+        LTy_Void
+    };
 
     // LIR verbose specific
     #ifdef NJ_VERBOSE
 
     const char* lirNames[] = {
-#define OPDEF(op, number, operands, repkind) \
-        #op,
-#define OPDEF64(op, number, operands, repkind) \
+#define OPDEF(op, number, repKind, retType) \
         #op,
 #include "LIRopcode.tbl"
 #undef OPDEF
-#undef OPDEF64
         NULL
     };
 
-    #endif /* NANOJIT_VEBROSE */
+    #endif /* NANOJIT_VERBOSE */
 
     // implementation
+#ifdef NJ_VERBOSE
+    void ReverseLister::finish()
+    {
+        _logc->printf("\n");
+        _logc->printf("=== BEGIN %s ===\n", _title);
+        int j = 0;
+        for (Seq<char*>* p = _strs.get(); p != NULL; p = p->tail)
+            _logc->printf("  %02d: %s\n", j++, p->head);
+        _logc->printf("=== END %s ===\n", _title);
+        _logc->printf("\n");
+    }
+
+    LInsp ReverseLister::read()
+    {
+        LInsp i = in->read();
+        const char* str = _names->formatIns(i);
+        char* cpy = new (_alloc) char[strlen(str)+1];
+        VMPI_strcpy(cpy, str);
+        _strs.insert(cpy);
+        return i;
+    }
+#endif
 
 #ifdef NJ_PROFILE
     // @todo fixup move to nanojit.h
@@ -109,127 +104,96 @@ namespace nanojit
 #endif /* NJ_PROFILE */
 
     // LCompressedBuffer
-    LirBuffer::LirBuffer(Fragmento* frago)
-        : _frago(frago),
+    LirBuffer::LirBuffer(Allocator& alloc) :
 #ifdef NJ_VERBOSE
           names(NULL),
 #endif
-          abi(ABI_FASTCALL),
-          state(NULL), param1(NULL), sp(NULL), rp(NULL),
-          _pages(frago->core()->GetGC())
-    {
-        rewind();
-    }
-
-    LirBuffer::~LirBuffer()
+          abi(ABI_FASTCALL), state(NULL), param1(NULL), sp(NULL), rp(NULL),
+          _allocator(alloc)
     {
         clear();
-        verbose_only(if (names) NJ_DELETE(names);)
-        _frago = 0;
     }
 
     void LirBuffer::clear()
     {
-        // free all the memory and clear the stats
-        _frago->pagesRelease(_pages);
-        NanoAssert(!_pages.size());
+        // clear the stats, etc
         _unused = 0;
+        _limit = 0;
+        _bytesAllocated = 0;
         _stats.lir = 0;
-        _noMem = 0;
-        _nextPage = 0;
         for (int i = 0; i < NumSavedRegs; ++i)
             savedRegs[i] = NULL;
-        explicitSavedRegs = false;
+        chunkAlloc();
     }
 
-    void LirBuffer::rewind()
+    void LirBuffer::chunkAlloc()
     {
-        clear();
-        // pre-allocate the current and the next page we will be using
-        Page* start = pageAlloc();
-        _unused = start ? uintptr_t(&start->lir[0]) : 0;
-        _nextPage = pageAlloc();
-        NanoAssert((_unused && _nextPage) || _noMem);
+        _unused = (uintptr_t) _allocator.alloc(CHUNK_SZB);
+        NanoAssert(_unused != 0); // Allocator.alloc() never returns null. See Allocator.h
+        _limit = _unused + CHUNK_SZB;
     }
 
     int32_t LirBuffer::insCount()
     {
-        // A LIR_skip payload is considered part of the LIR_skip, and LIR_call
-        // arg slots are considered part of the LIR_call.
         return _stats.lir;
     }
 
     size_t LirBuffer::byteCount()
     {
-        return ((_pages.size() ? _pages.size()-1 : 0) * sizeof(Page)) +
-            (_unused - pageTop(_unused));
-    }
-
-    Page* LirBuffer::pageAlloc()
-    {
-        Page* page = _frago->pageAlloc();
-        if (page)
-            _pages.add(page);
-        else
-            _noMem = 1;
-        return page;
+        return _bytesAllocated - (_limit - _unused);
     }
 
     // Allocate a new page, and write the first instruction to it -- a skip
     // linking to last instruction of the previous page.
-    void LirBuffer::moveToNewPage(uintptr_t addrOfLastLInsOnCurrentPage)
+    void LirBuffer::moveToNewChunk(uintptr_t addrOfLastLInsOnCurrentChunk)
     {
-        // We don't want this to fail, so we always have a page in reserve.
-        NanoAssert(_nextPage);
-        _unused = uintptr_t(&_nextPage->lir[0]);
-        _nextPage = pageAlloc();
-        NanoAssert(_nextPage || _noMem);
-
+        chunkAlloc();
         // Link LIR stream back to prior instruction.
         // Unlike all the ins*() functions, we don't call makeRoom() here
         // because we know we have enough space, having just started a new
         // page.
         LInsSk* insSk = (LInsSk*)_unused;
         LIns*   ins   = insSk->getLIns();
-        ins->initLInsSk((LInsp)addrOfLastLInsOnCurrentPage);
+        ins->initLInsSk((LInsp)addrOfLastLInsOnCurrentChunk);
         _unused += sizeof(LInsSk);
-        _stats.lir++;
+        verbose_only(_stats.lir++);
     }
 
     // Make room for a single instruction.
     uintptr_t LirBuffer::makeRoom(size_t szB)
     {
-        // Make sure the size is ok, and that we're not pointing to the
-        // PageHeader.
+        // Make sure the size is ok
         NanoAssert(0 == szB % sizeof(void*));
-        NanoAssert(sizeof(LIns) <= szB && szB <= NJ_MAX_LINS_SZB);
-        NanoAssert(_unused >= pageDataStart(_unused));
+        NanoAssert(sizeof(LIns) <= szB && szB <= sizeof(LInsSti));  // LInsSti is the biggest one
+        NanoAssert(_unused < _limit);
 
-        // If the instruction won't fit on the current page, move to the next
-        // page.
-        if (_unused + szB - 1 > pageBottom(_unused)) {
-            uintptr_t addrOfLastLInsOnPage = _unused - sizeof(LIns);
-            moveToNewPage(addrOfLastLInsOnPage);
+        debug_only( bool moved = false; )
+
+        // If the instruction won't fit on the current chunk, get a new chunk
+        if (_unused + szB > _limit) {
+            uintptr_t addrOfLastLInsOnChunk = _unused - sizeof(LIns);
+            moveToNewChunk(addrOfLastLInsOnChunk);
+            debug_only( moved = true; )
         }
 
-        // We now know that we are on a page that has the requested amount of
+        // We now know that we are on a chunk that has the requested amount of
         // room: record the starting address of the requested space and bump
         // the pointer.
         uintptr_t startOfRoom = _unused;
         _unused += szB;
-        _stats.lir++;             // count the instruction
+        verbose_only(_stats.lir++);             // count the instruction
 
-        // If there's no more space on this page, move to the next page.
+        // If there's no more space on this chunk, move to a new one.
         // (This will only occur if the asked-for size filled up exactly to
-        // the end of the page.)  This ensures that next time we enter this
+        // the end of the chunk.)  This ensures that next time we enter this
         // function, _unused won't be pointing one byte past the end of
-        // the page, which would break everything.
-        if (_unused > pageBottom(startOfRoom)) {
-            // Check we only spilled over by one byte.
-            NanoAssert(_unused == pageTop(_unused));
-            NanoAssert(_unused == pageBottom(startOfRoom) + 1);
-            uintptr_t addrOfLastLInsOnPage = _unused - sizeof(LIns);
-            moveToNewPage(addrOfLastLInsOnPage);
+        // the chunk, which would break everything.
+        if (_unused >= _limit) {
+            // Check we used exactly the remaining space
+            NanoAssert(_unused == _limit);
+            NanoAssert(!moved);     // shouldn't need to moveToNewChunk twice
+            uintptr_t addrOfLastLInsOnChunk = _unused - sizeof(LIns);
+            moveToNewChunk(addrOfLastLInsOnChunk);
         }
 
         // Make sure it's word-aligned.
@@ -237,9 +201,8 @@ namespace nanojit
         return startOfRoom;
     }
 
-    LInsp LirBufWriter::insStorei(LInsp val, LInsp base, int32_t d)
+    LInsp LirBufWriter::insStore(LOpcode op, LInsp val, LInsp base, int32_t d)
     {
-        LOpcode op = val->isQuad() ? LIR_stqi : LIR_sti;
         LInsSti* insSti = (LInsSti*)_buf->makeRoom(sizeof(LInsSti));
         LIns*    ins    = insSti->getLIns();
         ins->initLInsSti(op, val, base, d);
@@ -286,15 +249,27 @@ namespace nanojit
         return ins;
     }
 
-    LInsp LirBufWriter::insGuard(LOpcode op, LInsp c, LInsp data)
+    LInsp LirBufWriter::insGuard(LOpcode op, LInsp c, GuardRecord *gr)
     {
-        return ins2(op, c, data);
+        debug_only( if (LIR_x == op || LIR_xbarrier == op) NanoAssert(!c); )
+        return ins2(op, c, (LIns*)gr);
     }
 
     LInsp LirBufWriter::insBranch(LOpcode op, LInsp condition, LInsp toLabel)
     {
-        NanoAssert(condition);
+        NanoAssert((op == LIR_j && !condition) ||
+                   ((op == LIR_jf || op == LIR_jt) && condition));
         return ins2(op, condition, toLabel);
+    }
+
+    LIns* LirBufWriter::insJtbl(LIns* index, uint32_t size)
+    {
+        LInsJtbl* insJtbl = (LInsJtbl*) _buf->makeRoom(sizeof(LInsJtbl));
+        LIns**    table   = new (_buf->_allocator) LIns*[size];
+        LIns*     ins     = insJtbl->getLIns();
+        VMPI_memset(table, 0, size * sizeof(LIns*));
+        ins->initLInsJtbl(index, size, table);
+        return ins;
     }
 
     LInsp LirBufWriter::insAlloc(int32_t size)
@@ -302,7 +277,7 @@ namespace nanojit
         size = (size+3)>>2; // # of required 32bit words
         LInsI* insI = (LInsI*)_buf->makeRoom(sizeof(LInsI));
         LIns*  ins  = insI->getLIns();
-        ins->initLInsI(LIR_ialloc, size);
+        ins->initLInsI(LIR_alloc, size);
         return ins;
     }
 
@@ -314,7 +289,6 @@ namespace nanojit
         if (kind) {
             NanoAssert(arg < NumSavedRegs);
             _buf->savedRegs[arg] = ins;
-            _buf->explicitSavedRegs = true;
         }
         return ins;
     }
@@ -329,262 +303,124 @@ namespace nanojit
 
     LInsp LirBufWriter::insImmq(uint64_t imm)
     {
-        LInsI64* insI64 = (LInsI64*)_buf->makeRoom(sizeof(LInsI64));
-        LIns*    ins    = insI64->getLIns();
-        ins->initLInsI64(LIR_quad, imm);
+        LInsN64* insN64 = (LInsN64*)_buf->makeRoom(sizeof(LInsN64));
+        LIns*    ins    = insN64->getLIns();
+        ins->initLInsN64(LIR_quad, imm);
         return ins;
     }
 
-    LInsp LirBufWriter::insSkip(size_t payload_szB)
+    LInsp LirBufWriter::insImmf(double d)
     {
-        // First, round up payload_szB to a multiple of the word size.  To
-        // ensure that the rounding up won't cause it to exceed
-        // NJ_MAX_SKIP_PAYLOAD_SZB, NJ_MAX_SKIP_PAYLOAD_SZB must also be a
-        // multiple of the word size, which we check.
-        payload_szB = alignUp(payload_szB, sizeof(void*));
-        NanoAssert(0 == NJ_MAX_SKIP_PAYLOAD_SZB % sizeof(void*));
-        NanoAssert(sizeof(void*) <= payload_szB && payload_szB <= NJ_MAX_SKIP_PAYLOAD_SZB);
-
-        uintptr_t payload = _buf->makeRoom(payload_szB + sizeof(LInsSk));
-        uintptr_t prevLInsAddr = payload - sizeof(LIns);
-        LInsSk* insSk = (LInsSk*)(payload + payload_szB);
-        LIns*   ins   = insSk->getLIns();
-        NanoAssert(prevLInsAddr >= pageDataStart(prevLInsAddr));
-        NanoAssert(samepage(prevLInsAddr, insSk));
-        ins->initLInsSk((LInsp)prevLInsAddr);
+        LInsN64* insN64 = (LInsN64*)_buf->makeRoom(sizeof(LInsN64));
+        LIns*    ins    = insN64->getLIns();
+        union {
+            double d;
+            uint64_t q;
+        } u;
+        u.d = d;
+        ins->initLInsN64(LIR_float, u.q);
         return ins;
     }
 
     // Reads the next non-skip instruction.
     LInsp LirReader::read()
     {
-        NanoAssert(_i);
-        LInsp cur = _i;
-        uintptr_t i = uintptr_t(cur);
-        LOpcode iop = ((LInsp)i)->opcode();
+        static const uint8_t insSizes[] = {
+        // LIR_start is treated specially -- see below.
+#define OPDEF(op, number, repKind, retType) \
+            ((number) == LIR_start ? 0 : sizeof(LIns##repKind)),
+#include "LIRopcode.tbl"
+#undef OPDEF
+            0
+        };
 
-        // We pass over skip instructions below.  Also, the last instruction
-        // for a fragment shouldn't be a skip(*).  Therefore we shouldn't see
-        // a skip here.
-        //
-        // (*) Actually, if the last *inserted* instruction exactly fills up a
-        // page, a new page will be created, and thus the last *written*
-        // instruction will be a skip -- the one needed for the cross-page
-        // link.  But the last *inserted* instruction is what is recorded and
-        // used to initialise each LirReader, and that is what is seen here,
-        // and therefore this assertion holds.
-        NanoAssert(iop != LIR_skip);
+        // Check the invariant: _i never points to a skip.
+        NanoAssert(_i && !_i->isop(LIR_skip));
 
-        do
-        {
-            // Nb: this switch is table-driven (because sizeof_LInsXYZ() is
-            // table-driven) in most cases to avoid branch mispredictions --
-            // if we do a vanilla switch on the iop or LInsRepKind the extra
-            // branch mispredictions cause a small but noticeable slowdown.
-            switch (iop)
-            {
-                default:
-                    i -= insSizes[((LInsp)i)->opcode()];
-                    break;
+        // Step back one instruction.  Use a table lookup rather than a switch
+        // to avoid branch mispredictions.  LIR_start is given a special size
+        // of zero so that we don't step back past the start of the block.
+        // (Callers of this function should stop once they see a LIR_start.)
+        LInsp ret = _i;
+        _i = (LInsp)(uintptr_t(_i) - insSizes[_i->opcode()]);
 
-#if defined NANOJIT_64BIT
-                case LIR_callh:
-#endif
-                case LIR_call:
-                case LIR_fcall: {
-                    int argc = ((LInsp)i)->argc();
-                    i -= sizeof(LInsC);         // step over the instruction
-                    i -= argc*sizeof(LInsp);    // step over the arguments
-                    NanoAssert( samepage(i, _i) );
-                    break;
-                }
-
-                case LIR_skip:
-                    // Ignore the skip, move onto its predecessor.
-                    NanoAssert(((LInsp)i)->prevLIns() != (LInsp)i);
-                    i = uintptr_t(((LInsp)i)->prevLIns());
-                    break;
-
-                case LIR_start:
-                    // Once we hit here, this method shouldn't be called again.
-                    // The assertion at the top of this method checks this.
-                    _i = 0;
-                    return cur;
-            }
-            iop = ((LInsp)i)->opcode();
+        // Ensure _i doesn't end up pointing to a skip.
+        while (_i->isop(LIR_skip)) {
+            NanoAssert(_i->prevLIns() != _i);
+            _i = _i->prevLIns();
         }
-        while (LIR_skip == iop);
-        _i = (LInsp)i;
-        return cur;
+
+        return ret;
     }
 
-    bool LIns::isFloat() const {
-        switch (opcode()) {
-            default:
-                return false;
-            case LIR_fadd:
-            case LIR_fsub:
-            case LIR_fmul:
-            case LIR_fdiv:
-            case LIR_fneg:
-            case LIR_fcall:
-            case LIR_i2f:
-            case LIR_u2f:
-                return true;
+    LOpcode f64arith_to_i32arith(LOpcode op)
+    {
+        switch (op) {
+        case LIR_fneg:  return LIR_neg;
+        case LIR_fadd:  return LIR_add;
+        case LIR_fsub:  return LIR_sub;
+        case LIR_fmul:  return LIR_mul;
+        default:        NanoAssert(0); return LIR_skip;
         }
     }
 
-    bool LIns::isLInsOp0() const {
-        NanoAssert(LRK_None != repKinds[opcode()]);
-        return LRK_Op0 == repKinds[opcode()];
-    }
-
-    bool LIns::isLInsOp1() const {
-        NanoAssert(LRK_None != repKinds[opcode()]);
-        return LRK_Op1 == repKinds[opcode()];
-    }
-
-    bool LIns::isLInsOp2() const {
-        NanoAssert(LRK_None != repKinds[opcode()]);
-        return LRK_Op2 == repKinds[opcode()];
-    }
-
-    bool LIns::isLInsOp3() const {
-        NanoAssert(LRK_None != repKinds[opcode()]);
-        return LRK_Op3 == repKinds[opcode()];
-    }
-
-    bool LIns::isLInsLd() const {
-        NanoAssert(LRK_None != repKinds[opcode()]);
-        return LRK_Ld == repKinds[opcode()];
-    }
-
-    bool LIns::isLInsSti() const {
-        NanoAssert(LRK_None != repKinds[opcode()]);
-        return LRK_Sti == repKinds[opcode()];
-    }
-
-    bool LIns::isLInsSk() const {
-        NanoAssert(LRK_None != repKinds[opcode()]);
-        return LRK_Sk == repKinds[opcode()];
-    }
-
-    bool LIns::isLInsC() const {
-        NanoAssert(LRK_None != repKinds[opcode()]);
-        return LRK_C == repKinds[opcode()];
-    }
-
-    bool LIns::isLInsP() const {
-        NanoAssert(LRK_None != repKinds[opcode()]);
-        return LRK_P == repKinds[opcode()];
-    }
-
-    bool LIns::isLInsI() const {
-        NanoAssert(LRK_None != repKinds[opcode()]);
-        return LRK_I == repKinds[opcode()];
-    }
-
-    bool LIns::isLInsI64() const {
-        NanoAssert(LRK_None != repKinds[opcode()]);
-        return LRK_I64 == repKinds[opcode()];
-    }
-
-    bool LIns::isCmp() const {
-        LOpcode op = opcode();
-        return (op >= LIR_eq && op <= LIR_uge) || (op >= LIR_feq && op <= LIR_fge);
-    }
-
-    bool LIns::isCond() const {
-        LOpcode op = opcode();
-        return (op == LIR_ov) || isCmp();
-    }
-
-    bool LIns::isQuad() const {
-#ifdef AVMPLUS_64BIT
-        // callh in 64bit cpu's means a call that returns an int64 in a single register
-        return (opcode() & LIR64) != 0 || opcode() == LIR_callh;
-#else
-        // callh in 32bit cpu's means the 32bit MSW of an int64 result in 2 registers
-        return (opcode() & LIR64) != 0;
-#endif
-    }
-
-    bool LIns::isconstval(int32_t val) const
+    LOpcode i32cmp_to_i64cmp(LOpcode op)
     {
-        return isconst() && imm32()==val;
+        switch (op) {
+        case LIR_eq:    return LIR_qeq;
+        case LIR_lt:    return LIR_qlt;
+        case LIR_gt:    return LIR_qgt;
+        case LIR_le:    return LIR_qle;
+        case LIR_ge:    return LIR_qge;
+        case LIR_ult:   return LIR_qult;
+        case LIR_ugt:   return LIR_qugt;
+        case LIR_ule:   return LIR_qule;
+        case LIR_uge:   return LIR_quge;
+        default:        NanoAssert(0); return LIR_skip;
+        }
     }
 
-    bool LIns::isconstq() const
+    // This is never called, but that's ok because it contains only static
+    // assertions.
+    void LIns::staticSanityCheck()
     {
-        return opcode() == LIR_quad;
-    }
+        // LIns must be word-sized.
+        NanoStaticAssert(sizeof(LIns) == 1*sizeof(void*));
 
-    bool LIns::isconstp() const
-    {
-#ifdef AVMPLUS_64BIT
-        return isconstq();
-#else
-        return isconst();
-#endif
-    }
+        // LInsXYZ have expected sizes too.
+        NanoStaticAssert(sizeof(LInsOp0) == 1*sizeof(void*));
+        NanoStaticAssert(sizeof(LInsOp1) == 2*sizeof(void*));
+        NanoStaticAssert(sizeof(LInsOp2) == 3*sizeof(void*));
+        NanoStaticAssert(sizeof(LInsOp3) == 4*sizeof(void*));
+        NanoStaticAssert(sizeof(LInsLd)  == 3*sizeof(void*));
+        NanoStaticAssert(sizeof(LInsSti) == 4*sizeof(void*));
+        NanoStaticAssert(sizeof(LInsSk)  == 2*sizeof(void*));
+        NanoStaticAssert(sizeof(LInsC)   == 3*sizeof(void*));
+        NanoStaticAssert(sizeof(LInsP)   == 2*sizeof(void*));
+        NanoStaticAssert(sizeof(LInsI)   == 2*sizeof(void*));
+    #if defined NANOJIT_64BIT
+        NanoStaticAssert(sizeof(LInsN64) == 2*sizeof(void*));
+    #else
+        NanoStaticAssert(sizeof(LInsN64) == 3*sizeof(void*));
+    #endif
 
-    bool LIns::isCse() const
-    {
-        return nanojit::isCseOpcode(opcode()) || (isCall() && callInfo()->_cse);
-    }
+        // oprnd_1 must be in the same position in LIns{Op1,Op2,Op3,Ld,Sti}
+        // because oprnd1() is used for all of them.
+        NanoStaticAssert( (offsetof(LInsOp1, ins) - offsetof(LInsOp1, oprnd_1)) ==
+                          (offsetof(LInsOp2, ins) - offsetof(LInsOp2, oprnd_1)) );
+        NanoStaticAssert( (offsetof(LInsOp2, ins) - offsetof(LInsOp2, oprnd_1)) ==
+                          (offsetof(LInsOp3, ins) - offsetof(LInsOp3, oprnd_1)) );
+        NanoStaticAssert( (offsetof(LInsOp3, ins) - offsetof(LInsOp3, oprnd_1)) ==
+                          (offsetof(LInsLd,  ins) - offsetof(LInsLd,  oprnd_1)) );
+        NanoStaticAssert( (offsetof(LInsLd,  ins) - offsetof(LInsLd,  oprnd_1)) ==
+                          (offsetof(LInsSti, ins) - offsetof(LInsSti, oprnd_1)) );
 
-    void LIns::setTarget(LInsp label)
-    {
-        NanoAssert(label && label->isop(LIR_label));
-        NanoAssert(isBranch());
-        toLInsOp2()->oprnd_2 = label;
-    }
-
-    LInsp LIns::getTarget()
-    {
-        NanoAssert(isBranch());
-        return oprnd2();
-    }
-
-    void *LIns::payload() const
-    {
-        NanoAssert(isop(LIR_skip));
-        // Operand 1 points to the previous LIns;  we move past it to get to
-        // the payload.
-        return (void*) (uintptr_t(prevLIns()) + sizeof(LIns));
-    }
-
-    uint64_t LIns::imm64() const
-    {
-        NanoAssert(isconstq());
-        return (uint64_t(toLInsI64()->imm64_1) << 32) | uint32_t(toLInsI64()->imm64_0);
-    }
-
-    double LIns::imm64f() const
-    {
-        union {
-            double f;
-            uint64_t q;
-        } u;
-        u.q = imm64();
-        return u.f;
-    }
-
-    const CallInfo* LIns::callInfo() const
-    {
-        NanoAssert(isCall());
-        return toLInsC()->ci;
-    }
-
-    // Index args in r-l order.  arg(0) is rightmost arg.
-    // Nb: this must be kept in sync with insCall().
-    LInsp LIns::arg(uint32_t i)
-    {
-        NanoAssert(isCall());
-        NanoAssert(i < argc());
-        // Move to the start of the LInsC, then move back one word per argument.
-        LInsp* argSlot = (LInsp*)(uintptr_t(toLInsC()) - (i+1)*sizeof(void*));
-        return *argSlot;
+        // oprnd_2 must be in the same position in LIns{Op2,Op3,Sti}
+        // because oprnd2() is used for both of them.
+        NanoStaticAssert( (offsetof(LInsOp2, ins) - offsetof(LInsOp2, oprnd_2)) ==
+                          (offsetof(LInsOp3, ins) - offsetof(LInsOp3, oprnd_2)) );
+        NanoStaticAssert( (offsetof(LInsOp3, ins) - offsetof(LInsOp3, oprnd_2)) ==
+                          (offsetof(LInsSti, ins) - offsetof(LInsSti, oprnd_2)) );
     }
 
     LIns* LirWriter::ins2i(LOpcode v, LIns* oprnd1, int32_t imm)
@@ -607,53 +443,75 @@ namespace nanojit
         return false;
     }
 
-    LIns* ExprFilter::ins1(LOpcode v, LIns* i)
+    LIns* ExprFilter::ins1(LOpcode v, LIns* oprnd)
     {
         switch (v) {
+        case LIR_q2i:
+            if (oprnd->isconstq())
+                return insImm(oprnd->imm64_0());
+            break;
         case LIR_qlo:
-            if (i->isconstq())
-                return insImm(i->imm64_0());
-            if (i->isop(LIR_qjoin))
-                return i->oprnd1();
+            if (oprnd->isconstq())
+                return insImm(oprnd->imm64_0());
+            if (oprnd->isop(LIR_qjoin))
+                return oprnd->oprnd1();
             break;
         case LIR_qhi:
-            if (i->isconstq())
-                return insImm(i->imm64_1());
-            if (i->isop(LIR_qjoin))
-                return i->oprnd2();
+            if (oprnd->isconstq())
+                return insImm(oprnd->imm64_1());
+            if (oprnd->isop(LIR_qjoin))
+                return oprnd->oprnd2();
             break;
         case LIR_not:
-            if (i->isconst())
-                return insImm(~i->imm32());
+            if (oprnd->isconst())
+                return insImm(~oprnd->imm32());
         involution:
-            if (v == i->opcode())
-                return i->oprnd1();
+            if (v == oprnd->opcode())
+                return oprnd->oprnd1();
             break;
         case LIR_neg:
-            if (i->isconst())
-                return insImm(-i->imm32());
-            if (i->isop(LIR_sub)) // -(a-b) = b-a
-                return out->ins2(LIR_sub, i->oprnd2(), i->oprnd1());
+            if (oprnd->isconst())
+                return insImm(-oprnd->imm32());
+            if (oprnd->isop(LIR_sub)) // -(a-b) = b-a
+                return out->ins2(LIR_sub, oprnd->oprnd2(), oprnd->oprnd1());
             goto involution;
         case LIR_fneg:
-            if (i->isconstq())
-                return insImmf(-i->imm64f());
-            if (i->isop(LIR_fsub))
-                return out->ins2(LIR_fsub, i->oprnd2(), i->oprnd1());
+            if (oprnd->isconstq())
+                return insImmf(-oprnd->imm64f());
+            if (oprnd->isop(LIR_fsub))
+                return out->ins2(LIR_fsub, oprnd->oprnd2(), oprnd->oprnd1());
             goto involution;
         case LIR_i2f:
-            if (i->isconst())
-                return insImmf(i->imm32());
+            if (oprnd->isconst())
+                return insImmf(oprnd->imm32());
+            break;
+        case LIR_f2i:
+            if (oprnd->isconstq())
+                return insImm(int32_t(oprnd->imm64f()));
             break;
         case LIR_u2f:
-            if (i->isconst())
-                return insImmf(uint32_t(i->imm32()));
+            if (oprnd->isconst())
+                return insImmf(uint32_t(oprnd->imm32()));
             break;
         default:
             ;
         }
 
-        return out->ins1(v, i);
+        return out->ins1(v, oprnd);
+    }
+
+    // This is an ugly workaround for an apparent compiler
+    // bug; in VC2008, compiling with optimization on
+    // will produce spurious errors if this code is inlined
+    // into ExprFilter::ins2(). See https://bugzilla.mozilla.org/show_bug.cgi?id=538504
+    inline double do_join(int32_t c1, int32_t c2)
+    {
+        union {
+            double d;
+            uint64_t u64;
+        } u;
+        u.u64 = uint32_t(c1) | uint64_t(c2)<<32;
+        return u.d;
     }
 
     LIns* ExprFilter::ins2(LOpcode v, LIns* oprnd1, LIns* oprnd2)
@@ -688,16 +546,12 @@ namespace nanojit
             int32_t c2 = oprnd2->imm32();
             double d;
             int32_t r;
-            uint64_t q;
 
             switch (v) {
             case LIR_qjoin:
-                q = c1 | uint64_t(c2)<<32;
-                return insImmq(q);
+                return insImmf(do_join(c1, c2));
             case LIR_eq:
                 return insImm(c1 == c2);
-            case LIR_ov:
-                return insImm((c2 != 0) && ((c1 + c2) <= c1));
             case LIR_lt:
                 return insImm(c1 < c2);
             case LIR_gt:
@@ -782,6 +636,7 @@ namespace nanojit
             switch (v) {
             case LIR_add:
             case LIR_iaddp:
+            case LIR_qaddp:
             case LIR_mul:
             case LIR_fadd:
             case LIR_fmul:
@@ -879,6 +734,8 @@ namespace nanojit
                 default:
                     ;
                 }
+            } else if (c == 1 && v == LIR_mul) {
+                return oprnd1;
             }
         }
 
@@ -904,11 +761,18 @@ namespace nanojit
             // const ? x : y => return x or y depending on const
             return oprnd1->imm32() ? oprnd2 : oprnd3;
         }
+        if (oprnd1->isop(LIR_eq) &&
+            ((oprnd1->oprnd2() == oprnd2 && oprnd1->oprnd1() == oprnd3) ||
+             (oprnd1->oprnd1() == oprnd2 && oprnd1->oprnd2() == oprnd3))) {
+            // (y == x) ? x : y  =>  y
+            // (x == y) ? x : y  =>  y
+            return oprnd3;
+        }
 
         return out->ins3(v, oprnd1, oprnd2, oprnd3);
     }
 
-    LIns* ExprFilter::insGuard(LOpcode v, LInsp c, LInsp x)
+    LIns* ExprFilter::insGuard(LOpcode v, LInsp c, GuardRecord *gr)
     {
         if (v == LIR_xt || v == LIR_xf) {
             if (c->isconst()) {
@@ -924,7 +788,7 @@ namespace nanojit
                     // so assert in debug builds.
                     NanoAssertMsg(0, "Constantly false guard detected");
 #endif
-                    return out->insGuard(LIR_x, NULL, x);
+                    return out->insGuard(LIR_x, NULL, gr);
                 }
             }
             else {
@@ -937,7 +801,7 @@ namespace nanojit
                 }
             }
         }
-        return out->insGuard(v, c, x);
+        return out->insGuard(v, c, gr);
     }
 
     LIns* ExprFilter::insBranch(LOpcode v, LIns *c, LIns *t)
@@ -957,19 +821,60 @@ namespace nanojit
         return out->insBranch(v, c, t);
     }
 
+    LIns* ExprFilter::insLoad(LOpcode op, LIns* base, int32_t off) {
+        if (base->isconstp() && !isS8(off)) {
+            // if the effective address is constant, then transform:
+            // ld const[bigconst] => ld (const+bigconst)[0]
+            // note: we don't do this optimization for <8bit field offsets,
+            // under the assumption that we're more likely to CSE-match the
+            // constant base address if we dont const-fold small offsets.
+            uintptr_t p = (uintptr_t)base->constvalp() + off;
+            return out->insLoad(op, insImmPtr((void*)p), 0);
+        }
+        return out->insLoad(op, base, off);
+    }
+
     LIns* LirWriter::ins_eq0(LIns* oprnd1)
     {
         return ins2i(LIR_eq, oprnd1, 0);
     }
 
-    LIns* LirWriter::insImmf(double f)
+    LIns* LirWriter::ins_peq0(LIns* oprnd1)
     {
-        union {
-            double f;
-            uint64_t q;
-        } u;
-        u.f = f;
-        return insImmq(u.q);
+        return ins2(LIR_peq, oprnd1, insImmWord(0));
+    }
+
+    LIns* LirWriter::ins_i2p(LIns* intIns)
+    {
+#ifdef NANOJIT_64BIT
+        return ins1(LIR_i2q, intIns);
+#else
+        return intIns;
+#endif
+    }
+
+    LIns* LirWriter::ins_u2p(LIns* uintIns)
+    {
+#ifdef NANOJIT_64BIT
+        return ins1(LIR_u2q, uintIns);
+#else
+        return uintIns;
+#endif
+    }
+
+    LIns* LirWriter::insStorei(LIns* value, LIns* base, int32_t d)
+    {
+        // Determine which kind of store should be used for 'value' based on
+        // its type.
+        LOpcode op = LOpcode(0);
+        switch (value->retType()) {
+        case LTy_I32:   op = LIR_sti;   break;
+        case LTy_I64:   op = LIR_stqi;  break;
+        case LTy_F64:   op = LIR_stfi;  break;
+        case LTy_Void:  NanoAssert(0);  break;
+        default:        NanoAssert(0);  break;
+        }
+        return insStore(op, value, base, d);
     }
 
     LIns* LirWriter::qjoin(LInsp lo, LInsp hi)
@@ -977,12 +882,25 @@ namespace nanojit
         return ins2(LIR_qjoin, lo, hi);
     }
 
-    LIns* LirWriter::insImmPtr(const void *ptr)
+    LIns* LirWriter::insImmWord(intptr_t value)
     {
-        return sizeof(ptr) == 8 ? insImmq((uintptr_t)ptr) : insImm((intptr_t)ptr);
+#ifdef NANOJIT_64BIT
+        return insImmq(value);
+#else
+        return insImm(value);
+#endif
     }
 
-    LIns* LirWriter::ins_choose(LIns* cond, LIns* iftrue, LIns* iffalse)
+    LIns* LirWriter::insImmPtr(const void *ptr)
+    {
+#ifdef NANOJIT_64BIT
+        return insImmq((uint64_t)ptr);
+#else
+        return insImm((int32_t)ptr);
+#endif
+    }
+
+    LIns* LirWriter::ins_choose(LIns* cond, LIns* iftrue, LIns* iffalse, bool use_cmov)
     {
         // if not a conditional, make it implicitly an ==0 test (then flop results)
         if (!cond->isCmp())
@@ -993,8 +911,19 @@ namespace nanojit
             iffalse = tmp;
         }
 
-        if (avmplus::AvmCore::use_cmov())
-            return ins3((iftrue->isQuad() || iffalse->isQuad()) ? LIR_qcmov : LIR_cmov, cond, iftrue, iffalse);
+        if (use_cmov) {
+            LOpcode op = LIR_cmov;
+            if (iftrue->isI32() && iffalse->isI32()) {
+                op = LIR_cmov;
+            } else if (iftrue->isI64() && iffalse->isI64()) {
+                op = LIR_qcmov;
+            } else if (iftrue->isF64() && iffalse->isF64()) {
+                NanoAssertMsg(0, "LIR_fcmov doesn't exist yet, sorry");
+            } else {
+                NanoAssert(0);  // type error
+            }
+            return ins3(op, cond, iftrue, iffalse);
+        }
 
         LInsp ncond = ins1(LIR_neg, cond); // cond ? -1 : 0
         return ins2(LIR_or,
@@ -1006,45 +935,77 @@ namespace nanojit
     {
         static const LOpcode k_callmap[] = {
         //  ARGSIZE_NONE  ARGSIZE_F  ARGSIZE_LO  ARGSIZE_Q  (4)        (5)        ARGSIZE_U  (7)
-            LIR_call,     LIR_fcall, LIR_call,   LIR_callh, LIR_skip,  LIR_skip,  LIR_call,  LIR_skip
+            LIR_pcall,    LIR_fcall, LIR_icall,  LIR_qcall, LIR_pcall, LIR_pcall, LIR_icall, LIR_pcall
         };
 
         uint32_t argt = ci->_argtypes;
         LOpcode op = k_callmap[argt & ARGSIZE_MASK_ANY];
         NanoAssert(op != LIR_skip); // LIR_skip here is just an error condition
+#ifndef NANOJIT_64BIT
+        NanoAssert(op != LIR_qcall); // qcall should only be possible on 64-bit arch
+#endif
 
-        ArgSize sizes[MAXARGS];
-        int32_t argc = ci->get_sizes(sizes);
-
-        if (AvmCore::config.soft_float) {
-            if (op == LIR_fcall)
-                op = LIR_callh;
-        }
-
+        int32_t argc = ci->count_args();
         NanoAssert(argc <= (int)MAXARGS);
 
-        // Lay the call parameters out (in reverse order).
-        // Nb: this must be kept in sync with arg().
-        LInsp* newargs = (LInsp*)_buf->makeRoom(argc*sizeof(LInsp) + sizeof(LInsC)); // args + call
-        for (int32_t i = 0; i < argc; i++)
-            newargs[argc - i - 1] = args[i];
+#if defined(NANOJIT_ARM)
+        if (!_config.arm_vfp && op == LIR_fcall)
+            op = LIR_callh;
+#endif
 
-        // Write the call instruction itself.
-        LInsC* insC = (LInsC*)(uintptr_t(newargs) + argc*sizeof(LInsp));
+        // Allocate space for and copy the arguments.  We use the same
+        // allocator as the normal LIR buffers so it has the same lifetime.
+        // Nb: this must be kept in sync with arg().
+        LInsp* args2 = (LInsp*)_buf->_allocator.alloc(argc * sizeof(LInsp));
+        memcpy(args2, args, argc * sizeof(LInsp));
+
+        // Allocate and write the call instruction.
+        LInsC* insC = (LInsC*)_buf->makeRoom(sizeof(LInsC));
         LIns*  ins  = insC->getLIns();
 #ifndef NANOJIT_64BIT
-        ins->initLInsC(op==LIR_callh ? LIR_call : op, argc, ci);
+        ins->initLInsC(op==LIR_callh ? LIR_icall : op, args2, ci);
 #else
-        ins->initLInsC(op, argc, ci);
+        ins->initLInsC(op, args2, ci);
 #endif
         return ins;
     }
 
     using namespace avmplus;
 
-    StackFilter::StackFilter(LirFilter *in, GC *gc, LirBuffer *lirbuf, LInsp sp)
-        : LirFilter(in), gc(gc), lirbuf(lirbuf), sp(sp), top(0)
+    StackFilter::StackFilter(LirFilter *in, Allocator& alloc, LInsp sp, LInsp rp)
+        : LirFilter(in), sp(sp), rp(rp), spStk(alloc), rpStk(alloc), spTop(0), rpTop(0)
     {}
+
+    bool StackFilter::ignoreStore(LInsp ins, int top, BitSet* stk)
+    {
+        bool ignore = false;
+        int d = ins->disp() >> 2;
+        if (d >= top) {
+            ignore = true;
+        } else {
+            d = top - d;
+            LTy ty = ins->oprnd1()->retType();
+            if (ty == LTy_I64 || ty == LTy_F64) {
+                // storing 8 bytes
+                if (stk->get(d) && stk->get(d-1)) {
+                    ignore = true;
+                } else {
+                    stk->set(d);
+                    stk->set(d-1);
+                }
+            }
+            else {
+                // storing 4 bytes
+                NanoAssert(ty == LTy_I32);
+                if (stk->get(d)) {
+                    ignore = true;
+                } else {
+                    stk->set(d);
+                }
+            }
+        }
+        return ignore;
+    }
 
     LInsp StackFilter::read()
     {
@@ -1054,31 +1015,14 @@ namespace nanojit
             if (i->isStore())
             {
                 LInsp base = i->oprnd2();
-                if (base == sp)
-                {
-                    LInsp v = i->oprnd1();
-                    int d = i->disp() >> 2;
-                    if (d >= top) {
+
+                if (base == sp) {
+                    if (ignoreStore(i, spTop, &spStk))
                         continue;
-                    } else {
-                        d = top - d;
-                        if (v->isQuad()) {
-                            // storing 8 bytes
-                            if (stk.get(d) && stk.get(d-1)) {
-                                continue;
-                            } else {
-                                stk.set(gc, d);
-                                stk.set(gc, d-1);
-                            }
-                        }
-                        else {
-                            // storing 4 bytes
-                            if (stk.get(d))
-                                continue;
-                            else
-                                stk.set(gc, d);
-                        }
-                    }
+
+                } else if (base == rp) {
+                    if (ignoreStore(i, rpTop, &rpStk))
+                        continue;
                 }
             }
             /*
@@ -1088,9 +1032,13 @@ namespace nanojit
              */
             else if (i->isGuard())
             {
-                stk.reset();
-                top = getTop(i) >> 2;
+                spStk.reset();
+                rpStk.reset();
+                getTops(i, spTop, rpTop);
+                spTop >>= 2;
+                rpTop >>= 2;
             }
+
             return i;
         }
     }
@@ -1141,476 +1089,574 @@ namespace nanojit
         return hash;
     }
 
-    LInsHashSet::LInsHashSet(GC* gc) :
-            m_used(0), m_cap(kInitialCap), m_gc(gc)
+    LInsHashSet::LInsHashSet(Allocator& alloc, uint32_t kInitialCaps[]) : alloc(alloc)
     {
-#ifdef MEMORY_INFO
-//        m_list.set_meminfo_name("LInsHashSet.list");
-#endif
-        LInsp *list = (LInsp*) gc->Alloc(sizeof(LInsp)*m_cap, GC::kZero);
-        WB(gc, this, &m_list, list);
-    }
-
-    LInsHashSet::~LInsHashSet()
-    {
-        m_gc->Free(m_list);
+        for (LInsHashKind kind = LInsFirst; kind <= LInsLast; kind = nextKind(kind)) {
+            m_cap[kind] = kInitialCaps[kind];
+            m_list[kind] = new (alloc) LInsp[m_cap[kind]];
+        }
+        clear();
+        m_find[LInsImm]   = &LInsHashSet::findImm;
+        m_find[LInsImmq]  = &LInsHashSet::findImmq;
+        m_find[LInsImmf]  = &LInsHashSet::findImmf;
+        m_find[LIns1]     = &LInsHashSet::find1;
+        m_find[LIns2]     = &LInsHashSet::find2;
+        m_find[LIns3]     = &LInsHashSet::find3;
+        m_find[LInsLoad]  = &LInsHashSet::findLoad;
+        m_find[LInsCall]  = &LInsHashSet::findCall;
     }
 
     void LInsHashSet::clear() {
-        memset(m_list, 0, sizeof(LInsp)*m_cap);
-        m_used = 0;
-    }
-
-    /*static*/ uint32_t FASTCALL LInsHashSet::hashcode(LInsp i)
-    {
-        const LOpcode op = i->opcode();
-        switch (op)
-        {
-            case LIR_int:
-                return hashimm(i->imm32());
-
-            case LIR_quad:
-                return hashimmq(i->imm64());
-
-            case LIR_call:
-            case LIR_fcall:
-#if defined NANOJIT_64BIT
-            case LIR_callh:
-#endif
-            {
-                LInsp args[10];
-                int32_t argc = i->argc();
-                NanoAssert(argc < 10);
-                for (int32_t j=0; j < argc; j++)
-                    args[j] = i->arg(j);
-                return hashcall(i->callInfo(), argc, args);
-            }
-
-            case LIR_ld:
-            case LIR_ldcb:
-            case LIR_ldcs:
-            case LIR_ldc:
-            case LIR_ldq:
-            case LIR_ldqc:
-                return hashLoad(op, i->oprnd1(), i->disp());
-
-            default:
-                if (operandCount[op] == 3)
-                    return hash3(op, i->oprnd1(), i->oprnd2(), i->oprnd3());
-                else if (operandCount[op] == 2)
-                    return hash2(op, i->oprnd1(), i->oprnd2());
-                else
-                    return hash1(op, i->oprnd1());
+        for (LInsHashKind kind = LInsFirst; kind <= LInsLast; kind = nextKind(kind)) {
+            VMPI_memset(m_list[kind], 0, sizeof(LInsp)*m_cap[kind]);
+            m_used[kind] = 0;
         }
     }
 
-    /*static*/ bool FASTCALL LInsHashSet::equals(LInsp a, LInsp b)
-    {
-        if (a==b)
-            return true;
-        if (a->opcode() != b->opcode())
-            return false;
-        AvmAssert(a->opcode() == b->opcode());
-        const LOpcode op = a->opcode();
-        switch (op)
-        {
-            case LIR_int:
-            {
-                return a->imm32() == b->imm32();
-            }
-            case LIR_quad:
-            {
-                return a->imm64() == b->imm64();
-            }
-            case LIR_call:
-            case LIR_fcall:
-#if defined NANOJIT_64BIT
-            case LIR_callh:
-#endif
-            {
-                if (a->callInfo() != b->callInfo()) return false;
-                uint32_t argc=a->argc();
-                NanoAssert(argc == b->argc());
-                for (uint32_t i=0; i < argc; i++)
-                    if (a->arg(i) != b->arg(i))
-                        return false;
-                return true;
-            }
 
-            case LIR_ld:
-            case LIR_ldcb:
-            case LIR_ldcs:
-            case LIR_ldc:
-            case LIR_ldq:
-            case LIR_ldqc:
-                return
-                    (a->oprnd1() == b->oprnd1() && a->disp() == b->disp() ? true : false );
-
-            default:
-            {
-                const uint32_t count = operandCount[op];
-                if ((count >= 1 && a->oprnd1() != b->oprnd1()) ||
-                    (count >= 2 && a->oprnd2() != b->oprnd2()) ||
-                    (count >= 3 && a->oprnd3() != b->oprnd3()))
-                    return false;
-                return true;
-            }
-        }
-    }
-
-    void FASTCALL LInsHashSet::grow()
-    {
-        const uint32_t newcap = m_cap << 1;
-        LInsp *newlist = (LInsp*) m_gc->Alloc(newcap * sizeof(LInsp), GC::kZero);
-        LInsp *list = m_list;
-#ifdef MEMORY_INFO
-//        newlist.set_meminfo_name("LInsHashSet.list");
-#endif
-        for (uint32_t i=0, n=m_cap; i < n; i++) {
-            LInsp name = list[i];
-            if (!name) continue;
-            uint32_t j = find(name, hashcode(name), newlist, newcap);
-            newlist[j] = name;
-        }
-        m_cap = newcap;
-        m_gc->Free(list);
-        WB(m_gc, this, &m_list, newlist);
-    }
-
-    uint32_t FASTCALL LInsHashSet::find(LInsp name, uint32_t hash, const LInsp *list, uint32_t cap)
-    {
-        const uint32_t bitmask = (cap - 1) & ~0x1;
-
-        uint32_t n = 7 << 1;
-        hash &= bitmask;
-        LInsp k;
-        while ((k = list[hash]) != NULL && !equals(k, name))
-        {
-            hash = (hash + (n += 2)) & bitmask;        // quadratic probe
-        }
-        return hash;
-    }
-
-    LInsp LInsHashSet::add(LInsp name, uint32_t k)
-    {
-        // this is relatively short-lived so let's try a more aggressive load factor
-        // in the interest of improving performance
-        if (((m_used+1)<<1) >= m_cap) // 0.50
-        {
-            grow();
-            k = find(name, hashcode(name), m_list, m_cap);
-        }
-        NanoAssert(!m_list[k]);
-        m_used++;
-        return m_list[k] = name;
-    }
-
-    void LInsHashSet::replace(LInsp i)
-    {
-        LInsp *list = m_list;
-        uint32_t k = find(i, hashcode(i), list, m_cap);
-        if (list[k]) {
-            // already there, so replace it
-            list[k] = i;
-        } else {
-            add(i, k);
-        }
-    }
-
-    uint32_t LInsHashSet::hashimm(int32_t a) {
+    inline uint32_t LInsHashSet::hashImm(int32_t a) {
         return _hashfinish(_hash32(0,a));
     }
 
-    uint32_t LInsHashSet::hashimmq(uint64_t a) {
+    inline uint32_t LInsHashSet::hashImmq(uint64_t a) {
         uint32_t hash = _hash32(0, uint32_t(a >> 32));
         return _hashfinish(_hash32(hash, uint32_t(a)));
     }
 
-    uint32_t LInsHashSet::hash1(LOpcode op, LInsp a) {
+    inline uint32_t LInsHashSet::hash1(LOpcode op, LInsp a) {
         uint32_t hash = _hash8(0,uint8_t(op));
         return _hashfinish(_hashptr(hash, a));
     }
 
-    uint32_t LInsHashSet::hash2(LOpcode op, LInsp a, LInsp b) {
+    inline uint32_t LInsHashSet::hash2(LOpcode op, LInsp a, LInsp b) {
         uint32_t hash = _hash8(0,uint8_t(op));
         hash = _hashptr(hash, a);
         return _hashfinish(_hashptr(hash, b));
     }
 
-    uint32_t LInsHashSet::hash3(LOpcode op, LInsp a, LInsp b, LInsp c) {
+    inline uint32_t LInsHashSet::hash3(LOpcode op, LInsp a, LInsp b, LInsp c) {
         uint32_t hash = _hash8(0,uint8_t(op));
         hash = _hashptr(hash, a);
         hash = _hashptr(hash, b);
         return _hashfinish(_hashptr(hash, c));
     }
 
-    uint32_t LInsHashSet::hashLoad(LOpcode op, LInsp a, int32_t d) {
+    inline uint32_t LInsHashSet::hashLoad(LOpcode op, LInsp a, int32_t d) {
         uint32_t hash = _hash8(0,uint8_t(op));
         hash = _hashptr(hash, a);
         return _hashfinish(_hash32(hash, d));
     }
 
-    uint32_t LInsHashSet::hashcall(const CallInfo *ci, uint32_t argc, LInsp args[]) {
+    inline uint32_t LInsHashSet::hashCall(const CallInfo *ci, uint32_t argc, LInsp args[]) {
         uint32_t hash = _hashptr(0, ci);
         for (int32_t j=argc-1; j >= 0; j--)
             hash = _hashptr(hash,args[j]);
         return _hashfinish(hash);
     }
 
-    LInsp LInsHashSet::find32(int32_t a, uint32_t &i)
+    void LInsHashSet::grow(LInsHashKind kind)
     {
-        uint32_t cap = m_cap;
-        const LInsp *list = m_list;
-        const uint32_t bitmask = (cap - 1) & ~0x1;
-        uint32_t hash = hashimm(a) & bitmask;
-        uint32_t n = 7 << 1;
-        LInsp k;
-        while ((k = list[hash]) != NULL &&
-            (!k->isconst() || k->imm32() != a))
-        {
-            hash = (hash + (n += 2)) & bitmask;        // quadratic probe
+        const uint32_t oldcap = m_cap[kind];
+        m_cap[kind] <<= 1;
+        LInsp *oldlist = m_list[kind];
+        m_list[kind] = new (alloc) LInsp[m_cap[kind]];
+        VMPI_memset(m_list[kind], 0, m_cap[kind] * sizeof(LInsp));
+        find_t find = m_find[kind];
+        for (uint32_t i = 0; i < oldcap; i++) {
+            LInsp ins = oldlist[i];
+            if (!ins) continue;
+            uint32_t j = (this->*find)(ins);
+            m_list[kind][j] = ins;
         }
-        i = hash;
+    }
+
+    LInsp LInsHashSet::add(LInsHashKind kind, LInsp ins, uint32_t k)
+    {
+        NanoAssert(!m_list[kind][k]);
+        m_used[kind]++;
+        m_list[kind][k] = ins;
+        if ((m_used[kind] * 4) >= (m_cap[kind] * 3)) {  // load factor of 0.75
+            grow(kind);
+        }
+        return ins;
+    }
+
+    LInsp LInsHashSet::findImm(int32_t a, uint32_t &k)
+    {
+        LInsHashKind kind = LInsImm;
+        const uint32_t bitmask = m_cap[kind] - 1;
+        uint32_t hash = hashImm(a) & bitmask;
+        uint32_t n = 1;
+        LInsp ins;
+        while ((ins = m_list[kind][hash]) != NULL &&
+            (ins->imm32() != a))
+        {
+            NanoAssert(ins->isconst());
+            // Quadratic probe:  h(k,i) = h(k) + 0.5i + 0.5i^2, which gives the
+            // sequence h(k), h(k)+1, h(k)+3, h(k)+6, h+10, ...  This is a
+            // good sequence for 2^n-sized tables as the values h(k,i) for i
+            // in [0,m − 1] are all distinct so termination is guaranteed.
+            // See http://portal.acm.org/citation.cfm?id=360737 and
+            // http://en.wikipedia.org/wiki/Quadratic_probing (fetched
+            // 06-Nov-2009) for more details.
+            hash = (hash + n) & bitmask;
+            n += 1;
+        }
+        k = hash;
+        return ins;
+    }
+
+    uint32_t LInsHashSet::findImm(LInsp ins)
+    {
+        uint32_t k;
+        findImm(ins->imm32(), k);
         return k;
     }
 
-    LInsp LInsHashSet::find64(uint64_t a, uint32_t &i)
+    LInsp LInsHashSet::findImmq(uint64_t a, uint32_t &k)
     {
-        uint32_t cap = m_cap;
-        const LInsp *list = m_list;
-        const uint32_t bitmask = (cap - 1) & ~0x1;
-        uint32_t hash = hashimmq(a) & bitmask;
-        uint32_t n = 7 << 1;
-        LInsp k;
-        while ((k = list[hash]) != NULL &&
-            (!k->isconstq() || k->imm64() != a))
+        LInsHashKind kind = LInsImmq;
+        const uint32_t bitmask = m_cap[kind] - 1;
+        uint32_t hash = hashImmq(a) & bitmask;
+        uint32_t n = 1;
+        LInsp ins;
+        while ((ins = m_list[kind][hash]) != NULL &&
+            (ins->imm64() != a))
         {
-            hash = (hash + (n += 2)) & bitmask;        // quadratic probe
+            NanoAssert(ins->isconstq());
+            hash = (hash + n) & bitmask;
+            n += 1;
         }
-        i = hash;
+        k = hash;
+        return ins;
+    }
+
+    uint32_t LInsHashSet::findImmq(LInsp ins)
+    {
+        uint32_t k;
+        findImmq(ins->imm64(), k);
         return k;
     }
 
-    LInsp LInsHashSet::find1(LOpcode op, LInsp a, uint32_t &i)
+    LInsp LInsHashSet::findImmf(uint64_t a, uint32_t &k)
     {
-        uint32_t cap = m_cap;
-        const LInsp *list = m_list;
-        const uint32_t bitmask = (cap - 1) & ~0x1;
+        LInsHashKind kind = LInsImmf;
+        const uint32_t bitmask = m_cap[kind] - 1;
+        uint32_t hash = hashImmq(a) & bitmask;
+        uint32_t n = 1;
+        LInsp ins;
+        while ((ins = m_list[kind][hash]) != NULL &&
+            (ins->imm64() != a))
+        {
+            NanoAssert(ins->isconstf());
+            hash = (hash + n) & bitmask;
+            n += 1;
+        }
+        k = hash;
+        return ins;
+    }
+
+    uint32_t LInsHashSet::findImmf(LInsp ins)
+    {
+        uint32_t k;
+        findImmf(ins->imm64(), k);
+        return k;
+    }
+
+    LInsp LInsHashSet::find1(LOpcode op, LInsp a, uint32_t &k)
+    {
+        LInsHashKind kind = LIns1;
+        const uint32_t bitmask = m_cap[kind] - 1;
         uint32_t hash = hash1(op,a) & bitmask;
-        uint32_t n = 7 << 1;
-        LInsp k;
-        while ((k = list[hash]) != NULL &&
-            (k->opcode() != op || k->oprnd1() != a))
+        uint32_t n = 1;
+        LInsp ins;
+        while ((ins = m_list[kind][hash]) != NULL &&
+            (ins->opcode() != op || ins->oprnd1() != a))
         {
-            hash = (hash + (n += 2)) & bitmask;        // quadratic probe
+            hash = (hash + n) & bitmask;
+            n += 1;
         }
-        i = hash;
+        k = hash;
+        return ins;
+    }
+
+    uint32_t LInsHashSet::find1(LInsp ins)
+    {
+        uint32_t k;
+        find1(ins->opcode(), ins->oprnd1(), k);
         return k;
     }
 
-    LInsp LInsHashSet::find2(LOpcode op, LInsp a, LInsp b, uint32_t &i)
+    LInsp LInsHashSet::find2(LOpcode op, LInsp a, LInsp b, uint32_t &k)
     {
-        uint32_t cap = m_cap;
-        const LInsp *list = m_list;
-        const uint32_t bitmask = (cap - 1) & ~0x1;
+        LInsHashKind kind = LIns2;
+        const uint32_t bitmask = m_cap[kind] - 1;
         uint32_t hash = hash2(op,a,b) & bitmask;
-        uint32_t n = 7 << 1;
-        LInsp k;
-        while ((k = list[hash]) != NULL &&
-            (k->opcode() != op || k->oprnd1() != a || k->oprnd2() != b))
+        uint32_t n = 1;
+        LInsp ins;
+        while ((ins = m_list[kind][hash]) != NULL &&
+            (ins->opcode() != op || ins->oprnd1() != a || ins->oprnd2() != b))
         {
-            hash = (hash + (n += 2)) & bitmask;        // quadratic probe
+            hash = (hash + n) & bitmask;
+            n += 1;
         }
-        i = hash;
+        k = hash;
+        return ins;
+    }
+
+    uint32_t LInsHashSet::find2(LInsp ins)
+    {
+        uint32_t k;
+        find2(ins->opcode(), ins->oprnd1(), ins->oprnd2(), k);
         return k;
     }
 
-    LInsp LInsHashSet::find3(LOpcode op, LInsp a, LInsp b, LInsp c, uint32_t &i)
+    LInsp LInsHashSet::find3(LOpcode op, LInsp a, LInsp b, LInsp c, uint32_t &k)
     {
-        uint32_t cap = m_cap;
-        const LInsp *list = m_list;
-        const uint32_t bitmask = (cap - 1) & ~0x1;
-        uint32_t hash = hash3(op,a,b,c) & bitmask;  
-        uint32_t n = 7 << 1;
-        LInsp k;
-        while ((k = list[hash]) != NULL && 
-            (k->opcode() != op || k->oprnd1() != a || k->oprnd2() != b || k->oprnd3() != c))
+        LInsHashKind kind = LIns3;
+        const uint32_t bitmask = m_cap[kind] - 1;
+        uint32_t hash = hash3(op,a,b,c) & bitmask;
+        uint32_t n = 1;
+        LInsp ins;
+        while ((ins = m_list[kind][hash]) != NULL &&
+            (ins->opcode() != op || ins->oprnd1() != a || ins->oprnd2() != b || ins->oprnd3() != c))
         {
-            hash = (hash + (n += 2)) & bitmask;     // quadratic probe
+            hash = (hash + n) & bitmask;
+            n += 1;
         }
-        i = hash;
+        k = hash;
+        return ins;
+    }
+
+    uint32_t LInsHashSet::find3(LInsp ins)
+    {
+        uint32_t k;
+        find3(ins->opcode(), ins->oprnd1(), ins->oprnd2(), ins->oprnd3(), k);
         return k;
     }
 
-    LInsp LInsHashSet::findLoad(LOpcode op, LInsp a, int32_t d, uint32_t &i)
+    LInsp LInsHashSet::findLoad(LOpcode op, LInsp a, int32_t d, uint32_t &k)
     {
-        uint32_t cap = m_cap;
-        const LInsp *list = m_list;
-        const uint32_t bitmask = (cap - 1) & ~0x1;
+        LInsHashKind kind = LInsLoad;
+        const uint32_t bitmask = m_cap[kind] - 1;
         uint32_t hash = hashLoad(op,a,d) & bitmask;
-        uint32_t n = 7 << 1;
-        LInsp k;
-        while ((k = list[hash]) != NULL &&
-            (k->opcode() != op || k->oprnd1() != a || k->disp() != d))
+        uint32_t n = 1;
+        LInsp ins;
+        while ((ins = m_list[kind][hash]) != NULL &&
+            (ins->opcode() != op || ins->oprnd1() != a || ins->disp() != d))
         {
-            hash = (hash + (n += 2)) & bitmask;        // quadratic probe
+            hash = (hash + n) & bitmask;
+            n += 1;
         }
-        i = hash;
+        k = hash;
+        return ins;
+    }
+
+    uint32_t LInsHashSet::findLoad(LInsp ins)
+    {
+        uint32_t k;
+        findLoad(ins->opcode(), ins->oprnd1(), ins->disp(), k);
         return k;
     }
 
-    bool argsmatch(LInsp i, uint32_t argc, LInsp args[])
+    bool argsmatch(LInsp ins, uint32_t argc, LInsp args[])
     {
         for (uint32_t j=0; j < argc; j++)
-            if (i->arg(j) != args[j])
+            if (ins->arg(j) != args[j])
                 return false;
         return true;
     }
 
-    LInsp LInsHashSet::findcall(const CallInfo *ci, uint32_t argc, LInsp args[], uint32_t &i)
+    LInsp LInsHashSet::findCall(const CallInfo *ci, uint32_t argc, LInsp args[], uint32_t &k)
     {
-        uint32_t cap = m_cap;
-        const LInsp *list = m_list;
-        const uint32_t bitmask = (cap - 1) & ~0x1;
-        uint32_t hash = hashcall(ci, argc, args) & bitmask;
-        uint32_t n = 7 << 1;
-        LInsp k;
-        while ((k = list[hash]) != NULL &&
-            (!k->isCall() || k->callInfo() != ci || !argsmatch(k, argc, args)))
+        LInsHashKind kind = LInsCall;
+        const uint32_t bitmask = m_cap[kind] - 1;
+        uint32_t hash = hashCall(ci, argc, args) & bitmask;
+        uint32_t n = 1;
+        LInsp ins;
+        while ((ins = m_list[kind][hash]) != NULL &&
+            (!ins->isCall() || ins->callInfo() != ci || !argsmatch(ins, argc, args)))
         {
-            hash = (hash + (n += 2)) & bitmask;        // quadratic probe
+            hash = (hash + n) & bitmask;
+            n += 1;
         }
-        i = hash;
+        k = hash;
+        return ins;
+    }
+
+    uint32_t LInsHashSet::findCall(LInsp ins)
+    {
+        LInsp args[MAXARGS];
+        uint32_t argc = ins->argc();
+        NanoAssert(argc < MAXARGS);
+        for (uint32_t j=0; j < argc; j++)
+            args[j] = ins->arg(j);
+        uint32_t k;
+        findCall(ins->callInfo(), argc, args, k);
         return k;
     }
 
-    GuardRecord *LIns::record()
-    {
-        NanoAssert(isGuard());
-        return (GuardRecord*)oprnd2()->payload();
-    }
-
 #ifdef NJ_VERBOSE
-    class RetiredEntry: public GCObject
+    class RetiredEntry
     {
     public:
-        List<LInsp, LIST_NonGCObjects> live;
-        LInsp i;
-        RetiredEntry(GC *gc): live(gc) {}
+        Seq<LIns*>* live;
+        LIns* i;
+        RetiredEntry(): live(NULL), i(NULL) {}
     };
+
     class LiveTable
     {
+        Allocator& alloc;
     public:
-        SortedMap<LInsp,LInsp,LIST_NonGCObjects> live;
-        List<RetiredEntry*, LIST_GCObjects> retired;
+        HashMap<LIns*, LIns*> live;
+        SeqBuilder<RetiredEntry*> retired;
+        int retiredCount;
         int maxlive;
-        LiveTable(GC *gc) : live(gc), retired(gc), maxlive(0) {}
-        ~LiveTable()
-        {
-            for (size_t i = 0; i < retired.size(); i++) {
-                NJ_DELETE(retired.get(i));
-            }
+        LiveTable(Allocator& alloc)
+            : alloc(alloc)
+            , live(alloc)
+            , retired(alloc)
+            , retiredCount(0)
+            , maxlive(0)
+        { }
 
-        }
         void add(LInsp i, LInsp use) {
             if (!i->isconst() && !i->isconstq() && !live.containsKey(i)) {
                 NanoAssert(size_t(i->opcode()) < sizeof(lirNames) / sizeof(lirNames[0]));
                 live.put(i,use);
             }
         }
-        void retire(LInsp i, GC *gc) {
-            RetiredEntry *e = NJ_NEW(gc, RetiredEntry)(gc);
+
+        void retire(LInsp i) {
+            RetiredEntry *e = new (alloc) RetiredEntry();
             e->i = i;
-            for (int j=0, n=live.size(); j < n; j++) {
-                LInsp ins = live.keyAt(j);
-                if (!ins->isStore() && !ins->isGuard())
-                    e->live.add(ins);
+            SeqBuilder<LIns*> livelist(alloc);
+            HashMap<LIns*, LIns*>::Iter iter(live);
+            int live_count = 0;
+            while (iter.next()) {
+                LIns* ins = iter.key();
+                if (!ins->isStore() && !ins->isGuard()) {
+                    live_count++;
+                    livelist.insert(ins);
+                }
             }
-            int size=0;
-            if ((size = e->live.size()) > maxlive)
-                maxlive = size;
+            e->live = livelist.get();
+            if (live_count > maxlive)
+                maxlive = live_count;
 
             live.remove(i);
-            retired.add(e);
+            retired.insert(e);
+            retiredCount++;
         }
+
         bool contains(LInsp i) {
             return live.containsKey(i);
         }
     };
 
-    void live(GC *gc, Fragment *frag, LogControl *logc)
+    /*
+     * traverse the LIR buffer and discover which instructions are live
+     * by starting from instructions with side effects (stores, calls, branches)
+     * and marking instructions used by them.  Works bottom-up, in one pass.
+     * if showLiveRefs == true, also print the set of live expressions next to
+     * each instruction
+     */
+    void live(LirFilter* in, Allocator& alloc, Fragment *frag, LogControl *logc)
     {
         // traverse backwards to find live exprs and a few other stats.
 
-        LiveTable live(gc);
+        LiveTable live(alloc);
         uint32_t exits = 0;
-        LirReader br(frag->lastIns);
-        StackFilter sf(&br, gc, frag->lirbuf, frag->lirbuf->sp);
-        StackFilter r(&sf, gc, frag->lirbuf, frag->lirbuf->rp);
         int total = 0;
         if (frag->lirbuf->state)
-            live.add(frag->lirbuf->state, r.pos());
-        for (LInsp i = r.read(); !i->isop(LIR_start); i = r.read())
+            live.add(frag->lirbuf->state, in->pos());
+        for (LInsp ins = in->read(); !ins->isop(LIR_start); ins = in->read())
         {
             total++;
 
             // first handle side-effect instructions
-            if (!i->isCse())
+            if (ins->isStmt())
             {
-                live.add(i,0);
-                if (i->isGuard())
+                live.add(ins, 0);
+                if (ins->isGuard())
                     exits++;
             }
 
             // now propagate liveness
-            if (live.contains(i))
+            if (live.contains(ins))
             {
-                live.retire(i,gc);
-                NanoAssert(size_t(i->opcode()) < sizeof(operandCount) / sizeof(operandCount[0]));
-                if (i->isStore()) {
-                    live.add(i->oprnd2(),i); // base
-                    live.add(i->oprnd1(),i); // val
-                }
-                else if (i->isop(LIR_cmov) || i->isop(LIR_qcmov)) {
-                    live.add(i->oprnd1(),i);
-                    live.add(i->oprnd2(),i);
-                    live.add(i->oprnd3(),i);
-                }
-                else if (operandCount[i->opcode()] == 1) {
-                    live.add(i->oprnd1(),i);
-                }
-                else if (operandCount[i->opcode()] == 2) {
-                    live.add(i->oprnd1(),i);
-                    live.add(i->oprnd2(),i);
-                }
-                else if (i->isCall()) {
-                    for (int j=0, c=i->argc(); j < c; j++)
-                        live.add(i->arg(j),i);
+                live.retire(ins);
+
+                switch (ins->opcode()) {
+                case LIR_skip:
+                    NanoAssertMsg(0, "Shouldn't see LIR_skip");
+                    break;
+
+                case LIR_start:
+                case LIR_regfence:
+                case LIR_iparam:
+                case LIR_qparam:
+                case LIR_x:
+                case LIR_xbarrier:
+                case LIR_j:
+                case LIR_label:
+                case LIR_int:
+                case LIR_quad:
+                case LIR_float:
+                case LIR_alloc:
+                    // No operands, do nothing.
+                    break;
+
+                case LIR_ld:
+                case LIR_ldc:
+                case LIR_ldq:
+                case LIR_ldqc:
+                case LIR_ldf:
+                case LIR_ldfc:
+                case LIR_ldzb:
+                case LIR_ldzs:
+                case LIR_ldcb:
+                case LIR_ldcs:
+                case LIR_ldsb:
+                case LIR_ldss:
+                case LIR_ldcsb:
+                case LIR_ldcss:
+                case LIR_ld32f:
+                case LIR_ldc32f:
+                case LIR_ret:
+                case LIR_qret:
+                case LIR_fret:
+                case LIR_live:
+                case LIR_qlive:
+                case LIR_flive:
+                case LIR_xt:
+                case LIR_xf:
+                case LIR_xtbl:
+                case LIR_jt:
+                case LIR_jf:
+                case LIR_jtbl:
+                case LIR_neg:
+                case LIR_fneg:
+                case LIR_not:
+                case LIR_qlo:
+                case LIR_qhi:
+                case LIR_ov:
+                case LIR_i2q:
+                case LIR_u2q:
+                case LIR_i2f:
+                case LIR_u2f:
+                case LIR_q2i:
+                case LIR_f2i:
+                case LIR_mod:
+                    live.add(ins->oprnd1(), ins);
+                    break;
+
+                case LIR_sti:
+                case LIR_stqi:
+                case LIR_stfi:
+                case LIR_stb:
+                case LIR_sts:
+                case LIR_st32f:
+                case LIR_eq:
+                case LIR_lt:
+                case LIR_gt:
+                case LIR_le:
+                case LIR_ge:
+                case LIR_ult:
+                case LIR_ugt:
+                case LIR_ule:
+                case LIR_uge:
+                case LIR_feq:
+                case LIR_flt:
+                case LIR_fgt:
+                case LIR_fle:
+                case LIR_fge:
+                case LIR_qeq:
+                case LIR_qlt:
+                case LIR_qgt:
+                case LIR_qle:
+                case LIR_qge:
+                case LIR_qult:
+                case LIR_qugt:
+                case LIR_qule:
+                case LIR_quge:
+                case LIR_lsh:
+                case LIR_rsh:
+                case LIR_ush:
+                case LIR_qilsh:
+                case LIR_qirsh:
+                case LIR_qursh:
+                case LIR_iaddp:
+                case LIR_qaddp:
+                case LIR_add:
+                case LIR_sub:
+                case LIR_mul:
+                case LIR_div:
+                case LIR_fadd:
+                case LIR_fsub:
+                case LIR_fmul:
+                case LIR_fdiv:
+                case LIR_qiadd:
+                case LIR_and:
+                case LIR_or:
+                case LIR_xor:
+                case LIR_qiand:
+                case LIR_qior:
+                case LIR_qxor:
+                case LIR_qjoin:
+                case LIR_file:
+                case LIR_line:
+                    live.add(ins->oprnd1(), ins);
+                    live.add(ins->oprnd2(), ins);
+                    break;
+
+                case LIR_cmov:
+                case LIR_qcmov:
+                    live.add(ins->oprnd1(), ins);
+                    live.add(ins->oprnd2(), ins);
+                    live.add(ins->oprnd3(), ins);
+                    break;
+
+                case LIR_icall:
+                case LIR_fcall:
+                case LIR_qcall:
+                    for (int i = 0, argc = ins->argc(); i < argc; i++)
+                        live.add(ins->arg(i), ins);
+                    break;
+
+                case LIR_callh:
+                    live.add(ins->oprnd1(), ins);
+                    break;
+
+                default:
+                    NanoAssertMsgf(0, "unhandled opcode: %d", ins->opcode());
+                    break;
                 }
             }
         }
 
         logc->printf("  Live instruction count %d, total %u, max pressure %d\n",
-                     live.retired.size(), total, live.maxlive);
-        logc->printf("  Side exits %u\n", exits);
+                     live.retiredCount, total, live.maxlive);
+        if (exits > 0)
+            logc->printf("  Side exits %u\n", exits);
         logc->printf("  Showing LIR instructions with live-after variables\n");
         logc->printf("\n");
 
         // print live exprs, going forwards
         LirNameMap *names = frag->lirbuf->names;
         bool newblock = true;
-        for (int j=live.retired.size()-1; j >= 0; j--)
-        {
-            RetiredEntry *e = live.retired[j];
+        for (Seq<RetiredEntry*>* p = live.retired.get(); p != NULL; p = p->tail) {
+            RetiredEntry* e = p->head;
             char livebuf[4000], *s=livebuf;
             *s = 0;
             if (!newblock && e->i->isop(LIR_label)) {
                 logc->printf("\n");
             }
             newblock = false;
-            for (int k=0,n=e->live.size(); k < n; k++) {
-                strcpy(s, names->formatRef(e->live[k]));
-                s += strlen(s);
+            for (Seq<LIns*>* p = e->live; p != NULL; p = p->tail) {
+                VMPI_strcpy(s, names->formatRef(p->head));
+                s += VMPI_strlen(s);
                 *s++ = ' '; *s = 0;
                 NanoAssert(s < livebuf+sizeof(livebuf));
             }
@@ -1618,7 +1664,7 @@ namespace nanojit
                live-after set on the same line.  If not, put
                live-after set on a new line, suitably indented. */
             const char* insn_text = names->formatIns(e->i);
-            if (strlen(insn_text) >= 30-2) {
+            if (VMPI_strlen(insn_text) >= 30-2) {
                 logc->printf("  %-30s\n  %-30s %s\n", names->formatIns(e->i), "", livebuf);
             } else {
                 logc->printf("  %-30s %s\n", names->formatIns(e->i), livebuf);
@@ -1631,75 +1677,63 @@ namespace nanojit
         }
     }
 
-    LabelMap::Entry::~Entry()
-    {
-    }
-
-    LirNameMap::Entry::~Entry()
-    {
-    }
-
-    LirNameMap::~LirNameMap()
-    {
-        Entry *e;
-
-        while ((e = names.removeLast()) != NULL) {
-            labels->core->freeString(e->name);
-            NJ_DELETE(e);
-        }
-    }
-
-    bool LirNameMap::addName(LInsp i, Stringp name) {
+    void LirNameMap::addName(LInsp i, const char* name) {
         if (!names.containsKey(i)) {
-            Entry *e = NJ_NEW(labels->core->gc, Entry)(name);
+            char *copy = new (alloc) char[VMPI_strlen(name)+1];
+            VMPI_strcpy(copy, name);
+            Entry *e = new (alloc) Entry(copy);
             names.put(i, e);
-            return true;
-        }
-        return false;
-    }
-    void LirNameMap::addName(LInsp i, const char *name) {
-        Stringp new_name = labels->core->newString(name);
-        if (!addName(i, new_name)) {
-            labels->core->freeString(new_name);
         }
     }
 
     void LirNameMap::copyName(LInsp i, const char *s, int suffix) {
         char s2[200];
-        if (isdigit(s[strlen(s)-1])) {
+        if (VMPI_isdigit(s[VMPI_strlen(s)-1])) {
             // if s ends with a digit, add '_' to clarify the suffix
-            sprintf(s2,"%s_%d", s, suffix);
+            VMPI_sprintf(s2,"%s_%d", s, suffix);
         } else {
-            sprintf(s2,"%s%d", s, suffix);
+            VMPI_sprintf(s2,"%s%d", s, suffix);
         }
-        addName(i, labels->core->newString(s2));
+        addName(i, s2);
     }
 
     void LirNameMap::formatImm(int32_t c, char *buf) {
-        if (c >= 10000 || c <= -10000)
-            sprintf(buf,"#%s",labels->format((void*)c));
-        else
-            sprintf(buf,"%d", c);
+        if (-10000 < c || c < 10000) {
+            VMPI_sprintf(buf,"%d", c);
+        } else {
+#if !defined NANOJIT_64BIT
+            VMPI_sprintf(buf, "%s", labels->format((void*)c));
+#else
+            VMPI_sprintf(buf, "0x%x", (unsigned int)c);
+#endif
+        }
+    }
+
+    void LirNameMap::formatImmq(uint64_t c, char *buf) {
+        if (-10000 < (int64_t)c || c < 10000) {
+            VMPI_sprintf(buf, "%dLL", (int)c);
+        } else {
+#if defined NANOJIT_64BIT
+            VMPI_sprintf(buf, "%s", labels->format((void*)c));
+#else
+            VMPI_sprintf(buf, "0x%llxLL", c);
+#endif
+        }
     }
 
     const char* LirNameMap::formatRef(LIns *ref)
     {
         char buffer[200], *buf=buffer;
         buf[0]=0;
-        GC *gc = labels->core->gc;
         if (names.containsKey(ref)) {
-            StringNullTerminatedUTF8 cname(gc, names.get(ref)->name);
-            strcat(buf, cname.c_str());
+            const char* name = names.get(ref)->name;
+            VMPI_strcat(buf, name);
+        }
+        else if (ref->isconstf()) {
+            VMPI_sprintf(buf, "%g", ref->imm64f());
         }
         else if (ref->isconstq()) {
-#if defined NANOJIT_64BIT
-            sprintf(buf, "#0x%lx", (nj_printf_ld)ref->imm64());
-#else
-            formatImm(ref->imm64_1(), buf);
-            buf += strlen(buf);
-            *buf++ = ':';
-            formatImm(ref->imm64_0(), buf);
-#endif
+            formatImmq(ref->imm64(), buf);
         }
         else if (ref->isconst()) {
             formatImm(ref->imm32(), buf);
@@ -1720,96 +1754,113 @@ namespace nanojit
                 NanoAssert(size_t(ref->opcode()) < sizeof(lirNames) / sizeof(lirNames[0]));
                 copyName(ref, lirNames[ref->opcode()], lircounts.add(ref->opcode()));
             }
-            StringNullTerminatedUTF8 cname(gc, names.get(ref)->name);
-            strcat(buf, cname.c_str());
+            const char* name = names.get(ref)->name;
+            VMPI_strcat(buf, name);
         }
         return labels->dup(buffer);
     }
 
     const char* LirNameMap::formatIns(LIns* i)
     {
-        char sbuf[200];
+        char sbuf[4096];
         char *s = sbuf;
         LOpcode op = i->opcode();
-        switch(op)
+        switch (op)
         {
             case LIR_int:
-            {
-                sprintf(s, "%s", formatRef(i));
+                VMPI_sprintf(s, "%s = %s %d", formatRef(i), lirNames[op], i->imm32());
                 break;
-            }
 
-            case LIR_ialloc: {
-                sprintf(s, "%s = %s %d", formatRef(i), lirNames[op], i->size());
+            case LIR_alloc:
+                VMPI_sprintf(s, "%s = %s %d", formatRef(i), lirNames[op], i->size());
                 break;
-            }
 
             case LIR_quad:
-            {
-                sprintf(s, "#%X:%X /* %g */", i->imm64_1(), i->imm64_0(), i->imm64f());
+                VMPI_sprintf(s, "%s = %s %X:%X", formatRef(i), lirNames[op],
+                             i->imm64_1(), i->imm64_0());
                 break;
-            }
 
-            case LIR_loop:
+            case LIR_float:
+                VMPI_sprintf(s, "%s = %s %g", formatRef(i), lirNames[op], i->imm64f());
+                break;
+
             case LIR_start:
-                sprintf(s, "%s", lirNames[op]);
+            case LIR_regfence:
+                VMPI_sprintf(s, "%s", lirNames[op]);
                 break;
 
-#if defined NANOJIT_64BIT
-            case LIR_callh:
-#endif
+            case LIR_qcall:
             case LIR_fcall:
-            case LIR_call: {
+            case LIR_icall: {
                 const CallInfo* call = i->callInfo();
                 int32_t argc = i->argc();
                 if (call->isIndirect())
-                    sprintf(s, "%s = %s [%s] ( ", formatRef(i), lirNames[op], formatRef(i->arg(--argc)));
+                    VMPI_sprintf(s, "%s = %s [%s] ( ", formatRef(i), lirNames[op], formatRef(i->arg(--argc)));
                 else
-                    sprintf(s, "%s = %s #%s ( ", formatRef(i), lirNames[op], call->_name);
+                    VMPI_sprintf(s, "%s = %s #%s ( ", formatRef(i), lirNames[op], call->_name);
                 for (int32_t j = argc - 1; j >= 0; j--) {
-                    s += strlen(s);
-                    sprintf(s, "%s ",formatRef(i->arg(j)));
+                    s += VMPI_strlen(s);
+                    VMPI_sprintf(s, "%s ",formatRef(i->arg(j)));
                 }
-                s += strlen(s);
-                sprintf(s, ")");
+                s += VMPI_strlen(s);
+                VMPI_sprintf(s, ")");
                 break;
             }
 
-            case LIR_iparam: {
+            case LIR_jtbl:
+                VMPI_sprintf(s, "%s %s [ ", lirNames[op], formatRef(i->oprnd1()));
+                for (uint32_t j = 0, n = i->getTableSize(); j < n; j++) {
+                    if (VMPI_strlen(sbuf) + 50 > sizeof(sbuf)) {
+                        s += VMPI_strlen(s);
+                        VMPI_sprintf(s, "... ");
+                        break;
+                    }
+                    LIns* target = i->getTarget(j);
+                    s += VMPI_strlen(s);
+                    VMPI_sprintf(s, "%s ", target ? formatRef(target) : "unpatched");
+                }
+                s += VMPI_strlen(s);
+                VMPI_sprintf(s, "]");
+                break;
+
+            case LIR_param: {
                 uint32_t arg = i->paramArg();
                 if (!i->paramKind()) {
                     if (arg < sizeof(Assembler::argRegs)/sizeof(Assembler::argRegs[0])) {
-                        sprintf(s, "%s = %s %d %s", formatRef(i), lirNames[op],
+                        VMPI_sprintf(s, "%s = %s %d %s", formatRef(i), lirNames[op],
                             arg, gpn(Assembler::argRegs[arg]));
                     } else {
-                        sprintf(s, "%s = %s %d", formatRef(i), lirNames[op], arg);
+                        VMPI_sprintf(s, "%s = %s %d", formatRef(i), lirNames[op], arg);
                     }
                 } else {
-                    sprintf(s, "%s = %s %d %s", formatRef(i), lirNames[op],
+                    VMPI_sprintf(s, "%s = %s %d %s", formatRef(i), lirNames[op],
                         arg, gpn(Assembler::savedRegs[arg]));
                 }
                 break;
             }
 
             case LIR_label:
-                sprintf(s, "%s:", formatRef(i));
+                VMPI_sprintf(s, "%s:", formatRef(i));
                 break;
 
             case LIR_jt:
             case LIR_jf:
-                sprintf(s, "%s %s -> %s", lirNames[op], formatRef(i->oprnd1()),
+                VMPI_sprintf(s, "%s %s -> %s", lirNames[op], formatRef(i->oprnd1()),
                     i->oprnd2() ? formatRef(i->oprnd2()) : "unpatched");
                 break;
 
             case LIR_j:
-                sprintf(s, "%s -> %s", lirNames[op],
+                VMPI_sprintf(s, "%s -> %s", lirNames[op],
                     i->oprnd2() ? formatRef(i->oprnd2()) : "unpatched");
                 break;
 
             case LIR_live:
+            case LIR_flive:
+            case LIR_qlive:
             case LIR_ret:
+            case LIR_qret:
             case LIR_fret:
-                sprintf(s, "%s %s", lirNames[op], formatRef(i->oprnd1()));
+                VMPI_sprintf(s, "%s %s", lirNames[op], formatRef(i->oprnd1()));
                 break;
 
             case LIR_callh:
@@ -1822,7 +1873,11 @@ namespace nanojit
             case LIR_ov:
             case LIR_not:
             case LIR_mod:
-                sprintf(s, "%s = %s %s", formatRef(i), lirNames[op], formatRef(i->oprnd1()));
+            case LIR_i2q:
+            case LIR_u2q:
+            case LIR_q2i:
+            case LIR_f2i:
+                VMPI_sprintf(s, "%s = %s %s", formatRef(i), lirNames[op], formatRef(i->oprnd1()));
                 break;
 
             case LIR_x:
@@ -1833,53 +1888,49 @@ namespace nanojit
                 formatGuard(i, s);
                 break;
 
-            case LIR_add:
-            case LIR_iaddp:
+            case LIR_add:       case LIR_qiadd:
+            case LIR_iaddp:     case LIR_qaddp:
             case LIR_sub:
-             case LIR_mul:
+            case LIR_mul:
             case LIR_div:
             case LIR_fadd:
             case LIR_fsub:
-             case LIR_fmul:
+            case LIR_fmul:
             case LIR_fdiv:
-            case LIR_and:
-            case LIR_or:
-            case LIR_xor:
-            case LIR_lsh:
-            case LIR_rsh:
-            case LIR_ush:
-            case LIR_eq:
-            case LIR_lt:
-            case LIR_le:
-            case LIR_gt:
-            case LIR_ge:
-            case LIR_ult:
-            case LIR_ule:
-            case LIR_ugt:
-            case LIR_uge:
+            case LIR_and:       case LIR_qiand:
+            case LIR_or:        case LIR_qior:
+            case LIR_xor:       case LIR_qxor:
+            case LIR_lsh:       case LIR_qilsh:
+            case LIR_rsh:       case LIR_qirsh:
+            case LIR_ush:       case LIR_qursh:
+            case LIR_eq:        case LIR_qeq:
+            case LIR_lt:        case LIR_qlt:
+            case LIR_le:        case LIR_qle:
+            case LIR_gt:        case LIR_qgt:
+            case LIR_ge:        case LIR_qge:
+            case LIR_ult:       case LIR_qult:
+            case LIR_ule:       case LIR_qule:
+            case LIR_ugt:       case LIR_qugt:
+            case LIR_uge:       case LIR_quge:
             case LIR_feq:
             case LIR_flt:
             case LIR_fle:
             case LIR_fgt:
             case LIR_fge:
-            case LIR_qiadd:
-            case LIR_qiand:
-            case LIR_qilsh:
-            case LIR_qior:
-                sprintf(s, "%s = %s %s, %s", formatRef(i), lirNames[op],
+                VMPI_sprintf(s, "%s = %s %s, %s", formatRef(i), lirNames[op],
                     formatRef(i->oprnd1()),
                     formatRef(i->oprnd2()));
                 break;
 
             case LIR_qjoin:
-                sprintf(s, "%s (%s), %s", lirNames[op],
-                    formatIns(i->oprnd1()),
+                VMPI_sprintf(s, "%s (%s), %s", lirNames[op],
+                     formatRef(i->oprnd1()),
                      formatRef(i->oprnd2()));
                  break;
 
             case LIR_qcmov:
             case LIR_cmov:
-                sprintf(s, "%s = %s %s ? %s : %s", formatRef(i), lirNames[op],
+                VMPI_sprintf(s, "%s = %s %s ? %s : %s", formatRef(i), lirNames[op],
                     formatRef(i->oprnd1()),
                     formatRef(i->oprnd2()),
                     formatRef(i->oprnd3()));
@@ -1889,67 +1940,119 @@ namespace nanojit
             case LIR_ldc:
             case LIR_ldq:
             case LIR_ldqc:
+            case LIR_ldf:
+            case LIR_ldfc:
+            case LIR_ldzb:
+            case LIR_ldzs:
             case LIR_ldcb:
             case LIR_ldcs:
-                sprintf(s, "%s = %s %s[%d]", formatRef(i), lirNames[op],
+            case LIR_ldsb:
+            case LIR_ldss:
+            case LIR_ldcsb:
+            case LIR_ldcss:
+            case LIR_ld32f:
+            case LIR_ldc32f:
+                VMPI_sprintf(s, "%s = %s %s[%d]", formatRef(i), lirNames[op],
                     formatRef(i->oprnd1()),
                     i->disp());
                 break;
 
             case LIR_sti:
             case LIR_stqi:
-                sprintf(s, "%s %s[%d] = %s", lirNames[op],
+            case LIR_stfi:
+            case LIR_stb:
+            case LIR_sts:
+            case LIR_st32f:
+                VMPI_sprintf(s, "%s %s[%d] = %s", lirNames[op],
                     formatRef(i->oprnd2()),
                     i->disp(),
                     formatRef(i->oprnd1()));
                 break;
 
             default:
-                sprintf(s, "?");
+                NanoAssertMsgf(0, "Can't handle opcode %s\n", lirNames[op]);
                 break;
         }
+        NanoAssert(VMPI_strlen(sbuf) < sizeof(sbuf)-1);
         return labels->dup(sbuf);
     }
-
-
 #endif
-    CseFilter::CseFilter(LirWriter *out, GC *gc)
-        : LirWriter(out), exprs(gc) {}
+
+
+    CseFilter::CseFilter(LirWriter *out, Allocator& alloc)
+        : LirWriter(out)
+    {
+        uint32_t kInitialCaps[LInsLast + 1];
+        kInitialCaps[LInsImm]   = 128;
+        kInitialCaps[LInsImmq]  = 16;
+        kInitialCaps[LInsImmf]  = 16;
+        kInitialCaps[LIns1]     = 256;
+        kInitialCaps[LIns2]     = 512;
+        kInitialCaps[LIns3]     = 16;
+        kInitialCaps[LInsLoad]  = 16;
+        kInitialCaps[LInsCall]  = 64;
+        exprs = new (alloc) LInsHashSet(alloc, kInitialCaps);
+    }
 
     LIns* CseFilter::insImm(int32_t imm)
     {
         uint32_t k;
-        LInsp found = exprs.find32(imm, k);
-        if (found)
-            return found;
-        return exprs.add(out->insImm(imm), k);
+        LInsp ins = exprs->findImm(imm, k);
+        if (ins)
+            return ins;
+        ins = out->insImm(imm);
+        // We assume that downstream stages do not modify the instruction, so
+        // that we can insert 'ins' into slot 'k'.  Check this.
+        NanoAssert(ins->opcode() == LIR_int && ins->imm32() == imm);
+        return exprs->add(LInsImm, ins, k);
     }
 
     LIns* CseFilter::insImmq(uint64_t q)
     {
         uint32_t k;
-        LInsp found = exprs.find64(q, k);
-        if (found)
-            return found;
-        return exprs.add(out->insImmq(q), k);
+        LInsp ins = exprs->findImmq(q, k);
+        if (ins)
+            return ins;
+        ins = out->insImmq(q);
+        NanoAssert(ins->opcode() == LIR_quad && ins->imm64() == q);
+        return exprs->add(LInsImmq, ins, k);
+    }
+
+    LIns* CseFilter::insImmf(double d)
+    {
+        uint32_t k;
+        // We must pun 'd' as a uint64_t otherwise 0 and -0 will be treated as
+        // equal, which breaks things (see bug 527288).
+        union {
+            double d;
+            uint64_t u64;
+        } u;
+        u.d = d;
+        LInsp ins = exprs->findImmf(u.u64, k);
+        if (ins)
+            return ins;
+        ins = out->insImmf(d);
+        NanoAssert(ins->opcode() == LIR_float && ins->imm64() == u.u64);
+        return exprs->add(LInsImmf, ins, k);
     }
 
     LIns* CseFilter::ins0(LOpcode v)
     {
         if (v == LIR_label)
-            exprs.clear();
+            exprs->clear();
         return out->ins0(v);
     }
 
     LIns* CseFilter::ins1(LOpcode v, LInsp a)
     {
         if (isCseOpcode(v)) {
-            NanoAssert(operandCount[v]==1);
             uint32_t k;
-            LInsp found = exprs.find1(v, a, k);
-            if (found)
-                return found;
-            return exprs.add(out->ins1(v,a), k);
+            LInsp ins = exprs->find1(v, a, k);
+            if (ins)
+                return ins;
+            ins = out->ins1(v, a);
+            NanoAssert(ins->opcode() == v && ins->oprnd1() == a);
+            return exprs->add(LIns1, ins, k);
         }
         return out->ins1(v,a);
     }
@@ -1957,12 +2060,13 @@ namespace nanojit
     LIns* CseFilter::ins2(LOpcode v, LInsp a, LInsp b)
     {
         if (isCseOpcode(v)) {
-            NanoAssert(operandCount[v]==2);
             uint32_t k;
-            LInsp found = exprs.find2(v, a, b, k);
-            if (found)
-                return found;
-            return exprs.add(out->ins2(v,a,b), k);
+            LInsp ins = exprs->find2(v, a, b, k);
+            if (ins)
+                return ins;
+            ins = out->ins2(v, a, b);
+            NanoAssert(ins->opcode() == v && ins->oprnd1() == a && ins->oprnd2() == b);
+            return exprs->add(LIns2, ins, k);
         }
         return out->ins2(v,a,b);
     }
@@ -1970,33 +2074,36 @@ namespace nanojit
     LIns* CseFilter::ins3(LOpcode v, LInsp a, LInsp b, LInsp c)
     {
         NanoAssert(isCseOpcode(v));
-        NanoAssert(operandCount[v]==3);
         uint32_t k;
-        LInsp found = exprs.find3(v, a, b, c, k);
-        if (found)
-            return found;
-        return exprs.add(out->ins3(v,a,b,c), k);
+        LInsp ins = exprs->find3(v, a, b, c, k);
+        if (ins)
+            return ins;
+        ins = out->ins3(v, a, b, c);
+        NanoAssert(ins->opcode() == v && ins->oprnd1() == a && ins->oprnd2() == b &&
+                                                               ins->oprnd3() == c);
+        return exprs->add(LIns3, ins, k);
     }
 
     LIns* CseFilter::insLoad(LOpcode v, LInsp base, int32_t disp)
     {
         if (isCseOpcode(v)) {
-            NanoAssert(operandCount[v]==1);
             uint32_t k;
-            LInsp found = exprs.findLoad(v, base, disp, k);
-            if (found)
-                return found;
-            return exprs.add(out->insLoad(v,base,disp), k);
+            LInsp ins = exprs->findLoad(v, base, disp, k);
+            if (ins)
+                return ins;
+            ins = out->insLoad(v, base, disp);
+            NanoAssert(ins->opcode() == v && ins->oprnd1() == base && ins->disp() == disp);
+            return exprs->add(LInsLoad, ins, k);
         }
-        return out->insLoad(v,base,disp);
+        return out->insLoad(v, base, disp);
     }
 
-    LInsp CseFilter::insGuard(LOpcode v, LInsp c, LInsp x)
+    LInsp CseFilter::insGuard(LOpcode v, LInsp c, GuardRecord *gr)
     {
         // LIR_xt and LIR_xf guards are CSEable.  Note that we compare the
         // opcode and condition when determining if two guards are equivalent
-        // -- in find1(), hash1(), equals() and hashcode() -- but we do *not*
-        // compare the GuardRecord.  This works because:
+        // -- in find1() and hash1() -- but we do *not* compare the
+        // GuardRecord.  This works because:
         // - If guard 1 is taken (exits) then guard 2 is never reached, so
         //   guard 2 can be removed.
         // - If guard 1 is not taken then neither is guard 2, so guard 2 can
@@ -2012,14 +2119,15 @@ namespace nanojit
         //
         if (isCseOpcode(v)) {
             // conditional guard
-            NanoAssert(operandCount[v]==1);
             uint32_t k;
-            LInsp found = exprs.find1(v, c, k);
-            if (found)
+            LInsp ins = exprs->find1(v, c, k);
+            if (ins)
                 return 0;
-            return exprs.add(out->insGuard(v,c,x), k);
+            ins = out->insGuard(v, c, gr);
+            NanoAssert(ins->opcode() == v && ins->oprnd1() == c);
+            return exprs->add(LIns1, ins, k);
         }
-        return out->insGuard(v, c, x);
+        return out->insGuard(v, c, gr);
     }
 
     LInsp CseFilter::insCall(const CallInfo *ci, LInsp args[])
@@ -2027,195 +2135,42 @@ namespace nanojit
         if (ci->_cse) {
             uint32_t k;
             uint32_t argc = ci->count_args();
-            LInsp found = exprs.findcall(ci, argc, args, k);
-            if (found)
-                return found;
-            return exprs.add(out->insCall(ci, args), k);
+            LInsp ins = exprs->findCall(ci, argc, args, k);
+            if (ins)
+                return ins;
+            ins = out->insCall(ci, args);
+            NanoAssert(ins->isCall() && ins->callInfo() == ci && argsmatch(ins, argc, args));
+            return exprs->add(LInsCall, ins, k);
         }
         return out->insCall(ci, args);
     }
 
-    CseReader::CseReader(LirFilter *in, LInsHashSet *exprs)
-        : LirFilter(in), exprs(exprs)
-    {}
-
-    LInsp CseReader::read()
-    {
-        LInsp i = in->read();
-        if (i->isCse())
-            exprs->replace(i);
-        return i;
-    }
-
-    LIns* FASTCALL callArgN(LIns* i, uint32_t n)
-    {
-        return i->arg(i->argc()-n-1);
-    }
-
-    void compile(Assembler* assm, Fragment* triggerFrag)
-    {
-        Fragmento *frago = triggerFrag->lirbuf->_frago;
-        AvmCore *core = frago->core();
-        GC *gc = core->gc;
-
-        verbose_only(
-        LogControl *logc = assm->_logc;
-        bool anyVerb = (logc->lcbits & 0xFFFF) > 0;
-        bool asmVerb = (logc->lcbits & 0xFFFF & LC_Assembly) > 0;
-        bool liveVerb = (logc->lcbits & 0xFFFF & LC_Liveness) > 0;
-        )
-
-        /* BEGIN decorative preamble */
-        verbose_only(
-        if (anyVerb) {
-            logc->printf("========================================"
-                         "========================================\n");
-            logc->printf("=== BEGIN LIR::compile(%p, %p)\n",
-                         (void*)assm, (void*)triggerFrag);
-            logc->printf("===\n");
-        })
-        /* END decorative preamble */
-
-        verbose_only( if (liveVerb) {
-            logc->printf("\n");
-            logc->printf("=== Results of liveness analysis:\n");
-            logc->printf("===\n");
-            live(gc, triggerFrag, logc);
-        })
-
-        /* Set up the generic text output cache for the assembler */
-        verbose_only( StringList asmOutput(gc); )
-        verbose_only( assm->_outputCache = &asmOutput; )
-
-        bool treeCompile = core->config.tree_opt && (triggerFrag->kind == BranchTrace);
-        RegAllocMap regMap(gc);
-        NInsList loopJumps(gc);
-#ifdef MEMORY_INFO
-//        loopJumps.set_meminfo_name("LIR loopjumps");
-#endif
-        assm->beginAssembly(triggerFrag, &regMap);
-        if (assm->error())
-            return;
-
-        //logc->printf("recompile trigger %X kind %d\n", (int)triggerFrag, triggerFrag->kind);
-
-        verbose_only( if (anyVerb) {
-            logc->printf("=== Translating LIR fragments into assembly:\n");
-        })
-
-        Fragment* root = triggerFrag;
-        if (treeCompile)
-        {
-            // recompile the entire tree
-            verbose_only( if (anyVerb) {
-               logc->printf("=== -- Compile the entire tree: begin\n");
-            })
-            root = triggerFrag->root;
-            root->fragEntry = 0;
-            root->loopEntry = 0;
-            root->releaseCode(frago);
-
-            // do the tree branches
-            verbose_only( if (anyVerb) {
-               logc->printf("=== -- Do the tree branches\n");
-            })
-            Fragment* frag = root->treeBranches;
-            while (frag)
-            {
-                // compile til no more frags
-                if (frag->lastIns)
-                {
-                    verbose_only( if (anyVerb) {
-                        logc->printf("=== -- Compiling branch %s ip %s\n",
-                                     frago->labels->format(frag),
-                                     frago->labels->format(frag->ip));
-                    })
-                    assm->assemble(frag, loopJumps);
-                    verbose_only(if (asmVerb)
-                        assm->outputf("## compiling branch %s ip %s",
-                                      frago->labels->format(frag),
-                                      frago->labels->format(frag->ip)); )
-
-                    NanoAssert(frag->kind == BranchTrace);
-                    RegAlloc* regs = NJ_NEW(gc, RegAlloc)();
-                    assm->copyRegisters(regs);
-                    assm->releaseRegisters();
-                    SideExit* exit = frag->spawnedFrom;
-                    regMap.put(exit, regs);
-                }
-                frag = frag->treeBranches;
-            }
-            verbose_only( if (anyVerb) {
-               logc->printf("=== -- Compile the entire tree: end\n");
-            })
-        }
-
-        // now the the main trunk
-        verbose_only( if (anyVerb) {
-            logc->printf("=== -- Compile trunk %s: begin\n",
-                         frago->labels->format(root));
-        })
-        assm->assemble(root, loopJumps);
-        verbose_only( if (anyVerb) {
-            logc->printf("=== -- Compile trunk %s: end\n",
-                         frago->labels->format(root));
-        })
-
-        verbose_only(
-            if (asmVerb)
-                assm->outputf("## compiling trunk %s",
-                              frago->labels->format(root));
-        )
-        NanoAssert(!frago->core()->config.tree_opt
-                   || root == root->anchor || root->kind == MergeTrace);
-        assm->endAssembly(root, loopJumps);
-
-        // reverse output so that assembly is displayed low-to-high
-        // Up to this point, assm->_outputCache has been non-NULL, and so
-        // has been accumulating output.  Now we set it to NULL, traverse
-        // the entire list of stored strings, and hand them a second time
-        // to assm->output.  Since _outputCache is now NULL, outputf just
-        // hands these strings directly onwards to logc->printf.
-        verbose_only( if (anyVerb) {
-               logc->printf("\n");
-            logc->printf("=== Aggregated assembly output: BEGIN\n");
-               logc->printf("===\n");
-            assm->_outputCache = 0;
-            for (int i = asmOutput.size() - 1; i >= 0; --i) {
-                char* str = asmOutput.get(i);
-                assm->outputf("  %s", str);
-                gc->Free(str);
-            }
-               logc->printf("===\n");
-            logc->printf("=== Aggregated assembly output: END\n");
-        });
-
-        if (assm->error()) {
-            root->fragEntry = 0;
-            root->loopEntry = 0;
-        }
-
-        /* BEGIN decorative postamble */
-        verbose_only( if (anyVerb) {
-            logc->printf("\n");
-            logc->printf("===\n");
-            logc->printf("=== END LIR::compile(%p, %p)\n",
-                         (void*)assm, (void*)triggerFrag);
-            logc->printf("========================================"
-                         "========================================\n");
-            logc->printf("\n");
-        });
-        /* END decorative postamble */
-    }
-
     LInsp LoadFilter::insLoad(LOpcode v, LInsp base, int32_t disp)
     {
-        if (base != sp && base != rp && (v == LIR_ld || v == LIR_ldq)) {
-            uint32_t k;
-            LInsp found = exprs.findLoad(v, base, disp, k);
-            if (found)
-                return found;
-            return exprs.add(out->insLoad(v,base,disp), k);
+        if (base != sp && base != rp)
+        {
+            switch (v)
+            {
+                case LIR_ld:
+                case LIR_ldq:
+                case LIR_ldf:
+                case LIR_ld32f:
+                case LIR_ldsb:
+                case LIR_ldss:
+                case LIR_ldzb:
+                case LIR_ldzs:
+                {
+                    uint32_t k;
+                    LInsp ins = exprs->findLoad(v, base, disp, k);
+                    if (ins)
+                        return ins;
+                    ins = out->insLoad(v, base, disp);
+                    return exprs->add(LInsLoad, ins, k);
+                }
+                default:
+                    // fall thru
+                    break;
+            }
         }
         return out->insLoad(v, base, disp);
     }
@@ -2223,109 +2178,84 @@ namespace nanojit
     void LoadFilter::clear(LInsp p)
     {
         if (p != sp && p != rp)
-            exprs.clear();
+            exprs->clear();
     }
 
-    LInsp LoadFilter::insStorei(LInsp v, LInsp b, int32_t d)
+    LInsp LoadFilter::insStore(LOpcode op, LInsp v, LInsp b, int32_t d)
     {
         clear(b);
-        return out->insStorei(v, b, d);
+        return out->insStore(op, v, b, d);
     }
 
     LInsp LoadFilter::insCall(const CallInfo *ci, LInsp args[])
     {
         if (!ci->_cse)
-            exprs.clear();
+            exprs->clear();
         return out->insCall(ci, args);
     }
 
     LInsp LoadFilter::ins0(LOpcode op)
     {
         if (op == LIR_label)
-            exprs.clear();
+            exprs->clear();
         return out->ins0(op);
     }
 
     #endif /* FEATURE_NANOJIT */
 
 #if defined(NJ_VERBOSE)
-    LabelMap::LabelMap(AvmCore *core)
-        : names(core->gc), addrs(core->config.verbose_addrs), end(buf), core(core)
+    LabelMap::LabelMap(Allocator& a, LogControl *logc)
+        : allocator(a), names(a), logc(logc), end(buf)
     {}
-
-    LabelMap::~LabelMap()
-    {
-        clear();
-    }
-
-    void LabelMap::clear()
-    {
-        Entry *e;
-        while ((e = names.removeLast()) != NULL) {
-            core->freeString(e->name);
-            NJ_DELETE(e);
-        }
-    }
 
     void LabelMap::add(const void *p, size_t size, size_t align, const char *name)
     {
         if (!this || names.containsKey(p))
             return;
-        add(p, size, align, core->newString(name));
-    }
-
-    void LabelMap::add(const void *p, size_t size, size_t align, Stringp name)
-    {
-        if (!this || names.containsKey(p))
-            return;
-        Entry *e = NJ_NEW(core->gc, Entry)(name, size<<align, align);
+        char* copy = new (allocator) char[VMPI_strlen(name)+1];
+        VMPI_strcpy(copy, name);
+        Entry *e = new (allocator) Entry(copy, size << align, align);
         names.put(p, e);
     }
 
     const char *LabelMap::format(const void *p)
     {
         char b[200];
-        int i = names.findNear(p);
-        if (i >= 0) {
-            const void *start = names.keyAt(i);
-            Entry *e = names.at(i);
+
+        const void *start = names.findNear(p);
+        if (start != NULL) {
+            Entry *e = names.get(start);
             const void *end = (const char*)start + e->size;
-            avmplus::StringNullTerminatedUTF8 cname(core->gc, e->name);
-            const char *name = cname.c_str();
+            const char *name = e->name;
             if (p == start) {
-                if (addrs)
-                    sprintf(b,"%p %s",p,name);
-                else
-                    strcpy(b, name);
+                VMPI_sprintf(b, "%p %s", p, name);
                 return dup(b);
             }
             else if (p > start && p < end) {
                 int32_t d = int32_t(intptr_t(p)-intptr_t(start)) >> e->align;
-                if (addrs)
-                    sprintf(b, "%p %s+%d", p, name, d);
-                else
-                    sprintf(b,"%s+%d", name, d);
+                VMPI_sprintf(b, "%p %s+%d", p, name, d);
                 return dup(b);
             }
             else {
-                sprintf(b, "%p", p);
+                VMPI_sprintf(b, "%p", p);
                 return dup(b);
             }
         }
-        sprintf(b, "%p", p);
+        VMPI_sprintf(b, "%p", p);
         return dup(b);
     }
 
     const char *LabelMap::dup(const char *b)
     {
-        size_t need = strlen(b)+1;
+        size_t need = VMPI_strlen(b)+1;
+        NanoAssert(need <= sizeof(buf));
         char *s = end;
         end += need;
         if (end > buf+sizeof(buf)) {
             s = buf;
             end = s+need;
         }
-        strcpy(s, b);
+        VMPI_strcpy(s, b);
         return s;
     }
 
@@ -2339,8 +2269,616 @@ namespace nanojit
         va_start(vargs, format);
         vfprintf(stdout, format, vargs);
         va_end(vargs);
+        // Flush every line immediately so that if crashes occur in generated
+        // code we won't lose any output.
+        fflush(stdout);
     }
 
 #endif // NJ_VERBOSE
-}
 
+
+#ifdef FEATURE_NANOJIT
+#ifdef DEBUG
+    const char* ValidateWriter::type2string(LTy type)
+    {
+        switch (type) {
+        case LTy_Void:                  return "void";
+        case LTy_I32:                   return "int32";
+        case LTy_I64:                   return "int64";
+        case LTy_F64:                   return "float64";
+        default:       NanoAssert(0);   return "???";
+        }
+    }
+
+#define HOWTO_DEBUG \
+    "  One way to debug this:  change the failing NanoAssertMsgf(0, ...) call to a\n" \
+    "  printf(...) call and rerun with verbose output.  If you're lucky, this error\n" \
+    "  message will appear before the block containing the erroneous instruction.\n\n"
+
+    void ValidateWriter::typeCheckArgs(LOpcode op, int nArgs, LTy formals[], LIns* args[])
+    {
+        // Type-check the arguments.
+        for (int i = 0; i < nArgs; i++) {
+            LTy formal = formals[i];
+            LTy actual = args[i]->retType();
+            if (formal != actual) {
+                // Assert on a type error.  The disadvantage of doing this (as
+                // opposed to printing a message and continuing) is that at
+                // most one type error will be detected per run.  But type
+                // errors should be rare, and assertion failures are certain
+                // to be caught by test suites whereas error messages may not
+                // be.
+                NanoAssertMsgf(0,
+                    "\n\n"
+                    "LIR type error (%s):\n"
+                    "  in instruction with opcode: %s\n"
+                    "  in argument %d with opcode: %s\n"
+                    "  argument has type %s, expected %s\n"
+                    HOWTO_DEBUG,
+                    _whereInPipeline,
+                    lirNames[op],
+                    i+1, lirNames[args[i]->opcode()],
+                    type2string(actual), type2string(formal));
+            }
+        }
+    }
+
+    void ValidateWriter::errorStructureShouldBe(LOpcode op, const char* argDesc, int argN,
+                                                LIns* arg, const char* shouldBeDesc)
+    {
+        NanoAssertMsgf(0,
+            "\n\n"
+            "  LIR structure error (%s):\n"
+            "    in instruction with opcode: %s\n"
+            "    %s %d has opcode: %s\n"
+            "    it should be: %s\n"
+            HOWTO_DEBUG,
+            _whereInPipeline,
+            lirNames[op],
+            argDesc, argN, lirNames[arg->opcode()],
+            shouldBeDesc);
+    }
+
+    void ValidateWriter::errorPlatformShouldBe(LOpcode op, int nBits)
+    {
+        NanoAssertMsgf(0,
+            "\n\n"
+            "  LIR structure error (%s):\n"
+            "    %s should only occur on %d-bit platforms\n"
+            HOWTO_DEBUG,
+            _whereInPipeline,
+            lirNames[op], nBits);
+    }
+
+    void ValidateWriter::checkLInsIsACondOrConst(LOpcode op, int argN, LIns* ins)
+    {
+        // We could introduce a LTy_B32 type in the type system but that's a
+        // bit weird because its representation is identical to LTy_I32.  It's
+        // easier to just do this check structurally.  Also, optimization can
+        // cause the condition to become a LIR_int.
+        if (!ins->isCond() && !ins->isconst())
+            errorStructureShouldBe(op, "argument", argN, ins, "a condition or 32-bit constant");
+    }
+
+    void ValidateWriter::checkLInsIsNull(LOpcode op, int argN, LIns* ins)
+    {
+        if (ins)
+            errorStructureShouldBe(op, "argument", argN, ins, NULL);
+    }
+
+    void ValidateWriter::checkIs32BitPlatform(LOpcode op)
+    {
+        (void)op;
+#if defined NANOJIT_64BIT
+        errorPlatformShouldBe(op, 32);
+#endif
+    }
+
+    void ValidateWriter::checkIs64BitPlatform(LOpcode op)
+    {
+        (void)op;
+#if !defined NANOJIT_64BIT
+        errorPlatformShouldBe(op, 64);
+#endif
+    }
+
+    void ValidateWriter::checkLInsIsOverflowable(LOpcode op, int argN, LIns* ins)
+    {
+        if (!ins->isOverflowable())
+            errorStructureShouldBe(op, "argument", argN, ins,
+                                   "an overflowable 32-bit arithmetic operation");
+    }
+
+    void ValidateWriter::checkOprnd1ImmediatelyPrecedes(LIns* ins)
+    {
+        // The operand must be immediately prior to 'ins' (but there could be
+        // intervening skips).  We find the previous one with a short-lived
+        // LirReader.
+        LIns* oprnd1 = ins->oprnd1();
+        LirReader reader(ins);
+        reader.read();                  // returns 'ins'
+        LIns* prev = reader.read();     // returns the LIns before 'ins'
+        NanoAssert(prev);
+        if (prev != oprnd1) {
+            errorStructureShouldBe(ins->opcode(), "argument", 1, oprnd1,
+                                   "located immediately prior, but isn't");
+        }
+    }
+
+    void ValidateWriter::checkLInsHasOpcode(LOpcode op, int argN, LIns* ins, LOpcode op2)
+    {
+        if (!ins->isop(op2))
+            errorStructureShouldBe(op, "argument", argN, ins, lirNames[op2]);
+    }
+
+    ValidateWriter::ValidateWriter(LirWriter *out, const char* stageName)
+        : LirWriter(out), _whereInPipeline(stageName)
+    {}
+
+    LIns* ValidateWriter::insLoad(LOpcode op, LIns* base, int32_t d)
+    {
+        int nArgs = 1;
+        LTy formals[1] = { LTy_Ptr };
+        LIns* args[1] = { base };
+
+        switch (op) {
+        case LIR_ldq:
+        case LIR_ldqc:
+            checkIs64BitPlatform(op);
+            break;
+        case LIR_ld:
+        case LIR_ldc:
+        case LIR_ldf:
+        case LIR_ldfc:
+        case LIR_ldzb:
+        case LIR_ldzs:
+        case LIR_ldcb:
+        case LIR_ldcs:
+        case LIR_ldsb:
+        case LIR_ldss:
+        case LIR_ldcsb:
+        case LIR_ldcss:
+        case LIR_ld32f:
+        case LIR_ldc32f:
+            break;
+        default:
+            NanoAssert(0);
+        }
+
+        typeCheckArgs(op, nArgs, formals, args);
+
+        return out->insLoad(op, base, d);
+    }
+
+    LIns* ValidateWriter::insStore(LOpcode op, LIns* value, LIns* base, int32_t d)
+    {
+        int nArgs = 2;
+        LTy formals[2] = { LTy_Void, LTy_Ptr };     // LTy_Void is overwritten shortly
+        LIns* args[2] = { value, base };
+
+        switch (op) {
+        case LIR_stb:
+        case LIR_sts:
+        case LIR_sti:
+            formals[0] = LTy_I32;
+            break;
+
+        case LIR_stqi:
+            checkIs64BitPlatform(op);
+            formals[0] = LTy_I64;
+            break;
+
+        case LIR_stfi:
+        case LIR_st32f:
+            formals[0] = LTy_F64;
+            break;
+
+        default:
+            NanoAssert(0);
+        }
+
+        typeCheckArgs(op, nArgs, formals, args);
+
+        return out->insStore(op, value, base, d);
+    }
+
+    LIns* ValidateWriter::ins0(LOpcode op)
+    {
+        switch (op) {
+        case LIR_start:
+        case LIR_regfence:
+        case LIR_label:
+            break;
+        default:
+            NanoAssert(0);
+        }
+
+        // No args to type-check.
+
+        return out->ins0(op);
+    }
+
+    LIns* ValidateWriter::ins1(LOpcode op, LIns* a)
+    {
+        int nArgs = 1;
+        LTy formals[1];
+        LIns* args[1] = { a };
+        bool is_ov = false;
+
+        switch (op) {
+        case LIR_neg:
+        case LIR_not:
+        case LIR_i2f:
+        case LIR_u2f:
+        case LIR_live:
+        case LIR_ret:
+            formals[0] = LTy_I32;
+            break;
+
+        case LIR_i2q:
+        case LIR_u2q:
+            checkIs64BitPlatform(op);
+            formals[0] = LTy_I32;
+            break;
+
+        case LIR_mod:       // see LIRopcode.tbl for why 'mod' is unary
+            checkLInsHasOpcode(op, 1, a, LIR_div);
+            formals[0] = LTy_I32;
+            break;
+
+        case LIR_ov:
+            checkLInsIsOverflowable(op, 1, a);
+            // We can only check the position after the LIns is created in a
+            // LirBuffer.
+            is_ov = true;
+            formals[0] = LTy_I32;
+            break;
+
+        case LIR_q2i:
+        case LIR_qret:
+        case LIR_qlive:
+            checkIs64BitPlatform(op);
+            formals[0] = LTy_I64;
+            break;
+
+        case LIR_qlo:
+        case LIR_qhi:
+            checkIs32BitPlatform(op);
+            formals[0] = LTy_F64;
+            break;
+
+        case LIR_fneg:
+        case LIR_fret:
+        case LIR_flive:
+        case LIR_f2i:
+            formals[0] = LTy_F64;
+            break;
+
+        case LIR_callh:
+            checkLInsHasOpcode(op, 1, a, LIR_fcall);
+            formals[0] = LTy_F64;
+            break;
+
+        case LIR_file:
+        case LIR_line:
+            // XXX: not sure about these ones.  Ignore for the moment.
+            nArgs = 0;
+            break;
+
+        default:
+            NanoAssertMsgf(0, "%s\n", lirNames[op]);
+        }
+
+        typeCheckArgs(op, nArgs, formals, args);
+
+        LIns* ins = out->ins1(op, a);
+
+        if (is_ov) {
+            NanoAssert(ins->isop(LIR_ov));
+            checkOprnd1ImmediatelyPrecedes(ins);
+        } else {
+            NanoAssert(!ins->isop(LIR_ov));
+        }
+        return ins;
+    }
+
+    LIns* ValidateWriter::ins2(LOpcode op, LIns* a, LIns* b)
+    {
+        int nArgs = 2;
+        LTy formals[2];
+        LIns* args[2] = { a, b };
+
+        switch (op) {
+        case LIR_add:
+        case LIR_sub:
+        case LIR_mul:
+        case LIR_div:
+        case LIR_and:
+        case LIR_or:
+        case LIR_xor:
+        case LIR_lsh:
+        case LIR_rsh:
+        case LIR_ush:
+        case LIR_eq:
+        case LIR_lt:
+        case LIR_gt:
+        case LIR_le:
+        case LIR_ge:
+        case LIR_ult:
+        case LIR_ugt:
+        case LIR_ule:
+        case LIR_uge:
+            formals[0] = LTy_I32;
+            formals[1] = LTy_I32;
+            break;
+
+        case LIR_iaddp:
+            checkIs32BitPlatform(op);
+            formals[0] = LTy_I32;
+            formals[1] = LTy_I32;
+            break;
+
+        case LIR_qjoin:
+            checkIs32BitPlatform(op);
+            formals[0] = LTy_I32;
+            formals[1] = LTy_I32;
+            break;
+
+        case LIR_qiand:
+        case LIR_qior:
+        case LIR_qxor:
+        case LIR_qiadd:
+        case LIR_qaddp:
+        case LIR_qeq:
+        case LIR_qlt:
+        case LIR_qgt:
+        case LIR_qle:
+        case LIR_qge:
+        case LIR_qult:
+        case LIR_qugt:
+        case LIR_qule:
+        case LIR_quge:
+            checkIs64BitPlatform(op);
+            formals[0] = LTy_I64;
+            formals[1] = LTy_I64;
+            break;
+
+        case LIR_qilsh:
+        case LIR_qirsh:
+        case LIR_qursh:
+            checkIs64BitPlatform(op);
+            formals[0] = LTy_I64;
+            formals[1] = LTy_I32;
+            break;
+
+        case LIR_fadd:
+        case LIR_fsub:
+        case LIR_fmul:
+        case LIR_fdiv:
+        case LIR_feq:
+        case LIR_fgt:
+        case LIR_flt:
+        case LIR_fle:
+        case LIR_fge:
+            formals[0] = LTy_F64;
+            formals[1] = LTy_F64;
+            break;
+
+        default:
+            NanoAssert(0);
+        }
+
+        typeCheckArgs(op, nArgs, formals, args);
+
+        return out->ins2(op, a, b);
+    }
+
+    LIns* ValidateWriter::ins3(LOpcode op, LIns* a, LIns* b, LIns* c)
+    {
+        int nArgs = 3;
+        LTy formals[3] = { LTy_I32, LTy_Void, LTy_Void };   // LTy_Void gets overwritten
+        LIns* args[3] = { a, b, c };
+
+        switch (op) {
+        case LIR_cmov:
+            checkLInsIsACondOrConst(op, 1, a);
+            formals[1] = LTy_I32;
+            formals[2] = LTy_I32;
+            break;
+
+        case LIR_qcmov:
+            checkLInsIsACondOrConst(op, 1, a);
+            checkIs64BitPlatform(op);
+            formals[1] = LTy_I64;
+            formals[2] = LTy_I64;
+            break;
+
+        default:
+            NanoAssert(0);
+        }
+
+        typeCheckArgs(op, nArgs, formals, args);
+
+        return out->ins3(op, a, b, c);
+    }
+
+    LIns* ValidateWriter::insParam(int32_t arg, int32_t kind)
+    {
+        return out->insParam(arg, kind);
+    }
+
+    LIns* ValidateWriter::insImm(int32_t imm)
+    {
+        return out->insImm(imm);
+    }
+
+    LIns* ValidateWriter::insImmq(uint64_t imm)
+    {
+        checkIs64BitPlatform(LIR_quad);
+        return out->insImmq(imm);
+    }
+
+    LIns* ValidateWriter::insImmf(double d)
+    {
+        return out->insImmf(d);
+    }
+
+    LIns* ValidateWriter::insCall(const CallInfo *call, LIns* args0[])
+    {
+        ArgSize sizes[MAXARGS];
+        uint32_t nArgs = call->get_sizes(sizes);
+        LTy formals[MAXARGS];
+        LIns* args[MAXARGS];    // in left-to-right order, unlike args0[]
+
+        LOpcode op = LIR_pcall;
+        ArgSize retSize = ArgSize(call->_argtypes & ARGSIZE_MASK_ANY);
+        switch (retSize) {
+        case ARGSIZE_NONE:  op = LIR_pcall; break;
+        case ARGSIZE_I:
+        case ARGSIZE_U:     op = LIR_icall; break;
+        case ARGSIZE_F:     op = LIR_fcall; break;
+        case ARGSIZE_Q:     op = LIR_qcall;
+                            checkIs64BitPlatform(op);
+                            break;
+        default:            NanoAssert(0);
+                            break;
+        }
+
+        // This loop iterates over the args from right-to-left (because
+        // arg() and get_sizes() use right-to-left order), but puts the
+        // results into formals[] and args[] in left-to-right order so
+        // that arg numbers in error messages make sense to the user.
+        for (uint32_t i = 0; i < nArgs; i++) {
+            uint32_t i2 = nArgs - i - 1;    // converts right-to-left to left-to-right
+            switch (sizes[i]) {
+            case ARGSIZE_I:
+            case ARGSIZE_U:         formals[i2] = LTy_I32;   break;
+            case ARGSIZE_Q:         formals[i2] = LTy_I64;   break;
+            case ARGSIZE_F:         formals[i2] = LTy_F64;   break;
+            default: NanoAssert(0); formals[i2] = LTy_Void;  break;
+            }
+            args[i2] = args0[i];
+        }
+
+        typeCheckArgs(op, nArgs, formals, args);
+
+        return out->insCall(call, args0);
+    }
+
+    LIns* ValidateWriter::insGuard(LOpcode op, LIns *cond, GuardRecord *gr)
+    {
+        int nArgs;
+        LTy formals[1];
+        LIns* args[1];
+
+        switch (op) {
+        case LIR_x:
+        case LIR_xbarrier:
+            checkLInsIsNull(op, 1, cond);
+            nArgs = 0;
+            break;
+
+        case LIR_xt:
+        case LIR_xf:
+            checkLInsIsACondOrConst(op, 1, cond);
+            nArgs = 1;
+            formals[0] = LTy_I32;
+            args[0] = cond;
+            break;
+
+        case LIR_xtbl:
+            nArgs = 1;
+            formals[0] = LTy_I32;   // unlike xt/xf/jt/jf, this is an index, not a condition
+            args[0] = cond;
+            break;
+
+        default:
+            NanoAssert(0);
+        }
+
+        return out->insGuard(op, cond, gr);
+    }
+
+    LIns* ValidateWriter::insBranch(LOpcode op, LIns* cond, LIns* to)
+    {
+        int nArgs = 0;
+        LTy formals[1];
+        LIns* args[1];
+
+        switch (op) {
+        case LIR_j:
+            checkLInsIsNull(op, 1, cond);
+            nArgs = 0;
+            break;
+
+        case LIR_jt:
+        case LIR_jf:
+            checkLInsIsACondOrConst(op, 1, cond);
+            nArgs = 1;
+            formals[0] = LTy_I32;
+            args[0] = cond;
+            break;
+
+        default:
+            NanoAssert(0);
+        }
+
+        // We check that target is a label in ValidateReader because it may
+        // not have been set here.
+
+        typeCheckArgs(op, nArgs, formals, args);
+
+        return out->insBranch(op, cond, to);
+    }
+
+    LIns* ValidateWriter::insAlloc(int32_t size)
+    {
+        return out->insAlloc(size);
+    }
+
+    LIns* ValidateWriter::insJtbl(LIns* index, uint32_t size)
+    {
+        int nArgs = 1;
+        LTy formals[1] = { LTy_I32 };
+        LIns* args[1] = { index };
+
+        typeCheckArgs(LIR_jtbl, nArgs, formals, args);
+
+        // We check that all jump table entries are labels in ValidateReader
+        // because they won't have been set here.
+
+        return out->insJtbl(index, size);
+    }
+
+    ValidateReader::ValidateReader(LirFilter* in) : LirFilter(in)
+        {}
+
+    LIns* ValidateReader::read()
+    {
+        LIns *ins = in->read();
+        switch (ins->opcode()) {
+        case LIR_jt:
+        case LIR_jf:
+        case LIR_j:
+            NanoAssert(ins->getTarget() && ins->oprnd2()->isop(LIR_label));
+            break;
+        case LIR_jtbl: {
+            uint32_t tableSize = ins->getTableSize();
+            NanoAssert(tableSize > 0);
+            for (uint32_t i = 0; i < tableSize; i++) {
+                LIns* target = ins->getTarget(i);
+                NanoAssert(target);
+                NanoAssert(target->isop(LIR_label));
+            }
+            break;
+        }
+        default:
+            ;
+        }
+        return ins;
+    }
+
+#endif
+#endif
+
+}

@@ -52,22 +52,28 @@
   -moz-box-orient: vertical; /* for flex hack */
 }
 
-#menubar-items > menubar {
+#main-menubar {
   -moz-box-flex: 1; /* make menu items expand to fill toolbar height */
 }
 
-#PersonalToolbar {
-  min-height: 26px;
-}
-
-#wrapper-search-container #searchbar html|*.textbox-input {
-  visibility: hidden;
+#personal-bookmarks {
+  min-height: 29px;
 }
 
 #navigator-toolbox[inFullscreen="true"],
 #navigator-toolbox[inFullscreen="true"] > #nav-bar {
   border-top: none;
   padding-top: 0;
+}
+
+#urlbar:-moz-lwtheme:not([focused="true"]),
+.searchbar-textbox:-moz-lwtheme:not([focused="true"]),
+.tabbrowser-tab:-moz-lwtheme:not([selected="true"]) {
+  opacity: .85;
+}
+
+.tabbrowser-tab:-moz-lwtheme {
+  text-shadow: none;
 }
 
 /* Places toolbar */
@@ -105,8 +111,15 @@ toolbarbutton.bookmark-item[open="true"] {
   display: -moz-box !important;
 }
 
+#wrapper-personal-bookmarks[place="palette"] > .toolbarpaletteitem-box {
+  width: 16px;
+  height: 16px;
+  background: url("chrome://browser/skin/places/bookmarksToolbar.png") no-repeat;
+}
+
 .bookmarks-toolbar-customize {
   max-width: 15em !important;
+  list-style-image: url("chrome://browser/skin/places/bookmarksToolbar.png") !important;
 }
 
 /* Bookmark menus */
@@ -146,23 +159,9 @@ menuitem.bookmark-item {
   background-color: Highlight;
 }
 
+/* Bookmarks toolbar */
 .toolbar-drop-indicator {
-  width: 9px;
-  height: 18px;
-  margin-bottom: -6px;
-  position: relative;
-  background: url("chrome://browser/skin/places/toolbarDropMarker.png") 50% 50% no-repeat;
-}
-
-.toolbar-drop-indicator-bar {
-  visibility: hidden;
-  height: 18px;
-  margin-bottom: -18px;
-  position: relative;
-}
-
-.toolbar-drop-indicator-bar[dragging="true"] {
-  visibility: visible;
+  list-style-image: url(chrome://browser/skin/places/toolbarDropMarker.png);
 }
 
 /* Bookmark items */
@@ -230,9 +229,7 @@ menuitem:not([type]) {
 }
 
 #menu_close {
-  /*XXX Avoiding size=menu as some themes (e.g. Human) don't provide the icon
-        at 16*16px (bug 426930), and upscaled images are ugly (bug 422179). */
-  list-style-image: url("moz-icon://stock/gtk-close?size=toolbar");
+  list-style-image: url("moz-icon://stock/gtk-close?size=menu");
 }
 
 #context-media-play {
@@ -460,8 +457,7 @@ menuitem:not([type]) {
   list-style-image: url("moz-icon://stock/gtk-info?size=menu");
 }
 
-#placesContext_show\:info,
-#context-metadata {
+#placesContext_show\:info {
   list-style-image: url("moz-icon://stock/gtk-properties?size=menu");
 }
 
@@ -567,22 +563,13 @@ toolbar[mode="full"] .toolbarbutton-menubutton-button {
 #downloads-button {
   -moz-image-region: rect(0px 24px 24px 0px);
 }
-#downloads-button[disabled="true"] {
-  -moz-image-region: rect(24px 24px 48px 0px);
-}
 
 #history-button {
   -moz-image-region: rect(0px 48px 24px 24px);
 }
-#history-button[disabled="true"] {
-  -moz-image-region: rect(24px 48px 48px 24px);
-}
 
 #bookmarks-button {
   -moz-image-region: rect(0px 72px 24px 48px);
-}
-#bookmarks-button[disabled="true"] {
-  -moz-image-region: rect(24px 72px 48px 48px);
 }
 
 #print-button {
@@ -595,15 +582,9 @@ toolbar[mode="full"] .toolbarbutton-menubutton-button {
 #new-tab-button {
   -moz-image-region: rect(0px 96px 24px 72px);
 }
-#new-tab-button[disabled="true"] {
-  -moz-image-region: rect(24px 96px 48px 72px);
-}
 
 #new-window-button {
   -moz-image-region: rect(0px 120px 24px 96px);
-}
-#new-window-button[disabled="true"] {
-  -moz-image-region: rect(24px 120px 48px 96px);
 }
 
 #cut-button {
@@ -655,7 +636,7 @@ toolbar[iconsize="small"] #back-button[disabled="true"] {
 toolbar[iconsize="small"] #back-button:-moz-locale-dir(rtl) {
   list-style-image: url("moz-icon://stock/gtk-go-back-rtl?size=menu");
 }
-menupopup:-moz-locale-dir(rtl) > .unified-nav-back[_moz-menuactive] {
+.unified-nav-back[_moz-menuactive]:-moz-locale-dir(rtl) {
   list-style-image: url("moz-icon://stock/gtk-go-back-rtl?size=menu") !important;
 }
 toolbar[iconsize="small"] #back-button[disabled="true"]:-moz-locale-dir(rtl) {
@@ -675,7 +656,7 @@ toolbar[iconsize="small"] #forward-button[disabled="true"] {
 toolbar[iconsize="small"] #forward-button:-moz-locale-dir(rtl) {
   list-style-image: url("moz-icon://stock/gtk-go-forward-rtl?size=menu");
 }
-menupopup:-moz-locale-dir(rtl) > .unified-nav-forward[_moz-menuactive] {
+.unified-nav-forward[_moz-menuactive]:-moz-locale-dir(rtl) {
   list-style-image: url("moz-icon://stock/gtk-go-forward-rtl?size=menu") !important;
 }
 toolbar[iconsize="small"] #forward-button[disabled="true"]:-moz-locale-dir(rtl) {
@@ -700,7 +681,7 @@ toolbar[iconsize="small"] #home-button ,
 #home-button.bookmark-item {
   list-style-image: url("moz-icon://stock/gtk-home?size=menu");
 }
-toolbar[iconsize="small"] #home-button[disabled="true"] ,
+toolbar[iconsize="small"] #home-button[disabled="true"],
 #home-button.bookmark-item[disabled="true"] {
   list-style-image: url("moz-icon://stock/gtk-home?size=menu&state=disabled");
 }
@@ -708,22 +689,13 @@ toolbar[iconsize="small"] #home-button[disabled="true"] ,
 toolbar[iconsize="small"] #downloads-button {
   -moz-image-region: rect(0px 16px 16px 0px);
 }
-toolbar[iconsize="small"] #downloads-button[disabled="true"] {
-  -moz-image-region: rect(16px 16px 32px 0px);
-}
 
 toolbar[iconsize="small"] #history-button {
   -moz-image-region: rect(0px 32px 16px 16px);
 }
-toolbar[iconsize="small"] #history-button[disabled="true"] {
-  -moz-image-region: rect(16px 32px 32px 16px);
-}
 
 toolbar[iconsize="small"] #bookmarks-button {
   -moz-image-region: rect(0px 48px 16px 32px);
-}
-toolbar[iconsize="small"] #bookmarks-button[disabled="true"] {
-  -moz-image-region: rect(16px 48px 32px 32px);
 }
 
 toolbar[iconsize="small"] #print-button {
@@ -736,15 +708,9 @@ toolbar[iconsize="small"] #print-button[disabled="true"] {
 toolbar[iconsize="small"] #new-tab-button {
   -moz-image-region: rect(0px 64px 16px 48px);
 }
-toolbar[iconsize="small"] #new-tab-button[disabled="true"] {
-  -moz-image-region: rect(16px 64px 32px 48px);
-}
 
 toolbar[iconsize="small"] #new-window-button {
   -moz-image-region: rect(0px 80px 16px 64px);
-}
-toolbar[iconsize="small"] #new-window-button[disabled="true"] {
-  -moz-image-region: rect(16px 80px 32px 64px);
 }
 
 toolbar[iconsize="small"] #cut-button {
@@ -891,12 +857,12 @@ toolbar[iconsize="small"] #fullscreen-button {
   outline: 1px dotted -moz-DialogText;
 }
 
-#identity-box:hover > hbox {
+#identity-box:hover > #identity-box-inner {
   background-color: rgba(255, 255, 255, .2);
 }
 
-#identity-box:hover:active > hbox,
-#identity-box[open="true"] > hbox {
+#identity-box:hover:active > #identity-box-inner,
+#identity-box[open="true"] > #identity-box-inner {
   background-color: rgba(0, 0, 0, .1);
 }
 
@@ -937,14 +903,13 @@ toolbar[iconsize="small"] #fullscreen-button {
 }
 
 /* Identity popup body text */
-#identity-popup-content-box > description,
-#identity-popup-encryption-label {
+.identity-popup-description {
   white-space: pre-wrap;
   -moz-padding-start: 15px;
   margin: 2px 0 4px;
 }
 
-#identity-popup-content-box > label {
+.identity-popup-label {
   white-space: pre-wrap;
   -moz-padding-start: 15px;
   margin: 0;
@@ -982,7 +947,6 @@ toolbar[iconsize="small"] #fullscreen-button {
 
 /* Identity popup bounding box */
 #identity-popup-container {
-  background-image: none;
   min-width: 280px;
   padding: 10px;
 }
@@ -1017,7 +981,7 @@ toolbar[iconsize="small"] #fullscreen-button {
 
 .ac-result-type-keyword,
 .autocomplete-treebody::-moz-tree-image(keyword, treecolAutoCompleteImage) {
-  list-style-image: url(chrome://global/skin/icons/Search-glass.png);
+  list-style-image: url(moz-icon://stock/gtk-find?size=menu);
   width: 16px;
   height: 16px;
 }
@@ -1136,16 +1100,15 @@ statusbarpanel#statusbar-display {
   width: 16px;
   min-height: 16px;
   margin: 0 3px;
-  list-style-image: url("chrome://global/skin/icons/notloading_16.png");
 }
 
 #navigator-throbber[busy="true"] {
   list-style-image: url("chrome://global/skin/icons/loading_16.png");
 }
 
-
-tabpanels {
-  -moz-appearance: none;
+#navigator-throbber,
+#wrapper-navigator-throbber > #navigator-throbber {
+  list-style-image: url("chrome://global/skin/icons/notloading_16.png");
 }
 
 /* Tabs */
@@ -1169,7 +1132,35 @@ tabpanels {
 }
 
 .tabbrowser-tab[busy] > .tab-icon-image {
-  list-style-image: url("chrome://global/skin/icons/loading_16.png") !important;
+  list-style-image: url("chrome://browser/skin/tabbrowser/progress.png") !important;
+  -moz-image-region: rect(0, 16px, 16px, 0);
+}
+.tabbrowser-tab[busy][stalled] > .tab-icon-image {
+  list-style-image: url("chrome://browser/skin/tabbrowser/progress-pulsing.png") !important;
+}
+.tabbrowser-tab[busy][progress="1"] > .tab-icon-image {
+  -moz-image-region: rect(0, 32px, 16px, 16px);
+}
+.tabbrowser-tab[busy][progress="2"] > .tab-icon-image {
+  -moz-image-region: rect(0, 48px, 16px, 32px);
+}
+.tabbrowser-tab[busy][progress="3"] > .tab-icon-image {
+  -moz-image-region: rect(0, 64px, 16px, 48px);
+}
+.tabbrowser-tab[busy][progress="4"] > .tab-icon-image {
+  -moz-image-region: rect(0, 80px, 16px, 64px);
+}
+.tabbrowser-tab[busy][progress="5"] > .tab-icon-image {
+  -moz-image-region: rect(0, 96px, 16px, 80px);
+}
+.tabbrowser-tab[busy][progress="6"] > .tab-icon-image {
+  -moz-image-region: rect(0, 112px, 16px, 96px);
+}
+.tabbrowser-tab[busy][progress="7"] > .tab-icon-image {
+  -moz-image-region: rect(0, 128px, 16px, 112px);
+}
+.tabbrowser-tab[busy][progress="8"] > .tab-icon-image {
+  -moz-image-region: rect(0, 144px, 16px, 128px);
 }
 
 .tabs-bottom {
@@ -1202,9 +1193,7 @@ tabpanels {
 }
 
 #context_closeTab {
-  /*XXX Avoiding size=menu as some themes (e.g. Human) don't provide the icon
-        at 16*16px (bug 426930), and upscaled images are ugly (bug 422179). */
-  list-style-image: url("moz-icon://stock/gtk-close?size=toolbar");
+  list-style-image: url("moz-icon://stock/gtk-close?size=menu");
 }
 
 /* tabbrowser-tab focus ring */
@@ -1281,23 +1270,27 @@ tabpanels {
 }
 
 .tabs-closebutton > .toolbarbutton-icon {
-  margin: 0;
+  /* XXX Buttons have padding in widget/ that we don't want here but can't override with good CSS, so we must
+     use evil CSS to give the impression of smaller content */
+  margin: -2px;
 }
 
 /* Tabbrowser arrowscrollbox arrows */
 .tabbrowser-arrowscrollbox > .scrollbutton-up {
   -moz-appearance: tab-scroll-arrow-back;
-  margin: 0px;
+  margin: 0;
 }
 
 .tabbrowser-arrowscrollbox > .scrollbutton-down {
   -moz-appearance: tab-scroll-arrow-forward;
-  margin: 0px;
+  margin: 0;
+  -moz-transition: 1s -moz-box-shadow ease-out;
+  -moz-border-radius: 4px;
 }
 
-.tabs-alltabs-box-animate {
-  background-color: Highlight;
-  opacity: 0.0;
+.tabbrowser-arrowscrollbox > .scrollbutton-down[notifybgtab] {
+  -moz-box-shadow: 0 0 7px 5px Highlight inset;
+  -moz-transition: none;
 }
 
 .tabs-alltabs-button {
@@ -1346,8 +1339,8 @@ toolbarbutton.chevron {
   list-style-image: url("chrome://global/skin/toolbar/chevron.gif") !important;
 }
 
-toolbarbutton.chevron:-moz-locale-dir(rtl) {
-  list-style-image: url("chrome://global/skin/toolbar/chevron-rtl.gif") !important;
+toolbarbutton.chevron:-moz-locale-dir(rtl) > .toolbarbutton-icon {
+  -moz-transform: scaleX(-1);
 }
 
 toolbarbutton.chevron > .toolbarbutton-text,
@@ -1361,14 +1354,6 @@ toolbarbutton.chevron > .toolbarbutton-icon {
 
 toolbar[mode="text"] toolbarbutton.chevron > .toolbarbutton-icon {
   display: -moz-box; /* display chevron icon in text mode */
-}
-
-toolbar[mode="text"] > #window-controls > toolbarbutton > .toolbarbutton-icon {
-  display: -moz-box;
-}
-
-toolbar[mode="text"] > #window-controls > toolbarbutton > .toolbarbutton-text {
-   display: none;
 }
 
 /* Popup blocking dialog */

@@ -70,7 +70,6 @@
 #include "nsCRT.h"
 #include "nsDOMError.h"
 #include "nsEventDispatcher.h"
-#include "nsPresShellIterator.h"
 
 #ifdef PR_LOGGING
 static PRLogModuleInfo* gLog;
@@ -437,9 +436,8 @@ nsXULCommandDispatcher::UpdateCommands(const nsAString& aEventName)
     }
 #endif
 
-    nsPresShellIterator iter(document);
-    nsCOMPtr<nsIPresShell> shell;
-    while ((shell = iter.GetNextShell())) {
+    nsCOMPtr<nsIPresShell> shell = document->GetPrimaryShell();
+    if (shell) {
 
       // Retrieve the context in which our DOM event will fire.
       nsCOMPtr<nsPresContext> context = shell->GetPresContext();
@@ -489,7 +487,7 @@ nsXULCommandDispatcher::GetControllers(nsIControllers** aResult)
   nsIFocusController* fc = GetFocusController();
   NS_ENSURE_TRUE(fc, NS_ERROR_FAILURE);
 
-  return fc->GetControllers(aResult);
+  return fc->GetControllers(mDocument->GetWindow(), aResult);
 }
 
 NS_IMETHODIMP
@@ -498,7 +496,7 @@ nsXULCommandDispatcher::GetControllerForCommand(const char *aCommand, nsIControl
   nsIFocusController* fc = GetFocusController();
   NS_ENSURE_TRUE(fc, NS_ERROR_FAILURE);
 
-  return fc->GetControllerForCommand(aCommand, _retval);
+  return fc->GetControllerForCommand(mDocument->GetWindow(), aCommand, _retval);
 }
 
 NS_IMETHODIMP

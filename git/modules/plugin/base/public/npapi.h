@@ -60,6 +60,8 @@
 #ifdef XP_MACOSX
 #ifdef __LP64__
 #define NP_NO_QUICKDRAW
+#define NP_NO_CARBON
+#include <ApplicationServices/ApplicationServices.h>
 #else
 #include <Carbon/Carbon.h>
 #endif
@@ -78,14 +80,14 @@
 /*----------------------------------------------------------------------*/
 
 #define NP_VERSION_MAJOR 0
-#define NP_VERSION_MINOR 22
+#define NP_VERSION_MINOR 23
 
 
 /* The OS/2 version of Netscape uses RC_DATA to define the
    mime types, file extensions, etc that are required.
    Use a vertical bar to separate types, end types with \0.
    FileVersion and ProductVersion are 32bit ints, all other
-   entries are strings the MUST be terminated wwith a \0.
+   entries are strings that MUST be terminated with a \0.
 
 AN EXAMPLE:
 
@@ -246,6 +248,13 @@ typedef enum {
 #endif
   NPDrawingModelCoreGraphics = 1
 } NPDrawingModel;
+
+typedef enum {
+#ifndef NP_NO_CARBON
+  NPEventModelCarbon = 0,
+#endif
+  NPEventModelCocoa = 1
+} NPEventModel;
 #endif
 
 /*
@@ -255,7 +264,7 @@ typedef enum {
  *   compatible with older compilers. To prevent older plugins from 
  *   not understanding a new browser's ABI, these masks change the 
  *   values of those selectors on those platforms. To remain backwards
- *   compatible with differenet versions of the browser, plugins can 
+ *   compatible with different versions of the browser, plugins can 
  *   use these masks to dynamically determine and use the correct C++
  *   ABI that the browser is expecting. This does not apply to Windows 
  *   as Microsoft's COM ABI will likely not change.
@@ -325,6 +334,12 @@ typedef enum {
 #ifdef XP_MACOSX
   /* Used for negotiating drawing models */
   , NPPVpluginDrawingModel = 1000
+  /* Used for negotiating event models */
+  , NPPVpluginEventModel = 1001
+#endif
+
+#ifdef MOZ_PLATFORM_HILDON
+  , NPPVpluginWindowlessLocalBool = 2002
 #endif
 } NPPVariable;
 
@@ -363,6 +378,13 @@ typedef enum {
   , NPNVsupportsQuickDrawBool = 2000
 #endif
   , NPNVsupportsCoreGraphicsBool = 2001
+#ifndef NP_NO_CARBON
+  , NPNVsupportsCarbonBool = 3000 /* TRUE if the browser supports the Carbon event model */
+#endif
+  , NPNVsupportsCocoaBool = 3001 /* TRUE if the browser supports the Cocoa event model */
+#endif
+#ifdef MOZ_PLATFORM_HILDON
+  , NPNVSupportsWindowlessLocal = 2002
 #endif
 } NPNVariable;
 
@@ -372,7 +394,7 @@ typedef enum {
 } NPNURLVariable;
 
 /*
- * The type of Tookkit the widgets use
+ * The type of Toolkit the widgets use
  */
 typedef enum {
   NPNVGtk12 = 1,
@@ -398,13 +420,27 @@ typedef struct _NPWindow
   uint32_t width;  /* Maximum window size */
   uint32_t height;
   NPRect   clipRect; /* Clipping rectangle in port coordinates */
-                     /* Used by MAC only. */
 #if defined(XP_UNIX) && !defined(XP_MACOSX)
-  void * ws_info; /* Platform-dependent additonal data */
+  void * ws_info; /* Platform-dependent additional data */
 #endif /* XP_UNIX */
   NPWindowType type; /* Is this a window or a drawable? */
 } NPWindow;
 
+typedef struct _NPImageExpose
+{
+  char*    data;       /* image pointer */
+  int32_t  stride;     /* Stride of data image pointer */
+  int32_t  depth;      /* Depth of image pointer */
+  int32_t  x;          /* Expose x */
+  int32_t  y;          /* Expose y */
+  uint32_t width;      /* Expose width */
+  uint32_t height;     /* Expose height */
+  NPSize   dataSize;   /* Data buffer size */
+  float    translateX; /* translate X matrix value */
+  float    translateY; /* translate Y matrix value */
+  float    scaleX;     /* scale X matrix value */
+  float    scaleY;     /* scale Y matrix value */
+} NPImageExpose;
 
 typedef struct _NPFullPrint
 {
@@ -431,7 +467,9 @@ typedef struct _NPPrint
 } NPPrint;
 
 #ifdef XP_MACOSX
+#ifndef NP_NO_CARBON
 typedef EventRecord NPEvent;
+#endif
 #elif defined(XP_WIN)
 typedef struct _NPEvent
 {
@@ -450,10 +488,9 @@ typedef struct _NPEvent
 typedef XEvent NPEvent;
 #else
 typedef void*  NPEvent;
-#endif /* XP_MACOSX */
+#endif
 
 #ifdef XP_MACOSX
-
 typedef void* NPRegion;
 #ifndef NP_NO_QUICKDRAW
 typedef RgnHandle NPQDRegion;
@@ -467,7 +504,26 @@ typedef Region NPRegion;
 typedef void *NPRegion;
 #endif
 
+typedef struct _NPNSString NPNSString;
+typedef struct _NPNSWindow NPNSWindow;
+typedef struct _NPNSMenu   NPNSMenu;
+
 #ifdef XP_MACOSX
+typedef NPNSMenu NPMenu;
+#else
+typedef void *NPMenu;
+#endif
+
+typedef enum {
+  NPCoordinateSpacePlugin = 1,
+  NPCoordinateSpaceWindow,
+  NPCoordinateSpaceFlippedWindow,
+  NPCoordinateSpaceScreen,
+  NPCoordinateSpaceFlippedScreen
+} NPCoordinateSpace;
+
+#ifdef XP_MACOSX
+
 typedef struct NP_Port
 {
   CGrafPtr port;
@@ -478,9 +534,68 @@ typedef struct NP_Port
 typedef struct NP_CGContext
 {
   CGContextRef context;
-  WindowRef window;
+#ifdef NP_NO_CARBON
+  NPNSWindow *window;
+#else
+  void *window; /* A WindowRef or NULL for the Cocoa event model. */
+#endif
 } NP_CGContext;
 
+typedef enum {
+  NPCocoaEventDrawRect = 1,
+  NPCocoaEventMouseDown,
+  NPCocoaEventMouseUp,
+  NPCocoaEventMouseMoved,
+  NPCocoaEventMouseEntered,
+  NPCocoaEventMouseExited,
+  NPCocoaEventMouseDragged,
+  NPCocoaEventKeyDown,
+  NPCocoaEventKeyUp,
+  NPCocoaEventFlagsChanged,
+  NPCocoaEventFocusChanged,
+  NPCocoaEventWindowFocusChanged,
+  NPCocoaEventScrollWheel,
+  NPCocoaEventTextInput
+} NPCocoaEventType;
+
+typedef struct _NPCocoaEvent {
+  NPCocoaEventType type;
+  uint32_t version;
+  union {
+    struct {
+      uint32_t modifierFlags;
+      double   pluginX;
+      double   pluginY;           
+      int32_t  buttonNumber;
+      int32_t  clickCount;
+      double   deltaX;
+      double   deltaY;
+      double   deltaZ;
+    } mouse;
+    struct {
+      uint32_t    modifierFlags;
+      NPNSString *characters;
+      NPNSString *charactersIgnoringModifiers;
+      NPBool      isARepeat;
+      uint16_t    keyCode;
+    } key;
+    struct {
+      CGContextRef context;
+      double x;
+      double y;
+      double width;
+      double height;
+    } draw;
+    struct {
+      NPBool hasFocus;
+    } focus;
+    struct {
+      NPNSString *text;
+    } text;
+  } data;
+} NPCocoaEvent;
+
+#ifndef NP_NO_CARBON
 /* Non-standard event types that can be passed to HandleEvent */
 enum NPEventType {
   NPEventType_GetFocusEvent = (osEvt + 16),
@@ -491,12 +606,12 @@ enum NPEventType {
   NPEventType_ScrollingBeginsEvent = 1000,
   NPEventType_ScrollingEndsEvent
 };
-
 #ifdef OBSOLETE
 #define getFocusEvent     (osEvt + 16)
 #define loseFocusEvent    (osEvt + 17)
 #define adjustCursorEvent (osEvt + 18)
-#endif
+#endif /* OBSOLETE */
+#endif /* NP_NO_CARBON */
 
 #endif /* XP_MACOSX */
 
@@ -676,8 +791,10 @@ NPError     NP_LOADDS NPN_GetAuthenticationInfo(NPP instance,
                                                 char **username, uint32_t *ulen,
                                                 char **password,
                                                 uint32_t *plen);
-uint32_t    NPN_ScheduleTimer(NPP instance, uint32_t interval, NPBool repeat, void (*timerFunc)(NPP npp, uint32_t timerID));
-void        NPN_UnscheduleTimer(NPP instance, uint32_t timerID);
+uint32_t    NP_LOADDS NPN_ScheduleTimer(NPP instance, uint32_t interval, NPBool repeat, void (*timerFunc)(NPP npp, uint32_t timerID));
+void        NP_LOADDS NPN_UnscheduleTimer(NPP instance, uint32_t timerID);
+NPError     NP_LOADDS NPN_PopUpContextMenu(NPP instance, NPMenu* menu);
+NPBool      NP_LOADDS NPN_ConvertPoint(NPP instance, double sourceX, double sourceY, NPCoordinateSpace sourceSpace, double *destX, double *destY, NPCoordinateSpace destSpace);
 
 #ifdef __cplusplus
 }  /* end extern "C" */

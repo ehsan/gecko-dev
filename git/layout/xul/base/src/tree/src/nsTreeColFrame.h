@@ -46,6 +46,8 @@ nsIFrame* NS_NewTreeColFrame(nsIPresShell* aPresShell,
 class nsTreeColFrame : public nsBoxFrame
 {
 public:
+  NS_DECL_FRAMEARENA_HELPERS
+
   nsTreeColFrame(nsIPresShell* aPresShell,
                  nsStyleContext* aContext):
     nsBoxFrame(aPresShell, aContext) {}
@@ -54,7 +56,7 @@ public:
                   nsIFrame*        aParent,
                   nsIFrame*        aPrevInFlow);
 
-  virtual void Destroy();
+  virtual void DestroyFrom(nsIFrame* aDestructRoot);
 
   NS_IMETHOD BuildDisplayListForChildren(nsDisplayListBuilder*   aBuilder,
                                          const nsRect&           aDirtyRect,

@@ -14,7 +14,7 @@
  *
  * The Original Code is Thebes gfx.
  *
- * The Initial Developer of the Original Code is Mozilla Corporation.
+ * The Initial Developer of the Original Code is Mozilla Foundation.
  * Portions created by the Initial Developer are Copyright (C) 2007
  * the Initial Developer. All Rights Reserved.
  *
@@ -203,6 +203,22 @@ gfxWindowsNativeDrawing::BeginNativeDrawing()
         NS_ERROR("Bogus render state!");
         return nsnull;
     }
+}
+
+PRBool
+gfxWindowsNativeDrawing::IsDoublePass()
+{
+    // this is the same test we use in BeginNativeDrawing.
+    nsRefPtr<gfxASurface> surf = mContext->CurrentSurface(&mDeviceOffset.x, &mDeviceOffset.y);
+    if (!surf || surf->CairoStatus())
+        return false;
+    if ((surf->GetType() == gfxASurface::SurfaceTypeWin32 ||
+         surf->GetType() == gfxASurface::SurfaceTypeWin32Printing) &&
+        (surf->GetContentType() != gfxASurface::CONTENT_COLOR ||
+         (surf->GetContentType() == gfxASurface::CONTENT_COLOR_ALPHA &&
+          !(mNativeDrawFlags & CAN_DRAW_TO_COLOR_ALPHA))))
+        return PR_TRUE;
+    return PR_FALSE;
 }
 
 PRBool

@@ -62,10 +62,10 @@ public:
   nsHTMLButtonControlFrame(nsStyleContext* aContext);
   ~nsHTMLButtonControlFrame();
 
-
-  virtual void Destroy();
+  virtual void DestroyFrom(nsIFrame* aDestructRoot);
 
   NS_DECL_QUERYFRAME
+  NS_DECL_FRAMEARENA_HELPERS
 
   NS_IMETHOD BuildDisplayList(nsDisplayListBuilder*   aBuilder,
                               const nsRect&           aDirtyRect,

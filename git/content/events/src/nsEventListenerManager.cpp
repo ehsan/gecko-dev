@@ -69,7 +69,6 @@
 #include "nsIFrame.h"
 #include "nsIView.h"
 #include "nsIViewManager.h"
-#include "nsIScrollableView.h"
 #include "nsCOMPtr.h"
 #include "nsIServiceManager.h"
 #include "nsIScriptSecurityManager.h"
@@ -92,6 +91,9 @@
 #include "nsDOMJSUtils.h"
 #include "nsDOMScriptObjectHolder.h"
 #include "nsDataHashtable.h"
+#include "nsCOMArray.h"
+#include "nsEventListenerService.h"
+#include "nsDOMEvent.h"
 
 #define EVENT_TYPE_EQUALS( ls, type, userType ) \
   (ls->mEventType && ls->mEventType == type && \
@@ -208,9 +210,7 @@ static const EventDispatchData sCompositionEvents[] = {
   { NS_COMPOSITION_START,
     HANDLER(&nsIDOMCompositionListener::HandleStartComposition)  },
   { NS_COMPOSITION_END,
-    HANDLER(&nsIDOMCompositionListener::HandleEndComposition)    },
-  { NS_COMPOSITION_QUERY,
-    HANDLER(&nsIDOMCompositionListener::HandleQueryComposition)  }
+    HANDLER(&nsIDOMCompositionListener::HandleEndComposition)    }
 };
 
 static const EventDispatchData sTextEvents[] = {
@@ -405,6 +405,7 @@ nsEventListenerManager::AddEventListener(nsIDOMEventListener *aListener,
     sysGroup->IsSameEventGroup(aEvtGrp, &isSame);
     if (isSame) {
       group = NS_EVENT_FLAG_SYSTEM_EVENT;
+      mMayHaveSystemGroupListeners = PR_TRUE;
     }
   }
 
@@ -450,6 +451,9 @@ nsEventListenerManager::AddEventListener(nsIDOMEventListener *aListener,
   ls->mGroupFlags = group;
   ls->mHandlerIsString = PR_FALSE;
   ls->mTypeData = aTypeData;
+  if (aFlags & NS_EVENT_FLAG_CAPTURE) {
+    mMayHaveCapturingListeners = PR_TRUE;
+  }
 
   if (aType == NS_AFTERPAINT) {
     mMayHavePaintEventListener = PR_TRUE;
@@ -470,6 +474,10 @@ nsEventListenerManager::AddEventListener(nsIDOMEventListener *aListener,
                                    kAllMutationBits :
                                    MutationBitForEventType(aType));
     }
+  } else if (aTypeAtom == nsGkAtoms::onMozOrientation) {
+    nsPIDOMWindow* window = GetInnerWindowForTarget();
+    if (window)
+      window->SetHasOrientationEventListener();
   }
 
   return NS_OK;
@@ -610,7 +618,7 @@ nsEventListenerManager::SetJSEventListener(nsIScriptContext *aContext,
     // If we didn't find a script listener or no listeners existed
     // create and add a new one.
     nsCOMPtr<nsIDOMEventListener> scriptListener;
-    rv = NS_NewJSEventListener(aContext, aScopeObject, aObject,
+    rv = NS_NewJSEventListener(aContext, aScopeObject, aObject, aName,
                                getter_AddRefs(scriptListener));
     if (NS_SUCCEEDED(rv)) {
       AddEventListener(scriptListener, eventType, aName, nsnull,
@@ -828,17 +836,13 @@ nsEventListenerManager::RegisterScriptEventListener(nsIScriptContext *aContext,
 
     if (aContext->GetScriptTypeID() == nsIProgrammingLanguage::JAVASCRIPT) {
         nsCOMPtr<nsIXPConnectJSObjectHolder> holder;
-        rv = nsContentUtils::XPConnect()->
-          WrapNative(cx, (JSObject *)aScope, aObject, NS_GET_IID(nsISupports),
-                     getter_AddRefs(holder));
+        jsval v;
+        rv = nsContentUtils::WrapNative(cx, (JSObject *)aScope, aObject, &v,
+                                        getter_AddRefs(holder));
         NS_ENSURE_SUCCESS(rv, rv);
-        JSObject *jsobj = nsnull;
       
-        rv = holder->GetJSObject(&jsobj);
-        NS_ENSURE_SUCCESS(rv, rv);
-
         rv = nsContentUtils::GetSecurityManager()->
-          CheckPropertyAccess(cx, jsobj,
+          CheckPropertyAccess(cx, JSVAL_TO_OBJECT(v),
                               "EventTarget",
                               sAddListenerID,
                               nsIXPCSecurityManager::ACCESS_SET_PROPERTY);
@@ -877,7 +881,7 @@ nsEventListenerManager::CompileScriptEventListener(nsIScriptContext *aContext,
 
   if (ls->mHandlerIsString) {
     rv = CompileEventHandlerInternal(aContext, aScope, aObject, aName,
-                                     ls, /*XXX fixme*/nsnull);
+                                     ls, /*XXX fixme*/nsnull, PR_TRUE);
   }
 
   // Set *aDidCompile to true even if we didn't really compile
@@ -896,7 +900,8 @@ nsEventListenerManager::CompileEventHandlerInternal(nsIScriptContext *aContext,
                                                     nsISupports *aObject,
                                                     nsIAtom *aName,
                                                     nsListenerStruct *aListenerStruct,
-                                                    nsISupports* aCurrentTarget)
+                                                    nsISupports* aCurrentTarget,
+                                                    PRBool aNeedsCxPush)
 {
   nsresult result = NS_OK;
 
@@ -959,7 +964,8 @@ nsEventListenerManager::CompileEventHandlerInternal(nsIScriptContext *aContext,
       }
 
       nsCxPusher pusher;
-      if (!pusher.Push((JSContext*)aContext->GetNativeContext())) {
+      if (aNeedsCxPush &&
+          !pusher.Push((JSContext*)aContext->GetNativeContext())) {
         return NS_ERROR_FAILURE;
       }
 
@@ -1006,7 +1012,8 @@ nsEventListenerManager::HandleEventSubType(nsListenerStruct* aListenerStruct,
                                            nsIDOMEventListener* aListener,
                                            nsIDOMEvent* aDOMEvent,
                                            nsPIDOMEventTarget* aCurrentTarget,
-                                           PRUint32 aPhaseFlags)
+                                           PRUint32 aPhaseFlags,
+                                           nsCxPusher* aPusher)
 {
   nsresult result = NS_OK;
 
@@ -1016,15 +1023,30 @@ nsEventListenerManager::HandleEventSubType(nsListenerStruct* aListenerStruct,
       aListenerStruct->mHandlerIsString) {
     nsCOMPtr<nsIJSEventListener> jslistener = do_QueryInterface(aListener);
     if (jslistener) {
-      nsAutoString eventString;
-      if (NS_SUCCEEDED(aDOMEvent->GetType(eventString))) {
-        nsCOMPtr<nsIAtom> atom = do_GetAtom(NS_LITERAL_STRING("on") + eventString);
+      // We probably have the atom already.
+      nsCOMPtr<nsIAtom> atom = aListenerStruct->mTypeAtom;
+      if (!atom) {
+        nsAutoString eventString;
+        if (NS_SUCCEEDED(aDOMEvent->GetType(eventString))) {
+          atom = do_GetAtom(NS_LITERAL_STRING("on") + eventString);
+        }
+      }
 
+      if (atom) {
+#ifdef DEBUG
+        nsAutoString type;
+        aDOMEvent->GetType(type);
+        nsCOMPtr<nsIAtom> eventAtom = do_GetAtom(NS_LITERAL_STRING("on") + type);
+        NS_ASSERTION(eventAtom == atom, "Something wrong with event atoms!");
+#endif
         result = CompileEventHandlerInternal(jslistener->GetEventContext(),
                                              jslistener->GetEventScope(),
                                              jslistener->GetEventTarget(),
                                              atom, aListenerStruct,
-                                             aCurrentTarget);
+                                             aCurrentTarget,
+                                             !jslistener->GetEventContext() ||
+                                             jslistener->GetEventContext() !=
+                                             aPusher->GetCurrentScriptContext());
       }
     }
   }
@@ -1051,9 +1073,20 @@ nsEventListenerManager::HandleEvent(nsPresContext* aPresContext,
                                     nsEvent* aEvent, nsIDOMEvent** aDOMEvent,
                                     nsPIDOMEventTarget* aCurrentTarget,
                                     PRUint32 aFlags,
-                                    nsEventStatus* aEventStatus)
+                                    nsEventStatus* aEventStatus,
+                                    nsCxPusher* aPusher)
 {
   if (mListeners.IsEmpty() || aEvent->flags & NS_EVENT_FLAG_STOP_DISPATCH) {
+    return NS_OK;
+  }
+
+  if (!mMayHaveCapturingListeners &&
+      !(aEvent->flags & NS_EVENT_FLAG_BUBBLE)) {
+    return NS_OK;
+  }
+  
+  if (!mMayHaveSystemGroupListeners &&
+      aFlags & NS_EVENT_FLAG_SYSTEM_EVENT) {
     return NS_OK;
   }
 
@@ -1101,7 +1134,6 @@ found:
   nsAutoTObserverArray<nsListenerStruct, 2>::EndLimitedIterator iter(mListeners);
   nsAutoPopupStatePusher popupStatePusher(nsDOMEvent::GetEventPopupControlState(aEvent));
   PRBool hasListener = PR_FALSE;
-  nsCxPusher pusher;
   while (iter.HasMore()) {
     nsListenerStruct* ls = &iter.GetNext();
     PRBool useTypeInterface =
@@ -1131,13 +1163,13 @@ found:
             }
             nsRefPtr<nsIDOMEventListener> kungFuDeathGrip = ls->mListener;
             if (useTypeInterface) {
-              pusher.Pop();
+              aPusher->Pop();
               DispatchToInterface(*aDOMEvent, ls->mListener,
                                   dispData->method, *typeData->iid);
             } else if (useGenericInterface &&
-                       pusher.RePush(aCurrentTarget)) {
+                       aPusher->RePush(aCurrentTarget)) {
               HandleEventSubType(ls, ls->mListener, *aDOMEvent,
-                                 aCurrentTarget, aFlags);
+                                 aCurrentTarget, aFlags, aPusher);
             }
           }
         }
@@ -1381,6 +1413,75 @@ PRBool
 nsEventListenerManager::HasListeners()
 {
   return !mListeners.IsEmpty();
+}
+
+nsresult
+nsEventListenerManager::GetListenerInfo(nsCOMArray<nsIEventListenerInfo>* aList)
+{
+  nsCOMPtr<nsPIDOMEventTarget> target = do_QueryInterface(mTarget);
+  NS_ENSURE_STATE(target);
+  aList->Clear();
+  PRUint32 count = mListeners.Length();
+  for (PRUint32 i = 0; i < count; ++i) {
+    const nsListenerStruct& ls = mListeners.ElementAt(i);
+    PRBool capturing = !!(ls.mFlags & NS_EVENT_FLAG_CAPTURE);
+    PRBool systemGroup = !!(ls.mGroupFlags & NS_EVENT_FLAG_SYSTEM_EVENT);
+    PRBool allowsUntrusted = !!(ls.mFlags & NS_PRIV_EVENT_UNTRUSTED_PERMITTED);
+    // If this is a script handler and we haven't yet
+    // compiled the event handler itself
+    if ((ls.mFlags & NS_PRIV_EVENT_FLAG_SCRIPT) && ls.mHandlerIsString) {
+      nsCOMPtr<nsIJSEventListener> jslistener = do_QueryInterface(ls.mListener);
+      if (jslistener) {
+        CompileEventHandlerInternal(jslistener->GetEventContext(),
+                                    jslistener->GetEventScope(),
+                                    jslistener->GetEventTarget(),
+                                    ls.mTypeAtom,
+                                    const_cast<nsListenerStruct*>(&ls),
+                                    mTarget,
+                                    PR_TRUE);
+      }
+    }
+    if (ls.mTypeData) {
+      // Handle special event listener interfaces, like nsIDOMFocusListener.
+      for (PRInt32 j = 0; j < ls.mTypeData->numEvents; ++j) {
+        const EventDispatchData* dispData = &(ls.mTypeData->events[j]);
+        const char* eventName = nsDOMEvent::GetEventName(dispData->message);
+        if (eventName) {
+          NS_ConvertASCIItoUTF16 eventType(eventName);
+          nsRefPtr<nsEventListenerInfo> info =
+            new nsEventListenerInfo(eventType, ls.mListener, capturing,
+                                    allowsUntrusted, systemGroup);
+          NS_ENSURE_TRUE(info, NS_ERROR_OUT_OF_MEMORY);
+          aList->AppendObject(info);
+        }
+      }
+    } else if (ls.mEventType == NS_USER_DEFINED_EVENT) {
+      // Handle user defined event types.
+      if (ls.mTypeAtom) {
+        nsAutoString atomName;
+        ls.mTypeAtom->ToString(atomName);
+        const nsDependentSubstring& eventType =
+          Substring(atomName, 2, atomName.Length() - 2);
+        nsRefPtr<nsEventListenerInfo> info =
+          new nsEventListenerInfo(eventType, ls.mListener, capturing,
+                                  allowsUntrusted, systemGroup);
+        NS_ENSURE_TRUE(info, NS_ERROR_OUT_OF_MEMORY);
+        aList->AppendObject(info);
+      }
+    } else {
+      // Handle normal events.
+      const char* eventName = nsDOMEvent::GetEventName(ls.mEventType);
+      if (eventName) {
+        NS_ConvertASCIItoUTF16 eventType(eventName);
+        nsRefPtr<nsEventListenerInfo> info =
+          new nsEventListenerInfo(eventType, ls.mListener, capturing,
+                                  allowsUntrusted, systemGroup);
+        NS_ENSURE_TRUE(info, NS_ERROR_OUT_OF_MEMORY);
+        aList->AppendObject(info);
+      }
+    }
+  }
+  return NS_OK;
 }
 
 PRBool

@@ -54,25 +54,6 @@ EXTRA_COMPONENTS = \
 	nsFormAutoComplete.js \
 	$(NULL)
 
-REQUIRES =	\
-		xpcom \
-		string \
-		autocomplete \
-		dom \
-		layout \
-		docshell \
-		gfx \
-		thebes \
-		morkreader \
-		necko \
-		widget \
-		content \
-		locale \
-		unicharutil \
-		pref \
-		storage \
-		loginmgr \
-		$(NULL)
 
 CPPSRCS = nsFormFillController.cpp \
           nsStorageFormHistory.cpp \
@@ -92,7 +73,3 @@ EXTRA_DSO_LDOPTS += \
 	$(MOZ_UNICHARUTIL_LIBS) \
 	$(MOZ_COMPONENT_LIBS) \
 	$(NULL)
-
-ifdef MOZ_MORKREADER
-EXTRA_DSO_LDOPTS += $(DEPTH)/db/morkreader/$(LIB_PREFIX)morkreader_s.$(LIB_SUFFIX)
-endif

@@ -55,7 +55,6 @@ enum nsWindowType {
                          // desktop (has no border))
   eWindowType_invisible, // windows that are invisible or offscreen
   eWindowType_plugin,    // plugin window
-  eWindowType_java,      // java plugin window
   eWindowType_sheet      // MacOSX sheet (special dialog class)
 };
 
@@ -127,7 +126,8 @@ struct nsWidgetInitData {
       clipSiblings(PR_FALSE), 
       mDropShadow(PR_FALSE),
       mListenForResizes(PR_FALSE),
-      mUnicode(PR_TRUE)
+      mUnicode(PR_TRUE),
+      mRTL(PR_FALSE)
   {
   }
 
@@ -139,6 +139,7 @@ struct nsWidgetInitData {
   PRPackedBool  clipChildren, clipSiblings, mDropShadow;
   PRPackedBool  mListenForResizes;
   PRPackedBool  mUnicode;
+  PRPackedBool  mRTL;
 };
 
 #endif // nsWidgetInitData_h__

@@ -105,16 +105,6 @@ nsXFormsAccessible::GetBoundChildElementValue(const nsAString& aTagName,
 void
 nsXFormsAccessible::CacheSelectChildren(nsIDOMNode *aContainerNode)
 {
-  if (!mWeakShell) {
-    // This node has been shut down
-    mAccChildCount = eChildCountUninitialized;
-    return;
-  }
-
-  if (mAccChildCount != eChildCountUninitialized)
-    return;
-
-  mAccChildCount = 0; // Avoid reentry
   nsIAccessibilityService *accService = GetAccService();
   if (!accService)
     return;
@@ -133,9 +123,8 @@ nsXFormsAccessible::CacheSelectChildren(nsIDOMNode *aContainerNode)
   children->GetLength(&length);
 
   nsCOMPtr<nsIAccessible> accessible;
-  nsRefPtr<nsAccessible> currAccessible, prevAccessible;
+  nsRefPtr<nsAccessible> acc;
 
-  PRUint32 childLength = 0;
   for (PRUint32 index = 0; index < length; index++) {
     nsCOMPtr<nsIDOMNode> child;
     children->Item(index, getter_AddRefs(child));
@@ -143,22 +132,13 @@ nsXFormsAccessible::CacheSelectChildren(nsIDOMNode *aContainerNode)
       continue;
 
     accService->GetAttachedAccessibleFor(child, getter_AddRefs(accessible));
-    currAccessible = nsAccUtils::QueryAccessible(accessible);
-    if (!currAccessible)
+    if (!accessible)
       continue;
 
-    if (childLength == 0)
-      SetFirstChild(accessible);
-
-    currAccessible->SetParent(this);
-    if (prevAccessible) {
-      prevAccessible->SetNextSibling(accessible);
-    }
-    currAccessible.swap(prevAccessible);
-    childLength++;
+    acc = nsAccUtils::QueryObject<nsAccessible>(accessible);
+    mChildren.AppendElement(acc);
+    acc->SetParent(this);
   }
-
-  mAccChildCount = childLength;
 }
 
 // nsIAccessible
@@ -645,7 +625,8 @@ nsXFormsSelectableItemAccessible::DoAction(PRUint8 aIndex)
   if (aIndex != eAction_Click)
     return NS_ERROR_INVALID_ARG;
 
-  return DoCommand();
+  DoCommand();
+  return NS_OK;
 }
 
 PRBool

@@ -113,7 +113,6 @@ const HTTP_412 = new HttpError(412, "Precondition Failed");
 const HTTP_413 = new HttpError(413, "Request Entity Too Large");
 const HTTP_414 = new HttpError(414, "Request-URI Too Long");
 const HTTP_415 = new HttpError(415, "Unsupported Media Type");
-const HTTP_416 = new HttpError(416, "Requested Range Not Satisfiable");
 const HTTP_417 = new HttpError(417, "Expectation Failed");
 
 const HTTP_500 = new HttpError(500, "Internal Server Error");
@@ -185,6 +184,17 @@ function dumpStack()
 /** The XPCOM thread manager. */
 var gThreadManager = null;
 
+/** The XPCOM prefs service. */
+var gRootPrefBranch = null;
+function getRootPrefBranch()
+{
+  if (!gRootPrefBranch)
+  {
+    gRootPrefBranch = Cc["@mozilla.org/preferences-service;1"]
+                        .getService(Ci.nsIPrefBranch);
+  }
+  return gRootPrefBranch;
+}
 
 /**
  * JavaScript constructors for commonly-used classes; precreating these is a
@@ -458,7 +468,7 @@ nsHttpServer.prototype =
           }
         };
       gThreadManager.currentThread
-                    .dispatch(stopEvent, Ci.nsIThreadManager.DISPATCH_NORMAL);
+                    .dispatch(stopEvent, Ci.nsIThread.DISPATCH_NORMAL);
     }
   },
 
@@ -475,13 +485,21 @@ nsHttpServer.prototype =
     this._port = port;
     this._doQuit = this._socketClosed = false;
 
+    // The listen queue needs to be long enough to handle
+    // network.http.max-connections-per-server concurrent connections,
+    // plus a safety margin in case some other process is talking to
+    // the server as well.
+    var prefs = getRootPrefBranch();
+    var maxConnections =
+      prefs.getIntPref("network.http.max-connections-per-server") + 5;
+
     try
     {
       var socket = new ServerSocket(this._port,
                                     true, // loopback only
-                                    -1);  // default number of pending connections
-
-      dumpn(">>> listening on port " + socket.port);
+                                    maxConnections);
+      dumpn(">>> listening on port " + socket.port + ", " + maxConnections +
+            " pending connections");
       socket.asyncListen(this);
       this._identity._initialize(port, true);
       this._socket = socket;
@@ -812,6 +830,136 @@ function ServerIdentity()
 }
 ServerIdentity.prototype =
 {
+  // NSIHTTPSERVERIDENTITY
+
+  //
+  // see nsIHttpServerIdentity.primaryScheme
+  //
+  get primaryScheme()
+  {
+    if (this._primaryPort === -1)
+      throw Cr.NS_ERROR_NOT_INITIALIZED;
+    return this._primaryScheme;
+  },
+
+  //
+  // see nsIHttpServerIdentity.primaryHost
+  //
+  get primaryHost()
+  {
+    if (this._primaryPort === -1)
+      throw Cr.NS_ERROR_NOT_INITIALIZED;
+    return this._primaryHost;
+  },
+
+  //
+  // see nsIHttpServerIdentity.primaryPort
+  //
+  get primaryPort()
+  {
+    if (this._primaryPort === -1)
+      throw Cr.NS_ERROR_NOT_INITIALIZED;
+    return this._primaryPort;
+  },
+
+  //
+  // see nsIHttpServerIdentity.add
+  //
+  add: function(scheme, host, port)
+  {
+    this._validate(scheme, host, port);
+
+    var entry = this._locations["x" + host];
+    if (!entry)
+      this._locations["x" + host] = entry = {};
+
+    entry[port] = scheme;
+  },
+
+  //
+  // see nsIHttpServerIdentity.remove
+  //
+  remove: function(scheme, host, port)
+  {
+    this._validate(scheme, host, port);
+
+    var entry = this._locations["x" + host];
+    if (!entry)
+      return false;
+
+    var present = port in entry;
+    delete entry[port];
+
+    if (this._primaryScheme == scheme &&
+        this._primaryHost == host &&
+        this._primaryPort == port &&
+        this._defaultPort !== -1)
+    {
+      // Always keep at least one identity in existence at any time, unless
+      // we're in the process of shutting down (the last condition above).
+      this._primaryPort = -1;
+      this._initialize(this._defaultPort, false);
+    }
+
+    return present;
+  },
+
+  //
+  // see nsIHttpServerIdentity.has
+  //
+  has: function(scheme, host, port)
+  {
+    this._validate(scheme, host, port);
+
+    return "x" + host in this._locations &&
+           scheme === this._locations["x" + host][port];
+  },
+
+  //
+  // see nsIHttpServerIdentity.has
+  //
+  getScheme: function(host, port)
+  {
+    this._validate("http", host, port);
+
+    var entry = this._locations["x" + host];
+    if (!entry)
+      return "";
+
+    return entry[port] || "";
+  },
+
+  //
+  // see nsIHttpServerIdentity.setPrimary
+  //
+  setPrimary: function(scheme, host, port)
+  {
+    this._validate(scheme, host, port);
+
+    this.add(scheme, host, port);
+
+    this._primaryScheme = scheme;
+    this._primaryHost = host;
+    this._primaryPort = port;
+  },
+
+
+  // NSISUPPORTS
+
+  //
+  // see nsISupports.QueryInterface
+  //
+  QueryInterface: function(iid)
+  {
+    if (iid.equals(Ci.nsIHttpServerIdentity) || iid.equals(Ci.nsISupports))
+      return this;
+
+    throw Cr.NS_ERROR_NO_INTERFACE;
+  },
+
+
+  // PRIVATE IMPLEMENTATION
+
   /**
    * Initializes the primary name for the corresponding server, based on the
    * provided port number.
@@ -859,117 +1007,6 @@ ServerIdentity.prototype =
       // No reason not to remove directly as it's not our primary location
       this.remove("http", "localhost", this._defaultPort);
     }
-  },
-
-  //
-  // see nsIHttpServerIdentity.primaryScheme
-  //
-  get primaryScheme()
-  {
-    if (this._primaryPort === -1)
-      throw Cr.NS_ERROR_NOT_INITIALIZED;
-    return this._primaryScheme;
-  },
-
-  //
-  // see nsIHttpServerIdentity.primaryHost
-  //
-  get primaryHost()
-  {
-    if (this._primaryPort === -1)
-      throw Cr.NS_ERROR_NOT_INITIALIZED;
-    return this._primaryHost;
-  },
-
-  //
-  // see nsIHttpServerIdentity.primaryPort
-  //
-  get primaryPort()
-  {
-    if (this._primaryPort === -1)
-      throw Cr.NS_ERROR_NOT_INITIALIZED;
-    return this._primaryPort;
-  },
-
-  //
-  // see nsIHttpServerIdentity.add
-  //
-  add: function(scheme, host, port)
-  {
-    this._validate(scheme, host, port);
-    
-    var entry = this._locations["x" + host];
-    if (!entry)
-      this._locations["x" + host] = entry = {};
-
-    entry[port] = scheme;
-  },
-
-  //
-  // see nsIHttpServerIdentity.remove
-  //
-  remove: function(scheme, host, port)
-  {
-    this._validate(scheme, host, port);
-
-    var entry = this._locations["x" + host];
-    if (!entry)
-      return false;
-
-    var present = port in entry;
-    delete entry[port];
-
-    if (this._primaryScheme == scheme &&
-        this._primaryHost == host &&
-        this._primaryPort == port &&
-        this._defaultPort !== -1)
-    {
-      // Always keep at least one identity in existence at any time, unless
-      // we're in the process of shutting down (the last condition above).
-      this._primaryPort = -1;
-      this._initialize(this._defaultPort, false);
-    }
-
-    return present;
-  },
-
-  //
-  // see nsIHttpServerIdentity.has
-  //
-  has: function(scheme, host, port)
-  {
-    this._validate(scheme, host, port);
-
-    return "x" + host in this._locations &&
-           scheme === this._locations["x" + host][port];
-  },
-  
-  //
-  // see nsIHttpServerIdentity.has
-  //
-  getScheme: function(host, port)
-  {
-    this._validate("http", host, port);
-
-    var entry = this._locations["x" + host];
-    if (!entry)
-      return "";
-
-    return entry[port] || "";
-  },
-  
-  //
-  // see nsIHttpServerIdentity.setPrimary
-  //
-  setPrimary: function(scheme, host, port)
-  {
-    this._validate(scheme, host, port);
-
-    this.add(scheme, host, port);
-
-    this._primaryScheme = scheme;
-    this._primaryHost = host;
-    this._primaryPort = port;
   },
 
   /**
@@ -2208,6 +2245,8 @@ ServerHandler.prototype =
         dumpn("*** errorCode == " + errorCode);
 
         response = new Response(connection);
+        if (e.customErrorHandling)
+          e.customErrorHandling(response);
         this._handleError(errorCode, request, response);
         return;
       }
@@ -2427,8 +2466,14 @@ ServerHandler.prototype =
       if (end === undefined || end >= file.fileSize)
         end = file.fileSize - 1;
 
-      if (start !== undefined && start >= file.fileSize)
+      if (start !== undefined && start >= file.fileSize) {
+        var HTTP_416 = new HttpError(416, "Requested Range Not Satisfiable");
+        HTTP_416.customErrorHandling = function(errorResponse)
+        {
+          maybeAddHeaders(file, metadata, errorResponse);
+        };
         throw HTTP_416;
+      }
 
       if (end < start)
       {
@@ -2580,7 +2625,7 @@ ServerHandler.prototype =
           // Seek (or read, if seeking isn't supported) to the correct offset so
           // the data sent to the client matches the requested range.
           if (fis instanceof Ci.nsISeekableStream)
-            fis.seek(Ci.nsISeekableStream.SEEK_SET, offset);
+            fis.seek(Ci.nsISeekableStream.NS_SEEK_SET, offset);
           else
             new ScriptableInputStream(fis).read(offset);
         }
@@ -2594,7 +2639,7 @@ ServerHandler.prototype =
       function writeMore()
       {
         gThreadManager.currentThread
-                      .dispatch(writeData, Ci.nsIThreadManager.DISPATCH_NORMAL);
+                      .dispatch(writeData, Ci.nsIThread.DISPATCH_NORMAL);
       }
 
       var input = new BinaryInputStream(fis);
@@ -3521,6 +3566,20 @@ Response.prototype =
   },
 
 
+  // NSISUPPORTS
+
+  //
+  // see nsISupports.QueryInterface
+  //
+  QueryInterface: function(iid)
+  {
+    if (iid.equals(Ci.nsIHttpResponse) || iid.equals(Ci.nsISupports))
+      return this;
+
+    throw Cr.NS_ERROR_NO_INTERFACE;
+  },
+
+
   // POST-CONSTRUCTION API (not exposed externally)
 
   /**
@@ -3655,7 +3714,7 @@ Response.prototype =
           dumpn("*** canceling copy asynchronously...");
           copier.cancel(Cr.NS_ERROR_UNEXPECTED);
         }
-      }, Ci.nsIThreadManager.DISPATCH_NORMAL);
+      }, Ci.nsIThread.DISPATCH_NORMAL);
     }
     else
     {
@@ -3960,7 +4019,7 @@ WriteThroughCopier.prototype =
         }
       };
     gThreadManager.currentThread
-                  .dispatch(cancelEvent, Ci.nsIThreadManager.DISPATCH_NORMAL);
+                  .dispatch(cancelEvent, Ci.nsIThread.DISPATCH_NORMAL);
   },
 
   /**
@@ -4432,8 +4491,8 @@ function Request(port)
 
   /**
    * For the addition of ad-hoc properties and new functionality without having
-   * to change nsIHttpRequestMetadata every time; currently lazily created,
-   * as its only use is in directory listings.
+   * to change nsIHttpRequest every time; currently lazily created, as its only
+   * use is in directory listings.
    */
   this._bag = null;
 }
@@ -4442,7 +4501,7 @@ Request.prototype =
   // SERVER METADATA
 
   //
-  // see nsIHttpRequestMetadata.scheme
+  // see nsIHttpRequest.scheme
   //
   get scheme()
   {
@@ -4450,7 +4509,7 @@ Request.prototype =
   },
 
   //
-  // see nsIHttpRequestMetadata.host
+  // see nsIHttpRequest.host
   //
   get host()
   {
@@ -4458,7 +4517,7 @@ Request.prototype =
   },
 
   //
-  // see nsIHttpRequestMetadata.port
+  // see nsIHttpRequest.port
   //
   get port()
   {
@@ -4468,7 +4527,7 @@ Request.prototype =
   // REQUEST LINE
 
   //
-  // see nsIHttpRequestMetadata.method
+  // see nsIHttpRequest.method
   //
   get method()
   {
@@ -4476,7 +4535,7 @@ Request.prototype =
   },
 
   //
-  // see nsIHttpRequestMetadata.httpVersion
+  // see nsIHttpRequest.httpVersion
   //
   get httpVersion()
   {
@@ -4484,7 +4543,7 @@ Request.prototype =
   },
 
   //
-  // see nsIHttpRequestMetadata.path
+  // see nsIHttpRequest.path
   //
   get path()
   {
@@ -4492,7 +4551,7 @@ Request.prototype =
   },
 
   //
-  // see nsIHttpRequestMetadata.queryString
+  // see nsIHttpRequest.queryString
   //
   get queryString()
   {
@@ -4502,7 +4561,7 @@ Request.prototype =
   // HEADERS
 
   //
-  // see nsIHttpRequestMetadata.getHeader
+  // see nsIHttpRequest.getHeader
   //
   getHeader: function(name)
   {
@@ -4510,7 +4569,7 @@ Request.prototype =
   },
 
   //
-  // see nsIHttpRequestMetadata.hasHeader
+  // see nsIHttpRequest.hasHeader
   //
   hasHeader: function(name)
   {
@@ -4518,7 +4577,7 @@ Request.prototype =
   },
 
   //
-  // see nsIHttpRequestMetadata.headers
+  // see nsIHttpRequest.headers
   //
   get headers()
   {
@@ -4535,7 +4594,7 @@ Request.prototype =
   },
 
   //
-  // see nsIHttpRequestMetadata.headers
+  // see nsIHttpRequest.headers
   //
   get bodyInputStream()
   {
@@ -4550,6 +4609,23 @@ Request.prototype =
     this._ensurePropertyBag();
     return this._bag.getProperty(name);
   },
+
+
+  // NSISUPPORTS
+
+  //
+  // see nsISupports.QueryInterface
+  //
+  QueryInterface: function(iid)
+  {
+    if (iid.equals(Ci.nsIHttpRequest) || iid.equals(Ci.nsISupports))
+      return this;
+
+    throw Cr.NS_ERROR_NO_INTERFACE;
+  },
+
+
+  // PRIVATE IMPLEMENTATION
   
   /** Ensures a property bag has been created for ad-hoc behaviors. */
   _ensurePropertyBag: function()

@@ -48,10 +48,16 @@
 #include "nsISelectionController.h"
 #include "nsComponentManagerUtils.h"
 
+////////////////////////////////////////////////////////////////////////////////
+// nsHTMLTextAccessible
+////////////////////////////////////////////////////////////////////////////////
+
 nsHTMLTextAccessible::nsHTMLTextAccessible(nsIDOMNode* aDomNode, nsIWeakReference* aShell):
 nsTextAccessibleWrap(aDomNode, aShell)
 { 
 }
+
+NS_IMPL_ISUPPORTS_INHERITED0(nsHTMLTextAccessible, nsTextAccessible)
 
 NS_IMETHODIMP
 nsHTMLTextAccessible::GetName(nsAString& aName)
@@ -112,6 +118,10 @@ nsHTMLTextAccessible::GetAttributesInternal(nsIPersistentProperties *aAttributes
   return NS_OK;
 }
 
+////////////////////////////////////////////////////////////////////////////////
+// nsHTMLHRAccessible
+////////////////////////////////////////////////////////////////////////////////
+
 nsHTMLHRAccessible::nsHTMLHRAccessible(nsIDOMNode* aDomNode, nsIWeakReference* aShell):
 nsLeafAccessible(aDomNode, aShell)
 { 
@@ -162,13 +172,16 @@ nsHTMLBRAccessible::GetNameInternal(nsAString& aName)
   return NS_OK;
 }
 
-// A label is an element (not a leaf) and thus can support advanced interfaces.
-// We need to skip over nsTextAccessible QI which prevents that
-NS_IMPL_ISUPPORTS_INHERITED0(nsHTMLLabelAccessible, nsLinkableAccessible)
+////////////////////////////////////////////////////////////////////////////////
+// nsHTMLLabelAccessible
+////////////////////////////////////////////////////////////////////////////////
 
-nsHTMLLabelAccessible::nsHTMLLabelAccessible(nsIDOMNode* aDomNode, nsIWeakReference* aShell):
-nsTextAccessible(aDomNode, aShell)
-{ 
+NS_IMPL_ISUPPORTS_INHERITED0(nsHTMLLabelAccessible, nsHyperTextAccessible)
+
+nsHTMLLabelAccessible::
+  nsHTMLLabelAccessible(nsIDOMNode* aDomNode, nsIWeakReference* aShell) :
+  nsHyperTextAccessibleWrap(aDomNode, aShell)
+{
 }
 
 nsresult
@@ -184,41 +197,14 @@ nsHTMLLabelAccessible::GetRoleInternal(PRUint32 *aRole)
   return NS_OK;
 }
 
-nsresult
-nsHTMLLabelAccessible::GetStateInternal(PRUint32 *aState, PRUint32 *aExtraState)
-{
-  nsresult rv = nsTextAccessible::GetStateInternal(aState, aExtraState);
-  NS_ENSURE_A11Y_SUCCESS(rv, rv);
+////////////////////////////////////////////////////////////////////////////////
+// nsHTMLLIAccessible
+////////////////////////////////////////////////////////////////////////////////
 
-  *aState &= (nsIAccessibleStates::STATE_LINKED |
-              nsIAccessibleStates::STATE_TRAVERSED); // Only use link states
-
-  return NS_OK;
-}
-
-NS_IMETHODIMP nsHTMLLabelAccessible::GetFirstChild(nsIAccessible **aFirstChild) 
-{  
-  // A <label> is not necessarily a leaf!
-  return nsAccessible::GetFirstChild(aFirstChild);
-}
-
-  /* readonly attribute nsIAccessible accFirstChild; */
-NS_IMETHODIMP nsHTMLLabelAccessible::GetLastChild(nsIAccessible **aLastChild)
-{  
-  // A <label> is not necessarily a leaf!
-  return nsAccessible::GetLastChild(aLastChild);
-}
-
-/* readonly attribute long accChildCount; */
-NS_IMETHODIMP nsHTMLLabelAccessible::GetChildCount(PRInt32 *aAccChildCount) 
-{
-  // A <label> is not necessarily a leaf!
-  return nsAccessible::GetChildCount(aAccChildCount);
-}
-
-nsHTMLLIAccessible::nsHTMLLIAccessible(nsIDOMNode *aDOMNode, nsIWeakReference* aShell, 
-                                       const nsAString& aBulletText):
-  nsLinkableAccessible(aDOMNode, aShell)
+nsHTMLLIAccessible::
+  nsHTMLLIAccessible(nsIDOMNode *aDOMNode, nsIWeakReference* aShell, 
+                     const nsAString& aBulletText):
+  nsHyperTextAccessibleWrap(aDOMNode, aShell)
 {
   if (!aBulletText.IsEmpty()) {
     mBulletAccessible = new nsHTMLListBulletAccessible(mDOMNode, mWeakShell, 
@@ -228,14 +214,17 @@ nsHTMLLIAccessible::nsHTMLLIAccessible(nsIDOMNode *aDOMNode, nsIWeakReference* a
   }
 }
 
+NS_IMPL_ISUPPORTS_INHERITED0(nsHTMLLIAccessible, nsHyperTextAccessible)
+
 nsresult
 nsHTMLLIAccessible::Shutdown()
 {
   if (mBulletAccessible) {
-    // Ensure that weak pointer to this is nulled out
+    // Ensure that pointer to this is nulled out.
     mBulletAccessible->Shutdown();
   }
-  nsresult rv = nsLinkableAccessible::Shutdown();
+
+  nsresult rv = nsHyperTextAccessibleWrap::Shutdown();
   mBulletAccessible = nsnull;
   return rv;
 }
@@ -250,7 +239,8 @@ nsHTMLLIAccessible::GetRoleInternal(PRUint32 *aRole)
 nsresult
 nsHTMLLIAccessible::GetStateInternal(PRUint32 *aState, PRUint32 *aExtraState)
 {
-  nsresult rv = nsAccessibleWrap::GetStateInternal(aState, aExtraState);
+  nsresult rv = nsHyperTextAccessibleWrap::GetStateInternal(aState,
+                                                            aExtraState);
   NS_ENSURE_A11Y_SUCCESS(rv, rv);
 
   *aState |= nsIAccessibleStates::STATE_READONLY;
@@ -273,29 +263,29 @@ NS_IMETHODIMP nsHTMLLIAccessible::GetBounds(PRInt32 *x, PRInt32 *y, PRInt32 *wid
   return NS_OK;
 }
 
-void nsHTMLLIAccessible::CacheChildren()
+////////////////////////////////////////////////////////////////////////////////
+// nsHTMLLIAccessible: nsAccessible protected
+
+void
+nsHTMLLIAccessible::CacheChildren()
 {
-  if (!mWeakShell || mAccChildCount != eChildCountUninitialized) {
-    return;
-  }
-
-  nsAccessibleWrap::CacheChildren();
-
   if (mBulletAccessible) {
-    mBulletAccessible->SetNextSibling(mFirstChild);
-    mBulletAccessible->SetParent(this); // Set weak parent;
-    SetFirstChild(mBulletAccessible);
-    ++ mAccChildCount;
+    mChildren.AppendElement(mBulletAccessible);
+    mBulletAccessible->SetParent(this);
   }
+
+  // Cache children from subtree.
+  nsAccessibleWrap::CacheChildren();
 }
 
-
+////////////////////////////////////////////////////////////////////////////////
 // nsHTMLListBulletAccessible
+////////////////////////////////////////////////////////////////////////////////
+
 nsHTMLListBulletAccessible::
   nsHTMLListBulletAccessible(nsIDOMNode* aDomNode, nsIWeakReference* aShell,
                              const nsAString& aBulletText) :
-    nsLeafAccessible(aDomNode, aShell), mWeakParent(nsnull),
-    mBulletText(aBulletText)
+    nsLeafAccessible(aDomNode, aShell), mBulletText(aBulletText)
 {
   mBulletText += ' '; // Otherwise bullets are jammed up against list text
 }
@@ -312,8 +302,6 @@ nsresult
 nsHTMLListBulletAccessible::Shutdown()
 {
   mBulletText.Truncate();
-  mWeakParent = nsnull;
-
   return nsLeafAccessible::Shutdown();
 }
 
@@ -343,20 +331,6 @@ nsHTMLListBulletAccessible::GetStateInternal(PRUint32 *aState, PRUint32 *aExtraS
   return NS_OK;
 }
 
-void
-nsHTMLListBulletAccessible::SetParent(nsIAccessible *aParent)
-{
-  mParent = nsnull;
-  mWeakParent = aParent;
-}
-
-NS_IMETHODIMP
-nsHTMLListBulletAccessible::GetParent(nsIAccessible **aParentAccessible)
-{
-  NS_IF_ADDREF(*aParentAccessible = mWeakParent);
-  return NS_OK;
-}
-
 nsresult
 nsHTMLListBulletAccessible::AppendTextTo(nsAString& aText, PRUint32 aStartOffset,
                                          PRUint32 aLength)
@@ -365,12 +339,21 @@ nsHTMLListBulletAccessible::AppendTextTo(nsAString& aText, PRUint32 aStartOffset
   if (aLength > maxLength) {
     aLength = maxLength;
   }
-  aText += nsDependentSubstring(mBulletText, aStartOffset, aLength);
+  aText += Substring(mBulletText, aStartOffset, aLength);
   return NS_OK;
+}
+
+nsAccessible*
+nsHTMLListBulletAccessible::GetParent()
+{
+  return mParent;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 // nsHTMLListAccessible
+////////////////////////////////////////////////////////////////////////////////
+
+NS_IMPL_ISUPPORTS_INHERITED0(nsHTMLListAccessible, nsHyperTextAccessible)
 
 nsresult
 nsHTMLListAccessible::GetRoleInternal(PRUint32 *aRole)

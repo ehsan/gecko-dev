@@ -375,13 +375,6 @@ NS_INTERFACE_MAP_END_INHERITING(nsBaseContentList)
 NS_IMPL_ADDREF_INHERITED(nsContentList, nsBaseContentList)
 NS_IMPL_RELEASE_INHERITED(nsContentList, nsBaseContentList)
 
-
-nsISupports *
-nsContentList::GetParentObject()
-{
-  return mRootNode;
-}
-  
 PRUint32
 nsContentList::Length(PRBool aDoFlush)
 {
@@ -539,7 +532,7 @@ nsContentList::GetNamedItem(const nsAString& aName, nsresult* aResult)
 void
 nsContentList::AttributeChanged(nsIDocument *aDocument, nsIContent* aContent,
                                 PRInt32 aNameSpaceID, nsIAtom* aAttribute,
-                                PRInt32 aModType, PRUint32 aStateMask)
+                                PRInt32 aModType)
 {
   NS_PRECONDITION(aContent, "Must have a content node to work with");
   NS_PRECONDITION(aContent->IsNodeOfType(nsINode::eELEMENT),

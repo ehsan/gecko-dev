@@ -46,11 +46,11 @@
 #include "nsAppDirectoryServiceDefs.h"
 #include "nsISimpleEnumerator.h"
 #include "nsIContent.h"
-
-#ifdef DEBUG
 #include "nsIServiceManager.h"
 #include "nsIPrefService.h"
 #include "nsIPrefBranch2.h"
+
+#ifdef DEBUG
 #include "nsIObserver.h"
 
 static void debug_RegisterPrefCallbacks();
@@ -94,7 +94,6 @@ nsBaseWidget::nsBaseWidget()
 , mEventCallback(nsnull)
 , mContext(nsnull)
 , mToolkit(nsnull)
-, mEventListener(nsnull)
 , mCursor(eCursor_standard)
 , mWindowType(eWindowType_child)
 , mBorderStyle(eBorderStyle_none)
@@ -201,7 +200,8 @@ void nsBaseWidget::BaseCreate(nsIWidget *aParent,
   }
 
   if (nsnull != aInitData) {
-    PreCreateWidget(aInitData);
+    mWindowType = aInitData->mWindowType;
+    mBorderStyle = aInitData->mBorderStyle;
   }
 
   if (aParent) {
@@ -210,11 +210,6 @@ void nsBaseWidget::BaseCreate(nsIWidget *aParent,
 }
 
 NS_IMETHODIMP nsBaseWidget::CaptureMouse(PRBool aCapture)
-{
-  return NS_OK;
-}
-
-NS_IMETHODIMP nsBaseWidget::Validate()
 {
   return NS_OK;
 }
@@ -251,8 +246,6 @@ NS_METHOD nsBaseWidget::Destroy()
   if (parent) {
     parent->RemoveChild(this);
   }
-  // disconnect listeners.
-  NS_IF_RELEASE(mEventListener);
 
   return NS_OK;
 }
@@ -538,12 +531,6 @@ NS_IMETHODIMP nsBaseWidget::GetWindowType(nsWindowType& aWindowType)
   return NS_OK;
 }
 
-NS_IMETHODIMP nsBaseWidget::SetWindowType(nsWindowType aWindowType) 
-{
-  mWindowType = aWindowType;
-  return NS_OK;
-}
-
 //-------------------------------------------------------------------------
 //
 // Window transparency methods
@@ -729,26 +716,6 @@ NS_METHOD nsBaseWidget::SetWindowClass(const nsAString& xulWinType)
   return NS_ERROR_NOT_IMPLEMENTED;
 }
 
-NS_METHOD nsBaseWidget::SetBorderStyle(nsBorderStyle aBorderStyle)
-{
-  mBorderStyle = aBorderStyle;
-  return NS_OK;
-}
-
-
-/**
-* Sets the event listener for a widget
-*
-**/
-NS_METHOD nsBaseWidget::AddEventListener(nsIEventListener * aListener)
-{
-  NS_PRECONDITION(mEventListener == nsnull, "Null event listener");
-  NS_IF_RELEASE(mEventListener);
-  NS_ADDREF(aListener);
-  mEventListener = aListener;
-  return NS_OK;
-}
-
 /**
 * If the implementation of nsWindow supports borders this method MUST be overridden
 *
@@ -850,6 +817,49 @@ nsBaseWidget::ShowsResizeIndicator(nsIntRect* aResizerRect)
   return PR_FALSE;
 }
 
+NS_IMETHODIMP
+nsBaseWidget::OverrideSystemMouseScrollSpeed(PRInt32 aOriginalDelta,
+                                             PRBool aIsHorizontal,
+                                             PRInt32 &aOverriddenDelta)
+{
+  aOverriddenDelta = aOriginalDelta;
+
+  nsCOMPtr<nsIPrefService> prefs = do_GetService(NS_PREFSERVICE_CONTRACTID);
+  NS_ENSURE_TRUE(prefs, NS_ERROR_FAILURE);
+  nsCOMPtr<nsIPrefBranch> prefBranch;
+  nsresult rv = prefs->GetBranch(nsnull, getter_AddRefs(prefBranch));
+  NS_ENSURE_SUCCESS(rv, rv);
+  NS_ENSURE_TRUE(prefBranch, NS_ERROR_FAILURE);
+
+  PRBool isOverrideEnabled;
+  const char* kPrefNameOverrideEnabled =
+    "mousewheel.system_scroll_override_on_root_content.enabled";
+  rv = prefBranch->GetBoolPref(kPrefNameOverrideEnabled, &isOverrideEnabled);
+  if (NS_FAILED(rv) || !isOverrideEnabled) {
+    return NS_OK;
+  }
+
+  PRInt32 iFactor;
+  nsCAutoString factorPrefName(
+    "mousewheel.system_scroll_override_on_root_content.");
+  if (aIsHorizontal) {
+    factorPrefName.AppendLiteral("horizontal.");
+  } else {
+    factorPrefName.AppendLiteral("vertical.");
+  }
+  factorPrefName.AppendLiteral("factor");
+  rv = prefBranch->GetIntPref(factorPrefName.get(), &iFactor);
+  // The pref value must be larger than 100, otherwise, we don't override the
+  // delta value.
+  if (NS_FAILED(rv) || iFactor <= 100) {
+    return NS_OK;
+  }
+  double factor = (double)iFactor / 100;
+  aOverriddenDelta = PRInt32(NS_round((double)aOriginalDelta * factor));
+
+  return NS_OK;
+}
+
 
 /**
  * Modifies aFile to point at an icon file with the given name and suffix.  The
@@ -924,6 +934,117 @@ nsBaseWidget::BeginResizeDrag(nsGUIEvent* aEvent, PRInt32 aHorizontal, PRInt32 a
   return NS_ERROR_NOT_IMPLEMENTED;
 }
  
+//////////////////////////////////////////////////////////////
+//
+// Code to sort rectangles for scrolling.
+//
+// The algorithm used here is similar to that described at
+// http://weblogs.mozillazine.org/roc/archives/2009/08/homework_answer.html
+//
+//////////////////////////////////////////////////////////////
+
+void
+ScrollRectIterBase::BaseInit(const nsIntPoint& aDelta, ScrollRect* aHead)
+{
+  mHead = aHead;
+  // Reflect the coordinate system of the rectangles so that we can assume
+  // that rectangles are moving in the direction of decreasing x and y.
+  Flip(aDelta);
+
+  // Do an initial sort of the rectangles by y and then reverse-x.
+  // nsRegion does not guarantee yx-banded rectangles but still tends to
+  // prefer breaking up rectangles vertically and joining horizontally, so
+  // tends to have fewer rectangles across x than down y, making this
+  // algorithm more efficient for rectangles from nsRegion when y is the
+  // primary sort parameter.
+  ScrollRect* unmovedHead; // chain of unmoved rectangles
+  {
+    nsTArray<ScrollRect*> array;
+    for (ScrollRect* r = mHead; r; r = r->mNext) {
+      array.AppendElement(r);
+    }
+    array.Sort(InitialSortComparator());
+
+    ScrollRect *next = nsnull;
+    for (PRUint32 i = array.Length(); i--; ) {
+      array[i]->mNext = next;
+      next = array[i];
+    }
+    unmovedHead = next;
+    // mHead becomes the start of the moved chain.
+    mHead = nsnull;
+  }
+
+  // Try to move each rect from an unmoved chain to the moved chain.
+  mTailLink = &mHead;
+  while (unmovedHead) {
+    // Move() will check for other rectangles that might need to be moved first
+    // and move them also.
+    Move(&unmovedHead);
+  }
+
+  // Reflect back to the original coordinate system.
+  Flip(aDelta);
+}
+
+void ScrollRectIterBase::Move(ScrollRect** aUnmovedLink)
+{
+  ScrollRect* rect = *aUnmovedLink;
+  // Remove rect from the unmoved chain.
+  *aUnmovedLink = rect->mNext;
+  rect->mNext = nsnull;
+
+  // Check subsequent rectangles that overlap vertically to see whether they
+  // might need to be moved first.
+  //
+  // The overlapping subsequent rectangles that are not moved this time get
+  // checked for each of their preceding unmoved overlapping rectangles,
+  // which adds an O(n^2) cost to this algorithm (where n is the number of
+  // rectangles across x).  The reverse-x ordering from InitialSortComparator
+  // avoids this for the case when rectangles are aligned in y.
+  for (ScrollRect** nextLink = aUnmovedLink; *nextLink; ) {
+    ScrollRect* otherRect = *nextLink;
+    NS_ASSERTION(otherRect->y >= rect->y, "Scroll rectangles out of order");
+    if (otherRect->y >= rect->YMost()) // doesn't overlap vertically
+      break;
+
+    // This only moves the other rectangle first if it is entirely to the
+    // left.  No promises are made regarding intersecting rectangles.  Moving
+    // another intersecting rectangle with merely x < rect->x (but XMost() >
+    // rect->x) can cause more conflicts between rectangles that do not
+    // intersect each other.
+    if (otherRect->XMost() <= rect->x) {
+      Move(nextLink);
+      // *nextLink now points to a subsequent rectangle.
+    } else {
+      // Step over otherRect for now.
+      nextLink = &otherRect->mNext;
+    }
+  }
+
+  // Add rect to the moved chain.
+  *mTailLink = rect;
+  mTailLink = &rect->mNext;
+}
+
+BlitRectIter::BlitRectIter(const nsIntPoint& aDelta,
+                           const nsTArray<nsIntRect>& aRects)
+    : mRects(aRects.Length())
+{
+    for (PRUint32 i = 0; i < aRects.Length(); ++i) {
+        mRects.AppendElement(aRects[i]);
+    }
+
+    // Link rectangles into a chain.
+    ScrollRect *next = nsnull;
+    for (PRUint32 i = mRects.Length(); i--; ) {
+        mRects[i].mNext = next;
+        next = &mRects[i];
+    }
+
+    BaseInit(aDelta, next);
+}
+
 #ifdef DEBUG
 //////////////////////////////////////////////////////////////
 //
@@ -977,6 +1098,7 @@ case _value: eventName.AssignWithConversion(_name) ; break
     _ASSIGN_eventName(NS_MOUSE_MOVE,"NS_MOUSE_MOVE");
     _ASSIGN_eventName(NS_MOVE,"NS_MOVE");
     _ASSIGN_eventName(NS_LOAD,"NS_LOAD");
+    _ASSIGN_eventName(NS_POPSTATE,"NS_POPSTATE");
     _ASSIGN_eventName(NS_PAGE_UNLOAD,"NS_PAGE_UNLOAD");
     _ASSIGN_eventName(NS_HASHCHANGE,"NS_HASHCHANGE");
     _ASSIGN_eventName(NS_PAINT,"NS_PAINT");

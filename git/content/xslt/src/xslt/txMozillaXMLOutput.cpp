@@ -308,14 +308,14 @@ txMozillaXMLOutput::endElement()
 
     // Handle html-elements
     if (!mNoFixup) {
-        if (element->IsNodeOfType(nsINode::eHTML)) {
+        if (element->IsHTML()) {
             rv = endHTMLElement(element);
             NS_ENSURE_SUCCESS(rv, rv);
         }
 
         // Handle script elements
         if (element->Tag() == nsGkAtoms::script &&
-            (element->IsNodeOfType(nsINode::eHTML) ||
+            (element->IsHTML() ||
             element->GetNameSpaceID() == kNameSpaceID_SVG)) {
 
             rv = element->DoneAddingChildren(PR_TRUE);
@@ -549,11 +549,6 @@ txMozillaXMLOutput::startElementInternal(nsIAtom* aPrefix,
             NS_ENSURE_SUCCESS(rv, rv);
 
         }
-        else if (aNsID == kNameSpaceID_SVG &&
-                 aLocalName == txHTMLAtoms::script) {
-            nsCOMPtr<nsIScriptElement> sele = do_QueryInterface(mOpenedElement);
-            sele->WillCallDoneAddingChildren();
-        }
     }
 
     if (mCreatingNewDocument) {
@@ -745,10 +740,6 @@ txMozillaXMLOutput::startHTMLElement(nsIContent* aElement, PRBool aIsHTML)
         NS_ASSERTION(!aElement->IsInDoc(), "should not be in doc");
         rv = aElement->AppendChildTo(meta, PR_FALSE);
         NS_ENSURE_SUCCESS(rv, rv);
-    }
-    else if (atom == nsGkAtoms::script) {
-        nsCOMPtr<nsIScriptElement> sele = do_QueryInterface(aElement);
-        sele->WillCallDoneAddingChildren();
     }
 
     return NS_OK;

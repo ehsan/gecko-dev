@@ -2,8 +2,8 @@ var gTestPage = "http://example.org/browser/browser/base/content/test/dummy_page
 var gTestImage = "http://example.org/browser/browser/base/content/test/moz.png";
 var gTab1, gTab2, gTab3;
 var gLevel;
-const kBack = 0;
-const kForward = 1;
+const BACK = 0;
+const FORWARD = 1;
 
 function test() {
   waitForExplicitFinish();
@@ -59,8 +59,8 @@ function imageLoaded() {
 }
 
 function imageZoomSwitch() {
-  navigate(kBack, function() {
-    navigate(kForward, function() {
+  navigate(BACK, function () {
+    navigate(FORWARD, function () {
       zoomTest(gTab1, 1, "Tab 1 should not be zoomed when an image loads");
       gBrowser.selectedTab = gTab2;
       zoomTest(gTab1, 1, "Tab 1 should still not be zoomed when deselected");
@@ -85,7 +85,8 @@ function runPrintPreviewTests() {
       testPrintPreview(gTab1, function() {
         // test print preview of HTML document with siteSpecific set to false
         testPrintPreview(gTab2, function() {
-          gPrefService.clearUserPref("browser.zoom.siteSpecific");
+          if (gPrefService.prefHasUserValue("browser.zoom.siteSpecific"))
+            gPrefService.clearUserPref("browser.zoom.siteSpecific");
           finishTest();
         });
       });
@@ -98,27 +99,27 @@ function testPrintPreview(aTab, aCallback) {
   FullZoom.enlarge();
   let level = ZoomManager.zoom;
 
-  function onEnterPP() {
-    toggleAffectedChromeOrig.apply(null, arguments);
-
-    function onExitPP() {
-      toggleAffectedChromeOrig.apply(null, arguments);
-      toggleAffectedChrome = toggleAffectedChromeOrig;
-
-      zoomTest(aTab, level, "Toggling print preview mode should not affect zoom level");
-
-      FullZoom.reset();
-      aCallback();
-    }
-    toggleAffectedChrome = onExitPP;
+  let onEnterOrig = PrintPreviewListener.onEnter;
+  PrintPreviewListener.onEnter = function () {
+    PrintPreviewListener.onEnter = onEnterOrig;
+    PrintPreviewListener.onEnter.apply(PrintPreviewListener, arguments);
     PrintUtils.exitPrintPreview();
-  }
-  let toggleAffectedChromeOrig = toggleAffectedChrome;
-  toggleAffectedChrome = onEnterPP;
+  };
 
-  let printPreview = new Function(document.getElementById("cmd_printPreview")
-                                          .getAttribute("oncommand"));
-  executeSoon(printPreview);
+  let onExitOrig = PrintPreviewListener.onExit;
+  PrintPreviewListener.onExit = function () {
+    PrintPreviewListener.onExit = onExitOrig;
+    PrintPreviewListener.onExit.apply(PrintPreviewListener, arguments);
+
+    zoomTest(aTab, level, "Toggling print preview mode should not affect zoom level");
+
+    FullZoom.reset();
+    aCallback();
+  };
+
+  executeSoon(function () {
+    document.getElementById("cmd_printPreview").doCommand();
+  });
 }
 
 function finishTest() {
@@ -145,12 +146,12 @@ function load(tab, url, cb) {
 }
 
 function navigate(direction, cb) {
-  gBrowser.addEventListener("pageshow", function(event) {
+  gBrowser.addEventListener("pageshow", function (event) {
     gBrowser.removeEventListener("pageshow", arguments.callee, true);
-    setTimeout(cb, 0);
+    executeSoon(cb);
   }, true);
-  if (direction == kBack)
+  if (direction == BACK)
     gBrowser.goBack();
-  else if (direction == kForward)
+  else if (direction == FORWARD)
     gBrowser.goForward();
 }

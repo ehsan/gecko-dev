@@ -91,22 +91,6 @@ function getBoolPref ( prefname, def )
   }
 }
 
-// Change focus for this browser window to |aElement|, without focusing the
-// window itself.
-function focusElement(aElement)
-{
-  // if a content window, focus the <browser> instead as window.focus()
-  // raises the window
-  if (aElement instanceof Window) {
-    var browser = getBrowserFromContentWindow(aElement);
-    if (browser)
-      browser.focus();
-  }
-  else {
-    aElement.focus();
-  }
-}
-
 // openUILink handles clicks on UI elements that cause URLs to load.
 function openUILink( url, e, ignoreButton, ignoreAlt, allowKeywordFixup, postData, referrerUrl )
 {
@@ -159,24 +143,19 @@ function whereToOpenLink( e, ignoreButton, ignoreAlt )
   // Don't do anything special with right-mouse clicks.  They're probably clicks on context menu items.
 
 #ifdef XP_MACOSX
-  if (meta || (middle && middleUsesTabs)) {
+  if (meta || (middle && middleUsesTabs))
 #else
-  if (ctrl || (middle && middleUsesTabs)) {
+  if (ctrl || (middle && middleUsesTabs))
 #endif
-    if (shift)
-      return "tabshifted";
-    else
-      return "tab";
-  }
-  else if (alt) {
+    return shift ? "tabshifted" : "tab";
+
+  if (alt)
     return "save";
-  }
-  else if (shift || (middle && !middleUsesTabs)) {
+
+  if (shift || (middle && !middleUsesTabs))
     return "window";
-  }
-  else {
-    return "current";
-  }
+
+  return "current";
 }
 
 /* openUILinkIn opens a URL in a place specified by the parameter |where|.
@@ -188,17 +167,33 @@ function whereToOpenLink( e, ignoreButton, ignoreAlt )
  *  "window"      new window
  *  "save"        save to disk (with no filename hint!)
  *
- * allowThirdPartyFixup controls whether third party services such as Google's
+ * aAllowThirdPartyFixup controls whether third party services such as Google's
  * I Feel Lucky are allowed to interpret this URL. This parameter may be
  * undefined, which is treated as false.
+ *
+ * Instead of aAllowThirdPartyFixup, you may also pass an object with any of
+ * these properties:
+ *   allowThirdPartyFixup (boolean)
+ *   postData             (nsIInputStream)
+ *   referrerURI          (nsIURI)
+ *   relatedToCurrent     (boolean)
  */
-function openUILinkIn( url, where, allowThirdPartyFixup, postData, referrerUrl )
-{
+function openUILinkIn(url, where, aAllowThirdPartyFixup, aPostData, aReferrerURI) {
   if (!where || !url)
     return;
 
+  var aRelatedToCurrent;
+  if (arguments.length == 3 &&
+      typeof arguments[2] == "object") {
+    let params = arguments[2];
+    aAllowThirdPartyFixup = params.allowThirdPartyFixup;
+    aPostData             = params.postData;
+    aReferrerURI          = params.referrerURI;
+    aRelatedToCurrent     = params.relatedToCurrent;
+  }
+
   if (where == "save") {
-    saveURL(url, null, null, true, null, referrerUrl);
+    saveURL(url, null, null, true, null, aReferrerURI);
     return;
   }
   const Cc = Components.classes;
@@ -214,11 +209,15 @@ function openUILinkIn( url, where, allowThirdPartyFixup, postData, referrerUrl )
                createInstance(Ci.nsISupportsString);
     wuri.data = url;
 
+    var allowThirdPartyFixupSupports = Cc["@mozilla.org/supports-PRBool;1"].
+                                       createInstance(Ci.nsISupportsPRBool);
+    allowThirdPartyFixupSupports.data = aAllowThirdPartyFixup;
+
     sa.AppendElement(wuri);
     sa.AppendElement(null);
-    sa.AppendElement(referrerUrl);
-    sa.AppendElement(postData);
-    sa.AppendElement(allowThirdPartyFixup);
+    sa.AppendElement(aReferrerURI);
+    sa.AppendElement(aPostData);
+    sa.AppendElement(allowThirdPartyFixupSupports);
 
     var ww = Cc["@mozilla.org/embedcomp/window-watcher;1"].
              getService(Ci.nsIWindowWatcher);
@@ -236,15 +235,19 @@ function openUILinkIn( url, where, allowThirdPartyFixup, postData, referrerUrl )
 
   switch (where) {
   case "current":
-    w.loadURI(url, referrerUrl, postData, allowThirdPartyFixup);
+    w.loadURI(url, aReferrerURI, aPostData, aAllowThirdPartyFixup);
     break;
   case "tabshifted":
     loadInBackground = !loadInBackground;
     // fall through
   case "tab":
-    let browser = w.getBrowser();
-    browser.loadOneTab(url, referrerUrl, null, postData, loadInBackground,
-                       allowThirdPartyFixup || false);
+    let browser = w.gBrowser;
+    browser.loadOneTab(url, {
+                       referrerURI: aReferrerURI,
+                       postData: aPostData,
+                       inBackground: loadInBackground,
+                       allowThirdPartyFixup: aAllowThirdPartyFixup,
+                       relatedToCurrent: aRelatedToCurrent});
     break;
   }
 
@@ -253,14 +256,10 @@ function openUILinkIn( url, where, allowThirdPartyFixup, postData, referrerUrl )
   // resulted in a new frontmost window (e.g. "javascript:window.open('');").
   var fm = Components.classes["@mozilla.org/focus-manager;1"].
              getService(Components.interfaces.nsIFocusManager);
-  if (window == fm.activeWindow) {
+  if (window == fm.activeWindow)
     w.content.focus();
-  }
-  else {
-    let browser = w.getBrowserFromContentWindow(w.content);
-    if (browser)
-      browser.focus();
-  }
+  else
+    w.gBrowser.selectedBrowser.focus();
 }
 
 // Used as an onclick handler for UI elements with link-like behavior.
@@ -394,10 +393,8 @@ function openAboutDialog()
   if (win)
     win.focus();
   else {
-    // XXXmano: define minimizable=no although it does nothing on OS X
-    // (see Bug 287162); remove this comment once Bug 287162 is fixed...
-    window.open("chrome://browser/content/aboutDialog.xul", "About",
-                "chrome, resizable=no, minimizable=no");
+    window.openDialog("chrome://browser/content/aboutDialog.xul", "About",
+                      "chrome, resizable=no, minimizable=no");
   }
 #else
   window.openDialog("chrome://browser/content/aboutDialog.xul", "About", "centerscreen,chrome,resizable=no");
@@ -448,6 +445,15 @@ function openReleaseNotes()
   openUILinkIn(relnotesURL, "tab");
 }
 
+/**
+ * Opens the troubleshooting information (about:support) page for this version
+ * of the application.
+ */
+function openTroubleshootingPage()
+{
+  openUILinkIn("about:support", "tab");
+}
+
 #ifdef MOZ_UPDATER
 /**
  * Opens the update manager and checks for updates to the application.
@@ -489,9 +495,9 @@ function buildHelpMenu()
   // Disable the UI if the update enabled pref has been locked by the 
   // administrator or if we cannot update for some other reason
   var checkForUpdates = document.getElementById("checkForUpdates");
-  var canUpdate = updates.canUpdate;
-  checkForUpdates.setAttribute("disabled", !canUpdate);
-  if (!canUpdate)
+  var canCheckForUpdates = updates.canCheckForUpdates;
+  checkForUpdates.setAttribute("disabled", !canCheckForUpdates);
+  if (!canCheckForUpdates)
     return; 
 
   var strings = document.getElementById("bundle_browser");
@@ -551,16 +557,6 @@ function makeURLAbsolute(aBase, aUrl)
   return makeURI(aUrl, null, makeURI(aBase)).spec;
 }
 
-function getBrowserFromContentWindow(aContentWindow)
-{
-  var browsers = gBrowser.browsers;
-  for (var i = 0; i < browsers.length; i++) {
-    if (browsers[i].contentWindow == aContentWindow)
-      return browsers[i];
-  }
-  return null;
-}
-
 
 /**
  * openNewTabWith: opens a new tab with the given URL.
@@ -616,8 +612,12 @@ function openNewTabWith(aURL, aDocument, aPostData, aEvent,
   // open link in new tab
   var referrerURI = aDocument ? aDocument.documentURIObject : aReferrer;
   var browser = top.document.getElementById("content");
-  return browser.loadOneTab(aURL, referrerURI, originCharset, aPostData,
-                            loadInBackground, aAllowThirdPartyFixup || false);
+  return browser.loadOneTab(aURL, {
+                            referrerURI: referrerURI,
+                            charset: originCharset,
+                            postData: aPostData,
+                            inBackground: loadInBackground,
+                            allowThirdPartyFixup: aAllowThirdPartyFixup});
 }
 
 function openNewWindowWith(aURL, aDocument, aPostData, aAllowThirdPartyFixup,

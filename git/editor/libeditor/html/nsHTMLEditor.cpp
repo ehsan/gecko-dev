@@ -3523,7 +3523,7 @@ nsHTMLEditor::EnableStyleSheet(const nsAString &aURL, PRBool aEnable)
   NS_ASSERTION(domSheet, "Sheet not implementing nsIDOMStyleSheet!");
 
   // Ensure the style sheet is owned by our document.
-  nsCOMPtr<nsIDocument> doc = do_QueryInterface(mDocWeak);
+  nsCOMPtr<nsIDocument> doc = do_QueryReferent(mDocWeak);
   rv = sheet->SetOwningDocument(doc);
   NS_ENSURE_SUCCESS(rv, rv);
   
@@ -3542,7 +3542,7 @@ nsHTMLEditor::EnableExistingStyleSheet(const nsAString &aURL)
   if (sheet)
   {
     // Ensure the style sheet is owned by our document.
-    nsCOMPtr<nsIDocument> doc = do_QueryInterface(mDocWeak);
+    nsCOMPtr<nsIDocument> doc = do_QueryReferent(mDocWeak);
     rv = sheet->SetOwningDocument(doc);
     if (NS_FAILED(rv))
       return PR_FALSE;
@@ -4095,7 +4095,7 @@ nsHTMLEditor::SelectAll()
 
   nsCOMPtr<nsIPresShell> ps = do_QueryReferent(mPresShellWeak);
   nsIContent *rootContent = anchorContent->GetSelectionRootContent(ps);
-  NS_ASSERTION(rootContent, "GetSelectionRootContent failed");
+  NS_ENSURE_TRUE(rootContent, NS_ERROR_UNEXPECTED);
 
   nsCOMPtr<nsIDOMNode> rootElement = do_QueryInterface(rootContent, &rv);
   NS_ENSURE_SUCCESS(rv, rv);
@@ -5521,7 +5521,7 @@ nsHTMLEditor::GetElementOrigin(nsIDOMElement * aElement, PRInt32 & aX, PRInt32 &
   if (!ps) return NS_ERROR_NOT_INITIALIZED;
 
   nsCOMPtr<nsIContent> content = do_QueryInterface(aElement);
-  nsIFrame *frame = ps->GetPrimaryFrameFor(content);
+  nsIFrame *frame = content->GetPrimaryFrame();
 
   nsIFrame *container = ps->GetAbsoluteContainingBlock(frame);
   if (!frame) return NS_OK;

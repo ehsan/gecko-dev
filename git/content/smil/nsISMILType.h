@@ -75,7 +75,12 @@ class nsSMILValue;
 
 class nsISMILType
 {
-public:
+  /**
+   * Only give the nsSMILValue class access to this interface.
+   */
+  friend class nsSMILValue;
+
+protected:
   /**
    * Initialises aValue and sets it to some identity value such that adding
    * aValue to another value of the same type has no effect.
@@ -200,7 +205,7 @@ public:
    *                        the distance of the interpolated value in the
    *                        interval.
    * @param   aResult       The interpolated value.
-   * @result  NS_OK on success, NS_ERROR_FAILURE if this data type cannot be
+   * @return  NS_OK on success, NS_ERROR_FAILURE if this data type cannot be
    *          interpolated or NS_ERROR_OUT_OF_MEMORY if insufficient memory was
    *          available for storing the result.
    *
@@ -211,11 +216,12 @@ public:
                                double aUnitDistance,
                                nsSMILValue& aResult) const = 0;
 
-  /*
-   * Virtual destructor: Nothing to do here, but subclasses
-   * may need it.
+  /**
+   * Protected destructor, to ensure that no one accidentally deletes an
+   * instance of this class.
+   * (The only instances in existence should be singletons - one per subclass.)
    */
-  virtual ~nsISMILType() {};
+  ~nsISMILType() {}
 };
 
 #endif // NS_ISMILTYPE_H_

@@ -41,6 +41,7 @@
 #include "nsAccessibilityAtoms.h"
 #include "nsHashtable.h"
 #include "nsAccessibilityService.h"
+#include "nsApplicationAccessibleWrap.h"
 #include "nsIAccessibleDocument.h"
 #include "nsIDocShell.h"
 #include "nsIDocShellTreeItem.h"
@@ -63,16 +64,9 @@
 #include "nsIPresShell.h"
 #include "nsIServiceManager.h"
 #include "nsIStringBundle.h"
-#include "nsITimer.h"
 #include "nsRootAccessible.h"
 #include "nsFocusManager.h"
 #include "nsIObserverService.h"
-
-#ifdef MOZ_ACCESSIBILITY_ATK
-#include "nsAppRootAccessible.h"
-#else
-#include "nsApplicationAccessibleWrap.h"
-#endif
 
 /* For documentation of the accessibility architecture, 
  * see http://lxr.mozilla.org/seamonkey/source/accessible/accessible-docs.html
@@ -80,22 +74,13 @@
 
 nsIStringBundle *nsAccessNode::gStringBundle = 0;
 nsIStringBundle *nsAccessNode::gKeyStringBundle = 0;
-nsITimer *nsAccessNode::gDoCommandTimer = 0;
 nsIDOMNode *nsAccessNode::gLastFocusedNode = 0;
-#ifdef DEBUG
-PRBool nsAccessNode::gIsAccessibilityActive = PR_FALSE;
-#endif
+
 PRBool nsAccessNode::gIsCacheDisabled = PR_FALSE;
 PRBool nsAccessNode::gIsFormFillEnabled = PR_FALSE;
 nsAccessNodeHashtable nsAccessNode::gGlobalDocAccessibleCache;
 
 nsApplicationAccessibleWrap *nsAccessNode::gApplicationAccessible = nsnull;
-
-nsIAccessibilityService*
-nsAccessNode::GetAccService()
-{
-  return nsAccessibilityService::GetAccessibilityService();
-}
 
 /*
  * Class nsAccessNode
@@ -166,13 +151,10 @@ nsAccessNode::Init()
     if (presShell) {
       nsCOMPtr<nsIDOMNode> docNode(do_QueryInterface(presShell->GetDocument()));
       if (docNode) {
-        nsIAccessibilityService *accService = GetAccService();
-        if (accService) {
-          nsCOMPtr<nsIAccessible> accessible;
-          accService->GetAccessibleInShell(docNode, presShell,
-                                           getter_AddRefs(accessible));
-          docAccessible = do_QueryInterface(accessible);
-        }
+        nsCOMPtr<nsIAccessible> accessible;
+        GetAccService()->GetAccessibleInShell(docNode, presShell,
+                                              getter_AddRefs(accessible));
+        docAccessible = do_QueryInterface(accessible);
       }
     }
     NS_ASSERTION(docAccessible, "Cannot cache new nsAccessNode");
@@ -237,7 +219,8 @@ NS_IMETHODIMP nsAccessNode::GetOwnerWindow(void **aWindow)
 already_AddRefed<nsApplicationAccessibleWrap>
 nsAccessNode::GetApplicationAccessible()
 {
-  NS_ASSERTION(gIsAccessibilityActive, "Accessibility wasn't initialized!");
+  NS_ASSERTION(!nsAccessibilityService::gIsShutdown,
+               "Accessibility wasn't initialized!");
 
   if (!gApplicationAccessible) {
     nsApplicationAccessibleWrap::PreCreate();
@@ -263,9 +246,6 @@ nsAccessNode::GetApplicationAccessible()
 
 void nsAccessNode::InitXPAccessibility()
 {
-  NS_ASSERTION(!gIsAccessibilityActive,
-               "Accessibility was initialized already!");
-
   nsCOMPtr<nsIStringBundleService> stringBundleService =
     do_GetService(NS_STRINGBUNDLE_CONTRACTID);
   if (stringBundleService) {
@@ -286,9 +266,6 @@ void nsAccessNode::InitXPAccessibility()
     prefBranch->GetBoolPref("browser.formfill.enable", &gIsFormFillEnabled);
   }
 
-#ifdef DEBUG
-  gIsAccessibilityActive = PR_TRUE;
-#endif
   NotifyA11yInitOrShutdown(PR_TRUE);
 }
 
@@ -311,11 +288,8 @@ void nsAccessNode::ShutdownXPAccessibility()
   // which happens when xpcom is shutting down
   // at exit of program
 
-  NS_ASSERTION(gIsAccessibilityActive, "Accessibility was shutdown already!");
-
   NS_IF_RELEASE(gStringBundle);
   NS_IF_RELEASE(gKeyStringBundle);
-  NS_IF_RELEASE(gDoCommandTimer);
   NS_IF_RELEASE(gLastFocusedNode);
 
   nsApplicationAccessibleWrap::Unload();
@@ -326,9 +300,6 @@ void nsAccessNode::ShutdownXPAccessibility()
   NS_IF_RELEASE(gApplicationAccessible);
   gApplicationAccessible = nsnull;  
 
-#ifdef DEBUG
-  gIsAccessibilityActive = PR_FALSE;
-#endif
   NotifyA11yInitOrShutdown(PR_FALSE);
 }
 
@@ -404,12 +375,8 @@ already_AddRefed<nsRootAccessible> nsAccessNode::GetRootAccessible()
 nsIFrame*
 nsAccessNode::GetFrame()
 {
-  nsCOMPtr<nsIPresShell> shell(do_QueryReferent(mWeakShell));
-  if (!shell) 
-    return nsnull;  
-
   nsCOMPtr<nsIContent> content(do_QueryInterface(mDOMNode));
-  return content ? shell->GetPrimaryFrameFor(content) : nsnull;
+  return content ? content->GetPrimaryFrame() : nsnull;
 }
 
 NS_IMETHODIMP
@@ -497,16 +464,14 @@ nsAccessNode::MakeAccessNode(nsIDOMNode *aNode, nsIAccessNode **aAccessNode)
 {
   *aAccessNode = nsnull;
   
-  nsIAccessibilityService *accService = GetAccService();
-  NS_ENSURE_TRUE(accService, NS_ERROR_FAILURE);
-
   nsCOMPtr<nsIAccessNode> accessNode;
-  accService->GetCachedAccessNode(aNode, mWeakShell, getter_AddRefs(accessNode));
+  GetAccService()->GetCachedAccessNode(aNode, mWeakShell,
+                                       getter_AddRefs(accessNode));
 
   if (!accessNode) {
     nsCOMPtr<nsIAccessible> accessible;
-    accService->GetAccessibleInWeakShell(aNode, mWeakShell,
-                                         getter_AddRefs(accessible));
+    GetAccService()->GetAccessibleInWeakShell(aNode, mWeakShell,
+                                              getter_AddRefs(accessible));
 
     accessNode = do_QueryInterface(accessible);
   }

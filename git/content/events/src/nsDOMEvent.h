@@ -51,7 +51,6 @@
 #include "nsCycleCollectionParticipant.h"
 
 class nsIContent;
-class nsIScrollableView;
  
 class nsDOMEvent : public nsIDOMEvent,
                    public nsIDOMNSEvent,
@@ -59,7 +58,7 @@ class nsDOMEvent : public nsIDOMEvent,
 {
 public:
 
-  // Note: this enum must be kept in sync with mEventNames in nsDOMEvent.cpp
+  // Note: this enum must be kept in sync with sEventNames in nsDOMEvent.cpp
   enum nsDOMEvents {
     eDOMEvents_mousedown=0,
     eDOMEvents_mouseup,
@@ -75,6 +74,7 @@ public:
     eDOMEvents_focus,
     eDOMEvents_blur,
     eDOMEvents_load,
+    eDOMEvents_popstate,
     eDOMEvents_beforeunload,
     eDOMEvents_unload,
     eDOMEvents_hashchange,
@@ -85,7 +85,6 @@ public:
     eDOMEvents_change,
     eDOMEvents_select,
     eDOMEvents_input,
-    eDOMEvents_paint,
     eDOMEvents_text,
     eDOMEvents_compositionstart,
     eDOMEvents_compositionend,
@@ -171,7 +170,9 @@ public:
     eDOMEvents_MozRotateGestureUpdate,
     eDOMEvents_MozRotateGesture,
     eDOMEvents_MozTapGesture,
-    eDOMEvents_MozPressTapGesture
+    eDOMEvents_MozPressTapGesture,
+    eDOMEvents_MozScrolledAreaChanged,
+    eDOMEvents_transitionend
   };
 
   nsDOMEvent(nsPresContext* aPresContext, nsEvent* aEvent);
@@ -199,11 +200,11 @@ public:
 
   static void Shutdown();
 
+  static const char* GetEventName(PRUint32 aEventType);
 protected:
 
   // Internal helper functions
   nsresult SetEventType(const nsAString& aEventTypeArg);
-  static const char* GetEventName(PRUint32 aEventType);
   already_AddRefed<nsIDOMEventTarget> GetTargetFromFrame();
   nsresult ReportWrongPropertyAccessWarning(const char* aPropertyName);
 
@@ -211,6 +212,7 @@ protected:
   nsCOMPtr<nsPresContext>     mPresContext;
   nsCOMPtr<nsIDOMEventTarget> mTmpRealOriginalTarget;
   nsCOMPtr<nsIDOMEventTarget> mExplicitOriginalTarget;
+  nsString                    mCachedType;
   PRPackedBool                mEventIsInternal;
   PRPackedBool                mPrivateDataDuplicated;
 };

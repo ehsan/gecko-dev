@@ -170,6 +170,39 @@ ShouldIgnoreColors(nsRuleData *aRuleData)
            !aRuleData->mPresContext->UseDocumentColors();
 }
 
+/**
+ * Tries to call |nsCSSValue::StartImageLoad()| on an image source.
+ * Image sources are specified by |url()| or |-moz-image-rect()| function.
+ */
+static void
+TryToStartImageLoadOnValue(const nsCSSValue& aValue, nsIDocument* aDocument)
+{
+  if (aValue.GetUnit() == eCSSUnit_URL) {
+    aValue.StartImageLoad(aDocument);
+  }
+  else if (aValue.EqualsFunction(eCSSKeyword__moz_image_rect)) {
+    nsCSSValue::Array* arguments = aValue.GetArrayValue();
+    NS_ABORT_IF_FALSE(arguments->Count() == 6, "unexpected num of arguments");
+
+    const nsCSSValue& image = arguments->Item(1);
+    if (image.GetUnit() == eCSSUnit_URL)
+      image.StartImageLoad(aDocument);
+  }
+}
+
+static void
+TryToStartImageLoad(const nsCSSValue& aValue, nsIDocument* aDocument,
+                    nsCSSProperty aProperty)
+{
+  if (nsCSSProps::PropHasFlags(aProperty, CSS_PROPERTY_IMAGE_IS_IN_ARRAY_0)) {
+    if (aValue.GetUnit() == eCSSUnit_Array) {
+      TryToStartImageLoadOnValue(aValue.GetArrayValue()->Item(0), aDocument);
+    }
+  } else {
+    TryToStartImageLoadOnValue(aValue, aDocument);
+  }
+}
+
 nsresult
 nsCSSCompressedDataBlock::MapRuleInfoInto(nsRuleData *aRuleData) const
 {
@@ -179,6 +212,8 @@ nsCSSCompressedDataBlock::MapRuleInfoInto(nsRuleData *aRuleData) const
     // the rest of the function.
     if (!(aRuleData->mSIDs & mStyleBits))
         return NS_OK;
+
+    nsIDocument* doc = aRuleData->mPresContext->Document();
 
     const char* cursor = Block();
     const char* cursor_end = BlockEnd();
@@ -196,19 +231,9 @@ nsCSSCompressedDataBlock::MapRuleInfoInto(nsRuleData *aRuleData) const
                     if (target->GetUnit() == eCSSUnit_Null) {
                         const nsCSSValue *val = ValueAtCursor(cursor);
                         NS_ASSERTION(val->GetUnit() != eCSSUnit_Null, "oops");
-                        if (iProp == eCSSProperty_list_style_image) {
-                            if (val->GetUnit() == eCSSUnit_URL) {
-                                val->StartImageLoad(
-                                    aRuleData->mPresContext->Document());
-                            }
-                        } else if (iProp == eCSSProperty_border_image) {
-                            if (val->GetUnit() == eCSSUnit_Array) {
-                                nsCSSValue::Array *array = val->GetArrayValue();
-                                if (array->Item(0).GetUnit() == eCSSUnit_URL) {
-                                    array->Item(0).StartImageLoad(
-                                        aRuleData->mPresContext->Document());
-                                }
-                            }
+                        if (nsCSSProps::PropHasFlags(iProp,
+                                CSS_PROPERTY_START_IMAGE_LOADS)) {
+                            TryToStartImageLoad(*val, doc, iProp);
                         }
                         *target = *val;
                         if (iProp == eCSSProperty_font_family) {
@@ -273,30 +298,17 @@ nsCSSCompressedDataBlock::MapRuleInfoInto(nsRuleData *aRuleData) const
                 } break;
 
                 case eCSSType_ValueList:
-                    if (iProp == eCSSProperty_background_image ||
-                        iProp == eCSSProperty_content) {
-                        for (nsCSSValueList* l = ValueListAtCursor(cursor);
-                             l; l = l->mNext)
-                            if (l->mValue.GetUnit() == eCSSUnit_URL)
-                                l->mValue.StartImageLoad(
-                                    aRuleData->mPresContext->Document());
-                    } else if (iProp == eCSSProperty_cursor) {
-                        for (nsCSSValueList* l = ValueListAtCursor(cursor);
-                             l; l = l->mNext)
-                            if (l->mValue.GetUnit() == eCSSUnit_Array) {
-                                // Don't try to restart loads we've already
-                                // started
-                                nsCSSValue& val =
-                                    l->mValue.GetArrayValue()->Item(0);
-                                if (val.GetUnit() == eCSSUnit_URL)
-                                    val.StartImageLoad(
-                                      aRuleData->mPresContext->Document());
-                            }
-                    }
-                // fall through
                 case eCSSType_ValuePairList: {
                     void** target = static_cast<void**>(prop);
                     if (!*target) {
+                        if (nsCSSProps::PropHasFlags(iProp,
+                                CSS_PROPERTY_START_IMAGE_LOADS)) {
+                            for (nsCSSValueList* l = ValueListAtCursor(cursor);
+                                 l; l = l->mNext) {
+                                TryToStartImageLoad(l->mValue, doc, iProp);
+                            }
+                        }
+
                         void* val = PointerAtCursor(cursor);
                         NS_ASSERTION(val, "oops");
                         *target = val;
@@ -398,7 +410,7 @@ nsCSSCompressedDataBlock::StorageFor(nsCSSProperty aProperty) const
     return nsnull;
 }
 
-nsCSSCompressedDataBlock*
+already_AddRefed<nsCSSCompressedDataBlock>
 nsCSSCompressedDataBlock::Clone() const
 {
     const char *cursor = Block(), *cursor_end = BlockEnd();
@@ -477,6 +489,8 @@ nsCSSCompressedDataBlock::Clone() const
     result->mBlockEnd = result_cursor;
     result->mStyleBits = mStyleBits;
     NS_ASSERTION(result->DataSize() == DataSize(), "wrong size");
+
+    result->AddRef();
     return result;
 }
 
@@ -532,13 +546,15 @@ nsCSSCompressedDataBlock::Destroy()
     delete this;
 }
 
-/* static */ nsCSSCompressedDataBlock*
+/* static */ already_AddRefed<nsCSSCompressedDataBlock>
 nsCSSCompressedDataBlock::CreateEmptyBlock()
 {
     nsCSSCompressedDataBlock *result = new(0) nsCSSCompressedDataBlock();
     if (!result)
         return nsnull;
     result->mBlockEnd = result->Block();
+
+    result->AddRef();
     return result;
 }
 
@@ -546,7 +562,6 @@ nsCSSCompressedDataBlock::CreateEmptyBlock()
 
 nsCSSExpandedDataBlock::nsCSSExpandedDataBlock()
 {
-    ClearSets();
     AssertInitialState();
 }
 
@@ -557,13 +572,15 @@ nsCSSExpandedDataBlock::~nsCSSExpandedDataBlock()
 
 const nsCSSExpandedDataBlock::PropertyOffsetInfo
 nsCSSExpandedDataBlock::kOffsetTable[eCSSProperty_COUNT_no_shorthands] = {
-    #define CSS_PROP_BACKENDONLY(name_, id_, method_, flags_, datastruct_, member_, type_, kwtable_) \
-        { offsetof(nsCSSExpandedDataBlock, m##datastruct_.member_),           \
-          size_t(-1),                                                         \
+    #define CSS_PROP_BACKENDONLY(name_, id_, method_, flags_, datastruct_,     \
+                                 member_, type_, kwtable_)                     \
+        { offsetof(nsCSSExpandedDataBlock, m##datastruct_.member_),            \
+          size_t(-1),                                                          \
           size_t(-1) },
-    #define CSS_PROP(name_, id_, method_, flags_, datastruct_, member_, type_, kwtable_) \
-        { offsetof(nsCSSExpandedDataBlock, m##datastruct_.member_),           \
-          offsetof(nsRuleData, m##datastruct_##Data),                         \
+    #define CSS_PROP(name_, id_, method_, flags_, datastruct_, member_, type_, \
+                     kwtable_, stylestruct_, stylestructoffset_, animtype_)    \
+        { offsetof(nsCSSExpandedDataBlock, m##datastruct_.member_),            \
+          offsetof(nsRuleData, m##datastruct_##Data),                          \
           offsetof(nsRuleData##datastruct_, member_) },
     #include "nsCSSPropList.h"
     #undef CSS_PROP
@@ -571,10 +588,22 @@ nsCSSExpandedDataBlock::kOffsetTable[eCSSProperty_COUNT_no_shorthands] = {
 };
 
 void
-nsCSSExpandedDataBlock::DoExpand(nsCSSCompressedDataBlock *aBlock,
+nsCSSExpandedDataBlock::DoExpand(nsRefPtr<nsCSSCompressedDataBlock> *aBlock,
                                  PRBool aImportant)
 {
-    NS_PRECONDITION(aBlock, "unexpected null block");
+    NS_PRECONDITION(*aBlock, "unexpected null block");
+
+    if (!(*aBlock)->IsMutable()) {
+        // FIXME (maybe): We really don't need to clone the block
+        // itself, just all the data inside it.
+        *aBlock = (*aBlock)->Clone();
+        if (!aBlock) {
+            // Not much we can do; just lose the properties.
+            NS_WARNING("out of memory");
+            return;
+        }
+        NS_ABORT_IF_FALSE((*aBlock)->IsMutable(), "we just cloned it");
+    }
 
     /*
      * Save needless copying and allocation by copying the memory
@@ -582,8 +611,8 @@ nsCSSExpandedDataBlock::DoExpand(nsCSSCompressedDataBlock *aBlock,
      * then, to avoid destructors, deleting the compressed block by
      * calling |delete| instead of using its |Destroy| method.
      */
-    const char* cursor = aBlock->Block();
-    const char* cursor_end = aBlock->BlockEnd();
+    const char* cursor = (*aBlock)->Block();
+    const char* cursor_end = (*aBlock)->BlockEnd();
     while (cursor < cursor_end) {
         nsCSSProperty iProp = PropertyAtCursor(cursor);
         NS_ASSERTION(0 <= iProp && iProp < eCSSProperty_COUNT_no_shorthands,
@@ -650,21 +679,21 @@ nsCSSExpandedDataBlock::DoExpand(nsCSSCompressedDataBlock *aBlock,
     }
     NS_ASSERTION(cursor == cursor_end, "inconsistent data");
 
-    delete aBlock;
+    NS_ASSERTION((*aBlock)->mRefCnt == 1, "unexpected reference count");
+    delete aBlock->forget().get();
 }
 
 void
-nsCSSExpandedDataBlock::Expand(nsCSSCompressedDataBlock **aNormalBlock,
-                               nsCSSCompressedDataBlock **aImportantBlock)
+nsCSSExpandedDataBlock::Expand(
+                          nsRefPtr<nsCSSCompressedDataBlock> *aNormalBlock,
+                          nsRefPtr<nsCSSCompressedDataBlock> *aImportantBlock)
 {
     NS_PRECONDITION(*aNormalBlock, "unexpected null block");
     AssertInitialState();
 
-    DoExpand(*aNormalBlock, PR_FALSE);
-    *aNormalBlock = nsnull;
+    DoExpand(aNormalBlock, PR_FALSE);
     if (*aImportantBlock) {
-        DoExpand(*aImportantBlock, PR_TRUE);
-        *aImportantBlock = nsnull;
+        DoExpand(aImportantBlock, PR_TRUE);
     }
 }
 
@@ -672,14 +701,13 @@ nsCSSExpandedDataBlock::ComputeSizeResult
 nsCSSExpandedDataBlock::ComputeSize()
 {
     ComputeSizeResult result = {0, 0};
-    for (PRUint32 iHigh = 0; iHigh < NS_ARRAY_LENGTH(mPropertiesSet); ++iHigh) {
-        if (mPropertiesSet[iHigh] == 0)
+    for (PRUint32 iHigh = 0; iHigh < nsCSSPropertySet::kChunkCount; ++iHigh) {
+        if (!mPropertiesSet.HasPropertyInChunk(iHigh))
             continue;
-        for (PRInt32 iLow = 0; iLow < kPropertiesSetChunkSize; ++iLow) {
-            if ((mPropertiesSet[iHigh] & (1 << iLow)) == 0)
+        for (PRInt32 iLow = 0; iLow < nsCSSPropertySet::kBitsInChunk; ++iLow) {
+            if (!mPropertiesSet.HasPropertyAt(iHigh, iLow))
                 continue;
-            nsCSSProperty iProp =
-                nsCSSProperty(iHigh * kPropertiesSetChunkSize + iLow);
+            nsCSSProperty iProp = nsCSSPropertySet::CSSPropertyAt(iHigh, iLow);
             NS_ASSERTION(0 <= iProp && iProp < eCSSProperty_COUNT_no_shorthands,
                          "out of range");
 #ifdef DEBUG
@@ -724,10 +752,10 @@ nsCSSExpandedDataBlock::ComputeSize()
                     increment = CDBPointerStorage_advance;
                 } break;
             }
-            if ((mPropertiesImportant[iHigh] & (1 << iLow)) == 0)
-                result.normal += increment;
-            else
+            if (mPropertiesImportant.HasPropertyAt(iHigh, iLow))
                 result.important += increment;
+            else
+                result.normal += increment;
         }
     }
     return result;
@@ -737,7 +765,7 @@ void
 nsCSSExpandedDataBlock::Compress(nsCSSCompressedDataBlock **aNormalBlock,
                                  nsCSSCompressedDataBlock **aImportantBlock)
 {
-    nsCSSCompressedDataBlock *result_normal, *result_important;
+    nsRefPtr<nsCSSCompressedDataBlock> result_normal, result_important;
     char *cursor_normal, *cursor_important;
 
     ComputeSizeResult size = ComputeSize();
@@ -753,7 +781,6 @@ nsCSSExpandedDataBlock::Compress(nsCSSCompressedDataBlock **aNormalBlock,
     if (size.important != 0) {
         result_important = new(size.important) nsCSSCompressedDataBlock();
         if (!result_important) {
-            delete result_normal;
             *aNormalBlock = nsnull;
             *aImportantBlock = nsnull;
             return;
@@ -768,19 +795,18 @@ nsCSSExpandedDataBlock::Compress(nsCSSCompressedDataBlock **aNormalBlock,
      * corresponding to the stored data in the expanded block, and then
      * clearing the data in the expanded block.
      */
-    for (PRUint32 iHigh = 0; iHigh < NS_ARRAY_LENGTH(mPropertiesSet); ++iHigh) {
-        if (mPropertiesSet[iHigh] == 0)
+    for (PRUint32 iHigh = 0; iHigh < nsCSSPropertySet::kChunkCount; ++iHigh) {
+        if (!mPropertiesSet.HasPropertyInChunk(iHigh))
             continue;
-        for (PRInt32 iLow = 0; iLow < kPropertiesSetChunkSize; ++iLow) {
-            if ((mPropertiesSet[iHigh] & (1 << iLow)) == 0)
+        for (PRInt32 iLow = 0; iLow < nsCSSPropertySet::kBitsInChunk; ++iLow) {
+            if (!mPropertiesSet.HasPropertyAt(iHigh, iLow))
                 continue;
-            nsCSSProperty iProp =
-                nsCSSProperty(iHigh * kPropertiesSetChunkSize + iLow);
+            nsCSSProperty iProp = nsCSSPropertySet::CSSPropertyAt(iHigh, iLow);
             NS_ASSERTION(0 <= iProp && iProp < eCSSProperty_COUNT_no_shorthands,
                          "out of range");
             void *prop = PropertyAt(iProp);
             PRBool important =
-                (mPropertiesImportant[iHigh] & (1 << iLow)) != 0;
+                mPropertiesImportant.HasPropertyAt(iHigh, iLow);
             char *&cursor = important ? cursor_important : cursor_normal;
             nsCSSCompressedDataBlock *result =
                 important ? result_important : result_normal;
@@ -850,21 +876,20 @@ nsCSSExpandedDataBlock::Compress(nsCSSCompressedDataBlock **aNormalBlock,
 
     ClearSets();
     AssertInitialState();
-    *aNormalBlock = result_normal;
-    *aImportantBlock = result_important;
+    result_normal.forget(aNormalBlock);
+    result_important.forget(aImportantBlock);
 }
 
 void
 nsCSSExpandedDataBlock::Clear()
 {
-    for (PRUint32 iHigh = 0; iHigh < NS_ARRAY_LENGTH(mPropertiesSet); ++iHigh) {
-        if (mPropertiesSet[iHigh] == 0)
+    for (PRUint32 iHigh = 0; iHigh < nsCSSPropertySet::kChunkCount; ++iHigh) {
+        if (!mPropertiesSet.HasPropertyInChunk(iHigh))
             continue;
-        for (PRInt32 iLow = 0; iLow < kPropertiesSetChunkSize; ++iLow) {
-            if ((mPropertiesSet[iHigh] & (1 << iLow)) == 0)
+        for (PRInt32 iLow = 0; iLow < nsCSSPropertySet::kBitsInChunk; ++iLow) {
+            if (!mPropertiesSet.HasPropertyAt(iHigh, iLow))
                 continue;
-            nsCSSProperty iProp =
-                nsCSSProperty(iHigh * kPropertiesSetChunkSize + iLow);
+            nsCSSProperty iProp = nsCSSPropertySet::CSSPropertyAt(iHigh, iLow);
             ClearProperty(iProp);
         }
     }
@@ -922,15 +947,10 @@ nsCSSExpandedDataBlock::ClearProperty(nsCSSProperty aPropID)
 void
 nsCSSExpandedDataBlock::DoAssertInitialState()
 {
-    PRUint32 i;
-    for (i = 0; i < NS_ARRAY_LENGTH(mPropertiesSet); ++i) {
-        NS_ASSERTION(mPropertiesSet[i] == 0, "not initial state");
-    }
-    for (i = 0; i < NS_ARRAY_LENGTH(mPropertiesImportant); ++i) {
-        NS_ASSERTION(mPropertiesImportant[i] == 0, "not initial state");
-    }
+    mPropertiesSet.AssertIsEmpty("not initial state");
+    mPropertiesImportant.AssertIsEmpty("not initial state");
 
-    for (i = 0; i < eCSSProperty_COUNT_no_shorthands; ++i) {
+    for (PRUint32 i = 0; i < eCSSProperty_COUNT_no_shorthands; ++i) {
         void *prop = PropertyAt(nsCSSProperty(i));
         switch (nsCSSProps::kTypeTable[i]) {
             case eCSSType_Value: {

@@ -87,7 +87,6 @@
 #include "nsWeakReference.h"
 #include "nsUnicharUtils.h"
 #include "nsNodeInfoManager.h"
-#include "nsTimer.h"
 #include "nsIAppShell.h"
 #include "nsIWidget.h"
 #include "nsWidgetsCID.h"
@@ -96,7 +95,6 @@
 #include "nsNodeUtils.h"
 #include "nsIDOMNode.h"
 #include "nsThreadUtils.h"
-#include "nsPresShellIterator.h"
 #include "nsPIDOMWindow.h"
 #include "mozAutoDocUpdate.h"
 #include "nsIWebNavigation.h"
@@ -358,13 +356,11 @@ nsContentSink::ScriptAvailable(nsresult aResult,
 
   // Check if this is the element we were waiting for
   if (count == 0 || aElement != mScriptElements[count - 1]) {
-    if (mDidGetReadyToCallDidBuildModelCall &&
-        !mScriptLoader->HasPendingOrCurrentScripts() &&
-        mParser && mParser->IsParserEnabled()) {
-      ContinueInterruptedParsingAsync();
-    }
     return NS_OK;
   }
+
+  NS_ASSERTION(!aElement->GetScriptDeferred(), "defer script was in mScriptElements");
+  NS_ASSERTION(!aElement->GetScriptAsync(), "async script was in mScriptElements");
 
   if (mParser && !mParser->IsParserEnabled()) {
     // make sure to unblock the parser before evaluating the script,
@@ -405,13 +401,11 @@ nsContentSink::ScriptEvaluated(nsresult aResult,
   // Check if this is the element we were waiting for
   PRInt32 count = mScriptElements.Count();
   if (count == 0 || aElement != mScriptElements[count - 1]) {
-    if (mDidGetReadyToCallDidBuildModelCall &&
-        !mScriptLoader->HasPendingOrCurrentScripts() &&
-        mParser && mParser->IsParserEnabled()) {
-      ContinueInterruptedParsingAsync();
-    }
     return NS_OK;
   }
+
+  NS_ASSERTION(!aElement->GetScriptDeferred(), "defer script was in mScriptElements");
+  NS_ASSERTION(!aElement->GetScriptAsync(), "async script was in mScriptElements");
 
   // Pop the script element stack
   mScriptElements.RemoveObjectAt(count - 1); 
@@ -831,6 +825,16 @@ nsContentSink::ProcessMETATag(nsIContent* aContent)
   }
   NS_ENSURE_SUCCESS(rv, rv);
 
+  if (aContent->AttrValueIs(kNameSpaceID_None, nsGkAtoms::name,
+                            nsGkAtoms::handheldFriendly, eIgnoreCase)) {
+    nsAutoString result;
+    aContent->GetAttr(kNameSpaceID_None, nsGkAtoms::content, result);
+    if (!result.IsEmpty()) {
+      ToLowerCase(result);
+      mDocument->SetHeaderData(nsGkAtoms::handheldFriendly, result);
+    }
+  }
+
   /* Look for the viewport meta tag. If we find it, process it and put the
    * data into the document header. */
   if (aContent->AttrValueIs(kNameSpaceID_None, nsGkAtoms::name,
@@ -1224,9 +1228,8 @@ nsContentSink::ScrollToRef()
   // http://www.w3.org/TR/html4/appendix/notes.html#h-B.2.1
   NS_ConvertUTF8toUTF16 ref(unescapedRef);
 
-  nsPresShellIterator iter(mDocument);
-  nsCOMPtr<nsIPresShell> shell;
-  while ((shell = iter.GetNextShell())) {
+  nsCOMPtr<nsIPresShell> shell = mDocument->GetPrimaryShell();
+  if (shell) {
     // Check an empty string which might be caused by the UTF-8 conversion
     if (!ref.IsEmpty()) {
       // Note that GoToAnchor will handle flushing layout as needed.
@@ -1304,24 +1307,13 @@ nsContentSink::StartLayout(PRBool aIgnorePendingSheets)
   mLastNotificationTime = PR_Now();
 
   mDocument->SetMayStartLayout(PR_TRUE);
-  nsPresShellIterator iter(mDocument);
-  nsCOMPtr<nsIPresShell> shell;
-  while ((shell = iter.GetNextShell())) {
-    // Make sure we don't call InitialReflow() for a shell that has
-    // already called it. This can happen when the layout frame for
-    // an iframe is constructed *between* the Embed() call for the
-    // docshell in the iframe, and the content sink's call to OpenBody().
-    // (Bug 153815)
-
-    if (shell->DidInitialReflow()) {
-      // XXX: The assumption here is that if something already
-      // called InitialReflow() on this shell, it also did some of
-      // the setup below, so we do nothing and just move on to the
-      // next shell in the list.
-
-      continue;
-    }
-
+  nsCOMPtr<nsIPresShell> shell = mDocument->GetPrimaryShell();
+  // Make sure we don't call InitialReflow() for a shell that has
+  // already called it. This can happen when the layout frame for
+  // an iframe is constructed *between* the Embed() call for the
+  // docshell in the iframe, and the content sink's call to OpenBody().
+  // (Bug 153815)
+  if (shell && !shell->DidInitialReflow()) {
     nsRect r = shell->GetPresContext()->GetVisibleArea();
     nsCOMPtr<nsIPresShell> shellGrip = shell;
     nsresult rv = shell->InitialReflow(r.width, r.height);
@@ -1369,11 +1361,7 @@ nsContentSink::NotifyAppend(nsIContent* aContainer, PRUint32 aStartIndex)
   }
 
   mInNotification++;
-
-  MOZ_TIMER_DEBUGLOG(("Save and stop: nsHTMLContentSink::NotifyAppend()\n"));
-  MOZ_TIMER_SAVE(mWatch)
-  MOZ_TIMER_STOP(mWatch);
-
+  
   {
     // Scope so we call EndUpdate before we decrease mInNotification
     MOZ_AUTO_DOC_UPDATE(mDocument, UPDATE_CONTENT_MODEL, !mBeganUpdate);
@@ -1381,18 +1369,12 @@ nsContentSink::NotifyAppend(nsIContent* aContainer, PRUint32 aStartIndex)
     mLastNotificationTime = PR_Now();
   }
 
-  MOZ_TIMER_DEBUGLOG(("Restore: nsHTMLContentSink::NotifyAppend()\n"));
-  MOZ_TIMER_RESTORE(mWatch);
-
   mInNotification--;
 }
 
 NS_IMETHODIMP
 nsContentSink::Notify(nsITimer *timer)
 {
-  MOZ_TIMER_DEBUGLOG(("Start: nsHTMLContentSink::Notify()\n"));
-  MOZ_TIMER_START(mWatch);
-
   if (mParsing) {
     // We shouldn't interfere with our normal DidProcessAToken logic
     mDroppedTimer = PR_TRUE;
@@ -1430,8 +1412,6 @@ nsContentSink::Notify(nsITimer *timer)
   }
 
   mNotificationTimer = nsnull;
-  MOZ_TIMER_DEBUGLOG(("Stop: nsHTMLContentSink::Notify()\n"));
-  MOZ_TIMER_STOP(mWatch);
   return NS_OK;
 }
 
@@ -1600,7 +1580,7 @@ void
 nsContentSink::BeginUpdate(nsIDocument *aDocument, nsUpdateType aUpdateType)
 {
   // Remember nested updates from updates that we started.
-  if (mInNotification && mUpdatesInNotification < 2) {
+  if (mInNotification > 0 && mUpdatesInNotification < 2) {
     ++mUpdatesInNotification;
   }
 
@@ -1645,8 +1625,16 @@ nsContentSink::EndUpdate(nsIDocument *aDocument, nsUpdateType aUpdateType)
 }
 
 void
-nsContentSink::DidBuildModelImpl(void)
+nsContentSink::DidBuildModelImpl(PRBool aTerminated)
 {
+  if (mDocument && !aTerminated) {
+    mDocument->SetReadyStateInternal(nsIDocument::READYSTATE_INTERACTIVE);
+  }
+
+  if (mScriptLoader) {
+    mScriptLoader->ParsingComplete(aTerminated);
+  }
+
   if (!mDocument->HaveFiredDOMTitleChange()) {
     mDocument->NotifyPossibleTitleChange(PR_FALSE);
   }
@@ -1769,26 +1757,6 @@ nsContentSink::ContinueInterruptedParsingAsync()
     &nsContentSink::ContinueInterruptedParsingIfEnabled);
 
   NS_DispatchToCurrentThread(ev);
-}
-
-PRBool
-nsContentSink::ReadyToCallDidBuildModelImpl(PRBool aTerminated)
-{
-  if (!mDidGetReadyToCallDidBuildModelCall) {
-    if (mDocument && !aTerminated) {
-      mDocument->SetReadyStateInternal(nsIDocument::READYSTATE_INTERACTIVE);
-    }
-
-    if (mScriptLoader) {
-      mScriptLoader->ParsingComplete(aTerminated);
-    }
-  }
-
-  mDidGetReadyToCallDidBuildModelCall = PR_TRUE;
-  
-  // If we're terminated we always want to call DidBuildModel.
-  return aTerminated || !mScriptLoader ||
-         !mScriptLoader->HasPendingOrCurrentScripts();
 }
 
 // URIs: action, href, src, longdesc, usemap, cite

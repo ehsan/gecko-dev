@@ -56,7 +56,6 @@ static NS_DEFINE_CID(kPrefServiceCID,   NS_PREFSERVICE_CID);
 
 // various pref strings
 static const char kCookiesPermissions[] = "network.cookie.cookieBehavior";
-static const char kCookiesDisabledForMailNews[] = "network.cookie.disableCookieForMailNews";
 static const char kCookiesLifetimeEnabled[] = "network.cookie.lifetime.enabled";
 static const char kCookiesLifetimeDays[] = "network.cookie.lifetime.days";
 static const char kCookiesLifetimeCurrentSession[] = "network.cookie.lifetime.behavior";
@@ -206,7 +205,6 @@ InitPrefs(nsIPrefBranch *aPrefBranch)
     // we use the most restrictive set of prefs we can;
     // however, we don't test third party blocking here.
     aPrefBranch->SetIntPref(kCookiesPermissions, 0); // accept all
-    aPrefBranch->SetBoolPref(kCookiesDisabledForMailNews, PR_TRUE);
     aPrefBranch->SetBoolPref(kCookiesLifetimeEnabled, PR_TRUE);
     aPrefBranch->SetIntPref(kCookiesLifetimeCurrentSession, 0);
     aPrefBranch->SetIntPref(kCookiesLifetimeDays, 1);
@@ -362,7 +360,19 @@ main(PRInt32 argc, char *argv[])
       GetACookie(cookieService, "http://foo.domain.com", nsnull, getter_Copies(cookie));
       rv[10] = CheckResult(cookie.get(), MUST_BE_NULL);
 
-      allTestsPassed = PrintResult(rv, 11) && allTestsPassed;
+      SetACookie(cookieService, "http://www.domain.com", nsnull, "test=domain; domain=domain.com.", nsnull);
+      GetACookie(cookieService, "http://foo.domain.com", nsnull, getter_Copies(cookie));
+      rv[11] = CheckResult(cookie.get(), MUST_BE_NULL);
+
+      SetACookie(cookieService, "http://www.domain.com", nsnull, "test=domain; domain=..domain.com", nsnull);
+      GetACookie(cookieService, "http://foo.domain.com", nsnull, getter_Copies(cookie));
+      rv[12] = CheckResult(cookie.get(), MUST_BE_NULL);
+
+      SetACookie(cookieService, "http://www.domain.com", nsnull, "test=domain; domain=..domain.com.", nsnull);
+      GetACookie(cookieService, "http://foo.domain.com", nsnull, getter_Copies(cookie));
+      rv[13] = CheckResult(cookie.get(), MUST_BE_NULL);
+
+      allTestsPassed = PrintResult(rv, 14) && allTestsPassed;
 
 
       // *** path tests
@@ -761,41 +771,7 @@ main(PRInt32 argc, char *argv[])
       GetACookie(cookieService, "http://creation.ordering.tests/", nsnull, getter_Copies(cookie));
       rv[0] = CheckResult(cookie.get(), MUST_EQUAL, expected.get());
 
-      // test that cookies are evicted by order of lastAccessed time, if the limit on total cookies
-      // (3000) is reached
-      nsCAutoString host;
-      for (PRInt32 i = 0; i < 3010; ++i) {
-        host = NS_LITERAL_CSTRING("http://eviction.");
-        host.AppendInt(i);
-        host += NS_LITERAL_CSTRING(".tests/");
-        SetACookie(cookieService, host.get(), nsnull, "test=eviction", nsnull);
-
-        if (i == 9) {
-          // sleep a couple of seconds, to make sure the first 10 cookies are older than
-          // subsequent ones (timer resolution varies on different platforms).
-          PR_Sleep(2 * PR_TicksPerSecond());
-        }
-      }
-      rv[1] = NS_SUCCEEDED(cookieMgr->GetEnumerator(getter_AddRefs(enumerator)));
-      i = 0;
-      rv[2] = PR_FALSE; // init to failure in case we break from the while loop
-      while (NS_SUCCEEDED(enumerator->HasMoreElements(&more)) && more) {
-        nsCOMPtr<nsISupports> cookie;
-        if (NS_FAILED(enumerator->GetNext(getter_AddRefs(cookie)))) break;
-        ++i;
-        
-        // keep tabs on the third cookie, so we can check it later
-        nsCOMPtr<nsICookie2> cookie2(do_QueryInterface(cookie));
-        if (!cookie2) break;
-        nsCAutoString domain;
-        cookie2->GetRawHost(domain);
-        PRInt32 hostNumber;
-        PRInt32 numInts = PR_sscanf(domain.get(), "eviction.%ld.tests", &hostNumber);
-        if (numInts != 1 || hostNumber < 10) break;
-      }
-      rv[2] = i == 3000;
-
-      allTestsPassed = PrintResult(rv, 3) && allTestsPassed;
+      allTestsPassed = PrintResult(rv, 1) && allTestsPassed;
 
 
       // XXX the following are placeholders: add these tests please!

@@ -35,135 +35,63 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
+#define NS_HTML5_TREE_BUILDER_HANDLE_ARRAY_LENGTH 512
+
   private:
 
-#ifdef DEBUG_hsivonen
-    static PRUint32    sInsertionBatchMaxLength;
-    static PRUint32    sAppendBatchMaxSize;
-    static PRUint32    sAppendBatchSlotsExamined;
-    static PRUint32    sAppendBatchExaminations;
-#endif
-    static PRUint32    sTreeOpQueueMaxLength;
-    PRBool             mNeedsFlush;
-    nsCOMPtr<nsITimer> mFlushTimer;
-    PRBool             mHasProcessedBase;
+    nsTArray<nsHtml5TreeOperation>         mOpQueue;
+    nsAHtml5TreeOpSink*                    mOpSink;
+    nsAutoArrayPtr<nsIContent*>            mHandles;
+    PRInt32                                mHandlesUsed;
+    nsTArray<nsAutoArrayPtr<nsIContent*> > mOldHandles;
+    nsRefPtr<nsHtml5SpeculativeLoader>     mSpeculativeLoader;
+    PRBool                                 mCurrentHtmlScriptIsAsyncOrDefer;
 #ifdef DEBUG
-    PRBool             mActive;
+    PRBool                                 mActive;
 #endif
-    nsTArray<nsHtml5TreeOperation>       mOpQueue;
-    nsTArray<nsIContentPtr>              mElementsSeenInThisAppendBatch;
-    nsTArray<nsHtml5PendingNotification> mPendingNotifications;
 
-    inline void    MaybeSuspend() {
-      if (!mNeedsFlush) {
-        mNeedsFlush = !!(mOpQueue.Length() >= sTreeOpQueueMaxLength);
-      }
-      if (parser->DidProcessATokenImpl() == NS_ERROR_HTMLPARSER_INTERRUPTED || mNeedsFlush) {
-        // We've been in the parser for too long and/or the op queue is becoming too
-        // long to flush in one go it it grows further.
-        parser->Suspend();
-        requestSuspension();
-      }
-    }
+    // DocumentModeHandler
+    /**
+     * Tree builder uses this to report quirkiness of the document
+     */
+    void documentMode(nsHtml5DocumentMode m);
 
+    nsIContent** AllocateContentHandle();
+    
   public:
 
-    nsHtml5TreeBuilder(nsHtml5Parser* aParser);
+    nsHtml5TreeBuilder(nsAHtml5TreeOpSink* aOpSink);
 
     ~nsHtml5TreeBuilder();
+    
+    PRBool IsDiscretionaryFlushSafe();
 
-    void Flush();
+    PRBool HasScript();
+    
+    void SetOpSink(nsAHtml5TreeOpSink* aOpSink) {
+      mOpSink = aOpSink;
+    }
 
-    inline void MaybeFlush() {
-      if (mNeedsFlush) {
-        Flush();
+    void ClearOps() {
+      mOpQueue.Clear();
+    }
+    
+    void SetSpeculativeLoaderWithDocument(nsIDocument* aDocument);
+
+    void DropSpeculativeLoader();
+
+    PRBool Flush();
+    
+    void SetDocumentCharset(nsACString& aCharset);
+
+    void StreamEnded();
+
+    void NeedsCharsetSwitchTo(const nsACString& aEncoding);
+
+    void AddSnapshotToScript(nsAHtml5TreeBuilderState* aSnapshot, PRInt32 aLine);
+
+    inline void Dispatch(nsIRunnable* aEvent) {
+      if (NS_FAILED(NS_DispatchToMainThread(aEvent))) {
+        NS_WARNING("Failed to dispatch speculative load runnable.");
       }
     }
-
-    inline void DeferredTimerFlush() {
-      if (!mOpQueue.IsEmpty()) {
-        mNeedsFlush = PR_TRUE;
-      }
-    }
-
-    inline void PostPendingAppendNotification(nsIContent* aParent, nsIContent* aChild) {
-      PRBool newParent = PR_TRUE;
-      const nsIContentPtr* first = mElementsSeenInThisAppendBatch.Elements();
-      const nsIContentPtr* last = first + mElementsSeenInThisAppendBatch.Length() - 1;
-      for (const nsIContentPtr* iter = last; iter >= first; --iter) {
-#ifdef DEBUG_hsivonen
-        sAppendBatchSlotsExamined++;
-#endif
-        if (*iter == aParent) {
-          newParent = PR_FALSE;
-          break;
-        }
-      }
-      if (aChild->IsNodeOfType(nsINode::eELEMENT)) {
-        mElementsSeenInThisAppendBatch.AppendElement(aChild);
-      }
-      mElementsSeenInThisAppendBatch.AppendElement(aParent);
-      if (newParent) {
-        mPendingNotifications.AppendElement(aParent);
-      }
-#ifdef DEBUG_hsivonen
-      sAppendBatchExaminations++;
-#endif
-    }
-
-    inline void FlushPendingAppendNotifications() {
-      const nsHtml5PendingNotification* start = mPendingNotifications.Elements();
-      const nsHtml5PendingNotification* end = start + mPendingNotifications.Length();
-      for (nsHtml5PendingNotification* iter = (nsHtml5PendingNotification*)start; iter < end; ++iter) {
-        iter->Fire();
-      }
-      mPendingNotifications.Clear();
-#ifdef DEBUG_hsivonen
-      if (mElementsSeenInThisAppendBatch.Length() > sAppendBatchMaxSize) {
-        sAppendBatchMaxSize = mElementsSeenInThisAppendBatch.Length();
-      }
-#endif
-      mElementsSeenInThisAppendBatch.Clear();
-    }
-
-    inline nsIDocument* GetDocument() {
-      return parser->GetDocument();
-    }
-
-    inline void SetScriptElement(nsIContent* aScript) {
-      parser->SetScriptElement(aScript);
-    }
-
-    inline void UpdateStyleSheet(nsIContent* aSheet) {
-      parser->UpdateStyleSheet(aSheet);
-    }
-
-    inline nsresult ProcessBase(nsIContent* aBase) {
-      if (!mHasProcessedBase) {
-        nsresult rv = parser->ProcessBASETag(aBase);
-        NS_ENSURE_SUCCESS(rv, rv);
-        mHasProcessedBase = PR_TRUE;
-      }
-      return NS_OK;
-    }
-
-    inline nsresult ProcessMeta(nsIContent* aMeta) {
-      return parser->ProcessMETATag(aMeta);
-    }
-
-    inline nsresult ProcessOfflineManifest(nsIContent* aHtml) {
-      parser->ProcessOfflineManifest(aHtml);
-      return NS_OK;
-    }
-
-    inline void StartLayout() {
-      nsIDocument* doc = GetDocument();
-      if (doc) {
-        FlushPendingAppendNotifications();
-        parser->StartLayout(PR_FALSE);
-      }
-    }
-
-    void DoUnlink();
-
-    void DoTraverse(nsCycleCollectionTraversalCallback &cb);

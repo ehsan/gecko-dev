@@ -59,6 +59,8 @@ typedef nsSVGPaintServerFrame  nsSVGPatternFrameBase;
 class nsSVGPatternFrame : public nsSVGPatternFrameBase
 {
 public:
+  NS_DECL_FRAMEARENA_HELPERS
+
   friend nsIFrame* NS_NewSVGPatternFrame(nsIPresShell* aPresShell,
                                          nsStyleContext* aContext);
 
@@ -99,7 +101,6 @@ public:
   virtual nsIAtom* GetType() const;
 
 #ifdef DEBUG
-  // nsIFrameDebug interface:
   NS_IMETHOD GetFrameName(nsAString& aResult) const
   {
     return MakeFrameName(NS_LITERAL_STRING("SVGPattern"), aResult);
@@ -135,7 +136,8 @@ protected:
                               const gfxRect &callerBBox,
                               const gfxMatrix &callerCTM);
   gfxMatrix  ConstructCTM(const gfxRect &callerBBox,
-                          const gfxMatrix &callerCTM);
+                          const gfxMatrix &callerCTM,
+                          nsSVGElement *aTargetContent);
   nsresult   GetTargetGeometry(gfxMatrix *aCTM,
                                gfxRect *aBBox,
                                nsSVGElement **aTargetContent,

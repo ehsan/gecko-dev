@@ -56,17 +56,20 @@ public:
   nsHTMLWin32ObjectOwnerAccessible(nsIDOMNode* aNode, nsIWeakReference* aShell, void* aHwnd);
   virtual ~nsHTMLWin32ObjectOwnerAccessible() {}
 
-  // nsIAccessible
-  NS_IMETHOD GetFirstChild(nsIAccessible **aFirstChild);
-  NS_IMETHOD GetLastChild(nsIAccessible **aLastChild);
-  NS_IMETHOD GetChildCount(PRInt32 *aChildCount);  // Zero or one child
-
   // nsAccessNode
   virtual nsresult Shutdown();
 
+  // nsAccessible
+  virtual nsresult GetRoleInternal(PRUint32 *aRole);
+  virtual nsresult GetStateInternal(PRUint32 *aState, PRUint32 *aExtraState);
+
 protected:
+
+  // nsAccessible
+  virtual void CacheChildren();
+
   void* mHwnd;
-  nsCOMPtr<nsIAccessible> mNativeAccessible;
+  nsRefPtr<nsAccessible> mNativeAccessible;
 };
 
 /**

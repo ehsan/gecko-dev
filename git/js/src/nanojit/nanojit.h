@@ -40,63 +40,34 @@
 #ifndef __nanojit_h__
 #define __nanojit_h__
 
-#include <stddef.h>
 #include "avmplus.h"
 
 #ifdef FEATURE_NANOJIT
 
-#ifdef AVMPLUS_IA32
-#define NANOJIT_IA32
-#elif AVMPLUS_ARM
-#define NANOJIT_ARM
-#elif AVMPLUS_PPC
-#define NANOJIT_PPC
-#elif AVMPLUS_SPARC
-#define NANOJIT_SPARC
-#elif AVMPLUS_AMD64
-#define NANOJIT_AMD64
-#define NANOJIT_64BIT
+#if defined AVMPLUS_IA32
+    #define NANOJIT_IA32
+#elif defined AVMPLUS_ARM
+    #define NANOJIT_ARM
+#elif defined AVMPLUS_PPC
+    #define NANOJIT_PPC
+#elif defined AVMPLUS_SPARC
+    #define NANOJIT_SPARC
+#elif defined AVMPLUS_AMD64
+    #define NANOJIT_X64
 #else
-#error "unknown nanojit architecture"
+    #error "unknown nanojit architecture"
 #endif
 
-/*
-    If we're using MMGC, using operator delete on a GCFinalizedObject is problematic:
-    in particular, calling it from inside a dtor is risky because the dtor for the sub-object
-    might already have been called, wrecking its vtable and ending up in the wrong version
-    of operator delete (the global version rather than the class-specific one). Calling GC::Free
-    directly is fine (since it ignores the vtable), so we macro-ize to make the distinction.
+#ifdef AVMPLUS_64BIT
+#define NANOJIT_64BIT
+#endif
 
-    macro-ization of operator new isn't strictly necessary, but is done to bottleneck both
-    sides of the new/delete pair to forestall future needs.
-*/
-#ifdef MMGC_API
-
-    // separate overloads because GCObject and GCFinalizedObjects have different dtors
-    // (GCFinalizedObject's is virtual, GCObject's is not)
-    inline void mmgc_delete(GCObject* o)
-    {
-        GC* g = GC::GetGC(o);
-        if (g->Collecting())
-            g->Free(o);
-        else
-            delete o;
-    }
-
-    inline void mmgc_delete(GCFinalizedObject* o)
-    {
-        GC* g = GC::GetGC(o);
-        if (g->Collecting())
-            g->Free(o);
-        else
-            delete o;
-    }
-
-    #define NJ_NEW(gc, cls)            new (gc) cls
-    #define NJ_DELETE(obj)            do { mmgc_delete(obj); } while (0)
+#if defined NANOJIT_64BIT
+    #define IF_64BIT(...) __VA_ARGS__
+    #define UNLESS_64BIT(...)
 #else
-    #define NJ_NEW(gc, cls)            new (gc) cls
-    #define NJ_DELETE(obj)            do { delete obj; } while (0)
+    #define IF_64BIT(...)
+    #define UNLESS_64BIT(...) __VA_ARGS__
 #endif
 
 // Embed no-op macros that let Valgrind work with the JIT.
@@ -116,30 +87,19 @@ namespace nanojit
      * START AVM bridging definitions
      * -------------------------------------------
      */
-    class Fragment;
-    class LIns;
-    struct SideExit;
-    class RegAlloc;
-    struct Page;
     typedef avmplus::AvmCore AvmCore;
-    typedef avmplus::OSDep OSDep;
-    typedef avmplus::GCSortedMap<const void*,Fragment*,avmplus::LIST_GCObjects> FragmentMap;
-    typedef avmplus::SortedMap<SideExit*,RegAlloc*,avmplus::LIST_GCObjects> RegAllocMap;
-    typedef avmplus::List<LIns*,avmplus::LIST_NonGCObjects>    InsList;
-    typedef avmplus::List<char*, avmplus::LIST_GCObjects> StringList;
-    typedef avmplus::List<Page*,avmplus::LIST_NonGCObjects>    PageList;
 
     const uint32_t MAXARGS = 8;
 
-    #ifdef MOZ_NO_VARADIC_MACROS
-        static void NanoAssertMsgf(bool a,const char *f,...) {}
-        static void NanoAssertMsg(bool a,const char *m) {}
-        static void NanoAssert(bool a) {}
+    #ifdef NJ_NO_VARIADIC_MACROS
+        inline void NanoAssertMsgf(bool a,const char *f,...) {}
+        inline void NanoAssertMsg(bool a,const char *m) {}
+        inline void NanoAssert(bool a) {}
     #elif defined(_DEBUG)
 
         #define __NanoAssertMsgf(a, file_, line_, f, ...)  \
             if (!(a)) { \
-                fprintf(stderr, "Assertion failed: " f "%s (%s:%d)\n", __VA_ARGS__, #a, file_, line_); \
+                avmplus::AvmLog("Assertion failed: " f "%s (%s:%d)\n", __VA_ARGS__, #a, file_, line_); \
                 NanoAssertFail(); \
             }
 
@@ -176,11 +136,15 @@ namespace nanojit
 }
 
 #ifdef AVMPLUS_VERBOSE
-#define NJ_VERBOSE 1
-#define NJ_PROFILE 1
+#ifndef NJ_VERBOSE_DISABLED
+    #define NJ_VERBOSE 1
+#endif
+#ifndef NJ_PROFILE_DISABLED
+    #define NJ_PROFILE 1
+#endif
 #endif
 
-#ifdef MOZ_NO_VARADIC_MACROS
+#ifdef NJ_NO_VARIADIC_MACROS
     #include <stdio.h>
     #define verbose_outputf            if (_logc->lcbits & LC_Assembly) \
                                         Assembler::outputf
@@ -196,7 +160,7 @@ namespace nanojit
 #endif /*NJ_VERBOSE*/
 
 #ifdef _DEBUG
-    #define debug_only(x)            x
+    #define debug_only(x)           x
 #else
     #define debug_only(x)
 #endif /* DEBUG */
@@ -204,14 +168,14 @@ namespace nanojit
 #ifdef NJ_PROFILE
     #define counter_struct_begin()  struct {
     #define counter_struct_end()    } _stats;
-    #define counter_define(x)         int32_t x
+    #define counter_define(x)       int32_t x
     #define counter_value(x)        _stats.x
     #define counter_set(x,v)        (counter_value(x)=(v))
-    #define counter_adjust(x,i)        (counter_value(x)+=(int32_t)(i))
+    #define counter_adjust(x,i)     (counter_value(x)+=(int32_t)(i))
     #define counter_reset(x)        counter_set(x,0)
     #define counter_increment(x)    counter_adjust(x,1)
     #define counter_decrement(x)    counter_adjust(x,-1)
-    #define profile_only(x)            x
+    #define profile_only(x)         x
 #else
     #define counter_struct_begin()
     #define counter_struct_end()
@@ -229,16 +193,18 @@ namespace nanojit
 #define isU8(i)  ( int32_t(i) == uint8_t(i) )
 #define isS16(i) ( int32_t(i) == int16_t(i) )
 #define isU16(i) ( int32_t(i) == uint16_t(i) )
-#define isS24(i) ( ((int32_t(i)<<8)>>8) == (i) )
+#define isS24(i) ( (int32_t((i)<<8)>>8) == (i) )
+
+static inline bool isS32(intptr_t i) {
+    return int32_t(i) == i;
+}
+
+static inline bool isU32(uintptr_t i) {
+    return uint32_t(i) == i;
+}
 
 #define alignTo(x,s)        ((((uintptr_t)(x)))&~(((uintptr_t)s)-1))
 #define alignUp(x,s)        ((((uintptr_t)(x))+(((uintptr_t)s)-1))&~(((uintptr_t)s)-1))
-
-#define pageTop(x)          ( alignTo(x,NJ_PAGE_SIZE) )
-#define pageDataStart(x)    ( alignTo(x,NJ_PAGE_SIZE) + sizeof(PageHeader) )
-#define pageBottom(x)       ( alignTo(x,NJ_PAGE_SIZE) + NJ_PAGE_SIZE - 1 )
-#define samepage(x,y)       ( pageTop(x) == pageTop(y) )
-
 
 // -------------------------------------------------------------------
 // START debug-logging definitions
@@ -268,13 +234,13 @@ namespace nanojit {
            and below, so that callers can use bits 16 and above for
            themselves. */
         // TODO: add entries for the writer pipeline
-        LC_Liveness    = 1<<6, // (show LIR liveness analysis)
-        LC_ReadLIR     = 1<<5, // As read from LirBuffer
-        LC_AfterSF_SP  = 1<<4, // After StackFilter(sp)
-        LC_AfterSF_RP  = 1<<3, // After StackFilter(rp)
-        LC_RegAlloc    = 1<<2, // stuff to do with reg alloc
-        LC_Assembly    = 1<<1, // final assembly
-        LC_NoCodeAddrs = 1<<0  // (don't show code addresses on asm output)
+        LC_FragProfile = 1<<6, // collect per-frag usage counts
+        LC_Activation  = 1<<5, // enable printActivationState
+        LC_Liveness    = 1<<4, // (show LIR liveness analysis)
+        LC_ReadLIR     = 1<<3, // As read from LirBuffer
+        LC_AfterSF     = 1<<2, // After StackFilter
+        LC_RegAlloc    = 1<<1, // stuff to do with reg alloc
+        LC_Assembly    = 1<<0  // final assembly
     };
 
     class LogControl
@@ -295,8 +261,10 @@ namespace nanojit {
 // -------------------------------------------------------------------
 
 
-
+#include "Allocator.h"
+#include "Containers.h"
 #include "Native.h"
+#include "CodeAlloc.h"
 #include "LIR.h"
 #include "RegAlloc.h"
 #include "Fragmento.h"

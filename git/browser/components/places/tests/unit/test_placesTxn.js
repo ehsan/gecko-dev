@@ -15,7 +15,8 @@
  *
  * The Original Code is mozilla.org code.
  *
- * The Initial Developer of the Original Code is example Inc.
+ * The Initial Developer of the Original Code is
+ * Mozilla Foundation.
  * Portions created by the Initial Developer are Copyright (C) 2005
  * the Initial Developer. All Rights Reserved.
  *
@@ -90,30 +91,33 @@ var observer = {
   onEndUpdateBatch: function() {
     this._endUpdateBatch = true;
   },
-  onItemAdded: function(id, folder, index) {
+  onItemAdded: function(id, folder, index, itemType) {
     this._itemAddedId = id;
     this._itemAddedParent = folder;
     this._itemAddedIndex = index;
+    this._itemAddedType = itemType;
   },
   onBeforeItemRemoved: function(id) {
   },
-  onItemRemoved: function(id, folder, index) {
+  onItemRemoved: function(id, folder, index, itemType) {
     this._itemRemovedId = id;
     this._itemRemovedFolder = folder;
     this._itemRemovedIndex = index;
   },
-  onItemChanged: function(id, property, isAnnotationProperty, value) {
+  onItemChanged: function(id, property, isAnnotationProperty, newValue,
+                          lastModified, itemType) {
     this._itemChangedId = id;
     this._itemChangedProperty = property;
     this._itemChanged_isAnnotationProperty = isAnnotationProperty;
-    this._itemChangedValue = value;
+    this._itemChangedValue = newValue;
   },
   onItemVisited: function(id, visitID, time) {
     this._itemVisitedId = id;
     this._itemVisitedVistId = visitID;
     this._itemVisitedTime = time;
   },
-  onItemMoved: function(id, oldParent, oldIndex, newParent, newIndex) {
+  onItemMoved: function(id, oldParent, oldIndex, newParent, newIndex,
+                        itemType) {
     this._itemMovedId = id
     this._itemMovedOldParent = oldParent;
     this._itemMovedOldIndex = oldIndex;
@@ -149,18 +153,20 @@ function run_test() {
   var txn1 = ptSvc.createFolder("Testing folder", root, bmStartIndex, annos);
   ptSvc.doTransaction(txn1);
 
-  // the check check that calling undoTransaction on an "empty batch" doesn't undo
-  // the previous transaction
+  // This checks that calling undoTransaction on an "empty batch" doesn't
+  // undo the previous transaction (getItemTitle will fail)
   ptSvc.beginBatch();
   ptSvc.endBatch();
   ptSvc.undoTransaction();
 
-  var folderId = bmsvc.getChildFolder(root, "Testing folder");
-  do_check_eq(TEST_DESCRIPTION, 
-              annosvc.getItemAnnotation(folderId, DESCRIPTION_ANNO));
+  var folderId = observer._itemAddedId;
+  do_check_eq(bmsvc.getItemTitle(folderId), "Testing folder");
   do_check_eq(observer._itemAddedIndex, bmStartIndex);
   do_check_eq(observer._itemAddedParent, root);
   do_check_eq(observer._itemAddedId, folderId);
+  do_check_eq(TEST_DESCRIPTION, 
+              annosvc.getItemAnnotation(folderId, DESCRIPTION_ANNO));
+
   txn1.undoTransaction();
   do_check_eq(observer._itemRemovedId, folderId);
   do_check_eq(observer._itemRemovedFolder, root);
@@ -178,7 +184,7 @@ function run_test() {
   // Create to Root
   var txn2 = ptSvc.createItem(uri("http://www.example.com"), root, bmStartIndex, "Testing1");
   ptSvc.doTransaction(txn2); // Also testing doTransaction
-  var b = (bmsvc.getBookmarkIdsForURI(uri("http://www.example.com"), {}))[0];
+  var b = (bmsvc.getBookmarkIdsForURI(uri("http://www.example.com")))[0];
   do_check_eq(observer._itemAddedId, b);
   do_check_eq(observer._itemAddedIndex, bmStartIndex);
   do_check_true(bmsvc.isBookmarked(uri("http://www.example.com")));
@@ -188,7 +194,7 @@ function run_test() {
   do_check_false(bmsvc.isBookmarked(uri("http://www.example.com")));
   txn2.redoTransaction();
   do_check_true(bmsvc.isBookmarked(uri("http://www.example.com")));
-  var newId = (bmsvc.getBookmarkIdsForURI(uri("http://www.example.com"), {}))[0];
+  var newId = (bmsvc.getBookmarkIdsForURI(uri("http://www.example.com")))[0];
   do_check_eq(observer._itemAddedIndex, bmStartIndex);
   do_check_eq(observer._itemAddedParent, root);
   do_check_eq(observer._itemAddedId, newId);
@@ -200,10 +206,12 @@ function run_test() {
   // Create item to a folder
   var txn2a = ptSvc.createFolder("Folder", root, bmStartIndex);
   ptSvc.doTransaction(txn2a);
-  var fldrId = bmsvc.getChildFolder(root, "Folder");
+  var fldrId = observer._itemAddedId;
+  do_check_eq(bmsvc.getItemTitle(fldrId), "Folder");
+
   var txn2b = ptSvc.createItem(uri("http://www.example2.com"), fldrId, bmStartIndex, "Testing1b");
   ptSvc.doTransaction(txn2b);
-  var b2 = (bmsvc.getBookmarkIdsForURI(uri("http://www.example2.com"), {}))[0];
+  var b2 = (bmsvc.getBookmarkIdsForURI(uri("http://www.example2.com")))[0];
   do_check_eq(observer._itemAddedId, b2);
   do_check_eq(observer._itemAddedIndex, bmStartIndex);
   do_check_true(bmsvc.isBookmarked(uri("http://www.example2.com")));
@@ -211,7 +219,7 @@ function run_test() {
   do_check_eq(observer._itemRemovedId, b2);
   do_check_eq(observer._itemRemovedIndex, bmStartIndex);
   txn2b.redoTransaction();
-  newId = (bmsvc.getBookmarkIdsForURI(uri("http://www.example2.com"), {}))[0];
+  newId = (bmsvc.getBookmarkIdsForURI(uri("http://www.example2.com")))[0];
   do_check_eq(observer._itemAddedIndex, bmStartIndex);
   do_check_eq(observer._itemAddedParent, fldrId);
   do_check_eq(observer._itemAddedId, newId);
@@ -224,7 +232,7 @@ function run_test() {
   ptSvc.doTransaction(ptSvc.createItem(uri("http://www.example3.com"), root, -1, "Testing2"));
   ptSvc.doTransaction(ptSvc.createItem(uri("http://www.example3.com"), root, -1, "Testing3"));
   ptSvc.doTransaction(ptSvc.createItem(uri("http://www.example3.com"), fldrId, -1, "Testing4"));
-  var bkmkIds = bmsvc.getBookmarkIdsForURI(uri("http://www.example3.com"), {});
+  var bkmkIds = bmsvc.getBookmarkIdsForURI(uri("http://www.example3.com"));
   bkmkIds.sort();
   var bkmk1Id = bkmkIds[0];
   var bkmk2Id = bkmkIds[1];
@@ -286,7 +294,9 @@ function run_test() {
 
   // Test Removing a Folder
   ptSvc.doTransaction(ptSvc.createFolder("Folder2", root, -1));
-  var fldrId2 = bmsvc.getChildFolder(root, "Folder2");
+  var fldrId2 = observer._itemAddedId;
+  do_check_eq(bmsvc.getItemTitle(fldrId2), "Folder2");
+
   var txn4 = ptSvc.removeItem(fldrId2);
   txn4.doTransaction();
   do_check_eq(observer._itemRemovedId, fldrId2);
@@ -538,6 +548,10 @@ function run_test() {
                       flags: 0,
                       value: 123,
                       expires: Ci.nsIAnnotationService.EXPIRE_NEVER };
+  var hs = Cc["@mozilla.org/browser/nav-history-service;1"].
+           getService(Ci.nsINavHistoryService);
+  hs.addVisit(uri("http://www.mozilla.org/"), Date.now() * 1000, null,
+              hs.TRANSITION_TYPED, false, 0);
   var genPageAnnoTxn = ptSvc.setPageAnnotation(uri("http://www.mozilla.org/"), pageAnnoObj);
   genPageAnnoTxn.doTransaction();
   do_check_true(annosvc.pageHasAnnotation(uri("http://www.mozilla.org/"), "testAnno/testInt"));
@@ -548,11 +562,12 @@ function run_test() {
 
   // sortFolderByName
   ptSvc.doTransaction(ptSvc.createFolder("Sorting folder", root, bmStartIndex, [], null));
-  var srtFldId = bmsvc.getChildFolder(root, "Sorting folder");
+  var srtFldId = observer._itemAddedId;
+  do_check_eq(bmsvc.getItemTitle(srtFldId), "Sorting folder");
   ptSvc.doTransaction(ptSvc.createItem(uri("http://www.sortingtest.com"), srtFldId, -1, "c"));
   ptSvc.doTransaction(ptSvc.createItem(uri("http://www.sortingtest.com"), srtFldId, -1, "b"));   
   ptSvc.doTransaction(ptSvc.createItem(uri("http://www.sortingtest.com"), srtFldId, -1, "a"));
-  var b = bmsvc.getBookmarkIdsForURI(uri("http://www.sortingtest.com"), {});
+  var b = bmsvc.getBookmarkIdsForURI(uri("http://www.sortingtest.com"));
   b.sort();
   var b1 = b[0];
   var b2 = b[1];
@@ -584,7 +599,7 @@ function run_test() {
   ptSvc.doTransaction(
   ptSvc.createItem(uri("http://dietrich.ganx4.com/mozilla/test-microsummary-content.php"),
                    root, -1, "micro test", null, null, null));
-  var bId = (bmsvc.getBookmarkIdsForURI(uri("http://dietrich.ganx4.com/mozilla/test-microsummary-content.php"),{}))[0];
+  var bId = (bmsvc.getBookmarkIdsForURI(uri("http://dietrich.ganx4.com/mozilla/test-microsummary-content.php")))[0];
   do_check_true(!mss.hasMicrosummary(bId));
   var txn18 = ptSvc.editBookmarkMicrosummary(bId, tmpMs);
   txn18.doTransaction();
@@ -600,7 +615,7 @@ function run_test() {
   var postDataURI = uri("http://foo.com");
   ptSvc.doTransaction(
     ptSvc.createItem(postDataURI, root, -1, "postdata test", null, null, null));
-  var postDataId = (bmsvc.getBookmarkIdsForURI(postDataURI,{}))[0];
+  var postDataId = (bmsvc.getBookmarkIdsForURI(postDataURI))[0];
   var postDataTxn = ptSvc.editBookmarkPostData(postDataId, postData);
   postDataTxn.doTransaction();
   do_check_true(annosvc.itemHasAnnotation(postDataId, POST_DATA_ANNO))
@@ -630,18 +645,18 @@ function run_test() {
   var tagURI = uri("http://foo.tld");
   var tagTxn = ptSvc.tagURI(tagURI, ["foo", "bar"]);
   tagTxn.doTransaction();
-  do_check_eq(uneval(tagssvc.getTagsForURI(tagURI, { })), uneval(["bar","foo"]));
+  do_check_eq(uneval(tagssvc.getTagsForURI(tagURI)), uneval(["bar","foo"]));
   tagTxn.undoTransaction();
-  do_check_true(tagssvc.getTagsForURI(tagURI, { }).length == 0);
+  do_check_eq(tagssvc.getTagsForURI(tagURI).length, 0);
   tagTxn.redoTransaction();
-  do_check_eq(uneval(tagssvc.getTagsForURI(tagURI, { })), uneval(["bar","foo"]));
+  do_check_eq(uneval(tagssvc.getTagsForURI(tagURI)), uneval(["bar","foo"]));
   var untagTxn = ptSvc.untagURI(tagURI, ["bar"]);
   untagTxn.doTransaction();
-  do_check_eq(uneval(tagssvc.getTagsForURI(tagURI, { })), uneval(["foo"]));
+  do_check_eq(uneval(tagssvc.getTagsForURI(tagURI)), uneval(["foo"]));
   untagTxn.undoTransaction();
-  do_check_eq(uneval(tagssvc.getTagsForURI(tagURI, { })), uneval(["bar","foo"]));
+  do_check_eq(uneval(tagssvc.getTagsForURI(tagURI)), uneval(["bar","foo"]));
   untagTxn.redoTransaction();
-  do_check_eq(uneval(tagssvc.getTagsForURI(tagURI, { })), uneval(["foo"]));
+  do_check_eq(uneval(tagssvc.getTagsForURI(tagURI)), uneval(["foo"]));
 
   // Test aggregate removeItem transaction
   var bkmk1Id = bmsvc.insertBookmark(root, uri("http://www.mozilla.org/"), 0, "Mozilla");
@@ -740,7 +755,7 @@ function run_test() {
                                        childTxns);
   try {
     ptSvc.doTransaction(itemWChildTxn); // Also testing doTransaction
-    var itemId = (bmsvc.getBookmarkIdsForURI(uri("http://www.example.com"), {}))[0];
+    var itemId = (bmsvc.getBookmarkIdsForURI(uri("http://www.example.com")))[0];
     do_check_eq(observer._itemAddedId, itemId);
     do_check_eq(newDateAdded, bmsvc.getItemDateAdded(itemId));
     do_check_eq(observer._itemChangedProperty, "testAnno/testInt");
@@ -752,7 +767,7 @@ function run_test() {
     do_check_eq(observer._itemRemovedId, itemId);
     itemWChildTxn.redoTransaction();
     do_check_true(bmsvc.isBookmarked(uri("http://www.example.com")));
-    var newId = (bmsvc.getBookmarkIdsForURI(uri("http://www.example.com"), {}))[0];
+    var newId = (bmsvc.getBookmarkIdsForURI(uri("http://www.example.com")))[0];
     do_check_eq(newDateAdded, bmsvc.getItemDateAdded(newId));
     do_check_eq(observer._itemAddedId, newId);
     do_check_eq(observer._itemChangedProperty, "testAnno/testInt");
@@ -771,14 +786,14 @@ function run_test() {
   var folderWChildItemTxn = ptSvc.createFolder("Folder", root, bmStartIndex, null, [childItemTxn]);
   try {
     ptSvc.doTransaction(folderWChildItemTxn);
-    var childItemId = (bmsvc.getBookmarkIdsForURI(uri("http://www.childItem.com"), {}))[0];
+    var childItemId = (bmsvc.getBookmarkIdsForURI(uri("http://www.childItem.com")))[0];
     do_check_eq(observer._itemAddedId, childItemId);
     do_check_eq(observer._itemAddedIndex, 0);
     do_check_true(bmsvc.isBookmarked(uri("http://www.childItem.com")));
     folderWChildItemTxn.undoTransaction();
     do_check_false(bmsvc.isBookmarked(uri("http://www.childItem.com")));
     folderWChildItemTxn.redoTransaction();
-    newchildItemId = (bmsvc.getBookmarkIdsForURI(uri("http://www.childItem.com"), {}))[0];
+    var newchildItemId = (bmsvc.getBookmarkIdsForURI(uri("http://www.childItem.com")))[0];
     do_check_eq(observer._itemAddedIndex, 0);
     do_check_eq(observer._itemAddedId, newchildItemId);
     do_check_true(bmsvc.isBookmarked(uri("http://www.childItem.com")));

@@ -60,6 +60,8 @@ nsIFrame* NS_NewMenuBarFrame(nsIPresShell* aPresShell, nsStyleContext* aContext)
 class nsMenuBarFrame : public nsBoxFrame, public nsMenuParent
 {
 public:
+  NS_DECL_FRAMEARENA_HELPERS
+
   nsMenuBarFrame(nsIPresShell* aShell, nsStyleContext* aContext);
 
   // nsMenuParent interface
@@ -85,7 +87,7 @@ public:
                   nsIFrame*        aParent,
                   nsIFrame*        aPrevInFlow);
 
-  virtual void Destroy();
+  virtual void DestroyFrom(nsIFrame* aDestructRoot);
 
   virtual nsIAtom* GetType() const { return nsGkAtoms::menuBarFrame; }
 

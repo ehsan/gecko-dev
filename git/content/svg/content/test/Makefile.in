@@ -45,6 +45,10 @@ include $(DEPTH)/config/autoconf.mk
 include $(topsrcdir)/config/rules.mk
 
 _TEST_FILES = \
+		test_animLengthObjectIdentity.xhtml \
+		test_animLengthReadonly.xhtml \
+		test_animLengthRelativeUnits.xhtml \
+		test_animLengthUnits.xhtml \
 		test_bbox.xhtml \
 		bbox-helper.svg \
 		bounds-helper.svg \
@@ -54,6 +58,7 @@ _TEST_FILES = \
 		test_getCTM.html \
 		test_getSubStringLength.xhtml \
 		getSubStringLength-helper.svg \
+		test_isSupported.xhtml \
 		test_pathSeg.xhtml \
 		test_pointer-events.xhtml \
 		test_scientific.html \
@@ -62,6 +67,8 @@ _TEST_FILES = \
 		switch-helper.svg \
 		test_text.html \
 		text-helper.svg \
+		test_transform.xhtml \
+		test_valueAsString.xhtml \
 		test_valueLeaks.xhtml \
 		viewport-helper.svg \
 		test_viewport.html \

@@ -11,6 +11,9 @@ include reftest-sanity/reftest.list
 # images (if libpr0n is busted, could result in weird failures in other tests)
 include ../../modules/libpr0n/test/reftest/reftest.list
 
+# relative and absolute positioning
+include abs-pos/reftest.list
+
 # backgrounds/
 include backgrounds/reftest.list
 
@@ -50,6 +53,12 @@ include css-mediaqueries/reftest.list
 # css namespaces
 include css-namespace/reftest.list
 
+# css parsing
+include css-parsing/reftest.list
+
+# css transitions
+include css-transitions/reftest.list
+
 # css values and units
 include css-valuesandunits/reftest.list
 
@@ -61,6 +70,9 @@ include ../../content/test/reftest/reftest.list
 
 # counters/
 include counters/reftest.list
+
+# editor/
+include editor/reftest.list
 
 # generated-content/
 include generated-content/reftest.list
@@ -88,6 +100,9 @@ include ib-split/reftest.list
 
 # image/
 include image/reftest.list
+
+# image-rect/
+include image-rect/reftest.list
 
 # image-region/
 include image-region/reftest.list
@@ -137,6 +152,9 @@ include svg/reftest.list
 
 # svg-integration/
 include svg-integration/reftest.list
+
+# tab-size/
+include tab-size/reftest.list
 
 # table-anonymous-boxes/
 include table-anonymous-boxes/reftest.list

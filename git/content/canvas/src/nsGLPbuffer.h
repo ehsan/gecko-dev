@@ -48,29 +48,51 @@
 #include "gfxASurface.h"
 #include "gfxImageSurface.h"
 
+#ifdef USE_EGL
+typedef int EGLint;
+typedef unsigned int EGLBoolean;
+typedef unsigned int EGLenum;
+typedef void *EGLConfig;
+typedef void *EGLContext;
+typedef void *EGLDisplay;
+typedef void *EGLSurface;
+typedef void *EGLClientBuffer;
+#endif
+
 #ifdef XP_WIN
 #include "gfxWindowsSurface.h"
 #endif
 
-#if defined(XP_UNIX) && defined(MOZ_X11)
+#ifdef MOZ_X11
+#include "gfxXlibSurface.h"
+#endif
+
+#if defined(WINCE) && defined(CAIRO_HAS_DDRAW_SURFACE)
+#include "gfxDDrawSurface.h"
+#endif
+
+#ifdef USE_GLX
+#define GLX_GLXEXT_LEGACY
 #include "GL/glx.h"
 #endif
 
-#ifdef XP_MACOSX
+#ifdef USE_CGL
 #include "gfxQuartzImageSurface.h"
 #include <OpenGL/CGLTypes.h>
 #endif
 
 #include "glwrap.h"
 
-class nsCanvasRenderingContextGLPrivate;
+namespace mozilla {
+class WebGLContext;
+}
 
 class nsGLPbuffer {
 public:
     nsGLPbuffer() : mWidth(0), mHeight(0), mPriv(0) { }
     virtual ~nsGLPbuffer() { }
 
-    virtual PRBool Init(nsCanvasRenderingContextGLPrivate *priv) = 0;
+    virtual PRBool Init(mozilla::WebGLContext *priv) = 0;
     virtual PRBool Resize(PRInt32 width, PRInt32 height) = 0;
     virtual void Destroy() = 0;
 
@@ -90,12 +112,11 @@ protected:
     GLES20Wrap mGLWrap;
 
     static void *sCurrentContextToken;
-    nsCanvasRenderingContextGLPrivate *mPriv;
+    mozilla::WebGLContext *mPriv;
 
     void Premultiply(unsigned char *src, unsigned int len);
 
-    void LogMessage (const nsCString& errorString);
-    void LogMessagef (const char *fmt, ...);
+    void LogMessage (const char *fmt, ...);
 };
 
 class nsGLPbufferOSMESA :
@@ -105,7 +126,7 @@ public:
     nsGLPbufferOSMESA();
     virtual ~nsGLPbufferOSMESA();
 
-    virtual PRBool Init(nsCanvasRenderingContextGLPrivate *priv);
+    virtual PRBool Init(mozilla::WebGLContext *priv);
     virtual PRBool Resize(PRInt32 width, PRInt32 height);
     virtual void Destroy();
 
@@ -119,7 +140,7 @@ protected:
     PrivateOSMesaContext mMesaContext;
 };
 
-#ifdef XP_MACOSX
+#ifdef USE_CGL
 class nsGLPbufferCGL :
     public nsGLPbuffer
 {
@@ -127,7 +148,7 @@ public:
     nsGLPbufferCGL();
     virtual ~nsGLPbufferCGL();
 
-    virtual PRBool Init(nsCanvasRenderingContextGLPrivate *priv);
+    virtual PRBool Init(mozilla::WebGLContext *priv);
     virtual PRBool Resize(PRInt32 width, PRInt32 height);
     virtual void Destroy();
 
@@ -154,7 +175,7 @@ protected:
 };
 #endif
 
-#if defined(XP_UNIX) && defined(MOZ_X11)
+#ifdef USE_GLX
 class nsGLPbufferGLX :
     public nsGLPbuffer
 {
@@ -162,7 +183,7 @@ public:
     nsGLPbufferGLX();
     virtual ~nsGLPbufferGLX();
 
-    virtual PRBool Init(nsCanvasRenderingContextGLPrivate *priv);
+    virtual PRBool Init(mozilla::WebGLContext *priv);
     virtual PRBool Resize(PRInt32 width, PRInt32 height);
     virtual void Destroy();
 
@@ -181,7 +202,41 @@ protected:
 };
 #endif
 
-#ifdef XP_WIN
+#ifdef USE_EGL
+class nsGLPbufferEGL :
+    public nsGLPbuffer
+{
+public:
+    nsGLPbufferEGL();
+    virtual ~nsGLPbufferEGL();
+
+    virtual PRBool Init(mozilla::WebGLContext *priv);
+    virtual PRBool Resize(PRInt32 width, PRInt32 height);
+    virtual void Destroy();
+
+    virtual void MakeContextCurrent();
+    virtual void SwapBuffers();
+
+    virtual gfxASurface* ThebesSurface();
+
+protected:
+    EGLDisplay mDisplay;
+    EGLConfig mConfig;
+    EGLSurface mSurface;
+    EGLContext mContext;
+
+#if defined(XP_WIN)
+    nsRefPtr<gfxImageSurface> mThebesSurface;
+    nsRefPtr<gfxWindowsSurface> mWindowsSurface;
+#elif defined(MOZ_X11)
+    nsRefPtr<gfxImageSurface> mThebesSurface;
+    nsRefPtr<gfxXlibSurface> mXlibSurface;
+    Visual *mVisual;
+#endif
+};
+#endif
+
+#ifdef USE_WGL
 class nsGLPbufferWGL :
     public nsGLPbuffer
 {
@@ -189,7 +244,7 @@ public:
     nsGLPbufferWGL();
     virtual ~nsGLPbufferWGL();
 
-    virtual PRBool Init(nsCanvasRenderingContextGLPrivate *priv);
+    virtual PRBool Init(mozilla::WebGLContext *priv);
     virtual PRBool Resize(PRInt32 width, PRInt32 height);
     virtual void Destroy();
 

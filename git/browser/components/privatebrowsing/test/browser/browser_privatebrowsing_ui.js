@@ -40,9 +40,7 @@
 
 function test() {
   // initialization
-  let prefBranch = Cc["@mozilla.org/preferences-service;1"].
-                   getService(Ci.nsIPrefBranch);
-  prefBranch.setBoolPref("browser.privatebrowsing.keep_current_session", true);
+  gPrefService.setBoolPref("browser.privatebrowsing.keep_current_session", true);
   let pb = Cc["@mozilla.org/privatebrowsing;1"].
            getService(Ci.nsIPrivateBrowsingService);
   let observer = {
@@ -57,19 +55,24 @@ function test() {
   os.addObserver(observer, "private-browsing", false);
   let pbMenuItem = document.getElementById("privateBrowsingItem");
   // add a new blank tab to ensure the title can be meaningfully compared later
-  let blankTab = gBrowser.addTab();
-  gBrowser.selectedTab = blankTab;
+  gBrowser.selectedTab = gBrowser.addTab();
   let originalTitle = document.title;
 
   // test the gPrivateBrowsingUI object
   ok(gPrivateBrowsingUI, "The gPrivateBrowsingUI object exists");
+  is(pb.privateBrowsingEnabled, false, "The private browsing mode should not be started initially");
+  is(gPrivateBrowsingUI.privateBrowsingEnabled, false, "gPrivateBrowsingUI should expose the correct private browsing status");
   ok(pbMenuItem, "The Private Browsing menu item exists");
   is(pbMenuItem.getAttribute("label"), pbMenuItem.getAttribute("startlabel"), "The Private Browsing menu item should read \"Start Private Browsing\"");
   gPrivateBrowsingUI.toggleMode();
+  is(pb.privateBrowsingEnabled, true, "The private browsing mode should be started");
+  is(gPrivateBrowsingUI.privateBrowsingEnabled, true, "gPrivateBrowsingUI should expose the correct private browsing status");
   // check to see if the Private Browsing mode was activated successfully
   is(observer.data, "enter", "Private Browsing mode was activated using the gPrivateBrowsingUI object");
   is(pbMenuItem.getAttribute("label"), pbMenuItem.getAttribute("stoplabel"), "The Private Browsing menu item should read \"Stop Private Browsing\"");
   gPrivateBrowsingUI.toggleMode()
+  is(pb.privateBrowsingEnabled, false, "The private browsing mode should not be started");
+  is(gPrivateBrowsingUI.privateBrowsingEnabled, false, "gPrivateBrowsingUI should expose the correct private browsing status");
   // check to see if the Private Browsing mode was deactivated successfully
   is(observer.data, "exit", "Private Browsing mode was deactivated using the gPrivateBrowsingUI object");
   is(pbMenuItem.getAttribute("label"), pbMenuItem.getAttribute("startlabel"), "The Private Browsing menu item should read \"Start Private Browsing\"");
@@ -90,7 +93,7 @@ function test() {
   is(document.title, originalTitle, "Private browsing mode has correctly restored the title");
 
   // cleanup
-  gBrowser.removeTab(blankTab);
+  gBrowser.removeCurrentTab();
   os.removeObserver(observer, "private-browsing");
-  prefBranch.clearUserPref("browser.privatebrowsing.keep_current_session");
+  gPrefService.clearUserPref("browser.privatebrowsing.keep_current_session");
 }

@@ -52,6 +52,8 @@ NS_NewSVGMaskFrame(nsIPresShell* aPresShell, nsStyleContext* aContext)
   return new (aPresShell) nsSVGMaskFrame(aContext);
 }
 
+NS_IMPL_FRAMEARENA_HELPERS(nsSVGMaskFrame)
+
 already_AddRefed<gfxPattern>
 nsSVGMaskFrame::ComputeMaskAlpha(nsSVGRenderState *aContext,
                                  nsIFrame* aParent,
@@ -75,7 +77,7 @@ nsSVGMaskFrame::ComputeMaskAlpha(nsSVGRenderState *aContext,
     nsSVGMaskElement *mask = static_cast<nsSVGMaskElement*>(mContent);
 
     PRUint16 units =
-      mask->mEnumAttributes[nsSVGMaskElement::MASKUNITS].GetAnimValue();
+      mask->mEnumAttributes[nsSVGMaskElement::MASKUNITS].GetAnimValue(mask);
     gfxRect bbox;
     if (units == nsIDOMSVGUnitTypes::SVG_UNIT_TYPE_OBJECTBOUNDINGBOX) {
       bbox = nsSVGUtils::GetBBox(aParent);

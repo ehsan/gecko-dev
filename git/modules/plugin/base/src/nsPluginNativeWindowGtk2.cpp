@@ -102,7 +102,7 @@ nsPluginNativeWindowGtk2::nsPluginNativeWindowGtk2() : nsPluginNativeWindow()
   height = 0; 
   memset(&clipRect, 0, sizeof(clipRect));
   ws_info = &mWsInfo;
-  type = nsPluginWindowType_Window;
+  type = NPWindowTypeWindow;
   mSocketWidget = 0;
   mWsInfo.type = 0;
   mWsInfo.display = nsnull;
@@ -166,7 +166,7 @@ nsPluginNativeWindowGtk2::plugin_composite_filter_func (GdkXEvent *xevent,
   XDamageSubtract (GDK_DISPLAY(), native_window->mDamage, None, None);
 
   /* We try to do our area invalidation here */
-  nsPluginRect rect;
+  NPRect rect;
   rect.top = ev->area.x;
   rect.left = ev->area.y;
   rect.right = ev->area.x + ev->area.width;
@@ -182,13 +182,12 @@ nsPluginNativeWindowGtk2::plugin_composite_filter_func (GdkXEvent *xevent,
 nsresult nsPluginNativeWindowGtk2::CallSetWindow(nsCOMPtr<nsIPluginInstance> &aPluginInstance)
 {
   if(aPluginInstance) {
-    if (type == nsPluginWindowType_Window) {
+    if (type == NPWindowTypeWindow) {
       nsresult rv;
       if(!mSocketWidget) {
         PRBool needXEmbed = PR_FALSE;
         if (CanGetValueFromPlugin(aPluginInstance)) {
-          rv = aPluginInstance->GetValue
-            ((nsPluginInstanceVariable)NPPVpluginNeedsXEmbed, &needXEmbed);
+          rv = aPluginInstance->GetValueFromPlugin(NPPVpluginNeedsXEmbed, &needXEmbed);
 #ifdef DEBUG
           printf("nsPluginNativeWindowGtk2: NPPVpluginNeedsXEmbed=%d\n", needXEmbed);
 #endif
@@ -217,16 +216,16 @@ nsresult nsPluginNativeWindowGtk2::CallSetWindow(nsCOMPtr<nsIPluginInstance> &aP
       if(GTK_IS_XTBIN(mSocketWidget)) {
         gtk_xtbin_resize(mSocketWidget, width, height);
         // Point the NPWindow structures window to the actual X window
-        window = (nsPluginPort *)GTK_XTBIN(mSocketWidget)->xtwindow;
+        window = (void*)GTK_XTBIN(mSocketWidget)->xtwindow;
       }
       else { // XEmbed
         SetAllocation();
-        window = (nsPluginPort *)gtk_socket_get_id(GTK_SOCKET(mSocketWidget));
+        window = (void*)gtk_socket_get_id(GTK_SOCKET(mSocketWidget));
       }
 #ifdef DEBUG
       printf("nsPluginNativeWindowGtk2: call SetWindow with xid=%p\n", (void *)window);
 #endif
-    } // nsPluginWindowType_Window
+    } // NPWindowTypeWindow
     aPluginInstance->SetWindow(this);
   }
   else if (mPluginInstance)
@@ -262,13 +261,20 @@ nsresult nsPluginNativeWindowGtk2::CreateXEmbedWindow() {
   gtk_container_add(container, mSocketWidget);
   gtk_widget_realize(mSocketWidget);
 
+  // The GtkSocket has a visible window, but the plugin's XEmbed plug will
+  // cover this window.  Normally GtkSockets let the X server paint their
+  // background and this would happen immediately (before the plug is
+  // created).  Setting the background to None prevents the server from
+  // painting this window, avoiding flicker.
+  gdk_window_set_back_pixmap(mSocketWidget->window, NULL, FALSE);
+
   // Resize before we show
   SetAllocation();
 
   gtk_widget_show(mSocketWidget);
 
   gdk_flush();
-  window = (nsPluginPort *)gtk_socket_get_id(GTK_SOCKET(mSocketWidget));
+  window = (void*)gtk_socket_get_id(GTK_SOCKET(mSocketWidget));
 
   // Fill out the ws_info structure.
   // (The windowless case is done in nsObjectFrame.cpp.)
@@ -328,7 +334,7 @@ nsresult nsPluginNativeWindowGtk2::CreateXCompositedWindow() {
   mPlugWindow = (mSocketWidget);
 
   gdk_flush();
-  window = (nsPluginPort *)gtk_socket_get_id(GTK_SOCKET(mSocketWidget));
+  window = (void*)gtk_socket_get_id(GTK_SOCKET(mSocketWidget));
 
   /* This is useful if we still have the plugin window inline
    * i.e. firefox vs. fennec */

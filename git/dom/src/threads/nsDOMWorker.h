@@ -79,6 +79,12 @@ class nsDOMWorkerScope : public nsDOMWorkerMessageHandler,
 public:
   NS_DECL_ISUPPORTS_INHERITED
   NS_DECL_NSIDOMEVENTTARGET
+  // nsIDOMNSEventTarget
+  NS_IMETHOD AddEventListener(const nsAString& aType,
+                              nsIDOMEventListener* aListener,
+                              PRBool aUseCapture,
+                              PRBool aWantsUntrusted,
+                              PRUint8 optional_argc);
   NS_DECL_NSIWORKERGLOBALSCOPE
   NS_DECL_NSIWORKERSCOPE
   NS_DECL_NSIXPCSCRIPTABLE
@@ -126,6 +132,12 @@ class nsDOMWorker : public nsDOMWorkerMessageHandler,
 public:
   NS_DECL_ISUPPORTS_INHERITED
   NS_DECL_NSIDOMEVENTTARGET
+  // nsIDOMNSEventTarget
+  NS_IMETHOD AddEventListener(const nsAString& aType,
+                              nsIDOMEventListener* aListener,
+                              PRBool aUseCapture,
+                              PRBool aWantsUntrusted,
+                              PRUint8 optional_argc);
   NS_DECL_NSIABSTRACTWORKER
   NS_DECL_NSIWORKER
   NS_DECL_NSITIMERCALLBACK
@@ -266,9 +278,7 @@ private:
     return mURI;
   }
 
-  void SetURI(nsIURI* aURI) {
-    mURI = aURI;
-  }
+  nsresult SetURI(nsIURI* aURI);
 
   nsresult FireCloseRunnable(PRIntervalTime aTimeoutInterval,
                              PRBool aClearQueue,
@@ -276,6 +286,10 @@ private:
   nsresult Close();
 
   nsresult TerminateInternal(PRBool aFromFinalize);
+
+  nsIWorkerLocation* GetLocation() {
+    return mLocation;
+  }
 
 private:
 
@@ -313,6 +327,8 @@ private:
   PRIntervalTime mExpirationTime;
 
   nsCOMPtr<nsITimer> mKillTimer;
+
+  nsCOMPtr<nsIWorkerLocation> mLocation;
 
   PRPackedBool mSuspended;
   PRPackedBool mCompileAttempted;

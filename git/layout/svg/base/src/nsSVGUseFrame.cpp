@@ -55,7 +55,9 @@ protected:
 
 public:
   NS_DECL_QUERYFRAME
+  NS_DECL_FRAMEARENA_HELPERS
 
+  
   // nsIFrame interface:
 #ifdef DEBUG
   NS_IMETHOD Init(nsIContent*      aContent,
@@ -67,7 +69,7 @@ public:
                                nsIAtom*        aAttribute,
                                PRInt32         aModType);
 
-  virtual void Destroy();
+  virtual void DestroyFrom(nsIFrame* aDestructRoot);
 
   /**
    * Get the "type" of the frame
@@ -97,6 +99,8 @@ NS_NewSVGUseFrame(nsIPresShell* aPresShell, nsStyleContext* aContext)
 {
   return new (aPresShell) nsSVGUseFrame(aContext);
 }
+
+NS_IMPL_FRAMEARENA_HELPERS(nsSVGUseFrame)
 
 nsIAtom *
 nsSVGUseFrame::GetType() const
@@ -147,10 +151,10 @@ nsSVGUseFrame::AttributeChanged(PRInt32         aNameSpaceID,
 }
 
 void
-nsSVGUseFrame::Destroy()
+nsSVGUseFrame::DestroyFrom(nsIFrame* aDestructRoot)
 {
   nsRefPtr<nsSVGUseElement> use = static_cast<nsSVGUseElement*>(mContent);
-  nsSVGUseFrameBase::Destroy();
+  nsSVGUseFrameBase::DestroyFrom(aDestructRoot);
   use->DestroyAnonymousContent();
 }
 

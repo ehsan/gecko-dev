@@ -158,8 +158,7 @@ nsIContent*
 nsHTMLOptGroupElement::GetSelect()
 {
   nsIContent* parent = this;
-  while ((parent = parent->GetParent()) &&
-         parent->IsNodeOfType(eHTML)) {
+  while ((parent = parent->GetParent()) && parent->IsHTML()) {
     if (parent->Tag() == nsGkAtoms::select) {
       return parent;
     }
@@ -187,7 +186,6 @@ nsHTMLOptGroupElement::InsertChildAt(nsIContent* aKid,
 nsresult
 nsHTMLOptGroupElement::RemoveChildAt(PRUint32 aIndex, PRBool aNotify, PRBool aMutationEvent)
 {
-  NS_ASSERTION(aMutationEvent, "Someone tried to inhibit mutation events on optgroup child removal.");
   nsSafeOptionListMutation safeMutation(GetSelect(), this, nsnull, aIndex);
   nsresult rv = nsGenericHTMLElement::RemoveChildAt(aIndex, aNotify, aMutationEvent);
   if (NS_FAILED(rv)) {

@@ -410,12 +410,14 @@
               return;
 
             var input = this.inputField;
-            if (accept) {
-              var value = input.value;
-              this.view.setCellText(this._editingRow, this._editingColumn, value);
-            }
+            var editingRow = this._editingRow;
+            var editingColumn = this._editingColumn;
             this._editingRow = -1;
             this._editingColumn = null;
+            if (accept) {
+              var value = input.value;
+              this.view.setCellText(editingRow, editingColumn, value);
+            }
 
             input.hidden = true;
             input.value = "";
@@ -908,6 +910,14 @@
           ]]>
         </getter>
       </property>
+      <constructor><![CDATA[
+        // Set resizeafter="farthest" on the splitters if nothing else has been
+        // specified.
+        Array.forEach(this.getElementsByTagName("splitter"), function (splitter) {
+          if (!splitter.hasAttribute("resizeafter"))
+            splitter.setAttribute("resizeafter", "farthest");
+        });
+      ]]></constructor>
     </implementation>
   </binding>
 
@@ -1366,7 +1376,7 @@
       <xul:image class="tree-columnpicker-icon"/>
       <xul:menupopup anonid="popup">
         <xul:menuseparator anonid="menuseparator"/>
-        <xul:menuitem anonid="menuitem" label="&restoreNaturalOrder.label;"/>
+        <xul:menuitem anonid="menuitem" label="&restoreColumnOrder.label;"/>
       </xul:menupopup>
     </content>
     

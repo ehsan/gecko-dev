@@ -224,10 +224,10 @@ nsXULTooltipListener::MouseMove(nsIDOMEvent* aMouseEvent)
   mMouseScreenY = newMouseY;
   mCachedMouseEvent = aMouseEvent;
 
-  nsCOMPtr<nsIDOMEventTarget> eventTarget;
-  aMouseEvent->GetCurrentTarget(getter_AddRefs(eventTarget));
+  nsCOMPtr<nsIDOMEventTarget> currentTarget;
+  aMouseEvent->GetCurrentTarget(getter_AddRefs(currentTarget));
 
-  nsCOMPtr<nsIContent> sourceContent = do_QueryInterface(eventTarget);
+  nsCOMPtr<nsIContent> sourceContent = do_QueryInterface(currentTarget);
   mSourceNode = do_GetWeakReference(sourceContent);
 #ifdef MOZ_XUL
   mIsSourceTree = sourceContent->Tag() == nsGkAtoms::treechildren;
@@ -244,22 +244,28 @@ nsXULTooltipListener::MouseMove(nsIDOMEvent* aMouseEvent)
   // showing and the tooltip hasn't been displayed since the mouse entered
   // the node, then start the timer to show the tooltip.
   if (!currentTooltip && !mTooltipShownOnce) {
-    // don't show tooltips attached to elements outside of a menu popup
-    // when hovering over an element inside it.
     nsCOMPtr<nsIDOMEventTarget> eventTarget;
     aMouseEvent->GetTarget(getter_AddRefs(eventTarget));
-    nsCOMPtr<nsIContent> targetContent = do_QueryInterface(eventTarget);
-    while (targetContent && targetContent != sourceContent) {
-      nsIAtom* tag = targetContent->Tag();
-      if (targetContent->GetNameSpaceID() == kNameSpaceID_XUL &&
-          (tag == nsGkAtoms::menupopup ||
-           tag == nsGkAtoms::panel ||
-           tag == nsGkAtoms::tooltip)) {
-        mSourceNode = nsnull;
-        return NS_OK;
-      }
 
-      targetContent = targetContent->GetParent();
+    // don't show tooltips attached to elements outside of a menu popup
+    // when hovering over an element inside it. The popupsinherittooltip
+    // attribute may be used to disable this behaviour, which is useful for
+    // large menu hierarchies such as bookmarks.
+    if (!sourceContent->AttrValueIs(kNameSpaceID_None, nsGkAtoms::popupsinherittooltip,
+                                    nsGkAtoms::_true, eCaseMatters)) {
+      nsCOMPtr<nsIContent> targetContent = do_QueryInterface(eventTarget);
+      while (targetContent && targetContent != sourceContent) {
+        nsIAtom* tag = targetContent->Tag();
+        if (targetContent->GetNameSpaceID() == kNameSpaceID_XUL &&
+            (tag == nsGkAtoms::menupopup ||
+             tag == nsGkAtoms::panel ||
+             tag == nsGkAtoms::tooltip)) {
+          mSourceNode = nsnull;
+          return NS_OK;
+        }
+
+        targetContent = targetContent->GetParent();
+      }
     }
 
     mTooltipTimer = do_CreateInstance("@mozilla.org/timer;1");
@@ -690,9 +696,7 @@ nsXULTooltipListener::GetTooltipFor(nsIContent* aTarget, nsIContent** aTooltip)
   // Submenus can't be used as tooltips, see bug 288763.
   nsIContent* parent = tooltip->GetParent();
   if (parent) {
-    nsIDocument* doc = parent->GetCurrentDoc();
-    nsIPresShell* presShell = doc ? doc->GetPrimaryShell() : nsnull;
-    nsIFrame* frame = presShell ? presShell->GetPrimaryFrameFor(parent) : nsnull;
+    nsIFrame* frame = parent->GetPrimaryFrame();
     if (frame && frame->GetType() == nsGkAtoms::menuFrame) {
       NS_WARNING("Menu cannot be used as a tooltip");
       return NS_ERROR_FAILURE;

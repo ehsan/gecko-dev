@@ -99,6 +99,10 @@ NSPoint nsCocoaUtils::ScreenLocationForEvent(NSEvent* anEvent)
 {
   NS_OBJC_BEGIN_TRY_ABORT_BLOCK_RETURN;
 
+  // Don't trust mouse locations of mouse move events, see bug 443178.
+  if (!anEvent || [anEvent type] == NSMouseMoved)
+    return [NSEvent mouseLocation];
+
   return [[anEvent window] convertBaseToScreen:[anEvent locationInWindow]];
 
   NS_OBJC_END_TRY_ABORT_BLOCK_RETURN(NSMakePoint(0.0, 0.0));
@@ -120,32 +124,6 @@ NSPoint nsCocoaUtils::EventLocationForWindow(NSEvent* anEvent, NSWindow* aWindow
   return [aWindow convertScreenToBase:ScreenLocationForEvent(anEvent)];
 
   NS_OBJC_END_TRY_ABORT_BLOCK_RETURN(NSMakePoint(0.0, 0.0));
-}
-
-NSWindow* nsCocoaUtils::FindWindowUnderPoint(NSPoint aPoint)
-{
-  NS_OBJC_BEGIN_TRY_ABORT_BLOCK_NIL;
-
-  int windowCount;
-  NSCountWindows(&windowCount);
-  int* windowList = (int*)malloc(sizeof(int) * windowCount);
-  if (!windowList)
-    return nil;
-  // The list we get back here is in order from front to back.
-  NSWindowList(windowCount, windowList);
-
-  for (int i = 0; i < windowCount; i++) {
-    NSWindow* currentWindow = [NSApp windowWithWindowNumber:windowList[i]];
-    if (currentWindow && NSPointInRect(aPoint, [currentWindow frame])) {
-      free(windowList);
-      return currentWindow;
-    }
-  }
-
-  free(windowList);
-  return nil;
-
-  NS_OBJC_END_TRY_ABORT_BLOCK_NIL;
 }
 
 void nsCocoaUtils::HideOSChromeOnScreen(PRBool aShouldHide, NSScreen* aScreen)

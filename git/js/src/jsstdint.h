@@ -70,6 +70,9 @@ typedef JSUint16 uint16_t;
 typedef JSUint32 uint32_t;
 typedef JSUint64 uint64_t;
 
+/* Suppress other, conflicting attempts to define stdint-bits. */
+#define _STDINT_H
+
 /* If JS_STDDEF_H_HAS_INTPTR_T or JS_CRTDEFS_H_HAS_INTPTR_T are
    defined, then jsinttypes.h included the given header, which
    introduced definitions for intptr_t and uintptr_t.  Otherwise,
@@ -78,6 +81,40 @@ typedef JSUint64 uint64_t;
 typedef JSIntPtr  intptr_t;
 typedef JSUintPtr uintptr_t;
 #endif
+
+#if !defined(__cplusplus) || defined(__STDC_LIMIT_MACROS)
+
+#define INT8_MAX  127
+#define INT8_MIN  (-INT8_MAX - 1)
+#define INT16_MAX 32767
+#define INT16_MIN (-INT16_MAX - 1)
+#define INT32_MAX 2147483647
+#define INT32_MIN (-INT32_MAX - 1)
+#define INT64_MAX 9223372036854775807LL
+#define INT64_MIN (-INT64_MAX - 1)
+
+#define UINT8_MAX  255
+#define UINT16_MAX 65535
+#define UINT32_MAX 4294967295U
+#define UINT64_MAX 18446744073709551615ULL
+
+/*
+ * These are technically wrong as they can't be used in the preprocessor, but
+ * we would require compiler assistance, and at the moment we don't need
+ * preprocessor-correctness.
+ */
+#ifdef _MSC_VER
+#undef SIZE_MAX
+#endif
+
+#define INTPTR_MAX  ((intptr_t) (UINTPTR_MAX >> 1))
+#define INTPTR_MIN  (intptr_t(uintptr_t(INTPTR_MAX) + uintptr_t(1)))
+#define UINTPTR_MAX ((uintptr_t) -1)
+#define SIZE_MAX UINTPTR_MAX
+#define PTRDIFF_MAX INTPTR_MAX
+#define PTRDIFF_MIN INTPTR_MIN
+
+#endif /* !defined(__cplusplus) || defined(__STDC_LIMIT_MACROS) */
 
 #endif /* JS_HAVE_STDINT_H */
 

@@ -86,6 +86,7 @@
 #include "nsProxyRelease.h"
 #include "nsIClassInfoImpl.h"
 #include "nsIProgrammingLanguage.h"
+#include "nsIArray.h"
 
 #include "ssl.h"
 #include "secerr.h"
@@ -219,6 +220,7 @@ nsNSSSocketInfo::nsNSSSocketInfo()
     mHasCleartextPhase(PR_FALSE),
     mHandshakeInProgress(PR_FALSE),
     mAllowTLSIntoleranceTimeout(PR_TRUE),
+    mRememberClientAuthCertificate(PR_FALSE),
     mHandshakeStartTime(0),
     mPort(0)
 {
@@ -401,8 +403,9 @@ nsNSSSocketInfo::EnsureDocShellDependentStuffKnown()
                          docshell.get(),
                          NS_PROXY_SYNC,
                          getter_AddRefs(proxiedDocShell));
-    nsISecureBrowserUI* secureUI;
-    proxiedDocShell->GetSecurityUI(&secureUI);
+    nsISecureBrowserUI* secureUI = nsnull;
+    if (proxiedDocShell)
+      proxiedDocShell->GetSecurityUI(&secureUI);
     if (secureUI)
     {
       nsCOMPtr<nsIThread> mainThread(do_GetMainThread());
@@ -921,8 +924,18 @@ AppendErrorTextUntrusted(PRErrorCode errTrust,
   if (!errorID) {
     switch (errTrust) {
       case SEC_ERROR_UNKNOWN_ISSUER:
-        errorID = "certErrorTrust_UnknownIssuer";
+      {
+        nsCOMPtr<nsIArray> chain;
+        ix509->GetChain(getter_AddRefs(chain));
+        PRUint32 length = 0;
+        if (chain && NS_FAILED(chain->GetLength(&length)))
+          length = 0;
+        if (length == 1)
+          errorID = "certErrorTrust_MissingChain";
+        else
+          errorID = "certErrorTrust_UnknownIssuer";
         break;
+      }
       case SEC_ERROR_INADEQUATE_KEY_USAGE:
         // Should get an individual string in the future
         // For now, use the same as CaInvalid
@@ -1132,6 +1145,7 @@ AppendErrorTextMismatch(const nsString &host,
 static void
 GetDateBoundary(nsIX509Cert* ix509,
                 nsString &formattedDate,
+                nsString &nowDate,
                 PRBool &trueExpired_falseNotYetValid)
 {
   trueExpired_falseNotYetValid = PR_TRUE;
@@ -1153,22 +1167,24 @@ GetDateBoundary(nsIX509Cert* ix509,
   if (NS_FAILED(rv))
     return;
 
-  if (LL_CMP(PR_Now(), >, notAfter)) {
+  PRTime now = PR_Now();
+  if (LL_CMP(now, >, notAfter)) {
     timeToUse = notAfter;
   } else {
     timeToUse = notBefore;
     trueExpired_falseNotYetValid = PR_FALSE;
   }
 
-  nsIDateTimeFormat* aDateTimeFormat;
-  rv = CallCreateInstance(NS_DATETIMEFORMAT_CONTRACTID, &aDateTimeFormat);
+  nsCOMPtr<nsIDateTimeFormat> dateTimeFormat(do_CreateInstance(NS_DATETIMEFORMAT_CONTRACTID, &rv));
   if (NS_FAILED(rv))
     return;
 
-  aDateTimeFormat->FormatPRTime(nsnull, kDateFormatShort, 
-                                kTimeFormatNoSeconds, timeToUse, 
-                                formattedDate);
-  NS_IF_RELEASE(aDateTimeFormat);
+  dateTimeFormat->FormatPRTime(nsnull, kDateFormatShort, 
+                               kTimeFormatNoSeconds, timeToUse, 
+                               formattedDate);
+  dateTimeFormat->FormatPRTime(nsnull, kDateFormatShort,
+                               kTimeFormatNoSeconds, now,
+                               nowDate);
 }
 
 static void
@@ -1176,19 +1192,23 @@ AppendErrorTextTime(nsIX509Cert* ix509,
                     nsINSSComponent *component,
                     nsString &returnedMessage)
 {
-  nsAutoString formattedDate;
+  nsAutoString formattedDate, nowDate;
   PRBool trueExpired_falseNotYetValid;
-  GetDateBoundary(ix509, formattedDate, trueExpired_falseNotYetValid);
+  GetDateBoundary(ix509, formattedDate, nowDate, trueExpired_falseNotYetValid);
 
-  const PRUnichar *params[1];
+  const PRUnichar *params[2];
   params[0] = formattedDate.get(); // might be empty, if helper function had a problem 
+  params[1] = nowDate.get();
 
   const char *key = trueExpired_falseNotYetValid ? 
-                    "certErrorExpired" : "certErrorNotYetValid";
+                    "certErrorExpiredNow" : "certErrorNotYetValidNow";
   nsresult rv;
   nsString formattedString;
-  rv = component->PIPBundleFormatStringFromName(key, params, 
-                                                1, formattedString);
+  rv = component->PIPBundleFormatStringFromName(
+           key,
+           params, 
+           NS_ARRAY_LENGTH(params),
+           formattedString);
   if (NS_SUCCEEDED(rv))
   {
     returnedMessage.Append(formattedString);
@@ -3196,8 +3216,11 @@ nsNSSBadCertHandler(void *arg, PRFileDesc *sslSocket)
   PRErrorCode errorCodeTrust = SECSuccess;
   PRErrorCode errorCodeMismatch = SECSuccess;
   PRErrorCode errorCodeExpired = SECSuccess;
-  
+
   char *hostname = SSL_RevealURL(sslSocket);
+  if (!hostname)
+    return cancel_and_failure(infoObject);
+
   charCleaner hostnameCleaner(hostname); 
   nsDependentCString hostString(hostname);
 
@@ -3211,7 +3234,7 @@ nsNSSBadCertHandler(void *arg, PRFileDesc *sslSocket)
   NS_ConvertUTF8toUTF16 hostWithPortStringUTF16(hostWithPortString);
 
   // Check the name field against the desired hostname.
-  if (hostname && hostname[0] &&
+  if (hostname[0] &&
       CERT_VerifyCertName(peerCert, hostname) != SECSuccess) {
     collected_errors |= nsICertOverrideService::ERROR_MISMATCH;
     errorCodeMismatch = SSL_ERROR_BAD_CERT_DOMAIN;

@@ -96,6 +96,7 @@
 #include "nsIDOMStorageObsolete.h"
 #include "nsIDOMStorageList.h"
 #include "nsIDOMStorageWindow.h"
+#include "nsIDOMStorageEvent.h"
 #include "nsIDOMOfflineResourceList.h"
 #include "nsPIDOMEventTarget.h"
 #include "nsIArray.h"
@@ -108,7 +109,7 @@ class nsIDOMBarProp;
 class nsIDocument;
 class nsPresContext;
 class nsIDOMEvent;
-class nsIScrollableView;
+class nsIScrollableFrame;
 class nsIControllers;
 
 class nsBarProp;
@@ -122,16 +123,10 @@ class nsGlobalWindowObserver;
 class nsGlobalWindow;
 class nsDummyJavaPluginOwner;
 class PostMessageEvent;
+class nsRunnable;
 
 class nsDOMOfflineResourceList;
 class nsGeolocation;
-
-// permissible values for CheckOpenAllow
-enum OpenAllowValue {
-  allowNot = 0,     // the window opening is denied
-  allowNoAbuse,     // allowed: not a popup
-  allowWhitelisted  // allowed: it's whitelisted or popup blocking is disabled
-};
 
 extern nsresult
 NS_CreateJSTimeoutHandler(nsGlobalWindow *aWindow,
@@ -192,6 +187,9 @@ struct nsTimeout : PRCList
   // stack depth at which timeout is firing
   PRUint32 mFiringDepth;
 
+  // 
+  PRUint32 mNestingLevel;
+
   // The popup state at timeout creation time if not created from
   // another timeout
   PopupControlState mPopupState;
@@ -242,6 +240,7 @@ public:
   nsPIDOMWindow* GetPrivateParent();
   // callback for close event
   void ReallyCloseWindow();
+  void ReallyClearScope(nsRunnable *aRunnable);
 
   // nsISupports
   NS_DECL_CYCLE_COLLECTING_ISUPPORTS
@@ -261,7 +260,6 @@ public:
   
   virtual void OnFinalize(PRUint32 aLangID, void *aScriptGlobal);
   virtual void SetScriptsEnabled(PRBool aEnabled, PRBool aFireTimeouts);
-  virtual nsresult SetNewArguments(nsIArray *aArguments);
 
   // nsIScriptObjectPrincipal
   virtual nsIPrincipal* GetPrincipal();
@@ -338,14 +336,19 @@ public:
 
   virtual NS_HIDDEN_(void) SetDocShell(nsIDocShell* aDocShell);
   virtual NS_HIDDEN_(nsresult) SetNewDocument(nsIDocument *aDocument,
-                                  nsISupports *aState,
-                                  PRBool aClearScopeHint);
+                                              nsISupports *aState,
+                                              PRBool aClearScopeHint);
   virtual NS_HIDDEN_(void) SetOpenerWindow(nsIDOMWindowInternal *aOpener,
                                            PRBool aOriginalOpener);
   virtual NS_HIDDEN_(void) EnsureSizeUpToDate();
 
   virtual NS_HIDDEN_(void) EnterModalState();
   virtual NS_HIDDEN_(void) LeaveModalState();
+
+  virtual NS_HIDDEN_(PRBool) CanClose();
+  virtual NS_HIDDEN_(nsresult) ForceClose();
+
+  virtual NS_HIDDEN_(void) SetHasOrientationEventListener();
 
   // nsIDOMViewCSS
   NS_DECL_NSIDOMVIEWCSS
@@ -444,7 +447,10 @@ public:
   virtual PRBool TakeFocus(PRBool aFocus, PRUint32 aFocusMethod);
   virtual void SetReadyForFocus();
   virtual void PageHidden();
-  virtual nsresult DispatchAsyncHashchange();
+  virtual nsresult DispatchSyncHashchange();
+  virtual nsresult DispatchSyncPopState();
+
+  virtual nsresult SetArguments(nsIArray *aArguments, nsIPrincipal *aOrigin);
 
   static PRBool DOMWindowDumpEnabled();
 
@@ -453,6 +459,7 @@ protected:
   virtual ~nsGlobalWindow();
   void CleanUp();
   void ClearControllers();
+  nsresult FinalClose();
 
   void FreeInnerObjects(PRBool aClearScope);
   nsGlobalWindow *CallerInnerWindow();
@@ -461,6 +468,7 @@ protected:
                           nsISupports *aState,
                           PRBool aClearScopeHint,
                           PRBool aIsInternalCall);
+  nsresult DefineArgumentsProperty(nsIArray *aArguments);
 
   // Get the parent, returns null if this is a toplevel window
   nsIDOMWindowInternal *GetParentInternal();
@@ -559,22 +567,21 @@ protected:
   nsresult GetTreeOwner(nsIDocShellTreeOwner** aTreeOwner);
   nsresult GetTreeOwner(nsIBaseWindow** aTreeOwner);
   nsresult GetWebBrowserChrome(nsIWebBrowserChrome** aBrowserChrome);
-  // GetScrollInfo does not flush.  Callers should do it themselves as needed,
-  // depending on which info they actually want off the scrollable view.
-  nsresult GetScrollInfo(nsIScrollableView** aScrollableView);
+  // GetScrollFrame does not flush.  Callers should do it themselves as needed,
+  // depending on which info they actually want off the scrollable frame.
+  nsIScrollableFrame *GetScrollFrame();
   nsresult SecurityCheckURL(const char *aURL);
   nsresult BuildURIfromBase(const char *aURL,
                             nsIURI **aBuiltURI,
                             PRBool *aFreeSecurityPass, JSContext **aCXused);
-  PopupControlState CheckForAbusePoint();
-  OpenAllowValue CheckOpenAllow(PopupControlState aAbuseLevel);
+  PRBool PopupWhitelisted();
+  PopupControlState RevisePopupAbuseLevel(PopupControlState);
   void     FireAbuseEvents(PRBool aBlocked, PRBool aWindow,
                            const nsAString &aPopupURL,
                            const nsAString &aPopupWindowName,
                            const nsAString &aPopupWindowFeatures);
   void FireOfflineStatusEvent();
-  nsresult FireHashchange();
-  
+
   void FlushPendingNotifications(mozFlushType aType);
   void EnsureReflowFlushAndPaint();
   nsresult CheckSecurityWidthAndHeight(PRInt32* width, PRInt32* height);
@@ -707,11 +714,15 @@ protected:
   PRPackedBool           mNeedsFocus : 1;
   PRPackedBool           mHasFocus : 1;
 
+  // Indicates whether this window is getting acceleration change events
+  PRPackedBool           mHasAcceleration  : 1;
+
   nsCOMPtr<nsIScriptContext>    mContext;
   nsWeakPtr                     mOpener;
   nsCOMPtr<nsIControllers>      mControllers;
   nsCOMPtr<nsIArray>            mArguments;
   nsCOMPtr<nsIArray>            mArgumentsLast;
+  nsCOMPtr<nsIPrincipal>        mArgumentsOrigin;
   nsRefPtr<nsNavigator>         mNavigator;
   nsRefPtr<nsScreen>            mScreen;
   nsRefPtr<nsHistory>           mHistory;
@@ -734,6 +745,7 @@ protected:
   nsCOMPtr<nsIDOMCrypto>        mCrypto;
 
   nsCOMPtr<nsIDOMStorage>      mLocalStorage;
+  nsCOMPtr<nsIDOMStorage>      mSessionStorage;
 
   nsCOMPtr<nsISupports>         mInnerWindowHolders[NS_STID_ARRAY_UBOUND];
   nsCOMPtr<nsIPrincipal> mOpenerScriptPrincipal; // strong; used to determine
@@ -746,7 +758,6 @@ protected:
   nsTimeout*                    mTimeoutInsertionPoint;
   PRUint32                      mTimeoutPublicIdCounter;
   PRUint32                      mTimeoutFiringDepth;
-  nsCOMPtr<nsIDOMStorageObsolete>       mSessionStorage;
 
   // Holder of the dummy java plugin, used to expose window.java and
   // window.packages.
@@ -757,7 +768,9 @@ protected:
   nsCOMPtr<nsIDocument> mDoc;  // For fast access to principals
   JSObject* mJSObject;
 
-  nsDataHashtable<nsStringHashKey, PRBool> *mPendingStorageEvents;
+  typedef nsTArray<nsCOMPtr<nsIDOMStorageEvent> > nsDOMStorageEventArray;
+  nsDOMStorageEventArray mPendingStorageEvents;
+  nsDataHashtable<nsStringHashKey, PRBool> *mPendingStorageEventsObsolete;
 
   PRUint32 mTimeoutsSuspendDepth;
 
@@ -832,6 +845,10 @@ public:
   NS_DECL_NSIDOMMODALCONTENTWINDOW
 
   NS_DECL_CYCLE_COLLECTION_CLASS_INHERITED(nsGlobalModalWindow, nsGlobalWindow)
+
+  virtual NS_HIDDEN_(nsresult) SetNewDocument(nsIDocument *aDocument,
+                                              nsISupports *aState,
+                                              PRBool aClearScopeHint);
 
 protected:
   nsCOMPtr<nsIVariant> mReturnValue;

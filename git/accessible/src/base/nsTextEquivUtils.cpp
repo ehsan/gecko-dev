@@ -149,17 +149,17 @@ nsTextEquivUtils::AppendTextEquivFromContent(nsIAccessible *aInitiatorAcc,
   // If the given content is not visible or isn't accessible then go down
   // through the DOM subtree otherwise go down through accessible subtree and
   // calculate the flat string.
-  nsIFrame *frame = shell->GetPrimaryFrameFor(aContent);
+  nsIFrame *frame = aContent->GetPrimaryFrame();
   PRBool isVisible = frame && frame->GetStyleVisibility()->IsVisible();
 
-  nsresult rv;
+  nsresult rv = NS_ERROR_FAILURE;
   PRBool goThroughDOMSubtree = PR_TRUE;
 
   if (isVisible) {
     nsCOMPtr<nsIAccessible> accessible;
-    rv = nsAccessNode::GetAccService()->
-      GetAccessibleInShell(DOMNode, shell, getter_AddRefs(accessible));
-    if (NS_SUCCEEDED(rv) && accessible) {
+    GetAccService()->GetAccessibleInShell(DOMNode, shell,
+                                               getter_AddRefs(accessible));
+    if (accessible) {
       rv = AppendFromAccessible(accessible, aString);
       goThroughDOMSubtree = PR_FALSE;
     }
@@ -181,12 +181,10 @@ nsTextEquivUtils::AppendTextEquivFromTextContent(nsIContent *aContent,
     nsCOMPtr<nsIDOMNode> DOMNode(do_QueryInterface(aContent));
     
     PRBool isHTMLBlock = PR_FALSE;
-    nsCOMPtr<nsIPresShell> shell = nsCoreUtils::GetPresShellFor(DOMNode);
-    NS_ENSURE_STATE(shell);
     
     nsIContent *parentContent = aContent->GetParent();
     if (parentContent) {
-      nsIFrame *frame = shell->GetPrimaryFrameFor(parentContent);
+      nsIFrame *frame = parentContent->GetPrimaryFrame();
       if (frame) {
         // If this text is inside a block level frame (as opposed to span
         // level), we need to add spaces around that block's text, so we don't
@@ -203,7 +201,7 @@ nsTextEquivUtils::AppendTextEquivFromTextContent(nsIContent *aContent,
     }
     
     if (aContent->TextLength() > 0) {
-      nsIFrame *frame = shell->GetPrimaryFrameFor(aContent);
+      nsIFrame *frame = aContent->GetPrimaryFrame();
       if (frame) {
         nsresult rv = frame->GetRenderedText(aString);
         NS_ENSURE_SUCCESS(rv, rv);
@@ -219,7 +217,7 @@ nsTextEquivUtils::AppendTextEquivFromTextContent(nsIContent *aContent,
     return NS_OK;
   }
   
-  if (aContent->IsNodeOfType(nsINode::eHTML) &&
+  if (aContent->IsHTML() &&
       aContent->NodeInfo()->Equals(nsAccessibilityAtoms::br)) {
     aString->AppendLiteral("\r\n");
     return NS_OK;
@@ -393,7 +391,7 @@ nsTextEquivUtils::AppendFromDOMNode(nsIContent *aContent, nsAString *aString)
   if (rv != NS_OK_NO_NAME_CLAUSE_HANDLED)
     return NS_OK;
 
-  if (aContent->IsNodeOfType(nsINode::eXUL)) {
+  if (aContent->IsXUL()) {
     nsAutoString textEquivalent;
     nsCOMPtr<nsIDOMXULLabeledControlElement> labeledEl =
       do_QueryInterface(aContent);
@@ -563,7 +561,7 @@ PRUint32 nsTextEquivUtils::gRoleToNameRulesMap[] =
   eFromValue,        // ROLE_ENTRY
   eNoRule,           // ROLE_CAPTION
   eNoRule,           // ROLE_DOCUMENT_FRAME
-  eNoRule,           // ROLE_HEADING
+  eFromSubtreeIfRec, // ROLE_HEADING
   eNoRule,           // ROLE_PAGE
   eFromSubtreeIfRec, // ROLE_SECTION
   eNoRule,           // ROLE_REDUNDANT_OBJECT

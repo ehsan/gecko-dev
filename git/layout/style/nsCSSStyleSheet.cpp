@@ -150,8 +150,9 @@ CSSRuleListImpl::GetItemAt(PRUint32 aIndex, nsresult* aResult)
   nsresult result = NS_OK;
 
   if (mStyleSheet) {
-    result = mStyleSheet->EnsureUniqueInner(); // needed to ensure rules have correct parent
-    if (NS_SUCCEEDED(result)) {
+    // ensure rules have correct parent
+    if (mStyleSheet->EnsureUniqueInner() !=
+          nsCSSStyleSheet::eUniqueInner_CloneFailed) {
       nsCOMPtr<nsICSSRule> rule;
 
       result = mStyleSheet->GetStyleRuleAt(aIndex, *getter_AddRefs(rule));
@@ -353,7 +354,8 @@ nsMediaQueryResultCacheKey::Matches(nsPresContext* aPresContext) const
   for (PRUint32 i = 0; i < mFeatureCache.Length(); ++i) {
     const FeatureEntry *entry = &mFeatureCache[i];
     nsCSSValue actual;
-    nsresult rv = (entry->mFeature->mGetter)(aPresContext, actual);
+    nsresult rv =
+      (entry->mFeature->mGetter)(aPresContext, entry->mFeature, actual);
     NS_ENSURE_SUCCESS(rv, PR_FALSE); // any better ideas?
 
     for (PRUint32 j = 0; j < entry->mExpressions.Length(); ++j) {
@@ -462,7 +464,7 @@ nsMediaQuery::AppendToString(nsAString& aString) const
                        "bad unit");
           AppendASCIItoUTF16(
               nsCSSProps::ValueToKeyword(expr.mValue.GetIntValue(),
-                                         feature->mKeywordTable),
+                                         feature->mData.mKeywordTable),
               aString);
           break;
       }
@@ -494,7 +496,8 @@ nsMediaQuery::Matches(nsPresContext* aPresContext,
   for (PRUint32 i = 0, i_end = mExpressions.Length(); match && i < i_end; ++i) {
     const nsMediaExpression &expr = mExpressions[i];
     nsCSSValue actual;
-    nsresult rv = (expr.mFeature->mGetter)(aPresContext, actual);
+    nsresult rv =
+      (expr.mFeature->mGetter)(aPresContext, expr.mFeature, actual);
     NS_ENSURE_SUCCESS(rv, PR_FALSE); // any better ideas?
 
     match = expr.Matches(aPresContext, actual);
@@ -960,7 +963,7 @@ nsCSSStyleSheetInner::RebuildNameSpaces()
 nsresult
 nsCSSStyleSheetInner::CreateNamespaceMap()
 {
-  mNameSpaceMap = nsXMLNameSpaceMap::Create();
+  mNameSpaceMap = nsXMLNameSpaceMap::Create(PR_FALSE);
   NS_ENSURE_TRUE(mNameSpaceMap, NS_ERROR_OUT_OF_MEMORY);
   // Override the default namespace map behavior for the null prefix to
   // return the wildcard namespace instead of the null namespace.
@@ -1015,6 +1018,7 @@ nsCSSStyleSheet::nsCSSStyleSheet(const nsCSSStyleSheet& aCopy,
   if (aCopy.mRuleCollection && 
       aCopy.mRuleCollection->mRulesAccessed) {  // CSSOM's been there, force full copy now
     NS_ASSERTION(mInner->mComplete, "Why have rules been accessed on an incomplete sheet?");
+    // FIXME: handle failure?
     EnsureUniqueInner();
   }
 
@@ -1463,20 +1467,37 @@ nsCSSStyleSheet::GetStyleSheetAt(PRInt32 aIndex, nsICSSStyleSheet*& aSheet) cons
   return NS_OK;
 }
 
-nsresult  
+nsCSSStyleSheet::EnsureUniqueInnerResult
 nsCSSStyleSheet::EnsureUniqueInner()
 {
-  if (1 < mInner->mSheets.Length()) {
-    nsCSSStyleSheetInner* clone = mInner->CloneFor(this);
-    if (clone) {
-      mInner->RemoveSheet(this);
-      mInner = clone;
-    }
-    else {
-      return NS_ERROR_OUT_OF_MEMORY;
+  NS_ABORT_IF_FALSE(mInner->mSheets.Length() != 0,
+                    "unexpected number of outers");
+  if (mInner->mSheets.Length() == 1) {
+    return eUniqueInner_AlreadyUnique;
+  }
+  nsCSSStyleSheetInner* clone = mInner->CloneFor(this);
+  if (!clone) {
+    return eUniqueInner_CloneFailed;
+  }
+  mInner->RemoveSheet(this);
+  mInner = clone;
+
+  // otherwise the rule processor has pointers to the old rules
+  ClearRuleCascades();
+
+  return eUniqueInner_ClonedInner;
+}
+
+PRBool
+nsCSSStyleSheet::AppendAllChildSheets(nsTArray<nsCSSStyleSheet*>& aArray)
+{
+  for (nsCSSStyleSheet* child = mInner->mFirstChild; child;
+       child = child->mNext) {
+    if (!aArray.AppendElement(child)) {
+      return PR_FALSE;
     }
   }
-  return NS_OK;
+  return PR_TRUE;
 }
 
 NS_IMETHODIMP
@@ -1575,8 +1596,11 @@ nsCSSStyleSheet::WillDirty()
     // Do nothing
     return NS_OK;
   }
-  
-  return EnsureUniqueInner();
+
+  if (EnsureUniqueInner() == eUniqueInner_CloneFailed) {
+    return NS_ERROR_OUT_OF_MEMORY;
+  }
+  return NS_OK;
 }
 
 void

@@ -37,7 +37,7 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
-#ifdef MOZ_PLATFORM_HILDON
+#if defined (MOZ_PLATFORM_HILDON) && defined (MOZ_ENABLE_GNOMEVFS)
 #include <glib.h>
 #include <hildon-uri.h>
 #include <hildon-mime.h>
@@ -46,7 +46,9 @@
 
 #include "nsMIMEInfoUnix.h"
 #include "nsGNOMERegistry.h"
+#include "nsIGIOService.h"
 #include "nsIGnomeVFSService.h"
+#include "nsAutoPtr.h"
 #ifdef MOZ_ENABLE_DBUS
 #include "nsDBusHandlerApp.h"
 #endif
@@ -55,7 +57,7 @@ nsresult
 nsMIMEInfoUnix::LoadUriInternal(nsIURI * aURI)
 {
   nsresult rv = nsGNOMERegistry::LoadURL(aURI);
-#ifdef MOZ_PLATFORM_HILDON
+#if defined (MOZ_PLATFORM_HILDON) && defined (MOZ_ENABLE_GNOMEVFS)
   if (NS_FAILED(rv)){
     HildonURIAction *action = hildon_uri_get_default_action(mType.get(), nsnull);
     if (action) {
@@ -74,17 +76,21 @@ NS_IMETHODIMP
 nsMIMEInfoUnix::GetHasDefaultHandler(PRBool *_retval)
 {
   *_retval = PR_FALSE;
-  nsCOMPtr<nsIGnomeVFSService> vfs = do_GetService(NS_GNOMEVFSSERVICE_CONTRACTID);
-  if (vfs) {
-    nsCOMPtr<nsIGnomeVFSMimeApp> app;
-    if (NS_SUCCEEDED(vfs->GetAppForMimeType(mType, getter_AddRefs(app))) && app)
-      *_retval = PR_TRUE;
+  nsRefPtr<nsMIMEInfoBase> mimeInfo = nsGNOMERegistry::GetFromType(mType);
+  if (!mimeInfo) {
+    nsCAutoString ext;
+    nsresult rv = GetPrimaryExtension(ext);
+    if (NS_SUCCEEDED(rv)) {
+      mimeInfo = nsGNOMERegistry::GetFromExtension(ext);
+    }
   }
+  if (mimeInfo)
+    *_retval = PR_TRUE;
 
   if (*_retval)
     return NS_OK;
 
-#ifdef MOZ_PLATFORM_HILDON
+#if defined (MOZ_PLATFORM_HILDON) && defined (MOZ_ENABLE_GNOMEVFS)
   HildonURIAction *action = hildon_uri_get_default_action(mType.get(), nsnull);
   if (action) {
     *_retval = PR_TRUE;
@@ -103,16 +109,39 @@ nsMIMEInfoUnix::LaunchDefaultWithFile(nsIFile *aFile)
   nsCAutoString nativePath;
   aFile->GetNativePath(nativePath);
 
-#ifdef MOZ_PLATFORM_HILDON
+#if defined (MOZ_PLATFORM_HILDON) && defined (MOZ_ENABLE_GNOMEVFS)
   if(NS_SUCCEEDED(LaunchDefaultWithDBus(PromiseFlatCString(nativePath).get())))
     return NS_OK;
 #endif
 
-  nsCOMPtr<nsIGnomeVFSService> vfs = do_GetService(NS_GNOMEVFSSERVICE_CONTRACTID);
-  if (vfs) {
-    nsCOMPtr<nsIGnomeVFSMimeApp> app;
-    if (NS_SUCCEEDED(vfs->GetAppForMimeType(mType, getter_AddRefs(app))) && app)
+  nsCOMPtr<nsIGIOService> giovfs = do_GetService(NS_GIOSERVICE_CONTRACTID);
+  nsCOMPtr<nsIGnomeVFSService> gnomevfs = do_GetService(NS_GNOMEVFSSERVICE_CONTRACTID);
+  if (giovfs) {
+    nsCOMPtr<nsIGIOMimeApp> app;
+    if (NS_SUCCEEDED(giovfs->GetAppForMimeType(mType, getter_AddRefs(app))) && app)
       return app->Launch(nativePath);
+  } else if (gnomevfs) {
+    /* Fallback to GnomeVFS */
+    nsCOMPtr<nsIGnomeVFSMimeApp> app;
+    if (NS_SUCCEEDED(gnomevfs->GetAppForMimeType(mType, getter_AddRefs(app))) && app)
+      return app->Launch(nativePath);
+  }
+
+  // If we haven't got an app we try to get a valid one by searching for the
+  // extension mapped type
+  nsRefPtr<nsMIMEInfoBase> mimeInfo = nsGNOMERegistry::GetFromExtension(nativePath);
+  if (mimeInfo) {
+    nsCAutoString type;
+    mimeInfo->GetType(type);
+    if (giovfs) {
+      nsCOMPtr<nsIGIOMimeApp> app;
+      if (NS_SUCCEEDED(giovfs->GetAppForMimeType(type, getter_AddRefs(app))) && app)
+        return app->Launch(nativePath);
+    } else if (gnomevfs) {
+      nsCOMPtr<nsIGnomeVFSMimeApp> app;
+      if (NS_SUCCEEDED(gnomevfs->GetAppForMimeType(type, getter_AddRefs(app))) && app)
+        return app->Launch(nativePath);
+    }
   }
 
   if (!mDefaultApplication)
@@ -121,7 +150,7 @@ nsMIMEInfoUnix::LaunchDefaultWithFile(nsIFile *aFile)
   return LaunchWithIProcess(mDefaultApplication, nativePath);
 }
 
-#ifdef MOZ_PLATFORM_HILDON
+#if defined (MOZ_PLATFORM_HILDON) && defined (MOZ_ENABLE_GNOMEVFS)
 
 /* This method tries to launch the associated default handler for the given 
  * mime/file via hildon specific APIs (in this case hildon_mime_open_file* 

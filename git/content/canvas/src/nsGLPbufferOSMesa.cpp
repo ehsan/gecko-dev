@@ -37,18 +37,18 @@
  * ***** END LICENSE BLOCK ***** */
 
 // this must be first, else windows.h breaks us
-#include "nsICanvasRenderingContextGL.h"
-
 #include "nsDirectoryServiceUtils.h"
 #include "nsAppDirectoryServiceDefs.h"
 #include "nsIPrefService.h"
 
+#include "glwrap.h"
+
 #include "nsGLPbuffer.h"
-#include "nsCanvasRenderingContextGL.h"
 
 #include "gfxContext.h"
+#include "gfxImageSurface.h"
 
-#include "glwrap.h"
+using namespace mozilla;
 
 #if 0
 #include <GL/osmesa.h>
@@ -71,7 +71,7 @@ nsGLPbufferOSMESA::nsGLPbufferOSMESA()
 }
 
 PRBool
-nsGLPbufferOSMESA::Init(nsCanvasRenderingContextGLPrivate *priv)
+nsGLPbufferOSMESA::Init(WebGLContext *priv)
 {
     mPriv = priv;
     nsresult rv;
@@ -80,12 +80,14 @@ nsGLPbufferOSMESA::Init(nsCanvasRenderingContextGLPrivate *priv)
     NS_ENSURE_SUCCESS(rv, PR_FALSE);
 
     nsCOMPtr<nsIPrefBranch> prefBranch;
-    rv = prefService->GetBranch("extensions.canvas3d.", getter_AddRefs(prefBranch));
+    rv = prefService->GetBranch("webgl.", getter_AddRefs(prefBranch));
     NS_ENSURE_SUCCESS(rv, PR_FALSE);
 
     nsCString osmesalib;
 
     rv = prefBranch->GetCharPref("osmesalib", getter_Copies(osmesalib));
+
+#if 0
     if (NS_FAILED(rv)) {
         osmesalib.Truncate();
 
@@ -113,7 +115,7 @@ nsGLPbufferOSMESA::Init(nsCanvasRenderingContextGLPrivate *priv)
         rv |= libfile->Append(NS_LITERAL_STRING("libOSMesa.so.7"));
 #else
 #warning No default osmesa library path available
-        LogMessage(NS_LITERAL_STRING("Canvas 3D: No default OSMesa lib path available -- please set the extensions.canvas3d.osmesalib pref to the full path to the OSMesa shared library"));
+        LogMessage("Canvas 3D: No default OSMesa lib path available -- please set the extensions.canvas3d.osmesalib pref to the full path to the OSMesa shared library");
         rv = NS_ERROR_FAILURE;
 #endif
 
@@ -123,20 +125,23 @@ nsGLPbufferOSMESA::Init(nsCanvasRenderingContextGLPrivate *priv)
         PRBool exists = PR_FALSE;
         rv = libfile->Exists(&exists);
         if (NS_FAILED(rv) || !exists) {
-            LogMessage(NS_LITERAL_CSTRING("Canvas 3D: Couldn't find OSMesa lib -- either default or extension.canvas3d.osmesalib path is incorrect"));
+            LogMessage("Canvas 3D: Couldn't find OSMesa lib -- either default or extension.canvas3d.osmesalib path is incorrect");
             return PR_FALSE;
         }
 
         // I'm told by the comments in nsIFile that I'm not supposed to do this.  Noted.
         rv = libfile->GetNativeTarget(osmesalib);
         if (NS_FAILED(rv)) {
-            LogMessage(NS_LITERAL_CSTRING("Canvas 3D: Couldn't find OSMesa lib"));
+            LogMessage("Canvas 3D: Couldn't find OSMesa lib");
             return PR_FALSE;
         }
     }
-
-    if (!gMesaWrap.OpenLibrary(osmesalib.get())) {
-        LogMessage(NS_LITERAL_CSTRING("Canvas 3D: Couldn't open OSMesa lib -- either default or extension.canvas3d.osmesalib path is incorrect, or not a valid shared library"));
+#endif
+    if (NS_FAILED(rv) ||
+        osmesalib.Length() == 0 ||
+        !gMesaWrap.OpenLibrary(osmesalib.get()))
+    {
+        LogMessage("Canvas 3D: Couldn't open OSMesa lib -- webgl.osmesalib path is incorrect, or not a valid shared library");
         return PR_FALSE;
     }
 
@@ -151,14 +156,14 @@ nsGLPbufferOSMESA::Init(nsCanvasRenderingContextGLPrivate *priv)
     Resize (2, 2);
 
     if (!mGLWrap.OpenLibrary(osmesalib.get())) {
-        LogMessage(NS_LITERAL_CSTRING("Canvas 3D: Couldn't open OSMesa lib [1]"));
+        LogMessage("Canvas 3D: Couldn't open OSMesa lib [1]");
         return PR_FALSE;
     }
 
     mGLWrap.SetLookupFunc((LibrarySymbolLoader::PlatformLookupFunction) gMesaWrap.fGetProcAddress);
 
     if (!mGLWrap.Init(GLES20Wrap::TRY_SOFTWARE_GL)) {
-        LogMessage(NS_LITERAL_CSTRING("Canvas 3D: GLWrap init failed"));
+        LogMessage("Canvas 3D: GLWrap init failed");
         return PR_FALSE;
     }
 
@@ -176,8 +181,8 @@ nsGLPbufferOSMESA::Resize(PRInt32 width, PRInt32 height)
 
     Destroy();
 
-    mThebesSurface = CanvasGLThebes::CreateImageSurface(gfxIntSize(width, height),
-                                                        gfxASurface::ImageFormatARGB32);
+    mThebesSurface = new gfxImageSurface(gfxIntSize(width, height),
+                                         gfxASurface::ImageFormatARGB32);
     if (mThebesSurface->CairoStatus() != 0) {
         fprintf (stderr, "image surface failed\n");
         return PR_FALSE;
@@ -191,7 +196,7 @@ nsGLPbufferOSMESA::Resize(PRInt32 width, PRInt32 height)
 
     fprintf (stderr, "Surface: %p\n", mThebesSurface->Data());
 
-    if (!gMesaWrap.fMakeCurrent (mMesaContext, mThebesSurface->Data(), GL_UNSIGNED_BYTE, width, height))
+    if (!gMesaWrap.fMakeCurrent (mMesaContext, mThebesSurface->Data(), LOCAL_GL_UNSIGNED_BYTE, width, height))
     {
         fprintf (stderr, "OSMesaMakeCurrent failed!\n");
         return PR_FALSE;
@@ -233,7 +238,7 @@ nsGLPbufferOSMESA::MakeContextCurrent()
     if (gMesaWrap.fGetCurrentContext() == mMesaContext)
         return;
 
-    gMesaWrap.fMakeCurrent (mMesaContext, mThebesSurface->Data(), GL_UNSIGNED_BYTE, mWidth, mHeight);
+    gMesaWrap.fMakeCurrent (mMesaContext, mThebesSurface->Data(), LOCAL_GL_UNSIGNED_BYTE, mWidth, mHeight);
 }
 
 void

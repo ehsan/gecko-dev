@@ -41,12 +41,12 @@
 
 // NOTE: alphabetically ordered
 #include "nsBaseWidgetAccessible.h"
-#include "nsXULSelectAccessible.h"
+#include "nsXULMenuAccessible.h"
 
 /**
  * An individual tab, xul:tab element
  */
-class nsXULTabAccessible : public nsLeafAccessible
+class nsXULTabAccessible : public nsAccessibleWrap
 {
 public:
   enum { eAction_Switch = 0 };
@@ -61,7 +61,8 @@ public:
                                nsIAccessibleRelation **aRelation);
 
   // nsAccessible
-  virtual nsresult GetAttributesInternal(nsIPersistentProperties *aAttributes);
+  virtual void GetPositionAndSizeInternal(PRInt32 *aPosInSet,
+                                          PRInt32 *aSetSize);
   virtual nsresult GetRoleInternal(PRUint32 *aRole);
   virtual nsresult GetStateInternal(PRUint32 *aState, PRUint32 *aExtraState);
 };

@@ -79,7 +79,6 @@ class DeleteTextTxn;
 class SplitElementTxn;
 class JoinElementTxn;
 class EditAggregateTxn;
-class nsILocale;
 class IMETextTxn;
 class AddStyleSheetTxn;
 class RemoveStyleSheetTxn;
@@ -166,9 +165,10 @@ public:
                                nsCOMPtr<nsIDOMNode> *aInOutNode, 
                                PRInt32 *aInOutOffset,
                                nsIDOMDocument *aDoc);
-  NS_IMETHOD InsertTextIntoTextNodeImpl(const nsAString& aStringToInsert, 
-                                           nsIDOMCharacterData *aTextNode, 
-                                           PRInt32 aOffset, PRBool suppressIME=PR_FALSE);
+  nsresult InsertTextIntoTextNodeImpl(const nsAString& aStringToInsert, 
+                                      nsIDOMCharacterData *aTextNode, 
+                                      PRInt32 aOffset,
+                                      PRBool aSuppressIME = PR_FALSE);
   NS_IMETHOD DeleteSelectionImpl(EDirection aAction);
   NS_IMETHOD DeleteSelectionAndCreateNode(const nsAString& aTag,
                                            nsIDOMNode ** aNewNode);
@@ -357,6 +357,8 @@ protected:
    * Return true if spellchecking should be enabled for this editor.
    */
   PRBool GetDesiredSpellCheckState();
+
+  nsresult QueryComposition(nsTextEventReply* aReply);
 
 public:
 

@@ -111,6 +111,5 @@ interface nsIDOMRange : nsISupports
                                         raises(DOMException);
   DOMString          toString()
                                         raises(DOMException);
-  void               detach()
-                                        raises(DOMException);
+  void               detach();
 };

@@ -45,6 +45,7 @@
 #include "nsIDocument.h"
 #include "nsContentUtils.h"
 #include "nsIPrincipal.h"
+#include "nsMathUtils.h"
 
 // Paint forcing
 #include "prenv.h"
@@ -93,12 +94,6 @@ nsCSSValue::nsCSSValue(const nsString& aValue, nsCSSUnit aUnit)
     mUnit = eCSSUnit_Null;
     mValue.mInt = 0;
   }
-}
-
-nsCSSValue::nsCSSValue(nscolor aValue)
-  : mUnit(eCSSUnit_Color)
-{
-  mValue.mColor = aValue;
 }
 
 nsCSSValue::nsCSSValue(nsCSSValue::Array* aValue, nsCSSUnit aUnit)
@@ -213,6 +208,21 @@ PRBool nsCSSValue::operator==(const nsCSSValue& aOther) const
     }
   }
   return PR_FALSE;
+}
+
+double nsCSSValue::GetAngleValueInRadians() const
+{
+  double angle = GetFloatValue();
+
+  switch (GetUnit()) {
+  case eCSSUnit_Radian: return angle;
+  case eCSSUnit_Degree: return angle * M_PI / 180.0;
+  case eCSSUnit_Grad:   return angle * M_PI / 200.0;
+
+  default:
+    NS_NOTREACHED("unrecognized angular unit");
+    return 0.0;
+  }
 }
 
 imgIRequest* nsCSSValue::GetImageValue() const
@@ -374,6 +384,12 @@ void nsCSSValue::SetNoneValue()
   mUnit = eCSSUnit_None;
 }
 
+void nsCSSValue::SetAllValue()
+{
+  Reset();
+  mUnit = eCSSUnit_All;
+}
+
 void nsCSSValue::SetNormalValue()
 {
   Reset();
@@ -430,6 +446,37 @@ PRBool nsCSSValue::IsNonTransparentColor() const
     (mUnit == eCSSUnit_Ident &&
      !nsGkAtoms::transparent->Equals(GetStringValue(buf))) ||
     (mUnit == eCSSUnit_EnumColor);
+}
+
+nsCSSValue::Array*
+nsCSSValue::InitFunction(nsCSSKeyword aFunctionId, PRUint32 aNumArgs)
+{
+  nsRefPtr<nsCSSValue::Array> func = Array::Create(aNumArgs + 1);
+  if (!func) {
+    return nsnull;
+  }
+
+  func->Item(0).SetIntValue(aFunctionId, eCSSUnit_Enumerated);
+  SetArrayValue(func, eCSSUnit_Function);
+
+  return func;
+}
+
+PRBool
+nsCSSValue::EqualsFunction(nsCSSKeyword aFunctionId) const
+{
+  if (mUnit != eCSSUnit_Function) {
+    return PR_FALSE;
+  }
+
+  nsCSSValue::Array* func = mValue.mArray;
+  NS_ABORT_IF_FALSE(func && func->Count() >= 1 &&
+                    func->Item(0).GetUnit() == eCSSUnit_Enumerated,
+                    "illegally structured function value");
+
+  nsCSSKeyword thisFunctionId =
+    static_cast<nsCSSKeyword>(func->Item(0).GetIntValue());
+  return thisFunctionId == aFunctionId;
 }
 
 // static
@@ -519,18 +566,17 @@ nsCSSValue::Image::~Image()
 {
 }
 
-nsCSSValueGradientStop::nsCSSValueGradientStop(const nsCSSValue& aLocation,
-                                               const nsCSSValue& aColor)
-  : mLocation(aLocation),
-    mColor(aColor)
-{ 
+nsCSSValueGradientStop::nsCSSValueGradientStop()
+  : mLocation(eCSSUnit_None),
+    mColor(eCSSUnit_Null)
+{
   MOZ_COUNT_CTOR(nsCSSValueGradientStop);
 }
 
 nsCSSValueGradientStop::nsCSSValueGradientStop(const nsCSSValueGradientStop& aOther)
   : mLocation(aOther.mLocation),
     mColor(aOther.mColor)
-{ 
+{
   MOZ_COUNT_CTOR(nsCSSValueGradientStop);
 }
 
@@ -539,16 +585,15 @@ nsCSSValueGradientStop::~nsCSSValueGradientStop()
   MOZ_COUNT_DTOR(nsCSSValueGradientStop);
 }
 
-nsCSSValueGradient::nsCSSValueGradient(PRBool aIsRadial, const nsCSSValue& aStartX,
-           const nsCSSValue& aStartY, const nsCSSValue& aStartRadius, const nsCSSValue& aEndX,
-           const nsCSSValue& aEndY, const nsCSSValue& aEndRadius)
+nsCSSValueGradient::nsCSSValueGradient(PRBool aIsRadial,
+                                       PRBool aIsRepeating)
   : mIsRadial(aIsRadial),
-    mStartX(aStartX),
-    mStartY(aStartY),
-    mEndX(aEndX),
-    mEndY(aEndY),
-    mStartRadius(aStartRadius),
-    mEndRadius(aEndRadius),
+    mIsRepeating(aIsRepeating),
+    mBgPosX(eCSSUnit_None),
+    mBgPosY(eCSSUnit_None),
+    mAngle(eCSSUnit_None),
+    mRadialShape(eCSSUnit_None),
+    mRadialSize(eCSSUnit_None),
     mRefCnt(0)
-{ 
+{
 }

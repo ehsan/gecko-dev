@@ -89,12 +89,19 @@ _TEST_FILES = 	findbar_window.xul \
 		test_keys.xul \
 		window_keys.xul \
 		test_showcaret.xul \
+		window_showcaret.xul \
 		test_righttoleft.xul \
+		test_dialogfocus.xul \
+		dialog_dialogfocus.xul \
+		test_screenPersistence.xul \
+		window_screenPosSize.xul \
+		test_titlebar.xul \
+		window_titlebar.xul \
 		$(NULL)
 
 # test_panel_focus.xul won't work if the Full Keyboard Access preference is set to
 # textboxes and lists only, so skip this test on Mac
-ifeq (,$(filter mac cocoa,$(MOZ_WIDGET_TOOLKIT)))
+ifneq (cocoa,$(MOZ_WIDGET_TOOLKIT))
 _TEST_FILES += test_panel_focus.xul \
                window_panel_focus.xul
 else

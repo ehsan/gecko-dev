@@ -62,12 +62,8 @@ const char* XPCJSRuntime::mStrings[] = {
     "item",                 // IDX_ITEM
     "__proto__",            // IDX_PROTO
     "__iterator__",         // IDX_ITERATOR
-    "__parent__"            // IDX_PARENT
-#ifdef XPC_IDISPATCH_SUPPORT
-    , "GeckoActiveXObject"  // IDX_ACTIVEX_OBJECT
-    , "COMObject"           // IDX_COMOBJECT
-    , "supports"            // IDX_ACTIVEX_SUPPORTS
-#endif
+    "__parent__",           // IDX_PARENT
+    "__exposedProps__"      // IDX_EXPOSEDPROPS
 };
 
 /***************************************************************************/
@@ -120,7 +116,6 @@ static JSDHashOperator
 NativeInterfaceSweeper(JSDHashTable *table, JSDHashEntryHdr *hdr,
                        uint32 number, void *arg)
 {
-    CX_AND_XPCRT_Data* data = (CX_AND_XPCRT_Data*) arg;
     XPCNativeInterface* iface = ((IID2NativeInterfaceMap::Entry*)hdr)->value;
     if(iface->IsMarked())
     {
@@ -133,7 +128,7 @@ NativeInterfaceSweeper(JSDHashTable *table, JSDHashEntryHdr *hdr,
             JS_GetStringBytes(JSVAL_TO_STRING(iface->GetName())));
 #endif
 
-    XPCNativeInterface::DestroyInstance(data->cx, data->rt, iface);
+    XPCNativeInterface::DestroyInstance(iface);
     return JS_DHASH_REMOVE;
 }
 
@@ -449,7 +444,8 @@ void XPCJSRuntime::UnrootContextGlobals()
     {
         NS_ASSERTION(!JS_HAS_OPTION(acx, JSOPTION_UNROOTED_GLOBAL),
                      "unrooted global should be set only during CC");
-        if(nsXPConnect::GetXPConnect()->GetRequestDepth(acx) == 0)
+        if(XPCPerThreadData::IsMainThread(acx) &&
+           nsXPConnect::GetXPConnect()->GetRequestDepth(acx) == 0)
         {
             JS_ClearNewbornRoots(acx);
             if(acx->globalObject)
@@ -645,10 +641,8 @@ JSBool XPCJSRuntime::GCCallback(JSContext *cx, JSGCStatus status)
                 self->mNativeSetMap->
                     Enumerate(NativeSetSweeper, nsnull);
 
-                CX_AND_XPCRT_Data data = {cx, self};
-
                 self->mIID2NativeInterfaceMap->
-                    Enumerate(NativeInterfaceSweeper, &data);
+                    Enumerate(NativeInterfaceSweeper, nsnull);
 
 #ifdef DEBUG
                 XPCWrappedNativeScope::ASSERT_NoInterfaceSetsAreMarked();
@@ -772,6 +766,12 @@ JSBool XPCJSRuntime::GCCallback(JSContext *cx, JSGCStatus status)
             default:
                 break;
         }
+    }
+
+    nsTArray<JSGCCallback> callbacks(self->extraGCCallbacks);
+    for (PRInt32 i = 0; i < callbacks.Length(); ++i) {
+        if (!callbacks[i](cx, status))
+            return JS_FALSE;
     }
 
     return JS_TRUE;
@@ -1326,4 +1326,21 @@ XPCRootSetElem::RemoveFromRootSet(JSRuntime* rt)
     mSelfp = nsnull;
     mNext = nsnull;
 #endif
+}
+
+void
+XPCJSRuntime::AddGCCallback(JSGCCallback cb)
+{
+    NS_ASSERTION(cb, "null callback");
+    extraGCCallbacks.AppendElement(cb);
+}
+
+void
+XPCJSRuntime::RemoveGCCallback(JSGCCallback cb)
+{
+    NS_ASSERTION(cb, "null callback");
+    PRBool found = extraGCCallbacks.RemoveElement(cb);
+    if (!found) {
+        NS_ERROR("Removing a callback which was never added.");
+    }
 }

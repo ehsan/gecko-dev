@@ -124,11 +124,11 @@ nsSVGPathElement::GetPointAtLength(float distance, nsIDOMSVGPoint **_retval)
 
   float totalLength = flat->GetLength();
   if (HasAttr(kNameSpaceID_None, nsGkAtoms::pathLength)) {
-    float pathLength = mPathLength.GetAnimValue();
+    float pathLength = mPathLength.GetAnimValue(this);
     distance *= totalLength / pathLength;
   }
-  distance = PR_MAX(0,           distance);
-  distance = PR_MIN(totalLength, distance);
+  distance = NS_MAX(0.f,         distance);
+  distance = NS_MIN(totalLength, distance);
 
   return NS_NewSVGPoint(_retval, flat->FindPoint(gfxPoint(distance, 0)));
 }
@@ -511,7 +511,8 @@ nsSVGPathElement::GetFlattenedPath(const gfxMatrix &aMatrix)
 PRBool
 nsSVGPathElement::AttributeDefinesGeometry(const nsIAtom *aName)
 {
-  if (aName == nsGkAtoms::d)
+  if (aName == nsGkAtoms::d ||
+      aName == nsGkAtoms::pathLength)
     return PR_TRUE;
 
   return PR_FALSE;

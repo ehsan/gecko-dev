@@ -83,37 +83,26 @@ function nsPlacesDBUtils() {
   //////////////////////////////////////////////////////////////////////////////
   //// Smart getters
 
-  this.__defineGetter__("_bms", function() {
-    delete this._bms;
-    return this._bms = Cc[BS_CONTRACTID].getService(Ci.nsINavBookmarksService);
+  XPCOMUtils.defineLazyServiceGetter(this, "_bms", BS_CONTRACTID,
+                                     "nsINavBookmarksService");
+
+  XPCOMUtils.defineLazyServiceGetter(this, "_hs", HS_CONTRACTID,
+                                     "nsINavHistoryService");
+
+  XPCOMUtils.defineLazyServiceGetter(this, "_os", OS_CONTRACTID,
+                                     "nsIObserverService");
+
+  XPCOMUtils.defineLazyServiceGetter(this, "_idlesvc", IS_CONTRACTID,
+                                     "nsIIdleService");
+
+  XPCOMUtils.defineLazyGetter(this, "_dbConn", function() {
+    return Cc[HS_CONTRACTID].getService(Ci.nsPIPlacesDatabase).DBConnection;
   });
 
-  this.__defineGetter__("_hs", function() {
-    delete this._hs;
-    return this._hs = Cc[HS_CONTRACTID].getService(Ci.nsINavHistoryService);
-  });
-
-  this.__defineGetter__("_os", function() {
-    delete this._os;
-    return this._os = Cc[OS_CONTRACTID].getService(Ci.nsIObserverService);
-  });
-
-  this.__defineGetter__("_idlesvc", function() {
-    delete this._idlesvc;
-    return this._idlesvc = Cc[IS_CONTRACTID].getService(Ci.nsIIdleService);
-  });
-
-  this.__defineGetter__("_dbConn", function() {
-    delete this._dbConn;
-    return this._dbConn = Cc[HS_CONTRACTID].
-                          getService(Ci.nsPIPlacesDatabase).DBConnection;
-  });
-
-  this.__defineGetter__("_bundle", function() {
-    delete this._bundle;
-    return this._bundle = Cc[SB_CONTRACTID].
-                          getService(Ci.nsIStringBundleService).
-                          createBundle(PLACES_STRING_BUNDLE_URI);
+  XPCOMUtils.defineLazyGetter(this, "_bundle", function() {
+    return Cc[SB_CONTRACTID].
+           getService(Ci.nsIStringBundleService).
+           createBundle(PLACES_STRING_BUNDLE_URI);
   });
 
   // register the maintenance timer
@@ -134,7 +123,6 @@ nsPlacesDBUtils.prototype = {
 
   QueryInterface: XPCOMUtils.generateQI([
     Ci.nsITimerCallback,
-    Ci.nsIObserver,
   ]),
 
   //////////////////////////////////////////////////////////////////////////////
@@ -581,6 +569,157 @@ nsPlacesDBUtils.prototype = {
         aStatement.finalize();
       }, this);
   },
+
+  /**
+   * This method is only for support purposes, it will run sync and will take
+   * lot of time on big databases, but can be manually triggered to help
+   * debugging common issues.
+   */
+  checkAndFixDatabase: function PDBU_checkAndFixDatabase(aLogCallback) {
+    let log = [];
+    let self = this;
+    let sep = "- - -";
+
+    function integrity() {
+      let integrityCheckStmt =
+        self._dbConn.createStatement("PRAGMA integrity_check");
+      log.push("INTEGRITY");
+      let logIndex = log.length;
+      while (integrityCheckStmt.executeStep()) {
+        log.push(integrityCheckStmt.getString(0));
+      }
+      integrityCheckStmt.finalize();
+      log.push(sep);
+      return log[logIndex] == "ok";
+    }
+
+    function vacuum(aVacuumCallback) {
+      log.push("VACUUM");
+      let dirSvc = Cc["@mozilla.org/file/directory_service;1"].
+                   getService(Ci.nsIProperties);
+      let placesDBFile = dirSvc.get("ProfD", Ci.nsILocalFile);
+      placesDBFile.append("places.sqlite");
+      log.push("places.sqlite: " + placesDBFile.fileSize + " byte");
+      log.push(sep);
+      let stmt = self._dbConn.createStatement("VACUUM");
+      stmt.executeAsync({
+        handleResult: function() {},
+        handleError: function() {
+          Cu.reportError("Maintenance VACUUM failed");
+        },
+        handleCompletion: function(aReason) {
+          aVacuumCallback();
+        }
+      });
+      stmt.finalize();
+    }
+
+    function backup() {
+      log.push("BACKUP");
+      let dirSvc = Cc["@mozilla.org/file/directory_service;1"].
+                   getService(Ci.nsIProperties);
+      let profD = dirSvc.get("ProfD", Ci.nsILocalFile);
+      let placesDBFile = profD.clone();
+      placesDBFile.append("places.sqlite");
+      let backupDBFile = profD.clone();
+      backupDBFile.append("places.sqlite.corrupt");
+      backupDBFile.createUnique(backupDBFile.NORMAL_FILE_TYPE, 0666);
+      let backupName = backupDBFile.leafName;
+      backupDBFile.remove(false);
+      placesDBFile.copyTo(profD, backupName);
+      log.push(backupName);
+      log.push(sep);
+    }
+
+    function reindex() {
+      log.push("REINDEX");
+      self._dbConn.executeSimpleSQL("REINDEX");
+      log.push(sep);
+    }
+
+    function cleanup() {
+      log.push("CLEANUP");
+      self.maintenanceOnIdle()
+      log.push(sep);
+    }
+
+    function expire() {
+      log.push("EXPIRE");
+      // Get expiration component.  This will also ensure it has already been
+      // initialized.
+      let expiration = Cc["@mozilla.org/places/expiration;1"].
+                       getService(Ci.nsIObserver);
+      // Get maximum number of unique URIs.
+      let prefs = Cc["@mozilla.org/preferences-service;1"].
+                  getService(Ci.nsIPrefBranch);
+      let limitURIs = prefs.getIntPref(
+        "places.history.expiration.transient_current_max_pages");
+      if (limitURIs >= 0)
+        log.push("Current unique URIs limit: " + limitURIs);
+      // Force a full expiration step.
+      expiration.observe(null, "places-debug-start-expiration",
+                         -1 /* expire all expirable entries */);
+      log.push(sep);
+    }
+
+    function stats() {
+      log.push("STATS");
+      let dirSvc = Cc["@mozilla.org/file/directory_service;1"].
+                   getService(Ci.nsIProperties);
+      let placesDBFile = dirSvc.get("ProfD", Ci.nsILocalFile);
+      placesDBFile.append("places.sqlite");
+      log.push("places.sqlite: " + placesDBFile.fileSize + " byte");
+      let stmt = self._dbConn.createStatement(
+        "SELECT name FROM sqlite_master WHERE type = :DBType");
+      stmt.params["DBType"] = "table";
+      while (stmt.executeStep()) {
+        let tableName = stmt.getString(0);
+        let countStmt = self._dbConn.createStatement(
+        "SELECT count(*) FROM " + tableName);
+        countStmt.executeStep();
+        log.push(tableName + ": " + countStmt.getInt32(0));
+        countStmt.finalize();
+      }
+      stmt.finalize();
+      log.push(sep);
+    }
+
+    // First of all execute an integrity check.
+    let integrityIsGood = integrity();
+
+    // If integrity check did fail, we can try to fix the database through
+    // a reindex.
+    if (!integrityIsGood) {
+      // Backup current database.
+      backup();
+      // Execute a reindex.
+      reindex();
+      // Now check again the integrity.
+      integrityIsGood = integrity();
+    }
+
+    // If integrity is fine, let's force a maintenance, execute a vacuum and
+    // get some stats.
+    if (integrityIsGood) {
+      cleanup();
+      expire();
+      vacuum(function () {
+        stats();
+        if (aLogCallback) {
+          aLogCallback(log);
+        }
+        else {
+          try {
+            let console = Cc["@mozilla.org/consoleservice;1"].
+                          getService(Ci.nsIConsoleService);
+            console.logStringMessage(log.join('\n'));
+          }
+          catch(ex) {}
+        }
+      });
+    }
+  }
+
 };
 
 __defineGetter__("PlacesDBUtils", function() {

@@ -58,11 +58,14 @@ class nsIPluginHost;
 class nsIPluginInstance;
 class nsPresContext;
 class nsDisplayPlugin;
+class nsIDOMElement;
 
 #define nsObjectFrameSuper nsFrame
 
 class nsObjectFrame : public nsObjectFrameSuper, public nsIObjectFrame {
 public:
+  NS_DECL_FRAMEARENA_HELPERS
+
   friend nsIFrame* NS_NewObjectFrame(nsIPresShell* aPresShell, nsStyleContext* aContext);
 
   NS_DECL_QUERYFRAME
@@ -87,6 +90,12 @@ public:
                           nsGUIEvent* aEvent,
                           nsEventStatus* aEventStatus);
 
+#ifdef XP_MACOSX
+  NS_IMETHOD HandlePress(nsPresContext* aPresContext,
+                         nsGUIEvent*    aEvent,
+                         nsEventStatus* aEventStatus);
+#endif
+
   virtual nsIAtom* GetType() const;
 
   virtual PRBool IsFrameOfType(PRUint32 aFlags) const
@@ -94,15 +103,13 @@ public:
     return nsObjectFrameSuper::IsFrameOfType(aFlags & ~(nsIFrame::eReplaced));
   }
 
-  virtual PRBool SupportsVisibilityHidden() { return PR_FALSE; }
   virtual PRBool NeedsView() { return PR_TRUE; }
-  virtual nsresult CreateWidgetForView(nsIView* aView);
 
 #ifdef DEBUG
   NS_IMETHOD GetFrameName(nsAString& aResult) const;
 #endif
 
-  virtual void Destroy();
+  virtual void DestroyFrom(nsIFrame* aDestructRoot);
 
   virtual void DidSetStyleContext(nsStyleContext* aOldStyleContext);
 
@@ -194,13 +201,10 @@ protected:
   static void PaintPrintPlugin(nsIFrame* aFrame,
                                nsIRenderingContext* aRenderingContext,
                                const nsRect& aDirtyRect, nsPoint aPt);
-  static void PaintPlugin(nsIFrame* aFrame,
-                               nsIRenderingContext* aRenderingContext,
-                               const nsRect& aDirtyRect, nsPoint aPt);
   void PrintPlugin(nsIRenderingContext& aRenderingContext,
                    const nsRect& aDirtyRect);
   void PaintPlugin(nsIRenderingContext& aRenderingContext,
-                   const nsRect& aDirtyRect, const nsPoint& aFramePt);
+                   const nsRect& aDirtyRect, const nsRect& aPluginRect);
 
   /**
    * Makes sure that mInstanceOwner is valid and without a current plugin
@@ -211,9 +215,9 @@ protected:
   /**
    * Get the widget geometry for the plugin. aRegion is in some appunits
    * coordinate system whose origin is device-pixel-aligned (if possible),
-   * and aPluginOrigin gives the top-left of the plugin in that coordinate
-   * system. It doesn't matter what that coordinate system actually is,
-   * as long as aRegion and aPluginOrigin are consistent.
+   * and aPluginOrigin gives the top-left of the plugin frame's content-rect
+   * in that coordinate system. It doesn't matter what that coordinate
+   * system actually is, as long as aRegion and aPluginOrigin are consistent.
    * This will append a Configuration object to aConfigurations
    * containing the widget, its desired position, size and clip region.
    */
@@ -223,13 +227,34 @@ protected:
 
   nsIWidget* GetWidget() { return mWidget; }
 
+  nsresult SetAbsoluteScreenPosition(nsIDOMElement* element,
+                                     nsIDOMClientRect* position,
+                                     nsIDOMClientRect* clip);
+
+  void NotifyPluginReflowObservers();
+
   friend class nsPluginInstanceOwner;
   friend class nsDisplayPlugin;
 
 private:
+  
+  class PluginEventNotifier : public nsRunnable {
+  public:
+    PluginEventNotifier(const nsString &aEventType) : 
+      mEventType(aEventType) {}
+    
+    NS_IMETHOD Run();
+  private:
+    nsString mEventType;
+  };
+  
   nsRefPtr<nsPluginInstanceOwner> mInstanceOwner;
+  nsIView*                        mInnerView;
   nsCOMPtr<nsIWidget>             mWidget;
   nsIntRect                       mWindowlessRect;
+#ifdef XP_WIN
+  PRUint32                        mDoublePassEvent;
+#endif
 
   // For assertions that make it easier to determine if a crash is due
   // to the underlying problem described in bug 136927, and to prevent
@@ -253,10 +278,11 @@ public:
   virtual Type GetType() { return TYPE_PLUGIN; }
   virtual nsRect GetBounds(nsDisplayListBuilder* aBuilder);
   virtual PRBool IsOpaque(nsDisplayListBuilder* aBuilder);
-  virtual void Paint(nsDisplayListBuilder* aBuilder, nsIRenderingContext* aCtx,
-     const nsRect& aDirtyRect);
-  virtual PRBool OptimizeVisibility(nsDisplayListBuilder* aBuilder,
-      nsRegion* aVisibleRegion);
+  virtual void Paint(nsDisplayListBuilder* aBuilder,
+                     nsIRenderingContext* aCtx);
+  virtual PRBool ComputeVisibility(nsDisplayListBuilder* aBuilder,
+                                   nsRegion* aVisibleRegion,
+                                   nsRegion* aVisibleRegionBeforeMove);
 
   NS_DISPLAY_DECL_NAME("Plugin")
 

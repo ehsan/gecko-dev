@@ -7,15 +7,44 @@ function test() {
   ok(searchButton, "got search-go-button");
 
   searchBar.value = "test";
-  var preSelectedBrowser, preTabNo;
 
+  var obs = Cc["@mozilla.org/observer-service;1"].
+            getService(Ci.nsIObserverService);
+  var ss = Cc["@mozilla.org/browser/search-service;1"].
+           getService(Ci.nsIBrowserSearchService);
+
+  var observer = {
+    observe: function(aSub, aTopic, aData) {
+      switch (aData) {
+        case "engine-added":
+          var engine = ss.getEngineByName("Bug 426329");
+          ok(engine, "Engine was added.");
+          //XXX Bug 493051
+          //ss.currentEngine = engine;
+          break;
+        case "engine-current":
+          ok(ss.currentEngine.name == "Bug 426329", "currentEngine set");
+          testReturn();
+          break;
+        case "engine-removed":
+          obs.removeObserver(this, "browser-search-engine-modified");
+          finish();
+          break;
+      }
+    }
+  };
+
+  obs.addObserver(observer, "browser-search-engine-modified", false);
+  ss.addEngine("http://localhost:8888/browser/browser/components/search/test/426329.xml",
+               Ci.nsISearchEngine.DATA_XML, "data:image/x-icon,%00",
+               false);
+
+  var preSelectedBrowser, preTabNo;
   function init() {
     preSelectedBrowser = gBrowser.selectedBrowser;
     preTabNo = gBrowser.mTabs.length;
     searchBar.focus();
   }
-
-  testReturn();
 
   function testReturn() {
     init();
@@ -38,7 +67,7 @@ function test() {
       is(gBrowser.mTabs.length, preTabNo + 1, "Alt+Return key added new tab");
       isnot(event.originalTarget, preSelectedBrowser.contentDocument,
             "Alt+Return key loaded results in new tab");
-      is(event.originalTarget, gBrowser.selectedBrowser.contentDocument,
+      is(event.originalTarget, gBrowser.contentDocument,
          "Alt+Return key loaded results in foreground tab");
 
       //Shift key has no effect for now, so skip it
@@ -55,7 +84,7 @@ function test() {
       is(gBrowser.mTabs.length, preTabNo + 1, "Shift+Alt+Return key added new tab");
       isnot(event.originalTarget, preSelectedBrowser.contentDocument,
             "Shift+Alt+Return key loaded results in new tab");
-      isnot(event.originalTarget, gBrowser.selectedBrowser.contentDocument,
+      isnot(event.originalTarget, gBrowser.contentDocument,
             "Shift+Alt+Return key loaded results in background tab");
 
       testLeftClick();
@@ -83,7 +112,7 @@ function test() {
       is(gBrowser.mTabs.length, preTabNo + 1, "MiddleClick added new tab");
       isnot(event.originalTarget, preSelectedBrowser.contentDocument,
             "MiddleClick loaded results in new tab");
-      is(event.originalTarget, gBrowser.selectedBrowser.contentDocument,
+      is(event.originalTarget, gBrowser.contentDocument,
          "MiddleClick loaded results in foreground tab");
 
       testShiftMiddleClick();
@@ -98,7 +127,7 @@ function test() {
       is(gBrowser.mTabs.length, preTabNo + 1, "Shift+MiddleClick added new tab");
       isnot(event.originalTarget, preSelectedBrowser.contentDocument,
             "Shift+MiddleClick loaded results in new tab");
-      isnot(event.originalTarget, gBrowser.selectedBrowser.contentDocument,
+      isnot(event.originalTarget, gBrowser.contentDocument,
             "Shift+MiddleClick loaded results in background tab");
 
       testRightClick();
@@ -107,7 +136,7 @@ function test() {
 
   function testRightClick() {
     init();
-    gBrowser.selectedBrowser.contentWindow.location.href = "about:blank";
+    content.location.href = "about:blank";
     simulateClick({ button: 2 }, searchButton);
     setTimeout(function() {
 
@@ -123,8 +152,9 @@ function test() {
     while (gBrowser.mTabs.length != 1) {
       gBrowser.removeTab(gBrowser.mTabs[0]);
     }
-    gBrowser.selectedBrowser.contentWindow.location.href = "about:blank";
-    finish();
+    content.location.href = "about:blank";
+    var engine = ss.getEngineByName("Bug 426329");
+    ss.removeEngine(engine);
   }
 
   function doOnloadOnce(callback) {

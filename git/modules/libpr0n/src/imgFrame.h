@@ -15,7 +15,7 @@
  *
  * The Original Code is mozilla.org code.
  *
- * The Initial Developer of the Original Code is Mozilla Corporation.
+ * The Initial Developer of the Original Code is Mozilla Foundation.
  * Portions created by the Initial Developer are Copyright (C) 2009
  * the Initial Developer. All Rights Reserved.
  *
@@ -97,6 +97,9 @@ public:
 
   void SetHasNoAlpha();
 
+  PRBool GetCompositingFailed() const;
+  void SetCompositingFailed(PRBool val);
+
   nsresult LockImageData();
   nsresult UnlockImageData();
 
@@ -168,6 +171,7 @@ private: // data
   PRPackedBool mSinglePixel;
   PRPackedBool mNeverUseDeviceSurface;
   PRPackedBool mFormatChanged;
+  PRPackedBool mCompositingFailed;
 
 #ifdef XP_WIN
   PRPackedBool mIsDDBSurface;

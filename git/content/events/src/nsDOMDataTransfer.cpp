@@ -83,6 +83,7 @@ nsDOMDataTransfer::nsDOMDataTransfer()
 nsDOMDataTransfer::nsDOMDataTransfer(PRUint32 aEventType, PRUint32 aAction)
   : mEventType(aEventType),
     mDropEffect(nsIDragService::DRAGDROP_ACTION_NONE),
+    mCursorState(PR_FALSE),
     mReadOnly(PR_TRUE),
     mIsExternal(PR_TRUE),
     mUserCancelled(PR_FALSE),
@@ -99,6 +100,7 @@ nsDOMDataTransfer::nsDOMDataTransfer(PRUint32 aEventType, PRUint32 aAction)
 
 nsDOMDataTransfer::nsDOMDataTransfer(PRUint32 aEventType,
                                      const PRUint32 aEffectAllowed,
+                                     PRBool aCursorState,
                                      PRBool aIsExternal,
                                      PRBool aUserCancelled,
                                      nsTArray<nsTArray<TransferItem> >& aItems,
@@ -108,6 +110,7 @@ nsDOMDataTransfer::nsDOMDataTransfer(PRUint32 aEventType,
   : mEventType(aEventType),
     mDropEffect(nsIDragService::DRAGDROP_ACTION_NONE),
     mEffectAllowed(aEffectAllowed),
+    mCursorState(aCursorState),
     mReadOnly(PR_TRUE),
     mIsExternal(aIsExternal),
     mUserCancelled(aUserCancelled),
@@ -267,7 +270,27 @@ nsDOMDataTransfer::GetFiles(nsIDOMFileList** aFileList)
 NS_IMETHODIMP
 nsDOMDataTransfer::GetTypes(nsIDOMDOMStringList** aTypes)
 {
-  return MozTypesAt(0, aTypes);
+  *aTypes = nsnull;
+
+  nsRefPtr<nsDOMStringList> types = new nsDOMStringList();
+  NS_ENSURE_TRUE(types, NS_ERROR_OUT_OF_MEMORY);
+
+  if (mItems.Length()) {
+    nsTArray<TransferItem>& item = mItems[0];
+    for (PRUint32 i = 0; i < item.Length(); i++)
+      types->Add(item[i].mFormat);
+
+    PRBool filePresent, filePromisePresent;
+    types->Contains(NS_LITERAL_STRING(kFileMime), &filePresent);
+    types->Contains(NS_LITERAL_STRING("application/x-moz-file-promise"), &filePromisePresent);
+    if (filePresent || filePromisePresent)
+      types->Add(NS_LITERAL_STRING("Files"));
+  }
+
+  *aTypes = types;
+  NS_ADDREF(*aTypes);
+
+  return NS_OK;
 }
 
 NS_IMETHODIMP
@@ -534,8 +557,9 @@ nsDOMDataTransfer::Clone(PRUint32 aEventType, PRBool aUserCancelled,
                          nsIDOMDataTransfer** aNewDataTransfer)
 {
   nsDOMDataTransfer* newDataTransfer =
-    new nsDOMDataTransfer(aEventType, mEffectAllowed, mIsExternal, aUserCancelled,
-                          mItems, mDragImage, mDragImageX, mDragImageY);
+    new nsDOMDataTransfer(aEventType, mEffectAllowed, mCursorState,
+                          mIsExternal, aUserCancelled, mItems,
+                          mDragImage, mDragImageX, mDragImageY);
   NS_ENSURE_TRUE(newDataTransfer, NS_ERROR_OUT_OF_MEMORY);
 
   *aNewDataTransfer = newDataTransfer;
@@ -649,16 +673,19 @@ nsDOMDataTransfer::ConvertFromVariant(nsIVariant* aVariant,
   }
 
   PRUnichar* chrs;
-  nsresult rv = aVariant->GetAsWString(&chrs);
+  PRUint32 len = 0;
+  nsresult rv = aVariant->GetAsWStringWithSize(&len, &chrs);
   if (NS_FAILED(rv))
     return PR_FALSE;
+
+  nsAutoString str;
+  str.Adopt(chrs, len);
 
   nsCOMPtr<nsISupportsString>
     strSupports(do_CreateInstance(NS_SUPPORTS_STRING_CONTRACTID));
   if (!strSupports)
     return PR_FALSE;
 
-  nsAutoString str(chrs);
   strSupports->SetData(str);
 
   *aSupports = strSupports;

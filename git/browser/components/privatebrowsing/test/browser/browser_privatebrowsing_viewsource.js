@@ -45,9 +45,8 @@ function test() {
 
   waitForExplicitFinish();
 
-  let tabAbout = gBrowser.addTab();
-  gBrowser.selectedTab = tabAbout;
-  let aboutBrowser = gBrowser.getBrowserForTab(tabAbout);
+  gBrowser.selectedTab = gBrowser.addTab();
+  let aboutBrowser = gBrowser.selectedBrowser;
   aboutBrowser.addEventListener("load", function () {
     aboutBrowser.removeEventListener("load", arguments.callee, true);
 
@@ -62,7 +61,7 @@ function test() {
           win.addEventListener("load", function() {
             win.removeEventListener("load", arguments.callee, false);
 
-            let browser = win.document.defaultView.getBrowser();
+            let browser = win.gBrowser;
             browser.addEventListener("load", function() {
               browser.removeEventListener("load", arguments.callee, true);
               
@@ -79,9 +78,7 @@ function test() {
 
     function openViewSource() {
       // invoke the View Source command
-      let event = document.createEvent("Events");
-      event.initEvent("command", true, true);
-      document.getElementById("View:PageSource").dispatchEvent(event);
+      document.getElementById("View:PageSource").doCommand();
     }
 
     function step1() {
@@ -105,7 +102,6 @@ function test() {
         onSecurityChange: function() {},
         onStatusChange: function() {},
         onRefreshAttempted: function() {},
-        onLinkIconAvailable: function() {},
         onStateChange: function(aBrowser, aWebProgress, aRequest, aStateFlags, aStatus) {
           if (aStateFlags & (Ci.nsIWebProgressListener.STATE_STOP |
                              Ci.nsIWebProgressListener.STATE_IS_WINDOW)) {
@@ -136,7 +132,7 @@ function test() {
             win.addEventListener("load", function() {
               win.removeEventListener("load", arguments.callee, false);
 
-              let browser = win.document.defaultView.getBrowser();
+              let browser = win.gBrowser;
               browser.addEventListener("load", function() {
                 browser.removeEventListener("load", arguments.callee, true);
                 
@@ -171,16 +167,16 @@ function test() {
             win.addEventListener("load", function() {
               win.removeEventListener("load", arguments.callee, false);
 
-              let browser = win.document.defaultView.getBrowser();
+              let browser = win.gBrowser;
               browser.addEventListener("load", function() {
                 browser.removeEventListener("load", arguments.callee, true);
                 
-                is(browser.currentURI.spec, "view-source:about:",
+                is(win.content.location.href, "view-source:about:",
                   "The correct view source window should be restored");
 
                 // cleanup
                 win.close();
-                gBrowser.removeTab(gBrowser.selectedTab);
+                gBrowser.removeCurrentTab();
                 finish();
               }, true);
             }, false);

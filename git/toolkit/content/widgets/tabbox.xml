@@ -349,7 +349,19 @@
               if (tabpanels) {
                 // find an id
                 let linkedPanelId = tab.linkedPanel;
-                let linkedPanel = linkedPanelId ? document.getElementById(linkedPanelId) : null;
+                let linkedPanel = null;
+                if (linkedPanelId) {
+                  let ownerDoc = tab.ownerDocument;
+                  let bindingParent = ownerDoc.getBindingParent(tab);
+                  if (bindingParent) {
+                    linkedPanel =
+                      ownerDoc.getAnonymousElementByAttribute(bindingParent,
+                                                              "id",
+                                                              linkedPanelId);
+                  }
+                  else
+                    linkedPanel = ownerDoc.getElementById(linkedPanelId);
+                }
                 if (linkedPanel)
                   tabpanels.selectedPanel = linkedPanel;
                 else
@@ -519,6 +531,21 @@
         </body>
       </method>
     </implementation>
+
+#ifdef MOZ_WIDGET_GTK2
+    <handlers>
+      <handler event="DOMMouseScroll">
+      <![CDATA[
+        if (event.detail > 0)
+          this.advanceSelectedTab(1, false);
+        else
+          this.advanceSelectedTab(-1, false);
+
+        event.stopPropagation();
+      ]]>
+      </handler>
+    </handlers>
+#endif
   </binding>
 
   <binding id="tabpanels"
@@ -580,8 +607,13 @@
 
     <content>
       <xul:hbox class="tab-middle box-inherit" xbl:inherits="align,dir,pack,orient,selected" flex="1">
-        <xul:image class="tab-icon" xbl:inherits="validate,src=image"/>
-        <xul:label class="tab-text" xbl:inherits="value=label,accesskey,crop,disabled" flex="1"/>
+        <xul:image class="tab-icon"
+                   xbl:inherits="validate,src=image"
+                   role="presentation"/>
+        <xul:label class="tab-text"
+                   xbl:inherits="value=label,accesskey,crop,disabled"
+                   flex="1"
+                   role="presentation"/>
       </xul:hbox>
     </content>
 

@@ -990,7 +990,8 @@ moz_gtk_button_paint(GdkDrawable* drawable, GdkRectangle* rect,
     }
  
     if (relief != GTK_RELIEF_NONE || state->depressed ||
-        button_state == GTK_STATE_PRELIGHT) {
+        (button_state != GTK_STATE_NORMAL &&
+         button_state != GTK_STATE_INSENSITIVE)) {
         TSOffsetStyleGCs(style, x, y);
         /* the following line can trigger an assertion (Crux theme)
            file ../../gdk/gdkwindow.c: line 1846 (gdk_window_clear_area):
@@ -3116,6 +3117,19 @@ moz_gtk_images_in_menus()
     settings = gtk_widget_get_settings(gImageMenuItemWidget);
 
     g_object_get(settings, "gtk-menu-images", &result, NULL);
+    return result;
+}
+
+gboolean
+moz_gtk_images_in_buttons()
+{
+    gboolean result;
+    GtkSettings* settings;
+
+    ensure_button_widget();
+    settings = gtk_widget_get_settings(gButtonWidget);
+
+    g_object_get(settings, "gtk-button-images", &result, NULL);
     return result;
 }
 

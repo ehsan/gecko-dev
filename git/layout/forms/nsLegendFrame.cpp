@@ -60,6 +60,8 @@ NS_NewLegendFrame(nsIPresShell* aPresShell, nsStyleContext* aContext)
   return f;
 }
 
+NS_IMPL_FRAMEARENA_HELPERS(nsLegendFrame)
+
 nsIAtom*
 nsLegendFrame::GetType() const
 {
@@ -67,10 +69,10 @@ nsLegendFrame::GetType() const
 }
 
 void
-nsLegendFrame::Destroy()
+nsLegendFrame::DestroyFrom(nsIFrame* aDestructRoot)
 {
   nsFormControlFrame::RegUnRegAccessKey(static_cast<nsIFrame*>(this), PR_FALSE);
-  nsBlockFrame::Destroy();
+  nsBlockFrame::DestroyFrom(aDestructRoot);
 }
 
 NS_QUERYFRAME_HEAD(nsLegendFrame)

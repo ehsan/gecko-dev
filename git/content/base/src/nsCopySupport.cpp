@@ -115,8 +115,18 @@ SelectionCopyHelper(nsISelection *aSel, nsIDocument *aDoc,
   NS_ENSURE_TRUE(docEncoder, NS_ERROR_FAILURE);
 
   // We always require a plaintext version
+  
+  // note that we assign text/unicode as mime type, but in fact nsHTMLCopyEncoder
+  // ignore it and use text/html or text/plain depending where the selection
+  // is. if it is a selection into input/textarea element or in a html content
+  // with pre-wrap style : text/plain. Otherwise text/html.
+  // see nsHTMLCopyEncoder::SetSelection
   mimeType.AssignLiteral(kUnicodeMime);
-  PRUint32 flags = nsIDocumentEncoder::OutputPreformatted;
+  
+  // we want preformatted for the case where the selection is inside input/textarea
+  // and we don't want pretty printing for others cases, to not have additionnal
+  // line breaks which are then converted into spaces by the htmlConverter (see bug #524975)
+  PRUint32 flags = nsIDocumentEncoder::OutputPreformatted | nsIDocumentEncoder::OutputRaw;
 
   nsCOMPtr<nsIDOMDocument> domDoc = do_QueryInterface(aDoc);
   NS_ASSERTION(domDoc, "Need a document");
@@ -349,7 +359,7 @@ nsresult nsCopySupport::IsPlainTextContext(nsISelection *aSel, nsIDocument *aDoc
   {
     // checking for selection inside a plaintext form widget
 
-    if (!selContent->IsNodeOfType(nsINode::eHTML)) {
+    if (!selContent->IsHTML()) {
       continue;
     }
 
@@ -383,7 +393,7 @@ nsresult nsCopySupport::IsPlainTextContext(nsISelection *aSel, nsIDocument *aDoc
   // copy it properly (all the copy code for non-plaintext assumes using HTML
   // serializers and parsers is OK, and those mess up XHTML).
   nsCOMPtr<nsIHTMLDocument> htmlDoc = do_QueryInterface(aDoc);
-  if (!htmlDoc || aDoc->IsCaseSensitive())
+  if (!(htmlDoc && aDoc->IsHTML()))
     *aIsPlainTextContext = PR_TRUE;
 
   return NS_OK;
@@ -541,7 +551,7 @@ static nsresult AppendDOMNode(nsITransferable *aTransferable,
   nsCOMPtr<nsIHTMLDocument> htmlDoc = do_QueryInterface(domDocument, &rv);
   NS_ENSURE_SUCCESS(rv, NS_OK);
 
-  NS_ENSURE_TRUE(!(document->IsCaseSensitive()), NS_OK);
+  NS_ENSURE_TRUE(document->IsHTML(), NS_OK);
 
   // init encoder with document and node
   rv = docEncoder->Init(domDocument, NS_LITERAL_STRING(kHTMLMime),

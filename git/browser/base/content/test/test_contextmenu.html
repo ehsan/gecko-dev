@@ -28,7 +28,7 @@ function openContextMenuFor(element) {
     // Context menu should be closed before we open it again.
     is(contextMenu.state, "closed", "checking if popup is closed");
 
-    var eventDetails = { type : "contextmenu", button : 2 }
+    var eventDetails = { type : "contextmenu", button : 2 };
     synthesizeMouse(element, 2, 2, eventDetails, element.ownerDocument.defaultView);
 }
 
@@ -54,7 +54,7 @@ function getVisibleMenuItems(aMenu) {
             if (accessKeys[key])
                 ok(false, "menuitem " + item.id + " has same accesskey as " + accessKeys[key]);
             else
-                accessKeys[key] = item.id
+                accessKeys[key] = item.id;
             items.push(item.id);
             items.push(!item.disabled);
         } else if (item.nodeName == "menuseparator") {
@@ -67,7 +67,7 @@ function getVisibleMenuItems(aMenu) {
             if (accessKeys[key])
                 ok(false, "menu " + item.id + " has same accesskey as " + accessKeys[key]);
             else
-                accessKeys[key] = item.id
+                accessKeys[key] = item.id;
             items.push(item.id);
             items.push(!item.disabled);
             // Add a dummy item to that the indexes in checkMenu are the same
@@ -161,7 +161,7 @@ function runTest(testNum) {
                           "---",                  null,
                           "context-viewsource",   true,
                           "context-viewinfo",     true]);
-        closeContextMenu()
+        closeContextMenu();
         openContextMenuFor(link); // Invoke context menu for next test.
         break;
 
@@ -173,19 +173,15 @@ function runTest(testNum) {
                           "context-bookmarklink",  true,
                           "context-savelink",      true,
                           "context-sendlink",      true,
-                          "context-copylink",      true,
-                          "---",                   null,
-                          "context-metadata",      true]);
-        closeContextMenu()
+                          "context-copylink",      true]);
+        closeContextMenu();
         openContextMenuFor(mailto); // Invoke context menu for next test.
         break;
 
     case 4:
         // Context menu for text mailto-link
-        checkContextMenu(["context-copyemail", true,
-                          "---",               null,
-                          "context-metadata",  true]);
-        closeContextMenu()
+        checkContextMenu(["context-copyemail", true]);
+        closeContextMenu();
         openContextMenuFor(input); // Invoke context menu for next test.
         break;
 
@@ -201,7 +197,7 @@ function runTest(testNum) {
                           "context-selectall",   true,
                           "---",                 null,
                           "spell-check-enabled", true]);
-        closeContextMenu()
+        closeContextMenu();
         openContextMenuFor(img); // Invoke context menu for next test.
         break;
 
@@ -215,8 +211,7 @@ function runTest(testNum) {
                           "context-sendimage",            true,
                           "context-setDesktopBackground", true,
                           "context-blockimage",           true,
-                          "---",                          null,
-                          "context-metadata",             true]);
+                          "context-viewimageinfo",        true]);
         closeContextMenu();
         openContextMenuFor(canvas); // Invoke context menu for next test.
         break;
@@ -236,6 +231,7 @@ function runTest(testNum) {
         checkContextMenu(["context-media-play",         true,
                           "context-media-mute",         true,
                           "context-media-showcontrols", true,
+                          "context-video-fullscreen",   true,
                           "---",                        null,
                           "context-viewvideo",          true,
                           "context-copyvideourl",       true,
@@ -247,10 +243,11 @@ function runTest(testNum) {
         break;
 
     case 9:
-        // Context menu for a video (with a INVALID media source)
+        // Context menu for a video (with an INVALID media source)
         checkContextMenu(["context-media-play",         false,
                           "context-media-mute",         false,
                           "context-media-showcontrols", false,
+                          "context-video-fullscreen",   false,
                           "---",                        null,
                           "context-viewvideo",          true,
                           "context-copyvideourl",       true,
@@ -262,10 +259,11 @@ function runTest(testNum) {
         break;
 
     case 10:
-        // Context menu for a video (with a INVALID media source)
+        // Context menu for a video (with an INVALID media source)
         checkContextMenu(["context-media-play",         false,
                           "context-media-mute",         false,
                           "context-media-showcontrols", false,
+                          "context-video-fullscreen",   false,
                           "---",                        null,
                           "context-viewvideo",          false,
                           "context-copyvideourl",       false,
@@ -289,7 +287,6 @@ function runTest(testNum) {
                           "---",                  null,
                           "context-viewbgimage",  false,
                           "context-selectall",    true,
-                          "---",                  null,
                           "frame",                null,
                               ["context-showonlythisframe", true,
                                "context-openframe",         true,
@@ -367,8 +364,24 @@ function startTest() {
 // The frame causes an extra menu item, and prevents running the test
 // standalone (ie, clicking the test name in the Mochitest window) to see
 // success/failure messages.
+var painted = false, loaded = false;
+
+function waitForEvents(event)
+{
+  if (event.type == "MozAfterPaint")
+    painted = true;
+  else if (event.type == "load")
+    loaded = true;
+  if (painted && loaded) {
+    subwindow.removeEventListener("MozAfterPaint", waitForEvents, false);
+    subwindow.onload = null;
+    startTest();
+  }
+}
+
 var subwindow = window.open("./subtst_contextmenu.html", "contextmenu-subtext", "width=600,height=700");
-subwindow.onload = startTest;
+subwindow.addEventListener("MozAfterPaint", waitForEvents, false);
+subwindow.onload = waitForEvents;
 
 SimpleTest.waitForExplicitFinish();
 </script>

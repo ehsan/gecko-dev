@@ -335,6 +335,7 @@ struct nsCSSText : public nsCSSStruct  {
   nsCSSText(void);
   ~nsCSSText(void);
 
+  nsCSSValue mTabSize;
   nsCSSValue mWordSpacing;
   nsCSSValue mLetterSpacing;
   nsCSSValue mVerticalAlign;
@@ -371,10 +372,15 @@ struct nsCSSDisplay : public nsCSSStruct  {
   nsCSSRect  mClip;
   nsCSSValue mOverflowX;
   nsCSSValue mOverflowY;
+  nsCSSValue mPointerEvents;
   nsCSSValue mVisibility;
   nsCSSValue mOpacity;
   nsCSSValueList *mTransform; // List of Arrays containing transform information
   nsCSSValuePair mTransformOrigin;
+  nsCSSValueList* mTransitionProperty;
+  nsCSSValueList* mTransitionDuration;
+  nsCSSValueList* mTransitionTimingFunction;
+  nsCSSValueList* mTransitionDelay;
 
   // temp fix for bug 24000 
   nsCSSValue mBreakBefore;
@@ -501,8 +507,6 @@ struct nsCSSTable : public nsCSSStruct  { // NEW
   nsCSSValue mEmptyCells;
   
   nsCSSValue mLayout;
-  nsCSSValue mFrame; // Not mappable via CSS, only using HTML4 table attrs.
-  nsCSSValue mRules; // Not mappable via CSS, only using HTML4 table attrs.
   nsCSSValue mSpan; // Not mappable via CSS, only using HTML4 table attrs.
   nsCSSValue mCols; // Not mappable via CSS, only using HTML4 table attrs.
 private:
@@ -666,7 +670,6 @@ private:
   nsRuleDataColumn(const nsRuleDataColumn& aOther); // NOT IMPLEMENTED
 };
 
-#ifdef MOZ_SVG
 struct nsCSSSVG : public nsCSSStruct {
   nsCSSSVG(void);
   ~nsCSSSVG(void);
@@ -688,7 +691,6 @@ struct nsCSSSVG : public nsCSSStruct {
   nsCSSValue mMarkerMid;
   nsCSSValue mMarkerStart;
   nsCSSValue mMask;
-  nsCSSValue mPointerEvents;
   nsCSSValue mShapeRendering;
   nsCSSValue mStopColor;
   nsCSSValue mStopOpacity;
@@ -711,6 +713,5 @@ struct nsRuleDataSVG : public nsCSSSVG {
 private:
   nsRuleDataSVG(const nsRuleDataSVG& aOther); // NOT IMPLEMENTED
 };
-#endif
 
 #endif /* nsCSSStruct_h___ */

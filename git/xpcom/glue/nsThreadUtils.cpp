@@ -46,6 +46,10 @@
 # include "nsServiceManagerUtils.h"
 #endif
 
+#ifdef XP_WIN
+#include <windows.h>
+#endif
+
 #ifndef XPCOM_GLUE_AVOID_NSPR
 
 NS_IMPL_THREADSAFE_ISUPPORTS1(nsRunnable, nsIRunnable)
@@ -116,20 +120,36 @@ NS_GetMainThread(nsIThread **result)
 #endif
 }
 
-NS_METHOD_(PRBool)
-NS_IsMainThread()
+#ifndef MOZILLA_INTERNAL_API
+bool NS_IsMainThread()
 {
   PRBool result = PR_FALSE;
-#ifdef MOZILLA_INTERNAL_API
-  nsThreadManager::get()->nsThreadManager::GetIsMainThread(&result);
-#else
   nsCOMPtr<nsIThreadManager> mgr =
-      do_GetService(NS_THREADMANAGER_CONTRACTID);
+    do_GetService(NS_THREADMANAGER_CONTRACTID);
   if (mgr)
     mgr->GetIsMainThread(&result);
-#endif
-  return result;
+  return bool(result);
 }
+#elif defined(XP_WIN)
+extern DWORD gTLSIsMainThreadIndex;
+bool
+NS_IsMainThread()
+{
+  return !!TlsGetValue(gTLSIsMainThreadIndex);
+}
+#elif !defined(NS_TLS)
+bool NS_IsMainThread()
+{
+  PRBool result = PR_FALSE;
+  nsThreadManager::get()->nsThreadManager::GetIsMainThread(&result);
+  return bool(result);
+}
+#elif !defined(MOZ_ENABLE_LIBXUL)
+bool NS_IsMainThread()
+{
+  return gTLSIsMainThread;
+}
+#endif
 
 NS_METHOD
 NS_DispatchToCurrentThread(nsIRunnable *event)

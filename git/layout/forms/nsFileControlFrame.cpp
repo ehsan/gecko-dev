@@ -73,9 +73,12 @@
 #include "nsIDOMNSUIEvent.h"
 #include "nsIDOMEventGroup.h"
 #include "nsIDOM3EventTarget.h"
+#include "nsIDOMNSHTMLInputElement.h"
 #ifdef ACCESSIBILITY
 #include "nsIAccessibilityService.h"
 #endif
+#include "nsIVariant.h"
+#include "nsIContentPrefService.h"
 
 #define SYNC_TEXT 0x1
 #define SYNC_BUTTON 0x2
@@ -86,6 +89,8 @@ NS_NewFileControlFrame(nsIPresShell* aPresShell, nsStyleContext* aContext)
 {
   return new (aPresShell) nsFileControlFrame(aContext);
 }
+
+NS_IMPL_FRAMEARENA_HELPERS(nsFileControlFrame)
 
 nsFileControlFrame::nsFileControlFrame(nsStyleContext* aContext):
   nsBlockFrame(aContext),
@@ -118,7 +123,7 @@ nsFileControlFrame::Init(nsIContent* aContent,
 }
 
 void
-nsFileControlFrame::Destroy()
+nsFileControlFrame::DestroyFrom(nsIFrame* aDestructRoot)
 {
   mTextFrame = nsnull;
   ENSURE_TRUE(mContent);
@@ -144,7 +149,7 @@ nsFileControlFrame::Destroy()
   }
 
   mMouseListener->ForgetFrame();
-  nsBlockFrame::Destroy();
+  nsBlockFrame::DestroyFrom(aDestructRoot);
 }
 
 nsresult
@@ -175,7 +180,7 @@ nsFileControlFrame::CreateAnonymousContent(nsTArray<nsIContent*>& aElements)
       // Initialize value when we create the content in case the value was set
       // before we got here
       nsAutoString value;
-      fileControl->GetFileName(value);
+      fileControl->GetDisplayFileName(value);
       textControl->SetValue(value);
     }
 
@@ -277,7 +282,9 @@ nsFileControlFrame::MouseListener::MouseClick(nsIDOMEvent* aMouseEvent)
 
   // Get parent nsIDOMWindowInternal object.
   nsIContent* content = mFrame->GetContent();
-  if (!content)
+  nsCOMPtr<nsIDOMNSHTMLInputElement> inputElem = do_QueryInterface(content);
+  nsCOMPtr<nsIFileControlElement> fileControl = do_QueryInterface(content);
+  if (!content || !inputElem || !fileControl)
     return NS_ERROR_FAILURE;
 
   nsCOMPtr<nsIDocument> doc = content->GetDocument();
@@ -298,7 +305,13 @@ nsFileControlFrame::MouseListener::MouseClick(nsIDOMEvent* aMouseEvent)
     return NS_ERROR_FAILURE;
   }
 
-  result = filePicker->Init(win, title, nsIFilePicker::modeOpen);
+  PRBool multi;
+  result = inputElem->GetMultiple(&multi);
+  NS_ENSURE_SUCCESS(result, result);
+
+  result = filePicker->Init(win, title, multi ?
+                            (PRInt16)nsIFilePicker::modeOpenMultiple :
+                            (PRInt16)nsIFilePicker::modeOpen);
   if (NS_FAILED(result))
     return result;
 
@@ -307,27 +320,38 @@ nsFileControlFrame::MouseListener::MouseClick(nsIDOMEvent* aMouseEvent)
 
   // Set default directry and filename
   nsAutoString defaultName;
-  mFrame->GetFormProperty(nsGkAtoms::value, defaultName);
 
-  nsCOMPtr<nsILocalFile> currentFile = do_CreateInstance("@mozilla.org/file/local;1");
-  if (currentFile && !defaultName.IsEmpty()) {
-    result = currentFile->InitWithPath(defaultName);
-    if (NS_SUCCEEDED(result)) {
+  nsCOMArray<nsIFile> oldFiles;
+  fileControl->GetFileArray(oldFiles);
+
+  if (oldFiles.Count()) {
+    // set directory
+    nsCOMPtr<nsIFile> parentFile;
+    oldFiles[0]->GetParent(getter_AddRefs(parentFile));
+    if (parentFile) {
+      nsCOMPtr<nsILocalFile> parentLocalFile = do_QueryInterface(parentFile, &result);
+      if (parentLocalFile) {
+        filePicker->SetDisplayDirectory(parentLocalFile);
+      }
+    }
+
+    // Unfortunately nsIFilePicker doesn't allow multiple files to be
+    // default-selected, so only select something by default if exactly
+    // one file was selected before.
+    if (oldFiles.Count() == 1) {
       nsAutoString leafName;
-      currentFile->GetLeafName(leafName);
+      oldFiles[0]->GetLeafName(leafName);
       if (!leafName.IsEmpty()) {
         filePicker->SetDefaultString(leafName);
       }
-
-      // set directory
-      nsCOMPtr<nsIFile> parentFile;
-      currentFile->GetParent(getter_AddRefs(parentFile));
-      if (parentFile) {
-        nsCOMPtr<nsILocalFile> parentLocalFile = do_QueryInterface(parentFile, &result);
-        if (parentLocalFile)
-          filePicker->SetDisplayDirectory(parentLocalFile);
-      }
     }
+  } else {
+    // Attempt to retrieve the last used directory from the content pref service
+    nsCOMPtr<nsILocalFile> localFile = do_CreateInstance(NS_LOCAL_FILE_CONTRACTID);
+    if (!localFile)
+      return NS_ERROR_OUT_OF_MEMORY;
+    if (NS_SUCCEEDED(FetchLastUsedDirectory(doc->GetDocumentURI(), localFile)))
+      filePicker->SetDisplayDirectory(localFile);
   }
 
   // Tell our textframe to remember the currently focused value
@@ -338,6 +362,8 @@ nsFileControlFrame::MouseListener::MouseClick(nsIDOMEvent* aMouseEvent)
   result = filePicker->Show(&mode);
   if (NS_FAILED(result))
     return result;
+  if (mode == nsIFilePicker::returnCancel)
+    return NS_OK;
 
   if (!mFrame) {
     // The frame got destroyed while the filepicker was up.  Don't do
@@ -347,36 +373,114 @@ nsFileControlFrame::MouseListener::MouseClick(nsIDOMEvent* aMouseEvent)
     return NS_OK;
   }
   
-  // Set property
-  nsAutoString unicodePath;
-  nsCOMPtr<nsILocalFile> localFile;
-  if (mode != nsIFilePicker::returnCancel) {
+  // Collect new selected filenames
+  nsTArray<nsString> newFileNames;
+  if (multi) {
+    nsCOMPtr<nsISimpleEnumerator> iter;
+    result = filePicker->GetFiles(getter_AddRefs(iter));
+    NS_ENSURE_SUCCESS(result, result);
+
+    nsCOMPtr<nsISupports> tmp;
+    PRBool prefSaved = PR_FALSE;
+    while (NS_SUCCEEDED(iter->GetNext(getter_AddRefs(tmp)))) {
+      nsCOMPtr<nsIFile> file = do_QueryInterface(tmp);
+      if (file) {
+        nsString unicodePath;
+        result = file->GetPath(unicodePath);
+        if (!unicodePath.IsEmpty()) {
+          newFileNames.AppendElement(unicodePath);
+        }
+        if (!prefSaved) {
+          // Store the last used directory using the content pref service
+          StoreLastUsedDirectory(doc->GetDocumentURI(), file);
+          prefSaved = PR_TRUE;
+        }
+      }
+    }
+  }
+  else {
+    nsCOMPtr<nsILocalFile> localFile;
     result = filePicker->GetFile(getter_AddRefs(localFile));
     if (localFile) {
+      nsString unicodePath;
       result = localFile->GetPath(unicodePath);
+      if (!unicodePath.IsEmpty()) {
+        newFileNames.AppendElement(unicodePath);
+      }
+      // Store the last used directory using the content pref service
+      StoreLastUsedDirectory(doc->GetDocumentURI(), localFile);
     }
   }
 
-  nsAutoString oldFileName;
-  nsCOMPtr<nsIFileControlElement> fileControl = do_QueryInterface(content);
-  NS_ENSURE_TRUE(fileControl, NS_ERROR_UNEXPECTED);
-
-  fileControl->GetFileName(oldFileName);
-
-  if (!unicodePath.Equals(oldFileName)) {
+  // Set new selected files
+  if (!newFileNames.IsEmpty()) {
     // Tell mTextFrame that this update of the value is a user initiated
     // change. Otherwise it'll think that the value is being set by a script
     // and not fire onchange when it should.
     PRBool oldState = mFrame->mTextFrame->GetFireChangeEventState();
     mFrame->mTextFrame->SetFireChangeEventState(PR_TRUE);
-    fileControl->SetFileName(unicodePath);
-      
+    fileControl->SetFileNames(newFileNames);
+
     mFrame->mTextFrame->SetFireChangeEventState(oldState);
     // May need to fire an onchange here
     mFrame->mTextFrame->CheckFireOnChange();
   }
 
   return NS_OK;
+}
+
+nsresult
+nsFileControlFrame::FetchLastUsedDirectory(nsIURI* aURI, nsILocalFile* aFile)
+{
+  // Attempt to get the CPS, if it's not present we'll just return
+  nsCOMPtr<nsIContentPrefService> contentPrefService =
+    do_GetService(NS_CONTENT_PREF_SERVICE_CONTRACTID);
+  if (!contentPrefService)
+    return NS_ERROR_NOT_AVAILABLE;
+  nsCOMPtr<nsIWritableVariant> uri = do_CreateInstance(NS_VARIANT_CONTRACTID);
+  if (!uri)
+    return NS_ERROR_OUT_OF_MEMORY;
+  uri->SetAsISupports(aURI);
+  NS_NAMED_LITERAL_STRING(prefName, "lastUploadDirectory");
+
+  // Get the last used directory, if it is stored
+  PRBool hasPref;
+  if (NS_SUCCEEDED(contentPrefService->HasPref(uri, prefName, &hasPref)) && hasPref) {
+    nsCOMPtr<nsIVariant> pref;
+    contentPrefService->GetPref(uri, prefName, getter_AddRefs(pref));
+    nsString prefStr;
+    pref->GetAsAString(prefStr);
+    return aFile->InitWithPath(prefStr);
+  }
+  return NS_OK;
+}
+
+void
+nsFileControlFrame::StoreLastUsedDirectory(nsIURI* aURI, nsIFile* aFile)
+{
+  // Attempt to get the CPS, if it's not present we'll just return
+  nsCOMPtr<nsIContentPrefService> contentPrefService =
+    do_GetService(NS_CONTENT_PREF_SERVICE_CONTRACTID);
+  if (!contentPrefService)
+    return;
+  nsCOMPtr<nsIWritableVariant> uri = do_CreateInstance(NS_VARIANT_CONTRACTID);
+  if (!uri)
+    return;
+  uri->SetAsISupports(aURI);
+  NS_NAMED_LITERAL_STRING(prefName, "lastUploadDirectory");
+
+  // Find the parent of aFile, and store it
+  nsCOMPtr<nsIFile> parentFile;
+  nsString unicodePath;
+  aFile->GetParent(getter_AddRefs(parentFile));
+  parentFile->GetPath(unicodePath);
+  if (!unicodePath.IsEmpty()) {
+    nsCOMPtr<nsIWritableVariant> prefValue = do_CreateInstance(NS_VARIANT_CONTRACTID);
+    if (!prefValue)
+      return;
+    prefValue->SetAsAString(unicodePath);
+    contentPrefService->SetPref(uri, prefName, prefValue);
+  }
 }
 
 nscoord
@@ -530,16 +634,10 @@ nsFileControlFrame::GetFormProperty(nsIAtom* aName, nsAString& aValue) const
   aValue.Truncate();  // initialize out param
 
   if (nsGkAtoms::value == aName) {
-    NS_ASSERTION(!mCachedState || !mTextFrame,
-                 "If we have a cached state, we better have no mTextFrame");
-    if (mCachedState) {
-      aValue.Assign(*mCachedState);
-    } else {
-      nsCOMPtr<nsIFileControlElement> fileControl =
-        do_QueryInterface(mContent);
-      if (fileControl) {
-        fileControl->GetFileName(aValue);
-      }
+    nsCOMPtr<nsIFileControlElement> fileControl =
+      do_QueryInterface(mContent);
+    if (fileControl) {
+      fileControl->GetDisplayFileName(aValue);
     }
   }
   return NS_OK;

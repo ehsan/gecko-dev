@@ -36,42 +36,36 @@
  * the terms of any one of the MPL, the GPL or the LGPL.
  *
  * ***** END LICENSE BLOCK ***** */
+
 #include "nsCOMPtr.h"
 #include "nsReadableUtils.h"
 #include "nsUnicharUtils.h"
 #include "nsIDOMHTMLAnchorElement.h"
 #include "nsIDOMNSHTMLAnchorElement2.h"
-#include "nsIDOMEventTarget.h"
-#include "nsIHTMLDocument.h"
 #include "nsGenericHTMLElement.h"
 #include "nsILink.h"
 #include "nsGkAtoms.h"
-#include "nsStyleConsts.h"
+#include "nsIPresShell.h"
+#include "nsIDocument.h"
 #include "nsPresContext.h"
 #include "nsIEventStateManager.h"
-#include "nsIURL.h"
-#include "nsIEventStateManager.h"
-#include "nsIDOMEvent.h"
-#include "nsNetUtil.h"
-#include "nsCRT.h"
 
 // For GetText().
 #include "nsIContentIterator.h"
 #include "nsIDOMText.h"
-#include "nsIEnumerator.h"
-
-#include "nsCOMPtr.h"
-#include "nsIPresShell.h"
-#include "nsIDocument.h"
 
 #include "nsHTMLDNSPrefetch.h"
 
-nsresult NS_NewContentIterator(nsIContentIterator** aInstancePtrResult);
+#include "Link.h"
+using namespace mozilla::dom;
+
+nsresult NS_NewPreContentIterator(nsIContentIterator** aInstancePtrResult);
 
 class nsHTMLAnchorElement : public nsGenericHTMLElement,
                             public nsIDOMHTMLAnchorElement,
                             public nsIDOMNSHTMLAnchorElement2,
-                            public nsILink
+                            public nsILink,
+                            public Link
 {
 public:
   nsHTMLAnchorElement(nsINodeInfo *aNodeInfo);
@@ -137,19 +131,17 @@ public:
 
   virtual nsresult Clone(nsINodeInfo *aNodeInfo, nsINode **aResult) const;
 
+  virtual void DropCachedHref();
+
 protected:
   void ResetLinkCacheState();
-  
-  // The cached visited state
-  nsLinkState mLinkState;
 };
 
 
 NS_IMPL_NS_NEW_HTML_ELEMENT(Anchor)
 
 nsHTMLAnchorElement::nsHTMLAnchorElement(nsINodeInfo *aNodeInfo)
-  : nsGenericHTMLElement(aNodeInfo),
-    mLinkState(eLinkState_Unknown)
+  : nsGenericHTMLElement(aNodeInfo)
 {
 }
 
@@ -378,19 +370,17 @@ nsHTMLAnchorElement::GetText(nsAString& aText)
   // The nsIContentIterator does exactly what we want, if we start the 
   // iteration from the end.
   nsCOMPtr<nsIContentIterator> iter;
-  nsresult rv = NS_NewContentIterator(getter_AddRefs(iter));
+  nsresult rv = NS_NewPreContentIterator(getter_AddRefs(iter));
   NS_ENSURE_SUCCESS(rv, rv);
 
   // Initialize the content iterator with the children of the anchor
   iter->Init(this);
 
-  // Position the iterator. Last() is the anchor itself, this is not what we 
-  // want. Prev() positions the iterator to the last child of the anchor,
+  // Last() positions the iterator to the last child of the anchor,
   // starting at the deepest level of children, just like NS4 does.
   iter->Last();
-  iter->Prev();
 
-  while(!iter->IsDone()) {
+  while (!iter->IsDone()) {
     nsCOMPtr<nsIDOMText> textNode(do_QueryInterface(iter->GetCurrentNode()));
     if(textNode) {
       // The current node is a text node. Get its value and break the loop.
@@ -425,13 +415,13 @@ nsHTMLAnchorElement::SetPing(const nsAString& aValue)
 nsLinkState
 nsHTMLAnchorElement::GetLinkState() const
 {
-  return mLinkState;
+  return Link::GetLinkState();
 }
 
 void
 nsHTMLAnchorElement::SetLinkState(nsLinkState aState)
 {
-  mLinkState = aState;
+  Link::SetLinkState(aState);
 }
 
 already_AddRefed<nsIURI>
@@ -499,13 +489,21 @@ nsHTMLAnchorElement::ParseAttribute(PRInt32 aNamespaceID,
 }
 
 void
+nsHTMLAnchorElement::DropCachedHref()
+{
+  nsAttrValue* attr =
+    const_cast<nsAttrValue*>(mAttrsAndChildren.GetAttr(nsGkAtoms::href));
+
+  if (!attr || attr->Type() != nsAttrValue::eLazyURIValue)
+    return;
+
+  attr->DropCachedURI();
+}
+
+void
 nsHTMLAnchorElement::ResetLinkCacheState()
 {
-  nsIDocument* doc = GetCurrentDoc();
-  if (doc) {
-    doc->ForgetLink(this);
-  }
-  mLinkState = eLinkState_Unknown;
+  Link::ResetLinkState();
 
   // Clear our cached URI _after_ we ForgetLink(), since ForgetLink()
   // wants that URI.

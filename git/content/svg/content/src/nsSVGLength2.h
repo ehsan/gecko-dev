@@ -132,9 +132,9 @@ private:
   void SetBaseValue(float aValue, nsSVGElement *aSVGElement);
   void SetBaseValueInSpecifiedUnits(float aValue, nsSVGElement *aSVGElement);
   void SetAnimValue(float aValue, nsSVGElement *aSVGElement);
-  void NewValueSpecifiedUnits(PRUint16 aUnitType, float aValue,
-                              nsSVGElement *aSVGElement);
-  void ConvertToSpecifiedUnits(PRUint16 aUnitType, nsSVGElement *aSVGElement);
+  nsresult NewValueSpecifiedUnits(PRUint16 aUnitType, float aValue,
+                                  nsSVGElement *aSVGElement);
+  nsresult ConvertToSpecifiedUnits(PRUint16 aUnitType, nsSVGElement *aSVGElement);
   nsresult ToDOMBaseVal(nsIDOMSVGLength **aResult, nsSVGElement* aSVGElement);
   nsresult ToDOMAnimVal(nsIDOMSVGLength **aResult, nsSVGElement* aSVGElement);
 
@@ -145,6 +145,7 @@ private:
 
     DOMBaseVal(nsSVGLength2* aVal, nsSVGElement *aSVGElement)
       : mVal(aVal), mSVGElement(aSVGElement) {}
+    virtual ~DOMBaseVal();
     
     nsSVGLength2* mVal; // kept alive because it belongs to mSVGElement
     nsRefPtr<nsSVGElement> mSVGElement;
@@ -178,13 +179,11 @@ private:
     NS_IMETHOD NewValueSpecifiedUnits(PRUint16 unitType,
                                       float valueInSpecifiedUnits)
       {
-        NS_ENSURE_FINITE(valueInSpecifiedUnits, NS_ERROR_ILLEGAL_VALUE);
-        mVal->NewValueSpecifiedUnits(unitType, valueInSpecifiedUnits,
-                                     mSVGElement);
-        return NS_OK; }
+        return mVal->NewValueSpecifiedUnits(unitType, valueInSpecifiedUnits,
+                                            mSVGElement); }
 
     NS_IMETHOD ConvertToSpecifiedUnits(PRUint16 unitType)
-      { mVal->ConvertToSpecifiedUnits(unitType, mSVGElement); return NS_OK; }
+      { return mVal->ConvertToSpecifiedUnits(unitType, mSVGElement); }
   };
 
   struct DOMAnimVal : public nsIDOMSVGLength
@@ -194,6 +193,7 @@ private:
 
     DOMAnimVal(nsSVGLength2* aVal, nsSVGElement *aSVGElement)
       : mVal(aVal), mSVGElement(aSVGElement) {}
+    virtual ~DOMAnimVal();
     
     nsSVGLength2* mVal; // kept alive because it belongs to mSVGElement
     nsRefPtr<nsSVGElement> mSVGElement;
@@ -255,6 +255,7 @@ private:
 
     DOMAnimatedLength(nsSVGLength2* aVal, nsSVGElement *aSVGElement)
       : mVal(aVal), mSVGElement(aSVGElement) {}
+    virtual ~DOMAnimatedLength();
     
     nsSVGLength2* mVal; // kept alive because it belongs to content
     nsRefPtr<nsSVGElement> mSVGElement;

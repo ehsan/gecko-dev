@@ -82,7 +82,6 @@
 #include "nsITokenizer.h"
 #include "nsHTMLTags.h"
 #include "nsDTDUtils.h"
-#include "nsTimer.h"
 #include "nsThreadUtils.h"
 #include "nsIContentSink.h"
 #include "nsIParserFilter.h"
@@ -230,16 +229,6 @@ class nsParser : public nsIParser,
      */
     NS_IMETHOD BuildModel(void);
 
-    /**
-     *  Call this when you want control whether or not the parser will parse
-     *  and tokenize input (TRUE), or whether it just caches input to be 
-     *  parsed later (FALSE).
-     *  
-     *  @update  gess 9/1/98
-     *  @param   aState determines whether we parse/tokenize or just cache.
-     *  @return  current state
-     */
-    NS_IMETHOD        ContinueParsing();
     NS_IMETHOD        ContinueInterruptedParsing();
     NS_IMETHOD_(void) BlockParser();
     NS_IMETHOD_(void) UnblockParser();
@@ -312,6 +301,13 @@ class nsParser : public nsIParser,
      */
     NS_IMETHOD GetDTD(nsIDTD** aDTD);
   
+    /**
+     * Get the nsIStreamListener for this parser
+     * @param aDTD out param that will contain the result
+     * @return NS_OK if successful
+     */
+    NS_IMETHOD GetStreamListener(nsIStreamListener** aListener);
+
     /** 
      * Detects the existence of a META tag with charset information in 
      * the given buffer.
@@ -337,6 +333,31 @@ class nsParser : public nsIParser,
      *  @update  kmcclusk 5/18/98
      */
     virtual PRBool CanInterrupt();
+
+    /**
+     * Return true.
+     */
+    virtual PRBool IsInsertionPointDefined();
+
+    /**
+     * No-op.
+     */
+    virtual void BeginEvaluatingParserInsertedScript();
+
+    /**
+     * No-op.
+     */
+    virtual void EndEvaluatingParserInsertedScript();
+
+    /**
+     * No-op.
+     */
+    virtual void MarkAsNotScriptCreated();
+
+    /**
+     * Always false.
+     */
+    virtual PRBool IsScriptCreated();
 
     /**  
      *  Set to parser state to indicate whether parsing tokens can be interrupted
@@ -388,6 +409,10 @@ class nsParser : public nsIParser,
 
     PRBool IsScriptExecuting() {
       return mSink && mSink->IsScriptExecuting();
+    }
+
+    PRBool IsOkToProcessNetworkData() {
+      return !IsScriptExecuting() && !mProcessingNetworkData;
     }
 
  protected:
@@ -479,6 +504,8 @@ protected:
     nsCString           mCharset;
     nsCString           mCommandStr;
 
+    PRBool              mProcessingNetworkData;
+
     static nsICharsetAlias*            sCharsetAliasService;
     static nsICharsetConverterManager* sCharsetConverterManager;
     static nsIThreadPool*              sSpeculativeThreadPool;
@@ -488,12 +515,6 @@ protected:
       kIdleThreadLimit = 0,
       kIdleThreadTimeout = 50
     };
-
-public:  
-   
-    MOZ_TIMER_DECLARE(mParseTime)
-    MOZ_TIMER_DECLARE(mDTDTime)
-    MOZ_TIMER_DECLARE(mTokenizeTime)
 };
 
 #endif 

@@ -98,45 +98,41 @@ enum {
   // NOTE: Should only be used on nsIContent nodes
   NODE_IS_NATIVE_ANONYMOUS_ROOT = 0x00000020U,
 
-  // Whether this node may have a frame
-  // NOTE: Should only be used on nsIContent nodes
-  NODE_MAY_HAVE_FRAME =          0x00000040U,
-
   // Forces the XBL code to treat this node as if it were
   // in the document and therefore should get bindings attached.
-  NODE_FORCE_XBL_BINDINGS =      0x00000080U,
+  NODE_FORCE_XBL_BINDINGS =      0x00000040U,
 
   // Whether a binding manager may have a pointer to this
-  NODE_MAY_BE_IN_BINDING_MNGR =  0x00000100U,
+  NODE_MAY_BE_IN_BINDING_MNGR =  0x00000080U,
 
-  NODE_IS_EDITABLE =             0x00000200U,
+  NODE_IS_EDITABLE =             0x00000100U,
 
   // Optimizations to quickly check whether element may have ID, class or style
   // attributes. Not all element implementations may use these!
-  NODE_MAY_HAVE_ID =             0x00000400U,
+  NODE_MAY_HAVE_ID =             0x00000200U,
   // For all Element nodes, NODE_MAY_HAVE_CLASS is guaranteed to be set if the
   // node in fact has a class, but may be set even if it doesn't.
-  NODE_MAY_HAVE_CLASS =          0x00000800U,
-  NODE_MAY_HAVE_STYLE =          0x00001000U,
+  NODE_MAY_HAVE_CLASS =          0x00000400U,
+  NODE_MAY_HAVE_STYLE =          0x00000800U,
 
-  NODE_IS_INSERTION_PARENT =     0x00002000U,
+  NODE_IS_INSERTION_PARENT =     0x00001000U,
 
   // Node has an :empty or :-moz-only-whitespace selector
-  NODE_HAS_EMPTY_SELECTOR =      0x00004000U,
+  NODE_HAS_EMPTY_SELECTOR =      0x00002000U,
 
   // A child of the node has a selector such that any insertion,
   // removal, or appending of children requires restyling the parent.
-  NODE_HAS_SLOW_SELECTOR =       0x00008000U,
+  NODE_HAS_SLOW_SELECTOR =       0x00004000U,
 
   // A child of the node has a :first-child, :-moz-first-node,
   // :only-child, :last-child or :-moz-last-node selector.
-  NODE_HAS_EDGE_CHILD_SELECTOR = 0x00010000U,
+  NODE_HAS_EDGE_CHILD_SELECTOR = 0x00008000U,
 
   // A child of the node has a selector such that any insertion or
   // removal of children requires restyling the parent (but append is
   // OK).
   NODE_HAS_SLOW_SELECTOR_NOAPPEND
-                               = 0x00020000U,
+                               = 0x00010000U,
 
   NODE_ALL_SELECTOR_FLAGS =      NODE_HAS_EMPTY_SELECTOR |
                                  NODE_HAS_SLOW_SELECTOR |
@@ -144,10 +140,10 @@ enum {
                                  NODE_HAS_SLOW_SELECTOR_NOAPPEND,
 
   NODE_MAY_HAVE_CONTENT_EDITABLE_ATTR
-                               = 0x00040000U,
+                               = 0x00020000U,
 
   NODE_ATTACH_BINDING_ON_POSTCREATE
-                               = 0x00080000U,
+                               = 0x00040000U,
 
   // Four bits for the script-type ID
   NODE_SCRIPT_TYPE_OFFSET =               20,
@@ -246,8 +242,8 @@ private:
 
 // IID for the nsINode interface
 #define NS_INODE_IID \
-{ 0xfc22c6df, 0x3e8e, 0x47c3, \
-  { 0x96, 0xa6, 0xaf, 0x14, 0x3c, 0x05, 0x88, 0x68 } }
+{ 0x7244fd04, 0xa8e9, 0x4839, \
+ { 0x92, 0x48, 0xb2, 0xe0, 0xd8, 0xd8, 0x85, 0x0d } }
  
 /**
  * An internal interface that abstracts some DOMNode-related parts that both
@@ -293,28 +289,22 @@ public:
     ePROCESSING_INSTRUCTION = 1 << 5,
     /** comment nodes */
     eCOMMENT             = 1 << 6,
-    /** html elements */
-    eHTML                = 1 << 7,
     /** form control elements */
-    eHTML_FORM_CONTROL   = 1 << 8,
-    /** XUL elements */
-    eXUL                 = 1 << 9,
+    eHTML_FORM_CONTROL   = 1 << 7,
     /** svg elements */
-    eSVG                 = 1 << 10,
+    eSVG                 = 1 << 8,
     /** document fragments */
-    eDOCUMENT_FRAGMENT   = 1 << 11,
+    eDOCUMENT_FRAGMENT   = 1 << 9,
     /** data nodes (comments, PIs, text). Nodes of this type always
      returns a non-null value for nsIContent::GetText() */
-    eDATA_NODE           = 1 << 12,
-    /** nsMathMLElement */
-    eMATHML              = 1 << 13,
+    eDATA_NODE           = 1 << 10,
     /** nsHTMLMediaElement */
-    eMEDIA               = 1 << 14
+    eMEDIA               = 1 << 11
   };
 
   /**
    * API for doing a quick check if a content is of a given
-   * type, such as HTML, XUL, Text, ...  Use this when you can instead of
+   * type, such as Text, Document, Comment ...  Use this when you can instead of
    * checking the tag.
    *
    * @param aFlags what types you want to test for (see above)
@@ -739,7 +729,6 @@ public:
   void SetFlags(PtrBits aFlagsToSet)
   {
     NS_ASSERTION(!(aFlagsToSet & (NODE_IS_ANONYMOUS |
-                                  NODE_MAY_HAVE_FRAME |
                                   NODE_IS_NATIVE_ANONYMOUS_ROOT |
                                   NODE_IS_IN_ANONYMOUS_SUBTREE |
                                   NODE_ATTACH_BINDING_ON_POSTCREATE)) ||
@@ -809,7 +798,8 @@ public:
    * user does "Select All" while the focus is in this node. Note that if this
    * node is not in an editor, the result comes from the nsFrameSelection that
    * is related to aPresShell, so the result might not be the ancestor of this
-   * node.
+   * node. Be aware that if this node and the computed selection limiter are
+   * not in same subtree, this returns the root content of the closeset subtree.
    */
   nsIContent* GetSelectionRootContent(nsIPresShell* aPresShell);
 
@@ -853,7 +843,7 @@ public:
     }
 
     PRBool IsDone() const { return mCur == mEnd; }
-    operator nsIContent* const () { return *mCur; }
+    operator nsIContent*() const { return *mCur; }
     void Next() { NS_PRECONDITION(mCur != mEnd, "Check IsDone"); ++mCur; }
     void Advance(PRUint32 aOffset) {
       NS_ASSERTION(mCur + aOffset <= mEnd, "Unexpected offset");

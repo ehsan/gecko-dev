@@ -68,8 +68,6 @@
 #include "nsEscape.h"
 #include "nsIFrame.h"
 #include "nsIScrollableFrame.h"
-#include "nsIScrollableView.h"
-#include "nsIScrollableViewProvider.h"
 #include "nsIView.h"
 #include "nsIViewManager.h"
 #include "nsRange.h"
@@ -98,6 +96,7 @@
 #include "nsIForm.h"
 #include "nsIFormControl.h"
 #include "nsIDOMHTMLFormElement.h"
+#include "nsHTMLFormElement.h"
 #include "nsFocusManager.h"
 
 #include "nsMutationEvent.h"
@@ -112,7 +111,6 @@
 #include "nsLayoutUtils.h"
 #include "nsContentCreatorFunctions.h"
 #include "mozAutoDocUpdate.h"
-#include "nsIFocusController.h"
 
 class nsINodeInfo;
 class nsIDOMNodeList;
@@ -436,8 +434,8 @@ nsGenericHTMLElement::SetClassName(const nsAString& aClassName)
 static PRBool
 IsBody(nsIContent *aContent)
 {
-  return (aContent->NodeInfo()->Equals(nsGkAtoms::body) &&
-          aContent->IsNodeOfType(nsINode::eHTML));
+  return aContent->NodeInfo()->Equals(nsGkAtoms::body) &&
+         aContent->IsHTML();
 }
 
 static PRBool IS_TABLE_CELL(nsIAtom* frameType) {
@@ -652,7 +650,7 @@ nsGenericHTMLElement::GetInnerHTML(nsAString& aInnerHTML)
         nsDependentCString(NS_DOC_ENCODER_CONTRACTID_BASE) +
         NS_ConvertUTF16toUTF8(contentType)
       ).get());
-  if (!docEncoder && doc->IsCaseSensitive()) {
+  if (!(docEncoder || doc->IsHTML())) {
     // This could be some type for which we create a synthetic document.  Try
     // again as XML
     contentType.AssignLiteral("application/xml");
@@ -722,7 +720,7 @@ nsGenericHTMLElement::SetInnerHTML(const nsAString& aInnerHTML)
 }
 
 nsresult
-nsGenericHTMLElement::ScrollIntoView(PRBool aTop)
+nsGenericHTMLElement::ScrollIntoView(PRBool aTop, PRUint8 optional_argc)
 {
   nsIDocument *document = GetCurrentDoc();
 
@@ -734,6 +732,10 @@ nsGenericHTMLElement::ScrollIntoView(PRBool aTop)
   nsCOMPtr<nsIPresShell> presShell = document->GetPrimaryShell();
   if (!presShell) {
     return NS_OK;
+  }
+
+  if (!optional_argc) {
+    aTop = PR_TRUE;
   }
 
   PRIntn vpercent = aTop ? NS_PRESSHELL_SCROLL_TOP :
@@ -752,14 +754,13 @@ nsGenericHTMLElement::GetSpellcheck(PRBool* aSpellcheck)
   *aSpellcheck = PR_FALSE;              // Default answer is to not spellcheck
 
   // Has the state has been explicitly set?
-  nsINode* node;
-  for (node = this; node; node = node->GetNodeParent()) {
-    if (node->IsNodeOfType(nsINode::eHTML)) {
+  nsIContent* node;
+  for (node = this; node; node = node->GetParent()) {
+    if (node->IsHTML()) {
       static nsIContent::AttrValuesArray strings[] =
         {&nsGkAtoms::_true, &nsGkAtoms::_false, nsnull};
-      switch (static_cast<nsIContent*>(node)->
-              FindAttrValueIn(kNameSpaceID_None, nsGkAtoms::spellcheck,
-                              strings, eCaseMatters)) {
+      switch (node->FindAttrValueIn(kNameSpaceID_None, nsGkAtoms::spellcheck,
+                                    strings, eCaseMatters)) {
         case 0:                         // spellcheck = "true"
           *aSpellcheck = PR_TRUE;
           // Fall through
@@ -895,8 +896,8 @@ nsGenericHTMLElement::UnbindFromTree(PRBool aDeep, PRBool aNullParent)
   nsGenericElement::UnbindFromTree(aDeep, aNullParent);
 }
 
-already_AddRefed<nsIDOMHTMLFormElement>
-nsGenericHTMLElement::FindForm(nsIForm* aCurrentForm)
+nsHTMLFormElement*
+nsGenericHTMLElement::FindForm(nsHTMLFormElement* aCurrentForm)
 {
   // Make sure we don't end up finding a form that's anonymous from
   // our point of view.
@@ -906,7 +907,7 @@ nsGenericHTMLElement::FindForm(nsIForm* aCurrentForm)
   while (content != bindingParent && content) {
     // If the current ancestor is a form, return it as our form
     if (content->Tag() == nsGkAtoms::form &&
-        content->IsNodeOfType(nsINode::eHTML)) {
+        content->IsHTML()) {
 #ifdef DEBUG
       if (!nsContentUtils::IsInSameAnonymousTree(this, content)) {
         // It's possible that we started unbinding at |content| or
@@ -919,10 +920,7 @@ nsGenericHTMLElement::FindForm(nsIForm* aCurrentForm)
         }
       }
 #endif
-      nsIDOMHTMLFormElement* form;
-      CallQueryInterface(content, &form);
-
-      return form;
+      return static_cast<nsHTMLFormElement*>(content);
     }
 
     nsIContent *prevContent = content;
@@ -936,19 +934,9 @@ nsGenericHTMLElement::FindForm(nsIForm* aCurrentForm)
       // we're one of those inputs-in-a-table that have a hacked mForm pointer
       // and a subtree containing both us and the form got removed from the
       // DOM.
-      nsCOMPtr<nsIContent> formCOMPtr = do_QueryInterface(aCurrentForm);
-      NS_ASSERTION(formCOMPtr, "aCurrentForm isn't an nsIContent?");
-      // Use an nsIContent temporary to reduce addref/releasing as we go up the
-      // tree
-      nsINode* iter = formCOMPtr;
-      do {
-        iter = iter->GetNodeParent();
-        if (iter == prevContent) {
-          nsIDOMHTMLFormElement* form;
-          CallQueryInterface(aCurrentForm, &form);
-          return form;
-        }
-      } while (iter);
+      if (nsContentUtils::ContentIsDescendantOf(aCurrentForm, prevContent)) {
+        return aCurrentForm;
+      }
     }
   }
 
@@ -959,7 +947,7 @@ static PRBool
 IsArea(nsIContent *aContent)
 {
   return (aContent->Tag() == nsGkAtoms::area &&
-          aContent->IsNodeOfType(nsINode::eHTML));
+          aContent->IsHTML());
 }
 
 PRBool
@@ -1177,16 +1165,6 @@ nsGenericHTMLElement::GetBaseURI() const
     return uri;
   }
 
-  // If we are a plain old HTML element (not XHTML), don't bother asking the
-  // base class -- our base URI is determined solely by the document base.
-  if (IsInHTMLDocument()) {
-    // If we got here, GetOwnerDoc() is not null
-    nsIURI *uri = GetOwnerDoc()->GetBaseURI();
-    NS_IF_ADDREF(uri);
-
-    return uri;
-  }
-
   return nsGenericHTMLElementBase::GetBaseURI();
 }
 
@@ -1211,7 +1189,7 @@ nsGenericHTMLElement::GetBaseTarget(nsAString& aBaseTarget) const
 PRBool
 nsGenericHTMLElement::IsNodeOfType(PRUint32 aFlags) const
 {
-  return !(aFlags & ~(eCONTENT | eELEMENT | eHTML));
+  return !(aFlags & ~(eCONTENT | eELEMENT));
 }
 
 //----------------------------------------------------------------------
@@ -1265,17 +1243,14 @@ nsGenericHTMLElement::GetAttributeMappingFunction() const
   return &MapCommonAttributesInto;
 }
 
-// static
 nsIFormControlFrame*
-nsGenericHTMLElement::GetFormControlFrameFor(nsIContent* aContent,
-                                             nsIDocument* aDocument,
-                                             PRBool aFlushContent)
+nsGenericHTMLElement::GetFormControlFrame(PRBool aFlushFrames)
 {
-  if (aFlushContent) {
+  if (aFlushFrames && IsInDoc()) {
     // Cause a flush of the frames, so we get up-to-date frame information
-    aDocument->FlushPendingNotifications(Flush_Frames);
+    GetCurrentDoc()->FlushPendingNotifications(Flush_Frames);
   }
-  nsIFrame* frame = GetPrimaryFrameFor(aContent, aDocument);
+  nsIFrame* frame = GetPrimaryFrame();
   if (frame) {
     nsIFormControlFrame* form_frame = do_QueryFrame(frame);
     if (form_frame) {
@@ -2171,7 +2146,11 @@ nsGenericHTMLElement::GetURIAttr(nsIAtom* aAttr, nsIAtom* aBaseAttr,
                                               attr->GetStringValue(),
                                             GetOwnerDoc(), baseURI);
 
-  if (isURIAttr) {
+  // We may have to re-resolve all our cached hrefs when the document's base
+  // URI changes.  The base URI depends on the owner document, but it's the
+  // current document that keeps track of links.  If the two documents don't
+  // match, we shouldn't cache.
+  if (isURIAttr && GetOwnerDoc() == GetCurrentDoc()) {
     const_cast<nsAttrValue*>(attr)->CacheURIValue(*aURI);
   }
   return PR_TRUE;
@@ -2269,21 +2248,15 @@ nsGenericHTMLElement::SetContentEditable(const nsAString& aContentEditable)
 NS_IMPL_INT_ATTR_DEFAULT_VALUE(nsGenericHTMLFrameElement, TabIndex, tabindex, 0)
 
 nsGenericHTMLFormElement::nsGenericHTMLFormElement(nsINodeInfo *aNodeInfo)
-  : nsGenericHTMLElement(aNodeInfo)
+  : nsGenericHTMLElement(aNodeInfo),
+    mForm(nsnull)
 {
-  mForm = nsnull;
 }
 
 nsGenericHTMLFormElement::~nsGenericHTMLFormElement()
 {
-  // Check that this element is still not the default content
-  // of its parent form.
-  NS_ASSERTION(!mForm || mForm->GetDefaultSubmitElement() != this,
-               "Content being destroyed is the default content");
-
-  // Clean up.  Set the form to nsnull so it knows we went away.
-  // Do not notify as the content is being destroyed.
-  ClearForm(PR_TRUE, PR_FALSE);
+  // Check that this element doesn't know anything about its form at this point.
+  NS_ASSERTION(!mForm, "How did we get here?");
 }
 
 NS_IMPL_QUERY_INTERFACE_INHERITED1(nsGenericHTMLFormElement,
@@ -2293,7 +2266,7 @@ NS_IMPL_QUERY_INTERFACE_INHERITED1(nsGenericHTMLFormElement,
 PRBool
 nsGenericHTMLFormElement::IsNodeOfType(PRUint32 aFlags) const
 {
-  return !(aFlags & ~(eCONTENT | eELEMENT | eHTML | eHTML_FORM_CONTROL));
+  return !(aFlags & ~(eCONTENT | eELEMENT | eHTML_FORM_CONTROL));
 }
 
 void
@@ -2312,8 +2285,7 @@ nsGenericHTMLFormElement::SetForm(nsIDOMHTMLFormElement* aForm)
                "We don't support switching from one non-null form to another.");
 
   // keep a *weak* ref to the form here
-  CallQueryInterface(aForm, &mForm);
-  mForm->Release();
+  mForm = static_cast<nsHTMLFormElement*>(aForm);
 }
 
 void
@@ -2351,12 +2323,7 @@ NS_IMETHODIMP
 nsGenericHTMLFormElement::GetForm(nsIDOMHTMLFormElement** aForm)
 {
   NS_ENSURE_ARG_POINTER(aForm);
-  *aForm = nsnull;
-
-  if (mForm) {
-    CallQueryInterface(mForm, aForm);
-  }
-
+  NS_IF_ADDREF(*aForm = mForm);
   return NS_OK;
 }
 
@@ -2444,10 +2411,7 @@ nsGenericHTMLFormElement::BindToTree(nsIDocument* aDocument,
     // it to the right value.  Also note that even if being bound here didn't
     // change our parent, we still need to search, since our parent chain
     // probably changed _somewhere_.
-    nsCOMPtr<nsIDOMHTMLFormElement> form = FindForm();
-    if (form) {
-      SetForm(form);
-    }
+    mForm = FindForm();
   }
 
   if (mForm && !HasFlag(ADDED_TO_FORM)) {
@@ -2486,8 +2450,7 @@ nsGenericHTMLFormElement::UnbindFromTree(PRBool aDeep, PRBool aNullParent)
       ClearForm(PR_TRUE, PR_TRUE);
     } else {
       // Recheck whether we should still have an mForm.
-      nsCOMPtr<nsIDOMHTMLFormElement> form = FindForm(mForm);
-      if (!form) {
+      if (!FindForm(mForm)) {
         ClearForm(PR_TRUE, PR_TRUE);
       } else {
         UnsetFlags(MAYBE_ORPHAN_FORM_ELEMENT);
@@ -2666,10 +2629,7 @@ nsGenericHTMLFormElement::IntrinsicState() const
     }
   }
   
-  if (mForm &&
-      // XXXbz Need the cast to make VC++6 happy.
-      static_cast<const nsIFormControl*>
-                 (mForm->GetDefaultSubmitElement()) == this) {
+  if (mForm && mForm->IsDefaultSubmitElement(this)) {
       NS_ASSERTION(IsSubmitControl(),
                    "Default submit element that isn't a submit control.");
       // We are the default submit element (:default)
@@ -2793,10 +2753,7 @@ nsGenericHTMLFrameElement::EnsureFrameLoader()
     return NS_OK;
   }
 
-  mFrameLoader = new nsFrameLoader(this);
-  if (!mFrameLoader)
-    return NS_ERROR_OUT_OF_MEMORY;
-
+  mFrameLoader = nsFrameLoader::Create(this);
   return NS_OK;
 }
 
@@ -2805,6 +2762,14 @@ nsGenericHTMLFrameElement::GetFrameLoader(nsIFrameLoader **aFrameLoader)
 {
   NS_IF_ADDREF(*aFrameLoader = mFrameLoader);
   return NS_OK;
+}
+
+NS_IMETHODIMP_(already_AddRefed<nsFrameLoader>)
+nsGenericHTMLFrameElement::GetFrameLoader()
+{
+  nsFrameLoader* loader = mFrameLoader;
+  NS_IF_ADDREF(loader);
+  return loader;
 }
 
 NS_IMETHODIMP
@@ -2897,6 +2862,25 @@ nsGenericHTMLFrameElement::DestroyContent()
   }
 
   nsGenericHTMLElement::DestroyContent();
+}
+
+nsresult
+nsGenericHTMLFrameElement::CopyInnerTo(nsGenericElement* aDest) const
+{
+  nsresult rv = nsGenericHTMLElement::CopyInnerTo(aDest);
+  NS_ENSURE_SUCCESS(rv, rv);
+
+  nsIDocument* doc = aDest->GetOwnerDoc();
+  if (doc->IsStaticDocument() && mFrameLoader) {
+    nsGenericHTMLFrameElement* dest =
+      static_cast<nsGenericHTMLFrameElement*>(aDest);
+    nsFrameLoader* fl = nsFrameLoader::Create(dest);
+    NS_ENSURE_STATE(fl);
+    dest->mFrameLoader = fl;
+    static_cast<nsFrameLoader*>(mFrameLoader.get())->CreateStaticClone(fl);
+  }
+
+  return rv;
 }
 
 //----------------------------------------------------------------------

@@ -13,7 +13,7 @@
  *
  * The Original Code is mozilla.org code.
  *
- * The Initial Developer of the Original Code is Mozilla Corporation.
+ * The Initial Developer of the Original Code is Mozilla Foundation.
  * Portions created by the Initial Developer are Copyright (C) 2009
  * the Initial Developer. All Rights Reserved.
  *
@@ -38,6 +38,8 @@
 const Cc = Components.classes;
 const Ci = Components.interfaces;
 const Cr = Components.results;
+
+const DEFAULT_EXPIRE_DAYS = 180;
 
 Components.utils.import("resource://gre/modules/XPCOMUtils.jsm");
 
@@ -317,7 +319,7 @@ FormAutoComplete.prototype = {
                 // length is zero or one
             }
 
-            while (stmt.step()) {
+            while (stmt.executeStep()) {
                 let entry = {
                     text:           stmt.row.value,
                     textLowerCase:  stmt.row.value.toLowerCase(),
@@ -363,7 +365,7 @@ FormAutoComplete.prototype = {
         if (prefsBranch.prefHasUserValue("browser.formfill.expire_days"))
             return prefsBranch.getIntPref("browser.formfill.expire_days");
         else
-            return prefsBranch.getIntPref("browser.history_expire_days");
+            return DEFAULT_EXPIRE_DAYS;
     },
 
     /*

@@ -52,7 +52,6 @@
 #include "nsBaseWidget.h"
 #include "nsdefs.h"
 #include "nsToolkit.h"
-#include "nsIEventListener.h"
 #include "nsString.h"
 #include "nsTArray.h"
 #include "gfxWindowsSurface.h"
@@ -67,15 +66,13 @@
 #include "nsWindowCE.h"
 #endif
 
+#include "WindowHook.h"
+#include "TaskbarWindowPreview.h"
+
 #ifdef ACCESSIBILITY
 #include "OLEACC.H"
 #include "nsIAccessible.h"
 #endif
-
-// Text Services Framework support
-#if !defined(WINCE)
-#define NS_ENABLE_TSF
-#endif // !defined(WINCE)
 
 /**
  * Forward class definitions
@@ -92,6 +89,10 @@ class imgIContainer;
 
 class nsWindow : public nsBaseWidget
 {
+  typedef mozilla::widget::WindowHook WindowHook;
+#if MOZ_WINSDK_TARGETVER >= MOZ_NTDDI_WIN7
+  typedef mozilla::widget::TaskbarWindowPreview TaskbarWindowPreview;
+#endif
 public:
   nsWindow();
   virtual ~nsWindow();
@@ -104,13 +105,7 @@ public:
    * nsIWidget interface
    */
   NS_IMETHOD              Create(nsIWidget *aParent,
-                                 const nsIntRect &aRect,
-                                 EVENT_CALLBACK aHandleEventFunction,
-                                 nsIDeviceContext *aContext,
-                                 nsIAppShell *aAppShell = nsnull,
-                                 nsIToolkit *aToolkit = nsnull,
-                                 nsWidgetInitData *aInitData = nsnull);
-  NS_IMETHOD              Create(nsNativeWidget aParent,
+                                 nsNativeWidget aNativeParent,
                                  const nsIntRect &aRect,
                                  EVENT_CALLBACK aHandleEventFunction,
                                  nsIDeviceContext *aContext,
@@ -126,6 +121,9 @@ public:
   NS_IMETHOD              Move(PRInt32 aX, PRInt32 aY);
   NS_IMETHOD              Resize(PRInt32 aWidth, PRInt32 aHeight, PRBool aRepaint);
   NS_IMETHOD              Resize(PRInt32 aX, PRInt32 aY, PRInt32 aWidth, PRInt32 aHeight, PRBool aRepaint);
+#if !defined(WINCE)
+  NS_IMETHOD              BeginResizeDrag(nsGUIEvent* aEvent, PRInt32 aHorizontal, PRInt32 aVertical);
+#endif
   NS_IMETHOD              PlaceBehind(nsTopLevelWidgetZPlacement aPlacement, nsIWidget *aWidget, PRBool aActivate);
   NS_IMETHOD              SetSizeMode(PRInt32 aMode);
   NS_IMETHOD              Enable(PRBool aState);
@@ -141,11 +139,11 @@ public:
   virtual nsresult        ConfigureChildren(const nsTArray<Configuration>& aConfigurations);
   NS_IMETHOD              MakeFullScreen(PRBool aFullScreen);
   NS_IMETHOD              HideWindowChrome(PRBool aShouldHide);
-  NS_IMETHOD              Validate();
   NS_IMETHOD              Invalidate(PRBool aIsSynchronous);
   NS_IMETHOD              Invalidate(const nsIntRect & aRect, PRBool aIsSynchronous);
   NS_IMETHOD              Update();
-  virtual void            Scroll(const nsIntPoint& aDelta, const nsIntRect& aSource,
+  virtual void            Scroll(const nsIntPoint& aDelta,
+                                 const nsTArray<nsIntRect>& aDestRects,
                                  const nsTArray<Configuration>& aReconfigureChildren);
   virtual void*           GetNativeData(PRUint32 aDataType);
   virtual void            FreeNativeData(void * data, PRUint32 aDataType);
@@ -155,16 +153,22 @@ public:
   NS_IMETHOD              DispatchEvent(nsGUIEvent* event, nsEventStatus & aStatus);
   NS_IMETHOD              EnableDragDrop(PRBool aEnable);
   NS_IMETHOD              CaptureMouse(PRBool aCapture);
-  NS_IMETHOD              CaptureRollupEvents(nsIRollupListener * aListener, PRBool aDoCapture, PRBool aConsumeRollupEvent);
+  NS_IMETHOD              CaptureRollupEvents(nsIRollupListener * aListener, nsIMenuRollup * aMenuRollup,
+                                              PRBool aDoCapture, PRBool aConsumeRollupEvent);
   NS_IMETHOD              GetAttention(PRInt32 aCycleCount);
   virtual PRBool          HasPendingInputEvent();
   gfxASurface             *GetThebesSurface();
   NS_IMETHOD              OnDefaultButtonLoaded(const nsIntRect &aButtonRect);
+  NS_IMETHOD              OverrideSystemMouseScrollSpeed(PRInt32 aOriginalDelta, PRBool aIsHorizontal, PRInt32 &aOverriddenDelta);
+
   virtual nsresult        SynthesizeNativeKeyEvent(PRInt32 aNativeKeyboardLayout,
                                                    PRInt32 aNativeKeyCode,
                                                    PRUint32 aModifierFlags,
                                                    const nsAString& aCharacters,
                                                    const nsAString& aUnmodifiedCharacters);
+  virtual nsresult        SynthesizeNativeMouseEvent(nsIntPoint aPoint,
+                                                     PRUint32 aNativeMessage,
+                                                     PRUint32 aModifierFlags);
   NS_IMETHOD              ResetInputState();
   NS_IMETHOD              SetIMEOpenState(PRBool aState);
   NS_IMETHOD              GetIMEOpenState(PRBool* aState);
@@ -217,17 +221,33 @@ public:
   static HWND             GetTopLevelHWND(HWND aWnd, PRBool aStopOnDialogOrPopup = PR_FALSE);
   HWND                    GetWindowHandle() { return mWnd; }
   WNDPROC                 GetPrevWindowProc() { return mPrevWndProc; }
+  static nsWindow*        GetNSWindowPtr(HWND aWnd);
+  WindowHook&             GetWindowHook() { return mWindowHook; }
 
   /**
    * Misc.
    */
-  virtual PRBool          AutoErase();
+  virtual PRBool          AutoErase(HDC dc);
   nsIntPoint*             GetLastPoint() { return &mLastPoint; }
   PRInt32                 GetNewCmdMenuId() { mMenuCmdId++; return mMenuCmdId; }
   PRBool                  GetIMEEnabled() { return mIMEEnabled; }
   // needed in nsIMM32Handler.cpp
   PRBool                  PluginHasFocus() { return mIMEEnabled == nsIWidget::IME_STATUS_PLUGIN; }
   virtual void            SetUpForPaint(HDC aHDC);
+
+#if MOZ_WINSDK_TARGETVER >= MOZ_NTDDI_WIN7
+  PRBool HasTaskbarIconBeenCreated() { return mHasTaskbarIconBeenCreated; }
+  // Called when either the nsWindow or an nsITaskbarTabPreview receives the noticiation that this window
+  // has its icon placed on the taskbar.
+  void SetHasTaskbarIconBeenCreated(PRBool created = PR_TRUE) { mHasTaskbarIconBeenCreated = created; }
+
+  // Getter/setter for the nsITaskbarWindowPreview for this nsWindow
+  already_AddRefed<nsITaskbarWindowPreview> GetTaskbarPreview() {
+    nsCOMPtr<nsITaskbarWindowPreview> preview(do_QueryReferent(mTaskbarPreview));
+    return preview.forget();
+  }
+  void SetTaskbarPreview(nsITaskbarWindowPreview *preview) { mTaskbarPreview = do_GetWeakReference(preview); }
+#endif
 
 protected:
 
@@ -246,7 +266,6 @@ protected:
   /**
    * Window utilities
    */
-  static nsWindow*        GetNSWindowPtr(HWND aWnd);
   static BOOL             SetNSWindowPtr(HWND aWnd, nsWindow * ptr);
   LPARAM                  lParamToScreen(LPARAM lParam);
   LPARAM                  lParamToClient(LPARAM lParam);
@@ -254,6 +273,9 @@ protected:
   virtual void            SubclassWindow(BOOL bState);
   void                    GetNonClientBounds(nsIntRect &aRect);
   PRBool                  CanTakeFocus();
+#if !defined(WINCE)
+  static void             InitTrackPointHack();
+#endif
 
   /**
    * Event processing helpers
@@ -281,6 +303,11 @@ protected:
   // Convert nsEventStatus value to a windows boolean
   static PRBool           ConvertStatus(nsEventStatus aStatus);
   static void             PostSleepWakeNotification(const char* aNotification);
+  PRBool                  HandleScrollingPlugins(UINT aMsg, WPARAM aWParam, 
+                                                 LPARAM aLParam,
+                                                 PRBool& aResult,
+                                                 LRESULT* aRetValue,
+                                                 PRBool& aQuitProcessing);
 
   /**
    * Event handlers
@@ -304,26 +331,20 @@ protected:
                                     PRUint32 aFlags = 0,
                                     const MSG *aMsg = nsnull,
                                     PRBool *aEventDispatched = nsnull);
-  virtual PRBool          OnScroll(UINT scrollCode, int cPos);
+  virtual PRBool          OnScroll(UINT aMsg, WPARAM aWParam, LPARAM aLParam);
   virtual HBRUSH          OnControlColor();
   PRBool                  OnGesture(WPARAM wParam, LPARAM lParam);
   PRBool                  OnHotKey(WPARAM wParam, LPARAM lParam);
   BOOL                    OnInputLangChange(HKL aHKL);
   void                    OnSettingsChange(WPARAM wParam, LPARAM lParam);
   virtual PRBool          OnPaint(HDC aDC = nsnull);
+  void                    OnWindowPosChanged(WINDOWPOS *wp, PRBool& aResult);
 #if defined(CAIRO_HAS_DDRAW_SURFACE)
   PRBool                  OnPaintImageDDraw16();
 #endif // defined(CAIRO_HAS_DDRAW_SURFACE)
-#if !defined(WINCE_WINDOWS_MOBILE)
   PRBool                  OnMouseWheel(UINT msg, WPARAM wParam, LPARAM lParam, 
                                        PRBool& result, PRBool& getWheelInfo,
                                        LRESULT *aRetValue);
-  static void             OnMouseWheelTimeout(nsITimer* aTimer, void* aClosure);
-  void                    UpdateMouseWheelSeriesCounter();
-  int                     ComputeMouseWheelDelta(int currentVDelta,
-                                                 int iDeltaPerLine,
-                                                 ULONG ulScrollLines);
-#endif // !defined(WINCE_WINDOWS_MOBILE)
 #if !defined(WINCE)
   void                    OnWindowPosChanging(LPWINDOWPOS& info);
 #endif // !defined(WINCE)
@@ -336,14 +357,6 @@ protected:
   virtual LPCWSTR         WindowPopupClass();
   virtual DWORD           WindowStyle();
   virtual DWORD           WindowExStyle();
-  virtual nsresult        StandardWindowCreate(nsIWidget *aParent,
-                                               const nsIntRect &aRect,
-                                               EVENT_CALLBACK aHandleEventFunction,
-                                               nsIDeviceContext *aContext,
-                                               nsIAppShell *aAppShell,
-                                               nsIToolkit *aToolkit,
-                                               nsWidgetInitData *aInitData,
-                                               nsNativeWidget aNativeParent = nsnull);
 
   /**
    * XP and Vista theming support for windows with rounded edges
@@ -381,7 +394,11 @@ protected:
   static void             SetupKeyModifiersSequence(nsTArray<KeyPair>* aArray, PRUint32 aModifiers);
   nsresult                SetWindowClipRegion(const nsTArray<nsIntRect>& aRects,
                                               PRBool aIntersectWithExisting);
-
+  nsCOMPtr<nsIRegion>     GetRegionToPaint(PRBool aForceFullRepaint, 
+                                           PAINTSTRUCT ps, HDC aDC);
+#if !defined(WINCE)
+  static void             ActivateOtherWindowHelper(HWND aWnd);
+#endif
 #ifdef ACCESSIBILITY
   static STDMETHODIMP_(LRESULT) LresultFromObject(REFIID riid, WPARAM wParam, LPUNKNOWN pAcc);
 #endif // ACCESSIBILITY
@@ -397,9 +414,7 @@ protected:
   PRPackedBool          mInDtor;
   PRPackedBool          mIsVisible;
   PRPackedBool          mIsInMouseCapture;
-  PRPackedBool          mInWheelProcessing;
   PRPackedBool          mUnicodeWidget;
-  PRPackedBool          mIsPluginWindow;
   PRPackedBool          mPainting;
   char                  mLeadByte;
   PRUint32              mBlurSuppressLevel;
@@ -412,8 +427,8 @@ protected:
   nsNativeDragTarget*   mNativeDragTarget;
   HKL                   mLastKeyboardLayout;
   nsPopupType           mPopupType;
-  int                   mScrollSeriesCounter;
-
+  PRPackedBool          mDisplayPanFeedback;
+  WindowHook            mWindowHook;
   static PRUint32       sInstanceCount;
   static TriStateBool   sCanQuit;
   static nsWindow*      sCurrentWindow;
@@ -426,6 +441,10 @@ protected:
   static PRBool         sJustGotDeactivate;
   static PRBool         sJustGotActivate;
   static int            sTrimOnMinimize;
+  static PRBool         sTrackPointHack;
+#ifdef MOZ_IPC
+  static PRUint32       sOOPPPluginFocusEvent;
+#endif
 
   // Hook Data Memebers for Dropdowns. sProcessHook Tells the
   // hook methods whether they should be processing the hook
@@ -442,6 +461,7 @@ protected:
   static nsIWidget*     sRollupWidget;
   static PRBool         sRollupConsumeEvent;
   static nsIRollupListener* sRollupListener;
+  static nsIMenuRollup* sMenuRollup;
 
   // Mouse Clicks - static variable definitions for figuring
   // out 1 - 3 Clicks.
@@ -453,9 +473,6 @@ protected:
 
   // Graphics
   HDC                   mPaintDC; // only set during painting
-
-  static nsAutoPtr<PRUint8> sSharedSurfaceData;
-  static gfxIntSize     sSharedSurfaceSize;
 
   // Transparency
 #ifdef MOZ_XUL
@@ -470,8 +487,15 @@ protected:
   nsWinGesture          mGesture;
 #endif // !defined(WINCE)
 
+#if MOZ_WINSDK_TARGETVER >= MOZ_NTDDI_WIN7
+  // Weak ref to the nsITaskbarWindowPreview associated with this window
+  nsWeakPtr             mTaskbarPreview;
+  // True if the taskbar (possibly through the tab preview) tells us that the
+  // icon has been created on the taskbar.
+  PRBool                mHasTaskbarIconBeenCreated;
+#endif
+
 #if defined(WINCE_HAVE_SOFTKB)
-  static PRBool         sSoftKeyMenuBar;
   static PRBool         sSoftKeyboardState;
 #endif // defined(WINCE_HAVE_SOFTKB)
 

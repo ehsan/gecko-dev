@@ -39,10 +39,9 @@ cmdname=`basename "$0"`
 MOZ_DIST_BIN=`dirname "$0"`
 MOZ_DEFAULT_NAME="./${cmdname}-bin"
 MOZ_APPRUNNER_NAME="./mozilla-bin"
-MOZ_VIEWER_NAME="./viewer"
 MOZ_PROGRAM=""
 
-exitcode=0
+exitcode=1
 #
 ##
 ## Functions
@@ -60,23 +59,22 @@ echo ""
 echo "    -d debugger          Debugger to use."
 echo "    --debugger debugger"
 echo ""
+echo "    -a debugger_args     Arguments passed to [debugger]."
+echo "    --debugger-args debugger_args"
+echo ""
 echo "  Examples:"
-echo ""
-echo "  Run the viewer"
-echo ""
-echo "    ${cmdname} viewer"
 echo ""
 echo "  Run the mozilla-bin binary"
 echo ""
 echo "    ${cmdname} mozilla-bin"
 echo ""
-echo "  Debug the viewer in a debugger"
-echo ""
-echo "    ${cmdname} -g viewer"
-echo ""
 echo "  Debug the mozilla-bin binary in gdb"
 echo ""
 echo "    ${cmdname} -g mozilla-bin -d gdb"
+echo ""
+echo "  Run mozilla-bin under valgrind with arguments"
+echo ""
+echo "    ${cmdname} -g -d valgrind -a '--tool=memcheck --leak-check=full' mozilla-bin"
 echo ""
 	return 0
 }
@@ -140,7 +138,7 @@ moz_run_program()
 	##
 	## Run the program
 	##
-	"$prog" ${1+"$@"}
+	exec "$prog" ${1+"$@"}
 	exitcode=$?
 }
 ##########################################################################
@@ -168,33 +166,24 @@ moz_debug_program()
 	fi
     if [ -x "$debugger" ] 
     then
-        tmpfile=`mktemp /tmp/mozargs.XXXXXX` || { echo "Cannot create temporary file" >&2; exit 1; }
-        trap " [ -f \"$tmpfile\" ] && /bin/rm -f -- \"$tmpfile\"" 0 1 2 3 13 15
-        # echo -n isn't portable, so pipe through perl -pe chomp instead
-        echo "set args" | perl -pe 'chomp' > $tmpfile
-        for PARAM in "$@"
-        do
-            echo " '$PARAM'" | perl -pe 'chomp' >> $tmpfile
-        done
-        echo >> $tmpfile
 # If you are not using ddd, gdb and know of a way to convey the arguments 
 # over to the prog then add that here- Gagan Saksena 03/15/00
         case `basename $debugger` in
-            gdb) echo "$debugger $prog -x $tmpfile"
-                $debugger "$prog" -x $tmpfile
+            gdb) echo "$debugger $moz_debugger_args --args $prog" ${1+"$@"}
+                exec "$debugger" $moz_debugger_args --args "$prog" ${1+"$@"}
 		exitcode=$?
                 ;;
-            ddd) echo "$debugger --debugger \"gdb -x $tmpfile\" $prog"
-                $debugger --debugger "gdb -x $tmpfile" "$prog"
+            ddd) echo "$debugger $moz_debugger_args --gdb -- --args $prog" ${1+"$@"}
+		exec "$debugger" $moz_debugger_args --gdb -- --args "$prog" ${1+"$@"}
 		exitcode=$?
                 ;;
-            *) echo "$debugger $prog ${1+"$@"}"
-                $debugger "$prog" ${1+"$@"}
+            *) echo "$debugger $moz_debugger_args $prog ${1+"$@"}"
+                exec $debugger $moz_debugger_args "$prog" ${1+"$@"}
 		exitcode=$?
                 ;;
         esac
     else
-        echo "Could not find a debugger on your system." 
+        moz_bail "Could not find a debugger on your system."
     fi
 }
 ##########################################################################
@@ -203,6 +192,7 @@ moz_debug_program()
 ##
 moz_debug=0
 moz_debugger=""
+moz_debugger_args=""
 #
 ##
 ## Parse the command line
@@ -220,6 +210,15 @@ do
 	shift 2
       else
         echo "-d requires an argument"
+        exit 1
+      fi
+      ;;
+    -a | --debugger-args)
+      moz_debugger_args=$2;
+      if [ "${moz_debugger_args}" != "" ]; then
+	shift 2
+      else
+        echo "-a requires an argument"
         exit 1
       fi
       ;;
@@ -248,11 +247,6 @@ then
 	if [ -x "$MOZ_DEFAULT_NAME" ]
 	then
 		MOZ_PROGRAM=$MOZ_DEFAULT_NAME
-	## Try viewer (this should be deprecated)
-	## 
-	elif [ -x "$MOZ_VIEWER_NAME" ]
-	then
-		MOZ_PROGRAM=$MOZ_VIEWER_NAME
 	##
 	## Try mozilla-bin
 	## 
@@ -386,6 +380,7 @@ then
   echo "      MOZ_TOOLKIT=$MOZ_TOOLKIT"
   echo "        moz_debug=$moz_debug"
   echo "     moz_debugger=$moz_debugger"
+  echo "moz_debugger_args=$moz_debugger_args"
 fi
 #
 export MOZILLA_FIVE_HOME LD_LIBRARY_PATH

@@ -104,6 +104,7 @@ class nsCaret : public nsISelectionListener
       return mReadOnly;
     }
     /** GetCaretCoordinates
+     *  OBSOLETE use GetGeometry instead.
      *  Get the position of the caret in coordinates relative to the typed
      *  specified (aRelativeToType).
      *  This function is virtual so that it can be used by nsCaretAccessible
@@ -117,6 +118,16 @@ class nsCaret : public nsISelectionListener
                                       nsRect* outCoordinates,
                                       PRBool* outIsCollapsed,
                                       nsIView **outView);
+
+    /**
+     * Replaces GetCaretCoordinates.
+     * Gets the position and size of the caret that would be drawn for
+     * the focus node/offset of aSelection (assuming it would be drawn,
+     * i.e., disregarding blink status). The geometry is stored in aRect,
+     * and we return the frame aRect is relative to.
+     */
+    virtual nsIFrame* GetGeometry(nsISelection* aSelection,
+                                  nsRect* aRect);
 
     /** EraseCaret
      *  this will erase the caret if its drawn and reset drawn status
@@ -281,13 +292,14 @@ protected:
 
     // XXX these fields should go away and the values be acquired as needed,
     // probably by ComputeMetrics.
-    PRUint32              mBlinkRate;         // time for one cyle (off then on), in milliseconds
+    PRUint32              mBlinkRate;         // time for one cyle (on then off), in milliseconds
     nscoord               mCaretWidthCSSPx;   // caret width in CSS pixels
     float                 mCaretAspectRatio;  // caret width/height aspect ratio
     
     PRPackedBool          mVisible;           // is the caret blinking
 
     PRPackedBool          mDrawn;             // Denotes when the caret is physically drawn on the screen.
+    PRPackedBool          mPendingDraw;       // True when the last on-state draw was suppressed.
 
     PRPackedBool          mReadOnly;          // it the caret in readonly state (draws differently)      
     PRPackedBool          mShowDuringSelection; // show when text is selected

@@ -135,13 +135,16 @@ struct nsCSSRendering {
                             nsStyleGradient* aGradient,
                             const nsRect& aDirtyRect,
                             const nsRect& aOneCellArea,
-                            const nsRect& aFillArea,
-                            PRBool aRepeat);
+                            const nsRect& aFillArea);
 
   /**
-   * Gets the root frame for the frame
+   * Find the frame whose background style should be used to draw the
+   * canvas background. aForFrame must be the frame for the root element
+   * whose background style should be used. This function will return
+   * aForFrame unless the <body> background should be propagated, in
+   * which case we return the frame associated with the <body>'s background.
    */
-  static nsIFrame* FindRootFrame(nsIFrame* aForFrame);
+  static nsIFrame* FindBackgroundStyleFrame(nsIFrame* aForFrame);
 
   /**
    * @return PR_TRUE if |aFrame| is a canvas frame, in the CSS sense.
@@ -164,6 +167,30 @@ struct nsCSSRendering {
    * and there is always some meaningful background returned.
    */
   static const nsStyleBackground* FindRootFrameBackground(nsIFrame* aForFrame);
+
+  /**
+   * Returns background style information for the canvas.
+   *
+   * @param aForFrame
+   *   the frame used to represent the canvas, in the CSS sense (i.e.
+   *   nsCSSRendering::IsCanvasFrame(aForFrame) must be true)
+   * @param aRootElementFrame
+   *   the frame representing the root element of the document
+   * @param aBackground
+   *   contains background style information for the canvas on return
+   */
+  static const nsStyleBackground*
+  FindCanvasBackground(nsIFrame* aForFrame, nsIFrame* aRootElementFrame)
+  {
+    NS_ABORT_IF_FALSE(IsCanvasFrame(aForFrame), "not a canvas frame");
+    if (aRootElementFrame)
+      return FindRootFrameBackground(aRootElementFrame);
+
+    // This should always give transparent, so we'll fill it in with the
+    // default color if needed.  This seems to happen a bit while a page is
+    // being loaded.
+    return aForFrame->GetStyleBackground();
+  }
 
   /**
    * Find a style context containing a non-transparent background,
@@ -198,7 +225,10 @@ struct nsCSSRendering {
      * When this flag is passed, the element's nsDisplayBorder will be
      * painted immediately on top of this background.
      */
-    PAINT_WILL_PAINT_BORDER = 0x01
+    PAINTBG_WILL_PAINT_BORDER = 0x01,
+    /**
+     * When this flag is passed, images are synchronously decoded. */
+    PAINTBG_SYNC_DECODE_IMAGES = 0x02
   };
   static void PaintBackground(nsPresContext* aPresContext,
                               nsIRenderingContext& aRenderingContext,
@@ -400,9 +430,9 @@ public:
    * should prepare the destination context as if you were going to draw
    * directly on it instead of any temporary surface created in this class.
    */
-  gfxContext* Init(const gfxRect& aRect, nscoord aBlurRadius,
+  gfxContext* Init(const nsRect& aRect, nscoord aBlurRadius,
                    PRInt32 aAppUnitsPerDevPixel, gfxContext* aDestinationCtx,
-                   const gfxRect& aDirtyRect);
+                   const nsRect& aDirtyRect);
 
   /**
    * Does the actual blurring and mask applying. Users of this object *must*

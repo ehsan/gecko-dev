@@ -56,6 +56,7 @@
 #include "nsNodeInfoManager.h"
 #include "nsIStreamListener.h"
 #include "nsIObserver.h"
+#include "nsGkAtoms.h"
 #include "nsAutoPtr.h"
 #ifdef MOZ_SMIL
 class nsSMILAnimationController;
@@ -90,7 +91,7 @@ class nsIContentSink;
 class nsIScriptEventManager;
 class nsICSSLoader;
 class nsHTMLStyleSheet;
-class nsIHTMLCSSStyleSheet;
+class nsHTMLCSSStyleSheet;
 class nsILayoutHistoryState;
 class nsIVariant;
 class nsIDOMUserDataHandler;
@@ -105,8 +106,8 @@ class nsIBoxObject;
 
 // IID for the nsIDocument interface
 #define NS_IDOCUMENT_IID      \
-{ 0xe0ca6723, 0x1efa, 0x4819, \
-  { 0x84, 0xbb, 0xfa, 0x48, 0x39, 0xe8, 0xef, 0x19 } }
+{ 0x6b2f1996, 0x95d4, 0x48db, \
+  {0xaf, 0xd1, 0xfd, 0xaa, 0x75, 0x4c, 0x79, 0x92 } }
 
 // Flag for AddStyleSheet().
 #define NS_STYLESHEET_FROM_CATALOG                (1 << 0)
@@ -129,6 +130,8 @@ public:
       mCompatMode(eCompatibility_FullStandards),
       mIsInitialDocumentInWindow(PR_FALSE),
       mMayStartLayout(PR_TRUE),
+      mVisible(PR_TRUE),
+      mRemovedFromDocShell(PR_FALSE),
       // mAllowDNSPrefetch starts true, so that we can always reliably && it
       // with various values that might disable it.  Since we never prefetch
       // unless we get a window, and in that case the docshell value will get
@@ -407,10 +410,15 @@ public:
                                nsIViewManager* aViewManager,
                                nsStyleSet* aStyleSet,
                                nsIPresShell** aInstancePtrResult) = 0;
-  virtual PRBool DeleteShell(nsIPresShell* aShell) = 0;
-  virtual nsIPresShell *GetPrimaryShell() const = 0;
-  void SetShellsHidden(PRBool aHide) { mShellsAreHidden = aHide; }
-  PRBool ShellsAreHidden() const { return mShellsAreHidden; }
+  void DeleteShell() { mPresShell = nsnull; }
+
+  nsIPresShell* GetPrimaryShell() const
+  {
+    return mShellIsHidden ? nsnull : mPresShell;
+  }
+
+  void SetShellHidden(PRBool aHide) { mShellIsHidden = aHide; }
+  PRBool ShellIsHidden() const { return mShellIsHidden; }
 
   /**
    * Return the parent document of this document. Will return null
@@ -458,6 +466,23 @@ public:
   }
   virtual nsIContent *GetRootContentInternal() const = 0;
 
+  // Get the root <html> element, or return null if there isn't one (e.g.
+  // if the root isn't <html>)
+  nsIContent* GetHtmlContent();
+  // Returns the first child of GetHtmlContent which has the given tag,
+  // or nsnull if that doesn't exist.
+  nsIContent* GetHtmlChildContent(nsIAtom* aTag);
+  // Get the canonical <body> element, or return null if there isn't one (e.g.
+  // if the root isn't <html> or if the <body> isn't there)
+  nsIContent* GetBodyContent() {
+    return GetHtmlChildContent(nsGkAtoms::body);
+  }
+  // Get the canonical <head> element, or return null if there isn't one (e.g.
+  // if the root isn't <html> or if the <head> isn't there)
+  nsIContent* GetHeadContent() {
+    return GetHtmlChildContent(nsGkAtoms::head);
+  }
+  
   /**
    * Accessors to the collection of stylesheets owned by this document.
    * Style sheets are ordered, most significant last.
@@ -557,8 +582,8 @@ public:
    * Get this document's inline style sheet.  May return null if there
    * isn't one
    */
-  virtual nsIHTMLCSSStyleSheet* GetInlineStyleSheet() const = 0;
-  
+  virtual nsHTMLCSSStyleSheet* GetInlineStyleSheet() const = 0;
+
   /**
    * Get/set the object from which a document can get a script context
    * and scope. This is the context within which all scripts (during
@@ -689,12 +714,10 @@ public:
                           nsIPrincipal* aPrincipal) = 0;
 
   /**
-   * Set the container (docshell) for this document.
+   * Set the container (docshell) for this document. Virtual so that
+   * docshell can call it.
    */
-  void SetContainer(nsISupports *aContainer)
-  {
-    mDocumentContainer = do_GetWeakReference(aContainer);
-  }
+  virtual void SetContainer(nsISupports *aContainer);
 
   /**
    * Get the container (docshell) for this document.
@@ -723,9 +746,9 @@ public:
                                  nsAString& aEncoding,
                                  nsAString& Standalone) = 0;
 
-  virtual PRBool IsCaseSensitive()
+  PRBool IsHTML() const
   {
-    return PR_TRUE;
+    return mIsRegularHTML;
   }
 
   virtual PRBool IsScriptEnabled() = 0;
@@ -1120,6 +1143,16 @@ public:
    * called yet.
    */
   PRBool IsShowing() { return mIsShowing; }
+  /**
+   * Return whether the document is currently visible (in the sense of
+   * OnPageHide having been called and OnPageShow not yet having been called)
+   */
+  PRBool IsVisible() { return mVisible; }
+  /**
+   * Return true when this document is active, i.e., the active document
+   * in a content viewer.
+   */
+  PRBool IsActive() { return mDocumentContainer && !mRemovedFromDocShell; }
 
   void RegisterFreezableElement(nsIContent* aContent);
   PRBool UnregisterFreezableElement(nsIContent* aContent);
@@ -1150,6 +1183,25 @@ public:
   PRBool IsDNSPrefetchAllowed() const { return mAllowDNSPrefetch; }
 
   /**
+   * PR_TRUE when this document is a static clone of a normal document.
+   * For example print preview and printing use static documents.
+   */
+  PRBool IsStaticDocument() { return mIsStaticDocument; }
+
+  /**
+   * Clones the document and subdocuments and stylesheet etc.
+   * @param aCloneContainer The container for the clone document.
+   */
+  virtual already_AddRefed<nsIDocument>
+  CreateStaticClone(nsISupports* aCloneContainer);
+
+  /**
+   * If this document is a static clone, this returns the original
+   * document.
+   */
+  nsIDocument* GetOriginalDocument() { return mOriginalDocument; }
+
+  /**
    * Called by nsParser to preload images. Can be removed and code moved
    * to nsPreloadURIs::PreloadURIs() in file nsParser.cpp whenever the
    * parser-module is linked with gklayout-module.
@@ -1164,6 +1216,64 @@ public:
    * or right-to-left.
    */
   virtual PRBool IsDocumentRightToLeft() { return PR_FALSE; }
+
+  enum DocumentTheme {
+    Doc_Theme_Uninitialized, // not determined yet
+    Doc_Theme_None,
+    Doc_Theme_Neutral,
+    Doc_Theme_Dark,
+    Doc_Theme_Bright
+  };
+
+  /**
+   * Returns the document's pending state object (serialized to JSON), or the
+   * empty string if one doesn't exist.
+   *
+   * This field serves as a waiting place for the history entry's state object:
+   * We set the field's value to the history entry's state object early on in
+   * the load, then after we fire onload we deserialize the field's value and
+   * fire a popstate event containing the resulting object.
+   */
+  nsAString& GetPendingStateObject()
+  {
+    return mPendingStateObject;
+  }
+
+  /**
+   * Set the document's pending state object (as serialized to JSON).
+   */
+  void SetPendingStateObject(nsAString &obj)
+  {
+    mPendingStateObject.Assign(obj);
+  }
+
+  /**
+   * Returns Doc_Theme_None if there is no lightweight theme specified,
+   * Doc_Theme_Dark for a dark theme, Doc_Theme_Bright for a light theme, and
+   * Doc_Theme_Neutral for any other theme. This is used to determine the state
+   * of the pseudoclasses :-moz-lwtheme and :-moz-lwtheme-text.
+   */
+  virtual int GetDocumentLWTheme() { return Doc_Theme_None; }
+
+  /**
+   * Gets the document's cached pointer to the first <base> element in this
+   * document which has an href attribute.  If the document doesn't contain any
+   * <base> elements with an href, returns null.
+   */
+  virtual nsIContent* GetFirstBaseNodeWithHref() = 0;
+
+  /**
+   * Sets the document's cached pointer to the first <base> element with an
+   * href attribute in this document and updates the document's base URI
+   * according to the element's href.
+   *
+   * If the given node is the same as the current first base node, this
+   * function still updates the document's base URI according to the node's
+   * href, if it changed.
+   */
+  virtual nsresult SetFirstBaseNodeWithHref(nsIContent *node) = 0;
+
+  virtual nsISupports* GetCurrentContentSink() = 0;
 
 protected:
   ~nsIDocument()
@@ -1182,7 +1292,6 @@ protected:
   virtual void WillDispatchMutationEvent(nsINode* aTarget) = 0;
   virtual void MutationEventDispatched(nsINode* aTarget) = 0;
   friend class mozAutoSubtreeModified;
-  friend class nsPresShellIterator;
 
   nsCOMPtr<nsIURI> mDocumentURI;
   nsCOMPtr<nsIURI> mDocumentBaseURI;
@@ -1231,7 +1340,9 @@ protected:
   // document in it.
   PRPackedBool mIsInitialDocumentInWindow;
 
-  PRPackedBool mShellsAreHidden;
+  PRPackedBool mShellIsHidden;
+
+  PRPackedBool mIsRegularHTML;
 
   // True if we're loaded as data and therefor has any dangerous stuff, such
   // as scripts and plugins, disabled.
@@ -1247,10 +1358,29 @@ protected:
   // True iff IsShowing() should be returning true
   PRPackedBool mIsShowing;
 
+  // True iff the document "page" is not hidden (i.e. currently in the
+  // bfcache)
+  PRPackedBool mVisible;
+
+  // True if our content viewer has been removed from the docshell
+  // (it may still be displayed, but in zombie state). Form control data
+  // has been saved.
+  PRPackedBool mRemovedFromDocShell;
+
   // True iff DNS prefetch is allowed for this document.  Note that if the
   // document has no window, DNS prefetch won't be performed no matter what.
   PRPackedBool mAllowDNSPrefetch;
   
+  // True when this document is a static clone of a normal document
+  PRPackedBool mIsStaticDocument;
+
+  // True while this document is being cloned to a static document.
+  PRPackedBool mCreatingStaticClone;
+
+  // If mIsStaticDocument is true, mOriginalDocument points to the original
+  // document.
+  nsCOMPtr<nsIDocument> mOriginalDocument;
+
   // The bidi options for this document.  What this bitfield means is
   // defined in nsBidiUtils.h
   PRUint32 mBidiOptions;
@@ -1269,7 +1399,7 @@ protected:
   // won't be collected
   PRUint32 mMarkedCCGeneration;
 
-  nsTObserverArray<nsIPresShell*> mPresShells;
+  nsIPresShell* mPresShell;
 
   nsCOMArray<nsINode> mSubtreeModifiedTargets;
   PRUint32            mSubtreeModifiedDepth;
@@ -1280,6 +1410,8 @@ protected:
   nsCOMPtr<nsIDocument> mDisplayDocument;
 
   PRUint32 mEventsSuppressed;
+
+  nsString mPendingStateObject;
 };
 
 NS_DEFINE_STATIC_IID_ACCESSOR(nsIDocument, NS_IDOCUMENT_IID)

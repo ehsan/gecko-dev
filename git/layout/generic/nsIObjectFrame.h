@@ -50,7 +50,7 @@ class nsIPluginInstance;
 class nsIObjectFrame : public nsQueryFrame
 {
 public:
-  NS_DECLARE_FRAME_ACCESSOR(nsIObjectFrame)
+  NS_DECL_QUERYFRAME_TARGET(nsIObjectFrame)
 
   NS_IMETHOD GetPluginInstance(nsIPluginInstance*& aPluginInstance) = 0;
 
@@ -94,6 +94,14 @@ public:
    * Get the native widget for the plugin, if any.
    */
   virtual nsIWidget* GetWidget() = 0;
+
+  /**
+   * Tells the object to paint directly in this location ignoring any
+   * positioning information that may have been provided otherwise.
+   */
+  virtual nsresult SetAbsoluteScreenPosition(class nsIDOMElement* element,
+                                             nsIDOMClientRect* position,
+                                             nsIDOMClientRect* clip) = 0;
 };
 
 #endif /* nsIObjectFrame_h___ */

@@ -13,7 +13,7 @@
  *
  * The Original Code is Geolocation.
  *
- * The Initial Developer of the Original Code is Mozilla Corporation
+ * The Initial Developer of the Original Code is Mozilla Foundation
  * Portions created by the Initial Developer are Copyright (C) 2008
  * the Initial Developer. All Rights Reserved.
  *
@@ -65,16 +65,17 @@ public:
     mSignal = signal;
   };
 
-  void setMac(const uint8 mac_as_int[6])
+  void setMac(const unsigned char mac_as_int[6])
   {
     // mac_as_int is big-endian. Write in byte chunks.
     // Format is XX-XX-XX-XX-XX-XX.
 
     static const char *kMacFormatString = ("%02x-%02x-%02x-%02x-%02x-%02x");
-    
+
     sprintf(mMac, kMacFormatString,
             mac_as_int[0], mac_as_int[1], mac_as_int[2],
             mac_as_int[3], mac_as_int[4], mac_as_int[5]);
+
     mMac[17] = 0;
   };
 

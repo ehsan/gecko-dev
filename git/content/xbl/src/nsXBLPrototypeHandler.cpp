@@ -334,11 +334,9 @@ nsXBLPrototypeHandler::ExecuteHandler(nsPIDOMEventTarget* aTarget,
   // Execute it.
   nsCOMPtr<nsIDOMEventListener> eventListener;
   NS_NewJSEventListener(boundContext, scope,
-                        scriptTarget, getter_AddRefs(eventListener));
+                        scriptTarget, onEventAtom,
+                        getter_AddRefs(eventListener));
 
-  nsCOMPtr<nsIJSEventListener> jsListener(do_QueryInterface(eventListener));
-  jsListener->SetEventName(onEventAtom);
-  
   // Handle the event.
   eventListener->HandleEvent(aEvent);
   return NS_OK;
@@ -417,6 +415,8 @@ nsXBLPrototypeHandler::DispatchXBLCommand(nsPIDOMEventTarget* aTarget, nsIDOMEve
   nsCOMPtr<nsPIWindowRoot> windowRoot(do_QueryInterface(aTarget));
   if (windowRoot) {
     windowRoot->GetFocusController(getter_AddRefs(focusController));
+    if (windowRoot)
+      privateWindow = do_QueryInterface(windowRoot->GetWindow());
   }
   else {
     privateWindow = do_QueryInterface(aTarget);
@@ -446,7 +446,7 @@ nsXBLPrototypeHandler::DispatchXBLCommand(nsPIDOMEventTarget* aTarget, nsIDOMEve
 
   NS_LossyConvertUTF16toASCII command(mHandlerText);
   if (focusController)
-    focusController->GetControllerForCommand(command.get(), getter_AddRefs(controller));
+    focusController->GetControllerForCommand(privateWindow, command.get(), getter_AddRefs(controller));
   else
     controller = GetController(aTarget); // We're attached to the receiver possibly.
 
@@ -481,8 +481,7 @@ nsXBLPrototypeHandler::DispatchXBLCommand(nsPIDOMEventTarget* aTarget, nsIDOMEve
     // element is focused and has a parent.
     if (focusedContent && focusedContent->GetParent()) {
       while (content) {
-        if (content->Tag() == nsGkAtoms::a &&
-            content->IsNodeOfType(nsINode::eHTML)) {
+        if (content->Tag() == nsGkAtoms::a && content->IsHTML()) {
           isLink = PR_TRUE;
           break;
         }

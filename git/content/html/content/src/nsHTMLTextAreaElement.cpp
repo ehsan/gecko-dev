@@ -150,6 +150,8 @@ public:
 
   virtual nsresult Clone(nsINodeInfo *aNodeInfo, nsINode **aResult) const;
 
+  nsresult CopyInnerTo(nsGenericElement* aDest) const;
+
   /**
    * Called when an attribute is about to be changed
    */
@@ -371,6 +373,7 @@ nsHTMLTextAreaElement::IsHTMLFocusable(PRBool *aIsFocusable, PRInt32 *aTabIndex)
 NS_IMPL_STRING_ATTR(nsHTMLTextAreaElement, AccessKey, accesskey)
 NS_IMPL_INT_ATTR(nsHTMLTextAreaElement, Cols, cols)
 NS_IMPL_BOOL_ATTR(nsHTMLTextAreaElement, Disabled, disabled)
+NS_IMPL_INT_ATTR(nsHTMLTextAreaElement, MaxLength, maxlength)
 NS_IMPL_STRING_ATTR(nsHTMLTextAreaElement, Name, name)
 NS_IMPL_BOOL_ATTR(nsHTMLTextAreaElement, ReadOnly, readonly)
 NS_IMPL_INT_ATTR(nsHTMLTextAreaElement, Rows, rows)
@@ -521,6 +524,9 @@ nsHTMLTextAreaElement::ParseAttribute(PRInt32 aNamespaceID,
                                       nsAttrValue& aResult)
 {
   if (aNamespaceID == kNameSpaceID_None) {
+    if (aAttribute == nsGkAtoms::maxlength) {
+      return aResult.ParseIntWithBounds(aValue, 0);
+    }
     if (aAttribute == nsGkAtoms::cols) {
       return aResult.ParseIntWithBounds(aValue, 0);
     }
@@ -975,3 +981,18 @@ nsHTMLTextAreaElement::AfterSetAttr(PRInt32 aNameSpaceID, nsIAtom* aName,
   return nsGenericHTMLFormElement::AfterSetAttr(aNameSpaceID, aName, aValue,
                                                 aNotify);
 }
+
+nsresult
+nsHTMLTextAreaElement::CopyInnerTo(nsGenericElement* aDest) const
+{
+  nsresult rv = nsGenericHTMLFormElement::CopyInnerTo(aDest);
+  NS_ENSURE_SUCCESS(rv, rv);
+
+  if (aDest->GetOwnerDoc()->IsStaticDocument()) {
+    nsAutoString value;
+    const_cast<nsHTMLTextAreaElement*>(this)->GetValue(value);
+    static_cast<nsHTMLTextAreaElement*>(aDest)->SetValue(value);
+  }
+  return NS_OK;
+}
+

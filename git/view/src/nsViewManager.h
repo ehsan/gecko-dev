@@ -45,19 +45,13 @@
 #include "prinrval.h"
 #include "nsVoidArray.h"
 #include "nsThreadUtils.h"
-#include "nsIScrollableView.h"
 #include "nsIRegion.h"
 #include "nsView.h"
 #include "nsIViewObserver.h"
 
 //Uncomment the following line to enable generation of viewmanager performance data.
-#ifdef MOZ_PERF_METRICS
-//#define NS_VM_PERF_METRICS 1 
-#endif
+//#define NS_VM_PERF_METRICS 1
 
-#ifdef NS_VM_PERF_METRICS
-#include "nsTimer.h"
-#endif
 
 /**
    Invalidation model:
@@ -114,9 +108,6 @@ public:
                                    const nsIView* aParent,
                                    nsViewVisibility aVisibilityFlag = nsViewVisibility_kShow);
 
-  NS_IMETHOD_(nsIScrollableView*) CreateScrollableView(const nsRect& aBounds,
-                                                       const nsIView* aParent);
-
   NS_IMETHOD  GetRootView(nsIView *&aView);
   NS_IMETHOD  SetRootView(nsIView *aView);
 
@@ -132,10 +123,6 @@ public:
 
   NS_IMETHOD  DispatchEvent(nsGUIEvent *aEvent,
       nsIView* aTargetView, nsEventStatus* aStatus);
-
-  NS_IMETHOD  GrabMouseEvents(nsIView *aView, PRBool &aResult);
-
-  NS_IMETHOD  GetMouseEventGrabber(nsIView *&aView);
 
   NS_IMETHOD  InsertChild(nsIView *parent, nsIView *child, nsIView *sibling,
                           PRBool above);
@@ -168,9 +155,6 @@ public:
   virtual nsIViewManager* BeginUpdateViewBatch(void);
   NS_IMETHOD  EndUpdateViewBatch(PRUint32 aUpdateFlags);
 
-  NS_IMETHOD  SetRootScrollableView(nsIScrollableView *aScrollable);
-  NS_IMETHOD  GetRootScrollableView(nsIScrollableView **aScrollable);
-
   NS_IMETHOD GetRootWidget(nsIWidget **aWidget);
   NS_IMETHOD ForceUpdate();
  
@@ -178,20 +162,6 @@ public:
   NS_IMETHOD GetLastUserEventTime(PRUint32& aTime);
   void ProcessInvalidateEvent();
   static PRUint32 gLastUserEventTime;
-
-  /**
-   * Determine if a rectangle specified in the view's coordinate system 
-   * is completely, or partially visible.
-   * @param aView view that aRect coordinates are specified relative to
-   * @param aRect rectangle in twips to test for visibility 
-   * @param aMinTwips is the min. pixel rows or cols at edge of screen 
-   *                  needed for object to be counted visible
-   * @param aRectVisibility returns eVisible if the rect is visible, 
-   *                        otherwise it returns an enum indicating why not
-   */
-  NS_IMETHOD GetRectVisibility(nsIView *aView, const nsRect &aRect, 
-                               nscoord aMinTwips,
-                               nsRectVisibility *aRectVisibility);
 
   NS_IMETHOD SynthesizeMouseMove(PRBool aFromScroll);
   void ProcessSynthMouseMoveEvent(PRBool aFromScroll);
@@ -206,6 +176,10 @@ private:
 
   void FlushPendingInvalidates();
   void ProcessPendingUpdates(nsView *aView, PRBool aDoInvalidate);
+  /**
+   * Call WillPaint() on all view observers under this vm root.
+   */
+  void CallWillPaintOnObservers();
   void ReparentChildWidgets(nsIView* aView, nsIWidget *aNewWidget);
   void ReparentWidgets(nsIView* aView, nsIView *aParent);
   already_AddRefed<nsIRenderingContext> CreateRenderingContext(nsView &aView);
@@ -240,26 +214,6 @@ private:
    * of aView.
    */
   nsIntRect ViewToWidget(nsView *aView, nsView* aWidgetView, const nsRect &aRect) const;
-
-  /**
-   * Transforms a rectangle from specified view's coordinate system to
-   * an absolute coordinate rectangle which can be compared against the
-   * rectangle returned by GetVisibleRect to determine visibility.
-   * @param aView view that aRect coordinates are specified relative to
-   * @param aRect rectangle in twips to convert to absolute coordinates
-   * @param aAbsRect rectangle in absolute coorindates.
-   * @returns NS_OK if successful otherwise, NS_ERROR_FAILURE 
-   */
-
-  nsresult GetAbsoluteRect(nsView *aView, const nsRect &aRect, 
-                           nsRect& aAbsRect);
-  /**
-   * Determine the visible rect 
-   * @param aVisibleRect visible rectangle in twips
-   * @returns NS_OK if successful, otherwise NS_ERROR_FAILURE.
-   */
-
-  nsresult GetVisibleRect(nsRect& aVisibleRect);
 
   void DoSetWindowDimensions(nscoord aWidth, nscoord aHeight)
   {
@@ -310,57 +264,15 @@ private:
 
 public: // NOT in nsIViewManager, so private to the view module
   nsView* GetRootView() const { return mRootView; }
-  nsView* GetMouseEventGrabber() const {
-    return RootViewManager()->mMouseGrabber;
-  }
   nsViewManager* RootViewManager() const { return mRootViewManager; }
   PRBool IsRootVM() const { return this == RootViewManager(); }
 
-  nsEventStatus HandleEvent(nsView* aView, nsPoint aPoint, nsGUIEvent* aEvent,
-                            PRBool aCaptured);
+  nsEventStatus HandleEvent(nsView* aView, nsPoint aPoint, nsGUIEvent* aEvent);
 
-  /**
-   * Called to inform the view manager that a view is about to bit-blit.
-   * @param aView the view that will bit-blit
-   * @param aScrollAmount how much aView will scroll by
-   * @return always returns NS_OK
-   * @note
-   * This method used to return void, but MSVC 6.0 SP5 (without the
-   * Processor Pack) and SP6, and the MS eMbedded Visual C++ 4.0 SP4
-   * (for WINCE) hit an internal compiler error when compiling this
-   * method:
-   *
-   * @par
-@verbatim
-       fatal error C1001: INTERNAL COMPILER ERROR
-                   (compiler file 'E:\8966\vc98\p2\src\P2\main.c', line 494)
-@endverbatim
-   *
-   * @par
-   * Making the method return nsresult worked around the internal
-   * compiler error.  See Bugzilla bug 281158.  (The WINCE internal
-   * compiler error was addressed by the patch in bug 291229 comment
-   * 14 although the bug report did not mention the problem.)
-   */
-  nsresult WillBitBlit(nsView* aView, nsPoint aScrollAmount);
-  
-  /**
-   * Called to inform the view manager that a view has scrolled via a
-   * bitblit.
-   * The view manager will invalidate any widgets which may need
-   * to be rerendered.
-   * @param aView view to paint. should be the nsScrollPortView that
-   * got scrolled.
-   * @param aUpdateRegion ensure that this part of the view is repainted
-   */
-  void UpdateViewAfterScroll(nsView *aView, const nsRegion& aUpdateRegion);
-
-  /**
-   * Asks whether we can scroll a view using bitblt. If we say 'yes', we
-   * return in aUpdateRegion an area that must be updated (relative to aView
-   * after it has been scrolled).
-   */
-  PRBool CanScrollWithBitBlt(nsView* aView, nsPoint aDelta, nsRegion* aUpdateRegion);
+  virtual nsresult WillBitBlit(nsIView* aView, const nsRect& aRect,
+                               nsPoint aScrollAmount);
+  virtual void UpdateViewAfterScroll(nsIView *aView,
+                                     const nsRegion& aUpdateRegion);
 
   nsresult CreateRegion(nsIRegion* *result);
 
@@ -372,9 +284,8 @@ public: // NOT in nsIViewManager, so private to the view module
   // pending updates.
   void PostPendingUpdate() { RootViewManager()->mHasPendingUpdates = PR_TRUE; }
 private:
-  nsIDeviceContext  *mContext;
+  nsCOMPtr<nsIDeviceContext> mContext;
   nsIViewObserver   *mObserver;
-  nsIScrollableView *mRootScrollable;
   nsIntPoint        mMouseLocation; // device units, relative to mRootView
 
   // The size for a resize that we delayed until the root view becomes
@@ -394,8 +305,6 @@ private:
   // the root view manager.  Some have accessor functions to enforce
   // this, as noted.
   
-  // Use GrabMouseEvents() and GetMouseEventGrabber() to access mMouseGrabber.
-  nsView            *mMouseGrabber;
   // Use IncrementUpdateCount(), DecrementUpdateCount(), UpdateCount(),
   // ClearUpdateCount() on the root viewmanager to access mUpdateCnt.
   PRInt32           mUpdateCnt;
@@ -420,10 +329,6 @@ private:
   static nsVoidArray       *gViewManagers;
 
   void PostInvalidateEvent();
-
-#ifdef NS_VM_PERF_METRICS
-  MOZ_TIMER_DECLARE(mWatch) //  Measures compositing+paint time for current document
-#endif
 };
 
 //when the refresh happens, should it be double buffered?

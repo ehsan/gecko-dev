@@ -43,10 +43,12 @@ VPATH		= @srcdir@
 include $(DEPTH)/config/autoconf.mk
 
 MODULE		= content
+XPIDL_MODULE = content_canvas
 
 EXPORTS		= \
 		nsICanvasRenderingContextInternal.h \
 		nsICanvasElement.h \
+		WebGLArray.h \
 		$(NULL)
 
 XPIDLSRCS	= \

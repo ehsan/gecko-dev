@@ -155,15 +155,6 @@ public:
     eColor__moz_mac_menutextselect,			//colour used to display text while mouse is over a menu item
     eColor__moz_mac_disabledtoolbartext,                    // text color of disabled text on toolbars
 
-  	//all of the accent colours
-  	eColor__moz_mac_accentlightesthighlight,
-    eColor__moz_mac_accentregularhighlight,
-    eColor__moz_mac_accentface,
-    eColor__moz_mac_accentlightshadow,
-    eColor__moz_mac_accentregularshadow,
-    eColor__moz_mac_accentdarkshadow,
-    eColor__moz_mac_accentdarkestshadow,
-    
     //new in 10.2
     eColor__moz_mac_alternateprimaryhighlight, //active list highlight
     eColor__moz_mac_secondaryhighlight,        //inactive light hightlight
@@ -262,6 +253,15 @@ public:
     eMetric_WindowsClassic,
 
     /*
+     * A Boolean value to determine whether the device is a touch enabled
+     * device. Currently this is only supported by the Windows 7 Touch API.
+     *
+     * Platforms that do not support this metric should return
+     * NS_ERROR_NOT_IMPLEMENTED when queried for this metric.
+     */
+    eMetric_TouchEnabled,
+
+    /*
      * A Boolean value to determine whether the Mac graphite theme is
      * being used.
      *
@@ -269,6 +269,15 @@ public:
      * should return NS_ERROR_NOT_IMPLEMENTED when queried for this metric.
      */
     eMetric_MacGraphiteTheme,
+
+    /*
+     * A Boolean value to determine whether Mameo is using the new Fremantle
+     * theme.
+     *
+     * The value of this metric is not used on other platforms. These platforms
+     * should return NS_ERROR_NOT_IMPLEMENTED when queried for this metric.
+     */
+    eMetric_MaemoClassic,
 
     /*
      * eMetric_AlertNotificationOrigin indicates from which corner of the
@@ -308,7 +317,11 @@ public:
     /**
      * If this metric != 0, show icons in menus.
      */
-    eMetric_ImagesInMenus
+    eMetric_ImagesInMenus,
+    /**
+     * If this metric != 0, show icons in buttons.
+     */
+    eMetric_ImagesInButtons
   } nsMetricID;
 
   enum {
@@ -356,6 +369,15 @@ public:
   virtual PRUnichar GetPasswordCharacter()
   {
     return PRUnichar('*');
+  }
+
+  virtual PRBool GetEchoPassword()
+  {
+#ifdef MOZ_GFX_OPTIMIZE_MOBILE
+    return PR_TRUE;
+#else
+    return PR_FALSE;
+#endif
   }
 
   NS_IMETHOD LookAndFeelChanged() = 0;

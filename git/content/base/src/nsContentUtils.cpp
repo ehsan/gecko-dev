@@ -166,6 +166,7 @@ static NS_DEFINE_CID(kXTFServiceCID, NS_XTFSERVICE_CID);
 #include "nsDOMDataTransfer.h"
 #include "nsHtml5Module.h"
 #include "nsPresContext.h"
+#include "nsLayoutStatics.h"
 
 #ifdef IBMBIDI
 #include "nsIBidiKeyboard.h"
@@ -222,6 +223,7 @@ PRUint32 nsContentUtils::sScriptBlockerCount = 0;
 PRUint32 nsContentUtils::sRemovableScriptBlockerCount = 0;
 nsCOMArray<nsIRunnable>* nsContentUtils::sBlockedScriptRunners = nsnull;
 PRUint32 nsContentUtils::sRunnersCountAtFirstBlocker = 0;
+PRUint32 nsContentUtils::sScriptBlockerCountWhereRunnersPrevented = 0;
 nsIInterfaceRequestor* nsContentUtils::sSameOriginChecker = nsnull;
 
 nsIJSRuntimeService *nsAutoGCRoot::sJSRuntimeService;
@@ -405,6 +407,7 @@ nsContentUtils::InitializeEventTable() {
     { &nsGkAtoms::onchange,                      { NS_FORM_CHANGE, EventNameType_HTMLXUL }},
     { &nsGkAtoms::onselect,                      { NS_FORM_SELECTED, EventNameType_HTMLXUL }},
     { &nsGkAtoms::onload,                        { NS_LOAD, EventNameType_All }},
+    { &nsGkAtoms::onpopstate,                    { NS_POPSTATE, EventNameType_HTMLXUL }},
     { &nsGkAtoms::onunload,                      { NS_PAGE_UNLOAD,
                                                  (EventNameType_HTMLXUL | EventNameType_SVGSVG) }},
     { &nsGkAtoms::onhashchange,                  { NS_HASHCHANGE, EventNameType_HTMLXUL }},
@@ -492,6 +495,7 @@ nsContentUtils::InitializeEventTable() {
     { &nsGkAtoms::onvolumechange,                { NS_VOLUMECHANGE, EventNameType_HTML }},
 #endif //MOZ_MEDIA
     { &nsGkAtoms::onMozAfterPaint,               { NS_AFTERPAINT, EventNameType_None }},
+    { &nsGkAtoms::onMozScrolledAreaChanged,      { NS_SCROLLEDAREACHANGED, EventNameType_None }},
 
     // Simple gesture events
     { &nsGkAtoms::onMozSwipeGesture,             { NS_SIMPLE_GESTURE_SWIPE, EventNameType_None } },
@@ -502,7 +506,9 @@ nsContentUtils::InitializeEventTable() {
     { &nsGkAtoms::onMozRotateGestureUpdate,      { NS_SIMPLE_GESTURE_ROTATE_UPDATE, EventNameType_None } },
     { &nsGkAtoms::onMozRotateGesture,            { NS_SIMPLE_GESTURE_ROTATE, EventNameType_None } },
     { &nsGkAtoms::onMozTapGesture,               { NS_SIMPLE_GESTURE_TAP, EventNameType_None } },
-    { &nsGkAtoms::onMozPressTapGesture,          { NS_SIMPLE_GESTURE_PRESSTAP, EventNameType_None } }
+    { &nsGkAtoms::onMozPressTapGesture,          { NS_SIMPLE_GESTURE_PRESSTAP, EventNameType_None } },
+
+    { &nsGkAtoms::ontransitionend,               { NS_TRANSITION_END, EventNameType_None }},
   };
 
   sEventTable = new nsDataHashtable<nsISupportsHashKey, EventNameMapping>;
@@ -1408,6 +1414,32 @@ nsContentUtils::ContentIsDescendantOf(nsINode* aPossibleDescendant,
   return PR_FALSE;
 }
 
+// static
+PRBool
+nsContentUtils::ContentIsCrossDocDescendantOf(nsINode* aPossibleDescendant,
+                                              nsINode* aPossibleAncestor)
+{
+  NS_PRECONDITION(aPossibleDescendant, "The possible descendant is null!");
+  NS_PRECONDITION(aPossibleAncestor, "The possible ancestor is null!");
+
+  do {
+    if (aPossibleDescendant == aPossibleAncestor)
+      return PR_TRUE;
+    nsINode* parent = aPossibleDescendant->GetNodeParent();
+    if (!parent && aPossibleDescendant->IsNodeOfType(nsINode::eDOCUMENT)) {
+      nsIDocument* doc = static_cast<nsIDocument*>(aPossibleDescendant);
+      nsIDocument* parentDoc = doc->GetParentDocument();
+      aPossibleDescendant = parentDoc ?
+                            parentDoc->FindContentForSubDocument(doc) : nsnull;
+    }
+    else {
+      aPossibleDescendant = parent;
+    }
+  } while (aPossibleDescendant);
+
+  return PR_FALSE;
+}
+
 
 // static
 nsresult
@@ -1929,6 +1961,9 @@ nsContentUtils::GenerateStateKey(nsIContent* aContent,
 
   if (htmlDocument) {
     // Flush our content model so it'll be up to date
+    // If this becomes unnecessary and the following line is removed,
+    // please also remove the corresponding flush operation from
+    // nsHtml5TreeBuilderCppSupplement.h. (Look for "See bug 497861." there.)
     aContent->GetCurrentDoc()->FlushPendingNotifications(Flush_Content);
 
     nsContentList *htmlForms = htmlDocument->GetForms();
@@ -2092,7 +2127,7 @@ nsContentUtils::BelongsInForm(nsIDOMHTMLFormElement *aForm,
     }
 
     if (content->Tag() == nsGkAtoms::form &&
-        content->IsNodeOfType(nsINode::eHTML)) {
+        content->IsHTML()) {
       // The child is contained within a form, but not the right form
       // so we ignore it.
 
@@ -2476,6 +2511,16 @@ nsContentUtils::GetImageFromContent(nsIImageLoadingContent* aContent,
   return imgContainer.forget();
 }
 
+//static
+already_AddRefed<imgIRequest>
+nsContentUtils::GetStaticRequest(imgIRequest* aRequest)
+{
+  NS_ENSURE_TRUE(aRequest, nsnull);
+  nsCOMPtr<imgIRequest> retval;
+  aRequest->GetStaticRequest(getter_AddRefs(retval));
+  return retval.forget();
+}
+
 // static
 PRBool
 nsContentUtils::ContentIsDraggable(nsIContent* aContent)
@@ -2635,6 +2680,23 @@ nsContentUtils::AddBoolPrefVarCache(const char *aPref,
 {
   *aCache = GetBoolPref(aPref, PR_FALSE);
   RegisterPrefCallback(aPref, BoolVarChanged, aCache);
+}
+
+static int
+IntVarChanged(const char *aPref, void *aClosure)
+{
+  PRInt32* cache = static_cast<PRInt32*>(aClosure);
+  *cache = nsContentUtils::GetIntPref(aPref, 0);
+  
+  return 0;
+}
+
+void
+nsContentUtils::AddIntPrefVarCache(const char *aPref,
+                                   PRInt32* aCache)
+{
+  *aCache = GetIntPref(aPref, PR_FALSE);
+  RegisterPrefCallback(aPref, IntVarChanged, aCache);
 }
 
 static const char *gEventNames[] = {"event"};
@@ -2987,6 +3049,18 @@ nsContentUtils::IsChromeDoc(nsIDocument *aDocument)
   sSecurityManager->GetSystemPrincipal(getter_AddRefs(systemPrincipal));
 
   return aDocument->NodePrincipal() == systemPrincipal;
+}
+
+PRBool
+nsContentUtils::IsChildOfSameType(nsIDocument* aDoc)
+{
+  nsCOMPtr<nsISupports> container = aDoc->GetContainer();
+  nsCOMPtr<nsIDocShellTreeItem> docShellAsItem(do_QueryInterface(container));
+  nsCOMPtr<nsIDocShellTreeItem> sameTypeParent;
+  if (docShellAsItem) {
+    docShellAsItem->GetSameTypeParent(getter_AddRefs(sameTypeParent));
+  }
+  return sameTypeParent != nsnull;
 }
 
 PRBool
@@ -3588,7 +3662,7 @@ nsContentUtils::CreateContextualFragment(nsIDOMNode* aContextNode,
   nsCOMPtr<nsIDocument> document = node->GetOwnerDoc();
   NS_ENSURE_TRUE(document, NS_ERROR_NOT_AVAILABLE);
   
-  PRBool bCaseSensitive = document->IsCaseSensitive();
+  PRBool bCaseSensitive = !document->IsHTML();
 
   nsCOMPtr<nsIHTMLDocument> htmlDoc(do_QueryInterface(document));
   PRBool isHTML = htmlDoc && !bCaseSensitive;
@@ -4423,10 +4497,23 @@ nsContentUtils::AddScriptBlocker()
 
 /* static */
 void
+nsContentUtils::AddScriptBlockerAndPreventAddingRunners()
+{
+  AddScriptBlocker();
+  if (sScriptBlockerCountWhereRunnersPrevented == 0) {
+    sScriptBlockerCountWhereRunnersPrevented = sScriptBlockerCount;
+  }
+}
+
+/* static */
+void
 nsContentUtils::RemoveScriptBlocker()
 {
   NS_ASSERTION(sScriptBlockerCount != 0, "Negative script blockers");
   --sScriptBlockerCount;
+  if (sScriptBlockerCount < sScriptBlockerCountWhereRunnersPrevented) {
+    sScriptBlockerCountWhereRunnersPrevented = 0;
+  }
   if (sScriptBlockerCount) {
     return;
   }
@@ -4450,7 +4537,6 @@ nsContentUtils::RemoveScriptBlocker()
   }
 }
 
-
 /* static */
 PRBool
 nsContentUtils::AddScriptRunner(nsIRunnable* aRunnable)
@@ -4460,6 +4546,10 @@ nsContentUtils::AddScriptRunner(nsIRunnable* aRunnable)
   }
 
   if (sScriptBlockerCount) {
+    if (sScriptBlockerCountWhereRunnersPrevented > 0) {
+      NS_ERROR("Adding a script runner when that is prevented!");
+      return PR_FALSE;
+    }
     return sBlockedScriptRunners->AppendObject(aRunnable);
   }
   
@@ -4561,11 +4651,9 @@ nsContentUtils::ProcessViewportInfo(nsIDocument *aDocument,
 void
 nsContentUtils::HidePopupsInDocument(nsIDocument* aDocument)
 {
-  NS_PRECONDITION(aDocument, "Null document");
-
 #ifdef MOZ_XUL
   nsXULPopupManager* pm = nsXULPopupManager::GetInstance();
-  if (pm) {
+  if (pm && aDocument) {
     nsCOMPtr<nsISupports> container = aDocument->GetContainer();
     nsCOMPtr<nsIDocShellTreeItem> docShellToHide = do_QueryInterface(container);
     if (docShellToHide)
@@ -5027,15 +5115,14 @@ nsContentUtils::CanAccessNativeAnon()
     // Some code is running, we can't make the assumption, as above, but we
     // can't use a native frame, so clear fp.
     fp = nsnull;
+  } else if (!fp->script) {
+    fp = nsnull;
   }
 
-  void *annotation = fp ? JS_GetFrameAnnotation(cx, fp) : nsnull;
   PRBool privileged;
-  if (NS_SUCCEEDED(principal->IsCapabilityEnabled("UniversalXPConnect",
-                                                  annotation,
-                                                  &privileged)) &&
+  if (NS_SUCCEEDED(sSecurityManager->IsSystemPrincipal(principal, &privileged)) &&
       privileged) {
-    // UniversalXPConnect things are allowed to touch us.
+    // Chrome things are allowed to touch us.
     return PR_TRUE;
   }
 
@@ -5046,6 +5133,12 @@ nsContentUtils::CanAccessNativeAnon()
   if (fp && fp->script &&
       (filename = fp->script->filename) &&
       !strncmp(filename, prefix, NS_ARRAY_LENGTH(prefix) - 1)) {
+    return PR_TRUE;
+  }
+
+  // Before we throw, check for UniversalXPConnect.
+  nsresult rv = sSecurityManager->IsCapabilityEnabled("UniversalXPConnect", &privileged);
+  if (NS_SUCCEEDED(rv) && privileged) {
     return PR_TRUE;
   }
 
@@ -5089,4 +5182,150 @@ nsContentUtils::DispatchXULCommand(nsIContent* aTarget,
   NS_ENSURE_STATE(target);
   PRBool dummy;
   return target->DispatchEvent(event, &dummy);
+}
+
+// static
+nsresult
+nsContentUtils::WrapNative(JSContext *cx, JSObject *scope, nsISupports *native,
+                           const nsIID* aIID, jsval *vp,
+                           nsIXPConnectJSObjectHolder **aHolder,
+                           PRBool aAllowWrapping)
+{
+  if (!native) {
+    NS_ASSERTION(!aHolder || !*aHolder, "*aHolder should be null!");
+
+    *vp = JSVAL_NULL;
+
+    return NS_OK;
+  }
+
+  NS_ENSURE_TRUE(sXPConnect && sThreadJSContextStack, NS_ERROR_UNEXPECTED);
+
+  // Keep sXPConnect and sThreadJSContextStack alive.
+  nsLayoutStaticsRef layoutStaticsRef;
+
+  JSContext *topJSContext;
+  nsresult rv = sThreadJSContextStack->Peek(&topJSContext);
+  NS_ENSURE_SUCCESS(rv, rv);
+
+  PRBool push = topJSContext != cx;
+  if (push) {
+    rv = sThreadJSContextStack->Push(cx);
+    NS_ENSURE_SUCCESS(rv, rv);
+  }
+
+  rv = sXPConnect->WrapNativeToJSVal(cx, scope, native, aIID, aAllowWrapping,
+                                     vp, aHolder);
+
+  if (push) {
+    sThreadJSContextStack->Pop(nsnull);
+  }
+
+  return rv;
+}
+
+#ifdef DEBUG
+class DebugWrapperTraversalCallback : public nsCycleCollectionTraversalCallback
+{
+public:
+  DebugWrapperTraversalCallback(void* aWrapper) : mFound(PR_FALSE),
+                                                  mWrapper(aWrapper)
+  {
+    mFlags = WANT_ALL_TRACES;
+  }
+
+  NS_IMETHOD_(void) DescribeNode(CCNodeType type,
+                                 nsrefcnt refcount,
+                                 size_t objsz,
+                                 const char* objname)
+  {
+  }
+  NS_IMETHOD_(void) NoteXPCOMRoot(nsISupports *root)
+  {
+  }
+  NS_IMETHOD_(void) NoteRoot(PRUint32 langID, void* root,
+                             nsCycleCollectionParticipant* helper)
+  {
+  }
+  NS_IMETHOD_(void) NoteScriptChild(PRUint32 langID, void* child)
+  {
+    if (langID == nsIProgrammingLanguage::JAVASCRIPT) {
+      mFound = child == mWrapper;
+    }
+  }
+  NS_IMETHOD_(void) NoteXPCOMChild(nsISupports *child)
+  {
+  }
+  NS_IMETHOD_(void) NoteNativeChild(void* child,
+                                    nsCycleCollectionParticipant* helper)
+  {
+  }
+
+  NS_IMETHOD_(void) NoteNextEdgeName(const char* name)
+  {
+  }
+
+  PRBool mFound;
+
+private:
+  void* mWrapper;
+};
+
+static void
+DebugWrapperTraceCallback(PRUint32 langID, void *p, void *closure)
+{
+  DebugWrapperTraversalCallback* callback =
+    static_cast<DebugWrapperTraversalCallback*>(closure);
+  callback->NoteScriptChild(langID, p);
+}
+
+// static
+void
+nsContentUtils::CheckCCWrapperTraversal(nsISupports* aScriptObjectHolder,
+                                        nsWrapperCache* aCache)
+{
+  nsXPCOMCycleCollectionParticipant* participant;
+  CallQueryInterface(aScriptObjectHolder, &participant);
+
+  DebugWrapperTraversalCallback callback(aCache->GetWrapper());
+
+  participant->Traverse(aScriptObjectHolder, callback);
+  NS_ASSERTION(callback.mFound,
+               "Cycle collection participant didn't traverse to preserved "
+               "wrapper! This will probably crash.");
+
+  callback.mFound = PR_FALSE;
+  participant->Trace(aScriptObjectHolder, DebugWrapperTraceCallback, &callback);
+  NS_ASSERTION(callback.mFound,
+               "Cycle collection participant didn't trace preserved wrapper! "
+               "This will probably crash.");
+}
+#endif
+
+mozAutoRemovableBlockerRemover::mozAutoRemovableBlockerRemover(nsIDocument* aDocument)
+{
+  mNestingLevel = nsContentUtils::GetRemovableScriptBlockerLevel();
+  mDocument = aDocument;
+  nsISupports* sink = aDocument ? aDocument->GetCurrentContentSink() : nsnull;
+  mObserver = do_QueryInterface(sink);
+  for (PRUint32 i = 0; i < mNestingLevel; ++i) {
+    if (mObserver) {
+      mObserver->EndUpdate(mDocument, UPDATE_CONTENT_MODEL);
+    }
+    nsContentUtils::RemoveRemovableScriptBlocker();
+  }
+
+  NS_ASSERTION(nsContentUtils::IsSafeToRunScript(), "killing mutation events");
+}
+
+mozAutoRemovableBlockerRemover::~mozAutoRemovableBlockerRemover()
+{
+  NS_ASSERTION(nsContentUtils::GetRemovableScriptBlockerLevel() == 0,
+               "Should have had none");
+  for (PRUint32 i = 0; i < mNestingLevel; ++i) {
+    nsContentUtils::AddRemovableScriptBlocker();
+    if (mObserver) {
+      mObserver->BeginUpdate(mDocument, UPDATE_CONTENT_MODEL);
+    }
+  }
 }

@@ -39,14 +39,12 @@
 #include "nsISupports.idl"
 #include "nsIAccessibleRetrieval.idl"
 
-interface nsIAccessibleEventListener;
 interface nsIDocument;
 interface nsIFrame;
 interface nsObjectFrame;
 interface nsIContent;
-interface nsITimer;
 
-[uuid(05481634-4700-45d6-8a0c-704f3a5abc00)]
+[uuid(84a3ab70-8f7e-4610-9cd8-bd69308b76c5)]
 interface nsIAccessibilityService : nsIAccessibleRetrieval
 {
   nsIAccessible createOuterDocAccessible(in nsIDOMNode aNode);
@@ -72,46 +70,39 @@ interface nsIAccessibilityService : nsIAccessibleRetrieval
   nsIAccessible createHTMLSelectOptionAccessible(in nsIDOMNode aNode, in nsIAccessible aAccParent, in nsIWeakReference aPresShell);
   nsIAccessible createHTMLTableAccessible(in nsIFrame aFrame);
   nsIAccessible createHTMLTableCellAccessible(in nsIFrame aFrame);
-  nsIAccessible createHTMLTableHeadAccessible(in nsIDOMNode aDOMNode);
   nsIAccessible createHTMLTextAccessible(in nsIFrame aFrame);
   nsIAccessible createHTMLTextFieldAccessible(in nsIFrame aFrame);
   nsIAccessible createHTMLCaptionAccessible(in nsIFrame aFrame);
-
-  nsIAccessible getAccessible(in nsIDOMNode aNode, in nsIPresShell aPresShell,                          
-                              in nsIWeakReference aWeakShell, 
-                              inout nsIFrame frameHint, out boolean aIsHidden);
 
   // For gtk+ native window accessible
   nsIAccessible addNativeRootAccessible(in voidPtr aAtkAccessible);
   void removeNativeRootAccessible(in nsIAccessible aRootAccessible);
 
   /**
-   * Invalidate the accessibility cache associated with aPresShell, for accessibles
-   * that were generated for aContainerContent and its subtree.
-   * The container content node for the change is passed in, rather than the
-   * changed presentation for the content node itself.
-   * @param aPresShell         The presShell where changes occured
-   * @param aChangeContent     The affected DOM content
-   * @param aEvent             The event from nsIAccessibleEvent that
-   *                           caused the change:
-   *                           Must be one of:
-   *                           EVENT_REORDER (change),
-   *                           EVENT_SHOW (make visible or create) or 
-   *                           EVENT_HIDE (destroy or hide)
+   * Used to describe sort of changes leading to accessible tree invalidation.
    */
-  void invalidateSubtreeFor(in nsIPresShell aPresShell,
-                            in nsIContent aChangedContent,
-                            in PRUint32 aEvent);
+  const unsigned long NODE_APPEND = 0x01;
+  const unsigned long NODE_REMOVE = 0x02;
+  const unsigned long NODE_SIGNIFICANT_CHANGE = 0x03;
+  const unsigned long FRAME_SHOW = 0x04;
+  const unsigned long FRAME_HIDE = 0x05;
+  const unsigned long FRAME_SIGNIFICANT_CHANGE = 0x06;
 
   /**
-   *  An internal doc load event has occured. Handle the event and remove it from the list.
-   *  @param aTimer      The timer created to handle this doc load event
-   *  @param aClosure    The nsIWebProgress* for the load event
-   *  @param aEventType  The type of load event, one of: nsIAccessibleEvent::EVENT_DOCUMENT_LOAD_START,
-   *                                                     nsIAccessibleEvent::EVENT_DOCUMENT_LOAD_COMPLETE or
-   *                                                     nsIAccessibleEvent::EVENT_DOCUMENT_LOAD_STOPPED
+   * Invalidate the accessible tree when DOM tree or frame tree is changed.
+   *
+   * @param aPresShell   [in] the presShell where changes occured
+   * @param aContent     [in] the affected DOM content
+   * @param aChangeType  [in] the change type (see constants declared above)
    */
-  void processDocLoadEvent(in nsITimer aTimer, in voidPtr aClosure, in PRUint32 aEventType);
+  void invalidateSubtreeFor(in nsIPresShell aPresShell, in nsIContent aContent,
+                            in PRUint32 aChangeType);
+
+  /**
+   * Notify accessibility that anchor jump has been accomplished to the given
+   * target. Used by layout.
+   */
+  void notifyOfAnchorJumpTo(in nsIContent aTarget);
 
   /**
    * Fire accessible event of the given type for the given target.

@@ -59,7 +59,6 @@
 #include "nsIEventStateManager.h"
 #include "nsIDocument.h"
 #include "nsIDOMDocument.h"
-#include "nsIFocusController.h"
 #include "nsISelectionController.h"
 #include "nsISelection.h"
 #include "nsIFrame.h"
@@ -82,7 +81,7 @@
 #include "nsXPIDLString.h"
 #endif
 
-#ifdef XP_MACOSX
+#if defined(XP_MACOSX) && !defined(__LP64__)
 #include "nsAutoPtr.h"
 #include <Carbon/Carbon.h>
 #endif
@@ -281,7 +280,7 @@ NS_IMETHODIMP nsWebBrowserFind::FindNext(PRBool *outDidFind)
 NS_IMETHODIMP nsWebBrowserFind::GetSearchString(PRUnichar * *aSearchString)
 {
     NS_ENSURE_ARG_POINTER(aSearchString);
-#ifdef XP_MACOSX
+#if defined(XP_MACOSX) && !defined(__LP64__)
     OSStatus err;
     ScrapRef scrap;
     err = ::GetScrapByName(kScrapFindScrap, kScrapGetNamedScrap, &scrap);
@@ -307,7 +306,7 @@ NS_IMETHODIMP nsWebBrowserFind::GetSearchString(PRUnichar * *aSearchString)
 NS_IMETHODIMP nsWebBrowserFind::SetSearchString(const PRUnichar * aSearchString)
 {
     mSearchString.Assign(aSearchString);
-#ifdef XP_MACOSX
+#if defined(XP_MACOSX) && !defined(__LP64__)
     OSStatus err;
     ScrapRef scrap;
     err = ::GetScrapByName(kScrapFindScrap, kScrapClearNamedScrap, &scrap);
@@ -401,7 +400,7 @@ void nsWebBrowserFind::SetSelectionAndScroll(nsIDOMWindow* aWindow,
   nsCOMPtr<nsIDOMNode> node;
   aRange->GetStartContainer(getter_AddRefs(node));
   nsCOMPtr<nsIContent> content(do_QueryInterface(node));
-  nsIFrame* frame = presShell->GetPrimaryFrameFor(content);
+  nsIFrame* frame = content->GetPrimaryFrame();
   if (!frame)
       return;
   nsCOMPtr<nsISelectionController> selCon;
@@ -413,7 +412,7 @@ void nsWebBrowserFind::SetSelectionAndScroll(nsIDOMWindow* aWindow,
   nsITextControlFrame *tcFrame = nsnull;
   for ( ; content; content = content->GetParent()) {
     if (!IsInNativeAnonymousSubtree(content)) {
-      nsIFrame* f = presShell->GetPrimaryFrameFor(content);
+      nsIFrame* f = content->GetPrimaryFrame();
       if (!f)
         return;
       tcFrame = do_QueryFrame(f);
@@ -848,7 +847,7 @@ nsWebBrowserFind::GetFrameSelection(nsIDOMWindow* aWindow,
       fm->GetFocusedElement(getter_AddRefs(focusedElement));
       nsCOMPtr<nsIContent> focusedContent(do_QueryInterface(focusedElement));
       if (focusedContent) {
-        frame = presShell->GetPrimaryFrameFor(focusedContent);
+        frame = focusedContent->GetPrimaryFrame();
         if (frame && frame->PresContext() != presContext)
           frame = nsnull;
       }

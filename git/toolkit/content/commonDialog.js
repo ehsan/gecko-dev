@@ -165,10 +165,9 @@ function commonDialogOnLoad()
 
   // set the icon
   var iconElement = document.getElementById("info.icon");
-  var iconClass = gCommonDialogParam.GetString(2);
-  if (!iconClass)
-    iconClass = "message-icon";
-  iconElement.setAttribute("class", iconElement.getAttribute("class") + " " + iconClass);
+  var iconClasses = gCommonDialogParam.GetString(2);
+  if (iconClasses)
+    iconElement.className += " " + iconClasses;
 
   switch (nButtons) {
     case 4:
@@ -207,6 +206,12 @@ function commonDialogOnLoad()
     document.documentElement.getButton(dButton).focus();
 #endif
   }
+  else {
+    if (gCommonDialogParam.GetInt(4) == 1)
+      document.getElementById("password1Textbox").select();
+    else
+      document.getElementById("loginTextbox").select();
+  }
 
   if (gCommonDialogParam.GetInt(6) != 0) // delay button enable
   {
@@ -238,6 +243,8 @@ function commonDialogOnLoad()
         .playEventSound(sound);
     }
   } catch (e) { }
+
+  observerService.notifyObservers(window, "common-dialog-loaded", null);
 }
 
 function commonDialogOnUnload(){

@@ -13,7 +13,7 @@
  *
  * The Original Code is mozilla.org code.
  *
- * The Initial Developer of the Original Code is Mozilla Corporation.
+ * The Initial Developer of the Original Code is Mozilla Foundation.
  * Portions created by the Initial Developer are Copyright (C) 2007
  * the Initial Developer. All Rights Reserved.
  *
@@ -341,7 +341,8 @@ LoginManagerStorage_legacy.prototype = {
         if (userCanceled)
             throw "User canceled Master Password entry";
 
-        count.value = result.length; // needed for XPCOM
+        if (count)
+            count.value = result.length; // needed for XPCOM
         return result;
     },
 
@@ -368,7 +369,8 @@ LoginManagerStorage_legacy.prototype = {
             }
         }
 
-        count.value = result.length; // needed for XPCOM
+        if (count)
+            count.value = result.length; // needed for XPCOM
         return result;
     },
 
@@ -411,7 +413,8 @@ LoginManagerStorage_legacy.prototype = {
             result.push(hostname);
         }
 
-        count.value = result.length; // needed for XPCOM
+        if (count)
+            count.value = result.length; // needed for XPCOM
         return result;
     },
 

@@ -1211,6 +1211,9 @@ nsXULContentBuilder::CreateContainerContentsForQuerySet(nsIContent* aElement,
             rv = ReplaceMatch(removematch->mResult, nsnull, nsnull, aElement);
             if (NS_FAILED(rv))
                 return rv;
+
+            if (mFlags & eLoggingEnabled)
+                OutputMatchToLog(resultid, removematch, PR_FALSE);
         }
 
         if (generateContent) {
@@ -1242,6 +1245,9 @@ nsXULContentBuilder::CreateContainerContentsForQuerySet(nsIContent* aElement,
                                          aContainer, aNewIndexInContainer);
             }
         }
+
+        if (mFlags & eLoggingEnabled)
+            OutputMatchToLog(resultid, newmatch, PR_TRUE);
 
         if (prevmatch) {
             prevmatch->mNext = newmatch;
@@ -1302,7 +1308,7 @@ PRBool
 nsXULContentBuilder::IsOpen(nsIContent* aElement)
 {
     // Determine if this is a <treeitem> or <menu> element
-    if (!aElement->IsNodeOfType(nsINode::eXUL))
+    if (!aElement->IsXUL())
         return PR_TRUE;
 
     // XXXhyatt Use the XBL service to obtain a base tag.
@@ -1566,8 +1572,7 @@ nsXULContentBuilder::AttributeChanged(nsIDocument* aDocument,
                                       nsIContent*  aContent,
                                       PRInt32      aNameSpaceID,
                                       nsIAtom*     aAttribute,
-                                      PRInt32      aModType,
-                                      PRUint32     aStateMask)
+                                      PRInt32      aModType)
 {
     // Handle "open" and "close" cases. We do this handling before
     // we've notified the observer, so that content is already created
@@ -1591,7 +1596,7 @@ nsXULContentBuilder::AttributeChanged(nsIDocument* aDocument,
 
     // Pass along to the generic template builder.
     nsXULTemplateBuilder::AttributeChanged(aDocument, aContent, aNameSpaceID,
-                                           aAttribute, aModType, aStateMask);
+                                           aAttribute, aModType);
 }
 
 void

@@ -47,43 +47,9 @@ MODULE = xulapp
 LIBRARY_NAME = xulapp_s
 LIBXUL_LIBRARY = 1
 
-REQUIRES = \
-	appcomps \
-	toolkitcomps \
-	appshell \
-	chrome \
-	content \
-	docshell \
-	dom \
-	embed_base \
-	embedcomponents \
-	extensions \
-	gfx \
-	intl \
-	js \
-	necko \
-	pref \
-	profile \
-	string \
-	uriloader \
-	widget \
-	windowwatcher \
-	xpcom \
-	xpconnect \
-	xpinstall \
-	$(NULL)
 
-ifdef MOZ_JPROF
-REQUIRES += jprof
-endif
 
-ifdef NS_TRACE_MALLOC
-REQUIRES += tracemalloc
-endif
 
-ifdef MOZ_CRASHREPORTER
-REQUIRES += crashreporter
-endif
 
 FORCE_STATIC_LIB = 1
 
@@ -101,6 +67,7 @@ CPPSRCS = \
 	nsXREDirProvider.cpp \
 	nsNativeAppSupportBase.cpp \
 	nsAppData.cpp \
+	nsSigHandlers.cpp \
 	$(NULL)
 
 ifdef MOZ_SPLASHSCREEN
@@ -154,10 +121,6 @@ ifeq ($(MOZ_WIDGET_TOOLKIT),cocoa)
 CMMSRCS += MacApplicationDelegate.mm
 endif
 
-ifneq (,$(filter-out OS2 WINNT,$(OS_ARCH)))
-CPPSRCS	  += nsSigHandlers.cpp
-endif
-
 SHARED_LIBRARY_LIBS += ../profile/src/$(LIB_PREFIX)profile_s.$(LIB_SUFFIX)
 
 ifdef MOZ_ENABLE_XREMOTE
@@ -184,7 +147,9 @@ endif
 
 ifeq ($(OS_ARCH),Linux)
 SHARED_LIBRARY_LIBS += \
+  $(DEPTH)/toolkit/crashreporter/google-breakpad/src/client/linux/crash_generation/$(LIB_PREFIX)crash_generation_s.$(LIB_SUFFIX) \
   $(DEPTH)/toolkit/crashreporter/google-breakpad/src/client/linux/handler/$(LIB_PREFIX)exception_handler_s.$(LIB_SUFFIX) \
+  $(DEPTH)/toolkit/crashreporter/google-breakpad/src/client/linux/minidump_writer/$(LIB_PREFIX)minidump_writer_s.$(LIB_SUFFIX) \
   $(DEPTH)/toolkit/crashreporter/google-breakpad/src/client/$(LIB_PREFIX)minidump_file_writer_s.$(LIB_SUFFIX) \
   $(DEPTH)/toolkit/crashreporter/google-breakpad/src/common/$(LIB_PREFIX)breakpad_common_s.$(LIB_SUFFIX) \
   $(DEPTH)/toolkit/crashreporter/google-breakpad/src/common/linux/$(LIB_PREFIX)breakpad_linux_common_s.$(LIB_SUFFIX) \
@@ -205,14 +170,18 @@ ifdef ENABLE_TESTS
 DIRS += test
 endif
 
+include $(topsrcdir)/config/config.mk
+include $(topsrcdir)/ipc/chromium/chromium-config.mk
 include $(topsrcdir)/config/rules.mk
+
+LOCAL_INCLUDES += \
+  -I$(topsrcdir)/dom/ipc \
+  -I$(topsrcdir)/toolkit/crashreporter \
+  $(NULL)
 
 ifdef BUILD_STATIC_LIBS
 export::
-	@$(PERL) -I$(MOZILLA_DIR)/config $(MOZILLA_DIR)/config/build-list.pl $(FINAL_LINK_COMP_NAMES) Apprunner
-#	embedding/browser/gtk/src/Makefile.in sucks! we need to add an empty line to 
-# FINAL_LINK_COMPS to keep the two lists in sync :-(
-	@$(PERL) -I$(MOZILLA_DIR)/config $(MOZILLA_DIR)/config/build-list.pl $(FINAL_LINK_COMPS) ""
+	@$(PYTHON) $(MOZILLA_DIR)/config/buildlist.py $(FINAL_LINK_COMP_NAMES) Apprunner
 endif
 
 LOCAL_INCLUDES += \
@@ -254,15 +223,15 @@ DEFINES     += -DHAVE_USR_LIB64_DIR
 endif
 endif
 
-SOURCE_STAMP := $(shell cd $(topsrcdir) && hg identify 2>/dev/null | cut -f1 -d' ')
+MOZ_SOURCE_STAMP ?= $(firstword $(shell hg -R $(topsrcdir) parent --template="{node|short}\n" 2>/dev/null))
 # strip a trailing slash from the repo URL because it's not always present,
 # and we want to construct a working URL in buildconfig.html
 # make+shell+sed = awful
 _dollar=$$
 SOURCE_REPO := $(shell cd $(topsrcdir) && hg showconfig paths.default 2>/dev/null | head -n1 | sed -e "s/^ssh:/http:/" -e "s/\/$(_dollar)//" )
 
-ifdef SOURCE_STAMP
-INIARGS = --sourcestamp=$(SOURCE_STAMP)
+ifdef MOZ_SOURCE_STAMP
+INIARGS = --sourcestamp=$(MOZ_SOURCE_STAMP)
 # extra sanity check for old versions of hg
 # that don't support showconfig
 ifeq (http,$(patsubst http%,http,$(SOURCE_REPO)))

@@ -53,6 +53,8 @@
 // done rather than a byte range request.
 #define SEEK_VS_READ_THRESHOLD (32*1024)
 
+#define HTTP_REQUESTED_RANGE_NOT_SATISFIABLE_CODE 416
+
 class nsMediaDecoder;
 
 /**
@@ -151,6 +153,8 @@ public:
   // The following can be called on the main thread only:
   // Get the decoder
   nsMediaDecoder* Decoder() { return mDecoder; }
+  // Get the URI
+  nsIURI* URI() { return mURI; }
   // Close the stream, stop any listeners, channels, etc.
   // Cancels any currently blocking Read request and forces that request to
   // return an error.
@@ -165,6 +169,10 @@ public:
   virtual void Resume() = 0;
   // Get the current principal for the channel
   virtual already_AddRefed<nsIPrincipal> GetCurrentPrincipal() = 0;
+  // Create a new stream of the same type that refers to the same URI
+  // with a new channel. Any cached data associated with the original
+  // stream should be accessible in the new stream too.
+  virtual nsMediaStream* CloneData(nsMediaDecoder* aDecoder) = 0;
 
   // These methods are called off the main thread.
   // The mode is initially MODE_PLAYBACK.
@@ -247,15 +255,17 @@ public:
   virtual PRBool IsSuspendedByCache() = 0;
 
   /**
-   * Create a stream, reading data from the 
-   * media resource at the URI. Call on main thread only.
-   * @param aChannel if non-null, this channel is used and aListener
-   * is set to the listener we want for the channel. aURI must
-   * be the URI for the channel, obtained via NS_GetFinalChannelURI.
+   * Create a stream, reading data from the media resource via the
+   * channel. Call on main thread only.
+   * The caller must follow up by calling aStream->Open.
    */
-  static nsresult Open(nsMediaDecoder* aDecoder, nsIURI* aURI,
-                       nsIChannel* aChannel, nsMediaStream** aStream,
-                       nsIStreamListener** aListener);
+  static nsMediaStream* Create(nsMediaDecoder* aDecoder, nsIChannel* aChannel);
+
+  /**
+   * Open the stream. This creates a stream listener and returns it in
+   * aStreamListener; this listener needs to be notified of incoming data.
+   */
+  virtual nsresult Open(nsIStreamListener** aStreamListener) = 0;
 
 protected:
   nsMediaStream(nsMediaDecoder* aDecoder, nsIChannel* aChannel, nsIURI* aURI) :
@@ -266,14 +276,6 @@ protected:
   {
     MOZ_COUNT_CTOR(nsMediaStream);
   }
-
-  /**
-   * @param aStreamListener if null, the strategy should open mChannel
-   * itself. Otherwise, mChannel is already open and the strategy
-   * should just return its stream listener in aStreamListener (or set
-   * *aStreamListener to null, if it doesn't need a listener).
-   */
-  virtual nsresult Open(nsIStreamListener** aStreamListener) = 0;
 
   // This is not an nsCOMPointer to prevent a circular reference
   // between the decoder to the media stream object. The stream never
@@ -308,7 +310,19 @@ public:
   ~nsMediaChannelStream();
 
   // These are called on the main thread by nsMediaCache. These must
-  // not block or grab locks.
+  // not block or grab locks, because the media cache is holding its lock.
+  // Notify that data is available from the cache. This can happen even
+  // if this stream didn't read any data, since another stream might have
+  // received data for the same resource.
+  void CacheClientNotifyDataReceived();
+  // Notify that we reached the end of the stream. This can happen even
+  // if this stream didn't read any data, since another stream might have
+  // received data for the same resource.
+  void CacheClientNotifyDataEnded(nsresult aStatus);
+
+  // These are called on the main thread by nsMediaCache. These shouldn't block,
+  // but they may grab locks --- the media cache is not holding its lock
+  // when these are called.
   // Start a new load at the given aOffset. The old load is cancelled
   // and no more data from the old load will be notified via
   // nsMediaCacheStream::NotifyDataReceived/Ended.
@@ -327,6 +341,7 @@ public:
   virtual already_AddRefed<nsIPrincipal> GetCurrentPrincipal();
   // Return PR_TRUE if the stream has been closed.
   PRBool IsClosed() const { return mCacheStream.IsClosed(); }
+  virtual nsMediaStream* CloneData(nsMediaDecoder* aDecoder);
 
   // Other thread
   virtual void     SetReadMode(nsMediaCacheStream::ReadMode aMode);
@@ -345,7 +360,6 @@ public:
   virtual PRBool  IsDataCachedToEndOfStream(PRInt64 aOffset);
   virtual PRBool  IsSuspendedByCache();
 
-protected:
   class Listener : public nsIStreamListener,
                    public nsIInterfaceRequestor,
                    public nsIChannelEventSink
@@ -366,6 +380,7 @@ protected:
   };
   friend class Listener;
 
+protected:
   // These are called on the main thread by Listener.
   nsresult OnStartRequest(nsIRequest* aRequest);
   nsresult OnStopRequest(nsIRequest* aRequest, nsresult aStatus);
@@ -377,9 +392,12 @@ protected:
   // Opens the channel, using an HTTP byte range request to start at mOffset
   // if possible. Main thread only.
   nsresult OpenChannel(nsIStreamListener** aStreamListener);
+  nsresult RecreateChannel();
   void SetupChannelHeaders();
   // Closes the channel. Main thread only.
   void CloseChannel();
+
+  void DoNotifyDataReceived();
 
   static NS_METHOD CopySegmentToCache(nsIInputStream *aInStream,
                                       void *aClosure,
@@ -391,6 +409,9 @@ protected:
   // Main thread access only
   PRInt64            mOffset;
   nsRefPtr<Listener> mListener;
+  // A data received event for the decoder that has been dispatched but has
+  // not yet been processed.
+  nsRevocableEventPtr<nsNonOwningRunnableMethod<nsMediaChannelStream> > mDataReceivedEvent;
   PRUint32           mSuspendCount;
   // When this flag is set, if we get a network error we should silently
   // reopen the stream.

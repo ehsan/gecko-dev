@@ -133,7 +133,7 @@ tests.push({
     // add a bookmark
     this._bookmarkId = addBookmark(this._placeId);
     // Add a used attribute and an unused one.
-    stmt = mDBConn.createStatement("INSERT INTO moz_anno_attributes (name) VALUES (:anno)");
+    let stmt = mDBConn.createStatement("INSERT INTO moz_anno_attributes (name) VALUES (:anno)");
     stmt.params['anno'] = this._usedPageAttribute;
     stmt.execute();
     stmt.reset();
@@ -1110,12 +1110,12 @@ tests.push({
     do_check_true(bh.isVisited(this._uri2));
     
     do_check_eq(bs.getBookmarkURI(this._bookmarkId).spec, this._uri1.spec);
-    do_check_true(bs.getItemIndex(this._folderId) == 0);
+    do_check_eq(bs.getItemIndex(this._folderId), 0);
 
     do_check_eq(bs.getItemType(this._folderId), bs.TYPE_FOLDER);
     do_check_eq(bs.getItemType(this._separatorId), bs.TYPE_SEPARATOR);
 
-    do_check_true(ts.getTagsForURI(this._uri1, {}).length == 1);
+    do_check_eq(ts.getTagsForURI(this._uri1).length, 1);
     do_check_eq(bs.getKeywordForBookmark(this._bookmarkId), "testkeyword");
     do_check_eq(fs.getFaviconForPage(this._uri2).spec,
                 "http://www2.mozilla.org/favicon.ico");
@@ -1163,7 +1163,7 @@ function run_test() {
   do_check_false(bs.isBookmarked(uri("http://force.bookmarks.hash")));
 
   // Get current bookmarks max ID for cleanup
-  stmt = mDBConn.createStatement("SELECT MAX(id) FROM moz_bookmarks");
+  let stmt = mDBConn.createStatement("SELECT MAX(id) FROM moz_bookmarks");
   stmt.executeStep();
   defaultBookmarksMaxId = stmt.getInt32(0);
   stmt.finalize();

@@ -271,6 +271,10 @@ nsCSSValueListRect::sides[4] = {
 
 /* During allocation, null-out the transform list. */
 nsCSSDisplay::nsCSSDisplay(void) : mTransform(nsnull)
+  , mTransitionProperty(nsnull)
+  , mTransitionDuration(nsnull)
+  , mTransitionTimingFunction(nsnull)
+  , mTransitionDelay(nsnull)
 {
   MOZ_COUNT_CTOR(nsCSSDisplay);
 }
@@ -460,7 +464,6 @@ nsCSSColumn::~nsCSSColumn(void)
   MOZ_COUNT_DTOR(nsCSSColumn);
 }
 
-#ifdef MOZ_SVG
 // --- nsCSSSVG -----------------
 
 nsCSSSVG::nsCSSSVG(void) : mStrokeDasharray(nsnull)
@@ -473,5 +476,3 @@ nsCSSSVG::~nsCSSSVG(void)
   MOZ_COUNT_DTOR(nsCSSSVG);
   delete mStrokeDasharray;
 }
-
-#endif // MOZ_SVG

@@ -216,11 +216,11 @@ typedef struct {
 #define APP_REG_NAME L"Firefox"
 #define CLS_HTML "FirefoxHTML"
 #define CLS_URL "FirefoxURL"
-#define CPL_DESKTOP L"\\Control Panel\\Desktop"
+#define CPL_DESKTOP L"Control Panel\\Desktop"
 #define VAL_OPEN "\"%APPPATH%\" -requestPending -osint -url \"%1\""
 #define VAL_FILE_ICON "%APPPATH%,1"
 #else
-#define CPL_DESKTOP L"\\ControlPanel\\Desktop"
+#define CPL_DESKTOP L"ControlPanel\\Desktop"
 #define VAL_OPEN "\"%APPPATH%\" -osint -url \"%1\""
 #define VAL_FILE_ICON "%APPPATH%,-2"
 #endif
@@ -524,7 +524,9 @@ static nsresult
 WriteBitmap(nsIFile* aFile, imgIContainer* aImage)
 {
   nsRefPtr<gfxImageSurface> image;
-  nsresult rv = aImage->CopyCurrentFrame(getter_AddRefs(image));
+  nsresult rv = aImage->CopyFrame(imgIContainer::FRAME_FIRST,
+                                  imgIContainer::FLAG_SYNC_DECODE,
+                                  getter_AddRefs(image));
   NS_ENSURE_SUCCESS(rv, rv);
 
   PRInt32 width = image->Width();
@@ -602,6 +604,7 @@ nsWindowsShellService::SetDesktopBackground(nsIDOMElement* aElement,
   nsCOMPtr<nsIDOMHTMLImageElement> imgElement(do_QueryInterface(aElement));
   if (!imgElement) {
     // XXX write background loading stuff!
+    return NS_ERROR_NOT_AVAILABLE;
   } 
   else {
     nsCOMPtr<nsIImageLoadingContent> imageContent =

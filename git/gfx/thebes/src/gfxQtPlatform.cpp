@@ -64,7 +64,6 @@
 #include <ft2build.h>
 #include FT_FREETYPE_H
 
-PRInt32 gfxQtPlatform::sDPI = -1;
 gfxFontconfigUtils *gfxQtPlatform::sFontconfigUtils = nsnull;
 static cairo_user_data_key_t cairo_qt_pixmap_key;
 static void do_qt_pixmap_unref (void *data)
@@ -74,13 +73,18 @@ static void do_qt_pixmap_unref (void *data)
 }
 
 typedef nsDataHashtable<nsStringHashKey, nsRefPtr<FontFamily> > FontTable;
+typedef nsDataHashtable<nsCStringHashKey, nsTArray<nsRefPtr<FontEntry> > > PrefFontTable;
 static FontTable *gPlatformFonts = NULL;
 static FontTable *gPlatformFontAliases = NULL;
+static PrefFontTable *gPrefFonts = NULL;
+static gfxSparseBitSet *gCodepointsWithNoFonts = NULL;
 static FT_Library gPlatformFTLibrary = NULL;
 
 
 gfxQtPlatform::gfxQtPlatform()
 {
+    mPrefFonts.Init(50);
+
     if (!sFontconfigUtils)
         sFontconfigUtils = gfxFontconfigUtils::GetFontconfigUtils();
 
@@ -91,9 +95,10 @@ gfxQtPlatform::gfxQtPlatform()
     gPlatformFonts->Init(100);
     gPlatformFontAliases = new FontTable();
     gPlatformFontAliases->Init(100);
+    gPrefFonts = new PrefFontTable();
+    gPrefFonts->Init(100);
+    gCodepointsWithNoFonts = new gfxSparseBitSet();
     UpdateFontList();
-
-    InitDPI();
 }
 
 gfxQtPlatform::~gfxQtPlatform()
@@ -105,6 +110,10 @@ gfxQtPlatform::~gfxQtPlatform()
     gPlatformFonts = NULL;
     delete gPlatformFontAliases;
     gPlatformFontAliases = NULL;
+    delete gPrefFonts;
+    gPrefFonts = NULL;
+    delete gCodepointsWithNoFonts;
+    gCodepointsWithNoFonts = NULL;
 
     cairo_debug_reset_static_data();
 
@@ -146,7 +155,6 @@ gfxQtPlatform::UpdateFontList()
     FcPattern *pat = NULL;
     FcObjectSet *os = NULL;
     FcFontSet *fs = NULL;
-    PRInt32 result = -1;
 
     pat = FcPatternCreate();
     os = FcObjectSetBuild(FC_FAMILY, FC_FILE, FC_INDEX, FC_WEIGHT, FC_SLANT, FC_WIDTH, NULL);
@@ -160,8 +168,6 @@ gfxQtPlatform::UpdateFontList()
         if (FcPatternGetString(fs->fonts[i], FC_FAMILY, 0, (FcChar8 **) &str) != FcResultMatch)
             continue;
 
-        printf("Family: %s\n", str);
-
         nsAutoString name(NS_ConvertUTF8toUTF16(nsDependentCString(str)).get());
         nsAutoString key(name);
         ToLowerCase(key);
@@ -171,17 +177,15 @@ gfxQtPlatform::UpdateFontList()
             gPlatformFonts->Put(key, ff);
         }
 
-        nsRefPtr<FontEntry> fe = new FontEntry(ff->Name());
-        ff->mFaces.AppendElement(fe);
+        FontEntry *fe = new FontEntry(ff->Name());
+        ff->AddFontEntry(fe);
 
         if (FcPatternGetString(fs->fonts[i], FC_FILE, 0, (FcChar8 **) &str) == FcResultMatch) {
             fe->mFilename = nsDependentCString(str);
-            printf(" - file: %s\n", str);
         }
 
         int x;
         if (FcPatternGetInteger(fs->fonts[i], FC_INDEX, 0, &x) == FcResultMatch) {
-            printf(" - index: %d\n", x);
             fe->mFTFontIndex = x;
         } else {
             fe->mFTFontIndex = 0;
@@ -222,7 +226,6 @@ gfxQtPlatform::UpdateFontList()
                 fe->mWeight = (((x * 4) + 100) / 100) * 100;
                 break;
             }
-            printf(" - weight: %d\n", fe->mWeight);
         }
 
         fe->mItalic = PR_FALSE;
@@ -232,12 +235,9 @@ gfxQtPlatform::UpdateFontList()
             case FC_SLANT_OBLIQUE:
                 fe->mItalic = PR_TRUE;
             }
-            printf(" - slant: %d\n", x);
         }
 
-        if (FcPatternGetInteger(fs->fonts[i], FC_WIDTH, 0, &x) == FcResultMatch)
-            printf(" - width: %d\n", x);
-        // XXX deal with font-stretch stuff later
+        // XXX deal with font-stretch (FC_WIDTH) stuff later
     }
 
     if (pat)
@@ -281,7 +281,6 @@ gfxQtPlatform::ResolveFontName(const nsAString& aFontName,
         nsAutoString altName = NS_ConvertUTF8toUTF16(nsDependentCString(reinterpret_cast<char*>(str)));
         ToLowerCase(altName);
         if (gPlatformFonts->Get(altName, &ff)) {
-            printf("Adding alias: %s -> %s\n", utf8Name.get(), str);
             gPlatformFontAliases->Put(name, ff);
             aAborted = !(*aCallback)(NS_ConvertUTF8toUTF16(nsDependentCString(reinterpret_cast<char*>(str))), aClosure);
             goto DONE;
@@ -315,7 +314,6 @@ gfxQtPlatform::ResolveFontName(const nsAString& aFontName,
         nsAutoString altName = NS_ConvertUTF8toUTF16(nsDependentCString(reinterpret_cast<char*>(str)));
         ToLowerCase(altName);
         if (gPlatformFonts->Get(altName, &ff)) {
-            printf("Adding alias: %s -> %s\n", utf8Name.get(), str);
             gPlatformFontAliases->Put(name, ff);
             aAborted = !(*aCallback)(NS_ConvertUTF8toUTF16(nsDependentCString(reinterpret_cast<char*>(str))), aClosure);
             goto DONE;
@@ -344,22 +342,11 @@ gfxQtPlatform::CreateFontGroup(const nsAString &aFamilies,
     return new gfxFT2FontGroup(aFamilies, aStyle);
 }
 
-/* static */
-void
-gfxQtPlatform::InitDPI()
-{
-    if (sDPI <= 0) {
-        // Fall back to something sane
-        sDPI = 96;
-    }
-}
-
 qcms_profile*
 gfxQtPlatform::GetPlatformCMSOutputProfile()
 {
     return nsnull;
 }
-
 
 FT_Library
 gfxQtPlatform::GetFTLibrary()
@@ -388,4 +375,56 @@ gfxQtPlatform::FindFontEntry(const nsAString& aName, const gfxFontStyle& aFontSt
         return nsnull;
 
     return ff->FindFontEntry(aFontStyle);
+}
+
+static PLDHashOperator
+FindFontForCharProc(nsStringHashKey::KeyType aKey,
+                    nsRefPtr<FontFamily>& aFontFamily,
+                    void* aUserArg)
+{
+    FontSearch *data = (FontSearch*)aUserArg;
+    aFontFamily->FindFontForChar(data);
+    return PL_DHASH_NEXT;
+}
+
+already_AddRefed<gfxFont>
+gfxQtPlatform::FindFontForChar(PRUint32 aCh, gfxFont *aFont)
+{
+    if (!gPlatformFonts || !gCodepointsWithNoFonts)
+        return nsnull;
+
+    // is codepoint with no matching font? return null immediately
+    if (gCodepointsWithNoFonts->test(aCh)) {
+        return nsnull;
+    }
+
+    FontSearch data(aCh, aFont);
+
+    // find fonts that support the character
+    gPlatformFonts->Enumerate(FindFontForCharProc, &data);
+
+    if (data.mBestMatch) {
+        nsRefPtr<gfxFT2Font> font =
+            gfxFT2Font::GetOrMakeFont(static_cast<FontEntry*>(data.mBestMatch.get()),
+                                      aFont->GetStyle()); 
+        gfxFont* ret = font.forget().get();
+        return already_AddRefed<gfxFont>(ret);
+    }
+
+    // no match? add to set of non-matching codepoints
+    gCodepointsWithNoFonts->set(aCh);
+
+    return nsnull;
+}
+
+PRBool
+gfxQtPlatform::GetPrefFontEntries(const nsCString& aKey, nsTArray<nsRefPtr<gfxFontEntry> > *array)
+{
+    return mPrefFonts.Get(aKey, array);
+}
+
+void
+gfxQtPlatform::SetPrefFontEntries(const nsCString& aKey, nsTArray<nsRefPtr<gfxFontEntry> >& array)
+{
+    mPrefFonts.Put(aKey, array);
 }

@@ -22,6 +22,7 @@
  *
  * Contributor(s):
  *   Stuart Parmenter <pavlov@netscape.com>
+ *   Bobby Holley <bobbyholley@gmail.com>
  *
  * Alternatively, the contents of this file may be used under the terms of
  * either the GNU General Public License Version 2 or later (the "GPL"), or
@@ -44,7 +45,6 @@
 
 #include "imgIContainer.h"
 #include "imgIDecoderObserver.h"
-#include "imgILoad.h"
 #include "gfxASurface.h"
 
 #include "nsCOMPtr.h"
@@ -70,17 +70,18 @@ public:
   nsPNGDecoder();
   virtual ~nsPNGDecoder();
 
-  void CreateFrame(png_uint_32 x_offset, png_uint_32 y_offset, 
-                   PRInt32 width, PRInt32 height, 
+  void CreateFrame(png_uint_32 x_offset, png_uint_32 y_offset,
+                   PRInt32 width, PRInt32 height,
                    gfxASurface::gfxImageFormat format);
   void SetAnimFrameInfo();
-  
+
   void EndImageFrame();
+  void NotifyDone(PRBool aSuccess);
 
 public:
   nsCOMPtr<imgIContainer> mImage;
-  nsCOMPtr<imgILoad> mImageLoad;
-  nsCOMPtr<imgIDecoderObserver> mObserver; // this is just qi'd from mRequest for speed
+  nsCOMPtr<imgIDecoderObserver> mObserver;
+  PRUint32 mFlags;
 
   png_structp mPNG;
   png_infop mInfo;
@@ -92,10 +93,16 @@ public:
   qcms_transform *mTransform;
 
   gfxASurface::gfxImageFormat format;
+
+  // For header-only decodes
+  PRUint8 *mHeaderBuf;
+  PRUint32 mHeaderBytesRead;
+
   PRUint8 mChannels;
   PRPackedBool mError;
   PRPackedBool mFrameHasNoAlpha;
   PRPackedBool mFrameIsHidden;
+  PRPackedBool mNotifiedDone;
 };
 
 #endif // nsPNGDecoder_h__

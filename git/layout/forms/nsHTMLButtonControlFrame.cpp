@@ -74,6 +74,8 @@ NS_NewHTMLButtonControlFrame(nsIPresShell* aPresShell, nsStyleContext* aContext)
   return new (aPresShell) nsHTMLButtonControlFrame(aContext);
 }
 
+NS_IMPL_FRAMEARENA_HELPERS(nsHTMLButtonControlFrame)
+
 nsHTMLButtonControlFrame::nsHTMLButtonControlFrame(nsStyleContext* aContext)
   : nsHTMLContainerFrame(aContext)
 {
@@ -84,10 +86,10 @@ nsHTMLButtonControlFrame::~nsHTMLButtonControlFrame()
 }
 
 void
-nsHTMLButtonControlFrame::Destroy()
+nsHTMLButtonControlFrame::DestroyFrom(nsIFrame* aDestructRoot)
 {
   nsFormControlFrame::RegUnRegAccessKey(static_cast<nsIFrame*>(this), PR_FALSE);
-  nsHTMLContainerFrame::Destroy();
+  nsHTMLContainerFrame::DestroyFrom(aDestructRoot);
 }
 
 NS_IMETHODIMP
@@ -177,8 +179,9 @@ nsHTMLButtonControlFrame::BuildDisplayList(nsDisplayListBuilder*   aBuilder,
   // Put the foreground outline and focus rects on top of the children
   set.Content()->AppendToTop(&onTop);
 
-  // clips to our padding box for <input>s but not <button>s.
-  if (IsInput()) {
+  // clips to our padding box for <input>s but not <button>s, unless
+  // they have non-visible overflow..
+  if (IsInput() || GetStyleDisplay()->mOverflowX != NS_STYLE_OVERFLOW_VISIBLE) {
     nsMargin border = GetStyleBorder()->GetActualBorder();
     nsRect rect(aBuilder->ToReferenceFrame(this), GetSize());
     rect.Deflate(border);
@@ -317,12 +320,12 @@ nsHTMLButtonControlFrame::ReflowButtonContents(nsPresContext* aPresContext,
     NS_ASSERTION(extraright >=0, "How'd that happen?");
     
     // Do not allow the extras to be bigger than the relevant padding
-    extraleft = PR_MIN(extraleft, aReflowState.mComputedPadding.left);
-    extraright = PR_MIN(extraright, aReflowState.mComputedPadding.right);
+    extraleft = NS_MIN(extraleft, aReflowState.mComputedPadding.left);
+    extraright = NS_MIN(extraright, aReflowState.mComputedPadding.right);
     xoffset -= extraleft;
     availSize.width += extraleft + extraright;
   }
-  availSize.width = PR_MAX(availSize.width,0);
+  availSize.width = NS_MAX(availSize.width,0);
   
   nsHTMLReflowState reflowState(aPresContext, aReflowState, aFirstKid,
                                 availSize);
@@ -336,7 +339,7 @@ nsHTMLButtonControlFrame::ReflowButtonContents(nsPresContext* aPresContext,
   // XXXbz this assumes border-box sizing.
   nscoord minInternalHeight = aReflowState.mComputedMinHeight -
     aReflowState.mComputedBorderPadding.TopBottom();
-  minInternalHeight = PR_MAX(minInternalHeight, 0);
+  minInternalHeight = NS_MAX(minInternalHeight, 0);
 
   // center child vertically
   nscoord yoff = 0;

@@ -262,8 +262,10 @@ nsHTMLReflowState::Init(nsPresContext* aPresContext,
                         const nsMargin* aBorder,
                         const nsMargin* aPadding)
 {
-  NS_ASSERTION(availableWidth != NS_UNCONSTRAINEDSIZE,
-               "shouldn't use unconstrained widths anymore");
+  NS_WARN_IF_FALSE(availableWidth != NS_UNCONSTRAINEDSIZE,
+                   "have unconstrained width; this should only result from "
+                   "very large sizes, not attempts at intrinsic width "
+                   "calculation");
 
   mStylePosition = frame->GetStylePosition();
   mStyleDisplay = frame->GetStyleDisplay();
@@ -280,11 +282,13 @@ nsHTMLReflowState::Init(nsPresContext* aPresContext,
 
   InitResizeFlags(aPresContext);
 
-  NS_ASSERTION((mFrameType == NS_CSS_FRAME_TYPE_INLINE &&
-                !frame->IsFrameOfType(nsIFrame::eReplaced)) ||
-               frame->GetType() == nsGkAtoms::textFrame ||
-               mComputedWidth != NS_UNCONSTRAINEDSIZE,
-               "shouldn't use unconstrained widths anymore");
+  NS_WARN_IF_FALSE((mFrameType == NS_CSS_FRAME_TYPE_INLINE &&
+                    !frame->IsFrameOfType(nsIFrame::eReplaced)) ||
+                   frame->GetType() == nsGkAtoms::textFrame ||
+                   mComputedWidth != NS_UNCONSTRAINEDSIZE,
+                   "have unconstrained width; this should only result from "
+                   "very large sizes, not attempts at intrinsic width "
+                   "calculation");
 }
 
 void nsHTMLReflowState::InitCBReflowState()
@@ -378,8 +382,9 @@ nsHTMLReflowState::InitResizeFlags(nsPresContext* aPresContext)
         mCBReflowState) {
       mFlags.mVResize = mCBReflowState->mFlags.mVResize;
     } else {
-      mFlags.mVResize = mFlags.mHResize || NS_SUBTREE_DIRTY(frame); 
+      mFlags.mVResize = mFlags.mHResize;
     }
+    mFlags.mVResize = mFlags.mVResize || NS_SUBTREE_DIRTY(frame);
   } else {
     // not 'auto' height
     mFlags.mVResize = frame->GetSize().height !=
@@ -729,7 +734,7 @@ nsHTMLReflowState::GetHypotheticalBoxContainer(nsIFrame* aFrame,
     NS_ASSERTION(aFrame, "Must find containing block somewhere");
   } while (!(aFrame->IsContainingBlock() ||
              (aFrame->IsFrameOfType(nsIFrame::eBlockFrame) &&
-              IsAnonBlockPseudo(aFrame->GetStyleContext()->GetPseudoType()))));
+              IsAnonBlockPseudo(aFrame->GetStyleContext()->GetPseudo()))));
 
   NS_ASSERTION(aFrame != frame, "How did that happen?");
 
@@ -1544,7 +1549,7 @@ CalcQuirkContainingBlockHeight(const nsHTMLReflowState* aCBReflowState)
   }
 
   // Make sure not to return a negative height here!
-  return PR_MAX(result, 0);
+  return NS_MAX(result, 0);
 }
 // Called by InitConstraints() to compute the containing block rectangle for
 // the element. Handles the special logic for absolutely positioned elements
@@ -1940,15 +1945,13 @@ nsCSSOffsetState::InitOffsets(nscoord aContainingBlockWidth,
   } else if (frameType == nsGkAtoms::scrollbarFrame) {
     // scrollbars may have had their width or height smashed to zero
     // by the associated scrollframe, in which case we must not report
-    // any padding or border on that axis.
+    // any padding or border.
     nsSize size(frame->GetSize());
-    if (size.width == 0) {
+    if (size.width == 0 || size.height == 0) {
       mComputedPadding.left = 0;
       mComputedPadding.right = 0;
       mComputedBorderPadding.left = 0;
       mComputedBorderPadding.right = 0;
-    }
-    if (size.height == 0) {
       mComputedPadding.top = 0;
       mComputedPadding.bottom = 0;
       mComputedBorderPadding.top = 0;
@@ -1968,9 +1971,11 @@ void
 nsHTMLReflowState::CalculateBlockSideMargins(nscoord aAvailWidth,
                                              nscoord aComputedWidth)
 {
-  NS_ASSERTION(NS_UNCONSTRAINEDSIZE != aComputedWidth &&
-               NS_UNCONSTRAINEDSIZE != aAvailWidth,
-               "this shouldn't happen anymore");
+  NS_WARN_IF_FALSE(NS_UNCONSTRAINEDSIZE != aComputedWidth &&
+                   NS_UNCONSTRAINEDSIZE != aAvailWidth,
+                   "have unconstrained width; this should only result from "
+                   "very large sizes, not attempts at intrinsic width "
+                   "calculation");
 
   nscoord sum = mComputedMargin.left + mComputedBorderPadding.left +
     aComputedWidth + mComputedBorderPadding.right + mComputedMargin.right;
@@ -2251,16 +2256,16 @@ nsHTMLReflowState::ApplyMinMaxConstraints(nscoord* aFrameWidth,
 {
   if (aFrameWidth) {
     if (NS_UNCONSTRAINEDSIZE != mComputedMaxWidth) {
-      *aFrameWidth = PR_MIN(*aFrameWidth, mComputedMaxWidth);
+      *aFrameWidth = NS_MIN(*aFrameWidth, mComputedMaxWidth);
     }
-    *aFrameWidth = PR_MAX(*aFrameWidth, mComputedMinWidth);
+    *aFrameWidth = NS_MAX(*aFrameWidth, mComputedMinWidth);
   }
 
   if (aFrameHeight) {
     if (NS_UNCONSTRAINEDSIZE != mComputedMaxHeight) {
-      *aFrameHeight = PR_MIN(*aFrameHeight, mComputedMaxHeight);
+      *aFrameHeight = NS_MIN(*aFrameHeight, mComputedMaxHeight);
     }
-    *aFrameHeight = PR_MAX(*aFrameHeight, mComputedMinHeight);
+    *aFrameHeight = NS_MAX(*aFrameHeight, mComputedMinHeight);
   }
 }
 

@@ -35,6 +35,9 @@
  * the terms of any one of the MPL, the GPL or the LGPL.
  *
  * ***** END LICENSE BLOCK ***** */
+
+#include "nsMediaDecoder.h"
+
 #include "prlog.h"
 #include "prmem.h"
 #include "nsIFrame.h"
@@ -50,19 +53,17 @@
 #include "gfxContext.h"
 #include "gfxImageSurface.h"
 #include "nsPresContext.h"
-#include "nsMediaDecoder.h"
 #include "nsDOMError.h"
+
+#if defined(XP_MACOSX)
+#include "gfxQuartzImageSurface.h"
+#endif
 
 // Number of milliseconds between progress events as defined by spec
 #define PROGRESS_MS 350
 
 // Number of milliseconds of no data before a stall event is fired as defined by spec
 #define STALL_MS 3000
-
-#ifdef PR_LOGGING
-// Logging object for decoder
-PRLogModuleInfo* gVideoDecoderLog = nsnull;
-#endif
 
 nsMediaDecoder::nsMediaDecoder() :
   mElement(0),
@@ -106,13 +107,6 @@ nsHTMLMediaElement* nsMediaDecoder::GetMediaElement()
 {
   return mElement;
 }
-nsresult nsMediaDecoder::InitLogger() 
-{
-#ifdef PR_LOGGING
-  gVideoDecoderLog = PR_NewLogModule("nsMediaDecoder");
-#endif
-  return NS_OK;
-}
 
 static PRInt32 ConditionDimension(float aValue, PRInt32 aDefault)
 {
@@ -128,7 +122,7 @@ void nsMediaDecoder::Invalidate()
     return;
 
   nsIFrame* frame = mElement->GetPrimaryFrame();
-  
+
   {
     nsAutoLock lock(mVideoUpdateLock);
     if (mSizeChanged) {
@@ -148,9 +142,9 @@ void nsMediaDecoder::Invalidate()
 
       mSizeChanged = PR_FALSE;
       if (frame) {
-        nsPresContext* presContext = frame->PresContext();      
+        nsPresContext* presContext = frame->PresContext();
         nsIPresShell *presShell = presContext->PresShell();
-        presShell->FrameNeedsReflow(frame, 
+        presShell->FrameNeedsReflow(frame,
                                     nsIPresShell::eStyleChange,
                                     NS_FRAME_IS_DIRTY);
       }
@@ -205,7 +199,7 @@ nsresult nsMediaDecoder::StartProgress()
 
   mProgressTimer = do_CreateInstance("@mozilla.org/timer;1");
   return mProgressTimer->InitWithFuncCallback(ProgressCallback,
-                                              this, 
+                                              this,
                                               PROGRESS_MS,
                                               nsITimer::TYPE_REPEATING_SLACK);
 }
@@ -246,15 +240,24 @@ void nsMediaDecoder::Paint(gfxContext* aContext,
   if (!mRGB)
     return;
 
-  /* Create a surface backed by the RGB */
-  nsRefPtr<gfxASurface> surface = 
-    new gfxImageSurface(mRGB,
-                        gfxIntSize(mRGBWidth, mRGBHeight), 
-                        mRGBWidth * 4,
-                        gfxASurface::ImageFormatRGB24);    
-
-  if (!surface)
+  nsRefPtr<gfxImageSurface> imgSurface =
+      new gfxImageSurface(mRGB,
+                          gfxIntSize(mRGBWidth, mRGBHeight),
+                          mRGBWidth * 4,
+                          gfxASurface::ImageFormatRGB24);
+  if (!imgSurface)
     return;
+
+  nsRefPtr<gfxASurface> surface(imgSurface);
+
+#if defined(XP_MACOSX)
+  nsRefPtr<gfxQuartzImageSurface> quartzSurface =
+    new gfxQuartzImageSurface(imgSurface);
+  if (!quartzSurface)
+    return;
+
+  surface = quartzSurface;
+#endif
 
   nsRefPtr<gfxPattern> pat = new gfxPattern(surface);
   if (!pat)
@@ -285,20 +288,5 @@ void nsMediaDecoder::Paint(gfxContext* aContext,
   aContext->NewPath();
   aContext->PixelSnappedRectangleAndSetPattern(aRect, pat);
   aContext->Fill();
-
-#ifdef DEBUG_FRAME_RATE
-  {
-    // Output frame rate
-    static float last = double(PR_IntervalToMilliseconds(PR_IntervalNow()))/1000.0;
-    float now = double(PR_IntervalToMilliseconds(PR_IntervalNow()))/1000.0;
-    static int count = 0;
-    count++;
-    if (now-last > 10.0) {
-      LOG(PR_LOG_DEBUG, ("Paint Frame Rate = %f (should be %f)\n", (float)count / (float)(now-last), mFramerate));
-      count = 0;
-      last = double(PR_IntervalToMilliseconds(PR_IntervalNow()))/1000.0;
-    }
-  }   
-#endif
 }
 

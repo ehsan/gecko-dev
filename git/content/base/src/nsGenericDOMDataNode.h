@@ -238,6 +238,10 @@ public:
   {
     return nsnull;
   }
+  virtual nsresult GetSMILOverrideStyle(nsIDOMCSSStyleDeclaration** aStyle);
+  virtual nsICSSStyleRule* GetSMILOverrideStyleRule();
+  virtual nsresult SetSMILOverrideStyleRule(nsICSSStyleRule* aStyleRule,
+                                            PRBool aNotify);
 #endif // MOZ_SMIL
 
 #ifdef DEBUG
@@ -250,8 +254,6 @@ public:
 
   virtual already_AddRefed<nsIURI> GetBaseURI() const;
   virtual PRBool IsLink(nsIURI** aURI) const;
-
-  virtual PRBool MayHaveFrame() const;
 
   virtual nsIAtom* GetID() const;
   virtual const nsAttrValue* DoGetClasses() const;

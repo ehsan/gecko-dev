@@ -27,6 +27,8 @@
  *   Edward Lee <edward.lee@engineering.uiuc.edu>
  *   Graeme McCutcheon <graememcc_firefox@graeme-online.co.uk>
  *   Ehsan Akhgari <ehsan.akhgari@gmail.com>
+ *   Michal Sciubidlo <michal.sciubidlo@gmail.com>
+ *   Andrey Ivanov <andrey.v.ivanov@gmail.com>
  *
  * Alternatively, the contents of this file may be used under the terms of
  * either the GNU General Public License Version 2 or later (the "GPL"), or
@@ -64,6 +66,9 @@
 #include "nsDownloadManager.h"
 #include "nsNetUtil.h"
 
+#include "nsIHttpChannel.h"
+#include "nsIFileChannel.h"
+#include "nsIFTPChannel.h"
 #include "mozStorageCID.h"
 #include "nsDocShellCID.h"
 #include "nsEmbedCID.h"
@@ -76,6 +81,10 @@
 #endif
 #endif
 
+#ifdef XP_MACOSX
+#include <CoreFoundation/CoreFoundation.h>
+#endif
+
 #define DOWNLOAD_MANAGER_BUNDLE "chrome://mozapps/locale/downloads/downloads.properties"
 #define DOWNLOAD_MANAGER_ALERT_ICON "chrome://mozapps/skin/downloads/downloadIcon.png"
 #define PREF_BDM_SHOWALERTONCOMPLETE "browser.download.manager.showAlertOnComplete"
@@ -86,7 +95,6 @@
 #define PREF_BDM_SCANWHENDONE "browser.download.manager.scanWhenDone"
 #define PREF_BDM_RESUMEONWAKEDELAY "browser.download.manager.resumeOnWakeDelay"
 #define PREF_BH_DELETETEMPFILEONEXIT "browser.helperApps.deleteTempFileOnExit"
-#define PREF_BDM_ALERTONEXEOPEN "browser.download.manager.alertOnEXEOpen"
 
 static const PRInt64 gUpdateInterval = 400 * PR_USEC_PER_MSEC;
 
@@ -129,7 +137,10 @@ nsDownloadManager::GetSingleton()
 nsDownloadManager::~nsDownloadManager()
 {
 #ifdef DOWNLOAD_SCANNER
-  mScanner = nsnull;
+  if (mScanner) {
+    delete mScanner;
+    mScanner = nsnull;
+  }
 #endif
   gDownloadManagerService = nsnull;
 }
@@ -794,7 +805,7 @@ nsDownloadManager::InitDB()
       break;
 
     default:
-      NS_ASSERTION(0, "Unexpected value encountered for nsDownloadManager::mDBType");
+      NS_ERROR("Unexpected value encountered for nsDownloadManager::mDBType");
       break;
   }
   NS_ENSURE_SUCCESS(rv, rv);
@@ -851,8 +862,10 @@ nsDownloadManager::Init()
   if (!mScanner)
     return NS_ERROR_OUT_OF_MEMORY;
   rv = mScanner->Init();
-  if (NS_FAILED(rv))
+  if (NS_FAILED(rv)) {
+    delete mScanner;
     mScanner = nsnull;
+  }
 #endif
 
   // Do things *after* initializing various download manager properties such as
@@ -1847,14 +1860,10 @@ nsDownloadManager::OnPageChanged(nsIURI *aURI, PRUint32 aWhat,
 }
 
 NS_IMETHODIMP
-nsDownloadManager::OnPageExpired(nsIURI *aURI, PRTime aVisitTime,
-                                 PRBool aWholeEntry)
+nsDownloadManager::OnDeleteVisits(nsIURI *aURI, PRTime aVisitTime)
 {
-  // Don't bother removing downloads if there are still recent visits
-  if (!aWholeEntry)
-    return NS_OK;
-
-  return RemoveDownloadsForURI(aURI);
+  // Don't bother removing downloads until the page is removed.
+  return NS_OK;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -2107,10 +2116,6 @@ nsDownload::SetState(DownloadState aState)
   PRInt16 oldState = mDownloadState;
   mDownloadState = aState;
 
-  nsresult rv;
-
-  nsCOMPtr<nsIPrefBranch> pref = do_GetService(NS_PREFSERVICE_CONTRACTID);
-
   // We don't want to lose access to our member variables
   nsRefPtr<nsDownload> kungFuDeathGrip = this;
 
@@ -2142,10 +2147,18 @@ nsDownload::SetState(DownloadState aState)
     case nsIDownloadManager::DOWNLOAD_FINISHED:
     {
       // Do what exthandler would have done if necessary
-      (void)ExecuteDesiredAction();
+      nsresult rv = ExecuteDesiredAction();
+      if (NS_FAILED(rv)) {
+        // We've failed to execute the desired action.  As a result, we should
+        // fail the download so the user can try again.
+        (void)FailDownload(rv, nsnull);
+        return rv;
+      }
 
       // Now that we're done with handling the download, clean it up
       Finalize();
+
+      nsCOMPtr<nsIPrefBranch> pref(do_GetService(NS_PREFSERVICE_CONTRACTID));
 
       // Master pref to control this function.
       PRBool showTaskbarAlert = PR_TRUE;
@@ -2189,78 +2202,64 @@ nsDownload::SetState(DownloadState aState)
             }
         }
       }
-#if defined(XP_WIN) && !defined(WINCE)
+
       nsCOMPtr<nsIFileURL> fileURL = do_QueryInterface(mTarget);
-      nsCOMPtr<nsIFile> file;
-      nsAutoString path;
+      if (fileURL) {
+        nsCOMPtr<nsIFile> file;
+        if (NS_SUCCEEDED(fileURL->GetFile(getter_AddRefs(file))) && file ) {
 
-      if (fileURL &&
-          NS_SUCCEEDED(fileURL->GetFile(getter_AddRefs(file))) &&
-          file &&
-          NS_SUCCEEDED(file->GetPath(path))) {
+#if (defined(XP_WIN) && !defined(WINCE)) || defined(XP_MACOSX)
+          nsAutoString path;
+          if (NS_SUCCEEDED(file->GetPath(path))) {
 
-        // On windows, add the download to the system's "recent documents"
-        // list, with a pref to disable.
-        {
-          PRBool addToRecentDocs = PR_TRUE;
-          if (pref)
-            pref->GetBoolPref(PREF_BDM_ADDTORECENTDOCS, &addToRecentDocs);
+#ifdef XP_WIN
+            // On windows, add the download to the system's "recent documents"
+            // list, with a pref to disable.
+            PRBool addToRecentDocs = PR_TRUE;
+            if (pref)
+              pref->GetBoolPref(PREF_BDM_ADDTORECENTDOCS, &addToRecentDocs);
 
-          if (addToRecentDocs)
-            ::SHAddToRecentDocs(SHARD_PATHW, path.get());
-        }
-
-        // On Vista and up, we rely on native security prompting when users
-        // open executable content. If the option is set, add meta data to the
-        // 'Zone.Identifier' resource fork of the file which indicates this
-        // content came from the internet.
-        {
-          nsCOMPtr<nsIPrefBranch> pref =
-            do_GetService(NS_PREFSERVICE_CONTRACTID);
-          PRBool alert = PR_TRUE;
-          if (pref)
-            (void)pref->GetBoolPref(PREF_BDM_ALERTONEXEOPEN, &alert);
-          nsAutoString forkPath = path;
-          forkPath.AppendLiteral(":Zone.Identifier");
-
-          if (alert) {
-            HANDLE hFile = CreateFileW(forkPath.get(), GENERIC_WRITE,
-                                       FILE_SHARE_READ | FILE_SHARE_WRITE | FILE_SHARE_DELETE,
-                                       NULL, OPEN_ALWAYS, FILE_ATTRIBUTE_NORMAL, NULL);
-            if (hFile != INVALID_HANDLE_VALUE) {
-              nsAutoString metaData;
-              metaData.AppendLiteral("[ZoneTransfer]\nZoneId=3");
-              DWORD writeLen = 0;
-              (void)WriteFile(hFile, metaData.get(), metaData.Length()*2, &writeLen,
-                              NULL);
-              CloseHandle(hFile);
+            if (addToRecentDocs &&
+                !nsDownloadManager::gDownloadManagerService->mInPrivateBrowsing) {
+               ::SHAddToRecentDocs(SHARD_PATHW, path.get());
             }
+#endif
+#ifdef XP_MACOSX
+            // On OS X, make the downloads stack bounce.
+            CFStringRef observedObject = ::CFStringCreateWithCString(kCFAllocatorDefault,
+                                                 NS_ConvertUTF16toUTF8(path).get(),
+                                                 kCFStringEncodingUTF8);
+            CFNotificationCenterRef center = ::CFNotificationCenterGetDistributedCenter();
+            ::CFNotificationCenterPostNotification(center, CFSTR("com.apple.DownloadFileFinished"),
+                                                   observedObject, NULL, TRUE);
+            ::CFRelease(observedObject);
+#endif
           }
-          else {
-            // Virus scanning will often add the resource fork to the file, but since
-            // the user doesn't want to be prompted, delete it.
-            DeleteFileW(forkPath.get());
-          }
+
+#ifdef XP_WIN
+          // Adjust file attributes so that by default, new files are indexed
+          // by desktop search services. Skip off those that land in the temp
+          // folder.
+          nsCOMPtr<nsIFile> tempDir, fileDir;
+          rv = NS_GetSpecialDirectory(NS_OS_TEMP_DIR, getter_AddRefs(tempDir));
+          NS_ENSURE_SUCCESS(rv, rv);
+          (void)file->GetParent(getter_AddRefs(fileDir));
+
+          PRBool isTemp = PR_FALSE;
+          if (fileDir)
+            (void)fileDir->Equals(tempDir, &isTemp);
+
+          nsCOMPtr<nsILocalFileWin> localFileWin(do_QueryInterface(file));
+          if (!isTemp && localFileWin)
+            (void)localFileWin->SetFileAttributesWin(nsILocalFileWin::WFA_SEARCH_INDEXED);
+#endif
+#endif
+          // After all operations with file, its last modification time needs to
+          // be updated from request
+          (void)file->SetLastModifiedTime(GetLastModifiedTime(mRequest));
         }
       }
 
-      // Adjust file attributes so that by default, new files are indexed
-      // by desktop search services. Skip off those that land in the temp
-      // folder.
-      nsCOMPtr<nsIFile> tempDir, fileDir;
-      rv = NS_GetSpecialDirectory(NS_OS_TEMP_DIR, getter_AddRefs(tempDir));
-      NS_ENSURE_SUCCESS(rv, rv);
-      (void)file->GetParent(getter_AddRefs(fileDir));
-
-      PRBool isTemp = PR_FALSE;
-      if (fileDir)
-        (void)fileDir->Equals(tempDir, &isTemp);
-
-      nsCOMPtr<nsILocalFileWin> localFileWin(do_QueryInterface(file));
-      if (!isTemp && localFileWin)
-        (void)localFileWin->SetFileAttributesWin(nsILocalFileWin::WFA_SEARCH_INDEXED);
-
-#endif
       // Now remove the download if the user's retention policy is "Remove when Done"
       if (mDownloadManager->GetRetentionBehavior() == 0)
         mDownloadManager->RemoveDownload(mID);
@@ -2272,7 +2271,7 @@ nsDownload::SetState(DownloadState aState)
 
   // Before notifying the listener, we must update the database so that calls
   // to it work out properly.
-  rv = UpdateDB();
+  nsresult rv = UpdateDB();
   NS_ENSURE_SUCCESS(rv, rv);
 
   mDownloadManager->NotifyListenersOnDownloadStateChange(oldState, this);
@@ -2320,7 +2319,7 @@ nsDownload::OnProgressChange64(nsIWebProgress *aWebProgress,
                                PRInt64 aMaxTotalProgress)
 {
   if (!mRequest)
-    mRequest = aRequest; // used for pause/resume
+    mRequest = aRequest; // used for pause/resume/last modification time
 
   if (mDownloadState == nsIDownloadManager::DOWNLOAD_QUEUED) {
     // Obtain the referrer
@@ -3065,4 +3064,53 @@ nsDownload::FailDownload(nsresult aStatus, const PRUnichar *aMessage)
     do_GetService("@mozilla.org/embedcomp/prompt-service;1", &rv);
   NS_ENSURE_SUCCESS(rv, rv);
   return prompter->Alert(dmWindow, title, message);
+}
+
+NS_IMETHODIMP_(PRInt64)
+nsDownload::GetLastModifiedTime(nsIRequest *aRequest)
+{
+  if (!aRequest) {
+    return PR_Now() / PR_USEC_PER_MSEC;
+  }
+
+  PRInt64 timeLastModified = 0;
+
+  // HTTP channels may have a Last-Modified header that we'll use to get the
+  // last modified time.
+  nsCOMPtr<nsIHttpChannel> httpChannel = do_QueryInterface(aRequest);
+  if (httpChannel) {
+    nsCAutoString refreshHeader;
+    if (NS_SUCCEEDED(httpChannel->GetResponseHeader(NS_LITERAL_CSTRING("Last-Modified"), refreshHeader))) {
+      PRStatus result = PR_ParseTimeString(PromiseFlatCString(refreshHeader).get(), PR_FALSE, &timeLastModified);
+      if (result == PR_SUCCESS)
+        return timeLastModified / PR_USEC_PER_MSEC;
+    }
+    return PR_Now() / PR_USEC_PER_MSEC;
+  }
+
+  // File channels have a lastModifiedTime attribute that we can get the last
+  // modified time from.
+  nsCOMPtr<nsIFileChannel> fileChannel = do_QueryInterface(aRequest);
+  if (fileChannel) {
+    nsCOMPtr<nsIFile> file;
+    fileChannel->GetFile(getter_AddRefs(file));
+    if (file && NS_SUCCEEDED(file->GetLastModifiedTime(&timeLastModified)))
+      return timeLastModified;
+    return PR_Now() / PR_USEC_PER_MSEC;
+  }
+
+  // FTP channels have a lastModifiedTime attribute that we can get the last
+  // modified time from.
+  nsCOMPtr<nsIFTPChannel> ftpChannel = do_QueryInterface(aRequest);
+  if (ftpChannel) {
+    if (NS_SUCCEEDED(ftpChannel->GetLastModifiedTime(&timeLastModified)) &&
+        timeLastModified != 0) {
+      return timeLastModified / PR_USEC_PER_MSEC;
+    }
+    return PR_Now() / PR_USEC_PER_MSEC;
+  }
+
+  // For this request, we do not know how to get the last modified time, so
+  // return the current time.
+  return PR_Now() / PR_USEC_PER_MSEC;
 }

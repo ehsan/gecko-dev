@@ -57,7 +57,6 @@
 #include "nsWidgetDefs.h"
 #include "nsBaseWidget.h"
 #include "nsToolkit.h"
-#include "nsSwitchToUIThread.h"
 #include "gfxOS2Surface.h"
 #include "gfxContext.h"
 
@@ -66,7 +65,7 @@ class imgIContainer;
 //#define DEBUG_FOCUS
 
 #ifdef DEBUG_FOCUS
-  #define DEBUGFOCUS(what) printf("[%x] "#what" (%d)\n", (int)this, mWindowIdentifier)
+  #define DEBUGFOCUS(what) fprintf(stderr, "[%8x]  %8lx  (%02d)  "#what"\n", (int)this, mWnd, mWindowIdentifier)
 #else
   #define DEBUGFOCUS(what)
 #endif
@@ -95,8 +94,7 @@ class imgIContainer;
 MRESULT EXPENTRY fnwpNSWindow( HWND, ULONG, MPARAM, MPARAM);
 MRESULT EXPENTRY fnwpFrame( HWND, ULONG, MPARAM, MPARAM);
 
-class nsWindow : public nsBaseWidget,
-                 public nsSwitchToUIThread
+class nsWindow : public nsBaseWidget
 {
  public:
    // Scaffolding
@@ -107,15 +105,9 @@ class nsWindow : public nsBaseWidget,
 
    // nsIWidget
 
-   // Creation from native (eh?) or widget parent, destroy
+   // Creation from native widget parent or nsIWidget parent, destroy
    NS_IMETHOD Create( nsIWidget *aParent,
-                      const nsIntRect &aRect,
-                      EVENT_CALLBACK aHandleEventFunction,
-                      nsIDeviceContext *aContext,
-                      nsIAppShell *aAppShell = nsnull,
-                      nsIToolkit *aToolkit = nsnull,
-                      nsWidgetInitData *aInitData = nsnull);
-   NS_IMETHOD Create( nsNativeWidget aParent,
+                      nsNativeWidget aNativeParent,
                       const nsIntRect &aRect,
                       EVENT_CALLBACK aHandleEventFunction,
                       nsIDeviceContext *aContext,
@@ -156,7 +148,8 @@ class nsWindow : public nsBaseWidget,
 
    virtual nsIntPoint WidgetToScreenOffset();
    NS_IMETHOD DispatchEvent( struct nsGUIEvent *event, nsEventStatus &aStatus);
-   NS_IMETHOD CaptureRollupEvents(nsIRollupListener * aListener, PRBool aDoCapture, PRBool aConsumeRollupEvent);
+   NS_IMETHOD CaptureRollupEvents(nsIRollupListener * aListener, nsIMenuRollup * aMenuRollup,
+                                  PRBool aDoCapture, PRBool aConsumeRollupEvent);
 
    virtual PRBool          HasPendingInputEvent();
 
@@ -167,21 +160,18 @@ class nsWindow : public nsBaseWidget,
    NS_IMETHOD              HideWindowChrome(PRBool aShouldHide);
    NS_IMETHOD              SetTitle( const nsAString& aTitle); 
    NS_IMETHOD              SetIcon(const nsAString& aIconSpec); 
-   NS_IMETHOD              Invalidate( PRBool aIsSynchronous);
    NS_IMETHOD              Invalidate( const nsIntRect & aRect, PRBool aIsSynchronous);
    NS_IMETHOD              Update();
    virtual nsresult        ConfigureChildren(const nsTArray<Configuration>& aConfigurations);
-   virtual void            Scroll(const nsIntPoint& aDelta, const nsIntRect& aSource,
-                                  const nsTArray<Configuration>& aConfigurations);
+   virtual void            Scroll(const nsIntPoint& aDelta,
+                                  const nsTArray<nsIntRect>& aDestRects,
+                                  const nsTArray<Configuration>& aReconfigureChildren);
    NS_IMETHOD              GetToggledKeyState(PRUint32 aKeyCode, PRBool* aLEDState);
 
    // Get a HWND or a HPS.
    virtual void  *GetNativeData( PRUint32 aDataType);
    virtual void   FreeNativeData( void *aDatum, PRUint32 aDataType);
    virtual HWND   GetMainWindow() const           { return mWnd; }
-
-   // nsSwitchToPMThread interface
-   virtual BOOL CallMethod(MethodInfo *info);
 
    // PM methods which need to be public (menus, etc)
    ULONG  GetNextID()    { return mNextID++; }
@@ -217,6 +207,9 @@ protected:
 
    // Return whether message has been processed.
    virtual PRBool ProcessMessage( ULONG m, MPARAM p1, MPARAM p2, MRESULT &r);
+
+           void   ActivatePlugin(HWND aWnd);
+   virtual void   ActivateTopLevelWidget();
    virtual PRBool OnPaint();
    virtual void   OnDestroy();
    virtual PRBool OnReposition( PSWP pNewSwp);
@@ -254,6 +247,7 @@ protected:
    PRUint32  mDragStatus;     // set while this object is being dragged over
    HPOINTER  mCssCursorHPtr;  // created by SetCursor(imgIContainer*)
    nsCOMPtr<imgIContainer> mCssCursorImg;  // saved by SetCursor(imgIContainer*)
+   HWND      mClipWnd;        // used to clip plugin windows
 
    HWND      GetParentHWND() const;
    HWND      GetHWND() const   { return mWnd; }
@@ -306,6 +300,9 @@ protected:
    HBITMAP CreateBitmapRGB(PRUint8* aImageData, PRUint32 aWidth, PRUint32 aHeight);
    HBITMAP CreateTransparencyMask(gfxASurface::gfxImageFormat format,
                                   PRUint8* aImageData, PRUint32 aWidth, PRUint32 aHeight);
+
+   void SetPluginClipRegion(const Configuration& aConfiguration);
+   HWND GetPluginClipWindow(HWND aParentWnd);
 
    // Enumeration of the methods which are accessible on the PM thread
    enum {

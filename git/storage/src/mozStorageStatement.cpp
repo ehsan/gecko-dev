@@ -43,6 +43,7 @@
 
 #include "nsError.h"
 #include "nsMemory.h"
+#include "nsProxyRelease.h"
 #include "nsThreadUtils.h"
 #include "nsIClassInfoImpl.h"
 #include "nsIProgrammingLanguage.h"
@@ -77,18 +78,33 @@ namespace {
 class AsyncStatementFinalizer : public nsRunnable
 {
 public:
-  AsyncStatementFinalizer(sqlite3_stmt *aStatement)
+  /**
+   * Constructor for the event.
+   *
+   * @param aStatement
+   *        The sqlite3_stmt to finalize on the background thread.
+   * @param aConnection
+   *        The Connection that aStatement was created on.  We hold a reference
+   *        to this to ensure that if we are the last reference to the
+   *        Connection, that we release it on the proper thread.  The release
+   *        call is proxied to the appropriate thread.
+   */
+  AsyncStatementFinalizer(sqlite3_stmt *aStatement,
+                          Connection *aConnection)
   : mStatement(aStatement)
+  , mConnection(aConnection)
   {
   }
 
   NS_IMETHOD Run()
   {
     (void)::sqlite3_finalize(mStatement);
+    (void)::NS_ProxyRelease(mConnection->threadOpenedOn, mConnection);
     return NS_OK;
   }
 private:
   sqlite3_stmt *mStatement;
+  nsCOMPtr<Connection> mConnection;
 };
 
 } // anonymous namespace
@@ -249,7 +265,7 @@ Statement::initialize(Connection *aDBConnection,
       // or @, all of which are valid characters for binding a parameter.
       // We will warn the consumer that they may not be safely using LIKE.
       NS_WARNING("Unsafe use of LIKE detected!  Please ensure that you "
-                 "are using mozIStorageConnection::escapeStringForLIKE "
+                 "are using mozIStorageStatement::escapeStringForLIKE "
                  "and that you are binding that result to the statement "
                  "to prevent SQL injection attacks.");
     }
@@ -392,14 +408,22 @@ Statement::Finalize()
   // queued up statements run first.  Dispatch an event to the background thread
   // that will do this for us.
   if (mCachedAsyncStatement) {
-    nsCOMPtr<nsIRunnable> event =
-      new AsyncStatementFinalizer(mCachedAsyncStatement);
-    NS_ENSURE_TRUE(event, NS_ERROR_OUT_OF_MEMORY);
-
     nsCOMPtr<nsIEventTarget> target = mDBConnection->getAsyncExecutionTarget();
-    nsresult rv = target->Dispatch(event, NS_DISPATCH_NORMAL);
-    NS_ENSURE_SUCCESS(rv, rv);
-    mCachedAsyncStatement = NULL;
+    if (!target) {
+      // However, if we cannot get the background thread, we have to assume it
+      // has been shutdown (or is in the process of doing so).  As a result, we
+      // should just finalize it here and now.
+      (void)::sqlite3_finalize(mCachedAsyncStatement);
+    }
+    else {
+      nsCOMPtr<nsIRunnable> event =
+        new AsyncStatementFinalizer(mCachedAsyncStatement, mDBConnection);
+      NS_ENSURE_TRUE(event, NS_ERROR_OUT_OF_MEMORY);
+
+      nsresult rv = target->Dispatch(event, NS_DISPATCH_NORMAL);
+      NS_ENSURE_SUCCESS(rv, rv);
+      mCachedAsyncStatement = NULL;
+    }
   }
 
   // We are considered dead at this point, so any wrappers for row or params

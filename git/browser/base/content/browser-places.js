@@ -450,7 +450,7 @@ var PlacesCommandHook = {
    * Adds a bookmark to the page loaded in the current tab. 
    */
   bookmarkCurrentPage: function PCH_bookmarkCurrentPage(aShowEditUI, aParent) {
-    this.bookmarkPage(getBrowser().selectedBrowser, aParent, aShowEditUI);
+    this.bookmarkPage(gBrowser.selectedBrowser, aParent, aShowEditUI);
   },
 
   /**
@@ -484,19 +484,18 @@ var PlacesCommandHook = {
    */
   _getUniqueTabInfo: function BATC__getUniqueTabInfo() {
     var tabList = [];
-    var seenURIs = [];
+    var seenURIs = {};
 
-    var browsers = getBrowser().browsers;
+    var browsers = gBrowser.browsers;
     for (var i = 0; i < browsers.length; ++i) {
-      var webNav = browsers[i].webNavigation;
-      var uri = webNav.currentURI;
+      let uri = browsers[i].currentURI;
 
       // skip redundant entries
       if (uri.spec in seenURIs)
         continue;
 
       // add to the set of seen URIs
-      seenURIs[uri.spec] = true;
+      seenURIs[uri.spec] = null;
       tabList.push(uri);
     }
     return tabList;
@@ -638,18 +637,27 @@ var HistoryMenu = {
       m.setAttribute("class", "menuitem-iconic bookmark-item");
       m.setAttribute("value", i);
       m.setAttribute("oncommand", "undoCloseTab(" + i + ");");
+
+      // Set the targetURI attribute so it will be shown in tooltip and statusbar.
+      // SessionStore uses one-based indexes, so we need to normalize them.
+      let tabData = undoItems[i].state;
+      let activeIndex = (tabData.index || tabData.entries.length) - 1;
+      if (activeIndex >= 0 && tabData.entries[activeIndex])
+        m.setAttribute("targetURI", tabData.entries[activeIndex].url);
+
       m.addEventListener("click", this._undoCloseMiddleClick, false);
       if (i == 0)
         m.setAttribute("key", "key_undoCloseTab");
       undoPopup.appendChild(m);
     }
 
-    // "Open All in Tabs"
+    // "Restore All Tabs"
     var strings = gNavigatorBundle;
     undoPopup.appendChild(document.createElement("menuseparator"));
     m = undoPopup.appendChild(document.createElement("menuitem"));
-    m.setAttribute("label", strings.getString("menuOpenAllInTabs.label"));
-    m.setAttribute("accesskey", strings.getString("menuOpenAllInTabs.accesskey"));
+    m.id = "menu_restoreAllTabs";
+    m.setAttribute("label", strings.getString("menuRestoreAllTabs.label"));
+    m.setAttribute("accesskey", strings.getString("menuRestoreAllTabs.accesskey"));
     m.addEventListener("command", function() {
       for (var i = 0; i < undoItems.length; i++)
         undoCloseTab();
@@ -710,6 +718,13 @@ var HistoryMenu = {
       }
       m.setAttribute("class", "menuitem-iconic bookmark-item");
       m.setAttribute("oncommand", "undoCloseWindow(" + i + ");");
+
+      // Set the targetURI attribute so it will be shown in tooltip and statusbar.
+      // SessionStore uses one-based indexes, so we need to normalize them.
+      let activeIndex = (selectedTab.index || selectedTab.entries.length) - 1;
+      if (activeIndex >= 0 && selectedTab.entries[activeIndex])
+        m.setAttribute("targetURI", selectedTab.entries[activeIndex].url);
+
       if (i == 0)
         m.setAttribute("key", "key_undoCloseWindow");
       undoPopup.appendChild(m);
@@ -718,6 +733,7 @@ var HistoryMenu = {
     // "Open All in Windows"
     undoPopup.appendChild(document.createElement("menuseparator"));
     let m = undoPopup.appendChild(document.createElement("menuitem"));
+    m.id = "menu_restoreAllWindows";
     m.setAttribute("label", gNavigatorBundle.getString("menuRestoreAllWindows.label"));
     m.setAttribute("accesskey", gNavigatorBundle.getString("menuRestoreAllWindows.accesskey"));
     m.setAttribute("oncommand",
@@ -888,12 +904,12 @@ var BookmarksEventHandler = {
       // Add "Open (Feed Name)" menuitem if it's a livemark with a siteURI
       target._endOptOpenSiteURI = document.createElement("menuitem");
       target._endOptOpenSiteURI.className = "openlivemarksite-menuitem";
-      target._endOptOpenSiteURI.setAttribute("siteURI", siteURIString);
+      target._endOptOpenSiteURI.setAttribute("targetURI", siteURIString);
       target._endOptOpenSiteURI.setAttribute("oncommand",
-          "openUILink(this.getAttribute('siteURI'), event);");
+          "openUILink(this.getAttribute('targetURI'), event);");
       // If a user middle-clicks this item we serve the oncommand event
       // We are using checkForMiddleClick because of Bug 246720
-      // Note: stopPropagation is needed to avoid serving middle-click 
+      // Note: stopPropagation is needed to avoid serving middle-click
       // with BT_onClick that would open all items in tabs
       target._endOptOpenSiteURI.setAttribute("onclick",
           "checkForMiddleClick(this, event); event.stopPropagation();");
@@ -918,26 +934,59 @@ var BookmarksEventHandler = {
     }
   },
 
-  fillInBTTooltip: function(aTipElement) {
-    if (!aTipElement.node)
+  fillInBHTooltip: function(aDocument, aEvent) {
+    var node;
+    var cropped = false;
+    var targetURI;
+
+    if (aDocument.tooltipNode.localName == "treechildren") {
+      var tree = aDocument.tooltipNode.parentNode;
+      var row = {}, column = {};
+      var tbo = tree.treeBoxObject;
+      tbo.getCellAt(aEvent.clientX, aEvent.clientY, row, column, {});
+      if (row.value == -1)
+        return false;
+      node = tree.view.nodeForTreeIndex(row.value);
+      cropped = tbo.isCellCropped(row.value, column.value);
+    }
+    else {
+      // Check whether the tooltipNode is a Places node.
+      // In such a case use it, otherwise check for targetURI attribute.
+      var tooltipNode = aDocument.tooltipNode;
+      if (tooltipNode.node)
+        node = tooltipNode.node;
+      else {
+        // This is a static non-Places node.
+        targetURI = tooltipNode.getAttribute("targetURI");
+      }
+    }
+
+    if (!node && !targetURI)
       return false;
 
-    //Show tooltips only for URL items
-    if (!PlacesUtils.nodeIsURI(aTipElement.node))
+    // Show node.label as tooltip's title for non-Places nodes.
+    var title = node ? node.title : tooltipNode.label;
+
+    // Show URL only for Places URI-nodes or nodes with a targetURI attribute.
+    var url;
+    if (targetURI || PlacesUtils.nodeIsURI(node))
+      url = targetURI || node.uri;
+
+    // Show tooltip for containers only if their title is cropped.
+    if (!cropped && !url)
       return false;
 
-    var title = aTipElement.node.title;
-    var url = aTipElement.node.uri;
-
-    var tooltipTitle = document.getElementById("btTitleText");
-    tooltipTitle.hidden = !title || (title == url);
+    var tooltipTitle = aDocument.getElementById("bhtTitleText");
+    tooltipTitle.hidden = (!title || (title == url));
     if (!tooltipTitle.hidden)
       tooltipTitle.textContent = title;
 
-    var tooltipUrl = document.getElementById("btUrlText");
-    tooltipUrl.value = url;
+    var tooltipUrl = aDocument.getElementById("bhtUrlText");
+    tooltipUrl.hidden = !url;
+    if (!tooltipUrl.hidden)
+      tooltipUrl.value = url;
 
-    //Show tooltip
+    // Show tooltip.
     return true;
   }
 };
@@ -1142,7 +1191,7 @@ var PlacesStarButton = {
     if (!starIcon)
       return;
 
-    var uri = getBrowser().currentURI;
+    var uri = gBrowser.currentURI;
     this._starred = uri && (PlacesUtils.getMostRecentBookmarkForURI(uri) != -1 ||
                             PlacesUtils.getMostRecentFolderForFeedURI(uri) != -1);
     if (this._starred) {
@@ -1173,21 +1222,22 @@ var PlacesStarButton = {
     this._batching = false;
   },
   
-  onItemAdded: function PSB_onItemAdded(aItemId, aFolder, aIndex) {
+  onItemAdded: function PSB_onItemAdded(aItemId, aFolder, aIndex, aItemType) {
     if (!this._batching && !this._starred)
       this.updateState();
   },
 
-  onBeforeItemRemoved: function PSB_onBeforeItemRemoved(aItemId) {
-  },
+  onBeforeItemRemoved: function() {},
 
-  onItemRemoved: function PSB_onItemRemoved(aItemId, aFolder, aIndex) {
+  onItemRemoved: function PSB_onItemRemoved(aItemId, aFolder, aIndex,
+                                            aItemType) {
     if (!this._batching)
       this.updateState();
   },
 
   onItemChanged: function PSB_onItemChanged(aItemId, aProperty,
-                                            aIsAnnotationProperty, aValue) {
+                                            aIsAnnotationProperty, aNewValue,
+                                            aLastModified, aItemType) {
     if (!this._batching && aProperty == "uri")
       this.updateState();
   },

@@ -41,7 +41,7 @@
 interface nsIURI;
 interface nsIChannel;
 
-[scriptable, uuid(f8e350b9-9f31-451a-8c8f-d10fea26b780)]
+[scriptable, uuid(50eda256-4dd2-4c7c-baed-96983910af9f)]
 interface nsIScriptSecurityManager : nsIXPCSecurityManager
 {
     ///////////////// Security Checks //////////////////
@@ -53,14 +53,6 @@ interface nsIScriptSecurityManager : nsIXPCSecurityManager
                                         in string aClassName,
                                         in JSVal aProperty,
                                         in PRUint32 aAction);
-
-    /**
-     * Checks whether the running script is allowed to connect to aTargetURI
-     */
-    [noscript] void checkConnect(in JSContextPtr aJSContext,
-                                 in nsIURI aTargetURI,
-                                 in string aClassName,
-                                 in string aProperty);
 
     /**
      * Check that the script currently running in context "cx" can load "uri".
@@ -319,6 +311,29 @@ interface nsIScriptSecurityManager : nsIXPCSecurityManager
     [noscript,notxpcom] nsIPrincipal getCxSubjectPrincipal(in JSContextPtr cx);
     [noscript,notxpcom] nsIPrincipal getCxSubjectPrincipalAndFrame(in JSContextPtr cx,
                                                                    out JSStackFramePtr fp);
+
+    /**
+     * If no scripted code is running "above" (or called from) fp, then
+     * instead of looking at cx->globalObject, we will return |principal|.
+     * This function only affects |cx|. If someone pushes another context onto
+     * the context stack, then it supercedes this call.
+     * NOTE: If |fp| is non-null popContextPrincipal must be called before fp
+     * has finished executing.
+     *
+     * @param cx The context to clamp.
+     * @param fp The frame pointer to clamp at. May be 'null'.
+     * @param principal The principal to clamp to.
+     */
+    [noscript] void pushContextPrincipal(in JSContextPtr cx,
+                                         in JSStackFramePtr fp,
+                                         in nsIPrincipal principal);
+
+    /**
+     * Removes a clamp set by pushContextPrincipal from cx. This must be
+     * called in a stack-like fashion (e.g., given two contexts |a| and |b|,
+     * it is not legal to do: push(a) push(b) pop(a)).
+     */
+    [noscript] void popContextPrincipal(in JSContextPtr cx);
 };
 
 %{C++

@@ -15,7 +15,7 @@
  *
  * The Original Code is Places Dynamic Containers unit test code.
  *
- * The Initial Developer of the Original Code is Mozilla Corporation
+ * The Initial Developer of the Original Code is Mozilla Foundation
  * Portions created by the Initial Developer are Copyright (C) 2008
  * the Initial Developer. All Rights Reserved.
  *
@@ -51,7 +51,7 @@
 var observer = {
   onBeginUpdateBatch: function() {},
   onEndUpdateBatch: function() {},
-  onItemAdded: function(id, folder, index) {
+  onItemAdded: function(id, folder, index, itemType) {
     do_check_true(id > 0);
   },
   onBeforeItemRemoved: function() {},

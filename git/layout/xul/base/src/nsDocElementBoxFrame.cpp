@@ -63,7 +63,7 @@ class nsDocElementBoxFrame : public nsBoxFrame,
                              public nsIAnonymousContentCreator
 {
 public:
-  virtual void Destroy();
+  virtual void DestroyFrom(nsIFrame* aDestructRoot);
 
   friend nsIFrame* NS_NewBoxFrame(nsIPresShell* aPresShell,
                                   nsStyleContext* aContext);
@@ -72,6 +72,7 @@ public:
     :nsBoxFrame(aShell, aContext, PR_TRUE) {}
 
   NS_DECL_QUERYFRAME
+  NS_DECL_FRAMEARENA_HELPERS
 
   // nsIAnonymousContentCreator
   virtual nsresult CreateAnonymousContent(nsTArray<nsIContent*>& aElements);
@@ -100,12 +101,14 @@ NS_NewDocElementBoxFrame(nsIPresShell* aPresShell, nsStyleContext* aContext)
   return new (aPresShell) nsDocElementBoxFrame (aPresShell, aContext);
 }
 
+NS_IMPL_FRAMEARENA_HELPERS(nsDocElementBoxFrame)
+
 void
-nsDocElementBoxFrame::Destroy()
+nsDocElementBoxFrame::DestroyFrom(nsIFrame* aDestructRoot)
 {
   nsContentUtils::DestroyAnonymousContent(&mPopupgroupContent);
   nsContentUtils::DestroyAnonymousContent(&mTooltipContent);
-  nsBoxFrame::Destroy();
+  nsBoxFrame::DestroyFrom(aDestructRoot);
 }
 
 nsresult

@@ -80,7 +80,7 @@ var tests = [
     run:        function () {
       this.file = createFile("bookmarks-test_restoreNotification.json");
       addBookmarks();
-      PlacesUtils.backupBookmarksToFile(this.file);
+      PlacesUtils.backups.saveBookmarksToJSONFile(this.file);
       remove_all_bookmarks();
       try {
         PlacesUtils.restoreBookmarksFromJSONFile(this.file);

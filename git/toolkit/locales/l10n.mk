@@ -98,7 +98,7 @@ PACKAGER_NO_LIBS = 1
 include $(topsrcdir)/toolkit/mozapps/installer/packager.mk
 
 
-ifneq (,$(filter mac cocoa,$(MOZ_WIDGET_TOOLKIT)))
+ifeq (cocoa,$(MOZ_WIDGET_TOOLKIT))
 STAGEDIST = $(_ABS_DIST)/l10n-stage/$(MOZ_PKG_APPNAME)/$(_APPNAME)/Contents/MacOS
 else
 STAGEDIST = $(_ABS_DIST)/l10n-stage/$(MOZ_PKG_DIR)
@@ -108,7 +108,7 @@ $(STAGEDIST): AB_CD:=en-US
 $(STAGEDIST): UNPACKAGE=$(ZIP_IN)
 $(STAGEDIST): $(ZIP_IN)
 # only mac needs to remove the parent of STAGEDIST...
-ifneq (,$(filter mac cocoa,$(MOZ_WIDGET_TOOLKIT)))
+ifeq (cocoa,$(MOZ_WIDGET_TOOLKIT))
 	$(RM) -r -v $(DIST)/l10n-stage
 else
 # ... and windows doesn't like removing STAGEDIST itself, remove all children
@@ -133,29 +133,35 @@ repackage-zip:
 	cd $(DIST)/xpi-stage/locale-$(AB_CD) && \
 	  tar --exclude=install.rdf --exclude=chrome.manifest $(TAR_CREATE_FLAGS) - * | ( cd $(STAGEDIST) && tar -xf - )
 ifneq (en,$(AB))
-ifneq (,$(filter mac cocoa,$(MOZ_WIDGET_TOOLKIT)))
+ifeq (cocoa,$(MOZ_WIDGET_TOOLKIT))
 	mv $(_ABS_DIST)/l10n-stage/$(MOZ_PKG_APPNAME)/$(_APPNAME)/Contents/Resources/en.lproj $(_ABS_DIST)/l10n-stage/$(MOZ_PKG_APPNAME)/$(_APPNAME)/Contents/Resources/$(AB).lproj
 endif
 endif
 	$(NSINSTALL) -D $(DIST)/l10n-stage/$(PKG_PATH)
 	cd $(DIST)/l10n-stage; \
 	  $(MAKE_PACKAGE)
+ifeq (WINCE,$(OS_ARCH))
+	cd $(DIST)/l10n-stage; \
+	  $(MAKE_CAB)
+endif
 ifdef MOZ_MAKE_COMPLETE_MAR
 	$(MAKE) -C $(DEPTH)/tools/update-packaging full-update AB_CD=$(AB_CD) \
 	  MOZ_PKG_PRETTYNAMES=$(MOZ_PKG_PRETTYNAMES) \
 	  PACKAGE_BASE_DIR="$(_ABS_DIST)/l10n-stage" \
 	  DIST="$(_ABS_DIST)"
-	$(MAKE) generate-snippet-$(AB_CD)  
 endif
 # packaging done, undo l10n stuff
 ifneq (en,$(AB))
-ifneq (,$(filter mac cocoa,$(MOZ_WIDGET_TOOLKIT)))
+ifeq (cocoa,$(MOZ_WIDGET_TOOLKIT))
 	mv $(_ABS_DIST)/l10n-stage/$(MOZ_PKG_APPNAME)/$(_APPNAME)/Contents/Resources/$(AB).lproj $(_ABS_DIST)/l10n-stage/$(MOZ_PKG_APPNAME)/$(_APPNAME)/Contents/Resources/en.lproj
 endif
 endif
 	$(MAKE) clobber-zip AB_CD=$(AB_CD)
 	$(NSINSTALL) -D $(DIST)/$(PKG_PATH)
 	mv -f "$(DIST)/l10n-stage/$(PACKAGE)" "$(DIST)/$(PACKAGE)"
+ifeq (WINCE,$(OS_ARCH))
+	mv -f "$(DIST)/l10n-stage/$(PKG_BASENAME).cab" "$(DIST)/$(PKG_PATH)$(PKG_BASENAME).cab"
+endif
 
 repackage-zip-%: $(ZIP_IN) $(STAGEDIST) libs-%
 	@$(MAKE) repackage-zip AB_CD=$* ZIP_IN=$(ZIP_IN)
@@ -191,10 +197,12 @@ ifndef WGET
 endif
 	(cd $(_ABS_DIST) && $(WGET) -nv -N  $(EN_US_BINARY_URL)/$(PACKAGE))
 	@echo "Downloaded $(EN_US_BINARY_URL)/$(PACKAGE) to $(_ABS_DIST)/$(PACKAGE)"
+ifdef RETRIEVE_WINDOWS_INSTALLER
 ifeq ($(OS_ARCH), WINNT)
 	$(NSINSTALL) -D $(_ABS_DIST)/$(PKG_INST_PATH)
 	(cd $(_ABS_DIST)/$(PKG_INST_PATH) && $(WGET) -nv -N "$(EN_US_BINARY_URL)/$(PKG_PATH)$(PKG_INST_BASENAME).exe")
 	@echo "Downloaded $(EN_US_BINARY_URL)/$(PKG_PATH)$(PKG_INST_BASENAME).exe to $(_ABS_DIST)/$(PKG_INST_PATH)$(PKG_INST_BASENAME).exe"
+endif
 endif
 
 generate-snippet-%:
@@ -203,5 +211,6 @@ generate-snippet-%:
           --application-ini-file=$(STAGEDIST)/application.ini \
           --locale=$* \
           --product=$(MOZ_PKG_APPNAME) \
+          --platform=$(MOZ_PKG_PLATFORM) \
           --download-base-URL=$(DOWNLOAD_BASE_URL) \
           --verbose

@@ -74,6 +74,7 @@
 #include "nsIEncodedChannel.h"
 #include "nsITransport.h"
 #include "nsIUploadChannel.h"
+#include "nsIUploadChannel2.h"
 #include "nsIStringEnumerator.h"
 #include "nsIOutputStream.h"
 #include "nsIAsyncInputStream.h"
@@ -101,6 +102,7 @@ class nsHttpChannel : public nsHashPropertyBag
                     , public nsIStreamListener
                     , public nsICachingChannel
                     , public nsIUploadChannel
+                    , public nsIUploadChannel2
                     , public nsICacheListener
                     , public nsIEncodedChannel
                     , public nsITransportEventSink
@@ -121,6 +123,7 @@ public:
     NS_DECL_NSISTREAMLISTENER
     NS_DECL_NSICACHINGCHANNEL
     NS_DECL_NSIUPLOADCHANNEL
+    NS_DECL_NSIUPLOADCHANNEL2
     NS_DECL_NSICACHELISTENER
     NS_DECL_NSIENCODEDCHANNEL
     NS_DECL_NSIHTTPCHANNELINTERNAL
@@ -285,7 +288,7 @@ private:
 
     PRUint32                          mLoadFlags;
     PRUint32                          mStatus;
-    nsUint64                          mLogicalOffset;
+    PRUint64                          mLogicalOffset;
     PRUint8                           mCaps;
     PRInt16                           mPriority;
 
@@ -382,6 +385,10 @@ private:
     PRUint32                          mLoadedFromApplicationCache : 1;
     PRUint32                          mTracingEnabled           : 1;
     PRUint32                          mForceAllowThirdPartyCookie : 1;
+    // True if consumer added its own If-None-Match or If-Modified-Since
+    // headers. In such a case we must not override them in the cache code
+    // and also we want to pass possible 304 code response through.
+    PRUint32                          mCustomConditionalRequest : 1;
 
     class nsContentEncodings : public nsIUTF8StringEnumerator
     {

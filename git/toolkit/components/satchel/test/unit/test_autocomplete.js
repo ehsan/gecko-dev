@@ -40,9 +40,11 @@ var fh;
 var fac;
 var prefs;
 
+const DEFAULT_EXPIRE_DAYS = 180;
+
 function countAllEntries() {
     let stmt = fh.DBConnection.createStatement("SELECT COUNT(*) as numEntries FROM moz_formhistory");
-    do_check_true(stmt.step());
+    do_check_true(stmt.executeStep());
     let numEntries = stmt.row.numEntries;
     stmt.finalize();
     return numEntries;
@@ -59,7 +61,7 @@ function getFormExpiryDays () {
     if (prefs.prefHasUserValue("browser.formfill.expire_days"))
         return prefs.getIntPref("browser.formfill.expire_days");
     else
-        return prefs.getIntPref("browser.history_expire_days");
+        return DEFAULT_EXPIRE_DAYS;
 }
 
 function run_test() {
@@ -84,9 +86,9 @@ function run_test() {
         prefs = Cc["@mozilla.org/preferences-service;1"].
                 getService(Ci.nsIPrefBranch);
 
-        timeGroupingSize = prefs.getIntPref("browser.formfill.timeGroupingSize") * 1000 * 1000;
-        maxTimeGroupings = prefs.getIntPref("browser.formfill.maxTimeGroupings");
-        bucketSize = prefs.getIntPref("browser.formfill.bucketSize");
+        var timeGroupingSize = prefs.getIntPref("browser.formfill.timeGroupingSize") * 1000 * 1000;
+        var maxTimeGroupings = prefs.getIntPref("browser.formfill.maxTimeGroupings");
+        var bucketSize = prefs.getIntPref("browser.formfill.bucketSize");
 
         // ===== Tests with constant timesUsed and varying lastUsed date =====
         // insert 2 records per bucket to check alphabetical sort within
@@ -131,7 +133,7 @@ function run_test() {
         // ===== 2 =====
         // Check search contains all entries
         testnum++;
-        results = fac.autoCompleteSearch("field1", "", null, null);
+        var results = fac.autoCompleteSearch("field1", "", null, null);
         do_check_eq(numRecords, results.matchCount);
 
         // ===== 3 =====

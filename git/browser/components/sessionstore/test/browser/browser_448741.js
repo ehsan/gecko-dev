@@ -40,14 +40,14 @@ function test() {
   // test setup
   let ss = Cc["@mozilla.org/browser/sessionstore;1"].getService(Ci.nsISessionStore);
   let os = Cc["@mozilla.org/observer-service;1"].getService(Ci.nsIObserverService);
-  let tabbrowser = getBrowser();
   waitForExplicitFinish();
   
   let uniqueName = "bug 448741";
   let uniqueValue = "as good as unique: " + Date.now();
   
   // set a unique value on a new, blank tab
-  var tab = tabbrowser.addTab();
+  var tab = gBrowser.addTab();
+  tab.linkedBrowser.stop();
   ss.setTabValue(tab, uniqueName, uniqueValue);
   let valueWasCleaned = false;
   
@@ -60,15 +60,15 @@ function test() {
       
       // find the data for the newly added tab and delete it
       let state = eval(aSubject.data);
-      for each (let winData in state.windows) {
-        for each (let tabData in winData.tabs) {
+      state.windows.forEach(function (winData) {
+        winData.tabs.forEach(function (tabData) {
           if (tabData.extData && uniqueName in tabData.extData &&
               tabData.extData[uniqueName] == uniqueValue) {
             delete tabData.extData[uniqueName];
             valueWasCleaned = true;
           }
-        }
-      }
+        });
+      });
       
       ok(valueWasCleaned, "found and removed the specific tab value");
       aSubject.data = uneval(state);
@@ -84,9 +84,10 @@ function test() {
       ok(aSubject.data.indexOf(uniqueValue) == -1, "data no longer contains our value?");
       
       // clean up
-      tabbrowser.removeTab(tab);
+      gBrowser.removeTab(tab);
       os.removeObserver(this, aTopic, false);
-      gPrefService.clearUserPref("browser.sessionstore.interval");
+      if (gPrefService.prefHasUserValue("browser.sessionstore.interval"))
+        gPrefService.clearUserPref("browser.sessionstore.interval");
       finish();
     }
   };

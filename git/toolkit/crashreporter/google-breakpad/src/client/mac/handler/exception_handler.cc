@@ -92,12 +92,15 @@ extern "C"
   boolean_t exc_server(mach_msg_header_t *request,
                        mach_msg_header_t *reply);
 
+  // This symbol must be visible to dlsym() - see
+  // http://code.google.com/p/google-breakpad/issues/detail?id=345 for details.
   kern_return_t catch_exception_raise(mach_port_t target_port,
                                       mach_port_t failed_thread,
                                       mach_port_t task,
                                       exception_type_t exception,
                                       exception_data_t code,
-                                      mach_msg_type_number_t code_count);
+                                      mach_msg_type_number_t code_count)
+      __attribute__((visibility("default")));
 
   kern_return_t ForwardException(mach_port_t task,
                                  mach_port_t failed_thread,
@@ -296,6 +299,7 @@ bool ExceptionHandler::WriteMinidump(const string &dump_path,
 
 bool ExceptionHandler::WriteMinidumpWithException(int exception_type,
                                                   int exception_code,
+                                                  int exception_subcode,
                                                   mach_port_t thread_name) {
   bool result = false;
 
@@ -303,6 +307,7 @@ bool ExceptionHandler::WriteMinidumpWithException(int exception_type,
     if (directCallback_(callback_context_,
                         exception_type,
                         exception_code,
+                        exception_subcode,
                         thread_name) ) {
       if (exception_type && exception_code)
         _exit(exception_type);
@@ -320,7 +325,8 @@ bool ExceptionHandler::WriteMinidumpWithException(int exception_type,
         if (filter_ && !filter_(callback_context_))
           return false;
 
-        md.SetExceptionInformation(exception_type, exception_code, thread_name);
+        md.SetExceptionInformation(exception_type, exception_code,
+                                   exception_subcode, thread_name);
       }
 
       result = md.Write(next_minidump_path_c_);
@@ -432,6 +438,9 @@ kern_return_t catch_exception_raise(mach_port_t port, mach_port_t failed_thread,
                                     exception_type_t exception,
                                     exception_data_t code,
                                     mach_msg_type_number_t code_count) {
+  if (task != mach_task_self()) {
+    return KERN_FAILURE;
+  }
   return ForwardException(task, failed_thread, exception, code, code_count);
 }
 
@@ -476,7 +485,7 @@ void *ExceptionHandler::WaitForMessage(void *exception_handler_class) {
 
         // Write out the dump and save the result for later retrieval
         self->last_minidump_write_result_ =
-          self->WriteMinidumpWithException(0, 0, 0);
+          self->WriteMinidumpWithException(0, 0, 0, 0);
 
         self->UninstallHandler(false);
 
@@ -490,7 +499,6 @@ void *ExceptionHandler::WaitForMessage(void *exception_handler_class) {
         if (self->use_minidump_write_mutex_)
           pthread_mutex_unlock(&self->minidump_write_mutex_);
       } else {
-
         // When forking a child process with the exception handler installed,
         // if the child crashes, it will send the exception back to the parent
         // process.  The check for task == self_task() ensures that only
@@ -507,11 +515,15 @@ void *ExceptionHandler::WaitForMessage(void *exception_handler_class) {
           gBreakpadAllocator->Unprotect();
 #endif
 
-          // Generate the minidump with the exception data.
-          self->WriteMinidumpWithException(receive.exception, receive.code[0],
-                                           receive.thread.name);
+        int subcode = 0;
+        if (receive.exception == EXC_BAD_ACCESS && receive.code_count > 1)
+          subcode = receive.code[1];
 
-          self->UninstallHandler(true);
+        // Generate the minidump with the exception data.
+        self->WriteMinidumpWithException(receive.exception, receive.code[0],
+                                         subcode, receive.thread.name);
+
+        self->UninstallHandler(true);
 
 #if USE_PROTECTED_ALLOCATIONS
         if(gBreakpadAllocator)

@@ -37,7 +37,7 @@
  * ***** END LICENSE BLOCK ***** */
 
 /*
- * A base class implementING nsIObjectLoadingContent for use by
+ * A base class implementing nsIObjectLoadingContent for use by
  * various content nodes that want to provide plugin/document/image
  * loading functionality (eg <embed>, <object>, <applet>, etc).
  */
@@ -53,6 +53,7 @@
 #include "nsIObjectLoadingContent.h"
 #include "nsIRunnable.h"
 #include "nsIChannelClassifier.h"
+#include "nsIFrame.h"
 
 class nsAsyncInstantiateEvent;
 class AutoNotifier;
@@ -60,12 +61,12 @@ class AutoFallback;
 class AutoSetInstantiatingToFalse;
 
 enum PluginSupportState {
-  ePluginUnsupported,  // The plugin is not supported (not installed, say)
-  ePluginDisabled,     // The plugin has been explicitly disabled by the
-                       // user.
+  ePluginUnsupported,  // The plugin is not supported (e.g. not installed)
+  ePluginDisabled,     // The plugin has been explicitly disabled by the user
   ePluginBlocklisted,  // The plugin is blocklisted and disabled
-  ePluginOtherState    // Something else (e.g. not a plugin at all as far
-                       // as we can tell).
+  ePluginOutdated,     // The plugin is considered outdated, but not disabled
+  ePluginOtherState,   // Something else (e.g. uninitialized or not a plugin)
+  ePluginCrashed
 };
 
 /**
@@ -222,6 +223,7 @@ class nsObjectLoadingContent : public nsImageLoadingContent
 
     void Traverse(nsCycleCollectionTraversalCallback &cb);
 
+    void CreateStaticClone(nsObjectLoadingContent* aDest) const;
   private:
     /**
      * Check whether the given request represents a successful load.
@@ -414,12 +416,14 @@ class nsObjectLoadingContent : public nsImageLoadingContent
      * Whether we are about to call instantiate on our frame. If we aren't,
      * SetFrame needs to asynchronously call Instantiate.
      */
-    PRBool                      mInstantiating : 1;
+    PRPackedBool                mInstantiating : 1;
     // Blocking status from content policy
-    PRBool                      mUserDisabled  : 1;
-    PRBool                      mSuppressed    : 1;
+    PRPackedBool                mUserDisabled  : 1;
+    PRPackedBool                mSuppressed    : 1;
     // A specific state that caused us to fallback
-    PluginSupportState          mPluginState;
+    PluginSupportState          mFallbackReason;
+
+    nsWeakFrame                 mPrintFrame;
 
     friend class nsAsyncInstantiateEvent;
 };

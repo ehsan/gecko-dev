@@ -53,7 +53,6 @@
 #include "nsMenuPopupFrame.h"
 #include "nsGUIEvent.h"
 #include "nsUnicharUtils.h"
-#include "nsIFocusController.h"
 #include "nsIDOMWindowInternal.h"
 #include "nsIDOMDocument.h"
 #include "nsPIDOMWindow.h"
@@ -77,6 +76,8 @@ NS_NewMenuBarFrame(nsIPresShell* aPresShell, nsStyleContext* aContext)
 {
   return new (aPresShell) nsMenuBarFrame (aPresShell, aContext);
 }
+
+NS_IMPL_FRAMEARENA_HELPERS(nsMenuBarFrame)
 
 //
 // nsMenuBarFrame cntr
@@ -452,7 +453,7 @@ nsMenuBarFrame::RemoveKeyboardNavigator()
 }
 
 void
-nsMenuBarFrame::Destroy()
+nsMenuBarFrame::DestroyFrom(nsIFrame* aDestructRoot)
 {
   nsXULPopupManager* pm = nsXULPopupManager::GetInstance();
   if (pm)
@@ -467,5 +468,5 @@ nsMenuBarFrame::Destroy()
 
   NS_IF_RELEASE(mMenuBarListener);
 
-  nsBoxFrame::Destroy();
+  nsBoxFrame::DestroyFrom(aDestructRoot);
 }

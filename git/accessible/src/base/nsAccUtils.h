@@ -58,7 +58,6 @@ class nsHTMLTableAccessible;
 class nsDocAccessible;
 #ifdef MOZ_XUL
 class nsXULTreeAccessible;
-class nsXULTreeitemAccessible;
 #endif
 
 class nsAccUtils
@@ -87,45 +86,43 @@ public:
                          const nsAString& aAttrValue);
 
   /**
-   * Return values of group attributes ('level', 'setsize', 'posinset')
-   */
-  static void GetAccGroupAttrs(nsIPersistentProperties *aAttributes,
-                               PRInt32 *aLevel,
-                               PRInt32 *aPosInSet,
-                               PRInt32 *aSetSize);
-
-  /**
-   * Returns true if there are level, posinset and sizeset attributes.
-   */
-  static PRBool HasAccGroupAttrs(nsIPersistentProperties *aAttributes);
-
-  /**
    * Set group attributes ('level', 'setsize', 'posinset').
    */
   static void SetAccGroupAttrs(nsIPersistentProperties *aAttributes,
-                               PRInt32 aLevel,
-                               PRInt32 aPosInSet,
-                               PRInt32 aSetSize);
+                               PRInt32 aLevel, PRInt32 aSetSize,
+                               PRInt32 aPosInSet);
 
   /**
-   * Set group attributes - 'level', 'setsize', 'posinset'.
-   *
-   * @param aNode - XUL element that implements
-   *                nsIDOMXULSelectControlItemElement interface
-   * @param aAttributes - attributes container
+   * Get default value of the level for the given accessible.
    */
-  static void SetAccAttrsForXULSelectControlItem(nsIDOMNode *aNode,
-                                                 nsIPersistentProperties *aAttributes);
+  static PRInt32 GetDefaultLevel(nsAccessible *aAcc);
 
   /**
-   * Set group attributes - 'level', 'setsize', 'posinset'.
-   *
-   * @param  aNode        XUL element that implements
-   *                      nsIDOMXULContainerItemElement interface
-   * @param  aAttributes  attributes container
+   * Return ARIA level value or the default one if ARIA is missed for the
+   * given accessible.
    */
-  static void SetAccAttrsForXULContainerItem(nsIDOMNode *aNode,
-                                             nsIPersistentProperties *aAttributes);
+  static PRInt32 GetARIAOrDefaultLevel(nsIAccessible *aAcc);
+
+  /**
+   * Compute position in group (posinset) and group size (setsize) for
+   * nsIDOMXULSelectControlItemElement node.
+   */
+  static void GetPositionAndSizeForXULSelectControlItem(nsIDOMNode *aNode,
+                                                        PRInt32 *aPosInSet,
+                                                        PRInt32 *aSetSize);
+
+  /**
+   * Compute group position and group size (posinset and setsize) for
+   * nsIDOMXULContainerItemElement node.
+   */
+  static void GetPositionAndSizeForXULContainerItem(nsIDOMNode *aNode,
+                                                    PRInt32 *aPosInSet,
+                                                    PRInt32 *aSetSize);
+
+  /**
+   * Compute group level for nsIDOMXULContainerItemElement node.
+   */
+  static PRInt32 GetLevelForXULContainerItem(nsIDOMNode *aNode);
 
   /**
    * Set container-foo live region attributes for the given node.
@@ -146,12 +143,6 @@ public:
    * Return PR_TRUE if the ARIA property is defined, otherwise PR_FALSE
    */
   static PRBool HasDefinedARIAToken(nsIContent *aContent, nsIAtom *aAtom);
-
-  /**
-   * Fire accessible event of the given type for the given accessible.
-   */
-  static nsresult FireAccEvent(PRUint32 aEventType, nsIAccessible *aAccessible,
-                               PRBool aIsAsynch = PR_FALSE);
 
   /**
    * Return true if the given DOM node contains accessible children.
@@ -179,6 +170,27 @@ public:
      GetARIATreeItemParent(nsIAccessible *aStartTreeItem,
                            nsIContent *aStartTreeItemContent,
                            nsIAccessible **aTreeItemParent);
+
+  /**
+   * Return single or multi selectable container for the given item.
+   *
+   * @param  aAccessible  [in] the item accessible
+   * @param  aState       [in] the state of the item accessible
+   */
+  static already_AddRefed<nsIAccessible>
+    GetSelectableContainer(nsIAccessible *aAccessible, PRUint32 aState);
+
+  /**
+   * Return multi selectable container for the given item.
+   */
+  static already_AddRefed<nsIAccessible>
+    GetMultiSelectableContainer(nsIDOMNode *aNode);
+
+  /**
+   * Return true if the DOM node of given accessible has aria-selected="true"
+   * attribute.
+   */
+  static PRBool IsARIASelected(nsIAccessible *aAccessible);
 
   /**
    * Return text accessible containing focus point of the given selection.
@@ -275,6 +287,19 @@ public:
   }
 
   /**
+   * Return the extended state for the given accessible.
+   */
+  static PRUint32 ExtendedState(nsIAccessible *aAcc)
+  {
+    PRUint32 state = 0;
+    PRUint32 extstate = 0;
+    if (aAcc)
+      aAcc->GetState(&state, &extstate);
+
+    return extstate;
+  }
+
+  /**
    * Get the ARIA attribute characteristics for a given ARIA attribute.
    * 
    * @param aAtom  ARIA attribute
@@ -284,10 +309,46 @@ public:
   static PRUint8 GetAttributeCharacteristics(nsIAtom* aAtom);
 
   /**
-   * Return the 'live' or 'container-live' object attribute value from the given
+   * Get the 'live' or 'container-live' object attribute value from the given
    * ELiveAttrRule constant.
+   *
+   * @param  aRule   [in] rule constant (see ELiveAttrRule in nsAccMap.h)
+   * @param  aValue  [out] object attribute value
+   *
+   * @return         true if object attribute should be exposed
    */
-  static void GetLiveAttrValue(PRUint32 aRule, nsAString& aValue);
+  static PRBool GetLiveAttrValue(PRUint32 aRule, nsAString& aValue);
+
+  /**
+   * Query DestinationType from the given SourceType.
+   */
+  template<class DestinationType, class SourceType> static inline
+    already_AddRefed<DestinationType> QueryObject(SourceType *aObject)
+  {
+    DestinationType* object = nsnull;
+    if (aObject)
+      CallQueryInterface(aObject, &object);
+
+    return object;
+  }
+  template<class DestinationType, class SourceType> static inline
+    already_AddRefed<DestinationType> QueryObject(nsCOMPtr<SourceType>& aObject)
+  {
+    DestinationType* object = nsnull;
+    if (aObject)
+      CallQueryInterface(aObject, &object);
+
+    return object;
+  }
+  template<class DestinationType, class SourceType> static inline
+  already_AddRefed<DestinationType> QueryObject(nsRefPtr<SourceType>& aObject)
+  {
+    DestinationType* object = nsnull;
+    if (aObject)
+      CallQueryInterface(aObject.get(), &object);
+    
+    return object;
+  }
 
   /**
    * Query nsAccessNode from the given nsIAccessible.
@@ -364,12 +425,6 @@ public:
    */
   static already_AddRefed<nsXULTreeAccessible>
     QueryAccessibleTree(nsIAccessible *aAccessible);
-
-  /**
-   * Query nsXULTreeitemAccessible from the given nsIAccessNode.
-   */
-  static already_AddRefed<nsXULTreeitemAccessible>
-    QueryAccessibleTreeitem(nsIAccessNode *aAccessNode);
 #endif
 
 #ifdef DEBUG_A11Y
@@ -409,11 +464,11 @@ public:
   /**
    * Return true if the given accessible hasn't children.
    */
-  static PRBool IsLeaf(nsIAccessible *aAcc)
+  static inline PRBool IsLeaf(nsIAccessible *aAcc)
   {
-    PRInt32 numChildren;
+    PRInt32 numChildren = 0;
     aAcc->GetChildCount(&numChildren);
-    return numChildren > 0;
+    return numChildren == 0;
   }
 
   /**
@@ -429,9 +484,30 @@ public:
   static PRBool IsNodeRelevant(nsIDOMNode *aNode);
 
   /**
-   * Return multiselectable parent for the given selectable accessible if any.
+   * Search hint enum constants. Used by GetHeaderCellsFor() method.
    */
-  static already_AddRefed<nsIAccessible> GetMultiSelectFor(nsIDOMNode *aNode);
+  enum {
+    // search for row header cells, left direction
+    eRowHeaderCells,
+    // search for column header cells, top direction
+    eColumnHeaderCells
+  };
+
+  /**
+   * Return an array of row or column header cells for the given cell.
+   *
+   * @param aTable                [in] table accessible
+   * @param aCell                 [in] cell accessible within the given table to
+   *                               get header cells
+   * @param aRowOrColHeaderCells  [in] specifies whether column or row header
+   *                               cells are returned (see enum constants
+   *                               above)
+   * @param aCells                [out] array of header cell accessibles
+   */
+  static nsresult GetHeaderCellsFor(nsIAccessibleTable *aTable,
+                                    nsIAccessibleTableCell *aCell,
+                                    PRInt32 aRowOrColHeaderCells,
+                                    nsIArray **aCells);
 };
 
 #endif

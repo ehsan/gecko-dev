@@ -70,6 +70,7 @@ class nsIContent;
 class nsIDOMNode;
 class nsIDOMKeyEvent;
 class nsIDocument;
+class nsIDocumentObserver;
 class nsIDocShell;
 class nsINameSpaceManager;
 class nsIScriptSecurityManager;
@@ -108,6 +109,7 @@ class nsIDragSession;
 class nsPIDOMWindow;
 class nsPIDOMEventTarget;
 class nsIPresShell;
+class nsIXPConnectJSObjectHolder;
 #ifdef MOZ_XTF
 class nsIXTFService;
 #endif
@@ -209,6 +211,12 @@ public:
    */
   static PRBool ContentIsDescendantOf(nsINode* aPossibleDescendant,
                                       nsINode* aPossibleAncestor);
+
+  /**
+   * Similar to ContentIsDescendantOf except it crosses document boundaries.
+   */
+  static PRBool ContentIsCrossDocDescendantOf(nsINode* aPossibleDescendant,
+                                              nsINode* aPossibleAncestor);
 
   /*
    * This method fills the |aArray| with all ancestor nodes of |aNode|
@@ -565,6 +573,7 @@ public:
                                      PrefChangedFunc aCallback,
                                      void * aClosure);
   static void AddBoolPrefVarCache(const char* aPref, PRBool* aVariable);
+  static void AddIntPrefVarCache(const char* aPref, PRInt32* aVariable);
   static nsIPrefBranch *GetPrefBranch()
   {
     return sPrefBranch;
@@ -661,6 +670,11 @@ public:
    * @return the imgIContainer corresponding to the first frame of the image
    */
   static already_AddRefed<imgIContainer> GetImageFromContent(nsIImageLoadingContent* aContent, imgIRequest **aRequest = nsnull);
+
+  /**
+   * Helper method to call imgIRequest::GetStaticRequest.
+   */
+  static already_AddRefed<imgIRequest> GetStaticRequest(imgIRequest* aRequest);
 
   /**
    * Method that decides whether a content node is draggable
@@ -808,6 +822,11 @@ public:
    * Returns true if aDocument is a chrome document
    */
   static PRBool IsChromeDoc(nsIDocument *aDocument);
+
+  /**
+   * Returns true if aDocument is in a docshell whose parent is the same type
+   */
+  static PRBool IsChildOfSameType(nsIDocument* aDoc);
 
   /**
    * Get the script file name to use when compiling the script
@@ -1150,6 +1169,11 @@ public:
    */
   static nsresult DropJSObjects(void* aScriptObjectHolder);
 
+#ifdef DEBUG
+  static void CheckCCWrapperTraversal(nsISupports* aScriptObjectHolder,
+                                      nsWrapperCache* aCache);
+#endif
+
   static void PreserveWrapper(nsISupports* aScriptObjectHolder,
                               nsWrapperCache* aCache)
   {
@@ -1158,6 +1182,10 @@ public:
       CallQueryInterface(aScriptObjectHolder, &participant);
       HoldJSObjects(aScriptObjectHolder, participant);
       aCache->SetPreservingWrapper(PR_TRUE);
+#ifdef DEBUG
+      // Make sure the cycle collector will be able to traverse to the wrapper.
+      CheckCCWrapperTraversal(aScriptObjectHolder, aCache);
+#endif
     }
   }
   static void ReleaseWrapper(nsISupports* aScriptObjectHolder,
@@ -1282,7 +1310,7 @@ public:
 
   /**
    * Hide any XUL popups associated with aDocument, including any documents
-   * displayed in child frames.
+   * displayed in child frames. Does nothing if aDocument is null.
    */
   static void HidePopupsInDocument(nsIDocument* aDocument);
 
@@ -1337,6 +1365,13 @@ public:
    * this directly
    */
   static void AddScriptBlocker();
+
+  /**
+   * Increases the count of blockers preventing scripts from running.
+   * Also, while this script blocker is active, script runners must not be
+   * added --- we'll assert if one is, and ignore it.
+   */
+  static void AddScriptBlockerAndPreventAddingRunners();
 
   /**
    * Decreases the count of blockers preventing scripts from running.
@@ -1466,6 +1501,25 @@ public:
    * method returns PR_TRUE, otherwise PR_FALSE.
    */
   static PRBool CanAccessNativeAnon();
+
+  static nsresult WrapNative(JSContext *cx, JSObject *scope,
+                             nsISupports *native, const nsIID* aIID, jsval *vp,
+                             // If non-null aHolder will keep the jsval alive
+                             // while there's a ref to it
+                             nsIXPConnectJSObjectHolder** aHolder = nsnull,
+                             PRBool aAllowWrapping = PR_FALSE);
+
+  // Same as the WrapNative above, but use this one if aIID is nsISupports' IID.
+  static nsresult WrapNative(JSContext *cx, JSObject *scope,
+                             nsISupports *native,  jsval *vp,
+                             // If non-null aHolder will keep the jsval alive
+                             // while there's a ref to it
+                             nsIXPConnectJSObjectHolder** aHolder = nsnull,
+                             PRBool aAllowWrapping = PR_FALSE)
+  {
+    return WrapNative(cx, scope, native, nsnull, vp, aHolder, aAllowWrapping);
+  }
+
 private:
 
   static PRBool InitializeEventTable();
@@ -1543,6 +1597,7 @@ private:
   static PRUint32 sRemovableScriptBlockerCount;
   static nsCOMArray<nsIRunnable>* sBlockedScriptRunners;
   static PRUint32 sRunnersCountAtFirstBlocker;
+  static PRUint32 sScriptBlockerCountWhereRunnersPrevented;
 
   static nsIInterfaceRequestor* sSameOriginChecker;
 };
@@ -1575,6 +1630,7 @@ public:
   // Pop() will be a no-op if Push() or PushNull() fail
   void Pop();
 
+  nsIScriptContext* GetCurrentScriptContext() { return mScx; }
 private:
   // Combined code for PushNull() and Push(JSContext*)
   PRBool DoPush(JSContext* cx);
@@ -1642,27 +1698,13 @@ public:
 class mozAutoRemovableBlockerRemover
 {
 public:
-  mozAutoRemovableBlockerRemover()
-  {
-    mNestingLevel = nsContentUtils::GetRemovableScriptBlockerLevel();
-    for (PRUint32 i = 0; i < mNestingLevel; ++i) {
-      nsContentUtils::RemoveRemovableScriptBlocker();
-    }
-
-    NS_ASSERTION(nsContentUtils::IsSafeToRunScript(), "killing mutation events");
-  }
-
-  ~mozAutoRemovableBlockerRemover()
-  {
-    NS_ASSERTION(nsContentUtils::GetRemovableScriptBlockerLevel() == 0,
-                 "Should have had none");
-    for (PRUint32 i = 0; i < mNestingLevel; ++i) {
-      nsContentUtils::AddRemovableScriptBlocker();
-    }
-  }
+  mozAutoRemovableBlockerRemover(nsIDocument* aDocument);
+  ~mozAutoRemovableBlockerRemover();
 
 private:
   PRUint32 mNestingLevel;
+  nsCOMPtr<nsIDocument> mDocument;
+  nsCOMPtr<nsIDocumentObserver> mObserver;
 };
 
 #define NS_AUTO_GCROOT_PASTE2(tok,line) tok##line

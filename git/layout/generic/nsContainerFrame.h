@@ -73,6 +73,10 @@ class nsOverflowContinuationTracker;
 class nsContainerFrame : public nsSplittableFrame
 {
 public:
+  NS_DECL_FRAMEARENA_HELPERS
+  NS_DECL_QUERYFRAME_TARGET(nsContainerFrame)
+  NS_DECL_QUERYFRAME
+
   // nsIFrame overrides
   NS_IMETHOD Init(nsIContent* aContent,
                   nsIFrame*   aParent,
@@ -89,7 +93,7 @@ public:
 
   virtual nsFrameList GetChildList(nsIAtom* aListName) const;
   virtual nsIAtom* GetAdditionalChildListName(PRInt32 aIndex) const;
-  virtual void Destroy();
+  virtual void DestroyFrom(nsIFrame* aDestructRoot);
   virtual void ChildIsDirty(nsIFrame* aChild);
 
   virtual PRBool IsLeaf() const;
@@ -126,11 +130,15 @@ public:
                                        nsIView*        aView,
                                        const nsRect*   aCombinedArea,
                                        PRUint32        aFlags = 0);
-  
+
+  // Syncs properties to the top level view and window, like transparency and
+  // shadow.
+  static void SyncWindowProperties(nsPresContext*       aPresContext,
+                                   nsIFrame*            aFrame,
+                                   nsIView*             aView);
+
   // Sets the view's attributes from the frame style.
-  // - opacity
   // - visibility
-  // - content transparency
   // - clip
   // Call this when one of these styles changes or when the view has just
   // been created.
@@ -141,9 +149,6 @@ public:
                                       nsIView*         aView,
                                       PRUint32         aFlags = 0);
 
-  // Returns PR_TRUE if the frame requires a view
-  static PRBool FrameNeedsView(nsIFrame* aFrame);
-  
   // Used by both nsInlineFrame and nsFirstLetterFrame.
   void DoInlineIntrinsicWidth(nsIRenderingContext *aRenderingContext,
                               InlineIntrinsicWidthData *aData,
@@ -292,6 +297,17 @@ public:
                               PRBool         aForceNormal = PR_FALSE);
 
   /**
+   * Removes the next-siblings of aChild without destroying them and without
+   * requesting reflow. Checks the principal and overflow lists (not
+   * overflow containers / excess overflow containers). Does not check any
+   * other auxiliary lists.
+   * @param aChild a child frame or nsnull
+   * @return If aChild is non-null, the next-siblings of aChild, if any.
+   *         If aChild is null, all child frames on the principal list, if any.
+   */
+  nsFrameList StealFramesAfter(nsIFrame* aChild);
+
+  /**
    * Add overflow containers to the display list
    */
   void DisplayOverflowContainers(nsDisplayListBuilder*   aBuilder,
@@ -364,7 +380,8 @@ protected:
   /**
    * Destroy the overflow list and any frames that are on  it.
    */
-  void DestroyOverflowList(nsPresContext* aPresContext);
+  void DestroyOverflowList(nsPresContext* aPresContext,
+                           nsIFrame*      aDestructRoot = nsnull);
 
   /**
    * Moves any frames on both the prev-in-flow's overflow list and the
@@ -448,7 +465,8 @@ protected:
 
 #define IS_TRUE_OVERFLOW_CONTAINER(frame)                      \
   (  (frame->GetStateBits() & NS_FRAME_IS_OVERFLOW_CONTAINER)  \
-  && !(frame->GetStateBits() & NS_FRAME_OUT_OF_FLOW)           )
+  && !( (frame->GetStateBits() & NS_FRAME_OUT_OF_FLOW) &&      \
+        frame->GetStyleDisplay()->IsAbsolutelyPositioned()  )  )
 //XXXfr This check isn't quite correct, because it doesn't handle cases
 //      where the out-of-flow has overflow.. but that's rare.
 //      We'll need to revisit the way abspos continuations are handled later

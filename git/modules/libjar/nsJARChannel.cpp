@@ -174,7 +174,8 @@ nsJARInputThunk::EnsureJarStream()
     }
 
     // ask the JarStream for the content length
-    mJarStream->Available((PRUint32 *) &mContentLength);
+    rv = mJarStream->Available((PRUint32 *) &mContentLength);
+    if (NS_FAILED(rv)) return rv;
 
     return NS_OK;
 }
@@ -672,7 +673,8 @@ nsJARChannel::Open(nsIInputStream **stream)
 
     // force load the jar file now so GetContentLength will return a
     // meaningful value once we return.
-    mJarInput->EnsureJarStream();
+    rv = mJarInput->EnsureJarStream();
+    if (NS_FAILED(rv)) return rv;
 
     NS_ADDREF(*stream = mJarInput);
     return NS_OK;
@@ -913,8 +915,8 @@ nsJARChannel::OnDataAvailable(nsIRequest *req, nsISupports *ctx,
     // nsITransportEventSink implementation.
     // XXX do the 64-bit stuff for real
     if (mProgressSink && NS_SUCCEEDED(rv) && !(mLoadFlags & LOAD_BACKGROUND))
-        mProgressSink->OnProgress(this, nsnull, nsUint64(offset + count),
-                                  nsUint64(mContentLength));
+        mProgressSink->OnProgress(this, nsnull, PRUint64(offset + count),
+                                  PRUint64(mContentLength));
 
     return rv; // let the pump cancel on failure
 }

@@ -15,7 +15,7 @@
  *
  * The Original Code is Places Test code.
  *
- * The Initial Developer of the Original Code is Mozilla Corporation
+ * The Initial Developer of the Original Code is Mozilla Foundation
  * Portions created by the Initial Developer are Copyright (C) 2008
  * the Initial Developer. All Rights Reserved.
  *
@@ -128,12 +128,12 @@
    LOG("Updating Items in batch");
    var updateBatch = {
      runBatched: function (aUserData) {
-       batchchange = [{isDetails: true, uri:"http://foo.com/changeme2.htm",
-                       title: "moz"},
-                      {isDetails: true, uri: "http://foo.com/yiihah",
-                       title: "moz now updated"},
-                      {isDetails: true, uri: "http://foo.com/redirect",
-                       title: "gone"}];
+       var batchchange = [{isDetails: true, uri:"http://foo.com/changeme2.htm",
+                           title: "moz"},
+                          {isDetails: true, uri: "http://foo.com/yiihah",
+                           title: "moz now updated"},
+                          {isDetails: true, uri: "http://foo.com/redirect",
+                           title: "gone"}];
        populateDB(batchchange);
      }
    };

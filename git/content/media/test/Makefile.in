@@ -38,7 +38,7 @@ DEPTH		= ../../..
 topsrcdir	= @top_srcdir@
 srcdir		= @srcdir@
 VPATH		= @srcdir@
-relativesrcdir  = content/media/test
+relativesrcdir	= content/media/test
 
 include $(DEPTH)/config/autoconf.mk
 include $(topsrcdir)/config/rules.mk
@@ -69,7 +69,9 @@ include $(topsrcdir)/config/rules.mk
 _TEST_FILES = \
 		can_play_type_ogg.js \
 		can_play_type_wave.js \
+		cancellable_request.sjs \
 		manifest.js \
+		reactivate_helper.html \
 		seek1.js \
 		seek2.js \
 		seek3.js \
@@ -79,26 +81,35 @@ _TEST_FILES = \
 		seek7.js \
 		seek8.js \
 		seek9.js \
+		seek10.js \
 		test_audio1.html \
 		test_audio2.html \
 		test_autobuffer.html \
 		test_autoplay.html \
+		test_bug495300.html \
 		test_can_play_type.html \
 		test_constants.html \
 		test_controls.html \
 		test_currentTime.html \
+		test_decode_error.html \
 		test_decoder_disable.html \
 		test_load.html \
 		test_media_selection.html \
+		test_mozLoadFrom.html \
 		test_networkState.html \
 		test_paused.html \
 		test_playback.html \
 		test_playback_errors.html \
+		test_reactivate.html \
 		test_readyState.html \
 		test_seek2.html \
 		test_volume.html \
 		use_large_cache.js \
 		$(NULL)
+
+# Disabled due to flakiness
+#		test_resume.html \
+#
 
 ifneq ($(OS_ARCH),WINNT)
 # These tests are disabled on windows until we
@@ -114,26 +125,42 @@ _TEST_FILES += \
 		320x240.allow-origin.ogv \
 		320x240.allow-origin.ogv^headers^ \
 		448636.ogv \
-    bug495129.ogv \
+		beta-phrasebook.ogg \
+		bogus.ogv \
+		bug495129.ogv \
 		bug461281.ogg \
 		bug482461.ogv \
+		bug498380.ogv \
 		bug498855-1.ogv \
 		bug498855-2.ogv \
 		bug498855-3.ogv \
 		bug499519.ogv \
 		bug500311.ogv \
 		bug500311.ogv^headers^ \
-    bug501279.ogg \
-    bug504644.ogv \
-    bug506094.ogv \
+		bug501279.ogg \
+		bug504613.ogv \
+		bug504644.ogv \
+		bug504843.ogv \
+		bug506094.ogv \
+		bug516323.ogv \
+		bug520493.ogg \
+		bug520500.ogg \
+		bug520908.ogv \
+		bug520908.ogv^headers^ \
+		bug523816.ogv \
+		chain.ogv \
+		dirac.ogg \
 		seek.ogv \
+		short-video.ogv \
 		small-shot.ogg \
 		sound.ogg \
 		$(NULL)
-		
+
 # Wave sample files
 _TEST_FILES += \
 		big.wav \
+		bogus.wav \
+		r11025_msadpcm_c1.wav \
 		r11025_s16_c1.wav \
 		r11025_s16_c1_trailing.wav \
 		r11025_u8_c1.wav \
@@ -141,18 +168,23 @@ _TEST_FILES += \
 		r16000_u8_c1_list.wav \
 		$(NULL)
 
+# Other files
+_TEST_FILES += \
+		bogus.duh \
+		$(NULL)
+
 # These tests need to be converted to be backend-independent. This list
 # is deprecated, do not add to it.
 ifdef MOZ_OGG
 _TEST_FILES += \
 		dynamic_redirect.sjs \
-		test_access_control.html \
 		file_access_controls.html \
+		test_access_control.html \
 		test_bug448534.html \
 		test_bug468190.html \
+		test_bug486646.html \
 		test_bug493187.html \
 		test_bug495145.html \
-		test_bug495300.html \
 		test_bug495319.html \
 		test_closing_connections.html \
 		test_contentDuration1.html \
@@ -161,6 +193,7 @@ _TEST_FILES += \
 		test_contentDuration4.html \
 		test_contentDuration5.html \
 		test_contentDuration6.html \
+		test_contentDuration7.html \
 		test_delay_load.html \
 		test_duration1.html \
 		test_ended1.html \
@@ -185,6 +218,7 @@ _TEST_FILES += \
 		contentDuration4.sjs \
 		contentDuration5.sjs \
 		contentDuration6.sjs \
+		contentDuration7.sjs \
 		$(NULL)
 # These tests disabled until we figure out random failures.
 # Bug 492821:
@@ -193,7 +227,7 @@ _TEST_FILES += \
 # test_autobuffer2.html
 ifneq ($(OS_ARCH),WINNT)
 # These tests are disabled on windows until we
-# figure out the random failures. See bug 475369.
+# figure out the random failures. See bug 475369 and bug 526323
 _TEST_FILES += \
 		test_timeupdate3.html \
 		$(NULL)

@@ -65,7 +65,7 @@
 
 #include "nsICSSParser.h"
 #include "nsICSSStyleRule.h"
-#include "nsInspectorCSSUtils.h"
+#include "nsComputedDOMStyle.h"
 #include "nsStyleSet.h"
 
 #include "nsPrintfCString.h"
@@ -236,7 +236,7 @@ public:
     gfxPattern* GetPattern() {
         return mPattern;
     }
-    
+
     nsIPrincipal* Principal() { return mPrincipal; }
     PRBool GetForceWriteOnly() { return mForceWriteOnly; }
 
@@ -353,7 +353,7 @@ protected:
      * by global alpha, and is ignored otherwise.
      */
     void ApplyStyle(Style aWhichStyle, PRBool aUseGlobalAlpha = PR_TRUE);
-    
+
     // Member vars
     PRInt32 mWidth, mHeight;
     PRPackedBool mValid;
@@ -388,24 +388,6 @@ protected:
     static const PRUint32 kCanvasMaxInvalidateCount = 100;
 
     /**
-     * Returns true iff the the given operator should affect areas of the
-     * destination where the source is transparent. Among other things, this
-     * implies that a fully transparent source would still affect the canvas.
-     */
-    PRBool OperatorAffectsUncoveredAreas(gfxContext::GraphicsOperator op) const
-    {
-        return PR_FALSE;
-        // XXX certain operators cause 2d.composite.uncovered.* tests to fail
-#if 0
-        return op == gfxContext::OPERATOR_IN ||
-               op == gfxContext::OPERATOR_OUT ||
-               op == gfxContext::OPERATOR_DEST_IN ||
-               op == gfxContext::OPERATOR_DEST_ATOP ||
-               op == gfxContext::OPERATOR_SOURCE;
-#endif
-    }
-
-    /**
      * Returns true iff a shadow should be drawn along with a
      * drawing operation.
      */
@@ -413,34 +395,28 @@ protected:
     {
         ContextState& state = CurrentState();
 
-        // special case the default values as a "don't draw shadows" mode
-        PRBool doDraw = state.colorStyles[STYLE_SHADOW] != 0 ||
-                        state.shadowOffset.x != 0 ||
-                        state.shadowOffset.y != 0;
-        PRBool isColor = CurrentState().StyleIsColor(STYLE_SHADOW);
-
-        // if not using one of the cooky operators, can avoid drawing a shadow
-        // if the color is fully transparent
-        return (doDraw || !isColor) && (!isColor ||
-               NS_GET_A(state.colorStyles[STYLE_SHADOW]) != 0 ||
-               OperatorAffectsUncoveredAreas(mThebes->CurrentOperator()));
+        // The spec says we should not draw shadows when the alpha value is 0,
+        // regardless of the operator being used.
+        return state.StyleIsColor(STYLE_SHADOW) &&
+               NS_GET_A(state.colorStyles[STYLE_SHADOW]) > 0 &&
+               (state.shadowOffset != gfxPoint(0, 0) || state.shadowBlur != 0);
     }
 
     /**
-     * Checks the current state to determine if an intermediate surface would
-     * be necessary to complete a drawing operation. Does not check the
-     * condition pertaining to global alpha and patterns since that does not
-     * pertain to all drawing operations.
+     * If the current operator is "source" then clear the destination before we
+     * draw into it, to simulate the effect of an unbounded source operator.
      */
-    PRBool NeedToUseIntermediateSurface()
+    void ClearSurfaceForUnboundedSource()
     {
-        // certain operators always need an intermediate surface, except
-        // with quartz since quartz does compositing differently than cairo
-        return mThebes->OriginalSurface()->GetType() != gfxASurface::SurfaceTypeQuartz &&
-               OperatorAffectsUncoveredAreas(mThebes->CurrentOperator());
-
-        // XXX there are other unhandled cases but they should be investigated
-        // first to ensure we aren't using an intermediate surface unecessarily
+        gfxContext::GraphicsOperator current = mThebes->CurrentOperator();
+        if (current != gfxContext::OPERATOR_SOURCE)
+            return;
+        mThebes->SetOperator(gfxContext::OPERATOR_CLEAR);
+        // It doesn't really matter what the source is here, since Paint
+        // isn't bounded by the source and the mask covers the entire clip
+        // region.
+        mThebes->Paint();
+        mThebes->SetOperator(current);
     }
 
     /**
@@ -488,14 +464,17 @@ protected:
      * Gets the pres shell from either the canvas element or the doc shell
      */
     nsIPresShell *GetPresShell() {
-      nsIPresShell *presShell = nsnull;
       nsCOMPtr<nsIContent> content = do_QueryInterface(mCanvasElement);
       if (content) {
-          presShell = content->GetOwnerDoc()->GetPrimaryShell();
-      } else if (mDocShell) {
-          mDocShell->GetPresShell(&presShell);
+        nsIDocument* ownerDoc = content->GetOwnerDoc();
+        return ownerDoc ? ownerDoc->GetPrimaryShell() : nsnull;
       }
-      return presShell;
+      if (mDocShell) {
+        nsCOMPtr<nsIPresShell> shell;
+        mDocShell->GetPresShell(getter_AddRefs(shell));
+        return shell.get();
+      }
+      return nsnull;
     }
 
     // text
@@ -534,7 +513,7 @@ protected:
                                float maxWidth,
                                TextDrawOperation op,
                                float* aWidth);
- 
+
     // style handling
     /*
      * The previous set style. Is equal to STYLE_MAX when there is no valid
@@ -547,7 +526,7 @@ protected:
     class ContextState {
     public:
         ContextState() : shadowOffset(0.0, 0.0),
-                         globalAlpha(1.0),             
+                         globalAlpha(1.0),
                          shadowBlur(0.0),
                          textAlign(TEXT_ALIGN_START),
                          textBaseline(TEXT_BASELINE_ALPHABETIC),
@@ -617,14 +596,6 @@ protected:
     inline ContextState& CurrentState() {
         return mStyleStack[mSaveCount];
     }
-
-    // stolen from nsJSUtils
-    static PRBool ConvertJSValToUint32(PRUint32* aProp, JSContext* aContext,
-                                       jsval aValue);
-    static PRBool ConvertJSValToXPCObject(nsISupports** aSupports, REFNSIID aIID,
-                                          JSContext* aContext, jsval aValue);
-    static PRBool ConvertJSValToDouble(double* aProp, JSContext* aContext,
-                                       jsval aValue);
 
     // other helpers
     void GetAppUnitsValues(PRUint32 *perDevPixel, PRUint32 *perCSSPixel) {
@@ -902,7 +873,7 @@ nsCanvasRenderingContext2D::InitializeWithSurface(nsIDocShell *docShell, gfxASur
     mHeight = height;
 
     mSurface = surface;
-    mThebes = new gfxContext(mSurface);
+    mThebes = surface ? new gfxContext(mSurface) : nsnull;
 
     /* Create dummy surfaces here */
     if (mSurface == nsnull || mSurface->CairoStatus() != 0 ||
@@ -944,6 +915,10 @@ nsCanvasRenderingContext2D::InitializeWithSurface(nsIDocShell *docShell, gfxASur
 
     mThebes->NewPath();
 
+    // always force a redraw, because if the surface dimensions were reset
+    // then the surface became cleared, and we need to redraw everything.
+    Redraw();
+
     return NS_OK;
 }
 
@@ -964,7 +939,7 @@ nsCanvasRenderingContext2D::SetIsOpaque(PRBool isOpaque)
 
     return NS_OK;
 }
- 
+
 NS_IMETHODIMP
 nsCanvasRenderingContext2D::Render(gfxContext *ctx, gfxPattern::GraphicsFilter aFilter)
 {
@@ -1329,8 +1304,11 @@ nsCanvasRenderingContext2D::CreatePattern(nsIDOMHTMLElement *image,
         return NS_ERROR_DOM_SYNTAX_ERR;
     }
 
+    // The canvas spec says that createPattern should use the first frame
+    // of animated images
     nsLayoutUtils::SurfaceFromElementResult res =
-        nsLayoutUtils::SurfaceFromElement(image, nsLayoutUtils::SFE_WANT_NEW_SURFACE);
+        nsLayoutUtils::SurfaceFromElement(image, nsLayoutUtils::SFE_WANT_FIRST_FRAME |
+                                                 nsLayoutUtils::SFE_WANT_NEW_SURFACE);
     if (!res.mSurface)
         return NS_ERROR_NOT_AVAILABLE;
 
@@ -1502,12 +1480,14 @@ nsCanvasRenderingContext2D::DrawPath(Style style, gfxRect *dirtyRect)
     /*
      * Need an intermediate surface when:
      * - globalAlpha != 1 and gradients/patterns are used (need to paint_with_alpha)
-     * - certain operators are used and are not on mac (quartz/cairo composite operators don't quite line up)
+     * - certain operators are used
      */
-    PRBool doUseIntermediateSurface = NeedToUseIntermediateSurface() ||
-                                      NeedIntermediateSurfaceToHandleGlobalAlpha(style);
+    PRBool doUseIntermediateSurface = NeedIntermediateSurfaceToHandleGlobalAlpha(style);
 
     PRBool doDrawShadow = NeedToDrawShadow();
+
+    // Clear the surface if we need to simulate unbounded SOURCE operator
+    ClearSurfaceForUnboundedSource();
 
     if (doDrawShadow) {
         gfxMatrix matrix = mThebes->CurrentMatrix();
@@ -1880,6 +1860,8 @@ CreateFontStyleRule(const nsAString& aFont,
     if (NS_FAILED(rv))
         return rv;
 
+    rule->RuleMatched();
+
     rule.forget(aResult);
     return NS_OK;
 }
@@ -1928,7 +1910,7 @@ nsCanvasRenderingContext2D::SetFont(const nsAString& font)
 
     if (content && content->IsInDoc()) {
         // inherit from the canvas element
-        parentContext = nsInspectorCSSUtils::GetStyleContextForContent(
+        parentContext = nsComputedDOMStyle::GetStyleContextForContent(
                 content,
                 nsnull,
                 presShell);
@@ -1943,13 +1925,19 @@ nsCanvasRenderingContext2D::SetFont(const nsAString& font)
             return rv;
         nsCOMArray<nsIStyleRule> parentRules;
         parentRules.AppendObject(parentRule);
-        parentContext = styleSet->ResolveStyleForRules(nsnull, parentRules);
+        parentContext =
+            styleSet->ResolveStyleForRules(nsnull, nsnull,
+                                           nsCSSPseudoElements::ePseudo_NotPseudoElement,
+                                           nsnull, parentRules);
     }
 
     if (!parentContext)
         return NS_ERROR_FAILURE;
 
-    nsRefPtr<nsStyleContext> sc = styleSet->ResolveStyleForRules(parentContext, rules);
+    nsRefPtr<nsStyleContext> sc =
+        styleSet->ResolveStyleForRules(parentContext, nsnull,
+                                       nsCSSPseudoElements::ePseudo_NotPseudoElement,
+                                       nsnull, rules);
     if (!sc)
         return NS_ERROR_FAILURE;
     const nsStyleFont* fontStyle = sc->GetStyleFont();
@@ -2031,7 +2019,7 @@ nsCanvasRenderingContext2D::GetTextAlign(nsAString& ta)
         ta.AssignLiteral("center");
         break;
     default:
-        NS_ASSERTION(0, "textAlign holds invalid value");
+        NS_ERROR("textAlign holds invalid value");
         return NS_ERROR_FAILURE;
     }
 
@@ -2056,7 +2044,7 @@ nsCanvasRenderingContext2D::SetTextBaseline(const nsAString& tb)
     // spec says to not throw error for invalid arg, but do it anyway
     else
         return NS_ERROR_INVALID_ARG;
-    
+
     return NS_OK;
 }
 
@@ -2084,7 +2072,7 @@ nsCanvasRenderingContext2D::GetTextBaseline(nsAString& tb)
         tb.AssignLiteral("bottom");
         break;
     default:
-        NS_ASSERTION(0, "textBaseline holds invalid value");
+        NS_ERROR("textBaseline holds invalid value");
         return NS_ERROR_FAILURE;
     }
 
@@ -2211,7 +2199,7 @@ struct NS_STACK_CLASS nsCanvasBidiProcessor : public nsBidiPresUtils::BidiProces
 
     // current font
     gfxFontGroup* mFontgrp;
-    
+
     // dev pixel conversion factor
     PRUint32 mAppUnitsPerDevPixel;
 
@@ -2271,9 +2259,9 @@ nsCanvasRenderingContext2D::DrawOrMeasureText(const nsAString& aRawText,
     if (content && content->IsInDoc()) {
         // try to find the closest context
         nsRefPtr<nsStyleContext> canvasStyle =
-            nsInspectorCSSUtils::GetStyleContextForContent(content,
-                                                           nsnull,
-                                                           presShell);
+            nsComputedDOMStyle::GetStyleContextForContent(content,
+                                                          nsnull,
+                                                          presShell);
         if (!canvasStyle)
             return NS_ERROR_FAILURE;
         isRTL = canvasStyle->GetStyleVisibility()->mDirection ==
@@ -2285,7 +2273,10 @@ nsCanvasRenderingContext2D::DrawOrMeasureText(const nsAString& aRawText,
     // don't need to take care of these with stroke since Stroke() does that
     PRBool doDrawShadow = aOp == TEXT_DRAW_OPERATION_FILL && NeedToDrawShadow();
     PRBool doUseIntermediateSurface = aOp == TEXT_DRAW_OPERATION_FILL &&
-        (NeedToUseIntermediateSurface() || NeedIntermediateSurfaceToHandleGlobalAlpha(STYLE_FILL));
+        NeedIntermediateSurfaceToHandleGlobalAlpha(STYLE_FILL);
+
+    // Clear the surface if we need to simulate unbounded SOURCE operator
+    ClearSurfaceForUnboundedSource();
 
     nsCanvasBidiProcessor processor;
 
@@ -2363,7 +2354,7 @@ nsCanvasRenderingContext2D::DrawOrMeasureText(const nsAString& aRawText,
         anchorY = -fontMetrics.emDescent;
         break;
     default:
-        NS_ASSERTION(0, "mTextBaseline holds invalid value");
+        NS_ERROR("mTextBaseline holds invalid value");
         return NS_ERROR_FAILURE;
     }
 
@@ -2532,7 +2523,7 @@ nsCanvasRenderingContext2D::MozDrawText(const nsAString& textToDraw)
 
     // Fill color is text color
     ApplyStyle(STYLE_FILL);
-    
+
     textRun->Draw(mThebes,
                   pt,
                   /* offset = */ 0,
@@ -2920,51 +2911,28 @@ bitblt(gfxImageSurface *s, int src_x, int src_y, int width, int height,
 //   -- render the region defined by (sx,sy,sw,wh) in image-local space into the region (dx,dy,dw,dh) on the canvas
 
 NS_IMETHODIMP
-nsCanvasRenderingContext2D::DrawImage()
+nsCanvasRenderingContext2D::DrawImage(nsIDOMElement *imgElt, float a1,
+                                      float a2, float a3, float a4, float a5,
+                                      float a6, float a7, float a8,
+                                      PRUint8 optional_argc)
 {
+    NS_ENSURE_ARG(imgElt);
+
     nsresult rv;
     gfxRect dirty;
 
-    nsAXPCNativeCallContext *ncc = nsnull;
-    rv = nsContentUtils::XPConnect()->
-        GetCurrentNativeCallContext(&ncc);
-    NS_ENSURE_SUCCESS(rv, rv);
-
-    if (!ncc)
-        return NS_ERROR_FAILURE;
-
-    JSContext *ctx = nsnull;
-
-    rv = ncc->GetJSContext(&ctx);
-    NS_ENSURE_SUCCESS(rv, rv);
-
-    PRUint32 argc;
-    jsval *argv = nsnull;
-
-    ncc->GetArgc(&argc);
-    ncc->GetArgvPtr(&argv);
-
-    // we always need at least an image and a dx,dy
-    if (argc < 3)
-        return NS_ERROR_INVALID_ARG;
-
-    JSAutoRequest ar(ctx);
-
     double sx,sy,sw,sh;
     double dx,dy,dw,dh;
-
-    nsCOMPtr<nsIDOMElement> imgElt;
-    if (!ConvertJSValToXPCObject(getter_AddRefs(imgElt),
-                                 NS_GET_IID(nsIDOMElement),
-                                 ctx, argv[0]))
-        return NS_ERROR_DOM_TYPE_MISMATCH_ERR;
 
     gfxMatrix matrix;
     nsRefPtr<gfxPattern> pattern;
     nsRefPtr<gfxPath> path;
 
+    // The canvas spec says that drawImage should draw the first frame
+    // of animated images
+    PRUint32 sfeFlags = nsLayoutUtils::SFE_WANT_FIRST_FRAME;
     nsLayoutUtils::SurfaceFromElementResult res =
-        nsLayoutUtils::SurfaceFromElement(imgElt);
+        nsLayoutUtils::SurfaceFromElement(imgElt, sfeFlags);
     if (!res.mSurface)
         return NS_ERROR_NOT_AVAILABLE;
 
@@ -2972,7 +2940,8 @@ nsCanvasRenderingContext2D::DrawImage()
     // On non-CE, force a copy if we're using drawImage with our destination
     // as a source to work around some Cairo self-copy semantics issues.
     if (res.mSurface == mSurface) {
-        res = nsLayoutUtils::SurfaceFromElement(imgElt, nsLayoutUtils::SFE_WANT_NEW_SURFACE);
+        sfeFlags |= nsLayoutUtils::SFE_WANT_NEW_SURFACE;
+        res = nsLayoutUtils::SurfaceFromElement(imgElt, sfeFlags);
         if (!res.mSurface)
             return NS_ERROR_NOT_AVAILABLE;
     }
@@ -2988,40 +2957,36 @@ nsCanvasRenderingContext2D::DrawImage()
 
     gfxContextPathAutoSaveRestore pathSR(mThebes, PR_FALSE);
 
-#define GET_ARG(dest,whicharg) \
-    do { if (!ConvertJSValToDouble(dest, ctx, whicharg)) { rv = NS_ERROR_INVALID_ARG; goto FINISH; } } while (0)
-
     rv = NS_OK;
 
-    if (argc == 3) {
-        GET_ARG(&dx, argv[1]);
-        GET_ARG(&dy, argv[2]);
+    if (optional_argc == 0) {
+        dx = a1;
+        dy = a2;
         sx = sy = 0.0;
         dw = sw = (double) imgSize.width;
         dh = sh = (double) imgSize.height;
-    } else if (argc == 5) {
-        GET_ARG(&dx, argv[1]);
-        GET_ARG(&dy, argv[2]);
-        GET_ARG(&dw, argv[3]);
-        GET_ARG(&dh, argv[4]);
+    } else if (optional_argc == 2) {
+        dx = a1;
+        dy = a2;
+        dw = a3;
+        dh = a4;
         sx = sy = 0.0;
         sw = (double) imgSize.width;
         sh = (double) imgSize.height;
-    } else if (argc == 9) {
-        GET_ARG(&sx, argv[1]);
-        GET_ARG(&sy, argv[2]);
-        GET_ARG(&sw, argv[3]);
-        GET_ARG(&sh, argv[4]);
-        GET_ARG(&dx, argv[5]);
-        GET_ARG(&dy, argv[6]);
-        GET_ARG(&dw, argv[7]);
-        GET_ARG(&dh, argv[8]);
+    } else if (optional_argc == 6) {
+        sx = a1;
+        sy = a2;
+        sw = a3;
+        sh = a4;
+        dx = a5;
+        dy = a6;
+        dw = a7;
+        dh = a8;
     } else {
         // XXX ERRMSG we need to report an error to developers here! (bug 329026)
         rv = NS_ERROR_INVALID_ARG;
         goto FINISH;
     }
-#undef GET_ARG
 
     if (dw == 0.0 || dh == 0.0) {
         rv = NS_OK;
@@ -3030,7 +2995,7 @@ nsCanvasRenderingContext2D::DrawImage()
         goto FINISH;
     }
 
-    if (!FloatValidate(sx,sy,sw,sh) || !FloatValidate(dx,dy,dw,dh)) {
+    if (!FloatValidate(sx, sy, sw, sh) || !FloatValidate(dx, dy, dw, dh)) {
         rv = NS_ERROR_DOM_SYNTAX_ERR;
         goto FINISH;
     }
@@ -3045,7 +3010,7 @@ nsCanvasRenderingContext2D::DrawImage()
         rv = NS_ERROR_DOM_INDEX_SIZE_ERR;
         goto FINISH;
     }
-    
+
     matrix.Translate(gfxPoint(sx, sy));
     matrix.Scale(sw/dw, sh/dh);
 #ifdef WINCE
@@ -3088,6 +3053,9 @@ nsCanvasRenderingContext2D::DrawImage()
 
     pathSR.Save();
 
+    // Clear the surface if we need to simulate unbounded SOURCE operator
+    ClearSurfaceForUnboundedSource();
+
     {
         gfxContextAutoSaveRestore autoSR(mThebes);
         mThebes->Translate(gfxPoint(dx, dy));
@@ -3111,23 +3079,10 @@ nsCanvasRenderingContext2D::DrawImage()
             }
         }
 
-        PRBool doUseIntermediateSurface = NeedToUseIntermediateSurface();
-
         mThebes->SetPattern(pattern);
         DirtyAllStyles();
 
-        if (doUseIntermediateSurface) {
-            // draw onto a pushed group
-            mThebes->PushGroup(gfxASurface::CONTENT_COLOR_ALPHA);
-            mThebes->Clip(clip);
-
-            // don't want operators to be applied twice
-            mThebes->SetOperator(gfxContext::OPERATOR_SOURCE);
-
-            mThebes->Paint();
-            mThebes->PopGroupToSource();
-        } else
-            mThebes->Clip(clip);
+        mThebes->Clip(clip);
 
         dirty = mThebes->UserToDevice(clip);
 
@@ -3216,61 +3171,6 @@ nsCanvasRenderingContext2D::GetGlobalCompositeOperation(nsAString& op)
 }
 
 
-//
-// Utils
-//
-PRBool
-nsCanvasRenderingContext2D::ConvertJSValToUint32(PRUint32* aProp, JSContext* aContext,
-                                                 jsval aValue)
-{
-  uint32 temp;
-  if (::JS_ValueToECMAUint32(aContext, aValue, &temp)) {
-    *aProp = (PRUint32)temp;
-  }
-  else {
-    ::JS_ReportError(aContext, "Parameter must be an integer");
-    return JS_FALSE;
-  }
-
-  return JS_TRUE;
-}
-
-PRBool
-nsCanvasRenderingContext2D::ConvertJSValToDouble(double* aProp, JSContext* aContext,
-                                                 jsval aValue)
-{
-  jsdouble temp;
-  if (::JS_ValueToNumber(aContext, aValue, &temp)) {
-    *aProp = (jsdouble)temp;
-  }
-  else {
-    ::JS_ReportError(aContext, "Parameter must be a number");
-    return JS_FALSE;
-  }
-
-  return JS_TRUE;
-}
-
-PRBool
-nsCanvasRenderingContext2D::ConvertJSValToXPCObject(nsISupports** aSupports, REFNSIID aIID,
-                                                    JSContext* aContext, jsval aValue)
-{
-  *aSupports = nsnull;
-  if (JSVAL_IS_NULL(aValue)) {
-    return JS_TRUE;
-  }
-
-  if (JSVAL_IS_OBJECT(aValue)) {
-    // WrapJS does all the work to recycle an existing wrapper and/or do a QI
-    nsresult rv = nsContentUtils::XPConnect()->
-      WrapJS(aContext, JSVAL_TO_OBJECT(aValue), aIID, (void**)aSupports);
-
-    return NS_SUCCEEDED(rv);
-  }
-
-  return JS_FALSE;
-}
-
 static void
 FlushLayoutForTree(nsIDOMWindow* aWindow)
 {
@@ -3307,7 +3207,7 @@ FlushLayoutForTree(nsIDOMWindow* aWindow)
 
 NS_IMETHODIMP
 nsCanvasRenderingContext2D::DrawWindow(nsIDOMWindow* aWindow, float aX, float aY,
-                                       float aW, float aH, 
+                                       float aW, float aH,
                                        const nsAString& aBGColor,
                                        PRUint32 flags)
 {
@@ -3389,6 +3289,15 @@ nsCanvasRenderingContext2D::DrawWindow(nsIDOMWindow* aWindow, float aX, float aY
 //
 // device pixel getting/setting
 //
+extern "C" {
+#include "jstypes.h"
+JS_FRIEND_API(JSBool)
+js_CoerceArrayToCanvasImageData(JSObject *obj, jsuint offset, jsuint count,
+                                JSUint8 *dest);
+JS_FRIEND_API(JSObject *)
+js_NewArrayObjectWithCapacity(JSContext *cx, jsuint capacity, jsval **vector);
+}
+
 
 // ImageData getImageData (in float x, in float y, in float width, in float height);
 NS_IMETHODIMP
@@ -3460,10 +3369,14 @@ nsCanvasRenderingContext2D::GetImageData()
     if (len > (((PRUint32)0xfff00000)/sizeof(jsval)))
         return NS_ERROR_INVALID_ARG;
 
-    nsAutoArrayPtr<jsval> jsvector(new (std::nothrow) jsval[w * h * 4]);
-    if (!jsvector)
+    jsval *dest;
+    JSObject *dataArray = js_NewArrayObjectWithCapacity(ctx, len, &dest);
+    if (!dataArray)
         return NS_ERROR_OUT_OF_MEMORY;
-    jsval *dest = jsvector.get();
+
+    nsAutoGCRoot arrayGCRoot(&dataArray, &rv);
+    NS_ENSURE_SUCCESS(rv, rv);
+
     PRUint8 *row;
     for (int j = 0; j < h; j++) {
         row = surfaceData + surfaceDataOffset + (surfaceDataStride * j);
@@ -3495,13 +3408,8 @@ nsCanvasRenderingContext2D::GetImageData()
         }
     }
 
-    JSObject *dataArray = JS_NewArrayObject(ctx, w*h*4, jsvector.get());
-    if (!dataArray)
-        return NS_ERROR_OUT_OF_MEMORY;
-
-    nsAutoGCRoot arrayGCRoot(&dataArray, &rv);
-    NS_ENSURE_SUCCESS(rv, rv);
-
+    // Allocate result object after array, so if we have to trigger gc
+    // we do it now.
     JSObject *result = JS_NewObject(ctx, NULL, NULL, NULL);
     if (!result)
         return NS_ERROR_OUT_OF_MEMORY;
@@ -3522,14 +3430,7 @@ nsCanvasRenderingContext2D::GetImageData()
     return NS_OK;
 }
 
-extern "C" {
-#include "jstypes.h"
-JS_FRIEND_API(JSBool)
-js_CoerceArrayToCanvasImageData(JSObject *obj, jsuint offset, jsuint count,
-                                JSUint8 *dest);
-}
-
-static inline PRUint8 ToUint8(PRInt32 aInput)
+static inline PRUint8 ToUint8(jsint aInput)
 {
     if (PRUint32(aInput) > 255)
         return (aInput < 0) ? 0 : 255;
@@ -3794,21 +3695,19 @@ nsCanvasRenderingContext2D::CreateImageData()
     if (len / 4 != len0)
         return NS_ERROR_DOM_INDEX_SIZE_ERR;
 
-    nsAutoArrayPtr<jsval> jsvector(new (std::nothrow) jsval[w * h * 4]);
-    if (!jsvector)
-        return NS_ERROR_OUT_OF_MEMORY;
-
-    jsval *dest = jsvector.get();
-    for (PRUint32 i = 0; i < len; i++)
-        *dest++ = JSVAL_ZERO;
-
-    JSObject *dataArray = JS_NewArrayObject(ctx, w*h*4, jsvector.get());
+    jsval *dest;
+    JSObject *dataArray = js_NewArrayObjectWithCapacity(ctx, len, &dest);
     if (!dataArray)
         return NS_ERROR_OUT_OF_MEMORY;
 
     nsAutoGCRoot arrayGCRoot(&dataArray, &rv);
     NS_ENSURE_SUCCESS(rv, rv);
 
+    for (PRUint32 i = 0; i < len; i++)
+        *dest++ = JSVAL_ZERO;
+
+    // Allocate result object after array, so if we have to trigger gc
+    // we do it now.
     JSObject *result = JS_NewObject(ctx, NULL, NULL, NULL);
     if (!result)
         return NS_ERROR_OUT_OF_MEMORY;

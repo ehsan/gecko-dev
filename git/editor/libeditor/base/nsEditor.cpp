@@ -112,6 +112,8 @@
 #include "nsIHTMLDocument.h"
 #include "nsIParserService.h"
 
+#include "nsITransferable.h"
+
 #define NS_ERROR_EDITOR_NO_SELECTION NS_ERROR_GENERATE_FAILURE(NS_ERROR_MODULE_EDITOR,1)
 #define NS_ERROR_EDITOR_NO_TEXTNODE  NS_ERROR_GENERATE_FAILURE(NS_ERROR_MODULE_EDITOR,2)
 
@@ -1259,7 +1261,19 @@ nsEditor::Paste(PRInt32 aSelectionType)
 }
 
 NS_IMETHODIMP
+nsEditor::PasteTransferable(nsITransferable *aTransferable)
+{
+  return NS_ERROR_NOT_IMPLEMENTED; 
+}
+
+NS_IMETHODIMP
 nsEditor::CanPaste(PRInt32 aSelectionType, PRBool *aCanPaste)
+{
+  return NS_ERROR_NOT_IMPLEMENTED; 
+}
+
+NS_IMETHODIMP
+nsEditor::CanPasteTransferable(nsITransferable *aTransferable, PRBool *aCanPaste)
 {
   return NS_ERROR_NOT_IMPLEMENTED; 
 }
@@ -1982,7 +1996,7 @@ nsEditor::StopPreservingSelection()
 //
 // The BeingComposition method is called from the Editor Composition event listeners.
 //
-NS_IMETHODIMP
+nsresult
 nsEditor::QueryComposition(nsTextEventReply* aReply)
 {
   nsresult result;
@@ -2120,9 +2134,9 @@ nsEditor::GetPhonetic(nsAString& aPhonetic)
 
 
 static nsresult
-GetEditorContentWindow(nsIPresShell *aPresShell, nsIDOMElement *aRoot, nsIWidget **aResult)
+GetEditorContentWindow(nsIDOMElement *aRoot, nsIWidget **aResult)
 {
-  if (!aPresShell || !aRoot || !aResult)
+  if (!aRoot || !aResult)
     return NS_ERROR_NULL_POINTER;
 
   *aResult = 0;
@@ -2133,7 +2147,7 @@ GetEditorContentWindow(nsIPresShell *aPresShell, nsIDOMElement *aRoot, nsIWidget
     return NS_ERROR_FAILURE;
 
   // Not ref counted
-  nsIFrame *frame = aPresShell->GetPrimaryFrameFor(content);
+  nsIFrame *frame = content->GetPrimaryFrame();
 
   if (!frame)
     return NS_ERROR_FAILURE;
@@ -2152,17 +2166,9 @@ nsEditor::GetWidget(nsIWidget **aWidget)
   if (!aWidget)
     return NS_ERROR_NULL_POINTER;
   *aWidget = nsnull;
-  nsCOMPtr<nsIPresShell> shell;
-  nsresult res = GetPresShell(getter_AddRefs(shell));
-
-  if (NS_FAILED(res))
-    return res;
-
-  if (!shell)
-    return NS_ERROR_FAILURE;
 
   nsCOMPtr<nsIWidget> widget;
-  res = GetEditorContentWindow(shell, GetRoot(), getter_AddRefs(widget));
+  nsresult res = GetEditorContentWindow(GetRoot(), getter_AddRefs(widget));
   if (NS_FAILED(res))
     return res;
   if (!widget)
@@ -2222,14 +2228,10 @@ nsEditor::GetPreferredIMEState(PRUint32 *aState)
     return NS_OK;
   }
 
-  nsCOMPtr<nsIPresShell> presShell;
-  rv = GetPresShell(getter_AddRefs(presShell));
-  NS_ENSURE_SUCCESS(rv, rv);
-
   nsCOMPtr<nsIContent> content = do_QueryInterface(GetRoot());
   NS_ENSURE_TRUE(content, NS_ERROR_FAILURE);
 
-  nsIFrame* frame = presShell->GetPrimaryFrameFor(content);
+  nsIFrame* frame = content->GetPrimaryFrame();
   NS_ENSURE_TRUE(frame, NS_ERROR_FAILURE);
 
   switch (frame->GetStyleUIReset()->mIMEMode) {
@@ -2321,25 +2323,36 @@ nsEditor::GetRootElement(nsIDOMElement **aRootElement)
     return NS_OK;
   }
 
-  *aRootElement = 0;
+  *aRootElement = nsnull;
 
   NS_PRECONDITION(mDocWeak, "bad state, null mDocWeak");
-  nsCOMPtr<nsIDOMHTMLDocument> doc = do_QueryReferent(mDocWeak);
-  if (!doc) return NS_ERROR_NOT_INITIALIZED;
+  nsCOMPtr<nsIDOMHTMLDocument> htmlDoc = do_QueryReferent(mDocWeak);
+  if (!htmlDoc) {
+    return NS_ERROR_NOT_INITIALIZED;
+  }
 
-  // Use the documents body element as the editor root if we didn't
+  // Use the HTML documents body element as the editor root if we didn't
   // get a root element during initialization.
 
   nsCOMPtr<nsIDOMHTMLElement> bodyElement; 
-  nsresult result = doc->GetBody(getter_AddRefs(bodyElement));
-  if (NS_FAILED(result))
-    return result;
+  nsresult rv = htmlDoc->GetBody(getter_AddRefs(bodyElement));
+  if (NS_SUCCEEDED(rv) && bodyElement)
+  {
+    mRootElement = bodyElement;
+  }
+  else
+  {
+    // If the document isn't HTML's or there is no HTML body element,
+    // we should use the document root element instead.
+    nsCOMPtr<nsIDOMDocument> doc = do_QueryReferent(mDocWeak);
+    NS_ENSURE_TRUE(doc, NS_ERROR_NOT_INITIALIZED);
 
-  if (!bodyElement)
-    return NS_ERROR_NULL_POINTER;
+    rv = doc->GetDocumentElement(getter_AddRefs(mRootElement));
+    NS_ENSURE_SUCCESS(rv, rv);
+    NS_ENSURE_TRUE(mRootElement, NS_ERROR_NULL_POINTER);
+  }
 
-  mRootElement = bodyElement;
-  *aRootElement = bodyElement;
+  *aRootElement = mRootElement;
   NS_ADDREF(*aRootElement);
 
   return NS_OK;
@@ -2600,15 +2613,17 @@ NS_IMETHODIMP nsEditor::InsertTextImpl(const nsAString& aStringToInsert,
 }
 
 
-NS_IMETHODIMP nsEditor::InsertTextIntoTextNodeImpl(const nsAString& aStringToInsert, 
-                                                     nsIDOMCharacterData *aTextNode, 
-                                                     PRInt32 aOffset, PRBool suppressIME)
+nsresult nsEditor::InsertTextIntoTextNodeImpl(const nsAString& aStringToInsert, 
+                                              nsIDOMCharacterData *aTextNode, 
+                                              PRInt32 aOffset,
+                                              PRBool aSuppressIME)
 {
   nsRefPtr<EditTxn> txn;
   nsresult result = NS_OK;
-  // suppressIME s used when editor must insert text, yet this text is not
+  PRBool isIMETransaction = PR_FALSE;
+  // aSuppressIME is used when editor must insert text, yet this text is not
   // part of current ime operation.  example: adjusting whitespace around an ime insertion.
-  if (mIMETextRangeList && mInIMEMode && !suppressIME)
+  if (mIMETextRangeList && mInIMEMode && !aSuppressIME)
   {
     if (!mIMETextNode)
     {
@@ -2656,6 +2671,7 @@ NS_IMETHODIMP nsEditor::InsertTextIntoTextNodeImpl(const nsAString& aStringToIns
     nsRefPtr<IMETextTxn> imeTxn;
     result = CreateTxnForIMEText(aStringToInsert, getter_AddRefs(imeTxn));
     txn = imeTxn;
+    isIMETransaction = PR_TRUE;
   }
   else
   {
@@ -2692,7 +2708,7 @@ NS_IMETHODIMP nsEditor::InsertTextIntoTextNodeImpl(const nsAString& aStringToIns
   // savvy to having multiple ime txns inside them.
   
   // delete empty ime text node if there is one
-  if (mInIMEMode && mIMETextNode)
+  if (isIMETransaction)
   {
     PRUint32 len;
     mIMETextNode->GetLength(&len);
@@ -3796,9 +3812,6 @@ PRBool
 nsEditor::IsEditable(nsIDOMNode *aNode)
 {
   if (!aNode) return PR_FALSE;
-  nsCOMPtr<nsIPresShell> shell;
-  GetPresShell(getter_AddRefs(shell));
-  if (!shell)  return PR_FALSE;
 
   if (IsMozEditorBogusNode(aNode) || !IsModifiableNode(aNode)) return PR_FALSE;
 
@@ -3807,7 +3820,7 @@ nsEditor::IsEditable(nsIDOMNode *aNode)
   nsCOMPtr<nsIContent> content = do_QueryInterface(aNode);
   if (content)
   {
-    nsIFrame *resultFrame = shell->GetPrimaryFrameFor(content);
+    nsIFrame *resultFrame = content->GetPrimaryFrame();
     if (!resultFrame)   // if it has no frame, it is not editable
       return PR_FALSE;
     NS_ASSERTION(content->IsNodeOfType(nsINode::eTEXT) ||
@@ -3815,17 +3828,22 @@ nsEditor::IsEditable(nsIDOMNode *aNode)
                  "frame for non element-or-text?");
     if (!content->IsNodeOfType(nsINode::eTEXT))
       return PR_TRUE;  // not a text node; has a frame
-    if (resultFrame->GetStateBits() & NS_FRAME_IS_DIRTY) // we can only trust width data for undirty frames
-    {
-      // In the past a comment said:
-      //   "assume all text nodes with dirty frames are editable"
-      // Nowadays we use a virtual function, that assumes TRUE
-      // in the simple editor world,
-      // and uses enhanced logic to find out in the HTML world.
-      return IsTextInDirtyFrameVisible(aNode);
+
+    // test the textframe and all its non-fluid continuations
+    while (resultFrame) {
+      if (resultFrame->GetStateBits() & NS_FRAME_IS_DIRTY) // we can only trust width data for undirty frames
+      {
+        // In the past a comment said:
+        //   "assume all text nodes with dirty frames are editable"
+        // Nowadays we use a virtual function, that assumes TRUE
+        // in the simple editor world,
+        // and uses enhanced logic to find out in the HTML world.
+        return IsTextInDirtyFrameVisible(aNode);
+      }
+      if (resultFrame->GetSize().width > 0) 
+        return PR_TRUE;  // text node has width
+      resultFrame = resultFrame->GetNextContinuation();
     }
-    if (resultFrame->GetSize().width > 0) 
-      return PR_TRUE;  // text node has width
   }
   return PR_FALSE;  // didn't pass any editability test
 }
@@ -4024,12 +4042,16 @@ nsEditor::IsTextNode(nsIDOMNode *aNode)
 PRInt32 
 nsEditor::GetIndexOf(nsIDOMNode *parent, nsIDOMNode *child)
 {
-  nsCOMPtr<nsIContent> content = do_QueryInterface(parent);
+  nsCOMPtr<nsINode> parentNode = do_QueryInterface(parent);
+  NS_PRECONDITION(parentNode, "null parentNode in nsEditor::GetIndexOf");
+  NS_PRECONDITION(parentNode->IsNodeOfType(nsINode::eCONTENT) ||
+                    parentNode->IsNodeOfType(nsINode::eDOCUMENT),
+                  "The parent node must be an element node or a document node");
+
   nsCOMPtr<nsIContent> cChild = do_QueryInterface(child);
-  NS_PRECONDITION(content, "null content in nsEditor::GetIndexOf");
   NS_PRECONDITION(cChild, "null content in nsEditor::GetIndexOf");
 
-  return content->IndexOf(cChild);
+  return parentNode->IndexOf(cChild);
 }
   
 
@@ -4140,7 +4162,7 @@ nsEditor::IsPreformatted(nsIDOMNode *aNode, PRBool *aResult)
   nsCOMPtr<nsIPresShell> ps = do_QueryReferent(mPresShellWeak);
   if (!ps) return NS_ERROR_NOT_INITIALIZED;
   
-  nsIFrame *frame = ps->GetPrimaryFrameFor(content);
+  nsIFrame *frame = content->GetPrimaryFrame();
 
   NS_ASSERTION(frame, "no frame, see bug #188946");
   if (!frame)
@@ -5291,12 +5313,7 @@ nsEditor::SwitchTextDirection()
   if (NS_FAILED(rv))
     return rv;
 
-  nsCOMPtr<nsIPresShell> presShell;
-  rv = GetPresShell(getter_AddRefs(presShell));
-  if (NS_FAILED(rv))
-    return rv;  
-
-  nsIFrame *frame = presShell->GetPrimaryFrameFor(content);
+  nsIFrame *frame = content->GetPrimaryFrame();
   if (!frame)
     return NS_ERROR_FAILURE; 
 

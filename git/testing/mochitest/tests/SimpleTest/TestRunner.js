@@ -20,11 +20,12 @@ TestRunner.maxTimeouts = 4; // halt testing after too many timeouts
 **/
 TestRunner._numTimeouts = 0;
 TestRunner._currentTestStartTime = new Date().valueOf();
+TestRunner._timeoutFactor = 1;
 
 TestRunner._checkForHangs = function() {
   if (TestRunner._currentTest < TestRunner._urls.length) {
     var runtime = new Date().valueOf() - TestRunner._currentTestStartTime;
-    if (runtime >= TestRunner.timeout) {
+    if (runtime >= TestRunner.timeout * TestRunner._timeoutFactor) {
       var frameWindow = $('testframe').contentWindow.wrappedJSObject ||
                           $('testframe').contentWindow;
       frameWindow.SimpleTest.ok(false, "Test timed out.");
@@ -48,6 +49,10 @@ TestRunner._checkForHangs = function() {
 
     TestRunner.deferred = callLater(30, TestRunner._checkForHangs);
   }
+}
+
+TestRunner.requestLongerTimeout = function(factor) {
+    TestRunner._timeoutFactor = factor;
 }
 
 /**
@@ -134,6 +139,7 @@ TestRunner.runNextTest = function() {
         $("current-test-path").innerHTML = url;
 
         TestRunner._currentTestStartTime = new Date().valueOf();
+        TestRunner._timeoutFactor = 1;
 
         if (TestRunner.logEnabled)
             TestRunner.logger.log("Running " + url + "...");
@@ -201,7 +207,9 @@ TestRunner.countResults = function(doc) {
 }
 
 TestRunner.updateUI = function() {
-  var results = TestRunner.countResults($('testframe').contentDocument);
+  var testFrame = $('testframe');
+  var results = TestRunner.countResults(testFrame.contentDocument ||
+                                        testFrame.contentWindow.document);
   var passCount = parseInt($("pass-count").innerHTML) + results.OK;
   var failCount = parseInt($("fail-count").innerHTML) + results.notOK;
   var todoCount = parseInt($("todo-count").innerHTML) + results.todo;
@@ -227,9 +235,9 @@ TestRunner.updateUI = function() {
   var row = $(trID);
   var tds = row.getElementsByTagName("td");
   tds[0].style.backgroundColor = "#0d0";
-  tds[0].textContent = results.OK;
+  tds[0].innerHTML = results.OK;
   tds[1].style.backgroundColor = results.notOK > 0 ? "red" : "#0d0";
-  tds[1].textContent = results.notOK;
+  tds[1].innerHTML = results.notOK;
   tds[2].style.backgroundColor = results.todo > 0 ? "orange" : "#0d0";
-  tds[2].textContent = results.todo;
+  tds[2].innerHTML = results.todo;
 }

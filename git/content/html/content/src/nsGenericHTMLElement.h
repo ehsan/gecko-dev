@@ -62,6 +62,7 @@ class nsILayoutHistoryState;
 class nsIEditor;
 struct nsRect;
 struct nsSize;
+class nsHTMLFormElement;
 
 typedef nsMappedAttributeElement nsGenericHTMLElementBase;
 
@@ -74,12 +75,14 @@ public:
   nsGenericHTMLElement(nsINodeInfo *aNodeInfo)
     : nsGenericHTMLElementBase(aNodeInfo)
   {
+    NS_ASSERTION(aNodeInfo->NamespaceID() == kNameSpaceID_XHTML,
+                 "Unexpected namespace");
   }
 
   /** Typesafe, non-refcounting cast from nsIContent.  Cheaper than QI. **/
   static nsGenericHTMLElement* FromContent(nsIContent *aContent)
   {
-    if (aContent->IsNodeOfType(eHTML))
+    if (aContent->IsHTML())
       return static_cast<nsGenericHTMLElement*>(aContent);
     return nsnull;
   }
@@ -140,7 +143,7 @@ public:
   nsresult GetOffsetParent(nsIDOMElement** aOffsetParent);
   virtual nsresult GetInnerHTML(nsAString& aInnerHTML);
   virtual nsresult SetInnerHTML(const nsAString& aInnerHTML);
-  nsresult ScrollIntoView(PRBool aTop);
+  nsresult ScrollIntoView(PRBool aTop, PRUint8 optional_argc);
   // Declare Focus(), Blur(), GetTabIndex(), SetTabIndex(), GetSpellcheck(),
   // SetSpellcheck(), and GetDraggable() such that classes that inherit interfaces
   // with those methods properly override them
@@ -205,10 +208,6 @@ public:
 
   // HTML element methods
   void Compact() { mAttrsAndChildren.Compact(); }
-  const nsAttrValue* GetParsedAttr(nsIAtom* aAttr) const
-  {
-    return mAttrsAndChildren.GetAttr(aAttr);
-  }
 
   virtual void UpdateEditableState();
 
@@ -233,21 +232,13 @@ public:
   void GetBaseTarget(nsAString& aBaseTarget) const;
 
   /**
-   * Get the primary form control frame for this content (see
-   * GetFormControlFrameFor)
+   * Get the primary form control frame for this element.  Same as
+   * GetPrimaryFrame(), except it QI's to nsIFormControlFrame.
    *
-   * @param aFlushContent whether to flush the content sink
-   * @return the primary form control frame (or null)
+   * @param aFlush whether to flush out frames so that they're up to date.
+   * @return the primary frame as nsIFormControlFrame
    */
-  nsIFormControlFrame* GetFormControlFrame(PRBool aFlushContent)
-  {
-    nsIDocument* doc = GetCurrentDoc();
-    if (!doc) {
-      return nsnull;
-    }
-
-    return GetFormControlFrameFor(this, doc, aFlushContent);
-  }
+  nsIFormControlFrame* GetFormControlFrame(PRBool aFlushFrames);
 
   //----------------------------------------
 
@@ -446,19 +437,6 @@ public:
   static void MapScrollingAttributeInto(const nsMappedAttributes* aAttributes,
                                         nsRuleData* aData);
   /**
-   * Get the primary form control frame for a piece of content.  Same as
-   * GetPrimaryFrameFor, except it QI's to nsIFormControlFrame.
-   *
-   * @param aContent the content to get the primary frame for
-   * @param aDocument the document for this content
-   * @param aFlushContent whether to flush the content sink, which creates
-   *        frames for content that do not already have it.  EXPENSIVE.
-   * @return the primary frame as nsIFormControlFrame
-   */
-  static nsIFormControlFrame* GetFormControlFrameFor(nsIContent* aContent,
-                                                     nsIDocument* aDocument,
-                                                     PRBool aFlushContent);
-  /**
    * Get the presentation state for a piece of content, or create it if it does
    * not exist.  Generally used by SaveState().
    *
@@ -508,7 +486,7 @@ public:
    *        returned.  This is needed to handle cases when HTML elements have a
    *        current form that they're not descendants of.
    */
-  already_AddRefed<nsIDOMHTMLFormElement> FindForm(nsIForm* aCurrentForm = nsnull);
+  nsHTMLFormElement* FindForm(nsHTMLFormElement* aCurrentForm = nsnull);
 
   virtual void RecompileScriptEventListeners();
 
@@ -857,7 +835,7 @@ protected:
   FocusTristate FocusState();
 
   /** The form that contains this control */
-  nsIForm* mForm;
+  nsHTMLFormElement* mForm;
 };
 
 // If this flag is set on an nsGenericHTMLFormElement, that means that we have
@@ -918,6 +896,8 @@ public:
                            PRBool aNotify);
   virtual void DestroyContent();
 
+  nsresult CopyInnerTo(nsGenericElement* aDest) const;
+
   // nsIDOMNSHTMLElement 
   NS_IMETHOD GetTabIndex(PRInt32 *aTabIndex);
   NS_IMETHOD SetTabIndex(PRInt32 aTabIndex);
@@ -932,7 +912,7 @@ protected:
   nsresult LoadSrc();
   nsresult GetContentDocument(nsIDOMDocument** aContentDocument);
 
-  nsCOMPtr<nsIFrameLoader> mFrameLoader;
+  nsRefPtr<nsFrameLoader> mFrameLoader;
 };
 
 //----------------------------------------------------------------------

@@ -42,18 +42,18 @@
 
 class nsLegendFrame : public nsBlockFrame {
 public:
-  NS_DECLARE_FRAME_ACCESSOR(nsLegendFrame)
+  NS_DECL_QUERYFRAME_TARGET(nsLegendFrame)
+  NS_DECL_QUERYFRAME
+  NS_DECL_FRAMEARENA_HELPERS
 
   nsLegendFrame(nsStyleContext* aContext) : nsBlockFrame(aContext) {}
-
-  NS_DECL_QUERYFRAME
 
   NS_IMETHOD Reflow(nsPresContext*           aPresContext,
                     nsHTMLReflowMetrics&     aDesiredSize,
                     const nsHTMLReflowState& aReflowState,
                     nsReflowStatus&          aStatus);
 
-  virtual void Destroy();
+  virtual void DestroyFrom(nsIFrame* aDestructRoot);
 
   virtual nsIAtom* GetType() const;
 

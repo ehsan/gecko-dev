@@ -64,9 +64,9 @@ class nsListBoxBodyFrame : public nsBoxFrame,
   virtual ~nsListBoxBodyFrame();
 
 public:
-  NS_DECLARE_FRAME_ACCESSOR(nsListBoxBodyFrame)
-
+  NS_DECL_QUERYFRAME_TARGET(nsListBoxBodyFrame)
   NS_DECL_QUERYFRAME
+  NS_DECL_FRAMEARENA_HELPERS
 
   // non-virtual nsIListBoxObject
   nsresult GetRowCount(PRInt32 *aResult);
@@ -85,7 +85,7 @@ public:
   NS_IMETHOD Init(nsIContent*     aContent,
                   nsIFrame*       aParent, 
                   nsIFrame*       aPrevInFlow);
-  virtual void Destroy();
+  virtual void DestroyFrom(nsIFrame* aDestructRoot);
 
   NS_IMETHOD AttributeChanged(PRInt32 aNameSpaceID, nsIAtom* aAttribute, PRInt32 aModType);
 
@@ -139,7 +139,8 @@ public:
   NS_IMETHOD ListBoxAppendFrames(nsFrameList& aFrameList);
   NS_IMETHOD ListBoxInsertFrames(nsIFrame* aPrevFrame, nsFrameList& aFrameList);
   void OnContentInserted(nsPresContext* aPresContext, nsIContent* aContent);
-  void OnContentRemoved(nsPresContext* aPresContext,  nsIFrame* aChildFrame, PRInt32 aIndex);
+  void OnContentRemoved(nsPresContext* aPresContext,  nsIContent* aContainer,
+                        nsIFrame* aChildFrame, PRInt32 aIndex);
 
   void GetListItemContentAt(PRInt32 aIndex, nsIContent** aContent);
   void GetListItemNextSibling(nsIContent* aListItem, nsIContent** aContent, PRInt32& aSiblingIndex);

@@ -43,6 +43,10 @@
 
 #import <Cocoa/Cocoa.h>
 
+#if defined(MAC_OS_X_VERSION_10_5) && (MAC_OS_X_VERSION_MIN_REQUIRED >= MAC_OS_X_VERSION_10_5)
+#define NS_LEOPARD_AND_LATER 1
+#endif
+
 #include "nsRect.h"
 #include "nsObjCExceptions.h"
 
@@ -68,6 +72,14 @@ typedef unsigned int NSUInteger;
 #define NSINTEGER_DEFINED 1
 
 #endif  /* NSINTEGER_DEFINED */
+
+#ifndef CGFLOAT_DEFINED
+typedef float CGFloat;
+# define CGFLOAT_MIN FLT_MIN
+# define CGFLOAT_MAX FLT_MAX
+# define CGFLOAT_IS_DOUBLE 0
+# define CGFLOAT_DEFINED 1
+#endif
 
 // Used to retain a Cocoa object for the remainder of a method's execution.
 class nsAutoRetainCocoaObject {
@@ -101,6 +113,11 @@ private:
 // versions of OS X from (at least) 10.2.8 through 10.5.
 - (void)_modalSession:(NSModalSession)aSession sendEvent:(NSEvent *)theEvent;
 
+// Present (and documented) on OS X 10.6 and above.  Not present before 10.6.
+// This declaration needed to avoid compiler warnings when compiling on 10.5
+// and below (or using the 10.5 SDK and below).
+- (void)setHelpMenu:(NSMenu *)helpMenu;
+
 @end
 
 class nsCocoaUtils
@@ -126,20 +143,18 @@ class nsCocoaUtils
   
   // Gives the location for the event in screen coordinates. Do not call this
   // unless the window the event was originally targeted at is still alive!
+  // anEvent may be nil -- in that case the current mouse location is returned.
   static NSPoint ScreenLocationForEvent(NSEvent* anEvent);
   
   // Determines if an event happened over a window, whether or not the event
   // is for the window. Does not take window z-order into account.
   static BOOL IsEventOverWindow(NSEvent* anEvent, NSWindow* aWindow);
-  
+
   // Events are set up so that their coordinates refer to the window to which they
   // were originally sent. If we reroute the event somewhere else, we'll have
   // to get the window coordinates this way. Do not call this unless the window
   // the event was originally targeted at is still alive!
   static NSPoint EventLocationForWindow(NSEvent* anEvent, NSWindow* aWindow);
-  
-  // Finds the foremost window that is under the mouse for the current application.
-  static NSWindow* FindWindowUnderPoint(NSPoint aPoint);
 
   // Hides the Menu bar and the Dock. Multiple hide/show requests can be nested.
   static void HideOSChromeOnScreen(PRBool aShouldHide, NSScreen* aScreen);

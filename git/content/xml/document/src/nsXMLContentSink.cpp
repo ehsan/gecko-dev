@@ -95,6 +95,7 @@
 #include "nsIDOMProcessingInstruction.h"
 #include "nsNodeUtils.h"
 #include "nsIScriptGlobalObject.h"
+#include "nsIHTMLDocument.h"
 #include "nsEventDispatcher.h"
 #include "mozAutoDocUpdate.h"
 
@@ -139,8 +140,7 @@ NS_NewXMLContentSink(nsIXMLContentSink** aResult,
 
 nsXMLContentSink::nsXMLContentSink()
   : mConstrainSize(PR_TRUE),
-    mPrettyPrintXML(PR_TRUE),
-    mAllowAutoXLinks(PR_TRUE)
+    mPrettyPrintXML(PR_TRUE)
 {
 }
 
@@ -158,11 +158,6 @@ nsXMLContentSink::Init(nsIDocument* aDoc,
                        nsISupports* aContainer,
                        nsIChannel* aChannel)
 {
-  MOZ_TIMER_DEBUGLOG(("Reset and start: nsXMLContentSink::Init(), this=%p\n",
-                      this));
-  MOZ_TIMER_RESET(mWatch);
-  MOZ_TIMER_START(mWatch);
-	
   nsresult rv = nsContentSink::Init(aDoc, aURI, aContainer, aChannel);
   NS_ENSURE_SUCCESS(rv, rv);
 
@@ -176,8 +171,6 @@ nsXMLContentSink::Init(nsIDocument* aDoc,
   mState = eXMLContentSinkState_InProlog;
   mDocElement = nsnull;
 
-  MOZ_TIMER_DEBUGLOG(("Stop: nsXMLContentSink::Init()\n"));
-  MOZ_TIMER_STOP(mWatch);
   return NS_OK;
 }
 
@@ -310,9 +303,9 @@ CheckXSLTParamPI(nsIDOMProcessingInstruction* aPi,
 }
 
 NS_IMETHODIMP
-nsXMLContentSink::DidBuildModel()
+nsXMLContentSink::DidBuildModel(PRBool aTerminated)
 {
-  DidBuildModelImpl();
+  DidBuildModelImpl(aTerminated);
 
   if (mXSLTProcessor) {
     // stop observing in order to avoid crashing when replacing content
@@ -386,16 +379,15 @@ nsXMLContentSink::DidBuildModel()
   return NS_OK;
 }
 
-PRBool
-nsXMLContentSink::ReadyToCallDidBuildModel(PRBool aTerminated)
-{
-  return ReadyToCallDidBuildModelImpl(aTerminated);
-}
-
 NS_IMETHODIMP
 nsXMLContentSink::OnDocumentCreated(nsIDocument* aResultDocument)
 {
   NS_ENSURE_ARG(aResultDocument);
+
+  nsCOMPtr<nsIHTMLDocument> htmlDoc = do_QueryInterface(aResultDocument);
+  if (htmlDoc) {
+    htmlDoc->SetDocWriteDisabled(PR_TRUE);
+  }
 
   nsCOMPtr<nsIContentViewer> contentViewer;
   mDocShell->GetContentViewer(getter_AddRefs(contentViewer));
@@ -438,6 +430,10 @@ nsXMLContentSink::OnTransformDone(nsresult aResult,
     // Transform succeeded or it failed and we have an error
     // document to display.
     mDocument = aResultDocument;
+    nsCOMPtr<nsIHTMLDocument> htmlDoc = do_QueryInterface(mDocument);
+    if (htmlDoc) {
+      htmlDoc->SetDocWriteDisabled(PR_FALSE);
+    }
   }
 
   originalDocument->ScriptLoader()->RemoveObserver(this);
@@ -528,9 +524,6 @@ nsXMLContentSink::CreateElement(const PRUnichar** aAtts, PRUint32 aAttsCount,
     ) {
     nsCOMPtr<nsIScriptElement> sele = do_QueryInterface(content);
     sele->SetScriptLineNumber(aLineNumber);
-    if (aNodeInfo->Equals(nsGkAtoms::script, kNameSpaceID_SVG)) {
-      sele->WillCallDoneAddingChildren();
-    }
     mConstrainSize = PR_FALSE;
   }
 
@@ -993,7 +986,6 @@ nsXMLContentSink::SetDocElement(PRInt32 aNameSpaceID,
     if (mPrettyPrintXML) {
       // In this case, disable script execution, stylesheet
       // loading, and auto XLinks since we plan to prettyprint.
-      mAllowAutoXLinks = PR_FALSE;
       mDocument->ScriptLoader()->SetEnabled(PR_FALSE);
       if (mCSSLoader) {
         mCSSLoader->SetEnabled(PR_FALSE);
@@ -1550,17 +1542,6 @@ nsXMLContentSink::AddAttributes(const PRUnichar** aAtts,
     aContent->SetAttr(nameSpaceID, localName, prefix,
                       nsDependentString(aAtts[1]), PR_FALSE);
     aAtts += 2;
-  }
-
-  // Give autoloading links a chance to fire
-  if (mDocShell && mAllowAutoXLinks) {
-    nsresult rv = aContent->MaybeTriggerAutoLink(mDocShell);
-    if (rv == NS_XML_AUTOLINK_REPLACE ||
-        rv == NS_XML_AUTOLINK_UNDEFINED) {
-      // If we do not terminate the parse, we just keep generating link trigger
-      // events. We want to parse only up to the first replace link, and stop.
-      mParser->Terminate();
-    }
   }
 
   return NS_OK;

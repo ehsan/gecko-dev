@@ -22,13 +22,14 @@ function testAttrs(aAccOrElmOrID, aAttrs, aSkipUnexpectedAttrs)
  * @param aAbsentAttrs          [in] map of attributes that should not be
  *                              present (name/value pairs)
  */
-function testAbsentAttrs(aAccOrElmOrID, aAbsentAttrs, aSkipUnexpectedAttrs)
+function testAbsentAttrs(aAccOrElmOrID, aAbsentAttrs)
 {
   testAttrsInternal(aAccOrElmOrID, {}, true, aAbsentAttrs);
 }
 
 /**
- * Test group object attributes (posinset, setsize and level)
+ * Test group object attributes (posinset, setsize and level) and
+ * nsIAccessible::groupPosition() method.
  *
  * @param aAccOrElmOrID  [in] the ID, DOM node or accessible
  * @param aPosInSet      [in] the value of 'posinset' attribute
@@ -37,15 +38,30 @@ function testAbsentAttrs(aAccOrElmOrID, aAbsentAttrs, aSkipUnexpectedAttrs)
  */
 function testGroupAttrs(aAccOrElmOrID, aPosInSet, aSetSize, aLevel)
 {
-  var attrs = {
-    "posinset": String(aPosInSet),
-    "setsize": String(aSetSize)
-  };
+  var acc = getAccessible(aAccOrElmOrID);
+  var levelObj = {}, posInSetObj = {}, setSizeObj = {};
+  acc.groupPosition(levelObj, setSizeObj, posInSetObj);
 
-  if (aLevel)
-    attrs["level"] = String(aLevel);
+  if (aPosInSet && aSetSize) {
+    is(posInSetObj.value, aPosInSet,
+       "Wrong group position (posinset) for " + prettyName(aAccOrElmOrID));
+    is(setSizeObj.value, aSetSize,
+       "Wrong size of the group (setsize) for " + prettyName(aAccOrElmOrID));
 
-  testAttrs(aAccOrElmOrID, attrs, true);
+    var attrs = {
+      "posinset": String(aPosInSet),
+      "setsize": String(aSetSize)
+    };
+    testAttrs(aAccOrElmOrID, attrs, true);
+  }
+
+  if (aLevel) {
+    is(levelObj.value, aLevel,
+       "Wrong group level for " + prettyName(aAccOrElmOrID));
+
+    var attrs = { "level" : String(aLevel) };
+    testAttrs(aAccOrElmOrID, attrs, true);
+  }
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -179,17 +195,18 @@ function testAttrsInternal(aAccOrElmOrID, aAttrs, aSkipUnexpectedAttrs,
   } catch (e) { }
   
   if (!attrs) {
-    ok(false, "Can't get object attributes for " + aAccOrElmOrID);
+    ok(false, "Can't get object attributes for " + prettyName(aAccOrElmOrID));
     return;
   }
   
-  var errorMsg = " for " + aAccOrElmOrID;
+  var errorMsg = " for " + prettyName(aAccOrElmOrID);
   compareAttrs(errorMsg, attrs, aAttrs, aSkipUnexpectedAttrs, aAbsentAttrs);
 }
 
 function compareAttrs(aErrorMsg, aAttrs, aExpectedAttrs, aSkipUnexpectedAttrs,
                       aAbsentAttrs)
 {
+  // Check if all obtained attributes are expected and have expected value.
   var enumerate = aAttrs.enumerate();
   while (enumerate.hasMoreElements()) {
     var prop = enumerate.getNext().QueryInterface(nsIPropertyElement);
@@ -199,7 +216,7 @@ function compareAttrs(aErrorMsg, aAttrs, aExpectedAttrs, aSkipUnexpectedAttrs,
         ok(false, "Unexpected attribute '" + prop.key + "' having '" +
            prop.value + "'" + aErrorMsg);
     } else {
-      var msg = "Attribute '" + prop.key + " 'has wrong value" + aErrorMsg;
+      var msg = "Attribute '" + prop.key + "' has wrong value" + aErrorMsg;
       var expectedValue = aExpectedAttrs[prop.key];
 
       if (typeof expectedValue == "function")
@@ -209,6 +226,7 @@ function compareAttrs(aErrorMsg, aAttrs, aExpectedAttrs, aSkipUnexpectedAttrs,
     }
   }
 
+  // Check if all expected attributes are presented.
   for (var name in aExpectedAttrs) {
     var value = "";
     try {
@@ -220,18 +238,20 @@ function compareAttrs(aErrorMsg, aAttrs, aExpectedAttrs, aSkipUnexpectedAttrs,
          "There is no expected attribute '" + name + "' " + aErrorMsg);
   }
 
-  if (aAbsentAttrs)
+  // Check if all unexpected attributes are absent.
+  if (aAbsentAttrs) {
     for (var name in aAbsentAttrs) {
-      var value = "";
-      try {
-        value = aAttrs.getStringProperty(name);
-      } catch(e) { }
+      var wasFound = false;
 
-      if (value)
-        ok(false,
-           "There is an unexpected attribute '" + name + "' " + aErrorMsg);
-      else
-        ok(true,
-           "There is no unexpected attribute '" + name + "' " + aErrorMsg);
+      var enumerate = aAttrs.enumerate();
+      while (enumerate.hasMoreElements()) {
+        var prop = enumerate.getNext().QueryInterface(nsIPropertyElement);
+        if (prop.key == name)
+          wasFound = true;
+      }
     }
+
+    ok(!wasFound,
+       "There is an unexpected attribute '" + name + "' " + aErrorMsg);
+  }
 }

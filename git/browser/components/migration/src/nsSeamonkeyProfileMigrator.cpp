@@ -349,7 +349,6 @@ nsSeamonkeyProfileMigrator::FillProfileDataFromSeamonkeyRegistry()
 static 
 nsSeamonkeyProfileMigrator::PrefTransform gTransforms[] = {
   MAKESAMETYPEPREFTRANSFORM("signon.SignonFileName",                    String),
-  MAKESAMETYPEPREFTRANSFORM("browser.history_expire_days",              Int),
   MAKESAMETYPEPREFTRANSFORM("browser.tabs.autoHide",                    Bool),
   MAKESAMETYPEPREFTRANSFORM("browser.tabs.loadInBackground",            Bool),
   MAKESAMETYPEPREFTRANSFORM("browser.enable_automatic_image_resizing",  Bool),
@@ -370,7 +369,6 @@ nsSeamonkeyProfileMigrator::PrefTransform gTransforms[] = {
   MAKESAMETYPEPREFTRANSFORM("security.OSCP.enabled",                    Int),
   MAKESAMETYPEPREFTRANSFORM("security.OSCP.signingCA",                  String),
   MAKESAMETYPEPREFTRANSFORM("security.OSCP.URL",                        String),
-  MAKESAMETYPEPREFTRANSFORM("security.enable_java",                     Bool),
   MAKESAMETYPEPREFTRANSFORM("javascript.enabled",                       Bool),
   MAKESAMETYPEPREFTRANSFORM("dom.disable_window_move_resize",           Bool),
   MAKESAMETYPEPREFTRANSFORM("dom.disable_window_flip",                  Bool),

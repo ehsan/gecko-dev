@@ -51,10 +51,11 @@
 
 class nsIContent;
 class nsIURI;
+class nsIFrameFrame;
 
 class nsFrameLoader : public nsIFrameLoader
 {
-public:
+protected:
   nsFrameLoader(nsIContent *aOwner) :
     mOwnerContent(aOwner),
     mDepthTooGreat(PR_FALSE),
@@ -64,10 +65,13 @@ public:
     mInSwap(PR_FALSE)
   {}
 
+public:
   ~nsFrameLoader() {
     mNeedsAsyncDestroy = PR_TRUE;
     nsFrameLoader::Destroy();
   }
+
+  static nsFrameLoader* Create(nsIContent* aOwner);
 
   NS_DECL_CYCLE_COLLECTING_ISUPPORTS
   NS_DECL_CYCLE_COLLECTION_CLASS(nsFrameLoader)
@@ -76,6 +80,25 @@ public:
   nsresult ReallyStartLoading();
   void Finalize();
   nsIDocShell* GetExistingDocShell() { return mDocShell; }
+
+  nsresult CreateStaticClone(nsIFrameLoader* aDest);
+
+  /**
+   * Called from the layout frame associated with this frame loader;
+   * this notifies us to hook up with the widget and view.
+   */
+  bool Show(PRInt32 marginWidth, PRInt32 marginHeight,
+            PRInt32 scrollbarPrefX, PRInt32 scrollbarPrefY,
+            nsIFrameFrame* frame);
+
+  /**
+   * Called from the layout frame associated with this frame loader, when
+   * the frame is being torn down; this notifies us that out widget and view
+   * are going away and we should unhook from them.
+   */
+  void Hide();
+
+  nsresult CloneForStatic(nsIFrameLoader* aOriginal);
 
   // The guts of an nsIFrameLoaderOwner::SwapFrameLoader implementation.  A
   // frame loader owner needs to call this, and pass in the two references to

@@ -53,7 +53,6 @@
 #include "nsIContent.h"
 #include "nsIPresShell.h"
 #include "nsIViewManager.h"
-#include "nsIScrollableView.h"
 #include "nsIDOMNode.h"
 #include "nsIDOMDragEvent.h"
 #include "nsISelection.h"
@@ -76,7 +75,8 @@
 #define DRAGIMAGES_PREF "nglayout.enable_drag_images"
 
 nsBaseDragService::nsBaseDragService()
-  : mCanDrop(PR_FALSE), mDoingDrag(PR_FALSE), mHasImage(PR_FALSE), mUserCancelled(PR_FALSE),
+  : mCanDrop(PR_FALSE), mOnlyChromeDrop(PR_FALSE), mDoingDrag(PR_FALSE),
+    mHasImage(PR_FALSE), mUserCancelled(PR_FALSE),
     mDragAction(DRAGDROP_ACTION_NONE), mTargetSize(0,0),
     mImageX(0), mImageY(0), mScreenX(-1), mScreenY(-1), mSuppressLevel(0)
 {
@@ -101,6 +101,21 @@ NS_IMETHODIMP
 nsBaseDragService::GetCanDrop(PRBool * aCanDrop)
 {
   *aCanDrop = mCanDrop;
+  return NS_OK;
+}
+//---------------------------------------------------------
+NS_IMETHODIMP
+nsBaseDragService::SetOnlyChromeDrop(PRBool aOnlyChrome)
+{
+  mOnlyChromeDrop = aOnlyChrome;
+  return NS_OK;
+}
+
+//---------------------------------------------------------
+NS_IMETHODIMP
+nsBaseDragService::GetOnlyChromeDrop(PRBool* aOnlyChrome)
+{
+  *aOnlyChrome = mOnlyChromeDrop;
   return NS_OK;
 }
 
@@ -227,20 +242,12 @@ nsBaseDragService::InvokeDragSession(nsIDOMNode *aDOMNode,
   // When the mouse goes down, the selection code starts a mouse
   // capture. However, this gets in the way of determining drag
   // feedback for things like trees because the event coordinates
-  // are in the wrong coord system. Turn off mouse capture in
-  // the associated view manager.
-  nsCOMPtr<nsIContent> contentNode = do_QueryInterface(aDOMNode);
-  if (contentNode) {
-    nsIDocument* doc = contentNode->GetCurrentDoc();
-    if (doc) {
-      nsIPresShell* presShell = doc->GetPrimaryShell();
-      if (presShell) {
-        nsIViewManager* vm = presShell->GetViewManager();
-        if (vm) {
-          PRBool notUsed;
-          vm->GrabMouseEvents(nsnull, notUsed);
-        }
-      }
+  // are in the wrong coord system, so turn off mouse capture.
+  nsCOMPtr<nsIDocument> doc = do_QueryInterface(mSourceDocument);
+  if (doc) {
+    nsCOMPtr<nsIViewObserver> viewObserver = do_QueryInterface(doc->GetPrimaryShell());
+    if (viewObserver) {
+      viewObserver->ClearMouseCapture(nsnull);
     }
   }
 
@@ -331,6 +338,8 @@ nsBaseDragService::StartDragSession()
     return NS_ERROR_FAILURE;
   }
   mDoingDrag = PR_TRUE;
+  // By default dispatch drop also to content.
+  mOnlyChromeDrop = PR_FALSE;
   return NS_OK;
 }
 
@@ -460,7 +469,7 @@ nsBaseDragService::DrawDrag(nsIDOMNode* aDOMNode,
       // otherwise, there was no region so just set the rectangle to
       // the size of the primary frame of the content.
       nsCOMPtr<nsIContent> content = do_QueryInterface(dragNode);
-      nsIFrame* frame = presShell->GetPrimaryFrameFor(content);
+      nsIFrame* frame = content->GetPrimaryFrame();
       if (frame) {
         nsIntRect screenRect = frame->GetScreenRectExternal();
         aScreenDragRect->SetRect(screenRect.x, screenRect.y,
@@ -601,7 +610,8 @@ nsBaseDragService::DrawDragForImage(nsPresContext* aPresContext,
     gfxMatrix scale =
       gfxMatrix().Scale(srcSize.width/outRect.Width(), srcSize.height/outRect.Height());
     nsIntRect imgSize(0, 0, srcSize.width, srcSize.height);
-    imgContainer->Draw(ctx, gfxPattern::FILTER_GOOD, scale, outRect, imgSize);
+    imgContainer->Draw(ctx, gfxPattern::FILTER_GOOD, scale, outRect, imgSize,
+                       imgIContainer::FLAG_SYNC_DECODE);
     return NS_OK;
   } else {
     return aCanvas->RenderContexts(ctx, gfxPattern::FILTER_GOOD);

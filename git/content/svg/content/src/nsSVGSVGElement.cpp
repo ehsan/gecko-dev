@@ -152,36 +152,35 @@ nsSVGElement::EnumInfo nsSVGSVGElement::sEnumInfo[1] =
   }
 };
 
-// From NS_IMPL_NS_NEW_SVG_ELEMENT but with aFromParser
-nsresult
-NS_NewSVGSVGElement(nsIContent **aResult, nsINodeInfo *aNodeInfo,
-                    PRBool aFromParser)
-{
-  nsSVGSVGElement *it = new nsSVGSVGElement(aNodeInfo, aFromParser);
-  if (!it)
-    return NS_ERROR_OUT_OF_MEMORY;
-
-  NS_ADDREF(it);
-
-  nsresult rv = it->Init();
-
-  if (NS_FAILED(rv)) {
-    NS_RELEASE(it);
-    return rv;
-  }
-
-  *aResult = it;
-
-  return rv;
-}
+NS_IMPL_NS_NEW_SVG_ELEMENT_CHECK_PARSER(SVG)
 
 //----------------------------------------------------------------------
 // nsISupports methods
 
+#ifdef MOZ_SMIL
+NS_IMPL_CYCLE_COLLECTION_CLASS(nsSVGSVGElement)
+NS_IMPL_CYCLE_COLLECTION_UNLINK_BEGIN_INHERITED(nsSVGSVGElement,
+                                                nsSVGSVGElementBase)
+  if (tmp->mTimedDocumentRoot) {
+    tmp->mTimedDocumentRoot->Unlink();
+  }
+NS_IMPL_CYCLE_COLLECTION_UNLINK_END
+NS_IMPL_CYCLE_COLLECTION_TRAVERSE_BEGIN_INHERITED(nsSVGSVGElement,
+                                                  nsSVGSVGElementBase)
+  if (tmp->mTimedDocumentRoot) {
+    tmp->mTimedDocumentRoot->Traverse(&cb);
+  }
+NS_IMPL_CYCLE_COLLECTION_TRAVERSE_END
+#endif // MOZ_SMIL
+
 NS_IMPL_ADDREF_INHERITED(nsSVGSVGElement,nsSVGSVGElementBase)
 NS_IMPL_RELEASE_INHERITED(nsSVGSVGElement,nsSVGSVGElementBase)
 
+#ifdef MOZ_SMIL
+NS_INTERFACE_TABLE_HEAD_CYCLE_COLLECTION_INHERITED(nsSVGSVGElement)
+#else
 NS_INTERFACE_TABLE_HEAD(nsSVGSVGElement)
+#endif
   NS_NODE_INTERFACE_TABLE7(nsSVGSVGElement, nsIDOMNode, nsIDOMElement,
                            nsIDOMSVGElement, nsIDOMSVGSVGElement,
                            nsIDOMSVGFitToViewBox, nsIDOMSVGLocatable,
@@ -707,13 +706,6 @@ nsSVGSVGElement::CreateSVGTransformFromMatrix(nsIDOMSVGMatrix *matrix,
   return NS_OK;
 }
 
-/* DOMString createSVGString (); */
-NS_IMETHODIMP
-nsSVGSVGElement::CreateSVGString(nsAString & _retval)
-{
-  return NS_ERROR_NOT_IMPLEMENTED;
-}
-
 /* nsIDOMElement getElementById (in DOMString elementId); */
 NS_IMETHODIMP
 nsSVGSVGElement::GetElementById(const nsAString & elementId, nsIDOMElement **_retval)
@@ -811,10 +803,10 @@ nsSVGSVGElement::GetTransformToElement(nsIDOMSVGElement *element,
   if (NS_FAILED(rv)) return rv;
 
   // the easiest way to do this (if likely to increase rounding error):
-  rv = GetScreenCTM(getter_AddRefs(ourScreenCTM));
-  if (NS_FAILED(rv)) return rv;
-  rv = target->GetScreenCTM(getter_AddRefs(targetScreenCTM));
-  if (NS_FAILED(rv)) return rv;
+  GetScreenCTM(getter_AddRefs(ourScreenCTM));
+  if (!ourScreenCTM) return NS_ERROR_DOM_SVG_MATRIX_NOT_INVERTABLE;
+  target->GetScreenCTM(getter_AddRefs(targetScreenCTM));
+  if (!targetScreenCTM) return NS_ERROR_DOM_SVG_MATRIX_NOT_INVERTABLE;
   rv = targetScreenCTM->Inverse(getter_AddRefs(tmp));
   if (NS_FAILED(rv)) return rv;
   return tmp->Multiply(ourScreenCTM, _retval);  // addrefs, so we don't
@@ -827,7 +819,7 @@ nsSVGSVGElement::GetTransformToElement(nsIDOMSVGElement *element,
 NS_IMETHODIMP
 nsSVGSVGElement::GetZoomAndPan(PRUint16 *aZoomAndPan)
 {
-  *aZoomAndPan = mEnumAttributes[ZOOMANDPAN].GetAnimValue();
+  *aZoomAndPan = mEnumAttributes[ZOOMANDPAN].GetAnimValue(this);
   return NS_OK;
 }
 
@@ -1098,26 +1090,18 @@ nsSVGSVGElement::WillBeOutermostSVG(nsIContent* aParent,
 void
 nsSVGSVGElement::InvalidateTransformNotifyFrame()
 {
-  nsIDocument* doc = GetCurrentDoc();
-  if (!doc) return;
-  nsIPresShell* presShell = doc->GetPrimaryShell();
-  if (!presShell) return;
-
-  nsIFrame* frame = presShell->GetPrimaryFrameFor(this);
-  if (frame) {
-    nsISVGSVGFrame* svgframe = do_QueryFrame(frame);
-    if (svgframe) {
-      svgframe->NotifyViewportChange();
-    }
-#ifdef DEBUG
-    else {
-      // XXX we get here during nsSVGOuterSVGFrame::Init() since that
-      // function is called before the presshell association between us
-      // and our frame is established.
-      NS_WARNING("wrong frame type");
-    }
-#endif
+  nsISVGSVGFrame* svgframe = do_QueryFrame(GetPrimaryFrame());
+  if (svgframe) {
+    svgframe->NotifyViewportChange();
   }
+#ifdef DEBUG
+  else {
+    // XXX we get here during nsSVGOuterSVGFrame::Init() since that
+    // function is called before the presshell association between us
+    // and our frame is established.
+    NS_WARNING("wrong frame type");
+  }
+#endif
 }
 
 //----------------------------------------------------------------------
@@ -1133,8 +1117,8 @@ nsSVGSVGElement::GetLength(PRUint8 aCtxType)
     w = viewbox.width;
     h = viewbox.height;
   } else {
-    nsSVGSVGElement *ctx = GetCtx();
-    if (ctx) {
+    if (nsSVGUtils::IsInnerSVG(this)) {
+      nsSVGSVGElement *ctx = GetCtx();
       w = mLengthAttributes[WIDTH].GetAnimValue(ctx);
       h = mLengthAttributes[HEIGHT].GetAnimValue(ctx);
     } else {
@@ -1143,8 +1127,8 @@ nsSVGSVGElement::GetLength(PRUint8 aCtxType)
     }
   }
 
-  w = PR_MAX(w, 0.0f);
-  h = PR_MAX(h, 0.0f);
+  w = NS_MAX(w, 0.0f);
+  h = NS_MAX(h, 0.0f);
 
   switch (aCtxType) {
   case nsSVGUtils::X:

@@ -296,7 +296,7 @@
 #ifdef _MSC_VER
 # include "jscpucfg.h"  /* We can't auto-detect MSVC configuration */
 # if _MSC_VER < 1400
-#  define MOZ_NO_VARADIC_MACROS
+#  define NJ_NO_VARIADIC_MACROS
 # endif
 #else
 # include "jsautocfg.h" /* Use auto-detected configuration */
@@ -454,6 +454,14 @@ typedef JSUintPtr JSUword;
 /* Use an extra (void *) cast for MSVC. */
 # define JS_FUNC_TO_DATA_PTR(type, fun) ((type) (void *) (fun))
 # define JS_DATA_TO_FUNC_PTR(type, ptr) ((type) (void *) (ptr))
+#endif
+
+#ifdef __GNUC__
+# define JS_EXTENSION __extension__
+# define JS_EXTENSION_(s) __extension__ ({ s; })
+#else
+# define JS_EXTENSION
+# define JS_EXTENSION_(s) s
 #endif
 
 JS_END_EXTERN_C

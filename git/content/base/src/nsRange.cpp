@@ -57,6 +57,9 @@
 #include "nsGkAtoms.h"
 #include "nsContentUtils.h"
 #include "nsGenericDOMDataNode.h"
+#include "nsClientRect.h"
+#include "nsLayoutUtils.h"
+#include "nsTextFrame.h"
 
 nsresult NS_NewContentIterator(nsIContentIterator** aInstancePtrResult);
 nsresult NS_NewContentSubtreeIterator(nsIContentIterator** aInstancePtrResult);
@@ -1804,27 +1807,26 @@ nsresult nsRange::InsertNode(nsIDOMNode* aN)
     res = tStartContainer->GetParentNode(getter_AddRefs(tSCParentNode));
     if(NS_FAILED(res)) return res;
     NS_ENSURE_STATE(tSCParentNode);
-    
-    PRBool isCollapsed;
-    res = GetCollapsed(&isCollapsed);
-    if(NS_FAILED(res)) return res;
 
     PRInt32 tEndOffset;
     GetEndOffset(&tEndOffset);
 
+    nsCOMPtr<nsIDOMNode> tEndContainer;
+    res = this->GetEndContainer(getter_AddRefs(tEndContainer));
+    if(NS_FAILED(res)) return res;
+
     nsCOMPtr<nsIDOMText> secondPart;
     res = startTextNode->SplitText(tStartOffset, getter_AddRefs(secondPart));
     if (NS_FAILED(res)) return res;
-    
-    // SplitText collapses the range; fix that (bug 253609)
-    if (!isCollapsed)
-    {
-      res = SetEnd(secondPart, tEndOffset - tStartOffset);
-      if(NS_FAILED(res)) return res;
-    }
-    
+
     nsCOMPtr<nsIDOMNode> tResultNode;
-    return tSCParentNode->InsertBefore(aN, secondPart, getter_AddRefs(tResultNode));
+    res = tSCParentNode->InsertBefore(aN, secondPart, getter_AddRefs(tResultNode));
+    if (NS_FAILED(res)) return res;
+
+    if (tEndContainer == tStartContainer && tEndOffset != tStartOffset)
+      res = SetEnd(secondPart, tEndOffset - tStartOffset);
+
+    return res;
   }  
 
   nsCOMPtr<nsIDOMNodeList>tChildList;
@@ -2036,3 +2038,180 @@ nsRange::CreateContextualFragment(const nsAString& aFragment,
   }
   return NS_ERROR_FAILURE;
 }
+
+static void ExtractRectFromOffset(nsIFrame* aFrame,
+                                  const nsIFrame* aRelativeTo, 
+                                  const PRInt32 aOffset, nsRect* aR, PRBool aKeepLeft)
+{
+  nsPoint point;
+  aFrame->GetPointFromOffset(aOffset, &point);
+
+  point += aFrame->GetOffsetTo(aRelativeTo);
+
+  //given a point.x, extract left or right portion of rect aR
+  //point.x has to be within this rect
+  NS_ASSERTION(aR->x <= point.x && point.x <= aR->XMost(),
+                   "point.x should not be outside of rect r");
+
+  if (aKeepLeft) {
+    aR->width = point.x - aR->x;
+  } else {
+    aR->width = aR->XMost() - point.x;
+    aR->x = point.x;
+  }
+}
+
+static nsresult GetPartialTextRect(nsLayoutUtils::RectCallback* aCallback,
+                                   nsIContent* aContent, PRInt32 aStartOffset, PRInt32 aEndOffset)
+{
+  nsIFrame* frame = aContent->GetPrimaryFrame();
+  if (frame && frame->GetType() == nsGkAtoms::textFrame) {
+    nsTextFrame* textFrame = static_cast<nsTextFrame*>(frame);
+    nsIFrame* relativeTo = nsLayoutUtils::GetContainingBlockForClientRect(textFrame);
+    for (nsTextFrame* f = textFrame; f; f = static_cast<nsTextFrame*>(f->GetNextContinuation())) {
+      PRInt32 fstart = f->GetContentOffset(), fend = f->GetContentEnd();
+      PRBool rtl = f->GetTextRun()->IsRightToLeft();
+      if (fend <= aStartOffset || fstart >= aEndOffset)
+        continue;
+
+      //overlaping with the offset we want
+      nsRect r(f->GetOffsetTo(relativeTo), f->GetSize());
+      if (fstart < aStartOffset) {
+        //aStartOffset is within this frame
+        ExtractRectFromOffset(f, relativeTo, aStartOffset, &r, rtl);
+      }
+      if (fend > aEndOffset) {
+        //aEndOffset is in the middle of this frame
+        ExtractRectFromOffset(f, relativeTo, aEndOffset, &r, !rtl);
+      }
+      aCallback->AddRect(r);
+    }
+  }
+  return NS_OK;
+}
+
+static void CollectClientRects(nsLayoutUtils::RectCallback* aCollector, 
+                               nsRange* aRange,
+                               nsINode* aStartParent, PRInt32 aStartOffset,
+                               nsINode* aEndParent, PRInt32 aEndOffset)
+{
+  // Hold strong pointers across the flush
+  nsCOMPtr<nsIDOMNode> startContainer = do_QueryInterface(aStartParent);
+  nsCOMPtr<nsIDOMNode> endContainer = do_QueryInterface(aEndParent);
+
+  // Flush out layout so our frames are up to date.
+  if (!aStartParent->IsInDoc()) {
+    return;
+  }
+
+  aStartParent->GetCurrentDoc()->FlushPendingNotifications(Flush_Layout);
+
+  // Recheck whether we're still in the document
+  if (!aStartParent->IsInDoc()) {
+    return;
+  }
+
+  RangeSubtreeIterator iter;
+
+  nsresult rv = iter.Init(aRange);
+  if (NS_FAILED(rv)) return;
+
+  if (iter.IsDone()) {
+    // the range is collapsed, only continue if the cursor is in a text node
+    nsCOMPtr<nsIContent> content = do_QueryInterface(aStartParent);
+    if (content && content->IsNodeOfType(nsINode::eTEXT)) {
+      nsIFrame* frame = content->GetPrimaryFrame();
+      if (frame && frame->GetType() == nsGkAtoms::textFrame) {
+        nsTextFrame* textFrame = static_cast<nsTextFrame*>(frame);
+        PRInt32 outOffset;
+        nsIFrame* outFrame;
+        textFrame->GetChildFrameContainingOffset(aStartOffset, PR_FALSE, 
+          &outOffset, &outFrame);
+        if (outFrame) {
+           nsIFrame* relativeTo = 
+             nsLayoutUtils::GetContainingBlockForClientRect(outFrame);
+           nsRect r(outFrame->GetOffsetTo(relativeTo), outFrame->GetSize());
+           ExtractRectFromOffset(outFrame, relativeTo, aStartOffset, &r, PR_FALSE);
+           r.width = 0;
+           aCollector->AddRect(r);
+        }
+      }
+    }
+    return;
+  }
+
+  do {
+    nsCOMPtr<nsIDOMNode> node(iter.GetCurrentNode());
+    iter.Next();
+    nsCOMPtr<nsIContent> content = do_QueryInterface(node);
+    if (!content)
+      continue;
+    if (content->IsNodeOfType(nsINode::eTEXT)) {
+       if (node == startContainer) {
+         PRInt32 offset = startContainer == endContainer ? 
+           aEndOffset : content->GetText()->GetLength();
+         GetPartialTextRect(aCollector, content, aStartOffset, offset);
+         continue;
+       } else if (node == endContainer) {
+         GetPartialTextRect(aCollector, content, 0, aEndOffset);
+         continue;
+       }
+    }
+
+    nsIFrame* frame = content->GetPrimaryFrame();
+    if (frame) {
+      nsLayoutUtils::GetAllInFlowRects(frame,
+        nsLayoutUtils::GetContainingBlockForClientRect(frame), aCollector);
+    }
+  } while (!iter.IsDone());
+}
+
+NS_IMETHODIMP
+nsRange::GetBoundingClientRect(nsIDOMClientRect** aResult)
+{
+  *aResult = nsnull;
+
+  // Weak ref, since we addref it below
+  nsClientRect* rect = new nsClientRect();
+  if (!rect)
+    return NS_ERROR_OUT_OF_MEMORY;
+
+  NS_ADDREF(*aResult = rect);
+
+  if (!mStartParent)
+    return NS_OK;
+
+  nsLayoutUtils::RectAccumulator accumulator;
+  
+  CollectClientRects(&accumulator, this, mStartParent, mStartOffset, 
+    mEndParent, mEndOffset);
+
+  nsRect r = accumulator.mResultRect.IsEmpty() ? accumulator.mFirstRect : 
+    accumulator.mResultRect;
+  rect->SetLayoutRect(r);
+  return NS_OK;
+}
+
+NS_IMETHODIMP
+nsRange::GetClientRects(nsIDOMClientRectList** aResult)
+{
+  *aResult = nsnull;
+
+  if (!mStartParent)
+    return NS_OK;
+
+  nsRefPtr<nsClientRectList> rectList = new nsClientRectList();
+  if (!rectList)
+    return NS_ERROR_OUT_OF_MEMORY;
+
+  nsLayoutUtils::RectListBuilder builder(rectList);
+
+  CollectClientRects(&builder, this, mStartParent, mStartOffset, 
+    mEndParent, mEndOffset);
+
+  if (NS_FAILED(builder.mRV))
+    return builder.mRV;
+  rectList.forget(aResult);
+  return NS_OK;
+}
+

@@ -58,7 +58,7 @@
 #include "nsIRenderingContext.h"
 
 #include "nsICanvasRenderingContextInternal.h"
-
+#include "nsIDOMCanvasRenderingContext2D.h"
 #include "nsLayoutUtils.h"
 
 #define DEFAULT_CANVAS_WIDTH 300
@@ -118,7 +118,7 @@ public:
                            nsIAtom* aPrefix, const nsAString& aValue,
                            PRBool aNotify);
   virtual nsresult Clone(nsINodeInfo *aNodeInfo, nsINode **aResult) const;
-
+  nsresult CopyInnerTo(nsGenericElement* aDest) const;
 protected:
   nsIntSize GetWidthHeight();
 
@@ -218,6 +218,24 @@ nsHTMLCanvasElement::SetAttr(PRInt32 aNameSpaceID, nsIAtom* aName,
   return rv;
 }
 
+nsresult
+nsHTMLCanvasElement::CopyInnerTo(nsGenericElement* aDest) const
+{
+  nsresult rv = nsGenericHTMLElement::CopyInnerTo(aDest);
+  NS_ENSURE_SUCCESS(rv, rv);
+  if (aDest->GetOwnerDoc()->IsStaticDocument()) {
+    nsHTMLCanvasElement* dest = static_cast<nsHTMLCanvasElement*>(aDest);
+    nsCOMPtr<nsISupports> cxt;
+    dest->GetContext(NS_LITERAL_STRING("2d"), getter_AddRefs(cxt));
+    nsCOMPtr<nsIDOMCanvasRenderingContext2D> context2d = do_QueryInterface(cxt);
+    if (context2d) {
+      context2d->DrawImage(const_cast<nsHTMLCanvasElement*>(this),
+                           0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0);
+    }
+  }
+  return rv;
+}
+
 nsChangeHint
 nsHTMLCanvasElement::GetAttributeChangeHint(const nsIAtom* aAttribute,
                                             PRInt32 aModType) const
@@ -295,66 +313,23 @@ nsHTMLCanvasElement::ParseAttribute(PRInt32 aNamespaceID,
 // nsHTMLCanvasElement::toDataURL
 
 NS_IMETHODIMP
-nsHTMLCanvasElement::ToDataURL(nsAString& aDataURL)
+nsHTMLCanvasElement::ToDataURL(const nsAString& aType, const nsAString& aParams,
+                               PRUint8 optional_argc, nsAString& aDataURL)
 {
-  nsresult rv;
-
-  nsAXPCNativeCallContext *ncc = nsnull;
-  rv = nsContentUtils::XPConnect()->
-    GetCurrentNativeCallContext(&ncc);
-  NS_ENSURE_SUCCESS(rv, rv);
-
-  if (!ncc)
-    return NS_ERROR_FAILURE;
-
-  JSContext *ctx = nsnull;
-
-  rv = ncc->GetJSContext(&ctx);
-  NS_ENSURE_SUCCESS(rv, rv);
-
-  PRUint32 argc;
-  jsval *argv = nsnull;
-
-  ncc->GetArgc(&argc);
-  ncc->GetArgvPtr(&argv);
-
   // do a trust check if this is a write-only canvas
   // or if we're trying to use the 2-arg form
-  if ((mWriteOnly || argc >= 2) && !nsContentUtils::IsCallerTrustedForRead()) {
+  if ((mWriteOnly || optional_argc >= 2) &&
+      !nsContentUtils::IsCallerTrustedForRead()) {
     return NS_ERROR_DOM_SECURITY_ERR;
   }
 
-  // 0-arg case; convert to png
-  if (argc == 0) {
-    return ToDataURLImpl(NS_LITERAL_STRING("image/png"), EmptyString(), aDataURL);
+  nsAutoString type(aType);
+
+  if (type.IsEmpty()) {
+    type.AssignLiteral("image/png");
   }
 
-  JSAutoRequest ar(ctx);
-
-  // 1-arg case; convert to given mime type
-  if (argc == 1) {
-    if (!JSVAL_IS_STRING(argv[0]))
-      return NS_ERROR_DOM_SYNTAX_ERR;
-    JSString *type = JS_ValueToString(ctx, argv[0]);
-    return ToDataURLImpl (nsDependentString(reinterpret_cast<PRUnichar*>((JS_GetStringChars(type)))),
-                          EmptyString(), aDataURL);
-  }
-
-  // 2-arg case; trusted only (checked above), convert to mime type with params
-  if (argc == 2) {
-    if (!JSVAL_IS_STRING(argv[0]) || !JSVAL_IS_STRING(argv[1]))
-      return NS_ERROR_DOM_SYNTAX_ERR;
-
-    JSString *type, *params;
-    type = JS_ValueToString(ctx, argv[0]);
-    params = JS_ValueToString(ctx, argv[1]);
-
-    return ToDataURLImpl (nsDependentString(reinterpret_cast<PRUnichar*>(JS_GetStringChars(type))),
-                          nsDependentString(reinterpret_cast<PRUnichar*>(JS_GetStringChars(params))),
-                          aDataURL);
-  }
-
-  return NS_ERROR_DOM_SYNTAX_ERR;
+  return ToDataURLImpl(type, aParams, aDataURL);
 }
 
 
@@ -546,14 +521,9 @@ nsHTMLCanvasElement::SetWriteOnly()
 NS_IMETHODIMP
 nsHTMLCanvasElement::InvalidateFrame()
 {
-  nsIDocument* doc = GetCurrentDoc();
-  if (!doc) {
-    return NS_OK;
-  }
-
   // We don't need to flush anything here; if there's no frame or if
   // we plan to reframe we don't need to invalidate it anyway.
-  nsIFrame *frame = GetPrimaryFrameFor(this, doc);
+  nsIFrame *frame = GetPrimaryFrame();
   if (frame) {
     nsRect r = frame->GetRect();
     r.x = r.y = 0;
@@ -566,14 +536,9 @@ nsHTMLCanvasElement::InvalidateFrame()
 NS_IMETHODIMP
 nsHTMLCanvasElement::InvalidateFrameSubrect(const gfxRect& damageRect)
 {
-  nsIDocument* doc = GetCurrentDoc();
-  if (!doc) {
-    return NS_OK;
-  }
-
   // We don't need to flush anything here; if there's no frame or if
   // we plan to reframe we don't need to invalidate it anyway.
-  nsIFrame *frame = GetPrimaryFrameFor(this, doc);
+  nsIFrame *frame = GetPrimaryFrame();
   if (frame) {
     // Frame might be dirty, but we don't care about that; if the geometry
     // changes the right invalidates will happen anyway.  Don't assert on our

@@ -46,9 +46,13 @@
 #include "nsMutationEvent.h"
 #include NEW_H
 #include "nsFixedSizeAllocator.h"
+#include "nsINode.h"
+#include "nsPIDOMWindow.h"
+#include "nsDOMPopStateEvent.h"
 
 #define NS_TARGET_CHAIN_FORCE_CONTENT_DISPATCH  (1 << 0)
 #define NS_TARGET_CHAIN_WANTS_WILL_HANDLE_EVENT (1 << 1)
+#define NS_TARGET_CHAIN_MAY_HAVE_MANAGER        (1 << 2)
 
 // nsEventTargetChainItem represents a single item in the event target chain.
 class nsEventTargetChainItem
@@ -116,7 +120,6 @@ public:
     return !!(mFlags & NS_TARGET_CHAIN_FORCE_CONTENT_DISPATCH);
   }
 
-
   void SetWantsWillHandleEvent(PRBool aWants)
   {
     if (aWants) {
@@ -131,6 +134,20 @@ public:
     return !!(mFlags & NS_TARGET_CHAIN_WANTS_WILL_HANDLE_EVENT);
   }
 
+  void SetMayHaveListenerManager(PRBool aMayHave)
+  {
+    if (aMayHave) {
+      mFlags |= NS_TARGET_CHAIN_MAY_HAVE_MANAGER;
+    } else {
+      mFlags &= ~NS_TARGET_CHAIN_MAY_HAVE_MANAGER;
+    }
+  }
+
+  PRBool MayHaveListenerManager()
+  {
+    return !!(mFlags & NS_TARGET_CHAIN_MAY_HAVE_MANAGER);
+  }
+  
   nsPIDOMEventTarget* CurrentTarget()
   {
     return mTarget;
@@ -145,7 +162,8 @@ public:
   nsresult HandleEventTargetChain(nsEventChainPostVisitor& aVisitor,
                                   PRUint32 aFlags,
                                   nsDispatchingCallback* aCallback,
-                                  PRBool aMayHaveNewListenerManagers);
+                                  PRBool aMayHaveNewListenerManagers,
+                                  nsCxPusher* aPusher);
 
   /**
    * Resets aVisitor object and calls PreHandleEvent.
@@ -155,11 +173,37 @@ public:
 
   /**
    * If the current item in the event target chain has an event listener
-   * manager, this method sets the .currentTarget to the CurrentTarget()
-   * and calls nsIEventListenerManager::HandleEvent().
+   * manager, this method calls nsIEventListenerManager::HandleEvent().
    */
   nsresult HandleEvent(nsEventChainPostVisitor& aVisitor, PRUint32 aFlags,
-                       PRBool aMayHaveNewListenerManagers);
+                       PRBool aMayHaveNewListenerManagers,
+                       nsCxPusher* aPusher)
+  {
+    if (WantsWillHandleEvent()) {
+      mTarget->WillHandleEvent(aVisitor);
+    }
+    if (aVisitor.mEvent->flags & NS_EVENT_FLAG_STOP_DISPATCH) {
+      return NS_OK;
+    }
+    if (!mManager) {
+      if (!MayHaveListenerManager() && !aMayHaveNewListenerManagers) {
+        return NS_OK;
+      }
+      mManager = mTarget->GetListenerManager(PR_FALSE);
+    }
+    if (mManager) {
+      NS_ASSERTION(aVisitor.mEvent->currentTarget == nsnull,
+                   "CurrentTarget should be null!");
+      mManager->HandleEvent(aVisitor.mPresContext, aVisitor.mEvent,
+                            &aVisitor.mDOMEvent,
+                            CurrentTarget(), aFlags,
+                            &aVisitor.mEventStatus,
+                            aPusher);
+      NS_ASSERTION(aVisitor.mEvent->currentTarget == nsnull,
+                   "CurrentTarget should be null!");
+    }
+    return NS_OK;
+  }
 
   /**
    * Copies mItemFlags and mItemData to aVisitor and calls PostHandleEvent.
@@ -213,39 +257,10 @@ nsEventTargetChainItem::PreHandleEvent(nsEventChainPreVisitor& aVisitor)
   nsresult rv = mTarget->PreHandleEvent(aVisitor);
   SetForceContentDispatch(aVisitor.mForceContentDispatch);
   SetWantsWillHandleEvent(aVisitor.mWantsWillHandleEvent);
+  SetMayHaveListenerManager(aVisitor.mMayHaveListenerManager);
   mItemFlags = aVisitor.mItemFlags;
   mItemData = aVisitor.mItemData;
   return rv;
-}
-
-nsresult
-nsEventTargetChainItem::HandleEvent(nsEventChainPostVisitor& aVisitor,
-                                    PRUint32 aFlags,
-                                    PRBool aMayHaveNewListenerManagers)
-{
-  if (WantsWillHandleEvent()) {
-    mTarget->WillHandleEvent(aVisitor);
-  }
-  if (aVisitor.mEvent->flags & NS_EVENT_FLAG_STOP_DISPATCH) {
-    return NS_OK;
-  }
-  if (!mManager) {
-    if (!aMayHaveNewListenerManagers) {
-      return NS_OK;
-    }
-    mManager = mTarget->GetListenerManager(PR_FALSE);
-  }
-  if (mManager) {
-    NS_ASSERTION(aVisitor.mEvent->currentTarget == nsnull,
-                 "CurrentTarget should be null!");
-    mManager->HandleEvent(aVisitor.mPresContext, aVisitor.mEvent,
-                          &aVisitor.mDOMEvent,
-                          CurrentTarget(), aFlags,
-                          &aVisitor.mEventStatus);
-    NS_ASSERTION(aVisitor.mEvent->currentTarget == nsnull,
-                 "CurrentTarget should be null!");
-  }
-  return NS_OK;
 }
 
 nsresult
@@ -260,7 +275,8 @@ nsEventTargetChainItem::PostHandleEvent(nsEventChainPostVisitor& aVisitor)
 nsresult
 nsEventTargetChainItem::HandleEventTargetChain(nsEventChainPostVisitor& aVisitor, PRUint32 aFlags,
                                                nsDispatchingCallback* aCallback,
-                                               PRBool aMayHaveNewListenerManagers)
+                                               PRBool aMayHaveNewListenerManagers,
+                                               nsCxPusher* aPusher)
 {
   PRUint32 createdELMs = nsEventListenerManager::sCreatedCount;
   // Save the target so that it can be restored later.
@@ -276,7 +292,8 @@ nsEventTargetChainItem::HandleEventTargetChain(nsEventChainPostVisitor& aVisitor
         !(aVisitor.mEvent->flags & NS_EVENT_FLAG_STOP_DISPATCH)) {
       item->HandleEvent(aVisitor, aFlags & NS_EVENT_CAPTURE_MASK,
                         aMayHaveNewListenerManagers ||
-                        createdELMs != nsEventListenerManager::sCreatedCount);
+                        createdELMs != nsEventListenerManager::sCreatedCount,
+                        aPusher);
     }
 
     if (item->GetNewTarget()) {
@@ -305,7 +322,8 @@ nsEventTargetChainItem::HandleEventTargetChain(nsEventChainPostVisitor& aVisitor
     //       <xul:dialog>'s buttons. Bug 235441.
     item->HandleEvent(aVisitor, aFlags,
                       aMayHaveNewListenerManagers ||
-                      createdELMs != nsEventListenerManager::sCreatedCount);
+                      createdELMs != nsEventListenerManager::sCreatedCount,
+                      aPusher);
   }
   if (aFlags & NS_EVENT_FLAG_SYSTEM_EVENT) {
     item->PostHandleEvent(aVisitor);
@@ -327,7 +345,8 @@ nsEventTargetChainItem::HandleEventTargetChain(nsEventChainPostVisitor& aVisitor
            item->ForceContentDispatch()) &&
           !(aVisitor.mEvent->flags & NS_EVENT_FLAG_STOP_DISPATCH)) {
         item->HandleEvent(aVisitor, aFlags & NS_EVENT_BUBBLE_MASK,
-                          createdELMs != nsEventListenerManager::sCreatedCount);
+                          createdELMs != nsEventListenerManager::sCreatedCount,
+                          aPusher);
       }
       if (aFlags & NS_EVENT_FLAG_SYSTEM_EVENT) {
         item->PostHandleEvent(aVisitor);
@@ -357,7 +376,8 @@ nsEventTargetChainItem::HandleEventTargetChain(nsEventChainPostVisitor& aVisitor
     aVisitor.mEvent->target = firstTarget;
     HandleEventTargetChain(aVisitor, aFlags | NS_EVENT_FLAG_SYSTEM_EVENT,
                            aCallback,
-                           createdELMs != nsEventListenerManager::sCreatedCount);
+                           createdELMs != nsEventListenerManager::sCreatedCount,
+                           aPusher);
   }
 
   return NS_OK;
@@ -427,14 +447,46 @@ nsEventDispatcher::Dispatch(nsISupports* aTarget,
                             nsEvent* aEvent,
                             nsIDOMEvent* aDOMEvent,
                             nsEventStatus* aEventStatus,
-                            nsDispatchingCallback* aCallback)
+                            nsDispatchingCallback* aCallback,
+                            nsCOMArray<nsPIDOMEventTarget>* aTargets)
 {
   NS_ASSERTION(aEvent, "Trying to dispatch without nsEvent!");
   NS_ENSURE_TRUE(!NS_IS_EVENT_IN_DISPATCH(aEvent),
                  NS_ERROR_ILLEGAL_VALUE);
+  NS_ASSERTION(!aTargets || !aEvent->message, "Wrong parameters!");
+
+  if (aEvent->flags & NS_EVENT_FLAG_ONLY_CHROME_DISPATCH) {
+    nsCOMPtr<nsINode> node = do_QueryInterface(aTarget);
+    if (!node) {
+      nsCOMPtr<nsPIDOMWindow> win = do_QueryInterface(aTarget);
+      if (win) {
+        node = do_QueryInterface(win->GetExtantDocument());
+      }
+    }
+
+    NS_ENSURE_STATE(node);
+    nsIDocument* doc = node->GetOwnerDoc();
+    if (!nsContentUtils::IsChromeDoc(doc)) {
+      nsPIDOMWindow* win = doc ? doc->GetInnerWindow() : nsnull;
+      // If we can't dispatch the event to chrome, do nothing.
+      NS_ENSURE_TRUE(win && win->GetChromeEventHandler(), NS_OK);
+      // Set the target to be the original dispatch target,
+      aEvent->target = aTarget;
+      // but use chrome event handler for event target chain.
+      aTarget = win->GetChromeEventHandler();
+    }
+  }
 
   nsCOMPtr<nsPIDOMEventTarget> target = do_QueryInterface(aTarget);
 #ifdef DEBUG
+  if (!nsContentUtils::IsSafeToRunScript()) {
+    nsresult rv = NS_ERROR_FAILURE;
+    if (target->GetContextForEventHandlers(&rv) ||
+        NS_FAILED(rv)) {
+      NS_ERROR("This is unsafe!");
+    }
+  }
+
   if (aDOMEvent) {
     nsCOMPtr<nsIPrivateDOMEvent> privEvt(do_QueryInterface(aDOMEvent));
     if (privEvt) {
@@ -530,18 +582,29 @@ nsEventDispatcher::Dispatch(nsISupports* aTarget,
       }
     }
     if (NS_SUCCEEDED(rv)) {
-      // Event target chain is created. Handle the chain.
-      nsEventChainPostVisitor postVisitor(preVisitor);
-      rv = topEtci->HandleEventTargetChain(postVisitor,
-                                           NS_EVENT_FLAG_BUBBLE |
-                                           NS_EVENT_FLAG_CAPTURE,
-                                           aCallback,
-                                           PR_TRUE);
-
-      preVisitor.mEventStatus = postVisitor.mEventStatus;
-      // If the DOM event was created during event flow.
-      if (!preVisitor.mDOMEvent && postVisitor.mDOMEvent) {
-        preVisitor.mDOMEvent = postVisitor.mDOMEvent;
+      if (aTargets) {
+        aTargets->Clear();
+        nsEventTargetChainItem* item = targetEtci;
+        while(item) {
+          aTargets->AppendObject(item->CurrentTarget()->GetTargetForDOMEvent());
+          item = item->mParent;
+        }
+      } else {
+        // Event target chain is created. Handle the chain.
+        nsEventChainPostVisitor postVisitor(preVisitor);
+        nsCxPusher pusher;
+        rv = topEtci->HandleEventTargetChain(postVisitor,
+                                             NS_EVENT_FLAG_BUBBLE |
+                                             NS_EVENT_FLAG_CAPTURE,
+                                             aCallback,
+                                             PR_FALSE,
+                                             &pusher);
+  
+        preVisitor.mEventStatus = postVisitor.mEventStatus;
+        // If the DOM event was created during event flow.
+        if (!preVisitor.mDOMEvent && postVisitor.mDOMEvent) {
+          preVisitor.mDOMEvent = postVisitor.mDOMEvent;
+        }
       }
     }
   }
@@ -625,6 +688,9 @@ nsEventDispatcher::CreateEvent(nsPresContext* aPresContext,
     case NS_SCROLLPORT_EVENT:
       return NS_NewDOMUIEvent(aDOMEvent, aPresContext,
                               static_cast<nsGUIEvent*>(aEvent));
+    case NS_SCROLLAREA_EVENT:
+      return NS_NewDOMScrollAreaEvent(aDOMEvent, aPresContext,
+                                      static_cast<nsScrollAreaEvent *>(aEvent));
     case NS_KEY_EVENT:
       return NS_NewDOMKeyboardEvent(aDOMEvent, aPresContext,
                                     static_cast<nsKeyEvent*>(aEvent));
@@ -656,6 +722,9 @@ nsEventDispatcher::CreateEvent(nsPresContext* aPresContext,
     case NS_SIMPLE_GESTURE_EVENT:
       return NS_NewDOMSimpleGestureEvent(aDOMEvent, aPresContext,
                                          static_cast<nsSimpleGestureEvent*>(aEvent));
+    case NS_TRANSITION_EVENT:
+      return NS_NewDOMTransitionEvent(aDOMEvent, aPresContext,
+                                      static_cast<nsTransitionEvent*>(aEvent));
     }
 
     // For all other types of events, create a vanilla event object.
@@ -684,6 +753,8 @@ nsEventDispatcher::CreateEvent(nsPresContext* aPresContext,
     return NS_NewDOMTextEvent(aDOMEvent, aPresContext, nsnull);
   if (aEventType.LowerCaseEqualsLiteral("popupblockedevents"))
     return NS_NewDOMPopupBlockedEvent(aDOMEvent, aPresContext, nsnull);
+  if (aEventType.LowerCaseEqualsLiteral("orientation"))
+    return NS_NewDOMOrientationEvent(aDOMEvent, aPresContext, nsnull);
   if (aEventType.LowerCaseEqualsLiteral("uievent") ||
       aEventType.LowerCaseEqualsLiteral("uievents"))
     return NS_NewDOMUIEvent(aDOMEvent, aPresContext, nsnull);
@@ -720,6 +791,14 @@ nsEventDispatcher::CreateEvent(nsPresContext* aPresContext,
     return NS_NewDOMBeforeUnloadEvent(aDOMEvent, aPresContext, nsnull);
   if (aEventType.LowerCaseEqualsLiteral("pagetransition"))
     return NS_NewDOMPageTransitionEvent(aDOMEvent, aPresContext, nsnull);
+  if (aEventType.LowerCaseEqualsLiteral("scrollareaevent"))
+    return NS_NewDOMScrollAreaEvent(aDOMEvent, aPresContext, nsnull);
+  // FIXME: Should get spec to say what the right string is here!  This
+  // is probably wrong!
+  if (aEventType.LowerCaseEqualsLiteral("transitionevent"))
+    return NS_NewDOMTransitionEvent(aDOMEvent, aPresContext, nsnull);
+  if (aEventType.LowerCaseEqualsLiteral("popstateevent"))
+    return NS_NewDOMPopStateEvent(aDOMEvent, aPresContext, nsnull);
 
   return NS_ERROR_DOM_NOT_SUPPORTED_ERR;
 }

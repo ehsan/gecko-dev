@@ -62,7 +62,9 @@ nsIFrame*
 NS_NewTreeColFrame(nsIPresShell* aPresShell, nsStyleContext* aContext)
 {
   return new (aPresShell) nsTreeColFrame(aPresShell, aContext);
-} // NS_NewTreeColFrame
+}
+
+NS_IMPL_FRAMEARENA_HELPERS(nsTreeColFrame)
 
 // Destructor
 nsTreeColFrame::~nsTreeColFrame()
@@ -79,11 +81,11 @@ nsTreeColFrame::Init(nsIContent*      aContent,
   return rv;
 }
 
-void                                                                
-nsTreeColFrame::Destroy()                          
+void
+nsTreeColFrame::DestroyFrom(nsIFrame* aDestructRoot)
 {
   InvalidateColumns(PR_FALSE);
-  nsBoxFrame::Destroy();
+  nsBoxFrame::DestroyFrom(aDestructRoot);
 }
 
 class nsDisplayXULTreeColSplitterTarget : public nsDisplayItem {
@@ -125,10 +127,9 @@ nsDisplayXULTreeColSplitterTarget::HitTest(nsDisplayListBuilder* aBuilder,
 
   if (left || right) {
     // We are a header. Look for the correct splitter.
-    nsFrameList frames(mFrame->GetParent()->GetFirstChild(nsnull));
     nsIFrame* child;
     if (left)
-      child = frames.GetPrevSiblingFor(mFrame);
+      child = mFrame->GetPrevSibling();
     else
       child = mFrame->GetNextSibling();
 

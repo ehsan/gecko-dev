@@ -221,10 +221,10 @@ Atob(JSContext *cx, JSObject *obj, uintN argc, jsval *argv, jsval *rval)
     char *base64Str = JS_GetStringBytes(str);
 
     PRUint32 bin_dataLength = (PRUint32)base64StrLength;
-    if (base64Str[base64StrLength - 1] == '=') {
-        if (base64Str[base64StrLength - 2] == '=')
+    if (base64StrLength >= 1 && base64Str[base64StrLength - 1] == '=') {
+        if (base64StrLength >= 2 && base64Str[base64StrLength - 2] == '=')
             bin_dataLength -= 2;
-        else  
+        else
             --bin_dataLength;
     }
     bin_dataLength = (PRUint32)((PRUint64)bin_dataLength * 3) / 4;
@@ -394,6 +394,7 @@ nsXPCFastLoadIO::GetInputStream(nsIInputStream **_retval)
                                        fileInput,
                                        XPC_DESERIALIZATION_BUFFER_SIZE);
         NS_ENSURE_SUCCESS(rv, rv);
+        mTruncateOutputFile = false;
     }
 
     NS_ADDREF(*_retval = mInputStream);
@@ -405,7 +406,7 @@ nsXPCFastLoadIO::GetOutputStream(nsIOutputStream **_retval)
 {
     if (! mOutputStream) {
         PRInt32 ioFlags = PR_WRONLY;
-        if (! mInputStream) {
+        if (mTruncateOutputFile) {
             ioFlags |= PR_CREATE_FILE | PR_TRUNCATE;
         }
 
@@ -421,6 +422,13 @@ nsXPCFastLoadIO::GetOutputStream(nsIOutputStream **_retval)
     }
 
     NS_ADDREF(*_retval = mOutputStream);
+    return NS_OK;
+}
+
+NS_IMETHODIMP
+nsXPCFastLoadIO::DisableTruncate()
+{
+    mTruncateOutputFile = false;
     return NS_OK;
 }
 
@@ -945,33 +953,12 @@ mozJSComponentLoader::StartFastLoad(nsIFastLoadService *flSvc)
         if (exists) {
             LOG(("trying to use existing fastload file\n"));
 
-            nsCOMPtr<nsIInputStream> input;
-            rv = mFastLoadIO->GetInputStream(getter_AddRefs(input));
-            NS_ENSURE_SUCCESS(rv, rv);
-
-            rv = flSvc->NewInputStream(input, getter_AddRefs(mFastLoadInput));
+            rv = flSvc->NewInputStream(mFastLoadFile, getter_AddRefs(mFastLoadInput));
             if (NS_SUCCEEDED(rv)) {
                 LOG(("opened fastload file for reading\n"));
 
                 nsCOMPtr<nsIFastLoadReadControl>
                     readControl(do_QueryInterface(mFastLoadInput));
-                if (readControl) {
-                    // Verify checksum, using the FastLoadService's
-                    // checksum cache to avoid computing more than once
-                    // per session.
-                    PRUint32 checksum;
-                    rv = readControl->GetChecksum(&checksum);
-                    if (NS_SUCCEEDED(rv)) {
-                        PRUint32 verified;
-                        rv = flSvc->ComputeChecksum(mFastLoadFile,
-                                                    readControl, &verified);
-                        if (NS_SUCCEEDED(rv) && verified != checksum) {
-                            LOG(("Incorrect checksum detected"));
-                            rv = NS_ERROR_FAILURE;
-                        }
-                    }
-                }
-
                 if (NS_SUCCEEDED(rv)) {
                     /* Get the JS bytecode version number and validate it. */
                     PRUint32 version;
@@ -987,9 +974,7 @@ mozJSComponentLoader::StartFastLoad(nsIFastLoadService *flSvc)
                 if (mFastLoadInput) {
                     mFastLoadInput->Close();
                     mFastLoadInput = nsnull;
-                } else {
-                    input->Close();
-                }
+                } 
                 mFastLoadIO->SetInputStream(nsnull);
                 mFastLoadFile->Remove(PR_FALSE);
                 exists = PR_FALSE;
@@ -1186,7 +1171,7 @@ mozJSComponentLoader::GlobalForLocation(nsILocalFile *aComponent,
 #ifdef XPCONNECT_STANDALONE
     localFile->GetNativePath(nativePath);
 #else
-    NS_GetURLSpecFromFile(aComponent, nativePath);
+    NS_GetURLSpecFromActualFile(aComponent, nativePath);
 #endif
 
     // Before compiling the script, first check to see if we have it in

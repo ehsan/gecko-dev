@@ -75,7 +75,6 @@ nsCopySupport.h \
 nsContentCreatorFunctions.h \
 nsDOMFile.h \
 nsLineBreaker.h \
-nsPresShellIterator.h \
 nsReferencedElement.h \
 nsXMLNameSpaceMap.h \
 $(NULL)
@@ -93,8 +92,11 @@ XPIDLSRCS	= \
 		nsIContentPolicy.idl        \
 		nsIDocumentEncoder.idl      \
 		nsIDOMFile.idl \
+		nsIDOMFileReader.idl \
+		nsIDOMFileInternal.idl \
 		nsIDOMFileList.idl \
 		nsIDOMFileException.idl \
+		nsIDOMFileError.idl \
 		nsIDOMParser.idl \
 		nsIDOMSerializer.idl \
 		nsISelection2.idl \
@@ -111,6 +113,7 @@ XPIDLSRCS	= \
 		nsIObjectLoadingContent.idl \
 		nsIFrameLoader.idl \
 		nsIXMLHttpRequest.idl \
+		nsIContentSecurityPolicy.idl \
 		$(NULL)
 
 include $(topsrcdir)/config/rules.mk

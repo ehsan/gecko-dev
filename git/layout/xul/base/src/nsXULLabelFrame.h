@@ -49,6 +49,8 @@
 class nsXULLabelFrame : public nsBlockFrame
 {
 public:
+  NS_DECL_FRAMEARENA_HELPERS
+
   friend nsIFrame* NS_NewXULLabelFrame(nsIPresShell* aPresShell,
                                        nsStyleContext *aContext);
   
@@ -57,7 +59,7 @@ public:
                   nsIFrame*        aParent,
                   nsIFrame*        aPrevInFlow);
 
-  virtual void Destroy();
+  virtual void DestroyFrom(nsIFrame* aDestructRoot);
 
   NS_IMETHOD AttributeChanged(PRInt32 aNameSpaceID,
                               nsIAtom* aAttribute,

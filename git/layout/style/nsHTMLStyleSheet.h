@@ -79,11 +79,14 @@ public:
 
   // nsIStyleRuleProcessor API
   NS_IMETHOD RulesMatching(ElementRuleProcessorData* aData);
-  NS_IMETHOD RulesMatching(PseudoRuleProcessorData* aData);
-  NS_IMETHOD HasStateDependentStyle(StateRuleProcessorData* aData,
-                                    nsReStyleHint* aResult);
-  NS_IMETHOD HasAttributeDependentStyle(AttributeRuleProcessorData* aData,
-                                        nsReStyleHint* aResult);
+  NS_IMETHOD RulesMatching(PseudoElementRuleProcessorData* aData);
+  NS_IMETHOD RulesMatching(AnonBoxRuleProcessorData* aData);
+#ifdef MOZ_XUL
+  NS_IMETHOD RulesMatching(XULTreeRuleProcessorData* aData);
+#endif
+  virtual nsReStyleHint HasStateDependentStyle(StateRuleProcessorData* aData);
+  virtual nsReStyleHint
+    HasAttributeDependentStyle(AttributeRuleProcessorData* aData);
   NS_IMETHOD MediumFeaturesChanged(nsPresContext* aPresContext,
                                    PRBool* aRulesChanged);
 
@@ -152,71 +155,12 @@ private:
     NS_IMETHOD MapRuleInfoInto(nsRuleData* aRuleData);
   };
 
-  // this rule handles borders on a <thead>, <tbody>, <tfoot> when rules
-  // is set on its <table>
-  class TableTbodyRule;
-  friend class TableTbodyRule;
-  class TableTbodyRule: public GenericTableRule {
-  public:
-    TableTbodyRule() {}
-
-    NS_IMETHOD MapRuleInfoInto(nsRuleData* aRuleData);
-  };
-
-  // this rule handles borders on a <row> when rules is set on its <table>
-  class TableRowRule;
-  friend class TableRowRule;
-  class TableRowRule: public GenericTableRule {
-  public:
-    TableRowRule() {}
-
-    NS_IMETHOD MapRuleInfoInto(nsRuleData* aRuleData);
-  };
-
-  // this rule handles borders on a <colgroup> when rules is set on its <table>
-  class TableColgroupRule;
-  friend class TableColgroupRule;
-  class TableColgroupRule: public GenericTableRule {
-  public:
-    TableColgroupRule() {}
-
-    NS_IMETHOD MapRuleInfoInto(nsRuleData* aRuleData);
-  };
-
-  // this rule handles borders on a <col> when rules is set on its <table>.
-  // This should only be used for <col>s which are in a colgroup or anonymous
-  // cols.
-  class TableColRule;
-  friend class TableColRule;
-  class TableColRule: public GenericTableRule {
-  public:
-    TableColRule() {}
-
-    NS_IMETHOD MapRuleInfoInto(nsRuleData* aRuleData);
-  };
-
-  // this rule handles borders on a <col> when rules is set on its <table>.
-  // This should only be used for <col>s which are not in a colgroup.
-  class TableUngroupedColRule;
-  friend class TableUngroupedColRule;
-  class TableUngroupedColRule: public GenericTableRule {
-  public:
-    TableUngroupedColRule() {}
-
-    NS_IMETHOD MapRuleInfoInto(nsRuleData* aRuleData);
-  };
-
   nsIURI*              mURL;
   nsIDocument*         mDocument;
   HTMLColorRule*       mLinkRule;
   HTMLColorRule*       mVisitedRule;
   HTMLColorRule*       mActiveRule;
   HTMLColorRule*       mDocumentColorRule;
-  TableTbodyRule*      mTableTbodyRule;
-  TableRowRule*        mTableRowRule;
-  TableColgroupRule*   mTableColgroupRule;
-  TableColRule*        mTableColRule;
-  TableUngroupedColRule* mTableUngroupedColRule;
   TableTHRule*         mTableTHRule;
 
   PLDHashTable         mMappedAttrTable;

@@ -99,14 +99,13 @@
 
 // Put these here so all document impls get them automatically
 #include "nsHTMLStyleSheet.h"
-#include "nsIHTMLCSSStyleSheet.h"
+#include "nsHTMLCSSStyleSheet.h"
 
 #include "nsStyleSet.h"
 #include "nsXMLEventsManager.h"
 #include "pldhash.h"
 #include "nsAttrAndChildArray.h"
 #include "nsDOMAttributeMap.h"
-#include "nsPresShellIterator.h"
 #include "nsContentUtils.h"
 #include "nsThreadUtils.h"
 #include "nsIDocumentViewer.h"
@@ -117,6 +116,7 @@
 #include "nsISecurityEventSink.h"
 #include "nsIChannelEventSink.h"
 #include "imgIRequest.h"
+#include "nsIDOMDOMImplementation.h"
 
 #define XML_DECLARATION_BITS_DECLARATION_EXISTS   (1 << 0)
 #define XML_DECLARATION_BITS_ENCODING_EXISTS      (1 << 1)
@@ -320,7 +320,8 @@ public:
 private:
   void FireChangeCallbacks(nsIContent* aOldContent, nsIContent* aNewContent);
 
-  // empty if there are no nodes with this ID
+  // empty if there are no nodes with this ID.
+  // The content nodes are stored addrefed.
   nsSmallVoidArray mIdContentList;
   // NAME_NOT_VALID if this id cannot be used as a 'name'
   nsBaseContentList *mNameContentList;
@@ -581,6 +582,8 @@ class nsDocument : public nsIDocument,
 public:
   NS_DECL_CYCLE_COLLECTING_ISUPPORTS
 
+  using nsINode::GetScriptTypeID;
+
   virtual void Reset(nsIChannel *aChannel, nsILoadGroup *aLoadGroup);
   virtual void ResetToURI(nsIURI *aURI, nsILoadGroup *aLoadGroup,
                           nsIPrincipal* aPrincipal);
@@ -664,8 +667,6 @@ public:
                                nsIViewManager* aViewManager,
                                nsStyleSet* aStyleSet,
                                nsIPresShell** aInstancePtrResult);
-  virtual PRBool DeleteShell(nsIPresShell* aShell);
-  virtual nsIPresShell *GetPrimaryShell() const;
 
   virtual nsresult SetSubDocumentFor(nsIContent *aContent,
                                      nsIDocument* aSubDoc);
@@ -713,7 +714,7 @@ public:
    * Get this document's inline style sheet.  May return null if there
    * isn't one
    */
-  virtual nsIHTMLCSSStyleSheet* GetInlineStyleSheet() const {
+  virtual nsHTMLCSSStyleSheet* GetInlineStyleSheet() const {
     return mStyleAttrStyleSheet;
   }
   
@@ -1009,8 +1010,11 @@ public:
   void MaybeEndOutermostXBLUpdate();
 
   virtual void MaybePreLoadImage(nsIURI* uri);
-protected:
 
+  virtual nsISupports* GetCurrentContentSink();
+
+protected:
+  friend class nsNodeUtils;
   void RegisterNamedItems(nsIContent *aContent);
   void UnregisterNamedItems(nsIContent *aContent);
   void UpdateNameTableEntry(nsIContent *aContent);
@@ -1033,28 +1037,18 @@ protected:
   static PRBool TryChannelCharset(nsIChannel *aChannel,
                                   PRInt32& aCharsetSource,
                                   nsACString& aCharset);
-  
+
   void UpdateLinkMap();
   // Call this before the document does something that will unbind all content.
   // That will stop us from resolving URIs for all links as they are removed.
   void DestroyLinkMap();
 
-  // Get the root <html> element, or return null if there isn't one (e.g.
-  // if the root isn't <html>)
-  nsIContent* GetHtmlContent();
-  // Returns the first child of GetHtmlContent which has the given tag,
-  // or nsnull if that doesn't exist.
-  nsIContent* GetHtmlChildContent(nsIAtom* aTag);
-  // Get the canonical <body> element, or return null if there isn't one (e.g.
-  // if the root isn't <html> or if the <body> isn't there)
-  nsIContent* GetBodyContent() {
-    return GetHtmlChildContent(nsGkAtoms::body);
-  }
-  // Get the canonical <head> element, or return null if there isn't one (e.g.
-  // if the root isn't <html> or if the <head> isn't there)
-  nsIContent* GetHeadContent() {
-    return GetHtmlChildContent(nsGkAtoms::head);
-  }
+  // Refreshes the hrefs of all the links in the document.
+  void RefreshLinkHrefs();
+
+  nsIContent* GetFirstBaseNodeWithHref();
+  nsresult SetFirstBaseNodeWithHref(nsIContent *node);
+
   // Get the first <title> element with the given IsNodeOfType type, or
   // return null if there isn't one
   nsIContent* GetTitleContent(PRUint32 aNodeType);
@@ -1162,20 +1156,11 @@ protected:
 
   // True if the document has been detached from its content viewer.
   PRPackedBool mIsGoingAway:1;
-  // True if our content viewer has been removed from the docshell
-  // (it may still be displayed, but in zombie state). Form control data
-  // has been saved.
-  PRPackedBool mRemovedFromDocShell:1;
   // True if the document is being destroyed.
   PRPackedBool mInDestructor:1;
-  // True if the document "page" is not hidden
-  PRPackedBool mVisible:1;
   // True if document has ever had script handling object.
   PRPackedBool mHasHadScriptHandlingObject:1;
-  // True if this is a regular (non-XHTML) HTML document
-  // XXXbz should this be reset if someone manually calls
-  // SetContentType() on this document?
-  PRPackedBool mIsRegularHTML:1;
+
   // True if this document has ever had an HTML or SVG <title> element
   // bound to it
   PRPackedBool mMayHaveTitleElement:1;
@@ -1192,6 +1177,11 @@ protected:
 
   PRPackedBool mInXBLUpdate:1;
 
+  // This flag is only set in nsXMLDocument, for e.g. documents used in XBL. We
+  // don't want animations to play in such documents, so we need to store the
+  // flag here so that we can check it in nsDocument::GetAnimationController.
+  PRPackedBool mLoadedAsInteractiveData:1;
+
   PRUint8 mXMLDeclarationBits;
 
   PRUint8 mDefaultElementType;
@@ -1201,7 +1191,7 @@ protected:
   // The channel that got passed to StartDocumentLoad(), if any
   nsCOMPtr<nsIChannel> mChannel;
   nsRefPtr<nsHTMLStyleSheet> mAttrStyleSheet;
-  nsCOMPtr<nsIHTMLCSSStyleSheet> mStyleAttrStyleSheet;
+  nsRefPtr<nsHTMLCSSStyleSheet> mStyleAttrStyleSheet;
   nsRefPtr<nsXMLEventsManager> mXMLEventsManager;
 
   nsCOMPtr<nsIScriptEventManager> mScriptEventManager;
@@ -1215,11 +1205,15 @@ protected:
   // any.  This can change during the lifetime of the document.
   nsCOMPtr<nsIApplicationCache> mApplicationCache;
 
+  nsCOMPtr<nsIContent> mFirstBaseNodeWithHref;
+
 private:
   friend class nsUnblockOnloadEvent;
 
   void PostUnblockOnloadEvent();
   void DoUnblockOnload();
+
+  nsresult InitCSP();
 
   /**
    * See if aDocument is a child of this.  If so, return the frame element in
@@ -1270,9 +1264,16 @@ private:
   // All images in process of being preloaded
   nsCOMArray<imgIRequest> mPreloadingImages;
 
+  nsCOMPtr<nsIDOMDOMImplementation> mDOMImplementation;
+
 #ifdef MOZ_SMIL
   nsAutoPtr<nsSMILAnimationController> mAnimationController;
 #endif // MOZ_SMIL
+
+#ifdef DEBUG
+protected:
+  PRBool mWillReparent;
+#endif
 };
 
 #define NS_DOCUMENT_INTERFACE_TABLE_BEGIN(_class)                             \

@@ -356,34 +356,14 @@ nsDragService::StartInvokingDragSession(IDataObject * aDataObj,
   mUserCancelled = nativeDragSource->UserCancelled();
 
   // We're done dragging, get the cursor position and end the drag
-  POINT pos;
-  GetCursorPos(&pos);
-  SetDragEndPoint(nsIntPoint(pos.x, pos.y));
+  // Use GetMessagePos to get the position of the mouse at the last message
+  // seen by the event loop. (Bug 489729)
+  DWORD pos = ::GetMessagePos();
+  POINT cpos;
+  cpos.x = GET_X_LPARAM(pos);
+  cpos.y = GET_Y_LPARAM(pos);
+  SetDragEndPoint(nsIntPoint(cpos.x, cpos.y));
   EndDragSession(PR_TRUE);
-
-  // For some drag/drop interactions, IDataObject::SetData doesn't get
-  // called with a CFSTR_PERFORMEDDROPEFFECT format and the
-  // intermediate file (if it was created) isn't deleted.  See
-  // http://bugzilla.mozilla.org/show_bug.cgi?id=203847#c4 for a
-  // detailed description of the different cases.  Now that we know
-  // that the drag/drop operation has ended, call SetData() so that
-  // the intermediate file is deleted.
-  static CLIPFORMAT PerformedDropEffect =
-    ::RegisterClipboardFormat(CFSTR_PERFORMEDDROPEFFECT);
-
-  FORMATETC fmte =
-    {
-      (CLIPFORMAT)PerformedDropEffect,
-      NULL,
-      DVASPECT_CONTENT,
-      -1,
-      TYMED_NULL
-    };
-
-  STGMEDIUM medium;
-  medium.tymed = TYMED_NULL;
-  medium.pUnkForRelease = NULL;
-  aDataObj->SetData(&fmte, &medium, FALSE);
 
   mDoingDrag = PR_FALSE;
 
@@ -436,6 +416,8 @@ nsDragService::GetNumDropItems(PRUint32 * aNumItems)
         ::GlobalUnlock(stm.hGlobal);
         ::ReleaseStgMedium(&stm);
       }
+      else
+        *aNumItems = 1;
     }
     else
       *aNumItems = 1;

@@ -13,7 +13,7 @@
  *
  * The Original Code is Places unit test code.
  *
- * The Initial Developer of the Original Code is Mozilla Corporation.
+ * The Initial Developer of the Original Code is Mozilla Foundation.
  * Portions created by the Initial Developer are Copyright (C) 2009
  * the Initial Developer. All Rights Reserved.
  *
@@ -56,20 +56,21 @@ DummyObserver.prototype = {
     os.notifyObservers(null, "dummy-observer-visited", null);
   },
   onTitleChanged: function(aURI, aPageTitle) {},
+  onBeforeDeleteURI: function(aURI) {},
   onDeleteURI: function(aURI) {},
   onClearHistory: function() {},
   onPageChanged: function(aURI, aWhat, aValue) {},
-  onPageExpired: function(aURI, aVisitTime, aWholeEntry) {},
+  onDeleteVisits: function(aURI, aVisitTime) {},
 
   // bookmark observer
   //onBeginUpdateBatch: function() {},
   //onEndUpdateBatch: function() {},
-  onItemAdded: function(aItemId, aParentId, aIndex) {
+  onItemAdded: function(aItemId, aParentId, aIndex, aItemType) {
     let os = Cc["@mozilla.org/observer-service;1"].
              getService(Ci.nsIObserverService);
     os.notifyObservers(null, "dummy-observer-item-added", null);
   },
-  onItemChanged: function (aItemId, aProperty, aIsAnnotationProperty, aValue) {},
+  onItemChanged: function () {},
   onBeforeItemRemoved: function() {},
   onItemRemoved: function() {},
   onItemVisited: function() {},

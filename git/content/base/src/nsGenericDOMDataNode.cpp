@@ -441,7 +441,7 @@ nsGenericDOMDataNode::SetTextInternal(PRUint32 aOffset, PRUint32 aCount,
     nsNodeUtils::CharacterDataChanged(this, &info);
 
     if (haveMutationListeners) {
-      mozAutoRemovableBlockerRemover blockerRemover;
+      mozAutoRemovableBlockerRemover blockerRemover(GetOwnerDoc());
 
       nsMutationEvent mutation(PR_TRUE, NS_MUTATION_CHARACTERDATAMODIFIED);
 
@@ -765,14 +765,6 @@ nsresult
 nsGenericDOMDataNode::RemoveChildAt(PRUint32 aIndex, PRBool aNotify, PRBool aMutationEvent)
 {
   return NS_OK;
-}
-
-// virtual
-PRBool
-nsGenericDOMDataNode::MayHaveFrame() const
-{
-  nsIContent* parent = GetParent();
-  return parent && parent->MayHaveFrame();
 }
 
 nsIContent *
@@ -1170,6 +1162,29 @@ nsGenericDOMDataNode::WalkContentStyleRules(nsRuleWalker* aRuleWalker)
 {
   return NS_OK;
 }
+
+#ifdef MOZ_SMIL
+nsresult
+nsGenericDOMDataNode::GetSMILOverrideStyle(nsIDOMCSSStyleDeclaration** aStyle)
+{
+  *aStyle = nsnull;
+  return NS_ERROR_NOT_IMPLEMENTED;
+}
+
+nsICSSStyleRule*
+nsGenericDOMDataNode::GetSMILOverrideStyleRule()
+{
+  return nsnull;
+}
+
+nsresult
+nsGenericDOMDataNode::SetSMILOverrideStyleRule(nsICSSStyleRule* aStyleRule,
+                                               PRBool aNotify)
+{
+  NS_NOTREACHED("How come we're setting SMILOverrideStyle on a non-element?");
+  return NS_ERROR_UNEXPECTED;
+}
+#endif // MOZ_SMIL
 
 nsICSSStyleRule*
 nsGenericDOMDataNode::GetInlineStyleRule()

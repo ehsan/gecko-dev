@@ -44,6 +44,7 @@
 #include "nsString.h"
 #include "nsCoord.h"
 #include "nsCSSProperty.h"
+#include "nsCSSKeywords.h"
 #include "nsIURI.h"
 #include "nsCOMPtr.h"
 #include "nsAutoPtr.h"
@@ -94,21 +95,23 @@ enum nsCSSUnit {
   eCSSUnit_None         = 4,      // (n/a) value is none
   eCSSUnit_Normal       = 5,      // (n/a) value is normal (algorithmic, different than auto)
   eCSSUnit_System_Font  = 6,      // (n/a) value is -moz-use-system-font
-  eCSSUnit_Dummy        = 7,      // (n/a) a fake but specified value, used
+  eCSSUnit_All          = 7,      // (n/a) value is all
+  eCSSUnit_Dummy        = 8,      // (n/a) a fake but specified value, used
                                   //       only in temporary values
-  eCSSUnit_DummyInherit = 8,      // (n/a) a fake but specified value, used
+  eCSSUnit_DummyInherit = 9,      // (n/a) a fake but specified value, used
                                   //       only in temporary values
-  eCSSUnit_RectIsAuto   = 9,      // (n/a) 'auto' for an entire rect()
-  eCSSUnit_String       = 10,     // (PRUnichar*) a string value
-  eCSSUnit_Ident        = 11,     // (PRUnichar*) a string value
-  eCSSUnit_Families     = 12,     // (PRUnichar*) a string value
-  eCSSUnit_Attr         = 13,     // (PRUnichar*) a attr(string) value
-  eCSSUnit_Local_Font   = 14,     // (PRUnichar*) a local font name
-  eCSSUnit_Font_Format  = 15,     // (PRUnichar*) a font format name
+  eCSSUnit_RectIsAuto   = 10,     // (n/a) 'auto' for an entire rect()
+  eCSSUnit_String       = 11,     // (PRUnichar*) a string value
+  eCSSUnit_Ident        = 12,     // (PRUnichar*) a string value
+  eCSSUnit_Families     = 13,     // (PRUnichar*) a string value
+  eCSSUnit_Attr         = 14,     // (PRUnichar*) a attr(string) value
+  eCSSUnit_Local_Font   = 15,     // (PRUnichar*) a local font name
+  eCSSUnit_Font_Format  = 16,     // (PRUnichar*) a font format name
   eCSSUnit_Array        = 20,     // (nsCSSValue::Array*) a list of values
   eCSSUnit_Counter      = 21,     // (nsCSSValue::Array*) a counter(string,[string]) value
   eCSSUnit_Counters     = 22,     // (nsCSSValue::Array*) a counters(string,string[,string]) value
-  eCSSUnit_Function     = 23,     // (nsCSSValue::Array*) a function with parameters.  First elem of array is name,
+  eCSSUnit_Cubic_Bezier = 23,     // (nsCSSValue::Array*) a list of float values
+  eCSSUnit_Function     = 24,     // (nsCSSValue::Array*) a function with parameters.  First elem of array is name,
                                   //  the rest of the values are arguments.
 
   eCSSUnit_URL          = 30,     // (nsCSSValue::URL*) value
@@ -170,7 +173,7 @@ public:
   struct Image;
   friend struct Image;
   
-  // for valueless units only (null, auto, inherit, none, normal)
+  // for valueless units only (null, auto, inherit, none, all, normal)
   explicit nsCSSValue(nsCSSUnit aUnit = eCSSUnit_Null)
     : mUnit(aUnit)
   {
@@ -180,7 +183,6 @@ public:
   nsCSSValue(PRInt32 aValue, nsCSSUnit aUnit) NS_HIDDEN;
   nsCSSValue(float aValue, nsCSSUnit aUnit) NS_HIDDEN;
   nsCSSValue(const nsString& aValue, nsCSSUnit aUnit) NS_HIDDEN;
-  explicit nsCSSValue(nscolor aValue) NS_HIDDEN;
   nsCSSValue(Array* aArray, nsCSSUnit aUnit) NS_HIDDEN;
   explicit nsCSSValue(URL* aValue) NS_HIDDEN;
   explicit nsCSSValue(Image* aValue) NS_HIDDEN;
@@ -232,6 +234,16 @@ public:
     NS_ASSERTION(eCSSUnit_Number <= mUnit, "not a float value");
     return mValue.mFloat;
   }
+
+  float GetAngleValue() const
+  {
+    NS_ASSERTION(eCSSUnit_Degree <= mUnit &&
+                 mUnit <= eCSSUnit_Radian, "not an angle value");
+    return mValue.mFloat;
+  }
+
+  // Converts any angle to radians.
+  double GetAngleValueInRadians() const;
 
   nsAString& GetStringValue(nsAString& aBuffer) const
   {
@@ -323,6 +335,7 @@ public:
   NS_HIDDEN_(void)  SetInheritValue();
   NS_HIDDEN_(void)  SetInitialValue();
   NS_HIDDEN_(void)  SetNoneValue();
+  NS_HIDDEN_(void)  SetAllValue();
   NS_HIDDEN_(void)  SetNormalValue();
   NS_HIDDEN_(void)  SetSystemFontValue();
   NS_HIDDEN_(void)  SetDummyValue();
@@ -330,6 +343,11 @@ public:
   NS_HIDDEN_(void)  SetRectIsAutoValue();
   NS_HIDDEN_(void)  StartImageLoad(nsIDocument* aDocument)
                                    const;  // Not really const, but pretending
+
+  // Initializes as a function value with the specified function id.
+  NS_HIDDEN_(Array*) InitFunction(nsCSSKeyword aFunctionId, PRUint32 aNumArgs);
+  // Checks if this is a function value with the specified function id.
+  NS_HIDDEN_(PRBool) EqualsFunction(nsCSSKeyword aFunctionId) const;
 
   // Returns an already addrefed buffer.  Can return null on allocation
   // failure.
@@ -446,7 +464,7 @@ protected:
 
 struct nsCSSValueGradientStop {
 public:
-  nsCSSValueGradientStop(const nsCSSValue& aLocation, const nsCSSValue& aColor) NS_HIDDEN;
+  nsCSSValueGradientStop() NS_HIDDEN;
   // needed to keep bloat logs happy when we use the nsTArray in nsCSSValueGradient
   nsCSSValueGradientStop(const nsCSSValueGradientStop& aOther) NS_HIDDEN;
   ~nsCSSValueGradientStop() NS_HIDDEN;
@@ -467,33 +485,32 @@ public:
 };
 
 struct nsCSSValueGradient {
-  nsCSSValueGradient(PRBool aIsRadial, const nsCSSValue& aStartX, const nsCSSValue& aStartY,
-           const nsCSSValue& aStartRadius, const nsCSSValue& aEndX, const nsCSSValue& aEndY,
-           const nsCSSValue& aEndRadius) NS_HIDDEN;
+  nsCSSValueGradient(PRBool aIsRadial,
+                     PRBool aIsRepeating) NS_HIDDEN;
 
   // true if gradient is radial, false if it is linear
   PRPackedBool mIsRadial;
-  nsCSSValue mStartX;
-  nsCSSValue mStartY;
-
-  nsCSSValue mEndX;
-  nsCSSValue mEndY;
+  PRPackedBool mIsRepeating;
+  // line position and angle
+  nsCSSValue mBgPosX;
+  nsCSSValue mBgPosY;
+  nsCSSValue mAngle;
 
   // Only meaningful if mIsRadial is true
-  nsCSSValue mStartRadius;
-  nsCSSValue mEndRadius;
+  nsCSSValue mRadialShape;
+  nsCSSValue mRadialSize;
 
   nsTArray<nsCSSValueGradientStop> mStops;
 
   PRBool operator==(const nsCSSValueGradient& aOther) const
   {
     if (mIsRadial != aOther.mIsRadial ||
-        mStartX != aOther.mStartX ||
-        mStartY != aOther.mStartY ||
-        mStartRadius != aOther.mStartRadius ||
-        mEndX != aOther.mEndX ||
-        mEndY != aOther.mEndY ||
-        mEndRadius != aOther.mEndRadius)
+        mIsRepeating != aOther.mIsRepeating ||
+        mBgPosX != aOther.mBgPosX ||
+        mBgPosY != aOther.mBgPosY ||
+        mAngle != aOther.mAngle ||
+        mRadialShape != aOther.mRadialShape ||
+        mRadialSize != aOther.mRadialSize)
       return PR_FALSE;
 
     if (mStops.Length() != aOther.mStops.Length())

@@ -53,6 +53,11 @@
  **************************************************************
  **************************************************************/
 
+#ifdef MOZ_IPC
+#include "mozilla/plugins/PluginInstanceParent.h"
+using mozilla::plugins::PluginInstanceParent;
+#endif
+
 #include "nsWindowGfx.h"
 #include <windows.h>
 #include "nsIRegion.h"
@@ -90,8 +95,8 @@ extern "C" {
  * 
  **************************************************************/
 
-nsAutoPtr<PRUint8>  nsWindow::sSharedSurfaceData;
-gfxIntSize          nsWindow::sSharedSurfaceSize;
+static nsAutoPtr<PRUint8>  sSharedSurfaceData;
+static gfxIntSize          sSharedSurfaceSize;
 
 /**************************************************************
  *
@@ -231,16 +236,8 @@ void nsWindowGfx::OnSettingsChangeGfx(WPARAM wParam)
       glpDDSecondary = NULL;
     }
 
-    gfxIntSize oldSize = nsWindow::sSharedSurfaceSize;
-    nsWindow::sSharedSurfaceSize.height = GetSystemMetrics(SM_CYSCREEN);
-    nsWindow::sSharedSurfaceSize.width = GetSystemMetrics(SM_CXSCREEN);
-
-    // if the area is different, reallocate during WM_PAINT.
-    if (nsWindow::sSharedSurfaceSize.height * nsWindow::sSharedSurfaceSize.width !=
-        oldSize.height * oldSize.width)
-      nsWindow::sSharedSurfaceData = nsnull;
-
-    glpDD->RestoreAllSurfaces();
+    if(glpDD)
+      glpDD->RestoreAllSurfaces();
   }
 #endif
 }
@@ -252,8 +249,103 @@ void nsWindow::SetUpForPaint(HDC aHDC)
   ::SetBkMode (aHDC, TRANSPARENT);
 }
 
+// GetRegionToPaint returns the invalidated region that needs to be painted
+// it's abstracted out because Windows XP/Vista/7 handles this for us, but
+// we need to keep track of it our selves for Windows CE and Windows Mobile
+
+nsCOMPtr<nsIRegion> nsWindow::GetRegionToPaint(PRBool aForceFullRepaint,
+                                               PAINTSTRUCT ps, HDC aDC)
+{ 
+  HRGN paintRgn = NULL;
+  nsCOMPtr<nsIRegion> paintRgnWin;
+  if (aForceFullRepaint) {
+    RECT paintRect;
+    ::GetClientRect(mWnd, &paintRect);
+    paintRgn = ::CreateRectRgn(paintRect.left, paintRect.top, 
+                               paintRect.right, paintRect.bottom);
+    if (paintRgn) {
+      paintRgnWin = nsWindowGfx::ConvertHRGNToRegion(paintRgn);
+      ::DeleteObject(paintRgn);
+      return paintRgnWin;
+    }
+  }
+#ifndef WINCE
+  paintRgn = ::CreateRectRgn(0, 0, 0, 0);
+  if (paintRgn != NULL) {
+    int result = GetRandomRgn(aDC, paintRgn, SYSRGN);
+    if (result == 1) {
+      POINT pt = {0,0};
+      ::MapWindowPoints(NULL, mWnd, &pt, 1);
+      ::OffsetRgn(paintRgn, pt.x, pt.y);
+    }
+    paintRgnWin = nsWindowGfx::ConvertHRGNToRegion(paintRgn);
+    ::DeleteObject(paintRgn);
+  }
+#else
+# ifdef WINCE_WINDOWS_MOBILE
+  paintRgn = ::CreateRectRgn(0, 0, 0, 0);
+  if (paintRgn != NULL) {
+    int result = GetUpdateRgn(mWnd, paintRgn, FALSE);
+    if (result == 1) {
+      POINT pt = {0,0};
+      ::MapWindowPoints(NULL, mWnd, &pt, 1);
+      ::OffsetRgn(paintRgn, pt.x, pt.y);
+    }
+    paintRgnWin = nsWindowGfx::ConvertHRGNToRegion(paintRgn);
+    ::DeleteObject(paintRgn);
+  }
+# endif
+  paintRgn = ::CreateRectRgn(ps.rcPaint.left, ps.rcPaint.top,
+                             ps.rcPaint.right, ps.rcPaint.bottom);
+  if (paintRgn) {
+    paintRgnWin = nsWindowGfx::ConvertHRGNToRegion(paintRgn);
+    ::DeleteObject(paintRgn);
+  }
+#endif
+  return paintRgnWin;
+}
+
+#define WORDSSIZE(x) ((x).width * (x).height)
+static PRBool
+EnsureSharedSurfaceSize(gfxIntSize size)
+{
+  gfxIntSize screenSize;
+  screenSize.height = GetSystemMetrics(SM_CYSCREEN);
+  screenSize.width = GetSystemMetrics(SM_CXSCREEN);
+
+  if (WORDSSIZE(screenSize) > WORDSSIZE(size))
+    size = screenSize;
+
+  if (WORDSSIZE(screenSize) < WORDSSIZE(size))
+    NS_WARNING("Trying to create a shared surface larger than the screen");
+
+  if (!sSharedSurfaceData || (WORDSSIZE(size) > WORDSSIZE(sSharedSurfaceSize))) {
+    sSharedSurfaceSize = size;
+    sSharedSurfaceData = nsnull;
+    sSharedSurfaceData = (PRUint8 *)malloc(WORDSSIZE(sSharedSurfaceSize) * 4);
+  }
+
+  return (sSharedSurfaceData != nsnull);
+}
+
 PRBool nsWindow::OnPaint(HDC aDC)
 {
+#ifdef MOZ_IPC
+  if (mWindowType == eWindowType_plugin) {
+    PluginInstanceParent* instance = reinterpret_cast<PluginInstanceParent*>(
+      ::GetPropW(mWnd, L"PluginInstanceParentProperty"));
+    if (instance) {
+      if (!instance->CallUpdateWindow())
+        NS_ERROR("Failed to send message!");
+      ValidateRect(mWnd, NULL);
+      return PR_TRUE;
+    }
+  }
+#endif
+
+  nsPaintEvent willPaintEvent(PR_TRUE, NS_WILL_PAINT, this);
+  DispatchWindowEvent(&willPaintEvent);
+
 #ifdef CAIRO_HAS_DDRAW_SURFACE
   if (IsRenderMode(gfxWindowsPlatform::RENDER_IMAGE_DDRAW16)) {
     return OnPaintImageDDraw16();
@@ -296,40 +388,13 @@ PRBool nsWindow::OnPaint(HDC aDC)
 
   HDC hDC = aDC ? aDC : (::BeginPaint(mWnd, &ps));
   mPaintDC = hDC;
-  HRGN paintRgn = NULL;
 
 #ifdef MOZ_XUL
-  if (aDC || (eTransparencyTransparent == mTransparencyMode)) {
+  PRBool forceRepaint = aDC || (eTransparencyTransparent == mTransparencyMode);
 #else
-  if (aDC) {
+  PRBool forceRepaint = NULL != aDC;
 #endif
-
-    RECT paintRect;
-    ::GetClientRect(mWnd, &paintRect);
-    paintRgn = ::CreateRectRgn(paintRect.left, paintRect.top, paintRect.right, paintRect.bottom);
-  }
-  else {
-#ifndef WINCE
-    paintRgn = ::CreateRectRgn(0, 0, 0, 0);
-    if (paintRgn != NULL) {
-      int result = GetRandomRgn(hDC, paintRgn, SYSRGN);
-      if (result == 1) {
-        POINT pt = {0,0};
-        ::MapWindowPoints(NULL, mWnd, &pt, 1);
-        ::OffsetRgn(paintRgn, pt.x, pt.y);
-      }
-    }
-#else
-    paintRgn = ::CreateRectRgn(ps.rcPaint.left, ps.rcPaint.top, 
-                               ps.rcPaint.right, ps.rcPaint.bottom);
-#endif
-  }
-
-  nsCOMPtr<nsIRegion> paintRgnWin;
-  if (paintRgn) {
-    paintRgnWin = nsWindowGfx::ConvertHRGNToRegion(paintRgn);
-    ::DeleteObject(paintRgn);
-  }
+  nsCOMPtr<nsIRegion> paintRgnWin = GetRegionToPaint(forceRepaint, ps, hDC);
 
   if (paintRgnWin &&
       !paintRgnWin->IsEmpty() &&
@@ -404,30 +469,20 @@ DDRAW_FAILED:
         (IsRenderMode(gfxWindowsPlatform::RENDER_IMAGE_STRETCH32) ||
          IsRenderMode(gfxWindowsPlatform::RENDER_IMAGE_STRETCH24)))
     {
-      if (!sSharedSurfaceData) {
-        sSharedSurfaceSize.height = GetSystemMetrics(SM_CYSCREEN);
-        sSharedSurfaceSize.width = GetSystemMetrics(SM_CXSCREEN);
-        sSharedSurfaceData = (PRUint8*) malloc(sSharedSurfaceSize.width * sSharedSurfaceSize.height * 4);
-      }
-
       gfxIntSize surfaceSize(ps.rcPaint.right - ps.rcPaint.left,
                              ps.rcPaint.bottom - ps.rcPaint.top);
 
-      if (!sSharedSurfaceData ||
-          surfaceSize.width > sSharedSurfaceSize.width ||
-          surfaceSize.height > sSharedSurfaceSize.height)
-      {
-        // allocate a new oversize surface; hopefully this will just be a one-time thing,
-        // and we should really fix whatever's doing it!
-        targetSurfaceImage = new gfxImageSurface(surfaceSize, gfxASurface::ImageFormatRGB24);
-      } else {
-        // don't use the shared surface directly; instead, create a new one
-        // that just reuses its buffer.
-        targetSurfaceImage = new gfxImageSurface(sSharedSurfaceData.get(),
-                                                 surfaceSize,
-                                                 surfaceSize.width * 4,
-                                                 gfxASurface::ImageFormatRGB24);
+      if (!EnsureSharedSurfaceSize(surfaceSize)) {
+        NS_ERROR("Couldn't allocate a shared image surface!");
+        return NS_ERROR_FAILURE;
       }
+
+      // don't use the shared surface directly; instead, create a new one
+      // that just reuses its buffer.
+      targetSurfaceImage = new gfxImageSurface(sSharedSurfaceData.get(),
+                                               surfaceSize,
+                                               surfaceSize.width * 4,
+                                               gfxASurface::ImageFormatRGB24);
 
       if (targetSurfaceImage && !targetSurfaceImage->CairoStatus()) {
         targetSurfaceImage->SetDeviceOffset(gfxPoint(-ps.rcPaint.left, -ps.rcPaint.top));
@@ -666,7 +721,9 @@ nsresult nsWindowGfx::CreateIcon(imgIContainer *aContainer,
 
   // Get the image data
   nsRefPtr<gfxImageSurface> frame;
-  aContainer->CopyCurrentFrame(getter_AddRefs(frame));
+  aContainer->CopyFrame(imgIContainer::FRAME_CURRENT,
+                        imgIContainer::FLAG_SYNC_DECODE,
+                        getter_AddRefs(frame));
   if (!frame)
     return NS_ERROR_NOT_AVAILABLE;
 
@@ -844,33 +901,26 @@ HBITMAP nsWindowGfx::DataToBitmap(PRUint8* aImageData,
 #if defined(CAIRO_HAS_DDRAW_SURFACE)
 PRBool nsWindow::OnPaintImageDDraw16()
 {
-  PRBool result = PR_TRUE;
+  PRBool result = PR_FALSE;
   PAINTSTRUCT ps;
-  gfxIntSize surfaceSize;
   nsPaintEvent event(PR_TRUE, NS_PAINT, this);
-  RECT renderArea;
-
-  nsEventStatus eventStatus = nsEventStatus_eIgnore;
-  nsCOMPtr<nsIRenderingContext> rc;
+  gfxIntSize surfaceSize;
   nsRefPtr<gfxImageSurface> targetSurfaceImage;
   nsRefPtr<gfxContext> thebesContext;
-
+  nsCOMPtr<nsIRenderingContext> rc;
+  nsEventStatus eventStatus = nsEventStatus_eIgnore;
+  PRInt32 brx, bry, brw, brh;
+  gfxIntSize newSize;
+  newSize.height = GetSystemMetrics(SM_CYSCREEN);
+  newSize.width = GetSystemMetrics(SM_CXSCREEN);
   mPainting = PR_TRUE;
 
   HDC hDC = ::BeginPaint(mWnd, &ps);
   mPaintDC = hDC;
-
-  HRGN paintRgn = ::CreateRectRgn(ps.rcPaint.left, ps.rcPaint.top, 
-                                  ps.rcPaint.right, ps.rcPaint.bottom);
-
-  nsCOMPtr<nsIRegion> paintRgnWin;
-  if (paintRgn) {
-    paintRgnWin = nsWindowGfx::ConvertHRGNToRegion(paintRgn);
-    ::DeleteObject(paintRgn);
-  }
+  nsCOMPtr<nsIRegion> paintRgnWin = GetRegionToPaint(PR_FALSE, ps, hDC);
 
   if (!paintRgnWin || paintRgnWin->IsEmpty() || !mEventCallback) {
-    printf("nothing to paint\n");
+    result = PR_TRUE;
     goto cleanup;
   }
 
@@ -884,12 +934,6 @@ PRBool nsWindow::OnPaintImageDDraw16()
       NS_WARNING("DirectDraw init failed.  Giving up.");
       goto cleanup;
     }
-  }  
-  
-  if (!sSharedSurfaceData) {
-    sSharedSurfaceSize.height = GetSystemMetrics(SM_CYSCREEN);
-    sSharedSurfaceSize.width = GetSystemMetrics(SM_CXSCREEN);
-    sSharedSurfaceData = (PRUint8*) malloc(sSharedSurfaceSize.width * sSharedSurfaceSize.height * 4);
   }
 
   if (!glpDDSecondary) {
@@ -902,8 +946,8 @@ PRBool nsWindow::OnPaintImageDDraw16()
     
     gDDSDSecondary.dwFlags = DDSD_HEIGHT | DDSD_WIDTH | DDSD_PIXELFORMAT;
 
-    gDDSDSecondary.dwHeight = sSharedSurfaceSize.height;
-    gDDSDSecondary.dwWidth  = sSharedSurfaceSize.width;
+    gDDSDSecondary.dwHeight = newSize.height;
+    gDDSDSecondary.dwWidth  = newSize.width;
 
     gDDSDSecondary.ddpfPixelFormat.dwFlags = DDPF_RGB;
     gDDSDSecondary.ddpfPixelFormat.dwRGBBitCount = 16;
@@ -920,123 +964,104 @@ PRBool nsWindow::OnPaintImageDDraw16()
     }
   }
 
-  surfaceSize = gfxIntSize(ps.rcPaint.right - ps.rcPaint.left,
-                           ps.rcPaint.bottom - ps.rcPaint.top);
+  paintRgnWin->GetBoundingBox(&brx, &bry, &brw, &brh);
+  surfaceSize = gfxIntSize(brw, brh);
+  
+  if (!EnsureSharedSurfaceSize(surfaceSize))
+    goto cleanup;
 
   targetSurfaceImage = new gfxImageSurface(sSharedSurfaceData.get(),
-					   surfaceSize,
-					   surfaceSize.width * 4,
-					   gfxASurface::ImageFormatRGB24);
-
-  if (!targetSurfaceImage || targetSurfaceImage->CairoStatus()) {
-    NS_ERROR("Invalid targetSurfaceImage!");
+                                           surfaceSize,
+                                           surfaceSize.width * 4,
+                                           gfxASurface::ImageFormatRGB24);
+    
+  if (!targetSurfaceImage || targetSurfaceImage->CairoStatus())
     goto cleanup;
-  }
-
-  targetSurfaceImage->SetDeviceOffset(gfxPoint(-ps.rcPaint.left, -ps.rcPaint.top));
-
+    
+  targetSurfaceImage->SetDeviceOffset(gfxPoint(-brx, -bry));
+  
   thebesContext = new gfxContext(targetSurfaceImage);
   thebesContext->SetFlag(gfxContext::FLAG_DESTINED_FOR_SCREEN);
   thebesContext->SetFlag(gfxContext::FLAG_SIMPLIFY_OPERATORS);
-  
+    
   nsresult rv = mContext->CreateRenderingContextInstance (*getter_AddRefs(rc));
-  if (NS_FAILED(rv)) {
-    NS_WARNING("CreateRenderingContextInstance failed");
+  if (NS_FAILED(rv))
     goto cleanup;
-  }
   
   rv = rc->Init(mContext, thebesContext);
-  if (NS_FAILED(rv)) {
-    NS_WARNING("RC::Init failed");
+  if (NS_FAILED(rv))
     goto cleanup;
-  }
-  
+    
   event.renderingContext = rc;
-  result = DispatchWindowEvent(&event, eventStatus);
+  PRBool res = DispatchWindowEvent(&event, eventStatus);
   event.renderingContext = nsnull;
   
-  if (!result) {
-    printf("result is null from dispatch\n");
+  if (!res && eventStatus  == nsEventStatus_eConsumeNoDefault)
     goto cleanup;
-  }
-    
-  HRESULT hr;  
-  hr = glpDDSecondary->Lock(0, &gDDSDSecondary, DDLOCK_WAITNOTBUSY | DDLOCK_DISCARD, 0);  /* should we wait here? */
-  if (FAILED(hr)) {
-#ifdef DEBUG
-    DDError("Failed to lock renderer", hr);
-#endif
-    goto cleanup;
-  }
-  
-  // Convert RGB24 -> RGB565
-  pixman_image_t *srcPixmanImage = pixman_image_create_bits(PIXMAN_x8r8g8b8,
-                                                            surfaceSize.width,
-                                                            surfaceSize.height,
-                                                            (uint32_t*) sSharedSurfaceData.get(),
-                                                            surfaceSize.width * 4);
-  
-  pixman_image_t *dstPixmanImage = pixman_image_create_bits(PIXMAN_r5g6b5,
-                                                            surfaceSize.width,
-                                                            surfaceSize.height,
-                                                            (uint32_t*) gDDSDSecondary.lpSurface,
-                                                            gDDSDSecondary.dwWidth * 2);
- 
-  pixman_image_composite(PIXMAN_OP_SRC,
-                         srcPixmanImage,
-                         NULL,
-                         dstPixmanImage,
-                         0, 0,
-                         0, 0,
-                         0, 0,
-                         surfaceSize.width,
-                         surfaceSize.height);
 
+  nsRegionRectSet *rects = nsnull;
+  RECT r;
+  paintRgnWin->GetRects(&rects);
+  
+  HRESULT hr = glpDDSecondary->Lock(0, &gDDSDSecondary, DDLOCK_WAITNOTBUSY | DDLOCK_DISCARD, 0); 
+  if (FAILED(hr))
+    goto cleanup;
+
+  pixman_image_t *srcPixmanImage = 
+    pixman_image_create_bits(PIXMAN_x8r8g8b8, surfaceSize.width,
+                             surfaceSize.height, 
+                             (uint32_t*) sSharedSurfaceData.get(),
+                             surfaceSize.width * 4);
+  
+  pixman_image_t *dstPixmanImage = 
+    pixman_image_create_bits(PIXMAN_r5g6b5, gDDSDSecondary.dwWidth,
+                             gDDSDSecondary.dwHeight,
+                             (uint32_t*) gDDSDSecondary.lpSurface,
+                             gDDSDSecondary.dwWidth * 2);
+  
+
+  for (unsigned int i = 0; i < rects->mNumRects; i++) {
+    pixman_image_composite(PIXMAN_OP_SRC, srcPixmanImage, NULL, dstPixmanImage,
+                           rects->mRects[i].x - brx, rects->mRects[i].y - bry, 
+                           0, 0, 
+                           rects->mRects[i].x, rects->mRects[i].y, 
+                           rects->mRects[i].width, rects->mRects[i].height);
+    
+  } 
+  
   pixman_image_unref(dstPixmanImage);
   pixman_image_unref(srcPixmanImage);
 
   hr = glpDDSecondary->Unlock(0);
-  if (FAILED(hr)) {
-#ifdef DEBUG
-    DDError("Failed to unlock renderer", hr);
-#endif
+  if (FAILED(hr))
     goto cleanup;
-  }
-
-  hr = glpDDClipper->SetHWnd(0, mWnd);
-  if (FAILED(hr)) {
-#ifdef DEBUG
-    DDError("SetHWnd", hr);
-#endif
-    goto cleanup;
-  }
-
-  // translate the paint region to screen coordinates
-  renderArea = ps.rcPaint;
-  MapWindowPoints(mWnd, 0, (LPPOINT)&renderArea, 2);
-
-  // set the rect to be 0,0 based
-  ps.rcPaint.right = surfaceSize.width;
-  ps.rcPaint.bottom = surfaceSize.height;
-  ps.rcPaint.left = ps.rcPaint.top = 0;
   
-  hr = glpDDPrimary->Blt(&renderArea,
-                         glpDDSecondary,
-                         &ps.rcPaint,
-                         DDBLT_WAITNOTBUSY, /* should we really wait here? */
-                         NULL);
-  if (FAILED(hr)) {
-#ifdef DEBUG
-    DDError("Blt", hr);
-#endif
+  hr = glpDDClipper->SetHWnd(0, mWnd);
+  if (FAILED(hr))
     goto cleanup;
+  
+  for (unsigned int i = 0; i < rects->mNumRects; i++) {  
+    r.left = rects->mRects[i].x;
+    r.top = rects->mRects[i].y;
+    r.right = rects->mRects[i].width + rects->mRects[i].x;
+    r.bottom = rects->mRects[i].height + rects->mRects[i].y;
+    RECT renderRect = r;
+    SetLastError(0); // See http://msdn.microsoft.com/en-us/library/dd145046%28VS.85%29.aspx
+    MapWindowPoints(mWnd, 0, (LPPOINT)&renderRect, 2);
+    hr = glpDDPrimary->Blt(&renderRect, glpDDSecondary, &r, 0, NULL);
+    if (FAILED(hr)) {
+      NS_ERROR("this blt should never fail!");
+      printf("#### %s blt failed: %08lx", __FUNCTION__, hr);
+    }
   }
+  result = PR_TRUE;
 
 cleanup:
- 
+  NS_ASSERTION(result == PR_TRUE, "fatal drawing error");
   ::EndPaint(mWnd, &ps);
   mPaintDC = nsnull;
   mPainting = PR_FALSE;
   return result;
+
 }
 #endif // defined(CAIRO_HAS_DDRAW_SURFACE)

@@ -51,6 +51,7 @@
 #include "nsThebesDeviceContext.h"
 #include "nsThebesRenderingContext.h"
 #include "gfxUserFontSet.h"
+#include "gfxPlatform.h"
 
 #include "nsIWidget.h"
 #include "nsIView.h"
@@ -70,7 +71,6 @@
 #include <pango/pango.h>
 #ifdef MOZ_X11
 #include <gdk/gdkx.h>
-#include <pango/pangox.h>
 #endif /* MOZ_X11 */
 #include <pango/pango-fontmap.h>
 #endif /* GTK2 */
@@ -267,7 +267,7 @@ nsresult nsFontCache::Compact()
         NS_RELEASE(fm); // this will reset fm to nsnull
         // if the font is really gone, it would have called back in
         // FontMetricsDeleted() and would have removed itself
-        if (mFontMetrics.IndexOf(oldfm) >= 0) {
+        if (mFontMetrics.IndexOf(oldfm) != mFontMetrics.NoIndex) { 
             // nope, the font is still there, so let's hold onto it too
             NS_ADDREF(oldfm);
         }
@@ -624,22 +624,46 @@ nsThebesDeviceContext::SetDPI()
     // The number of device pixels per CSS pixel. A value <= 0 means choose
     // automatically based on the DPI. A positive value is used as-is. This effectively
     // controls the size of a CSS "px".
-    PRInt32 prefDevPixelsPerCSSPixel = -1;
+    float prefDevPixelsPerCSSPixel = -1.0;
 
     nsCOMPtr<nsIPrefBranch> prefs = do_GetService(NS_PREFSERVICE_CONTRACTID);
     if (prefs) {
-        nsresult rv = prefs->GetIntPref("layout.css.devPixelsPerPx", &prefDevPixelsPerCSSPixel);
-        if (NS_FAILED(rv)) {
-            prefDevPixelsPerCSSPixel = -1;
+        nsXPIDLCString prefString;
+        nsresult rv = prefs->GetCharPref("layout.css.devPixelsPerPx", getter_Copies(prefString));
+        if (NS_SUCCEEDED(rv) && !prefString.IsEmpty()) {
+            prefDevPixelsPerCSSPixel = static_cast<float>(atof(prefString));
         }
     }
 
     // PostScript, PDF and Mac (when printing) all use 72 dpi
-    if (mPrintingSurface &&
-        (mPrintingSurface->GetType() == gfxASurface::SurfaceTypePDF ||
-         mPrintingSurface->GetType() == gfxASurface::SurfaceTypePS ||
-         mPrintingSurface->GetType() == gfxASurface::SurfaceTypeQuartz)) {
-        dpi = 72;
+    // Use a printing DC to determine the other dpi values
+    if (mPrintingSurface) {
+        switch (mPrintingSurface->GetType()) {
+            case gfxASurface::SurfaceTypePDF:
+            case gfxASurface::SurfaceTypePS:
+            case gfxASurface::SurfaceTypeQuartz:
+                dpi = 72;
+                break;
+#ifdef XP_WIN
+            case gfxASurface::SurfaceTypeWin32:
+            case gfxASurface::SurfaceTypeWin32Printing: {
+                PRInt32 OSVal = GetDeviceCaps(GetPrintHDC(), LOGPIXELSY);
+                dpi = 144;
+                mPrintingScale = float(OSVal) / dpi;
+                break;
+            }
+#endif
+#ifdef XP_OS2
+            case gfxASurface::SurfaceTypeOS2:
+                LONG lDPI;
+                if (DevQueryCaps(GetPrintHDC(), CAPS_VERTICAL_FONT_RES, 1, &lDPI))
+                    dpi = lDPI;
+                break;
+#endif
+            default:
+                NS_NOTREACHED("Unexpected printing surface type");
+                break;
+        }
         dotsArePixels = PR_FALSE;
     } else {
         nsresult rv;
@@ -655,67 +679,13 @@ nsThebesDeviceContext::SetDPI()
             }
         }
 
-#if defined(MOZ_ENABLE_GTK2)
-        GdkScreen *screen = gdk_screen_get_default();
-        gtk_settings_get_for_screen(screen); // Make sure init is run so we have a resolution
-        PRInt32 OSVal = PRInt32(round(gdk_screen_get_resolution(screen)));
+        dpi = gfxPlatform::GetDPI();
 
-        if (prefDPI == 0) // Force the use of the OS dpi
-            dpi = OSVal;
-        else  // Otherwise, the minimum dpi is 96dpi
-            dpi = PR_MAX(OSVal, 96);
-
-#elif defined(XP_WIN)
-        // XXX we should really look at the widget if !dc but it is currently always null
-        HDC dc = GetPrintHDC();
-        if (dc) {
-            PRInt32 OSVal = GetDeviceCaps(dc, LOGPIXELSY);
-
-            dpi = 144;
-            mPrintingScale = float(OSVal)/dpi;
-            dotsArePixels = PR_FALSE;
-        } else {
-            dc = GetDC((HWND)nsnull);
-
-            PRInt32 OSVal = GetDeviceCaps(dc, LOGPIXELSY);
-
-            ReleaseDC((HWND)nsnull, dc);
-
-            if (OSVal != 0)
-                dpi = OSVal;
-        }
-
-#elif defined(XP_OS2)
-        // get a printer DC if available, otherwise create a new (memory) DC
-        HDC dc = GetPrintHDC();
-        PRBool doCloseDC = PR_FALSE;
-        if (dc <= 0) { // test for NULLHANDLE/DEV_ERROR or HDC_ERROR
-            // create DC compatible with the screen
-            dc = DevOpenDC((HAB)1, OD_MEMORY,"*",0L, NULL, NULLHANDLE);
-            doCloseDC = PR_TRUE;
-        }
-        if (dc > 0) {
-            // we do have a DC and we can query the DPI setting from it
-            LONG lDPI;
-            if (DevQueryCaps(dc, CAPS_VERTICAL_FONT_RES, 1, &lDPI))
-                dpi = lDPI;
-            if (doCloseDC)
-                DevCloseDC(dc);
-        }
-        if (dpi < 0) // something didn't work before, fall back to hardcoded DPI value
-            dpi = 96;
-#elif defined(XP_MACOSX)
-
-        // we probably want to actually get a real DPI here?
-        dpi = 96;
-
-#elif defined(MOZ_WIDGET_QT)
-        // TODO: get real DPI here with Qt methods
-        dpi = 96;
-#else
-#error undefined platform dpi
+#ifdef MOZ_ENABLE_GTK2
+        if (prefDPI < 0) // Clamp the minimum dpi to 96dpi
+            dpi = PR_MAX(dpi, 96);
 #endif
-
+ 
         if (prefDPI > 0 && !mPrintingSurface)
             dpi = prefDPI;
     }
@@ -724,21 +694,17 @@ nsThebesDeviceContext::SetDPI()
 
     if (dotsArePixels) {
         if (prefDevPixelsPerCSSPixel <= 0) {
-            // First figure out the closest multiple of 96, which is the number of
-            // dev pixels per CSS pixel.  Then, divide that into AppUnitsPerCSSPixel()
-            // to get the number of app units per dev pixel.  The PR_MAXes are to
-            // make sure we don't end up dividing by zero.
-            PRUint32 roundedDPIScaleFactor = (dpi + 48)/96;
-#ifdef MOZ_WIDGET_GTK2
-            // be more conservative about activating scaling on GTK2, since the dpi
-            // information is more likely to be wrong
-            roundedDPIScaleFactor = dpi/96;
-#endif
+            // Round down to multiple of 96, which is the number of dev pixels
+            // per CSS pixel.  Then, divide that into AppUnitsPerCSSPixel()
+            // to get the number of app units per dev pixel.  The PR_MAXes are
+            // to make sure we don't end up dividing by zero.
+            PRUint32 roundedDPIScaleFactor = dpi/96;
             mAppUnitsPerDevNotScaledPixel =
                 PR_MAX(1, AppUnitsPerCSSPixel() / PR_MAX(1, roundedDPIScaleFactor));
         } else {
             mAppUnitsPerDevNotScaledPixel =
-                PR_MAX(1, AppUnitsPerCSSPixel() / prefDevPixelsPerCSSPixel);
+                PR_MAX(1, static_cast<PRInt32>(AppUnitsPerCSSPixel() /
+                                               prefDevPixelsPerCSSPixel));
         }
     } else {
         /* set mAppUnitsPerDevPixel so we're using exactly 72 dpi, even
@@ -1256,7 +1222,7 @@ nsThebesDeviceContext::CalcPrintingSize()
     }
 #endif
     default:
-        NS_ASSERTION(0, "trying to print to unknown surface type");
+        NS_ERROR("trying to print to unknown surface type");
     }
 
     if (inPoints) {
@@ -1315,7 +1281,7 @@ nsThebesDeviceContext::GetPrintHDC()
 #endif
 
             default:
-                NS_ASSERTION(0, "invalid surface type in GetPrintHDC");
+                NS_ERROR("invalid surface type in GetPrintHDC");
                 break;
         }
     }

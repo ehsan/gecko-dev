@@ -37,18 +37,16 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
-#ifndef jsatom_inlines_h___
-#define jsatom_inlines_h___
+#ifndef jsatominlines_h___
+#define jsatominlines_h___
 
 #include "jsatom.h"
 #include "jsnum.h"
 
-JS_BEGIN_EXTERN_C
-
 /*
  * Convert v to an atomized string and wrap it as an id.
  */
-static inline JSBool
+inline JSBool
 js_ValueToStringId(JSContext *cx, jsval v, jsid *idp)
 {
     JSString *str;
@@ -80,7 +78,7 @@ js_ValueToStringId(JSContext *cx, jsval v, jsid *idp)
     return JS_TRUE;
 }
 
-static inline JSBool
+inline JSBool
 js_Int32ToId(JSContext* cx, int32 index, jsid* id)
 {
     if (INT_FITS_IN_JSVAL(index)) {
@@ -94,6 +92,4 @@ js_Int32ToId(JSContext* cx, int32 index, jsid* id)
     return js_ValueToStringId(cx, STRING_TO_JSVAL(str), id);
 }
 
-JS_END_EXTERN_C
-
-#endif /* jsatom_inlines_h___ */
+#endif /* jsatominlines_h___ */

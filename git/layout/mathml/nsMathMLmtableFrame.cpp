@@ -340,9 +340,7 @@ ListMathMLTree(nsIFrame* atLeast)
       break;
   }
   if (!f) f = atLeast;
-  nsIFrameDebug* fdbg;
-  CallQueryInterface(f, &fdbg);
-  fdbg->List(stdout, 0);
+  f->List(stdout, 0);
 }
 #endif
 
@@ -358,6 +356,8 @@ NS_NewMathMLmtableOuterFrame (nsIPresShell* aPresShell, nsStyleContext* aContext
 {
   return new (aPresShell) nsMathMLmtableOuterFrame(aContext);
 }
+
+NS_IMPL_FRAMEARENA_HELPERS(nsMathMLmtableOuterFrame)
 
 nsMathMLmtableOuterFrame::~nsMathMLmtableOuterFrame()
 {
@@ -653,6 +653,8 @@ NS_NewMathMLmtableFrame(nsIPresShell* aPresShell, nsStyleContext* aContext)
   return new (aPresShell) nsMathMLmtableFrame(aContext);
 }
 
+NS_IMPL_FRAMEARENA_HELPERS(nsMathMLmtableFrame)
+
 nsMathMLmtableFrame::~nsMathMLmtableFrame()
 {
 }
@@ -686,6 +688,8 @@ NS_NewMathMLmtrFrame(nsIPresShell* aPresShell, nsStyleContext* aContext)
 {
   return new (aPresShell) nsMathMLmtrFrame(aContext);
 }
+
+NS_IMPL_FRAMEARENA_HELPERS(nsMathMLmtrFrame)
 
 nsMathMLmtrFrame::~nsMathMLmtrFrame()
 {
@@ -744,6 +748,8 @@ NS_NewMathMLmtdFrame(nsIPresShell* aPresShell, nsStyleContext* aContext)
   return new (aPresShell) nsMathMLmtdFrame(aContext);
 }
 
+NS_IMPL_FRAMEARENA_HELPERS(nsMathMLmtdFrame)
+
 nsMathMLmtdFrame::~nsMathMLmtdFrame()
 {
 }
@@ -754,7 +760,7 @@ nsMathMLmtdFrame::GetRowSpan()
   PRInt32 rowspan = 1;
 
   // Don't look at the content's rowspan if we're not an mtd or a pseudo cell.
-  if ((mContent->Tag() == nsGkAtoms::mtd_) && !GetStyleContext()->GetPseudoType()) {
+  if ((mContent->Tag() == nsGkAtoms::mtd_) && !GetStyleContext()->GetPseudo()) {
     nsAutoString value;
     mContent->GetAttr(kNameSpaceID_None, nsGkAtoms::rowspan, value);
     if (!value.IsEmpty()) {
@@ -762,7 +768,7 @@ nsMathMLmtdFrame::GetRowSpan()
       rowspan = value.ToInteger(&error);
       if (error || rowspan < 0)
         rowspan = 1;
-      rowspan = PR_MIN(rowspan, MAX_ROWSPAN);
+      rowspan = NS_MIN(rowspan, MAX_ROWSPAN);
     }
   }
   return rowspan;
@@ -774,7 +780,7 @@ nsMathMLmtdFrame::GetColSpan()
   PRInt32 colspan = 1;
 
   // Don't look at the content's colspan if we're not an mtd or a pseudo cell.
-  if ((mContent->Tag() == nsGkAtoms::mtd_) && !GetStyleContext()->GetPseudoType()) {
+  if ((mContent->Tag() == nsGkAtoms::mtd_) && !GetStyleContext()->GetPseudo()) {
     nsAutoString value;
     mContent->GetAttr(kNameSpaceID_None, nsGkAtoms::columnspan_, value);
     if (!value.IsEmpty()) {
@@ -829,6 +835,8 @@ NS_NewMathMLmtdInnerFrame(nsIPresShell* aPresShell, nsStyleContext* aContext)
 {
   return new (aPresShell) nsMathMLmtdInnerFrame(aContext);
 }
+
+NS_IMPL_FRAMEARENA_HELPERS(nsMathMLmtdInnerFrame)
 
 nsMathMLmtdInnerFrame::~nsMathMLmtdInnerFrame()
 {

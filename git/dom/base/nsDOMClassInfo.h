@@ -48,6 +48,7 @@
 #include "nsIScriptContext.h"
 #include "nsDOMJSUtils.h" // for GetScriptContextFromJSContext
 #include "nsIScriptGlobalObject.h"
+#include "nsContentUtils.h"
 
 class nsIDOMWindow;
 class nsIDOMNSHTMLOptionCollection;
@@ -101,10 +102,16 @@ typedef PRUptrdiff PtrBits;
 #define IS_EXTERNAL(_ptr) (PtrBits(_ptr) & 0x1)
 
 
+#define NS_DOMCLASSINFO_IID   \
+{ 0x7da6858c, 0x5c12, 0x4588, \
+ { 0x82, 0xbe, 0x01, 0xa2, 0x45, 0xc5, 0xc0, 0xb0 } }
+
 class nsDOMClassInfo : public nsIXPCScriptable,
                        public nsIClassInfo
 {
 public:
+  NS_DECLARE_STATIC_IID_ACCESSOR(NS_DOMCLASSINFO_IID)
+
   nsDOMClassInfo(nsDOMClassInfoData* aData);
   virtual ~nsDOMClassInfo();
 
@@ -137,7 +144,20 @@ public:
                              PRBool aAllowWrapping, jsval *vp,
                              // If non-null aHolder will keep the jsval alive
                              // while there's a ref to it
-                             nsIXPConnectJSObjectHolder** aHolder = nsnull);
+                             nsIXPConnectJSObjectHolder** aHolder = nsnull)
+  {
+    return nsContentUtils::WrapNative(cx, scope, native, aIID, vp, aHolder,
+                                      aAllowWrapping);
+  }
+
+  // Used for cases where PreCreate needs to wrap the native parent, and the
+  // native parent is likely to have been wrapped already.  |native| must
+  // implement nsWrapperCache, and nativeWrapperCache must be |native|'s
+  // nsWrapperCache.
+  static inline nsresult WrapNativeParent(JSContext *cx, JSObject *scope,
+                                          nsISupports *native,
+                                          nsWrapperCache *nativeWrapperCache,
+                                          JSObject **parentObj);
 
   // Same as the WrapNative above, but use this one if aIID is nsISupports' IID.
   static nsresult WrapNative(JSContext *cx, JSObject *scope,
@@ -186,17 +206,11 @@ public:
 
   static void PreserveNodeWrapper(nsIXPConnectWrappedNative *aWrapper);
 
-  static inline void *GetJSPrivate(JSObject *obj)
-  {
-    JS_ASSERT(STOBJ_GET_CLASS(obj)->flags & JSCLASS_HAS_PRIVATE);
-    jsval v = STOBJ_GET_SLOT(obj, JSSLOT_PRIVATE);
-    return JSVAL_IS_INT(v) ? JSVAL_TO_PRIVATE(v) : nsnull;
-  }
   static inline nsISupports *GetNative(nsIXPConnectWrappedNative *wrapper,
                                        JSObject *obj)
   {
     return wrapper ? wrapper->Native() :
-                     static_cast<nsISupports*>(GetJSPrivate(obj));
+                     static_cast<nsISupports*>(obj->getPrivate());
   }
 
   static nsIXPConnect *XPConnect()
@@ -208,6 +222,10 @@ protected:
   friend nsIClassInfo* NS_GetDOMClassInfoInstance(nsDOMClassInfoID aID);
 
   const nsDOMClassInfoData* mData;
+
+  virtual void PreserveWrapper(nsISupports *aNative)
+  {
+  }
 
   static nsresult Init();
   static nsresult RegisterClassName(PRInt32 aDOMClassInfoID);
@@ -279,6 +297,7 @@ protected:
   static jsval sLocationbar_id;
   static jsval sPersonalbar_id;
   static jsval sStatusbar_id;
+  static jsval sDialogArguments_id;
   static jsval sDirectories_id;
   static jsval sControllers_id;
   static jsval sLength_id;
@@ -308,6 +327,7 @@ protected:
   static jsval sOnchange_id;
   static jsval sOnselect_id;
   static jsval sOnload_id;
+  static jsval sOnpopstate_id;
   static jsval sOnbeforeunload_id;
   static jsval sOnunload_id;
   static jsval sOnhashchange_id;
@@ -325,7 +345,6 @@ protected:
   static jsval sOndragover_id;
   static jsval sOndragstart_id;
   static jsval sOndrop_id;
-  static jsval sScrollIntoView_id;
   static jsval sScrollX_id;
   static jsval sScrollY_id;
   static jsval sScrollMaxX_id;
@@ -340,7 +359,6 @@ protected:
   static jsval sFrames_id;
   static jsval sSelf_id;
   static jsval sOpener_id;
-  static jsval sAdd_id;
   static jsval sAll_id;
   static jsval sTags_id;
   static jsval sAddEventListener_id;
@@ -425,9 +443,6 @@ protected:
     return PR_FALSE;
   }
 
-  static JSBool AddEventListenerHelper(JSContext *cx, JSObject *obj,
-                                       uintN argc, jsval *argv, jsval *rval);
-
   nsresult RegisterCompileHandler(nsIXPConnectWrappedNative *wrapper,
                                   JSContext *cx, JSObject *obj, jsval id,
                                   PRBool compile, PRBool remove,
@@ -442,13 +457,10 @@ public:
                          PRBool *_retval);
   NS_IMETHOD AddProperty(nsIXPConnectWrappedNative *wrapper, JSContext *cx,
                          JSObject *obj, jsval id, jsval *vp, PRBool *_retval);
-  static nsresult DefineAddEventListener(JSContext *cx, JSObject *obj,
-                                        jsval id, JSObject **objp);
 };
 
-// Adds support for 4th parameter of addEventListener.
 // Simpler than nsEventReceiverSH
-// Makes also sure that the wrapper is preserved if new properties are added.
+// Makes sure that the wrapper is preserved if new properties are added.
 class nsEventTargetSH : public nsDOMGenericSH
 {
 protected:
@@ -462,11 +474,10 @@ protected:
 public:
   NS_IMETHOD PreCreate(nsISupports *nativeObj, JSContext *cx,
                        JSObject *globalObj, JSObject **parentObj);
-  NS_IMETHOD NewResolve(nsIXPConnectWrappedNative *wrapper, JSContext *cx,
-                        JSObject *obj, jsval id, PRUint32 flags,
-                        JSObject **objp, PRBool *_retval);
   NS_IMETHOD AddProperty(nsIXPConnectWrappedNative *wrapper, JSContext *cx,
                          JSObject *obj, jsval id, jsval *vp, PRBool *_retval);
+
+  virtual void PreserveWrapper(nsISupports *aNative);
 
   static nsIClassInfo *doCreate(nsDOMClassInfoData* aData)
   {
@@ -650,6 +661,8 @@ public:
   NS_IMETHOD SetProperty(nsIXPConnectWrappedNative *wrapper, JSContext *cx,
                          JSObject *obj, jsval id, jsval *vp, PRBool *_retval);
   NS_IMETHOD GetFlags(PRUint32 *aFlags);
+
+  virtual void PreserveWrapper(nsISupports *aNative);
 
   static nsIClassInfo *doCreate(nsDOMClassInfoData* aData)
   {
@@ -969,37 +982,12 @@ public:
 };
 
 
-// HTMLElement helper
+// HTMLBodyElement helper
 
-class nsHTMLElementSH : public nsElementSH
+class nsHTMLBodyElementSH : public nsElementSH
 {
 protected:
-  nsHTMLElementSH(nsDOMClassInfoData* aData) : nsElementSH(aData)
-  {
-  }
-
-  virtual ~nsHTMLElementSH()
-  {
-  }
-
-  static JSBool ScrollIntoView(JSContext *cx, JSObject *obj, uintN argc,
-                               jsval *argv, jsval *rval);
-
-public:
-  NS_IMETHOD NewResolve(nsIXPConnectWrappedNative *wrapper, JSContext *cx,
-                        JSObject *obj, jsval id, PRUint32 flags,
-                        JSObject **objp, PRBool *_retval);
-
-  static nsIClassInfo *doCreate(nsDOMClassInfoData* aData)
-  {
-    return new nsHTMLElementSH(aData);
-  }
-};
-
-class nsHTMLBodyElementSH : public nsHTMLElementSH
-{
-protected:
-  nsHTMLBodyElementSH(nsDOMClassInfoData* aData) : nsHTMLElementSH(aData)
+  nsHTMLBodyElementSH(nsDOMClassInfoData* aData) : nsElementSH(aData)
   {
   }
 
@@ -1028,10 +1016,10 @@ public:
 
 // HTMLFormElement helper
 
-class nsHTMLFormElementSH : public nsHTMLElementSH
+class nsHTMLFormElementSH : public nsElementSH
 {
 protected:
-  nsHTMLFormElementSH(nsDOMClassInfoData* aData) : nsHTMLElementSH(aData)
+  nsHTMLFormElementSH(nsDOMClassInfoData* aData) : nsElementSH(aData)
   {
   }
 
@@ -1064,10 +1052,10 @@ public:
 
 // HTMLSelectElement helper
 
-class nsHTMLSelectElementSH : public nsHTMLElementSH
+class nsHTMLSelectElementSH : public nsElementSH
 {
 protected:
-  nsHTMLSelectElementSH(nsDOMClassInfoData* aData) : nsHTMLElementSH(aData)
+  nsHTMLSelectElementSH(nsDOMClassInfoData* aData) : nsElementSH(aData)
   {
   }
 
@@ -1094,11 +1082,11 @@ public:
 
 // HTMLEmbed/Object/AppletElement helper
 
-class nsHTMLPluginObjElementSH : public nsHTMLElementSH
+class nsHTMLPluginObjElementSH : public nsElementSH
 {
 protected:
   nsHTMLPluginObjElementSH(nsDOMClassInfoData* aData)
-    : nsHTMLElementSH(aData)
+    : nsElementSH(aData)
   {
   }
 
@@ -1116,6 +1104,9 @@ protected:
                                     JSObject **plugin_proto);
 
 public:
+  NS_IMETHOD NewResolve(nsIXPConnectWrappedNative *wrapper, JSContext *cx,
+                        JSObject *obj, jsval id, PRUint32 flags,
+                        JSObject **objp, PRBool *_retval);
   NS_IMETHOD PreCreate(nsISupports *nativeObj, JSContext *cx,
                        JSObject *globalObj, JSObject **parentObj);
   NS_IMETHOD PostCreate(nsIXPConnectWrappedNative *wrapper, JSContext *cx,
@@ -1153,15 +1144,9 @@ protected:
   {
   }
 
-  static JSBool Add(JSContext *cx, JSObject *obj, uintN argc, jsval *argv,
-                    jsval *rval);
-
 public:
   NS_IMETHOD SetProperty(nsIXPConnectWrappedNative *wrapper, JSContext *cx,
                          JSObject *obj, jsval id, jsval *vp, PRBool *_retval);
-  NS_IMETHOD NewResolve(nsIXPConnectWrappedNative *wrapper, JSContext *cx,
-                        JSObject *obj, jsval id, PRUint32 flags,
-                        JSObject **objp, PRBool *_retval);
   
   static nsIClassInfo *doCreate(nsDOMClassInfoData* aData)
   {
@@ -1331,6 +1316,31 @@ public:
 };
 
 
+// DOMTokenList scriptable helper
+
+class nsDOMTokenListSH : public nsStringArraySH
+{
+protected:
+  nsDOMTokenListSH(nsDOMClassInfoData* aData) : nsStringArraySH(aData)
+  {
+  }
+
+  virtual ~nsDOMTokenListSH()
+  {
+  }
+
+  virtual nsresult GetStringAt(nsISupports *aNative, PRInt32 aIndex,
+                               nsAString& aResult);
+
+public:
+
+  static nsIClassInfo *doCreate(nsDOMClassInfoData* aData)
+  {
+    return new nsDOMTokenListSH(aData);
+  }
+};
+
+
 // MediaList helper
 
 class nsMediaListSH : public nsStringArraySH
@@ -1473,6 +1483,30 @@ public:
   static nsIClassInfo *doCreate(nsDOMClassInfoData* aData)
   {
     return new nsClientRectListSH(aData);
+  }
+};
+
+
+// PaintRequestList helper
+
+class nsPaintRequestListSH : public nsArraySH
+{
+protected:
+  nsPaintRequestListSH(nsDOMClassInfoData* aData) : nsArraySH(aData)
+  {
+  }
+
+  virtual ~nsPaintRequestListSH()
+  {
+  }
+
+  virtual nsISupports* GetItemAt(nsISupports *aNative, PRUint32 aIndex,
+                                 nsresult *aResult);
+
+public:
+  static nsIClassInfo *doCreate(nsDOMClassInfoData* aData)
+  {
+    return new nsPaintRequestListSH(aData);
   }
 };
 

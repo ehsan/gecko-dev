@@ -37,7 +37,12 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
+#ifdef MOZ_IPC
+#include "base/basictypes.h"
+#endif
+
 #include "mozilla/XPCOM.h"
+#include "nsXULAppAPI.h"
 
 #include "nsXPCOMPrivate.h"
 #include "nsXPCOMCIDInternal.h"
@@ -74,10 +79,6 @@
 
 #include "nsThreadManager.h"
 #include "nsThreadPool.h"
-
-#ifdef DEBUG
-#include "BlockingResourceBase.h"
-#endif // ifdef DEBUG
 
 #include "nsIProxyObjectManager.h"
 #include "nsProxyEventPrivate.h"  // access to the impl of nsProxyObjectManager for the generic factory registration.
@@ -125,9 +126,6 @@ NS_DECL_CLASSINFO(nsStringInputStream)
 
 #include "nsIOUtil.h"
 
-#ifdef GC_LEAK_DETECTOR
-#include "nsLeakDetector.h"
-#endif
 #include "nsRecyclingAllocator.h"
 
 #include "SpecialSystemDirectory.h"
@@ -144,6 +142,26 @@ NS_DECL_CLASSINFO(nsStringInputStream)
 #include "nsMemoryReporterManager.h"
 
 #include <locale.h>
+
+#ifdef MOZ_IPC
+#include "base/at_exit.h"
+#include "base/command_line.h"
+#include "base/message_loop.h"
+
+#include "mozilla/ipc/BrowserProcessSubThread.h"
+
+using base::AtExitManager;
+using mozilla::ipc::BrowserProcessSubThread;
+
+namespace {
+
+static AtExitManager* sExitManager;
+static MessageLoop* sMessageLoop;
+static bool sCommandLineWasInitialized;
+static BrowserProcessSubThread* sIOThread;
+
+} /* anonymous namespace */
+#endif
 
 using mozilla::TimeStamp;
 
@@ -235,7 +253,7 @@ NS_GENERIC_FACTORY_CONSTRUCTOR(nsMacUtilsImpl)
 
 NS_GENERIC_FACTORY_CONSTRUCTOR_INIT(nsSystemInfo, Init)
 
-NS_GENERIC_FACTORY_CONSTRUCTOR(nsMemoryReporterManager)
+NS_GENERIC_FACTORY_CONSTRUCTOR_INIT(nsMemoryReporterManager, Init)
 
 NS_GENERIC_FACTORY_CONSTRUCTOR(nsIOUtil)
 
@@ -286,85 +304,6 @@ RegisterGenericFactory(nsIComponentRegistrar* registrar,
                                     fact);
     NS_RELEASE(fact);
     return rv;
-}
-
-// In order to support the installer, we need
-// to be told out of band if we should cause
-// an autoregister.  If the file ".autoreg" exists in the binary
-// directory, we check its timestamp against the timestamp of the
-// compreg.dat file.  If the .autoreg file is newer, we autoregister.
-static PRBool CheckUpdateFile()
-{
-    nsresult rv;
-    nsCOMPtr<nsIFile> compregFile;
-    rv = nsDirectoryService::gService->Get(NS_XPCOM_COMPONENT_REGISTRY_FILE,
-                                           NS_GET_IID(nsIFile),
-                                           getter_AddRefs(compregFile));
-
-    if (NS_FAILED(rv)) {
-        NS_WARNING("Getting NS_XPCOM_COMPONENT_REGISTRY_FILE failed");
-        return PR_FALSE;
-    }
-
-    PRInt64 compregModTime;
-    rv = compregFile->GetLastModifiedTime(&compregModTime);
-    if (NS_FAILED(rv))
-        return PR_TRUE;
-    
-    nsCOMPtr<nsIFile> file;
-    rv = nsDirectoryService::gService->Get(NS_XPCOM_CURRENT_PROCESS_DIR, 
-                                           NS_GET_IID(nsIFile), 
-                                           getter_AddRefs(file));
-
-    if (NS_FAILED(rv)) {
-        NS_WARNING("Getting NS_XPCOM_CURRENT_PROCESS_DIR failed");
-        return PR_FALSE;
-    }
-
-    file->AppendNative(nsDependentCString(".autoreg"));
-
-    // superfluous cast
-    PRInt64 nowTime = PR_Now() / PR_USEC_PER_MSEC;
-    PRInt64 autoregModTime;
-    rv = file->GetLastModifiedTime(&autoregModTime);
-    if (NS_FAILED(rv))
-        goto next;
-
-    if (autoregModTime > compregModTime) {
-        if (autoregModTime < nowTime) {
-            return PR_TRUE;
-        } else {
-            NS_WARNING("Screwy timestamps, ignoring .autoreg");
-        }
-    }
-
-next:
-    nsCOMPtr<nsIFile> greFile;
-    rv = nsDirectoryService::gService->Get(NS_GRE_DIR,
-                                           NS_GET_IID(nsIFile),
-                                           getter_AddRefs(greFile));
-
-    if (NS_FAILED(rv)) {
-        NS_WARNING("Getting NS_GRE_DIR failed");
-        return PR_FALSE;
-    }
-
-    greFile->AppendNative(nsDependentCString(".autoreg"));
-
-    PRBool equals;
-    rv = greFile->Equals(file, &equals);
-    if (NS_SUCCEEDED(rv) && equals)
-        return PR_FALSE;
-
-    rv = greFile->GetLastModifiedTime(&autoregModTime);
-    if (NS_FAILED(rv))
-        return PR_FALSE;
-
-    if (autoregModTime > nowTime) {
-        NS_WARNING("Screwy timestamps, ignoring .autoreg");
-        return PR_FALSE;
-    }
-    return autoregModTime > compregModTime; 
 }
 
 
@@ -549,6 +488,34 @@ NS_InitXPCOM3(nsIServiceManager* *result,
      // We are not shutting down
     gXPCOMShuttingDown = PR_FALSE;
 
+#ifdef MOZ_IPC
+    // Set up chromium libs
+    NS_ASSERTION(!sExitManager && !sMessageLoop, "Bad logic!");
+
+    if (!AtExitManager::AlreadyRegistered()) {
+        sExitManager = new AtExitManager();
+        NS_ENSURE_STATE(sExitManager);
+    }
+
+    if (!MessageLoop::current()) {
+        sMessageLoop = new MessageLoopForUI(MessageLoop::TYPE_MOZILLA_UI);
+        NS_ENSURE_STATE(sMessageLoop);
+    }
+
+    if (XRE_GetProcessType() == GeckoProcessType_Default &&
+        !BrowserProcessSubThread::GetMessageLoop(BrowserProcessSubThread::IO)) {
+        scoped_ptr<BrowserProcessSubThread> ioThread(
+            new BrowserProcessSubThread(BrowserProcessSubThread::IO));
+        NS_ENSURE_TRUE(ioThread.get(), NS_ERROR_OUT_OF_MEMORY);
+
+        base::Thread::Options options;
+        options.message_loop_type = MessageLoop::TYPE_IO;
+        NS_ENSURE_TRUE(ioThread->StartWithOptions(options), NS_ERROR_FAILURE);
+
+        sIOThread = ioThread.release();
+    }
+#endif
+
     NS_LogInit();
 
     // Set up TimeStamp
@@ -609,6 +576,30 @@ NS_InitXPCOM3(nsIServiceManager* *result,
         if (NS_FAILED(rv)) return rv;
     }
 
+#ifdef MOZ_IPC
+    if ((sCommandLineWasInitialized = !CommandLine::IsInitialized())) {
+#ifdef OS_WIN
+        CommandLine::Init(0, nsnull);
+#else
+        nsCOMPtr<nsIFile> binaryFile;
+        nsDirectoryService::gService->Get(NS_XPCOM_CURRENT_PROCESS_DIR, 
+                                          NS_GET_IID(nsIFile), 
+                                          getter_AddRefs(binaryFile));
+        NS_ENSURE_STATE(binaryFile);
+        
+        rv = binaryFile->AppendNative(NS_LITERAL_CSTRING("nonexistent-executable"));
+        NS_ENSURE_SUCCESS(rv, rv);
+        
+        nsCString binaryPath;
+        rv = binaryFile->GetNativePath(binaryPath);
+        NS_ENSURE_SUCCESS(rv, rv);
+        
+        static char const *const argv = { strdup(binaryPath.get()) };
+        CommandLine::Init(1, &argv);
+#endif
+    }
+#endif
+
     NS_ASSERTION(nsComponentManagerImpl::gComponentManager == NULL, "CompMgr not null at init");
 
     // Create the Component/Service Manager
@@ -640,11 +631,6 @@ NS_InitXPCOM3(nsIServiceManager* *result,
 
     rv = compMgr->RegisterService(kComponentManagerCID, static_cast<nsIComponentManager*>(compMgr));
     if (NS_FAILED(rv)) return rv;
-
-#ifdef GC_LEAK_DETECTOR
-    rv = NS_InitLeakDetector();
-    if (NS_FAILED(rv)) return rv;
-#endif
 
     rv = nsCycleCollector_startup();
     if (NS_FAILED(rv)) return rv;
@@ -692,8 +678,9 @@ NS_InitXPCOM3(nsIServiceManager* *result,
     nsIInterfaceInfoManager* iim =
         xptiInterfaceInfoManager::GetInterfaceInfoManagerNoAddRef();
 
-    if (CheckUpdateFile() || NS_FAILED(
-        nsComponentManagerImpl::gComponentManager->ReadPersistentRegistry())) {
+    // "Re-register the world" if compreg.dat doesn't exist
+    rv = nsComponentManagerImpl::gComponentManager->ReadPersistentRegistry();
+    if (NS_FAILED(rv)) {
         // If the component registry is out of date, malformed, or incomplete,
         // autoregister the default component directories.
         (void) iim->AutoRegisterInterfaces();
@@ -704,9 +691,6 @@ NS_InitXPCOM3(nsIServiceManager* *result,
     // add any services listed in the "xpcom-directory-providers" category
     // to the directory service.
     nsDirectoryService::gService->RegisterCategoryProviders();
-
-    // Initialize memory flusher
-    nsMemoryImpl::InitFlusher();
 
     // Notify observers of xpcom autoregistration start
     NS_CreateServicesFromCategory(NS_XPCOM_STARTUP_CATEGORY, 
@@ -768,6 +752,10 @@ ShutdownXPCOM(nsIServiceManager* servMgr)
 
         if (observerService)
         {
+            (void) observerService->
+                NotifyObservers(nsnull, NS_XPCOM_WILL_SHUTDOWN_OBSERVER_ID,
+                                nsnull);
+
             nsCOMPtr<nsIServiceManager> mgr;
             rv = NS_GetServiceManager(getter_AddRefs(mgr));
             if (NS_SUCCEEDED(rv))
@@ -898,27 +886,25 @@ ShutdownXPCOM(nsIServiceManager* servMgr)
 
     TimeStamp::Shutdown();
 
-#ifdef DEBUG
-    /* FIXME bug 491977: This is only going to operate on the
-     * BlockingResourceBase which is compiled into
-     * libxul/libxpcom_core.so. Anyone using external linkage will
-     * have their own copy of BlockingResourceBase statics which will
-     * not be freed by this method.
-     *
-     * It sounds like what we really want is to be able to register a
-     * callback function to call at XPCOM shutdown.  Note that with
-     * this solution, however, we need to guarantee that
-     * BlockingResourceBase::Shutdown() runs after all other shutdown
-     * functions.
-     */
-    BlockingResourceBase::Shutdown();
-#endif
-    
     NS_LogTerm();
 
-#ifdef GC_LEAK_DETECTOR
-    // Shutdown the Leak detector.
-    NS_ShutdownLeakDetector();
+#ifdef MOZ_IPC
+    if (sIOThread) {
+        delete sIOThread;
+        sIOThread = nsnull;
+    }
+    if (sMessageLoop) {
+        delete sMessageLoop;
+        sMessageLoop = nsnull;
+    }
+    if (sCommandLineWasInitialized) {
+        CommandLine::Terminate();
+        sCommandLineWasInitialized = false;
+    }
+    if (sExitManager) {
+        delete sExitManager;
+        sExitManager = nsnull;
+    }
 #endif
 
     return NS_OK;

@@ -115,6 +115,8 @@ public:
 class nsSliderFrame : public nsBoxFrame
 {
 public:
+  NS_DECL_FRAMEARENA_HELPERS
+
   friend class nsSliderMediator;
 
   nsSliderFrame(nsIPresShell* aShell, nsStyleContext* aContext);
@@ -143,7 +145,7 @@ public:
   NS_IMETHOD  RemoveFrame(nsIAtom*        aListName,
                           nsIFrame*       aOldFrame);
 
-  virtual void Destroy();
+  virtual void DestroyFrom(nsIFrame* aDestructRoot);
 
   NS_IMETHOD BuildDisplayListForChildren(nsDisplayListBuilder*   aBuilder,
                                          const nsRect&           aDirtyRect,
@@ -183,8 +185,6 @@ public:
   static PRInt32 GetPageIncrement(nsIContent* content);
   static PRInt32 GetIntegerAttribute(nsIContent* content, nsIAtom* atom, PRInt32 defaultValue);
   void EnsureOrient();
-
-  virtual nsIView* GetMouseCapturer() const { return GetView(); }
 
   NS_IMETHOD HandlePress(nsPresContext* aPresContext,
                          nsGUIEvent *    aEvent,

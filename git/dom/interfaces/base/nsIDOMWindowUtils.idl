@@ -45,10 +45,13 @@
  * getInterface on a DOMWindow.
  */
 
+interface nsIDOMNode;
 interface nsIDOMElement;
 interface nsIDOMHTMLCanvasElement;
+interface nsIDOMEvent;
+interface nsITransferable;
 
-[scriptable, uuid(99d904c0-3b9e-44b7-b1e0-372766d18308)]
+[scriptable, uuid(5ab44028-20ed-499a-bbe4-1805a1f350c8)]
 interface nsIDOMWindowUtils : nsISupports {
 
   /**
@@ -199,6 +202,20 @@ interface nsIDOMWindowUtils : nsISupports {
                           in AString aUnmodifiedCharacters);
 
   /**
+   * See nsIWidget::SynthesizeNativeMouseEvent
+   *
+   * Will be called on the widget that contains aElement.
+   * Cannot be accessed from unprivileged context (not content-accessible)
+   * Will throw a DOM security error if called without UniversalXPConnect
+   * privileges.
+   */
+  void sendNativeMouseEvent(in long aScreenX,
+                            in long aScreenY,
+                            in long aNativeMessage,
+                            in long aModifierFlags,
+                            in nsIDOMElement aElement);
+
+  /**
    * See nsIWidget::ActivateNativeMenuItemAt
    *
    * Cannot be accessed from unprivileged context (not content-accessible)
@@ -334,6 +351,17 @@ interface nsIDOMWindowUtils : nsISupports {
   void getScrollXY(in boolean aFlushLayout, out long aScrollX, out long aScrollY);
 
   /**
+   * Creates a ChromeObjectWrapper for the object and returns it.
+   *
+   * @param scope The JavaScript object whose scope we'll use as the
+   *        parent of the wrapper.
+   * @param objToWrap The JavaScript object to wrap.
+   * @return the wrapped object.
+   */
+
+  void getCOWForObject(/* scope, objToWrap */);
+
+  /**
    * Get IME open state. TRUE means 'Open', otherwise, 'Close'.
    * This property works only when IMEEnabled is IME_STATUS_ENABLED.
    */
@@ -378,4 +406,41 @@ interface nsIDOMWindowUtils : nsISupports {
    * Get the number of screen pixels per CSS pixel.
    */
   readonly attribute float screenPixelsPerCSSPixel;
+
+  /**
+   * Dispatches aEvent via the nsIPresShell object of the window's document.
+   * The event is dispatched to aTarget, which should be an object
+   * which implements nsIContent interface (#element, #text, etc).
+   *
+   * Cannot be accessed from unprivileged context (not
+   * content-accessible) Will throw a DOM security error if called
+   * without UniversalXPConnect privileges.
+   *
+   * @note Event handlers won't get aEvent as parameter, but a similar event.
+   *       Also, aEvent should not be reused.
+   */
+  boolean dispatchDOMEventViaPresShell(in nsIDOMNode aTarget,
+                                       in nsIDOMEvent aEvent,
+                                       in boolean aTrusted);
+
+  /**
+   * Returns the real classname (possibly of the mostly-transparent security
+   * wrapper) of aObj.
+   */
+  string getClassName(/*in JSObjectPtr aObj*/);
+
+  /**
+   * Generate a content command event.
+   *
+   * Cannot be accessed from unprivileged context (not content-accessible)
+   * Will throw a DOM security error if called without UniversalXPConnect
+   * privileges.
+   *
+   * @param aType Type of command content event to send.  Can be one of "cut",
+   *        "copy", "paste", "delete", "undo", "redo", or "pasteTransferable".
+   * @param aTransferable an instance of nsITransferable when aType is
+   *        "pasteTransferable"
+   */
+  void sendContentCommandEvent(in AString aType,
+                               [optional] in nsITransferable aTransferable);
 };

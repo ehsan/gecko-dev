@@ -79,7 +79,7 @@ class NS_COM_GLUE nsTArray_base {
     }
 
 #ifdef DEBUG
-    void* DebugGetHeader() {
+    void* DebugGetHeader() const {
       return mHdr;
     }
 #endif
@@ -652,6 +652,22 @@ class nsTArray : public nsTArray_base {
     // @return A pointer to the newly appended element, or null on OOM.
     elem_type *AppendElement() {
       return AppendElements(1);
+    }
+
+    // Move all elements from another array to the end of this array without 
+    // calling copy constructors or destructors.
+    // @return A pointer to the newly appended elements, or null on OOM.
+    template<class Item>
+    elem_type *MoveElementsFrom(nsTArray<Item>& array) {
+      NS_PRECONDITION(&array != this, "argument must be different array");
+      index_type len = Length();
+      index_type otherLen = array.Length();
+      if (!EnsureCapacity(len + otherLen, sizeof(elem_type)))
+        return nsnull;
+      memcpy(Elements() + len, array.Elements(), otherLen * sizeof(elem_type));
+      IncrementLength(otherLen);      
+      array.ShiftData(0, otherLen, 0, sizeof(elem_type));
+      return Elements() + len;
     }
 
     // This method removes a range of elements from this array.

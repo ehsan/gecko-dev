@@ -48,12 +48,8 @@ LIBRARY_NAME	= xpcomds_s
 GRE_MODULE	= 1
 MOZILLA_INTERNAL_API = 1
 
-REQUIRES	= \
-		  string \
-		  $(NULL)
 
 CPPSRCS		= \
-		TimeStamp.cpp \
 		nsArray.cpp \
 		nsAtomTable.cpp \
 		nsAtomService.cpp \
@@ -79,6 +75,12 @@ CPPSRCS		= \
 		nsUnicharBuffer.cpp \
 		nsVariant.cpp \
 		$(NULL)
+
+ifdef HAVE_CLOCK_MONOTONIC
+CPPSRCS += TimeStamp_posix.cpp
+else
+CPPSRCS += TimeStamp.cpp
+endif
 
 EXPORTS_NAMESPACES = mozilla
 

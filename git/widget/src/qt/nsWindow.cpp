@@ -114,7 +114,8 @@ static NS_DEFINE_IID(kCDragServiceCID,  NS_DRAGSERVICE_CID);
 static const int WHEEL_DELTA = 120;
 static PRBool gGlobalsInitialized = PR_FALSE;
 
-static nsCOMPtr<nsIRollupListener> gRollupListener;
+static nsIRollupListener*          gRollupListener;
+static nsIMenuRollup*              gMenuRollup;
 static nsWeakPtr                   gRollupWindow;
 static PRBool                      gConsumeRollupEvent;
 
@@ -140,17 +141,17 @@ isContextMenuKeyEvent(const QKeyEvent *qe)
 static void
 InitKeyEvent(nsKeyEvent &aEvent, QKeyEvent *aQEvent)
 {
-    aEvent.isShift   = aQEvent->modifiers() & Qt::ShiftModifier;
-    aEvent.isControl = aQEvent->modifiers() & Qt::ControlModifier;
-    aEvent.isAlt     = aQEvent->modifiers() & Qt::AltModifier;
-    aEvent.isMeta    = aQEvent->modifiers() & Qt::MetaModifier;
+    aEvent.isShift   = (aQEvent->modifiers() & Qt::ShiftModifier) ? PR_TRUE : PR_FALSE;
+    aEvent.isControl = (aQEvent->modifiers() & Qt::ControlModifier) ? PR_TRUE : PR_FALSE;
+    aEvent.isAlt     = (aQEvent->modifiers() & Qt::AltModifier) ? PR_TRUE : PR_FALSE;
+    aEvent.isMeta    = (aQEvent->modifiers() & Qt::MetaModifier) ? PR_TRUE : PR_FALSE;
     aEvent.time      = 0;
 
     // The transformations above and in gdk for the keyval are not invertible
     // so link to the GdkEvent (which will vanish soon after return from the
     // event callback) to give plugins access to hardware_keycode and state.
     // (An XEvent would be nice but the GdkEvent is good enough.)
-    aEvent.nativeMsg = (void *)aQEvent;
+    aEvent.pluginEvent = (void *)aQEvent;
 }
 
 nsWindow::nsWindow()
@@ -236,38 +237,6 @@ nsWindow::ConfigureChildren(const nsTArray<nsIWidget::Configuration>& aConfigura
 }
 
 NS_IMETHODIMP
-nsWindow::Create(nsIWidget        *aParent,
-                 const nsIntRect     &aRect,
-                 EVENT_CALLBACK   aHandleEventFunction,
-                 nsIDeviceContext *aContext,
-                 nsIAppShell      *aAppShell,
-                 nsIToolkit       *aToolkit,
-                 nsWidgetInitData *aInitData)
-{
-    LOG(("%s [%p]\n", __PRETTY_FUNCTION__, (void *)this));
-
-    nsresult rv = NativeCreate(aParent, nsnull, aRect, aHandleEventFunction,
-                               aContext, aAppShell, aToolkit, aInitData);
-    return rv;
-}
-
-NS_IMETHODIMP
-nsWindow::Create(nsNativeWidget aParent,
-                 const nsIntRect     &aRect,
-                 EVENT_CALLBACK   aHandleEventFunction,
-                 nsIDeviceContext *aContext,
-                 nsIAppShell      *aAppShell,
-                 nsIToolkit       *aToolkit,
-                 nsWidgetInitData *aInitData)
-{
-    LOG(("%s [%p]\n", __PRETTY_FUNCTION__, (void *)this));
-
-    nsresult rv = NativeCreate(nsnull, aParent, aRect, aHandleEventFunction,
-                               aContext, aAppShell, aToolkit, aInitData);
-    return rv;
-}
-
-NS_IMETHODIMP
 nsWindow::Destroy(void)
 {
     if (mIsDestroyed || !mWidget)
@@ -282,6 +251,7 @@ nsWindow::Destroy(void)
             gRollupListener->Rollup(nsnull, nsnull);
         gRollupWindow = nsnull;
         gRollupListener = nsnull;
+        NS_IF_RELEASE(gMenuRollup);
     }
 
     Show(PR_FALSE);
@@ -406,6 +376,11 @@ nsWindow::Move(PRInt32 aX, PRInt32 aY)
     LOG(("nsWindow::Move [%p] %d %d\n", (void *)this,
          aX, aY));
 
+    if (mWindowType == eWindowType_toplevel ||
+        mWindowType == eWindowType_dialog) {
+        SetSizeMode(nsSizeMode_Normal);
+    }
+
     // Since a popup window's x/y coordinates are in relation to to
     // the parent, the parent might have moved so we always move a
     // popup window.
@@ -507,14 +482,13 @@ nsWindow::SetSizeMode(PRInt32 aMode)
     case nsSizeMode_Minimized:
         mWidget->showMinimized();
         break;
+    case nsSizeMode_Fullscreen:
+        mWidget->showFullScreen();
+        break;
+
     default:
         // nsSizeMode_Normal, really.
-        mWidget->showNormal ();
-        // KILLME
-        //if (mSizeState == nsSizeMode_Minimized)
-        //    gtk_window_deiconify(GTK_WINDOW(mWidget));
-        //else if (mSizeState == nsSizeMode_Maximized)
-        //    gtk_window_unmaximize(GTK_WINDOW(mWidget));
+        mWidget->showNormal();
         break;
     }
 
@@ -634,36 +608,6 @@ nsWindow::SetCursor(imgIContainer* aCursor,
     return rv;
 }
 
-
-NS_IMETHODIMP
-nsWindow::Validate()
-{
-    // Get the update for this window and, well, just drop it on the
-    // floor.
-    if (!mWidget)
-        return NS_OK;
-
-    qDebug("FIXME:>>>>>>Func:%s::%d\n", __PRETTY_FUNCTION__, __LINE__);
-
-    return NS_OK;
-}
-
-NS_IMETHODIMP
-nsWindow::Invalidate(PRBool aIsSynchronous)
-{
-    LOGDRAW(("Invalidate (all) [%p]: \n", (void *)this));
-
-    if (!mWidget)
-        return NS_OK;
-
-    if (aIsSynchronous && !mWidget->paintingActive())
-        mWidget->repaint();
-    else
-        mWidget->update();
-
-    return NS_OK;
-}
-
 NS_IMETHODIMP
 nsWindow::Invalidate(const nsIntRect &aRect,
                      PRBool        aIsSynchronous)
@@ -695,7 +639,7 @@ nsWindow::Update()
 
 void
 nsWindow::Scroll(const nsIntPoint& aDelta,
-                 const nsIntRect& aSource,
+                 const nsTArray<nsIntRect>& aDestRects,
                  const nsTArray<nsIWidget::Configuration>& aConfigurations)
 {
     if (!mWidget) {
@@ -722,8 +666,11 @@ nsWindow::Scroll(const nsIntPoint& aDelta,
         }
     }
 
-    QRect rect(aSource.x, aSource.y, aSource.width, aSource.height);
-    mWidget->scroll(aDelta.x, aDelta.y, rect);
+    for (BlitRectIter iter(aDelta, aDestRects); !iter.IsDone(); ++iter) {
+        const nsIntRect & r = iter.Rect();
+        QRect rect(r.x - aDelta.x, r.y - aDelta.y, r.width, r.height);
+        mWidget->scroll(aDelta.x, aDelta.y, rect);
+    }
     ConfigureChildren(aConfigurations);
 
     // Show windows again...
@@ -768,12 +715,6 @@ nsWindow::GetNativeData(PRUint32 aDataType)
         NS_WARNING("nsWindow::GetNativeData called with bad value");
         return nsnull;
     }
-}
-
-NS_IMETHODIMP
-nsWindow::SetBorderStyle(nsBorderStyle aBorderStyle)
-{
-    return NS_ERROR_NOT_IMPLEMENTED;
 }
 
 NS_IMETHODIMP
@@ -845,17 +786,6 @@ nsWindow::EnableDragDrop(PRBool aEnable)
 }
 
 NS_IMETHODIMP
-nsWindow::PreCreateWidget(nsWidgetInitData *aWidgetInitData)
-{
-    if (nsnull != aWidgetInitData) {
-        mWindowType = aWidgetInitData->mWindowType;
-        mBorderStyle = aWidgetInitData->mBorderStyle;
-        return NS_OK;
-    }
-    return NS_ERROR_FAILURE;
-}
-
-NS_IMETHODIMP
 nsWindow::CaptureMouse(PRBool aCapture)
 {
     LOG(("CaptureMouse %p\n", (void *)this));
@@ -873,6 +803,7 @@ nsWindow::CaptureMouse(PRBool aCapture)
 
 NS_IMETHODIMP
 nsWindow::CaptureRollupEvents(nsIRollupListener *aListener,
+                              nsIMenuRollup     *aMenuRollup,
                               PRBool             aDoCapture,
                               PRBool             aConsumeRollupEvent)
 {
@@ -884,10 +815,14 @@ nsWindow::CaptureRollupEvents(nsIRollupListener *aListener,
     if (aDoCapture) {
         gConsumeRollupEvent = aConsumeRollupEvent;
         gRollupListener = aListener;
+        NS_IF_RELEASE(gMenuRollup);
+        gMenuRollup = aMenuRollup;
+        NS_IF_ADDREF(aMenuRollup);
         gRollupWindow = do_GetWeakReference(static_cast<nsIWidget*>(this));
     }
     else {
         gRollupListener = nsnull;
+        NS_IF_RELEASE(gMenuRollup);
         gRollupWindow = nsnull;
     }
 
@@ -915,11 +850,9 @@ check_for_rollup(double aMouseX, double aMouseY,
             // we don't want to rollup if the clickis in a parent menu of
             // the current submenu
             PRUint32 popupsToRollup = PR_UINT32_MAX;
-            nsCOMPtr<nsIMenuRollup> menuRollup;
-            menuRollup = (do_QueryInterface(gRollupListener));
-            if (menuRollup) {
+            if (gMenuRollup) {
                 nsAutoTArray<nsIWidget*, 5> widgetChain;
-                PRUint32 sameTypeCount = menuRollup->GetSubmenuWidgetChain(&widgetChain);
+                PRUint32 sameTypeCount = gMenuRollup->GetSubmenuWidgetChain(&widgetChain);
                 for (PRUint32 i=0; i<widgetChain.Length(); ++i) {
                     nsIWidget* widget =  widgetChain[i];
                     QWidget* currWindow =
@@ -945,6 +878,7 @@ check_for_rollup(double aMouseX, double aMouseY,
     } else {
         gRollupWindow = nsnull;
         gRollupListener = nsnull;
+        NS_IF_RELEASE(gMenuRollup);
     }
 
     return retVal;
@@ -1620,14 +1554,14 @@ GetBrandName(nsXPIDLString& brandName)
 
 
 nsresult
-nsWindow::NativeCreate(nsIWidget        *aParent,
-                       nsNativeWidget    aNativeParent,
-                       const nsIntRect     &aRect,
-                       EVENT_CALLBACK    aHandleEventFunction,
-                       nsIDeviceContext *aContext,
-                       nsIAppShell      *aAppShell,
-                       nsIToolkit       *aToolkit,
-                       nsWidgetInitData *aInitData)
+nsWindow::Create(nsIWidget        *aParent,
+                 nsNativeWidget    aNativeParent,
+                 const nsIntRect  &aRect,
+                 EVENT_CALLBACK    aHandleEventFunction,
+                 nsIDeviceContext *aContext,
+                 nsIAppShell      *aAppShell,
+                 nsIToolkit       *aToolkit,
+                 nsWidgetInitData *aInitData)
 {
     // only set the base parent if we're going to be a dialog or a
     // toplevel
@@ -1897,7 +1831,32 @@ void nsWindow::QWidgetDestroyed()
 NS_IMETHODIMP
 nsWindow::MakeFullScreen(PRBool aFullScreen)
 {
-    return nsBaseWidget::MakeFullScreen(aFullScreen);
+    if (aFullScreen) {
+        if (mSizeMode != nsSizeMode_Fullscreen)
+            mLastSizeMode = mSizeMode;
+        
+        mSizeMode = nsSizeMode_Fullscreen;
+        mWidget->showFullScreen();
+    }
+    else {
+        mSizeMode = mLastSizeMode;
+
+        switch (mSizeMode) {
+        case nsSizeMode_Maximized:
+            mWidget->showMaximized();
+            break;
+        case nsSizeMode_Minimized:
+            mWidget->showMinimized();
+            break;
+        case nsSizeMode_Normal:
+            mWidget->showNormal();
+            break;
+        }
+    }
+    
+    NS_ASSERTION(mLastSizeMode != nsSizeMode_Fullscreen,
+                 "mLastSizeMode should never be fullscreen");
+    return NS_OK;
 }
 
 NS_IMETHODIMP
@@ -2048,7 +2007,8 @@ nsWindow::createQWidget(QWidget *parent, nsWidgetInitData *aInitData)
         windowName = "topLevelInvisible";
         break;
     case eWindowType_child:
-    default: // plugin, java, sheet
+    case eWindowType_plugin:
+    default: // sheet
         windowName = "paintArea";
         break;
     }
@@ -2191,10 +2151,6 @@ nsWindow::DispatchEvent(nsGUIEvent *aEvent,
     // send it to the standard callback
     if (mEventCallback)
         aStatus = (* mEventCallback)(aEvent);
-
-    // dispatch to event listener if event was not consumed
-    if ((aStatus != nsEventStatus_eIgnore) && mEventListener)
-        aStatus = mEventListener->ProcessEvent(*aEvent);
 
     return NS_OK;
 }

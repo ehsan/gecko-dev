@@ -124,6 +124,8 @@ public:
   NS_IMETHOD CanCopy(PRBool *aCanCopy);
   NS_IMETHOD Paste(PRInt32 aSelectionType);
   NS_IMETHOD CanPaste(PRInt32 aSelectionType, PRBool *aCanPaste);
+  NS_IMETHOD PasteTransferable(nsITransferable *aTransferable);
+  NS_IMETHOD CanPasteTransferable(nsITransferable *aTransferable, PRBool *aCanPaste);
 
   NS_IMETHOD CanDrag(nsIDOMEvent *aDragEvent, PRBool *aCanDrag);
   NS_IMETHOD DoDrag(nsIDOMEvent *aDragEvent);
@@ -173,6 +175,9 @@ public:
    */
   nsresult ExtendSelectionForDelete(nsISelection* aSelection,
                                     nsIEditor::EDirection *aAction);
+
+  static void GetDefaultEditorPrefs(PRInt32 &aNewLineHandling,
+                                    PRInt32 &aCaretStyle);
 
 protected:
 

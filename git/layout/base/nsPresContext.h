@@ -71,6 +71,8 @@
 #include "nsThreadUtils.h"
 #include "nsContentUtils.h"
 #include "nsIWidget.h"
+#include "mozilla/TimeStamp.h"
+#include "nsIContent.h"
 
 class nsImageLoader;
 #ifdef IBMBIDI
@@ -81,7 +83,6 @@ struct nsRect;
 
 class imgIRequest;
 
-class nsIContent;
 class nsIFontMetrics;
 class nsIFrame;
 class nsFrameManager;
@@ -100,6 +101,9 @@ class gfxUserFontSet;
 class nsUserFontSet;
 struct nsFontFaceRuleContainer;
 class nsObjectFrame;
+class nsTransitionManager;
+class nsRefreshDriver;
+class imgIContainer;
 
 #ifdef MOZ_REFLOW_PERF
 class nsIRenderingContext;
@@ -147,6 +151,16 @@ enum nsLayoutPhase {
   eLayoutPhase_COUNT
 };
 #endif
+
+class nsInvalidateRequestList {
+public:
+  struct Request {
+    nsRect   mRect;
+    PRUint32 mFlags;
+  };
+
+  nsTArray<Request> mRequests;
+};
 
 /* Used by nsPresContext::HasAuthorSpecifiedRules */
 #define NS_AUTHOR_SPECIFIED_BACKGROUND      (1 << 0)
@@ -199,9 +213,13 @@ public:
 
   nsIPresShell* GetPresShell() const { return mShell; }
 
-  // Find the prescontext for the root of the view manager hierarchy that contains
-  // this prescontext.
-  nsRootPresContext* RootPresContext();
+  /**
+   * Return the presentation context for the root of the view manager
+   * hierarchy that contains this presentation context, or nsnull if it can't
+   * be found (e.g. it's detached).
+   */
+  nsRootPresContext* GetRootPresContext();
+  virtual PRBool IsRoot() { return PR_FALSE; }
 
   nsIDocument* Document() const
   {
@@ -216,6 +234,10 @@ public:
 
   nsFrameManager* FrameManager()
     { return GetPresShell()->FrameManager(); } 
+
+  nsTransitionManager* TransitionManager() { return mTransitionManager; }
+
+  nsRefreshDriver* RefreshDriver() { return mRefreshDriver; }
 #endif
 
   /**
@@ -255,7 +277,6 @@ public:
    * Access the image animation mode for this context
    */
   PRUint16     ImageAnimationMode() const { return mImageAnimationMode; }
-  void RestoreImageAnimationMode() { SetImageAnimationMode(mImageAnimationModePref); }
   virtual NS_HIDDEN_(void) SetImageAnimationModeExternal(PRUint16 aMode);
   NS_HIDDEN_(void) SetImageAnimationModeInternal(PRUint16 aMode);
 #ifdef _IMPL_NS_LAYOUT
@@ -280,7 +301,7 @@ public:
   void* AllocateFromShell(size_t aSize)
   {
     if (mShell)
-      return mShell->AllocateFrame(aSize);
+      return mShell->AllocateMisc(aSize);
     return nsnull;
   }
 
@@ -288,7 +309,7 @@ public:
   {
     NS_ASSERTION(mShell, "freeing after shutdown");
     if (mShell)
-      mShell->FreeFrame(aSize, aFreeChunk);
+      mShell->FreeMisc(aSize, aFreeChunk);
   }
 
   /**
@@ -468,9 +489,6 @@ public:
    */
   PRBool IsPaginated() const { return mPaginated; }
   
-  PRBool GetRenderedPositionVaryingContent() const { return mRenderedPositionVaryingContent; }
-  void SetRenderedPositionVaryingContent() { mRenderedPositionVaryingContent = PR_TRUE; }
-
   /**
    * Sets whether the presentation context can scroll for a paginated
    * context.
@@ -600,8 +618,8 @@ public:
                    AppUnitsToGfxUnits(aAppRect.height)); }
 
   nscoord TwipsToAppUnits(PRInt32 aTwips) const
-  { return NSToCoordRound(NS_TWIPS_TO_INCHES(aTwips) *
-                          mDeviceContext->AppUnitsPerInch()); }
+  { return NSCoordSaturatingMultiply(mDeviceContext->AppUnitsPerInch(),
+                                     NS_TWIPS_TO_INCHES(aTwips)); }
 
   // Margin-specific version, since they often need TwipsToAppUnits
   nsMargin TwipsToAppUnits(const nsIntMargin &marginInTwips) const
@@ -623,6 +641,12 @@ public:
     PRUint8 mHorizontal, mVertical;
     ScrollbarStyles(PRUint8 h, PRUint8 v) : mHorizontal(h), mVertical(v) {}
     ScrollbarStyles() {}
+    PRBool operator==(const ScrollbarStyles& aStyles) const {
+      return aStyles.mHorizontal == mHorizontal && aStyles.mVertical == mVertical;
+    }
+    PRBool operator!=(const ScrollbarStyles& aStyles) const {
+      return aStyles.mHorizontal != mHorizontal || aStyles.mVertical != mVertical;
+    }
   };
   void SetViewportOverflowOverride(PRUint8 aX, PRUint8 aY)
   {
@@ -810,15 +834,32 @@ public:
   // user font set is changed and fonts become unavailable).
   void UserFontSetUpdated();
 
-  void NotifyInvalidation(const nsRect& aRect, PRBool aIsCrossDoc);
+  // Ensure that it is safe to hand out CSS rules outside the layout
+  // engine by ensuring that all CSS style sheets have unique inners
+  // and, if necessary, synchronously rebuilding all style data.
+  // Returns true on success and false on failure (not safe).
+  PRBool EnsureSafeToHandOutCSSRules();
+
+  void NotifyInvalidation(const nsRect& aRect, PRUint32 aFlags);
+  void NotifyInvalidateForScrolling(const nsRegion& aBlitRegion,
+                                    const nsRegion& aInvalidateRegion);
   void FireDOMPaintEvent();
   PRBool IsDOMPaintEventPending() {
-    return !mSameDocDirtyRegion.IsEmpty() || !mCrossDocDirtyRegion.IsEmpty();
+    return !mInvalidateRequests.mRequests.IsEmpty();
   }
 
   void ClearMozAfterPaintEvents() {
-    mSameDocDirtyRegion.SetEmpty();
-    mCrossDocDirtyRegion.SetEmpty();
+    mInvalidateRequests.mRequests.Clear();
+  }
+
+  PRBool IsProcessingAnimationStyleChange() const {
+    return mProcessingAnimationStyleChange;
+  }
+
+  void SetProcessingAnimationStyleChange(PRBool aProcessing) {
+    NS_ASSERTION(aProcessing != PRBool(mProcessingAnimationStyleChange),
+                 "should never nest");
+    mProcessingAnimationStyleChange = aProcessing;
   }
 
   /**
@@ -873,6 +914,29 @@ public:
    */
   PRBool HasPendingInterrupt() { return mHasPendingInterrupt; }
 
+#ifdef MOZ_SMIL
+  /**
+   * Indicates that the given element's SMIL Override Style has changed,
+   * and as a result, we need to update our display.
+   */
+  void SMILOverrideStyleChanged(nsIContent* aContent);
+#endif // MOZ_SMIL
+
+  /**
+   * If we have a presshell, and if the given content's current
+   * document is the same as our presshell's document, return the
+   * content's primary frame.  Otherwise, return null.  Only use this
+   * if you care about which presshell the primary frame is in.
+   */
+  nsIFrame* GetPrimaryFrameFor(nsIContent* aContent) {
+    NS_PRECONDITION(aContent, "Don't do that");
+    if (GetPresShell() &&
+        GetPresShell()->GetDocument() == aContent->GetCurrentDoc()) {
+      return aContent->GetPrimaryFrame();
+    }
+    return nsnull;
+  }
+
 protected:
   friend class nsRunnableMethod<nsPresContext>;
   NS_HIDDEN_(void) ThemeChangedInternal();
@@ -895,6 +959,10 @@ protected:
   NS_HIDDEN_(void) GetFontPreferences();
 
   NS_HIDDEN_(void) UpdateCharSet(const nsAFlatCString& aCharSet);
+
+  PRBool MayHavePaintEventListener();
+  void NotifyInvalidateRegion(const nsRegion& aRegion, nsPoint aOffset,
+                              PRUint32 aFlags);
 
   void HandleRebuildUserFontSet() {
     mPostedFlushUserFontSet = PR_FALSE;
@@ -920,6 +988,8 @@ protected:
                                         // from gfx back to layout.
   nsIEventStateManager* mEventManager;  // [STRONG]
   nsILookAndFeel*       mLookAndFeel;   // [STRONG]
+  nsRefPtr<nsRefreshDriver> mRefreshDriver;
+  nsRefPtr<nsTransitionManager> mTransitionManager;
   nsIAtom*              mMedium;        // initialized by subclass ctors;
                                         // weak pointer to static atom
 
@@ -948,8 +1018,7 @@ protected:
 
   nsPropertyTable       mPropertyTable;
 
-  nsRegion              mSameDocDirtyRegion;
-  nsRegion              mCrossDocDirtyRegion;
+  nsInvalidateRequestList mInvalidateRequests;
 
   // container for per-context fonts (downloadable, SVG, etc.)
   nsUserFontSet*        mUserFontSet;
@@ -992,6 +1061,8 @@ protected:
 
   PRUint32              mInterruptChecksToSkip;
 
+  mozilla::TimeStamp    mReflowStartTime;
+
   unsigned              mHasPendingInterrupt : 1;
   unsigned              mInterruptsEnabled : 1;
   unsigned              mUseDocumentFonts : 1;
@@ -1015,7 +1086,6 @@ protected:
   unsigned              mPendingThemeChanged : 1;
   unsigned              mPendingMediaFeatureValuesChanged : 1;
   unsigned              mPrefChangePendingNeedsReflow : 1;
-  unsigned              mRenderedPositionVaryingContent : 1;
 
   // Is the current mUserFontSet valid?
   unsigned              mUserFontSetDirty : 1;
@@ -1028,10 +1098,10 @@ protected:
   // the document rather than to change the document's dimensions
   unsigned              mSupressResizeReflow : 1;
 
-#ifdef IBMBIDI
   unsigned              mIsVisual : 1;
 
-#endif
+  unsigned              mProcessingAnimationStyleChange : 1;
+
 #ifdef DEBUG
   PRBool                mInitialized;
 #endif
@@ -1109,6 +1179,8 @@ public:
    */
   void DidApplyPluginGeometryUpdates();
 
+  virtual PRBool IsRoot() { return PR_TRUE; }
+
 private:
   nsTHashtable<nsPtrHashKey<nsObjectFrame> > mRegisteredPlugins;
 };
@@ -1152,9 +1224,8 @@ struct nsAutoLayoutPhase {
                      "constructing frames in the middle of a paint");
         NS_ASSERTION(mPresContext->mLayoutPhaseCount[eLayoutPhase_Reflow] == 0,
                      "constructing frames in the middle of reflow");
-        // Once bug 337957 is fixed this should become an NS_ASSERTION
-        NS_WARN_IF_FALSE(mPresContext->mLayoutPhaseCount[eLayoutPhase_FrameC] == 0,
-                         "recurring into frame construction");
+        NS_ASSERTION(mPresContext->mLayoutPhaseCount[eLayoutPhase_FrameC] == 0,
+                     "recurring into frame construction");
         NS_ASSERTION(!nsContentUtils::IsSafeToRunScript(),
                      "constructing frames and scripts are not blocked");
         break;

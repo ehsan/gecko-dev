@@ -45,6 +45,7 @@
 #include "nsIContent.h"
 #include "nsIBoxObject.h"
 #include "nsITreeBoxObject.h"
+#include "nsITreeColumns.h"
 
 #include "nsIFrame.h"
 #include "nsIDocShellTreeItem.h"
@@ -56,21 +57,50 @@ class nsCoreUtils
 {
 public:
   /**
-   * Return true if the given node has registered event listener of the given
-   * type.
+   * Return true if the given node has registered click, mousedown or mouseup
+   * event listeners.
    */
-  static PRBool HasListener(nsIContent *aContent, const nsAString& aEventType);
+  static PRBool HasClickListener(nsIContent *aContent);
 
   /**
-   * Send mouse events to the given element.
+   * Dispatch click event to XUL tree cell.
    *
-   * @param aEventType  an event type (see nsGUIEvent.h for constants)
-   * @param aPresShell  the presshell for the given element
-   * @param aContent    the element element
+   * @param  aTreeBoxObj  [in] tree box object
+   * @param  aRowIndex    [in] row index
+   * @param  aColumn      [in] column object
+   * @param  aPseudoElm   [in] pseudo elemenet inside the cell, see
+   *                       nsITreeBoxObject for available values
+   */
+  static void DispatchClickEvent(nsITreeBoxObject *aTreeBoxObj,
+                                 PRInt32 aRowIndex, nsITreeColumn *aColumn,
+                                 const nsCString& aPseudoElt = EmptyCString());
+
+  /**
+   * Send mouse event to the given element.
+   *
+   * @param  aEventType  [in] an event type (see nsGUIEvent.h for constants)
+   * @param  aPresShell  [in] the presshell for the given element
+   * @param  aContent    [in] the element
    */
   static PRBool DispatchMouseEvent(PRUint32 aEventType,
                                    nsIPresShell *aPresShell,
                                    nsIContent *aContent);
+
+  /**
+   * Send mouse event to the given element.
+   *
+   * @param aEventType   [in] an event type (see nsGUIEvent.h for constants)
+   * @param aX           [in] x coordinate in dev pixels
+   * @param aY           [in] y coordinate in dev pixels
+   * @param aContent     [in] the element
+   * @param aFrame       [in] frame of the element
+   * @param aPresShell   [in] the presshell for the element
+   * @param aRootWidget  [in] the root widget of the element
+   */
+  static void DispatchMouseEvent(PRUint32 aEventType, PRInt32 aX, PRInt32 aY,
+                                 nsIContent *aContent, nsIFrame *aFrame,
+                                 nsIPresShell *aPresShell,
+                                 nsIWidget *aRootWidget);
 
   /**
    * Return an accesskey registered on the given element by
@@ -110,19 +140,23 @@ public:
   /**
    * Is the first passed in node an ancestor of the second?
    * Note: A node is not considered to be the ancestor of itself.
-   * @param aPossibleAncestorNode -- node to test for ancestor-ness of aPossibleDescendantNode
-   * @param aPossibleDescendantNode -- node to test for descendant-ness of aPossibleAncestorNode
-   * @return PR_TRUE if aPossibleAncestorNode is an ancestor of aPossibleDescendantNode
+   *
+   * @param  aPossibleAncestorNode   [in] node to test for ancestor-ness of
+   *                                   aPossibleDescendantNode
+   * @param  aPossibleDescendantNode [in] node to test for descendant-ness of
+   *                                   aPossibleAncestorNode
+   * @return PR_TRUE                  if aPossibleAncestorNode is an ancestor of
+   *                                   aPossibleDescendantNode
    */
-   static PRBool IsAncestorOf(nsIDOMNode *aPossibleAncestorNode,
-                              nsIDOMNode *aPossibleDescendantNode);
+   static PRBool IsAncestorOf(nsINode *aPossibleAncestorNode,
+                              nsINode *aPossibleDescendantNode);
 
   /**
    * Are the first node and the second siblings?
+   *
    * @return PR_TRUE if aDOMNode1 and aDOMNode2 have same parent
    */
-   static PRBool AreSiblings(nsIDOMNode *aDOMNode1,
-                             nsIDOMNode *aDOMNode2);
+   static PRBool AreSiblings(nsINode *aNode1, nsINode *aNode2);
 
   /**
    * Helper method to scroll range into view, used for implementation of
@@ -219,6 +253,13 @@ public:
    * @return          PR_TRUE if there is an ID set for this node
    */
   static PRBool GetID(nsIContent *aContent, nsAString& aID);
+
+  /**
+   * Convert attribute value of the given node to positive integer. If no
+   * attribute or wrong value then false is returned.
+   */
+  static PRBool GetUIntAttr(nsIContent *aContent, nsIAtom *aAttr,
+                            PRInt32 *aUInt);
 
   /**
    * Check if the given element is XLink.
@@ -363,6 +404,52 @@ public:
     GetTreeBodyBoxObject(nsITreeBoxObject *aTreeBoxObj);
 
   /**
+   * Return tree box object from any levels DOMNode under the XUL tree.
+   */
+  static void
+    GetTreeBoxObject(nsIDOMNode* aDOMNode, nsITreeBoxObject** aBoxObject);
+
+  /**
+   * Return first sensible column for the given tree box object.
+   */
+  static already_AddRefed<nsITreeColumn>
+    GetFirstSensibleColumn(nsITreeBoxObject *aTree);
+
+  /**
+   * Return last sensible column for the given tree box object.
+   */
+  static already_AddRefed<nsITreeColumn>
+    GetLastSensibleColumn(nsITreeBoxObject *aTree);
+
+  /**
+   * Return sensible columns count for the given tree box object.
+   */
+  static PRUint32 GetSensibleColumnCount(nsITreeBoxObject *aTree);
+
+  /**
+   * Return sensible column at the given index for the given tree box object.
+   */
+  static already_AddRefed<nsITreeColumn>
+    GetSensibleColumnAt(nsITreeBoxObject *aTree, PRUint32 aIndex);
+
+  /**
+   * Return next sensible column for the given column.
+   */
+  static already_AddRefed<nsITreeColumn>
+    GetNextSensibleColumn(nsITreeColumn *aColumn);
+
+  /**
+   * Return previous sensible column for the given column.
+   */
+  static already_AddRefed<nsITreeColumn>
+    GetPreviousSensibleColumn(nsITreeColumn *aColumn);
+
+  /**
+   * Return true if the given column is hidden (i.e. not sensible).
+   */
+  static PRBool IsColumnHidden(nsITreeColumn *aColumn);
+
+  /**
    * Return true if the given node is table header element.
    */
   static PRBool IsHTMLTableHeader(nsIContent *aContent)
@@ -370,7 +457,143 @@ public:
     return aContent->NodeInfo()->Equals(nsAccessibilityAtoms::th) ||
       aContent->HasAttr(kNameSpaceID_None, nsAccessibilityAtoms::scope);
   }
+
+  /**
+   * Generates frames for popup subtree.
+   *
+   * @param aNode    [in] DOM node containing the menupopup element as a child
+   * @param aIsAnon  [in] specifies whether popup should be searched inside of
+   *                  anonymous or explicit content
+   */
+  static void GeneratePopupTree(nsIDOMNode *aNode, PRBool aIsAnon = PR_FALSE);
 };
+
+////////////////////////////////////////////////////////////////////////////////
+// nsRunnable helpers
+////////////////////////////////////////////////////////////////////////////////
+
+/**
+ * Use NS_DECL_RUNNABLEMETHOD_ macros to declare a runnable class for the given
+ * method of the given class. There are three macros:
+ *  NS_DECL_RUNNABLEMETHOD(Class, Method)
+ *  NS_DECL_RUNNABLEMETHOD_ARG1(Class, Method, Arg1Type)
+ *  NS_DECL_RUNNABLEMETHOD_ARG2(Class, Method, Arg1Type, Arg2Type)
+ * Note Arg1Type and Arg2Type must be types which keeps the objects alive.
+ *
+ * Use NS_DISPATCH_RUNNABLEMETHOD_ macros to create an instance of declared
+ * runnable class and dispatch it to main thread. Availabe macros are:
+ *  NS_DISPATCH_RUNNABLEMETHOD(Method, Object)
+ *  NS_DISPATCH_RUNNABLEMETHOD_ARG1(Method, Object, Arg1)
+ *  NS_DISPATCH_RUNNABLEMETHOD_ARG2(Method, Object, Arg1, Arg2)
+ */
+
+#define NS_DECL_RUNNABLEMETHOD_HELPER(ClassType, Method)                       \
+  void Revoke()                                                                \
+  {                                                                            \
+    NS_IF_RELEASE(mObj);                                                       \
+  }                                                                            \
+                                                                               \
+protected:                                                                     \
+  virtual ~nsRunnableMethod_##Method()                                         \
+  {                                                                            \
+    NS_IF_RELEASE(mObj);                                                       \
+  }                                                                            \
+                                                                               \
+private:                                                                       \
+  ClassType *mObj;                                                             \
+
+
+#define NS_DECL_RUNNABLEMETHOD(ClassType, Method)                              \
+class nsRunnableMethod_##Method : public nsRunnable                            \
+{                                                                              \
+public:                                                                        \
+  nsRunnableMethod_##Method(ClassType *aObj) : mObj(aObj)                      \
+  {                                                                            \
+    NS_IF_ADDREF(mObj);                                                        \
+  }                                                                            \
+                                                                               \
+  NS_IMETHODIMP Run()                                                          \
+  {                                                                            \
+    if (!mObj)                                                                 \
+      return NS_OK;                                                            \
+    (mObj-> Method)();                                                         \
+    return NS_OK;                                                              \
+  }                                                                            \
+                                                                               \
+  NS_DECL_RUNNABLEMETHOD_HELPER(ClassType, Method)                             \
+                                                                               \
+};
+
+#define NS_DECL_RUNNABLEMETHOD_ARG1(ClassType, Method, Arg1Type)               \
+class nsRunnableMethod_##Method : public nsRunnable                            \
+{                                                                              \
+public:                                                                        \
+  nsRunnableMethod_##Method(ClassType *aObj, Arg1Type aArg1) :                 \
+    mObj(aObj), mArg1(aArg1)                                                   \
+  {                                                                            \
+    NS_IF_ADDREF(mObj);                                                        \
+  }                                                                            \
+                                                                               \
+  NS_IMETHODIMP Run()                                                          \
+  {                                                                            \
+    if (!mObj)                                                                 \
+      return NS_OK;                                                            \
+    (mObj-> Method)(mArg1);                                                    \
+    return NS_OK;                                                              \
+  }                                                                            \
+                                                                               \
+  NS_DECL_RUNNABLEMETHOD_HELPER(ClassType, Method)                             \
+  Arg1Type mArg1;                                                              \
+};
+
+#define NS_DECL_RUNNABLEMETHOD_ARG2(ClassType, Method, Arg1Type, Arg2Type)     \
+class nsRunnableMethod_##Method : public nsRunnable                            \
+{                                                                              \
+public:                                                                        \
+                                                                               \
+  nsRunnableMethod_##Method(ClassType *aObj,                                   \
+                            Arg1Type aArg1, Arg2Type aArg2) :                  \
+    mObj(aObj), mArg1(aArg1), mArg2(aArg2)                                     \
+  {                                                                            \
+    NS_IF_ADDREF(mObj);                                                        \
+  }                                                                            \
+                                                                               \
+  NS_IMETHODIMP Run()                                                          \
+  {                                                                            \
+    if (!mObj)                                                                 \
+      return NS_OK;                                                            \
+    (mObj-> Method)(mArg1, mArg2);                                             \
+    return NS_OK;                                                              \
+  }                                                                            \
+                                                                               \
+  NS_DECL_RUNNABLEMETHOD_HELPER(ClassType, Method)                             \
+  Arg1Type mArg1;                                                              \
+  Arg2Type mArg2;                                                              \
+};
+
+#define NS_DISPATCH_RUNNABLEMETHOD(Method, Obj)                                \
+{                                                                              \
+  nsCOMPtr<nsIRunnable> runnable =                                             \
+    new nsRunnableMethod_##Method(Obj);                                        \
+  if (runnable)                                                                \
+    NS_DispatchToMainThread(runnable);                                         \
+}
+
+#define NS_DISPATCH_RUNNABLEMETHOD_ARG1(Method, Obj, Arg1)                     \
+{                                                                              \
+  nsCOMPtr<nsIRunnable> runnable =                                             \
+    new nsRunnableMethod_##Method(Obj, Arg1);                                  \
+  if (runnable)                                                                \
+    NS_DispatchToMainThread(runnable);                                         \
+}
+
+#define NS_DISPATCH_RUNNABLEMETHOD_ARG2(Method, Obj, Arg1, Arg2)               \
+{                                                                              \
+  nsCOMPtr<nsIRunnable> runnable =                                             \
+    new nsRunnableMethod_##Method(Obj, Arg1, Arg2);                            \
+  if (runnable)                                                                \
+    NS_DispatchToMainThread(runnable);                                         \
+}
 
 #endif
 

@@ -59,7 +59,11 @@ pref("general.warnOnAboutConfig", true);
 pref("browser.bookmarks.max_backups",       5);
 
 pref("browser.cache.disk.enable",           true);
+#ifndef WINCE
 pref("browser.cache.disk.capacity",         51200);
+#else
+pref("browser.cache.disk.capacity",         20000);
+#endif
 pref("browser.cache.memory.enable",         true);
 //pref("browser.cache.memory.capacity",     -1);
 // -1 = determine dynamically, 0 = none, n = memory capacity in kilobytes
@@ -68,6 +72,7 @@ pref("browser.cache.disk_cache_ssl",        false);
 pref("browser.cache.check_doc_frequency",   3);
 
 pref("browser.cache.offline.enable",           true);
+#ifndef WINCE
 // offline cache capacity in kilobytes
 pref("browser.cache.offline.capacity",         512000);
 
@@ -78,6 +83,12 @@ pref("offline-apps.quota.max",        204800);
 // the user should be warned if offline app disk usage exceeds this amount
 // (in kilobytes)
 pref("offline-apps.quota.warn",        51200);
+#else
+// Limited disk space on WinCE, tighten limits.
+pref("browser.cache.offline.capacity", 15000);
+pref("offline-apps.quota.max",          7000);
+pref("offline-apps.quota.warn",         4000);
+#endif
 
 // Fastback caching - if this pref is negative, then we calculate the number
 // of content viewers to cache based on the amount of available memory.
@@ -204,8 +215,6 @@ pref("accessibility.typeaheadfind.prefillwithselection", true);
 
 // use Mac OS X Appearance panel text smoothing setting when rendering text, disabled by default
 pref("gfx.use_text_smoothing_setting", false);
-
-pref("browser.history_expire_days", 9);
 
 // loading and rendering of framesets and iframes
 pref("browser.frames.enabled", true);
@@ -537,8 +546,10 @@ pref("privacy.popups.disable_from_plugins", 2);
 pref("dom.event.contextmenu.enabled",       true);
 
 pref("javascript.enabled",                  true);
-pref("javascript.allow.mailnews",           false);
 pref("javascript.options.strict",           false);
+#ifdef DEBUG
+pref("javascript.options.strict.debug",     true);
+#endif
 pref("javascript.options.relimit",          false);
 pref("javascript.options.jit.content",      true);
 pref("javascript.options.jit.chrome",       true);
@@ -550,7 +561,6 @@ pref("javascript.options.mem.high_water_mark", 32);
 pref("javascript.options.mem.gc_frequency",   1600);
 
 // advanced prefs
-pref("security.enable_java",                true);
 pref("advanced.mailftp",                    false);
 pref("image.animation_mode",                "normal");
 
@@ -824,6 +834,15 @@ pref("network.auth.use-sspi", true);
 
 #endif
 
+// Controls which NTLM authentication implementation we default to. True forces
+// the use of our generic (internal) NTLM authentication implementation vs. any
+// native implementation provided by the os. This pref is for diagnosing issues
+// with native NTLM. (See bug 520607 for details.) Using generic NTLM authentication
+// can expose the user to reflection attack vulnerabilities. Do not change this
+// unless you know what you're doing!
+// This pref should be removed 6 months after the release of firefox 3.6. 
+pref("network.auth.force-generic-ntlm", false);
+
 // The following prefs are used to enable automatic use of the operating
 // system's NTLM implementation to silently authenticate the user with their
 // Window's domain logon.  The trusted-uris pref follows the format of the
@@ -841,16 +860,7 @@ pref("network.ntlm.send-lm-response", false);
 
 pref("permissions.default.image",           1); // 1-Accept, 2-Deny, 3-dontAcceptForeign
 
-#ifndef XP_MACOSX
-#ifdef XP_UNIX
 pref("network.proxy.type",                  5);
-#else
-pref("network.proxy.type",                  0);
-#endif
-#else
-pref("network.proxy.type",                  0);
-#endif
-
 pref("network.proxy.ftp",                   "");
 pref("network.proxy.ftp_port",              0);
 pref("network.proxy.gopher",                "");
@@ -867,7 +877,6 @@ pref("network.proxy.no_proxies_on",         "localhost, 127.0.0.1");
 pref("network.proxy.failover_timeout",      1800); // 30 minutes
 pref("network.online",                      true); //online/offline
 pref("network.cookie.cookieBehavior",       0); // 0-Accept, 1-dontAcceptForeign, 2-dontUse
-pref("network.cookie.disableCookieForMailNews", true); // disable all cookies for mail
 pref("network.cookie.lifetimePolicy",       0); // accept normally, 1-askBeforeAccepting, 2-acceptForSession,3-acceptForNDays
 pref("network.cookie.alwaysAcceptSessionCookies", false);
 pref("network.cookie.prefsMigrated",        false);
@@ -930,6 +939,8 @@ pref("security.xpconnect.plugin.unrestricted", true);
 // security-sensitive dialogs should delay button enabling. In milliseconds.
 pref("security.dialog_enable_delay", 2000);
 
+pref("security.csp.enable", true);
+
 // Modifier key prefs: default to Windows settings,
 // menu access key = alt, accelerator key = control.
 // Use 17 for Ctrl, 18 for Alt, 224 for Meta, 0 for none. Mac settings in macprefs.js
@@ -945,6 +956,9 @@ pref("ui.key.contentAccess", 5);
 
 pref("ui.key.menuAccessKeyFocuses", false); // overridden below
 pref("ui.key.saveLink.shift", true); // true = shift, false = meta
+
+// Disable page loading activity cursor by default.
+pref("ui.use_activity_cursor", false);
 
 // Middle-mouse handling
 pref("middlemouse.paste", false);
@@ -963,12 +977,24 @@ pref("mousewheel.transaction.ignoremovedelay", 100);
 // Macbook touchpad two finger pixel scrolling
 pref("mousewheel.enable_pixel_scrolling", true);
 
-// prefs for improved windows scrolling model
+// prefs for app level mouse wheel scrolling acceleration.
 // number of mousewheel clicks when acceleration starts
 // acceleration can be turned off if pref is set to -1
-pref("mousewheel.acceleration.start", 3);
-// factor to be muliplied for constant acceleration
+pref("mousewheel.acceleration.start", -1);
+// factor to be multiplied for constant acceleration
 pref("mousewheel.acceleration.factor", 10);
+
+// Prefs for override the system mouse wheel scrolling speed on the root
+// content of the web pages.  When
+// "mousewheel.system_scroll_override_on_root_content.enabled" is true and the system
+// scrolling speed isn't customized by the user, the root content scrolling
+// speed is multiplied by the following factors.  The value will be used as
+// 1/100.  E.g., 200 means 2.00.
+// NOTE: Even if "mousewheel.system_scroll_override_on_root_content.enabled" is
+// true, when Gecko detects the user customized the system scrolling speed
+// settings, the override isn't executed.
+pref("mousewheel.system_scroll_override_on_root_content.vertical.factor", 200);
+pref("mousewheel.system_scroll_override_on_root_content.horizontal.factor", 200);
 
 // 0=lines, 1=pages, 2=history , 3=text size
 pref("mousewheel.withnokey.action",0);
@@ -1128,7 +1154,7 @@ pref("layout.css.dpi", -1);
 // automatically based on the DPI. A positive value is used as-is. This effectively
 // controls the size of a CSS "px". This is only used for pixel-based
 // (screen) output devices.
-pref("layout.css.devPixelsPerPx", -1);
+pref("layout.css.devPixelsPerPx", "-1");
 
 // pref for which side vertical scrollbars should be on
 // 0 = end-side in UI direction
@@ -1190,7 +1216,7 @@ pref("dom.max_chrome_script_run_time", 20);
 pref("dom.max_script_run_time", 10);
 
 pref("svg.enabled", true);
-pref("svg.smil.enabled", false);
+pref("svg.smil.enabled", true);
 
 pref("font.minimum-size.ar", 0);
 pref("font.minimum-size.x-armn", 0);
@@ -1599,16 +1625,29 @@ pref("intl.jis0208.map", "CP932");
 // Switch the keyboard layout per window
 pref("intl.keyboard.per_window_layout", false);
 
+#ifdef NS_ENABLE_TSF
 // Enable/Disable TSF support
 pref("intl.enable_tsf_support", false);
 
 // We need to notify the layout change to TSF, but we cannot check the actual
 // change now, therefore, we always notify it by this fequency.
 pref("intl.tsf.on_layout_change_interval", 100);
+#endif
 
+#ifdef WINCE
+// bug 506798 - can't type in bookmarks panel on WinCE
+pref("ui.panel.default_level_parent", true);
+#else
 // See bug 448927, on topmost panel, some IMEs are not usable on Windows.
 pref("ui.panel.default_level_parent", false);
+#endif
 
+pref("mousewheel.system_scroll_override_on_root_content.enabled", true);
+
+// Bug 514927
+// Enables or disabled the TrackPoint hack, -1 is autodetect, 0 is off,
+// and 1 is on.  Set this to 1 if TrackPoint scrolling is not working.
+pref("ui.trackpoint_hack.enabled", -1);
 # WINNT
 #endif
 
@@ -2031,6 +2070,8 @@ pref("print.print_extra_margin", 90); // twips (90 twips is an eigth of an inch)
 // See bug 404131, topmost <panel> element wins to Dashboard on MacOSX.
 pref("ui.panel.default_level_parent", false);
 
+pref("mousewheel.system_scroll_override_on_root_content.enabled", false);
+
 # XP_MACOSX
 #endif
 
@@ -2232,6 +2273,8 @@ pref("network.dns.disableIPv6", true);
 // change this value.
 pref("ui.panel.default_level_parent", false);
 
+pref("mousewheel.system_scroll_override_on_root_content.enabled", false);
+
 # OS2
 #endif
 
@@ -2325,6 +2368,8 @@ pref("browser.download.dir", "/boot/home/Downloads");
 // see bug 451015. If there are other problems by this value, we may need to
 // change this value.
 pref("ui.panel.default_level_parent", false);
+
+pref("mousewheel.system_scroll_override_on_root_content.enabled", false);
 
 # BeOS
 #endif
@@ -2598,6 +2643,8 @@ pref("print.postscript.print_command", "lpr ${MOZ_PRINTER_NAME:+-P\"$MOZ_PRINTER
 // So, we have no reasons we should use non-toplevel window for popup.
 pref("ui.panel.default_level_parent", true);
 
+pref("mousewheel.system_scroll_override_on_root_content.enabled", false);
+
 # XP_UNIX
 #endif
 #endif
@@ -2726,7 +2773,6 @@ pref("print.print_command", "lp -c -s ${MOZ_PRINTER_NAME:+-d\"$MOZ_PRINTER_NAME\
 
 // Login Manager prefs
 pref("signon.rememberSignons",              true);
-pref("signon.expireMasterPassword",         false);
 pref("signon.SignonFileName",               "signons.txt"); // obsolete 
 pref("signon.SignonFileName2",              "signons2.txt"); // obsolete
 pref("signon.SignonFileName3",              "signons3.txt"); // obsolete
@@ -2759,6 +2805,11 @@ pref("image.cache.timeweight", 500);
 // The default Accept header sent for images loaded over HTTP(S)
 pref("image.http.accept", "image/png,image/*;q=0.8,*/*;q=0.5");
 
+// WebGL prefs
+pref("webgl.enabled_for_all_sites", false);
+pref("webgl.software_render", false);
+pref("webgl.osmesalib", "");
+
 #ifdef XP_WIN
 #ifndef WINCE
 // The default TCP send window on Windows is too small, and autotuning only occurs on receive
@@ -2776,3 +2827,28 @@ pref("geo.enabled", true);
 
 // Enable/Disable HTML5 parser
 pref("html5.enable", false);
+// Toggle which thread the HTML5 parser uses for stream parsing
+pref("html5.offmainthread", true);
+// Time in milliseconds between the start of the network stream and the 
+// first time the flush timer fires in the off-the-main-thread HTML5 parser.
+pref("html5.flushtimer.startdelay", 200);
+// Time in milliseconds between the return to non-speculating more and the 
+// first time the flush timer fires thereafter.
+pref("html5.flushtimer.continuedelay", 150);
+// Time in milliseconds between timer firings once the timer has starting 
+// firing.
+pref("html5.flushtimer.interval", 100);
+
+// Push/Pop/Replace State prefs
+pref("browser.history.allowPushState", true);
+pref("browser.history.allowReplaceState", true);
+pref("browser.history.allowPopState", true);
+pref("browser.history.maxStateObjectSize", 655360);
+// Initial max length for number of tree ops in on flush.
+pref("html5.opqueue.initiallengthlimit", 200);
+// Maximum time in milliseconds to spend flushing the tree op queue when not forced to completion
+pref("html5.opqueue.maxtime", 100);
+// Minimun number of tree ops to flush regardless of time (takes precedence over the maxtime pref)
+pref("html5.opqueue.minlength", 100);
+// Maximum number of tree ops to flush regardless of time (takes precedence over the maxtime pref)
+pref("html5.opqueue.maxlength", 4500); // most top sites stay under this value

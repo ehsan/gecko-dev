@@ -80,6 +80,11 @@ nsIMEStateManager::OnDestroyPresContext(nsPresContext* aPresContext)
   NS_ENSURE_ARG_POINTER(aPresContext);
   if (aPresContext != sPresContext)
     return NS_OK;
+  nsCOMPtr<nsIWidget> widget = GetWidget(sPresContext);
+  if (widget) {
+    PRUint32 newState = GetNewIMEState(sPresContext, nsnull);
+    SetIMEState(sPresContext, newState, widget);
+  }
   sContent = nsnull;
   sPresContext = nsnull;
   OnTextStateBlur(nsnull, nsnull);
@@ -102,6 +107,8 @@ nsIMEStateManager::OnRemoveContent(nsPresContext* aPresContext,
     nsresult rv = widget->CancelIMEComposition();
     if (NS_FAILED(rv))
       widget->ResetInputState();
+    PRUint32 newState = GetNewIMEState(sPresContext, nsnull);
+    SetIMEState(sPresContext, newState, widget);
   }
 
   sContent = nsnull;
@@ -278,8 +285,7 @@ nsTextStateManager::Init(nsIWidget* aWidget,
   // get selection and root content
   nsCOMPtr<nsISelectionController> selCon;
   if (aNode->IsNodeOfType(nsINode::eCONTENT)) {
-    nsIFrame* frame = presShell->GetPrimaryFrameFor(
-                                     static_cast<nsIContent*>(aNode));
+    nsIFrame* frame = static_cast<nsIContent*>(aNode)->GetPrimaryFrame();
     NS_ENSURE_TRUE(frame, NS_ERROR_UNEXPECTED);
 
     frame->GetSelectionController(aPresContext,
@@ -499,6 +505,9 @@ nsIMEStateManager::OnTextStateFocus(nsPresContext* aPresContext,
   nsCOMPtr<nsIWidget> widget;
   nsresult rv = vm->GetRootWidget(getter_AddRefs(widget));
   NS_ENSURE_SUCCESS(rv, NS_ERROR_NOT_AVAILABLE);
+  if (!widget) {
+    return NS_OK; // Sometimes, there are no widgets.
+  }
 
   rv = widget->OnIMEFocusChange(PR_TRUE);
   if (rv == NS_ERROR_NOT_IMPLEMENTED)

@@ -13,7 +13,7 @@
  *
  * The Original Code is mozilla.org code.
  *
- * The Initial Developer of the Original Code is Mozilla Corporation.
+ * The Initial Developer of the Original Code is Mozilla Foundation.
  * Portions created by the Initial Developer are Copyright (C) 2007
  * the Initial Developer. All Rights Reserved.
  *
@@ -349,6 +349,9 @@ LoginManager.prototype = {
 
 
         handleEvent : function (event) {
+            if (!event.isTrusted)
+                return;
+
             this._pwmgr.log("domEventListener: got event " + event.type);
 
             switch (event.type) {
@@ -373,9 +376,13 @@ LoginManager.prototype = {
                     var [usernameField, passwordField, ignored] =
                         this._pwmgr._getFormFields(acForm, false);
                     if (usernameField == acInputField && passwordField) {
+                        let oldValue = passwordField.value;
                         // Clobber any existing password.
                         passwordField.value = "";
-                        this._pwmgr._fillForm(acForm, true, true, null);
+                        let [didFillForm, foundLogins] =
+                            this._pwmgr._fillForm(acForm, true, true, null);
+                        if (!didFillForm)
+                            passwordField.value = oldValue;
                     } else {
                         this._pwmgr.log("Oops, form changed before AC invoked");
                     }

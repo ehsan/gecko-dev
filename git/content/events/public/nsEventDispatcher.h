@@ -49,7 +49,7 @@ class nsIDOMEvent;
 class nsPIDOMEventTarget;
 class nsIScriptGlobalObject;
 class nsEventTargetChainItem;
-
+template<class E> class nsCOMArray;
 
 /**
  * About event dispatching:
@@ -136,8 +136,8 @@ public:
   : nsEventChainVisitor(aPresContext, aEvent, aDOMEvent, aEventStatus),
     mCanHandle(PR_TRUE), mForceContentDispatch(PR_FALSE),
     mRelatedTargetIsInAnon(PR_FALSE), mOriginalTargetIsInAnon(aIsInAnon),
-    mWantsWillHandleEvent(PR_FALSE), mParentTarget(nsnull),
-    mEventTargetAtParent(nsnull) {}
+    mWantsWillHandleEvent(PR_FALSE), mMayHaveListenerManager(PR_TRUE),
+    mParentTarget(nsnull), mEventTargetAtParent(nsnull) {}
 
   void Reset() {
     mItemFlags = 0;
@@ -145,6 +145,7 @@ public:
     mCanHandle = PR_TRUE;
     mForceContentDispatch = PR_FALSE;
     mWantsWillHandleEvent = PR_FALSE;
+    mMayHaveListenerManager = PR_TRUE;
     mParentTarget = nsnull;
     mEventTargetAtParent = nsnull;
   }
@@ -181,6 +182,12 @@ public:
    * called. Default is PR_FALSE;
    */
   PRPackedBool          mWantsWillHandleEvent;
+
+  /**
+   * If it is known that the current target doesn't have a listener manager
+   * when PreHandleEvent is called, set this to PR_FALSE.
+   */
+  PRPackedBool          mMayHaveListenerManager;
 
   /**
    * Parent item in the event target chain.
@@ -230,6 +237,10 @@ public:
    * In other words, aEvent->target is only a property of the event and it has
    * nothing to do with the construction of the event target chain.
    * Neither aTarget nor aEvent is allowed to be nsnull.
+   *
+   * If aTargets is non-null, event target chain will be created, but
+   * event won't be handled. In this case aEvent->message should be
+   * NS_EVENT_TYPE_NULL.
    * @note Use this method when dispatching an nsEvent.
    */
   static nsresult Dispatch(nsISupports* aTarget,
@@ -237,7 +248,8 @@ public:
                            nsEvent* aEvent,
                            nsIDOMEvent* aDOMEvent = nsnull,
                            nsEventStatus* aEventStatus = nsnull,
-                           nsDispatchingCallback* aCallback = nsnull);
+                           nsDispatchingCallback* aCallback = nsnull,
+                           nsCOMArray<nsPIDOMEventTarget>* aTargets = nsnull);
 
   /**
    * Dispatches an event.

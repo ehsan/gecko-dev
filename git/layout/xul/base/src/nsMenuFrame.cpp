@@ -71,7 +71,6 @@
 #include "nsIDOMKeyEvent.h"
 #include "nsEventDispatcher.h"
 #include "nsIPrivateDOMEvent.h"
-#include "nsIScrollableView.h"
 #include "nsXPIDLString.h"
 #include "nsReadableUtils.h"
 #include "nsUnicharUtils.h"
@@ -177,9 +176,10 @@ NS_NewMenuItemFrame(nsIPresShell* aPresShell, nsStyleContext* aContext)
   return it;
 }
 
+NS_IMPL_FRAMEARENA_HELPERS(nsMenuFrame)
+
 NS_QUERYFRAME_HEAD(nsMenuFrame)
   NS_QUERYFRAME_ENTRY(nsIMenuFrame)
-  NS_QUERYFRAME_ENTRY(nsIScrollableViewProvider)
 NS_QUERYFRAME_TAIL_INHERITING(nsBoxFrame)
 
 //
@@ -329,7 +329,7 @@ nsFrameList
 nsMenuFrame::GetChildList(nsIAtom* aListName) const
 {
   if (nsGkAtoms::popupList == aListName) {
-    return mPopupFrame;
+    return nsFrameList(mPopupFrame, mPopupFrame);
   }
   return nsBoxFrame::GetChildList(aListName);
 }
@@ -367,7 +367,7 @@ nsMenuFrame::GetAdditionalChildListName(PRInt32 aIndex) const
 }
 
 void
-nsMenuFrame::Destroy()
+nsMenuFrame::DestroyFrom(nsIFrame* aDestructRoot)
 {
   // Kill our timer if one is active. This is not strictly necessary as
   // the pointer to this frame will be cleared from the mediator, but
@@ -391,9 +391,9 @@ nsMenuFrame::Destroy()
   }
 
   if (mPopupFrame)
-    mPopupFrame->Destroy();
+    mPopupFrame->DestroyFrom(aDestructRoot);
 
-  nsBoxFrame::Destroy();
+  nsBoxFrame::DestroyFrom(aDestructRoot);
 }
 
 NS_IMETHODIMP
@@ -762,7 +762,7 @@ nsMenuFrame::DoLayout(nsBoxLayoutState& aState)
     // the popup. The flag that the popup checks in the HasOpenChanged
     // method will get cleared in AdjustView which is called below.
     if (IsOpen() && (sizeChanged || mPopupFrame->HasOpenChanged()))
-      mPopupFrame->SetPopupPosition(this);
+      mPopupFrame->SetPopupPosition(this, PR_FALSE);
 
     // is the new size too small? Make sure we handle scrollbars correctly
     nsIBox* child = mPopupFrame->GetChildBox();
@@ -1326,20 +1326,19 @@ nsMenuFrame::SetActiveChild(nsIDOMElement* aChild)
 
   nsCOMPtr<nsIContent> child(do_QueryInterface(aChild));
 
-  nsIFrame* kid = PresContext()->PresShell()->GetPrimaryFrameFor(child);
+  nsIFrame* kid = child->GetPrimaryFrame();
   if (kid && kid->GetType() == nsGkAtoms::menuFrame)
     mPopupFrame->ChangeMenuItem(static_cast<nsMenuFrame *>(kid), PR_FALSE);
   return NS_OK;
 }
 
-nsIScrollableView* nsMenuFrame::GetScrollableView()
+nsIScrollableFrame* nsMenuFrame::GetScrollTargetFrame()
 {
   if (!mPopupFrame)
     return nsnull;
-
   nsIFrame* childFrame = mPopupFrame->GetFirstChild(nsnull);
   if (childFrame)
-    return mPopupFrame->GetScrollableView(childFrame);
+    return mPopupFrame->GetScrollFrame(childFrame);
   return nsnull;
 }
 

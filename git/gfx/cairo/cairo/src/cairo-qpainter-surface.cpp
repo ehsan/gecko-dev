@@ -28,7 +28,7 @@
  *
  * The Original Code is the cairo graphics library.
  *
- * The Initial Developer of the Original Code is Mozilla Corporation.
+ * The Initial Developer of the Original Code is Mozilla Foundation.
  *
  * Contributor(s):
  *      Vladimir Vukicevic <vladimir@mozilla.com>
@@ -704,8 +704,17 @@ _cairo_qpainter_surface_intersect_clip_path (void *abstract_surface,
         return CAIRO_INT_STATUS_SUCCESS;
     }
 
-    // Qt will implicity enable clipping, and will use ReplaceClip
+    // Enable clipping here and use ReplaceClip
     // instead of IntersectClip if clipping was disabled before
+    // (this is done implicitly for the X11 paint engine, but not
+    // necessarily for others, so we make it explicit)
+
+    Qt::ClipOperation clipMode = Qt::IntersectClip;
+    
+    if (!qs->p->hasClipping()) {
+      qs->p->setClipping(true);
+      clipMode = Qt::ReplaceClip;
+    }
 
     // Note: Qt is really bad at dealing with clip paths.  It doesn't
     // seem to usefully recognize rectangular paths, instead going down
@@ -736,7 +745,7 @@ _cairo_qpainter_surface_intersect_clip_path (void *abstract_surface,
 
         clip_bounds = r;
 
-        qs->p->setClipRect (r, Qt::IntersectClip);
+	qs->p->setClipRect (r, clipMode);
     } else {
         // Then if it's not an integer-aligned rectangle, check
         // if we can extract a region (a set of rectangles) out.
@@ -778,7 +787,7 @@ _cairo_qpainter_surface_intersect_clip_path (void *abstract_surface,
             }
             _cairo_region_fini (region);
 
-            qs->p->setClipRegion (qr, Qt::IntersectClip);
+            qs->p->setClipRegion (qr, clipMode);
         } else {
             // We weren't able to extract a region from the traps.
             // Just hand the path down to QPainter.
@@ -790,7 +799,7 @@ _cairo_qpainter_surface_intersect_clip_path (void *abstract_surface,
             clip_bounds = qpath.boundingRect().toAlignedRect();
 
             // XXX Antialiasing is ignored
-            qs->p->setClipPath (qpath, Qt::IntersectClip);
+            qs->p->setClipPath (qpath, clipMode);
         }
     }
 
@@ -833,7 +842,7 @@ struct PatternToBrushConverter {
             cairo_surface_pattern_t *spattern = (cairo_surface_pattern_t*) pattern;
             cairo_surface_t *surface = spattern->surface;
 
-            if (surface->type == CAIRO_SURFACE_TYPE_QPAINTER) {
+            if (surface->type == CAIRO_SURFACE_TYPE_QT) {
                 cairo_qpainter_surface_t *qs = (cairo_qpainter_surface_t*) surface;
 
                 if (qs->image) {
@@ -1139,7 +1148,7 @@ _cairo_qpainter_fast_fill (cairo_qpainter_surface_t *qs,
 
     if (source->type == CAIRO_PATTERN_TYPE_SURFACE) {
         cairo_surface_pattern_t *spattern = (cairo_surface_pattern_t*) source;
-        if (spattern->surface->type == CAIRO_SURFACE_TYPE_QPAINTER) {
+        if (spattern->surface->type == CAIRO_SURFACE_TYPE_QT) {
             cairo_qpainter_surface_t *p = (cairo_qpainter_surface_t*) spattern->surface;
 
             qsSrc_image = p->image;
@@ -1495,7 +1504,7 @@ _cairo_qpainter_surface_composite (cairo_operator_t op,
             qimg_d.reset(qimg);
         }
 
-        if (surface->type == CAIRO_SURFACE_TYPE_QPAINTER) {
+        if (surface->type == CAIRO_SURFACE_TYPE_QT) {
             cairo_qpainter_surface_t *qsrc = (cairo_qpainter_surface_t*) surface;
 
             if (qsrc->image)
@@ -1531,24 +1540,12 @@ _cairo_qpainter_surface_composite (cairo_operator_t op,
     return CAIRO_INT_STATUS_SUCCESS;
 }
 
-static cairo_status_t
-_cairo_qpainter_surface_flush (void *abstract_surface)
-{
-    cairo_qpainter_surface_t *qs = (cairo_qpainter_surface_t *) abstract_surface;
-    
-    QPaintDevice * dev = qs->p->device();
-    qs->p->end();
-    qs->p->begin(dev);
-    
-    return CAIRO_STATUS_SUCCESS;
-}
-
 /**
  ** Backend struct
  **/
 
 static const cairo_surface_backend_t cairo_qpainter_surface_backend = {
-    CAIRO_SURFACE_TYPE_QPAINTER,
+    CAIRO_SURFACE_TYPE_QT,
     _cairo_qpainter_surface_create_similar,
     _cairo_qpainter_surface_finish,
     _cairo_qpainter_surface_acquire_source_image,
@@ -1569,7 +1566,7 @@ static const cairo_surface_backend_t cairo_qpainter_surface_backend = {
     _cairo_qpainter_surface_get_extents,
     NULL, /* old_show_glyphs */
     NULL, /* get_font_options */
-    _cairo_qpainter_surface_flush,
+    NULL, /* flush */
     NULL, /* mark_dirty_rectangle */
     NULL, /* scaled_font_fini */
     NULL, /* scaled_glyph_fini */
@@ -1767,7 +1764,7 @@ cairo_qpainter_surface_get_qpainter (cairo_surface_t *surface)
 {
     cairo_qpainter_surface_t *qs = (cairo_qpainter_surface_t*) surface;
 
-    if (surface->type != CAIRO_SURFACE_TYPE_QPAINTER)
+    if (surface->type != CAIRO_SURFACE_TYPE_QT)
         return NULL;
 
     return qs->p;
@@ -1778,7 +1775,7 @@ cairo_qpainter_surface_get_qimage (cairo_surface_t *surface)
 {
     cairo_qpainter_surface_t *qs = (cairo_qpainter_surface_t*) surface;
 
-    if (surface->type != CAIRO_SURFACE_TYPE_QPAINTER)
+    if (surface->type != CAIRO_SURFACE_TYPE_QT)
         return NULL;
 
     return qs->image;
@@ -1789,7 +1786,7 @@ cairo_qpainter_surface_get_image (cairo_surface_t *surface)
 {
     cairo_qpainter_surface_t *qs = (cairo_qpainter_surface_t*) surface;
 
-    if (surface->type != CAIRO_SURFACE_TYPE_QPAINTER)
+    if (surface->type != CAIRO_SURFACE_TYPE_QT)
         return NULL;
 
     return (cairo_surface_t*) qs->image_equiv;

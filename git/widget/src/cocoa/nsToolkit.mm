@@ -161,7 +161,7 @@ nsToolkit::RegisterForSleepWakeNotifcations()
 
   gRootPort = ::IORegisterForSystemPower(0, &notifyPortRef, ToolkitSleepWakeCallback, &mPowerNotifier);
   if (gRootPort == MACH_PORT_NULL) {
-    NS_ASSERTION(0, "IORegisterForSystemPower failed");
+    NS_ERROR("IORegisterForSystemPower failed");
     return NS_ERROR_FAILURE;
   }
 
@@ -192,10 +192,17 @@ nsToolkit::RemoveSleepWakeNotifcations()
   NS_OBJC_END_TRY_ABORT_BLOCK;
 }
 
-// We shouldn't do anything here.  See RegisterForAllProcessMouseEvents() for
-// the reason why.
+// This is the callback used in RegisterForAllProcessMouseEvents.
 static OSStatus EventMonitorHandler(EventHandlerCallRef aCaller, EventRef aEvent, void* aRefcon)
 {
+  // Up to Mac OS 10.4 (or when building with the 10.4 SDK), installing a Carbon
+  // event handler like this one caused the OS to post the equivalent Cocoa
+  // events to [NSApp sendEvent:]. When using the 10.5 SDK, this doesn't happen
+  // any more, so we need to do it manually.
+#ifdef NS_LEOPARD_AND_LATER
+  [NSApp sendEvent:[NSEvent eventWithEventRef:aEvent]];
+#endif // NS_LEOPARD_AND_LATER
+
   return eventNotHandledErr;
 }
 
@@ -265,16 +272,6 @@ nsToolkit::RegisterForAllProcessMouseEvents()
       return;
   }
   if (!mEventMonitorHandler) {
-    // Installing a handler for particular Carbon events causes the OS to post
-    // equivalent Cocoa events to the browser's event stream (the one that
-    // passes through [NSApp sendEvent:]).  For this reason installing a
-    // handler for kEventMouseMoved fixes bmo bug 368077, even though our
-    // handler does nothing on mouse-moved events.  (Actually it's more
-    // accurate to say that the OS (working in a different process) sends
-    // events to the window server, from which the OS (acting in the browser's
-    // process on its behalf) grabs them and turns them into both Carbon
-    // events (which get fed to our handler) and Cocoa events (which get fed
-    // to [NSApp sendEvent:]).)
     EventTypeSpec kEvents[] = {{kEventClassMouse, kEventMouseMoved}};
     InstallEventHandler(GetEventMonitorTarget(), EventMonitorHandler,
                         GetEventTypeCount(kEvents), kEvents, 0,
@@ -381,15 +378,15 @@ NS_IMETHODIMP NS_GetCurrentToolkit(nsIToolkit* *aResult)
   NS_OBJC_END_TRY_ABORT_BLOCK_NSRESULT;
 }
 
-long nsToolkit::OSXVersion()
+PRInt32 nsToolkit::OSXVersion()
 {
   NS_OBJC_BEGIN_TRY_ABORT_BLOCK_RETURN;
 
-  static long gOSXVersion = 0x0;
+  static PRInt32 gOSXVersion = 0x0;
   if (gOSXVersion == 0x0) {
-    OSErr err = ::Gestalt(gestaltSystemVersion, &gOSXVersion);
+    OSErr err = ::Gestalt(gestaltSystemVersion, (SInt32*)&gOSXVersion);
     if (err != noErr) {
-      //This should probably be changed when our minimum version changes
+      // This should probably be changed when our minimum version changes
       NS_ERROR("Couldn't determine OS X version, assuming 10.4");
       gOSXVersion = MAC_OS_X_VERSION_10_4_HEX;
     }
@@ -401,7 +398,12 @@ long nsToolkit::OSXVersion()
 
 PRBool nsToolkit::OnLeopardOrLater()
 {
-    return (OSXVersion() >= MAC_OS_X_VERSION_10_5_HEX) ? PR_TRUE : PR_FALSE;
+  return (OSXVersion() >= MAC_OS_X_VERSION_10_5_HEX);
+}
+
+PRBool nsToolkit::OnSnowLeopardOrLater()
+{
+  return (OSXVersion() >= MAC_OS_X_VERSION_10_6_HEX);
 }
 
 // An alternative to [NSObject poseAsClass:] that isn't deprecated on OS X
@@ -441,9 +443,13 @@ nsresult nsToolkit::SwizzleMethods(Class aClass, SEL orgMethod, SEL posedMethod,
   if (!original || !posed)
     return NS_ERROR_FAILURE;
 
+#ifdef __LP64__
+  method_exchangeImplementations(original, posed);
+#else
   IMP aMethodImp = original->method_imp;
   original->method_imp = posed->method_imp;
   posed->method_imp = aMethodImp;
+#endif
 
   return NS_OK;
 

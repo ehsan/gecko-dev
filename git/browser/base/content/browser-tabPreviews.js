@@ -264,13 +264,7 @@ var ctrlTab = {
     if (aPreview == this.showAllButton)
       return;
 
-    if ((aPreview._tab || null) != aTab) {
-      if (aPreview._tab)
-        aPreview._tab.removeEventListener("DOMAttrModified", this, false);
-      aPreview._tab = aTab;
-      if (aTab)
-        aTab.addEventListener("DOMAttrModified", this, false);
-    }
+    aPreview._tab = aTab;
 
     if (aPreview.firstChild)
       aPreview.removeChild(aPreview.firstChild);
@@ -505,8 +499,8 @@ var ctrlTab = {
 
   handleEvent: function ctrlTab_handleEvent(event) {
     switch (event.type) {
-      case "DOMAttrModified":
-        // tab attribute modified (e.g. label, crop, busy, image)
+      case "TabAttrModified":
+        // tab attribute modified (e.g. label, crop, busy, image, selected)
         for (let i = this.previews.length - 1; i >= 0; i--) {
           if (this.previews[i]._tab && this.previews[i]._tab == event.target) {
             this.updatePreview(this.previews[i], event.target);
@@ -541,6 +535,7 @@ var ctrlTab = {
 
     var tabContainer = gBrowser.tabContainer;
     tabContainer[toggleEventListener]("TabOpen", this, false);
+    tabContainer[toggleEventListener]("TabAttrModified", this, false);
     tabContainer[toggleEventListener]("TabSelect", this, false);
     tabContainer[toggleEventListener]("TabClose", this, false);
 
@@ -574,10 +569,7 @@ var allTabs = {
     delete this.tabCloseButton;
     return this.tabCloseButton = document.getElementById("allTabs-tab-close-button");
   },
-  get _browserCommandSet () {
-    delete this._browserCommandSet;
-    return this._browserCommandSet = document.getElementById("mainCommandSet");
-  },
+  get previews () this.container.getElementsByClassName("allTabs-preview"),
   get isOpen () this.panel.state == "open" || this.panel.state == "showing",
 
   init: function allTabs_init() {
@@ -590,6 +582,7 @@ var allTabs = {
     }, this);
 
     gBrowser.tabContainer.addEventListener("TabOpen", this, false);
+    gBrowser.tabContainer.addEventListener("TabAttrModified", this, false);
     gBrowser.tabContainer.addEventListener("TabMove", this, false);
     gBrowser.tabContainer.addEventListener("TabClose", this, false);
   },
@@ -599,6 +592,7 @@ var allTabs = {
       return;
 
     gBrowser.tabContainer.removeEventListener("TabOpen", this, false);
+    gBrowser.tabContainer.removeEventListener("TabAttrModified", this, false);
     gBrowser.tabContainer.removeEventListener("TabMove", this, false);
     gBrowser.tabContainer.removeEventListener("TabClose", this, false);
 
@@ -647,7 +641,7 @@ var allTabs = {
 
     var filter = this._currentFilter.split(/\s+/g);
     this._visible = 0;
-    Array.forEach(this.container.childNodes, function (preview) {
+    Array.forEach(this.previews, function (preview) {
       var tab = preview._tab;
       var matches = 0;
       if (filter.length) {
@@ -661,13 +655,11 @@ var allTabs = {
       }
       if (matches < filter.length) {
         preview.hidden = true;
-        tab.removeEventListener("DOMAttrModified", this, false);
       }
       else {
         this._visible++;
         this._updatePreview(preview);
         preview.hidden = false;
-        tab.addEventListener("DOMAttrModified", this, false);
       }
     }, this);
 
@@ -705,10 +697,6 @@ var allTabs = {
   },
 
   suspendGUI: function allTabs_suspendGUI() {
-    Array.forEach(this.container.childNodes, function (preview) {
-      preview._tab.removeEventListener("DOMAttrModified", this, false);
-    }, this);
-
     this.filterField.removeAttribute("emptytext");
     this.filterField.value = "";
     this._currentFilter = null;
@@ -721,25 +709,36 @@ var allTabs = {
   },
 
   handleEvent: function allTabs_handleEvent(event) {
+    if (/^Tab/.test(event.type)) {
+      var tab = event.target;
+      if (event.type != "TabOpen")
+        var preview = this._getPreview(tab);
+    }
     switch (event.type) {
-      case "DOMAttrModified":
+      case "TabAttrModified":
         // tab attribute modified (e.g. label, crop, busy, image)
-        this._updatePreview(this._getPreview(event.target));
+        if (!preview.hidden)
+          this._updatePreview(preview);
         break;
       case "TabOpen":
         if (this.isOpen)
           this.close();
-        this._addPreview(event.target);
+        this._addPreview(tab);
         break;
       case "TabMove":
-        if (event.target.nextSibling)
-          this.container.insertBefore(this._getPreview(event.target),
-                                      this._getPreview(event.target.nextSibling));
+        let siblingPreview = tab.nextSibling &&
+                             this._getPreview(tab.nextSibling);
+        if (siblingPreview)
+          siblingPreview.parentNode.insertBefore(preview, siblingPreview);
         else
-          this.container.appendChild(this._getPreview(event.target));
+          this.container.lastChild.appendChild(preview);
+        if (this.isOpen && !preview.hidden) {
+          this._reflow();
+          preview.focus();
+        }
         break;
       case "TabClose":
-        this._removePreview(this._getPreview(event.target));
+        this._removePreview(preview);
         break;
       case "keypress":
         this._onKeyPress(event);
@@ -761,18 +760,22 @@ var allTabs = {
     delete this._stack;
     return this._stack = document.getElementById("allTabs-stack");
   },
+  get _browserCommandSet () {
+    delete this._browserCommandSet;
+    return this._browserCommandSet = document.getElementById("mainCommandSet");
+  },
   get _previewLabelHeight () {
     delete this._previewLabelHeight;
-    return this._previewLabelHeight = parseInt(getComputedStyle(this.container.firstChild, "").lineHeight);
+    return this._previewLabelHeight = parseInt(getComputedStyle(this.previews[0], "").lineHeight);
   },
 
   get _visiblePreviews ()
-    Array.filter(this.container.childNodes, function (preview) !preview.hidden),
+    Array.filter(this.previews, function (preview) !preview.hidden),
 
   get _firstVisiblePreview () {
     if (this._visible == 0)
       return null;
-    var previews = this.container.childNodes;
+    var previews = this.previews;
     for (let i = 0; i < previews.length; i++) {
       if (!previews[i].hidden)
         return previews[i];
@@ -809,11 +812,23 @@ var allTabs = {
                         "min-height:" + innerHeight + "px;";
     }
 
-    Array.forEach(this.container.childNodes, function (preview) {
+    var previews = Array.slice(this.previews);
+
+    while (this.container.hasChildNodes())
+      this.container.removeChild(this.container.firstChild);
+    for (let i = rows || 1; i > 0; i--)
+      this.container.appendChild(document.createElement("hbox"));
+
+    var row = this.container.firstChild;
+    var i = 0;
+    previews.forEach(function (preview) {
       preview.setAttribute("minwidth", outerWidth);
       preview.setAttribute("height", outerHeight);
       preview.setAttribute("canvasstyle", canvasStyle);
       preview.removeAttribute("closebuttonhover");
+      row.appendChild(preview);
+      if (!preview.hidden)
+        row = this.container.childNodes[Math.floor(++i / this._columns)];
     }, this);
 
     this._stack.width = maxWidth;
@@ -827,14 +842,13 @@ var allTabs = {
     var preview = document.createElement("button");
     preview.className = "allTabs-preview";
     preview._tab = aTab;
-    return this.container.appendChild(preview);
+    this.container.lastChild.appendChild(preview);
   },
 
   _removePreview: function allTabs_removePreview(aPreview) {
     var updateUI = (this.isOpen && !aPreview.hidden);
-    aPreview._tab.removeEventListener("DOMAttrModified", this, false);
     aPreview._tab = null;
-    this.container.removeChild(aPreview);
+    aPreview.parentNode.removeChild(aPreview);
     if (updateUI) {
       this._visible--;
       this._reflow();
@@ -843,7 +857,7 @@ var allTabs = {
   },
 
   _getPreview: function allTabs_getPreview(aTab) {
-    var previews = this.container.childNodes;
+    var previews = this.previews;
     for (let i = 0; i < previews.length; i++)
       if (previews[i]._tab == aTab)
         return previews[i];
@@ -862,7 +876,7 @@ var allTabs = {
     }
 
     if (event &&
-        event.target.parentNode == this.container &&
+        event.target.parentNode.parentNode == this.container &&
         (event.target._tab.previousSibling || event.target._tab.nextSibling)) {
       let preview = event.target.getBoundingClientRect();
       let container = this.container.getBoundingClientRect();
@@ -960,7 +974,7 @@ var allTabs = {
 
   _advanceFocusVertically: function allTabs_advanceFocusVertically(event) {
     var preview = document.activeElement;
-    if (!preview || preview.parentNode != this.container)
+    if (!preview || preview.parentNode.parentNode != this.container)
       return;
 
     event.stopPropagation();

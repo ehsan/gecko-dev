@@ -42,7 +42,7 @@
 #include "nsIAccessibleStates.h"
 #include "nsIAccessibleTypes.h"
 
-#include "nsAccessibleEventData.h"
+#include "nsAccEvent.h"
 #include "nsHyperTextAccessible.h"
 #include "nsHTMLTableAccessible.h"
 #include "nsDocAccessible.h"
@@ -50,12 +50,13 @@
 #include "nsAccessibleTreeWalker.h"
 #include "nsAccessible.h"
 #include "nsARIAMap.h"
-#include "nsXULTreeAccessible.h"
+#include "nsXULTreeGridAccessible.h"
 
 #include "nsIDOMXULContainerElement.h"
 #include "nsIDOMXULSelectCntrlEl.h"
 #include "nsIDOMXULSelectCntrlItemEl.h"
 #include "nsWhitespaceTokenizer.h"
+#include "nsComponentManagerUtils.h"
 
 void
 nsAccUtils::GetAccAttr(nsIPersistentProperties *aAttributes,
@@ -80,57 +81,9 @@ nsAccUtils::SetAccAttr(nsIPersistentProperties *aAttributes,
 }
 
 void
-nsAccUtils::GetAccGroupAttrs(nsIPersistentProperties *aAttributes,
-                             PRInt32 *aLevel, PRInt32 *aPosInSet,
-                             PRInt32 *aSetSize)
-{
-  *aLevel = 0;
-  *aPosInSet = 0;
-  *aSetSize = 0;
-
-  nsAutoString value;
-  PRInt32 error = NS_OK;
-
-  GetAccAttr(aAttributes, nsAccessibilityAtoms::level, value);
-  if (!value.IsEmpty()) {
-    PRInt32 level = value.ToInteger(&error);
-    if (NS_SUCCEEDED(error))
-      *aLevel = level;
-  }
-
-  GetAccAttr(aAttributes, nsAccessibilityAtoms::posinset, value);
-  if (!value.IsEmpty()) {
-    PRInt32 posInSet = value.ToInteger(&error);
-    if (NS_SUCCEEDED(error))
-      *aPosInSet = posInSet;
-  }
-
-  GetAccAttr(aAttributes, nsAccessibilityAtoms::setsize, value);
-  if (!value.IsEmpty()) {
-    PRInt32 sizeSet = value.ToInteger(&error);
-    if (NS_SUCCEEDED(error))
-      *aSetSize = sizeSet;
-  }
-}
-
-PRBool
-nsAccUtils::HasAccGroupAttrs(nsIPersistentProperties *aAttributes)
-{
-  nsAutoString value;
-
-  GetAccAttr(aAttributes, nsAccessibilityAtoms::setsize, value);
-  if (!value.IsEmpty()) {
-    GetAccAttr(aAttributes, nsAccessibilityAtoms::posinset, value);
-    return !value.IsEmpty();
-  }
-
-  return PR_FALSE;
-}
-
-void
 nsAccUtils::SetAccGroupAttrs(nsIPersistentProperties *aAttributes,
-                             PRInt32 aLevel, PRInt32 aPosInSet,
-                             PRInt32 aSetSize)
+                             PRInt32 aLevel, PRInt32 aSetSize,
+                             PRInt32 aPosInSet)
 {
   nsAutoString value;
 
@@ -150,9 +103,50 @@ nsAccUtils::SetAccGroupAttrs(nsIPersistentProperties *aAttributes,
   }
 }
 
+PRInt32
+nsAccUtils::GetDefaultLevel(nsAccessible *aAcc)
+{
+  PRUint32 role = nsAccUtils::Role(aAcc);
+
+  if (role == nsIAccessibleRole::ROLE_OUTLINEITEM)
+    return 1;
+
+  if (role == nsIAccessibleRole::ROLE_ROW) {
+    nsCOMPtr<nsIAccessible> parent = aAcc->GetParent();
+    if (Role(parent) == nsIAccessibleRole::ROLE_TREE_TABLE) {
+      // It is a row inside flatten treegrid. Group level is always 1 until it
+      // is overriden by aria-level attribute.
+      return 1;
+    }
+  }
+
+  return 0;
+}
+
+PRInt32
+nsAccUtils::GetARIAOrDefaultLevel(nsIAccessible *aAcc)
+{
+  nsRefPtr<nsAccessible> acc = nsAccUtils::QueryObject<nsAccessible>(aAcc);
+  NS_ENSURE_TRUE(acc, 0);
+
+  nsCOMPtr<nsIDOMNode> node;
+  acc->GetDOMNode(getter_AddRefs(node));
+  nsCOMPtr<nsIContent> content(do_QueryInterface(node));
+  NS_ENSURE_TRUE(content, 0);
+
+  PRInt32 level = 0;
+  nsCoreUtils::GetUIntAttr(content, nsAccessibilityAtoms::aria_level, &level);
+
+  if (level != 0)
+    return level;
+
+  return GetDefaultLevel(acc);
+}
+
 void
-nsAccUtils::SetAccAttrsForXULSelectControlItem(nsIDOMNode *aNode,
-                                               nsIPersistentProperties *aAttributes)
+nsAccUtils::GetPositionAndSizeForXULSelectControlItem(nsIDOMNode *aNode,
+                                                      PRInt32 *aPosInSet,
+                                                      PRInt32 *aSetSize)
 {
   nsCOMPtr<nsIDOMXULSelectControlItemElement> item(do_QueryInterface(aNode));
   if (!item)
@@ -169,29 +163,31 @@ nsAccUtils::SetAccAttrsForXULSelectControlItem(nsIDOMNode *aNode,
   PRInt32 indexOf = 0;
   control->GetIndexOfItem(item, &indexOf);
 
-  PRUint32 setSize = itemsCount, posInSet = indexOf;
+  *aSetSize = itemsCount;
+  *aPosInSet = indexOf;
+
   for (PRUint32 index = 0; index < itemsCount; index++) {
     nsCOMPtr<nsIDOMXULSelectControlItemElement> currItem;
     control->GetItemAtIndex(index, getter_AddRefs(currItem));
     nsCOMPtr<nsIDOMNode> currNode(do_QueryInterface(currItem));
 
     nsCOMPtr<nsIAccessible> itemAcc;
-    nsAccessNode::GetAccService()->GetAccessibleFor(currNode,
-                                                    getter_AddRefs(itemAcc));
+    GetAccService()->GetAccessibleFor(currNode, getter_AddRefs(itemAcc));
     if (!itemAcc ||
         State(itemAcc) & nsIAccessibleStates::STATE_INVISIBLE) {
-      setSize--;
+      (*aSetSize)--;
       if (index < static_cast<PRUint32>(indexOf))
-        posInSet--;
+        (*aPosInSet)--;
     }
   }
 
-  SetAccGroupAttrs(aAttributes, 0, posInSet + 1, setSize);
+  (*aPosInSet)++; // group position is 1-index based.
 }
 
 void
-nsAccUtils::SetAccAttrsForXULContainerItem(nsIDOMNode *aNode,
-                                           nsIPersistentProperties *aAttributes)
+nsAccUtils::GetPositionAndSizeForXULContainerItem(nsIDOMNode *aNode,
+                                                  PRInt32 *aPosInSet,
+                                                  PRInt32 *aSetSize)
 {
   nsCOMPtr<nsIDOMXULContainerItemElement> item(do_QueryInterface(aNode));
   if (!item)
@@ -211,14 +207,13 @@ nsAccUtils::SetAccAttrsForXULContainerItem(nsIDOMNode *aNode,
   container->GetIndexOfItem(item, &indexOf);
 
   // Calculate set size and position in the set.
-  PRUint32 setSize = 0, posInSet = 0;
+  *aSetSize = 0, *aPosInSet = 0;
   for (PRInt32 index = indexOf; index >= 0; index--) {
     nsCOMPtr<nsIDOMXULElement> item;
     container->GetItemAtIndex(index, getter_AddRefs(item));
 
     nsCOMPtr<nsIAccessible> itemAcc;
-    nsAccessNode::GetAccService()->GetAccessibleFor(item,
-                                                    getter_AddRefs(itemAcc));
+    GetAccService()->GetAccessibleFor(item, getter_AddRefs(itemAcc));
 
     if (itemAcc) {
       PRUint32 itemRole = Role(itemAcc);
@@ -227,8 +222,8 @@ nsAccUtils::SetAccAttrsForXULContainerItem(nsIDOMNode *aNode,
 
       PRUint32 itemState = State(itemAcc);
       if (!(itemState & nsIAccessibleStates::STATE_INVISIBLE)) {
-        setSize++;
-        posInSet++;
+        (*aSetSize)++;
+        (*aPosInSet)++;
       }
     }
   }
@@ -239,8 +234,7 @@ nsAccUtils::SetAccAttrsForXULContainerItem(nsIDOMNode *aNode,
     container->GetItemAtIndex(index, getter_AddRefs(item));
     
     nsCOMPtr<nsIAccessible> itemAcc;
-    nsAccessNode::GetAccService()->GetAccessibleFor(item,
-                                                    getter_AddRefs(itemAcc));
+    GetAccService()->GetAccessibleFor(item, getter_AddRefs(itemAcc));
 
     if (itemAcc) {
       PRUint32 itemRole = Role(itemAcc);
@@ -249,9 +243,22 @@ nsAccUtils::SetAccAttrsForXULContainerItem(nsIDOMNode *aNode,
 
       PRUint32 itemState = State(itemAcc);
       if (!(itemState & nsIAccessibleStates::STATE_INVISIBLE))
-        setSize++;
+        (*aSetSize)++;
     }
   }
+}
+
+PRInt32
+nsAccUtils::GetLevelForXULContainerItem(nsIDOMNode *aNode)
+{
+  nsCOMPtr<nsIDOMXULContainerItemElement> item(do_QueryInterface(aNode));
+  if (!item)
+    return 0;
+
+  nsCOMPtr<nsIDOMXULContainerElement> container;
+  item->GetParentContainer(getter_AddRefs(container));
+  if (!container)
+    return 0;
 
   // Get level of the item.
   PRInt32 level = -1;
@@ -262,8 +269,8 @@ nsAccUtils::SetAccAttrsForXULContainerItem(nsIDOMNode *aNode,
     container->GetParentContainer(getter_AddRefs(parentContainer));
     parentContainer.swap(container);
   }
-  
-  SetAccGroupAttrs(aAttributes, level, posInSet, setSize);
+
+  return level;
 }
 
 void
@@ -338,21 +345,6 @@ nsAccUtils::HasDefinedARIAToken(nsIContent *aContent, nsIAtom *aAtom)
   return PR_TRUE;
 }
 
-nsresult
-nsAccUtils::FireAccEvent(PRUint32 aEventType, nsIAccessible *aAccessible,
-                         PRBool aIsAsynch)
-{
-  NS_ENSURE_ARG(aAccessible);
-
-  nsRefPtr<nsAccessible> acc(nsAccUtils::QueryAccessible(aAccessible));
-
-  nsCOMPtr<nsIAccessibleEvent> event =
-    new nsAccEvent(aEventType, aAccessible, aIsAsynch);
-  NS_ENSURE_TRUE(event, NS_ERROR_OUT_OF_MEMORY);
-
-  return acc->FireAccessibleEvent(event);
-}
-
 PRBool
 nsAccUtils::HasAccessibleChildren(nsIDOMNode *aNode)
 {
@@ -367,7 +359,7 @@ nsAccUtils::HasAccessibleChildren(nsIDOMNode *aNode)
   if (!presShell)
     return PR_FALSE;
 
-  nsIFrame *frame = presShell->GetPrimaryFrameFor(content);
+  nsIFrame *frame = content->GetPrimaryFrame();
   if (!frame)
     return PR_FALSE;
   
@@ -407,14 +399,30 @@ nsAccUtils::GetARIATreeItemParent(nsIAccessible *aStartTreeItem,
                                   nsIAccessible **aTreeItemParentResult)
 {
   *aTreeItemParentResult = nsnull;
+
+  nsCOMPtr<nsIAccessible> parentAccessible;
+  aStartTreeItem->GetParent(getter_AddRefs(parentAccessible));
+  if (!parentAccessible)
+    return;
+
+  PRUint32 startTreeItemRole = nsAccUtils::Role(aStartTreeItem);
+
+  // Calculate tree grid row parent only if the row inside of ARIA treegrid.
+  if (startTreeItemRole == nsIAccessibleRole::ROLE_ROW) {
+    PRUint32 role = nsAccUtils::Role(parentAccessible);
+    if (role != nsIAccessibleRole::ROLE_TREE_TABLE)
+      return;
+  }
+
+  // This is a tree or treegrid that uses aria-level to define levels, so find
+  // the first previous sibling accessible where level is defined to be less
+  // than the current level.
   nsAutoString levelStr;
-  PRInt32 level = 0;
   if (nsAccUtils::HasDefinedARIAToken(aStartContent, nsAccessibilityAtoms::aria_level) &&
       aStartContent->GetAttr(kNameSpaceID_None, nsAccessibilityAtoms::aria_level, levelStr)) {
-    // This is a tree that uses aria-level to define levels, so find the first previous
-    // sibling accessible where level is defined to be less than the current level
+
     PRInt32 success;
-    level = levelStr.ToInteger(&success);
+    PRInt32 level = levelStr.ToInteger(&success);
     if (level > 1 && NS_SUCCEEDED(success)) {
       nsCOMPtr<nsIAccessible> currentAccessible = aStartTreeItem, prevAccessible;
       while (PR_TRUE) {
@@ -425,8 +433,9 @@ nsAccUtils::GetARIATreeItemParent(nsIAccessible *aStartTreeItem,
           break; // Reached top of tree, no higher level found
         }
         PRUint32 role = nsAccUtils::Role(currentAccessible);
-        if (role != nsIAccessibleRole::ROLE_OUTLINEITEM)
+        if (role != startTreeItemRole)
           continue;
+
         nsCOMPtr<nsIDOMNode> treeItemNode;
         accessNode->GetDOMNode(getter_AddRefs(treeItemNode));
         nsCOMPtr<nsIContent> treeItemContent = do_QueryInterface(treeItemNode);
@@ -444,19 +453,25 @@ nsAccUtils::GetARIATreeItemParent(nsIAccessible *aStartTreeItem,
     }
   }
 
-  // Possibly a tree arranged by using role="group" to organize levels
-  // In this case the parent of the tree item will be a group and the
-  // previous sibling of that should be the tree item parent.
-  // Or, if the parent is something other than a tree we will return that.
-  nsCOMPtr<nsIAccessible> parentAccessible;
-  aStartTreeItem->GetParent(getter_AddRefs(parentAccessible));
-  if (!parentAccessible)
-    return;
+  // In the case of ARIA treegrid, return its parent since ARIA group isn't
+  // used to organize levels in ARIA treegrids.
+
+  if (startTreeItemRole == nsIAccessibleRole::ROLE_ROW) {
+    NS_ADDREF(*aTreeItemParentResult = parentAccessible);
+    return; // The container for the tree grid rows
+  }
+
+  // In the case of ARIA tree, a tree can be arranged by using role="group" to
+  // organize levels. In this case the parent of the tree item will be a group
+  // and the previous sibling of that should be the tree item parent. Or, if
+  // the parent is something other than a tree we will return that.
+
   PRUint32 role = nsAccUtils::Role(parentAccessible);
   if (role != nsIAccessibleRole::ROLE_GROUPING) {
     NS_ADDREF(*aTreeItemParentResult = parentAccessible);
     return; // The container for the tree items
   }
+
   nsCOMPtr<nsIAccessible> prevAccessible;
   parentAccessible->GetPreviousSibling(getter_AddRefs(prevAccessible));
   if (!prevAccessible)
@@ -478,6 +493,64 @@ nsAccUtils::GetARIATreeItemParent(nsIAccessible *aStartTreeItem,
   }
 }
 
+already_AddRefed<nsIAccessible>
+nsAccUtils::GetSelectableContainer(nsIAccessible *aAccessible, PRUint32 aState)
+{
+  if (!aAccessible)
+    return nsnull;
+
+  if (!(aState & nsIAccessibleStates::STATE_SELECTABLE))
+    return nsnull;
+
+  nsCOMPtr<nsIAccessibleSelectable> container;
+  nsCOMPtr<nsIAccessible> parent, accessible(aAccessible);
+  while (!container) {
+    accessible->GetParent(getter_AddRefs(parent));
+
+    if (!parent || Role(parent) == nsIAccessibleRole::ROLE_PANE)
+      return nsnull;
+
+    container = do_QueryInterface(parent);
+    parent.swap(accessible);
+  }
+
+  return accessible.forget();
+}
+
+already_AddRefed<nsIAccessible>
+nsAccUtils::GetMultiSelectableContainer(nsIDOMNode *aNode)
+{
+  nsCOMPtr<nsIAccessible> accessible;
+  GetAccService()->GetAccessibleFor(aNode, getter_AddRefs(accessible));
+
+  nsCOMPtr<nsIAccessible> container =
+    GetSelectableContainer(accessible, State(accessible));
+
+  if (State(container) & nsIAccessibleStates::STATE_MULTISELECTABLE)
+    return container.forget();
+
+  return nsnull;
+}
+
+PRBool
+nsAccUtils::IsARIASelected(nsIAccessible *aAccessible)
+{
+  nsRefPtr<nsAccessible> acc = nsAccUtils::QueryAccessible(aAccessible);
+  nsCOMPtr<nsIDOMNode> node;
+  acc->GetDOMNode(getter_AddRefs(node));
+  NS_ASSERTION(node, "No DOM node!");
+
+  if (node) {
+    nsCOMPtr<nsIContent> content(do_QueryInterface(node));
+    if (content->AttrValueIs(kNameSpaceID_None,
+                             nsAccessibilityAtoms::aria_selected,
+                             nsAccessibilityAtoms::_true, eCaseMatters))
+      return PR_TRUE;
+  }
+
+  return PR_FALSE;
+}
+
 already_AddRefed<nsIAccessibleText>
 nsAccUtils::GetTextAccessibleFromSelection(nsISelection *aSelection,
                                            nsIDOMNode **aNode)
@@ -496,25 +569,20 @@ nsAccUtils::GetTextAccessibleFromSelection(nsISelection *aSelection,
   nsCOMPtr<nsIDOMNode> resultNode =
     nsCoreUtils::GetDOMNodeFromDOMPoint(focusNode, focusOffset);
 
-  nsIAccessibilityService *accService = nsAccessNode::GetAccService();
-
   // Get text accessible containing the result node.
   while (resultNode) {
     // Make sure to get the correct starting node for selection events inside
     // XBL content trees.
     nsCOMPtr<nsIDOMNode> relevantNode;
-    nsresult rv = accService->
-      GetRelevantContentNodeFor(resultNode, getter_AddRefs(relevantNode));
-    if (NS_FAILED(rv))
-      return nsnull;
-
+    GetAccService()->GetRelevantContentNodeFor(resultNode, 
+                                               getter_AddRefs(relevantNode));
     if (relevantNode)
       resultNode.swap(relevantNode);
 
     nsCOMPtr<nsIContent> content = do_QueryInterface(resultNode);
     if (!content || !content->IsNodeOfType(nsINode::eTEXT)) {
       nsCOMPtr<nsIAccessible> accessible;
-      accService->GetAccessibleFor(resultNode, getter_AddRefs(accessible));
+      GetAccService()->GetAccessibleFor(resultNode, getter_AddRefs(accessible));
       if (accessible) {
         nsIAccessibleText *textAcc = nsnull;
         CallQueryInterface(accessible, &textAcc);
@@ -648,7 +716,10 @@ nsAccUtils::GetRoleMapEntry(nsIDOMNode *aNode)
 {
   nsIContent *content = nsCoreUtils::GetRoleContent(aNode);
   nsAutoString roleString;
-  if (!content || !content->GetAttr(kNameSpaceID_None, nsAccessibilityAtoms::role, roleString)) {
+  if (!content ||
+      !content->GetAttr(kNameSpaceID_None, nsAccessibilityAtoms::role, roleString) ||
+      roleString.IsEmpty()) {
+    // We treat role="" as if the role attribute is absent (per aria spec:8.1.1)
     return nsnull;
   }
 
@@ -674,7 +745,7 @@ nsAccUtils::GetRoleMapEntry(nsIDOMNode *aNode)
     }
   }
 
-  // Always use some entry if there is a role string
+  // Always use some entry if there is a non-empty role string
   // To ensure an accessible object is created
   return &nsARIAMap::gLandmarkRoleMap;
 }
@@ -706,17 +777,19 @@ nsAccUtils::GetAttributeCharacteristics(nsIAtom* aAtom)
     return 0;
 }
 
-void
+PRBool
 nsAccUtils::GetLiveAttrValue(PRUint32 aRule, nsAString& aValue)
 {
   switch (aRule) {
     case eOffLiveAttr:
       aValue = NS_LITERAL_STRING("off");
-      break;
+      return PR_TRUE;
     case ePoliteLiveAttr:
       aValue = NS_LITERAL_STRING("polite");
-      break;
+      return PR_TRUE;
   }
+
+  return PR_FALSE;
 }
 
 already_AddRefed<nsAccessible>
@@ -776,16 +849,6 @@ nsAccUtils::QueryAccessibleTree(nsIAccessible *aAccessible)
   nsXULTreeAccessible* accessible = nsnull;
   if (aAccessible)
     CallQueryInterface(aAccessible, &accessible);
-
-  return accessible;
-}
-
-already_AddRefed<nsXULTreeitemAccessible>
-nsAccUtils::QueryAccessibleTreeitem(nsIAccessNode *aAccessNode)
-{
-  nsXULTreeitemAccessible* accessible = nsnull;
-  if (aAccessNode)
-    CallQueryInterface(aAccessNode, &accessible);
 
   return accessible;
 }
@@ -864,13 +927,15 @@ nsAccUtils::MustPrune(nsIAccessible *aAccessible)
 { 
   PRUint32 role = nsAccUtils::Role(aAccessible);
 
+  // We don't prune buttons any more however AT don't expect children inside of
+  // button in general, we allow menu buttons to have children to make them
+  // accessible.
   return role == nsIAccessibleRole::ROLE_MENUITEM || 
     role == nsIAccessibleRole::ROLE_COMBOBOX_OPTION ||
     role == nsIAccessibleRole::ROLE_OPTION ||
     role == nsIAccessibleRole::ROLE_ENTRY ||
     role == nsIAccessibleRole::ROLE_FLAT_EQUATION ||
     role == nsIAccessibleRole::ROLE_PASSWORD_TEXT ||
-    role == nsIAccessibleRole::ROLE_PUSHBUTTON ||
     role == nsIAccessibleRole::ROLE_TOGGLE_BUTTON ||
     role == nsIAccessibleRole::ROLE_GRAPHIC ||
     role == nsIAccessibleRole::ROLE_SLIDER ||
@@ -882,38 +947,61 @@ PRBool
 nsAccUtils::IsNodeRelevant(nsIDOMNode *aNode)
 {
   nsCOMPtr<nsIDOMNode> relevantNode;
-  nsAccessNode::GetAccService()->GetRelevantContentNodeFor(aNode,
-                                                           getter_AddRefs(relevantNode));
+  GetAccService()->GetRelevantContentNodeFor(aNode, getter_AddRefs(relevantNode));
   return aNode == relevantNode;
 }
 
-already_AddRefed<nsIAccessible>
-nsAccUtils::GetMultiSelectFor(nsIDOMNode *aNode)
+nsresult
+nsAccUtils::GetHeaderCellsFor(nsIAccessibleTable *aTable,
+                              nsIAccessibleTableCell *aCell,
+                              PRInt32 aRowOrColHeaderCells, nsIArray **aCells)
 {
-  if (!aNode)
-    return nsnull;
+  nsresult rv = NS_OK;
+  nsCOMPtr<nsIMutableArray> cells = do_CreateInstance(NS_ARRAY_CONTRACTID, &rv);
+  NS_ENSURE_SUCCESS(rv, rv);
 
-  nsCOMPtr<nsIAccessible> accessible;
-  nsAccessNode::GetAccService()->GetAccessibleFor(aNode,
-                                                  getter_AddRefs(accessible));
-  if (!accessible)
-    return nsnull;
+  PRInt32 rowIdx = -1;
+  rv = aCell->GetRowIndex(&rowIdx);
+  NS_ENSURE_SUCCESS(rv, rv);
 
-  PRUint32 state = State(accessible);
-  if (0 == (state & nsIAccessibleStates::STATE_SELECTABLE))
-    return nsnull;
+  PRInt32 colIdx = -1;
+  rv = aCell->GetColumnIndex(&colIdx);
+  NS_ENSURE_SUCCESS(rv, rv);
 
-  while (0 == (state & nsIAccessibleStates::STATE_MULTISELECTABLE)) {
-    nsIAccessible *current = accessible;
-    current->GetParent(getter_AddRefs(accessible));
-    if (!accessible ||
-        nsAccUtils::Role(accessible) == nsIAccessibleRole::ROLE_PANE) {
-      return nsnull;
+  PRBool moveToLeft = aRowOrColHeaderCells == eRowHeaderCells;
+
+  // Move to the left or top to find row header cells or column header cells.
+  PRInt32 index = (moveToLeft ? colIdx : rowIdx) - 1;
+  for (; index >= 0; index--) {
+    PRInt32 curRowIdx = moveToLeft ? rowIdx : index;
+    PRInt32 curColIdx = moveToLeft ? index : colIdx;
+
+    nsCOMPtr<nsIAccessible> cell;
+    rv = aTable->GetCellAt(curRowIdx, curColIdx, getter_AddRefs(cell));
+    NS_ENSURE_SUCCESS(rv, rv);
+
+    nsCOMPtr<nsIAccessibleTableCell> tableCellAcc =
+      do_QueryInterface(cell);
+
+    PRInt32 origIdx = 1;
+    if (moveToLeft)
+      rv = tableCellAcc->GetColumnIndex(&origIdx);
+    else
+      rv = tableCellAcc->GetRowIndex(&origIdx);
+    NS_ENSURE_SUCCESS(rv, rv);
+
+    if (origIdx == index) {
+      // Append original header cells only.
+      PRUint32 role = Role(cell);
+      PRBool isHeader = moveToLeft ?
+        role == nsIAccessibleRole::ROLE_ROWHEADER :
+        role == nsIAccessibleRole::ROLE_COLUMNHEADER;
+
+      if (isHeader)
+        cells->AppendElement(cell, PR_FALSE);
     }
-    state = State(accessible);
   }
 
-  nsIAccessible *returnAccessible = nsnull;
-  accessible.swap(returnAccessible);
-  return returnAccessible;
+  NS_ADDREF(*aCells = cells);
+  return NS_OK;
 }

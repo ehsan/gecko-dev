@@ -46,10 +46,9 @@
 class nsIRenderingContext;
 class nsGUIEvent;
 
-// 52b3b616-23a9-4516-a8d3-452b4126eb2b
 #define NS_IVIEWOBSERVER_IID  \
-{ 0x52b3b616, 0x23a9, 0x4516, \
-  { 0xa8, 0xd3, 0x45, 0x2b, 0x41, 0x26, 0xeb, 0x2b } }
+  { 0xba1357b6, 0xe3c7, 0x426a, \
+    { 0xb3, 0x68, 0xfe, 0xe8, 0x24, 0x8c, 0x08, 0x38 } }
 
 class nsIViewObserver : public nsISupports
 {
@@ -91,15 +90,6 @@ public:
                                     nsIRenderingContext* aRenderingContext,
                                     const nsRect&        aDirtyRect) = 0;
 
-  /**
-   * @see nsLayoutUtils::ComputeRepaintRegionForCopy
-   */
-  NS_IMETHOD ComputeRepaintRegionForCopy(nsIView*      aRootView,
-                                         nsIView*      aMovingView,
-                                         nsPoint       aDelta,
-                                         const nsRect& aCopyRect,
-                                         nsRegion*     aRepaintRegion) = 0;
-
   /* called when the observer needs to handle an event
    * @param aView  - where to start processing the event; the root view,
    * or the view that's currently capturing this sort of event; must be a view
@@ -137,18 +127,19 @@ public:
   NS_IMETHOD_(void) WillPaint() = 0;
 
   /**
-   * Notify the observer that it should invalidate the frame bounds for
-   * the frame associated with this view.
-   */
-  NS_IMETHOD_(void) InvalidateFrameForView(nsIView *aView) = 0;
-
-  /**
    * Dispatch the given synthesized mouse move event, and if
    * aFlushOnHoverChange is true, flush layout if :hover changes cause
    * any restyles.
    */
   NS_IMETHOD_(void) DispatchSynthMouseMove(nsGUIEvent *aEvent,
                                            PRBool aFlushOnHoverChange) = 0;
+
+  /**
+   * If something within aView is capturing the mouse, clear the capture.
+   * if aView is null, clear the mouse capture no matter what is capturing it.
+   */
+  NS_IMETHOD_(void) ClearMouseCapture(nsIView* aView) = 0;
+
 };
 
 NS_DEFINE_STATIC_IID_ACCESSOR(nsIViewObserver, NS_IVIEWOBSERVER_IID)

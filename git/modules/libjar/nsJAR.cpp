@@ -122,7 +122,6 @@ nsJAR::nsJAR(): mManifestData(nsnull, nsnull, DeleteManifestEntry, nsnull, 10),
                 mReleaseTime(PR_INTERVAL_NO_TIMEOUT), 
                 mCache(nsnull), 
                 mLock(nsnull),
-                mMtime(0),
                 mTotalItemsInManifest(0)
 {
 }
@@ -167,19 +166,11 @@ nsJAR::Open(nsIFile* zipFile)
   if (mLock) return NS_ERROR_FAILURE; // Already open!
 
   mZipFile = zipFile;
-  nsresult rv = zipFile->GetLastModifiedTime(&mMtime);
-  if (NS_FAILED(rv)) return rv;
 
   mLock = PR_NewLock();
   NS_ENSURE_TRUE(mLock, NS_ERROR_OUT_OF_MEMORY);
 
-  PRFileDesc *fd = OpenFile();
-  NS_ENSURE_TRUE(fd, NS_ERROR_FAILURE);
-
-  rv = mZip.OpenArchive(fd);
-  if (NS_FAILED(rv)) Close();
-
-  return rv;
+  return mZip.OpenArchive(zipFile);
 }
 
 NS_IMETHODIMP
@@ -240,9 +231,9 @@ nsJAR::Extract(const char *zipEntry, nsIFile* outFile)
       rv == NS_ERROR_FAILURE)
     return rv;
 
-  if (item->isDirectory)
+  if (item->IsDirectory())
   {
-    rv = localFile->Create(nsIFile::DIRECTORY_TYPE, item->mode);
+    rv = localFile->Create(nsIFile::DIRECTORY_TYPE, item->Mode());
     //XXX Do this in nsZipArchive?  It would be nice to keep extraction
     //XXX code completely there, but that would require a way to get a
     //XXX PRDir from localFile.
@@ -250,7 +241,7 @@ nsJAR::Extract(const char *zipEntry, nsIFile* outFile)
   else
   {
     PRFileDesc* fd;
-    rv = localFile->OpenNSPRFileDesc(PR_WRONLY | PR_CREATE_FILE, item->mode, &fd);
+    rv = localFile->OpenNSPRFileDesc(PR_WRONLY | PR_CREATE_FILE, item->Mode(), &fd);
     if (NS_FAILED(rv)) return rv;
 
     // ExtractFile also closes the fd handle and resolves the symlink if needed
@@ -262,14 +253,9 @@ nsJAR::Extract(const char *zipEntry, nsIFile* outFile)
   }
   if (NS_FAILED(rv)) return rv;
 
-  PRTime prtime = GetModTime(item->date, item->time);
   // nsIFile needs milliseconds, while prtime is in microseconds.
-  PRTime conversion = LL_ZERO;
-  PRTime newTime = LL_ZERO;
-  LL_I2L(conversion, PR_USEC_PER_MSEC);
-  LL_DIV(newTime, prtime, conversion);
   // non-fatal if this fails, ignore errors
-  outFile->SetLastModifiedTime(newTime);
+  outFile->SetLastModifiedTime(item->LastModTime() / PR_USEC_PER_MSEC);
 
   return NS_OK;
 }
@@ -339,20 +325,10 @@ nsJAR::GetInputStreamWithSpec(const nsACString& aJarDirSpec,
   NS_ADDREF(*result = jis);
 
   nsresult rv = NS_OK;
-  if (!item || item->isDirectory) {
-    rv = jis->InitDirectory(&mZip, aJarDirSpec, aEntryName);
+  if (!item || item->IsDirectory()) {
+    rv = jis->InitDirectory(this, aJarDirSpec, aEntryName);
   } else {
-    // Open jarfile, to get its own filedescriptor for the stream
-    // XXX The file may have been overwritten, so |item| might not be
-    // valid.  We really want to work from inode rather than file name.
-    PRFileDesc *fd = nsnull;
-    fd = OpenFile();
-    if (fd) {
-      rv = jis->InitFile(&mZip, item, fd);
-      // |jis| now owns |fd|
-    } else {
-      rv = NS_ERROR_FAILURE;
-    }
+    rv = jis->InitFile(this, item);
   }
   if (NS_FAILED(rv)) {
     NS_RELEASE(*result);
@@ -424,20 +400,6 @@ nsJAR::GetJarPath(nsACString& aResult)
   NS_ENSURE_ARG_POINTER(mZipFile);
 
   return mZipFile->GetNativePath(aResult);
-}
-
-PRFileDesc*
-nsJAR::OpenFile()
-{
-  nsresult rv;
-  nsCOMPtr<nsILocalFile> localFile = do_QueryInterface(mZipFile, &rv);
-  if (NS_FAILED(rv)) return nsnull;
-
-  PRFileDesc* fd;
-  rv = localFile->OpenNSPRFileDesc(PR_RDONLY, 0000, &fd);
-  if (NS_FAILED(rv)) return nsnull;
-
-  return fd;
 }
 
 //----------------------------------------------
@@ -688,8 +650,8 @@ nsJAR::ParseOneFile(const char* filebuf, PRInt16 aFileType)
             if (curItemMF->mType == JAR_INTERNAL)
             {
               PRBool exists;
-              PRInt32 result = HasEntry(curItemName, &exists);
-              if (result != ZIP_OK || !exists)
+              nsresult rv = HasEntry(curItemName, &exists);
+              if (NS_FAILED(rv) || !exists)
                 curItemMF->mType = JAR_INVALID;
             }
             //-- Check for duplicates
@@ -907,9 +869,9 @@ NS_IMETHODIMP
 nsJAREnumerator::HasMore(PRBool* aResult)
 {
     // try to get the next element
-    if (!mCurr) {
+    if (!mName) {
         NS_ASSERTION(mFind, "nsJAREnumerator: Missing zipFind.");
-        nsresult rv = mFind->FindNext( &mCurr );
+        nsresult rv = mFind->FindNext( &mName, &mNameLen );
         if (rv == NS_ERROR_FILE_TARGET_DOES_NOT_EXIST) {
             *aResult = PR_FALSE;                    // No more matches available
             return NS_OK;
@@ -928,14 +890,14 @@ NS_IMETHODIMP
 nsJAREnumerator::GetNext(nsACString& aResult)
 {
     // check if the current item is "stale"
-    if (!mCurr) {
+    if (!mName) {
         PRBool   bMore;
         nsresult rv = HasMore(&bMore);
         if (NS_FAILED(rv) || !bMore)
             return NS_ERROR_FAILURE; // no error translation
     }
-    aResult = mCurr;
-    mCurr = 0; // we just gave this one away
+    aResult.Assign(mName, mNameLen);
+    mName = 0; // we just gave this one away
     return NS_OK;
 }
 
@@ -943,13 +905,12 @@ nsJAREnumerator::GetNext(nsACString& aResult)
 NS_IMPL_THREADSAFE_ISUPPORTS1(nsJARItem, nsIZipEntry)
 
 nsJARItem::nsJARItem(nsZipItem* aZipItem)
-    : mSize(aZipItem->size),
-      mRealsize(aZipItem->realsize),
-      mCrc32(aZipItem->crc32),
-      mDate(aZipItem->date),
-      mTime(aZipItem->time),
-      mCompression(aZipItem->compression),
-      mIsDirectory(aZipItem->isDirectory),
+    : mSize(aZipItem->Size()),
+      mRealsize(aZipItem->RealSize()),
+      mCrc32(aZipItem->CRC32()),
+      mLastModTime(aZipItem->LastModTime()),
+      mCompression(aZipItem->Compression()),
+      mIsDirectory(aZipItem->IsDirectory()),
       mIsSynthetic(aZipItem->isSynthetic)
 {
 }
@@ -1034,7 +995,7 @@ nsJARItem::GetLastModifiedTime(PRTime* aLastModTime)
 {
     NS_ENSURE_ARG_POINTER(aLastModTime);
 
-    *aLastModTime = GetModTime(mDate, mTime);
+    *aLastModTime = mLastModTime;
     return NS_OK;
 }
 
@@ -1113,13 +1074,9 @@ nsZipReaderCache::GetZip(nsIFile* zipFile, nsIZipReader* *result)
   rv = zipFile->GetNativePath(path);
   if (NS_FAILED(rv)) return rv;
 
-  PRInt64 Mtime;
-  rv = zipFile->GetLastModifiedTime(&Mtime);
-  if (NS_FAILED(rv)) return rv;
-
   nsCStringKey key(path);
   nsJAR* zip = static_cast<nsJAR*>(static_cast<nsIZipReader*>(mZips.Get(&key))); // AddRefs
-  if (zip && Mtime == zip->GetMtime()) {
+  if (zip) {
 #ifdef ZIP_CACHE_HIT_RATE
     mZipCacheHits++;
 #endif
@@ -1282,29 +1239,6 @@ nsZipReaderCache::Observe(nsISupports *aSubject,
     mZips.Reset();
   }
   return NS_OK;
-}
-
-PRTime GetModTime(PRUint16 aDate, PRUint16 aTime)
-{
-  PRExplodedTime time;
-
-  time.tm_usec = 0;
-  
-  time.tm_hour = (aTime >> 11) & 0x1F;
-  time.tm_min = (aTime >> 5) & 0x3F;
-  time.tm_sec = (aTime & 0x1F) * 2;
-
-  time.tm_year = (aDate >> 9) + 1980;
-  time.tm_month = ((aDate >> 5) & 0x0F)-1;
-  time.tm_mday = aDate & 0x1F;
-  
-  time.tm_params.tp_gmt_offset = 0;
-  time.tm_params.tp_dst_offset = 0;
-  
-  PR_NormalizeTime(&time, PR_GMTParameters);
-  time.tm_params = PR_LocalTimeParameters(&time);
-  
-  return PR_ImplodeTime(&time);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -43,10 +43,12 @@
 
 #include "nsAutoPtr.h"
 #include "nsCOMPtr.h"
+#include "mozilla/Mutex.h"
 
 #include "nsString.h"
 #include "nsInterfaceHashtable.h"
 #include "mozIStorageProgressHandler.h"
+#include "SQLiteMutex.h"
 #include "mozIStorageConnection.h"
 #include "mozStorageService.h"
 
@@ -91,6 +93,18 @@ public:
    * @returns an event target suitable for asynchronous statement execution.
    */
   already_AddRefed<nsIEventTarget> getAsyncExecutionTarget();
+
+  /**
+   * Mutex used by asynchronous statements to protect state.  The mutex is
+   * declared on the connection object because there is no contention between
+   * asynchronous statements (they are serialized on mAsyncExecutionThread).
+   */
+  Mutex sharedAsyncExecutionMutex;
+
+  /**
+   * References the thread this database was opened on.
+   */
+  const nsCOMPtr<nsIThread> threadOpenedOn;
 
 private:
   ~Connection();
@@ -150,13 +164,27 @@ private:
    */
   PRBool mAsyncExecutionThreadShuttingDown;
 
-  PRLock *mTransactionMutex;
+  /**
+   * Wraps the mutex that SQLite gives us from sqlite3_db_mutex.
+   */
+  SQLiteMutex mDBMutex;
+
+  /**
+   * Tracks if we have a transaction in progress or not.  Access protected by
+   * mDBMutex.
+   */
   PRBool mTransactionInProgress;
 
-  PRLock *mFunctionsMutex;
+  /**
+   * Stores the mapping of a given function by name to its instance.  Access is
+   * protected by mDBMutex.
+   */
   nsInterfaceHashtable<nsCStringHashKey, nsISupports> mFunctions;
 
-  PRLock *mProgressHandlerMutex;
+  /**
+   * Stores the registered progress handler for the database connection.  Access
+   * is protected by mDBMutex.
+   */
   nsCOMPtr<mozIStorageProgressHandler> mProgressHandler;
 
   // This is here for two reasons: 1) It's used to make sure that the

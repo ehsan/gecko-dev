@@ -60,6 +60,8 @@ struct gfxFontStyle;
 class gfxUserFontSet;
 class gfxFontEntry;
 class gfxProxyFontEntry;
+class gfxPlatformFontList;
+class gfxTextRun;
 class nsIURI;
 
 // pref lang id's for font prefs
@@ -149,6 +151,8 @@ public:
      * Font bits
      */
 
+    virtual void SetupClusterBoundaries(gfxTextRun *aTextRun, const PRUnichar *aString);
+
     /**
      * Fill aListOfFonts with the results of querying the list of font names
      * that correspond to the given language group or generic font family
@@ -162,6 +166,14 @@ public:
      * Rebuilds the any cached system font lists
      */
     virtual nsresult UpdateFontList();
+
+    /**
+     * Create the platform font-list object (gfxPlatformFontList concrete subclass)
+     */
+    virtual gfxPlatformFontList *CreatePlatformFontList() {
+        NS_NOTREACHED("oops, this platform doesn't have a gfxPlatformFontList implementation");
+        return nsnull;
+    }
 
     /**
      * Font name resolver, this returns actual font name(s) by the callback
@@ -202,15 +214,15 @@ public:
 
     /**
      * Activate a platform font.  (Needed to support @font-face src url().)
-     * aFontData must persist as long as a reference is held to aLoader.
+     * aFontData is a NS_Malloc'ed block that must be freed by this function
+     * (or responsibility passed on) when it is no longer needed; the caller
+     * will NOT free it.
      * Ownership of the returned gfxFontEntry is passed to the caller,
      * who must either AddRef() or delete.
      */
     virtual gfxFontEntry* MakePlatformFont(const gfxProxyFontEntry *aProxyEntry,
-                                           nsISupports *aLoader,
                                            const PRUint8 *aFontData,
-                                           PRUint32 aLength)
-    { return nsnull; }
+                                           PRUint32 aLength);
 
     /**
      * Whether to allow downloadable fonts via @font-face rules
@@ -222,6 +234,9 @@ public:
 
     void GetPrefFonts(const char *aLangGroup, nsString& array, PRBool aAppendUnicode = PR_TRUE);
 
+    // in some situations, need to make decisions about ambiguous characters, may need to look at multiple pref langs
+    void GetLangPrefs(eFontPrefLang aPrefLangs[], PRUint32 &aLen, eFontPrefLang aCharLang, eFontPrefLang aPageLang);
+    
     /**
      * Iterate over pref fonts given a list of lang groups.  For a single lang
      * group, multiple pref fonts are possible.  If error occurs, returns PR_FALSE,
@@ -239,6 +254,9 @@ public:
     // convert a enum constant to lang group string (i.e. eFontPrefLang_ChineseTW ==> "zh-TW")
     static const char* GetPrefLangName(eFontPrefLang aLang);
    
+    // map a Unicode range (based on char code) to a font language for Preferences
+    static eFontPrefLang GetFontPrefLangFor(PRUint8 aUnicodeRange);
+
     // returns true if a pref lang is CJK
     static PRBool IsLangCJK(eFontPrefLang aLang);
     
@@ -254,7 +272,7 @@ public:
      * Determines the rendering intent for color management.
      *
      * If the value in the pref gfx.color_management.rendering_intent is a
-     * valid rendering intent as defined in modules/lcms/include/lcms.h, that
+     * valid rendering intent as defined in gfx/qcms/qcms.h, that
      * value is returned. Otherwise, -1 is returned and the embedded intent
      * should be used.
      *
@@ -294,12 +312,34 @@ public:
      */
     static qcms_transform* GetCMSRGBATransform();
 
+    /**
+     * Return display DPI
+     */
+    static PRInt32 GetDPI() {
+        if (sDPI < 0) {
+            gfxPlatform::GetPlatform()->InitDisplayCaps();
+        }
+        NS_ASSERTION(sDPI > 0, "Something is wrong");
+        return sDPI;
+    }
+
 protected:
     gfxPlatform() { }
     virtual ~gfxPlatform();
 
+    void AppendCJKPrefLangs(eFontPrefLang aPrefLangs[], PRUint32 &aLen, 
+                            eFontPrefLang aCharLang, eFontPrefLang aPageLang);
+                                               
+    /**
+     * Initialize any needed display metrics (such as DPI)
+     */
+    virtual void InitDisplayCaps();
+    static PRInt32 sDPI;
+
 private:
     virtual qcms_profile* GetPlatformCMSOutputProfile();
+
+    nsTArray<PRUint32> mCJKPrefLangs;
 
     nsCOMPtr<nsIObserver> overrideObserver;
 };

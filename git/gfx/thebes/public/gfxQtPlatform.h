@@ -79,25 +79,23 @@ public:
 
     FontFamily *FindFontFamily(const nsAString& aName);
     FontEntry *FindFontEntry(const nsAString& aFamilyName, const gfxFontStyle& aFontStyle);
+    already_AddRefed<gfxFont> FindFontForChar(PRUint32 aCh, gfxFont *aFont);
+    PRBool GetPrefFontEntries(const nsCString& aLangGroup, nsTArray<nsRefPtr<gfxFontEntry> > *aFontEntryList);
+    void SetPrefFontEntries(const nsCString& aLangGroup, nsTArray<nsRefPtr<gfxFontEntry> >& aFontEntryList);
 
-    static PRInt32 DPI() {
-        if (sDPI == -1) {
-            InitDPI();
-        }
-        NS_ASSERTION(sDPI > 0, "Something is wrong");
-        return sDPI;
-    }
+    void ClearPrefFonts() { mPrefFonts.Clear(); }
 
     FT_Library GetFTLibrary();
 
 protected:
-    static void InitDPI();
-
-    static PRInt32 sDPI;
     static gfxFontconfigUtils *sFontconfigUtils;
 
 private:
     virtual qcms_profile *GetPlatformCMSOutputProfile();
+
+    // TODO: unify this with mPrefFonts (NB: holds families, not fonts) in gfxPlatformFontList
+    nsDataHashtable<nsCStringHashKey, nsTArray<nsRefPtr<gfxFontEntry> > > mPrefFonts;
+
 };
 
 #endif /* GFX_PLATFORM_QT_H */

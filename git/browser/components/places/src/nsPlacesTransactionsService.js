@@ -44,6 +44,7 @@ let Cr = Components.results;
 
 const LOAD_IN_SIDEBAR_ANNO = "bookmarkProperties/loadInSidebar";
 const DESCRIPTION_ANNO = "bookmarkProperties/description";
+const GUID_ANNO = "placesInternal/GUID";
 
 const CLASS_ID = Components.ID("c0844a84-5a12-4808-80a8-809cb002bb4f");
 const CONTRACT_ID = "@mozilla.org/browser/placesTransactionsService;1";
@@ -431,6 +432,9 @@ placesCreateFolderTransactions.prototype = {
                                                          this.childTransactions);
       aggregateTxn.doTransaction();
     }
+
+    if (this._GUID)
+      PlacesUtils.bookmarks.setItemGUID(this._id, this._GUID);
   },
 
   undoTransaction: function PCFT_undoTransaction() {
@@ -440,8 +444,12 @@ placesCreateFolderTransactions.prototype = {
       aggregateTxn.undoTransaction();
     }
 
+    // If a GUID exists for this item, preserve it before removing the item.
+    if (PlacesUtils.annotations.itemHasAnnotation(this._id, GUID_ANNO))
+      this._GUID = PlacesUtils.bookmarks.getItemGUID(this._id);
+
     // Remove item only after all child transactions have been reverted.
-    PlacesUtils.bookmarks.removeFolder(this._id);
+    PlacesUtils.bookmarks.removeItem(this._id);
   }
 };
 
@@ -482,6 +490,8 @@ placesCreateItemTransactions.prototype = {
                                                          this.childTransactions);
       aggregateTxn.doTransaction();
     }
+    if (this._GUID)
+      PlacesUtils.bookmarks.setItemGUID(this._id, this._GUID);
   },
 
   undoTransaction: function PCIT_undoTransaction() {
@@ -491,6 +501,10 @@ placesCreateItemTransactions.prototype = {
                                                          this.childTransactions);
       aggregateTxn.undoTransaction();
     }
+
+    // If a GUID exists for this item, preserve it before removing the item.
+    if (PlacesUtils.annotations.itemHasAnnotation(this._id, GUID_ANNO))
+      this._GUID = PlacesUtils.bookmarks.getItemGUID(this._id);
 
     // Remove item only after all child transactions have been reverted.
     PlacesUtils.bookmarks.removeItem(this._id);
@@ -514,9 +528,15 @@ placesCreateSeparatorTransactions.prototype = {
   doTransaction: function PCST_doTransaction() {
     this._id = PlacesUtils.bookmarks
                           .insertSeparator(this.container, this._index);
+    if (this._GUID)
+      PlacesUtils.bookmarks.setItemGUID(this._id, this._GUID);
   },
 
   undoTransaction: function PCST_undoTransaction() {
+    // If a GUID exists for this item, preserve it before removing the item.
+    if (PlacesUtils.annotations.itemHasAnnotation(this._id, GUID_ANNO))
+      this._GUID = PlacesUtils.bookmarks.getItemGUID(this._id);
+
     PlacesUtils.bookmarks.removeItem(this._id);
   }
 };
@@ -546,10 +566,16 @@ placesCreateLivemarkTransactions.prototype = {
                                                     this._index);
     if (this._annotations && this._annotations.length > 0)
       PlacesUtils.setAnnotationsForItem(this._id, this._annotations);
+    if (this._GUID)
+      PlacesUtils.bookmarks.setItemGUID(this._id, this._GUID);
   },
 
   undoTransaction: function PCLT_undoTransaction() {
-    PlacesUtils.bookmarks.removeFolder(this._id);
+    // If a GUID exists for this item, preserve it before removing the item.
+    if (PlacesUtils.annotations.itemHasAnnotation(this._id, GUID_ANNO))
+      this._GUID = PlacesUtils.bookmarks.getItemGUID(this._id);
+
+    PlacesUtils.bookmarks.removeItem(this._id);
   }
 };
 
@@ -665,7 +691,7 @@ placesRemoveItemTransaction.prototype = {
         // children, see getMostRecentBookmarkForURI) for the bookmark's url,
         // remove the url from tag containers as well.
         if (PlacesUtils.getMostRecentBookmarkForURI(this._uri) == -1) {
-          this._tags = PlacesUtils.tagging.getTagsForURI(this._uri, {});
+          this._tags = PlacesUtils.tagging.getTagsForURI(this._uri);
           PlacesUtils.tagging.untagURI(this._uri, this._tags);
         }
       }
@@ -750,7 +776,7 @@ placesEditBookmarkURITransactions.prototype = {
     this._oldURI = PlacesUtils.bookmarks.getBookmarkURI(this._id);
     PlacesUtils.bookmarks.changeBookmarkURI(this._id, this._newURI);
     // move tags from old URI to new URI
-    this._tags = PlacesUtils.tagging.getTagsForURI(this._oldURI, {});
+    this._tags = PlacesUtils.tagging.getTagsForURI(this._oldURI);
     if (this._tags.length != 0) {
       // only untag the old URI if this is the only bookmark
       if (PlacesUtils.getBookmarksForURI(this._oldURI, {}).length == 0)
@@ -1099,12 +1125,18 @@ placesTagURITransaction.prototype = {
                                    this._uri,
                                    PlacesUtils.bookmarks.DEFAULT_INDEX,
                                    PlacesUtils.history.getPageTitle(this._uri));
+      if (this._GUID)
+        PlacesUtils.bookmarks.setItemGUID(this._unfiledItemId, this._GUID);
     }
     PlacesUtils.tagging.tagURI(this._uri, this._tags);
   },
 
   undoTransaction: function PTU_undoTransaction() {
     if (this._unfiledItemId != -1) {
+      // If a GUID exists for this item, preserve it before removing the item.
+      if (PlacesUtils.annotations.itemHasAnnotation(this._unfiledItemId, GUID_ANNO)) {
+        this._GUID = PlacesUtils.bookmarks.getItemGUID(this._unfiledItemId);
+      }
       PlacesUtils.bookmarks.removeItem(this._unfiledItemId);
       this._unfiledItemId = -1;
     }
@@ -1125,7 +1157,7 @@ function placesUntagURITransaction(aURI, aTags) {
     }
   }
   else
-    this._tags = PlacesUtils.tagging.getTagsForURI(this._uri, {});
+    this._tags = PlacesUtils.tagging.getTagsForURI(this._uri);
 
   this.redoTransaction = this.doTransaction;
 }

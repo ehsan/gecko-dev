@@ -61,6 +61,7 @@
 #include "nsIEditorDocShell.h"
 #include "nsIFormControl.h"
 #include "nsIComboboxControlFrame.h"
+#include "nsIScrollableFrame.h"
 #include "nsIDOMNSHTMLElement.h"
 #include "nsIDOMHTMLAnchorElement.h"
 #include "nsIDOMHTMLInputElement.h"
@@ -79,7 +80,6 @@
 #include "nsIHTMLDocument.h"
 #include "nsINameSpaceManager.h"
 #include "nsIBaseWindow.h"
-#include "nsIScrollableView.h"
 #include "nsIView.h"
 #include "nsIViewManager.h"
 #include "nsISelection.h"
@@ -98,6 +98,7 @@
 #ifdef MOZ_XUL
 #include "nsXULPopupManager.h"
 #endif
+#include "nsFrameManager.h"
 
 #include "nsIServiceManager.h"
 #include "nsIScriptSecurityManager.h"
@@ -110,7 +111,6 @@
 #include "nsIObserverService.h"
 #include "nsIDocShell.h"
 #include "nsIMarkupDocumentViewer.h"
-#include "nsIScrollableViewProvider.h"
 #include "nsIDOMDocumentRange.h"
 #include "nsIDOMDocumentEvent.h"
 #include "nsIDOMMouseScrollEvent.h"
@@ -138,7 +138,6 @@
 #include "nsIProperties.h"
 #include "nsISupportsPrimitives.h"
 #include "nsEventDispatcher.h"
-#include "nsPresShellIterator.h"
 
 #include "nsServiceManagerUtils.h"
 #include "nsITimer.h"
@@ -151,9 +150,12 @@
 #ifdef MOZ_XUL
 #include "nsTreeBodyFrame.h"
 #endif
+#include "nsIFocusController.h"
+#include "nsIController.h"
+#include "nsICommandParams.h"
 
 #ifdef XP_MACOSX
-#include <Carbon/Carbon.h>
+#import <ApplicationServices/ApplicationServices.h>
 #endif
 
 //#define DEBUG_DOCSHELL_FOCUS
@@ -161,9 +163,6 @@
 #define NS_USER_INTERACTION_INTERVAL 5000 // ms
 
 static NS_DEFINE_CID(kFrameTraversalCID, NS_FRAMETRAVERSAL_CID);
-
-//we will use key binding by default now. this wil lbreak viewer for now
-#define NON_KEYBINDING 0
 
 static NS_DEFINE_CID(kLookAndFeelCID, NS_LOOKANDFEEL_CID);
 
@@ -183,7 +182,7 @@ static nscoord gPixelScrollDeltaY = 0;
 static PRUint32 gPixelScrollDeltaTimeout = 0;
 
 static nscoord
-GetScrollableViewLineHeight(nsPresContext* aPresContext, nsIFrame* aTargetFrame);
+GetScrollableLineHeight(nsIFrame* aTargetFrame);
 
 #ifdef DEBUG_DOCSHELL_FOCUS
 static void
@@ -370,34 +369,66 @@ public:
   static void OnEvent(nsEvent* aEvent);
   static void Shutdown();
   static PRUint32 GetTimeoutTime();
+  static PRInt32 AccelerateWheelDelta(PRInt32 aScrollLines,
+                   PRBool aIsHorizontal, PRBool aAllowScrollSpeedOverride,
+                   nsIScrollableFrame::ScrollUnit *aScrollQuantity);
+
+  enum {
+    kScrollSeriesTimeout = 80
+  };
 protected:
   static nsIntPoint GetScreenPoint(nsGUIEvent* aEvent);
   static void OnFailToScrollTarget();
   static void OnTimeout(nsITimer *aTimer, void *aClosure);
   static void SetTimeout();
   static PRUint32 GetIgnoreMoveDelayTime();
+  static PRInt32 GetAccelerationStart();
+  static PRInt32 GetAccelerationFactor();
+  static PRInt32 OverrideSystemScrollSpeed(PRInt32 aScrollLines,
+                                           PRBool aIsHorizontal);
+  static PRInt32 ComputeAcceleratedWheelDelta(PRInt32 aDelta, PRInt32 aFactor);
+  static PRInt32 LimitToOnePageScroll(PRInt32 aScrollLines,
+                   PRBool aIsHorizontal,
+                   nsIScrollableFrame::ScrollUnit *aScrollQuantity);
 
   static nsWeakFrame sTargetFrame;
   static PRUint32    sTime;        // in milliseconds
   static PRUint32    sMouseMoved;  // in milliseconds
   static nsITimer*   sTimer;
+  static PRInt32     sScrollSeriesCounter;
 };
 
 nsWeakFrame nsMouseWheelTransaction::sTargetFrame(nsnull);
 PRUint32    nsMouseWheelTransaction::sTime        = 0;
 PRUint32    nsMouseWheelTransaction::sMouseMoved  = 0;
 nsITimer*   nsMouseWheelTransaction::sTimer       = nsnull;
+PRInt32     nsMouseWheelTransaction::sScrollSeriesCounter = 0;
 
 static PRBool
-CanScrollOn(nsIScrollableView* aScrollView, PRInt32 aNumLines,
+OutOfTime(PRUint32 aBaseTime, PRUint32 aThreshold)
+{
+  PRUint32 now = PR_IntervalToMilliseconds(PR_IntervalNow());
+  return (now - aBaseTime > aThreshold);
+}
+
+static PRBool
+CanScrollInRange(nscoord aMin, nscoord aValue, nscoord aMax, PRInt32 aDirection)
+{
+  return aDirection > 0 ? aValue < aMax : aMin < aValue;
+}
+
+static PRBool
+CanScrollOn(nsIScrollableFrame* aScrollFrame, PRInt32 aNumLines,
             PRBool aScrollHorizontal)
 {
-  NS_PRECONDITION(aScrollView, "aScrollView is null");
+  NS_PRECONDITION(aScrollFrame, "aScrollFrame is null");
   NS_PRECONDITION(aNumLines, "aNumLines must be non-zero");
-  PRBool canScroll;
-  nsresult rv =
-    aScrollView->CanScroll(aScrollHorizontal, aNumLines > 0, canScroll);
-  return NS_SUCCEEDED(rv) && canScroll;
+  nsPoint scrollPt = aScrollFrame->GetScrollPosition();
+  nsRect scrollRange = aScrollFrame->GetScrollRange();
+
+  return aScrollHorizontal
+    ? CanScrollInRange(scrollRange.x, scrollPt.x, scrollRange.XMost(), aNumLines)
+    : CanScrollInRange(scrollRange.y, scrollPt.y, scrollRange.YMost(), aNumLines);
 }
 
 void
@@ -407,6 +438,7 @@ nsMouseWheelTransaction::BeginTransaction(nsIFrame* aTargetFrame,
 {
   NS_ASSERTION(!sTargetFrame, "previous transaction is not finished!");
   sTargetFrame = aTargetFrame;
+  sScrollSeriesCounter = 0;
   if (!UpdateTransaction(aNumLines, aScrollHorizontal)) {
     NS_ERROR("BeginTransaction is called even cannot scroll the frame");
     EndTransaction();
@@ -417,12 +449,10 @@ PRBool
 nsMouseWheelTransaction::UpdateTransaction(PRInt32 aNumLines,
                                            PRBool aScrollHorizontal)
 {
-  nsIScrollableViewProvider* svp = do_QueryFrame(GetTargetFrame());
-  NS_ENSURE_TRUE(svp, PR_FALSE);
-  nsIScrollableView *scrollView = svp->GetScrollableView();
-  NS_ENSURE_TRUE(scrollView, PR_FALSE);
+  nsIScrollableFrame* sf = GetTargetFrame()->GetScrollTargetFrame();
+  NS_ENSURE_TRUE(sf, PR_FALSE);
 
-  if (!CanScrollOn(scrollView, aNumLines, aScrollHorizontal)) {
+  if (!CanScrollOn(sf, aNumLines, aScrollHorizontal)) {
     OnFailToScrollTarget();
     // We should not modify the transaction state when the view will not be
     // scrolled actually.
@@ -430,6 +460,11 @@ nsMouseWheelTransaction::UpdateTransaction(PRInt32 aNumLines,
   }
 
   SetTimeout();
+
+  if (sScrollSeriesCounter != 0 && OutOfTime(sTime, kScrollSeriesTimeout))
+    sScrollSeriesCounter = 0;
+  sScrollSeriesCounter++;
+
   // We should use current time instead of nsEvent.time.
   // 1. Some events doesn't have the correct creation time.
   // 2. If the computer runs slowly by other processes eating the CPU resource,
@@ -445,13 +480,7 @@ nsMouseWheelTransaction::EndTransaction()
   if (sTimer)
     sTimer->Cancel();
   sTargetFrame = nsnull;
-}
-
-static PRBool
-OutOfTime(PRUint32 aBaseTime, PRUint32 aThreshold)
-{
-  PRUint32 now = PR_IntervalToMilliseconds(PR_IntervalNow());
-  return (now - aBaseTime > aThreshold);
+  sScrollSeriesCounter = 0;
 }
 
 void
@@ -599,6 +628,118 @@ nsMouseWheelTransaction::GetIgnoreMoveDelayTime()
 {
   return (PRUint32)
     nsContentUtils::GetIntPref("mousewheel.transaction.ignoremovedelay", 100);
+}
+
+PRInt32
+nsMouseWheelTransaction::AccelerateWheelDelta(PRInt32 aScrollLines,
+                           PRBool aIsHorizontal,
+                           PRBool aAllowScrollSpeedOverride,
+                           nsIScrollableFrame::ScrollUnit *aScrollQuantity)
+{
+  if (aAllowScrollSpeedOverride) {
+    aScrollLines = OverrideSystemScrollSpeed(aScrollLines, aIsHorizontal);
+  }
+
+  // Accelerate by the sScrollSeriesCounter
+  PRInt32 start = GetAccelerationStart();
+  if (start >= 0 && sScrollSeriesCounter >= start) {
+    PRInt32 factor = GetAccelerationFactor();
+    if (factor > 0) {
+      aScrollLines = ComputeAcceleratedWheelDelta(aScrollLines, factor);
+    }
+  }
+
+  // If the computed delta is larger than the page, we should limit
+  // the delta value to the one page size.
+  return LimitToOnePageScroll(aScrollLines, aIsHorizontal, aScrollQuantity);
+}
+
+PRInt32
+nsMouseWheelTransaction::ComputeAcceleratedWheelDelta(PRInt32 aDelta,
+                                                      PRInt32 aFactor)
+{
+  if (aDelta == 0)
+    return 0;
+
+  return PRInt32(NS_round(aDelta * sScrollSeriesCounter *
+                          (double)aFactor / 10));
+}
+
+PRInt32
+nsMouseWheelTransaction::GetAccelerationStart()
+{
+  return nsContentUtils::GetIntPref("mousewheel.acceleration.start", -1);
+}
+
+PRInt32
+nsMouseWheelTransaction::GetAccelerationFactor()
+{
+  return nsContentUtils::GetIntPref("mousewheel.acceleration.factor", -1);
+}
+
+PRInt32
+nsMouseWheelTransaction::OverrideSystemScrollSpeed(PRInt32 aScrollLines,
+                                                   PRBool aIsHorizontal)
+{
+  NS_PRECONDITION(sTargetFrame, "We don't have mouse scrolling transaction");
+
+  if (aScrollLines == 0) {
+    return 0;
+  }
+
+  // We shouldn't override the scrolling speed on non root scroll frame.
+  if (sTargetFrame !=
+        sTargetFrame->PresContext()->PresShell()->GetRootScrollFrame()) {
+    return aScrollLines;
+  }
+
+  // Compute the overridden speed to nsIWidget.  The widget can check the
+  // conditions (e.g., checking the prefs, and also whether the user customized
+  // the system settings of the mouse wheel scrolling or not), and can limit
+  // the speed for preventing the unexpected high speed scrolling.
+  nsCOMPtr<nsIWidget> widget(sTargetFrame->GetWindow());
+  NS_ENSURE_TRUE(widget, aScrollLines);
+  PRInt32 overriddenDelta;
+  nsresult rv = widget->OverrideSystemMouseScrollSpeed(aScrollLines,
+                                                       aIsHorizontal,
+                                                       overriddenDelta);
+  NS_ENSURE_SUCCESS(rv, aScrollLines);
+  return overriddenDelta;
+}
+
+PRInt32
+nsMouseWheelTransaction::LimitToOnePageScroll(PRInt32 aScrollLines,
+                           PRBool aIsHorizontal,
+                           nsIScrollableFrame::ScrollUnit *aScrollQuantity)
+{
+  NS_ENSURE_TRUE(aScrollQuantity, aScrollLines);
+  NS_PRECONDITION(*aScrollQuantity == nsIScrollableFrame::LINES,
+                  "aScrollQuantity isn't by line");
+
+  NS_ENSURE_TRUE(sTargetFrame, aScrollLines);
+  nsIScrollableFrame* sf = sTargetFrame->GetScrollTargetFrame();
+  NS_ENSURE_TRUE(sf, aScrollLines);
+
+  // Limit scrolling to be at most one page, but if possible, try to
+  // just adjust the number of scrolled lines.
+  nsSize lineAmount = sf->GetLineScrollAmount();
+  nscoord lineScroll = aIsHorizontal ? lineAmount.width : lineAmount.height;
+
+  if (lineScroll == 0)
+    return aScrollLines;
+
+  nsSize pageAmount = sf->GetPageScrollAmount();
+  nscoord pageScroll = aIsHorizontal ? pageAmount.width : pageAmount.height;
+
+  if (PR_ABS(aScrollLines) * lineScroll < pageScroll)
+    return aScrollLines;
+
+  nscoord maxLines = (pageScroll / lineScroll);
+  if (maxLines >= 1)
+    return ((aScrollLines < 0) ? -1 : 1) * maxLines;
+
+  *aScrollQuantity = nsIScrollableFrame::PAGES;
+  return (aScrollLines < 0) ? -1 : 1;
 }
 
 /******************************************************************/
@@ -828,8 +969,11 @@ NS_IMPL_CYCLE_COLLECTION_TRAVERSE_BEGIN(nsEventStateManager)
   NS_IMPL_CYCLE_COLLECTION_TRAVERSE_NSCOMPTR(mGestureDownContent);
   NS_IMPL_CYCLE_COLLECTION_TRAVERSE_NSCOMPTR(mGestureDownFrameOwner);
   NS_IMPL_CYCLE_COLLECTION_TRAVERSE_NSCOMPTR(mLastLeftMouseDownContent);
+  NS_IMPL_CYCLE_COLLECTION_TRAVERSE_NSCOMPTR(mLastLeftMouseDownContentParent);
   NS_IMPL_CYCLE_COLLECTION_TRAVERSE_NSCOMPTR(mLastMiddleMouseDownContent);
+  NS_IMPL_CYCLE_COLLECTION_TRAVERSE_NSCOMPTR(mLastMiddleMouseDownContentParent);
   NS_IMPL_CYCLE_COLLECTION_TRAVERSE_NSCOMPTR(mLastRightMouseDownContent);
+  NS_IMPL_CYCLE_COLLECTION_TRAVERSE_NSCOMPTR(mLastRightMouseDownContentParent);
   NS_IMPL_CYCLE_COLLECTION_TRAVERSE_NSCOMPTR(mActiveContent);
   NS_IMPL_CYCLE_COLLECTION_TRAVERSE_NSCOMPTR(mHoverContent);
   NS_IMPL_CYCLE_COLLECTION_TRAVERSE_NSCOMPTR(mDragOverContent);
@@ -846,8 +990,11 @@ NS_IMPL_CYCLE_COLLECTION_UNLINK_BEGIN(nsEventStateManager)
   NS_IMPL_CYCLE_COLLECTION_UNLINK_NSCOMPTR(mGestureDownContent);
   NS_IMPL_CYCLE_COLLECTION_UNLINK_NSCOMPTR(mGestureDownFrameOwner);
   NS_IMPL_CYCLE_COLLECTION_UNLINK_NSCOMPTR(mLastLeftMouseDownContent);
+  NS_IMPL_CYCLE_COLLECTION_UNLINK_NSCOMPTR(mLastLeftMouseDownContentParent);
   NS_IMPL_CYCLE_COLLECTION_UNLINK_NSCOMPTR(mLastMiddleMouseDownContent);
+  NS_IMPL_CYCLE_COLLECTION_UNLINK_NSCOMPTR(mLastMiddleMouseDownContentParent);
   NS_IMPL_CYCLE_COLLECTION_UNLINK_NSCOMPTR(mLastRightMouseDownContent);
+  NS_IMPL_CYCLE_COLLECTION_UNLINK_NSCOMPTR(mLastRightMouseDownContentParent);
   NS_IMPL_CYCLE_COLLECTION_UNLINK_NSCOMPTR(mActiveContent);
   NS_IMPL_CYCLE_COLLECTION_UNLINK_NSCOMPTR(mHoverContent);
   NS_IMPL_CYCLE_COLLECTION_UNLINK_NSCOMPTR(mDragOverContent);
@@ -986,7 +1133,6 @@ nsEventStateManager::PreHandleEvent(nsPresContext* aPresContext,
     KillClickHoldTimer();
     break;
 #endif
-  case NS_DRAGDROP_DROP:
   case NS_DRAGDROP_OVER:
     // NS_DRAGDROP_DROP is fired before NS_DRAGDROP_DRAGDROP so send
     // the enter/exit events before NS_DRAGDROP_DROP.
@@ -1099,7 +1245,7 @@ nsEventStateManager::PreHandleEvent(nsPresContext* aPresContext,
       // If needed send a line scroll event for pixel scrolls with kNoLines
       if (msEvent->scrollFlags & nsMouseScrollEvent::kNoLines) {
         nscoord pixelHeight = aPresContext->AppUnitsToIntCSSPixels(
-          GetScrollableViewLineHeight(aPresContext, aTargetFrame));
+          GetScrollableLineHeight(aTargetFrame));
 
         if (msEvent->scrollFlags & nsMouseScrollEvent::kIsVertical) {
           gPixelScrollDeltaX += msEvent->delta;
@@ -1195,6 +1341,17 @@ nsEventStateManager::PreHandleEvent(nsPresContext* aPresContext,
       handler.OnSelectionEvent((nsSelectionEvent*)aEvent);
     }
     break;
+  case NS_CONTENT_COMMAND_CUT:
+  case NS_CONTENT_COMMAND_COPY:
+  case NS_CONTENT_COMMAND_PASTE:
+  case NS_CONTENT_COMMAND_DELETE:
+  case NS_CONTENT_COMMAND_UNDO:
+  case NS_CONTENT_COMMAND_REDO:
+  case NS_CONTENT_COMMAND_PASTE_TRANSFERABLE:
+    {
+      DoContentCommandEvent(static_cast<nsContentCommandEvent*>(aEvent));
+    }
+    break;
   }
   return NS_OK;
 }
@@ -1230,7 +1387,7 @@ IsAccessKeyTarget(nsIContent* aContent, nsIFrame* aFrame, nsAString& aKey)
 
   nsCOMPtr<nsIDOMXULDocument> xulDoc =
     do_QueryInterface(aContent->GetOwnerDoc());
-  if (!xulDoc && !aContent->IsNodeOfType(nsINode::eXUL))
+  if (!xulDoc && !aContent->IsXUL())
     return PR_TRUE;
 
     // For XUL we do visibility checks.
@@ -1251,7 +1408,7 @@ IsAccessKeyTarget(nsIContent* aContent, nsIFrame* aFrame, nsAString& aKey)
   if (control)
     return PR_TRUE;
 
-  if (aContent->IsNodeOfType(nsINode::eHTML)) {
+  if (aContent->IsHTML()) {
     nsIAtom* tag = aContent->Tag();
 
     // HTML area, label and legend elements are never focusable, so
@@ -1261,7 +1418,7 @@ IsAccessKeyTarget(nsIContent* aContent, nsIFrame* aFrame, nsAString& aKey)
         tag == nsGkAtoms::legend)
       return PR_TRUE;
 
-  } else if (aContent->IsNodeOfType(nsINode::eXUL)) {
+  } else if (aContent->IsXUL()) {
     // XUL label elements are never focusable, so we need to check for them
     // explicitly before giving up.
     if (aContent->Tag() == nsGkAtoms::label)
@@ -1291,12 +1448,12 @@ nsEventStateManager::ExecuteAccessKey(nsTArray<PRUint32>& aAccessCharCodes,
     AppendUCS4ToUTF16(ch, accessKey);
     for (count = 1; count <= length; ++count) {
       content = mAccessKeys[(start + count) % length];
-      frame = mPresContext->PresShell()->GetPrimaryFrameFor(content);
+      frame = content->GetPrimaryFrame();
       if (IsAccessKeyTarget(content, frame, accessKey)) {
         PRBool shouldActivate = sKeyCausesActivation;
         while (shouldActivate && ++count <= length) {
           nsIContent *oc = mAccessKeys[(start + count) % length];
-          nsIFrame *of = mPresContext->PresShell()->GetPrimaryFrameFor(oc);
+          nsIFrame *of = oc->GetPrimaryFrame();
           if (IsAccessKeyTarget(oc, of, accessKey))
             shouldActivate = PR_FALSE;
         }
@@ -1515,10 +1672,10 @@ nsEventStateManager::FireContextClick()
     return;
 
 #ifdef XP_MACOSX
-  // hacky OS call to ensure that we don't show a context menu when the user
-  // let go of the mouse already, after a long, cpu-hogging operation prevented
+  // Hack to ensure that we don't show a context menu when the user
+  // let go of the mouse after a long cpu-hogging operation prevented
   // us from handling any OS events. See bug 117589.
-  if (!::StillDown())
+  if (!CGEventSourceButtonState(kCGEventSourceStateCombinedSessionState, kCGMouseButtonLeft))
     return;
 #endif
 
@@ -1530,93 +1687,88 @@ nsEventStateManager::FireContextClick()
   // the same. (Note: saari and I have decided that we don't have to reset |mCurrentTarget|
   // when we're through because no one else is doing anything more with this
   // event and it will get reset on the very next event to the correct frame).
-  mCurrentTarget = nsnull;
-  nsIPresShell *shell = mPresContext->GetPresShell();
-  if ( shell ) {
-    mCurrentTarget = shell->GetPrimaryFrameFor(mGestureDownFrameOwner);
+  mCurrentTarget = mPresContext->GetPrimaryFrameFor(mGestureDownContent);
+  if (mCurrentTarget) {
+    NS_ASSERTION(mPresContext == mCurrentTarget->PresContext(),
+                 "a prescontext returned a primary frame that didn't belong to it?");
 
-    if ( mCurrentTarget ) {
-      NS_ASSERTION(mPresContext == mCurrentTarget->PresContext(),
-                   "a prescontext returned a primary frame that didn't belong to it?");
+    // before dispatching, check that we're not on something that
+    // doesn't get a context menu
+    nsIAtom *tag = mGestureDownContent->Tag();
+    PRBool allowedToDispatch = PR_TRUE;
 
-      // before dispatching, check that we're not on something that
-      // doesn't get a context menu
-      nsIAtom *tag = mGestureDownContent->Tag();
-      PRBool allowedToDispatch = PR_TRUE;
-
-      if (mGestureDownContent->IsNodeOfType(nsINode::eXUL)) {
-        if (tag == nsGkAtoms::scrollbar ||
-            tag == nsGkAtoms::scrollbarbutton ||
-            tag == nsGkAtoms::button)
+    if (mGestureDownContent->IsXUL()) {
+      if (tag == nsGkAtoms::scrollbar ||
+          tag == nsGkAtoms::scrollbarbutton ||
+          tag == nsGkAtoms::button)
+        allowedToDispatch = PR_FALSE;
+      else if (tag == nsGkAtoms::toolbarbutton) {
+        // a <toolbarbutton> that has the container attribute set
+        // will already have its own dropdown.
+        if (nsContentUtils::HasNonEmptyAttr(mGestureDownContent,
+                kNameSpaceID_None, nsGkAtoms::container)) {
           allowedToDispatch = PR_FALSE;
-        else if (tag == nsGkAtoms::toolbarbutton) {
-          // a <toolbarbutton> that has the container attribute set
-          // will already have its own dropdown.
-          if (nsContentUtils::HasNonEmptyAttr(mGestureDownContent,
-                  kNameSpaceID_None, nsGkAtoms::container)) {
-            allowedToDispatch = PR_FALSE;
-          } else {
-            // If the toolbar button has an open menu, don't attempt to open
+        } else {
+          // If the toolbar button has an open menu, don't attempt to open
             // a second menu
-            if (mGestureDownContent->AttrValueIs(kNameSpaceID_None, nsGkAtoms::open,
-                                                 nsGkAtoms::_true, eCaseMatters)) {
-              allowedToDispatch = PR_FALSE;
-            }
+          if (mGestureDownContent->AttrValueIs(kNameSpaceID_None, nsGkAtoms::open,
+                                               nsGkAtoms::_true, eCaseMatters)) {
+            allowedToDispatch = PR_FALSE;
           }
         }
       }
-      else if (mGestureDownContent->IsNodeOfType(nsINode::eHTML)) {
-        nsCOMPtr<nsIFormControl> formCtrl(do_QueryInterface(mGestureDownContent));
+    }
+    else if (mGestureDownContent->IsHTML()) {
+      nsCOMPtr<nsIFormControl> formCtrl(do_QueryInterface(mGestureDownContent));
 
-        if (formCtrl) {
-          // of all form controls, only ones dealing with text are
-          // allowed to have context menus
-          PRInt32 type = formCtrl->GetType();
+      if (formCtrl) {
+        // of all form controls, only ones dealing with text are
+        // allowed to have context menus
+        PRInt32 type = formCtrl->GetType();
 
-          allowedToDispatch = (type == NS_FORM_INPUT_TEXT ||
-                               type == NS_FORM_INPUT_PASSWORD ||
-                               type == NS_FORM_INPUT_FILE ||
-                               type == NS_FORM_TEXTAREA);
-        }
-        else if (tag == nsGkAtoms::applet ||
-                 tag == nsGkAtoms::embed  ||
-                 tag == nsGkAtoms::object) {
-          allowedToDispatch = PR_FALSE;
+        allowedToDispatch = (type == NS_FORM_INPUT_TEXT ||
+                             type == NS_FORM_INPUT_PASSWORD ||
+                             type == NS_FORM_INPUT_FILE ||
+                             type == NS_FORM_TEXTAREA);
+      }
+      else if (tag == nsGkAtoms::applet ||
+               tag == nsGkAtoms::embed  ||
+               tag == nsGkAtoms::object) {
+        allowedToDispatch = PR_FALSE;
+      }
+    }
+
+    if (allowedToDispatch) {
+      // make sure the widget sticks around
+      nsCOMPtr<nsIWidget> targetWidget(mCurrentTarget->GetWindow());
+      // init the event while mCurrentTarget is still good
+      nsMouseEvent event(PR_TRUE, NS_CONTEXTMENU,
+                         targetWidget,
+                         nsMouseEvent::eReal);
+      event.clickCount = 1;
+      FillInEventFromGestureDown(&event);
+        
+      // stop selection tracking, we're in control now
+      if (mCurrentTarget)
+      {
+        nsCOMPtr<nsFrameSelection> frameSel =
+          mCurrentTarget->GetFrameSelection();
+        
+        if (frameSel && frameSel->GetMouseDownState()) {
+          // note that this can cause selection changed events to fire if we're in
+          // a text field, which will null out mCurrentTarget
+          frameSel->SetMouseDownState(PR_FALSE);
         }
       }
 
-      if (allowedToDispatch) {
-        // make sure the widget sticks around
-        nsCOMPtr<nsIWidget> targetWidget(mCurrentTarget->GetWindow());
-        // init the event while mCurrentTarget is still good
-        nsMouseEvent event(PR_TRUE, NS_CONTEXTMENU,
-                           targetWidget,
-                           nsMouseEvent::eReal);
-        event.clickCount = 1;
-        FillInEventFromGestureDown(&event);
-        
-        // stop selection tracking, we're in control now
-        if (mCurrentTarget)
-        {
-          nsCOMPtr<nsFrameSelection> frameSel =
-            mCurrentTarget->GetFrameSelection();
-        
-          if (frameSel && frameSel->GetMouseDownState()) {
-            // note that this can cause selection changed events to fire if we're in
-            // a text field, which will null out mCurrentTarget
-            frameSel->SetMouseDownState(PR_FALSE);
-          }
-        }
+      // dispatch to DOM
+      nsEventDispatcher::Dispatch(mGestureDownContent, mPresContext, &event,
+                                  nsnull, &status);
 
-        // dispatch to DOM
-        nsEventDispatcher::Dispatch(mGestureDownContent, mPresContext, &event,
-                                    nsnull, &status);
-
-        // We don't need to dispatch to frame handling because no frames
-        // watch NS_CONTEXTMENU except for nsMenuFrame and that's only for
-        // dismissal. That's just as well since we don't really know
-        // which frame to send it to.
-      }
+      // We don't need to dispatch to frame handling because no frames
+      // watch NS_CONTEXTMENU except for nsMenuFrame and that's only for
+      // dismissal. That's just as well since we don't really know
+      // which frame to send it to.
     }
   }
 
@@ -1721,7 +1873,7 @@ nsEventStateManager::GenerateDragGesture(nsPresContext* aPresContext,
 {
   NS_ASSERTION(aPresContext, "This shouldn't happen.");
   if ( IsTrackingDragGesture() ) {
-    mCurrentTarget = aPresContext->GetPresShell()->GetPrimaryFrameFor(mGestureDownFrameOwner);
+    mCurrentTarget = mGestureDownFrameOwner->GetPrimaryFrame();
 
     if (!mCurrentTarget) {
       StopTrackingDragGesture();
@@ -1737,6 +1889,12 @@ nsEventStateManager::GenerateDragGesture(nsPresContext* aPresContext,
         StopTrackingDragGesture();
         return;
       }
+    }
+
+    // If non-native code is capturing the mouse don't start a drag.
+    if (nsIPresShell::IsMouseCapturePreventingDrag()) {
+      StopTrackingDragGesture();
+      return;
     }
 
     static PRInt32 pixelThresholdX = 0;
@@ -1830,9 +1988,13 @@ nsEventStateManager::GenerateDragGesture(nsPresContext* aPresContext,
       // change during the drag.
       dataTransfer->SetReadOnly();
 
-      if (status != nsEventStatus_eConsumeNoDefault)
-        DoDefaultDragStart(aPresContext, event, dataTransfer,
-                           targetContent, isSelection);
+      if (status != nsEventStatus_eConsumeNoDefault) {
+        PRBool dragStarted = DoDefaultDragStart(aPresContext, event, dataTransfer,
+                                                targetContent, isSelection);
+        if (dragStarted) {
+          aEvent->flags |= NS_EVENT_FLAG_STOP_DISPATCH;
+        }
+      }
 
       // Note that frame event handling doesn't care about NS_DRAGDROP_GESTURE,
       // which is just as well since we don't really know which frame to
@@ -1953,7 +2115,7 @@ nsEventStateManager::DetermineDragTarget(nsPresContext* aPresContext,
   }
 }
 
-void
+PRBool
 nsEventStateManager::DoDefaultDragStart(nsPresContext* aPresContext,
                                         nsDragEvent* aDragEvent,
                                         nsDOMDataTransfer* aDataTransfer,
@@ -1963,18 +2125,19 @@ nsEventStateManager::DoDefaultDragStart(nsPresContext* aPresContext,
   nsCOMPtr<nsIDragService> dragService =
     do_GetService("@mozilla.org/widget/dragservice;1");
   if (!dragService)
-    return;
+    return PR_FALSE;
 
   // Default handling for the draggesture/dragstart event.
   //
   // First, check if a drag session already exists. This means that the drag
   // service was called directly within a draggesture handler. In this case,
   // don't do anything more, as it is assumed that the handler is managing
-  // drag and drop manually.
+  // drag and drop manually. Make sure to return true to indicate that a drag
+  // began.
   nsCOMPtr<nsIDragSession> dragSession;
   dragService->GetCurrentSession(getter_AddRefs(dragSession));
   if (dragSession)
-    return; // already a drag in progress
+    return PR_TRUE;
 
   // No drag session is currently active, so check if a handler added
   // any items to be dragged. If not, there isn't anything to drag.
@@ -1982,7 +2145,7 @@ nsEventStateManager::DoDefaultDragStart(nsPresContext* aPresContext,
   if (aDataTransfer)
     aDataTransfer->GetMozItemCount(&count);
   if (!count)
-    return;
+    return PR_FALSE;
 
   // Get the target being dragged, which may not be the same as the
   // target of the mouse event. If one wasn't set in the
@@ -1995,7 +2158,7 @@ nsEventStateManager::DoDefaultDragStart(nsPresContext* aPresContext,
   if (!dragTarget) {
     dragTarget = do_QueryInterface(aDragTarget);
     if (!dragTarget)
-      return;
+      return PR_FALSE;
   }
 
   // check which drag effect should initially be used. If the effect was not
@@ -2030,7 +2193,7 @@ nsEventStateManager::DoDefaultDragStart(nsPresContext* aPresContext,
   nsCOMPtr<nsISupportsArray> transArray;
   aDataTransfer->GetTransferables(getter_AddRefs(transArray));
   if (!transArray)
-    return;
+    return PR_FALSE;
 
   // XXXndeakin don't really want to create a new drag DOM event
   // here, but we need something to pass to the InvokeDragSession
@@ -2058,16 +2221,9 @@ nsEventStateManager::DoDefaultDragStart(nsPresContext* aPresContext,
       nsCOMPtr<nsIContent> content = do_QueryInterface(dragTarget);
       if (content->NodeInfo()->Equals(nsGkAtoms::treechildren,
                                       kNameSpaceID_XUL)) {
-        nsIDocument* doc = content->GetCurrentDoc();
-        if (doc) {
-          nsIPresShell* presShell = doc->GetPrimaryShell();
-          if (presShell) {
-            nsIFrame* frame = presShell->GetPrimaryFrameFor(content);
-            if (frame) {
-              nsTreeBodyFrame* treeBody = do_QueryFrame(frame);
-              treeBody->GetSelectionRegion(getter_AddRefs(region));
-            }
-          }
+        nsTreeBodyFrame* treeBody = do_QueryFrame(content->GetPrimaryFrame());
+        if (treeBody) {
+          treeBody->GetSelectionRegion(getter_AddRefs(region));
         }
       }
     }
@@ -2078,6 +2234,8 @@ nsEventStateManager::DoDefaultDragStart(nsPresContext* aPresContext,
                                             imageX, imageY, domDragEvent,
                                             aDataTransfer);
   }
+
+  return PR_TRUE;
 }
 
 nsresult
@@ -2194,7 +2352,7 @@ nsEventStateManager::DoScrollZoom(nsIFrame *aTargetFrame,
   nsIContent *content = aTargetFrame->GetContent();
   if (content &&
       !content->IsNodeOfType(nsINode::eHTML_FORM_CONTROL) &&
-      !content->IsNodeOfType(nsINode::eXUL))
+      !content->IsXUL())
     {
       // positive adjustment to decrease zoom, negative to increase
       PRInt32 change = (adjustment > 0) ? -1 : 1;
@@ -2207,48 +2365,35 @@ nsEventStateManager::DoScrollZoom(nsIFrame *aTargetFrame,
 }
 
 static nsIFrame*
-GetParentFrameToScroll(nsPresContext* aPresContext, nsIFrame* aFrame)
+GetParentFrameToScroll(nsIFrame* aFrame)
 {
-  if (!aPresContext || !aFrame)
+  if (!aFrame)
     return nsnull;
 
   if (aFrame->GetStyleDisplay()->mPosition == NS_STYLE_POSITION_FIXED &&
       nsLayoutUtils::IsReallyFixedPos(aFrame))
-    return aPresContext->GetPresShell()->GetRootScrollFrame();
+    return aFrame->PresContext()->GetPresShell()->GetRootScrollFrame();
 
   return aFrame->GetParent();
 }
 
-static nsIScrollableView*
-GetScrollableViewForFrame(nsPresContext* aPresContext, nsIFrame* aFrame)
-{
-  for (; aFrame; aFrame = GetParentFrameToScroll(aPresContext, aFrame)) {
-    nsIScrollableViewProvider* svp = do_QueryFrame(aFrame);
-    if (svp) {
-      nsIScrollableView* scrollView = svp->GetScrollableView();
-      if (scrollView)
-        return scrollView;
-    }
-  }
-  return nsnull;
-}
-
 static nscoord
-GetScrollableViewLineHeight(nsPresContext* aPresContext, nsIFrame* aTargetFrame)
+GetScrollableLineHeight(nsIFrame* aTargetFrame)
 {
-  nsIScrollableView* scrollView = GetScrollableViewForFrame(aPresContext, aTargetFrame);
-  nscoord lineHeight = 0;
-  if (scrollView) {
-    scrollView->GetLineHeight(&lineHeight);
-  } else {
-    // Fall back to the font height of the target frame.
-    const nsStyleFont* font = aTargetFrame->GetStyleFont();
-    const nsFont& f = font->mFont;
-    nsCOMPtr<nsIFontMetrics> fm = aPresContext->GetMetricsFor(f);
-    NS_ASSERTION(fm, "FontMetrics is null!");
-    if (fm)
-      fm->GetHeight(lineHeight);
+  for (nsIFrame* f = aTargetFrame; f; f = GetParentFrameToScroll(f)) {
+    nsIScrollableFrame* sf = f->GetScrollTargetFrame();
+    if (sf)
+      return sf->GetLineScrollAmount().height;
   }
+
+  // Fall back to the font height of the target frame.
+  const nsStyleFont* font = aTargetFrame->GetStyleFont();
+  const nsFont& f = font->mFont;
+  nsCOMPtr<nsIFontMetrics> fm = aTargetFrame->PresContext()->GetMetricsFor(f);
+  NS_ASSERTION(fm, "FontMetrics is null!");
+  nscoord lineHeight = 0;
+  if (fm)
+    fm->GetHeight(lineHeight);
   return lineHeight;
 }
 
@@ -2301,7 +2446,7 @@ nsEventStateManager::SendPixelScrollEvent(nsIFrame* aTargetFrame,
     targetContent = targetContent->GetParent();
   }
 
-  nscoord lineHeight = GetScrollableViewLineHeight(aPresContext, aTargetFrame);
+  nscoord lineHeight = GetScrollableLineHeight(aTargetFrame);
 
   PRBool isTrusted = (aEvent->flags & NS_EVENT_FLAG_TRUSTED) != 0;
   nsMouseScrollEvent event(isTrusted, NS_MOUSE_PIXEL_SCROLL, nsnull);
@@ -2319,12 +2464,12 @@ nsEventStateManager::SendPixelScrollEvent(nsIFrame* aTargetFrame,
 }
 
 nsresult
-nsEventStateManager::DoScrollText(nsPresContext* aPresContext,
-                                  nsIFrame* aTargetFrame,
+nsEventStateManager::DoScrollText(nsIFrame* aTargetFrame,
                                   nsMouseScrollEvent* aMouseEvent,
-                                  ScrollQuantity aScrollQuantity)
+                                  nsIScrollableFrame::ScrollUnit aScrollQuantity,
+                                  PRBool aAllowScrollSpeedOverride)
 {
-  nsIScrollableView* scrollView = nsnull;
+  nsIScrollableFrame* frameToScroll = nsnull;
   nsIFrame* scrollFrame = aTargetFrame;
   PRInt32 numLines = aMouseEvent->delta;
   PRBool isHorizontal = aMouseEvent->scrollFlags & nsMouseScrollEvent::kIsHorizontal;
@@ -2340,8 +2485,8 @@ nsEventStateManager::DoScrollText(nsPresContext* aPresContext,
   // operation, even if the mouse hasn't moved.
   nsIFrame* lastScrollFrame = nsMouseWheelTransaction::GetTargetFrame();
   if (lastScrollFrame) {
-    nsIScrollableViewProvider* svp = do_QueryFrame(lastScrollFrame);
-    if (svp && (scrollView = svp->GetScrollableView())) {
+    frameToScroll = lastScrollFrame->GetScrollTargetFrame();
+    if (frameToScroll) {
       nsMouseWheelTransaction::UpdateTransaction(numLines, isHorizontal);
       // When the scroll event will not scroll any views, UpdateTransaction
       // fired MozMouseScrollFailed event which is for automated testing.
@@ -2357,30 +2502,23 @@ nsEventStateManager::DoScrollText(nsPresContext* aPresContext,
   PRBool passToParent = lastScrollFrame ? PR_FALSE : PR_TRUE;
 
   for (; scrollFrame && passToParent;
-       scrollFrame = GetParentFrameToScroll(aPresContext, scrollFrame)) {
+       scrollFrame = GetParentFrameToScroll(scrollFrame)) {
     // Check whether the frame wants to provide us with a scrollable view.
-    scrollView = nsnull;
-    nsIScrollableViewProvider* svp = do_QueryFrame(scrollFrame);
-    if (svp) {
-      scrollView = svp->GetScrollableView();
-    }
-    if (!scrollView) {
+    frameToScroll = scrollFrame->GetScrollTargetFrame();
+    if (!frameToScroll) {
       continue;
     }
 
-    nsPresContext::ScrollbarStyles ss =
-      nsLayoutUtils::ScrollbarStylesOfView(scrollView);
+    nsPresContext::ScrollbarStyles ss = frameToScroll->GetScrollbarStyles();
     if (NS_STYLE_OVERFLOW_HIDDEN ==
         (isHorizontal ? ss.mHorizontal : ss.mVertical)) {
       continue;
     }
 
     // Check if the scrollable view can be scrolled any further.
-    nscoord lineHeight;
-    scrollView->GetLineHeight(&lineHeight);
-
+    nscoord lineHeight = frameToScroll->GetLineScrollAmount().height;
     if (lineHeight != 0) {
-      if (CanScrollOn(scrollView, numLines, isHorizontal)) {
+      if (CanScrollOn(frameToScroll, numLines, isHorizontal)) {
         passToParent = PR_FALSE;
         nsMouseWheelTransaction::BeginTransaction(scrollFrame,
                                                   numLines, isHorizontal);
@@ -2393,7 +2531,7 @@ nsEventStateManager::DoScrollText(nsPresContext* aPresContext,
           // Don't propagate to parent when drop down menu is active.
           if (passToParent) {
             passToParent = PR_FALSE;
-            scrollView = nsnull;
+            frameToScroll = nsnull;
             nsMouseWheelTransaction::EndTransaction();
           }
         } else {
@@ -2407,33 +2545,24 @@ nsEventStateManager::DoScrollText(nsPresContext* aPresContext,
     }
   }
 
-  if (!passToParent && scrollView) {
-    if (aScrollQuantity == eScrollByLine) {
-      // Limit scrolling to be at most one page, but if possible, try to
-      // just adjust the number of scrolled lines.
-      nscoord lineHeight = 0;
-      scrollView->GetLineHeight(&lineHeight);
-      if (lineHeight) {
-        nsSize pageScrollDistances(0, 0);
-        scrollView->GetPageScrollDistances(&pageScrollDistances);
-        nscoord pageScroll = isHorizontal ?
-          pageScrollDistances.width : pageScrollDistances.height;
-
-        if (PR_ABS(numLines) * lineHeight > pageScroll) {
-          nscoord maxLines = (pageScroll / lineHeight);
-          if (maxLines >= 1) {
-            numLines = ((numLines < 0) ? -1 : 1) * maxLines;
-          } else {
-            aScrollQuantity = eScrollByPage;
-          }
-        }
-      }
+  if (!passToParent && frameToScroll) {
+    if (aScrollQuantity == nsIScrollableFrame::LINES) {
+      numLines =
+        nsMouseWheelTransaction::AccelerateWheelDelta(numLines, isHorizontal,
+                                                      aAllowScrollSpeedOverride,
+                                                      &aScrollQuantity);
     }
+#ifdef DEBUG
+    else {
+      NS_ASSERTION(!aAllowScrollSpeedOverride,
+        "aAllowScrollSpeedOverride is true but the quantity isn't by-line scrolling.");
+    }
+#endif
 
     PRInt32 scrollX = 0;
     PRInt32 scrollY = numLines;
 
-    if (aScrollQuantity == eScrollByPage)
+    if (aScrollQuantity == nsIScrollableFrame::PAGES)
       scrollY = (scrollY > 0) ? 1 : -1;
       
     if (isHorizontal) {
@@ -2442,37 +2571,21 @@ nsEventStateManager::DoScrollText(nsPresContext* aPresContext,
     }
     
     PRBool noDefer = aMouseEvent->scrollFlags & nsMouseScrollEvent::kNoDefer;
-    PRInt32 overflowX = 0, overflowY = 0;
-    
-    if (aScrollQuantity == eScrollByPage) {
-      scrollView->ScrollByPages(scrollX, scrollY,
-        (noDefer ? NS_VMREFRESH_IMMEDIATE : NS_VMREFRESH_SMOOTHSCROLL));
-    }
-    else if (aScrollQuantity == eScrollByPixel) {
-      scrollView->ScrollByPixels(scrollX, scrollY, overflowX, overflowY,
-        (noDefer ? NS_VMREFRESH_IMMEDIATE : NS_VMREFRESH_DEFERRED));
-    }
-    else {
-      scrollView->ScrollByLinesWithOverflow(scrollX, scrollY, overflowX, overflowY,
-        (noDefer ? NS_VMREFRESH_IMMEDIATE : NS_VMREFRESH_SMOOTHSCROLL));
-    }
-    
-    if (isHorizontal)
-      aMouseEvent->scrollOverflow = overflowX;
-    else
-      aMouseEvent->scrollOverflow = overflowY;
-
+    nsIntPoint overflow;
+    frameToScroll->ScrollBy(nsIntPoint(scrollX, scrollY), aScrollQuantity,
+                            noDefer ? nsIScrollableFrame::INSTANT
+                                    : nsIScrollableFrame::SMOOTH,
+                            &overflow);
+    aMouseEvent->scrollOverflow = isHorizontal ? overflow.x : overflow.y;
     return NS_OK;
   }
   
   if (passToParent) {
-    nsresult rv;
-    nsIFrame* newFrame = nsnull;
-    nsCOMPtr<nsPresContext> newPresContext;
-    rv = GetParentScrollingView(aMouseEvent, aPresContext, newFrame,
-                                *getter_AddRefs(newPresContext));
-    if (NS_SUCCEEDED(rv) && newFrame)
-      return DoScrollText(newPresContext, newFrame, aMouseEvent, aScrollQuantity);
+    nsIFrame* newFrame = nsLayoutUtils::GetCrossDocParentFrame(
+        aTargetFrame->PresContext()->FrameManager()->GetRootFrame());
+    if (newFrame)
+      return DoScrollText(newFrame, aMouseEvent, aScrollQuantity,
+                          aAllowScrollSpeedOverride);
   }
 
   aMouseEvent->scrollOverflow = numLines;
@@ -2480,59 +2593,99 @@ nsEventStateManager::DoScrollText(nsPresContext* aPresContext,
   return NS_OK;
 }
 
-nsresult
-nsEventStateManager::GetParentScrollingView(nsInputEvent *aEvent,
-                                            nsPresContext* aPresContext,
-                                            nsIFrame* &targetOuterFrame,
-                                            nsPresContext* &presCtxOuter)
+void
+nsEventStateManager::DecideGestureEvent(nsGestureNotifyEvent* aEvent,
+                                        nsIFrame* targetFrame)
 {
-  targetOuterFrame = nsnull;
 
-  if (!aEvent) return NS_ERROR_FAILURE;
-  if (!aPresContext) return NS_ERROR_FAILURE;
+  NS_ASSERTION(aEvent->message == NS_GESTURENOTIFY_EVENT_START,
+               "DecideGestureEvent called with a non-gesture event");
 
-  nsIDocument *doc = aPresContext->PresShell()->GetDocument();
-  NS_ASSERTION(doc, "No document in prescontext!");
+  /* Check the ancestor tree to decide if any frame is willing* to receive
+   * a MozPixelScroll event. If that's the case, the current touch gesture
+   * will be used as a pan gesture; otherwise it will be a regular
+   * mousedown/mousemove/click event.
+   *
+   * *willing: determine if it makes sense to pan the element using scroll events:
+   *  - For web content: if there are any visible scrollbars on the touch point
+   *  - For XUL: if it's an scrollable element that can currently scroll in some
+    *    direction.
+   *
+   * Note: we'll have to one-off various cases to ensure a good usable behavior
+   */
+  nsGestureNotifyEvent::ePanDirection panDirection = nsGestureNotifyEvent::ePanNone;
+  PRBool displayPanFeedback = PR_FALSE;
+  for (nsIFrame* current = targetFrame; current;
+       current = nsLayoutUtils::GetCrossDocParentFrame(current)) {
 
-  nsIDocument *parentDoc = doc->GetParentDocument();
+    nsIAtom* currentFrameType = current->GetType();
 
-  if (!parentDoc) {
-    return NS_OK;
-  }
-
-  nsIPresShell *pPresShell = nsnull;
-  nsPresShellIterator iter(parentDoc);
-  nsCOMPtr<nsIPresShell> tmpPresShell;
-  while ((tmpPresShell = iter.GetNextShell())) {
-    NS_ENSURE_TRUE(tmpPresShell->GetPresContext(), NS_ERROR_FAILURE);
-    if (tmpPresShell->GetPresContext()->Type() == aPresContext->Type()) {
-      pPresShell = tmpPresShell;
+    // Scrollbars should always be draggable
+    if (currentFrameType == nsGkAtoms::scrollbarFrame) {
+      panDirection = nsGestureNotifyEvent::ePanNone;
       break;
     }
-  }
-  if (!pPresShell)
-    return NS_ERROR_FAILURE;
 
-  /* now find the content node in our parent docshell's document that
-     corresponds to our docshell */
+#ifdef MOZ_XUL
+    // Special check for trees
+    nsTreeBodyFrame* treeFrame = do_QueryFrame(current);
+    if (treeFrame) {
+      if (treeFrame->GetHorizontalOverflow()) {
+        panDirection = nsGestureNotifyEvent::ePanHorizontal;
+      }
+      if (treeFrame->GetVerticalOverflow()) {
+        panDirection = nsGestureNotifyEvent::ePanVertical;
+      }
+      break;
+    }
+#endif
 
-  nsIContent *frameContent = parentDoc->FindContentForSubDocument(doc);
-  NS_ENSURE_TRUE(frameContent, NS_ERROR_FAILURE);
+    nsIScrollableFrame* scrollableFrame = do_QueryFrame(current);
+    if (scrollableFrame) {
+      if (current->IsFrameOfType(nsIFrame::eXULBox)) {
+        displayPanFeedback = PR_TRUE;
 
-  /*
-    get this content node's frame, and use it as the new event target,
-    so the event can be processed in the parent docshell.
-    Note that we don't actually need to translate the event coordinates
-    because they are not used by DoScrollText().
-  */
+        nsRect scrollRange = scrollableFrame->GetScrollRange();
+        PRBool canScrollHorizontally = scrollRange.width > 0;
 
-  nsIFrame* frameFrame = pPresShell->GetPrimaryFrameFor(frameContent);
-  if (!frameFrame) return NS_ERROR_FAILURE;
+        if (targetFrame->GetType() == nsGkAtoms::menuFrame) {
+          // menu frames report horizontal scroll when they have submenus
+          // and we don't want that
+          canScrollHorizontally = PR_FALSE;
+          displayPanFeedback = PR_FALSE;
+        }
 
-  NS_IF_ADDREF(presCtxOuter = pPresShell->GetPresContext());
-  targetOuterFrame = frameFrame;
+        // Vertical panning has priority over horizontal panning, so
+        // when vertical movement is possible we can just finish the loop.
+        if (scrollRange.height > 0) {
+          panDirection = nsGestureNotifyEvent::ePanVertical;
+          break;
+        }
 
-  return NS_OK;
+        if (canScrollHorizontally) {
+          panDirection = nsGestureNotifyEvent::ePanHorizontal;
+          displayPanFeedback = PR_FALSE;
+        }
+      } else { //Not a XUL box
+        PRUint32 scrollbarVisibility = scrollableFrame->GetScrollbarVisibility();
+
+        //Check if we have visible scrollbars
+        if (scrollbarVisibility & nsIScrollableFrame::VERTICAL) {
+          panDirection = nsGestureNotifyEvent::ePanVertical;
+          displayPanFeedback = PR_TRUE;
+          break;
+        }
+
+        if (scrollbarVisibility & nsIScrollableFrame::HORIZONTAL) {
+          panDirection = nsGestureNotifyEvent::ePanHorizontal;
+          displayPanFeedback = PR_TRUE;
+        }
+      }
+    } //scrollableFrame
+  } //ancestor chain
+
+  aEvent->displayPanFeedback = displayPanFeedback;
+  aEvent->panDirection = panDirection;
 }
 
 NS_IMETHODIMP
@@ -2564,19 +2717,9 @@ nsEventStateManager::PostHandleEvent(nsPresContext* aPresContext,
     {
       if (static_cast<nsMouseEvent*>(aEvent)->button == nsMouseEvent::eLeftButton &&
           !mNormalLMouseEventInProcess) {
-        //Our state is out of whack.  We got a mouseup while still processing
-        //the mousedown.  Kill View-level mouse capture or it'll stay stuck
-        if (aView) {
-          nsIViewManager* viewMan = aView->GetViewManager();
-          if (viewMan) {
-            nsIView* grabbingView;
-            viewMan->GetMouseEventGrabber(grabbingView);
-            if (grabbingView == aView) {
-              PRBool result;
-              viewMan->GrabMouseEvents(nsnull, result);
-            }
-          }
-        }
+        // We got a mouseup event while a mousedown event was being processed.
+        // Make sure that the capturing content is cleared.
+        nsIPresShell::SetCapturingContent(nsnull, 0);
         break;
       }
 
@@ -2681,17 +2824,9 @@ nsEventStateManager::PostHandleEvent(nsPresContext* aPresContext,
         ret =
           CheckForAndDispatchClick(presContext, (nsMouseEvent*)aEvent, aStatus);
       }
+
       nsIPresShell *shell = presContext->GetPresShell();
       if (shell) {
-        nsIViewManager* viewMan = shell->GetViewManager();
-        if (viewMan) {
-          nsIView* grabbingView = nsnull;
-          viewMan->GetMouseEventGrabber(grabbingView);
-          if (grabbingView == aView) {
-            PRBool result;
-            viewMan->GrabMouseEvents(nsnull, result);
-          }
-        }
         nsCOMPtr<nsFrameSelection> frameSelection = shell->FrameSelection();
         frameSelection->SetMouseDownState(PR_FALSE);
       }
@@ -2759,15 +2894,18 @@ nsEventStateManager::PostHandleEvent(nsPresContext* aPresContext,
 
         switch (action) {
         case MOUSE_SCROLL_N_LINES:
-          DoScrollText(presContext, aTargetFrame, msEvent, eScrollByLine);
+          DoScrollText(aTargetFrame, msEvent, nsIScrollableFrame::LINES,
+                       useSysNumLines);
           break;
 
         case MOUSE_SCROLL_PAGE:
-          DoScrollText(presContext, aTargetFrame, msEvent, eScrollByPage);
+          DoScrollText(aTargetFrame, msEvent, nsIScrollableFrame::PAGES,
+                       PR_FALSE);
           break;
 
         case MOUSE_SCROLL_PIXELS:
-          DoScrollText(presContext, aTargetFrame, msEvent, eScrollByPixel);
+          DoScrollText(aTargetFrame, msEvent, nsIScrollableFrame::DEVICE_PIXELS,
+                       PR_FALSE);
           break;
 
         case MOUSE_SCROLL_HISTORY:
@@ -2786,6 +2924,13 @@ nsEventStateManager::PostHandleEvent(nsPresContext* aPresContext,
     }
     break;
 
+  case NS_GESTURENOTIFY_EVENT_START:
+    {
+      if (nsEventStatus_eConsumeNoDefault != *aStatus)
+        DecideGestureEvent(static_cast<nsGestureNotifyEvent*>(aEvent), mCurrentTarget);
+    }
+    break;
+
   case NS_DRAGDROP_ENTER:
   case NS_DRAGDROP_OVER:
     {
@@ -2795,6 +2940,13 @@ nsEventStateManager::PostHandleEvent(nsPresContext* aPresContext,
       if (!dragSession)
         break;
 
+      // Reset the flag.
+      dragSession->SetOnlyChromeDrop(PR_FALSE);
+      if (mPresContext) {
+        EnsureDocument(mPresContext);
+      }
+      PRBool isChromeDoc = nsContentUtils::IsChromeDoc(mDocument);
+
       // the initial dataTransfer is the one from the dragstart event that
       // was set on the dragSession when the drag began.
       nsCOMPtr<nsIDOMNSDataTransfer> dataTransfer;
@@ -2803,6 +2955,12 @@ nsEventStateManager::PostHandleEvent(nsPresContext* aPresContext,
 
       nsCOMPtr<nsIDOMNSDataTransfer> initialDataTransferNS = 
         do_QueryInterface(initialDataTransfer);
+
+      nsDragEvent *dragEvent = (nsDragEvent*)aEvent;
+
+      // collect any changes to moz cursor settings stored in the event's
+      // data transfer.
+      UpdateDragDataTransfer(dragEvent);
 
       // cancelling a dragenter or dragover event means that a drop should be
       // allowed, so update the dropEffect and the canDrop state to indicate
@@ -2816,7 +2974,6 @@ nsEventStateManager::PostHandleEvent(nsPresContext* aPresContext,
       PRUint32 dropEffect = nsIDragService::DRAGDROP_ACTION_NONE;
       if (nsEventStatus_eConsumeNoDefault == *aStatus) {
         // if the event has a dataTransfer set, use it.
-        nsDragEvent *dragEvent = (nsDragEvent*)aEvent;
         if (dragEvent->dataTransfer) {
           // get the dataTransfer and the dropEffect that was set on it
           dataTransfer = do_QueryInterface(dragEvent->dataTransfer);
@@ -2865,6 +3022,17 @@ nsEventStateManager::PostHandleEvent(nsPresContext* aPresContext,
         // inform the drag session that a drop is allowed on this node.
         dragSession->SetDragAction(action);
         dragSession->SetCanDrop(action != nsIDragService::DRAGDROP_ACTION_NONE);
+
+        // For now, do this only for dragover.
+        //XXXsmaug dragenter needs some more work.
+        if (aEvent->message == NS_DRAGDROP_OVER && !isChromeDoc) {
+          // Someone has called preventDefault(), check whether is was content.
+          dragSession->SetOnlyChromeDrop(
+            !(aEvent->flags & NS_EVENT_FLAG_NO_DEFAULT_CALLED_IN_CONTENT));
+        }
+      } else if (aEvent->message == NS_DRAGDROP_OVER && !isChromeDoc) {
+        // No one called preventDefault(), so handle drop only in chrome.
+        dragSession->SetOnlyChromeDrop(PR_TRUE);
       }
 
       // now set the drop effect in the initial dataTransfer. This ensures
@@ -2936,85 +3104,6 @@ nsEventStateManager::PostHandleEvent(nsPresContext* aPresContext,
             }
             *aStatus = nsEventStatus_eConsumeNoDefault;
             break;
-
-//the problem is that viewer does not have xul so we cannot completely eliminate these
-#if NON_KEYBINDING
-          case NS_VK_PAGE_DOWN:
-          case NS_VK_PAGE_UP:
-            if (!focusedContent) {
-              nsIScrollableView* sv = nsLayoutUtils::GetNearestScrollingView(aView, nsLayoutUtils::eVertical);
-              if (sv) {
-                nsKeyEvent * keyEvent = (nsKeyEvent *)aEvent;
-                sv->ScrollByPages(0, (keyEvent->keyCode != NS_VK_PAGE_UP) ? 1 : -1,
-                                  NS_VMREFRESH_SMOOTHSCROLL);
-              }
-            }
-            break;
-          case NS_VK_HOME:
-          case NS_VK_END:
-            if (!focusedContent) {
-              nsIScrollableView* sv = nsLayoutUtils::GetNearestScrollingView(aView, nsLayoutUtils::eVertical);
-              if (sv) {
-                nsKeyEvent * keyEvent = (nsKeyEvent *)aEvent;
-                sv->ScrollByWhole((keyEvent->keyCode != NS_VK_HOME) ? PR_FALSE : PR_TRUE);
-              }
-            }
-            break;
-          case NS_VK_DOWN:
-          case NS_VK_UP:
-            if (!focusedContent) {
-              nsIScrollableView* sv = nsLayoutUtils::GetNearestScrollingView(aView, nsLayoutUtils::eVertical);
-              if (sv) {
-                nsKeyEvent * keyEvent = (nsKeyEvent *)aEvent;
-                sv->ScrollByLines(0, (keyEvent->keyCode == NS_VK_DOWN) ? 1 : -1,
-                                  NS_VMREFRESH_SMOOTHSCROLL);
-
-                // force the update to happen now, otherwise multiple scrolls can
-                // occur before the update is processed. (bug #7354)
-                nsIViewManager* vm = aView->GetViewManager();
-                if (vm) {
-                  // I'd use Composite here, but it doesn't always work.
-                  // vm->Composite();
-                  vm->ForceUpdate();
-                }
-              }
-            }
-            break;
-          case NS_VK_LEFT:
-          case NS_VK_RIGHT:
-            if (!focusedContent) {
-              nsIScrollableView* sv = nsLayoutUtils::GetNearestScrollingView(aView, nsLayoutUtils::eHorizontal);
-              if (sv) {
-                nsKeyEvent * keyEvent = (nsKeyEvent *)aEvent;
-                sv->ScrollByLines((keyEvent->keyCode == NS_VK_RIGHT) ? 1 : -1, 0,
-                                  NS_VMREFRESH_SMOOTHSCROLL);
-
-                // force the update to happen now, otherwise multiple scrolls can
-                // occur before the update is processed. (bug #7354)
-                nsIViewManager* vm = aView->GetViewManager();
-                if (vm) {
-                  // I'd use Composite here, but it doesn't always work.
-                  // vm->Composite();
-                  vm->ForceUpdate();
-                }
-              }
-            }
-            break;
-        case 0: /* check charcode since keycode is 0 */
-          {
-          //Spacebar
-            nsKeyEvent * keyEvent = (nsKeyEvent *)aEvent;
-            if (keyEvent->charCode == 0x20) {
-              if (!focusedContent) {
-                nsIScrollableView* sv = nsLayoutUtils::GetNearestScrollingView(aView, nsLayoutUtils::eVertical);
-                if (sv) {
-                  sv->ScrollByPages(0, 1, NS_VMREFRESH_SMOOTHSCROLL);
-                }
-              }
-            }
-          }
-          break;
-#endif //NON_KEYBINDING
         }
       }
     }
@@ -3086,6 +3175,24 @@ nsEventStateManager::UpdateCursor(nsPresContext* aPresContext,
       haveHotspot = framecursor.mHaveHotspot;
       hotspotX = framecursor.mHotspotX;
       hotspotY = framecursor.mHotspotY;
+  }
+
+  if (nsContentUtils::GetBoolPref("ui.use_activity_cursor", PR_FALSE)) {
+    // Check whether or not to show the busy cursor
+    nsCOMPtr<nsISupports> pcContainer = aPresContext->GetContainer();
+    nsCOMPtr<nsIDocShell> docShell(do_QueryInterface(pcContainer));
+    if (!docShell) return;
+    PRUint32 busyFlags = nsIDocShell::BUSY_FLAGS_NONE;
+    docShell->GetBusyFlags(&busyFlags);
+
+    // Show busy cursor everywhere before page loads
+    // and just replace the arrow cursor after page starts loading
+    if (busyFlags & nsIDocShell::BUSY_FLAGS_BUSY &&
+          (cursor == NS_STYLE_CURSOR_AUTO || cursor == NS_STYLE_CURSOR_DEFAULT))
+    {
+      cursor = NS_STYLE_CURSOR_SPINNING;
+      container = nsnull;
+    }
   }
 
   if (aTargetFrame) {
@@ -3282,14 +3389,11 @@ public:
   virtual void HandleEvent(nsEventChainPostVisitor& aVisitor)
   {
     if (aVisitor.mPresContext) {
-      nsIPresShell* shell = aVisitor.mPresContext->GetPresShell();
-      if (shell) {
-        nsIFrame* frame = shell->GetPrimaryFrameFor(mTarget);
-        if (frame) {
-          frame->HandleEvent(aVisitor.mPresContext,
-                             (nsGUIEvent*) aVisitor.mEvent,
-                             &aVisitor.mEventStatus);
-        }
+      nsIFrame* frame = aVisitor.mPresContext->GetPrimaryFrameFor(mTarget);
+      if (frame) {
+        frame->HandleEvent(aVisitor.mPresContext,
+                           (nsGUIEvent*) aVisitor.mEvent,
+                           &aVisitor.mEventStatus);
       }
     }
   }
@@ -3310,7 +3414,7 @@ nsEventStateManager::DispatchMouseEvent(nsGUIEvent* aEvent, PRUint32 aMessage,
   event.isControl = ((nsMouseEvent*)aEvent)->isControl;
   event.isAlt = ((nsMouseEvent*)aEvent)->isAlt;
   event.isMeta = ((nsMouseEvent*)aEvent)->isMeta;
-  event.nativeMsg = ((nsMouseEvent*)aEvent)->nativeMsg;
+  event.pluginEvent = ((nsMouseEvent*)aEvent)->pluginEvent;
   event.relatedTarget = aRelatedContent;
 
   mCurrentTargetContent = aTargetContent;
@@ -3321,12 +3425,11 @@ nsEventStateManager::DispatchMouseEvent(nsGUIEvent* aEvent, PRUint32 aMessage,
     nsEventDispatcher::Dispatch(aTargetContent, mPresContext, &event, nsnull,
                                 &status, &callback);
 
-    nsIPresShell *shell = mPresContext ? mPresContext->GetPresShell() : nsnull;
-    if (shell) {
-      // Although the primary frame was checked in event callback, 
-      // it may not be the same object after event dispatching and handling.
-      // So we need to refetch it.
-      targetFrame = shell->GetPrimaryFrameFor(aTargetContent);
+    // Although the primary frame was checked in event callback, 
+    // it may not be the same object after event dispatching and handling.
+    // So we need to refetch it.
+    if (mPresContext) {
+      targetFrame = mPresContext->GetPrimaryFrameFor(aTargetContent);
     }
   }
 
@@ -3470,7 +3573,6 @@ nsEventStateManager::GenerateMouseEnterExit(nsGUIEvent* aEvent)
         // any content) or in print preview dead space
         targetElement = mDocument->GetRootContent();
       }
-      NS_ASSERTION(targetElement, "Mouse move must have some target content");
       if (targetElement) {
         NotifyMouseOver(aEvent, targetElement);
       }
@@ -3532,7 +3634,6 @@ nsEventStateManager::GenerateDragDropEnterExit(nsPresContext* aPresContext,
     }
     break;
 
-  case NS_DRAGDROP_DROP:
   case NS_DRAGDROP_EXIT:
     {
       //This is actually the window mouse exit event.
@@ -3587,11 +3688,53 @@ nsEventStateManager::FireDragEnterOrExit(nsPresContext* aPresContext,
     if (status == nsEventStatus_eConsumeNoDefault || aMsg == NS_DRAGDROP_EXIT)
       SetContentState((aMsg == NS_DRAGDROP_ENTER) ? aTargetContent : nsnull,
                       NS_EVENT_STATE_DRAGOVER);
+
+    // collect any changes to moz cursor settings stored in the event's
+    // data transfer.
+    if (aMsg == NS_DRAGDROP_LEAVE_SYNTH || aMsg == NS_DRAGDROP_EXIT_SYNTH ||
+        aMsg == NS_DRAGDROP_ENTER)
+      UpdateDragDataTransfer(&event);
   }
 
   // Finally dispatch the event to the frame
   if (aTargetFrame)
     aTargetFrame->HandleEvent(aPresContext, &event, &status);
+}
+
+void
+nsEventStateManager::UpdateDragDataTransfer(nsDragEvent* dragEvent)
+{
+  NS_ASSERTION(dragEvent, "drag event is null in UpdateDragDataTransfer!");
+  if (!dragEvent->dataTransfer)
+    return;
+
+  nsCOMPtr<nsIDragSession> dragSession = nsContentUtils::GetDragSession();
+
+  if (dragSession) {
+    // the initial dataTransfer is the one from the dragstart event that
+    // was set on the dragSession when the drag began.
+    nsCOMPtr<nsIDOMDataTransfer> initialDataTransfer;
+    dragSession->GetDataTransfer(getter_AddRefs(initialDataTransfer));
+
+    // grab the interface that has GetMozCursor.
+    nsCOMPtr<nsIDOMNSDataTransfer> initialDataTransferNS = 
+      do_QueryInterface(initialDataTransfer);
+    nsCOMPtr<nsIDOMNSDataTransfer> eventTransferNS = 
+      do_QueryInterface(dragEvent->dataTransfer);
+
+    if (initialDataTransferNS && eventTransferNS) {
+      // retrieve the current moz cursor setting and save it.
+      nsAutoString mozCursor;
+      eventTransferNS->GetMozCursor(mozCursor);
+      initialDataTransferNS->SetMozCursor(mozCursor);
+    }
+  }
+}
+
+nsIContent* GetParentContentForMouseTarget(nsIContent* aContent)
+{
+  return aContent && aContent->IsInNativeAnonymousSubtree() ?
+           aContent->GetParent() : nsnull;
 }
 
 nsresult
@@ -3606,42 +3749,54 @@ nsEventStateManager::SetClickCount(nsPresContext* aPresContext,
   case nsMouseEvent::eLeftButton:
     if (aEvent->message == NS_MOUSE_BUTTON_DOWN) {
       mLastLeftMouseDownContent = mouseContent;
+      mLastLeftMouseDownContentParent =
+        GetParentContentForMouseTarget(mouseContent);
     } else if (aEvent->message == NS_MOUSE_BUTTON_UP) {
-      if (mLastLeftMouseDownContent == mouseContent) {
+      if (mLastLeftMouseDownContent == mouseContent ||
+          mLastLeftMouseDownContentParent == mouseContent) {
         aEvent->clickCount = mLClickCount;
         mLClickCount = 0;
       } else {
         aEvent->clickCount = 0;
       }
       mLastLeftMouseDownContent = nsnull;
+      mLastLeftMouseDownContentParent = nsnull;
     }
     break;
 
   case nsMouseEvent::eMiddleButton:
     if (aEvent->message == NS_MOUSE_BUTTON_DOWN) {
       mLastMiddleMouseDownContent = mouseContent;
+      mLastMiddleMouseDownContentParent =
+        GetParentContentForMouseTarget(mouseContent);
     } else if (aEvent->message == NS_MOUSE_BUTTON_UP) {
-      if (mLastMiddleMouseDownContent == mouseContent) {
+      if (mLastMiddleMouseDownContent == mouseContent ||
+          mLastMiddleMouseDownContentParent == mouseContent) {
         aEvent->clickCount = mMClickCount;
         mMClickCount = 0;
       } else {
         aEvent->clickCount = 0;
       }
-      // XXX Why we don't clear mLastMiddleMouseDownContent here?
+      mLastMiddleMouseDownContent = nsnull;
+      mLastMiddleMouseDownContentParent = nsnull;
     }
     break;
 
   case nsMouseEvent::eRightButton:
     if (aEvent->message == NS_MOUSE_BUTTON_DOWN) {
       mLastRightMouseDownContent = mouseContent;
+      mLastRightMouseDownContentParent =
+        GetParentContentForMouseTarget(mouseContent);
     } else if (aEvent->message == NS_MOUSE_BUTTON_UP) {
-      if (mLastRightMouseDownContent == mouseContent) {
+      if (mLastRightMouseDownContent == mouseContent ||
+          mLastRightMouseDownContentParent == mouseContent) {
         aEvent->clickCount = mRClickCount;
         mRClickCount = 0;
       } else {
         aEvent->clickCount = 0;
       }
-      // XXX Why we don't clear mLastRightMouseDownContent here?
+      mLastRightMouseDownContent = nsnull;
+      mLastRightMouseDownContentParent = nsnull;
     }
     break;
   }
@@ -3728,7 +3883,7 @@ nsEventStateManager::GetEventTarget(nsIFrame **aFrame)
   }
 
   if (mCurrentTargetContent) {
-    mCurrentTarget = shell->GetPrimaryFrameFor(mCurrentTargetContent);
+    mCurrentTarget = mPresContext->GetPrimaryFrameFor(mCurrentTargetContent);
     if (mCurrentTarget) {
       *aFrame = mCurrentTarget;
       return NS_OK;
@@ -3798,15 +3953,9 @@ nsEventStateManager::GetContentState(nsIContent *aContent, PRInt32& aState)
     }
   }
 
-  nsIFocusManager* fm = nsFocusManager::GetFocusManager();
-  if (fm) {
-    nsCOMPtr<nsIDOMElement> focusedElement;
-    fm->GetFocusedElement(getter_AddRefs(focusedElement));
-
-    nsCOMPtr<nsIContent> focusedContent = do_QueryInterface(focusedElement);
-    if (aContent == focusedContent) {
-      aState |= NS_EVENT_STATE_FOCUS;
-    }
+  nsFocusManager* fm = nsFocusManager::GetFocusManager();
+  if (fm && aContent == fm->GetFocusedContent()) {
+    aState |= NS_EVENT_STATE_FOCUS;
   }
   if (aContent == mDragOverContent) {
     aState |= NS_EVENT_STATE_DRAGOVER;
@@ -3907,8 +4056,10 @@ nsEventStateManager::SetContentState(nsIContent *aContent, PRInt32 aState)
     if (!mPresContext || mPresContext->IsDynamic()) {
       newHover = aContent;
     } else {
-      nsIFrame *frame = aContent ?
-        mPresContext->PresShell()->GetPrimaryFrameFor(aContent) : nsnull;
+      NS_ASSERTION(!aContent ||
+                   aContent->GetCurrentDoc() == mPresContext->PresShell()->GetDocument(),
+                   "Unexpected document");
+      nsIFrame *frame = aContent ? aContent->GetPrimaryFrame() : nsnull;
       if (frame && nsLayoutUtils::IsViewportScrollbarFrame(frame)) {
         // The scrollbars of viewport should not ignore the hover state.
         // Because they are *not* the content of the web page.
@@ -4204,4 +4355,78 @@ nsEventStateManager::IsShellVisible(nsIDocShell* aShell)
   // we don't tab into hidden tabs of tabbrowser.  -bryner
 
   return isVisible;
+}
+
+nsresult
+nsEventStateManager::DoContentCommandEvent(nsContentCommandEvent* aEvent)
+{
+  EnsureDocument(mPresContext);
+  NS_ENSURE_TRUE(mDocument, NS_ERROR_FAILURE);
+  nsCOMPtr<nsPIDOMWindow> window(do_QueryInterface(mDocument->GetWindow()));
+  NS_ENSURE_TRUE(window, NS_ERROR_FAILURE);
+  nsIFocusController* fc = window->GetRootFocusController();
+  NS_ENSURE_TRUE(fc, NS_ERROR_FAILURE);
+  const char* cmd;
+  switch (aEvent->message) {
+    case NS_CONTENT_COMMAND_CUT:
+      cmd = "cmd_cut";
+      break;
+    case NS_CONTENT_COMMAND_COPY:
+      cmd = "cmd_copy";
+      break;
+    case NS_CONTENT_COMMAND_PASTE:
+      cmd = "cmd_paste";
+      break;
+    case NS_CONTENT_COMMAND_DELETE:
+      cmd = "cmd_delete";
+      break;
+    case NS_CONTENT_COMMAND_UNDO:
+      cmd = "cmd_undo";
+      break;
+    case NS_CONTENT_COMMAND_REDO:
+      cmd = "cmd_redo";
+      break;
+    case NS_CONTENT_COMMAND_PASTE_TRANSFERABLE:
+      cmd = "cmd_pasteTransferable";
+      break;
+    default:
+      return NS_ERROR_NOT_IMPLEMENTED;
+  }
+  nsCOMPtr<nsIController> controller;
+  nsresult rv = fc->GetControllerForCommand(window, cmd, getter_AddRefs(controller));
+  NS_ENSURE_SUCCESS(rv, rv);
+  if (!controller) {
+    // When GetControllerForCommand succeeded but there is no controller, the
+    // command isn't supported.
+    aEvent->mIsEnabled = PR_FALSE;
+  } else {
+    PRBool canDoIt;
+    rv = controller->IsCommandEnabled(cmd, &canDoIt);
+    NS_ENSURE_SUCCESS(rv, rv);
+    aEvent->mIsEnabled = canDoIt;
+    if (canDoIt && !aEvent->mOnlyEnabledCheck) {
+      switch (aEvent->message) {
+        case NS_CONTENT_COMMAND_PASTE_TRANSFERABLE: {
+          nsCOMPtr<nsICommandController> commandController = do_QueryInterface(controller);
+          NS_ENSURE_STATE(commandController);
+
+          nsCOMPtr<nsICommandParams> params = do_CreateInstance("@mozilla.org/embedcomp/command-params;1", &rv);
+          NS_ENSURE_SUCCESS(rv, rv);
+
+          rv = params->SetISupportsValue("transferable", aEvent->mTransferable);
+          NS_ENSURE_SUCCESS(rv, rv);
+
+          rv = commandController->DoCommandWithParams(cmd, params);
+          break;
+        }
+        
+        default:
+          rv = controller->DoCommand(cmd);
+          break;
+      }
+      NS_ENSURE_SUCCESS(rv, rv);
+    }
+  }
+  aEvent->mSucceeded = PR_TRUE;
+  return NS_OK;
 }

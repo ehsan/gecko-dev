@@ -64,6 +64,7 @@ enum nsDOMClassInfoID {
   eDOMClassInfo_DocumentType_id,
   eDOMClassInfo_DOMImplementation_id,
   eDOMClassInfo_DOMException_id,
+  eDOMClassInfo_DOMTokenList_id,
   eDOMClassInfo_DocumentFragment_id,
   eDOMClassInfo_Element_id,
   eDOMClassInfo_Attr_id,
@@ -84,6 +85,7 @@ enum nsDOMClassInfoID {
   eDOMClassInfo_DragEvent_id,
   eDOMClassInfo_KeyboardEvent_id,
   eDOMClassInfo_PopupBlockedEvent_id,
+  eDOMClassInfo_OrientationEvent_id,
 
   // HTML classes
   eDOMClassInfo_HTMLDocument_id,
@@ -346,18 +348,15 @@ enum nsDOMClassInfoID {
   eDOMClassInfo_SVGRect_id,
   eDOMClassInfo_SVGTransform_id,
   eDOMClassInfo_SVGTransformList_id,
-  eDOMClassInfo_SVGUnitTypes_id,
   eDOMClassInfo_SVGZoomEvent_id,
 #endif // MOZ_SVG
 
   // Canvas
   eDOMClassInfo_HTMLCanvasElement_id,
-#ifdef MOZ_ENABLE_CANVAS
   eDOMClassInfo_CanvasRenderingContext2D_id,
   eDOMClassInfo_CanvasGradient_id,
   eDOMClassInfo_CanvasPattern_id,
   eDOMClassInfo_TextMetrics_id,
-#endif
 
   // SmartCard Events
   eDOMClassInfo_SmartCardEvent_id,
@@ -384,8 +383,7 @@ enum nsDOMClassInfoID {
   eDOMClassInfo_StorageList_id,
   eDOMClassInfo_StorageItem_id,
   eDOMClassInfo_StorageEvent_id,
-
-  eDOMClassInfo_WindowRoot_id,
+  eDOMClassInfo_StorageEventObsolete_id,
 
   // DOMParser, XMLSerializer
   eDOMClassInfo_DOMParser_id,
@@ -410,11 +408,12 @@ enum nsDOMClassInfoID {
   eDOMClassInfo_XULCommandEvent_id,
   eDOMClassInfo_CommandEvent_id,
   eDOMClassInfo_OfflineResourceList_id,
-  eDOMClassInfo_LoadStatus_id,
 
   eDOMClassInfo_FileList_id,
   eDOMClassInfo_File_id,
   eDOMClassInfo_FileException_id,
+  eDOMClassInfo_FileError_id,
+  eDOMClassInfo_FileReader_id,
 
   // DOM modal content window class, almost identical to Window
   eDOMClassInfo_ModalContentWindow_id,
@@ -461,9 +460,24 @@ enum nsDOMClassInfoID {
 
   eDOMClassInfo_Worker_id,
 
-#ifdef MOZ_ENABLE_CANVAS3D
-  eDOMClassInfo_CanvasRenderingContextGLWeb20_id,
-#endif
+  // WebGL
+  eDOMClassInfo_CanvasRenderingContextWebGL_id,
+  eDOMClassInfo_WebGLBuffer_id,
+  eDOMClassInfo_WebGLTexture_id,
+  eDOMClassInfo_WebGLProgram_id,
+  eDOMClassInfo_WebGLShader_id,
+  eDOMClassInfo_WebGLFramebuffer_id,
+  eDOMClassInfo_WebGLRenderbuffer_id,
+
+  eDOMClassInfo_PaintRequest_id,
+  eDOMClassInfo_PaintRequestList_id,
+
+  eDOMClassInfo_ScrollAreaEvent_id,
+  eDOMClassInfo_PopStateEvent_id,
+
+  eDOMClassInfo_EventListenerInfo_id,
+
+  eDOMClassInfo_TransitionEvent_id,
 
   // This one better be the last one in this list
   eDOMClassInfoIDCount

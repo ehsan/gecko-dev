@@ -48,6 +48,8 @@
 
 class nsMathMLTokenFrame : public nsMathMLContainerFrame {
 public:
+  NS_DECL_FRAMEARENA_HELPERS
+
   friend nsIFrame* NS_NewMathMLTokenFrame(nsIPresShell* aPresShell, nsStyleContext* aContext);
 
   virtual eMathMLFrameType GetMathMLFrameType();
@@ -100,7 +102,7 @@ protected:
   PRBool SetTextStyle();
 
   // helper to set the quotes of <ms>
-  void SetQuotes();
+  void SetQuotes(PRBool aNotify);
 };
 
 #endif /* nsMathMLTokentFrame_h___ */

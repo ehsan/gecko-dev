@@ -39,7 +39,8 @@
 #ifndef _nsAccessibleTreeWalker_H_
 #define _nsAccessibleTreeWalker_H_
 
-/* For documentation of the accessibility architecture,  * see http://lxr.mozilla.org/seamonkey/source/accessible/accessible-docs.html
+/* For documentation of the accessibility architecture, see
+ * http://www.mozilla.org/access/architecture
  */
 
 #include "nsCOMPtr.h"
@@ -47,8 +48,8 @@
 #include "nsIAccessible.h"
 #include "nsIDOMNode.h"
 #include "nsIDOMNodeList.h"
-#include "nsIAccessibilityService.h"
 #include "nsIWeakReference.h"
+#include "nsIFrame.h"
 
 enum { eSiblingsUninitialized = -1, eSiblingsWalkFrames = -2 };
 
@@ -58,7 +59,8 @@ struct WalkState {
   nsCOMPtr<nsIDOMNodeList> siblingList;
   nsIContent *parentContent; // For walking normal DOM
   WalkState *prevState;
-  nsIFrame *frame;     // Helps avoid GetPrimaryFrameFor() calls
+  // XXXbz is |frame| still needed?
+  nsWeakFrame frame;       // Helps avoid GetPrimaryFrameFor() calls
   PRInt32 siblingIndex;    // Holds a state flag or an index into the siblingList
   PRBool isHidden;         // Don't enter subtree if hidden
 };
@@ -119,12 +121,9 @@ protected:
   NS_IMETHOD PopState();
 
   /**
-   * Change current state so that its frame is changed to next frame.
-   *
-   * @param  aTryFirstChild  [in] points whether we should move to child or
-   *                         sibling frame
+   * Make treewalker traverse by frame tree if necessary.
    */
-  void UpdateFrame(PRBool aTryFirstChild);
+  void WalkFrames();
 
   /**
    * Change current state so that its node is changed to next node.
@@ -132,7 +131,6 @@ protected:
   void GetNextDOMNode();
 
   nsCOMPtr<nsIWeakReference> mWeakShell;
-  nsCOMPtr<nsIAccessibilityService> mAccService;
   PRBool mWalkAnonContent;
 };
 

@@ -41,7 +41,8 @@
 #include <winbase.h>
 #include <wingdi.h>
 #include <winuser.h>
-#include <NetCon.h>
+#include <ole2.h>
+#include <netcon.h>
 #include <objbase.h>
 #include <iprtrmib.h>
 #include "prmem.h"
@@ -175,6 +176,11 @@ nsNotifyAddrListener::Run()
     PRBool shuttingDown = PR_FALSE;
 
     InitIPHelperLibrary();
+
+    if (!sNotifyAddrChange) {
+        CloseHandle(ev);
+        return NS_ERROR_NOT_AVAILABLE;
+    }
 
     overlapped.hEvent = ev;
     while (!shuttingDown) {
