@@ -11,7 +11,9 @@
 
 #include "nsAtomTable.h"
 #include "nsStaticAtom.h"
-#include "nsStringGlue.h"
+#include "nsString.h"
+#include "nsReadableUtils.h"
+#include "nsUTF8Utils.h"
 #include "nsCRT.h"
 #include "pldhash.h"
 #include "prenv.h"
@@ -20,6 +22,9 @@
 #include "nsHashKeys.h"
 #include "nsAutoPtr.h"
 #include "nsUnicharUtils.h"
+
+#define PL_ARENA_CONST_ALIGN_MASK 3
+#include "plarena.h"
 
 using namespace mozilla;
 

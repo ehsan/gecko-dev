@@ -25,8 +25,6 @@
 using namespace js;
 using namespace js::jit;
 
-using JS::GenericNaN;
-
 namespace {
 
 // Emulate a TypeSet logic from a Type object to avoid duplicating the guard
@@ -612,8 +610,7 @@ MacroAssembler::clampDoubleToUint8(FloatRegister input, Register output)
 }
 
 void
-MacroAssembler::newGCThing(const Register &result, gc::AllocKind allocKind, Label *fail,
-                           gc::InitialHeap initialHeap /* = gc::DefaultHeap */)
+MacroAssembler::newGCThing(const Register &result, gc::AllocKind allocKind, Label *fail)
 {
     // Inlined equivalent of js::gc::NewGCThing() without failure case handling.
 
@@ -623,9 +620,9 @@ MacroAssembler::newGCThing(const Register &result, gc::AllocKind allocKind, Labe
 
 #ifdef JS_GC_ZEAL
     // Don't execute the inline path if gcZeal is active.
-    branch32(Assembler::NotEqual,
-             AbsoluteAddress(&GetIonContext()->runtime->gcZeal_), Imm32(0),
-             fail);
+    movePtr(ImmPtr(GetIonContext()->runtime), result);
+    loadPtr(Address(result, offsetof(JSRuntime, gcZeal_)), result);
+    branch32(Assembler::NotEqual, result, Imm32(0), fail);
 #endif
 
     // Don't execute the inline path if the compartment has an object metadata callback,
@@ -635,10 +632,7 @@ MacroAssembler::newGCThing(const Register &result, gc::AllocKind allocKind, Labe
 
 #ifdef JSGC_GENERATIONAL
     Nursery &nursery = GetIonContext()->runtime->gcNursery;
-    if (nursery.isEnabled() &&
-        allocKind <= gc::FINALIZE_OBJECT_LAST &&
-        initialHeap != gc::TenuredHeap)
-    {
+    if (nursery.isEnabled() && allocKind <= gc::FINALIZE_OBJECT_LAST) {
         // Inline Nursery::allocate. No explicit check for nursery.isEnabled()
         // is needed, as the comparison with the nursery's end will always fail
         // in such cases.
@@ -672,8 +666,7 @@ MacroAssembler::newGCThing(const Register &result, JSObject *templateObject, Lab
     JS_ASSERT(allocKind >= gc::FINALIZE_OBJECT0 && allocKind <= gc::FINALIZE_OBJECT_LAST);
     JS_ASSERT(!templateObject->hasDynamicElements());
 
-    gc::InitialHeap initialHeap = templateObject->type()->initialHeapForJITAlloc();
-    newGCThing(result, allocKind, fail, initialHeap);
+    newGCThing(result, allocKind, fail);
 }
 
 void
@@ -1439,6 +1432,12 @@ MacroAssembler::convertInt32ValueToDouble(const Address &address, Register scrat
     storeDouble(ScratchFloatReg, address);
 }
 
+static const double DoubleZero = 0.0;
+static const double DoubleOne  = 1.0;
+static const float FloatZero = 0.0;
+static const float FloatOne  = 1.0;
+static const float FloatNaN = js_NaN;
+
 void
 MacroAssembler::convertValueToFloatingPoint(ValueOperand value, FloatRegister output,
                                             Label *fail, MIRType outputType)
@@ -1454,11 +1453,11 @@ MacroAssembler::convertValueToFloatingPoint(ValueOperand value, FloatRegister ou
     branchTestUndefined(Assembler::NotEqual, tag, fail);
 
     // fall-through: undefined
-    loadConstantFloatingPoint(GenericNaN(), float(GenericNaN()), output, outputType);
+    loadConstantFloatingPoint(js_NaN, FloatNaN, output, outputType);
     jump(&done);
 
     bind(&isNull);
-    loadConstantFloatingPoint(0.0, 0.0f, output, outputType);
+    loadConstantFloatingPoint(DoubleZero, FloatZero, output, outputType);
     jump(&done);
 
     bind(&isBool);
@@ -1493,19 +1492,19 @@ MacroAssembler::convertValueToFloatingPoint(JSContext *cx, const Value &v, Float
 
     if (v.isBoolean()) {
         if (v.toBoolean())
-            loadConstantFloatingPoint(1.0, 1.0f, output, outputType);
+            loadConstantFloatingPoint(DoubleOne, FloatOne, output, outputType);
         else
-            loadConstantFloatingPoint(0.0, 0.0f, output, outputType);
+            loadConstantFloatingPoint(DoubleZero, FloatZero, output, outputType);
         return true;
     }
 
     if (v.isNull()) {
-        loadConstantFloatingPoint(0.0, 0.0f, output, outputType);
+        loadConstantFloatingPoint(DoubleZero, FloatZero, output, outputType);
         return true;
     }
 
     if (v.isUndefined()) {
-        loadConstantFloatingPoint(GenericNaN(), float(GenericNaN()), output, outputType);
+        loadConstantFloatingPoint(js_NaN, FloatNaN, output, outputType);
         return true;
     }
 
@@ -1579,7 +1578,7 @@ MacroAssembler::convertTypedOrValueToFloatingPoint(TypedOrValueRegister src, Flo
     bool outputIsDouble = outputType == MIRType_Double;
     switch (src.type()) {
       case MIRType_Null:
-        loadConstantFloatingPoint(0.0, 0.0f, output, outputType);
+        loadConstantFloatingPoint(DoubleZero, FloatZero, output, outputType);
         break;
       case MIRType_Boolean:
       case MIRType_Int32:
@@ -1606,7 +1605,7 @@ MacroAssembler::convertTypedOrValueToFloatingPoint(TypedOrValueRegister src, Flo
         jump(fail);
         break;
       case MIRType_Undefined:
-        loadConstantFloatingPoint(GenericNaN(), float(GenericNaN()), output, outputType);
+        loadConstantFloatingPoint(js_NaN, FloatNaN, output, outputType);
         break;
       default:
         MOZ_ASSUME_UNREACHABLE("Bad MIRType");

@@ -925,6 +925,27 @@ GetTemporaryStorageLimit(nsIFile* aDirectory, uint64_t aCurrentUsage,
   return NS_OK;
 }
 
+void
+GetInfoForChrome(nsACString* aGroup, nsACString* aASCIIOrigin,
+                 StoragePrivilege* aPrivilege,
+                 PersistenceType* aDefaultPersistenceType)
+{
+  static const char kChromeOrigin[] = "chrome";
+
+  if (aGroup) {
+    aGroup->AssignLiteral(kChromeOrigin);
+  }
+  if (aASCIIOrigin) {
+    aASCIIOrigin->AssignLiteral(kChromeOrigin);
+  }
+  if (aPrivilege) {
+    *aPrivilege = Chrome;
+  }
+  if (aDefaultPersistenceType) {
+    *aDefaultPersistenceType = PERSISTENCE_TYPE_PERSISTENT;
+  }
+}
+
 } // anonymous namespace
 
 QuotaManager::QuotaManager()
@@ -2142,7 +2163,13 @@ QuotaManager::GetInfoFromWindow(nsPIDOMWindow* aWindow,
 {
   NS_ASSERTION(NS_IsMainThread(),
                "We're about to touch a window off the main thread!");
-  NS_ASSERTION(aWindow, "Don't hand me a null window!");
+
+  if (!aWindow) {
+    NS_ASSERTION(nsContentUtils::IsCallerChrome(),
+                 "Null window but not chrome!");
+    GetInfoForChrome(aGroup, aASCIIOrigin, aPrivilege, aDefaultPersistenceType);
+    return NS_OK;
+  }
 
   nsCOMPtr<nsIScriptObjectPrincipal> sop = do_QueryInterface(aWindow);
   NS_ENSURE_TRUE(sop, NS_ERROR_FAILURE);
@@ -2155,31 +2182,6 @@ QuotaManager::GetInfoFromWindow(nsPIDOMWindow* aWindow,
   NS_ENSURE_SUCCESS(rv, rv);
 
   return NS_OK;
-}
-
-// static
-void
-QuotaManager::GetInfoForChrome(nsACString* aGroup,
-                               nsACString* aASCIIOrigin,
-                               StoragePrivilege* aPrivilege,
-                               PersistenceType* aDefaultPersistenceType)
-{
-  NS_ASSERTION(nsContentUtils::IsCallerChrome(), "Only for chrome!");
-
-  static const char kChromeOrigin[] = "chrome";
-
-  if (aGroup) {
-    aGroup->AssignLiteral(kChromeOrigin);
-  }
-  if (aASCIIOrigin) {
-    aASCIIOrigin->AssignLiteral(kChromeOrigin);
-  }
-  if (aPrivilege) {
-    *aPrivilege = Chrome;
-  }
-  if (aDefaultPersistenceType) {
-    *aDefaultPersistenceType = PERSISTENCE_TYPE_PERSISTENT;
-  }
 }
 
 NS_IMPL_ISUPPORTS2(QuotaManager, nsIQuotaManager, nsIObserver)

@@ -7,8 +7,6 @@
 #ifndef js_GCAPI_h
 #define js_GCAPI_h
 
-#include "mozilla/NullPtr.h"
- 
 #include "js/HeapAPI.h"
 #include "js/RootingAPI.h"
 #include "js/Value.h"
@@ -228,7 +226,7 @@ class JS_PUBLIC_API(ObjectPtr)
     Heap<JSObject *> value;
 
   public:
-    ObjectPtr() : value(nullptr) {}
+    ObjectPtr() : value(NULL) {}
 
     ObjectPtr(JSObject *obj) : value(obj) {}
 
@@ -238,7 +236,7 @@ class JS_PUBLIC_API(ObjectPtr)
     void finalize(JSRuntime *rt) {
         if (IsIncrementalBarrierNeeded(rt))
             IncrementalObjectBarrier(value);
-        value = nullptr;
+        value = NULL;
     }
 
     void init(JSObject *obj) { value = obj; }

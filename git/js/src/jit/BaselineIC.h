@@ -3125,7 +3125,7 @@ class ICGetElemNativeCompiler : public ICStubCompiler
         acctype_(acctype),
         needsAtomize_(needsAtomize),
         offset_(offset),
-        getter_(js::NullPtr()),
+        getter_(NULL),
         pcOffset_(0)
     {}
 

@@ -74,7 +74,6 @@ WebGLContext::InitWebGL2()
     };
     const GLFeature::Enum sFeatureRequiredArr[] = {
         GLFeature::blend_minmax,
-        GLFeature::instanced_non_arrays,
         GLFeature::transform_feedback
     };
 

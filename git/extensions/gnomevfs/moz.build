@@ -12,5 +12,3 @@ CPP_SOURCES += [
 
 LIBRARY_NAME = 'nkgnomevfs'
 
-IS_COMPONENT = True
-

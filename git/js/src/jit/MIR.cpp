@@ -1246,7 +1246,7 @@ MBinaryArithInstruction::trySpecializeFloat32()
 bool
 MAbs::fallible() const
 {
-    return !implicitTruncate_ && (!range() || !range()->hasInt32Bounds());
+    return !implicitTruncate_ && (!range() || !range()->isInt32());
 }
 
 MDefinition *
@@ -1328,6 +1328,14 @@ MMod::canBePowerOfTwoDivisor() const
     return true;
 }
 
+static inline MDefinition *
+TryFold(MDefinition *original, MDefinition *replacement)
+{
+    if (original->type() == replacement->type())
+        return replacement;
+    return original;
+}
+
 MDefinition *
 MMod::foldsTo(bool useValueNumbers)
 {
@@ -1353,7 +1361,7 @@ MAdd::fallible()
     // either the truncation analysis shows that there are non-truncated uses.
     if (isTruncated())
         return false;
-    if (range() && range()->hasInt32Bounds())
+    if (range() && range()->isInt32())
         return false;
     return true;
 }
@@ -1364,7 +1372,7 @@ MSub::fallible()
     // see comment in MAdd::fallible()
     if (isTruncated())
         return false;
-    if (range() && range()->hasInt32Bounds())
+    if (range() && range()->isInt32())
         return false;
     return true;
 }
@@ -1432,7 +1440,7 @@ MMul::canOverflow()
 {
     if (isTruncated())
         return false;
-    return !range() || !range()->hasInt32Bounds();
+    return !range() || !range()->isInt32();
 }
 
 bool
@@ -1440,7 +1448,7 @@ MUrsh::canOverflow()
 {
     if (!canOverflow_)
         return false;
-    return !range() || !range()->hasInt32Bounds();
+    return !range() || !range()->isInt32();
 }
 
 static inline bool
@@ -2373,15 +2381,24 @@ MNot::foldsTo(bool useValueNumbers)
     return this;
 }
 
+bool
+MBoundsCheckLower::fallible()
+{
+    return !range() || range()->lower() < minimum_;
+}
+
 void
 MBeta::printOpcode(FILE *fp) const
 {
-    MDefinition::printOpcode(fp);
+    PrintOpcodeName(fp, op());
+    fprintf(fp, " ");
+    getOperand(0)->printName(fp);
+    fprintf(fp, " ");
 
     Sprinter sp(GetIonContext()->cx);
     sp.init();
     comparison_->print(sp);
-    fprintf(fp, " %s", sp.string());
+    fprintf(fp, "%s", sp.string());
 }
 
 bool

@@ -442,10 +442,9 @@ parent:
                               bool aElementWasHidden)
         returns (AudioChannelState value);
 
-    sync AudioChannelRegisterType(AudioChannelType aType, bool aWithVideo);
+    sync AudioChannelRegisterType(AudioChannelType aType);
     sync AudioChannelUnregisterType(AudioChannelType aType,
-                                    bool aElementHidden,
-                                    bool aWithVideo);
+                                    bool aElementHidden);
 
     async AudioChannelChangedNotification();
     async AudioChannelChangeDefVolChannel(AudioChannelType aType,

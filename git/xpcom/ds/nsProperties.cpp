@@ -4,6 +4,8 @@
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
 #include "nsProperties.h"
+#include "nsString.h"
+#include "nsCRT.h"
 
 ////////////////////////////////////////////////////////////////////////////////
 

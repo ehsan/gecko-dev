@@ -2020,8 +2020,10 @@ Accessible::RelationByType(uint32_t aType)
     case nsIAccessibleRelation::RELATION_LABEL_FOR: {
       Relation rel(new RelatedAccIterator(Document(), mContent,
                                           nsGkAtoms::aria_labelledby));
-      if (mContent->Tag() == nsGkAtoms::label && mContent->IsXUL())
-        rel.AppendIter(new IDRefsIterator(mDoc, mContent, nsGkAtoms::control));
+      if (mContent->Tag() == nsGkAtoms::label)
+        rel.AppendIter(new IDRefsIterator(mDoc, mContent, mContent->IsHTML() ?
+          nsGkAtoms::_for :
+          nsGkAtoms::control));
 
       return rel;
     }
