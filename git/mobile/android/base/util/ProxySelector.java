@@ -18,8 +18,6 @@
 
 package org.mozilla.gecko.util;
 
-import android.text.TextUtils;
-
 import java.io.IOException;
 import java.net.InetSocketAddress;
 import java.net.Proxy;
@@ -81,7 +79,7 @@ public class ProxySelector {
      */
     private Proxy lookupProxy(String hostKey, String portKey, Proxy.Type type, int defaultPort) {
         String host = System.getProperty(hostKey);
-        if (TextUtils.isEmpty(host)) {
+        if (host == null || host.isEmpty()) {
             return null;
         }
 

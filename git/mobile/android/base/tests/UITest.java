@@ -58,7 +58,6 @@ abstract class UITest extends ActivityInstrumentationTestCase2<Activity>
     private String mBaseIpUrl;
 
     protected AboutHomeComponent mAboutHome;
-    protected AppMenuComponent mAppMenu;
     protected ToolbarComponent mToolbar;
 
     static {
@@ -121,7 +120,6 @@ abstract class UITest extends ActivityInstrumentationTestCase2<Activity>
 
     private void initComponents() {
         mAboutHome = new AboutHomeComponent(this);
-        mAppMenu = new AppMenuComponent(this);
         mToolbar = new ToolbarComponent(this);
     }
 
@@ -164,9 +162,6 @@ abstract class UITest extends ActivityInstrumentationTestCase2<Activity>
         switch (type) {
             case ABOUTHOME:
                 return mAboutHome;
-
-            case APPMENU:
-                return mAppMenu;
 
             case TOOLBAR:
                 return mToolbar;

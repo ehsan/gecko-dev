@@ -57,7 +57,7 @@ public class DefaultGlobalSessionCallback implements GlobalSessionCallback {
   }
 
   @Override
-  public boolean shouldBackOffStorage() {
+  public boolean shouldBackOff() {
     return false;
   }
 

@@ -136,8 +136,6 @@ pref("browser.display.startUI.maxresults", 16);
 
 // Number of times to display firstrun instructions on new tab page
 pref("browser.firstrun.count", 3);
-// Has the content first run been dismissed
-pref("browser.firstrun-content.dismissed", false);
 
 // Backspace and Shift+Backspace behavior
 // 0 goes Back/Forward

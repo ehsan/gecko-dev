@@ -23,7 +23,9 @@ import org.mozilla.gecko.preferences.GeckoPreferences;
 import org.mozilla.gecko.updater.UpdateService;
 import org.mozilla.gecko.updater.UpdateServiceHelper;
 import org.mozilla.gecko.util.ActivityResultHandler;
+import org.mozilla.gecko.util.EventDispatcher;
 import org.mozilla.gecko.util.GeckoEventListener;
+import org.mozilla.gecko.util.GeckoEventResponder;
 import org.mozilla.gecko.util.HardwareUtils;
 import org.mozilla.gecko.util.ThreadUtils;
 import org.mozilla.gecko.util.UiAsyncTask;
@@ -132,6 +134,7 @@ public abstract class GeckoApp
     ContextGetter,
     GeckoAppShell.GeckoInterface,
     GeckoEventListener,
+    GeckoEventResponder,
     GeckoMenu.Callback,
     GeckoMenu.MenuPresenter,
     LocationListener,
@@ -184,6 +187,7 @@ public abstract class GeckoApp
     protected GeckoProfile mProfile;
     public static int mOrientation;
     protected boolean mIsRestoringActivity;
+    private String mCurrentResponse = "";
 
     private ContactService mContactService;
     private PromptService mPromptService;
@@ -681,7 +685,7 @@ public abstract class GeckoApp
                 }
                 JSONObject handlersJSON = new JSONObject();
                 handlersJSON.put("apps", new JSONArray(appList));
-                EventDispatcher.sendResponse(message, handlersJSON);
+                mCurrentResponse = handlersJSON.toString();
             } else if (event.equals("Intent:Open")) {
                 GeckoAppShell.openUriExternal(message.optString("url"),
                     message.optString("mime"), message.optString("packageName"),
@@ -689,15 +693,19 @@ public abstract class GeckoApp
             } else if (event.equals("Locale:Set")) {
                 setLocale(message.getString("locale"));
             } else if (event.equals("NativeApp:IsDebuggable")) {
-                JSONObject ret = new JSONObject();
-                ret.put("isDebuggable", getIsDebuggable() ? "true" : "false");
-                EventDispatcher.sendResponse(message, ret);
+                mCurrentResponse = getIsDebuggable() ? "true" : "false";
             } else if (event.equals("SystemUI:Visibility")) {
                 setSystemUiVisible(message.getBoolean("visible"));
             }
         } catch (Exception e) {
             Log.e(LOGTAG, "Exception handling message \"" + event + "\":", e);
         }
+    }
+
+    public String getResponse(JSONObject origMessage) {
+        String res = mCurrentResponse;
+        mCurrentResponse = "";
+        return res;
     }
 
     void onStatePurged() { }
