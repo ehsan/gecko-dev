@@ -70,8 +70,8 @@ class CPOWProxyHandler : public BaseProxyHandler
                                           MutableHandle<JSPropertyDescriptor> desc) const MOZ_OVERRIDE;
     virtual bool defineProperty(JSContext *cx, HandleObject proxy, HandleId id,
                                 MutableHandle<JSPropertyDescriptor> desc) const MOZ_OVERRIDE;
-    virtual bool ownPropertyKeys(JSContext *cx, HandleObject proxy,
-                                 AutoIdVector &props) const MOZ_OVERRIDE;
+    virtual bool getOwnPropertyNames(JSContext *cx, HandleObject proxy,
+                                     AutoIdVector &props) const MOZ_OVERRIDE;
     virtual bool delete_(JSContext *cx, HandleObject proxy, HandleId id, bool *bp) const MOZ_OVERRIDE;
     virtual bool enumerate(JSContext *cx, HandleObject proxy, AutoIdVector &props) const MOZ_OVERRIDE;
 
@@ -223,16 +223,16 @@ WrapperOwner::defineProperty(JSContext *cx, HandleObject proxy, HandleId id,
 }
 
 bool
-CPOWProxyHandler::ownPropertyKeys(JSContext *cx, HandleObject proxy,
-                                  AutoIdVector &props) const
+CPOWProxyHandler::getOwnPropertyNames(JSContext *cx, HandleObject proxy,
+                                      AutoIdVector &props) const
 {
-    FORWARD(ownPropertyKeys, (cx, proxy, props));
+    FORWARD(getOwnPropertyNames, (cx, proxy, props));
 }
 
 bool
-WrapperOwner::ownPropertyKeys(JSContext *cx, HandleObject proxy, AutoIdVector &props)
+WrapperOwner::getOwnPropertyNames(JSContext *cx, HandleObject proxy, AutoIdVector &props)
 {
-    return getPropertyKeys(cx, proxy, JSITER_OWNONLY | JSITER_HIDDEN, props);
+    return getPropertyNames(cx, proxy, JSITER_OWNONLY | JSITER_HIDDEN, props);
 }
 
 bool
@@ -268,7 +268,7 @@ CPOWProxyHandler::enumerate(JSContext *cx, HandleObject proxy, AutoIdVector &pro
 bool
 WrapperOwner::enumerate(JSContext *cx, HandleObject proxy, AutoIdVector &props)
 {
-    return getPropertyKeys(cx, proxy, 0, props);
+    return getPropertyNames(cx, proxy, 0, props);
 }
 
 bool
@@ -471,7 +471,7 @@ CPOWProxyHandler::keys(JSContext *cx, HandleObject proxy, AutoIdVector &props) c
 bool
 WrapperOwner::keys(JSContext *cx, HandleObject proxy, AutoIdVector &props)
 {
-    return getPropertyKeys(cx, proxy, JSITER_OWNONLY, props);
+    return getPropertyNames(cx, proxy, JSITER_OWNONLY, props);
 }
 
 bool
@@ -771,13 +771,13 @@ WrapperOwner::init()
 }
 
 bool
-WrapperOwner::getPropertyKeys(JSContext *cx, HandleObject proxy, uint32_t flags, AutoIdVector &props)
+WrapperOwner::getPropertyNames(JSContext *cx, HandleObject proxy, uint32_t flags, AutoIdVector &props)
 {
     ObjectId objId = idOf(proxy);
 
     ReturnStatus status;
     InfallibleTArray<nsString> names;
-    if (!SendGetPropertyKeys(objId, flags, &status, &names))
+    if (!SendGetPropertyNames(objId, flags, &status, &names))
         return ipcfail(cx);
 
     LOG_STACK();

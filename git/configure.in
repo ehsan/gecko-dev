@@ -1423,6 +1423,7 @@ if test "$GNU_CC"; then
     # -Wendif-labels - catches `#else FOO` and `#endif FOO` not in comment
     # -Wenum-compare - catches comparison of different enum types
     # -Wignored-qualifiers - catches returns types with qualifiers like const
+    # -Wimplicit-int - catches C variable declaration without a type
     # -Wint-to-pointer-cast - catches cast to pointer from integer of different size
     # -Wmultichar - catches multicharacter integer constants like 'THIS'
     # -Wnonnull - catches NULL used with functions arguments marked as non-null
@@ -1449,6 +1450,7 @@ if test "$GNU_CC"; then
     _WARNINGS_CFLAGS="${_WARNINGS_CFLAGS} -Werror=endif-labels"
     _WARNINGS_CFLAGS="${_WARNINGS_CFLAGS} -Werror=enum-compare"
     _WARNINGS_CFLAGS="${_WARNINGS_CFLAGS} -Werror=ignored-qualifiers"
+    _WARNINGS_CFLAGS="${_WARNINGS_CFLAGS} -Werror=implicit-int"
     _WARNINGS_CFLAGS="${_WARNINGS_CFLAGS} -Werror=int-to-pointer-cast"
     _WARNINGS_CFLAGS="${_WARNINGS_CFLAGS} -Werror=multichar"
     _WARNINGS_CFLAGS="${_WARNINGS_CFLAGS} -Werror=nonnull"
@@ -1530,6 +1532,7 @@ if test "$GNU_CXX"; then
     _WARNINGS_CXXFLAGS="${_WARNINGS_CXXFLAGS} -Wall"
     _WARNINGS_CXXFLAGS="${_WARNINGS_CXXFLAGS} -Wempty-body"
     _WARNINGS_CXXFLAGS="${_WARNINGS_CXXFLAGS} -Woverloaded-virtual"
+    _WARNINGS_CXXFLAGS="${_WARNINGS_CXXFLAGS} -Wpointer-arith"
     _WARNINGS_CXXFLAGS="${_WARNINGS_CXXFLAGS} -Wsign-compare"
     _WARNINGS_CXXFLAGS="${_WARNINGS_CXXFLAGS} -Wwrite-strings"
 
@@ -1538,7 +1541,6 @@ if test "$GNU_CXX"; then
     _WARNINGS_CXXFLAGS="${_WARNINGS_CXXFLAGS} -Werror=int-to-pointer-cast"
     _WARNINGS_CXXFLAGS="${_WARNINGS_CXXFLAGS} -Werror=missing-braces"
     _WARNINGS_CXXFLAGS="${_WARNINGS_CXXFLAGS} -Werror=parentheses"
-    _WARNINGS_CXXFLAGS="${_WARNINGS_CXXFLAGS} -Werror=pointer-arith"
     _WARNINGS_CXXFLAGS="${_WARNINGS_CXXFLAGS} -Werror=return-type"
     _WARNINGS_CXXFLAGS="${_WARNINGS_CXXFLAGS} -Werror=sequence-point"
     _WARNINGS_CXXFLAGS="${_WARNINGS_CXXFLAGS} -Werror=unused-label"
@@ -6962,7 +6964,6 @@ if test "$NS_DISABLE_LOGGING"; then
     AC_DEFINE(NS_DISABLE_LOGGING)
 else
     AC_DEFINE(MOZ_LOGGING)
-    AC_DEFINE(FORCE_PR_LOG)
 fi
 
 dnl ========================================================
@@ -9058,15 +9059,9 @@ dnl ========================================================
 #   Android:  bug 864843
 #   B2G:      bug 866301
 
-if test "$MOZ_WIDGET_TOOLKIT" = "android"; then
+if test "$MOZ_WIDGET_TOOLKIT" = "android" ||
+   test "$MOZ_BUILD_APP" = "b2g"; then
     _INTL_API=no
-elif test "$MOZ_BUILD_APP" = "b2g"; then
-    if test "$MOZ_WIDGET_TOOLKIT" = "cocoa"; then
-        # nsCollationMacUC needs ICU
-        _INTL_API=yes
-    else
-        _INTL_API=no
-    fi
 else
     _INTL_API=yes
 fi

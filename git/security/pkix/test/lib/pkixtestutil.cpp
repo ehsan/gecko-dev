@@ -37,6 +37,12 @@ using namespace std;
 
 namespace mozilla { namespace pkix { namespace test {
 
+// python DottedOIDToCode.py --alg sha256WithRSAEncryption 1.2.840.113549.1.1.11
+static const uint8_t alg_sha256WithRSAEncryption[] = {
+  0x30, 0x0b, 0x06, 0x09, 0x2a, 0x86, 0x48, 0x86, 0xf7, 0x0d, 0x01, 0x01, 0x0b
+};
+const Input sha256WithRSAEncryption(alg_sha256WithRSAEncryption);
+
 namespace {
 
 inline void
@@ -69,19 +75,6 @@ OpenFile(const string& dir, const string& filename, const string& mode)
 }
 
 } // unnamed namespace
-
-bool
-InputEqualsByteString(Input input, const ByteString& bs)
-{
-  Input bsInput;
-  if (bsInput.Init(bs.data(), bs.length()) != Success) {
-    // Init can only fail if it is given a bad pointer or if the input is too
-    // long, which won't ever happen. Plus, if it does, it is ok to call abort
-    // since this is only test code.
-    abort();
-  }
-  return InputsAreEqual(input, bsInput);
-}
 
 Result
 TamperOnce(/*in/out*/ ByteString& item, const ByteString& from,
@@ -136,7 +129,6 @@ OCSPResponseContext::OCSPResponseContext(const CertID& certID, time_t time)
   , producedAt(time)
   , extensions(nullptr)
   , includeEmptyExtensions(false)
-  , signatureAlgorithm(sha256WithRSAEncryption)
   , badSignature(false)
   , certs(nullptr)
 
@@ -350,7 +342,7 @@ YMDHMS(int16_t year, int16_t month, int16_t day,
 static ByteString
 SignedData(const ByteString& tbsData,
            /*optional*/ TestKeyPair* keyPair,
-           const ByteString& signatureAlgorithm,
+           SignatureAlgorithm signatureAlgorithm,
            bool corrupt, /*optional*/ const ByteString* certs)
 {
   ByteString signature;
@@ -359,6 +351,16 @@ SignedData(const ByteString& tbsData,
           != Success) {
        return ByteString();
      }
+  }
+
+  ByteString signatureAlgorithmDER;
+  switch (signatureAlgorithm) {
+    case SignatureAlgorithm::rsa_pkcs1_with_sha256:
+      signatureAlgorithmDER.assign(alg_sha256WithRSAEncryption,
+                                   sizeof(alg_sha256WithRSAEncryption));
+      break;
+    default:
+      return ByteString();
   }
 
   // TODO: add ability to have signatures of bit length not divisible by 8,
@@ -382,7 +384,7 @@ SignedData(const ByteString& tbsData,
 
   ByteString value;
   value.append(tbsData);
-  value.append(signatureAlgorithm);
+  value.append(signatureAlgorithmDER);
   value.append(signatureNested);
   value.append(certsNested);
   return TLV(der::SEQUENCE, value);
@@ -447,8 +449,7 @@ MaybeLogOutput(const ByteString& result, const char* suffix)
 // Certificates
 
 static ByteString TBSCertificate(long version, const ByteString& serialNumber,
-                                 const ByteString& signature,
-                                 const ByteString& issuer,
+                                 Input signature, const ByteString& issuer,
                                  time_t notBefore, time_t notAfter,
                                  const ByteString& subject,
                                  const ByteString& subjectPublicKeyInfo,
@@ -459,14 +460,14 @@ static ByteString TBSCertificate(long version, const ByteString& serialNumber,
 //         signatureAlgorithm   AlgorithmIdentifier,
 //         signatureValue       BIT STRING  }
 ByteString
-CreateEncodedCertificate(long version, const ByteString& signature,
+CreateEncodedCertificate(long version, Input signature,
                          const ByteString& serialNumber,
                          const ByteString& issuerNameDER,
                          time_t notBefore, time_t notAfter,
                          const ByteString& subjectNameDER,
                          /*optional*/ const ByteString* extensions,
                          /*optional*/ TestKeyPair* issuerKeyPair,
-                         const ByteString& signatureAlgorithm,
+                         SignatureAlgorithm signatureAlgorithm,
                          /*out*/ ScopedTestKeyPair& keyPairResult)
 {
   // It may be the case that privateKeyResult references the same TestKeyPair
@@ -517,7 +518,7 @@ CreateEncodedCertificate(long version, const ByteString& signature,
 //                           -- If present, version MUST be v3 --  }
 static ByteString
 TBSCertificate(long versionValue,
-               const ByteString& serialNumber, const ByteString& signature,
+               const ByteString& serialNumber, Input signature,
                const ByteString& issuer, time_t notBeforeTime,
                time_t notAfterTime, const ByteString& subject,
                const ByteString& subjectPublicKeyInfo,
@@ -533,7 +534,7 @@ TBSCertificate(long versionValue,
   }
 
   value.append(serialNumber);
-  value.append(signature);
+  value.append(signature.UnsafeGetData(), signature.GetLength());
   value.append(issuer);
 
   // Validity ::= SEQUENCE {
@@ -765,7 +766,7 @@ BasicOCSPResponse(OCSPResponseContext& context)
 
   // TODO(bug 980538): certs
   return SignedData(tbsResponseData, context.signerKeyPair.get(),
-                    context.signatureAlgorithm,
+                    SignatureAlgorithm::rsa_pkcs1_with_sha256,
                     context.badSignature, context.certs);
 }
 

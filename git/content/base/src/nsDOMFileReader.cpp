@@ -8,6 +8,7 @@
 #include "nsContentCID.h"
 #include "nsContentUtils.h"
 #include "nsDOMClassInfoID.h"
+#include "nsDOMFile.h"
 #include "nsError.h"
 #include "nsIFile.h"
 #include "nsNetCID.h"
@@ -19,7 +20,6 @@
 #include "nsCycleCollectionParticipant.h"
 #include "mozilla/Base64.h"
 #include "mozilla/dom/EncodingUtils.h"
-#include "mozilla/dom/File.h"
 #include "mozilla/dom/FileReaderBinding.h"
 #include "xpcpublic.h"
 #include "nsDOMJSUtils.h"
@@ -186,8 +186,7 @@ nsDOMFileReader::ReadAsArrayBuffer(nsIDOMBlob* aFile, JSContext* aCx)
 {
   NS_ENSURE_TRUE(aFile, NS_ERROR_NULL_POINTER);
   ErrorResult rv;
-  nsRefPtr<File> file = static_cast<File*>(aFile);
-  ReadAsArrayBuffer(aCx, *file, rv);
+  ReadAsArrayBuffer(aCx, aFile, rv);
   return rv.ErrorCode();
 }
 
@@ -196,8 +195,7 @@ nsDOMFileReader::ReadAsBinaryString(nsIDOMBlob* aFile)
 {
   NS_ENSURE_TRUE(aFile, NS_ERROR_NULL_POINTER);
   ErrorResult rv;
-  nsRefPtr<File> file = static_cast<File*>(aFile);
-  ReadAsBinaryString(*file, rv);
+  ReadAsBinaryString(aFile, rv);
   return rv.ErrorCode();
 }
 
@@ -207,8 +205,7 @@ nsDOMFileReader::ReadAsText(nsIDOMBlob* aFile,
 {
   NS_ENSURE_TRUE(aFile, NS_ERROR_NULL_POINTER);
   ErrorResult rv;
-  nsRefPtr<File> file = static_cast<File*>(aFile);
-  ReadAsText(*file, aCharset, rv);
+  ReadAsText(aFile, aCharset, rv);
   return rv.ErrorCode();
 }
 
@@ -217,8 +214,7 @@ nsDOMFileReader::ReadAsDataURL(nsIDOMBlob* aFile)
 {
   NS_ENSURE_TRUE(aFile, NS_ERROR_NULL_POINTER);
   ErrorResult rv;
-  nsRefPtr<File> file = static_cast<File*>(aFile);
-  ReadAsDataURL(*file, rv);
+  ReadAsDataURL(aFile, rv);
   return rv.ErrorCode();
 }
 
@@ -294,22 +290,8 @@ nsDOMFileReader::DoOnLoadEnd(nsresult aStatus,
 
   nsresult rv = NS_OK;
   switch (mDataFormat) {
-    case FILE_AS_ARRAYBUFFER: {
-      AutoJSAPI jsapi;
-      if (NS_WARN_IF(!jsapi.Init(mozilla::DOMEventTargetHelper::GetParentObject()))) {
-        return NS_ERROR_FAILURE;
-      }
-
-      RootResultArrayBuffer();
-      mResultArrayBuffer = JS_NewArrayBufferWithContents(jsapi.cx(), mTotal, mFileData);
-      if (!mResultArrayBuffer) {
-        JS_ClearPendingException(jsapi.cx());
-        rv = NS_ERROR_OUT_OF_MEMORY;
-      } else {
-        mFileData = nullptr; // Transfer ownership
-      }
-      break;
-    }
+    case FILE_AS_ARRAYBUFFER:
+      break; //Already accumulated mResultArrayBuffer
     case FILE_AS_BINARY:
       break; //Already accumulated mResult
     case FILE_AS_TEXT:
@@ -356,16 +338,20 @@ nsDOMFileReader::DoReadData(nsIAsyncInputStream* aStream, uint64_t aCount)
                           &bytesRead);
     NS_ASSERTION(bytesRead == aCount, "failed to read data");
   }
+  else if (mDataFormat == FILE_AS_ARRAYBUFFER) {
+    uint32_t bytesRead = 0;
+    aStream->Read((char*) JS_GetArrayBufferData(mResultArrayBuffer) + mDataLen,
+                  aCount, &bytesRead);
+    NS_ASSERTION(bytesRead == aCount, "failed to read data");
+  }
   else {
     //Update memory buffer to reflect the contents of the file
     if (mDataLen + aCount > UINT32_MAX) {
       // PR_Realloc doesn't support over 4GB memory size even if 64-bit OS
       return NS_ERROR_OUT_OF_MEMORY;
     }
-    if (mDataFormat != FILE_AS_ARRAYBUFFER) {
-      mFileData = (char *) moz_realloc(mFileData, mDataLen + aCount);
-      NS_ENSURE_TRUE(mFileData, NS_ERROR_OUT_OF_MEMORY);
-    }
+    mFileData = (char *) moz_realloc(mFileData, mDataLen + aCount);
+    NS_ENSURE_TRUE(mFileData, NS_ERROR_OUT_OF_MEMORY);
 
     uint32_t bytesRead = 0;
     aStream->Read(mFileData + mDataLen, aCount, &bytesRead);
@@ -379,11 +365,14 @@ nsDOMFileReader::DoReadData(nsIAsyncInputStream* aStream, uint64_t aCount)
 // Helper methods
 
 void
-nsDOMFileReader::ReadFileContent(File& aFile,
+nsDOMFileReader::ReadFileContent(JSContext* aCx,
+                                 nsIDOMBlob* aFile,
                                  const nsAString &aCharset,
                                  eDataFormat aDataFormat,
                                  ErrorResult& aRv)
 {
+  MOZ_ASSERT(aFile);
+
   //Implicit abort to clear any other activity going on
   Abort();
   mError = nullptr;
@@ -393,7 +382,7 @@ nsDOMFileReader::ReadFileContent(File& aFile,
   mReadyState = nsIDOMFileReader::EMPTY;
   FreeFileData();
 
-  mFile = &aFile;
+  mFile = aFile;
   mDataFormat = aDataFormat;
   CopyUTF16toUTF8(aCharset, mCharset);
 
@@ -452,10 +441,11 @@ nsDOMFileReader::ReadFileContent(File& aFile,
   DispatchProgressEvent(NS_LITERAL_STRING(LOADSTART_STR));
 
   if (mDataFormat == FILE_AS_ARRAYBUFFER) {
-    mFileData = js_pod_malloc<char>(mTotal);
-    if (!mFileData) {
-      NS_WARNING("Preallocation failed for ReadFileData");
-      aRv.Throw(NS_ERROR_OUT_OF_MEMORY);
+    RootResultArrayBuffer();
+    mResultArrayBuffer = JS_NewArrayBuffer(aCx, mTotal);
+    if (!mResultArrayBuffer) {
+      NS_WARNING("Failed to create JS array buffer");
+      aRv.Throw(NS_ERROR_FAILURE);
     }
   }
 }

@@ -9,7 +9,6 @@
 #include "jsfriendapi.h"
 #include "mozilla/Base64.h"
 #include "mozilla/dom/EncodingUtils.h"
-#include "mozilla/dom/File.h"
 #include "nsContentUtils.h"
 #include "mozilla/dom/FileReaderSyncBinding.h"
 #include "nsCExternalHandlerService.h"
@@ -17,6 +16,7 @@
 #include "nsCOMPtr.h"
 #include "nsDOMClassInfoID.h"
 #include "nsError.h"
+#include "nsIDOMFile.h"
 #include "nsIConverterInputStream.h"
 #include "nsIInputStream.h"
 #include "nsISeekableStream.h"
@@ -24,11 +24,11 @@
 #include "nsNetUtil.h"
 #include "nsServiceManagerUtils.h"
 
+#include "File.h"
 #include "RuntimeService.h"
 
 USING_WORKERS_NAMESPACE
 using namespace mozilla;
-using namespace mozilla::dom;
 using mozilla::dom::Optional;
 using mozilla::dom::GlobalObject;
 
@@ -50,55 +50,69 @@ FileReaderSync::WrapObject(JSContext* aCx)
 void
 FileReaderSync::ReadAsArrayBuffer(JSContext* aCx,
                                   JS::Handle<JSObject*> aScopeObj,
-                                  File& aBlob,
+                                  JS::Handle<JSObject*> aBlob,
                                   JS::MutableHandle<JSObject*> aRetval,
                                   ErrorResult& aRv)
 {
+  nsIDOMBlob* blob = file::GetDOMBlobFromJSObject(aBlob);
+  if (!blob) {
+    aRv.Throw(NS_ERROR_INVALID_ARG);
+    return;
+  }
+
   uint64_t blobSize;
-  nsresult rv = aBlob.GetSize(&blobSize);
+  nsresult rv = blob->GetSize(&blobSize);
   if (NS_FAILED(rv)) {
     aRv.Throw(rv);
     return;
   }
 
-  UniquePtr<char[], JS::FreePolicy> bufferData(js_pod_malloc<char>(blobSize));
-  if (!bufferData) {
+  JS::Rooted<JSObject*> jsArrayBuffer(aCx, JS_NewArrayBuffer(aCx, blobSize));
+  if (!jsArrayBuffer) {
+    // XXXkhuey we need a way to indicate to the bindings that the call failed
+    // but there's already a pending exception that we should not clobber.
+    aRv.Throw(NS_ERROR_OUT_OF_MEMORY);
+    return;
+  }
+
+  uint32_t bufferLength = JS_GetArrayBufferByteLength(jsArrayBuffer);
+  uint8_t* arrayBuffer = JS_GetStableArrayBufferData(aCx, jsArrayBuffer);
+  if (!arrayBuffer) {
     aRv.Throw(NS_ERROR_OUT_OF_MEMORY);
     return;
   }
 
   nsCOMPtr<nsIInputStream> stream;
-  rv = aBlob.GetInternalStream(getter_AddRefs(stream));
+  rv = blob->GetInternalStream(getter_AddRefs(stream));
   if (NS_FAILED(rv)) {
     aRv.Throw(rv);
     return;
   }
 
   uint32_t numRead;
-  rv = stream->Read(bufferData.get(), blobSize, &numRead);
+  rv = stream->Read((char*)arrayBuffer, bufferLength, &numRead);
   if (NS_FAILED(rv)) {
     aRv.Throw(rv);
     return;
   }
-  NS_ASSERTION(numRead == blobSize, "failed to read data");
+  NS_ASSERTION(numRead == bufferLength, "failed to read data");
 
-  JSObject* arrayBuffer = JS_NewArrayBufferWithContents(aCx, blobSize, bufferData.get());
-  if (!arrayBuffer) {
-    aRv.Throw(NS_ERROR_OUT_OF_MEMORY);
-    return;
-  }
-  bufferData.release();
-
-  aRetval.set(arrayBuffer);
+  aRetval.set(jsArrayBuffer);
 }
 
 void
-FileReaderSync::ReadAsBinaryString(File& aBlob,
+FileReaderSync::ReadAsBinaryString(JS::Handle<JSObject*> aBlob,
                                    nsAString& aResult,
                                    ErrorResult& aRv)
 {
+  nsIDOMBlob* blob = file::GetDOMBlobFromJSObject(aBlob);
+  if (!blob) {
+    aRv.Throw(NS_ERROR_INVALID_ARG);
+    return;
+  }
+
   nsCOMPtr<nsIInputStream> stream;
-  nsresult rv = aBlob.GetInternalStream(getter_AddRefs(stream));
+  nsresult rv = blob->GetInternalStream(getter_AddRefs(stream));
   if (NS_FAILED(rv)) {
     aRv.Throw(rv);
     return;
@@ -123,13 +137,19 @@ FileReaderSync::ReadAsBinaryString(File& aBlob,
 }
 
 void
-FileReaderSync::ReadAsText(File& aBlob,
+FileReaderSync::ReadAsText(JS::Handle<JSObject*> aBlob,
                            const Optional<nsAString>& aEncoding,
                            nsAString& aResult,
                            ErrorResult& aRv)
 {
+  nsIDOMBlob* blob = file::GetDOMBlobFromJSObject(aBlob);
+  if (!blob) {
+    aRv.Throw(NS_ERROR_INVALID_ARG);
+    return;
+  }
+
   nsCOMPtr<nsIInputStream> stream;
-  nsresult rv = aBlob.GetInternalStream(getter_AddRefs(stream));
+  nsresult rv = blob->GetInternalStream(getter_AddRefs(stream));
   if (NS_FAILED(rv)) {
     aRv.Throw(rv);
     return;
@@ -154,7 +174,7 @@ FileReaderSync::ReadAsText(File& aBlob,
                                              encoding)) {
       // API argument failed. Try the type property of the blob.
       nsAutoString type16;
-      aBlob.GetType(type16);
+      blob->GetType(type16);
       NS_ConvertUTF16toUTF8 type(type16);
       nsAutoCString specifiedCharset;
       bool haveCharset;
@@ -193,14 +213,20 @@ FileReaderSync::ReadAsText(File& aBlob,
 }
 
 void
-FileReaderSync::ReadAsDataURL(File& aBlob, nsAString& aResult,
+FileReaderSync::ReadAsDataURL(JS::Handle<JSObject*> aBlob, nsAString& aResult,
                               ErrorResult& aRv)
 {
+  nsIDOMBlob* blob = file::GetDOMBlobFromJSObject(aBlob);
+  if (!blob) {
+    aRv.Throw(NS_ERROR_INVALID_ARG);
+    return;
+  }
+
   nsAutoString scratchResult;
   scratchResult.AssignLiteral("data:");
 
   nsString contentType;
-  aBlob.GetType(contentType);
+  blob->GetType(contentType);
 
   if (contentType.IsEmpty()) {
     scratchResult.AppendLiteral("application/octet-stream");
@@ -210,14 +236,14 @@ FileReaderSync::ReadAsDataURL(File& aBlob, nsAString& aResult,
   scratchResult.AppendLiteral(";base64,");
 
   nsCOMPtr<nsIInputStream> stream;
-  nsresult rv = aBlob.GetInternalStream(getter_AddRefs(stream));
+  nsresult rv = blob->GetInternalStream(getter_AddRefs(stream));
   if (NS_FAILED(rv)) {
     aRv.Throw(rv);
     return;
   }
 
   uint64_t size;
-  rv = aBlob.GetSize(&size);
+  rv = blob->GetSize(&size);
   if (NS_FAILED(rv)) {
     aRv.Throw(rv);
     return;

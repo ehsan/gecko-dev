@@ -160,16 +160,15 @@ MOZ_ALWAYS_INLINE JSLinearString *
 JSDependentString::new_(js::ExclusiveContext *cx, JSLinearString *baseArg, size_t start,
                         size_t length)
 {
-    /*
-     * Try to avoid long chains of dependent strings. We can't avoid these
-     * entirely, however, due to how ropes are flattened.
-     */
+    /* Try to avoid long chains of dependent strings. */
     if (baseArg->isDependent()) {
         start += baseArg->asDependent().baseOffset();
         baseArg = baseArg->asDependent().base();
     }
+    MOZ_ASSERT(!baseArg->isDependent());
 
     MOZ_ASSERT(start + length <= baseArg->length());
+    MOZ_ASSERT(baseArg->isFlat());
 
     /*
      * Do not create a string dependent on inline chars from another string,

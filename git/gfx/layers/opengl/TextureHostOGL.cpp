@@ -247,7 +247,7 @@ void
 TextureSharedDataGonkOGL::DeleteTextureIfPresent()
 {
   if (mTexture) {
-    MOZ_ASSERT(mCompositor);
+    MOZ_ASSERT(gl());
     if (gl() && gl()->MakeCurrent()) {
       gl()->fDeleteTextures(1, &mTexture);
     }

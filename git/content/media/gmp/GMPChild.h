@@ -34,9 +34,6 @@ public:
             MessageLoop* aIOLoop,
             IPC::Channel* aChannel);
   bool LoadPluginLibrary(const std::string& aPluginPath);
-#ifdef XP_WIN
-  bool PreLoadLibraries(const std::string& aPluginPath);
-#endif
   MessageLoop* GMPMessageLoop();
 
   // Main thread only.

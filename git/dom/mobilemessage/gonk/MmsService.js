@@ -420,8 +420,7 @@ MmsConnection.prototype = {
       if (getRadioDisabledState()) {
         if (DEBUG) debug("Error! Radio is disabled when sending MMS.");
         errorStatus = _HTTP_STATUS_RADIO_DISABLED;
-      } else if (this.radioInterface.rilContext.cardState !=
-                 Ci.nsIIccProvider.CARD_STATE_READY) {
+      } else if (this.radioInterface.rilContext.cardState != "ready") {
         if (DEBUG) debug("Error! SIM card is not ready when sending MMS.");
         errorStatus = _HTTP_STATUS_NO_SIM_CARD;
       }

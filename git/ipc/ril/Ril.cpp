@@ -92,16 +92,17 @@ PostToRIL(JSContext *aCx,
     int clientId = args[0].toInt32();
     JS::Value v = args[1];
 
-    UnixSocketRawData* raw = nullptr;
-
+    JSAutoByteString abs;
+    void *data;
+    size_t size;
     if (v.isString()) {
-        JSAutoByteString abs;
         JS::Rooted<JSString*> str(aCx, v.toString());
         if (!abs.encodeUtf8(aCx, str)) {
             return false;
         }
 
-        raw = new UnixSocketRawData(abs.ptr(), abs.length());
+        data = abs.ptr();
+        size = abs.length();
     } else if (!v.isPrimitive()) {
         JSObject *obj = v.toObjectOrNull();
         if (!JS_IsTypedArrayObject(obj)) {
@@ -117,20 +118,15 @@ PostToRIL(JSContext *aCx,
             return false;
         }
 
-        JS::AutoCheckCannotGC nogc;
-        size_t size = JS_GetTypedArrayByteLength(obj);
-        void *data = JS_GetArrayBufferViewData(obj, nogc);
-        raw = new UnixSocketRawData(data, size);
+        size = JS_GetTypedArrayByteLength(obj);
+        data = JS_GetArrayBufferViewData(obj);
     } else {
         JS_ReportError(aCx,
                        "Incorrect argument. Expecting a string or a typed array");
         return false;
     }
 
-    if (!raw) {
-        JS_ReportError(aCx, "Unable to post to RIL");
-        return false;
-    }
+    UnixSocketRawData* raw = new UnixSocketRawData(data, size);
 
     nsRefPtr<SendRilSocketDataTask> task =
         new SendRilSocketDataTask(clientId, raw);
@@ -193,11 +189,8 @@ DispatchRILEvent::RunTask(JSContext *aCx)
     if (!array) {
         return false;
     }
-    {
-        JS::AutoCheckCannotGC nogc;
-        memcpy(JS_GetArrayBufferViewData(array, nogc),
-               mMessage->GetData(), mMessage->GetSize());
-    }
+    memcpy(JS_GetArrayBufferViewData(array),
+           mMessage->GetData(), mMessage->GetSize());
 
     JS::AutoValueArray<2> args(aCx);
     args[0].setNumber((uint32_t)mClientId);

@@ -78,6 +78,8 @@ const kSysMsgListenerReadyObserverTopic  = "system-message-listener-ready";
 const kSysClockChangeObserverTopic       = "system-clock-change";
 const kScreenStateChangedTopic           = "screen-state-changed";
 
+const kSettingsCellBroadcastDisabled = "ril.cellbroadcast.disabled";
+const kSettingsCellBroadcastSearchList = "ril.cellbroadcast.searchlist";
 const kSettingsClockAutoUpdateEnabled = "time.clock.automatic-update.enabled";
 const kSettingsClockAutoUpdateAvailable = "time.clock.automatic-update.available";
 const kSettingsTimezoneAutoUpdateEnabled = "time.timezone.automatic-update.enabled";
@@ -498,8 +500,8 @@ XPCOMUtils.defineLazyGetter(this, "gRadioEnabledController", function() {
 
     _isCardPresentAtClient: function(clientId) {
       let cardState = _ril.getRadioInterface(clientId).rilContext.cardState;
-      return cardState !== Ci.nsIIccProvider.CARD_STATE_UNDETECTED &&
-             cardState !== Ci.nsIIccProvider.CARD_STATE_UNKNOWN;
+      return cardState !== RIL.GECKO_CARDSTATE_UNDETECTED &&
+             cardState !== RIL.GECKO_CARDSTATE_UNKNOWN;
     },
 
     _isRadioAbleToEnableAtClient: function(clientId, numCards) {
@@ -1798,7 +1800,7 @@ function RadioInterface(aClientId, aWorkerMessenger) {
   aWorkerMessenger.registerClient(aClientId, this);
 
   this.rilContext = {
-    cardState:      Ci.nsIIccProvider.CARD_STATE_UNKNOWN,
+    cardState:      RIL.GECKO_CARDSTATE_UNKNOWN,
     iccInfo:        null,
     imsi:           null
   };
@@ -1820,6 +1822,32 @@ function RadioInterface(aClientId, aWorkerMessenger) {
 
   // Set "time.timezone.automatic-update.available" to false when starting up.
   this.setTimezoneAutoUpdateAvailable(false);
+
+  /**
+  * Read the settings of the toggle of Cellbroadcast Service:
+  *
+  * Simple Format: Boolean
+  *   true if CBS is disabled. The value is applied to all RadioInterfaces.
+  * Enhanced Format: Array of Boolean
+  *   Each element represents the toggle of CBS per RadioInterface.
+  */
+  lock.get(kSettingsCellBroadcastDisabled, this);
+
+  /**
+   * Read the Cell Broadcast Search List setting to set listening channels:
+   *
+   * Simple Format:
+   *   String of integers or integer ranges separated by comma.
+   *   For example, "1, 2, 4-6"
+   * Enhanced Format:
+   *   Array of Objects with search lists specified in gsm/cdma network.
+   *   For example, [{'gsm' : "1, 2, 4-6", 'cdma' : "1, 50, 99"},
+   *                 {'cdma' : "3, 6, 8-9"}]
+   *   This provides the possibility to
+   *   1. set gsm/cdma search list individually for CDMA+LTE device.
+   *   2. set search list per RadioInterface.
+   */
+  lock.get(kSettingsCellBroadcastSearchList, this);
 
   Services.obs.addObserver(this, kMozSettingsChangedObserverTopic, false);
   Services.obs.addObserver(this, kSysClockChangeObserverTopic, false);
@@ -2211,6 +2239,36 @@ RadioInterface.prototype = {
       clientId: this.clientId,
       data: message
     });
+  },
+
+  setCellBroadcastSearchList: function(settings) {
+    let newSearchList =
+      Array.isArray(settings) ? settings[this.clientId] : settings;
+    let oldSearchList =
+      Array.isArray(this._cellBroadcastSearchList) ?
+        this._cellBroadcastSearchList[this.clientId] :
+        this._cellBroadcastSearchList;
+
+    if ((newSearchList == oldSearchList) ||
+          (newSearchList && oldSearchList &&
+            newSearchList.gsm == oldSearchList.gsm &&
+            newSearchList.cdma == oldSearchList.cdma)) {
+      return;
+    }
+
+    this.workerMessenger.send("setCellBroadcastSearchList",
+                              { searchList: newSearchList },
+                              (function callback(response) {
+      if (!response.success) {
+        let lock = gSettingsService.createLock();
+        lock.set(kSettingsCellBroadcastSearchList,
+                 this._cellBroadcastSearchList, null);
+      } else {
+        this._cellBroadcastSearchList = settings;
+      }
+
+      return false;
+    }).bind(this));
   },
 
   setDataRegistration: function(attach) {
@@ -3047,6 +3105,25 @@ RadioInterface.prototype = {
           }
         }
         break;
+      case kSettingsCellBroadcastSearchList:
+        if (DEBUG) {
+          this.debug("'" + kSettingsCellBroadcastSearchList +
+            "' is now " + JSON.stringify(aResult));
+        }
+
+        this.setCellBroadcastSearchList(aResult);
+        break;
+      case kSettingsCellBroadcastDisabled:
+        if (DEBUG) {
+          this.debug("'" + kSettingsCellBroadcastDisabled +
+            "' is now " + JSON.stringify(aResult));
+        }
+
+        let setCbsDisabled =
+          Array.isArray(aResult) ? aResult[this.clientId] : aResult;
+        this.workerMessenger.send("setCellBroadcastDisabled",
+                                  { disabled: setCbsDisabled });
+        break;
     }
   },
 
@@ -3559,7 +3636,7 @@ RadioInterface.prototype = {
                  radioState == RIL.GECKO_RADIOSTATE_DISABLED) {
         if (DEBUG) this.debug("Error! Radio is disabled when sending SMS.");
         errorCode = Ci.nsIMobileMessageCallback.RADIO_DISABLED_ERROR;
-      } else if (this.rilContext.cardState != Ci.nsIIccProvider.CARD_STATE_READY) {
+      } else if (this.rilContext.cardState != "ready") {
         if (DEBUG) this.debug("Error! SIM card is not ready when sending SMS.");
         errorCode = Ci.nsIMobileMessageCallback.NO_SIM_CARD_ERROR;
       }
