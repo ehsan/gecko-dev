@@ -47,7 +47,7 @@ Cu.import("resource://gre/modules/reflect.jsm");
 Cu.import("resource://gre/modules/XPCOMUtils.jsm");
 dumpn.wantLogging = Services.prefs.getBoolPref("devtools.debugger.log");
 
-Cu.import("resource://gre/modules/devtools/deprecated-sync-thenables.js");
+Cu.import("resource://gre/modules/commonjs/sdk/core/promise.js");
 
 function loadSubScript(aURL)
 {
@@ -66,10 +66,11 @@ function loadSubScript(aURL)
 }
 
 let events = require("sdk/event/core");
-let {defer, resolve, reject, all} = require("devtools/toolkit/deprecated-sync-thenables");
+let {defer, resolve, reject, promised, all} = require("sdk/core/promise");
 this.defer = defer;
 this.resolve = resolve;
 this.reject = reject;
+this.promised = promised;
 this.all = all;
 
 Cu.import("resource://gre/modules/devtools/SourceMap.jsm");

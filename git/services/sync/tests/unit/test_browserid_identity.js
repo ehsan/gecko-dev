@@ -560,7 +560,6 @@ add_task(function test_getKeysMissing() {
   // try and fetch them.
   delete identityConfig.fxaccount.user.kA;
   delete identityConfig.fxaccount.user.kB;
-  identityConfig.fxaccount.user.keyFetchToken = 'keyFetchToken';
 
   configureFxAccountIdentity(browseridManager, identityConfig);
 

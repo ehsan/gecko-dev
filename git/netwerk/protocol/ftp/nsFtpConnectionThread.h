@@ -57,9 +57,7 @@ typedef enum _FTP_STATE {
     FTP_S_STOR, FTP_R_STOR,
     FTP_S_LIST, FTP_R_LIST,
     FTP_S_PASV, FTP_R_PASV,
-    FTP_S_PWD,  FTP_R_PWD,
-    FTP_S_FEAT, FTP_R_FEAT,
-    FTP_S_OPTS, FTP_R_OPTS
+    FTP_S_PWD,  FTP_R_PWD
 } FTP_STATE;
 
 // higher level ftp actions
@@ -131,8 +129,6 @@ private:
     nsresult        S_stor(); FTP_STATE       R_stor();
     nsresult        S_pasv(); FTP_STATE       R_pasv();
     nsresult        S_pwd();  FTP_STATE       R_pwd();
-    nsresult        S_feat(); FTP_STATE       R_feat();
-    nsresult        S_opts(); FTP_STATE       R_opts();
     // END: STATE METHODS
     ///////////////////////////////////
 
@@ -247,7 +243,6 @@ private:
     nsCOMPtr<nsIRequest>    mUploadRequest;
     bool                    mAddressChecked;
     bool                    mServerIsIPv6;
-    bool                    mUseUTF8;
 
     static uint32_t         mSessionStartTime;
 

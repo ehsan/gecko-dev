@@ -13,17 +13,17 @@ import android.graphics.PorterDuffXfermode;
 import android.graphics.Shader;
 import android.os.Build;
 
-class CanvasDelegate {
+public class CanvasDelegate {
     Paint mPaint;
     PorterDuffXfermode mMode;
     DrawManager mDrawManager;
 
     // DrawManager would do a default draw of the background.
-    static interface DrawManager {
+    public static interface DrawManager {
         public void defaultDraw(Canvas cavas);
     }
 
-    CanvasDelegate(DrawManager drawManager, Mode mode) {
+    public CanvasDelegate(DrawManager drawManager, Mode mode) {
         mDrawManager = drawManager;
 
         // DST_IN masks, DST_OUT clips.
@@ -35,7 +35,7 @@ class CanvasDelegate {
         mPaint.setStrokeWidth(0.0f);
     }
 
-    void draw(Canvas canvas, Path path, int width, int height) {
+    public void draw(Canvas canvas, Path path, int width, int height) {
         // Save the canvas. All PorterDuff operations should be done in a offscreen bitmap.
         int count = canvas.saveLayer(0, 0, width, height, null,
                                      Canvas.MATRIX_SAVE_FLAG |
@@ -70,7 +70,7 @@ class CanvasDelegate {
         canvas.restoreToCount(count);
     }
 
-    void setShader(Shader shader) {
+    public void setShader(Shader shader) {
         mPaint.setShader(shader);
     }
 }
