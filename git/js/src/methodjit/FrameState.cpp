@@ -1339,13 +1339,15 @@ FrameState::sync(Assembler &masm, Uses uses) const
             continue;
         }
 
+        FrameEntry *backing = fe;
+
         if (!fe->isCopy()) {
             if (fe->data.inRegister() && !regstate(fe->data.reg()).isPinned())
                 avail.putReg(fe->data.reg());
             if (fe->type.inRegister() && !regstate(fe->type.reg()).isPinned())
                 avail.putReg(fe->type.reg());
         } else {
-            FrameEntry *backing = fe->copyOf();
+            backing = fe->copyOf();
             JS_ASSERT(!backing->isConstant() && !fe->isConstant());
 
 #if defined JS_PUNBOX64

@@ -53,23 +53,12 @@ from mod_pywebsocket.handshake._base import parse_extensions
 from mod_pywebsocket.handshake._base import parse_token_list
 from mod_pywebsocket.handshake._base import validate_mandatory_header
 from mod_pywebsocket.handshake._base import validate_subprotocol
-from mod_pywebsocket.handshake._base import VersionException
 from mod_pywebsocket.stream import Stream
 from mod_pywebsocket.stream import StreamOptions
 from mod_pywebsocket import util
 
 
 _BASE64_REGEX = re.compile('^[+/0-9A-Za-z]*=*$')
-
-# Defining aliases for values used frequently.
-_VERSION_HYBI08 = common.VERSION_HYBI08
-_VERSION_HYBI08_STRING = str(_VERSION_HYBI08)
-_VERSION_LATEST = common.VERSION_HYBI_LATEST
-_VERSION_LATEST_STRING = str(_VERSION_LATEST)
-_SUPPORTED_VERSIONS = [
-    _VERSION_LATEST,
-    _VERSION_HYBI08,
-]
 
 
 def compute_accept(key):
@@ -141,7 +130,7 @@ class Handshaker(object):
 
         unused_host = get_mandatory_header(self._request, common.HOST_HEADER)
 
-        self._request.ws_version = self._check_version()
+        self._check_version()
 
         # This handshake must be based on latest hybi. We are responsible to
         # fallback to HTTP on handshake failure as latest hybi handshake
@@ -162,6 +151,7 @@ class Handshaker(object):
                 util.hexify(accept_binary))
 
             self._logger.debug('IETF HyBi protocol')
+            self._request.ws_version = common.VERSION_HYBI_LATEST
 
             # Setup extension processors.
 
@@ -222,43 +212,26 @@ class Handshaker(object):
                         'request any subprotocol')
 
             self._send_handshake(accept)
+
+            self._logger.debug('Sent opening handshake response')
         except HandshakeException, e:
             if not e.status:
                 # Fallback to 400 bad request by default.
-                e.status = common.HTTP_STATUS_BAD_REQUEST
+                e.status = 400
             raise e
 
     def _get_origin(self):
-        if self._request.ws_version is _VERSION_HYBI08:
-            origin_header = common.SEC_WEBSOCKET_ORIGIN_HEADER
-        else:
-            origin_header = common.ORIGIN_HEADER
-        origin = self._request.headers_in.get(origin_header)
-        if origin is None:
-            self._logger.debug('Client request does not have origin header')
+        origin = self._request.headers_in.get(
+            common.SEC_WEBSOCKET_ORIGIN_HEADER)
         self._request.ws_origin = origin
 
     def _check_version(self):
-        version = get_mandatory_header(self._request,
-                                       common.SEC_WEBSOCKET_VERSION_HEADER)
-        if version == _VERSION_HYBI08_STRING:
-            return _VERSION_HYBI08
-        if version == _VERSION_LATEST_STRING:
-            return _VERSION_LATEST
-
-        if version.find(',') >= 0:
-            raise HandshakeException(
-                'Multiple versions (%r) are not allowed for header %s' %
-                (version, common.SEC_WEBSOCKET_VERSION_HEADER),
-                status=common.HTTP_STATUS_BAD_REQUEST)
-        raise VersionException(
-            'Unsupported version %r for header %s' %
-            (version, common.SEC_WEBSOCKET_VERSION_HEADER),
-            supported_versions=', '.join(map(str, _SUPPORTED_VERSIONS)))
+        unused_value = validate_mandatory_header(
+            self._request, common.SEC_WEBSOCKET_VERSION_HEADER,
+            str(common.VERSION_HYBI_LATEST), fail_status=426)
 
     def _set_protocol(self):
         self._request.ws_protocol = None
-
         # MOZILLA
         self._request.sts = None
         # /MOZILLA
@@ -282,12 +255,8 @@ class Handshaker(object):
             self._request.ws_requested_extensions = None
             return
 
-        if self._request.ws_version is common.VERSION_HYBI08:
-            allow_quoted_string=False
-        else:
-            allow_quoted_string=True
         self._request.ws_requested_extensions = parse_extensions(
-            extensions_header, allow_quoted_string=allow_quoted_string)
+            extensions_header)
 
         self._logger.debug(
             'Extensions requested: %r',
@@ -295,11 +264,6 @@ class Handshaker(object):
                 self._request.ws_requested_extensions))
 
     def _validate_key(self, key):
-        if key.find(',') >= 0:
-            raise HandshakeException('Request has multiple %s header lines or '
-                                     'contains illegal character \',\': %r' %
-                                     (common.SEC_WEBSOCKET_KEY_HEADER, key))
-
         # Validate
         key_is_valid = False
         try:
@@ -363,9 +327,8 @@ class Handshaker(object):
         response.append('\r\n')
 
         raw_response = ''.join(response)
+        self._logger.debug('Opening handshake response: %r', raw_response)
         self._request.connection.write(raw_response)
-        self._logger.debug('Sent server\'s opening handshake: %r',
-                           raw_response)
 
 
 # vi:sts=4 sw=4 et

@@ -62,7 +62,6 @@ tier_base_dirs = \
 	config \
 	build \
 	probes \
-	mfbt \
 	$(NULL)
 
 ifndef LIBXUL_SDK

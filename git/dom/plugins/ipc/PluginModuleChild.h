@@ -40,8 +40,6 @@
 #ifndef dom_plugins_PluginModuleChild_h
 #define dom_plugins_PluginModuleChild_h 1
 
-#include "mozilla/Attributes.h"
-
 #include <string>
 #include <vector>
 
@@ -194,7 +192,7 @@ protected:
     virtual void
     ActorDestroy(ActorDestroyReason why);
 
-    MOZ_NORETURN void QuickExit();
+    NS_NORETURN void QuickExit();
 
     NS_OVERRIDE virtual bool
     RecvProcessNativeEventsInRPCCall();

@@ -579,30 +579,26 @@ NS_COM_GLUE PRUint32
 PL_DHashTableEnumerate(PLDHashTable *table, PLDHashEnumerator etor, void *arg);
 
 typedef size_t
-(* PLDHashSizeOfEntryExcludingThisFun)(PLDHashEntryHdr *hdr,
-                                       nsMallocSizeOfFun mallocSizeOf,
-                                       void *arg);
+(* PLDHashSizeOfEntryFun)(PLDHashEntryHdr *hdr, nsMallocSizeOfFun mallocSizeOf);
 
 /**
- * Measure the size of the table's entry storage, and if
- * |sizeOfEntryExcludingThis| is non-NULL, measure the size of things pointed
- * to by entries.  Doesn't measure |ops| because it's often shared between
- * tables, nor |data| because it's opaque.
+ * Measure the size of the table's entry storage, and if |sizeOfEntry| is
+ * non-NULL, measure the size of things pointed to by entries.  Doesn't measure
+ * |ops| because it's often shared between tables, nor |data| because it's
+ * opaque.
  */
 NS_COM_GLUE size_t
 PL_DHashTableSizeOfExcludingThis(const PLDHashTable *table,
-                                 PLDHashSizeOfEntryExcludingThisFun sizeOfEntryExcludingThis,
-                                 nsMallocSizeOfFun mallocSizeOf,
-                                 void *arg = NULL);
+                                 PLDHashSizeOfEntryFun sizeOfEntry,
+                                 nsMallocSizeOfFun mallocSizeOf);
 
 /**
  * Like PL_DHashTableSizeOfExcludingThis, but includes sizeof(*this).
  */
 NS_COM_GLUE size_t
 PL_DHashTableSizeOfIncludingThis(const PLDHashTable *table,
-                                 PLDHashSizeOfEntryExcludingThisFun sizeOfEntryExcludingThis,
-                                 nsMallocSizeOfFun mallocSizeOf,
-                                 void *arg = NULL);
+                                 PLDHashSizeOfEntryFun sizeOfEntry,
+                                 nsMallocSizeOfFun mallocSizeOf);
 
 #ifdef DEBUG
 /**

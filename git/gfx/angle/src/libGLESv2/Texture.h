@@ -134,9 +134,7 @@ class Image
     GLenum mType;
 
     bool mDirty;
-
-    D3DPOOL mD3DPool;   // can only be D3DPOOL_SYSTEMMEM or D3DPOOL_MANAGED since it needs to be lockable.
-    D3DFORMAT mD3DFormat;
+    bool mManaged;
 
     IDirect3DSurface9 *mSurface;
 };
@@ -150,7 +148,6 @@ class TextureStorage
 
     bool isRenderable() const;
     bool isManaged() const;
-    D3DPOOL getPool() const;
     unsigned int getTextureSerial() const;
     virtual unsigned int getRenderTargetSerial(GLenum target) const = 0;
 
@@ -158,7 +155,7 @@ class TextureStorage
     DISALLOW_COPY_AND_ASSIGN(TextureStorage);
 
     const bool mRenderable;
-    const D3DPOOL mD3DPool;
+    const bool mManaged;
 
     const unsigned int mTextureSerial;
     static unsigned int issueTextureSerial();
@@ -320,7 +317,7 @@ class Texture2D : public Texture
 
     Image mImageArray[IMPLEMENTATION_MAX_TEXTURE_LEVELS];
 
-    TextureStorage2D *mTexStorage;
+    TextureStorage2D *mTexture;
     egl::Surface *mSurface;
 
     BindingPointer<Renderbuffer> mColorbufferProxy;
@@ -403,7 +400,7 @@ class TextureCubeMap : public Texture
 
     Image mImageArray[6][IMPLEMENTATION_MAX_TEXTURE_LEVELS];
 
-    TextureStorageCubeMap *mTexStorage;
+    TextureStorageCubeMap *mTexture;
 
     BindingPointer<Renderbuffer> mFaceProxies[6];
 };

@@ -36,8 +36,6 @@
  * ***** END LICENSE BLOCK ***** */
 
 #include "Hal.h"
-#include "HalImpl.h"
-#include "WindowIdentifier.h"
 #include "AndroidBridge.h"
 
 using mozilla::hal::WindowIdentifier;

@@ -41,9 +41,10 @@
 
 #include "nsContainerFrame.h"
 #include "nsISVGChildFrame.h"
-#include "nsSVGUtils.h"
 #include "nsRegion.h"
 #include "nsIPresShell.h"
+#include "gfxRect.h"
+#include "gfxMatrix.h"
 #include "mozilla/Attributes.h"
 
 class nsSVGOuterSVGFrame;
@@ -132,9 +133,7 @@ public:
   virtual gfxRect GetBBoxContribution(const gfxMatrix &aToBBoxUserspace,
                                       PRUint32 aFlags);
   NS_IMETHOD_(bool) IsDisplayContainer() { return true; }
-  NS_IMETHOD_(bool) HasValidCoveredRect() {
-    return !(GetStateBits() & NS_STATE_SVG_NONDISPLAY_CHILD);
-  }
+  NS_IMETHOD_(bool) HasValidCoveredRect() { return true; }
 
   gfxMatrix GetCanvasTM();
 

@@ -537,7 +537,7 @@ ChunkPool::expire(JSRuntime *rt, bool releaseAll)
 }
 
 JS_FRIEND_API(int64_t)
-ChunkPool::countCleanDecommittedArenas(JSRuntime *rt)
+ChunkPool::countDecommittedArenas(JSRuntime *rt)
 {
     JS_ASSERT(this == &rt->gcChunkPool);
 

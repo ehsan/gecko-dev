@@ -92,8 +92,8 @@ NS_IMPL_THREADSAFE_ISUPPORTS11(WebSocketChannel,
                                nsIInterfaceRequestor,
                                nsIChannelEventSink)
 
-// We implement RFC 6455, which uses Sec-WebSocket-Version: 13 on the wire.
-#define SEC_WEBSOCKET_VERSION "13"
+// An implementation of draft-ietf-hybi-thewebsocketprotocol-08
+#define SEC_WEBSOCKET_VERSION "8"
 
 /*
  * About SSL unsigned certificates
@@ -692,14 +692,14 @@ WebSocketChannel::WebSocketChannel() :
   mOpenBlocked(0),
   mOpenRunning(0),
   mChannelWasOpened(0),
-  mMaxMessageSize(PR_INT32_MAX),
+  mMaxMessageSize(16000000),
   mStopOnClose(NS_OK),
   mServerCloseCode(CLOSE_ABNORMAL),
   mScriptCloseCode(0),
   mFragmentOpcode(kContinuation),
   mFragmentAccumulator(0),
   mBuffered(0),
-  mBufferSize(kIncomingBufferInitialSize),
+  mBufferSize(16384),
   mCurrentOut(nsnull),
   mCurrentOutSent(0),
   mCompressor(nsnull),
@@ -827,10 +827,9 @@ WebSocketChannel::IsPersistentFramePtr()
 // variable beacuse when transitioning from the stack to the persistent
 // read buffer we want to explicitly include them in the buffer instead
 // of as already existing data.
-bool
+PRUint32
 WebSocketChannel::UpdateReadBuffer(PRUint8 *buffer, PRUint32 count,
-                                   PRUint32 accumulatedFragments,
-                                   PRUint32 *available)
+                                   PRUint32 accumulatedFragments)
 {
   LOG(("WebSocketChannel::UpdateReadBuffer() %p [%p %u]\n",
          this, buffer, count));
@@ -854,24 +853,17 @@ WebSocketChannel::UpdateReadBuffer(PRUint8 *buffer, PRUint32 count,
     mFramePtr = mBuffer + accumulatedFragments;
   } else {
     // existing buffer is not sufficient, extend it
-    mBufferSize += count + 8192 + mBufferSize/3;
+    mBufferSize += count + 8192;
     LOG(("WebSocketChannel: update read buffer extended to %u\n", mBufferSize));
     PRUint8 *old = mBuffer;
-    mBuffer = (PRUint8 *)moz_realloc(mBuffer, mBufferSize);
-    if (!mBuffer) {
-      mBuffer = old;
-      return false;
-    }
+    mBuffer = (PRUint8 *)moz_xrealloc(mBuffer, mBufferSize);
     mFramePtr = mBuffer + (mFramePtr - old);
   }
 
   ::memcpy(mBuffer + mBuffered, buffer, count);
   mBuffered += count;
 
-  if (available)
-    *available = mBuffered - (mFramePtr - mBuffer);
-
-  return true;
+  return mBuffered - (mFramePtr - mBuffer);
 }
 
 nsresult
@@ -898,10 +890,7 @@ WebSocketChannel::ProcessInput(PRUint8 *buffer, PRUint32 count)
     mFramePtr = buffer;
     avail = count;
   } else {
-    if (!UpdateReadBuffer(buffer, count, mFragmentAccumulator, &avail)) {
-      AbortSession(NS_ERROR_FILE_TOO_BIG);
-      return NS_ERROR_FILE_TOO_BIG;
-    }
+    avail = UpdateReadBuffer(buffer, count, mFragmentAccumulator);
   }
 
   PRUint8 *payload;
@@ -954,6 +943,8 @@ WebSocketChannel::ProcessInput(PRUint8 *buffer, PRUint32 count)
     LOG(("WebSocketChannel::ProcessInput: payload %lld avail %lu\n",
          payloadLength, avail));
 
+    // we don't deal in > 31 bit websocket lengths.. and probably
+    // something considerably shorter (16MB by default)
     if (payloadLength + mFragmentAccumulator > mMaxMessageSize) {
       AbortSession(NS_ERROR_FILE_TOO_BIG);
       return NS_ERROR_FILE_TOO_BIG;
@@ -1057,10 +1048,13 @@ WebSocketChannel::ProcessInput(PRUint8 *buffer, PRUint32 count)
       if (mListener) {
         nsCString utf8Data((const char *)payload, payloadLength);
 
-        // Section 8.1 says to fail connection if invalid utf-8 in text message
+        // Section 8.1 says to replace received non utf-8 sequences
+        // (which are non-conformant to send) with u+fffd,
+        // but secteam feels that silently rewriting messages is
+        // inappropriate - so we will fail the connection instead.
         if (!IsUTF8(utf8Data, false)) {
           LOG(("WebSocketChannel:: text frame invalid utf-8\n"));
-          AbortSession(NS_ERROR_CANNOT_CONVERT_DATA);
+          AbortSession(NS_ERROR_ILLEGAL_VALUE);
           return NS_ERROR_ILLEGAL_VALUE;
         }
 
@@ -1172,34 +1166,21 @@ WebSocketChannel::ProcessInput(PRUint8 *buffer, PRUint32 count)
     if (mFragmentAccumulator) {
       LOG(("WebSocketChannel:: Setup Buffer due to fragment"));
 
-      if (!UpdateReadBuffer(mFramePtr - mFragmentAccumulator,
-                            totalAvail + mFragmentAccumulator, 0, nsnull)) {
-        AbortSession(NS_ERROR_ILLEGAL_VALUE);
-        return NS_ERROR_ILLEGAL_VALUE;
-      }
+      UpdateReadBuffer(mFramePtr - mFragmentAccumulator,
+                       totalAvail + mFragmentAccumulator, 0);
 
       // UpdateReadBuffer will reset the frameptr to the beginning
       // of new saved state, so we need to skip past processed framgents
       mFramePtr += mFragmentAccumulator;
     } else if (totalAvail) {
       LOG(("WebSocketChannel:: Setup Buffer due to partial frame"));
-      if (!UpdateReadBuffer(mFramePtr, totalAvail, 0, nsnull)) {
-        AbortSession(NS_ERROR_ILLEGAL_VALUE);
-        return NS_ERROR_ILLEGAL_VALUE;
-      }
+      UpdateReadBuffer(mFramePtr, totalAvail, 0);
     }
   } else if (!mFragmentAccumulator && !totalAvail) {
     // If we were working off a saved buffer state and there is no partial
     // frame or fragment in process, then revert to stack behavior
     LOG(("WebSocketChannel:: Internal buffering not needed anymore"));
     mBuffered = 0;
-
-    // release memory if we've been processing a large message
-    if (mBufferSize > kIncomingBufferStableSize) {
-      mBufferSize = kIncomingBufferStableSize;
-      moz_free(mBuffer);
-      mBuffer = (PRUint8 *)moz_xmalloc(mBufferSize);
-    }
   }
   return NS_OK;
 }
@@ -1295,8 +1276,6 @@ WebSocketChannel::ResultToCloseCode(nsresult resultCode)
       resultCode == NS_ERROR_CONNECTION_REFUSED) {
     return CLOSE_ABNORMAL;
   }
-  if (resultCode == NS_ERROR_CANNOT_CONVERT_DATA)
-    return CLOSE_INVALID_PAYLOAD;
 
   return CLOSE_PROTOCOL_ERROR;
 }
@@ -1803,8 +1782,8 @@ WebSocketChannel::SetupRequest()
     NS_LITERAL_CSTRING(SEC_WEBSOCKET_VERSION), false);
 
   if (!mOrigin.IsEmpty())
-    mHttpChannel->SetRequestHeader(NS_LITERAL_CSTRING("Origin"), mOrigin,
-                                   false);
+    mHttpChannel->SetRequestHeader(NS_LITERAL_CSTRING("Sec-WebSocket-Origin"),
+                                   mOrigin, false);
 
   if (!mProtocol.IsEmpty())
     mHttpChannel->SetRequestHeader(NS_LITERAL_CSTRING("Sec-WebSocket-Protocol"),
@@ -2185,7 +2164,7 @@ WebSocketChannel::AsyncOpen(nsIURI *aURI,
     rv = prefService->GetIntPref("network.websocket.max-message-size", 
                                  &intpref);
     if (NS_SUCCEEDED(rv)) {
-      mMaxMessageSize = clamped(intpref, 1024, PR_INT32_MAX);
+      mMaxMessageSize = clamped(intpref, 1024, 1 << 30);
     }
     rv = prefService->GetIntPref("network.websocket.timeout.close", &intpref);
     if (NS_SUCCEEDED(rv)) {
@@ -2371,11 +2350,6 @@ WebSocketChannel::SendMsgCommon(const nsACString *aMsg, bool aIsBinary,
   if (mStopped) {
     LOG(("WebSocketChannel:: Error: send when stopped\n"));
     return NS_ERROR_NOT_CONNECTED;
-  }
-
-  if (aLength > mMaxMessageSize) {
-    LOG(("WebSocketChannel:: Error: message too big\n"));
-    return NS_ERROR_FILE_TOO_BIG;
   }
 
   return mSocketThread->Dispatch(

@@ -113,10 +113,6 @@ struct CacheEntry
   ~CacheEntry()
   {
   }
-
-  size_t SizeOfExcludingThis(nsMallocSizeOfFun mallocSizeOf) {
-    return mallocSizeOf(data, size);
-  }
 };
 
 // We don't want to refcount StartupCache, and ObserverService wants to
@@ -154,11 +150,7 @@ public:
   static StartupCache* GetSingleton();
   static void DeleteSingleton();
 
-  // This measures all the heap memory used by the StartupCache, i.e. it
-  // excludes the mapping.
-  size_t HeapSizeOfIncludingThis(nsMallocSizeOfFun mallocSizeOf);
-
-  size_t SizeOfMapping();
+  PRInt64 SizeOfMapping();
 
 private:
   StartupCache();
@@ -173,11 +165,6 @@ private:
   static nsresult InitSingleton();
   static void WriteTimeout(nsITimer *aTimer, void *aClosure);
   static void ThreadedWrite(void *aClosure);
-
-  static size_t SizeOfEntryExcludingThis(const nsACString& key,
-                                         const nsAutoPtr<CacheEntry>& data,
-                                         nsMallocSizeOfFun mallocSizeOf,
-                                         void *);
 
   nsClassHashtable<nsCStringHashKey, CacheEntry> mTable;
   nsRefPtr<nsZipArchive> mArchive;
@@ -196,8 +183,7 @@ private:
   nsTHashtable<nsISupportsHashKey> mWriteObjectMap;
 #endif
 
-  nsIMemoryReporter* mMappingMemoryReporter;
-  nsIMemoryReporter* mDataMemoryReporter;
+  nsIMemoryReporter* mMemoryReporter;
 };
 
 // This debug outputstream attempts to detect if clients are writing multiple

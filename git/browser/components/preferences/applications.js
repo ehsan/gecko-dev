@@ -479,6 +479,10 @@ HandlerInfoWrapper.prototype = {
     return this._getIcon(16);
   },
 
+  get largeIcon() {
+    return this._getIcon(32);
+  },
+
   _getIcon: function(aSize) {
     if (this.primaryExtension)
       return "moz-icon://goat." + this.primaryExtension + "?size=" + aSize;
@@ -817,6 +821,10 @@ FeedHandlerInfo.prototype = {
 
   get smallIcon() {
     return this._smallIcon;
+  },
+
+  get largeIcon() {
+    return this._largeIcon;
   }
 
 };
@@ -828,6 +836,7 @@ var feedHandlerInfo = {
   _prefSelectedAction: PREF_FEED_SELECTED_ACTION, 
   _prefSelectedReader: PREF_FEED_SELECTED_READER,
   _smallIcon: "chrome://browser/skin/feeds/feedIcon16.png",
+  _largeIcon: "chrome://browser/skin/feeds/feedIcon.png",
   _appPrefLabel: "webFeed"
 }
 
@@ -838,6 +847,7 @@ var videoFeedHandlerInfo = {
   _prefSelectedAction: PREF_VIDEO_FEED_SELECTED_ACTION, 
   _prefSelectedReader: PREF_VIDEO_FEED_SELECTED_READER,
   _smallIcon: "chrome://browser/skin/feeds/videoFeedIcon16.png",
+  _largeIcon: "chrome://browser/skin/feeds/videoFeedIcon.png",
   _appPrefLabel: "videoPodcastFeed"
 }
 
@@ -848,6 +858,7 @@ var audioFeedHandlerInfo = {
   _prefSelectedAction: PREF_AUDIO_FEED_SELECTED_ACTION, 
   _prefSelectedReader: PREF_AUDIO_FEED_SELECTED_READER,
   _smallIcon: "chrome://browser/skin/feeds/audioFeedIcon16.png",
+  _largeIcon: "chrome://browser/skin/feeds/audioFeedIcon.png",
   _appPrefLabel: "audioPodcastFeed"
 }
 

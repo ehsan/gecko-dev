@@ -33,19 +33,21 @@
  * the terms of any one of the MPL, the GPL or the LGPL.
  *
  * ***** END LICENSE BLOCK ***** */
-"use strict";
 
-let EXPORTED_SYMBOLS = ["Addon", "STATE_ENABLED", "STATE_DISABLED"];
+var EXPORTED_SYMBOLS = ["Addon", "STATE_ENABLED", "STATE_DISABLED"];
 
-const {classes: Cc, interfaces: Ci, utils: Cu} = Components;
+const CC = Components.classes;
+const CI = Components.interfaces;
+const CU = Components.utils;
 
-Cu.import("resource://gre/modules/AddonManager.jsm");
-Cu.import("resource://gre/modules/AddonRepository.jsm");
-Cu.import("resource://gre/modules/Services.jsm");
-Cu.import("resource://services-sync/async.js");
-Cu.import("resource://services-sync/engines.js");
-Cu.import("resource://services-sync/util.js");
-Cu.import("resource://tps/logger.jsm");
+CU.import("resource://gre/modules/AddonManager.jsm");
+CU.import("resource://gre/modules/AddonRepository.jsm");
+CU.import("resource://gre/modules/Services.jsm");
+CU.import("resource://services-sync/async.js");
+CU.import("resource://services-sync/util.js");
+CU.import("resource://tps/logger.jsm");
+var XPIProvider = CU.import("resource://gre/modules/XPIProvider.jsm")
+                  .XPIProvider;
 
 const ADDONSGETURL = 'http://127.0.0.1:4567/';
 const STATE_ENABLED = 1;
@@ -55,14 +57,14 @@ function GetFileAsText(file)
 {
   let channel = Services.io.newChannel(file, null, null);
   let inputStream = channel.open();
-  if (channel instanceof Ci.nsIHttpChannel &&
+  if (channel instanceof CI.nsIHttpChannel && 
       channel.responseStatus != 200) {
     return "";
   }
 
   let streamBuf = "";
-  let sis = Cc["@mozilla.org/scriptableinputstream;1"]
-            .createInstance(Ci.nsIScriptableInputStream);
+  let sis = CC["@mozilla.org/scriptableinputstream;1"]
+            .createInstance(CI.nsIScriptableInputStream);
   sis.init(inputStream);
 
   let available;
@@ -80,84 +82,171 @@ function Addon(TPS, id) {
 }
 
 Addon.prototype = {
-  addon: null,
+  _addons_requiring_restart: [],
+  _addons_pending_install: [],
 
-  uninstall: function uninstall() {
+  Delete: function() {
     // find our addon locally
     let cb = Async.makeSyncCallback();
-    AddonManager.getAddonByID(this.id, cb);
-    let addon = Async.waitForSyncCallback(cb);
-
+    XPIProvider.getAddonsByTypes(null, cb);
+    let results =  Async.waitForSyncCallback(cb);
+    var addon;
+    var id = this.id;
+    results.forEach(function(result) {
+      if (result.id == id) {
+        addon = result;
+      }
+    });
     Logger.AssertTrue(!!addon, 'could not find addon ' + this.id + ' to uninstall');
-
-    cb = Async.makeSpinningCallback();
-    let store = Engines.get("addons")._store;
-    store.uninstallAddon(addon, cb);
-    cb.wait();
+    addon.uninstall();
   },
 
-  find: function find(state) {
+  Find: function(state) {
     let cb = Async.makeSyncCallback();
-    AddonManager.getAddonByID(this.id, cb);
-    let addon = Async.waitForSyncCallback(cb);
+    let addon_found = false;
+    var that = this;
 
-    if (!addon) {
-      Logger.logInfo("Could not find add-on with ID: " + this.id);
-      return false;
+    var log_addon = function(addon) {
+      that.addon = addon;
+      Logger.logInfo('addon ' + addon.id + ' found, isActive: ' + addon.isActive);
+      if (state == STATE_ENABLED || state == STATE_DISABLED) {
+          Logger.AssertEqual(addon.isActive,
+            state == STATE_ENABLED ? true : false,
+            "addon " + that.id + " has an incorrect enabled state");
+      }
+    };
+
+    // first look in the list of all addons
+    XPIProvider.getAddonsByTypes(null, cb);
+    let addonlist = Async.waitForSyncCallback(cb);
+    addonlist.forEach(function(addon) {
+      if (addon.id == that.id) {
+        addon_found = true;
+        log_addon.call(that, addon);
+      }
+    });
+
+    if (!addon_found) {
+      // then look in the list of recent installs
+      cb = Async.makeSyncCallback();
+      XPIProvider.getInstallsByTypes(null, cb);
+      addonlist = Async.waitForSyncCallback(cb);
+      for (var i in addonlist) {
+        if (addonlist[i].addon && addonlist[i].addon.id == that.id &&
+            addonlist[i].state == AddonManager.STATE_INSTALLED) {
+          addon_found = true;
+          log_addon.call(that, addonlist[i].addon);
+        }
+      }
     }
 
-    this.addon = addon;
-
-    Logger.logInfo("add-on found: " + addon.id + ", enabled: " +
-                   !addon.userDisabled);
-    if (state == STATE_ENABLED) {
-      Logger.AssertFalse(addon.userDisabled, "add-on is disabled: " + addon.id);
-      return true;
-    } else if (state == STATE_DISABLED) {
-      Logger.AssertTrue(addon.userDisabled, "add-on is enabled: " + addon.id);
-      return true;
-    } else if (state) {
-      throw Error("Don't know how to handle state: " + state);
-    } else {
-      // No state, so just checking that it exists.
-      return true;
-    }
+    return addon_found;
   },
 
-  install: function install() {
+  Install: function() {
     // For Install, the id parameter initially passed is really the filename
     // for the addon's install .xml; we'll read the actual id from the .xml.
+    let url = this.id;
 
-    let cb = Async.makeSpinningCallback();
-    // We call the store's APIs for installation because it is simpler. If that
-    // API is broken, it should ideally be caught by an xpcshell test. But, if
-    // TPS tests fail, it's all the same: a genuite reported error.
-    let store = Engines.get("addons")._store;
-    store.installAddonsFromIDs([this.id], cb);
-    let result = cb.wait();
+    // set the url used by getAddonsByIDs
+    var prefs = CC["@mozilla.org/preferences-service;1"]
+                .getService(CI.nsIPrefBranch);
+    prefs.setCharPref('extensions.getAddons.get.url', ADDONSGETURL + url);
 
-    Logger.AssertEqual(1, result.installedIDs.length, "Exactly 1 add-on was installed.");
-    Logger.AssertEqual(this.id, result.installedIDs[0],
-                       "Add-on was installed successfully: " + this.id);
-  },
+    // read the XML and find the addon id
+    xml = GetFileAsText(ADDONSGETURL + url);
+    Logger.AssertTrue(xml.indexOf("<guid>") > -1, 'guid not found in ' + url);
+    this.id = xml.substring(xml.indexOf("<guid>") + 6, xml.indexOf("</guid"));
+    Logger.logInfo('addon XML = ' + this.id);
 
-  setEnabled: function setEnabled(flag) {
-    Logger.AssertTrue(this.find(), "Add-on is available.");
+    // find our addon on 'AMO'
+    let cb = Async.makeSyncCallback();
+    AddonRepository.getAddonsByIDs([this.id], {
+      searchSucceeded: cb,
+      searchFailed: cb
+    }, false);
 
-    let userDisabled;
-    if (flag == STATE_ENABLED) {
-      userDisabled = false;
-    } else if (flag == STATE_DISABLED) {
-      userDisabled = true;
-    } else {
-      throw new Error("Unknown flag to setEnabled: " + flag);
+    // Result will be array of addons on searchSucceeded or undefined on
+    // searchFailed.
+    let install_addons = Async.waitForSyncCallback(cb);
+
+    Logger.AssertTrue(install_addons,
+                      "no addons found for id " + this.id);
+    Logger.AssertEqual(install_addons.length,
+                       1,
+                       "multiple addons found for id " + this.id);
+
+    let addon = install_addons[0];
+    Logger.logInfo(JSON.stringify(addon), null, ' ');
+    if (XPIProvider.installRequiresRestart(addon)) {
+      this._addons_requiring_restart.push(addon.id);
     }
 
-    let store = Engines.get("addons")._store;
-    let cb = Async.makeSpinningCallback();
-    store.updateUserDisabled(this.addon, userDisabled, cb);
-    cb.wait();
+    // Start installing the addon asynchronously; finish up in
+    // onInstallEnded(), onInstallFailed(), or onDownloadFailed().
+    this._addons_pending_install.push(addon.id);
+    this.TPS.StartAsyncOperation();
 
-    return true;
-  }
+    Utils.nextTick(function() {
+      let callback = function(aInstall) {
+        addon.install = aInstall;
+        Logger.logInfo("addon install: " + addon.install);
+        Logger.AssertTrue(addon.install,
+                          "could not get install object for id " + this.id);
+        addon.install.addListener(this);
+        addon.install.install();
+      };
+
+      AddonManager.getInstallForURL(addon.sourceURI.spec,
+                                    callback.bind(this),
+                                    "application/x-xpinstall");
+    }, this);
+  },
+
+  SetState: function(state) {
+    if (!this.Find())
+      return false;
+    this.addon.userDisabled = state == STATE_ENABLED ? false : true;
+      return true;
+  },
+
+  // addon installation callbacks
+  onInstallEnded: function(addon) {
+    try {
+      Logger.logInfo('--------- event observed: addon onInstallEnded');
+      Logger.AssertTrue(addon.addon,
+        "No addon object in addon instance passed to onInstallEnded");
+      Logger.AssertTrue(this._addons_pending_install.indexOf(addon.addon.id) > -1,
+        "onInstallEnded received for unexpected addon " + addon.addon.id);
+      this._addons_pending_install.splice(
+        this._addons_pending_install.indexOf(addon.addon.id),
+        1);
+    }
+    catch(e) {
+      // We can't throw during a callback, as it will just get eaten by
+      // the callback's caller.
+      Utils.nextTick(function() {
+        this.DumpError(e);
+      }, this);
+      return;
+    }
+    this.TPS.FinishAsyncOperation();
+  },
+
+  onInstallFailed: function(addon) {
+    Logger.logInfo('--------- event observed: addon onInstallFailed');
+    Utils.nextTick(function() {
+      this.DumpError('Installation failed for addon ' + 
+        (addon.addon && addon.addon.id ? addon.addon.id : 'unknown'));
+    }, this);
+  },
+
+  onDownloadFailed: function(addon) {
+    Logger.logInfo('--------- event observed: addon onDownloadFailed');
+    Utils.nextTick(function() {
+      this.DumpError('Download failed for addon ' + 
+        (addon.addon && addon.addon.id ? addon.addon.id : 'unknown'));
+    }, this);
+  },
+
 };

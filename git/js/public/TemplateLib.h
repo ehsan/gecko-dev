@@ -41,7 +41,8 @@
 #ifndef js_template_lib_h__
 #define js_template_lib_h__
 
-#include "jstypes.h"
+#include "mozilla/Types.h"
+#include "jsstdint.h"
 
 /*
  * Library of reusable template meta-functions (that is, functions on types and

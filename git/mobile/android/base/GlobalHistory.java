@@ -125,7 +125,7 @@ class GlobalHistory {
         mHandler.post(new Runnable() {
             public void run() {
                 // this runs on the same handler thread as the processing loop,
-                // so no synchronization needed
+                // so synchronization needed
                 mPendingUris.add(uri);
                 if (mProcessing) {
                     // there's already a runnable queued up or working away, so

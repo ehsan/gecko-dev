@@ -953,8 +953,7 @@ nsContentSink::PrefetchHref(const nsAString &aHref,
     nsresult rv = docshell->GetAppType(&appType);
     if (NS_FAILED(rv) || appType == nsIDocShell::APP_TYPE_MAIL)
       return; // do not prefetch from mailnews
-    treeItem = do_QueryInterface(docshell);
-    if (treeItem) {
+    if (treeItem = do_QueryInterface(docshell)) {
       treeItem->GetParent(getter_AddRefs(parentItem));
       if (parentItem) {
         treeItem = parentItem;

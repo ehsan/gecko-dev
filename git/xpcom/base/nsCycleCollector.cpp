@@ -2685,13 +2685,8 @@ nsCycleCollector::GCIfNeeded(bool aForceGC)
     nsCycleCollectionJSRuntime* rt =
         static_cast<nsCycleCollectionJSRuntime*>
             (mRuntimes[nsIProgrammingLanguage::JAVASCRIPT]);
-    if (!aForceGC) {
-        bool needGC = rt->NeedCollect();
-        // Only do a telemetry ping for non-shutdown CCs.
-        Telemetry::Accumulate(Telemetry::CYCLE_COLLECTOR_NEED_GC, needGC);
-        if (!needGC)
-            return;
-    }
+    if (!rt->NeedCollect() && !aForceGC)
+        return;
 
 #ifdef COLLECT_TIME_DEBUG
     PRTime start = PR_Now();

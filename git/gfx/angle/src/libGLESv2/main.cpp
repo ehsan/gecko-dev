@@ -98,18 +98,9 @@ Context *getNonLostContext()
 {
     Context *context = getContext();
     
-    if (context)
-    {
-        if (context->isContextLost())
-        {
-            error(GL_OUT_OF_MEMORY);
-            return NULL;
-        }
-        else
-        {
-            return context;
-        }
-    }
+    if (context && !context->isContextLost())
+        return context;
+
     return NULL;
 }
 

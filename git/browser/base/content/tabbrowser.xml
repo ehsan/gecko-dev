@@ -616,8 +616,7 @@
 
               if (topLevel) {
                 // The document loaded correctly, clear the value if we should
-                if (this.mBrowser.userTypedClear > 0 ||
-                    (aRequest && !Components.isSuccessCode(aRequest.status)))
+                if (this.mBrowser.userTypedClear > 0)
                   this.mBrowser.userTypedValue = null;
 
                 // Clear out the missing plugins list since it's related to the

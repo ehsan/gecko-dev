@@ -335,14 +335,14 @@ nsUrlClassifierPrefixSet::Contains(PRUint32 aPrefix, bool * aFound)
 }
 
 size_t
-nsUrlClassifierPrefixSet::SizeOfIncludingThis(nsMallocSizeOfFun aMallocSizeOf)
+nsUrlClassifierPrefixSet::SizeOfIncludingThis(nsMallocSizeOfFun mallocSizeOf)
 {
   MutexAutoLock lock(mPrefixSetLock);
   size_t n = 0;
-  n += aMallocSizeOf(this, sizeof(nsUrlClassifierPrefixSet));
-  n += mDeltas.SizeOfExcludingThis(aMallocSizeOf);
-  n += mIndexPrefixes.SizeOfExcludingThis(aMallocSizeOf);
-  n += mIndexStarts.SizeOfExcludingThis(aMallocSizeOf);
+  n += mallocSizeOf(this, sizeof(nsUrlClassifierPrefixSet));
+  n += mDeltas.SizeOf();
+  n += mIndexPrefixes.SizeOf();
+  n += mIndexStarts.SizeOf();
   return n;
 }
 

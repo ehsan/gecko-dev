@@ -1841,6 +1841,7 @@ TokenStream::getTokenInternal()
       case '\\':
         hadUnicodeEscape = matchUnicodeEscapeIdStart(&qc);
         if (hadUnicodeEscape) {
+            c = qc;
             identStart = userbuf.addressOfNextRawChar() - 6;
             goto identifier;
         }

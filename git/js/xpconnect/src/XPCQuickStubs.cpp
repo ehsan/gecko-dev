@@ -187,7 +187,7 @@ GeneratePropertyOp(JSContext *cx, JSObject *obj, jsid id, uintN argc, Op pop)
     JSFunction *fun =
         js::NewFunctionByIdWithReserved(cx, PropertyOpForwarder<Op>, argc, 0, obj, id);
     if (!fun)
-        return nsnull;
+        return false;
 
     JSObject *funobj = JS_GetFunctionObject(fun);
 
@@ -197,10 +197,10 @@ GeneratePropertyOp(JSContext *cx, JSObject *obj, jsid id, uintN argc, Op pop)
     // second object to work around this.
     JSObject *ptrobj = JS_NewObject(cx, &PointerHolderClass, nsnull, funobj);
     if (!ptrobj)
-        return nsnull;
+        return false;
     Op *popp = new Op;
     if (!popp)
-        return nsnull;
+        return false;
     *popp = pop;
     JS_SetPrivate(cx, ptrobj, popp);
 

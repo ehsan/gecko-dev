@@ -43,7 +43,7 @@
 #include <stdlib.h>
 #include <string.h>
 
-#include "jstypes.h"
+#include "mozilla/Util.h"
 
 #ifdef __cplusplus
 

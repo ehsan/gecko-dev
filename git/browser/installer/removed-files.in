@@ -233,6 +233,7 @@ greprefs/all.js
 greprefs/security-prefs.js
 greprefs/xpinstall.js
 install.rdf
+modules/ISO8601DateUtils.jsm
 modules/JSON.jsm
 modules/SpatialNavigation.js
 modules/utils.js
@@ -995,7 +996,6 @@ xpicleanup@BIN_SUFFIX@
   modules/Geometry.jsm
   modules/HUDService.jsm
   modules/InlineSpellChecker.jsm
-  modules/ISO8601DateUtils.jsm
   modules/LightweightThemeConsumer.jsm
   modules/LightweightThemeManager.jsm
   modules/Microformats.js
