@@ -3710,12 +3710,12 @@ class CastableObjectUnwrapper():
                 // XXXbz Wish we could check for a JS-implemented object
                 // that already has a content reflection...
                 if (!IsDOMObject(js::UncheckedUnwrap(${source}))) {
-                  nsCOMPtr<nsIGlobalObject> contentGlobal;
-                  if (!GetContentGlobalForJSImplementedObject(cx, Callback(), getter_AddRefs(contentGlobal))) {
+                  nsCOMPtr<nsPIDOMWindow> ourWindow;
+                  if (!GetWindowForJSImplementedObject(cx, Callback(), getter_AddRefs(ourWindow))) {
                     $*{exceptionCode}
                   }
                   JS::Rooted<JSObject*> jsImplSourceObj(cx, ${source});
-                  ${target} = new ${type}(jsImplSourceObj, contentGlobal);
+                  ${target} = new ${type}(jsImplSourceObj, ourWindow);
                 } else {
                   $*{codeOnFailure}
                 }
@@ -9503,8 +9503,8 @@ class CGClass(CGThing):
 
                 def declare(self, cgClass):
                     name = cgClass.getNameString()
-                    return ("%s(const %s&) = delete;\n"
-                            "void operator=(const %s) = delete;\n" % (name, name, name))
+                    return ("%s(const %s&) MOZ_DELETE;\n"
+                            "void operator=(const %s) MOZ_DELETE;\n" % (name, name, name))
 
             disallowedCopyConstructors = [DisallowedCopyConstructor()]
         else:
@@ -12291,7 +12291,7 @@ class CGBindingRoot(CGThing):
         jsImplemented = config.getDescriptors(webIDLFile=webIDLFile,
                                               isJSImplemented=True)
         bindingDeclareHeaders["nsWeakReference.h"] = jsImplemented
-        bindingHeaders["nsIGlobalObject.h"] = jsImplemented
+        bindingHeaders["nsPIDOMWindow.h"] = jsImplemented
         bindingHeaders["AtomList.h"] = hasNonEmptyDictionaries or jsImplemented or callbackDescriptors
 
         def addHeaderBasedOnTypes(header, typeChecker):
@@ -13300,6 +13300,7 @@ class CGJSImplMethod(CGJSImplMember):
             initCall = fill(
                 """
                 // Wrap the object before calling __Init so that __DOM_IMPL__ is available.
+                nsCOMPtr<nsIGlobalObject> globalHolder = do_QueryInterface(window);
                 JS::Rooted<JSObject*> scopeObj(cx, globalHolder->GetGlobalJSObject());
                 MOZ_ASSERT(js::IsObjectInContextCompartment(scopeObj, cx));
                 JS::Rooted<JS::Value> wrappedVal(cx);
@@ -13325,13 +13326,13 @@ def genConstructorBody(descriptor, initCall=""):
     return fill(
         """
         JS::Rooted<JSObject*> jsImplObj(cx);
-        nsCOMPtr<nsIGlobalObject> globalHolder =
+        nsCOMPtr<nsPIDOMWindow> window =
           ConstructJSImplementation(cx, "${contractId}", global, &jsImplObj, aRv);
         if (aRv.Failed()) {
           return nullptr;
         }
         // Build the C++ implementation.
-        nsRefPtr<${implClass}> impl = new ${implClass}(jsImplObj, globalHolder);
+        nsRefPtr<${implClass}> impl = new ${implClass}(jsImplObj, window);
         $*{initCall}
         return impl.forget();
         """,
@@ -13515,7 +13516,7 @@ class CGJSImplClass(CGBindingImplClass):
 
         constructor = ClassConstructor(
             [Argument("JS::Handle<JSObject*>", "aJSImplObject"),
-             Argument("nsIGlobalObject*", "aParent")],
+             Argument("nsPIDOMWindow*", "aParent")],
             visibility="public",
             baseConstructors=baseConstructors)
 
@@ -13586,10 +13587,12 @@ class CGJSImplClass(CGBindingImplClass):
             if (global.Failed()) {
               return false;
             }
-            nsCOMPtr<nsIGlobalObject> globalHolder = do_QueryInterface(global.GetAsSupports());
-            MOZ_ASSERT(globalHolder);
+            nsCOMPtr<nsPIDOMWindow> window = do_QueryInterface(global.GetAsSupports());
+            if (!window) {
+              return ThrowErrorMessage(cx, MSG_DOES_NOT_IMPLEMENT_INTERFACE, "Argument 1 of ${ifaceName}._create", "Window");
+            }
             JS::Rooted<JSObject*> arg(cx, &args[1].toObject());
-            nsRefPtr<${implName}> impl = new ${implName}(arg, globalHolder);
+            nsRefPtr<${implName}> impl = new ${implName}(arg, window);
             MOZ_ASSERT(js::IsObjectInContextCompartment(arg, cx));
             return GetOrCreateDOMReflector(cx, impl, args.rval());
             """,

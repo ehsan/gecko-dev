@@ -50,8 +50,18 @@
  * don't indicate support for them here, due to
  * http://stackoverflow.com/questions/20498142/visual-studio-2013-explicit-keyword-bug
  */
-#  define MOZ_HAVE_CXX11_DELETE
-#  define MOZ_HAVE_CXX11_FINAL         final
+#  if _MSC_VER >= 1800
+#    define MOZ_HAVE_CXX11_DELETE
+#  endif
+#  if _MSC_VER >= 1700
+#    define MOZ_HAVE_CXX11_FINAL         final
+#  else
+#    if defined(__clang__)
+#      error Please do not try to use clang-cl with MSVC10 or below emulation!
+#    endif
+     /* MSVC <= 10 used to spell "final" as "sealed". */
+#    define MOZ_HAVE_CXX11_FINAL         sealed
+#  endif
 #  define MOZ_HAVE_CXX11_OVERRIDE
 #  define MOZ_HAVE_NEVER_INLINE          __declspec(noinline)
 #  define MOZ_HAVE_NORETURN              __declspec(noreturn)

@@ -55,8 +55,7 @@ const RIL_IPC_MSG_NAMES = [
   "RIL:IccExchangeAPDU",
   "RIL:ReadIccContacts",
   "RIL:UpdateIccContact",
-  "RIL:MatchMvno",
-  "RIL:GetServiceState"
+  "RIL:MatchMvno"
 ];
 
 XPCOMUtils.defineLazyServiceGetter(this, "cpmm",
@@ -537,27 +536,6 @@ RILContentHelper.prototype = {
     return request;
   },
 
-  getServiceState: function(clientId, window, service) {
-    if (window == null) {
-      throw Components.Exception("Can't get window object",
-                                  Cr.NS_ERROR_UNEXPECTED);
-    }
-
-    return new window.Promise((resolve, reject) => {
-      let requestId =
-        this.getPromiseResolverId({resolve: resolve, reject: reject});
-      this._windowsMap[requestId] = window;
-
-      cpmm.sendAsyncMessage("RIL:GetServiceState", {
-        clientId: clientId,
-        data: {
-          requestId: requestId,
-          service: service
-        }
-      });
-    });
-  },
-
   _iccListeners: null,
 
   registerListener: function(listenerType, clientId, listener) {
@@ -794,9 +772,6 @@ RILContentHelper.prototype = {
       case "RIL:MatchMvno":
         this.handleSimpleRequest(data.requestId, data.errorMsg, data.result);
         break;
-      case "RIL:GetServiceState":
-        this.handleGetServiceState(data);
-        break;
     }
   },
 
@@ -897,20 +872,6 @@ RILContentHelper.prototype = {
     contact.id = iccContact.contactId;
 
     this.fireRequestSuccess(message.requestId, contact);
-  },
-
-  handleGetServiceState: function(message) {
-    let requestId = message.requestId;
-    let requestWindow = this._windowsMap[requestId];
-    delete this._windowsMap[requestId];
-
-    let resolver = this.takePromiseResolver(requestId);
-    if (message.errorMsg) {
-      resolver.reject(new requestWindow.DOMError(message.errorMsg));
-      return;
-    }
-
-    resolver.resolve(message.result);
   },
 
   _deliverEvent: function(clientId, listenerType, name, args) {

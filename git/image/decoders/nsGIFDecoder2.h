@@ -26,7 +26,8 @@ public:
   explicit nsGIFDecoder2(RasterImage& aImage);
   ~nsGIFDecoder2();
 
-  virtual void WriteInternal(const char* aBuffer, uint32_t aCount) MOZ_OVERRIDE;
+  virtual void WriteInternal(const char* aBuffer, uint32_t aCount,
+                             DecodeStrategy aStrategy) MOZ_OVERRIDE;
   virtual void FinishInternal() MOZ_OVERRIDE;
   virtual Telemetry::ID SpeedHistogram() MOZ_OVERRIDE;
 

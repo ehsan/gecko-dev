@@ -225,7 +225,7 @@ public:
   { }
 
   NS_IMETHOD
-  Run() MOZ_OVERRIDE;
+  Run();
 
   void
   AdvanceState()
@@ -299,7 +299,7 @@ public:
                      nsIUsageCallback* aCallback);
 
   NS_IMETHOD
-  Run() MOZ_OVERRIDE;
+  Run();
 
   void
   AdvanceState()
@@ -369,7 +369,7 @@ public:
   { }
 
   NS_IMETHOD
-  Run() MOZ_OVERRIDE;
+  Run();
 
   void
   AdvanceState()
@@ -877,10 +877,6 @@ GetLastModifiedTime(nsIFile* aFile, int64_t* aTimestamp)
         if (NS_WARN_IF(NS_FAILED(rv))) {
           return rv;
         }
-
-        // Need to convert from milliseconds to microseconds.
-        MOZ_ASSERT((INT64_MAX / PR_USEC_PER_MSEC) > timestamp);
-        timestamp *= int64_t(PR_USEC_PER_MSEC);
 
         if (timestamp > *aTimestamp) {
           *aTimestamp = timestamp;

@@ -21,6 +21,9 @@ DIRS += [
 if CONFIG['MOZ_UPDATER']:
     DIRS += ['/modules/libmar']
 
+if CONFIG['NS_TRACE_MALLOC']:
+    DIRS += ['/tools/trace-malloc/lib']
+
 DIRS += [
     '/config/external/freetype2',
     '/xpcom',
@@ -159,6 +162,9 @@ DIRS += [
     '/toolkit/library/StaticXULComponentsEnd',
     '/toolkit/library',
 ]
+
+if CONFIG['NS_TRACE_MALLOC']:
+    DIRS += ['/tools/trace-malloc']
 
 if CONFIG['MOZ_ENABLE_GNOME_COMPONENT']:
     DIRS += ['/toolkit/system/gnome']

@@ -38,7 +38,9 @@
 #  endif
 #elif defined(_MSC_VER)
 #  define MOZ_HAVE_CXX11_ENUM_TYPE
-#  define MOZ_HAVE_CXX11_STRONG_ENUMS
+#  if _MSC_VER >= 1700
+#    define MOZ_HAVE_CXX11_STRONG_ENUMS
+#  endif
 #endif
 
 namespace mozilla {

@@ -1111,7 +1111,6 @@ SelectionCarets::DispatchSelectionStateChangedEvent(Selection* aSelection,
 void
 SelectionCarets::NotifyBlur(bool aIsLeavingDocument)
 {
-  SELECTIONCARETS_LOG("Send out the blur event");
   SetVisibility(false);
   if (aIsLeavingDocument) {
     CancelLongTapDetector();

@@ -33,12 +33,10 @@ class ImageContainer;
 NS_IMPL_ISUPPORTS0(SourceBufferDecoder)
 
 SourceBufferDecoder::SourceBufferDecoder(MediaResource* aResource,
-                                         AbstractMediaDecoder* aParentDecoder,
-                                         int64_t aTimestampOffset)
+                                         AbstractMediaDecoder* aParentDecoder)
   : mResource(aResource)
   , mParentDecoder(aParentDecoder)
   , mReader(nullptr)
-  , mTimestampOffset(aTimestampOffset)
   , mMediaDuration(-1)
 {
   MOZ_ASSERT(NS_IsMainThread());

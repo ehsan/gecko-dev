@@ -37,38 +37,38 @@ class MediaEngineDefaultVideoSource : public nsITimerCallback,
 public:
   MediaEngineDefaultVideoSource();
 
-  virtual void GetName(nsAString&) MOZ_OVERRIDE;
-  virtual void GetUUID(nsAString&) MOZ_OVERRIDE;
+  virtual void GetName(nsAString&);
+  virtual void GetUUID(nsAString&);
 
   virtual nsresult Allocate(const VideoTrackConstraintsN &aConstraints,
-                            const MediaEnginePrefs &aPrefs) MOZ_OVERRIDE;
-  virtual nsresult Deallocate() MOZ_OVERRIDE;
-  virtual nsresult Start(SourceMediaStream*, TrackID) MOZ_OVERRIDE;
-  virtual nsresult Stop(SourceMediaStream*, TrackID) MOZ_OVERRIDE;
-  virtual void SetDirectListeners(bool aHasDirectListeners) MOZ_OVERRIDE {};
+                            const MediaEnginePrefs &aPrefs);
+  virtual nsresult Deallocate();
+  virtual nsresult Start(SourceMediaStream*, TrackID);
+  virtual nsresult Stop(SourceMediaStream*, TrackID);
+  virtual void SetDirectListeners(bool aHasDirectListeners) {};
   virtual nsresult Config(bool aEchoOn, uint32_t aEcho,
                           bool aAgcOn, uint32_t aAGC,
                           bool aNoiseOn, uint32_t aNoise,
-                          int32_t aPlayoutDelay) MOZ_OVERRIDE { return NS_OK; };
+                          int32_t aPlayoutDelay) { return NS_OK; };
   virtual void NotifyPull(MediaStreamGraph* aGraph,
                           SourceMediaStream *aSource,
                           TrackID aId,
                           StreamTime aDesiredTime) MOZ_OVERRIDE;
   virtual bool SatisfiesConstraintSets(
-      const nsTArray<const dom::MediaTrackConstraintSet*>& aConstraintSets) MOZ_OVERRIDE
+      const nsTArray<const dom::MediaTrackConstraintSet*>& aConstraintSets)
   {
     return true;
   }
 
-  virtual bool IsFake() MOZ_OVERRIDE {
+  virtual bool IsFake() {
     return true;
   }
 
-  virtual const MediaSourceType GetMediaSource() MOZ_OVERRIDE {
+  virtual const MediaSourceType GetMediaSource() {
     return MediaSourceType::Camera;
   }
 
-  virtual nsresult TakePhoto(PhotoCallback* aCallback) MOZ_OVERRIDE
+  virtual nsresult TakePhoto(PhotoCallback* aCallback)
   {
     return NS_ERROR_NOT_IMPLEMENTED;
   }
@@ -105,33 +105,33 @@ class MediaEngineDefaultAudioSource : public nsITimerCallback,
 public:
   MediaEngineDefaultAudioSource();
 
-  virtual void GetName(nsAString&) MOZ_OVERRIDE;
-  virtual void GetUUID(nsAString&) MOZ_OVERRIDE;
+  virtual void GetName(nsAString&);
+  virtual void GetUUID(nsAString&);
 
   virtual nsresult Allocate(const AudioTrackConstraintsN &aConstraints,
-                            const MediaEnginePrefs &aPrefs) MOZ_OVERRIDE;
-  virtual nsresult Deallocate() MOZ_OVERRIDE;
-  virtual nsresult Start(SourceMediaStream*, TrackID) MOZ_OVERRIDE;
-  virtual nsresult Stop(SourceMediaStream*, TrackID) MOZ_OVERRIDE;
-  virtual void SetDirectListeners(bool aHasDirectListeners) MOZ_OVERRIDE {};
+                            const MediaEnginePrefs &aPrefs);
+  virtual nsresult Deallocate();
+  virtual nsresult Start(SourceMediaStream*, TrackID);
+  virtual nsresult Stop(SourceMediaStream*, TrackID);
+  virtual void SetDirectListeners(bool aHasDirectListeners) {};
   virtual nsresult Config(bool aEchoOn, uint32_t aEcho,
                           bool aAgcOn, uint32_t aAGC,
                           bool aNoiseOn, uint32_t aNoise,
-                          int32_t aPlayoutDelay) MOZ_OVERRIDE { return NS_OK; };
+                          int32_t aPlayoutDelay) { return NS_OK; };
   virtual void NotifyPull(MediaStreamGraph* aGraph,
                           SourceMediaStream *aSource,
                           TrackID aId,
                           StreamTime aDesiredTime) MOZ_OVERRIDE {}
 
-  virtual bool IsFake() MOZ_OVERRIDE {
+  virtual bool IsFake() {
     return true;
   }
 
-  virtual const MediaSourceType GetMediaSource() MOZ_OVERRIDE {
+  virtual const MediaSourceType GetMediaSource() {
     return MediaSourceType::Microphone;
   }
 
-  virtual nsresult TakePhoto(PhotoCallback* aCallback) MOZ_OVERRIDE
+  virtual nsresult TakePhoto(PhotoCallback* aCallback)
   {
     return NS_ERROR_NOT_IMPLEMENTED;
   }

@@ -163,7 +163,6 @@ function MarionetteServerConnection(aPrefix, aTransport, aServer)
   this.currentFrameElement = null;
   this.testName = null;
   this.mozBrowserClose = null;
-  this.sandbox = null;
   this.oopFrameId = null; // frame ID of current remote frame, used for mozbrowserclose events
   this.sessionCapabilities = {
     // Mandated capabilities
@@ -787,7 +786,6 @@ MarionetteServerConnection.prototype = {
 
     let _chromeSandbox = new Cu.Sandbox(aWindow,
        { sandboxPrototype: aWindow, wantXrays: false, sandboxName: ''});
-    _chromeSandbox.global = _chromeSandbox;
     _chromeSandbox.__namedArgs = this.curBrowser.elementManager.applyNamedArgs(args);
     _chromeSandbox.__marionetteParams = args;
     _chromeSandbox.testUtils = utils;
@@ -878,18 +876,17 @@ MarionetteServerConnection.prototype = {
     let timeout = aRequest.parameters.scriptTimeout ? aRequest.parameters.scriptTimeout : this.scriptTimeout;
     let command_id = this.command_id = this.getCommandId();
     let script;
-    let newSandbox = aRequest.parameters.newSandbox;
-    if (newSandbox == undefined) {
+    if (aRequest.parameters.newSandbox == undefined) {
       //if client does not send a value in newSandbox,
       //then they expect the same behaviour as webdriver
-      newSandbox = true;
+      aRequest.parameters.newSandbox = true;
     }
     if (this.context == "content") {
       this.sendAsync("executeScript",
                      {
                        script: aRequest.parameters.script,
                        args: aRequest.parameters.args,
-                       newSandbox: newSandbox,
+                       newSandbox: aRequest.parameters.newSandbox,
                        timeout: timeout,
                        specialPowers: aRequest.parameters.specialPowers,
                        filename: aRequest.parameters.filename,
@@ -922,27 +919,24 @@ MarionetteServerConnection.prototype = {
      }
     }
 
-
-    if (!this.sandbox || newSandbox) {
-      let curWindow = this.getCurrentWindow();
-      let marionette = new Marionette(this, curWindow, "chrome",
-                                      this.marionetteLog,
-                                      timeout, this.heartbeatCallback, this.testName);
-      this.sandbox = this.createExecuteSandbox(curWindow,
-                                               marionette,
-                                               aRequest.parameters.args,
-                                               aRequest.parameters.specialPowers,
-                                               command_id);
-      if (!this.sandbox)
-        return;
-    }
+    let curWindow = this.getCurrentWindow();
+    let marionette = new Marionette(this, curWindow, "chrome",
+                                    this.marionetteLog,
+                                    timeout, this.heartbeatCallback, this.testName);
+    let _chromeSandbox = this.createExecuteSandbox(curWindow,
+                                                   marionette,
+                                                   aRequest.parameters.args,
+                                                   aRequest.parameters.specialPowers,
+                                                   command_id);
+    if (!_chromeSandbox)
+      return;
 
     try {
-      this.sandbox.finish = function chromeSandbox_finish() {
+      _chromeSandbox.finish = function chromeSandbox_finish() {
         if (that.inactivityTimer != null) {
           that.inactivityTimer.cancel();
         }
-        return that.sandbox.generate_results();
+        return marionette.generate_results();
       };
 
       if (directInject) {
@@ -954,7 +948,7 @@ MarionetteServerConnection.prototype = {
                      "};" +
                      "func.apply(null, __marionetteParams);";
       }
-      this.executeScriptInSandbox(this.sandbox, script, directInject,
+      this.executeScriptInSandbox(_chromeSandbox, script, directInject,
                                   false, command_id, timeout);
     }
     catch (e) {
@@ -1048,11 +1042,10 @@ MarionetteServerConnection.prototype = {
     let timeout = aRequest.parameters.scriptTimeout ? aRequest.parameters.scriptTimeout : this.scriptTimeout;
     let command_id = this.command_id = this.getCommandId();
     let script;
-    let newSandbox = aRequest.parameters.newSandbox;
-    if (newSandbox == undefined) {
+    if (aRequest.parameters.newSandbox == undefined) {
       //if client does not send a value in newSandbox,
       //then they expect the same behaviour as webdriver
-      newSandbox = true;
+      aRequest.parameters.newSandbox = true;
     }
 
     if (this.context == "content") {
@@ -1061,7 +1054,7 @@ MarionetteServerConnection.prototype = {
                        script: aRequest.parameters.script,
                        args: aRequest.parameters.args,
                        id: this.command_id,
-                       newSandbox: newSandbox,
+                       newSandbox: aRequest.parameters.newSandbox,
                        timeout: timeout,
                        inactivityTimeout: inactivityTimeout,
                        specialPowers: aRequest.parameters.specialPowers,
@@ -1095,6 +1088,10 @@ MarionetteServerConnection.prototype = {
     let curWindow = this.getCurrentWindow();
     let original_onerror = curWindow.onerror;
     that.timeout = timeout;
+    let marionette = new Marionette(this, curWindow, "chrome",
+                                    this.marionetteLog,
+                                    timeout, this.heartbeatCallback, this.testName);
+    marionette.command_id = this.command_id;
 
     function chromeAsyncReturnFunc(value, status, stacktrace) {
       if (that._emu_cbs && Object.keys(that._emu_cbs).length) {
@@ -1105,8 +1102,7 @@ MarionetteServerConnection.prototype = {
 
       if (value == undefined)
         value = null;
-
-      if (command_id == that.command_id) {
+      if (that.command_id == marionette.command_id) {
         if (that.timer != null) {
           that.timer.cancel();
           that.timer = null;
@@ -1116,15 +1112,14 @@ MarionetteServerConnection.prototype = {
 
         if (status == 0 || status == undefined) {
           that.sendToClient({from: that.actorID, value: that.curBrowser.elementManager.wrapValue(value), status: status},
-                            that.command_id);
+                            marionette.command_id);
         }
         else {
           let error_msg = {message: value, status: status, stacktrace: stacktrace};
           that.sendToClient({from: that.actorID, error: error_msg},
-                            that.command_id);
+                            marionette.command_id);
         }
       }
-
       if (that.inactivityTimer != null) {
         that.inactivityTimer.cancel();
       }
@@ -1136,21 +1131,16 @@ MarionetteServerConnection.prototype = {
     };
 
     function chromeAsyncFinish() {
-      chromeAsyncReturnFunc(that.sandbox.generate_results(), 0);
+      chromeAsyncReturnFunc(marionette.generate_results(), 0);
     }
 
-    if (!this.sandbox || newSandbox) {
-      let marionette = new Marionette(this, curWindow, "chrome",
-                                      this.marionetteLog,
-                                      timeout, this.heartbeatCallback, this.testName);
-      this.sandbox = this.createExecuteSandbox(curWindow,
-                                               marionette,
-                                               aRequest.parameters.args,
-                                               aRequest.parameters.specialPowers,
-                                               command_id);
-      if (!this.sandbox)
-        return;
-    }
+    let _chromeSandbox = this.createExecuteSandbox(curWindow,
+                                                   marionette,
+                                                   aRequest.parameters.args,
+                                                   aRequest.parameters.specialPowers,
+                                                   command_id);
+    if (!_chromeSandbox)
+      return;
 
     try {
 
@@ -1161,8 +1151,8 @@ MarionetteServerConnection.prototype = {
         }, that.timeout, Ci.nsITimer.TYPE_ONE_SHOT);
       }
 
-      this.sandbox.returnFunc = chromeAsyncReturnFunc;
-      this.sandbox.finish = chromeAsyncFinish;
+      _chromeSandbox.returnFunc = chromeAsyncReturnFunc;
+      _chromeSandbox.finish = chromeAsyncFinish;
 
       if (directInject) {
         script = aRequest.parameters.script;
@@ -1174,7 +1164,7 @@ MarionetteServerConnection.prototype = {
                 + '__marionetteFunc.apply(null, __marionetteParams);';
       }
 
-      this.executeScriptInSandbox(this.sandbox, script, directInject,
+      this.executeScriptInSandbox(_chromeSandbox, script, directInject,
                                   true, command_id, timeout);
     } catch (e) {
       let error = createStackMessage(e,
@@ -1509,8 +1499,6 @@ MarionetteServerConnection.prototype = {
       if (aRequest.parameters.name == win.name ||
           aRequest.parameters.name == contentWindowId ||
           aRequest.parameters.name == outerId) {
-        // As in content, switching to a new window invalidates a sandbox for reuse.
-        this.sandbox = null;
         if (this.browsers[outerId] === undefined) {
           //enable Marionette in that browser window
           this.startBrowser(win, false);
@@ -2412,53 +2400,6 @@ MarionetteServerConnection.prototype = {
   },
 
   /**
-   * Close the currently selected chrome window, ending the session if it's the last
-   * window currently open.
-   *
-   * On B2G this method is a noop and will return immediately.
-   */
-  closeChromeWindow: function MDA_closeChromeWindow() {
-    let command_id = this.command_id = this.getCommandId();
-    if (appName == "B2G") {
-      // We can't close windows so just return
-      this.sendOk(command_id);
-    }
-    else {
-      // Get the total number of windows
-      let numOpenWindows = 0;
-      let winEnum = this.getWinEnumerator();
-      while (winEnum.hasMoreElements()) {
-        numOpenWindows += 1;
-        winEnum.getNext();
-      }
-
-      // if there is only 1 window left, delete the session
-      if (numOpenWindows === 1) {
-        try {
-          this.sessionTearDown();
-        }
-        catch (e) {
-          this.sendError("Could not clear session", 500,
-                         e.name + ": " + e.message, command_id);
-          return;
-        }
-        this.sendOk(command_id);
-        return;
-      }
-
-      try {
-        this.messageManager.removeDelayedFrameScript(FRAME_SCRIPT);
-        this.getCurrentWindow().close();
-        this.sendOk(command_id);
-      }
-      catch (e) {
-        this.sendError("Could not close window: " + e.message, 13, e.stack,
-                       command_id);
-      }
-    }
-  },
-
-  /**
    * Deletes the session.
    *
    * If it is a desktop environment, it will close all listeners
@@ -3058,7 +2999,6 @@ MarionetteServerConnection.prototype.requestTypes = {
   "getWindowHandle": MarionetteServerConnection.prototype.getWindowHandle,
   "getCurrentWindowHandle":  MarionetteServerConnection.prototype.getWindowHandle,  // Selenium 2 compat
   "getChromeWindowHandle": MarionetteServerConnection.prototype.getChromeWindowHandle,
-  "getCurrentChromeWindowHandle": MarionetteServerConnection.prototype.getChromeWindowHandle,
   "getWindow":  MarionetteServerConnection.prototype.getWindowHandle,  // deprecated
   "getWindowHandles": MarionetteServerConnection.prototype.getWindowHandles,
   "getChromeWindowHandles": MarionetteServerConnection.prototype.getChromeWindowHandles,
@@ -3076,7 +3016,6 @@ MarionetteServerConnection.prototype.requestTypes = {
   "getAppCacheStatus": MarionetteServerConnection.prototype.getAppCacheStatus,
   "close": MarionetteServerConnection.prototype.close,
   "closeWindow": MarionetteServerConnection.prototype.close,  // deprecated
-  "closeChromeWindow": MarionetteServerConnection.prototype.closeChromeWindow,
   "setTestName": MarionetteServerConnection.prototype.setTestName,
   "takeScreenshot": MarionetteServerConnection.prototype.takeScreenshot,
   "screenShot": MarionetteServerConnection.prototype.takeScreenshot,  // deprecated

@@ -15,6 +15,7 @@
 #include "nsDataHashtable.h"
 #include "nsHashKeys.h"
 #include "nsTArray.h"
+#include "nsTHashtable.h"
 
 class nsCycleCollectionNoteRootCallback;
 class nsIException;
@@ -147,7 +148,7 @@ protected:
 private:
 
   void
-  DescribeGCThing(bool aIsMarked, JS::GCCellPtr aThing,
+  DescribeGCThing(bool aIsMarked, void* aThing, JSGCTraceKind aTraceKind,
                   nsCycleCollectionTraversalCallback& aCb) const;
 
   virtual bool
@@ -158,7 +159,7 @@ private:
   }
 
   void
-  NoteGCThingJSChildren(JS::GCCellPtr aThing,
+  NoteGCThingJSChildren(void* aThing, JSGCTraceKind aTraceKind,
                         nsCycleCollectionTraversalCallback& aCb) const;
 
   void
@@ -178,7 +179,8 @@ private:
   };
 
   void
-  TraverseGCThing(TraverseSelect aTs, JS::GCCellPtr aThing,
+  TraverseGCThing(TraverseSelect aTs, void* aThing,
+                  JSGCTraceKind aTraceKind,
                   nsCycleCollectionTraversalCallback& aCb);
 
   void
@@ -290,6 +292,18 @@ public:
   // isn't one.
   static CycleCollectedJSRuntime* Get();
 
+  // Add aZone to the set of zones waiting for a GC.
+  void AddZoneWaitingForGC(JS::Zone* aZone)
+  {
+    mZonesWaitingForGC.PutEntry(aZone);
+  }
+
+  // Prepare any zones for GC that have been passed to AddZoneWaitingForGC()
+  // since the last GC or since the last call to PrepareWaitingZonesForGC(),
+  // whichever was most recent. If there were no such zones, prepare for a
+  // full GC.
+  void PrepareWaitingZonesForGC();
+
 private:
   JSGCThingParticipant mGCThingCycleCollectorGlobal;
 
@@ -312,6 +326,8 @@ private:
 
   OOMState mOutOfMemoryState;
   OOMState mLargeAllocationFailureState;
+
+  nsTHashtable<nsPtrHashKey<JS::Zone>> mZonesWaitingForGC;
 };
 
 MOZ_FINISH_NESTED_ENUM_CLASS(CycleCollectedJSRuntime::OOMState)

@@ -21,6 +21,7 @@
 #include "jit/JitCompartment.h"
 #include "jit/JitSpewer.h"
 #include "jit/MacroAssembler.h"
+#include "jit/ParallelFunctions.h"
 #include "jit/PcScriptCache.h"
 #include "jit/Recover.h"
 #include "jit/Safepoints.h"
@@ -92,16 +93,18 @@ JitFrameIterator::JitFrameIterator()
     type_(JitFrame_Exit),
     returnAddressToFp_(nullptr),
     frameSize_(0),
+    mode_(SequentialExecution),
     cachedSafepointIndex_(nullptr),
     activation_(nullptr)
 {
 }
 
-JitFrameIterator::JitFrameIterator(JSContext *cx)
+JitFrameIterator::JitFrameIterator(ThreadSafeContext *cx)
   : current_(cx->perThreadData->jitTop),
     type_(JitFrame_Exit),
     returnAddressToFp_(nullptr),
     frameSize_(0),
+    mode_(cx->isForkJoinContext() ? ParallelExecution : SequentialExecution),
     cachedSafepointIndex_(nullptr),
     activation_(cx->perThreadData->activation()->asJit())
 {
@@ -117,6 +120,8 @@ JitFrameIterator::JitFrameIterator(const ActivationIterator &activations)
     type_(JitFrame_Exit),
     returnAddressToFp_(nullptr),
     frameSize_(0),
+    mode_(activations->asJit()->cx()->isForkJoinContext() ? ParallelExecution
+                                                          : SequentialExecution),
     cachedSafepointIndex_(nullptr),
     activation_(activations->asJit())
 {
@@ -146,8 +151,14 @@ JitFrameIterator::checkInvalidation(IonScript **ionScriptOut) const
     uint8_t *returnAddr = returnAddressToFp();
     // N.B. the current IonScript is not the same as the frame's
     // IonScript if the frame has since been invalidated.
-    bool invalidated = !script->hasIonScript() ||
-                       !script->ionScript()->containsReturnAddress(returnAddr);
+    bool invalidated;
+    if (mode_ == ParallelExecution) {
+        // Parallel execution does not have invalidating bailouts.
+        invalidated = false;
+    } else {
+        invalidated = !script->hasIonScript() ||
+            !script->ionScript()->containsReturnAddress(returnAddr);
+    }
     if (!invalidated)
         return false;
 
@@ -859,6 +870,29 @@ HandleException(ResumeFromException *rfe)
     }
 
     rfe->stackPointer = iter.fp();
+}
+
+void
+HandleParallelFailure(ResumeFromException *rfe)
+{
+    parallel::Spew(parallel::SpewBailouts, "Bailing from VM reentry");
+
+    ForkJoinContext *cx = ForkJoinContext::current();
+    JitFrameIterator frameIter(cx);
+
+    // Advance to the first Ion frame so we can pull out the BailoutKind.
+    while (!frameIter.isIonJS())
+        ++frameIter;
+    SnapshotIterator snapIter(frameIter);
+
+    cx->bailoutRecord->setIonBailoutKind(snapIter.bailoutKind());
+    while (!frameIter.done())
+        ++frameIter;
+
+    rfe->kind = ResumeFromException::RESUME_ENTRY_FRAME;
+
+    MOZ_ASSERT(frameIter.done());
+    rfe->stackPointer = frameIter.fp();
 }
 
 void
@@ -2177,7 +2211,15 @@ JitFrameIterator::ionScriptFromCalleeToken() const
 {
     MOZ_ASSERT(isIonJS());
     MOZ_ASSERT(!checkInvalidation());
-    return script()->ionScript();
+
+    switch (mode_) {
+      case SequentialExecution:
+        return script()->ionScript();
+      case ParallelExecution:
+        return script()->parallelIonScript();
+      default:
+        MOZ_CRASH("No such execution mode");
+    }
 }
 
 const SafepointIndex *
@@ -2206,7 +2248,7 @@ JitFrameIterator::osiIndex() const
     return ionScript()->getOsiIndex(reader.osiReturnPointOffset());
 }
 
-InlineFrameIterator::InlineFrameIterator(JSContext *cx, const JitFrameIterator *iter)
+InlineFrameIterator::InlineFrameIterator(ThreadSafeContext *cx, const JitFrameIterator *iter)
   : calleeTemplate_(cx),
     calleeRVA_(),
     script_(cx)
@@ -2222,7 +2264,7 @@ InlineFrameIterator::InlineFrameIterator(JSRuntime *rt, const JitFrameIterator *
     resetOn(iter);
 }
 
-InlineFrameIterator::InlineFrameIterator(JSContext *cx, const InlineFrameIterator *iter)
+InlineFrameIterator::InlineFrameIterator(ThreadSafeContext *cx, const InlineFrameIterator *iter)
   : frame_(iter ? iter->frame_ : nullptr),
     framesRead_(0),
     frameCount_(iter ? iter->frameCount_ : UINT32_MAX),

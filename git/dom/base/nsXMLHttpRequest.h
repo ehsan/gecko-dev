@@ -244,8 +244,7 @@ public:
 
   void Construct(nsIPrincipal* aPrincipal,
                  nsIGlobalObject* aGlobalObject,
-                 nsIURI* aBaseURI = nullptr,
-                 nsILoadGroup* aLoadGroup = nullptr)
+                 nsIURI* aBaseURI = nullptr)
   {
     MOZ_ASSERT(aPrincipal);
     MOZ_ASSERT_IF(nsCOMPtr<nsPIDOMWindow> win = do_QueryInterface(
@@ -253,7 +252,6 @@ public:
     mPrincipal = aPrincipal;
     BindToOwner(aGlobalObject);
     mBaseURI = aBaseURI;
-    mLoadGroup = aLoadGroup;
   }
 
   void InitParameters(bool aAnon, bool aSystem);
@@ -719,7 +717,6 @@ protected:
   nsIRequestObserver* mRequestObserver;
 
   nsCOMPtr<nsIURI> mBaseURI;
-  nsCOMPtr<nsILoadGroup> mLoadGroup;
 
   uint32_t mState;
 

@@ -44,7 +44,7 @@ protected:
   }
 
   virtual void
-  ActorDestroy(ActorDestroyReason aWhy) MOZ_OVERRIDE;
+  ActorDestroy(ActorDestroyReason why);
 
   virtual bool
   RecvPSmsRequestConstructor(PSmsRequestParent* aActor,

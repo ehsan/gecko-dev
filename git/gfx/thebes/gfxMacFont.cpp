@@ -143,8 +143,7 @@ gfxMacFont::ShapeText(gfxContext     *aContext,
         }
         if (mCoreTextShaper->ShapeText(aContext, aText, aOffset, aLength,
                                        aScript, aVertical, aShapedText)) {
-            PostShapingFixup(aContext, aText, aOffset, aLength, aVertical,
-                             aShapedText);
+            PostShapingFixup(aContext, aText, aOffset, aLength, aShapedText);
             return true;
         }
     }

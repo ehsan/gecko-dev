@@ -845,17 +845,41 @@ private:
   void StartSmoothScroll();
 
   /* ===================================================================
-   * The functions and members in this section are used to make ancestor chains
-   * out of APZC instances. These chains can only be walked or manipulated
-   * while holding the lock in the associated APZCTreeManager instance.
+   * The functions and members in this section are used to build a tree
+   * structure out of APZC instances. This tree can only be walked or
+   * manipulated while holding the lock in the associated APZCTreeManager
+   * instance.
    */
 public:
-  void SetParent(AsyncPanZoomController* aParent) {
-    mParent = aParent;
+  void SetLastChild(AsyncPanZoomController* child) {
+    mLastChild = child;
+    if (child) {
+      child->mParent = this;
+    }
   }
 
-  AsyncPanZoomController* GetParent() const {
-    return mParent;
+  void SetPrevSibling(AsyncPanZoomController* sibling) {
+    mPrevSibling = sibling;
+    if (sibling) {
+      sibling->mParent = mParent;
+    }
+  }
+
+  // Make this APZC the root of the APZC tree. Clears the parent pointer.
+  void MakeRoot() {
+    mParent = nullptr;
+  }
+
+  AsyncPanZoomController* GetLastChild() const { return mLastChild; }
+  AsyncPanZoomController* GetPrevSibling() const { return mPrevSibling; }
+  AsyncPanZoomController* GetParent() const { return mParent; }
+
+  AsyncPanZoomController* GetFirstChild() const {
+    AsyncPanZoomController* child = GetLastChild();
+    while (child && child->GetPrevSibling()) {
+      child = child->GetPrevSibling();
+    }
+    return child;
   }
 
   /* Returns true if there is no APZC higher in the tree with the same
@@ -873,6 +897,8 @@ private:
   // pointer out in Destroy() will prevent accessing deleted memory.
   Atomic<APZCTreeManager*> mTreeManager;
 
+  nsRefPtr<AsyncPanZoomController> mLastChild;
+  nsRefPtr<AsyncPanZoomController> mPrevSibling;
   nsRefPtr<AsyncPanZoomController> mParent;
 
 
@@ -970,12 +996,27 @@ private:
    * hit-testing to see which APZC instance should handle touch events.
    */
 public:
-  void SetAncestorTransform(const Matrix4x4& aTransformToLayer) {
+  void SetLayerHitTestData(const EventRegions& aRegions, const Matrix4x4& aTransformToLayer) {
+    mEventRegions = aRegions;
     mAncestorTransform = aTransformToLayer;
+  }
+
+  void AddHitTestRegions(const EventRegions& aRegions) {
+    mEventRegions.OrWith(aRegions);
   }
 
   Matrix4x4 GetAncestorTransform() const {
     return mAncestorTransform;
+  }
+
+  bool HitRegionContains(const ParentLayerPoint& aPoint) const {
+    ParentLayerIntPoint point = RoundedToInt(aPoint);
+    return mEventRegions.mHitRegion.Contains(point.x, point.y);
+  }
+
+  bool DispatchToContentRegionContains(const ParentLayerPoint& aPoint) const {
+    ParentLayerIntPoint point = RoundedToInt(aPoint);
+    return mEventRegions.mDispatchToContentHitRegion.Contains(point.x, point.y);
   }
 
   bool IsOverscrolled() const {
@@ -983,6 +1024,11 @@ public:
   }
 
 private:
+  /* This is the union of the hit regions of the layers that this APZC
+   * corresponds to, in the local screen pixels of those layers. (This is the
+   * same coordinate system in which this APZC receives events in
+   * ReceiveInputEvent()). */
+  EventRegions mEventRegions;
   /* This is the cumulative CSS transform for all the layers from (and including)
    * the parent APZC down to (but excluding) this one. */
   Matrix4x4 mAncestorTransform;

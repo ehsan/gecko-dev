@@ -193,8 +193,8 @@ protected:
   ReentrantMonitor          mReentrantMonitor;
 
 private:
-  nsGonkCameraControl(const nsGonkCameraControl&) = delete;
-  nsGonkCameraControl& operator=(const nsGonkCameraControl&) = delete;
+  nsGonkCameraControl(const nsGonkCameraControl&) MOZ_DELETE;
+  nsGonkCameraControl& operator=(const nsGonkCameraControl&) MOZ_DELETE;
 };
 
 // camera driver callbacks

@@ -177,7 +177,7 @@ class Builder {
         }
 
       private:
-        BuiltThing() = delete;
+        BuiltThing() MOZ_DELETE;
     };
 
   public:

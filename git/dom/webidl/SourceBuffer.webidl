@@ -15,7 +15,7 @@ enum SourceBufferAppendMode {
     "sequence"
 };
 
-[Func="mozilla::dom::MediaSource::Enabled"]
+[Pref="media.mediasource.enabled"]
 interface SourceBuffer : EventTarget {
   [SetterThrows]
   attribute SourceBufferAppendMode mode;

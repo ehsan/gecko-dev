@@ -220,12 +220,12 @@ protected:
     }
 
   protected:
-    virtual void DoResolve(ResolveValueType aResolveValue) MOZ_OVERRIDE
+    virtual void DoResolve(ResolveValueType aResolveValue)
     {
       InvokeCallbackMethod(mThisVal.get(), mResolveMethod, aResolveValue);
     }
 
-    virtual void DoReject(RejectValueType aRejectValue) MOZ_OVERRIDE
+    virtual void DoReject(RejectValueType aRejectValue)
     {
       InvokeCallbackMethod(mThisVal.get(), mRejectMethod, aRejectValue);
     }

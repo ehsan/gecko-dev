@@ -20,8 +20,6 @@ class nsIRollupListener {
    * Notifies the object to rollup, optionally returning the node that
    * was just rolled up.
    *
-   * If aFlush is true, then views should be flushed after the rollup.
-   *
    * aPoint is the mouse pointer position where the event that triggered the
    * rollup occurred, which may be nullptr.
    *
@@ -32,8 +30,7 @@ class nsIRollupListener {
    *
    * Returns true if the event that the caller is processing should be consumed.
    */
-  virtual bool Rollup(uint32_t aCount, bool aFlush,
-                      const nsIntPoint* aPoint, nsIContent** aLastRolledUp) = 0;
+  virtual bool Rollup(uint32_t aCount, const nsIntPoint* aPoint, nsIContent** aLastRolledUp) = 0;
 
   /**
    * Asks the RollupListener if it should rollup on mouse wheel events

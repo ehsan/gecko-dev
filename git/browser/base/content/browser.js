@@ -1738,7 +1738,7 @@ function HandleAppCommandEvent(evt) {
     saveDocument(gBrowser.selectedBrowser.contentDocumentAsCPOW);
     break;
   case "SendMail":
-    MailIntegration.sendLinkForBrowser(gBrowser.selectedBrowser);
+    MailIntegration.sendLinkForWindow(window.content);
     break;
   default:
     return;
@@ -6524,8 +6524,9 @@ function warnAboutClosingWindow() {
 }
 
 var MailIntegration = {
-  sendLinkForBrowser: function (aBrowser) {
-    this.sendMessage(aBrowser.currentURI.spec, aBrowser.contentTitle);
+  sendLinkForWindow: function (aWindow) {
+    this.sendMessage(aWindow.location.href,
+                     aWindow.document.title);
   },
 
   sendMessage: function (aBody, aSubject) {

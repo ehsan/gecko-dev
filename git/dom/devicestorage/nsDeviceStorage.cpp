@@ -2202,21 +2202,21 @@ nsDOMDeviceStorageCursor::GetTypes(nsIArray** aTypes)
 }
 
 NS_IMETHODIMP
-nsDOMDeviceStorageCursor::GetPrincipal(nsIPrincipal** aRequestingPrincipal)
+nsDOMDeviceStorageCursor::GetPrincipal(nsIPrincipal * *aRequestingPrincipal)
 {
   NS_IF_ADDREF(*aRequestingPrincipal = mPrincipal);
   return NS_OK;
 }
 
 NS_IMETHODIMP
-nsDOMDeviceStorageCursor::GetWindow(nsIDOMWindow** aRequestingWindow)
+nsDOMDeviceStorageCursor::GetWindow(nsIDOMWindow * *aRequestingWindow)
 {
   NS_IF_ADDREF(*aRequestingWindow = GetOwner());
   return NS_OK;
 }
 
 NS_IMETHODIMP
-nsDOMDeviceStorageCursor::GetElement(nsIDOMElement** aRequestingElement)
+nsDOMDeviceStorageCursor::GetElement(nsIDOMElement * *aRequestingElement)
 {
   *aRequestingElement = nullptr;
   return NS_OK;
@@ -2900,7 +2900,7 @@ public:
   NS_DECL_CYCLE_COLLECTION_CLASS_AMBIGUOUS(DeviceStorageRequest,
                                            nsIContentPermissionRequest)
 
-  NS_IMETHOD Run() MOZ_OVERRIDE
+  NS_IMETHOD Run()
   {
     MOZ_ASSERT(NS_IsMainThread());
 
@@ -2912,7 +2912,7 @@ public:
     return nsContentPermissionUtils::AskPermission(this, mWindow);
   }
 
-  NS_IMETHODIMP GetTypes(nsIArray** aTypes) MOZ_OVERRIDE
+  NS_IMETHODIMP GetTypes(nsIArray** aTypes)
   {
     nsCString type;
     nsresult rv =
@@ -2932,25 +2932,25 @@ public:
     return nsContentPermissionUtils::CreatePermissionArray(type, access, emptyOptions, aTypes);
   }
 
-  NS_IMETHOD GetPrincipal(nsIPrincipal * *aRequestingPrincipal) MOZ_OVERRIDE
+  NS_IMETHOD GetPrincipal(nsIPrincipal * *aRequestingPrincipal)
   {
     NS_IF_ADDREF(*aRequestingPrincipal = mPrincipal);
     return NS_OK;
   }
 
-  NS_IMETHOD GetWindow(nsIDOMWindow * *aRequestingWindow) MOZ_OVERRIDE
+  NS_IMETHOD GetWindow(nsIDOMWindow * *aRequestingWindow)
   {
     NS_IF_ADDREF(*aRequestingWindow = mWindow);
     return NS_OK;
   }
 
-  NS_IMETHOD GetElement(nsIDOMElement * *aRequestingElement) MOZ_OVERRIDE
+  NS_IMETHOD GetElement(nsIDOMElement * *aRequestingElement)
   {
     *aRequestingElement = nullptr;
     return NS_OK;
   }
 
-  NS_IMETHOD Cancel() MOZ_OVERRIDE
+  NS_IMETHOD Cancel()
   {
     nsCOMPtr<nsIRunnable> event
       = new PostErrorEvent(mRequest.forget(),
@@ -2958,7 +2958,7 @@ public:
     return NS_DispatchToMainThread(event);
   }
 
-  NS_IMETHOD Allow(JS::HandleValue aChoices) MOZ_OVERRIDE
+  NS_IMETHOD Allow(JS::HandleValue aChoices)
   {
     MOZ_ASSERT(NS_IsMainThread());
     MOZ_ASSERT(aChoices.isUndefined());

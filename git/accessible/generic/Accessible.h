@@ -1112,9 +1112,9 @@ protected:
   nsRoleMapEntry* mRoleMapEntry;
 
 private:
-  Accessible() = delete;
-  Accessible(const Accessible&) = delete;
-  Accessible& operator =(const Accessible&) = delete;
+  Accessible() MOZ_DELETE;
+  Accessible(const Accessible&) MOZ_DELETE;
+  Accessible& operator =(const Accessible&) MOZ_DELETE;
 
 };
 

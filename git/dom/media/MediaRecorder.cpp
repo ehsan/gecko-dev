@@ -73,7 +73,7 @@ public:
 
   NS_METHOD
   CollectReports(nsIHandleReportCallback* aHandleReport,
-                 nsISupports* aData, bool aAnonymize) MOZ_OVERRIDE
+                 nsISupports* aData, bool aAnonymize)
   {
     int64_t amount = 0;
     RecordersArray& recorders = GetRecorders();
@@ -651,7 +651,7 @@ private:
     }
   }
 
-  NS_IMETHODIMP Observe(nsISupports *aSubject, const char *aTopic, const char16_t *aData) MOZ_OVERRIDE
+  NS_IMETHODIMP Observe(nsISupports *aSubject, const char *aTopic, const char16_t *aData)
   {
     MOZ_ASSERT(NS_IsMainThread());
     LOG(PR_LOG_DEBUG, ("Session.Observe XPCOM_SHUTDOWN %p", this));

@@ -919,8 +919,7 @@ Proxy::Init()
   nsCOMPtr<nsIGlobalObject> global = do_QueryInterface(ownerWindow);
   if (NS_FAILED(mXHR->Init(mWorkerPrivate->GetPrincipal(),
                            mWorkerPrivate->GetScriptContext(),
-                           global, mWorkerPrivate->GetBaseURI(),
-                           mWorkerPrivate->GetLoadGroup()))) {
+                           global, mWorkerPrivate->GetBaseURI()))) {
     mXHR = nullptr;
     return false;
   }

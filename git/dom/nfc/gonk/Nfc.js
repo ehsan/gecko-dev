@@ -65,8 +65,7 @@ const NFC_IPC_MSG_ENTRIES = [
                "NFC:Close",
                "NFC:WriteNDEF",
                "NFC:MakeReadOnly",
-               "NFC:Format",
-               "NFC:Transceive"] },
+               "NFC:Format"] },
 
   { permission: "nfc-share",
     messages: ["NFC:SendFile",
@@ -519,7 +518,6 @@ Nfc.prototype = {
       case "ReadNDEFResponse":
       case "MakeReadOnlyResponse":
       case "FormatResponse":
-      case "TransceiveResponse":
       case "WriteNDEFResponse":
         this.sendNfcResponse(message);
         break;
@@ -575,9 +573,6 @@ Nfc.prototype = {
         break;
       case "NFC:Format":
         this.sendToNfcService("format", message.data);
-        break;
-      case "NFC:Transceive":
-        this.sendToNfcService("transceive", message.data);
         break;
       case "NFC:Connect":
         this.sendToNfcService("connect", message.data);

@@ -158,8 +158,8 @@ nsFrameManager::GetPlaceholderFrameFor(const nsIFrame* aFrame)
 
   if (mPlaceholderMap.ops) {
     PlaceholderMapEntry *entry = static_cast<PlaceholderMapEntry*>
-                                            (PL_DHashTableLookup(const_cast<PLDHashTable*>(&mPlaceholderMap),
-                                aFrame));
+                                            (PL_DHashTableOperate(const_cast<PLDHashTable*>(&mPlaceholderMap),
+                                aFrame, PL_DHASH_LOOKUP));
     if (PL_DHASH_ENTRY_IS_BUSY(entry)) {
       return entry->placeholderFrame;
     }
@@ -178,8 +178,9 @@ nsFrameManager::RegisterPlaceholderFrame(nsPlaceholderFrame* aPlaceholderFrame)
     PL_DHashTableInit(&mPlaceholderMap, &PlaceholderMapOps, nullptr,
                       sizeof(PlaceholderMapEntry));
   }
-  PlaceholderMapEntry *entry = static_cast<PlaceholderMapEntry*>(PL_DHashTableAdd(&mPlaceholderMap,
-                              aPlaceholderFrame->GetOutOfFlowFrame()));
+  PlaceholderMapEntry *entry = static_cast<PlaceholderMapEntry*>(PL_DHashTableOperate(&mPlaceholderMap,
+                              aPlaceholderFrame->GetOutOfFlowFrame(),
+                              PL_DHASH_ADD));
   if (!entry)
     return NS_ERROR_OUT_OF_MEMORY;
 
@@ -197,8 +198,9 @@ nsFrameManager::UnregisterPlaceholderFrame(nsPlaceholderFrame* aPlaceholderFrame
                   "unexpected frame type");
 
   if (mPlaceholderMap.ops) {
-    PL_DHashTableRemove(&mPlaceholderMap,
-                        aPlaceholderFrame->GetOutOfFlowFrame());
+    PL_DHashTableOperate(&mPlaceholderMap,
+                         aPlaceholderFrame->GetOutOfFlowFrame(),
+                         PL_DHASH_REMOVE);
   }
 }
 

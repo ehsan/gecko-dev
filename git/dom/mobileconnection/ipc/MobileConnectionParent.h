@@ -36,7 +36,7 @@ protected:
   }
 
   virtual void
-  ActorDestroy(ActorDestroyReason aWhy) MOZ_OVERRIDE;
+  ActorDestroy(ActorDestroyReason why);
 
   virtual bool
   RecvPMobileConnectionRequestConstructor(PMobileConnectionRequestParent* aActor,
@@ -152,7 +152,7 @@ protected:
   }
 
   virtual void
-  ActorDestroy(ActorDestroyReason aWhy) MOZ_OVERRIDE;
+  ActorDestroy(ActorDestroyReason why);
 
   nsresult
   SendReply(const MobileConnectionReply& aReply);

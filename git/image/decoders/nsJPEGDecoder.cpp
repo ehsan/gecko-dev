@@ -190,7 +190,8 @@ nsJPEGDecoder::FinishInternal()
 }
 
 void
-nsJPEGDecoder::WriteInternal(const char* aBuffer, uint32_t aCount)
+nsJPEGDecoder::WriteInternal(const char* aBuffer, uint32_t aCount,
+                             DecodeStrategy)
 {
   mSegment = (const JOCTET*)aBuffer;
   mSegmentLen = aCount;
@@ -579,7 +580,7 @@ nsJPEGDecoder::ReadOrientationFromEXIF()
 void
 nsJPEGDecoder::NotifyDone()
 {
-  PostFrameStop(Opacity::OPAQUE);
+  PostFrameStop(FrameBlender::kFrameOpaque);
   PostDecodeDone();
 }
 

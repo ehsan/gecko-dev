@@ -37,5 +37,5 @@ private:
 
   // NOT TO BE IMPLEMENTED
   template<size_type N>
-  nsTLiteralString_CharT(char_type (&aStr)[N]) = delete;
+  nsTLiteralString_CharT(char_type (&aStr)[N]) MOZ_DELETE;
 };

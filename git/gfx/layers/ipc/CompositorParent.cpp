@@ -733,7 +733,7 @@ CompositorParent::NotifyShadowTreeTransaction(uint64_t aId, bool aIsFirstPaint,
       mLayerManager &&
       mLayerManager->GetRoot()) {
     AutoResolveRefLayers resolve(mCompositionManager);
-    mApzcTreeManager->UpdateHitTestingTree(this, mLayerManager->GetRoot(),
+    mApzcTreeManager->UpdatePanZoomControllerTree(this, mLayerManager->GetRoot(),
         aIsFirstPaint, aId, aPaintSequenceNumber);
 
     mLayerManager->NotifyShadowTreeTransaction();
@@ -1006,7 +1006,7 @@ CompositorParent::ShadowLayersUpdated(LayerTransactionParent* aLayerTree,
 
   if (mApzcTreeManager && !aIsRepeatTransaction) {
     AutoResolveRefLayers resolve(mCompositionManager);
-    mApzcTreeManager->UpdateHitTestingTree(this, root, aIsFirstPaint,
+    mApzcTreeManager->UpdatePanZoomControllerTree(this, root, aIsFirstPaint,
         mRootLayerTreeID, aPaintSequenceNumber);
   }
 

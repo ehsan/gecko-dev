@@ -1881,7 +1881,6 @@ protected:
                           const char16_t *aText,
                           uint32_t         aOffset, // position within aShapedText
                           uint32_t         aLength,
-                          bool             aVertical,
                           gfxShapedText   *aShapedText);
 
     // Shape text directly into a range within a textrun, without using the

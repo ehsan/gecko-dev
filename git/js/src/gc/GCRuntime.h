@@ -317,9 +317,8 @@ class GCRuntime
     }
     bool gcIfNeeded(JSContext *cx = nullptr);
     void gc(JSGCInvocationKind gckind, JS::gcreason::Reason reason);
-    void startGC(JSGCInvocationKind gckind, JS::gcreason::Reason reason, int64_t millis = 0);
-    void gcSlice(JS::gcreason::Reason reason, int64_t millis = 0);
-    void finishGC(JS::gcreason::Reason reason);
+    void gcSlice(JSGCInvocationKind gckind, JS::gcreason::Reason reason, int64_t millis = 0);
+    void gcFinalSlice(JSGCInvocationKind gckind, JS::gcreason::Reason reason);
     void gcDebugSlice(SliceBudget &budget);
 
     void runDebugGC();
@@ -344,7 +343,7 @@ class GCRuntime
 
 #ifdef JS_GC_ZEAL
     const void *addressOfZealMode() { return &zealMode; }
-    void getZeal(uint8_t *zeal, uint32_t *frequency, uint32_t *nextScheduled);
+    void getZeal(uint8_t *zeal, uint32_t *frequency);
     void setZeal(uint8_t zeal, uint32_t frequency);
     bool parseAndSetZeal(const char *str);
     void setNextScheduled(uint32_t count);
@@ -558,9 +557,10 @@ class GCRuntime
     void startBackgroundAllocTaskIfIdle();
 
     void requestMajorGC(JS::gcreason::Reason reason);
-    SliceBudget defaultBudget(JS::gcreason::Reason reason, int64_t millis);
-    void collect(bool incremental, SliceBudget budget, JS::gcreason::Reason reason);
-    bool gcCycle(bool incremental, SliceBudget &budget, JS::gcreason::Reason reason);
+    void collect(bool incremental, SliceBudget &budget, JSGCInvocationKind gckind,
+                 JS::gcreason::Reason reason);
+    bool gcCycle(bool incremental, SliceBudget &budget, JSGCInvocationKind gckind,
+                 JS::gcreason::Reason reason);
     gcstats::ZoneGCStats scanZonesBeforeGC();
     void budgetIncrementalGC(SliceBudget &budget);
     void resetIncrementalGC(const char *reason);
@@ -835,7 +835,7 @@ class GCRuntime
 
     bool poked;
 
-    volatile js::HeapState heapState;
+    mozilla::Atomic<js::HeapState> heapState;
 
     /*
      * These options control the zealousness of the GC. The fundamental values
@@ -849,10 +849,10 @@ class GCRuntime
      *
      * You can control these values in several ways:
      *   - Set the JS_GC_ZEAL environment variable
-     *   - Call gczeal() or schedulegc() from inside shell-executed JS code
+     *   - Call zeal() or schedulegc() from inside shell-executed JS code
      *     (see the help for details)
      *
-     * If gcZeal_ == 1 then we perform GCs in select places (during MaybeGC and
+     * If gzZeal_ == 1 then we perform GCs in select places (during MaybeGC and
      * whenever a GC poke happens). This option is mainly useful to embedders.
      *
      * We use zeal_ == 4 to enable write barrier verification. See the comment

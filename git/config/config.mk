@@ -228,17 +228,17 @@ endif
 endif
 
 #
-# Handle DMD in optimized builds.
+# Handle trace-malloc and DMD in optimized builds.
 # No opt to give sane callstacks.
 #
-ifdef MOZ_DMD
+ifneq (,$(NS_TRACE_MALLOC)$(MOZ_DMD))
 MOZ_OPTIMIZE_FLAGS=-Zi -Od -UDEBUG -DNDEBUG
 ifdef HAVE_64BIT_BUILD
 OS_LDFLAGS = -DEBUG -OPT:REF,ICF
 else
 OS_LDFLAGS = -DEBUG -OPT:REF
 endif
-endif # MOZ_DMD
+endif # NS_TRACE_MALLOC || MOZ_DMD
 
 endif # MOZ_DEBUG
 
@@ -421,20 +421,20 @@ ifeq ($(OS_ARCH)_$(GNU_CC),WINNT_)
 #//------------------------------------------------------------------------
 ifdef USE_STATIC_LIBS
 RTL_FLAGS=-MT          # Statically linked multithreaded RTL
-ifdef MOZ_DEBUG
+ifneq (,$(MOZ_DEBUG)$(NS_TRACE_MALLOC))
 ifndef MOZ_NO_DEBUG_RTL
 RTL_FLAGS=-MTd         # Statically linked multithreaded MSVC4.0 debug RTL
 endif
-endif # MOZ_DEBUG
+endif # MOZ_DEBUG || NS_TRACE_MALLOC
 
 else # !USE_STATIC_LIBS
 
 RTL_FLAGS=-MD          # Dynamically linked, multithreaded RTL
-ifdef MOZ_DEBUG
+ifneq (,$(MOZ_DEBUG)$(NS_TRACE_MALLOC))
 ifndef MOZ_NO_DEBUG_RTL
 RTL_FLAGS=-MDd         # Dynamically linked, multithreaded MSVC4.0 debug RTL
 endif
-endif # MOZ_DEBUG
+endif # MOZ_DEBUG || NS_TRACE_MALLOC
 endif # USE_STATIC_LIBS
 endif # WINNT && !GNU_CC
 

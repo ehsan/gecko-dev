@@ -19,14 +19,10 @@
 #include "mozilla/dom/TimeRanges.h"
 #include "mozilla/mozalloc.h"
 #include "nsContentTypeParser.h"
-#include "nsContentUtils.h"
 #include "nsDebug.h"
 #include "nsError.h"
-#include "nsIEffectiveTLDService.h"
 #include "nsIRunnable.h"
 #include "nsIScriptObjectPrincipal.h"
-#include "nsIURI.h"
-#include "nsNetCID.h"
 #include "nsPIDOMWindow.h"
 #include "nsString.h"
 #include "nsThreadUtils.h"
@@ -178,7 +174,7 @@ void
 MediaSource::SetDuration(double aDuration, ErrorResult& aRv)
 {
   MOZ_ASSERT(NS_IsMainThread());
-  MSE_API("MediaSource(%p)::SetDuration(aDuration=%f, ErrorResult)", this, aDuration);
+  MSE_API("MediaSource(%p)::SetDuration(aDuration=%f)", this, aDuration);
   if (aDuration < 0 || IsNaN(aDuration)) {
     aRv.Throw(NS_ERROR_DOM_INVALID_ACCESS_ERR);
     return;
@@ -188,14 +184,6 @@ MediaSource::SetDuration(double aDuration, ErrorResult& aRv)
     aRv.Throw(NS_ERROR_DOM_INVALID_STATE_ERR);
     return;
   }
-  SetDuration(aDuration);
-}
-
-void
-MediaSource::SetDuration(double aDuration)
-{
-  MOZ_ASSERT(NS_IsMainThread());
-  MSE_API("MediaSource(%p)::SetDuration(aDuration=%f)", this, aDuration);
   mDecoder->SetMediaSourceDuration(aDuration);
 }
 
@@ -316,53 +304,6 @@ MediaSource::IsTypeSupported(const GlobalObject&, const nsAString& aType)
   MSE_API("MediaSource::IsTypeSupported(aType=%s)%s",
           NS_ConvertUTF16toUTF8(aType).get(), rv == NS_OK ? "" : " [not supported]");
   return NS_SUCCEEDED(rv);
-}
-
-/* static */ bool
-MediaSource::Enabled(JSContext* cx, JSObject* aGlobal)
-{
-  MOZ_ASSERT(NS_IsMainThread());
-
-  // Don't use aGlobal across Preferences stuff, which the static
-  // analysis thinks can GC.
-  JS::Rooted<JSObject*> global(cx, aGlobal);
-
-  bool enabled = Preferences::GetBool("media.mediasource.enabled");
-  if (!enabled) {
-    return false;
-  }
-
-  // Check whether it's enabled everywhere or just YouTube.
-  bool restrict = Preferences::GetBool("media.mediasource.youtubeonly", false);
-  if (!restrict) {
-    return true;
-  }
-
-  // We want to restrict to YouTube only.
-  // We define that as the origin being https://*.youtube.com.
-  // We also support https://*.youtube-nocookie.com.
-  nsIPrincipal* principal = nsContentUtils::ObjectPrincipal(global);
-  nsCOMPtr<nsIURI> uri;
-  if (NS_FAILED(principal->GetURI(getter_AddRefs(uri))) || !uri) {
-    return false;
-  }
-
-  bool isHttps = false;
-  if (NS_FAILED(uri->SchemeIs("https", &isHttps)) || !isHttps) {
-    return false;
-  }
-
-  nsCOMPtr<nsIEffectiveTLDService> tldServ =
-    do_GetService(NS_EFFECTIVETLDSERVICE_CONTRACTID);
-  NS_ENSURE_TRUE(tldServ, false);
-
-  nsAutoCString eTLDplusOne;
-   if (NS_FAILED(tldServ->GetBaseDomain(uri, 0, eTLDplusOne))) {
-     return false;
-   }
-
-   return eTLDplusOne.EqualsLiteral("youtube.com") ||
-          eTLDplusOne.EqualsLiteral("youtube-nocookie.com");
 }
 
 bool

@@ -101,8 +101,7 @@ const RIL_IPC_ICCMANAGER_MSG_NAMES = [
   "RIL:ReadIccContacts",
   "RIL:UpdateIccContact",
   "RIL:RegisterIccMsg",
-  "RIL:MatchMvno",
-  "RIL:GetServiceState"
+  "RIL:MatchMvno"
 ];
 
 // set to true in ril_consts.js to see debug messages
@@ -1836,9 +1835,6 @@ RadioInterface.prototype = {
         break;
       case "RIL:MatchMvno":
         this.matchMvno(msg.target, msg.json.data);
-        break;
-      case "RIL:GetServiceState":
-        this.workerMessenger.sendWithIPCMessage(msg, "getIccServiceState");
         break;
     }
     return null;

@@ -15,6 +15,7 @@
 namespace js {
 
 class DeclEnvObject;
+class ForkJoinContext;
 class StaticWithObject;
 class InlineTypedObject;
 
@@ -466,6 +467,9 @@ template <> struct MatchContext<JSContext *> {
 };
 template <> struct MatchContext<ExclusiveContext *> {
     static const ExecutionMode execMode = SequentialExecution;
+};
+template <> struct MatchContext<ForkJoinContext *> {
+    static const ExecutionMode execMode = ParallelExecution;
 };
 template <> struct MatchContext<ThreadSafeContext *> {
     // ThreadSafeContext functions can be called from either mode, but for

@@ -2068,8 +2068,8 @@ ReportLenientThisUnwrappingFailure(JSContext* cx, JSObject* obj)
 }
 
 bool
-GetContentGlobalForJSImplementedObject(JSContext* cx, JS::Handle<JSObject*> obj,
-                                       nsIGlobalObject** globalObj)
+GetWindowForJSImplementedObject(JSContext* cx, JS::Handle<JSObject*> obj,
+                                nsPIDOMWindow** window)
 {
   // Be very careful to not get tricked here.
   MOZ_ASSERT(NS_IsMainThread());
@@ -2095,36 +2095,37 @@ GetContentGlobalForJSImplementedObject(JSContext* cx, JS::Handle<JSObject*> obj,
     return false;
   }
 
-  DebugOnly<nsresult> rv = CallQueryInterface(global.GetAsSupports(), globalObj);
-  MOZ_ASSERT(NS_SUCCEEDED(rv));
-  MOZ_ASSERT(*globalObj);
+  // It's OK if we have null here: that just means the content-side
+  // object really wasn't associated with any window.
+  nsCOMPtr<nsPIDOMWindow> win(do_QueryInterface(global.GetAsSupports()));
+  win.forget(window);
   return true;
 }
 
-already_AddRefed<nsIGlobalObject>
+already_AddRefed<nsPIDOMWindow>
 ConstructJSImplementation(JSContext* aCx, const char* aContractId,
                           const GlobalObject& aGlobal,
                           JS::MutableHandle<JSObject*> aObject,
                           ErrorResult& aRv)
 {
-  // Get the global object to use as a parent and for initialization.
-  nsCOMPtr<nsIGlobalObject> global = do_QueryInterface(aGlobal.GetAsSupports());
-  if (!global) {
+  // Get the window to use as a parent and for initialization.
+  nsCOMPtr<nsPIDOMWindow> window = do_QueryInterface(aGlobal.GetAsSupports());
+  if (!window) {
     aRv.Throw(NS_ERROR_FAILURE);
     return nullptr;
   }
 
-  ConstructJSImplementation(aCx, aContractId, global, aObject, aRv);
+  ConstructJSImplementation(aCx, aContractId, window, aObject, aRv);
 
   if (aRv.Failed()) {
     return nullptr;
   }
-  return global.forget();
+  return window.forget();
 }
 
 void
 ConstructJSImplementation(JSContext* aCx, const char* aContractId,
-                          nsIGlobalObject* aGlobal,
+                          nsPIDOMWindow* aWindow,
                           JS::MutableHandle<JSObject*> aObject,
                           ErrorResult& aRv)
 {
@@ -2144,14 +2145,12 @@ ConstructJSImplementation(JSContext* aCx, const char* aContractId,
       aRv.Throw(rv);
       return;
     }
-    // Initialize the object, if it implements nsIDOMGlobalPropertyInitializer
-    // and our global is a window.
+    // Initialize the object, if it implements nsIDOMGlobalPropertyInitializer.
     nsCOMPtr<nsIDOMGlobalPropertyInitializer> gpi =
       do_QueryInterface(implISupports);
-    nsCOMPtr<nsPIDOMWindow> window = do_QueryInterface(aGlobal);
     if (gpi) {
       JS::Rooted<JS::Value> initReturn(aCx);
-      rv = gpi->Init(window, &initReturn);
+      rv = gpi->Init(aWindow, &initReturn);
       if (NS_FAILED(rv)) {
         aRv.Throw(rv);
         return;

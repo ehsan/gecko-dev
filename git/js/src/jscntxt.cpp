@@ -345,7 +345,7 @@ PopulateReportBlame(JSContext *cx, JSErrorReport *report)
  * not occur, so GC must be avoided or suppressed.
  */
 void
-js_ReportOutOfMemory(ExclusiveContext *cxArg)
+js_ReportOutOfMemory(ThreadSafeContext *cxArg)
 {
 #ifdef JS_MORE_DETERMINISTIC
     /*
@@ -355,6 +355,11 @@ js_ReportOutOfMemory(ExclusiveContext *cxArg)
      */
     fprintf(stderr, "js_ReportOutOfMemory called\n");
 #endif
+
+    if (cxArg->isForkJoinContext()) {
+        cxArg->asForkJoinContext()->setPendingAbortFatal(ParallelBailoutOutOfMemory);
+        return;
+    }
 
     if (!cxArg->isJSContext())
         return;
@@ -423,19 +428,24 @@ js_ReportOverRecursed(JSContext *maybecx)
 }
 
 void
-js_ReportOverRecursed(ExclusiveContext *cx)
+js_ReportOverRecursed(ThreadSafeContext *cx)
 {
     if (cx->isJSContext())
         js_ReportOverRecursed(cx->asJSContext());
-    else
-        cx->addPendingOverRecursed();
+    else if (cx->isExclusiveContext())
+        cx->asExclusiveContext()->addPendingOverRecursed();
 }
 
 void
-js_ReportAllocationOverflow(ExclusiveContext *cxArg)
+js_ReportAllocationOverflow(ThreadSafeContext *cxArg)
 {
     if (!cxArg)
         return;
+
+    if (cxArg->isForkJoinContext()) {
+        cxArg->asForkJoinContext()->setPendingAbortFatal(ParallelBailoutOutOfMemory);
+        return;
+    }
 
     if (!cxArg->isJSContext())
         return;

@@ -3699,8 +3699,8 @@ private:
   }
 
   // No funny business allowed.
-  CachedStatement(const CachedStatement&) = delete;
-  CachedStatement& operator=(const CachedStatement&) = delete;
+  CachedStatement(const CachedStatement&) MOZ_DELETE;
+  CachedStatement& operator=(const CachedStatement&) MOZ_DELETE;
 };
 
 class NormalTransaction MOZ_FINAL
@@ -4898,7 +4898,7 @@ private:
 
   // Must call SendResponseInternal!
   bool
-  SendResponse(const CursorResponse& aResponse) = delete;
+  SendResponse(const CursorResponse& aResponse) MOZ_DELETE;
 
   // IPDL methods.
   virtual void
@@ -5210,7 +5210,7 @@ public:
   void
   NoteBackgroundThread(nsIEventTarget* aBackgroundThread);
 
-  NS_INLINE_DECL_REFCOUNTING(QuotaClient, MOZ_OVERRIDE)
+  NS_INLINE_DECL_REFCOUNTING(QuotaClient)
 
   virtual mozilla::dom::quota::Client::Type
   GetType() MOZ_OVERRIDE;

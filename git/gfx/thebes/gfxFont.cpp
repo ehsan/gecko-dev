@@ -2490,8 +2490,7 @@ gfxFont::ShapeText(gfxContext      *aContext,
 
     NS_WARN_IF_FALSE(ok, "shaper failed, expect scrambled or missing text");
 
-    PostShapingFixup(aContext, aText, aOffset, aLength, aVertical,
-                     aShapedText);
+    PostShapingFixup(aContext, aText, aOffset, aLength, aShapedText);
 
     return ok;
 }
@@ -2501,18 +2500,13 @@ gfxFont::PostShapingFixup(gfxContext      *aContext,
                           const char16_t *aText,
                           uint32_t         aOffset,
                           uint32_t         aLength,
-                          bool             aVertical,
                           gfxShapedText   *aShapedText)
 {
     if (IsSyntheticBold()) {
-        const Metrics& metrics =
-            GetMetrics(aVertical ? eVertical : eHorizontal);
-        if (metrics.maxAdvance > metrics.aveCharWidth) {
-            float synBoldOffset =
-                    GetSyntheticBoldOffset() * CalcXScale(aContext);
-            aShapedText->AdjustAdvancesForSyntheticBold(synBoldOffset,
-                                                        aOffset, aLength);
-        }
+        float synBoldOffset =
+                GetSyntheticBoldOffset() * CalcXScale(aContext);
+        aShapedText->AdjustAdvancesForSyntheticBold(synBoldOffset,
+                                                    aOffset, aLength);
     }
 }
 

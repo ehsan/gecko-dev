@@ -74,8 +74,6 @@ public:
     bool IsConnected();
 
 private:
-    void RunLaunchCompleteTask();
-
     std::string mPluginFilePath;
     UniquePtr<LaunchCompleteTask> mLaunchCompleteTask;
     MessageLoop* mMainMsgLoop;

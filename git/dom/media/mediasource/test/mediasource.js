@@ -17,10 +17,7 @@ function runWithMSE(testFunction) {
   }
 
   addLoadEvent(function () {
-    SpecialPowers.pushPrefEnv({"set": [
-	[ "media.mediasource.enabled", true ],
-	[ "media.mediasource.youtubeonly", false ],
-    ]},
+    SpecialPowers.pushPrefEnv({"set": [[ "media.mediasource.enabled", true ]]},
                               bootstrapTest);
   });
 }

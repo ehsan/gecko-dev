@@ -285,8 +285,8 @@ private:
   }
 
 private:
-  LinkedListElement& operator=(const LinkedListElement<T>& aOther) = delete;
-  LinkedListElement(const LinkedListElement<T>& aOther) = delete;
+  LinkedListElement& operator=(const LinkedListElement<T>& aOther) MOZ_DELETE;
+  LinkedListElement(const LinkedListElement<T>& aOther) MOZ_DELETE;
 };
 
 template<typename T>
@@ -475,8 +475,8 @@ private:
 #endif
   }
 
-  LinkedList& operator=(const LinkedList<T>& aOther) = delete;
-  LinkedList(const LinkedList<T>& aOther) = delete;
+  LinkedList& operator=(const LinkedList<T>& aOther) MOZ_DELETE;
+  LinkedList(const LinkedList<T>& aOther) MOZ_DELETE;
 };
 
 } /* namespace mozilla */

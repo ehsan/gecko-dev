@@ -4,7 +4,7 @@
 /*                                                                         */
 /*    FreeType API for color filtering of subpixel bitmap glyphs (body).   */
 /*                                                                         */
-/*  Copyright 2006, 2008-2010, 2013, 2014 by                               */
+/*  Copyright 2006, 2008-2010, 2013 by                                     */
 /*  David Turner, Robert Wilhelm, and Werner Lemberg.                      */
 /*                                                                         */
 /*  This file is part of the FreeType project, and may only be used,       */
@@ -46,16 +46,9 @@
       FT_Byte*  line = bitmap->buffer;
 
 
-      /* take care of bitmap flow */
-      if ( bitmap->pitch < 0 )
-        line -= bitmap->pitch * ( bitmap->rows - 1 );
-
-      /* `fir' and `pix' must be at least 32 bit wide, since the sum of */
-      /* the values in `weights' can exceed 0xFF                        */
-
       for ( ; height > 0; height--, line += bitmap->pitch )
       {
-        FT_UInt  fir[4];        /* below, `pix' is used as the 5th element */
+        FT_UInt  fir[5];
         FT_UInt  val1, xx;
 
 
@@ -64,6 +57,7 @@
         fir[1] = weights[3] * val1;
         fir[2] = weights[4] * val1;
         fir[3] = 0;
+        fir[4] = 0;
 
         val1    = line[1];
         fir[0] += weights[1] * val1;
@@ -84,7 +78,7 @@
           fir[3] =          weights[4] * val;
 
           pix        >>= 8;
-          pix         |= (FT_UInt)-(FT_Int)( pix >> 8 );
+          pix         |= -( pix >> 8 );
           line[xx - 2] = (FT_Byte)pix;
         }
 
@@ -93,11 +87,11 @@
 
 
           pix          = fir[0] >> 8;
-          pix         |= (FT_UInt)-(FT_Int)( pix >> 8 );
+          pix         |= -( pix >> 8 );
           line[xx - 2] = (FT_Byte)pix;
 
           pix          = fir[1] >> 8;
-          pix         |= (FT_UInt)-(FT_Int)( pix >> 8 );
+          pix         |= -( pix >> 8 );
           line[xx - 1] = (FT_Byte)pix;
         }
       }
@@ -110,14 +104,10 @@
       FT_Int    pitch  = bitmap->pitch;
 
 
-      /* take care of bitmap flow */
-      if ( bitmap->pitch < 0 )
-        column -= bitmap->pitch * ( bitmap->rows - 1 );
-
       for ( ; width > 0; width--, column++ )
       {
         FT_Byte*  col = column;
-        FT_UInt   fir[4];       /* below, `pix' is used as the 5th element */
+        FT_UInt   fir[5];
         FT_UInt   val1, yy;
 
 
@@ -126,6 +116,7 @@
         fir[1] = weights[3] * val1;
         fir[2] = weights[4] * val1;
         fir[3] = 0;
+        fir[4] = 0;
         col   += pitch;
 
         val1    = col[0];
@@ -148,7 +139,7 @@
           fir[3] =          weights[4] * val;
 
           pix           >>= 8;
-          pix            |= (FT_UInt)-(FT_Int)( pix >> 8 );
+          pix            |= -( pix >> 8 );
           col[-2 * pitch] = (FT_Byte)pix;
           col            += pitch;
         }
@@ -158,11 +149,11 @@
 
 
           pix             = fir[0] >> 8;
-          pix            |= (FT_UInt)-(FT_Int)( pix >> 8 );
+          pix            |= -( pix >> 8 );
           col[-2 * pitch] = (FT_Byte)pix;
 
           pix         = fir[1] >> 8;
-          pix        |= (FT_UInt)-(FT_Int)( pix >> 8 );
+          pix        |= -( pix >> 8 );
           col[-pitch] = (FT_Byte)pix;
         }
       }
@@ -197,10 +188,6 @@
     {
       FT_Byte*  line = bitmap->buffer;
 
-
-      /* take care of bitmap flow */
-      if ( bitmap->pitch < 0 )
-        line -= bitmap->pitch * ( bitmap->rows - 1 );
 
       for ( ; height > 0; height--, line += pitch )
       {
@@ -240,10 +227,6 @@
     {
       FT_Byte*  column = bitmap->buffer;
 
-
-      /* take care of bitmap flow */
-      if ( bitmap->pitch < 0 )
-        column -= bitmap->pitch * ( bitmap->rows - 1 );
 
       for ( ; width > 0; width--, column++ )
       {
@@ -289,10 +272,7 @@
   FT_Library_SetLcdFilterWeights( FT_Library      library,
                                   unsigned char  *weights )
   {
-    if ( !library )
-      return FT_THROW( Invalid_Library_Handle );
-
-    if ( !weights )
+    if ( !library || !weights )
       return FT_THROW( Invalid_Argument );
 
     ft_memcpy( library->lcd_weights, weights, 5 );
@@ -314,7 +294,7 @@
 
 
     if ( !library )
-      return FT_THROW( Invalid_Library_Handle );
+      return FT_THROW( Invalid_Argument );
 
     switch ( filter )
     {

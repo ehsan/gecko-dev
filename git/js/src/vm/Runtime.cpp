@@ -130,7 +130,8 @@ ReturnZeroSize(const void *p)
 }
 
 JSRuntime::JSRuntime(JSRuntime *parentRuntime)
-  : mainThread(this),
+  : JS::shadow::Runtime(&gc.storeBuffer),
+    mainThread(this),
     parentRuntime(parentRuntime),
     interrupt_(false),
     interruptPar_(false),
@@ -229,8 +230,6 @@ JSRuntime::JSRuntime(JSRuntime *parentRuntime)
     oomCallback(nullptr),
     debuggerMallocSizeOf(ReturnZeroSize)
 {
-    setGCStoreBufferPtr(&gc.storeBuffer);
-
     liveRuntimesCount++;
 
     /* Initialize infallibly first, so we can goto bad and JS_DestroyRuntime. */

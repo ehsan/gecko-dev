@@ -214,13 +214,14 @@ nsICODecoder::SetHotSpotIfCursor()
 }
 
 void
-nsICODecoder::WriteInternal(const char* aBuffer, uint32_t aCount)
+nsICODecoder::WriteInternal(const char* aBuffer, uint32_t aCount,
+                            DecodeStrategy aStrategy)
 {
   NS_ABORT_IF_FALSE(!HasError(), "Shouldn't call WriteInternal after error!");
 
   if (!aCount) {
     if (mContainedDecoder) {
-      WriteToContainedDecoder(aBuffer, aCount);
+      WriteToContainedDecoder(aBuffer, aCount, aStrategy);
     }
     return;
   }
@@ -345,7 +346,7 @@ nsICODecoder::WriteInternal(const char* aBuffer, uint32_t aCount)
       mContainedDecoder->InitSharedDecoder(mImageData, mImageDataLength,
                                            mColormap, mColormapSize,
                                            Move(mRefForContainedDecoder));
-      if (!WriteToContainedDecoder(mSignature, PNGSIGNATURESIZE)) {
+      if (!WriteToContainedDecoder(mSignature, PNGSIGNATURESIZE, aStrategy)) {
         return;
       }
     }
@@ -353,7 +354,7 @@ nsICODecoder::WriteInternal(const char* aBuffer, uint32_t aCount)
 
   // If we have a PNG, let the PNG decoder do all of the rest of the work
   if (mIsPNG && mContainedDecoder && mPos >= mImageOffset + PNGSIGNATURESIZE) {
-    if (!WriteToContainedDecoder(aBuffer, aCount)) {
+    if (!WriteToContainedDecoder(aBuffer, aCount, aStrategy)) {
       return;
     }
 
@@ -432,7 +433,8 @@ nsICODecoder::WriteInternal(const char* aBuffer, uint32_t aCount)
       PostDataError();
       return;
     }
-    if (!WriteToContainedDecoder((const char*)bfhBuffer, sizeof(bfhBuffer))) {
+    if (!WriteToContainedDecoder((const char*)bfhBuffer, sizeof(bfhBuffer),
+                                  aStrategy)) {
       return;
     }
 
@@ -453,7 +455,7 @@ nsICODecoder::WriteInternal(const char* aBuffer, uint32_t aCount)
     }
 
     // Write out the BMP's bitmap info header
-    if (!WriteToContainedDecoder(mBIHraw, sizeof(mBIHraw))) {
+    if (!WriteToContainedDecoder(mBIHraw, sizeof(mBIHraw), aStrategy)) {
       return;
     }
 
@@ -503,7 +505,7 @@ nsICODecoder::WriteInternal(const char* aBuffer, uint32_t aCount)
         toFeed = aCount;
       }
 
-      if (!WriteToContainedDecoder(aBuffer, toFeed)) {
+      if (!WriteToContainedDecoder(aBuffer, toFeed, aStrategy)) {
         return;
       }
 
@@ -592,9 +594,10 @@ nsICODecoder::WriteInternal(const char* aBuffer, uint32_t aCount)
 }
 
 bool
-nsICODecoder::WriteToContainedDecoder(const char* aBuffer, uint32_t aCount)
+nsICODecoder::WriteToContainedDecoder(const char* aBuffer, uint32_t aCount,
+                                      DecodeStrategy aStrategy)
 {
-  mContainedDecoder->Write(aBuffer, aCount);
+  mContainedDecoder->Write(aBuffer, aCount, aStrategy);
   mProgress |= mContainedDecoder->TakeProgress();
   mInvalidRect.Union(mContainedDecoder->TakeInvalidRect());
   if (mContainedDecoder->HasDataError()) {

@@ -903,6 +903,17 @@ TraceRuntime(JSTracer *trc);
 extern void
 ReleaseAllJITCode(FreeOp *op);
 
+/*
+ * Kinds of js_GC invocation.
+ */
+typedef enum JSGCInvocationKind {
+    /* Normal invocation. */
+    GC_NORMAL           = 0,
+
+    /* Minimize GC triggers and release empty GC chunks right away. */
+    GC_SHRINK             = 1
+} JSGCInvocationKind;
+
 extern void
 PrepareForDebugGC(JSRuntime *rt);
 
@@ -1408,8 +1419,8 @@ class ZoneList
     explicit ZoneList(Zone *singleZone);
     void check() const;
 
-    ZoneList(const ZoneList &other) = delete;
-    ZoneList &operator=(const ZoneList &other) = delete;
+    ZoneList(const ZoneList &other) MOZ_DELETE;
+    ZoneList &operator=(const ZoneList &other) MOZ_DELETE;
 };
 
 } /* namespace gc */

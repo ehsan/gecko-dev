@@ -12,7 +12,7 @@
 
 enum AnimationPlayState { "idle", "pending", "running", "paused", "finished" };
 
-[Func="nsDocument::IsWebAnimationsEnabled"]
+[Pref="dom.animations-api.core.enabled"]
 interface AnimationPlayer {
   // Bug 1049975
   //           attribute AnimationNode?     source;

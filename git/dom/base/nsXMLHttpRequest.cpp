@@ -361,11 +361,10 @@ NS_IMETHODIMP
 nsXMLHttpRequest::Init(nsIPrincipal* aPrincipal,
                        nsIScriptContext* aScriptContext,
                        nsIGlobalObject* aGlobalObject,
-                       nsIURI* aBaseURI,
-                       nsILoadGroup* aLoadGroup)
+                       nsIURI* aBaseURI)
 {
   NS_ENSURE_ARG_POINTER(aPrincipal);
-
+  
   if (nsCOMPtr<nsPIDOMWindow> win = do_QueryInterface(aGlobalObject)) {
     if (win->IsOuterWindow()) {
       // Must be bound to inner window, innerize if necessary.
@@ -375,7 +374,7 @@ nsXMLHttpRequest::Init(nsIPrincipal* aPrincipal,
     }
   }
 
-  Construct(aPrincipal, aGlobalObject, aBaseURI, aLoadGroup);
+  Construct(aPrincipal, aGlobalObject, aBaseURI);
   return NS_OK;
 }
 
@@ -1435,11 +1434,6 @@ nsXMLHttpRequest::GetLoadGroup() const
 {
   if (mState & XML_HTTP_REQUEST_BACKGROUND) {                 
     return nullptr;
-  }
-
-  if (mLoadGroup) {
-    nsCOMPtr<nsILoadGroup> ref = mLoadGroup;
-    return ref.forget();
   }
 
   nsresult rv = NS_ERROR_FAILURE;

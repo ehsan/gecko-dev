@@ -37,7 +37,7 @@ public:
   void Shutdown();
 
   // For IObserver
-  void Notify(const hal::NetworkInformation& aNetworkInfo) MOZ_OVERRIDE;
+  void Notify(const hal::NetworkInformation& aNetworkInfo);
 
   // WebIDL
 

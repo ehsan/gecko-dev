@@ -142,12 +142,14 @@ class CompartmentChecker
  * depends on other objects not having been swept yet.
  */
 #define START_ASSERT_SAME_COMPARTMENT()                                       \
+    if (!cx->isExclusiveContext())                                            \
+        return;                                                               \
     if (cx->isJSContext() && cx->asJSContext()->runtime()->isHeapBusy())      \
         return;                                                               \
-    CompartmentChecker c(cx)
+    CompartmentChecker c(cx->asExclusiveContext())
 
 template <class T1> inline void
-assertSameCompartment(ExclusiveContext *cx, const T1 &t1)
+assertSameCompartment(ThreadSafeContext *cx, const T1 &t1)
 {
 #ifdef JS_CRASH_DIAGNOSTICS
     START_ASSERT_SAME_COMPARTMENT();
@@ -156,7 +158,7 @@ assertSameCompartment(ExclusiveContext *cx, const T1 &t1)
 }
 
 template <class T1> inline void
-assertSameCompartmentDebugOnly(ExclusiveContext *cx, const T1 &t1)
+assertSameCompartmentDebugOnly(ThreadSafeContext *cx, const T1 &t1)
 {
 #if defined(DEBUG) && defined(JS_CRASH_DIAGNOSTICS)
     START_ASSERT_SAME_COMPARTMENT();
@@ -165,7 +167,7 @@ assertSameCompartmentDebugOnly(ExclusiveContext *cx, const T1 &t1)
 }
 
 template <class T1, class T2> inline void
-assertSameCompartment(ExclusiveContext *cx, const T1 &t1, const T2 &t2)
+assertSameCompartment(ThreadSafeContext *cx, const T1 &t1, const T2 &t2)
 {
 #ifdef JS_CRASH_DIAGNOSTICS
     START_ASSERT_SAME_COMPARTMENT();
@@ -175,7 +177,7 @@ assertSameCompartment(ExclusiveContext *cx, const T1 &t1, const T2 &t2)
 }
 
 template <class T1, class T2, class T3> inline void
-assertSameCompartment(ExclusiveContext *cx, const T1 &t1, const T2 &t2, const T3 &t3)
+assertSameCompartment(ThreadSafeContext *cx, const T1 &t1, const T2 &t2, const T3 &t3)
 {
 #ifdef JS_CRASH_DIAGNOSTICS
     START_ASSERT_SAME_COMPARTMENT();
@@ -186,7 +188,7 @@ assertSameCompartment(ExclusiveContext *cx, const T1 &t1, const T2 &t2, const T3
 }
 
 template <class T1, class T2, class T3, class T4> inline void
-assertSameCompartment(ExclusiveContext *cx,
+assertSameCompartment(ThreadSafeContext *cx,
                       const T1 &t1, const T2 &t2, const T3 &t3, const T4 &t4)
 {
 #ifdef JS_CRASH_DIAGNOSTICS
@@ -199,7 +201,7 @@ assertSameCompartment(ExclusiveContext *cx,
 }
 
 template <class T1, class T2, class T3, class T4, class T5> inline void
-assertSameCompartment(ExclusiveContext *cx,
+assertSameCompartment(ThreadSafeContext *cx,
                       const T1 &t1, const T2 &t2, const T3 &t3, const T4 &t4, const T5 &t5)
 {
 #ifdef JS_CRASH_DIAGNOSTICS
@@ -343,7 +345,7 @@ CallSetter(JSContext *cx, HandleObject obj, HandleId id, StrictPropertyOp op, un
 }
 
 inline uintptr_t
-GetNativeStackLimit(ExclusiveContext *cx)
+GetNativeStackLimit(ThreadSafeContext *cx)
 {
     StackKind kind;
     if (cx->isJSContext()) {

@@ -172,9 +172,9 @@ protected:
 
 private:
   // Hide these. User should always use creator functions to get a media codec.
-  OMXCodecWrapper() = delete;
-  OMXCodecWrapper(const OMXCodecWrapper&) = delete;
-  OMXCodecWrapper& operator=(const OMXCodecWrapper&) = delete;
+  OMXCodecWrapper() MOZ_DELETE;
+  OMXCodecWrapper(const OMXCodecWrapper&) MOZ_DELETE;
+  OMXCodecWrapper& operator=(const OMXCodecWrapper&) MOZ_DELETE;
 
   /**
    * Create a media codec of given type. It will be a AVC/H.264 video encoder if
@@ -238,9 +238,9 @@ protected:
                                        ABuffer* aData) MOZ_OVERRIDE;
 private:
   // Hide these. User should always use creator functions to get a media codec.
-  OMXAudioEncoder() = delete;
-  OMXAudioEncoder(const OMXAudioEncoder&) = delete;
-  OMXAudioEncoder& operator=(const OMXAudioEncoder&) = delete;
+  OMXAudioEncoder() MOZ_DELETE;
+  OMXAudioEncoder(const OMXAudioEncoder&) MOZ_DELETE;
+  OMXAudioEncoder& operator=(const OMXAudioEncoder&) MOZ_DELETE;
 
   /**
    * Create a audio codec. It will be a AAC encoder if aCodecType is
@@ -331,9 +331,9 @@ protected:
 
 private:
   // Hide these. User should always use creator functions to get a media codec.
-  OMXVideoEncoder() = delete;
-  OMXVideoEncoder(const OMXVideoEncoder&) = delete;
-  OMXVideoEncoder& operator=(const OMXVideoEncoder&) = delete;
+  OMXVideoEncoder() MOZ_DELETE;
+  OMXVideoEncoder(const OMXVideoEncoder&) MOZ_DELETE;
+  OMXVideoEncoder& operator=(const OMXVideoEncoder&) MOZ_DELETE;
 
   /**
    * Create a video codec. It will be a AVC/H.264 encoder if aCodecType is

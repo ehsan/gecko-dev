@@ -39,22 +39,17 @@ GetBMPLog()
 #define PIXEL_OFFSET(row, col) (LINE(row) * mBIH.width + col)
 
 nsBMPDecoder::nsBMPDecoder(RasterImage& aImage)
-  : Decoder(aImage)
-  , mPos(0)
-  , mLOH(WIN_V3_HEADER_LENGTH)
-  , mNumColors(0)
-  , mColors(nullptr)
-  , mRow(nullptr)
-  , mRowBytes(0)
-  , mCurLine(1)  // Otherwise decoder will never start.
-  , mOldLine(1)
-  , mCurPos(0)
-  , mState(eRLEStateInitial)
-  , mStateData(0)
-  , mProcessedHeader(false)
-  , mUseAlphaData(false)
-  , mHaveAlphaData(false)
-{ }
+ : Decoder(aImage)
+{
+  mColors = nullptr;
+  mRow = nullptr;
+  mCurPos = mPos = mNumColors = mRowBytes = 0;
+  mOldLine = mCurLine = 1; // Otherwise decoder will never start
+  mState = eRLEStateInitial;
+  mStateData = 0;
+  mLOH = WIN_V3_HEADER_LENGTH;
+  mUseAlphaData = mHaveAlphaData = false;
+}
 
 nsBMPDecoder::~nsBMPDecoder()
 {
@@ -149,9 +144,9 @@ nsBMPDecoder::FinishInternal()
         PostInvalidation(r);
 
         if (mUseAlphaData) {
-          PostFrameStop(Opacity::SOME_TRANSPARENCY);
+          PostFrameStop(FrameBlender::kFrameHasAlpha);
         } else {
-          PostFrameStop(Opacity::OPAQUE);
+          PostFrameStop(FrameBlender::kFrameOpaque);
         }
         PostDecodeDone();
     }
@@ -199,7 +194,8 @@ nsBMPDecoder::CalcBitShift()
 }
 
 void
-nsBMPDecoder::WriteInternal(const char* aBuffer, uint32_t aCount)
+nsBMPDecoder::WriteInternal(const char* aBuffer, uint32_t aCount,
+                            DecodeStrategy)
 {
   NS_ABORT_IF_FALSE(!HasError(), "Shouldn't call WriteInternal after error!");
 
@@ -331,12 +327,10 @@ nsBMPDecoder::WriteInternal(const char* aBuffer, uint32_t aCount)
   // data. In the latter case aCount should be 0.
   MOZ_ASSERT(mPos >= mLOH || aCount == 0);
 
-  // mProcessedHeader is checked to ensure that if at this point mPos == mLOH
-  // but we have no data left to process, the next time WriteInternal is called
+  // HasSize is called to ensure that if at this point mPos == mLOH but
+  // we have no data left to process, the next time WriteInternal is called
   // we won't enter this condition again.
-  if (mPos == mLOH && !mProcessedHeader) {
-      mProcessedHeader = true;
-
+  if (mPos == mLOH && !HasSize()) {
       ProcessInfoHeader();
       PR_LOG(GetBMPLog(), PR_LOG_DEBUG,
              ("BMP is %lix%lix%lu. compression=%lu\n",

@@ -170,8 +170,8 @@ public:
   }
 
 private:
-  explicit Scoped(const Scoped& aValue) = delete;
-  Scoped& operator=(const Scoped& aValue) = delete;
+  explicit Scoped(const Scoped& aValue) MOZ_DELETE;
+  Scoped& operator=(const Scoped& aValue) MOZ_DELETE;
 
 private:
   Resource mValue;
@@ -216,8 +216,8 @@ struct name : public mozilla::Scoped<Traits<Type> >                           \
             MOZ_GUARD_OBJECT_NOTIFIER_PARAM_TO_PARENT)                        \
   {}                                                                          \
 private:                                                                      \
-  explicit name(name&) = delete;                                              \
-  name& operator=(name&) = delete;                                            \
+  explicit name(name&) MOZ_DELETE;                                            \
+  name& operator=(name&) MOZ_DELETE;                                          \
 };
 
 /*
