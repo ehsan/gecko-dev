@@ -274,6 +274,8 @@ SyncEngine.prototype = {
 
     let outnum = [i for (i in this._tracker.changedIDs)].length;
     this._log.info(outnum + " outgoing items pre-reconciliation");
+
+    this._tracker.disable(); // FIXME: need finer-grained ignoring
   },
 
   // Generate outgoing records
@@ -387,15 +389,12 @@ SyncEngine.prototype = {
     let self = yield;
     this._log.trace("Incoming:\n" + item);
     try {
-      this._tracker.ignoreID(item.id);
       yield this._store.applyIncoming(self.cb, item);
       if (this._lastSyncTmp < item.modified)
         this._lastSyncTmp = item.modified;
     } catch (e) {
       this._log.warn("Error while applying incoming record: " +
                      (e.message? e.message : e));
-    } finally {
-      this._tracker.unignoreID(item.id);
     }
   },
 
@@ -452,6 +451,7 @@ SyncEngine.prototype = {
     let self = yield;
     this._log.debug("Finishing up sync");
     this._tracker.resetScore();
+    this._tracker.enable();
   },
 
   _sync: function SyncEngine__sync() {
@@ -466,6 +466,9 @@ SyncEngine.prototype = {
     catch (e) {
       this._log.warn("Sync failed");
       throw e;
+    }
+    finally {
+      this._tracker.enable();
     }
   },
 

@@ -539,15 +539,6 @@ BookmarksStore.prototype = {
     return record;
   },
 
-  _createMiniRecord: function BStore__createMiniRecord(placesId, depthIndex) {
-    let foo = {id: this._bms.getItemGUID(placesId)};
-    if (depthIndex) {
-      foo.depth = this._itemDepth(placesId);
-      foo.sortindex = this._bms.getItemIndex(placesId);
-    }
-    return foo;
-  },
-
   _getWeaveParentIdForItem: function BStore__getWeaveParentIdForItem(itemId) {
     let parentid = this._bms.getFolderIdForItem(itemId);
     if (parentid == -1) {
@@ -571,7 +562,11 @@ BookmarksStore.prototype = {
       node.containerOpen = true;
       for (var i = 0; i < node.childCount; i++) {
         let child = node.getChild(i);
-        let foo = this._createMiniRecord(child.itemId);
+        let foo = {id: this._bms.getItemGUID(child.itemId)};
+        if (depthIndex) {
+          foo.depth = this._itemDepth(child.itemId);
+          foo.sortindex = this._bms.getItemIndex(child.itemId);
+        }
         items[foo.id] = foo;
         this._getChildren(child, depthIndex, items);
       }
@@ -591,7 +586,11 @@ BookmarksStore.prototype = {
 
     for (var i = 0; i < parent.childCount; i++) {
       let child = parent.getChild(i);
-      let foo = this._createMiniRecord(child.itemId);
+      let foo = {id: this._bms.getItemGUID(child.itemId)};
+      if (depthIndex) {
+        foo.depth = this._itemDepth(child.itemId);
+        foo.sortindex = this._bms.getItemIndex(child.itemId);
+      }
       items[foo.id] = foo;
     }
 
@@ -600,9 +599,9 @@ BookmarksStore.prototype = {
 
   getAllIDs: function BStore_getAllIDs() {
     let items = {};
-    this._getChildren("menu", true, items);
-    this._getChildren("toolbar", true, items);
-    this._getChildren("unfiled", true, items);
+    this._getChildren(this._getNode(this._bms.bookmarksMenuFolder), true, items);
+    this._getChildren(this._getNode(this._bms.toolbarFolder), true, items);
+    this._getChildren(this._getNode(this._bms.unfiledBookmarksFolder), true, items);
     return items;
   },
 
@@ -653,55 +652,63 @@ BookmarksTracker.prototype = {
       this._all[this._bms.getItemIdForGUID(guid)] = guid;
     }
 
-    // ignore changes to the three roots
-    // we use special names for them, so ignore their "real" places guid
-    // as well as ours, just in case
-    this.ignoreID("menu");
-    this.ignoreID("toolbar");
-    this.ignoreID("unfiled");
-    this.ignoreID(this._all[this._bms.bookmarksMenuFolder]);
-    this.ignoreID(this._all[this._bms.toolbarFolder]);
-    this.ignoreID(this._all[this._bms.unfiledBookmarksFolder]);
-
     this._bms.addObserver(this, false);
   },
 
   /* Every add/remove/change is worth 10 points */
   _upScore: function BMT__upScore() {
+    if (!this.enabled)
+      return;
     this._score += 10;
   },
 
   onItemAdded: function BMT_onEndUpdateBatch(itemId, folder, index) {
-    this._log.trace("onItemAdded: " + itemId);
     this._all[itemId] = this._bms.getItemGUID(itemId);
-    if (this.addChangedID(this._all[itemId]))
-      this._upScore();
+    //if (!this.enabled)
+      //return;
+    this._log.trace("onItemAdded: " + itemId);
+    this.addChangedID(this._all[itemId]);
+    this._upScore();
   },
 
   onItemRemoved: function BMT_onItemRemoved(itemId, folder, index) {
-    this._log.trace("onItemRemoved: " + itemId);
-    if (this.addChangedID(this._all[itemId]))
-      this._upScore();
+    let guid = this._all[itemId];
     delete this._all[itemId];
+    if (!this.enabled)
+      return;
+    this._log.trace("onItemRemoved: " + itemId);
+    this.addChangedID(guid);
+    this._upScore();
   },
 
-  onItemChanged: function BMT_onItemChanged(itemId, property, isAnno, value) {
-    this._log.trace("onItemChanged: " + itemId +
-                    (", " + property + (isAnno? " (anno)" : "")) +
-                    (value? (" = \"" + value + "\"") : ""));
-    // 1) notifications for already-deleted items are ignored
-    // 2) note that engine/store are responsible for manually updating the
-    //    tracker's placesId->weaveId cache
-    if ((itemId in this._all) &&
-        (this._bms.getItemGUID(itemId) != this._all[itemId]) &&
-        this.addChangedID(this._all[itemId]))
-      this._upScore();
+  onItemChanged: function BMT_onItemChanged(itemId, property, isAnnotationProperty, value) {
+    if (!this.enabled)
+      return;
+    this._log.trace("onItemChanged: " + itemId + ", property: " + property +
+                    ", isAnno: " + isAnnotationProperty + ", value: " + value);
+
+    // NOTE: we get onItemChanged too much, when adding an item, changing its
+    //       GUID, before removal... it makes removals break, because trying
+    //       to update our cache before removals makes it so we think the
+    //       temporary guid was removed, instead of the real one.
+    //       Therefore, we ignore all guid changes.  When *Weave* changes the
+    //       GUID, we take care to update the tracker's cache.  If anyone else
+    //       changes the GUID, that will case breakage.
+    let guid = this._bms.getItemGUID(itemId);
+    if (guid != this._all[itemId])
+      this._log.trace("GUID change, ignoring");
+    else
+      this.addChangedID(this._all[itemId]); // some other change
+
+    this._upScore();
   },
 
   onItemMoved: function BMT_onItemMoved(itemId, oldParent, oldIndex, newParent, newIndex) {
+    if (!this.enabled)
+      return;
     this._log.trace("onItemMoved: " + itemId);
-    if (this.addChangedID(this._all[itemId]))
-      this._upScore();
+    this.addChangedID(this._all[itemId]);
+    this._upScore();
   },
 
   onBeginUpdateBatch: function BMT_onBeginUpdateBatch() {},
