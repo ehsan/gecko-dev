@@ -4,10 +4,6 @@
 
 /* Panel styles */
 
-a {
-  color: #0095DD;
-}
-
 .panel {
   /* XXX the Social API panel behaves weirdly on inner element size changes,
      adding unwanted scrollbars; quickfix is to hide these for now. */
@@ -78,13 +74,6 @@ a {
 .share .action button {
   font-size: .9em;
   padding-top: 6px;
-}
-
-.tos {
-  font-size: .6rem;
-  color: #a8a8a8;
-  text-align: center;
-  padding: 1rem;
 }
 
 /* Specific cases */

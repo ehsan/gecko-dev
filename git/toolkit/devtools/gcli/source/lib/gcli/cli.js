@@ -492,10 +492,6 @@ function Requisition(options) {
 
   addMapping(this);
   this._setBlankAssignment(this.commandAssignment);
-
-  // If a command calls context.update then the UI needs some way to be
-  // informed of the change
-  this.onExternalUpdate = util.createEvent('Requisition.onExternalUpdate');
 }
 
 /**
@@ -588,8 +584,8 @@ Object.defineProperty(Requisition.prototype, 'executionContext', {
       if (legacy) {
         this._executionContext.createView = view.createView;
         this._executionContext.exec = this.exec.bind(this);
-        this._executionContext.update = this._contextUpdate.bind(this);
-        this._executionContext.updateExec = this._contextUpdateExec.bind(this);
+        this._executionContext.update = this.update.bind(this);
+        this._executionContext.updateExec = this.updateExec.bind(this);
 
         Object.defineProperty(this._executionContext, 'document', {
           get: function() { return requisition.document; },
@@ -616,8 +612,8 @@ Object.defineProperty(Requisition.prototype, 'conversionContext', {
 
         createView: view.createView,
         exec: this.exec.bind(this),
-        update: this._contextUpdate.bind(this),
-        updateExec: this._contextUpdateExec.bind(this)
+        update: this.update.bind(this),
+        updateExec: this.updateExec.bind(this)
       };
 
       // Alias requisition so we're clear about what's what
@@ -771,35 +767,16 @@ Requisition.prototype._getFirstBlankPositionalAssignment = function() {
 };
 
 /**
- * The update process is asynchronous, so there is (unavoidably) a window
- * where we've worked out the command but don't yet understand all the params.
- * If we try to do things to a requisition in this window we may get
- * inconsistent results. Asynchronous promises have made the window bigger.
- * The only time we've seen this in practice is during focus events due to
- * clicking on a shortcut. The focus want to check the cursor position while
- * the shortcut is updating the command line.
- * This function allows us to detect and back out of this problem.
- * We should be able to remove this function when all the state in a
- * requisition can be encapsulated and updated atomically.
- */
-Requisition.prototype.isUpToDate = function() {
-  if (!this._args) {
-    return false;
-  }
-  for (var i = 0; i < this._args.length; i++) {
-    if (this._args[i].assignment == null) {
-      return false;
-    }
-  }
-  return true;
-};
-
-/**
  * Look through the arguments attached to our assignments for the assignment
  * at the given position.
  * @param {number} cursor The cursor position to query
  */
 Requisition.prototype.getAssignmentAt = function(cursor) {
+  if (!this._args) {
+    console.trace();
+    throw new Error('Missing args');
+  }
+
   // We short circuit this one because we may have no args, or no args with
   // any size and the alg below only finds arguments with size.
   if (cursor === 0) {
@@ -845,7 +822,14 @@ Requisition.prototype.getAssignmentAt = function(cursor) {
   // Possible shortcut, we don't really need to go through all the args
   // to work out the solution to this
 
-  return assignForPos[cursor - 1];
+  var reply = assignForPos[cursor - 1];
+
+  if (!reply) {
+    throw new Error('Missing assignment.' +
+        ' cursor=' + cursor + ' text=' + this.toString());
+  }
+
+  return reply;
 };
 
 /**
@@ -1495,30 +1479,14 @@ function getDataCommandAttribute(element) {
 }
 
 /**
- * Designed to be called from context.update(). Acts just like update() except
- * that it also calls onExternalUpdate() to inform the UI of an unexpected
- * change to the current command.
- */
-Requisition.prototype._contextUpdate = function(typed) {
-  return this.update(typed).then(function(reply) {
-    this.onExternalUpdate({ typed: typed });
-    return reply;
-  }.bind(this));
-};
-
-/**
  * Called by the UI when ever the user interacts with a command line input
- * @param typed The contents of the input field OR an HTML element (or an event
- * that targets an HTML element) which has a data-command attribute or a child
- * with the same that contains the command to update with
+ * @param typed The contents of the input field
  */
 Requisition.prototype.update = function(typed) {
-  // Should be "if (typed instanceof HTMLElement)" except Gecko
-  if (typeof typed.querySelector === 'function') {
+  if (typeof HTMLElement !== 'undefined' && typed instanceof HTMLElement) {
     typed = getDataCommandAttribute(typed);
   }
-  // Should be "if (typed instanceof Event)" except Gecko
-  if (typeof typed.currentTarget === 'object') {
+  if (typeof Event !== 'undefined' && typed instanceof Event) {
     typed = getDataCommandAttribute(typed.currentTarget);
   }
 
@@ -2098,18 +2066,6 @@ Requisition.prototype.exec = function(options) {
       this.clear();
     }
   }
-};
-
-/**
- * Designed to be called from context.updateExec(). Acts just like updateExec()
- * except that it also calls onExternalUpdate() to inform the UI of an
- * unexpected change to the current command.
- */
-Requisition.prototype._contextUpdateExec = function(typed, options) {
-  return this.updateExec(typed, options).then(function(reply) {
-    this.onExternalUpdate({ typed: typed });
-    return reply;
-  }.bind(this));
 };
 
 /**

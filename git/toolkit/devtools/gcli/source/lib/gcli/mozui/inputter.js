@@ -87,7 +87,6 @@ function Inputter(options, components) {
   this.onResize = util.createEvent('Inputter.onResize');
   this.onWindowResize = this.onWindowResize.bind(this);
   this.document.defaultView.addEventListener('resize', this.onWindowResize, false);
-  this.requisition.onExternalUpdate.add(this.textChanged, this);
 
   this._previousValue = undefined;
   this.requisition.update(this.element.value || '');
@@ -100,7 +99,6 @@ Inputter.prototype.destroy = function() {
   this.document.defaultView.removeEventListener('resize', this.onWindowResize, false);
 
   this.requisition.commandOutputManager.onOutput.remove(this.outputted, this);
-  this.requisition.onExternalUpdate.remove(this.textChanged, this);
   if (this.focusManager) {
     this.focusManager.removeMonitoredElement(this.element, 'input');
   }
@@ -311,13 +309,7 @@ Inputter.prototype._checkAssignment = function(start) {
   if (start == null) {
     start = this.element.selectionStart;
   }
-  if (!this.requisition.isUpToDate()) {
-    return;
-  }
   var newAssignment = this.requisition.getAssignmentAt(start);
-  if (newAssignment == null) {
-    return;
-  }
   if (this.assignment !== newAssignment) {
     if (this.assignment.param.type.onLeave) {
       this.assignment.param.type.onLeave(this.assignment);

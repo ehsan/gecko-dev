@@ -147,11 +147,6 @@ let MozLoopServiceInternal = {
    * @param {String} method The request method, e.g. 'POST', 'GET'.
    * @param {Object} payloadObj An object which is converted to JSON and
    *                            transmitted with the request.
-   * @returns {Promise}
-   *        Returns a promise that resolves to the response of the API call,
-   *        or is rejected with an error.  If the server response can be parsed
-   *        as JSON and contains an 'error' property, the promise will be
-   *        rejected with this JSON-parsed response.
    */
   hawkRequest: function(path, method, payloadObj) {
     if (!this._hawkClient) {
@@ -167,9 +162,7 @@ let MozLoopServiceInternal = {
 
     let credentials;
     if (sessionToken) {
-      // true = use a hex key, as required by the server (see bug 1032738).
-      credentials = deriveHawkCredentials(sessionToken, "sessionToken",
-                                          2 * 32, true);
+      credentials = deriveHawkCredentials(sessionToken, "sessionToken", 2 * 32);
     }
 
     return this._hawkClient.request(path, method, credentials, payloadObj);
@@ -488,22 +481,5 @@ this.MozLoopService = {
         "; exception: " + ex);
       return null;
     }
-  },
-
-  /**
-   * Performs a hawk based request to the loop server.
-   *
-   * @param {String} path The path to make the request to.
-   * @param {String} method The request method, e.g. 'POST', 'GET'.
-   * @param {Object} payloadObj An object which is converted to JSON and
-   *                            transmitted with the request.
-   * @returns {Promise}
-   *        Returns a promise that resolves to the response of the API call,
-   *        or is rejected with an error.  If the server response can be parsed
-   *        as JSON and contains an 'error' property, the promise will be
-   *        rejected with this JSON-parsed response.
-   */
-  hawkRequest: function(path, method, payloadObj) {
-    return MozLoopServiceInternal.hawkRequest(path, method, payloadObj);
-  },
+  }
 };

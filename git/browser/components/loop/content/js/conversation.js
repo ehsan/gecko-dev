@@ -137,7 +137,7 @@ loop.conversation = (function(OT, mozL10n) {
     accept: function() {
       window.navigator.mozLoop.stopAlerting();
       this._conversation.initiate({
-        client: new loop.Client(),
+        baseServerUrl: window.navigator.mozLoop.serverUrl,
         outgoing: false
       });
     },

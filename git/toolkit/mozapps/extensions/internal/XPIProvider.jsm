@@ -6646,15 +6646,10 @@ function AddonWrapper(aAddon) {
       return AddonManager.PENDING_UNINSTALL;
     }
 
-    // Extensions have an intentional inconsistency between what the DB says is
-    // enabled and what we say to the ouside world. so we need to cover up that
-    // lie here as well.
-    if (aAddon.type != "experiment") {
-      if (aAddon.active && isAddonDisabled(aAddon))
-        pending |= AddonManager.PENDING_DISABLE;
-      else if (!aAddon.active && !isAddonDisabled(aAddon))
-        pending |= AddonManager.PENDING_ENABLE;
-    }
+    if (aAddon.active && isAddonDisabled(aAddon))
+      pending |= AddonManager.PENDING_DISABLE;
+    else if (!aAddon.active && !isAddonDisabled(aAddon))
+      pending |= AddonManager.PENDING_ENABLE;
 
     if (aAddon.pendingUpgrade)
       pending |= AddonManager.PENDING_UPGRADE;

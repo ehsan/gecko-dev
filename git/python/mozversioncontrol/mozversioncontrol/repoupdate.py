@@ -7,6 +7,7 @@ from __future__ import unicode_literals
 import os
 import subprocess
 
+
 # The logic here is far from robust. Improvements are welcome.
 
 def update_mercurial_repo(hg, repo, path, revision='default',
