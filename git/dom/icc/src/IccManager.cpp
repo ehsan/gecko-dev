@@ -5,7 +5,6 @@
 #include "mozilla/Services.h"
 #include "nsIDOMClassInfo.h"
 #include "nsIDOMIccCardLockErrorEvent.h"
-#include "nsIDOMIccInfo.h"
 #include "GeneratedEvents.h"
 #include "IccManager.h"
 #include "SimToolKit.h"
@@ -131,18 +130,6 @@ IccManager::SendStkEventDownload(const JS::Value& aEvent)
 }
 
 NS_IMETHODIMP
-IccManager::GetIccInfo(nsIDOMMozIccInfo** aIccInfo)
-{
-  *aIccInfo = nullptr;
-
-  if (!mProvider) {
-    return NS_ERROR_FAILURE;
-  }
-
-  return mProvider->GetIccInfo(aIccInfo);
-}
-
-NS_IMETHODIMP
 IccManager::GetCardState(nsAString& cardState)
 {
   cardState.SetIsVoid(true);
@@ -250,7 +237,6 @@ NS_IMPL_EVENT_HANDLER(IccManager, stkcommand)
 NS_IMPL_EVENT_HANDLER(IccManager, stksessionend)
 NS_IMPL_EVENT_HANDLER(IccManager, icccardlockerror)
 NS_IMPL_EVENT_HANDLER(IccManager, cardstatechange)
-NS_IMPL_EVENT_HANDLER(IccManager, iccinfochange)
 
 // nsIIccListener
 
@@ -288,10 +274,4 @@ NS_IMETHODIMP
 IccManager::NotifyCardStateChanged()
 {
   return DispatchTrustedEvent(NS_LITERAL_STRING("cardstatechange"));
-}
-
-NS_IMETHODIMP
-IccManager::NotifyIccInfoChanged()
-{
-  return DispatchTrustedEvent(NS_LITERAL_STRING("iccinfochange"));
 }

@@ -14,6 +14,8 @@
 #include "ion/IonSpewer.h"
 #include "ion/VMFunctions.h"
 
+#include "builtin/Iterator-inl.h"
+#include "ion/IonFrames-inl.h"
 #include "vm/Interpreter-inl.h"
 
 namespace js {

@@ -24,7 +24,6 @@
 #include "nsIInterfaceRequestorUtils.h"
 #include "nsINetworkManager.h"
 #include "nsIRadioInterfaceLayer.h"
-#include "nsIDOMIccInfo.h"
 #include "nsIDOMMobileConnection.h"
 #include "nsJSUtils.h"
 #include "nsServiceManagerUtils.h"
@@ -423,7 +422,7 @@ GonkGPSGeolocationProvider::RequestSetID(uint32_t flags)
     }
 
     if (flags & AGPS_RIL_REQUEST_SETID_MSISDN) {
-      nsCOMPtr<nsIDOMMozIccInfo> iccInfo;
+      nsCOMPtr<nsIDOMMozMobileICCInfo> iccInfo;
       rilCtx->GetIccInfo(getter_AddRefs(iccInfo));
       if (iccInfo) {
         type = AGPS_SETID_TYPE_MSISDN;
@@ -454,7 +453,7 @@ GonkGPSGeolocationProvider::SetReferenceLocation()
   location.type = AGPS_REF_LOCATION_TYPE_UMTS_CELLID;
 
   if (rilCtx) {
-    nsCOMPtr<nsIDOMMozIccInfo> iccInfo;
+    nsCOMPtr<nsIDOMMozMobileICCInfo> iccInfo;
     rilCtx->GetIccInfo(getter_AddRefs(iccInfo));
     if (iccInfo) {
       nsresult result;

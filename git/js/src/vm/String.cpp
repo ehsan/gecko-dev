@@ -14,6 +14,10 @@
 
 #include "jscompartmentinlines.h"
 
+#ifdef JSGC_GENERATIONAL
+#include "vm/Shape-inl.h"
+#endif
+
 using namespace js;
 
 using mozilla::PodCopy;

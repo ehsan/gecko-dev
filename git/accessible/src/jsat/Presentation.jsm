@@ -61,7 +61,7 @@ Presenter.prototype = {
   /**
    * Text selection has changed. TODO.
    */
-  textSelectionChanged: function textSelectionChanged(aText, aStart, aEnd, aOldStart, aOldEnd, aIsFromUser) {},
+  textSelectionChanged: function textSelectionChanged(aText, aStart, aEnd, aOldStart, aOldEnd) {},
 
   /**
    * Selection has changed. TODO.
@@ -234,12 +234,12 @@ AndroidPresenter.prototype = {
 
     let state = Utils.getStates(aContext.accessible)[0];
 
-    let brailleOutput = {};
+    let brailleText = '';
     if (Utils.AndroidSdkVersion >= 16) {
       if (!this._braillePresenter) {
         this._braillePresenter = new BraillePresenter();
       }
-      brailleOutput = this._braillePresenter.pivotChanged(aContext, aReason).
+      brailleText = this._braillePresenter.pivotChanged(aContext, aReason).
                          details;
     }
 
@@ -252,7 +252,7 @@ AndroidPresenter.prototype = {
                                       Ci.nsIAccessibleStates.STATE_CHECKABLE),
                         checked: !!(state &
                                     Ci.nsIAccessibleStates.STATE_CHECKED),
-                        brailleOutput: brailleOutput});
+                        brailleText: brailleText});
 
 
     return {
@@ -310,28 +310,20 @@ AndroidPresenter.prototype = {
 
   textSelectionChanged: function AndroidPresenter_textSelectionChanged(aText, aStart,
                                                                        aEnd, aOldStart,
-                                                                       aOldEnd, aIsFromUser) {
+                                                                       aOldEnd) {
     let androidEvents = [];
 
-    if (Utils.AndroidSdkVersion >= 14 && !aIsFromUser) {
-      if (!this._braillePresenter) {
-        this._braillePresenter = new BraillePresenter();
-      }
-      let brailleOutput = this._braillePresenter.textSelectionChanged(aText, aStart, aEnd,
-                                                                      aOldStart, aOldEnd,
-                                                                      aIsFromUser).details;
-
+    if (Utils.AndroidSdkVersion >= 14) {
       androidEvents.push({
         eventType: this.ANDROID_VIEW_TEXT_SELECTION_CHANGED,
         text: [aText],
         fromIndex: aStart,
         toIndex: aEnd,
-        itemCount: aText.length,
-        brailleOutput: brailleOutput
+        itemCount: aText.length
       });
     }
 
-    if (Utils.AndroidSdkVersion >= 16 && aIsFromUser) {
+    if (Utils.AndroidSdkVersion >= 16) {
       let [from, to] = aOldStart < aStart ? [aOldStart, aStart] : [aStart, aOldStart];
       androidEvents.push({
         eventType: this.ANDROID_VIEW_TEXT_TRAVERSED_AT_MOVEMENT_GRANULARITY,
@@ -462,20 +454,9 @@ BraillePresenter.prototype = {
 
     let brailleOutput = BrailleGenerator.genForContext(aContext);
     brailleOutput.output = brailleOutput.output.join(' ');
-    brailleOutput.selectionStart = 0;
-    brailleOutput.selectionEnd = 0;
 
     return { type: this.type, details: brailleOutput };
-  },
-
-  textSelectionChanged: function BraillePresenter_textSelectionChanged(aText, aStart,
-                                                                       aEnd, aOldStart,
-                                                                       aOldEnd, aIsFromUser) {
-    return { type: this.type,
-             details: { selectionStart: aStart,
-                        selectionEnd: aEnd } };
-  },
-
+  }
 
 };
 
@@ -515,11 +496,8 @@ this.Presentation = {
               for each (p in this.presenters)];
   },
 
-  textSelectionChanged: function textSelectionChanged(aText, aStart, aEnd,
-                                                      aOldStart, aOldEnd,
-                                                      aIsFromUser) {
-    return [p.textSelectionChanged(aText, aStart, aEnd,
-                                   aOldStart, aOldEnd, aIsFromUser)
+  textSelectionChanged: function textSelectionChanged(aText, aStart, aEnd, aOldStart, aOldEnd) {
+    return [p.textSelectionChanged(aText, aStart, aEnd, aOldStart, aOldEnd)
               for each (p in this.presenters)];
   },
 

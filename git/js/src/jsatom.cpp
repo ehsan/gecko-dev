@@ -24,6 +24,9 @@
 
 #include "jscompartmentinlines.h"
 
+#ifdef JSGC_GENERATIONAL
+#include "vm/Shape-inl.h"
+#endif
 #include "vm/String-inl.h"
 
 using namespace js;

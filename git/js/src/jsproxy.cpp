@@ -20,6 +20,8 @@
 #include "jsinferinlines.h"
 #include "jsobjinlines.h"
 
+#include "vm/RegExpObject-inl.h"
+
 using namespace js;
 using namespace js::gc;
 using mozilla::ArrayLength;

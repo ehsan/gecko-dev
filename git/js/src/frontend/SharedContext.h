@@ -180,9 +180,7 @@ class SharedContext
     void setHasDebuggerStatement()        { anyCxFlags.hasDebuggerStatement        = true; }
 
     // JSOPTION_EXTRA_WARNINGS warnings or strict mode errors.
-    bool needStrictChecks() {
-        return strict || extraWarnings;
-    }
+    inline bool needStrictChecks();
 };
 
 class GlobalSharedContext : public SharedContext

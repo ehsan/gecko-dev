@@ -159,7 +159,7 @@ void MediaResourceManagerService::cancelClientLocked(const sp<IBinder>& binder)
   // Clear the request from request queue.
   Fifo::iterator it(mVideoCodecRequestQueue.begin());
   while (it != mVideoCodecRequestQueue.end()) {
-    if ((*it).get() == binder.get()) {
+    if (*it == binder) {
       it = mVideoCodecRequestQueue.erase(it);
       continue;
     }
@@ -168,7 +168,7 @@ void MediaResourceManagerService::cancelClientLocked(const sp<IBinder>& binder)
 
   // Clear the client from the resource
   for (int i=0 ; i<mVideoDecoderCount ; i++) {
-    if (mVideoDecoderSlots[i].mClient.get() == binder.get()) {
+    if (mVideoDecoderSlots[i].mClient == binder) {
       mVideoDecoderSlots[i].mClient = NULL;
     }
   }

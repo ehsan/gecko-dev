@@ -23,6 +23,7 @@
 #include "jsboolinlines.h"
 
 #include "vm/BooleanObject-inl.h"
+#include "vm/GlobalObject-inl.h"
 
 using namespace js;
 using namespace js::types;

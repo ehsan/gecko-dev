@@ -715,14 +715,3 @@ IonRuntime::generateDebugTrapHandler(JSContext *cx)
     Linker linker(masm);
     return linker.newCode(cx, JSC::OTHER_CODE);
 }
-
-IonCode *
-IonRuntime::generateExceptionTailStub(JSContext *cx)
-{
-    MacroAssembler masm;
-
-    masm.handleFailureWithHandlerTail();
-
-    Linker linker(masm);
-    return linker.newCode(cx, JSC::OTHER_CODE);
-}
