@@ -43,7 +43,6 @@
 #include "nsHTMLContainerFrame.h"
 #include "nsIAnonymousContentCreator.h"
 #include "nsBoxFrame.h"
-#include "nsDisplayList.h"
 #include "nsIScrollableFrame.h"
 #include "nsIScrollPositionListener.h"
 #include "nsIStatefulFrame.h"
@@ -83,7 +82,7 @@ public:
   void ReloadChildFrames();
 
   nsresult CreateAnonymousContent(nsTArray<nsIContent*>& aElements);
-  void AppendAnonymousContentTo(nsBaseContentList& aElements, PRUint32 aFilter);
+  void AppendAnonymousContentTo(nsBaseContentList& aElements);
   nsresult FireScrollPortEvent();
   void PostOverflowEvent();
   void Destroy();
@@ -91,12 +90,6 @@ public:
   nsresult BuildDisplayList(nsDisplayListBuilder*   aBuilder,
                             const nsRect&           aDirtyRect,
                             const nsDisplayListSet& aLists);
-
-  nsresult AppendScrollPartsTo(nsDisplayListBuilder*          aBuilder,
-                               const nsRect&                  aDirtyRect,
-                               const nsDisplayListSet&        aLists,
-                               const nsDisplayListCollection& aDest,
-                               PRBool&                        aCreateLayer);
 
   PRBool GetBorderRadii(nscoord aRadii[8]) const;
 
@@ -161,7 +154,7 @@ public:
   static void AsyncScrollCallback(nsITimer *aTimer, void* anInstance);
   void ScrollTo(nsPoint aScrollPosition, nsIScrollableFrame::ScrollMode aMode);
   void ScrollToImpl(nsPoint aScrollPosition);
-  void ScrollVisual();
+  void ScrollVisual(nsIntPoint aPixDelta);
   void ScrollBy(nsIntPoint aDelta, nsIScrollableFrame::ScrollUnit aUnit,
                 nsIScrollableFrame::ScrollMode aMode, nsIntPoint* aOverflow);
   void ScrollToRestoredPosition();
@@ -302,9 +295,6 @@ public:
   // If true, we should be prepared to scroll using this scrollframe
   // by placing descendant content into its own layer(s)
   PRPackedBool mScrollingActive:1;
-  // If true, scrollbars are stacked on the top of the display list and can
-  // float above the content as a result
-  PRPackedBool mScrollbarsCanOverlapContent:1;
 };
 
 /**
@@ -404,8 +394,7 @@ public:
 
   // nsIAnonymousContentCreator
   virtual nsresult CreateAnonymousContent(nsTArray<nsIContent*>& aElements);
-  virtual void AppendAnonymousContentTo(nsBaseContentList& aElements,
-                                        PRUint32 aFilter);
+  virtual void AppendAnonymousContentTo(nsBaseContentList& aElements);
 
   // nsIScrollableFrame
   virtual nsIFrame* GetScrolledFrame() const {
@@ -603,8 +592,7 @@ public:
 
   // nsIAnonymousContentCreator
   virtual nsresult CreateAnonymousContent(nsTArray<nsIContent*>& aElements);
-  virtual void AppendAnonymousContentTo(nsBaseContentList& aElements,
-                                        PRUint32 aFilter);
+  virtual void AppendAnonymousContentTo(nsBaseContentList& aElements);
 
   virtual nsSize GetMinSize(nsBoxLayoutState& aBoxLayoutState);
   virtual nsSize GetPrefSize(nsBoxLayoutState& aBoxLayoutState);

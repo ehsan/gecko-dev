@@ -161,7 +161,7 @@ NS_IMPL_RELEASE(nsChromeRegistry)
 already_AddRefed<nsIChromeRegistry>
 nsChromeRegistry::GetService()
 {
-  if (!gChromeRegistry)
+  if (!nsChromeRegistry::gChromeRegistry)
   {
     // We don't actually want this ref, we just want the service to
     // initialize if it hasn't already.
@@ -170,7 +170,7 @@ nsChromeRegistry::GetService()
     if (!gChromeRegistry)
       return NULL;
   }
-  NS_ADDREF(gChromeRegistry);
+  NS_IF_ADDREF(gChromeRegistry);
   return gChromeRegistry;
 }
 
@@ -329,7 +329,9 @@ nsChromeRegistry::ConvertChromeURL(nsIURI* aChromeURI, nsIURI* *aResult)
   rv = GetProviderAndPath(chromeURL, provider, path);
   NS_ENSURE_SUCCESS(rv, rv);
 
-  nsIURI* baseURI = GetBaseURIFromPackage(package, provider, path);
+  nsIURI* baseURI;
+  rv = GetBaseURIFromPackage(package, provider, path, &baseURI);
+  NS_ENSURE_SUCCESS(rv, rv);
 
   PRUint32 flags;
   rv = GetFlagsFromPackage(package, &flags);

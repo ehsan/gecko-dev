@@ -76,10 +76,14 @@ var testEnablePrivateBrowsingMode = function() {
   var newTab = new elementslib.Elem(controller.menus['file-menu'].menu_newNavigatorTab);
   
   for each (var page in LOCAL_TEST_PAGES) {
-    controller.open(page.url);
-    controller.waitForPageLoad();
+   controller.open(page.url);
+   controller.click(newTab);
+  }
 
-    controller.click(newTab);
+  // Wait until all tabs have been finished loading
+  for (var i = 0; i < LOCAL_TEST_PAGES.length; i++) {
+   var elem = new elementslib.ID(controller.tabs.getTab(i), LOCAL_TEST_PAGES[i].id);
+   controller.waitForElement(elem, TIMEOUT);
   }
 
   // Start the Private Browsing mode
@@ -119,10 +123,8 @@ var testStopPrivateBrowsingMode = function() {
                       {allTabsRestored: controller.tabs.length == LOCAL_TEST_PAGES.length + 1});
 
   for (var i = 0; i < LOCAL_TEST_PAGES.length; i++) {
-    controller.waitForPageLoad(controller.tabs.getTab(i));
-
     var elem = new elementslib.ID(controller.tabs.getTab(i), LOCAL_TEST_PAGES[i].id);
-    controller.assertNode(elem);
+    controller.waitForElement(elem, TIMEOUT);
   }
 
   // No title modifier should have been set

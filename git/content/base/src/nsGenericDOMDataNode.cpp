@@ -579,7 +579,7 @@ nsGenericDOMDataNode::UnbindFromTree(PRBool aDeep, PRBool aNullParent)
 }
 
 already_AddRefed<nsINodeList>
-nsGenericDOMDataNode::GetChildren(PRUint32 aFilter)
+nsGenericDOMDataNode::GetChildren(PRInt32 aChildType)
 {
   return nsnull;
 }

@@ -91,7 +91,7 @@ private:
   void PopState();
 
   nsCOMPtr<nsIWeakReference> mWeakShell;
-  PRInt32 mChildFilter;
+  PRInt32 mChildType;
   WalkState* mState;
 };
 

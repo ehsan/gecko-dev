@@ -44,7 +44,7 @@
 
 nsCategoryObserver::nsCategoryObserver(const char* aCategory,
                                        nsCategoryListener* aListener)
-  : mListener(nsnull), mCategory(aCategory), mObserversRemoved(false)
+  : mListener(nsnull), mCategory(aCategory)
 {
   if (!mHash.Init()) {
     // OOM
@@ -113,10 +113,6 @@ nsCategoryObserver::ListenerDied() {
 
 NS_HIDDEN_(void)
 nsCategoryObserver::RemoveObservers() {
-  if (mObserversRemoved)
-    return;
-
-  mObserversRemoved = true;
   nsCOMPtr<nsIObserverService> obsSvc =
     do_GetService(NS_OBSERVERSERVICE_CONTRACTID);
   if (obsSvc) {

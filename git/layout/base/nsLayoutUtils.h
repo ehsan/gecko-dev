@@ -76,8 +76,6 @@ class gfxDrawable;
  */
 class nsLayoutUtils
 {
-  typedef gfxPattern::GraphicsFilter GraphicsFilter;
-
 public:
 
   /**
@@ -155,11 +153,6 @@ public:
    */
   static PRBool IsGeneratedContentFor(nsIContent* aContent, nsIFrame* aFrame,
                                       nsIAtom* aPseudoElement);
-
-#ifdef DEBUG
-  // TODO: remove, see bug 598468.
-  static bool gPreventAssertInCompareTreePosition;
-#endif // DEBUG
 
   /**
    * CompareTreePosition determines whether aContent1 comes before or
@@ -526,8 +519,7 @@ public:
     PAINT_IGNORE_SUPPRESSION = 0x08,
     PAINT_DOCUMENT_RELATIVE = 0x10,
     PAINT_HIDE_CARET = 0x20,
-    PAINT_ALL_CONTINUATIONS = 0x40,
-    PAINT_TO_WINDOW = 0x80
+    PAINT_ALL_CONTINUATIONS = 0x40
   };
 
   /**
@@ -553,8 +545,7 @@ public:
    * or speed. PAINT_WIDGET_LAYERS must be set if aRenderingContext is null.
    * If PAINT_DOCUMENT_RELATIVE is used, the visible region is interpreted
    * as being relative to the document.  (Normally it's relative to the CSS
-   * viewport.) PAINT_TO_WINDOW sets painting to window to true on the display
-   * list builder even if we can't tell that we are painting to the window.
+   * viewport.)
    *
    * So there are three possible behaviours:
    * 1) PAINT_WIDGET_LAYERS is set and aRenderingContext is null; we paint
@@ -936,7 +927,7 @@ public:
   /**
    * Gets the graphics filter for the frame
    */
-  static GraphicsFilter GetGraphicsFilterForFrame(nsIFrame* aFrame);
+  static gfxPattern::GraphicsFilter GetGraphicsFilterForFrame(nsIFrame* aFrame);
 
   /* N.B. The only difference between variants of the Draw*Image
    * functions below is the type of the aImage argument.
@@ -959,7 +950,7 @@ public:
    */
   static nsresult DrawImage(nsIRenderingContext* aRenderingContext,
                             imgIContainer*       aImage,
-                            GraphicsFilter       aGraphicsFilter,
+                            gfxPattern::GraphicsFilter aGraphicsFilter,
                             const nsRect&        aDest,
                             const nsRect&        aFill,
                             const nsPoint&       aAnchor,
@@ -989,7 +980,7 @@ public:
    */
   static void DrawPixelSnapped(nsIRenderingContext* aRenderingContext,
                                gfxDrawable*         aDrawable,
-                               GraphicsFilter       aFilter,
+                               gfxPattern::GraphicsFilter aFilter,
                                const nsRect&        aDest,
                                const nsRect&        aFill,
                                const nsPoint&       aAnchor,
@@ -1003,8 +994,7 @@ public:
    *                            app units.
    *   @param aImage            The image.
    *   @param aDest             The top-left where the image should be drawn
-   *   @param aDirty            If non-null, then pixels outside this area may
-   *                            be skipped.
+   *   @param aDirty            Pixels outside this area may be skipped.
    *   @param aImageFlags       Image flags of the imgIContainer::FLAG_* variety
    *   @param aSourceArea       If non-null, this area is extracted from
    *                            the image and drawn at aDest. It's
@@ -1013,9 +1003,8 @@ public:
    */
   static nsresult DrawSingleUnscaledImage(nsIRenderingContext* aRenderingContext,
                                           imgIContainer*       aImage,
-                                          GraphicsFilter       aGraphicsFilter,
                                           const nsPoint&       aDest,
-                                          const nsRect*        aDirty,
+                                          const nsRect&        aDirty,
                                           PRUint32             aImageFlags,
                                           const nsRect*        aSourceArea = nsnull);
 
@@ -1036,7 +1025,7 @@ public:
    */
   static nsresult DrawSingleImage(nsIRenderingContext* aRenderingContext,
                                   imgIContainer*       aImage,
-                                  GraphicsFilter       aGraphicsFilter,
+                                  gfxPattern::GraphicsFilter aGraphicsFilter,
                                   const nsRect&        aDest,
                                   const nsRect&        aDirty,
                                   PRUint32             aImageFlags,

@@ -57,8 +57,6 @@
 #include "jsvalue.h"
 #include "jscell.h"
 
-#define JS_CRASH(addr) *(int *) (addr) = 0;
-
 #define JSSTRING_BIT(n)             ((size_t)1 << (n))
 #define JSSTRING_BITMASK(n)         (JSSTRING_BIT(n) - 1)
 
@@ -77,6 +75,9 @@ js_GetDependentStringChars(JSString *str);
 
 extern JSString * JS_FASTCALL
 js_ConcatStrings(JSContext *cx, JSString *left, JSString *right);
+
+extern JSString * JS_FASTCALL
+js_ConcatStringsZ(JSContext *cx, const char *left, JSString *right);
 
 JS_STATIC_ASSERT(JS_BITS_PER_WORD >= 32);
 
@@ -206,13 +207,6 @@ struct JSString {
         return reinterpret_cast<js::gc::FreeCell *>(this);
     }
 
-    inline void checkInteriorParent(int addr) {
-        if (isInteriorNode() && e.mParent == NULL)
-            JS_CRASH(addr);
-    }
-
-    inline void checkCompartment(JSContext *cx, int addr);
-
     /*
      * Generous but sane length bound; the "-1" is there for comptibility with
      * OOM tests.
@@ -287,7 +281,6 @@ struct JSString {
         e.mCapacity = 0;
         mLengthAndFlags = (length << FLAGS_LENGTH_SHIFT) | FLAT;
         mChars = chars;
-        checkInteriorParent(0x90);
     }
 
     JS_ALWAYS_INLINE void initFlatMutable(jschar *chars, size_t length, size_t cap) {
@@ -297,7 +290,6 @@ struct JSString {
         e.mCapacity = cap;
         mLengthAndFlags = (length << FLAGS_LENGTH_SHIFT) | FLAT | MUTABLE;
         mChars = chars;
-        checkInteriorParent(0x94);
     }
 
     JS_ALWAYS_INLINE jschar *flatChars() const {
@@ -346,14 +338,12 @@ struct JSString {
         JS_ASSERT(isFlat());
         JS_ASSERT(!isStatic(this));
         JS_ATOMIC_SET_MASK((jsword *)&mLengthAndFlags, ATOMIZED);
-        checkInteriorParent(0x98);
     }
 
     inline void flatSetMutable() {
         JS_ASSERT(isFlat());
         JS_ASSERT(!isAtomized());
         mLengthAndFlags |= MUTABLE;
-        checkInteriorParent(0x9c);
     }
 
     inline void flatClearMutable() {
@@ -365,7 +355,6 @@ struct JSString {
          */
         if (mLengthAndFlags & MUTABLE)
             mLengthAndFlags &= ~MUTABLE;
-        checkInteriorParent(0xa0);
     }
 
     /*
@@ -379,7 +368,6 @@ struct JSString {
         mChars = chars;
         mLengthAndFlags = DEPENDENT | (len << FLAGS_LENGTH_SHIFT);
         e.mBase = bstr;
-        checkInteriorParent(0xa4);
     }
 
     inline JSString *dependentBase() const {
@@ -405,16 +393,12 @@ struct JSString {
         mLeft = left;
         e.mRight = right;
         e.mBufferWithInfo = buf;
-        checkInteriorParent(0xa8);
     }
 
     inline void convertToInteriorNode(JSString *parent) {
         JS_ASSERT(isTopNode());
-        if (parent == NULL)
-            JS_CRASH(0x80);
         e.mParent = parent;
         mLengthAndFlags = INTERIOR_NODE | (length() << FLAGS_LENGTH_SHIFT);
-        checkInteriorParent(0xac);
     }
 
     inline JSString *interiorNodeParent() const {
@@ -444,10 +428,7 @@ struct JSString {
 
     inline void nullifyTopNodeBuffer() {
         JS_ASSERT(isTopNode());
-        if (!isTopNode())
-            JS_CRASH(0x84);
         e.mBufferWithInfo = NULL;
-        checkInteriorParent(0xb0);
     }
 
     /*
@@ -466,13 +447,11 @@ struct JSString {
         mLengthAndFlags = JSString::DEPENDENT |
             ((chars + end - mChars) << JSString::FLAGS_LENGTH_SHIFT);
         e.mBase = base;
-        checkInteriorParent(0xb4);
     }
 
     inline void ropeClearTraversalCount() {
         JS_ASSERT(isRope());
         mLengthAndFlags &= ~ROPE_TRAVERSAL_COUNT_MASK;
-        checkInteriorParent(0xb8);
     }
 
     inline size_t ropeTraversalCount() const {
@@ -484,7 +463,6 @@ struct JSString {
     inline void ropeIncrementTraversalCount() {
         JS_ASSERT(isRope());
         mLengthAndFlags += ROPE_TRAVERSAL_COUNT_UNIT;
-        checkInteriorParent(0xbc);
     }
 
     inline bool ensureNotDependent(JSContext *cx) {
@@ -994,23 +972,6 @@ js_ValueToPrintable(JSContext *cx, const js::Value &, JSValueToStringFun v2sfun)
  */
 extern JSString *
 js_ValueToString(JSContext *cx, const js::Value &v);
-
-namespace js {
-
-/*
- * Most code that calls js_ValueToString knows the value is (probably) not a
- * string, so it does not make sense to put this inline fast path into
- * js_ValueToString.
- */
-static JS_ALWAYS_INLINE JSString *
-ValueToString_TestForStringInline(JSContext *cx, const Value &v)
-{
-    if (v.isString())
-        return v.toString();
-    return js_ValueToString(cx, v);
-}
-
-}
 
 /*
  * This function implements E-262-3 section 9.8, toString. Convert the given

@@ -19,7 +19,6 @@
       const DONE = Ci.nsIIDBTransaction.DONE;
       const READ_ONLY = Ci.nsIIDBTransaction.READ_ONLY;
       const READ_WRITE = Ci.nsIIDBTransaction.READ_WRITE;
-      const VERSION_CHANGE = Ci.nsIIDBTransaction.VERSION_CHANGE;
 
       const NOT_FOUND_ERR = Ci.nsIIDBDatabaseException.NOT_FOUND_ERR;
 
@@ -37,17 +36,17 @@
       let transaction;
       let objectStore;
 
-      request = db.setVersion("1");
+      request = db.createObjectStore("foo", "", true);
       request.onerror = errorHandler;
       request.onsuccess = grabEventAndContinueHandler;
       event = yield;
 
       transaction = event.transaction;
-      objectStore = db.createObjectStore("foo", "", true);
+      objectStore = event.result;
 
       is(transaction.db, db, "Correct database");
       is(transaction.readyState, LOADING, "Correct readyState");
-      is(transaction.mode, VERSION_CHANGE, "Correct mode");
+      is(transaction.mode, READ_WRITE, "Correct mode");
       is(transaction.objectStoreNames.length, 1, "Correct names length");
       is(transaction.objectStoreNames.item(0), "foo", "Correct name");
       is(transaction.objectStore("foo").name, "foo", "Can get stores");
@@ -59,15 +58,15 @@
       is(objectStore.keyPath, "", "Correct keyPath");
       is(objectStore.indexNames.length, 0, "Correct indexNames");
 
-      // Wait until it's complete!
-      transaction.oncomplete = grabEventAndContinueHandler;
-      event = yield;
+      SimpleTest.executeSoon(function() { testGenerator.next(); });
+      yield;
 
       is(transaction.db, db, "Correct database");
       is(transaction.readyState, DONE, "Correct readyState");
-      is(transaction.mode, VERSION_CHANGE, "Correct mode");
+      is(transaction.mode, READ_WRITE, "Correct mode");
       is(transaction.objectStoreNames.length, 1, "Correct names length");
       is(transaction.objectStoreNames.item(0), "foo", "Correct name");
+      is(transaction.oncomplete, null, "No complete listener");
       is(transaction.onabort, null, "No abort listener");
       is(transaction.ontimeout, null, "No timeout listener");
 
@@ -163,7 +162,7 @@
         ok(true, "RemoveIndex threw");
       }
 
-      request = db.transaction("foo", READ_WRITE).objectStore("foo").add({});
+      request = db.objectStore("foo", READ_WRITE).add({});
       request.onerror = errorHandler;
       request.onsuccess = grabEventAndContinueHandler;
       event = yield;
@@ -178,7 +177,7 @@
 
       let key;
 
-      request = db.transaction("foo", READ_WRITE).objectStore("foo").add({});
+      request = db.objectStore("foo", READ_WRITE).add({});
       request.onerror = errorHandler;
       request.onsuccess = grabEventAndContinueHandler;
       event = yield;
@@ -198,7 +197,7 @@
 
       is(event.type, "abort", "Right kind of event");
 
-      request = db.transaction("foo").objectStore("foo").get(key);
+      request = db.objectStore("foo").get(key);
       request.onerror = new ExpectError(NOT_FOUND_ERR);
       request.onsuccess = unexpectedSuccessHandler;
       event = yield;
@@ -207,7 +206,7 @@
       yield;
 
       let keys = [];
-      objectStore = db.transaction("foo", READ_WRITE).objectStore("foo");
+      objectStore = db.objectStore("foo", READ_WRITE);
 
       for (let i = 0; i < 10; i++) {
         request = objectStore.add({});
@@ -227,7 +226,7 @@
       is(keys.length, 10, "Not enough keys!");
 
       for (let i = 0; i < 10; i++) {
-        request = db.transaction("foo").objectStore("foo").get(keys[i]);
+        request = db.objectStore("foo").get(keys[i]);
         request.onerror = new ExpectError(NOT_FOUND_ERR);
         request.onsuccess = unexpectedSuccessHandler;
         event = yield;

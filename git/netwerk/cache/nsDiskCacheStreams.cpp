@@ -458,8 +458,7 @@ nsDiskCacheStreamIO::CloseOutputStream(nsDiskCacheOutputStream *  outputStream)
     }
 
     rv = Flush();
-    if (NS_FAILED(rv))
-        NS_WARNING("Flush() failed");
+    NS_ASSERTION(NS_SUCCEEDED(rv), "Flush() failed");
 
     mOutStream = nsnull;
     return rv;
@@ -509,9 +508,7 @@ nsDiskCacheStreamIO::Flush()
 
     } else {
         // store data (if any) in cache block files
-
-        mBufDirty = PR_FALSE;
-
+        
         // delete existing storage
         nsDiskCacheRecord * record = &mBinding->mRecord;
         if (record->DataLocationInitialized()) {
@@ -528,10 +525,12 @@ nsDiskCacheStreamIO::Flush()
             rv = cacheMap->WriteDataCacheBlocks(mBinding, mBuffer, mBufEnd);
             if (NS_FAILED(rv)) {
                 NS_WARNING("WriteDataCacheBlocks() failed.");
-                nsCacheService::DoomEntry(mBinding->mCacheEntry);
-                return rv;
+                return rv;   // XXX doom cache entry?
+                
             }
         }
+
+        mBufDirty = PR_FALSE;
     }
     
     // XXX do we need this here?  WriteDataCacheBlocks() calls UpdateRecord()

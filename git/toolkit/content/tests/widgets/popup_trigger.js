@@ -41,10 +41,6 @@ var popupTests = [
   },
   result: function (testname) {
     gExpectedTriggerNode = null;
-    // menus are the anchor but non-menus are opened at screen coordinates
-    is(gMenuPopup.anchorNode, gIsMenu ? gTrigger : null, testname + " anchorNode");
-    // menus are opened internally, but non-menus have a mouse event which
-    // triggered them
     is(gMenuPopup.triggerNode, gIsMenu ? null : gTrigger, testname + " triggerNode");
     is(document.popupNode, gIsMenu ? null : gTrigger, testname + " document.popupNode");
     is(document.tooltipNode, null, testname + " document.tooltipNode");
@@ -157,7 +153,6 @@ var popupTests = [
     // synthesizeMouse(gTrigger, 0, -12, { });
   },
   result: function(testname, step) {
-    is(gMenuPopup.anchorNode, null, testname + " anchorNode");
     is(gMenuPopup.triggerNode, null, testname + " triggerNode");
     is(document.popupNode, null, testname + " document.popupNode");
     checkClosed("trigger", testname);
@@ -178,7 +173,6 @@ var popupTests = [
   result: function(testname, step) {
     // no triggerNode because it was opened without passing an event
     gExpectedTriggerNode = null;
-    is(gMenuPopup.anchorNode, gTrigger, testname + " anchorNode");
     is(gMenuPopup.triggerNode, null, testname + " triggerNode");
     is(document.popupNode, null, testname + " document.popupNode");
     compareEdge(gTrigger, gMenuPopup, step, 0, 0, testname);
@@ -252,7 +246,6 @@ var popupTests = [
   },
   result: function(testname, step) {
     gExpectedTriggerNode = null;
-    is(gMenuPopup.anchorNode, gTrigger, testname + " anchorNode");
     is(gMenuPopup.triggerNode, gCachedEvent.target, testname + " triggerNode");
     is(document.popupNode, gCachedEvent.target, testname + " document.popupNode");
     compareEdge(gTrigger, gMenuPopup, "end_after", 0, 0, testname);
@@ -367,7 +360,6 @@ var popupTests = [
   },
   result: function(testname, step) {
     gExpectedTriggerNode = null;
-    is(gMenuPopup.anchorNode, null, testname + " anchorNode");
     is(gMenuPopup.triggerNode, null, testname + " triggerNode");
     is(document.popupNode, null, testname + " document.popupNode");
     var rect = gMenuPopup.getBoundingClientRect();
@@ -399,7 +391,6 @@ var popupTests = [
   },
   result: function(testname, step) {
     gExpectedTriggerNode = null;
-    is(gMenuPopup.anchorNode, null, testname + " anchorNode");
     is(gMenuPopup.triggerNode, gCachedEvent.target, testname + " triggerNode");
     is(document.popupNode, gCachedEvent.target, testname + " document.popupNode");
 

@@ -152,12 +152,9 @@ nsAccessNode::Shutdown()
 }
 
 // nsIAccessNode
-NS_IMETHODIMP
-nsAccessNode::GetUniqueID(void **aUniqueID)
+NS_IMETHODIMP nsAccessNode::GetUniqueID(void **aUniqueID)
 {
-  NS_ENSURE_ARG_POINTER(aUniqueID);
-
-  *aUniqueID = UniqueID();
+  *aUniqueID = static_cast<void*>(GetNode());
   return NS_OK;
 }
 
@@ -311,12 +308,6 @@ nsIFrame*
 nsAccessNode::GetFrame()
 {
   return mContent ? mContent->GetPrimaryFrame() : nsnull;
-}
-
-bool
-nsAccessNode::IsPrimaryForNode() const
-{
-  return true;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
