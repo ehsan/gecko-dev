@@ -102,7 +102,6 @@ public:
 
 protected:
   void EnsureMimeTypes();
-  void Invalidate();
 
   nsWeakPtr mWindow;
   nsRefPtr<nsPluginTag> mPluginTag;

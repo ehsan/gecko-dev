@@ -1687,7 +1687,6 @@ nsWindow::HandleSpecialKey(AndroidGeckoEvent *ae)
     } else {
         switch (keyCode) {
             case AKEYCODE_BACK: {
-                // XXX Where is the keydown event for this??
                 nsKeyEvent pressEvent(true, NS_KEY_PRESS, this);
                 ANPEvent pluginEvent;
                 InitKeyEvent(pressEvent, *ae, &pluginEvent);
@@ -1767,12 +1766,14 @@ nsWindow::OnKeyEvent(AndroidGeckoEvent *ae)
 
     if (Destroyed())
         return;
-    if (!firePress || status == nsEventStatus_eConsumeNoDefault) {
+    if (!firePress)
         return;
-    }
 
     nsKeyEvent pressEvent(true, NS_KEY_PRESS, this);
     InitKeyEvent(pressEvent, *ae, &pluginEvent);
+    if (status == nsEventStatus_eConsumeNoDefault) {
+        pressEvent.mFlags.mDefaultPrevented = true;
+    }
 #ifdef DEBUG_ANDROID_WIDGET
     __android_log_print(ANDROID_LOG_INFO, "Gecko", "Dispatching key pressEvent with keyCode %d charCode %d shift %d alt %d sym/ctrl %d metamask %d", pressEvent.keyCode, pressEvent.charCode, pressEvent.IsShift(), pressEvent.IsAlt(), pressEvent.IsControl(), ae->MetaState());
 #endif

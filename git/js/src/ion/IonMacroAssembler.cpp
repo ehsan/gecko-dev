@@ -14,6 +14,7 @@
 #include "ion/BaselineIC.h"
 #include "ion/BaselineJIT.h"
 #include "ion/BaselineRegisters.h"
+#include "ion/IonMacroAssembler.h"
 #include "ion/MIR.h"
 #include "js/RootingAPI.h"
 #include "vm/ForkJoin.h"
@@ -541,23 +542,28 @@ MacroAssembler::newGCShortString(const Register &result, Label *fail)
 }
 
 void
-MacroAssembler::newGCThingPar(const Register &result, const Register &slice,
-                              const Register &tempReg1, const Register &tempReg2,
-                              gc::AllocKind allocKind, Label *fail)
+MacroAssembler::parNewGCThing(const Register &result,
+                              const Register &threadContextReg,
+                              const Register &tempReg1,
+                              const Register &tempReg2,
+                              gc::AllocKind allocKind,
+                              Label *fail)
 {
-    // Similar to ::newGCThing(), except that it allocates from a custom
-    // Allocator in the ForkJoinSlice*, rather than being hardcoded to the
-    // compartment allocator.  This requires two temporary registers.
+    // Similar to ::newGCThing(), except that it allocates from a
+    // custom Allocator in the ForkJoinSlice*, rather than being
+    // hardcoded to the compartment allocator.  This requires two
+    // temporary registers.
     //
-    // Subtle: I wanted to reuse `result` for one of the temporaries, but the
-    // register allocator was assigning it to the same register as `slice`.
-    // Then we overwrite that register which messed up the OOL code.
+    // Subtle: I wanted to reuse `result` for one of the temporaries,
+    // but the register allocator was assigning it to the same
+    // register as `threadContextReg`.  Then we overwrite that
+    // register which messed up the OOL code.
 
     uint32_t thingSize = (uint32_t)gc::Arena::thingSize(allocKind);
 
     // Load the allocator:
     // tempReg1 = (Allocator*) forkJoinSlice->allocator()
-    loadPtr(Address(slice, ThreadSafeContext::offsetOfAllocator()),
+    loadPtr(Address(threadContextReg, ThreadSafeContext::offsetOfAllocator()),
             tempReg1);
 
     // Get a pointer to the relevant free list:
@@ -589,31 +595,38 @@ MacroAssembler::newGCThingPar(const Register &result, const Register &slice,
 }
 
 void
-MacroAssembler::newGCThingPar(const Register &result, const Register &slice,
-                              const Register &tempReg1, const Register &tempReg2,
-                              JSObject *templateObject, Label *fail)
+MacroAssembler::parNewGCThing(const Register &result,
+                              const Register &threadContextReg,
+                              const Register &tempReg1,
+                              const Register &tempReg2,
+                              JSObject *templateObject,
+                              Label *fail)
 {
     gc::AllocKind allocKind = templateObject->tenuredGetAllocKind();
     JS_ASSERT(allocKind >= gc::FINALIZE_OBJECT0 && allocKind <= gc::FINALIZE_OBJECT_LAST);
     JS_ASSERT(!templateObject->hasDynamicElements());
 
-    newGCThingPar(result, slice, tempReg1, tempReg2, allocKind, fail);
+    parNewGCThing(result, threadContextReg, tempReg1, tempReg2, allocKind, fail);
 }
 
 void
-MacroAssembler::newGCStringPar(const Register &result, const Register &slice,
-                               const Register &tempReg1, const Register &tempReg2,
+MacroAssembler::parNewGCString(const Register &result,
+                               const Register &threadContextReg,
+                               const Register &tempReg1,
+                               const Register &tempReg2,
                                Label *fail)
 {
-    newGCThingPar(result, slice, tempReg1, tempReg2, js::gc::FINALIZE_STRING, fail);
+    parNewGCThing(result, threadContextReg, tempReg1, tempReg2, js::gc::FINALIZE_STRING, fail);
 }
 
 void
-MacroAssembler::newGCShortStringPar(const Register &result, const Register &slice,
-                                    const Register &tempReg1, const Register &tempReg2,
+MacroAssembler::parNewGCShortString(const Register &result,
+                                    const Register &threadContextReg,
+                                    const Register &tempReg1,
+                                    const Register &tempReg2,
                                     Label *fail)
 {
-    newGCThingPar(result, slice, tempReg1, tempReg2, js::gc::FINALIZE_SHORT_STRING, fail);
+    parNewGCThing(result, threadContextReg, tempReg1, tempReg2, js::gc::FINALIZE_SHORT_STRING, fail);
 }
 
 void
@@ -702,8 +715,8 @@ MacroAssembler::compareStrings(JSOp op, Register left, Register right, Register 
 }
 
 void
-MacroAssembler::checkInterruptFlagsPar(const Register &tempReg,
-                                            Label *fail)
+MacroAssembler::parCheckInterruptFlags(const Register &tempReg,
+                                       Label *fail)
 {
     JSCompartment *compartment = GetIonContext()->compartment;
 
@@ -1015,9 +1028,9 @@ MacroAssembler::loadForkJoinSlice(Register slice, Register scratch)
 {
     // Load the current ForkJoinSlice *. If we need a parallel exit frame,
     // chances are we are about to do something very slow anyways, so just
-    // call ForkJoinSlicePar again instead of using the cached version.
+    // call ParForkJoinSlice again instead of using the cached version.
     setupUnalignedABICall(0, scratch);
-    callWithABI(JS_FUNC_TO_DATA_PTR(void *, ForkJoinSlicePar));
+    callWithABI(JS_FUNC_TO_DATA_PTR(void *, ParForkJoinSlice));
     if (ReturnReg != slice)
         movePtr(ReturnReg, slice);
 }

@@ -1332,7 +1332,6 @@ int32_t ViEChannel::StartSend() {
     rtp_rtcp->SetSendingMediaStatus(true);
     rtp_rtcp->SetSendingStatus(true);
   }
-  vie_receiver_.StartRTCPReceive();
   return 0;
 }
 
@@ -1368,7 +1367,6 @@ int32_t ViEChannel::StopSend() {
     rtp_rtcp->ResetSendDataCountersRTP();
     rtp_rtcp->SetSendingStatus(false);
   }
-  vie_receiver_.StopRTCPReceive();
   return 0;
 }
 

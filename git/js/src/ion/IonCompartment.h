@@ -11,13 +11,12 @@
 
 #include "mozilla/MemoryReporting.h"
 
-#include "jsweakcache.h"
-
-#include "ion/CompileInfo.h"
 #include "ion/IonCode.h"
-#include "ion/IonFrames.h"
+#include "jsweakcache.h"
 #include "js/Value.h"
 #include "vm/Stack.h"
+#include "ion/IonFrames.h"
+#include "ion/CompileInfo.h"
 
 namespace js {
 namespace ion {

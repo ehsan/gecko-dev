@@ -2982,6 +2982,10 @@ this.DOMApplicationRegistry = {
     return AppsUtils.getAppLocalIdByManifestURL(this.webapps, aManifestURL);
   },
 
+  getAppFromObserverMessage: function(aMessage) {
+    return AppsUtils.getAppFromObserverMessage(this.webapps, aMessage);
+  },
+
   getCoreAppsBasePath: function() {
     return AppsUtils.getCoreAppsBasePath();
   },

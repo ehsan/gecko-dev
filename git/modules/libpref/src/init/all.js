@@ -1777,9 +1777,6 @@ pref("layout.css.masking.enabled", true);
 // Is support for the the @supports rule enabled?
 pref("layout.css.supports-rule.enabled", true);
 
-// Is support for CSS Filters enabled?
-pref("layout.css.filters.enabled", false);
-
 // Is support for CSS Flexbox enabled?
 pref("layout.css.flexbox.enabled", true);
 
@@ -1856,7 +1853,6 @@ pref("gestures.enable_single_finger_input", true);
 pref("editor.resizing.preserve_ratio",       true);
 pref("editor.positioning.offset",            0);
 
-pref("dom.use_watchdog", true);
 pref("dom.max_chrome_script_run_time", 20);
 pref("dom.max_script_run_time", 10);
 

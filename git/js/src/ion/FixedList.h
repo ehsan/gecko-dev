@@ -7,11 +7,6 @@
 #ifndef ion_FixedList_h
 #define ion_FixedList_h
 
-#include <stddef.h>
-
-#include "ion/Ion.h"
-#include "ion/IonAllocPolicy.h"
-
 namespace js {
 namespace ion {
 

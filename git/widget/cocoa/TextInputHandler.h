@@ -524,14 +524,9 @@ protected:
       mCausedOtherKeyEvents = false;
     }
 
-    bool IsDefaultPrevented() const
+    bool KeyDownOrPressHandled()
     {
-      return mKeyDownHandled || mKeyPressHandled || mCausedOtherKeyEvents;
-    }
-
-    bool CanDispatchKeyPressEvent() const
-    {
-      return !mKeyPressDispatched && !IsDefaultPrevented();
+      return mKeyDownHandled || mKeyPressHandled;
     }
   };
 

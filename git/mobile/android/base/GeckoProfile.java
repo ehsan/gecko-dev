@@ -162,7 +162,15 @@ public final class GeckoProfile {
         }
 
         try {
-            // Check if a profile with this name already exists.
+            // Check for old profiles that may need migration.
+            ProfileMigrator profileMigrator = new ProfileMigrator(mContext);
+            if (!GeckoApp.sIsUsingCustomProfile &&
+                !profileMigrator.isProfileMoved()) {
+                Log.i(LOGTAG, "New installation or update, checking for old profiles.");
+                profileMigrator.launchMoveProfile();
+            }
+
+            // now check if a profile with this name that already exists
             File mozillaDir = ensureMozillaDirectory(mContext);
             mDir = findProfileDir(mozillaDir);
             if (mDir == null) {

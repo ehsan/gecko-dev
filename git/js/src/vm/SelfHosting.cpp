@@ -319,20 +319,14 @@ intrinsic_SetScriptHints(JSContext *cx, unsigned argc, Value *vp)
  * Dump(val): Dumps a value for debugging, even in parallel mode.
  */
 JSBool
-intrinsic_Dump(ThreadSafeContext *cx, unsigned argc, Value *vp)
+js::intrinsic_Dump(JSContext *cx, unsigned argc, Value *vp)
 {
     CallArgs args = CallArgsFromVp(argc, vp);
-    js_DumpValue(args[0]);
-    if (args[0].isObject()) {
-        fprintf(stderr, "\n");
-        js_DumpObject(&args[0].toObject());
-    }
+    RootedValue val(cx, args[0]);
+    js_DumpValue(val);
     args.rval().setUndefined();
     return true;
 }
-
-const JSJitInfo intrinsic_Dump_jitInfo =
-    JS_JITINFO_NATIVE_PARALLEL(JSParallelNativeThreadSafeWrapper<intrinsic_Dump>);
 
 JSBool
 intrinsic_ParallelSpew(ThreadSafeContext *cx, unsigned argc, Value *vp)
@@ -671,9 +665,7 @@ const JSFunctionSpec intrinsic_functions[] = {
     JS_FN("regexp_test_no_statics", regexp_test_no_statics, 2,0),
 
 #ifdef DEBUG
-    JS_FNINFO("Dump",
-              JSNativeThreadSafeWrapper<intrinsic_Dump>,
-              &intrinsic_Dump_jitInfo, 1,0),
+    JS_FN("Dump",                 intrinsic_Dump,                 1,0),
 
     JS_FNINFO("ParallelSpew",
               JSNativeThreadSafeWrapper<intrinsic_ParallelSpew>,

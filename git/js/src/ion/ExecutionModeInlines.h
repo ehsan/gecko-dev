@@ -9,8 +9,6 @@
 
 #ifdef JS_ION
 
-#include "ion/CompileInfo.h"
-
 namespace js {
 namespace ion {
 

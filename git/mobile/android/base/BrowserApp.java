@@ -745,6 +745,14 @@ abstract public class BrowserApp extends GeckoApp
     }
 
     @Override
+    protected void finishProfileMigration() {
+        // Update about:home with the new information.
+        updateAboutHomeTopSites();
+
+        super.finishProfileMigration();
+    }
+
+    @Override
     protected void initializeChrome() {
         super.initializeChrome();
 
@@ -1442,13 +1450,11 @@ abstract public class BrowserApp extends GeckoApp
                 @Override
                 public void onBitmapFound(Drawable d) {
                     MenuItem item = mMenu.findItem(id);
-                    if (item == null) {
-                        return;
-                    }
                     if (d == null) {
                         item.setIcon(R.drawable.ic_menu_addons_filler);
                         return;
                     }
+
                     item.setIcon(d);
                 }
             });

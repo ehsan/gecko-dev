@@ -2938,7 +2938,7 @@ nsWindow::OnKeyPressEvent(GdkEventKey *aEvent)
 
     bool isKeyDownCancelled = false;
     if (DispatchKeyDownEvent(aEvent, &isKeyDownCancelled) &&
-        (MOZ_UNLIKELY(mIsDestroyed) || isKeyDownCancelled)) {
+        MOZ_UNLIKELY(mIsDestroyed)) {
         return TRUE;
     }
 
@@ -2999,6 +2999,10 @@ nsWindow::OnKeyPressEvent(GdkEventKey *aEvent)
 
     nsKeyEvent event(true, NS_KEY_PRESS, this);
     KeymapWrapper::InitKeyEvent(event, aEvent);
+    if (isKeyDownCancelled) {
+      // If prevent default set for onkeydown, do the same for onkeypress
+      event.mFlags.mDefaultPrevented = true;
+    }
 
     // before we dispatch a key, check if it's the context menu key.
     // If so, send a context menu key event instead.
