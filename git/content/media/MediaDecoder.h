@@ -787,6 +787,10 @@ public:
   static bool IsMediaPluginsEnabled();
 #endif
 
+#ifdef MOZ_DASH
+  static bool IsDASHEnabled();
+#endif
+
 #ifdef MOZ_WMF
   static bool IsWMFEnabled();
 #endif

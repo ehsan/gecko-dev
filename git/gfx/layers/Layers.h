@@ -265,7 +265,6 @@ public:
   typedef void (* DrawThebesLayerCallback)(ThebesLayer* aLayer,
                                            gfxContext* aContext,
                                            const nsIntRegion& aRegionToDraw,
-                                           DrawRegionClip aClip,
                                            const nsIntRegion& aRegionToInvalidate,
                                            void* aCallbackData);
 

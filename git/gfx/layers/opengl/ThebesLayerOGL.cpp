@@ -828,14 +828,12 @@ BasicBufferOGL::BeginPaint(ContentType aContentType,
   // although they never cover it. This leads to two draw rects, the narow strip and the actually
   // newly exposed area. It would be wise to fix this glitch in any way to have simpler
   // clip and draw regions.
-  result.mClip = CLIP_DRAW;
+  gfxUtils::ClipToRegion(result.mContext, result.mRegionToDraw);
 
   if (mTexImage->GetContentType() == GFX_CONTENT_COLOR_ALPHA) {
-    result.mContext->Save();
-    gfxUtils::ClipToRegion(result.mContext, result.mRegionToDraw);
     result.mContext->SetOperator(gfxContext::OPERATOR_CLEAR);
     result.mContext->Paint();
-    result.mContext->Restore();
+    result.mContext->SetOperator(gfxContext::OPERATOR_OVER);
   }
 
   return result;
@@ -933,7 +931,7 @@ ThebesLayerOGL::RenderLayer(int aPreviousFrameBuffer,
     } else {
       void* callbackData = mOGLManager->GetThebesLayerCallbackData();
       SetAntialiasingFlags(this, state.mContext);
-      callback(this, state.mContext, state.mRegionToDraw, state.mClip,
+      callback(this, state.mContext, state.mRegionToDraw,
                state.mRegionToInvalidate, callbackData);
       // Everything that's visible has been validated. Do this instead of just
       // OR-ing with aRegionToDraw, since that can lead to a very complex region

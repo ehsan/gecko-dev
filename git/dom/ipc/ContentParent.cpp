@@ -1139,7 +1139,7 @@ ContentParent::ActorDestroy(ActorDestroyReason why)
     if (ppm) {
       ppm->ReceiveMessage(static_cast<nsIContentFrameMessageManager*>(ppm.get()),
                           CHILD_PROCESS_SHUTDOWN_MESSAGE, false,
-                          nullptr, nullptr, nullptr, nullptr);
+                          nullptr, nullptr, nullptr);
     }
     nsCOMPtr<nsIThreadObserver>
         kungFuDeathGrip(static_cast<nsIThreadObserver*>(this));
@@ -2865,21 +2865,14 @@ bool
 ContentParent::RecvSyncMessage(const nsString& aMsg,
                                const ClonedMessageData& aData,
                                const InfallibleTArray<CpowEntry>& aCpows,
-                               const IPC::Principal& aPrincipal,
                                InfallibleTArray<nsString>* aRetvals)
 {
-  nsIPrincipal* principal = aPrincipal;
-  if (principal && !AssertAppPrincipal(this, principal)) {
-    return false;
-  }
-
   nsRefPtr<nsFrameMessageManager> ppm = mMessageManager;
   if (ppm) {
     StructuredCloneData cloneData = ipc::UnpackClonedMessageDataForParent(aData);
     CpowIdHolder cpows(GetCPOWManager(), aCpows);
-
     ppm->ReceiveMessage(static_cast<nsIContentFrameMessageManager*>(ppm.get()),
-                        aMsg, true, &cloneData, &cpows, aPrincipal, aRetvals);
+                        aMsg, true, &cloneData, &cpows, aRetvals);
   }
   return true;
 }
@@ -2888,20 +2881,14 @@ bool
 ContentParent::AnswerRpcMessage(const nsString& aMsg,
                                 const ClonedMessageData& aData,
                                 const InfallibleTArray<CpowEntry>& aCpows,
-                                const IPC::Principal& aPrincipal,
                                 InfallibleTArray<nsString>* aRetvals)
 {
-  nsIPrincipal* principal = aPrincipal;
-  if (principal && !AssertAppPrincipal(this, principal)) {
-    return false;
-  }
-
   nsRefPtr<nsFrameMessageManager> ppm = mMessageManager;
   if (ppm) {
     StructuredCloneData cloneData = ipc::UnpackClonedMessageDataForParent(aData);
     CpowIdHolder cpows(GetCPOWManager(), aCpows);
     ppm->ReceiveMessage(static_cast<nsIContentFrameMessageManager*>(ppm.get()),
-                        aMsg, true, &cloneData, &cpows, aPrincipal, aRetvals);
+                        aMsg, true, &cloneData, &cpows, aRetvals);
   }
   return true;
 }
@@ -2909,20 +2896,14 @@ ContentParent::AnswerRpcMessage(const nsString& aMsg,
 bool
 ContentParent::RecvAsyncMessage(const nsString& aMsg,
                                 const ClonedMessageData& aData,
-                                const InfallibleTArray<CpowEntry>& aCpows,
-                                const IPC::Principal& aPrincipal)
+                                const InfallibleTArray<CpowEntry>& aCpows)
 {
-  nsIPrincipal* principal = aPrincipal;
-  if (principal && !AssertAppPrincipal(this, principal)) {
-    return false;
-  }
-
   nsRefPtr<nsFrameMessageManager> ppm = mMessageManager;
   if (ppm) {
     StructuredCloneData cloneData = ipc::UnpackClonedMessageDataForParent(aData);
     CpowIdHolder cpows(GetCPOWManager(), aCpows);
     ppm->ReceiveMessage(static_cast<nsIContentFrameMessageManager*>(ppm.get()),
-                        aMsg, false, &cloneData, &cpows, aPrincipal, nullptr);
+                        aMsg, false, &cloneData, &cpows, nullptr);
   }
   return true;
 }
@@ -3129,8 +3110,7 @@ bool
 ContentParent::DoSendAsyncMessage(JSContext* aCx,
                                   const nsAString& aMessage,
                                   const mozilla::dom::StructuredCloneData& aData,
-                                  JS::Handle<JSObject *> aCpows,
-                                  nsIPrincipal* aPrincipal)
+                                  JS::Handle<JSObject *> aCpows)
 {
   ClonedMessageData data;
   if (!BuildClonedMessageDataForParent(this, aData, data)) {
@@ -3140,7 +3120,7 @@ ContentParent::DoSendAsyncMessage(JSContext* aCx,
   if (!GetCPOWManager()->Wrap(aCx, aCpows, &cpows)) {
     return false;
   }
-  return SendAsyncMessage(nsString(aMessage), data, cpows, aPrincipal);
+  return SendAsyncMessage(nsString(aMessage), data, cpows);
 }
 
 bool

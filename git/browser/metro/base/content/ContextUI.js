@@ -292,9 +292,7 @@ var ContextUI = {
   handleEvent: function handleEvent(aEvent) {
     switch (aEvent.type) {
       case "URLChanged":
-        if (aEvent.target == Browser.selectedBrowser) {
-          this.displayNavbar();
-        }
+        this.displayNavbar();
         break;
       case "MozEdgeUIStarted":
         this._onEdgeUIStarted(aEvent);

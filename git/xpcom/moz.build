@@ -6,6 +6,7 @@
 
 PARALLEL_DIRS += [
     'idl-parser',
+    'xpidl',
 ]
 
 DIRS += [

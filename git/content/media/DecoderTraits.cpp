@@ -49,6 +49,9 @@
 #include "RtspOmxDecoder.h"
 #include "RtspOmxReader.h"
 #endif
+#ifdef MOZ_DASH
+#include "DASHDecoder.h"
+#endif
 #ifdef MOZ_WMF
 #include "WMFDecoder.h"
 #include "WMFReader.h"
@@ -282,6 +285,24 @@ IsMediaPluginsType(const nsACString& aType)
 }
 #endif
 
+#ifdef MOZ_DASH
+/* static */
+static const char* const gDASHMPDTypes[2] = {
+  "application/dash+xml",
+  nullptr
+};
+
+static bool
+IsDASHMPDType(const nsACString& aType)
+{
+  if (!MediaDecoder::IsDASHEnabled()) {
+    return false;
+  }
+
+  return CodecListContains(gDASHMPDTypes, aType);
+}
+#endif
+
 #ifdef MOZ_WMF
 static bool
 IsWMFSupportedType(const nsACString& aType)
@@ -374,6 +395,13 @@ DecoderTraits::CanHandleMediaType(const char* aMIMEType,
 #endif
 #ifdef MOZ_WEBM
   if (IsWebMType(nsDependentCString(aMIMEType))) {
+    codecList = gWebMCodecs;
+    result = CANPLAY_YES;
+  }
+#endif
+#ifdef MOZ_DASH
+  if (IsDASHMPDType(nsDependentCString(aMIMEType))) {
+    // DASH manifest uses WebM codecs only.
     codecList = gWebMCodecs;
     result = CANPLAY_YES;
   }
@@ -502,6 +530,11 @@ DecoderTraits::CreateDecoder(const nsACString& aType, MediaDecoderOwner* aOwner)
     decoder = new WebMDecoder();
   }
 #endif
+#ifdef MOZ_DASH
+  if (IsDASHMPDType(aType)) {
+    decoder = new DASHDecoder();
+  }
+#endif
 #ifdef MOZ_DIRECTSHOW
   // Note: DirectShow decoder must come before WMFDecoder, else the pref
   // "media.directshow.preferred" won't be honored.
@@ -584,6 +617,9 @@ MediaDecoderReader* DecoderTraits::CreateReader(const nsACString& aType, Abstrac
     decoderReader = new AppleMP3Reader(aDecoder);
   } else
 #endif
+#ifdef MOZ_DASH
+  // The DASH decoder is not supported.
+#endif
   if (false) {} // dummy if to take care of the dangling else
 
   return decoderReader;
@@ -603,6 +639,9 @@ bool DecoderTraits::IsSupportedInVideoDocument(const nsACString& aType)
 #endif
 #ifdef MOZ_WEBM
     IsWebMType(aType) ||
+#endif
+#ifdef MOZ_DASH
+    IsDASHMPDType(aType) ||
 #endif
 #ifdef MOZ_GSTREAMER
     IsGStreamerSupportedType(aType) ||

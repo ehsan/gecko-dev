@@ -102,7 +102,6 @@ public class Tabs implements GeckoEventListener {
         registerEventListener("DOMTitleChanged");
         registerEventListener("Link:Favicon");
         registerEventListener("Link:Feed");
-        registerEventListener("Link:OpenSearch");
         registerEventListener("DesktopMode:Changed");
         registerEventListener("Tab:ViewportMetadata");
     }
@@ -468,11 +467,8 @@ public class Tabs implements GeckoEventListener {
                 tab.updateFaviconURL(message.getString("href"), message.getInt("size"));
                 notifyListeners(tab, TabEvents.LINK_FAVICON);
             } else if (event.equals("Link:Feed")) {
-                tab.setHasFeeds(true);
+                tab.setFeedsEnabled(true);
                 notifyListeners(tab, TabEvents.LINK_FEED);
-            } else if (event.equals("Link:OpenSearch")) {
-                boolean visible = message.getBoolean("visible");
-                tab.setHasOpenSearch(visible);
             } else if (event.equals("DesktopMode:Changed")) {
                 tab.setDesktopMode(message.getBoolean("desktopMode"));
                 notifyListeners(tab, TabEvents.DESKTOP_MODE_CHANGE);

@@ -151,7 +151,7 @@ partial interface Document {
    * True if this document is synthetic : stand alone image, video, audio file,
    * etc.
    */
-  [Func="IsChromeOrXBL"] readonly attribute boolean mozSyntheticDocument;
+  [ChromeOnly] readonly attribute boolean mozSyntheticDocument;
   /**
    * Returns the script element whose script is currently being processed.
    *
