@@ -29,6 +29,7 @@ browser.jar:
         skin/classic/browser/customizableui/customizeMode-separatorHorizontal.png  (customizableui/customizeMode-separatorHorizontal.png)
         skin/classic/browser/customizableui/customizeMode-separatorVertical.png  (customizableui/customizeMode-separatorVertical.png)
 *       skin/classic/browser/engineManager.css
+        skin/classic/browser/fullscreen-darknoise.png
         skin/classic/browser/Geolocation-16.png
         skin/classic/browser/Geolocation-64.png
         skin/classic/browser/Info.png
@@ -300,6 +301,7 @@ browser.jar:
         skin/classic/aero/browser/customizableui/customizeMode-separatorHorizontal.png  (customizableui/customizeMode-separatorHorizontal.png)
         skin/classic/aero/browser/customizableui/customizeMode-separatorVertical.png  (customizableui/customizeMode-separatorVertical.png)
 *       skin/classic/aero/browser/engineManager.css
+        skin/classic/aero/browser/fullscreen-darknoise.png
         skin/classic/aero/browser/Geolocation-16.png
         skin/classic/aero/browser/Geolocation-64.png
         skin/classic/aero/browser/Info.png                           (Info-aero.png)
