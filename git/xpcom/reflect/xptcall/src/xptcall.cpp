@@ -24,13 +24,13 @@ nsXPTCStubBase::QueryInterface(REFNSIID aIID,
     return mOuter->QueryInterface(aIID, aInstancePtr);
 }
 
-NS_IMETHODIMP_(MozExternalRefCountType)
+NS_IMETHODIMP_(nsrefcnt)
 nsXPTCStubBase::AddRef()
 {
     return mOuter->AddRef();
 }
 
-NS_IMETHODIMP_(MozExternalRefCountType)
+NS_IMETHODIMP_(nsrefcnt)
 nsXPTCStubBase::Release()
 {
     return mOuter->Release();

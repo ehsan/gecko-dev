@@ -437,6 +437,8 @@ CheckAllocatorState(ThreadSafeContext *cx, AllocKind kind)
             // handle that here. Just check in case we need to collect instead.
             js::gc::GCIfNeeded(ncx);
         }
+
+        MaybeCheckStackRoots(ncx);
     }
 
     return true;

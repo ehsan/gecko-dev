@@ -57,6 +57,7 @@
   -moz-appearance: none;
   padding: 0;
   border: none;
+  -moz-user-focus: normal;
 }
 
 #newtab-undo-close-button > .toolbarbutton-text {

@@ -180,9 +180,6 @@ private:
   nsCString                       mAddress;
   int32_t                         mPort;          // WS server port
 
-  // Used for off main thread access to the URI string.
-  nsCString                       mHost;
-
   nsCOMPtr<nsISocketTransport>    mTransport;
   nsCOMPtr<nsIAsyncInputStream>   mSocketIn;
   nsCOMPtr<nsIAsyncOutputStream>  mSocketOut;

@@ -24,7 +24,8 @@
 #define kMinDumpInterval       20000 // in milliseconds
 #define kMaxBufSize            16384
 #define kIndexVersion          0x00000001
-#define kUpdateIndexStartDelay 50000 // in milliseconds
+#define kBuildIndexStartDelay  10000 // in milliseconds
+#define kUpdateIndexStartDelay 10000 // in milliseconds
 
 const char kIndexName[]     = "index";
 const char kTempIndexName[] = "index.tmp";
@@ -2650,9 +2651,6 @@ CacheIndex::StartUpdatingIndex(bool aRebuild)
 
   uint32_t elapsed = (TimeStamp::NowLoRes() - mStartTime).ToMilliseconds();
   if (elapsed < kUpdateIndexStartDelay) {
-    LOG(("CacheIndex::StartUpdatingIndex() - %u ms elapsed since startup, "
-         "scheduling timer to fire in %u ms.", elapsed,
-         kUpdateIndexStartDelay - elapsed));
     rv = ScheduleUpdateTimer(kUpdateIndexStartDelay - elapsed);
     if (NS_SUCCEEDED(rv)) {
       return;
@@ -2660,9 +2658,6 @@ CacheIndex::StartUpdatingIndex(bool aRebuild)
 
     LOG(("CacheIndex::StartUpdatingIndex() - ScheduleUpdateTimer() failed. "
          "Starting update immediately."));
-  } else {
-    LOG(("CacheIndex::StartUpdatingIndex() - %u ms elapsed since startup, "
-         "starting update now.", elapsed));
   }
 
   nsRefPtr<CacheIOThread> ioThread = CacheFileIOManager::IOThread();

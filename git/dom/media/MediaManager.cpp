@@ -90,7 +90,7 @@ static nsresult CompareDictionaries(JSContext* aCx, JSObject *aA,
   JS::Rooted<JSObject*> a(aCx, aA);
   JSAutoCompartment ac(aCx, aA);
   JS::Rooted<JS::Value> bval(aCx);
-  aB.ToObject(aCx, &bval);
+  aB.ToObject(aCx, JS::NullPtr(), &bval);
   JS::Rooted<JSObject*> b(aCx, &bval.toObject());
 
   // Iterate over each property in A, and check if it is in B

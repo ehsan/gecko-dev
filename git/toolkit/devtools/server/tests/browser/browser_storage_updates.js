@@ -25,12 +25,8 @@ registerCleanupFunction(function() {
 });
 
 function finishTests(client) {
-  // Forcing GC/CC to get rid of docshells and windows created by this test.
-  forceCollections();
   client.close(() => {
-    forceCollections();
     DebuggerServer.destroy();
-    forceCollections();
     DebuggerClient = DebuggerServer = gTests = null;
     finish();
   });

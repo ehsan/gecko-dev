@@ -67,7 +67,7 @@ Activity::Initialize(nsPIDOMWindow* aWindow,
   NS_ENSURE_SUCCESS(rv, rv);
 
   JS::Rooted<JS::Value> optionsValue(aCx);
-  if (!aOptions.ToObject(aCx, &optionsValue)) {
+  if (!aOptions.ToObject(aCx, JS::NullPtr(), &optionsValue)) {
     return NS_ERROR_FAILURE;
   }
 

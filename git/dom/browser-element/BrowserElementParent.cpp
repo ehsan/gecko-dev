@@ -160,7 +160,7 @@ BrowserElementParent::DispatchOpenWindowEvent(Element* aOpenerFrameElement,
 
   JS::Rooted<JSObject*> global(cx, sgo->GetGlobalJSObject());
   JSAutoCompartment ac(cx, global);
-  if (!detail.ToObject(cx, &val)) {
+  if (!detail.ToObject(cx, global, &val)) {
     MOZ_CRASH("Failed to convert dictionary to JS::Value due to OOM.");
     return BrowserElementParent::OPEN_WINDOW_IGNORED;
   }
@@ -332,7 +332,9 @@ NS_IMETHODIMP DispatchAsyncScrollEventRunnable::Run()
   JSAutoCompartment ac(cx, globalJSObject);
   JS::Rooted<JS::Value> val(cx);
 
-  if (!detail.ToObject(cx, &val)) {
+  // We can get away with a null global here because
+  // AsyncScrollEventDetail only contains numeric values.
+  if (!detail.ToObject(cx, JS::NullPtr(), &val)) {
     MOZ_CRASH("Failed to convert dictionary to JS::Value due to OOM.");
     return NS_ERROR_FAILURE;
   }

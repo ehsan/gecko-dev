@@ -136,11 +136,11 @@ CodeGeneratorX64::visitUnbox(LUnbox *unbox)
 bool
 CodeGeneratorX64::visitLoadSlotV(LLoadSlotV *load)
 {
-    ValueOperand dest = ToOutValue(load);
+    Register dest = ToRegister(load->outputValue());
     Register base = ToRegister(load->input());
     int32_t offset = load->mir()->slot() * sizeof(js::Value);
 
-    masm.loadValue(Address(base, offset), dest);
+    masm.loadPtr(Address(base, offset), dest);
     return true;
 }
 

@@ -27,6 +27,7 @@ LOCAL_INCLUDES += [
     '/layout/generic',
     '/layout/style',
     '/layout/xul',
+    '/xpcom/ds',
 ]
 
 FINAL_LIBRARY = 'gklayout'

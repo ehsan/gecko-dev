@@ -41,6 +41,7 @@ namespace mozilla {
 namespace dom {
 
 NS_IMPL_ISUPPORTS1(SelectState, SelectState)
+NS_DEFINE_STATIC_IID_ACCESSOR(SelectState, NS_SELECT_STATE_IID)
 
 //----------------------------------------------------------------------
 //

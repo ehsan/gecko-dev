@@ -5,11 +5,7 @@
 // Test async-utils.js
 
 const {Task} = Cu.import("resource://gre/modules/Task.jsm", {});
-// |const| will not work because
-// it will make the Promise object immutable before assigning.
-// Using |let| and Object.freeze() instead.
-let {Promise} = Cu.import("resource://gre/modules/Promise.jsm", {});
-Object.freeze(Promise);
+const {Promise} = Cu.import("resource://gre/modules/Promise.jsm", {});
 const {require} = Cu.import("resource://gre/modules/devtools/Loader.jsm", {}).devtools;
 const {async, asyncOnce, promiseInvoke, promiseCall} = require("devtools/async-utils");
 

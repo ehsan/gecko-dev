@@ -97,7 +97,7 @@ Tools.webConsole = {
   },
 
   isTargetSupported: function(target) {
-    return !target.isAddon;
+    return true;
   },
   build: function(iframeWindow, toolbox) {
     let panel = new WebConsolePanel(iframeWindow, toolbox);
@@ -124,7 +124,7 @@ Tools.inspector = {
   },
 
   isTargetSupported: function(target) {
-    return !target.isAddon;
+    return true;
   },
 
   build: function(iframeWindow, toolbox) {
@@ -171,7 +171,7 @@ Tools.styleEditor = {
   inMenu: true,
 
   isTargetSupported: function(target) {
-    return !target.isAddon;
+    return true;
   },
 
   build: function(iframeWindow, toolbox) {
@@ -191,7 +191,7 @@ Tools.shaderEditor = {
   tooltip: l10n("ToolboxShaderEditor.tooltip", shaderEditorStrings),
 
   isTargetSupported: function(target) {
-    return !target.isAddon;
+    return true;
   },
 
   build: function(iframeWindow, toolbox) {
@@ -215,7 +215,7 @@ Tools.jsprofiler = {
   inMenu: true,
 
   isTargetSupported: function (target) {
-    return !target.isAddon;
+    return true;
   },
 
   build: function (frame, target) {
@@ -240,7 +240,7 @@ Tools.netMonitor = {
 
   isTargetSupported: function(target) {
     let root = target.client.mainRoot;
-    return !target.isAddon && (root.traits.networkMonitor || !target.isApp);
+    return root.traits.networkMonitor || !target.isApp;
   },
 
   build: function(iframeWindow, toolbox) {
@@ -261,7 +261,7 @@ Tools.scratchpad = {
   inMenu: false,
 
   isTargetSupported: function(target) {
-    return !target.isAddon && target.isRemote;
+    return target.isRemote;
   },
 
   build: function(iframeWindow, toolbox) {

@@ -49,6 +49,9 @@ enum BailoutKind
     Bailout_BaselineInfo
 };
 
+static const uint32_t BAILOUT_KIND_BITS = 3;
+static const uint32_t BAILOUT_RESUME_BITS = 1;
+
 inline const char *
 BailoutKindString(BailoutKind kind)
 {
@@ -242,7 +245,10 @@ IsNullOrUndefined(MIRType type)
 
 // Make sure registers are not modified between an instruction and
 // its OsiPoint.
-#  if defined(JS_ION)
+//
+// Skip this check in rooting analysis builds, which poison unrooted
+// pointers on the stack.
+#  if defined(JS_ION) && !defined(JSGC_ROOT_ANALYSIS)
 #    define CHECK_OSIPOINT_REGISTERS 1
 #  endif
 #endif

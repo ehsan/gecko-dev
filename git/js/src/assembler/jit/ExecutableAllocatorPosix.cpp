@@ -43,7 +43,14 @@ size_t ExecutableAllocator::determinePageSize()
 
 ExecutablePool::Allocation ExecutableAllocator::systemAlloc(size_t n)
 {
-    void *allocation = mmap(NULL, n, INITIAL_PROTECTION_FLAGS, MAP_PRIVATE | MAP_ANON, VM_TAG_FOR_EXECUTABLEALLOCATOR_MEMORY, 0);
+    void* allocation;
+#ifdef JSGC_ROOT_ANALYSIS
+    do {
+#endif
+        allocation = mmap(NULL, n, INITIAL_PROTECTION_FLAGS, MAP_PRIVATE | MAP_ANON, VM_TAG_FOR_EXECUTABLEALLOCATOR_MEMORY, 0);
+#ifdef JSGC_ROOT_ANALYSIS
+    } while (allocation && JS::IsPoisonedPtr(allocation));
+#endif
     if (allocation == MAP_FAILED)
         allocation = NULL;
     ExecutablePool::Allocation alloc = { reinterpret_cast<char*>(allocation), n };
@@ -51,7 +58,7 @@ ExecutablePool::Allocation ExecutableAllocator::systemAlloc(size_t n)
 }
 
 void ExecutableAllocator::systemRelease(const ExecutablePool::Allocation& alloc)
-{
+{ 
     int result = munmap(alloc.pages, alloc.size);
     ASSERT_UNUSED(result, !result);
 }

@@ -50,7 +50,7 @@ private:
 
 NS_IMPL_QUERY_INTERFACE1(nsTestCom, nsITestCom)
 
-MozExternalRefCountType nsTestCom::AddRef()
+nsrefcnt nsTestCom::AddRef() 
 {
   nsrefcnt res = ++mRefCnt;
   NS_LOG_ADDREF(this, mRefCnt, "nsTestCom", sizeof(*this));
@@ -58,7 +58,7 @@ MozExternalRefCountType nsTestCom::AddRef()
   return res;
 }
 
-MozExternalRefCountType nsTestCom::Release()
+nsrefcnt nsTestCom::Release() 
 {
   nsrefcnt res = --mRefCnt;
   NS_LOG_RELEASE(this, mRefCnt, "nsTestCom");

@@ -1212,6 +1212,7 @@ GetPropertyIC::tryAttachNative(JSContext *cx, IonScript *ion, HandleObject obj,
     *emitted = true;
 
     MacroAssembler masm(cx, ion, script_, pc_);
+    SkipRoot skip(cx, &masm);
 
     RepatchStubAppender attacher(*this);
     const char *attachKind;
@@ -2993,6 +2994,7 @@ GetElementIC::attachGetProp(JSContext *cx, IonScript *ion, HandleObject obj,
 
     Label failures;
     MacroAssembler masm(cx, ion);
+    SkipRoot skip(cx, &masm);
 
     // Ensure the index is a string.
     ValueOperand val = index().reg().valueReg();

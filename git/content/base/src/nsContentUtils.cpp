@@ -5560,20 +5560,21 @@ nsContentUtils::GetUTFNonNullOrigin(nsIURI* aURI, nsString& aOrigin)
 }
 
 /* static */
-nsIDocument*
+already_AddRefed<nsIDocument>
 nsContentUtils::GetDocumentFromScriptContext(nsIScriptContext *aScriptContext)
 {
-  if (!aScriptContext) {
+  if (!aScriptContext)
     return nullptr;
-  }
 
-  nsCOMPtr<nsPIDOMWindow> window =
+  nsCOMPtr<nsIDOMWindow> window =
     do_QueryInterface(aScriptContext->GetGlobalObject());
-  if (!window) {
-    return nullptr;
+  nsCOMPtr<nsIDocument> doc;
+  if (window) {
+    nsCOMPtr<nsIDOMDocument> domdoc;
+    window->GetDocument(getter_AddRefs(domdoc));
+    doc = do_QueryInterface(domdoc);
   }
-
-  return window->GetDoc();
+  return doc.forget();
 }
 
 /* static */

@@ -127,14 +127,6 @@ class SamplerThread : public Thread {
           if (!info->Profile())
             continue;
 
-          PseudoStack::SleepState sleeping = info->Stack()->observeSleeping();
-          if (sleeping == PseudoStack::SLEEPING_AGAIN) {
-            info->Profile()->DuplicateLastSample();
-            //XXX: This causes flushes regardless of jank-only mode
-            info->Profile()->flush();
-            continue;
-          }
-
           ThreadProfile* thread_profile = info->Profile();
 
           SampleContext(sampler_, thread_profile);

@@ -10,14 +10,14 @@
 
 NS_IMPL_QUERY_INTERFACE1(nsCategoryImp, nsIUGenCategory)
 
-NS_IMETHODIMP_(MozExternalRefCountType) nsCategoryImp::AddRef(void)
+NS_IMETHODIMP_(nsrefcnt) nsCategoryImp::AddRef(void)
 {
-  return MozExternalRefCountType(1);
+  return nsrefcnt(1);
 }
 
-NS_IMETHODIMP_(MozExternalRefCountType) nsCategoryImp::Release(void)
+NS_IMETHODIMP_(nsrefcnt) nsCategoryImp::Release(void)
 {
-  return MozExternalRefCountType(1);
+  return nsrefcnt(1);
 }
 
 nsCategoryImp* nsCategoryImp::GetInstance()

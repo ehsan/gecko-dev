@@ -357,7 +357,7 @@ private:
   bool                                 mTreeCreated;
   CacheFileHandles                     mHandles;
   nsTArray<CacheFileHandle *>          mHandlesByLastUsed;
-  nsTArray<CacheFileHandle *>          mSpecialHandles;
+  nsTArray<nsRefPtr<CacheFileHandle> > mSpecialHandles;
   nsTArray<nsRefPtr<CacheFile> >       mScheduledMetadataWrites;
   nsCOMPtr<nsITimer>                   mMetadataWritesTimer;
   bool                                 mOverLimitEvicting;
