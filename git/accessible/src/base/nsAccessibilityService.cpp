@@ -107,6 +107,7 @@
 
 #include "mozilla/FunctionTimer.h"
 #include "mozilla/dom/Element.h"
+#include "nsImageMapUtils.h"
 
 ////////////////////////////////////////////////////////////////////////////////
 // nsAccessibilityService
@@ -274,10 +275,8 @@ nsAccessibilityService::CreateHTMLImageAccessible(nsIContent* aContent,
   aContent->GetAttr(kNameSpaceID_None,
                     nsAccessibilityAtoms::usemap,
                     mapElmName);
-  nsCOMPtr<nsIDOMHTMLMapElement> mapElm;
-  if (nsIDocument* document = aContent->GetCurrentDoc()) {
-    mapElm = do_QueryInterface(document->FindImageMap(mapElmName));
-  }
+  nsCOMPtr<nsIDOMHTMLMapElement> mapElm =
+    nsImageMapUtils::FindImageMap(aContent->GetCurrentDoc(), mapElmName);
 
   nsCOMPtr<nsIWeakReference> weakShell(do_GetWeakReference(aPresShell));
   nsAccessible* accessible = mapElm ?

@@ -74,6 +74,7 @@
 #include "nsINameSpaceManager.h"
 #include "nsTextFragment.h"
 #include "nsIDOMHTMLMapElement.h"
+#include "nsImageMapUtils.h"
 #include "nsIScriptSecurityManager.h"
 #ifdef ACCESSIBILITY
 #include "nsAccessibilityService.h"
@@ -1457,11 +1458,13 @@ nsImageFrame::GetImageMap(nsPresContext* aPresContext)
     nsAutoString usemap;
     mContent->GetAttr(kNameSpaceID_None, nsGkAtoms::usemap, usemap);
 
-    nsCOMPtr<nsIContent> map = doc->FindImageMap(usemap);
+    nsCOMPtr<nsIDOMHTMLMapElement> map = nsImageMapUtils::FindImageMap(doc,usemap);
     if (map) {
       mImageMap = new nsImageMap();
-      NS_ADDREF(mImageMap);
-      mImageMap->Init(aPresContext->PresShell(), this, map);
+      if (mImageMap) {
+        NS_ADDREF(mImageMap);
+        mImageMap->Init(aPresContext->PresShell(), this, map);
+      }
     }
   }
 

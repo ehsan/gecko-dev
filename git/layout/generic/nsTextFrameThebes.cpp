@@ -626,27 +626,28 @@ PRInt32 nsTextFrame::GetInFlowContentLength() {
     return mContent->TextLength() - mContentOffset;
   }
 
+  nsTextFrame* nextBidi = nsnull;
+  PRInt32      start = -1, end, endFlow;
   FlowLengthProperty* flowLength =
     static_cast<FlowLengthProperty*>(mContent->GetProperty(nsGkAtoms::flowlength));
 
-  /**
-   * This frame must start inside the cached flow. If the flow starts at
-   * mContentOffset but this frame is empty, logically it might be before the
-   * start of the cached flow.
-   */
-  if (flowLength && 
-      (flowLength->mStartOffset < mContentOffset ||
-       (flowLength->mStartOffset == mContentOffset && GetContentEnd() > mContentOffset)) &&
+  if (flowLength && flowLength->mStartOffset <= mContentOffset &&
       flowLength->mEndFlowOffset > mContentOffset) {
 #ifdef DEBUG
-    NS_ASSERTION(flowLength->mEndFlowOffset >= GetContentEnd(),
-		 "frame crosses fixed continuation boundary");
+    GetOffsets(start, end);
+    NS_ASSERTION(flowLength->mEndFlowOffset >= end,
+                 "frame crosses fixed continuation boundary");
 #endif
     return flowLength->mEndFlowOffset - mContentOffset;
   }
 
-  nsTextFrame* nextBidi = static_cast<nsTextFrame*>(GetLastInFlow()->GetNextContinuation());
-  PRInt32 endFlow = nextBidi ? nextBidi->GetContentOffset() : mContent->TextLength();
+  nextBidi = static_cast<nsTextFrame*>(GetLastInFlow()->GetNextContinuation());
+  if (nextBidi) {
+    nextBidi->GetOffsets(start, end);
+    endFlow = start;
+  } else {
+    endFlow = mContent->TextLength();
+  }
 
   if (!flowLength) {
     flowLength = new FlowLengthProperty;

@@ -57,12 +57,12 @@ function runNextTest() {
 }
 
 function waitForAutocomplete(aCallback) {
-  window.addEventListener("contentpopupshown", function(aEvent) {
-    window.removeEventListener(aEvent.type, arguments.callee, false);
+  messageManager.addMessageListener("FormAssist:AutoComplete", function(aMessage) {
+    messageManager.removeMessageListener(aMessage.name, arguments.callee);
     setTimeout(function() {
-      aCallback(FormHelperUI._currentElement.list);
+      aCallback(aMessage.json.current.list);
     }, 0);
-  }, false);
+  });
 };
 
 let data = [

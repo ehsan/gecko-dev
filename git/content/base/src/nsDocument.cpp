@@ -1871,8 +1871,6 @@ NS_IMPL_CYCLE_COLLECTION_TRAVERSE_BEGIN_INTERNAL(nsDocument)
   NS_IMPL_CYCLE_COLLECTION_TRAVERSE_NSCOMPTR(mOnloadBlocker)
   NS_IMPL_CYCLE_COLLECTION_TRAVERSE_NSCOMPTR(mFirstBaseNodeWithHref)
   NS_IMPL_CYCLE_COLLECTION_TRAVERSE_NSCOMPTR(mDOMImplementation)
-  NS_IMPL_CYCLE_COLLECTION_TRAVERSE_NSCOMPTR_AMBIGUOUS(mImageMaps,
-                                                       nsIDOMNodeList)
   NS_IMPL_CYCLE_COLLECTION_TRAVERSE_NSCOMPTR(mOriginalDocument)
   NS_IMPL_CYCLE_COLLECTION_TRAVERSE_NSCOMPTR(mCachedEncoder)
   NS_IMPL_CYCLE_COLLECTION_TRAVERSE_NSCOMPTR(mStateObjectCached)
@@ -1925,7 +1923,6 @@ NS_IMPL_CYCLE_COLLECTION_UNLINK_BEGIN(nsDocument)
   NS_IMPL_CYCLE_COLLECTION_UNLINK_NSCOMPTR(mDisplayDocument)
   NS_IMPL_CYCLE_COLLECTION_UNLINK_NSCOMPTR(mFirstBaseNodeWithHref)
   NS_IMPL_CYCLE_COLLECTION_UNLINK_NSCOMPTR(mDOMImplementation)
-  NS_IMPL_CYCLE_COLLECTION_UNLINK_NSCOMPTR(mImageMaps)
   NS_IMPL_CYCLE_COLLECTION_UNLINK_NSCOMPTR(mOriginalDocument)
   NS_IMPL_CYCLE_COLLECTION_UNLINK_NSCOMPTR(mCachedEncoder)
 
@@ -6128,6 +6125,12 @@ nsDocument::AdoptNode(nsIDOMNode *aAdoptedNode, nsIDOMNode **aResult)
 }
 
 NS_IMETHODIMP
+nsDocument::NormalizeDocument()
+{
+  return Normalize();
+}
+
+NS_IMETHODIMP
 nsDocument::GetOwnerDocument(nsIDOMDocument** aOwnerDocument)
 {
   return nsINode::GetOwnerDocument(aOwnerDocument);
@@ -8130,48 +8133,6 @@ nsDocument::GetStateObject(nsIVariant** aState)
   NS_IF_ADDREF(*aState = mStateObjectCached);
   
   return NS_OK;
-}
-
-Element*
-nsDocument::FindImageMap(const nsAString& aUseMapValue)
-{
-  if (aUseMapValue.IsEmpty()) {
-    return nsnull;
-  }
-
-  nsAString::const_iterator start, end;
-  aUseMapValue.BeginReading(start);
-  aUseMapValue.EndReading(end);
-
-  PRInt32 hash = aUseMapValue.FindChar('#');
-  if (hash < 0) {
-    return nsnull;
-  }
-  // aUsemap contains a '#', set start to point right after the '#'
-  start.advance(hash + 1);
-
-  if (start == end) {
-    return nsnull; // aUsemap == "#"
-  }
-
-  const nsAString& mapName = Substring(start, end);
-
-  if (!mImageMaps) {
-    mImageMaps = new nsContentList(this, kNameSpaceID_XHTML, nsGkAtoms::map, nsGkAtoms::map);
-  }
-
-  PRUint32 i, n = mImageMaps->Length(PR_TRUE);
-  for (i = 0; i < n; ++i) {
-    nsIContent* map = mImageMaps->GetNodeAt(i);
-    if (map->AttrValueIs(kNameSpaceID_None, nsGkAtoms::id, mapName,
-                         eCaseMatters) ||
-        map->AttrValueIs(kNameSpaceID_None, nsGkAtoms::name, mapName,
-                         eIgnoreCase)) {
-      return map->AsElement();
-    }
-  }
-
-  return nsnull;
 }
 
 nsresult

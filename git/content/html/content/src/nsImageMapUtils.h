@@ -1,4 +1,4 @@
-/* -*- Mode: IDL; tab-width: 2; indent-tabs-mode: nil; c-basic-offset: 2 -*- */
+/* -*- Mode: C++; tab-width: 2; indent-tabs-mode: nil; c-basic-offset: 2 -*- */
 /* ***** BEGIN LICENSE BLOCK *****
  * Version: MPL 1.1/GPL 2.0/LGPL 2.1
  *
@@ -16,12 +16,10 @@
  *
  * The Initial Developer of the Original Code is
  * Netscape Communications Corporation.
- * Portions created by the Initial Developer are Copyright (C) 2000
+ * Portions created by the Initial Developer are Copyright (C) 1998
  * the Initial Developer. All Rights Reserved.
  *
  * Contributor(s):
- *   Vidur Apparao <vidur@netscape.com> (original author)
- *   Johnny Stenback <jst@netscape.com>
  *
  * Alternatively, the contents of this file may be used under the terms of
  * either of the GNU General Public License Version 2 or later (the "GPL"),
@@ -37,35 +35,34 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
-#include "nsIDOMHTMLElement.idl"
-
 /**
- * The nsIDOMHTMLFormElement interface is the interface to a [X]HTML
- * form element.
- *
- * This interface is trying to follow the DOM Level 2 HTML specification:
- * http://www.w3.org/TR/DOM-Level-2-HTML/
- *
- * with changes from the work-in-progress WHATWG HTML specification:
- * http://www.whatwg.org/specs/web-apps/current-work/
+ * Utilities to help manage image maps. These are needed in more than one
+ * library.
  */
 
-[scriptable, uuid(e8624d8a-0e9c-49d4-848c-75afcfd6f048)]
-interface nsIDOMHTMLFormElement : nsIDOMHTMLElement
-{
-           attribute DOMString            name;
+#ifndef nsImageMapUtils_h___
+#define nsImageMapUtils_h___
 
-           attribute DOMString            acceptCharset;
-           attribute DOMString            action;
-           attribute DOMString            autocomplete;
-           attribute DOMString            enctype;
-           attribute DOMString            method;
-           attribute boolean              noValidate;
-           attribute DOMString            target;
+class nsIDocument;
+class nsIDOMHTMLMapElement;
+#include "nsAString.h"
 
-  readonly attribute nsIDOMHTMLCollection elements;
-  readonly attribute long                 length;
+class nsImageMapUtils {
+  // This class is not to be constructed, use the static member functions only
+  nsImageMapUtils();
+  ~nsImageMapUtils();
 
-  void                      submit();
-  void                      reset();
+public:
+
+  /**
+   * FindImageMap tries to find a map element from a document.
+   *
+   * @param aDocument [in]  The document to be searched.
+   * @param aUsemap   [in]  The value of the usemap attribute.
+   * @return          The first found (if any) map element, addrefed.
+   */
+  static already_AddRefed<nsIDOMHTMLMapElement>
+         FindImageMap(nsIDocument *aDocument, const nsAString &aUsemap);
 };
+
+#endif

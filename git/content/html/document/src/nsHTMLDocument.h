@@ -103,6 +103,8 @@ public:
 
   virtual void EndLoad();
 
+  virtual mozilla::dom::Element* GetImageMap(const nsAString& aMapName);
+
   virtual void SetCompatibilityMode(nsCompatibility aMode);
 
   virtual PRBool IsWriting()
@@ -233,10 +235,9 @@ protected:
 
   void GetDomainURI(nsIURI **uri);
 
-  nsresult WriteCommon(JSContext *cx, const nsAString& aText,
+  nsresult WriteCommon(const nsAString& aText,
                        PRBool aNewlineTerminate);
-  nsresult OpenCommon(JSContext *cx, const nsAString& aContentType,
-                      PRBool aReplace);
+  nsresult OpenCommon(const nsACString& aContentType, PRBool aReplace);
 
   nsresult CreateAndAddWyciwygChannel(void);
   nsresult RemoveWyciwygChannel(void);
@@ -260,6 +261,7 @@ protected:
   nsCOMPtr<nsIDOMHTMLCollection> mAnchors;
   nsRefPtr<nsContentList> mForms;
   nsRefPtr<nsContentList> mFormControls;
+  nsRefPtr<nsContentList> mImageMaps;
 
   /** # of forms in the document, synchronously set */
   PRInt32 mNumForms;

@@ -37,35 +37,13 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
-#include "nsIDOMHTMLElement.idl"
+#include "domstubs.idl"
 
-/**
- * The nsIDOMHTMLFormElement interface is the interface to a [X]HTML
- * form element.
- *
- * This interface is trying to follow the DOM Level 2 HTML specification:
- * http://www.w3.org/TR/DOM-Level-2-HTML/
- *
- * with changes from the work-in-progress WHATWG HTML specification:
- * http://www.whatwg.org/specs/web-apps/current-work/
- */
+interface nsIDOMFormData;
 
-[scriptable, uuid(e8624d8a-0e9c-49d4-848c-75afcfd6f048)]
-interface nsIDOMHTMLFormElement : nsIDOMHTMLElement
+[scriptable, uuid(d38a782f-f33c-4a8d-85a9-0d5da3650064)]
+interface nsIDOMNSHTMLFormElement : nsISupports
 {
-           attribute DOMString            name;
-
-           attribute DOMString            acceptCharset;
-           attribute DOMString            action;
-           attribute DOMString            autocomplete;
-           attribute DOMString            enctype;
-           attribute DOMString            method;
-           attribute boolean              noValidate;
-           attribute DOMString            target;
-
-  readonly attribute nsIDOMHTMLCollection elements;
-  readonly attribute long                 length;
-
-  void                      submit();
-  void                      reset();
+           attribute DOMString        encoding;
+  boolean        checkValidity();
 };
