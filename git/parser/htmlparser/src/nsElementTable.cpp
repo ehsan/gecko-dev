@@ -420,10 +420,6 @@ const nsHTMLElement gHTMLElements[] = {
     /*parent,leaf*/ kFormControl, false
   },
   {
-    /*tag*/         eHTMLTag_shadow,
-    /*parent,leaf*/ kFlowEntity, false
-  },
-  {
     /*tag*/         eHTMLTag_small,
     /*parent,leaf*/ kFontStyle, false
   },
