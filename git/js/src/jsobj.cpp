@@ -89,8 +89,9 @@ const Class JSObject::class_ = {
 const Class* const js::ObjectClassPtr = &JSObject::class_;
 
 JS_FRIEND_API(JSObject *)
-JS_ObjectToInnerObject(JSContext *cx, HandleObject obj)
+JS_ObjectToInnerObject(JSContext *cx, JSObject *objArg)
 {
+    RootedObject obj(cx, objArg);
     if (!obj) {
         JS_ReportErrorNumber(cx, js_GetErrorMessage, nullptr, JSMSG_INACTIVE);
         return nullptr;
@@ -99,8 +100,9 @@ JS_ObjectToInnerObject(JSContext *cx, HandleObject obj)
 }
 
 JS_FRIEND_API(JSObject *)
-JS_ObjectToOuterObject(JSContext *cx, HandleObject obj)
+JS_ObjectToOuterObject(JSContext *cx, JSObject *obj_)
 {
+    Rooted<JSObject*> obj(cx, obj_);
     assertSameCompartment(cx, obj);
     return GetOuterObject(cx, obj);
 }

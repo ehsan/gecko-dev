@@ -224,11 +224,10 @@ GetPM(JSContext* cx, JS::HandleValue value, const char* fname)
 namespace JS {
 
 JSObject*
-RegisterPerfMeasurement(JSContext *cx, HandleObject globalArg)
+RegisterPerfMeasurement(JSContext *cx, JSObject *global)
 {
-    RootedObject global(cx, globalArg);
     RootedObject prototype(cx);
-    prototype = JS_InitClass(cx, global, js::NullPtr() /* parent */,
+    prototype = JS_InitClass(cx, global, nullptr /* parent */,
                              &pm_class, pm_construct, 1,
                              pm_props, pm_fns, 0, 0);
     if (!prototype)

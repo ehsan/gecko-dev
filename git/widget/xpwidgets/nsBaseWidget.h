@@ -150,8 +150,7 @@ public:
   virtual void            CleanupRemoteDrawing() { };
   virtual void            UpdateThemeGeometries(const nsTArray<ThemeGeometry>& aThemeGeometries) {}
   virtual gfxASurface*    GetThebesSurface();
-  NS_IMETHOD              SetModal(bool aModal);
-  virtual uint32_t        GetMaxTouchPoints() const;
+  NS_IMETHOD              SetModal(bool aModal); 
   NS_IMETHOD              SetWindowClass(const nsAString& xulWinType);
   // Return whether this widget interprets parameters to Move and Resize APIs
   // as "global display pixels" rather than "device pixels", and therefore

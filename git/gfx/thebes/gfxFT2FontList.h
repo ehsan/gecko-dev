@@ -74,7 +74,7 @@ public:
     // This may fail and return null, so caller must be prepared to handle this.
     cairo_scaled_font_t *CreateScaledFont(const gfxFontStyle *aStyle);
 
-    nsresult ReadCMAP(FontInfoData *aFontInfoData = nullptr);
+    nsresult ReadCMAP();
 
     virtual hb_blob_t* GetFontTable(uint32_t aTableTag) MOZ_OVERRIDE;
 

@@ -48,7 +48,7 @@ public:
     virtual void AddSizeOfIncludingThis(mozilla::MallocSizeOf aMallocSizeOf,
                                         FontListSizes* aSizes) const;
 
-    nsresult ReadCMAP(FontInfoData *aFontInfoData = nullptr);
+    nsresult ReadCMAP();
 
     bool RequiresAATLayout() const { return mRequiresAAT; }
 
@@ -115,8 +115,6 @@ private:
                                              gfxFontFamily** aMatchedFamily);
 
     virtual bool UsesSystemFallback() { return true; }
-
-    virtual already_AddRefed<FontInfoData> CreateFontInfoData();
 
     enum {
         kATSGenerationInitial = -1

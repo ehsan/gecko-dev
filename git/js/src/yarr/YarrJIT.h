@@ -47,8 +47,6 @@
 #include "TraceLogging.h"
 #endif
 
-#include "jit/JitCommon.h"
-
 namespace JSC {
 
 class JSGlobalData;
@@ -133,7 +131,7 @@ public:
 #endif
 
         YarrJITCode16 fn = JS_FUNC_TO_DATA_PTR(YarrJITCode16, m_ref16.code().executableAddress());
-        return MatchResult(CALL_GENERATED_YARR_CODE4(fn, input, start, length, output));
+        return MatchResult(fn(input, start, length, output));
     }
 
     MatchResult execute(const UChar* input, unsigned start, unsigned length)
@@ -147,7 +145,7 @@ public:
 #endif
 
         YarrJITCodeMatchOnly16 fn = JS_FUNC_TO_DATA_PTR(YarrJITCodeMatchOnly16, m_matchOnly16.code().executableAddress());
-        return MatchResult(CALL_GENERATED_YARR_CODE3(fn, input, start, length));
+        return MatchResult(fn(input, start, length));
     }
 
 #if ENABLE_REGEXP_TRACING

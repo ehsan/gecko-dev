@@ -293,20 +293,20 @@ jsval
 jsd_GetValueWrappedJSVal(JSDContext* jsdc, JSDValue* jsdval)
 {
     AutoSafeJSContext cx;
+    JS::RootedObject obj(cx);
     JS::RootedValue val(cx, jsdval->val);
-    if (!val.isPrimitive()) {
-        JS::RootedObject obj(cx, &val.toObject());
-        JSAutoCompartment ac(cx, obj);
-        obj = JS_ObjectToOuterObject(cx, obj);
+    if (!JSVAL_IS_PRIMITIVE(val)) {
+        JSAutoCompartment ac(cx, JSVAL_TO_OBJECT(val));
+        obj = JS_ObjectToOuterObject(cx, JSVAL_TO_OBJECT(val));
         if (!obj)
         {
             JS_ClearPendingException(cx);
             val = JSVAL_NULL;
         }
         else
-            val = JS::ObjectValue(*obj);
+            val = OBJECT_TO_JSVAL(obj);
     }
-
+    
     return val;
 }
 

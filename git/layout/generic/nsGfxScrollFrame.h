@@ -270,7 +270,6 @@ public:
   bool IsLTR() const;
   bool IsScrollbarOnRight() const;
   bool IsScrollingActive() const { return mScrollingActive || mShouldBuildScrollableLayer; }
-  bool IsProcessingAsyncScroll() const { return mAsyncScroll != nullptr; }
   void ResetScrollPositionForLayerPixelAlignment()
   {
     mScrollPosForLayerPixelAlignment = GetScrollPosition();
@@ -637,9 +636,6 @@ public:
   virtual bool IsScrollingActive() MOZ_OVERRIDE {
     return mHelper.IsScrollingActive();
   }
-  virtual bool IsProcessingAsyncScroll() MOZ_OVERRIDE {
-    return mHelper.IsProcessingAsyncScroll();
-  }
   virtual void ResetScrollPositionForLayerPixelAlignment() MOZ_OVERRIDE {
     mHelper.ResetScrollPositionForLayerPixelAlignment();
   }
@@ -937,9 +933,6 @@ public:
   }
   virtual bool IsScrollingActive() MOZ_OVERRIDE {
     return mHelper.IsScrollingActive();
-  }
-  virtual bool IsProcessingAsyncScroll() MOZ_OVERRIDE {
-    return mHelper.IsProcessingAsyncScroll();
   }
   virtual void ResetScrollPositionForLayerPixelAlignment() MOZ_OVERRIDE {
     mHelper.ResetScrollPositionForLayerPixelAlignment();

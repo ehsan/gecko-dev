@@ -78,7 +78,6 @@ ICBinaryArith_Int32::Compiler::generateStubCode(MacroAssembler &masm)
         masm.boxValue(JSVAL_TYPE_INT32, ExtractTemp0, R0.valueReg());
         break;
       case JSOP_DIV:
-      {
         JS_ASSERT(R2.scratchReg() == rax);
         JS_ASSERT(R0.valueReg() != rdx);
         JS_ASSERT(R1.valueReg() != rdx);
@@ -89,12 +88,7 @@ ICBinaryArith_Int32::Compiler::generateStubCode(MacroAssembler &masm)
         masm.branchTest32(Assembler::Zero, ExtractTemp0, ExtractTemp0, &failure);
 
         // Prevent negative 0 and -2147483648 / -1.
-        masm.branch32(Assembler::Equal, eax, Imm32(INT32_MIN), &failure);
-
-        Label notZero;
-        masm.branch32(Assembler::NotEqual, eax, Imm32(0), &notZero);
-        masm.branchTest32(Assembler::Signed, ExtractTemp0, ExtractTemp0, &failure);
-        masm.bind(&notZero);
+        masm.branchTest32(Assembler::Zero, eax, Imm32(0x7fffffff), &failure);
 
         // Sign extend eax into edx to make (edx:eax), since idiv is 64-bit.
         masm.cdq();
@@ -105,7 +99,6 @@ ICBinaryArith_Int32::Compiler::generateStubCode(MacroAssembler &masm)
 
         masm.boxValue(JSVAL_TYPE_INT32, eax, R0.valueReg());
         break;
-      }
       case JSOP_MOD:
       {
         JS_ASSERT(R2.scratchReg() == rax);

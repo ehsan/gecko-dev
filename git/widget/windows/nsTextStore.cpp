@@ -3063,7 +3063,7 @@ nsTextStore::GetIMEUpdatePreference()
                        nsIMEUpdatePreference::NOTIFY_DURING_DEACTIVE);
     }
   }
-  return nsIMEUpdatePreference(notifications);
+  return nsIMEUpdatePreference(notifications, false);
 }
 
 nsresult

@@ -1089,6 +1089,7 @@ function CssRuleView(aInspector, aDoc, aStore, aPageStyle)
   this._prefObserver.on(PREF_ORIG_SOURCES, this._onSourcePrefChanged);
 
   let options = {
+    fixedWidth: true,
     autoSelect: true,
     theme: "auto"
   };

@@ -422,9 +422,8 @@ AudioNodeStream::ProduceOutput(GraphTime aFrom, GraphTime aTo, uint32_t aFlags)
     bool finished = false;
 #ifdef DEBUG
     for (uint16_t i = 0; i < outputCount; ++i) {
-      // Alter mDuration so we can detect if ProduceAudioBlock fails to set
-      // chunks.
-      mLastChunks[i].mDuration--;
+      // Clear chunks so we can detect if ProduceAudioBlock fails to set them.
+      mLastChunks[i].SetNull(0);
     }
 #endif
     if (maxInputs <= 1 && mEngine->OutputCount() <= 1) {

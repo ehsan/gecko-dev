@@ -590,15 +590,13 @@ js::Nursery::moveElementsToTenured(JSObject *dst, JSObject *src, AllocKind dstKi
 
     /* ArrayBuffer stores byte-length, not Value count. */
     if (src->is<ArrayBufferObject>()) {
-        size_t nbytes;
+        size_t nbytes = sizeof(ObjectElements) + srcHeader->initializedLength;
         if (src->hasDynamicElements()) {
-            nbytes = sizeof(ObjectElements) + srcHeader->initializedLength;
             dstHeader = static_cast<ObjectElements *>(zone->malloc_(nbytes));
             if (!dstHeader)
                 CrashAtUnhandlableOOM("Failed to allocate array buffer elements while tenuring.");
         } else {
             dst->setFixedElements();
-            nbytes = GetGCKindSlots(dst->tenuredGetAllocKind()) * sizeof(HeapSlot);
             dstHeader = dst->getElementsHeader();
         }
         js_memcpy(dstHeader, srcHeader, nbytes);

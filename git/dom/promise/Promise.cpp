@@ -579,15 +579,24 @@ Promise::Reject(nsPIDOMWindow* aWindow, JSContext* aCx,
 }
 
 already_AddRefed<Promise>
-Promise::Then(AnyCallback* aResolveCallback, AnyCallback* aRejectCallback)
+Promise::Then(const Optional<nsRefPtr<AnyCallback>>& aResolveCallback,
+              const Optional<nsRefPtr<AnyCallback>>& aRejectCallback)
 {
   nsRefPtr<Promise> promise = new Promise(GetParentObject());
 
   nsRefPtr<PromiseCallback> resolveCb =
-    PromiseCallback::Factory(promise, aResolveCallback, PromiseCallback::Resolve);
+    PromiseCallback::Factory(promise,
+                             aResolveCallback.WasPassed()
+                               ? aResolveCallback.Value()
+                               : nullptr,
+                             PromiseCallback::Resolve);
 
   nsRefPtr<PromiseCallback> rejectCb =
-    PromiseCallback::Factory(promise, aRejectCallback, PromiseCallback::Reject);
+    PromiseCallback::Factory(promise,
+                             aRejectCallback.WasPassed()
+                               ? aRejectCallback.Value()
+                               : nullptr,
+                             PromiseCallback::Reject);
 
   AppendCallbacks(resolveCb, rejectCb);
 
@@ -595,9 +604,9 @@ Promise::Then(AnyCallback* aResolveCallback, AnyCallback* aRejectCallback)
 }
 
 already_AddRefed<Promise>
-Promise::Catch(AnyCallback* aRejectCallback)
+Promise::Catch(const Optional<nsRefPtr<AnyCallback>>& aRejectCallback)
 {
-  nsRefPtr<AnyCallback> resolveCb;
+  Optional<nsRefPtr<AnyCallback>> resolveCb;
   return Then(resolveCb, aRejectCallback);
 }
 

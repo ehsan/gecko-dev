@@ -280,7 +280,7 @@ public:
     if (numFrames == WEBAUDIO_BLOCK_SIZE) {
       aOutput->SetNull(numFrames);
     } else {
-      if (*aOffsetWithinBlock == 0) {
+      if (aOutput->IsNull()) {
         AllocateAudioBlock(aChannels, aOutput);
       }
       WriteZeroesToAudioBlock(aOutput, *aOffsetWithinBlock, numFrames);
@@ -317,7 +317,8 @@ public:
       *aCurrentPosition += numFrames;
       mPosition += numFrames;
     } else {
-      if (*aOffsetWithinBlock == 0) {
+      if (aOutput->IsNull()) {
+        MOZ_ASSERT(*aOffsetWithinBlock == 0);
         AllocateAudioBlock(aChannels, aOutput);
       }
       if (!ShouldResample(aStream->SampleRate())) {
