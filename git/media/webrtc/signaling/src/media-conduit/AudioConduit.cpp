@@ -148,14 +148,11 @@ bool WebrtcAudioConduit::GetRemoteSSRC(unsigned int* ssrc) {
   return !mPtrRTP->GetRemoteSSRC(mChannel, *ssrc);
 }
 
-bool WebrtcAudioConduit::GetRTPStats(unsigned int* jitterMs,
-                                     unsigned int* cumulativeLost) {
-  unsigned int maxJitterMs = 0;
+bool WebrtcAudioConduit::GetRTPJitter(unsigned int* jitterMs) {
+  unsigned int maxJitterMs;
   unsigned int discardedPackets;
-  *jitterMs = 0;
-  *cumulativeLost = 0;
   return !mPtrRTP->GetRTPStatistics(mChannel, *jitterMs, maxJitterMs,
-                                    discardedPackets, *cumulativeLost);
+                                    discardedPackets);
 }
 
 DOMHighResTimeStamp
@@ -167,22 +164,22 @@ NTPtoDOMHighResTimeStamp(uint32_t ntpHigh, uint32_t ntpLow) {
 bool WebrtcAudioConduit::GetRTCPReceiverReport(DOMHighResTimeStamp* timestamp,
                                                unsigned int* jitterMs,
                                                unsigned int* packetsReceived,
-                                               uint64_t* bytesReceived,
-                                               unsigned int *cumulativeLost) {
+                                               uint64_t* bytesReceived) {
   unsigned int ntpHigh, ntpLow;
   unsigned int rtpTimestamp, playoutTimestamp;
   unsigned int packetsSent;
   unsigned int bytesSent32;
   unsigned short fractionLost;
+  unsigned int cumulativeLost;
   bool result = !mPtrRTP->GetRemoteRTCPData(mChannel, ntpHigh, ntpLow,
                                             rtpTimestamp, playoutTimestamp,
                                             packetsSent, bytesSent32,
                                             jitterMs,
-                                            &fractionLost, cumulativeLost);
+                                            &fractionLost, &cumulativeLost);
   if (result) {
     *timestamp = NTPtoDOMHighResTimeStamp(ntpHigh, ntpLow);
-    *packetsReceived = (packetsSent >= *cumulativeLost) ?
-                       (packetsSent - *cumulativeLost) : 0;
+    *packetsReceived = (packetsSent >= cumulativeLost) ?
+                       (packetsSent - cumulativeLost) : 0;
     *bytesReceived = (packetsSent ?
                       (bytesSent32 / packetsSent) : 0) * (*packetsReceived);
   }

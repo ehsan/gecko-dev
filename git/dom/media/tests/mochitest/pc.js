@@ -1101,16 +1101,10 @@ function PeerConnectionWrapper(label, configuration) {
    *        Event data which includes the stream to be added
    */
   this._pc.onaddstream = function (event) {
-    info(self + ": 'onaddstream' event fired for " + JSON.stringify(event.stream));
+    info(self + ": 'onaddstream' event fired for " + event.stream);
 
-    var type = '';
-    if (event.stream.getAudioTracks().length > 0) {
-      type = 'audio';
-    }
-    if (event.stream.getVideoTracks().length > 0) {
-      type += 'video';
-    }
-    self.attachMedia(event.stream, type, 'remote');
+    // TODO: Bug 834835 - Assume type is video until we get get{Audio,Video}Tracks.
+    self.attachMedia(event.stream, 'video', 'remote');
    };
 
   /**

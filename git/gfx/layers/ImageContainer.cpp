@@ -48,6 +48,13 @@ namespace layers {
 
 Atomic<int32_t> Image::sSerialCounter(0);
 
+TemporaryRef<gfx::SourceSurface>
+Image::GetAsSourceSurface()
+{
+  nsRefPtr<gfxASurface> surface = DeprecatedGetAsSurface();
+  return gfxPlatform::GetPlatform()->GetSourceSurfaceForSurface(nullptr, surface);
+}
+
 already_AddRefed<Image>
 ImageFactory::CreateImage(ImageFormat aFormat,
                           const gfx::IntSize &,

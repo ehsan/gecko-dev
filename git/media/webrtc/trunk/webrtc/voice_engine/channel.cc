@@ -3954,8 +3954,7 @@ int
 Channel::GetRTPStatistics(
         unsigned int& averageJitterMs,
         unsigned int& maxJitterMs,
-        unsigned int& discardedPackets,
-        unsigned int& cumulativeLost)
+        unsigned int& discardedPackets)
 {
     // The jitter statistics is updated for each received RTP packet and is
     // based on received packets.
@@ -3976,7 +3975,6 @@ Channel::GetRTPStatistics(
         // Scale RTP statistics given the current playout frequency
         maxJitterMs = statistics.max_jitter / (playoutFrequency / 1000);
         averageJitterMs = statistics.jitter / (playoutFrequency / 1000);
-        cumulativeLost = statistics.cumulative_lost;
     }
 
     discardedPackets = _numberOfDiscardedPackets;

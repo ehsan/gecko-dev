@@ -81,8 +81,7 @@ public:
     virtual int GetRTPStatistics(int channel,
                                  unsigned int& averageJitterMs,
                                  unsigned int& maxJitterMs,
-                                 unsigned int& discardedPackets,
-                                 unsigned int& cumulativeLost);
+                                 unsigned int& discardedPackets);
 
     virtual int GetRTCPStatistics(int channel, CallStatistics& stats);
 

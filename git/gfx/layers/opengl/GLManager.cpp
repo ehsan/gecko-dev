@@ -32,15 +32,9 @@ public:
     return mImpl->gl();
   }
 
-  virtual ShaderProgramOGL* GetProgram(GLenum aTarget, gfx::SurfaceFormat aFormat) MOZ_OVERRIDE
+  virtual ShaderProgramOGL* GetProgram(ShaderProgramType aType) MOZ_OVERRIDE
   {
-    ShaderConfigOGL config = ShaderConfigFromTargetAndFormat(aTarget, aFormat);
-    return mImpl->GetShaderProgramFor(config);
-  }
-
-  virtual const gfx::Matrix4x4& GetProjMatrix() const MOZ_OVERRIDE
-  {
-    return mImpl->GetProjMatrix();
+    return mImpl->GetProgram(aType);
   }
 
   virtual void BindAndDrawQuad(ShaderProgramOGL *aProg) MOZ_OVERRIDE

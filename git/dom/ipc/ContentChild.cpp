@@ -134,7 +134,6 @@
 #include "AudioChannelService.h"
 #include "JavaScriptChild.h"
 #include "mozilla/dom/telephony/PTelephonyChild.h"
-#include "mozilla/dom/time/DateCacheCleaner.h"
 #include "mozilla/net/NeckoMessageUtils.h"
 
 using namespace base;
@@ -312,15 +311,6 @@ NS_IMPL_ISUPPORTS1(SystemMessageHandledObserver, nsIObserver)
 
 ContentChild* ContentChild::sSingleton;
 
-// Performs initialization that is not fork-safe, i.e. that must be done after
-// forking from the Nuwa process.
-static void
-InitOnContentProcessCreated()
-{
-    // This will register cross-process observer.
-    mozilla::dom::time::InitializeDateCacheCleaner();
-}
-
 ContentChild::ContentChild()
  : mID(uint64_t(-1))
 #ifdef ANDROID
@@ -472,10 +462,6 @@ ContentChild::InitXPCOM()
     nsRefPtr<SystemMessageHandledObserver> sysMsgObserver =
         new SystemMessageHandledObserver();
     sysMsgObserver->Init();
-
-#ifndef MOZ_NUWA_PROCESS
-    InitOnContentProcessCreated();
-#endif
 }
 
 PMemoryReportRequestChild*
@@ -1637,10 +1623,6 @@ public:
 
             toplevel = toplevel->getNext();
         }
-
-        // Perform other after-fork initializations.
-        InitOnContentProcessCreated();
-
         return NS_OK;
     }
 };

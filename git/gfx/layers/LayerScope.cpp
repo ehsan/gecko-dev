@@ -701,9 +701,9 @@ SendTextureSource(GLContext* aGLContext,
                   bool aFlipY)
 {
     GLenum textureTarget = aSource->GetTextureTarget();
-    ShaderConfigOGL config = ShaderConfigFromTargetAndFormat(textureTarget,
-                                                             aSource->GetFormat());
-    int shaderConfig = config.mFeatures;
+    int shaderProgram =
+        (int) ShaderProgramFromTargetAndFormat(textureTarget,
+                                               aSource->GetFormat());
 
     aSource->BindTexture(LOCAL_GL_TEXTURE0);
 
@@ -725,7 +725,7 @@ SendTextureSource(GLContext* aGLContext,
     nsRefPtr<gfxImageSurface> img =
         aGLContext->ReadTexImageHelper()->ReadTexImage(0, textureTarget,
                                                        gfxIntSize(size.width, size.height),
-                                                       shaderConfig, aFlipY);
+                                                       shaderProgram, aFlipY);
 
     gLayerScopeWebSocketManager->AppendDebugData(
         new DebugGLTextureData(aGLContext, aLayerRef, textureTarget,
@@ -775,7 +775,10 @@ LayerScope::SendEffectChain(GLContext* aGLContext,
 
     const Effect* primaryEffect = aEffectChain.mPrimaryEffect;
     switch (primaryEffect->mType) {
-    case EFFECT_RGB:
+    case EFFECT_BGRX:
+    case EFFECT_RGBX:
+    case EFFECT_BGRA:
+    case EFFECT_RGBA:
     {
         const TexturedEffect* texturedEffect =
             static_cast<const TexturedEffect*>(primaryEffect);

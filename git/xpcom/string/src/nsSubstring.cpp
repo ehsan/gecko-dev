@@ -40,12 +40,10 @@ using mozilla::Atomic;
 
 // ---------------------------------------------------------------------------
 
-static const char16_t gNullChar = 0;
+static char16_t gNullChar = 0;
 
-char* const nsCharTraits<char>::sEmptyBuffer =
-  (char*) const_cast<char16_t*>(&gNullChar);
-char16_t* const nsCharTraits<char16_t>::sEmptyBuffer =
-  const_cast<char16_t*>(&gNullChar);
+char*      nsCharTraits<char>     ::sEmptyBuffer = (char*) &gNullChar;
+char16_t* nsCharTraits<char16_t>::sEmptyBuffer =         &gNullChar;
 
 // ---------------------------------------------------------------------------
 

@@ -178,12 +178,11 @@ public:
   webrtc::VoiceEngine* GetVoiceEngine() { return mVoiceEngine; }
   bool GetLocalSSRC(unsigned int* ssrc);
   bool GetRemoteSSRC(unsigned int* ssrc);
-  bool GetRTPStats(unsigned int* jitterMs, unsigned int* cumulativeLost);
+  bool GetRTPJitter(unsigned int* jitterMs);
   bool GetRTCPReceiverReport(DOMHighResTimeStamp* timestamp,
                              unsigned int* jitterMs,
                              unsigned int* packetsReceived,
-                             uint64_t* bytesReceived,
-                             unsigned int *cumulativeLost);
+                             uint64_t* bytesReceived);
   bool GetRTCPSenderReport(DOMHighResTimeStamp* timestamp,
                            unsigned int* packetsSent,
                            uint64_t* bytesSent);

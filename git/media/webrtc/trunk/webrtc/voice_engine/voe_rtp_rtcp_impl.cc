@@ -440,8 +440,7 @@ int VoERTP_RTCPImpl::SendApplicationDefinedRTCPPacket(
 int VoERTP_RTCPImpl::GetRTPStatistics(int channel,
                                       unsigned int& averageJitterMs,
                                       unsigned int& maxJitterMs,
-                                      unsigned int& discardedPackets,
-                                      unsigned int& cumulativeLost)
+                                      unsigned int& discardedPackets)
 {
     WEBRTC_TRACE(kTraceApiCall, kTraceVoice, VoEId(_shared->instance_id(), -1),
                  "GetRTPStatistics(channel=%d,....)", channel);
@@ -460,8 +459,7 @@ int VoERTP_RTCPImpl::GetRTPStatistics(int channel,
     }
     return channelPtr->GetRTPStatistics(averageJitterMs,
                                         maxJitterMs,
-                                        discardedPackets,
-                                        cumulativeLost);
+                                        discardedPackets);
 }
 
 int VoERTP_RTCPImpl::GetRTCPStatistics(int channel, CallStatistics& stats)

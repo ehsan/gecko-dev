@@ -2119,9 +2119,10 @@ public:
   bool Next(uint32_t aCount);
 
   /**
-   * Advances ahead up to aCount matching characters.
+   * Advances ahead up to aCount matching characters, returns true if there
+   * were enough characters to advance to.
    */
-  void NextWithinSubtree(uint32_t aCount);
+  bool NextWithinSubtree(uint32_t aCount);
 
   /**
    * Advances to the character with the specified index.  The index is in the
@@ -2420,15 +2421,16 @@ CharIterator::Next(uint32_t aCount)
   return true;
 }
 
-void
+bool
 CharIterator::NextWithinSubtree(uint32_t aCount)
 {
   while (IsWithinSubtree() && aCount) {
     --aCount;
     if (!Next()) {
-      return;
+      break;
     }
   }
+  return !aCount;
 }
 
 bool
@@ -4013,7 +4015,9 @@ SVGTextFrame::SelectSubString(nsIContent* aContent,
   }
   charnum = chit.TextElementCharIndex();
   nsIContent* content = chit.TextFrame()->GetContent();
-  chit.NextWithinSubtree(nchars);
+  if (!chit.NextWithinSubtree(nchars)) {
+    return NS_ERROR_DOM_INDEX_SIZE_ERR;
+  }
   nchars = chit.TextElementCharIndex() - charnum;
 
   nsRefPtr<nsFrameSelection> frameSelection = GetFrameSelection();
@@ -4049,7 +4053,9 @@ SVGTextFrame::GetSubStringLength(nsIContent* aContent,
   }
 
   charnum = chit.TextElementCharIndex();
-  chit.NextWithinSubtree(nchars);
+  if (!chit.NextWithinSubtree(nchars)) {
+    return NS_ERROR_DOM_INDEX_SIZE_ERR;
+  }
   nchars = chit.TextElementCharIndex() - charnum;
 
   // Find each rendered run that intersects with the range defined
