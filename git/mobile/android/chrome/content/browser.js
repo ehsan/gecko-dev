@@ -4308,9 +4308,8 @@ var BrowserEventHandler = {
             this._sendMouseEvent("mousedown", element, x, y);
             this._sendMouseEvent("mouseup",   element, x, y);
 
-            // See if its an input element, and it isn't disabled, nor handled by Android native dialog
+            // See if its an input element, and it isn't disabled
             if (!element.disabled &&
-                !InputWidgetHelper.hasInputWidget(element) &&
                 ((element instanceof HTMLInputElement && element.mozIsTextField(false)) ||
                 (element instanceof HTMLTextAreaElement)))
               SelectionHandler.attachCaret(element);

@@ -34,9 +34,6 @@
 #include "MediaError.h"
 #include "MediaDecoder.h"
 #include "mozilla/Preferences.h"
-#include "nsIDOMWakeLock.h"
-#include "nsPerformance.h"
-#include "mozilla/dom/VideoPlaybackQuality.h"
 
 NS_IMPL_NS_NEW_HTML_ELEMENT(Video)
 

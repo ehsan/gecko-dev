@@ -9,7 +9,7 @@
 const TAB_URL = EXAMPLE_URL + "doc_script-switching-01.html";
 
 let gTab, gDebuggee, gPanel, gDebugger;
-let gSearchBox, gSearchBoxPanel;
+let gEditor, gSearchBox, gSearchBoxPanel;
 
 function test() {
   initDebugger(TAB_URL).then(([aTab, aDebuggee, aPanel]) => {
@@ -17,6 +17,7 @@ function test() {
     gDebuggee = aDebuggee;
     gPanel = aPanel;
     gDebugger = gPanel.panelWin;
+    gEditor = gDebugger.DebuggerView.editor;
     gSearchBox = gDebugger.DebuggerView.Filtering._searchbox;
     gSearchBoxPanel = gDebugger.DebuggerView.Filtering._searchboxHelpPanel;
 
@@ -55,6 +56,7 @@ registerCleanupFunction(function() {
   gDebuggee = null;
   gPanel = null;
   gDebugger = null;
+  gEditor = null;
   gSearchBox = null;
   gSearchBoxPanel = null;
 });

@@ -661,12 +661,6 @@ LIRGenerator::visitTest(MTest *test)
         return add(new LGoto(result ? ifTrue : ifFalse));
     }
 
-    // Constant Float32 operand.
-    if (opd->type() == MIRType_Float32 && opd->isConstant()) {
-        bool result = ToBoolean(opd->toConstant()->value());
-        return add(new LGoto(result ? ifTrue : ifFalse));
-    }
-
     // Constant Int32 operand.
     if (opd->type() == MIRType_Int32 && opd->isConstant()) {
         int32_t num = opd->toConstant()->value().toInt32();
@@ -764,14 +758,6 @@ LIRGenerator::visitTest(MTest *test)
             return add(lir, comp);
         }
 
-        // Compare and branch floats.
-        if (comp->isFloat32Comparison()) {
-            LAllocation lhs = useRegister(left);
-            LAllocation rhs = useRegister(right);
-            LCompareFAndBranch *lir = new LCompareFAndBranch(lhs, rhs, ifTrue, ifFalse);
-            return add(lir, comp);
-        }
-
         // Compare values.
         if (comp->compareType() == MCompare::Compare_Value) {
             LCompareVAndBranch *lir = new LCompareVAndBranch(ifTrue, ifFalse);
@@ -796,9 +782,6 @@ LIRGenerator::visitTest(MTest *test)
 
     if (opd->type() == MIRType_Double)
         return add(new LTestDAndBranch(useRegister(opd), ifTrue, ifFalse));
-
-    if (opd->type() == MIRType_Float32)
-        return add(new LTestFAndBranch(useRegister(opd), ifTrue, ifFalse));
 
     JS_ASSERT(opd->type() == MIRType_Int32 || opd->type() == MIRType_Boolean);
     return add(new LTestIAndBranch(useRegister(opd), ifTrue, ifFalse));
@@ -947,10 +930,6 @@ LIRGenerator::visitCompare(MCompare *comp)
     // Compare doubles.
     if (comp->isDoubleComparison())
         return define(new LCompareD(useRegister(left), useRegister(right)), comp);
-
-    // Compare float32.
-    if (comp->isFloat32Comparison())
-        return define(new LCompareF(useRegister(left), useRegister(right)), comp);
 
     // Compare values.
     if (comp->compareType() == MCompare::Compare_Value) {
@@ -1167,7 +1146,6 @@ bool
 LIRGenerator::visitAbs(MAbs *ins)
 {
     MDefinition *num = ins->num();
-    JS_ASSERT(IsNumberType(num->type()));
 
     if (num->type() == MIRType_Int32) {
         LAbsI *lir = new LAbsI(useRegisterAtStart(num));
@@ -1176,11 +1154,8 @@ LIRGenerator::visitAbs(MAbs *ins)
             return false;
         return defineReuseInput(lir, ins, 0);
     }
-    if (num->type() == MIRType_Float32) {
-        LAbsF *lir = new LAbsF(useRegisterAtStart(num));
-        return defineReuseInput(lir, ins, 0);
-    }
 
+    JS_ASSERT(num->type() == MIRType_Double);
     LAbsD *lir = new LAbsD(useRegisterAtStart(num));
     return defineReuseInput(lir, ins, 0);
 }
@@ -1189,13 +1164,8 @@ bool
 LIRGenerator::visitSqrt(MSqrt *ins)
 {
     MDefinition *num = ins->num();
-    JS_ASSERT(IsFloatingPointType(num->type()));
-    if (num->type() == MIRType_Double) {
-        LSqrtD *lir = new LSqrtD(useRegisterAtStart(num));
-        return define(lir, ins);
-    }
-
-    LSqrtF *lir = new LSqrtF(useRegisterAtStart(num));
+    JS_ASSERT(num->type() == MIRType_Double);
+    LSqrtD *lir = new LSqrtD(useRegisterAtStart(num));
     return define(lir, ins);
 }
 
@@ -1577,13 +1547,6 @@ LIRGenerator::visitOsrValue(MOsrValue *value)
 }
 
 bool
-LIRGenerator::visitOsrReturnValue(MOsrReturnValue *value)
-{
-    LOsrReturnValue *lir = new LOsrReturnValue(useRegister(value->entry()));
-    return defineBox(lir, value);
-}
-
-bool
 LIRGenerator::visitOsrScopeChain(MOsrScopeChain *object)
 {
     LOsrScopeChain *lir = new LOsrScopeChain(useRegister(object->entry()));
@@ -1772,9 +1735,6 @@ LIRGenerator::visitTruncateToInt32(MTruncateToInt32 *truncate)
 
       case MIRType_Double:
         return lowerTruncateDToInt32(truncate);
-
-      case MIRType_Float32:
-        return lowerTruncateFToInt32(truncate);
 
       default:
         // Objects might be effectful.
@@ -2266,8 +2226,6 @@ LIRGenerator::visitNot(MNot *ins)
       }
       case MIRType_Double:
         return define(new LNotD(useRegister(op)), ins);
-      case MIRType_Float32:
-        return define(new LNotF(useRegister(op)), ins);
       case MIRType_Undefined:
       case MIRType_Null:
         return define(new LInteger(1), ins);

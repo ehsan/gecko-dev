@@ -24,7 +24,6 @@
 #include "mozilla/layers/ShadowLayers.h"
 #include "mozilla/layout/RenderFrameChild.h"
 #include "mozilla/MouseEvents.h"
-#include "mozilla/Services.h"
 #include "mozilla/StaticPtr.h"
 #include "mozilla/TextEvents.h"
 #include "mozilla/TouchEvents.h"
@@ -1203,7 +1202,7 @@ TabChild::~TabChild()
     mGlobal = nullptr;
 
     if (mTabChildGlobal) {
-      nsEventListenerManager* elm = mTabChildGlobal->GetExistingListenerManager();
+      nsEventListenerManager* elm = mTabChildGlobal->GetListenerManager(false);
       if (elm) {
         elm->Disconnect();
       }
@@ -2104,7 +2103,7 @@ TabChild::RecvDestroy()
   }
 
   nsCOMPtr<nsIObserverService> observerService =
-    mozilla::services::GetObserverService();
+    do_GetService(NS_OBSERVERSERVICE_CONTRACTID);
 
   observerService->RemoveObserver(this, CANCEL_DEFAULT_PAN_ZOOM);
   observerService->RemoveObserver(this, BROWSER_ZOOM_TO_RECT);
@@ -2241,7 +2240,7 @@ TabChild::InitRenderingState()
     mRemoteFrame = remoteFrame;
 
     nsCOMPtr<nsIObserverService> observerService =
-        mozilla::services::GetObserverService();
+        do_GetService(NS_OBSERVERSERVICE_CONTRACTID);
 
     if (observerService) {
         observerService->AddObserver(this,

@@ -120,7 +120,7 @@ nsDOMUIEvent::GetMovementPoint()
        mEvent->eventStructType != NS_WHEEL_EVENT &&
        mEvent->eventStructType != NS_DRAG_EVENT &&
        mEvent->eventStructType != NS_SIMPLE_GESTURE_EVENT) ||
-       !mEvent->AsGUIEvent()->widget) {
+       !(static_cast<WidgetGUIEvent*>(mEvent)->widget)) {
     return nsIntPoint(0, 0);
   }
 

@@ -11,7 +11,8 @@ EXPORTS += [
 ]
 
 CPP_SOURCES += [
-    'UnifiedUCVTW2.cpp',
+    'nsEUCTWToUnicode.cpp',
+    'nsUnicodeToEUCTW.cpp',
 ]
 
 LIBRARY_NAME = 'ucvtw2_s'

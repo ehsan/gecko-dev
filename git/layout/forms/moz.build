@@ -18,7 +18,6 @@ EXPORTS += [
 
 CPP_SOURCES += [
     'nsButtonFrameRenderer.cpp',
-    'nsColorControlFrame.cpp',
     'nsComboboxControlFrame.cpp',
     'nsFieldSetFrame.cpp',
     'nsFileControlFrame.cpp',

@@ -8,7 +8,7 @@
 const TAB_URL = EXAMPLE_URL + "doc_editor-mode.html";
 
 let gTab, gDebuggee, gPanel, gDebugger;
-let gSources, gSourceUtils, gSearchView, gSearchBox;
+let gEditor, gSources, gSourceUtils, gSearchView, gSearchBox;
 
 function test() {
   // Debug test slaves are a bit slow at this test.
@@ -19,6 +19,7 @@ function test() {
     gDebuggee = aDebuggee;
     gPanel = aPanel;
     gDebugger = gPanel.panelWin;
+    gEditor = gDebugger.DebuggerView.editor;
     gSources = gDebugger.DebuggerView.Sources;
     gSourceUtils = gDebugger.SourceUtils;
     gSearchView = gDebugger.DebuggerView.FilteredSources;
@@ -271,6 +272,7 @@ registerCleanupFunction(function() {
   gDebuggee = null;
   gPanel = null;
   gDebugger = null;
+  gEditor = null;
   gSources = null;
   gSourceUtils = null;
   gSearchView = null;

@@ -131,7 +131,9 @@ HTMLLabelElement::PostHandleEvent(nsEventChainPostVisitor& aVisitor)
     mHandlingEvent = true;
     switch (aVisitor.mEvent->message) {
       case NS_MOUSE_BUTTON_DOWN:
-        if (aVisitor.mEvent->AsMouseEvent()->button ==
+        NS_ASSERTION(aVisitor.mEvent->eventStructType == NS_MOUSE_EVENT,
+                     "wrong event struct for event");
+        if (static_cast<WidgetMouseEvent*>(aVisitor.mEvent)->button ==
               WidgetMouseEvent::eLeftButton) {
           // We reset the mouse-down point on every event because there is
           // no guarantee we will reach the NS_MOUSE_CLICK code below.
@@ -145,7 +147,8 @@ HTMLLabelElement::PostHandleEvent(nsEventChainPostVisitor& aVisitor)
 
       case NS_MOUSE_CLICK:
         if (aVisitor.mEvent->IsLeftClickEvent()) {
-          WidgetMouseEvent* mouseEvent = aVisitor.mEvent->AsMouseEvent();
+          const WidgetMouseEvent* event =
+            static_cast<const WidgetMouseEvent*>(aVisitor.mEvent);
           LayoutDeviceIntPoint* mouseDownPoint =
             static_cast<LayoutDeviceIntPoint*>(
               GetProperty(nsGkAtoms::labelMouseDownPtProperty));
@@ -155,7 +158,7 @@ HTMLLabelElement::PostHandleEvent(nsEventChainPostVisitor& aVisitor)
             LayoutDeviceIntPoint dragDistance = *mouseDownPoint;
             DeleteProperty(nsGkAtoms::labelMouseDownPtProperty);
 
-            dragDistance -= mouseEvent->refPoint;
+            dragDistance -= aVisitor.mEvent->refPoint;
             const int CLICK_DISTANCE = 2;
             dragSelect = dragDistance.x > CLICK_DISTANCE ||
                          dragDistance.x < -CLICK_DISTANCE ||
@@ -164,13 +167,13 @@ HTMLLabelElement::PostHandleEvent(nsEventChainPostVisitor& aVisitor)
           }
           // Don't click the for-content if we did drag-select text or if we
           // have a kbd modifier (which adjusts a selection).
-          if (dragSelect || mouseEvent->IsShift() || mouseEvent->IsControl() ||
-              mouseEvent->IsAlt() || mouseEvent->IsMeta()) {
+          if (dragSelect || event->IsShift() || event->IsControl() ||
+              event->IsAlt() || event->IsMeta()) {
             break;
           }
           // Only set focus on the first click of multiple clicks to prevent
           // to prevent immediate de-focus.
-          if (mouseEvent->clickCount <= 1) {
+          if (event->clickCount <= 1) {
             nsIFocusManager* fm = nsFocusManager::GetFocusManager();
             if (fm) {
               // Use FLAG_BYMOVEFOCUS here so that the label is scrolled to.
@@ -193,11 +196,12 @@ HTMLLabelElement::PostHandleEvent(nsEventChainPostVisitor& aVisitor)
           // will actually create a new event.
           EventFlags eventFlags;
           eventFlags.mMultipleActionsPrevented = true;
-          DispatchClickEvent(aVisitor.mPresContext, mouseEvent,
+          DispatchClickEvent(aVisitor.mPresContext,
+                             aVisitor.mEvent->AsInputEvent(),
                              content, false, &eventFlags, &status);
           // Do we care about the status this returned?  I don't think we do...
           // Don't run another <label> off of this click
-          mouseEvent->mFlags.mMultipleActionsPrevented = true;
+          aVisitor.mEvent->mFlags.mMultipleActionsPrevented = true;
         }
         break;
     }

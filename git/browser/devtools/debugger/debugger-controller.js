@@ -78,17 +78,14 @@ const EVENTS = {
 Cu.import("resource://gre/modules/Services.jsm");
 Cu.import("resource://gre/modules/XPCOMUtils.jsm");
 Cu.import("resource://gre/modules/devtools/dbg-client.jsm");
+let promise = Cu.import("resource://gre/modules/commonjs/sdk/core/promise.js").Promise;
 Cu.import("resource:///modules/devtools/shared/event-emitter.js");
+Cu.import("resource:///modules/devtools/sourceeditor/source-editor.jsm");
 Cu.import("resource:///modules/devtools/BreadcrumbsWidget.jsm");
 Cu.import("resource:///modules/devtools/SideMenuWidget.jsm");
 Cu.import("resource:///modules/devtools/VariablesView.jsm");
 Cu.import("resource:///modules/devtools/VariablesViewController.jsm");
 Cu.import("resource:///modules/devtools/ViewHelpers.jsm");
-
-const require = Cu.import("resource://gre/modules/devtools/Loader.jsm", {}).devtools.require;
-const Editor = require("devtools/sourceeditor/editor");
-const promise = require("sdk/core/promise");
-const DebuggerEditor = require("devtools/sourceeditor/debugger.js");
 
 XPCOMUtils.defineLazyModuleGetter(this, "Parser",
   "resource:///modules/devtools/Parser.jsm");
@@ -99,8 +96,13 @@ XPCOMUtils.defineLazyModuleGetter(this, "devtools",
 XPCOMUtils.defineLazyModuleGetter(this, "DevToolsUtils",
   "resource://gre/modules/devtools/DevToolsUtils.jsm");
 
-XPCOMUtils.defineLazyModuleGetter(this, "ShortcutUtils",
-  "resource://gre/modules/ShortcutUtils.jsm");
+Object.defineProperty(this, "DevtoolsHelpers", {
+  get: function() {
+    return devtools.require("devtools/shared/helpers");
+  },
+  configurable: true,
+  enumerable: true
+});
 
 Object.defineProperty(this, "NetworkHelper", {
   get: function() {
@@ -513,7 +515,6 @@ function StackFrames() {
   this._onFrames = this._onFrames.bind(this);
   this._onFramesCleared = this._onFramesCleared.bind(this);
   this._onBlackBoxChange = this._onBlackBoxChange.bind(this);
-  this._onPrettyPrintChange = this._onPrettyPrintChange.bind(this);
   this._afterFramesCleared = this._afterFramesCleared.bind(this);
   this.evaluate = this.evaluate.bind(this);
 }
@@ -540,7 +541,6 @@ StackFrames.prototype = {
     this.activeThread.addListener("framesadded", this._onFrames);
     this.activeThread.addListener("framescleared", this._onFramesCleared);
     this.activeThread.addListener("blackboxchange", this._onBlackBoxChange);
-    this.activeThread.addListener("prettyprintchange", this._onPrettyPrintChange);
     this.handleTabNavigation();
   },
 
@@ -557,7 +557,6 @@ StackFrames.prototype = {
     this.activeThread.removeListener("framesadded", this._onFrames);
     this.activeThread.removeListener("framescleared", this._onFramesCleared);
     this.activeThread.removeListener("blackboxchange", this._onBlackBoxChange);
-    this.activeThread.removeListener("prettyprintchange", this._onPrettyPrintChange);
   },
 
   /**
@@ -611,7 +610,7 @@ StackFrames.prototype = {
    * Handler for the thread client's resumed notification.
    */
   _onResumed: function() {
-    DebuggerView.editor.clearDebugLocation();
+    DebuggerView.editor.setDebugLocation(-1);
 
     // Prepare the watch expression evaluation string for the next pause.
     if (!this._isWatchExpressionsEvaluation) {
@@ -744,16 +743,8 @@ StackFrames.prototype = {
    */
   _onBlackBoxChange: function() {
     if (this.activeThread.state == "paused") {
+      this.currentFrame = null;
       this._refillFrames();
-    }
-  },
-
-  /**
-   * Handler for the debugger's prettyprintchange notification.
-   */
-  _onPrettyPrintChange: function() {
-    if (this.activeThread.state == "paused") {
-      this.activeThread.fillFrames(CALL_STACK_PAGE_SIZE);
     }
   },
 
@@ -1004,7 +995,6 @@ function SourceScripts() {
   this._onNewSource = this._onNewSource.bind(this);
   this._onSourcesAdded = this._onSourcesAdded.bind(this);
   this._onBlackBoxChange = this._onBlackBoxChange.bind(this);
-  this._onPrettyPrintChange = this._onPrettyPrintChange.bind(this);
 }
 
 SourceScripts.prototype = {
@@ -1020,7 +1010,6 @@ SourceScripts.prototype = {
     this.debuggerClient.addListener("newGlobal", this._onNewGlobal);
     this.debuggerClient.addListener("newSource", this._onNewSource);
     this.activeThread.addListener("blackboxchange", this._onBlackBoxChange);
-    this.activeThread.addListener("prettyprintchange", this._onPrettyPrintChange);
     this.handleTabNavigation();
   },
 
@@ -1035,7 +1024,6 @@ SourceScripts.prototype = {
     this.debuggerClient.removeListener("newGlobal", this._onNewGlobal);
     this.debuggerClient.removeListener("newSource", this._onNewSource);
     this.activeThread.removeListener("blackboxchange", this._onBlackBoxChange);
-    this.activeThread.addListener("prettyprintchange", this._onPrettyPrintChange);
   },
 
   /**
@@ -1192,9 +1180,8 @@ SourceScripts.prototype = {
   },
 
   /**
-   * Toggle the pretty printing of a source's text. All subsequent calls to
-   * |getText| will return the pretty-toggled text. Nothing will happen for
-   * non-javascript files.
+   * Pretty print a source's text. All subsequent calls to |getText| will return
+   * the pretty text. Nothing will happen for non-javascript files.
    *
    * @param Object aSource
    *        The source form from the RDP.
@@ -1202,54 +1189,46 @@ SourceScripts.prototype = {
    *          A promise that resolves to [aSource, prettyText] or rejects to
    *          [aSource, error].
    */
-  togglePrettyPrint: function(aSource) {
+  prettyPrint: function(aSource) {
     // Only attempt to pretty print JavaScript sources.
     if (!SourceUtils.isJavaScript(aSource.url, aSource.contentType)) {
       return promise.reject([aSource, "Can't prettify non-javascript files."]);
     }
 
-    const sourceClient = this.activeThread.source(aSource);
-    const wantPretty = !sourceClient.isPrettyPrinted;
-
     // Only use the existing promise if it is pretty printed.
     let textPromise = this._cache.get(aSource.url);
-    if (textPromise && textPromise.pretty === wantPretty) {
+    if (textPromise && textPromise.pretty) {
       return textPromise;
     }
 
     const deferred = promise.defer();
-    deferred.promise.pretty = wantPretty;
     this._cache.set(aSource.url, deferred.promise);
 
-    const afterToggle = ({ error, message, source: text }) => {
-      if (error) {
-        // Revert the rejected promise from the cache, so that the original
-        // source's text may be shown when the source is selected.
-        this._cache.set(aSource.url, textPromise);
+    this.activeThread.source(aSource)
+      .prettyPrint(Prefs.editorTabSize, ({ error, message, source: text }) => {
+        if (error) {
+          // Revert the rejected promise from the cache, so that the original
+          // source's text may be shown when the source is selected.
+          this._cache.set(aSource.url, textPromise);
+          deferred.reject([aSource, message || error]);
+          return;
+        }
 
-        deferred.reject([aSource, message || error]);
-        return;
-      }
+        // Remove the cached source AST from the Parser, to avoid getting
+        // wrong locations when searching for functions.
+        DebuggerController.Parser.clearSource(aSource.url);
 
-      deferred.resolve([aSource, text]);
-    };
+        if (this.activeThread.paused) {
+          // Update the stack frame list.
+          this.activeThread._clearFrames();
+          this.activeThread.fillFrames(CALL_STACK_PAGE_SIZE);
+        }
 
-    if (wantPretty) {
-      sourceClient.prettyPrint(Prefs.editorTabSize, afterToggle);
-    } else {
-      sourceClient.disablePrettyPrint(afterToggle);
-    }
+        deferred.resolve([aSource, text]);
+      });
 
+    deferred.promise.pretty = true;
     return deferred.promise;
-  },
-
-  /**
-   * Handler for the debugger's prettyprintchange notification.
-   */
-  _onPrettyPrintChange: function(aEvent, { url }) {
-    // Remove the cached source AST from the Parser, to avoid getting
-    // wrong locations when searching for functions.
-    DebuggerController.Parser.clearSource(url);
   },
 
   /**
@@ -1437,6 +1416,7 @@ EventListeners.prototype = {
  * Handles all the breakpoints in the current debugger.
  */
 function Breakpoints() {
+  this._onEditorBreakpointChange = this._onEditorBreakpointChange.bind(this);
   this._onEditorBreakpointAdd = this._onEditorBreakpointAdd.bind(this);
   this._onEditorBreakpointRemove = this._onEditorBreakpointRemove.bind(this);
   this.addBreakpoint = this.addBreakpoint.bind(this);
@@ -1459,8 +1439,8 @@ Breakpoints.prototype = {
    *         A promise that is resolved when the breakpoints finishes initializing.
    */
   initialize: function() {
-    DebuggerView.editor.on("breakpointAdded", this._onEditorBreakpointAdd);
-    DebuggerView.editor.on("breakpointRemoved", this._onEditorBreakpointRemove);
+    DebuggerView.editor.addEventListener(
+      SourceEditor.EVENTS.BREAKPOINT_CHANGE, this._onEditorBreakpointChange);
 
     // Initialization is synchronous, for now.
     return promise.resolve(null);
@@ -1473,21 +1453,34 @@ Breakpoints.prototype = {
    *         A promise that is resolved when the breakpoints finishes destroying.
    */
   destroy: function() {
-    DebuggerView.editor.off("breakpointAdded", this._onEditorBreakpointAdd);
-    DebuggerView.editor.off("breakpointRemoved", this._onEditorBreakpointRemove);
+    DebuggerView.editor.removeEventListener(
+      SourceEditor.EVENTS.BREAKPOINT_CHANGE, this._onEditorBreakpointChange);
 
     return this.removeAllBreakpoints();
   },
 
   /**
+   * Event handler for breakpoint changes that happen in the editor. This
+   * function syncs the breakpoints in the editor to those in the debugger.
+   *
+   * @param object aEvent
+   *        The SourceEditor.EVENTS.BREAKPOINT_CHANGE event object.
+   */
+  _onEditorBreakpointChange: function(aEvent) {
+    aEvent.added.forEach(this._onEditorBreakpointAdd, this);
+    aEvent.removed.forEach(this._onEditorBreakpointRemove, this);
+  },
+
+  /**
    * Event handler for new breakpoints that come from the editor.
    *
-   * @param number aLine
-   *        Line number where breakpoint was set.
+   * @param object aEditorBreakpoint
+   *        The breakpoint object coming from the editor.
    */
-  _onEditorBreakpointAdd: function(_, aLine) {
+  _onEditorBreakpointAdd: function(aEditorBreakpoint) {
     let url = DebuggerView.Sources.selectedValue;
-    let location = { url: url, line: aLine + 1 };
+    let line = aEditorBreakpoint.line + 1;
+    let location = { url: url, line: line };
 
     // Initialize the breakpoint, but don't update the editor, since this
     // callback is invoked because a breakpoint was added in the editor itself.
@@ -1500,25 +1493,26 @@ Breakpoints.prototype = {
         DebuggerView.editor.addBreakpoint(aBreakpointClient.location.line - 1);
       }
       // Notify that we've shown a breakpoint in the source editor.
-      window.emit(EVENTS.BREAKPOINT_SHOWN);
+      window.emit(EVENTS.BREAKPOINT_SHOWN, aEditorBreakpoint);
     });
   },
 
   /**
    * Event handler for breakpoints that are removed from the editor.
    *
-   * @param number aLine
-   *        Line number where breakpoint was removed.
+   * @param object aEditorBreakpoint
+   *        The breakpoint object that was removed from the editor.
    */
-  _onEditorBreakpointRemove: function(_, aLine) {
+  _onEditorBreakpointRemove: function(aEditorBreakpoint) {
     let url = DebuggerView.Sources.selectedValue;
-    let location = { url: url, line: aLine + 1 };
+    let line = aEditorBreakpoint.line + 1;
+    let location = { url: url, line: line };
 
     // Destroy the breakpoint, but don't update the editor, since this callback
     // is invoked because a breakpoint was removed from the editor itself.
     this.removeBreakpoint(location, { noEditorUpdate: true }).then(() => {
       // Notify that we've hidden a breakpoint in the source editor.
-      window.emit(EVENTS.BREAKPOINT_HIDDEN);
+      window.emit(EVENTS.BREAKPOINT_HIDDEN, aEditorBreakpoint);
     });
   },
 
@@ -1632,7 +1626,7 @@ Breakpoints.prototype = {
       // after the target navigated). Note that this will get out of sync
       // if the source text contents change.
       let line = aBreakpointClient.location.line - 1;
-      aBreakpointClient.text = DebuggerView.editor.getText(line).trim();
+      aBreakpointClient.text = DebuggerView.getEditorLineText(line).trim();
 
       // Show the breakpoint in the editor and breakpoints pane, and resolve.
       this._showBreakpoint(aBreakpointClient, aOptions);

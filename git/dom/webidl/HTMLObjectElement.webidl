@@ -19,8 +19,7 @@ interface HTMLObjectElement : HTMLElement {
            attribute DOMString data;
   [Pure, SetterThrows]
            attribute DOMString type;
-  [Pure, SetterThrows]
-           attribute boolean typeMustMatch;
+//           attribute boolean typeMustMatch;
   [Pure, SetterThrows]
            attribute DOMString name;
   [Pure, SetterThrows]

@@ -35,7 +35,6 @@ EXTRA_JS_MODULES += [
     'RemoteWebProgress.jsm',
     'SelectContentHelper.jsm',
     'SelectParentHelper.jsm',
-    'ShortcutUtils.jsm',
     'Sntp.jsm',
     'SpatialNavigation.jsm',
     'Sqlite.jsm',

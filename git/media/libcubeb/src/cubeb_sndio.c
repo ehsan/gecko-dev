@@ -9,7 +9,6 @@
 #include <sndio.h>
 #include <stdlib.h>
 #include <stdio.h>
-#include <assert.h>
 #include "cubeb/cubeb.h"
 #include "cubeb-internal.h"
 

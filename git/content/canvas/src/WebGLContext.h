@@ -20,7 +20,6 @@
 #include "mozilla/dom/HTMLCanvasElement.h"
 #include "nsWrapperCache.h"
 #include "nsIObserver.h"
-#include "nsLayoutUtils.h"
 
 #include "GLContextProvider.h"
 #include "gfxImageSurface.h"

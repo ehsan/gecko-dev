@@ -161,7 +161,7 @@ IonSpewer::beginFunction(MIRGraph *graph, HandleScript function)
     }
 
     this->graph = graph;
-    this->function.repoint(function);
+    this->function = function;
 
     c1Spewer.beginFunction(graph, function);
     jsonSpewer.beginFunction(function);

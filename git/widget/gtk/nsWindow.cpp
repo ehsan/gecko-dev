@@ -1980,17 +1980,10 @@ nsWindow::OnExposeEvent(cairo_t *cr)
     if (!listener)
         return FALSE;
 
-    ClientLayerManager *clientLayers =
-        (GetLayerManager()->GetBackendType() == LAYERS_CLIENT)
-        ? static_cast<ClientLayerManager*>(GetLayerManager())
-        : nullptr;
-
-    if (clientLayers && mCompositorParent &&
-        !gdk_screen_is_composited(gdk_window_get_screen(mGdkWindow)))
-    {
-        // We need to paint to the screen even if nothing changed, since if we
-        // don't have a compositing window manager, our pixels could be stale.
-        clientLayers->SetNeedsComposite(true);
+    // Do an early async composite so that we at least have something on screen
+    // in the right place, even if the content is out of date.
+    if (GetLayerManager()->GetBackendType() == LAYERS_CLIENT && mCompositorParent) {
+        mCompositorParent->ScheduleRenderOnCompositorThread();
     }
 
     // Dispatch WillPaintWindow notification to allow scripts etc. to run
@@ -2009,11 +2002,6 @@ nsWindow::OnExposeEvent(cairo_t *cr)
             mAttachedWidgetListener ? mAttachedWidgetListener : mWidgetListener;
         if (!listener)
             return FALSE;
-    }
-
-    if (clientLayers && mCompositorParent && clientLayers->NeedsComposite()) {
-        mCompositorParent->ScheduleRenderOnCompositorThread();
-        clientLayers->SetNeedsComposite(false);
     }
 
 #if (MOZ_WIDGET_GTK == 2)
@@ -6137,10 +6125,11 @@ nsWindow::BeginResizeDrag(WidgetGUIEvent* aEvent,
         return NS_ERROR_INVALID_ARG;
     }
 
+    WidgetMouseEvent* mouse_event = static_cast<WidgetMouseEvent*>(aEvent);
+
     GdkWindow *gdk_window;
     gint button, screenX, screenY;
-    if (!GetDragInfo(aEvent->AsMouseEvent(), &gdk_window, &button,
-                     &screenX, &screenY)) {
+    if (!GetDragInfo(mouse_event, &gdk_window, &button, &screenX, &screenY)) {
         return NS_ERROR_FAILURE;
     }
 

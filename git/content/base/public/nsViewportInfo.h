@@ -6,7 +6,7 @@
 #define nsViewportInfo_h___
 
 #include <stdint.h>
-#include "mozilla/Attributes.h"
+#include "nscore.h"
 #include "Units.h"
 
 /**

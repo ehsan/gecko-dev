@@ -378,6 +378,13 @@ MenuPopup.prototype = {
     let screenWidth = ContentAreaObserver.width;
     let screenHeight = ContentAreaObserver.height;
 
+    // Add padding on the side of the menu per the user's hand preference
+    let leftHand =
+          Services.metro.handPreference == Ci.nsIWinMetroUtils.handPreferenceLeft;
+    if (aSource && aSource == Ci.nsIDOMMouseEvent.MOZ_SOURCE_TOUCH) {
+      this.commands.setAttribute("left-hand", leftHand);
+    }
+
     if (aPositionOptions.rightAligned)
       aX -= width;
 

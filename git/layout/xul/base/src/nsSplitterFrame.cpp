@@ -392,7 +392,9 @@ nsSplitterFrame::HandleEvent(nsPresContext* aPresContext,
     break;
   
     case NS_MOUSE_BUTTON_UP:
-      if (aEvent->AsMouseEvent()->button == WidgetMouseEvent::eLeftButton) {
+      if (aEvent->eventStructType == NS_MOUSE_EVENT &&
+          static_cast<WidgetMouseEvent*>(aEvent)->button ==
+            WidgetMouseEvent::eLeftButton) {
         mInner->MouseUp(aPresContext, aEvent);
       }
     break;

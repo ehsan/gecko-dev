@@ -69,7 +69,7 @@ js_GetLocalizedErrorMessage(js::ExclusiveContext *cx, void *userRef, const char 
 extern JSObject *
 js_CopyErrorObject(JSContext *cx, js::HandleObject errobj, js::HandleObject scope);
 
-static inline JSProtoKey
+static JS_INLINE JSProtoKey
 GetExceptionProtoKey(int exn)
 {
     JS_ASSERT(JSEXN_ERR <= exn);

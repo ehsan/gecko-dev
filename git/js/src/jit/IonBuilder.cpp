@@ -66,8 +66,6 @@ IonBuilder::IonBuilder(JSContext *cx, TempAllocator *temp, MIRGraph *graph,
 {
     script_.init(info->script());
     pc = info->startPC();
-
-    JS_ASSERT(script()->hasBaselineScript());
 }
 
 void
@@ -281,7 +279,7 @@ IonBuilder::canInlineTarget(JSFunction *target, bool constructing)
     // Allow constructing lazy scripts when performing the definite properties
     // analysis, as baseline has not been used to warm the caller up yet.
     if (target->isInterpretedLazy() && info().executionMode() == DefinitePropertiesAnalysis) {
-        if (!target->getOrCreateScript(context()))
+        if (!target->getOrCreateScript(cx))
             return false;
     }
 
@@ -303,8 +301,8 @@ IonBuilder::canInlineTarget(JSFunction *target, bool constructing)
         return false;
     }
 
-    // Don't inline functions which don't have baseline scripts.
-    if (!inlineScript->hasBaselineScript()) {
+    // Don't inline functions which don't have baseline scripts compiled for them.
+    if (executionMode == SequentialExecution && !inlineScript->hasBaselineScript()) {
         IonSpew(IonSpew_Inlining, "%s:%d Cannot inline target with no baseline jitcode",
                                   inlineScript->filename(), inlineScript->lineno);
         return false;
@@ -515,13 +513,16 @@ IonBuilder::pushLoop(CFGState::State initial, jsbytecode *stopAt, MBasicBlock *e
 bool
 IonBuilder::init()
 {
+    if (!script()->ensureHasBytecodeTypeMap(cx))
+        return false;
+
     if (!types::TypeScript::FreezeTypeSets(constraints(), script(),
                                            &thisTypes, &argTypes, &typeArray))
     {
         return false;
     }
 
-    if (!analysis().init(gsn))
+    if (!analysis().init(cx))
         return false;
 
     return true;
@@ -554,14 +555,11 @@ IonBuilder::build()
     // start instruction, but the snapshot is encoded *at* the start
     // instruction, which means generating any code that could load into
     // registers is illegal.
-    MInstruction *scope = MConstant::New(UndefinedValue());
-    current->add(scope);
-    current->initSlot(info().scopeChainSlot(), scope);
-
-    // Initialize the return value.
-    MInstruction *returnValue = MConstant::New(UndefinedValue());
-    current->add(returnValue);
-    current->initSlot(info().returnValueSlot(), returnValue);
+    {
+        MInstruction *scope = MConstant::New(UndefinedValue());
+        current->add(scope);
+        current->initSlot(info().scopeChainSlot(), scope);
+    }
 
     // Initialize the arguments object slot to undefined if necessary.
     if (info().hasArguments()) {
@@ -713,14 +711,11 @@ IonBuilder::buildInline(IonBuilder *callerBuilder, MResumePoint *callerResumePoi
         return false;
 
     // Initialize scope chain slot to Undefined.  It's set later by |initScopeChain|.
-    MInstruction *scope = MConstant::New(UndefinedValue());
-    current->add(scope);
-    current->initSlot(info().scopeChainSlot(), scope);
-
-    // Initialize |return value| slot.
-    MInstruction *returnValue = MConstant::New(UndefinedValue());
-    current->add(returnValue);
-    current->initSlot(info().returnValueSlot(), returnValue);
+    {
+        MInstruction *scope = MConstant::New(UndefinedValue());
+        current->add(scope);
+        current->initSlot(info().scopeChainSlot(), scope);
+    }
 
     // Initialize |arguments| slot.
     if (info().hasArguments()) {
@@ -1202,8 +1197,6 @@ IonBuilder::traverseBytecode()
               case JSOP_SWAP:
               case JSOP_SETARG:
               case JSOP_SETLOCAL:
-              case JSOP_SETRVAL:
-              case JSOP_POPV:
               case JSOP_VOID:
                 // Don't require SSA uses for values popped by these ops.
                 break;
@@ -1253,7 +1246,6 @@ IonBuilder::snoopControlFlow(JSOp op)
 
       case JSOP_RETURN:
       case JSOP_STOP:
-      case JSOP_RETRVAL:
         return processReturn(op);
 
       case JSOP_THROW:
@@ -1657,12 +1649,6 @@ IonBuilder::inspectOpcode(JSOp op)
 
       case JSOP_IN:
         return jsop_in();
-
-      case JSOP_SETRVAL:
-      case JSOP_POPV:
-        JS_ASSERT(!script()->noScriptRval);
-        current->setSlot(info().returnValueSlot(), current->pop());
-        return true;
 
       case JSOP_INSTANCEOF:
         return jsop_instanceof();
@@ -3455,24 +3441,16 @@ IonBuilder::processReturn(JSOp op)
     MDefinition *def;
     switch (op) {
       case JSOP_RETURN:
-        // Return the last instruction.
         def = current->pop();
         break;
 
       case JSOP_STOP:
-        // Return undefined eagerly if script doesn't use return value.
-        if (script()->noScriptRval) {
-            MInstruction *ins = MConstant::New(UndefinedValue());
-            current->add(ins);
-            def = ins;
-            break;
-        }
-
-        // Fall through
-      case JSOP_RETRVAL:
-        // Return the value in the return value slot.
-        def = current->getSlot(info().returnValueSlot());
+      {
+        MInstruction *ins = MConstant::New(UndefinedValue());
+        current->add(ins);
+        def = ins;
         break;
+      }
 
       default:
         def = nullptr;
@@ -3775,7 +3753,7 @@ IonBuilder::inlineScriptedCall(CallInfo &callInfo, JSFunction *target)
     current->push(callInfo.fun());
 
     JSScript *calleeScript = target->nonLazyScript();
-    BaselineInspector inspector(calleeScript);
+    BaselineInspector inspector(cx, calleeScript);
 
     // Improve type information of |this| when not set.
     if (callInfo.constructing() &&
@@ -5698,16 +5676,6 @@ IonBuilder::newOsrPreheader(MBasicBlock *predecessor, jsbytecode *loopEntry)
         osrBlock->add(scopev);
         osrBlock->initSlot(slot, scopev);
     }
-    // Initialize |return value|
-    {
-        MInstruction *returnValue;
-        if (!script()->noScriptRval)
-            returnValue = MOsrReturnValue::New(entry);
-        else
-            returnValue = MConstant::New(UndefinedValue());
-        osrBlock->add(returnValue);
-        osrBlock->initSlot(info().returnValueSlot(), returnValue);
-    }
 
     // Initialize arguments object.
     bool needsArgsObj = info().needsArgsObj();
@@ -6139,7 +6107,7 @@ IonBuilder::pushTypeBarrier(MInstruction *ins, types::TemporaryTypeSet *observed
 {
     // Barriers are never needed for instructions whose result will not be used.
     if (BytecodeIsPopped(pc))
-        return true;
+        needsBarrier = false;
 
     // If the instruction has no side effects, we'll resume the entire operation.
     // The actual type barrier will occur in the interpreter. If the

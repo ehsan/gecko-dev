@@ -21,8 +21,7 @@ nsDOMMouseEvent::nsDOMMouseEvent(mozilla::dom::EventTarget* aOwner,
   // There's no way to make this class' ctor allocate an WidgetMouseScrollEvent.
   // It's not that important, though, since a scroll event is not a real
   // DOM event.
-
-  WidgetMouseEvent* mouseEvent = mEvent->AsMouseEvent();
+  
   if (aEvent) {
     mEventIsInternal = false;
   }
@@ -30,13 +29,20 @@ nsDOMMouseEvent::nsDOMMouseEvent(mozilla::dom::EventTarget* aOwner,
     mEventIsInternal = true;
     mEvent->time = PR_Now();
     mEvent->refPoint.x = mEvent->refPoint.y = 0;
-    mouseEvent->inputSource = nsIDOMMouseEvent::MOZ_SOURCE_UNKNOWN;
+    static_cast<WidgetMouseEvent*>(mEvent)->inputSource =
+      nsIDOMMouseEvent::MOZ_SOURCE_UNKNOWN;
   }
 
-  if (mouseEvent) {
-    MOZ_ASSERT(mouseEvent->reason != WidgetMouseEvent::eSynthesized,
-               "Don't dispatch DOM events from synthesized mouse events");
-    mDetail = mouseEvent->clickCount;
+  switch (mEvent->eventStructType)
+  {
+    case NS_MOUSE_EVENT:
+      NS_ASSERTION(static_cast<WidgetMouseEvent*>(mEvent)->reason
+                     != WidgetMouseEvent::eSynthesized,
+                   "Don't dispatch DOM events from synthesized mouse events");
+      mDetail = static_cast<WidgetMouseEvent*>(mEvent)->clickCount;
+      break;
+    default:
+      break;
   }
 }
 
@@ -72,8 +78,8 @@ nsDOMMouseEvent::InitMouseEvent(const nsAString & aType, bool aCanBubble, bool a
       mouseEventBase->refPoint.x = aScreenX;
       mouseEventBase->refPoint.y = aScreenY;
 
-      WidgetMouseEvent* mouseEvent = mEvent->AsMouseEvent();
-      if (mouseEvent) {
+      if (mEvent->eventStructType == NS_MOUSE_EVENT) {
+        WidgetMouseEvent* mouseEvent = static_cast<WidgetMouseEvent*>(mEvent);
         mouseEvent->clickCount = aDetail;
       }
       break;

@@ -38,10 +38,10 @@ ToolbarView.prototype = {
     this._stepOutButton = document.getElementById("step-out");
     this._chromeGlobals = document.getElementById("chrome-globals");
 
-    let resumeKey = ShortcutUtils.prettifyShortcut(document.getElementById("resumeKey"));
-    let stepOverKey = ShortcutUtils.prettifyShortcut(document.getElementById("stepOverKey"));
-    let stepInKey = ShortcutUtils.prettifyShortcut(document.getElementById("stepInKey"));
-    let stepOutKey = ShortcutUtils.prettifyShortcut(document.getElementById("stepOutKey"));
+    let resumeKey = DevtoolsHelpers.prettyKey(document.getElementById("resumeKey"), true);
+    let stepOverKey = DevtoolsHelpers.prettyKey(document.getElementById("stepOverKey"), true);
+    let stepInKey = DevtoolsHelpers.prettyKey(document.getElementById("stepInKey"), true);
+    let stepOutKey = DevtoolsHelpers.prettyKey(document.getElementById("stepOutKey"), true);
     this._resumeTooltip = L10N.getFormatStr("resumeButtonTooltip", resumeKey);
     this._pauseTooltip = L10N.getFormatStr("pauseButtonTooltip", resumeKey);
     this._stepOverTooltip = L10N.getFormatStr("stepOverTooltip", stepOverKey);
@@ -696,12 +696,12 @@ FilterView.prototype = {
     this._variableOperatorButton = document.getElementById("variable-operator-button");
     this._variableOperatorLabel = document.getElementById("variable-operator-label");
 
-    this._fileSearchKey = ShortcutUtils.prettifyShortcut(document.getElementById("fileSearchKey"));
-    this._globalSearchKey = ShortcutUtils.prettifyShortcut(document.getElementById("globalSearchKey"));
-    this._filteredFunctionsKey = ShortcutUtils.prettifyShortcut(document.getElementById("functionSearchKey"));
-    this._tokenSearchKey = ShortcutUtils.prettifyShortcut(document.getElementById("tokenSearchKey"));
-    this._lineSearchKey = ShortcutUtils.prettifyShortcut(document.getElementById("lineSearchKey"));
-    this._variableSearchKey = ShortcutUtils.prettifyShortcut(document.getElementById("variableSearchKey"));
+    this._fileSearchKey = DevtoolsHelpers.prettyKey(document.getElementById("fileSearchKey"), true);
+    this._globalSearchKey = DevtoolsHelpers.prettyKey(document.getElementById("globalSearchKey"), true);
+    this._filteredFunctionsKey = DevtoolsHelpers.prettyKey(document.getElementById("functionSearchKey"), true);
+    this._tokenSearchKey = DevtoolsHelpers.prettyKey(document.getElementById("tokenSearchKey"), true);
+    this._lineSearchKey = DevtoolsHelpers.prettyKey(document.getElementById("lineSearchKey"), true);
+    this._variableSearchKey = DevtoolsHelpers.prettyKey(document.getElementById("variableSearchKey"), true);
 
     this._searchbox.addEventListener("click", this._onClick, false);
     this._searchbox.addEventListener("select", this._onInput, false);
@@ -861,9 +861,10 @@ FilterView.prototype = {
    */
   _performLineSearch: function(aLine) {
     // Make sure we're actually searching for a valid line.
-    if (aLine) {
-      DebuggerView.editor.setCursor({ line: aLine - 1, ch: 0 });
+    if (!aLine) {
+      return;
     }
+    DebuggerView.editor.setCaretPosition(aLine - 1);
   },
 
   /**
@@ -878,8 +879,10 @@ FilterView.prototype = {
     if (!aToken) {
       return;
     }
-
-    DebuggerView.editor.find(aToken);
+    let offset = DebuggerView.editor.find(aToken, { ignoreCase: true });
+    if (offset > -1) {
+      DebuggerView.editor.setSelection(offset, offset + aToken.length)
+    }
   },
 
   /**
@@ -1040,8 +1043,14 @@ FilterView.prototype = {
 
     // Jump to the next/previous instance of the currently searched token.
     if (isTokenSearch) {
-      let methods = { selectNext: "findNext", selectPrev: "findPrev" };
-      DebuggerView.editor[methods[actionToPerform]]();
+      let [, token] = args;
+      let methods = { selectNext: "findNext", selectPrev: "findPrevious" };
+
+      // Search for the token and select it.
+      let offset = DebuggerView.editor[methods[actionToPerform]](true);
+      if (offset > -1) {
+        DebuggerView.editor.setSelection(offset, offset + token.length)
+      }
       return;
     }
 
@@ -1052,7 +1061,7 @@ FilterView.prototype = {
 
       // Modify the line number and jump to it.
       line += !isReturnKey ? amounts[actionToPerform] : 0;
-      let lineCount = DebuggerView.editor.lineCount();
+      let lineCount = DebuggerView.editor.getLineCount();
       let lineTarget = line < 1 ? 1 : line > lineCount ? lineCount : line;
       this._doSearch(SEARCH_LINE_FLAG, lineTarget);
       return;
@@ -1075,7 +1084,7 @@ FilterView.prototype = {
   _doSearch: function(aOperator = "", aText = "") {
     this._searchbox.focus();
     this._searchbox.value = ""; // Need to clear value beforehand. Bug 779738.
-    this._searchbox.value = aOperator + (aText || DebuggerView.editor.getSelection());
+    this._searchbox.value = aOperator + (aText || DebuggerView.editor.getSelectedText());
   },
 
   /**
