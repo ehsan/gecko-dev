@@ -9,10 +9,9 @@
 #include "ion/BaselineJIT.h"
 #include "ion/CompileInfo.h"
 #include "ion/IonSpewer.h"
+#include "ion/IonFrames-inl.h"
 
 #include "jsfuninlines.h"
-
-#include "ion/IonFrames-inl.h"
 
 using namespace js;
 using namespace js::ion;
@@ -383,7 +382,7 @@ GetStubReturnAddress(JSContext *cx, jsbytecode *pc)
     if (IsSetterPC(pc))
         return cx->compartment()->ionCompartment()->baselineSetPropReturnAddr();
     // This should be a call op of some kind, now.
-    JS_ASSERT(IsCallPC(pc));
+    JS_ASSERT(js_CodeSpec[JSOp(*pc)].format & JOF_INVOKE);
     return cx->compartment()->ionCompartment()->baselineCallReturnAddr();
 }
 
@@ -770,7 +769,7 @@ InitFromBailout(JSContext *cx, HandleScript caller, jsbytecode *callerPC,
     }
 
     uint32_t pcOff = pc - script->code;
-    bool isCall = IsCallPC(pc);
+    bool isCall = js_CodeSpec[op].format & JOF_INVOKE;
     BaselineScript *baselineScript = script->baselineScript();
 
 #ifdef DEBUG
@@ -1008,7 +1007,7 @@ InitFromBailout(JSContext *cx, HandleScript caller, jsbytecode *callerPC,
 
     // Write out actual arguments (and thisv), copied from unpacked stack of BaselineJS frame.
     // Arguments are reversed on the BaselineJS frame's stack values.
-    JS_ASSERT(IsIonInlinablePC(pc));
+    JS_ASSERT(isCall || IsGetterPC(pc) || IsSetterPC(pc));
     unsigned actualArgc;
     if (needToSaveArgs) {
         // For FUNAPPLY or an accessor, the arguments are not on the stack anymore,

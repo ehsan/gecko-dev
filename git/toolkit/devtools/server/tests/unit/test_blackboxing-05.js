@@ -17,12 +17,7 @@ function run_test()
   gClient.connect(function() {
     attachTestTabAndResume(gClient, "test-black-box", function(aResponse, aTabClient, aThreadClient) {
       gThreadClient = aThreadClient;
-      // XXX: We have to do an executeSoon so that the error isn't caught and
-      // reported by DebuggerClient.requester (because we are using the local
-      // transport and share a stack) which causes the test to fail.
-      Services.tm.mainThread.dispatch({
-        run: test_black_box
-      }, Ci.nsIThread.DISPATCH_NORMAL);
+      test_black_box();
     });
   });
   do_test_pending();

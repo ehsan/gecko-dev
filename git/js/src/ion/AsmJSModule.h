@@ -7,18 +7,20 @@
 #ifndef ion_AsmJSModule_h
 #define ion_AsmJSModule_h
 
+#include "mozilla/MathAlgorithms.h"
+
 #ifdef JS_ION
 
-#include "mozilla/MathAlgorithms.h"
+#include "gc/Marking.h"
+#include "ion/RegisterSets.h"
 
 #include "jsscript.h"
 
-#include "gc/Marking.h"
-#include "ion/IonMacroAssembler.h"
 #if defined(JS_ION_PERF)
 # include "ion/PerfSpewer.h"
 #endif
-#include "ion/RegisterSets.h"
+
+#include "ion/IonMacroAssembler.h"
 
 namespace js {
 

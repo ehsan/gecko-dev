@@ -7,11 +7,10 @@
 #ifndef ion_x64_Assembler_x64_h
 #define ion_x64_Assembler_x64_h
 
-#include "mozilla/Util.h"
-
+#include "ion/shared/Assembler-shared.h"
 #include "ion/CompactBuffer.h"
 #include "ion/IonCode.h"
-#include "ion/shared/Assembler-shared.h"
+#include "mozilla/Util.h"
 
 namespace js {
 namespace ion {

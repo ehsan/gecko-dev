@@ -7,7 +7,7 @@
 #define MPAPI_h_
 
 #include <stdint.h>
-#include "GrallocImages.h"
+#include "GonkIOSurfaceImage.h"
 
 namespace MPAPI {
 

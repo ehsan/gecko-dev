@@ -8,16 +8,15 @@
 
 #include "mozilla/FloatingPoint.h"
 
-#include "jsnum.h"
-#include "jsstr.h"
-
 #include "ion/BaselineInspector.h"
-#include "ion/EdgeCaseAnalysis.h"
 #include "ion/IonBuilder.h"
-#include "ion/IonSpewer.h"
 #include "ion/LICM.h" // For LinearSum
 #include "ion/MIRGraph.h"
+#include "ion/EdgeCaseAnalysis.h"
 #include "ion/RangeAnalysis.h"
+#include "ion/IonSpewer.h"
+#include "jsnum.h"
+#include "jsstr.h"
 
 #include "jsatominlines.h"
 #include "jsinferinlines.h"

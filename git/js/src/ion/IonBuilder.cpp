@@ -12,8 +12,8 @@
 #include "frontend/SourceNotes.h"
 #include "ion/BaselineFrame.h"
 #include "ion/BaselineInspector.h"
-#include "ion/ExecutionModeInlines.h"
 #include "ion/Ion.h"
+#include "ion/IonAnalysis.h"
 #include "ion/IonAnalysis.h"
 #include "ion/IonSpewer.h"
 #include "ion/Lowering.h"
@@ -24,6 +24,7 @@
 #include "jsscriptinlines.h"
 
 #include "ion/CompileInfo-inl.h"
+#include "ion/ExecutionModeInlines.h"
 
 using namespace js;
 using namespace js::ion;
@@ -3428,7 +3429,7 @@ bool
 IonBuilder::inlineScriptedCall(CallInfo &callInfo, JSFunction *target)
 {
     JS_ASSERT(target->isInterpreted());
-    JS_ASSERT(IsIonInlinablePC(pc));
+    JS_ASSERT(types::IsInlinableCall(pc));
 
     // Remove any MPassArgs.
     if (callInfo.isWrapped())
@@ -4094,7 +4095,7 @@ IonBuilder::inlineCalls(CallInfo &callInfo, AutoObjectVector &targets,
                         MGetPropertyCache *maybeCache)
 {
     // Only handle polymorphic inlining.
-    JS_ASSERT(IsIonInlinablePC(pc));
+    JS_ASSERT(types::IsInlinableCall(pc));
     JS_ASSERT(choiceSet.length() == targets.length());
     JS_ASSERT_IF(!maybeCache, targets.length() >= 2);
     JS_ASSERT_IF(maybeCache, targets.length() >= 1);

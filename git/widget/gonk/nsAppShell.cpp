@@ -208,13 +208,15 @@ static nsEventStatus
 sendKeyEventWithMsg(uint32_t keyCode,
                     KeyNameIndex keyNameIndex,
                     uint32_t msg,
-                    uint64_t timeMs)
+                    uint64_t timeMs,
+                    const EventFlags& flags)
 {
     nsKeyEvent event(true, msg, NULL);
     event.keyCode = keyCode;
     event.mKeyNameIndex = keyNameIndex;
     event.location = nsIDOMKeyEvent::DOM_KEY_LOCATION_MOBILE;
     event.time = timeMs;
+    event.mFlags.Union(flags);
     return nsWindow::DispatchInputEvent(event);
 }
 
@@ -225,9 +227,12 @@ sendKeyEvent(uint32_t keyCode, KeyNameIndex keyNameIndex, bool down,
     EventFlags extraFlags;
     nsEventStatus status =
         sendKeyEventWithMsg(keyCode, keyNameIndex,
-                            down ? NS_KEY_DOWN : NS_KEY_UP, timeMs);
-    if (down && status != nsEventStatus_eConsumeNoDefault) {
-        sendKeyEventWithMsg(keyCode, keyNameIndex, NS_KEY_PRESS, timeMs);
+                            down ? NS_KEY_DOWN : NS_KEY_UP, timeMs, extraFlags);
+    if (down) {
+        extraFlags.mDefaultPrevented =
+            (status == nsEventStatus_eConsumeNoDefault);
+        sendKeyEventWithMsg(keyCode, keyNameIndex, NS_KEY_PRESS, timeMs,
+                            extraFlags);
     }
 }
 

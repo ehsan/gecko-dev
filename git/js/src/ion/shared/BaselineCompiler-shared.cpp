@@ -5,7 +5,6 @@
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
 #include "ion/shared/BaselineCompiler-shared.h"
-
 #include "ion/BaselineIC.h"
 #include "ion/VMFunctions.h"
 

@@ -282,16 +282,8 @@ NS_INTERFACE_MAP_BEGIN_CYCLE_COLLECTION(nsPluginElement)
   NS_INTERFACE_MAP_ENTRY(nsISupports)
 NS_INTERFACE_MAP_END
 
-NS_IMPL_CYCLE_COLLECTION_UNLINK_BEGIN(nsPluginElement)
-  NS_IMPL_CYCLE_COLLECTION_UNLINK_PRESERVED_WRAPPER
-  // Invalidate before we unlink mMimeTypes
-  tmp->Invalidate();
-  NS_IMPL_CYCLE_COLLECTION_UNLINK(mMimeTypes)
-NS_IMPL_CYCLE_COLLECTION_UNLINK_END
-NS_IMPL_CYCLE_COLLECTION_TRAVERSE_BEGIN(nsPluginElement)
-  NS_IMPL_CYCLE_COLLECTION_TRAVERSE_SCRIPT_OBJECTS
-NS_IMPL_CYCLE_COLLECTION_TRAVERSE_END
-NS_IMPL_CYCLE_COLLECTION_TRACE_WRAPPERCACHE(nsPluginElement)
+NS_IMPL_CYCLE_COLLECTION_WRAPPERCACHE_1(nsPluginElement,
+                                        mMimeTypes)
 
 nsPluginElement::nsPluginElement(nsWeakPtr aWindow,
                                  nsPluginTag* aPluginTag)
@@ -303,7 +295,9 @@ nsPluginElement::nsPluginElement(nsWeakPtr aWindow,
 
 nsPluginElement::~nsPluginElement()
 {
-  Invalidate();
+  for (uint32_t i = 0; i < mMimeTypes.Length(); ++i) {
+    mMimeTypes[i]->Invalidate();
+  }
 }
 
 nsPIDOMWindow*
@@ -423,13 +417,5 @@ nsPluginElement::EnsureMimeTypes()
   for (uint32_t i = 0; i < mPluginTag->mMimeTypes.Length(); ++i) {
     NS_ConvertUTF8toUTF16 type(mPluginTag->mMimeTypes[i]);
     mMimeTypes.AppendElement(new nsMimeType(mWindow, this, i, type));
-  }
-}
-
-void
-nsPluginElement::Invalidate()
-{
-  for (uint32_t i = 0; i < mMimeTypes.Length(); ++i) {
-    mMimeTypes[i]->Invalidate();
   }
 }

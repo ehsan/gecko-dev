@@ -14,6 +14,7 @@
 #include "ion/BaselineIC.h"
 #include "ion/BaselineJIT.h"
 #include "ion/BaselineRegisters.h"
+#include "ion/IonMacroAssembler.h"
 #include "ion/MIR.h"
 #include "js/RootingAPI.h"
 #include "vm/ForkJoin.h"

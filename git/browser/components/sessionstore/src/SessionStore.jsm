@@ -79,7 +79,7 @@ Cu.import("resource://gre/modules/TelemetryTimestamps.jsm", this);
 Cu.import("resource://gre/modules/TelemetryStopwatch.jsm", this);
 Cu.import("resource://gre/modules/osfile.jsm", this);
 Cu.import("resource://gre/modules/PrivateBrowsingUtils.jsm", this);
-Cu.import("resource://gre/modules/Promise.jsm", this);
+Cu.import("resource://gre/modules/commonjs/sdk/core/promise.js", this);
 Cu.import("resource://gre/modules/Task.jsm", this);
 
 XPCOMUtils.defineLazyServiceGetter(this, "gSessionStartup",
@@ -139,7 +139,7 @@ this.SessionStore = {
   },
 
   init: function ss_init(aWindow) {
-    return SessionStoreInternal.init(aWindow);
+    SessionStoreInternal.init(aWindow);
   },
 
   getBrowserState: function ss_getBrowserState() {
@@ -579,11 +579,9 @@ let SessionStoreInternal = {
 
     let self = this;
     this.initService();
-    return this._promiseInitialization.promise.then(
+    this._promiseInitialization.promise.then(
       function onSuccess() {
-        if (!aWindow.closed) {
-          self.onLoad(aWindow);
-        }
+        self.onLoad(aWindow);
       }
     );
   },

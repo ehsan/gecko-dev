@@ -845,14 +845,8 @@ nsFormFillController::Focus(nsIDOMEvent* aEvent)
   if (!inputNode)
     return NS_OK;
 
-  nsCOMPtr<nsIFormControl> formControl = do_QueryInterface(input);
-  if (!formControl || !formControl->IsSingleLineTextControl(true))
-    return NS_OK;
-
   bool isReadOnly = false;
   input->GetReadOnly(&isReadOnly);
-  if (isReadOnly)
-    return NS_OK;
 
   bool autocomplete = nsContentUtils::IsAutocompleteEnabled(input);
 
@@ -865,7 +859,10 @@ nsFormFillController::Focus(nsIDOMEvent* aEvent)
   if (mPwmgrInputs.Get(inputNode, &dummy))
       isPwmgrInput = true;
 
-  if (isPwmgrInput || hasList || autocomplete) {
+  nsCOMPtr<nsIFormControl> formControl = do_QueryInterface(input);
+  if (isPwmgrInput || (formControl &&
+                       formControl->IsSingleLineTextControl(true) &&
+                       (hasList || autocomplete) && !isReadOnly)) {
     StartControllingInput(input);
   }
 

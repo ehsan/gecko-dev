@@ -10,11 +10,12 @@
 #include "mozilla/MemoryReporting.h"
 #include "mozilla/PodOperations.h"
 
-#include "jsinfer.h"
-
-#include "gc/Heap.h"
-#include "ion/AsmJS.h"
 #include "ion/IonTypes.h"
+#include "ion/AsmJS.h"
+#include "gc/Heap.h"
+
+// For RecompileInfo
+#include "jsinfer.h"
 
 namespace JSC {
     class ExecutablePool;

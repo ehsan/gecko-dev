@@ -9,10 +9,6 @@
 
 #include "jspubtd.h"
 
-#include "ion/CompileInfo.h"
-#include "ion/Ion.h"
-#include "ion/IonFrames.h"
-
 namespace js {
 
 class DeclEnvObject;
