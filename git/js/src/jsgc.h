@@ -1368,13 +1368,13 @@ js_IsAddressableGCThing(JSRuntime *rt, jsuword w, js::gc::AllocKind *thingKind, 
 
 namespace js {
 
-extern void
+extern JS_REQUIRES_STACK void
 MarkRuntime(JSTracer *trc);
 
 extern void
 TraceRuntime(JSTracer *trc);
 
-extern JS_FRIEND_API(void)
+extern JS_REQUIRES_STACK JS_FRIEND_API(void)
 MarkContext(JSTracer *trc, JSContext *acx);
 
 /* Must be called with GC lock taken. */

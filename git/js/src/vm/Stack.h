@@ -73,7 +73,6 @@ class FrameRegsIter;
 class AllFramesIter;
 
 class ArgumentsObject;
-class StaticBlockObject;
 
 #ifdef JS_METHODJIT
 typedef js::mjit::CallSite JSInlinedSite;
@@ -370,7 +369,7 @@ class StackFrame
 
     /* Lazily initialized */
     Value               rval_;          /* return value of the frame */
-    StaticBlockObject   *blockChain_;   /* innermost let block */
+    JSObject            *blockChain_;   /* innermost let block */
     jsbytecode          *prevpc_;       /* pc of previous frame*/
     JSInlinedSite       *prevInline_;   /* inlined site in previous frame */
     void                *hookData_;     /* closure returned by call hook */
@@ -849,16 +848,16 @@ class StackFrame
         return (flags_ & HAS_BLOCKCHAIN) && blockChain_;
     }
 
-    StaticBlockObject *maybeBlockChain() {
+    JSObject *maybeBlockChain() {
         return (flags_ & HAS_BLOCKCHAIN) ? blockChain_ : NULL;
     }
 
-    StaticBlockObject &blockChain() const {
+    JSObject &blockChain() const {
         JS_ASSERT(hasBlockChain());
         return *blockChain_;
     }
 
-    void setBlockChain(StaticBlockObject *obj) {
+    void setBlockChain(JSObject *obj) {
         flags_ |= HAS_BLOCKCHAIN;
         blockChain_ = obj;
     }

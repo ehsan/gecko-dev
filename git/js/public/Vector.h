@@ -54,11 +54,7 @@
 
 namespace js {
 
-class TempAllocPolicy;
-
-template <class T,
-          size_t MinInlineCapacity = 0,
-          class AllocPolicy = TempAllocPolicy>
+template <class T, size_t N, class AllocPolicy>
 class Vector;
 
 /*

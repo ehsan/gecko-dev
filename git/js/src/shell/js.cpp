@@ -3740,7 +3740,7 @@ Wrap(JSContext *cx, uintN argc, jsval *vp)
     }
 
     JSObject *obj = JSVAL_TO_OBJECT(v);
-    JSObject *wrapped = Wrapper::New(cx, obj, obj->getProto(), &obj->global(),
+    JSObject *wrapped = Wrapper::New(cx, obj, obj->getProto(), obj->getGlobal(),
                                      &Wrapper::singleton);
     if (!wrapped)
         return false;

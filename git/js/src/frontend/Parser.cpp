@@ -179,6 +179,8 @@ Parser::setPrincipals(JSPrincipals *prin, JSPrincipals *originPrin)
 ObjectBox *
 Parser::newObjectBox(JSObject *obj)
 {
+    JS_ASSERT(obj);
+
     /*
      * We use JSContext.tempLifoAlloc to allocate parsed objects and place them
      * on a list in this Parser to ensure GC safety. Thus the tempLifoAlloc
@@ -851,18 +853,18 @@ struct BindData {
     union {
         struct {
             VarContext varContext;
-            StaticBlockObject *blockObj;
+            JSObject *blockObj;
             uintN   overflow;
         } let;
     };
     bool fresh;
 
-    void initLet(VarContext varContext, StaticBlockObject &blockObj, uintN overflow) {
+    void initLet(VarContext varContext, JSObject *blockObj, uintN overflow) {
         this->pn = NULL;
         this->op = JSOP_NOP;
         this->binder = BindLet;
         this->let.varContext = varContext;
-        this->let.blockObj = &blockObj;
+        this->let.blockObj = blockObj;
         this->let.overflow = overflow;
     }
 
@@ -1928,8 +1930,8 @@ BindLet(JSContext *cx, BindData *data, JSAtom *atom, TreeContext *tc)
     if (!CheckStrictBinding(cx, tc, atom->asPropertyName(), pn))
         return false;
 
-    StaticBlockObject &blockObj = *data->let.blockObj;
-    uintN blockCount = blockObj.slotCount();
+    JSObject *blockObj = data->let.blockObj;
+    uintN blockCount = OBJ_BLOCK_COUNT(cx, blockObj);
     if (blockCount == JS_BIT(16)) {
         ReportCompileErrorNumber(cx, TS(tc->parser), pn,
                                  JSREPORT_ERROR, data->let.overflow);
@@ -1966,23 +1968,26 @@ BindLet(JSContext *cx, BindData *data, JSAtom *atom, TreeContext *tc)
      */
     bool redeclared;
     jsid id = ATOM_TO_JSID(atom);
-    const Shape *shape = blockObj.addVar(cx, id, blockCount, &redeclared);
+    const Shape *shape = blockObj->defineBlockVariable(cx, id, blockCount, &redeclared);
     if (!shape) {
         if (redeclared)
             ReportRedeclaration(cx, tc, pn, false, atom);
         return false;
     }
 
-    /* Store pn in the static block object. */
-    blockObj.setDefinitionParseNode(blockCount, reinterpret_cast<Definition *>(pn));
+    /*
+     * Store pn temporarily in the shape-mapped slots in the static block
+     * object. This value is clobbered in EmitEnterBlock.
+     */
+    blockObj->setSlot(shape->slot(), PrivateValue(pn));
     return true;
 }
 
 template <class Op>
 static inline bool
-ForEachLetDef(TreeContext *tc, StaticBlockObject &blockObj, Op op)
+ForEachLetDef(TreeContext *tc, JSObject *blockObj, Op op)
 {
-    for (Shape::Range r = blockObj.lastProperty()->all(); !r.empty(); r.popFront()) {
+    for (Shape::Range r = blockObj->lastProperty()->all(); !r.empty(); r.popFront()) {
         const Shape &shape = r.front();
 
         /* Beware the destructuring dummy slots. */
@@ -1996,7 +2001,7 @@ ForEachLetDef(TreeContext *tc, StaticBlockObject &blockObj, Op op)
 }
 
 struct RemoveDecl {
-    bool operator()(TreeContext *tc, StaticBlockObject &, const Shape &, JSAtom *atom) {
+    bool operator()(TreeContext *tc, JSObject *, const Shape &, JSAtom *atom) {
         tc->decls.remove(atom);
         return true;
     }
@@ -2006,9 +2011,9 @@ static void
 PopStatement(TreeContext *tc)
 {
     if (tc->topStmt->flags & SIF_SCOPE) {
-        StaticBlockObject &blockObj = *tc->topStmt->blockObj;
-        JS_ASSERT(!blockObj.inDictionaryMode());
-        ForEachLetDef(tc, blockObj, RemoveDecl());
+        JSObject *obj = tc->topStmt->blockObj;
+        JS_ASSERT(!obj->inDictionaryMode());
+        ForEachLetDef(tc, obj, RemoveDecl());
     }
     PopStatementTC(tc);
 }
@@ -2582,8 +2587,8 @@ CheckDestructuring(JSContext *cx, BindData *data, ParseNode *left, TreeContext *
         return false;
     }
 
-    StaticBlockObject *blockObj = data && data->binder == BindLet ? data->let.blockObj : NULL;
-    uint32_t blockCountBefore = blockObj ? blockObj->slotCount() : 0;
+    JSObject *blockObj = data && data->binder == BindLet ? data->let.blockObj : NULL;
+    uint32_t blockCountBefore = blockObj ? OBJ_BLOCK_COUNT(cx, blockObj) : 0;
 
     if (left->isKind(PNK_RB)) {
         for (ParseNode *pn = left->pn_head; pn; pn = pn->pn_next) {
@@ -2653,7 +2658,7 @@ CheckDestructuring(JSContext *cx, BindData *data, ParseNode *left, TreeContext *
      * corresponding dummy property to the block object) for each initializer
      * that doesn't introduce at least one binding.
      */
-    if (toplevel && blockObj && blockCountBefore == blockObj->slotCount()) {
+    if (toplevel && blockObj && blockCountBefore == OBJ_BLOCK_COUNT(cx, blockObj)) {
         if (!DefineNativeProperty(cx, blockObj,
                                   INT_TO_JSID(blockCountBefore),
                                   UndefinedValue(), NULL, NULL,
@@ -2661,7 +2666,7 @@ CheckDestructuring(JSContext *cx, BindData *data, ParseNode *left, TreeContext *
                                   Shape::HAS_SHORTID, blockCountBefore)) {
             return false;
         }
-        JS_ASSERT(blockObj->slotCount() == blockCountBefore + 1);
+        JS_ASSERT(OBJ_BLOCK_COUNT(cx, blockObj) == blockCountBefore + 1);
     }
 
     return true;
@@ -2806,13 +2811,13 @@ Parser::returnOrYield(bool useAssignExpr)
 }
 
 static ParseNode *
-PushLexicalScope(JSContext *cx, TreeContext *tc, StaticBlockObject &obj, StmtInfo *stmt)
+PushLexicalScope(JSContext *cx, TreeContext *tc, JSObject *obj, StmtInfo *stmt)
 {
     ParseNode *pn = LexicalScopeNode::create(PNK_LEXICALSCOPE, tc);
     if (!pn)
         return NULL;
 
-    ObjectBox *blockbox = tc->parser->newObjectBox(&obj);
+    ObjectBox *blockbox = tc->parser->newObjectBox(obj);
     if (!blockbox)
         return NULL;
 
@@ -2830,11 +2835,11 @@ PushLexicalScope(JSContext *cx, TreeContext *tc, StaticBlockObject &obj, StmtInf
 static ParseNode *
 PushLexicalScope(JSContext *cx, TreeContext *tc, StmtInfo *stmt)
 {
-    StaticBlockObject *blockObj = StaticBlockObject::create(cx);
-    if (!blockObj)
+    JSObject *obj = js_NewBlockObject(cx);
+    if (!obj)
         return NULL;
 
-    return PushLexicalScope(cx, tc, *blockObj, stmt);
+    return PushLexicalScope(cx, tc, obj, stmt);
 }
 
 #if JS_HAS_BLOCK_SCOPE
@@ -2845,16 +2850,16 @@ struct AddDecl
 
     AddDecl(uint32_t blockid) : blockid(blockid) {}
 
-    bool operator()(TreeContext *tc, StaticBlockObject &blockObj, const Shape &shape, JSAtom *atom)
+    bool operator()(TreeContext *tc, JSObject *blockObj, const Shape &shape, JSAtom *atom)
     {
-        ParseNode *def = (ParseNode *) blockObj.getSlot(shape.slot()).toPrivate();
+        ParseNode *def = (ParseNode *) blockObj->getSlot(shape.slot()).toPrivate();
         def->pn_blockid = blockid;
         return Define(def, atom, tc, true);
     }
 };
 
 static ParseNode *
-PushLetScope(JSContext *cx, TreeContext *tc, StaticBlockObject &blockObj, StmtInfo *stmt)
+PushLetScope(JSContext *cx, TreeContext *tc, JSObject *blockObj, StmtInfo *stmt)
 {
     ParseNode *pn = PushLexicalScope(cx, tc, blockObj, stmt);
     if (!pn)
@@ -2884,7 +2889,7 @@ Parser::letBlock(LetContext letContext)
     if (!pnlet)
         return NULL;
 
-    StaticBlockObject *blockObj = StaticBlockObject::create(context);
+    JSObject *blockObj = js_NewBlockObject(context);
     if (!blockObj)
         return NULL;
 
@@ -2897,7 +2902,7 @@ Parser::letBlock(LetContext letContext)
     MUST_MATCH_TOKEN(TOK_RP, JSMSG_PAREN_AFTER_LET);
 
     StmtInfo stmtInfo;
-    ParseNode *block = PushLetScope(context, tc, *blockObj, &stmtInfo);
+    ParseNode *block = PushLetScope(context, tc, blockObj, &stmtInfo);
     if (!block)
         return NULL;
 
@@ -2964,7 +2969,7 @@ PushBlocklikeStatement(StmtInfo *stmt, StmtType type, TreeContext *tc)
 }
 
 static ParseNode *
-NewBindingNode(JSAtom *atom, TreeContext *tc, StaticBlockObject *blockObj = NULL,
+NewBindingNode(JSAtom *atom, TreeContext *tc, JSObject *blockObj = NULL,
                VarContext varContext = HoistVars)
 {
     /*
@@ -3164,7 +3169,7 @@ Parser::forStatement()
     bool forDecl = false;
 
     /* Non-null when forDecl is true for a 'for (let ...)' statement. */
-    StaticBlockObject *blockObj = NULL;
+    JSObject *blockObj = NULL;
 
     /* Set to 'x' in 'for (x ;... ;...)' or 'for (x in ...)'. */
     ParseNode *pn1;
@@ -3205,7 +3210,7 @@ Parser::forStatement()
                     pn1 = letBlock(LetExpresion);
                 } else {
                     forDecl = true;
-                    blockObj = StaticBlockObject::create(context);
+                    blockObj = js_NewBlockObject(context);
                     if (!blockObj)
                         return NULL;
                     pn1 = variables(PNK_LET, blockObj, DontHoistVars);
@@ -3366,7 +3371,7 @@ Parser::forStatement()
              * created by PushLetScope around the for's initializer. This also
              * serves to indicate the let-decl to the emitter.
              */
-            ParseNode *block = PushLetScope(context, tc, *blockObj, &letStmt);
+            ParseNode *block = PushLetScope(context, tc, blockObj, &letStmt);
             if (!block)
                 return NULL;
             letStmt.flags |= SIF_FOR_BLOCK;
@@ -3423,7 +3428,7 @@ Parser::forStatement()
              * Desugar 'for (let A; B; C) D' into 'let (A) { for (; B; C) D }'
              * to induce the correct scoping for A.
              */
-            ParseNode *block = PushLetScope(context, tc, *blockObj, &letStmt);
+            ParseNode *block = PushLetScope(context, tc, blockObj, &letStmt);
             if (!block)
                 return NULL;
             letStmt.flags |= SIF_FOR_BLOCK;
@@ -3583,7 +3588,7 @@ Parser::tryStatement()
              * scoped, not a property of a new Object instance.  This is
              * an intentional change that anticipates ECMA Ed. 4.
              */
-            data.initLet(HoistVars, *tc->blockChain, JSMSG_TOO_MANY_CATCH_VARS);
+            data.initLet(HoistVars, tc->blockChain, JSMSG_TOO_MANY_CATCH_VARS);
             JS_ASSERT(data.let.blockObj && data.let.blockObj == pnblock->pn_objbox->object);
 
             tt = tokenStream.getToken();
@@ -3787,11 +3792,11 @@ Parser::letStatement()
             JS_ASSERT(!stmt->downScope);
 
             /* Convert the block statement into a scope statement. */
-            StaticBlockObject *blockObj = StaticBlockObject::create(tc->parser->context);
-            if (!blockObj)
+            JSObject *obj = js_NewBlockObject(tc->parser->context);
+            if (!obj)
                 return NULL;
 
-            ObjectBox *blockbox = tc->parser->newObjectBox(blockObj);
+            ObjectBox *blockbox = tc->parser->newObjectBox(obj);
             if (!blockbox)
                 return NULL;
 
@@ -3805,9 +3810,9 @@ Parser::letStatement()
             stmt->downScope = tc->topScopeStmt;
             tc->topScopeStmt = stmt;
 
-            blockObj->setEnclosingBlock(tc->blockChain);
-            tc->blockChain = blockObj;
-            stmt->blockObj = blockObj;
+            obj->setStaticBlockScopeChain(tc->blockChain);
+            tc->blockChain = obj;
+            stmt->blockObj = obj;
 
 #ifdef DEBUG
             ParseNode *tmp = tc->blockNode;
@@ -4278,7 +4283,7 @@ Parser::statement()
  * context, and the let-initializer of a for-statement.
  */
 ParseNode *
-Parser::variables(ParseNodeKind kind, StaticBlockObject *blockObj, VarContext varContext)
+Parser::variables(ParseNodeKind kind, JSObject *blockObj, VarContext varContext)
 {
     /*
      * The four options here are:
@@ -4303,7 +4308,7 @@ Parser::variables(ParseNodeKind kind, StaticBlockObject *blockObj, VarContext va
      */
     BindData data;
     if (blockObj)
-        data.initLet(varContext, *blockObj, JSMSG_TOO_MANY_LOCALS);
+        data.initLet(varContext, blockObj, JSMSG_TOO_MANY_LOCALS);
     else
         data.initVarOrConst(pn->getOp());
 
@@ -5364,7 +5369,7 @@ Parser::comprehensionTail(ParseNode *kid, uintN blockid, bool isGenexp,
     transplanter.transplant(kid);
 
     JS_ASSERT(tc->blockChain && tc->blockChain == pn->pn_objbox->object);
-    data.initLet(HoistVars, *tc->blockChain, JSMSG_ARRAY_INIT_TOO_BIG);
+    data.initLet(HoistVars, tc->blockChain, JSMSG_ARRAY_INIT_TOO_BIG);
 
     do {
         /*
