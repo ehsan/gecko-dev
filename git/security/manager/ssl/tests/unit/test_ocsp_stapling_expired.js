@@ -48,14 +48,9 @@ let ocspResponseUnknown = ocspResponses[4];
 function run_test() {
   let ocspResponder = new HttpServer();
   ocspResponder.registerPrefixHandler("/", function(request, response) {
-    if (gCurrentOCSPResponse) {
-      response.setStatusLine(request.httpVersion, 200, "OK");
-      response.setHeader("Content-Type", "application/ocsp-response");
-      response.write(gCurrentOCSPResponse);
-    } else {
-      response.setStatusLine(request.httpVersion, 500, "Internal Server Error");
-      response.write("Internal Server Error");
-    }
+    response.setStatusLine(request.httpVersion, 200, "OK");
+    response.setHeader("Content-Type", "application/ocsp-response");
+    response.write(gCurrentOCSPResponse);
     gOCSPRequestCount++;
   });
   ocspResponder.start(8080);
@@ -88,40 +83,14 @@ function add_tests_in_mode(useMozillaPKIX)
                 ocspResponseGood);
   add_ocsp_test("ocsp-stapling-expired-fresh-ca.example.com", Cr.NS_OK,
                 ocspResponseGood);
-  // With mozilla::pkix, if we can't fetch a more recent response when
-  // given an expired stapled response, we terminate the connection.
-  add_ocsp_test("ocsp-stapling-expired.example.com",
-                useMozillaPKIX
-                  ? getXPCOMStatusFromNSS(SEC_ERROR_OCSP_OLD_RESPONSE)
-                  : Cr.NS_OK,
+  add_ocsp_test("ocsp-stapling-expired.example.com", Cr.NS_OK,
                 expiredOCSPResponseGood);
-  add_ocsp_test("ocsp-stapling-expired-fresh-ca.example.com",
-                useMozillaPKIX
-                  ? getXPCOMStatusFromNSS(SEC_ERROR_OCSP_OLD_RESPONSE)
-                  : Cr.NS_OK,
+  add_ocsp_test("ocsp-stapling-expired-fresh-ca.example.com", Cr.NS_OK,
                 expiredOCSPResponseGood);
-  add_ocsp_test("ocsp-stapling-expired.example.com",
-                useMozillaPKIX
-                  ? getXPCOMStatusFromNSS(SEC_ERROR_OCSP_OLD_RESPONSE)
-                  : Cr.NS_OK,
+  add_ocsp_test("ocsp-stapling-expired.example.com", Cr.NS_OK,
                 oldValidityPeriodOCSPResponseGood);
-  add_ocsp_test("ocsp-stapling-expired-fresh-ca.example.com",
-                useMozillaPKIX
-                  ? getXPCOMStatusFromNSS(SEC_ERROR_OCSP_OLD_RESPONSE)
-                  : Cr.NS_OK,
+  add_ocsp_test("ocsp-stapling-expired-fresh-ca.example.com", Cr.NS_OK,
                 oldValidityPeriodOCSPResponseGood);
-  add_ocsp_test("ocsp-stapling-expired.example.com",
-                useMozillaPKIX
-                  ? getXPCOMStatusFromNSS(SEC_ERROR_OCSP_OLD_RESPONSE)
-                  : Cr.NS_OK,
-                null);
-  add_ocsp_test("ocsp-stapling-expired.example.com",
-                useMozillaPKIX
-                  ? getXPCOMStatusFromNSS(SEC_ERROR_OCSP_OLD_RESPONSE)
-                  : Cr.NS_OK,
-                null);
-  // Of course, if the newer response indicates Revoked or Unknown,
-  // that status must be returned.
   add_ocsp_test("ocsp-stapling-expired.example.com",
                 getXPCOMStatusFromNSS(SEC_ERROR_REVOKED_CERTIFICATE),
                 ocspResponseRevoked);
@@ -131,23 +100,6 @@ function add_tests_in_mode(useMozillaPKIX)
   add_ocsp_test("ocsp-stapling-expired.example.com",
                 getXPCOMStatusFromNSS(SEC_ERROR_OCSP_UNKNOWN_CERT),
                 ocspResponseUnknown);
-  add_ocsp_test("ocsp-stapling-expired-fresh-ca.example.com",
-                getXPCOMStatusFromNSS(SEC_ERROR_OCSP_UNKNOWN_CERT),
-                ocspResponseUnknown);
-
-  if (useMozillaPKIX) {
-    // These tests are verifying that an valid but very old response
-    // is rejected as a valid stapled response, requiring a fetch
-    // from the ocsp responder.
-    add_ocsp_test("ocsp-stapling-ancient-valid.example.com", Cr.NS_OK,
-                  ocspResponseGood);
-    add_ocsp_test("ocsp-stapling-ancient-valid.example.com",
-                  getXPCOMStatusFromNSS(SEC_ERROR_REVOKED_CERTIFICATE),
-                  ocspResponseRevoked);
-    add_ocsp_test("ocsp-stapling-ancient-valid.example.com",
-                  getXPCOMStatusFromNSS(SEC_ERROR_OCSP_UNKNOWN_CERT),
-                  ocspResponseUnknown);
-  }
 }
 
 function check_ocsp_stapling_telemetry() {
@@ -158,8 +110,7 @@ function check_ocsp_stapling_telemetry() {
   do_check_eq(histogram.counts[0], 2 * 0); // histogram bucket 0 is unused
   do_check_eq(histogram.counts[1], 2 * 0); // 0 connections with a good response
   do_check_eq(histogram.counts[2], 2 * 0); // 0 connections with no stapled resp.
-  do_check_eq(histogram.counts[3], 2 * 12 + 3); // 12 connections with an expired response
-                                                // +3 more mozilla::pkix-only expired responses
+  do_check_eq(histogram.counts[3], 2 * 9); // 9 connections with an expired response
   do_check_eq(histogram.counts[4], 2 * 0); // 0 connections with bad responses
   run_next_test();
 }

@@ -90,11 +90,9 @@ TextureTargetForAndroidPixelFormat(android::PixelFormat aFormat)
 }
 
 GrallocTextureSourceOGL::GrallocTextureSourceOGL(CompositorOGL* aCompositor,
-                                                 GrallocTextureHostOGL* aTextureHost,
                                                  android::GraphicBuffer* aGraphicBuffer,
                                                  gfx::SurfaceFormat aFormat)
   : mCompositor(aCompositor)
-  , mTextureHost(aTextureHost)
   , mGraphicBuffer(aGraphicBuffer)
   , mEGLImage(0)
   , mFormat(aFormat)
@@ -302,7 +300,6 @@ GrallocTextureHostOGL::GrallocTextureHostOGL(TextureFlags aFlags,
     NS_WARNING("gralloc buffer is nullptr");
   }
   mTextureSource = new GrallocTextureSourceOGL(nullptr,
-                                               this,
                                                graphicBuffer,
                                                format);
 }
@@ -443,12 +440,6 @@ GrallocTextureSourceOGL::GetGLTexture()
 void
 GrallocTextureSourceOGL::BindEGLImage()
 {
-#if defined(MOZ_WIDGET_GONK) && ANDROID_VERSION >= 17
-  if (mTextureHost) {
-    mTextureHost->WaitAcquireFenceSyncComplete();
-  }
-#endif
-
   if (mCompositableBackendData) {
     CompositableDataGonkOGL* backend = static_cast<CompositableDataGonkOGL*>(mCompositableBackendData.get());
     backend->BindEGLImage(GetTextureTarget(), mEGLImage);

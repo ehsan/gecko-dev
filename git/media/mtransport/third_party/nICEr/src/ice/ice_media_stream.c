@@ -394,25 +394,10 @@ static void nr_ice_media_stream_check_timer_cb(NR_SOCKET s, int h, void *cb_arg)
 /* Start checks for this media stream (aka check list) */
 int nr_ice_media_stream_start_checks(nr_ice_peer_ctx *pctx, nr_ice_media_stream *stream)
   {
-    int r,_status;
+    nr_ice_media_stream_set_state(stream,NR_ICE_MEDIA_STREAM_CHECKS_ACTIVE);
+    nr_ice_media_stream_check_timer_cb(0,0,stream);
 
-    /* Don't start the check timer if the stream is done (failed/completed) */
-    if (stream->ice_state > NR_ICE_MEDIA_STREAM_CHECKS_ACTIVE) {
-      assert(0);
-      ABORT(R_INTERNAL);
-    }
-
-    if(r=nr_ice_media_stream_set_state(stream,NR_ICE_MEDIA_STREAM_CHECKS_ACTIVE))
-      ABORT(r);
-
-    if (!stream->timer) {
-      r_log(LOG_ICE,LOG_INFO,"ICE-PEER(%s)/ICE-STREAM(%s): Starting check timer for stream.",pctx->label,stream->label);
-      nr_ice_media_stream_check_timer_cb(0,0,stream);
-    }
-
-    _status=0;
-  abort:
-    return(_status);
+    return(0);
   }
 
 /* Start checks for this media stream (aka check list) S 5.7 */

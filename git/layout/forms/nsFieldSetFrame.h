@@ -16,7 +16,7 @@ public:
 
   nsFieldSetFrame(nsStyleContext* aContext);
 
-  nscoord
+  NS_HIDDEN_(nscoord)
     GetIntrinsicWidth(nsRenderingContext* aRenderingContext,
                       nsLayoutUtils::IntrinsicWidthType);
   virtual nscoord GetMinWidth(nsRenderingContext* aRenderingContext) MOZ_OVERRIDE;

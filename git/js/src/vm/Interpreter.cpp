@@ -60,8 +60,28 @@ using mozilla::NumberEqualsInt32;
 using mozilla::PodCopy;
 using JS::ForOfIterator;
 
+/*
+ * Note: when Clang 3.2 (32-bit) inlines the two functions below in Interpret,
+ * the conservative stack scanner leaks a ton of memory and this negatively
+ * influences performance. The MOZ_NEVER_INLINE is a temporary workaround until
+ * we can remove the conservative scanner. See bug 849526 for more info.
+ */
+#if defined(__clang__) && defined(JS_CPU_X86)
+static MOZ_NEVER_INLINE bool
+#else
+static bool
+#endif
+ToBooleanOp(const InterpreterRegs &regs)
+{
+    return ToBoolean(regs.stackHandleAt(-1));
+}
+
 template <bool Eq>
-static MOZ_ALWAYS_INLINE bool
+#if defined(__clang__) && defined(JS_CPU_X86)
+static MOZ_NEVER_INLINE bool
+#else
+static bool
+#endif
 LooseEqualityOp(JSContext *cx, InterpreterRegs &regs)
 {
     HandleValue rval = regs.stackHandleAt(-1);
@@ -368,7 +388,7 @@ js::RunScript(JSContext *cx, RunState &state)
 {
     JS_CHECK_RECURSION(cx, return false);
 
-    SPSEntryMarker marker(cx->runtime(), state.script());
+    SPSEntryMarker marker(cx->runtime());
 
     state.script()->ensureNonLazyCanonicalFunction(cx);
 
@@ -1054,14 +1074,6 @@ HandleError(JSContext *cx, InterpreterRegs &regs)
             }
         }
     } else {
-        // We may be propagating a forced return from the interrupt
-        // callback, which cannot easily force a return.
-        if (MOZ_UNLIKELY(cx->isPropagatingForcedReturn())) {
-            cx->clearPropagatingForcedReturn();
-            ForcedReturn(cx, si, regs);
-            return SuccessfulReturnContinuation;
-        }
-
         UnwindForUncatchableException(cx, regs);
     }
 
@@ -1838,7 +1850,7 @@ CASE(JSOP_GOTO)
 
 CASE(JSOP_IFEQ)
 {
-    bool cond = ToBoolean(REGS.stackHandleAt(-1));
+    bool cond = ToBooleanOp(REGS);
     REGS.sp--;
     if (!cond)
         BRANCH(GET_JUMP_OFFSET(REGS.pc));
@@ -1847,7 +1859,7 @@ END_CASE(JSOP_IFEQ)
 
 CASE(JSOP_IFNE)
 {
-    bool cond = ToBoolean(REGS.stackHandleAt(-1));
+    bool cond = ToBooleanOp(REGS);
     REGS.sp--;
     if (cond)
         BRANCH(GET_JUMP_OFFSET(REGS.pc));
@@ -1856,7 +1868,7 @@ END_CASE(JSOP_IFNE)
 
 CASE(JSOP_OR)
 {
-    bool cond = ToBoolean(REGS.stackHandleAt(-1));
+    bool cond = ToBooleanOp(REGS);
     if (cond)
         ADVANCE_AND_DISPATCH(GET_JUMP_OFFSET(REGS.pc));
 }
@@ -1864,7 +1876,7 @@ END_CASE(JSOP_OR)
 
 CASE(JSOP_AND)
 {
-    bool cond = ToBoolean(REGS.stackHandleAt(-1));
+    bool cond = ToBooleanOp(REGS);
     if (!cond)
         ADVANCE_AND_DISPATCH(GET_JUMP_OFFSET(REGS.pc));
 }
@@ -2261,7 +2273,7 @@ END_CASE(JSOP_MOD)
 
 CASE(JSOP_NOT)
 {
-    bool cond = ToBoolean(REGS.stackHandleAt(-1));
+    bool cond = ToBooleanOp(REGS);
     REGS.sp--;
     PUSH_BOOLEAN(!cond);
 }
@@ -2312,17 +2324,17 @@ END_CASE(JSOP_DELNAME)
 
 CASE(JSOP_DELPROP)
 {
-    RootedId &id = rootId0;
-    id = NameToId(script->getName(REGS.pc));
+    RootedPropertyName &name = rootName0;
+    name = script->getName(REGS.pc);
 
     RootedObject &obj = rootObject0;
     FETCH_OBJECT(cx, -1, obj);
 
     bool succeeded;
-    if (!JSObject::deleteGeneric(cx, obj, id, &succeeded))
+    if (!JSObject::deleteProperty(cx, obj, name, &succeeded))
         goto error;
     if (!succeeded && script->strict()) {
-        obj->reportNotConfigurable(cx, id);
+        obj->reportNotConfigurable(cx, NameToId(name));
         goto error;
     }
     MutableHandleValue res = REGS.stackHandleAt(-1);
@@ -2340,12 +2352,15 @@ CASE(JSOP_DELELEM)
     propval = REGS.sp[-1];
 
     bool succeeded;
-    RootedId &id = rootId0;
-    if (!ValueToId<CanGC>(cx, propval, &id))
-        goto error;
-    if (!JSObject::deleteGeneric(cx, obj, id, &succeeded))
+    if (!JSObject::deleteByValue(cx, obj, propval, &succeeded))
         goto error;
     if (!succeeded && script->strict()) {
+        // XXX This observably calls ToString(propval).  We should convert to
+        //     PropertyKey and use that to delete, and to report an error if
+        //     necessary!
+        RootedId id(cx);
+        if (!ValueToId<CanGC>(cx, propval, &id))
+            goto error;
         obj->reportNotConfigurable(cx, id);
         goto error;
     }
@@ -3179,10 +3194,10 @@ CASE(JSOP_SPREAD)
     HandleValue countVal = REGS.stackHandleAt(-2);
     RootedObject &arr = rootObject0;
     arr = &REGS.sp[-3].toObject();
-    HandleValue iterator = REGS.stackHandleAt(-1);
+    HandleValue iterable = REGS.stackHandleAt(-1);
     MutableHandleValue resultCountVal = REGS.stackHandleAt(-2);
 
-    if (!SpreadOperation(cx, arr, countVal, iterator, resultCountVal))
+    if (!SpreadOperation(cx, arr, countVal, iterable, resultCountVal))
         goto error;
 
     REGS.sp--;
@@ -3681,8 +3696,7 @@ js::DeleteProperty(JSContext *cx, HandleValue v, HandlePropertyName name, bool *
     if (!obj)
         return false;
 
-    RootedId id(cx, NameToId(name));
-    if (!JSObject::deleteGeneric(cx, obj, id, bp))
+    if (!JSObject::deleteProperty(cx, obj, name, bp))
         return false;
 
     if (strict && !*bp) {
@@ -3703,13 +3717,16 @@ js::DeleteElement(JSContext *cx, HandleValue val, HandleValue index, bool *bp)
     if (!obj)
         return false;
 
-    RootedId id(cx);
-    if (!ValueToId<CanGC>(cx, index, &id))
-        return false;
-    if (!JSObject::deleteGeneric(cx, obj, id, bp))
+    if (!JSObject::deleteByValue(cx, obj, index, bp))
         return false;
 
     if (strict && !*bp) {
+        // XXX This observably calls ToString(propval).  We should convert to
+        //     PropertyKey and use that to delete, and to report an error if
+        //     necessary!
+        RootedId id(cx);
+        if (!ValueToId<CanGC>(cx, index, &id))
+            return false;
         obj->reportNotConfigurable(cx, id);
         return false;
     }
@@ -3810,8 +3827,7 @@ js::DeleteNameOperation(JSContext *cx, HandlePropertyName name, HandleObject sco
     }
 
     bool succeeded;
-    RootedId id(cx, NameToId(name));
-    if (!JSObject::deleteGeneric(cx, scope, id, &succeeded))
+    if (!JSObject::deleteProperty(cx, scope, name, &succeeded))
         return false;
     res.setBoolean(succeeded);
     return true;
@@ -3895,12 +3911,12 @@ js::InitGetterSetterOperation(JSContext *cx, jsbytecode *pc, HandleObject obj, H
 
 bool
 js::SpreadOperation(JSContext *cx, HandleObject arr, HandleValue countVal,
-                    HandleValue iterator, MutableHandleValue resultCountVal)
+                    HandleValue iterable, MutableHandleValue resultCountVal)
 {
     int32_t count = countVal.toInt32();
     ForOfIterator iter(cx);
-    RootedValue iterVal(cx, iterator);
-    if (!iter.initWithIterator(iterVal))
+    RootedValue iterVal(cx, iterable);
+    if (!iter.init(iterVal))
         return false;
     while (true) {
         bool done;

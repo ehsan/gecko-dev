@@ -4,9 +4,7 @@
 
 // tests the translation infobar, using a fake 'Translation' implementation.
 
-let tmp = {};
-Cu.import("resource:///modules/translation/Translation.jsm", tmp);
-let {Translation} = tmp;
+Components.utils.import("resource:///modules/translation/Translation.jsm");
 
 const kLanguagesPref = "browser.translation.neverForLanguages";
 const kShowUIPref = "browser.translation.ui.show";
@@ -104,10 +102,7 @@ let gTests = [
   desc: "never for language",
   run: function* checkNeverForLanguage() {
     // Show the infobar for example.com and fr.
-    Translation.documentStateReceived(gBrowser.selectedBrowser,
-                                      {state: Translation.STATE_OFFER,
-                                       originalShown: true,
-                                       detectedLanguage: "fr"});
+    Translation.languageDetected(gBrowser.selectedBrowser, "fr");
     let notif = getInfoBar();
     ok(notif, "the infobar is visible");
     let ui = gBrowser.selectedBrowser.translationUI;
@@ -153,10 +148,7 @@ let gTests = [
   desc: "never for site",
   run: function* checkNeverForSite() {
     // Show the infobar for example.com and fr.
-    Translation.documentStateReceived(gBrowser.selectedBrowser,
-                                      {state: Translation.STATE_OFFER,
-                                       originalShown: true,
-                                       detectedLanguage: "fr"});
+    Translation.languageDetected(gBrowser.selectedBrowser, "fr");
     let notif = getInfoBar();
     ok(notif, "the infobar is visible");
     let ui = gBrowser.selectedBrowser.translationUI;

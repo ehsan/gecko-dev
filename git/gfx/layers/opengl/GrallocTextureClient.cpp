@@ -76,6 +76,12 @@ GrallocTextureClientOGL::ToSurfaceDescriptor(SurfaceDescriptor& aOutDescriptor)
 }
 
 void
+GrallocTextureClientOGL::SetReleaseFenceHandle(FenceHandle aReleaseFenceHandle)
+{
+  mReleaseFenceHandle = aReleaseFenceHandle;
+}
+
+void
 GrallocTextureClientOGL::SetRemoveFromCompositableTracker(AsyncTransactionTracker* aTracker)
 {
   mRemoveFromCompositableTracker = aTracker;

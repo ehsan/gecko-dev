@@ -479,7 +479,6 @@ public:
         IDX_EXPOSEDPROPS            ,
         IDX_EVAL                    ,
         IDX_CONTROLLERS             ,
-        IDX_REALFRAMEELEMENT        ,
         IDX_TOTAL_COUNT // just a count of the above
     };
 
@@ -912,7 +911,8 @@ XPC_WN_JSOp_ThisObject(JSContext *cx, JS::HandleObject obj);
         nullptr, /* setElement    */                                          \
         nullptr, /* getGenericAttributes  */                                  \
         nullptr, /* setGenericAttributes  */                                  \
-        nullptr, /* deleteGeneric */                                          \
+        nullptr, /* deleteProperty */                                         \
+        nullptr, /* deleteElement */                                          \
         nullptr, nullptr, /* watch/unwatch */                                 \
         nullptr, /* slice */                                                  \
         XPC_WN_JSOp_Enumerate,                                                \
@@ -935,7 +935,8 @@ XPC_WN_JSOp_ThisObject(JSContext *cx, JS::HandleObject obj);
         nullptr, /* setElement    */                                          \
         nullptr, /* getGenericAttributes  */                                  \
         nullptr, /* setGenericAttributes  */                                  \
-        nullptr, /* deleteGeneric */                                          \
+        nullptr, /* deleteProperty */                                         \
+        nullptr, /* deleteElement */                                          \
         nullptr, nullptr, /* watch/unwatch */                                 \
         nullptr, /* slice */                                                  \
         XPC_WN_JSOp_Enumerate,                                                \
@@ -1019,8 +1020,8 @@ public:
     void TraceSelf(JSTracer *trc) {
         MOZ_ASSERT(mGlobalJSObject);
         mGlobalJSObject.trace(trc, "XPCWrappedNativeScope::mGlobalJSObject");
-        if (mContentXBLScope)
-            mContentXBLScope.trace(trc, "XPCWrappedNativeScope::mXBLScope");
+        if (mXBLScope)
+            mXBLScope.trace(trc, "XPCWrappedNativeScope::mXBLScope");
         if (mXrayExpandos.initialized())
             mXrayExpandos.trace(trc);
     }
@@ -1096,15 +1097,15 @@ public:
     // Gets the appropriate scope object for XBL in this scope. The context
     // must be same-compartment with the global upon entering, and the scope
     // object is wrapped into the compartment of the global.
-    JSObject *EnsureContentXBLScope(JSContext *cx);
+    JSObject *EnsureXBLScope(JSContext *cx);
 
     XPCWrappedNativeScope(JSContext *cx, JS::HandleObject aGlobal);
 
     nsAutoPtr<JSObject2JSObjectMap> mWaiverWrapperMap;
 
-    bool IsContentXBLScope() { return mIsContentXBLScope; }
-    bool AllowContentXBLScope();
-    bool UseContentXBLScope() { return mUseContentXBLScope; }
+    bool IsXBLScope() { return mIsXBLScope; }
+    bool AllowXBLScope();
+    bool UseXBLScope() { return mUseXBLScope; }
 
 protected:
     virtual ~XPCWrappedNativeScope();
@@ -1129,20 +1130,20 @@ private:
     JS::ObjectPtr                    mGlobalJSObject;
 
     // XBL Scope. This is is a lazily-created sandbox for non-system scopes.
-    // EnsureContentXBLScope() decides whether it needs to be created or not.
+    // EnsureXBLScope() decides whether it needs to be created or not.
     // This reference is wrapped into the compartment of mGlobalJSObject.
-    JS::ObjectPtr                    mContentXBLScope;
+    JS::ObjectPtr                    mXBLScope;
 
     nsAutoPtr<DOMExpandoSet> mDOMExpandoSet;
 
     JS::WeakMapPtr<JSObject*, JSObject*> mXrayExpandos;
 
-    bool mIsContentXBLScope;
+    bool mIsXBLScope;
 
     // For remote XUL domains, we run all XBL in the content scope for compat
     // reasons (though we sometimes pref this off for automation). We separately
-    // track the result of this decision (mAllowContentXBLScope), from the decision
-    // of whether to actually _use_ an XBL scope (mUseContentXBLScope), which depends
+    // track the result of this decision (mAllowXBLScope), from the decision
+    // of whether to actually _use_ an XBL scope (mUseXBLScope), which depends
     // on the type of global and whether the compartment is system principal
     // or not.
     //
@@ -1150,8 +1151,8 @@ private:
     // have no way of distinguishing XBL script from content script for the
     // given scope. In these (unsupported) situations, we just always claim to
     // be XBL.
-    bool mAllowContentXBLScope;
-    bool mUseContentXBLScope;
+    bool mAllowXBLScope;
+    bool mUseXBLScope;
 };
 
 /***************************************************************************/

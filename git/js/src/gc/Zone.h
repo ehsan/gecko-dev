@@ -137,7 +137,15 @@ struct Zone : public JS::shadow::Zone,
     void setPreservingCode(bool preserving) { gcPreserveCode_ = preserving; }
     bool isPreservingCode() const { return gcPreserveCode_; }
 
-    bool canCollect();
+    bool canCollect() {
+        // Zones cannot be collected while in use by other threads.
+        if (usedByExclusiveThread)
+            return false;
+        JSRuntime *rt = runtimeFromAnyThread();
+        if (rt->isAtomsZone(this) && rt->exclusiveThreadsPresent())
+            return false;
+        return true;
+    }
 
     enum GCState {
         NoGC,
@@ -258,6 +266,11 @@ struct Zone : public JS::shadow::Zone,
 
     bool usedByExclusiveThread;
 
+    // These flags help us to discover if a compartment that shouldn't be alive
+    // manages to outlive a GC.
+    bool scheduledForDestruction;
+    bool maybeAlive;
+
     // True when there are active frames.
     bool active;
 
@@ -298,12 +311,10 @@ class ZonesIter
         end = rt->gc.zones.end();
 
         if (selector == SkipAtoms) {
-            MOZ_ASSERT(atAtomsZone(rt));
+            JS_ASSERT(rt->isAtomsZone(*it));
             it++;
         }
     }
-
-    bool atAtomsZone(JSRuntime *rt);
 
     bool done() const { return it == end; }
 

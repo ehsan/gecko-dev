@@ -112,16 +112,6 @@ class Operand
         JS_ASSERT(kind() == MEM_ADDRESS32);
         return reinterpret_cast<void *>(disp_);
     }
-
-    bool containsReg(Register r) const {
-        switch (kind()) {
-          case REG:          return r.code() == reg();
-          case MEM_REG_DISP: return r.code() == base();
-          case MEM_SCALE:    return r.code() == base() || r.code() == index();
-          default: MOZ_CRASH("Unexpected Operand kind");
-        }
-        return false;
-    }
 };
 
 class AssemblerX86Shared : public AssemblerShared
@@ -144,6 +134,7 @@ class AssemblerX86Shared : public AssemblerShared
     CompactBufferWriter jumpRelocations_;
     CompactBufferWriter dataRelocations_;
     CompactBufferWriter preBarriers_;
+    bool enoughMemory_;
 
     void writeDataRelocation(const Value &val) {
         if (val.isMarkable()) {
@@ -254,6 +245,11 @@ class AssemblerX86Shared : public AssemblerShared
                             BelowOrEqual | Parity | NoParity) & DoubleConditionBits));
     }
 
+    AssemblerX86Shared()
+      : enoughMemory_(true)
+    {
+    }
+
     static Condition InvertCondition(Condition cond);
 
     // Return the primary condition to test. Some primary conditions may not
@@ -269,8 +265,8 @@ class AssemblerX86Shared : public AssemblerShared
     void trace(JSTracer *trc);
 
     bool oom() const {
-        return AssemblerShared::oom() ||
-               masm.oom() ||
+        return masm.oom() ||
+               !enoughMemory_ ||
                jumpRelocations_.oom() ||
                dataRelocations_.oom() ||
                preBarriers_.oom();
@@ -282,9 +278,6 @@ class AssemblerX86Shared : public AssemblerShared
 
     void executableCopy(void *buffer);
     void processCodeLabels(uint8_t *rawCode);
-    static int32_t extractCodeLabelOffset(uint8_t *code) {
-        return *(uintptr_t *)code;
-    }
     void copyJumpRelocationTable(uint8_t *dest);
     void copyDataRelocationTable(uint8_t *dest);
     void copyPreBarrierTable(uint8_t *dest);
@@ -891,9 +884,6 @@ class AssemblerX86Shared : public AssemblerShared
             break;
           case Operand::MEM_REG_DISP:
             masm.testl_i32m(rhs.value, lhs.disp(), lhs.base());
-            break;
-          case Operand::MEM_ADDRESS32:
-            masm.testl_i32m(rhs.value, lhs.address());
             break;
           default:
             MOZ_ASSUME_UNREACHABLE("unexpected operand kind");
@@ -1674,11 +1664,6 @@ class AssemblerX86Shared : public AssemblerShared
     static void patchDataWithValueCheck(CodeLocationLabel data, ImmPtr newData, ImmPtr expectedData) {
         patchDataWithValueCheck(data, PatchedImmPtr(newData.value), PatchedImmPtr(expectedData.value));
     }
-
-    static void patchInstructionImmediate(uint8_t *code, PatchedImmPtr imm) {
-        MOZ_ASSUME_UNREACHABLE("Unused.");
-    }
-
     static uint32_t nopSize() {
         return 1;
     }

@@ -75,10 +75,6 @@ public class BrowserLocaleManager implements LocaleManager {
         }
     }
 
-    public boolean isEnabled() {
-        return AppConstants.MOZ_LOCALE_SWITCHER;
-    }
-
     /**
      * Gecko uses locale codes like "es-ES", whereas a Java {@link Locale}
      * stringifies as "es_ES".

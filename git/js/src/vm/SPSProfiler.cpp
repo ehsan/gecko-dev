@@ -143,7 +143,7 @@ SPSProfiler::markEvent(const char *event)
 {
     JS_ASSERT(enabled());
     if (eventMarker_) {
-        JS::AutoSuppressGCAnalysis nogc;
+        JS::AutoAssertNoGC nogc;
         eventMarker_(event);
     }
 }
@@ -215,7 +215,6 @@ SPSProfiler::enterNative(const char *string, void *sp)
     if (current < max_) {
         stack[current].setLabel(string);
         stack[current].setCppFrame(sp, 0);
-        JS_ASSERT(stack[current].flags() == js::ProfileEntry::IS_CPP_ENTRY);
     }
     *size = current + 1;
 }
@@ -236,14 +235,10 @@ SPSProfiler::push(const char *string, void *sp, JSScript *script, jsbytecode *pc
         volatile ProfileEntry &entry = stack[current];
         entry.setLabel(string);
 
-        if (sp != nullptr) {
+        if (sp != nullptr)
             entry.setCppFrame(sp, 0);
-            JS_ASSERT(entry.flags() == js::ProfileEntry::IS_CPP_ENTRY);
-        }
-        else {
+        else
             entry.setJsFrame(script, pc);
-            JS_ASSERT(entry.flags() == 0);
-        }
 
         // Track if mLabel needs a copy.
         if (copy)
@@ -318,8 +313,7 @@ SPSProfiler::allocProfileString(JSScript *script, JSFunction *maybeFun)
     return cstr;
 }
 
-SPSEntryMarker::SPSEntryMarker(JSRuntime *rt,
-                               JSScript *script
+SPSEntryMarker::SPSEntryMarker(JSRuntime *rt
                                MOZ_GUARD_OBJECT_NOTIFIER_PARAM_IN_IMPL)
     : profiler(&rt->spsProfiler)
 {
@@ -329,9 +323,8 @@ SPSEntryMarker::SPSEntryMarker(JSRuntime *rt,
         return;
     }
     size_before = *profiler->size_;
-    profiler->push("js::RunScript", nullptr, script, script->code(), /* copy = */ false);
+    profiler->push("js::RunScript", this, nullptr, nullptr, /* copy = */ false);
 }
-
 SPSEntryMarker::~SPSEntryMarker()
 {
     if (profiler != nullptr) {

@@ -50,8 +50,6 @@ if CONFIG['MOZ_OMX_DECODER']:
 
 PARALLEL_DIRS += ['webspeech']
 
-PARALLEL_DIRS += ['eme']
-
 TEST_DIRS += [
     'test',
     'gtest',

@@ -831,6 +831,16 @@ IonBuilder::buildInline(IonBuilder *callerBuilder, MResumePoint *callerResumePoi
     MBasicBlock *predecessor = callerBuilder->current;
     JS_ASSERT(predecessor == callerResumePoint->block());
 
+    // All further instructions generated in from this scope should be
+    // considered as part of the function that we're inlining. We also need to
+    // keep track of the inlining depth because all scripts inlined on the same
+    // level contiguously have only one InlineExit node.
+    if (instrumentedProfiling()) {
+        predecessor->add(MProfilerStackOp::New(alloc(), script(),
+                                               MProfilerStackOp::InlineEnter,
+                                               inliningDepth_));
+    }
+
     predecessor->end(MGoto::New(alloc(), current));
     if (!current->addPredecessorWithoutPhis(predecessor))
         return false;
@@ -3691,8 +3701,9 @@ IonBuilder::processReturn(JSOp op)
         MOZ_ASSUME_UNREACHABLE("unknown return op");
     }
 
-    if (instrumentedProfiling() && inliningDepth_ == 0) {
-        current->add(MProfilerStackOp::New(alloc(), script(), MProfilerStackOp::Exit));
+    if (instrumentedProfiling()) {
+        current->add(MProfilerStackOp::New(alloc(), script(), MProfilerStackOp::Exit,
+                                           inliningDepth_));
     }
     MReturn *ret = MReturn::New(alloc(), def);
     current->end(ret);
@@ -4036,6 +4047,10 @@ IonBuilder::inlineScriptedCall(CallInfo &callInfo, JSFunction *target)
     if (!returnBlock)
         return false;
     returnBlock->setCallerResumePoint(callerResumePoint_);
+
+    // When profiling add InlineExit instruction to indicate end of inlined function.
+    if (instrumentedProfiling())
+        returnBlock->add(MProfilerStackOp::New(alloc(), nullptr, MProfilerStackOp::InlineExit));
 
     // Inherit the slots from current and pop |fun|.
     returnBlock->inheritSlots(current);
@@ -4613,6 +4628,7 @@ IonBuilder::inlineCalls(CallInfo &callInfo, ObjectVector &targets,
         if (status == InliningStatus_NotInlined) {
             JS_ASSERT(target->isNative());
             JS_ASSERT(current == inlineBlock);
+            inlineBlock->discardAllResumePoints();
             graph().removeBlock(inlineBlock);
             choiceSet[i] = false;
             continue;
@@ -6770,19 +6786,19 @@ IonBuilder::getElemTryTypedObject(bool *emitted, MDefinition *obj, MDefinition *
         return true;
 
     switch (elemDescrs.kind()) {
-      case type::X4:
+      case TypeDescr::X4:
         // FIXME (bug 894105): load into a MIRType_float32x4 etc
         return true;
 
-      case type::Struct:
-      case type::SizedArray:
+      case TypeDescr::Struct:
+      case TypeDescr::SizedArray:
         return getElemTryComplexElemOfTypedObject(emitted,
                                                   obj,
                                                   index,
                                                   objDescrs,
                                                   elemDescrs,
                                                   elemSize);
-      case type::Scalar:
+      case TypeDescr::Scalar:
         return getElemTryScalarElemOfTypedObject(emitted,
                                                  obj,
                                                  index,
@@ -6790,10 +6806,10 @@ IonBuilder::getElemTryTypedObject(bool *emitted, MDefinition *obj, MDefinition *
                                                  elemDescrs,
                                                  elemSize);
 
-      case type::Reference:
+      case TypeDescr::Reference:
         return true;
 
-      case type::UnsizedArray:
+      case TypeDescr::UnsizedArray:
         MOZ_ASSUME_UNREACHABLE("Unsized arrays cannot be element types");
     }
 
@@ -6829,7 +6845,7 @@ IonBuilder::checkTypedObjectIndexInBounds(int32_t elemSize,
         // then we still need to check if the object was neutered.
         *canBeNeutered = true;
     } else {
-        MInstruction *lengthValue = MLoadFixedSlot::New(alloc(), obj, JS_BUFVIEW_SLOT_LENGTH);
+        MInstruction *lengthValue = MLoadFixedSlot::New(alloc(), obj, JS_TYPEDOBJ_SLOT_LENGTH);
         current->add(lengthValue);
 
         MInstruction *length32 = MTruncateToInt32::New(alloc(), lengthValue);
@@ -7683,18 +7699,18 @@ IonBuilder::setElemTryTypedObject(bool *emitted, MDefinition *obj,
         return true;
 
     switch (elemTypeDescrs.kind()) {
-      case type::X4:
+      case TypeDescr::X4:
         // FIXME (bug 894105): store a MIRType_float32x4 etc
         return true;
 
-      case type::Reference:
-      case type::Struct:
-      case type::SizedArray:
-      case type::UnsizedArray:
+      case TypeDescr::Reference:
+      case TypeDescr::Struct:
+      case TypeDescr::SizedArray:
+      case TypeDescr::UnsizedArray:
         // For now, only optimize storing scalars.
         return true;
 
-      case type::Scalar:
+      case TypeDescr::Scalar:
         return setElemTryScalarElemOfTypedObject(emitted,
                                                  obj,
                                                  index,
@@ -8149,6 +8165,13 @@ IonBuilder::jsop_length_fastPath()
             // Read length.
             MArrayLength *length = MArrayLength::New(alloc(), elements);
             current->add(length);
+            current->push(length);
+            return true;
+        }
+
+        if (objTypes && objTypes->getTypedArrayType() != ScalarTypeDescr::TYPE_MAX) {
+            current->pop();
+            MInstruction *length = addTypedArrayLength(obj);
             current->push(length);
             return true;
         }
@@ -8708,15 +8731,15 @@ IonBuilder::getPropTryTypedObject(bool *emitted, MDefinition *obj, PropertyName 
         return true;
 
     switch (fieldDescrs.kind()) {
-      case type::Reference:
+      case TypeDescr::Reference:
         return true;
 
-      case type::X4:
+      case TypeDescr::X4:
         // FIXME (bug 894104): load into a MIRType_float32x4 etc
         return true;
 
-      case type::Struct:
-      case type::SizedArray:
+      case TypeDescr::Struct:
+      case TypeDescr::SizedArray:
         return getPropTryComplexPropOfTypedObject(emitted,
                                                   obj,
                                                   fieldOffset,
@@ -8724,14 +8747,14 @@ IonBuilder::getPropTryTypedObject(bool *emitted, MDefinition *obj, PropertyName 
                                                   fieldIndex,
                                                   resultTypes);
 
-      case type::Scalar:
+      case TypeDescr::Scalar:
         return getPropTryScalarPropOfTypedObject(emitted,
                                                  obj,
                                                  fieldOffset,
                                                  fieldDescrs,
                                                  resultTypes);
 
-      case type::UnsizedArray:
+      case TypeDescr::UnsizedArray:
         MOZ_ASSUME_UNREACHABLE("Field of unsized array type");
     }
 
@@ -8829,9 +8852,9 @@ IonBuilder::getPropTryCommonGetter(bool *emitted, MDefinition *obj, PropertyName
     if (isDOM && testShouldDOMCall(objTypes, commonGetter, JSJitInfo::Getter)) {
         const JSJitInfo *jitinfo = commonGetter->jitInfo();
         MInstruction *get;
-        if (jitinfo->isAlwaysInSlot) {
+        if (jitinfo->isInSlot) {
             // We can't use MLoadFixedSlot here because it might not have the
-            // right aliasing behavior; we want to alias DOM setters as needed.
+            // right aliasing behavior; we want to alias DOM setters.
             get = MGetDOMMember::New(alloc(), jitinfo, obj, guard);
         } else {
             get = MGetDOMProperty::New(alloc(), jitinfo, obj, guard);
@@ -8868,19 +8891,6 @@ IonBuilder::getPropTryCommonGetter(bool *emitted, MDefinition *obj, PropertyName
     CallInfo callInfo(alloc(), false);
     if (!callInfo.init(current, 0))
         return false;
-
-    if (commonGetter->isNative()) {
-        InliningStatus status = inlineNativeGetter(callInfo, commonGetter);
-        switch (status) {
-          case InliningStatus_Error:
-            return false;
-          case InliningStatus_NotInlined:
-            break;
-          case InliningStatus_Inlined:
-            *emitted = true;
-            return true;
-        }
-    }
 
     // Inline if we can, otherwise, forget it and just generate a call.
     bool inlineable = false;
@@ -9229,8 +9239,15 @@ IonBuilder::jsop_setprop(PropertyName *name)
     if (!setPropTryInlineAccess(&emitted, obj, name, value, barrier, objTypes) || emitted)
         return emitted;
 
-    // Emit a polymorphic cache.
-    return setPropTryCache(&emitted, obj, name, value, barrier, objTypes);
+    // Try to emit a polymorphic cache.
+    if (!setPropTryCache(&emitted, obj, name, value, barrier, objTypes) || emitted)
+        return emitted;
+
+    // Emit call.
+    MInstruction *ins = MCallSetProperty::New(alloc(), obj, value, name, script()->strict());
+    current->add(ins);
+    current->push(value);
+    return resumeAfter(ins);
 }
 
 bool
@@ -9362,18 +9379,18 @@ IonBuilder::setPropTryTypedObject(bool *emitted, MDefinition *obj,
         return true;
 
     switch (fieldDescrs.kind()) {
-      case type::X4:
+      case TypeDescr::X4:
         // FIXME (bug 894104): store into a MIRType_float32x4 etc
         return true;
 
-      case type::Reference:
-      case type::Struct:
-      case type::SizedArray:
-      case type::UnsizedArray:
+      case TypeDescr::Reference:
+      case TypeDescr::Struct:
+      case TypeDescr::SizedArray:
+      case TypeDescr::UnsizedArray:
         // For now, only optimize storing scalars.
         return true;
 
-      case type::Scalar:
+      case TypeDescr::Scalar:
         return setPropTryScalarPropOfTypedObject(emitted, obj, fieldOffset,
                                                  value, fieldDescrs);
     }
@@ -10264,20 +10281,14 @@ IonBuilder::typeSetToTypeDescrSet(types::TemporaryTypeSet *types,
     TypeDescrSetBuilder set;
     for (uint32_t i = 0; i < types->getObjectCount(); i++) {
         types::TypeObject *type = types->getTypeObject(i);
-        if (!type)
+        if (!type || type->unknownProperties())
             return true;
 
-        if (!IsTypedObjectClass(type->clasp()))
+        if (!type->hasTypedObject())
             return true;
 
-        TaggedProto proto = type->proto();
-
-        // typed objects have immutable prototypes, and they are
-        // always instances of TypedProto
-        JS_ASSERT(proto.isObject() && proto.toObject()->is<TypedProto>());
-
-        TypedProto &typedProto = proto.toObject()->as<TypedProto>();
-        if (!set.insert(&typedProto.typeDescr()))
+        TypeDescr &descr = type->typedObject()->descr();
+        if (!set.insert(&descr))
             return false;
     }
 
@@ -10294,16 +10305,10 @@ IonBuilder::loadTypedObjectType(MDefinition *typedObj)
     if (typedObj->isNewDerivedTypedObject())
         return typedObj->toNewDerivedTypedObject()->type();
 
-    MInstruction *proto = MTypedObjectProto::New(alloc(), typedObj);
-    current->add(proto);
-
-    MInstruction *load = MLoadFixedSlot::New(alloc(), proto, JS_TYPROTO_SLOT_DESCR);
+    MInstruction *load = MLoadFixedSlot::New(alloc(), typedObj,
+                                             JS_TYPEDOBJ_SLOT_TYPE_DESCR);
     current->add(load);
-
-    MInstruction *unbox = MUnbox::New(alloc(), load, MIRType_Object, MUnbox::Infallible);
-    current->add(unbox);
-
-    return unbox;
+    return load;
 }
 
 // Given a typed object `typedObj` and an offset `offset` into that
@@ -10402,7 +10407,7 @@ IonBuilder::lookupTypedObjectField(MDefinition *typedObj,
         return false;
 
     // Must be accessing a struct.
-    if (!objDescrs.allOfKind(type::Struct))
+    if (!objDescrs.allOfKind(TypeDescr::Struct))
         return true;
 
     // Determine the type/offset of the field `name`, if any.

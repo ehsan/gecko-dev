@@ -252,19 +252,13 @@ ElementAnimations::GetEventsAt(TimeStamp aRefreshTime,
               ? NS_ANIMATION_START : NS_ANIMATION_ITERATION;
 
           anim->mLastNotification = computedTiming.mCurrentIteration;
-          TimeDuration iterationStart =
-            anim->mTiming.mIterationDuration *
-            computedTiming.mCurrentIteration;
-          TimeDuration elapsedTime =
-            std::max(iterationStart, anim->InitialAdvance());
           AnimationEventInfo ei(mElement, anim->mName, message,
-                                elapsedTime, PseudoElement());
+                                elapsedDuration, PseudoElement());
           aEventsToDispatch.AppendElement(ei);
         }
         break;
 
       case ComputedTiming::AnimationPhase_After:
-        TimeDuration activeDuration = anim->ActiveDuration();
         // If we skipped the animation interval entirely, dispatch
         // 'animationstart' first
         if (anim->mLastNotification ==
@@ -273,10 +267,8 @@ ElementAnimations::GetEventsAt(TimeStamp aRefreshTime,
           // (This is overwritten below but we set it here to maintain
           // internal consistency.)
           anim->mLastNotification = 0;
-          TimeDuration elapsedTime =
-            std::min(anim->InitialAdvance(), activeDuration);
           AnimationEventInfo ei(mElement, anim->mName, NS_ANIMATION_START,
-                                elapsedTime, PseudoElement());
+                                elapsedDuration, PseudoElement());
           aEventsToDispatch.AppendElement(ei);
         }
         // Dispatch 'animationend' when needed.
@@ -284,7 +276,7 @@ ElementAnimations::GetEventsAt(TimeStamp aRefreshTime,
             ElementAnimation::LAST_NOTIFICATION_END) {
           anim->mLastNotification = ElementAnimation::LAST_NOTIFICATION_END;
           AnimationEventInfo ei(mElement, anim->mName, NS_ANIMATION_END,
-                                activeDuration, PseudoElement());
+                                elapsedDuration, PseudoElement());
           aEventsToDispatch.AppendElement(ei);
         }
         break;

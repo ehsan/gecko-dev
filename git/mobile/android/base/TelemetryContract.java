@@ -5,17 +5,11 @@
 
 package org.mozilla.gecko;
 
-import org.mozilla.gecko.mozglue.RobocopTarget;
-
 /**
  * Holds data definitions for our UI Telemetry implementation.
  *
- * Note that enum values of "_TEST*" are reserved for testing and
- * should not be changed without changing the associated tests.
- *
  * See mobile/android/base/docs/index.rst for a full dictionary.
  */
-@RobocopTarget
 public interface TelemetryContract {
 
     /**
@@ -24,74 +18,52 @@ public interface TelemetryContract {
      *
      * Please keep this list sorted.
      */
-    public enum Event {
+    public interface Event {
         // Generic action, usually for tracking menu and toolbar actions.
-        ACTION("action.1"),
+        public static final String ACTION = "action.1";
 
         // Cancel a state, action, etc.
-        CANCEL("cancel.1"),
+        public static final String CANCEL = "cancel.1";
 
         // Editing an item.
-        EDIT("edit.1"),
+        public static final String EDIT = "edit.1";
 
         // Launching (opening) an external application.
         // Note: Only used in JavaScript for now, but here for completeness.
-        LAUNCH("launch.1"),
+        public static final String LAUNCH = "launch.1";
 
         // Loading a URL.
-        LOAD_URL("loadurl.1"),
+        public static final String LOAD_URL = "loadurl.1";
 
-        LOCALE_BROWSER_RESET("locale.browser.reset.1"),
-        LOCALE_BROWSER_SELECTED("locale.browser.selected.1"),
-        LOCALE_BROWSER_UNSELECTED("locale.browser.unselected.1"),
+        public static final String LOCALE_BROWSER_RESET = "locale.browser.reset.1";
+        public static final String LOCALE_BROWSER_SELECTED = "locale.browser.selected.1";
+        public static final String LOCALE_BROWSER_UNSELECTED = "locale.browser.unselected.1";
 
         // Set default panel.
-        PANEL_SET_DEFAULT("setdefault.1"),
+        public static final String PANEL_SET_DEFAULT = "setdefault.1";
 
         // Pinning an item.
-        PIN("pin.1"),
+        public static final String PIN = "pin.1";
 
         // Outcome of data policy notification: can be true or false.
-        POLICY_NOTIFICATION_SUCCESS("policynotification.success.1"),
+        public static final String POLICY_NOTIFICATION_SUCCESS = "policynotification.success.1:";
 
         // Sanitizing private data.
-        SANITIZE("sanitize.1"),
+        public static final String SANITIZE = "sanitize.1";
 
         // Saving a resource (reader, bookmark, etc) for viewing later.
         // Note: Only used in JavaScript for now, but here for completeness.
-        SAVE("save.1"),
+        public static final String SAVE = "save.1";
 
         // Sharing content.
-        SHARE("share.1"),
-
-        // Undoing a user action.
-        // Note: Only used in JavaScript for now, but here for completeness.
-        UNDO("undo.1"),
+        public static final String SHARE = "share.1";
 
         // Unpinning an item.
-        UNPIN("unpin.1"),
+        public static final String UNPIN = "unpin.1";
 
         // Stop holding a resource (reader, bookmark, etc) for viewing later.
         // Note: Only used in JavaScript for now, but here for completeness.
-        UNSAVE("unsave.1"),
-
-        // VALUES BELOW THIS LINE ARE EXCLUSIVE TO TESTING.
-        _TEST1("_test_event_1.1"),
-        _TEST2("_test_event_2.1"),
-        _TEST3("_test_event_3.1"),
-        _TEST4("_test_event_4.1"),
-        ;
-
-        private final String string;
-
-        Event(final String string) {
-            this.string = string;
-        }
-
-        @Override
-        public String toString() {
-            return string;
-        }
+        public static final String UNSAVE = "unsave.1";
     }
 
     /**
@@ -100,66 +72,43 @@ public interface TelemetryContract {
      *
      * Please keep this list sorted.
      */
-    public enum Method {
+    public interface Method {
         // Action triggered from the action bar (including the toolbar).
-        ACTIONBAR("actionbar"),
+        public static final String ACTIONBAR = "actionbar";
 
         // Action triggered by hitting the Android back button.
-        BACK("back"),
+        public static final String BACK = "back";
 
         // Action triggered from a button.
-        BUTTON("button"),
+        public static final String BUTTON = "button";
 
         // Action occurred via a context menu.
-        CONTEXT_MENU("contextmenu"),
+        public static final String CONTEXT_MENU = "contextmenu";
 
         // Action triggered from a dialog.
-        DIALOG("dialog"),
+        public static final String DIALOG = "dialog";
 
         // Action triggered from a view grid item, like a thumbnail.
-        GRID_ITEM("griditem"),
+        public static final String GRID_ITEM = "griditem";
 
         // Action occurred via an intent.
-        INTENT("intent"),
+        public static final String INTENT = "intent";
 
         // Action triggered from a list.
-        LIST("list"),
+        public static final String LIST = "list";
 
         // Action triggered from a view list item, like a row of a list.
-        LIST_ITEM("listitem"),
+        public static final String LIST_ITEM = "listitem";
 
         // Action occurred via the main menu.
-        MENU("menu"),
-
-        // No method is specified.
-        NONE(null),
+        public static final String MENU = "menu";
 
         // Action triggered from a pageaction in the URLBar.
         // Note: Only used in JavaScript for now, but here for completeness.
-        PAGEACTION("pageaction"),
+        public static final String PAGEACTION = "pageaction";
 
         // Action triggered from a suggestion provided to the user.
-        SUGGESTION("suggestion"),
-
-        // Action triggered from a SuperToast.
-        // Note: Only used in JavaScript for now, but here for completeness.
-        TOAST("toast"),
-
-        // VALUES BELOW THIS LINE ARE EXCLUSIVE TO TESTING.
-        _TEST1("_test_method_1"),
-        _TEST2("_test_method_2"),
-        ;
-
-        private final String string;
-
-        Method(final String string) {
-            this.string = string;
-        }
-
-        @Override
-        public String toString() {
-            return string;
-        }
+        public static final String SUGGESTION = "suggestion";
     }
 
     /**
@@ -168,42 +117,26 @@ public interface TelemetryContract {
      *
      * Please keep this list sorted.
      */
-    public enum Session {
+    public interface Session {
         // Awesomescreen (including frecency search) is active.
-        AWESOMESCREEN("awesomescreen.1"),
+        public static final String AWESOMESCREEN = "awesomescreen.1";
 
         // Started the very first time we believe the application has been launched.
-        FIRSTRUN("firstrun.1"),
+        public static final String FIRSTRUN = "firstrun.1";
 
         // Awesomescreen frecency search is active.
-        FRECENCY("frecency.1"),
+        public static final String FRECENCY = "frecency.1";
 
         // Started when a user enters about:home.
-        HOME("home.1"),
+        public static final String HOME = "home.1";
 
         // Started when a user enters a given home panel.
         // Session name is dynamic, encoded as "homepanel.1:<panel_id>"
-        HOME_PANEL("homepanel.1"),
+        public static final String HOME_PANEL = "homepanel.1:";
 
         // Started when a Reader viewer becomes active in the foreground.
         // Note: Only used in JavaScript for now, but here for completeness.
-        READER("reader.1"),
-
-        // VALUES BELOW THIS LINE ARE EXCLUSIVE TO TESTING.
-        _TEST_STARTED_TWICE("_test_session_started_twice.1"),
-        _TEST_STOPPED_TWICE("_test_session_stopped_twice.1"),
-        ;
-
-        private final String string;
-
-        Session(final String string) {
-            this.string = string;
-        }
-
-        @Override
-        public String toString() {
-            return string;
-        }
+        public static final String READER = "reader.1";
     }
 
     /**
@@ -212,28 +145,8 @@ public interface TelemetryContract {
      *
      * Please keep this list sorted.
      */
-    public enum Reason {
+    public interface Reason {
         // Changes were committed.
-        COMMIT("commit"),
-
-        // No reason is specified.
-        NONE(null),
-
-        // VALUES BELOW THIS LINE ARE EXCLUSIVE TO TESTING.
-        _TEST1("_test_reason_1"),
-        _TEST2("_test_reason_2"),
-        _TEST_IGNORED("_test_reason_ignored"),
-        ;
-
-        private final String string;
-
-        Reason(final String string) {
-            this.string = string;
-        }
-
-        @Override
-        public String toString() {
-            return string;
-        }
+        public static final String COMMIT = "commit";
     }
 }

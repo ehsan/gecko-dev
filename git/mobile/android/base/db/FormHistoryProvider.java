@@ -6,7 +6,6 @@ package org.mozilla.gecko.db;
 
 import java.lang.IllegalArgumentException;
 import java.util.HashMap;
-
 import org.mozilla.gecko.GeckoAppShell;
 import org.mozilla.gecko.GeckoEvent;
 import org.mozilla.gecko.db.BrowserContract.FormHistory;
@@ -34,7 +33,6 @@ public class FormHistoryProvider extends SQLiteBridgeContentProvider {
     // This should be kept in sync with the db version in toolkit/components/satchel/nsFormHistory.js
     private static int DB_VERSION = 4;
     private static String DB_FILENAME = "formhistory.sqlite";
-    private static final String TELEMETRY_TAG = "SQLITEBRIDGE_PROVIDER_FORMS";
 
     private static final String WHERE_GUID_IS_NULL = BrowserContract.DeletedFormHistory.GUID + " IS NULL";
     private static final String WHERE_GUID_IS_VALUE = BrowserContract.DeletedFormHistory.GUID + " = ?";
@@ -153,11 +151,6 @@ public class FormHistoryProvider extends SQLiteBridgeContentProvider {
     @Override
     protected String getDBName(){
         return DB_FILENAME;
-    }
-
-    @Override
-    protected String getTelemetryPrefix() {
-        return TELEMETRY_TAG;
     }
 
     @Override

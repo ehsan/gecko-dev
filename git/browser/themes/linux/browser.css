@@ -52,9 +52,6 @@
 }
 
 #TabsToolbar:not([collapsed="true"]) + #nav-bar {
-  border-top: 1px solid hsla(0,0%,0%,.3) !important;
-  background-clip: padding-box;
-  margin-top: -1px; /* Move up into the TabsToolbar for the inner highlight at the top of the nav-bar */
   /* Position the toolbar above the bottom of background tabs */
   position: relative;
   z-index: 1;
@@ -1376,24 +1373,14 @@ toolbarbutton[sdk-button="true"][cui-areatype="toolbar"] > .toolbarbutton-icon {
 
 %include ../shared/translation/infobar.inc.css
 
-notification[value="translation"] {
-  min-height: 40px;
-}
-
 notification[value="translation"],
 notification[value="translation"] button,
 notification[value="translation"] menulist {
-  min-height: 30px;
   color: #5A5959;
 }
 
 notification[value="translation"] {
   background-color: #F2F1F0;
-}
-
-notification[value="translation"] button,
-notification[value="translation"] menulist {
-  -moz-padding-end: 1ch;
 }
 
 notification[value="translation"] menulist {
@@ -1404,13 +1391,6 @@ notification[value="translation"] menulist {
 notification[value="translation"] button {
   border: 1px solid #C1C1C1;
   background-color: #F2F1F0;
-}
-
-notification[value="translation"] button,
-notification[value="translation"] menulist,
-notification[value="translation"] menulist > .menulist-label-box {
-  -moz-margin-start: 1ch;
-  -moz-margin-end: 1ch;
 }
 
 notification[value="translation"] button:hover,
@@ -1430,16 +1410,6 @@ notification[value="translation"] button[anonid="translate"] {
 notification[value="translation"] button[anonid="translate"]:hover,
 notification[value="translation"] button[anonid="translate"]:active {
   background-image: linear-gradient(#8DA726, #8DA726);
-}
-
-notification[value="translation"] button > .button-box,
-notification[value="translation"] button[type="menu"] > .button-box > .button-menu-dropmarker {
-  padding: 0;
-  -moz-margin-start: 3ch;
-}
-
-notification[value="translation"] button:not([type="menu"]) > .button-box {
-  -moz-margin-end: 3ch;
 }
 
 notification[value="translation"] menulist > .menulist-dropmarker {
@@ -1751,7 +1721,21 @@ richlistitem[type~="action"][actiontype="switchtab"] > .ac-url-box > .ac-action-
 #TabsToolbar {
   min-height: 0;
   padding: 0;
+  position: relative;
   margin-bottom: -@tabToolbarNavbarOverlap@;
+}
+
+/*
+ * Draw the bottom border of the tabstrip:
+ */
+#TabsToolbar::after {
+  content: "";
+  position: absolute;
+  bottom: @tabToolbarNavbarOverlap@;
+  left: 0;
+  right: 0;
+  z-index: 0;
+  border-bottom: 1px solid hsla(0,0%,0%,.3);
 }
 
 #TabsToolbar:not(:-moz-lwtheme) {
@@ -2184,29 +2168,15 @@ chatbox {
 
 %include ../shared/customizableui/customizeMode.inc.css
 
+#main-window[customizing] > #tab-view-deck {
+  background: linear-gradient(to bottom, #bcbcbc, #b5b5b5);
+}
+
 #main-window[customize-entered] > #tab-view-deck {
-  background-image: url("chrome://browser/skin/customizableui/customizeMode-gridTexture.png"),
-                    linear-gradient(to bottom, #bcbcbc, #b5b5b5);
-  background-attachment: fixed;
-}
-
-#main-window[customization-lwtheme] > #tab-view-deck:-moz-lwtheme {
-  background-repeat: no-repeat;
-  background-position: right top;
-  background-attachment: fixed;
-  /* The image will get set from CustomizeMode.jsm */
-  background-image: none;
-  background-color: transparent;
-}
-
-#main-window[customization-lwtheme]:-moz-lwtheme {
   background-image: url("chrome://browser/skin/customizableui/customizeMode-gridTexture.png"),
                     url("chrome://browser/skin/customizableui/background-noise-toolbar.png"),
                     linear-gradient(to bottom, #bcbcbc, #b5b5b5);
-  background-color: #b5b5b5;
-  background-repeat: repeat;
   background-attachment: fixed;
-  background-position: left top;
 }
 
 #main-window[customize-entered] #browser-bottombox,

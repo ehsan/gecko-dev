@@ -1769,10 +1769,6 @@ private:
                                       nsIContent* aContent,
                                       nsStyleContext* aStyleContext,
                                       bool aIsGeneratedContent);
-  // Create touch caret frame.
-  void ConstructAnonymousContentForCanvas(nsFrameConstructorState& aState,
-                                          nsIFrame* aFrame,
-                                          nsIContent* aDocElement);
 
 public:
 

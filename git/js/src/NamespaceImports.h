@@ -32,17 +32,14 @@ class AutoValueVector;
 
 class AutoIdArray;
 
-class JS_PUBLIC_API(AutoGCRooter);
+class AutoGCRooter;
 template <typename T> class AutoVectorRooter;
 template<typename K, typename V> class AutoHashMapRooter;
 template<typename T> class AutoHashSetRooter;
-template<typename T> class RootedGeneric;
 
-class MOZ_STACK_CLASS SourceBufferHolder;
+class SourceBufferHolder;
 
 class HandleValueArray;
-
-class AutoCheckCannotGC;
 
 }
 
@@ -67,7 +64,6 @@ using JS::UndefinedValue;
 
 using JS::IsPoisonedPtr;
 
-using JS::Latin1Char;
 using JS::Latin1CharsZ;
 using JS::ConstTwoByteChars;
 using JS::TwoByteChars;
@@ -84,7 +80,6 @@ using JS::AutoGCRooter;
 using JS::AutoHashMapRooter;
 using JS::AutoHashSetRooter;
 using JS::AutoVectorRooter;
-using JS::RootedGeneric;
 
 using JS::CallArgs;
 using JS::CallNonGenericMethod;
@@ -134,8 +129,6 @@ using JS::UndefinedHandleValue;
 using JS::HandleValueArray;
 
 using JS::Zone;
-
-using JS::AutoCheckCannotGC;
 
 } /* namespace js */
 

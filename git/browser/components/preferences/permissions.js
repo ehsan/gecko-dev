@@ -203,11 +203,6 @@ var gPermissionManager = {
   {
     if (aTopic == "perm-changed") {
       var permission = aSubject.QueryInterface(Components.interfaces.nsIPermission);
-
-      // Ignore unrelated permission types.
-      if (permission.type != this._type)
-        return;
-
       if (aData == "added") {
         this._addPermissionToList(permission);
         ++this._view._rowCount;

@@ -171,9 +171,7 @@ this.CrashMonitor = {
     );
 
     CrashMonitorInternal.initialized = true;
-    if (Services.metro && Services.metro.immersive) {
-      OS.File.makeDir(OS.Path.join(OS.Constants.Path.profileDir, "metro"));
-    }
+    OS.File.makeDir(OS.Path.join(OS.Constants.Path.profileDir, "metro"));
     return promise;
   },
 

@@ -15,6 +15,33 @@ namespace js {
 
 class Shape;
 
+/*
+ * This auto class should be used around any code that might cause a mark bit to
+ * be set on an object in a dead zone. See AutoMaybeTouchDeadZones
+ * for more details.
+ */
+struct AutoMarkInDeadZone
+{
+    explicit AutoMarkInDeadZone(JS::Zone *zone)
+      : zone(zone),
+        scheduled(zone->scheduledForDestruction)
+    {
+        JSRuntime *rt = zone->runtimeFromMainThread();
+        if (rt->gc.manipulatingDeadZones && zone->scheduledForDestruction) {
+            rt->gc.objectsMarkedInDeadZones++;
+            zone->scheduledForDestruction = false;
+        }
+    }
+
+    ~AutoMarkInDeadZone() {
+        zone->scheduledForDestruction = scheduled;
+    }
+
+  private:
+    JS::Zone *zone;
+    bool scheduled;
+};
+
 inline Allocator *
 ThreadSafeContext::allocator() const
 {
@@ -76,15 +103,15 @@ GetGCThingTraceKind(const void *thing)
     return MapAllocToTraceKind(cell->tenuredGetAllocKind());
 }
 
-inline void
-GCRuntime::poke()
+static inline void
+GCPoke(JSRuntime *rt)
 {
-    poked = true;
+    rt->gc.poke = true;
 
 #ifdef JS_GC_ZEAL
     /* Schedule a GC to happen "soon" after a GC poke. */
-    if (zealMode == ZealPokeValue)
-        nextScheduled = 1;
+    if (rt->gcZeal() == js::gc::ZealPokeValue)
+        rt->gc.nextScheduled = 1;
 #endif
 }
 
@@ -477,10 +504,6 @@ CheckAllocatorState(ThreadSafeContext *cx, AllocKind kind)
     JS_ASSERT(rt->gc.isAllocAllowed());
 #endif
 
-    // Crash if we perform a GC action when it is not safe.
-    if (allowGC && !rt->mainThread.suppressGC)
-        JS::AutoAssertOnGC::VerifyIsSafeToGC(rt);
-
     // For testing out of memory conditions
     if (!PossiblyFail()) {
         js_ReportOutOfMemory(cx);
@@ -489,7 +512,7 @@ CheckAllocatorState(ThreadSafeContext *cx, AllocKind kind)
 
     if (allowGC) {
 #ifdef JS_GC_ZEAL
-        if (rt->gc.needZealousGC())
+        if (rt->needZealousGC())
             js::gc::RunDebugGC(ncx);
 #endif
 

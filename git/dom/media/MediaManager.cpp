@@ -41,6 +41,8 @@
 #include "nsDOMFile.h"
 #include "nsGlobalWindow.h"
 
+#include "mozilla/Preferences.h"
+
 /* Using WebRTC backend on Desktops (Mac, Windows, Linux), otherwise default */
 #include "MediaEngineDefault.h"
 #if defined(MOZ_WEBRTC)
@@ -51,8 +53,6 @@
 #include "MediaPermissionGonk.h"
 #endif
 
-#include "browser_logging/WebRtcLog.h"
-
 // GetCurrentTime is defined in winbase.h as zero argument macro forwarding to
 // GetTickCount() and conflicts with MediaStream::GetCurrentTime.
 #ifdef GetCurrentTime
@@ -62,12 +62,12 @@
 // XXX Workaround for bug 986974 to maintain the existing broken semantics
 template<>
 struct nsIMediaDevice::COMTypeInfo<mozilla::VideoDevice, void> {
-  static const nsIID kIID;
+  static const nsIID kIID NS_HIDDEN;
 };
 const nsIID nsIMediaDevice::COMTypeInfo<mozilla::VideoDevice, void>::kIID = NS_IMEDIADEVICE_IID;
 template<>
 struct nsIMediaDevice::COMTypeInfo<mozilla::AudioDevice, void> {
-  static const nsIID kIID;
+  static const nsIID kIID NS_HIDDEN;
 };
 const nsIID nsIMediaDevice::COMTypeInfo<mozilla::AudioDevice, void>::kIID = NS_IMEDIADEVICE_IID;
 
@@ -1576,8 +1576,6 @@ MediaManager::GetUserMedia(bool aPrivileged,
                                                                 callID, c, isHTTPS);
     obs->NotifyObservers(req, "getUserMedia:request", nullptr);
   }
-
-  EnableWebRtcLog();
 
   return NS_OK;
 }

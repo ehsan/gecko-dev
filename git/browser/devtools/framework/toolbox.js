@@ -245,9 +245,8 @@ Toolbox.prototype = {
         this._buildDockButtons();
         this._buildOptions();
         this._buildTabs();
-        let buttonsPromise = this._buildButtons();
+        this._buildButtons();
         this._addKeysToWindow();
-        this._addReloadKeys();
         this._addToolSwitchingKeys();
         this._addZoomKeys();
         this._loadInitialZoom();
@@ -255,10 +254,8 @@ Toolbox.prototype = {
         this._telemetry.toolOpened("toolbox");
 
         this.selectTool(this._defaultToolId).then(panel => {
-          buttonsPromise.then(() => {
-            this.emit("ready");
-            deferred.resolve();
-          }, deferred.reject);
+          this.emit("ready");
+          deferred.resolve();
         });
       };
 
@@ -296,19 +293,6 @@ Toolbox.prototype = {
     if (e.keyCode === e.DOM_VK_ESCAPE && !responsiveModeActive) {
       this.toggleSplitConsole();
     }
-  },
-
-  _addReloadKeys: function() {
-    [
-      ["toolbox-reload-key", false],
-      ["toolbox-reload-key2", false],
-      ["toolbox-force-reload-key", true],
-      ["toolbox-force-reload-key2", true]
-    ].forEach(([id, force]) => {
-      this.doc.getElementById(id).addEventListener("command", (event) => {
-        this.reloadTarget(force);
-      }, true);
-    });
   },
 
   _addToolSwitchingKeys: function() {
@@ -548,20 +532,17 @@ Toolbox.prototype = {
     }
 
     if (!this.target.isLocalTab) {
-      return Promise.resolve();
+      return;
     }
 
     let spec = CommandUtils.getCommandbarSpec("devtools.toolbox.toolbarSpec");
     let environment = CommandUtils.createEnvironment(this, '_target');
-    return CommandUtils.createRequisition(environment).then(requisition => {
-      this._requisition = requisition;
-      return CommandUtils.createButtons(spec, this.target, this.doc,
-                                        requisition).then(buttons => {
-        let container = this.doc.getElementById("toolbox-buttons");
-        buttons.forEach(container.appendChild.bind(container));
-        this.setToolboxButtonsVisibility();
-      });
-    });
+    this._requisition = CommandUtils.createRequisition(environment);
+    let buttons = CommandUtils.createButtons(spec, this._target,
+                                             this.doc, this._requisition);
+    let container = this.doc.getElementById("toolbox-buttons");
+    buttons.forEach(container.appendChild.bind(container));
+    this.setToolboxButtonsVisibility();
   },
 
   /**
@@ -595,8 +576,7 @@ Toolbox.prototype = {
       "command-button-paintflashing",
       "command-button-tilt",
       "command-button-scratchpad",
-      "command-button-eyedropper",
-      "command-button-screenshot"
+      "command-button-eyedropper"
     ].map(id => {
       let button = this.doc.getElementById(id);
       // Some buttons may not exist inside of Browser Toolbox
@@ -931,13 +911,6 @@ Toolbox.prototype = {
         });
       }
     }
-  },
-
-  /**
-   * Tells the target tab to reload.
-   */
-  reloadTarget: function(force) {
-    this.target.activeTab.reload({ force: force });
   },
 
   /**

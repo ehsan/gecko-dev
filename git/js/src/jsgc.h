@@ -900,6 +900,11 @@ MinorGC(JSRuntime *rt, JS::gcreason::Reason reason);
 extern void
 MinorGC(JSContext *cx, JS::gcreason::Reason reason);
 
+#ifdef JS_GC_ZEAL
+extern void
+SetGCZeal(JSRuntime *rt, uint8_t zeal, uint32_t frequency);
+#endif
+
 /* Functions for managing cross compartment gray pointers. */
 
 extern void
@@ -1156,6 +1161,15 @@ GCIfNeeded(JSContext *cx);
 void
 RunDebugGC(JSContext *cx);
 
+void
+SetDeterministicGC(JSContext *cx, bool enabled);
+
+void
+SetValidateGC(JSContext *cx, bool enabled);
+
+void
+SetFullCompartmentChecks(JSContext *cx, bool enabled);
+
 /* Wait for the background thread to finish sweeping if it is running. */
 void
 FinishBackgroundFinalize(JSRuntime *rt);
@@ -1259,8 +1273,8 @@ class AutoDisableProxyCheck
     uintptr_t &count;
 
   public:
-    explicit AutoDisableProxyCheck(JSRuntime *rt
-                                   MOZ_GUARD_OBJECT_NOTIFIER_PARAM);
+    AutoDisableProxyCheck(JSRuntime *rt
+                          MOZ_GUARD_OBJECT_NOTIFIER_PARAM);
 
     ~AutoDisableProxyCheck() {
         count--;

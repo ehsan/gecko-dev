@@ -2097,10 +2097,8 @@ public:
 };
 
 nsresult
-BluetoothDBusService::StartInternal(BluetoothReplyRunnable* aRunnable)
+BluetoothDBusService::StartInternal()
 {
-  MOZ_ASSERT(!aRunnable);
-
   nsRefPtr<nsRunnable> runnable = new StartBluetoothRunnable();
   nsresult rv = DispatchToBtThread(runnable);
   if (NS_FAILED(rv)) {
@@ -2227,10 +2225,8 @@ public:
 };
 
 nsresult
-BluetoothDBusService::StopInternal(BluetoothReplyRunnable* aRunnable)
+BluetoothDBusService::StopInternal()
 {
-  MOZ_ASSERT(!aRunnable);
-
   nsRefPtr<nsRunnable> runnable = new StopBluetoothRunnable();
   nsresult rv = DispatchToBtThread(runnable);
   if (NS_FAILED(rv)) {
@@ -2380,13 +2376,10 @@ private:
 };
 
 nsresult
-BluetoothDBusService::GetAdaptersInternal(BluetoothReplyRunnable* aRunnable)
+BluetoothDBusService::GetDefaultAdapterPathInternal(
+                                              BluetoothReplyRunnable* aRunnable)
 {
   MOZ_ASSERT(NS_IsMainThread());
-
-  /**
-   * TODO: implement method GetAdaptersInternal for bluez
-   */
 
   if (!IsReady()) {
     NS_NAMED_LITERAL_STRING(errorStr, "Bluetooth service is not ready yet!");

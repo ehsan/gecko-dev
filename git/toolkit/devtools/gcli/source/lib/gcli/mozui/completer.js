@@ -17,7 +17,6 @@
 'use strict';
 
 var util = require('../util/util');
-var host = require('../util/host');
 var domtemplate = require('../util/domtemplate');
 
 var completerHtml =
@@ -69,7 +68,7 @@ function Completer(components) {
     }
   }
 
-  this.template = host.toDom(this.document, completerHtml);
+  this.template = util.toDom(this.document, completerHtml);
   // We want the spans to line up without the spaces in the template
   util.removeWhitespace(this.template, true);
 
@@ -112,10 +111,6 @@ Completer.prototype.update = function(ev) {
   this.choice = (ev && ev.choice != null) ? ev.choice : 0;
 
   this._getCompleterTemplateData().then(function(data) {
-    if (this.template == null) {
-      return; // destroy() has been called
-    }
-
     var template = this.template.cloneNode(true);
     domtemplate.template(template, data, { stack: 'completer.html' });
 

@@ -6,26 +6,66 @@
 
 const { interfaces: Ci, utils: Cu } = Components;
 
+Cu.import("resource://gre/modules/XPCOMUtils.jsm");
+Cu.import("resource://gre/modules/Services.jsm");
+Cu.import("resource://gre/modules/Promise.jsm");
 Cu.import("resource://gre/modules/FxAccountsCommon.js");
-Cu.import("resource://gre/modules/ContentRequestHelper.jsm");
+
+XPCOMUtils.defineLazyServiceGetter(this, "uuidgen",
+                                   "@mozilla.org/uuid-generator;1",
+                                   "nsIUUIDGenerator");
+
+XPCOMUtils.defineLazyModuleGetter(this, "SystemAppProxy",
+                                  "resource://gre/modules/SystemAppProxy.jsm");
 
 function FxAccountsUIGlue() {
 }
 
 FxAccountsUIGlue.prototype = {
 
-  __proto__: ContentRequestHelper.prototype,
+  _contentRequest: function(aEventName, aData) {
+    let deferred = Promise.defer();
+
+    let id = uuidgen.generateUUID().toString();
+
+    SystemAppProxy.addEventListener("mozFxAccountsRPContentEvent",
+                                    function onContentEvent(result) {
+      let msg = result.detail;
+      if (!msg || !msg.id || msg.id != id) {
+        deferred.reject("InternalErrorWrongContentEvent");
+        SystemAppProxy.removeEventListener("mozFxAccountsRPContentEvent",
+                                           onContentEvent);
+        return;
+      }
+
+      log.debug("UIGlue got content event " + JSON.stringify(msg));
+
+      if (msg.error) {
+        deferred.reject(msg);
+      } else {
+        deferred.resolve(msg.result);
+      }
+      SystemAppProxy.removeEventListener("mozFxAccountsRPContentEvent",
+                                         onContentEvent);
+    });
+
+    let detail = {
+       eventName: aEventName,
+       id: id,
+       data: aData
+    };
+    log.debug("Send chrome event " + JSON.stringify(detail));
+    SystemAppProxy._sendCustomEvent("mozFxAccountsUnsolChromeEvent", detail);
+
+    return deferred.promise;
+  },
 
   signInFlow: function() {
-    return this.contentRequest("mozFxAccountsRPContentEvent",
-                               "mozFxAccountsUnsolChromeEvent",
-                               "openFlow");
+    return this._contentRequest("openFlow");
   },
 
   refreshAuthentication: function(aEmail) {
-    return this.contentRequest("mozFxAccountsRPContentEvent",
-                               "mozFxAccountsUnsolChromeEvent",
-                               "refreshAuthentication", {
+    return this._contentRequest("refreshAuthentication", {
       email: aEmail
     });
   },

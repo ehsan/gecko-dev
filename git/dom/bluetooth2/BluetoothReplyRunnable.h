@@ -48,10 +48,6 @@ private:
   nsresult FireReply(JS::Handle<JS::Value> aVal);
   nsresult FireErrorString();
 
-  /**
-   * mDOMRequest is nullptr for internal IPC that require no DOMRequest,
-   * e.g., GetAdaptersTask triggered by BluetoothManager
-   */
   nsCOMPtr<nsIDOMDOMRequest> mDOMRequest;
   nsString mErrorString;
 };

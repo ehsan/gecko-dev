@@ -14,7 +14,6 @@
 #include <stdlib.h>
 #include <string.h>
 
-#include "webrtc/modules/rtp_rtcp/interface/rtp_rtcp_defines.h"
 #include "webrtc/modules/rtp_rtcp/source/producer_fec.h"
 #include "webrtc/modules/rtp_rtcp/source/rtp_format_video_generic.h"
 #include "webrtc/modules/rtp_rtcp/source/rtp_format_h264.h"
@@ -34,26 +33,27 @@ struct RtpPacket {
 
 RTPSenderVideo::RTPSenderVideo(const int32_t id,
                                Clock* clock,
-                               RTPSenderInterface* rtpSender)
-    : _id(id),
-      _rtpSender(*rtpSender),
-      _sendVideoCritsect(CriticalSectionWrapper::CreateCriticalSection()),
-      _videoType(kRtpVideoGeneric),
-      _videoCodecInformation(NULL),
-      _maxBitrate(0),
-      _retransmissionSettings(kRetransmitBaseLayer),
+                               RTPSenderInterface* rtpSender) :
+    _id(id),
+    _rtpSender(*rtpSender),
+    _sendVideoCritsect(CriticalSectionWrapper::CreateCriticalSection()),
 
-      // Generic FEC
-      _fec(id),
-      _fecEnabled(false),
-      _payloadTypeRED(-1),
-      _payloadTypeFEC(-1),
-      _numberFirstPartition(0),
-      delta_fec_params_(),
-      key_fec_params_(),
-      producer_fec_(&_fec),
-      _fecOverheadRate(clock, NULL),
-      _videoBitrate(clock, NULL) {
+    _videoType(kRtpVideoGeneric),
+    _videoCodecInformation(NULL),
+    _maxBitrate(0),
+    _retransmissionSettings(kRetransmitBaseLayer),
+
+    // Generic FEC
+    _fec(id),
+    _fecEnabled(false),
+    _payloadTypeRED(-1),
+    _payloadTypeFEC(-1),
+    _numberFirstPartition(0),
+    delta_fec_params_(),
+    key_fec_params_(),
+    producer_fec_(&_fec),
+    _fecOverheadRate(clock),
+    _videoBitrate(clock) {
   memset(&delta_fec_params_, 0, sizeof(delta_fec_params_));
   memset(&key_fec_params_, 0, sizeof(key_fec_params_));
   delta_fec_params_.max_fec_frames = key_fec_params_.max_fec_frames = 1;
@@ -257,13 +257,8 @@ RTPSenderVideo::FECPacketOverhead() const
 {
     if (_fecEnabled)
     {
-      // Overhead is FEC headers plus RED for FEC header plus anything in RTP
-      // header beyond the 12 bytes base header (CSRC list, extensions...)
-      // This reason for the header extensions to be included here is that
-      // from an FEC viewpoint, they are part of the payload to be protected.
-      // (The base RTP header is already protected by the FEC header.)
-      return ForwardErrorCorrection::PacketOverhead() + REDForFECHeaderLength +
-             (_rtpSender.RTPHeaderLength() - kRtpHeaderSize);
+        return ForwardErrorCorrection::PacketOverhead() +
+            REDForFECHeaderLength;
     }
     return 0;
 }

@@ -3182,12 +3182,12 @@ class LDoubleToString : public LInstructionHelper<1, 1, 1>
 };
 
 // Convert a primitive to a string with a function call.
-class LValueToString : public LInstructionHelper<1, BOX_PIECES, 1>
+class LPrimitiveToString : public LInstructionHelper<1, BOX_PIECES, 1>
 {
   public:
-    LIR_HEADER(ValueToString)
+    LIR_HEADER(PrimitiveToString)
 
-    LValueToString(const LDefinition &tempToUnbox)
+    explicit LPrimitiveToString(const LDefinition &tempToUnbox)
     {
         setTemp(0, tempToUnbox);
     }
@@ -3503,6 +3503,24 @@ class LLambdaPar : public LInstructionHelper<1, 2, 2>
     }
 };
 
+// Determines the implicit |this| value for function calls.
+class LImplicitThis : public LInstructionHelper<BOX_PIECES, 1, 0>
+{
+  public:
+    LIR_HEADER(ImplicitThis)
+
+    explicit LImplicitThis(const LAllocation &callee) {
+        setOperand(0, callee);
+    }
+
+    const MImplicitThis *mir() const {
+        return mir_->toImplicitThis();
+    }
+    const LAllocation *callee() {
+        return getOperand(0);
+    }
+};
+
 // Load the "slots" member out of a JSObject.
 //   Input: JSObject pointer
 //   Output: slots pointer
@@ -3673,25 +3691,6 @@ class LTypedArrayElements : public LInstructionHelper<1, 1, 0>
     }
     const LAllocation *object() {
         return getOperand(0);
-    }
-};
-
-// Load a typed object's prototype, which is guaranteed to be a
-// TypedProto object.
-class LTypedObjectProto : public LCallInstructionHelper<1, 1, 1>
-{
-  public:
-    LIR_HEADER(TypedObjectProto)
-
-    LTypedObjectProto(const LAllocation &object, const LDefinition &temp1) {
-        setOperand(0, object);
-        setTemp(0, temp1);
-    }
-    const LAllocation *object() {
-        return getOperand(0);
-    }
-    const LDefinition *temp() {
-        return getTemp(0);
     }
 };
 
@@ -3875,8 +3874,7 @@ class LInArray : public LInstructionHelper<1, 4, 0>
 };
 
 
-// Load a value from an array's elements vector, loading |undefined| if we hit a hole.
-// Bail out if we get a negative index.
+// Load a value from a dense array's elements vector. Bail out if it's the hole value.
 class LLoadElementHole : public LInstructionHelper<BOX_PIECES, 3, 0>
 {
   public:
@@ -4723,14 +4721,8 @@ class LLoadSlotT : public LInstructionHelper<1, 1, 0>
   public:
     LIR_HEADER(LoadSlotT)
 
-    explicit LLoadSlotT(const LAllocation &slots) {
-        setOperand(0, slots);
-    }
-    const LAllocation *slots() {
-        return getOperand(0);
-    }
-    const LDefinition *output() {
-        return this->getDef(0);
+    explicit LLoadSlotT(const LAllocation &in) {
+        setOperand(0, in);
     }
     const MLoadSlot *mir() const {
         return mir_->toLoadSlot();
@@ -4826,7 +4818,7 @@ class LCeil : public LInstructionHelper<1, 1, 0>
   public:
     LIR_HEADER(Ceil)
 
-    explicit LCeil(const LAllocation &num) {
+    LCeil(const LAllocation &num) {
         setOperand(0, num);
     }
 };
@@ -4837,7 +4829,7 @@ class LCeilF : public LInstructionHelper<1, 1, 0>
   public:
     LIR_HEADER(CeilF)
 
-    explicit LCeilF(const LAllocation &num) {
+    LCeilF(const LAllocation &num) {
         setOperand(0, num);
     }
 };
@@ -5601,17 +5593,16 @@ class MPhi;
 // corresponding to the predecessor taken in the control flow graph.
 class LPhi MOZ_FINAL : public LInstruction
 {
-    LAllocation *const inputs_;
+    LAllocation *inputs_;
     LDefinition def_;
+
+    LPhi()
+    { }
 
   public:
     LIR_HEADER(Phi)
 
-    LPhi(MPhi *ins, LAllocation *inputs)
-        : inputs_(inputs)
-    {
-        setMir(ins);
-    }
+    static LPhi *New(MIRGenerator *gen, MPhi *phi);
 
     size_t numDefs() const {
         return 1;
@@ -5754,6 +5745,10 @@ class LProfilerStackOp : public LInstructionHelper<0, 0, 1>
 
     MProfilerStackOp::Type type() {
         return mir_->toProfilerStackOp()->type();
+    }
+
+    unsigned inlineLevel() {
+        return mir_->toProfilerStackOp()->inlineLevel();
     }
 };
 

@@ -290,7 +290,7 @@ uint32_t
 ThreadPool::numWorkers() const
 {
 #ifdef JS_THREADSAFE
-    return HelperThreadState().cpuCount;
+    return WorkerThreadState().cpuCount;
 #else
     return 1;
 #endif

@@ -52,8 +52,8 @@ public:
 
   nsTimerImpl();
 
-  static nsresult Startup();
-  static void Shutdown();
+  static NS_HIDDEN_(nsresult) Startup();
+  static NS_HIDDEN_(void) Shutdown();
 
   friend class TimerThread;
   friend struct TimerAdditionComparator;

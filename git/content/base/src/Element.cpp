@@ -66,7 +66,6 @@
 #ifdef MOZ_XUL
 #include "nsXULElement.h"
 #endif /* MOZ_XUL */
-#include "nsSVGElement.h"
 #include "nsFrameManager.h"
 #include "nsFrameSelection.h"
 #ifdef DEBUG
@@ -139,32 +138,6 @@
 using namespace mozilla;
 using namespace mozilla::dom;
 
-nsIAtom*
-nsIContent::DoGetID() const
-{
-  MOZ_ASSERT(HasID(), "Unexpected call");
-  MOZ_ASSERT(IsElement(), "Only elements can have IDs");
-
-  return AsElement()->GetParsedAttr(nsGkAtoms::id)->GetAtomValue();
-}
-
-const nsAttrValue*
-nsIContent::DoGetClasses() const
-{
-  MOZ_ASSERT(HasFlag(NODE_MAY_HAVE_CLASS), "Unexpected call");
-  MOZ_ASSERT(IsElement(), "Only elements can have classes");
-
-  if (IsSVG()) {
-    const nsAttrValue* animClass =
-      static_cast<const nsSVGElement*>(this)->GetAnimatedClassName();
-    if (animClass) {
-      return animClass;
-    }
-  }
-
-  return AsElement()->GetParsedAttr(nsGkAtoms::_class);
-}
-
 NS_IMETHODIMP
 Element::QueryInterface(REFNSIID aIID, void** aInstancePtr)
 {
@@ -190,7 +163,7 @@ Element::IntrinsicState() const
 void
 Element::NotifyStateChange(EventStates aStates)
 {
-  nsIDocument* doc = GetCrossShadowCurrentDoc();
+  nsIDocument* doc = GetCurrentDoc();
   if (doc) {
     nsAutoScriptBlocker scriptBlocker;
     doc->ContentStateChanged(this, aStates);
@@ -496,12 +469,15 @@ Element::WrapObject(JSContext *aCx)
 }
 
 nsDOMTokenList*
-Element::ClassList()
+Element::GetClassList()
 {
-  Element::nsDOMSlots* slots = DOMSlots();
+  Element::nsDOMSlots *slots = DOMSlots();
 
   if (!slots->mClassList) {
-    slots->mClassList = new nsDOMTokenList(this, nsGkAtoms::_class);
+    nsIAtom* classAttr = GetClassAttributeName();
+    if (classAttr) {
+      slots->mClassList = new nsDOMTokenList(this, classAttr);
+    }
   }
 
   return slots->mClassList;
@@ -510,7 +486,7 @@ Element::ClassList()
 void
 Element::GetClassList(nsISupports** aClassList)
 {
-  NS_ADDREF(*aClassList = ClassList());
+  NS_IF_ADDREF(*aClassList = GetClassList());
 }
 
 already_AddRefed<nsIHTMLCollection>
@@ -763,22 +739,31 @@ Element::AddToIdTable(nsIAtom* aId)
 void
 Element::RemoveFromIdTable()
 {
-  if (!HasID()) {
-    return;
+  if (HasID()) {
+    RemoveFromIdTable(DoGetID());
   }
+}
 
-  nsIAtom* id = DoGetID();
+void
+Element::RemoveFromIdTable(nsIAtom* aId)
+{
+  NS_ASSERTION(HasID(), "Node doesn't have an ID?");
   if (HasFlag(NODE_IS_IN_SHADOW_TREE)) {
     ShadowRoot* containingShadow = GetContainingShadow();
     // Check for containingShadow because it may have
     // been deleted during unlinking.
     if (containingShadow) {
-      containingShadow->RemoveFromIdTable(this, id);
+      containingShadow->RemoveFromIdTable(this, aId);
     }
   } else {
     nsIDocument* doc = GetCurrentDoc();
     if (doc && (!IsInAnonymousSubtree() || doc->IsXUL())) {
-      doc->RemoveFromIdTable(this, id);
+      // id can be null during mutation events evilness. Also, XUL elements
+      // loose their proto attributes during cc-unlink, so this can happen
+      // during cc-unlink too.
+      if (aId) {
+        doc->RemoveFromIdTable(this, aId);
+      }
     }
   }
 }
@@ -831,7 +816,7 @@ Element::CreateShadowRoot(ErrorResult& aError)
 
   // Recreate the frame for the bound content because binding a ShadowRoot
   // changes how things are rendered.
-  nsIDocument* doc = GetCrossShadowCurrentDoc();
+  nsIDocument* doc = GetCurrentDoc();
   if (doc) {
     nsIPresShell *shell = doc->GetShell();
     if (shell) {
@@ -1231,7 +1216,6 @@ Element::BindToTree(nsIDocument* aDocument, nsIContent* aParent,
       SetFlags(NODE_CHROME_ONLY_ACCESS);
     }
     if (aParent->HasFlag(NODE_IS_IN_SHADOW_TREE)) {
-      ClearSubtreeRootPointer();
       SetFlags(NODE_IS_IN_SHADOW_TREE);
     }
     ShadowRoot* parentContainingShadow = aParent->GetContainingShadow();
@@ -1292,9 +1276,8 @@ Element::BindToTree(nsIDocument* aDocument, nsIContent* aParent,
 
     // Propagate scoped style sheet tracking bit.
     SetIsElementInStyleScope(mParent->IsElementInStyleScope());
-  } else if (!HasFlag(NODE_IS_IN_SHADOW_TREE)) {
-    // If we're not in the doc and not in a shadow tree,
-    // update our subtree pointer.
+  } else {
+    // If we're not in the doc, update our subtree pointer.
     SetSubtreeRootPointer(aParent->SubtreeRoot());
   }
 
@@ -1437,7 +1420,6 @@ Element::UnbindFromTree(bool aDeep, bool aNullParent)
     SetParentIsContent(false);
   }
   ClearInDocument();
-  UnsetFlags(NODE_IS_IN_SHADOW_TREE);
 
   // Begin keeping track of our subtree root.
   SetSubtreeRootPointer(aNullParent ? this : mParent->SubtreeRoot());
@@ -1473,7 +1455,7 @@ Element::UnbindFromTree(bool aDeep, bool aNullParent)
   }
 
   // Unset this since that's what the old code effectively did.
-  UnsetFlags(NODE_FORCE_XBL_BINDINGS);
+  UnsetFlags(NODE_FORCE_XBL_BINDINGS | NODE_IS_IN_SHADOW_TREE);
   
 #ifdef MOZ_XUL
   nsXULElement* xulElem = nsXULElement::FromContent(this);
@@ -1589,6 +1571,12 @@ Element::GetAttributeChangeHint(const nsIAtom* aAttribute,
                                 int32_t aModType) const
 {
   return nsChangeHint(0);
+}
+
+nsIAtom *
+Element::GetClassAttributeName() const
+{
+  return nullptr;
 }
 
 bool
@@ -1778,6 +1766,7 @@ Element::SetEventHandler(nsIAtom* aEventName,
 
   defer = defer && aDefer; // only defer if everyone agrees...
   manager->SetEventHandler(aEventName, aValue,
+                           nsIProgrammingLanguage::JAVASCRIPT,
                            defer, !nsContentUtils::IsChromeDoc(ownerDoc),
                            this);
   return NS_OK;
@@ -2067,27 +2056,6 @@ Element::ParseAttribute(int32_t aNamespaceID,
                         const nsAString& aValue,
                         nsAttrValue& aResult)
 {
-  if (aNamespaceID == kNameSpaceID_None) {
-    if (aAttribute == nsGkAtoms::_class) {
-      SetFlags(NODE_MAY_HAVE_CLASS);
-      aResult.ParseAtomArray(aValue);
-      return true;
-    }
-    if (aAttribute == nsGkAtoms::id) {
-      // Store id as an atom.  id="" means that the element has no id,
-      // not that it has an emptystring as the id.
-      RemoveFromIdTable();
-      if (aValue.IsEmpty()) {
-        ClearHasID();
-        return false;
-      }
-      aResult.ParseAtom(aValue);
-      SetHasID();
-      AddToIdTable(aResult.GetAtomValue());
-      return true;
-    }
-  }
-
   return false;
 }
 
@@ -2202,12 +2170,6 @@ Element::UnsetAttr(int32_t aNameSpaceID, nsIAtom* aName,
   // The id-handling code, and in the future possibly other code, need to
   // react to unexpected attribute changes.
   nsMutationGuard::DidMutate();
-
-  if (aName == nsGkAtoms::id && aNameSpaceID == kNameSpaceID_None) {
-    // Have to do this before clearing flag. See RemoveFromIdTable
-    RemoveFromIdTable();
-    ClearHasID();
-  }
 
   bool hadValidDir = false;
   bool hadDirAuto = false;

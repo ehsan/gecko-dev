@@ -216,23 +216,6 @@ TEST_F(pkixder_input_tests, ReadBytePastEnd)
   ASSERT_NE(0x22, readByte2);
 }
 
-TEST_F(pkixder_input_tests, ReadByteWrapAroundPointer)
-{
-  // The original implementation of our buffer read overflow checks was
-  // susceptible to integer overflows which could make the checks ineffective.
-  // This attempts to verify that we've fixed that. Unfortunately, decrementing
-  // a null pointer is undefined behavior according to the C++ language spec.,
-  // but this should catch the problem on at least some compilers, if not all of
-  // them.
-  const uint8_t* der = nullptr;
-  --der;
-  Input input;
-  ASSERT_EQ(Success, input.Init(der, 0));
-  uint8_t b;
-  ASSERT_EQ(Failure, input.Read(b));
-  ASSERT_EQ(SEC_ERROR_BAD_DER, PR_GetError());
-}
-
 TEST_F(pkixder_input_tests, ReadWord)
 {
   Input input;
@@ -274,23 +257,6 @@ TEST_F(pkixder_input_tests, ReadWordWithInsufficentData)
   uint16_t readWord1 = 0;
   ASSERT_EQ(Failure, input.Read(readWord1));
   ASSERT_NE(0x1122, readWord1);
-}
-
-TEST_F(pkixder_input_tests, ReadWordWrapAroundPointer)
-{
-  // The original implementation of our buffer read overflow checks was
-  // susceptible to integer overflows which could make the checks ineffective.
-  // This attempts to verify that we've fixed that. Unfortunately, decrementing
-  // a null pointer is undefined behavior according to the C++ language spec.,
-  // but this should catch the problem on at least some compilers, if not all of
-  // them.
-  const uint8_t* der = nullptr;
-  --der;
-  Input input;
-  ASSERT_EQ(Success, input.Init(der, 0));
-  uint16_t b;
-  ASSERT_EQ(Failure, input.Read(b));
-  ASSERT_EQ(SEC_ERROR_BAD_DER, PR_GetError());
 }
 
 TEST_F(pkixder_input_tests, InputSkip)
@@ -383,22 +349,6 @@ TEST_F(pkixder_input_tests, InputSkipToSECItem)
   ASSERT_EQ(sizeof expectedItemData, item.len);
   ASSERT_EQ(der, item.data);
   ASSERT_EQ(0, memcmp(item.data, expectedItemData, sizeof expectedItemData));
-}
-
-TEST_F(pkixder_input_tests, SkipWrapAroundPointer)
-{
-  // The original implementation of our buffer read overflow checks was
-  // susceptible to integer overflows which could make the checks ineffective.
-  // This attempts to verify that we've fixed that. Unfortunately, decrementing
-  // a null pointer is undefined behavior according to the C++ language spec.,
-  // but this should catch the problem on at least some compilers, if not all of
-  // them.
-  const uint8_t* der = nullptr;
-  --der;
-  Input input;
-  ASSERT_EQ(Success, input.Init(der, 0));
-  ASSERT_EQ(Failure, input.Skip(1));
-  ASSERT_EQ(SEC_ERROR_BAD_DER, PR_GetError());
 }
 
 TEST_F(pkixder_input_tests, SkipToSECItemPastEnd)
@@ -655,52 +605,56 @@ TEST_F(pkixder_input_tests, NestedOfWithTruncatedData)
   ASSERT_EQ((size_t) 0, readValues.size());
 }
 
-TEST_F(pkixder_input_tests, MatchRestAtEnd)
+TEST_F(pkixder_input_tests, MatchBytesAtEnd)
 {
   Input input;
   static const uint8_t der[1] = { };
   ASSERT_EQ(Success, input.Init(der, 0));
   ASSERT_TRUE(input.AtEnd());
   static const uint8_t toMatch[] = { 1 };
-  ASSERT_FALSE(input.MatchRest(toMatch));
+  ASSERT_FALSE(input.MatchBytes(toMatch));
 }
 
-TEST_F(pkixder_input_tests, MatchRest1Match)
+TEST_F(pkixder_input_tests, MatchBytes1Match)
 {
   Input input;
   static const uint8_t der[] = { 1 };
   ASSERT_EQ(Success, input.Init(der, sizeof der));
   ASSERT_FALSE(input.AtEnd());
-  ASSERT_TRUE(input.MatchRest(der));
+  ASSERT_TRUE(input.MatchBytes(der));
+  ASSERT_TRUE(input.AtEnd());
 }
 
-TEST_F(pkixder_input_tests, MatchRest1Mismatch)
+TEST_F(pkixder_input_tests, MatchBytes1Mismatch)
 {
   Input input;
   static const uint8_t der[] = { 1 };
   ASSERT_EQ(Success, input.Init(der, sizeof der));
   static const uint8_t toMatch[] = { 2 };
-  ASSERT_FALSE(input.MatchRest(toMatch));
+  ASSERT_FALSE(input.MatchBytes(toMatch));
   ASSERT_FALSE(input.AtEnd());
 }
 
-TEST_F(pkixder_input_tests, MatchRest2WithTrailingByte)
+TEST_F(pkixder_input_tests, MatchBytes2Match)
 {
   Input input;
   static const uint8_t der[] = { 1, 2, 3 };
   ASSERT_EQ(Success, input.Init(der, sizeof der));
   static const uint8_t toMatch[] = { 1, 2 };
-  ASSERT_FALSE(input.MatchRest(toMatch));
+  ASSERT_TRUE(input.MatchBytes(toMatch));
+  uint8_t followingByte;
+  ASSERT_EQ(Success, input.Read(followingByte));
+  ASSERT_EQ(3, followingByte);
 }
 
-TEST_F(pkixder_input_tests, MatchRest2Mismatch)
+TEST_F(pkixder_input_tests, MatchBytes2Mismatch)
 {
   Input input;
   static const uint8_t der[] = { 1, 2, 3 };
   ASSERT_EQ(Success, input.Init(der, sizeof der));
   static const uint8_t toMatchMismatch[] = { 1, 3 };
-  ASSERT_FALSE(input.MatchRest(toMatchMismatch));
-  ASSERT_TRUE(input.MatchRest(der));
+  ASSERT_FALSE(input.MatchBytes(toMatchMismatch));
+  ASSERT_TRUE(input.MatchBytes(der));
 }
 
 } // unnamed namespace

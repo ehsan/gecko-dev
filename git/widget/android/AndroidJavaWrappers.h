@@ -453,6 +453,13 @@ public:
         return event;
     }
 
+    static AndroidGeckoEvent* MakeDrawEvent(const nsIntRect& aRect) {
+        AndroidGeckoEvent *event = new AndroidGeckoEvent();
+        event->Init(DRAW);
+        event->mRect = aRect;
+        return event;
+    }
+
     static AndroidGeckoEvent* MakeFromJavaObject(JNIEnv *jenv, jobject jobj) {
         AndroidGeckoEvent *event = new AndroidGeckoEvent();
         event->Init(jenv, jobj);
@@ -675,6 +682,7 @@ public:
         SENSOR_EVENT = 3,
         LOCATION_EVENT = 5,
         IME_EVENT = 6,
+        DRAW = 7,
         SIZE_CHANGED = 8,
         APP_BACKGROUNDING = 9,
         APP_FOREGROUNDING = 10,
@@ -748,12 +756,6 @@ class nsJNIString : public nsString
 {
 public:
     nsJNIString(jstring jstr, JNIEnv *jenv);
-};
-
-class nsJNICString : public nsCString
-{
-public:
-    nsJNICString(jstring jstr, JNIEnv *jenv);
 };
 
 }

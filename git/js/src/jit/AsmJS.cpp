@@ -14,6 +14,7 @@
 
 #include "jsmath.h"
 #include "jsprf.h"
+#include "jsworkers.h"
 #include "prmjtime.h"
 
 #include "assembler/assembler/MacroAssembler.h"
@@ -28,7 +29,6 @@
 #ifdef JS_ION_PERF
 # include "jit/PerfSpewer.h"
 #endif
-#include "vm/HelperThreads.h"
 #include "vm/Interpreter.h"
 
 #include "jsinferinlines.h"
@@ -1446,10 +1446,6 @@ class MOZ_STACK_CLASS ModuleCompiler
     }
 #endif
 
-    bool addFunctionCounts(IonScriptCounts *counts) {
-        return module_->addFunctionCounts(counts);
-    }
-
     void finishFunctionBodies() {
         JS_ASSERT(!finishedFunctionBodies_);
         masm_.align(AsmJSPageSize);
@@ -1574,14 +1570,12 @@ class MOZ_STACK_CLASS ModuleCompiler
             // instruction.
             while (labelOffset != LabelBase::INVALID_OFFSET) {
                 size_t patchAtOffset = masm_.labelOffsetToPatchOffset(labelOffset);
-                AsmJSModule::RelativeLink link(AsmJSModule::RelativeLink::CodeLabel);
+                AsmJSModule::RelativeLink link;
                 link.patchAtOffset = patchAtOffset;
                 link.targetOffset = targetOffset;
                 if (!module_->addRelativeLink(link))
                     return false;
-
-                labelOffset = Assembler::extractCodeLabelOffset(module_->codeBase() +
-                                                                patchAtOffset);
+                labelOffset = *(uintptr_t *)(module_->codeBase() + patchAtOffset);
             }
         }
 
@@ -1590,7 +1584,7 @@ class MOZ_STACK_CLASS ModuleCompiler
             FuncPtrTable &table = funcPtrTables_[tableIndex];
             unsigned tableBaseOffset = module_->offsetOfGlobalData() + table.globalDataOffset();
             for (unsigned elemIndex = 0; elemIndex < table.numElems(); elemIndex++) {
-                AsmJSModule::RelativeLink link(AsmJSModule::RelativeLink::RawPointer);
+                AsmJSModule::RelativeLink link;
                 link.patchAtOffset = tableBaseOffset + elemIndex * sizeof(uint8_t*);
                 link.targetOffset = masm_.actualOffset(table.elem(elemIndex).code()->offset());
                 if (!module_->addRelativeLink(link))
@@ -1604,7 +1598,7 @@ class MOZ_STACK_CLASS ModuleCompiler
         // code section so we can just use an RelativeLink.
         for (unsigned i = 0; i < masm_.numAsmJSGlobalAccesses(); i++) {
             AsmJSGlobalAccess a = masm_.asmJSGlobalAccess(i);
-            AsmJSModule::RelativeLink link(AsmJSModule::RelativeLink::InstructionImmediate);
+            AsmJSModule::RelativeLink link;
             link.patchAtOffset = masm_.labelOffsetToPatchOffset(a.patchAt.offset());
             link.targetOffset = module_->offsetOfGlobalData() + a.globalDataOffset;
             if (!module_->addRelativeLink(link))
@@ -1619,24 +1613,6 @@ class MOZ_STACK_CLASS ModuleCompiler
         for (unsigned i = 0; i < masm_.numAsmJSGlobalAccesses(); i++) {
             AsmJSGlobalAccess a = masm_.asmJSGlobalAccess(i);
             masm_.patchAsmJSGlobalAccess(a.patchAt, code, module_->globalData(), a.globalDataOffset);
-        }
-#endif
-
-#if defined(JS_CODEGEN_MIPS)
-        // On MIPS we need to update all the long jumps because they contain an
-        // absolute adress.
-        for (size_t i = 0; i < masm_.numLongJumps(); i++) {
-            uint32_t patchAtOffset = masm_.longJump(i);
-
-            AsmJSModule::RelativeLink link(AsmJSModule::RelativeLink::InstructionImmediate);
-            link.patchAtOffset = patchAtOffset;
-
-            InstImm *inst = (InstImm *)(module_->codeBase() + patchAtOffset);
-            link.targetOffset = Assembler::extractLuiOriValue(inst, inst->next()) -
-                                (uint32_t)module_->codeBase();
-
-            if (!module_->addRelativeLink(link))
-                return false;
         }
 #endif
 
@@ -5505,12 +5481,6 @@ GenerateCode(ModuleCompiler &m, ModuleCompiler::Func &func, MIRGenerator &mir, L
     if (!codegen || !codegen->generateAsmJS(&m.stackOverflowLabel()))
         return m.fail(nullptr, "internal codegen failure (probably out of memory)");
 
-    jit::IonScriptCounts *counts = codegen->extractScriptCounts();
-    if (counts && !m.addFunctionCounts(counts)) {
-        js_delete(counts);
-        return false;
-    }
-
 #if defined(MOZ_VTUNE) || defined(JS_ION_PERF)
     // Profiling might not be active now, but it may be activated later (perhaps
     // after the module has been cached and reloaded from the cache). Function
@@ -5601,7 +5571,7 @@ CheckFunctionsSequential(ModuleCompiler &m)
 
 // Currently, only one asm.js parallel compilation is allowed at a time.
 // This RAII class attempts to claim this parallel compilation using atomic ops
-// on the helper thread state's asmJSCompilationInProgress.
+// on rt->workerThreadState->asmJSCompilationInProgress.
 class ParallelCompilationGuard
 {
     bool parallelState_;
@@ -5609,13 +5579,13 @@ class ParallelCompilationGuard
     ParallelCompilationGuard() : parallelState_(false) {}
     ~ParallelCompilationGuard() {
         if (parallelState_) {
-            JS_ASSERT(HelperThreadState().asmJSCompilationInProgress == true);
-            HelperThreadState().asmJSCompilationInProgress = false;
+            JS_ASSERT(WorkerThreadState().asmJSCompilationInProgress == true);
+            WorkerThreadState().asmJSCompilationInProgress = false;
         }
     }
     bool claim() {
         JS_ASSERT(!parallelState_);
-        if (!HelperThreadState().asmJSCompilationInProgress.compareExchange(false, true))
+        if (!WorkerThreadState().asmJSCompilationInProgress.compareExchange(false, true))
             return false;
         parallelState_ = true;
         return true;
@@ -5627,11 +5597,11 @@ ParallelCompilationEnabled(ExclusiveContext *cx)
 {
     // If 'cx' isn't a JSContext, then we are already off the main thread so
     // off-thread compilation must be enabled. However, since there are a fixed
-    // number of helper threads and one is already being consumed by this
+    // number of worker threads and one is already being consumed by this
     // parsing task, ensure that there another free thread to avoid deadlock.
     // (Note: there is at most one thread used for parsing so we don't have to
     // worry about general dining philosophers.)
-    if (HelperThreadState().threadCount <= 1)
+    if (WorkerThreadState().threadCount <= 1)
         return false;
 
     if (!cx->isJSContext())
@@ -5651,18 +5621,18 @@ struct ParallelGroupState
     { }
 };
 
-// Block until a helper-assigned LifoAlloc becomes finished.
+// Block until a worker-assigned LifoAlloc becomes finished.
 static AsmJSParallelTask *
 GetFinishedCompilation(ModuleCompiler &m, ParallelGroupState &group)
 {
-    AutoLockHelperThreadState lock;
+    AutoLockWorkerThreadState lock;
 
-    while (!HelperThreadState().asmJSFailed()) {
-        if (!HelperThreadState().asmJSFinishedList().empty()) {
+    while (!WorkerThreadState().asmJSWorkerFailed()) {
+        if (!WorkerThreadState().asmJSFinishedList().empty()) {
             group.outstandingJobs--;
-            return HelperThreadState().asmJSFinishedList().popCopy();
+            return WorkerThreadState().asmJSFinishedList().popCopy();
         }
-        HelperThreadState().wait(GlobalHelperThreadState::CONSUMER);
+        WorkerThreadState().wait(GlobalWorkerThreadState::CONSUMER);
     }
 
     return nullptr;
@@ -5688,7 +5658,7 @@ GenerateCodeForFinishedJob(ModuleCompiler &m, ParallelGroupState &group, AsmJSPa
 
     group.compiledJobs++;
 
-    // Clear the LifoAlloc for use by another helper.
+    // Clear the LifoAlloc for use by another worker.
     TempAllocator &tempAlloc = task->mir->alloc();
     tempAlloc.TempAllocator::~TempAllocator();
     task->lifo.releaseAll();
@@ -5702,7 +5672,7 @@ GetUnusedTask(ParallelGroupState &group, uint32_t i, AsmJSParallelTask **outTask
 {
     // Since functions are dispatched in order, if fewer than |numLifos| functions
     // have been generated, then the |i'th| LifoAlloc must never have been
-    // assigned to a helper thread.
+    // assigned to a worker thread.
     if (i >= group.tasks.length())
         return false;
     *outTask = &group.tasks[i];
@@ -5714,12 +5684,12 @@ CheckFunctionsParallelImpl(ModuleCompiler &m, ParallelGroupState &group)
 {
 #ifdef DEBUG
     {
-        AutoLockHelperThreadState lock;
-        JS_ASSERT(HelperThreadState().asmJSWorklist().empty());
-        JS_ASSERT(HelperThreadState().asmJSFinishedList().empty());
+        AutoLockWorkerThreadState lock;
+        JS_ASSERT(WorkerThreadState().asmJSWorklist().empty());
+        JS_ASSERT(WorkerThreadState().asmJSFinishedList().empty());
     }
 #endif
-    HelperThreadState().resetAsmJSFailureState();
+    WorkerThreadState().resetAsmJSFailureState();
 
     for (unsigned i = 0; PeekToken(m.parser()) == TOK_FUNCTION; i++) {
         // Get exclusive access to an empty LifoAlloc from the thread group's pool.
@@ -5733,7 +5703,7 @@ CheckFunctionsParallelImpl(ModuleCompiler &m, ParallelGroupState &group)
         if (!CheckFunction(m, task->lifo, &mir, &func))
             return false;
 
-        // Perform optimizations and LIR generation on a helper thread.
+        // Perform optimizations and LIR generation on a worker thread.
         task->init(m.cx()->compartment()->runtimeFromAnyThread(), func, mir);
         if (!StartOffThreadAsmJSCompile(m.cx(), task))
             return false;
@@ -5741,7 +5711,7 @@ CheckFunctionsParallelImpl(ModuleCompiler &m, ParallelGroupState &group)
         group.outstandingJobs++;
     }
 
-    // Block for all outstanding helpers to complete.
+    // Block for all outstanding workers to complete.
     while (group.outstandingJobs > 0) {
         AsmJSParallelTask *ignored = nullptr;
         if (!GenerateCodeForFinishedJob(m, group, &ignored))
@@ -5755,12 +5725,12 @@ CheckFunctionsParallelImpl(ModuleCompiler &m, ParallelGroupState &group)
     JS_ASSERT(group.compiledJobs == m.numFunctions());
 #ifdef DEBUG
     {
-        AutoLockHelperThreadState lock;
-        JS_ASSERT(HelperThreadState().asmJSWorklist().empty());
-        JS_ASSERT(HelperThreadState().asmJSFinishedList().empty());
+        AutoLockWorkerThreadState lock;
+        JS_ASSERT(WorkerThreadState().asmJSWorklist().empty());
+        JS_ASSERT(WorkerThreadState().asmJSFinishedList().empty());
     }
 #endif
-    JS_ASSERT(!HelperThreadState().asmJSFailed());
+    JS_ASSERT(!WorkerThreadState().asmJSWorkerFailed());
     return true;
 }
 
@@ -5771,38 +5741,38 @@ CancelOutstandingJobs(ModuleCompiler &m, ParallelGroupState &group)
     // The problem is that all memory for compilation is stored in LifoAllocs
     // maintained in the scope of CheckFunctionsParallel() -- so in order
     // for that function to safely return, and thereby remove the LifoAllocs,
-    // none of that memory can be in use or reachable by helpers.
+    // none of that memory can be in use or reachable by workers.
 
     JS_ASSERT(group.outstandingJobs >= 0);
     if (!group.outstandingJobs)
         return;
 
-    AutoLockHelperThreadState lock;
+    AutoLockWorkerThreadState lock;
 
-    // From the compiling tasks, eliminate those waiting for helper assignation.
-    group.outstandingJobs -= HelperThreadState().asmJSWorklist().length();
-    HelperThreadState().asmJSWorklist().clear();
+    // From the compiling tasks, eliminate those waiting for worker assignation.
+    group.outstandingJobs -= WorkerThreadState().asmJSWorklist().length();
+    WorkerThreadState().asmJSWorklist().clear();
 
     // From the compiling tasks, eliminate those waiting for codegen.
-    group.outstandingJobs -= HelperThreadState().asmJSFinishedList().length();
-    HelperThreadState().asmJSFinishedList().clear();
+    group.outstandingJobs -= WorkerThreadState().asmJSFinishedList().length();
+    WorkerThreadState().asmJSFinishedList().clear();
 
     // Eliminate tasks that failed without adding to the finished list.
-    group.outstandingJobs -= HelperThreadState().harvestFailedAsmJSJobs();
+    group.outstandingJobs -= WorkerThreadState().harvestFailedAsmJSJobs();
 
     // Any remaining tasks are therefore undergoing active compilation.
     JS_ASSERT(group.outstandingJobs >= 0);
     while (group.outstandingJobs > 0) {
-        HelperThreadState().wait(GlobalHelperThreadState::CONSUMER);
+        WorkerThreadState().wait(GlobalWorkerThreadState::CONSUMER);
 
-        group.outstandingJobs -= HelperThreadState().harvestFailedAsmJSJobs();
-        group.outstandingJobs -= HelperThreadState().asmJSFinishedList().length();
-        HelperThreadState().asmJSFinishedList().clear();
+        group.outstandingJobs -= WorkerThreadState().harvestFailedAsmJSJobs();
+        group.outstandingJobs -= WorkerThreadState().asmJSFinishedList().length();
+        WorkerThreadState().asmJSFinishedList().clear();
     }
 
     JS_ASSERT(group.outstandingJobs == 0);
-    JS_ASSERT(HelperThreadState().asmJSWorklist().empty());
-    JS_ASSERT(HelperThreadState().asmJSFinishedList().empty());
+    JS_ASSERT(WorkerThreadState().asmJSWorklist().empty());
+    JS_ASSERT(WorkerThreadState().asmJSFinishedList().empty());
 }
 
 static const size_t LIFO_ALLOC_PARALLEL_CHUNK_SIZE = 1 << 12;
@@ -5813,7 +5783,7 @@ CheckFunctionsParallel(ModuleCompiler &m)
     // If parallel compilation isn't enabled (not enough cores, disabled by
     // pref, etc) or another thread is currently compiling asm.js in parallel,
     // fall back to sequential compilation. (We could lift the latter
-    // constraint by hoisting asmJS* state out of HelperThreadState so multiple
+    // constraint by hoisting asmJS* state out of WorkerThreadState so multiple
     // concurrent asm.js parallel compilations don't race.)
     ParallelCompilationGuard g;
     if (!ParallelCompilationEnabled(m.cx()) || !g.claim())
@@ -5821,8 +5791,8 @@ CheckFunctionsParallel(ModuleCompiler &m)
 
     IonSpew(IonSpew_Logs, "Can't log asm.js script. (Compiled on background thread.)");
 
-    // Saturate all helper threads plus the main thread.
-    size_t numParallelJobs = HelperThreadState().threadCount + 1;
+    // Saturate all worker threads plus the main thread.
+    size_t numParallelJobs = WorkerThreadState().threadCount + 1;
 
     // Allocate scoped AsmJSParallelTask objects. Each contains a unique
     // LifoAlloc that provides all necessary memory for compilation.
@@ -5833,13 +5803,13 @@ CheckFunctionsParallel(ModuleCompiler &m)
     for (size_t i = 0; i < numParallelJobs; i++)
         tasks.infallibleAppend(LIFO_ALLOC_PARALLEL_CHUNK_SIZE);
 
-    // With compilation memory in-scope, dispatch helper threads.
+    // With compilation memory in-scope, dispatch worker threads.
     ParallelGroupState group(tasks);
     if (!CheckFunctionsParallelImpl(m, group)) {
         CancelOutstandingJobs(m, group);
 
-        // If failure was triggered by a helper thread, report error.
-        if (void *maybeFunc = HelperThreadState().maybeAsmJSFailedFunction()) {
+        // If failure was triggered by a worker thread, report error.
+        if (void *maybeFunc = WorkerThreadState().maybeAsmJSFailedFunction()) {
             ModuleCompiler::Func *func = reinterpret_cast<ModuleCompiler::Func *>(maybeFunc);
             return m.failOffset(func->srcOffset(), "allocation failure during compilation");
         }
@@ -6010,11 +5980,9 @@ static const RegisterSet AllRegsExceptSP =
                 FloatRegisterSet(FloatRegisters::AllMask));
 #if defined(JS_CODEGEN_ARM)
 // The ARM system ABI also includes d15 in the non volatile float registers.
-// Also exclude lr (a.k.a. r14) as we preserve it manually)
 static const RegisterSet NonVolatileRegs =
-    RegisterSet(GeneralRegisterSet(Registers::NonVolatileMask &
-                                   ~(uint32_t(1) << Registers::lr)),
-                FloatRegisterSet(FloatRegisters::NonVolatileMask | (1 << FloatRegisters::d15)));
+    RegisterSet(GeneralRegisterSet(Registers::NonVolatileMask),
+                    FloatRegisterSet(FloatRegisters::NonVolatileMask | (1 << FloatRegisters::d15)));
 #else
 static const RegisterSet NonVolatileRegs =
     RegisterSet(GeneralRegisterSet(Registers::NonVolatileMask),
@@ -6039,7 +6007,7 @@ LoadJSContextFromActivation(MacroAssembler &masm, Register activation, Register 
 static void
 AssertStackAlignment(MacroAssembler &masm)
 {
-    JS_ASSERT((AlignmentAtAsmJSPrologue + masm.framePushed()) % StackAlignment == 0);
+    JS_ASSERT((AlignmentAtPrologue + masm.framePushed()) % StackAlignment == 0);
 #ifdef DEBUG
     Label ok;
     JS_ASSERT(IsPowerOfTwo(StackAlignment));
@@ -6064,7 +6032,7 @@ StackDecrementForCall(MacroAssembler &masm, unsigned bytesToPush)
 {
     // Include extra padding so that, after pushing the bytesToPush,
     // the stack is aligned for a call instruction.
-    unsigned alreadyPushed = AlignmentAtAsmJSPrologue + masm.framePushed();
+    unsigned alreadyPushed = AlignmentAtPrologue + masm.framePushed();
     return AlignBytes(alreadyPushed + bytesToPush, StackAlignment) - alreadyPushed;
 }
 
@@ -6075,22 +6043,14 @@ StackDecrementForCall(MacroAssembler &masm, const VectorT &argTypes, unsigned ex
     return StackDecrementForCall(masm, StackArgBytes(argTypes) + extraBytes);
 }
 
-#if defined(JS_CODEGEN_MIPS)
-// Mips is using one more double slot due to stack alignment for double values.
-// Look at MacroAssembler::PushRegsInMask(RegisterSet set)
-static const unsigned FramePushedAfterSave = NonVolatileRegs.gprs().size() * sizeof(intptr_t) +
-                                             NonVolatileRegs.fpus().size() * sizeof(double) +
-                                             sizeof(double);
-#else
 static const unsigned FramePushedAfterSave = NonVolatileRegs.gprs().size() * sizeof(intptr_t) +
                                              NonVolatileRegs.fpus().size() * sizeof(double);
-#endif
 
-// On ARM/MIPS, we need to include an extra word of space at the top of the
-// stack so we can explicitly store the return address before making the call
-// to C++ or Ion. On x86/x64, this isn't necessary since the call instruction
-// pushes the return address.
-#if defined(JS_CODEGEN_ARM) || defined(JS_CODEGEN_MIPS)
+// On arm, we need to include an extra word of space at the top of the stack so
+// we can explicitly store the return address before making the call to C++ or
+// Ion. On x86/x64, this isn't necessary since the call instruction pushes the
+// return address.
+#ifdef JS_CODEGEN_ARM
 static const unsigned MaybeRetAddr = sizeof(void*);
 #else
 static const unsigned MaybeRetAddr = 0;
@@ -6108,17 +6068,6 @@ GenerateEntry(ModuleCompiler &m, const AsmJSModule::ExportedFunction &exportedFu
     // NB: GenerateExits assumes that masm.framePushed() == 0 before
     // PushRegsInMask(NonVolatileRegs).
     masm.setFramePushed(0);
-
-#if defined(JS_CODEGEN_ARM)
-    // Push lr without incrementing masm.framePushed since this push is
-    // accounted for by AlignmentAtAsmJSPrologue. The masm.ret at the end will
-    // pop.
-    masm.push(lr);
-#endif // JS_CODEGEN_ARM
-#if defined(JS_CODEGEN_MIPS)
-    masm.push(ra);
-#endif
-
     masm.PushRegsInMask(NonVolatileRegs);
     JS_ASSERT(masm.framePushed() == FramePushedAfterSave);
 
@@ -6130,17 +6079,17 @@ GenerateEntry(ModuleCompiler &m, const AsmJSModule::ExportedFunction &exportedFu
     LoadAsmJSActivationIntoRegister(masm, activation);
     masm.storePtr(StackPointer, Address(activation, AsmJSActivation::offsetOfErrorRejoinSP()));
 
-    // ARM and MIPS have a globally-pinned GlobalReg (x64 uses RIP-relative
-    // addressing, x86 uses immediates in effective addresses) and NaN register
-    // (used as part of the out-of-bounds handling in heap loads/stores).
-#if defined(JS_CODEGEN_ARM) || defined(JS_CODEGEN_MIPS)
+    // ARM has a globally-pinned GlobalReg (x64 uses RIP-relative addressing,
+    // x86 uses immediates in effective addresses) and NaN register (used as
+    // part of the out-of-bounds handling in heap loads/stores).
+#if defined(JS_CODEGEN_ARM)
     masm.movePtr(IntArgReg1, GlobalReg);
-    masm.loadConstantDouble(GenericNaN(), NANReg);
+    masm.ma_vimm(GenericNaN(), NANReg);
 #endif
 
-    // ARM, MIPS and x64 have a globally-pinned HeapReg (x86 uses immediates in
+    // ARM and x64 have a globally-pinned HeapReg (x86 uses immediates in
     // effective addresses).
-#if defined(JS_CODEGEN_X64) || defined(JS_CODEGEN_ARM) || defined(JS_CODEGEN_MIPS)
+#if defined(JS_CODEGEN_X64) || defined(JS_CODEGEN_ARM)
     masm.loadPtr(Address(IntArgReg1, m.module().heapOffset()), HeapReg);
 #endif
 
@@ -6215,7 +6164,7 @@ GenerateEntry(ModuleCompiler &m, const AsmJSModule::ExportedFunction &exportedFu
     JS_ASSERT(masm.framePushed() == 0);
 
     masm.move32(Imm32(true), ReturnReg);
-    masm.ret();
+    masm.abiret();
     return true;
 }
 
@@ -6369,15 +6318,8 @@ GenerateFFIInterpreterExit(ModuleCompiler &m, const ModuleCompiler::ExitDescript
     masm.align(CodeAlignment);
     m.setInterpExitOffset(exitIndex);
     masm.setFramePushed(0);
-
 #if defined(JS_CODEGEN_ARM)
-    // Push lr without incrementing masm.framePushed since this push is
-    // accounted for by AlignmentAtAsmJSPrologue. The masm.ret at the end will
-    // pop.
-    masm.push(lr);
-#endif
-#if defined(JS_CODEGEN_MIPS)
-    masm.push(ra);
+    masm.Push(lr);
 #endif
 
     MIRType typeArray[] = { MIRType_Pointer,   // cx
@@ -6387,17 +6329,15 @@ GenerateFFIInterpreterExit(ModuleCompiler &m, const ModuleCompiler::ExitDescript
     MIRTypeVector invokeArgTypes(m.cx());
     invokeArgTypes.infallibleAppend(typeArray, ArrayLength(typeArray));
 
-    // At the point of the call, the stack layout shall be (sp grows to the left):
-    // | retaddr | stack args | padding | Value argv[] | padding | retaddr | caller stack args |
-    // The first padding ensures double-alignment of argv; the second ensures
-    // sp is aligned.
-    unsigned offsetToArgv = AlignBytes(StackArgBytes(invokeArgTypes) + MaybeRetAddr, StackAlignment);
-    unsigned argvBytes = Max<size_t>(1, exit.sig().args().length()) * sizeof(Value);
-    unsigned stackDec = StackDecrementForCall(masm, offsetToArgv + argvBytes);
+    // The stack layout looks like:
+    // | return address | stack arguments | array of values |
+    unsigned arraySize = Max<size_t>(1, exit.sig().args().length()) * sizeof(Value);
+    unsigned stackDec = StackDecrementForCall(masm, invokeArgTypes, arraySize + MaybeRetAddr);
     masm.reserveStack(stackDec);
 
     // Fill the argument array.
-    unsigned offsetToCallerStackArgs = AlignmentAtAsmJSPrologue + masm.framePushed();
+    unsigned offsetToCallerStackArgs = AlignmentAtPrologue + masm.framePushed();
+    unsigned offsetToArgv = StackArgBytes(invokeArgTypes) + MaybeRetAddr;
     Register scratch = ABIArgGenerator::NonArgReturnVolatileReg0;
     FillArgumentArray(m, exit.sig().args(), offsetToArgv, offsetToCallerStackArgs, scratch);
 
@@ -6549,19 +6489,14 @@ GenerateFFIIonExit(ModuleCompiler &m, const ModuleCompiler::ExitDescriptor &exit
 #if defined(JS_CODEGEN_X64)
     masm.Push(HeapReg);
 #elif defined(JS_CODEGEN_ARM)
-    // Push lr without incrementing masm.framePushed since this push is
-    // accounted for by AlignmentAtAsmJSPrologue. The masm.ret at the end will
-    // pop.
-    masm.push(lr);
-
-    // The GlobalReg (r10) and HeapReg (r11) also need to be restored before
-    // returning to asm.js code.
+    // The lr register holds the return address and needs to be saved.  The GlobalReg
+    // (r10) and HeapReg (r11) also need to be restored before returning to asm.js code.
     // The NANReg also needs to be restored, but is a constant and is reloaded before
     // returning to asm.js code.
-    masm.PushRegsInMask(GeneralRegisterSet((1<<GlobalReg.code()) | (1<<HeapReg.code())));
-#elif defined(JS_CODEGEN_MIPS)
-    masm.push(ra);
-    masm.PushRegsInMask(GeneralRegisterSet((1<<GlobalReg.code()) | (1<<HeapReg.code())));
+    masm.PushRegsInMask(RegisterSet(GeneralRegisterSet((1<<GlobalReg.code()) |
+                                                       (1<<HeapReg.code()) |
+                                                       (1<<lr.code())),
+                                    FloatRegisterSet(uint32_t(0))));
 #endif
 
     // The stack frame is used for the call into Ion and also for calls into C for OOL
@@ -6664,15 +6599,7 @@ GenerateFFIIonExit(ModuleCompiler &m, const ModuleCompiler::ExitDescriptor &exit
         LoadAsmJSActivationIntoRegister(masm, reg0);
 
         // Record sp in the AsmJSActivation for stack-walking.
-#if defined(JS_CODEGEN_MIPS)
-        // Add a flag to indicate to AsmJSFrameIterator that we are calling
-        // into Ion, since the offset from SP to the return address is
-        // different when calling Ion vs. the native ABI.
-        masm.ma_or(reg1, StackPointer, Imm32(0x1));
-        masm.storePtr(reg1, Address(reg0, AsmJSActivation::offsetOfExitSP()));
-#else
         masm.storePtr(StackPointer, Address(reg0, AsmJSActivation::offsetOfExitSP()));
-#endif
 
         // The following is inlined:
         //   JSContext *cx = activation->cx();
@@ -6763,14 +6690,18 @@ GenerateFFIIonExit(ModuleCompiler &m, const ModuleCompiler::ExitDescriptor &exit
 
     masm.bind(&done);
     masm.freeStack(stackDec);
-#if defined(JS_CODEGEN_X64)
+#if defined(JS_CODEGEN_ARM)
+    masm.ma_vimm(GenericNaN(), NANReg);
+    masm.PopRegsInMask(RegisterSet(GeneralRegisterSet((1<<GlobalReg.code()) |
+                                                      (1<<HeapReg.code()) |
+                                                      (1<<pc.code())),
+                                   FloatRegisterSet(uint32_t(0))));
+#else
+# if defined(JS_CODEGEN_X64)
     masm.Pop(HeapReg);
-#endif
-#if defined(JS_CODEGEN_ARM) || defined(JS_CODEGEN_MIPS)
-    masm.loadConstantDouble(GenericNaN(), NANReg);
-    masm.PopRegsInMask(GeneralRegisterSet((1<<GlobalReg.code()) | (1<<HeapReg.code())));
-#endif
+# endif
     masm.ret();
+#endif
     JS_ASSERT(masm.framePushed() == 0);
 
     // oolConvert
@@ -6809,6 +6740,10 @@ GenerateStackOverflowExit(ModuleCompiler &m, Label *throwLabel)
     MacroAssembler &masm = m.masm();
     masm.align(CodeAlignment);
     masm.bind(&m.stackOverflowLabel());
+
+    // The overflow check always occurs before the initial function-specific
+    // stack-size adjustment. See CodeGenerator::generateAsmJSPrologue.
+    masm.setFramePushed(AlignmentMidPrologue - AlignmentAtPrologue);
 
     MIRTypeVector argTypes(m.cx());
     argTypes.infallibleAppend(MIRType_Pointer); // cx
@@ -6858,7 +6793,7 @@ GenerateInterruptExit(ModuleCompiler &m, Label *throwLabel)
     masm.align(CodeAlignment);
     masm.bind(&m.interruptLabel());
 
-#if defined(JS_CODEGEN_X86) || defined(JS_CODEGEN_X64)
+#ifndef JS_CODEGEN_ARM
     // Be very careful here not to perturb the machine state before saving it
     // to the stack. In particular, add/sub instructions may set conditions in
     // the flags register.
@@ -6904,47 +6839,7 @@ GenerateInterruptExit(ModuleCompiler &m, Label *throwLabel)
     masm.PopRegsInMask(AllRegsExceptSP); // restore all GP/FP registers (except SP)
     masm.popFlags();              // after this, nothing that sets conditions
     masm.ret();                   // pop resumePC into PC
-#elif defined(JS_CODEGEN_MIPS)
-    // Reserve space to store resumePC.
-    masm.subPtr(Imm32(sizeof(intptr_t)), StackPointer);
-    // set to zero so we can use masm.framePushed() below.
-    masm.setFramePushed(0);
-    // save all registers,except sp. After this stack is alligned.
-    masm.PushRegsInMask(AllRegsExceptSP);
-
-    // Save the stack pointer in a non-volatile register.
-    masm.movePtr(StackPointer, s0);
-    // Align the stack.
-    masm.ma_and(StackPointer, StackPointer, Imm32(~(StackAlignment - 1)));
-
-    // Store resumePC into the reserved space.
-    LoadAsmJSActivationIntoRegister(masm, IntArgReg0);
-    masm.loadPtr(Address(IntArgReg0, AsmJSActivation::offsetOfResumePC()), IntArgReg1);
-    masm.storePtr(IntArgReg1, Address(s0, masm.framePushed()));
-
-    // argument 0: cx
-    masm.loadPtr(Address(IntArgReg0, AsmJSActivation::offsetOfContext()), IntArgReg0);
-
-    // MIPS ABI requires rewserving stack for registes $a0 to $a3.
-    masm.subPtr(Imm32(4 * sizeof(intptr_t)), StackPointer);
-
-    masm.call(AsmJSImm_HandleExecutionInterrupt);
-
-    masm.addPtr(Imm32(4 * sizeof(intptr_t)), StackPointer);
-
-    masm.branchIfFalseBool(ReturnReg, throwLabel);
-
-    // This will restore stack to the address before the call.
-    masm.movePtr(s0, StackPointer);
-    masm.PopRegsInMask(AllRegsExceptSP);
-
-    // Pop resumePC into PC. Clobber HeapReg to make the jump and restore it
-    // during jump delay slot.
-    JS_ASSERT(Imm16::isInSignedRange(m.module().heapOffset()));
-    masm.pop(HeapReg);
-    masm.as_jr(HeapReg);
-    masm.loadPtr(Address(GlobalReg, m.module().heapOffset()), HeapReg);
-#elif defined(JS_CODEGEN_ARM)
+#else
     masm.setFramePushed(0);         // set to zero so we can use masm.framePushed() below
     masm.PushRegsInMask(RegisterSet(GeneralRegisterSet(Registers::AllMask & ~(1<<Registers::sp)), FloatRegisterSet(uint32_t(0))));   // save all GP registers,excep sp
 
@@ -6992,8 +6887,6 @@ GenerateInterruptExit(ModuleCompiler &m, Label *throwLabel)
     masm.finishDataTransfer();
     masm.ret();
 
-#else
-# error "Unknown architecture!"
 #endif
 
     return !masm.oom();
@@ -7021,7 +6914,7 @@ GenerateThrowExit(ModuleCompiler &m, Label *throwLabel)
     JS_ASSERT(masm.framePushed() == 0);
 
     masm.mov(ImmWord(0), ReturnReg);
-    masm.ret();
+    masm.abiret();
 
     return !masm.oom();
 }
@@ -7180,7 +7073,7 @@ EstablishPreconditions(ExclusiveContext *cx, AsmJSParser &parser)
 
 #ifdef JS_THREADSAFE
     if (ParallelCompilationEnabled(cx))
-        EnsureHelperThreadsInitialized(cx);
+        EnsureWorkerThreadsInitialized(cx);
 #endif
 
     return true;

@@ -479,7 +479,7 @@ WindowsGamepadService::ScanForXInputDevices()
     gamepad.numButtons = kStandardGamepadButtons;
     gamepad.numAxes = kStandardGamepadAxes;
     gamepad.id = gamepadsvc->AddGamepad("xinput",
-                                        GamepadMappingType::Standard,
+                                        StandardMapping,
                                         kStandardGamepadButtons,
                                         kStandardGamepadAxes);
     mGamepads.AppendElement(gamepad);
@@ -762,7 +762,7 @@ WindowsGamepadService::GetRawGamepad(HANDLE handle)
   }
 
   gamepad.id = gamepadsvc->AddGamepad(gamepad_id,
-                                      GamepadMappingType::_empty,
+                                      NoMapping,
                                       gamepad.numButtons,
                                       gamepad.numAxes);
   mGamepads.AppendElement(gamepad);

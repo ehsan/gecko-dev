@@ -34,7 +34,8 @@ class PCompositableChild;
  */
 class RemoveTextureFromCompositableTracker : public AsyncTransactionTracker {
 public:
-  RemoveTextureFromCompositableTracker()
+  RemoveTextureFromCompositableTracker(CompositableClient* aCompositableClient)
+    : mCompositableClient(aCompositableClient)
   {
     MOZ_COUNT_CTOR(RemoveTextureFromCompositableTracker);
   }
@@ -49,11 +50,13 @@ public:
     // The TextureClient's recycling is postponed until the transaction
     // complete.
     mTextureClient = nullptr;
+    mCompositableClient = nullptr;
   }
 
   virtual void Cancel() MOZ_OVERRIDE
   {
     mTextureClient = nullptr;
+    mCompositableClient = nullptr;
   }
 
   virtual void SetTextureClient(TextureClient* aTextureClient) MOZ_OVERRIDE
@@ -69,6 +72,7 @@ public:
   }
 
 private:
+  RefPtr<CompositableClient> mCompositableClient;
   RefPtr<TextureClient> mTextureClient;
 };
 
@@ -188,8 +192,6 @@ public:
    * in low-memory conditions.
    */
   virtual void ClearCachedResources() {}
-
-  virtual void UseTexture(TextureClient* aTexture);
 
   /**
    * Should be called when deataching a TextureClient from a Compositable, because

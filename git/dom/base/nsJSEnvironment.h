@@ -130,6 +130,8 @@ public:
     return global ? mGlobalObjectRef.get() : nullptr;
   }
 protected:
+  nsresult InitializeExternalClasses();
+
   // Helper to convert xpcom datatypes to jsvals.
   nsresult ConvertSupportsTojsvals(nsISupports *aArgs,
                                    JS::Handle<JSObject*> aScope,

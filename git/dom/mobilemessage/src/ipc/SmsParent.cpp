@@ -97,8 +97,9 @@ GetParamsFromSendMmsMessageRequest(JSContext* aCx,
 
   // receivers
   JS::Rooted<JSObject*> receiverArray(aCx);
-  if (NS_FAILED(nsTArrayToJSArray(aCx, aRequest.receivers(), &receiverArray)))
-  {
+  if (NS_FAILED(nsTArrayToJSArray(aCx,
+                                  aRequest.receivers(),
+                                  receiverArray.address()))) {
     return false;
   }
   if (!JS_DefineProperty(aCx, paramsObj, "receivers", receiverArray, 0)) {

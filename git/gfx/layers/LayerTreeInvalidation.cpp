@@ -69,6 +69,14 @@ AddRegion(nsIntRegion& aDest, const nsIntRegion& aSource)
   aDest.SimplifyOutward(20);
 }
 
+static nsIntRegion
+TransformRegion(const nsIntRegion& aRegion, const gfx3DMatrix& aTransform)
+{
+  nsIntRegion result;
+  AddTransformedRegion(result, aRegion, aTransform);
+  return result;
+}
+
 /**
  * Walks over this layer, and all descendant layers.
  * If any of these are a ContainerLayer that reports invalidations to a PresShell,
@@ -317,8 +325,7 @@ struct ContainerLayerProperties : public LayerPropertiesBase
 
     gfx3DMatrix transform;
     gfx::To3DMatrix(mLayer->GetTransform(), transform);
-    result.Transform(transform);
-    return result;
+    return TransformRegion(result, transform);
   }
 
   // The old list of children:

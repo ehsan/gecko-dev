@@ -171,12 +171,12 @@ CanvasClientSurfaceStream::Update(gfx::IntSize aSize, ClientCanvasLayer* aLayer)
     }
 
     if (grallocTextureClient->GetIPDLActor()) {
-      UseTexture(grallocTextureClient);
+      GetForwarder()->UseTexture(this, grallocTextureClient);
     }
 
     if (mBuffer && CompositorChild::ChildProcessHasCompositor()) {
       // remove old buffer from CompositableHost
-      RefPtr<AsyncTransactionTracker> tracker = new RemoveTextureFromCompositableTracker();
+      RefPtr<AsyncTransactionTracker> tracker = new RemoveTextureFromCompositableTracker(this);
       // Hold TextureClient until transaction complete.
       tracker->SetTextureClient(mBuffer);
       mBuffer->SetRemoveFromCompositableTracker(tracker);

@@ -39,7 +39,7 @@ class RollingMean
                   "floating-point types are unsupported due to rounding "
                   "errors");
 
-    explicit RollingMean(size_t aMaxValues)
+    RollingMean(size_t aMaxValues)
       : mInsertIndex(0),
         mMaxValues(aMaxValues),
         mTotal(0)

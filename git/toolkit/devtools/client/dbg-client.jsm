@@ -1261,17 +1261,9 @@ TabClient.prototype = {
 
   /**
    * Reload the page in this tab.
-   *
-   * @param [optional] object options
-   *        An object with a `force` property indicating whether or not
-   *        this reload should skip the cache
    */
-  reload: function(options = { force: false }) {
-    return this._reload(options);
-  },
-  _reload: DebuggerClient.requester({
-    type: "reload",
-    options: args(0)
+  reload: DebuggerClient.requester({
+    type: "reload"
   }, {
     telemetry: "RELOAD"
   }),

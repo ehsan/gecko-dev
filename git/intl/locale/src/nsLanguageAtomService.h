@@ -19,24 +19,24 @@ public:
   NS_DECL_ISUPPORTS
 
   // nsILanguageAtomService
-  virtual nsIAtom*
+  virtual NS_HIDDEN_(nsIAtom*)
     LookupLanguage(const nsACString &aLanguage, nsresult *aError);
 
-  virtual already_AddRefed<nsIAtom>
+  virtual NS_HIDDEN_(already_AddRefed<nsIAtom>)
     LookupCharSet(const nsACString& aCharSet);
 
-  virtual nsIAtom* GetLocaleLanguage(nsresult *aError);
+  virtual NS_HIDDEN_(nsIAtom*) GetLocaleLanguage(nsresult *aError);
 
-  virtual nsIAtom* GetLanguageGroup(nsIAtom *aLanguage,
+  virtual NS_HIDDEN_(nsIAtom*) GetLanguageGroup(nsIAtom *aLanguage,
                                                 nsresult *aError);
 
-  nsLanguageAtomService();
+  nsLanguageAtomService() NS_HIDDEN;
 
 private:
-  ~nsLanguageAtomService() { }
+  NS_HIDDEN ~nsLanguageAtomService() { }
 
 protected:
-  nsresult InitLangGroupTable();
+  NS_HIDDEN_(nsresult) InitLangGroupTable();
 
   nsInterfaceHashtable<nsISupportsHashKey, nsIAtom> mLangToGroup;
   nsCOMPtr<nsIStringBundle> mLangGroups;

@@ -3455,8 +3455,7 @@ NS_IMPL_ISUPPORTS_INHERITED0(OriginClearRunnable, nsRunnable)
 NS_IMETHODIMP
 OriginClearRunnable::Run()
 {
-  PROFILER_LABEL("OriginClearRunnable", "Run",
-    js::ProfileEntry::Category::OTHER);
+  PROFILER_LABEL("Quota", "OriginClearRunnable::Run");
 
   QuotaManager* quotaManager = QuotaManager::Get();
   NS_ASSERTION(quotaManager, "This should never fail!");
@@ -3731,8 +3730,7 @@ NS_IMPL_ISUPPORTS_INHERITED(AsyncUsageRunnable, nsRunnable, nsIQuotaRequest)
 NS_IMETHODIMP
 AsyncUsageRunnable::Run()
 {
-  PROFILER_LABEL("Quota", "AsyncUsageRunnable::Run",
-    js::ProfileEntry::Category::OTHER);
+  PROFILER_LABEL("Quota", "AsyncUsageRunnable::Run");
 
   nsresult rv = RunInternal();
 

@@ -14,6 +14,7 @@
 
 #include "mozilla/MemoryReporting.h"
 #include "mozilla/css/GroupRule.h"
+#include "mozilla/Preferences.h"
 #include "nsIDOMCSSConditionRule.h"
 #include "nsIDOMCSSFontFaceRule.h"
 #include "nsIDOMCSSFontFeatureValuesRule.h"
@@ -318,8 +319,8 @@ public:
   // nsIDOMCSSFontFaceRule interface
   NS_DECL_NSIDOMCSSFONTFEATUREVALUESRULE
 
-  const mozilla::FontFamilyList& GetFamilyList() { return mFamilyList; }
-  void SetFamilyList(const mozilla::FontFamilyList& aFamilyList);
+  const nsTArray<nsString>& GetFamilyList() { return mFamilyList; }
+  void SetFamilyList(const nsAString& aFamilyList, bool& aContainsGeneric);
 
   void AddValueList(int32_t aVariantAlternate,
                     nsTArray<gfxFontFeatureValueSet::ValueList>& aValueList);
@@ -341,7 +342,7 @@ public:
   }
 
 protected:
-  mozilla::FontFamilyList mFamilyList;
+  nsTArray<nsString> mFamilyList;
   nsTArray<gfxFontFeatureValueSet::FeatureValues> mFeatureValues;
 };
 
@@ -633,6 +634,11 @@ public:
   NS_DECL_NSIDOMCSSSUPPORTSRULE
 
   virtual size_t SizeOfIncludingThis(mozilla::MallocSizeOf aMallocSizeOf) const;
+
+  static bool PrefEnabled()
+  {
+    return Preferences::GetBool("layout.css.supports-rule.enabled");
+  }
 
 protected:
   bool mUseGroup;

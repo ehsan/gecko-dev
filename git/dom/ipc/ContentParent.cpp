@@ -33,7 +33,6 @@
 #include "mozilla/ClearOnShutdown.h"
 #include "mozilla/dom/asmjscache/AsmJSCache.h"
 #include "mozilla/dom/Element.h"
-#include "mozilla/dom/DataStoreService.h"
 #include "mozilla/dom/ExternalHelperAppParent.h"
 #include "mozilla/dom/PFileDescriptorSetParent.h"
 #include "mozilla/dom/PCycleCollectWithLogsParent.h"
@@ -311,7 +310,7 @@ MaybeTestPBackground()
 // XXX Workaround for bug 986973 to maintain the existing broken semantics
 template<>
 struct nsIConsoleService::COMTypeInfo<nsConsoleService, void> {
-  static const nsIID kIID;
+  static const nsIID kIID NS_HIDDEN;
 };
 const nsIID nsIConsoleService::COMTypeInfo<nsConsoleService, void>::kIID = NS_ICONSOLESERVICE_IID;
 
@@ -673,7 +672,7 @@ ContentParent::JoinAllSubprocesses()
 }
 
 /*static*/ already_AddRefed<ContentParent>
-ContentParent::GetNewOrUsed(bool aForBrowserElement, ProcessPriority aPriority)
+ContentParent::GetNewOrUsed(bool aForBrowserElement)
 {
     if (!sNonAppContentParents)
         sNonAppContentParents = new nsTArray<ContentParent*>();
@@ -704,7 +703,7 @@ ContentParent::GetNewOrUsed(bool aForBrowserElement, ProcessPriority aPriority)
         p = new ContentParent(/* app = */ nullptr,
                               aForBrowserElement,
                               /* isForPreallocated = */ false,
-                              aPriority);
+                              PROCESS_PRIORITY_FOREGROUND);
         p->Init();
     }
 
@@ -723,7 +722,7 @@ ContentParent::GetInitialProcessPriority(Element* aFrameElement)
     }
 
     if (aFrameElement->AttrValueIs(kNameSpaceID_None, nsGkAtoms::mozapptype,
-                                   NS_LITERAL_STRING("inputmethod"), eCaseMatters)) {
+                                   NS_LITERAL_STRING("keyboard"), eCaseMatters)) {
         return PROCESS_PRIORITY_FOREGROUND_KEYBOARD;
     } else if (!aFrameElement->AttrValueIs(kNameSpaceID_None, nsGkAtoms::mozapptype,
                                            NS_LITERAL_STRING("critical"), eCaseMatters)) {
@@ -767,13 +766,8 @@ ContentParent::CreateBrowserOrApp(const TabContext& aContext,
         return nullptr;
     }
 
-    ProcessPriority initialPriority = GetInitialProcessPriority(aFrameElement);
-
     if (aContext.IsBrowserElement() || !aContext.HasOwnApp()) {
-        nsRefPtr<ContentParent> cp = GetNewOrUsed(aContext.IsBrowserElement(),
-                                                  initialPriority);
-
-        if (cp) {
+        if (nsRefPtr<ContentParent> cp = GetNewOrUsed(aContext.IsBrowserElement())) {
             uint32_t chromeFlags = 0;
 
             // Propagate the private-browsing status of the element's parent
@@ -800,10 +794,7 @@ ContentParent::CreateBrowserOrApp(const TabContext& aContext,
                 // DeallocPBrowserParent() releases this ref.
                 tp.forget().take(),
                 aContext.AsIPCTabContext(),
-                chromeFlags,
-                cp->ChildID(),
-                cp->IsForApp(),
-                cp->IsForBrowser());
+                chromeFlags);
             return static_cast<TabParent*>(browser);
         }
         return nullptr;
@@ -827,6 +818,7 @@ ContentParent::CreateBrowserOrApp(const TabContext& aContext,
         return nullptr;
     }
 
+    ProcessPriority initialPriority = GetInitialProcessPriority(aFrameElement);
     nsRefPtr<ContentParent> p = sAppContentParents->Get(manifestURL);
 
     if (!p && Preferences::GetBool("dom.ipc.reuse_parent_app")) {
@@ -901,10 +893,7 @@ ContentParent::CreateBrowserOrApp(const TabContext& aContext,
         // DeallocPBrowserParent() releases this ref.
         nsRefPtr<TabParent>(tp).forget().take(),
         aContext.AsIPCTabContext(),
-        chromeFlags,
-        p->ChildID(),
-        p->IsForApp(),
-        p->IsForBrowser());
+        chromeFlags);
 
     p->MaybeTakeCPUWakeLock(aFrameElement);
 
@@ -1182,23 +1171,10 @@ ContentParent::ShutDownProcess(bool aCloseWithError)
     // shut down the cycle collector.  But by then it's too late to release any
     // CC'ed objects, so we need to null them out here, while we still can.  See
     // bug 899761.
-    ShutDownMessageManager();
-}
-
-void
-ContentParent::ShutDownMessageManager()
-{
-  if (!mMessageManager) {
-    return;
-  }
-
-  mMessageManager->ReceiveMessage(
-            static_cast<nsIContentFrameMessageManager*>(mMessageManager.get()),
-            CHILD_PROCESS_SHUTDOWN_MESSAGE, false,
-            nullptr, nullptr, nullptr, nullptr);
-
-  mMessageManager->Disconnect();
-  mMessageManager = nullptr;
+    if (mMessageManager) {
+      mMessageManager->Disconnect();
+      mMessageManager = nullptr;
+    }
 }
 
 void
@@ -1324,8 +1300,12 @@ ContentParent::ActorDestroy(ActorDestroyReason why)
         mForceKillTask = nullptr;
     }
 
-    ShutDownMessageManager();
-
+    nsRefPtr<nsFrameMessageManager> ppm = mMessageManager;
+    if (ppm) {
+      ppm->ReceiveMessage(static_cast<nsIContentFrameMessageManager*>(ppm.get()),
+                          CHILD_PROCESS_SHUTDOWN_MESSAGE, false,
+                          nullptr, nullptr, nullptr, nullptr);
+    }
     nsRefPtr<ContentParent> kungFuDeathGrip(this);
     nsCOMPtr<nsIObserverService> obs = mozilla::services::GetObserverService();
     if (obs) {
@@ -1334,6 +1314,10 @@ ContentParent::ActorDestroy(ActorDestroyReason why)
             obs->RemoveObserver(static_cast<nsIObserver*>(this),
                                 sObserverTopics[i]);
         }
+    }
+
+    if (ppm) {
+      ppm->Disconnect();
     }
 
     // Tell the memory reporter manager that this ContentParent is going away.
@@ -1511,7 +1495,6 @@ ContentParent::InitializeMembers()
     mNumDestroyingTabs = 0;
     mIsAlive = true;
     mSendPermissionUpdates = false;
-    mSendDataStoreInfos = false;
     mCalledClose = false;
     mCalledCloseWithError = false;
     mCalledKillHard = false;
@@ -2094,26 +2077,6 @@ ContentParent::RecvAudioChannelChangeDefVolChannel(const int32_t& aChannel,
 }
 
 bool
-ContentParent::RecvDataStoreGetStores(
-                                    const nsString& aName,
-                                    const IPC::Principal& aPrincipal,
-                                    InfallibleTArray<DataStoreSetting>* aValue)
-{
-  nsRefPtr<DataStoreService> service = DataStoreService::GetOrCreate();
-  if (NS_WARN_IF(!service)) {
-    return false;
-  }
-
-  nsresult rv = service->GetDataStoresFromIPC(aName, aPrincipal, aValue);
-  if (NS_WARN_IF(NS_FAILED(rv))) {
-    return false;
-  }
-
-  mSendDataStoreInfos = true;
-  return true;
-}
-
-bool
 ContentParent::RecvBroadcastVolume(const nsString& aVolumeName)
 {
 #ifdef MOZ_WIDGET_GONK
@@ -2422,10 +2385,7 @@ ContentParent::DeallocPJavaScriptParent(PJavaScriptParent *parent)
 
 PBrowserParent*
 ContentParent::AllocPBrowserParent(const IPCTabContext& aContext,
-                                   const uint32_t& aChromeFlags,
-                                   const uint64_t& aId,
-                                   const bool& aIsForApp,
-                                   const bool& aIsForBrowser)
+                                   const uint32_t &aChromeFlags)
 {
     unused << aChromeFlags;
 

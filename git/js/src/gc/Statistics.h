@@ -98,8 +98,6 @@ struct Statistics {
     jschar *formatMessage();
     jschar *formatJSON(uint64_t timestamp);
 
-    JS::GCSliceCallback setSliceCallback(JS::GCSliceCallback callback);
-
   private:
     JSRuntime *runtime;
 
@@ -162,8 +160,6 @@ struct Statistics {
     /* Sweep times for SCCs of compartments. */
     Vector<int64_t, 0, SystemAllocPolicy> sccTimes;
 
-    JS::GCSliceCallback sliceCallback;
-
     void beginGC();
     void endGC();
 
@@ -211,7 +207,7 @@ struct AutoPhase
 
 struct MaybeAutoPhase
 {
-    explicit MaybeAutoPhase(MOZ_GUARD_OBJECT_NOTIFIER_ONLY_PARAM)
+    MaybeAutoPhase(MOZ_GUARD_OBJECT_NOTIFIER_ONLY_PARAM)
       : stats(nullptr)
     {
         MOZ_GUARD_OBJECT_NOTIFIER_INIT;

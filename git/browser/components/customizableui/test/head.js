@@ -249,13 +249,8 @@ function openAndLoadWindow(aOptions, aWaitForDelayedStartup=false) {
 }
 
 function promiseWindowClosed(win) {
-  let deferred = Promise.defer();
-  win.addEventListener("unload", function onunload() {
-    win.removeEventListener("unload", onunload);
-    deferred.resolve();
-  });
   win.close();
-  return deferred.promise;
+  return waitForCondition(() => win.closed);
 }
 
 function promisePanelShown(win) {

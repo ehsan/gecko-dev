@@ -818,15 +818,14 @@ LiveRangeAllocator<VREG, forLSRA>::buildLivenessInfo()
                     break;
 
                 // Grab the next block off the work list, skipping any OSR block.
-                MBasicBlock *osrBlock = graph.mir().osrBlock();
                 while (!loopWorkList.empty()) {
                     loopBlock = loopWorkList.popCopy();
-                    if (loopBlock != osrBlock)
+                    if (loopBlock->lir() != graph.osrBlock())
                         break;
                 }
 
                 // If end is reached without finding a non-OSR block, then no more work items were found.
-                if (loopBlock == osrBlock) {
+                if (loopBlock->lir() == graph.osrBlock()) {
                     JS_ASSERT(loopWorkList.empty());
                     break;
                 }
@@ -903,8 +902,6 @@ LiveInterval::rangesToString() const
 void
 LiveInterval::dump()
 {
-    if (hasVreg())
-        fprintf(stderr, "v%u: ", vreg());
-    fprintf(stderr, "index=%u allocation=%s %s\n",
-            index(), getAllocation()->toString(), rangesToString());
+    fprintf(stderr, "v%u: index=%u allocation=%s %s\n",
+            vreg(), index(), getAllocation()->toString(), rangesToString());
 }

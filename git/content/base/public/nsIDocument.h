@@ -138,8 +138,7 @@ typedef CallbackObjectHolder<NodeFilter, nsIDOMNodeFilter> NodeFilterHolder;
 enum DocumentFlavor {
   DocumentFlavorLegacyGuess, // compat with old code until made HTML5-compliant
   DocumentFlavorHTML, // HTMLDocument with HTMLness bit set to true
-  DocumentFlavorSVG, // SVGDocument
-  DocumentFlavorPlain, // Just a Document
+  DocumentFlavorSVG // SVGDocument
 };
 
 // Document states
@@ -2686,8 +2685,7 @@ nsresult
 NS_NewHTMLDocument(nsIDocument** aInstancePtrResult, bool aLoadedAsData = false);
 
 nsresult
-NS_NewXMLDocument(nsIDocument** aInstancePtrResult, bool aLoadedAsData = false,
-                  bool aIsPlainDocument = false);
+NS_NewXMLDocument(nsIDocument** aInstancePtrResult, bool aLoadedAsData = false);
 
 nsresult
 NS_NewSVGDocument(nsIDocument** aInstancePtrResult);

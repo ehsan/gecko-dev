@@ -68,7 +68,7 @@ CompileRuntime::addressOfLastCachedNativeIterator()
 const void *
 CompileRuntime::addressOfGCZeal()
 {
-    return runtime()->gc.addressOfZealMode();
+    return &runtime()->gc.zealMode;
 }
 #endif
 
@@ -120,12 +120,6 @@ bool
 CompileRuntime::hadOutOfMemory()
 {
     return runtime()->hadOutOfMemory;
-}
-
-bool
-CompileRuntime::profilingScripts()
-{
-    return runtime()->profilingScripts;
 }
 
 const JSAtomState &

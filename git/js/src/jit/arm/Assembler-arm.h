@@ -139,7 +139,9 @@ static const uint32_t StackAlignment = 8;
 static const uint32_t CodeAlignment = 8;
 static const bool StackKeptAligned = true;
 static const uint32_t NativeFrameSize = sizeof(void*);
-static const uint32_t AlignmentAtAsmJSPrologue = sizeof(void*);
+static const uint32_t AlignmentAtPrologue = 0;
+static const uint32_t AlignmentMidPrologue = 4;
+
 
 static const Scale ScalePointer = TimesFour;
 
@@ -1265,6 +1267,8 @@ class Assembler : public AssemblerShared
     CompactBufferWriter relocations_;
     CompactBufferWriter preBarriers_;
 
+    bool enoughMemory_;
+
     //typedef JSC::AssemblerBufferWithConstantPool<1024, 4, 4, js::jit::Assembler> ARMBuffer;
     ARMBuffer m_buffer;
 
@@ -1284,7 +1288,8 @@ class Assembler : public AssemblerShared
 
   public:
     Assembler()
-      : m_buffer(4, 4, 0, &pools_[0], 8),
+      : enoughMemory_(true),
+        m_buffer(4, 4, 0, &pools_[0], 8),
         int32Pool(m_buffer.getPool(1)),
         doublePool(m_buffer.getPool(0)),
         isFinished(false),
@@ -1795,11 +1800,6 @@ class Assembler : public AssemblerShared
     static void patchDataWithValueCheck(CodeLocationLabel label, ImmPtr newValue,
                                         ImmPtr expectedValue);
     static void patchWrite_Imm32(CodeLocationLabel label, Imm32 imm);
-
-    static void patchInstructionImmediate(uint8_t *code, PatchedImmPtr imm) {
-        MOZ_ASSUME_UNREACHABLE("Unused.");
-    }
-
     static uint32_t alignDoubleArg(uint32_t offset) {
         return (offset+1)&~1;
     }
@@ -1813,10 +1813,6 @@ class Assembler : public AssemblerShared
 
     static void updateBoundsCheck(uint32_t logHeapSize, Instruction *inst);
     void processCodeLabels(uint8_t *rawCode);
-    static int32_t extractCodeLabelOffset(uint8_t *code) {
-        return *(uintptr_t *)code;
-    }
-
     bool bailed() {
         return m_buffer.bail();
     }

@@ -1039,8 +1039,7 @@ VariablesView.NON_SORTABLE_CLASSES = [
   "Int32Array",
   "Uint32Array",
   "Float32Array",
-  "Float64Array",
-  "NodeList"
+  "Float64Array"
 ];
 
 /**
@@ -3697,10 +3696,6 @@ VariablesView.stringifiers.byObjectKind = {
         let result = "<" + preview.nodeName;
         if (attrs.id) {
           result += "#" + attrs.id;
-        }
-
-        if (attrs.class) {
-          result += "." + attrs.class.trim().replace(/\s+/, ".");
         }
         return result + ">";
       }

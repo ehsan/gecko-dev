@@ -21,7 +21,7 @@ var Cu = require('chrome').Cu;
 var debuggerSocketConnect = Cu.import('resource://gre/modules/devtools/dbg-client.jsm', {}).debuggerSocketConnect;
 var DebuggerClient = Cu.import('resource://gre/modules/devtools/dbg-client.jsm', {}).DebuggerClient;
 
-var Promise = require('../util/promise').Promise;
+var promise = require('../util/promise');
 var Connection = require('./connectors').Connection;
 
 /**
@@ -71,38 +71,45 @@ RdpConnection.create = function(url) {
 
   this._emit = this._emit.bind(this);
 
-  return new Promise(function(resolve, reject) {
-    this.transport = debuggerSocketConnect(this.host, this.port);
-    this.client = new DebuggerClient(this.transport);
-    this.client.connect(function() {
-      this.client.listTabs(function(response) {
-        this.actor = response.gcliActor;
-        resolve();
-      }.bind(this));
+  var deferred = promise.defer();
+
+  this.transport = debuggerSocketConnect(this.host, this.port);
+  this.client = new DebuggerClient(this.transport);
+
+  this.client.connect(function() {
+    this.client.listTabs(function(response) {
+      this.actor = response.gcliActor;
+      deferred.resolve();
     }.bind(this));
   }.bind(this));
+
+  return deferred.promise;
 };
 
 RdpConnection.prototype = Object.create(Connection.prototype);
 
 RdpConnection.prototype.call = function(command, data) {
-  return new Promise(function(resolve, reject) {
-    var request = { to: this.actor, type: command, data: data };
+  var deferred = promise.defer();
 
-    this.client.request(request, function(response) {
-      resolve(response.commandSpecs);
-    });
-  }.bind(this));
+  var request = { to: this.actor, type: command, data: data };
+
+  this.client.request(request, function(response) {
+    deferred.resolve(response.commandSpecs);
+  });
+
+  return deferred.promise;
 };
 
 RdpConnection.prototype.disconnect = function() {
-  return new Promise(function(resolve, reject) {
-    this.client.close(function() {
-      resolve();
-    });
+  var deferred = promise.defer();
 
-    delete this._emit;
-  }.bind(this));
+  this.client.close(function() {
+    deferred.resolve();
+  });
+
+  delete this._emit;
+
+  return deferred.promise;
 };
 
 
@@ -119,9 +126,8 @@ function Request(actor, typed, args) {
     requestId: 'id-' + Request._nextRequestId++,
   };
 
-  this.promise = new Promise(function(resolve, reject) {
-    this._resolve = resolve;
-  }.bind(this));
+  this._deferred = promise.defer();
+  this.promise = this._deferred.promise;
 }
 
 Request._nextRequestId = 0;
@@ -133,7 +139,7 @@ Request._nextRequestId = 0;
  * @param data the data itself
  */
 Request.prototype.complete = function(error, type, data) {
-  this._resolve({
+  this._deferred.resolve({
     error: error,
     type: type,
     data: data

@@ -103,7 +103,7 @@ public:
     }
 
     AutoPushJSContext cx(sc->GetNativeContext());
-    JS::Rooted<JSObject*> JsDevices(cx);
+    JSObject* JsDevices = nullptr;
     rv = nsTArrayToJSArray(cx, devices, &JsDevices);
     if (!JsDevices) {
       BT_WARNING("Cannot create JS array!");
@@ -121,7 +121,6 @@ public:
     BluetoothReplyRunnable::ReleaseMembers();
     mAdapterPtr = nullptr;
   }
-
 private:
   nsRefPtr<BluetoothAdapter> mAdapterPtr;
 };
@@ -157,38 +156,6 @@ public:
   }
 };
 
-class EnableDisableAdapterTask : public BluetoothReplyRunnable
-{
-public:
-  EnableDisableAdapterTask(Promise* aPromise)
-    : BluetoothReplyRunnable(nullptr)
-    , mPromise(aPromise)
-  { }
-
-  bool
-  ParseSuccessfulReply(JS::MutableHandle<JS::Value> aValue)
-  {
-    /*
-     * It is supposed to be Promise<void> according to BluetoothAdapter.webidl,
-     * but we have to pass "true" since it is mandatory to pass an
-     * argument while calling MaybeResolve.
-     */
-    mPromise->MaybeResolve(true);
-    aValue.setUndefined();
-    return true;
-  }
-
-  void
-  ReleaseMembers()
-  {
-    BluetoothReplyRunnable::ReleaseMembers();
-    mPromise = nullptr;
-  }
-
-private:
-  nsRefPtr<Promise> mPromise;
-};
-
 static int kCreatePairedDeviceTimeout = 50000; // unit: msec
 
 BluetoothAdapter::BluetoothAdapter(nsPIDOMWindow* aWindow,
@@ -197,13 +164,12 @@ BluetoothAdapter::BluetoothAdapter(nsPIDOMWindow* aWindow,
   , BluetoothPropertyContainer(BluetoothObjectType::TYPE_ADAPTER)
   , mJsUuids(nullptr)
   , mJsDeviceAddresses(nullptr)
-  // TODO: Change to Disabled after Bug 1006309 landed
-  , mState(BluetoothAdapterState::Enabled)
   , mDiscoverable(false)
   , mDiscovering(false)
   , mPairable(false)
   , mPowered(false)
   , mIsRooted(false)
+  , mState(BluetoothAdapterState::Disabled)
 {
   MOZ_ASSERT(aWindow);
   MOZ_ASSERT(IsDOMBinding());
@@ -265,11 +231,7 @@ BluetoothAdapter::SetPropertyByValue(const BluetoothNamedValue& aValue)
 {
   const nsString& name = aValue.name();
   const BluetoothValue& value = aValue.value();
-  if (name.EqualsLiteral("State")) {
-    bool isEnabled = value.get_bool();
-    mState = isEnabled ? BluetoothAdapterState::Enabled
-                       : BluetoothAdapterState::Disabled;
-  } else if (name.EqualsLiteral("Name")) {
+  if (name.EqualsLiteral("Name")) {
     mName = value.get_nsString();
   } else if (name.EqualsLiteral("Address")) {
     mAddress = value.get_nsString();
@@ -298,7 +260,7 @@ BluetoothAdapter::SetPropertyByValue(const BluetoothNamedValue& aValue)
 
     AutoPushJSContext cx(sc->GetNativeContext());
     JS::Rooted<JSObject*> uuids(cx);
-    if (NS_FAILED(nsTArrayToJSArray(cx, mUuids, &uuids))) {
+    if (NS_FAILED(nsTArrayToJSArray(cx, mUuids, uuids.address()))) {
       BT_WARNING("Cannot set JS UUIDs object!");
       return;
     }
@@ -314,7 +276,8 @@ BluetoothAdapter::SetPropertyByValue(const BluetoothNamedValue& aValue)
 
     AutoPushJSContext cx(sc->GetNativeContext());
     JS::Rooted<JSObject*> deviceAddresses(cx);
-    if (NS_FAILED(nsTArrayToJSArray(cx, mDeviceAddresses, &deviceAddresses))) {
+    if (NS_FAILED(nsTArrayToJSArray(cx, mDeviceAddresses,
+                                    deviceAddresses.address()))) {
       BT_WARNING("Cannot set JS Devices object!");
       return;
     }
@@ -707,55 +670,19 @@ BluetoothAdapter::SetPairingConfirmation(const nsAString& aDeviceAddress,
   return request.forget();
 }
 
-already_AddRefed<Promise>
-BluetoothAdapter::EnableDisable(bool aEnable)
-{
-  nsCOMPtr<nsIGlobalObject> global = do_QueryInterface(GetOwner());
-  NS_ENSURE_TRUE(global, nullptr);
-
-  nsRefPtr<Promise> promise = new Promise(global);
-
-  // Make sure BluetoothService is available before modifying adapter state
-  BluetoothService* bs = BluetoothService::Get();
-  if (!bs) {
-    promise->MaybeReject(NS_ERROR_NOT_AVAILABLE);
-    return promise.forget();
-  }
-
-  if (aEnable) {
-    if (mState != BluetoothAdapterState::Disabled) {
-      promise->MaybeReject(NS_ERROR_DOM_INVALID_STATE_ERR);
-      return promise.forget();
-    }
-    mState = BluetoothAdapterState::Enabling;
-  } else {
-    if (mState != BluetoothAdapterState::Enabled) {
-      promise->MaybeReject(NS_ERROR_DOM_INVALID_STATE_ERR);
-      return promise.forget();
-    }
-    mState = BluetoothAdapterState::Disabling;
-  }
-
-  // TODO: Fire attr changed event for this state change
-  nsRefPtr<BluetoothReplyRunnable> result = new EnableDisableAdapterTask(promise);
-
-  if(NS_FAILED(bs->EnableDisable(aEnable, result))) {
-    promise->MaybeReject(NS_ERROR_DOM_OPERATION_ERR);
-  }
-
-  return promise.forget();
-}
-
+/*
+ * TODO: Implement Enable/Disable functions
+ */
 already_AddRefed<Promise>
 BluetoothAdapter::Enable()
 {
-  return EnableDisable(true);
+  return nullptr;
 }
 
 already_AddRefed<Promise>
 BluetoothAdapter::Disable()
 {
-  return EnableDisable(false);
+  return nullptr;
 }
 
 already_AddRefed<DOMRequest>

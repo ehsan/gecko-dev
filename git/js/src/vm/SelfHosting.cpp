@@ -73,13 +73,13 @@ js::intrinsic_ToInteger(JSContext *cx, unsigned argc, Value *vp)
 }
 
 bool
-js::intrinsic_ToString(JSContext *cx, unsigned argc, Value *vp)
+intrinsic_ToString(JSContext *cx, unsigned argc, Value *vp)
 {
     CallArgs args = CallArgsFromVp(argc, vp);
     RootedString str(cx);
     str = ToString<CanGC>(cx, args[0]);
-    if (!str)
-        return false;
+        if (!str)
+            return false;
     args.rval().setString(str);
     return true;
 }
@@ -88,15 +88,9 @@ bool
 js::intrinsic_IsCallable(JSContext *cx, unsigned argc, Value *vp)
 {
     CallArgs args = CallArgsFromVp(argc, vp);
-    args.rval().setBoolean(IsCallable(args[0]));
-    return true;
-}
-
-static bool
-intrinsic_IsConstructor(JSContext *cx, unsigned argc, Value *vp)
-{
-    CallArgs args = CallArgsFromVp(argc, vp);
-    args.rval().setBoolean(IsConstructor(args[0]));
+    Value val = args[0];
+    bool isCallable = val.isObject() && val.toObject().isCallable();
+    args.rval().setBoolean(isCallable);
     return true;
 }
 
@@ -285,12 +279,11 @@ intrinsic_ParallelSpew(ThreadSafeContext *cx, unsigned argc, Value *vp)
     JS_ASSERT(args.length() == 1);
     JS_ASSERT(args[0].isString());
 
-    AutoCheckCannotGC nogc;
     ScopedThreadSafeStringInspector inspector(args[0].toString());
-    if (!inspector.ensureChars(cx, nogc))
+    if (!inspector.ensureChars(cx))
         return false;
 
-    ScopedJSFreePtr<char> bytes(TwoByteCharsToNewUTF8CharsZ(cx, inspector.twoByteRange()).c_str());
+    ScopedJSFreePtr<char> bytes(TwoByteCharsToNewUTF8CharsZ(cx, inspector.range()).c_str());
     parallel::Spew(parallel::SpewOps, bytes);
 
     args.rval().setUndefined();
@@ -460,7 +453,7 @@ js::intrinsic_UnsafePutElements(JSContext *cx, unsigned argc, Value *vp)
 }
 
 bool
-js::intrinsic_DefineDataProperty(JSContext *cx, unsigned argc, Value *vp)
+js::intrinsic_DefineValueProperty(JSContext *cx, unsigned argc, Value *vp)
 {
     CallArgs args = CallArgsFromVp(argc, vp);
 
@@ -469,34 +462,36 @@ js::intrinsic_DefineDataProperty(JSContext *cx, unsigned argc, Value *vp)
     MOZ_ASSERT(args[3].isInt32());
 
     RootedObject obj(cx, &args[0].toObject());
+    if (obj->is<ProxyObject>()) {
+        JS_ReportError(cx, "_DefineValueProperty can't be used on proxies");
+        return false;
+    }
     RootedId id(cx);
     if (!ValueToId<CanGC>(cx, args[1], &id))
         return false;
     RootedValue value(cx, args[2]);
     unsigned attributes = args[3].toInt32();
 
-    Rooted<PropDesc> desc(cx);
+    unsigned resolvedAttributes = JSPROP_PERMANENT | JSPROP_READONLY;
 
     MOZ_ASSERT(bool(attributes & ATTR_ENUMERABLE) != bool(attributes & ATTR_NONENUMERABLE),
-               "_DefineDataProperty must receive either ATTR_ENUMERABLE xor ATTR_NONENUMERABLE");
-    PropDesc::Enumerability enumerable =
-        PropDesc::Enumerability(bool(attributes & ATTR_ENUMERABLE));
+               "_DefineValueProperty must receive either ATTR_ENUMERABLE xor ATTR_NONENUMERABLE");
+    if (attributes & ATTR_ENUMERABLE)
+        resolvedAttributes |= JSPROP_ENUMERATE;
 
     MOZ_ASSERT(bool(attributes & ATTR_CONFIGURABLE) != bool(attributes & ATTR_NONCONFIGURABLE),
-               "_DefineDataProperty must receive either ATTR_CONFIGURABLE xor "
+               "_DefineValueProperty must receive either ATTR_CONFIGURABLE xor "
                "ATTR_NONCONFIGURABLE");
-    PropDesc::Configurability configurable =
-        PropDesc::Configurability(bool(attributes & ATTR_CONFIGURABLE));
+    if (attributes & ATTR_CONFIGURABLE)
+        resolvedAttributes &= ~JSPROP_PERMANENT;
 
     MOZ_ASSERT(bool(attributes & ATTR_WRITABLE) != bool(attributes & ATTR_NONWRITABLE),
-               "_DefineDataProperty must receive either ATTR_WRITABLE xor ATTR_NONWRITABLE");
-    PropDesc::Writability writable =
-        PropDesc::Writability(bool(attributes & ATTR_WRITABLE));
+               "_DefineValueProperty must receive either ATTR_WRITABLE xor ATTR_NONWRITABLE");
+    if (attributes & ATTR_WRITABLE)
+        resolvedAttributes &= ~JSPROP_READONLY;
 
-    desc.set(PropDesc(value, writable, enumerable, configurable));
-
-    bool result;
-    return DefineProperty(cx, obj, id, desc, true, &result);
+    return JSObject::defineGeneric(cx, obj, id, value, JS_PropertyStub, JS_StrictPropertyStub,
+                                   resolvedAttributes);
 }
 
 bool
@@ -761,7 +756,6 @@ static const JSFunctionSpec intrinsic_functions[] = {
     JS_FN("ToInteger",               intrinsic_ToInteger,               1,0),
     JS_FN("ToString",                intrinsic_ToString,                1,0),
     JS_FN("IsCallable",              intrinsic_IsCallable,              1,0),
-    JS_FN("IsConstructor",           intrinsic_IsConstructor,           1,0),
     JS_FN("ThrowError",              intrinsic_ThrowError,              4,0),
     JS_FN("AssertionFailed",         intrinsic_AssertionFailed,         1,0),
     JS_FN("SetScriptHints",          intrinsic_SetScriptHints,          2,0),
@@ -770,7 +764,7 @@ static const JSFunctionSpec intrinsic_functions[] = {
     JS_FN("RuntimeDefaultLocale",    intrinsic_RuntimeDefaultLocale,    0,0),
 
     JS_FN("UnsafePutElements",       intrinsic_UnsafePutElements,       3,0),
-    JS_FN("_DefineDataProperty",     intrinsic_DefineDataProperty,      4,0),
+    JS_FN("_DefineValueProperty",    intrinsic_DefineValueProperty,     4,0),
     JS_FN("UnsafeSetReservedSlot",   intrinsic_UnsafeSetReservedSlot,   3,0),
     JS_FN("UnsafeGetReservedSlot",   intrinsic_UnsafeGetReservedSlot,   2,0),
     JS_FN("HaveSameClass",           intrinsic_HaveSameClass,           2,0),

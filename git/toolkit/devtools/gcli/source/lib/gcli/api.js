@@ -16,7 +16,7 @@
 
 'use strict';
 
-var Promise = require('./util/promise').Promise;
+var promise = require('./util/promise');
 var centralCanon = require('./commands/commands').centralCanon;
 var connectors = require('./connectors/connectors');
 var converters = require('./converters/converters');
@@ -117,7 +117,7 @@ exports.getApi = function() {
     // And load the new items
     try {
       var loader = loadableModules[name];
-      return Promise.resolve(loader(name)).then(function(newModule) {
+      return promise.resolve(loader(name)).then(function(newModule) {
         if (existingModule === newModule) {
           return;
         }
@@ -138,11 +138,9 @@ exports.getApi = function() {
     }
     catch (ex) {
       console.error(ex);
-      return Promise.reject('Failure when loading \'' + name + '\'');
+      return promise.reject('Failure when loading \'' + name + '\'');
     }
   };
-
-  var pendingChanges = false;
 
   var api = {
     addCommand: function(item) { return canon.addCommand(item); },
@@ -177,10 +175,7 @@ exports.getApi = function() {
         }
         loadableModules[name] = options.loader;
 
-        if (options.delayedLoad) {
-          pendingChanges = true;
-        }
-        else {
+        if (!options.delayedLoad) {
           loadModule(name).then(null, console.error);
         }
       });
@@ -192,24 +187,17 @@ exports.getApi = function() {
     },
 
     load: function() {
-      if (!pendingChanges) {
-        return Promise.resolve();
-      }
-
       // clone loadedModules, so we can remove what is left at the end
       var modules = Object.keys(loadedModules).map(function(name) {
         return loadedModules[name];
       });
 
-      var promises = Object.keys(loadableModules).map(function(name) {
+      Object.keys(loadableModules).forEach(function(name) {
         delete modules[name];
-        return loadModule(name);
+        loadModule(name).then(null, console.error);
       });
 
       Object.keys(modules).forEach(unloadModule);
-      pendingChanges = false;
-
-      return Promise.all(promises);
     }
   };
 

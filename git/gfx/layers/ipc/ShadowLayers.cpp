@@ -411,17 +411,6 @@ ShadowLayerForwarder::UseComponentAlphaTextures(CompositableClient* aCompositabl
 }
 
 void
-ShadowLayerForwarder::SendFenceHandle(AsyncTransactionTracker* aTracker,
-                                        PTextureChild* aTexture,
-                                        const FenceHandle& aFence)
-{
-  if (!HasShadowManager() || !mShadowManager->IPCOpen()) {
-    return;
-  }
-  mShadowManager->SendFenceHandle(aTracker, aTexture, aFence);
-}
-
-void
 ShadowLayerForwarder::RemoveTextureFromCompositable(CompositableClient* aCompositable,
                                                     TextureClient* aTexture)
 {
@@ -462,18 +451,13 @@ ShadowLayerForwarder::RemoveTexture(TextureClient* aTexture)
 bool
 ShadowLayerForwarder::EndTransaction(InfallibleTArray<EditReply>* aReplies,
                                      const nsIntRegion& aRegionToClear,
-                                     uint64_t aId,
                                      bool aScheduleComposite,
                                      uint32_t aPaintSequenceNumber,
                                      bool* aSent)
 {
   *aSent = false;
 
-  MOZ_ASSERT(aId);
-
-  PROFILER_LABEL("ShadowLayerForwarder", "EndTranscation",
-    js::ProfileEntry::Category::GRAPHICS);
-
+  PROFILER_LABEL("ShadowLayerForwarder", "EndTranscation");
   RenderTraceScope rendertrace("Foward Transaction", "000091");
   NS_ABORT_IF_FALSE(HasShadowManager(), "no manager to forward to");
   NS_ABORT_IF_FALSE(!mTxn->Finished(), "forgot BeginTransaction?");
@@ -578,7 +562,7 @@ ShadowLayerForwarder::EndTransaction(InfallibleTArray<EditReply>* aReplies,
     RenderTraceScope rendertrace3("Forward Transaction", "000093");
     if (!HasShadowManager() ||
         !mShadowManager->IPCOpen() ||
-        !mShadowManager->SendUpdate(cset, aId, targetConfig, mIsFirstPaint,
+        !mShadowManager->SendUpdate(cset, targetConfig, mIsFirstPaint,
                                     aScheduleComposite, aPaintSequenceNumber,
                                     aReplies)) {
       MOZ_LAYERS_LOG(("[LayersForwarder] WARNING: sending transaction failed!"));
@@ -591,7 +575,7 @@ ShadowLayerForwarder::EndTransaction(InfallibleTArray<EditReply>* aReplies,
     RenderTraceScope rendertrace3("Forward NoSwap Transaction", "000093");
     if (!HasShadowManager() ||
         !mShadowManager->IPCOpen() ||
-        !mShadowManager->SendUpdateNoSwap(cset, aId, targetConfig, mIsFirstPaint,
+        !mShadowManager->SendUpdateNoSwap(cset, targetConfig, mIsFirstPaint,
                                           aPaintSequenceNumber, aScheduleComposite)) {
       MOZ_LAYERS_LOG(("[LayersForwarder] WARNING: sending transaction failed!"));
       return false;

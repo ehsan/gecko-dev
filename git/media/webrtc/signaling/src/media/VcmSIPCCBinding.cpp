@@ -11,7 +11,6 @@
 #include "CSFVideoTermination.h"
 #include "MediaConduitErrors.h"
 #include "MediaConduitInterface.h"
-#include "GmpVideoCodec.h"
 #include "MediaPipeline.h"
 #include "MediaPipelineFilter.h"
 #include "VcmSIPCCBinding.h"
@@ -44,7 +43,6 @@
 
 #ifdef MOZ_WEBRTC_OMX
 #include "OMXVideoCodec.h"
-#include "OMXCodecWrapper.h"
 #endif
 
 extern "C" {
@@ -90,7 +88,6 @@ using namespace CSF;
 VcmSIPCCBinding * VcmSIPCCBinding::gSelf = nullptr;
 int VcmSIPCCBinding::gAudioCodecMask = 0;
 int VcmSIPCCBinding::gVideoCodecMask = 0;
-int VcmSIPCCBinding::gVideoCodecGmpMask = 0;
 nsIThread *VcmSIPCCBinding::gMainThread = nullptr;
 nsIEventTarget *VcmSIPCCBinding::gSTSThread = nullptr;
 nsCOMPtr<nsIPrefBranch> VcmSIPCCBinding::gBranch = nullptr;
@@ -136,13 +133,16 @@ VcmSIPCCBinding::VcmSIPCCBinding ()
 
 class VcmIceOpaque : public NrIceOpaque {
  public:
-  VcmIceOpaque(cc_call_handle_t call_handle,
+  VcmIceOpaque(cc_streamid_t stream_id,
+               cc_call_handle_t call_handle,
                uint16_t level) :
+      stream_id_(stream_id),
       call_handle_(call_handle),
       level_(level) {}
 
   virtual ~VcmIceOpaque() {}
 
+  cc_streamid_t stream_id_;
   cc_call_handle_t call_handle_;
   uint16_t level_;
 };
@@ -172,8 +172,8 @@ void VcmSIPCCBinding::CandidateReady(NrIceMediaStream* stream,
     MOZ_ASSERT(opaque);
 
     VcmIceOpaque *vcm_opaque = static_cast<VcmIceOpaque *>(opaque);
-    CSFLogDebug(logTag, "Candidate ready on call %u, level %u: %s",
-                vcm_opaque->call_handle_, vcm_opaque->level_, candidate.c_str());
+    CSFLogDebug(logTag, "Candidate ready on call %u, level %u",
+                vcm_opaque->call_handle_, vcm_opaque->level_);
 
     char *candidate_tmp = (char *)malloc(candidate.size() + 1);
     if (!candidate_tmp)
@@ -227,12 +227,6 @@ void VcmSIPCCBinding::setVideoCodecs(int codecMask)
   VcmSIPCCBinding::gVideoCodecMask = codecMask;
 }
 
-void VcmSIPCCBinding::addVideoCodecsGmp(int codecMask)
-{
-  CSFLogDebug(logTag, "ADDING VIDEO: %d", codecMask);
-  VcmSIPCCBinding::gVideoCodecGmpMask |= codecMask;
-}
-
 int VcmSIPCCBinding::getAudioCodecs()
 {
   return VcmSIPCCBinding::gAudioCodecMask;
@@ -241,35 +235,6 @@ int VcmSIPCCBinding::getAudioCodecs()
 int VcmSIPCCBinding::getVideoCodecs()
 {
   return VcmSIPCCBinding::gVideoCodecMask;
-}
-
-int VcmSIPCCBinding::getVideoCodecsGmp()
-{
-  return VcmSIPCCBinding::gVideoCodecGmpMask;
-}
-
-int VcmSIPCCBinding::getVideoCodecsHw()
-{
-  // Check to see if what HW codecs are available (not in use) at this moment.
-  // Note that streaming video decode can reserve a decoder
-
-  // XXX See bug 1018791 Implement W3 codec reservation policy
-  // Note that currently, OMXCodecReservation needs to be held by an sp<> because it puts
-  // 'this' into an sp<EventListener> to talk to the resource reservation code
-#ifdef MOZ_WEBRTC_OMX
-  android::sp<android::OMXCodecReservation> encode = new android::OMXCodecReservation(true);
-  android::sp<android::OMXCodecReservation> decode = new android::OMXCodecReservation(false);
-
-  // Currently we just check if they're available right now, which will fail if we're
-  // trying to call ourself, for example.  It will work for most real-world cases, like
-  // if we try to add a person to a 2-way call to make a 3-way mesh call
-  if (encode->ReserveOMXCodec() && decode->ReserveOMXCodec()) {
-    CSFLogDebug( logTag, "%s: H264 hardware codec available", __FUNCTION__);
-    return VCM_CODEC_RESOURCE_H264;
-  }
-#endif
-
-  return 0;
 }
 
 void VcmSIPCCBinding::setMainThread(nsIThread *thread)
@@ -630,15 +595,11 @@ static short vcmRxAllocICE_s(TemporaryRef<NrIceCtx> ctx_in,
   *candidatesp = nullptr;
   *candidate_ctp = 0;
 
-  // This can be called multiple times; don't connect to the signal more than
-  // once (see bug 1018473 for an explanation).
-  if (!stream->opaque()) {
-    // Set the opaque so we can correlate events.
-    stream->SetOpaque(new VcmIceOpaque(call_handle, level));
+  // Set the opaque so we can correlate events.
+  stream->SetOpaque(new VcmIceOpaque(stream_id, call_handle, level));
 
-    // Attach ourself to the candidate signal.
-    VcmSIPCCBinding::connectCandidateSignal(stream);
-  }
+  // Attach ourself to the candidate signal.
+  VcmSIPCCBinding::connectCandidateSignal(stream);
 
   std::vector<std::string> candidates = stream->GetCandidates();
   CSFLogDebug( logTag, "%s: Got %lu candidates", __FUNCTION__, (unsigned long) candidates.size());
@@ -2173,6 +2134,7 @@ static int vcmEnsureExternalCodec(
   if (config->mName == "VP8") {
     // whitelist internal codecs; I420 will be here once we resolve bug 995884
     return 0;
+#ifdef MOZ_WEBRTC_OMX
   } else if (config->mName == "H264_P0" || config->mName == "H264_P1") {
     // Here we use "I420" to register H.264 because WebRTC.org code has a
     // whitelist of supported video codec in |webrtc::ViECodecImpl::CodecValid()|
@@ -2181,25 +2143,14 @@ static int vcmEnsureExternalCodec(
 
     // Register H.264 codec.
     if (send) {
-	VideoEncoder* encoder = nullptr;
-#ifdef MOZ_WEBRTC_OMX
-	encoder = OMXVideoCodec::CreateEncoder(
-	    OMXVideoCodec::CodecType::CODEC_H264);
-#else
-	encoder = mozilla::GmpVideoCodec::CreateEncoder();
-#endif
+      VideoEncoder* encoder = OMXVideoCodec::CreateEncoder(OMXVideoCodec::CodecType::CODEC_H264);
       if (encoder) {
         return conduit->SetExternalSendCodec(config, encoder);
       } else {
         return kMediaConduitInvalidSendCodec;
       }
     } else {
-      VideoDecoder* decoder;
-#ifdef MOZ_WEBRTC_OMX
-      decoder = OMXVideoCodec::CreateDecoder(OMXVideoCodec::CodecType::CODEC_H264);
-#else
-      decoder = mozilla::GmpVideoCodec::CreateDecoder();
-#endif
+      VideoDecoder* decoder = OMXVideoCodec::CreateDecoder(OMXVideoCodec::CodecType::CODEC_H264);
       if (decoder) {
         return conduit->SetExternalRecvCodec(config, decoder);
       } else {
@@ -2207,6 +2158,10 @@ static int vcmEnsureExternalCodec(
       }
     }
     NS_NOTREACHED("Shouldn't get here!");
+#else
+  } else if (config->mName == "I420") {
+    return 0;
+#endif
   } else {
     CSFLogError( logTag, "%s: Invalid video codec configured: %s", __FUNCTION__, config->mName.c_str());
     return send ? kMediaConduitInvalidSendCodec : kMediaConduitInvalidReceiveCodec;
@@ -2769,29 +2724,12 @@ int vcmGetVideoCodecList(int request_type)
     CSFLogDebug( logTag, "%s(codec_mask = %X)", fname, codecMask);
 
     //return codecMask;
-    return VCM_CODEC_RESOURCE_H264;
+        return VCM_CODEC_RESOURCE_H264;
 #else
-  // Control if H264 is available and priority:
-  // If hardware codecs are available (VP8 or H264), use those as a preferred codec
-  // (question: on all platforms?)
-  // If OpenH264 is available, use that at lower priority to VP8
-  // (question: platform software or OS-unknown-impl codecs?  (Win8.x, etc)
-  // Else just use VP8 software
+  int codecMask = VcmSIPCCBinding::getVideoCodecs();
+  CSFLogDebug(logTag, "GetVideoCodecList returning %X", codecMask);
 
-    int codecMask;
-    switch (request_type) {
-      case VCM_DSP_FULLDUPLEX_HW:
-        codecMask = VcmSIPCCBinding::getVideoCodecsHw();
-        break;
-      case VCM_DSP_FULLDUPLEX_GMP:
-        codecMask = VcmSIPCCBinding::getVideoCodecsGmp();
-        break;
-      default: // VCM_DSP_FULLDUPLEX
-        codecMask = VcmSIPCCBinding::getVideoCodecs();
-        break;
-    }
-    CSFLogDebug(logTag, "GetVideoCodecList returning %X", codecMask);
-    return codecMask;
+  return codecMask;
 #endif
 }
 

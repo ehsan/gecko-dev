@@ -12,7 +12,6 @@
 #include "nsLayoutStylesheetCache.h"
 #include "nsRuleData.h"
 #include "nsCSSValue.h"
-#include "nsCSSParser.h"
 #include "nsMappedAttributes.h"
 #include "nsStyleConsts.h"
 #include "nsIDocument.h"
@@ -653,9 +652,7 @@ nsMathMLElement::MapMathMLAttributesInto(const nsMappedAttributes* aAttributes,
     }
     if (value && value->Type() == nsAttrValue::eString &&
         fontFamily->GetUnit() == eCSSUnit_Null) {
-      nsCSSParser parser;
-      parser.ParseFontFamilyListString(value->GetStringValue(),
-                                       nullptr, 0, *fontFamily);
+      fontFamily->SetStringValue(value->GetStringValue(), eCSSUnit_Families);
     }
 
     // fontstyle

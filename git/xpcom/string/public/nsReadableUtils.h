@@ -13,7 +13,6 @@
  * According to our conventions, they should be |NS_xxx|.
  */
 
-#include "mozilla/Assertions.h"
 #include "nsAString.h"
 
 #include "nsTArrayForwardDeclare.h"
@@ -22,15 +21,13 @@ inline size_t
 Distance(const nsReadingIterator<char16_t>& aStart,
          const nsReadingIterator<char16_t>& aEnd)
 {
-  MOZ_ASSERT(aStart.get() <= aEnd.get());
-  return static_cast<size_t>(aEnd.get() - aStart.get());
+  return aEnd.get() - aStart.get();
 }
 inline size_t
 Distance(const nsReadingIterator<char>& aStart,
          const nsReadingIterator<char>& aEnd)
 {
-  MOZ_ASSERT(aStart.get() <= aEnd.get());
-  return static_cast<size_t>(aEnd.get() - aStart.get());
+  return aEnd.get() - aStart.get();
 }
 
 void LossyCopyUTF16toASCII(const nsAString& aSource, nsACString& aDest);

@@ -73,7 +73,6 @@ EXPORTS.mozilla.dom += [
     'ImportManager.h',
     'Link.h',
     'NodeIterator.h',
-    'ResponsiveImageSelector.h',
     'ShadowRoot.h',
     'StyleSheetList.h',
     'Text.h',
@@ -168,7 +167,6 @@ UNIFIED_SOURCES += [
     'nsXMLContentSerializer.cpp',
     'nsXMLHttpRequest.cpp',
     'nsXMLNameSpaceMap.cpp',
-    'ResponsiveImageSelector.cpp',
     'ShadowRoot.cpp',
     'StyleSheetList.cpp',
     'Text.cpp',
@@ -243,3 +241,7 @@ LOCAL_INCLUDES += [
     '/netwerk/base/src',
     '/xpcom/ds',
 ]
+
+if CONFIG['GNU_CC'] and CONFIG['MOZ_WIDGET_TOOLKIT'] == 'android':
+    # Work around bug 986928
+    CXXFLAGS += ['-Wno-error=format']

@@ -66,7 +66,6 @@
 #include "nsXULAppAPI.h"
 #include "OrientationObserver.h"
 #include "UeventPoller.h"
-#include "nsIWritablePropertyBag2.h"
 #include <algorithm>
 
 #define LOG(args...)  __android_log_print(ANDROID_LOG_INFO, "Gonk", args)
@@ -291,25 +290,6 @@ public:
     hal_impl::SetLight(hal::eHalLightID_Battery, aConfig);
 
     hal::NotifyBatteryChange(info);
-
-    {
-      // bug 975667
-      // Gecko gonk hal is required to emit battery charging/level notification via nsIObserverService.
-      // This is useful for XPCOM components that are not statically linked to Gecko and cannot call
-      // hal::EnableBatteryNotifications
-      nsCOMPtr<nsIObserverService> obsService = mozilla::services::GetObserverService();
-      nsCOMPtr<nsIWritablePropertyBag2> propbag =
-        do_CreateInstance("@mozilla.org/hash-property-bag;1");
-      if (obsService && propbag) {
-        propbag->SetPropertyAsBool(NS_LITERAL_STRING("charging"),
-                                   info.charging());
-        propbag->SetPropertyAsDouble(NS_LITERAL_STRING("level"),
-                                   info.level());
-
-        obsService->NotifyObservers(propbag, "gonkhal-battery-notifier", nullptr);
-      }
-    }
-
     return NS_OK;
   }
 };
@@ -540,53 +520,21 @@ GetScreenEnabled()
 }
 
 void
-SetScreenEnabled(bool aEnabled)
+SetScreenEnabled(bool enabled)
 {
-  GetGonkDisplay()->SetEnabled(aEnabled);
-  sScreenEnabled = aEnabled;
-}
-
-bool
-GetKeyLightEnabled()
-{
-  hal::LightConfiguration config;
-  hal_impl::GetLight(hal::eHalLightID_Buttons, &config);
-  return (config.color() != 0x00000000);
-}
-
-void
-SetKeyLightEnabled(bool aEnabled)
-{
-  hal::LightConfiguration config;
-  config.mode() = hal::eHalLightMode_User;
-  config.flash() = hal::eHalLightFlash_None;
-  config.flashOnMS() = config.flashOffMS() = 0;
-  config.color() = 0x00000000;
-
-  if (aEnabled) {
-    // Convert the value in [0, 1] to an int between 0 and 255 and then convert
-    // it to a color. Note that the high byte is FF, corresponding to the alpha
-    // channel.
-    double brightness = GetScreenBrightness();
-    uint32_t val = static_cast<int>(round(brightness * 255.0));
-    uint32_t color = (0xff<<24) + (val<<16) + (val<<8) + val;
-
-    config.color() = color;
-  }
-
-  hal_impl::SetLight(hal::eHalLightID_Buttons, config);
-  hal_impl::SetLight(hal::eHalLightID_Keyboard, config);
+  GetGonkDisplay()->SetEnabled(enabled);
+  sScreenEnabled = enabled;
 }
 
 double
 GetScreenBrightness()
 {
-  hal::LightConfiguration config;
+  hal::LightConfiguration aConfig;
   hal::LightType light = hal::eHalLightID_Backlight;
 
-  hal_impl::GetLight(light, &config);
+  hal::GetLight(light, &aConfig);
   // backlight is brightness only, so using one of the RGB elements as value.
-  int brightness = config.color() & 0xFF;
+  int brightness = aConfig.color() & 0xFF;
   return brightness / 255.0;
 }
 
@@ -603,19 +551,16 @@ SetScreenBrightness(double brightness)
 
   // Convert the value in [0, 1] to an int between 0 and 255 and convert to a color
   // note that the high byte is FF, corresponding to the alpha channel.
-  uint32_t val = static_cast<int>(round(brightness * 255.0));
+  int val = static_cast<int>(round(brightness * 255));
   uint32_t color = (0xff<<24) + (val<<16) + (val<<8) + val;
 
-  hal::LightConfiguration config;
-  config.mode() = hal::eHalLightMode_User;
-  config.flash() = hal::eHalLightFlash_None;
-  config.flashOnMS() = config.flashOffMS() = 0;
-  config.color() = color;
-  hal_impl::SetLight(hal::eHalLightID_Backlight, config);
-  if (GetKeyLightEnabled()) {
-    hal_impl::SetLight(hal::eHalLightID_Buttons, config);
-    hal_impl::SetLight(hal::eHalLightID_Keyboard, config);
-  }
+  hal::LightConfiguration aConfig;
+  aConfig.mode() = hal::eHalLightMode_User;
+  aConfig.flash() = hal::eHalLightFlash_None;
+  aConfig.flashOnMS() = aConfig.flashOffMS() = 0;
+  aConfig.color() = color;
+  hal::SetLight(hal::eHalLightID_Backlight, aConfig);
+  hal::SetLight(hal::eHalLightID_Buttons, aConfig);
 }
 
 static Monitor* sInternalLockCpuMonitor = nullptr;

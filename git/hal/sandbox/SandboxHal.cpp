@@ -143,23 +143,9 @@ GetScreenEnabled()
 }
 
 void
-SetScreenEnabled(bool aEnabled)
+SetScreenEnabled(bool enabled)
 {
-  Hal()->SendSetScreenEnabled(aEnabled);
-}
-
-bool
-GetKeyLightEnabled()
-{
-  bool enabled = false;
-  Hal()->SendGetKeyLightEnabled(&enabled);
-  return enabled;
-}
-
-void
-SetKeyLightEnabled(bool aEnabled)
-{
-  Hal()->SendSetKeyLightEnabled(aEnabled);
+  Hal()->SendSetScreenEnabled(enabled);
 }
 
 bool
@@ -171,9 +157,9 @@ GetCpuSleepAllowed()
 }
 
 void
-SetCpuSleepAllowed(bool aAllowed)
+SetCpuSleepAllowed(bool allowed)
 {
-  Hal()->SendSetCpuSleepAllowed(aAllowed);
+  Hal()->SendSetCpuSleepAllowed(allowed);
 }
 
 double
@@ -185,9 +171,9 @@ GetScreenBrightness()
 }
 
 void
-SetScreenBrightness(double aBrightness)
+SetScreenBrightness(double brightness)
 {
-  Hal()->SendSetScreenBrightness(aBrightness);
+  Hal()->SendSetScreenBrightness(brightness);
 }
 
 bool
@@ -344,9 +330,7 @@ GetCurrentSwitchState(SwitchDevice aDevice)
 void
 NotifySwitchStateFromInputDevice(SwitchDevice aDevice, SwitchState aState)
 {
-  unused << aDevice;
-  unused << aState;
-  NS_RUNTIMEABORT("Only the main process may notify switch state change.");
+  Hal()->SendNotifySwitchStateFromInputDevice(aDevice, aState);
 }
 
 bool
@@ -607,82 +591,62 @@ public:
   }
 
   virtual bool
-  RecvGetScreenEnabled(bool* aEnabled) MOZ_OVERRIDE
+  RecvGetScreenEnabled(bool *enabled) MOZ_OVERRIDE
   {
     if (!AssertAppProcessPermission(this, "power")) {
       return false;
     }
-    *aEnabled = hal::GetScreenEnabled();
+    *enabled = hal::GetScreenEnabled();
     return true;
   }
 
   virtual bool
-  RecvSetScreenEnabled(const bool& aEnabled) MOZ_OVERRIDE
+  RecvSetScreenEnabled(const bool &enabled) MOZ_OVERRIDE
   {
     if (!AssertAppProcessPermission(this, "power")) {
       return false;
     }
-    hal::SetScreenEnabled(aEnabled);
+    hal::SetScreenEnabled(enabled);
     return true;
   }
 
   virtual bool
-  RecvGetKeyLightEnabled(bool* aEnabled) MOZ_OVERRIDE
+  RecvGetCpuSleepAllowed(bool *allowed) MOZ_OVERRIDE
   {
     if (!AssertAppProcessPermission(this, "power")) {
       return false;
     }
-    *aEnabled = hal::GetKeyLightEnabled();
+    *allowed = hal::GetCpuSleepAllowed();
     return true;
   }
 
   virtual bool
-  RecvSetKeyLightEnabled(const bool& aEnabled) MOZ_OVERRIDE
+  RecvSetCpuSleepAllowed(const bool &allowed) MOZ_OVERRIDE
   {
     if (!AssertAppProcessPermission(this, "power")) {
       return false;
     }
-    hal::SetKeyLightEnabled(aEnabled);
+    hal::SetCpuSleepAllowed(allowed);
     return true;
   }
 
   virtual bool
-  RecvGetCpuSleepAllowed(bool* aAllowed) MOZ_OVERRIDE
+  RecvGetScreenBrightness(double *brightness) MOZ_OVERRIDE
   {
     if (!AssertAppProcessPermission(this, "power")) {
       return false;
     }
-    *aAllowed = hal::GetCpuSleepAllowed();
+    *brightness = hal::GetScreenBrightness();
     return true;
   }
 
   virtual bool
-  RecvSetCpuSleepAllowed(const bool& aAllowed) MOZ_OVERRIDE
+  RecvSetScreenBrightness(const double &brightness) MOZ_OVERRIDE
   {
     if (!AssertAppProcessPermission(this, "power")) {
       return false;
     }
-    hal::SetCpuSleepAllowed(aAllowed);
-    return true;
-  }
-
-  virtual bool
-  RecvGetScreenBrightness(double* aBrightness) MOZ_OVERRIDE
-  {
-    if (!AssertAppProcessPermission(this, "power")) {
-      return false;
-    }
-    *aBrightness = hal::GetScreenBrightness();
-    return true;
-  }
-
-  virtual bool
-  RecvSetScreenBrightness(const double& aBrightness) MOZ_OVERRIDE
-  {
-    if (!AssertAppProcessPermission(this, "power")) {
-      return false;
-    }
-    hal::SetScreenBrightness(aBrightness);
+    hal::SetScreenBrightness(brightness);
     return true;
   }
 
@@ -861,6 +825,14 @@ public:
   {
     // Content has no reason to listen to switch events currently.
     *aState = hal::GetCurrentSwitchState(aDevice);
+    return true;
+  }
+
+  virtual bool
+  RecvNotifySwitchStateFromInputDevice(const SwitchDevice& aDevice,
+                                       const SwitchState& aState) MOZ_OVERRIDE
+  {
+    hal::NotifySwitchStateFromInputDevice(aDevice, aState);
     return true;
   }
 

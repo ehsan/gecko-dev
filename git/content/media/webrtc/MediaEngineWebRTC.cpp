@@ -27,6 +27,15 @@ GetUserMediaLog()
 }
 #endif
 
+static PRLogModuleInfo*
+GetWebrtcTraceLog()
+{
+  static PRLogModuleInfo *sLog;
+  if (!sLog)
+    sLog = PR_NewLogModule("webrtc_trace");
+  return sLog;
+}
+
 #include "MediaEngineWebRTC.h"
 #include "ImageContainer.h"
 #include "nsIComponentRegistrar.h"
@@ -63,6 +72,14 @@ MediaEngineWebRTC::MediaEngineWebRTC(MediaEnginePrefs &aPrefs)
 #endif
   // XXX
   gFarendObserver = new AudioOutputObserver();
+}
+
+void
+MediaEngineWebRTC::Print(webrtc::TraceLevel level, const char* message, int length)
+{
+  PRLogModuleInfo *log = GetWebrtcTraceLog();
+  // XXX look at log level?
+  PR_LOG(log, PR_LOG_DEBUG, ("%s", message));
 }
 
 void
@@ -114,10 +131,12 @@ MediaEngineWebRTC::EnumerateVideoDevices(nsTArray<nsRefPtr<MediaEngineVideoSourc
   MutexAutoLock lock(mMutex);
 
 #ifdef MOZ_WIDGET_ANDROID
+  jobject context = mozilla::AndroidBridge::Bridge()->GetGlobalContextRef();
+
   // get the JVM
   JavaVM *jvm = mozilla::AndroidBridge::Bridge()->GetVM();
 
-  if (webrtc::VideoEngine::SetAndroidObjects(jvm) != 0) {
+  if (webrtc::VideoEngine::SetAndroidObjects(jvm, (void*)context) != 0) {
     LOG(("VieCapture:SetAndroidObjects Failed"));
     return;
   }
@@ -125,6 +144,26 @@ MediaEngineWebRTC::EnumerateVideoDevices(nsTArray<nsRefPtr<MediaEngineVideoSourc
   if (!mVideoEngine) {
     if (!(mVideoEngine = webrtc::VideoEngine::Create())) {
       return;
+    }
+  }
+
+  PRLogModuleInfo *logs = GetWebrtcTraceLog();
+  if (!gWebrtcTraceLoggingOn && logs && logs->level > 0) {
+    // no need to a critical section or lock here
+    gWebrtcTraceLoggingOn = 1;
+
+    const char *file = PR_GetEnv("WEBRTC_TRACE_FILE");
+    if (!file) {
+      file = "WebRTC.log";
+    }
+
+    LOG(("%s Logging webrtc to %s level %d", __FUNCTION__, file, logs->level));
+
+    mVideoEngine->SetTraceFilter(logs->level);
+    if (strcmp(file, "nspr") == 0) {
+      mVideoEngine->SetTraceCallback(this);
+    } else {
+      mVideoEngine->SetTraceFile(file);
     }
   }
 
@@ -242,6 +281,26 @@ MediaEngineWebRTC::EnumerateAudioDevices(nsTArray<nsRefPtr<MediaEngineAudioSourc
     mVoiceEngine = webrtc::VoiceEngine::Create();
     if (!mVoiceEngine) {
       return;
+    }
+  }
+
+  PRLogModuleInfo *logs = GetWebrtcTraceLog();
+  if (!gWebrtcTraceLoggingOn && logs && logs->level > 0) {
+    // no need to a critical section or lock here
+    gWebrtcTraceLoggingOn = 1;
+
+    const char *file = PR_GetEnv("WEBRTC_TRACE_FILE");
+    if (!file) {
+      file = "WebRTC.log";
+    }
+
+    LOG(("Logging webrtc to %s level %d", __FUNCTION__, file, logs->level));
+
+    mVoiceEngine->SetTraceFilter(logs->level);
+    if (strcmp(file, "nspr") == 0) {
+      mVoiceEngine->SetTraceCallback(this);
+    } else {
+      mVoiceEngine->SetTraceFile(file);
     }
   }
 

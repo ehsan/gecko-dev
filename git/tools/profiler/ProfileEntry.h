@@ -61,7 +61,7 @@ private:
     float       mTagFloat;
     Address     mTagAddress;
     uintptr_t   mTagOffset;
-    int         mTagInt;
+    int         mTagLine;
     char        mTagChar;
   };
   char mTagName;
@@ -134,7 +134,6 @@ private:
 #ifdef XP_LINUX
 public:
   int64_t        mRssMemory;
-  int64_t        mUssMemory;
 #endif
 };
 

@@ -320,7 +320,7 @@ struct FireChangeArgs {
 // XXX Workaround for bug 980560 to maintain the existing broken semantics
 template<>
 struct nsIStyleRule::COMTypeInfo<css::Rule, void> {
-  static const nsIID kIID;
+  static const nsIID kIID NS_HIDDEN;
 };
 const nsIID nsIStyleRule::COMTypeInfo<css::Rule, void>::kIID = NS_ISTYLE_RULE_IID;
 
@@ -3951,6 +3951,17 @@ nsDocument::InsertChildAt(nsIContent* aKid, uint32_t aIndex,
   return doInsertChildAt(aKid, aIndex, aNotify, mChildren);
 }
 
+nsresult
+nsDocument::AppendChildTo(nsIContent* aKid, bool aNotify)
+{
+  // Make sure to _not_ call the subclass InsertChildAt here.  If
+  // subclasses wanted to hook into this stuff, they would have
+  // overridden AppendChildTo.
+  // XXXbz maybe this should just be a non-virtual method on nsINode?
+  // Feels that way to me...
+  return nsDocument::InsertChildAt(aKid, GetChildCount(), aNotify);
+}
+
 void
 nsDocument::RemoveChildAt(uint32_t aIndex, bool aNotify)
 {
@@ -4502,11 +4513,6 @@ nsDocument::SetScriptGlobalObject(nsIScriptGlobalObject *aScriptGlobalObject)
   // doing the initial document load and don't want to fire the event for this
   // change.
   mVisibilityState = GetVisibilityState();
-
-  // The global in the template contents owner document should be the same.
-  if (mTemplateContentsOwner && mTemplateContentsOwner != this) {
-    mTemplateContentsOwner->SetScriptGlobalObject(aScriptGlobalObject);
-  }
 }
 
 nsIScriptGlobalObject*
@@ -7619,11 +7625,11 @@ nsDocument::GetViewportInfo(const ScreenIntSize& aDisplaySize)
   }
   case Specified:
   default:
-    CSSSize size = mViewportSize;
+    CSSIntSize size = mViewportSize;
 
     if (!mValidWidth) {
       if (mValidHeight && !aDisplaySize.IsEmpty()) {
-        size.width = size.height * aDisplaySize.width / aDisplaySize.height;
+        size.width = int32_t(size.height * aDisplaySize.width / aDisplaySize.height);
       } else {
         size.width = Preferences::GetInt("browser.viewport.desktopWidth",
                                          kViewportDefaultScreenWidth);
@@ -7632,7 +7638,7 @@ nsDocument::GetViewportInfo(const ScreenIntSize& aDisplaySize)
 
     if (!mValidHeight) {
       if (!aDisplaySize.IsEmpty()) {
-        size.height = size.width * aDisplaySize.height / aDisplaySize.width;
+        size.height = int32_t(size.width * aDisplaySize.height / aDisplaySize.width);
       } else {
         size.height = size.width;
       }
@@ -7648,28 +7654,28 @@ nsDocument::GetViewportInfo(const ScreenIntSize& aDisplaySize)
     if (mAutoSize) {
       // aDisplaySize is in screen pixels; convert them to CSS pixels for the viewport size.
       CSSToScreenScale defaultPixelScale = pixelRatio * LayoutDeviceToScreenScale(1.0f);
-      size = ScreenSize(aDisplaySize) / defaultPixelScale;
+      size = mozilla::gfx::RoundedToInt(ScreenSize(aDisplaySize) / defaultPixelScale);
     }
 
-    size.width = clamped(size.width, float(kViewportMinSize.width), float(kViewportMaxSize.width));
+    size.width = clamped(size.width, kViewportMinSize.width, kViewportMaxSize.width);
 
     // Also recalculate the default zoom, if it wasn't specified in the metadata,
     // and the width is specified.
     if (mScaleStrEmpty && !mWidthStrEmpty) {
-      CSSToScreenScale defaultScale(float(aDisplaySize.width) / size.width);
+      CSSToScreenScale defaultScale(float(aDisplaySize.width) / float(size.width));
       scaleFloat = (scaleFloat > defaultScale) ? scaleFloat : defaultScale;
     }
 
-    size.height = clamped(size.height, float(kViewportMinSize.height), float(kViewportMaxSize.height));
+    size.height = clamped(size.height, kViewportMinSize.height, kViewportMaxSize.height);
 
     // We need to perform a conversion, but only if the initial or maximum
     // scale were set explicitly by the user.
     if (mValidScaleFloat) {
-      CSSSize displaySize = ScreenSize(aDisplaySize) / scaleFloat;
+      CSSIntSize displaySize = RoundedToInt(ScreenSize(aDisplaySize) / scaleFloat);
       size.width = std::max(size.width, displaySize.width);
       size.height = std::max(size.height, displaySize.height);
     } else if (mValidMaxScale) {
-      CSSSize displaySize = ScreenSize(aDisplaySize) / scaleMaxFloat;
+      CSSIntSize displaySize = RoundedToInt(ScreenSize(aDisplaySize) / scaleMaxFloat);
       size.width = std::max(size.width, displaySize.width);
       size.height = std::max(size.height, displaySize.height);
     }
@@ -9437,6 +9443,7 @@ nsDocument::GetTemplateContentsOwner()
     bool hasHadScriptObject = true;
     nsIScriptGlobalObject* scriptObject =
       GetScriptHandlingObject(hasHadScriptObject);
+    NS_ENSURE_TRUE(scriptObject || !hasHadScriptObject, nullptr);
 
     nsCOMPtr<nsIDOMDocument> domDocument;
     nsresult rv = NS_NewDOMDocument(getter_AddRefs(domDocument),
@@ -9454,16 +9461,12 @@ nsDocument::GetTemplateContentsOwner()
     mTemplateContentsOwner = do_QueryInterface(domDocument);
     NS_ENSURE_TRUE(mTemplateContentsOwner, nullptr);
 
-    nsDocument* doc = static_cast<nsDocument*>(mTemplateContentsOwner.get());
-    doc->mHasHadScriptHandlingObject = hasHadScriptObject;
-
-    if (!scriptObject) {
-      mTemplateContentsOwner->SetScopeObject(GetScopeObject());
-    }
+    mTemplateContentsOwner->SetScriptHandlingObject(scriptObject);
 
     // Set |doc| as the template contents owner of itself so that
     // |doc| is the template contents owner of template elements created
     // by |doc|.
+    nsDocument* doc = static_cast<nsDocument*>(mTemplateContentsOwner.get());
     doc->mTemplateContentsOwner = doc;
   }
 
@@ -12064,7 +12067,7 @@ nsIDocument::Constructor(const GlobalObject& aGlobal,
                       prin->GetPrincipal(),
                       true,
                       global,
-                      DocumentFlavorPlain);
+                      DocumentFlavorLegacyGuess);
   if (NS_FAILED(res)) {
     rv.Throw(res);
     return nullptr;

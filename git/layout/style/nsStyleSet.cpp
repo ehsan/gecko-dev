@@ -950,8 +950,7 @@ nsStyleSet::FileRules(nsIStyleRuleProcessor::EnumFunc aCollectorFunc,
                       RuleProcessorData* aData, Element* aElement,
                       nsRuleWalker* aRuleWalker)
 {
-  PROFILER_LABEL("nsStyleSet", "FileRules",
-    js::ProfileEntry::Category::CSS);
+  PROFILER_LABEL("nsStyleSet", "FileRules");
 
   // Cascading order:
   // [least important]
@@ -1646,17 +1645,18 @@ nsStyleSet::GetFontFeatureValuesLookup()
     for (i = 0; i < numRules; i++) {
       nsCSSFontFeatureValuesRule *rule = rules[i];
 
-      const nsTArray<FontFamilyName>& familyList = rule->GetFamilyList().GetFontlist();
+      const nsTArray<nsString>& familyList = rule->GetFamilyList();
       const nsTArray<gfxFontFeatureValueSet::FeatureValues>&
         featureValues = rule->GetFeatureValues();
 
       // for each family
-      size_t f, numFam;
+      uint32_t f, numFam;
 
       numFam = familyList.Length();
       for (f = 0; f < numFam; f++) {
-        mFontFeatureValuesLookup->AddFontFeatureValues(familyList[f].mName,
-                                                       featureValues);
+        const nsString& family = familyList.ElementAt(f);
+        nsAutoString silly(family);
+        mFontFeatureValuesLookup->AddFontFeatureValues(silly, featureValues);
       }
     }
   }

@@ -45,10 +45,9 @@ function addTabAndOpenStyleEditors(count, callback, uri) {
   let deferred = promise.defer();
   let currentCount = 0;
   let panel;
-  addTabAndCheckOnStyleEditorAdded(p => panel = p, function (editor) {
+  addTabAndCheckOnStyleEditorAdded(p => panel = p, function () {
     currentCount++;
-    info(currentCount + " of " + count + " editors opened: "
-         + editor.styleSheet.href);
+    info(currentCount + " of " + count + " editors opened");
     if (currentCount == count) {
       if (callback) {
         callback(panel);

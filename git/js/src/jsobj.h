@@ -32,7 +32,7 @@ struct ObjectsExtraSizes;
 
 namespace js {
 
-class AutoPropDescVector;
+class AutoPropDescArrayRooter;
 struct GCMarker;
 struct NativeIterator;
 class Nursery;
@@ -147,6 +147,12 @@ GetAttributes(JSContext *cx, HandleObject obj, HandleId id, unsigned *attrsp);
 
 extern bool
 SetAttributes(JSContext *cx, HandleObject obj, HandleId id, unsigned *attrsp);
+
+extern bool
+DeleteProperty(JSContext *cx, HandleObject obj, HandlePropertyName name, bool *succeeded);
+
+extern bool
+DeleteElement(JSContext *cx, HandleObject obj, uint32_t index, bool *succeeded);
 
 extern bool
 DeleteGeneric(JSContext *cx, HandleObject obj, HandleId id, bool *succeeded);
@@ -807,7 +813,6 @@ class JSObject : public js::ObjectImpl
     bool isCallable() {
         return getClass()->isCallable();
     }
-    bool isConstructor() const;
 
     inline void finish(js::FreeOp *fop);
     MOZ_ALWAYS_INLINE void finalize(js::FreeOp *fop);
@@ -1049,10 +1054,13 @@ class JSObject : public js::ObjectImpl
     static inline bool setGenericAttributes(JSContext *cx, js::HandleObject obj,
                                             js::HandleId id, unsigned *attrsp);
 
-    static inline bool deleteGeneric(JSContext *cx, js::HandleObject obj, js::HandleId id,
-                                     bool *succeeded);
-    static inline bool deleteElement(JSContext *cx, js::HandleObject obj, uint32_t index,
-                                     bool *succeeded);
+    static inline bool deleteProperty(JSContext *cx, js::HandleObject obj,
+                                      js::HandlePropertyName name,
+                                      bool *succeeded);
+    static inline bool deleteElement(JSContext *cx, js::HandleObject obj,
+                                     uint32_t index, bool *succeeded);
+    static bool deleteByValue(JSContext *cx, js::HandleObject obj,
+                              const js::Value &property, bool *succeeded);
 
     static inline bool watch(JSContext *cx, JS::HandleObject obj, JS::HandleId id,
                              JS::HandleObject callable);
@@ -1185,26 +1193,17 @@ struct JSObject_Slots8 : JSObject { js::Value fslots[8]; };
 struct JSObject_Slots12 : JSObject { js::Value fslots[12]; };
 struct JSObject_Slots16 : JSObject { js::Value fslots[16]; };
 
-namespace js {
-
-inline bool
-IsCallable(const Value &v)
+static inline bool
+js_IsCallable(const js::Value &v)
 {
     return v.isObject() && v.toObject().isCallable();
-}
-
-// ES6 rev 24 (2014 April 27) 7.2.5 IsConstructor
-inline bool
-IsConstructor(const Value &v)
-{
-    return v.isObject() && v.toObject().isConstructor();
 }
 
 inline JSObject *
 GetInnerObject(JSObject *obj)
 {
     if (js::InnerObjectOp op = obj->getClass()->ext.innerObject) {
-        JS::AutoSuppressGCAnalysis nogc;
+        JS::AutoAssertNoGC nogc;
         return op(obj);
     }
     return obj;
@@ -1217,8 +1216,6 @@ GetOuterObject(JSContext *cx, js::HandleObject obj)
         return op(cx, obj);
     return obj;
 }
-
-} /* namespace js */
 
 class JSValueArray {
   public:
@@ -1404,7 +1401,7 @@ DefineProperties(JSContext *cx, HandleObject obj, HandleObject props);
  */
 extern bool
 ReadPropertyDescriptors(JSContext *cx, HandleObject props, bool checkAccessors,
-                        AutoIdVector *ids, AutoPropDescVector *descs);
+                        AutoIdVector *ids, AutoPropDescArrayRooter *descs);
 
 /* Read the name using a dynamic lookup on the scopeChain. */
 extern bool

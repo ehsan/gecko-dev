@@ -1927,6 +1927,19 @@ NS_INTERFACE_MAP_END
 IMPL_STYLE_RULE_INHERIT(nsCSSFontFeatureValuesRule, Rule)
 
 static void
+FamilyListToString(const nsTArray<nsString>& aFamilyList, nsAString& aOutStr)
+{
+  uint32_t i, n = aFamilyList.Length();
+
+  for (i = 0; i < n; i++) {
+    nsStyleUtil::AppendEscapedCSSString(aFamilyList[i], aOutStr);
+    if (i != n - 1) {
+      aOutStr.AppendLiteral(", ");
+    }
+  }
+}
+
+static void
 FeatureValuesToString(
   const nsTArray<gfxFontFeatureValueSet::FeatureValues>& aFeatureValues,
   nsAString& aOutStr)
@@ -1967,13 +1980,13 @@ FeatureValuesToString(
 
 static void
 FontFeatureValuesRuleToString(
-  const mozilla::FontFamilyList& aFamilyList,
+  const nsTArray<nsString>& aFamilyList,
   const nsTArray<gfxFontFeatureValueSet::FeatureValues>& aFeatureValues,
   nsAString& aOutStr)
 {
   aOutStr.AssignLiteral("@font-feature-values ");
   nsAutoString familyListStr, valueTextStr;
-  nsStyleUtil::AppendEscapedCSSFontFamilyList(aFamilyList, familyListStr);
+  FamilyListToString(aFamilyList, familyListStr);
   aOutStr.Append(familyListStr);
   aOutStr.AppendLiteral(" {\n");
   FeatureValuesToString(aFeatureValues, valueTextStr);
@@ -2045,9 +2058,9 @@ nsCSSFontFeatureValuesRule::GetParentRule(nsIDOMCSSRule** aParentRule)
 }
 
 NS_IMETHODIMP
-nsCSSFontFeatureValuesRule::GetFontFamily(nsAString& aFamilyListStr)
+nsCSSFontFeatureValuesRule::GetFontFamily(nsAString& aFontFamily)
 {
-  nsStyleUtil::AppendEscapedCSSFontFamilyList(mFamilyList, aFamilyListStr);
+  FamilyListToString(mFamilyList, aFontFamily);
   return NS_OK;
 }
 
@@ -2093,10 +2106,13 @@ struct MakeFamilyArray {
 };
 
 void
-nsCSSFontFeatureValuesRule::SetFamilyList(
-  const mozilla::FontFamilyList& aFamilyList)
+nsCSSFontFeatureValuesRule::SetFamilyList(const nsAString& aFamilyList,
+                                          bool& aContainsGeneric)
 {
-  mFamilyList = aFamilyList;
+  nsFont font(aFamilyList, 0, 0, 0, 0, 0, 0);
+  MakeFamilyArray families(mFamilyList);
+  font.EnumerateFamilies(MakeFamilyArray::AddFamily, (void*) &families);
+  aContainsGeneric = families.hasGeneric;
 }
 
 void

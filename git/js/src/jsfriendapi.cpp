@@ -63,7 +63,8 @@ js::ForgetSourceHook(JSRuntime *rt)
 JS_FRIEND_API(void)
 JS_SetGrayGCRootsTracer(JSRuntime *rt, JSTraceDataOp traceOp, void *data)
 {
-    rt->gc.setGrayRootsTracer(traceOp, data);
+    rt->gc.grayRootTracer.op = traceOp;
+    rt->gc.grayRootTracer.data = data;
 }
 
 JS_FRIEND_API(JSString *)
@@ -71,6 +72,12 @@ JS_GetAnonymousString(JSRuntime *rt)
 {
     JS_ASSERT(rt->hasContexts());
     return rt->commonNames->anonymous;
+}
+
+JS_FRIEND_API(void)
+JS_SetIsWorkerRuntime(JSRuntime *rt)
+{
+    rt->setIsWorkerRuntime();
 }
 
 JS_FRIEND_API(JSObject *)
@@ -244,18 +251,6 @@ JS_SetCompartmentPrincipals(JSCompartment *compartment, JSPrincipals *principals
 
     // Update the system flag.
     compartment->isSystem = isSystem;
-}
-
-JS_FRIEND_API(JSPrincipals *)
-JS_GetScriptPrincipals(JSScript *script)
-{
-    return script->principals();
-}
-
-JS_FRIEND_API(JSPrincipals *)
-JS_GetScriptOriginPrincipals(JSScript *script)
-{
-    return script->originPrincipals();
 }
 
 JS_FRIEND_API(bool)
@@ -863,7 +858,9 @@ js::IsContextRunningJS(JSContext *cx)
 JS_FRIEND_API(JS::GCSliceCallback)
 JS::SetGCSliceCallback(JSRuntime *rt, GCSliceCallback callback)
 {
-    return rt->gc.setSliceCallback(callback);
+    JS::GCSliceCallback old = rt->gc.sliceCallback;
+    rt->gc.sliceCallback = callback;
+    return old;
 }
 
 JS_FRIEND_API(bool)
@@ -978,6 +975,8 @@ JS::IncrementalObjectBarrier(JSObject *obj)
 
     JS_ASSERT(!obj->zone()->runtimeFromMainThread()->isHeapMajorCollecting());
 
+    AutoMarkInDeadZone amn(obj->zone());
+
     JSObject::writeBarrierPre(obj);
 }
 
@@ -988,13 +987,13 @@ JS::IncrementalReferenceBarrier(void *ptr, JSGCTraceKind kind)
         return;
 
     gc::Cell *cell = static_cast<gc::Cell *>(ptr);
-
-#ifdef DEBUG
     Zone *zone = kind == JSTRACE_OBJECT
                  ? static_cast<JSObject *>(cell)->zone()
                  : cell->tenuredZone();
+
     JS_ASSERT(!zone->runtimeFromMainThread()->isHeapMajorCollecting());
-#endif
+
+    AutoMarkInDeadZone amn(zone);
 
     if (kind == JSTRACE_OBJECT)
         JSObject::writeBarrierPre(static_cast<JSObject*>(cell));
@@ -1023,7 +1022,7 @@ JS::IncrementalValueBarrier(const Value &v)
 JS_FRIEND_API(void)
 JS::PokeGC(JSRuntime *rt)
 {
-    rt->gc.poke();
+    rt->gc.poke = true;
 }
 
 JS_FRIEND_API(JSCompartment *)
