@@ -96,7 +96,6 @@ MAKEFILES_gfx="
   gfx/idl/Makefile
   gfx/public/Makefile
   gfx/src/Makefile
-  gfx/src/beos/Makefile
   gfx/src/psshared/Makefile
   gfx/src/photon/Makefile
   gfx/src/thebes/Makefile
@@ -924,25 +923,6 @@ if test -n "$MOZ_PSM"; then
     security/manager/pki/src/Makefile
     security/manager/pki/public/Makefile
     security/manager/locales/Makefile
-  "
-fi
-
-if test -n "$MOZ_CALENDAR"; then
-  add_makefiles "
-    calendar/Makefile
-    calendar/resources/Makefile
-    calendar/libical/Makefile
-    calendar/libical/src/Makefile
-    calendar/libical/src/libical/Makefile
-    calendar/libical/src/libicalss/Makefile
-    calendar/base/Makefile
-    calendar/base/public/Makefile
-    calendar/base/src/Makefile
-    calendar/base/build/Makefile
-    calendar/providers/Makefile
-    calendar/providers/memory/Makefile
-    calendar/providers/storage/Makefile
-    calendar/providers/composite/Makefile
   "
 fi
 
