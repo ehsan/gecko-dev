@@ -86,11 +86,6 @@ this.FxAccountsClient.prototype = {
    *        The email address for the account (utf8)
    * @param password
    *        The user's password
-   * @param [getKeys=false]
-   *        If set to true the keyFetchToken will be retrieved
-   * @param [retryOK=true]
-   *        If capitalization of the email is wrong and retryOK is set to true,
-   *        we will retry with the suggested capitalization from the server
    * @return Promise
    *        Returns a promise that resolves to an object:
    *        {
@@ -98,19 +93,15 @@ this.FxAccountsClient.prototype = {
    *          sessionToken: a session token (hex)
    *          keyFetchToken: a key fetch token (hex)
    *          verified: flag indicating verification status of the email
-   *          authAt: authentication time for the session (seconds since epoch)
-   *          email: the primary email for this account
    *        }
    */
-  signIn: function signIn(email, password, getKeys=false, retryOK=true) {
+  signIn: function signIn(email, password, retryOK=true) {
     return Credentials.setup(email, password).then((creds) => {
       let data = {
         email: creds.emailUTF8,
         authPW: CommonUtils.bytesAsHex(creds.authPW),
       };
-      let keys = getKeys ? "?keys=true" : "";
-
-      return this._request("/account/login" + keys, "POST", null, data).then(
+      return this._request("/account/login", "POST", null, data).then(
         // Include the canonical capitalization of the email in the response so
         // the caller can set its signed-in user state accordingly.
         result => {
@@ -135,7 +126,7 @@ this.FxAccountsClient.prototype = {
               log.error("Server returned errno 120 but did not provide email");
               throw error;
             }
-            return this.signIn(error.email, password, getKeys, false);
+            return this.signIn(error.email, password, false);
           }
           throw error;
         }

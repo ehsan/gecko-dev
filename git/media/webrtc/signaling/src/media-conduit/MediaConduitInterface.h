@@ -143,9 +143,6 @@ public:
   /**
    * Functions returning stats needed by w3c stats model.
    */
-  virtual bool GetAVStats(int32_t* jitterBufferDelayMs,
-                          int32_t* playoutBufferDelayMs,
-                          int32_t* avSyncOffsetMs) = 0;
   virtual bool GetRTPStats(unsigned int* jitterMs,
                            unsigned int* cumulativeLost) = 0;
   virtual bool GetRTCPReceiverReport(DOMHighResTimeStamp* timestamp,

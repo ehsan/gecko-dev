@@ -135,20 +135,7 @@ function round00(num) {
   return Math.round(num * 100) / 100;
 }
 
-function dumpAvStat(stat) {
-  var div = document.createElement('div');
-  var statsString = "";
-  if (stat.mozAvSyncDelay !== undefined) {
-    statsString += "A/V sync: " + stat.mozAvSyncDelay + " ms ";
-  }
-  if (stat.mozJitterBufferDelay !== undefined) {
-    statsString += "Jitter-buffer delay: " + stat.mozJitterBufferDelay + " ms";
-  }
-  div.appendChild(document.createTextNode(statsString));
-  return div;
-}
-
-function dumpRtpStat(stat, label) {
+function dumpStat(stat, label) {
   var div = document.createElement('div');
   var statsString = " " + label + new Date(stat.timestamp).toTimeString() +
                     " " + stat.type + " SSRC: " + stat.ssrc;
@@ -264,17 +251,13 @@ function buildPcDiv(stats, pcDivHeading) {
     if (!rtpStat.isRemote) {
       newPcDiv.appendChild(document.createElement('h5'))
               .appendChild(document.createTextNode(rtpStat.id));
-      if (rtpStat.mozAvSyncDelay !== undefined ||
-          rtpStat.mozJitterBufferDelay !== undefined) {
-        newPcDiv.appendChild(dumpAvStat(rtpStat));
-      }
-      newPcDiv.appendChild(dumpRtpStat(rtpStat, "Local: "));
+      newPcDiv.appendChild(dumpStat(rtpStat, "Local: "));
 
       // Might not be receiving RTCP, so we have no idea what the
       // statistics look like from the perspective of the other end.
       if (rtpStat.remoteId) {
         var remoteRtpStat = remoteRtpStatsMap[rtpStat.remoteId];
-        newPcDiv.appendChild(dumpRtpStat(remoteRtpStat, "Remote: "));
+        newPcDiv.appendChild(dumpStat(remoteRtpStat, "Remote: "));
       }
     }
   }

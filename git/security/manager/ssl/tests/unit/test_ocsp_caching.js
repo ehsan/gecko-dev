@@ -40,20 +40,6 @@ function run_test() {
   });
   ocspResponder.start(8080);
 
-  add_tests_in_mode(true);
-  add_tests_in_mode(false);
-
-  add_test(function() { ocspResponder.stop(run_next_test); });
-  run_next_test();
-}
-
-function add_tests_in_mode(useInsanity) {
-  add_test(function () {
-    Services.prefs.setBoolPref("security.use_insanity_verification",
-                               useInsanity);
-    run_next_test();
-  });
-
   // This test assumes that OCSPStaplingServer uses the same cert for
   // ocsp-stapling-unknown.example.com and ocsp-stapling-none.example.com.
 
@@ -107,13 +93,10 @@ function add_tests_in_mode(useInsanity) {
                       clearSessionCache);
   add_test(function() { do_check_eq(gFetchCount, 1); run_next_test(); });
 
-  // TODO(bug 977865): implement this for insanity
-  if (!useInsanity) {
-    // The error entry will prevent a fetch from happening for a while.
-    add_connection_test("ocsp-stapling-none.example.com", Cr.NS_OK,
-                        clearSessionCache);
-    add_test(function() { do_check_eq(gFetchCount, 1); run_next_test(); });
-  }
+  // The error entry will prevent a fetch from happening for a while.
+  add_connection_test("ocsp-stapling-none.example.com", Cr.NS_OK,
+                      clearSessionCache);
+  add_test(function() { do_check_eq(gFetchCount, 1); run_next_test(); });
 
   // The error entry must not prevent a stapled OCSP response from being
   // honored.
@@ -124,6 +107,7 @@ function add_tests_in_mode(useInsanity) {
 
   //---------------------------------------------------------------------------
 
-  // Reset state
-  add_test(function() { clearOCSPCache(); gFetchCount = 0; run_next_test(); });
+  add_test(function() { ocspResponder.stop(run_next_test); });
+
+  run_next_test();
 }

@@ -332,7 +332,7 @@ SimpleClientTiledThebesLayer::BeginPaint()
 
   // Calculate the frame resolution. Because this is Gecko-side, before any
   // async transforms have occurred, we can use mZoom for this.
-  mPaintData.mResolution = metrics.GetZoom();
+  mPaintData.mResolution = metrics.mZoom;
 
   // Calculate the scroll offset since the last transaction, and the
   // composition bounds.
@@ -341,7 +341,7 @@ SimpleClientTiledThebesLayer::BeginPaint()
   Layer* primaryScrollable = ClientManager()->GetPrimaryScrollableLayer();
   if (primaryScrollable) {
     const FrameMetrics& metrics = primaryScrollable->AsContainerLayer()->GetFrameMetrics();
-    mPaintData.mScrollOffset = metrics.GetScrollOffset() * metrics.GetZoom();
+    mPaintData.mScrollOffset = metrics.mScrollOffset * metrics.mZoom;
     mPaintData.mCompositionBounds =
       ApplyParentLayerToLayoutTransform(mPaintData.mTransformParentLayerToLayout,
                                         ParentLayerRect(metrics.mCompositionBounds));
