@@ -1,5 +1,4 @@
-/* -*- Mode: C++; tab-width: 20; indent-tabs-mode: nil; c-basic-offset: 4 -*-
- * ***** BEGIN LICENSE BLOCK *****
+/* ***** BEGIN LICENSE BLOCK *****
  * Version: MPL 1.1/GPL 2.0/LGPL 2.1
  *
  * The contents of this file are subject to the Mozilla Public License Version
@@ -12,14 +11,14 @@
  * for the specific language governing rights and limitations under the
  * License.
  *
- * The Original Code is Mozilla Corporation code.
+ * The Original Code is mozilla.org code.
  *
- * The Initial Developer of the Original Code is Mozilla Foundation.
- * Portions created by the Initial Developer are Copyright (C) 2009
+ * The Initial Developer of the Original Code is Mozilla Foundation
+ * Portions created by the Initial Developer are Copyright (C) 2010
  * the Initial Developer. All Rights Reserved.
  *
  * Contributor(s):
- *   Chris Double <chris.double@double.co.nz>
+ *   Mounir Lamouri <mounir.lamouri@mozilla.com> (original author)
  *
  * Alternatively, the contents of this file may be used under the terms of
  * either the GNU General Public License Version 2 or later (the "GPL"), or
@@ -34,38 +33,48 @@
  * the terms of any one of the MPL, the GPL or the LGPL.
  *
  * ***** END LICENSE BLOCK ***** */
-#ifndef GFX_CHROMIUMTYPES_H
-#define GFX_CHROMIUMTYPES_H
 
-#include "prtypes.h"
+/*
+ * Implementation of nsIDOMDOMSettableTokenList specified by HTML5.
+ */
 
-typedef PRUint8 uint8;
-typedef PRInt8 int8;
-typedef PRInt16 int16;
+#include "nsDOMSettableTokenList.h"
 
-// From Chromium build_config.h:
-// Processor architecture detection.  For more info on what's defined, see:
-//   http://msdn.microsoft.com/en-us/library/b0084kay.aspx
-//   http://www.agner.org/optimize/calling_conventions.pdf
-//   or with gcc, run: "echo | gcc -E -dM -"
-#if defined(_M_X64) || defined(__x86_64__)
-#define ARCH_CPU_X86_FAMILY 1
-#define ARCH_CPU_X86_64 1
-#define ARCH_CPU_64_BITS 1
-#elif defined(_M_IX86) || defined(__i386__)
-#define ARCH_CPU_X86_FAMILY 1
-#define ARCH_CPU_X86 1
-#define ARCH_CPU_32_BITS 1
-#elif defined(__ARMEL__)
-#define ARCH_CPU_ARM_FAMILY 1
-#define ARCH_CPU_ARMEL 1
-#define ARCH_CPU_32_BITS 1
-#elif defined(__ppc__)
-#define ARCH_CPU_PPC_FAMILY 1
-#define ARCH_CPU_PPC 1
-#define ARCH_CPU_32_BITS 1
-#else
-#error Please add support for your architecture in chromium_types.h
-#endif
 
-#endif // GFX_CHROMIUMTYPES_H
+nsDOMSettableTokenList::nsDOMSettableTokenList(nsGenericElement *aElement, nsIAtom* aAttrAtom)
+  : nsDOMTokenList(aElement, aAttrAtom)
+{
+}
+
+nsDOMSettableTokenList::~nsDOMSettableTokenList()
+{
+}
+
+DOMCI_DATA(DOMSettableTokenList, nsDOMSettableTokenList)
+
+NS_INTERFACE_TABLE_HEAD(nsDOMSettableTokenList)
+  NS_INTERFACE_TABLE1(nsDOMSettableTokenList,
+                      nsIDOMDOMSettableTokenList)
+  NS_INTERFACE_TABLE_TO_MAP_SEGUE
+  NS_DOM_INTERFACE_MAP_ENTRY_CLASSINFO(DOMSettableTokenList)
+NS_INTERFACE_MAP_END_INHERITING(nsDOMTokenList)
+
+NS_IMPL_ADDREF_INHERITED(nsDOMSettableTokenList, nsDOMTokenList)
+NS_IMPL_RELEASE_INHERITED(nsDOMSettableTokenList, nsDOMTokenList)
+
+NS_IMETHODIMP
+nsDOMSettableTokenList::GetValue(nsAString& aResult)
+{
+  return ToString(aResult);
+}
+
+NS_IMETHODIMP
+nsDOMSettableTokenList::SetValue(const nsAString& aValue)
+{
+  if (!mElement) {
+    return NS_OK;
+  }
+
+  return mElement->SetAttr(kNameSpaceID_None, mAttrAtom, aValue, PR_TRUE);
+}
+
