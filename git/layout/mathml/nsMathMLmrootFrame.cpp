@@ -327,7 +327,7 @@ nsMathMLmrootFrame::Reflow(nsPresContext*          aPresContext,
   // place the index
   nscoord dx = dxIndex;
   nscoord dy = aDesiredSize.TopAscent() - (indexRaisedAscent + indexSize.TopAscent() - bmIndex.ascent);
-  FinishReflowChild(indexFrame, aPresContext, indexSize, nullptr,
+  FinishReflowChild(indexFrame, aPresContext, nullptr, indexSize,
                     MirrorIfRTL(aDesiredSize.Width(), indexSize.Width(), dx),
                     dy, 0);
 
@@ -342,7 +342,7 @@ nsMathMLmrootFrame::Reflow(nsPresContext*          aPresContext,
 
   // place the base
   dy = aDesiredSize.TopAscent() - baseSize.TopAscent();
-  FinishReflowChild(baseFrame, aPresContext, baseSize, nullptr,
+  FinishReflowChild(baseFrame, aPresContext, nullptr, baseSize,
                     MirrorIfRTL(aDesiredSize.Width(), baseSize.Width(), dx),
                     dy, 0);
 

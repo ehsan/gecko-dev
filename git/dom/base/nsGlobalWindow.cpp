@@ -2324,8 +2324,7 @@ nsGlobalWindow::SetNewDocument(nsIDocument* aDocument,
     // so all expandos and such defined on the outer window should go away. Force
     // all Xray wrappers to be recomputed.
     JS::ExposeObjectToActiveJS(mJSObject);
-    JS::Rooted<JSObject*> rootedObject(cx, mJSObject);
-    if (!JS_RefreshCrossCompartmentWrappers(cx, rootedObject)) {
+    if (!JS_RefreshCrossCompartmentWrappers(cx, mJSObject)) {
       return NS_ERROR_FAILURE;
     }
 

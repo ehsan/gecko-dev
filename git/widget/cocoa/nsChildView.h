@@ -185,10 +185,6 @@ enum {
 };
 typedef NSUInteger NSEventPhase;
 
-enum {
-   NSFullScreenWindowMask = 1 << 14
-};
-
 @interface NSWindow (LionWindowFeatures)
 - (NSRect)convertRectToScreen:(NSRect)aRect;
 @end
@@ -685,7 +681,6 @@ protected:
   bool mHasRoundedBottomCorners;
   int mDevPixelCornerRadius;
   bool mIsCoveringTitlebar;
-  bool mIsFullscreen;
   nsIntRect mTitlebarRect;
 
   // The area of mTitlebarCGContext that needs to be redrawn during the next

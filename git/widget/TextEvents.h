@@ -394,6 +394,7 @@ private:
     , mExpandToClusterBoundary(true)
     , mSucceeded(false)
   {
+    MOZ_CRASH("WidgetSelectionEvent is created without proper arguments");
   }
 
 public:

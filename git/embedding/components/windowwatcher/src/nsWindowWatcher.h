@@ -64,8 +64,9 @@ protected:
   
   // Unlike GetWindowByName this will look for a caller on the JS
   // stack, and then fall back on aCurrentWindow if it can't find one.
-  already_AddRefed<nsIDOMWindow>
-    SafeGetWindowByName(const nsAString& aName, nsIDOMWindow* aCurrentWindow);
+  nsresult SafeGetWindowByName(const nsAString& aName,
+                               nsIDOMWindow* aCurrentWindow,
+                               nsIDOMWindow** aResult);
 
   // Just like OpenWindowJS, but knows whether it got called via OpenWindowJS
   // (which means called from script) or called via OpenWindow.

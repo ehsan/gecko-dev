@@ -278,14 +278,6 @@ TabParent::Destroy()
     static_cast<IndexedDBParent*>(idbParents[i])->Disconnect();
   }
 
-  const InfallibleTArray<POfflineCacheUpdateParent*>& ocuParents =
-    ManagedPOfflineCacheUpdateParent();
-  for (uint32_t i = 0; i < ocuParents.Length(); ++i) {
-    nsRefPtr<mozilla::docshell::OfflineCacheUpdateParent> ocuParent =
-      static_cast<mozilla::docshell::OfflineCacheUpdateParent*>(ocuParents[i]);
-    ocuParent->StopSendingMessagesToChild();
-  }
-
   if (RenderFrameParent* frame = GetRenderFrame()) {
     frame->Destroy();
   }
@@ -1655,42 +1647,32 @@ TabParent::DeallocPRenderFrameParent(PRenderFrameParent* aFrame)
 mozilla::docshell::POfflineCacheUpdateParent*
 TabParent::AllocPOfflineCacheUpdateParent(const URIParams& aManifestURI,
                                           const URIParams& aDocumentURI,
-                                          const bool& aStickDocument)
+                                          const bool& stickDocument)
 {
   nsRefPtr<mozilla::docshell::OfflineCacheUpdateParent> update =
     new mozilla::docshell::OfflineCacheUpdateParent(OwnOrContainingAppId(),
                                                     IsBrowserElement());
-  // Use this reference as the IPDL reference.
-  return update.forget().get();
-}
 
-bool
-TabParent::RecvPOfflineCacheUpdateConstructor(POfflineCacheUpdateParent* aActor,
-                                              const URIParams& aManifestURI,
-                                              const URIParams& aDocumentURI,
-                                              const bool& aStickDocument)
-{
-  MOZ_ASSERT(aActor);
-
-  nsRefPtr<mozilla::docshell::OfflineCacheUpdateParent> update =
-    static_cast<mozilla::docshell::OfflineCacheUpdateParent*>(aActor);
-
-  nsresult rv = update->Schedule(aManifestURI, aDocumentURI, aStickDocument);
-  if (NS_FAILED(rv) && !IsDestroyed()) {
-    // Inform the child of failure.
-    unused << update->SendFinish(false, false);
+  nsresult rv = update->Schedule(aManifestURI, aDocumentURI, stickDocument);
+  if (NS_FAILED(rv)) {
+    // Must dispatch since the parent is not at this moment ready yet.
+    nsRefPtr<nsRunnableMethod<mozilla::docshell::OfflineCacheUpdateParent> > event =
+      NS_NewRunnableMethod(update, &mozilla::docshell::OfflineCacheUpdateParent::Kill);
+    NS_DispatchToCurrentThread(event);
   }
 
-  return true;
+  POfflineCacheUpdateParent* result = update.get();
+  update.forget();
+  return result;
 }
 
 bool
-TabParent::DeallocPOfflineCacheUpdateParent(POfflineCacheUpdateParent* aActor)
+TabParent::DeallocPOfflineCacheUpdateParent(mozilla::docshell::POfflineCacheUpdateParent* actor)
 {
-  // Reclaim the IPDL reference.
-  nsRefPtr<mozilla::docshell::OfflineCacheUpdateParent> update =
-    dont_AddRef(
-      static_cast<mozilla::docshell::OfflineCacheUpdateParent*>(aActor));
+  mozilla::docshell::OfflineCacheUpdateParent* update =
+    static_cast<mozilla::docshell::OfflineCacheUpdateParent*>(actor);
+
+  update->Release();
   return true;
 }
 

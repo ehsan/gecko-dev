@@ -979,11 +979,9 @@ bool
 js::UnwindIteratorForException(JSContext *cx, HandleObject obj)
 {
     RootedValue v(cx);
-    bool getOk = cx->getPendingException(&v);
+    cx->getPendingException(&v);
     cx->clearPendingException();
     if (!CloseIterator(cx, obj))
-        return false;
-    if (!getOk)
         return false;
     cx->setPendingException(v);
     return true;

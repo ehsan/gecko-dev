@@ -250,8 +250,7 @@ public:
 
   NS_IMETHOD OnFileDoomed(CacheFileHandle *aHandle, nsresult aResult)
   {
-    if (mListener)
-      mListener->OnFileDoomed(aResult);
+    mListener->OnFileDoomed(aResult);
     return NS_OK;
   }
 
@@ -586,36 +585,6 @@ CacheFile::OnFileOpened(CacheFileHandle *aHandle, nsresult aResult)
 {
   nsresult rv;
 
-  // Using an 'auto' class to perform doom or fail the listener
-  // outside the CacheFile's lock.
-  class AutoFailDoomListener
-  {
-  public:
-    AutoFailDoomListener(CacheFileHandle *aHandle)
-      : mHandle(aHandle)
-      , mAlreadyDoomed(false)
-    {}
-    ~AutoFailDoomListener()
-    {
-      if (!mListener)
-        return;
-
-      if (mHandle) {
-        if (mAlreadyDoomed) {
-          mListener->OnFileDoomed(mHandle, NS_OK);
-        } else {
-          CacheFileIOManager::DoomFile(mHandle, mListener);
-        }
-      } else {
-        mListener->OnFileDoomed(nullptr, NS_ERROR_NOT_AVAILABLE);
-      }
-    }
-
-    CacheFileHandle* mHandle;
-    nsCOMPtr<CacheFileIOListener> mListener;
-    bool mAlreadyDoomed;
-  } autoDoom(aHandle);
-
   nsCOMPtr<CacheFileListener> listener;
   bool isNew = false;
   nsresult retval = NS_OK;
@@ -635,14 +604,11 @@ CacheFile::OnFileOpened(CacheFileHandle *aHandle, nsresult aResult)
 
     mOpeningFile = false;
 
-    autoDoom.mListener.swap(mDoomAfterOpenListener);
-
     if (mMemoryOnly) {
       // We can be here only in case the entry was initilized as createNew and
       // SetMemoryOnly() was called.
 
       // Just don't store the handle into mHandle and exit
-      autoDoom.mAlreadyDoomed = true;
       return NS_OK;
     }
     else if (NS_FAILED(aResult)) {
@@ -925,13 +891,13 @@ CacheFile::Doom(CacheFileListener *aCallback)
   }
 
   nsCOMPtr<CacheFileIOListener> listener;
-  if (aCallback || !mHandle) {
+  if (aCallback)
     listener = new DoomFileHelper(aCallback);
-  }
+
   if (mHandle) {
     rv = CacheFileIOManager::DoomFile(mHandle, listener);
-  } else if (mOpeningFile) {
-    mDoomAfterOpenListener = listener;
+  } else {
+    rv = CacheFileIOManager::DoomFileByKey(mKey, listener);
   }
 
   return rv;
@@ -1032,27 +998,6 @@ CacheFile::GetLastModified(uint32_t *_retval)
   NS_ENSURE_TRUE(mMetadata, NS_ERROR_UNEXPECTED);
 
   return mMetadata->GetLastModified(_retval);
-}
-
-nsresult
-CacheFile::SetFrecency(uint32_t aFrecency)
-{
-  CacheFileAutoLock lock(this);
-  MOZ_ASSERT(mMetadata);
-  NS_ENSURE_TRUE(mMetadata, NS_ERROR_UNEXPECTED);
-
-  PostWriteTimer();
-  return mMetadata->SetFrecency(aFrecency);
-}
-
-nsresult
-CacheFile::GetFrecency(uint32_t *_retval)
-{
-  CacheFileAutoLock lock(this);
-  MOZ_ASSERT(mMetadata);
-  NS_ENSURE_TRUE(mMetadata, NS_ERROR_UNEXPECTED);
-
-  return mMetadata->GetFrecency(_retval);
 }
 
 nsresult

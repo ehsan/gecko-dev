@@ -135,6 +135,7 @@ static_assert(MAX_WORKERS_PER_DOMAIN >= 1,
 #define PREF_JS_OPTIONS_PREFIX "javascript.options."
 #define PREF_WORKERS_OPTIONS_PREFIX PREF_WORKERS_PREFIX "options."
 #define PREF_MEM_OPTIONS_PREFIX "mem."
+#define PREF_JIT_HARDENING "jit_hardening"
 #define PREF_GCZEAL "gcZeal"
 
 #if !(defined(DEBUG) || defined(MOZ_ENABLE_JS_DUMP))
@@ -296,7 +297,9 @@ LoadJSContextOptions(const char* aPrefName, void* /* aClosure */)
                                           PREF_MEM_OPTIONS_PREFIX)) ||
       StringBeginsWith(prefName,
                        NS_LITERAL_CSTRING(PREF_WORKERS_OPTIONS_PREFIX
-                                          PREF_MEM_OPTIONS_PREFIX))) {
+                                          PREF_MEM_OPTIONS_PREFIX)) ||
+      prefName.EqualsLiteral(PREF_JS_OPTIONS_PREFIX PREF_JIT_HARDENING) ||
+      prefName.EqualsLiteral(PREF_WORKERS_OPTIONS_PREFIX PREF_JIT_HARDENING)) {
     return;
   }
 
@@ -572,6 +575,27 @@ LoadJSGCMemoryOptions(const char* aPrefName, void* /* aClosure */)
 }
 
 void
+LoadJITHardeningOption(const char* /* aPrefName */, void* /* aClosure */)
+{
+  AssertIsOnMainThread();
+
+  RuntimeService* rts = RuntimeService::GetService();
+
+  if (!rts && !gRuntimeServiceDuringInit) {
+    // May be shutting down, just bail.
+    return;
+  }
+
+  bool value = GetWorkerPref(NS_LITERAL_CSTRING(PREF_JIT_HARDENING), false);
+
+  RuntimeService::SetDefaultJITHardening(value);
+
+  if (rts) {
+    rts->UpdateAllWorkerJITHardening(value);
+  }
+}
+
+void
 ErrorReporter(JSContext* aCx, const char* aMessage, JSErrorReport* aReport)
 {
   WorkerPrivate* worker = GetWorkerPrivateFromContext(aCx);
@@ -808,6 +832,8 @@ CreateJSContextForWorker(WorkerPrivate* aWorkerPrivate, JSRuntime* aRuntime)
   JS::ContextOptionsRef(workerCx) =
     aWorkerPrivate->IsChromeWorker() ? settings.chrome.contextOptions
                                      : settings.content.contextOptions;
+
+  JS_SetJitHardening(aRuntime, settings.jitHardening);
 
 #ifdef JS_GC_ZEAL
   JS_SetGCZeal(workerCx, settings.gcZeal, settings.gcZealFrequency);
@@ -1649,6 +1675,14 @@ RuntimeService::Init()
                             LoadJSGCMemoryOptions,
                             PREF_WORKERS_OPTIONS_PREFIX PREF_MEM_OPTIONS_PREFIX,
                             nullptr)) ||
+      NS_FAILED(Preferences::RegisterCallback(
+                                      LoadJITHardeningOption,
+                                      PREF_JS_OPTIONS_PREFIX PREF_JIT_HARDENING,
+                                      nullptr)) ||
+      NS_FAILED(Preferences::RegisterCallbackAndCall(
+                                 LoadJITHardeningOption,
+                                 PREF_WORKERS_OPTIONS_PREFIX PREF_JIT_HARDENING,
+                                 nullptr)) ||
 #ifdef JS_GC_ZEAL
       NS_FAILED(Preferences::RegisterCallback(
                                              LoadGCZealOptions,
@@ -1855,7 +1889,15 @@ RuntimeService::Cleanup()
         NS_FAILED(Preferences::UnregisterCallback(
                             LoadJSGCMemoryOptions,
                             PREF_WORKERS_OPTIONS_PREFIX PREF_MEM_OPTIONS_PREFIX,
-                            nullptr))) {
+                            nullptr)) ||
+        NS_FAILED(Preferences::UnregisterCallback(
+                                      LoadJITHardeningOption,
+                                      PREF_JS_OPTIONS_PREFIX PREF_JIT_HARDENING,
+                                      nullptr)) ||
+        NS_FAILED(Preferences::UnregisterCallback(
+                                 LoadJITHardeningOption,
+                                 PREF_WORKERS_OPTIONS_PREFIX PREF_JIT_HARDENING,
+                                 nullptr))) {
       NS_WARNING("Failed to unregister pref callbacks!");
     }
 
@@ -2235,6 +2277,12 @@ RuntimeService::UpdateAllWorkerGCZeal()
                         sDefaultJSSettings.gcZealFrequency);
 }
 #endif
+
+void
+RuntimeService::UpdateAllWorkerJITHardening(bool aJITHardening)
+{
+  BROADCAST_ALL_WORKERS(UpdateJITHardening, aJITHardening);
+}
 
 void
 RuntimeService::GarbageCollectAllWorkers(bool aShrinking)
