@@ -43,7 +43,6 @@
 #include "nsCoreUtils.h"
 
 #include "nsEventStates.h"
-#include "mozilla/dom/Element.h"
 
 ////////////////////////////////////////////////////////////////////////////////
 // nsHTMLLinkAccessible

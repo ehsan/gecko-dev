@@ -240,8 +240,15 @@ WeakMap_set(JSContext *cx, uintN argc, Value *vp)
 static void
 WeakMap_mark(JSTracer *trc, JSObject *obj)
 {
-    if (ObjectValueMap *map = GetObjectMap(obj))
-        map->trace(trc);
+    ObjectValueMap *map = GetObjectMap(obj);
+    if (map) {
+        if (IS_GC_MARKING_TRACER(trc) && map->empty()) {
+            trc->context->delete_(map);
+            obj->setPrivate(NULL);
+        } else {
+            map->trace(trc);
+        }
+    }
 }
 
 static void

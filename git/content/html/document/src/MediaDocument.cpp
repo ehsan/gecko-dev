@@ -45,6 +45,7 @@
 #include "nsIViewManager.h"
 #include "nsITextToSubURI.h"
 #include "nsIURL.h"
+#include "nsPrintfCString.h"
 #include "nsIContentViewer.h"
 #include "nsIMarkupDocumentViewer.h"
 #include "nsIDocShell.h"

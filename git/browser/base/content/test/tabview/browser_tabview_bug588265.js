@@ -1,37 +1,53 @@
 /* Any copyright is dedicated to the Public Domain.
    http://creativecommons.org/publicdomain/zero/1.0/ */
 
-let contentWindow;
-let groupItemTwoId;
-
 function test() {
   waitForExplicitFinish();
-  
-  registerCleanupFunction(function() {
-    while (gBrowser.tabs[1])
-      gBrowser.removeTab(gBrowser.tabs[1]);
-    hideTabView(function() {});
-  });
-  gBrowser.loadOneTab("about:blank", { inBackground: true });
-  showTabView(setup);
+
+  window.addEventListener("tabviewshown", setup, false);
+  TabView.toggle();
 }
 
 function setup() {
-  registerCleanupFunction(function() {
-    let groupItem = contentWindow.GroupItems.groupItem(groupItemTwoId);
-    if (groupItem)
-      closeGroupItem(groupItem, function() {}); 
-  });
+  window.removeEventListener("tabviewshown", setup, false);
 
-  let contentWindow = TabView.getContentWindow();
+  let contentWindow = document.getElementById("tab-view").contentWindow;
   is(contentWindow.GroupItems.groupItems.length, 1, "Has only one group");
 
   let groupItemOne = contentWindow.GroupItems.groupItems[0];
-  is(groupItemOne.getChildren().length, 2, "Group one has 2 tab items");
+  // add a blank tab to group one.
+  createNewTabItemInGroupItem(groupItemOne, contentWindow, function() { 
+    is(groupItemOne.getChildren().length, 2, "Group one has 2 tab items");
 
-  let groupItemTwo = createGroupItemWithBlankTabs(window, 250, 250, 40, 1);
-  groupItemTwoId = groupItemTwo.id;
-  testGroups(groupItemOne, groupItemTwo, contentWindow);
+    // create group two with a blank tab.
+    let groupItemTwo = createEmptyGroupItem(contentWindow, 250, 250, 40);
+    createNewTabItemInGroupItem(groupItemTwo, contentWindow, function() {
+      // start the first test.
+      testGroups(groupItemOne, groupItemTwo, contentWindow);
+    });
+  });
+}
+
+function createNewTabItemInGroupItem(groupItem, contentWindow, callback) {
+  // click on the + button to create a blank tab in group item
+  let newTabButton = groupItem.container.getElementsByClassName("newTabButton");
+  ok(newTabButton[0], "New tab button exists");
+
+  let onTabViewHidden = function() {
+    window.removeEventListener("tabviewhidden", onTabViewHidden, false);
+
+    ok(!TabView.isVisible(), "Tab View is hidden because we just opened a tab");
+    TabView.toggle();
+  };
+  let onTabViewShown = function() {
+    window.removeEventListener("tabviewshown", onTabViewShown, false);
+
+    ok(TabView.isVisible(), "Tab View is visible");
+    callback();
+  };
+  window.addEventListener("tabviewhidden", onTabViewHidden, false);
+  window.addEventListener("tabviewshown", onTabViewShown, false);
+  EventUtils.sendMouseEvent({ type: "click" }, newTabButton[0], contentWindow);
 }
 
 function testGroups(groupItemOne, groupItemTwo, contentWindow) {
@@ -54,12 +70,15 @@ function testGroups(groupItemOne, groupItemTwo, contentWindow) {
     is(contentWindow.UI.getActiveTab(), groupItemOne.getChild(0), 
        "The first tab item in group one is active");
 
-    whenTabViewIsHidden(function() {
+    let onTabViewHidden = function() {
+      window.removeEventListener("tabviewhidden", onTabViewHidden, false);
       is(groupItemOne.getChildren().length, 2, 
          "The num of childen in group one is 2");
 
       // clean up and finish
-      closeGroupItem(groupItemTwo, function() {
+      groupItemTwo.addSubscriber("close", function onClose() {
+        groupItemTwo.removeSubscriber("close", onClose);
+
         gBrowser.removeTab(groupItemOne.getChild(1).tab);
         is(contentWindow.GroupItems.groupItems.length, 1, "Has only one group");
         is(groupItemOne.getChildren().length, 1, 
@@ -68,7 +87,10 @@ function testGroups(groupItemOne, groupItemTwo, contentWindow) {
 
         finish();
       });
-    });
+      gBrowser.removeTab(groupItemTwo.getChild(0).tab);
+      groupItemTwo.close();
+    }
+    window.addEventListener("tabviewhidden", onTabViewHidden, false);
     EventUtils.synthesizeKey("t", { accelKey: true });
   });
   // close a tab item in group one

@@ -5621,8 +5621,9 @@ Utf8ToOneUcs4Char(const uint8 *utf8Buffer, int utf8Length)
     }
 
     if (JS_UNLIKELY(ucs4Char < minucs4Char || (ucs4Char >= 0xD800 && ucs4Char <= 0xDFFF)))
-        return INVALID_UTF8;
-
+        ucs4Char = INVALID_UTF8;
+    else if (ucs4Char == 0xFFFE || ucs4Char == 0xFFFF)
+        ucs4Char = 0xFFFD;
     return ucs4Char;
 }
 

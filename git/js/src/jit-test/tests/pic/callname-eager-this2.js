@@ -7,7 +7,7 @@ sb.parent = this;
 var res = 0;
 
 function f() {
-    assertEq(this.name, "outer");
+    assertEq(this.name, "inner");
     res++;
 }
 
