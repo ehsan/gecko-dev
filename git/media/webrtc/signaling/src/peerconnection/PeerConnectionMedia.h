@@ -199,7 +199,7 @@ public:
       : SourceStreamInfo(aMediaStream, aParent) {}
 
   ~LocalSourceStreamInfo() {
-    mMediaStream = nullptr;
+    mMediaStream = NULL;
   }
 
   DOMMediaStream* GetMediaStream() {
@@ -262,7 +262,7 @@ class PeerConnectionMedia : public sigslot::has_slots<> {
     // TODO(ekr@rtfm.com): If someone asks for a value that doesn't exist,
     // make one.
     if (i >= mIceStreams.size()) {
-      return nullptr;
+      return NULL;
     }
     return mIceStreams[i];
   }
@@ -301,7 +301,7 @@ class PeerConnectionMedia : public sigslot::has_slots<> {
     int index_inner = aStreamIndex * 2 + (aIsRtcp ? 1 : 0);
 
     if (mTransportFlows.find(index_inner) == mTransportFlows.end())
-      return nullptr;
+      return NULL;
 
     return mTransportFlows[index_inner];
   }
@@ -319,7 +319,7 @@ class PeerConnectionMedia : public sigslot::has_slots<> {
     int index_inner = aStreamIndex * 2 + (aReceive ? 0 : 1);
 
     if (mConduits.find(index_inner) == mConduits.end())
-      return nullptr;
+      return NULL;
 
     return mConduits[index_inner];
   }

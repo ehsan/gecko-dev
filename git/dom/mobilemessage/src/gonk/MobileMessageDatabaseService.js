@@ -28,7 +28,7 @@ const DISABLE_MMS_GROUPING_FOR_RECEIVING = true;
 
 
 const DB_NAME = "sms";
-const DB_VERSION = 20;
+const DB_VERSION = 19;
 const MESSAGE_STORE_NAME = "sms";
 const THREAD_STORE_NAME = "thread";
 const PARTICIPANT_STORE_NAME = "participant";
@@ -260,10 +260,6 @@ MobileMessageDatabaseService.prototype = {
             self.upgradeSchema18(event.target.transaction, next);
             break;
           case 19:
-            if (DEBUG) debug("Upgrade to version 20. Add readStatus and readTimestamp.");
-            self.upgradeSchema19(event.target.transaction, next);
-            break;
-          case 20:
             // This will need to be moved for each new version
             if (DEBUG) debug("Upgrade finished.");
             break;
@@ -1185,63 +1181,6 @@ MobileMessageDatabaseService.prototype = {
     };
   },
 
-  /**
-   * Add readStatus and readTimestamp.
-   */
-  upgradeSchema19: function upgradeSchema19(transaction, next) {
-    let messageStore = transaction.objectStore(MESSAGE_STORE_NAME);
-    messageStore.openCursor().onsuccess = function(event) {
-      let cursor = event.target.result;
-      if (!cursor) {
-        next();
-        return;
-      }
-
-      let messageRecord = cursor.value;
-      if (messageRecord.type == "sms") {
-        cursor.continue();
-        return;
-      }
-
-      // We can always retrieve transaction id from
-      // |messageRecord.headers["x-mms-transaction-id"]|.
-      if (messageRecord.hasOwnProperty("transactionId")) {
-        delete messageRecord.transactionId;
-      }
-
-      // xpconnect gives "undefined" for an unassigned argument of an interface
-      // method.
-      if (messageRecord.envelopeIdIndex === "undefined") {
-        delete messageRecord.envelopeIdIndex;
-      }
-
-      // Convert some header fields that were originally decoded as BooleanValue
-      // to numeric enums.
-      for (let field of ["x-mms-cancel-status",
-                         "x-mms-sender-visibility",
-                         "x-mms-read-status"]) {
-        let value = messageRecord.headers[field];
-        if (value !== undefined) {
-          messageRecord.headers[field] = value ? 128 : 129;
-        }
-      }
-
-      // For all sent and received MMS messages, we have to add their
-      // |readStatus| and |readTimestamp| attributes in |deliveryInfo| array.
-      let readReportRequested =
-        messageRecord.headers["x-mms-read-report"] || false;
-      for (let element of messageRecord.deliveryInfo) {
-        element.readStatus = readReportRequested
-                           ? MMS.DOM_READ_STATUS_PENDING
-                           : MMS.DOM_READ_STATUS_NOT_APPLICABLE;
-        element.readTimestamp = 0;
-      }
-
-      cursor.update(messageRecord);
-      cursor.continue();
-    };
-  },
-
   matchParsedPhoneNumbers: function matchParsedPhoneNumbers(addr1, parsedAddr1,
                                                             addr2, parsedAddr2) {
     if ((parsedAddr1.internationalNumber &&
@@ -1545,54 +1484,20 @@ MobileMessageDatabaseService.prototype = {
     });
   },
 
-  newTxnWithCallback: function newTxnWithCallback(aCallback, aFunc, aStoreNames) {
-    let self = this;
-    this.newTxn(READ_WRITE, function(aError, aTransaction, aStores) {
-      let notifyResult = function(aRv, aMessageRecord) {
-        if (!aCallback) {
-          return;
-        }
-        let domMessage =
-          aMessageRecord && self.createDomMessageFromRecord(aMessageRecord);
-        aCallback.notify(aRv, domMessage);
-      };
-
-      if (aError) {
-        // TODO bug 832140 check event.target.errorCode
-        notifyResult(Cr.NS_ERROR_FAILURE, null);
-        return;
-      }
-
-      let capture = {};
-      aTransaction.oncomplete = function(event) {
-        notifyResult(Cr.NS_OK, capture.messageRecord);
-      };
-      aTransaction.onabort = function(event) {
-        // TODO bug 832140 check event.target.errorCode
-        notifyResult(Cr.NS_ERROR_FAILURE, null);
-      };
-
-      aFunc(capture, aStores);
-    }, aStoreNames);
-  },
-
   saveRecord: function saveRecord(aMessageRecord, aAddresses, aCallback) {
     if (DEBUG) debug("Going to store " + JSON.stringify(aMessageRecord));
 
     let self = this;
     this.newTxn(READ_WRITE, function(error, txn, stores) {
-      let notifyResult = function(aRv, aMessageRecord) {
-        if (!aCallback) {
-          return;
+      let notifyResult = function(rv) {
+        if (aCallback) {
+          aCallback.notify(rv, self.createDomMessageFromRecord(aMessageRecord));
         }
-        let domMessage =
-          aMessageRecord && self.createDomMessageFromRecord(aMessageRecord);
-        aCallback.notify(aRv, domMessage);
       };
 
       if (error) {
         // TODO bug 832140 check event.target.errorCode
-        notifyResult(Cr.NS_ERROR_FAILURE, null);
+        notifyResult(Cr.NS_ERROR_FAILURE);
         return;
       }
 
@@ -1600,11 +1505,11 @@ MobileMessageDatabaseService.prototype = {
         if (aMessageRecord.id > self.lastMessageId) {
           self.lastMessageId = aMessageRecord.id;
         }
-        notifyResult(Cr.NS_OK, aMessageRecord);
+        notifyResult(Cr.NS_OK);
       };
       txn.onabort = function onabort(event) {
         // TODO bug 832140 check event.target.errorCode
-        notifyResult(Cr.NS_ERROR_FAILURE, null);
+        notifyResult(Cr.NS_ERROR_FAILURE);
       };
 
       let messageStore = stores[0];
@@ -1829,19 +1734,41 @@ MobileMessageDatabaseService.prototype = {
     }
 
     let self = this;
-    this.newTxnWithCallback(callback, function(aCapture, aMessageStore) {
+    let messageRecord;
+    function notifyResult(rv) {
+      if (!callback) {
+        return;
+      }
+      let domMessage = self.createDomMessageFromRecord(messageRecord);
+      callback.notify(rv, domMessage);
+    }
+
+    this.newTxn(READ_WRITE, function (error, txn, messageStore) {
+      if (error) {
+        // TODO bug 832140 check event.target.errorCode
+        notifyResult(Cr.NS_ERROR_FAILURE);
+        return;
+      }
+      txn.oncomplete = function oncomplete(event) {
+        notifyResult(Cr.NS_OK);
+      };
+      txn.onabort = function onabort(event) {
+        // TODO bug 832140 check event.target.errorCode
+        notifyResult(Cr.NS_ERROR_FAILURE);
+      };
+
       let getRequest;
       if (type === "messageId") {
-        getRequest = aMessageStore.get(id);
+        getRequest = messageStore.get(id);
       } else if (type === "envelopeId") {
-        getRequest = aMessageStore.index("envelopeId").get(id);
+        getRequest = messageStore.index("envelopeId").get(id);
       }
 
       getRequest.onsuccess = function onsuccess(event) {
-        let messageRecord = event.target.result;
+        messageRecord = event.target.result;
         if (!messageRecord) {
           if (DEBUG) debug("type = " + id + " is not found");
-          throw Cr.NS_ERROR_FAILURE;
+          return;
         }
 
         let isRecordUpdated = false;
@@ -1896,7 +1823,6 @@ MobileMessageDatabaseService.prototype = {
           }
         }
 
-        aCapture.messageRecord = messageRecord;
         if (!isRecordUpdated) {
           if (DEBUG) {
             debug("The values of delivery, deliveryStatus and envelopeId " +
@@ -1908,7 +1834,7 @@ MobileMessageDatabaseService.prototype = {
         if (DEBUG) {
           debug("The delivery, deliveryStatus or envelopeId are updated.");
         }
-        aMessageStore.put(messageRecord);
+        messageStore.put(messageRecord);
       };
     });
   },
@@ -2014,30 +1940,21 @@ MobileMessageDatabaseService.prototype = {
 
   saveReceivedMessage: function saveReceivedMessage(aMessage, aCallback) {
     if ((aMessage.type != "sms" && aMessage.type != "mms") ||
-        (aMessage.type == "sms" && (aMessage.messageClass == undefined ||
-                                    aMessage.sender == undefined)) ||
+        (aMessage.type == "sms" && aMessage.messageClass == undefined) ||
         (aMessage.type == "mms" && (aMessage.delivery == undefined ||
-                                    aMessage.deliveryStatus == undefined ||
+                                    aMessage.transactionId == undefined ||
+                                    !Array.isArray(aMessage.deliveryInfo) ||
                                     !Array.isArray(aMessage.receivers))) ||
+        aMessage.sender == undefined ||
         aMessage.timestamp == undefined) {
       if (aCallback) {
         aCallback.notify(Cr.NS_ERROR_FAILURE, null);
       }
       return;
     }
-
-    let threadParticipants;
+    let threadParticipants = [aMessage.sender];
     if (aMessage.type == "mms") {
-      if (aMessage.headers.from) {
-        aMessage.sender = aMessage.headers.from.address;
-      } else {
-        aMessage.sender = "anonymous";
-      }
-
-      threadParticipants = [aMessage.sender];
       this.fillReceivedMmsThreadParticipants(aMessage, threadParticipants);
-    } else { // SMS
-      threadParticipants = [aMessage.sender];
     }
 
     let timestamp = aMessage.timestamp;
@@ -2048,30 +1965,29 @@ MobileMessageDatabaseService.prototype = {
     aMessage.read = FILTER_READ_UNREAD;
 
     if (aMessage.type == "mms") {
-      aMessage.transactionIdIndex = aMessage.headers["x-mms-transaction-id"];
+      aMessage.transactionIdIndex = aMessage.transactionId;
       aMessage.isReadReportSent = false;
 
-      // As a receiver, we don't need to care about the delivery status of
-      // others, so we put a single element with self's phone number in the
-      // |deliveryInfo| array.
-      aMessage.deliveryInfo = [{
-        receiver: aMessage.phoneNumber,
-        deliveryStatus: aMessage.deliveryStatus,
-        deliveryTimestamp: 0,
-        readStatus: MMS.DOM_READ_STATUS_NOT_APPLICABLE,
-        readTimestamp: 0,
-      }];
-
-      delete aMessage.deliveryStatus;
+      // If |deliveryTimestamp| is not specified, use 0 as default.
+      let deliveryInfo = aMessage.deliveryInfo;
+      for (let i = 0; i < deliveryInfo.length; i++) {
+        if (deliveryInfo[i].deliveryTimestamp == undefined) {
+          deliveryInfo[i].deliveryTimestamp = 0;
+        }
+      }
     }
 
     if (aMessage.type == "sms") {
       aMessage.delivery = DELIVERY_RECEIVED;
       aMessage.deliveryStatus = DELIVERY_STATUS_SUCCESS;
-      aMessage.deliveryTimestamp = 0;
 
       if (aMessage.pid == undefined) {
         aMessage.pid = RIL.PDU_PID_DEFAULT;
+      }
+
+      // If |deliveryTimestamp| is not specified, use 0 as default.
+      if (aMessage.deliveryTimestamp == undefined) {
+        aMessage.deliveryTimestamp = 0;
       }
     }
     aMessage.deliveryIndex = [aMessage.delivery, timestamp];
@@ -2113,18 +2029,12 @@ MobileMessageDatabaseService.prototype = {
         }
         return;
       }
-      let readStatus = aMessage.headers["x-mms-read-report"]
-                     ? MMS.DOM_READ_STATUS_PENDING
-                     : MMS.DOM_READ_STATUS_NOT_APPLICABLE;
       aMessage.deliveryInfo = [];
       for (let i = 0; i < receivers.length; i++) {
         aMessage.deliveryInfo.push({
           receiver: receivers[i],
           deliveryStatus: deliveryStatus,
-          deliveryTimestamp: 0,
-          readStatus: readStatus,
-          readTimestamp: 0,
-        });
+          deliveryTimestamp: 0 });
       }
     }
 
@@ -2155,62 +2065,12 @@ MobileMessageDatabaseService.prototype = {
 
   },
 
-  setMessageDeliveryStatusByEnvelopeId:
-    function setMessageDeliveryStatusByEnvelopeId(aEnvelopeId, aReceiver,
-                                                  aDeliveryStatus, aCallback) {
-    this.updateMessageDeliveryById(aEnvelopeId, "envelopeId", aReceiver, null,
-                                   aDeliveryStatus, null, aCallback);
-  },
+  setMessageDeliveryByEnvelopeId: function setMessageDeliveryByEnvelopeId(
+      envelopeId, receiver, delivery, deliveryStatus, callback) {
+    this.updateMessageDeliveryById(envelopeId, "envelopeId",
+                                   receiver, delivery, deliveryStatus,
+                                   null, callback);
 
-  setMessageReadStatusByEnvelopeId:
-    function setMessageReadStatusByEnvelopeId(aEnvelopeId, aReceiver,
-                                              aReadStatus, aCallback) {
-    if (DEBUG) {
-      debug("Setting message's read status by envelopeId = " + aEnvelopeId +
-            ", receiver: " + aReceiver + ", readStatus: " + aReadStatus);
-    }
-
-    let self = this;
-    this.newTxnWithCallback(aCallback, function(aCapture, aMessageStore) {
-      let getRequest = aMessageStore.index("envelopeId").get(aEnvelopeId);
-      getRequest.onsuccess = function onsuccess(event) {
-        let messageRecord = event.target.result;
-        if (!messageRecord) {
-          if (DEBUG) debug("envelopeId '" + aEnvelopeId + "' not found");
-          throw Cr.NS_ERROR_FAILURE;
-        }
-
-        aCapture.messageRecord = messageRecord;
-
-        let isRecordUpdated = false;
-        self.forEachMatchedMmsDeliveryInfo(messageRecord.deliveryInfo,
-                                           aReceiver, function(aEntry) {
-          if (aEntry.readStatus == aReadStatus) {
-            return;
-          }
-
-          aEntry.readStatus = aReadStatus;
-          if (aReadStatus == MMS.DOM_READ_STATUS_SUCCESS) {
-            aEntry.readTimestamp = Date.now();
-          } else {
-            aEntry.readTimestamp = 0;
-          }
-          isRecordUpdated = true;
-        });
-
-        if (!isRecordUpdated) {
-          if (DEBUG) {
-            debug("The values of readStatus don't need to be updated.");
-          }
-          return;
-        }
-
-        if (DEBUG) {
-          debug("The readStatus is updated.");
-        }
-        aMessageStore.put(messageRecord);
-      };
-    });
   },
 
   getMessageRecordByTransactionId: function getMessageRecordByTransactionId(aTransactionId, aCallback) {

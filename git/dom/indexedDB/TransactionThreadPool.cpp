@@ -212,7 +212,7 @@ TransactionThreadPool::FinishTransaction(IDBTransaction* aTransaction)
   // AddRef here because removing from the hash will call Release.
   nsRefPtr<IDBTransaction> transaction(aTransaction);
 
-  const nsACString& databaseId = aTransaction->mDatabase->Id();
+  nsIAtom* databaseId = aTransaction->mDatabase->Id();
 
   DatabaseTransactionInfo* dbTransactionInfo;
   if (!mTransactionsInProgress.Get(databaseId, &dbTransactionInfo)) {
@@ -286,8 +286,7 @@ TransactionThreadPool::GetQueueForTransaction(IDBTransaction* aTransaction)
   NS_ASSERTION(NS_IsMainThread(), "Wrong thread!");
   NS_ASSERTION(aTransaction, "Null pointer!");
 
-  const nsACString& databaseId = aTransaction->mDatabase->Id();
-
+  nsIAtom* databaseId = aTransaction->mDatabase->Id();
   const nsTArray<nsString>& objectStoreNames = aTransaction->mObjectStoreNames;
   const uint16_t mode = aTransaction->mMode;
 
@@ -510,7 +509,8 @@ TransactionThreadPool::MaybeFireCallback(DatabasesCompleteCallback aCallback)
       MOZ_CRASH();
     }
 
-    if (mTransactionsInProgress.Get(database->Id(), nullptr)) {
+    if (mTransactionsInProgress.Get(database->Id(),
+                                    nullptr)) {
       return false;
     }
   }

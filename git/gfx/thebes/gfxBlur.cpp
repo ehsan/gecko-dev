@@ -80,7 +80,7 @@ gfxAlphaBoxBlur::Init(const gfxRect& aRect,
 }
 
 void
-gfxAlphaBoxBlur::Paint(gfxContext* aDestinationCtx)
+gfxAlphaBoxBlur::Paint(gfxContext* aDestinationCtx, const gfxPoint& offset)
 {
     if (!mContext)
         return;
@@ -95,14 +95,14 @@ gfxAlphaBoxBlur::Paint(gfxContext* aDestinationCtx)
         aDestinationCtx->Save();
         aDestinationCtx->NewPath();
         gfxRect dirty(dirtyrect->x, dirtyrect->y, dirtyrect->width, dirtyrect->height);
-        gfxRect imageRect(-mImageSurface->GetDeviceOffset(), mImageSurface->GetSize());
+        gfxRect imageRect(offset - mImageSurface->GetDeviceOffset(), mImageSurface->GetSize());
         dirty.IntersectRect(dirty, imageRect);
         aDestinationCtx->Rectangle(dirty);
         aDestinationCtx->Clip();
-        aDestinationCtx->Mask(mImageSurface, gfxPoint());
+        aDestinationCtx->Mask(mImageSurface, offset);
         aDestinationCtx->Restore();
     } else {
-        aDestinationCtx->Mask(mImageSurface, gfxPoint());
+        aDestinationCtx->Mask(mImageSurface, offset);
     }
 }
 
@@ -111,38 +111,4 @@ gfxIntSize gfxAlphaBoxBlur::CalculateBlurRadius(const gfxPoint& aStd)
     mozilla::gfx::Point std(Float(aStd.x), Float(aStd.y));
     IntSize size = AlphaBoxBlur::CalculateBlurRadius(std);
     return gfxIntSize(size.width, size.height);
-}
-
-/* static */ void
-gfxAlphaBoxBlur::BlurRectangle(gfxContext *aDestinationCtx,
-                               const gfxRect& aRect,
-                               gfxCornerSizes* aCornerRadii,
-                               const gfxPoint& aBlurStdDev,
-                               const gfxRGBA& aShadowColor,
-                               const gfxRect& aDirtyRect,
-                               const gfxRect& aSkipRect)
-{
-  gfxIntSize blurRadius = CalculateBlurRadius(aBlurStdDev);
-
-  // Create the temporary surface for blurring
-  gfxAlphaBoxBlur blur;
-  gfxContext *dest = blur.Init(aRect, gfxIntSize(), blurRadius, &aDirtyRect, &aSkipRect);
-
-  if (!dest) {
-    return;
-  }
-
-  gfxRect shadowGfxRect = aRect;
-  shadowGfxRect.Round();
-
-  dest->NewPath();
-  if (aCornerRadii) {
-    dest->RoundedRectangle(shadowGfxRect, *aCornerRadii);
-  } else {
-    dest->Rectangle(shadowGfxRect);
-  }
-  dest->Fill();
-
-  aDestinationCtx->SetColor(aShadowColor);
-  blur.Paint(aDestinationCtx);
 }

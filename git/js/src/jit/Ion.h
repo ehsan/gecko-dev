@@ -216,7 +216,7 @@ struct IonOptions
         baselineUsesBeforeCompile = 0;
     }
 
-    MOZ_CONSTEXPR IonOptions()
+    IonOptions()
       : gvn(true),
         gvnIsOptimistic(true),
         licm(true),

@@ -494,22 +494,21 @@ TabParent::UpdateFrame(const FrameMetrics& aFrameMetrics)
   }
 }
 
-void TabParent::HandleDoubleTap(const CSSIntPoint& aPoint, int32_t aModifiers)
+void TabParent::HandleDoubleTap(const CSSIntPoint& aPoint)
 {
   if (!mIsDestroyed) {
     unused << SendHandleDoubleTap(aPoint);
   }
 }
 
-void TabParent::HandleSingleTap(const CSSIntPoint& aPoint, int32_t aModifiers)
+void TabParent::HandleSingleTap(const CSSIntPoint& aPoint)
 {
-  // TODO Send the modifier data to TabChild for use in mouse events.
   if (!mIsDestroyed) {
     unused << SendHandleSingleTap(aPoint);
   }
 }
 
-void TabParent::HandleLongTap(const CSSIntPoint& aPoint, int32_t aModifiers)
+void TabParent::HandleLongTap(const CSSIntPoint& aPoint)
 {
   if (!mIsDestroyed) {
     unused << SendHandleLongTap(aPoint);

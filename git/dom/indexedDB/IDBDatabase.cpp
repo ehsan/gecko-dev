@@ -734,7 +734,7 @@ IDBDatabase::Close()
   return NS_OK;
 }
 
-NS_IMETHODIMP_(const nsACString&)
+NS_IMETHODIMP_(nsIAtom*)
 IDBDatabase::Id()
 {
   return mDatabaseId;

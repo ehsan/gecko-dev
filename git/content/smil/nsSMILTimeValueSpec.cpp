@@ -68,9 +68,11 @@ nsSMILTimeValueSpec::SetSpec(const nsAString& aStringSpec,
                              Element* aContextNode)
 {
   nsSMILTimeValueSpecParams params;
+  nsresult rv =
+    nsSMILParserUtils::ParseTimeValueSpecParams(aStringSpec, params);
 
-  if (!nsSMILParserUtils::ParseTimeValueSpecParams(aStringSpec, params))
-    return NS_ERROR_FAILURE;
+  if (NS_FAILED(rv))
+    return rv;
 
   mParams = params;
 
@@ -92,7 +94,7 @@ nsSMILTimeValueSpec::SetSpec(const nsAString& aStringSpec,
 
   ResolveReferences(aContextNode);
 
-  return NS_OK;
+  return rv;
 }
 
 void

@@ -872,7 +872,7 @@ ArrayType::create(JSContext *cx,
     JS_ASSERT(prototypeVal.isObject()); // immutable binding
 
     RootedObject obj(
-        cx, NewObjectWithGivenProto(cx, &ArrayType::class_,
+        cx, NewObjectWithClassProto(cx, &ArrayType::class_,
                                     &prototypeVal.toObject(), cx->global()));
     if (!obj)
         return nullptr;
@@ -1145,7 +1145,7 @@ StructType::create(JSContext *cx, HandleObject metaTypeObject,
     JS_ASSERT(prototypeVal.isObject()); // immutable binding
 
     RootedObject obj(
-        cx, NewObjectWithGivenProto(cx, &StructType::class_,
+        cx, NewObjectWithClassProto(cx, &StructType::class_,
                                     &prototypeVal.toObject(), cx->global()));
     if (!obj)
         return nullptr;
@@ -1249,15 +1249,15 @@ StructType::construct(JSContext *cx, unsigned int argc, Value *vp)
 template<typename T>
 static bool
 DefineSimpleTypeObject(JSContext *cx,
-                       Handle<GlobalObject *> global,
+                       HandleObject global,
                        HandleObject module,
                        typename T::TypeRepr::Type type,
                        HandlePropertyName className)
 {
-    RootedObject funcProto(cx, global->getOrCreateFunctionPrototype(cx));
+    RootedObject funcProto(cx, JS_GetFunctionPrototype(cx, global));
     JS_ASSERT(funcProto);
 
-    RootedObject numFun(cx, NewObjectWithGivenProto(cx, &T::class_, funcProto, global));
+    RootedObject numFun(cx, NewObjectWithClassProto(cx, &T::class_, funcProto, global));
     if (!numFun)
         return false;
 
@@ -1521,7 +1521,7 @@ js_InitTypedObjectClass(JSContext *cx, HandleObject obj)
     if (!objProto)
         return nullptr;
 
-    RootedObject module(cx, NewObjectWithGivenProto(cx, &JSObject::class_,
+    RootedObject module(cx, NewObjectWithClassProto(cx, &JSObject::class_,
                                                     objProto, global));
     if (!module)
         return nullptr;

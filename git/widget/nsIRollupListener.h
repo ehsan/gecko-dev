@@ -21,7 +21,7 @@ class nsIRollupListener {
    * was just rolled up.
    *
    * aPoint is the mouse pointer position where the event that triggered the
-   * rollup occurred, which may be nullptr.
+   * rollup occurred, which may be NULL.
    *
    * aCount is the number of popups in a chain to close. If this is
    * UINT32_MAX, then all popups are closed.

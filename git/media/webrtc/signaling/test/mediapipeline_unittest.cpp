@@ -46,9 +46,9 @@ namespace {
 class TransportInfo {
  public:
   TransportInfo() :
-    flow_(nullptr),
-    prsock_(nullptr),
-    dtls_(nullptr) {}
+    flow_(NULL),
+    prsock_(NULL),
+    dtls_(NULL) {}
 
   void Init(bool client) {
     nsresult res;
@@ -94,7 +94,7 @@ class TransportInfo {
   }
 
   void Stop() {
-    flow_ = nullptr;
+    flow_ = NULL;
   }
 
   mozilla::RefPtr<TransportFlow> flow_;
@@ -106,7 +106,7 @@ class TestAgent {
  public:
   TestAgent() :
       audio_config_(109, "opus", 48000, 960, 2, 64000),
-      audio_conduit_(mozilla::AudioSessionConduit::Create(nullptr)),
+      audio_conduit_(mozilla::AudioSessionConduit::Create(NULL)),
       audio_(),
       audio_pipeline_() {
   }
@@ -161,7 +161,7 @@ class TestAgent {
       test_utils->sts_target(),
       WrapRunnable(this, &TestAgent::StopInt));
 
-    audio_pipeline_ = nullptr;
+    audio_pipeline_ = NULL;
 
     PR_Sleep(1000); // Deal with race condition
   }
@@ -193,7 +193,7 @@ class TestAgentSend : public TestAgent {
 
     audio_pipeline_ = new mozilla::MediaPipelineTransmit(
         test_pc,
-        nullptr,
+        NULL,
         test_utils->sts_target(),
         audio_,
         1,
@@ -244,7 +244,7 @@ class TestAgentReceive : public TestAgent {
 
     audio_pipeline_ = new mozilla::MediaPipelineReceiveAudio(
         test_pc,
-        nullptr,
+        NULL,
         test_utils->sts_target(),
         audio_->GetStream(), 1,
         static_cast<mozilla::AudioSessionConduit *>(audio_conduit_.get()),
@@ -268,8 +268,8 @@ class TestAgentReceive : public TestAgent {
 class MediaPipelineTest : public ::testing::Test {
  public:
   MediaPipelineTest() : p1_() {
-    rtp_fds_[0] = rtp_fds_[1] = nullptr;
-    rtcp_fds_[0] = rtcp_fds_[1] = nullptr;
+    rtp_fds_[0] = rtp_fds_[1] = NULL;
+    rtcp_fds_[0] = rtcp_fds_[1] = NULL;
   }
 
   // Setup transport.
@@ -354,7 +354,7 @@ TEST_F(MediaPipelineTest, TestAudioSendMux) {
 int main(int argc, char **argv) {
   test_utils = new MtransportTestUtils();
   // Start the tests
-  NSS_NoDB_Init(nullptr);
+  NSS_NoDB_Init(NULL);
   NSS_SetDomesticPolicy();
   ::testing::InitGoogleTest(&argc, argv);
 

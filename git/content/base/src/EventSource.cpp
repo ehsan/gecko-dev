@@ -24,7 +24,7 @@
 #include "nsJSUtils.h"
 #include "nsIAsyncVerifyRedirectCallback.h"
 #include "nsIScriptError.h"
-#include "mozilla/dom/EncodingUtils.h"
+#include "nsICharsetConverterManager.h"
 #include "nsIChannelPolicy.h"
 #include "nsIContentSecurityPolicy.h"
 #include "nsContentUtils.h"
@@ -264,7 +264,12 @@ EventSource::Init(nsISupports* aOwner,
     Preferences::GetInt("dom.server-events.default-reconnection-time",
                         DEFAULT_RECONNECTION_TIME_VALUE);
 
-  mUnicodeDecoder = EncodingUtils::DecoderForEncoding("UTF-8");
+  nsCOMPtr<nsICharsetConverterManager> convManager =
+    do_GetService(NS_CHARSETCONVERTERMANAGER_CONTRACTID, &rv);
+  NS_ENSURE_SUCCESS(rv, rv);
+
+  rv = convManager->GetUnicodeDecoder("UTF-8", getter_AddRefs(mUnicodeDecoder));
+  NS_ENSURE_SUCCESS(rv, rv);
 
   // the constructor should throw a SYNTAX_ERROR only if it fails resolving the
   // url parameter, so we don't care about the InitChannelAndRequestEventSource
