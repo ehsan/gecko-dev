@@ -51,7 +51,7 @@
 #include "nsIStringBundle.h"
 #include "nsXPIDLString.h"
 #include "nsIServiceManager.h"
-#include "nsCOMArray.h"
+#include "nsISupportsArray.h"
 #include "nsILocalFile.h"
 #include "nsEnumeratorUtils.h"
 
@@ -124,9 +124,7 @@ NS_IMETHODIMP
 nsBaseFilePicker::AppendFilters(PRInt32 aFilterMask)
 {
   nsresult rv;
-  nsCOMPtr<nsIStringBundleService> stringService = do_GetService(NS_STRINGBUNDLE_CONTRACTID, &rv);
-  NS_ENSURE_SUCCESS(rv, rv);
-
+  nsCOMPtr<nsIStringBundleService> stringService = do_GetService(NS_STRINGBUNDLE_CONTRACTID);
   nsCOMPtr<nsIStringBundle> stringBundle;
 
   rv = stringService->CreateBundle(FILEPICKER_PROPERTIES, getter_AddRefs(stringBundle));
@@ -194,8 +192,9 @@ NS_IMETHODIMP nsBaseFilePicker::SetFilterIndex(PRInt32 aFilterIndex)
 NS_IMETHODIMP nsBaseFilePicker::GetFiles(nsISimpleEnumerator **aFiles)
 {
   NS_ENSURE_ARG_POINTER(aFiles);
-  nsCOMArray <nsILocalFile> files;
-  nsresult rv;
+  nsCOMPtr <nsISupportsArray> files;
+  nsresult rv = NS_NewISupportsArray(getter_AddRefs(files));
+  NS_ENSURE_SUCCESS(rv,rv);
 
   // if we get into the base class, the platform
   // doesn't implement GetFiles() yet.
@@ -204,7 +203,7 @@ NS_IMETHODIMP nsBaseFilePicker::GetFiles(nsISimpleEnumerator **aFiles)
   rv = GetFile(getter_AddRefs(file));
   NS_ENSURE_SUCCESS(rv,rv);
 
-  rv = files.AppendObject(file);
+  rv = files->AppendElement(file);
   NS_ENSURE_SUCCESS(rv,rv);
 
   return NS_NewArrayEnumerator(aFiles, files);

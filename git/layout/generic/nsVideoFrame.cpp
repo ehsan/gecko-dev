@@ -327,6 +327,8 @@ nsSize nsVideoFrame::GetIntrinsicSize(nsIRenderingContext *aRenderingContext)
 
   nsHTMLVideoElement* element = static_cast<nsHTMLVideoElement*>(GetContent());
   if (element) {
+    nsresult rv;
+
     size = element->GetVideoSize(size);
   }
 

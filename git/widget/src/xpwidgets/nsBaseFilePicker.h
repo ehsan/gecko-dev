@@ -44,7 +44,6 @@
 #include "nsIFilePicker.h"
 #include "nsIWidget.h"
 #include "nsISimpleEnumerator.h"
-#include "nsArrayEnumerator.h"
 
 #define BASEFILEPICKER_HAS_DISPLAYDIRECTORY 1
 

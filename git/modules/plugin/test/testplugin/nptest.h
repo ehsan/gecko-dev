@@ -56,9 +56,7 @@ typedef struct InstanceData {
   NPP npp;
   NPWindow window;
   TestNPObject* scriptableObject;
-  void* platformData;
-  bool lastReportedPrivateModeState;
-  bool hasWidget;
+  NPBool lastReportedPrivateModeState;
 } InstanceData;
 
 #endif // nptest_h_

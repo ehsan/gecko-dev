@@ -52,19 +52,19 @@
 
     <xbl:content xmlns="http://www.mozilla.org/keymaster/gatekeeper/there.is.only.xul">
         <stack flex="1">
-            <vbox class="statusOverlay" hidden="true">
+            <vbox class="statusOverlay">
                 <box class="statusIcon" flex="1"/>
             </vbox>
 
             <vbox>
                 <spacer flex="1"/>
-                <hbox class="controlBar" hidden="true">
+                <hbox class="controlBar">
                     <button class="playButton" oncommand="document.getBindingParent(this).Utils.togglePause();"/>
                     <stack class="scrubberStack" flex="1">
                         <box class="backgroundBar"/>
                         <progressmeter class="bufferBar"/>
                         <progressmeter class="progressBar" max="10000"/>
-                        <scale class="scrubber" movetoclick="true"/>
+                        <scale class="scrubber"/>
                     </stack>
                     <button class="muteButton" oncommand="document.getBindingParent(this).Utils.toggleMute();"/>
                 </hbox>
@@ -509,8 +509,12 @@
                     //self.log("Fading " + fader.name + " to opacity " + opacity);
 
                     fader.element.style.opacity = opacity;
-                    // Hide the element to ignore mouse clicks and reduce throbber CPU usage.
-                    fader.element.setAttribute("hidden", !fader.isVisible);
+
+                    // Use .visibility to ignore mouse clicks when hidden.
+                    if (fader.isVisible)
+                        fader.element.style.visibility = "visible";
+                    else
+                        fader.element.style.visibility = "hidden";
 
                     // Is the animation done?
                     if (pos == 1) {
@@ -592,7 +596,8 @@
             // (Note: the |controls| attribute is already handled via layout/style/html.css)
             if (!(video.autoplay && video.mozAutoplayEnabled) || !this.Utils.dynamicControls) {
                 var fader = this.Utils.controlFader;
-                fader.element.setAttribute("hidden", "false");
+                fader.element.style.visibility = "visible";
+                fader.element.style.opacity = 1.0;
                 fader.isVisible = true;
                 fader.fadingIn = true;
             }

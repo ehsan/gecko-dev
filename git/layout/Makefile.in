@@ -60,7 +60,8 @@ endif
 
 ifdef MOZ_MATHML
 PARALLEL_DIRS += \
-  mathml \
+  mathml/content/src \
+  mathml/base/src \
   $(NULL)
 endif
 

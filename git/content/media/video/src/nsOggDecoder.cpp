@@ -916,9 +916,6 @@ nsresult nsOggDecodeStateMachine::Run()
    nsAutoMonitor mon(mDecoder->GetMonitor());
    switch(mState) {
     case DECODER_STATE_SHUTDOWN:
-      if (mPlaying) {
-        StopPlayback();
-      }
       return NS_OK;
 
     case DECODER_STATE_DECODING_METADATA:

@@ -6,7 +6,7 @@ structure, environment, and working directory. Typically they will all share a p
 except when a submake specifies -j1 when the parent make is building in parallel.
 """
 
-import os, subprocess, sys, logging, time, traceback, re
+import os, subprocess, sys, logging, time, traceback
 from optparse import OptionParser
 import data, parserdata, process, util
 
@@ -15,7 +15,6 @@ import data, parserdata, process, util
 
 makepypath = os.path.normpath(os.path.join(os.path.dirname(__file__), '../make.py'))
 
-_simpleopts = re.compile(r'^[a-zA-Z]+\s')
 def parsemakeflags(env):
     """
     Parse MAKEFLAGS from the environment into a sequence of command-line arguments.
@@ -27,7 +26,7 @@ def parsemakeflags(env):
     if makeflags == '':
         return []
 
-    if _simpleopts.match(makeflags):
+    if makeflags[0] not in ('-', ' '):
         makeflags = '-' + makeflags
 
     opts = []
@@ -90,9 +89,6 @@ def main(args, env, cwd, cb):
         op.add_option('-d',
                       action="store_true",
                       dest="verbose", default=False)
-        op.add_option('-k', '--keep-going',
-                      action="store_true",
-                      dest="keepgoing", default=False)
         op.add_option('--debug-log',
                       dest="debuglog", default=None)
         op.add_option('-C', '--directory',
@@ -117,9 +113,6 @@ def main(args, env, cwd, cb):
         shortflags = []
         longflags = []
 
-        if options.keepgoing:
-            shortflags.append('k');
-
         loglevel = logging.WARNING
         if options.verbose:
             loglevel = logging.DEBUG
@@ -135,7 +128,7 @@ def main(args, env, cwd, cb):
         else:
             workdir = os.path.join(cwd, options.directory)
 
-        longflags.append('-j%i' % (options.jobcount,))
+        shortflags.append('j%i' % (options.jobcount,))
 
         makeflags = ''.join(shortflags) + ' ' + ' '.join(longflags)
 
@@ -157,24 +150,23 @@ def main(args, env, cwd, cb):
 
         overrides, targets = parserdata.parsecommandlineargs(arguments)
 
-        def makecb(error, didanything, makefile, realtargets, tstack, i):
-            assert error in (True, False)
-
-            if error:
-                context.defer(cb, 2)
-                return
+        def makecb(error, didanything, makefile, realtargets, tstack, i, firsterror):
+            if error is not None:
+                print error
+                if firsterror is None:
+                    firsterror = error
 
             if i == len(realtargets):
                 if options.printdir:
                     print "make.py[%i]: Leaving directory '%s'" % (makelevel, workdir)
                 sys.stdout.flush()
 
-                context.defer(cb, 0)
+                context.defer(cb, firsterror and 2 or 0)
             else:
                 deferredmake = process.makedeferrable(makecb, makefile=makefile,
-                                                      realtargets=realtargets, tstack=tstack, i=i+1)
+                                                      realtargets=realtargets, tstack=tstack, i=i+1, firsterror=firsterror)
 
-                makefile.gettarget(realtargets[i]).make(makefile, tstack, cb=deferredmake)
+                makefile.gettarget(realtargets[i]).make(makefile, tstack, [], cb=deferredmake)
                                                                                   
 
         def remakecb(remade, restarts, makefile):
@@ -184,8 +176,7 @@ def main(args, env, cwd, cb):
                 makefile = data.Makefile(restarts=restarts, make='%s %s' % (sys.executable.replace('\\', '/'), makepypath.replace('\\', '/')),
                                          makeflags=makeflags, makelevel=makelevel, workdir=workdir,
                                          context=context, env=env,
-                                         targets=targets,
-                                         keepgoing=options.keepgoing)
+                                         targets=targets)
 
                 try:
                     overrides.execute(makefile)
@@ -215,8 +206,8 @@ def main(args, env, cwd, cb):
                 tstack = ['<command-line>']
 
             deferredmake = process.makedeferrable(makecb, makefile=makefile,
-                                                  realtargets=realtargets, tstack=tstack, i=1)
-            makefile.gettarget(realtargets[0]).make(makefile, tstack, cb=deferredmake)
+                                                  realtargets=realtargets, tstack=tstack, i=1, firsterror=None)
+            makefile.gettarget(realtargets[0]).make(makefile, tstack, [], cb=deferredmake)
 
         context.defer(remakecb, True, 0, None)
 

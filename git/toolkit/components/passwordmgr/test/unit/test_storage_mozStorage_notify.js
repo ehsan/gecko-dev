@@ -11,48 +11,24 @@ const STORAGE_TYPE = "mozStorage";
 Components.utils.import("resource://gre/modules/XPCOMUtils.jsm");
 
 var expectedNotification;
-var expectedData;
-
 var TestObserver = {
   QueryInterface : XPCOMUtils.generateQI([Ci.nsIObserver, Ci.nsISupportsWeakReference]),
 
   observe : function (subject, topic, data) {
-    do_check_eq(topic, "passwordmgr-storage-changed");
-    do_check_eq(data, expectedNotification);
+    do_check_eq(expectedNotification, data);
+    expectedNotification = null; // ensure a duplicate is flagged as unexpected.
 
     switch (data) {
         case "addLogin":
-            do_check_true(subject instanceof Ci.nsILoginInfo);
-            do_check_true(subject instanceof Ci.nsILoginMetaInfo);
-            do_check_true(expectedData.equals(subject)); // nsILoginInfo.equals()
-            break;
         case "modifyLogin":
-            do_check_true(subject instanceof Ci.nsIArray);
-            do_check_eq(subject.length, 2);
-            var oldLogin = subject.queryElementAt(0, Ci.nsILoginInfo);
-            var newLogin = subject.queryElementAt(1, Ci.nsILoginInfo);
-            do_check_true(expectedData[0].equals(oldLogin)); // nsILoginInfo.equals()
-            do_check_true(expectedData[1].equals(newLogin));
-            break;
         case "removeLogin":
-            do_check_true(subject instanceof Ci.nsILoginInfo);
-            do_check_true(subject instanceof Ci.nsILoginMetaInfo);
-            do_check_true(expectedData.equals(subject)); // nsILoginInfo.equals()
-            break;
         case "removeAllLogins":
-            do_check_eq(subject, null);
-            break;
         case "hostSavingEnabled":
         case "hostSavingDisabled":
-            do_check_true(subject instanceof Ci.nsISupportsString);
-            do_check_eq(subject.data, expectedData);
             break;
         default:
-            do_throw("Unhandled notification: " + data + " / " + topic);
+            do_throw("Unexpected observer topic: " + topic);
     }
-
-    expectedNotification = null; // ensure a duplicate is flagged as unexpected.
-    expectedData = null;
   }
 };
 
@@ -103,7 +79,6 @@ testnum++;
 testdesc = "addLogin";
 
 expectedNotification = "addLogin";
-expectedData = testuser1;
 storage.addLogin(testuser1);
 LoginTest.checkStorageData(storage, [], [testuser1]);
 do_check_eq(expectedNotification, null); // check that observer got a notification
@@ -113,7 +88,6 @@ testnum++;
 testdesc = "modifyLogin";
 
 expectedNotification = "modifyLogin";
-expectedData=[testuser1, testuser2];
 storage.modifyLogin(testuser1, testuser2);
 do_check_eq(expectedNotification, null);
 LoginTest.checkStorageData(storage, [], [testuser2]);
@@ -123,7 +97,6 @@ testnum++;
 testdesc = "removeLogin";
 
 expectedNotification = "removeLogin";
-expectedData = testuser2;
 storage.removeLogin(testuser2);
 do_check_eq(expectedNotification, null);
 LoginTest.checkStorageData(storage, [], []);
@@ -133,7 +106,6 @@ testnum++;
 testdesc = "removeAllLogins";
 
 expectedNotification = "removeAllLogins";
-expectedData = null;
 storage.removeAllLogins();
 do_check_eq(expectedNotification, null);
 LoginTest.checkStorageData(storage, [], []);
@@ -143,7 +115,6 @@ testnum++;
 testdesc = "removeAllLogins (again)";
 
 expectedNotification = "removeAllLogins";
-expectedData = null;
 storage.removeAllLogins();
 do_check_eq(expectedNotification, null);
 LoginTest.checkStorageData(storage, [], []);
@@ -153,7 +124,6 @@ testnum++;
 testdesc = "setLoginSavingEnabled / false";
 
 expectedNotification = "hostSavingDisabled";
-expectedData = "http://site.com";
 storage.setLoginSavingEnabled("http://site.com", false);
 do_check_eq(expectedNotification, null);
 LoginTest.checkStorageData(storage, ["http://site.com"], []);
@@ -163,7 +133,6 @@ testnum++;
 testdesc = "setLoginSavingEnabled / false (again)";
 
 expectedNotification = "hostSavingDisabled";
-expectedData = "http://site.com";
 storage.setLoginSavingEnabled("http://site.com", false);
 do_check_eq(expectedNotification, null);
 LoginTest.checkStorageData(storage, ["http://site.com"], []);
@@ -173,7 +142,6 @@ testnum++;
 testdesc = "setLoginSavingEnabled / true";
 
 expectedNotification = "hostSavingEnabled";
-expectedData = "http://site.com";
 storage.setLoginSavingEnabled("http://site.com", true);
 do_check_eq(expectedNotification, null);
 LoginTest.checkStorageData(storage, [], []);
@@ -183,7 +151,6 @@ testnum++;
 testdesc = "setLoginSavingEnabled / true (again)";
 
 expectedNotification = "hostSavingEnabled";
-expectedData = "http://site.com";
 storage.setLoginSavingEnabled("http://site.com", true);
 do_check_eq(expectedNotification, null);
 LoginTest.checkStorageData(storage, [], []);

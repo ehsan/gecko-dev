@@ -86,23 +86,13 @@ static nsresult AppendString(nsITransferable *aTransferable,
 static nsresult AppendDOMNode(nsITransferable *aTransferable,
                               nsIDOMNode *aDOMNode);
 
-// Helper used for HTMLCopy and GetTransferableForSelection since both routines
-// share common code.
-static nsresult
-SelectionCopyHelper(nsISelection *aSel, nsIDocument *aDoc,
-                    PRBool doPutOnClipboard, PRInt16 aClipboardID,
-                    nsITransferable ** aTransferable)
+nsresult nsCopySupport::HTMLCopy(nsISelection *aSel, nsIDocument *aDoc, PRInt16 aClipboardID)
 {
-  // Clear the output parameter for the transferable, if provided.
-  if (aTransferable) {
-    *aTransferable = nsnull;
-  }
-
   nsresult rv = NS_OK;
   
   PRBool bIsPlainTextContext = PR_FALSE;
 
-  rv = nsCopySupport::IsPlainTextContext(aSel, aDoc, &bIsPlainTextContext);
+  rv = IsPlainTextContext(aSel, aDoc, &bIsPlainTextContext);
   if (NS_FAILED(rv)) 
     return rv;
 
@@ -124,7 +114,6 @@ SelectionCopyHelper(nsISelection *aSel, nsIDocument *aDoc,
   rv = docEncoder->Init(domDoc, mimeType, flags);
   if (NS_FAILED(rv)) 
     return rv;
-
   rv = docEncoder->SetSelection(aSel);
   if (NS_FAILED(rv)) 
     return rv;
@@ -171,40 +160,42 @@ SelectionCopyHelper(nsISelection *aSel, nsIDocument *aDoc,
   }
   
   // Get the Clipboard
-  nsCOMPtr<nsIClipboard> clipboard;
-  if (doPutOnClipboard) {
-    clipboard = do_GetService(kCClipboardCID, &rv);
-    if (NS_FAILED(rv))
-      return rv;
-  }
+  nsCOMPtr<nsIClipboard> clipboard(do_GetService(kCClipboardCID, &rv));
+  if (NS_FAILED(rv)) 
+    return rv;
 
-  if ((doPutOnClipboard && clipboard) || aTransferable != nsnull) {
+  if ( clipboard ) 
+  {
     // Create a transferable for putting data on the Clipboard
     nsCOMPtr<nsITransferable> trans = do_CreateInstance(kCTransferableCID);
-    if (trans) {
-      if (bIsHTMLCopy) {
+    if ( trans ) 
+    {
+      if (bIsHTMLCopy)
+      {
         // set up the data converter
         trans->SetConverter(htmlConverter);
 
-        if (!buffer.IsEmpty()) {
+        if (!buffer.IsEmpty())
+        {
           // Add the html DataFlavor to the transferable
           rv = AppendString(trans, buffer, kHTMLMime);
           NS_ENSURE_SUCCESS(rv, rv);
         }
-
-        // Add the htmlcontext DataFlavor to the transferable
-        // Even if parents is empty string, this flavor should
-        // be attached to the transferable
-        rv = AppendString(trans, parents, kHTMLContext);
-        NS_ENSURE_SUCCESS(rv, rv);
-
-        if (!info.IsEmpty()) {
+        {
+          // Add the htmlcontext DataFlavor to the transferable
+          // Even if parents is empty string, this flavor should
+          // be attached to the transferable
+          rv = AppendString(trans, parents, kHTMLContext);
+          NS_ENSURE_SUCCESS(rv, rv);
+        }
+        if (!info.IsEmpty())
+        {
           // Add the htmlinfo DataFlavor to the transferable
           rv = AppendString(trans, info, kHTMLInfo);
           NS_ENSURE_SUCCESS(rv, rv);
         }
-
-        if (!plaintextBuffer.IsEmpty()) {
+        if (!plaintextBuffer.IsEmpty())
+        {
           // unicode text
           // Add the unicode DataFlavor to the transferable
           // If we didn't have this, then nsDataObj::GetData matches text/unicode against
@@ -232,43 +223,26 @@ SelectionCopyHelper(nsISelection *aSel, nsIDocument *aDoc,
             NS_ENSURE_SUCCESS(rv, rv);
           }
         }
-      } else {
-        if (!textBuffer.IsEmpty()) {
-          // Add the unicode DataFlavor to the transferable
+      }
+      else
+      {
+        if (!textBuffer.IsEmpty())
+        {
+         // Add the unicode DataFlavor to the transferable
           rv = AppendString(trans, textBuffer, kUnicodeMime);
           NS_ENSURE_SUCCESS(rv, rv);
         }
       }
 
-      if (doPutOnClipboard && clipboard) {
-        PRBool actuallyPutOnClipboard = PR_TRUE;
-        nsCopySupport::DoHooks(aDoc, trans, &actuallyPutOnClipboard);
+      PRBool doPutOnClipboard = PR_TRUE;
+      DoHooks(aDoc, trans, &doPutOnClipboard);
 
-        // put the transferable on the clipboard
-        if (actuallyPutOnClipboard)
-          clipboard->SetData(trans, nsnull, aClipboardID);
-      }
-
-      // Return the transferable to the caller if requested.
-      if (aTransferable != nsnull) {
-        trans.swap(*aTransferable);
-      }
+      // put the transferable on the clipboard
+      if (doPutOnClipboard)
+        clipboard->SetData(trans, nsnull, aClipboardID);
     }
   }
   return rv;
-}
-
-nsresult nsCopySupport::HTMLCopy(nsISelection *aSel, nsIDocument *aDoc, PRInt16 aClipboardID)
-{
-  return SelectionCopyHelper(aSel, aDoc, PR_TRUE, aClipboardID, nsnull);
-}
-
-nsresult
-nsCopySupport::GetTransferableForSelection(nsISelection * aSel,
-                                           nsIDocument * aDoc,
-                                           nsITransferable ** aTransferable)
-{
-  return SelectionCopyHelper(aSel, aDoc, PR_FALSE, 0, aTransferable);
 }
 
 nsresult nsCopySupport::DoHooks(nsIDocument *aDoc, nsITransferable *aTrans,

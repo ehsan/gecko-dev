@@ -47,6 +47,7 @@
 #include "nsIDOMMouseListener.h"
 
 class nsString;
+class nsISupportsArray;
 class nsITimer;
 class nsSliderFrame;
 
@@ -204,7 +205,6 @@ public:
 
 private:
 
-  PRBool GetScrollToClick();
   nsIBox* GetScrollbar();
 
   void PageUpDown(nscoord change);

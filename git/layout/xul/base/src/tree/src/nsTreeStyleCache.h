@@ -45,8 +45,6 @@
 #include "nsICSSPseudoComparator.h"
 #include "nsStyleContext.h"
 
-class nsISupportsArray;
-
 class nsDFAState : public nsHashKey
 {
 public:

@@ -1229,11 +1229,7 @@ void nsHTMLMediaElement::UpdateReadyStateForData(NextFrameStatus aNextFrame)
     return;
   }
 
-  nsMediaDecoder::Statistics stats = mDecoder->GetStatistics();
-
-  if (aNextFrame != NEXT_FRAME_AVAILABLE &&
-      !mDecoder->IsEnded() &&
-      stats.mDownloadPosition < stats.mTotalBytes) {
+  if (aNextFrame != NEXT_FRAME_AVAILABLE && !mDecoder->IsEnded()) {
     ChangeReadyState(nsIDOMHTMLMediaElement::HAVE_CURRENT_DATA);
     if (!mWaitingFired && aNextFrame == NEXT_FRAME_UNAVAILABLE_BUFFERING) {
       DispatchAsyncSimpleEvent(NS_LITERAL_STRING("waiting"));
@@ -1243,6 +1239,7 @@ void nsHTMLMediaElement::UpdateReadyStateForData(NextFrameStatus aNextFrame)
   }
 
   // Now see if we should set HAVE_ENOUGH_DATA
+  nsMediaDecoder::Statistics stats = mDecoder->GetStatistics();
   if (stats.mTotalBytes < 0 || stats.mTotalBytes == stats.mDownloadPosition) {
     // If it's something we don't know the size of, then we can't
     // make an estimate, so let's just go straight to HAVE_ENOUGH_DATA,

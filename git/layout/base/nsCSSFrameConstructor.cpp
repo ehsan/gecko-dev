@@ -47,6 +47,7 @@
 #include "nsCRT.h"
 #include "nsIAtom.h"
 #include "nsIURL.h"
+#include "nsISupportsArray.h"
 #include "nsHashtable.h"
 #include "nsIHTMLDocument.h"
 #include "nsIStyleRule.h"
@@ -89,6 +90,7 @@
 #include "nsCSSPseudoElements.h"
 #include "nsIDeviceContext.h"
 #include "nsTextFragment.h"
+#include "nsISupportsArray.h"
 #include "nsIAnonymousContentCreator.h"
 #include "nsFrameManager.h"
 #include "nsLegendFrame.h"
@@ -4560,30 +4562,26 @@ nsCSSFrameConstructor::FindDisplayData(const nsStyleDisplay* aDisplay,
     { NS_STYLE_DISPLAY_TABLE_CAPTION,
       FCDATA_DECL(FCDATA_IS_TABLE_PART | FCDATA_SKIP_FRAMEMAP |
                   FCDATA_ALLOW_BLOCK_STYLES | FCDATA_DISALLOW_OUT_OF_FLOW |
-                  FCDATA_SKIP_ABSPOS_PUSH |
                   FCDATA_DESIRED_PARENT_TYPE_TO_BITS(eTypeTable),
                   NS_NewTableCaptionFrame) },
     { NS_STYLE_DISPLAY_TABLE_ROW_GROUP,
       FCDATA_DECL(FCDATA_IS_TABLE_PART | FCDATA_SKIP_FRAMEMAP |
                   FCDATA_DISALLOW_OUT_OF_FLOW | FCDATA_MAY_NEED_SCROLLFRAME |
-                  FCDATA_SKIP_ABSPOS_PUSH |
                   FCDATA_DESIRED_PARENT_TYPE_TO_BITS(eTypeTable),
                   NS_NewTableRowGroupFrame) },
     { NS_STYLE_DISPLAY_TABLE_HEADER_GROUP,
       FCDATA_DECL(FCDATA_IS_TABLE_PART | FCDATA_SKIP_FRAMEMAP |
                   FCDATA_DISALLOW_OUT_OF_FLOW | FCDATA_MAY_NEED_SCROLLFRAME |
-                  FCDATA_SKIP_ABSPOS_PUSH |
                   FCDATA_DESIRED_PARENT_TYPE_TO_BITS(eTypeTable),
                   NS_NewTableRowGroupFrame) },
     { NS_STYLE_DISPLAY_TABLE_FOOTER_GROUP,
       FCDATA_DECL(FCDATA_IS_TABLE_PART | FCDATA_SKIP_FRAMEMAP |
                   FCDATA_DISALLOW_OUT_OF_FLOW | FCDATA_MAY_NEED_SCROLLFRAME |
-                  FCDATA_SKIP_ABSPOS_PUSH |
                   FCDATA_DESIRED_PARENT_TYPE_TO_BITS(eTypeTable),
                   NS_NewTableRowGroupFrame) },
     { NS_STYLE_DISPLAY_TABLE_COLUMN_GROUP,
       FCDATA_DECL(FCDATA_IS_TABLE_PART | FCDATA_SKIP_FRAMEMAP |
-                  FCDATA_DISALLOW_OUT_OF_FLOW | FCDATA_SKIP_ABSPOS_PUSH |
+                  FCDATA_DISALLOW_OUT_OF_FLOW |
                   FCDATA_DESIRED_PARENT_TYPE_TO_BITS(eTypeTable),
                   NS_NewTableColGroupFrame) },
     { NS_STYLE_DISPLAY_TABLE_COLUMN,
@@ -5556,7 +5554,7 @@ nsCSSFrameConstructor::ReconstructDocElementHierarchyInternal()
           // RemoveMappingsForFrameSubtree() which would otherwise lead to a
           // crash since we cleared the placeholder map above (bug 398982).
           PRBool wasDestroyingFrameTree = mIsDestroyingFrameTree;
-          WillDestroyFrameTree();
+          WillDestroyFrameTree(PR_FALSE);
 
           rv = state.mFrameManager->RemoveFrame(docElementFrame->GetParent(),
                     GetChildListNameFor(docElementFrame), docElementFrame);
@@ -6102,16 +6100,10 @@ nsCSSFrameConstructor::ContentAppended(nsIContent*     aContainer,
       // ContentInserted will ignore the passed-in index.
       PRUint32 containerCount = aContainer->GetChildCount();
       for (PRUint32 i = aNewIndexInContainer; i < containerCount; i++) {
-        nsIContent* content = aContainer->GetChildAt(i);
-        if (mPresShell->GetPrimaryFrameFor(content)) {
-          // Already have a frame for this content; a previous ContentInserted
-          // in this loop must have reconstructed its insertion parent.  Skip
-          // it.
-          continue;
-        }
         LAYOUT_PHASE_TEMP_EXIT();
         // Call ContentInserted with this index.
-        ContentInserted(aContainer, content, i, mTempFrameTreeState);
+        ContentInserted(aContainer, aContainer->GetChildAt(i), i,
+                        mTempFrameTreeState);
         LAYOUT_PHASE_TEMP_REENTER();
       }
 
@@ -6209,13 +6201,10 @@ nsCSSFrameConstructor::ContentAppended(nsIContent*     aContainer,
   // a special inline frame.
   // If we're appending before :after content, then we're not really
   // appending, so let WipeContainingBlock know that.
-  LAYOUT_PHASE_TEMP_EXIT();
   if (WipeContainingBlock(state, containingBlock, parentFrame, items,
                           !parentAfterFrame, nsnull)) {
-    LAYOUT_PHASE_TEMP_REENTER();
     return NS_OK;
   }
-  LAYOUT_PHASE_TEMP_REENTER();
 
   nsFrameItems frameItems;
   ConstructFramesFromItemList(state, items, parentFrame, frameItems);
@@ -6625,13 +6614,10 @@ nsCSSFrameConstructor::ContentInserted(nsIContent*            aContainer,
   // a special inline frame.
   // If we're appending before :after content, then we're not really
   // appending, so let WipeContainingBlock know that.
-  LAYOUT_PHASE_TEMP_EXIT();
   if (WipeContainingBlock(state, containingBlock, parentFrame, items,
-                          isAppend && !appendAfterFrame, prevSibling)) {
-    LAYOUT_PHASE_TEMP_REENTER();
+                          isAppend && !appendAfterFrame, prevSibling))
     return NS_OK;
-  }
-  LAYOUT_PHASE_TEMP_REENTER();
+
 
   // if the container is a table and a caption will be appended, it needs to be
   // put in the outer table frame's additional child list.
@@ -7877,7 +7863,7 @@ NS_IMETHODIMP nsFocusUnsuppressEvent::Run()
 }
 
 void
-nsCSSFrameConstructor::WillDestroyFrameTree()
+nsCSSFrameConstructor::WillDestroyFrameTree(PRBool aDestroyingPresShell)
 {
 #if defined(DEBUG_dbaron_off)
   mCounterManager.Dump();
@@ -7892,7 +7878,7 @@ nsCSSFrameConstructor::WillDestroyFrameTree()
   // Cancel all pending re-resolves
   mRestyleEvent.Revoke();
 
-  if (mFocusSuppressCount && mPresShell->IsDestroying()) {
+  if (mFocusSuppressCount && aDestroyingPresShell) {
     nsRefPtr<nsFocusUnsuppressEvent> ev =
       new nsFocusUnsuppressEvent(mFocusSuppressCount);
     if (NS_SUCCEEDED(NS_DispatchToCurrentThread(ev))) {
@@ -9014,7 +9000,6 @@ nsCSSFrameConstructor::sPseudoParentData[eParentTypeCount] = {
   { // Row group
     FCDATA_DECL(FCDATA_IS_TABLE_PART | FCDATA_SKIP_FRAMEMAP |
                 FCDATA_DISALLOW_OUT_OF_FLOW | FCDATA_USE_CHILD_ITEMS |
-                FCDATA_SKIP_ABSPOS_PUSH |
                 FCDATA_DESIRED_PARENT_TYPE_TO_BITS(eTypeTable),
                 NS_NewTableRowGroupFrame),
     &nsCSSAnonBoxes::tableRowGroup
@@ -9022,7 +9007,6 @@ nsCSSFrameConstructor::sPseudoParentData[eParentTypeCount] = {
   { // Column group
     FCDATA_DECL(FCDATA_IS_TABLE_PART | FCDATA_SKIP_FRAMEMAP |
                 FCDATA_DISALLOW_OUT_OF_FLOW | FCDATA_USE_CHILD_ITEMS |
-                FCDATA_SKIP_ABSPOS_PUSH |
                 FCDATA_DESIRED_PARENT_TYPE_TO_BITS(eTypeTable),
                 NS_NewTableColGroupFrame),
     &nsCSSAnonBoxes::tableColGroup
@@ -11418,7 +11402,8 @@ nsCSSFrameConstructor::PostRestyleEvent(nsIContent* aContent,
                                         nsReStyleHint aRestyleHint,
                                         nsChangeHint aMinChangeHint)
 {
-  if (NS_UNLIKELY(mPresShell->IsDestroying())) {
+  if (NS_UNLIKELY(mIsDestroyingFrameTree)) {
+    NS_NOTREACHED("PostRestyleEvent after the shell is destroyed (bug 279505)");
     return;
   }
 
