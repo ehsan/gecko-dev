@@ -78,7 +78,6 @@
 #include "nsIEventStateManager.h"
 #include "nsIBoxLayout.h"
 #include "nsIPopupBoxObject.h"
-#include "nsPIWindowRoot.h"
 #include "nsIReflowCallback.h"
 #include "nsBindingManager.h"
 #include "nsIDocShellTreeOwner.h"
@@ -357,7 +356,7 @@ nsMenuPopupFrame::GetShadowStyle()
   return NS_STYLE_WINDOW_SHADOW_DEFAULT;
 }
 
-// this class is used for dispatching popupshown events asynchronously.
+// this class is used for dispatching popupshowing events asynchronously.
 class nsXULPopupShownEvent : public nsRunnable
 {
 public:
@@ -513,8 +512,6 @@ void
 nsMenuPopupFrame::InitPositionFromAnchorAlign(const nsAString& aAnchor,
                                               const nsAString& aAlign)
 {
-  mTriggerContent = nsnull;
-
   if (aAnchor.EqualsLiteral("topleft"))
     mPopupAnchor = POPUPALIGNMENT_TOPLEFT;
   else if (aAnchor.EqualsLiteral("topright"))
@@ -540,7 +537,6 @@ nsMenuPopupFrame::InitPositionFromAnchorAlign(const nsAString& aAnchor,
 
 void
 nsMenuPopupFrame::InitializePopup(nsIContent* aAnchorContent,
-                                  nsIContent* aTriggerContent,
                                   const nsAString& aPosition,
                                   PRInt32 aXPos, PRInt32 aYPos,
                                   PRBool aAttributesOverride)
@@ -549,7 +545,6 @@ nsMenuPopupFrame::InitializePopup(nsIContent* aAnchorContent,
 
   mPopupState = ePopupShowing;
   mAnchorContent = aAnchorContent;
-  mTriggerContent = aTriggerContent;
   mXPos = aXPos;
   mYPos = aYPos;
   mAdjustOffsetForContextMenu = PR_FALSE;
@@ -648,15 +643,13 @@ nsMenuPopupFrame::InitializePopup(nsIContent* aAnchorContent,
 }
 
 void
-nsMenuPopupFrame::InitializePopupAtScreen(nsIContent* aTriggerContent,
-                                          PRInt32 aXPos, PRInt32 aYPos,
+nsMenuPopupFrame::InitializePopupAtScreen(PRInt32 aXPos, PRInt32 aYPos,
                                           PRBool aIsContextMenu)
 {
   EnsureWidget();
 
   mPopupState = ePopupShowing;
   mAnchorContent = nsnull;
-  mTriggerContent = aTriggerContent;
   mScreenXPos = aXPos;
   mScreenYPos = aYPos;
   mPopupAnchor = POPUPALIGNMENT_NONE;
@@ -741,10 +734,10 @@ nsMenuPopupFrame::ShowPopup(PRBool aIsContextMenu, PRBool aSelectFirstItem)
     mPopupState = ePopupOpen;
     mIsOpenChanged = PR_TRUE;
 
-    nsMenuFrame* menuFrame = GetParentMenu();
-    if (menuFrame) {
+    nsIFrame* parent = GetParent();
+    if (parent && parent->GetType() == nsGkAtoms::menuFrame) {
       nsWeakFrame weakFrame(this);
-      menuFrame->PopupOpened();
+      (static_cast<nsMenuFrame*>(parent))->PopupOpened();
       if (!weakFrame.IsAlive())
         return PR_FALSE;
     }
@@ -781,27 +774,6 @@ nsMenuPopupFrame::HidePopup(PRBool aDeselectMenu, nsPopupState aNewState)
   // don't hide the popup when it isn't open
   if (mPopupState == ePopupClosed || mPopupState == ePopupShowing)
     return;
-
-  // clear the trigger content if the popup is being closed. But don't clear
-  // it if the popup is just being made invisible as a popuphiding or command
-  // event may want to retrieve it.
-  if (aNewState == ePopupClosed) {
-    // if the popup had a trigger node set, clear the global window popup node
-    // as well
-    if (mTriggerContent) {
-      nsIDocument* doc = mContent->GetCurrentDoc();
-      if (doc) {
-        nsPIDOMWindow* win = doc->GetWindow();
-        if (win) {
-          nsCOMPtr<nsPIWindowRoot> root = win->GetTopWindowRoot();
-          if (root) {
-            root->SetPopupNode(nsnull);
-          }
-        }
-      }
-    }
-    mTriggerContent = nsnull;
-  }
 
   // when invisible and about to be closed, HidePopup has already been called,
   // so just set the new state to closed and return
@@ -841,9 +813,9 @@ nsMenuPopupFrame::HidePopup(PRBool aDeselectMenu, nsPopupState aNewState)
   if (state & NS_EVENT_STATE_HOVER)
     esm->SetContentState(nsnull, NS_EVENT_STATE_HOVER);
 
-  nsMenuFrame* menuFrame = GetParentMenu();
-  if (menuFrame) {
-    menuFrame->PopupClosed(aDeselectMenu);
+  nsIFrame* parent = GetParent();
+  if (parent && parent->GetType() == nsGkAtoms::menuFrame) {
+    (static_cast<nsMenuFrame*>(parent))->PopupClosed(aDeselectMenu);
   }
 }
 

@@ -296,7 +296,7 @@ var tests = [
       this.firstNotification = showNotification(this.notifyObj);
       this.notifyObj2 = new basicNotification();
       this.notifyObj2.id += "-2";
-      this.notifyObj2.anchorID = "addons-notification-icon";
+      this.notifyObj2.anchorID = "urlbar";
       // Second showNotification() overrides the first
       this.secondNotification = showNotification(this.notifyObj2);
     },
@@ -485,17 +485,15 @@ function triggerSecondaryCommand(popup, index) {
 }
 
 function loadURI(uri, callback) {
-  if (callback) {
-    gBrowser.addEventListener("load", function() {
-      // Ignore the about:blank load
-      if (gBrowser.currentURI.spec != uri)
-        return;
+  gBrowser.addEventListener("load", function() {
+    // Ignore the about:blank load
+    if (gBrowser.currentURI.spec != uri)
+      return;
 
-      gBrowser.removeEventListener("load", arguments.callee, true);
+    gBrowser.removeEventListener("load", arguments.callee, true);
 
-      callback();
-    }, true);
-  }
+    callback();
+  }, true);
   gBrowser.loadURI(uri);
 }
 

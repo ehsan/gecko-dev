@@ -5,11 +5,6 @@ function test() {
   gBrowser.removeTab(tab);
   is(tab.parentNode, null, "tab removed immediately");
 
-  tab = gBrowser.addTab("about:blank", { skipAnimation: true });
-  gBrowser.removeTab(tab, { animate: true });
-  gBrowser.removeTab(tab);
-  is(tab.parentNode, null, "tab removed immediately when calling removeTab again after the animation was kicked off");
-
   waitForExplicitFinish();
 
   Services.prefs.setBoolPref("browser.tabs.animate", true);
@@ -57,7 +52,7 @@ function nextAsyncText() {
     gotCloseEvent = true;
 
     const DEFAULT_ANIMATION_LENGTH = 250;
-    const MAX_WAIT_TIME = DEFAULT_ANIMATION_LENGTH * 7;
+    const MAX_WAIT_TIME = DEFAULT_ANIMATION_LENGTH * 5;
     var polls = Math.ceil(MAX_WAIT_TIME / DEFAULT_ANIMATION_LENGTH);
     var pollTabRemoved = setInterval(function () {
       --polls;

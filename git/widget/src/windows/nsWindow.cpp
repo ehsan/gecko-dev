@@ -157,7 +157,6 @@
 #include "nsHashKeys.h"
 #include "nsString.h"
 #include "mozilla/Services.h"
-#include "nsNativeThemeWin.h"
 
 #if defined(WINCE)
 #include "nsWindowCE.h"
@@ -378,6 +377,7 @@ nsWindow::nsWindow() : nsBaseWidget()
   mDisplayPanFeedback   = PR_FALSE;
   mTouchWindow          = PR_FALSE;
   mCustomNonClient      = PR_FALSE;
+  mCompositorFlag       = PR_FALSE;
   mHideChrome           = PR_FALSE;
   mWindowType           = eWindowType_child;
   mBorderStyle          = eBorderStyle_default;
@@ -414,32 +414,29 @@ nsWindow::nsWindow() : nsBaseWidget()
   // Global initialization
   if (!sInstanceCount) {
 #if !defined(WINCE)
-    gKbdLayout.LoadLayout(::GetKeyboardLayout(0));
+  gKbdLayout.LoadLayout(::GetKeyboardLayout(0));
 #endif
 
-    // Init IME handler
-    nsIMM32Handler::Initialize();
+  // Init IME handler
+  nsIMM32Handler::Initialize();
 
 #ifdef NS_ENABLE_TSF
-    nsTextStore::Initialize();
+  nsTextStore::Initialize();
 #endif
 
 #if !defined(WINCE)
-    if (SUCCEEDED(::OleInitialize(NULL)))
-      sIsOleInitialized = TRUE;
-    NS_ASSERTION(sIsOleInitialized, "***** OLE is not initialized!\n");
+  if (SUCCEEDED(::OleInitialize(NULL)))
+    sIsOleInitialized = TRUE;
+  NS_ASSERTION(sIsOleInitialized, "***** OLE is not initialized!\n");
 #endif
 
 #if defined(HEAP_DUMP_EVENT)
-    InitHeapDump();
+  InitHeapDump();
 #endif
 
 #if !defined(WINCE)
-    InitTrackPointHack();
+  InitTrackPointHack();
 #endif
-
-    // Init titlebar button info for custom frames.
-    nsUXThemeData::InitTitlebarInfo();
   } // !sInstanceCount
 
   mIdleService = nsnull;
@@ -1988,6 +1985,13 @@ nsWindow::UpdateNonClientMargins(PRInt32 aSizeMode, PRBool aReflowWindow)
   if (!mCustomNonClient)
     return PR_FALSE;
 
+  // XXX Temp disable margins until frame rendering is supported
+  mCompositorFlag = PR_TRUE;
+  if(!nsUXThemeData::CheckForCompositor()) {
+    mCompositorFlag = PR_FALSE;
+    return PR_FALSE;
+  }
+
   mNonClientOffset.top = mNonClientOffset.bottom =
     mNonClientOffset.left = mNonClientOffset.right = 0;
 
@@ -2098,63 +2102,6 @@ nsWindow::SetNonClientMargins(nsIntMargin &margins)
   }
 
   return NS_OK;
-}
-
-void
-nsWindow::InvalidateNonClientRegion()
-{
-  // +-+-----------------------+-+
-  // | | app non-client chrome | |
-  // | +-----------------------+ |
-  // | |   app client chrome   | | }
-  // | +-----------------------+ | }
-  // | |      app content      | | } area we don't want to invalidate
-  // | +-----------------------+ | }
-  // | |   app client chrome   | | }
-  // | +-----------------------+ | 
-  // +---------------------------+ <
-  //  ^                         ^    windows non-client chrome
-  // client area = app *
-  RECT rect;
-  GetWindowRect(mWnd, &rect);
-  MapWindowPoints(NULL, mWnd, (LPPOINT)&rect, 2);
-  HRGN winRgn = CreateRectRgnIndirect(&rect);
-
-  // Subtract app client chrome and app content leaving
-  // windows non-client chrome and app non-client chrome
-  // in winRgn.
-  GetWindowRect(mWnd, &rect);
-  rect.top += mCaptionHeight;
-  rect.right -= mHorResizeMargin;
-  rect.bottom -= mHorResizeMargin;
-  rect.left += mVertResizeMargin;
-  MapWindowPoints(NULL, mWnd, (LPPOINT)&rect, 2);
-  HRGN clientRgn = CreateRectRgnIndirect(&rect);
-  CombineRgn(winRgn, winRgn, clientRgn, RGN_DIFF);
-  DeleteObject(clientRgn);
-
-  // triggers ncpaint and paint events for the two areas
-  RedrawWindow(mWnd, NULL, winRgn, RDW_FRAME|RDW_INVALIDATE);
-  DeleteObject(winRgn);
-}
-
-HRGN
-nsWindow::ExcludeNonClientFromPaintRegion(HRGN aRegion)
-{
-  RECT rect;
-  HRGN rgn = NULL;
-  if (aRegion == (HRGN)1) { // undocumented value indicating a full refresh
-    GetWindowRect(mWnd, &rect);
-    rgn = CreateRectRgnIndirect(&rect);
-  } else {
-    rgn = aRegion;
-  }
-  GetClientRect(mWnd, &rect);
-  MapWindowPoints(mWnd, NULL, (LPPOINT)&rect, 2);
-  HRGN nonClientRgn = CreateRectRgnIndirect(&rect);
-  CombineRgn(rgn, rgn, nonClientRgn, RGN_DIFF);
-  DeleteObject(nonClientRgn);
-  return rgn;
 }
 
 /**************************************************************
@@ -2698,6 +2645,265 @@ NS_IMETHODIMP nsWindow::Update()
     VERIFY(::UpdateWindow(mWnd));
 
   return rv;
+}
+
+/**************************************************************
+ *
+ * SECTION: nsIWidget::Scroll
+ *
+ * Scroll this widget.
+ *
+ **************************************************************/
+
+static PRBool
+ClipRegionContainedInRect(const nsTArray<nsIntRect>& aClipRects,
+                          const nsIntRect& aRect)
+{
+  for (PRUint32 i = 0; i < aClipRects.Length(); ++i) {
+    if (!aRect.Contains(aClipRects[i]))
+      return PR_FALSE;
+  }
+  return PR_TRUE;
+}
+
+// This function determines whether the given window has a descendant that
+// does not intersect the given aScreenRect. If we encounter a window owned
+// by another thread (which includes another process, since thread IDs
+// are unique system-wide), then we give up and conservatively return true.
+static PRBool
+HasDescendantWindowOutsideRect(DWORD aThisThreadID, HWND aWnd,
+                               const RECT& aScreenRect)
+{
+  // If the window is owned by another thread, give up now, don't try to
+  // look at its children since they could change asynchronously.
+  // XXX should we try harder here for out-of-process plugins?
+  if (GetWindowThreadProcessId(aWnd, NULL) != aThisThreadID) {
+    return PR_TRUE;
+  }
+  for (HWND child = ::GetWindow(aWnd, GW_CHILD); child;
+       child = ::GetWindow(child, GW_HWNDNEXT)) {
+    RECT childScreenRect;
+    ::GetWindowRect(child, &childScreenRect);
+    RECT result;
+    if (!::IntersectRect(&result, &childScreenRect, &aScreenRect)) {
+      return PR_TRUE;
+    }
+
+    if (HasDescendantWindowOutsideRect(aThisThreadID, child, aScreenRect)) {
+      return PR_TRUE;
+    }
+  }
+
+  return PR_FALSE;
+}
+
+static void
+InvalidateRgnInWindowSubtree(HWND aWnd, HRGN aRgn, HRGN aTmpRgn)
+{
+  RECT clientRect;
+  ::GetClientRect(aWnd, &clientRect);
+  ::SetRectRgn(aTmpRgn, clientRect.left, clientRect.top,
+               clientRect.right, clientRect.bottom);
+  if (::CombineRgn(aTmpRgn, aTmpRgn, aRgn, RGN_AND) == NULLREGION) {
+    return;
+  }
+
+  ::InvalidateRgn(aWnd, aTmpRgn, FALSE);
+
+  for (HWND child = ::GetWindow(aWnd, GW_CHILD); child;
+       child = ::GetWindow(child, GW_HWNDNEXT)) {
+    POINT pt = { 0, 0 };
+    ::MapWindowPoints(child, aWnd, &pt, 1);
+    ::OffsetRgn(aRgn, -pt.x, -pt.y);
+    InvalidateRgnInWindowSubtree(child, aRgn, aTmpRgn);
+    ::OffsetRgn(aRgn, pt.x, pt.y);
+  }
+}
+
+void
+nsWindow::Scroll(const nsIntPoint& aDelta,
+                 const nsTArray<nsIntRect>& aDestRects,
+                 const nsTArray<Configuration>& aConfigurations)
+{
+  // We use SW_SCROLLCHILDREN if all the windows that intersect the
+  // affected area are moving by the scroll amount.
+  // First, build the set of widgets that are to be moved by the scroll
+  // amount.
+  // At the same time, set the clip region of all changed windows to the
+  // intersection of the current and new regions.
+  nsTHashtable<nsPtrHashKey<nsWindow> > scrolledWidgets;
+  scrolledWidgets.Init();
+  for (PRUint32 i = 0; i < aConfigurations.Length(); ++i) {
+    const Configuration& configuration = aConfigurations[i];
+    nsWindow* w = static_cast<nsWindow*>(configuration.mChild);
+    NS_ASSERTION(w->GetParent() == this,
+                 "Configured widget is not a child");
+    if (configuration.mBounds == w->mBounds + aDelta) {
+      scrolledWidgets.PutEntry(w);
+    }
+    w->SetWindowClipRegion(configuration.mClipRegion, PR_TRUE);
+  }
+
+  // Create temporary regions
+  HRGN updateRgn = ::CreateRectRgn(0, 0, 0, 0);
+  if (!updateRgn) {
+    // OOM?
+    return;
+  }
+  HRGN destRgn = ::CreateRectRgn(0, 0, 0, 0);
+  if (!destRgn) {
+    // OOM?
+    ::DeleteObject((HGDIOBJ)updateRgn);
+    return;
+  }
+
+  DWORD ourThreadID = GetWindowThreadProcessId(mWnd, NULL);
+
+  for (BlitRectIter iter(aDelta, aDestRects); !iter.IsDone(); ++iter) {
+    const nsIntRect& destRect = iter.Rect();
+    nsIntRect affectedRect;
+    affectedRect.UnionRect(destRect, destRect - aDelta);
+    UINT flags = SW_SCROLLCHILDREN;
+    // Now check if any of our children would be affected by
+    // SW_SCROLLCHILDREN but not supposed to scroll.
+    for (nsWindow* w = static_cast<nsWindow*>(GetFirstChild()); w;
+         w = static_cast<nsWindow*>(w->GetNextSibling())) {
+      if (w->mBounds.Intersects(affectedRect)) {
+        // This child will be affected
+        nsPtrHashKey<nsWindow>* entry = scrolledWidgets.GetEntry(w);
+        if (entry) {
+          // It's supposed to be scrolled, so we can still use
+          // SW_SCROLLCHILDREN. But don't allow SW_SCROLLCHILDREN to be
+          // used on it again by a later rectangle; we don't want it to
+          // move twice!
+          scrolledWidgets.RawRemoveEntry(entry);
+
+          nsIntPoint screenOffset = WidgetToScreenOffset();
+          RECT screenAffectedRect = {
+            screenOffset.x + affectedRect.x,
+            screenOffset.y + affectedRect.y,
+            screenOffset.x + affectedRect.XMost(),
+            screenOffset.y + affectedRect.YMost()
+          };
+          if (HasDescendantWindowOutsideRect(ourThreadID, w->mWnd,
+                                             screenAffectedRect)) {
+            // SW_SCROLLCHILDREN seems to not move descendant windows
+            // that don't intersect the scrolled rectangle, *even if* the
+            // immediate child window of the scrolled window *does* intersect
+            // the scrolled window. So if w has a descendant window
+            // that would not be moved, SW_SCROLLCHILDREN will hopelessly mess
+            // things up and we must not use it.
+            flags &= ~SW_SCROLLCHILDREN;
+          }
+        } else {
+          flags &= ~SW_SCROLLCHILDREN;
+          // We may have removed some children from scrolledWidgets even
+          // though we decide here to not use SW_SCROLLCHILDREN. That's OK,
+          // it just means that we might not use SW_SCROLLCHILDREN
+          // for a later rectangle when we could have.
+          break;
+        }
+      }
+    }
+
+    if (flags & SW_SCROLLCHILDREN 
+#ifdef CAIRO_HAS_D2D_SURFACE
+        && !mD2DWindowSurface
+#endif
+        ) {
+      // ScrollWindowEx will send WM_MOVE to each moved window to tell it
+      // its new position. Unfortunately those messages don't reach our
+      // WM_MOVE handler for some plugins, so we have to update their
+      // mBounds here. For windows that do receive WM_MOVE, this is OK,
+      // they'll just overwrite mBounds again with the correct value.
+      for (nsWindow* w = static_cast<nsWindow*>(GetFirstChild()); w;
+           w = static_cast<nsWindow*>(w->GetNextSibling())) {
+        if (w->mBounds.Intersects(affectedRect)) {
+          w->mBounds += aDelta;
+        }
+      }
+    }
+
+    RECT clip = { affectedRect.x, affectedRect.y, affectedRect.XMost(), affectedRect.YMost() };
+#ifdef CAIRO_HAS_D2D_SURFACE
+    if (mD2DWindowSurface) {
+      mD2DWindowSurface->Scroll(aDelta, affectedRect);
+
+      for (PRUint32 i = 0; i < aConfigurations.Length(); ++i) {
+        const Configuration& configuration = aConfigurations[i];
+        nsWindow* w = static_cast<nsWindow*>(configuration.mChild);
+        w->Invalidate(PR_FALSE);
+      }
+
+      // Get the system clip twice, offset one by the delta. This will make
+      // systemClip contain the area of the systemClip, and movedSystemClip
+      // contain the area after scrolling that was covered by the systemClip.
+      HRGN systemClip = ::CreateRectRgn(0, 0, 0, 0);
+      HRGN movedSystemClip = ::CreateRectRgn(0, 0, 0, 0);
+      HDC dc = ::GetDC(mWnd);
+      ::GetRandomRgn(dc, systemClip, SYSRGN);
+      ::GetRandomRgn(dc, movedSystemClip, SYSRGN);
+      ::OffsetRgn(movedSystemClip, aDelta.x, aDelta.y);
+
+      // RGN_DIFF will return the parts inside 'systemClip' but -not- inside
+      // movedSystemClip. This is the area that was clipped (and possibly not
+      // properly updated) before.
+      ::CombineRgn(systemClip, systemClip, movedSystemClip, RGN_DIFF);
+
+      // The systemClip is in screen coordinates, we need client coordinates.
+      POINT p = { 0, 0 };
+      ::ClientToScreen(mWnd, &p);
+      ::OffsetRgn(systemClip, -p.x, -p.y);
+
+      ::GetUpdateRgn(mWnd, updateRgn, FALSE);
+      ::OffsetRgn(updateRgn, aDelta.x, aDelta.y);
+      ::CombineRgn(updateRgn, updateRgn, systemClip, RGN_OR);
+
+      ::DeleteObject((HGDIOBJ)systemClip);
+      ::DeleteObject((HGDIOBJ)movedSystemClip);
+      ::ReleaseDC(mWnd, dc);
+    } else {
+#endif
+      ::ScrollWindowEx(mWnd, aDelta.x, aDelta.y, &clip, &clip, updateRgn, NULL, flags);
+#ifdef CAIRO_HAS_D2D_SURFACE
+    }
+#endif
+    ::SetRectRgn(destRgn, destRect.x, destRect.y, destRect.XMost(), destRect.YMost());
+    ::CombineRgn(updateRgn, updateRgn, destRgn, RGN_AND);
+    if (flags & SW_SCROLLCHILDREN) {
+      for (nsWindow* w = static_cast<nsWindow*>(GetFirstChild()); w;
+           w = static_cast<nsWindow*>(w->GetNextSibling())) {
+        if ((w->mBounds - aDelta).Intersects(affectedRect)) {
+          // Widgets that have been scrolled by SW_SCROLLCHILDREN but which
+          // were, or are, partly outside the scroll area must be invalidated
+          // because SW_SCROLLCHILDREN doesn't update parts of widgets outside
+          // the area it scrolled, even if it moved them.
+          nsAutoTArray<nsIntRect,1> clipRegion;
+          w->GetWindowClipRegion(&clipRegion);
+          if (!ClipRegionContainedInRect(clipRegion,
+                                         destRect - w->mBounds.TopLeft()) ||
+              !ClipRegionContainedInRect(clipRegion,
+                                         destRect - (w->mBounds.TopLeft() - aDelta))) {
+            ::SetRectRgn(destRgn, w->mBounds.x, w->mBounds.y, w->mBounds.XMost(), w->mBounds.YMost());
+            ::CombineRgn(updateRgn, updateRgn, destRgn, RGN_OR);
+          }
+        }
+      }
+
+      InvalidateRgnInWindowSubtree(mWnd, updateRgn, destRgn);
+    } else {
+      ::InvalidateRgn(mWnd, updateRgn, FALSE);
+    }
+  }
+
+  ::DeleteObject((HGDIOBJ)updateRgn);
+  ::DeleteObject((HGDIOBJ)destRgn);
+
+  // Now make sure all children actually get positioned, sized and clipped
+  // correctly. If SW_SCROLLCHILDREN already moved widgets to their correct
+  // locations, then the SetWindowPos calls this triggers will just be
+  // no-ops.
+  ConfigureChildren(aConfigurations);
 }
 
 /**************************************************************
@@ -4305,6 +4511,7 @@ PRBool nsWindow::ProcessMessage(UINT msg, WPARAM &wParam, LPARAM &lParam,
   // Glass hit testing w/custom transparent margins
   LRESULT dwmHitResult;
   if (mCustomNonClient &&
+      mCompositorFlag &&
       nsUXThemeData::CheckForCompositor() &&
       nsUXThemeData::dwmDwmDefWindowProcPtr(mWnd, msg, wParam, lParam, &dwmHitResult)) {
     *aRetValue = dwmHitResult;
@@ -4445,7 +4652,7 @@ PRBool nsWindow::ProcessMessage(UINT msg, WPARAM &wParam, LPARAM &lParam,
       // copies the valid information to the specified area within the new
       // client area. If the wParam parameter is FALSE, the application should
       // return zero.
-      if (mCustomNonClient) {
+      if (mCustomNonClient && mCompositorFlag) {
         if (!wParam) {
           result = PR_TRUE;
           *aRetValue = 0;
@@ -4485,7 +4692,7 @@ PRBool nsWindow::ProcessMessage(UINT msg, WPARAM &wParam, LPARAM &lParam,
        * composited desktop.
        */
 
-      if (!mCustomNonClient)
+      if (!mCustomNonClient || !mCompositorFlag)
         break;
 
       *aRetValue =
@@ -4493,87 +4700,6 @@ PRBool nsWindow::ProcessMessage(UINT msg, WPARAM &wParam, LPARAM &lParam,
       result = PR_TRUE;
       break;
     }
-
-    case WM_SETTEXT:
-      /*
-       * WM_SETTEXT paints the titlebar area. Avoid this if we have a
-       * custom titlebar we paint ourselves.
-       */
-
-      if (!mCustomNonClient || mNonClientMargins.top == -1)
-        break;
-
-      {
-        // From msdn, the way around this is to disable the visible state
-        // temporarily. We need the text to be set but we don't want the
-        // redraw to occur.
-        DWORD style = GetWindowLong(mWnd, GWL_STYLE);
-        SetWindowLong(mWnd, GWL_STYLE, style & ~WS_VISIBLE);
-        *aRetValue = CallWindowProcW(GetPrevWindowProc(), mWnd,
-                                     msg, wParam, lParam);
-        SetWindowLong(mWnd, GWL_STYLE, style);
-        return PR_TRUE;
-      }
-
-    case WM_NCACTIVATE:
-    {
-      /*
-       * WM_NCACTIVATE paints nc areas. Avoid this and re-route painting
-       * through WM_NCPAINT via InvalidateNonClientRegion.
-       */
-
-      if (!mCustomNonClient)
-        break;
-
-#if MOZ_WINSDK_TARGETVER >= MOZ_NTDDI_LONGHORN
-      // let the dwm handle nc painting on glass
-      if(nsUXThemeData::CheckForCompositor())
-        break;
-#endif
-
-      if (wParam == TRUE) {
-        // going active
-        *aRetValue = FALSE; // ignored
-        result = PR_TRUE;
-        // invalidate to trigger a paint
-        InvalidateNonClientRegion();
-        break;
-      } else {
-        // going inactive
-        *aRetValue = TRUE; // go ahead and deactive
-        result = PR_TRUE;
-        // invalidate to trigger a paint
-        InvalidateNonClientRegion();
-        break;
-      }
-    }
-
-    case WM_NCPAINT:
-    {
-      /*
-       * Reset the non-client paint region so that it excludes the
-       * non-client areas we paint manually. Then call defwndproc
-       * to do the actual painting.
-       */
-
-      if (!mCustomNonClient)
-        break;
-
-#if MOZ_WINSDK_TARGETVER >= MOZ_NTDDI_LONGHORN
-      // let the dwm handle nc painting on glass
-      if(nsUXThemeData::CheckForCompositor())
-        break;
-#endif
-
-      HRGN paintRgn = ExcludeNonClientFromPaintRegion((HRGN)wParam);
-      LRESULT res = CallWindowProcW(GetPrevWindowProc(), mWnd,
-                                    msg, (WPARAM)paintRgn, lParam);
-      if (paintRgn != (HRGN)wParam)
-        DeleteObject(paintRgn);
-      *aRetValue = res;
-      result = PR_TRUE;
-    }
-    break;
 
 #ifndef WINCE
     case WM_POWERBROADCAST:

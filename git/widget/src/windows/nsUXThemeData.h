@@ -48,8 +48,6 @@
 #include <dwmapi.h>
 #endif
 
-#include "nsWindowDefs.h"
-
 // These window messages are not defined in dwmapi.h
 #ifndef WM_DWMCOMPOSITIONCHANGED
 #define WM_DWMCOMPOSITIONCHANGED        0x031E
@@ -87,13 +85,9 @@ enum nsUXThemeClass {
   eUXHeader,
   eUXListview,
   eUXMenu,
-  eUXWindowFrame,
   eUXNumClasses
 };
 
-#define CMDBUTTONIDX_MINIMIZE 0
-#define CMDBUTTONIDX_RESTORE  1
-#define CMDBUTTONIDX_CLOSE    2
 
 class nsUXThemeData {
   static HMODULE sThemeDLL;
@@ -113,17 +107,10 @@ public:
   static PRPackedBool sIsXPOrLater;
   static PRPackedBool sIsVistaOrLater;
   static PRPackedBool sHaveCompositor;
-  static PRBool sTitlebarInfoPopulated;
-  static SIZE sCommandButtons[3];
-
   static void Initialize();
   static void Teardown();
   static void Invalidate();
   static HANDLE GetTheme(nsUXThemeClass cls);
-
-  // nsWindow calls this to update desktop settings info
-  static void InitTitlebarInfo();
-  static void UpdateTitlebarInfo(HWND aWnd);
 
   static inline BOOL IsAppThemed() {
     return isAppThemed && isAppThemed();

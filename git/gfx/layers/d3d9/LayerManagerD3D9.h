@@ -46,8 +46,6 @@
 #include "gfxContext.h"
 #include "nsIWidget.h"
 
-#include "DeviceManagerD3D9.h"
-
 namespace mozilla {
 namespace layers {
 
@@ -124,26 +122,48 @@ public:
    */
   void SetClippingEnabled(PRBool aEnabled);
 
-  void SetShaderMode(DeviceManagerD3D9::ShaderMode aMode)
-    { mDeviceManager->SetShaderMode(aMode); }
+  IDirect3DDevice9 *device() const { return mDevice; }
 
-  IDirect3DDevice9 *device() const { return mDeviceManager->device(); }
-  DeviceManagerD3D9 *deviceManager() const { return mDeviceManager; }
+  enum ShaderMode {
+    RGBLAYER,
+    YCBCRLAYER,
+    SOLIDCOLORLAYER
+  };
+
+  void SetShaderMode(ShaderMode aMode);
+
+  nsTArray<ThebesLayerD3D9*> mThebesLayers;
 
 private:
-  /* Device manager instance */
-  static DeviceManagerD3D9 *mDeviceManager;
-
-  /* Swap chain associated with this layer manager */
-  nsRefPtr<SwapChainD3D9> mSwapChain;
+  /* Direct3D9 instance */
+  static IDirect3D9 *mD3D9;
 
   /* Widget associated with this layer manager */
   nsIWidget *mWidget;
-
   /*
    * Context target, NULL when drawing directly to our swap chain.
    */
   nsRefPtr<gfxContext> mTarget;
+
+  nsRefPtr<IDirect3DDevice9> mDevice;
+
+  /* Vertex shader used for layer quads */
+  nsRefPtr<IDirect3DVertexShader9> mLayerVS;
+
+  /* Pixel shader used for RGB textures */
+  nsRefPtr<IDirect3DPixelShader9> mRGBPS;
+
+  /* Pixel shader used for RGB textures */
+  nsRefPtr<IDirect3DPixelShader9> mYCbCrPS;
+
+  /* Pixel shader used for solid colors */
+  nsRefPtr<IDirect3DPixelShader9> mSolidColorPS;
+
+  /* Vertex buffer containing our basic vertex structure */
+  nsRefPtr<IDirect3DVertexBuffer9> mVB;
+
+  /* Our vertex declaration */
+  nsRefPtr<IDirect3DVertexDeclaration9> mVD;
 
   /* Current root layer. */
   LayerD3D9 *mRootLayer;
@@ -155,21 +175,32 @@ private:
    * Region we're clipping our current drawing to.
    */
   nsIntRegion mClippingRegion;
-
   /*
    * Render the current layer tree to the active target.
    */
   void Render();
-
   /*
    * Setup the pipeline.
    */
   void SetupPipeline();
-
+  /*
+   * Setup the backbuffer.
+   *
+   * \return PR_TRUE if setup was succesful
+   */
+  PRBool SetupBackBuffer();
+  /*
+   * Setup the render state for the surface.
+   */
+  void SetupRenderState();
   /*
    * Copies the content of our backbuffer to the set transaction target.
    */
   void PaintToTarget();
+  /*
+   * Verifies all required device capabilities are present.
+   */
+  PRBool VerifyCaps();
 
 };
 

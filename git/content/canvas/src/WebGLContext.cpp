@@ -56,10 +56,6 @@
 
 #include "GLContextProvider.h"
 
-#ifdef MOZ_SVG
-#include "nsSVGEffects.h"
-#endif
-
 #include "prenv.h"
 
 using namespace mozilla;
@@ -213,10 +209,6 @@ WebGLContext::Invalidate()
     if (!mCanvasElement)
         return;
 
-#ifdef MOZ_SVG
-    nsSVGEffects::InvalidateDirectRenderingObservers(HTMLCanvasElement());
-#endif
-
     if (mInvalidated)
         return;
 
@@ -346,6 +338,17 @@ WebGLContext::SetDimensions(PRInt32 width, PRInt32 height)
     }
 
     printf_stderr ("--- WebGL context created: %p\n", gl.get());
+
+    if (gl->IsGLES2()) {
+        // On native GLES2, no need to validate, the compiler will do it
+        mShaderValidation = PR_FALSE;
+    } else {
+        // Otherwise, check the shader validator pref
+        nsCOMPtr<nsIPrefBranch> prefService = do_GetService(NS_PREFSERVICE_CONTRACTID);
+        NS_ENSURE_TRUE(prefService != nsnull, NS_ERROR_FAILURE);
+
+        prefService->GetBoolPref("webgl.shader_validator", &mShaderValidation);
+    }
 
     mWidth = width;
     mHeight = height;

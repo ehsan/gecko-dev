@@ -156,13 +156,14 @@ public:
    * @param aY [in] vertical coordinate for top of available space
    *           desired
    * @param aHeight [in] see above
-   * @param aContentArea [in] an nsRect representing the content area
+   * @param aContentAreaWidth [in] the width of the content area (whose left
+   *                          edge must be zero in the current translation)
    * @param aState [in] If null, use the current state, otherwise, do
    *                    computation based only on floats present in the given
    *                    saved state.
    * @return An nsFlowAreaRect whose:
-   *           mRect is the resulting rectangle for line boxes.  It will not
-   *             extend beyond aContentArea's horizontal bounds, but may be
+   *           mRect is the resulting rectangle for line boxes.  It will not go
+   *             left of 0, nor right of aContentAreaWidth, but will be
    *             narrower when floats are present.
    *          mBandHasFloats is whether there are floats at the sides of the
    *            return value including those that do not reduce the line box
@@ -172,7 +173,7 @@ public:
    */
   enum BandInfoType { BAND_FROM_POINT, WIDTH_WITHIN_HEIGHT };
   nsFlowAreaRect GetFlowArea(nscoord aY, BandInfoType aInfoType,
-                             nscoord aHeight, nsRect aContentArea,
+                             nscoord aHeight, nscoord aContentAreaWidth,
                              SavedState* aState) const;
 
   /**
