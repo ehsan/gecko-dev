@@ -197,14 +197,17 @@ private:
  * maintains high-level invariants and encapsulates the details of the surface
  * cache's implementation.
  */
-class SurfaceCacheImpl : public nsIMemoryReporter
+class SurfaceCacheImpl : public MemoryUniReporter
 {
 public:
   NS_DECL_ISUPPORTS
 
   SurfaceCacheImpl(uint32_t aSurfaceCacheExpirationTimeMS,
                    uint32_t aSurfaceCacheSize)
-    : mExpirationTracker(MOZ_THIS_IN_INITIALIZER_LIST(),
+    : MemoryUniReporter("imagelib-surface-cache",
+                        KIND_OTHER, UNITS_BYTES,
+                        "Memory used by the imagelib temporary surface cache.")
+    , mExpirationTracker(MOZ_THIS_IN_INITIALIZER_LIST(),
                          aSurfaceCacheExpirationTimeMS)
     , mMemoryPressureObserver(new MemoryPressureObserver)
     , mMaxCost(aSurfaceCacheSize)
@@ -359,13 +362,9 @@ public:
     return PL_DHASH_NEXT;
   }
 
-  NS_IMETHOD
-  CollectReports(nsIHandleReportCallback* aHandleReport, nsISupports* aData)
+  int64_t Amount() MOZ_OVERRIDE
   {
-    return MOZ_COLLECT_REPORT(
-      "imagelib-surface-cache", KIND_OTHER, UNITS_BYTES,
-      SizeOfSurfacesEstimate(),
-      "Memory used by the imagelib temporary surface cache.");
+    return SizeOfSurfacesEstimate();
   }
 
   // XXX(seth): This is currently only an estimate and, since we don't know
@@ -428,7 +427,7 @@ private:
   Cost                                                      mAvailableCost;
 };
 
-NS_IMPL_ISUPPORTS1(SurfaceCacheImpl, nsIMemoryReporter)
+NS_IMPL_ISUPPORTS_INHERITED0(SurfaceCacheImpl, MemoryUniReporter)
 NS_IMPL_ISUPPORTS1(SurfaceCacheImpl::MemoryPressureObserver, nsIObserver)
 
 ///////////////////////////////////////////////////////////////////////////////

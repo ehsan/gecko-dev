@@ -233,12 +233,11 @@ HangReports::GetDuration(unsigned aIndex) const {
 }
 
 class TelemetryImpl MOZ_FINAL
-  : public nsITelemetry
-  , public nsIMemoryReporter
+  : public MemoryUniReporter
+  , public nsITelemetry
 {
   NS_DECL_THREADSAFE_ISUPPORTS
   NS_DECL_NSITELEMETRY
-  NS_DECL_NSIMEMORYREPORTER
 
 public:
   ~TelemetryImpl();
@@ -256,6 +255,7 @@ public:
 #endif
   static void RecordThreadHangStats(Telemetry::ThreadHangStats& aStats);
   static nsresult GetHistogramEnumId(const char *name, Telemetry::ID *id);
+  int64_t Amount() MOZ_OVERRIDE;
   size_t SizeOfIncludingThis(mozilla::MallocSizeOf aMallocSizeOf);
   struct Stat {
     uint32_t hitCount;
@@ -341,16 +341,10 @@ private:
 
 TelemetryImpl*  TelemetryImpl::sTelemetry = nullptr;
 
-MOZ_DEFINE_MALLOC_SIZE_OF(TelemetryMallocSizeOf)
-
-NS_IMETHODIMP
-TelemetryImpl::CollectReports(nsIHandleReportCallback* aHandleReport,
-                              nsISupports* aData)
+int64_t
+TelemetryImpl::Amount()
 {
-  return MOZ_COLLECT_REPORT(
-    "explicit/telemetry", KIND_HEAP, UNITS_BYTES,
-    SizeOfIncludingThis(TelemetryMallocSizeOf),
-    "Memory used by the telemetry system.");
+  return SizeOfIncludingThis(MallocSizeOf);
 }
 
 size_t
@@ -929,6 +923,8 @@ TelemetryImpl::AsyncFetchTelemetryData(nsIFetchTelemetryDataCallback *aCallback)
 }
 
 TelemetryImpl::TelemetryImpl():
+MemoryUniReporter("explicit/telemetry", KIND_HEAP, UNITS_BYTES,
+                  "Memory used by the telemetry system."),
 mHistogramMap(Telemetry::HistogramCount),
 mCanRecord(XRE_GetProcessType() == GeckoProcessType_Default),
 mHashMutex("Telemetry::mHashMutex"),
@@ -2237,7 +2233,7 @@ TelemetryImpl::RecordThreadHangStats(Telemetry::ThreadHangStats& aStats)
   sTelemetry->mThreadHangStats.append(Move(aStats));
 }
 
-NS_IMPL_ISUPPORTS2(TelemetryImpl, nsITelemetry, nsIMemoryReporter)
+NS_IMPL_ISUPPORTS_INHERITED1(TelemetryImpl, MemoryUniReporter, nsITelemetry)
 NS_GENERIC_FACTORY_SINGLETON_CONSTRUCTOR(nsITelemetry, TelemetryImpl::CreateTelemetryInstance)
 
 #define NS_TELEMETRY_CID \

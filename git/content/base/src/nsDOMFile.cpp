@@ -688,7 +688,9 @@ public:
           nsPrintfCString(
             "explicit/dom/memory-file-data/large/file(length=%llu, sha1=%s)",
             owner->mLength, digestString.get()),
-          KIND_HEAP, UNITS_BYTES, size,
+          nsIMemoryReporter::KIND_HEAP,
+          nsIMemoryReporter::UNITS_BYTES,
+          size,
           nsPrintfCString(
             "Memory used to back a memory file of length %llu bytes.  The file "
             "has a sha1 of %s.\n\n"
@@ -705,7 +707,9 @@ public:
       nsresult rv = aCallback->Callback(
         /* process */ NS_LITERAL_CSTRING(""),
         NS_LITERAL_CSTRING("explicit/dom/memory-file-data/small"),
-        KIND_HEAP, UNITS_BYTES, smallObjectsTotal,
+        nsIMemoryReporter::KIND_HEAP,
+        nsIMemoryReporter::UNITS_BYTES,
+        smallObjectsTotal,
         nsPrintfCString(
           "Memory used to back small memory files (less than %d bytes each).\n\n"
           "Note that the allocator may round up a memory file's length -- "

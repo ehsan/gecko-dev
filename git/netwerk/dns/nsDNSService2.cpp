@@ -398,7 +398,10 @@ nsDNSSyncRequest::SizeOfIncludingThis(MallocSizeOf mallocSizeOf) const
 //-----------------------------------------------------------------------------
 
 nsDNSService::nsDNSService()
-    : mLock("nsDNSServer.mLock")
+    : MemoryUniReporter("explicit/network/dns-service",
+                        KIND_HEAP, UNITS_BYTES,
+                        "Memory used for the DNS service.")
+    , mLock("nsDNSServer.mLock")
     , mFirstTime(true)
     , mOffline(false)
 {
@@ -408,8 +411,8 @@ nsDNSService::~nsDNSService()
 {
 }
 
-NS_IMPL_ISUPPORTS4(nsDNSService, nsIDNSService, nsPIDNSService, nsIObserver,
-                   nsIMemoryReporter)
+NS_IMPL_ISUPPORTS_INHERITED3(nsDNSService, MemoryUniReporter, nsIDNSService,
+                             nsPIDNSService, nsIObserver)
 
 /******************************************************************************
  * nsDNSService impl:
@@ -910,16 +913,3 @@ nsDNSService::SizeOfIncludingThis(mozilla::MallocSizeOf mallocSizeOf) const
                                            mallocSizeOf);
     return n;
 }
-
-MOZ_DEFINE_MALLOC_SIZE_OF(DNSServiceMallocSizeOf)
-
-NS_IMETHODIMP
-nsDNSService::CollectReports(nsIHandleReportCallback* aHandleReport,
-                             nsISupports* aData)
-{
-    return MOZ_COLLECT_REPORT(
-        "explicit/network/dns-service", KIND_HEAP, UNITS_BYTES,
-        SizeOfIncludingThis(DNSServiceMallocSizeOf),
-        "Memory used for the DNS service.");
-}
-

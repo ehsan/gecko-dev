@@ -151,18 +151,11 @@ private:
    * nsGhostWindowReporter generates the "ghost-windows" report, which counts
    * the number of ghost windows present.
    */
-  class GhostWindowsReporter MOZ_FINAL : public nsIMemoryReporter
+  class GhostWindowsReporter MOZ_FINAL : public mozilla::MemoryUniReporter
   {
   public:
-    NS_DECL_ISUPPORTS
-
-    static int64_t DistinguishedAmount();
-
-    NS_IMETHOD
-    CollectReports(nsIHandleReportCallback* aHandleReport, nsISupports* aData)
-    {
-      return MOZ_COLLECT_REPORT(
-        "ghost-windows", KIND_OTHER, UNITS_COUNT, DistinguishedAmount(),
+    GhostWindowsReporter()
+      : MemoryUniReporter("ghost-windows", KIND_OTHER, UNITS_COUNT,
 "The number of ghost windows present (the number of nodes underneath "
 "explicit/window-objects/top(none)/ghost, modulo race conditions).  A ghost "
 "window is not shown in any tab, does not share a domain with any non-detached "
@@ -170,8 +163,13 @@ private:
 "memory.ghost_window_timeout_seconds, or has survived a round of "
 "about:memory's minimize memory usage button.\n\n"
 "Ghost windows can happen legitimately, but they are often indicative of "
-"leaks in the browser or add-ons.");
-    }
+"leaks in the browser or add-ons.")
+    {}
+
+    static int64_t DistinguishedAmount();
+
+  private:
+    int64_t Amount() MOZ_OVERRIDE { return DistinguishedAmount(); }
   };
 
   // Protect ctor, use Init() instead.

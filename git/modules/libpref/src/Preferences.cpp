@@ -301,7 +301,7 @@ PreferenceServiceReporter::CollectReports(nsIMemoryReporterCallback* aCb,
     } while (0)
 
   REPORT(NS_LITERAL_CSTRING("explicit/preferences"),
-         KIND_HEAP, UNITS_BYTES,
+         nsIMemoryReporter::KIND_HEAP, nsIMemoryReporter::UNITS_BYTES,
          Preferences::SizeOfIncludingThisAndOtherStuff(PreferenceServiceMallocSizeOf),
          "Memory used by the preferences system.");
 
@@ -323,22 +323,26 @@ PreferenceServiceReporter::CollectReports(nsIMemoryReporterCallback* aCb,
                                 "referent(pref=%s)", suspect.get());
 
     REPORT(suspectPath,
-           KIND_OTHER, UNITS_COUNT, totalReferentCount,
+           nsIMemoryReporter::KIND_OTHER, nsIMemoryReporter::UNITS_COUNT,
+           totalReferentCount,
            "A preference with a suspiciously large number "
            "referents (symptom of a leak).");
   }
 
   REPORT(NS_LITERAL_CSTRING("preference-service/referent/strong"),
-         KIND_OTHER, UNITS_COUNT, referentCount.numStrong,
+         nsIMemoryReporter::KIND_OTHER, nsIMemoryReporter::UNITS_COUNT,
+         referentCount.numStrong,
          "The number of strong referents held by the preference service.");
 
   REPORT(NS_LITERAL_CSTRING("preference-service/referent/weak/alive"),
-         KIND_OTHER, UNITS_COUNT, referentCount.numWeakAlive,
+         nsIMemoryReporter::KIND_OTHER, nsIMemoryReporter::UNITS_COUNT,
+         referentCount.numWeakAlive,
          "The number of weak referents held by the preference service "
          "that are still alive.");
 
   REPORT(NS_LITERAL_CSTRING("preference-service/referent/weak/dead"),
-         KIND_OTHER, UNITS_COUNT, referentCount.numWeakDead,
+         nsIMemoryReporter::KIND_OTHER, nsIMemoryReporter::UNITS_COUNT,
+         referentCount.numWeakDead,
          "The number of weak referents held by the preference service "
          "that are dead.");
 
