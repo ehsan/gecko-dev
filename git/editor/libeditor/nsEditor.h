@@ -801,6 +801,9 @@ public:
   // nothing.
   nsresult InitializeSelection(nsIDOMEventTarget* aFocusEventTarget);
 
+  // Finalizes selection and caret for the editor.
+  void FinalizeSelection();
+
   // This method has to be called by nsEditorEventListener::Focus.
   // All actions that have to be done when the editor is focused needs to be
   // added here.
