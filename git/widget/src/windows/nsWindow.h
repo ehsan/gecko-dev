@@ -403,6 +403,8 @@ protected:
   static STDMETHODIMP_(LRESULT) LresultFromObject(REFIID riid, WPARAM wParam, LPUNKNOWN pAcc);
 #endif // ACCESSIBILITY
 
+  void                    UpdateWindowInternal(HWND aWnd);
+
 protected:
   nsIntSize             mLastSize;
   nsIntPoint            mLastPoint;
@@ -500,7 +502,6 @@ protected:
 #endif
 
 #if defined(WINCE_HAVE_SOFTKB)
-  static PRBool         sSoftKeyMenuBar;
   static PRBool         sSoftKeyboardState;
 #endif // defined(WINCE_HAVE_SOFTKB)
 

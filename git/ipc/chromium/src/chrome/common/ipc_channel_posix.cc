@@ -238,6 +238,20 @@ bool ClientConnectToFifo(const std::string &pipe_name, int* client_socket) {
   return true;
 }
 
+#if defined(CHROMIUM_MOZILLA_BUILD)
+bool SetCloseOnExec(int fd) {
+  int flags = fcntl(fd, F_GETFD);
+  if (flags == -1)
+    return false;
+
+  flags |= FD_CLOEXEC;
+  if (fcntl(fd, F_SETFD, flags) == -1)
+    return false;
+
+  return true;
+}
+#endif
+
 }  // namespace
 //------------------------------------------------------------------------------
 
@@ -298,6 +312,16 @@ bool Channel::ChannelImpl::CreatePipe(const std::wstring& channel_id,
         HANDLE_EINTR(close(pipe_fds[1]));
         return false;
       }
+
+#if defined(CHROMIUM_MOZILLA_BUILD)
+      if (!SetCloseOnExec(pipe_fds[0]) ||
+          !SetCloseOnExec(pipe_fds[1])) {
+        HANDLE_EINTR(close(pipe_fds[0]));
+        HANDLE_EINTR(close(pipe_fds[1]));
+        return false;
+      }
+#endif
+
       pipe_ = pipe_fds[0];
       client_pipe_ = pipe_fds[1];
 
@@ -381,15 +405,6 @@ bool Channel::ChannelImpl::ProcessIncomingMessages() {
           return false;
         }
       } else if (bytes_read == 0) {
-
-
-
-
-          printf("TEST-UNEXPECTED-FAIL | process %d | read 0 bytes from pipe, it's closed\n", getpid());
-
-
-
-
         // The pipe has closed...
         Close();
         return false;
@@ -706,20 +721,7 @@ void Channel::ChannelImpl::OnFileCanReadWithoutBlocking(int fd) {
   if (!waiting_connect_ && fd == pipe_) {
     if (!ProcessIncomingMessages()) {
       Close();
-
-
-
-      printf("TEST-UNEXPECTED-FAIL | process %d | notifying client of channel error (read)\n", getpid());
-
-
-
       listener_->OnChannelError();
-
-
-
-      printf("TEST-UNEXPECTED-FAIL | process %d | client notified(read)\n", getpid());
-
-
     }
   }
 
@@ -737,29 +739,8 @@ void Channel::ChannelImpl::OnFileCanReadWithoutBlocking(int fd) {
 // Called by libevent when we can write to the pipe without blocking.
 void Channel::ChannelImpl::OnFileCanWriteWithoutBlocking(int fd) {
   if (!ProcessOutgoingMessages()) {
-
-
-
-      printf("TEST-UNEXPECTED-FAIL | process %d | failed to process outgoing messages\n", getpid());
-
-
-
     Close();
-
-
-
-      printf("TEST-UNEXPECTED-FAIL | process %d | notifying client of channel error (write)\n", getpid());
-
-
-
     listener_->OnChannelError();
-
-
-
-      printf("TEST-UNEXPECTED-FAIL | process %d | client notified(write)\n", getpid());
-
-
-
   }
 }
 
@@ -771,21 +752,7 @@ void Channel::ChannelImpl::Close() {
   server_listen_connection_watcher_.StopWatchingFileDescriptor();
 
   if (server_listen_pipe_ != -1) {
-
-
-
-      printf("TEST-UNEXPECTED-FAIL | process %d | closing pipe\n", getpid());
-
-
-
     HANDLE_EINTR(close(server_listen_pipe_));
-
-
-
-      printf("TEST-UNEXPECTED-FAIL | process %d | pipe closed\n", getpid());
-
-
-
     server_listen_pipe_ = -1;
   }
 

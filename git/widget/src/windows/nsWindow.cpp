@@ -106,6 +106,8 @@
 
 #ifdef MOZ_IPC
 #include "mozilla/ipc/SyncChannel.h"
+#include "mozilla/plugins/PluginInstanceParent.h"
+using mozilla::plugins::PluginInstanceParent;
 #endif
 
 #include "nsWindow.h"
@@ -2107,7 +2109,7 @@ NS_METHOD nsWindow::Invalidate(PRBool aIsSynchronous)
     VERIFY(::InvalidateRect(mWnd, NULL, FALSE));
 
     if (aIsSynchronous) {
-      VERIFY(::UpdateWindow(mWnd));
+      UpdateWindowInternal(mWnd);
     }
   }
   return NS_OK;
@@ -2141,7 +2143,7 @@ NS_METHOD nsWindow::Invalidate(const nsIntRect & aRect, PRBool aIsSynchronous)
     VERIFY(::InvalidateRect(mWnd, &rect, FALSE));
 
     if (aIsSynchronous) {
-      VERIFY(::UpdateWindow(mWnd));
+      UpdateWindowInternal(mWnd);
     }
   }
   return NS_OK;
@@ -2154,7 +2156,7 @@ nsWindow::MakeFullScreen(PRBool aFullScreen)
   RECT rc;
   if (aFullScreen) {
     SetForegroundWindow(mWnd);
-    SHFullScreen(mWnd, SHFS_HIDETASKBAR | SHFS_HIDESTARTICON);
+    SHFullScreen(mWnd, SHFS_HIDETASKBAR | SHFS_HIDESTARTICON | SHFS_HIDESIPBUTTON);
     SetRect(&rc, 0, 0, GetSystemMetrics(SM_CXSCREEN), GetSystemMetrics(SM_CYSCREEN));
   }
   else {
@@ -2185,7 +2187,7 @@ NS_IMETHODIMP nsWindow::Update()
   // updates can come through for windows no longer holding an mWnd during
   // deletes triggered by JavaScript in buttons with mouse feedback
   if (mWnd)
-    VERIFY(::UpdateWindow(mWnd));
+    UpdateWindowInternal(mWnd);
 
   return rv;
 }
@@ -3146,7 +3148,12 @@ BOOL CALLBACK nsWindow::DispatchStarvedPaints(HWND aWnd, LPARAM aMsg)
     // invalidated rect. If it does. Dispatch a synchronous
     // paint.
     if (GetUpdateRect(aWnd, NULL, FALSE)) {
-      VERIFY(::UpdateWindow(aWnd));
+      nsWindow* win = GetNSWindowPtr(aWnd);
+      if (win)
+        win->UpdateWindowInternal(aWnd);
+      else
+        // Bad, this could hang a plugin process. Is this possible?
+        VERIFY(::UpdateWindow(aWnd));
     }
   }
   return TRUE;
@@ -4212,7 +4219,7 @@ PRBool nsWindow::ProcessMessage(UINT msg, WPARAM &wParam, LPARAM &lParam,
 #if defined(WINCE_HAVE_SOFTKB)
         if (mIsTopWidgetWindow && sSoftKeyboardState)
           nsWindowCE::ToggleSoftKB(mWnd, fActive);
-        if (nsWindowCE::sShowSIPButton != TRI_TRUE && WA_INACTIVE != fActive) {
+        if (nsWindowCE::sShowSIPButton == TRI_FALSE && WA_INACTIVE != fActive) {
           HWND hWndSIPB = FindWindowW(L"MS_SIPBUTTON", NULL ); 
           if (hWndSIPB)
             ShowWindow(hWndSIPB, SW_HIDE);
@@ -4350,10 +4357,9 @@ PRBool nsWindow::ProcessMessage(UINT msg, WPARAM &wParam, LPARAM &lParam,
       getWheelInfo = PR_TRUE;
 #else
       switch (wParam) {
-        case SPI_SIPMOVE:
         case SPI_SETSIPINFO:
         case SPI_SETCURRENTIM:
-          nsWindowCE::NotifySoftKbObservers(mWnd);
+          nsWindowCE::OnSoftKbSettingsChange(mWnd);
           break;
         case SETTINGCHANGE_RESET:
           if (mWindowType == eWindowType_invisible) {
@@ -5969,6 +5975,11 @@ void nsWindow::OnDestroy()
     SetupTranslucentWindowMemoryBitmap(eTransparencyOpaque);
 #endif
 
+#if defined(WINCE_HAVE_SOFTKB)
+  // Revert the changes made for the software keyboard settings
+  nsWindowCE::ResetSoftKB(mWnd);
+#endif
+
   // Clear the main HWND.
   mWnd = NULL;
 }
@@ -7104,6 +7115,30 @@ LPARAM nsWindow::lParamToClient(LPARAM lParam)
   pt.y = GET_Y_LPARAM(lParam);
   ::ScreenToClient(mWnd, &pt);
   return MAKELPARAM(pt.x, pt.y);
+}
+
+// If this window hosts a plugin window from another process then we cannot use
+// the windows UpdateWindow function to update it. Doing so sends a synchronous
+// WM_PAINT message to the plugin process which may call back to this process
+// in response. As this process is waiting for the UpdateWindow call to return
+// we deadlock. To work around this we issue an IPC call to the plugin process
+// to force the redraw since the IPC call handles reentrancy properly.
+void nsWindow::UpdateWindowInternal(HWND aWnd)
+{
+  if (aWnd) {
+#ifdef MOZ_IPC
+    if (mWindowType == eWindowType_plugin) {
+      PluginInstanceParent* instance = reinterpret_cast<PluginInstanceParent*>(
+        ::GetPropW(aWnd, L"PluginInstanceParentProperty"));
+      if (instance) {
+        if (!instance->CallUpdateWindow())
+          NS_ERROR("Failed to send message!");
+        return;
+      }
+    }
+#endif
+    VERIFY(::UpdateWindow(aWnd));
+  }
 }
 
 /**************************************************************

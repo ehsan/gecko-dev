@@ -54,6 +54,32 @@ struct RunnableMethodTraits<mozilla::ipc::AsyncChannel>
     static void ReleaseCallee(mozilla::ipc::AsyncChannel* obj) { }
 };
 
+namespace {
+
+// This is an async message
+class GoodbyeMessage : public IPC::Message
+{
+public:
+    enum { ID = GOODBYE_MESSAGE_TYPE };
+    GoodbyeMessage() :
+        IPC::Message(MSG_ROUTING_NONE, ID, PRIORITY_NORMAL)
+    {
+    }
+    // XXX not much point in implementing this; maybe could help with
+    // debugging?
+    static bool Read(const Message* msg)
+    {
+        return true;
+    }
+    void Log(const std::string& aPrefix,
+             FILE* aOutf) const
+    {
+        fputs("(special `Goodbye' message)", aOutf);
+    }
+};
+
+} // namespace <anon>
+
 namespace mozilla {
 namespace ipc {
 
@@ -65,6 +91,7 @@ AsyncChannel::AsyncChannel(AsyncListener* aListener)
     mCvar(mMutex, "mozilla.ipc.AsyncChannel.mCvar"),
     mIOLoop(),
     mWorkerLoop(),
+    mChild(false),
     mChannelErrorTask(NULL)
 {
     MOZ_COUNT_CTOR(AsyncChannel);
@@ -73,15 +100,6 @@ AsyncChannel::AsyncChannel(AsyncListener* aListener)
 AsyncChannel::~AsyncChannel()
 {
     MOZ_COUNT_DTOR(AsyncChannel);
-
-
-
-#ifdef OS_LINUX
-        printf("TEST-UNEXPECTED-FAIL | process %d | ~AsyncChannel()\n", getpid());
-#endif
-
-
-
     Clear();
 }
 
@@ -159,7 +177,7 @@ AsyncChannel::Close()
         AssertWorkerThread();
 
         // notify the other side that we're about to close our socket
-        SendGoodbye();
+        SendSpecialMessage(new GoodbyeMessage());
 
         mChannelState = ChannelClosing;
 
@@ -167,28 +185,8 @@ AsyncChannel::Close()
         mIOLoop->PostTask(
             FROM_HERE, NewRunnableMethod(this, &AsyncChannel::OnCloseChannel));
 
-
-
-#ifdef OS_LINUX
-        printf("TEST-UNEXPECTED-FAIL | process %d | posted OnCloseChannel, awaiting notify\n", getpid());
-#endif
-
-
-
         while (ChannelClosing == mChannelState)
             mCvar.Wait();
-
-
-
-
-#ifdef OS_LINUX
-        printf("TEST-UNEXPECTED-FAIL | process %d | received notify\n", getpid());
-#endif
-
-
-
-
-
 
         // TODO sort out Close() on this side racing with Close() on the
         // other side
@@ -227,10 +225,12 @@ AsyncChannel::OnDispatchMessage(const Message& msg)
     NS_ASSERTION(!msg.is_reply(), "can't process replies here");
     NS_ASSERTION(!(msg.is_sync() || msg.is_rpc()), "async dispatch only");
 
-    if (MaybeInterceptGoodbye(msg))
-        // there's a NotifyMaybeChannelError event waiting for us, or
-        // will be soon
+    if (MSG_ROUTING_NONE == msg.routing_id()) {
+        if (!OnSpecialMessage(msg.type(), msg))
+            // XXX real error handling
+            NS_RUNTIMEABORT("unhandled special message!");
         return;
+    }
 
     // it's OK to dispatch messages if the channel is closed/error'd,
     // since we don't have a reply to send back
@@ -238,49 +238,31 @@ AsyncChannel::OnDispatchMessage(const Message& msg)
     (void)MaybeHandleError(mListener->OnMessageReceived(msg), "AsyncChannel");
 }
 
-// This is an async message
-class GoodbyeMessage : public IPC::Message
+bool
+AsyncChannel::OnSpecialMessage(uint16 id, const Message& msg)
 {
-public:
-    enum { ID = GOODBYE_MESSAGE_TYPE };
-    GoodbyeMessage() :
-        IPC::Message(MSG_ROUTING_NONE, ID, PRIORITY_NORMAL)
-    {
+    switch (id) {
+    case GOODBYE_MESSAGE_TYPE:
+        return ProcessGoodbyeMessage();
+
+    default:
+        return false;
     }
-    // XXX not much point in implementing this; maybe could help with
-    // debugging?
-    static bool Read(const Message* msg)
-    {
-        return true;
-    }
-    void Log(const std::string& aPrefix,
-             FILE* aOutf) const
-    {
-        fputs("(special `Goodbye' message)", aOutf);
-    }
-};
+}
 
 void
-AsyncChannel::SendGoodbye()
+AsyncChannel::SendSpecialMessage(Message* msg)
 {
     AssertWorkerThread();
 
     mIOLoop->PostTask(
         FROM_HERE,
-        NewRunnableMethod(this, &AsyncChannel::OnSend, new GoodbyeMessage()));
+        NewRunnableMethod(this, &AsyncChannel::OnSend, msg));
 }
 
 bool
-AsyncChannel::MaybeInterceptGoodbye(const Message& msg)
+AsyncChannel::ProcessGoodbyeMessage()
 {
-    // IPDL code isn't allowed to send MSG_ROUTING_NONE messages, so
-    // there's no chance of confusion here
-    if (MSG_ROUTING_NONE != msg.routing_id())
-        return false;
-
-    if (msg.is_sync() || msg.is_rpc() || GOODBYE_MESSAGE_TYPE != msg.type())
-        NS_RUNTIMEABORT("received unknown MSG_ROUTING_NONE message when expecting `Goodbye'");
-
     MutexAutoLock lock(mMutex);
     // TODO sort out Close() on this side racing with Close() on the
     // other side
@@ -437,18 +419,6 @@ AsyncChannel::OnChannelError()
 {
     AssertIOThread();
 
-
-
-
-#ifdef OS_LINUX
-        printf("TEST-UNEXPECTED-FAIL | process %d | channel error detected\n", getpid());
-#endif
-
-
-
-
-
-
     MutexAutoLock lock(mMutex);
 
     // NB: this can race with the `Goodbye' event being processed by
@@ -478,28 +448,9 @@ AsyncChannel::OnCloseChannel()
 
     mTransport->Close();
 
-
-
-#ifdef OS_LINUX
-        printf("TEST-UNEXPECTED-FAIL | process %d | OnCloseChannel: closing\n", getpid());
-#endif
-
-
-
-
-
     MutexAutoLock lock(mMutex);
     mChannelState = ChannelClosed;
     mCvar.Notify();
-
-
-
-#ifdef OS_LINUX
-        printf("TEST-UNEXPECTED-FAIL | process %d | OnCloseChannel: notified worker\n", getpid());
-#endif
-
-
-
 }
 
 
