@@ -789,7 +789,7 @@ WrapCallable(JSContext *cx, JSObject *callable, JSObject *sandboxProtoProxy)
 
     RootedValue priv(cx, ObjectValue(*callable));
     js::ProxyOptions options;
-    options.selectDefaultClass(true);
+    options.setCallable(true);
     return js::NewProxyObject(cx, &xpc::sandboxCallableProxyHandler,
                               priv, nullptr,
                               sandboxProtoProxy, options);

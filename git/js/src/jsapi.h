@@ -183,8 +183,7 @@ class AutoStringRooter : private AutoGCRooter {
     MOZ_DECL_USE_GUARD_OBJECT_NOTIFIER
 };
 
-class AutoArrayRooter : private AutoGCRooter
-{
+class AutoArrayRooter : private AutoGCRooter {
   public:
     AutoArrayRooter(JSContext *cx, size_t len, Value *vec
                     MOZ_GUARD_OBJECT_NOTIFIER_PARAM)
@@ -204,28 +203,15 @@ class AutoArrayRooter : private AutoGCRooter
         array = newArray;
     }
 
-    Value *start() {
-        return array;
-    }
+    Value *array;
 
-    size_t length() {
-        JS_ASSERT(tag_ >= 0);
-        return size_t(tag_);
-    }
-
-    MutableHandleValue handleAt(size_t i) {
+    MutableHandleValue handleAt(size_t i)
+    {
         JS_ASSERT(i < size_t(tag_));
         return MutableHandleValue::fromMarkedLocation(&array[i]);
     }
-    HandleValue handleAt(size_t i) const {
-        JS_ASSERT(i < size_t(tag_));
-        return HandleValue::fromMarkedLocation(&array[i]);
-    }
-    MutableHandleValue operator[](size_t i) {
-        JS_ASSERT(i < size_t(tag_));
-        return MutableHandleValue::fromMarkedLocation(&array[i]);
-    }
-    HandleValue operator[](size_t i) const {
+    HandleValue handleAt(size_t i) const
+    {
         JS_ASSERT(i < size_t(tag_));
         return HandleValue::fromMarkedLocation(&array[i]);
     }
@@ -233,9 +219,9 @@ class AutoArrayRooter : private AutoGCRooter
     friend void AutoGCRooter::trace(JSTracer *trc);
 
   private:
-    Value *array;
-    js::SkipRoot skip;
     MOZ_DECL_USE_GUARD_OBJECT_NOTIFIER
+
+    js::SkipRoot skip;
 };
 
 template<class T>

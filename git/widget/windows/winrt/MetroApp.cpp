@@ -158,7 +158,6 @@ MetroApp::OnAsyncTileCreated(ABI::Windows::Foundation::IAsyncOperation<bool>* aO
                              AsyncStatus aStatus)
 {
   WinUtils::Log("Async operation status: %d", aStatus);
-  MetroUtils::FireObserver("metro_on_async_tile_created");
   return S_OK;
 }
 

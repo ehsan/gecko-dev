@@ -510,7 +510,6 @@ public:
     static bool GetPrefLayersPreferD3D9();
     static bool CanUseDirect3D9();
     static int  GetPrefLayoutFrameRate();
-    static int  GetPrefLayersCompositionFrameRate();
     static bool GetPrefLayersDump();
     static bool GetPrefLayersScrollGraph();
     static bool GetPrefLayersEnableTiles();

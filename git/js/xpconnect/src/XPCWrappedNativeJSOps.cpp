@@ -1170,8 +1170,6 @@ XPCNativeScriptableShared::PopulateJSClass()
 
     if (mFlags.WantConvert())
         mJSClass.base.convert = XPC_WN_Helper_Convert;
-    else if (mFlags.WantOuterObject())
-        mJSClass.base.convert = JS_ConvertStub;
     else
         mJSClass.base.convert = XPC_WN_Shared_Convert;
 

@@ -150,7 +150,7 @@
       <vbox id="PanelUI-characterEncodingView-customlist"
             class="PanelUI-characterEncodingView-list"/>
       <vbox>
-        <label id="PanelUI-characterEncodingView-autodetect-label"/>
+        <label value="&charsetMenuAutodet.label;"/>
         <vbox id="PanelUI-characterEncodingView-autodetect"
               class="PanelUI-characterEncodingView-list"/>
       </vbox>

@@ -1070,7 +1070,7 @@ Proxy::HandleEvent(nsIDOMEvent* aEvent)
 
       nsRefPtr<LoadStartDetectionRunnable> runnable =
         new LoadStartDetectionRunnable(this, mXMLHttpRequestPrivate);
-      if (!runnable->RegisterAndDispatch()) {
+      if (NS_FAILED(NS_DispatchToCurrentThread(runnable))) {
         NS_WARNING("Failed to dispatch LoadStartDetectionRunnable!");
       }
     }

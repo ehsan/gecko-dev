@@ -587,6 +587,10 @@ class nsOuterWindowProxy : public js::Wrapper
 public:
   nsOuterWindowProxy() : js::Wrapper(0) { }
 
+  virtual bool isOuterWindow() {
+    return true;
+  }
+
   virtual bool finalizeInBackground(JS::Value priv) {
     return false;
   }
@@ -673,20 +677,6 @@ protected:
   bool AppendIndexedPropertyNames(JSContext *cx, JSObject *proxy,
                                   JS::AutoIdVector &props);
 };
-
-const js::Class OuterWindowProxyClass =
-    PROXY_CLASS_WITH_EXT(
-        "Proxy",
-        0, /* additional slots */
-        0, /* additional class flags */
-        nullptr, /* call */
-        nullptr, /* construct */
-        PROXY_MAKE_EXT(
-            nullptr, /* outerObject */
-            js::proxy_innerObject,
-            nullptr, /* iteratorObject */
-            false   /* isWrappedNative */
-        ));
 
 bool
 nsOuterWindowProxy::isExtensible(JSContext *cx, JS::Handle<JSObject*> proxy,
@@ -1034,13 +1024,9 @@ static JSObject*
 NewOuterWindowProxy(JSContext *cx, JS::Handle<JSObject*> parent, bool isChrome)
 {
   JSAutoCompartment ac(cx, parent);
-  js::WrapperOptions options;
-  options.setClass(&OuterWindowProxyClass);
-  options.setSingleton(true);
   JSObject *obj = js::Wrapper::New(cx, parent, parent,
                                    isChrome ? &nsChromeOuterWindowProxy::singleton
-                                            : &nsOuterWindowProxy::singleton,
-                                   &options);
+                                            : &nsOuterWindowProxy::singleton);
 
   NS_ASSERTION(js::GetObjectClass(obj)->ext.innerObject, "bad class");
   return obj;

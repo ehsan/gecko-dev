@@ -896,12 +896,6 @@ interface WebGLExtensionTextureFloatLinear
 };
 
 [NoInterfaceObject]
-interface WebGLExtensionTextureHalfFloat
-{
-    const GLenum HALF_FLOAT_OES = 0x8D61;
-};
-
-[NoInterfaceObject]
 interface WebGLExtensionVertexArray {
     const GLenum VERTEX_ARRAY_BINDING_OES = 0x85B5;
 

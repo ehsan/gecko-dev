@@ -153,16 +153,17 @@ class NodeBuilder
     bool        saveLoc;               /* save source location information?     */
     char const  *src;                  /* source filename or null               */
     RootedValue srcval;                /* source filename JS value or null      */
-    Value       callbacks_[AST_LIMIT]; /* user-specified callbacks              */
-    AutoValueArray callbacks;          /* for rooting |callbacks|               */
+    Value       callbacks[AST_LIMIT];  /* user-specified callbacks              */
+    AutoValueArray callbacksRoots;     /* for rooting |callbacks|               */
     RootedValue userv;                 /* user-specified builder object or null */
+    RootedValue undefinedVal;          /* a rooted undefined val, used by opt() */
 
   public:
     NodeBuilder(JSContext *c, bool l, char const *s)
         : cx(c), tokenStream(nullptr), saveLoc(l), src(s), srcval(c),
-          callbacks(c, callbacks_, AST_LIMIT), userv(c)
+          callbacksRoots(c, callbacks, AST_LIMIT), userv(c), undefinedVal(c, UndefinedValue())
     {
-        MakeRangeGCSafe(callbacks.start(), callbacks.length());
+        MakeRangeGCSafe(callbacks, mozilla::ArrayLength(callbacks));
     }
 
     bool init(HandleObject userobj = js::NullPtr()) {
@@ -205,7 +206,7 @@ class NodeBuilder
                 return false;
             }
 
-            callbacks[i].set(funv);
+            callbacks[i] = funv;
         }
 
         return true;
@@ -311,12 +312,12 @@ class NodeBuilder
     }
 
     // WARNING: Returning a Handle is non-standard, but it works in this case
-    // because both |v| and |UndefinedHandleValue| are definitely rooted on a
-    // previous stack frame (i.e. we're just choosing between two
-    // already-rooted values).
+    // because both |v| and |undefinedVal| are definitely rooted on a previous
+    // stack frame (i.e. we're just choosing between two already-rooted
+    // values).
     HandleValue opt(HandleValue v) {
         JS_ASSERT_IF(v.isMagic(), v.whyMagic() == JS_SERIALIZE_NO_NODE);
-        return v.isMagic(JS_SERIALIZE_NO_NODE) ? JS::UndefinedHandleValue : v;
+        return v.isMagic(JS_SERIALIZE_NO_NODE) ? undefinedVal : v;
     }
 
     bool atomValue(const char *s, MutableHandleValue dst) {
