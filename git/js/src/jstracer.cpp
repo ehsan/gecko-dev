@@ -9288,9 +9288,16 @@ TraceRecorder::guardShape(LIns* obj_ins, JSObject* obj, uint32 shape, const char
     if (p) {
         JS_ASSERT(p->value == obj);
         return RECORD_CONTINUE;
-    } else {
-        if (!guardedShapeTable.add(p, obj_ins, obj))
-            return RECORD_ERROR;
+    }
+    if (!guardedShapeTable.add(p, obj_ins, obj))
+        return RECORD_ERROR;
+
+    if (obj == globalObj) {
+        // In this case checking object identity is equivalent and faster.
+        guard(true,
+              addName(lir->ins2(LIR_eqp, obj_ins, INS_CONSTOBJ(globalObj)), "guard_global"),
+              exit);
+        return RECORD_CONTINUE;
     }
 
 #if defined DEBUG_notme && defined XP_UNIX
@@ -9839,8 +9846,7 @@ TraceRecorder::unbox_value(const Value &v, LIns *vaddr_ins, ptrdiff_t offset, VM
 
     if (v.isDouble()) {
         guard(true, lir->ins2(LIR_leuq, v_ins, INS_CONSTQWORD(JSVAL_SHIFTED_TAG_MAX_DOUBLE)), exit);
-        /* Without LIR_q2d, we need to re-load the value. */
-        return lir->insLoad(LIR_ldd, vaddr_ins, offset, accSet);
+        return lir->ins1(LIR_qasd, v_ins);
     }
 
     if (v.isObject()) {
@@ -11382,6 +11388,7 @@ TraceRecorder::callNative(uintN argc, JSOp mode)
             }
         }
     }
+    set(&vp[1], this_ins);
     box_value_into(vp[1], this_ins, invokevp_ins, 1 * sizeof(Value), ACC_OTHER);
 
     // Populate argv.
@@ -13594,7 +13601,16 @@ TraceRecorder::propTail(JSObject* obj, LIns* obj_ins, JSObject* obj2, PCVal pcva
         obj = obj2;
     }
 
-    LIns *v_ins = unbox_slot(obj, obj_ins, slot, snapshot(BRANCH_EXIT));
+    LIns* v_ins;
+    if (obj2 == globalObj) {
+        if (isMethod)
+            RETURN_STOP("get global method");
+        if (!lazilyImportGlobalSlot(slot))
+            RETURN_STOP("lazy import of global slot failed");
+        v_ins = get(&globalObj->getSlotRef(slot));
+    } else {
+        v_ins = unbox_slot(obj, obj_ins, slot, snapshot(BRANCH_EXIT));
+    }
 
     /*
      * Joined function object stored as a method must be cloned when extracted
@@ -14809,19 +14825,56 @@ TraceRecorder::record_JSOP_LAMBDA()
     if (FUN_NULL_CLOSURE(fun)) {
         if (FUN_OBJECT(fun)->getParent() != globalObj)
             RETURN_STOP_A("Null closure function object parent must be global object");
-        JSOp op2 = JSOp(cx->regs->pc[JSOP_LAMBDA_LENGTH]);
+
+        jsbytecode *pc2 = cx->regs->pc + JSOP_LAMBDA_LENGTH;
+        JSOp op2 = JSOp(*pc2);
+
+        if (op2 == JSOP_INITMETHOD) {
+            stack(0, INS_CONSTOBJ(FUN_OBJECT(fun)));
+            return ARECORD_CONTINUE;
+        }
 
         if (op2 == JSOP_SETMETHOD) {
             Value lval = stackval(-1);
 
-            if (!lval.isPrimitive() &&
-                lval.toObject().getClass() == &js_ObjectClass) {
+            if (!lval.isPrimitive() && lval.toObject().canHaveMethodBarrier()) {
                 stack(0, INS_CONSTOBJ(FUN_OBJECT(fun)));
                 return ARECORD_CONTINUE;
             }
-        } else if (op2 == JSOP_INITMETHOD) {
-            stack(0, INS_CONSTOBJ(FUN_OBJECT(fun)));
-            return ARECORD_CONTINUE;
+        } else if (fun->joinable()) {
+            if (op2 == JSOP_CALL) {
+                /*
+                 * Array.prototype.sort and String.prototype.replace are
+                 * optimized as if they are special form. We know that they
+                 * won't leak the joined function object in obj, therefore
+                 * we don't need to clone that compiler- created function
+                 * object for identity/mutation reasons.
+                 */
+                int iargc = GET_ARGC(pc2);
+
+                /*
+                 * Note that we have not yet pushed obj as the final argument,
+                 * so regs.sp[1 - (iargc + 2)], and not regs.sp[-(iargc + 2)],
+                 * is the callee for this JSOP_CALL.
+                 */
+                JSFunction *calleeFun =
+                    GET_FUNCTION_PRIVATE(cx, &cx->regs->sp[1 - (iargc + 2)].toObject());
+                FastNative fastNative = FUN_FAST_NATIVE(calleeFun);
+
+                if ((iargc == 1 && fastNative == array_sort) ||
+                    (iargc == 2 && fastNative == str_replace)) {
+                    stack(0, INS_CONSTOBJ(FUN_OBJECT(fun)));
+                    return ARECORD_CONTINUE;
+                }
+            } else if (op2 == JSOP_NULL) {
+                pc2 += JSOP_NULL_LENGTH;
+                op2 = JSOp(*pc2);
+
+                if (op2 == JSOP_CALL && GET_ARGC(pc2) == 0) {
+                    stack(0, INS_CONSTOBJ(FUN_OBJECT(fun)));
+                    return ARECORD_CONTINUE;
+                }
+            }
         }
 
         LIns *proto_ins;

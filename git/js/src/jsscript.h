@@ -209,6 +209,9 @@ struct JSScript {
     bool            strictModeCode:1; /* code is in strict mode */
     bool            compileAndGo:1;   /* script was compiled with TCF_COMPILE_N_GO */
     bool            usesEval:1;       /* script uses eval() */
+    bool            warnedAboutTwoArgumentEval:1; /* have warned about use of
+                                                     obsolete eval(s, o) in
+                                                     this script */
 
     jsbytecode      *main;      /* main entry point, after predef'ing prolog */
     JSAtomMap       atomMap;    /* maps immediate index to literal struct */

@@ -52,6 +52,7 @@
 #  include "mozilla/mozalloc_undef_macro_wrappers.h"
 #endif
 
+#include "jsprvtd.h"
 #include "jsarena.h" /* Added by JSIFY */
 #include "jsclist.h"
 #include "jslong.h"
@@ -65,8 +66,6 @@
 #include "jsobj.h"
 #include "jspropertycache.h"
 #include "jspropertytree.h"
-#include "jsprvtd.h"
-#include "jspubtd.h"
 #include "jsregexp.h"
 #include "jsutil.h"
 #include "jsarray.h"
@@ -957,18 +956,13 @@ struct TraceMonitor {
 # define JS_ON_TRACE(cx)            JS_FALSE
 #endif
 
-#ifdef DEBUG_brendan
-# define JS_EVAL_CACHE_METERING     1
-# define JS_FUNCTION_METERING       1
-#endif
-
 /* Number of potentially reusable scriptsToGC to search for the eval cache. */
 #ifndef JS_EVAL_CACHE_SHIFT
 # define JS_EVAL_CACHE_SHIFT        6
 #endif
 #define JS_EVAL_CACHE_SIZE          JS_BIT(JS_EVAL_CACHE_SHIFT)
 
-#ifdef JS_EVAL_CACHE_METERING
+#ifdef DEBUG
 # define EVAL_CACHE_METER_LIST(_)   _(probe), _(hit), _(step), _(noscope)
 # define identity(x)                x
 
@@ -979,10 +973,14 @@ struct JSEvalCacheMeter {
 # undef identity
 #endif
 
-#ifdef JS_FUNCTION_METERING
+#ifdef DEBUG
 # define FUNCTION_KIND_METER_LIST(_)                                          \
                         _(allfun), _(heavy), _(nofreeupvar), _(onlyfreevar),  \
-                        _(display), _(flat), _(setupvar), _(badfunarg)
+                        _(display), _(flat), _(setupvar), _(badfunarg),       \
+                        _(joinedsetmethod), _(joinedinitmethod),              \
+                        _(joinedreplace), _(joinedsort), _(joinedmodulepat),  \
+                        _(mreadbarrier), _(mwritebarrier), _(mwslotbarrier),  \
+                        _(unjoined)
 # define identity(x)    x
 
 struct JSFunctionMeter {
@@ -990,7 +988,12 @@ struct JSFunctionMeter {
 };
 
 # undef identity
+
+# define JS_FUNCTION_METER(cx,x) JS_RUNTIME_METER((cx)->runtime, functionMeter.x)
+#else
+# define JS_FUNCTION_METER(cx,x) ((void)0)
 #endif
+
 
 #define NATIVE_ITER_CACHE_LOG2  8
 #define NATIVE_ITER_CACHE_MASK  JS_BITMASK(NATIVE_ITER_CACHE_LOG2)
@@ -1034,7 +1037,7 @@ struct JSThreadData {
     /* Lock-free hashed lists of scripts created by eval to garbage-collect. */
     JSScript            *scriptsToGC[JS_EVAL_CACHE_SIZE];
 
-#ifdef JS_EVAL_CACHE_METERING
+#ifdef DEBUG
     JSEvalCacheMeter    evalCacheMeter;
 #endif
 
@@ -1214,6 +1217,50 @@ typedef HashMap<Value, Value, WrapperHasher, SystemAllocPolicy> WrapperMap;
 class AutoValueVector;
 class AutoIdVector;
 
+struct GCMarker : public JSTracer {
+  private:
+    /* The color is only applied to objects, functions and xml. */
+    uint32 color;
+
+    /* See comments before delayMarkingChildren is jsgc.cpp. */
+    JSGCArena           *unmarkedArenaStackTop;
+#ifdef DEBUG
+    size_t              markLaterCount;
+#endif
+
+  public:
+    js::Vector<JSObject *, 0, js::SystemAllocPolicy> arraysToSlowify;
+
+  public:
+    explicit GCMarker(JSContext *cx)
+      : color(0), unmarkedArenaStackTop(NULL)
+    {
+        JS_TRACER_INIT(this, cx, NULL);
+#ifdef DEBUG
+        markLaterCount = 0;
+#endif
+    }
+
+    uint32 getMarkColor() const {
+        return color;
+    }
+
+    void setMarkColor(uint32 newColor) {
+        /*
+         * We must process any delayed marking here, otherwise we confuse
+         * colors.
+         */
+        markDelayedChildren();
+        color = newColor;
+    }
+
+    void delayMarkingChildren(void *thing);
+
+    JS_FRIEND_API(void) markDelayedChildren();
+
+    void slowifyArrays();
+};
+
 } /* namespace js */
 
 struct JSCompartment {
@@ -1238,11 +1285,6 @@ struct JSCompartment {
     bool wrapException(JSContext *cx);
 
     void sweep(JSContext *cx);
-};
-
-struct JSGCTracer : public JSTracer {
-    uint32 color;
-    js::Vector<JSObject *, 0, js::SystemAllocPolicy> arraysToSlowify;
 };
 
 extern JS_FRIEND_API(void)
@@ -1294,7 +1336,7 @@ struct JSRuntime {
     size_t              gcMaxMallocBytes;
     uint32              gcEmptyArenaPoolLifespan;
     uint32              gcNumber;
-    JSGCTracer          *gcMarkingTracer;
+    js::GCMarker        *gcMarkingTracer;
     uint32              gcTriggerFactor;
     size_t              gcTriggerBytes;
     volatile JSBool     gcIsNeeded;
@@ -1332,12 +1374,6 @@ struct JSRuntime {
      * from gcMaxMallocBytes down to zero.
      */
     volatile ptrdiff_t  gcMallocBytes;
-
-    /* See comments before DelayMarkingChildren is jsgc.cpp. */
-    JSGCArena           *gcUnmarkedArenaStackTop;
-#ifdef DEBUG
-    size_t              gcMarkLaterCount;
-#endif
 
 #ifdef JS_THREADSAFE
     JSBackgroundThread  gcHelperThread;
@@ -1597,9 +1633,22 @@ struct JSRuntime {
     JSGCStats           gcStats;
 #endif
 
-#ifdef JS_FUNCTION_METERING
+#ifdef DEBUG
+    /*
+     * If functionMeterFilename, set from an envariable in JSRuntime's ctor, is
+     * null, the remaining members in this ifdef'ed group are not initialized.
+     */
+    const char          *functionMeterFilename;
     JSFunctionMeter     functionMeter;
     char                lastScriptFilename[1024];
+
+    typedef js::HashMap<JSFunction *,
+                        int32,
+                        js::DefaultHasher<JSFunction *>,
+                        js::SystemAllocPolicy> FunctionCountMap;
+
+    FunctionCountMap    methodReadBarrierCountMap;
+    FunctionCountMap    unjoinedFunctionCountMap;
 #endif
 
     JSWrapObjectCallback wrapObjectCallback;
@@ -1669,7 +1718,7 @@ struct JSRuntime {
 #define JS_METHODJIT_DATA(cx)   (JS_THREAD_DATA(cx)->jmData)
 #define JS_SCRIPTS_TO_GC(cx)    (JS_THREAD_DATA(cx)->scriptsToGC)
 
-#ifdef JS_EVAL_CACHE_METERING
+#ifdef DEBUG
 # define EVAL_CACHE_METER(x)    (JS_THREAD_DATA(cx)->evalCacheMeter.x++)
 #else
 # define EVAL_CACHE_METER(x)    ((void) 0)
@@ -2142,7 +2191,7 @@ JS_ALWAYS_INLINE jsbytecode *
 JSStackFrame::pc(JSContext *cx) const
 {
     JS_ASSERT(cx->containingSegment(this) != NULL);
-    return cx->fp == this ? cx->regs->pc : savedPC;
+    return (cx->fp == this) ? cx->regs->pc : savedPC;
 }
 
 /*

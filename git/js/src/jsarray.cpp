@@ -585,19 +585,6 @@ js_HasLengthProperty(JSContext *cx, JSObject *obj, jsuint *lengthp)
     return !tvr.value().isNull();
 }
 
-JSBool
-js_IsArrayLike(JSContext *cx, JSObject *obj, JSBool *answerp, jsuint *lengthp)
-{
-    JSObject *wrappedObj = obj->wrappedObject(cx);
-
-    *answerp = wrappedObj->isArguments() || wrappedObj->isArray();
-    if (!*answerp) {
-        *lengthp = 0;
-        return JS_TRUE;
-    }
-    return js_GetLengthProperty(cx, obj, lengthp);
-}
-
 /*
  * Since SpiderMonkey supports cross-class prototype-based delegation, we have
  * to be careful about the length getter and setter being called on an object
@@ -1012,11 +999,9 @@ array_trace(JSTracer *trc, JSObject *obj)
             MarkValue(trc, obj->getDenseArrayElement(i), "dense_array_elems");
     }
 
-    if (trc == trc->context->runtime->gcMarkingTracer &&
-        holes > MIN_SPARSE_INDEX &&
-        holes > capacity / 4 * 3) {
+    if (IS_GC_MARKING_TRACER(trc) && holes > MIN_SPARSE_INDEX && holes > capacity / 4 * 3) {
         /* This might fail, in which case we don't slowify it. */
-        reinterpret_cast<JSGCTracer *>(trc)->arraysToSlowify.append(obj);
+        static_cast<GCMarker *>(trc)->arraysToSlowify.append(obj);
     }
 }
 
@@ -1092,7 +1077,7 @@ JSObject::makeDenseArraySlow(JSContext *cx)
     if (!scope)
         return JS_FALSE;
 
-    /* For a brief moment the class object has NULL dslots until we slowify it during construction. */
+    /* For a brief moment the object has NULL dslots until we slowify it during construction. */
     uint32 capacity = dslots ? obj->getDenseArrayCapacity() : 0;
     if (capacity) {
         scope->freeslot = obj->numSlots() + JS_INITIAL_NSLOTS;
@@ -1786,8 +1771,8 @@ sort_compare_strings(void *arg, const void *a, const void *b, int *result)
     return JS_TRUE;
 }
 
-static JSBool
-array_sort(JSContext *cx, uintN argc, Value *vp)
+JSBool
+js::array_sort(JSContext *cx, uintN argc, Value *vp)
 {
     jsuint len, newlen, i, undefs;
     size_t elemsize;
