@@ -1,7 +1,4 @@
-/* -*- Mode: C++; tab-width: 4; indent-tabs-mode: nil; c-basic-offset: 4 -*-
- * vim: set ts=4 sw=4 et tw=99:
- *
- * ***** BEGIN LICENSE BLOCK *****
+/* ***** BEGIN LICENSE BLOCK *****
  * Version: MPL 1.1/GPL 2.0/LGPL 2.1
  *
  * The contents of this file are subject to the Mozilla Public License Version
@@ -39,7 +36,6 @@
  * ***** END LICENSE BLOCK ***** */
 
 #ifdef JS_METHODJIT
-
 #include "Retcon.h"
 #include "MethodJIT.h"
 #include "Compiler.h"
@@ -205,5 +201,4 @@ CallStackIterator::bottom() const {
 } /* namespace mjit */
 } /* namespace js */
 
-#endif /* JS_METHODJIT */
-
+#endif

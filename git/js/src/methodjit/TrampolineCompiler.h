@@ -1,7 +1,4 @@
-/* -*- Mode: C++; tab-width: 4; indent-tabs-mode: nil; c-basic-offset: 4 -*-
- * vim: set ts=4 sw=4 et tw=99:
- *
- * ***** BEGIN LICENSE BLOCK *****
+/* ***** BEGIN LICENSE BLOCK *****
  * Version: MPL 1.1/GPL 2.0/LGPL 2.1
  *
  * The contents of this file are subject to the Mozilla Public License Version
@@ -37,7 +34,6 @@
  * the terms of any one of the MPL, the GPL or the LGPL.
  *
  * ***** END LICENSE BLOCK ***** */
-
 #if !defined trampolines_h__ && defined JS_METHODJIT
 #define trampolines_h__
 
@@ -52,7 +48,6 @@ class TrampolineCompiler
     typedef Assembler::Label Label;
     typedef Assembler::Jump Jump;
     typedef Assembler::ImmPtr ImmPtr;
-    typedef Assembler::Imm32 Imm32;
     typedef Assembler::Address Address;
     typedef bool (*TrampolineGenerator)(Assembler &masm);
 
@@ -79,4 +74,3 @@ private:
 } /* namespace js */
 
 #endif
-
