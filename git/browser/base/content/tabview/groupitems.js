@@ -655,9 +655,6 @@ GroupItem.prototype = Utils.extend(new Item(), new Subscribable(), {
       if (!options.dontArrange) {
         this.arrange();
       }
-      
-      this._sendToSubscribers("childAdded",{ groupItemId: this.id, item: item });
-      
       UI.setReorderTabsOnHide(this);
     } catch(e) {
       Utils.log('GroupItem.add error', e);
@@ -709,9 +706,6 @@ GroupItem.prototype = Utils.extend(new Item(), new Subscribable(), {
       } else if (!options.dontArrange) {
         this.arrange();
       }
-
-      this._sendToSubscribers("childRemoved",{ groupItemId: this.id, item: item });
-
     } catch(e) {
       Utils.log(e);
     }
@@ -1207,6 +1201,7 @@ GroupItem.prototype = Utils.extend(new Item(), new Subscribable(), {
               iQ(newItem.container).css({opacity: 1});
               newItem.zoomIn(!url);
               $anim.remove();
+              self._sendToSubscribers("tabAdded", {groupItemId: self.id});
             }
           });
         }

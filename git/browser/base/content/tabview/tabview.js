@@ -36,6 +36,3 @@ XPCOMUtils.defineLazyGetter(this, "gTabViewFrame", function() {
 #include trench.js
 #include infoitems.js
 #include ui.js
-#include search.js
-
-

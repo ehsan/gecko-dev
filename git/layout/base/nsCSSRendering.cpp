@@ -3714,18 +3714,11 @@ ImageRenderer::ComputeSize(const nsSize& aDefault)
     case eStyleImageType_Image:
     {
       nsIntSize imageIntSize;
-      PRBool gotHeight, gotWidth;
-      nsLayoutUtils::ComputeSizeForDrawing(mImageContainer, imageIntSize,
-                                           gotWidth, gotHeight);
+      mImageContainer->GetWidth(&imageIntSize.width);
+      mImageContainer->GetHeight(&imageIntSize.height);
 
-      mSize.width = gotWidth ?
-        nsPresContext::CSSPixelsToAppUnits(imageIntSize.width) :
-        aDefault.width;
-
-      mSize.height = gotHeight ?
-        nsPresContext::CSSPixelsToAppUnits(imageIntSize.height) :
-        aDefault.height;
-
+      mSize.width = nsPresContext::CSSPixelsToAppUnits(imageIntSize.width);
+      mSize.height = nsPresContext::CSSPixelsToAppUnits(imageIntSize.height);
       break;
     }
     case eStyleImageType_Gradient:

@@ -3043,8 +3043,7 @@ DrawImageInternal(nsIRenderingContext* aRenderingContext,
   }
 
   aImage->Draw(ctx, aGraphicsFilter, drawingParams.mUserSpaceToImageSpace,
-               drawingParams.mFillRect, drawingParams.mSubimage, aImageSize,
-               aImageFlags);
+               drawingParams.mFillRect, drawingParams.mSubimage, aImageFlags);
   return NS_OK;
 }
 
@@ -3135,13 +3134,8 @@ nsLayoutUtils::DrawSingleImage(nsIRenderingContext* aRenderingContext,
                                const nsRect*        aSourceArea)
 {
   nsIntSize imageSize;
-  if (aImage->GetType() == imgIContainer::TYPE_VECTOR) {
-    imageSize.width  = nsPresContext::AppUnitsToIntCSSPixels(aDest.width);
-    imageSize.height = nsPresContext::AppUnitsToIntCSSPixels(aDest.height);
-  } else {
-    aImage->GetWidth(&imageSize.width);
-    aImage->GetHeight(&imageSize.height);
-  }
+  aImage->GetWidth(&imageSize.width);
+  aImage->GetHeight(&imageSize.height);
   NS_ENSURE_TRUE(imageSize.width > 0 && imageSize.height > 0, NS_ERROR_FAILURE);
 
   nsRect source;
@@ -3164,49 +3158,6 @@ nsLayoutUtils::DrawSingleImage(nsIRenderingContext* aRenderingContext,
                            fill.TopLeft(), aDirty, imageSize, aImageFlags);
 }
 
-/* static */ void
-nsLayoutUtils::ComputeSizeForDrawing(imgIContainer *aImage,
-                                     nsIntSize&     aImageSize, /*outparam*/
-                                     PRBool&        aGotWidth,  /*outparam*/
-                                     PRBool&        aGotHeight  /*outparam*/)
-{
-  aGotWidth  = NS_SUCCEEDED(aImage->GetWidth(&aImageSize.width));
-  aGotHeight = NS_SUCCEEDED(aImage->GetHeight(&aImageSize.height));
-
-  if ((aGotWidth && aGotHeight) ||    // Trivial success!
-      (!aGotWidth && !aGotHeight)) {  // Trivial failure!
-    return;
-  }
-
-  // If we get here, we succeeded at querying *either* the width *or* the
-  // height, but not both.
-  NS_ASSERTION(aImage->GetType() == imgIContainer::TYPE_VECTOR,
-               "GetWidth and GetHeight should only fail for vector images");
-
-  nsIFrame* rootFrame = aImage->GetRootLayoutFrame();
-  NS_ASSERTION(rootFrame,
-               "We should have a VectorImage, which should have a rootFrame");
-
-  // This falls back on failure, if we somehow end up without a rootFrame.
-  nsSize ratio = rootFrame ? rootFrame->GetIntrinsicRatio() : nsSize(0,0);
-  if (!aGotWidth) { // Have height, missing width
-    if (ratio.height != 0) { // don't divide by zero
-      aImageSize.width = NSToCoordRound(aImageSize.height *
-                                        float(ratio.width) /
-                                        float(ratio.height));
-      aGotWidth = PR_TRUE;
-    }
-  } else { // Have width, missing height
-    if (ratio.width != 0) { // don't divide by zero
-      aImageSize.height = NSToCoordRound(aImageSize.width *
-                                         float(ratio.height) /
-                                         float(ratio.width));
-      aGotHeight = PR_TRUE;
-    }
-  }
-}
-
-
 /* static */ nsresult
 nsLayoutUtils::DrawImage(nsIRenderingContext* aRenderingContext,
                          imgIContainer*       aImage,
@@ -3218,16 +3169,9 @@ nsLayoutUtils::DrawImage(nsIRenderingContext* aRenderingContext,
                          PRUint32             aImageFlags)
 {
   nsIntSize imageSize;
-  PRBool gotHeight, gotWidth;
-  ComputeSizeForDrawing(aImage, imageSize, gotWidth, gotHeight);
-
-  // fallback size based on aFill.
-  if (!gotWidth) {
-    imageSize.width = nsPresContext::AppUnitsToIntCSSPixels(aFill.width);
-  }
-  if (!gotHeight) {
-    imageSize.height = nsPresContext::AppUnitsToIntCSSPixels(aFill.height);
-  }
+  aImage->GetWidth(&imageSize.width);
+  aImage->GetHeight(&imageSize.height);
+  NS_ENSURE_TRUE(imageSize.width > 0 && imageSize.height > 0, NS_ERROR_FAILURE);
 
   return DrawImageInternal(aRenderingContext, aImage, aGraphicsFilter,
                            aDest, aFill, aAnchor, aDirty,

@@ -2425,7 +2425,6 @@ RasterImage::SyncDecode()
  *                      [const] in gfxMatrix aUserSpaceToImageSpace,
  *                      [const] in gfxRect aFill,
  *                      [const] in nsIntRect aSubimage,
- *                      [const] in nsIntSize aViewportSize,
  *                      in PRUint32 aFlags); */
 NS_IMETHODIMP
 RasterImage::Draw(gfxContext *aContext,
@@ -2433,7 +2432,6 @@ RasterImage::Draw(gfxContext *aContext,
                   const gfxMatrix &aUserSpaceToImageSpace,
                   const gfxRect &aFill,
                   const nsIntRect &aSubimage,
-                  const nsIntSize& /*aViewportSize - ignored*/,
                   PRUint32 aFlags)
 {
   if (mError)
@@ -2464,14 +2462,6 @@ RasterImage::Draw(gfxContext *aContext,
   frame->Draw(aContext, aFilter, aUserSpaceToImageSpace, aFill, padding, aSubimage);
 
   return NS_OK;
-}
-
-//******************************************************************************
-/* [notxpcom] nsIFrame GetRootLayoutFrame() */
-nsIFrame*
-RasterImage::GetRootLayoutFrame()
-{
-  return nsnull;
 }
 
 //******************************************************************************

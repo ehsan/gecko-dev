@@ -4528,10 +4528,7 @@ PresShell::CaptureHistoryState(nsILayoutHistoryState** aState, PRBool aLeavingPa
 void
 PresShell::UnsuppressAndInvalidate()
 {
-  // Note: We ignore the EnsureVisible check for resource documents, because
-  // they won't have a docshell, so they'll always fail EnsureVisible.
-  if ((!mDocument->IsResourceDoc() && !mPresContext->EnsureVisible()) ||
-      mHaveShutDown) {
+  if (!mPresContext->EnsureVisible() || mHaveShutDown) {
     // No point; we're about to be torn down anyway.
     return;
   }
@@ -4725,12 +4722,7 @@ PresShell::FlushPendingNotifications(mozFlushType aType)
   NS_ASSERTION(aType >= Flush_Frames, "Why did we get called?");
 
   PRBool isSafeToFlush = IsSafeToFlush();
-
-  // If layout could possibly trigger scripts, then it's only safe to flush if
-  // it's safe to run script.
-  if (mDocument->GetScriptGlobalObject()) {
-    isSafeToFlush = isSafeToFlush && nsContentUtils::IsSafeToRunScript();
-  }
+  isSafeToFlush = isSafeToFlush && nsContentUtils::IsSafeToRunScript();
 
   NS_ASSERTION(!isSafeToFlush || mViewManager, "Must have view manager");
   // Make sure the view manager stays alive while batching view updates.
