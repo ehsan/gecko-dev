@@ -43,6 +43,7 @@ relativesrcdir toolkit/locales:
   locale/@AB_CD@/browser/overrides/about.dtd                       (%chrome/global/about.dtd)
   locale/@AB_CD@/browser/overrides/aboutAbout.dtd                  (%chrome/global/aboutAbout.dtd)
   locale/@AB_CD@/browser/overrides/aboutRights.dtd                 (%chrome/global/aboutRights.dtd)
+  locale/@AB_CD@/browser/overrides/charsetMenu.properties          (%chrome/global/charsetMenu.properties)
   locale/@AB_CD@/browser/overrides/commonDialogs.properties        (%chrome/global/commonDialogs.properties)
   locale/@AB_CD@/browser/overrides/intl.properties                 (%chrome/global/intl.properties)
   locale/@AB_CD@/browser/overrides/intl.css                        (%chrome/global/intl.css)
@@ -67,6 +68,7 @@ relativesrcdir toolkit/locales:
 % override chrome://global/locale/about.dtd chrome://browser/locale/overrides/about.dtd
 % override chrome://global/locale/aboutAbout.dtd chrome://browser/locale/overrides/aboutAbout.dtd
 % override chrome://global/locale/aboutRights.dtd chrome://browser/locale/overrides/aboutRights.dtd
+% override chrome://global/locale/charsetMenu.properties chrome://browser/locale/overrides/charsetMenu.properties
 % override chrome://global/locale/commonDialogs.properties chrome://browser/locale/overrides/commonDialogs.properties
 % override chrome://mozapps/locale/handling/handling.properties chrome://browser/locale/handling.properties
 % override chrome://global/locale/intl.properties chrome://browser/locale/overrides/intl.properties
@@ -86,14 +88,12 @@ relativesrcdir toolkit/locales:
 
 # overrides for dom l10n, also for en-US
 relativesrcdir dom/locales:
-  locale/@AB_CD@/browser/overrides/charsetTitles.properties    (%chrome/charsetTitles.properties)
   locale/@AB_CD@/browser/overrides/global.dtd                  (%chrome/global.dtd)
   locale/@AB_CD@/browser/overrides/AccessFu.properties         (%chrome/accessibility/AccessFu.properties)
   locale/@AB_CD@/browser/overrides/dom/dom.properties          (%chrome/dom/dom.properties)
 #about:plugins
   locale/@AB_CD@/browser/overrides/plugins.properties          (%chrome/plugins.properties)
 
-% override chrome://global/locale/charsetTitles.properties chrome://browser/locale/overrides/charsetTitles.properties
 % override chrome://global/locale/global.dtd chrome://browser/locale/overrides/global.dtd
 % override chrome://global/locale/AccessFu.properties chrome://browser/locale/overrides/AccessFu.properties
 % override chrome://global/locale/dom/dom.properties chrome://browser/locale/overrides/dom/dom.properties

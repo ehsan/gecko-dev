@@ -10,8 +10,9 @@
 #include "mozilla/CheckedInt.h"
 #include "mozilla/Attributes.h"
 #include "mozilla/MemoryReporting.h"
-#include "nsTraceRefcnt.h"
+#include "nsISupportsImpl.h"
 #include "mozilla/gfx/2D.h"
+#include "gfx2DGlue.h"
 
 #include "gfxASurface.h"
 #include "gfxContext.h"

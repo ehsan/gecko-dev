@@ -235,7 +235,6 @@ pref("accessibility.browsewithcaret_shortcut.enabled", false);
 // Whether the character encoding menu is under the main Firefox button. This
 // preference is a string so that localizers can alter it.
 pref("browser.menu.showCharacterEncoding", "chrome://browser/locale/browser.properties");
-pref("intl.charsetmenu.browser.static", "chrome://browser/locale/browser.properties");
 
 // pointer to the default engine name
 pref("browser.search.defaultenginename", "chrome://browser/locale/region.properties");
@@ -443,7 +442,7 @@ pref("browser.ui.touch.bottom", 16);
 pref("browser.ui.touch.weight.visited", 120); // percentage
 
 // The percentage of the screen that needs to be scrolled before margins are exposed.
-pref("browser.ui.show-margins-threshold", 20);
+pref("browser.ui.show-margins-threshold", 10);
 
 // Maximum distance from the point where the user pressed where we still
 // look for text to select
@@ -575,6 +574,14 @@ pref("dom.indexedDB.warningQuota", 5);
 pref("media.preload.default", 1); // default to preload none
 pref("media.preload.auto", 2);    // preload metadata if preload=auto
 
+// Number of video frames we buffer while decoding video.
+// On Android this is decided by a similar value which varies for
+// each OMX decoder |OMX_PARAM_PORTDEFINITIONTYPE::nBufferCountMin|. This
+// number must be less than the OMX equivalent or gecko will think it is
+// chronically starved of video frames. All decoders seen so far have a value
+// of at least 4.
+pref("media.video-queue.default-size", 3);
+
 // optimize images memory usage
 pref("image.mem.decodeondraw", true);
 pref("image.mem.min_discard_timeout_ms", 10000);
@@ -667,7 +674,7 @@ pref("ui.scrolling.axis_lock_mode", "standard");
 pref("ui.scrolling.negate_wheel_scrollY", true);
 // Determine the dead zone for gamepad joysticks. Higher values result in larger dead zones; use a negative value to
 // auto-detect based on reported hardware values
-pref("ui.scrolling.gamepad_dead_zone", 10);
+pref("ui.scrolling.gamepad_dead_zone", 115);
 
 
 // Enable accessibility mode if platform accessibility is enabled.
@@ -844,3 +851,11 @@ pref("browser.webapps.checkForUpdates", 1);
 pref("browser.webapps.updateCheckUrl", "https://controller.apk.firefox.com/app_updates");
 
 #endif
+
+// The mode of home provider syncing.
+// 0: Sync always
+// 1: Sync only when on wifi
+pref("home.sync.updateMode", 0);
+
+// How frequently to check if we should sync home provider data.
+pref("home.sync.checkIntervalSecs", 3600);
