@@ -7,7 +7,7 @@
 
 ifndef INCLUDED_JAVA_BUILD_MK #{
 
-ifdef ANDROID_RESFILES #{
+ifdef RES_FILES #{
 res-dep := .deps-copy-java-res
 
 GENERATED_DIRS += res
@@ -16,7 +16,7 @@ GARBAGE        += $(res-dep)
 export:: $(res-dep)
 
 res-dep-preqs := \
-  $(addprefix $(srcdir)/,$(ANDROID_RESFILES)) \
+  $(addprefix $(srcdir)/,$(RES_FILES)) \
   $(call mkdir_deps,res) \
   $(if $(IS_LANGUAGE_REPACK),FORCE) \
   $(NULL)

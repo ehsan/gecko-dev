@@ -14,7 +14,7 @@ JAVAFILES = \
   R.java \
   $(NULL)
 
-ANDROID_RESFILES = \
+RES_FILES = \
   res/values/strings.xml \
   $(NULL)
 

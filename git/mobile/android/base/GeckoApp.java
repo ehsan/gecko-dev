@@ -2555,7 +2555,6 @@ abstract public class GeckoApp
 
     protected void geckoConnected() {
         mLayerView.geckoConnected();
-        mLayerView.setOverScrollMode(View.OVER_SCROLL_NEVER);
     }
 
     public void setAccessibilityEnabled(boolean enabled) {

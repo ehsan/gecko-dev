@@ -210,17 +210,13 @@ Spinner.prototype = {
       try {
         if (typeof condition == "function") {
           // Normalize |condition| to the result of the function.
-          try {
-            condition = condition(topic);
-          } catch (ex) {
-            condition = Promise.reject(ex);
-          }
+          condition = condition(topic);
         }
         // Normalize to a promise. Of course, if |condition| was not a
         // promise in the first place (in particular if the above
-        // function returned |undefined| or failed), that new promise
-        // isn't going to be terribly interesting, but it will behave
-        // as a promise.
+        // function didn't return or returned |undefined|), that new
+        // promise isn't going to be terribly interesting, but it will
+        // behave as a promise.
         condition = Promise.resolve(condition);
 
         // If the promise takes too long to be resolved/rejected,

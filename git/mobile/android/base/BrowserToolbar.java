@@ -1053,7 +1053,7 @@ public class BrowserToolbar extends GeckoRelativeLayout
         showSoftInput();
     }
 
-    public void setTitle(CharSequence title) {
+    private void setTitle(CharSequence title) {
         mTitle.setText(title);
         setContentDescription(title != null ? title : mTitle.getHint());
     }

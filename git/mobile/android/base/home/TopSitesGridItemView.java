@@ -183,7 +183,7 @@ public class TopSitesGridItemView extends RelativeLayout {
             mTitleView.setText(title);
             mIsEmpty = false;
         } else {
-            mTitleView.setText(R.string.home_top_sites_add);
+            mTitleView.setText(R.string.bookmark_add);
             mIsEmpty = true;
         }
 

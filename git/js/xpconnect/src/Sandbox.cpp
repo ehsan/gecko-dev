@@ -872,7 +872,7 @@ xpc::SandboxProxyHandler::iterate(JSContext *cx, JS::Handle<JSObject*> proxy,
 }
 
 bool
-xpc::SandboxOptions::GlobalProperties::Parse(JSContext* cx, JS::HandleObject obj)
+xpc::SandboxOptions::DOMConstructors::Parse(JSContext* cx, JS::HandleObject obj)
 {
     NS_ENSURE_TRUE(JS_IsArrayObject(cx, obj), false);
 
@@ -892,12 +892,8 @@ xpc::SandboxOptions::GlobalProperties::Parse(JSContext* cx, JS::HandleObject obj
             TextEncoder = true;
         } else if (!strcmp(name, "TextDecoder")) {
             TextDecoder = true;
-        } else if (!strcmp(name, "atob")) {
-            atob = true;
-        } else if (!strcmp(name, "btoa")) {
-            btoa = true;
         } else {
-            // Reporting error, if one of the global property names is unknown.
+            // Reporting error, if one of the DOM constructor names is unknown.
             return false;
         }
     }
@@ -905,7 +901,7 @@ xpc::SandboxOptions::GlobalProperties::Parse(JSContext* cx, JS::HandleObject obj
 }
 
 bool
-xpc::SandboxOptions::GlobalProperties::Define(JSContext* cx, JS::HandleObject obj)
+xpc::SandboxOptions::DOMConstructors::Define(JSContext* cx, JS::HandleObject obj)
 {
     if (XMLHttpRequest &&
         !JS_DefineFunction(cx, obj, "XMLHttpRequest", CreateXMLHttpRequest, 0, JSFUN_CONSTRUCTOR))
@@ -917,14 +913,6 @@ xpc::SandboxOptions::GlobalProperties::Define(JSContext* cx, JS::HandleObject ob
 
     if (TextDecoder &&
         !dom::TextDecoderBinding::GetConstructorObject(cx, obj))
-        return false;
-
-    if (atob &&
-        !JS_DefineFunction(cx, obj, "atob", Atob, 1, 0))
-        return false;
-
-    if (btoa &&
-        !JS_DefineFunction(cx, obj, "btoa", Btoa, 1, 0))
         return false;
 
     return true;
@@ -1038,7 +1026,7 @@ xpc::CreateSandboxObject(JSContext *cx, jsval *vp, nsISupports *prinOrSop, Sandb
              !JS_DefineFunction(cx, sandbox, "evalInWindow", EvalInWindow, 2, 0)))
             return NS_ERROR_XPC_UNEXPECTED;
 
-        if (!options.GlobalProperties.Define(cx, sandbox))
+        if (!options.DOMConstructors.Define(cx, sandbox))
             return NS_ERROR_XPC_UNEXPECTED;
     }
 
@@ -1304,21 +1292,21 @@ GetStringPropFromOptions(JSContext *cx, HandleObject from, const char *name, nsC
 }
 
 /*
- * Helper that tries to get a list of DOM constructors and other helpers from the options object.
+ * Helper that tries to get a list of DOM constructors from the options object.
  */
 static nsresult
-GetGlobalPropertiesFromOptions(JSContext *cx, HandleObject from, SandboxOptions& options)
+GetDOMConstructorsFromOptions(JSContext *cx, HandleObject from, SandboxOptions& options)
 {
     RootedValue value(cx);
     bool found;
-    nsresult rv = GetPropFromOptions(cx, from, "wantGlobalProperties", &value, &found);
+    nsresult rv = GetPropFromOptions(cx, from, "wantDOMConstructors", &value, &found);
     NS_ENSURE_SUCCESS(rv, rv);
     if (!found)
         return NS_OK;
 
     NS_ENSURE_TRUE(value.isObject(), NS_ERROR_INVALID_ARG);
     RootedObject ctors(cx, &value.toObject());
-    bool ok = options.GlobalProperties.Parse(cx, ctors);
+    bool ok = options.DOMConstructors.Parse(cx, ctors);
     NS_ENSURE_TRUE(ok, NS_ERROR_INVALID_ARG);
     return NS_OK;
 }
@@ -1355,7 +1343,7 @@ ParseOptionsObject(JSContext *cx, jsval from, SandboxOptions &options)
                                "sameZoneAs", options.sameZoneAs.address());
     NS_ENSURE_SUCCESS(rv, rv);
 
-    rv = GetGlobalPropertiesFromOptions(cx, optionsObject, options);
+    rv = GetDOMConstructorsFromOptions(cx, optionsObject, options);
 
     bool found;
     rv = GetPropFromOptions(cx, optionsObject,
