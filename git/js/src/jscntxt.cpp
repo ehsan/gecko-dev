@@ -64,6 +64,9 @@
 #include "jsscope.h"
 #include "jsscript.h"
 #include "jsstr.h"
+#ifdef JS_TRACER
+#include "jstracer.h"
+#endif
 
 #ifdef JS_THREADSAFE
 #include "prtypes.h"
@@ -144,6 +147,9 @@ js_GetCurrentThread(JSRuntime *rt)
         JS_INIT_CLIST(&thread->contextList);
         thread->id = js_CurrentThreadId();
         thread->gcMallocBytes = 0;
+#ifdef JS_TRACER
+        memset(&thread->traceMonitor, 0, sizeof(thread->traceMonitor));
+#endif
 
         /*
          * js_SetContextThread initializes the remaining fields as necessary.
@@ -327,7 +333,9 @@ js_NewContext(JSRuntime *rt, size_t stackChunkSize)
         return NULL;
     }
     
+#ifdef JS_TRACER
     js_InitJIT(cx);
+#endif
     
     return cx;
 }

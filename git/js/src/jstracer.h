@@ -66,12 +66,11 @@
  * Tracker is used to keep track of values being manipulated by the interpreter
  * during trace recording.
  */
-template <typename T>
 class Tracker {
     struct Page {
         struct Page*    next;
         jsuword         base;
-        T               map[0];
+        nanojit::LIns*  map[1];
     };
     struct Page* pagelist;
 
@@ -82,8 +81,8 @@ public:
     Tracker();
     ~Tracker();
 
-    T               get(const void* v) const;
-    void            set(const void* v, T ins);
+    nanojit::LIns*  get(const void* v) const;
+    void            set(const void* v, nanojit::LIns* ins);
     void            clear();
 };
 
@@ -91,7 +90,7 @@ struct VMFragmentInfo {
     unsigned                entryNativeFrameSlots;
     unsigned                maxNativeFrameSlots;
     size_t                  nativeStackBase;
-    uint8                   typeMap[0];
+    uint8                   typeMap[1];
 };
 
 extern struct nanojit::CallInfo builtins[];
@@ -109,10 +108,11 @@ extern struct nanojit::CallInfo builtins[];
 class TraceRecorder {
     JSContext*              cx;
     JSStackFrame*           global;
-    Tracker<nanojit::LIns*> tracker;
+    Tracker                 tracker;
     char*                   entryTypeMap;
     struct JSStackFrame*    entryFrame;
     struct JSFrameRegs      entryRegs;
+    JSAtom**                atoms;
     nanojit::Fragment*      fragment;
     VMFragmentInfo*         fragmentInfo;
     nanojit::LirBuffer*     lirbuf;
@@ -144,13 +144,10 @@ class TraceRecorder {
     bool verifyTypeStability(JSStackFrame* entryFrame, JSStackFrame* currentFrame, uint8* m);
     void closeLoop(nanojit::Fragmento* fragmento);
 
-    jsval& gvarval(unsigned n) const;
     jsval& argval(unsigned n) const;
     jsval& varval(unsigned n) const;
     jsval& stackval(int n) const;
 
-    nanojit::LIns* gvar(unsigned n);
-    void gvar(unsigned n, nanojit::LIns* i);
     nanojit::LIns* arg(unsigned n);
     void arg(unsigned n, nanojit::LIns* i);
     nanojit::LIns* var(unsigned n);
@@ -160,7 +157,7 @@ class TraceRecorder {
 
     nanojit::LIns* f2i(nanojit::LIns* f);
 
-    bool ifop(bool sense);
+    bool ifop();
     bool inc(jsval& v, jsint incr, bool pre = true);
     bool cmp(nanojit::LOpcode op, bool negate = false);
 
@@ -187,6 +184,8 @@ class TraceRecorder {
 
     bool box_jsval(jsval v, nanojit::LIns*& v_ins);
     bool unbox_jsval(jsval v, nanojit::LIns*& v_ins);
+    bool guardThatObjectHasClass(JSObject* obj, nanojit::LIns* obj_ins,
+                                 JSClass* cls, nanojit::LIns*& dslots_ins);
     bool guardThatObjectIsDenseArray(JSObject* obj, nanojit::LIns* obj_ins,
                                      nanojit::LIns*& dslots_ins);
     bool guardDenseArrayIndexWithinBounds(JSObject* obj, jsint idx, nanojit::LIns* obj_ins,
@@ -195,6 +194,7 @@ public:
     TraceRecorder(JSContext* cx, nanojit::Fragmento*, nanojit::Fragment*);
     ~TraceRecorder();
 
+    JSContext* getContext() const;
     JSStackFrame* getGlobalFrame() const;
     JSStackFrame* getEntryFrame() const;
     JSStackFrame* getFp() const;
@@ -208,19 +208,9 @@ public:
     void stop();
 
 #define OPDEF(op,val,name,token,length,nuses,ndefs,prec,format)               \
-    bool op();
+    bool record_##op();
 # include "jsopcode.tbl"
 #undef OPDEF
-};
-
-/*
- * Trace monitor. Every JSThread (if JS_THREADSAFE) or JSRuntime (if not
- * JS_THREADSAFE) has an associated trace monitor that keeps track of loop
- * frequencies for all JavaScript code loaded into that runtime.
- */
-struct JSTraceMonitor {
-    nanojit::Fragmento*     fragmento;
-    TraceRecorder*          recorder;
 };
 
 #define TRACING_ENABLED(cx)       JS_HAS_OPTION(cx, JSOPTION_JIT)
