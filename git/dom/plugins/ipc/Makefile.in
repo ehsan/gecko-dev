@@ -142,7 +142,8 @@ CMMSRCS   += \
 endif
 
 LOCAL_INCLUDES = \
-  -I$(srcdir)/../base \
+  -I$(topsrcdir)/modules/plugin/base/public/ \
+  -I$(topsrcdir)/modules/plugin/base/src/ \
   -I$(topsrcdir)/xpcom/base/ \
   $(NULL)
 

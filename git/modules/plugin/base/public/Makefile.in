@@ -35,7 +35,7 @@
 #
 # ***** END LICENSE BLOCK *****
 
-DEPTH = ../..
+DEPTH = ../../../..
 topsrcdir = @top_srcdir@
 srcdir = @srcdir@
 VPATH = @srcdir@
@@ -43,24 +43,35 @@ VPATH = @srcdir@
 include $(DEPTH)/config/autoconf.mk
 
 MODULE = plugin
+GRE_MODULE = 1
 
-DIRS = \
-  base/public \
-  base/src \
+EXPORTS = \
+  nsPluginLogging.h \
+  nsPluginError.h \
+  nsPluginNativeWindow.h \
+  nsPluginsCID.h \
   $(NULL)
 
-# These subdirs rely on GTK libraries and header files, it is not
-#  buildable on other non-GTK unix builds
+SDK_HEADERS = \
+  npapi.h \
+  npfunctions.h \
+  nptypes.h \
+  npruntime.h \
+  $(NULL)
 
-ifdef ENABLE_TESTS
-ifneq (,$(filter gtk2 cocoa windows android qt os2,$(MOZ_WIDGET_TOOLKIT)))
-DIRS += test
-endif
-endif
+XPIDLSRCS = \
+  nsIHTTPHeaderListener.idl \
+  nsIPlugin.idl \
+  nsIPluginDocument.idl \
+  nsIPluginHost.idl \
+  nsIPluginInputStream.idl \
+  nsIPluginInstance.idl \
+  nsIPluginInstanceOwner.idl \
+  nsIPluginStreamInfo.idl \
+  nsIPluginStreamListener.idl \
+  nsIPluginTag.idl \
+  nsIPluginTagInfo.idl \
+  nspluginroot.idl \
+  $(NULL)
 
 include $(topsrcdir)/config/rules.mk
-
-$(DIST)/bin/plugins:
-	$(NSINSTALL) -D $@
-
-export:: $(DIST)/bin/plugins

@@ -77,7 +77,6 @@ components/xmlextras.xpt
 components/xpcom.xpt
 components/xpti.dat
 components/xptitemp.dat
-components/nsMicrosummaryService.js
 defaults/pref/all.js
 defaults/pref/bug259708.js
 defaults/pref/bug307259.js
@@ -876,6 +875,7 @@ xpicleanup@BIN_SUFFIX@
   components/nsLoginInfo.js
   components/nsLoginManager.js
   components/nsLoginManagerPrompter.js
+  components/nsMicrosummaryService.js
   components/nsPlacesAutoComplete.js
   components/nsPlacesDBFlush.js
   components/nsPlacesExpiration.js
