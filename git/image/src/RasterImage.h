@@ -169,6 +169,10 @@ public:
                                       uint32_t aToOffset, uint32_t aCount,
                                       uint32_t* aWriteCount);
 
+  /* The index of the current frame that would be drawn if the image was to be
+   * drawn now. */
+  uint32_t GetCurrentFrameIndex();
+
   /* The total number of frames in this image. */
   uint32_t GetNumFrames() const;
 
@@ -553,8 +557,8 @@ private:
   nsresult FinishedSomeDecoding(eShutdownIntent intent = eShutdownIntent_Done,
                                 DecodeRequest* request = nullptr);
 
-  void DrawWithPreDownscaleIfNeeded(DrawableFrameRef&& aFrameRef,
-                                    gfxContext* aContext,
+  bool DrawWithPreDownscaleIfNeeded(imgFrame *aFrame,
+                                    gfxContext *aContext,
                                     const nsIntSize& aSize,
                                     const ImageRegion& aRegion,
                                     GraphicsFilter aFilter,
@@ -563,10 +567,21 @@ private:
   TemporaryRef<gfx::SourceSurface> CopyFrame(uint32_t aWhichFrame,
                                              uint32_t aFlags);
 
-  already_AddRefed<imgFrame> GetFrameNoDecode(uint32_t aFrameNum);
-  DrawableFrameRef GetFrame(uint32_t aFrameNum);
-  uint32_t GetCurrentFrameIndex() const;
-  uint32_t GetRequestedFrameIndex(uint32_t aWhichFrame) const;
+  /**
+   * Deletes and nulls out the frame in mFrames[framenum].
+   *
+   * Does not change the size of mFrames.
+   *
+   * @param framenum The index of the frame to be deleted.
+   *                 Must lie in [0, mFrames.Length() )
+   */
+  void DeleteImgFrame(uint32_t framenum);
+
+  already_AddRefed<imgFrame> GetImgFrameNoDecode(uint32_t framenum);
+  already_AddRefed<imgFrame> GetImgFrame(uint32_t framenum);
+  already_AddRefed<imgFrame> GetDrawableImgFrame(uint32_t framenum);
+  already_AddRefed<imgFrame> GetCurrentImgFrame();
+  uint32_t GetCurrentImgFrameIndex() const;
 
   size_t SizeOfDecodedWithComputedFallbackIfHeap(gfxMemoryLocation aLocation,
                                                  MallocSizeOf aMallocSizeOf) const;

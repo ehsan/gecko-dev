@@ -6,7 +6,6 @@ from threading import Lock
 import codecs
 
 from ..structuredlog import log_levels
-from statushandler import StatusHandler
 
 
 class BaseHandler(object):

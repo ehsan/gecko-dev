@@ -57,7 +57,7 @@ private:
 
   SurfaceFormat mFormat;
   IntSize mSize;
-  DrawTargetD2D1* mDrawTarget;
+  RefPtr<DrawTargetD2D1> mDrawTarget;
 };
 
 class DataSourceSurfaceD2D1 : public DataSourceSurface
