@@ -79,7 +79,7 @@ protected:
  * So that we can reshape as necessary, we store enough information
  * to fully rebuild the textrun contents.
  */
-class nsTransformedTextRun MOZ_FINAL : public gfxTextRun {
+class nsTransformedTextRun : public gfxTextRun {
 public:
   static nsTransformedTextRun *Create(const gfxTextRunFactory::Parameters* aParams,
                                       nsTransformingTextRunFactory* aFactory,

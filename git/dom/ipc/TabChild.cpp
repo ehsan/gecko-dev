@@ -34,7 +34,6 @@
 #include "mozilla/unused.h"
 #include "mozIApplication.h"
 #include "nsContentUtils.h"
-#include "nsDocShell.h"
 #include "nsEmbedCID.h"
 #include <algorithm>
 #ifdef MOZ_CRASHREPORTER
@@ -1462,6 +1461,12 @@ TabChild::DestroyWindow()
     }
 }
 
+bool
+TabChild::UseDirectCompositor()
+{
+    return !!CompositorChild::Get();
+}
+
 void
 TabChild::ActorDestroy(ActorDestroyReason why)
 {
@@ -1884,15 +1889,6 @@ TabChild::RecvNotifyAPZStateChange(const ViewID& aViewId,
     if (scrollbarOwner) {
       scrollbarOwner->ScrollbarActivityStarted();
     }
-
-    nsCOMPtr<nsIDocument> doc = GetDocument();
-    if (doc) {
-      nsCOMPtr<nsIDocShell> docshell(doc->GetDocShell());
-      if (docshell) {
-        nsDocShell* nsdocshell = static_cast<nsDocShell*>(docshell.get());
-        nsdocshell->NotifyAsyncPanZoomStarted();
-      }
-    }
     break;
   }
   case APZStateChange::TransformEnd:
@@ -1901,15 +1897,6 @@ TabChild::RecvNotifyAPZStateChange(const ViewID& aViewId,
     nsIScrollbarOwner* scrollbarOwner = do_QueryFrame(sf);
     if (scrollbarOwner) {
       scrollbarOwner->ScrollbarActivityStopped();
-    }
-
-    nsCOMPtr<nsIDocument> doc = GetDocument();
-    if (doc) {
-      nsCOMPtr<nsIDocShell> docshell(doc->GetDocShell());
-      if (docshell) {
-        nsDocShell* nsdocshell = static_cast<nsDocShell*>(docshell.get());
-        nsdocshell->NotifyAsyncPanZoomStopped();
-      }
     }
     break;
   }
@@ -2593,23 +2580,28 @@ TabChild::InitRenderingState()
         return false;
     }
 
-    MOZ_ASSERT(id != 0);
-
-    // Pushing layers transactions directly to a separate
-    // compositor context.
-    PCompositorChild* compositorChild = CompositorChild::Get();
-    if (!compositorChild) {
-      NS_WARNING("failed to get CompositorChild instance");
-      return false;
-    }
-    nsTArray<LayersBackend> backends;
-    backends.AppendElement(mTextureFactoryIdentifier.mParentBackend);
-    PLayerTransactionChild* shadowManager =
-        compositorChild->SendPLayerTransactionConstructor(backends,
-                                                          id, &mTextureFactoryIdentifier, &success);
-    if (!success) {
-      NS_WARNING("failed to properly allocate layer transaction");
-      return false;
+    PLayerTransactionChild* shadowManager = nullptr;
+    if (id != 0) {
+        // Pushing layers transactions directly to a separate
+        // compositor context.
+        PCompositorChild* compositorChild = CompositorChild::Get();
+        if (!compositorChild) {
+          NS_WARNING("failed to get CompositorChild instance");
+          return false;
+        }
+        nsTArray<LayersBackend> backends;
+        backends.AppendElement(mTextureFactoryIdentifier.mParentBackend);
+        bool success;
+        shadowManager =
+            compositorChild->SendPLayerTransactionConstructor(backends,
+                                                              id, &mTextureFactoryIdentifier, &success);
+        if (!success) {
+          NS_WARNING("failed to properly allocate layer transaction");
+          return false;
+        }
+    } else {
+        // Pushing transactions to the parent content.
+        shadowManager = remoteFrame->SendPLayerTransactionConstructor();
     }
 
     if (!shadowManager) {
@@ -2691,7 +2683,7 @@ TabChild::GetDefaultScale(double* aScale)
 void
 TabChild::NotifyPainted()
 {
-    if (!mNotified) {
+    if (UseDirectCompositor() && !mNotified) {
         mRemoteFrame->SendNotifyCompositorTransaction();
         mNotified = true;
     }

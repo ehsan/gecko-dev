@@ -126,6 +126,16 @@
             'LIBYUV_DISABLE_AVX2',
           ]
         }],
+        ['build_with_mozilla==1', {
+          'include_dirs': [
+            '$(DEPTH)/dist/include',
+          ],
+          'direct_dependent_settings': {
+            'include_dirs': [
+              '$(DEPTH)/dist/include',
+            ],
+          },
+        }],
       ],
       'defines': [
         # Enable the following 3 macros to turn off assembly for specified CPU.

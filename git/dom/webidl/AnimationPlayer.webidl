@@ -18,8 +18,3 @@ interface AnimationPlayer {
   [Pure] readonly attribute double startTime;
   readonly attribute double currentTime;
 };
-
-// Non-standard extensions
-partial interface AnimationPlayer {
-  [ChromeOnly] readonly attribute boolean isRunningOnCompositor;
-};

@@ -12,7 +12,4 @@
 
 [Pref="dom.animations-api.core.enabled"]
 interface Animation {
-  // FIXME: |effect| should have type (AnimationEffect or EffectCallback)?
-  // but we haven't implemented EffectCallback yet.
-  [Cached,Pure] readonly attribute AnimationEffect? effect;
 };

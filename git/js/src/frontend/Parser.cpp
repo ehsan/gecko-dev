@@ -1672,7 +1672,7 @@ Parser<FullParseHandler>::checkFunctionDefinition(HandlePropertyName funName,
              * end of functionBody.
              */
             if (!pc->funcStmts) {
-                pc->funcStmts = alloc.new_<FuncStmtSet>(alloc);
+                pc->funcStmts = context->new_<FuncStmtSet>(context);
                 if (!pc->funcStmts || !pc->funcStmts->init())
                     return false;
             }

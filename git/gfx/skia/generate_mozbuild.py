@@ -56,6 +56,7 @@ LOCAL_INCLUDES += [
     'trunk/include/effects',
     'trunk/include/gpu',
     'trunk/include/images',
+    'trunk/include/lazy',
     'trunk/include/pathops',
     'trunk/include/pipe',
     'trunk/include/ports',
@@ -72,6 +73,7 @@ LOCAL_INCLUDES += [
     'trunk/src/opts',
     'trunk/src/sfnt',
     'trunk/src/utils',
+    'trunk/src/utils/android',
     'trunk/src/utils/mac',
     'trunk/src/utils/win',
 ]

@@ -11,6 +11,8 @@ function CanBeConstructed(f) {
 function IsConstructedFunction(f) {
     return f.hasOwnProperty('length')
         && f.hasOwnProperty('name')
+        && f.hasOwnProperty('arguments')
+        && f.hasOwnProperty('caller')
         && f.hasOwnProperty('prototype')
         && f.prototype.hasOwnProperty('constructor')
         && f.prototype.constructor === f;
@@ -19,6 +21,8 @@ function IsConstructedFunction(f) {
 function IsntConstructedFunction(f) {
     return !f.hasOwnProperty('length')
         && !f.hasOwnProperty('name')
+        && !f.hasOwnProperty('arguments')
+        && !f.hasOwnProperty('caller')
         && !f.hasOwnProperty('prototype')
 }
 

@@ -7,7 +7,6 @@
 #include <iostream>
 #include <vector>
 
-#include "mozilla/Move.h"
 #include "mozilla/Scoped.h"
 #include "mozilla/SyncRunnable.h"
 #include "VideoConduit.h"
@@ -250,7 +249,7 @@ WebrtcGmpVideoEncoder::Encode_g(const webrtc::I420VideoFrame* aInputImage,
   if (err != GMPNoErr) {
     return WEBRTC_VIDEO_CODEC_ERROR;
   }
-  UniquePtr<GMPVideoi420Frame> frame(static_cast<GMPVideoi420Frame*>(ftmp));
+  GMPVideoi420Frame* frame = static_cast<GMPVideoi420Frame*>(ftmp);
 
   err = frame->CreateFrame(aInputImage->allocated_size(webrtc::kYPlane),
                            aInputImage->buffer(webrtc::kYPlane),
@@ -289,7 +288,7 @@ WebrtcGmpVideoEncoder::Encode_g(const webrtc::I420VideoFrame* aInputImage,
   }
 
   LOGD(("GMP Encode: %llu", (aInputImage->timestamp() * 1000ll)/90));
-  err = mGMP->Encode(Move(frame), codecSpecificInfo, gmp_frame_types);
+  err = mGMP->Encode(frame, codecSpecificInfo, gmp_frame_types);
   if (err != GMPNoErr) {
     return err;
   }
@@ -604,7 +603,7 @@ WebrtcGmpVideoDecoder::Decode_g(const webrtc::EncodedImage& aInputImage,
     return WEBRTC_VIDEO_CODEC_ERROR;
   }
 
-  UniquePtr<GMPVideoEncodedFrame> frame(static_cast<GMPVideoEncodedFrame*>(ftmp));
+  GMPVideoEncodedFrame* frame = static_cast<GMPVideoEncodedFrame*>(ftmp);
   err = frame->CreateEmptyFrame(aInputImage._length);
   if (err != GMPNoErr) {
     return WEBRTC_VIDEO_CODEC_ERROR;
@@ -638,7 +637,7 @@ WebrtcGmpVideoDecoder::Decode_g(const webrtc::EncodedImage& aInputImage,
   codecSpecificInfo.AppendElements((uint8_t*)&info, sizeof(GMPCodecSpecificInfo));
 
   LOGD(("GMP Decode: %llu, len %d", frame->TimeStamp(), aInputImage._length));
-  nsresult rv = mGMP->Decode(Move(frame),
+  nsresult rv = mGMP->Decode(frame,
                              aMissingFrames,
                              codecSpecificInfo,
                              aRenderTimeMs);

@@ -19,7 +19,7 @@ class nsIDOMKeyEvent;
 
 /** editor Implementation of the DragListener interface
  */
-class nsMenuBarListener MOZ_FINAL : public nsIDOMEventListener
+class nsMenuBarListener : public nsIDOMEventListener
 {
 public:
   /** default constructor

@@ -99,6 +99,4 @@
         <item name="floatingHintEditTextStyle">@style/FloatingHintEditText</item>
     </style>
 
-    <style name="GeckoStartPane" parent="GeckoBase"/>
-
 </resources>

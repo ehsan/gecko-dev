@@ -2016,7 +2016,7 @@ nsCycleCollectorLoggerConstructor(nsISupports* aOuter,
 // Bacon & Rajan's |MarkRoots| routine.
 ////////////////////////////////////////////////////////////////////////
 
-class CCGraphBuilder MOZ_FINAL : public nsCycleCollectionTraversalCallback,
+class CCGraphBuilder : public nsCycleCollectionTraversalCallback,
   public nsCycleCollectionNoteRootCallback
 {
 private:

@@ -1737,8 +1737,8 @@ static void
 SetOuterVisibleRegion(Layer* aLayer, nsIntRegion* aOuterVisibleRegion,
                       const nsIntRect* aLayerContentsVisibleRect = nullptr)
 {
-  Matrix4x4 transform = aLayer->GetTransform();
-  Matrix transform2D;
+  gfx3DMatrix transform = To3DMatrix(aLayer->GetTransform());
+  gfxMatrix transform2D;
   if (transform.Is2D(&transform2D) && !transform2D.HasNonIntegerTranslation()) {
     aOuterVisibleRegion->MoveBy(-int(transform2D._31), -int(transform2D._32));
     if (aLayerContentsVisibleRect) {
@@ -1748,9 +1748,8 @@ SetOuterVisibleRegion(Layer* aLayer, nsIntRegion* aOuterVisibleRegion,
     nsIntRect outerRect = aOuterVisibleRegion->GetBounds();
     // if 'transform' is not invertible, then nothing will be displayed
     // for the layer, so it doesn't really matter what we do here
-    Rect outerVisible(outerRect.x, outerRect.y, outerRect.width, outerRect.height);
-    transform.Invert();
-    gfxRect layerVisible = ThebesRect(transform.ProjectRectBounds(outerVisible));
+    gfxRect outerVisible(outerRect.x, outerRect.y, outerRect.width, outerRect.height);
+    gfxRect layerVisible = transform.Inverse().ProjectRectBounds(outerVisible);
     if (aLayerContentsVisibleRect) {
       NS_ASSERTION(aLayerContentsVisibleRect->width >= 0 &&
                    aLayerContentsVisibleRect->height >= 0,
@@ -2209,9 +2208,9 @@ ContainerState::PopThebesLayerData()
     if (!data->mHitRegion.GetBounds().IsEmpty()) {
       // Our definitely-hit region must go to the maybe-hit-region since
       // this function is an approximation.
-      Matrix4x4 matrix = nsLayoutUtils::GetTransformToAncestor(
+      gfx3DMatrix matrix = nsLayoutUtils::GetTransformToAncestor(
         mContainerReferenceFrame, containingThebesLayerData->mReferenceFrame);
-      Matrix matrix2D;
+      gfxMatrix matrix2D;
       bool isPrecise = matrix.Is2D(&matrix2D) && !matrix2D.HasNonAxisAlignedTransform();
       nsRect rect = nsLayoutUtils::TransformFrameRectToAncestor(
         mContainerReferenceFrame,
@@ -3987,14 +3986,15 @@ static gfxSize
 PredictScaleForContent(nsIFrame* aFrame, nsIFrame* aAncestorWithScale,
                        const gfxSize& aScale)
 {
-  Matrix4x4 transform = Matrix4x4().Scale(aScale.width, aScale.height, 1.0);
+  gfx3DMatrix transform =
+    gfx3DMatrix::ScalingMatrix(aScale.width, aScale.height, 1.0);
   if (aFrame != aAncestorWithScale) {
     // aTransform is applied first, then the scale is applied to the result
     transform = nsLayoutUtils::GetTransformToAncestor(aFrame, aAncestorWithScale)*transform;
   }
-  Matrix transform2d;
+  gfxMatrix transform2d;
   if (transform.CanDraw2D(&transform2d)) {
-     return ThebesMatrix(transform2d).ScaleFactors(true);
+     return transform2d.ScaleFactors(true);
   }
   return gfxSize(1.0, 1.0);
 }

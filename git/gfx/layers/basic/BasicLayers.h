@@ -41,7 +41,7 @@ class ReadbackProcessor;
  * context (with appropriate clipping and Push/PopGroups performed
  * between layers).
  */
-class BasicLayerManager MOZ_FINAL :
+class BasicLayerManager :
     public LayerManager
 {
 public:

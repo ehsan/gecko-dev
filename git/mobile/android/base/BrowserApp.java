@@ -77,12 +77,10 @@ import org.mozilla.gecko.widget.GeckoActionProvider;
 
 import android.app.Activity;
 import android.app.AlertDialog;
-import android.content.BroadcastReceiver;
 import android.content.ContentValues;
 import android.content.Context;
 import android.content.DialogInterface;
 import android.content.Intent;
-import android.content.IntentFilter;
 import android.content.SharedPreferences;
 import android.content.pm.PackageManager;
 import android.content.pm.ResolveInfo;
@@ -101,7 +99,6 @@ import android.nfc.NfcEvent;
 import android.os.Build;
 import android.os.Bundle;
 import android.support.v4.app.FragmentManager;
-import android.support.v4.content.LocalBroadcastManager;
 import android.text.TextUtils;
 import android.util.Log;
 import android.view.InputDevice;
@@ -149,7 +146,6 @@ public class BrowserApp extends GeckoApp
 
     // Request ID for startActivityForResult.
     private static final int ACTIVITY_REQUEST_PREFERENCES = 1001;
-    public static final String ACTION_NEW_PROFILE = "org.mozilla.gecko.NEW_PROFILE";
 
     private BrowserSearch mBrowserSearch;
     private View mBrowserSearchContainer;
@@ -212,8 +208,6 @@ public class BrowserApp extends GeckoApp
     private SharedPreferencesHelper mSharedPreferencesHelper;
 
     private OrderedBroadcastHelper mOrderedBroadcastHelper;
-
-    private BroadcastReceiver mOnboardingReceiver;
 
     private BrowserHealthReporter mBrowserHealthReporter;
 
@@ -557,8 +551,6 @@ public class BrowserApp extends GeckoApp
             "Updater:Launch",
             "BrowserToolbar:Visibility");
 
-        registerOnboardingReceiver(this);
-
         Distribution distribution = Distribution.init(this);
 
         // Init suggested sites engine in BrowserDB.
@@ -612,25 +604,6 @@ public class BrowserApp extends GeckoApp
         }
     }
 
-    private void registerOnboardingReceiver(Context context) {
-        final LocalBroadcastManager lbm = LocalBroadcastManager.getInstance(this);
-
-        // Receiver for launching first run start pane on new profile creation.
-        mOnboardingReceiver = new BroadcastReceiver() {
-            @Override
-            public void onReceive(Context context, Intent intent) {
-                launchStartPane(BrowserApp.this);
-            }
-        };
-
-        lbm.registerReceiver(mOnboardingReceiver, new IntentFilter(ACTION_NEW_PROFILE));
-    }
-
-    private void launchStartPane(Context context) {
-         final Intent startIntent = new Intent(context, StartPane.class);
-         context.startActivity(startIntent);
-     }
-
     private Class<?> getMediaPlayerManager() {
         if (AppConstants.MOZ_MEDIA_PLAYER) {
             try {
@@ -677,9 +650,6 @@ public class BrowserApp extends GeckoApp
         // Register for Prompt:ShowTop so we can foreground this activity even if it's hidden.
         EventDispatcher.getInstance().registerGeckoThreadListener((GeckoEventListener)this,
             "Prompt:ShowTop");
-
-        final LocalBroadcastManager lbm = LocalBroadcastManager.getInstance(this);
-        lbm.unregisterReceiver(mOnboardingReceiver);
     }
 
     private void setBrowserToolbarListeners() {

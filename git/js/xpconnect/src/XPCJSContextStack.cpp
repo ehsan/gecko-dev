@@ -122,6 +122,7 @@ XPCJSContextStack::InitSafeJSContext()
     mSafeJSContext = JS_NewContext(XPCJSRuntime::Get()->Runtime(), 8192);
     if (!mSafeJSContext)
         MOZ_CRASH();
+    ContextOptionsRef(mSafeJSContext).setNoDefaultCompartmentObject(true);
     JS_SetErrorReporter(mSafeJSContext, xpc::SystemErrorReporter);
     return mSafeJSContext;
 }

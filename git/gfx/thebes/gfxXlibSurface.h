@@ -17,7 +17,7 @@
 
 #include "nsSize.h"
 
-class gfxXlibSurface MOZ_FINAL : public gfxASurface {
+class gfxXlibSurface : public gfxASurface {
 public:
     // construct a wrapper around the specified drawable with dpy/visual.
     // Will use XGetGeometry to query the window/pixmap size.

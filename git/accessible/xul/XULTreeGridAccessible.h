@@ -72,7 +72,7 @@ protected:
  * Represents accessible for XUL tree item in the case when XUL tree has
  * multiple columns.
  */
-class XULTreeGridRowAccessible MOZ_FINAL : public XULTreeItemAccessibleBase
+class XULTreeGridRowAccessible : public XULTreeItemAccessibleBase
 {
 public:
   using Accessible::GetChildAt;

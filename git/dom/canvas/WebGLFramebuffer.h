@@ -117,7 +117,6 @@ public:
     bool AllImageRectsMatch() const;
     GLenum PrecheckFramebufferStatus() const;
     GLenum CheckFramebufferStatus() const;
-    GLenum GetFormatForAttachment(const WebGLFramebuffer::Attachment& attachment) const;
 
     bool HasDepthStencilConflict() const {
         return int(mDepthAttachment.IsDefined()) +

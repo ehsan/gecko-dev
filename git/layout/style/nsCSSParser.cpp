@@ -8533,8 +8533,9 @@ CSSParserImpl::ParseGridLine(nsCSSValue& aValue)
     eCSSKeyword_UNKNOWN  // End-of-array marker
   };
   bool hasSpan = false;
+  bool hasInteger = false;
   bool hasIdent = false;
-  Maybe<int32_t> integer;
+  int32_t integer;
   nsCSSValue ident;
 
   if (!GetToken(true)) {
@@ -8553,19 +8554,20 @@ CSSParserImpl::ParseGridLine(nsCSSValue& aValue)
         mToken.mType == eCSSToken_Ident &&
         ParseCustomIdent(ident, mToken.mIdent, kGridLineKeywords)) {
       hasIdent = true;
-    } else if (integer.isNothing() &&
+    } else if (!hasInteger &&
                mToken.mType == eCSSToken_Number &&
                mToken.mIntegerValid &&
                mToken.mInteger != 0) {
-      integer.emplace(mToken.mInteger);
+      hasInteger = true;
+      integer = mToken.mInteger;
     } else {
       UngetToken();
       break;
     }
-  } while (!(integer.isSome() && hasIdent) && GetToken(true));
+  } while (!(hasInteger && hasIdent) && GetToken(true));
 
   // Require at least one of <integer> or <custom-ident>
-  if (!(integer.isSome() || hasIdent)) {
+  if (!(hasInteger || hasIdent)) {
     return false;
   }
 
@@ -8581,7 +8583,7 @@ CSSParserImpl::ParseGridLine(nsCSSValue& aValue)
   nsCSSValueList* item = aValue.SetListValue();
   if (hasSpan) {
     // Given "span", a negative <integer> is invalid.
-    if (integer.isSome() && integer.ref() < 0) {
+    if (hasInteger && integer < 0) {
       return false;
     }
     // '1' here is a dummy value.
@@ -8590,8 +8592,8 @@ CSSParserImpl::ParseGridLine(nsCSSValue& aValue)
     item->mNext = new nsCSSValueList;
     item = item->mNext;
   }
-  if (integer.isSome()) {
-    item->mValue.SetIntValue(integer.ref(), eCSSUnit_Integer);
+  if (hasInteger) {
+    item->mValue.SetIntValue(integer, eCSSUnit_Integer);
     if (hasIdent) {
       item->mNext = new nsCSSValueList;
       item = item->mNext;

@@ -360,7 +360,7 @@ nsComboboxControlFrame::ShowList(bool aShowList)
   return weakFrame.IsAlive();
 }
 
-class nsResizeDropdownAtFinalPosition MOZ_FINAL
+class nsResizeDropdownAtFinalPosition
   : public nsIReflowCallback, public nsRunnable
 {
 public:
@@ -462,11 +462,11 @@ nsComboboxControlFrame::GetCSSTransformTranslation()
 {
   nsIFrame* frame = this;
   bool is3DTransform = false;
-  Matrix transform;
+  gfxMatrix transform;
   while (frame) {
     nsIFrame* parent;
-    Matrix4x4 ctm = frame->GetTransformMatrix(nullptr, &parent);
-    Matrix matrix;
+    gfx3DMatrix ctm = frame->GetTransformMatrix(nullptr, &parent);
+    gfxMatrix matrix;
     if (ctm.Is2D(&matrix)) {
       transform = transform * matrix;
     } else {
@@ -478,14 +478,17 @@ nsComboboxControlFrame::GetCSSTransformTranslation()
   nsPoint translation;
   if (!is3DTransform && !transform.HasNonTranslation()) {
     nsPresContext* pc = PresContext();
+    gfxPoint pixelTranslation = transform.GetTranslation();
+    int32_t apd = pc->AppUnitsPerDevPixel();
+    translation.x = NSFloatPixelsToAppUnits(float(pixelTranslation.x), apd);
+    translation.y = NSFloatPixelsToAppUnits(float(pixelTranslation.y), apd);
     // To get the translation introduced only by transforms we subtract the
     // regular non-transform translation.
     nsRootPresContext* rootPC = pc->GetRootPresContext();
     if (rootPC) {
-      int32_t apd = pc->AppUnitsPerDevPixel();
-      translation.x = NSFloatPixelsToAppUnits(transform._31, apd);
-      translation.y = NSFloatPixelsToAppUnits(transform._32, apd);
       translation -= GetOffsetToCrossDoc(rootPC->PresShell()->GetRootFrame());
+    } else {
+      translation.x = translation.y = 0;
     }
   }
   return translation;

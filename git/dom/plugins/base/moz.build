@@ -99,6 +99,8 @@ MSVC_ENABLE_PGO = True
 LOCAL_INCLUDES += [
     '/content/base/src',
     '/dom/base',
+    '/gfx/skia/include/config',
+    '/gfx/skia/include/core',
     '/layout/generic',
     '/layout/xul',
     '/widget/android',

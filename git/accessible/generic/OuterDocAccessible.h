@@ -20,7 +20,7 @@ namespace a11y {
  * the inner document root.
  */
 
-class OuterDocAccessible MOZ_FINAL : public AccessibleWrap
+class OuterDocAccessible : public AccessibleWrap
 {
 public:
   OuterDocAccessible(nsIContent* aContent, DocAccessible* aDoc);

@@ -32,7 +32,7 @@ namespace mozilla {
 class ContainerParser;
 class ErrorResult;
 class SourceBufferResource;
-class SourceBufferDecoder;
+class SubBufferDecoder;
 template <typename T> class AsyncEventRunner;
 
 namespace dom {
@@ -141,8 +141,8 @@ private:
 
   nsAutoPtr<ContainerParser> mParser;
 
-  nsRefPtr<SourceBufferDecoder> mDecoder;
-  nsTArray<nsRefPtr<SourceBufferDecoder>> mDecoders;
+  nsRefPtr<SubBufferDecoder> mDecoder;
+  nsTArray<nsRefPtr<SubBufferDecoder>> mDecoders;
 
   double mAppendWindowStart;
   double mAppendWindowEnd;

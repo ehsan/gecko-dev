@@ -74,10 +74,8 @@ class TbplFormatter(BaseFormatter):
             failure_line = "TEST-UNEXPECTED-%s | %s | %s %s" % (
                 data["status"], self.id_str(data["test"]), data["subtest"],
                 message)
-            if data["expected"] != "PASS":
-                info_line = "TEST-INFO | expected %s\n" % data["expected"]
-                return "\n".join([failure_line, info_line])
-            return failure_line
+            info_line = "TEST-INFO | expected %s\n" % data["expected"]
+            return "\n".join([failure_line, info_line])
 
         return "TEST-%s | %s | %s %s\n" % (
             data["status"], self.id_str(data["test"]), data["subtest"],
@@ -92,20 +90,16 @@ class TbplFormatter(BaseFormatter):
         if test_id in self.test_start_times:
             start_time = self.test_start_times.pop(test_id)
             time = data["time"] - start_time
-            time_msg = "took %ims" % time
+            time_msg = " | took %ims" % time
 
         if "expected" in data:
             failure_line = "TEST-UNEXPECTED-%s | %s | %s" % (
                 data["status"], test_id, message)
 
-            if data["expected"] not in ("PASS", "OK"):
-                expected_msg = "expected %s | " % data["expected"]
-            else:
-                expected_msg = ""
-            info_line = "TEST-INFO %s%s\n" % (expected_msg, time_msg)
+            info_line = "TEST-INFO expected %s%s\n" % (data["expected"], time_msg)
             return "\n".join([failure_line, info_line])
 
-        return "TEST-%s | %s | %s\n" % (
+        return "TEST-%s | %s%s\n" % (
             data["status"], test_id, time_msg)
 
     def suite_end(self, data):

@@ -716,6 +716,10 @@ IonBuilder::build()
     if (info().needsArgsObj() && !initArgumentsObject())
         return false;
 
+    // Prevent |this| from being DCE'd: necessary for constructors.
+    if (info().funMaybeLazy())
+        current->getSlot(info().thisSlot())->setGuard();
+
     // The type analysis phase attempts to insert unbox operations near
     // definitions of values. It also attempts to replace uses in resume points
     // with the narrower, unboxed variants. However, we must prevent this
@@ -6023,6 +6027,11 @@ IonBuilder::newOsrPreheader(MBasicBlock *predecessor, jsbytecode *loopEntry)
     if (!preheader->addPredecessor(alloc(), osrBlock))
         return nullptr;
     graph().setOsrBlock(osrBlock);
+
+    // Wrap |this| with a guaranteed use, to prevent instruction elimination.
+    // Prevent |this| from being DCE'd: necessary for constructors.
+    if (info().funMaybeLazy())
+        preheader->getSlot(info().thisSlot())->setGuard();
 
     return preheader;
 }
