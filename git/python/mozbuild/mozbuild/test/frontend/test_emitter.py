@@ -379,7 +379,7 @@ class TestEmitterBasic(unittest.TestCase):
         objs = [o for o in self.read_topsrcdir(reader)
                 if isinstance(o, TestManifest)]
 
-        self.assertEqual(len(objs), 8)
+        self.assertEqual(len(objs), 6)
 
         metadata = {
             'a11y.ini': {
@@ -435,14 +435,6 @@ class TestEmitterBasic(unittest.TestCase):
                     'tail1': False,
                     'tail2': False,
                 },
-            },
-            'reftest.list': {
-                'flavor': 'reftest',
-                'installs': {},
-            },
-            'crashtest.list': {
-                'flavor': 'crashtest',
-                'installs': {},
             },
         }
 

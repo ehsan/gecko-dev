@@ -22,12 +22,6 @@ public class TestHealthReportUploadService
     }
 
     @Override
-    public boolean backgroundDataIsEnabled() {
-      // When testing, we always want to say we can upload.
-      return true;
-    }
-
-    @Override
     public void onHandleIntent(Intent intent) {
       super.onHandleIntent(intent);
       try {

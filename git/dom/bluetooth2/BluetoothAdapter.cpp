@@ -699,10 +699,7 @@ BluetoothAdapter::EnableDisable(bool aEnable)
   }
 
   nsTArray<nsString> types;
-  BT_APPEND_ENUM_STRING(types,
-                        BluetoothAdapterAttribute,
-                        BluetoothAdapterAttribute::State);
-
+  types.AppendElement(NS_LITERAL_STRING("State"));
   DispatchAttributeEvent(types);
 
   nsRefPtr<BluetoothReplyRunnable> result =
@@ -795,7 +792,7 @@ BluetoothAdapter::HandlePropertyChanged(const BluetoothValue& aValue)
     // BluetoothAdapterAttribute properties
     if (IsAdapterAttributeChanged(type, arr[i].value())) {
       SetPropertyByValue(arr[i]);
-      BT_APPEND_ENUM_STRING(types, BluetoothAdapterAttribute, type);
+      types.AppendElement(arr[i].name());
     }
   }
 

@@ -44,8 +44,7 @@ public class TestSyncConfiguration extends AndroidSyncTestCase {
     config.persistToPrefs();
     assertFalse(prefs.contains(SyncConfiguration.PREF_DECLINED_ENGINE_NAMES));
     config = newSyncConfiguration();
-    assertNotNull(config.declinedEngineNames);
-    assertTrue(config.declinedEngineNames.isEmpty());
+    assertNull(config.declinedEngineNames);
   }
 
   public void testEnabledEngineNames() {
