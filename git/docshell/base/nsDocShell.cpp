@@ -2887,7 +2887,6 @@ nsDocShell::PopProfileTimelineMarkers(JSContext* aCx,
   // docShell if an Layer marker type was recorded too.
 
   nsTArray<mozilla::dom::ProfileTimelineMarker> profileTimelineMarkers;
-  SequenceRooter<mozilla::dom::ProfileTimelineMarker> rooter(aCx, &profileTimelineMarkers);
 
   // If we see an unpaired START, we keep it around for the next call
   // to PopProfileTimelineMarkers.  We store the kept START objects in
@@ -2939,18 +2938,17 @@ nsDocShell::PopProfileTimelineMarkers(JSContext* aCx,
           } else {
             // But ignore paint start/end if no layer has been painted.
             if (!isPaint || (isPaint && hasSeenPaintedLayer)) {
-              mozilla::dom::ProfileTimelineMarker* marker =
-                profileTimelineMarkers.AppendElement();
+              mozilla::dom::ProfileTimelineMarker marker;
 
-              marker->mName = NS_ConvertUTF8toUTF16(startPayload->GetName());
-              marker->mStart = startPayload->GetTime();
-              marker->mEnd = endPayload->GetTime();
-              marker->mStack = startPayload->GetStack();
+              marker.mName = NS_ConvertUTF8toUTF16(startPayload->GetName());
+              marker.mStart = startPayload->GetTime();
+              marker.mEnd = endPayload->GetTime();
               if (isPaint) {
-                marker->mRectangles.Construct(layerRectangles);
+                marker.mRectangles.Construct(layerRectangles);
+              } else {
+                startPayload->AddDetails(marker);
               }
-              startPayload->AddDetails(*marker);
-              endPayload->AddDetails(*marker);
+              profileTimelineMarkers.AppendElement(marker);
             }
 
             // We want the start to be dropped either way.

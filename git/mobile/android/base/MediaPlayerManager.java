@@ -12,9 +12,7 @@ import android.support.v7.media.MediaRouteSelector;
 import android.support.v7.media.MediaRouter;
 import android.support.v7.media.MediaRouter.RouteInfo;
 import android.util.Log;
-
 import com.google.android.gms.cast.CastMediaControlIntent;
-
 import org.json.JSONArray;
 import org.json.JSONException;
 import org.json.JSONObject;
@@ -158,30 +156,22 @@ public class MediaPlayerManager extends Fragment implements NativeEventListener 
             public void onRouteAdded(MediaRouter router, MediaRouter.RouteInfo route) {
                 debug("onRouteAdded: route=" + route);
                 final GeckoMediaPlayer display = getMediaPlayerForRoute(route);
-                saveAndNotifyOfDisplay("MediaPlayer:Added", route, display);
+                if (display != null) {
+                    displays.put(route.getId(), display);
+                    GeckoAppShell.sendEventToGecko(GeckoEvent.createBroadcastEvent(
+                            "MediaPlayer:Added", display.toJSON().toString()));
+                }
             }
 
             @Override
             public void onRouteChanged(MediaRouter router, MediaRouter.RouteInfo route) {
                 debug("onRouteChanged: route=" + route);
                 final GeckoMediaPlayer display = displays.get(route.getId());
-                saveAndNotifyOfDisplay("MediaPlayer:Changed", route, display);
-            }
-
-            private void saveAndNotifyOfDisplay(final String eventName,
-                    MediaRouter.RouteInfo route, final GeckoMediaPlayer display) {
-                if (display == null) {
-                    return;
+                if (display != null) {
+                    displays.put(route.getId(), display);
+                    GeckoAppShell.sendEventToGecko(GeckoEvent.createBroadcastEvent(
+                            "MediaPlayer:Changed", display.toJSON().toString()));
                 }
-
-                final JSONObject json = display.toJSON();
-                if (json == null) {
-                    return;
-                }
-
-                displays.put(route.getId(), display);
-                final GeckoEvent event = GeckoEvent.createBroadcastEvent(eventName, json.toString());
-                GeckoAppShell.sendEventToGecko(event);
             }
         };
 
