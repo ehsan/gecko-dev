@@ -94,7 +94,7 @@ function BrowserElementChild() {
 
   this._isContentWindowCreated = false;
   this._pendingSetInputMethodActive = [];
-  this._selectionStateChangedTarget = null;
+  this._forceDispatchSelectionStateChanged = false;
 
   this._init();
 };
@@ -600,7 +600,7 @@ BrowserElementChild.prototype = {
     let isMouseUp = (e.states.indexOf('mouseup') == 0);
     let canPaste = this._isCommandEnabled("paste");
 
-    if (this._selectionStateChangedTarget != e.target) {
+    if (!this._forceDispatchSelectionStateChanged) {
       // SelectionStateChanged events with the following states are not
       // necessary to trigger the text dialog, bypass these events
       // by default.
@@ -624,15 +624,14 @@ BrowserElementChild.prototype = {
       }
     }
 
-    // If we select something and selection range is visible, we cache current
-    // event's target to selectionStateChangedTarget.
-    // And dispatch the next SelectionStateChagne event if target is matched, so
-    // that the parent side can hide the text dialog.
-    // We clear selectionStateChangedTarget if selection carets are invisible.
+    // If we select something and selection range is visible, we set the
+    // forceDispatchSelectionStateChanged flag as true to dispatch the
+    // next SelectionStateChange event so that the parent side can
+    // hide the text dialog.
     if (e.visible && !isCollapsed) {
-      this._selectionStateChangedTarget = e.target;
+      this._forceDispatchSelectionStateChanged = true;
     } else {
-      this._selectionStateChangedTarget = null;
+      this._forceDispatchSelectionStateChanged = false;
     }
 
     let zoomFactor = content.screen.width / content.innerWidth;

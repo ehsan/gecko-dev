@@ -12,6 +12,6 @@
 
 [NoInterfaceObject]
 interface Animatable {
-  [Func="nsDocument::IsWebAnimationsEnabled"]
+  [Pref="dom.animations-api.core.enabled"]
   sequence<AnimationPlayer> getAnimationPlayers();
 };

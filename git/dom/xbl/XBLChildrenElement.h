@@ -35,17 +35,21 @@ public:
   NS_DECL_ISUPPORTS_INHERITED
 
   // nsINode interface methods
-  virtual nsresult Clone(mozilla::dom::NodeInfo* aNodeInfo, nsINode** aResult) const MOZ_OVERRIDE;
+  virtual nsresult Clone(mozilla::dom::NodeInfo *aNodeInfo, nsINode **aResult) const;
 
-  virtual nsIDOMNode* AsDOMNode() MOZ_OVERRIDE { return this; }
+  virtual nsXPCClassInfo* GetClassInfo() { return nullptr; }
+
+  virtual nsIDOMNode* AsDOMNode() { return this; }
 
   // nsIContent interface methods
+  virtual nsIAtom *GetIDAttributeName() const;
+  virtual nsIAtom* DoGetID() const;
   virtual nsresult UnsetAttr(int32_t aNameSpaceID, nsIAtom* aAttribute,
-                             bool aNotify) MOZ_OVERRIDE;
+                             bool aNotify);
   virtual bool ParseAttribute(int32_t aNamespaceID,
                               nsIAtom* aAttribute,
                               const nsAString& aValue,
-                              nsAttrValue& aResult) MOZ_OVERRIDE;
+                              nsAttrValue& aResult);
 
   void AppendInsertedChild(nsIContent* aChild)
   {
@@ -172,9 +176,9 @@ public:
   NS_DECL_NSIDOMNODELIST
 
   // nsINodeList interface
-  virtual int32_t IndexOf(nsIContent* aContent) MOZ_OVERRIDE;
-  virtual nsINode* GetParentObject() MOZ_OVERRIDE { return mParent; }
-  virtual nsIContent* Item(uint32_t aIndex) MOZ_OVERRIDE;
+  virtual int32_t IndexOf(nsIContent* aContent);
+  virtual nsINode* GetParentObject() { return mParent; }
+  virtual nsIContent* Item(uint32_t aIndex);
 
   virtual JSObject* WrapObject(JSContext *cx) MOZ_OVERRIDE;
 

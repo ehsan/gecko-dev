@@ -61,7 +61,7 @@ GLImage::GetAsSourceSurface()
 
   GLBlitHelper helper(sSnapshotContext);
 
-  helper.BlitImageToFramebuffer(this, size, fb.FB(), true);
+  helper.BlitImageToFramebuffer(this, size, fb.FB(), false);
 
   ScopedBindFramebuffer bind(sSnapshotContext, fb.FB());
 

@@ -1155,17 +1155,11 @@ struct TypeObject : public gc::TenuredCell
         setAddendum(Addendum_NewScript, newScript);
     }
 
-    TypeDescr *maybeTypeDescr() {
+    TypeDescr &typeDescr() {
         // Note: there is no need to sweep when accessing the type descriptor
         // of an object, as it is strongly held and immutable.
-        if (addendumKind() == Addendum_TypeDescr)
-            return reinterpret_cast<TypeDescr *>(addendum_);
-        return nullptr;
-    }
-
-    TypeDescr &typeDescr() {
         MOZ_ASSERT(addendumKind() == Addendum_TypeDescr);
-        return *maybeTypeDescr();
+        return *reinterpret_cast<TypeDescr *>(addendum_);
     }
 
     void setTypeDescr(TypeDescr *descr) {

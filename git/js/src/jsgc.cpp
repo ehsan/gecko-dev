@@ -631,6 +631,18 @@ FinalizeArenas(FreeOp *fop,
     }
 }
 
+static inline Chunk *
+AllocChunk(JSRuntime *rt)
+{
+    return static_cast<Chunk *>(MapAlignedPages(ChunkSize, ChunkSize));
+}
+
+static inline void
+FreeChunk(JSRuntime *rt, Chunk *p)
+{
+    UnmapPages(static_cast<void *>(p), ChunkSize);
+}
+
 Chunk *
 ChunkPool::pop()
 {
@@ -755,7 +767,7 @@ FreeChunkPool(JSRuntime *rt, ChunkPool &pool)
         iter.next();
         pool.remove(chunk);
         MOZ_ASSERT(!chunk->info.numArenasFreeCommitted);
-        UnmapPages(static_cast<void *>(chunk), ChunkSize);
+        FreeChunk(rt, chunk);
     }
     MOZ_ASSERT(pool.count() == 0);
 }
@@ -769,12 +781,21 @@ GCRuntime::freeEmptyChunks(JSRuntime *rt, const AutoLockGC &lock)
 /* static */ Chunk *
 Chunk::allocate(JSRuntime *rt)
 {
-    Chunk *chunk = static_cast<Chunk *>(MapAlignedPages(ChunkSize, ChunkSize));
+    Chunk *chunk = AllocChunk(rt);
     if (!chunk)
         return nullptr;
     chunk->init(rt);
     rt->gc.stats.count(gcstats::STAT_NEW_CHUNK);
     return chunk;
+}
+
+/* Must be called with the GC lock taken. */
+void
+GCRuntime::releaseChunk(Chunk *chunk)
+{
+    MOZ_ASSERT(chunk);
+    prepareToFreeChunk(chunk->info);
+    FreeChunk(rt, chunk);
 }
 
 inline void
@@ -6772,7 +6793,8 @@ js::ReleaseAllJITCode(FreeOp *fop)
 
         for (ZoneCellIter i(zone, FINALIZE_SCRIPT); !i.done(); i.next()) {
             JSScript *script = i.get<JSScript>();
-            jit::FinishInvalidation(fop, script);
+            jit::FinishInvalidation<SequentialExecution>(fop, script);
+            jit::FinishInvalidation<ParallelExecution>(fop, script);
 
             /*
              * Discard baseline script if it's not marked as active. Note that

@@ -24,15 +24,10 @@ struct DialRequest
   bool isEmergency;
 };
 
-struct SendUSSDRequest
+struct USSDRequest
 {
   uint32_t clientId;
   nsString ussd;
-};
-
-struct CancelUSSDRequest
-{
-  uint32_t clientId;
 };
 
 struct HangUpConferenceRequest
@@ -70,27 +65,17 @@ struct ResumeCallRequest
   uint32_t callIndex;
 };
 
-struct SendTonesRequest
-{
-  uint32_t clientId;
-  nsString dtmfChars;
-  uint32_t pauseDuration;
-  uint32_t toneDuration;
-};
-
 union IPCTelephonyRequest
 {
   EnumerateCallsRequest;
   DialRequest;
-  SendUSSDRequest;
-  CancelUSSDRequest;
+  USSDRequest;
   HangUpConferenceRequest;
   AnswerCallRequest;
   HangUpCallRequest;
   RejectCallRequest;
   HoldCallRequest;
   ResumeCallRequest;
-  SendTonesRequest;
 };
 
 sync protocol PTelephony {

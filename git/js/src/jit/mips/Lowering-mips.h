@@ -38,6 +38,12 @@ class LIRGeneratorMIPS : public LIRGeneratorShared
 
     bool needTempForPostBarrier() { return false; }
 
+    // MIPS has a scratch register, so no need for another temp for dispatch
+    // ICs.
+    LDefinition tempForDispatchCache(MIRType outputType = MIRType_None) {
+        return LDefinition::BogusTemp();
+    }
+
     void lowerUntypedPhiInput(MPhi *phi, uint32_t inputPosition, LBlock *block, size_t lirIndex);
     void defineUntypedPhi(MPhi *phi, size_t lirIndex);
     void lowerForShift(LInstructionHelper<1, 2, 0> *ins, MDefinition *mir, MDefinition *lhs,
@@ -100,6 +106,7 @@ class LIRGeneratorMIPS : public LIRGeneratorShared
     void visitAsmJSAtomicBinopHeap(MAsmJSAtomicBinopHeap *ins);
     void visitAsmJSLoadFuncPtr(MAsmJSLoadFuncPtr *ins);
     void visitStoreTypedArrayElementStatic(MStoreTypedArrayElementStatic *ins);
+    void visitForkJoinGetSlice(MForkJoinGetSlice *ins);
     void visitSimdBinaryArith(MSimdBinaryArith *ins);
     void visitSimdSelect(MSimdSelect *ins);
     void visitSimdSplatX4(MSimdSplatX4 *ins);

@@ -36,6 +36,13 @@ DynamicImage::GetProgressTracker()
   return nullptr;
 }
 
+nsIntRect
+DynamicImage::FrameRect(uint32_t aWhichFrame)
+{
+  gfxIntSize size(mDrawable->Size());
+  return nsIntRect(0, 0, size.width, size.height);
+}
+
 size_t
 DynamicImage::SizeOfSourceWithComputedFallback(MallocSizeOf aMallocSizeOf) const
 {
@@ -81,6 +88,12 @@ DynamicImage::OnImageDataComplete(nsIRequest* aRequest,
                                   nsISupports* aContext,
                                   nsresult aStatus,
                                   bool aLastPart)
+{
+  return NS_OK;
+}
+
+nsresult
+DynamicImage::OnNewSourceData()
 {
   return NS_OK;
 }

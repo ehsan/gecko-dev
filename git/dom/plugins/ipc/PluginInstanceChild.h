@@ -144,9 +144,9 @@ protected:
     RecvPPluginScriptableObjectConstructor(PPluginScriptableObjectChild* aActor) MOZ_OVERRIDE;
 
     virtual bool
-    RecvPBrowserStreamConstructor(PBrowserStreamChild* aActor, const nsCString& aURL,
-                                  const uint32_t& aLength, const uint32_t& aLastmodified,
-                                  PStreamNotifyChild* aNotifyData, const nsCString& aHeaders) MOZ_OVERRIDE;
+    RecvPBrowserStreamConstructor(PBrowserStreamChild* aActor, const nsCString& url,
+                                  const uint32_t& length, const uint32_t& lastmodified,
+                                  PStreamNotifyChild* notifyData, const nsCString& headers);
 
     virtual bool
     AnswerNPP_NewStream(
@@ -545,7 +545,7 @@ private:
 
     void Destroy();
 
-    void ActorDestroy(ActorDestroyReason aWhy) MOZ_OVERRIDE;
+    void ActorDestroy(ActorDestroyReason why);
 
     // Set as true when SetupLayer called
     // and go with different path in InvalidateRect function

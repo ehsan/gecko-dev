@@ -216,7 +216,7 @@ nsGIFDecoder2::BeginImageFrame(uint16_t aDepth)
 void
 nsGIFDecoder2::EndImageFrame()
 {
-  Opacity opacity = Opacity::SOME_TRANSPARENCY;
+  FrameBlender::FrameAlpha alpha = FrameBlender::kFrameHasAlpha;
 
   // First flush all pending image data
   if (!mGIFStruct.images_decoded) {
@@ -235,7 +235,7 @@ nsGIFDecoder2::EndImageFrame()
     }
     // This transparency check is only valid for first frame
     if (mGIFStruct.is_transparent && !mSawTransparency) {
-      opacity = Opacity::OPAQUE;
+      alpha = FrameBlender::kFrameOpaque;
     }
   }
   mCurrentRow = mLastFlushedRow = -1;
@@ -259,8 +259,8 @@ nsGIFDecoder2::EndImageFrame()
   mGIFStruct.images_decoded++;
 
   // Tell the superclass we finished a frame
-  PostFrameStop(opacity,
-                DisposalMethod(mGIFStruct.disposal_method),
+  PostFrameStop(alpha,
+                FrameBlender::FrameDisposalMethod(mGIFStruct.disposal_method),
                 mGIFStruct.delay_time);
 
   // Reset the transparent pixel
@@ -830,9 +830,10 @@ nsGIFDecoder2::WriteInternal(const char* aBuffer, uint32_t aCount,
       }
 
       {
-        DisposalMethod method = DisposalMethod(mGIFStruct.disposal_method);
-        if (method == DisposalMethod::CLEAR_ALL ||
-            method == DisposalMethod::CLEAR) {
+        int32_t method =
+          FrameBlender::FrameDisposalMethod(mGIFStruct.disposal_method);
+        if (method == FrameBlender::kDisposeClearAll ||
+            method == FrameBlender::kDisposeClear) {
           // We may have to display the background under this image during
           // animation playback, so we regard it as transparent.
           PostHasTransparency();

@@ -396,7 +396,7 @@ public:
     NS_RELEASE_THIS();
   }
 
-  NS_IMETHODIMP Run() MOZ_OVERRIDE
+  NS_IMETHODIMP Run()
   {
     if (mFrame.IsAlive()) {
       static_cast<nsComboboxControlFrame*>(mFrame.GetFrame())->
@@ -1392,8 +1392,7 @@ nsComboboxControlFrame::SetInitialChildList(ChildListID     aListID,
   //nsIRollupListener
 //----------------------------------------------------------------------
 bool
-nsComboboxControlFrame::Rollup(uint32_t aCount, bool aFlush,
-                               const nsIntPoint* pos, nsIContent** aLastRolledUp)
+nsComboboxControlFrame::Rollup(uint32_t aCount, const nsIntPoint* pos, nsIContent** aLastRolledUp)
 {
   if (!mDroppedDown) {
     return false;
@@ -1412,14 +1411,6 @@ nsComboboxControlFrame::Rollup(uint32_t aCount, bool aFlush,
   if (weakFrame.IsAlive()) {
     mListControlFrame->CaptureMouseEvents(false);
   }
-
-  if (aFlush && weakFrame.IsAlive()) {
-    // The popup's visibility doesn't update until the minimize animation has
-    // finished, so call UpdateWidgetGeometry to update it right away.
-    nsViewManager* viewManager = mDropdownFrame->GetView()->GetViewManager();
-    viewManager->UpdateWidgetGeometry();
-  }
-
   return consume;
 }
 

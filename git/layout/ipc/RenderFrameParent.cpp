@@ -217,7 +217,7 @@ public:
     MessageLoop::current()->PostDelayedTask(FROM_HERE, aTask, aDelayMs);
   }
 
-  virtual bool GetRootZoomConstraints(ZoomConstraints* aOutConstraints) MOZ_OVERRIDE
+  virtual bool GetRootZoomConstraints(ZoomConstraints* aOutConstraints)
   {
     if (mHaveZoomConstraints && aOutConstraints) {
       *aOutConstraints = mZoomConstraints;
@@ -225,7 +225,7 @@ public:
     return mHaveZoomConstraints;
   }
 
-  virtual bool GetTouchSensitiveRegion(CSSRect* aOutRegion) MOZ_OVERRIDE
+  virtual bool GetTouchSensitiveRegion(CSSRect* aOutRegion)
   {
     if (mTouchSensitiveRegion.IsEmpty())
       return false;
@@ -236,7 +236,7 @@ public:
 
   virtual void NotifyAPZStateChange(const ScrollableLayerGuid& aGuid,
                                     APZStateChange aChange,
-                                    int aArg) MOZ_OVERRIDE
+                                    int aArg)
   {
     if (MessageLoop::current() != mUILoop) {
       mUILoop->PostTask(

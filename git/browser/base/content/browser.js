@@ -1738,7 +1738,7 @@ function HandleAppCommandEvent(evt) {
     saveDocument(gBrowser.selectedBrowser.contentDocumentAsCPOW);
     break;
   case "SendMail":
-    MailIntegration.sendLinkForBrowser(gBrowser.selectedBrowser);
+    MailIntegration.sendLinkForWindow(window.content);
     break;
   default:
     return;
@@ -2643,6 +2643,11 @@ let BrowserOnClick = {
     let transportSecurityInfo = serhelper.deserializeObject(securityInfo);
     transportSecurityInfo.QueryInterface(Ci.nsITransportSecurityInfo)
 
+    if (transportSecurityInfo.failedCertChain == null) {
+      Cu.reportError("transportSecurityInfo didn't have a failedCertChain for a failedChannel");
+      return;
+    }
+
     showReportStatus("activity");
 
     /*
@@ -2672,14 +2677,11 @@ let BrowserOnClick = {
     // Convert the nsIX509CertList into a format that can be parsed into
     // JSON
     let asciiCertChain = [];
-
-    if (transportSecurityInfo.failedCertChain) {
-      let certs = transportSecurityInfo.failedCertChain.getEnumerator();
-      while (certs.hasMoreElements()) {
-        let cert = certs.getNext();
-        cert.QueryInterface(Ci.nsIX509Cert);
-        asciiCertChain.push(btoa(getDERString(cert)));
-      }
+    let certs = transportSecurityInfo.failedCertChain.getEnumerator();
+    while (certs.hasMoreElements()) {
+      let cert = certs.getNext();
+      cert.QueryInterface(Ci.nsIX509Cert);
+      asciiCertChain.push(btoa(getDERString(cert)));
     }
 
     let report = {
@@ -6524,8 +6526,9 @@ function warnAboutClosingWindow() {
 }
 
 var MailIntegration = {
-  sendLinkForBrowser: function (aBrowser) {
-    this.sendMessage(aBrowser.currentURI.spec, aBrowser.contentTitle);
+  sendLinkForWindow: function (aWindow) {
+    this.sendMessage(aWindow.location.href,
+                     aWindow.document.title);
   },
 
   sendMessage: function (aBody, aSubject) {

@@ -230,7 +230,9 @@ NS_GetContentList(nsINode* aRootNode,
     // A PL_DHASH_ADD is equivalent to a PL_DHASH_LOOKUP for cases
     // when the entry is already in the hashtable.
     entry = static_cast<ContentListHashEntry *>
-                       (PL_DHashTableAdd(&gContentListHashTable, &hashKey));
+                       (PL_DHashTableOperate(&gContentListHashTable,
+                                             &hashKey,
+                                             PL_DHASH_ADD));
     if (entry)
       list = entry->mContentList;
   }
@@ -344,8 +346,9 @@ GetFuncStringContentList(nsINode* aRootNode,
     // A PL_DHASH_ADD is equivalent to a PL_DHASH_LOOKUP for cases
     // when the entry is already in the hashtable.
     entry = static_cast<FuncStringContentListHashEntry *>
-                       (PL_DHashTableAdd(&gFuncStringContentListHashTable,
-                                         &hashKey));
+                       (PL_DHashTableOperate(&gFuncStringContentListHashTable,
+                                             &hashKey,
+                                             PL_DHASH_ADD));
     if (entry) {
       list = entry->mContentList;
 #ifdef DEBUG
@@ -986,7 +989,9 @@ nsContentList::RemoveFromHashtable()
   if (!gContentListHashTable.ops)
     return;
 
-  PL_DHashTableRemove(&gContentListHashTable, &key);
+  PL_DHashTableOperate(&gContentListHashTable,
+                       &key,
+                       PL_DHASH_REMOVE);
 
   if (gContentListHashTable.EntryCount() == 0) {
     PL_DHashTableFinish(&gContentListHashTable);
@@ -1027,7 +1032,9 @@ nsCacheableFuncStringContentList::RemoveFromFuncStringHashtable()
   }
 
   nsFuncStringCacheKey key(mRootNode, mFunc, mString);
-  PL_DHashTableRemove(&gFuncStringContentListHashTable, &key);
+  PL_DHashTableOperate(&gFuncStringContentListHashTable,
+                       &key,
+                       PL_DHASH_REMOVE);
 
   if (gFuncStringContentListHashTable.EntryCount() == 0) {
     PL_DHashTableFinish(&gFuncStringContentListHashTable);

@@ -31,7 +31,6 @@ EXTRA_SUPPORT_FILES = [
 
 ACCEPTABLE_ERRATA_KEYS = set([
   'skip-if',
-  'fail-if',
 ])
 
 GENERATED_HEADER = '''

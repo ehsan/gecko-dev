@@ -783,9 +783,6 @@
 #if defined(MOZ_SANDBOX)
 #if defined(XP_WIN)
 @BINPATH@/@DLL_PREFIX@sandboxbroker@DLL_SUFFIX@
-#if defined(WOW_HELPER)
-@BINPATH@/wow_helper.exe
-#endif
 #endif
 #endif
 
@@ -898,14 +895,13 @@ bin/libfreebl_32int64_3.so
 @RESPATH@/components/nsTerminatorTelemetry.js
 @RESPATH@/components/terminator.manifest
 
-#if defined(CLANG_CXX)
-#if defined(MOZ_ASAN) || defined(MOZ_TSAN)
+#ifdef MOZ_ASAN
+#ifdef CLANG_CXX
 @BINPATH@/llvm-symbolizer
 #endif
-#endif
-
-#if defined(MOZ_ASAN) && defined(CLANG_CL)
+#ifdef CLANG_CL
 @BINPATH@/clang_rt.asan_dynamic-i386.dll
+#endif
 #endif
 
 

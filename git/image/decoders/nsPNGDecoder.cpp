@@ -54,15 +54,15 @@ GetPNGDecoderAccountingLog()
 #define BYTES_NEEDED_FOR_DIMENSIONS (HEIGHT_OFFSET + 4)
 
 nsPNGDecoder::AnimFrameInfo::AnimFrameInfo()
- : mDispose(DisposalMethod::KEEP)
- , mBlend(BlendMethod::OVER)
+ : mDispose(FrameBlender::kDisposeKeep)
+ , mBlend(FrameBlender::kBlendOver)
  , mTimeout(0)
 { }
 
 #ifdef PNG_APNG_SUPPORTED
 nsPNGDecoder::AnimFrameInfo::AnimFrameInfo(png_structp aPNG, png_infop aInfo)
- : mDispose(DisposalMethod::KEEP)
- , mBlend(BlendMethod::OVER)
+ : mDispose(FrameBlender::kDisposeKeep)
+ , mBlend(FrameBlender::kBlendOver)
  , mTimeout(0)
 {
   png_uint_16 delay_num, delay_den;
@@ -88,17 +88,17 @@ nsPNGDecoder::AnimFrameInfo::AnimFrameInfo(png_structp aPNG, png_infop aInfo)
   }
 
   if (dispose_op == PNG_DISPOSE_OP_PREVIOUS) {
-    mDispose = DisposalMethod::RESTORE_PREVIOUS;
+    mDispose = FrameBlender::kDisposeRestorePrevious;
   } else if (dispose_op == PNG_DISPOSE_OP_BACKGROUND) {
-    mDispose = DisposalMethod::CLEAR;
+    mDispose = FrameBlender::kDisposeClear;
   } else {
-    mDispose = DisposalMethod::KEEP;
+    mDispose = FrameBlender::kDisposeKeep;
   }
 
   if (blend_op == PNG_BLEND_OP_SOURCE) {
-    mBlend = BlendMethod::SOURCE;
+    mBlend = FrameBlender::kBlendSource;
   } else {
-    mBlend = BlendMethod::OVER;
+    mBlend = FrameBlender::kBlendOver;
   }
 }
 #endif
@@ -185,7 +185,7 @@ void nsPNGDecoder::CreateFrame(png_uint_32 x_offset, png_uint_32 y_offset,
   if (png_get_valid(mPNG, mInfo, PNG_INFO_acTL)) {
     mAnimInfo = AnimFrameInfo(mPNG, mInfo);
 
-    if (mAnimInfo.mDispose == DisposalMethod::CLEAR) {
+    if (mAnimInfo.mDispose == FrameBlender::kDisposeClear) {
       // We may have to display the background under this image during
       // animation playback, so we regard it as transparent.
       PostHasTransparency();
@@ -204,11 +204,11 @@ nsPNGDecoder::EndImageFrame()
 
   mNumFrames++;
 
-  Opacity opacity;
+  FrameBlender::FrameAlpha alpha;
   if (mFrameHasNoAlpha) {
-    opacity = Opacity::OPAQUE;
+    alpha = FrameBlender::kFrameOpaque;
   } else {
-    opacity = Opacity::SOME_TRANSPARENCY;
+    alpha = FrameBlender::kFrameHasAlpha;
   }
 
 #ifdef PNG_APNG_SUPPORTED
@@ -220,7 +220,7 @@ nsPNGDecoder::EndImageFrame()
   }
 #endif
 
-  PostFrameStop(opacity, mAnimInfo.mDispose, mAnimInfo.mTimeout,
+  PostFrameStop(alpha, mAnimInfo.mDispose, mAnimInfo.mTimeout,
                 mAnimInfo.mBlend);
 }
 

@@ -30,7 +30,8 @@ CreateCert(const char* issuerCN,
   ByteString extensions[2];
   if (endEntityOrCA == EndEntityOrCA::MustBeCA) {
     extensions[0] =
-      CreateEncodedBasicConstraints(true, nullptr, Critical::Yes);
+      CreateEncodedBasicConstraints(true, nullptr,
+                                    ExtensionCriticality::Critical);
     EXPECT_FALSE(ENCODING_FAILED(extensions[0]));
   }
 
