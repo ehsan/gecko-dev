@@ -39,6 +39,9 @@
  * Tests Places views (menu, toolbar, tree) for liveupdate.
  */
 
+const Cc = Components.classes;
+const Ci = Components.interfaces;
+
 let toolbar = document.getElementById("PersonalToolbar");
 let wasCollapsed = toolbar.collapsed;
 
