@@ -25,7 +25,7 @@
  * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
-#include "jit/ExecutableAllocator.h"
+#include "assembler/jit/ExecutableAllocator.h"
 
 #include "js/MemoryMetrics.h"
 

@@ -36,13 +36,14 @@
 
 #include <string.h>
 #include <limits.h>
-#include <stdarg.h>
+#include "assembler/jit/ExecutableAllocator.h"
+#include "assembler/wtf/Assertions.h"
 
+#include <stdarg.h>
 #include "jsfriendapi.h"
 #include "jsopcode.h"
 #include "jsutil.h"
 
-#include "jit/ExecutableAllocator.h"
 #include "jit/IonSpewer.h"
 #include "js/RootingAPI.h"
 
@@ -87,7 +88,7 @@ namespace JSC {
 
         void putByteUnchecked(int value)
         {
-            MOZ_ASSERT(!(m_size > m_capacity - 4));
+            ASSERT(!(m_size > m_capacity - 4));
             m_buffer[m_size] = char(value);
             m_size++;
         }
@@ -101,7 +102,7 @@ namespace JSC {
 
         void putShortUnchecked(int value)
         {
-            MOZ_ASSERT(!(m_size > m_capacity - 4));
+            ASSERT(!(m_size > m_capacity - 4));
             *reinterpret_cast<short*>(&m_buffer[m_size]) = short(value);
             m_size += 2;
         }
@@ -115,14 +116,14 @@ namespace JSC {
 
         void putIntUnchecked(int value)
         {
-            MOZ_ASSERT(!(m_size > m_capacity - 4));
+            ASSERT(!(m_size > m_capacity - 4));
             *reinterpret_cast<int*>(&m_buffer[m_size]) = value;
             m_size += 4;
         }
 
         void putInt64Unchecked(int64_t value)
         {
-            MOZ_ASSERT(!(m_size > m_capacity - 8));
+            ASSERT(!(m_size > m_capacity - 8));
             *reinterpret_cast<int64_t*>(&m_buffer[m_size]) = value;
             m_size += 8;
         }
@@ -180,7 +181,7 @@ namespace JSC {
         }
 
         unsigned char *buffer() const {
-            MOZ_ASSERT(!m_oom);
+            ASSERT(!m_oom);
             return reinterpret_cast<unsigned char *>(m_buffer);
         }
 

@@ -15,7 +15,6 @@
 #include "nsServiceManagerUtils.h"
 
 #ifndef MOZ_DISABLE_CRYPTOLEGACY
-#include "mozilla/dom/ScriptSettings.h"
 #include "nsKeygenHandler.h"
 #include "nsKeygenThread.h"
 #include "nsNSSCertificate.h"
@@ -34,7 +33,7 @@
 #include "nsIDocument.h"
 #include "nsIScriptObjectPrincipal.h"
 #include "nsIScriptContext.h"
-#include "nsIGlobalObject.h"
+#include "nsIScriptGlobalObject.h"
 #include "nsContentUtils.h"
 #include "nsCxPusher.h"
 #include "nsDOMJSUtils.h"
@@ -168,8 +167,10 @@ typedef struct nsKeyPairInfoStr {
 //to the nsCryptoRunnable event.
 class nsCryptoRunArgs : public nsISupports {
 public:
-  nsCryptoRunArgs();
-  nsCOMPtr<nsIGlobalObject> m_globalObject;
+  nsCryptoRunArgs(JSContext *aCx);
+  nsCOMPtr<nsISupports> m_kungFuDeathGrip;
+  JSContext *m_cx;
+  JS::PersistentRooted<JSObject*> m_scope;
   nsXPIDLCString m_jsCallback;
   NS_DECL_ISUPPORTS
 protected:
@@ -1841,6 +1842,15 @@ loser:
   return nullptr;
 }
 
+static nsISupports *
+GetISupportsFromContext(JSContext *cx)
+{
+    if (JS::ContextOptionsRef(cx).privateIsNSISupports())
+        return static_cast<nsISupports *>(JS_GetContextPrivate(cx));
+
+    return nullptr;
+}
+
 //The top level method which is a member of nsIDOMCrypto
 //for generate a base64 encoded CRMF request.
 CRMFObject*
@@ -1878,8 +1888,8 @@ nsCrypto::GenerateCRMFRequest(JSContext* aContext,
     return nullptr;
   }
 
-  nsCOMPtr<nsIGlobalObject> globalObject = do_QueryInterface(GetParentObject());
-  if (MOZ_UNLIKELY(!globalObject)) {
+  JS::RootedObject script_obj(aContext, GetWrapper());
+  if (MOZ_UNLIKELY(!script_obj)) {
     aRv.Throw(NS_ERROR_UNEXPECTED);
     return nullptr;
   }
@@ -2026,9 +2036,10 @@ nsCrypto::GenerateCRMFRequest(JSContext* aContext,
   //
 
   MOZ_ASSERT(nsContentUtils::GetCurrentJSContext());
-  nsCryptoRunArgs *args = new nsCryptoRunArgs();
+  nsCryptoRunArgs *args = new nsCryptoRunArgs(aContext);
 
-  args->m_globalObject = globalObject;
+  args->m_kungFuDeathGrip = GetISupportsFromContext(aContext);
+  args->m_scope      = JS_GetParent(script_obj);
   if (!aJsCallback.IsVoid()) {
     args->m_jsCallback = aJsCallback;
   }
@@ -2137,7 +2148,7 @@ nsP12Runnable::Run()
   return NS_OK;
 }
 
-nsCryptoRunArgs::nsCryptoRunArgs() {}
+nsCryptoRunArgs::nsCryptoRunArgs(JSContext *cx) : m_cx(cx), m_scope(cx) {}
 
 nsCryptoRunArgs::~nsCryptoRunArgs() {}
 
@@ -2161,12 +2172,10 @@ NS_IMETHODIMP
 nsCryptoRunnable::Run()
 {
   nsNSSShutDownPreventionLock locker;
-
-  // We're going to run script via JS_EvaluateScript, so we need an
-  // AutoEntryScript. This is Gecko specific and not on a standards track.
-  AutoEntryScript aes(m_args->m_globalObject);
-  JSContext* cx = aes.cx();
-  JS::RootedObject scope(cx, JS::CurrentGlobalOrNull(cx));
+  AutoPushJSContext cx(m_args->m_cx);
+  JSAutoRequest ar(cx);
+  JS::Rooted<JSObject*> scope(cx, m_args->m_scope);
+  JSAutoCompartment ac(cx, scope);
 
   bool ok =
     JS_EvaluateScript(cx, scope, m_args->m_jsCallback,

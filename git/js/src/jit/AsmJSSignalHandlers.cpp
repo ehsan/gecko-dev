@@ -4,12 +4,12 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-#include "asmjs/AsmJSSignalHandlers.h"
+#include "jit/AsmJSSignalHandlers.h"
 
 #include "mozilla/DebugOnly.h"
 
-#include "asmjs/AsmJSModule.h"
 #include "assembler/assembler/MacroAssembler.h"
+#include "jit/AsmJSModule.h"
 #include "vm/Runtime.h"
 
 using namespace js;
@@ -969,7 +969,7 @@ AsmJSFaultHandler(int signum, siginfo_t *info, void *context)
 #endif
 
 #if !defined(XP_MACOSX)
-static bool sInstalledHandlers = false;
+static bool sHandlersInstalled = false;
 #endif
 
 bool
@@ -989,7 +989,7 @@ js::EnsureAsmJSSignalHandlersInstalled(JSRuntime *rt)
 #else
     // Assume Windows or Unix. For these platforms, there is a single,
     // process-wide signal handler installed. Take care to only install it once.
-    if (sInstalledHandlers)
+    if (sHandlersInstalled)
         return true;
 
 # if defined(XP_WIN)
@@ -1007,7 +1007,7 @@ js::EnsureAsmJSSignalHandlersInstalled(JSRuntime *rt)
         return false;
 # endif
 
-    sInstalledHandlers = true;
+    sHandlersInstalled = true;
 #endif
     return true;
 }

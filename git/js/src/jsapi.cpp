@@ -45,7 +45,6 @@
 #include "jswrapper.h"
 #include "prmjtime.h"
 
-#include "asmjs/AsmJSLink.h"
 #include "builtin/Eval.h"
 #include "builtin/Intl.h"
 #include "builtin/MapObject.h"
@@ -59,6 +58,7 @@
 #include "frontend/FullParseHandler.h"  // for JS_BufferIsCompileableUnit
 #include "frontend/Parser.h" // for JS_BufferIsCompileableUnit
 #include "gc/Marking.h"
+#include "jit/AsmJSLink.h"
 #include "jit/JitCommon.h"
 #include "js/CharacterEncoding.h"
 #include "js/SliceBudget.h"

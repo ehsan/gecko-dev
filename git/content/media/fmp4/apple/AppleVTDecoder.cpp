@@ -111,26 +111,19 @@ AppleVTDecoder::Input(mp4_demuxer::MP4Sample* aSample)
 nsresult
 AppleVTDecoder::Flush()
 {
-  nsresult rv = WaitForAsynchronousFrames();
-  if (NS_FAILED(rv)) {
-    LOG("AppleVTDecoder::Drain failed waiting for platform decoder.");
-  }
   mReorderQueue.Clear();
-  return rv;
+  return Drain();
 }
 
 nsresult
 AppleVTDecoder::Drain()
 {
-  mTaskQueue->AwaitIdle();
-  nsresult rv = WaitForAsynchronousFrames();
-  if (NS_FAILED(rv)) {
-    LOG("AppleVTDecoder::Drain failed waiting for platform decoder.");
-    return rv;
+  OSStatus rv = VTDecompressionSessionWaitForAsynchronousFrames(mSession);
+  if (rv != noErr) {
+    LOG("Error %d draining frames", rv);
+    return NS_ERROR_FAILURE;
   }
-  DrainReorderedFrames();
-  mCallback->DrainComplete();
-  return NS_OK;
+  return DrainReorderedFrames();
 }
 
 //
@@ -199,22 +192,12 @@ PlatformCallback(void* decompressionOutputRefCon,
 }
 
 nsresult
-AppleVTDecoder::WaitForAsynchronousFrames()
-{
-  OSStatus rv = VTDecompressionSessionWaitForAsynchronousFrames(mSession);
-  if (rv != noErr) {
-    LOG("AppleVTDecoder: Error %d waiting for asynchronous frames", rv);
-    return NS_ERROR_FAILURE;
-  }
-  return NS_OK;
-}
-
-void
 AppleVTDecoder::DrainReorderedFrames()
 {
   while (!mReorderQueue.IsEmpty()) {
     mCallback->Output(mReorderQueue.Pop());
   }
+  return NS_OK;
 }
 
 // Copy and return a decoded frame.

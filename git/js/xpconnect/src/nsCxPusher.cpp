@@ -254,4 +254,11 @@ ThreadsafeAutoSafeJSContext::operator JSContext*() const
   }
 }
 
+AutoPushJSContext::AutoPushJSContext(JSContext *aCx) : mCx(aCx)
+{
+  if (mCx && mCx != nsXPConnect::XPConnect()->GetCurrentJSContext()) {
+    mPusher.construct(mCx);
+  }
+}
+
 } // namespace mozilla

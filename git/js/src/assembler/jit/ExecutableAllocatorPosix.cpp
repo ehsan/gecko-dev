@@ -23,16 +23,17 @@
  * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
-#include "jit/ExecutableAllocator.h"
+#include "assembler/jit/ExecutableAllocator.h"
 
 #if ENABLE_ASSEMBLER && WTF_OS_UNIX && !WTF_OS_SYMBIAN
-
-#include "mozilla/DebugOnly.h"
-#include "mozilla/TaggedAnonymousMemory.h"
 
 #include <sys/mman.h>
 #include <unistd.h>
 
+#include "mozilla/TaggedAnonymousMemory.h"
+
+#include "assembler/wtf/Assertions.h"
+#include "assembler/wtf/VMTags.h"
 #include "js/Utility.h"
 
 namespace JSC {
@@ -44,7 +45,7 @@ size_t ExecutableAllocator::determinePageSize()
 
 ExecutablePool::Allocation ExecutableAllocator::systemAlloc(size_t n)
 {
-    void *allocation = MozTaggedAnonymousMmap(NULL, n, INITIAL_PROTECTION_FLAGS, MAP_PRIVATE | MAP_ANON, -1, 0, "js-jit-code");
+    void *allocation = MozTaggedAnonymousMmap(NULL, n, INITIAL_PROTECTION_FLAGS, MAP_PRIVATE | MAP_ANON, VM_TAG_FOR_EXECUTABLEALLOCATOR_MEMORY, 0, "js-jit-code");
     if (allocation == MAP_FAILED)
         allocation = NULL;
     ExecutablePool::Allocation alloc = { reinterpret_cast<char*>(allocation), n };
@@ -53,8 +54,8 @@ ExecutablePool::Allocation ExecutableAllocator::systemAlloc(size_t n)
 
 void ExecutableAllocator::systemRelease(const ExecutablePool::Allocation& alloc)
 {
-    mozilla::DebugOnly<int> result = munmap(alloc.pages, alloc.size);
-    MOZ_ASSERT(!result);
+    int result = munmap(alloc.pages, alloc.size);
+    ASSERT_UNUSED(result, !result);
 }
 
 #if WTF_ENABLE_ASSEMBLER_WX_EXCLUSIVE

@@ -9,7 +9,7 @@
 
 #include "jsscript.h"
 
-#include "asmjs/AsmJSLink.h"
+#include "jit/AsmJSLink.h"
 #include "jit/BaselineJIT.h"
 #include "jit/IonAnalysis.h"
 #include "vm/ScopeObject.h"

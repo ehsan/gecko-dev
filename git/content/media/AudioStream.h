@@ -240,7 +240,6 @@ public:
   // application.
   void SetMicrophoneActive(bool aActive);
   void PanOutputIfNeeded(bool aMicrophoneActive);
-  void ResetStreamIfNeeded();
 
   // Block until buffered audio data has been consumed.
   void Drain();
