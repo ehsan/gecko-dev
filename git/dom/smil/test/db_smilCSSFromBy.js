@@ -42,14 +42,6 @@ var _fromByTestLists =
                                            toComp: "8px"}),
     new AnimTestcaseFromBy("1px", "10px", { midComp: "6px", toComp: "11px"}),
   ],
-  lengthPxSVG: [
-    new AnimTestcaseFromBy("0px", "8px", { fromComp: "0",
-                                           midComp: "4",
-                                           toComp: "8"}),
-    new AnimTestcaseFromBy("1px", "10px", { fromComp: "1",
-                                            midComp: "6",
-                                            toComp: "11"}),
-  ],
   opacity: [
     new AnimTestcaseFromBy("1", "-1", { midComp: "0.5", toComp: "0"}),
     new AnimTestcaseFromBy("0.4", "-0.6", { midComp: "0.1", toComp: "0"}),
@@ -145,5 +137,5 @@ var gFromByBundles =
   ]),
   new TestcaseBundle(gPropList.stroke_width,
                      [].concat(_fromByTestLists.lengthNoUnitsSVG,
-                               _fromByTestLists.lengthPxSVG))
+                               _fromByTestLists.lengthPx))
 ];

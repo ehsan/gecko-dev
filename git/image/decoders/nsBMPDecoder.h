@@ -54,11 +54,11 @@ private:
      * the bitmasks from mBitFields */
     NS_METHOD CalcBitShift();
 
-    uint32_t mPos; ///< Number of bytes read from aBuffer in WriteInternal()
+    uint32_t mPos;
 
     BMPFILEHEADER mBFH;
     BITMAPV5HEADER mBIH;
-    char mRawBuf[WIN_V3_INTERNAL_BIH_LENGTH]; ///< If this is changed, WriteInternal() MUST be updated
+    char mRawBuf[WIN_V3_INTERNAL_BIH_LENGTH];
 
     uint32_t mLOH; ///< Length of the header
 

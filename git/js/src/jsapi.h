@@ -5194,14 +5194,8 @@ typedef void
 extern JS_PUBLIC_API(void)
 SetOutOfMemoryCallback(JSRuntime *rt, OutOfMemoryCallback cb, void *data);
 
-
-/*
- * Capture the current call stack as a chain of SavedFrame objects, and set
- * |stackp| to the SavedFrame for the newest stack frame. If |maxFrameCount| is
- * non-zero, capture at most the youngest |maxFrameCount| frames.
- */
 extern JS_PUBLIC_API(bool)
-CaptureCurrentStack(JSContext *cx, MutableHandleObject stackp, unsigned maxFrameCount = 0);
+CaptureCurrentStack(JSContext *cx, MutableHandleObject stackp);
 
 } /* namespace JS */
 

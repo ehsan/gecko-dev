@@ -27,6 +27,7 @@
 
 #include <ctype.h>
 #include <string.h>
+#include <wchar.h>
 
 #include "jsapi.h"
 #include "jsarray.h"
@@ -1167,12 +1168,22 @@ FirstCharMatcher8bit(const char *text, uint32_t n, const char pat)
 }
 
 static const jschar *
-FirstCharMatcher16bit(const jschar *text, uint32_t n, const jschar pat)
+FirstCharMatcher16bit (const jschar *text, uint32_t n, const jschar pat)
 {
-#if defined(XP_DARWIN) || defined(XP_WIN)
+    /* Some platforms define wchar_t as signed and others not. */
+#if (WCHAR_MIN == 0 && WCHAR_MAX == UINT16_MAX) || (WCHAR_MIN == INT16_MIN && WCHAR_MAX == INT16_MAX)
     /*
-     * Performance of memchr is horrible in OSX. Windows is better,
-     * but it is still better to use UnrolledMatcher.
+     * Wmemchr works the best.
+     * But only possible to use this when,
+     * size of jschar = size of wchar_t.
+     */
+    const wchar_t *wtext = (const wchar_t *) text;
+    const wchar_t wpat = (const wchar_t) pat;
+    return (jschar *) (wmemchr(wtext, wpat, n));
+#elif defined(__clang__)
+    /*
+     * Performance under memchr is horrible in clang.
+     * Hence it is best to use UnrolledMatcher in this case
      */
     return FirstCharMatcherUnrolled<jschar, jschar>(text, n, pat);
 #else

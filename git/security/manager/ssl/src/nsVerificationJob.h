@@ -10,6 +10,7 @@
 #include "nspr.h"
 
 #include "nsIX509Cert.h"
+#include "nsIX509Cert3.h"
 #include "nsProxyRelease.h"
 
 class nsBaseVerificationJob

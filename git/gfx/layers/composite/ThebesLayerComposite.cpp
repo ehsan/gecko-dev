@@ -147,7 +147,7 @@ ThebesLayerComposite::RenderLayer(const nsIntRect& aClipRect)
   mBuffer->Composite(effectChain,
                      GetEffectiveOpacity(),
                      GetEffectiveTransform(),
-                     GetEffectFilter(),
+                     gfx::Filter::LINEAR,
                      clipRect,
                      &visibleRegion,
                      mRequiresTiledProperties ? &tiledLayerProps
@@ -178,13 +178,6 @@ ThebesLayerComposite::CleanupResources()
     mBuffer->Detach(this);
   }
   mBuffer = nullptr;
-}
-
-void
-ThebesLayerComposite::GenEffectChain(EffectChain& aEffect)
-{
-  aEffect.mLayerRef = this;
-  aEffect.mPrimaryEffect = mBuffer->GenEffect(GetEffectFilter());
 }
 
 CSSToScreenScale

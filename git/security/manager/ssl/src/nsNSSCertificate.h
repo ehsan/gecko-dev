@@ -7,6 +7,8 @@
 #define _NS_NSSCERTIFICATE_H_
 
 #include "nsIX509Cert.h"
+#include "nsIX509Cert2.h"
+#include "nsIX509Cert3.h"
 #include "nsIX509CertDB.h"
 #include "nsIX509CertList.h"
 #include "nsIASN1Object.h"
@@ -23,7 +25,7 @@ class nsAutoString;
 class nsINSSComponent;
 class nsIASN1Sequence;
 
-class nsNSSCertificate : public nsIX509Cert,
+class nsNSSCertificate : public nsIX509Cert3,
                          public nsIIdentityInfo,
                          public nsISerializable,
                          public nsIClassInfo,
@@ -32,6 +34,8 @@ class nsNSSCertificate : public nsIX509Cert,
 public:
   NS_DECL_THREADSAFE_ISUPPORTS
   NS_DECL_NSIX509CERT
+  NS_DECL_NSIX509CERT2
+  NS_DECL_NSIX509CERT3
   NS_DECL_NSIIDENTITYINFO
   NS_DECL_NSISERIALIZABLE
   NS_DECL_NSICLASSINFO

@@ -107,7 +107,7 @@ ImageLayerComposite::RenderLayer(const nsIntRect& aClipRect)
   mImageHost->Composite(effectChain,
                         GetEffectiveOpacity(),
                         GetEffectiveTransform(),
-                        GetEffectFilter(),
+                        gfx::ToFilter(mFilter),
                         clipRect);
   mImageHost->BumpFlashCounter();
 }
@@ -159,19 +159,6 @@ ImageLayerComposite::CleanupResources()
     mImageHost->Detach(this);
   }
   mImageHost = nullptr;
-}
-
-gfx::Filter
-ImageLayerComposite::GetEffectFilter()
-{
-  return gfx::ToFilter(mFilter);
-}
-
-void
-ImageLayerComposite::GenEffectChain(EffectChain& aEffect)
-{
-  aEffect.mLayerRef = this;
-  aEffect.mPrimaryEffect = mImageHost->GenEffect(GetEffectFilter());
 }
 
 void
