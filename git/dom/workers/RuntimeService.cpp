@@ -1112,30 +1112,18 @@ GetWorkerPrivateFromContext(JSContext* aCx)
   return static_cast<WorkerThreadRuntimePrivate*>(JS_GetRuntimePrivate(JS_GetRuntime(aCx)))->mWorkerPrivate;
 }
 
-WorkerPrivate*
-GetCurrentThreadWorkerPrivate()
+bool
+IsCurrentThreadRunningChromeWorker()
 {
-  MOZ_ASSERT(!NS_IsMainThread(), "Wrong thread!");
-  CycleCollectedJSRuntime* ccrt = CycleCollectedJSRuntime::Get();
+  NS_ASSERTION(!NS_IsMainThread(), "Wrong thread!");
+  CycleCollectedJSRuntime* ccrt = nsCycleCollector_currentJSRuntime();
   if (!ccrt) {
-    return nullptr;
+    return false;
   }
 
   JSRuntime* rt = ccrt->Runtime();
   return static_cast<WorkerThreadRuntimePrivate*>(JS_GetRuntimePrivate(rt))->
-    mWorkerPrivate;
-}
-
-bool
-IsCurrentThreadRunningChromeWorker()
-{
-  return GetCurrentThreadWorkerPrivate()->UsesSystemPrincipal();
-}
-
-JSContext*
-GetCurrentThreadJSContext()
-{
-  return GetCurrentThreadWorkerPrivate()->GetJSContext();
+    mWorkerPrivate->UsesSystemPrincipal();
 }
 
 END_WORKERS_NAMESPACE

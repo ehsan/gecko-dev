@@ -11,7 +11,6 @@ import socket
 import sys
 import time
 import traceback
-import random
 import moznetwork
 import xml.dom.minidom as dom
 
@@ -211,7 +210,7 @@ class MarionetteTestRunner(object):
                  revision=None, logger=None, testgroup="marionette", noWindow=False,
                  logcat_dir=None, xml_output=None, repeat=0, gecko_path=None,
                  testvars=None, tree=None, type=None, device_serial=None,
-                 symbols_path=None, timeout=None, es_servers=None, shuffle=False, **kwargs):
+                 symbols_path=None, timeout=None, es_servers=None, **kwargs):
         self.address = address
         self.emulator = emulator
         self.emulatorBinary = emulatorBinary
@@ -245,7 +244,6 @@ class MarionetteTestRunner(object):
         self._capabilities = None
         self._appName = None
         self.es_servers = es_servers
-        self.shuffle = shuffle
 
         if testvars:
             if not os.path.exists(testvars):
@@ -419,9 +417,6 @@ class MarionetteTestRunner(object):
         self.reset_test_stats()
         starttime = datetime.utcnow()
         while self.repeat >=0:
-            self.logger.info('\nROUND %d\n-------' % self.repeat)
-            if self.shuffle:
-                random.shuffle(tests)
             for test in tests:
                 self.run_test(test)
             self.repeat -= 1
@@ -468,8 +463,6 @@ class MarionetteTestRunner(object):
 
         if os.path.isdir(filepath):
             for root, dirs, files in os.walk(filepath):
-                if self.shuffle:
-                    random.shuffle(files)
                 for filename in files:
                     if ((filename.startswith('test_') or filename.startswith('browser_')) and
                         (filename.endswith('.py') or filename.endswith('.js'))):
@@ -512,10 +505,7 @@ class MarionetteTestRunner(object):
                                   self.appName))
                 self.todo += 1
 
-            target_tests = manifest.get(tests=manifest_tests, **testargs)
-            if self.shuffle:
-                random.shuffle(target_tests)
-            for i in target_tests:
+            for i in manifest.get(tests=manifest_tests, **testargs):
                 self.run_test(i["path"])
                 if self.marionette.check_for_crash():
                     return
@@ -753,11 +743,6 @@ class MarionetteTestOptions(OptionParser):
                         dest='es_servers',
                         action='append',
                         help='the ElasticSearch server to use for autolog submission')
-        self.add_option('--shuffle',
-                        action='store_true',
-                        dest='shuffle',
-                        default=False,
-                        help='run tests in a random order')
 
     def verify_usage(self, options, tests):
         if not tests:

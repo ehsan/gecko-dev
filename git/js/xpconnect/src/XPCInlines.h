@@ -488,9 +488,7 @@ inline
 JSObject* XPCWrappedNativeTearOff::GetJSObject()
 {
     JSObject *obj = GetJSObjectPreserveColor();
-    if (obj) {
-      JS::ExposeObjectToActiveJS(obj);
-    }
+    xpc_UnmarkGrayObject(obj);
     return obj;
 }
 

@@ -11326,7 +11326,7 @@ nsIDocument::WrapObject(JSContext *aCx, JS::Handle<JSObject*> aScope)
                                            getter_AddRefs(holder),
                                            false);
   if (NS_FAILED(rv)) {
-    Throw(aCx, rv);
+    Throw<true>(aCx, rv);
     return nullptr;
   }
 

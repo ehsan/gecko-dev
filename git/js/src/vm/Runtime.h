@@ -1226,6 +1226,10 @@ struct JSRuntime : public JS::shadow::Runtime,
         needsBarrier_ = needs;
     }
 
+    bool needsBarrier() const {
+        return needsBarrier_;
+    }
+
     struct ExtraTracer {
         JSTraceDataOp op;
         void *data;

@@ -199,11 +199,6 @@ enum InternBehavior
     InternAtom = true
 };
 
-template <AllowGC allowGC>
-extern JSAtom *
-AtomizeMaybeGC(ExclusiveContext *cx, const char *bytes, size_t length,
-               js::InternBehavior ib = js::DoNotInternAtom);
-
 extern JSAtom *
 Atomize(ExclusiveContext *cx, const char *bytes, size_t length,
         js::InternBehavior ib = js::DoNotInternAtom);

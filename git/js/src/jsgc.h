@@ -16,7 +16,6 @@
 #include "jsobj.h"
 
 #include "js/GCAPI.h"
-#include "js/Tracer.h"
 #include "js/Vector.h"
 
 class JSAtom;

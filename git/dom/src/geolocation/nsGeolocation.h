@@ -209,8 +209,18 @@ private:
   // Watch ID
   uint32_t mLastWatchId;
 
-  // Pending requests are used when the service is not ready
-  nsTArray<nsRefPtr<nsGeolocationRequest> > mPendingRequests;
+  // Pending requests are used when the service is not ready:
+  class PendingRequest
+  {
+  public:
+    nsRefPtr<nsGeolocationRequest> request;
+    enum {
+      GetCurrentPosition,
+      WatchPosition
+    } type;
+  };
+
+  nsTArray<PendingRequest> mPendingRequests;
 };
 
 class PositionError MOZ_FINAL : public nsIDOMGeoPositionError,

@@ -200,6 +200,13 @@ class PreserveRegExpStatics
     ~PreserveRegExpStatics() { original->restore(); }
 };
 
+inline js::RegExpStatics *
+js::GlobalObject::getRegExpStatics() const
+{
+    JSObject &resObj = getSlot(REGEXP_STATICS).toObject();
+    return static_cast<RegExpStatics *>(resObj.getPrivate());
+}
+
 inline bool
 RegExpStatics::createDependent(JSContext *cx, size_t start, size_t end, MutableHandleValue out)
 {

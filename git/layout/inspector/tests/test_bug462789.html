@@ -77,10 +77,7 @@ function do_test() {
     utils.setContentState(docElement, false);
     ok(false, "expected an exception"); 
   }
-  catch(e) {
-    e = SpecialPowers.wrap(e);
-    is(e.result, ERROR_FAILURE, "got the expected exception");
-  }
+  catch(e) { is(e.result, ERROR_FAILURE, "got the expected exception"); }
 
   SimpleTest.finish();
 }

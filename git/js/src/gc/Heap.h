@@ -22,15 +22,16 @@
 
 struct JSCompartment;
 
+extern "C" {
 struct JSRuntime;
-
-namespace JS {
-namespace shadow {
-class Runtime;
-}
 }
 
 namespace js {
+
+// Whether the current thread is permitted access to any part of the specified
+// runtime or zone.
+extern bool CurrentThreadCanAccessRuntime(JSRuntime *rt);
+extern bool CurrentThreadCanAccessZone(JS::Zone *zone);
 
 class FreeOp;
 
@@ -105,7 +106,6 @@ struct Cell
     // Note: Unrestricted access to the runtime of a GC thing from an arbitrary
     // thread can easily lead to races. Use this method very carefully.
     inline JSRuntime *runtimeFromAnyThread() const;
-    inline JS::shadow::Runtime *shadowRuntimeFromAnyThread() const;
 
 #ifdef DEBUG
     inline bool isAligned() const;
@@ -967,12 +967,6 @@ inline JSRuntime *
 Cell::runtimeFromAnyThread() const
 {
     return chunk()->info.runtime;
-}
-
-inline JS::shadow::Runtime *
-Cell::shadowRuntimeFromAnyThread() const
-{
-    return reinterpret_cast<JS::shadow::Runtime*>(runtimeFromAnyThread());
 }
 
 AllocKind
