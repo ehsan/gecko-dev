@@ -125,13 +125,11 @@ CompileRuntime::positiveInfinityValue()
     return runtime()->positiveInfinityValue;
 }
 
-#ifdef DEBUG
 bool
 CompileRuntime::isInsideNursery(gc::Cell *cell)
 {
     return UninlinedIsInsideNursery(runtime(), cell);
 }
-#endif
 
 const DOMCallbacks *
 CompileRuntime::DOMcallbacks()
@@ -229,11 +227,4 @@ bool
 CompileCompartment::hasObjectMetadataCallback()
 {
     return compartment()->hasObjectMetadataCallback();
-}
-
-AutoLockForCompilation::AutoLockForCompilation(CompileCompartment *compartment
-                                               MOZ_GUARD_OBJECT_NOTIFIER_PARAM_IN_IMPL)
-{
-    MOZ_GUARD_OBJECT_NOTIFIER_INIT;
-    init(compartment->compartment()->runtimeFromAnyThread());
 }

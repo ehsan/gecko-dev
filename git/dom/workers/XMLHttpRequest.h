@@ -22,8 +22,8 @@ class Proxy;
 class XMLHttpRequestUpload;
 class WorkerPrivate;
 
-class XMLHttpRequest MOZ_FINAL: public nsXHREventTarget,
-                                public WorkerFeature
+class XMLHttpRequest : public nsXHREventTarget,
+                       public WorkerFeature
 {
 public:
   struct StateData
@@ -60,6 +60,10 @@ private:
 
   bool mMozAnon;
   bool mMozSystem;
+
+protected:
+  XMLHttpRequest(WorkerPrivate* aWorkerPrivate);
+  virtual ~XMLHttpRequest();
 
 public:
   virtual JSObject*
@@ -268,9 +272,6 @@ public:
   }
 
 private:
-  XMLHttpRequest(WorkerPrivate* aWorkerPrivate);
-  ~XMLHttpRequest();
-
   enum ReleaseType { Default, XHRIsGoingAway, WorkerIsGoingAway };
 
   void

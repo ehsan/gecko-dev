@@ -85,11 +85,7 @@ public:
   nsresult GetBuffered(dom::TimeRanges* aBuffered, int64_t aStartTime) MOZ_OVERRIDE
   {
     // XXX: Merge result with audio reader.
-    MediaDecoderReader* reader = GetVideoReader() ? GetVideoReader() : GetAudioReader();
-    if (reader) {
-      return reader->GetBuffered(aBuffered, aStartTime);
-    }
-    return NS_OK;
+    return GetVideoReader()->GetBuffered(aBuffered, aStartTime);
   }
 
   MediaQueue<AudioData>& AudioQueue() MOZ_OVERRIDE

@@ -19,8 +19,8 @@ namespace jit {
 template <typename T>
 class FixedList
 {
-    T *list_;
     size_t length_;
+    T *list_;
 
   private:
     FixedList(const FixedList&); // no copy definition.

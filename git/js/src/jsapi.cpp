@@ -700,7 +700,9 @@ StartRequest(JSContext *cx)
     } else {
         /* Indicate that a request is running. */
         rt->requestDepth = 1;
-        rt->triggerActivityCallback(true);
+
+        if (rt->activityCallback)
+            rt->activityCallback(rt->activityCallbackArg, true);
     }
 }
 
@@ -716,7 +718,9 @@ StopRequest(JSContext *cx)
     } else {
         rt->conservativeGC.updateForRequestEnd();
         rt->requestDepth = 0;
-        rt->triggerActivityCallback(false);
+
+        if (rt->activityCallback)
+            rt->activityCallback(rt->activityCallbackArg, false);
     }
 }
 #endif /* JS_THREADSAFE */

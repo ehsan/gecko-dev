@@ -91,8 +91,6 @@ js::StartOffThreadIonCompile(JSContext *cx, jit::IonBuilder *builder)
     if (!state.ionWorklist.append(builder))
         return false;
 
-    cx->runtime()->addCompilationThread();
-
     state.notifyAll(WorkerThreadState::PRODUCER);
     return true;
 }
@@ -617,7 +615,7 @@ WorkerThreadState::finishParseTask(JSContext *maybecx, JSRuntime *rt, void *toke
          iter.next())
     {
         types::TypeObject *object = iter.get<types::TypeObject>();
-        TaggedProto proto(object->proto());
+        TaggedProto proto(object->proto);
         if (!proto.isObject())
             continue;
 
@@ -628,9 +626,7 @@ WorkerThreadState::finishParseTask(JSContext *maybecx, JSRuntime *rt, void *toke
         JSObject *newProto = GetClassPrototypePure(&parseTask->scopeChain->global(), key);
         JS_ASSERT(newProto);
 
-        // Note: this is safe to do without requiring the compilation lock, as
-        // the new type is not yet available to compilation threads.
-        object->setProtoUnchecked(newProto);
+        object->proto = newProto;
     }
 
     // Move the parsed script and all its contents into the desired compartment.
@@ -764,11 +760,7 @@ WorkerThread::handleIonWorkload(WorkerThreadState &state)
         jit::IonContext ictx(jit::CompileRuntime::get(runtime),
                              jit::CompileCompartment::get(ionBuilder->script()->compartment()),
                              &ionBuilder->alloc());
-        AutoEnterIonCompilation ionCompiling;
-        bool succeeded = ionBuilder->build();
-        ionBuilder->clearForBackEnd();
-        if (succeeded)
-            ionBuilder->setBackgroundCodegen(jit::CompileBackEnd(ionBuilder));
+        ionBuilder->setBackgroundCodegen(jit::CompileBackEnd(ionBuilder));
     }
     state.lock();
 

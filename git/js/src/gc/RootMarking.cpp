@@ -47,7 +47,7 @@ MarkExactStackRoot(JSTracer *trc, Rooted<void*> *rooter, ThingRootKind kind)
     if (IsNullTaggedPointer(*addr))
         return;
 
-    if (kind == THING_ROOT_OBJECT && *addr == TaggedProto::LazyProto)
+    if (kind == THING_ROOT_OBJECT && *addr == Proxy::LazyProto)
         return;
 
     switch (kind) {

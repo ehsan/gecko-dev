@@ -338,7 +338,7 @@ ArrayBufferObject::neuterViews(JSContext *cx, Handle<ArrayBufferObject*> buffer)
     size_t numViews = 0;
     for (view = GetViewList(buffer); view; view = view->nextView()) {
         numViews++;
-        view->neuter(cx);
+        view->neuter();
 
         // Notify compiled jit code that the base pointer has moved.
         MarkObjectStateChange(cx, view);
@@ -1182,10 +1182,8 @@ TypedArrayObject::isArrayIndex(jsid id, uint32_t *ip)
 }
 
 void
-TypedArrayObject::neuter(JSContext *cx)
+TypedArrayObject::neuter()
 {
-    AutoLockForCompilation lock(cx);
-
     setSlot(LENGTH_SLOT, Int32Value(0));
     setSlot(BYTELENGTH_SLOT, Int32Value(0));
     setSlot(BYTEOFFSET_SLOT, Int32Value(0));
@@ -2627,12 +2625,12 @@ ArrayBufferViewObject::prependToViews(ArrayBufferViewObject *viewsHead)
 }
 
 void
-ArrayBufferViewObject::neuter(JSContext *cx)
+ArrayBufferViewObject::neuter()
 {
     if (is<DataViewObject>())
         as<DataViewObject>().neuter();
     else
-        as<TypedArrayObject>().neuter(cx);
+        as<TypedArrayObject>().neuter();
 }
 
 // this default implementation is only valid for integer types

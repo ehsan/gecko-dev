@@ -2,8 +2,6 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-"use strict";
-
 const kXULWidgetId = "sync-button";
 const kAPIWidgetId = "feed-button";
 const kPanel = CustomizableUI.AREA_PANEL;
@@ -42,7 +40,7 @@ let move = {
     }
     return CustomizableUI.addWidgetToArea(id, target, null);
   }
-};
+}
 
 function isLast(containerId, defaultPlacements, id) {
   assertAreaPlacements(containerId, defaultPlacements.concat([id]));
@@ -110,35 +108,47 @@ function checkPalette(id, method) {
 }
 
 let otherWin;
-Services.prefs.setBoolPref("browser.uiCustomization.skipSourceNodeCheck", true);
+let gTests = [
+  {
+    desc: "Moving widgets in two windows, one with customize mode and one without, should work",
+    setup: startCustomizing,
+    run: function() {
+      otherWin = yield openAndLoadWindow(null, true);
+      yield otherWin.PanelUI.ensureReady();
+      ok(CustomizableUI.inDefaultState, "Should start in default state");
 
-// Moving widgets in two windows, one with customize mode and one without, should work.
-add_task(function MoveWidgetsInTwoWindows() {
-  yield startCustomizing();
-  otherWin = yield openAndLoadWindow(null, true);
-  yield otherWin.PanelUI.ensureReady();
-  ok(CustomizableUI.inDefaultState, "Should start in default state");
+      for (let widgetId of [kXULWidgetId, kAPIWidgetId]) {
+        for (let method of ["API", "drag", "dragToItem"]) {
+          info("Moving widget " + widgetId + " using " + method);
+          checkToolbar(widgetId, method);
+          checkPanel(widgetId, method);
+          checkPalette(widgetId, method);
+          checkPanel(widgetId, method);
+          checkToolbar(widgetId, method);
+          checkPalette(widgetId, method);
+        }
+      }
 
-  for (let widgetId of [kXULWidgetId, kAPIWidgetId]) {
-    for (let method of ["API", "drag", "dragToItem"]) {
-      info("Moving widget " + widgetId + " using " + method);
-      checkToolbar(widgetId, method);
-      checkPanel(widgetId, method);
-      checkPalette(widgetId, method);
-      checkPanel(widgetId, method);
-      checkToolbar(widgetId, method);
-      checkPalette(widgetId, method);
+      otherWin.close();
+      otherWin = null;
+    },
+    teardown: function() {
+      if (otherWin) {
+        otherWin.close();
+      }
+      yield endCustomizing();
     }
   }
-  otherWin.close();
-  otherWin = null;
-  if (otherWin) {
-    otherWin.close();
-  }
-  yield endCustomizing();
-});
+];
 
-add_task(function asyncCleanup() {
+function asyncCleanup() {
   Services.prefs.clearUserPref("browser.uiCustomization.skipSourceNodeCheck");
   yield resetCustomization();
-});
+}
+
+function test() {
+  Services.prefs.setBoolPref("browser.uiCustomization.skipSourceNodeCheck", true);
+  waitForExplicitFinish();
+  runTests(gTests, asyncCleanup);
+}
+

@@ -233,7 +233,7 @@ public class testBrowserProviderPerf extends ContentProviderTest {
 
     @Override
     public void setUp() throws Exception {
-        super.setUp("org.mozilla.gecko.db.BrowserProvider", "AUTHORITY", "browser.db");
+        super.setUp("org.mozilla.gecko.db.BrowserProvider", "AUTHORITY");
 
         mGenerator = new Random(19580427);
 

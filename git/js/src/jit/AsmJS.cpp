@@ -2537,8 +2537,9 @@ class FunctionCompiler
   private:
     ParseNode *popLoop()
     {
-        ParseNode *pn = loopStack_.popCopy();
+        ParseNode *pn = loopStack_.back();
         JS_ASSERT(!unlabeledContinues_.has(pn));
+        loopStack_.popBack();
         breakableStack_.popBack();
         return pn;
     }

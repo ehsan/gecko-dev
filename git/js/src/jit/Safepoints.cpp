@@ -106,7 +106,7 @@ MapSlotsToBitset(BitSet *set, CompactBufferWriter &stream, uint32_t nslots, uint
     }
 
     size_t count = set->rawLength();
-    const uint32_t *words = set->raw();
+    uint32_t *words = set->raw();
     for (size_t i = 0; i < count; i++)
         stream.writeUnsigned(words[i]);
 }
