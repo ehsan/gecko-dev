@@ -409,9 +409,6 @@ GLScreenBuffer::Attach(SharedSurface* surface, const gfx::IntSize& size)
         if (!drawOk || !readOk) {
             delete draw;
             delete read;
-
-            surf->UnlockProd();
-
             return false;
         }
 
