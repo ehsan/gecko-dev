@@ -189,6 +189,12 @@ WebGLContext::WebGLContext()
 
     mAlreadyGeneratedWarnings = 0;
     mAlreadyWarnedAboutFakeVertexAttrib0 = false;
+    mMaxWarnings = Preferences::GetInt("webgl.max-warnings-per-context", 32);
+    if (mMaxWarnings < -1)
+    {
+        GenerateWarning("webgl.max-warnings-per-context size is too large (seems like a negative value wrapped)");
+        mMaxWarnings = 0;
+    }
 
     mLastUseIndex = 0;
 
@@ -596,7 +602,7 @@ WebGLContext::Render(gfxContext *ctx, gfxPattern::GraphicsFilter f, uint32_t aFl
     if (surf->CairoStatus() != 0)
         return NS_ERROR_FAILURE;
 
-    gl->ReadPixelsIntoImageSurface(surf);
+    gl->ReadScreenIntoImageSurface(surf);
 
     bool srcPremultAlpha = mOptions.premultipliedAlpha;
     bool dstPremultAlpha = aFlags & RenderFlagPremultAlpha;

@@ -2390,14 +2390,7 @@ class CallbackObjectUnwrapper:
                 ).substitute(self.substitution)
 
         return checkObjectType + string.Template(
-            """nsresult rv;
-XPCCallContext ccx(JS_CALLER, cx);
-if (!ccx.IsValid()) {
-  rv = NS_ERROR_XPC_BAD_CONVERT_JS;
-${codeOnFailure}
-}
-
-nsISupports* supp = nullptr;
+            """nsISupports* supp = nullptr;
 if (XPCConvert::GetISupportsFromJSObject(${source}, &supp)) {
   nsCOMPtr<nsIXPConnectWrappedNative> xpcwn = do_QueryInterface(supp);
   if (xpcwn) {
@@ -2407,8 +2400,8 @@ if (XPCConvert::GetISupportsFromJSObject(${source}, &supp)) {
 
 const nsIID& iid = NS_GET_IID(${nativeType});
 nsRefPtr<nsXPCWrappedJS> wrappedJS;
-rv = nsXPCWrappedJS::GetNewOrUsed(ccx, ${source}, iid,
-                                  supp, getter_AddRefs(wrappedJS));
+nsresult rv = nsXPCWrappedJS::GetNewOrUsed(${source}, iid,
+                                           supp, getter_AddRefs(wrappedJS));
 if (NS_FAILED(rv) || !wrappedJS) {
 ${codeOnFailure}
 }
@@ -5582,7 +5575,7 @@ def getEnumValueName(value):
     if re.match("[^\x20-\x7E]", value):
         raise SyntaxError('Enum value "' + value + '" contains non-ASCII characters')
     if re.match("^[0-9]", value):
-        raise SyntaxError('Enum value "' + value + '" starts with a digit')
+        return '_' + value
     value = re.sub(r'[^0-9A-Za-z_]', '_', value)
     if re.match("^_[A-Z]|__", value):
         raise SyntaxError('Enum value "' + value + '" is reserved by the C++ spec')

@@ -1772,6 +1772,9 @@ pref("layout.css.scope-pseudo.enabled", false);
 pref("layout.css.scope-pseudo.enabled", true);
 #endif
 
+// Is support for CSS vertical text enabled?
+pref("layout.css.vertical-text.enabled", false);
+
 // pref for which side vertical scrollbars should be on
 // 0 = end-side in UI direction
 // 1 = end-side in document/content direction
@@ -3962,6 +3965,7 @@ pref("webgl.default-no-alpha", false);
 pref("webgl.force-layers-readback", false);
 pref("webgl.lose-context-on-heap-minimize", false);
 pref("webgl.can-lose-context-in-foreground", true);
+pref("webgl.max-warnings-per-context", 32);
 
 // Stagefright prefs
 pref("stagefright.force-enabled", false);

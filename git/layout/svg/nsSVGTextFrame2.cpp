@@ -2779,11 +2779,6 @@ SVGTextDrawPathCallbacks::HandleTextGeometry()
 {
   if (mRenderMode != SVGAutoRenderState::NORMAL) {
     // We're in a clip path.
-    if (mFrame->StyleSVG()->mClipRule == NS_STYLE_FILL_RULE_EVENODD)
-      gfx->SetFillRule(gfxContext::FILL_RULE_EVEN_ODD);
-    else
-      gfx->SetFillRule(gfxContext::FILL_RULE_WINDING);
-
     if (mRenderMode == SVGAutoRenderState::CLIP_MASK) {
       gfx->SetColor(gfxRGBA(1.0f, 1.0f, 1.0f, 1.0f));
       gfx->Fill();
@@ -3208,42 +3203,6 @@ nsSVGTextFrame2::MutationObserver::AttributeChanged(
       mFrame->NotifyGlyphMetricsChange();
     }
   }
-}
-
-NS_IMETHODIMP
-nsSVGTextFrame2::Reflow(nsPresContext*           aPresContext,
-                        nsHTMLReflowMetrics&     aDesiredSize,
-                        const nsHTMLReflowState& aReflowState,
-                        nsReflowStatus&          aStatus)
-{
-  NS_ABORT_IF_FALSE(!(GetStateBits() & NS_STATE_SVG_NONDISPLAY_CHILD),
-                    "Should not have been called");
-
-  // Only InvalidateAndScheduleReflowSVG marks us with NS_FRAME_IS_DIRTY,
-  // so if that bit is still set we still have a resize pending. If we hit
-  // this assertion, then we should get the presShell to skip reflow roots
-  // that have a dirty parent since a reflow is going to come via the
-  // reflow root's parent anyway.
-  NS_ASSERTION(!(GetStateBits() & NS_FRAME_IS_DIRTY),
-               "Reflowing while a resize is pending is wasteful");
-
-  // ReflowSVG makes sure mRect is up to date before we're called.
-
-  NS_ASSERTION(!aReflowState.parentReflowState,
-               "should only get reflow from being reflow root");
-  NS_ASSERTION(aReflowState.ComputedWidth() == GetSize().width &&
-               aReflowState.ComputedHeight() == GetSize().height,
-               "reflow roots should be reflowed at existing size and "
-               "svg.css should ensure we have no padding/border/margin");
-
-  DoReflow();
-
-  aDesiredSize.width = aReflowState.ComputedWidth();
-  aDesiredSize.height = aReflowState.ComputedHeight();
-  aDesiredSize.SetOverflowAreasToDesiredBounds();
-  aStatus = NS_FRAME_COMPLETE;
-
-  return NS_OK;
 }
 
 void
@@ -4816,7 +4775,6 @@ nsSVGTextFrame2::ShouldRenderAsPath(nsRenderingContext* aContext,
   // non-1 opacity.
   if (!(style->mFill.mType == eStyleSVGPaintType_None ||
         (style->mFill.mType == eStyleSVGPaintType_Color &&
-         style->mFillRule == NS_STYLE_FILL_RULE_NONZERO &&
          style->mFillOpacity == 1))) {
     return true;
   }
