@@ -58,6 +58,8 @@
 
 #include "nsIGfxInfo.h"
 
+#include "gfxCrashReporterUtils.h"
+
 #ifdef MOZ_FT2_FONTS
 #include "ft2build.h"
 #include FT_FREETYPE_H
@@ -326,6 +328,7 @@ gfxWindowsPlatform::UpdateRenderMode()
     // Enable when it's preffed on -and- we're using Vista or higher. Or when
     // we're going to use D2D.
     if (!mDWriteFactory && (mUseDirectWrite && isVistaOrHigher)) {
+        mozilla::ScopedGfxFeatureReporter reporter("DWrite");
         DWriteCreateFactoryFunc createDWriteFactory = (DWriteCreateFactoryFunc)
             GetProcAddress(LoadLibraryW(L"dwrite.dll"), "DWriteCreateFactory");
 
@@ -342,6 +345,9 @@ gfxWindowsPlatform::UpdateRenderMode()
                 reinterpret_cast<IUnknown**>(&factory));
             mDWriteFactory = factory;
             factory->Release();
+
+            if (hr == S_OK)
+              reporter.SetSuccessful();
         }
     }
 #endif
@@ -359,6 +365,8 @@ gfxWindowsPlatform::VerifyD2DDevice(PRBool aAttemptForce)
         }
         mD2DDevice = nsnull;
     }
+
+    mozilla::ScopedGfxFeatureReporter reporter("D2D");
 
     HMODULE d3d10module = LoadLibraryA("d3d10_1.dll");
     D3D10CreateDevice1Func createD3DDevice = (D3D10CreateDevice1Func)
@@ -405,8 +413,34 @@ gfxWindowsPlatform::VerifyD2DDevice(PRBool aAttemptForce)
     if (!mD2DDevice && aAttemptForce) {
         mD2DDevice = cairo_d2d_create_device();
     }
+
+    if (mD2DDevice)
+        reporter.SetSuccessful();
 #endif
 }
+
+// bug 630201 - older pre-RTM versions of Direct2D/DirectWrite cause odd
+// crashers so blacklist them altogether
+
+#ifdef CAIRO_HAS_DWRITE_FONT
+#define WINDOWS7_RTM_BUILD 7600
+
+static PRBool
+AllowDirectWrite()
+{
+    PRInt32 winVers, buildNum;
+
+    winVers = gfxWindowsPlatform::WindowsOSVersion(&buildNum);
+    if (winVers == gfxWindowsPlatform::kWindows7 &&
+        buildNum < WINDOWS7_RTM_BUILD)
+    {
+        // don't use Direct2D/DirectWrite on older versions of Windows 7
+        return PR_FALSE;
+    }
+
+    return PR_TRUE;
+}
+#endif
 
 gfxPlatformFontList*
 gfxWindowsPlatform::CreatePlatformFontList()
@@ -417,7 +451,7 @@ gfxWindowsPlatform::CreatePlatformFontList()
     pfl = new gfxFT2FontList();
 #else
 #ifdef CAIRO_HAS_DWRITE_FONT
-    if (GetDWriteFactory()) {
+    if (AllowDirectWrite() && GetDWriteFactory()) {
         pfl = new gfxDWriteFontList();
         if (NS_SUCCEEDED(pfl->InitFontList())) {
             return pfl;
@@ -677,9 +711,10 @@ gfxWindowsPlatform::UseClearTypeAlways()
 }
 
 PRInt32
-gfxWindowsPlatform::WindowsOSVersion()
+gfxWindowsPlatform::WindowsOSVersion(PRInt32 *aBuildNum)
 {
     static PRInt32 winVersion = UNINITIALIZED_VALUE;
+    static PRInt32 buildNum = UNINITIALIZED_VALUE;
 
     OSVERSIONINFO vinfo;
 
@@ -687,10 +722,17 @@ gfxWindowsPlatform::WindowsOSVersion()
         vinfo.dwOSVersionInfoSize = sizeof (vinfo);
         if (!GetVersionEx(&vinfo)) {
             winVersion = kWindowsUnknown;
+            buildNum = 0;
         } else {
             winVersion = PRInt32(vinfo.dwMajorVersion << 16) + vinfo.dwMinorVersion;
+            buildNum = PRInt32(vinfo.dwBuildNumber);
         }
     }
+
+    if (aBuildNum) {
+        *aBuildNum = buildNum;
+    }
+
     return winVersion;
 }
 
@@ -793,4 +835,10 @@ gfxWindowsPlatform::FontsPrefsChanged(nsIPrefBranch *aPrefBranch, const char *aP
         }
         gfxTextRunWordCache::Flush();
     }
+}
+
+bool
+gfxWindowsPlatform::IsOptimus()
+{
+  return GetModuleHandleA("nvumdshim.dll");
 }

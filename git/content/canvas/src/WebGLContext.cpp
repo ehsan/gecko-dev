@@ -61,6 +61,8 @@
 
 #include "GLContextProvider.h"
 
+#include "gfxCrashReporterUtils.h"
+
 #ifdef MOZ_SVG
 #include "nsSVGEffects.h"
 #endif
@@ -113,11 +115,17 @@ WebGLContext::WebGLContext()
     mBlackTexturesAreInitialized = PR_FALSE;
     mFakeBlackStatus = DoNotNeedFakeBlack;
 
-    mFakeVertexAttrib0Array = nsnull;
     mVertexAttrib0Vector[0] = 0;
     mVertexAttrib0Vector[1] = 0;
     mVertexAttrib0Vector[2] = 0;
     mVertexAttrib0Vector[3] = 1;
+    mFakeVertexAttrib0BufferObjectVector[0] = 0;
+    mFakeVertexAttrib0BufferObjectVector[1] = 0;
+    mFakeVertexAttrib0BufferObjectVector[2] = 0;
+    mFakeVertexAttrib0BufferObjectVector[3] = 1;
+    mFakeVertexAttrib0BufferObjectSize = 0;
+    mFakeVertexAttrib0BufferObject = 0;
+    mFakeVertexAttrib0BufferStatus = VertexAttrib0Status::Default;
 }
 
 WebGLContext::~WebGLContext()
@@ -221,6 +229,10 @@ WebGLContext::DestroyResourcesAndContext()
         gl->fDeleteTextures(1, &mBlackTexture2D);
         gl->fDeleteTextures(1, &mBlackTextureCubeMap);
         mBlackTexturesAreInitialized = PR_FALSE;
+    }
+
+    if (mFakeVertexAttrib0BufferObject) {
+        gl->fDeleteBuffers(1, &mFakeVertexAttrib0BufferObject);
     }
 
     // We just got rid of everything, so the context had better
@@ -339,6 +351,8 @@ WebGLContext::SetContextOptions(nsIPropertyBag *aOptions)
 NS_IMETHODIMP
 WebGLContext::SetDimensions(PRInt32 width, PRInt32 height)
 {
+    ScopedGfxFeatureReporter reporter("WebGL");
+
     if (mWidth == width && mHeight == height)
         return NS_OK;
 
@@ -463,14 +477,6 @@ WebGLContext::SetDimensions(PRInt32 width, PRInt32 height)
             gl = nsnull;
         }
     }
-
-    // if that failed, and we weren't already preferring EGL, try it now.
-    if (!gl && !(preferEGL || useANGLE)) {
-        gl = gl::GLContextProviderEGL::CreateOffscreen(gfxIntSize(width, height), format);
-        if (gl && !InitAndValidateGL()) {
-            gl = nsnull;
-        }
-    }
 #else
     // other platforms just use whatever the default is
     if (!gl && useOpenGL) {
@@ -525,6 +531,7 @@ WebGLContext::SetDimensions(PRInt32 width, PRInt32 height)
     gl->fClearStencil(0);
     gl->fClear(LOCAL_GL_COLOR_BUFFER_BIT | LOCAL_GL_DEPTH_BUFFER_BIT | LOCAL_GL_STENCIL_BUFFER_BIT);
 
+    reporter.SetSuccessful();
     return NS_OK;
 }
 
@@ -742,6 +749,7 @@ DOMCI_DATA(WebGLRenderingContext, WebGLContext)
 
 NS_INTERFACE_MAP_BEGIN_CYCLE_COLLECTION(WebGLContext)
   NS_INTERFACE_MAP_ENTRY(nsIDOMWebGLRenderingContext)
+  NS_INTERFACE_MAP_ENTRY(nsIDOMWebGLRenderingContext_MOZILLA_2_0_BRANCH)
   NS_INTERFACE_MAP_ENTRY(nsICanvasRenderingContextInternal)
   NS_INTERFACE_MAP_ENTRY(nsISupportsWeakReference)
   NS_INTERFACE_MAP_ENTRY_AMBIGUOUS(nsISupports, nsIDOMWebGLRenderingContext)
@@ -891,5 +899,43 @@ NS_IMETHODIMP
 WebGLActiveInfo::GetName(nsAString & aName)
 {
     aName = mName;
+    return NS_OK;
+}
+
+NS_IMETHODIMP
+WebGLContext::GetSupportedExtensions(nsIVariant **retval)
+{
+    nsCOMPtr<nsIWritableVariant> wrval = do_CreateInstance("@mozilla.org/variant;1");
+    NS_ENSURE_TRUE(wrval, NS_ERROR_FAILURE);
+
+    nsTArray<const char *> extList;
+
+    /* no extensions to add to extList */
+
+    nsresult rv;
+    if (extList.Length() > 0) {
+        rv = wrval->SetAsArray(nsIDataType::VTYPE_CHAR_STR, nsnull,
+                               extList.Length(), &extList[0]);
+    } else {
+        rv = wrval->SetAsEmptyArray();
+    }
+    if (NS_FAILED(rv))
+        return rv;
+
+    *retval = wrval.forget().get();
+    return NS_OK;
+}
+
+NS_IMETHODIMP
+WebGLContext::IsContextLost(WebGLboolean *retval)
+{
+    *retval = PR_FALSE;
+    return NS_OK;
+}
+
+NS_IMETHODIMP
+WebGLContext::GetExtension(const nsAString& aName, nsISupports **retval)
+{
+    *retval = nsnull;
     return NS_OK;
 }

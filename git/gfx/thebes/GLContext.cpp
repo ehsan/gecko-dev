@@ -51,6 +51,8 @@
 #include "GLContext.h"
 #include "GLContextProvider.h"
 
+#include "gfxCrashReporterUtils.h"
+
 namespace mozilla {
 namespace gl {
 
@@ -162,7 +164,10 @@ LibrarySymbolLoader::LoadSymbols(PRLibrary *lib,
 PRBool
 GLContext::InitWithPrefix(const char *prefix, PRBool trygl)
 {
+    ScopedGfxFeatureReporter reporter("GL Context");
+
     if (mInitialized) {
+        reporter.SetSuccessful();
         return PR_TRUE;
     }
 
@@ -396,9 +401,12 @@ GLContext::InitWithPrefix(const char *prefix, PRBool trygl)
         mDebugMode |= DebugAbortOnError;
 #endif
 
-    // if initialization fails, ensure all symbols are zero, to avoid hard-to-understand bugs
-    if (!mInitialized)
-      mSymbols.Zero();
+    if (mInitialized)
+        reporter.SetSuccessful();
+    else {
+        // if initialization fails, ensure all symbols are zero, to avoid hard-to-understand bugs
+        mSymbols.Zero();
+    }
 
     return mInitialized;
 }
@@ -534,7 +542,6 @@ GLContext::CreateTextureImage(const nsIntSize& aSize,
     fTexParameteri(LOCAL_GL_TEXTURE_2D, LOCAL_GL_TEXTURE_MAG_FILTER, texfilter);
     fTexParameteri(LOCAL_GL_TEXTURE_2D, LOCAL_GL_TEXTURE_WRAP_S, aWrapMode);
     fTexParameteri(LOCAL_GL_TEXTURE_2D, LOCAL_GL_TEXTURE_WRAP_T, aWrapMode);
-    DEBUG_GL_ERROR_CHECK(this);
 
     return CreateBasicTextureImage(texture, aSize, aWrapMode, aContentType, this);
 }
@@ -1176,11 +1183,7 @@ GLContext::BlitTextureImage(TextureImage *aSrc, const nsIntRect& aSrcRect,
 
     SetBlitFramebufferForDestTexture(aDst->Texture());
 
-    DEBUG_GL_ERROR_CHECK(this);
-
     UseBlitProgram();
-
-    DEBUG_GL_ERROR_CHECK(this);
 
     nsIntSize srcSize = aSrc->GetSize();
     nsIntSize dstSize = aDst->GetSize();
@@ -1225,11 +1228,7 @@ GLContext::BlitTextureImage(TextureImage *aSrc, const nsIntRect& aSrcRect,
     fEnableVertexAttribArray(0);
     fEnableVertexAttribArray(1);
 
-    DEBUG_GL_ERROR_CHECK(this);
-
     fDrawArrays(LOCAL_GL_TRIANGLES, 0, rects.numRects * 6);
-
-    DEBUG_GL_ERROR_CHECK(this);
 
     fDisableVertexAttribArray(0);
     fDisableVertexAttribArray(1);

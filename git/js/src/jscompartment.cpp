@@ -71,7 +71,7 @@ JSCompartment::JSCompartment(JSRuntime *rt)
 #ifdef JS_METHODJIT
     jaegerCompartment(NULL),
 #endif
-    propertyTree(this),
+    propertyTree(thisForCtor()),
     debugMode(rt->debugMode),
 #if ENABLE_YARR_JIT
     regExpAllocator(NULL),
@@ -463,12 +463,12 @@ JSCompartment::mark(JSTracer *trc)
 {
     if (IS_GC_MARKING_TRACER(trc)) {
         JSRuntime *rt = trc->context->runtime;
-        if (rt->gcCurrentCompartment != NULL && rt->gcCurrentCompartment != this)
+
+        if (rt->gcCurrentCompartment && rt->gcCurrentCompartment != this)
             return;
-        
+
         if (marked)
             return;
-        
         marked = true;
     }
 

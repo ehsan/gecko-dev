@@ -899,8 +899,9 @@ var AddonRepository = {
       let localName = node.localName;
 
       // Handle case where the wanted string value is located in text content
+      // but only if the content is not empty
       if (localName in STRING_KEY_MAP) {
-        addon[STRING_KEY_MAP[localName]] = this._getTextContent(node);
+        addon[STRING_KEY_MAP[localName]] = this._getTextContent(node) || addon[STRING_KEY_MAP[localName]];
         continue;
       }
 
@@ -1064,12 +1065,6 @@ var AddonRepository = {
     for (let i = 0; i < aElements.length && results.length < this._maxResults; i++) {
       let element = aElements[i];
 
-      // Ignore sandboxed add-ons
-      let status = this._getUniqueDescendant(element, "status");
-      // The status element has a unique id for each status type. 4 is Public.
-      if (status == null || status.getAttribute("id") != 4)
-        continue;
-
       // Ignore add-ons not compatible with this Application
       let tags = this._getUniqueDescendant(element, "compatible_applications");
       if (tags == null)
@@ -1162,6 +1157,7 @@ var AddonRepository = {
 
     this._request = Cc["@mozilla.org/xmlextras/xmlhttprequest;1"].
                     createInstance(Ci.nsIXMLHttpRequest);
+    this._request.mozBackgroundRequest = true;
     this._request.open("GET", aURI, true);
     this._request.overrideMimeType("text/xml");
 

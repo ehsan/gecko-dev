@@ -232,7 +232,7 @@ public:
         kWindows7 = 0x60001
     };
 
-    static PRInt32 WindowsOSVersion();
+    static PRInt32 WindowsOSVersion(PRInt32 *aBuildNum = nsnull);
 
     static void GetDLLVersion(const PRUnichar *aDLLPath, nsAString& aVersion);
 
@@ -254,6 +254,8 @@ public:
 #ifdef MOZ_FT2_FONTS
     FT_Library GetFTLibrary();
 #endif
+
+    static bool IsOptimus();
 
 protected:
     RenderMode mRenderMode;

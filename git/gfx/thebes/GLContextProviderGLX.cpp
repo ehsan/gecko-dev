@@ -60,6 +60,8 @@
 #include "gfxPlatform.h"
 #include "GLContext.h"
 
+#include "gfxCrashReporterUtils.h"
+
 namespace mozilla {
 namespace gl {
 
@@ -96,11 +98,17 @@ GLXLibrary::EnsureInitialized()
     mTriedInitializing = PR_TRUE;
 
     if (!mOGLLibrary) {
-        mOGLLibrary = PR_LoadLibrary("libGL.so.1");
+        // see e.g. bug 608526: it is intrinsically interesting to know whether we have dynamically linked to libGL.so.1
+        // because at least the NVIDIA implementation requires an executable stack, which causes mprotect calls,
+        // which trigger glibc bug http://sourceware.org/bugzilla/show_bug.cgi?id=12225
+        const char *libGLfilename = "libGL.so.1";
+        ScopedGfxFeatureReporter reporter(libGLfilename);
+        mOGLLibrary = PR_LoadLibrary(libGLfilename);
         if (!mOGLLibrary) {
-	    NS_WARNING("Couldn't load OpenGL shared library.");
-	    return PR_FALSE;
+            NS_WARNING("Couldn't load OpenGL shared library.");
+            return PR_FALSE;
         }
+        reporter.SetSuccessful();
     }
 
     LibrarySymbolLoader::SymLoadStruct symbols[] = {
@@ -183,12 +191,16 @@ GLXLibrary::EnsureInitialized()
         vendor = xQueryServerString(display, screen, GLX_VENDOR);
         serverVersionStr = xQueryServerString(display, screen, GLX_VERSION);
 
-        if (strcmp(vendor, "NVIDIA Corporation") &&
+        PRBool IsDriverBlacklisted = !vendor ||   // it's been reported that a VNC X server was returning vendor=null
+                                     !serverVersionStr ||
+                                     strcmp(vendor, "NVIDIA Corporation");
+
+        if (IsDriverBlacklisted &&
             !PR_GetEnv("MOZ_GLX_IGNORE_BLACKLIST"))
         {
           printf("[GLX] your GL driver is currently blocked. If you would like to bypass this, "
                   "define the MOZ_GLX_IGNORE_BLACKLIST environment variable.\n");
-          return nsnull;
+          return PR_FALSE;
         }
 
         if (!GLXVersionCheck(1, 1))

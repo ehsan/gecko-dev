@@ -823,6 +823,7 @@ pref("network.IDN.whitelist.sh", true);
 pref("network.IDN.whitelist.th", true);
 pref("network.IDN.whitelist.tm", true);
 pref("network.IDN.whitelist.tw", true);
+pref("network.IDN.whitelist.ua", true);
 pref("network.IDN.whitelist.vn", true);
 
 // IDN ccTLDs
@@ -831,6 +832,8 @@ pref("network.IDN.whitelist.xn--mgbaam7a8h", true);
 // cn, China, .<China> with variants
 pref("network.IDN.whitelist.xn--fiqz9s", true); // Traditional
 pref("network.IDN.whitelist.xn--fiqs8s", true); // Simplified
+// eg, Egypt, .<Masr>
+pref("network.IDN.whitelist.xn--wgbh1c", true);
 // hk, Hong Kong, .<Hong Kong>
 pref("network.IDN.whitelist.xn--j6w193g", true);
 // ir, Iran, <.Iran> with variants
@@ -2617,7 +2620,7 @@ pref("font.name.sans-serif.he", "Droid Sans");
 pref("font.name.monospace.he", "Droid Sans Mono");
 
 pref("font.name.serif.ja", "Droid Serif");
-pref("font.name.sans-serif.ja", "Droid Sans");
+pref("font.name.sans-serif.ja", "Droid Sans Japanese");
 pref("font.name.monospace.ja", "Droid Sans Mono");
 
 pref("font.name.serif.ko", "Droid Serif");
@@ -3256,7 +3259,7 @@ pref("geo.enabled", true);
 pref("accelerometer.enabled", true);
 
 // Enable/Disable HTML5 parser
-pref("html5.enable", true);
+pref("html5.parser.enable", true);
 // Toggle which thread the HTML5 parser uses for stream parsing
 pref("html5.offmainthread", true);
 // Time in milliseconds between the time a network buffer is seen and the 

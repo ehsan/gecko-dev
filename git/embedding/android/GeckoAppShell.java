@@ -44,6 +44,7 @@ import java.nio.channels.*;
 import java.text.*;
 import java.util.*;
 import java.util.zip.*;
+import java.util.concurrent.*;
 
 import android.os.*;
 import android.app.*;
@@ -57,13 +58,14 @@ import android.graphics.*;
 import android.widget.*;
 import android.hardware.*;
 import android.location.*;
+import android.webkit.MimeTypeMap;
 
 import android.util.*;
 import android.net.Uri;
 import android.net.ConnectivityManager;
 import android.net.NetworkInfo;
 
-class GeckoAppShell
+public class GeckoAppShell
 {
     // static members only
     private GeckoAppShell() { }
@@ -75,7 +77,7 @@ class GeckoAppShell
 
     static private final Timer mIMETimer = new Timer();
     static private final HashMap<Integer, AlertNotification>
-         mAlertNotifications = new HashMap<Integer, AlertNotification>();
+        mAlertNotifications = new HashMap<Integer, AlertNotification>();
 
     static private final int NOTIFY_IME_RESETINPUTSTATE = 0;
     static private final int NOTIFY_IME_SETOPENSTATE = 1;
@@ -103,6 +105,34 @@ class GeckoAppShell
     public static native void loadLibs(String apkName, boolean shouldExtract);
     public static native void onChangeNetworkLinkStatus(String status);
 
+    // A looper thread, accessed by GeckoAppShell.getHandler
+    private static class LooperThread extends Thread {
+        public SynchronousQueue<Handler> mHandlerQueue =
+            new SynchronousQueue<Handler>();
+        
+        public void run() {
+            Looper.prepare();
+            try {
+                mHandlerQueue.put(new Handler());
+            } catch (InterruptedException ie) {}
+            Looper.loop();
+        }
+    }
+
+    private static Handler sHandler = null;
+
+    // Get a Handler for a looper thread, or create one if it doesn't exist yet
+    public static Handler getHandler() {
+        if (sHandler == null) {
+            LooperThread lt = new LooperThread();
+            lt.start();
+            try {
+                sHandler = lt.mHandlerQueue.take();
+            } catch (InterruptedException ie) {}
+        }
+        return sHandler;
+    }
+
     public static File getCacheDir() {
         if (sCacheFile == null)
             sCacheFile = GeckoApp.mAppContext.getCacheDir();
@@ -115,7 +145,7 @@ class GeckoAppShell
                 File cacheDir = getCacheDir();
                 if (cacheDir != null) {
                     StatFs cacheStats = new StatFs(cacheDir.getPath());
-                    sFreeSpace = cacheStats.getFreeBlocks() * 
+                    sFreeSpace = cacheStats.getFreeBlocks() *
                         cacheStats.getBlockSize();
                 } else {
                     Log.i("GeckoAppShell", "Unable to get cache dir");
@@ -149,7 +179,7 @@ class GeckoAppShell
             inChannel.close();
             outChannel.close();
             outFile.setLastModified(lastModified);
-            
+
             if (transferred == size)
                 inFile.delete();
             else
@@ -186,7 +216,7 @@ class GeckoAppShell
                 if (file.isDirectory())
                     retVal = moveDir(file, dest) ? retVal : false;
                 else
-                retVal = moveFile(file, dest) ? retVal : false;
+                    retVal = moveFile(file, dest) ? retVal : false;
             }
             from.delete();
         } catch(Exception e) {
@@ -334,13 +364,18 @@ class GeckoAppShell
             }
         } catch (NoSuchElementException e) {}
     }
- 
+
     public static void sendEventToGecko(GeckoEvent e) {
         if (GeckoApp.checkLaunchState(GeckoApp.LaunchState.GeckoRunning)) {
             notifyGeckoOfEvent(e);
         } else {
             gPendingEvents.addLast(e);
         }
+    }
+
+    public static void sendEventToGeckoSync(GeckoEvent e) {
+        sendEventToGecko(e);
+        geckoEventSync();
     }
 
     // Tell the Gecko event loop that an event is available.
@@ -395,7 +430,7 @@ class GeckoAppShell
                 instance = null;
             }
 
-            InputMethodManager imm = (InputMethodManager) 
+            InputMethodManager imm = (InputMethodManager)
                 GeckoApp.surfaceView.getContext().getSystemService(
                     Context.INPUT_METHOD_SERVICE);
             if (imm == null)
@@ -408,7 +443,7 @@ class GeckoAppShell
                 return;
 
             if (GeckoApp.surfaceView.mIMEState !=
-                    GeckoSurfaceView.IME_STATE_DISABLED)
+                GeckoSurfaceView.IME_STATE_DISABLED)
                 imm.showSoftInput(GeckoApp.surfaceView, 0);
             else
                 imm.hideSoftInputFromWindow(
@@ -422,8 +457,24 @@ class GeckoAppShell
 
         switch (type) {
         case NOTIFY_IME_RESETINPUTSTATE:
-            GeckoApp.surfaceView.inputConnection.finishComposingText();
-            IMEStateUpdater.resetIME();
+            // Composition event is already fired from widget.
+            // So reset IME flags.
+            GeckoApp.surfaceView.inputConnection.reset();
+            
+            // Don't use IMEStateUpdater for reset.
+            // Because IME may not work showSoftInput()
+            // after calling restartInput() immediately.
+            // So we have to call showSoftInput() delay.
+            InputMethodManager imm = (InputMethodManager) 
+                GeckoApp.surfaceView.getContext().getSystemService(
+                    Context.INPUT_METHOD_SERVICE);
+            if (imm == null) {
+                // no way to reset IME status directly
+                IMEStateUpdater.resetIME();
+            } else {
+                imm.restartInput(GeckoApp.surfaceView);
+            }
+
             // keep current enabled state
             IMEStateUpdater.enableIME();
             break;
@@ -433,19 +484,18 @@ class GeckoAppShell
             break;
 
         case NOTIFY_IME_FOCUSCHANGE:
-            GeckoApp.surfaceView.mIMEFocus = state != 0;
             IMEStateUpdater.resetIME();
             break;
         }
     }
 
-    public static void notifyIMEEnabled(int state, String typeHint, 
+    public static void notifyIMEEnabled(int state, String typeHint,
                                         String actionHint) {
         if (GeckoApp.surfaceView == null)
             return;
 
         /* When IME is 'disabled', IME processing is disabled.
-            In addition, the IME UI is hidden */
+           In addition, the IME UI is hidden */
         GeckoApp.surfaceView.mIMEState = state;
         GeckoApp.surfaceView.mIMETypeHint = typeHint;
         GeckoApp.surfaceView.mIMEActionHint = actionHint;
@@ -457,7 +507,7 @@ class GeckoAppShell
             GeckoApp.surfaceView.inputConnection == null)
             return;
 
-        InputMethodManager imm = (InputMethodManager) 
+        InputMethodManager imm = (InputMethodManager)
             GeckoApp.surfaceView.getContext().getSystemService(
                 Context.INPUT_METHOD_SERVICE);
         if (imm == null)
@@ -471,8 +521,30 @@ class GeckoAppShell
                 imm, text, start, end, newEnd);
     }
 
+    private static CountDownLatch sGeckoPendingAcks = null;
+
+    // Block the current thread until the Gecko event loop is caught up
+    synchronized public static void geckoEventSync() {
+        sGeckoPendingAcks = new CountDownLatch(1);
+        GeckoAppShell.sendEventToGecko(
+            new GeckoEvent(GeckoEvent.GECKO_EVENT_SYNC));
+        while (sGeckoPendingAcks.getCount() != 0) {
+            try {
+                sGeckoPendingAcks.await();
+            } catch (InterruptedException e) {}
+        }
+        sGeckoPendingAcks = null;
+    }
+
+    // Signal the Java thread that it's time to wake up
+    public static void acknowledgeEventSync() {
+        CountDownLatch tmp = sGeckoPendingAcks;
+        if (tmp != null)
+            tmp.countDown();
+    }
+
     public static void enableAccelerometer(boolean enable) {
-        SensorManager sm = (SensorManager) 
+        SensorManager sm = (SensorManager)
             GeckoApp.surfaceView.getContext().getSystemService(Context.SENSOR_SERVICE);
 
         if (enable) {
@@ -541,9 +613,9 @@ class GeckoAppShell
     }
     static void scheduleRestart() {
         Log.i("GeckoAppJava", "scheduling restart");
-        gRestartScheduled = true;        
+        gRestartScheduled = true;
     }
- 
+
     // "Installs" an application by creating a shortcut
     static void installWebApplication(String aURI, String aTitle, String aIconData) {
         Log.w("GeckoAppJava", "installWebApplication for " + aURI + " [" + aTitle + "]");
@@ -553,7 +625,7 @@ class GeckoAppShell
         shortcutIntent.setClassName(GeckoApp.mAppContext,
                                     GeckoApp.mAppContext.getPackageName() + ".App");
         shortcutIntent.putExtra("args", "--webapp=" + aURI);
-        
+
         Intent intent = new Intent();
         intent.putExtra(Intent.EXTRA_SHORTCUT_INTENT, shortcutIntent);
         intent.putExtra(Intent.EXTRA_SHORTCUT_NAME, aTitle);
@@ -563,7 +635,7 @@ class GeckoAppShell
         intent.setAction("com.android.launcher.action.INSTALL_SHORTCUT");
         GeckoApp.mAppContext.sendBroadcast(intent);
     }
-    
+
     static String[] getHandlersForMimeType(String aMimeType, String aAction) {
         Intent intent = getIntentForActionString(aAction);
         if (aMimeType != null && aMimeType.length() > 0)
@@ -580,7 +652,7 @@ class GeckoAppShell
     }
 
     static String[] getHandlersForIntent(Intent intent) {
-        PackageManager pm = 
+        PackageManager pm =
             GeckoApp.surfaceView.getContext().getPackageManager();
         List<ResolveInfo> list = pm.queryIntentActivities(intent, 0);
         int numAttr = 4;
@@ -606,9 +678,12 @@ class GeckoAppShell
             return new Intent(Intent.ACTION_VIEW);
     }
 
+    static String getExtensionFromMimeType(String aMimeType) {
+        return MimeTypeMap.getSingleton().getExtensionFromMimeType(aMimeType);
+    }
+
     static String getMimeTypeFromExtensions(String aFileExt) {
-        android.webkit.MimeTypeMap mtm =
-            android.webkit.MimeTypeMap.getSingleton();
+        MimeTypeMap mtm = MimeTypeMap.getSingleton();
         StringTokenizer st = new StringTokenizer(aFileExt, "., ");
         String type = null;
         String subType = null;
@@ -632,7 +707,7 @@ class GeckoAppShell
         return type + "/" + subType;
     }
 
-    static boolean openUriExternal(String aUriSpec, String aMimeType, String aPackageName, 
+    static boolean openUriExternal(String aUriSpec, String aMimeType, String aPackageName,
                                    String aClassName, String aAction, String aTitle) {
         Intent intent = getIntentForActionString(aAction);
         if (aAction.equalsIgnoreCase(Intent.ACTION_SEND)) {
@@ -657,20 +732,38 @@ class GeckoAppShell
         }
     }
 
+    static SynchronousQueue<String> sClipboardQueue =
+        new SynchronousQueue<String>();
+
+    // On some devices, access to the clipboard service needs to happen
+    // on a thread with a looper, so dispatch this to our looper thread
+    // Note: the main looper won't work because it may be blocked on the
+    // gecko thread, which is most likely this thread
     static String getClipboardText() {
-        Context context = GeckoApp.surfaceView.getContext();
-        ClipboardManager cm = (ClipboardManager)
-            context.getSystemService(Context.CLIPBOARD_SERVICE);
-        if (!cm.hasText())
-            return null;
-        return cm.getText().toString();
+        getHandler().post(new Runnable() { 
+            public void run() {
+                Context context = GeckoApp.surfaceView.getContext();
+                ClipboardManager cm = (ClipboardManager)
+                    context.getSystemService(Context.CLIPBOARD_SERVICE);
+                try {
+                    sClipboardQueue.put(cm.hasText() ?
+                                        cm.getText().toString() : null);
+                } catch (InterruptedException ie) {}
+            }});
+        try {
+            return sClipboardQueue.take();
+        } catch (InterruptedException ie) {}
+        return null;
     }
 
-    static void setClipboardText(String text) {
-        Context context = GeckoApp.surfaceView.getContext();
-        ClipboardManager cm = (ClipboardManager)
-            context.getSystemService(Context.CLIPBOARD_SERVICE);
-        cm.setText(text);
+    static void setClipboardText(final String text) {
+        getHandler().post(new Runnable() { 
+            public void run() {
+                Context context = GeckoApp.surfaceView.getContext();
+                ClipboardManager cm = (ClipboardManager)
+                    context.getSystemService(Context.CLIPBOARD_SERVICE);
+                cm.setText(text);
+            }});
     }
 
     public static void showAlertNotification(String aImageUrl, String aAlertTitle, String aAlertText,
@@ -781,7 +874,7 @@ class GeckoAppShell
         mAlertNotifications.remove(notificationID);
 
         NotificationManager notificationManager = (NotificationManager)
-           GeckoApp.mAppContext.getSystemService(Context.NOTIFICATION_SERVICE);
+            GeckoApp.mAppContext.getSystemService(Context.NOTIFICATION_SERVICE);
         notificationManager.cancel(notificationID);
     }
 
@@ -814,7 +907,7 @@ class GeckoAppShell
 
     public static void showInputMethodPicker() {
         InputMethodManager imm = (InputMethodManager) GeckoApp.surfaceView.getContext().getSystemService(Context.INPUT_METHOD_SERVICE);
-        imm.showInputMethodPicker();       
+        imm.showInputMethodPicker();
     }
 
     public static void hideProgressDialog() {
@@ -844,5 +937,71 @@ class GeckoAppShell
         if (cm.getActiveNetworkInfo() == null)
             return false;
         return true;
+    }
+
+    public static void setSelectedLocale(String localeCode) {
+        SharedPreferences settings =
+            GeckoApp.mAppContext.getPreferences(Activity.MODE_PRIVATE);
+        settings.edit().putString(GeckoApp.mAppContext.getPackageName() + ".locale",
+                                  localeCode).commit();
+        Locale locale;
+        int index;
+        if ((index = localeCode.indexOf('-')) != -1 ||
+            (index = localeCode.indexOf('_')) != -1) {
+            String langCode = localeCode.substring(0, index);
+            String countryCode = localeCode.substring(index + 1);
+            locale = new Locale(langCode, countryCode);
+        } else {
+            locale = new Locale(localeCode);
+        }
+        Locale.setDefault(locale);
+
+        Resources res = GeckoApp.mAppContext.getBaseContext().getResources();
+        Configuration config = res.getConfiguration();
+        config.locale = locale;
+        res.updateConfiguration(config, res.getDisplayMetrics());
+    }
+
+    public static void killAnyZombies() {
+        File proc = new File("/proc");
+        File[] files = proc.listFiles();
+        for (int i = 0; i < files.length; i++) {
+            File p = files[i];
+            File pEnv = new File(p, "environ");
+            if (pEnv.canRead() && !p.getName().equals("self")) {
+                int pid = Integer.parseInt(p.getName());
+                if (pid != android.os.Process.myPid()) {
+                    Log.i("GeckoProcs", "gonna kill pid: " + p.getName());
+                    android.os.Process.killProcess(pid);
+                }
+            }
+        }
+    }
+
+    public static boolean checkForGeckoProcs() {
+        File proc = new File("/proc");
+        File[] files = proc.listFiles();
+        for (int i = 0; i < files.length; i++) {
+            File p = files[i];
+            File pEnv = new File(p, "environ");
+            if (pEnv.canRead() && !p.getName().equals("self")) {
+                int pid = Integer.parseInt(p.getName());
+                if (pid != android.os.Process.myPid()) {
+                    Log.i("GeckoProcs", "found pid: " + p.getName());
+                    return true;
+                }
+            }
+        }
+        Log.i("GeckoProcs", "didn't find any other procs");
+        return false;
+    }
+
+    public static void waitForAnotherGeckoProc(){
+        int countdown = 40;
+        while (!checkForGeckoProcs() &&  --countdown > 0) {
+            try {
+                Thread.currentThread().sleep(100);
+            } catch (InterruptedException ie) {}
+        }
     }
 }
