@@ -1,3 +1,4 @@
+/* vim: set shiftwidth=2 tabstop=8 autoindent cindent expandtab: */
 /* ***** BEGIN LICENSE BLOCK *****
  * Version: MPL 1.1/GPL 2.0/LGPL 2.1
  *
@@ -11,15 +12,14 @@
  * for the specific language governing rights and limitations under the
  * License.
  *
- * The Original Code is mozilla.org code.
+ * The Original Code is nsDOMTransitionEvent.
  *
- * The Initial Developer of the Original Code is
- * Netscape Communications Corporation.
- * Portions created by the Initial Developer are Copyright (C) 2002
+ * The Initial Developer of the Original Code is the Mozilla Foundation.
+ * Portions created by the Initial Developer are Copyright (C) 2009
  * the Initial Developer. All Rights Reserved.
  *
  * Contributor(s):
- *  Brian Ryner <bryner@brianryner.com>
+ *   L. David Baron <dbaron@dbaron.org>, Mozilla Corporation (original author)
  *
  * Alternatively, the contents of this file may be used under the terms of
  * either the GNU General Public License Version 2 or later (the "GPL"), or
@@ -34,14 +34,33 @@
  * the terms of any one of the MPL, the GPL or the LGPL.
  *
  * ***** END LICENSE BLOCK ***** */
+#ifndef nsDOMAnimationEvent_h_
+#define nsDOMAnimationEvent_h_
 
-/* This file contains skin-specific rules for HTML form controls */
+#include "nsDOMEvent.h"
+#include "nsIDOMAnimationEvent.h"
+#include "nsString.h"
 
-/* xbl-forms.css contains the XBL bindings common to all skins */
-@import url("chrome://forms/content/xbl-forms.css");
+class nsAnimationEvent;
 
-@import url("chrome://forms/skin/select.css");
-@import url("chrome://forms/skin/select-dropdown.css");
-@import url("chrome://forms/skin/checkbox.css");
-@import url("chrome://forms/skin/button.css");
-@import url("chrome://forms/skin/radio.css");
+class nsDOMAnimationEvent : public nsDOMEvent,
+                            public nsIDOMAnimationEvent
+{
+public:
+  nsDOMAnimationEvent(nsPresContext *aPresContext,
+                      nsAnimationEvent *aEvent);
+  ~nsDOMAnimationEvent();
+
+  NS_DECL_ISUPPORTS_INHERITED
+  NS_FORWARD_TO_NSDOMEVENT
+  NS_DECL_NSIDOMANIMATIONEVENT
+
+private:
+  nsAnimationEvent* AnimationEvent() {
+    NS_ABORT_IF_FALSE(mEvent->eventStructType == NS_ANIMATION_EVENT,
+                      "unexpected struct type");
+    return static_cast<nsAnimationEvent*>(mEvent);
+  }
+};
+
+#endif /* !defined(nsDOMAnimationEvent_h_) */
